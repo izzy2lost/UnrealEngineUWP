@@ -100,7 +100,7 @@ static void CommonStampDeferredDebugProbeDrawCall(
 {
 	PassParameters->ViewUniformBuffer = View.ViewUniformBuffer;
 	PassParameters->MaterialTextureArrayUAV = View.SubstrateViewData.SceneData->MaterialTextureArrayUAVWithoutRTs;
-	PassParameters->MaxBytesPerPixel = View.SubstrateViewData.SceneData->MaxBytesPerPixel;
+	PassParameters->MaxBytesPerPixel = View.SubstrateViewData.SceneData->EffectiveMaxBytesPerPixel;
 	PassParameters->bRoughDiffuse = View.SubstrateViewData.SceneData->bRoughDiffuse ? 1 : 0;
 	PassParameters->DebugProbesMode = View.Family->EngineShowFlags.VisualizeLightingOnProbes ? 3 : FMath::Clamp(CVarVisualizeLightingOnProbes.GetValueOnRenderThread(), 0, 3);
 		

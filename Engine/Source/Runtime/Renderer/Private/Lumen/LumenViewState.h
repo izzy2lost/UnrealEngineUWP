@@ -56,7 +56,6 @@ public:
 	FIntPoint HistorySceneTexturesExtent;
 	FIntPoint HistoryEffectiveResolution;
 	uint32 HistorySubstrateMaxClosureCount;
-	uint32 HistorySubstrateLayerCount;
 
 	FScreenProbeGatherTemporalState()
 	{
@@ -67,7 +66,6 @@ public:
 		HistorySceneTexturesExtent = FIntPoint(0,0);
 		HistoryEffectiveResolution = FIntPoint(0,0);
 		HistorySubstrateMaxClosureCount = 0;
-		HistorySubstrateLayerCount = 0;
 	}
 
 	void SafeRelease()
@@ -193,7 +191,6 @@ public:
 	FIntPoint HistorySceneTexturesExtent;
 	FIntPoint HistoryEffectiveResolution;
 	uint32 HistorySubstrateMaxClosureCount;
-	uint32 HistorySubstrateLayerCount;
 
 	TRefCountPtr<IPooledRenderTarget> SpecularIndirectHistoryRT;
 	TRefCountPtr<IPooledRenderTarget> NumFramesAccumulatedRT;
@@ -209,7 +206,6 @@ public:
 		HistorySceneTexturesExtent = FIntPoint(0,0);
 		HistoryEffectiveResolution = FIntPoint(0,0);
 		HistorySubstrateMaxClosureCount = 0;
-		HistorySubstrateLayerCount = 0;
 	}
 
 	void SafeRelease()

@@ -126,8 +126,8 @@ FLumenScreenSpaceBentNormalParameters ComputeScreenSpaceShortRangeAO(
 
 	// When Substrate is enabled, increase the resolution for multi-layer tile overflowing (tile containing multi-BSDF data)
 	FIntPoint BentNormalResolution = Substrate::GetSubstrateTextureResolution(View, View.GetSceneTexturesConfig().Extent);
-	const uint32 LayerCount = Substrate::GetSubstrateTextureLayerCount(View);
-	FRDGTextureDesc ScreenBentNormalDesc(FRDGTextureDesc::Create2DArray(BentNormalResolution, PF_A2B10G10R10, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV, LayerCount));
+	const uint32 ClosureCount = Substrate::GetSubstrateMaxClosureCount(View);
+	FRDGTextureDesc ScreenBentNormalDesc(FRDGTextureDesc::Create2DArray(BentNormalResolution, PF_A2B10G10R10, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV, ClosureCount));
 	FRDGTextureRef ScreenBentNormal = GraphBuilder.CreateTexture(ScreenBentNormalDesc, TEXT("Lumen.ScreenProbeGather.ScreenBentNormal"));
 
 	int32 NumPixelRays = 4;

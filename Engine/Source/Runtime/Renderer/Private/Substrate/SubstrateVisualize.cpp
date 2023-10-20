@@ -121,10 +121,12 @@ class FSubstrateSystemInfoCS : public FGlobalShader
 		SHADER_PARAMETER(uint32, bRoughRefraction)
 		SHADER_PARAMETER(uint32, bUseClosureCountFromMaterialData)
 		SHADER_PARAMETER(uint32, ProjectMaxBytesPerPixel)
+		SHADER_PARAMETER(uint32, ProjectMaxClosurePerPixel)
 		SHADER_PARAMETER(uint32, ViewsMaxBytesPerPixel)
+		SHADER_PARAMETER(uint32, ViewsMaxClosurePerPixel)
 		SHADER_PARAMETER(uint32, MaterialBufferAllocationInBytes)
 		SHADER_PARAMETER(uint32, MaterialBufferAllocationMode)
-		SHADER_PARAMETER(uint32, LayerCount)
+		SHADER_PARAMETER(uint32, MaxClosureCount)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, ClassificationTileDrawIndirectBuffer)
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, ViewUniformBuffer)
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSubstrateGlobalUniformParameters, Substrate)
@@ -275,7 +277,6 @@ static void AddVisualizeMaterialCountPasses(FRDGBuilder & GraphBuilder, const FV
 	FPixelShaderUtils::AddFullscreenPass<FVisualizeMaterialCountPS>(GraphBuilder, View.ShaderMap, RDG_EVENT_NAME("Substrate::VisualizeMaterial(Draw)"), PixelShader, PassParameters, ScreenPassSceneColor.ViewRect, PreMultipliedColorTransmittanceBlend);
 }
 
-uint32 GetSubstrateTextureLayerCount(const FViewInfo& View);
 bool IsClassificationAsync();
 bool SupportsCMask(const FStaticShaderPlatform InPlatform);
 bool UsesSubstrateClosureCountFromMaterialData();
@@ -298,7 +299,7 @@ static void AddVisualizeSystemInfoPasses(FRDGBuilder& GraphBuilder, const FViewI
 	PassParameters->ClassificationCMask = SupportsCMask(View.GetShaderPlatform()) ? 1 : 0;
 	PassParameters->ClassificationAsync = IsClassificationAsync() ? 1 : 0;
 	PassParameters->Classification8bits = Is8bitTileCoordEnabled() ? 1 : 0;
-	PassParameters->LayerCount = GetSubstrateTextureLayerCount(View);
+	PassParameters->MaxClosureCount = GetSubstrateMaxClosureCount(View);
 	PassParameters->bUseClosureCountFromMaterialData = UsesSubstrateClosureCountFromMaterialData() ? 1 : 0;
 	PassParameters->bRoughRefraction = IsOpaqueRoughRefractionEnabled() ? 1 : 0;
 	PassParameters->ClassificationTileDrawIndirectBuffer = GraphBuilder.CreateSRV(View.SubstrateViewData.ClassificationTileDrawIndirectBuffer, PF_R32_UINT);
@@ -306,7 +307,9 @@ static void AddVisualizeSystemInfoPasses(FRDGBuilder& GraphBuilder, const FViewI
 	PassParameters->Substrate = Substrate::BindSubstrateGlobalUniformParameters(View);
 	PassParameters->SceneTextures = GetSceneTextureParameters(GraphBuilder, View);
 	PassParameters->ProjectMaxBytesPerPixel = GetBytePerPixel(View.GetShaderPlatform());
+	PassParameters->ProjectMaxClosurePerPixel = GetClosurePerPixel(View.GetShaderPlatform());
 	PassParameters->ViewsMaxBytesPerPixel = View.SubstrateViewData.SceneData->ViewsMaxBytesPerPixel;
+	PassParameters->ViewsMaxClosurePerPixel = View.SubstrateViewData.SceneData->ViewsMaxClosurePerPixel;
 	PassParameters->MaterialBufferAllocationMode = GetMaterialBufferAllocationMode();
 	PassParameters->MaterialBufferAllocationInBytes = MaterialBufferDesc.Extent.X * MaterialBufferDesc.Extent.Y * MaterialBufferDesc.ArraySize * sizeof(uint32);
 	ShaderPrint::SetParameters(GraphBuilder, View.ShaderPrintData, PassParameters->ShaderPrintParameters);

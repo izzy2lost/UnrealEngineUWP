@@ -1537,11 +1537,13 @@ uint Classification8bits;
 uint bRoughRefraction;
 uint bUseClosureCountFromMaterialData;
 uint ViewsMaxBytesPerPixel;
+uint ViewsMaxClosurePerPixel;
 uint ProjectMaxBytesPerPixel;
+uint ProjectMaxClosurePerPixel;
 uint MaterialBufferAllocationInBytes;
 uint MaterialBufferAllocationMode;
 
-uint LayerCount;
+uint MaxClosureCount;
 Buffer<uint> ClassificationTileDrawIndirectBuffer;
 
 uint GetTileCount(uint InType)
@@ -1560,11 +1562,15 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 		FFontColor ValueColor  = FontOrange;
 		FShaderPrintContext Context = InitShaderPrintContext(true, uint2(50, 50));
 
+		FFontColor SubTitleColor= FontYellow;
+		SubTitleColor.Color *= 0.7f;
+
 		// General
 		Print(Context, TEXT("General"), TitleColor);
 		Newline(Context);
 
-		Print(Context, TEXT(" Max byte per pixel : "), LegendColor); 
+		Print(Context, TEXT(" Byte Per Pixel"), SubTitleColor); Newline(Context);
+		Print(Context, TEXT(" Max   : "), LegendColor); 
 		Print(Context, Substrate.MaxBytesPerPixel, ValueColor, 3, 0);
 		Print(Context, TEXT(" / "), FontWhite); 
 		Print(Context, ProjectMaxBytesPerPixel, ValueColor, 3, 0);
@@ -1573,10 +1579,25 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 		Print(Context, TEXT("Mb]"), FontWhite);
 		Newline(Context);
 
-		Print(Context, TEXT(" Views max. byte    : "), LegendColor); 
+		Print(Context, TEXT(" Views : "), LegendColor); 
 		Print(Context, ViewsMaxBytesPerPixel, ValueColor, 3, 0);
 		Print(Context, TEXT(" / "), FontWhite); 
 		Print(Context, ProjectMaxBytesPerPixel, ValueColor, 3, 0);
+		Newline(Context);
+		Newline(Context);
+
+		Print(Context, TEXT(" Closure Per Pixel"), SubTitleColor); Newline(Context);
+		Print(Context, TEXT(" Max   : "), LegendColor); 
+		Print(Context, Substrate.MaxClosurePerPixel, ValueColor, 3, 0);
+		Print(Context, TEXT(" / "), FontWhite); 
+		Print(Context, ProjectMaxClosurePerPixel, ValueColor, 3, 0);
+		Newline(Context);
+
+		Print(Context, TEXT(" Views : "), LegendColor); 
+		Print(Context, ViewsMaxClosurePerPixel, ValueColor, 3, 0);
+		Print(Context, TEXT(" / "), FontWhite); 
+		Print(Context, ProjectMaxClosurePerPixel, ValueColor, 3, 0);
+		Newline(Context);
 		Newline(Context);
 
 		Print(Context, TEXT(" Allocation Mode    : "), LegendColor);
@@ -1609,8 +1630,8 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 		PrintBool(Context, bUseClosureCountFromMaterialData);
 		Newline(Context); 
 
-		Print(Context, TEXT(" Tile LayerCount.   : "), LegendColor);
-		Print(Context, LayerCount, FontOrange);
+		Print(Context, TEXT(" Tile Closure Count : "), LegendColor);
+		Print(Context, MaxClosureCount, FontOrange);
 		Newline(Context); 
 
 		Print(Context, TEXT(" DBuffer pass       : "), LegendColor);

@@ -57,35 +57,23 @@ static TAutoConsoleVariable<int32> CVarSubstrateDBufferPassDedicatedTiles(
 	TEXT("Use dedicated tile for DBuffer application when DBuffer pass is enabled."),
 	ECVF_RenderThreadSafe);
 
-static TAutoConsoleVariable<int32> CVarSubstrateBytePerPixelMode(
-	TEXT("r.Substrate.BytesPerPixel.Mode"),
+static TAutoConsoleVariable<int32> CVarSubstrateAllocationMode(
+	TEXT("r.Substrate.AllocationMode"),
 	1,
-	TEXT("Substrate material allocation mode. \n 0: Allocate material buffer based on view requirement, \n 1: Allocate material buffer based on view requirement, but can only grow over frame to minimize buffer reallocation and hitches, \n 2: Allocate material buffer based on platform settings."),
+	TEXT("Substrate resource allocation mode. \n 0: Allocate resources based on view requirement, \n 1: Allocate resources based on view requirement, but can only grow over frame to minimize resources reallocation and hitches, \n 2: Allocate resources based on platform settings."),
 	ECVF_RenderThreadSafe);
 
 IMPLEMENT_GLOBAL_SHADER_PARAMETER_STRUCT(FSubstrateGlobalUniformParameters, "Substrate");
 
 void FSubstrateViewData::Reset()
 {
-	// When tracking the MaxClosureCount per view, we use a bit mask stored onto 8bit. 
+	// When tracking the MaxClosurePerPixel per view, we use a bit mask stored onto 8bit. 
 	// If SUBSTRATE_MAX_CLOSURE_COUNT>8u, it will overflow. Hence the static assert here
 	// Variables to verify when increasing the max. closure count:
-	// * MaxClosureCount
+	// * MaxClosurePerPixel
 	// * SubstrateClosureCountMask
 	static_assert(SUBSTRATE_MAX_CLOSURE_COUNT <= 8u);
-
-	// Preserve old max closure count which is set prior to the reset operation
-	const uint32 OldMaxClosureCount = MaxClosureCount;
-	const uint32 OldMaxBytesPerPixel = MaxBytesPerPixel;
-	const bool   OldUsesComplexSpecialRenderPath = bUsesComplexSpecialRenderPath;
 	*this = FSubstrateViewData();
-	MaxClosureCount = OldMaxClosureCount;
-	MaxBytesPerPixel = OldMaxBytesPerPixel;
-	bUsesComplexSpecialRenderPath = OldUsesComplexSpecialRenderPath;
-
-	ClassificationTileListBuffer = nullptr;
-	ClassificationTileListBufferUAV = nullptr;
-	ClassificationTileListBufferSRV = nullptr;
 }
 
 const TCHAR* ToString(ESubstrateTileType Type)
@@ -112,7 +100,7 @@ namespace Substrate
 
 uint32 GetMaterialBufferAllocationMode()
 {
-	return FMath::Clamp(CVarSubstrateBytePerPixelMode.GetValueOnAnyThread(), 0, 2);
+	return FMath::Clamp(CVarSubstrateAllocationMode.GetValueOnAnyThread(), 0, 2);
 }
 
 bool UsesSubstrateClosureCountFromMaterialData() 
@@ -120,14 +108,14 @@ bool UsesSubstrateClosureCountFromMaterialData()
 	return CVarSubstrateUseClosureCountFromMaterial.GetValueOnRenderThread() > 0;
 }
 
-uint32 GetSubstrateTextureLayerCount(const FViewInfo& View)
+uint32 GetSubstrateMaxClosureCount(const FViewInfo& View)
 {
 	uint32 Out = 1;
 	if (Substrate::IsSubstrateEnabled())
 	{
 		if (UsesSubstrateClosureCountFromMaterialData())
 		{
-			Out = FMath::Clamp(View.SubstrateViewData.MaxClosureCount, 1u, SUBSTRATE_MAX_CLOSURE_COUNT);
+			Out = FMath::Clamp(View.SubstrateViewData.SceneData ? View.SubstrateViewData.SceneData->EffectiveMaxClosurePerPixel : View.SubstrateViewData.MaxClosurePerPixel, 1u, SUBSTRATE_MAX_CLOSURE_COUNT);
 		}
 		else
 		{
@@ -247,7 +235,7 @@ static void InitialiseSubstrateViewData(FRDGBuilder& GraphBuilder, FViewInfo& Vi
 		if (bNeedClosureOffets)
 		{
 			const FIntPoint TileCount = GetSubstrateTextureTileResolution(View, DynResIndependentViewSize);
-			const uint32 LayerCount = GetSubstrateTextureLayerCount(View);
+			const uint32 LayerCount = GetSubstrateMaxClosureCount(View);
 			const uint32 MaxTileCount = TileCount.X * TileCount.Y * LayerCount;
 
 			Out.TileCount	= TileCount;
@@ -315,10 +303,12 @@ void InitialiseSubstrateFrameSceneData(FRDGBuilder& GraphBuilder, FSceneRenderer
 
 	// Reset Substrate scene data
 	{
-		const uint32 MinBytesPerPixel = Out.MinBytesPerPixel;
+		const uint32 MinBytesPerPixel = Out.PersistentMaxBytesPerPixel;
+		const uint32 MaxClosureCount  = Out.PersistentMaxClosurePerPixel;
 		const bool bUsesComplexSpecialRenderPath = Out.bUsesComplexSpecialRenderPath;
 		Out = FSubstrateSceneData();
-		Out.MinBytesPerPixel = MinBytesPerPixel;
+		Out.PersistentMaxBytesPerPixel    = MinBytesPerPixel;
+		Out.PersistentMaxClosurePerPixel  = MaxClosureCount;
 		Out.bUsesComplexSpecialRenderPath = bUsesComplexSpecialRenderPath;
 	}
 
@@ -348,40 +338,62 @@ void InitialiseSubstrateFrameSceneData(FRDGBuilder& GraphBuilder, FSceneRenderer
 
 		// Gather views' requirements
 		Out.ViewsMaxBytesPerPixel = 0;
+		Out.ViewsMaxClosurePerPixel = 0;
 		for (const FViewInfo& View : SceneRenderer.Views)
 		{
 			bNeedClosureOffsets = bNeedClosureOffsets || NeedClosureOffsets(SceneRenderer.Scene, View);
 			bNeedUAV = bNeedUAV || IsDBufferPassEnabled(View.GetShaderPlatform()) || NaniteComputeMaterialsSupported();
 			Out.ViewsMaxBytesPerPixel = FMath::Max(Out.ViewsMaxBytesPerPixel, View.SubstrateViewData.MaxBytesPerPixel);
+			Out.ViewsMaxClosurePerPixel = FMath::Max(Out.ViewsMaxClosurePerPixel, View.SubstrateViewData.MaxClosurePerPixel);
 			bUseDBufferPass = bUseDBufferPass || IsDBufferPassEnabled(View.GetShaderPlatform());
 
 			// Only use primary views max. byte per pixel as reflection/capture views can bias allocation requirement when using growing-only mode
 			if (!View.bIsPlanarReflection && !View.bIsReflectionCapture && !View.bIsSceneCapture)
 			{
-				Out.MinBytesPerPixel = FMath::Max(Out.MinBytesPerPixel, View.SubstrateViewData.MaxBytesPerPixel);
+				Out.PersistentMaxBytesPerPixel = FMath::Max(Out.PersistentMaxBytesPerPixel, View.SubstrateViewData.MaxBytesPerPixel);
+				Out.PersistentMaxClosurePerPixel = FMath::Max(Out.PersistentMaxClosurePerPixel, View.SubstrateViewData.MaxClosurePerPixel);
 				Out.bUsesComplexSpecialRenderPath |= View.SubstrateViewData.bUsesComplexSpecialRenderPath;
 			}
 		}
 
 		// Material buffer allocation can use different modes:
-		// * 0: Allocate material buffer based on view requirement,
-		// * 1: Allocate material buffer based on view requirement, but can only grow over frame to minimize buffer reallocation and hitches,
-		// * 2: Allocate material buffer based on platform settings.
 		const uint32 PlatformSettingsBytesPerPixel = GetBytePerPixel(SceneRenderer.ShaderPlatform);
-		uint32 MaxBytesPerPixel = 0;
+		const uint32 PlatformSettingsClosurePerPixel = GetClosurePerPixel(SceneRenderer.ShaderPlatform);
+		uint32 CurrentMaxBytesPerPixel = 0;
+		uint32 CurrentMaxClosurePerPixel = 0;
 		switch (GetMaterialBufferAllocationMode())
 		{
-			case 0: MaxBytesPerPixel = Out.ViewsMaxBytesPerPixel; break;
-			case 1: MaxBytesPerPixel = FMath::Max(Out.ViewsMaxBytesPerPixel, Out.MinBytesPerPixel); break;
-			case 2: MaxBytesPerPixel = PlatformSettingsBytesPerPixel; break;
+			// Allocate material buffer based on view requirement,
+			case 0:
+			{
+				CurrentMaxBytesPerPixel = Out.ViewsMaxBytesPerPixel; 
+				CurrentMaxClosurePerPixel  = Out.ViewsMaxClosurePerPixel;
+			}
+			break;
+			// Allocate material buffer based on view requirement, but can only grow over frame to minimize buffer reallocation and hitches,
+			case 1:
+			{
+				CurrentMaxBytesPerPixel = FMath::Max(Out.ViewsMaxBytesPerPixel, Out.PersistentMaxBytesPerPixel); 
+				CurrentMaxClosurePerPixel  = FMath::Max(Out.ViewsMaxClosurePerPixel,  Out.PersistentMaxClosurePerPixel);
+			}
+			break;
+			// Allocate material buffer based on platform settings.
+			case 2:
+			{
+				CurrentMaxBytesPerPixel = PlatformSettingsBytesPerPixel; 
+				CurrentMaxClosurePerPixel  = PlatformSettingsClosurePerPixel;
+			}
+			break;
 		}
 
 		// If this happens, it means there is probably a shader compilation mismatch issue (the compiler has not correctly accounted for the byte per pixel limitation for the platform).
-		check(MaxBytesPerPixel <= PlatformSettingsBytesPerPixel);
+		check(CurrentMaxBytesPerPixel <= PlatformSettingsBytesPerPixel);
+		check(CurrentMaxClosurePerPixel <= PlatformSettingsClosurePerPixel);
 
 		const uint32 RoundToValue = 4u;
-		MaxBytesPerPixel = FMath::Clamp(MaxBytesPerPixel, 4u * SUBSTRATE_BASE_PASS_MRT_OUTPUT_COUNT, PlatformSettingsBytesPerPixel);
-		Out.MaxBytesPerPixel = FMath::DivideAndRoundUp(MaxBytesPerPixel, RoundToValue) * RoundToValue;
+		CurrentMaxBytesPerPixel = FMath::Clamp(CurrentMaxBytesPerPixel, 4u * SUBSTRATE_BASE_PASS_MRT_OUTPUT_COUNT, PlatformSettingsBytesPerPixel);
+		Out.EffectiveMaxBytesPerPixel = FMath::DivideAndRoundUp(CurrentMaxBytesPerPixel, RoundToValue) * RoundToValue;
+		Out.EffectiveMaxClosurePerPixel = CurrentMaxClosurePerPixel;
 
 		FIntPoint SceneTextureExtent = SceneRenderer.GetActiveSceneTexturesConfig().Extent;
 		
@@ -425,7 +437,7 @@ void InitialiseSubstrateFrameSceneData(FRDGBuilder& GraphBuilder, FSceneRenderer
 	}
 	else
 	{
-		Out.MaxBytesPerPixel = 4u * SUBSTRATE_BASE_PASS_MRT_OUTPUT_COUNT;
+		Out.EffectiveMaxBytesPerPixel = 4u * SUBSTRATE_BASE_PASS_MRT_OUTPUT_COUNT;
 	}
 
 	// Create the material data container
@@ -433,7 +445,7 @@ void InitialiseSubstrateFrameSceneData(FRDGBuilder& GraphBuilder, FSceneRenderer
 
 	const uint32 SliceCountSSS = SUBSTRATE_SSS_DATA_UINT_COUNT;
 	const uint32 SliceCountAdvDebug = IsAdvancedVisualizationEnabled() ? 1 : 0;
-	const uint32 SliceCount = FMath::DivideAndRoundUp(Out.MaxBytesPerPixel, 4u) + SliceCountSSS + SliceCountAdvDebug;
+	const uint32 SliceCount = FMath::DivideAndRoundUp(Out.EffectiveMaxBytesPerPixel, 4u) + SliceCountSSS + SliceCountAdvDebug;
 	FRDGTextureDesc MaterialTextureDesc = FRDGTextureDesc::Create2DArray(SceneTextureExtent, PF_R32_UINT, FClearValueBinding::Transparent, TexCreate_TargetArraySlicesIndependently | TexCreate_DisableDCC | TexCreate_NoFastClear | TexCreate_RenderTargetable | TexCreate_ShaderResource | TexCreate_UAV | TexCreate_FastVRAM, SliceCount, 1, 1);
 	MaterialTextureDesc.FastVRAMPercentage = (1.0f / SliceCount) * 0xFF; // Only allocate the first slice into ESRAM
 
@@ -456,7 +468,7 @@ void InitialiseSubstrateFrameSceneData(FRDGBuilder& GraphBuilder, FSceneRenderer
 	Out.SliceStoringDebugSubstrateTreeDataWithoutMRT	= SliceCount - SliceCountAdvDebug - SUBSTRATE_BASE_PASS_MRT_OUTPUT_COUNT;	// The UAV skips the first slices set as render target
 
 	Out.FirstSliceStoringSubstrateSSSData				= SliceCount - SliceCountSSS - SliceCountAdvDebug;										// When we read, there is no slices excluded
-	Out.FirstSliceStoringSubstrateSSSDataWithoutMRT	= SliceCount - SliceCountSSS - SliceCountAdvDebug - SUBSTRATE_BASE_PASS_MRT_OUTPUT_COUNT;	// The UAV skips the first slices set as render target
+	Out.FirstSliceStoringSubstrateSSSDataWithoutMRT		= SliceCount - SliceCountSSS - SliceCountAdvDebug - SUBSTRATE_BASE_PASS_MRT_OUTPUT_COUNT;	// The UAV skips the first slices set as render target
 
 	// Initialized view data
 	for (int32 ViewIndex = 0; ViewIndex < SceneRenderer.Views.Num(); ViewIndex++)
@@ -475,6 +487,7 @@ static FSubstrateCommonParameters GetSubstrateCommonParameter()
 	FSubstrateCommonParameters Out;
 	Out.bRoughDiffuse 		= 0u;
 	Out.MaxBytesPerPixel 	= 0u;
+	Out.MaxClosurePerPixel	= 0u;
 	Out.PeelLayersAboveDepth= 0u;
 	Out.bRoughnessTracking 	= 0u;
 	return Out;
@@ -483,7 +496,8 @@ static FSubstrateCommonParameters GetSubstrateCommonParameter(const FSubstrateSc
 {
 	FSubstrateCommonParameters Out;
 	Out.bRoughDiffuse 		= In.bRoughDiffuse ? 1u : 0u;
-	Out.MaxBytesPerPixel 	= In.MaxBytesPerPixel;
+	Out.MaxBytesPerPixel 	= In.EffectiveMaxBytesPerPixel;
+	Out.MaxClosurePerPixel 	= In.EffectiveMaxClosurePerPixel;
 	Out.PeelLayersAboveDepth= In.PeelLayersAboveDepth;
 	Out.bRoughnessTracking 	= In.bRoughnessTracking ? 1u : 0u;
 	return Out;
@@ -1255,7 +1269,7 @@ void AddSubstrateMaterialClassificationPass(FRDGBuilder& GraphBuilder, const FMi
 			PassParameters->ViewUniformBuffer = View.ViewUniformBuffer;
 			PassParameters->bRectPrimitive = GRHISupportsRectTopology ? 1 : 0;
 			PassParameters->ViewResolution = View.ViewRect.Size();
-			PassParameters->MaxBytesPerPixel = SubstrateSceneData->MaxBytesPerPixel;
+			PassParameters->MaxBytesPerPixel = SubstrateSceneData->EffectiveMaxBytesPerPixel;
 			PassParameters->FirstSliceStoringSubstrateSSSData = SubstrateSceneData->FirstSliceStoringSubstrateSSSData;
 			PassParameters->TopLayerTexture = SubstrateSceneData->TopLayerTexture;
 			PassParameters->TopLayerCmaskTexture = TopLayerCmaskTexture;
@@ -1312,7 +1326,7 @@ void AddSubstrateMaterialClassificationPass(FRDGBuilder& GraphBuilder, const FMi
 				PassParameters->TileSizeLog2 = SUBSTRATE_TILE_SIZE_DIV_AS_SHIFT;
 				PassParameters->TileCount_Primary = SubstrateViewData->TileCount;
 				PassParameters->ViewResolution = View.ViewRect.Size();
-				PassParameters->MaxBytesPerPixel = SubstrateSceneData->MaxBytesPerPixel;
+				PassParameters->MaxBytesPerPixel = SubstrateSceneData->EffectiveMaxBytesPerPixel;
 				PassParameters->TopLayerTexture = SubstrateSceneData->TopLayerTexture;
 				PassParameters->MaterialTextureArray = SubstrateSceneData->MaterialTextureArraySRV;
 				PassParameters->TileListBuffer = SubstrateViewData->ClassificationTileListBufferSRV;
@@ -1416,7 +1430,7 @@ void AddSubstrateDBufferPass(FRDGBuilder& GraphBuilder, const FMinimalSceneTextu
 			PassParameters->DBuffer = GetDBufferParameters(GraphBuilder, DBufferTextures, View.GetShaderPlatform());
 			PassParameters->ViewUniformBuffer = View.ViewUniformBuffer;
 			PassParameters->ViewResolution = View.ViewRect.Size();
-			PassParameters->MaxBytesPerPixel = SubstrateSceneData->MaxBytesPerPixel;
+			PassParameters->MaxBytesPerPixel = SubstrateSceneData->EffectiveMaxBytesPerPixel;
 			PassParameters->TopLayerTexture = RWTopLayerTexture;
 			PassParameters->MaterialTextureArrayUAV = RWMaterialTexture;
 			PassParameters->FirstSliceStoringSubstrateSSSData = SubstrateSceneData->FirstSliceStoringSubstrateSSSData;

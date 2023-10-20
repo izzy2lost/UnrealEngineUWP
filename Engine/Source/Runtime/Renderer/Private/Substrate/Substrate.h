@@ -23,6 +23,7 @@ struct FTextureRenderTargetBinding;
 
 BEGIN_SHADER_PARAMETER_STRUCT(FSubstrateCommonParameters, )
 	SHADER_PARAMETER(uint32, MaxBytesPerPixel)
+	SHADER_PARAMETER(uint32, MaxClosurePerPixel)
 	SHADER_PARAMETER(uint32, bRoughDiffuse)
 	SHADER_PARAMETER(uint32, PeelLayersAboveDepth)
 	SHADER_PARAMETER(uint32, bRoughnessTracking)
@@ -93,13 +94,22 @@ const TCHAR* ToString(ESubstrateTileType Type);
 
 struct FSubstrateSceneData
 {
+	// Track max BytesPerPixel / ClosurePerPixel amoung all views
 	uint32 ViewsMaxBytesPerPixel = 0;
-	uint32 MinBytesPerPixel = 0;
-	uint32 MaxBytesPerPixel = 0;
+	uint32 ViewsMaxClosurePerPixel = 0;
+
+	// Track max BytesPerPixel / ClosurePerPixel ever encountered since the scene was created
+	uint32 PersistentMaxBytesPerPixel = 0;
+	uint32 PersistentMaxClosurePerPixel = 0;
+	bool bUsesComplexSpecialRenderPath = false;
+
+	// Current max BytesPerPixel / ClosurePerPixel
+	uint32 EffectiveMaxBytesPerPixel = 0;
+	uint32 EffectiveMaxClosurePerPixel = 0;
+
 	int32 PeelLayersAboveDepth = -1;
 	bool bRoughDiffuse = false;
 	bool bRoughnessTracking = false;
-	bool bUsesComplexSpecialRenderPath = false;
 
 	int32 SliceStoringDebugSubstrateTreeDataWithoutMRT = -1;
 	int32 SliceStoringDebugSubstrateTreeData = -1;
@@ -133,8 +143,8 @@ struct FSubstrateSceneData
 
 struct FSubstrateViewData
 {
-	// Max BytePerPixel & max Closure count among all visible materials
-	uint32 MaxClosureCount = 0;
+	// Max BytePerPixel & ClosurePerPixel count among all visible materials
+	uint32 MaxClosurePerPixel = 0;
 	uint32 MaxBytesPerPixel = 0;
 
 	// True if any material requires the complex special path (e.g. glints or SpecularLUT)
@@ -143,9 +153,9 @@ struct FSubstrateViewData
 	FIntPoint TileCount  = FIntPoint(0, 0);
 	uint32    LayerCount = 0;
 
-	FRDGBufferRef    ClassificationTileListBuffer;
-	FRDGBufferSRVRef ClassificationTileListBufferSRV;
-	FRDGBufferUAVRef ClassificationTileListBufferUAV;
+	FRDGBufferRef    ClassificationTileListBuffer = nullptr;
+	FRDGBufferSRVRef ClassificationTileListBufferSRV = nullptr;
+	FRDGBufferUAVRef ClassificationTileListBufferUAV = nullptr;
 	uint32			 ClassificationTileListBufferOffset[SUBSTRATE_TILE_TYPE_COUNT];
 
 	FRDGBufferRef    ClassificationTileDrawIndirectBuffer = nullptr;
@@ -174,7 +184,7 @@ constexpr uint32 StencilBit_Complex			= 0x40; // In sync with SceneRenderTargets
 constexpr uint32 StencilBit_ComplexSpecial	= 0x80; // In sync with SceneRenderTargets.h - GET_STENCIL_BIT_MASK(STENCIL_SUBSTRATE_COMPLEX_SPECIAL)	
 
 FIntPoint GetSubstrateTextureResolution(const FViewInfo& View, const FIntPoint& InResolution);
-uint32 GetSubstrateTextureLayerCount(const FViewInfo& View);
+uint32 GetSubstrateMaxClosureCount(const FViewInfo& View);
 bool GetSubstrateUsesComplexSpecialPath(const FViewInfo& View);
 
 void InitialiseSubstrateFrameSceneData(FRDGBuilder& GraphBuilder, FSceneRenderer& SceneRenderer);

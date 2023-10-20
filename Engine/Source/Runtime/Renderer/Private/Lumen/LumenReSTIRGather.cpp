@@ -745,7 +745,7 @@ void DispatchTemporalAccumulation(
 
 		// If the scene render targets reallocate, toss the history so we don't read uninitialized data
 		const FIntPoint EffectiveResolution = Substrate::GetSubstrateTextureResolution(View, SceneTextures.Config.Extent);
-		const uint32 LayerCount = Substrate::GetSubstrateTextureLayerCount(View);
+		const uint32 ClosureCount = Substrate::GetSubstrateMaxClosureCount(View);
 		const FIntPoint HistoryEffectiveResolution = TemporalAccumulationState.HistoryEffectiveResolution;
 		const bool bSceneTextureExtentMatchHistory = TemporalAccumulationState.HistorySceneTexturesExtent == SceneTextures.Config.Extent;
 
@@ -759,9 +759,9 @@ void DispatchTemporalAccumulation(
 			&& (!bUseBilaterialFilter || TemporalAccumulationState.ResolveVarianceHistoryRT)
 			&& !bPropagateGlobalLightingChange)
 		{
-			FRDGTextureDesc DiffuseIndirectDesc = FRDGTextureDesc::Create2DArray(EffectiveResolution, PF_FloatRGBA, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV, LayerCount);
-			FRDGTextureDesc RoughSpecularIndirectDesc = FRDGTextureDesc::Create2DArray(EffectiveResolution, PF_FloatRGB, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV, LayerCount);
-			FRDGTextureDesc ResolveVarianceDesc = FRDGTextureDesc::Create2DArray(EffectiveResolution, PF_R16F, FClearValueBinding::Transparent, TexCreate_ShaderResource | TexCreate_UAV, LayerCount);
+			FRDGTextureDesc DiffuseIndirectDesc = FRDGTextureDesc::Create2DArray(EffectiveResolution, PF_FloatRGBA, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV, ClosureCount);
+			FRDGTextureDesc RoughSpecularIndirectDesc = FRDGTextureDesc::Create2DArray(EffectiveResolution, PF_FloatRGB, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV, ClosureCount);
+			FRDGTextureDesc ResolveVarianceDesc = FRDGTextureDesc::Create2DArray(EffectiveResolution, PF_R16F, FClearValueBinding::Transparent, TexCreate_ShaderResource | TexCreate_UAV, ClosureCount);
 
 			FRDGTextureRef NewDiffuseIndirect = GraphBuilder.CreateTexture(DiffuseIndirectDesc, TEXT("Lumen.ReSTIRGather.DiffuseIndirect"));
 			FRDGTextureRef NewRoughSpecularIndirect = GraphBuilder.CreateTexture(RoughSpecularIndirectDesc, TEXT("Lumen.ReSTIRGather.RoughSpecularIndirect"));
