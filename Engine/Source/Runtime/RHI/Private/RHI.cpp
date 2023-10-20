@@ -1732,6 +1732,35 @@ bool FRHITextureDesc::Validate(const FRHITextureCreateInfo& Desc, const TCHAR* N
 		ValidateResourceDesc(Desc.NumMips <= GMaxTextureMipCount, TEXT("Texture %s's NumMips=%d is too large."), Name, Desc.NumMips);
 	}
 
+	// Validate reserved resource restrictions
+	if (EnumHasAnyFlags(Desc.Flags, TexCreate_ReservedResource))
+	{
+		ValidateResourceDesc(GRHIGlobals.ReservedResources.Supported,
+			TEXT("Reserved Texture %s's can't be created because current RHI does not support reserved resources."),
+			Name);
+
+		ValidateResourceDesc(
+			Desc.Dimension == ETextureDimension::Texture2D ||
+			Desc.Dimension == ETextureDimension::Texture2DArray,
+			TEXT("Reserved Texture %s's Desc.Dimension=%s is invalid. Expected Texture2D or Texture2DArray."),
+			Name, GetTextureDimensionString(Desc.Dimension));
+
+		ValidateResourceDesc(Desc.NumMips == 1,
+			TEXT("Reserved Texture %s's NumMips=%d is invalid. Expected only 1 mip level."),
+			Name, Desc.NumMips);
+
+		if (Desc.Dimension == ETextureDimension::Texture2DArray)
+		{
+			ValidateResourceDesc(Desc.Extent.X >= GRHIGlobals.ReservedResources.TextureArrayMinimumMipDimension,
+				TEXT("Reserved Texture array %s's Desc.Extent.X=%d is invalid. It is required to be be no less than %d."),
+				Name, Desc.Extent.X, GRHIGlobals.ReservedResources.TextureArrayMinimumMipDimension);
+
+			ValidateResourceDesc(Desc.Extent.Y >= GRHIGlobals.ReservedResources.TextureArrayMinimumMipDimension,
+				TEXT("Reserved Texture array %s's Desc.Extent.Y=%d is invalid. It is required to be be no less than %d."),
+				Name, Desc.Extent.Y, GRHIGlobals.ReservedResources.TextureArrayMinimumMipDimension);
+		}
+	}
+
 	return true;
 }
 

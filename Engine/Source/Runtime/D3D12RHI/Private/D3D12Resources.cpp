@@ -162,7 +162,7 @@ void FD3D12Resource::CommitReservedResource()
 	checkf(Desc.Dimension == D3D12_RESOURCE_DIMENSION_TEXTURE2D, TEXT("CommitReservedResource is currently only implemented for 2D textures"));
 	checkf(Desc.MipLevels == 1, TEXT("CommitReservedResource is currently only implemented for textures without mips"));
 
-	uint32 NumTiles = 0;
+	uint32 D3DResourceNumTiles = 0;
 	D3D12_PACKED_MIP_INFO PackedMipDesc = {};
 	D3D12_TILE_SHAPE TileShape = {};
 	const uint32 FirstSubresource = 0;
@@ -174,17 +174,17 @@ void FD3D12Resource::CommitReservedResource()
 	ID3D12Device* D3DDevice = GetParentDevice()->GetDevice();
 	FD3D12Adapter* Adapter = GetParentDevice()->GetParentAdapter();
 
-	D3DDevice->GetResourceTiling(GetResource(), &NumTiles, &PackedMipDesc, &TileShape, &NumSubresourceTilings, FirstSubresource, &SubresourceTiling);
+	D3DDevice->GetResourceTiling(GetResource(), &D3DResourceNumTiles, &PackedMipDesc, &TileShape, &NumSubresourceTilings, FirstSubresource, &SubresourceTiling);
 
 	const uint64 TileSizeInBytes = 65536; // reserved resource tiles are always 64KB
-	const uint64 TotalSize = NumTiles * TileSizeInBytes;
+	const uint64 TotalSize = D3DResourceNumTiles * TileSizeInBytes;
 	const uint64 MaxHeapSize = uint64(CVarD3D12ReservedResourceHeapSizeMB.GetValueOnAnyThread()) * 1024 * 1024;
 	const uint64 NumHeaps = FMath::DivideAndRoundUp(TotalSize, MaxHeapSize);
 
 	TArray<TRefCountPtr<ID3D12Heap>>& Heaps = ReservedResourceData->BackingHeaps;
 	Heaps.Reserve(NumHeaps);
 
-	const uint32 NumTilesPerHeap = uint32(MaxHeapSize / TileSizeInBytes);
+	const uint32 MaxTilesPerHeap = uint32(MaxHeapSize / TileSizeInBytes);
 
 	// NOTE: Accessing the queue from this thread is OK, as D3D12 runtime acquires a lock around all command queue APIs.
 	// https://microsoft.github.io/DirectX-Specs/d3d/CPUEfficiency.html#threading
@@ -205,13 +205,24 @@ void FD3D12Resource::CommitReservedResource()
 	BackingHeapProps.CreationNodeMask = GetGPUMask().GetNative();
 	BackingHeapProps.VisibleNodeMask = GetVisibilityMask().GetNative();
 
-	const uint32 NumTilesX = SubresourceTiling.WidthInTiles;
-	const uint32 NumTilesY = SubresourceTiling.HeightInTiles;
+	uint32 NumStandardTilesPerSubresource = 0;
+	uint32 NumTotalTiles = 0;
 
-	check(SubresourceTiling.DepthInTiles == 1);
+	if (PackedMipDesc.NumStandardMips != 0)
+	{
+		checkf(SubresourceTiling.DepthInTiles == 1, TEXT("3D reserved textures are not supported/implemented"));
+		NumStandardTilesPerSubresource = SubresourceTiling.WidthInTiles * SubresourceTiling.HeightInTiles;
+		NumTotalTiles = NumStandardTilesPerSubresource * SubresourceCount;
+	}
+	else // packed mip case
+	{
+		checkf(PackedMipDesc.NumPackedMips != 0, TEXT("It is expected that reserved resources have at least one standard or one packed tile mip level"));
+		NumTotalTiles = PackedMipDesc.NumTilesForPackedMips * SubresourceCount;
+	}
 
-	const uint32 NumTilesPerSubresource = NumTilesX * NumTilesY;
-	const uint32 NumTotalTiles = NumTilesPerSubresource * SubresourceCount;
+	checkf(D3DResourceNumTiles == NumTotalTiles,
+		TEXT("D3D resource size in tiles: %d, computed size in tiles: %d"),
+		D3DResourceNumTiles, NumTotalTiles);
 
 	uint32 NumMappedTiles = 0;
 
@@ -221,7 +232,7 @@ void FD3D12Resource::CommitReservedResource()
 
 		D3D12_TILE_REGION_SIZE RegionSize = {};
 		RegionSize.UseBox = false;
-		RegionSize.NumTiles = FMath::Min(NumTilesPerHeap, NumRemainingTiles);
+		RegionSize.NumTiles = FMath::Min(MaxTilesPerHeap, NumRemainingTiles);
 
 		const uint32 ThisHeapSize = RegionSize.NumTiles * TileSizeInBytes;
 		D3D12_HEAP_DESC NewHeapDesc = {};
@@ -238,11 +249,34 @@ void FD3D12Resource::CommitReservedResource()
 		}
 
 		D3D12_TILED_RESOURCE_COORDINATE ResourceCoordinate = {}; // Coordinates are in tiles, not pixels
-		const uint32 TileIndexInSubresource = NumMappedTiles % NumTilesPerSubresource;
-		ResourceCoordinate.Subresource = NumMappedTiles / NumTilesPerSubresource;
-		ResourceCoordinate.X = TileIndexInSubresource % NumTilesX;
-		ResourceCoordinate.Y = (TileIndexInSubresource / NumTilesX) % NumTilesY;
-		ResourceCoordinate.Z = 0; // Only simple 2D / Array2D textures are implemented
+		if (NumStandardTilesPerSubresource)
+		{
+			const uint32 TileIndexInSubresource = NumMappedTiles % NumStandardTilesPerSubresource;
+			ResourceCoordinate.Subresource = NumMappedTiles / NumStandardTilesPerSubresource;
+			ResourceCoordinate.X = TileIndexInSubresource % SubresourceTiling.WidthInTiles;
+			ResourceCoordinate.Y = (TileIndexInSubresource / SubresourceTiling.WidthInTiles) % SubresourceTiling.HeightInTiles;
+			ResourceCoordinate.Z = 0; // Only simple 2D / Array2D textures are implemented
+		}
+		else
+		{
+			// Packed mip level case:
+			// - Only simple 2D textures are expected (single subresource, no arrays)
+			// - Entire packed mip level must be covered in one map operation, so mapping origin is always 0
+
+			checkf(SubresourceCount == 1,
+				TEXT("Reserved textures with packed mips and multiple subresources are not supported. Current subresource count: %d"),
+				SubresourceCount);
+
+			checkf(RegionSize.NumTiles <= MaxTilesPerHeap,
+				TEXT("Reserved texture packed mip level requires tiles: %d, maximum supported tiles: %d. ")
+				TEXT("Increase d3d12.ReservedResourceHeapSizeMB or avoid packed mips by using a larger texture dimensions."),
+				RegionSize.NumTiles, MaxTilesPerHeap);
+
+			ResourceCoordinate.Subresource = 0; // Packed mips are currently supported for single subresource textures
+			ResourceCoordinate.X = 0;
+			ResourceCoordinate.Y = 0;
+			ResourceCoordinate.Z = 0;
+		}
 
 		const D3D12_TILE_RANGE_FLAGS RangeFlags = D3D12_TILE_RANGE_FLAG_NONE;
 		const uint32 HeapRangeStartOffsetInTiles = 0;
@@ -265,6 +299,10 @@ void FD3D12Resource::CommitReservedResource()
 		NumMappedTiles += RegionSize.NumTiles;
 		Heaps.Add(MoveTemp(NewHeap));
 	}
+
+	checkf(NumMappedTiles == D3DResourceNumTiles,
+		TEXT("Reserved resource was not fully processed while committing physical memory. Expected to process tiles: %d, actually processed: %d"),
+		D3DResourceNumTiles, NumMappedTiles);
 }
 
 ID3D12Pageable* FD3D12Resource::GetPageable()
@@ -538,8 +576,17 @@ HRESULT FD3D12Adapter::CreateReservedResource(const FD3D12ResourceDesc& InDesc, 
 	TRefCountPtr<ID3D12Resource> pResource;
 
 	FD3D12ResourceDesc LocalDesc = InDesc;
-	LocalDesc.Layout = D3D12_TEXTURE_LAYOUT_64KB_UNDEFINED_SWIZZLE;
-	LocalDesc.bReservedResource = true;
+
+	checkf(LocalDesc.bReservedResource,
+		TEXT("FD3D12ResourceDesc is expected to be initialized as a reserved resource. See FD3D12DynamicRHI::GetResourceDesc()."));
+
+	checkf(LocalDesc.Layout == D3D12_TEXTURE_LAYOUT_64KB_UNDEFINED_SWIZZLE,
+		TEXT("Reserved textures are expected to have layout %d (64KB_UNDEFINED_SWIZZLE), but have %d. See FD3D12DynamicRHI::GetResourceDesc()."),
+		uint32(D3D12_TEXTURE_LAYOUT_64KB_UNDEFINED_SWIZZLE), uint32(LocalDesc.Layout));
+
+	checkf(LocalDesc.Alignment == 0 || LocalDesc.Alignment == 65536,
+		TEXT("Reserved resources must use either 64KB alignment or 0 (unspecified/default), but have %d. See FD3D12DynamicRHI::GetResourceDesc()."),
+			uint32(LocalDesc.Alignment));
 
 #if D3D12_RHI_RAYTRACING
 	if (InDefaultState == D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE)

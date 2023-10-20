@@ -428,6 +428,11 @@ void FD3D12TextureStats::D3D12TextureDeleted(FD3D12Texture& Texture)
 
 bool FD3D12Texture::CanBe4KAligned(const FD3D12ResourceDesc& Desc, EPixelFormat UEFormat)
 {
+	if (Desc.bReservedResource)
+	{
+		return false;
+	}
+
 	// Exclude video related formats
 	if (UEFormat == PF_NV12 ||
 		UEFormat == PF_P010)
@@ -575,6 +580,16 @@ FD3D12ResourceDesc FD3D12DynamicRHI::GetResourceDesc(const FRHITextureDesc& Text
 		ResourceDesc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
 	}
 
+	// Only 2D textures without mips are implemented/supported, to avoid the complexity associated with packed mips
+	if (GRHIGlobals.ReservedResources.Supported
+		&& EnumHasAllFlags(TextureDesc.Flags, TexCreate_ReservedResource)
+		&& TextureDesc.NumMips == 1
+		&& (TextureDesc.Dimension == ETextureDimension::Texture2D || TextureDesc.Dimension == ETextureDimension::Texture2DArray))
+	{
+		ResourceDesc.bReservedResource = true;
+		ResourceDesc.Layout = D3D12_TEXTURE_LAYOUT_64KB_UNDEFINED_SWIZZLE;
+	}
+
 	ResourceDesc.PixelFormat = TextureDesc.Format;
 
 #if D3D12RHI_NEEDS_VENDOR_EXTENSIONS
@@ -705,15 +720,6 @@ bool FD3D12DynamicRHI::RHIGetTextureMemoryVisualizeData(FColor* /*TextureData*/,
 	return false;
 }
 
-static bool ShouldCreateReservedTexture(const FD3D12ResourceDesc& TextureDesc, ETextureCreateFlags Flags)
-{
-	// Only 2D textures without mips are implemented/supported, to avoid the complexity associated with packed mips
-	return GRHISupportsReservedResources
-		&& EnumHasAllFlags(Flags, TexCreate_ReservedResource)
-		&& TextureDesc.MipLevels == 1
-		&& TextureDesc.Dimension == D3D12_RESOURCE_DIMENSION_TEXTURE2D;
-}
-
 /**
  * Creates a 2D texture optionally guarded by a structured exception handler.
  */
@@ -752,7 +758,7 @@ void SafeCreateTexture2D(FD3D12Device* pDevice,
 
 		case D3D12_HEAP_TYPE_DEFAULT:
 		{
-			if (ShouldCreateReservedTexture(TextureDesc, Flags))
+			if (TextureDesc.bReservedResource)
 			{
 				FD3D12Resource* Resource = nullptr;
 				VERIFYD3D12CREATETEXTURERESULT(

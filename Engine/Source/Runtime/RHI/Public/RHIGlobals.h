@@ -595,8 +595,22 @@ struct FRHIGlobals
 	/** Whether dynamic (bindless) resources are supported */
 	ERHIBindlessSupport BindlessSupport = ERHIBindlessSupport::Unsupported;
 
-	/** True if the RHI supports reserved (AKA tiled, virtual or sparse) resources and operations related to them*/
-	bool SupportsReservedResources = false;
+	struct FReservedResources
+	{
+		/**
+		* True if the RHI supports reserved (AKA tiled, virtual or sparse) resources and operations related to them.
+		*/
+		bool Supported = true;
+
+		/**
+		* Smallest mip dimension of reserved texture arrays must be greater or equal to this value.
+		* Tiled/reserved resources with both more than one array slice and any mipmap that
+		* has a dimension less than a tile in extent are not supported by some hardware.
+		* This is a conservative value chosen by the engine, independent of the texture format for simplicity.
+		*/
+		int32 TextureArrayMinimumMipDimension = 256;
+
+	} ReservedResources;
 
 	/** Table for finding out which shader platform corresponds to a given feature level for this RHI. */
 	EShaderPlatform ShaderPlatformForFeatureLevel[ERHIFeatureLevel::Num];
@@ -767,7 +781,7 @@ extern RHI_API FRHIGlobals GRHIGlobals;
 #define GRHIDefaultMSAASampleOffsets                           GRHIGlobals.DefaultMSAASampleOffsets
 #define GRHISupportsAsyncPipelinePrecompile                    GRHIGlobals.SupportsAsyncPipelinePrecompile
 #define GRHIBindlessSupport                                    GRHIGlobals.BindlessSupport
-#define GRHISupportsReservedResources                          GRHIGlobals.SupportsReservedResources
+#define GRHISupportsReservedResources                          GRHIGlobals.ReservedResources.Supported UE_DEPRECATED_MACRO(5.4, "GRHISupportsReservedResources has been deprecated - please use GRHIGlobals.ReservedResources.Supported instead.")
 #define GShaderPlatformForFeatureLevel                         GRHIGlobals.ShaderPlatformForFeatureLevel
 #define GRHIIsDebugLayerEnabled                                GRHIGlobals.IsDebugLayerEnabled
 

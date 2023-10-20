@@ -1666,7 +1666,7 @@ void FD3D12DynamicRHI::Init()
 		if (SUCCEEDED(GetAdapter().GetD3DDevice()->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS, &Options, sizeof(Options))))
 		{
 			// Tier 2 is guaranteed for all adapters with feature level 12_0.
-			GRHISupportsReservedResources = Options.TiledResourcesTier >= D3D12_TILED_RESOURCES_TIER_2;
+			GRHIGlobals.ReservedResources.Supported = Options.TiledResourcesTier >= D3D12_TILED_RESOURCES_TIER_2;
 		}
 	}
 

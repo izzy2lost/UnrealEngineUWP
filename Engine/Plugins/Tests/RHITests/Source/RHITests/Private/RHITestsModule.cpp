@@ -9,12 +9,20 @@
 #include "RHITextureTests.h"
 #include "RHIDrawTests.h"
 #include "RHIReadbackTests.h"
+#include "RHIReservedResourceTests.h"
 
 #define LOCTEXT_NAMESPACE "FRHITestsModule"
 
 static bool RunTests_RenderThread(FRHICommandListImmediate& RHICmdList)
 {
 	bool bResult = true;
+
+	// ------------------------------------------------
+	// Reserved resources
+	// ------------------------------------------------
+	{
+		RUN_TEST(FRHIReservedResourceTests::Test_ReservedResource_CreateTexture(RHICmdList));
+	}
 
 	// ------------------------------------------------
 	// Drawing

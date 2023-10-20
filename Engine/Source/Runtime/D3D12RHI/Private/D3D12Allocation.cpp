@@ -1873,7 +1873,7 @@ HRESULT FD3D12TextureAllocatorPool::AllocateTexture(
 		Desc.SampleDesc.Count == 1)
 	{
 		// The top mip level must be less than 64 KB to use 4 KB alignment
-		Desc.Alignment = TextureCanBe4KAligned(Desc, UEFormat) ?
+		Desc.Alignment = FD3D12Texture::CanBe4KAligned(Desc, UEFormat) ?
 			D3D12_SMALL_RESOURCE_PLACEMENT_ALIGNMENT :
 			D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT;
 		const D3D12_RESOURCE_ALLOCATION_INFO Info = Device->GetResourceAllocationInfoUncached(Desc);
