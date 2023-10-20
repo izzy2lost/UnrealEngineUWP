@@ -490,7 +490,7 @@ private:
 					if (FMVVMBlueprintViewBinding* Binding = ChildEntry->GetBinding(View))
 					{
 						FMVVMBlueprintPropertyPath CurrentPath = Binding->DestinationPath;
-						CurrentPath.SetWidgetName(Source.Name);
+						Source.SetSourceTo(CurrentPath);
 
 						EditorSubsystem->SetDestinationPathForBinding(WidgetBlueprint, *Binding, CurrentPath);
 					}
@@ -501,7 +501,7 @@ private:
 					if (UMVVMBlueprintViewEvent* Event = ChildEntry->GetEvent())
 					{
 						FMVVMBlueprintPropertyPath CurrentPath = Event->GetEventPath();
-						CurrentPath.SetWidgetName(Source.Name);
+						Source.SetSourceTo(CurrentPath);
 
 						EditorSubsystem->SetEventPath(Event, CurrentPath);
 					}
@@ -519,7 +519,14 @@ private:
 			FMVVMBlueprintPropertyPath Path;
 			if (Entry->IsGroupWidget())
 			{
-				Path.SetWidgetName(Entry->GetGroupName());
+				if (Entry->GetGroupName() == WidgetBlueprint->GetFName())
+				{
+					Path.SetSelfContext();
+				}
+				else
+				{
+					Path.SetWidgetName(Entry->GetGroupName());
+				}
 			}
 			else
 			{
@@ -1014,13 +1021,13 @@ private:
 						{
 							// Search for the widget by its name in the widget tree
 							// If the widget is not found, we know it is the root preview widget so we use the blueprint name.
-							if (WidgetBlueprintPtr->WidgetTree->FindWidget(OwnerWidgetPtr->GetFName()))
+							if (WidgetBlueprintPtr->WidgetTree->FindWidget(OwnerWidgetPtr->GetFName()) && WidgetBlueprintPtr->GetFName() != OwnerWidgetPtr->GetFName())
 							{
 								PropertyPath.SetWidgetName(OwnerWidgetPtr->GetFName());
 							}
 							else
 							{
-								PropertyPath.SetWidgetName(WidgetBlueprintPtr->GetFName());
+								PropertyPath.SetSelfContext();
 							}
 						}
 					}
@@ -1710,13 +1717,13 @@ private:
 			{
 				// Search for the widget by its name in the widget tree
 				// If the widget is not found, we know it is the root preview widget so we use the blueprint name.
-				if (WidgetBlueprintPtr->WidgetTree->FindWidget(OwnerWidgetPtr->GetFName()))
+				if (WidgetBlueprintPtr->WidgetTree->FindWidget(OwnerWidgetPtr->GetFName()) && WidgetBlueprintPtr->GetFName() != OwnerWidgetPtr->GetFName())
 				{
 					PropertyPath.SetWidgetName(OwnerWidgetPtr->GetFName());
 				}
 				else
 				{
-					PropertyPath.SetWidgetName(WidgetBlueprintPtr->GetFName());
+					PropertyPath.SetSelfContext();
 				}
 			}
 		}
@@ -2027,17 +2034,21 @@ void SBindingsList::Refresh()
 			
 			FName GroupName;
 			FGuid GroupViewModelId;
-			if (Binding.DestinationPath.IsFromWidget())
+			switch (Binding.DestinationPath.GetSource(WidgetBlueprint))
 			{
+			case EMVVMBlueprintFieldPathSource::SelfContext:
+				GroupName = WidgetBlueprint->GetFName();
+				break;
+			case EMVVMBlueprintFieldPathSource::Widget:
 				GroupName = Binding.DestinationPath.GetWidgetName();
-			}
-			else
-			{
+				break;
+			case EMVVMBlueprintFieldPathSource::ViewModel:
 				if (const FMVVMBlueprintViewModelContext* ViewModelContext = BlueprintView->FindViewModel(Binding.DestinationPath.GetViewModelId()))
 				{
 					GroupName = ViewModelContext->GetViewModelName();
 					GroupViewModelId = ViewModelContext->GetViewModelId();
 				}
+				break;
 			}
 
 			// Find the group entry
@@ -2107,17 +2118,21 @@ void SBindingsList::Refresh()
 
 			FName GroupName;
 			FGuid GroupViewModelId;
-			if (Event->GetEventPath().IsFromWidget())
+			switch (Event->GetEventPath().GetSource(WidgetBlueprint))
 			{
+			case EMVVMBlueprintFieldPathSource::SelfContext:
+				GroupName = WidgetBlueprint->GetFName();
+				break;
+			case EMVVMBlueprintFieldPathSource::Widget:
 				GroupName = Event->GetEventPath().GetWidgetName();
-			}
-			else if (Event->GetEventPath().IsFromViewModel())
-			{
+				break;
+			case EMVVMBlueprintFieldPathSource::ViewModel:
 				if (const FMVVMBlueprintViewModelContext* ViewModelContext = BlueprintView->FindViewModel(Event->GetEventPath().GetViewModelId()))
 				{
 					GroupName = ViewModelContext->GetViewModelName();
 					GroupViewModelId = ViewModelContext->GetViewModelId();
 				}
+				break;
 			}
 
 			// Find the group entry

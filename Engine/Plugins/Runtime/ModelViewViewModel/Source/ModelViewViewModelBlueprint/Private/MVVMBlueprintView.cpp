@@ -178,21 +178,6 @@ void UMVVMBlueprintView::RemoveBinding(const FMVVMBlueprintViewBinding* Binding)
 	RemoveBindingAt(Index);
 }
 
-FMVVMBlueprintViewBinding& UMVVMBlueprintView::AddBinding(const UWidget* Widget, const FProperty* Property)
-{
-	FMVVMBlueprintViewBinding& NewBinding = Bindings.AddDefaulted_GetRef();
-	NewBinding.DestinationPath.SetWidgetName(Widget->GetFName());
-	NewBinding.DestinationPath.SetPropertyPath(GetOuterUMVVMWidgetBlueprintExtension_View()->GetWidgetBlueprint(), UE::MVVM::FMVVMConstFieldVariant(Property));
-	NewBinding.BindingId = FGuid::NewGuid();
-
-	OnBindingsAdded.Broadcast();
-	OnBindingsUpdated.Broadcast();
-
-	FBlueprintEditorUtils::MarkBlueprintAsModified(GetOuterUMVVMWidgetBlueprintExtension_View()->GetWidgetBlueprint());
-
-	return NewBinding;
-}
-
 FMVVMBlueprintViewBinding& UMVVMBlueprintView::AddDefaultBinding()
 {
 	FMVVMBlueprintViewBinding& NewBinding = Bindings.AddDefaulted_GetRef();
@@ -305,6 +290,123 @@ void UMVVMBlueprintView::Serialize(FArchive& Ar)
 }
 
 #if WITH_EDITOR
+namespace UE::MVVM::Private
+{
+	template<typename Predicate>
+	void ForEachPropertyPath_Update(UMVVMBlueprintView* BlueprintView, Predicate Pred, bool bGenerateGraph)
+	{
+		UWidgetBlueprint* WidgetBlueprint = BlueprintView->GetOuterUMVVMWidgetBlueprintExtension_View()->GetWidgetBlueprint();
+		auto PredPin = [&Pred](const FMVVMBlueprintPin& Pin) -> TOptional<FMVVMBlueprintPropertyPath>
+		{
+			if (Pin.UsedPathAsValue())
+			{
+				FMVVMBlueprintPropertyPath NewPinPath = Pin.GetPath();
+				if (Pred(NewPinPath))
+				{
+					return NewPinPath;
+				}
+			}
+			return TOptional<FMVVMBlueprintPropertyPath>();
+		};
+
+		for (FMVVMBlueprintViewBinding& Binding : BlueprintView->GetBindings())
+		{
+			Pred(Binding.SourcePath);
+			Pred(Binding.DestinationPath);
+			if (Binding.Conversion.DestinationToSourceConversion)
+			{
+				Binding.Conversion.DestinationToSourceConversion->ConditionalPostLoad();
+				for (const FMVVMBlueprintPin& Pin : Binding.Conversion.DestinationToSourceConversion->GetPins())
+				{
+					TOptional<FMVVMBlueprintPropertyPath> NewPath = PredPin(Pin);
+					if (NewPath.IsSet())
+					{
+						if (bGenerateGraph)
+						{
+							Binding.Conversion.DestinationToSourceConversion->SetGraphPin(WidgetBlueprint, Pin.GetName(), NewPath.GetValue());
+						}
+						else
+						{
+							const_cast<FMVVMBlueprintPin&>(Pin).SetPath(NewPath.GetValue());
+						}
+					}
+				}
+			}
+			if (Binding.Conversion.SourceToDestinationConversion)
+			{
+				Binding.Conversion.SourceToDestinationConversion->ConditionalPostLoad();
+				for (const FMVVMBlueprintPin& Pin : Binding.Conversion.SourceToDestinationConversion->GetPins())
+				{
+					TOptional<FMVVMBlueprintPropertyPath> NewPath = PredPin(Pin);
+					if (NewPath.IsSet())
+					{
+						if (bGenerateGraph)
+						{
+							Binding.Conversion.SourceToDestinationConversion->SetGraphPin(WidgetBlueprint, Pin.GetName(), NewPath.GetValue());
+						}
+						else
+						{
+							const_cast<FMVVMBlueprintPin&>(Pin).SetPath(NewPath.GetValue());
+						}
+					}
+				}
+			}
+		}
+
+		for (UMVVMBlueprintViewEvent* Event : BlueprintView->GetEvents())
+		{
+			if (Event)
+			{
+				auto PredEventPath = [Event, &Pred, bGenerateGraph](const FMVVMBlueprintPropertyPath& PropertyPath, bool bEventPath)
+				{
+					FMVVMBlueprintPropertyPath NewPropertyPath = PropertyPath;
+					if (Pred(NewPropertyPath))
+					{
+						if (bGenerateGraph)
+						{
+							if (bEventPath)
+							{
+								Event->SetEventPath(NewPropertyPath);
+							}
+							else
+							{
+								Event->SetDestinationPath(NewPropertyPath);
+							}
+						}
+						else
+						{
+							const_cast<FMVVMBlueprintPropertyPath&>(PropertyPath) = NewPropertyPath;
+						}
+					}
+				};
+
+				TArray<TTuple<FName, FMVVMBlueprintPropertyPath>> NewPins;
+				for (const FMVVMBlueprintPin& Pin : Event->GetPins())
+				{
+					TOptional<FMVVMBlueprintPropertyPath> NewPath = PredPin(Pin);
+					if (NewPath.IsSet())
+					{
+						NewPins.Emplace(Pin.GetName(), MoveTemp(NewPath.GetValue()));
+					}
+				}
+				PredEventPath(Event->GetEventPath(), true);
+				PredEventPath(Event->GetDestinationPath(), false);
+				for (TTuple<FName, FMVVMBlueprintPropertyPath>& Pin : NewPins)
+				{
+					if (bGenerateGraph)
+					{
+						Event->SetPinPath(Pin.Get<0>(), Pin.Get<1>());
+					}
+					else
+					{
+						Event->SetPinPathNoGraphGeneration(Pin.Get<0>(), Pin.Get<1>());
+					}
+				}
+			}
+		}
+	}
+}
+
 void UMVVMBlueprintView::PostLoad()
 {
 	Super::PostLoad();
@@ -340,6 +442,17 @@ void UMVVMBlueprintView::PostLoad()
 	for (FMVVMBlueprintViewBinding& Binding : Bindings)
 	{
 		Binding.Conversion.DeprecateViewConversionFunction(GetOuterUMVVMWidgetBlueprintExtension_View()->GetWidgetBlueprint());
+	}
+
+	if (GetLinkerCustomVersion(FFortniteMainBranchObjectVersion::GUID) < FFortniteMainBranchObjectVersion::MVVMPropertyPathSelf)
+	{
+		const UWidgetBlueprint* ThisWidgetBlueprint = GetOuterUMVVMWidgetBlueprintExtension_View()->GetWidgetBlueprint();
+		auto DeprecateSelfPath = [ThisWidgetBlueprint](FMVVMBlueprintPropertyPath& Path) -> bool
+		{
+			Path.GetSource(ThisWidgetBlueprint);
+			return true;
+		};
+		UE::MVVM::Private::ForEachPropertyPath_Update(this, DeprecateSelfPath, false);
 	}
 }
 
@@ -415,17 +528,25 @@ void UMVVMBlueprintView::AddAssetTags(TArray<FAssetRegistryTag>& OutTags) const
 void UMVVMBlueprintView::WidgetRenamed(FName OldObjectName, FName NewObjectName)
 {
 	bool bRenamed = false;
-	for (FMVVMBlueprintViewBinding& Binding : Bindings)
+
+	UWidgetBlueprint* WidgetBlueprint = GetOuterUMVVMWidgetBlueprintExtension_View()->GetWidgetBlueprint();
+
+	auto RenameWidget = [WidgetBlueprint , &bRenamed, OldObjectName, NewObjectName](FMVVMBlueprintPropertyPath& PropertyPath) -> bool
 	{
-		if (Binding.DestinationPath.GetWidgetName() == OldObjectName)
+		if (PropertyPath.GetSource(WidgetBlueprint) == EMVVMBlueprintFieldPathSource::Widget && PropertyPath.GetWidgetName() == OldObjectName)
 		{
-			Binding.DestinationPath.SetWidgetName(NewObjectName);
+			PropertyPath.SetWidgetName(NewObjectName);
 			bRenamed = true;
+			return true;
 		}
-	}
+		return false;
+	};
+
+	UE::MVVM::Private::ForEachPropertyPath_Update(this, RenameWidget, true);
 
 	if (bRenamed)
 	{
+		Modify();
 		OnBindingsUpdated.Broadcast();
 	}
 }

@@ -94,7 +94,6 @@ public:
 	void RemoveBinding(const FMVVMBlueprintViewBinding* Binding);
 	void RemoveBindingAt(int32 Index);
 
-	FMVVMBlueprintViewBinding& AddBinding(const UWidget* Widget, const FProperty* Property);
 	FMVVMBlueprintViewBinding& AddDefaultBinding();
 
 	int32 GetNumBindings() const

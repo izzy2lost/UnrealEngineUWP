@@ -104,7 +104,7 @@ int32 SFieldSelector::GetCurrentDisplayIndex() const
 	}
 	if (OnGetPropertyPath.IsBound())
 	{
-		if (!OnGetPropertyPath.Execute().IsEmpty())
+		if (OnGetPropertyPath.Execute().IsValid())
 		{
 			return 0;
 		}

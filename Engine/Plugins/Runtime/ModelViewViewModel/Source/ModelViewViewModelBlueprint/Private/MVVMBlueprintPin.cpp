@@ -7,6 +7,11 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MVVMBlueprintPin)
 
+FMVVMBlueprintPin::FMVVMBlueprintPin(FName InPinName)
+	: PinName(InPinName)
+{
+}
+
 FMVVMBlueprintPin FMVVMBlueprintPin::CreateFromPin(const UBlueprint* Blueprint, const UEdGraphPin* Pin)
 {
 	FMVVMBlueprintPin Result;
@@ -44,7 +49,7 @@ void FMVVMBlueprintPin::SetPath(const FMVVMBlueprintPropertyPath& Value)
 
 FString FMVVMBlueprintPin::GetValueAsString(const UClass* SelfContext) const
 {
-	if (!Path.IsEmpty())
+	if (Path.IsValid())
 	{
 		return Path.GetPropertyPath(SelfContext);
 	}

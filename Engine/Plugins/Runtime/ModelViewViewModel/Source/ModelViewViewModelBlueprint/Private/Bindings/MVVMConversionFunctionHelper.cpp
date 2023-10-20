@@ -369,6 +369,7 @@ namespace Private
 				else
 				{
 					ResultPath.SetWidgetName(Member.GetMemberName());
+					ensure(Member.GetMemberName() != Blueprint->GetFName());
 				}
 			}
 			else
@@ -378,6 +379,7 @@ namespace Private
 					if (Property->PropertyClass->IsChildOf<UWidget>() || Property->PropertyClass->IsChildOf<UBlueprint>())
 					{
 						ResultPath.SetWidgetName(Property->GetFName());
+						ensure(Property->GetFName() != Blueprint->GetFName());
 					}
 					else if (Property->PropertyClass->ImplementsInterface(UNotifyFieldValueChanged::StaticClass()))
 					{
@@ -465,7 +467,7 @@ namespace Private
 			{
 				if (bFirst)
 				{
-					ResultPath.SetWidgetName(Blueprint->GetFName());
+					ResultPath.SetSelfContext();
 				}
 				else
 				{
@@ -519,7 +521,7 @@ void SetPropertyPathForPin(const UBlueprint* Blueprint, const FMVVMBlueprintProp
 	}
 
 	// Add new nodes
-	if (!Path.IsEmpty())
+	if (Path.IsValid())
 	{
 		const int32 ArgumentIndex = ConversionNode->Pins.IndexOfByPredicate([PathPin](const UEdGraphPin* Other){ return Other == PathPin; });
 		if (!ensure(ConversionNode->Pins.IsValidIndex(ArgumentIndex)))
@@ -539,16 +541,23 @@ void SetPropertyPathForPin(const UBlueprint* Blueprint, const FMVVMBlueprintProp
 			const FProperty* RootProperty = nullptr;
 			bool bCreateSelfNodeForRootProperty = false;
 			{
-				if (Path.IsFromWidget())
+				switch (Path.GetSource(Blueprint))
 				{
-					RootProperty = Blueprint->SkeletonGeneratedClass->FindPropertyByName(Path.GetWidgetName());
-					bCreateSelfNodeForRootProperty = Blueprint->GetFName() == Path.GetWidgetName();
-				}
-				else if (Path.IsFromViewModel())
+				case EMVVMBlueprintFieldPathSource::SelfContext:
+					bCreateSelfNodeForRootProperty = true;
+					break;
+				case EMVVMBlueprintFieldPathSource::ViewModel:
 				{
 					UMVVMBlueprintView* View = Private::GetView(Blueprint);
-					const FMVVMBlueprintViewModelContext* Context = View->FindViewModel(Path.GetViewModelId());
-					RootProperty = Blueprint->SkeletonGeneratedClass->FindPropertyByName(Context->GetViewModelName());
+					const FMVVMBlueprintViewModelContext* Context = View ? View->FindViewModel(Path.GetViewModelId()) : nullptr;
+					RootProperty = Context ? Blueprint->SkeletonGeneratedClass->FindPropertyByName(Context->GetViewModelName()) : nullptr;
+					break;
+				}
+				case EMVVMBlueprintFieldPathSource::Widget:
+					RootProperty = Blueprint->SkeletonGeneratedClass->FindPropertyByName(Path.GetWidgetName());
+					break;
+				default:
+					check(false);
 				}
 			}
 
@@ -791,7 +800,7 @@ TMap<FName, FMVVMBlueprintPropertyPath> GetAllArgumentPropertyPaths(const UBluep
 	for (const UEdGraphPin* Pin : FunctionNode->GetAllPins())
 	{
 		FMVVMBlueprintPropertyPath Path = Private::GetPropertyPathForPin(Blueprint, Pin, bSkipResolve);
-		if (!Path.IsEmpty())
+		if (Path.IsValid())
 		{
 			Paths.Add(Pin->PinName, Path);
 		}

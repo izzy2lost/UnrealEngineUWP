@@ -92,11 +92,10 @@ namespace UE::MVVM
 
 		void ClearSources();
 
-		void AddSource(UClass* Class, FName Name, FGuid Guid);
 		void AddSource(const FBindingSource& InSource);
 		void AddSources(TArrayView<const FBindingSource> InSources);
 
-		void AddWidgetBlueprint(const UWidgetBlueprint* WidgetBlueprint);
+		void AddWidgetBlueprint();
 		void AddWidgets(TArrayView<const UWidget*> Widgets);
 		void AddViewModels(TArrayView<const FMVVMBlueprintViewModelContext> ViewModels);
 

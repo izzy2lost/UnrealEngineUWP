@@ -38,6 +38,7 @@ private:
 
 public:
 	FMVVMBlueprintPin() = default;
+	FMVVMBlueprintPin(FName PinName);
 
 	FName GetName() const
 	{
@@ -47,7 +48,7 @@ public:
 	/** Are we using the path. */
 	bool UsedPathAsValue() const
 	{
-		return !Path.IsEmpty();
+		return Path.IsValid();
 	}
 
 	const FMVVMBlueprintPropertyPath& GetPath() const

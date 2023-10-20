@@ -91,6 +91,8 @@ public:
 
 	FMVVMBlueprintPropertyPath GetPinPath(FName PinName) const;
 	void SetPinPath(FName PinName, const FMVVMBlueprintPropertyPath& Path);
+	// To set a pin when loading the asset (no graph generation)
+	void SetPinPathNoGraphGeneration(FName PinName, const FMVVMBlueprintPropertyPath& Path);
 
 public:
 	TArray<FText> GetCompilationMessages(EMessageType InMessageType) const;

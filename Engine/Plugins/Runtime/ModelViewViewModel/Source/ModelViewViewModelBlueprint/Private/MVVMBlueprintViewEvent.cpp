@@ -35,7 +35,7 @@ void UMVVMBlueprintViewEvent::SetEventPath(FMVVMBlueprintPropertyPath InEventPat
 	EventPath = MoveTemp(InEventPath);
 	GraphName = FName();
 
-	if (!EventPath.IsEmpty())
+	if (EventPath.IsValid())
 	{
 		TStringBuilder<256> StringBuilder;
 		StringBuilder << TEXT("__");
@@ -142,6 +142,19 @@ void UMVVMBlueprintViewEvent::SetPinPath(FName PinName, const FMVVMBlueprintProp
 	}
 }
 
+void UMVVMBlueprintViewEvent::SetPinPathNoGraphGeneration(FName PinName, const FMVVMBlueprintPropertyPath& Path)
+{
+	FMVVMBlueprintPin* ViewPin = SavedPins.FindByPredicate([PinName](const FMVVMBlueprintPin& Other) { return PinName == Other.GetName(); });
+	if (!ViewPin)
+	{
+		ViewPin = &SavedPins.Emplace_GetRef(PinName);
+		ViewPin->SetPath(Path);
+	}
+
+	//A property (viewmodel or widget) may not be created yet and the skeletal needs to be recreated.
+	FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(GetWidgetBlueprintInternal());
+}
+
 UWidgetBlueprint* UMVVMBlueprintViewEvent::GetWidgetBlueprintInternal() const
 {
 	return GetOuterUMVVMBlueprintView()->GetOuterUMVVMWidgetBlueprintExtension_View()->GetWidgetBlueprint();
@@ -159,7 +172,7 @@ const UFunction* UMVVMBlueprintViewEvent::GetEventSignature() const
 
 const UFunction* UMVVMBlueprintViewEvent::GetEventSignature(const UWidgetBlueprint* WidgetBlueprint, const FMVVMBlueprintPropertyPath& PropertyPath)
 {
-	if (!PropertyPath.IsEmpty() && PropertyPath.GetFieldPaths().Num() > 0)
+	if (PropertyPath.IsValid() && PropertyPath.GetFieldPaths().Num() > 0)
 	{
 		const FMVVMBlueprintFieldPath& LastPath = PropertyPath.GetFieldPaths().Last();
 		UE::MVVM::FMVVMConstFieldVariant LastField = LastPath.GetField(WidgetBlueprint->SkeletonGeneratedClass);
@@ -176,7 +189,7 @@ const UFunction* UMVVMBlueprintViewEvent::GetEventSignature(const UWidgetBluepri
 
 UEdGraph* UMVVMBlueprintViewEvent::CreateWrapperGraphInternal()
 {
-	if (GraphName.IsNone() || DestinationPath.IsEmpty() || EventPath.IsEmpty())
+	if (GraphName.IsNone() || !DestinationPath.IsValid() || !EventPath.IsValid())
 	{
 		return nullptr;
 	}

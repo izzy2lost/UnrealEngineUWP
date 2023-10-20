@@ -322,21 +322,18 @@ FText GetViewModelDisplayName(const UWidgetBlueprint* WidgetBlueprint, FGuid Id,
 
 FText GetRootName(const UWidgetBlueprint* WidgetBlueprint, const FMVVMBlueprintPropertyPath& PropertyPath, bool bUseDisplayName, bool bIncludeMetaData)
 {
-	if (PropertyPath.IsFromWidget())
+	switch (PropertyPath.GetSource(WidgetBlueprint))
 	{
-		if (WidgetBlueprint->GetFName() == PropertyPath.GetWidgetName())
-		{
-			return bUseDisplayName ? LOCTEXT("Self", "Self") : FText::FromString(WidgetBlueprint->GetFriendlyName());
-		}
-		else
-		{
-			return GetWidgetDisplayName(WidgetBlueprint, PropertyPath.GetWidgetName(), bUseDisplayName, bIncludeMetaData);
-		}
-	}
-	else if (PropertyPath.IsFromViewModel())
-	{
+	case EMVVMBlueprintFieldPathSource::SelfContext:
+		return bUseDisplayName ? LOCTEXT("Self", "Self") : FText::FromString(WidgetBlueprint->GetFriendlyName());
+
+	case EMVVMBlueprintFieldPathSource::ViewModel:
 		return GetViewModelDisplayName(WidgetBlueprint, PropertyPath.GetViewModelId(), bUseDisplayName);
+
+	case EMVVMBlueprintFieldPathSource::Widget:
+		return GetWidgetDisplayName(WidgetBlueprint, PropertyPath.GetWidgetName(), bUseDisplayName, bIncludeMetaData);
 	}
+
 	return FText::GetEmpty();
 }
 }//namespace
@@ -426,6 +423,19 @@ FString FMVVMBlueprintPropertyPath::ToString(const UWidgetBlueprint* WidgetBluep
 		}
 	}
 	return Builder.ToString();
+}
+
+void FMVVMBlueprintPropertyPath::DeprecationUpdateSource(const UBlueprint* InContext)
+{
+	if (ContextId.IsValid())
+	{
+		Source = EMVVMBlueprintFieldPathSource::ViewModel;
+	}
+	else if (!WidgetName.IsNone())
+	{
+		Source = (InContext && InContext->GetFName() == WidgetName) ? EMVVMBlueprintFieldPathSource::SelfContext : EMVVMBlueprintFieldPathSource::Widget;
+	}
+	bDeprecatedSource = true;
 }
 
 #undef LOCTEXT_NAMESPACE

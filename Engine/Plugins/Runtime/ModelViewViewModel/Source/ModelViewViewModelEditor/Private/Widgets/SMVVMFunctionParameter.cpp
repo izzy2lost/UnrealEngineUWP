@@ -81,7 +81,7 @@ void SFunctionParameter::Construct(const FArguments& InArgs, UWidgetBlueprint* I
 	}
 
 	FMVVMBlueprintPropertyPath Path = OnGetSelectedField();
-	bDefaultValueVisible = Path.IsEmpty();
+	bDefaultValueVisible = !Path.IsValid();
 
 	bool bFromViewModel = UE::MVVM::IsForwardBinding(Binding->BindingType);
 	TSharedPtr<SHorizontalBox> HBox;

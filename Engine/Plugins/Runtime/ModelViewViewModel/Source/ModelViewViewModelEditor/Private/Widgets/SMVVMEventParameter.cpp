@@ -67,7 +67,7 @@ void SEventParameter::Construct(const FArguments& InArgs, UWidgetBlueprint* InWi
 	}
 
 	FMVVMBlueprintPropertyPath Path = OnGetSelectedField();
-	bDefaultValueVisible = Path.IsEmpty();
+	bDefaultValueVisible = !Path.IsValid();
 
 	TSharedPtr<SHorizontalBox> HBox;
 

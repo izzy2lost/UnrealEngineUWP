@@ -384,6 +384,9 @@ struct FFortniteMainBranchObjectVersion
 		// Added support of external packaging of Data Layer Instances
 		AddDataLayerInstanceExternalPackage,
 
+		// Update paths to keep a flag if they are the widget BP
+		MVVMPropertyPathSelf,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

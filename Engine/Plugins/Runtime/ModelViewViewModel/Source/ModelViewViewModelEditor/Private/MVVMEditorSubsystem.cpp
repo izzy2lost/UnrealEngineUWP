@@ -900,11 +900,7 @@ TArray<UE::MVVM::FBindingSource> UMVVMEditorSubsystem::GetBindableWidgets(const 
 		if (Bindings.Num() > 0)
 		{
 			// at least one valid property, add it to our list
-			UE::MVVM::FBindingSource Source;
-			Source.Name = WidgetBlueprint->GetFName();
-			Source.DisplayName = FText::FromName(WidgetBlueprint->GetFName());
-			Source.Class = BPClass;
-			Sources.Add(Source);
+			Sources.Add(UE::MVVM::FBindingSource::CreateForBlueprint(WidgetBlueprint));
 		}
 	}
 
@@ -914,11 +910,7 @@ TArray<UE::MVVM::FBindingSource> UMVVMEditorSubsystem::GetBindableWidgets(const 
 		if (Bindings.Num() > 0)
 		{
 			// at least one valid property, add it to our list
-			UE::MVVM::FBindingSource Source;
-			Source.Name = Widget->GetFName();
-			Source.DisplayName = Widget->GetLabelText();
-			Source.Class = Widget->GetClass();
-			Sources.Add(Source);
+			Sources.Add(UE::MVVM::FBindingSource::CreateForWidget(WidgetBlueprint, Widget));
 		}
 	}
 
@@ -934,13 +926,9 @@ TArray<UE::MVVM::FBindingSource> UMVVMEditorSubsystem::GetAllViewModels(const UW
 		const TArrayView<const FMVVMBlueprintViewModelContext> ViewModels = View->GetViewModels();
 		Sources.Reserve(ViewModels.Num());
 
-		for (const FMVVMBlueprintViewModelContext& ViewModel : ViewModels)
+		for (const FMVVMBlueprintViewModelContext& ViewModelContext : ViewModels)
 		{
-			UE::MVVM::FBindingSource Source;
-			Source.ViewModelId = ViewModel.GetViewModelId();
-			Source.DisplayName = ViewModel.GetDisplayName();
-			Source.Class = ViewModel.GetViewModelClass();
-			Sources.Add(Source);
+			Sources.Add(UE::MVVM::FBindingSource::CreateForViewModel(WidgetBlueprint, ViewModelContext));
 		}
 	}
 

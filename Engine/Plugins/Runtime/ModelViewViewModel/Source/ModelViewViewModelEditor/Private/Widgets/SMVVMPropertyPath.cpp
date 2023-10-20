@@ -40,7 +40,7 @@ void SPropertyPath::SetPropertyPath(const FMVVMBlueprintPropertyPath& InProperty
 {
 	FieldBox->ClearChildren();
 
-	bool bHasSource = InPropertyPath.IsFromWidget() || InPropertyPath.IsFromViewModel();
+	bool bHasSource = InPropertyPath.IsValid();
 	if (bShowContext && bHasSource)
 	{
 		FieldBox->AddSlot()

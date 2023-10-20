@@ -385,23 +385,9 @@ void SSourceBindingList::ClearSources()
 	}
 }
 
-void SSourceBindingList::AddSource(UClass* Class, FName Name, FGuid Guid)
+void SSourceBindingList::AddWidgetBlueprint()
 {
-	FBindingSource Source;
-	Source.Class = Class;
-	Source.Name = Name;
-	Source.ViewModelId = Guid;
-
-	AddSources(MakeArrayView(&Source, 1));
-} 
-
-void SSourceBindingList::AddWidgetBlueprint(const UWidgetBlueprint* InWidgetBlueprint)
-{
-	FBindingSource Source;
-	Source.Class = InWidgetBlueprint->GeneratedClass;
-	Source.Name = InWidgetBlueprint->GetFName();
-	Source.DisplayName = FText::FromString(InWidgetBlueprint->GetName());
-
+	FBindingSource Source = FBindingSource::CreateForBlueprint(WidgetBlueprint.Get());
 	AddSources(MakeArrayView(&Source, 1 ));
 }
 
@@ -412,10 +398,7 @@ void SSourceBindingList::AddWidgets(TArrayView<const UWidget*> InWidgets)
 
 	for (const UWidget* Widget : InWidgets)
 	{
-		FBindingSource& Source = NewSources.AddDefaulted_GetRef();
-		Source.Class = Widget->GetClass();
-		Source.Name = Widget->GetFName();
-		Source.DisplayName = Widget->GetLabelText();
+		NewSources.Add(FBindingSource::CreateForWidget(WidgetBlueprint.Get(), Widget));
 	}
 
 	AddSources(NewSources);
@@ -428,9 +411,7 @@ void SSourceBindingList::AddViewModels(TArrayView<const FMVVMBlueprintViewModelC
 
 	for (const FMVVMBlueprintViewModelContext& ViewModelContext : InViewModels)
 	{
-		FBindingSource& Source = NewSources.AddDefaulted_GetRef();
-		Source.Class = ViewModelContext.GetViewModelClass();
-		Source.ViewModelId = ViewModelContext.GetViewModelId();
+		NewSources.Add(FBindingSource::CreateForViewModel(WidgetBlueprint.Get(), ViewModelContext));
 	}
 
 	AddSources(NewSources);
@@ -448,15 +429,15 @@ void SSourceBindingList::AddSources(TArrayView<const FBindingSource> InSources)
 		const UWidgetBlueprint* WidgetBlueprintPtr = WidgetBlueprint.Get();
 		for (const FBindingSource& Source : InSources)
 		{
-			if (const UClass* SourceClass = Source.Class.Get())
+			if (const UClass* SourceClass = Source.GetClass())
 			{
 				SPropertyViewer::FHandle Handle;
-				if (SourceClass && Source.Class->ImplementsInterface(UNotifyFieldValueChanged::StaticClass()))
+				if (SourceClass->ImplementsInterface(UNotifyFieldValueChanged::StaticClass()))
 				{
 					UWidget* Widget = nullptr;
-					if (WidgetBlueprintPtr && SourceClass->IsChildOf(UWidget::StaticClass()))
+					if (WidgetBlueprintPtr && Source.GetSource() == EMVVMBlueprintFieldPathSource::Widget)
 					{
-						Widget = WidgetBlueprintPtr->WidgetTree->FindWidget(Source.Name);
+						Widget = WidgetBlueprintPtr->WidgetTree->FindWidget(Source.GetWidgetName());
 					}
 
 					if (Widget)
@@ -552,15 +533,7 @@ FMVVMBlueprintPropertyPath SSourceBindingList::CreateBlueprintPropertyPath(SProp
 
 		if (bPassFilter)
 		{
-			if (Source->Key.ViewModelId.IsValid())
-			{
-				PropertyPath.SetViewModelId(Source->Key.ViewModelId);
-			}
-			else
-			{
-				PropertyPath.SetWidgetName(Source->Key.Name);
-			}
-
+			Source->Key.SetSourceTo(PropertyPath);
 			PropertyPath.ResetPropertyPath();
 			for (const FFieldVariant& Field : FieldPath)
 			{
@@ -595,14 +568,7 @@ FMVVMBlueprintPropertyPath SSourceBindingList::CreateBlueprintPropertyPath(SProp
 			}
 			if (bPassFilter)
 			{
-				if (Source->Key.ViewModelId.IsValid())
-				{
-					PropertyPath.SetViewModelId(Source->Key.ViewModelId);
-				}
-				else
-				{
-					PropertyPath.SetWidgetName(Source->Key.Name);
-				}
+				Source->Key.SetSourceTo(PropertyPath);
 				PropertyPath.ResetPropertyPath();
 			}
 		}
@@ -646,7 +612,7 @@ FMVVMBlueprintPropertyPath SSourceBindingList::GetSelectedProperty() const
 	return SelectedPath;
 }
 
-void SSourceBindingList::SetSelectedProperty(const FMVVMBlueprintPropertyPath& Property)
+void SSourceBindingList::SetSelectedProperty(const FMVVMBlueprintPropertyPath& PropertyPath)
 {
 	if (!PropertyViewer.IsValid())
 	{
@@ -662,8 +628,7 @@ void SSourceBindingList::SetSelectedProperty(const FMVVMBlueprintPropertyPath& P
 	SPropertyViewer::FHandle SelectedHandle;
 	for (TPair<FBindingSource, SPropertyViewer::FHandle>& Source : Sources)
 	{
-		if ((Property.IsFromViewModel() && Source.Key.ViewModelId == Property.GetViewModelId()) ||
-			(Property.IsFromWidget() && Source.Key.Name == Property.GetWidgetName()))
+		if (Source.Key.Matches(WidgetBlueprintPtr, PropertyPath))
 		{
 			SelectedHandle = Source.Value;
 			break;
@@ -674,7 +639,7 @@ void SSourceBindingList::SetSelectedProperty(const FMVVMBlueprintPropertyPath& P
 	TArray<FFieldVariant, TMemStackAllocator<>> FieldPath;
 	if (SelectedHandle.IsValid())
 	{
-		TArray<FMVVMConstFieldVariant> FieldVariants = Property.GetFields(WidgetBlueprintPtr->SkeletonGeneratedClass);
+		TArray<FMVVMConstFieldVariant> FieldVariants = PropertyPath.GetFields(WidgetBlueprintPtr->SkeletonGeneratedClass);
 		FieldPath.Reserve(FieldVariants.Num());
 
 		for (const FMVVMConstFieldVariant& Variant : FieldVariants)
