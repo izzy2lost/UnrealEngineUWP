@@ -688,6 +688,11 @@ void SMultiBoxWidget::AddBlockWidget(const FMultiBlock& Block, TSharedPtr<SHoriz
 
 	TSharedRef<SWidget> BlockWidget = Block.MakeWidget(SharedThis(this), InLocation, bSectionContainsIcons, OptionsWidget)->AsWidget();
 
+	if (FName TutorialHighlightName = Block.GetTutorialHighlightName(); !TutorialHighlightName.IsNone())
+	{
+		BlockWidget->AddMetadata(MakeShared<FTagMetaData>(TutorialHighlightName));
+	}
+
 	// If the block being added is one of the searchable flatten blocks from one of the sub-menus. (Second pass when building the multibox widget)
 	TSharedRef<const FMultiBlock> BlockRef = Block.AsShared();
 	if (TSharedPtr<FFlattenSearchableBlockInfo>* FlattenBlockInfo = FlattenSearchableBlocks.Find(BlockRef))

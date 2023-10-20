@@ -197,7 +197,8 @@ public:
 						Block.SubMenuData.bOpenSubMenuOnClick,
 						Block.Icon.Get(),
 						Block.bShouldCloseWindowAfterMenuSelection,
-						BlockNameOverride
+						BlockNameOverride,
+						Block.TutorialHighlightName
 					);
 				}
 			}
