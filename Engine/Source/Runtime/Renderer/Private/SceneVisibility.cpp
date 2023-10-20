@@ -3772,17 +3772,17 @@ void FVisibilityTaskData::FinishGatherDynamicMeshElements(FVirtualTextureUpdater
 		GatherDynamicMeshElements(*DynamicMeshElements.PrimitiveViewMasks);
 	}
 
+	// Sync the virtual texture update task before finishing the mesh collectors. Render proxies can register new
+	// materials which require evaluating uniform expression caches, which can contain virtual textures. Newly allocated
+	// virtual textures are processed later.
+	FVirtualTextureSystem::Get().WaitForTasks(VirtualTextureUpdater);
+
 	MeshCollector.Finish();
 
 	if (GIsEditor)
 	{
 		EditorMeshCollector.Finish();
 	}
-
-	// Sync the virtual texture update task before finishing the mesh collectors. Render proxies can register new
-	// materials which require evaluating uniform expression caches, which can contain virtual textures. Newly allocated
-	// virtual textures are processed later.
-	FVirtualTextureSystem::Get().WaitForTasks(VirtualTextureUpdater);
 
 	DynamicMeshElements.DynamicVertexBuffer.Commit();
 	DynamicMeshElements.DynamicIndexBuffer.Commit();
