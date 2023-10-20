@@ -200,7 +200,6 @@ void SubstrateEnvLightingCommon(
 	in float TopLayerSpecularContributionFactor,
 	in float3 TranslatedWorldPosition,
 	in float CombinedScreenAndMaterialAO,
-	inout float SSRReductionFactor,
 	inout float3 DiffuseLighting,
 	inout float3 SpecularLighting)
 {
@@ -298,15 +297,9 @@ void SubstrateEnvLightingCommon(
 					ExtraIndirectSpecular,
 					NumCulledReflectionCaptures,
 					CaptureDataStartIndex);
-
-			// SSR is traced for the sharpest lob. The smoothest one does not rely on SSR so we need to lower energy coming from SSR according to the lobe blend weight.
-			// And we also try to make the transition smooth using Haziness
-			SSRReductionFactor -= bIsTopLayer ? dot(BSDFThroughput, float3(1.0f / 3.0f, 1.0f / 3.0f, 1.0f / 3.0f)) * SubstrateEnvLight.SSRReduction : 0.0f;
 		}
 	#endif 
 	}
 }
 
 #endif // SUBSTRATE_ENV_LIGHTING_COMMON
-
-

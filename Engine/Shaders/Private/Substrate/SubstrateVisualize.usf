@@ -1254,7 +1254,6 @@ void EvaluateLighting(
 		const bool bEnableSpecular = ReflectionStruct.SkyLightParameters.y > 0.0f;
 		FSubstrateEnvLightResult SubstrateEnvLight = SubstrateEvaluateForEnvLight(SubstrateBSDFContext, bEnableSpecular, Settings);
 
-		float SSRReductionFactor = 0.0;
 		float3 DiffuseLighting = 0.0;
 		float3 SpecularLighting = 0.0;
 		SubstrateEnvLightingCommon(
@@ -1271,7 +1270,6 @@ void EvaluateLighting(
 			1.0,//in float TopLayerSpecularContributionFactor,
 			TranslatedWorldPosition,
 			1.0,//in float CombinedScreenAndMaterialAO,
-			SSRReductionFactor,
 			DiffuseLighting,
 			SpecularLighting);
 

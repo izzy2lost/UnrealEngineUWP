@@ -33,12 +33,17 @@
 #include "ClearCoatCommon.ush"
 #define REFLECTION_COMPOSITE_USE_BLENDED_REFLECTION_CAPTURES 1
 #define REFLECTION_COMPOSITE_SUPPORT_SKYLIGHT_BLEND 1
+#define USE_SUBSTRATE_ENV_LIGHTING_COMMON 1
 #include "ReflectionEnvironmentComposite.ush"
 #include "/Engine/Private/Substrate/SubstrateEvaluation.ush"
-#include "/Engine/Private/Substrate/SubstrateEnvironmentLighting.ush"
+#include "/Engine/Private/Substrate/SubstrateLightingCommon.ush"
 #include "Lumen/LumenReflectionsCombine.ush"
 
+#if SUBSTRATE_ENABLED && LUMEN_STANDALONE_REFLECTIONS
+Texture2DArray ReflectionTexture;
+#else
 Texture2D ReflectionTexture;
+#endif
 SamplerState ReflectionTextureSampler;
 
 #if ENABLE_DYNAMIC_SKY_LIGHT
@@ -255,6 +260,71 @@ float GetCloudVolumetricAOShadow(in float3 TranslatedWorldPosition)
 	return 1.0f;
 }
 
+#if SUBSTRATE_ENABLED
+struct FSSRContribution
+{
+	float3 SSRTopLayerEnvBRDF;
+	float  SSRReductionFactor;
+};
+
+FSSRContribution InitSSRContribution()
+{
+	FSSRContribution Out;
+	Out.SSRReductionFactor = 1.0f;
+	Out.SSRTopLayerEnvBRDF = 0.0f;
+	return Out;
+}
+
+void GetSSSRContribution(
+	in FSubstrateEnvLightResult SubstrateEnvLight,
+	in FSubstrateBSDF BSDF,
+	in float3 BSDFThroughput,
+	inout FSSRContribution Out)
+{
+	// The specular path weight applied on SSR. It must account for throughput even for top surface because it also contains coverage.
+	Out.SSRTopLayerEnvBRDF += BSDFThroughput * SubstrateEnvLight.SSRSpecularWeight;
+
+#if SUBSTRATE_FASTPATH==0
+	if (BSDF_GETISTOPLAYER(BSDF) && BSDF_GETHASHAZINESS(BSDF) && any((SubstrateEnvLight.SpecularWeight + SubstrateEnvLight.SpecularHazeWeight) > 0.0f))
+	{
+		// SSR is traced for the sharpest lob. The smoothest one does not rely on SSR so we need to lower energy coming from SSR according to the lobe blend weight.
+		// And we also try to make the transition smooth using Haziness
+		Out.SSRReductionFactor -= dot(BSDFThroughput, float3(1.0f / 3.0f, 1.0f / 3.0f, 1.0f / 3.0f)) * SubstrateEnvLight.SSRReduction;
+	}
+#endif 
+}
+
+float4 ApplySSRContribution(FSSRContribution In, float4 InReflectionInput)
+{
+	// Screen space reflections added on top of environment lighting.
+	// Alpha is 0 to not affect the subsurface diffuse luma information.
+	return float4(InReflectionInput.rgb * In.SSRTopLayerEnvBRDF * saturate(In.SSRReductionFactor), 0.0);
+}
+
+float4 GetLumenReflectionOnly(
+	in FSubstrateEnvLightResult SubstrateEnvLight,
+	in FSubstrateBSDF BSDF,
+	in float3 BSDFThroughput,
+	in float4 InReflectionInput)
+{
+	float4 OutLighting = float4(0, 0, 0, 1);
+#if LUMEN_STANDALONE_REFLECTIONS
+	const float Roughness = SubstrateGetBSDFRoughness(BSDF);
+	const bool  bHasBackfaceDiffuse = SubstrateGetBSDFType(BSDF) == SUBSTRATE_BSDF_TYPE_SLAB && BSDF.HasBackScattering();
+	const float FadeAlpha = LumenCombineReflectionsAlpha(Roughness, bHasBackfaceDiffuse);
+	// Must branch as Lumen Reflections can be uninitialized where not needed and contain NaN
+	if (FadeAlpha > 0.0f)
+	{
+		OutLighting.rgb = InReflectionInput.xyz * FadeAlpha;
+		OutLighting.a = 1 - FadeAlpha;
+	}
+#endif
+	return OutLighting;
+}
+
+#endif // SUBSTRATE_ENABLED
+
+
 void ReflectionEnvironmentSkyLighting(
 	in float4 SvPosition : SV_Position,
 	out float4 OutColor : SV_Target0
@@ -294,49 +364,105 @@ void ReflectionEnvironmentSkyLighting(
 		// Sample the ambient occlusion that is dynamically generated every frame.
 		float AmbientOcclusion = AmbientOcclusionTexture.SampleLevel(AmbientOcclusionSampler, BufferUV, 0).r;
 
-		const float4 ReflectionInput = Texture2DSample(ReflectionTexture, ReflectionTextureSampler, BufferUV);
-
+	#if LUMEN_STANDALONE_REFLECTIONS
+		const float TopLayerSpecularContributionFactor = 1.0f;
+	#else
+		const float4 SSRReflection = Texture2DSample(ReflectionTexture, ReflectionTextureSampler, BufferUV);
 		// SSR is computed for the top level by averaging BSDF components.
 		// This is the top level specular contribution factor according to areas.
-		const float TopLayerSpecularContributionFactor = 1.0f - ReflectionInput.a;
+		const float TopLayerSpecularContributionFactor = 1.0f - SSRReflection.a;
 
 		// A reduction of SSR contribution is needed when there is haziness because we only consider SSR for the sharpest lobe.
-		float SSRReductionFactor = 1.0f;
-		float3 SSRTopLayerEnvBRDF = 0.0f;
+		FSSRContribution SSRContribution = InitSSRContribution();
+	#endif
 
 		const float CloudVolumetricAOShadow = GetCloudVolumetricAOShadow(TranslatedWorldPosition);
 		const FSubstrateIntegrationSettings Settings = InitSubstrateIntegrationSettings(false /*bForceFullyRough*/, Substrate.bRoughDiffuse, Substrate.PeelLayersAboveDepth, Substrate.bRoughnessTracking);
 
 		const bool bEnableSpecular = ReflectionStruct.SkyLightParameters.y > 0.0f;
+		FSubstrateDeferredLighting SubstrateLighting = GetInitialisedSubstrateDeferredLighting();
+	
+	#if APPLY_SKY_SHADOWING
+		// Sample DFAO only once
+		FUpsampleDFAOOutput UpsampleDFAOOutput = UpsampleDFAO(BufferUV, SceneDepth);
+	#endif
+	
+		float CombinedScreenAndMaterialAO = SubstrateGetAO(SubstratePixelHeader) * AmbientOcclusion;
+	
+		
+	#if USE_DEFAULT_ENV_LIGHTING_INPUT && FEATURE_LEVEL >= FEATURE_LEVEL_SM5
+		float2 LocalPosition = SvPosition.xy - View.ViewRectMin.xy;
+	
+		uint GridIndex = ComputeLightGridCellIndex(uint2(LocalPosition.x, LocalPosition.y), SceneDepth);
+		uint NumCulledEntryIndex = (ForwardLightData.NumGridCells + GridIndex) * NUM_CULLED_LIGHTS_GRID_STRIDE;
+		uint NumCulledReflectionCaptures = min(ForwardLightData.NumCulledLightsGrid[NumCulledEntryIndex + 0], ForwardLightData.NumReflectionCaptures);
+		uint CaptureDataStartIndex = ForwardLightData.NumCulledLightsGrid[NumCulledEntryIndex + 1];
+	#else
+		uint CaptureDataStartIndex = 0;
+		uint NumCulledReflectionCaptures = 0;
+	#endif
+	
+		Substrate_for (uint ClosureIndex = 0, ClosureIndex < SubstratePixelHeader.ClosureCount, ++ClosureIndex)
+		{
+			FSubstrateBSDF BSDF = UnpackSubstrateBSDF(Substrate.MaterialTextureArray, SubstrateAddressing, SubstratePixelHeader);
+			FSubstrateBSDFContext SubstrateBSDFContext = SubstrateCreateBSDFContext(SubstratePixelHeader, BSDF, SubstrateAddressing, V);
+			const float3 BSDFThroughput = LuminanceWeight(SubstrateBSDFContext, BSDF); // Use the reflected direction
+	
+			// Evaluate environment lighting
+			FSubstrateEnvLightResult SubstrateEnvLight = SubstrateEvaluateForEnvLight(SubstrateBSDFContext, bEnableSpecular, Settings);
+	
+			float3 BentNormal = SubstrateEnvLight.DiffuseNormal;
+		#if APPLY_SKY_SHADOWING
+			// Set DiffuseNormal as the bent normal for all diffuse computations.
+			BentNormal = ApplyDFAO(UpsampleDFAOOutput, SubstrateEnvLight.DiffuseNormal);
+		#endif
+	
+			float3 DiffuseLighting = 0;
+			float3 SpecularLighting = 0;
+			SubstrateEnvLightingCommon(
+				SubstrateEnvLight,
+				SubstratePixelHeader,
+				SubstrateBSDFContext,
+				BSDF,
+				BentNormal,
+				BSDFThroughput,
+				CaptureDataStartIndex,
+				NumCulledReflectionCaptures,
+				AmbientOcclusion,
+				CloudVolumetricAOShadow,
+				TopLayerSpecularContributionFactor,
+				TranslatedWorldPosition,
+				CombinedScreenAndMaterialAO,
+				DiffuseLighting,
+				SpecularLighting);
+	
+		#if LUMEN_STANDALONE_REFLECTIONS
+			{
+				const float4 LumenReflections = GetLumenReflectionOnly(SubstrateEnvLight, BSDF, BSDFThroughput, Texture2DArraySample(ReflectionTexture, ReflectionTextureSampler, float3(BufferUV, ClosureIndex)));
+				SpecularLighting *= LumenReflections.a;
+				SpecularLighting += LumenReflections.xyz * BSDFThroughput * SubstrateEnvLight.SpecularWeight;
+			}
+		#else
+			if (BSDF_GETISTOPLAYER(BSDF))
+			{
+				GetSSSRContribution(SubstrateEnvLight, BSDF, BSDFThroughput, SSRContribution);
+			}
+		#endif
+			
+			FLightAccumulator Out = (FLightAccumulator)0;
+			LightAccumulator_AddSplit(Out, DiffuseLighting, SpecularLighting, DiffuseLighting, 1.f /*CommonMultiplier*/, SubstrateEnvLight.bPostProcessSubsurface);
+			AccumulateSubstrateDeferredLighting(SubstrateLighting, Out, SubstrateEnvLight.bPostProcessSubsurface, BSDF_GETISTOPLAYER(BSDF));
+		}
 
-		FSubstrateDeferredLighting SubstrateLighting = SubstrateEnvironmentLighting(
-			SvPosition,
-			BufferUV,
-			SceneDepth,
-			WorldPosition,
-			TranslatedWorldPosition,
-			CameraToPixel,
-			V,
-			AmbientOcclusion,
-			TopLayerSpecularContributionFactor,
-			bEnableSpecular,
-			Settings,
-			Substrate.MaterialTextureArray,
-			SubstrateAddressing,
-			SubstratePixelHeader,
-			CloudVolumetricAOShadow,
-			SSRReductionFactor,
-			SSRTopLayerEnvBRDF);
+		OutColor = SubstrateLighting.SceneColor;
+		#if LUMEN_STANDALONE_REFLECTIONS == 0
+		OutColor += ApplySSRContribution(SSRContribution, SSRReflection);
+		#endif
 
-		// Screen space reflections added on top of environment lighting.
-		// Alpha is 0 to not affect the subsurface diffuse luma information.
-		const float4 SSRColor = float4(ReflectionInput.rgb * SSRTopLayerEnvBRDF * SSRReductionFactor, 0.0);
-
-		OutColor += SubstrateLighting.SceneColor + SSRColor;
-#if SUBSTRATE_OPAQUE_ROUGH_REFRACTION_ENABLED
+		#if SUBSTRATE_OPAQUE_ROUGH_REFRACTION_ENABLED
 		OutOpaqueRoughRefractionSceneColor += SubstrateLighting.OpaqueRoughRefractionSceneColor;
 		OutSubSurfaceSceneColor += SubstrateLighting.SubSurfaceSceneColor;
-#endif
+		#endif
 	}
 
 #else // SUBSTRATE_ENABLED
