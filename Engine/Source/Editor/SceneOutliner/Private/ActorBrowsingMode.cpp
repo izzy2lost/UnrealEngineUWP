@@ -49,6 +49,8 @@
 #include "EditorViewportCommands.h"
 #include "SceneOutlinerActorSCCColumn.h"
 #include "Misc/ScopedSlowTask.h"
+#include "Elements/Framework/EngineElementsLibrary.h"
+#include "Elements/Framework/TypedElementHandle.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogActorBrowser, Log, All);
 
@@ -248,6 +250,11 @@ FActorBrowsingMode::FActorBrowsingMode(SSceneOutliner* InSceneOutliner, TWeakObj
 	// Add a filter which sets the interactive mode of LevelInstance items and their children
 	SceneOutliner->AddInteractiveFilter(MakeShared<FActorFilter>(FActorTreeItem::FFilterPredicate::CreateLambda([this](const AActor* Actor)
 		{
+			if (Actor->SupportsSubRootSelection())
+			{
+				return true;
+			}
+
 			if (!bHideLevelInstanceHierarchy)
 			{
 				if (const ULevelInstanceSubsystem* LevelInstanceSubsystem = RepresentingWorld->GetSubsystem<ULevelInstanceSubsystem>())
@@ -995,85 +1002,98 @@ void FActorBrowsingMode::OnActorDescRemoved(FWorldPartitionActorDesc* InActorDes
 
 void FActorBrowsingMode::OnItemSelectionChanged(FSceneOutlinerTreeItemPtr TreeItem, ESelectInfo::Type SelectionType, const FSceneOutlinerItemSelection& Selection)
 {
-	TArray<AActor*> SelectedActors = Selection.GetData<AActor*>(SceneOutliner::FActorSelector());
+	TSet<AActor*> OutlinerSelectedActors(Selection.GetData<AActor*>(SceneOutliner::FActorSelector()));
+	TSet<AActor*> ActorsToSelect;
+	ActorsToSelect.Reserve(OutlinerSelectedActors.Num());
 
 	SynchronizeSelectedActorDescs();
 
-	bool bChanged = false;
-	bool bAnyInPIE = false;
-	for (auto* Actor : SelectedActors)
+	USelection* ActorSelection = GEditor->GetSelectedActors();
+	if (UTypedElementSelectionSet* SelectionSet = ActorSelection->GetElementSelectionSet())
 	{
-		if (!bAnyInPIE && Actor && Actor->GetPackage()->HasAnyPackageFlags(PKG_PlayInEditor))
-		{
-			bAnyInPIE = true;
-		}
-		if (!GEditor->GetSelectedActors()->IsSelected(Actor))
-		{
-			bChanged = true;
-			break;
-		}
-	}
+		TSet<AActor*> EditorSelectedActors(SelectionSet->GetSelectedObjects<AActor>());
 
-	for (FSelectionIterator SelectionIt(*GEditor->GetSelectedActors()); SelectionIt && !bChanged; ++SelectionIt)
-	{
-		const AActor* Actor = CastChecked< AActor >(*SelectionIt);
-		if (!bAnyInPIE && Actor->GetPackage()->HasAnyPackageFlags(PKG_PlayInEditor))
+		bool bChanged = false;
+		bool bAnyInPIE = false;
+		for (AActor* Actor : OutlinerSelectedActors)
 		{
-			bAnyInPIE = true;
-		}
-		if (!SelectedActors.Contains(Actor))
-		{
-			// Actor has been deselected
-			bChanged = true;
-
-			// If actor was a group actor, remove its members from the ActorsToSelect list
-			const AGroupActor* DeselectedGroupActor = Cast<AGroupActor>(Actor);
-			if (DeselectedGroupActor)
+			if (!bAnyInPIE && Actor && Actor->GetPackage()->HasAnyPackageFlags(PKG_PlayInEditor))
 			{
-				TArray<AActor*> GroupActors;
-				DeselectedGroupActor->GetGroupActors(GroupActors);
+				bAnyInPIE = true;
+			}
 
-				for (auto* GroupActor : GroupActors)
-				{
-					SelectedActors.Remove(GroupActor);
-				}
+			if (!EditorSelectedActors.Contains(Actor))
+			{
+				bChanged = true;
+			}
 
+			// Allow selection of Sub Roots only if Roots aren't in the outliners selection
+			AActor* RootSelectionParent = Actor ? Actor->GetRootSelectionParent() : nullptr;
+			if (!RootSelectionParent || !OutlinerSelectedActors.Contains(RootSelectionParent))
+			{
+				ActorsToSelect.Add(Actor);
 			}
 		}
-	}
 
-	// If there's a discrepancy, update the selected actors to reflect this list.
-	if (bChanged)
-	{
-		const FScopedTransaction Transaction(NSLOCTEXT("UnrealEd", "ClickingOnActors", "Clicking on Actors"), !bAnyInPIE);
-		GEditor->GetSelectedActors()->Modify();
-
-		// We'll batch selection changes instead by using BeginBatchSelectOperation()
-		GEditor->GetSelectedActors()->BeginBatchSelectOperation();
-
-		// Clear the selection.
-		GEditor->SelectNone(false, true, true);
-
-		const bool bShouldSelect = true;
-		const bool bNotifyAfterSelect = false;
-		const bool bSelectEvenIfHidden = true;	// @todo outliner: Is this actually OK?
-		for (auto* Actor : SelectedActors)
+		for (const AActor* SelectedActor : EditorSelectedActors)
 		{
-			UE_LOG(LogActorBrowser, Verbose, TEXT("Clicking on Actor (world outliner): %s (%s)"), *Actor->GetClass()->GetName(), *Actor->GetActorLabel());
-			GEditor->SelectActor(Actor, bShouldSelect, bNotifyAfterSelect, bSelectEvenIfHidden);
+			if (!bAnyInPIE && SelectedActor && SelectedActor->GetPackage()->HasAnyPackageFlags(PKG_PlayInEditor))
+			{
+				bAnyInPIE = true;
+			}
+
+			if (!ActorsToSelect.Contains(SelectedActor))
+			{
+				// Actor has been deselected
+				bChanged = true;
+
+				// If actor was a group actor, remove its members from the ActorsToSelect list
+				if (const AGroupActor* DeselectedGroupActor = Cast<AGroupActor>(SelectedActor))
+				{
+					TArray<AActor*> GroupActors;
+					DeselectedGroupActor->GetGroupActors(GroupActors);
+
+					for (AActor* GroupActor : GroupActors)
+					{
+						ActorsToSelect.Remove(GroupActor);
+					}
+				}
+			}
 		}
 
-		// Commit selection changes
-		GEditor->GetSelectedActors()->EndBatchSelectOperation(/*bNotify*/false);
+		// If there's a discrepancy, update the selected actors to reflect this list.
+		if (bChanged)
+		{
+			const FScopedTransaction Transaction(NSLOCTEXT("UnrealEd", "ClickingOnActors", "Clicking on Actors"), !bAnyInPIE);
 
-		// Fire selection changed event
-		GEditor->NoteSelectionChange();
+			TArray<FTypedElementHandle> ElementsToSelect;
+			for (auto* Actor : ActorsToSelect)
+			{
+				UE_LOG(LogActorBrowser, Verbose, TEXT("Clicking on Actor (world outliner): %s (%s)"), *Actor->GetClass()->GetName(), *Actor->GetActorLabel());
+				ElementsToSelect.Add(UEngineElementsLibrary::AcquireEditorActorElementHandle(Actor));
+			}
 
-		// Set this outliner as the most recently interacted with
-		SetAsMostRecentOutliner();
+			{
+				const FTypedElementSelectionOptions SelectionOptions = FTypedElementSelectionOptions()
+					.SetAllowHidden(true)
+					.SetWarnIfLocked(false)
+					.SetAllowLegacyNotifications(false)
+					.SetAllowSubRootSelection(true);
+
+				// Avoid senting out notification via typed element and call NoteSelectionChange to preserve previous behavior
+				FTypedElementList::FScopedClearNewPendingChange ClearNewPendingChange = SelectionSet->GetScopedClearNewPendingChange();
+				SelectionSet->SetSelection(ElementsToSelect, SelectionOptions);
+			}
+
+			// Fire selection changed event
+			GEditor->NoteSelectionChange();
+
+			// Set this outliner as the most recently interacted with
+			SetAsMostRecentOutliner();
+		}
+
+		SceneOutliner->RefreshSelection();
 	}
-
-	SceneOutliner->RefreshSelection();
 }
 
 void FActorBrowsingMode::OnItemDoubleClick(FSceneOutlinerTreeItemPtr Item)
