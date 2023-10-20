@@ -55,6 +55,12 @@ static FAutoConsoleVariableRef CVarDeferEndReplication(
 	TEXT("bDeferEndReplication if true calls to EndReplication will be defered until after we have applied statedata. Default is true."
 	));
 
+static bool bDispatchUnresolvedPreviouslyReceivedChanges = false;
+static FAutoConsoleVariableRef CvarDispatchUnresolvedPreviouslyReceivedChanges(
+	TEXT("net.Iris.DispatchUnresolvedPreviouslyReceivedChanges"),
+	bDispatchUnresolvedPreviouslyReceivedChanges,
+	TEXT("Whether to include previously received changes with unresolved object references to data received this frame when applying state data. This can call rep notify functions to be called despite being unchanged. Default is false."));
+
 static const FName NetError_FailedToFindAttachmentQueue("Failed to find attachment queue");
 
 class FResolveAndCollectUnresolvedAndResolvedReferenceCollector
@@ -1472,20 +1478,64 @@ void FReplicationReader::DispatchStateData(FNetSerializationContext& Context)
 			// If we have pending unresolved changes we include them as well 
 			FNetBitArrayView UnresolvedChangeMask = FChangeMaskUtil::MakeChangeMask(ReplicationInfo->UnresolvedChangeMaskOrPointer, ChangeMaskBitCount);
 
-			if (ReplicationInfo->bHasUnresolvedReferences)
+			FNetBitArrayView ChangeMaskForResolve;
+			const bool bHadUnresolvedReferences = ReplicationInfo->bHasUnresolvedReferences;
+			if (bHadUnresolvedReferences)
 			{
-				ChangeMask.Combine(UnresolvedChangeMask, FNetBitArrayView::OrOp);
+				if (bDispatchUnresolvedPreviouslyReceivedChanges)
+				{
+					// Combine the changemask with the unresolved changemask so that result is used for the apply operation as well.
+					ChangeMask.Combine(UnresolvedChangeMask, FNetBitArrayView::OrOp);
+					ChangeMaskForResolve = ChangeMask;
+				}
+				else
+				{
+					// Memory for the changemask allocation will be freed when the TempLinearAllocator is reset via FMemMark scope. TempChangeMaskAllocator uses TempLinearAllocator.
+					FChangeMaskStorageOrPointer ChangeMaskForResolveAllocation;
+					ChangeMaskForResolveAllocation.Alloc(ChangeMaskForResolveAllocation, ChangeMaskBitCount, TempChangeMaskAllocator);
+					ChangeMaskForResolve = MakeNetBitArrayView(ChangeMaskForResolveAllocation.GetPointer(ChangeMaskBitCount), ChangeMaskBitCount, FNetBitArrayView::NoResetNoValidate);
+					ChangeMaskForResolve.Set(ChangeMask, FNetBitArrayView::OrOp, UnresolvedChangeMask);
+				}
+			}
+			else
+			{
+				ChangeMaskForResolve = ChangeMask;
 			}
 
 			// Collect all unresolvable references, including old pending references
 			FResolveAndCollectUnresolvedAndResolvedReferenceCollector Collector;
-			Collector.CollectReferences(*ObjectReferenceCache, ResolveContext, Info.bIsInitialState | ReplicationInfo->bHasUnresolvedInitialReferences, &ChangeMask, ObjectData.ReceiveStateBuffer, ObjectData.Protocol);
+			Collector.CollectReferences(*ObjectReferenceCache, ResolveContext, Info.bIsInitialState | ReplicationInfo->bHasUnresolvedInitialReferences, &ChangeMaskForResolve, ObjectData.ReceiveStateBuffer, ObjectData.Protocol);
 
-			// If we have any object references we need to track them
-			if (Collector.GetUnresolvedReferences().Num() > 0 || Collector.GetResolvedReferences().Num() > 0)
+			// If we have or had any object references we need to track them and update the unresolved mask
+			if (bHadUnresolvedReferences || Collector.GetUnresolvedReferences().Num() > 0 || Collector.GetResolvedReferences().Num() > 0)
 			{
-				BuildUnresolvedChangeMaskAndUpdateObjectReferenceTracking(Collector, ChangeMask, ReplicationInfo, UnresolvedChangeMask);
+				FNetBitArrayView PrevUnresolvedChangeMask;
+
+				// If we're avoiding dispatching state we didn't receive and we didn't resolve anything for we need to figure out what got resolves and combine that with the received changemask.
+				const bool bMergeResolvedReferencesWithChangeMask = bHadUnresolvedReferences && !bDispatchUnresolvedPreviouslyReceivedChanges;
+				if (bMergeResolvedReferencesWithChangeMask)
+				{
+					FChangeMaskStorageOrPointer ChangeMaskForPrevUnresolvedAllocation;
+					ChangeMaskForPrevUnresolvedAllocation.Alloc(ChangeMaskForPrevUnresolvedAllocation, ChangeMaskBitCount, TempChangeMaskAllocator);
+					PrevUnresolvedChangeMask = MakeNetBitArrayView(ChangeMaskForPrevUnresolvedAllocation.GetPointer(ChangeMaskBitCount), ChangeMaskBitCount, FNetBitArrayView::NoResetNoValidate);
+					PrevUnresolvedChangeMask.Copy(UnresolvedChangeMask);
+				}
+
+				BuildUnresolvedChangeMaskAndUpdateObjectReferenceTracking(Collector, ChangeMaskForResolve, ReplicationInfo, UnresolvedChangeMask);
 			
+				// Allow resolved changes to be part of the state to be applied.
+				if (bMergeResolvedReferencesWithChangeMask)
+				{
+					// Merge in no longer unresolved changes
+					ChangeMask.CombineMultiple(FNetBitArrayView::OrOp, PrevUnresolvedChangeMask, FNetBitArrayView::AndNotOp, UnresolvedChangeMask);
+
+					// Merge in partially resolved changes
+					for (const FNetReferenceCollector::FReferenceInfo& ReferenceInfo : Collector.GetResolvedReferences())
+					{
+						ChangeMask.SetBit(ReferenceInfo.ChangeMaskInfo.BitOffset);
+					}
+				}
+
 				// $IRIS: $TODO: For now we always apply, even if we cannot resolve all references for a property
 				// We need to investigate how this is handled best as we do not want to prevent arrays(fastarrays) from applying data just because a single element wont resolve?
 				// Mask off any unresolvable states before we dispatch state data
