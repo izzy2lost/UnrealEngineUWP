@@ -5337,10 +5337,10 @@ void UCustomizableInstancePrivateData::BuildMaterials(const TSharedRef<FUpdateCo
 		SkeletalMesh->GetMaterials().Reset();
 
 		// Maps serializations of FMutableMaterialPlaceholder to Created Dynamic Material instances, used to reuse materials across LODs
-		TMap<FString, TSharedPtr<FMutableMaterialPlaceholder>> ReuseMaterialCache;
+		TMap<uint32, TSharedPtr<FMutableMaterialPlaceholder>> ReuseMaterialCache;
 
 		// Map of SharedSurfaceId to FMutableMaterialPlaceholder serialization key 
-		TMap<int32, FString> SharedSurfacesCache;
+		TMap<int32, uint32> SharedSurfacesCache;
 
 		MUTABLE_CPUPROFILER_SCOPE(BuildMaterials_LODLoop);
 
@@ -5378,7 +5378,7 @@ void UCustomizableInstancePrivateData::BuildMaterials(const TSharedRef<FUpdateCo
 				}
 
 				// Reuse surface between LODs when using AutomaticLODs from mesh.
-				if (const FString* SharedSurfaceSerialization = SharedSurfacesCache.Find(Surface.SurfaceId))
+				if (const uint32* SharedSurfaceSerialization = SharedSurfacesCache.Find(Surface.SurfaceId))
 				{
 					TSharedPtr<FMutableMaterialPlaceholder>* FoundMaterialPlaceholder = ReuseMaterialCache.Find(*SharedSurfaceSerialization);
 					check(FoundMaterialPlaceholder);
@@ -5741,12 +5741,11 @@ void UCustomizableInstancePrivateData::BuildMaterials(const TSharedRef<FUpdateCo
 
 				MutableMaterialPlaceholder.ParentMaterial = MaterialTemplate;
 
-				const FString MaterialPlaceholderSerialization = MutableMaterialPlaceholder.GetSerialization();
-				check(MaterialPlaceholderSerialization != FString("null"));
+				const uint32 MaterialParameterHash = MutableMaterialPlaceholder.GetHash();
 
 				int32 MatIndex = INDEX_NONE;
 				
-				if (TSharedPtr<FMutableMaterialPlaceholder>* FoundMaterialPlaceholder = ReuseMaterialCache.Find(MaterialPlaceholderSerialization))
+				if (TSharedPtr<FMutableMaterialPlaceholder>* FoundMaterialPlaceholder = ReuseMaterialCache.Find(MaterialParameterHash))
 				{
 					MatIndex = (*FoundMaterialPlaceholder)->MatIndex;
 				}
@@ -5754,9 +5753,9 @@ void UCustomizableInstancePrivateData::BuildMaterials(const TSharedRef<FUpdateCo
 				{
 					MUTABLE_CPUPROFILER_SCOPE(BuildMaterials_CreateMaterial);
 
-					ReuseMaterialCache.Add(MaterialPlaceholderSerialization, MutableMaterialPlaceholderPtr);
+					ReuseMaterialCache.Add(MaterialParameterHash, MutableMaterialPlaceholderPtr);
 
-					SharedSurfacesCache.Add(Surface.SurfaceId, MaterialPlaceholderSerialization);
+					SharedSurfacesCache.Add(Surface.SurfaceId, MaterialParameterHash);
 
 					FGeneratedMaterial Material;
 					Material.SurfaceId = Surface.SurfaceId;
@@ -6598,6 +6597,41 @@ TSet<UAssetUserData*> UCustomizableObjectInstance::GetMergedAssetUserData(int32 
 	}
 }
 
+
+uint32 UCustomizableInstancePrivateData::FMutableMaterialPlaceholder::GetHash()
+{
+
+	uint32 Hash = ParentMaterial ? ParentMaterial->GetUniqueID() : 0;
+
+	// Sort parameters before building the hash.
+	Params.Sort();
+
+	for (const FMutableMaterialPlaceHolderParam& Param : Params)
+	{
+		uint32 ParamHash = GetTypeHash(Param.ParamName);
+		ParamHash = HashCombineFast(ParamHash, (uint32)Param.LayerIndex);
+		ParamHash = HashCombineFast(ParamHash, (uint32)Param.Type);
+
+		switch (Param.Type)
+		{
+		case EPlaceHolderParamType::Vector:
+			ParamHash = HashCombineFast(ParamHash, GetTypeHash(Param.Vector));
+			break;
+
+		case EPlaceHolderParamType::Scalar:
+			ParamHash = HashCombineFast(ParamHash, GetTypeHash(Param.Scalar));
+			break;
+
+		case EPlaceHolderParamType::Texture:
+			ParamHash = HashCombineFast(ParamHash, Param.Texture.Texture->GetUniqueID());
+			break;
+		}
+
+		Hash = HashCombineFast(Hash, ParamHash);
+	}
+
+	return Hash;
+}
 
 #if WITH_EDITORONLY_DATA
 

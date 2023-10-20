@@ -119,10 +119,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = CustomizableObject, meta = (ClampMin = "0"))
 	int32 MeshComponentIndex = 0;
 
-	/** Reuse material between LODs when using the LODStrategy - Automatic from mesh. If the material is extended or edited by a CO using
-	* custom LODs (LODStrategy), on that given LOD, reuse materials will not be applied and the material and its textures will be unique. */
+	/** Materials will be reused between LODs when possible unless explicitly disabled. */
 	UPROPERTY(EditAnywhere, Category = CustomizableObject)
-	bool bReuseMaterialBetweenLODs = false;
+	bool bReuseMaterialBetweenLODs = true;
 	
 	// UObject interface.
 	virtual void Serialize(FArchive& Ar) override;

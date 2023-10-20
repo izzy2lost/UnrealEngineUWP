@@ -243,6 +243,53 @@ void FMutableGraphGenerationContext::GenerateClippingCOInternalTags()
 }
 
 
+void FMutableGraphGenerationContext::GenerateSharedSurfacesUniqueIds()
+{
+	int32 UniqueId = 0;
+
+	TArray<TArray<FSharedSurface>> NodeToSharedSurfaces;
+	SharedSurfaceIds.GenerateValueArray(NodeToSharedSurfaces);
+
+	TArray<bool> VisitedSurfaces;
+	for (TArray<FSharedSurface>& SharedSurfaces : NodeToSharedSurfaces)
+	{
+		const int32 NumSurfaces = SharedSurfaces.Num();
+		VisitedSurfaces.Init(false, NumSurfaces);
+		
+		// Iterate all surfaces for a given NodeMaterial and set the same SharedSurfaceId to those that are equal.
+		for (int32 SurfaceIndex = 0; SurfaceIndex < NumSurfaces; ++SurfaceIndex)
+		{
+			if (VisitedSurfaces[SurfaceIndex])
+			{
+				continue;
+			}
+
+			FSharedSurface& CurrentSharedSurface = SharedSurfaces[SurfaceIndex];
+			CurrentSharedSurface.NodeSurfaceNew->SetSharedSurfaceId(UniqueId);
+			VisitedSurfaces[SurfaceIndex] = true;
+
+			for (int32 AuxSurfaceIndex = SurfaceIndex; AuxSurfaceIndex < NumSurfaces && !CurrentSharedSurface.bMakeUnique; ++AuxSurfaceIndex)
+			{
+				if (VisitedSurfaces[AuxSurfaceIndex])
+				{
+					continue;
+				}
+
+				if (SharedSurfaces[AuxSurfaceIndex].NodeModifierIDs != CurrentSharedSurface.NodeModifierIDs)
+				{
+					continue;
+				}
+
+				SharedSurfaces[AuxSurfaceIndex].NodeSurfaceNew->SetSharedSurfaceId(UniqueId);
+				VisitedSurfaces[AuxSurfaceIndex] = true;
+			}
+
+			++UniqueId;
+		}
+	}
+}
+
+
 //void FMutableGraphGenerationContext::CheckPhysicsAssetInSkeletalMesh(const USkeletalMesh* SkeletalMesh)
 //{
 //	if (SkeletalMesh && SkeletalMesh->GetPhysicsAsset() && !DiscartedPhysicsAssetMap.Find(SkeletalMesh->GetPhysicsAsset()))
@@ -616,6 +663,7 @@ mu::NodeMeshApplyPosePtr CreateNodeMeshApplyPose(FMutableGraphGenerationContext&
 	return NodeMeshApplyPose;
 }
 
+
 // Convert a CustomizableObject Source Graph into a mutable source graph  
 mu::NodeObjectPtr GenerateMutableSource(const UEdGraphPin * Pin, FMutableGraphGenerationContext & GenerationContext, bool bPartialCompilation)
 {
@@ -803,14 +851,14 @@ mu::NodeObjectPtr GenerateMutableSource(const UEdGraphPin * Pin, FMutableGraphGe
 				.Init(nullptr, NumMeshComponentsInRoot);
 		}
 
-		int32 LastDefinedLOD = -1;
+		int32 FirstLOD = -1;
 		ObjectNode->SetLODCount(NumLODsInRoot);
-		for (int32 LODIndex = 0; LODIndex < NumLODsInRoot; ++LODIndex)
+		for (int32 CurrentLOD = 0; CurrentLOD < NumLODsInRoot; ++CurrentLOD)
 		{
-			GenerationContext.CurrentLOD = LODIndex;
+			GenerationContext.CurrentLOD = CurrentLOD;
 
 			mu::NodeLODPtr LODNode = new mu::NodeLOD();
-			ObjectNode->SetLOD(LODIndex, LODNode);
+			ObjectNode->SetLOD(CurrentLOD, LODNode);
 
 			LODNode->SetMessageContext(Node);
 			LODNode->SetComponentCount(GenerationContext.NumMeshComponentsInRoot);
@@ -825,10 +873,10 @@ mu::NodeObjectPtr GenerateMutableSource(const UEdGraphPin * Pin, FMutableGraphGe
 			{
 				mu::NodeComponentPtr& ComponentNode = ComponentNodes[MeshComponentIndex];
 
-				ComponentNode = Invoke([&GenerationContext, LODIndex, MeshComponentIndex]() -> mu::NodeComponentPtr
+				ComponentNode = Invoke([&GenerationContext, CurrentLOD, MeshComponentIndex]() -> mu::NodeComponentPtr
 				{
 					mu::NodeComponentNewPtr& ParentComponent =
-							GenerationContext.ComponentNewNode.Last().ComponentsPerLOD[LODIndex][MeshComponentIndex];
+							GenerationContext.ComponentNewNode.Last().ComponentsPerLOD[CurrentLOD][MeshComponentIndex];
 
 					if (!ParentComponent)
 					{
@@ -850,11 +898,9 @@ mu::NodeObjectPtr GenerateMutableSource(const UEdGraphPin * Pin, FMutableGraphGe
 
 			const bool bUseAutomaticLods = 
 					GenerationContext.CurrentAutoLODStrategy == ECustomizableObjectAutomaticLODStrategy::AutomaticFromMesh;
-			LastDefinedLOD = (LODIndex < NumLODs) && (LastDefinedLOD == INDEX_NONE || !bUseAutomaticLods) ? LODIndex : LastDefinedLOD;
+			FirstLOD = (CurrentLOD < NumLODs) && (FirstLOD == INDEX_NONE || !bUseAutomaticLods) ? CurrentLOD : FirstLOD;
 
-			// It turns out LODToGenerate is always LastDefinedLOD.
-			const int32& LODToGenerate = LastDefinedLOD;
-			if (LODToGenerate < 0)
+			if (FirstLOD < 0)
 			{
 				continue;
 			}
@@ -864,54 +910,66 @@ mu::NodeObjectPtr GenerateMutableSource(const UEdGraphPin * Pin, FMutableGraphGe
 				continue;
 			} 
 			
-			TArray<UEdGraphPin*> ConnectedLODPins = FollowInputPinArray(*TypedNodeObj->LODPin(LODToGenerate));
-
-			// Proccess non modifier material nodes.
-			for (int32 MeshComponentIndex = 0; MeshComponentIndex < NumMeshComponentsInRoot; ++MeshComponentIndex)
+			// Generate all relevant LODs for this object up until the current LODIndex.
+			for (int32 LODIndex = FirstLOD; LODIndex <= CurrentLOD; ++LODIndex)
 			{
-				GenerationContext.CurrentMeshComponent = MeshComponentIndex;
-
-				for (UEdGraphPin* const ChildNodePin : ConnectedLODPins)
-				{
-					// Modifiers are shared for all components and are processed per LOD and not component.
-					if (Cast<UCustomizableObjectNodeModifierBase>(ChildNodePin->GetOwningNode()))
-					{
-						continue;
-					}
-
-					if (!AffectsCurrentComponent(ChildNodePin, GenerationContext))
-					{
-						continue;
-					}
-
-					FMutableGraphSurfaceGenerationData DummySurfaceData;
-					mu::NodeSurfacePtr SurfaceNode = GenerateMutableSourceSurface(ChildNodePin, GenerationContext, DummySurfaceData);
-
-					mu::NodeComponentPtr& ComponentNode = ComponentNodes[MeshComponentIndex];
-
-					const int32 SurfaceCount = ComponentNode->GetSurfaceCount();
-					ComponentNode->SetSurfaceCount(SurfaceCount + 1);
-					ComponentNode->SetSurface(SurfaceCount, SurfaceNode.get());
-					ComponentNode->SetMessageContext(Node);
-				}
-			}
-
-			// Process modfiers. Those are shared between different components in a lod.	
-			for (UEdGraphPin* const ChildNodePin : ConnectedLODPins)
-			{
-				// Set it to -1 to indicate we don't care about component id.
-				GenerationContext.CurrentMeshComponent = -1;
-
-				if (!Cast<UCustomizableObjectNodeModifierBase>(ChildNodePin->GetOwningNode()))
+				const UEdGraphPin* LODPin = TypedNodeObj->LODPin(LODIndex);
+				if (!LODPin)
 				{
 					continue;
 				}
 
-				mu::NodeModifierPtr ModifierNode = GenerateMutableSourceModifier(ChildNodePin, GenerationContext);
+				GenerationContext.FromLOD = LODIndex;
 
-				const int32 ModifierCount = LODNode->GetModifierCount();
-				LODNode->SetModifierCount(ModifierCount + 1);
-				LODNode->SetModifier(ModifierCount, ModifierNode.get());
+				TArray<UEdGraphPin*> ConnectedLODPins = FollowInputPinArray(*LODPin);
+
+				// Proccess non modifier material nodes.
+				for (int32 MeshComponentIndex = 0; MeshComponentIndex < NumMeshComponentsInRoot; ++MeshComponentIndex)
+				{
+					GenerationContext.CurrentMeshComponent = MeshComponentIndex;
+
+					for (UEdGraphPin* const ChildNodePin : ConnectedLODPins)
+					{
+						// Modifiers are shared for all components and are processed per LOD and not component.
+						if (Cast<UCustomizableObjectNodeModifierBase>(ChildNodePin->GetOwningNode()))
+						{
+							continue;
+						}
+
+						if (!AffectsCurrentComponent(ChildNodePin, GenerationContext))
+						{
+							continue;
+						}
+
+						FMutableGraphSurfaceGenerationData DummySurfaceData;
+						mu::NodeSurfacePtr SurfaceNode = GenerateMutableSourceSurface(ChildNodePin, GenerationContext, DummySurfaceData);
+
+						mu::NodeComponentPtr& ComponentNode = ComponentNodes[MeshComponentIndex];
+
+						const int32 SurfaceCount = ComponentNode->GetSurfaceCount();
+						ComponentNode->SetSurfaceCount(SurfaceCount + 1);
+						ComponentNode->SetSurface(SurfaceCount, SurfaceNode.get());
+						ComponentNode->SetMessageContext(Node);
+					}
+				}
+
+				// Process modfiers. Those are shared between different components in a lod.	
+				for (UEdGraphPin* const ChildNodePin : ConnectedLODPins)
+				{
+					// Set it to -1 to indicate we don't care about component id.
+					GenerationContext.CurrentMeshComponent = -1;
+
+					if (!Cast<UCustomizableObjectNodeModifierBase>(ChildNodePin->GetOwningNode()))
+					{
+						continue;
+					}
+
+					mu::NodeModifierPtr ModifierNode = GenerateMutableSourceModifier(ChildNodePin, GenerationContext);
+
+					const int32 ModifierCount = LODNode->GetModifierCount();
+					LODNode->SetModifierCount(ModifierCount + 1);
+					LODNode->SetModifier(ModifierCount, ModifierNode.get());
+				}
 			}
 		}
 
@@ -1625,3 +1683,14 @@ void FMutableComponentInfo::AccumulateBonesToRemovePerLOD(const FComponentSettin
 
 
 #undef LOCTEXT_NAMESPACE
+
+FMutableGraphGenerationContext::FSharedSurface::FSharedSurface(uint8 InLOD, const mu::NodeSurfaceNewPtr& InNodeSurfaceNew)
+{
+	LOD = InLOD;
+	NodeSurfaceNew = InNodeSurfaceNew;
+}
+
+bool FMutableGraphGenerationContext::FSharedSurface::operator==(const FSharedSurface& o) const
+{
+	return NodeModifierIDs == o.NodeModifierIDs;
+}

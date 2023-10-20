@@ -399,6 +399,11 @@ private:
 
 			FMutableMaterialPlaceHolderParam(const FName& InParamName, const int32 InLayerIndex, const FGeneratedTexture& InTexture)
 				: ParamName(InParamName), LayerIndex(InLayerIndex), Texture(InTexture), Type(EPlaceHolderParamType::Texture) {}
+
+			bool operator<(const FMutableMaterialPlaceHolderParam& Other) const
+			{
+				return Type < Other.Type || ParamName.CompareIndexes(Other.ParamName);
+			}
 		};
 
 		UMaterialInterface* ParentMaterial;
@@ -407,34 +412,8 @@ private:
 
 		void AddParam(const FMutableMaterialPlaceHolderParam& NewParam) { Params.Add(NewParam); }
 
-		FString GetSerialization() const
-		{
-			FString Serialization = ParentMaterial ? FString::FromInt(ParentMaterial->GetUniqueID()) : FString("null");
-
-			for (const FMutableMaterialPlaceHolderParam& Param : Params)
-			{
-				Serialization += FString("-");
-				Serialization += FString::FromInt((int32)Param.Type) + FString("_") + Param.ParamName.ToString() + FString("_")
-					+ FString::FromInt(Param.LayerIndex) + FString("_");
-
-				switch (Param.Type)
-				{
-				case EPlaceHolderParamType::Vector:
-					Serialization += Param.Vector.ToString();
-					break;
-
-				case EPlaceHolderParamType::Scalar:
-					Serialization += FString::Printf(TEXT("%f"), Param.Scalar);
-					break;
-
-				case EPlaceHolderParamType::Texture:
-					Serialization += FString::FromInt(Param.Texture.Texture->GetUniqueID());
-					break;
-				}
-			}
-
-			return Serialization;
-		}
+		// Return a hash of the material and its parameters
+		uint32 GetHash();
 	};
 };
 

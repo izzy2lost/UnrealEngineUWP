@@ -186,29 +186,25 @@ void SetSurfaceFormat( FMutableGraphGenerationContext& GenerationContext,
 }
 
 
-void UpdateSharedSurfaceId(FMutableGraphGenerationContext& GenerationContext, UCustomizableObjectNodeMaterial* NodeMaterial, mu::NodeSurfaceNewPtr InNodeSurface)
+void AddModifierToSharedSurface(FMutableGraphGenerationContext& GenerationContext, UCustomizableObjectNodeMaterial* NodeMaterial, const UCustomizableObjectNode& NodeModifier)
 {
-	// \TODO: Reusability is actually per-texture: if a texture is set to not use layouts (setting LayoutIndex to -1) then it can always be reused.
-	// Reuse materials between LODs when using automatics LODs, if texture layout management is disabled or if bReuseMaterials is enabled in the node material.
-	const bool bCanShareSurface = GenerationContext.CurrentAutoLODStrategy == ECustomizableObjectAutomaticLODStrategy::AutomaticFromMesh
-		&& NodeMaterial->bReuseMaterialBetweenLODs;
-
-	// Set shared surface Id to reuse materials and textures between LODs if automatic LODs from mesh is being used
-	if (bCanShareSurface && InNodeSurface)
+	if (!NodeMaterial || !NodeMaterial->bReuseMaterialBetweenLODs)
 	{
-		FMutableGraphGenerationContext::FSharedSurfaces& SharedSurface = GenerationContext.SharedSurfaceIds.FindOrAdd(NodeMaterial, { GenerationContext.SharedSurfaceIds.Num(), InNodeSurface });
-		SharedSurface.NodeSurface = InNodeSurface;
-
-		InNodeSurface->SetSharedSurfaceId(SharedSurface.SharedSurfaceId);
+		return;
 	}
 
-	// Invalidate the shared surface Id. 
-	else if (!bCanShareSurface && !InNodeSurface)
+	TArray<FMutableGraphGenerationContext::FSharedSurface>* SharedSurfaces = GenerationContext.SharedSurfaceIds.Find(NodeMaterial);
+	if (!SharedSurfaces)
 	{
-		FMutableGraphGenerationContext::FSharedSurfaces* SharedSurface = GenerationContext.SharedSurfaceIds.Find(NodeMaterial);
-		if (SharedSurface && SharedSurface->NodeSurface)
+		return;
+	}
+
+	// Add the modifier to the key of modifiers per surface. Only add it if there are image operations involved.
+	for (FMutableGraphGenerationContext::FSharedSurface& SharedSurface : *SharedSurfaces)
+	{
+		if (SharedSurface.LOD == GenerationContext.CurrentLOD)
 		{
-			SharedSurface->NodeSurface->SetSharedSurfaceId(INDEX_NONE);
+			SharedSurface.NodeModifierIDs.Add(reinterpret_cast<SIZE_T>(&NodeModifier));
 		}
 	}
 }
@@ -295,6 +291,11 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 		mu::NodeSurfaceNewPtr SurfNode = new mu::NodeSurfaceNew();
 		Result = SurfNode;
 
+		// Add to the list of surfaces that could be reused between LODs for this NodeMaterial.
+		TArray<FMutableGraphGenerationContext::FSharedSurface>& SharedSurfaces = GenerationContext.SharedSurfaceIds.FindOrAdd(TypedNodeMat, {});
+		FMutableGraphGenerationContext::FSharedSurface& SharedSurface = SharedSurfaces.Add_GetRef(FMutableGraphGenerationContext::FSharedSurface(GenerationContext.CurrentLOD, SurfNode));
+		SharedSurface.bMakeUnique = !TypedNodeMat->bReuseMaterialBetweenLODs;
+
 		int32 ReferencedMaterialsIndex = -1;
 		if (TypedNodeMat->Material)
 		{
@@ -303,9 +304,6 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 			const int32 lastMaterialAmount = GenerationContext.ReferencedMaterials.Num();
 			ReferencedMaterialsIndex = GenerationContext.ReferencedMaterials.AddUnique(TypedNodeMat->Material);
 			// Used ReferencedMaterialsIndex instead of TypedNodeMat->Material->GetName() to prevent material name collisions
-
-			// Set shared surface Id to reuse materials and textures between LODs if automatic LODs from mesh is being used
-			UpdateSharedSurfaceId(GenerationContext, TypedNodeMat, SurfNode);
 
 			// Take slot name from skeletal mesh if one can be found, else leave empty.
 			// Keep Referenced Materials and Materail Slot Names synchronized even if no material name can be found.
@@ -1139,9 +1137,8 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 					SurfNode->SetImage(ImageIndex, ImageNode);
 				}
 
-				// Validate if the ParentMaterialNode can be shared between LODs.
-				UpdateSharedSurfaceId(GenerationContext, ParentMaterialNode, nullptr);
 			}
+			AddModifierToSharedSurface(GenerationContext, ParentMaterialNode, *TypedNodeExt);
 		
 			for (const FString& Tag : TypedNodeExt->Tags)
 			{
@@ -1183,8 +1180,7 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 				MeshPatch->SetMessageContext(Node);
 			}
 
-			// Validate if the ParentMaterialNode can be shared between LODs.
-			UpdateSharedSurfaceId(GenerationContext, ParentMaterialNode, nullptr);
+			AddModifierToSharedSurface(GenerationContext, ParentMaterialNode, *TypedNodeRem);
 		}
 	}
 
@@ -1268,8 +1264,7 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 				MeshPatch->SetMessageContext(Node);
 			}
 
-			// Validate if the ParentMaterialNode can be shared between LODs.
-			UpdateSharedSurfaceId(GenerationContext, ParentMaterialNode, nullptr);
+			AddModifierToSharedSurface(GenerationContext, ParentMaterialNode, *TypedNodeRemBlocks);
 		}
 	}
 
@@ -1383,8 +1378,7 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 					SurfNode->SetPatch(ImageIndex, ImagePatchNode);
 				}
 
-				// Validate if the ParentMaterialNode can be shared between LODs.
-				UpdateSharedSurfaceId(GenerationContext, ParentMaterialNode, nullptr);
+				AddModifierToSharedSurface(GenerationContext, ParentMaterialNode, *TypedNodeEdit);
 			}
 		}
 	}
@@ -1467,8 +1461,7 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 				}
 			}
 
-			// Validate if the ParentMaterialNode can be shared between LODs.
-			UpdateSharedSurfaceId(GenerationContext, ParentMaterialNode, nullptr);
+			AddModifierToSharedSurface(GenerationContext, ParentMaterialNode, *TypedNodeMorph);
 		}
 	}
 

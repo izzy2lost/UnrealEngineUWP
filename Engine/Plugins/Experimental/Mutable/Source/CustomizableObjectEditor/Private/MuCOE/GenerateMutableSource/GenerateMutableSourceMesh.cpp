@@ -61,9 +61,8 @@ void GetLODAndSectionForAutomaticLODs(const FMutableGraphGenerationContext& Cont
 		return;
 	}
 	
-	const int32 CompilingLODIndex = LODIndexConnected + Context.CurrentLOD;
-	
-	if (CompilingLODIndex == LODIndexConnected)
+	// When processing pins of the current LOD, indices will remain the same.
+	if (Context.CurrentLOD == Context.FromLOD)
 	{
 		return;
 	}
@@ -80,8 +79,13 @@ void GetLODAndSectionForAutomaticLODs(const FMutableGraphGenerationContext& Cont
 		return;
 	}
 	
-	const int32 SearchLODMaterialIndex = ImportedModel->LODModels[LODIndexConnected].Sections[SectionIndexConnected].MaterialIndex; // Material Index of the connected pin
+	const FSkelMeshSection& FromSection = ImportedModel->LODModels[LODIndexConnected].Sections[SectionIndexConnected];
+	const TArray<int32>& FromMaterialMap = SkeletalMesh.GetLODInfoArray()[LODIndexConnected].LODMaterialMap;
+	
+	// Material Index of the connected pin
+	const int32 SearchLODMaterialIndex = FromMaterialMap.IsValidIndex(SectionIndexConnected) ? FromMaterialMap[SectionIndexConnected] : FromSection.MaterialIndex;
 
+	const int32 CompilingLODIndex = LODIndexConnected + (Context.CurrentLOD - Context.FromLOD);
 	if (!ImportedModel->LODModels.IsValidIndex(CompilingLODIndex))
 	{
 		OutLODIndex = -1;

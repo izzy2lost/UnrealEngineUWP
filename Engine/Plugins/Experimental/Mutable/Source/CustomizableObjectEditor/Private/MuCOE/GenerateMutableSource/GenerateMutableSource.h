@@ -626,6 +626,9 @@ struct FMutableGraphGenerationContext
 	* @return nothing */
 	void GenerateClippingCOInternalTags();
 
+	/** Generates shared surface IDs for all surface nodes. If one or more nodes are equal, they will use the same SharedSurfaceId */
+	void GenerateSharedSurfacesUniqueIds();
+
 	/** Check if the PhysicsAsset of a given SkeletalMesh has any SkeletalBodySetup with BoneNames not present in the
 	* InSkeletalMesh's RefSkeleton, if so, adds the PhysicsAsset to the DiscartedPhysicsAssetMap to display a warning later on */
 	//void CheckPhysicsAssetInSkeletalMesh(const USkeletalMesh* InSkeletalMesh);
@@ -688,6 +691,7 @@ struct FMutableGraphGenerationContext
 	};
 	TArray< ObjectParent > ComponentNewNode;
 
+	int32 FromLOD = 0; // LOD to append to the CurrentLOD when using AutomaticLODs. 
 	int32 CurrentLOD = 0;
 	int32 NumLODsInRoot = 0;
 	int32 CurrentMeshComponent = 0;
@@ -768,24 +772,21 @@ struct FMutableGraphGenerationContext
 	// Stores the parameters generated in the node tables
 	TMap<const class UCustomizableObjectNodeTable*, TArray<FGuid>> GeneratedParametersInTables;
 
-	struct FSharedSurfaces
+	struct FSharedSurface
 	{
-		FSharedSurfaces(int32 InSurfaceId, mu::NodeSurfaceNewPtr InNodeSurface)
-		{
-			check(InSurfaceId != INDEX_NONE);
-			check(InNodeSurface);
-			SharedSurfaceId = InSurfaceId;
-			NodeSurface = InNodeSurface;
-		}
+		FSharedSurface(uint8 InLOD, const mu::NodeSurfaceNewPtr& InNodeSurfaceNew);
 
-		int32 SharedSurfaceId = INDEX_NONE;
+		bool operator==(const FSharedSurface& o) const;
 
-		// NodeSurface of the current LOD 
-		mu::NodeSurfaceNewPtr NodeSurface;
+		uint8 LOD = 0;
+		mu::NodeSurfaceNewPtr NodeSurfaceNew;
+
+		bool bMakeUnique = false;
+		TArray<SIZE_T> NodeModifierIDs;
 	};
 
 	// UCustomizableObjectNodeMaterial material to SharedSurfaceId
-	TMap<UCustomizableObjectNodeMaterial*, FSharedSurfaces> SharedSurfaceIds;
+	TMap<UCustomizableObjectNodeMaterial*, TArray<FSharedSurface>> SharedSurfaceIds;
 
 	/** Extension Data constants are collected here */
 	FExtensionDataCompilerInterface ExtensionDataCompilerInterface;

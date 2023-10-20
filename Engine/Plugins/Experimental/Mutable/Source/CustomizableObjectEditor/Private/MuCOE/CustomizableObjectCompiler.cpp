@@ -696,6 +696,8 @@ mu::NodeObjectPtr FCustomizableObjectCompiler::GenerateMutableRoot(
     ActualRoot->RealTimeMorphSelectionOverrides = GenerationContext.RealTimeMorphTargetsOverrides;
 	GenerationContext.GenerateClippingCOInternalTags();
 
+	GenerationContext.GenerateSharedSurfacesUniqueIds();
+
 	// Generate ReferenceSkeletalMeshes data;
 	PopulateReferenceSkeletalMeshesData(GenerationContext);
 	

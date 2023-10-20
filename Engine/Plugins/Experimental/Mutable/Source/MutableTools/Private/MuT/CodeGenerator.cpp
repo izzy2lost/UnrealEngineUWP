@@ -835,14 +835,14 @@ namespace mu
 				MeshOptions.OverrideLayouts = SharedMeshResults->GeneratedLayouts;
 			}
 
-			// Ensure UV islands remain within their main layout block on lower LODs to avoid unexpected reordering 
-			// of the layout blocks when reusing a surface between LODs. Used to fix small displacements on vertices
-			// that may cause them to fall on a different block.
-			MeshOptions.bClampUVIslands = bShareSurface;
-
 			// Normalize UVs if we're going to work with images and layouts.
 			const bool bNormalizeUVs = node.m_images.Num() && edits.Num();
 			MeshOptions.bNormalizeUVs = bNormalizeUVs;
+
+			// Ensure UV islands remain within their main layout block on lower LODs to avoid unexpected reordering 
+			// of the layout blocks when reusing a surface between LODs. Used to fix small displacements on vertices
+			// that may cause them to fall on a different block.
+			MeshOptions.bClampUVIslands = bShareSurface && bNormalizeUVs;
 
             GenerateMesh(MeshOptions, meshResults, pMesh );
             lastMeshOp = meshResults.meshOp;
@@ -870,7 +870,7 @@ namespace mu
 						FMeshGenerationOptions MergedMeshOptions;
 						MergedMeshOptions.bUniqueVertexIDs = true;
 						MergedMeshOptions.bLayouts = true;
-						MergedMeshOptions.bClampUVIslands = bShareSurface;
+						MergedMeshOptions.bClampUVIslands = bShareSurface && bNormalizeUVs;
 						MergedMeshOptions.bNormalizeUVs = bNormalizeUVs;
 						MergedMeshOptions.State = m_currentStateIndex;
 						MergedMeshOptions.ActiveTags = e.node->m_tags;
