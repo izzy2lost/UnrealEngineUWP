@@ -565,6 +565,7 @@ class UMaterialExpression : public UObject
 	virtual bool SetParameterValue(const FName& Name, const FMaterialParameterMetadata& Meta, EMaterialExpressionSetParameterValueFlags Flags = EMaterialExpressionSetParameterValueFlags::None) { return false; }
 
 	virtual void GetLandscapeLayerNames(TArray<FName>& OutLayers) const {}
+	virtual void GetIncludeFilePaths(TSet<FString>& OutIncludeFilePaths) const {}
 
 	/**
 	 * Called after a node copy, once the Material and Function properties are set correctly and that all new expressions are added to Material->Expressions

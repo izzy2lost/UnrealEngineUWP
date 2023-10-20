@@ -1300,6 +1300,15 @@ bool FExpressionCustomHLSL::PrepareValue(FEmitContext& Context, FEmitScope& Scop
 		Context.MarkInputType(Input.Expression, InputType.Type);
 	}
 
+	FMaterialCachedExpressionData* CachedExpressionData = Context.FindData<Material::FEmitData>().CachedExpressionData;
+	if (CachedExpressionData && CachedExpressionData->EditorOnlyData.IsValid())
+	{
+		for (const FString& IncludeFilePath : IncludeFilePaths)
+		{
+			CachedExpressionData->EditorOnlyData->ExpressionIncludeFilePaths.Add(IncludeFilePath);
+		}
+	}
+
 	return OutResult.SetType(Context, RequestedType, EExpressionEvaluation::Shader, Shader::FType(OutputStructType));
 }
 

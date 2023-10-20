@@ -856,6 +856,7 @@ void FMaterial::GetShaderMapId(EShaderPlatform Platform, const ITargetPlatform* 
 		OutId.FeatureLevel = GetFeatureLevel();
 		OutId.SetShaderDependencies(ShaderTypes, ShaderPipelineTypes, VFTypes, Platform);
 		GetReferencedTexturesHash(Platform, OutId.TextureReferencesHash);
+		GetExpressionIncludesHash(Platform, OutId.ExpressionIncludesHash);
 
 		OutId.SubstrateCompilationConfig = GetSubstrateCompilationConfig();
 
@@ -4195,6 +4196,7 @@ void FMaterial::GetDependentShaderAndVFTypes(EShaderPlatform Platform, const FPl
 	}
 }
 
+#if WITH_EDITOR
 void FMaterial::GetReferencedTexturesHash(EShaderPlatform Platform, FSHAHash& OutHash) const
 {
 	FSHA1 HashState;
@@ -4222,6 +4224,22 @@ void FMaterial::GetReferencedTexturesHash(EShaderPlatform Platform, FSHAHash& Ou
 	HashState.Final();
 	HashState.GetHash(&OutHash.Hash[0]);
 }
+
+void FMaterial::GetExpressionIncludesHash(EShaderPlatform Platform, FSHAHash& OutHash) const
+{
+	FSHA1 HashState;
+
+	for (const FString& ExpressionIncludeFilePath : GetCachedExpressionData().EditorOnlyData->ExpressionIncludeFilePaths)
+	{
+		checkf(!ExpressionIncludeFilePath.IsEmpty(), TEXT("Expression include path is empty but it should have been previously validated."));
+
+		const FSHAHash& FileHash = GetShaderFileHash(*ExpressionIncludeFilePath, Platform);
+		HashState.Update(FileHash.Hash, UE_ARRAY_COUNT(FileHash.Hash));
+	}
+
+	OutHash = HashState.Finalize();
+}
+#endif // WITH_EDITOR
 
 /**
  * Get user source code for the material, with a list of code snippets to highlight representing the code for each MaterialExpression

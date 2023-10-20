@@ -964,6 +964,9 @@ public:
 	 * that generates the array of textures that the uniform expressions use to link up after being loaded from the DDC.
 	 */
 	FSHAHash TextureReferencesHash;
+
+	/** A hash of the content of files (dynamically) included by material expressions. */
+	FSHAHash ExpressionIncludesHash;
 	
 	/** A hash of the base property overrides for this material instance. */
 	FSHAHash BasePropertyOverridesHash;
@@ -2558,7 +2561,11 @@ private:
 	 */
 	ENGINE_API TShaderRef<FShader> GetShader(class FMeshMaterialShaderType* ShaderType, FVertexFactoryType* VertexFactoryType, int32 PermutationId, bool bFatalIfMissing = true) const;
 
+#if WITH_EDITOR
 	void GetReferencedTexturesHash(EShaderPlatform Platform, FSHAHash& OutHash) const;
+
+	void GetExpressionIncludesHash(EShaderPlatform Platform, FSHAHash& OutHash) const;
+#endif // WITH_EDITOR
 
 	friend class FMaterialShaderMap;
 	friend class FShaderCompilingManager;

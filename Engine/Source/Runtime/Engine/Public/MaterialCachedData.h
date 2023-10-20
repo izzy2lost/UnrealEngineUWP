@@ -173,6 +173,9 @@ struct FMaterialCachedExpressionEditorOnlyData
 
 	UPROPERTY()
 	TArray<FName> LandscapeLayerNames;
+
+	UPROPERTY()
+	TSet<FString> ExpressionIncludeFilePaths;
 };
 
 USTRUCT()

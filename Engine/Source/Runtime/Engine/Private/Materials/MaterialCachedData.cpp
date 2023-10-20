@@ -370,6 +370,8 @@ void FMaterialCachedExpressionData::UpdateForExpressions(const FMaterialCachedEx
 
 		Expression->GetLandscapeLayerNames(EditorOnlyData->LandscapeLayerNames);
 
+		Expression->GetIncludeFilePaths(EditorOnlyData->ExpressionIncludeFilePaths);
+
 		if (UMaterialExpressionCollectionParameter* ExpressionCollectionParameter = Cast<UMaterialExpressionCollectionParameter>(Expression))
 		{
 			UMaterialParameterCollection* Collection = ExpressionCollectionParameter->Collection;
@@ -1004,6 +1006,36 @@ void FMaterialCachedExpressionData::Validate()
 			check(EditorEntry.EditorInfo.Num() == Entry.ParameterInfoSet.Num());
 		}
 		FMaterialLayersFunctions::Validate(MaterialLayers, EditorOnlyData->MaterialLayers);
+
+
+		// TODO Validate the shader include paths in the editor before storing them on the expression instead
+		for (auto PathIt = EditorOnlyData->ExpressionIncludeFilePaths.CreateIterator(); PathIt; ++PathIt)
+		{
+			const FString& IncludeFilePath = *PathIt;
+			bool bValidExpressionIncludePath = false;
+
+			if (!IncludeFilePath.IsEmpty())
+			{
+				FString ValidatedPath = GetShaderSourceFilePath(IncludeFilePath);
+				if (!ValidatedPath.IsEmpty())
+				{
+					ValidatedPath = IFileManager::Get().ConvertToAbsolutePathForExternalAppForWrite(*ValidatedPath);
+					if (FPaths::FileExists(ValidatedPath))
+					{
+						bValidExpressionIncludePath = true;
+					}
+				}
+			}
+
+			if (!bValidExpressionIncludePath)
+			{
+				UE_LOG(LogMaterial, Warning, TEXT("Expression include file path [%s] is invalid, removing from cached material data."), *IncludeFilePath);
+				PathIt.RemoveCurrent();
+			}
+		}
+
+		// Sort to make hashing less dependent on the order of expression visiting
+		EditorOnlyData->ExpressionIncludeFilePaths.Sort(TLess<>());
 	}
 }
 

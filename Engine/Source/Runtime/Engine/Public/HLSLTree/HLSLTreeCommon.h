@@ -342,11 +342,17 @@ public:
 class FExpressionCustomHLSL : public FExpression
 {
 public:
-	FExpressionCustomHLSL(FStringView InDeclarationCode, FStringView InFunctionCode, TArrayView<FCustomHLSLInput> InInputs, const Shader::FStructType* InOutputStructType)
+	FExpressionCustomHLSL(FStringView InDeclarationCode, FStringView InFunctionCode, TConstArrayView<FString> InIncludeFilePaths, TArrayView<FCustomHLSLInput> InInputs, const Shader::FStructType* InOutputStructType)
 		: DeclarationCode(InDeclarationCode)
 		, FunctionCode(InFunctionCode)
+		, IncludeFilePaths(InIncludeFilePaths)
 		, Inputs(InInputs)
 		, OutputStructType(InOutputStructType)
+	{}
+
+	UE_DEPRECATED(5.4, "This constructor is deprecated.")
+	FExpressionCustomHLSL(FStringView InDeclarationCode, FStringView InFunctionCode, TArrayView<FCustomHLSLInput> InInputs, const Shader::FStructType* InOutputStructType)
+		: FExpressionCustomHLSL(InDeclarationCode, InFunctionCode, {}, InInputs,  InOutputStructType)
 	{}
 
 	virtual bool PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const override;
@@ -354,6 +360,7 @@ public:
 
 	FStringView DeclarationCode;
 	FStringView FunctionCode;
+	TConstArrayView<FString> IncludeFilePaths;
 	TArray<FCustomHLSLInput, TInlineAllocator<8>> Inputs;
 	const Shader::FStructType* OutputStructType = nullptr;
 };
