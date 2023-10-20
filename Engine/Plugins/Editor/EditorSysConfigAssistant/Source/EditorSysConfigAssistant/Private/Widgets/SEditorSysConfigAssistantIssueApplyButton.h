@@ -50,12 +50,12 @@ public:
 			.AutoHeight()
 			[
 				SNew(STextBlock)
-				.Text(LOCTEXT("EditorSysConfigAssistant", "Apply Change"))
+				.Text(LOCTEXT("ApplyChangeButtonText", "Apply Change"))
 			];
 		}
 
 		// Otherwise we fall back on simple text
-		SetToolTipText(LOCTEXT("EditorSysConfigAssistant", "Apply changes to address this issue"));
+		SetToolTipText(LOCTEXT("ApplyChangeButtonTooltip", "Apply changes to address this issue"));
 	}
 
 	virtual TSharedPtr<IToolTip> GetToolTip() override

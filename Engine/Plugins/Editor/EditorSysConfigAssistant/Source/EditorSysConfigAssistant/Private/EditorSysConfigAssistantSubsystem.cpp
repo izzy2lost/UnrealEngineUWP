@@ -140,11 +140,11 @@ void UEditorSysConfigAssistantSubsystem::NotifyRestart(bool bApplicationOnly)
 	FText RestartText;
 	if (bApplicationOnly)
 	{
-		RestartText = LOCTEXT("RestartRequiredTitle", "Application restart required to apply new system configuration");
+		RestartText = LOCTEXT("ApplicationRestartRequiredTitle", "Application restart required to apply new system configuration");
 	}
 	else
 	{
-		RestartText = LOCTEXT("RestartRequiredTitle", "System restart required to apply new system configuration");
+		RestartText = LOCTEXT("SystemRestartRequiredTitle", "System restart required to apply new system configuration");
 	}
 	FNotificationInfo Info(RestartText);
 
