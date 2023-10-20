@@ -150,6 +150,11 @@ struct FHarvestedRealm
 		Excluded.Add(InObject);
 	}
 
+	void AddNotExcluded(TObjectPtr<UObject> InObject)
+	{
+		NotExcluded.Add(InObject);
+	}
+
 	bool IsImport(TObjectPtr<UObject> InObject) const
 	{
 		return Imports.Contains(InObject);
@@ -172,6 +177,11 @@ struct FHarvestedRealm
 	bool IsExcluded(TObjectPtr<UObject> InObject) const
 	{
 		return Excluded.Contains(InObject);
+	}
+
+	bool IsNotExcluded(TObjectPtr<UObject> InObject) const
+	{
+		return NotExcluded.Contains(InObject);
 	}
 
 	TSet<FTaggedExport>& GetExports()
@@ -368,6 +378,8 @@ private:
 
 	// Set of objects excluded (import or exports) through marks or otherwise (i.e. transient flags, etc)
 	TSet<TObjectPtr<UObject>> Excluded;
+	// Set of objects not excluded through marks or otherwise (i.e. transient flags, etc) while not being marked specifically included yet
+	TSet<TObjectPtr<UObject>> NotExcluded;
 	// Set of objects marked as export
 	TSet<FTaggedExport> Exports;
 	// Set of objects marked as import

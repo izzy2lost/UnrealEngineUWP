@@ -83,6 +83,10 @@ bool ConditionallyExcludeObjectForRealm(FSaveContext& SaveContext, TObjectPtr<UO
 	{
 		return false;
 	}
+	if (RealmBeingChecked.IsNotExcluded(Obj))
+	{
+		return false;
+	}
 
 	const EObjectMark ExcludedObjectMarks = SaveContext.GetExcludedObjectMarks(HarvestingContext);
 	const ITargetPlatform* TargetPlatform = SaveContext.GetTargetPlatform();
@@ -132,6 +136,7 @@ bool ConditionallyExcludeObjectForRealm(FSaveContext& SaveContext, TObjectPtr<UO
 		}
 	}
 
+	RealmBeingChecked.AddNotExcluded(Obj);
 	return false;
 }
 
