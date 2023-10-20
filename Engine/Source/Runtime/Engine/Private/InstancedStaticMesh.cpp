@@ -2204,8 +2204,6 @@ FPrimitiveSceneProxy* UInstancedStaticMeshComponent::CreateSceneProxy()
 #if WITH_EDITOR
 		bIsInstanceDataApplyCompleted && 
 #endif
-		// make sure we have instances
-		PerInstanceSMData.Num() > 0 &&
 		// make sure we have an actual static mesh
 		GetStaticMesh() &&
 		GetStaticMesh()->IsCompiling() == false &&

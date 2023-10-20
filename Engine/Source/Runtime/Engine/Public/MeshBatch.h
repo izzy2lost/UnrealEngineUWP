@@ -453,7 +453,7 @@ struct FMeshBatch
 	{
 		for (int32 ElementIdx = 0; ElementIdx < Elements.Num(); ++ElementIdx)
 		{
-			if (Elements[ElementIdx].GetNumPrimitives() > 0 || Elements[ElementIdx].IndirectArgsBuffer)
+			if (Elements[ElementIdx].GetNumPrimitives() > 0 || Elements[ElementIdx].IndirectArgsBuffer || Elements[ElementIdx].bFetchInstanceCountFromScene)
 			{
 				return true;
 			}
