@@ -2148,6 +2148,7 @@ struct FRayTracingMaterialGatheringContext
 	TArray<FRayTracingDynamicGeometryUpdateParams> DynamicRayTracingGeometriesToUpdate;
 	FGlobalDynamicVertexBuffer DynamicVertexBuffer;
 	FGlobalDynamicIndexBuffer DynamicIndexBuffer;
+	FGlobalDynamicReadBuffer& DynamicReadBuffer;
 
 	ENGINE_API FRayTracingMaterialGatheringContext(
 		const FScene* InScene,

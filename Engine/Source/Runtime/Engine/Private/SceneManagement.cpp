@@ -348,7 +348,7 @@ FRayTracingMaterialGatheringContext::FRayTracingMaterialGatheringContext(
 	const FSceneViewFamily& InReferenceViewFamily,
 	FRDGBuilder& InGraphBuilder,
 	FRayTracingMeshResourceCollector& InRayTracingMeshResourceCollector,
-	FGlobalDynamicReadBuffer& DynamicReadBuffer)
+	FGlobalDynamicReadBuffer& InDynamicReadBuffer)
 	: Scene(InScene)
 	, ReferenceView(InReferenceView)
 	, ReferenceViewFamily(InReferenceViewFamily)
@@ -357,6 +357,7 @@ FRayTracingMaterialGatheringContext::FRayTracingMaterialGatheringContext(
 	, RayTracingMeshResourceCollector(InRayTracingMeshResourceCollector)
 	, DynamicVertexBuffer(GraphBuilder.RHICmdList)
 	, DynamicIndexBuffer(GraphBuilder.RHICmdList)
+	, DynamicReadBuffer(InDynamicReadBuffer)
 {
 	RayTracingMeshResourceCollector.Start(RHICmdList, DynamicVertexBuffer, DynamicIndexBuffer, DynamicReadBuffer);
 }
@@ -364,6 +365,7 @@ FRayTracingMaterialGatheringContext::FRayTracingMaterialGatheringContext(
 FRayTracingMaterialGatheringContext::~FRayTracingMaterialGatheringContext()
 {
 	RayTracingMeshResourceCollector.Finish();
+	DynamicReadBuffer.Commit(GraphBuilder.RHICmdList);
 }
 
 #endif
