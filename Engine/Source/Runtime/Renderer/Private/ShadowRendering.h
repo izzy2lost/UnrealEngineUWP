@@ -206,9 +206,15 @@ inline bool IsShadowCacheModeOcclusionQueryable(EShadowDepthCacheMode CacheMode)
 
 struct FTiledShadowRendering
 {
+	enum class ETileType : uint8
+	{
+		Tile16bits,
+		Tile12bits
+	};
 	FRDGBufferRef		DrawIndirectParametersBuffer;
 	FRDGBufferSRVRef	TileListDataBufferSRV;
 	uint32				TileSize;
+	ETileType			TileType = ETileType::Tile16bits;
 };
 
 class FShadowMapRenderTargets

@@ -380,7 +380,8 @@ class FShadowTileVS : public FGlobalShader
 	DECLARE_GLOBAL_SHADER(FShadowTileVS);
 	SHADER_USE_PARAMETER_STRUCT(FShadowTileVS, FGlobalShader);
 
-	using FPermutationDomain = TShaderPermutationDomain<>;
+	class FTileType : SHADER_PERMUTATION_INT("PERMUTATION_TILE_TYPE",2);
+	using FPermutationDomain = TShaderPermutationDomain<FTileType>;
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, ViewUniformBuffer)
@@ -1089,7 +1090,9 @@ void FProjectedShadowInfo::RenderRayTracedDistanceFieldProjection(
 		{
 			check(TiledShadowRendering->TileSize == FShadowTileVS::GetTileSize());
 
-			auto VertexShader = View.ShaderMap->GetShader<FShadowTileVS>();
+			FShadowTileVS::FPermutationDomain VSPermutationVector;
+			VSPermutationVector.Set<FShadowTileVS::FTileType>(TiledShadowRendering->TileType == FTiledShadowRendering::ETileType::Tile16bits ? 0 : 1);
+			auto VertexShader = View.ShaderMap->GetShader<FShadowTileVS>(VSPermutationVector);
 			ClearUnusedGraphResources(VertexShader, &PassParameters->VS);
 
 			GraphBuilder.AddPass(

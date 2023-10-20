@@ -968,6 +968,7 @@ void FDeferredShadingSceneRenderer::RenderSingleLayerWaterReflections(
 						TiledShadowRendering.DrawIndirectParametersBuffer = TiledScreenSpaceReflection.DrawIndirectParametersBuffer;
 						TiledShadowRendering.TileListDataBufferSRV = TiledScreenSpaceReflection.TileListDataBufferSRV;
 						TiledShadowRendering.TileSize = TiledScreenSpaceReflection.TileSize;
+						TiledShadowRendering.TileType = FTiledShadowRendering::ETileType::Tile12bits;
 					}
 
 					const bool bProjectingForForwardShading = false;
