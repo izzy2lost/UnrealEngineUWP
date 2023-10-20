@@ -210,7 +210,7 @@ void FFeedbackContext::UpdateProgress( int32 Numerator, int32 Denominator )
 		LegacyAPIScopes.Last()->TotalAmountOfWork = (float)Denominator;
 		LegacyAPIScopes.Last()->CompletedWork = (float)Numerator;
 		LegacyAPIScopes.Last()->CurrentFrameScope = (float)(Denominator - Numerator);
-		RequestUpdateUI();
+		LegacyAPIScopes.Last()->TickProgress();
 	}
 }
 
