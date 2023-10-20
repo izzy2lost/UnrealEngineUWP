@@ -26,7 +26,7 @@ namespace PerfReportTool
     class Version
     {
 		// Format: Major.Minor.Bugfix
-        private static string VersionString = "4.107.0";
+        private static string VersionString = "4.107.1";
 
         public static string Get() { return VersionString; }
     };
@@ -1640,8 +1640,9 @@ namespace PerfReportTool
 						{
 							highlightEventRegions += ",";
 						}
-						string endEvent = (eventsToStrip[i].endName == null) ? "{NULL}" : eventsToStrip[i].endName;
-						highlightEventRegions += eventsToStrip[i].beginName + "," + endEvent;
+						string endEvent = (eventsToStrip[i].endName == null) ? "{null}" : eventsToStrip[i].endName;
+						string beginEvent = (eventsToStrip[i].beginName == null) ? "{null}" : eventsToStrip[i].beginName;
+						highlightEventRegions += beginEvent + "," + endEvent;
 					}
 					highlightEventRegions += "\"";
 				}
@@ -1779,8 +1780,8 @@ namespace PerfReportTool
 				{
 					for (int i = 0; i < eventsToStrip.Count; i++)
 					{
-						graphParams.highlightEventRegions.Add((eventsToStrip[i].beginName == null) ? "" : eventsToStrip[i].beginName);
-						graphParams.highlightEventRegions.Add((eventsToStrip[i].endName == null) ? "{NULL}" : eventsToStrip[i].endName);
+						graphParams.highlightEventRegions.Add((eventsToStrip[i].beginName == null) ? "{null}" : eventsToStrip[i].beginName);
+						graphParams.highlightEventRegions.Add((eventsToStrip[i].endName == null) ? "{null}" : eventsToStrip[i].endName);
 					}
 				}
 			}

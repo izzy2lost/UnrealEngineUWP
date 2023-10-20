@@ -12,7 +12,7 @@ namespace CSVTools
 
 	public class CsvToSvgLibVersion
 	{
-		private static string VersionString = "2.57";
+		private static string VersionString = "2.58";
 
 		public static string Get() { return VersionString; }
 	};
@@ -1697,9 +1697,13 @@ namespace CSVTools
 						string startName = highlightEventRegions[i * 2].ToLower().Trim();
 						string endName = highlightEventRegions[i * 2 + 1].ToLower().Trim();
 
-						if (endName == "{NULL}")
+						if (endName == "{null}")
 						{
 							endName = null;
+						}
+						if (startName == "{null}")
+						{
+							startName = null;
 						}
 
 						List<int> startIndices = null;
