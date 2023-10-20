@@ -851,6 +851,10 @@ namespace UnrealBuildTool
 		static ConcurrentDictionary<DirectoryReference, HashSet<FileReference>?> KnownIncludeFilesDict = new();
 		static HashSet<FileReference>? GetIncludeFiles(DirectoryReference Directory)
 		{
+			if (Directory == null)
+			{
+				return null;
+			}
 			return KnownIncludeFilesDict.GetOrAdd(Directory, (_) =>
 			{
 				if (DirectoryLookupCache.DirectoryExists(Directory))
