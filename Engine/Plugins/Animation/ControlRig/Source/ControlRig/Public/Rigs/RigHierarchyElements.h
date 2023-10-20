@@ -832,7 +832,6 @@ protected:
 			InElement->GetType() == ERigElementType::Control ||
 			InElement->GetType() == ERigElementType::RigidBody ||
 			InElement->GetType() == ERigElementType::Reference ||
-			InElement->GetType() == ERigElementType::Connector ||
 			InElement->GetType() == ERigElementType::Socket;
 	}
 
@@ -882,7 +881,6 @@ protected:
 		return InElement->GetType() == ERigElementType::Bone ||
 			InElement->GetType() == ERigElementType::RigidBody ||
 			InElement->GetType() == ERigElementType::Reference ||
-			InElement->GetType() == ERigElementType::Connector ||
 			InElement->GetType() == ERigElementType::Socket;
 	}
 
@@ -1692,7 +1690,6 @@ struct CONTROLRIG_API FRigConnectorInfo
 	FRigConnectorInfo()
 		: Name(NAME_None)
 		, ResolvedTarget()
-		, LocalTransform(FTransform::Identity)
 		, Settings()
 	{}
 	
@@ -1703,14 +1700,11 @@ struct CONTROLRIG_API FRigConnectorInfo
 	FRigElementKey ResolvedTarget;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Connector)
-	FTransform LocalTransform;
-
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Connector)
 	FRigConnectorSettings Settings;
 };
 
 USTRUCT(BlueprintType)
-struct CONTROLRIG_API FRigConnectorElement : public FRigSingleParentElement
+struct CONTROLRIG_API FRigConnectorElement : public FRigBaseElement
 {
 public:
 	
@@ -1720,7 +1714,7 @@ public:
 	static const EElementIndex ElementTypeIndex;
 
 	FRigConnectorElement()
-		: FRigSingleParentElement()
+		: FRigBaseElement()
 	{
 		Key.Type = ERigElementType::Connector; 
 	}

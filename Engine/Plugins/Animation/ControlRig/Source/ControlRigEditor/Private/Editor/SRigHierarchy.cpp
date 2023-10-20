@@ -2006,7 +2006,7 @@ void SRigHierarchy::HandleNewItem(ERigElementType InElementType, bool bIsAnimati
 						}
 					}
 
-					NewItemKey = Controller->AddConnector(NewElementName, ParentTransform, true, FRigConnectorSettings(), true);
+					NewItemKey = Controller->AddConnector(NewElementName, FRigConnectorSettings(), true);
 					(void)ResolveConnector(NewItemKey, ParentKey);
 					break;
 				}

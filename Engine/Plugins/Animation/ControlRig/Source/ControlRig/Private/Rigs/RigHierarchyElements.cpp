@@ -1697,7 +1697,6 @@ FRigConnectorInfo FRigConnectorElement::GetConnectorInfo(const URigHierarchy* In
 	FRigConnectorInfo Info;
 	Info.Name = Key.Name;
 	Info.ResolvedTarget = InHierarchy->GetResolvedTarget(Key);
-	Info.LocalTransform = InHierarchy->GetInitialLocalTransform(Key);
 	Info.Settings = Settings;
 	return Info;
 }

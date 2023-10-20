@@ -290,7 +290,7 @@ bool UControlRigBlueprint::TurnIntoControlRigModule(bool InAutoConvertHierarchy,
 			if(Hierarchy->Num(ERigElementType::Connector) == 0)
 			{
 				static const FName RootName = TEXT("Root");
-				Controller->AddConnector(RootName, FTransform::Identity);
+				Controller->AddConnector(RootName);
 			}
 		}
 	}

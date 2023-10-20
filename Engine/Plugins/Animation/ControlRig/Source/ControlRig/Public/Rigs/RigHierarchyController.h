@@ -240,15 +240,13 @@ public:
 	/**
 	 * Adds a connector to the hierarchy
 	 * @param InName The suggested name of the new connector - will eventually be corrected by the namespace
-	 * @param InTransform The transform for the new connector - either in local or global space, based on bTransformInGlobal
-	 * @param bTransformInGlobal Set this to true if the Transform passed is expressed in global space, false for local space.
 	 * @param InSettings All of the connector's settings
 	 * @param bSetupUndo If set to true the stack will record the change for undo / redo
 	 * @param bPrintPythonCommand If set to true a python command equivalent to this call will be printed out
 	 * @return The key for the newly created bone.
 	 */
 	UFUNCTION(BlueprintCallable, Category = URigHierarchyController)
-	FRigElementKey AddConnector(FName InName, FTransform InTransform, bool bTransformInGlobal = true, FRigConnectorSettings InSettings = FRigConnectorSettings(), bool bSetupUndo = false, bool bPrintPythonCommand = false);
+	FRigElementKey AddConnector(FName InName, FRigConnectorSettings InSettings = FRigConnectorSettings(), bool bSetupUndo = false, bool bPrintPythonCommand = false);
 
 	/**
 	 * Adds a socket to the hierarchy

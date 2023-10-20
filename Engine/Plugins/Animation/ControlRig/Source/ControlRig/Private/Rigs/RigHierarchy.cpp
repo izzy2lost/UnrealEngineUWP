@@ -998,12 +998,11 @@ TArray<FRigElementKey> URigHierarchy::RestoreConnectorsFromInfos(TArray<FRigConn
 
 		if(const FRigConnectorElement* Connector = Find<FRigConnectorElement>(Key))
 		{
-			SetInitialLocalTransform(Connector->Index, Info.LocalTransform, true, bSetupUndoRedo, false);
 			SetConnectorSettings(Key, Info.Settings, bSetupUndoRedo, false, false);
 		}
 		else
 		{
-			Key = GetController()->AddConnector(Info.Name, Info.LocalTransform, false, Info.Settings, bSetupUndoRedo, false);
+			Key = GetController()->AddConnector(Info.Name, Info.Settings, bSetupUndoRedo, false);
 		}
 
 		Keys.Add(Key);
