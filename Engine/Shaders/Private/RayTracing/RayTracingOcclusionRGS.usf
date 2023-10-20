@@ -23,6 +23,8 @@
 #include "RayTracingSphereLight.ush"
 #include "RayTracingCapsuleLight.ush"
 
+#define USE_TRANSLUCENT_SHADOW  (!COMPUTESHADER && PLATFORM_SUPPORTS_RAY_TRACING_HIGH_END_EFFECTS) // support translucent shadow path in high end ray tracing without inline ray tracing
+
 /** Light types */
 #define LIGHT_TYPE_DIRECTIONAL 0
 #define LIGHT_TYPE_POINT 1
@@ -116,6 +118,10 @@ bool GenerateOcclusionRay(
 			if (!(dot(LightDirection, LightParameters.Direction) >= CosAngle))
 			{
 				// outside the cone of the light, skip all work
+				RayOrigin = (float3)0;
+				RayDirection = (float3)0;
+				RayTMin = 0.0f;
+				RayTMax = 0.0f;
 				return false;
 			}
 		#endif
@@ -560,9 +566,7 @@ FOcclusionResult ComputeOcclusion(
 		}
 		else
 		{
-
-#if !COMPUTESHADER && 0 // Ignore translucent shadow path when using inline ray tracing
-			// Temporarily disable the code to investigate a compiling issue.
+#if USE_TRANSLUCENT_SHADOW
 			bool bHasClosestEffectiveTranslucentHit = false;
 
 			if (NeedToTraceTranslucentShadow)
