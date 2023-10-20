@@ -41,6 +41,25 @@ struct FPhysicalMaterialMaskParams
 
 struct FGeometryAddParams
 {
+	FGeometryAddParams() = default;
+
+	FGeometryAddParams(const FGeometryAddParams& Other)
+	: bDoubleSided(Other.bDoubleSided)
+	, CollisionData(Other.CollisionData)
+	, CollisionTraceType(Other.CollisionTraceType)
+	, Scale(Other.Scale)
+	, SimpleMaterial(Other.SimpleMaterial)
+	, ComplexMaterials(Other.ComplexMaterials)
+	, ComplexMaterialMasks(Other.ComplexMaterialMasks)
+	, LocalTransform(Other.LocalTransform)
+	, WorldTransform(Other.WorldTransform)
+	, Geometry(Other.Geometry)
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	, ChaosTriMeshes(Other.ChaosTriMeshes)
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	, TriMeshGeometries(Other.TriMeshGeometries)
+	{}
+
 	bool bDoubleSided;
 	FBodyCollisionData CollisionData;
 	ECollisionTraceFlag CollisionTraceType;

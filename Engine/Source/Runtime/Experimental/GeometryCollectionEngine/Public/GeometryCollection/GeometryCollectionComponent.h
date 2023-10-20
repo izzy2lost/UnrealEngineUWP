@@ -1282,6 +1282,14 @@ public:
 
 	GEOMETRYCOLLECTIONENGINE_API void SetUpdateNavigationInTick(const bool bUpdateInTick) { bUpdateNavigationInTick = bUpdateInTick; }
 
+	// todo(chaos): Remove this and move to a cook time approach of the SM data based on the GC property
+	UFUNCTION(BlueprintPure, BlueprintInternalUseOnly, Category = "Physics")
+	GEOMETRYCOLLECTIONENGINE_API bool GetUseStaticMeshCollisionForTraces() const { return bUseStaticMeshCollisionForTraces; }
+
+	// todo(chaos): Remove this and move to a cook time approach of the SM data based on the GC property
+	UFUNCTION(BlueprintCallable, BlueprintInternalUseOnly, Category = "Physics")
+	GEOMETRYCOLLECTIONENGINE_API void SetUseStaticMeshCollisionForTraces(bool bInUseStaticMeshCollisionForTraces);
+
 	/** Get any custom renderer. Returns nullptr if none is set. */
 	GEOMETRYCOLLECTIONENGINE_API IGeometryCollectionExternalRenderInterface* GetCustomRenderer() { return CustomRenderer.GetInterface(); }
 	/** Enable or disable root proxy for custom rendering - this can be set at runtime */
@@ -1674,6 +1682,10 @@ private:
 	TArray<TArray<int32>> EmbeddedBoneMaps;
 	TArray<int32> EmbeddedInstanceIndex;
 #endif
+
+	// todo(chaos): Remove the ability to change this at runtime, as we'll want to use this at cook time instead
+	UPROPERTY(EditAnywhere, BlueprintGetter="GetUseStaticMeshCollisionForTraces", BlueprintSetter="SetUseStaticMeshCollisionForTraces", Category = "Physics")
+	bool bUseStaticMeshCollisionForTraces  = false;
 
 	GEOMETRYCOLLECTIONENGINE_API bool IsEmbeddedGeometryValid() const;
 	GEOMETRYCOLLECTIONENGINE_API void ClearEmbeddedGeometry();

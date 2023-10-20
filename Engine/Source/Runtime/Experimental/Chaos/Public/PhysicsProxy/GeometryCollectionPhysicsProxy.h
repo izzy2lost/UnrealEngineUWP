@@ -18,6 +18,7 @@
 #include "PBDRigidsSolver.h"
 #include "Chaos/Defines.h"
 #include "Chaos/GeometryParticlesfwd.h"
+#include "Physics/PhysicsInterfaceTypes.h"
 
 namespace Chaos
 {
@@ -272,6 +273,10 @@ public:
 	// set the world transform ( this needs to be called on the game thread ) 
 	CHAOS_API void SetWorldTransform_External(const FTransform& WorldTransform);
 
+	// todo(chaos): Remove this and move to a cook time approach of the SM data based on the GC property
+	// Set whether the GC should be using collision from the Static Mesh or the GC itself for game thread traces ( this needs to be called on the game thread )
+	CHAOS_API void SetUseStaticMeshCollisionForTraces_External(bool bInUseStaticMeshCollisionForTraces);
+
 	const TArray<FClusterHandle*> GetParticles() const
 	{
 		return SolverParticleHandles;
@@ -307,6 +312,12 @@ public:
 
 	CHAOS_API FParticleHandle* GetParticleByIndex_Internal(int32 Index);
 	CHAOS_API const FParticleHandle* GetParticleByIndex_Internal(int32 Index) const;
+
+	FParticle* GetInitialRootParticle_External() { return GetParticleByIndex_External(Parameters.InitialRootIndex); }
+	const FParticle* GetInitialRootParticle_External() const { return GetParticleByIndex_External(Parameters.InitialRootIndex); }
+
+	FParticleHandle* GetInitialRootParticle_Internal() { return GetParticleByIndex_Internal(Parameters.InitialRootIndex); }
+	const FParticleHandle* GetInitialRootParticle_Internal() const { return GetParticleByIndex_Internal(Parameters.InitialRootIndex); }
 
 	/**
 	*  * Get all the geometry collection particle handles based on the processing resolution
@@ -483,6 +494,11 @@ public:
 	CHAOS_API TArray<Chaos::FPhysicsObjectHandle> GetAllPhysicsObjectIncludingNulls() const;
 	CHAOS_API Chaos::FPhysicsObjectHandle GetPhysicsObjectByIndex(int32 Index) const;
 	int32 GetNumParticles() const { return NumParticles; }
+
+	// todo(chaos): Remove this and move to a cook time approach of the SM data based on the GC property
+	using FTraceCollisionCreateGeometryCallback = TFunction<void(const FGeometryAddParams& InParams, TArray<Chaos::FImplicitObjectPtr>& OutGeoms, Chaos::FShapesArray& OutShapes)>;
+	CHAOS_API void RegisterNewTraceCollisionOverrideData(const FGeometryAddParams& InParams, FTraceCollisionCreateGeometryCallback InCreateGeometryCallback);
+
 protected:
 
 	CHAOS_API float ComputeMaterialBasedDamageThreshold_Internal(int32 TransformIndex) const;
@@ -602,6 +618,25 @@ private:
 	// This is a subset of the geometry group that are used in the transform hierarchy to represent geometry
 	TArray<FBox> ValidGeometryBoundingBoxes;
 	TArray<int32> ValidGeometryTransformIndices;
+
+	// todo(chaos): Remove this and move to a cook time approach of the SM data based on the GC property
+	// These are created off of the static meshes in the event we want to use SM collision on the game thread
+	struct FTraceCollisionOverrideData
+	{
+		FTraceCollisionOverrideData() = default;
+
+		FTraceCollisionOverrideData(const FGeometryAddParams& InParams, FTraceCollisionCreateGeometryCallback InCallback)
+		: Params(InParams)
+		, CreateGeometryCallback(InCallback)
+		{}
+
+		FGeometryAddParams Params;
+		FTraceCollisionCreateGeometryCallback CreateGeometryCallback;
+	};
+	TArray<FTraceCollisionOverrideData> OptionalTraceCollisionOverrideGeoms;
+	
+	// Use SetUseStaticMeshCollisionForTraces_External intead of setting this directly, so that the collision can be recreated if needed
+	bool bUseStaticMeshCollisionForTraces = false;
 
 #ifdef TODO_REIMPLEMENT_RIGID_CACHING
 	TFunction<void(void)> ResetAnimationCacheCallback;

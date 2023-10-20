@@ -37,6 +37,7 @@
 #include "Net/UnrealNetwork.h"
 #include "PhysicalMaterials/PhysicalMaterial.h"
 #include "Physics/Experimental/PhysScene_Chaos.h"
+#include "Physics/Experimental/ChaosInterfaceUtils.h"
 #include "Physics/PhysicsFiltering.h"
 #include "PhysicsEngine/PhysicsObjectExternalInterface.h"
 #include "PhysicsField/PhysicsFieldComponent.h"
@@ -3812,6 +3813,43 @@ void UGeometryCollectionComponent::RegisterAndInitializePhysicsProxy()
 		}
 	}
 
+	// Always set up the overrides in case the boolean flips later to allow SM collision on GT
+	// todo(chaos): Remove this and move to a cook time approach of the SM data based on the GC property
+	if (RestCollection != nullptr)
+	{
+		for (const TObjectPtr<UStaticMesh>& ProxyMesh : RestCollection->RootProxyData.ProxyMeshes)
+		{
+			if (const UStaticMesh* StaticMesh = ProxyMesh.Get())
+			{
+				if (UBodySetup* BodySetup = ProxyMesh->GetBodySetup())
+				{
+					FBodyCollisionData BodyCollisionData;
+					BodyInstance.BuildBodyFilterData(BodyCollisionData.CollisionFilterData);
+					FBodyInstance::BuildBodyCollisionFlags(BodyCollisionData.CollisionFlags, BodyInstance.GetCollisionEnabled(), BodySetup->GetCollisionTraceFlag() == CTF_UseComplexAsSimple);
+
+					FGeometryAddParams AddParams;
+					AddParams.bDoubleSided = BodySetup->bDoubleSidedGeometry;
+					AddParams.CollisionData = BodyCollisionData;
+					AddParams.CollisionTraceType = BodySetup->GetCollisionTraceFlag();
+					AddParams.Scale = BodyInstance.Scale3D;
+					AddParams.SimpleMaterial = BodyInstance.GetSimplePhysicalMaterial();
+					AddParams.LocalTransform = FTransform::Identity;
+					AddParams.WorldTransform = PhysicsProxy->GetSimParameters().WorldTransform;
+					AddParams.Geometry = &BodySetup->AggGeom;
+
+					PhysicsProxy->RegisterNewTraceCollisionOverrideData(
+						AddParams,
+						[](const FGeometryAddParams& InParams, TArray<Chaos::FImplicitObjectPtr>& OutGeoms, Chaos::FShapesArray& OutShapes) {
+							ChaosInterface::CreateGeometry(InParams, OutGeoms, OutShapes);
+						}
+					);
+				}
+			}
+		}
+	}
+
+	PhysicsProxy->SetUseStaticMeshCollisionForTraces_External(bUseStaticMeshCollisionForTraces);
+
 	FPhysScene_Chaos* Scene = GetInnerChaosScene();
 	Scene->AddObject(this, PhysicsProxy);
 
@@ -5976,6 +6014,18 @@ TArray<UStaticMeshComponent*> UGeometryCollectionComponent::CreateProxyComponent
 	return Components;
 }
 
+void UGeometryCollectionComponent::SetUseStaticMeshCollisionForTraces(const bool bInUseStaticMeshCollisionForTraces)
+{
+	if (bUseStaticMeshCollisionForTraces != bInUseStaticMeshCollisionForTraces)
+	{
+		if (PhysicsProxy != nullptr)
+		{
+			PhysicsProxy->SetUseStaticMeshCollisionForTraces_External(bInUseStaticMeshCollisionForTraces);
+		}
+
+		bUseStaticMeshCollisionForTraces = bInUseStaticMeshCollisionForTraces;
+	}
+}
 struct FGeometryCollectionDecayContext
 {
 	FGeometryCollectionDecayContext(FGeometryCollectionPhysicsProxy& PhysicsProxyIn, FGeometryCollectionDecayDynamicFacade& DecayFacadeIn)
