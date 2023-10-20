@@ -6,6 +6,7 @@
 #include "Async/Fundamental/Scheduler.h"
 #include "HAL/LowLevelMemTracker.h"
 #include "HAL/PlatformProcess.h"
+#include "Misc/Fork.h"
 #include "Misc/ScopeLock.h"
 #include "ProfilingDebugging/CpuProfilerTrace.h"
 #include "Trace/Trace.h"
