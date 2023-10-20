@@ -281,6 +281,7 @@ template<typename T>
 uint64 GetObjectIdForNetTrace(const T&)
 {
 	static_assert(sizeof(T) == 0, "Not supported type for NetTraceObjectID, implement uint64 GetObjectIdForNetTrace(const T&)");
+	return 0;
 }
 
 inline uint64 GetObjectIdForNetTrace(const FNetworkGUID& NetGUID)

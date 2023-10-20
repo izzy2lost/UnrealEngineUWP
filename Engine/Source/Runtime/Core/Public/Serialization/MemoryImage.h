@@ -576,6 +576,7 @@ public:
 	{
 		this->SafeDelete();
 		this->Ptr = InPtr;
+		return *this;
 	}
 	inline TUniqueMemoryImagePtr& operator=(TUniqueMemoryImagePtr&& Other)
 	{

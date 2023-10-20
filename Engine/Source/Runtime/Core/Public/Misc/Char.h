@@ -107,6 +107,7 @@ struct TChar : TCharBase<CharType, sizeof(CharType)>
 		else
 		{
 			static_assert(sizeof(CharType) == 0, "Not supported");
+			return false;
 		}
 	}
 
@@ -127,6 +128,7 @@ struct TChar : TCharBase<CharType, sizeof(CharType)>
 		else
 		{
 			static_assert(sizeof(CharType) == 0, "Not supported");
+			return false;
 		}
 	}
 
@@ -147,6 +149,7 @@ struct TChar : TCharBase<CharType, sizeof(CharType)>
 		else
 		{
 			static_assert(sizeof(CharType) == 0, "Not supported");
+			return false;
 		}
 	}
 
@@ -167,6 +170,7 @@ struct TChar : TCharBase<CharType, sizeof(CharType)>
 		else
 		{
 			static_assert(sizeof(CharType) == 0, "Not supported");
+			return false;
 		}
 	}
 
@@ -187,6 +191,7 @@ struct TChar : TCharBase<CharType, sizeof(CharType)>
 		else
 		{
 			static_assert(sizeof(CharType) == 0, "Not supported");
+			return false;
 		}
 	}
 
@@ -207,6 +212,7 @@ struct TChar : TCharBase<CharType, sizeof(CharType)>
 		else
 		{
 			static_assert(sizeof(CharType) == 0, "Not supported");
+			return false;
 		}
 	}
 
@@ -227,6 +233,7 @@ struct TChar : TCharBase<CharType, sizeof(CharType)>
 		else
 		{
 			static_assert(sizeof(CharType) == 0, "Not supported");
+			return false;
 		}
 	}
 
@@ -247,6 +254,7 @@ struct TChar : TCharBase<CharType, sizeof(CharType)>
 		else
 		{
 			static_assert(sizeof(CharType) == 0, "Not supported");
+			return false;
 		}
 	}
 
@@ -267,6 +275,7 @@ struct TChar : TCharBase<CharType, sizeof(CharType)>
 		else
 		{
 			static_assert(sizeof(CharType) == 0, "Not supported");
+			return false;
 		}
 	}
 
@@ -287,6 +296,7 @@ struct TChar : TCharBase<CharType, sizeof(CharType)>
 		else
 		{
 			static_assert(sizeof(CharType) == 0, "Not supported");
+			return false;
 		}
 	}
 
@@ -307,6 +317,7 @@ struct TChar : TCharBase<CharType, sizeof(CharType)>
 		else
 		{
 			static_assert(sizeof(CharType) == 0, "Not supported");
+			return false;
 		}
 	}
 

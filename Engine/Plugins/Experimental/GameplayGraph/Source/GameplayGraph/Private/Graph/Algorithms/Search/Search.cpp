@@ -39,6 +39,7 @@ namespace Graph::Algorithms
 			else
 			{
 				static_assert("Invalid data structure for graph search [GetNextAndAdvance].");
+				return {};
 			}
 		}
 

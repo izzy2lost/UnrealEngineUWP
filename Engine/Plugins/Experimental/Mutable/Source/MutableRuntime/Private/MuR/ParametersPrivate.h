@@ -60,11 +60,13 @@ namespace Private
         TIndirectObject& operator=(const T& Object) 
         { 
             Get() = Object; 
+            return *this;
         }
 
         TIndirectObject& operator=(const T&& Object) 
         { 
             Get() = MoveTemp(Object); 
+            return *this;
         }
 
         const T& Get() const 

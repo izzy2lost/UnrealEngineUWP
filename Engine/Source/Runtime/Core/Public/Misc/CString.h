@@ -473,6 +473,7 @@ struct TCString
 		else
 		{
 			static_assert(sizeof(CharType) == 0, "Not supported");
+			return false;
 		}
 	}
 

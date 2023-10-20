@@ -111,6 +111,7 @@ namespace Audio
 		else
 		{
 			static_assert(sizeof(From) == 0, "Unsupported conversion");
+			return 0.f;
 		}
 	}
 

@@ -143,6 +143,7 @@ inline uint32 GetTypeHash(ScalarType Value)
 	else
 	{
 		static_assert(sizeof(ScalarType) == 0, "Unsupported scalar type");
+		return 0;
 	}
 }
 
