@@ -49,7 +49,7 @@ bool UPCGVolumeFactory::PreSpawnActor(UObject* Asset, FTransform& InOutLocation)
 
 		return true;
 	}
-	
+
 	return false;
 }
 
@@ -110,6 +110,13 @@ void UPCGVolumeFactory::PostPlaceAsset(TArrayView<const FTypedElementHandle> InE
 			}
 		}
 	}
+}
+
+UObject* UPCGVolumeFactory::GetAssetFromActorInstance(AActor* ActorInstance)
+{
+	const APCGVolume* PCGVolume = CastChecked<APCGVolume>(ActorInstance);
+	const UPCGComponent* PCGComponent = PCGVolume->GetComponentByClass<UPCGComponent>();
+	return PCGComponent ? PCGComponent->GetGraph() : nullptr;
 }
 
 #undef LOCTEXT_NAMESPACE

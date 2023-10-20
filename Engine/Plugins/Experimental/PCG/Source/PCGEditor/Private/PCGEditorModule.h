@@ -32,6 +32,7 @@ protected:
 	void RegisterSettings();
 	void UnregisterSettings();
 
+	void RegisterOnEditorModeChange();
 	void OnEditorModeIDChanged(const FEditorModeID& EditorModeID, bool bIsEntering);
 
 	TArray<TSharedRef<IAssetTypeActions>> RegisteredAssetTypeActions;

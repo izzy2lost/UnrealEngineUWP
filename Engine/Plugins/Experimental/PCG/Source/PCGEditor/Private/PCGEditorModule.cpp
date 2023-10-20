@@ -43,10 +43,9 @@ void FPCGEditorModule::StartupModule()
 		GEditor->ActorFactories.Add(NewObject<UPCGVolumeFactory>());
 	}
 
-	// Have a callback that catches changes in the Editor modes, to catch when we exit the landscape edit mode.
-	if (!IsRunningCommandlet() && GLevelEditorModeToolsIsValid())
+	if (!IsRunningCommandlet())
 	{
-		GLevelEditorModeTools().OnEditorModeIDChanged().AddRaw(this, &FPCGEditorModule::OnEditorModeIDChanged);
+		FCoreDelegates::OnPostEngineInit.AddRaw(this, &FPCGEditorModule::RegisterOnEditorModeChange);
 	}
 }
 
@@ -66,9 +65,13 @@ void FPCGEditorModule::ShutdownModule()
 		GEditor->ActorFactories.RemoveAll([](const UActorFactory* ActorFactory) { return ActorFactory->IsA<UPCGVolumeFactory>(); });
 	}
 
-	if (!IsRunningCommandlet() && GLevelEditorModeToolsIsValid())
+	if (!IsRunningCommandlet())
 	{
-		GLevelEditorModeTools().OnEditorModeIDChanged().RemoveAll(this);
+		FCoreDelegates::OnPostEngineInit.RemoveAll(this);
+		if (GLevelEditorModeToolsIsValid())
+		{
+			GLevelEditorModeTools().OnEditorModeIDChanged().RemoveAll(this);
+		}
 	}
 }
 
@@ -86,6 +89,15 @@ void FPCGEditorModule::OnEditorModeIDChanged(const FEditorModeID& EditorModeID, 
 bool FPCGEditorModule::SupportsDynamicReloading()
 {
 	return true;
+}
+
+void FPCGEditorModule::RegisterOnEditorModeChange()
+{
+	// Have a callback that catches changes in the Editor modes, to catch when we exit the landscape edit mode.
+	if (!IsRunningCommandlet() && GLevelEditorModeToolsIsValid())
+	{
+		GLevelEditorModeTools().OnEditorModeIDChanged().AddRaw(this, &FPCGEditorModule::OnEditorModeIDChanged);
+	}
 }
 
 void FPCGEditorModule::RegisterDetailsCustomizations()
@@ -131,7 +143,7 @@ void FPCGEditorModule::RegisterMenuExtensions()
 	FToolMenuOwnerScoped OwnerScoped(this);
 	UToolMenu* Menu = UToolMenus::Get()->ExtendMenu("LevelEditor.MainMenu.Tools");
 	FToolMenuSection& Section = Menu->AddSection("PCGToolsSection", LOCTEXT("PCGToolsSection", "Procedural Generation Tools"));
-	
+
 	Section.AddSubMenu(
 		"PCGToolsSubMenu",
 		LOCTEXT("PCGSubMenu", "PCG Framework"),
@@ -140,7 +152,7 @@ void FPCGEditorModule::RegisterMenuExtensions()
 }
 
 void FPCGEditorModule::UnregisterMenuExtensions()
-{	
+{
 	UToolMenus::UnregisterOwner(this);
 }
 
