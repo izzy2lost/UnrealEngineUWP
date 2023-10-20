@@ -1345,6 +1345,12 @@ bool FPhysicsReplicationAsync::PredictiveInterpolation(Chaos::FPBDRigidParticleH
 			return EndReplicationHelper(Target, true);
 		}
 	}
+	
+	// Wake up if sleeping
+	if (Handle->IsSleeping())
+	{
+		RigidsSolver->GetEvolution()->SetParticleObjectState(Handle, Chaos::EObjectStateType::Dynamic);
+	}
 
 	// Update the AverageReceiveInterval of targets from the server (receive rate = send-rate from server with network conditions taken into account)
 	Target.AverageReceiveInterval = FMath::Lerp(Target.AverageReceiveInterval, Target.ReceiveInterval, FMath::Clamp((1.0f / (Target.ReceiveInterval * PhysicsReplicationCVars::PredictiveInterpolationCVars::AverageReceiveIntervalSmoothing)), 0.0f, 1.0f));
