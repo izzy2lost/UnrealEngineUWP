@@ -385,54 +385,6 @@ void UWorldPartitionRuntimeHash::ForceExternalActorLevelReference(bool bForceExt
 }
 #endif
 
-int32 UWorldPartitionRuntimeHash::GetAllStreamingCells(TSet<const UWorldPartitionRuntimeCell*>& Cells, bool bAllDataLayers, bool bDataLayersOnly, const TSet<FName>& InDataLayers) const
-{
-	ForEachStreamingCells([&Cells, bAllDataLayers, bDataLayersOnly, InDataLayers](const UWorldPartitionRuntimeCell* Cell)
-	{
-		if (!bDataLayersOnly && !Cell->HasDataLayers())
-		{
-			Cells.Add(Cell);
-		}
-		else if (Cell->HasDataLayers() && (bAllDataLayers || Cell->HasAnyDataLayer(InDataLayers)))
-		{
-			Cells.Add(Cell);
-		}
-		return true;
-	});
-
-	return Cells.Num();
-}
-
-bool UWorldPartitionRuntimeHash::GetStreamingCells(const FWorldPartitionStreamingQuerySource& QuerySource, TSet<const UWorldPartitionRuntimeCell*>& OutCells) const
-{
-	ForEachStreamingCellsQuery(QuerySource, [QuerySource, &OutCells](const UWorldPartitionRuntimeCell* Cell)
-	{
-		OutCells.Add(Cell);
-		return true;
-	});
-
-	return !!OutCells.Num();
-}
-
-bool UWorldPartitionRuntimeHash::GetStreamingCells(const TArray<FWorldPartitionStreamingSource>& Sources, FStreamingSourceCells& OutActivateCells, FStreamingSourceCells& OutLoadCells) const
-{
-	ForEachStreamingCellsSources(Sources, [&OutActivateCells, &OutLoadCells](const UWorldPartitionRuntimeCell* Cell, EStreamingSourceTargetState TargetState)
-	{
-		switch (TargetState)
-		{
-		case EStreamingSourceTargetState::Loaded:
-			OutLoadCells.GetCells().Add(Cell);
-			break;
-		case EStreamingSourceTargetState::Activated:
-			OutActivateCells.GetCells().Add(Cell);
-			break;
-		}
-		return true;
-	});
-
-	return !!(OutActivateCells.Num() + OutLoadCells.Num());
-}
-
 bool UWorldPartitionRuntimeHash::IsCellRelevantFor(bool bClientOnlyVisible) const
 {
 	if (bClientOnlyVisible)
