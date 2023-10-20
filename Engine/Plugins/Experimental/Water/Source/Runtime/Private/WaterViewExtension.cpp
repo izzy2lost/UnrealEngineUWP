@@ -66,7 +66,7 @@ void FWaterViewExtension::Deinitialize()
 	}
 }
 
-void FWaterViewExtension::SetupViewFamily(FSceneViewFamily& InViewFamily)
+void FWaterViewExtension::UpdateGPUBuffers()
 {
 	if (bRebuildGPUData)
 	{
@@ -287,6 +287,11 @@ void FWaterViewExtension::SetupViewFamily(FSceneViewFamily& InViewFamily)
 	}
 }
 
+void FWaterViewExtension::SetupViewFamily(FSceneViewFamily& InViewFamily)
+{
+
+}
+
 void FWaterViewExtension::SetupView(FSceneViewFamily& InViewFamily, FSceneView& InView)
 {
 	if (CVarLocalTessellationFreeze.GetValueOnGameThread())
@@ -386,6 +391,10 @@ void FWaterViewExtension::SetupView(FSceneViewFamily& InViewFamily, FSceneView& 
 			}
 		}
 	}
+
+	// The logic in UpdateGPUBuffers() used to be done in SetupViewFamily(). However, SetupView() (which is responsible for water info rendering) potentially modifies the WaterZone but is called after SetupViewFamily().
+	// This can lead to visual artifacts due to outdated data in the GPU buffers.
+	UpdateGPUBuffers();
 }
 
 void FWaterViewExtension::PreRenderViewFamily_RenderThread(FRDGBuilder& GraphBuilder, FSceneViewFamily& InViewFamily)
