@@ -251,7 +251,7 @@ struct FGeometryCollectionISM
 	/** Create the ISMComponent according to settings on the mesh instance. */
 	void CreateISM(AActor* InOwningActor);
 	/** Initialize the ISMComponent according to settings on the mesh instance. */
-	void InitISM(const FGeometryCollectionStaticMeshInstance& InMeshInstance);
+	void InitISM(const FGeometryCollectionStaticMeshInstance& InMeshInstance, bool bKeepAlive);
 	/** Add a group to the ISM. Returns the group index. */
 	FInstanceGroups::FInstanceGroupId AddInstanceGroup(int32 InstanceCount, TArrayView<const float> CustomDataFloats);
 
@@ -270,29 +270,47 @@ struct FGeometryCollectionISMPool
 {
 	using FISMIndex = int32;
 
-	/** Add ISM contents. */
-	FISMIndex AddISM(UGeometryCollectionISMPoolComponent* OwningComponent, const FGeometryCollectionStaticMeshInstance& MeshInstance);
-	FGeometryCollectionMeshInfo AddISM(UGeometryCollectionISMPoolComponent* OwningComponent, const FGeometryCollectionStaticMeshInstance& MeshInstance, int32 InstanceCount, TArrayView<const float> CustomDataFloats);
-	/** Remove ISM contents. */
-	void RemoveISM(const FGeometryCollectionMeshInfo& MeshInfo);
+	FGeometryCollectionISMPool();
+
+	/** Find or add an ISM and return an ISM index handle. */
+	FISMIndex GetOrAddISM(UGeometryCollectionISMPoolComponent* OwningComponent, const FGeometryCollectionStaticMeshInstance& MeshInstance, bool& bOutISMCreated);
+	/** Remove an ISM. */
+	void RemoveISM(FISMIndex ISMIndex, bool bKeepAlive, bool bRecycle);
+	/** Add instances to ISM and return a mesh info handle. */
+	FGeometryCollectionMeshInfo AddInstancesToISM(UGeometryCollectionISMPoolComponent* OwningComponent, const FGeometryCollectionStaticMeshInstance& MeshInstance, int32 InstanceCount, TArrayView<const float> CustomDataFloats);
+	/** Remove instances from an ISM. */
+	void RemoveInstancesFromISM(const FGeometryCollectionMeshInfo& MeshInfo);
 	/** Update ISM contents. */
 	bool BatchUpdateInstancesTransforms(FGeometryCollectionMeshInfo& MeshInfo, int32 StartInstanceIndex, TArrayView<const FTransform> NewInstancesTransforms, bool bWorldSpace, bool bMarkRenderStateDirty, bool bTeleport, bool bAllowPerInstanceRemoval);
 	void BatchUpdateInstanceCustomData(FGeometryCollectionMeshInfo const& MeshInfo, int32 CustomFloatIndex, float CustomFloatValue);
 
 	/** Clear all ISM components and associated data. */
 	void Clear();
-	/** Garbage collect free lists. */
-	void GarbageCollect();
+
+	/** Tick maintenance of free list and preallocation. */
+	void Tick(UGeometryCollectionISMPoolComponent* OwningComponent);
+
+	/** Add an ISM description to the preallocation queue. */
+	void RequestPreallocateMeshInstance(const FGeometryCollectionStaticMeshInstance& MeshInstances);
+	/** Process the preallocation queue. Processing is timesliced so that only some of the queue will be processed in every call. */
+	void ProcessPreallocationRequests(UGeometryCollectionISMPoolComponent* OwningComponent, int32 MaxPreallocations);
 
 	/** Array of ISM objects. */
 	TArray<FGeometryCollectionISM> ISMs;
 	/** Mapping from mesh description to ISMs array slot. */
 	TMap<FGeometryCollectionStaticMeshInstance, FISMIndex> MeshToISMIndex;
 	
+	/** Set of ISM descriptions that we would like to preallocate. */
+	TSet<FGeometryCollectionStaticMeshInstance> PrellocationQueue;
+
 	/** Free list of indices in ISMs that are empty. */
 	TArray<int32> FreeList;
 	/** Free list of indices in ISMs that have registered ISM components. */
 	TArray<int32> FreeListISM;
+
+	// Cached state of lifecycle cvars from the last Tick()
+	bool bCachedKeepAlive = false;
+	bool bCachedRecycle = false;
 };
 
 
