@@ -3053,7 +3053,6 @@ void FHostGroup::Tick(FTickState& State)
 			Group.Fail(State, Reason);
 		}
 
-		SocketGroups.SetNum(0, false);
 		return;
 	}
 
@@ -3220,6 +3219,16 @@ void FEventLoop::FImpl::ReceiveWork()
 		FScopeLock _(&Lock);
 		Swap(Activity, Pending);
 	}
+
+	// Pending is in the reverse of the order that requests were made
+	FActivity* Reverse = nullptr;
+	for (FActivity* Next; Activity != nullptr; Activity = Next)
+	{
+		Next = Activity->Next;
+		Activity->Next = Reverse;
+		Reverse = Activity;
+	}
+	Activity = Reverse;
 
 	// Group activities by their host.
 	for (FActivity* Next; Activity != nullptr; Activity = Next)
@@ -3760,6 +3769,7 @@ IOSTOREONDEMAND_API void IasHttpTest(const ANSICHAR* TestHost="localhost")
 		uint32 Index = Status.GetIndex();
 
 		FResponse& Response = Status.GetResponse();
+		Content[Index].Dest = FIoBuffer();
 		Response.SetDestination(&(Content[Index].Dest));
 	};
 
@@ -3849,25 +3859,31 @@ IOSTOREONDEMAND_API void IasHttpTest(const ANSICHAR* TestHost="localhost")
 	for (int32 i = 0; i < 14; ++i)
 	{
 		bool bExpectFailTimeout = !!(i & 1);
-		FEventLoop Loop2;
-		Loop2.Send(
-			Loop2.Get(BuildUrl("/data?stall", 9494)),
-			[bExpectFailTimeout, Dest=FIoBuffer()] (const FTicketStatus& Status) mutable
+		auto Sink = [bExpectFailTimeout, Dest=FIoBuffer()] (const FTicketStatus& Status) mutable
+		{
+			if (Status.GetId() == FTicketStatus::EId::Response)
 			{
-				if (Status.GetId() == FTicketStatus::EId::Response)
-				{
-					FResponse& Response = Status.GetResponse();
-					Response.SetDestination(&Dest);
-					return;
-				}
-
-				check(Status.GetId() == FTicketStatus::EId::Error);
-
-				const char* Reason = Status.GetErrorReason();
-				bool IsFailTimeout = (FCStringAnsi::Strstr(Reason, "FailTimeout") != nullptr);
-				check(IsFailTimeout == bExpectFailTimeout);
+				FResponse& Response = Status.GetResponse();
+				Response.SetDestination(&Dest);
+				return;
 			}
-		);
+
+			check(Status.GetId() == FTicketStatus::EId::Error);
+
+			const char* Reason = Status.GetErrorReason();
+			bool IsFailTimeout = (FCStringAnsi::Strstr(Reason, "FailTimeout") != nullptr);
+			check(IsFailTimeout == bExpectFailTimeout);
+		};
+
+		FConnectionPool::FParams Params;
+		Params.SetHostFromUrl(BuildUrl("", 9494));
+		FConnectionPool Pool(Params);
+
+		FEventLoop Loop2;
+		Loop2.Send(Loop2.Get("/data?stall", Pool), Sink);
+		Loop2.Send(Loop2.Get("/data", Pool), HashSink);
+		Loop2.Send(Loop2.Get("/data", Pool), HashSink);
+		Loop2.Send(Loop2.Get("/data", Pool), HashSink);
 
 		int32 PollTimeoutMs = -1;
 		if (bExpectFailTimeout)
@@ -3879,6 +3895,9 @@ IOSTOREONDEMAND_API void IasHttpTest(const ANSICHAR* TestHost="localhost")
 				PollTimeoutMs = 1000;
 			}
 		}
+		while (Loop2.Tick(PollTimeoutMs));
+
+		Loop2.Send(Loop2.Get("/data/23", Pool), NoErrorSink);
 		while (Loop2.Tick(PollTimeoutMs));
 	}
 
