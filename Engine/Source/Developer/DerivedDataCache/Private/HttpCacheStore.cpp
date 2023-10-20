@@ -645,11 +645,8 @@ private:
 
 			if (bUnexpectedError)
 			{
-				FString Body = Operation->GetBodyAsString();
-				Body.ReplaceCharInline(TEXT('\r'), TEXT(' '));
-				Body.ReplaceCharInline(TEXT('\n'), TEXT(' '));
 				UE_LOG(LogDerivedDataCache, Display,
-					TEXT("HTTP: %s (%s) %s"), *WriteToString<256>(LocalResponse), *StatsText, *Body);
+					TEXT("HTTP: %s (%s)"), *WriteToString<256>(LocalResponse), *StatsText);
 			}
 			else
 			{
