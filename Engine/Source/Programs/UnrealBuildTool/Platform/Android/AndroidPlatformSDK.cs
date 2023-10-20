@@ -22,7 +22,7 @@ namespace UnrealBuildTool
 		{
 		}
 
-		private string? GetNDKRoot()
+		public static string? GetNDKRoot()
 		{
 			string? NDKPath = Environment.GetEnvironmentVariable("NDKROOT");
 

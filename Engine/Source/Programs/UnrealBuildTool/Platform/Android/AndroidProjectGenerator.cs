@@ -112,9 +112,22 @@ namespace UnrealBuildTool
 					Path.GetFileNameWithoutExtension(NMakeOutputPath.FullName) + "-arm64.apk");
 
 				ProjectFileBuilder.AppendLine($"    <AndroidApkLocation>{apkLocation}</AndroidApkLocation>");
-				string intermediatePath = Path.GetFullPath(Path.GetDirectoryName(NMakeOutputPath.FullName) + @"\..\..\Intermediate\Android\arm64\");
-				string symbolLocations = $@"{intermediatePath}jni\arm64-v8a;{intermediatePath}libs\arm64-v8a";
-				ProjectFileBuilder.AppendLine($"    <AndroidSymbolDirectories>{symbolLocations}</AndroidSymbolDirectories>");
+				string intermediateRootPath = Path.GetFullPath(Path.GetDirectoryName(NMakeOutputPath.FullName) + @"\..\..\Intermediate\Android\");
+				string intermediatePath = Path.Combine(intermediateRootPath, "arm64");
+				string intermediateAGDESymbolsPath = Path.Combine(intermediateRootPath, "LLDBSymbolsLibs", "arm64");
+				List<string> symbolLocations = new List<string>
+				{
+					$@"{intermediatePath}jni\arm64-v8a",
+					$@"{intermediatePath}libs\arm64-v8a",
+					intermediateAGDESymbolsPath // support bDontBundleLibrariesInAPK
+				};
+				ProjectFileBuilder.AppendLine($"    <AndroidSymbolDirectories>{string.Join(";", symbolLocations)}</AndroidSymbolDirectories>");
+
+				// At this stage we don't know if bDontBundleLibrariesInAPK is enabled or not, so make a fail-safe check.
+				string pushSOScript = Path.Combine(
+					Path.GetDirectoryName(NMakeOutputPath.FullName)!,
+					"Push_" + Path.GetFileNameWithoutExtension(NMakeOutputPath.FullName) + "-arm64_so.bat");
+				ProjectFileBuilder.AppendLine($"    <AndroidPostApkInstallCommands>IF EXIST {pushSOScript} {pushSOScript};$(AndroidPostApkInstallCommands)</AndroidPostApkInstallCommands>");
 			}
 			else
 			{

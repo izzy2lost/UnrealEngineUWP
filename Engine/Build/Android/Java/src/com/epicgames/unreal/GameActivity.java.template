@@ -7032,7 +7032,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 
 	static
 	{
-		System.loadLibrary("Unreal");
+//$${soLoadUnreal}$$
 //$${soLoadLibrary}$$
 	}
 
