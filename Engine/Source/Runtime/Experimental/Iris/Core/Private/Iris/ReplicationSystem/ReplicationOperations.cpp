@@ -794,21 +794,23 @@ void FReplicationInstanceOperations::OutputInternalStateToString(FNetSerializati
 	}
 }
 
-void FReplicationInstanceOperations::OutputInternalDefaultStateToString(FNetSerializationContext& NetSerializationContext, FStringBuilderBase& StringBuilder, const FReplicationInstanceProtocol* InstanceProtocol, const FReplicationProtocol* Protocol)
+void FReplicationInstanceOperations::OutputInternalDefaultStateToString(FNetSerializationContext& NetSerializationContext, FStringBuilderBase& StringBuilder, const FReplicationFragments& Fragments)
 {
 	// Iterate over fragments
-	const FReplicationStateDescriptor** ReplicationStateDescriptors = Protocol->ReplicationStateDescriptors;
-	FReplicationFragment* const* ReplicationFragments = InstanceProtocol->Fragments;
-
-	for (uint32 StateIt = 0, StateEndIt = Protocol->ReplicationStateCount; StateIt != StateEndIt; ++StateIt)
+	for (int32 Index=0; Index < Fragments.Num(); ++Index)
 	{
-		const FReplicationStateDescriptor* CurrentDescriptor = ReplicationStateDescriptors[StateIt];
-		const FReplicationFragment* CurrentFragment = ReplicationFragments[StateIt];
+		const FReplicationFragmentInfo& FragmentInfo = Fragments[Index];
+
+		const FReplicationStateDescriptor* CurrentDescriptor = FragmentInfo.Descriptor;
+		const FReplicationFragment* CurrentFragment = FragmentInfo.Fragment;
 
 		FReplicationStateApplyContext ReplicationStateToStringContext;
 		ReplicationStateToStringContext.NetSerializationContext = &NetSerializationContext;
 		ReplicationStateToStringContext.Descriptor = CurrentDescriptor;
 		ReplicationStateToStringContext.bIsInit = NetSerializationContext.IsInitState();
+
+		StringBuilder.Appendf(TEXT("[%d/%d] Fragment: %s DescriptorId: 0x%" UINT64_x_FMT " DefaultStateHash: 0x%" UINT64_x_FMT "\n"), 
+			Index+1, Fragments.Num(), ToCStr(CurrentDescriptor->DebugName), CurrentDescriptor->DescriptorIdentifier.Value, CurrentDescriptor->DescriptorIdentifier.DefaultStateHash);
 
 		// Dequantize state data
 		if (!EnumHasAnyFlags(CurrentFragment->GetTraits(), EReplicationFragmentTraits::HasPersistentTargetStateBuffer))

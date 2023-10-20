@@ -16,9 +16,6 @@ class FReplicationProtocolManager
 public:
 	~FReplicationProtocolManager();
 
-	/* Calculate protocol Identifier from registered fragment data */
-	IRISCORE_API FReplicationProtocolIdentifier CalculateProtocolIdentifier(const FReplicationFragments& Fragments) const;
-
 	/* Create protocol from registered fragment data with provided Id, verification is optional */
 	IRISCORE_API const FReplicationProtocol* CreateReplicationProtocol(const UObject* ArchetypeOrCDOUsedAsKey, const FReplicationProtocolIdentifier ProtocolId, const FReplicationFragments& Fragments, const TCHAR* DebugName, bool bVerifyId = false);
 
@@ -35,8 +32,6 @@ public:
 	template<typename T>
 	void ForEachProtocol(FReplicationProtocolIdentifier ProtocolId, T&& Functor) const;
 	
-	/* Validate that a existing protocol matches the FragmentList of an instance, returns true of it is a match */
-	IRISCORE_API bool ValidateReplicationProtocol(const FReplicationProtocol*, const FReplicationFragments& Fragments) const;
 
 	/* Destroy existing replication protocol */
 	IRISCORE_API void DestroyReplicationProtocol(const FReplicationProtocol* ReplicationProtocol);
@@ -49,6 +44,17 @@ public:
 	IRISCORE_API static void DestroyInstanceProtocol(FReplicationInstanceProtocol*);
 
 	IRISCORE_API void InvalidateDescriptor(const FReplicationStateDescriptor* InvalidatedReplicationStateDescriptor);
+
+public:
+
+	/** Calculate protocol Identifier from registered fragment data */
+	IRISCORE_API static FReplicationProtocolIdentifier CalculateProtocolIdentifier(const FReplicationFragments& Fragments);
+
+	/** Validate that a existing protocol matches the FragmentList of an instance, returns true of it is a match */
+	IRISCORE_API static bool ValidateReplicationProtocol(const FReplicationProtocol*, const FReplicationFragments& Fragments, bool bLogFragmentErrors=true);
+
+	/** Print the names of the fragments and their hash */
+	IRISCORE_API static void FragmentListToString(FStringBuilderBase& StringBuilder, const FReplicationFragments& Fragments);
 
 private:
 	void InternalDestroyReplicationProtocol(const FReplicationProtocol* Protocol);

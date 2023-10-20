@@ -196,6 +196,7 @@ protected:
 	IRISCORE_API virtual void PostApplyInitialState(FNetRefHandle Handle) override;
 	IRISCORE_API virtual void DetachInstanceFromRemote(FNetRefHandle Handle, EReplicationBridgeDestroyInstanceReason DestroyReason, EReplicationBridgeDestroyInstanceFlags DestroyFlags) override;
 	IRISCORE_API virtual void DetachInstance(FNetRefHandle Handle) override;
+	IRISCORE_API virtual void OnProtocolMismatchReported(FNetRefHandle RefHandle, uint32 ConnectionId) override;
 
 protected:
 	/**
@@ -233,6 +234,9 @@ protected:
 
 	/** Destroy or tear-off the game instance on request from remote. */
 	virtual void DestroyInstanceFromRemote(const FDestroyInstanceParams& Params) {}
+
+	/** Called when we found a divergence between the local and remote protocols when trying to instantiate a remote replicated object. */
+	virtual void OnProtocolMismatchDetected(FNetRefHandle ObjectHandle) {}
 
 protected:
 	/** Lookup the UObject associated with the provided Handle. This function will not try to resolve the reference. */

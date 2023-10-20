@@ -584,6 +584,9 @@ public:
 	/** Returns elapsed time in seconds since ReplicatonSystem was created */
 	double GetElapsedTime() const { return ElapsedTime; }
 
+	/** Called when a connection finds a protocol divergence when instantiating a replicated object. */
+	IRISCORE_API void ReportProtocolMismatch(uint64 NetRefHandleId, uint32 ConnectionId);
+
 public:
 	// For internal use and not exported.
 	UE::Net::Private::FReplicationSystemInternal* GetReplicationSystemInternal();

@@ -292,6 +292,7 @@ UReplicationBridge::~UReplicationBridge()
 void UReplicationBridge::Initialize(UReplicationSystem* InReplicationSystem)
 {
 	using namespace UE::Net;
+	using namespace UE::Net::Private;
 
 	Private::FReplicationSystemInternal* ReplicationSystemInternal = InReplicationSystem->GetReplicationSystemInternal();
 
@@ -304,8 +305,9 @@ void UReplicationBridge::Initialize(UReplicationSystem* InReplicationSystem)
 
 	// Create destruction info protocol
 	{
+		constexpr bool bIgnoreProtocolValidation = false;
 		const FReplicationFragments RegisteredFragments;
-		DestructionInfoProtocol = ReplicationProtocolManager->CreateReplicationProtocol(ReplicationProtocolManager->CalculateProtocolIdentifier(RegisteredFragments), RegisteredFragments, TEXT("InternalDestructionInfo"), false);
+		DestructionInfoProtocol = ReplicationProtocolManager->CreateReplicationProtocol(FReplicationProtocolManager::CalculateProtocolIdentifier(RegisteredFragments), RegisteredFragments, TEXT("InternalDestructionInfo"), bIgnoreProtocolValidation);
 	}
 }
 

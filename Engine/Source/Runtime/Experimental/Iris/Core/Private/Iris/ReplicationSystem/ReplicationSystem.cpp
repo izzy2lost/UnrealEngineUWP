@@ -1609,6 +1609,17 @@ float UReplicationSystem::GetCullDistanceSqrOverride(FNetRefHandle Handle, float
 	return Impl->ReplicationSystemInternal.GetNetCullDistanceOverrides().GetCullDistanceSqr(ObjectInternalIndex, DefaultValue);
 }
 
+void UReplicationSystem::ReportProtocolMismatch(uint64 NetRefHandleId, uint32 ConnectionId)
+{
+	using namespace UE::Net::Private;
+	const FNetRefHandle NetRefHandle = FNetRefHandleManager::MakeNetRefHandle(NetRefHandleId, GetId()/*DON'T SUBMIT REVIEW NOTE: This ok or should it be incomplete?*/ );
+
+	Impl->ReplicationSystemInternal.GetReplicationBridge()->OnProtocolMismatchReported(NetRefHandle, ConnectionId);
+}
+
+
+#pragma region ReplicationSystemFactory
+
 namespace UE::Net
 {
 
@@ -1705,4 +1716,6 @@ TArrayView<UReplicationSystem*> FReplicationSystemFactory::GetAllReplicationSyst
 	return MakeArrayView(ReplicationSystems, MaxReplicationSystemId + 1);
 }
 
-}
+} //end namespace UE::Net
+
+#pragma endregion

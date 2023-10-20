@@ -10,11 +10,54 @@
 #include "Iris/ReplicationSystem/ReplicationSystem.h"
 #include "Iris/ReplicationSystem/ReplicationSystemTypes.h"
 #include "Iris/ReplicationSystem/ReplicationSystemInternal.h"
+#include "Iris/ReplicationSystem/ReplicationOperations.h"
 
 #include "Net/Core/NetBitArrayPrinter.h"
 
 namespace UE::Net::Private::ObjectBridgeDebugging
 {
+
+void PrintDefaultNetObjectState(UReplicationSystem* ReplicationSystem, uint32 ConnectionId, const FReplicationFragments& RegisteredFragments, FStringBuilderBase& StringBuilder)
+{
+	FReplicationSystemInternal* ReplicationSystemInternal = ReplicationSystem->GetReplicationSystemInternal();
+
+	// In order to be able to output object references we need the TokenStoreState, for the server we just use the local one but if we are a client we must use the remote token store state
+	FReplicationConnections& Connections = ReplicationSystemInternal->GetConnections();
+	FNetTokenStoreState* TokenStoreState = ReplicationSystem->IsServer() ? ReplicationSystemInternal->GetNetTokenStore().GetLocalNetTokenStoreState() : &Connections.GetRemoteNetTokenStoreState(ConnectionId);
+
+	// Setup Context
+	FInternalNetSerializationContext InternalContext;
+	FInternalNetSerializationContext::FInitParameters InternalContextInitParams;
+	InternalContextInitParams.ReplicationSystem = ReplicationSystem;
+	InternalContextInitParams.PackageMap = ReplicationSystemInternal->GetIrisObjectReferencePackageMap();
+	InternalContextInitParams.ObjectResolveContext.RemoteNetTokenStoreState = TokenStoreState;
+	InternalContextInitParams.ObjectResolveContext.ConnectionId = ConnectionId;
+	InternalContext.Init(InternalContextInitParams);
+
+	FNetSerializationContext NetSerializationContext;
+	NetSerializationContext.SetInternalContext(&InternalContext);
+	NetSerializationContext.SetLocalConnectionId(ConnectionId);
+
+	FReplicationInstanceOperations::OutputInternalDefaultStateToString(NetSerializationContext, StringBuilder, RegisteredFragments);
+}
+
+void RemoteProtocolMismatchDetected(UReplicationSystem* ReplicationSystem, uint32 ConnectionId, const FReplicationFragments& RegisteredFragments, const UObject* ArchetypeOrCDOKey, const UObject* InstancePtr)
+{
+	if (UE_LOG_ACTIVE(LogIris, Error))
+	{
+		static TMap<FObjectKey, bool> ArchetypesAlreadyPrinted;
+
+		// Only print the CDO state once
+		if (ArchetypesAlreadyPrinted.Find(FObjectKey(ArchetypeOrCDOKey)) == nullptr)
+		{
+			ArchetypesAlreadyPrinted.Add(FObjectKey(ArchetypeOrCDOKey), true);
+
+			TStringBuilder<4096> StringBuilder;
+			PrintDefaultNetObjectState(ReplicationSystem, ConnectionId, RegisteredFragments, StringBuilder);
+			UE_LOG(LogIris, Error, TEXT("Printing replication state of CDO %s used for %s:\n%s"), *GetNameSafe(ArchetypeOrCDOKey), *GetNameSafe(InstancePtr), StringBuilder.ToString());
+		}
+	}
+}
 
 UReplicationSystem* FindReplicationSystem(const TArray<FString>& Args)
 {

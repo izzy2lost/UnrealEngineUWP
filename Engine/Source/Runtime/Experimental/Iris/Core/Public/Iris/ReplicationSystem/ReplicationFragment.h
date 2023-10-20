@@ -221,9 +221,9 @@ ENUM_CLASS_FLAGS(EFragmentRegistrationFlags);
 */
 struct FReplicationFragmentInfo
 {
-	const FReplicationStateDescriptor* Descriptor;
-	void* SrcReplicationStateBuffer;
-	FReplicationFragment* Fragment;
+	const FReplicationStateDescriptor* Descriptor = nullptr;
+	void* SrcReplicationStateBuffer = nullptr;
+	FReplicationFragment* Fragment = nullptr;
 };
 typedef TArray<FReplicationFragmentInfo, TInlineAllocator<32>> FReplicationFragments;
 

@@ -2,7 +2,9 @@
 
 #include "Iris/ReplicationSystem/ObjectReplicationBridge.h"
 
+#include "Misc/ScopeExit.h"
 #include "HAL/IConsoleManager.h"
+
 #include "Iris/IrisConfigInternal.h"
 
 #include "Iris/Core/IrisLog.h"
@@ -36,6 +38,15 @@
 #include "Iris/Serialization/NetSerializationContext.h"
 #include "Iris/Serialization/InternalNetSerializationContext.h"
 #include "Iris/Serialization/NetBitStreamUtil.h"
+
+namespace UE::Net::Private::ObjectBridgeDebugging
+{
+	extern void RemoteProtocolMismatchDetected(UReplicationSystem* , uint32, const FReplicationFragments&, const UObject*, const UObject*);
+}
+
+#ifndef UE_IRIS_VALIDATE_PROTOCOLS
+#	define UE_IRIS_VALIDATE_PROTOCOLS !UE_BUILD_SHIPPING
+#endif
 
 DEFINE_LOG_CATEGORY(LogIrisFilterConfig)
 
@@ -278,16 +289,17 @@ UE::Net::FNetRefHandle UObjectReplicationBridge::BeginReplication(UObject* Insta
 
 	FReplicationInstanceProtocolPtr InstanceProtocol(ProtocolManager->CreateInstanceProtocol(RegisteredFragments));
 		
-	FReplicationProtocolIdentifier ProtocolIdentifier = ProtocolManager->CalculateProtocolIdentifier(RegisteredFragments);
+	FReplicationProtocolIdentifier ProtocolIdentifier = FReplicationProtocolManager::CalculateProtocolIdentifier(RegisteredFragments);
 	const FReplicationProtocol* ReplicationProtocol = ProtocolManager->GetReplicationProtocol(ProtocolIdentifier, ArchetypeOrCDOUsedAsKey);
 	if (!ReplicationProtocol)
 	{
-		ReplicationProtocol = ProtocolManager->CreateReplicationProtocol(ArchetypeOrCDOUsedAsKey, ProtocolIdentifier, RegisteredFragments, *Instance->GetClass()->GetName(), false);
+		constexpr bool bIgnoreProtocolValidation = false;
+		ReplicationProtocol = ProtocolManager->CreateReplicationProtocol(ArchetypeOrCDOUsedAsKey, ProtocolIdentifier, RegisteredFragments, *Instance->GetClass()->GetName(), bIgnoreProtocolValidation);
 	}
-#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+#if UE_IRIS_VALIDATE_PROTOCOLS
 	else
 	{
-		const bool bIsValidProtocol = ProtocolManager->ValidateReplicationProtocol(ReplicationProtocol, RegisteredFragments);
+		const bool bIsValidProtocol = FReplicationProtocolManager::ValidateReplicationProtocol(ReplicationProtocol, RegisteredFragments);
 		if (!bIsValidProtocol)
 		{
 			UE_LOG_OBJECTREPLICATIONBRIDGE(Error, TEXT("BeginReplication Found invalid protocol ProtocolId:0x%" UINT64_x_FMT " for Object named %s"), ReplicationProtocol->ProtocolIdentifier, *Instance->GetName());
@@ -638,12 +650,6 @@ FReplicationBridgeCreateNetRefHandleResult UObjectReplicationBridge::CreateNetRe
 	FFragmentRegistrationContext FragmentRegistrationContext(GetReplicationStateDescriptorRegistry(), EReplicationFragmentTraits::CanReceive);
 	FReplicationProtocolManager* ProtocolManager = GetReplicationProtocolManager();
 
-#if (UE_BUILD_SHIPPING || UE_BUILD_TEST)
-	const bool bVerifyExistingProtocol = false;
-#else
-	const bool bVerifyExistingProtocol = true;
-#endif
-
 	FReplicationBridgeCreateNetRefHandleResult CreateResult;
 
 	// Currently we need to always instantiate remote objects, moving forward we want to make this optional so that can be deferred until it is time to apply received state data.
@@ -652,7 +658,7 @@ FReplicationBridgeCreateNetRefHandleResult UObjectReplicationBridge::CreateNetRe
 	UObject* InstancePtr = InstantiateResult.Object;
 	if (!InstancePtr)
 	{
-		ensureAlwaysMsgf(bSuppressCreateInstanceFailedEnsure, TEXT("Failed to instantiate Handle: %s"), *WantedNetHandle.ToString());
+		ensureMsgf(bSuppressCreateInstanceFailedEnsure, TEXT("Failed to instantiate Handle: %s"), *WantedNetHandle.ToString());
 		return CreateResult;
 	}
 
@@ -674,17 +680,31 @@ FReplicationBridgeCreateNetRefHandleResult UObjectReplicationBridge::CreateNetRe
 	const FReplicationProtocol* ReplicationProtocol = ProtocolManager->GetReplicationProtocol(ReceivedProtocolId, ArchetypeOrCDOUsedAsKey);
 	if (!ReplicationProtocol)
 	{
-		ReplicationProtocol = ProtocolManager->CreateReplicationProtocol(ArchetypeOrCDOUsedAsKey, ReceivedProtocolId, RegisteredFragments, *(InstancePtr->GetClass()->GetName()), true);
+		constexpr bool bVerifyProtocol = true;
+		ReplicationProtocol = ProtocolManager->CreateReplicationProtocol(ArchetypeOrCDOUsedAsKey, ReceivedProtocolId, RegisteredFragments, *(InstancePtr->GetClass()->GetName()), bVerifyProtocol);
 	}
 	else
 	{
-		if (!ensureAlways(!bVerifyExistingProtocol || ProtocolManager->ValidateReplicationProtocol(ReplicationProtocol, RegisteredFragments)))
+		constexpr bool bDoNotLogErrors = false; // Don't log errors because it would spam for every individual object of the same class. 
+		bool bIsValid = FReplicationProtocolManager::ValidateReplicationProtocol(ReplicationProtocol, RegisteredFragments, bDoNotLogErrors);
+		if (!bIsValid)
 		{
-			return CreateResult;
+			ReplicationProtocol = nullptr;
 		}
 	}
 
-	if (ReplicationProtocol)
+	if (!ReplicationProtocol)
+	{
+		UE_LOG(LogIris, Error, TEXT("Protocol mismatch prevents binding %s to instanced object %s (CDO: %s)."), *WantedNetHandle.ToString(), *GetNameSafe(InstancePtr), *GetNameSafe(ArchetypeOrCDOUsedAsKey));
+
+		if (UE_LOG_ACTIVE(LogIris, Error))
+		{
+			UE::Net::Private::ObjectBridgeDebugging::RemoteProtocolMismatchDetected(ReplicationSystem, Context.ConnectionId, RegisteredFragments, ArchetypeOrCDOUsedAsKey, InstancePtr);
+		}
+
+		OnProtocolMismatchDetected(WantedNetHandle);
+	}
+	else
 	{
 		// Create NetHandle
 		FNetRefHandle Handle = InternalCreateNetObjectFromRemote(WantedNetHandle, ReplicationProtocol);
@@ -697,7 +717,7 @@ FReplicationBridgeCreateNetRefHandleResult UObjectReplicationBridge::CreateNetRe
 			(void)InstanceProtocol.Release();
 
 			// Now it is safe to issue OnActorChannelOpen callback
-			ensureAlwaysMsgf(OnInstantiatedFromRemote(InstancePtr, Header.Get(), Context.ConnectionId), TEXT("Failed to invoke OnInstantiatedFromRemote for Instance named %s %s"), *InstancePtr->GetName(), *Handle.ToString());
+			ensureMsgf(OnInstantiatedFromRemote(InstancePtr, Header.Get(), Context.ConnectionId), TEXT("Failed to invoke OnInstantiatedFromRemote for Instance named %s %s"), *InstancePtr->GetName(), *Handle.ToString());
 		}
 	}
 
@@ -1604,7 +1624,7 @@ void UObjectReplicationBridge::FindClassesInPollPeriodOverrides()
 
 void UObjectReplicationBridge::SetShouldUseDefaultSpatialFilterFunction(TFunction<bool(const UClass*)> InShouldUseDefaultSpatialFilterFunction)
 {
-	if (!ensureAlwaysMsgf((bool)InShouldUseDefaultSpatialFilterFunction, TEXT("%s"), TEXT("A valid function must be provided for SetShouldUseDefaultSpatialFilterFunction.")))
+	if (!ensureMsgf((bool)InShouldUseDefaultSpatialFilterFunction, TEXT("%s"), TEXT("A valid function must be provided for SetShouldUseDefaultSpatialFilterFunction.")))
 	{
 		return;
 	}
@@ -1614,7 +1634,7 @@ void UObjectReplicationBridge::SetShouldUseDefaultSpatialFilterFunction(TFunctio
 
 void UObjectReplicationBridge::SetShouldSubclassUseSameFilterFunction(TFunction<bool(const UClass* Class, const UClass* Subclass)> InShouldSubclassUseSameFilterFunction)
 {
-	if (!ensureAlwaysMsgf((bool)InShouldSubclassUseSameFilterFunction, TEXT("%s"), TEXT("A valid function must be provided for SetShouldSubclassUseSameFilterFunction.")))
+	if (!ensureMsgf((bool)InShouldSubclassUseSameFilterFunction, TEXT("%s"), TEXT("A valid function must be provided for SetShouldSubclassUseSameFilterFunction.")))
 	{
 		return;
 	}
@@ -1727,5 +1747,65 @@ void UObjectReplicationBridge::SetPollFrequency(FNetRefHandle RefHandle, float P
 	for (const FInternalNetRefIndex SubObjectIndex : LocalNetRefHandleManager.GetSubObjects(RootObjectIndex))
 	{
 		PollFrequencyLimiter->SetPollWithObject(RootObjectIndex, SubObjectIndex);
+	}
+}
+
+void UObjectReplicationBridge::OnProtocolMismatchReported(FNetRefHandle RefHandle, uint32 ConnectionId)
+{
+	using namespace UE::Net;
+	using namespace UE::Net::Private;
+
+	// Ensure at the end so the log contains the most relevant information already
+	ON_SCOPE_EXIT
+	{
+		ensure(false);
+	};
+	
+
+	const FInternalNetRefIndex ObjectInternalIndex = NetRefHandleManager->GetInternalIndex(RefHandle);
+	if (ObjectInternalIndex == FNetRefHandleManager::InvalidInternalIndex)
+	{
+		UE_LOG(LogIris, Warning, TEXT("OnProtocolMismatchReported from Connection:%u for %s. But object has no InternalIndex."), ConnectionId, *RefHandle.ToString());
+		return;
+	}
+
+	UObject* ObjInstance = NetRefHandleManager->GetReplicatedObjectInstance(ObjectInternalIndex);
+	UObject* ObjArchetype = ObjInstance ? ObjInstance->GetArchetype() : nullptr;
+
+	UE_LOG(LogIris, Error, TEXT("OnProtocolMismatchReported from client:%u when instancing %s. CDO:%s ReplicatedObject:%s"), ConnectionId, *RefHandle.ToString(), *GetNameSafe(ObjArchetype), *GetNameSafe(ObjInstance));
+
+	//$IRIS TODO: Tell ActorBridge so he can choose to disconnect the client if the actor was critical.
+
+	if (UE_LOG_ACTIVE(LogIris, Error))
+	{
+		const FNetRefHandleManager::FReplicatedObjectData& ObjectData = NetRefHandleManager->GetReplicatedObjectDataNoCheck(ObjectInternalIndex);
+		const FReplicationInstanceProtocol* InstanceProtocol = ObjectData.InstanceProtocol;
+		if (!InstanceProtocol)
+		{
+			UE_LOG(LogIris, Warning, TEXT("OnProtocolMismatchReported from Connection:%u for %s. But object %s has no InstanceProtocol."), ConnectionId, *RefHandle.ToString(), *GetNameSafe(ObjInstance));
+			return;
+		}
+
+		const FReplicationProtocol* Protocol = ObjectData.Protocol;
+		if (!Protocol)
+		{
+			UE_LOG(LogIris, Warning, TEXT("OnProtocolMismatchReported from Connection:%u for %s. But object %s has no Protocol."), ConnectionId, *RefHandle.ToString(), *GetNameSafe(ObjInstance));
+			return;
+		}
+
+		check(Protocol->ReplicationStateCount == InstanceProtocol->FragmentCount);
+	
+		// Build the list of fragments of this object
+		FReplicationFragments Fragments;
+		for (uint16 FragmentIndex=0; FragmentIndex < InstanceProtocol->FragmentCount; ++FragmentIndex)
+		{
+			FReplicationFragmentInfo FragmentInfo;
+			FragmentInfo.Fragment = InstanceProtocol->Fragments[FragmentIndex];
+			FragmentInfo.Descriptor = Protocol->ReplicationStateDescriptors[FragmentIndex];
+
+			Fragments.Emplace(MoveTemp(FragmentInfo));
+		}
+
+		UE::Net::Private::ObjectBridgeDebugging::RemoteProtocolMismatchDetected(ReplicationSystem, 0 /*TODO: Local ConnectionId*/, Fragments, ObjInstance, ObjArchetype);
 	}
 }

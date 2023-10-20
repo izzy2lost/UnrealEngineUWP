@@ -132,8 +132,7 @@ void FReplicationProtocolManager::DestroyInstanceProtocol(FReplicationInstancePr
 	FMemory::Free(InstanceProtocol);
 }
 
-FReplicationProtocolIdentifier 
-FReplicationProtocolManager::CalculateProtocolIdentifier(const FReplicationFragments& Fragments) const
+FReplicationProtocolIdentifier FReplicationProtocolManager::CalculateProtocolIdentifier(const FReplicationFragments& Fragments)
 {
 	TArray<uint64, TInlineAllocator<32>> IdBuffer;
 	for (const FReplicationFragmentInfo& Info : Fragments)
@@ -149,37 +148,42 @@ FReplicationProtocolManager::CalculateProtocolIdentifier(const FReplicationFragm
 	return ProtocolIdentifier;
 }
 
-bool FReplicationProtocolManager::ValidateReplicationProtocol(const FReplicationProtocol* Protocol, const FReplicationFragments& Fragments) const
+bool FReplicationProtocolManager::ValidateReplicationProtocol(const FReplicationProtocol* Protocol, const FReplicationFragments& Fragments, bool bLogFragmentErrors)
 {
 	bool bResult = true;
 
 	const uint32 FragmentCount = Fragments.Num();
-	if (!ensureAlwaysMsgf(Protocol->ReplicationStateCount == FragmentCount, TEXT("Protocol %s:ReplicationStateCount %u != FragmentCount:%u"), ToCStr(Protocol->DebugName), Protocol->ReplicationStateCount, FragmentCount))
+	if (ensureMsgf(Protocol->ReplicationStateCount == FragmentCount, TEXT("Protocol %s:ReplicationStateCount %u != FragmentCount:%u"), ToCStr(Protocol->DebugName), Protocol->ReplicationStateCount, FragmentCount))
 	{
-		return false;
-	}
-
-	// Validate individual fragments
-	const FReplicationFragmentInfo* FragmentsData = Fragments.GetData();
-	for (uint32 It = 0; It < FragmentCount; ++It)
-	{
-		const FReplicationFragmentInfo& Info = FragmentsData[It];
-		if (!ensure(Info.Descriptor == Protocol->ReplicationStateDescriptors[It]))
+		// Validate individual fragments
+		const FReplicationFragmentInfo* FragmentsData = Fragments.GetData();
+		for (uint32 It = 0; It < FragmentCount; ++It)
 		{
-			check(Info.Descriptor->DescriptorIdentifier == Protocol->ReplicationStateDescriptors[It]->DescriptorIdentifier);
-
-			if (Info.Descriptor->DescriptorIdentifier != Protocol->ReplicationStateDescriptors[It]->DescriptorIdentifier)
+			const FReplicationFragmentInfo& Info = FragmentsData[It];
+			const bool bIsSameDescriptor = Info.Descriptor == Protocol->ReplicationStateDescriptors[It];
+	
+			if (!bIsSameDescriptor)
 			{
 				UE_LOG_PROTOCOLMANAGER_WARNING(
-					TEXT("FReplicationProtocolManager::ValidateReplicationProtocol for %s DescriptorIdentfier mismatch for index %u/%u named %s != %s identifier 0x%" UINT64_x_FMT " != 0x%" UINT64_x_FMT), 
-					ToCStr(Protocol->DebugName), It, FragmentCount, ToCStr(Info.Descriptor->DebugName), ToCStr(Protocol->ReplicationStateDescriptors[It]->DebugName), Info.Descriptor->DescriptorIdentifier.Value, Protocol->ReplicationStateDescriptors[It]->DescriptorIdentifier.Value);
+					TEXT("FReplicationProtocolManager::ValidateReplicationProtocol for %s Descriptor Pointer mismatch %p != %p for index %u/%u named %s != %s identifier 0x%" UINT64_x_FMT " != 0x%" UINT64_x_FMT),
+					ToCStr(Protocol->DebugName), Info.Descriptor, Protocol->ReplicationStateDescriptors[It], It, FragmentCount, ToCStr(Info.Descriptor->DebugName), ToCStr(Protocol->ReplicationStateDescriptors[It]->DebugName), 
+					Info.Descriptor->DescriptorIdentifier.Value, Protocol->ReplicationStateDescriptors[It]->DescriptorIdentifier.Value);
+
+				ensure(bIsSameDescriptor);
+				
+				bResult = false;
 			}
+			else if (Info.Descriptor->DescriptorIdentifier != Protocol->ReplicationStateDescriptors[It]->DescriptorIdentifier)
+			{
+				
+				UE_LOG_PROTOCOLMANAGER_WARNING(
+					TEXT("FReplicationProtocolManager::ValidateReplicationProtocol for %s DescriptorIdentfier mismatch for index %u/%u named %s != %s identifier 0x%" UINT64_x_FMT " != 0x%" UINT64_x_FMT),
+					ToCStr(Protocol->DebugName), It, FragmentCount, ToCStr(Info.Descriptor->DebugName), ToCStr(Protocol->ReplicationStateDescriptors[It]->DebugName), Info.Descriptor->DescriptorIdentifier.Value, Protocol->ReplicationStateDescriptors[It]->DescriptorIdentifier.Value);
 
-			UE_LOG_PROTOCOLMANAGER_WARNING(
-				TEXT("FReplicationProtocolManager::ValidateReplicationProtocol for %s Descriptor Pointer mismatch %p != %p for index %u/%u named %s != %s identifier 0x%" UINT64_x_FMT " != 0x%" UINT64_x_FMT), 
-				ToCStr(Protocol->DebugName), Info.Descriptor, Protocol->ReplicationStateDescriptors[It], It, FragmentCount, ToCStr(Info.Descriptor->DebugName), ToCStr(Protocol->ReplicationStateDescriptors[It]->DebugName), Info.Descriptor->DescriptorIdentifier.Value, Protocol->ReplicationStateDescriptors[It]->DescriptorIdentifier.Value);
-
-			bResult = false;
+				ensure(Info.Descriptor->DescriptorIdentifier == Protocol->ReplicationStateDescriptors[It]->DescriptorIdentifier);
+				
+				bResult = false;
+			}
 		}
 	}
 
@@ -200,7 +204,7 @@ const FReplicationProtocol* FReplicationProtocolManager::GetReplicationProtocol(
 	return nullptr;
 }
 
-static void FragmentListToString(FStringBuilderBase& StringBuilder, const FReplicationFragments& Fragments)
+void FReplicationProtocolManager::FragmentListToString(FStringBuilderBase& StringBuilder, const FReplicationFragments& Fragments)
 {
 	StringBuilder << TEXT("Fragments:\n");
 	const FReplicationFragmentInfo* FragmentsData = Fragments.GetData();
@@ -220,16 +224,16 @@ const FReplicationProtocol* FReplicationProtocolManager::CreateReplicationProtoc
 		const FReplicationProtocolIdentifier NewProtocolId = CalculateProtocolIdentifier(Fragments);
 		if (NewProtocolId != ProtocolId)
 		{
-			UE_LOG_PROTOCOLMANAGER_WARNING(TEXT("FReplicationProtocolManager::CreateReplicationProtocol Id mismatch when creating protocol named %s with ProtocolId:0x%" UINT64_x_FMT), DebugName, ProtocolId);
-#if UE_NET_ENABLE_PROTOCOLMANAGER_LOG
-			if (bIrisLogReplicationProtocols)
-			{
-				TStringBuilder<4096> StringBuilder;
-				FragmentListToString(StringBuilder, Fragments);
-				LOG_SCOPE_VERBOSITY_OVERRIDE(LogIris, ELogVerbosity::Log);
-				UE_LOG_PROTOCOLMANAGER(Log, TEXT("%s"), StringBuilder.ToString());
-			}
-#endif
+			UE_LOG(LogIris, Warning, TEXT("FReplicationProtocolManager::CreateReplicationProtocol Id mismatch when creating protocol named %s with ProtocolId:0x%" UINT64_x_FMT), DebugName, ProtocolId);
+ #if UE_NET_ENABLE_PROTOCOLMANAGER_LOG
+ 			if (UE_LOG_ACTIVE(LogIris, Warning))
+ 			{
+ 				TStringBuilder<4096> StringBuilder;
+ 				FragmentListToString(StringBuilder, Fragments);
+
+ 				UE_LOG(LogIris, Warning, TEXT("%s"), StringBuilder.ToString());
+ 			}
+ #endif
 			return nullptr;
 		}
 	}

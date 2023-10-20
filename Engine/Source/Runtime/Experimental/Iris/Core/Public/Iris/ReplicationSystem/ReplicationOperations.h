@@ -113,7 +113,7 @@ struct FReplicationInstanceOperations
 	static IRISCORE_API void OutputInternalStateToString(FNetSerializationContext& Context, FStringBuilderBase& StringBuilder, const uint32* ChangeMaskData, const uint8* SrcInternalObjectStateBuffer, const FReplicationInstanceProtocol* InstanceProtocol, const FReplicationProtocol* Protocol);
 
 	/** Dequantize the default state for a replicated object with a given protocol and output the state to string. */
-	static IRISCORE_API void OutputInternalDefaultStateToString(FNetSerializationContext& Context, FStringBuilderBase& StringBuilder, const FReplicationInstanceProtocol* InstanceProtocol, const FReplicationProtocol* Protocol);
+	static IRISCORE_API void OutputInternalDefaultStateToString(FNetSerializationContext& NetSerializationContext, FStringBuilderBase& StringBuilder, const FReplicationFragments& Fragments);
 };
 
 struct FReplicationProtocolOperations

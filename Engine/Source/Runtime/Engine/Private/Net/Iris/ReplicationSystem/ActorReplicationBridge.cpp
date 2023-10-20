@@ -31,6 +31,7 @@
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
 #include "Net/DataBunch.h"
+#include "Net/DataChannel.h"
 #include "Net/Core/Misc/NetSubObjectRegistry.h"
 #include "Net/NetSubObjectRegistryGetter.h"
 #include "Templates/Casts.h"
@@ -1148,6 +1149,18 @@ void UActorReplicationBridge::WakeUpObjectInstantiatedFromRemote(AActor* Actor) 
 				Driver.NetDriver->NotifyActorClientDormancyChanged(Actor, OldDormancy);
 			}
 		}
+	}
+}
+
+void UActorReplicationBridge::OnProtocolMismatchDetected(FNetRefHandle ObjectHandle)
+{
+	Super::OnProtocolMismatchDetected(ObjectHandle);
+
+	// As a client tell the server we could not bind this specific NetRefHandle
+	if (NetDriver && NetDriver->ServerConnection)
+	{
+		uint64 RawHandleId = ObjectHandle.GetId();
+		FNetControlMessage<NMT_IrisProtocolMismatch>::Send(NetDriver->ServerConnection, RawHandleId);
 	}
 }
 

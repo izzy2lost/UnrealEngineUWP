@@ -11,6 +11,7 @@
 #include "Engine/Level.h"
 #include "Engine/World.h"
 #include "GameFramework/WorldSettings.h"
+#include "Iris/ReplicationSystem/ReplicationSystem.h"
 #include "Misc/MemStack.h"
 #include "Misc/ScopeExit.h"
 #include "Net/Core/Trace/Private/NetTraceInternal.h"
@@ -1638,6 +1639,7 @@ IMPLEMENT_CONTROL_CHANNEL_MESSAGE(BeaconWelcome);
 IMPLEMENT_CONTROL_CHANNEL_MESSAGE(BeaconJoin);
 IMPLEMENT_CONTROL_CHANNEL_MESSAGE(BeaconAssignGUID);
 IMPLEMENT_CONTROL_CHANNEL_MESSAGE(BeaconNetGUIDAck);
+IMPLEMENT_CONTROL_CHANNEL_MESSAGE(IrisProtocolMismatch);
 
 void UControlChannel::Init( UNetConnection* InConnection, int32 InChannelIndex, EChannelCreateFlags CreateFlags )
 {
@@ -1845,6 +1847,19 @@ void UControlChannel::ReceivedBunch( FInBunch& Bunch )
 				UE::Net::FNetPing::HandleNetPingControlMessage(Connection, NetPingMessageType, MessageStr);
 			}
 		}
+		else if (MessageType == NMT_IrisProtocolMismatch)
+		{
+			uint64 NetRefHandleId = 0;
+			if (FNetControlMessage<NMT_IrisProtocolMismatch>::Receive(Bunch, NetRefHandleId))
+			{
+#if UE_WITH_IRIS
+				if (UReplicationSystem* IrisRepSystem = Connection->Driver->GetReplicationSystem())
+				{
+					IrisRepSystem->ReportProtocolMismatch(NetRefHandleId, Connection->GetConnectionId());
+				}
+#endif
+			}
+		}
 		else if (Connection->Driver->Notify != nullptr)
 		{
 			// Process control message on client/server connection
@@ -1921,6 +1936,9 @@ void UControlChannel::ReceivedBunch( FInBunch& Bunch )
 					break;
 				case NMT_BeaconNetGUIDAck:
 					FNetControlMessage<NMT_BeaconNetGUIDAck>::Discard(Bunch);
+					break;
+				case NMT_IrisProtocolMismatch:
+					FNetControlMessage<NMT_IrisProtocolMismatch>::Discard(Bunch);
 					break;
 				default:
 					// if this fails, a case is missing above for an implemented message type

@@ -256,6 +256,9 @@ protected:
 	/** Called when destruction info is received to determine whether the instance may be destroyed. */
 	IRISCORE_API virtual bool IsAllowedToDestroyInstance(const UObject* Instance) const;
 
+	/** Called when a remote connection detected a protocol mismatch when trying to instantiate the NetRefHandle replicated object. */
+	IRISCORE_API virtual void OnProtocolMismatchReported(FNetRefHandle RefHandle, uint32 ConnectionId) {}
+
 private:
 
 	// Internal operations invoked by ReplicationSystem/ReplicationWriter
