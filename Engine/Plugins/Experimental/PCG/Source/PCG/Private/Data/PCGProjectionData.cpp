@@ -12,6 +12,38 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PCGProjectionData)
 
+namespace PCGProjectionPrivate
+{
+	FVector4 ApplyProjectionColorBlend(const FVector4& SourceColor, const FVector4& TargetColor, const EPCGProjectionColorBlendMode BlendMode)
+	{
+		auto ClampVector = [](FVector4 Vector) -> FVector4
+		{
+			Vector[0] = FMath::Clamp(Vector[0], 0.0, 1.0);
+			Vector[1] = FMath::Clamp(Vector[1], 0.0, 1.0);
+			Vector[2] = FMath::Clamp(Vector[2], 0.0, 1.0);
+			Vector[3] = FMath::Clamp(Vector[3], 0.0, 1.0);
+			return Vector;
+		};
+
+		switch (BlendMode)
+		{
+			case EPCGProjectionColorBlendMode::SourceValue:
+				return SourceColor;
+			case EPCGProjectionColorBlendMode::TargetValue:
+				return TargetColor;
+			case EPCGProjectionColorBlendMode::Add:
+				return ClampVector(TargetColor + SourceColor);
+			case EPCGProjectionColorBlendMode::Subtract:
+				return ClampVector(TargetColor - SourceColor);
+			case EPCGProjectionColorBlendMode::Multiply:
+				return SourceColor * TargetColor;
+			default:
+				checkNoEntry();
+				return FVector4::Zero();
+		}
+	}
+}
+
 void UPCGProjectionData::Initialize(const UPCGSpatialData* InSource, const UPCGSpatialData* InTarget, const FPCGProjectionParams& InProjectionParams)
 {
 	check(InSource && InTarget);
@@ -26,6 +58,13 @@ void UPCGProjectionData::Initialize(const UPCGSpatialData* InSource, const UPCGS
 
 	CachedBounds = ProjectBounds(Source->GetBounds());
 	CachedStrictBounds = ProjectBounds(Source->GetStrictBounds());
+}
+
+void UPCGProjectionData::PostLoad()
+{
+	Super::PostLoad();
+
+	ProjectionParams.ApplyDeprecation();
 }
 
 void UPCGProjectionData::AddToCrc(FArchiveCrc32& Ar, bool bFullDataCrc) const
@@ -256,9 +295,11 @@ const UPCGPointData* UPCGProjectionData::CreatePointData(FPCGContext* Context) c
 		// Apply projection result. Some of the params are already used inside ProjectPoint, so we are just applying the remaining bits that ProjectPoint() did not have access to.
 		// TODO this would be cleaner if there was a ProjectPoint that took an FPCGPoint
 		OutPoint.Transform = PointFromTarget.Transform;
-		OutPoint.Color = ProjectionParams.bProjectColors ? (PointFromTarget.Color * SourcePoint.Color) : SourcePoint.Color;
+
+		OutPoint.Color = PCGProjectionPrivate::ApplyProjectionColorBlend(SourcePoint.Color, PointFromTarget.Color, ProjectionParams.ColorBlendMode);
+
 		OutPoint.Density *= PointFromTarget.Density;
-		
+
 		if (OutMetadata && TempTargetMetadata && PointFromTarget.MetadataEntry != PCGInvalidEntryKey)
 		{
 			// Merge metadata to produce final attribute values
@@ -290,10 +331,7 @@ void UPCGProjectionData::ApplyProjectionResult(const FPCGPoint& InTargetPoint, F
 		InOutProjected.Transform.SetScale3D(InTargetPoint.Transform.GetScale3D());
 	}
 
-	if (ProjectionParams.bProjectColors)
-	{
-		InOutProjected.Color *= InTargetPoint.Color;
-	}
+	InOutProjected.Color = PCGProjectionPrivate::ApplyProjectionColorBlend(InOutProjected.Color, InTargetPoint.Color, ProjectionParams.ColorBlendMode);
 
 	InOutProjected.Density *= InTargetPoint.Density;
 }

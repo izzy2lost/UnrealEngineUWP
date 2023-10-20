@@ -16,6 +16,10 @@ class PCG_API UPCGProjectionData : public UPCGSpatialDataWithPointCache
 public:
 	void Initialize(const UPCGSpatialData* InSource, const UPCGSpatialData* InTarget, const FPCGProjectionParams& InProjectionParams);
 
+	// ~Begin UObject interface
+	virtual void PostLoad() override;
+	// ~End UObject interface
+
 	const FPCGProjectionParams& GetProjectionParams() const { return ProjectionParams; }
 
 	// ~Begin UPCGData interface

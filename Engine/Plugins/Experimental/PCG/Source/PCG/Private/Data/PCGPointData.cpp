@@ -481,7 +481,8 @@ bool UPCGPointData::SamplePoint(const FTransform& InTransform, const FBox& InBou
 {
 	// Run a projection but don't change the point transform. There is a large overlap in code/functionality so this shares one code path.
 	FPCGProjectionParams Params{};
-	Params.bProjectPositions = Params.bProjectRotations = Params.bProjectScales = Params.bProjectColors = false;
+	Params.bProjectPositions = Params.bProjectRotations = Params.bProjectScales = false;
+	Params.ColorBlendMode = EPCGProjectionColorBlendMode::SourceValue;
 
 	// The ProjectPoint implementation in this class returns true if the query point is overlapping the point data, which is what SamplePoint should return, so forward the return value.
 	return ProjectPoint(InTransform, InBounds, Params, OutPoint, OutMetadata);

@@ -22,6 +22,13 @@ TArray<FPCGPinProperties> UPCGProjectionSettings::InputPinProperties() const
 	return PinProperties;
 }
 
+void UPCGProjectionSettings::PostLoad()
+{
+	Super::PostLoad();
+
+	ProjectionParams.ApplyDeprecation();
+}
+
 #if WITH_EDITOR
 FText UPCGProjectionSettings::GetNodeTooltipText() const
 {
