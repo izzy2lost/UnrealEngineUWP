@@ -3,83 +3,173 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.Extensions.Logging.Abstractions;
-using EpicGames.Horde.Storage.Backends;
+using EpicGames.Core;
 
 namespace EpicGames.Horde.Storage.Clients
 {
 	/// <summary>
 	/// Implementation of <see cref="IStorageClient"/> which stores data in memory. Not intended for production use.
 	/// </summary>
-	public class MemoryStorageClient : BundleStorageClient
+	public sealed class MemoryStorageClient : IStorageClient
 	{
-		record class ExportEntry(BlobLocator Locator, int Rank, ReadOnlyMemory<byte> Data,  ExportEntry? Next);
+		class Handle : BlobHandle
+		{
+			readonly MemoryStorageClient _owner;
+			readonly BlobLocator _locator;
 
-		/// <summary>
-		/// Backend instance
-		/// </summary>
-		readonly MemoryStorageBackend _backend;
+			public Handle(MemoryStorageClient owner, BlobLocator locator)
+			{
+				_owner = owner;
+				_locator = locator;
+			}
 
-		/// <summary>
-		/// Map of ref name to ref data
-		/// </summary>
+			/// <inheritdoc/>
+			public override ValueTask<BlobData> ReadAsync(CancellationToken cancellationToken = default) => new ValueTask<BlobData>(_owner._blobs[_locator]);
+
+			/// <inheritdoc/>
+			public override bool TryGetLocator([NotNullWhen(true)] out BlobLocator locator)
+			{
+				locator = _locator;
+				return true;
+			}
+		}
+
+		record class AliasListNode(BlobLocator Locator, int Rank, ReadOnlyMemory<byte> Data, AliasListNode? Next);
+
+		readonly ConcurrentDictionary<BlobLocator, BlobData> _blobs = new ConcurrentDictionary<BlobLocator, BlobData>();
 		readonly ConcurrentDictionary<RefName, BlobLocator> _refs = new ConcurrentDictionary<RefName, BlobLocator>();
+		readonly ConcurrentDictionary<string, AliasListNode?> _aliases = new ConcurrentDictionary<string, AliasListNode?>(StringComparer.Ordinal);
 
-		/// <summary>
-		/// Content addressed data lookup
-		/// </summary>
-		readonly ConcurrentDictionary<string, ExportEntry> _aliases = new ConcurrentDictionary<string, ExportEntry>(StringComparer.Ordinal);
+		int _nextId;
 
 		/// <summary>
 		/// All data stored by the client
 		/// </summary>
-		public IReadOnlyDictionary<string, byte[]> Blobs => _backend.Blobs;
+		public IReadOnlyDictionary<BlobLocator, BlobData> Blobs => _blobs;
 
 		/// <summary>
-		/// All refs stored by the client
+		/// Accessor for all refs stored by the client
 		/// </summary>
 		public IReadOnlyDictionary<RefName, BlobLocator> Refs => _refs;
 
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		public MemoryStorageClient() 
-			: this(new MemoryStorageBackend())
+		/// <inheritdoc/>
+		public bool SupportsRedirects => false;
+
+		/// <inheritdoc/>
+		public void Dispose()
 		{
 		}
 
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		private MemoryStorageClient(MemoryStorageBackend backend)
-			: base(backend, BundleReaderCache.None, NullLogger.Instance)
+		#region Blobs
+
+		/// <inheritdoc/>
+		public BlobHandle CreateBlobHandle(BlobLocator locator)
 		{
-			_backend = backend;
+			if (locator.TryUnwrapFull(out BlobLocator outer, out Utf8String fragment))
+			{
+				return new BlobFragmentHandle(new Handle(this, outer), fragment);
+			}
+			else
+			{
+				return new Handle(this, locator);
+			}
 		}
+
+		/// <inheritdoc/>
+		public IStorageWriter CreateWriter(string? basePath = null) => new DefaultStorageWriter(this, basePath);
+
+		/// <inheritdoc/>
+		public async ValueTask<BlobHandle> WriteBlobAsync(BlobType type, Stream stream, IReadOnlyList<BlobHandle> references, string? basePath = null, CancellationToken cancellationToken = default)
+		{
+			BlobLocator locator = new BlobLocator($"mem-{Interlocked.Increment(ref _nextId)}");
+			_blobs[locator] = new BlobData(type, await stream.ReadAllBytesAsync(cancellationToken), references);
+			return new Handle(this, locator);
+		}
+
+		/// <inheritdoc/>
+		public ValueTask<Uri?> TryGetReadRedirectAsync(BlobLocator locator, CancellationToken cancellationToken = default)
+			=> default;
+
+		/// <inheritdoc/>
+		public ValueTask<(BlobLocator, Uri)?> TryGetWriteRedirectAsync(string? prefix = null, CancellationToken cancellationToken = default)
+			=> default;
+
+		#endregion
 
 		#region Aliases
 
 		/// <inheritdoc/>
-		public override async Task AddAliasAsync(string name, BlobHandle handle, int rank = 0, ReadOnlyMemory<byte> data = default, CancellationToken cancellationToken = default)
+		public Task AddAliasAsync(string name, BlobHandle handle, int rank = 0, ReadOnlyMemory<byte> data = default, CancellationToken cancellationToken = default)
 		{
-			await handle.FlushAsync(cancellationToken);
 			BlobLocator locator = handle.GetLocator();
-			_aliases.AddOrUpdate(name, _ => new ExportEntry(locator, rank, data, null), (_, entry) => new ExportEntry(locator, rank, data, entry));
+			_aliases.AddOrUpdate(name, _ => new AliasListNode(locator, rank, data, null), (_, entry) => new AliasListNode(locator, rank, data, entry));
+			return Task.CompletedTask;
 		}
 
 		/// <inheritdoc/>
-		public override Task RemoveAliasAsync(string name, BlobHandle handle, CancellationToken cancellationToken = default)
+		public Task RemoveAliasAsync(string name, BlobHandle handle, CancellationToken cancellationToken = default)
 		{
-			throw new NotSupportedException();
+			BlobLocator locator = handle.GetLocator();
+			for (; ; )
+			{
+				AliasListNode? entry;
+				if (!_aliases.TryGetValue(name, out entry))
+				{
+					break;
+				}
+
+				AliasListNode? newEntry = RemoveAliasFromList(entry, locator);
+				if (entry == newEntry)
+				{
+					break;
+				}
+
+				if (newEntry == null)
+				{
+					if (_aliases.TryRemove(new KeyValuePair<string, AliasListNode?>(name, entry)))
+					{
+						break;
+					}
+				}
+				else
+				{
+					if (_aliases.TryUpdate(name, newEntry, entry))
+					{
+						break;
+					}
+				}
+			}
+			return Task.CompletedTask;
+		}
+
+		static AliasListNode? RemoveAliasFromList(AliasListNode? entry, BlobLocator locator)
+		{
+			if (entry == null)
+			{
+				return null;
+			}
+			if (entry.Locator == locator)
+			{
+				return entry.Next;
+			}
+
+			AliasListNode? nextEntry = RemoveAliasFromList(entry.Next, locator);
+			if (nextEntry != entry.Next)
+			{
+				entry = new AliasListNode(entry.Locator, entry.Rank, entry.Data, nextEntry);
+			}
+			return entry;
 		}
 
 		/// <inheritdoc/>
-		public override Task<BlobAlias[]> FindAliasesAsync(string alias, int? maxResults = null, CancellationToken cancellationToken = default)
+		public Task<BlobAlias[]> FindAliasesAsync(string alias, int? maxResults = null, CancellationToken cancellationToken = default)
 		{
 			List<BlobAlias> aliases = new List<BlobAlias>();
-			if (_aliases.TryGetValue(alias, out ExportEntry? entry))
+			if (_aliases.TryGetValue(alias, out AliasListNode? entry))
 			{
 				for (; entry != null; entry = entry.Next)
 				{
@@ -95,15 +185,15 @@ namespace EpicGames.Horde.Storage.Clients
 		#region Refs
 
 		/// <inheritdoc/>
-		public override Task<bool> DeleteRefAsync(RefName name, CancellationToken cancellationToken) => Task.FromResult(_refs.TryRemove(name, out _));
+		public Task<bool> DeleteRefAsync(RefName name, CancellationToken cancellationToken) => Task.FromResult(_refs.TryRemove(name, out _));
 
 		/// <inheritdoc/>
-		public override Task<BlobHandle?> TryReadRefAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
+		public Task<BlobHandle?> TryReadRefAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
 		{
-			BlobLocator refData;
-			if (_refs.TryGetValue(name, out refData))
+			BlobLocator locator;
+			if (_refs.TryGetValue(name, out locator))
 			{
-				return Task.FromResult<BlobHandle?>(CreateBlobHandle(refData)); 
+				return Task.FromResult<BlobHandle?>(CreateBlobHandle(locator));
 			}
 			else
 			{
@@ -112,13 +202,17 @@ namespace EpicGames.Horde.Storage.Clients
 		}
 
 		/// <inheritdoc/>
-		public override async Task WriteRefAsync(RefName name, BlobHandle target, RefOptions? options = null, CancellationToken cancellationToken = default)
+		public async Task WriteRefAsync(RefName name, BlobHandle target, RefOptions? options = null, CancellationToken cancellationToken = default)
 		{
 			await target.FlushAsync(cancellationToken);
-
 			_refs[name] = target.GetLocator();
 		}
 
 		#endregion
+
+		/// <inheritdoc/>
+		public void GetStats(StorageStats stats)
+		{
+		}
 	}
 }

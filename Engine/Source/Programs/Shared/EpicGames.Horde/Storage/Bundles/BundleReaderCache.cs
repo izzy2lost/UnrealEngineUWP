@@ -34,7 +34,7 @@ namespace EpicGames.Horde.Storage
 		/// <summary>
 		/// Instance of an empty cache
 		/// </summary>
-		public static BundleReaderCache None { get; } = new BundleReaderCache();
+		public static BundleReaderCache None { get; } = new BundleReaderCache(new BundleReaderCacheOptions { HeaderCacheSize = 0, PacketCacheSize = 0 });
 
 		/// <summary>
 		/// Size of the configured header cache
