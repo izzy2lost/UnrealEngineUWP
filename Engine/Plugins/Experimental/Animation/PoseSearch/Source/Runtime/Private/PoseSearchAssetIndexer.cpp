@@ -347,8 +347,6 @@ FAssetIndexer::CachedEntry& FAssetIndexer::GetEntry(float SampleTime)
 		}
 #endif // ENABLE_ANIM_DEBUG
 
-		Pose[FCompactPoseBoneIndex(RootBoneIndexType)].SetIdentity();
-
 		if (SearchIndexAsset.IsMirrored())
 		{
 			SamplingContext.MirrorPose(Pose);
@@ -373,14 +371,7 @@ FTransform FAssetIndexer::GetComponentSpaceTransform(float SampleTime, bool& bCl
 	CachedEntry& Entry = GetEntry(SampleTime);
 	bClamped = Entry.bClamped;
 
-	if (SchemaBoneIdx != RootSchemaBoneIdx)
-	{
-		return CalculateComponentSpaceTransform(Entry, SchemaBoneIdx);
-	}
-
-	// making sure the root bone transform is identity
-	check(CalculateComponentSpaceTransform(Entry, SchemaBoneIdx).Equals(FTransform::Identity));
-	return FTransform::Identity;
+	return CalculateComponentSpaceTransform(Entry, SchemaBoneIdx);
 }
 
 // returns the transform in animation space for the bone indexed by Schema->BoneReferences[SchemaBoneIdx] at SampleTime seconds
@@ -391,13 +382,7 @@ FTransform FAssetIndexer::GetTransform(float SampleTime, bool& bClamped, int8 Sc
 	CachedEntry& Entry = GetEntry(SampleTime);
 	bClamped = Entry.bClamped;
 
-	const FTransform MirroredRootTransform = MirrorTransform(Entry.RootTransform);
-	if (SchemaBoneIdx != RootSchemaBoneIdx)
-	{
-		return CalculateComponentSpaceTransform(Entry, SchemaBoneIdx) * MirroredRootTransform;
-	}
-
-	return MirroredRootTransform;
+	return CalculateComponentSpaceTransform(Entry, SchemaBoneIdx) * MirrorTransform(Entry.RootTransform);
 }
 
 // returns the transform in animation space for the BoneReference at SampleTime seconds
@@ -491,15 +476,9 @@ bool FAssetIndexer::GetSampleRotation(FQuat& OutSampleRotation, float SampleTime
 		return false;
 	}
 
-	if (SampleTime == OriginTime)
-	{
-		OutSampleRotation = GetComponentSpaceTransform(SampleTime, bUnused, SchemaSampleBoneIdx).GetRotation();
-		return true;
-	}
-
 	const FTransform RootBoneTransform = GetTransform(OriginTime, bUnused, RootSchemaBoneIdx);
-	const FTransform BoneTransform = GetTransform(SampleTime, bUnused, SchemaSampleBoneIdx);
-	OutSampleRotation = RootBoneTransform.InverseTransformRotation(BoneTransform.GetRotation());
+	const FTransform SampleBoneTransform = GetTransform(SampleTime, bUnused, SchemaSampleBoneIdx);
+	OutSampleRotation = RootBoneTransform.InverseTransformRotation(SampleBoneTransform.GetRotation());
 	return true;
 }
 
@@ -574,22 +553,6 @@ bool FAssetIndexer::GetSamplePositionInternal(FVector& OutSamplePosition, float 
 		UE_LOG(LogPoseSearch, Error, TEXT("FAssetIndexer::GetSamplePositionInternal: required UAnimNotifyState_PoseSearchSamplingAttribute not found in '%s'"), *GetNameSafe(AssetSampler.GetAsset()));
 		OutSamplePosition = FVector::ZeroVector;
 		return false;
-	}
-
-	if (SampleTime == OriginTime)
-	{
-		if (SchemaOriginBoneIdx == RootSchemaBoneIdx)
-		{
-			OutSamplePosition = GetComponentSpaceTransform(SampleTime, bClamped, SchemaSampleBoneIdx).GetTranslation();
-			return true;
-		}
-
-		bool bOriginClamped;
-		const FVector SampleBonePosition = GetComponentSpaceTransform(SampleTime, bClamped, SchemaSampleBoneIdx).GetTranslation();
-		const FVector OriginBonePosition = GetComponentSpaceTransform(OriginTime, bOriginClamped, SchemaOriginBoneIdx).GetTranslation();
-		bClamped |= bOriginClamped;
-		OutSamplePosition = SampleBonePosition - OriginBonePosition;
-		return true;
 	}
 
 	const FTransform RootBoneTransform = GetTransform(OriginTime, bUnused, RootSchemaBoneIdx);

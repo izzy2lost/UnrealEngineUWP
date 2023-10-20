@@ -90,6 +90,7 @@ class POSESEARCH_API UPoseSearchLibrary : public UBlueprintFunctionLibrary
 
 	static FPoseSearchQueryTrajectory ProcessTrajectory(
 		const FPoseSearchQueryTrajectory& Trajectory,
+		const FTransform& RootBoneTransform,
 		float RootBoneDeltaYaw,
 		float YawFromAnimationTrajectoryBlendTime,
 		float TrajectorySpeedMultiplier);

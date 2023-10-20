@@ -53,9 +53,13 @@ namespace UE::PoseSearch
 		float PlayTimeOffset = 0.f;
 		float CurrentTime = 0.f;
 
+		// world space root transforms
 		FTransform RootTransformCurrentQuantizedTime = FTransform::Identity;
 		FTransform RootTransformCurrent = FTransform::Identity;
 		FTransform RootTransformOrigin = FTransform::Identity;
+
+		// local space root BONE transform
+		FTransform RootBoneTransformCurrentQuantizedTime = FTransform::Identity;
 
 		FAnimationAssetSampler Sampler;
 		FMirrorDataCache MirrorDataCache;

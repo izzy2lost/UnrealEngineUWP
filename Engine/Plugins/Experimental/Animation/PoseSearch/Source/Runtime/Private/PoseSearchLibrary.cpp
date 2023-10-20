@@ -150,7 +150,9 @@ void FMotionMatchingState::UpdateRootBoneControl(const FAnimationUpdateContext& 
 
 #if UE_POSE_SEARCH_TRACE_ENABLED
 void UPoseSearchLibrary::TraceMotionMatchingState(
-	const FPoseSearchQueryTrajectory& Trajectory,
+	// Trajectory is the trajectory in mesh component space prior ProcessTrajectory
+	const FPoseSearchQueryTrajectory& Trajectory, 
+	// SearchContext.Trajectory is the trajectory in root bone component space after ProcessTrajectory
 	UE::PoseSearch::FSearchContext& SearchContext,
 	const UE::PoseSearch::FSearchResult& CurrentResult,
 	float ElapsedPoseSearchTime,
@@ -210,8 +212,8 @@ void UPoseSearchLibrary::TraceMotionMatchingState(
 		// simulation
 		if (SearchContext.IsTrajectoryValid())
 		{
-			const FTransform PrevRoot = SearchContext.GetWorldRootBoneTransformAtTime(-DeltaTime);
-			const FTransform CurrRoot = SearchContext.GetWorldRootBoneTransformAtTime(0.f);
+			const FTransform PrevRoot = SearchContext.GetWorldBoneTransformAtTime(-DeltaTime);
+			const FTransform CurrRoot = SearchContext.GetWorldBoneTransformAtTime(0.f);
 			const FTransform SimDelta = CurrRoot.GetRelativeTransform(PrevRoot);
 
 			TraceState.SimLinearVelocity = SimDelta.GetTranslation().Size() / DeltaTime;
@@ -291,7 +293,9 @@ void UPoseSearchLibrary::UpdateMotionMatchingState(
 #endif // ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
 	}
 
-	const FPoseSearchQueryTrajectory TrajectoryRootSpace = ProcessTrajectory(Trajectory, InOutMotionMatchingState.ComponentDeltaYaw, YawFromAnimationTrajectoryBlendTime, TrajectorySpeedMultiplier);
+	// @todo: perhaps store the previous frame root bone transform to use in ProcessTrajectory
+	const FTransform& RootBoneTransform = Context.AnimInstanceProxy->GetSkeleton()->GetReferenceSkeleton().GetRefBonePose()[RootSchemaBoneIdx];
+	const FPoseSearchQueryTrajectory TrajectoryRootSpace = ProcessTrajectory(Trajectory, RootBoneTransform, InOutMotionMatchingState.ComponentDeltaYaw, YawFromAnimationTrajectoryBlendTime, TrajectorySpeedMultiplier);
 
 	FMemMark Mark(FMemStack::Get());
 	const UAnimInstance* AnimInstance = Cast<const UAnimInstance>(Context.AnimInstanceProxy->GetAnimInstanceObject());
@@ -383,19 +387,16 @@ void UPoseSearchLibrary::UpdateMotionMatchingState(
 		else
 #endif // WITH_EDITOR
 		{
-			const FRotator DeltaRotation(0.f, InOutMotionMatchingState.ComponentDeltaYaw, 0.f);
-			const FTransform DeltaTransform(DeltaRotation);
-			const FTransform RootBoneTransform = DeltaTransform * Context.AnimInstanceProxy->GetComponentTransform();
-
 			if (bDebugDrawCurResult)
 			{
-				UE::PoseSearch::FDebugDrawParams DrawParams(Context.AnimInstanceProxy, RootBoneTransform, CurResultDatabase);
+				UE::PoseSearch::FDebugDrawParams DrawParams(Context.AnimInstanceProxy, SearchContext.GetWorldBoneTransformAtTime(0.f), CurResultDatabase);
 				DrawParams.DrawFeatureVector(CurResult.PoseIdx);
 			}
 
 			if (bDebugDrawQuery)
 			{
-				UE::PoseSearch::FDebugDrawParams DrawParams(Context.AnimInstanceProxy, RootBoneTransform, CurResultDatabase, EDebugDrawFlags::DrawQuery);
+				// @todo: use pose history to get the root bone!
+				UE::PoseSearch::FDebugDrawParams DrawParams(Context.AnimInstanceProxy, SearchContext.GetWorldBoneTransformAtTime(0.f), CurResultDatabase, EDebugDrawFlags::DrawQuery);
 				DrawParams.DrawFeatureVector(SearchContext.GetOrBuildQuery(CurResultDatabase->Schema).GetValues());
 			}
 		}
@@ -404,18 +405,34 @@ void UPoseSearchLibrary::UpdateMotionMatchingState(
 }
 
 // transforms Trajectory from SkeletalMeshComponent world space to root bone world space, and scale it by TrajectorySpeedMultiplier
-FPoseSearchQueryTrajectory UPoseSearchLibrary::ProcessTrajectory(const FPoseSearchQueryTrajectory& Trajectory, float RootBoneDeltaYaw, float YawFromAnimationTrajectoryBlendTime, float TrajectorySpeedMultiplier)
+FPoseSearchQueryTrajectory UPoseSearchLibrary::ProcessTrajectory(const FPoseSearchQueryTrajectory& Trajectory, const FTransform& RootBoneTransform, float RootBoneDeltaYaw, float YawFromAnimationTrajectoryBlendTime, float TrajectorySpeedMultiplier)
 {
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_PoseSearch_ProcessTrajectory);
 
 	const float TrajectorySpeedMultiplierInv = FMath::IsNearlyZero(TrajectorySpeedMultiplier) ? 1.f : 1.f / TrajectorySpeedMultiplier;
 
 	FPoseSearchQueryTrajectory TrajectoryRootSpace = Trajectory;
-	for (FPoseSearchQueryTrajectorySample& Sample : TrajectoryRootSpace.Samples)
-	{
-		Sample.AccumulatedSeconds *= TrajectorySpeedMultiplierInv;
 
-		if (!FMath::IsNearlyZero(RootBoneDeltaYaw))
+	if (!RootBoneTransform.Equals(FTransform::Identity))
+	{
+		// @todo: optimize me
+		for (FPoseSearchQueryTrajectorySample& Sample : TrajectoryRootSpace.Samples)
+		{
+			Sample.SetTransform(RootBoneTransform * Sample.GetTransform());
+		}
+	}
+
+	if (!FMath::IsNearlyEqual(TrajectorySpeedMultiplierInv, 1.f))
+	{
+		for (FPoseSearchQueryTrajectorySample& Sample : TrajectoryRootSpace.Samples)
+		{
+			Sample.AccumulatedSeconds *= TrajectorySpeedMultiplierInv;
+		}
+	}
+
+	if (!FMath::IsNearlyZero(RootBoneDeltaYaw))
+	{
+		for (FPoseSearchQueryTrajectorySample& Sample : TrajectoryRootSpace.Samples)
 		{
 			const float BlendParam = YawFromAnimationTrajectoryBlendTime < UE_KINDA_SMALL_NUMBER ? 1 : FMath::Clamp(1.f - (Sample.AccumulatedSeconds - YawFromAnimationTrajectoryBlendTime) / YawFromAnimationTrajectoryBlendTime, 0.f, 1.f);
 			const FQuat RootBoneDelta(FRotator(0.f, RootBoneDeltaYaw * BlendParam, 0.f));
@@ -465,13 +482,15 @@ void UPoseSearchLibrary::MotionMatch(
 	Result.SearchCost = MAX_flt;
 
 	FMemMark Mark(FMemStack::Get());
-	if (Database && AnimInstance)
+	if (Database && AnimInstance && AnimInstance->CurrentSkeleton)
 	{
 #if ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
 		FColor HistoryCollectorColor = FColor::Red;
 #endif // ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
 
-		const FPoseSearchQueryTrajectory TrajectoryRootSpace = ProcessTrajectory(Trajectory, 0.f, 0.f, TrajectorySpeedMultiplier);
+		// @todo: perhaps store the previous frame root bone transform to use in ProcessTrajectory
+		const FTransform& RootBoneTransform = AnimInstance->CurrentSkeleton->GetReferenceSkeleton().GetRefBonePose()[RootSchemaBoneIdx];
+		const FPoseSearchQueryTrajectory TrajectoryRootSpace = ProcessTrajectory(Trajectory, RootBoneTransform, 0.f, 0.f, TrajectorySpeedMultiplier);
 
 		// ExtendedPoseHistory will hold future poses to match AssetSamplerBase (at FutureAnimationStartTime) TimeToFutureAnimationStart seconds in the future
 		FExtendedPoseHistory ExtendedPoseHistory;
@@ -574,13 +593,13 @@ void UPoseSearchLibrary::MotionMatch(
 			FAnimInstanceProxy* AnimInstanceProxy = UAnimInstanceProxyProvider::GetAnimInstanceProxy(AnimInstance);
 			if (CVarAnimMotionMatchDrawMatchEnable.GetValueOnAnyThread())
 			{
-				FDebugDrawParams DrawParams(AnimInstanceProxy, AnimInstanceProxy->GetComponentTransform(), SearchResult.Database.Get());
+				FDebugDrawParams DrawParams(AnimInstanceProxy, SearchContext.GetWorldBoneTransformAtTime(0.f), SearchResult.Database.Get());
 				DrawParams.DrawFeatureVector(SearchResult.PoseIdx);
 			}
 
 			if (CVarAnimMotionMatchDrawQueryEnable.GetValueOnAnyThread())
 			{
-				FDebugDrawParams DrawParams(AnimInstanceProxy, AnimInstanceProxy->GetComponentTransform(), SearchResult.Database.Get(), EDebugDrawFlags::DrawQuery);
+				FDebugDrawParams DrawParams(AnimInstanceProxy, SearchContext.GetWorldBoneTransformAtTime(0.f), SearchResult.Database.Get(), EDebugDrawFlags::DrawQuery);
 				DrawParams.DrawFeatureVector(SearchContext.GetOrBuildQuery(SearchResult.Database->Schema).GetValues());
 			}
 		}
@@ -664,13 +683,13 @@ UE::PoseSearch::FSearchResult UPoseSearchLibrary::MotionMatch(const FAnimationBa
 		{
 			if (CVarAnimMotionMatchDrawMatchEnable.GetValueOnAnyThread())
 			{
-				FDebugDrawParams DrawParams(Context.AnimInstanceProxy, Context.AnimInstanceProxy->GetComponentTransform(), SearchResult.Database.Get());
+				FDebugDrawParams DrawParams(Context.AnimInstanceProxy, SearchContext.GetWorldBoneTransformAtTime(0.f), SearchResult.Database.Get());
 				DrawParams.DrawFeatureVector(SearchResult.PoseIdx);
 			}
 
 			if (CVarAnimMotionMatchDrawQueryEnable.GetValueOnAnyThread())
 			{
-				FDebugDrawParams DrawParams(Context.AnimInstanceProxy, Context.AnimInstanceProxy->GetComponentTransform(), SearchResult.Database.Get(), EDebugDrawFlags::DrawQuery);
+				FDebugDrawParams DrawParams(Context.AnimInstanceProxy, SearchContext.GetWorldBoneTransformAtTime(0.f), SearchResult.Database.Get(), EDebugDrawFlags::DrawQuery);
 				DrawParams.DrawFeatureVector(SearchContext.GetOrBuildQuery(SearchResult.Database->Schema).GetValues());
 			}
 		}

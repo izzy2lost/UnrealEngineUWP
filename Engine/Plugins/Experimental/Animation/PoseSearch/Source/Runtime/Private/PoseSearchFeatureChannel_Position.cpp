@@ -114,7 +114,7 @@ void UPoseSearchFeatureChannel_Position::DebugDraw(const UE::PoseSearch::FDebugD
 #endif // WITH_EDITORONLY_DATA
 
 	const FVector FeaturesVector = FFeatureVectorHelper::DecodeVector(PoseVector, ChannelDataOffset, ComponentStripping);
-	if (SchemaOriginBoneIdx == RootSchemaBoneIdx)
+	if (SchemaOriginBoneIdx == RootSchemaBoneIdx && FMath::IsNearlyZero(OriginTimeOffset))
 	{
 		const FVector BonePos = DrawParams.GetRootTransform().TransformPosition(FeaturesVector);
 		DrawParams.DrawPoint(BonePos, Color);
@@ -122,7 +122,7 @@ void UPoseSearchFeatureChannel_Position::DebugDraw(const UE::PoseSearch::FDebugD
 	else
 	{
 		const EPermutationTimeType TimeType = PermutationTimeType == EPermutationTimeType::UsePermutationTime ? EPermutationTimeType::UseSampleToPermutationTime : EPermutationTimeType::UseSampleTime;
-		const FVector OriginBonePos = DrawParams.ExtractPosition(PoseVector, SampleTimeOffset, SchemaOriginBoneIdx, TimeType, SamplingAttributeId);
+		const FVector OriginBonePos = DrawParams.ExtractPosition(PoseVector, OriginTimeOffset, SchemaOriginBoneIdx, TimeType);
 		const FVector DeltaPos = DrawParams.GetRootTransform().TransformVector(FeaturesVector);
 		const FVector BonePos = OriginBonePos + DeltaPos;
 		DrawParams.DrawLine(OriginBonePos, BonePos, Color);

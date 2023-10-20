@@ -183,21 +183,18 @@ struct POSESEARCH_API FSearchContext
 	bool IsTrajectoryValid() const { return Trajectory != nullptr; }
 	float GetDesiredPermutationTimeOffset() const { return DesiredPermutationTimeOffset; }
 	bool IsForceInterrupt() const { return bForceInterrupt; }
-	FTransform GetWorldRootBoneTransformAtTime(float SampleTime, bool bExtrapolate = true) const;
 	const UAnimInstance* GetAnimInstance() const { return AnimInstance; }
 
 	void SetAnimationsToConsider(TConstArrayView<const UAnimationAsset*> InAnimationsToConsider) { AnimationsToConsider = InAnimationsToConsider; }
 	TConstArrayView<const UAnimationAsset*> GetAnimationsToConsider() const { return AnimationsToConsider; }
 	
-private:
 	// returns the world space transform of the bone SchemaBoneIdx at time SampleTime
-	FTransform GetWorldBoneTransformAtTime(float SampleTime, const UPoseSearchSchema* Schema, int8 SchemaBoneIdx = RootSchemaBoneIdx);
+	FTransform GetWorldBoneTransformAtTime(float SampleTime, const UPoseSearchSchema* Schema = nullptr, int8 SchemaBoneIdx = RootSchemaBoneIdx);
 	
-	// returns the local space transform relative to the root bone of the bone SchemaBoneIdx at time SampleTime
-	FTransform GetLocalBoneTransformAtTime(float SampleTime, const UPoseSearchSchema* Schema, int8 SchemaSampleBoneIdx = RootSchemaBoneIdx);
-	
+private:
 	FVector GetSamplePositionInternal(float SampleTime, float OriginTime, const UPoseSearchSchema* Schema, int8 SchemaSampleBoneIdx = RootSchemaBoneIdx, int8 SchemaOriginBoneIdx = RootSchemaBoneIdx, const FVector* SampleBonePositionWorldOverride = nullptr);
 	FQuat GetSampleRotationInternal(float SampleTime, float OriginTime, const UPoseSearchSchema* Schema, int8 SchemaSampleBoneIdx = RootSchemaBoneIdx, int8 SchemaOriginBoneIdx = RootSchemaBoneIdx, const FQuat* SampleBoneRotationWorldOverride = nullptr);
+	FTransform GetWorldRootBoneTransformAtTime(float SampleTime) const;
 
 	const UAnimInstance* AnimInstance = nullptr;
 	const IPoseHistory* History = nullptr;
@@ -216,7 +213,7 @@ private:
 	TConstArrayView<float> CurrentResultPoseVector;
 	TStackAlignedArray<float> CurrentResultPoseVectorData;
 
-	// transforms cached in component space
+	// transforms cached in world space
 	FCachedTransforms<FTransform> CachedTransforms;
 	TArray<FFeatureVectorBuilder, TInlineAllocator<PreallocatedCachedQueriesNum>> CachedQueries;
 

@@ -155,6 +155,17 @@ void FDatabasePreviewActor::UpdatePreviewActor(const UPoseSearchDatabase* PoseSe
 	}
 
 	Actor->SetActorTransform(RootTransformCurrent);
+
+	// @todo: optimize this bone container, since we only need the root bone here...
+	const FBoneContainer& BoneContainer = AnimInstance->GetRequiredBonesOnAnyThread();
+	if (BoneContainer.GetNumBones() > 0)
+	{
+		FMemMark Mark(FMemStack::Get());
+		FCompactPose Pose;
+		Pose.SetBoneContainer(&BoneContainer);
+		ExtractPose(QuantizedTime, Pose);
+		RootBoneTransformCurrentQuantizedTime = Pose[FCompactPoseBoneIndex(RootBoneIndexType)];
+	}
 }
 
 void FDatabasePreviewActor::Destroy()
@@ -176,7 +187,8 @@ bool FDatabasePreviewActor::DrawPreviewActor(const UPoseSearchDatabase* PoseSear
 		return false;
 	}
 
-	UE::PoseSearch::FDebugDrawParams DrawParams(Mesh->GetWorld(), Mesh, RootTransformCurrentQuantizedTime, PoseSearchDatabase);
+	const FTransform RootBoneTransformCurrentQuantizedTimeWorld = RootBoneTransformCurrentQuantizedTime * RootTransformCurrentQuantizedTime;
+	UE::PoseSearch::FDebugDrawParams DrawParams(Mesh->GetWorld(), Mesh, RootBoneTransformCurrentQuantizedTimeWorld, PoseSearchDatabase);
 	DrawParams.DrawFeatureVector(GetCurrentPoseIndex());
 
 	if (!QueryVector.IsEmpty())
