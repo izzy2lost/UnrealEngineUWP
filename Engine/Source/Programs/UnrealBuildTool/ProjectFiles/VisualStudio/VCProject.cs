@@ -1771,7 +1771,7 @@ namespace UnrealBuildTool
 				// Create a path to the project file's user file
 				string VCUserFilePath = ProjectFilePath.FullName + ".user";
 				// Never overwrite the existing user path as it will cause them to lose their settings
-				if (File.Exists(VCUserFilePath) == false)
+				if (ProjectFileGenerator.bForceUpdateAllFiles || File.Exists(VCUserFilePath) == false)
 				{
 					bSuccess = ProjectFileGenerator.WriteFileIfChanged(VCUserFilePath, VCUserFileContent.ToString(), Logger);
 				}

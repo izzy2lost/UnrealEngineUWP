@@ -216,6 +216,11 @@ namespace UnrealBuildTool
 		public bool bGeneratingTemporaryProjects = false;
 
 		/// <summary>
+		/// True will override any extra settings files like .vcxproj.user
+		/// </summary>
+		public static bool bForceUpdateAllFiles = false;
+
+		/// <summary>
 		/// Optional list of platforms to generate projects for
 		/// </summary>
 		protected readonly List<UnrealTargetPlatform> ProjectPlatforms = new List<UnrealTargetPlatform>();
@@ -1557,6 +1562,10 @@ namespace UnrealBuildTool
 
 							case "-INCLUDETEMPTARGETS":
 								bIncludeTempTargets = true;
+								break;
+							
+							case "-FORCEUPDATEALL":
+								bForceUpdateAllFiles = true;
 								break;
 						}
 					}
