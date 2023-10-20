@@ -7,6 +7,7 @@
 #include "DataValidationModule.h"
 #include "DataValidationSettings.h"
 
+#include "AssetRegistry/AssetData.h"
 #include "UObject/Package.h"
 #include "EditorValidatorSubsystem.generated.h"
 
