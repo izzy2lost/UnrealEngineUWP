@@ -1,9 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "MVVMDeveloperProjectSettings.h"
-#include "Engine/Blueprint.h"
 
 #include "BlueprintEditorSettings.h"
+#include "Engine/Blueprint.h"
+#include "Kismet2/BlueprintEditorUtils.h"
 #include "MVVMBlueprintViewModelContext.h"
 #include "PropertyPermissionList.h"
 #include "Types/MVVMExecutionMode.h"
@@ -66,10 +67,25 @@ bool UMVVMDeveloperProjectSettings::PropertyHasFiltering(const FProperty* Proper
 	return true;
 }
 
-bool UMVVMDeveloperProjectSettings::IsPropertyAllowed(const FProperty* Property) const
+namespace UE::MVVM::Private
+{
+bool ShouldDoPropertyEditorPermission(const UBlueprint* GeneratingFor, UClass* FieldOwner)
+{
+	if (GeneratingFor && FieldOwner)
+	{
+		const UClass* UpToDateClass = FBlueprintEditorUtils::GetMostUpToDateClass(FieldOwner);
+		return GeneratingFor->SkeletonGeneratedClass != UpToDateClass;
+	}
+	return true;
+}
+}//namespace
+
+bool UMVVMDeveloperProjectSettings::IsPropertyAllowed(const UBlueprint* GeneratingFor, const FProperty* Property) const
 {
 	check(Property);
-	if (!FPropertyEditorPermissionList::Get().DoesPropertyPassFilter(Property->GetOwnerStruct(), Property->GetFName()))
+	check(GeneratingFor);
+	const bool bDoPropertyEditorPermission = UE::MVVM::Private::ShouldDoPropertyEditorPermission(GeneratingFor, Property->GetTypedOwner<UClass>());
+	if (bDoPropertyEditorPermission && !FPropertyEditorPermissionList::Get().DoesPropertyPassFilter(Property->GetOwnerStruct(), Property->GetFName()))
 	{
 		return false;
 	}
@@ -85,7 +101,7 @@ bool UMVVMDeveloperProjectSettings::IsPropertyAllowed(const FProperty* Property)
 	return true;
 }
 
-bool UMVVMDeveloperProjectSettings::IsFunctionAllowed(const UFunction* Function) const
+bool UMVVMDeveloperProjectSettings::IsFunctionAllowed(const UBlueprint* GeneratingFor, const UFunction* Function) const
 {
 	check(Function);
 
@@ -111,7 +127,7 @@ bool UMVVMDeveloperProjectSettings::IsFunctionAllowed(const UFunction* Function)
 	return true;
 }
 
-bool UMVVMDeveloperProjectSettings::IsConversionFunctionAllowed(const UFunction* Function) const
+bool UMVVMDeveloperProjectSettings::IsConversionFunctionAllowed(const UBlueprint* GeneratingFor, const UFunction* Function) const
 {
 	static FName NAME_ComplexConversionFunction = TEXT("MVVMComplexConversionFunction");
 	if (Function->HasMetaData(NAME_ComplexConversionFunction))
@@ -121,7 +137,7 @@ bool UMVVMDeveloperProjectSettings::IsConversionFunctionAllowed(const UFunction*
 
 	if (ConversionFunctionFilter == EMVVMDeveloperConversionFunctionFilterType::BlueprintActionRegistry)
 	{
-		return IsFunctionAllowed(Function);
+		return IsFunctionAllowed(GeneratingFor, Function);
 	}
 	else
 	{
@@ -147,7 +163,7 @@ bool UMVVMDeveloperProjectSettings::IsConversionFunctionAllowed(const UFunction*
 		else
 		{
 			// The function is on self and may have been filtered.
-			return IsFunctionAllowed(Function);
+			return IsFunctionAllowed(GeneratingFor, Function);
 		}
 	}
 }

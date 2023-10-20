@@ -63,7 +63,6 @@ public:
 		int32 Id;
 	};
 
-
 	/** */
 	struct FBindingHandle
 	{
@@ -149,7 +148,7 @@ public:
 	};
 
 public:
-	FCompiledBindingLibraryCompiler();
+	FCompiledBindingLibraryCompiler(UBlueprint* Context);
 
 public:
 	/** */

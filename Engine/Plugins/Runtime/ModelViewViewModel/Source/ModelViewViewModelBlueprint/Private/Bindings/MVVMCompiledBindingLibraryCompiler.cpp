@@ -90,11 +90,17 @@ public:
 class FCompiledBindingLibraryCompilerImpl
 {
 public:
+	FCompiledBindingLibraryCompilerImpl(const UBlueprint* Context)
+		: BlueprintContext(Context)
+	{}
+
+public:
 	TArray<FRawFieldId> FieldIds;
 	TArray<FRawField> Fields;
 	TArray<FRawFieldPath> FieldPaths;
 	TArray<FRawBinding> Bindings;
 	bool bCompiled = false;
+	TWeakObjectPtr<const UBlueprint> BlueprintContext;
 
 public:
 	int32 AddUniqueField(FMVVMConstFieldVariant InFieldVariant)
@@ -204,8 +210,8 @@ FCompiledBindingLibraryCompiler::FCompileResult::FCompileResult(FGuid LibraryId)
 /**
  *
  */
-FCompiledBindingLibraryCompiler::FCompiledBindingLibraryCompiler()
-	: Impl(MakePimpl<Private::FCompiledBindingLibraryCompilerImpl>())
+FCompiledBindingLibraryCompiler::FCompiledBindingLibraryCompiler(UBlueprint* GeneratingFor)
+	: Impl(MakePimpl<Private::FCompiledBindingLibraryCompilerImpl>(GeneratingFor))
 {
 
 }
@@ -340,7 +346,7 @@ TValueOrError<FCompiledBindingLibraryCompiler::FFieldPathHandle, FText> FCompile
 				return MakeError(ValidatedStr);
 			}
 
-			if (!GetDefault<UMVVMDeveloperProjectSettings>()->IsPropertyAllowed(FieldVariant.GetProperty()))
+			if (!GetDefault<UMVVMDeveloperProjectSettings>()->IsPropertyAllowed(Impl->BlueprintContext.Get(), FieldVariant.GetProperty()))
 			{
 				return MakeError(LOCTEXT("PropertyNotAllow", "A property is not allowed."));
 			}
@@ -361,7 +367,7 @@ TValueOrError<FCompiledBindingLibraryCompiler::FFieldPathHandle, FText> FCompile
 				return MakeError(FText::Format(LOCTEXT("FunctionNotReadableAtRuntime", "Function '{0}' is not readable at runtime."), FieldVariant.GetFunction()->GetDisplayNameText()));
 			}
 
-			if (!GetDefault<UMVVMDeveloperProjectSettings>()->IsFunctionAllowed(FieldVariant.GetFunction()))
+			if (!GetDefault<UMVVMDeveloperProjectSettings>()->IsFunctionAllowed(Impl->BlueprintContext.Get(), FieldVariant.GetFunction()))
 			{
 				return MakeError(LOCTEXT("FunctionNotAllow", "A function is not allowed."));
 			}

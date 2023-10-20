@@ -26,10 +26,10 @@ namespace UE::MVVM
 
 namespace Private
 {
-	TOptional<FFieldVariant> PassFilter(const FMVVMAvailableBinding& Binding, const FMVVMFieldVariant& FieldVariant, EFieldVisibility FieldVisibilityFlags, const FProperty* AssignableTo, bool bDoObjectProperty);
-	TOptional<FFieldVariant> PassFilter(const FMVVMAvailableBinding& Binding, const UStruct* Struct, EFieldVisibility FieldVisibilityFlags, const FProperty* AssignableTo, bool bDoObjectProperty);
+	TOptional<FFieldVariant> PassFilter(const UBlueprint* Blueprint, const FMVVMAvailableBinding& Binding, const FMVVMFieldVariant& FieldVariant, EFieldVisibility FieldVisibilityFlags, const FProperty* AssignableTo, bool bDoObjectProperty);
+	TOptional<FFieldVariant> PassFilter(const UBlueprint* Blueprint, const FMVVMAvailableBinding& Binding, const UStruct* Struct, EFieldVisibility FieldVisibilityFlags, const FProperty* AssignableTo, bool bDoObjectProperty);
 
-	TOptional<FFieldVariant> PassFilter(const FMVVMAvailableBinding& Binding, const UStruct* Struct, EFieldVisibility FieldVisibilityFlags, const FProperty* AssignableTo, bool bDoObjectProperty)
+	TOptional<FFieldVariant> PassFilter(const UBlueprint* Blueprint, const FMVVMAvailableBinding& Binding, const UStruct* Struct, EFieldVisibility FieldVisibilityFlags, const FProperty* AssignableTo, bool bDoObjectProperty)
 	{
 		if (EnumHasAllFlags(FieldVisibilityFlags, EFieldVisibility::Readable) && !Binding.IsReadable())
 		{
@@ -42,10 +42,10 @@ namespace Private
 		}
 
 		FMVVMFieldVariant FieldVariant = BindingHelper::FindFieldByName(Struct, Binding.GetBindingName());
-		return PassFilter(Binding, FieldVariant, FieldVisibilityFlags, AssignableTo, bDoObjectProperty);
+		return PassFilter(Blueprint, Binding, FieldVariant, FieldVisibilityFlags, AssignableTo, bDoObjectProperty);
 	}
 
-	TOptional<FFieldVariant> PassFilter(const FMVVMAvailableBinding& Binding, const FMVVMFieldVariant& FieldVariant, EFieldVisibility FieldVisibilityFlags, const FProperty* AssignableTo, bool bDoObjectProperty)
+	TOptional<FFieldVariant> PassFilter(const UBlueprint* Blueprint, const FMVVMAvailableBinding& Binding, const FMVVMFieldVariant& FieldVariant, EFieldVisibility FieldVisibilityFlags, const FProperty* AssignableTo, bool bDoObjectProperty)
 	{
 		if (ensure(!FieldVariant.IsEmpty()))
 		{
@@ -93,7 +93,7 @@ namespace Private
 					}
 				}
 
-				if (!GetDefault<UMVVMDeveloperProjectSettings>()->IsFunctionAllowed(Function))
+				if (!GetDefault<UMVVMDeveloperProjectSettings>()->IsFunctionAllowed(Blueprint, Function))
 				{
 					return TOptional<FFieldVariant>();
 				}
@@ -144,7 +144,7 @@ namespace Private
 					}
 				}
 
-				if (!GetDefault<UMVVMDeveloperProjectSettings>()->IsPropertyAllowed(Property))
+				if (!GetDefault<UMVVMDeveloperProjectSettings>()->IsPropertyAllowed(Blueprint, Property))
 				{
 					return TOptional<FFieldVariant>();
 				}
@@ -187,11 +187,11 @@ TArray<FFieldVariant> FFieldIterator_Bindable::GetFields(const UStruct* Struct) 
 			TOptional<FFieldVariant> PassResult;
 			if (FilterFlags == EFilterFlag::All)
 			{
-				PassResult = Private::PassFilter(Value, Struct, FieldVisibilityFlags, AssignableTo, false);
+				PassResult = Private::PassFilter(WidgetBlueprint.Get(), Value, Struct, FieldVisibilityFlags, AssignableTo, false);
 			}
 			else
 			{
-				PassResult = Private::PassFilter(Value, Struct, EFieldVisibility::None, nullptr, false);
+				PassResult = Private::PassFilter(WidgetBlueprint.Get(), Value, Struct, EFieldVisibility::None, nullptr, false);
 			}
 			if (PassResult.IsSet())
 			{
@@ -539,11 +539,11 @@ FMVVMBlueprintPropertyPath SSourceBindingList::CreateBlueprintPropertyPath(SProp
 
 					if (FilterFlags == EFilterFlag::All)
 					{
-						bPassFilter = Private::PassFilter(Binding, OwnerClass, FieldIterator->GetFieldVisibilityFlags(), FieldIterator->GetAssignableTo(), true).IsSet();
+						bPassFilter = Private::PassFilter(WidgetBlueprint.Get(), Binding, OwnerClass, FieldIterator->GetFieldVisibilityFlags(), FieldIterator->GetAssignableTo(), true).IsSet();
 					}
 					else
 					{
-						bPassFilter = Private::PassFilter(Binding, OwnerClass, EFieldVisibility::None, nullptr, true).IsSet();
+						bPassFilter = Private::PassFilter(WidgetBlueprint.Get(), Binding, OwnerClass, EFieldVisibility::None, nullptr, true).IsSet();
 					}
 				}
 				break;
@@ -587,11 +587,11 @@ FMVVMBlueprintPropertyPath SSourceBindingList::CreateBlueprintPropertyPath(SProp
 
 			if (FilterFlags == EFilterFlag::All)
 			{
-				bPassFilter = Private::PassFilter(Binding, AccessorClass, FieldIterator->GetFieldVisibilityFlags(), FieldIterator->GetAssignableTo(), true).IsSet();
+				bPassFilter = Private::PassFilter(WidgetBlueprint.Get(), Binding, AccessorClass, FieldIterator->GetFieldVisibilityFlags(), FieldIterator->GetAssignableTo(), true).IsSet();
 			}
 			else
 			{
-				bPassFilter = Private::PassFilter(Binding, AccessorClass, EFieldVisibility::None, nullptr, true).IsSet();
+				bPassFilter = Private::PassFilter(WidgetBlueprint.Get(), Binding, AccessorClass, EFieldVisibility::None, nullptr, true).IsSet();
 			}
 			if (bPassFilter)
 			{

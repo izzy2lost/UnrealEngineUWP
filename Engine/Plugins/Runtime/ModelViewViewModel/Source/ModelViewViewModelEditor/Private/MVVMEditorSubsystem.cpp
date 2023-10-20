@@ -698,7 +698,7 @@ bool UMVVMEditorSubsystem::IsValidConversionFunction(const UWidgetBlueprint* Wid
 		return false;
 	}
 
-	return GetDefault<UMVVMDeveloperProjectSettings>()->IsConversionFunctionAllowed(Function);
+	return GetDefault<UMVVMDeveloperProjectSettings>()->IsConversionFunctionAllowed(WidgetBlueprint, Function);
 }
 
 bool UMVVMEditorSubsystem::IsSimpleConversionFunction(const UFunction* Function) const

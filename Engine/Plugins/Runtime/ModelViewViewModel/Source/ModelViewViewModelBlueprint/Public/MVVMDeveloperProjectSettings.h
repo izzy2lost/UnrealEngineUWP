@@ -71,9 +71,9 @@ public:
 
 
 	bool PropertyHasFiltering(const FProperty* Property) const;
-	bool IsPropertyAllowed(const FProperty* Property) const;
-	bool IsFunctionAllowed(const UFunction* Function) const;
-	bool IsConversionFunctionAllowed(const UFunction* Function) const;
+	bool IsPropertyAllowed(const UBlueprint* Context, const FProperty* Property) const;
+	bool IsFunctionAllowed(const UBlueprint* Context, const UFunction* Function) const;
+	bool IsConversionFunctionAllowed(const UBlueprint* Context, const UFunction* Function) const;
 
 	bool IsExecutionModeAllowed(EMVVMExecutionMode ExecutionMode) const
 	{
