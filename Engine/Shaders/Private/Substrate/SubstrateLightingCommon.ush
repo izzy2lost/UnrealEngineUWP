@@ -2,6 +2,12 @@
 
 #pragma once
 
+#ifndef SUBSTRATE_ENABLED
+	#define SUBSTRATE_ENABLED 1
+	#error SUBSTRATE_ENABLED needs to be defined
+#endif
+
+#if SUBSTRATE_ENABLED
 #ifdef USE_SUBSTRATE_FORWARD_LIGHTING_COMMON
 
 // Used by non-mobile path
@@ -303,3 +309,4 @@ void SubstrateEnvLightingCommon(
 }
 
 #endif // SUBSTRATE_ENV_LIGHTING_COMMON
+#endif // SUBSTRATE_ENABLED
