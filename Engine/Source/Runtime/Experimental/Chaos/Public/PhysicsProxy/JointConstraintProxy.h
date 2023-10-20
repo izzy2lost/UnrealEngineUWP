@@ -114,7 +114,7 @@ class TThreadedJointConstraintPhysicsProxyBase : protected FJointConstraintPhysi
 public:
 
 #define CHAOS_INNER_JOINT_PROPERTY(OuterProp, FuncName, Inner, InnerType)\
-	const InnerType& Get##FuncName() const { ReadRef([](const auto& Data){ return Data.Inner;}); }\
+	const InnerType& Get##FuncName() const { return ReadRef([](const auto& Data){ return Data.Inner;}); }\
 	void Set##FuncName(const InnerType& Val) { Write([&Val](auto& Data){ Data.Inner = Val;}); }\
 
 #include "Chaos/JointProperties.inl"
