@@ -91,6 +91,9 @@ struct POSESEARCH_API FPoseSearchDatabaseAnimationAssetBase
 	// [0, 0] represents the entire frame range of the original animation.
 	virtual FFloatInterval GetSamplingRange() const { return FFloatInterval(0.f, 0.f); }
 
+	virtual int64 GetEditorMemSize() const;
+	virtual int64 GetApproxCookedSize() const { return GetEditorMemSize(); }
+
 	// This allows users to enable or exclude animations from this database. Useful for debugging.
 	UPROPERTY(EditAnywhere, Category = "Settings", meta = (DisplayPriority = 1))
 	bool bEnabled = true;

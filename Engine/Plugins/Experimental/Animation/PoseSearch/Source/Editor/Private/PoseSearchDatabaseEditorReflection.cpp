@@ -168,6 +168,22 @@ void UPoseSearchDatabaseStatistics::Initialize(const UPoseSearchDatabase* PoseSe
 		// Memory Information
 			
 		{
+			uint32 SourceAnimAssetsSizeCookedEstimateInBytes = 0;
+			TSet<const UAnimationAsset*> Analyzed;
+			Analyzed.Reserve(PoseSearchDatabase->AnimationAssets.Num());
+			for (const FInstancedStruct& AnimAsset : PoseSearchDatabase->AnimationAssets)
+			{
+				if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAssetBase = AnimAsset.GetPtr<FPoseSearchDatabaseAnimationAssetBase>())
+				{
+					bool bAlreadyAnalyzed = false;
+					Analyzed.Add(DatabaseAnimationAssetBase->GetAnimationAsset(), &bAlreadyAnalyzed);
+					if (!bAlreadyAnalyzed && DatabaseAnimationAssetBase->GetAnimationAsset())
+					{
+						SourceAnimAssetsSizeCookedEstimateInBytes += DatabaseAnimationAssetBase->GetApproxCookedSize();
+					}
+				}
+			}
+
 			const uint32 ValuesBytesSize = SearchIndex.Values.GetAllocatedSize();
 			const uint32 PCAValuesBytesSize = SearchIndex.PCAValues.GetAllocatedSize();
 			const uint32 KDTreeBytesSize = SearchIndex.KDTree.GetAllocatedSize();
@@ -178,7 +194,7 @@ void UPoseSearchDatabaseStatistics::Initialize(const UPoseSearchDatabase* PoseSe
 			const uint32 PoseMetadataBytesSize = SearchIndex.PoseMetadata.GetAllocatedSize();
 			const uint32 AssetsBytesSize = SearchIndex.Assets.GetAllocatedSize();
 			const uint32 OtherBytesSize = SearchIndex.PCAProjectionMatrix.GetAllocatedSize() + SearchIndex.Mean.GetAllocatedSize() + SearchIndex.WeightsSqrt.GetAllocatedSize();
-			const uint32 EstimatedDatabaseBytesSize = ValuesBytesSize + PCAValuesBytesSize + KDTreeBytesSize + VPTreeBytesSize + ValuesVectorToPoseIndexesBytesSize + PCAValuesVectorToPoseIndexesBytesSize + PoseMetadataBytesSize + AssetsBytesSize + OtherBytesSize;
+			const uint32 EstimatedDatabaseBytesSize = ValuesBytesSize + PCAValuesBytesSize + KDTreeBytesSize + VPTreeBytesSize + ValuesVectorToPoseIndexesBytesSize + PCAValuesVectorToPoseIndexesBytesSize + PoseMetadataBytesSize + AssetsBytesSize + OtherBytesSize + SourceAnimAssetsSizeCookedEstimateInBytes;
 				
 			ValuesSize = FText::AsMemory(ValuesBytesSize);
 			PCAValuesSize = FText::AsMemory(PCAValuesBytesSize);
@@ -187,6 +203,7 @@ void UPoseSearchDatabaseStatistics::Initialize(const UPoseSearchDatabase* PoseSe
 			PoseMetadataSize = FText::AsMemory(PoseMetadataBytesSize);
 			AssetsSize = FText::AsMemory(AssetsBytesSize);
 			EstimatedDatabaseSize = FText::AsMemory(EstimatedDatabaseBytesSize);
+			SourceAnimAssetsSizeCookedEstimate = FText::AsMemory(SourceAnimAssetsSizeCookedEstimateInBytes);
 		}
 	}
 }

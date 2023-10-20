@@ -14,6 +14,7 @@
 #include "PoseSearch/PoseSearchFeatureChannel.h"
 #include "PoseSearch/PoseSearchHistory.h"
 #include "PoseSearch/PoseSearchSchema.h"
+#include "Serialization/ArchiveCountMem.h"
 #include "UObject/ObjectSaveContext.h"
 
 #if WITH_EDITOR
@@ -306,10 +307,20 @@ private:
 } // namespace UE::PoseSearch
 
 //////////////////////////////////////////////////////////////////////////
+// FPoseSearchDatabaseAnimationAssetBase
+#if WITH_EDITORONLY_DATA
+int64 FPoseSearchDatabaseAnimationAssetBase::GetEditorMemSize() const
+{
+	FArchiveCountMem EditorMemCount(GetAnimationAsset());
+	return EditorMemCount.GetNum();
+}
+#endif // WITH_EDITORONLY_DATA
+
+//////////////////////////////////////////////////////////////////////////
 // FPoseSearchDatabaseSequence
 UAnimationAsset* FPoseSearchDatabaseSequence::GetAnimationAsset() const
 {
-	return Sequence;
+	return Sequence.Get();
 }
 
 #if WITH_EDITORONLY_DATA
@@ -453,7 +464,7 @@ FVector FPoseSearchDatabaseBlendSpace::BlendParameterForSampleRanges(int32 Horiz
 // FPoseSearchDatabaseAnimComposite
 UAnimationAsset* FPoseSearchDatabaseAnimComposite::GetAnimationAsset() const
 {
-	return AnimComposite;
+	return AnimComposite.Get();
 }
 
 #if WITH_EDITORONLY_DATA
@@ -485,7 +496,7 @@ bool FPoseSearchDatabaseAnimComposite::IsRootMotionEnabled() const
 // FPoseSearchDatabaseAnimMontage
 UAnimationAsset* FPoseSearchDatabaseAnimMontage::GetAnimationAsset() const
 {
-	return AnimMontage;
+	return AnimMontage.Get();
 }
 
 #if WITH_EDITORONLY_DATA

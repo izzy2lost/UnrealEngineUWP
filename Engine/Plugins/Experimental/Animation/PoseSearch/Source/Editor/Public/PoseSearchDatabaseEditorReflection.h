@@ -231,7 +231,7 @@ public:
 	UPROPERTY(VisibleAnywhere, Category = "Principal Component Analysis Information", meta = (Units = "Percent"))
 	float ExplainedVariance;
 
-	// aggregated total memory used by this database.
+	// aggregated total memory used by this database (including animation assets).
 	UPROPERTY(VisibleAnywhere, Category = "Memory Information")
 	FText EstimatedDatabaseSize;
 
@@ -258,6 +258,10 @@ public:
 	// partial memory size used to animation data sub ranges, mirror state, blend parameters.
 	UPROPERTY(VisibleAnywhere, Category = "Memory Information")
 	FText AssetsSize;
+
+	// partial memory size used by the cooked animation assets.
+	UPROPERTY(VisibleAnywhere, Category = "Memory Information")
+ 	FText SourceAnimAssetsSizeCookedEstimate;
 
 	/** Initialize statistics given a database */
 	void Initialize(const UPoseSearchDatabase* PoseSearchDatabase);
