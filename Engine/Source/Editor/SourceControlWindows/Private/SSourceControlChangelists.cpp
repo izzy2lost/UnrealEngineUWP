@@ -2360,6 +2360,8 @@ void SSourceControlChangelistsWidget::OnSubmitChangelist()
 
 				TSharedPtr<SNotificationItem> Notification = FSlateNotificationManager::Get().AddNotification(Info);
 				Notification->SetCompletionState(SNotificationItem::CS_Success);
+
+				this->OnRefreshUI(ERefreshFlags::SourceControlChangelists);
 				return;
 			}
 			
@@ -2375,6 +2377,8 @@ void SSourceControlChangelistsWidget::OnSubmitChangelist()
 
 				TSharedPtr<SNotificationItem> Notification = FSlateNotificationManager::Get().AddNotification(Info);
 				Notification->SetCompletionState(SNotificationItem::CS_Fail);
+
+				this->OnRefreshUI(ERefreshFlags::SourceControlChangelists);
 				return;
 			}
 
