@@ -358,6 +358,8 @@ void SetupMobileSkyReflectionUniformParameters(FSkyLightSceneProxy* SkyLight, FM
 	float Brightness = 0.f;
 	float SkyMaxMipIndex = 0.f;
 	FTexture* CaptureTexture = GBlackTextureCube;
+	FTexture* CaptureTextureBlend = GBlackTextureCube;
+	float BlendFraction = 0.f;
 
 	bool bSkyLightIsDynamic = false;
 	if (SkyLight && SkyLight->ProcessedTexture)
@@ -367,12 +369,20 @@ void SetupMobileSkyReflectionUniformParameters(FSkyLightSceneProxy* SkyLight, FM
 		SkyMaxMipIndex = FMath::Log2(static_cast<float>(CaptureTexture->GetSizeX()));
 		Brightness = SkyLight->AverageBrightness;
 		bSkyLightIsDynamic = !SkyLight->bHasStaticLighting && !SkyLight->bWantsStaticShadowing;
+
+		BlendFraction = SkyLight->BlendFraction;
+		if (BlendFraction > 0.0 && SkyLight->BlendDestinationProcessedTexture)
+		{
+			CaptureTextureBlend = SkyLight->BlendDestinationProcessedTexture;
+		}
 	}
 	
 	//To keep ImageBasedReflectionLighting coherence with PC, use AverageBrightness instead of InvAverageBrightness to calculate the IBL contribution
-	Parameters.Params = FVector4f(Brightness, SkyMaxMipIndex, bSkyLightIsDynamic ? 1.0f : 0.0f, 0.f);
+	Parameters.Params = FVector4f(Brightness, SkyMaxMipIndex, bSkyLightIsDynamic ? 1.0f : 0.0f, BlendFraction);
 	Parameters.Texture = CaptureTexture->TextureRHI;
 	Parameters.TextureSampler = CaptureTexture->SamplerStateRHI;
+	Parameters.TextureBlend = CaptureTextureBlend->TextureRHI;
+	Parameters.TextureBlendSampler = CaptureTextureBlend->SamplerStateRHI;
 }
 
 void FMobileSceneRenderer::RenderMobileBasePass(FRHICommandList& RHICmdList, const FViewInfo& View, const FInstanceCullingDrawParams* InstanceCullingDrawParams)

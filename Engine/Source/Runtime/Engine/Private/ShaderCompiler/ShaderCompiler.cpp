@@ -7553,6 +7553,8 @@ void GlobalBeginCompileShader(
 		SET_SHADER_DEFINE(Input.Environment, RAYMISSSHADER,			Target.Frequency == SF_RayMiss);
 	}
 
+	SET_SHADER_DEFINE(Input.Environment, FORWARD_SHADING_FORCES_SKYLIGHT_CUBEMAPS_BLENDING, ForwardShadingForcesSkyLightCubemapBlending(ShaderPlatform) ? 1 : 0);
+
 	// Enables HLSL 2021
 	uint32 EnablesHLSL2021ByDefault = FDataDrivenShaderPlatformInfo::GetEnablesHLSL2021ByDefault(EShaderPlatform(Target.Platform));
 	if((EnablesHLSL2021ByDefault == uint32(1) && DebugGroupName == TEXT("Global")) ||

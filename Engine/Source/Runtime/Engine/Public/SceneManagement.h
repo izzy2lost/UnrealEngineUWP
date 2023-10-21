@@ -1096,6 +1096,8 @@ BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FMobileReflectionCaptureShaderParameters,EN
 	SHADER_PARAMETER(FVector4f, Params) // x - inv average brightness, y - sky cubemap max mip, z - unused, w - brightness of reflection capture
 	SHADER_PARAMETER_TEXTURE(TextureCube, Texture)
 	SHADER_PARAMETER_SAMPLER(SamplerState, TextureSampler)
+	SHADER_PARAMETER_TEXTURE(TextureCube, TextureBlend)			// Only used when this refelction is a sky light
+	SHADER_PARAMETER_SAMPLER(SamplerState, TextureBlendSampler)	// Idem
 END_GLOBAL_SHADER_PARAMETER_STRUCT()
 
 class FDefaultMobileReflectionCaptureUniformBuffer : public TUniformBuffer<FMobileReflectionCaptureShaderParameters>

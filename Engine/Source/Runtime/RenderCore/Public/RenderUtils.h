@@ -320,6 +320,9 @@ RENDERCORE_API bool IsUsingDBuffers(const FStaticShaderPlatform Platform);
 /** Returns if ForwardShading is enabled. Only valid for the current platform (otherwise call ITargetPlatform::UsesForwardShading()). */
 RENDERCORE_API bool IsForwardShadingEnabled(const FStaticShaderPlatform Platform);
 
+/** Return true if all forward shaded material should blend the interpolated sky boxes for higher quality. */
+RENDERCORE_API bool ForwardShadingForcesSkyLightCubemapBlending(const FStaticShaderPlatform Platform);
+
 /** Returns if the GBuffer is used. Only valid for the current platform. */
 RENDERCORE_API bool IsUsingGBuffers(const FStaticShaderPlatform Platform);
 

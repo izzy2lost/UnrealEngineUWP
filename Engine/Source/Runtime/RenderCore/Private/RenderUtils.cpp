@@ -1960,3 +1960,15 @@ bool DoesPlatformSupportLumenGI(EShaderPlatform Platform, bool bSkipProjectCheck
 		&& FDataDrivenShaderPlatformInfo::GetSupportsLumenGI(Platform)
 		&& !IsForwardShadingEnabled(Platform);
 }
+
+static TAutoConsoleVariable<int32> CVarForwardShadingForceSkyBoxBlending(
+	TEXT("r.ForwardShading.ForceSkyLightCubemapBlending"),
+	0,
+	TEXT("Forces in shader sky box blending for forward shading. More expenssive but higher quality. This is similar to having Blend Sky Light Cubemaps = true on all forward materials."),
+	ECVF_ReadOnly | ECVF_RenderThreadSafe);
+
+bool ForwardShadingForcesSkyLightCubemapBlending(const FStaticShaderPlatform Platform)
+{
+	static FShaderPlatformCachedIniValue<int32> CVar(TEXT("r.ForwardShading.ForceSkyLightCubemapBlending"));
+	return CVar.Get(Platform) > 0;
+}

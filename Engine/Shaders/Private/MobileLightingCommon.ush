@@ -308,6 +308,14 @@ half3 GetMobileSkyLightReflection(half3 ReflectionVector, half Roughness, half C
 {
 	half AbsoluteSpecularMip = ComputeReflectionCaptureMipFromRoughness(Roughness, CubemapMaxMip);
 	half4 Reflection = MobileReflectionCapture.Texture.SampleLevel(MobileReflectionCapture.TextureSampler, ReflectionVector, AbsoluteSpecularMip);
+#if FORWARD_SHADING_FORCES_SKYLIGHT_CUBEMAPS_BLENDING
+	float BlendFraction = MobileReflectionCapture.Params.w;
+	if (BlendFraction > 0.0f)
+	{
+		half4 ReflectionBlend = MobileReflectionCapture.TextureBlend.SampleLevel(MobileReflectionCapture.TextureBlendSampler, ReflectionVector, AbsoluteSpecularMip);
+		Reflection = lerp(Reflection, ReflectionBlend, BlendFraction.xxxx);
+	}
+#endif
 	return Reflection.rgb * ResolvedView.SkyLightColor.rgb;
 }
 #endif

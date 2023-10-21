@@ -1661,6 +1661,11 @@ void ShaderMapAppendKeyString(EShaderPlatform Platform, FString& KeyString)
 		KeyString += TEXT("_UnInt");
 	}
 
+	if (ForwardShadingForcesSkyLightCubemapBlending(Platform))
+	{
+		KeyString += TEXT("_FwdSkyBlnd");
+	}
+
 	if (IsMobilePlatform(Platform))
 	{
 		{

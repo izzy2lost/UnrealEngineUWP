@@ -1325,6 +1325,8 @@ void FReflectionCaptureProxy::UpdateMobileUniformBuffer(FRHICommandListBase& RHI
 	Parameters.Params = FVector4f(EncodedHDRAverageBrightness, 0.f, 0.0f, Brightness);
 	Parameters.Texture = CaptureTexture->TextureRHI;
 	Parameters.TextureSampler = CaptureTexture->SamplerStateRHI;
+	Parameters.TextureBlend = Parameters.Texture;
+	Parameters.TextureBlendSampler = Parameters.TextureSampler;
 
 	if (MobileUniformBuffer.GetReference())
 	{

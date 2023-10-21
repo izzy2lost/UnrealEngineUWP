@@ -1714,6 +1714,8 @@ void FDefaultMobileReflectionCaptureUniformBuffer::InitRHI(FRHICommandListBase& 
 	Parameters.Params = FVector4f(1.f, 0.f, 0.f, 0.f);
 	Parameters.Texture = GBlackTextureCube->TextureRHI;
 	Parameters.TextureSampler = GBlackTextureCube->SamplerStateRHI;
+	Parameters.TextureBlend = Parameters.Texture;
+	Parameters.TextureBlendSampler = Parameters.TextureSampler;
 	SetContentsNoUpdate(Parameters);
 	Super::InitRHI(RHICmdList);
 }
