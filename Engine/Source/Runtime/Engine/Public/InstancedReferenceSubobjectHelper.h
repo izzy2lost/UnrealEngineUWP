@@ -124,7 +124,7 @@ public:
 			{
 				FInstancedPropertyPath RootPropertyPath(Prop, ArrayIdx);
 				const uint8* ValuePtr = Prop->ContainerPtrToValuePtr<uint8>(Container, ArrayIdx);
-				ForEachSubObject(RootPropertyPath, Container, ValuePtr, [&OutObjects](const FInstancedSubObjRef& Ref)
+				ForEachInstancedSubObject<const void*>(RootPropertyPath, ValuePtr, [&OutObjects](const FInstancedSubObjRef& Ref, const void*)
 				{
 					if (!OutObjects.Contains(Ref))
 					{
@@ -146,6 +146,4 @@ public:
 
 	template<typename T>
 	static void ForEachInstancedSubObject(FInstancedPropertyPath& PropertyPath, T ContainerAddress, TFunctionRef<void(const FInstancedSubObjRef& Ref, T PropertyValueAddress)> ObjRefFunc);
-
-	static ENGINE_API void ForEachSubObject(FInstancedPropertyPath& PropertyPath, const UObject* Outer, const void* ContainerAddress, TFunctionRef<void(const FInstancedSubObjRef& Ref)> ObjRefFunc);
 };
