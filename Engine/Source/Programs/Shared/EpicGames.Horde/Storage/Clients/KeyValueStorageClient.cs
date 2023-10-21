@@ -1,0 +1,101 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+using System;
+using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
+using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
+
+namespace EpicGames.Horde.Storage.Clients
+{
+	/// <summary>
+	/// Base class for storage clients that wrap a diirect key/value type store without any merging/splitting.
+	/// </summary>
+	abstract class KeyValueStorageClient : IStorageClient
+	{
+		class Handle : BlobHandle
+		{
+			readonly KeyValueStorageClient _outer;
+			readonly BlobLocator _locator;
+
+			public Handle(KeyValueStorageClient outer, BlobLocator locator)
+			{
+				_outer = outer;
+				_locator = locator;
+			}
+
+			public override ValueTask<BlobData> ReadAsync(CancellationToken cancellationToken = default) => _outer.ReadBlobAsync(_locator, cancellationToken);
+
+			public override bool TryGetLocator([NotNullWhen(true)] out BlobLocator locator)
+			{
+				locator = _locator;
+				return true;
+			}
+		}
+
+		/// <inheritdoc/>
+		public abstract bool SupportsRedirects { get; }
+
+		/// <inheritdoc/>
+		public void Dispose()
+		{
+			Dispose(true);
+			GC.SuppressFinalize(this);
+		}
+
+		protected virtual void Dispose(bool disposing)
+		{
+		}
+
+		#region Blobs
+
+		/// <inheritdoc/>
+		public virtual BlobHandle CreateBlobHandle(BlobLocator locator) => new Handle(this, locator);
+
+		/// <inheritdoc/>
+		public virtual IStorageWriter CreateWriter(string? basePath = null) => new DefaultStorageWriter(this, basePath);
+
+		/// <inheritdoc/>
+		public abstract ValueTask<BlobData> ReadBlobAsync(BlobLocator locator, CancellationToken cancellationToken = default);
+
+		/// <inheritdoc/>
+		public abstract ValueTask<BlobHandle> WriteBlobAsync(BlobType type, Stream stream, IReadOnlyList<BlobHandle> references, string? basePath = null, CancellationToken cancellationToken = default);
+
+		/// <inheritdoc/>
+		public abstract ValueTask<Uri?> TryGetReadRedirectAsync(BlobLocator locator, CancellationToken cancellationToken = default);
+
+		/// <inheritdoc/>
+		public abstract ValueTask<(BlobLocator, Uri)?> TryGetWriteRedirectAsync(string? prefix = null, CancellationToken cancellationToken = default);
+
+		#endregion
+
+		#region Aliases
+
+		/// <inheritdoc/>
+		public abstract Task AddAliasAsync(string name, BlobHandle handle, int rank = 0, ReadOnlyMemory<byte> data = default, CancellationToken cancellationToken = default);
+
+		/// <inheritdoc/>
+		public abstract Task RemoveAliasAsync(string name, BlobHandle handle, CancellationToken cancellationToken = default);
+
+		/// <inheritdoc/>
+		public abstract Task<BlobAlias[]> FindAliasesAsync(string name, int? maxResults = null, CancellationToken cancellationToken = default);
+
+		#endregion
+
+		#region Refs
+
+		/// <inheritdoc/>
+		public abstract Task<BlobHandle?> TryReadRefAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default);
+
+		/// <inheritdoc/>
+		public abstract Task WriteRefAsync(RefName name, BlobHandle handle, RefOptions? options = null, CancellationToken cancellationToken = default);
+
+		/// <inheritdoc/>
+		public abstract Task<bool> DeleteRefAsync(RefName name, CancellationToken cancellationToken = default);
+
+		#endregion
+
+		public abstract void GetStats(StorageStats stats);
+	}
+}

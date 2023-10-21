@@ -6,6 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using EpicGames.Core;
 using Microsoft.Extensions.Logging;
 
 namespace EpicGames.Horde.Storage
@@ -363,11 +364,8 @@ namespace EpicGames.Horde.Storage
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		public static async ValueTask<BlobHandle> WriteBlobAsync(this IStorageClient store, string? basePath, BlobType type, ReadOnlyMemory<byte> data, IReadOnlyList<BlobHandle> references, CancellationToken cancellationToken = default)
 		{
-			await using (IStorageWriter writer = store.CreateWriter(basePath))
-			{
-				data.CopyTo(writer.GetOutputBuffer(0, data.Length));
-				return await writer.WriteBlobAsync(type, data.Length, references, cancellationToken);
-			}
+			using ReadOnlyMemoryStream stream = new ReadOnlyMemoryStream(data);
+			return await store.WriteBlobAsync(type, stream, references, basePath, cancellationToken);
 		}
 
 		#endregion

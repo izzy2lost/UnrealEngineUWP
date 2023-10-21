@@ -185,6 +185,13 @@ namespace Horde.Server.Storage
 			public void GetStats(StorageStats stats) => _backend.GetStats(stats);
 
 			/// <inheritdoc/>
+			public async ValueTask<BlobData> ReadBlobAsync(BlobLocator locator, CancellationToken cancellationToken = default)
+			{
+				BlobHandle handle = CreateBlobHandle(locator);
+				return await handle.ReadAsync(cancellationToken);
+			}
+
+			/// <inheritdoc/>
 			public async ValueTask<BlobHandle> WriteBlobAsync(BlobType type, Stream stream, IReadOnlyList<BlobHandle> references, string? basePath = null, CancellationToken cancellationToken = default)
 			{
 				string path = await _backend.WriteAsync(stream, basePath, cancellationToken);

@@ -77,6 +77,9 @@ namespace EpicGames.Horde.Storage.Clients
 		public IStorageWriter CreateWriter(string? basePath = null) => _inner.CreateWriter(basePath);
 
 		/// <inheritdoc/>
+		public ValueTask<BlobData> ReadBlobAsync(BlobLocator locator, CancellationToken cancellationToken = default) => _inner.ReadBlobAsync(locator, cancellationToken);
+
+		/// <inheritdoc/>
 		public ValueTask<BlobHandle> WriteBlobAsync(BlobType type, Stream stream, IReadOnlyList<BlobHandle> references, string? basePath = null, CancellationToken cancellationToken = default) => _inner.WriteBlobAsync(type, stream, references, basePath, cancellationToken);
 
 		/// <inheritdoc/>
