@@ -126,6 +126,7 @@ class FScreenSpaceShadowsBendCS : public FGlobalShader
 		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZEY"), 1);
 		OutEnvironment.SetDefine(TEXT("FORCE_DEPTH_TEXTURE_READS"), 1);
 		OutEnvironment.SetDefine(TEXT("PLATFORM_SUPPORTS_TYPED_UAV_LOAD"), (int32)RHISupports4ComponentUAVReadWrite(Parameters.Platform));
+		OutEnvironment.SetDefine(TEXT("BEND_SSS"), 1);
 
 		OutEnvironment.CompilerFlags.Add(CFLAG_ForceDXC);
 	}

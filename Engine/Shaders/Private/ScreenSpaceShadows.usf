@@ -4,6 +4,8 @@
 	ScreenSpaceShadows.usf
 =============================================================================*/
 
+#if BEND_SSS
+
 #include "/Engine/Public/Platform.ush"
 
 #define WAVE_SIZE 64
@@ -41,6 +43,8 @@ DispatchParameters SetupBendDispatchParameters(float NearDepthVal, float FarDept
 
 	return Parameters;
 }
+
+#endif // BEND_SSS
 
 #include "ScreenSpaceShadowRayCast.ush"
 
@@ -141,6 +145,8 @@ void ScreenSpaceShadowsCS(
 	RWShadowFactors[DispatchThreadId.xy] = float2(Result, SceneDepth);
 }
 
+#if BEND_SSS
+
 [numthreads(THREADGROUP_SIZEX, THREADGROUP_SIZEY, 1)]
 void ScreenSpaceShadowsBendCS(
 	uint3 GroupId : SV_GroupID,
@@ -155,6 +161,8 @@ void ScreenSpaceShadowsBendCS(
 
 	OutputTexture[ResultXY] = 1 - (1 - Result) * ContactShadowCastingIntensity;
 }
+
+#endif // BEND_SSS
 
 #ifdef UPSAMPLE_PASS
 
