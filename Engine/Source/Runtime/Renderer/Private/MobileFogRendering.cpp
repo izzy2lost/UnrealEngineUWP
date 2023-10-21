@@ -211,12 +211,20 @@ void FMobileSceneRenderer::RenderFog(FRHICommandList& RHICmdList, const FViewInf
 	SetGraphicsPipelineState(RHICmdList, GraphicsPSOInit, 0);
 	
 	// Use height fog start distance by default and fallback to AP distance
-	float FogStartDistance = GetViewFogCommonStartDistance(View, bShouldRenderVolumetricFog);
-	if (!bUseHeightFog)
+	float FogStartDistance = GetFogDefaultStartDistance();
+	if (!bFogHasComposedLocalFogVolumes) // Local fog volume do not have any start distance at the moment.
 	{
-		FSkyAtmosphereRenderSceneInfo& SkyInfo = *Scene->GetSkyAtmosphereSceneInfo();
-		const FSkyAtmosphereSceneProxy& SkyAtmosphereSceneProxy = SkyInfo.GetSkyAtmosphereSceneProxy();
-		FogStartDistance = GetValidAerialPerspectiveStartDepthInCm(View, SkyAtmosphereSceneProxy);
+		if (bUseHeightFog)
+		{
+			FogStartDistance = GetViewFogCommonStartDistance(View, bShouldRenderVolumetricFog);
+		}
+		if (bUseAerialPerspective)
+		{
+			FSkyAtmosphereRenderSceneInfo& SkyInfo = *Scene->GetSkyAtmosphereSceneInfo();
+			const FSkyAtmosphereSceneProxy& SkyAtmosphereSceneProxy = SkyInfo.GetSkyAtmosphereSceneProxy();
+			const float AerialPerspectiveStartDepthInCm = GetValidAerialPerspectiveStartDepthInCm(View, SkyAtmosphereSceneProxy);
+			FogStartDistance = bUseHeightFog ? FMath::Min(FogStartDistance, AerialPerspectiveStartDepthInCm) : AerialPerspectiveStartDepthInCm;
+		}
 	}
 		
 	float StartDepthZ = 0.1;	

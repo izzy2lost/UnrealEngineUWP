@@ -468,6 +468,10 @@ bool ShouldRenderFog(const FSceneViewFamily& Family)
 		&& !EngineShowFlags.StationaryLightOverlap 
 		&& !EngineShowFlags.LightMapDensity;
 }
+float GetFogDefaultStartDistance()
+{
+	return 30.0f;
+}
 
 float GetViewFogCommonStartDistance(const FViewInfo& View, bool bShouldRenderVolumetricFog)
 {
@@ -476,6 +480,6 @@ float GetViewFogCommonStartDistance(const FViewInfo& View, bool bShouldRenderVol
 
 	// The fog can be set to start at a certain euclidean distance.
 	// clamp the value to be behind the near plane z, according to the smallest distance between volumetric fog and height fog (if they are enabled). 
-	float FogCommonStartDistance = FMath::Max(30.0f, FMath::Min(ExpFogStartDistance, VolFogStartDistance));
+	float FogCommonStartDistance = FMath::Max(GetFogDefaultStartDistance(), FMath::Min(ExpFogStartDistance, VolFogStartDistance));
 	return FogCommonStartDistance;
 }

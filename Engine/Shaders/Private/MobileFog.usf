@@ -41,7 +41,8 @@ void MobileFogPS(
 {
 	ResolvedView = ResolveView();
 	half4 FinalFog = half4(0,0,0,1);
-	float SceneDepth = CalcSceneDepth(TexCoord);
+	float DeviceZ = LookupDeviceZ(TexCoord);
+	float SceneDepth = ConvertFromDeviceZ(DeviceZ);
 	float3 WorldPositionRelativeToCamera = ScreenVector.xyz * SceneDepth;
 	float3 WorldPosition = WorldPositionRelativeToCamera + ResolvedView.TranslatedWorldCameraOrigin - LWCHackToFloat(ResolvedView.PreViewTranslation);
 
@@ -66,10 +67,8 @@ void MobileFogPS(
 #endif
 
 #if PERMUTATION_SUPPORT_AERIAL_PERSPECTIVE
-	if (ResolvedView.SkyAtmosphereApplyCameraAerialPerspectiveVolume > 0.0f)
+	if (ResolvedView.SkyAtmosphereApplyCameraAerialPerspectiveVolume > 0.0f && (DeviceZ != FarDepthValue))
 	{
-		
-
 	//	float4 NDCPosition = LWCMultiply(MakeLWCVector4(WorldPosition, 1.0f), PrimaryView.WorldToClip);		// LWC_TODO: MakeLWCVector4 seems broken
 		float4 NDCPosition = LWCMultiply(LWCPromote(float4(WorldPosition, 1.0f)), PrimaryView.WorldToClip);	// Using LWCPromote make the math work as expected.
 
