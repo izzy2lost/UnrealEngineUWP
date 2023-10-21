@@ -783,7 +783,7 @@ enum class EBufferUsageFlags : uint32
 	/**
 	 * Buffer contains opaque ray tracing acceleration structure data.
 	 * Resources with this flag can't be bound directly to any shader stage and only can be used with ray tracing APIs.
-	 * This flag is mutually exclusive with all other buffer flags except BUF_Static.
+	 * This flag is mutually exclusive with all other buffer flags except Static, ReservedResource and ImmediateCommit.
 	*/
 	AccelerationStructure   = 1 << 13,
 
@@ -811,6 +811,15 @@ enum class EBufferUsageFlags : uint32
 
 	/** Buffer can be used as uniform buffer on platforms that do support uniform buffer objects. */
 	UniformBuffer = 1 << 21,
+
+	/**
+	* EXPERIMENTAL: Allow the buffer to be created as a reserved (AKA tiled/sparse/virtual) resource internally, without physical memory backing.
+	* May not be used with Dynamic and other buffer flags that prevent the resource from being allocated in local GPU memory.
+	*/
+	ReservedResource = 1 << 22,
+
+	/** EXPERIMENTAL: Used with ReservedResource flag to immediately allocate and commit memory on creation. May use N small physical memory allocations instead of a single large one. */
+	ImmediateCommit = 1 << 23,
 
 	// Helper bit-masks
 	AnyDynamic = (Dynamic | Volatile),
@@ -841,6 +850,8 @@ ENUM_CLASS_FLAGS(EBufferUsageFlags);
 #define BUF_MultiGPUGraphIgnore    EBufferUsageFlags::MultiGPUGraphIgnore
 #define BUF_NullResource           EBufferUsageFlags::NullResource
 #define BUF_UniformBuffer          EBufferUsageFlags::UniformBuffer
+#define BUF_ReservedResource       EBufferUsageFlags::ReservedResource
+#define BUF_ImmediateCommit        EBufferUsageFlags::ImmediateCommit
 
 enum class EGpuVendorId : uint32
 {
@@ -1004,7 +1015,10 @@ enum class ETextureCreateFlags : uint64
 	External                		  = 1ull << 34,
 	/** Don't automatically transfer across GPUs in multi-GPU scenarios.  For example, if you are transferring it yourself manually. */
 	MultiGPUGraphIgnore				  = 1ull << 35,
-	/** EXPERIMENTAL: Allow the texture to be created as a reserved (AKA tiled/sparse/virtual) resource internally, without physical memory backing. */
+	/**
+	* EXPERIMENTAL: Allow the texture to be created as a reserved (AKA tiled/sparse/virtual) resource internally, without physical memory backing. 
+	* May not be used with Dynamic and other buffer flags that prevent the resource from being allocated in local GPU memory.
+	*/
 	ReservedResource                  = 1ull << 37,
 	/** EXPERIMENTAL: Used with ReservedResource flag to immediately allocate and commit memory on creation. May use N small physical memory allocations instead of a single large one. */
 	ImmediateCommit                   = 1ull << 38,

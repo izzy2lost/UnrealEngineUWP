@@ -414,6 +414,13 @@ public:
 	*/
 	virtual FBufferRHIRef RHICreateBuffer(FRHICommandListBase& RHICmdList, FRHIBufferDesc const& Desc, ERHIAccess ResourceState, FRHIResourceCreateInfo& CreateInfo) override final
 	{
+		if (EnumHasAnyFlags(Desc.Usage, BUF_ReservedResource))
+		{
+			RHI_VALIDATION_CHECK(GRHIGlobals.ReservedResources.Supported, TEXT("Reserved buffers are not supported by current RHI"));
+			RHI_VALIDATION_CHECK(!EnumHasAnyFlags(Desc.Usage, BUF_AnyDynamic), TEXT("Reserved buffers must not be dynamic"));
+			RHI_VALIDATION_CHECK(Desc.Stride <= GRHIGlobals.ReservedResources.TileSizeInBytes, TEXT("Reserved buffer stride must not be greater than reserved resource tile size"));
+		}
+
 		if (CreateInfo.ResourceArray && RHICmdList.IsInsideRenderPass())
 		{
 			FString Msg = FString::Printf(TEXT("Creating buffers with initial data during a render pass is not supported, buffer name: \"%s\""), CreateInfo.DebugName);

@@ -9,5 +9,6 @@ class FRHIReservedResourceTests
 public:
 
 	static bool Test_ReservedResource_CreateTexture(FRHICommandListImmediate& RHICmdList);
+	static bool Test_ReservedResource_CreateBuffer(FRHICommandListImmediate& RHICmdList);
 };
 

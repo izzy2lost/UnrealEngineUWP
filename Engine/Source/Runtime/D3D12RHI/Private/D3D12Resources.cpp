@@ -156,11 +156,19 @@ FD3D12Resource::~FD3D12Resource()
 
 void FD3D12Resource::CommitReservedResource()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(CommitReservedResource);
+
 	check(Desc.bReservedResource);
 	check(ReservedResourceData.IsValid());
 	checkf(ReservedResourceData->BackingHeaps.IsEmpty(), TEXT("Reserved resource is already committed"));
-	checkf(Desc.Dimension == D3D12_RESOURCE_DIMENSION_TEXTURE2D, TEXT("CommitReservedResource is currently only implemented for 2D textures"));
-	checkf(Desc.MipLevels == 1, TEXT("CommitReservedResource is currently only implemented for textures without mips"));
+	checkf(Desc.Dimension == D3D12_RESOURCE_DIMENSION_BUFFER
+		|| Desc.Dimension == D3D12_RESOURCE_DIMENSION_TEXTURE2D, 
+		TEXT("CommitReservedResource is currently only implemented for 2D textures and buffers"));
+
+	if (Desc.Dimension != D3D12_RESOURCE_DIMENSION_BUFFER)
+	{
+		checkf(Desc.MipLevels == 1, TEXT("CommitReservedResource is currently only implemented for textures without mips"));
+	}
 
 	uint32 D3DResourceNumTiles = 0;
 	D3D12_PACKED_MIP_INFO PackedMipDesc = {};
@@ -176,7 +184,9 @@ void FD3D12Resource::CommitReservedResource()
 
 	D3DDevice->GetResourceTiling(GetResource(), &D3DResourceNumTiles, &PackedMipDesc, &TileShape, &NumSubresourceTilings, FirstSubresource, &SubresourceTiling);
 
-	const uint64 TileSizeInBytes = 65536; // reserved resource tiles are always 64KB
+	static constexpr uint64 TileSizeInBytes = GRHIGlobals.ReservedResources.TileSizeInBytes;
+	static_assert(TileSizeInBytes == 65536, "Reserved resource tiles are expected to always be 64KB");
+
 	const uint64 TotalSize = D3DResourceNumTiles * TileSizeInBytes;
 	const uint64 MaxHeapSize = uint64(CVarD3D12ReservedResourceHeapSizeMB.GetValueOnAnyThread()) * 1024 * 1024;
 	const uint64 NumHeaps = FMath::DivideAndRoundUp(TotalSize, MaxHeapSize);
@@ -208,7 +218,13 @@ void FD3D12Resource::CommitReservedResource()
 	uint32 NumStandardTilesPerSubresource = 0;
 	uint32 NumTotalTiles = 0;
 
-	if (PackedMipDesc.NumStandardMips != 0)
+	if (Desc.Dimension == D3D12_RESOURCE_DIMENSION_BUFFER)
+	{
+		NumTotalTiles = NumStandardTilesPerSubresource = D3DResourceNumTiles;
+		checkf(D3DResourceNumTiles == SubresourceTiling.WidthInTiles,
+			TEXT("Reserved buffers are expected to have trivial tiling configuration: single 1D subresource that contains all tiles."));
+	}
+	else if (PackedMipDesc.NumStandardMips != 0)
 	{
 		checkf(SubresourceTiling.DepthInTiles == 1, TEXT("3D reserved textures are not supported/implemented"));
 		NumStandardTilesPerSubresource = SubresourceTiling.WidthInTiles * SubresourceTiling.HeightInTiles;
@@ -226,6 +242,12 @@ void FD3D12Resource::CommitReservedResource()
 
 	uint32 NumMappedTiles = 0;
 
+	const D3D12_HEAP_FLAGS HeapFlags = Desc.Dimension == D3D12_RESOURCE_DIMENSION_BUFFER
+		? D3D12_HEAP_FLAG_ALLOW_ONLY_BUFFERS
+		: D3D12_HEAP_FLAG_ALLOW_ONLY_NON_RT_DS_TEXTURES;
+
+	static_assert((D3D12_HEAP_FLAG_DENY_BUFFERS | D3D12_HEAP_FLAG_DENY_RT_DS_TEXTURES) == D3D12_HEAP_FLAG_ALLOW_ONLY_NON_RT_DS_TEXTURES);
+
 	while (NumMappedTiles < NumTotalTiles)
 	{
 		const uint32 NumRemainingTiles = NumTotalTiles - NumMappedTiles;
@@ -237,7 +259,7 @@ void FD3D12Resource::CommitReservedResource()
 		const uint32 ThisHeapSize = RegionSize.NumTiles * TileSizeInBytes;
 		D3D12_HEAP_DESC NewHeapDesc = {};
 		NewHeapDesc.Alignment = D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT;
-		NewHeapDesc.Flags = D3D12_HEAP_FLAG_DENY_BUFFERS | D3D12_HEAP_FLAG_DENY_RT_DS_TEXTURES;
+		NewHeapDesc.Flags = HeapFlags;
 		NewHeapDesc.SizeInBytes = ThisHeapSize;
 		NewHeapDesc.Properties = BackingHeapProps;
 		TRefCountPtr<ID3D12Heap> NewHeap;
@@ -580,9 +602,14 @@ HRESULT FD3D12Adapter::CreateReservedResource(const FD3D12ResourceDesc& InDesc, 
 	checkf(LocalDesc.bReservedResource,
 		TEXT("FD3D12ResourceDesc is expected to be initialized as a reserved resource. See FD3D12DynamicRHI::GetResourceDesc()."));
 
-	checkf(LocalDesc.Layout == D3D12_TEXTURE_LAYOUT_64KB_UNDEFINED_SWIZZLE,
-		TEXT("Reserved textures are expected to have layout %d (64KB_UNDEFINED_SWIZZLE), but have %d. See FD3D12DynamicRHI::GetResourceDesc()."),
-		uint32(D3D12_TEXTURE_LAYOUT_64KB_UNDEFINED_SWIZZLE), uint32(LocalDesc.Layout));
+	if (LocalDesc.Dimension == D3D12_RESOURCE_DIMENSION_TEXTURE1D
+		|| LocalDesc.Dimension == D3D12_RESOURCE_DIMENSION_TEXTURE2D
+		|| LocalDesc.Dimension == D3D12_RESOURCE_DIMENSION_TEXTURE3D)
+	{
+		checkf(LocalDesc.Layout == D3D12_TEXTURE_LAYOUT_64KB_UNDEFINED_SWIZZLE,
+			TEXT("Reserved textures are expected to have layout %d (64KB_UNDEFINED_SWIZZLE), but have %d. See FD3D12DynamicRHI::GetResourceDesc()."),
+			uint32(D3D12_TEXTURE_LAYOUT_64KB_UNDEFINED_SWIZZLE), uint32(LocalDesc.Layout));
+	}
 
 	checkf(LocalDesc.Alignment == 0 || LocalDesc.Alignment == 65536,
 		TEXT("Reserved resources must use either 64KB alignment or 0 (unspecified/default), but have %d. See FD3D12DynamicRHI::GetResourceDesc()."),

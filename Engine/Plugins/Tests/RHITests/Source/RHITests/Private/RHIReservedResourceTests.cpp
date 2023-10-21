@@ -84,3 +84,36 @@ bool FRHIReservedResourceTests::Test_ReservedResource_CreateTexture(FRHICommandL
 
 	return true;
 }
+
+bool FRHIReservedResourceTests::Test_ReservedResource_CreateBuffer(FRHICommandListImmediate& RHICmdList)
+{
+	if (!GRHIGlobals.ReservedResources.Supported)
+	{
+		return true;
+	}
+
+	const EBufferUsageFlags CommonFlags = BUF_ReservedResource | BUF_ImmediateCommit;
+
+	{
+		FRHIResourceCreateInfo CreateInfo(TEXT("TestSmallReservedVertexBuffer"));
+		FBufferRHIRef Buffer = RHICmdList.CreateBuffer(32768, CommonFlags | BUF_VertexBuffer, 4, ERHIAccess::CopyDest, CreateInfo);
+	}
+
+	{
+		FRHIResourceCreateInfo CreateInfo(TEXT("TestReservedVertexBuffer"));
+		FBufferRHIRef Buffer = RHICmdList.CreateBuffer(32 * 1024 * 1024, CommonFlags | BUF_VertexBuffer, 4, ERHIAccess::CopyDest, CreateInfo);
+	}
+
+	{
+		FRHIResourceCreateInfo CreateInfo(TEXT("TestReservedAccelerationStructureBuffer"));
+		FBufferRHIRef Buffer = RHICmdList.CreateBuffer(32 * 1024 * 1024, CommonFlags | BUF_AccelerationStructure, 4, ERHIAccess::BVHWrite, CreateInfo);
+	}
+
+	{
+		FRHIResourceCreateInfo CreateInfo(TEXT("TestReservedRayTracingScratchBuffer"));
+		FBufferRHIRef Buffer = RHICmdList.CreateBuffer(32 * 1024 * 1024, CommonFlags | BUF_RayTracingScratch, 4, ERHIAccess::UAVCompute, CreateInfo);
+	}
+
+	return true;
+}
+

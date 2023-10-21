@@ -1505,6 +1505,8 @@ D3D12_RESOURCE_STATES FD3D12DefaultBufferAllocator::GetDefaultInitialResourceSta
 // Grab a buffer from the available buffers or create a new buffer if none are available
 void FD3D12DefaultBufferAllocator::AllocDefaultResource(D3D12_HEAP_TYPE InHeapType, const D3D12_RESOURCE_DESC& InResourceDesc, EBufferUsageFlags InBufferUsage, ED3D12ResourceStateMode InResourceStateMode, D3D12_RESOURCE_STATES InCreateState, FD3D12ResourceLocation& ResourceLocation, uint32 Alignment, const TCHAR* Name)
 {
+	FD3D12Adapter* Adapter = GetParentDevice()->GetParentAdapter();
+
 	// Force indirect args to stand alone allocations instead of pooled
 	if (!GD3D12AllowPoolAllocateIndirectArgBuffers && EnumHasAnyFlags(InBufferUsage, BUF_DrawIndirect))
 	{
@@ -1514,9 +1516,32 @@ void FD3D12DefaultBufferAllocator::AllocDefaultResource(D3D12_HEAP_TYPE InHeapTy
 		const D3D12_HEAP_PROPERTIES HeapProps = CD3DX12_HEAP_PROPERTIES(InHeapType, GetGPUMask().GetNative(), GetVisibilityMask().GetNative());
 		D3D12_RESOURCE_DESC Desc = InResourceDesc;
 		Desc.Alignment = 0;
-		VERIFYD3D12RESULT(GetParentDevice()->GetParentAdapter()->CreateCommittedResource(Desc, GetGPUMask(), HeapProps, InCreateState, InResourceStateMode, InCreateState, nullptr, &NewResource, Name, false));
+		VERIFYD3D12RESULT(Adapter->CreateCommittedResource(Desc, GetGPUMask(), HeapProps, InCreateState, InResourceStateMode, InCreateState, nullptr, &NewResource, Name, false));
 
 		ResourceLocation.AsStandAlone(NewResource, InResourceDesc.Width);
+
+		return;
+	}
+
+	if (EnumHasAnyFlags(InBufferUsage, BUF_ReservedResource))
+	{
+		ResourceLocation.Clear();
+
+		FD3D12Resource* NewResource = nullptr;
+		checkf(Alignment % GRHIGlobals.ReservedResources.TileSizeInBytes == 0,
+			TEXT("Reserved buffer alignment is expected to be a multiple of the reserved resource tile size"));
+		FD3D12ResourceDesc Desc = InResourceDesc;
+		Desc.Alignment = Alignment;
+		Desc.bReservedResource = true;
+		VERIFYD3D12RESULT(Adapter->CreateReservedResource(Desc, GetGPUMask(), InCreateState, InResourceStateMode, InCreateState, nullptr, &NewResource, Name, false));
+
+		ResourceLocation.AsStandAlone(NewResource, InResourceDesc.Width);
+
+		if (EnumHasAnyFlags(InBufferUsage, BUF_ImmediateCommit))
+		{
+			NewResource->CommitReservedResource();
+		}
+
 		return;
 	}
 

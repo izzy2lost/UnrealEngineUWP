@@ -497,7 +497,7 @@ void FD3D12Buffer::GetResourceDescAndAlignment(uint64 InSize, uint32 InStride, E
 		ResourceDesc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
 	}
 
-	if (!EnumHasAnyFlags(InUsage, BUF_ShaderResource))
+	if (!EnumHasAnyFlags(InUsage, BUF_ShaderResource | BUF_AccelerationStructure))
 	{
 		ResourceDesc.Flags |= D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE;
 	}
@@ -512,8 +512,19 @@ void FD3D12Buffer::GetResourceDescAndAlignment(uint64 InSize, uint32 InStride, E
 		ResourceDesc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_SIMULTANEOUS_ACCESS;
 	}
 
-	// Structured buffers, non-ByteAddress buffers, need to be aligned to their stride to ensure that they can be addressed correctly with element based offsets.
-	Alignment = (InStride > 0) && (EnumHasAnyFlags(InUsage, BUF_StructuredBuffer) || !EnumHasAnyFlags(InUsage, BUF_ByteAddressBuffer | BUF_DrawIndirect)) ? InStride : 4;
+	if (EnumHasAnyFlags(InUsage, BUF_ReservedResource))
+	{
+		checkf(InStride <= GRHIGlobals.ReservedResources.TileSizeInBytes,
+			TEXT("Reserved buffer stride %d must not be greater than the reserved resource tile size %d"), 
+			InStride, GRHIGlobals.ReservedResources.TileSizeInBytes);
+
+		Alignment = GRHIGlobals.ReservedResources.TileSizeInBytes;
+	}
+	else
+	{
+		// Structured buffers, non-ByteAddress buffers, need to be aligned to their stride to ensure that they can be addressed correctly with element based offsets.
+		Alignment = (InStride > 0) && (EnumHasAnyFlags(InUsage, BUF_StructuredBuffer) || !EnumHasAnyFlags(InUsage, BUF_ByteAddressBuffer | BUF_DrawIndirect)) ? InStride : 4;
+	}
 }
 
 FBufferRHIRef FD3D12DynamicRHI::RHICreateBuffer(FRHICommandListBase& RHICmdList, FRHIBufferDesc const& Desc, ERHIAccess ResourceState, FRHIResourceCreateInfo& CreateInfo)
@@ -547,6 +558,13 @@ FD3D12Buffer* FD3D12DynamicRHI::CreateD3D12Buffer(class FRHICommandListBase* RHI
 		: ED3D12ResourceStateMode::Default;
 
 	const bool bIsDynamic = EnumHasAnyFlags(BufferDesc.Usage, BUF_AnyDynamic);
+
+	if (EnumHasAnyFlags(BufferDesc.Usage, BUF_ReservedResource))
+	{
+		checkf(!bIsDynamic, TEXT("Reserved resources may not be dynamic"));
+		checkf(!ResourceAllocator, TEXT("Reserved resources may not use a custom resource allocator"));
+	}
+
 	D3D12_HEAP_TYPE HeapType = bIsDynamic ? D3D12_HEAP_TYPE_UPLOAD : D3D12_HEAP_TYPE_DEFAULT;
 	const FD3D12Resource::FD3D12ResourceTypeHelper Type(Desc, HeapType);
 

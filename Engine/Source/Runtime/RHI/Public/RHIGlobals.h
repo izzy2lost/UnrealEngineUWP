@@ -610,6 +610,13 @@ struct FRHIGlobals
 		*/
 		int32 TextureArrayMinimumMipDimension = 256;
 
+		/**
+		* Size that corresponds to a minimum unit of physical memory that may be mapped to a region of a reserved resource.
+		* High-level code should aim to allocate reserved resources such that their size is a multiple of this tile size.
+		* Guaranteed to be the same value on all platforms, regardless of the native virtual memory page size.
+		*/
+		static constexpr int32 TileSizeInBytes = 65536;
+
 	} ReservedResources;
 
 	/** Table for finding out which shader platform corresponds to a given feature level for this RHI. */
