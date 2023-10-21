@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+using EpicGames.Core;
 
 namespace EpicGames.Horde.Storage
 {
@@ -48,6 +49,34 @@ namespace EpicGames.Horde.Storage
 		/// <param name="disposing">True if derived instances should dispose managed resources. False when called from a finalizer.</param>
 		protected virtual void Dispose(bool disposing)
 		{
+		}
+	}
+
+	/// <summary>
+	/// Implementation of <see cref="BlobData"/> for <see cref="IReadOnlyMemoryOwner{Byte}"/> instances.
+	/// </summary>
+	public class ReadOnlyMemoryOwnerBlobData : BlobData
+	{
+		readonly IReadOnlyMemoryOwner<byte> _owner;
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		public ReadOnlyMemoryOwnerBlobData(BlobType type, IReadOnlyMemoryOwner<byte> owner, IReadOnlyList<BlobHandle> refs)
+			: base(type, owner.Memory, refs)
+		{
+			_owner = owner;
+		}
+
+		/// <inheritdoc/>
+		protected override void Dispose(bool disposing)
+		{
+			base.Dispose(disposing);
+
+			if (disposing)
+			{
+				_owner.Dispose();
+			}
 		}
 	}
 }

@@ -16,27 +16,6 @@ namespace EpicGames.Horde.Storage.Clients
 	/// </summary>
 	public class FileStorageClient : KeyValueStorageClient
 	{
-		class LeafBlobData : BlobData
-		{
-			readonly IReadOnlyMemoryOwner<byte> _owner;
-
-			public LeafBlobData(IReadOnlyMemoryOwner<byte> owner)
-				: base(BlobType.Leaf, owner.Memory, Array.Empty<BlobHandle>())
-			{
-				_owner = owner;
-			}
-
-			protected override void Dispose(bool disposing)
-			{
-				base.Dispose(disposing);
-
-				if (disposing)
-				{
-					_owner.Dispose();
-				}
-			}
-		}
-
 		readonly DirectoryReference _rootDir;
 		readonly FileStorageBackend _backend;
 		readonly ILogger _logger;
@@ -81,11 +60,12 @@ namespace EpicGames.Horde.Storage.Clients
 		FileReference GetRefFile(RefName name) => FileReference.Combine(_rootDir, name.ToString() + ".ref");
 
 		#region Blobs
+
 		/// <inheritdoc/>
 		public override async ValueTask<BlobData> ReadBlobAsync(BlobLocator locator, CancellationToken cancellationToken = default)
 		{
 			IReadOnlyMemoryOwner<byte> owner = await _backend.ReadAsync(locator.ToString(), cancellationToken);
-			return new LeafBlobData(owner);
+			return new ReadOnlyMemoryOwnerBlobData(BlobType.Leaf, owner, Array.Empty<BlobHandle>());
 		}
 
 		/// <inheritdoc/>

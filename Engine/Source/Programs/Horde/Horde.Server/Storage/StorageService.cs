@@ -51,28 +51,6 @@ namespace Horde.Server.Storage
 	/// </summary>
 	public sealed class StorageService : IHostedService, IStorageClientFactory, IAsyncDisposable
 	{
-		/// <summary>
-		/// Type used for blobs that only contain leaf data.
-		/// </summary>
-		static readonly BlobType s_leafBlobType = new BlobType(Guid.Parse("{9E88B4E3-E4C5-445E-A14C-9698A30BF8C5}"), 1);
-
-		sealed class LeafBlobData : BlobData
-		{
-			readonly IReadOnlyMemoryOwner<byte> _obj;
-
-			public LeafBlobData(IReadOnlyMemoryOwner<byte> obj)
-				: base(s_leafBlobType, obj.Memory, Array.Empty<BlobHandle>())
-			{
-				_obj = obj;
-			}
-
-			protected override void Dispose(bool disposing)
-			{
-				_obj.Dispose();
-				base.Dispose(disposing);
-			}
-		}
-
 		sealed class LeafBlobHandle : BlobHandle
 		{
 			readonly IStorageBackend _backend;
@@ -87,7 +65,7 @@ namespace Horde.Server.Storage
 			}
 
 			/// <inheritdoc/>
-			public override ValueTask<BlobType> GetTypeAsync(CancellationToken cancellationToken = default) => new ValueTask<BlobType>(s_leafBlobType);
+			public override ValueTask<BlobType> GetTypeAsync(CancellationToken cancellationToken = default) => new ValueTask<BlobType>(BlobType.Leaf);
 
 			/// <inheritdoc/>
 			public override async Task<Stream> OpenAsync(int offset = 0, int? length = null, CancellationToken cancellationToken = default)
@@ -112,7 +90,7 @@ namespace Horde.Server.Storage
 			public override async ValueTask<BlobData> ReadAsync(CancellationToken cancellationToken = default)
 			{
 				IReadOnlyMemoryOwner<byte> obj = await _backend.ReadAsync(_path, cancellationToken);
-				return new LeafBlobData(obj);
+				return new ReadOnlyMemoryOwnerBlobData(BlobType.Leaf, obj, Array.Empty<BlobHandle>());
 			}
 
 			/// <inheritdoc/>
