@@ -311,7 +311,7 @@ namespace EpicGames.Horde.Storage.Clients
 			}
 
 			HttpStorageClient client = new HttpStorageClient(basePath, CreateClient, backend, _clientLogger);
-			return new BundleStorageClientWrapper(client, _readerCache, _clientLogger);
+			return new BundleStorageClient(client, _readerCache, _clientLogger);
 		}
 
 		/// <summary>

@@ -60,7 +60,7 @@ namespace Horde.Server.Commands.Install
 
 			using BundleReaderCache bundleReaderCache = new BundleReaderCache();
 
-			using IStorageClient client = BundleStorageClientWrapper.CreateFromDirectory(bundleDir, bundleReaderCache, logger);
+			using IStorageClient client = BundleStorageClient.CreateFromDirectory(bundleDir, bundleReaderCache, logger);
 			await using (IStorageWriter writer = client.CreateWriter(refName))
 			{
 				DirectoryNode dirNode = new DirectoryNode();

@@ -42,7 +42,7 @@ namespace Horde.Commands.Workspace
 		{
 			if (File != null)
 			{
-				using IStorageClient store = BundleStorageClientWrapper.CreateFromDirectory(File.Directory, BundleReaderCache, logger);
+				using IStorageClient store = BundleStorageClient.CreateFromDirectory(File.Directory, BundleReaderCache, logger);
 				BlobHandle handle = store.CreateBlobHandle(await FileStorageClient.ReadRefAsync(File));
 				return await ExecuteInternalAsync(store, handle, logger);
 			}

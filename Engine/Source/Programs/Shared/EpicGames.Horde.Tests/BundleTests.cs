@@ -22,13 +22,13 @@ namespace EpicGames.Horde.Tests
 	{
 		readonly IMemoryCache _cache;
 		readonly MemoryStorageClient _memoryStore;
-		readonly BundleStorageClientBase _storage;
+		readonly BundleStorageClient _storage;
 
 		public BundleTests()
 		{
 			_cache = new MemoryCache(new MemoryCacheOptions());
 			_memoryStore = new MemoryStorageClient();
-			_storage = new BundleStorageClientWrapper(_memoryStore, BundleReaderCache.None, NullLogger.Instance);
+			_storage = new BundleStorageClient(_memoryStore, BundleReaderCache.None, NullLogger.Instance);
 		}
 
 		public void Dispose()

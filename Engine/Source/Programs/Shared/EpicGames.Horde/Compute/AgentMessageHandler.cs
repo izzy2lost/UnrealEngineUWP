@@ -136,7 +136,7 @@ namespace EpicGames.Horde.Compute
 		async Task WriteFilesAsync(AgentMessageChannel channel, string path, BlobLocator locator, CancellationToken cancellationToken)
 		{
 			using AgentStorageClient innerStore = new AgentStorageClient(channel);
-			using BundleStorageClientWrapper store = new BundleStorageClientWrapper(innerStore, BundleReaderCache.None, _logger);
+			using BundleStorageClient store = new BundleStorageClient(innerStore, BundleReaderCache.None, _logger);
 
 			BlobHandle handle = store.CreateBlobHandle(locator);
 			DirectoryNode directoryNode = await handle.ReadNodeAsync<DirectoryNode>(cancellationToken);

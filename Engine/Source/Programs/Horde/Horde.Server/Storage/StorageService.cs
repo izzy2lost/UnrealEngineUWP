@@ -609,7 +609,7 @@ namespace Horde.Server.Storage
 
 #pragma warning disable CA2000 // Dispose objects before losing scope
 							client = new StorageClientImpl(this, namespaceConfig, backend, _tracer);
-							client = new BundleStorageClientWrapper(client, _bundleReaderCache, _logger);
+							client = new BundleStorageClient(client, _bundleReaderCache, _logger);
 #pragma warning restore CA2000 // Dispose objects before losing scope
 
 							NamespaceInfo namespaceInfo = new NamespaceInfo(namespaceConfig, backend, new SharedStorageClient(client));

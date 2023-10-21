@@ -60,7 +60,7 @@ namespace EpicGames.Horde.Tests
 		static async Task<Bundle> CreateBundleNormalAsync()
 		{
 			using MemoryStorageClient memoryStore = new MemoryStorageClient();
-			using BundleStorageClientWrapper store = new BundleStorageClientWrapper(memoryStore, BundleReaderCache.None, NullLogger.Instance);
+			using BundleStorageClient store = new BundleStorageClient(memoryStore, BundleReaderCache.None, NullLogger.Instance);
 			await using BundleWriter writer = store.CreateWriter(options: new BundleOptions { CompressionFormat = BundleCompressionFormat.None });
 
 			TextNode node = new TextNode("Hello world");
@@ -97,7 +97,7 @@ namespace EpicGames.Horde.Tests
 			using IMemoryCache cache = new MemoryCache(new MemoryCacheOptions());
 
 			using MemoryStorageClient blobStore = new MemoryStorageClient();
-			using BundleStorageClientWrapper bundleStore = new BundleStorageClientWrapper(blobStore, BundleReaderCache.None, NullLogger.Instance);
+			using BundleStorageClient bundleStore = new BundleStorageClient(blobStore, BundleReaderCache.None, NullLogger.Instance);
 
 			await TestTreeAsync(bundleStore, new BundleOptions { MaxBlobSize = 1024 * 1024 });
 
@@ -111,7 +111,7 @@ namespace EpicGames.Horde.Tests
 			using IMemoryCache cache = new MemoryCache(new MemoryCacheOptions());
 
 			using MemoryStorageClient blobStore = new MemoryStorageClient();
-			using BundleStorageClientWrapper bundleStore = new BundleStorageClientWrapper(blobStore, BundleReaderCache.None, NullLogger.Instance);
+			using BundleStorageClient bundleStore = new BundleStorageClient(blobStore, BundleReaderCache.None, NullLogger.Instance);
 
 			await TestTreeAsync(bundleStore, new BundleOptions { MaxBlobSize = 1 });
 
@@ -144,7 +144,7 @@ namespace EpicGames.Horde.Tests
 			}
 		}
 
-		static async Task TestTreeAsync(BundleStorageClientBase store, BundleOptions options)
+		static async Task TestTreeAsync(BundleStorageClient store, BundleOptions options)
 		{
 			// Generate a tree
 			{
@@ -315,7 +315,7 @@ namespace EpicGames.Horde.Tests
 		public async Task StreamTestAsync()
 		{
 			using MemoryStorageClient memoryStore = new MemoryStorageClient();
-			using BundleStorageClientWrapper store = new BundleStorageClientWrapper(memoryStore, BundleReaderCache.None, NullLogger.Instance);
+			using BundleStorageClient store = new BundleStorageClient(memoryStore, BundleReaderCache.None, NullLogger.Instance);
 
 			const int Length = 4096;
 
@@ -356,7 +356,7 @@ namespace EpicGames.Horde.Tests
 		{
 			using IMemoryCache cache = new MemoryCache(new MemoryCacheOptions());
 			using MemoryStorageClient memoryStore = new MemoryStorageClient();
-			using BundleStorageClientWrapper store = new BundleStorageClientWrapper(memoryStore, BundleReaderCache.None, NullLogger.Instance);
+			using BundleStorageClient store = new BundleStorageClient(memoryStore, BundleReaderCache.None, NullLogger.Instance);
 
 			const int Length = 1024;
 			const int Copies = 4096;

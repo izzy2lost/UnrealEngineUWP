@@ -141,7 +141,7 @@ namespace EpicGames.Horde.Tests
 					}
 
 					using MemoryStorageClient memoryStorage = new MemoryStorageClient();
-					using BundleStorageClientWrapper storage = new BundleStorageClientWrapper(memoryStorage, BundleReaderCache.None, NullLogger.Instance);
+					using BundleStorageClient storage = new BundleStorageClient(memoryStorage, BundleReaderCache.None, NullLogger.Instance);
 					await using (BundleWriter treeWriter = storage.CreateWriter())
 					{
 						FileReference file = FileReference.Combine(tempDir, "subdir/hello.txt");
