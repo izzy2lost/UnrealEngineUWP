@@ -317,6 +317,24 @@ namespace EpicGames.Horde.Storage.Clients
 			base.Dispose(disposing);
 		}
 
+		/// <summary>
+		/// Creates a bundle storage client around a memory client backend
+		/// </summary>
+		public static BundleStorageClientWrapper CreateFromMemory(ILogger logger)
+		{
+			MemoryStorageClient blobStore = new MemoryStorageClient();
+			return new BundleStorageClientWrapper(blobStore, BundleReaderCache.None, logger);
+		}
+
+		/// <summary>
+		/// Creates a bundle storage client around a directory on the filesystem
+		/// </summary>
+		public static BundleStorageClientWrapper CreateFromDirectory(DirectoryReference rootDir, BundleReaderCache cache, ILogger logger)
+		{
+			FileStorageClient fileStorageClient = new FileStorageClient(rootDir, logger);
+			return new BundleStorageClientWrapper(fileStorageClient, cache, logger);
+		}
+
 		/// <inheritdoc/>
 		protected override async Task<Stream> OpenBundleAsync(BlobLocator locator, int offset, int? length, CancellationToken cancellationToken)
 			=> await _inner.CreateBlobHandle(locator).OpenAsync(offset, length, cancellationToken);

@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -13,36 +14,94 @@ namespace EpicGames.Horde.Storage.Clients
 	/// <summary>
 	/// Implementation of <see cref="IStorageClient"/> which writes data to files on disk.
 	/// </summary>
-	public class FileStorageClient : BundleStorageClient
+	public class FileStorageClient : KeyValueStorageClient
 	{
+		class LeafBlobData : BlobData
+		{
+			readonly IReadOnlyMemoryOwner<byte> _owner;
+
+			public LeafBlobData(IReadOnlyMemoryOwner<byte> owner)
+				: base(BlobType.Leaf, owner.Memory, Array.Empty<BlobHandle>())
+			{
+				_owner = owner;
+			}
+
+			protected override void Dispose(bool disposing)
+			{
+				base.Dispose(disposing);
+
+				if (disposing)
+				{
+					_owner.Dispose();
+				}
+			}
+		}
+
 		readonly DirectoryReference _rootDir;
+		readonly FileStorageBackend _backend;
 		readonly ILogger _logger;
+
+		/// <inheritdoc/>
+		public override bool SupportsRedirects => false;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
 		/// <param name="rootDir">Root directory for storing blobs</param>
-		/// <param name="cache">Memory cache for read data</param>
 		/// <param name="logger">Logger interface</param>
-		public FileStorageClient(DirectoryReference rootDir, BundleReaderCache cache, ILogger logger)
-			: base(new FileStorageBackend(rootDir), cache, logger)
+		public FileStorageClient(DirectoryReference rootDir, ILogger logger)
 		{
 			_rootDir = rootDir;
+			_backend = new FileStorageBackend(rootDir);
 			_logger = logger;
 
 			DirectoryReference.CreateDirectory(_rootDir);
 		}
 
+		/// <inheritdoc/>
+		protected override void Dispose(bool disposing)
+		{
+			base.Dispose(disposing);
+
+			if (disposing)
+			{
+				_backend.Dispose();
+			}
+		}
+
 		/// <summary>
 		/// Reads a ref from a file on disk
 		/// </summary>
-		public async ValueTask<BlobHandle> ReadRefAsync(FileReference file)
+		public static async ValueTask<BlobLocator> ReadRefAsync(FileReference file)
 		{
 			string text = await FileReference.ReadAllTextAsync(file);
-			return CreateBlobHandle(new BlobLocator(text));
+			return new BlobLocator(text);
 		}
 
 		FileReference GetRefFile(RefName name) => FileReference.Combine(_rootDir, name.ToString() + ".ref");
+
+		#region Blobs
+		/// <inheritdoc/>
+		public override async ValueTask<BlobData> ReadBlobAsync(BlobLocator locator, CancellationToken cancellationToken = default)
+		{
+			IReadOnlyMemoryOwner<byte> owner = await _backend.ReadAsync(locator.ToString(), cancellationToken);
+			return new LeafBlobData(owner);
+		}
+
+		/// <inheritdoc/>
+		public override async ValueTask<BlobHandle> WriteBlobAsync(BlobType type, Stream stream, IReadOnlyList<BlobHandle> references, string? basePath = null, CancellationToken cancellationToken = default)
+		{
+			string path = await _backend.WriteAsync(stream, basePath, cancellationToken);
+			return CreateBlobHandle(new BlobLocator(path));
+		}
+
+		/// <inheritdoc/>
+		public override ValueTask<Uri?> TryGetReadRedirectAsync(BlobLocator locator, CancellationToken cancellationToken = default) => default;
+
+		/// <inheritdoc/>
+		public override ValueTask<(BlobLocator, Uri)?> TryGetWriteRedirectAsync(string? prefix = null, CancellationToken cancellationToken = default) => default;
+
+		#endregion
 
 		#region Aliases
 
@@ -119,6 +178,11 @@ namespace EpicGames.Horde.Storage.Clients
 					await Task.Delay(100 * attempt, cancellationToken);
 				}
 			}
+		}
+
+		/// <inheritdoc/>
+		public override void GetStats(StorageStats stats)
+		{
 		}
 
 		#endregion

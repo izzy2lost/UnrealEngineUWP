@@ -49,7 +49,7 @@ namespace Horde.Commands.Bundles
 			}
 			else if (Node != null)
 			{
-				using BundleStorageClient store = (BundleStorageClient)CreateStorageClient();
+				using IStorageClient store = CreateStorageClient();
 				BlobHandle handle = store.CreateBlobHandle(new BlobLocator(Node));
 				await ExecuteInternalAsync(store, handle, logger);
 			}
