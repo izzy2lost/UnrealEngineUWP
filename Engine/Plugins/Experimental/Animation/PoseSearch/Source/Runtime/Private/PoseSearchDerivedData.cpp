@@ -1398,7 +1398,7 @@ void FPoseSearchDatabaseAsyncCacheTask::OnGetComplete(UE::DerivedData::FCacheGet
 				COOK_STAT(auto Timer = UsageStats.TimeSyncWork());
 
 				// collecting all the databases that need to be built to gather their FSearchIndexBase
-				TArray<TObjectPtr<const UPoseSearchDatabase>> IndexBaseDatabases;
+				TArray<const UPoseSearchDatabase*> IndexBaseDatabases;
 				IndexBaseDatabases.Add(Database.Get()); // the first one is always this Database
 				if (!IndexBaseDatabases[0])
 				{
@@ -1422,7 +1422,7 @@ void FPoseSearchDatabaseAsyncCacheTask::OnGetComplete(UE::DerivedData::FCacheGet
 				Schemas.AddDefaulted(IndexBaseDatabases.Num());
 				for (int32 IndexBaseIdx = 0; IndexBaseIdx < IndexBaseDatabases.Num(); ++IndexBaseIdx)
 				{
-					const UPoseSearchDatabase* IndexBaseDatabase = IndexBaseDatabases[IndexBaseIdx].Get();
+					const UPoseSearchDatabase* IndexBaseDatabase = IndexBaseDatabases[IndexBaseIdx];
 					check(IndexBaseDatabase);
 					FSearchIndexBase& SearchIndexBase = SearchIndexBases[IndexBaseIdx];
 					Schemas[IndexBaseIdx] = IndexBaseDatabase->Schema;
@@ -1633,7 +1633,7 @@ void FPoseSearchDatabaseAsyncCacheTask::OnGetComplete(UE::DerivedData::FCacheGet
 					return;
 				}
 
-				PreprocessSearchIndexKDTree(SearchIndex, IndexBaseDatabases[0].Get());
+				PreprocessSearchIndexKDTree(SearchIndex, IndexBaseDatabases[0]);
 				if (Owner.IsCanceled())
 				{
 					UE_LOG(LogPoseSearch, Log, TEXT("%s - %s BuildIndex Cancelled"), *LexToString(FullIndexKey.Hash), *IndexBaseDatabases[0]->GetName());
@@ -1651,7 +1651,7 @@ void FPoseSearchDatabaseAsyncCacheTask::OnGetComplete(UE::DerivedData::FCacheGet
 				}
 
 				const int32 RandomSeed = GetTypeHash(FullIndexKey.Hash);
-				PreprocessSearchIndexVPTree(SearchIndex, IndexBaseDatabases[0].Get(), RandomSeed);
+				PreprocessSearchIndexVPTree(SearchIndex, IndexBaseDatabases[0], RandomSeed);
 				if (Owner.IsCanceled())
 				{
 					UE_LOG(LogPoseSearch, Log, TEXT("%s - %s BuildIndex Cancelled"), *LexToString(FullIndexKey.Hash), *IndexBaseDatabases[0]->GetName());
@@ -1744,7 +1744,7 @@ void FPoseSearchDatabaseAsyncCacheTask::AddReferencedObjects(FReferenceCollector
 		// keeping around the assets for starting or in progress tasks
 		Collector.AddReferencedObject(Database);
 
-		for (TWeakObjectPtr<const UObject>& Dependency : DatabaseDependencies )
+		for (TWeakObjectPtr<const UObject>& Dependency : DatabaseDependencies)
 		{
 			Collector.AddReferencedObject(Dependency);
 		}
@@ -1982,7 +1982,7 @@ void FAsyncPoseSearchDatabasesManagement::AddReferencedObjects(FReferenceCollect
 // returns true if the index has been built and the Database updated correctly  
 bool FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndex(const UPoseSearchDatabase* Database, ERequestAsyncBuildFlag Flag)
 {
-	if (!Database)
+	if (!IsValid(Database))
 	{
 		return false;
 	}

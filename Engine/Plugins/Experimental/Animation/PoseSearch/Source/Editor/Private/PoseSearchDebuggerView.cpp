@@ -92,14 +92,14 @@ void SDebuggerDetailsView::UpdateReflection(const FTraceMotionMatchingStateMessa
 {
 	check(Reflection);
 
-		Reflection->ElapsedPoseSearchTime = State.ElapsedPoseSearchTime;
-		Reflection->AssetPlayerTime = State.AssetPlayerTime;
-		Reflection->LastDeltaTime = State.DeltaTime;
-		Reflection->SimLinearVelocity = State.SimLinearVelocity;
-		Reflection->SimAngularVelocity = State.SimAngularVelocity;
-		Reflection->AnimLinearVelocity = State.AnimLinearVelocity;
-		Reflection->AnimAngularVelocity = State.AnimAngularVelocity;
-	}
+	Reflection->ElapsedPoseSearchTime = State.ElapsedPoseSearchTime;
+	Reflection->AssetPlayerTime = State.AssetPlayerTime;
+	Reflection->LastDeltaTime = State.DeltaTime;
+	Reflection->SimLinearVelocity = State.SimLinearVelocity;
+	Reflection->SimAngularVelocity = State.SimAngularVelocity;
+	Reflection->AnimLinearVelocity = State.AnimLinearVelocity;
+	Reflection->AnimAngularVelocity = State.AnimAngularVelocity;
+}
 
 void SDebuggerView::Construct(const FArguments& InArgs, uint64 InAnimInstanceId)
 {

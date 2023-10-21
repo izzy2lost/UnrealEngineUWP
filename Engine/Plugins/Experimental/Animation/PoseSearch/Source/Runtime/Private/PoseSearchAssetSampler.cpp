@@ -247,15 +247,15 @@ FAnimationAssetSampler::FAnimationAssetSampler(TObjectPtr<const UAnimationAsset>
 
 void FAnimationAssetSampler::Init(TObjectPtr<const UAnimationAsset> InAnimationAsset, const FVector& InBlendParameters, int32 InRootTransformSamplingRate)
 {
-	AnimationAsset = InAnimationAsset;
+	AnimationAssetPtr = InAnimationAsset;
 	BlendParameters = InBlendParameters;
 	RootTransformSamplingRate = InRootTransformSamplingRate;
-	CachedPlayLength = GetPlayLength(AnimationAsset.Get(), BlendParameters);
+	CachedPlayLength = GetPlayLength(AnimationAssetPtr.Get(), BlendParameters);
 }
 
 bool FAnimationAssetSampler::IsInitialized() const
 {
-	return AnimationAsset != nullptr;
+	return AnimationAssetPtr != nullptr;
 }
 
 float FAnimationAssetSampler::GetPlayLength(const UAnimationAsset* AnimAsset, const FVector& BlendParameters)
@@ -291,13 +291,13 @@ float FAnimationAssetSampler::GetPlayLength(const UAnimationAsset* AnimAsset, co
 
 const UAnimationAsset* FAnimationAssetSampler::GetAsset() const
 {
-	return AnimationAsset.Get();
+	return AnimationAssetPtr.Get();
 }
 
 float FAnimationAssetSampler::ToRealTime(float NormalizedTime) const
 {
 	// Asset player time for blend spaces is normalized [0, 1] so we convert the sampling / animation time to asset time by multiplying it by CachedPlayLength
-	if (CachedPlayLength > UE_KINDA_SMALL_NUMBER && Cast<UBlendSpace>(AnimationAsset.Get()))
+	if (CachedPlayLength > UE_KINDA_SMALL_NUMBER && Cast<UBlendSpace>(AnimationAssetPtr.Get()))
 	{
 		check(NormalizedTime >= 0.f && NormalizedTime <= 1.f);
 		const float RealTime = NormalizedTime * CachedPlayLength;
@@ -310,7 +310,7 @@ float FAnimationAssetSampler::ToRealTime(float NormalizedTime) const
 float FAnimationAssetSampler::ToNormalizedTime(float RealTime) const
 {
 	// Asset player time for blend spaces is normalized [0, 1] so we convert the sampling / animation time to asset time by dividing it by CachedPlayLength
-	if (CachedPlayLength > UE_KINDA_SMALL_NUMBER && Cast<UBlendSpace>(AnimationAsset.Get()))
+	if (CachedPlayLength > UE_KINDA_SMALL_NUMBER && Cast<UBlendSpace>(AnimationAssetPtr.Get()))
 	{
 		const float NormalizedTime = RealTime / CachedPlayLength;
 
@@ -319,7 +319,7 @@ float FAnimationAssetSampler::ToNormalizedTime(float RealTime) const
 			return NormalizedTime;
 		}
 
-		UE_LOG(LogPoseSearch, Error, TEXT("FAnimationAssetSampler::ToNormalizedTime: requested RealTime %f is greater than CachedPlayLength %f for UBlendSpace %s!"), RealTime, CachedPlayLength, *AnimationAsset->GetName());
+		UE_LOG(LogPoseSearch, Error, TEXT("FAnimationAssetSampler::ToNormalizedTime: requested RealTime %f is greater than CachedPlayLength %f for UBlendSpace %s!"), RealTime, CachedPlayLength, *AnimationAssetPtr->GetName());
 		return FMath::Clamp(NormalizedTime, 0.f, 1.f);
 	}
 
@@ -333,23 +333,22 @@ float FAnimationAssetSampler::GetPlayLength() const
 
 bool FAnimationAssetSampler::IsLoopable() const
 {
-	if (const UAnimSequenceBase* SequenceBase = Cast<UAnimSequenceBase>(AnimationAsset.Get()))
+	if (const UAnimSequenceBase* SequenceBase = Cast<UAnimSequenceBase>(AnimationAssetPtr.Get()))
 	{
 		return SequenceBase->bLoop;
 	}
 
-	if (const UBlendSpace* BlendSpace = Cast<UBlendSpace>(AnimationAsset.Get()))
+	if (const UBlendSpace* BlendSpace = Cast<UBlendSpace>(AnimationAssetPtr.Get()))
 	{
 		return BlendSpace->bLoop;
 	}
 
-	checkNoEntry();
 	return false;
 }
 
 FTransform FAnimationAssetSampler::GetTotalRootTransform() const
 {
-	if (Cast<UBlendSpace>(AnimationAsset.Get()))
+	if (Cast<UBlendSpace>(AnimationAssetPtr.Get()))
 	{
 		const FTransform InitialRootTransform = ExtractBlendSpaceRootTrackTransform(0.f, AccumulatedRootTransform, RootTransformSamplingRate);
 		const FTransform LastRootTransform = ExtractBlendSpaceRootTrackTransform(CachedPlayLength, AccumulatedRootTransform, RootTransformSamplingRate);
@@ -357,7 +356,7 @@ FTransform FAnimationAssetSampler::GetTotalRootTransform() const
 		return TotalRootTransform;
 	}
 
-	if (const UAnimMontage* AnimMontage = Cast<UAnimMontage>(AnimationAsset.Get()))
+	if (const UAnimMontage* AnimMontage = Cast<UAnimMontage>(AnimationAssetPtr.Get()))
 	{
 		// @todo: add support for SlotName / multiple SlotAnimTracks
 		if (AnimMontage->SlotAnimTracks.Num() != 1)
@@ -381,7 +380,7 @@ FTransform FAnimationAssetSampler::GetTotalRootTransform() const
 
 void FAnimationAssetSampler::ExtractPose(const FAnimExtractContext& ExtractionCtx, FAnimationPoseData& OutAnimPoseData) const
 {
-	if (const UBlendSpace* BlendSpace = Cast<UBlendSpace>(AnimationAsset.Get()))
+	if (const UBlendSpace* BlendSpace = Cast<UBlendSpace>(AnimationAssetPtr.Get()))
 	{
 		TArray<FBlendSampleData> BlendSamples;
 		int32 TriangulationIndex = 0;
@@ -403,25 +402,26 @@ void FAnimationAssetSampler::ExtractPose(const FAnimExtractContext& ExtractionCt
 			BlendSpace->GetAnimationPose(BlendSamples, ExtractionCtx, OutAnimPoseData);
 		}
 	}
-	else if (const UAnimMontage* AnimMontage = Cast<UAnimMontage>(AnimationAsset.Get()))
+	else if (const UAnimMontage* AnimMontage = Cast<UAnimMontage>(AnimationAssetPtr.Get()))
 	{
 		// @todo: add support for SlotName / multiple SlotAnimTracks
 		if (AnimMontage->SlotAnimTracks.Num() != 1)
 		{
 			UE_LOG(LogPoseSearch, Error, TEXT("FAnimMontageSampler::ExtractPose: so far we support only montages with one SlotAnimTracks. %s has %d"), *AnimMontage->GetName(), AnimMontage->SlotAnimTracks.Num());
 			OutAnimPoseData.GetPose().ResetToRefPose();
-			return;
 		}
-
-		AnimMontage->SlotAnimTracks[0].AnimTrack.GetAnimationPose(OutAnimPoseData, ExtractionCtx);
+		else
+		{
+			AnimMontage->SlotAnimTracks[0].AnimTrack.GetAnimationPose(OutAnimPoseData, ExtractionCtx);
+		}
 	}
-	else if (const UAnimSequenceBase* SequenceBase = Cast<UAnimSequenceBase>(AnimationAsset.Get()))
+	else if (const UAnimSequenceBase* SequenceBase = Cast<UAnimSequenceBase>(AnimationAssetPtr.Get()))
 	{
 		SequenceBase->GetAnimationPose(OutAnimPoseData, ExtractionCtx);
 	}
 	else
 	{
-		checkNoEntry();
+		OutAnimPoseData.GetPose().ResetToRefPose();
 	}
 }
 
@@ -443,7 +443,7 @@ FTransform FAnimationAssetSampler::ExtractRootTransform(float Time) const
 {
 	FTransform RootTransform = FTransform::Identity;
 	
-	if (const UBlendSpace* BlendSpace = Cast<UBlendSpace>(AnimationAsset.Get()))
+	if (const UBlendSpace* BlendSpace = Cast<UBlendSpace>(AnimationAssetPtr.Get()))
 	{
 		if (IsLoopable())
 		{
@@ -485,7 +485,7 @@ FTransform FAnimationAssetSampler::ExtractRootTransform(float Time) const
 			}
 		}
 	}
-	else if (const UAnimMontage* AnimMontage = Cast<UAnimMontage>(AnimationAsset.Get()))
+	else if (const UAnimMontage* AnimMontage = Cast<UAnimMontage>(AnimationAssetPtr.Get()))
 	{
 		if (IsLoopable())
 		{
@@ -528,7 +528,7 @@ FTransform FAnimationAssetSampler::ExtractRootTransform(float Time) const
 			}
 		}
 	}
-	else if (const UAnimSequenceBase* SequenceBase = Cast<UAnimSequenceBase>(AnimationAsset.Get()))
+	else if (const UAnimSequenceBase* SequenceBase = Cast<UAnimSequenceBase>(AnimationAssetPtr.Get()))
 	{
 		if (IsLoopable())
 		{
@@ -571,17 +571,13 @@ FTransform FAnimationAssetSampler::ExtractRootTransform(float Time) const
 			}
 		}
 	}
-	else
-	{
-		checkNoEntry();
-	}
 
 	return RootTransform;
 }
 
 void FAnimationAssetSampler::Process(const FBoneContainer& BoneContainer)
 {
-	if (const UBlendSpace* BlendSpace = Cast<UBlendSpace>(AnimationAsset.Get()))
+	if (const UBlendSpace* BlendSpace = Cast<UBlendSpace>(AnimationAssetPtr.Get()))
 	{
 		ProcessRootTransform(BlendSpace, BlendParameters, CachedPlayLength, BoneContainer, RootTransformSamplingRate, IsLoopable(), AccumulatedRootTransform);
 	}
@@ -591,7 +587,7 @@ void FAnimationAssetSampler::ExtractPoseSearchNotifyStates(float Time, TFunction
 {
 	float SampleTime = Time;
 	FAnimNotifyContext NotifyContext;
-	if (const UBlendSpace* BlendSpace = Cast<UBlendSpace>(AnimationAsset.Get()))
+	if (const UBlendSpace* BlendSpace = Cast<UBlendSpace>(AnimationAssetPtr.Get()))
 	{
 		if (BlendSpace->NotifyTriggerMode == ENotifyTriggerMode::HighestWeightedAnimation)
 		{
@@ -621,7 +617,7 @@ void FAnimationAssetSampler::ExtractPoseSearchNotifyStates(float Time, TFunction
 			UE_LOG(LogPoseSearch, Error, TEXT("FAnimationAssetSampler::ExtractPoseSearchNotifyStates: Unsupported BlendSpace NotifyTriggerMode for '%s'"), *BlendSpace->GetName());
 		}
 	}
-	else if (const UAnimSequenceBase* SequenceBase = Cast<UAnimSequenceBase>(AnimationAsset.Get()))
+	else if (const UAnimSequenceBase* SequenceBase = Cast<UAnimSequenceBase>(AnimationAssetPtr.Get()))
 	{
 		// getting pose search notifies in an interval of size ExtractionInterval, centered on Time
 		SequenceBase->GetAnimNotifies(Time - (ExtractionInterval * 0.5f), ExtractionInterval, NotifyContext);
@@ -658,7 +654,7 @@ void FAnimationAssetSampler::ExtractPoseSearchNotifyStates(float Time, TFunction
 
 TConstArrayView<FAnimNotifyEvent> FAnimationAssetSampler::GetAllAnimNotifyEvents() const
 {
-	if (const UBlendSpace* BlendSpace = Cast<UBlendSpace>(AnimationAsset.Get()))
+	if (const UBlendSpace* BlendSpace = Cast<UBlendSpace>(AnimationAssetPtr.Get()))
 	{
 		if (BlendSpace->NotifyTriggerMode == ENotifyTriggerMode::HighestWeightedAnimation)
 		{
@@ -680,13 +676,9 @@ TConstArrayView<FAnimNotifyEvent> FAnimationAssetSampler::GetAllAnimNotifyEvents
 			UE_LOG(LogPoseSearch, Error, TEXT("FAnimationAssetSampler::ExtractPoseSearchNotifyStates: Unsupported BlendSpace NotifyTriggerMode for '%s'"), *BlendSpace->GetName());
 		}
 	}
-	else if (const UAnimSequenceBase* SequenceBase = Cast<UAnimSequenceBase>(AnimationAsset.Get()))
+	else if (const UAnimSequenceBase* SequenceBase = Cast<UAnimSequenceBase>(AnimationAssetPtr.Get()))
 	{
 		return SequenceBase->Notifies;
-	}
-	else
-	{
-		checkNoEntry();
 	}
 
 	return TConstArrayView<FAnimNotifyEvent>(); 

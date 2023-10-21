@@ -379,8 +379,7 @@ bool FPoseSearchDatabaseBlendSpace::IsRootMotionEnabled() const
 	{
 		BlendSpace->ForEachImmutableSample([&bIsRootMotionUsedInBlendSpace](const FBlendSample& Sample)
 			{
-				const TObjectPtr<UAnimSequence> Sequence = Sample.Animation;
-
+				const UAnimSequence* Sequence = Sample.Animation.Get();
 				if (IsValid(Sequence) && Sequence->HasRootMotion())
 				{
 					bIsRootMotionUsedInBlendSpace = true;

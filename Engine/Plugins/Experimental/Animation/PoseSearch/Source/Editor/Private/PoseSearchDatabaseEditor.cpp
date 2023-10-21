@@ -387,7 +387,7 @@ namespace UE::PoseSearch
 	FText FDatabaseEditor::GetToolkitName() const
 	{
 		FFormatNamedArguments Args;
-		Args.Add(TEXT("AssetName"), FText::FromString(GetPoseSearchDatabase()->GetName()));
+		Args.Add(TEXT("AssetName"), FText::FromString(GetNameSafe(GetPoseSearchDatabase())));
 		return FText::Format(LOCTEXT("PoseSearchDatabaseEditorToolkitName", "{AssetName}"), Args);
 	}
 
@@ -512,17 +512,17 @@ namespace UE::PoseSearch
 			SelectionWidgetPair.Value.SelectedReflections.Reset();
 		}
 
-		if (SelectedItems.Num() > 0)
+		const UPoseSearchDatabase* PoseSearchDatabase = GetPoseSearchDatabase();
+		if (PoseSearchDatabase && SelectedItems.Num() > 0)
 		{
 			for (TSharedPtr<FDatabaseAssetTreeNode>& SelectedItem : SelectedItems)
 			{
-				if (!SelectedItem.IsValid() ||
-					!GetPoseSearchDatabase()->AnimationAssets.IsValidIndex(SelectedItem->SourceAssetIdx))
+				if (!SelectedItem.IsValid() || !PoseSearchDatabase->AnimationAssets.IsValidIndex(SelectedItem->SourceAssetIdx))
 				{
 					continue;
 				}
 
-				const FInstancedStruct& DatabaseAsset = GetPoseSearchDatabase()->AnimationAssets[SelectedItem->SourceAssetIdx];
+				const FInstancedStruct& DatabaseAsset = PoseSearchDatabase->AnimationAssets[SelectedItem->SourceAssetIdx];
 				const UScriptStruct* ScriptStruct = DatabaseAsset.GetScriptStruct();
 				FSelectionWidget& SelectionWidget = FindOrAddSelectionWidget(ScriptStruct);
 

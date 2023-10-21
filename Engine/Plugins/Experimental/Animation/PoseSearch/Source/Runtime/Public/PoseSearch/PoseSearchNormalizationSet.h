@@ -17,5 +17,5 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "NormalizationSet")
 	TArray<TObjectPtr<const UPoseSearchDatabase>> Databases;
 
-	void AddUniqueDatabases(TArray<TObjectPtr<const UPoseSearchDatabase>>& UniqueDatabases) const;
+	void AddUniqueDatabases(TArray<const UPoseSearchDatabase*>& UniqueDatabases) const;
 };

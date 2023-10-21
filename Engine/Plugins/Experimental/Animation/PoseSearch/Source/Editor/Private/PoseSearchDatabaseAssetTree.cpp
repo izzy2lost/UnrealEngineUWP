@@ -170,7 +170,7 @@ namespace UE::PoseSearch
 		// Ensure that we only react to modifications to the UPosesSearchDatabase.
 		if (const TSharedPtr<FDatabaseViewModel> ViewModel = EditorViewModel.Pin())
 		{
-			if (const UPoseSearchDatabase * Database = ViewModel->GetPoseSearchDatabase())
+			if (const UPoseSearchDatabase* Database = ViewModel->GetPoseSearchDatabase())
 			{
 				for (const TPair<UObject*, FTransactionObjectEvent>& TransactionObjectPair : TransactionObjectContexts)
 				{
@@ -388,51 +388,50 @@ namespace UE::PoseSearch
 		const int32 NumAssets = DroppedAssetData.Num();
 
 		int32 AddedAssets = 0;
-		if (NumAssets > 0)
+		UPoseSearchDatabase* PoseSearchDatabase = ViewModel->GetPoseSearchDatabase();
+		if (PoseSearchDatabase && NumAssets > 0)
 		{
 			GWarn->BeginSlowTask(LOCTEXT("LoadingAssets", "Loading Asset(s)"), true);
 
+			const FScopedTransaction Transaction(LOCTEXT("AddSequencesOrBlendspaces", "Add Sequence(s) and/or Blendspace(s) to Pose Search Database"));
+			
+			PoseSearchDatabase->Modify();
+			for (int32 DroppedAssetIdx = 0; DroppedAssetIdx < NumAssets; ++DroppedAssetIdx)
 			{
-				const FScopedTransaction Transaction(LOCTEXT("AddSequencesOrBlendspaces", "Add Sequence(s) and/or Blendspace(s) to Pose Search Database"));
-				ViewModel->GetPoseSearchDatabase()->Modify();
-				
-				for (int32 DroppedAssetIdx = 0; DroppedAssetIdx < NumAssets; ++DroppedAssetIdx)
+				const FAssetData& AssetData = DroppedAssetData[DroppedAssetIdx];
+
+				if (!AssetData.IsAssetLoaded())
 				{
-					const FAssetData& AssetData = DroppedAssetData[DroppedAssetIdx];
+					GWarn->StatusUpdate(
+						DroppedAssetIdx,
+						NumAssets,
+						FText::Format(
+							LOCTEXT("LoadingAsset", "Loading Asset {0}"),
+							FText::FromName(AssetData.AssetName)));
+				}
 
-					if (!AssetData.IsAssetLoaded())
-					{
-						GWarn->StatusUpdate(
-							DroppedAssetIdx,
-							NumAssets,
-							FText::Format(
-								LOCTEXT("LoadingAsset", "Loading Asset {0}"),
-								FText::FromName(AssetData.AssetName)));
-					}
-
-					UClass* AssetClass = AssetData.GetClass();
-					UObject* Asset = AssetData.GetAsset();
+				UClass* AssetClass = AssetData.GetClass();
+				UObject* Asset = AssetData.GetAsset();
 					
-					if (AssetClass->IsChildOf(UAnimSequence::StaticClass()))
-					{
-						ViewModel->AddSequenceToDatabase(Cast<UAnimSequence>(Asset));
-						++AddedAssets;
-					}
-					if (AssetClass->IsChildOf(UAnimComposite::StaticClass()))
-					{
-						ViewModel->AddAnimCompositeToDatabase(Cast<UAnimComposite>(Asset));
-						++AddedAssets;
-					}
-					else if (AssetClass->IsChildOf(UBlendSpace::StaticClass()))
-					{
-						ViewModel->AddBlendSpaceToDatabase(Cast<UBlendSpace>(Asset));
-						++AddedAssets;
-					}
-					else if (AssetClass->IsChildOf(UAnimMontage::StaticClass()))
-					{
-						ViewModel->AddAnimMontageToDatabase(Cast<UAnimMontage>(Asset));
-						++AddedAssets;
-					}
+				if (AssetClass->IsChildOf(UAnimSequence::StaticClass()))
+				{
+					ViewModel->AddSequenceToDatabase(Cast<UAnimSequence>(Asset));
+					++AddedAssets;
+				}
+				if (AssetClass->IsChildOf(UAnimComposite::StaticClass()))
+				{
+					ViewModel->AddAnimCompositeToDatabase(Cast<UAnimComposite>(Asset));
+					++AddedAssets;
+				}
+				else if (AssetClass->IsChildOf(UBlendSpace::StaticClass()))
+				{
+					ViewModel->AddBlendSpaceToDatabase(Cast<UBlendSpace>(Asset));
+					++AddedAssets;
+				}
+				else if (AssetClass->IsChildOf(UAnimMontage::StaticClass()))
+				{
+					ViewModel->AddAnimMontageToDatabase(Cast<UAnimMontage>(Asset));
+					++AddedAssets;
 				}
 			}
 			
@@ -559,31 +558,37 @@ namespace UE::PoseSearch
 
 	void SDatabaseAssetTree::OnAddSequence(bool bFinalizeChanges)
 	{
-		FScopedTransaction Transaction(LOCTEXT("AddSequence", "Add Sequence"));
 		const TSharedPtr<FDatabaseViewModel> ViewModel = EditorViewModel.Pin();
-		
-		ViewModel->GetPoseSearchDatabase()->Modify();
-		
-		ViewModel->AddSequenceToDatabase(nullptr);
-
-		if (bFinalizeChanges)
+		if (UPoseSearchDatabase* PoseSearchDatabase = ViewModel->GetPoseSearchDatabase())
 		{
-			FinalizeTreeChanges();
+			FScopedTransaction Transaction(LOCTEXT("AddSequence", "Add Sequence"));
+
+			PoseSearchDatabase->Modify();
+
+			ViewModel->AddSequenceToDatabase(nullptr);
+
+			if (bFinalizeChanges)
+			{
+				FinalizeTreeChanges();
+			}
 		}
 	}
 
 	void SDatabaseAssetTree::OnAddBlendSpace(bool bFinalizeChanges)
 	{
-		FScopedTransaction Transaction(LOCTEXT("AddBlendSpaceTransaction", "Add Blend Space"));
 		const TSharedPtr<FDatabaseViewModel> ViewModel = EditorViewModel.Pin();
-		
-		ViewModel->GetPoseSearchDatabase()->Modify();
-		
-		ViewModel->AddBlendSpaceToDatabase(nullptr);
-
-		if (bFinalizeChanges)
+		if (UPoseSearchDatabase* PoseSearchDatabase = ViewModel->GetPoseSearchDatabase())
 		{
-			FinalizeTreeChanges();
+			FScopedTransaction Transaction(LOCTEXT("AddBlendSpaceTransaction", "Add Blend Space"));
+
+			PoseSearchDatabase->Modify();
+
+			ViewModel->AddBlendSpaceToDatabase(nullptr);
+
+			if (bFinalizeChanges)
+			{
+				FinalizeTreeChanges();
+			}
 		}
 	}
 
@@ -701,21 +706,24 @@ namespace UE::PoseSearch
 
 	void SDatabaseAssetTree::EnableSelectedNodes(bool bIsEnabled)
 	{
-		TArray<TSharedPtr<FDatabaseAssetTreeNode>> SelectedNodes = TreeView->GetSelectedItems();
-		if (!SelectedNodes.IsEmpty())
+		const TSharedPtr<FDatabaseViewModel> ViewModel = EditorViewModel.Pin();
+		if (UPoseSearchDatabase* PoseSearchDatabase = ViewModel->GetPoseSearchDatabase())
 		{
-			const FText TransactionName = bIsEnabled ? LOCTEXT("EnablePoseSearchDatabaseNodes", "Enable selected items from Pose Search Database") : LOCTEXT("DisablePoseSearchDatabaseNodes", "Disable selected items from Pose Search Database");
-			const FScopedTransaction Transaction(TransactionName);
-			const TSharedPtr<FDatabaseViewModel> ViewModel = EditorViewModel.Pin();
-
-			ViewModel->GetPoseSearchDatabase()->Modify();
-
-			for (TSharedPtr<FDatabaseAssetTreeNode> SelectedNode : SelectedNodes)
+			TArray<TSharedPtr<FDatabaseAssetTreeNode>> SelectedNodes = TreeView->GetSelectedItems();
+			if (!SelectedNodes.IsEmpty())
 			{
-				ViewModel->SetIsEnabled(SelectedNode->SourceAssetIdx, bIsEnabled);
+				const FText TransactionName = bIsEnabled ? LOCTEXT("EnablePoseSearchDatabaseNodes", "Enable selected items from Pose Search Database") : LOCTEXT("DisablePoseSearchDatabaseNodes", "Disable selected items from Pose Search Database");
+				const FScopedTransaction Transaction(TransactionName);
+
+				PoseSearchDatabase->Modify();
+
+				for (TSharedPtr<FDatabaseAssetTreeNode> SelectedNode : SelectedNodes)
+				{
+					ViewModel->SetIsEnabled(SelectedNode->SourceAssetIdx, bIsEnabled);
+				}
+
+				FinalizeTreeChanges();
 			}
-		
-			FinalizeTreeChanges();
 		}
 	}
 

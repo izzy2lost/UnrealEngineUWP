@@ -109,7 +109,7 @@ void UPoseSearchDatabaseStatistics::Initialize(const UPoseSearchDatabase* PoseSe
 {
 	static FText TimeFormat = LOCTEXT("TimeFormat", "{0} {0}|plural(one=Second,other=Seconds)");
 	
-	if (PoseSearchDatabase)
+	if (IsValid(PoseSearchDatabase))
 	{
 		const UE::PoseSearch::FSearchIndex& SearchIndex = PoseSearchDatabase->GetSearchIndex();
 		// General Information

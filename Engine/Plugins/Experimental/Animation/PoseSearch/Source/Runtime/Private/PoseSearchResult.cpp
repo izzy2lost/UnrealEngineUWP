@@ -14,8 +14,8 @@ namespace UE::PoseSearch
 FFeatureVectorBuilder::FFeatureVectorBuilder(const UPoseSearchSchema* InSchema)
 {
 	check(InSchema && InSchema->IsValid());
-	Schema = InSchema;
-	Values.SetNumZeroed(Schema->SchemaCardinality);
+	SchemaPtr = InSchema;
+	Values.SetNumZeroed(SchemaPtr->SchemaCardinality);
 }
 
 //////////////////////////////////////////////////////////////////////////

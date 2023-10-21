@@ -39,7 +39,7 @@ namespace UE::PoseSearch
 		FTransform ExtractRootTransform(float Time) const;
 		void ExtractPose(float Time, FCompactPose& OutPose) const;
 
-		const AActor* GetActor() const { return Actor.Get(); }
+		const AActor* GetActor() const { return ActorPtr.Get(); }
 		int32 GetIndexAssetIndex() const { return IndexAssetIndex; }
 		int32 GetCurrentPoseIndex() const { return CurrentPoseIndex; }
 		float GetPlayTimeOffset() const { return PlayTimeOffset; }
@@ -47,7 +47,7 @@ namespace UE::PoseSearch
 	private:
 		UAnimPreviewInstance* GetAnimPreviewInstanceInternal();
 
-		TObjectPtr<AActor> Actor;
+		TWeakObjectPtr<AActor> ActorPtr;
 		int32 IndexAssetIndex = INDEX_NONE;
 		int32 CurrentPoseIndex = INDEX_NONE;
 		float PlayTimeOffset = 0.f;
@@ -71,8 +71,6 @@ namespace UE::PoseSearch
 	class FDatabaseViewModel : public TSharedFromThis<FDatabaseViewModel>, public FGCObject
 	{
 	public:
-		FDatabaseViewModel();
-
 		// ~ FGCObject interface
 		virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
 		virtual FString GetReferencerName() const override { return TEXT("FPoseSearchDatabaseViewModel"); }
@@ -90,7 +88,8 @@ namespace UE::PoseSearch
 		void PreviewForwardStep();
 		void PreviewForwardEnd();
 
-		UPoseSearchDatabase* GetPoseSearchDatabase() { return PoseSearchDatabase; }
+		UPoseSearchDatabase* GetPoseSearchDatabase() { return PoseSearchDatabasePtr.Get(); }
+		const UPoseSearchDatabase* GetPoseSearchDatabase() const { return PoseSearchDatabasePtr.Get(); }
 		void OnPreviewActorClassChanged();
 
 		void Tick(float DeltaSeconds);
@@ -143,7 +142,7 @@ namespace UE::PoseSearch
 		float DeltaTimeMultiplier = 1.f;
 
 		/** Scene asset being viewed and edited by this view model. */
-		TObjectPtr<UPoseSearchDatabase> PoseSearchDatabase;
+		TWeakObjectPtr<UPoseSearchDatabase> PoseSearchDatabasePtr;
 
 		/** Weak pointer to the PreviewScene */
 		TWeakPtr<FDatabasePreviewScene> PreviewScenePtr;

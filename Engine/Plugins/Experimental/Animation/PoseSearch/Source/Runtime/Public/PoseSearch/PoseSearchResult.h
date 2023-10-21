@@ -21,14 +21,14 @@ struct FFeatureVectorBuilder
 {
 public:
 	explicit FFeatureVectorBuilder(const UPoseSearchSchema* Schema);
-	const UPoseSearchSchema* GetSchema() const { return Schema.Get(); }
+	const UPoseSearchSchema* GetSchema() const { return SchemaPtr.Get(); }
 
 	TArrayView<float> EditValues() { return Values; }
 	TConstArrayView<float> GetValues() const { return Values; }
 
 private:
 	TStackAlignedArray<float> Values;
-	TObjectPtr<const UPoseSearchSchema> Schema;
+	TWeakObjectPtr<const UPoseSearchSchema> SchemaPtr;
 };
 	
 struct FSearchResult
@@ -37,7 +37,7 @@ struct FSearchResult
 	FPoseSearchCost PoseCost;
 	int32 PoseIdx = INDEX_NONE;
 
-	TObjectPtr<const UPoseSearchDatabase> Database;
+	TWeakObjectPtr<const UPoseSearchDatabase> Database;
 
 	float AssetTime = 0.0f;
 

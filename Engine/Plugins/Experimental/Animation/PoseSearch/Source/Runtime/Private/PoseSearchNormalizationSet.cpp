@@ -5,13 +5,13 @@
 
 #if WITH_EDITORONLY_DATA
 
-void UPoseSearchNormalizationSet::AddUniqueDatabases(TArray<TObjectPtr<const UPoseSearchDatabase>>& UniqueDatabases) const
+void UPoseSearchNormalizationSet::AddUniqueDatabases(TArray<const UPoseSearchDatabase*>& UniqueDatabases) const
 {
 	for (const TObjectPtr<const UPoseSearchDatabase>& Database : Databases)
 	{
 		if (Database)
 		{
-			UniqueDatabases.AddUnique(Database);
+			UniqueDatabases.AddUnique(Database.Get());
 		}
 	}
 }

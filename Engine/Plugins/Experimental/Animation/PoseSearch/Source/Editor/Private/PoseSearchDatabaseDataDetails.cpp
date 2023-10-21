@@ -224,7 +224,7 @@ public:
 					{
 						if (const FDatabasePreviewActor* FoundPreviewActor = ViewModel->GetPreviewActors().FindByPredicate(
 							[ColumnName](const FDatabasePreviewActor& PreviewActor)
-							{ return *PreviewActor.GetActor()->GetName() == ColumnName; }))
+							{ return *GetNameSafe(PreviewActor.GetActor()) == ColumnName; }))
 						{
 							const int32 PoseIdx = FoundPreviewActor->GetCurrentPoseIndex();
 							const TArray<float> PoseValues = PoseSearchDatabase->GetSearchIndex().GetPoseValuesSafe(PoseIdx);
@@ -357,7 +357,7 @@ void SDatabaseDataDetails::Reconstruct(int32 MaxPreviewActors)
 	for (int32 PreviewActorIdx = 0; PreviewActorIdx < PreviewActorNum; ++PreviewActorIdx)
 	{
 		const FDatabasePreviewActor& PreviewActor = PreviewActors[PreviewActorIdx];
-		HeaderRow->AddColumn(SHeaderRow::Column(*PreviewActor.GetActor()->GetName())
+		HeaderRow->AddColumn(SHeaderRow::Column(*GetNameSafe(PreviewActor.GetActor()))
 			.DefaultLabel(FText::FromString(PreviewActor.GetSampler().GetAsset()->GetName())));
 	}
 

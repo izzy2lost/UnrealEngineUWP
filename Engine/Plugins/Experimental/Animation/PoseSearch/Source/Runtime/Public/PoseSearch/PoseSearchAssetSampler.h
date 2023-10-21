@@ -52,7 +52,7 @@ struct POSESEARCH_API FAnimationAssetSampler
 	static float GetPlayLength(const UAnimationAsset* AnimAsset, const FVector& BlendParameters = FVector::ZeroVector);
 
 protected:
-	TObjectPtr<const UAnimationAsset> AnimationAsset;
+	TWeakObjectPtr<const UAnimationAsset> AnimationAssetPtr;
 
 	// members used to sample blend spaces only!
 	FVector BlendParameters = FVector::ZeroVector;

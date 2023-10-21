@@ -142,7 +142,7 @@ void FAnimNode_MotionMatching::UpdateAssetPlayer(const FAnimationUpdateContext& 
 #if ENABLE_ANIM_DEBUG
 	if (CVarAnimNodeMotionMatchingDrawInfo.GetValueOnAnyThread())
 	{
-		const UPoseSearchDatabase* CurrentDatabase = MotionMatchingState.CurrentSearchResult.Database;
+		const UPoseSearchDatabase* CurrentDatabase = MotionMatchingState.CurrentSearchResult.Database.Get();
 		const UAnimationAsset* CurrentAnimationAsset = AnimPlayers.IsEmpty() ? nullptr : AnimPlayers.First().GetAnimationAsset();
 
 		FString DebugInfo = FString::Printf(TEXT("bForceInterruptNextUpdate(%d)\n"), bForceInterruptNextUpdate);

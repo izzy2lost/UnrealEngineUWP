@@ -153,11 +153,11 @@ namespace UE::PoseSearch
 
 	FText SDatabaseAssetListItem::GetName() const
 	{
-		TSharedPtr<FDatabaseAssetTreeNode> Node = WeakAssetTreeNode.Pin();
 		TSharedPtr<FDatabaseViewModel> ViewModel = EditorViewModel.Pin();
 
 		if (const UPoseSearchDatabase* Database = ViewModel->GetPoseSearchDatabase())
 		{
+			TSharedPtr<FDatabaseAssetTreeNode> Node = WeakAssetTreeNode.Pin();
 			if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAsset = Database->GetAnimationAssetBase(Node->SourceAssetIdx))
 			{
 				return FText::FromString(DatabaseAnimationAsset->GetName());
@@ -172,8 +172,6 @@ namespace UE::PoseSearch
 	TSharedRef<SWidget> SDatabaseAssetListItem::GenerateItemWidget()
 	{
 		TSharedPtr<FDatabaseAssetTreeNode> Node = WeakAssetTreeNode.Pin();
-		TSharedPtr<FDatabaseViewModel> ViewModel = EditorViewModel.Pin();
-		UPoseSearchDatabase* Database = ViewModel->GetPoseSearchDatabase();
 		
 		TSharedPtr<SWidget> ItemWidget;
 		const FDetailColumnSizeData& ColumnSizeData = SkeletonView.Pin()->GetColumnSizeData();
@@ -209,10 +207,14 @@ namespace UE::PoseSearch
 		{
 			// Item Icon
 			TSharedPtr<SImage> ItemIconWidget;
-			if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAsset = Database->GetAnimationAssetBase(Node->SourceAssetIdx))
+			TSharedPtr<FDatabaseViewModel> ViewModel = EditorViewModel.Pin();
+			if (UPoseSearchDatabase* Database = ViewModel->GetPoseSearchDatabase())
 			{
-				SAssignNew(ItemIconWidget, SImage)
-					.Image(FSlateIconFinder::FindIconBrushForClass(DatabaseAnimationAsset->GetAnimationAssetStaticClass()));
+				if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAsset = Database->GetAnimationAssetBase(Node->SourceAssetIdx))
+				{
+					SAssignNew(ItemIconWidget, SImage)
+						.Image(FSlateIconFinder::FindIconBrushForClass(DatabaseAnimationAsset->GetAnimationAssetStaticClass()));
+				}
 			}
 
 			// Setup table row to display 
@@ -405,14 +407,15 @@ namespace UE::PoseSearch
 	ECheckBoxState SDatabaseAssetListItem::GetDisableReselectionChecked() const
 	{
 		TSharedPtr<FDatabaseViewModel> ViewModelPtr = EditorViewModel.Pin();
-		TSharedPtr<FDatabaseAssetTreeNode> TreeNodePtr = WeakAssetTreeNode.Pin();
-		const UPoseSearchDatabase* Database = ViewModelPtr->GetPoseSearchDatabase();
-
-		if (Database->AnimationAssets.IsValidIndex(TreeNodePtr->SourceAssetIdx))
+		if (const UPoseSearchDatabase* Database = ViewModelPtr->GetPoseSearchDatabase())
 		{
-			if (ViewModelPtr->IsDisableReselection(TreeNodePtr->SourceAssetIdx))
+			TSharedPtr<FDatabaseAssetTreeNode> TreeNodePtr = WeakAssetTreeNode.Pin();
+			if (Database->AnimationAssets.IsValidIndex(TreeNodePtr->SourceAssetIdx))
 			{
-				return ECheckBoxState::Checked;
+				if (ViewModelPtr->IsDisableReselection(TreeNodePtr->SourceAssetIdx))
+				{
+					return ECheckBoxState::Checked;
+				}
 			}
 		}
 
@@ -421,34 +424,37 @@ namespace UE::PoseSearch
 
 	void SDatabaseAssetListItem::OnDisableReselectionChanged(ECheckBoxState NewCheckboxState)
 	{
-		const FScopedTransaction Transaction(LOCTEXT("EnableChangedForAssetInPoseSearchDatabase", "Update enabled flag for item from Pose Search Database"));
-
 		const TSharedPtr<FDatabaseViewModel> ViewModelPtr = EditorViewModel.Pin();
-		const TSharedPtr<FDatabaseAssetTreeNode> TreeNodePtr = WeakAssetTreeNode.Pin();
+		if (UPoseSearchDatabase* PoseSearchDatabase = ViewModelPtr->GetPoseSearchDatabase())
+		{
+			const FScopedTransaction Transaction(LOCTEXT("EnableChangedForAssetInPoseSearchDatabase", "Update enabled flag for item from Pose Search Database"));
 
-		ViewModelPtr->GetPoseSearchDatabase()->Modify();
-		
-		ViewModelPtr->SetDisableReselection(TreeNodePtr->SourceAssetIdx, NewCheckboxState == ECheckBoxState::Checked ? true : false);
+			const TSharedPtr<FDatabaseAssetTreeNode> TreeNodePtr = WeakAssetTreeNode.Pin();
 
-		SkeletonView.Pin()->RefreshTreeView(false, true);
-		
-		// no need to rebuild the SearchIndex (ViewModelPtr->BuildSearchIndex()), since bDisableReselection is a runtime only parameter
+			PoseSearchDatabase->Modify();
+
+			ViewModelPtr->SetDisableReselection(TreeNodePtr->SourceAssetIdx, NewCheckboxState == ECheckBoxState::Checked ? true : false);
+
+			SkeletonView.Pin()->RefreshTreeView(false, true);
+
+			// no need to rebuild the SearchIndex (ViewModelPtr->BuildSearchIndex()), since bDisableReselection is a runtime only parameter
+		}
 	}
 
 	ECheckBoxState SDatabaseAssetListItem::GetAssetEnabledChecked() const
 	{
 		TSharedPtr<FDatabaseViewModel> ViewModelPtr = EditorViewModel.Pin();
-		TSharedPtr<FDatabaseAssetTreeNode> TreeNodePtr = WeakAssetTreeNode.Pin();
-		const UPoseSearchDatabase* Database = ViewModelPtr->GetPoseSearchDatabase();
-
-		if (Database->AnimationAssets.IsValidIndex(TreeNodePtr->SourceAssetIdx))
+		if (const UPoseSearchDatabase* Database = ViewModelPtr->GetPoseSearchDatabase())
 		{
-			if (ViewModelPtr->IsEnabled(TreeNodePtr->SourceAssetIdx))
+			TSharedPtr<FDatabaseAssetTreeNode> TreeNodePtr = WeakAssetTreeNode.Pin();
+			if (Database->AnimationAssets.IsValidIndex(TreeNodePtr->SourceAssetIdx))
 			{
-				return ECheckBoxState::Checked;
+				if (ViewModelPtr->IsEnabled(TreeNodePtr->SourceAssetIdx))
+				{
+					return ECheckBoxState::Checked;
+				}
 			}
 		}
-
 		return ECheckBoxState::Unchecked;
 	}
 
@@ -468,22 +474,22 @@ namespace UE::PoseSearch
 	FSlateColor SDatabaseAssetListItem::GetNameTextColorAndOpacity() const
 	{
 		TSharedPtr<FDatabaseViewModel> ViewModelPtr = EditorViewModel.Pin();
-		TSharedPtr<FDatabaseAssetTreeNode> TreeNodePtr = WeakAssetTreeNode.Pin();
-		const UPoseSearchDatabase* Database = ViewModelPtr->GetPoseSearchDatabase();
-
-		if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAssetBase = Database->GetAnimationAssetBase(TreeNodePtr->SourceAssetIdx))
+		if (const UPoseSearchDatabase* Database = ViewModelPtr->GetPoseSearchDatabase())
 		{
-			if (DatabaseAnimationAssetBase->IsEnabled())
+			TSharedPtr<FDatabaseAssetTreeNode> TreeNodePtr = WeakAssetTreeNode.Pin();
+			if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAssetBase = Database->GetAnimationAssetBase(TreeNodePtr->SourceAssetIdx))
 			{
-				if (DatabaseAnimationAssetBase->bSynchronizeWithExternalDependency)
+				if (DatabaseAnimationAssetBase->IsEnabled())
 				{
-					return FColor::Turquoise;
-				}
+					if (DatabaseAnimationAssetBase->bSynchronizeWithExternalDependency)
+					{
+						return FColor::Turquoise;
+					}
 
-				return FLinearColor::White;
+					return FLinearColor::White;
+				}
 			}
 		}
-
 		return DisabledColor;
 	}
 

@@ -47,8 +47,8 @@ private:
 	/** Details widget constructed for the MM node */
 	TSharedPtr<IDetailsView> Details;
 
-	/** Last updated reflection data relative to MM state */
-	TObjectPtr<UPoseSearchDebuggerReflection> Reflection = nullptr;
+	/** Last updated reflection data relative to MM state. This is not gonna be garbage collected because of AddToRoot during Construct */
+	TObjectPtr<UPoseSearchDebuggerReflection> Reflection;
 };
 
 /** Callback to relay closing of the view to destroy the debugger instance */
