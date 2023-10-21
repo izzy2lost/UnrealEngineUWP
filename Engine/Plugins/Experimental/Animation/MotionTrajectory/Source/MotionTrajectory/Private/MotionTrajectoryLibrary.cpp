@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "MotionTrajectoryLibrary.h"
-#include "CharacterMovementTrajectoryLibrary.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -19,137 +18,159 @@ void FTrajectorySamplingData::Init()
 	SecondsPerPredictionSample = 1.f / PredictionSamplesPerSecond;
 }
 
-void FCharacterTrajectoryData::Init(const AActor* Actor)
+void FCharacterTrajectoryData::UpdateDataFromCharacter(float DeltaSeconds, const ACharacter* Character)
 {
-	Character = Cast<ACharacter>(Actor);
-	if (!ensureMsgf(Character, TEXT("FCharacterTrajectoryData requires valid ACharacter owner.")))
+	if (!ensure(Character))
 	{
 		return;
 	}
 
-	SkelMeshComponent = Character->GetMesh();
-	if (!ensureMsgf(SkelMeshComponent, TEXT("FCharacterTrajectoryData must be run on an ACharacter with a valid USkeletalMeshComponent.")))
+	// An AnimInstance might call this during an AnimBP recompile with 0 delta time.
+	if (DeltaSeconds <= 0.f)
 	{
 		return;
 	}
 
-	CharacterMovementComponent = Character->GetCharacterMovement();
-	if (!ensureMsgf(CharacterMovementComponent, TEXT("FCharacterTrajectoryData must be run on an ACharacter with a valid UCharacterMovementComponent.")))
+	if (const UCharacterMovementComponent* MoveComp = Character->GetCharacterMovement())
 	{
-		return;
-	}
-}
+		MaxSpeed = FMath::Max(MoveComp->GetMaxSpeed() * MoveComp->GetAnalogInputModifier(), MoveComp->GetMinAnalogSpeed());
+		BrakingDeceleration = FMath::Max(0.f, MoveComp->GetMaxBrakingDeceleration());
+		bOrientRotationToMovement = MoveComp->bOrientRotationToMovement;
 
-void FCharacterTrajectoryData::Update(float DeltaSeconds)
-{
-	UpdateControllerRotationRate(DeltaSeconds);
-}
+		Velocity = MoveComp->Velocity;
+		Acceleration = MoveComp->GetCurrentAcceleration();
 
-bool FCharacterTrajectoryData::IsValid() const
-{
-	// Init() won't initialize CharacterMovementComponent if Character or SkelMeshComponent are null.
-	check(!CharacterMovementComponent || (Character && SkelMeshComponent));
-
-	return (CharacterMovementComponent != nullptr);
-}
-
-void FCharacterTrajectoryData::UpdateControllerRotationRate(float DeltaSeconds)
-{
-	ControllerRotationRate = FRotator::ZeroRotator;
-	ControllerRotationRateClamped = FRotator::ZeroRotator;
-
-	if (!ensure(DeltaSeconds > 0.f))
-	{
-		return;
-	}
-
-	if (!ensure(IsValid()))
-	{
-		return;
-	}
-
-	const AController* Controller = Character->Controller;
-	if (!Controller)
-	{
-		// @todo: Simulated proxies don't have controllers, so they'll need some other mechanism to account for controller rotation rate.
-		return;
-	}
-
-	FRotator DesiredControllerRotation = Controller->GetDesiredRotation();
-	if (CharacterMovementComponent->ShouldRemainVertical())
-	{
-		DesiredControllerRotation.Yaw = FRotator::NormalizeAxis(DesiredControllerRotation.Yaw);
-		DesiredControllerRotation.Pitch = 0.f;
-		DesiredControllerRotation.Roll = 0.f;
-	}
-
-	const FRotator DesiredRotationDelta = DesiredControllerRotation - DesiredControllerRotationLastUpdate;
-	DesiredControllerRotationLastUpdate = DesiredControllerRotation;
-
-	ControllerRotationRate = DesiredRotationDelta.GetNormalized() * (1.f / DeltaSeconds);
-	if (MaxControllerRotationRate >= 0.f)
-	{
-		ControllerRotationRateClamped.Pitch = FMath::Sign(ControllerRotationRate.Pitch) * FMath::Min(FMath::Abs(ControllerRotationRate.Pitch), MaxControllerRotationRate);
-		ControllerRotationRateClamped.Yaw = FMath::Sign(ControllerRotationRate.Yaw) * FMath::Min(FMath::Abs(ControllerRotationRate.Yaw), MaxControllerRotationRate);
-		ControllerRotationRateClamped.Roll = FMath::Sign(ControllerRotationRate.Roll) * FMath::Min(FMath::Abs(ControllerRotationRate.Roll), MaxControllerRotationRate);
+		if (Acceleration.IsZero())
+		{
+			Friction = MoveComp->bUseSeparateBrakingFriction ? MoveComp->BrakingFriction : MoveComp->GroundFriction;
+			const float FrictionFactor = FMath::Max(0.f, MoveComp->BrakingFrictionFactor);
+			Friction = FMath::Max(0.f, Friction * FrictionFactor);
+		}
+		else
+		{
+			Friction = MoveComp->GroundFriction;
+		}
 	}
 	else
 	{
-		ControllerRotationRateClamped = ControllerRotationRate;
+		ensure(false);
+	}
+
+	// @todo: Simulated proxies don't have controllers, so they'll need some other mechanism to account for controller rotation rate.
+	const AController* Controller = Character->Controller;
+	if (Controller)
+	{
+		float DesiredControllerYaw = Controller->GetDesiredRotation().Yaw;
+		
+		const float DesiredYawDelta = DesiredControllerYaw - DesiredControllerYawLastUpdate;
+		DesiredControllerYawLastUpdate = DesiredControllerYaw;
+
+		ControllerYawRate = FRotator::NormalizeAxis(DesiredYawDelta) * (1.f / DeltaSeconds);
+		ControllerYawRateClamped = ControllerYawRate;
+		if (MaxControllerYawRate >= 0.f)
+		{
+			ControllerYawRateClamped = FMath::Sign(ControllerYawRate) * FMath::Min(FMath::Abs(ControllerYawRate), MaxControllerYawRate);
+		}
+	}
+
+	if (const USkeletalMeshComponent* MeshComp = Character->GetMesh())
+	{
+		Position = MeshComp->GetComponentLocation();
+		Facing = MeshComp->GetComponentRotation().Quaternion();
+		MeshCompRelativeRotation = MeshComp->GetRelativeRotation().Quaternion();
+	}
+	else
+	{
+		ensure(false);
 	}
 }
 
-void FMotionTrajectoryLibrary::InitTrajectorySamples(FPoseSearchQueryTrajectory& Trajectory,
-	const FCharacterTrajectoryData& CharacterTrajectoryData, const FTrajectorySamplingData& SamplingData)
+FVector FCharacterTrajectoryData::StepCharacterMovementGroundPrediction(float DeltaSeconds, const FVector& InVelocity, const FVector& InAcceleration) const
 {
-	if (!ensure(CharacterTrajectoryData.SkelMeshComponent))
+	FVector OutVelocity = InVelocity;
+
+	// Braking logic is copied from UCharacterMovementComponent::ApplyVelocityBraking()
+	if (InAcceleration.IsZero())
 	{
-		return;
+		if (InVelocity.IsZero())
+		{
+			return FVector::ZeroVector;
+		}
+
+		const bool bZeroFriction = (Friction == 0.f);
+		const bool bZeroBraking = (BrakingDeceleration == 0.f);
+
+		if (bZeroFriction && bZeroBraking)
+		{
+			return InVelocity;
+		}
+
+		static const float MaxTimeStep = 1.f / 60.f;
+		float RemainingTime = DeltaSeconds;
+
+		const FVector PrevLinearVelocity = OutVelocity;
+		const FVector RevAccel = (bZeroBraking ? FVector::ZeroVector : (-BrakingDeceleration * OutVelocity.GetSafeNormal()));
+
+		// Decelerate to brake to a stop
+		while (RemainingTime >= UCharacterMovementComponent::MIN_TICK_TIME)
+		{
+			// Zero friction uses constant deceleration, so no need for iteration.
+			const float dt = ((RemainingTime > MaxTimeStep && !bZeroFriction) ? FMath::Min(MaxTimeStep, RemainingTime * 0.5f) : RemainingTime);
+			RemainingTime -= dt;
+
+			// apply friction and braking
+			OutVelocity = OutVelocity + ((-Friction) * OutVelocity + RevAccel) * dt;
+
+			// Don't reverse direction
+			if ((OutVelocity | PrevLinearVelocity) <= 0.f)
+			{
+				OutVelocity = FVector::ZeroVector;
+				return OutVelocity;
+			}
+		}
+
+		// Clamp to zero if nearly zero, or if below min threshold and braking
+		const float VSizeSq = OutVelocity.SizeSquared();
+		if (VSizeSq <= KINDA_SMALL_NUMBER || (!bZeroBraking && VSizeSq <= FMath::Square(UCharacterMovementComponent::BRAKE_TO_STOP_VELOCITY)))
+		{
+			OutVelocity = FVector::ZeroVector;
+		}
+	}
+	// Acceleration logic is copied from  UCharacterMovementComponent::CalcVelocity
+	else
+	{
+		const FVector AccelDir = InAcceleration.GetSafeNormal();
+		const float VelSize = OutVelocity.Size();
+
+		OutVelocity = OutVelocity - (OutVelocity - AccelDir * VelSize) * FMath::Min(DeltaSeconds * Friction, 1.f);
+
+		OutVelocity += InAcceleration * DeltaSeconds;
+		OutVelocity = OutVelocity.GetClampedToMaxSize(MaxSpeed);
 	}
 
-	const FVector PositionWS = CharacterTrajectoryData.SkelMeshComponent->GetComponentLocation();;
-	const FQuat FacingWS = CharacterTrajectoryData.SkelMeshComponent->GetComponentRotation().Quaternion();
+	return OutVelocity;
+}
 
+void FMotionTrajectoryLibrary::InitTrajectorySamples(FPoseSearchQueryTrajectory& Trajectory,
+	const FTrajectorySamplingData& SamplingData, const FVector& Position, const FQuat& Facing)
+{
 	// History + current sample + prediction
 	Trajectory.Samples.SetNumUninitialized(SamplingData.NumHistorySamples + 1 + SamplingData.NumPredictionSamples);
 
 	// Initialize history samples
 	for (int32 i = 0; i < SamplingData.NumHistorySamples; ++i)
 	{
-		Trajectory.Samples[i].Position = PositionWS;
-		Trajectory.Samples[i].Facing = FacingWS;
+		Trajectory.Samples[i].Position = Position;
+		Trajectory.Samples[i].Facing = Facing;
 		Trajectory.Samples[i].AccumulatedSeconds = SamplingData.SecondsPerHistorySample * (i - SamplingData.NumHistorySamples);
 	}
 
 	// Initialize current sample and prediction
 	for (int32 i = SamplingData.NumHistorySamples; i < Trajectory.Samples.Num(); ++i)
 	{
-		Trajectory.Samples[i].Position = PositionWS;
-		Trajectory.Samples[i].Facing = FacingWS;
+		Trajectory.Samples[i].Position = Position;
+		Trajectory.Samples[i].Facing = Facing;
 		Trajectory.Samples[i].AccumulatedSeconds = SamplingData.SecondsPerPredictionSample * (i - SamplingData.NumHistorySamples);
-	}
-}
-
-void FMotionTrajectoryLibrary::UpdateHistory_ShiftInWorldSpace(FPoseSearchQueryTrajectory& Trajectory,
-	const FTrajectorySamplingData& SamplingData, float DeltaSeconds)
-{
-	check(SamplingData.NumHistorySamples <= Trajectory.Samples.Num());
-
-	// Shift history Samples when it's time to record a new one.
-	if (SamplingData.NumHistorySamples > 0 && FMath::Abs(Trajectory.Samples[SamplingData.NumHistorySamples - 1].AccumulatedSeconds) >= SamplingData.SecondsPerHistorySample)
-	{
-		for (int32 Index = 0; Index < SamplingData.NumHistorySamples; ++Index)
-		{
-			Trajectory.Samples[Index] = Trajectory.Samples[Index + 1];
-			Trajectory.Samples[Index].AccumulatedSeconds -= DeltaSeconds;
-		}
-	}
-	else
-	{
-		for (int32 Index = 0; Index < SamplingData.NumHistorySamples; ++Index)
-		{
-			Trajectory.Samples[Index].AccumulatedSeconds -= DeltaSeconds;
-		}
 	}
 }
 
@@ -159,8 +180,7 @@ void FMotionTrajectoryLibrary::UpdateHistory_TransformHistory(FPoseSearchQueryTr
 	check(SamplingData.NumHistorySamples <= Trajectory.Samples.Num());
 	check(TranslationHistory.Num() == SamplingData.NumHistorySamples);
 
-	const FVector& CurrentVelocityWS = CharacterTrajectoryData.CharacterMovementComponent->Velocity;
-	FVector CurrentTranslation = CurrentVelocityWS * DeltaSeconds;
+	FVector CurrentTranslation = CharacterTrajectoryData.Velocity * DeltaSeconds;
 
 	// Shift history Samples when it's time to record a new one.
 	if (SamplingData.NumHistorySamples > 0 && FMath::Abs(Trajectory.Samples[SamplingData.NumHistorySamples - 1].AccumulatedSeconds) >= SamplingData.SecondsPerHistorySample)
@@ -184,11 +204,10 @@ void FMotionTrajectoryLibrary::UpdateHistory_TransformHistory(FPoseSearchQueryTr
 	}
 
 	// Update trajectory samples by applying the tracked translations to the current world position.
-	FVector CurrentPositionWS = CharacterTrajectoryData.SkelMeshComponent->GetComponentLocation();
 	for (int32 Index = 0; Index < SamplingData.NumHistorySamples; ++Index)
 	{
 		Trajectory.Samples[Index].AccumulatedSeconds -= DeltaSeconds;
-		Trajectory.Samples[Index].Position = CurrentPositionWS - TranslationHistory[Index];
+		Trajectory.Samples[Index].Position = CharacterTrajectoryData.Position - TranslationHistory[Index];
 
 		// @todo: Handle facing. We currently don't use facing for history in any of our content. We will need the rotation intent of the character.
 		Trajectory.Samples[Index].Facing = FQuat::Identity;
@@ -211,28 +230,23 @@ FVector FMotionTrajectoryLibrary::RemapVectorMagnitudeWithCurve(const FVector& V
 }
 
 void FMotionTrajectoryLibrary::UpdatePrediction_SimulateCharacterMovement(FPoseSearchQueryTrajectory& Trajectory,
-	const FCharacterTrajectoryData& CharacterTrajectoryData, const FTrajectorySamplingData& SamplingData, float DeltaSeconds)
+	const FCharacterTrajectoryData& CharacterTrajectoryData, const FTrajectorySamplingData& SamplingData)
 {
-	if (!ensure(CharacterTrajectoryData.IsValid()))
-	{
-		return;
-	}
-
-	FVector CurrentPositionWS = CharacterTrajectoryData.SkelMeshComponent->GetComponentLocation();
-	FVector CurrentVelocityWS = FMotionTrajectoryLibrary::RemapVectorMagnitudeWithCurve(CharacterTrajectoryData.CharacterMovementComponent->Velocity,
+	FVector CurrentPositionWS = CharacterTrajectoryData.Position;
+	FVector CurrentVelocityWS = FMotionTrajectoryLibrary::RemapVectorMagnitudeWithCurve(CharacterTrajectoryData.Velocity,
 		CharacterTrajectoryData.bUseSpeedRemappingCurve, CharacterTrajectoryData.SpeedRemappingCurve);
-	FVector CurrentAccelerationWS = FMotionTrajectoryLibrary::RemapVectorMagnitudeWithCurve(CharacterTrajectoryData.CharacterMovementComponent->GetCurrentAcceleration(),
+	FVector CurrentAccelerationWS = FMotionTrajectoryLibrary::RemapVectorMagnitudeWithCurve(CharacterTrajectoryData.Acceleration,
 		CharacterTrajectoryData.bUseAccelerationRemappingCurve, CharacterTrajectoryData.AccelerationRemappingCurve);
 
 	// bending CurrentVelocityWS towards CurrentAccelerationWS
 	if (CharacterTrajectoryData.BendVelocityTowardsAcceleration > UE_KINDA_SMALL_NUMBER && !CurrentAccelerationWS.IsNearlyZero())
 	{
 		const float CurrentSpeed = CurrentVelocityWS.Length();
-		const FVector VelocityWSAlongAcceleration = CurrentAccelerationWS.GetUnsafeNormal()* CurrentSpeed;
+		const FVector VelocityWSAlongAcceleration = CurrentAccelerationWS.GetUnsafeNormal() * CurrentSpeed;
 		if (CharacterTrajectoryData.BendVelocityTowardsAcceleration < 1.f - UE_KINDA_SMALL_NUMBER)
 		{
 			CurrentVelocityWS = FMath::Lerp(CurrentVelocityWS, VelocityWSAlongAcceleration, CharacterTrajectoryData.BendVelocityTowardsAcceleration);
-			
+
 			const float NewLength = CurrentVelocityWS.Length();
 			if (NewLength > UE_KINDA_SMALL_NUMBER)
 			{
@@ -249,10 +263,10 @@ void FMotionTrajectoryLibrary::UpdatePrediction_SimulateCharacterMovement(FPoseS
 		}
 	}
 
-	FQuat CurrentFacingWS = CharacterTrajectoryData.SkelMeshComponent->GetComponentRotation().Quaternion();
-	FQuat SkelMeshCompRelativeRotation = CharacterTrajectoryData.SkelMeshComponent->GetRelativeRotation().Quaternion();
+	FQuat CurrentFacingWS = CharacterTrajectoryData.Facing;
+	FQuat SkelMeshCompRelativeRotation = CharacterTrajectoryData.MeshCompRelativeRotation;
 
-	FQuat ControllerRotationPerStep = (CharacterTrajectoryData.ControllerRotationRateClamped * SamplingData.SecondsPerPredictionSample).Quaternion();
+	FQuat ControllerRotationPerStep = FQuat::MakeFromEuler(FVector(0.f, 0.f, CharacterTrajectoryData.ControllerYawRateClamped * SamplingData.SecondsPerPredictionSample));
 
 	float AccumulatedSeconds = 0.f;
 
@@ -278,13 +292,12 @@ void FMotionTrajectoryLibrary::UpdatePrediction_SimulateCharacterMovement(FPoseS
 			CurrentAccelerationWS = FMotionTrajectoryLibrary::RemapVectorMagnitudeWithCurve(ControllerRotationPerStep * CurrentAccelerationWS,
 				CharacterTrajectoryData.bUseAccelerationRemappingCurve, CharacterTrajectoryData.AccelerationRemappingCurve);
 
-			FVector NewVelocityCS = FVector::ZeroVector;
-			UCharacterMovementTrajectoryLibrary::StepCharacterMovementGroundPrediction(SamplingData.SecondsPerPredictionSample, CurrentVelocityWS, CurrentAccelerationWS, 
-				CharacterTrajectoryData.CharacterMovementComponent, NewVelocityCS);
-			CurrentVelocityWS = FMotionTrajectoryLibrary::RemapVectorMagnitudeWithCurve(NewVelocityCS,
+			FVector NewVelocityWS = CharacterTrajectoryData.StepCharacterMovementGroundPrediction(SamplingData.SecondsPerPredictionSample, CurrentVelocityWS, CurrentAccelerationWS);
+
+			CurrentVelocityWS = FMotionTrajectoryLibrary::RemapVectorMagnitudeWithCurve(NewVelocityWS,
 				CharacterTrajectoryData.bUseSpeedRemappingCurve, CharacterTrajectoryData.SpeedRemappingCurve);
 
-			if (CharacterTrajectoryData.CharacterMovementComponent->bOrientRotationToMovement && !CurrentAccelerationWS.IsNearlyZero())
+			if (CharacterTrajectoryData.bOrientRotationToMovement && !CurrentAccelerationWS.IsNearlyZero())
 			{
 				// Rotate towards acceleration.
 				const FVector CurrentAccelerationCS = SkelMeshCompRelativeRotation.RotateVector(CurrentAccelerationWS);

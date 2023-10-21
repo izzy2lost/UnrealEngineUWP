@@ -47,10 +47,9 @@ struct MOTIONTRAJECTORY_API FCharacterTrajectoryData
 public:
 	GENERATED_BODY()
 
-	void Init(const AActor* Actor);
-	void Update(float DeltaSeconds);
+	void UpdateDataFromCharacter(float DeltaSeconds, const ACharacter* Character);
 
-	bool IsValid() const;
+	FVector StepCharacterMovementGroundPrediction(float DeltaSeconds, const FVector& InVelocity, const FVector& InAcceleration) const;
 
 	// If the character is forward facing (i.e. bOrientRotationToMovement is true), this controls how quickly the trajectory will rotate
 	// to face acceleration. It's common for this to differ from the rotation rate of the character, because animations are often authored 
@@ -58,10 +57,10 @@ public:
 	UPROPERTY(EditDefaultsOnly, Category = "Trajectory Settings")
 	float RotateTowardsMovementSpeed = 10.f;
 
-	// Maximum controller rotation rate in degrees per second used to clamp the character owner controller desired rotation to generate the prediction trajectory.
+	// Maximum controller yaw  rate in degrees per second used to clamp the character owner controller desired yaw to generate the prediction trajectory.
 	// Negative values disable the clamping behavior
 	UPROPERTY(EditDefaultsOnly, Category = "Trajectory Settings")
-	float MaxControllerRotationRate = -1.f;
+	float MaxControllerYawRate = 70.f;
 
 	// artificially bend character velocity towards acceleration direction to compute trajectory prediction, to get sharper turns
 	// 0: character velocity is used with no alteration, 1: the acceleration direction is used as velocity direction
@@ -80,22 +79,21 @@ public:
 	UPROPERTY(EditDefaultsOnly, Category = "Trajectory Settings", meta = (EditCondition = "bUseAccelerationRemappingCurve"))
 	FRuntimeFloatCurve AccelerationRemappingCurve;
 
-	UPROPERTY(Transient)
-	TObjectPtr<const ACharacter> Character = nullptr;
+	float ControllerYawRate = 0.f;
+	float ControllerYawRateClamped = 0.f;
+	float DesiredControllerYawLastUpdate = 0.f;
 
-	UPROPERTY(Transient)
-	TObjectPtr<const USkeletalMeshComponent> SkelMeshComponent = nullptr;
+	float MaxSpeed = 0.f;
+	float BrakingDeceleration = 0.f;
+	float Friction = 0.f;
 
-	UPROPERTY(Transient)
-	TObjectPtr<const UCharacterMovementComponent> CharacterMovementComponent = nullptr;
+	FVector Velocity = FVector::ZeroVector;
+	FVector Acceleration = FVector::ZeroVector;
 
-	FRotator ControllerRotationRate = FRotator::ZeroRotator;
-	FRotator ControllerRotationRateClamped = FRotator::ZeroRotator;
-
-private:
-	void UpdateControllerRotationRate(float DeltaSeconds);
-
-	FRotator DesiredControllerRotationLastUpdate = FRotator::ZeroRotator;
+	FVector Position = FVector::ZeroVector;
+	FQuat Facing = FQuat::Identity;
+	FQuat MeshCompRelativeRotation = FQuat::Identity;
+	bool bOrientRotationToMovement = false;
 };
 
 /**
@@ -106,22 +104,17 @@ struct MOTIONTRAJECTORY_API FMotionTrajectoryLibrary
 {
 public:
 	static void InitTrajectorySamples(FPoseSearchQueryTrajectory& Trajectory,
-		const FCharacterTrajectoryData& CharacterTrajectoryData, const FTrajectorySamplingData& SamplingData);
-
-	// Update history by shifting world space samples back in time. This gives us a history of world space transforms.
-	// This approach is simple, but it causes problems with moving platforms.
-	static void UpdateHistory_ShiftInWorldSpace(FPoseSearchQueryTrajectory& Trajectory,
-		const FTrajectorySamplingData& SamplingData, float DeltaSeconds);
+		const FTrajectorySamplingData& SamplingData, const FVector& Position, const FQuat& Facing);
 
 	// Update history by tracking offsets that result from character intent (e.g. movement component velocity) and applying
 	// that to the current world transform. This works well on moving platforms as it only stores a history of movement
-	// that results from character intent.
+	// that results from character intent, not movement from platforms.
 	static void UpdateHistory_TransformHistory(FPoseSearchQueryTrajectory& Trajectory, TArrayView<FVector> TranslationHistory,
 		const FCharacterTrajectoryData& CharacterTrajectoryData, const FTrajectorySamplingData& SamplingData, float DeltaSeconds);
 
-	// Update prediction by simulating the movement math for ground locomotion in UCharacterMovementComponent.
+	// Update prediction by simulating the movement math for ground locomotion from UCharacterMovementComponent.
 	static void UpdatePrediction_SimulateCharacterMovement(FPoseSearchQueryTrajectory& Trajectory,
-		const FCharacterTrajectoryData& CharacterTrajectoryData, const FTrajectorySamplingData& SamplingData, float DeltaSeconds);
+		const FCharacterTrajectoryData& CharacterTrajectoryData, const FTrajectorySamplingData& SamplingData);
 
 private:
 	static FVector RemapVectorMagnitudeWithCurve(const FVector& Vector, bool bUseCurve, const FRuntimeFloatCurve& Curve);

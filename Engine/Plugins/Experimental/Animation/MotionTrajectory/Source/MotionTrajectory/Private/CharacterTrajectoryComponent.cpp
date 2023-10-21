@@ -2,6 +2,7 @@
 
 #include "CharacterTrajectoryComponent.h"
 
+#include "Components/SkeletalMeshComponent.h"
 #include "GameFramework/Character.h"
 #include "HAL/IConsoleManager.h"
 #include "MotionTrajectory.h"
@@ -52,9 +53,26 @@ void UCharacterTrajectoryComponent::BeginPlay()
 	Super::BeginPlay();
 
 	SamplingData.Init();
-	CharacterTrajectoryData.Init(GetOwner());
+	TranslationHistory.Init(FVector::ZeroVector, SamplingData.NumHistorySamples);
 
-	FMotionTrajectoryLibrary::InitTrajectorySamples(Trajectory, CharacterTrajectoryData, SamplingData);
+	if (const ACharacter* Character = Cast<ACharacter>(GetOwner()))
+	{
+		if (const USkeletalMeshComponent* MeshComp = Character->GetMesh())
+		{
+			const FVector Position = MeshComp->GetComponentLocation();
+			const FQuat Facing = MeshComp->GetComponentRotation().Quaternion();
+
+			FMotionTrajectoryLibrary::InitTrajectorySamples(Trajectory, SamplingData, Position, Facing);
+		}
+		else
+		{
+			ensure(false);
+		}
+	}
+	else
+	{
+		UE_LOG(LogMotionTrajectory, Error, TEXT("UCharacterTrajectoryComponent requires its owner to be ACharacter"));
+	}
 }
 
 void UCharacterTrajectoryComponent::OnMovementUpdated(float DeltaSeconds, FVector OldLocation, FVector OldVelocity)
@@ -69,11 +87,15 @@ void UCharacterTrajectoryComponent::OnMovementUpdated(float DeltaSeconds, FVecto
 		return;
 	}
 
-	CharacterTrajectoryData.Update(DeltaSeconds);
+	ACharacter* Character = Cast<ACharacter>(GetOwner());
+	if (!ensure(Character))
+	{
+		return;
+	}
 
-	FMotionTrajectoryLibrary::UpdateHistory_ShiftInWorldSpace(Trajectory, SamplingData, DeltaSeconds);
-
-	FMotionTrajectoryLibrary::UpdatePrediction_SimulateCharacterMovement(Trajectory, CharacterTrajectoryData, SamplingData, DeltaSeconds);
+	CharacterTrajectoryData.UpdateDataFromCharacter(DeltaSeconds, Character);
+	FMotionTrajectoryLibrary::UpdateHistory_TransformHistory(Trajectory, TranslationHistory, CharacterTrajectoryData, SamplingData, DeltaSeconds);
+	FMotionTrajectoryLibrary::UpdatePrediction_SimulateCharacterMovement(Trajectory, CharacterTrajectoryData, SamplingData);
 
 	LastUpdateFrameNumber = GFrameNumber;
 

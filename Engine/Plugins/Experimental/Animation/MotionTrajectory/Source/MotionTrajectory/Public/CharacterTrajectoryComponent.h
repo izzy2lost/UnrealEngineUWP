@@ -39,5 +39,7 @@ protected:
 	UPROPERTY(Transient, BlueprintReadOnly, Category = "Trajectory Settings")
 	FCharacterTrajectoryData CharacterTrajectoryData;
 
+	TArray<FVector> TranslationHistory;
+
 	uint32 LastUpdateFrameNumber = 0;
 };
