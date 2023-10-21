@@ -5,9 +5,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
-using EpicGames.Core;
 using EpicGames.Horde.Storage;
-using Microsoft.Extensions.Logging.Abstractions;
 using EpicGames.Horde.Storage.Clients;
 
 namespace EpicGames.Horde.Compute
@@ -15,18 +13,64 @@ namespace EpicGames.Horde.Compute
 	/// <summary>
 	/// Storage client which can read bundles over a compute channel
 	/// </summary>
-	public sealed class AgentStorageClient : BundleStorageClient
+	public sealed class AgentStorageClient : KeyValueStorageClient
 	{
+		readonly AgentMessageChannel _channel;
+		readonly SemaphoreSlim _semaphore;
+
+		/// <inheritdoc/>
+		public override bool SupportsRedirects => false;
+
 		/// <summary>
 		/// Constructor
 		/// </summary>
 		/// <param name="channel"></param>
 		public AgentStorageClient(AgentMessageChannel channel)
-			: base(new AgentStorageBackend(channel), BundleReaderCache.None, NullLogger.Instance)
 		{
+			_channel = channel;
+			_semaphore = new SemaphoreSlim(1);
 		}
 
-		#region Nodes
+		/// <inheritdoc/>
+		protected override void Dispose(bool disposing)
+		{
+			base.Dispose(disposing);
+
+			if (disposing)
+			{
+				_semaphore.Dispose();
+			}
+		}
+
+		#region Blobs
+
+		/// <inheritdoc/>
+		public override async ValueTask<BlobData> ReadBlobAsync(BlobLocator locator, CancellationToken cancellationToken = default)
+		{
+			await _semaphore.WaitAsync(cancellationToken);
+			try
+			{
+				ReadOnlyMemory<byte> data = await _channel.ReadBlobAsync(locator.ToString(), 0, 0, cancellationToken);
+				return new BlobData(BlobType.Leaf, data, Array.Empty<BlobHandle>());
+			}
+			finally
+			{
+				_semaphore.Release();
+			}
+		}
+
+		/// <inheritdoc/>
+		public override ValueTask<BlobHandle> WriteBlobAsync(BlobType type, Stream stream, IReadOnlyList<BlobHandle> references, string? basePath = null, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+		/// <inheritdoc/>
+		public override ValueTask<Uri?> TryGetReadRedirectAsync(BlobLocator locator, CancellationToken cancellationToken = default) => default;
+
+		/// <inheritdoc/>
+		public override ValueTask<(BlobLocator, Uri)?> TryGetWriteRedirectAsync(string? prefix = null, CancellationToken cancellationToken = default) => default;
+
+		#endregion
+
+		#region Aliases
 
 		/// <inheritdoc/>
 		public override Task AddAliasAsync(string name, BlobHandle target, int rank, ReadOnlyMemory<byte> data, CancellationToken cancellationToken = default) => throw new NotSupportedException();
@@ -51,87 +95,10 @@ namespace EpicGames.Horde.Compute
 		public override Task WriteRefAsync(RefName name, BlobHandle target, RefOptions? options = null, CancellationToken cancellationToken = default) => throw new NotSupportedException();
 
 		#endregion
-	}
 
-	class AgentStorageBackend : IStorageBackend
-	{
-		readonly AgentMessageChannel _channel;
-		readonly SemaphoreSlim _semaphore;
-
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		/// <param name="channel"></param>
-		public AgentStorageBackend(AgentMessageChannel channel)
+		/// <inheritdoc/>
+		public override void GetStats(StorageStats stats)
 		{
-			_channel = channel;
-			_semaphore = new SemaphoreSlim(1);
 		}
-
-		/// <inheritdoc/>
-		public void Dispose()
-		{
-			_semaphore.Dispose();
-		}
-
-		/// <inheritdoc/>
-		public bool SupportsRedirects => throw new NotImplementedException();
-
-		/// <inheritdoc/>
-		public async Task<Stream> OpenAsync(string path, int offset, int? length, CancellationToken cancellationToken = default)
-		{
-			await _semaphore.WaitAsync(cancellationToken);
-			try
-			{
-				ReadOnlyMemory<byte> data;
-				if (length.HasValue && length.Value == 0)
-				{
-					data = ReadOnlyMemory<byte>.Empty;
-				}
-				else
-				{
-					data = await _channel.ReadBlobAsync(path, offset, length ?? 0, cancellationToken);
-				}
-				return new ReadOnlyMemoryStream(data);
-			}
-			finally
-			{
-				_semaphore.Release();
-			}
-		}
-
-		/// <inheritdoc/>
-		public async Task<IReadOnlyMemoryOwner<byte>> ReadAsync(string path, int offset, int? length, CancellationToken cancellationToken = default)
-		{
-			using (Stream stream = await OpenAsync(path, offset, length, cancellationToken))
-			{
-				byte[] data = await stream.ReadAllBytesAsync(cancellationToken);
-				return ReadOnlyMemoryOwner.Create(data);
-			}
-		}
-
-		/// <inheritdoc/>
-		public Task<string> WriteAsync(Stream stream, string? prefix = null, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-
-		/// <inheritdoc/>
-		public Task WriteExplicitPathAsync(string path, Stream stream, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-
-		/// <inheritdoc/>
-		public Task DeleteAsync(string path, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-
-		/// <inheritdoc/>
-		public IAsyncEnumerable<string> EnumerateAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
-
-		/// <inheritdoc/>
-		public Task<bool> ExistsAsync(string path, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-
-		/// <inheritdoc/>
-		public ValueTask<Uri?> TryGetReadRedirectAsync(string path, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-
-		/// <inheritdoc/>
-		public ValueTask<(string, Uri)?> TryGetWriteRedirectAsync(string? prefix = null, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-
-		/// <inheritdoc/>
-		public void GetStats(StorageStats stats) { }
 	}
 }

@@ -13,6 +13,7 @@ using Microsoft.Extensions.Logging;
 using EpicGames.Horde.Storage;
 using System.IO;
 using System.Linq;
+using EpicGames.Horde.Storage.Clients;
 
 namespace EpicGames.Horde.Compute
 {
@@ -134,7 +135,8 @@ namespace EpicGames.Horde.Compute
 
 		async Task WriteFilesAsync(AgentMessageChannel channel, string path, BlobLocator locator, CancellationToken cancellationToken)
 		{
-			using AgentStorageClient store = new AgentStorageClient(channel);
+			using AgentStorageClient innerStore = new AgentStorageClient(channel);
+			using BundleStorageClientWrapper store = new BundleStorageClientWrapper(innerStore, BundleReaderCache.None, _logger);
 
 			BlobHandle handle = store.CreateBlobHandle(locator);
 			DirectoryNode directoryNode = await handle.ReadNodeAsync<DirectoryNode>(cancellationToken);
