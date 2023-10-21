@@ -59,8 +59,7 @@ namespace EpicGames.Horde.Tests
 
 		static async Task<Bundle> CreateBundleNormalAsync()
 		{
-			using MemoryStorageClient memoryStore = new MemoryStorageClient();
-			using BundleStorageClientWrapper store = new BundleStorageClientWrapper(memoryStore, BundleReaderCache.None, NullLogger.Instance);
+			using MemoryStorageClient store = new MemoryStorageClient();
 			await using BundleWriter writer = store.CreateWriter(options: new BundleOptions { CompressionFormat = BundleCompressionFormat.None });
 
 			TextNode node = new TextNode("Hello world");
@@ -97,9 +96,7 @@ namespace EpicGames.Horde.Tests
 			using IMemoryCache cache = new MemoryCache(new MemoryCacheOptions());
 
 			using MemoryStorageClient blobStore = new MemoryStorageClient();
-			using BundleStorageClientWrapper bundleStore = new BundleStorageClientWrapper(blobStore, BundleReaderCache.None, NullLogger.Instance);
-
-			await TestTreeAsync(bundleStore, new BundleOptions { MaxBlobSize = 1024 * 1024 });
+			await TestTreeAsync(blobStore, new BundleOptions { MaxBlobSize = 1024 * 1024 });
 
 			Assert.AreEqual(1, blobStore.Blobs.Count);
 			Assert.AreEqual(1, blobStore.Refs.Count);
@@ -111,9 +108,7 @@ namespace EpicGames.Horde.Tests
 			using IMemoryCache cache = new MemoryCache(new MemoryCacheOptions());
 
 			using MemoryStorageClient blobStore = new MemoryStorageClient();
-			using BundleStorageClientWrapper bundleStore = new BundleStorageClientWrapper(blobStore, BundleReaderCache.None, NullLogger.Instance);
-
-			await TestTreeAsync(bundleStore, new BundleOptions { MaxBlobSize = 1 });
+			await TestTreeAsync(blobStore, new BundleOptions { MaxBlobSize = 1 });
 
 			Assert.AreEqual(5, blobStore.Blobs.Count);
 			Assert.AreEqual(1, blobStore.Refs.Count);
@@ -144,7 +139,7 @@ namespace EpicGames.Horde.Tests
 			}
 		}
 
-		static async Task TestTreeAsync(BundleStorageClientBase store, BundleOptions options)
+		static async Task TestTreeAsync(MemoryStorageClient store, BundleOptions options)
 		{
 			// Generate a tree
 			{
@@ -314,8 +309,7 @@ namespace EpicGames.Horde.Tests
 		[TestMethod]
 		public async Task StreamTestAsync()
 		{
-			using MemoryStorageClient memoryStore = new MemoryStorageClient();
-			using BundleStorageClientWrapper store = new BundleStorageClientWrapper(memoryStore, BundleReaderCache.None, NullLogger.Instance);
+			using MemoryStorageClient store = new MemoryStorageClient();
 
 			const int Length = 4096;
 
@@ -355,8 +349,7 @@ namespace EpicGames.Horde.Tests
 		public async Task LargeFileTestAsync()
 		{
 			using IMemoryCache cache = new MemoryCache(new MemoryCacheOptions());
-			using MemoryStorageClient memoryStore = new MemoryStorageClient();
-			using BundleStorageClientWrapper store = new BundleStorageClientWrapper(memoryStore, BundleReaderCache.None, NullLogger.Instance);
+			using MemoryStorageClient store = new MemoryStorageClient();
 
 			const int Length = 1024;
 			const int Copies = 4096;
@@ -398,7 +391,7 @@ namespace EpicGames.Horde.Tests
 
 				HashedNodeRef<ChunkedDataNode> file = root.GetFileEntry("test");
 
-				long uniqueSize = memoryStore.Blobs.Values.Select(x => Bundle.FromMemory(x.Data)).SelectMany(x => x.Header.Packets).Sum(x => x.DecodedLength);
+				long uniqueSize = store.Blobs.Values.Select(x => Bundle.FromMemory(x)).SelectMany(x => x.Header.Packets).Sum(x => x.DecodedLength);
 				Assert.IsTrue(uniqueSize < data.Length / 3); // random fraction meaning "lots of dedupe happened"
 			}
 		}
