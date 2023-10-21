@@ -1653,4 +1653,64 @@ void FSlateRHIRenderingPolicy::FlushGeneratedResources()
 {
 	PostProcessor->ReleaseRenderTargets();
 }
+
+void FSlateRHIRenderingPolicy::BlurRectExternal(FRHICommandListImmediate& RHICmdList, FTexture2DRHIRef BlurSrc, FTextureReferenceRHIRef& BlurDst, FIntPoint DstExtent, float BlurStrength) const
+{
+	SLATE_DRAW_EVENT(RHICmdList, PostProcess);
+
+	FIntPoint BlurDstExtent = DstExtent;
+
+	// If the radius isn't set, auto-compute it based on the strength
+	int32 OutKernelSize = FMath::RoundToInt(BlurStrength * 3.f);
+
+	// Downsample if needed
+	int32 OutDownsampleAmount = 0;
+	if (OutKernelSize > 9)
+	{
+		OutDownsampleAmount = OutKernelSize >= 64 ? 4 : 2;
+		OutKernelSize /= OutDownsampleAmount;
+	}
+
+	// Kernel sizes must be odd
+	if (OutKernelSize % 2 == 0)
+	{
+		++OutKernelSize;
+	}
+
+	float ComputedStrength = FMath::Max(.5f, BlurStrength);
+
+	int32 RenderTargetWidth = BlurDstExtent.X;
+	int32 RenderTargetHeight = BlurDstExtent.Y;
+	
+	if (OutDownsampleAmount > 0)
+	{
+		RenderTargetWidth = FMath::DivideAndRoundUp(RenderTargetWidth, OutDownsampleAmount);
+		RenderTargetHeight = FMath::DivideAndRoundUp(RenderTargetHeight, OutDownsampleAmount);
+		ComputedStrength /= OutDownsampleAmount;
+	}
+
+	OutKernelSize = FMath::Clamp(OutKernelSize, 3, 255 /*MaxKernelSize*/);
+
+	FVector4f PostProcessData = FVector4f((float)OutKernelSize, ComputedStrength, (float)RenderTargetWidth, (float)RenderTargetHeight);
+
+	FVector2f TopLeft = FVector2f::ZeroVector;
+	FVector2f BotRight = FVector2f(BlurDstExtent.X, BlurDstExtent.Y);
+
+	FPostProcessRectParams RectParams;
+	RectParams.SourceTexture = BlurSrc;
+	RectParams.SourceRect = FSlateRect(0.f, 0.f, (float)BlurSrc->GetSizeX(), (float)BlurSrc->GetSizeY());
+	RectParams.DestRect = FSlateRect(TopLeft.X, TopLeft.Y, BotRight.X, BotRight.Y);
+	RectParams.SourceTextureSize = BlurSrc->GetSizeXY();
+	RectParams.CornerRadius = FVector4f(0, 0, 0, 0);
+	RectParams.DestTexture = BlurDst;
+	RectParams.PostProcessDest = EPostProcessDestination::DestTexture;
+
+	FBlurRectParams BlurParams;
+	BlurParams.KernelSize = PostProcessData.X;
+	BlurParams.Strength = PostProcessData.Y;
+	BlurParams.DownsampleAmount = OutDownsampleAmount;
+
+	IRendererModule& RendererModule = FModuleManager::GetModuleChecked<IRendererModule>(RendererModuleName);
+	PostProcessor->BlurRect(RHICmdList, RendererModule, BlurParams, RectParams);
+}
 	

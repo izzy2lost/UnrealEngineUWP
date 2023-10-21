@@ -131,6 +131,14 @@ void FSlateMaterialResource::UpdateMaterial(const UMaterialInterface& InMaterial
 	MaterialObjectWeakPtr = MaterialObject;
 	UpdateMaterialName();
 
+	SlateMaterialResource::CheckInvalidMaterialProxy(MaterialProxy, DebugName);
+
+#else
+
+	MaterialObject = &InMaterialResource;
+	MaterialProxy = InMaterialResource.GetRenderProxy();
+#endif
+
 	if (MaterialObject)
 	{
 		// Quality / Feature level irrelevant since flag to search all levels for both is true
@@ -140,7 +148,7 @@ void FSlateMaterialResource::UpdateMaterial(const UMaterialInterface& InMaterial
 		CachedSlatePostBuffers = ESlatePostRT::None;
 		for (const UTexture* OutUsedTexture : OutUsedTextures)
 		{
-			for (const TPair<ESlatePostRT, FSlatePostSettings>& SlatePostSetting : USlateRendererSettings::Get()->SlatePostSettings)
+			for (const TPair<ESlatePostRT, FSlatePostSettings>& SlatePostSetting : USlateRendererSettings::Get()->GetSlatePostSettings())
 			{
 				const ESlatePostRT SlatePostBitflag = SlatePostSetting.Key;
 				const FSlatePostSettings& SlatePostSettingValue = SlatePostSetting.Value;
@@ -152,14 +160,6 @@ void FSlateMaterialResource::UpdateMaterial(const UMaterialInterface& InMaterial
 			}
 		}
 	}
-
-	SlateMaterialResource::CheckInvalidMaterialProxy(MaterialProxy, DebugName);
-
-#else
-
-	MaterialObject = &InMaterialResource;
-	MaterialProxy = InMaterialResource.GetRenderProxy();
-#endif
 
 	if (MaterialProxy && (MaterialProxy->IsDeleted() || MaterialProxy->IsMarkedForGarbageCollection()))
 	{

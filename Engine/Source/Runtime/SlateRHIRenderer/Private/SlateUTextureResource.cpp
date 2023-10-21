@@ -111,7 +111,7 @@ void FSlateUTextureResource::UpdateTexture(UTexture* InTexture)
 	if (Proxy && TextureObject)
 	{
 		CachedSlatePostBuffers = ESlatePostRT::None;
-		for (const TPair<ESlatePostRT, FSlatePostSettings>& SlatePostSetting : USlateRendererSettings::Get()->SlatePostSettings)
+		for (const TPair<ESlatePostRT, FSlatePostSettings>& SlatePostSetting : USlateRendererSettings::Get()->GetSlatePostSettings())
 		{
 			const ESlatePostRT SlatePostBitflag = SlatePostSetting.Key;
 			const FSlatePostSettings& SlatePostSettingValue = SlatePostSetting.Value;

@@ -80,6 +80,8 @@ public:
 
 	virtual void FlushGeneratedResources();
 
+	void BlurRectExternal(FRHICommandListImmediate& RHICmdList, FTexture2DRHIRef BlurSrc, FTextureReferenceRHIRef& BlurDst, FIntPoint DstExtent, float BlurStrength) const;
+
 private:
 	ETextureSamplerFilter GetSamplerFilter(const UTexture* Texture) const;
 

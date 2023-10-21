@@ -13,9 +13,22 @@ static TAutoConsoleVariable<int32> CVarDefaultEnablePostRenderTarget_0(
 
 FSlatePostSettings::FSlatePostSettings()
 	: bEnabled(false)
+	, PostProcessorClass(nullptr)
 	, PathToSlatePostRT(FString())
 	, CachedSlatePostRT(nullptr)
 {
+}
+
+USlateCorePostBufferProcessor* FSlatePostSettings::GetProcessor() const
+{
+	USlateCorePostBufferProcessor* Result = nullptr;
+
+	if (PostProcessorClass)
+	{
+		Result = Cast<USlateCorePostBufferProcessor>(PostProcessorClass->GetDefaultObject());
+	}
+
+	return Result;
 }
 
 USlateRendererSettings::USlateRendererSettings()
@@ -39,14 +52,32 @@ USlateRendererSettings::USlateRendererSettings()
 
 USlateRendererSettings::~USlateRendererSettings()
 {
-	for (ESlatePostRT SlatePostBufferBit : TEnumRange<ESlatePostRT>())
+	for (TPair<ESlatePostRT, FSlatePostSettings>& SlatePostSetting : SlatePostSettings)
 	{
-		UObject* SlatePostBuffer = SlatePostSettings[SlatePostBufferBit].CachedSlatePostRT;
+		FSlatePostSettings& PostSetting = SlatePostSetting.Value;
+
+		UObject* SlatePostBuffer = PostSetting.CachedSlatePostRT;
 		if (SlatePostBuffer)
 		{
 			SlatePostBuffer->RemoveFromRoot();
 		}
 	}
+}
+
+FSlatePostSettings& USlateRendererSettings::GetMutableSlatePostSetting(ESlatePostRT InPostBufferBit)
+{
+	return SlatePostSettings[InPostBufferBit];
+}
+
+const FSlatePostSettings& USlateRendererSettings::GetSlatePostSetting(ESlatePostRT InPostBufferBit) const
+{
+	return SlatePostSettings[InPostBufferBit];
+}
+
+USlateCorePostBufferProcessor* USlateRendererSettings::GetSlatePostProcessor(ESlatePostRT InPostBufferBit) const
+{
+	const FSlatePostSettings& Settings = SlatePostSettings[InPostBufferBit];
+	return Settings.GetProcessor();
 }
 
 UObject* USlateRendererSettings::TryGetPostBufferRT(ESlatePostRT InPostBufferBit) const
@@ -61,10 +92,18 @@ UObject* USlateRendererSettings::LoadGetPostBufferRT(ESlatePostRT InPostBufferBi
 	if (!Result)
 	{
 		Result = LoadObject<UObject>(nullptr, *SlatePostSettings[InPostBufferBit].PathToSlatePostRT, nullptr, LOAD_None, nullptr);
-		Result->AddToRoot();
 
-		SlatePostSettings[InPostBufferBit].CachedSlatePostRT = Result;
+		if (Result)
+		{
+			Result->AddToRoot();
+			SlatePostSettings[InPostBufferBit].CachedSlatePostRT = Result;
+		}
 	}
 
 	return Result;
+}
+
+const TMap<ESlatePostRT, FSlatePostSettings>& USlateRendererSettings::GetSlatePostSettings() const
+{
+	return SlatePostSettings;
 }

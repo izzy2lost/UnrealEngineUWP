@@ -177,6 +177,7 @@ public:
 	 * @return The created projection matrix
 	 */
 	static FMatrix CreateProjectionMatrix( uint32 Width, uint32 Height );
+	static int32 GetDrawToVRRenderTarget();
 
 	/** FSlateRenderer interface */
 	virtual bool Initialize() override;

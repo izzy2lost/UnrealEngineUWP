@@ -144,11 +144,13 @@ static void BlitUIToHDRScene(FRHICommandListImmediate& RHICmdList, IRendererModu
 {
 	SCOPED_DRAW_EVENT(RHICmdList, SlatePostProcessBlitUIToHDR);
 
-	FRHITexture* UITexture = RectParams.UITarget->GetRHI();
+	FRHITexture* UITexture = RectParams.PostProcessDest == EPostProcessDestination::DestTexture 
+		? RectParams.DestTexture->GetTexture2D() 
+		: RectParams.UITarget->GetRHI();
 
 	RHICmdList.Transition(FRHITransitionInfo(UITexture, ERHIAccess::Unknown, ERHIAccess::SRVMask));
 	TRefCountPtr<IPooledRenderTarget> UITargetRTMask;
-	if (RHISupportsRenderTargetWriteMask(GMaxRHIShaderPlatform))
+	if (RHISupportsRenderTargetWriteMask(GMaxRHIShaderPlatform) && RectParams.PostProcessDest != EPostProcessDestination::DestTexture)
 	{
 		const auto FeatureLevel = GMaxRHIFeatureLevel;
 		auto ShaderMap = GetGlobalShaderMap(FeatureLevel);
@@ -631,7 +633,9 @@ void FSlatePostProcessor::UpsampleRect(FRHICommandListImmediate& RHICmdList, IRe
 	GraphicsPSOInit.DepthStencilState = TStaticDepthStencilState<false, CF_Always>::GetRHI();
 
 	// Original source texture is now the destination texture
-	FTexture2DRHIRef DestTexture = Params.SourceTexture;
+	FTexture2DRHIRef DestTexture = Params.PostProcessDest == EPostProcessDestination::DestTexture && Params.DestTexture 
+		? Params.DestTexture 
+		: Params.SourceTexture;
 	const int32 DestTextureWidth = Params.SourceTextureSize.X;
 	const int32 DestTextureHeight = Params.SourceTextureSize.Y;
 
@@ -665,6 +669,9 @@ void FSlatePostProcessor::UpsampleRect(FRHICommandListImmediate& RHICmdList, IRe
 	bool bIsSCRGB = false;
 
 	FRHITexture* UITargetTexture = Params.UITarget.IsValid() ? Params.UITarget->GetRHI() : nullptr;
+	UITargetTexture = Params.PostProcessDest == EPostProcessDestination::DestTexture && Params.DestTexture 
+		? Params.DestTexture->GetTexture2D() 
+		: UITargetTexture;
 
 	if (UITargetTexture != nullptr && DestTexture != UITargetTexture)
 	{
