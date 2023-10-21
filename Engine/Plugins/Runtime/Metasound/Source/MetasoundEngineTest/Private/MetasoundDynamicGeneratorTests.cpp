@@ -178,7 +178,7 @@ namespace Metasound::Test::Generator::Dynamic
 			const FAnyDataReference* InputRef = LatestInterfaceData.GetInputs().FindDataReference(InputName);
 			UTEST_NOT_NULL("Vertex data contains input", InputRef);
 			const float* Value = InputRef->GetValue<float>();
-			UTEST_NOT_NULL("Value exists", Value)
+			UTEST_NOT_NULL("Value exists", Value);
 			UTEST_EQUAL("Value is default", *Value, DefaultValue);
 		}
 
