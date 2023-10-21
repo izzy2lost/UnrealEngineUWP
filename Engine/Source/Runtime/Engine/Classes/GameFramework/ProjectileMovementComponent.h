@@ -136,6 +136,13 @@ protected:
 public:
 
 	/**
+	 * If true, uses FScopedMovementUpdate to avoid moving the UpdatedComponent more than once during a tick during simulation.
+	 * This also defers overlap updates and some impact events until after the simulation update completes, so it may delay important events and continue deflection, so use with caution.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category=ProjectileInterpolation)
+	uint8 bSimulationUseScopedMovement:1;
+
+	/**
 	 * If true, uses FScopedMovementUpdate to avoid moving the attached interpolated object's children more than once during a tick when it would both interpolate and move during projectile simulation.
 	 * This also defers overlap updates for the interpolated object until after the simulation update completes.
 	 */

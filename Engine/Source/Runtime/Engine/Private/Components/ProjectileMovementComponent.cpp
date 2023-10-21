@@ -26,6 +26,7 @@ UProjectileMovementComponent::UProjectileMovementComponent(const FObjectInitiali
 	bInterpMovement = false;
 	bInterpRotation = false;
 	bInterpolationComplete = true;
+	bSimulationUseScopedMovement = false;
 	bInterpolationUseScopedMovement = true;
 	InterpLocationTime = 0.100f;
 	InterpRotationTime = 0.050f;
@@ -190,6 +191,9 @@ void UProjectileMovementComponent::TickComponent(float DeltaTime, enum ELevelTic
 	int32 Iterations = 0;
 	FHitResult Hit(1.f);
 	
+	QUICK_SCOPE_CYCLE_COUNTER( STAT_ProjectileMovementComponent_PerformMovement );
+	const FScopedMovementUpdate ScopedProjectileUpdate(bSimulationUseScopedMovement ? UpdatedComponent : nullptr, EScopedUpdate::DeferredUpdates);
+
 	while (bSimulationEnabled && RemainingTime >= MIN_TICK_TIME && (Iterations < MaxSimulationIterations) && IsValid(ActorOwner) && !HasStoppedSimulation())
 	{
 		LoopCount++;
