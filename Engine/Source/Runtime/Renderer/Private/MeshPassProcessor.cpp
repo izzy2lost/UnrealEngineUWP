@@ -121,7 +121,7 @@ private:
 inline void SetTextureParameter(FRHIBatchedShaderParameters& BatchedParameters, const FShaderResourceParameterInfo& Parameter, FRHITexture* TextureRHI)
 {
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
-	if (Parameter.Type == EShaderParameterType::BindlessResourceIndex)
+	if (Parameter.Type == EShaderParameterType::BindlessSRV)
 	{
 		check(Parameter.BufferIndex == 0);
 		BatchedParameters.SetBindlessTexture(Parameter.BaseIndex, TextureRHI);
@@ -136,7 +136,7 @@ inline void SetTextureParameter(FRHIBatchedShaderParameters& BatchedParameters, 
 inline void SetSrvParameter(FRHIBatchedShaderParameters& BatchedParameters, const FShaderResourceParameterInfo& Parameter, FRHIShaderResourceView* SrvRHI)
 {
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
-	if (Parameter.Type == EShaderParameterType::BindlessResourceIndex)
+	if (Parameter.Type == EShaderParameterType::BindlessSRV)
 	{
 		check(Parameter.BufferIndex == 0);
 		BatchedParameters.SetBindlessResourceView(Parameter.BaseIndex, SrvRHI);
@@ -151,7 +151,7 @@ inline void SetSrvParameter(FRHIBatchedShaderParameters& BatchedParameters, cons
 inline void SetSamplerParameter(FRHIBatchedShaderParameters& BatchedParameters, const FShaderResourceParameterInfo& Parameter, FRHISamplerState* SamplerStateRHI)
 {
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
-	if (Parameter.Type == EShaderParameterType::BindlessSamplerIndex)
+	if (Parameter.Type == EShaderParameterType::BindlessSampler)
 	{
 		BatchedParameters.SetBindlessSampler(Parameter.BaseIndex, SamplerStateRHI);
 	}

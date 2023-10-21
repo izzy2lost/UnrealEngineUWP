@@ -79,7 +79,7 @@ inline void SetTextureParameter(FRHIBatchedShaderParameters& BatchedParameters, 
 	if (Parameter.IsBound())
 	{
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
-		if (Parameter.GetType() == EShaderParameterType::BindlessResourceIndex)
+		if (Parameter.GetType() == EShaderParameterType::BindlessSRV)
 		{
 			BatchedParameters.SetBindlessTexture(Parameter.GetBaseIndex(), TextureRHI);
 		}
@@ -96,7 +96,7 @@ inline void SetSamplerParameter(FRHIBatchedShaderParameters& BatchedParameters, 
 	if (Parameter.IsBound())
 	{
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
-		if (Parameter.GetType() == EShaderParameterType::BindlessSamplerIndex)
+		if (Parameter.GetType() == EShaderParameterType::BindlessSampler)
 		{
 			BatchedParameters.SetBindlessSampler(Parameter.GetBaseIndex(), SamplerStateRHI);
 		}
@@ -141,7 +141,7 @@ inline void SetSRVParameter(FRHIBatchedShaderParameters& BatchedParameters, cons
 	if (Parameter.IsBound())
 	{
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
-		if (Parameter.GetType() == EShaderParameterType::BindlessResourceIndex)
+		if (Parameter.GetType() == EShaderParameterType::BindlessSRV)
 		{
 			BatchedParameters.SetBindlessResourceView(Parameter.GetBaseIndex(), SRV);
 		}
@@ -158,7 +158,7 @@ inline void SetUAVParameter(FRHIBatchedShaderParameters& BatchedParameters, cons
 	if (Parameter.IsBound())
 	{
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
-		if (Parameter.GetType() == EShaderParameterType::BindlessResourceIndex)
+		if (Parameter.GetType() == EShaderParameterType::BindlessUAV)
 		{
 			BatchedParameters.SetBindlessUAV(Parameter.GetBaseIndex(), UAV);
 		}
@@ -175,7 +175,7 @@ inline void UnsetSRVParameter(FRHIBatchedShaderUnbinds& BatchedUnbinds, const FS
 	if (Parameter.IsBound())
 	{
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
-		if (Parameter.GetType() == EShaderParameterType::BindlessResourceIndex)
+		if (Parameter.GetType() == EShaderParameterType::BindlessSRV)
 		{
 			// We don't need to clear Bindless views
 		}
@@ -192,7 +192,7 @@ inline void UnsetUAVParameter(FRHIBatchedShaderUnbinds& BatchedUnbinds, const FS
 	if (Parameter.IsBound())
 	{
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
-		if (Parameter.GetType() == EShaderParameterType::BindlessResourceIndex)
+		if (Parameter.GetType() == EShaderParameterType::BindlessSRV)
 		{
 			// We don't need to clear Bindless views
 		}

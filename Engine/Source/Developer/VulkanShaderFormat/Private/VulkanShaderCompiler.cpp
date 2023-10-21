@@ -1232,15 +1232,15 @@ static void GatherSpirvReflectionBindings(
 		};
 
 		// Remove sampler heaps from binding arrays
-		MoveBindlessHeaps(OutBindings.Samplers, VulkanBindless::kBindlessSamplerArrayPrefix, VulkanBindless::BindlessSamplerSet);
+		MoveBindlessHeaps(OutBindings.Samplers, FShaderParameterParser::kBindlessSamplerArrayPrefix, VulkanBindless::BindlessSamplerSet);
 
 		// Remove resource heaps from binding arrays
-		MoveBindlessHeaps(OutBindings.SBufferUAVs, VulkanBindless::kBindlessResourceArrayPrefix, VulkanBindless::BindlessStorageBufferSet);
-		MoveBindlessHeaps(OutBindings.TextureSRVs, VulkanBindless::kBindlessResourceArrayPrefix, VulkanBindless::BindlessSampledImageSet);
-		MoveBindlessHeaps(OutBindings.TextureUAVs, VulkanBindless::kBindlessResourceArrayPrefix, VulkanBindless::BindlessStorageImageSet);
-		MoveBindlessHeaps(OutBindings.TBufferSRVs, VulkanBindless::kBindlessResourceArrayPrefix, VulkanBindless::BindlessUniformTexelBufferSet);
-		MoveBindlessHeaps(OutBindings.TBufferUAVs, VulkanBindless::kBindlessResourceArrayPrefix, VulkanBindless::BindlessStorageTexelBufferSet);
-		MoveBindlessHeaps(OutBindings.AccelerationStructures, VulkanBindless::kBindlessResourceArrayPrefix, VulkanBindless::BindlessAccelerationStructureSet);
+		MoveBindlessHeaps(OutBindings.SBufferUAVs, FShaderParameterParser::kBindlessUAVArrayPrefix, VulkanBindless::BindlessStorageBufferSet);
+		MoveBindlessHeaps(OutBindings.TextureSRVs, FShaderParameterParser::kBindlessSRVArrayPrefix, VulkanBindless::BindlessSampledImageSet);
+		MoveBindlessHeaps(OutBindings.TextureUAVs, FShaderParameterParser::kBindlessUAVArrayPrefix, VulkanBindless::BindlessStorageImageSet);
+		MoveBindlessHeaps(OutBindings.TBufferSRVs, FShaderParameterParser::kBindlessSRVArrayPrefix, VulkanBindless::BindlessUniformTexelBufferSet);
+		MoveBindlessHeaps(OutBindings.TBufferUAVs, FShaderParameterParser::kBindlessUAVArrayPrefix, VulkanBindless::BindlessStorageTexelBufferSet);
+		MoveBindlessHeaps(OutBindings.AccelerationStructures, FShaderParameterParser::kBindlessSRVArrayPrefix, VulkanBindless::BindlessAccelerationStructureSet);
 
 		// Move uniform buffers to the correct set
 		{
@@ -1500,10 +1500,12 @@ static bool BuildShaderOutputFromSpirv(
 							const SpvReflectBlockVariable& Member = Binding->block.members[MemberIndex];
 
 							FString MemberName(ANSI_TO_TCHAR(Member.name));
+							FStringView AdjustedMemberName(MemberName);
+
+							const EShaderParameterType BindlessParameterType = FShaderParameterParser::ParseAndRemoveBindlessParameterPrefix(AdjustedMemberName);
 
 							// Add all members of global ub, and only bindless samplers/resources for root param
-							if (!InternalState.UseRootParametersStructure() ||
-								(MemberName.StartsWith(FShaderParameterParser::kBindlessSamplerPrefix) || MemberName.StartsWith(FShaderParameterParser::kBindlessResourcePrefix)))
+							if (!InternalState.UseRootParametersStructure() || BindlessParameterType != EShaderParameterType::LooseData)
 							{
 								HandleReflectedGlobalConstantBufferMember(
 									MemberName,
@@ -1513,8 +1515,7 @@ static bool BuildShaderOutputFromSpirv(
 									Output
 								);
 
-								FShaderParameterParser::RemoveBindlessParameterPrefix(MemberName);
-								EntryTypes.Add(MemberName, FVulkanShaderHeader::PackedGlobal);
+								EntryTypes.Add(FString(AdjustedMemberName), FVulkanShaderHeader::PackedGlobal);
 							}
 
 							PackedGlobalArraySize = FMath::Max<uint32>((Member.absolute_offset + Member.size), PackedGlobalArraySize);
@@ -2197,8 +2198,9 @@ bool PreprocessVulkanShader(const FShaderCompilerInput& Input, const FShaderComp
 		AdditionalDefines.SetDefine(TEXT("VULKAN_SUPPORTS_SUBGROUP_SIZE_CONTROL"), 1);
 	}
 
-	AdditionalDefines.SetDefine(TEXT("VULKAN_BINDLESS_SAMPLER_ARRAY_PREFIX"), VulkanBindless::kBindlessSamplerArrayPrefix);
-	AdditionalDefines.SetDefine(TEXT("VULKAN_BINDLESS_RESOURCE_ARRAY_PREFIX"), VulkanBindless::kBindlessResourceArrayPrefix);
+	AdditionalDefines.SetDefine(TEXT("VULKAN_BINDLESS_SRV_ARRAY_PREFIX"), FShaderParameterParser::kBindlessSRVArrayPrefix);
+	AdditionalDefines.SetDefine(TEXT("VULKAN_BINDLESS_UAV_ARRAY_PREFIX"), FShaderParameterParser::kBindlessUAVArrayPrefix);
+	AdditionalDefines.SetDefine(TEXT("VULKAN_BINDLESS_SAMPLER_ARRAY_PREFIX"), FShaderParameterParser::kBindlessSamplerArrayPrefix);
 	AdditionalDefines.SetDefine(TEXT("VULKAN_MAX_BINDLESS_UNIFORM_BUFFERS_PER_STAGE"), VulkanBindless::MaxUniformBuffersPerStage);
 
 	if (IsAndroidShaderFormat(Input.ShaderFormat))

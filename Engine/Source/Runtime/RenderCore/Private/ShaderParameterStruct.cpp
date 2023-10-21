@@ -197,7 +197,7 @@ struct FShaderParameterStructBindingContext
 				}
 				else if (bIsRHIResource || bIsRDGResource)
 				{
-					if (ParameterAllocation->Type == EShaderParameterType::BindlessResourceIndex || ParameterAllocation->Type == EShaderParameterType::BindlessSamplerIndex)
+					if (IsParameterBindless(ParameterAllocation->Type))
 					{
 						FShaderParameterBindings::FBindlessResourceParameter Parameter;
 						Parameter.GlobalConstantOffset = ParameterAllocation->BaseIndex;

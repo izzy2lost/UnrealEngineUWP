@@ -216,11 +216,20 @@ enum class EShaderParameterType : uint8
 	SRV,
 	UAV,
 
-	BindlessResourceIndex,
-	BindlessSamplerIndex,
+	BindlessSampler,
+	BindlessSRV,
+	BindlessUAV,
 
 	Num
 };
+
+inline bool IsParameterBindless(EShaderParameterType ParameterType)
+{
+	return ParameterType == EShaderParameterType::BindlessSampler
+		|| ParameterType == EShaderParameterType::BindlessSRV
+		|| ParameterType == EShaderParameterType::BindlessUAV
+		;
+}
 
 struct FParameterAllocation
 {

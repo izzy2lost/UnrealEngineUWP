@@ -49,7 +49,7 @@ void FShaderResourceParameter::Bind(const FShaderParameterMap& ParameterMap, con
 {
 	if (TOptional<FParameterAllocation> Allocation = ParameterMap.FindParameterAllocation(ParameterName))
 	{
-		if (Allocation->Type == EShaderParameterType::BindlessResourceIndex || Allocation->Type == EShaderParameterType::BindlessSamplerIndex)
+		if (IsParameterBindless(Allocation->Type))
 		{
 			checkf(Allocation->BufferIndex == 0, TEXT("Unexpected buffer index (%d) for bindless index. Global bindless parameters are expected to be in the global constant buffer (buffer index 0)."), Allocation->BufferIndex);
 		}
@@ -240,8 +240,23 @@ static void CreateHLSLUniformBufferStructMembersDeclaration(
 			PreviousBaseTypeName = TEXT("UB_UINT");
 			HLSLBaseOffset = AbsoluteMemberOffset + HLSLMemberSize;
 
+			auto GetBindlessPrefix = [](EUniformBufferBaseType InBaseType)
+				{
+					if (InBaseType == UBMT_SAMPLER)
+					{
+						return FShaderParameterParser::kBindlessSamplerPrefix;
+					}
+
+					if (InBaseType == UBMT_UAV || InBaseType == UBMT_RDG_TEXTURE_UAV)
+					{
+						return FShaderParameterParser::kBindlessUAVPrefix;
+					}
+
+					return FShaderParameterParser::kBindlessSRVPrefix;
+				};
+
 			// Generate the member declaration.
-			const TCHAR* MemberPrefix = (Member.GetBaseType() == UBMT_SAMPLER ? FShaderParameterParser::kBindlessSamplerPrefix : FShaderParameterParser::kBindlessResourcePrefix);
+			const TCHAR* MemberPrefix = GetBindlessPrefix(Member.GetBaseType());
 
 			TStringBuilder<256> ParameterName;
 			if (!GlobalPrefix.IsEmpty())
@@ -349,14 +364,14 @@ static void CreateHLSLUniformBufferStructMembersDeclaration(
 				Decl.ResourceMembers.Appendf(TEXT("UB_RESOURCE_MEMBER_SAMPLER(%s, %s, %s);\n"), Member.GetShaderType(), *UniformBufferName, *ParameterName);
 				AddStructMember(Member, true);
 			}
-			else if (Member.GetBaseType() == UBMT_SRV)
+			else if (Member.GetBaseType() == UBMT_UAV || Member.GetBaseType() == UBMT_RDG_TEXTURE_UAV)
 			{
-				Decl.ResourceMembers.Appendf(TEXT("UB_RESOURCE_MEMBER_RESOURCE(%s, %s, %s);\n"), Member.GetShaderType(), *UniformBufferName, *ParameterName);
+				Decl.ResourceMembers.Appendf(TEXT("UB_RESOURCE_MEMBER_UAV(%s, %s, %s);\n"), Member.GetShaderType(), *UniformBufferName, *ParameterName);
 				AddStructMember(Member, true);
 			}
 			else
 			{
-				Decl.ResourceMembers.Appendf(TEXT("UB_RESOURCE_MEMBER_RESOURCE(%s, %s, %s);\n"), Member.GetShaderType(), *UniformBufferName, *ParameterName);
+				Decl.ResourceMembers.Appendf(TEXT("UB_RESOURCE_MEMBER_SRV(%s, %s, %s);\n"), Member.GetShaderType(), *UniformBufferName, *ParameterName);
 				AddStructMember(Member, true);
 			}
 		}

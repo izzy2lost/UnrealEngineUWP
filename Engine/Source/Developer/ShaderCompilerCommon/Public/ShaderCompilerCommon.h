@@ -15,11 +15,6 @@ class FShaderParameterParser;
 namespace UE::ShaderCompilerCommon
 {
 	static constexpr const TCHAR* kUniformBufferConstantBufferPrefix = TEXT("UniformBufferConstants_");
-
-	UE_DEPRECATED(5.3, "No longer used; use FShaderParameterParser::kBindlessResourcePrefix instead")
-	static constexpr const TCHAR* kBindlessResourcePrefix = TEXT("BindlessResource_");
-	UE_DEPRECATED(5.3, "No longer used; use FShaderParameterParser::kBindlessSamplerPrefix instead")
-	static constexpr const TCHAR* kBindlessSamplerPrefix = TEXT("BindlessSampler_");
 }
 
 /**

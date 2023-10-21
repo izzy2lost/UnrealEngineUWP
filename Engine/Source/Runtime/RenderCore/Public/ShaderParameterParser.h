@@ -17,8 +17,9 @@ enum class EShaderParameterType : uint8;
 enum class EBindlessConversionType : uint8
 {
 	None,
-	Resource,
-	Sampler
+	SRV,
+	UAV,
+	Sampler,
 };
 
 enum class EBindlessParameterMode : uint8
@@ -26,13 +27,6 @@ enum class EBindlessParameterMode : uint8
 	Default,
 	Vulkan,
 };
-
-namespace VulkanBindless
-{
-	// Prefix used to declare arrays of samplers/resources for bindless
-	static constexpr const TCHAR* kBindlessResourceArrayPrefix = TEXT("ResourceDescriptorHeap_");
-	static constexpr const TCHAR* kBindlessSamplerArrayPrefix = TEXT("SamplerDescriptorHeap_");
-}
 
 inline FStringView StripTemplateFromType(const FStringView& Input)
 {
@@ -110,13 +104,20 @@ public:
 
 	FShaderParameterParser& operator=(FShaderParameterParser&&) = default;
 
-	static constexpr const TCHAR* kBindlessResourcePrefix = TEXT("BindlessResource_");
+	static constexpr const TCHAR* kBindlessSRVPrefix = TEXT("BindlessSRV_");
+	static constexpr const TCHAR* kBindlessUAVPrefix = TEXT("BindlessUAV_");
 	static constexpr const TCHAR* kBindlessSamplerPrefix = TEXT("BindlessSampler_");
+
+	// Prefix used to declare arrays of samplers/resources for bindless
+	static constexpr const TCHAR* kBindlessSRVArrayPrefix = TEXT("SRVDescriptorHeap_");
+	static constexpr const TCHAR* kBindlessUAVArrayPrefix = TEXT("UAVDescriptorHeap_");
+	static constexpr const TCHAR* kBindlessSamplerArrayPrefix = TEXT("SamplerDescriptorHeap_");
 
 	static RENDERCORE_API EShaderParameterType ParseParameterType(FStringView InType, TConstArrayView<const TCHAR*> InExtraSRVTypes, TConstArrayView<const TCHAR*> InExtraUAVTypes);
 	static RENDERCORE_API EShaderParameterType ParseAndRemoveBindlessParameterPrefix(FStringView& InName);
 	static RENDERCORE_API EShaderParameterType ParseAndRemoveBindlessParameterPrefix(FString& InName);
 	static RENDERCORE_API bool RemoveBindlessParameterPrefix(FString& InName);
+	static RENDERCORE_API FStringView GetBindlessParameterPrefix(EShaderParameterType InShaderParameterType);
 
 	/** Parses the preprocessed shader code and applies the necessary modifications to it. */
 	UE_DEPRECATED(5.3, "Use ParseAndModify overload accepting array of FShaderCompilerError instead of passing FShaderCompilerOutput")

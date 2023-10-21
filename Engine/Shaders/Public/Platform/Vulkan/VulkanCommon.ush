@@ -40,13 +40,22 @@ void ImageInterlockedMaxUInt64(RWTexture2D<UlongType> Dest, uint2 Coord, UlongTy
 	// While we use descriptor indexing, declare unbounded resource arrays
 	COMPILER_DEFINE VULKAN_HEAP_NAME(Prefix, Type) Prefix##Type
 	COMPILER_DEFINE VULKAN_SAMPLER_HEAP(Type) VULKAN_HEAP_NAME(VULKAN_BINDLESS_SAMPLER_ARRAY_PREFIX,Type)
-	COMPILER_DEFINE VULKAN_RESOURCE_HEAP(Type) VULKAN_HEAP_NAME(VULKAN_BINDLESS_RESOURCE_ARRAY_PREFIX,Type)
+	COMPILER_DEFINE VULKAN_SRV_HEAP(Type) VULKAN_HEAP_NAME(VULKAN_BINDLESS_SRV_ARRAY_PREFIX,Type)
+	COMPILER_DEFINE VULKAN_UAV_HEAP(Type) VULKAN_HEAP_NAME(VULKAN_BINDLESS_UAV_ARRAY_PREFIX,Type)
 
-	#define UB_RESOURCE_MEMBER_RESOURCE(Type, UBName, Name) \
+	#define UB_RESOURCE_MEMBER_SRV(Type, UBName, Name) \
 		typedef Type SafeType##UBName##_##Name; \
-		SafeType##UBName##_##Name VULKAN_RESOURCE_HEAP(SafeType##UBName##_##Name)[]; \
+		SafeType##UBName##_##Name VULKAN_SRV_HEAP(SafeType##UBName##_##Name)[]; \
 		Type GetBindlessResource##UBName##_##Name() { \
-			return VULKAN_RESOURCE_HEAP(SafeType##UBName##_##Name)[UB_CB_PREFIXED_MEMBER_ACCESS(UBName, BindlessResource_, Name)]; \
+			return VULKAN_SRV_HEAP(SafeType##UBName##_##Name)[UB_CB_PREFIXED_MEMBER_ACCESS(UBName, BindlessSRV_, Name)]; \
+		} \
+		static const Type UBName##_##Name = GetBindlessResource##UBName##_##Name();
+
+	#define UB_RESOURCE_MEMBER_UAV(Type, UBName, Name) \
+		typedef Type SafeType##UBName##_##Name; \
+		SafeType##UBName##_##Name VULKAN_UAV_HEAP(SafeType##UBName##_##Name)[]; \
+		Type GetBindlessResource##UBName##_##Name() { \
+			return VULKAN_UAV_HEAP(SafeType##UBName##_##Name)[UB_CB_PREFIXED_MEMBER_ACCESS(UBName, BindlessUAV_, Name)]; \
 		} \
 		static const Type UBName##_##Name = GetBindlessResource##UBName##_##Name();
 

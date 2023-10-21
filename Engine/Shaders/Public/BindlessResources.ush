@@ -12,15 +12,20 @@
 	#define ENABLE_BINDLESS_SAMPLERS 0
 #endif
 
-#if defined(UB_RESOURCE_MEMBER_RESOURCE)
+#if defined(UB_RESOURCE_MEMBER_SRV) || defined(UB_RESOURCE_MEMBER_UAV)
 	// Using platform defined bindless macros
 
 #elif ENABLE_BINDLESS_RESOURCES && PLATFORM_SUPPORTS_BINDLESS
-	#define UB_RESOURCE_MEMBER_RESOURCE(Type, UBName, Name) \
-		Type GetBindlessResource##UBName##_##Name() { return GetResourceFromHeap(Type, UB_CB_PREFIXED_MEMBER_ACCESS(UBName, BindlessResource_, Name)); } \
+	#define UB_RESOURCE_MEMBER_SRV(Type, UBName, Name) \
+		Type GetBindlessResource##UBName##_##Name() { return GetResourceFromHeap(Type, UB_CB_PREFIXED_MEMBER_ACCESS(UBName, BindlessSRV_, Name)); } \
+		static const Type UBName##_##Name = GetBindlessResource##UBName##_##Name();
+
+	#define UB_RESOURCE_MEMBER_UAV(Type, UBName, Name) \
+		Type GetBindlessResource##UBName##_##Name() { return GetResourceFromHeap(Type, UB_CB_PREFIXED_MEMBER_ACCESS(UBName, BindlessUAV_, Name)); } \
 		static const Type UBName##_##Name = GetBindlessResource##UBName##_##Name();
 #else
-	#define UB_RESOURCE_MEMBER_RESOURCE(Type, UBName, Name) Type UBName##_##Name
+	#define UB_RESOURCE_MEMBER_SRV(Type, UBName, Name) Type UBName##_##Name
+	#define UB_RESOURCE_MEMBER_UAV(Type, UBName, Name) Type UBName##_##Name
 #endif
 
 #if defined(UB_RESOURCE_MEMBER_SAMPLER)

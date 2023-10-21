@@ -108,7 +108,7 @@ bool BuildResourceTableMapping(
 		if (TOptional<FParameterAllocation> Allocation = ParameterMap.FindParameterAllocation(Name))
 		{
 			const EShaderParameterType ParameterType = Allocation->Type;
-			const bool bBindlessParameter = (ParameterType == EShaderParameterType::BindlessResourceIndex || ParameterType == EShaderParameterType::BindlessSamplerIndex);
+			const bool bBindlessParameter = IsParameterBindless(ParameterType);
 
 			// Force bindless "indices" to zero since they're not needed in SetResourcesFromTables
 			const uint16 BaseIndex = bBindlessParameter ? 0 : Allocation->BaseIndex;

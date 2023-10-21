@@ -232,14 +232,19 @@ EShaderParameterType FShaderParameterParser::ParseAndRemoveBindlessParameterPref
 {
 	const FStringView OriginalName = InName;
 
-	if (InName = UE::String::RemoveFromStart(InName, FStringView(kBindlessResourcePrefix)); InName != OriginalName)
+	if (InName = UE::String::RemoveFromStart(InName, FStringView(kBindlessSRVPrefix)); InName != OriginalName)
 	{
-		return EShaderParameterType::BindlessResourceIndex;
+		return EShaderParameterType::BindlessSRV;
+	}
+
+	if (InName = UE::String::RemoveFromStart(InName, FStringView(kBindlessUAVPrefix)); InName != OriginalName)
+	{
+		return EShaderParameterType::BindlessUAV;
 	}
 
 	if (InName = UE::String::RemoveFromStart(InName, FStringView(kBindlessSamplerPrefix)); InName != OriginalName)
 	{
-		return EShaderParameterType::BindlessSamplerIndex;
+		return EShaderParameterType::BindlessSampler;
 	}
 
 	return EShaderParameterType::LooseData;
@@ -256,10 +261,22 @@ EShaderParameterType FShaderParameterParser::ParseAndRemoveBindlessParameterPref
 
 bool FShaderParameterParser::RemoveBindlessParameterPrefix(FString& InName)
 {
-	return InName.RemoveFromStart(kBindlessResourcePrefix)
+	return InName.RemoveFromStart(kBindlessSRVPrefix)
+		|| InName.RemoveFromStart(kBindlessUAVPrefix)
 		|| InName.RemoveFromStart(kBindlessSamplerPrefix);
 }
 
+FStringView FShaderParameterParser::GetBindlessParameterPrefix(EShaderParameterType InShaderParameterType)
+{
+	switch (InShaderParameterType)
+	{
+	case EShaderParameterType::BindlessSampler: return kBindlessSamplerPrefix;
+	case EShaderParameterType::BindlessSRV:     return kBindlessSRVPrefix;
+	case EShaderParameterType::BindlessUAV:     return kBindlessUAVPrefix;
+	}
+
+	return FStringView();
+}
 
 bool FShaderParameterParser::ParseParameters(
 	const FShaderParametersMetadata* RootParametersStructure,
@@ -385,7 +402,7 @@ bool FShaderParameterParser::ParseParameters(
 				FStringView Leftovers = ShaderSource.Mid(NameEndPos + 1, (Cursor - 1) - (NameEndPos + 1) + 1);
 
 				EShaderParameterType ParsedParameterType = ParseAndRemoveBindlessParameterPrefix(Name);
-				const bool bBindlessIndex = (ParsedParameterType == EShaderParameterType::BindlessResourceIndex || ParsedParameterType == EShaderParameterType::BindlessSamplerIndex);
+				const bool bBindlessIndex = (ParsedParameterType != EShaderParameterType::LooseData);
 
 				EBindlessConversionType BindlessConversionType = EBindlessConversionType::None;
 				EShaderParameterType ParsedConstantBufferType = ParsedParameterType;
@@ -394,15 +411,20 @@ bool FShaderParameterParser::ParseParameters(
 				{
 					ParsedParameterType = ParseParameterType(Type, ExtraSRVTypes, ExtraUAVTypes);
 
-					if (bBindlessResources && (ParsedParameterType == EShaderParameterType::SRV || ParsedParameterType == EShaderParameterType::UAV))
+					if (bBindlessResources && ParsedParameterType == EShaderParameterType::SRV)
 					{
-						BindlessConversionType = EBindlessConversionType::Resource;
-						ParsedConstantBufferType = EShaderParameterType::BindlessResourceIndex;
+						BindlessConversionType = EBindlessConversionType::SRV;
+						ParsedConstantBufferType = EShaderParameterType::BindlessSRV;
+					}
+					else if (bBindlessResources && ParsedParameterType == EShaderParameterType::UAV)
+					{
+						BindlessConversionType = EBindlessConversionType::UAV;
+						ParsedConstantBufferType = EShaderParameterType::BindlessUAV;
 					}
 					else if (bBindlessSamplers && ParsedParameterType == EShaderParameterType::Sampler)
 					{
 						BindlessConversionType = EBindlessConversionType::Sampler;
-						ParsedConstantBufferType = EShaderParameterType::BindlessSamplerIndex;
+						ParsedConstantBufferType = EShaderParameterType::BindlessSampler;
 					}
 
 					if (BindlessConversionType != EBindlessConversionType::None && Leftovers.Contains(TEXT("register")))
@@ -890,13 +912,35 @@ void FShaderParameterParser::RemoveMovingParametersFromSource(FString& Preproces
 	}
 }
 
+static FStringView GetBindlessParameterPrefix(EBindlessConversionType InConversionType)
+{
+	switch (InConversionType)
+	{
+	case EBindlessConversionType::SRV:     return FShaderParameterParser::kBindlessSRVPrefix;
+	case EBindlessConversionType::UAV:     return FShaderParameterParser::kBindlessUAVPrefix;
+	case EBindlessConversionType::Sampler: return FShaderParameterParser::kBindlessSamplerPrefix;
+	}
+	return FStringView();
+}
+
+static FStringView GetBindlessArrayHeapPrefix(EBindlessConversionType InConversionType)
+{
+	switch (InConversionType)
+	{
+	case EBindlessConversionType::SRV:     return FShaderParameterParser::kBindlessSRVArrayPrefix;
+	case EBindlessConversionType::UAV:     return FShaderParameterParser::kBindlessUAVArrayPrefix;
+	case EBindlessConversionType::Sampler: return FShaderParameterParser::kBindlessSamplerArrayPrefix;
+	}
+	return FStringView();
+}
+
 FString FShaderParameterParser::GenerateBindlessParameterDeclaration(const FParsedShaderParameter& ParsedParameter) const
 {
 	const bool bIsSampler = (ParsedParameter.BindlessConversionType == EBindlessConversionType::Sampler);
 	const FStringView Name = ParsedParameter.ParsedName;
 	const FStringView Type = ParsedParameter.ParsedType;
 	const TCHAR* StorageClass = ParsedParameter.bGloballyCoherent ? TEXT("globallycoherent ") : TEXT("");
-	const TCHAR* IndexPrefix = bIsSampler ? FShaderParameterParser::kBindlessSamplerPrefix : FShaderParameterParser::kBindlessResourcePrefix;
+	const FStringView IndexPrefix = ::GetBindlessParameterPrefix(ParsedParameter.BindlessConversionType);
 
 	TStringBuilder<512> Result;
 
@@ -911,7 +955,7 @@ FString FShaderParameterParser::GenerateBindlessParameterDeclaration(const FPars
 
 	FString TypedefText = TEXT("");
 	// Vulkan requires these typedefs for both resources and samplers, while other platforms only require resources.
-	if (ParsedParameter.BindlessConversionType == EBindlessConversionType::Resource || BindlessParameterMode == EBindlessParameterMode::Vulkan)
+	if (ParsedParameter.BindlessConversionType != EBindlessConversionType::Sampler || BindlessParameterMode == EBindlessParameterMode::Vulkan)
 	{
 		RewriteType = FString::Printf(TEXT("SafeType%.*s"), Name.Len(), Name.GetData());
 		TypedefText = FString::Printf(TEXT("typedef %.*s %s;"), Type.Len(), Type.GetData(), *RewriteType);
@@ -921,7 +965,7 @@ FString FShaderParameterParser::GenerateBindlessParameterDeclaration(const FPars
 
 	if (BindlessParameterMode == EBindlessParameterMode::Vulkan)
 	{
-		const TCHAR* HeapPrefix = bIsSampler ? VulkanBindless::kBindlessSamplerArrayPrefix : VulkanBindless::kBindlessResourceArrayPrefix;
+		const FStringView HeapPrefix = GetBindlessArrayHeapPrefix(ParsedParameter.BindlessConversionType);
 
 		// Declare a heap for the RewriteType
 		// e.g. `SafeType##Name ResourceDescriptorHeap_SafeType##Name[];`
@@ -938,7 +982,7 @@ FString FShaderParameterParser::GenerateBindlessParameterDeclaration(const FPars
 		// e.g. `Type GetBindlessResource##Name() { return GetResourceFromHeap(Type, BindlessResource_##Name); } static const Type Name = GetBindlessResource##Name()`
 		// or   `Type GetBindlessSampler##Name() { return GetSamplerFromHeap(Type, BindlessSampler_##Name); } static const Type Name = GetBindlessSampler##Name()`
 		Result << StorageClass << RewriteType << TEXT(" GetBindless") << Kind << Name << TEXT("()");
-		Result << TEXT("{ return Get") << Kind << TEXT("FromHeap(") << StorageClass << RewriteType << TEXT(", Bindless") << Kind << TEXT("_") << Name << TEXT("); } ");
+		Result << TEXT("{ return Get") << Kind << TEXT("FromHeap(") << StorageClass << RewriteType << TEXT(", ") << IndexPrefix << Name << TEXT("); } ");
 		Result << TEXT("static const ") << StorageClass << RewriteType << TEXT(" ") << Name << TEXT(" = GetBindless") << Kind << Name << TEXT("();");
 	}
 
@@ -1065,18 +1109,13 @@ bool FShaderParameterParser::MoveShaderParametersToRootConstantBuffer(
 				const TCHAR* ConstantSwizzle = GetConstantSwizzle(ByteOffset);
 
 #define SVARG(N) N.Len(), N.GetData()
-				if (ParsedParameter->ConstantBufferParameterType == EShaderParameterType::BindlessResourceIndex)
+				if (IsParameterBindless(ParsedParameter->ConstantBufferParameterType))
 				{
+					const FStringView Prefix = GetBindlessParameterPrefix(ParsedParameter->ConstantBufferParameterType);
+
 					RootCBufferContent.Append(FString::Printf(
-						TEXT("uint BindlessResource_%.*s : packoffset(c%d%s);\n"),
-						SVARG(ParsedParameter->ParsedName),
-						ConstantRegister,
-						ConstantSwizzle));
-				}
-				else if (ParsedParameter->ConstantBufferParameterType == EShaderParameterType::BindlessSamplerIndex)
-				{
-					RootCBufferContent.Append(FString::Printf(
-						TEXT("uint BindlessSampler_%.*s : packoffset(c%d%s);\n"),
+						TEXT("uint %.*s%.*s : packoffset(c%d%s);\n"),
+						SVARG(Prefix),
 						SVARG(ParsedParameter->ParsedName),
 						ConstantRegister,
 						ConstantSwizzle));
