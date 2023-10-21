@@ -1438,49 +1438,29 @@ TSet<FCurveModelID> FCurveEditor::GetTargetCurvesForPaste() const
 {
 	TSet<FCurveModelID> TargetCurves;
 
-	TOptional<FCurveModelID> HoveredID;
-	if (WeakPanel.IsValid())
+	TArray<FCurveEditorTreeItemID> NodesToSearch;
+
+	// Try nodes with selected keys
+	for (const TTuple<FCurveModelID, FKeyHandleSet>& Pair : Selection.GetAll())
 	{
-		for (TSharedPtr<SCurveEditorView> View : WeakPanel.Pin()->GetViews())
+		TargetCurves.Add(Pair.Key);
+	}
+
+	// Try selected nodes
+	if (TargetCurves.Num() == 0)
+	{
+		for (const TTuple<FCurveEditorTreeItemID, ECurveEditorTreeSelectionState>& Pair : GetTreeSelection())
 		{
-			if (View.IsValid() && View->GetHoveredCurve().IsSet())
-			{
-				HoveredID = View->GetHoveredCurve().GetValue();
-				break;
-			}
+			NodesToSearch.Add(Pair.Key);
 		}
 	}
 
-	if (HoveredID.IsSet())
+	for (const FCurveEditorTreeItemID& TreeItemID : NodesToSearch)
 	{
-		TargetCurves.Add(HoveredID.GetValue());
-	}
-	else
-	{
-		TArray<FCurveEditorTreeItemID> NodesToSearch;
-
-		// Try nodes with selected keys
-		for (const TTuple<FCurveModelID, FKeyHandleSet>& Pair : Selection.GetAll())
+		const FCurveEditorTreeItem& TreeItem = GetTreeItem(TreeItemID);
+		for (const FCurveModelID& CurveModelID : TreeItem.GetCurves())
 		{
-			TargetCurves.Add(Pair.Key);
-		}
-
-		// Try selected nodes
-		if (TargetCurves.Num() == 0)
-		{
-			for (const TTuple<FCurveEditorTreeItemID, ECurveEditorTreeSelectionState>& Pair : GetTreeSelection())
-			{
-				NodesToSearch.Add(Pair.Key);
-			}
-		}
-
-		for (const FCurveEditorTreeItemID& TreeItemID : NodesToSearch)
-		{
-			const FCurveEditorTreeItem& TreeItem = GetTreeItem(TreeItemID);
-			for (const FCurveModelID& CurveModelID : TreeItem.GetCurves())
-			{
-				TargetCurves.Add(CurveModelID);
-			}
+			TargetCurves.Add(CurveModelID);
 		}
 	}
 
