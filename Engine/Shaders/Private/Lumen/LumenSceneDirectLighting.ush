@@ -206,7 +206,7 @@ FLumenLight LoadLumenLight(uint LightIndex, float3 PreViewTranslation)
 /** Fade distance in x, disabled brightness in y, output for preview shadows mask in z. */
 float3 LightFunctionParameters2;
 
-float GetLightFunction(float3 TranslatedWorldPosition) 
+float GetLumenLightFunction(float3 TranslatedWorldPosition) 
 {
 	float4 LightVector = mul(float4(TranslatedWorldPosition, 1), LightFunctionTranslatedWorldToLight);
 	float3 LightFunction = GetLightFunctionColor(LightVector.xyz / LightVector.w, TranslatedWorldPosition);
@@ -222,6 +222,8 @@ float GetLightFunction(float3 TranslatedWorldPosition)
 
 	// Fade to disabled based on ShadowFadeFraction
 	GreyScale = lerp(LightFunctionParameters2.y, GreyScale, LightFunctionParameters.y);
-	return GreyScale;
+
+	// We want to get the same light function contribution as if it was written to a unorm8 render target so we saturate. This will also avoid amplifying other shadow factors.
+	return saturate(GreyScale);
 }
 #endif

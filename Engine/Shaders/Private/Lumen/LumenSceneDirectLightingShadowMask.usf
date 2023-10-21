@@ -130,7 +130,7 @@ void LumenSceneDirectLightingNonRayTracedShadowsCS(
 			#if LIGHT_FUNCTION
 			if (ShadowMaskRay.ShadowFactor > 0.01f)
 			{
-				ShadowMaskRay.ShadowFactor *= GetLightFunction(TranslatedWorldPosition);
+				ShadowMaskRay.ShadowFactor *= GetLumenLightFunction(TranslatedWorldPosition);
 				ShadowMaskRay.bShadowFactorComplete = ShadowMaskRay.bShadowFactorComplete || ShadowMaskRay.ShadowFactor < 0.01f;
 			}
 			#endif
