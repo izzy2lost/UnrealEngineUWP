@@ -59,7 +59,7 @@ namespace GLTF
 		void SetupMaterial(const FJsonObject& Object) const;
 
 		template <typename SetupFunc>
-		void SetupObjects(uint32 ObjectCount, const TCHAR* FieldName, SetupFunc Func) const;
+		bool SetupObjects(uint32 ObjectCount, const TCHAR* FieldName, SetupFunc Func) const;
 		void SetupNodesType() const;
 
 		void GenerateInverseBindPosesPerSkinIndices() const; //Per node
@@ -71,6 +71,8 @@ namespace GLTF
 		void BuildRootJoints() const;
 
 	private:
+		bool CheckForErrors(int32 StartIndex = 0) const;
+
 		uint32 BufferCount;
 		uint32 BufferViewCount;
 		uint32 ImageCount;
