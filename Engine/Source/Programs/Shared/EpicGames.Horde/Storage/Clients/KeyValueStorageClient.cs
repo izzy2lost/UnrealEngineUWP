@@ -6,13 +6,14 @@ using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using EpicGames.Core;
 
 namespace EpicGames.Horde.Storage.Clients
 {
 	/// <summary>
 	/// Base class for storage clients that wrap a diirect key/value type store without any merging/splitting.
 	/// </summary>
-	abstract class KeyValueStorageClient : IStorageClient
+	public abstract class KeyValueStorageClient : IStorageClient
 	{
 		class Handle : BlobHandle
 		{
@@ -44,6 +45,9 @@ namespace EpicGames.Horde.Storage.Clients
 			GC.SuppressFinalize(this);
 		}
 
+		/// <summary>
+		/// Overridable dispose method
+		/// </summary>
 		protected virtual void Dispose(bool disposing)
 		{
 		}
@@ -51,7 +55,17 @@ namespace EpicGames.Horde.Storage.Clients
 		#region Blobs
 
 		/// <inheritdoc/>
-		public virtual BlobHandle CreateBlobHandle(BlobLocator locator) => new Handle(this, locator);
+		public virtual BlobHandle CreateBlobHandle(BlobLocator locator)
+		{
+			if (locator.TryUnwrapFull(out BlobLocator outer, out Utf8String fragment))
+			{
+				return new BlobFragmentHandle(new Handle(this, outer), fragment);
+			}
+			else
+			{
+				return new Handle(this, locator);
+			}
+		}
 
 		/// <inheritdoc/>
 		public virtual IStorageWriter CreateWriter(string? basePath = null) => new DefaultStorageWriter(this, basePath);
@@ -96,6 +110,7 @@ namespace EpicGames.Horde.Storage.Clients
 
 		#endregion
 
+		/// <inheritdoc/>
 		public abstract void GetStats(StorageStats stats);
 	}
 }

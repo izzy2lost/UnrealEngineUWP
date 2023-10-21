@@ -99,7 +99,8 @@ namespace EpicGames.Horde.Storage
 		public virtual async Task<Stream> OpenAsync(int offset = 0, int? length = null, CancellationToken cancellationToken = default)
 		{
 			BlobData blobData = await ReadAsync(cancellationToken);
-			ReadOnlyMemory<byte> memory = blobData.Data.Slice(offset, length ?? blobData.Data.Length - offset);
+			int maxLength = blobData.Data.Length - offset;
+			ReadOnlyMemory<byte> memory = blobData.Data.Slice(offset, length.HasValue ? Math.Min(length.Value, maxLength) : maxLength);
 			return new BlobDataStream(blobData, memory);
 		}
 
