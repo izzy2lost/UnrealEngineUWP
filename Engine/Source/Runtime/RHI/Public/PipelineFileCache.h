@@ -52,16 +52,7 @@ struct FPipelineFileCacheRasterizerState
 		return Initializer;
 	}
 	
-	friend FArchive& operator<<(FArchive& Ar,FPipelineFileCacheRasterizerState& RasterizerStateInitializer)
-	{
-		Ar << RasterizerStateInitializer.DepthBias;
-		Ar << RasterizerStateInitializer.SlopeScaleDepthBias;
-		Ar << RasterizerStateInitializer.FillMode;
-		Ar << RasterizerStateInitializer.CullMode;
-		Ar << RasterizerStateInitializer.DepthClipMode;
-		Ar << RasterizerStateInitializer.bAllowMSAA;
-		return Ar;
-	}
+	friend RHI_API FArchive& operator<<(FArchive& Ar, FPipelineFileCacheRasterizerState& RasterizerStateInitializer);
 
 	friend uint32 GetTypeHash(const FPipelineFileCacheRasterizerState &Key)
 	{

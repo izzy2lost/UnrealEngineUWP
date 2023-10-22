@@ -380,6 +380,21 @@ struct FPipelineCacheFileFormatPSOMetaData
 	}
 };
 
+RHI_API FArchive& operator<<(FArchive& Ar, FPipelineFileCacheRasterizerState& RasterizerStateInitializer)
+{
+	Ar << RasterizerStateInitializer.DepthBias;
+	Ar << RasterizerStateInitializer.SlopeScaleDepthBias;
+	Ar << RasterizerStateInitializer.FillMode;
+	Ar << RasterizerStateInitializer.CullMode;
+	Ar << RasterizerStateInitializer.DepthClipMode;
+	Ar << RasterizerStateInitializer.bAllowMSAA;
+	if (Ar.GameNetVer() < (uint32)EPipelineCacheFileFormatVersions::RemovingLineAA)
+	{
+		bool bEnableLineAA = false;
+		Ar << bEnableLineAA;
+	}
+	return Ar;
+}
 
 FString FPipelineFileCacheRasterizerState::ToString() const
 {
