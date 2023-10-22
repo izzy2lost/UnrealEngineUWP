@@ -2,6 +2,7 @@
 
 using System;
 using System.Buffers;
+using System.Buffers.Text;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
@@ -48,38 +49,44 @@ namespace EpicGames.Horde.Storage.Bundles
 	/// <summary>
 	/// Implementation of <see cref="BlobHandle"/> for nodes which can be read from storage
 	/// </summary>
-	sealed class FlushedNodeHandle : BundleNodeHandle
+	sealed class FlushedNodeHandle : BlobHandle
 	{
 		readonly BundleReader _reader;
-		readonly BundleNodeLocator _locator;
+
+		public BlobLocator BundleLocator { get; }
+		public int ExportIdx { get; }
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public FlushedNodeHandle(BundleReader reader, BundleNodeLocator locator)
+		public FlushedNodeHandle(BundleReader reader, BlobLocator bundleLocator, int exportIdx)
 		{
 			_reader = reader;
-			_locator = locator;
+			BundleLocator = bundleLocator;
+			ExportIdx = exportIdx;
+		}
+
+		public static FlushedNodeHandle FromBlobLocator(BundleReader reader, BlobLocator locator)
+		{
+			if (locator.TryUnwrap(out BlobLocator bundleLocator, out Utf8String fragment) && Utf8Parser.TryParse(fragment, out int exportIdx, out int bytesConsumed) && bytesConsumed == fragment.Length)
+			{
+				return new FlushedNodeHandle(reader, bundleLocator, exportIdx);
+			}
+			else
+			{
+				throw new ArgumentException($"Locator {locator} is not a valid bundle node");
+			}
 		}
 
 		/// <inheritdoc/>
-		public override bool TryGetLocator([NotNullWhen(true)] out BlobLocator blobId)
+		public override bool TryGetLocator([NotNullWhen(true)] out BlobLocator locator)
 		{
-			blobId = _locator.ToBlobLocator();
+			locator = new BlobLocator(BundleLocator, ExportIdx.ToString());
 			return true;
 		}
 
 		/// <inheritdoc/>
-		public override bool HasLocator() => true;
-
-		/// <inheritdoc/>
-		public override BundleNodeLocator GetLocator() => _locator;
-
-		/// <inheritdoc/>
-		public override void AddWriteCallback(BlobWriteCallback callback) => callback.OnWrite();
-
-		/// <inheritdoc/>
-		public override ValueTask<BlobData> ReadAsync(CancellationToken cancellationToken = default) => _reader.ReadNodeDataAsync(_locator, cancellationToken);
+		public override ValueTask<BlobData> ReadAsync(CancellationToken cancellationToken = default) => _reader.ReadNodeDataAsync(BundleLocator, ExportIdx, cancellationToken);
 
 		/// <inheritdoc/>
 		public override ValueTask FlushAsync(CancellationToken cancellationToken = default) => new ValueTask();
@@ -92,13 +99,13 @@ namespace EpicGames.Horde.Storage.Bundles
 	public sealed class BundleWriter : IStorageWriter
 	{
 		// Information about a unique output node. Note that multiple node refs may de-duplicate to the same output node.
-		internal class PendingNode : BundleNodeHandle
+		internal class PendingNode : BlobHandle
 		{
 			readonly BundleReader _reader;
 
 			object LockObject => _reader;
 
-			BundleNodeLocator _locator;
+			FlushedNodeHandle? _flushedHandle;
 			PendingBundle? _pendingBundle;
 
 			public readonly BlobType BlobType;
@@ -109,6 +116,7 @@ namespace EpicGames.Horde.Storage.Bundles
 			public readonly AliasInfo[] Aliases;
 
 			public PendingBundle? PendingBundle => _pendingBundle;
+			public FlushedNodeHandle? FlushedNodeHandle => _flushedHandle;
 
 			public PendingNode(BundleReader reader, BlobType blobType, int packet, int offset, int length, IReadOnlyList<BlobHandle> refs, IReadOnlyList<AliasInfo> aliases, PendingBundle pendingBundle)
 			{
@@ -125,79 +133,54 @@ namespace EpicGames.Horde.Storage.Bundles
 			}
 
 			/// <inheritdoc/>
-			public override bool TryGetLocator([NotNullWhen(true)] out BlobLocator blobId)
+			public override bool TryGetLocator([NotNullWhen(true)] out BlobLocator locator)
 			{
-				if (_locator.IsValid())
+				if (_flushedHandle != null && _flushedHandle.TryGetLocator(out BlobLocator flushedLocator))
 				{
-					blobId = _locator.ToBlobLocator();
+					locator = flushedLocator;
 					return true;
 				}
 				else
 				{
-					blobId = default;
+					Console.WriteLine($"Unable to get locator for node {BlobType}:{Packet}:{Offset}:{Length}. Handle is {FlushedNodeHandle}. Bundle is {PendingBundle}.");
+
+					locator = default;
 					return false;
 				}
 			}
 
-			/// <inheritdoc/>
-			public override bool HasLocator() => _locator.IsValid();
-
-			/// <inheritdoc/>
-			public override BundleNodeLocator GetLocator()
-			{
-				if (!_locator.IsValid())
-				{
-					throw new InvalidOperationException();
-				}
-				return _locator;
-			}
-
-			public void MarkAsWritten(BundleNodeLocator locator)
+			public void MarkAsWritten(FlushedNodeHandle flushedHandle)
 			{
 				lock (LockObject)
 				{
-					Debug.Assert(!_locator.IsValid());
-					_locator = locator;
+					Debug.Assert(_flushedHandle == null);
+					_flushedHandle = flushedHandle;
 					_pendingBundle = null;
-				}
-			}
-
-			/// <inheritdoc/>
-			public override void AddWriteCallback(BlobWriteCallback callback)
-			{
-				PendingBundle? pendingBundle = PendingBundle;
-				if (pendingBundle == null || !pendingBundle.TryAddWriteCallback(callback))
-				{
-					Debug.Assert(_locator.IsValid());
-					callback.OnWrite();
 				}
 			}
 
 			/// <inheritdoc/>
 			public override async ValueTask<BlobData> ReadAsync(CancellationToken cancellationToken = default)
 			{
-				if (!_locator.IsValid())
+				if (_flushedHandle == null)
 				{
 					lock (LockObject)
 					{
-						if (!_locator.IsValid() && _pendingBundle != null)
+						if (_flushedHandle == null)
 						{
-							ReadOnlyMemory<byte> data = _pendingBundle.GetNodeData(Packet, Offset, Length);
-							if (data.Length == Length)
-							{
-								return new BlobData(BlobType, data, Refs);
-							}
+							ReadOnlyMemory<byte> data = _pendingBundle!.GetNodeData(Packet, Offset, Length);
+							return new BlobData(BlobType, data, Refs);
 						}
 					}
 				}
 
-				return await _reader.ReadNodeDataAsync(_locator, cancellationToken);
+				return await _flushedHandle!.ReadAsync(cancellationToken);
 			}
 
 			/// <inheritdoc/>
 			public override async ValueTask FlushAsync(CancellationToken cancellationToken = default)
 			{
-				if (_locator.IsValid())
+				if (_flushedHandle != null)
 				{
 					return;
 				}
@@ -218,13 +201,6 @@ namespace EpicGames.Horde.Storage.Bundles
 		// Information about a bundle being built. Metadata operations are synchronous, compression/writes are asynchronous.
 		internal class PendingBundle : IDisposable
 		{
-			class WriteCallbackSentinel : BlobWriteCallback
-			{
-				public override void OnWrite() => throw new NotImplementedException();
-			}
-
-			static readonly WriteCallbackSentinel s_callbackSentinel = new WriteCallbackSentinel();
-
 			static int s_lastBundleId = 0;
 			public int BundleId { get; } = Interlocked.Increment(ref s_lastBundleId);
 
@@ -267,9 +243,6 @@ namespace EpicGames.Horde.Storage.Bundles
 
 			// Total size of uncompressed data in the current bundle
 			public long UncompressedLength { get; private set; }
-
-			// List of post-write callbacks
-			BlobWriteCallback? _callbacks = null;
 
 			// Task used to compress data in the background
 			Task _compressPacketsTask = Task.CompletedTask;
@@ -318,26 +291,6 @@ namespace EpicGames.Horde.Storage.Bundles
 					if (_dependencies.Add(bundle.CompleteTask))
 					{
 						traceLogger?.LogInformation("Added dependency from bundle {BundleId} on {OtherBundleId}", BundleId, bundle.BundleId);
-					}
-				}
-			}
-
-			// Adds a callback after writing
-			public bool TryAddWriteCallback(BlobWriteCallback callback)
-			{
-				for (; ; )
-				{
-					BlobWriteCallback? tail = _callbacks;
-					if (tail == s_callbackSentinel)
-					{
-						return false;
-					}
-
-					callback._next = tail;
-
-					if (Interlocked.CompareExchange(ref _callbacks, callback, tail) == tail)
-					{
-						return true;
 					}
 				}
 			}
@@ -495,21 +448,13 @@ namespace EpicGames.Horde.Storage.Bundles
 					{
 						PendingNode node = _queue[idx];
 
-						BundleNodeLocator nodeLocator = new BundleNodeLocator(locator, idx);
-						_queue[idx].MarkAsWritten(nodeLocator);
+						FlushedNodeHandle flushedHandle = new FlushedNodeHandle(_treeReader, locator, idx);
+						_queue[idx].MarkAsWritten(flushedHandle);
 
 						foreach (AliasInfo alias in node.Aliases)
 						{
-							BlobHandle target = store.CreateBlobHandle(nodeLocator.ToBlobLocator());
-							await store.AddAliasAsync(alias.Name, target, alias.Rank, alias.Data, CancellationToken.None);
+							await store.AddAliasAsync(alias.Name, flushedHandle, alias.Rank, alias.Data, CancellationToken.None);
 						}
-					}
-
-					BlobWriteCallback? callback = Interlocked.Exchange(ref _callbacks, s_callbackSentinel);
-					while (callback != null)
-					{
-						callback.OnWrite();
-						callback = callback._next;
 					}
 
 					_completeEvent.SetResult(true);
@@ -557,15 +502,23 @@ namespace EpicGames.Horde.Storage.Bundles
 					int typeIdx = FindOrAddItemIndex(nodeInfo.BlobType, types, typeToIndex);
 
 					List<BundleExportRef> exportRefs = new List<BundleExportRef>();
-					foreach (BundleNodeHandle handle in nodeInfo.Refs)
+					foreach (BlobHandle handle in nodeInfo.Refs)
 					{
 						BundleExportRef exportRef;
 						if (!nodeHandleToExportRef.TryGetValue(handle, out exportRef))
 						{
-							BundleNodeLocator locator = handle.GetLocator();
-
-							int importIdx = FindOrAddItemIndex(locator.Blob, imports, importToIndex);
-							exportRef = new BundleExportRef(importIdx, locator.ExportIdx);
+							FlushedNodeHandle? flushedHandle = handle as FlushedNodeHandle;
+							if (flushedHandle == null)
+							{
+								flushedHandle = (handle as PendingNode)?.FlushedNodeHandle;
+								if (flushedHandle == null)
+								{
+									throw new InvalidOperationException($"Node {handle.GetLocator()} is not a bundle node");
+								}
+							}
+							
+							int importIdx = FindOrAddItemIndex(flushedHandle.BundleLocator, imports, importToIndex);
+							exportRef = new BundleExportRef(importIdx, flushedHandle.ExportIdx);
 						}
 						exportRefs.Add(exportRef);
 					}
@@ -858,9 +811,9 @@ namespace EpicGames.Horde.Storage.Bundles
 		/// <param name="root">Root for the tree</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns></returns>
-		public async Task<BundleNodeHandle> FlushAsync(Node root, CancellationToken cancellationToken = default)
+		public async Task<BlobHandle> FlushAsync(Node root, CancellationToken cancellationToken = default)
 		{
-			return (BundleNodeHandle)await NodeRefExtensions.FlushAsync(this, root, cancellationToken);
+			return await NodeRefExtensions.FlushAsync(this, root, cancellationToken);
 		}
 	}
 }

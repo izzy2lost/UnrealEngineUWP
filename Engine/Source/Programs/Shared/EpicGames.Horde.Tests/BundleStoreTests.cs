@@ -64,9 +64,9 @@ namespace EpicGames.Horde.Tests
 			await using BundleWriter writer = store.CreateWriter(options: new BundleOptions { CompressionFormat = BundleCompressionFormat.None });
 
 			TextNode node = new TextNode("Hello world");
-			BundleNodeHandle handle = await writer.FlushAsync(node, CancellationToken.None);
+			BlobHandle handle = await writer.FlushAsync(node, CancellationToken.None);
 
-			BlobHandle bundleHandle = store.CreateBlobHandle(handle.GetLocator().Blob);
+			BlobHandle bundleHandle = store.CreateBlobHandle(handle.GetLocator().Outermost);
 			using BlobData blobData = await bundleHandle.ReadAsync();
 
 			return Bundle.FromMemory(blobData.Data.ToArray());

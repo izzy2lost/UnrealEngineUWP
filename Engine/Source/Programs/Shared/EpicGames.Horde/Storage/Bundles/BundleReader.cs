@@ -537,13 +537,14 @@ namespace EpicGames.Horde.Storage.Bundles
 		/// <summary>
 		/// Reads a node from a bundle
 		/// </summary>
-		/// <param name="locator">Locator for the node</param>
+		/// <param name="bundleLocator">Locator for the bundle</param>
+		/// <param name="exportIdx">Index of the export</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Node data read from the given bundle</returns>
-		public async ValueTask<BlobData> ReadNodeDataAsync(BundleNodeLocator locator, CancellationToken cancellationToken = default)
+		public async ValueTask<BlobData> ReadNodeDataAsync(BlobLocator bundleLocator, int exportIdx, CancellationToken cancellationToken = default)
 		{
-			BundleHeader header = await ReadHeaderAsync(locator.Blob, cancellationToken);
-			BundleExport export = header.Exports[locator.ExportIdx];
+			BundleHeader header = await ReadHeaderAsync(bundleLocator, cancellationToken);
+			BundleExport export = header.Exports[exportIdx];
 
 			List<BlobHandle> refs = new List<BlobHandle>(export.References.Count);
 			foreach (BundleExportRef reference in export.References)
@@ -551,46 +552,26 @@ namespace EpicGames.Horde.Storage.Bundles
 				BlobLocator importBlob;
 				if (reference.ImportIdx == -1)
 				{
-					importBlob = locator.Blob;
+					importBlob = bundleLocator;
 				}
 				else
 				{
 					importBlob = header.Imports[reference.ImportIdx];
 				}
 				Debug.Assert(importBlob.IsValid());
-				refs.Add(new FlushedNodeHandle(this, new BundleNodeLocator(importBlob, reference.NodeIdx)));
+				refs.Add(new FlushedNodeHandle(this, importBlob, reference.NodeIdx));
 			}
 
 			ReadOnlyMemory<byte> nodeData = ReadOnlyMemory<byte>.Empty;
 			if (export.Length > 0)
 			{
-				ReadOnlyMemory<byte> packetData = await ReadPacketAsync(locator.Blob, export.Packet, cancellationToken);
+				ReadOnlyMemory<byte> packetData = await ReadPacketAsync(bundleLocator, export.Packet, cancellationToken);
 				nodeData = packetData.Slice(export.Offset, export.Length);
 			}
 
 			BlobType nodeType = header.Types[export.TypeIdx];
 			return new BlobData(nodeType, nodeData, refs);
 		}
-
-		/// <summary>
-		/// Reads a node from a bundle
-		/// </summary>
-		/// <param name="locator">Locator for the node</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>Node data read from the given bundle</returns>
-		public async ValueTask<Node> ReadNodeAsync(BundleNodeLocator locator, CancellationToken cancellationToken = default)
-		{
-			using BlobData blobData = await ReadNodeDataAsync(locator, cancellationToken);
-			return Node.Deserialize(blobData);
-		}
-
-		/// <summary>
-		/// Reads a node from a bundle
-		/// </summary>
-		/// <param name="locator">Locator for the node</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>Node data read from the given bundle</returns>
-		public async ValueTask<TNode> ReadNodeAsync<TNode>(BundleNodeLocator locator, CancellationToken cancellationToken = default) where TNode : Node => (TNode)await ReadNodeAsync(locator, cancellationToken);
 
 		/// <summary>
 		/// Gets stats for the reader

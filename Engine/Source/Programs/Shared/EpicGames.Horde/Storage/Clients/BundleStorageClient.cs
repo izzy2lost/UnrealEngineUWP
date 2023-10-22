@@ -188,9 +188,6 @@ namespace EpicGames.Horde.Storage.Clients
 		/// <inheritdoc/>
 		public Task<BundleHeader> ReadHeaderAsync(BlobLocator locator, CancellationToken cancellationToken) => _bundleReader.ReadHeaderAsync(locator, cancellationToken);
 
-		/// <inheritdoc/>
-		public async Task<BlobData> ReadNodeDataAsync(BundleNodeLocator locator, CancellationToken cancellationToken) => await _bundleReader.ReadNodeDataAsync(locator, cancellationToken);
-
 		#endregion
 
 		#region Nodes
@@ -200,7 +197,7 @@ namespace EpicGames.Horde.Storage.Clients
 		{
 			if (locator.CanUnwrap())
 			{
-				return new FlushedNodeHandle(_bundleReader, BundleNodeLocator.FromBlobLocator(locator));
+				return FlushedNodeHandle.FromBlobLocator(_bundleReader, locator);
 			}
 			else
 			{

@@ -393,28 +393,28 @@ namespace Horde.Server.Storage
 						List<object> directories = new List<object>();
 						foreach ((string name, DirectoryEntry entry) in directoryNode.NameToDirectory)
 						{
-							directories.Add(new { name = name.ToString(), length = entry.Length, hash = entry.Hash, link = GetNodeLink(linkBase, (BundleNodeHandle)entry.Handle) });
+							directories.Add(new { name = name.ToString(), length = entry.Length, hash = entry.Hash, link = GetNodeLink(linkBase, entry.Handle) });
 						}
 
 						List<object> files = new List<object>();
 						foreach ((string name, FileEntry entry) in directoryNode.NameToFile)
 						{
-							files.Add(new { name = name.ToString(), length = entry.Length, flags = entry.Flags, hash = entry.Hash, link = GetNodeLink(linkBase, (BundleNodeHandle)entry.Handle) });
+							files.Add(new { name = name.ToString(), length = entry.Length, flags = entry.Flags, hash = entry.Hash, link = GetNodeLink(linkBase, entry.Handle) });
 						}
 
 						content = new { directoryNode.Length, directories, files };
 					}
 					break;
 				default:
-					content = new { references = blobData.Refs.Select(x => GetNodeLink(linkBase, (BundleNodeHandle)x)) };
+					content = new { references = blobData.Refs.Select(x => GetNodeLink(linkBase, x)) };
 					break;
 			}
 
 			return new { type = blobData.Type.Guid, @class = node.GetType().Name, content = content };
 		}
 
-		static string GetNodeLink(string linkBase, BundleNodeHandle handle) => GetNodeLink(linkBase, handle.GetLocator());
+		static string GetNodeLink(string linkBase, BlobHandle handle) => GetNodeLink(linkBase, handle.GetLocator());
 		
-		static string GetNodeLink(string linkBase, BundleNodeLocator locator) => $"{linkBase}/nodes/{locator.Blob}?export={locator.ExportIdx}";
+		static string GetNodeLink(string linkBase, BlobLocator locator) => $"{linkBase}/nodes/{locator}";
 	}
 }
