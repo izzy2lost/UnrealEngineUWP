@@ -4043,7 +4043,8 @@ void FControlRigEditMode::OnHierarchyModified_AnyThread(ERigHierarchyNotificatio
 void FControlRigEditMode::OnControlModified(UBaseControlRig* Subject, FRigControlElement* InControlElement, const FRigControlModifiedContext& Context)
 {
 	//this makes sure the details panel ui get's updated, don't remove
-	ControlProxy->ProxyChanged(Subject,InControlElement->GetFName());
+	const bool bModify = Context.SetKey != EControlRigSetKey::Never;
+	ControlProxy->ProxyChanged(Subject,InControlElement->GetFName(), bModify);
 
 	/*
 	FScopedTransaction ScopedTransaction(LOCTEXT("ModifyControlTransaction", "Modify Control"),!GIsTransacting && Context.SetKey != EControlRigSetKey::Never);

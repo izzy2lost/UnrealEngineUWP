@@ -326,10 +326,11 @@ protected:
 
 
 public:
+	void SelectProxy(UControlRig* InControlRig, const FName& Name, bool bSelected);
 	UControlRigControlsProxy* FindProxy(UBaseControlRig* InControlRig, const FName& Name) const;
 	void AddProxy(UBaseControlRig* InControlRig, const FName& Name,  FRigControlElement* ControlElement);
 	void RemoveProxy(UBaseControlRig* InControlRig, const FName& Name );
-	void ProxyChanged(UBaseControlRig* InControlRig, const FName& Name);
+	void ProxyChanged(UBaseControlRig* InControlRig, const FName& Name, bool bModify = true);
 	void RemoveAllProxies(UBaseControlRig* InControlRig);
 	void RecreateAllProxies(UBaseControlRig* InControlRig);
 	void SelectProxy(UBaseControlRig* InControlRig, const FName& Name, bool bSelected);

@@ -219,7 +219,6 @@ void UControlRigTransformControlProxy::ValueChanged()
 	FRigControlElement* ControlElement = GetControlElement();
 	if (ControlElement && ControlRig.IsValid())
 	{
-		Modify();
 		const FName PropertyName("Transform");
 		FTrackInstancePropertyBindings Binding(PropertyName, PropertyName.ToString());
 		const FTransform NewTransform = ControlRig.Get()->GetControlValue(ControlElement, ERigControlValueType::Current).Get<FRigControlValue::FTransform_Float>().ToTransform();
@@ -299,7 +298,6 @@ void UControlRigTransformNoScaleControlProxy::ValueChanged()
 	FRigControlElement* ControlElement = GetControlElement();
 	if (ControlElement)
 	{
-		Modify();
 		const FName PropertyName("Transform");
 		FTrackInstancePropertyBindings Binding(PropertyName, PropertyName.ToString());
 		const FTransformNoScale NewTransform = ControlRig.Get()->GetControlValue(ControlElement, ERigControlValueType::Current).Get<FRigControlValue::FTransformNoScale_Float>().ToTransform();
@@ -376,7 +374,6 @@ void UControlRigEulerTransformControlProxy::ValueChanged()
 	FRigControlElement* ControlElement = GetControlElement();
 	if (ControlElement)
 	{
-		Modify();
 		const FName PropertyName("Transform");
 		FTrackInstancePropertyBindings Binding(PropertyName, PropertyName.ToString());
 		FEulerTransform NewTransform = ControlRig.Get()->GetControlValue(ControlElement, ERigControlValueType::Current).Get<FRigControlValue::FEulerTransform_Float>().ToTransform();
@@ -446,7 +443,6 @@ void UControlRigFloatControlProxy::ValueChanged()
 	FRigControlElement* ControlElement = GetControlElement();
 	if (ControlElement)
 	{
-		Modify();
 		const FName PropertyName("Float");
 		FTrackInstancePropertyBindings Binding(PropertyName, PropertyName.ToString());
 		const float Val = ControlRig.Get()->GetControlValue(ControlElement, ERigControlValueType::Current).Get<float>();
@@ -496,7 +492,6 @@ void UControlRigIntegerControlProxy::ValueChanged()
 	FRigControlElement* ControlElement = GetControlElement();
 	if (ControlElement)
 	{
-		Modify();
 		const FName PropertyName("Integer");
 		FTrackInstancePropertyBindings Binding(PropertyName, PropertyName.ToString());
 		const int32 Val = ControlRig.Get()->GetControlValue(ControlElement, ERigControlValueType::Current).Get<int32>();
@@ -546,7 +541,6 @@ void UControlRigEnumControlProxy::ValueChanged()
 	FRigControlElement* ControlElement = GetControlElement();
 	if (ControlElement)
 	{
-		Modify();
 		const FName PropertyName("Enum");
 		FTrackInstancePropertyBindings Binding(PropertyName, PropertyName.ToString());
 
@@ -613,7 +607,6 @@ void UControlRigVectorControlProxy::ValueChanged()
 	FRigControlElement* ControlElement = GetControlElement();
 	if (ControlElement)
 	{
-		Modify();
 		const FName PropertyName("Vector");
 		FTrackInstancePropertyBindings Binding(PropertyName, PropertyName.ToString());
 		FVector3f Val = ControlRig.Get()->GetControlValue(ControlElement, ERigControlValueType::Current).Get<FVector3f>();
@@ -734,7 +727,6 @@ void UControlRigVector2DControlProxy::ValueChanged()
 	FRigControlElement* ControlElement = GetControlElement();
 	if (ControlElement)
 	{
-		Modify();
 		const FName PropertyName("Vector2D");
 		FTrackInstancePropertyBindings Binding(PropertyName, PropertyName.ToString());
 		const FVector3f TempValue = ControlRig.Get()->GetControlValue(ControlElement, ERigControlValueType::Current).Get<FVector3f>();
@@ -796,7 +788,6 @@ void UControlRigBoolControlProxy::ValueChanged()
 	FRigControlElement* ControlElement = GetControlElement();
 	if (ControlElement)
 	{
-		Modify();
 		const FName PropertyName("Bool");
 		FTrackInstancePropertyBindings Binding(PropertyName, PropertyName.ToString());
 		const bool Val = ControlRig.Get()->GetControlValue(ControlElement, ERigControlValueType::Current).Get<bool>();
@@ -920,6 +911,7 @@ void UControlRigDetailPanelControlProxies::AddProxy(UBaseControlRig* ControlRig,
 			Proxy->SetFlags(RF_Transactional);
 			Proxy->SetName(Name);
 			Proxy->ControlRig = ControlRig;
+			Proxy->Modify();
 			Proxy->ValueChanged();
 
 			FControlToProxyMap* ControlRigProxies = AllProxies.Find(ControlRig);
@@ -1006,14 +998,18 @@ void UControlRigDetailPanelControlProxies::RecreateAllProxies(UBaseControlRig* C
 	}
 }
 
-void UControlRigDetailPanelControlProxies::ProxyChanged(UBaseControlRig* ControlRig, const FName& Name)
+void UControlRigDetailPanelControlProxies::ProxyChanged(UBaseControlRig* ControlRig, const FName& Name, bool bModify )
 {
 	if (IsInGameThread())
 	{
 		UControlRigControlsProxy* Proxy = FindProxy(ControlRig,Name);
 		if (Proxy)
 		{
-			Modify();
+			if (bModify)
+			{
+				Modify();
+				Proxy->Modify();
+			}
 			Proxy->ValueChanged();
 		}
 	}
