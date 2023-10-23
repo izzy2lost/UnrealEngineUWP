@@ -160,7 +160,7 @@ namespace UE::MultiUserClient
 				if (SubmitChangesResult.ErrorCode == EStreamSubmissionErrorCode::Cancelled)
 				{
 					Notification->SetCompletionState(SNotificationItem::CS_Fail);
-					Notification->SetText(LOCTEXT("Uploading.Failure", "Updating Stream cancelled."));
+					Notification->SetText(LOCTEXT("Uploading.Failure.Cancelled", "Updating Stream cancelled."));
 					return;
 				}
 
@@ -182,8 +182,8 @@ namespace UE::MultiUserClient
 				else
 				{
 					Notification->SetCompletionState(SNotificationItem::CS_Fail);
-					Notification->SetText(LOCTEXT("Uploading.Failure", "Changes rejected."));
-					Notification->SetSubText(LOCTEXT("Uploading.Failure.SubText", "See log for details."));
+					Notification->SetText(LOCTEXT("Uploading.Failure.Rejected", "Changes rejected."));
+					Notification->SetSubText(LOCTEXT("Uploading.Failure.Rejected.SubText", "See log for details."));
 
 					if (SubmissionInfo.IsSet())
 					{
