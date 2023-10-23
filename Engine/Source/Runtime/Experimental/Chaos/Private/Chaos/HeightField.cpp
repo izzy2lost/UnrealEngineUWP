@@ -1967,7 +1967,7 @@ namespace Chaos
 			const VectorRegister4Float Offset = VectorCross(AB, AC);
 
 			FTriangleRegister TriangleConvex(A, B, C);
-			return GJKIntersectionSameSpaceSimd(TriangleConvex, QueryGeom, Thickness, Offset);
+			return GJKIntersectionSameSpaceSimd(TriangleConvex, QueryGeom, Thickness, VectorNormalizeSafe(Offset, GlobalVectorConstants::Float1000));
 		};
 
 		bool bResult = false;
