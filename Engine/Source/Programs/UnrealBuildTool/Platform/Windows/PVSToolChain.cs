@@ -803,6 +803,7 @@ namespace UnrealBuildTool
 				AnalyzeAction.bCanExecuteRemotely = false;
 				AnalyzeAction.bCanExecuteRemotelyWithXGE = false;
 				AnalyzeAction.bCanExecuteRemotelyWithSNDBS = false;
+				AnalyzeAction.bCanExecuteInBox = false;
 
 				Result.ObjectFiles.AddRange(AnalyzeAction.ProducedItems);
 			}
