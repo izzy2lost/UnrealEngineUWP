@@ -1014,13 +1014,13 @@ void FRemoteControlUIModule::SelectObjects(const TArray<UObject*>& Objects) cons
 	}
 }
 
-TSharedPtr<SWidget> FRemoteControlUIModule::CreateCustomControllerWidget(URCVirtualPropertyBase* InController) const
+TSharedPtr<SWidget> FRemoteControlUIModule::CreateCustomControllerWidget(URCVirtualPropertyBase* InController, TSharedPtr<IPropertyHandle> InOriginalPropertyHandle) const
 {
 	TSharedPtr<SWidget> CustomControllerWidget;
 	const FString& CustomName = UE::RCCustomControllers::GetCustomControllerTypeName(InController);
 	if (CustomName == UE::RCCustomControllers::CustomTextureControllerName)
 	{
-		CustomControllerWidget = SNew(SCustomTextureControllerWidget, InController);
+		CustomControllerWidget = SNew(SCustomTextureControllerWidget, InOriginalPropertyHandle);
 	}
 
 	return CustomControllerWidget;

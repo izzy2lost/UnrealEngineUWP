@@ -48,9 +48,6 @@ public:
 	/** The widget showing the Value Type selection dropdown for this Controller (used for MultiControllers) */
 	TSharedRef<SWidget> GetTypeSelectionWidget();
 
-	/** Retrieve the widget for a custom controller */
-	TSharedRef<SWidget> GetCustomControllerWidget(const FString& InCustomControllerTypeName) const;
-
 	/** The widget allowing controller columns customization */
 	TSharedRef<SWidget> GetControllerExtensionWidget(const FName& InColumnName) const;
 	

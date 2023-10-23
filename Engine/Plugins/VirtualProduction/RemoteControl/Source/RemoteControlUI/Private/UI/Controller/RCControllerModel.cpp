@@ -64,7 +64,7 @@ TSharedRef<SWidget> FRCControllerModel::GetWidget() const
 		static const FMargin SlotMargin(10.0f, 2.0f);
 		
 		// If this is a custom controller, we will use its custom widget
-		if (const TSharedPtr<SWidget>& CustomControllerWidget = IRemoteControlUIModule::Get().CreateCustomControllerWidget(VirtualPropertyWeakPtr.Get()))
+		if (const TSharedPtr<SWidget>& CustomControllerWidget = IRemoteControlUIModule::Get().CreateCustomControllerWidget(VirtualPropertyWeakPtr.Get(), DetailTreeNodeWeakPtr.Pin()->CreatePropertyHandle()))
 		{
 			FieldWidget->AddSlot()
 				.Padding(SlotMargin)
@@ -130,16 +130,6 @@ TSharedRef<SWidget> FRCControllerModel::GetTypeSelectionWidget()
 				.InitiallySelectedItem(ControlledTypesAsStrings[CurrentControlValueTypeIndex])
 			];
 		}
-	}
-
-	return SNullWidget::NullWidget;
-}
-
-TSharedRef<SWidget> FRCControllerModel::GetCustomControllerWidget(const FString& InCustomControllerTypeName) const
-{
-	if (InCustomControllerTypeName == UE::RCCustomControllers::CustomTextureControllerName)
-	{		
-		return SNew(SCustomTextureControllerWidget, VirtualPropertyWeakPtr.Get());		
 	}
 
 	return SNullWidget::NullWidget;
