@@ -131,19 +131,29 @@ namespace UE::Cook
 		Incomplete,
 	};
 
-	/**
-	 * The possible reasons that the save-state data on an FPackageData might be released.
-	 * Different levels of teardown will happen based on the reason.
-	 */
-	enum class EReleaseSaveReason : uint8
+	/** The reasons that a FPackageData can change its state, used for diagnostics and some control flow. */
+	enum class EStateChangeReason : uint8
 	{
 		Completed,
 		DoneForNow,
-		Demoted,
-		AbortSave,
+		SaveError,
 		RecreateObjectCache,
+		CookerShutdown,
+		ReassignAbortedPackages,
+		Retraction,
+		Discovered,
+		Requested,
+		RequestCluster,
+		DirectorRequest,
+		Loaded,
+		Saved,
+		CookSuppressed,
+		GarbageCollected,
+		GeneratorPreGarbageCollected,
+		ForceRecook,
+		UrgencyUpdated,
 	};
-	const TCHAR* LexToString(UE::Cook::EReleaseSaveReason Reason);
+	const TCHAR* LexToString(UE::Cook::EStateChangeReason Reason);
 
 	enum class ESuppressCookReason : uint8
 	{

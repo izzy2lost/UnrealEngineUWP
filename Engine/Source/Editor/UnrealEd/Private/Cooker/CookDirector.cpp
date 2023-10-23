@@ -245,7 +245,7 @@ FCookDirector::~FCookDirector()
 	{
 		check(PackageData->IsInProgress()); // Packages that were assigned to workers should be in the AssignedToWorker state
 		PackageData->SetWorkerAssignment(FWorkerId::Invalid(), ESendFlags::QueueNone);
-		PackageData->SendToState(UE::Cook::EPackageState::Request, ESendFlags::QueueAddAndRemove);
+		PackageData->SendToState(UE::Cook::EPackageState::Request, ESendFlags::QueueAddAndRemove, EStateChangeReason::CookerShutdown);
 	}
 	RemoteWorkers.Empty();
 	RemoteWorkerProfileDatas.Empty();
@@ -1440,7 +1440,7 @@ void FCookDirector::ReassignAbortedPackages(TArray<FPackageData*>& PackagesToRea
 	{
 		check(PackageData->IsInProgress()); // Packages that were assigned to a worker should be in the AssignedToWorker state
 		PackageData->SetWorkerAssignment(FWorkerId::Invalid());
-		PackageData->SendToState(UE::Cook::EPackageState::Request, ESendFlags::QueueAddAndRemove);
+		PackageData->SendToState(UE::Cook::EPackageState::Request, ESendFlags::QueueAddAndRemove, EStateChangeReason::ReassignAbortedPackages);
 	}
 	PackagesToReassign.Empty();
 }
@@ -1830,7 +1830,7 @@ FCookDirector::FRetractionHandler::ReassignPackages(const FWorkerId& FromWorker,
 		}
 
 		AssignmentPackages.Add(PackageData);
-		PackageData->SendToState(EPackageState::Request, ESendFlags::QueueRemove);
+		PackageData->SendToState(EPackageState::Request, ESendFlags::QueueRemove, EStateChangeReason::Retraction);
 	}
 	if (AssignmentPackages.IsEmpty())
 	{
@@ -1889,7 +1889,7 @@ FCookDirector::FRetractionHandler::ReassignPackages(const FWorkerId& FromWorker,
 		}
 		else
 		{
-			PackageData->SendToState(EPackageState::AssignedToWorker, ESendFlags::QueueAdd);
+			PackageData->SendToState(EPackageState::AssignedToWorker, ESendFlags::QueueAdd, EStateChangeReason::Retraction);
 			PackageData->SetWorkerAssignment(Assignment);
 		}
 	}

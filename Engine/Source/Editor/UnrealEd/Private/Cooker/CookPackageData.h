@@ -468,8 +468,9 @@ public:
 	 *                  the new and old states. Callers may want to manage queue membership directly for better
 	 *                  performance; removing from the middle is more expensive than popping from the front.
 	 *                  See definition of ESendFlags for a description of the behavior controlled by SendFlags.
+	 * @param ReleaseSaveReason Explanation for why the state is changing, used for debugging.
 	 */
-	void SendToState(EPackageState NextState, ESendFlags SendFlags);
+	void SendToState(EPackageState NextState, ESendFlags SendFlags, EStateChangeReason ReleaseSaveReason);
 	/* Debug-only code to assert that this PackageData is contained by the container matching its current state. */
 	void CheckInContainer() const;
 	/**
@@ -730,7 +731,7 @@ private:
 	void OnEnterLoadReady();
 	void OnExitLoadReady();
 	void OnEnterSave();
-	void OnExitSave();
+	void OnExitSave(EStateChangeReason ReleaseSaveReason);
 	/* Entry/Exit gates for Properties shared between multiple states */
 	void OnExitInProgress();
 	void OnEnterInProgress();
@@ -947,7 +948,7 @@ public:
 	 */
 	UObject* FindSplitDataObject() const;
 
-	void ResetSaveState(FCookGenerationInfo& Info, UPackage* Package, UE::Cook::EReleaseSaveReason ReleaseSaveReason);
+	void ResetSaveState(FCookGenerationInfo& Info, UPackage* Package, UE::Cook::EStateChangeReason ReleaseSaveReason);
 
 	int32& GetNextPopulateIndex() { check(IsInitialized()); return NextPopulateIndex; }
 

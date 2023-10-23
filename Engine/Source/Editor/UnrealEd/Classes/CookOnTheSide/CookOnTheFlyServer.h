@@ -172,7 +172,7 @@ namespace UE::Cook
 	class IWorkerRequests;
 	enum class ECachedCookedPlatformDataEvent : uint8;
 	enum class EPollStatus : uint8;
-	enum class EReleaseSaveReason : uint8;
+	enum class EStateChangeReason : uint8;
 	enum class ESuppressCookReason : uint8;
 	enum class ESendFlags : uint8;
 	struct FBeginCookConfigSettings;
@@ -1168,7 +1168,7 @@ private:
 	 *        the save again. If true, all data will be wiped.
 	 * @param ReleaseSaveReason Why the save data is being released, allows specifying how much to tear down
 	 */
-	UNREALED_API void ReleaseCookedPlatformData(UE::Cook::FPackageData& PackageData, UE::Cook::EReleaseSaveReason ReleaseSaveReason);
+	UNREALED_API void ReleaseCookedPlatformData(UE::Cook::FPackageData& PackageData, UE::Cook::EStateChangeReason ReleaseSaveReason);
 
 	/**
 	 * Poll the PendingCookedPlatformDatas and release their resources when they are complete.

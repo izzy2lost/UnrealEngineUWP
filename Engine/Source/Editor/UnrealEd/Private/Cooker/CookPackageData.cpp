@@ -98,7 +98,7 @@ FPackageData::FPackageData(FPackageDatas& PackageDatas, const FName& InPackageNa
 	, bWasCookedThisSession(0)
 {
 	SetState(EPackageState::Idle);
-	SendToState(EPackageState::Idle, ESendFlags::QueueAdd);
+	SendToState(EPackageState::Idle, ESendFlags::QueueAdd, EStateChangeReason::Discovered);
 }
 
 FPackageData::~FPackageData()
@@ -108,7 +108,7 @@ FPackageData::~FPackageData()
 	// We need to send OnLastCookedPlatformRemoved message to the monitor, so call SetPlatformsNotCooked
 	ClearCookResults();
 	// Update the monitor's counters and call exit functions
-	SendToState(EPackageState::Idle, ESendFlags::QueueNone);
+	SendToState(EPackageState::Idle, ESendFlags::QueueNone, EStateChangeReason::CookerShutdown);
 }
 
 void FPackageData::ClearReferences()
@@ -264,7 +264,7 @@ void FPackageData::AddUrgency(bool bUrgent, bool bAllowUpdateState)
 	SetIsUrgent(true);
 	if (!bWasUrgent && bAllowUpdateState)
 	{
-		SendToState(GetState(), ESendFlags::QueueAddAndRemove);
+		SendToState(GetState(), ESendFlags::QueueAddAndRemove, EStateChangeReason::UrgencyUpdated);
 	}
 }
 
@@ -565,7 +565,7 @@ struct FStateProperties
 	}
 };
 
-void FPackageData::SendToState(EPackageState NextState, ESendFlags SendFlags)
+void FPackageData::SendToState(EPackageState NextState, ESendFlags SendFlags, EStateChangeReason ReleaseSaveReason)
 {
 	EPackageState OldState = GetState();
 	switch (OldState)
@@ -606,7 +606,7 @@ void FPackageData::SendToState(EPackageState NextState, ESendFlags SendFlags)
 		{
 			ensure(PackageDatas.GetSaveQueue().Remove(this) == 1);
 		}
-		OnExitSave();
+		OnExitSave(ReleaseSaveReason);
 		break;
 	default:
 		check(false);
@@ -850,9 +850,9 @@ void FPackageData::OnEnterSave()
 	CheckCookedPlatformDataEmpty();
 }
 
-void FPackageData::OnExitSave()
+void FPackageData::OnExitSave(EStateChangeReason ReleaseSaveReason)
 {
-	PackageDatas.GetCookOnTheFlyServer().ReleaseCookedPlatformData(*this, EReleaseSaveReason::Demoted);
+	PackageDatas.GetCookOnTheFlyServer().ReleaseCookedPlatformData(*this, ReleaseSaveReason);
 	ClearObjectCache();
 	SetHasPrepareSaveFailed(false);
 	SetIsPrepareSaveRequiresGC(false);
@@ -1372,7 +1372,7 @@ void FPackageData::RemapTargetPlatforms(const TMap<ITargetPlatform*, ITargetPlat
 		}
 		if (bDemote)
 		{
-			SendToState(EPackageState::Request, ESendFlags::QueueAddAndRemove);
+			SendToState(EPackageState::Request, ESendFlags::QueueAddAndRemove, EStateChangeReason::ForceRecook);
 		}
 	}
 	PlatformDatas = MoveTemp(NewPlatformDatas);
@@ -1951,7 +1951,7 @@ bool FGeneratorPackage::IsComplete() const
 	return RemainingToPopulate == 0;
 }
 
-void FGeneratorPackage::ResetSaveState(FCookGenerationInfo& Info, UPackage* Package, EReleaseSaveReason ReleaseSaveReason)
+void FGeneratorPackage::ResetSaveState(FCookGenerationInfo& Info, UPackage* Package, EStateChangeReason ReleaseSaveReason)
 {
 	check(IsInitialized());
 	if (Info.GetSaveState() > FCookGenerationInfo::ESaveState::CallPopulate)
@@ -1987,9 +1987,8 @@ void FGeneratorPackage::ResetSaveState(FCookGenerationInfo& Info, UPackage* Pack
 
 	if (Info.IsGenerator())
 	{
-		if (ReleaseSaveReason == EReleaseSaveReason::RecreateObjectCache ||
-			ReleaseSaveReason == EReleaseSaveReason::Demoted ||
-			ReleaseSaveReason == EReleaseSaveReason::DoneForNow)
+		if (ReleaseSaveReason == EStateChangeReason::RecreateObjectCache ||
+			ReleaseSaveReason == EStateChangeReason::DoneForNow)
 		{
 			if (Info.GetSaveState() >= FCookGenerationInfo::ESaveState::StartPopulate)
 			{
@@ -1998,7 +1997,7 @@ void FGeneratorPackage::ResetSaveState(FCookGenerationInfo& Info, UPackage* Pack
 			else
 			{
 				// Redo all the steps since we didn't make it to the FinishCachePreObjectsToMove.
-				// Restarting in the middle of that flow after a GarbageCollect is not robust
+				// Restarting in the middle of that flow is not robust
 				Info.SetSaveState(FCookGenerationInfo::ESaveState::StartGenerate);
 			}
 		}
@@ -2015,7 +2014,8 @@ void FGeneratorPackage::ResetSaveState(FCookGenerationInfo& Info, UPackage* Pack
 	{
 		if (Info.PackageData && Info.PackageData->GetCachedObjectsInOuter().Num() != 0 &&
 			IsUseInternalReferenceToAvoidGarbageCollect() &&
-			(ReleaseSaveReason == EReleaseSaveReason::Demoted || ReleaseSaveReason == EReleaseSaveReason::RecreateObjectCache))
+			(ReleaseSaveReason != EStateChangeReason::Completed && ReleaseSaveReason != EStateChangeReason::DoneForNow &&
+			 ReleaseSaveReason != EStateChangeReason::SaveError && ReleaseSaveReason != EStateChangeReason::CookerShutdown))
 		{
 			UE_LOG(LogCook, Error, TEXT("CookPackageSplitter failure: We are demoting a %s package from save and removing our references that keep its objects loaded.\n")
 				TEXT("This will allow the objects to be garbage collected and cause failures in the splitter which expects them to remain loaded.\n")

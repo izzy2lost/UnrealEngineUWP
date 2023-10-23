@@ -2528,7 +2528,7 @@ bool UCookOnTheFlyServer::TryCreateRequestCluster(UE::Cook::FPackageData& Packag
 	using namespace UE::Cook;
 	if (!PackageData.AreAllReachablePlatformsVisitedByCluster())
 	{
-		PackageData.SendToState(EPackageState::Request, ESendFlags::QueueAdd);
+		PackageData.SendToState(EPackageState::Request, ESendFlags::QueueAdd, EStateChangeReason::Discovered);
 		return true;
 	}
 	return false;
@@ -2631,7 +2631,7 @@ void UCookOnTheFlyServer::PumpRequests(UE::Cook::FTickStackData& StackData, int3
 			DemoteToIdle(*PackageData, ESendFlags::QueueAdd, SuppressCookReason);
 			continue;
 		}
-		PackageData->SendToState(EPackageState::LoadPrepare, ESendFlags::QueueAdd);
+		PackageData->SendToState(EPackageState::LoadPrepare, ESendFlags::QueueAdd, EStateChangeReason::Requested);
 		++NumInBatch;
 	}
 	OutNumPushed += NumInBatch;
@@ -2666,7 +2666,7 @@ void UCookOnTheFlyServer::AssignRequests(TArrayView<UE::Cook::FPackageData*> Req
 			}
 			else
 			{
-				PackageData->SendToState(EPackageState::AssignedToWorker, ESendFlags::QueueAdd);
+				PackageData->SendToState(EPackageState::AssignedToWorker, ESendFlags::QueueAdd, EStateChangeReason::Requested);
 				PackageData->SetWorkerAssignment(Assignment);
 			}
 		}
@@ -2732,14 +2732,14 @@ void UCookOnTheFlyServer::DemoteToIdle(UE::Cook::FPackageData& PackageData, UE::
 			}
 		}
 	}
-	PackageData.SendToState(UE::Cook::EPackageState::Idle, SendFlags);
+	PackageData.SendToState(UE::Cook::EPackageState::Idle, SendFlags, EStateChangeReason::CookSuppressed);
 }
 
 void UCookOnTheFlyServer::PromoteToSaveComplete(UE::Cook::FPackageData& PackageData, UE::Cook::ESendFlags SendFlags)
 {
 	check(PackageData.IsInProgress());
 	WorkerRequests->ReportPromoteToSaveComplete(PackageData);
-	PackageData.SendToState(UE::Cook::EPackageState::Idle, SendFlags);
+	PackageData.SendToState(UE::Cook::EPackageState::Idle, SendFlags, UE::Cook::EStateChangeReason::Saved);
 }
 
 void UCookOnTheFlyServer::PumpLoads(UE::Cook::FTickStackData& StackData, uint32 DesiredQueueLength, int32& OutNumPushed, bool& bOutBusy)
@@ -2814,7 +2814,7 @@ void UCookOnTheFlyServer::PumpPreloadCompletes()
 		{
 			// Ready to go
 			PreloadingQueue.PopFront();
-			PackageData->SendToState(EPackageState::LoadReady, ESendFlags::QueueAdd);
+			PackageData->SendToState(EPackageState::LoadReady, ESendFlags::QueueAdd, EStateChangeReason::Loaded);
 			continue;
 		}
 		break;
@@ -2945,7 +2945,7 @@ void UCookOnTheFlyServer::LoadPackageInQueue(UE::Cook::FPackageData& PackageData
 
 	PostLoadPackageFixup(PackageData, LoadedPackage);
 	PackageData.SetPackage(LoadedPackage);
-	PackageData.SendToState(EPackageState::Save, ESendFlags::QueueAdd);
+	PackageData.SendToState(EPackageState::Save, ESendFlags::QueueAdd, EStateChangeReason::Loaded);
 	++OutNumPushed;
 }
 
@@ -3916,7 +3916,7 @@ UE::Cook::EPollStatus UCookOnTheFlyServer::CallBeginCacheOnObjects(UE::Cook::FPa
 	return EPollStatus::Success;
 }
 
-void UCookOnTheFlyServer::ReleaseCookedPlatformData(UE::Cook::FPackageData& PackageData, UE::Cook::EReleaseSaveReason ReleaseSaveReason)
+void UCookOnTheFlyServer::ReleaseCookedPlatformData(UE::Cook::FPackageData& PackageData, UE::Cook::EStateChangeReason ReleaseSaveReason)
 {
 	using namespace UE::Cook;
 
@@ -3934,7 +3934,7 @@ void UCookOnTheFlyServer::ReleaseCookedPlatformData(UE::Cook::FPackageData& Pack
 	FCookGenerationInfo* GenerationInfo = Generator ? Generator->FindInfo(PackageData) : nullptr;
 
 	// For every BeginCacheForCookedPlatformData call we made we need to call ClearAllCachedCookedPlatformData
-	if (ReleaseSaveReason == EReleaseSaveReason::Completed)
+	if (ReleaseSaveReason == EStateChangeReason::Completed)
 	{
 		// Since we have completed CookedPlatformData, we know we called BeginCacheForCookedPlatformData on all
 		// objects in the package, and none are pending
@@ -4018,7 +4018,7 @@ void UCookOnTheFlyServer::ReleaseCookedPlatformData(UE::Cook::FPackageData& Pack
 			PackageData.SetInitializedGeneratorSave(false);
 		}
 
-		if (ReleaseSaveReason == EReleaseSaveReason::Completed)
+		if (ReleaseSaveReason == EStateChangeReason::Completed)
 		{
 			Generator->SetPackageSaved(*GenerationInfo, PackageData);
 			if (Generator->IsComplete())
@@ -4040,7 +4040,7 @@ void UCookOnTheFlyServer::ReleaseCookedPlatformData(UE::Cook::FPackageData& Pack
 
 	PackageData.ClearCookedPlatformData();
 
-	if (ReleaseSaveReason != EReleaseSaveReason::RecreateObjectCache)
+	if (ReleaseSaveReason != EStateChangeReason::RecreateObjectCache)
 	{
 		if (!IsCookOnTheFlyMode() && !IsCookingInEditor())
 		{
@@ -4452,7 +4452,7 @@ void UCookOnTheFlyServer::PumpSaves(UE::Cook::FTickStackData& StackData, uint32 
 			if (PrepareSaveStatus == EPollStatus::Error)
 			{
 				check(PackageData.HasPrepareSaveFailed()); // Should have been set by PrepareSave; we rely on this for cleanup
-				ReleaseCookedPlatformData(PackageData, EReleaseSaveReason::AbortSave);
+				ReleaseCookedPlatformData(PackageData, EStateChangeReason::SaveError);
 				PackageData.SetPlatformsCooked(PlatformsForPackage, ECookResult::Failed);
 				DemoteToIdle(PackageData, ESendFlags::QueueAdd, ESuppressCookReason::SaveError);
 				++OutNumPushed;
@@ -4542,7 +4542,7 @@ void UCookOnTheFlyServer::PumpSaves(UE::Cook::FTickStackData& StackData, uint32 
 		{
 			// Timeouts can occur because of new objects created during the save, so we need to update our object cache,
 			// so we call ReleaseCookedPlatformData and ClearObjectCache to clear it and recache on next attempt.
-			ReleaseCookedPlatformData(PackageData, EReleaseSaveReason::RecreateObjectCache);
+			ReleaseCookedPlatformData(PackageData, EStateChangeReason::RecreateObjectCache);
 			PackageData.ClearObjectCache();
 			if (PackageData.GetIsUrgent())
 			{
@@ -4555,7 +4555,7 @@ void UCookOnTheFlyServer::PumpSaves(UE::Cook::FTickStackData& StackData, uint32 
 			continue;
 		}
 
-		ReleaseCookedPlatformData(PackageData, !Context.bHasRetryErrorCode ? EReleaseSaveReason::Completed : EReleaseSaveReason::DoneForNow);
+		ReleaseCookedPlatformData(PackageData, !Context.bHasRetryErrorCode ? EStateChangeReason::Completed : EStateChangeReason::DoneForNow);
 		PromoteToSaveComplete(PackageData, ESendFlags::QueueAdd);
 		++OutNumPushed;
 	}
@@ -5110,7 +5110,7 @@ void UCookOnTheFlyServer::PreGarbageCollect()
 			Generator->PreGarbageCollect(*Info, GCKeepObjects, GCKeepPackages, GCKeepPackageDatas, bShouldDemote);
 			if (bShouldDemote)
 			{
-				ReleaseCookedPlatformData(*PackageData, UE::Cook::EReleaseSaveReason::Demoted);
+				ReleaseCookedPlatformData(*PackageData, UE::Cook::EStateChangeReason::GeneratorPreGarbageCollected);
 			}
 		}
 	}
@@ -5311,7 +5311,7 @@ void UCookOnTheFlyServer::PostGarbageCollect()
 	}
 	for (FPackageData* PackageData : Demotes)
 	{
-		PackageData->SendToState(EPackageState::Request, ESendFlags::QueueRemove);
+		PackageData->SendToState(EPackageState::Request, ESendFlags::QueueRemove, EStateChangeReason::GarbageCollected);
 		PackageDatas->GetRequestQueue().AddRequest(PackageData, /* bForceUrgent */ true);
 	}
 
@@ -5684,7 +5684,8 @@ void UCookOnTheFlyServer::MarkPackageDirtyForCookerFromSchedulerThread(const FNa
 		PackageData->ClearCookResults();
 		if (PackageData->IsInProgress())
 		{
-			PackageData->SendToState(UE::Cook::EPackageState::Request, UE::Cook::ESendFlags::QueueAddAndRemove);
+			PackageData->SendToState(UE::Cook::EPackageState::Request,
+				UE::Cook::ESendFlags::QueueAddAndRemove, UE::Cook::EStateChangeReason::ForceRecook);
 		}
 		else if (IsCookByTheBookMode() && IsInSession() && bHadCookedPlatforms)
 		{

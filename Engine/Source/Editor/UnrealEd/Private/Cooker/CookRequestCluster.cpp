@@ -152,7 +152,7 @@ FRequestCluster::FRequestCluster(UCookOnTheFlyServer& InCOTFS, TRingBuffer<FDisc
 			Discovery = &PoppedDiscovery;
 			if (!PackageData.IsInProgress() && PackageData.GetPlatformsNeedingCookingNum() == 0)
 			{
-				PackageData.SendToState(EPackageState::Request, ESendFlags::QueueRemove);
+				PackageData.SendToState(EPackageState::Request, ESendFlags::QueueRemove, EStateChangeReason::RequestCluster);
 				OwnedPackageDatas.Add(&PackageData, ESuppressCookReason::NotSuppressed);
 			}
 			continue;
@@ -205,7 +205,7 @@ FRequestCluster::FRequestCluster(UCookOnTheFlyServer& InCOTFS, TRingBuffer<FDisc
 
 		// Send it to the Request state if it's not already there, remove it from its old container
 		// and add it to this cluster.
-		PackageData.SendToState(EPackageState::Request, ESendFlags::QueueRemove);
+		PackageData.SendToState(EPackageState::Request, ESendFlags::QueueRemove, EStateChangeReason::RequestCluster);
 		PackageData.AddUrgency(Discovery->bUrgent, false /* bAllowUpdateState */);
 		OwnedPackageDatas.Add(&PackageData, ESuppressCookReason::NotSuppressed);
 	}
@@ -319,7 +319,7 @@ void FRequestCluster::PullIntoCluster(FPackageData& PackageData)
 		}
 		else
 		{
-			PackageData.SendToState(EPackageState::Request, ESendFlags::QueueRemove);
+			PackageData.SendToState(EPackageState::Request, ESendFlags::QueueRemove, EStateChangeReason::RequestCluster);
 		}
 		Existing = ESuppressCookReason::NotSuppressed;
 	}

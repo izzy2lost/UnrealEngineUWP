@@ -793,7 +793,7 @@ void FCookWorkerClient::AssignPackages(FAssignPackagesMessage& Message)
 		}
 		PackageData.FindOrAddPlatformData(CookerLoadingPlatformKey).MarkCookableForWorker(*this);
 		PackageData.SetInstigator(*this, FInstigator(AssignData.Instigator));
-		PackageData.SendToState(EPackageState::Request, ESendFlags::QueueAddAndRemove);
+		PackageData.SendToState(EPackageState::Request, ESendFlags::QueueAddAndRemove, EStateChangeReason::DirectorRequest);
 	}
 
 	// Clear the SoftGC diagnostic ExpectedNeverLoadPackages because we have new assigned packages
