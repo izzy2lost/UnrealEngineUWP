@@ -3709,12 +3709,12 @@ bool FRecastTileGenerator::GenerateNavigationDataLayer(FNavMeshBuildContext& Bui
 		}
 
 		status = dtBuildTileCacheContours(&GenNavAllocator, *GenerationContext.Layer,
-			TileConfig.walkableClimb, TileConfig.maxSimplificationError, TileConfig.cs, TileConfig.ch,
-			*GenerationContext.ContourSet, *GenerationContext.ClusterSet);
+			TileConfig.walkableClimb, TileConfig.maxVerticalMergeError, TileConfig.maxSimplificationError, TileConfig.simplificationElevationRatio,
+			TileConfig.cs, TileConfig.ch,*GenerationContext.ContourSet, *GenerationContext.ClusterSet);
 #else
 		status = dtBuildTileCacheContours(&GenNavAllocator, *GenerationContext.Layer,
-			TileConfig.walkableClimb, TileConfig.maxSimplificationError, TileConfig.cs, TileConfig.ch,
-			*GenerationContext.ContourSet);
+			TileConfig.walkableClimb, TileConfig.maxVerticalMergeError, TileConfig.maxSimplificationError, TileConfig.simplificationElevationRatio,
+			TileConfig.cs, TileConfig.ch, *GenerationContext.ContourSet);
 #endif //WITH_NAVMESH_CLUSTER_LINKS
 		
 		if (dtStatusFailed(status))
@@ -4701,7 +4701,7 @@ void FRecastNavMeshGenerator::ConfigureBuildProperties(FRecastBuildConfig& OutCo
 
 	OutConfig.borderSize = OutConfig.walkableRadius + 3; // +1 for voxelization rounding, +1 for ledge neighbor access, +1 for occasional errors
 	OutConfig.maxEdgeLen = (int32)(1200.0f / CellSize);
-	OutConfig.maxSimplificationError = 1.3f;
+
 	// hardcoded, but can be overridden by RecastNavMesh params later
 	OutConfig.minRegionArea = (int32)rcSqr(0);
 	OutConfig.mergeRegionArea = (int32)rcSqr(20.f);
@@ -4712,7 +4712,9 @@ void FRecastNavMeshGenerator::ConfigureBuildProperties(FRecastBuildConfig& OutCo
 
 	OutConfig.minRegionArea = (int32)rcSqr(DestNavMesh->MinRegionArea / CellSize);
 	OutConfig.mergeRegionArea = (int32)rcSqr(DestNavMesh->MergeRegionSize / CellSize);
+	OutConfig.maxVerticalMergeError = DestNavMesh->MaxVerticalMergeError;
 	OutConfig.maxSimplificationError = DestNavMesh->MaxSimplificationError;
+	OutConfig.simplificationElevationRatio = DestNavMesh->SimplificationElevationRatio;
 	OutConfig.bPerformVoxelFiltering = DestNavMesh->bPerformVoxelFiltering;
 	OutConfig.bMarkLowHeightAreas = DestNavMesh->bMarkLowHeightAreas;
 	OutConfig.bUseExtraTopCellWhenMarkingAreas = DestNavMesh->bUseExtraTopCellWhenMarkingAreas;

@@ -168,7 +168,7 @@ inline bool overlapRangeExl(const unsigned short amin, const unsigned short amax
 	return (amin >= bmax || amax <= bmin) ? false : true;
 }
 
-static bool appendVertex(dtTempContour& cont, const int x, const int y, const int z, const int r, const unsigned char areaId)
+static bool appendVertex(dtTempContour& cont, const int x, const int y, const int z, const int r, const unsigned char areaId, const int maxVerticalMergeError) // UE
 {
 	// Try to merge with existing segments.
 	if (cont.nverts > 1)
@@ -176,7 +176,7 @@ static bool appendVertex(dtTempContour& cont, const int x, const int y, const in
 		unsigned short* pa = &cont.verts[(cont.nverts-2)*5];
 		unsigned short* pb = &cont.verts[(cont.nverts-1)*5];
 		unsigned short pr = pb[3];
-		if (pr == r)
+		if (pr == r && (dtAbs(pa[1] - y) <= maxVerticalMergeError))	// UE
 		{
 			if (pa[0] == pb[0] && (int)pb[0] == x)
 			{
@@ -270,7 +270,7 @@ static void getNeighbourRegAndArea(dtTileCacheLayer& layer,
 	}
 }
 
-static bool walkContour(dtTileCacheLayer& layer, int x, int y, int idx, unsigned char* flags, dtTempContour& cont)
+static bool walkContour(dtTileCacheLayer& layer, int x, int y, int idx, const int maxVerticalMergeError, unsigned char* flags, dtTempContour& cont) // UE
 {
 	const int w = (int)layer.header->width;
 	const int h = (int)layer.header->height;
@@ -329,7 +329,7 @@ static bool walkContour(dtTileCacheLayer& layer, int x, int y, int idx, unsigned
 			}
 
 			// Try to merge with previous vertex.
-			if (!appendVertex(cont, px, (int)layer.heights[x+y*w], pz, neiReg, neiArea))
+			if (!appendVertex(cont, px, (int)layer.heights[x+y*w], pz, neiReg, neiArea, maxVerticalMergeError)) // UE
 				return false;
 
 			flags[idx] &= ~(1 << dir); // Remove visited edges
@@ -370,7 +370,7 @@ static bool walkContour(dtTileCacheLayer& layer, int x, int y, int idx, unsigned
 
 namespace TileCacheFunc
 {
-	static dtReal distancePtSeg(const int x, const int z, const int px, const int pz, const int qx, const int qz)
+	static dtReal distancePtSegSqr2D(const int x, const int z, const int px, const int pz, const int qx, const int qz) // UE
 	{
 		dtReal pqx = (dtReal)(qx - px);
 		dtReal pqz = (dtReal)(qz - pz);
@@ -392,7 +392,7 @@ namespace TileCacheFunc
 	}
 }
 
-static void simplifyContour(unsigned char area, dtTempContour& cont, const dtReal maxError)
+static void simplifyContour(unsigned char area, dtTempContour& cont, const dtReal maxError, const dtReal elevationRatio, const dtReal cs, const dtReal ch) // UE
 {
 	cont.npoly = 0;
 
@@ -413,6 +413,7 @@ static void simplifyContour(unsigned char area, dtTempContour& cont, const dtRea
 		if (ra != rb || pinnedVertex)
 			cont.poly[cont.npoly++] = (unsigned short)i;
 	}
+
 	if (cont.npoly < 2)
 	{
 		// If there is no transitions at all,
@@ -446,6 +447,8 @@ static void simplifyContour(unsigned char area, dtTempContour& cont, const dtRea
 		cont.poly[cont.npoly++] = (unsigned short)uri;
 	}
 
+	const dtReal heightRatio = elevationRatio * ch / cs; // UE
+
 	// Add points until all raw points are within
 	// error tolerance to the simplified shape.
 	for (int i = 0; i < cont.npoly; )
@@ -454,10 +457,12 @@ static void simplifyContour(unsigned char area, dtTempContour& cont, const dtRea
 
 		const int ai = (int)cont.poly[i];
 		const int ax = (int)cont.verts[ai*5+0];
+		const int ay = (int)cont.verts[ai*5+1]; // UE
 		const int az = (int)cont.verts[ai*5+2];
 
 		const int bi = (int)cont.poly[ii];
 		const int bx = (int)cont.verts[bi*5+0];
+		const int by = (int)cont.verts[bi*5+1]; // UE
 		const int bz = (int)cont.verts[bi*5+2];
 
 		// Find maximum deviation from the segment.
@@ -489,7 +494,22 @@ static void simplifyContour(unsigned char area, dtTempContour& cont, const dtRea
 		{
 			while (ci != endi)
 			{
-				dtReal d = TileCacheFunc::distancePtSeg(cont.verts[ci*5+0], cont.verts[ci*5+2], ax, az, bx, bz);
+//@UE BEGIN
+				dtReal d;
+				if (elevationRatio > 0)
+				{
+					// Instead of multiplying all components by ch or cs to go from voxels to world units, 
+					// we just use the heightRatio (avoiding extra cs multiplication on x and z).
+					const dtReal pt[3] = { (dtReal)cont.verts[ci*5+0], heightRatio*cont.verts[ci*5+1], (dtReal)cont.verts[ci*5+2] };
+					const dtReal a[3] = { (dtReal)ax, heightRatio*ay, (dtReal)az };
+					const dtReal b[3] = { (dtReal)bx, heightRatio*by, (dtReal)bz };
+					d = dtDistancePtSegSqr(pt, a, b);
+				}
+				else
+				{
+					d = TileCacheFunc::distancePtSegSqr2D(cont.verts[ci*5+0], cont.verts[ci*5+2], ax, az, bx, bz);
+				}
+//@UE END
 				if (d > maxd)
 				{
 					maxd = d;
@@ -726,7 +746,7 @@ static void addUniqueRegion(unsigned short* arr, unsigned short v, int& n)
 
 // TODO: move this somewhere else, once the layer meshing is done.
 dtStatus dtBuildTileCacheContours(dtTileCacheAlloc* alloc, dtTileCacheLayer& layer,
-	const int walkableClimb, const dtReal maxError,
+	const int walkableClimb, const int maxVerticalMergeError, const dtReal maxError, const dtReal simplificationElevationRatio, // UE
 	const dtReal cs, const dtReal ch,
 	dtTileCacheContourSet& lcset
 	//@UE BEGIN
@@ -822,14 +842,14 @@ dtStatus dtBuildTileCacheContours(dtTileCacheAlloc* alloc, dtTileCacheLayer& lay
 			if (ri == 0xffff || ri == 0)
 				continue;
 
-			if (!walkContour(layer, x, y, idx, flags, temp))
+			if (!walkContour(layer, x, y, idx, maxVerticalMergeError, flags, temp)) // UE
 			{
 				// Too complex contour.
 				// Note: If you hit here often, try increasing 'maxTempVerts'.
 				return DT_FAILURE | DT_BUFFER_TOO_SMALL;
 			}
 
-			simplifyContour(layer.areas[idx], temp, maxError);
+			simplifyContour(layer.areas[idx], temp, maxError, simplificationElevationRatio, cs, ch); // UE
 
 			// Store contour.
 			if (lcset.nconts >= maxConts)

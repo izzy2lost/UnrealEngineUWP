@@ -520,7 +520,9 @@ ARecastNavMesh::ARecastNavMesh(const FObjectInitializer& ObjectInitializer)
 	, bDistinctlyDrawTilesBeingBuilt(true)
 	, DrawOffset(10.f)
 	, TilePoolSize(1024)
+	, MaxVerticalMergeError(INT_MAX) // By default, ignore vertical error
 	, MaxSimplificationError(1.3f)	// from RecastDemo
+	, SimplificationElevationRatio(0.f)	// By default, ignore contour simplification from elevation
 	, DefaultMaxSearchNodes(RECAST_MAX_SEARCH_NODES)
 	, DefaultMaxHierarchicalSearchNodes(RECAST_MAX_SEARCH_NODES)
 	, bSortNavigationAreasByCost(true)

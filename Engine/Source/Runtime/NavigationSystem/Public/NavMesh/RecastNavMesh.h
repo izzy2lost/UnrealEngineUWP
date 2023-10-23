@@ -794,9 +794,20 @@ class ARecastNavMesh : public ANavigationData
 	UPROPERTY(EditAnywhere, Category=Generation, config, meta=(ClampMin = "0.0"))
 	float MergeRegionSize;
 
+	/** Maximum vertical deviation between raw contour points to allowing merging (in voxel).
+	 * Use a low value (2-5) depending on CellHeight, AgentMaxStepHeight and AgentMaxSlope, to allow more precise contours (also see SimplificationElevationRatio).
+	 * Use very high value to deactivate (Recast behavior). */
+	UPROPERTY(EditAnywhere, Category = Generation, config, meta = (ClampMin = "0"))
+	int MaxVerticalMergeError;
+	
 	/** How much navigable shapes can get simplified - the higher the value the more freedom */
 	UPROPERTY(EditAnywhere, Category = Generation, config, meta = (ClampMin = "0.0"))
 	float MaxSimplificationError;
+
+	/** When simplifying contours, how much is the vertical error taken into account when comparing with MaxSimplificationError.
+	 * Use 0 to deactivate (Recast behavior), use 1 as a typical value. */
+	UPROPERTY(EditAnywhere, Category = Generation, config, meta = (ClampMin = "0.0"))
+	float SimplificationElevationRatio;
 
 	/** Sets the limit for number of asynchronous tile generators running at one time, also used for some synchronous tasks */
 	UPROPERTY(EditAnywhere, Category = Generation, config, meta = (ClampMin = "0", UIMin = "0"), AdvancedDisplay)

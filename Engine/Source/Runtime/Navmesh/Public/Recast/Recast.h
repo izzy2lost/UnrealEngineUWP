@@ -292,10 +292,19 @@ struct rcConfig
 	
 	/// The maximum allowed length for contour edges along the border of the mesh. [Limit: >=0] [Units: vx] 
 	int maxEdgeLen;
+
+	/// Maximum vertical deviation between raw contour points to allow merging points. [Limit: >=0] [Units: vx]
+	/// Use a low value (2-5) to allow more precise contours (also see SimplificationElevationFactor).
+	/// Use very high value to deactivate (Recast behavior).
+	int maxVerticalMergeError;	// UE
 	
 	/// The maximum distance a simplified contour's border edges should deviate 
 	/// the original raw contour. [Limit: >=0] [Units: wu]
 	rcReal maxSimplificationError;
+
+	/// When simplifying contours, how much is the vertical error taken into account when comparing with MaxSimplificationError. [Limit: >=0]
+	/// Use 0 to deactivate (Recast behavior), use 1 as a typical value.
+	rcReal simplificationElevationRatio;	// UE
 	
 	/// The minimum number of cells allowed to form isolated island areas. [Limit: >=0] [Units: vx] 
 	int minRegionArea;
