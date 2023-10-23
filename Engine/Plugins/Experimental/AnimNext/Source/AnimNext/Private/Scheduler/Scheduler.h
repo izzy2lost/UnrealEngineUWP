@@ -3,9 +3,9 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Param/ParamTypeHandle.h"
 #include "ScheduleHandle.h"
 
+enum class EAnimNextScheduleInitMethod : uint8;
 class UAnimNextGraph;
 class UAnimNextParameterBlock;
 class UAnimNextSchedule;
@@ -33,7 +33,7 @@ struct FScheduler
 	static void Destroy();
 
 	// Acquire a handle that binds a schedule with the supplied parameters
-	static FScheduleHandle AcquireHandle(UObject* InObject, UAnimNextSchedule* InSchedule, const TMap<FName, FAnimNextParameterCollection>& InUserScopes);
+	static FScheduleHandle AcquireHandle(UObject* InObject, UAnimNextSchedule* InSchedule, const TMap<FName, FAnimNextParameterCollection>& InUserScopes, EAnimNextScheduleInitMethod InInitMethod);
 
 	// Release an already acquired handle
 	// The full release of the binding referenced by the handle map be deferred after this call is made
@@ -58,15 +58,6 @@ struct FScheduler
 	// @param	InTaskFunction	The function to run
 	// @param	InLocation		Where to run the task, before or after
 	static void QueueTask(UObject* InObject, FScheduleHandle InHandle, FName InScheduleTaskName, TUniqueFunction<void(const FScheduleContext&)>&& InTaskFunction, ETaskRunLocation InLocation = ETaskRunLocation::Before);
-
-	// Register a port definition
-	static void RegisterPortDefinition(FSchedulePortDefinition&& InPortDefinition);
-
-	// Unregister a port definition
-	static void UnregisterPortDefinition(FName InDefinitionName);
-
-	// Find a registered port definition
-	static const FSchedulePortDefinition* FindPortDefinition(FName InDefinitionName);
 };
 
 }

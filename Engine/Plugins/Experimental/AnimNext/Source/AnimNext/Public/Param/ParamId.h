@@ -14,6 +14,7 @@ namespace UE::AnimNext
 	struct FParamAdapter;
 	struct FParamDefinition;
 	class FModule;
+	struct FRemappedLayer;
 }
 
 namespace UE::AnimNext::Tests
@@ -36,6 +37,7 @@ struct ANIMNEXT_API FParamId
 	friend class ::UAnimNextConfig;
 	friend struct FParamDefinition;
 	friend class FModule;
+	friend struct FRemappedLayer;
 
 	static constexpr uint32 InvalidIndex = MAX_uint32;
 
@@ -76,6 +78,12 @@ private:
 
 	// Shut down the parameter ID system
 	static void Destroy();
+
+	// Refresh all adapters, built in and per-config
+	static void RefreshAdapters();
+
+	// Resets/clears all adapters
+	static void ResetAdapters();
 
 	// Register all built-in adapters
 	static void RegisterBuiltInAdapters();

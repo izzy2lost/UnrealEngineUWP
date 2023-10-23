@@ -15,7 +15,7 @@ void UAnimNextComponent::OnRegister()
 	if (Schedule)
 	{
 		check(!SchedulerHandle.IsValid());
-		SchedulerHandle = FScheduler::AcquireHandle(this, Schedule, Parameters);
+		SchedulerHandle = FScheduler::AcquireHandle(this, Schedule, Parameters, InitMethod);
 	}
 }
 

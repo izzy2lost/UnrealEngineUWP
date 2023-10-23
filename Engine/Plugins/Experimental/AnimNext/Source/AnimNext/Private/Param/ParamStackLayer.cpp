@@ -56,6 +56,11 @@ FParamResult FParamStackLayer::GetParamData(FParamId InId, FParamTypeHandle InTy
 {
 	const uint32 LocalParamIndex = InId.ToInt() - MinParamId;
 
+	if(!Params.IsValidIndex(LocalParamIndex))
+	{
+		return EParamResult::NotInScope;
+	}
+
 	const Private::FParamEntry& Param = Params[LocalParamIndex];
 	if (!Param.IsValid())
 	{

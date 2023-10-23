@@ -44,17 +44,17 @@ class UAnimNextScheduleEntry_AnimNextGraph : public UAnimNextScheduleEntry
 private:
 	friend class UAnimNextSchedule;
 
-	UPROPERTY(EditAnywhere, Category = "Graph", meta = (CustomWidget = "ParamName", AllowedParamType = "FAnimNextScope"))
-	FName Name;
+	// The graph to run
+	UPROPERTY(EditAnywhere, Category = "Graph")
+	TObjectPtr<UAnimNextGraph> Graph = nullptr;
 
+	// An optional entry point to use when running the supplied graph
 	UPROPERTY(EditAnywhere, Category = "Graph", meta = (CustomWidget = "ParamName", AllowedParamType = "FName"))
 	FName EntryPoint;
 
+	// The output intermediate terms used by the graph
 	UPROPERTY(EditAnywhere, Category = "Graph")
-	TObjectPtr<UAnimNextGraph> Graph;
-
-	UPROPERTY(EditAnywhere, Category = "Graph")
-	TArray<TObjectPtr<UAnimNextParameterBlock>> ParameterBlocks;
+	TArray<FName> Terms;
 };
 
 UCLASS()
@@ -65,8 +65,13 @@ class UAnimNextScheduleEntry_Port : public UAnimNextScheduleEntry
 private:
 	friend class UAnimNextSchedule;
 
-	UPROPERTY(EditAnywhere, Category = "Port", meta = (CustomWidget = "ParamName", AllowedParamType = "FAnimNextPort"))
-	FName Name;
+	// The input intermediate terms used by this port
+	UPROPERTY(EditAnywhere, Category = "Port")
+	TArray<FName> Terms;
+
+	// The type of the port to use
+	UPROPERTY(EditAnywhere, Category = "Port")
+	TSubclassOf<UAnimNextSchedulePort> Port;
 };
 
 UCLASS()
@@ -77,11 +82,13 @@ class UAnimNextScheduleEntry_ExternalTask : public UAnimNextScheduleEntry
 private:
 	friend class UAnimNextSchedule;
 
+	// The tick function that this external task should wrap
 	UPROPERTY(EditAnywhere, Category = "External Task", meta = (CustomWidget = "ParamName", AllowedParamType = "FTickFunction"))
-	FName Name;
+	FName TickFunction;
 
-	UPROPERTY(EditAnywhere, Category = "External Task", meta = (CustomWidget = "ParamName", AllowedParamType = "FName"))
-	FName ObjectName;
+	// The object that the tick function is present on
+	UPROPERTY(EditAnywhere, Category = "External Task", meta = (CustomWidget = "ParamName", AllowedParamType = "TObjectPtr<UObject>"))
+	FName Object;
 };
 
 UCLASS()
@@ -92,8 +99,9 @@ class UAnimNextScheduleEntry_ParamScope : public UAnimNextScheduleEntry
 private:
 	friend class UAnimNextSchedule;
 
+	// The scope to use
 	UPROPERTY(EditAnywhere, Category = "Parameters", meta = (CustomWidget = "ParamName", AllowedParamType = "FAnimNextScope"))
-	FName Name;
+	FName Scope;
 
 	// Parameters to apply in this scope
 	UPROPERTY(EditAnywhere, Category = "Parameters")
@@ -136,6 +144,22 @@ struct FAnimNextScheduleInstruction
 	int32 Operand = INDEX_NONE;
 };
 
+UENUM()
+enum class EAnimNextScheduleInitMethod : uint8
+{
+	// Do not perform any initial update, set up data structures only
+	None,
+
+	// Set up data structures, perform an initial update and then pause
+	InitializeAndPause,
+
+	// Set up data structures, perform an initial update and then pause in editor only, otherwise act like InitializeAndRun
+	InitializeAndPauseInEditor,
+
+	// Set up data structures then continue updating
+	InitializeAndRun
+};
+
 UCLASS()
 class ANIMNEXT_API UAnimNextSchedule : public UObject
 {
@@ -155,6 +179,7 @@ private:
 	virtual void PostLoad() override;
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+	virtual void PostEditUndo() override;
 
 	// Compile the editor data into a compact runtime representation
 	void CompileSchedule();
@@ -169,38 +194,38 @@ private:
 #endif
 
 	// TEMP: Instructions derived from the entries above
-	UPROPERTY()
+	UPROPERTY(NonTransactional)
 	TArray<FAnimNextScheduleInstruction> Instructions;
 
 	// TEMP: Tasks derived from the entries above
-	UPROPERTY()
+	UPROPERTY(NonTransactional)
 	TArray<FAnimNextScheduleGraphTask> Tasks;
 
 	// TEMP: Ports derived from the entries above
-	UPROPERTY()
+	UPROPERTY(NonTransactional)
 	TArray<FAnimNextSchedulePortTask> Ports;
 
 	// TEMP: External tasks derived from the entries above
-	UPROPERTY()
+	UPROPERTY(NonTransactional)
 	TArray<FAnimNextScheduleExternalTask> ExternalTasks;
 
 	// TEMP: Parameter scope entry tasks derived from the entries above
-	UPROPERTY()
+	UPROPERTY(NonTransactional)
 	TArray<FAnimNextScheduleParamScopeEntryTask> ParamScopeEntryTasks;
 
 	// TEMP: Parameter scope exit tasks derived from the entries above
-	UPROPERTY()
+	UPROPERTY(NonTransactional)
 	TArray<FAnimNextScheduleParamScopeExitTask> ParamScopeExitTasks;
 
-	// TEMP: Map from port name to port index in Ports array
-	UPROPERTY()
-	TMap<FName, int32> PortNameIndexMap;
+	// TEMP: Data for intermediates, defined as a property bag
+	UPROPERTY(NonTransactional)
+	FInstancedPropertyBag IntermediatesData;
 
 	// TEMP: Count of total number of parameter scopes that this schedule needs to execute
-	UPROPERTY()
+	UPROPERTY(NonTransactional)
 	uint32 NumParameterScopes = 0;
 
 	// TEMP: Count of total number of tick functions that this schedule needs to execute
-	UPROPERTY()
+	UPROPERTY(NonTransactional)
 	uint32 NumTickFunctions = 0;
 };

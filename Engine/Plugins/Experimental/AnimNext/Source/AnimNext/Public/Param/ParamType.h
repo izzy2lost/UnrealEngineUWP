@@ -88,6 +88,8 @@ private:
 	template<typename ParamType>
 	static constexpr void GetTypeInner(FAnimNextParamType& ParameterType)
 	{
+		using NonPtrParamType = std::remove_pointer_t<ParamType>;
+
 		if constexpr (std::is_same_v<ParamType, bool>)
 		{
 			ParameterType.ValueType = EValueType::Bool;
@@ -139,17 +141,17 @@ private:
 			ParameterType.ValueType = EValueType::Struct;
 			ParameterType.ValueTypeObject = TBaseStructure<ParamType>::Get();
 		}
-		else if constexpr (TModels<CStaticClassProvider, ParamType>::Value)
+		else if constexpr (TModels<CStaticClassProvider, NonPtrParamType>::Value)
 		{
-			if constexpr (std::is_same_v<ParamType, UClass>)
+			if constexpr (std::is_same_v<NonPtrParamType, UClass>)
 			{
 				ParameterType.ValueType = EValueType::Class;
-				ParameterType.ValueTypeObject = ParamType::StaticClass();
+				ParameterType.ValueTypeObject = NonPtrParamType::StaticClass();
 			}
 			else
 			{
 				ParameterType.ValueType = EValueType::Object;
-				ParameterType.ValueTypeObject = ParamType::StaticClass();
+				ParameterType.ValueTypeObject = NonPtrParamType::StaticClass();
 			}
 		}
 		else if constexpr (TIsTObjectPtr<ParamType>::Value)

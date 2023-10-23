@@ -133,9 +133,9 @@ bool FParamTypesTest::RunTest(const FString& InParameters)
 	AddErrorIfFalse(FAnimNextParamType::GetType<FVector>().IsValid(), TEXT("Struct parameter is invalid."));
 	AddErrorIfFalse(FAnimNextParamType::GetType<FTransform>().IsValid(), TEXT("Struct parameter is invalid."));
 	AddErrorIfFalse(FAnimNextParamType::GetType<FQuat>().IsValid(), TEXT("Struct parameter is invalid."));
-	AddErrorIfFalse(FAnimNextParamType::GetType<UObject>().IsValid(), TEXT("UObject parameter is invalid."));
+	AddErrorIfFalse(FAnimNextParamType::GetType<UObject*>().IsValid(), TEXT("UObject parameter is invalid."));
 	AddErrorIfFalse(FAnimNextParamType::GetType<TObjectPtr<UObject>>().IsValid(), TEXT("TObjectPtr<UObject> parameter is invalid."));
-	AddErrorIfFalse(FAnimNextParamType::GetType<UClass>().IsValid(), TEXT("UClass parameter is invalid."));
+	AddErrorIfFalse(FAnimNextParamType::GetType<UClass*>().IsValid(), TEXT("UClass parameter is invalid."));
 	AddErrorIfFalse(FAnimNextParamType::GetType<TSubclassOf<UObject>>().IsValid(), TEXT("TSubclassOff<UObject> parameter is invalid."));
 	AddErrorIfFalse(FAnimNextParamType::GetType<TSoftObjectPtr<UObject>>().IsValid(), TEXT("TSoftObjectPtr<UObject> parameter is invalid."));
 	AddErrorIfFalse(FAnimNextParamType::GetType<TSoftClassPtr<UObject>>().IsValid(), TEXT("TSoftClassPtr<UObject> parameter is invalid."));
@@ -154,9 +154,9 @@ bool FParamTypesTest::RunTest(const FString& InParameters)
 	AddErrorIfFalse(FAnimNextParamType::GetType<TArray<FVector>>().IsValid(), TEXT("Struct array parameter is invalid."));
 	AddErrorIfFalse(FAnimNextParamType::GetType<TArray<FTransform>>().IsValid(), TEXT("Struct array parameter is invalid."));
 	AddErrorIfFalse(FAnimNextParamType::GetType<TArray<FQuat>>().IsValid(), TEXT("Struct array parameter is invalid."));
-	AddErrorIfFalse(FAnimNextParamType::GetType<TArray<UObject>>().IsValid(), TEXT("UObject array parameter is invalid."));
+	AddErrorIfFalse(FAnimNextParamType::GetType<TArray<UObject*>>().IsValid(), TEXT("UObject array parameter is invalid."));
 	AddErrorIfFalse(FAnimNextParamType::GetType<TArray<TObjectPtr<UObject>>>().IsValid(), TEXT("TObjectPtr<UObject> array parameter is invalid."));
-	AddErrorIfFalse(FAnimNextParamType::GetType<TArray<UClass>>().IsValid(), TEXT("UClass array parameter is invalid."));
+	AddErrorIfFalse(FAnimNextParamType::GetType<TArray<UClass*>>().IsValid(), TEXT("UClass array parameter is invalid."));
 	AddErrorIfFalse(FAnimNextParamType::GetType<TArray<TSubclassOf<UObject>>>().IsValid(), TEXT("TSubclassOff<UObject> array parameter is invalid."));
 	AddErrorIfFalse(FAnimNextParamType::GetType<TArray<TSoftObjectPtr<UObject>>>().IsValid(), TEXT("TSoftObjectPtr<UObject> array parameter is invalid."));
 	AddErrorIfFalse(FAnimNextParamType::GetType<TArray<TSoftClassPtr<UObject>>>().IsValid(), TEXT("TSoftClassPtr<UObject> array parameter is invalid."));
@@ -176,9 +176,9 @@ bool FParamTypesTest::RunTest(const FString& InParameters)
 	AddErrorIfFalse(FAnimNextParamType::GetType<FVector>().GetHandle().IsValid(), TEXT("Struct parameter handle is invalid."));
 	AddErrorIfFalse(FAnimNextParamType::GetType<FTransform>().GetHandle().IsValid(), TEXT("Struct parameter handle is invalid."));
 	AddErrorIfFalse(FAnimNextParamType::GetType<FQuat>().GetHandle().IsValid(), TEXT("Struct parameter handle is invalid."));
-	AddErrorIfFalse(FAnimNextParamType::GetType<UObject>().GetHandle().IsValid(), TEXT("UObject parameter handle is invalid."));
+	AddErrorIfFalse(FAnimNextParamType::GetType<UObject*>().GetHandle().IsValid(), TEXT("UObject parameter handle is invalid."));
 	AddErrorIfFalse(FAnimNextParamType::GetType<TObjectPtr<UObject>>().GetHandle().IsValid(), TEXT("TObjectPtr<UObject> parameter handle is invalid."));
-	AddErrorIfFalse(FAnimNextParamType::GetType<UClass>().GetHandle().IsValid(), TEXT("UClass parameter handle is invalid."));
+	AddErrorIfFalse(FAnimNextParamType::GetType<UClass*>().GetHandle().IsValid(), TEXT("UClass parameter handle is invalid."));
 	AddErrorIfFalse(FAnimNextParamType::GetType<TSubclassOf<UObject>>().GetHandle().IsValid(), TEXT("TSubclassOff<UObject> parameter handle is invalid."));
 	AddErrorIfFalse(FAnimNextParamType::GetType<TSoftObjectPtr<UObject>>().GetHandle().IsValid(), TEXT("TSoftObjectPtr<UObject> parameter handle is invalid."));
 	AddErrorIfFalse(FAnimNextParamType::GetType<TSoftClassPtr<UObject>>().GetHandle().IsValid(), TEXT("TSoftClassPtr<UObject> parameter handle is invalid."));
@@ -197,9 +197,9 @@ bool FParamTypesTest::RunTest(const FString& InParameters)
 	AddErrorIfFalse(FAnimNextParamType::GetType<TArray<FVector>>().GetHandle().IsValid(), TEXT("Struct array parameter handle is invalid."));
 	AddErrorIfFalse(FAnimNextParamType::GetType<TArray<FTransform>>().GetHandle().IsValid(), TEXT("Struct array parameter handle is invalid."));
 	AddErrorIfFalse(FAnimNextParamType::GetType<TArray<FQuat>>().GetHandle().IsValid(), TEXT("Struct array parameter handle is invalid."));
-	AddErrorIfFalse(FAnimNextParamType::GetType<TArray<UObject>>().GetHandle().IsValid(), TEXT("UObject array parameter handle is invalid."));
+	AddErrorIfFalse(FAnimNextParamType::GetType<TArray<UObject*>>().GetHandle().IsValid(), TEXT("UObject array parameter handle is invalid."));
 	AddErrorIfFalse(FAnimNextParamType::GetType<TArray<TObjectPtr<UObject>>>().GetHandle().IsValid(), TEXT("TObjectPtr<UObject> array parameter handle is invalid."));
-	AddErrorIfFalse(FAnimNextParamType::GetType<TArray<UClass>>().GetHandle().IsValid(), TEXT("UClass array parameter handle is invalid."));
+	AddErrorIfFalse(FAnimNextParamType::GetType<TArray<UClass*>>().GetHandle().IsValid(), TEXT("UClass array parameter handle is invalid."));
 	AddErrorIfFalse(FAnimNextParamType::GetType<TArray<TSubclassOf<UObject>>>().GetHandle().IsValid(), TEXT("TSubclassOff<UObject> array parameter handle is invalid."));
 	AddErrorIfFalse(FAnimNextParamType::GetType<TArray<TSoftObjectPtr<UObject>>>().GetHandle().IsValid(), TEXT("TSoftObjectPtr<UObject> array parameter handle is invalid."));
 	AddErrorIfFalse(FAnimNextParamType::GetType<TArray<TSoftClassPtr<UObject>>>().GetHandle().IsValid(), TEXT("TSoftClassPtr<UObject> array parameter handle is invalid."));
@@ -219,9 +219,9 @@ bool FParamTypesTest::RunTest(const FString& InParameters)
 	AddErrorIfFalse(FParamTypeHandle::GetHandle<FVector>().IsValid(), TEXT("Struct parameter handle is invalid."));
 	AddErrorIfFalse(FParamTypeHandle::GetHandle<FTransform>().IsValid(), TEXT("Struct parameter handle is invalid."));
 	AddErrorIfFalse(FParamTypeHandle::GetHandle<FQuat>().IsValid(), TEXT("Struct parameter handle is invalid."));
-	AddErrorIfFalse(FParamTypeHandle::GetHandle<UObject>().IsValid(), TEXT("UObject parameter handle is invalid."));
+	AddErrorIfFalse(FParamTypeHandle::GetHandle<UObject*>().IsValid(), TEXT("UObject parameter handle is invalid."));
 	AddErrorIfFalse(FParamTypeHandle::GetHandle<TObjectPtr<UObject>>().IsValid(), TEXT("TObjectPtr<UObject> parameter handle is invalid."));
-	AddErrorIfFalse(FParamTypeHandle::GetHandle<UClass>().IsValid(), TEXT("UClass parameter handle is invalid."));
+	AddErrorIfFalse(FParamTypeHandle::GetHandle<UClass*>().IsValid(), TEXT("UClass parameter handle is invalid."));
 	AddErrorIfFalse(FParamTypeHandle::GetHandle<TSubclassOf<UObject>>().IsValid(), TEXT("TSubclassOf<UObject> parameter handle is invalid."));
 	AddErrorIfFalse(FParamTypeHandle::GetHandle<TSoftObjectPtr<UObject>>().IsValid(), TEXT("TSoftObjectPtr<UObject> parameter handle is invalid."));
 	AddErrorIfFalse(FParamTypeHandle::GetHandle<TSoftClassPtr<UObject>>().IsValid(), TEXT("TSoftClassPtr<UObject> parameter handle is invalid."));
@@ -240,9 +240,9 @@ bool FParamTypesTest::RunTest(const FString& InParameters)
 	AddErrorIfFalse(FParamTypeHandle::GetHandle<TArray<FVector>>().IsValid(), TEXT("Struct array parameter handle is invalid."));
 	AddErrorIfFalse(FParamTypeHandle::GetHandle<TArray<FTransform>>().IsValid(), TEXT("Struct array parameter handle is invalid."));
 	AddErrorIfFalse(FParamTypeHandle::GetHandle<TArray<FQuat>>().IsValid(), TEXT("Struct array parameter handle is invalid."));
-	AddErrorIfFalse(FParamTypeHandle::GetHandle<TArray<UObject>>().IsValid(), TEXT("UObject array parameter handle is invalid."));
+	AddErrorIfFalse(FParamTypeHandle::GetHandle<TArray<UObject*>>().IsValid(), TEXT("UObject array parameter handle is invalid."));
 	AddErrorIfFalse(FParamTypeHandle::GetHandle<TArray<TObjectPtr<UObject>>>().IsValid(), TEXT("TObjectPtr<UObject> array parameter handle is invalid."));
-	AddErrorIfFalse(FParamTypeHandle::GetHandle<TArray<UClass>>().IsValid(), TEXT("UClass array parameter handle is invalid."));
+	AddErrorIfFalse(FParamTypeHandle::GetHandle<TArray<UClass*>>().IsValid(), TEXT("UClass array parameter handle is invalid."));
 	AddErrorIfFalse(FParamTypeHandle::GetHandle<TArray<TSubclassOf<UObject>>>().IsValid(), TEXT("TSubclassOf<UObject> array parameter handle is invalid."));
 	AddErrorIfFalse(FParamTypeHandle::GetHandle<TArray<TSoftObjectPtr<UObject>>>().IsValid(), TEXT("TSoftObjectPtr<UObject> array parameter handle is invalid."));
 	AddErrorIfFalse(FParamTypeHandle::GetHandle<TArray<TSoftClassPtr<UObject>>>().IsValid(), TEXT("TSoftClassPtr<UObject> array parameter handle is invalid."));
@@ -266,9 +266,9 @@ bool FParamTypesTest::RunTest(const FString& InParameters)
 	// Should not be built in:
 	AddErrorIfFalse(!FParamTypeHandle::GetHandle<EPropertyBagContainerType>().IsBuiltInType(), TEXT("Enum parameter handle is built in."));
 	AddErrorIfFalse(!FParamTypeHandle::GetHandle<FAnimNextParamType>().IsBuiltInType(), TEXT("Struct parameter handle is built in."));
-	AddErrorIfFalse(!FParamTypeHandle::GetHandle<UObject>().IsBuiltInType(), TEXT("UObject parameter handle is built in."));
+	AddErrorIfFalse(!FParamTypeHandle::GetHandle<UObject*>().IsBuiltInType(), TEXT("UObject parameter handle is built in."));
 	AddErrorIfFalse(!FParamTypeHandle::GetHandle<TObjectPtr<UObject>>().IsBuiltInType(), TEXT("TObjectPtr<UObject> parameter handle is built in."));
-	AddErrorIfFalse(!FParamTypeHandle::GetHandle<UClass>().IsBuiltInType(), TEXT("UClass parameter handle is built in."));
+	AddErrorIfFalse(!FParamTypeHandle::GetHandle<UClass*>().IsBuiltInType(), TEXT("UClass parameter handle is built in."));
 	AddErrorIfFalse(!FParamTypeHandle::GetHandle<TSubclassOf<UObject>>().IsBuiltInType(), TEXT("TSubclassOff<UObject> parameter handle is built in."));
 	AddErrorIfFalse(!FParamTypeHandle::GetHandle<TSoftObjectPtr<UObject>>().IsBuiltInType(), TEXT("TSoftObjectPtr<UObject> parameter handle is built in."));
 	AddErrorIfFalse(!FParamTypeHandle::GetHandle<TSoftClassPtr<UObject>>().IsBuiltInType(), TEXT("TSoftClassPtr<UObject> parameter handle is built in."));

@@ -13,7 +13,7 @@ namespace UE::AnimNext
 	struct FParamAdapter;
 }
 
-namespace UE::AnimNext::Editor
+namespace UE::AnimNext::UncookedOnly
 {
 	struct FUtils;
 }
@@ -30,7 +30,7 @@ enum class EParamDefinitionFlags : uint8
 
 ENUM_CLASS_FLAGS(EParamDefinitionFlags);
 
-// Definition of a parameter for reserved or internal use
+// Definition of a parameter for reserved for internal use
 struct FParamDefinition
 {
 	FParamDefinition() = default;
@@ -53,6 +53,11 @@ struct FParamDefinition
 		// Periods are only a display concern and we want parameters to be expressible as members of objects & structures. 
 		check(!Name.ToString().Contains(TEXT(".")));
 	}
+
+	FParamDefinition(FName InName, const FAnimNextParamType& InType, EParamDefinitionFlags InFlags = EParamDefinitionFlags::None)
+		: FParamDefinition(InName, InType, FText::GetEmpty(), InFlags)
+	{
+	}
 	
 	FParamDefinition(FParamId InId, const FAnimNextParamType& InType, const FText& InTooltip, EParamDefinitionFlags InFlags = EParamDefinitionFlags::None)
 		: Id(InId)
@@ -68,11 +73,21 @@ struct FParamDefinition
 	{
 	}
 
+	FParamDefinition(FParamId InId, const FAnimNextParamType& InType, EParamDefinitionFlags InFlags = EParamDefinitionFlags::None)
+		: FParamDefinition(InId, InType, FText::GetEmpty(), InFlags)
+	{
+	}
+
 	FName GetName() const
 	{
 		return Name;
 	}
 
+	FParamId GetId() const
+	{
+		return Id;
+	}
+	
 	FParamTypeHandle GetTypeHandle() const
 	{
 		return TypeHandle;
@@ -87,7 +102,7 @@ private:
 	friend struct FParamId;
 	friend struct FParams;
 	friend struct FParamAdapter;
-	friend struct Editor::FUtils;
+	friend struct UncookedOnly::FUtils;
 
 	FParamDefinition(int32 InIdIndex, FName InName, const FAnimNextParamType& InType, const FText& InTooltip, EParamDefinitionFlags InFlags = EParamDefinitionFlags::None)
 		: Id(InIdIndex)

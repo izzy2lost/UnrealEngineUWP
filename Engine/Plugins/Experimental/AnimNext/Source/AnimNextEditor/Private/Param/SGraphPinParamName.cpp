@@ -4,6 +4,7 @@
 #include "EditorUtils.h"
 #include "SParameterPickerCombo.h"
 #include "ScopedTransaction.h"
+#include "UncookedOnlyUtils.h"
 
 #define LOCTEXT_NAMESPACE "SGraphPinParamName"
 
@@ -41,7 +42,7 @@ TSharedRef<SWidget> SGraphPinParamName::GetDefaultValueWidget()
 		})
 		.OnGetParameterType_Lambda([this]()
 		{
-			return FUtils::GetParameterTypeFromName(FName(*GraphPinObj->DefaultValue));
+			return UncookedOnly::FUtils::GetParameterTypeFromName(FName(*GraphPinObj->DefaultValue));
 		});
 }
 

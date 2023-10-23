@@ -34,30 +34,32 @@ namespace UE::AnimNext
 		, EvaluationFlags(InEvaluationFlags)
 	{
 		const UE::Anim::FCurveFilterSettings CurveFilterSettings(UE::Anim::ECurveFilterMode::DisallowAll);
-		USkeleton* Skeleton = const_cast<USkeleton*>(InReferencePose.Skeleton.Get());	// const_cast because the bone container takes a mutable reference
-		BoneContainer.InitializeTo(InReferencePose.GetLODBoneIndexToMeshBoneIndexMap(InCurrentLOD), CurveFilterSettings, *Skeleton);
-
-		// TODO: In AnimInstanceProxy this is how we initialize the bone container, we need to get the component somehow or we
-		// gotta figure out how to support ref pose overrides
-#if 0
-		// Use the shared bone container
-		RequiredBones = Component->GetSharedRequiredBones();
-
-		// The first anim instance will initialize the required bones, all others will re-use it
-		if (!RequiredBones->IsValid())
+		if(USkeleton* Skeleton = const_cast<USkeleton*>(InReferencePose.Skeleton.Get())) // const_cast because the bone container takes a mutable reference
 		{
-			RequiredBones->InitializeTo(Component->RequiredBones, Component->GetCurveFilterSettings(), *Asset);
+			BoneContainer.InitializeTo(InReferencePose.GetLODBoneIndexToMeshBoneIndexMap(InCurrentLOD), CurveFilterSettings, *Skeleton);
 
-			// If there is a ref pose override, we want to replace ref pose in RequiredBones
-			// Update ref pose in required bones structure (either set it, or clear it, depending on if one is set on the Component)
-			RequiredBones->SetRefPoseOverride(Component->GetRefPoseOverride());
-		}
+			// TODO: In AnimInstanceProxy this is how we initialize the bone container, we need to get the component somehow or we
+			// gotta figure out how to support ref pose overrides
+#if 0
+			// Use the shared bone container
+			RequiredBones = Component->GetSharedRequiredBones();
+
+			// The first anim instance will initialize the required bones, all others will re-use it
+			if (!RequiredBones->IsValid())
+			{
+				RequiredBones->InitializeTo(Component->RequiredBones, Component->GetCurveFilterSettings(), *Asset);
+
+				// If there is a ref pose override, we want to replace ref pose in RequiredBones
+				// Update ref pose in required bones structure (either set it, or clear it, depending on if one is set on the Component)
+				RequiredBones->SetRefPoseOverride(Component->GetRefPoseOverride());
+			}
 #endif
+		}
 	}
 
 	bool FEvaluationVM::IsValid() const
 	{
-		return ReferencePose != nullptr;
+		return ReferencePose != nullptr && BoneContainer.IsValid();
 	}
 
 	void FEvaluationVM::Shrink()

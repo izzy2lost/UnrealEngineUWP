@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "ParamCompatibility.h"
 #include "Param/ParamResult.h"
 #include "Param/ParamId.h"
 #include "Param/ParamTypeHandle.h"
@@ -68,12 +69,6 @@ public:
 	// @param	InData				Value to set
 	ANIMNEXT_API FParamResult SetValueRaw(FParamId InParamId, FParamTypeHandle InTypeHandle, TConstArrayView<uint8> InData);
 
-	// Get a parameter's value from this layer
-	// @param	InParamId			Parameter ID for the parameter
-	// @param	InTypeHandle		The type of the parameter
-	// @param	InData				Value to get
-	ANIMNEXT_API FParamResult GetValueRaw(FParamId InParamId, FParamTypeHandle InTypeHandle, TConstArrayView<uint8>& OutData);
-
 	// Set multiple parameter values in this layer
 	// @param	InValues	Names & values to set, interleaved
 	template<typename... Args>
@@ -85,6 +80,74 @@ public:
 		return SetValuesHelper(ParamIdValues, Forward<Args>(InValues)...);
 	}
 
+	// Get a parameter's value from this layer
+	// @param	InParamId			Parameter ID for the parameter
+	// @param	InTypeHandle		The type of the parameter
+	// @param	InData				Value to get
+	ANIMNEXT_API FParamResult GetValueRaw(FParamId InParamId, FParamTypeHandle InTypeHandle, TConstArrayView<uint8>& OutData);
+
+	// Get a pointer to a parameter's value given a FParamId.
+	// @param	InParamId			Parameter ID to find the currently-pushed value for
+	// @param	OutResult			Optional ptr to aresult that will be filled if an error occurs
+	// @return nullptr if the parameter is not mapped
+	template<typename ValueType>
+	const ValueType* GetParamPtr(FParamId InParamId, FParamResult* OutResult = nullptr) const
+	{
+		TConstArrayView<uint8> Data;
+		FParamTypeHandle TypeHandle;
+		FParamResult Result = GetParamData(InParamId, FParamTypeHandle::GetHandle<ValueType>(), Data, TypeHandle);
+		if (OutResult)
+		{
+			*OutResult = Result;
+		}
+		return reinterpret_cast<const ValueType*>(Data.GetData());
+	}
+
+	// Get a const reference to the value of a parameter given a FParamId.
+	// @param	InParamId			Parameter ID to find the currently-pushed value for
+	// @param	OutResult			Optional ptr to a result that will be filled if an error occurs
+	// @return a const reference to the parameter's value. Function asserts if the parameter is not present
+	template<typename ValueType>
+	const ValueType& GetParam(FParamId InParamId, FParamResult* OutResult = nullptr) const
+	{
+		const ValueType* ParamPtr = GetParamPtr<ValueType>(InParamId, OutResult);
+		check(ParamPtr);
+		return *ParamPtr;
+	}
+
+	ANIMNEXT_API FParamResult GetParamData(FParamId InId, FParamTypeHandle InTypeHandle, TConstArrayView<uint8>& OutParamData, FParamTypeHandle& OutParamTypeHandle, FParamCompatibility InRequiredCompatibility = FParamCompatibility::Equal()) const;
+
+	// Get a pointer to a parameter's value given a FParamId.
+	// @param	InParamId			Parameter ID to find the currently-pushed value for
+	// @param	OutResult			Optional ptr to aresult that will be filled if an error occurs
+	// @return nullptr if the parameter is not mapped
+	template<typename ValueType>
+	ValueType* GetMutableParamPtr(FParamId InParamId, FParamResult* OutResult = nullptr) const
+	{
+		TArrayView<uint8> Data;
+		FParamTypeHandle TypeHandle;
+		FParamResult Result = GetMutableParamData(InParamId, FParamTypeHandle::GetHandle<ValueType>(), Data, TypeHandle);
+		if (OutResult)
+		{
+			*OutResult = Result;
+		}
+		return reinterpret_cast<ValueType*>(Data.GetData());
+	}
+
+	// Get a reference to the value of a parameter given a FParamId.
+	// @param	InParamId			Parameter ID to find the currently-pushed value for
+	// @param	OutResult			Optional ptr to a result that will be filled if an error occurs
+	// @return a reference to the parameter's value. Function asserts if the parameter is not present
+	template<typename ValueType>
+	ValueType& GetMutableParam(FParamId InParamId, FParamResult* OutResult = nullptr) const
+	{
+		ValueType* ParamPtr = GetMutableParamPtr<ValueType>(InParamId, OutResult);
+		check(ParamPtr);
+		return *ParamPtr;
+	}
+	
+	ANIMNEXT_API FParamResult GetMutableParamData(FParamId InId, FParamTypeHandle InTypeHandle, TArrayView<uint8>& OutParamData, FParamTypeHandle& OutParamTypeHandle, FParamCompatibility InRequiredCompatibility = FParamCompatibility::Equal()) const;
+	
 	// Get the underlying storage for this layer.
 	// @return nullptr if the layer does not use the supplied underlying storage type
 	template<typename WrappedType>

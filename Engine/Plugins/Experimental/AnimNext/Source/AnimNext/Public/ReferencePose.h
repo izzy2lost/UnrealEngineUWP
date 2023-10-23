@@ -52,6 +52,9 @@ struct TReferencePose
 	// Number of bones for each LOD
 	TArray<int32, AllocatorType> LODNumBones;
 
+	// Mapping of mesh bone indices to mesh parent indices for each bone
+	TArray<FBoneIndexType, AllocatorType> ParentIndices;
+
 	TWeakObjectPtr<const USkeletalMesh> SkeletalMesh = nullptr;
 	TWeakObjectPtr<const USkeleton> Skeleton = nullptr;
 	EReferencePoseGenerationFlags GenerationFlags = EReferencePoseGenerationFlags::None;
@@ -83,20 +86,28 @@ struct TReferencePose
 		, bool bFastPath = false)
 	{
 		const int32 NumBonesLOD0 = !InLODNumBones.IsEmpty() ? InLODNumBones[0] : 0;
-
+		const int32 NumBonesMesh = RefSkeleton.GetRefBoneInfo().Num();
+		
+		ParentIndices.SetNum(NumBonesMesh);
 		ReferenceLocalTransforms.SetNum(NumBonesLOD0);
 		LODBoneIndexToMeshBoneIndexMapPerLOD = InLODBoneIndexToMeshBoneIndexMapPerLOD;
 		LODBoneIndexToSkeletonBoneIndexMapPerLOD = InLODBoneIndexToSkeletonBoneIndexMapPerLOD;
 		SkeletonBoneIndexToLODBoneIndexMapPerLOD = InSkeletonBoneIndexToLODBoneIndexMapPerLOD;
 		LODNumBones = InLODNumBones;
-		
+
 		const TArray<FTransform>& RefBonePose = RefSkeleton.GetRefBonePose();
 		const TArray<FBoneIndexType>& BoneLODIndexToMeshIndexMap0 = InLODBoneIndexToMeshBoneIndexMapPerLOD[0]; // Fill the transforms with the LOD0 indexes
+		const TArray<FMeshBoneInfo>& RefBoneInfo = RefSkeleton.GetRefBoneInfo();
 
 		for (int32 LODBoneIndex = 0; LODBoneIndex < NumBonesLOD0; ++LODBoneIndex)
 		{
 			// TODO : For SoA this is un-optimal, as we are using a TransformAdapter. Evaluate using a specific SoA iterator
 			ReferenceLocalTransforms[LODBoneIndex] = RefBonePose[BoneLODIndexToMeshIndexMap0[LODBoneIndex]];
+		}
+
+		for(int32 BoneIndex = 0; BoneIndex < NumBonesMesh; ++BoneIndex)
+		{
+			ParentIndices[BoneIndex] = RefBoneInfo[BoneIndex].ParentIndex;
 		}
 
 		GenerationFlags = bFastPath ? EReferencePoseGenerationFlags::FastPath : EReferencePoseGenerationFlags::None;
@@ -155,6 +166,12 @@ struct TReferencePose
 		const int32 NumBonesLOD0 = LODBoneIndexToMeshBoneIndexMapPerLOD[0].Num();
 		check(LODBoneIndex < NumBonesLOD0);
 		return LODBoneIndexToMeshBoneIndexMapPerLOD[0][LODBoneIndex];
+	}
+
+	// Returns a mapping of mesh bone indices to mesh parent indices for each bone
+	TConstArrayView<FBoneIndexType> GetParentIndices() const
+	{
+		return ParentIndices;
 	}
 
 	int32 GetSkeletonBoneIndexFromLODBoneIndex(int32 LODBoneIndex) const

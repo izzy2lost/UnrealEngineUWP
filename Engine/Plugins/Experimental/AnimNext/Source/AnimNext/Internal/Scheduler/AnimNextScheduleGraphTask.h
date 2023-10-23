@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Graph/AnimNext_LODPose.h"
 #include "AnimNextScheduleGraphTask.generated.h"
 
 class UAnimNextGraph;
@@ -20,8 +21,7 @@ struct FAnimNextScheduleGraphTask
 {
 	GENERATED_BODY()
 
-	FAnimNextScheduleGraphTask()
-	{}
+	FAnimNextScheduleGraphTask() = default;
 
 private:
 	friend class UAnimNextComponent;
@@ -29,7 +29,7 @@ private:
 	friend struct UE::AnimNext::FScheduleInstanceData;
 	friend struct UE::AnimNext::FScheduleTickFunction;
 
-	void RunGraph(const UE::AnimNext::FScheduleContext& InScheduleContext) const;
+	void RunGraph(const UE::AnimNext::FScheduleContext& InContext) const;
 
 private:
 	UPROPERTY()
@@ -42,14 +42,12 @@ private:
 	uint32 ParamParentScopeIndex = MAX_uint32;
 
 	UPROPERTY()
-	FName Name;
-
-	UPROPERTY()
 	FName EntryPoint;
 
 	UPROPERTY()
-	TObjectPtr<UAnimNextGraph> Graph;
+	TObjectPtr<UAnimNextGraph> Graph = nullptr;
 
+	// Index of each term in the schedule intermediates
 	UPROPERTY()
-	TArray<TObjectPtr<UAnimNextParameterBlock>> ParameterBlocks;
+	TArray<uint32> Terms;
 };

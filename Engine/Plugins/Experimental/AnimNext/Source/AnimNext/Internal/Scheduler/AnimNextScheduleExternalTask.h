@@ -40,9 +40,9 @@ private:
 
 	/** The name of the external task parameter */
 	UPROPERTY()
-	FName Name;
+	FName TickFunction;
 
 	/** The name of the external task's object parameter */
 	UPROPERTY()
-	FName ObjectName;
+	FName Object;
 };

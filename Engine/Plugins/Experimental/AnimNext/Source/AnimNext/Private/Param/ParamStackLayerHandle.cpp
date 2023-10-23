@@ -98,4 +98,14 @@ FInstancedPropertyBag* FParamStackLayerHandle::GetInstancedPropertyBagFromLayer(
 	return Layer->AsInstancedPropertyBag();
 }
 
+FParamResult FParamStackLayerHandle::GetParamData(FParamId InId, FParamTypeHandle InTypeHandle, TConstArrayView<uint8>& OutParamData, FParamTypeHandle& OutParamTypeHandle, FParamCompatibility InRequiredCompatibility) const
+{
+	return Layer->GetParamData(InId, InTypeHandle, OutParamData, OutParamTypeHandle, InRequiredCompatibility);
+}
+
+FParamResult FParamStackLayerHandle::GetMutableParamData(FParamId InId, FParamTypeHandle InTypeHandle, TArrayView<uint8>& OutParamData, FParamTypeHandle& OutParamTypeHandle, FParamCompatibility InRequiredCompatibility) const
+{
+	return Layer->GetMutableParamData(InId, InTypeHandle, OutParamData, OutParamTypeHandle, InRequiredCompatibility);
+}
+
 }

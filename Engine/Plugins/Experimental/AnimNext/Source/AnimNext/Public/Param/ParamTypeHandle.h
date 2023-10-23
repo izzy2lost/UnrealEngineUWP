@@ -6,6 +6,12 @@
 #include "Concepts/BaseStructureProvider.h"
 #include "Param/ParamType.h"
 
+class UAnimSequence;
+class UCharacterMovementComponent;
+class UAnimNextMeshComponent;
+struct FAnimNextGraphLODPose;
+struct FAnimNextGraphReferencePose;
+
 namespace UE::AnimNext::Tests
 {
 	class FParamTypesTest;
@@ -43,7 +49,17 @@ struct ANIMNEXT_API FParamTypeHandle
 		Quat,
 		Transform,
 
-		MaxBuiltIn = Transform,
+		// Common object types
+		Object,
+		CharacterMovementComponent,
+		AnimNextMeshComponent,
+		AnimSequence,
+
+		// Common struct types
+		AnimNextGraphLODPose,
+		AnimNextGraphReferencePose,
+
+		MaxBuiltIn = AnimNextGraphReferencePose,
 
 		Custom = 0xff,
 
@@ -103,6 +119,8 @@ private:
 	template<typename ParamType>
 	static constexpr void GetHandleInner(FAnimNextParamType::EValueType& OutValueType, UObject*& OutValueTypeObject)
 	{
+		using NonPtrParamType = std::remove_pointer_t<ParamType>;
+
 		if constexpr (std::is_same_v<ParamType, bool>)
 		{
 			OutValueType = FAnimNextParamType::EValueType::Bool;
@@ -154,17 +172,17 @@ private:
 			OutValueType = FAnimNextParamType::EValueType::Struct;
 			OutValueTypeObject = TBaseStructure<ParamType>::Get();
 		}
-		else if constexpr (TModels<CStaticClassProvider, ParamType>::Value)
+		else if constexpr (TModels<CStaticClassProvider, NonPtrParamType>::Value)
 		{
-			if constexpr (std::is_same_v<ParamType, UClass>)
+			if constexpr (std::is_same_v<NonPtrParamType, UClass>)
 			{
 				OutValueType = FAnimNextParamType::EValueType::Class;
-				OutValueTypeObject = ParamType::StaticClass();
+				OutValueTypeObject = NonPtrParamType::StaticClass();
 			}
 			else
 			{
 				OutValueType = FAnimNextParamType::EValueType::Object;
-				OutValueTypeObject = ParamType::StaticClass();
+				OutValueTypeObject = NonPtrParamType::StaticClass();
 			}
 		}
 		else if constexpr (TIsTObjectPtr<ParamType>::Value)
@@ -283,6 +301,30 @@ public:
 		{
 			TypeHandle.SetParameterType(EParamType::Transform);
 		}
+		else if constexpr (std::is_same_v<NonConstType, TObjectPtr<UObject>> || std::is_same_v<NonConstType, UObject*>)
+		{
+			TypeHandle.SetParameterType(EParamType::Object);
+		}
+		else if constexpr (std::is_same_v<NonConstType, TObjectPtr<UCharacterMovementComponent>> || std::is_same_v<NonConstType, UCharacterMovementComponent*>)
+		{
+			TypeHandle.SetParameterType(EParamType::CharacterMovementComponent);
+		}
+		else if constexpr (std::is_same_v<NonConstType, TObjectPtr<UAnimNextMeshComponent>> || std::is_same_v<NonConstType, UAnimNextMeshComponent*>)
+		{
+			TypeHandle.SetParameterType(EParamType::AnimNextMeshComponent);
+		}
+		else if constexpr (std::is_same_v<NonConstType, TObjectPtr<UAnimSequence>> || std::is_same_v<NonConstType, UAnimSequence*>)
+		{
+			TypeHandle.SetParameterType(EParamType::AnimSequence);
+		}
+		else if constexpr (std::is_same_v<NonConstType, FAnimNextGraphLODPose>)
+		{
+			TypeHandle.SetParameterType(EParamType::AnimNextGraphLODPose);
+		}
+		else if constexpr (std::is_same_v<NonConstType, FAnimNextGraphReferencePose>)
+		{
+			TypeHandle.SetParameterType(EParamType::AnimNextGraphReferencePose);
+		}
 		else
 		{
 			// Not a built-in-type, so we need to do some work
@@ -307,7 +349,7 @@ public:
 			}
 		}
 
-		//check(TypeHandle.IsValid());
+		check(TypeHandle.IsValid());
 
 		return TypeHandle;
 	}

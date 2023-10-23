@@ -5,6 +5,7 @@
 #include "Components/ActorComponent.h"
 #include "Param/AnimNextParameterCollection.h"
 #include "Param/IAnimNextParameterSourceInterface.h"
+#include "Scheduler/AnimNextSchedule.h"
 #include "Scheduler/ScheduleHandle.h"
 #include "AnimNextComponent.generated.h"
 
@@ -53,6 +54,10 @@ private:
 	// Parameters to apply at each scope
 	UPROPERTY(EditAnywhere, Category = "Parameters", meta = (CustomWidget = "ParamName", AllowedParamType = "FAnimNextScope"))
 	TMap<FName, FAnimNextParameterCollection> Parameters;
+
+	// How to initialize the schedule
+	UPROPERTY(EditAnywhere, Category="Schedule")
+	EAnimNextScheduleInitMethod InitMethod = EAnimNextScheduleInitMethod::InitializeAndPauseInEditor;
 
 	// Handle to the registered results/schedule
 	UE::AnimNext::FScheduleHandle SchedulerHandle;

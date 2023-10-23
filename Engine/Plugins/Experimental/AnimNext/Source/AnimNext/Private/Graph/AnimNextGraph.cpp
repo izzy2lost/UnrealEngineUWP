@@ -9,14 +9,18 @@
 #include "Param/ParamTypeHandle.h"
 #include "DecoratorBase/DecoratorReader.h"
 #include "DecoratorBase/ExecutionContext.h"
+#include "Graph/AnimNext_LODPose.h"
 #include "Serialization/MemoryReader.h"
+#include "AnimNextStats.h"
+
+DEFINE_STAT(STAT_AnimNext_Graph);
+DEFINE_STAT(STAT_AnimNext_Graph_AllocateInstance);
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(AnimNextGraph)
 
 namespace UE::AnimNext::Graph
 {
-const FName EntryPointName("GetData");
-const FName ResultName("Result");
+const UE::AnimNext::FParamId OutputPoseId("UE_Internal_Graph_OutputPose");
 }
 
 FAnimNextGraphInstance::~FAnimNextGraphInstance()
@@ -46,6 +50,8 @@ bool FAnimNextGraphInstance::IsValid() const
 
 void UAnimNextGraph::AllocateInstance(FAnimNextGraphInstance& Instance) const
 {
+	SCOPE_CYCLE_COUNTER(STAT_AnimNext_Graph_AllocateInstance);
+
 	Instance.Release();
 
 	if (!ResolvedRootDecoratorHandle.IsValid())
@@ -65,11 +71,13 @@ void UAnimNextGraph::AllocateInstance(FAnimNextGraphInstance& Instance) const
 
 void UAnimNextGraph::Run(const UE::AnimNext::FContext& Context, FAnimNextGraphInstance& GraphInstance, EAnimNextGraphSimulationSteps SimulationSteps) const
 {
+	SCOPE_CYCLE_COUNTER(STAT_AnimNext_Graph);
+
 	if (RigVM && GraphInstance.IsValid())
 	{
 		FAnimNextExecuteContext& AnimNextContext = GraphInstance.ExtendedExecuteContext.GetPublicDataSafe<FAnimNextExecuteContext>();
 		AnimNextContext.SetContextData(Context);
-		AnimNextContext.InitializeWithGraph(SharedDataBuffer, GraphInstance.GraphInstancePtr);
+		AnimNextContext.InitializeWithGraph(this, SharedDataBuffer, GraphInstance.GraphInstancePtr);
 		AnimNextContext.SetSimulationSteps(SimulationSteps);
 
 		RigVM->ExecuteVM(GraphInstance.ExtendedExecuteContext, FRigUnit_AnimNextShimRoot::EventName);
@@ -103,6 +111,8 @@ static TArray<UClass*> GetClassObjectsInPackage(UPackage* InPackage)
 
 void UAnimNextGraph::PostLoad()
 {
+	using namespace UE::AnimNext;
+	
 	Super::PostLoad();
 
 	ExtendedExecuteContext.InvalidateCachedMemory();
@@ -113,6 +123,10 @@ void UAnimNextGraph::PostLoad()
 	RigVM->ClearExternalVariables(ExtendedExecuteContext);
 	RigVM->Initialize(ExtendedExecuteContext);
 #endif
+
+	ReferencePoseId = FParamId(ReferencePose);
+	CurrentLODId = FParamId(CurrentLOD);
+	DeltaTimeId = FParamId(DeltaTime);
 }
 
 void UAnimNextGraph::PostRename(UObject* OldOuter, const FName OldName)
@@ -196,6 +210,18 @@ void UAnimNextGraph::Serialize(FArchive& Ar)
 		Ar << SharedDataArchiveBuffer;
 #endif
 	}
+}
+
+TConstArrayView<UE::AnimNext::FScheduleTerm> UAnimNextGraph::GetTerms() const
+{
+	using namespace UE::AnimNext;
+
+	static const FScheduleTerm Terms[] =
+	{
+		FScheduleTerm(Graph::OutputPoseId, FAnimNextParamType::GetType<FAnimNextGraphLODPose>(), EScheduleTermDirection::Output)
+	};
+
+	return Terms;
 }
 
 bool UAnimNextGraph::LoadFromArchiveBuffer(const TArray<uint8>& InSharedDataArchiveBuffer)

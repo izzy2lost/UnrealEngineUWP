@@ -15,6 +15,7 @@
 #include "Param/IAnimNextParameterBlockParameterInterface.h"
 #include "Param/Params.h"
 #include "Workspace/AnimNextWorkspace.h"
+#include "UncookedOnlyUtils.h"
 
 namespace UE::AnimNext::Editor
 {
@@ -434,16 +435,10 @@ void FUtils::GetFilteredVariableTypeTree(TArray<TSharedPtr<UEdGraphSchema_K2::FP
 	}
 };
 
-bool FUtils::GetExportedParametersForLibrary(const FAssetData& InLibraryAsset, FAnimNextParameterLibraryAssetRegistryExports& OutExports)
-{
-	const FString TagValue = InLibraryAsset.GetTagValueRef<FString>(UAnimNextParameterLibrary::ExportsAssetRegistryTag);
-	return FAnimNextParameterLibraryAssetRegistryExports::StaticStruct()->ImportText(*TagValue, &OutExports, nullptr, PPF_None, nullptr, FAnimNextParameterLibraryAssetRegistryExports::StaticStruct()->GetName()) != nullptr;
-}
-
 FName FUtils::GetNewParameterNameInLibrary(const FAssetData& InLibraryAsset, const TCHAR* InBaseName, TArrayView<FName> InAdditionalExistingNames)
 {
 	FAnimNextParameterLibraryAssetRegistryExports Exports;
-	GetExportedParametersForLibrary(InLibraryAsset, Exports);
+	UncookedOnly::FUtils::GetExportedParametersForLibrary(InLibraryAsset, Exports);
 
 	auto NameExists = [&Exports, &InAdditionalExistingNames](const TCHAR* InName)
 	{
@@ -490,7 +485,7 @@ FName FUtils::GetNewParameterNameInLibrary(const FAssetData& InLibraryAsset, con
 bool FUtils::DoesParameterExistInLibrary(const FAssetData& InLibraryAsset, const FName InParameterName)
 {
 	FAnimNextParameterLibraryAssetRegistryExports Exports;
-	GetExportedParametersForLibrary(InLibraryAsset, Exports);
+	UncookedOnly::FUtils::GetExportedParametersForLibrary(InLibraryAsset, Exports);
 
 	for(const FAnimNextParameterLibraryAssetRegistryExportEntry& Parameter : Exports.Parameters)
 	{
@@ -521,44 +516,10 @@ bool FUtils::GetExportedBindingsForBlock(const FAssetData& InLibraryAsset, FAnim
 	return FAnimNextParameterBlockAssetRegistryExports::StaticStruct()->ImportText(*TagValue, &OutExports, nullptr, PPF_None, nullptr, FAnimNextParameterBlockAssetRegistryExports::StaticStruct()->GetName()) != nullptr;
 }
 
-FAnimNextParamType FUtils::GetParameterTypeFromName(FName InName)
-{
-	// Check built-in params first as they are cheaper
-	if(const FParamDefinition* FoundDefinition = FParams::FindBuiltInParameter(InName))
-	{
-		return FoundDefinition->Type;
-	}
-
-	// Query the asset registry for other params
-	IAssetRegistry& AssetRegistry = FModuleManager::Get().LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry")).Get();
-
-	FARFilter ARFilter;
-	ARFilter.ClassPaths = { UAnimNextParameterLibrary::StaticClass()->GetClassPathName() };
-
-	TArray<FAssetData> LibraryAssets;
-	AssetRegistry.GetAssets(ARFilter, LibraryAssets);
-
-	for(const FAssetData& LibraryAsset : LibraryAssets)
-	{
-		FAnimNextParameterLibraryAssetRegistryExports Exports;
-		GetExportedParametersForLibrary(LibraryAsset, Exports);
-		for(const FAnimNextParameterLibraryAssetRegistryExportEntry& Export : Exports.Parameters)
-		{
-			if(Export.Name == InName)
-			{
-				return Export.Type;
-			}
-		}
-	}
-
-	return FAnimNextParamType();
-}
-
 bool FUtils::GetExportedAssetsForWorkspace(const FAssetData& InWorkspaceAsset, FAnimNextWorkspaceAssetRegistryExports& OutExports)
 {
 	const FString TagValue = InWorkspaceAsset.GetTagValueRef<FString>(UAnimNextWorkspace::ExportsAssetRegistryTag);
 	return FAnimNextWorkspaceAssetRegistryExports::StaticStruct()->ImportText(*TagValue, &OutExports, nullptr, PPF_None, nullptr, FAnimNextWorkspaceAssetRegistryExports::StaticStruct()->GetName()) != nullptr;
 }
-
 
 }

@@ -1,10 +1,16 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Param/ParamType.h"
+
+#include "Component/AnimNextMeshComponent.h"
+#include "Graph/AnimNext_LODPose.h"
 #include "Param/ParamTypeHandle.h"
 #include "Misc/StringBuilder.h"
 #include "UObject/Class.h"
 #include "Templates/SubclassOf.h"
+#include "GameFramework/CharacterMovementComponent.h"
+#include "Components/SkeletalMeshComponent.h"
+#include "Animation/AnimSequence.h"
 
 FAnimNextParamType::FAnimNextParamType(EValueType InValueType, EContainerType InContainerType, const UObject* InValueTypeObject)
 	: ValueTypeObject(InValueTypeObject)
@@ -111,6 +117,14 @@ UE::AnimNext::FParamTypeHandle FAnimNextParamType::GetHandle() const
 				{
 					Handle.SetParameterType(FParamTypeHandle::EParamType::Transform);
 				}
+				else if(ScriptStruct == FAnimNextGraphLODPose::StaticStruct())
+				{
+					Handle.SetParameterType(FParamTypeHandle::EParamType::AnimNextGraphLODPose);
+				}
+				else if(ScriptStruct == FAnimNextGraphReferencePose::StaticStruct())
+				{
+					Handle.SetParameterType(FParamTypeHandle::EParamType::AnimNextGraphReferencePose);
+				}
 				else
 				{
 					Handle.SetParameterType(FParamTypeHandle::EParamType::Custom);
@@ -134,6 +148,30 @@ UE::AnimNext::FParamTypeHandle FAnimNextParamType::GetHandle() const
 			}
 			break;
 		case EValueType::Object:
+			if(const UClass* Class = Cast<UClass>(ValueTypeObject.Get()))
+			{
+				if (Class == UObject::StaticClass())
+				{
+					Handle.SetParameterType(FParamTypeHandle::EParamType::Object);
+					break;
+				}
+				else if (Class == UCharacterMovementComponent::StaticClass())
+				{
+					Handle.SetParameterType(FParamTypeHandle::EParamType::CharacterMovementComponent);
+					break;
+				}
+				else if (Class == UAnimNextMeshComponent::StaticClass())
+				{
+					Handle.SetParameterType(FParamTypeHandle::EParamType::AnimNextMeshComponent);
+					break;
+				}
+				else if (Class == UAnimSequence::StaticClass())
+				{
+					Handle.SetParameterType(FParamTypeHandle::EParamType::AnimSequence);
+					break;
+				}
+			}
+			// fall through
 		case EValueType::SoftObject:
 		case EValueType::Class:
 		case EValueType::SoftClass:

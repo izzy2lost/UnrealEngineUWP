@@ -456,7 +456,9 @@ void FDecompressionTools::DecompressPose(FLODPose& OutAnimationPoseData,
 	// Once pose has been extracted, snap root bone back to first frame if we are extracting root motion.
 	if ((ExtractionContext.bExtractRootMotion && RootMotionReset.bEnableRootMotion) || RootMotionReset.bForceRootLock)
 	{
-		//RootMotionReset.ResetRootBoneForRootMotion(OutAnimationPoseData.LocalTransforms[FCompactPoseBoneIndex(0)], RequiredBones);
+		FTransform RootTransform = OutAnimationPoseData.LocalTransformsView[0];
+		RootMotionReset.ResetRootBoneForRootMotion(RootTransform, ReferencePose.GetRefPoseTransform(0));
+		OutAnimationPoseData.LocalTransformsView[0] = RootTransform;
 	}
 
 	// Anim Scale Retargeting

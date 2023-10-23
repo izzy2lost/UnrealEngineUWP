@@ -107,7 +107,7 @@ void FParamNamePropertyTypeCustomization::Refresh()
 	{
 		if(PropertyHandle->GetValue(CachedName) == FPropertyAccess::Success)
 		{
-			CachedType = FUtils::GetParameterTypeFromName(CachedName);
+			CachedType = UncookedOnly::FUtils::GetParameterTypeFromName(CachedName);
 		}
 	}
 }

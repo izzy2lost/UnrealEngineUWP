@@ -14,6 +14,7 @@
 #include "Param/ParamStackLayerHandle.h"
 #include "ParamEntry.h"
 #include "Param/ParamResult.h"
+#include "AnimNextStats.h"
 
 class UAnimNextSchedule;
 class UAnimNextSchedulerWorldSubsystem;
@@ -208,6 +209,10 @@ public:
 
 	// Create a cached parameter layer from an instanced property bag. This layer will reference the suppled propery bag and does not transfer ownership.
 	static ANIMNEXT_API FParamStackLayerHandle MakeReferenceLayer(FInstancedPropertyBag& InInstancedPropertyBag);
+
+	// Create a cached parameter layer by remapping the entries from another layer
+	// Original layer continues to own the memory
+	static ANIMNEXT_API FParamStackLayerHandle MakeRemappedLayer(const FParamStackLayerHandle& InLayer, const TMap<FName, FName>& InMapping);
 
 	// Make a parameter layer from a value
 	// @param	InParamId			Parameter ID for the parameter

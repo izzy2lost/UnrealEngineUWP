@@ -181,6 +181,14 @@ struct TLODPose : public FLODPose
 		PrepareForLOD(InRefPose, InLODLevel, bSetRefPose, bAdditive);
 	}
 
+	bool ShouldPrepareForLOD(const FReferencePose& InRefPose, int32 InLODLevel, bool bAdditive = false) const
+	{
+		return
+			LODLevel != InLODLevel ||
+			RefPose != &InRefPose ||
+			bAdditive != EnumHasAnyFlags(Flags, ELODPoseFlags::Additive);
+	}
+	
 	void PrepareForLOD(const FReferencePose& InRefPose, int32 InLODLevel, bool bSetRefPose = true, bool bAdditive = false)
 	{
 		LODLevel = InLODLevel;

@@ -4,6 +4,9 @@
 
 #include "DecoratorBase/ExecutionContext.h"
 #include "DecoratorInterfaces/IHierarchy.h"
+#include "AnimNextStats.h"
+
+DEFINE_STAT(STAT_AnimNext_UpdateGraph);
 
 namespace UE::AnimNext
 {
@@ -44,6 +47,8 @@ namespace UE::AnimNext
 
 	void UpdateGraph(FExecutionContext& Context, FUpdateTraversalContext& TraversalContext, FWeakDecoratorPtr GraphRootPtr)
 	{
+		SCOPE_CYCLE_COUNTER(STAT_AnimNext_UpdateGraph);
+		
 		if (!GraphRootPtr.IsValid())
 		{
 			return;	// Nothing to update

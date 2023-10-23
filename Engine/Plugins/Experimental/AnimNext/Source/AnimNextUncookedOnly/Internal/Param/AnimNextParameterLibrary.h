@@ -25,6 +25,11 @@ namespace UE::AnimNext::Editor
 
 namespace UE::AnimNext::UncookedOnly
 {
+	struct FUtils;
+}
+
+namespace UE::AnimNext::UncookedOnly
+{
 	// A delegate for subscribing / reacting to parameter library modifications.
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnParameterLibraryModified, UAnimNextParameterLibrary* /* InLibrary */);
 }
@@ -69,6 +74,7 @@ class UAnimNextParameterLibrary : public UObject
 	ANIMNEXTUNCOOKEDONLY_API static const FName ExportsAssetRegistryTag;
 
 	friend struct UE::AnimNext::Editor::FUtils;
+	friend struct UE::AnimNext::UncookedOnly::FUtils;
 	friend class UE::AnimNext::Editor::SParameterBlockView;
 	friend class UE::AnimNext::Editor::SParameterLibraryView;
 	friend class UE::AnimNext::Editor::SParameterPicker;

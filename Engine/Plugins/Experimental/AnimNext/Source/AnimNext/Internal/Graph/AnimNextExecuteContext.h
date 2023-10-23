@@ -6,8 +6,9 @@
 #include "RigVMCore/RigVMExecuteContext.h"
 #include "Units/RigUnit.h"
 #include "DecoratorBase/DecoratorPtr.h"
-
 #include "AnimNextExecuteContext.generated.h"
+
+class UAnimNextGraph;
 
 namespace UE::AnimNext
 {
@@ -39,18 +40,15 @@ struct FAnimNextExecuteContext : public FRigVMExecuteContext
 {
 	GENERATED_BODY()
 
-	FAnimNextExecuteContext()
-		: FRigVMExecuteContext()
-		, Context(nullptr)
-		, SimulationSteps(EAnimNextGraphSimulationSteps::None)
-	{
-	}
+	FAnimNextExecuteContext() = default;
 
 	const UE::AnimNext::FContext& GetContext() const
 	{
 		check(Context);
 		return *Context;
 	}
+
+	const UAnimNextGraph* GetGraph() const { return Graph; }
 
 	const TArrayView<const uint8>& GetSharedDataBuffer() const { return SharedDataBuffer; }
 
@@ -64,6 +62,7 @@ struct FAnimNextExecuteContext : public FRigVMExecuteContext
 
 		const FAnimNextExecuteContext* OtherContext = (const FAnimNextExecuteContext*)InOtherContext;
 		Context = OtherContext->Context;
+		Graph = OtherContext->Graph; 
 		SharedDataBuffer = OtherContext->SharedDataBuffer;
 		GraphInstancePtr = OtherContext->GraphInstancePtr;
 		SimulationSteps = OtherContext->SimulationSteps;
@@ -75,8 +74,9 @@ private:
 		Context = &InContext;
 	}
 
-	void InitializeWithGraph(TArrayView<const uint8> InSharedDataBuffer, UE::AnimNext::FWeakDecoratorPtr InGraphInstancePtr)
+	void InitializeWithGraph(const UAnimNextGraph* InGraph, TArrayView<const uint8> InSharedDataBuffer, UE::AnimNext::FWeakDecoratorPtr InGraphInstancePtr)
 	{
+		Graph = InGraph;
 		SharedDataBuffer = InSharedDataBuffer;
 		GraphInstancePtr = InGraphInstancePtr;
 	}
@@ -90,16 +90,17 @@ private:
 	void DebugReset()
 	{
 		Context = nullptr;
+		Graph = nullptr;
 		SharedDataBuffer = TArrayView<const uint8>();
 		GraphInstancePtr.Reset();
 		SimulationSteps = EAnimNextGraphSimulationSteps::None;
 	}
 
-	const UE::AnimNext::FContext* Context;
-
+	const UE::AnimNext::FContext* Context = nullptr;
+	const UAnimNextGraph* Graph = nullptr;
 	TArrayView<const uint8> SharedDataBuffer;
 	UE::AnimNext::FWeakDecoratorPtr GraphInstancePtr;
-	EAnimNextGraphSimulationSteps SimulationSteps;
+	EAnimNextGraphSimulationSteps SimulationSteps = EAnimNextGraphSimulationSteps::None;
 
 	friend class UAnimNextGraph;
 	friend class UAnimNextParameterBlock;

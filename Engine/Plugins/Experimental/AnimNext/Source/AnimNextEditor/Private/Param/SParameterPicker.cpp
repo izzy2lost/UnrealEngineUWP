@@ -283,7 +283,7 @@ void SParameterPicker::RefreshEntries()
 		}
 
 		FAnimNextParameterLibraryAssetRegistryExports& NewExports = LibraryExportMap.Add(InLibrary);
-		FUtils::GetExportedParametersForLibrary(InLibrary, NewExports);
+		UncookedOnly::FUtils::GetExportedParametersForLibrary(InLibrary, NewExports);
 		return NewExports;
 	};
 	

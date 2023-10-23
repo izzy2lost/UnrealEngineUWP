@@ -5,6 +5,10 @@
 #include "ScheduleHandle.h"
 #include "Scheduler/AnimNextSchedulerWorldSubsystem.h"
 #include "Scheduler/AnimNextSchedulerEntry.h"
+#include "Scheduler/AnimNextSchedulePort.h"
+#include "AnimNextStats.h"
+
+DEFINE_STAT(STAT_AnimNext_CreateInstanceData);
 
 namespace UE::AnimNext
 {
@@ -14,9 +18,12 @@ FScheduleInstanceData::FScheduleInstanceData(const FScheduleContext& InScheduleC
 	, Entry(InCurrentEntry) 
 	, UserScopes(MoveTemp(InUserScopes))
 {
+	SCOPE_CYCLE_COUNTER(STAT_AnimNext_CreateInstanceData);
+
 	// Preallocate data for all scopes & graphs in the schedule
 	ScopeCaches.SetNum(InSchedule->ParamScopeEntryTasks.Num());
 	GraphInstanceData.SetNum(InSchedule->Tasks.Num());
+	GraphInputLayers.SetNum(InSchedule->Tasks.Num());
 
 	// Setup param stack graph
 	RootParamStack = InCurrentEntry->RootParamStack;
@@ -43,6 +50,50 @@ FScheduleInstanceData::FScheduleInstanceData(const FScheduleContext& InScheduleC
 		const TSharedPtr<FParamStack> ParentStack = ScopeEntryTask.ParamParentScopeIndex != MAX_uint32 ? ParamStacks[ScopeEntryTask.ParamParentScopeIndex] : RootParamStack;
 		ParamStacks[ScopeEntryTask.ParamScopeIndex]->SetParent(ParentStack);
 	}
+
+	// Duplicate intermediate data area
+	IntermediatesData = InSchedule->IntermediatesData;
+
+	// Make a hosting layer for the intermediates
+	IntermediatesLayer = FParamStack::MakeReferenceLayer(IntermediatesData);
+
+	// Setup remapped intermediate data layers for graph and port tasks
+	GraphTermLayers.Reserve(InSchedule->Tasks.Num());
+	for (const FAnimNextScheduleGraphTask& Task : InSchedule->Tasks)
+	{
+		TConstArrayView<FScheduleTerm> Terms = Task.Graph->GetTerms();
+		check(Task.Terms.Num() == Terms.Num());
+
+		TMap<FName, FName> Mapping;
+		Mapping.Reserve(Task.Terms.Num());
+		for(int32 TermIndex = 0; TermIndex < Task.Terms.Num(); ++TermIndex)
+		{
+			uint32 IntermediateTermIndex = Task.Terms[TermIndex];
+			const FPropertyBagPropertyDesc& PropertyDesc = IntermediatesData.GetPropertyBagStruct()->GetPropertyDescs()[IntermediateTermIndex];
+			Mapping.Add(PropertyDesc.Name, Terms[TermIndex].GetName());
+		}
+
+		GraphTermLayers.Add(FParamStack::MakeRemappedLayer(IntermediatesLayer, Mapping));
+	}
+
+	PortTermLayers.Reserve(InSchedule->Ports.Num());
+	for (const FAnimNextSchedulePortTask& PortTask : InSchedule->Ports)
+	{
+		UAnimNextSchedulePort* CDO = PortTask.Port->GetDefaultObject<UAnimNextSchedulePort>();
+		TConstArrayView<FScheduleTerm> Terms = CDO->GetTerms();
+		check(PortTask.Terms.Num() == Terms.Num());
+
+		TMap<FName, FName> Mapping;
+		Mapping.Reserve(PortTask.Terms.Num());
+		for(int32 TermIndex = 0; TermIndex < PortTask.Terms.Num(); ++TermIndex)
+		{
+			uint32 IntermediateTermIndex = PortTask.Terms[TermIndex];
+			const FPropertyBagPropertyDesc& PropertyDesc = IntermediatesData.GetPropertyBagStruct()->GetPropertyDescs()[IntermediateTermIndex];
+			Mapping.Add(PropertyDesc.Name, Terms[TermIndex].GetName());
+		}
+
+		PortTermLayers.Add(FParamStack::MakeRemappedLayer(IntermediatesLayer, Mapping));
+	}
 }
 
 void FScheduleInstanceData::AddReferencedObjects(FReferenceCollector& Collector)
@@ -56,6 +107,18 @@ void FScheduleInstanceData::AddReferencedObjects(FReferenceCollector& Collector)
 FString FScheduleInstanceData::GetReferencerName() const
 {
 	return TEXT("AnimNextInstanceData");
+}
+
+TSharedPtr<FParamStack> FScheduleInstanceData::GetParamStack(uint32 InIndex) const
+{
+	if(InIndex == MAX_uint32)
+	{
+		return RootParamStack;
+	}
+	else
+	{
+		return ParamStacks[InIndex];
+	}
 }
 
 }

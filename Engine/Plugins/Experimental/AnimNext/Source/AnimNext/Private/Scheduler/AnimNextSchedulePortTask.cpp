@@ -2,26 +2,27 @@
 
 #include "Scheduler/AnimNextSchedulePortTask.h"
 #include "Scheduler/AnimNextSchedulePort.h"
-#include "Scheduler/SchedulePortDefinition.h"
-#include "Scheduler/Scheduler.h"
-#include "Scheduler/ScheduleContext.h"
-#include "Scheduler/SchedulePortAdapterContext.h"
+#include "ScheduleContext.h"
+#include "Scheduler/ScheduleTermContext.h"
+#include "AnimNextStats.h"
+
+DEFINE_STAT(STAT_AnimNext_Task_Port);
 
 void FAnimNextSchedulePortTask::RunPort(const UE::AnimNext::FScheduleContext& InScheduleContext) const
 {
+	SCOPE_CYCLE_COUNTER(STAT_AnimNext_Task_Port);
+
 	using namespace UE::AnimNext;
 
-	if (const FSchedulePortDefinition* PortDefinition = FScheduler::FindPortDefinition(Name))
+	if(Port)
 	{
-		if (PortDefinition->Adapter)
+		if(const UAnimNextSchedulePort* CDO = Port->GetDefaultObject<UAnimNextSchedulePort>())
 		{
-			if (const FAnimNextSchedulePort* PortParam = FParamStack::Get().GetParamPtr<FAnimNextSchedulePort>(Name))
-			{
-				FSchedulePortAdapterContext Context;
-				Context.OutputObject = PortParam->Object.Get();
-				Context.OutputData = PortParam->Data;
-				PortDefinition->Adapter(Context);
-			}
+			FScheduleInstanceData& InstanceData = InScheduleContext.GetInstanceData();
+
+			// Supply the I/O terms that the port needs
+			FScheduleTermContext TermContext(InScheduleContext, InstanceData.PortTermLayers[TaskIndex]);
+			CDO->Run(TermContext);
 		}
 	}
 }

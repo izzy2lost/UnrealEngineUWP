@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Param/ParamStack.h"
+
 #include "Param/ParamHelpers.h"
 #include "PropertyBag.h"
 #include "EngineLogs.h"
@@ -9,6 +10,9 @@
 #include "UObject/Package.h"
 #include "Param/ParamStackLayer.h"
 #include "UObject/ObjectKey.h"
+
+DEFINE_STAT(STAT_AnimNext_ParamStack_GetParam);
+DEFINE_STAT(STAT_AnimNext_ParamStack_Adapter);
 
 #define LOCTEXT_NAMESPACE "AnimNextParamStack"
 
@@ -166,6 +170,49 @@ struct FInstancedPropertyBagReferenceLayer : FInstancedPropertyBagLayer
 	FInstancedPropertyBag& PropertyBag;
 };
 
+// Stack layer that remaps params from another layer
+struct FRemappedLayer : FParamStackLayer
+{
+	FRemappedLayer() = delete;
+
+	explicit FRemappedLayer(const FParamStackLayer& InLayer, const TMap<FName, FName>& InMapping)
+	{
+		// Determine param ID range for this layer
+		TArray<TPair<FParamId, Private::FParamEntry>, TInlineAllocator<128>> CachedParams;
+		CachedParams.Reserve(InMapping.Num());
+		MinParamId = MAX_uint32;
+		uint32 MaxParamId = 0;
+		for (uint32 LocalParamIndex = 0; LocalParamIndex < static_cast<uint32>(InLayer.Params.Num()); ++LocalParamIndex)
+		{
+			const Private::FParamEntry& ParamEntry = InLayer.Params[LocalParamIndex];
+			if(ParamEntry.IsValid())
+			{
+				const uint32 GlobalParamIndex = InLayer.MinParamId + LocalParamIndex;
+				const FParamId SourceParamId(GlobalParamIndex);
+				if(const FName* RemappedName = InMapping.Find(SourceParamId.ToName()))
+				{
+					const FParamId RemappedParamId(*RemappedName);
+					MinParamId = FMath::Min(RemappedParamId.ToInt(), MinParamId);
+					MaxParamId = FMath::Max(RemappedParamId.ToInt(), MaxParamId);
+					CachedParams.Add({ RemappedParamId, ParamEntry });
+				}
+			}
+		}
+
+		if (MinParamId <= MaxParamId)
+		{
+			const uint32 ParamRangeSize = (MaxParamId - MinParamId) + 1;
+			Params.SetNumZeroed(ParamRangeSize);
+			for (uint32 ParamIndex = 0; ParamIndex < static_cast<uint32>(CachedParams.Num()); ++ParamIndex)
+			{
+				const TPair<FParamId, Private::FParamEntry>& ParamIdPair = CachedParams[ParamIndex];
+				const uint32 LocalParamIndex = ParamIdPair.Key.ToInt() - MinParamId;
+				Params[LocalParamIndex] = ParamIdPair.Value;
+			}
+		}
+	}
+};
+
 FParamStack::FPushedLayer::FPushedLayer(FParamStackLayer& InLayer, FParamStack& InStack)
 	: Layer(InLayer)
 {
@@ -222,6 +269,7 @@ FParamStack::FParamStack()
 	Layers.Reserve(8);
 	LayerIndices.Reserve(FParamId::GetMaxParamId().ToInt());
 	PreviousLayerIndices.Reserve(FParamId::GetMaxParamId().ToInt());
+	OwnedStackLayers.Reserve(8);
 }
 
 FParamStack::~FParamStack()
@@ -303,7 +351,7 @@ FParamStack::FPushedLayerHandle FParamStack::PushLayer(TConstArrayView<TPair<FPa
 {
 	if(Layers.Num() < MAX_uint16)
 	{
-		FParamStackLayer& OwnedLayer = OwnedStackLayers.Add_GetRef(FParamStackLayer(InParams));
+		FParamStackLayer& OwnedLayer = OwnedStackLayers.Emplace_GetRef(InParams);
 		OwnedLayer.OwnedStorageOffset = AllocAndCopyOwnedParamStorage(OwnedLayer.Params);
 		return PushLayerInternal(OwnedLayer);
 	}
@@ -417,6 +465,12 @@ FParamStackLayerHandle FParamStack::MakeValueLayer(const FInstancedPropertyBag& 
 FParamStackLayerHandle FParamStack::MakeReferenceLayer(FInstancedPropertyBag& InPropertyBag)
 {
 	TUniquePtr<FParamStackLayer> Layer = MakeUnique<FInstancedPropertyBagReferenceLayer>(InPropertyBag, true);
+	return FParamStackLayerHandle(MoveTemp(Layer));
+}
+
+FParamStackLayerHandle FParamStack::MakeRemappedLayer(const FParamStackLayerHandle& InLayer, const TMap<FName, FName>& InMapping)
+{
+	TUniquePtr<FParamStackLayer> Layer = MakeUnique<FRemappedLayer>(*InLayer.Layer.Get(), InMapping);
 	return FParamStackLayerHandle(MoveTemp(Layer));
 }
 

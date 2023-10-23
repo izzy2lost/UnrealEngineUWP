@@ -97,7 +97,7 @@ void UAnimNextSchedulerWorldSubsystem::FlushPendingActions()
 	}
 }
 
-UE::AnimNext::FScheduleHandle UAnimNextSchedulerWorldSubsystem::AcquireHandle(UObject* InObject, UAnimNextSchedule* InSchedule, const TMap<FName, FAnimNextParameterCollection>& InUserScopes)
+UE::AnimNext::FScheduleHandle UAnimNextSchedulerWorldSubsystem::AcquireHandle(UObject* InObject, UAnimNextSchedule* InSchedule, const TMap<FName, FAnimNextParameterCollection>& InUserScopes, EAnimNextScheduleInitMethod InInitMethod)
 {
 	using namespace UE::AnimNext;
 
@@ -111,15 +111,17 @@ UE::AnimNext::FScheduleHandle UAnimNextSchedulerWorldSubsystem::AcquireHandle(UO
 		Handle.Index = FreeEntryIndices.Last();
 		Handle.SerialNumber = ++GEntrySerialNumber;
 		FreeEntryIndices.Pop(false);
-		new (Entries[Handle.Index].Get()) FAnimNextSchedulerEntry(InSchedule, InObject, Handle, InUserScopes);
+		new (Entries[Handle.Index].Get()) FAnimNextSchedulerEntry(InSchedule, InObject, Handle, InUserScopes, InInitMethod);
 	}
 	// Otherwise append a new entry
 	else
 	{
 		Handle.Index = Entries.Num();
 		Handle.SerialNumber = ++GEntrySerialNumber;
-		Entries.Emplace(MakeUnique<FAnimNextSchedulerEntry>(InSchedule, InObject, Handle, InUserScopes));
+		Entries.Emplace(MakeUnique<FAnimNextSchedulerEntry>(InSchedule, InObject, Handle, InUserScopes, InInitMethod));
 	}
+
+	Entries[Handle.Index]->Initialize();
 
 	// Skip 'invalid' 0 serial number
 	if (GEntrySerialNumber == 0)
@@ -177,7 +179,7 @@ void UAnimNextSchedulerWorldSubsystem::QueueTask(UE::AnimNext::FScheduleHandle I
 		// TODO: Only supporting scope tasks for now
 		const FAnimNextScheduleParamScopeEntryTask* FoundScope = Entry->Schedule->ParamScopeEntryTasks.FindByPredicate([&InScheduleTaskName](const FAnimNextScheduleParamScopeEntryTask& InTask)
 		{
-			return InTask.Name == InScheduleTaskName;
+			return InTask.Scope == InScheduleTaskName;
 		});
 
 		if (FoundScope)

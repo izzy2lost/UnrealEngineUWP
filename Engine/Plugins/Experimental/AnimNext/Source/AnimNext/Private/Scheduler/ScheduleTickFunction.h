@@ -53,12 +53,12 @@ struct FScheduleEndTickFunction : public FTickFunction
 	FAnimNextSchedulerEntry& Entry;
 };
 
-// TODO: Run a linear slice of instructions rather than have each instruction a separate tick function
 struct FScheduleTickFunction : public FTickFunction
 {
-	FScheduleTickFunction(const FScheduleContext& InScheduleContext, const FAnimNextScheduleInstruction& InInstruction)
+	FScheduleTickFunction(const FScheduleContext& InScheduleContext, TConstArrayView<FAnimNextScheduleInstruction> InInstructions, TConstArrayView<TWeakObjectPtr<UObject>> InTargetObjects)
 		: ScheduleContext(InScheduleContext)
-		, Instruction(InInstruction)
+		, Instructions(InInstructions)
+		, TargetObjects(InTargetObjects)
 	{
 		bCanEverTick = true;
 		bStartWithTickEnabled = true;
@@ -69,10 +69,15 @@ struct FScheduleTickFunction : public FTickFunction
 	virtual void ExecuteTick(float DeltaTime, ELevelTick TickType, ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent) override;
 	virtual FString DiagnosticMessage() override;
 
+	// Static helpers for running a slice of instructions
+	// This can be called standalone to run a whole schedule in one call
+	static void RunSchedule(TConstArrayView<FAnimNextScheduleInstruction> InInstructions);
+	static void RunSchedule(TConstArrayView<FAnimNextScheduleInstruction> InInstructions, TConstArrayView<TWeakObjectPtr<UObject>> InTargetObjects, TFunctionRef<void(void)> InPreExecuteScope, TFunctionRef<void(void)> InPostExecuteScope);
+
 	const FScheduleContext& ScheduleContext;
-	const FAnimNextScheduleInstruction& Instruction;
+	TConstArrayView<FAnimNextScheduleInstruction> Instructions;
 	TArray<FTickPrerequisite> Subsequents;
-	TWeakObjectPtr<UObject> TargetObject;
+	TConstArrayView<TWeakObjectPtr<UObject>> TargetObjects;
 	TSpscQueue<TUniqueFunction<void(const UE::AnimNext::FScheduleContext&)>> PreExecuteTasks;
 	TSpscQueue<TUniqueFunction<void(const UE::AnimNext::FScheduleContext&)>> PostExecuteTasks;
 };

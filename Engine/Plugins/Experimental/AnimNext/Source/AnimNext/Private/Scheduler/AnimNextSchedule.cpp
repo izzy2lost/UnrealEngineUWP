@@ -3,8 +3,9 @@
 #include "Scheduler/AnimNextSchedule.h"
 #include "Tasks/Task.h"
 #include "Async/TaskGraphInterfaces.h"
-#include "UObject/ObjectSaveContext.h"
 #include "EngineLogs.h"
+#include "Scheduler/AnimNextSchedulePort.h"
+#include "Graph/AnimNextGraph.h"
 
 void UAnimNextSchedule::PostLoad()
 {
@@ -24,15 +25,24 @@ void UAnimNextSchedule::PostEditChangeProperty(FPropertyChangedEvent& PropertyCh
 	CompileSchedule();
 }
 
+void UAnimNextSchedule::PostEditUndo()
+{
+	Super::PostEditUndo();
+
+	CompileSchedule();
+}
+
 void UAnimNextSchedule::CompileSchedule()
 {
+	using namespace UE::AnimNext;
+
 	Instructions.Empty();
 	Tasks.Empty();
 	Ports.Empty();
 	ExternalTasks.Empty();
 	ParamScopeEntryTasks.Empty();
 	ParamScopeExitTasks.Empty();
-	PortNameIndexMap.Empty();
+	IntermediatesData.Reset();
 	NumParameterScopes = 0;
 	NumTickFunctions = 0;
 
@@ -75,10 +85,13 @@ void UAnimNextSchedule::CompileSchedule()
 	// MAX_uint32 means 'global scope' in this context
 	uint32 ParentScopeIndex = MAX_uint32;
 
+	TArray<FAnimNextParamType> IntermediateTypes;
+	TMap<FName, uint32> IntermediateMap;
+
 	TFunction<void(const TArray<TObjectPtr<UAnimNextScheduleEntry>>&)> EmitEntries;
 
 	// Iterate over all entries, recursing into scopes
-	EmitEntries = [this, &EmitEntries, &Emit, &EmitPrerequisite, &ParentScopeIndex](const TArray<TObjectPtr<UAnimNextScheduleEntry>>& InEntries)
+	EmitEntries = [this, &EmitEntries, &Emit, &EmitPrerequisite, &ParentScopeIndex, &IntermediateTypes, &IntermediateMap](const TArray<TObjectPtr<UAnimNextScheduleEntry>>& InEntries)
 	{
 		for (int32 EntryIndex = 0; EntryIndex < InEntries.Num(); ++EntryIndex)
 		{
@@ -86,36 +99,145 @@ void UAnimNextSchedule::CompileSchedule()
 
 			if (UAnimNextScheduleEntry_Port* PortEntry = Cast<UAnimNextScheduleEntry_Port>(Entry))
 			{
-				EmitPrerequisite();
+				bool bValid = true;
 
-				FAnimNextSchedulePortTask PortTask;
-				PortTask.TaskIndex = Ports.Num();
-				PortTask.ParamScopeIndex = ParentScopeIndex;
-				PortTask.Name = PortEntry->Name;
-				int32 PortIndex = Ports.Add(PortTask);
-				PortNameIndexMap.Add(PortEntry->Name, PortIndex);
+				if(PortEntry->Port == nullptr)
+				{
+					UE_LOG(LogAnimation, Error, TEXT("AnimNext: Invalid port class found"));
+					bValid = false;
+				}
+				else
+				{
+					UAnimNextSchedulePort* CDO = PortEntry->Port->GetDefaultObject<UAnimNextSchedulePort>();
+					check(CDO);
 
-				NumTickFunctions++;
+					TConstArrayView<FScheduleTerm> Terms = CDO->GetTerms();
+					if(PortEntry->Terms.Num() != Terms.Num())
+					{
+						UE_LOG(LogAnimation, Error, TEXT("AnimNext: Incorrect term count for port: %d"), PortEntry->Terms.Num());
+						bValid = false;
+					}
 
-				Emit(EAnimNextScheduleScheduleOpcode::RunPort, PortIndex);
+					for(int32 TermIndex = 0; TermIndex < PortEntry->Terms.Num(); ++TermIndex)
+					{
+						FName Term = PortEntry->Terms[TermIndex];
+						const uint32* ExistingIntermediateIndexPtr = IntermediateMap.Find(Term);
+						if(ExistingIntermediateIndexPtr != nullptr)
+						{
+							const FAnimNextParamType& IntermediateType = IntermediateTypes[*ExistingIntermediateIndexPtr];
+							if(IntermediateType != Terms[TermIndex].GetType())
+							{
+								UE_LOG(LogAnimation, Error, TEXT("AnimNext: Mismatched types when processing port term, ignored: '%s'"), *Term.ToString());
+								bValid = false;
+							}
+						}
+					}
+				}
+				
+				if(bValid)
+				{
+					EmitPrerequisite();
+
+					FAnimNextSchedulePortTask PortTask;
+					PortTask.TaskIndex = Ports.Num();
+					PortTask.ParamScopeIndex = ParentScopeIndex;
+					PortTask.Port = PortEntry->Port;
+
+					UAnimNextSchedulePort* CDO = PortEntry->Port->GetDefaultObject<UAnimNextSchedulePort>();
+					check(CDO);
+					TConstArrayView<FScheduleTerm> Terms = CDO->GetTerms();
+
+					for(int32 TermIndex = 0; TermIndex < PortEntry->Terms.Num(); ++TermIndex)
+					{
+						FName Term = PortEntry->Terms[TermIndex];
+						const uint32* ExistingIntermediateIndexPtr = IntermediateMap.Find(Term);
+						if(ExistingIntermediateIndexPtr == nullptr)
+						{
+							uint32 IntermediateIndex = IntermediateTypes.Add(Terms[TermIndex].GetType());
+							IntermediateMap.Add(Term, IntermediateIndex);
+							PortTask.Terms.Add(IntermediateIndex);
+						}
+						else
+						{
+							PortTask.Terms.Add(*ExistingIntermediateIndexPtr);
+						}
+					}
+
+					int32 PortIndex = Ports.Add(PortTask);
+
+					NumTickFunctions++;
+
+					Emit(EAnimNextScheduleScheduleOpcode::RunPort, PortIndex);
+				}
 			}
 			else if (UAnimNextScheduleEntry_AnimNextGraph* GraphEntry = Cast<UAnimNextScheduleEntry_AnimNextGraph>(Entry))
 			{
-				EmitPrerequisite();
+				bool bValid = true;
 
-				FAnimNextScheduleGraphTask Task;
-				Task.TaskIndex = Tasks.Num();
-				Task.ParamScopeIndex = NumParameterScopes++;
-				Task.ParamParentScopeIndex = ParentScopeIndex;
-				Task.Name = GraphEntry->Name;
-				Task.EntryPoint = GraphEntry->EntryPoint;
-				Task.Graph = GraphEntry->Graph;
-				Task.ParameterBlocks = GraphEntry->ParameterBlocks;
-				int32 TaskIndex = Tasks.Add(Task);
+				if(GraphEntry->Graph == nullptr)
+				{
+					UE_LOG(LogAnimation, Warning, TEXT("AnimNext: Invalid graph supplied"));
+					bValid = false;
+				}
+				else
+				{
+					TConstArrayView<FScheduleTerm> Terms = GraphEntry->Graph->GetTerms();
+					if(GraphEntry->Terms.Num() != Terms.Num())
+					{
+						UE_LOG(LogAnimation, Error, TEXT("AnimNext: Incorrect term count for graph: %d"), GraphEntry->Terms.Num());
+						bValid = false;
+					}
 
-				NumTickFunctions++;
+					for(int32 TermIndex = 0; TermIndex < GraphEntry->Terms.Num(); ++TermIndex)
+					{
+						FName Term = GraphEntry->Terms[TermIndex];
+						const uint32* ExistingIntermediateIndexPtr = IntermediateMap.Find(Term);
+						if(ExistingIntermediateIndexPtr != nullptr)
+						{
+							const FAnimNextParamType& IntermediateType = IntermediateTypes[*ExistingIntermediateIndexPtr];
+							if(IntermediateType != Terms[TermIndex].GetType())
+							{
+								UE_LOG(LogAnimation, Error, TEXT("AnimNext: Mismatched types when processing graph term, ignored: '%s'"), *Term.ToString());
+								bValid = false;
+							}
+						}
+					}
+				}
 
-				Emit(EAnimNextScheduleScheduleOpcode::RunTask, TaskIndex);
+				if(bValid)
+				{
+					EmitPrerequisite();
+
+					FAnimNextScheduleGraphTask Task;
+					Task.TaskIndex = Tasks.Num();
+					Task.ParamScopeIndex = NumParameterScopes++;
+					Task.ParamParentScopeIndex = ParentScopeIndex;
+					Task.EntryPoint = GraphEntry->EntryPoint;
+					Task.Graph = GraphEntry->Graph;
+
+					TConstArrayView<FScheduleTerm> Terms = GraphEntry->Graph->GetTerms();
+					for(int32 TermIndex = 0; TermIndex < GraphEntry->Terms.Num(); ++TermIndex)
+					{
+						FName Term = GraphEntry->Terms[TermIndex];
+						const uint32* ExistingIntermediateIndexPtr = IntermediateMap.Find(Term);
+						if(ExistingIntermediateIndexPtr == nullptr)
+						{
+							uint32 IntermediateIndex = IntermediateTypes.Add(Terms[TermIndex].GetType());
+							IntermediateMap.Add(Term, IntermediateIndex);
+							Task.Terms.Add(IntermediateIndex);
+						}
+						else
+						{
+							Task.Terms.Add(*ExistingIntermediateIndexPtr);
+						}
+					}
+
+					int32 TaskIndex = Tasks.Add(Task);
+
+					NumTickFunctions++;
+
+					Emit(EAnimNextScheduleScheduleOpcode::RunTask, TaskIndex);
+				}
 			}
 			else if (UAnimNextScheduleEntry_ExternalTask* ExternalTaskEntry = Cast<UAnimNextScheduleEntry_ExternalTask>(Entry))
 			{
@@ -125,8 +247,8 @@ void UAnimNextSchedule::CompileSchedule()
 				ExternalTask.TaskIndex = ExternalTasks.Num();
 				ExternalTask.ParamScopeIndex = NumParameterScopes++;
 				ExternalTask.ParamParentScopeIndex = ParentScopeIndex;
-				ExternalTask.Name = ExternalTaskEntry->Name;
-				ExternalTask.ObjectName = ExternalTaskEntry->ObjectName;
+				ExternalTask.TickFunction = ExternalTaskEntry->TickFunction;
+				ExternalTask.Object = ExternalTaskEntry->Object;
 				int32 ExternalTaskIndex = ExternalTasks.Add(ExternalTask);
 
 				// Emit the external task
@@ -148,7 +270,7 @@ void UAnimNextSchedule::CompileSchedule()
 				ParamScopeEntryTask.ParamScopeIndex = ParamScopeIndex;
 				ParamScopeEntryTask.ParamParentScopeIndex = ParentScopeIndex;
 				ParamScopeEntryTask.TickFunctionIndex = NumTickFunctions;
-				ParamScopeEntryTask.Name = ParamScopeTaskEntry->Name;
+				ParamScopeEntryTask.Scope = ParamScopeTaskEntry->Scope;
 				ParamScopeEntryTask.ParameterBlocks = ParamScopeTaskEntry->ParameterBlocks;
 				int32 ParamScopeTaskEntryIndex = ParamScopeEntryTasks.Add(ParamScopeEntryTask);
 
@@ -170,7 +292,7 @@ void UAnimNextSchedule::CompileSchedule()
 				FAnimNextScheduleParamScopeExitTask ParamScopeExitTask;
 				ParamScopeExitTask.TaskIndex = ParamScopeExitTasks.Num();
 				ParamScopeExitTask.ParamScopeIndex = ParamScopeIndex;
-				ParamScopeExitTask.Name = ParamScopeTaskEntry->Name;
+				ParamScopeExitTask.Scope = ParamScopeTaskEntry->Scope;
 				int32 ParamScopeExitTaskIndex = ParamScopeExitTasks.Add(ParamScopeExitTask);
 
 				Emit(EAnimNextScheduleScheduleOpcode::RunParamScopeExit, ParamScopeExitTaskIndex);
@@ -182,6 +304,24 @@ void UAnimNextSchedule::CompileSchedule()
 	EmitEntries(Entries);
 
 	Emit(EAnimNextScheduleScheduleOpcode::Exit);
+
+	// Process intermediates
+	if(IntermediateMap.Num() > 0)
+	{
+		check(IntermediateMap.Num() == IntermediateTypes.Num());
+		
+		TArray<FPropertyBagPropertyDesc> PropertyDescs;
+		PropertyDescs.Reserve(IntermediateTypes.Num());
+		 
+		for(const TPair<FName, uint32>& IntermediatePair : IntermediateMap)
+		{
+			const FAnimNextParamType& IntermediateType = IntermediateTypes[IntermediatePair.Value];
+			check(IntermediateType.IsValid());
+			PropertyDescs.Emplace(IntermediatePair.Key, IntermediateType.GetContainerType(), IntermediateType.GetValueType(), IntermediateType.GetValueTypeObject());
+		}
+
+		IntermediatesData.AddProperties(PropertyDescs);
+	}
 }
 
 #endif // #if WITH_EDITOR

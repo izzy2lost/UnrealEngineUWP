@@ -7,6 +7,9 @@
 #include "UObject/Package.h"
 #include "Graph/RigUnit_AnimNextBeginExecution.h"
 #include "Param/AnimNextParameterExecuteContext.h"
+#include "AnimNextStats.h"
+
+DEFINE_STAT(STAT_AnimNext_ParamBlock_UpdateLayer);
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(AnimNextParameterBlock)
 
@@ -40,6 +43,8 @@ UAnimNextParameterBlock::UAnimNextParameterBlock(const FObjectInitializer& Objec
 
 void UAnimNextParameterBlock::UpdateLayer(UE::AnimNext::FParamStackLayerHandle& InHandle) const
 {
+	SCOPE_CYCLE_COUNTER(STAT_AnimNext_ParamBlock_UpdateLayer);
+	
 	if (VM)
 	{
 		UE::AnimNext::FRigVMRuntimeData* RuntimeData = UE::AnimNext::FRigVMRuntimeDataRegistry::FindRuntimeData(VM);

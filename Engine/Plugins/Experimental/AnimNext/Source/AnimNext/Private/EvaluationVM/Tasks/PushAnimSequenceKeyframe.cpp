@@ -30,38 +30,46 @@ FAnimNextAnimSequenceKeyframeTask FAnimNextAnimSequenceKeyframeTask::MakeFromKey
 void FAnimNextAnimSequenceKeyframeTask::Execute(UE::AnimNext::FEvaluationVM& VM) const
 {
 	using namespace UE::AnimNext;
-
-	const UAnimSequence* AnimSequencePtr = AnimSequence.Get();
-	const bool bIsAdditive = AnimSequencePtr->IsValidAdditive();
-
-	FDeltaTimeRecord DeltaTimeRecord;	// Not needed
-	const bool bExtractRootMotion = bExtractTrajectory;
-	const bool bLooping = false;		// Not needed
-	const bool bUseRawData = false;
-
-	const FAnimExtractContext ExtractionContext(SampleTime, bExtractRootMotion, DeltaTimeRecord, bLooping);
-
-	FKeyframeState Keyframe = VM.MakeUninitializedKeyframe(bIsAdditive);
-
-	if (EnumHasAnyFlags(VM.GetFlags(), EEvaluationFlags::Bones))
+	
+	if(const UAnimSequence* AnimSequencePtr = AnimSequence.Get())
 	{
-		FDecompressionTools::GetAnimationPose(AnimSequencePtr, Keyframe.Pose, ExtractionContext);
-	}
+		const bool bIsAdditive = AnimSequencePtr->IsValidAdditive();
 
-	if (EnumHasAnyFlags(VM.GetFlags(), EEvaluationFlags::Curves))
+		FDeltaTimeRecord DeltaTimeRecord;	// Not needed
+		const bool bExtractRootMotion = bExtractTrajectory;
+		const bool bLooping = false;		// Not needed
+		const bool bUseRawData = false;
+
+		const FAnimExtractContext ExtractionContext(SampleTime, bExtractRootMotion, DeltaTimeRecord, bLooping);
+
+		FKeyframeState Keyframe = VM.MakeUninitializedKeyframe(bIsAdditive);
+
+		if (EnumHasAnyFlags(VM.GetFlags(), EEvaluationFlags::Bones))
+		{
+			FDecompressionTools::GetAnimationPose(AnimSequencePtr, Keyframe.Pose, ExtractionContext);
+		}
+
+		if (EnumHasAnyFlags(VM.GetFlags(), EEvaluationFlags::Curves))
+		{
+			AnimSequencePtr->EvaluateCurveData(Keyframe.Curves, static_cast<float>(SampleTime), bUseRawData);
+		}
+
+		if (EnumHasAnyFlags(VM.GetFlags(), EEvaluationFlags::Attributes))
+		{
+			FCompactPose Pose;		// Dummy but we need the bone container
+			Pose.SetBoneContainer(&VM.GetBoneContainer());
+
+			FAnimationPoseData PoseData(Pose, Keyframe.Curves, Keyframe.Attributes);
+
+			AnimSequencePtr->EvaluateAttributes(PoseData, ExtractionContext, bUseRawData);
+		}
+
+		VM.PushValue(KEYFRAME_STACK_NAME, MakeUnique<FKeyframeState>(MoveTemp(Keyframe)));
+	}
+	else
 	{
-		AnimSequencePtr->EvaluateCurveData(Keyframe.Curves, static_cast<float>(SampleTime), bUseRawData);
+		constexpr bool bIsAdditive = false;
+		FKeyframeState Keyframe = VM.MakeReferenceKeyframe(bIsAdditive);
+		VM.PushValue(KEYFRAME_STACK_NAME, MakeUnique<FKeyframeState>(MoveTemp(Keyframe)));
 	}
-
-	if (EnumHasAnyFlags(VM.GetFlags(), EEvaluationFlags::Attributes))
-	{
-		FCompactPose Pose;		// Dummy but we need the bone container
-		Pose.SetBoneContainer(&VM.GetBoneContainer());
-
-		FAnimationPoseData PoseData(Pose, Keyframe.Curves, Keyframe.Attributes);
-
-		AnimSequencePtr->EvaluateAttributes(PoseData, ExtractionContext, bUseRawData);
-	}
-
-	VM.PushValue(KEYFRAME_STACK_NAME, MakeUnique<FKeyframeState>(MoveTemp(Keyframe)));
 }

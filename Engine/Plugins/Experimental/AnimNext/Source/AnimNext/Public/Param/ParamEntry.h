@@ -11,6 +11,7 @@ namespace UE::AnimNext
 	struct FUObjectLayer;
 	struct FInstancedPropertyBagLayer;
 	struct FParamStackLayerHandle;
+	struct FRemappedLayer;
 }
 
 namespace UE::AnimNext
@@ -47,6 +48,7 @@ private:
 	friend struct UE::AnimNext::FUObjectLayer;
 	friend struct UE::AnimNext::FInstancedPropertyBagLayer;
 	friend struct UE::AnimNext::FParamStackLayerHandle;
+	friend struct UE::AnimNext::FRemappedLayer;
 
 	ANIMNEXT_API FParamEntry(const FParamTypeHandle& InTypeHandle, TArrayView<uint8> InData, bool bInIsReference, bool bInIsMutable);
 

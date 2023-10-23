@@ -2,6 +2,9 @@
 
 #include "TransformArrayOperations.h"
 #include "TransformArray.h"
+#include "AnimNextStats.h"
+
+DEFINE_STAT(STAT_AnimNext_CopyTransforms_SoA);
 
 namespace UE::AnimNext
 {
@@ -55,11 +58,13 @@ namespace UE::AnimNext
 
 	void CopyTransforms(const FTransformArraySoAView& Dest, const FTransformArraySoAConstView& Source, int32 StartIndex, int32 NumToCopy)
 	{
+		SCOPE_CYCLE_COUNTER(STAT_AnimNext_CopyTransforms_SoA);
+		
 		const int32 NumTransforms = Dest.Num();
 		const int32 EndIndex = NumToCopy >= 0 ? (StartIndex + NumToCopy) : NumTransforms;
 
 		check(Source.Num() >= NumTransforms);
-		check(StartIndex >= 0 && StartIndex < NumTransforms);
+		check(StartIndex >= 0 && StartIndex <= NumTransforms);
 		check(EndIndex <= NumTransforms);
 
 		for (int32 TransformIndex = StartIndex; TransformIndex < EndIndex; ++TransformIndex)

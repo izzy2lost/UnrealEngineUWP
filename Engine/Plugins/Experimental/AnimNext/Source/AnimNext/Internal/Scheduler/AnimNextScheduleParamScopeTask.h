@@ -46,7 +46,7 @@ private:
 
 	// The name of the scope
 	UPROPERTY()
-	FName Name;
+	FName Scope;
 
 	/** Parameters to apply in this scope */
 	UPROPERTY()
@@ -75,5 +75,5 @@ private:
 
 	// The name of the scope
 	UPROPERTY()
-	FName Name;
+	FName Scope;
 };

@@ -28,11 +28,12 @@ UObject* UAnimNextGraphFactory::FactoryCreateNew(UClass* Class, UObject* InParen
 	// Create internal editor data
 	UAnimNextGraph_EditorData* EditorData = NewObject<UAnimNextGraph_EditorData>(NewGraph, TEXT("EditorData"));
 	NewGraph->EditorData = EditorData;
-	EditorData->Initialize(/*bRecompileVM*/false);
 
 	// Add root graph
 	EditorData->AddGraph(TEXT("Root"));
 	check(EditorData->Graphs.Num() > 0);
+
+	EditorData->Initialize(/*bRecompileVM*/false);
 
 	// Compile the initial skeleton
 	UE::AnimNext::UncookedOnly::FUtils::Compile(NewGraph);

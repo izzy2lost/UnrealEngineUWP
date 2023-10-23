@@ -1,6 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Param/ParamUtils.h"
+
+#include "Component/AnimNextMeshComponent.h"
+#include "GameFramework/CharacterMovementComponent.h"
+#include "Animation/AnimSequence.h"
 #include "Param/ParamType.h"
 #include "Param/ParamTypeHandle.h"
 #include "Param/ParamCompatibility.h"
@@ -10,6 +14,26 @@ namespace UE::AnimNext
 
 FParamCompatibility FParamUtils::GetCompatibility(const FParamTypeHandle& InLHS, const FParamTypeHandle& InRHS)
 {
+	auto CheckClassCast = [](const FParamTypeHandle& InLHS, const UClass* InRHSClass)
+	{
+		FAnimNextParamType::EValueType ValueTypeLHS;
+		FAnimNextParamType::EContainerType ContainerTypeLHS;
+		const UObject* ValueTypeObjectLHS;
+
+		InLHS.GetCustomTypeInfo(ValueTypeLHS, ContainerTypeLHS, ValueTypeObjectLHS);
+		if(ContainerTypeLHS == FAnimNextParamType::EContainerType::None && ValueTypeLHS == FAnimNextParamType::EValueType::Object)
+		{
+			if(const UClass* Class = Cast<UClass>(ValueTypeObjectLHS))
+			{
+				if(InRHSClass->IsChildOf(Class))
+				{
+					return true;
+				}
+			}
+		}
+		return false;
+	};
+	
 	switch (InRHS.GetParameterType())
 	{
 	case FParamTypeHandle::EParamType::Bool:
@@ -140,6 +164,69 @@ FParamCompatibility FParamUtils::GetCompatibility(const FParamTypeHandle& InLHS,
 		switch (InLHS.GetParameterType())
 		{
 		case FParamTypeHandle::EParamType::Transform:
+			return EParamCompatibility::Compatible_Equal;
+		}
+		break;
+	case FParamTypeHandle::EParamType::Object:
+		switch (InLHS.GetParameterType())
+		{
+		case FParamTypeHandle::EParamType::Object:
+			return EParamCompatibility::Compatible_Equal;
+		}
+		break;
+	case FParamTypeHandle::EParamType::CharacterMovementComponent:
+		switch (InLHS.GetParameterType())
+		{
+		case FParamTypeHandle::EParamType::Object:
+			return EParamCompatibility::Compatible_Cast;
+		case FParamTypeHandle::EParamType::CharacterMovementComponent:
+			return EParamCompatibility::Compatible_Equal;
+		case FParamTypeHandle::EParamType::Custom:
+			if(CheckClassCast(InLHS, UCharacterMovementComponent::StaticClass()))
+			{
+				return EParamCompatibility::Compatible_Cast;
+			}
+		}
+		break;
+	case FParamTypeHandle::EParamType::AnimNextMeshComponent:
+		switch (InLHS.GetParameterType())
+		{
+		case FParamTypeHandle::EParamType::Object:
+			return EParamCompatibility::Compatible_Cast;
+		case FParamTypeHandle::EParamType::AnimNextMeshComponent:
+			return EParamCompatibility::Compatible_Equal;
+		case FParamTypeHandle::EParamType::Custom:
+			if(CheckClassCast(InLHS, UAnimNextMeshComponent::StaticClass()))
+			{
+				return EParamCompatibility::Compatible_Cast;
+			}
+		}
+		break;
+	case FParamTypeHandle::EParamType::AnimSequence:
+		switch (InLHS.GetParameterType())
+		{
+		case FParamTypeHandle::EParamType::Object:
+			return EParamCompatibility::Compatible_Cast;
+		case FParamTypeHandle::EParamType::AnimSequence:
+			return EParamCompatibility::Compatible_Equal;
+		case FParamTypeHandle::EParamType::Custom:
+			if(CheckClassCast(InLHS, UAnimSequence::StaticClass()))
+			{
+				return EParamCompatibility::Compatible_Cast;
+			}
+		}
+		break;
+	case FParamTypeHandle::EParamType::AnimNextGraphLODPose:
+		switch (InLHS.GetParameterType())
+		{
+		case FParamTypeHandle::EParamType::AnimNextGraphLODPose:
+			return EParamCompatibility::Compatible_Equal;
+		}
+		break;
+	case FParamTypeHandle::EParamType::AnimNextGraphReferencePose:
+		switch (InLHS.GetParameterType())
+		{
+		case FParamTypeHandle::EParamType::AnimNextGraphReferencePose:
 			return EParamCompatibility::Compatible_Equal;
 		}
 		break;

@@ -27,8 +27,6 @@ public:
 	{
 		GetMutableDefault<UAnimNextConfig>()->LoadConfig();
 
-		FParamId::Init();
-
 		static TPair<UClass*, FRigVMRegistry::ERegisterObjectOperation> const AllowedObjectTypes[] =
 		{
 			{ UAnimSequence::StaticClass(), FRigVMRegistry::ERegisterObjectOperation::Class },
@@ -38,6 +36,8 @@ public:
 		};
 
 		FRigVMRegistry::Get().RegisterObjectTypes(AllowedObjectTypes);
+
+		FParamId::Init();
 
 		FDataRegistry::Init();
 		FDecoratorRegistry::Init();

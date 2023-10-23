@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Scheduler/AnimNextSchedule.h"
 #include "Scheduler/ScheduleTickFunction.h"
 #include "Scheduler/ScheduleContext.h"
 #include "AnimNextSchedulerEntry.generated.h"
@@ -22,25 +23,41 @@ struct FAnimNextSchedulerEntry
 	GENERATED_BODY()
 
 	FAnimNextSchedulerEntry() = default;
-	FAnimNextSchedulerEntry(const UAnimNextSchedule* InSchedule, UObject* InObject, UE::AnimNext::FScheduleHandle InHandle, const TMap<FName, FAnimNextParameterCollection>& InUserScopes);
+	FAnimNextSchedulerEntry(const UAnimNextSchedule* InSchedule, UObject* InObject, UE::AnimNext::FScheduleHandle InHandle, const TMap<FName, FAnimNextParameterCollection>& InUserScopes, EAnimNextScheduleInitMethod InInitMethod);
 	~FAnimNextSchedulerEntry();
+
+	// Setup the entry
+	void Initialize();
 
 	// Used for pooling
 	void Invalidate();
 
 	// Enables/disables the ticking of this entry
 	void Enable(bool bInEnabled);
-	
-	UPROPERTY()
+
+	// Clears the bTickEvenWhenPaused flags of the entries' tick functions
+	void ClearTickFunctionPauseFlags();
+
+	// Allocate instance data if required
+	void LazyAllocateInstanceData();
+
+	UPROPERTY(Transient)
 	TObjectPtr<const UAnimNextSchedule> Schedule = nullptr;
 
 	// User scopes are copied into this entry on construction, but moved out later into instance data
 	// So will be invalid here after first run
-	UPROPERTY()
+	UPROPERTY(Transient)
 	TMap<FName, FAnimNextParameterCollection> UserScopes;
 
+	// Object this entry is bound to, valid only during schedule execution
+	UPROPERTY(Transient)
+	TObjectPtr<UObject> ResolvedObject = nullptr;
+
 	// Object this entry is bound to
-	TWeakObjectPtr<UObject> Object;
+	TWeakObjectPtr<UObject> WeakObject;
+
+	// Objects each of the schedule entries are bound to, if any
+	TArray<TWeakObjectPtr<UObject>> TargetObjects;
 
 	// Copy of the handle that represents this entry to client systems
 	UE::AnimNext::FScheduleHandle Handle;
@@ -57,6 +74,30 @@ struct FAnimNextSchedulerEntry
 
 	// Pre-allocated graph of tick functions
 	TArray<TUniquePtr<UE::AnimNext::FScheduleTickFunction>> TickFunctions;
+
+	enum class ERunState
+	{
+		None,
+
+		CreatingTasks,
+
+		BindingTasks,
+
+		RunningInitialUpdate,
+
+		Running,
+
+		Paused,
+	};
+
+	// Current running state
+	ERunState RunState = ERunState::None;
+
+	// How this entry initializes
+	EAnimNextScheduleInitMethod InitMethod = EAnimNextScheduleInitMethod::InitializeAndPauseInEditor;
+
+	// Whether this represents an editor object 
+	bool bIsEditor = false;
 };
 
 template<>

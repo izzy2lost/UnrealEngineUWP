@@ -77,7 +77,7 @@ static int32 GetRayTracingSkeletalMeshGlobalLODBias()
 		IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.RayTracing.Geometry.SkeletalMeshes.LODBias"));
 
 	return !RayTracingSkeletalMeshLODBiasVar ? 0 :
-		FMath::Max(0, RayTracingSkeletalMeshLODBiasVar->GetValueOnGameThread());  // Only allows positive bias to narrow cloth mapping requirements
+		FMath::Max(0, RayTracingSkeletalMeshLODBiasVar->GetValueOnAnyThread());  // Only allows positive bias to narrow cloth mapping requirements
 }
 
 /*-----------------------------------------------------------------------------

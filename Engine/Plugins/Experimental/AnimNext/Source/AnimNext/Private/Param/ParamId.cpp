@@ -3,6 +3,8 @@
 #include "Param/ParamId.h"
 
 #include "AnimNextConfig.h"
+#include "DataRegistry.h"
+#include "ReferencePose.h"
 #include "Misc/ScopeRWLock.h"
 #include "HAL/ThreadSingleton.h"
 #include "Param/AnimNextObjectAdapterConfig.h"
@@ -14,6 +16,11 @@
 #include "Param/ParamStack.h"
 #include "RigVMCore/RigVMRegistry.h"
 #include "Engine/World.h"
+#include "Graph/AnimNext_LODPose.h"
+#include "Component/AnimNextMeshComponent.h"
+#include "AnimNextStats.h"
+
+DEFINE_STAT(STAT_AnimNext_ParamIdLock)
 
 #define LOCTEXT_NAMESPACE "ParamId"
 
@@ -21,6 +28,16 @@ namespace UE::AnimNext
 {
 
 static FRWLock GParamIdLock;
+
+// TODO: Expand scratch buffer system to become a general cache of adapter values.
+// The assumption being that if we are grabbing gameplay-driven values, they do not vary over 
+// the course of a schedule unless the 'tick' of the values (e.g. a component's tick function) runs
+// during that time, at which point the values are reset and lazily updated
+// We should cache these values in a FInstancedPropertyBag, per adapted object type (e.g. all 
+// adapters for skel mesh components), per thread. This also allows us better handling of complex 
+// types, object lifetimes and GC.
+
+// TODO: Investigate allowing function libraries as adapters
 
 struct FParamData
 {
@@ -69,8 +86,7 @@ static FParamIdGlobalData& GetParamIdData()
 
 void FParamId::Init()
 {
-	RegisterBuiltInAdapters();
-	RefreshConfigAdapters();
+	RefreshAdapters();
 }
 
 void FParamId::Destroy()
@@ -80,6 +96,31 @@ void FParamId::Destroy()
 	ParamIdData.ParamData.Empty();
 	ParamIdData.ParamAdapters.Empty();
 	ParamIdData.NameToParamId.Empty();
+}
+
+void FParamId::RefreshAdapters()
+{
+	ResetAdapters();
+	RegisterBuiltInAdapters();
+	RefreshConfigAdapters();
+}
+
+void FParamId::ResetAdapters()
+{
+	FParamIdGlobalData& ParamIdGlobalData = GetParamIdData();
+	
+	ParamIdGlobalData.ResultBufferSize = 0;
+	ParamIdGlobalData.ParamAdapters.Empty();
+
+	// Reset existing IDs adapter data
+	for(FParamData& ParamData : ParamIdGlobalData.ParamData)
+	{
+		ParamData.AdapterIndex = INDEX_NONE;
+		ParamData.BufferOffset = MAX_uint32;
+
+		// Unregister this param as built-in
+		FParams::UnregisterBuiltInParameter(ParamData.Name);
+	}
 }
 
 void FParamId::RegisterBuiltInAdapters()
@@ -105,25 +146,43 @@ void FParamId::RegisterBuiltInAdapters()
 		FParamAdapter& NewAdapter = ParamIdGlobalData.ParamAdapters.Emplace_GetRef(FParamDefinition(PhysicsTickFunctionIndex, PhysicsTickName, FAnimNextParamType::GetType<FTickFunction>(), TooltipText), MoveTemp(PhysicsTickFunctionFunction));
 		FParams::RegisterBuiltInParameter(NewAdapter.Definition);
 	}
+
+	// Register ref pose accessor
+	{
+		FObjectAdapterFunction ReferencePoseFunction = [](UObject* InContextObject, FParamId InId) -> uint8*
+		{
+			static FParamId ComponentParam("UE_AnimNextMeshComponent");
+			if (const TObjectPtr<UAnimNextMeshComponent>* SkeletalMeshComponent = FParamStack::Get().GetParamPtr<TObjectPtr<UAnimNextMeshComponent>>(ComponentParam))
+			{
+				if(*SkeletalMeshComponent)
+				{
+					FDataHandle RefPoseHandle = FDataRegistry::Get()->GetOrGenerateReferencePose(SkeletalMeshComponent->Get());
+					const FReferencePose& RefPose = RefPoseHandle.GetRef<FReferencePose>();
+					FAnimNextGraphReferencePose* ReturnValue = GetAdapterReturnValue<FAnimNextGraphReferencePose>(InId);
+					*ReturnValue = FAnimNextGraphReferencePose(&RefPose);
+					return reinterpret_cast<uint8*>(ReturnValue);
+				}
+			}
+			return nullptr;
+		};
+
+		FName ReferencePoseName("UE_AnimNextMeshComponent_ReferencePose");
+		const uint32 ReferencePoseIndex = MakeParamId_NoLock(ReferencePoseName);
+		ParamIdGlobalData.ParamData[ReferencePoseIndex].AdapterIndex = ParamIdGlobalData.ParamAdapters.Num();
+		FText TooltipText = LOCTEXT("ReferencePoseTooltip", "The reference pose of the skeletal mesh component");
+		FParamAdapter& NewAdapter = ParamIdGlobalData.ParamAdapters.Emplace_GetRef(FParamDefinition(ReferencePoseIndex, ReferencePoseName, FAnimNextParamType::GetType<FAnimNextGraphReferencePose>(), TooltipText), MoveTemp(ReferencePoseFunction));
+		FParams::RegisterBuiltInParameter(NewAdapter.Definition);
+
+		// Calc buffer size for the result
+		ParamIdGlobalData.ParamData[ReferencePoseIndex].BufferOffset = Align(ParamIdGlobalData.ResultBufferSize, alignof(FAnimNextGraphReferencePose));
+		ParamIdGlobalData.ResultBufferSize += sizeof(FAnimNextGraphReferencePose);
+	}
 }
 
 void FParamId::RefreshConfigAdapters()
 {
 	FRWScopeLock Lock(GParamIdLock, SLT_Write);
 	FParamIdGlobalData& ParamIdGlobalData = GetParamIdData();
-
-	ParamIdGlobalData.ResultBufferSize = 0;
-	ParamIdGlobalData.ParamAdapters.Empty();
-
-	// Reset existing IDs adapter data
-	for(FParamData& ParamData : ParamIdGlobalData.ParamData)
-	{
-		ParamData.AdapterIndex = INDEX_NONE;
-		ParamData.BufferOffset = MAX_uint32;
-
-		// Unregister this param as built-in
-		FParams::UnregisterBuiltInParameter(ParamData.Name);
-	}
 
 	for(const FAnimNextObjectAdapterConfig& AdapterConfig : GetDefault<UAnimNextConfig>()->ExposedClasses)
 	{
@@ -149,25 +208,10 @@ void FParamId::RefreshConfigAdapters()
 					{
 						if (AActor* Actor = ContextComponent->GetOwner())
 						{
-							// Components can be redirected via their name
-							UActorComponent* ActorComponent = nullptr;
-							if(const FName* ComponentName = FParamStack::Get().GetParamPtr<FName>(FParamId(NameParamIndex)))
-							{
-								const FObjectPropertyBase* ComponentProperty = FindFProperty<FObjectPropertyBase>(Actor->GetClass(), *ComponentName);
-								if(ComponentProperty != nullptr)
-								{
-									ActorComponent = Cast<UActorComponent>(ComponentProperty->GetObjectPropertyValue_InContainer(Actor));
-								}
-							}
-							else
-							{
-								// No name, just find the first component
-								ActorComponent = Actor->FindComponentByClass(Class.Get());
-							}
-
+							UActorComponent* ActorComponent = Actor->FindComponentByClass(Class.Get());
 							UActorComponent** ReturnValue = GetAdapterReturnValue<UActorComponent*>(InId);
 							*ReturnValue = ActorComponent;
-							return reinterpret_cast<uint8*>(*ReturnValue);
+							return reinterpret_cast<uint8*>(ReturnValue);
 						}
 					}
 
@@ -187,7 +231,7 @@ void FParamId::RefreshConfigAdapters()
 							{
 								AActor** ReturnValue = GetAdapterReturnValue<AActor*>(InId);
 								*ReturnValue = Actor;
-								return reinterpret_cast<uint8*>(*ReturnValue);
+								return reinterpret_cast<uint8*>(ReturnValue);
 							}
 						}
 					}
@@ -196,6 +240,11 @@ void FParamId::RefreshConfigAdapters()
 				};
 			}
 
+			// TODO: Add runtime mechanism to prevent accessing object data:
+			// - When an object's tick function is not bound in a schedule (and when we have non-linear schedules,
+			//   cannot be concurrent)
+			// - When an object's tick function is not concurrently running (if necessary - should be mitigated by the above)
+			
 			// Add root param
 			ParamIdGlobalData.ParamData[RootParamIndex].AdapterIndex = ParamIdGlobalData.ParamAdapters.Num(); 
 			FParamAdapter& NewRootAdapter = ParamIdGlobalData.ParamAdapters.Emplace_GetRef(FParamDefinition(RootParamIndex, RootParamName, AdapterConfig.Class->GetDefaultObject()), MoveTemp(RootFunction));
@@ -235,10 +284,10 @@ void FParamId::RefreshConfigAdapters()
 							FObjectAdapterFunction AdapterFunction = [RootParamIndex, Property, Class = AdapterConfig.Class.Get()](UObject* InContextObject, FParamId InId) -> uint8*
 							{
 								// Grab object container
-								if(const UObject* Object = FParamStack::Get().GetParamPtr<UObject>(FParamId(RootParamIndex)))
+								if(const TObjectPtr<UObject>* Object = FParamStack::Get().GetParamPtr<TObjectPtr<UObject>>(FParamId(RootParamIndex)))
 								{
 									check(Class->IsChildOf(Property->GetOwnerClass()));
-									return const_cast<uint8*>(Property->ContainerPtrToValuePtr<uint8>(Object));
+									return const_cast<uint8*>(Property->ContainerPtrToValuePtr<uint8>(*Object));
 								}
 								return nullptr;
 							};
@@ -263,7 +312,7 @@ void FParamId::RefreshConfigAdapters()
 							(AdapterConfig.FilterType == EAnimNextObjectAdapterFilterType::AllowList && AdapterConfig.FilteredFields.Contains(InName)) ||
 							(AdapterConfig.FilterType == EAnimNextObjectAdapterFilterType::DenyList && !AdapterConfig.FilteredFields.Contains(InName));
 				};
-				
+
 				for(TFieldIterator<UFunction> It(AdapterConfig.Class, EFieldIterationFlags::IncludeSuper | EFieldIterationFlags::IncludeInterfaces); It; ++It)
 				{
 					UFunction* Function = *It;
@@ -284,22 +333,26 @@ void FParamId::RefreshConfigAdapters()
 								bNameParamAdded = true;
 							}
 
-							FObjectAdapterFunction AdapterFunction = [RootParamIndex, WeakFunction = TWeakObjectPtr<UFunction>(Function), Class = AdapterConfig.Class.Get()](UObject* InContextObject, FParamId InId)
+							FObjectAdapterFunction AdapterFunction = [RootParamIndex, WeakFunction = TWeakObjectPtr<UFunction>(Function), Class = AdapterConfig.Class.Get()](UObject* InContextObject, FParamId InId) -> uint8*
 							{
 								// Grab object to call the function with
 								if(UFunction* Function = WeakFunction.Get())
 								{
-									if(UObject* Object = FParamStack::Get().GetMutableParamPtr<UObject>(FParamId(RootParamIndex)))
+									if(const TObjectPtr<UObject>* ObjectPtr = FParamStack::Get().GetParamPtr<TObjectPtr<UObject>>(FParamId(RootParamIndex)))
 									{
-										check(Object->GetClass()->IsChildOf(Class));
-										check(Function->GetOuterUClass()->IsChildOf(Class));
-										const FProperty* ReturnProperty = Function->GetReturnProperty();
-										check(ReturnProperty);
+										if(UObject* Object = *ObjectPtr)
+										{
+											check(Object->GetClass()->IsChildOf(Class));
+											check(Class->IsChildOf(Function->GetOuterUClass()));
+											const FProperty* ReturnProperty = Function->GetReturnProperty();
+											check(ReturnProperty);
 
-										uint8* ReturnValuePtr = GetScratchAreaForParamIdAdapter(InId);
-										ReturnProperty->InitializeValue(ReturnValuePtr);
-										FFrame Stack(Object, Function, nullptr, nullptr, Function->ChildProperties);
-										Function->Invoke(Object, Stack, ReturnValuePtr);
+											uint8* ReturnValuePtr = GetScratchAreaForParamIdAdapter(InId);
+											ReturnProperty->InitializeValue(ReturnValuePtr);
+											FFrame Stack(Object, Function, nullptr, nullptr, Function->ChildProperties);
+											Function->Invoke(Object, Stack, ReturnValuePtr);
+											return ReturnValuePtr;
+										}
 									}
 								}
 								return nullptr;
@@ -341,9 +394,12 @@ void FParamId::RefreshConfigAdapters()
 					ParamType = FAnimNextParamType::GetType<FActorComponentTickFunction>();
 					TickFunctionFunction = [RootParamIndex](UObject* InContextObject, FParamId InId) -> uint8*
 					{
-						if (const UActorComponent* Component = FParamStack::Get().GetParamPtr<UActorComponent>(FParamId(RootParamIndex)))
+						if (const TObjectPtr<UActorComponent>* Component = FParamStack::Get().GetParamPtr<TObjectPtr<UActorComponent>>(FParamId(RootParamIndex)))
 						{
-							return reinterpret_cast<uint8*>(const_cast<FActorComponentTickFunction*>(&Component->PrimaryComponentTick));
+							if(Component->Get())
+							{
+								return reinterpret_cast<uint8*>(&Component->Get()->PrimaryComponentTick);
+							}
 						}
 						return nullptr;
 					};
@@ -353,9 +409,12 @@ void FParamId::RefreshConfigAdapters()
 					ParamType = FAnimNextParamType::GetType<FActorTickFunction>();
 					TickFunctionFunction = [RootParamIndex](UObject* InContextObject, FParamId InId) -> uint8*
 					{
-						if (const AActor* Actor = FParamStack::Get().GetParamPtr<AActor>(FParamId(RootParamIndex)))
+						if (const TObjectPtr<AActor>* Actor = FParamStack::Get().GetParamPtr<TObjectPtr<AActor>>(FParamId(RootParamIndex)))
 						{
-							return reinterpret_cast<uint8*>(const_cast<FActorTickFunction*>(&Actor->PrimaryActorTick));
+							if(Actor->Get())
+							{
+								return reinterpret_cast<uint8*>(&Actor->Get()->PrimaryActorTick);
+							}
 						}
 						return nullptr;
 					};
@@ -387,6 +446,8 @@ void FParamId::RefreshConfigAdapters()
 
 FParamId::FParamId(FName InName)
 {
+	SCOPE_CYCLE_COUNTER(STAT_AnimNext_ParamIdLock);
+
 	FRWScopeLock Lock(GParamIdLock, SLT_Write);
 	ParameterIndex = MakeParamId_NoLock(InName);
 }

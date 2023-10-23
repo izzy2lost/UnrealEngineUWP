@@ -5,6 +5,14 @@
 #include "Misc/ScopeRWLock.h"
 #include "UObject/Class.h"
 #include "UObject/TextProperty.h"
+#include "AnimNextStats.h"
+#include "Component/AnimNextMeshComponent.h"
+#include "GameFramework/CharacterMovementComponent.h"
+#include "Components/SkeletalMeshComponent.h"
+#include "Animation/AnimSequence.h"
+#include "Graph/AnimNext_LODPose.h"
+
+DEFINE_STAT(STAT_AnimNext_ParamTypeHandle_Lock);
 
 namespace UE::AnimNext
 {
@@ -71,24 +79,35 @@ uint32 FParamTypeHandle::GetOrAllocateCustomTypeIndex(FAnimNextParamType::EValue
 
 	const uint32 Hash = GetTypeHash(ParameterType);
 
-	// NOTE: It is tempting to try to acquire a only read lock here during the FindByHash, but doing so means that the
-	// lazy-insert operation is no longer atomic as there is no way to upgrade a read lock into a write lock with
-	// FRWScopeLock (@see FRWScopeLock comments), hence the write lock around the map/array access here.
 	{
-		// See if the type already exists in the map
-		FRWScopeLock ScopeLock(GParamTypeHandleLock, SLT_Write);
-
-		if(const uint32* IndexPtr = GetTypeHandleData().TypeToIndexMap.FindByHash(Hash, ParameterType))
 		{
-			return *IndexPtr + 1;
+			// See if the type already exists in the map
+			FRWScopeLock ScopeLock(GParamTypeHandleLock, SLT_ReadOnly);
+
+			if(const uint32* IndexPtr = GetTypeHandleData().TypeToIndexMap.FindByHash(Hash, ParameterType))
+			{
+				return *IndexPtr + 1;
+			}
 		}
 
-		// Add a new custom type
-		const uint32 Index = GetTypeHandleData().CustomTypes.Add(ParameterType);
-		GetTypeHandleData().TypeToIndexMap.AddByHash(Hash, ParameterType, Index);
+		{
+			SCOPE_CYCLE_COUNTER(STAT_AnimNext_ParamTypeHandle_Lock);
 
-		checkf((Index + 1) < (1 << 24), TEXT("FParamTypeHandle::GetCustomTypeIndex: Type index overflowed"));
-		return Index + 1;
+			FRWScopeLock ScopeLock(GParamTypeHandleLock, SLT_Write);
+
+			// See if the type already exists in the map AGAIN, in case another thread grabbed an index outside of the locks
+			if(const uint32* IndexPtr = GetTypeHandleData().TypeToIndexMap.FindByHash(Hash, ParameterType))
+			{
+				return *IndexPtr + 1;
+			}
+
+			// Add a new custom type
+			const uint32 Index = GetTypeHandleData().CustomTypes.Add(ParameterType);
+			GetTypeHandleData().TypeToIndexMap.AddByHash(Hash, ParameterType, Index);
+
+			checkf((Index + 1) < (1 << 24), TEXT("FParamTypeHandle::GetCustomTypeIndex: Type index overflowed"));
+			return Index + 1;
+		}
 	}
 }
 
@@ -172,6 +191,14 @@ FParamTypeHandle FParamTypeHandle::FromPropertyBagPropertyDesc(const FPropertyBa
 					{
 						Handle.SetParameterType(EParamType::Transform);
 					}
+					else if(ScriptStruct == FAnimNextGraphLODPose::StaticStruct())
+					{
+						Handle.SetParameterType(EParamType::AnimNextGraphLODPose);
+					}
+					else if(ScriptStruct == FAnimNextGraphReferencePose::StaticStruct())
+					{
+						Handle.SetParameterType(EParamType::AnimNextGraphReferencePose);
+					}
 					else
 					{
 						Handle.SetParameterType(EParamType::Custom);
@@ -195,6 +222,30 @@ FParamTypeHandle FParamTypeHandle::FromPropertyBagPropertyDesc(const FPropertyBa
 				}
 				break;
 			case EPropertyBagPropertyType::Object:
+				if(const UClass* Class = Cast<UClass>(Desc.ValueTypeObject.Get()))
+				{
+					if (Class == UObject::StaticClass())
+					{
+						Handle.SetParameterType(EParamType::Object);
+						break;
+					}
+					else if (Class == UCharacterMovementComponent::StaticClass())
+					{
+						Handle.SetParameterType(EParamType::CharacterMovementComponent);
+						break;
+					}
+					else if (Class == UAnimNextMeshComponent::StaticClass())
+					{
+						Handle.SetParameterType(EParamType::AnimNextMeshComponent);
+						break;
+					}
+					else if (Class == UAnimSequence::StaticClass())
+					{
+						Handle.SetParameterType(EParamType::AnimSequence);
+						break;
+					}
+				}
+				// fall through
 			case EPropertyBagPropertyType::SoftObject:
 			case EPropertyBagPropertyType::Class:
 			case EPropertyBagPropertyType::SoftClass:
@@ -317,7 +368,7 @@ FParamTypeHandle FParamTypeHandle::FromProperty(const FProperty* InProperty)
 	}
 	else if (InProperty->IsA<FStructProperty>())
 	{
-		UScriptStruct* ScriptStruct = CastField<FStructProperty>(InProperty)->Struct;
+		const UScriptStruct* ScriptStruct = CastField<FStructProperty>(InProperty)->Struct;
 		if (ScriptStruct == TBaseStructure<FVector>::Get())
 		{
 			Handle.SetParameterType(EParamType::Vector);
@@ -333,6 +384,30 @@ FParamTypeHandle FParamTypeHandle::FromProperty(const FProperty* InProperty)
 		else if (ScriptStruct == TBaseStructure<FTransform>::Get())
 		{
 			Handle.SetParameterType(EParamType::Transform);
+		}
+		else if(ScriptStruct == FAnimNextGraphLODPose::StaticStruct())
+		{
+			Handle.SetParameterType(EParamType::AnimNextGraphLODPose);
+		}
+		else if(ScriptStruct == FAnimNextGraphReferencePose::StaticStruct())
+		{
+			Handle.SetParameterType(EParamType::AnimNextGraphReferencePose);
+		}
+	}
+	else if(InProperty->IsA<FObjectProperty>() || InProperty->IsA<FObjectPtrProperty>())
+	{
+		const UClass* Class = CastField<FObjectPropertyBase>(InProperty)->PropertyClass;
+		if (Class == UObject::StaticClass())
+		{
+			Handle.SetParameterType(EParamType::Object);
+		}
+		else if (Class == UCharacterMovementComponent::StaticClass())
+		{
+			Handle.SetParameterType(EParamType::CharacterMovementComponent);
+		}
+		else if (Class == UAnimNextMeshComponent::StaticClass())
+		{
+			Handle.SetParameterType(EParamType::AnimNextMeshComponent);
 		}
 	}
 
@@ -459,13 +534,56 @@ FParamTypeHandle FParamTypeHandle::FromObject(const UObject* InObject)
 		{
 			Handle.SetCustomTypeIndex(GetOrAllocateCustomTypeIndex(FAnimNextParamType::EValueType::Class, FAnimNextParamType::EContainerType::None, Class));
 		}
-		else if(const UScriptStruct* Struct = Cast<UScriptStruct>(InObject))
+		else if(const UScriptStruct* ScriptStruct = Cast<UScriptStruct>(InObject))
 		{
-			Handle.SetCustomTypeIndex(GetOrAllocateCustomTypeIndex(FAnimNextParamType::EValueType::Struct, FAnimNextParamType::EContainerType::None, Struct));
+			if (ScriptStruct == TBaseStructure<FVector>::Get())
+			{
+				Handle.SetParameterType(EParamType::Vector);
+			}
+			else if (ScriptStruct == TBaseStructure<FVector4>::Get())
+			{
+				Handle.SetParameterType(EParamType::Vector4);
+			}
+			else if (ScriptStruct == TBaseStructure<FQuat>::Get())
+			{
+				Handle.SetParameterType(EParamType::Quat);
+			}
+			else if (ScriptStruct == TBaseStructure<FTransform>::Get())
+			{
+				Handle.SetParameterType(EParamType::Transform);
+			}
+			else if(ScriptStruct == FAnimNextGraphLODPose::StaticStruct())
+			{
+				Handle.SetParameterType(EParamType::AnimNextGraphLODPose);
+			}
+			else if(ScriptStruct == FAnimNextGraphReferencePose::StaticStruct())
+			{
+				Handle.SetParameterType(EParamType::AnimNextGraphReferencePose);
+			}
+			else
+			{
+				Handle.SetCustomTypeIndex(GetOrAllocateCustomTypeIndex(FAnimNextParamType::EValueType::Struct, FAnimNextParamType::EContainerType::None, ScriptStruct));
+			}
 		}
 		else
 		{
-			Handle.SetCustomTypeIndex(GetOrAllocateCustomTypeIndex(FAnimNextParamType::EValueType::Object, FAnimNextParamType::EContainerType::None, InObject->GetClass()));
+			const UClass* ObjectClass = InObject->GetClass();
+			if (ObjectClass == UObject::StaticClass())
+			{
+				Handle.SetParameterType(EParamType::Object);
+			}
+			else if (ObjectClass == UCharacterMovementComponent::StaticClass())
+			{
+				Handle.SetParameterType(EParamType::CharacterMovementComponent);
+			}
+			else if (ObjectClass == UAnimNextMeshComponent::StaticClass())
+			{
+				Handle.SetParameterType(EParamType::AnimNextMeshComponent);
+			}
+			else
+			{
+				Handle.SetCustomTypeIndex(GetOrAllocateCustomTypeIndex(FAnimNextParamType::EValueType::Object, FAnimNextParamType::EContainerType::None, ObjectClass));
+			}
 		}
 	}
 
@@ -537,8 +655,40 @@ FAnimNextParamType FParamTypeHandle::GetType() const
 		ParameterType.ValueType = FAnimNextParamType::EValueType::Struct;
 		ParameterType.ContainerType = FAnimNextParamType::EContainerType::None;
 		break;
+	case EParamType::Object:
+		ParameterType.ValueTypeObject = UObject::StaticClass();
+		ParameterType.ValueType = FAnimNextParamType::EValueType::Object;
+		ParameterType.ContainerType = FAnimNextParamType::EContainerType::None;
+		break;
+	case EParamType::CharacterMovementComponent:
+		ParameterType.ValueTypeObject = UCharacterMovementComponent::StaticClass();
+		ParameterType.ValueType = FAnimNextParamType::EValueType::Object;
+		ParameterType.ContainerType = FAnimNextParamType::EContainerType::None;
+		break;
+	case EParamType::AnimNextMeshComponent:
+		ParameterType.ValueTypeObject = UAnimNextMeshComponent::StaticClass();
+		ParameterType.ValueType = FAnimNextParamType::EValueType::Object;
+		ParameterType.ContainerType = FAnimNextParamType::EContainerType::None;
+		break;
+	case EParamType::AnimSequence:
+		ParameterType.ValueTypeObject = UAnimSequence::StaticClass();
+		ParameterType.ValueType = FAnimNextParamType::EValueType::Object;
+		ParameterType.ContainerType = FAnimNextParamType::EContainerType::None;
+		break;
+	case EParamType::AnimNextGraphLODPose:
+		ParameterType.ValueTypeObject = FAnimNextGraphLODPose::StaticStruct();
+		ParameterType.ValueType = FAnimNextParamType::EValueType::Struct;
+		ParameterType.ContainerType = FAnimNextParamType::EContainerType::None;
+		break;
+	case EParamType::AnimNextGraphReferencePose:
+		ParameterType.ValueTypeObject = FAnimNextGraphReferencePose::StaticStruct();
+		ParameterType.ValueType = FAnimNextParamType::EValueType::Struct;
+		ParameterType.ContainerType = FAnimNextParamType::EContainerType::None;
+		break;
 	case EParamType::Custom:
 		{
+			SCOPE_CYCLE_COUNTER(STAT_AnimNext_ParamTypeHandle_Lock);
+
 			FRWScopeLock ScopeLock(GParamTypeHandleLock, SLT_ReadOnly);
 			ParameterType = GetTypeHandleData().CustomTypes[GetCustomTypeIndex() - 1];
 		}
@@ -582,6 +732,15 @@ size_t FParamTypeHandle::GetSize() const
 		return sizeof(FQuat);
 	case EParamType::Transform:
 		return sizeof(FTransform);
+	case EParamType::Object:
+	case EParamType::CharacterMovementComponent:
+	case EParamType::AnimNextMeshComponent:
+	case EParamType::AnimSequence:
+		return sizeof(UObject*);
+	case EParamType::AnimNextGraphLODPose:
+		return sizeof(FAnimNextGraphLODPose);
+	case EParamType::AnimNextGraphReferencePose:
+		return sizeof(FAnimNextGraphReferencePose);
 	case EParamType::Custom:
 		return GetType().GetSize();
 	}
@@ -627,6 +786,15 @@ size_t FParamTypeHandle::GetAlignment() const
 		return alignof(FQuat);
 	case EParamType::Transform:
 		return alignof(FTransform);
+	case EParamType::Object:
+	case EParamType::CharacterMovementComponent:
+	case EParamType::AnimNextMeshComponent:
+	case EParamType::AnimSequence:
+		return alignof(UObject*);
+	case EParamType::AnimNextGraphLODPose:
+		return alignof(FAnimNextGraphLODPose);
+	case EParamType::AnimNextGraphReferencePose:
+		return alignof(FAnimNextGraphReferencePose);
 	case EParamType::Custom:
 		return GetType().GetAlignment();
 	}

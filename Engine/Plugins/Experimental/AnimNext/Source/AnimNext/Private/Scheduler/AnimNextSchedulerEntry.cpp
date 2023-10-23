@@ -1,92 +1,138 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AnimNextSchedulerEntry.h"
+
 #include "ScheduleInstanceData.h"
 #include "Scheduler/AnimNextSchedule.h"
 #include "Engine/World.h"
+#include "AnimNextStats.h"
 
-FAnimNextSchedulerEntry::FAnimNextSchedulerEntry(const UAnimNextSchedule* InSchedule, UObject* InObject, UE::AnimNext::FScheduleHandle InHandle, const TMap<FName, FAnimNextParameterCollection>& InUserScopes)
+DEFINE_STAT(STAT_AnimNext_InitializeEntry);
+
+FAnimNextSchedulerEntry::FAnimNextSchedulerEntry(const UAnimNextSchedule* InSchedule, UObject* InObject, UE::AnimNext::FScheduleHandle InHandle, const TMap<FName, FAnimNextParameterCollection>& InUserScopes, EAnimNextScheduleInitMethod InInitMethod)
 	: Schedule(InSchedule)
 	, UserScopes(InUserScopes)
-	, Object(InObject)
+	, WeakObject(InObject)
 	, Handle(InHandle)
 	, Context(InSchedule, this)
+	, RunState(ERunState::None)
+	, InitMethod(InInitMethod)
 {
+}
+
+FAnimNextSchedulerEntry::~FAnimNextSchedulerEntry()
+{
+	Invalidate();
+}
+
+void FAnimNextSchedulerEntry::Initialize()
+{
+	SCOPE_CYCLE_COUNTER(STAT_AnimNext_InitializeEntry);
+	
 	using namespace UE::AnimNext;
 
-	check(InObject)
-	check(InSchedule);
-	check(InHandle.IsValid());
+	check(IsInGameThread());
 
-	RootParamStack = MakeShared<FParamStack>();
+	check(WeakObject.IsValid())
+	check(Schedule);
+	check(Handle.IsValid());
 
-	FParamStack::AttachToCurrentThread(RootParamStack);
-	FScheduleContext::AttachToCurrentThread(Context);
+	ResolvedObject = WeakObject.Get();
+	bIsEditor = ResolvedObject && ResolvedObject->GetWorld()->WorldType == EWorldType::Editor;
 
 	// Setup tick function graph
-	if (InSchedule->Instructions.Num() > 0)
+	if (Schedule->Instructions.Num() > 0)
 	{
+		// TODO: split allocation and registration into separate async tasks to reduce GT overheads of spawning
+		// This will require correctly dealing with ReleaseHandle in the schedule as the two could then overlap
+		check(RunState == ERunState::None);
+		RunState = ERunState::CreatingTasks;
+
+		RootParamStack = MakeShared<FParamStack>();
+
+		FParamStack::AttachToCurrentThread(RootParamStack);
+		FScheduleContext::AttachToCurrentThread(Context);
+
+		FParamStack& ParamStack = FParamStack::Get();
+
+		TargetObjects.SetNum(Schedule->Instructions.Num());
+		
 		BeginTickFunction = MakeUnique<FScheduleBeginTickFunction>(*this);
 		EndTickFunction = MakeUnique<FScheduleEndTickFunction>(*this);
 
 		TArray<TUniquePtr<FScheduleTickFunction>*> Prerequisites;
 		int32 InstructionIndex = 0;
-		while (InstructionIndex < InSchedule->Instructions.Num())
+		while (InstructionIndex < Schedule->Instructions.Num())
 		{
-			auto AddTickFunctionAndPrerequisites = [this, &Prerequisites, InObject](TUniquePtr<FScheduleTickFunction>&& InTickFunction)
+			auto AddTickFunctionAndPrerequisites = [this, &Prerequisites](TUniquePtr<FScheduleTickFunction>&& InTickFunction)
 			{
 				// Add a prereq on the previous tick function we added, if any (we only support linear chains right now so this is OK)
 				if (TickFunctions.Num() == 0)
 				{
-					BeginTickFunction->Subsequent = FTickPrerequisite(InObject, *InTickFunction.Get());
-					InTickFunction->AddPrerequisite(InObject, *BeginTickFunction.Get());
+					BeginTickFunction->Subsequent = FTickPrerequisite(ResolvedObject, *InTickFunction.Get());
+					InTickFunction->AddPrerequisite(ResolvedObject, *BeginTickFunction.Get());
 				}
 
 				for (TUniquePtr<FScheduleTickFunction>* Prerequisite : Prerequisites)
 				{
-					Prerequisite->Get()->Subsequents.Emplace(InObject, *InTickFunction.Get());
-					InTickFunction->AddPrerequisite(InObject, *Prerequisite->Get());
+					Prerequisite->Get()->Subsequents.Emplace(ResolvedObject, *InTickFunction.Get());
+					InTickFunction->AddPrerequisite(ResolvedObject, *Prerequisite->Get());
 				}
 				Prerequisites.Reset();
 				TickFunctions.Add(MoveTemp(InTickFunction));
 			};
 
-			const FAnimNextScheduleInstruction& Instruction = InSchedule->Instructions[InstructionIndex++];
+			TWeakObjectPtr<UObject>& TargetObject = TargetObjects[InstructionIndex];
+			const FAnimNextScheduleInstruction& Instruction = Schedule->Instructions[InstructionIndex++];
 			switch (Instruction.Opcode)
 			{
 			case EAnimNextScheduleScheduleOpcode::BeginRunExternalTask:
 				{
-					AddTickFunctionAndPrerequisites(MakeUnique<FScheduleTickFunction>(Context, Instruction));
+					AddTickFunctionAndPrerequisites(MakeUnique<FScheduleTickFunction>(
+						Context,
+						TConstArrayView<FAnimNextScheduleInstruction>(&Instruction, 1),
+						TConstArrayView<TWeakObjectPtr<UObject>>(&TargetObject, 1)));
 
-					const FName TickFunctionName = InSchedule->ExternalTasks[Instruction.Operand].Name;
-					const FName ObjectName = InSchedule->ExternalTasks[Instruction.Operand].ObjectName;
+					const FName TickFunctionName = Schedule->ExternalTasks[Instruction.Operand].TickFunction;
+					const FName ObjectName = Schedule->ExternalTasks[Instruction.Operand].Object;
 					if(TickFunctionName != NAME_None && ObjectName != NAME_None)
 					{
-						FTickFunction* FoundFunction = FParamStack::Get().GetMutableParamPtr<FTickFunction>(TickFunctionName);
-						const UObject* FoundObject = FParamStack::Get().GetParamPtr<UObject>(ObjectName);
-						if(FoundFunction && FoundObject)
+						FTickFunction* FoundFunction = ParamStack.GetMutableParamPtr<FTickFunction>(TickFunctionName);
+						const TObjectPtr<UObject>* FoundObject = ParamStack.GetParamPtr<TObjectPtr<UObject>>(ObjectName);
+						if(FoundFunction && FoundObject && FoundObject->Get())
 						{
-							FoundFunction->AddPrerequisite(InObject, *TickFunctions.Last().Get());
-							TickFunctions.Last()->TargetObject = const_cast<UObject*>(FoundObject);
-							TickFunctions.Last()->Subsequents.Emplace(const_cast<UObject*>(FoundObject), *FoundFunction);
+							FoundFunction->AddPrerequisite(ResolvedObject, *TickFunctions.Last().Get());
+							TargetObject = FoundObject->Get();
+							TickFunctions.Last()->Subsequents.Emplace(FoundObject->Get(), *FoundFunction);
 						}
+						else
+						{
+							UE_LOG(LogAnimation, Warning, TEXT("AnimNext: Could not bind to external tick function using binding parameters (TickFunctionName=%s, ObjectName=%s)"), *TickFunctionName.ToString(), *ObjectName.ToString());
+						}
+					}
+					else
+					{
+						UE_LOG(LogAnimation, Warning, TEXT("AnimNext: Invalid external tick function binding parameters (TickFunctionName=%s, ObjectName=%s)"), *TickFunctionName.ToString(), *ObjectName.ToString());
 					}
 					break;
 				}
 			case EAnimNextScheduleScheduleOpcode::EndRunExternalTask:
 				{
-					AddTickFunctionAndPrerequisites(MakeUnique<FScheduleTickFunction>(Context, Instruction));
+					AddTickFunctionAndPrerequisites(MakeUnique<FScheduleTickFunction>(
+						Context,
+						TConstArrayView<FAnimNextScheduleInstruction>(&Instruction, 1),
+						TConstArrayView<TWeakObjectPtr<UObject>>(&TargetObject, 1)));
 
-					const FName TickFunctionName = InSchedule->ExternalTasks[Instruction.Operand].Name;
-					const FName ObjectName = InSchedule->ExternalTasks[Instruction.Operand].ObjectName;
+					const FName TickFunctionName = Schedule->ExternalTasks[Instruction.Operand].TickFunction;
+					const FName ObjectName = Schedule->ExternalTasks[Instruction.Operand].Object;
 					if(TickFunctionName != NAME_None && ObjectName != NAME_None)
 					{
-						FTickFunction* FoundFunction = FParamStack::Get().GetMutableParamPtr<FTickFunction>(TickFunctionName);
-						const UObject* FoundObject = FParamStack::Get().GetParamPtr<UObject>(ObjectName);
-						if(FoundFunction && FoundObject)
+						FTickFunction* FoundFunction = ParamStack.GetMutableParamPtr<FTickFunction>(TickFunctionName);
+						const TObjectPtr<UObject>* FoundObject = ParamStack.GetParamPtr<TObjectPtr<UObject>>(ObjectName);
+						if(FoundFunction && FoundObject && FoundObject->Get())
 						{
-							TickFunctions.Last()->TargetObject = const_cast<UObject*>(FoundObject);
-							TickFunctions.Last()->AddPrerequisite(const_cast<UObject*>(FoundObject), *FoundFunction);
+							TargetObject = FoundObject->Get();
+							TickFunctions.Last()->AddPrerequisite(FoundObject->Get(), *FoundFunction);
 						}
 					}
 					break;
@@ -95,7 +141,10 @@ FAnimNextSchedulerEntry::FAnimNextSchedulerEntry(const UAnimNextSchedule* InSche
 			case EAnimNextScheduleScheduleOpcode::RunPort:
 			case EAnimNextScheduleScheduleOpcode::RunParamScopeEntry:
 			case EAnimNextScheduleScheduleOpcode::RunParamScopeExit:
-				AddTickFunctionAndPrerequisites(MakeUnique<FScheduleTickFunction>(Context, Instruction));
+				AddTickFunctionAndPrerequisites(MakeUnique<FScheduleTickFunction>(
+					Context,
+					TConstArrayView<FAnimNextScheduleInstruction>(&Instruction, 1),
+					TConstArrayView<TWeakObjectPtr<UObject>>(&TargetObject, 1)));
 				break;
 			case EAnimNextScheduleScheduleOpcode::PrerequisiteTask:
 			case EAnimNextScheduleScheduleOpcode::PrerequisiteBeginExternalTask:
@@ -107,8 +156,8 @@ FAnimNextSchedulerEntry::FAnimNextSchedulerEntry(const UAnimNextSchedule* InSche
 				break;
 			case EAnimNextScheduleScheduleOpcode::Exit:
 				check(Prerequisites.Num() == 0);
-				EndTickFunction->AddPrerequisite(InObject, *TickFunctions.Last().Get());
-				TickFunctions.Last()->Subsequents.Emplace(InObject, *EndTickFunction.Get());
+				EndTickFunction->AddPrerequisite(ResolvedObject, *TickFunctions.Last().Get());
+				TickFunctions.Last()->Subsequents.Emplace(ResolvedObject, *EndTickFunction.Get());
 				break;
 			default:
 				check(false);
@@ -116,39 +165,62 @@ FAnimNextSchedulerEntry::FAnimNextSchedulerEntry(const UAnimNextSchedule* InSche
 			}
 		}
 
+		FScheduleContext::DetachFromCurrentThread();
+		FParamStack::DetachFromCurrentThread();
+
+		check(RunState == ERunState::CreatingTasks);
+		RunState = ERunState::BindingTasks;
+
 		// Register our tick functions
-		ULevel* Level = InObject->GetWorld()->PersistentLevel;
+		UWorld* World = ResolvedObject->GetWorld();
+		ULevel* Level = World->PersistentLevel;
 		BeginTickFunction->RegisterTickFunction(Level);
 		EndTickFunction->RegisterTickFunction(Level);
 		for (TUniquePtr<FScheduleTickFunction>& TickFunction : TickFunctions)
 		{
 			TickFunction->RegisterTickFunction(Level);
 		}
+
+		RunState = ERunState::RunningInitialUpdate;
+
+		// Just pause now if we arent needing an initial update
+		if(InitMethod == EAnimNextScheduleInitMethod::None)
+		{
+			Enable(false);
+		}
+		else
+		{
+			// In editor preview worlds (ideally just thumbnail scenes) we run a linearized 'initial tick' to ensure we
+			// generate an output pose, as these worlds never tick
+			if(World->WorldType == EWorldType::EditorPreview)
+			{
+				LazyAllocateInstanceData();
+				FScheduleContext::AttachToCurrentThread(Context);
+				FScheduleTickFunction::RunSchedule(Schedule->Instructions);
+				FScheduleContext::DetachFromCurrentThread();
+			}
+		}
 	}
 
-	FScheduleContext::DetachFromCurrentThread();
-	FParamStack::DetachFromCurrentThread();
-}
-
-FAnimNextSchedulerEntry::~FAnimNextSchedulerEntry()
-{
-	Invalidate();
+	ResolvedObject = nullptr;
 }
 
 void FAnimNextSchedulerEntry::Invalidate()
 {
 	using namespace UE::AnimNext;
 
+	check(IsInGameThread());
+
 	if(BeginTickFunction)
 	{
-		BeginTickFunction->Subsequent.PrerequisiteTickFunction->RemovePrerequisite(Object.Get(), *BeginTickFunction.Get());
+		BeginTickFunction->Subsequent.PrerequisiteTickFunction->RemovePrerequisite(WeakObject.Get(), *BeginTickFunction.Get());
 	}
 	
 	for (TUniquePtr<FScheduleTickFunction>& TickFunction : TickFunctions)
 	{
 		for (FTickPrerequisite& Subsequent : TickFunction->Subsequents)
 		{
-			Subsequent.PrerequisiteTickFunction->RemovePrerequisite(Object.Get(), *TickFunction.Get());
+			Subsequent.PrerequisiteTickFunction->RemovePrerequisite(WeakObject.Get(), *TickFunction.Get());
 		}
 		TickFunction->UnRegisterTickFunction();
 	}
@@ -167,20 +239,50 @@ void FAnimNextSchedulerEntry::Invalidate()
 	TickFunctions.Reset();
 
 	Schedule = nullptr;
-	Object = nullptr;
+	WeakObject = nullptr;
+	TargetObjects.Reset();
 	UserScopes.Empty();
 	Handle.Invalidate();
 	Context.InstanceData.Reset();
 }
 
+void FAnimNextSchedulerEntry::ClearTickFunctionPauseFlags()
+{
+	using namespace UE::AnimNext;
+
+	check(IsInGameThread());
+	
+	BeginTickFunction->bTickEvenWhenPaused = false;
+	for (TUniquePtr<FScheduleTickFunction>& TickFunction : TickFunctions)
+	{
+		TickFunction->bTickEvenWhenPaused = false;
+	}
+	EndTickFunction->bTickEvenWhenPaused = false;
+}
+
 void FAnimNextSchedulerEntry::Enable(bool bInEnabled)
 {
 	using namespace UE::AnimNext;
-	
+
+	check(IsInGameThread());
+
 	BeginTickFunction->SetTickFunctionEnable(bInEnabled);
 	for (TUniquePtr<FScheduleTickFunction>& TickFunction : TickFunctions)
 	{
 		TickFunction->SetTickFunctionEnable(bInEnabled);
 	}
 	EndTickFunction->SetTickFunctionEnable(bInEnabled);
+
+	RunState = bInEnabled ? ERunState::Running : ERunState::Paused;
+}
+
+void FAnimNextSchedulerEntry::LazyAllocateInstanceData()
+{
+	using namespace UE::AnimNext;
+
+	// Allocate instance data if required
+	if (!Context.InstanceData.IsValid())
+	{
+		Context.InstanceData = MakeUnique<FScheduleInstanceData>(Context, Schedule, Handle, this, MoveTemp(UserScopes));
+	}
 }

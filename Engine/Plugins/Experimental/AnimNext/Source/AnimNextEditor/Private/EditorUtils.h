@@ -36,8 +36,6 @@ struct FUtils
 
 	static void GetFilteredVariableTypeTree(TArray<TSharedPtr<UEdGraphSchema_K2::FPinTypeTreeInfo>>& TypeTree, ETypeTreeFilter TypeTreeFilter);
 
-	static bool GetExportedParametersForLibrary(const FAssetData& InLibraryAsset, FAnimNextParameterLibraryAssetRegistryExports& OutExports);
-
 	static FName GetNewParameterNameInLibrary(const FAssetData& InLibraryAsset, const TCHAR* InBaseName, TArrayView<FName> InAdditionalExistingNames);
 
 	static bool DoesParameterExistInLibrary(const FAssetData& InLibraryAsset, const FName InParameterName);
@@ -46,10 +44,6 @@ struct FUtils
 
 	static bool GetExportedBindingsForBlock(const FAssetData& InBlockAsset, FAnimNextParameterBlockAssetRegistryExports& OutExports);
 
-	// Attempts to determine the type from a parameter name
-	// If the name cannot be found, the returned type will be invalid
-	// Note that this is expensive and can query the asset registry
-	static FAnimNextParamType GetParameterTypeFromName(FName InName);
 
 	static bool GetExportedAssetsForWorkspace(const FAssetData& InWorkspaceAsset, FAnimNextWorkspaceAssetRegistryExports& OutExports);
 };

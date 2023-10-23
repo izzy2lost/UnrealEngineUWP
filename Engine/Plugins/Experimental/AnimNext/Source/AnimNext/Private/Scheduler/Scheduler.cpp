@@ -19,25 +19,6 @@ namespace UE::AnimNext
 
 struct FSchedulerImpl
 {
-	void RegisterBuiltInPortDefinitions()
-	{
-/*		RegisteredPortDefinitions.Add(
-			Ports::SkeletalMeshComponentPose.Name,
-			FSchedulePortDefinition(
-				Ports::SkeletalMeshComponentPose.Name,
-				FParamTypeHandle::GetHandle<TArray<FAnimNextLODPose>>(),
-				FParamTypeHandle::GetHandle<TArray<FTransform>>(),
-				[](const FSchedulePortAdapterContext& InContext)
-				{
-					check(InContext.InputType == FParamTypeHandle::GetHandle<FAnimNextLODPose>());
-					check(InContext.OutputType == FParamTypeHandle::GetHandle<TArray<FTransform>>());
-
-					USkeletalMeshComponent* OutputObject = CastChecked<USkeletalMeshComponent>(InContext.OutputObject);
-				
-					// TODO: Perform pose transpose
-				}));*/
-	}
-
 	FDelegateHandle OnWorldPreActorTickHandle;
 
 	TMap<FName, FSchedulePortDefinition> RegisteredPortDefinitions;
@@ -49,8 +30,6 @@ static FSchedulerImpl Impl;
 
 void FScheduler::Init()
 {
-	Impl.RegisterBuiltInPortDefinitions();
-
 	// Kick off root task at the start of each world tick
 	Impl.OnWorldPreActorTickHandle = FWorldDelegates::OnWorldPreActorTick.AddLambda([](UWorld* InWorld, ELevelTick InTickType, float InDeltaSeconds)
 	{
@@ -71,7 +50,7 @@ void FScheduler::Destroy()
 	FWorldDelegates::OnWorldPreActorTick.Remove(Impl.OnWorldPreActorTickHandle);
 }
 
-FScheduleHandle FScheduler::AcquireHandle(UObject* InObject, UAnimNextSchedule* InSchedule, const TMap<FName, FAnimNextParameterCollection>& InUserScopes)
+FScheduleHandle FScheduler::AcquireHandle(UObject* InObject, UAnimNextSchedule* InSchedule, const TMap<FName, FAnimNextParameterCollection>& InUserScopes, EAnimNextScheduleInitMethod InInitMethod)
 {
 	FScheduleHandle Handle;
 
@@ -89,54 +68,85 @@ FScheduleHandle FScheduler::AcquireHandle(UObject* InObject, UAnimNextSchedule* 
 	}
 
 	UWorld* World = InObject->GetWorld();
+	if(World == nullptr)
+	{
+		return FScheduleHandle();
+	}
+
 	UAnimNextSchedulerWorldSubsystem* Subsystem = World->GetSubsystem<UAnimNextSchedulerWorldSubsystem>();
-	return Subsystem->AcquireHandle(InObject, InSchedule, InUserScopes);
+	if(Subsystem == nullptr)
+	{
+		return FScheduleHandle();
+	}
+
+	return Subsystem->AcquireHandle(InObject, InSchedule, InUserScopes, InInitMethod);
 }
 
 void FScheduler::ReleaseHandle(UObject* InObject, FScheduleHandle& InHandle)
 {
-	if(InHandle.IsValid())
+	if(!InHandle.IsValid())
 	{
-		UWorld* World = InObject->GetWorld();
-		UAnimNextSchedulerWorldSubsystem* Subsystem = World->GetSubsystem<UAnimNextSchedulerWorldSubsystem>();
-		Subsystem->ReleaseHandle(InHandle);
-		InHandle.Invalidate();
+		return;
 	}
+	
+	UWorld* World = InObject->GetWorld();
+	if(World == nullptr)
+	{
+		return;
+	}
+
+	UAnimNextSchedulerWorldSubsystem* Subsystem = World->GetSubsystem<UAnimNextSchedulerWorldSubsystem>();
+	if(Subsystem == nullptr)
+	{
+		return;
+	}
+
+	Subsystem->ReleaseHandle(InHandle);
+	InHandle.Invalidate();
 }
 
 void FScheduler::EnableHandle(UObject* InObject, FScheduleHandle InHandle, bool bInEnabled)
 {
-	if (InHandle.IsValid())
+	if(!InHandle.IsValid())
 	{
-		UWorld* World = InObject->GetWorld();
-		UAnimNextSchedulerWorldSubsystem* Subsystem = World->GetSubsystem<UAnimNextSchedulerWorldSubsystem>();
-		Subsystem->EnableHandle(InHandle, bInEnabled);
+		return;
 	}
+	
+	UWorld* World = InObject->GetWorld();
+	if(World == nullptr)
+	{
+		return;
+	}
+
+	UAnimNextSchedulerWorldSubsystem* Subsystem = World->GetSubsystem<UAnimNextSchedulerWorldSubsystem>();
+	if(Subsystem == nullptr)
+	{
+		return;
+	}
+
+	Subsystem->EnableHandle(InHandle, bInEnabled);
 }
 
 void FScheduler::QueueTask(UObject* InObject, FScheduleHandle InHandle, FName InScheduleTaskName, TUniqueFunction<void(const FScheduleContext&)>&& InTaskFunction, ETaskRunLocation InLocation)
 {
-	if (InHandle.IsValid())
+	if(!InHandle.IsValid())
 	{
-		UWorld* World = InObject->GetWorld();
-		UAnimNextSchedulerWorldSubsystem* Subsystem = World->GetSubsystem<UAnimNextSchedulerWorldSubsystem>();
-		Subsystem->QueueTask(InHandle, InScheduleTaskName, MoveTemp(InTaskFunction), InLocation);
+		return;
 	}
-}
+	
+	UWorld* World = InObject->GetWorld();
+	if(World == nullptr)
+	{
+		return;
+	}
 
-void FScheduler::RegisterPortDefinition(FSchedulePortDefinition&& InPortDefinition)
-{
-	Impl.RegisteredPortDefinitions.Add(InPortDefinition.Name, MoveTemp(InPortDefinition));
-}
+	UAnimNextSchedulerWorldSubsystem* Subsystem = World->GetSubsystem<UAnimNextSchedulerWorldSubsystem>();
+	if(Subsystem == nullptr)
+	{
+		return;
+	}
 
-void FScheduler::UnregisterPortDefinition(FName InDefinitionName)
-{
-	Impl.RegisteredPortDefinitions.Remove(InDefinitionName);
-}
-
-const FSchedulePortDefinition* FScheduler::FindPortDefinition(FName InDefinitionName)
-{
-	return Impl.RegisteredPortDefinitions.Find(InDefinitionName);
+	Subsystem->QueueTask(InHandle, InScheduleTaskName, MoveTemp(InTaskFunction), InLocation);
 }
 
 }

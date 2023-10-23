@@ -29,12 +29,12 @@ namespace UE::AnimNext
 	void FSequencePlayerDecorator::PreEvaluate(FExecutionContext& Context, const TDecoratorBinding<IEvaluate>& Binding) const
 	{
 		const FSharedData* SharedData = Binding.GetSharedData<FSharedData>();
-		const FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
 
+		const FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
 		const bool bInterpolate = true;
 
 		FAnimNextAnimSequenceKeyframeTask Task = FAnimNextAnimSequenceKeyframeTask::MakeFromSampleTime(SharedData->AnimSequence, InstanceData->InternalTimeAccumulator, bInterpolate);
-		Task.bExtractTrajectory = false;	/*Output.AnimInstanceProxy->ShouldExtractRootMotion()*/
+		Task.bExtractTrajectory = true;	/*Output.AnimInstanceProxy->ShouldExtractRootMotion()*/
 
 		FEvaluateTraversalContext& TraversalContext = Context.GetTraversalContext<FEvaluateTraversalContext>();
 		TraversalContext.AppendTask(Task);
@@ -49,10 +49,9 @@ namespace UE::AnimNext
 	void FSequencePlayerDecorator::PreUpdate(FExecutionContext& Context, const TDecoratorBinding<IUpdate>& Binding) const
 	{
 		const FSharedData* SharedData = Binding.GetSharedData<FSharedData>();
-		FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
-
 		if (SharedData->AnimSequence != nullptr)
 		{
+			FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
 			const FUpdateTraversalContext& TraversalContext = Context.GetTraversalContext<FUpdateTraversalContext>();
 
 			TDecoratorBinding<ITimeline> TimelineDecorator;

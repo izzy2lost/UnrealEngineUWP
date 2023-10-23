@@ -8,6 +8,7 @@
 #include "Param/ParamTypeHandle.h"
 #include "RigVMCore/RigVMTemplate.h"
 
+struct FAnimNextParameterLibraryAssetRegistryExports;
 class UAnimNextGraph;
 class UAnimNextGraph_EditorData;
 class UAnimNextGraph_EdGraph;
@@ -111,6 +112,13 @@ struct ANIMNEXTUNCOOKEDONLY_API FUtils
 			OutNodes.Append(GraphNodes);
 		}
 	}
+
+	static bool GetExportedParametersForLibrary(const FAssetData& InLibraryAsset, FAnimNextParameterLibraryAssetRegistryExports& OutExports);
+	
+	// Attempts to determine the type from a parameter name
+	// If the name cannot be found, the returned type will be invalid
+	// Note that this is expensive and can query the asset registry
+	static FAnimNextParamType GetParameterTypeFromName(FName InName);
 };
 
 }

@@ -221,7 +221,7 @@ void SRigVMGraphChangePinType::FillPinTypeMenu(FMenuBuilder& MenuBuilder)
 
 			if(bHasAllTypes && Type.CPPTypeObject)
 			{
-				if(Type.CPPTypeObject->IsA<UEnum>() || Type.CPPTypeObject->IsA<UClass>())
+				if(Type.CPPTypeObject->IsA<UEnum>())
 				{
 					continue;
 				}

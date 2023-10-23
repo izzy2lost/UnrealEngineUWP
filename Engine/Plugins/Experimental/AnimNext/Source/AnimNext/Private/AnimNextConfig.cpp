@@ -11,7 +11,7 @@ void UAnimNextConfig::PostEditChangeProperty(FPropertyChangedEvent& PropertyChan
 	
 	if(PropertyChangedEvent.Property->GetFName() == GET_MEMBER_NAME_CHECKED(UAnimNextConfig, ExposedClasses))
 	{
-		FParamId::RefreshConfigAdapters();
+		FParamId::RefreshAdapters();
 	}
 
 	SaveConfig();

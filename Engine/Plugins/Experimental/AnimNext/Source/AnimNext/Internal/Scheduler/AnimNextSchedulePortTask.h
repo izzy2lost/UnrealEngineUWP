@@ -3,15 +3,19 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Param/ParamType.h"
+#include "Templates/SubclassOf.h"
 #include "AnimNextSchedulePortTask.generated.h"
 
 class UAnimNextSchedule;
+class UAnimNextSchedulePort;
 
 namespace UE::AnimNext
 {
 	struct FScheduleContext;
 	struct FScheduleTask;
 	struct FScheduleTickFunction;
+	struct FScheduleInstanceData;
 }
 
 USTRUCT()
@@ -22,6 +26,7 @@ struct FAnimNextSchedulePortTask
 	friend struct UE::AnimNext::FScheduleTask;
 	friend struct UE::AnimNext::FScheduleTickFunction;
 	friend class UAnimNextSchedule;
+	friend struct UE::AnimNext::FScheduleInstanceData;
 
 	FAnimNextSchedulePortTask() = default;
 
@@ -35,11 +40,11 @@ private:
 	UPROPERTY()
 	uint32 ParamScopeIndex = MAX_uint32;
 
-	// The name of the port
+	// The type of the port
 	UPROPERTY()
-	FName Name;
+	TSubclassOf<UAnimNextSchedulePort> Port;
 
-	// The name of the ports input parameter
+	// Index of each term in the schedule intermediates
 	UPROPERTY()
-	FName InputParameterName;
+	TArray<uint32> Terms;
 };

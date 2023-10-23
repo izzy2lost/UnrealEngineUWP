@@ -4,8 +4,10 @@
 
 #include "EvaluationVM/EvaluationTask.h"
 #include "EvaluationVM/EvaluationVM.h"
-
+#include "AnimNextStats.h"
 #include "Misc/StringBuilder.h"
+
+DEFINE_STAT(STAT_AnimNext_EvaluationProgram_Execute);
 
 namespace UE::AnimNext
 {
@@ -16,7 +18,9 @@ namespace UE::AnimNext
 
 	void FEvaluationProgram::Execute(FEvaluationVM& VM) const
 	{
-		if (ensure(VM.IsValid()))
+		SCOPE_CYCLE_COUNTER(STAT_AnimNext_EvaluationProgram_Execute);
+
+		if (VM.IsValid())
 		{
 			for (const TUniquePtr<FAnimNextEvaluationTask>& Task : Tasks)
 			{

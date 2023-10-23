@@ -1,6 +1,9 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "UncookedOnlyUtils.h"
+
+#include "AssetRegistry/AssetRegistryModule.h"
+#include "AssetRegistry/IAssetRegistry.h"
 #include "Graph/AnimNextGraph.h"
 #include "Graph/AnimNextGraph_Controller.h"
 #include "Graph/AnimNextGraph_EditorData.h"
@@ -29,6 +32,8 @@
 #include "DecoratorBase/DecoratorRegistry.h"
 #include "DecoratorBase/Decorator.h"
 #include "Graph/RigUnit_AnimNextBeginExecution.h"
+#include "Param/AnimNextParameterLibrary.h"
+#include "Param/Params.h"
 #include "Serialization/MemoryReader.h"
 #include "RigVMRuntimeDataRegistry.h"
 
@@ -1084,6 +1089,43 @@ FText FUtils::GetParameterDisplayNameText(FName InParameterName)
 	return FText::FromString(NameAsString);
 }
 
+bool FUtils::GetExportedParametersForLibrary(const FAssetData& InLibraryAsset, FAnimNextParameterLibraryAssetRegistryExports& OutExports)
+{
+	const FString TagValue = InLibraryAsset.GetTagValueRef<FString>(UAnimNextParameterLibrary::ExportsAssetRegistryTag);
+	return FAnimNextParameterLibraryAssetRegistryExports::StaticStruct()->ImportText(*TagValue, &OutExports, nullptr, PPF_None, nullptr, FAnimNextParameterLibraryAssetRegistryExports::StaticStruct()->GetName()) != nullptr;
+}
 
+FAnimNextParamType FUtils::GetParameterTypeFromName(FName InName)
+{
+	// Check built-in params first as they are cheaper
+	if(const FParamDefinition* FoundDefinition = FParams::FindBuiltInParameter(InName))
+	{
+		return FoundDefinition->Type;
+	}
+
+	// Query the asset registry for other params
+	IAssetRegistry& AssetRegistry = FModuleManager::Get().LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry")).Get();
+
+	FARFilter ARFilter;
+	ARFilter.ClassPaths = { UAnimNextParameterLibrary::StaticClass()->GetClassPathName() };
+
+	TArray<FAssetData> LibraryAssets;
+	AssetRegistry.GetAssets(ARFilter, LibraryAssets);
+
+	for(const FAssetData& LibraryAsset : LibraryAssets)
+	{
+		FAnimNextParameterLibraryAssetRegistryExports Exports;
+		GetExportedParametersForLibrary(LibraryAsset, Exports);
+		for(const FAnimNextParameterLibraryAssetRegistryExportEntry& Export : Exports.Parameters)
+		{
+			if(Export.Name == InName)
+			{
+				return Export.Type;
+			}
+		}
+	}
+
+	return FAnimNextParamType();
+}
 
 }

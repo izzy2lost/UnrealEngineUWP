@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "LODPose.h"
 #include "ScheduleHandle.h"
 #include "Param/AnimNextParameterCollection.h"
 #include "Graph/AnimNextGraph.h"
@@ -29,6 +30,9 @@ struct FScheduleInstanceData : public FGCObject
 	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
 	virtual FString GetReferencerName() const override;
 
+	// Get the appropriate params stack given the ID
+	TSharedPtr<FParamStack> GetParamStack(uint32 InIndex) const;
+	
 	// Handle to the currently executing entry in the schedule
 	FScheduleHandle Handle;
 
@@ -62,6 +66,21 @@ struct FScheduleInstanceData : public FGCObject
 
 	// Graph instance data for each graph task
 	TArray<FAnimNextGraphInstance> GraphInstanceData;
+
+	// Layer handles for translating schedule terms to graph inputs
+	TArray<FParamStackLayerHandle> GraphInputLayers;
+
+	// Intermediate data area
+	FInstancedPropertyBag IntermediatesData;
+
+	// Layer for intermediates data
+	FParamStackLayerHandle IntermediatesLayer;
+
+	// Remapped data layers for each graph
+	TArray<FParamStackLayerHandle> GraphTermLayers;
+
+	// Remapped data layers for each port
+	TArray<FParamStackLayerHandle> PortTermLayers;
 };
 
 }

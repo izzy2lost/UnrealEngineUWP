@@ -8,7 +8,8 @@
 #include "DecoratorBase/DecoratorHandle.h"
 #include "DecoratorBase/EntryPointHandle.h"
 #include "Graph/RigUnit_AnimNextGraphEvaluator.h"
-
+#include "Param/ParamId.h"
+#include "Scheduler/IAnimNextScheduleTermInterface.h"
 #include "AnimNextGraph.generated.h"
 
 class UEdGraph;
@@ -76,7 +77,7 @@ private:
 
 // A user-created graph of logic used to supply data
 UCLASS(BlueprintType)
-class ANIMNEXT_API UAnimNextGraph : public UObject
+class ANIMNEXT_API UAnimNextGraph : public UObject, public IAnimNextScheduleTermInterface
 {
 	GENERATED_BODY()
 
@@ -87,12 +88,24 @@ public:
 	virtual void GetPreloadDependencies(TArray<UObject*>& OutDeps) override;
 	virtual void Serialize(FArchive& Ar) override;
 
+	// IAnimNextScheduleTermInterface interface
+	virtual TConstArrayView<UE::AnimNext::FScheduleTerm> GetTerms() const override;
+
 	// Allocates an instance of the graph, retain the handle and use it with the Run() function to evaluate it
 	void AllocateInstance(FAnimNextGraphInstance& Instance) const;
 
 	// Run the specified simulation steps on the provided graph with the given context
 	void Run(const UE::AnimNext::FContext& Context, FAnimNextGraphInstance& GraphInstance, EAnimNextGraphSimulationSteps SimulationSteps) const;
 
+	// Get the parameter to use to access the reference pose
+	UE::AnimNext::FParamId GetReferencePoseParam() const { return ReferencePoseId; }
+
+	// Get the parameter to use to access the current LOD
+	UE::AnimNext::FParamId GetCurrentLODParam() const { return CurrentLODId; }
+
+	// Get the parameter to use to access the delta time
+	UE::AnimNext::FParamId GetDeltaTimeParam() const { return DeltaTimeId; }
+	
 protected:
 	// Support rig VM execution
 	TArray<FRigVMExternalVariable> GetRigVMExternalVariables();
@@ -141,6 +154,22 @@ protected:
 
 	UPROPERTY()
 	FRigVMRuntimeSettings VMRuntimeSettings;
+
+	// The parameter to use to access the reference pose
+	UPROPERTY(EditAnywhere, Category = "Graph", meta=(CustomWidget = "ParamName", AllowedParamType = "FAnimNextGraphReferencePose"))
+	FName ReferencePose = TEXT("UE_AnimNextMeshComponent_ReferencePose");
+
+	// The parameter to use to access the current LOD
+	UPROPERTY(EditAnywhere, Category = "Graph", meta=(CustomWidget = "ParamName", AllowedParamType = "int32"))
+	FName CurrentLOD = TEXT("UE_AnimNextMeshComponent_PredictedLODLevel");
+
+	// The parameter to use to access the current delta time
+	UPROPERTY(EditAnywhere, Category = "Graph", meta=(CustomWidget = "ParamName", AllowedParamType = "float"))
+	FName DeltaTime = TEXT("UE_AnimNextSchedulerWorldSubsystem_DeltaTime");
+
+	UE::AnimNext::FParamId ReferencePoseId = UE::AnimNext::FParamId(ReferencePose);
+	UE::AnimNext::FParamId CurrentLODId = UE::AnimNext::FParamId(CurrentLOD);
+	UE::AnimNext::FParamId DeltaTimeId = UE::AnimNext::FParamId(DeltaTime);
 
 #if WITH_EDITORONLY_DATA
 	UPROPERTY(VisibleAnywhere, Instanced, Category = "Graph", meta = (ShowInnerProperties))

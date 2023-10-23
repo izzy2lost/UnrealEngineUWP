@@ -1,0 +1,19 @@
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
+
+#pragma once
+
+#include "Scheduler/AnimNextSchedulePort.h"
+#include "AnimNextSchedulePort_AnimNextMeshComponentPose.generated.h"
+
+UCLASS(DisplayName = "AnimNext Mesh Component Pose")
+class UAnimNextSchedulePort_AnimNextMeshComponentPose : public UAnimNextSchedulePort
+{
+	GENERATED_BODY()
+
+	// UAnimNextSchedulePort interface
+	virtual void Run(const UE::AnimNext::FScheduleTermContext& InContext) const override;
+	virtual TConstArrayView<UE::AnimNext::FScheduleTerm> GetTerms() const override;
+
+	// ID of our input
+	static const UE::AnimNext::FParamId InputId;
+};
