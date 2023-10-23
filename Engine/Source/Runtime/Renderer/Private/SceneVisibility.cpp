@@ -1159,7 +1159,7 @@ void FRelevancePacket::Finalize()
 	NaniteCustomDepthInstances.AppendTo(WriteView.NaniteCustomDepthInstances);
 	WriteView.bUsesCustomDepth |= bUsesCustomDepth;
 	WriteView.bUsesCustomStencil |= bUsesCustomStencil;
-	WriteView.SubstrateViewData.MaxClosurePerPixel = FMath::Max(WriteView.SubstrateViewData.MaxClosurePerPixel, 8u - FMath::CountLeadingZeros8(SubstrateClosureCountMask));
+	WriteView.SubstrateViewData.MaxClosureCount = FMath::Max(WriteView.SubstrateViewData.MaxClosureCount, 8u - FMath::CountLeadingZeros8(SubstrateClosureCountMask));
 	WriteView.SubstrateViewData.MaxBytesPerPixel = FMath::Max(WriteView.SubstrateViewData.MaxBytesPerPixel, SubstrateUintPerPixel * 4u);
 	WriteView.SubstrateViewData.bUsesComplexSpecialRenderPath |= bUsesComplexSpecialRenderPath;
 	DirtyIndirectLightingCacheBufferPrimitives.AppendTo(WriteView.DirtyIndirectLightingCacheBufferPrimitives);
@@ -1286,7 +1286,8 @@ void FRelevancePacket::ComputeRelevance(FDynamicPrimitiveIndexList& DynamicPrimi
 	{
 		FPrimitiveSceneInfo* PrimitiveSceneInfo = Scene.Primitives[BitIndex];
 		FPrimitiveViewRelevance& ViewRelevance = const_cast<FPrimitiveViewRelevance&>(View.PrimitiveViewRelevanceMap[BitIndex]);
-		ViewRelevance = PrimitiveSceneInfo->Proxy->GetViewRelevance(&View);
+		const FPrimitiveSceneProxy* PrimitiveSceneProxy = PrimitiveSceneInfo->Proxy;
+		ViewRelevance = PrimitiveSceneProxy->GetViewRelevance(&View);
 		ViewRelevance.bInitializedThisFrame = true;
 
 		const bool bStaticRelevance = ViewRelevance.bStaticRelevance;
@@ -1299,7 +1300,7 @@ void FRelevancePacket::ComputeRelevance(FDynamicPrimitiveIndexList& DynamicPrimi
 		const bool bTranslucentRelevance = ViewRelevance.HasTranslucency();
 		const bool bHairStrandsRelevance = bHairStrandsEnabled && ViewRelevance.bHairStrands;
 
-		if (View.bIsReflectionCapture && !PrimitiveSceneInfo->Proxy->IsVisibleInReflectionCaptures())
+		if (View.bIsReflectionCapture && !PrimitiveSceneProxy->IsVisibleInReflectionCaptures())
 		{
 			NotDrawRelevant.AddPrim(BitIndex);
 			continue;
@@ -1311,7 +1312,7 @@ void FRelevancePacket::ComputeRelevance(FDynamicPrimitiveIndexList& DynamicPrimi
 			const FPrimitiveBounds& Bounds = Scene.PrimitiveBounds[PrimitiveIndex];
 			const bool bIsPrimitiveDistanceCullFading = View.PrimitiveFadeUniformBufferMap[PrimitiveIndex];
 
-			const int8 CurFirstLODIdx = PrimitiveSceneInfo->Proxy->GetCurrentFirstLODIdx_RenderThread();
+			const int8 CurFirstLODIdx = PrimitiveSceneProxy->GetCurrentFirstLODIdx_RenderThread();
 			check(CurFirstLODIdx >= 0);
 			float MeshScreenSizeSquared = 0;
 			FLODMask LODToRender = ComputeLODForMeshes(PrimitiveSceneInfo->StaticMeshRelevances, View, Bounds.BoxSphereBounds.Origin, Bounds.BoxSphereBounds.SphereRadius, PrimitiveSceneInfo->GpuLodInstanceRadius, ViewData.ForcedLODLevel, MeshScreenSizeSquared, CurFirstLODIdx, ViewData.LODScale);
@@ -1412,8 +1413,6 @@ void FRelevancePacket::ComputeRelevance(FDynamicPrimitiveIndexList& DynamicPrimi
 							{
 								if (ViewRelevance.HasVelocity())
 								{
-									const FPrimitiveSceneProxy* PrimitiveSceneProxy = PrimitiveSceneInfo->Proxy;
-
 									if (FVelocityMeshProcessor::PrimitiveHasVelocityForView(View, PrimitiveSceneProxy))
 									{
 										if (ViewRelevance.bVelocityRelevance &&
@@ -1603,19 +1602,19 @@ void FRelevancePacket::ComputeRelevance(FDynamicPrimitiveIndexList& DynamicPrimi
 
 						if (ViewRelevance.bHasVolumeMaterialDomain)
 						{
-							if (ShouldRenderMeshBatchWithHeterogeneousVolumes(&StaticMesh, PrimitiveSceneInfo->Proxy, View.FeatureLevel))
+							if (ShouldRenderMeshBatchWithHeterogeneousVolumes(&StaticMesh, PrimitiveSceneProxy, View.FeatureLevel))
 							{
 								HeterogeneousVolumesMeshBatches.AddUninitialized(1);
 								FVolumetricMeshBatch& BatchAndProxy = HeterogeneousVolumesMeshBatches.Last();
 								BatchAndProxy.Mesh = &StaticMesh;
-								BatchAndProxy.Proxy = PrimitiveSceneInfo->Proxy;
+								BatchAndProxy.Proxy = PrimitiveSceneProxy;
 							}
 							else
 							{
 								VolumetricMeshBatches.AddUninitialized(1);
 								FVolumetricMeshBatch& BatchAndProxy = VolumetricMeshBatches.Last();
 								BatchAndProxy.Mesh = &StaticMesh;
-								BatchAndProxy.Proxy = PrimitiveSceneInfo->Proxy;
+								BatchAndProxy.Proxy = PrimitiveSceneProxy;
 							}
 						}
 
@@ -1624,17 +1623,17 @@ void FRelevancePacket::ComputeRelevance(FDynamicPrimitiveIndexList& DynamicPrimi
 							SkyMeshBatches.AddUninitialized(1);
 							FSkyMeshBatch& BatchAndProxy = SkyMeshBatches.Last();
 							BatchAndProxy.Mesh = &StaticMesh;
-							BatchAndProxy.Proxy = PrimitiveSceneInfo->Proxy;
+							BatchAndProxy.Proxy = PrimitiveSceneProxy;
 							BatchAndProxy.bVisibleInMainPass = ViewRelevance.bRenderInMainPass;
 							BatchAndProxy.bVisibleInRealTimeSkyCapture = PrimitiveSceneInfo->bVisibleInRealTimeSkyCapture;
 						}
 
-						if (ViewRelevance.HasTranslucency() && PrimitiveSceneInfo->Proxy->SupportsSortedTriangles()) // Need to check material as well
+						if (ViewRelevance.HasTranslucency() && PrimitiveSceneProxy->SupportsSortedTriangles()) // Need to check material as well
 						{
 							SortedTrianglesMeshBatches.AddUninitialized(1);
 							FSortedTrianglesMeshBatch& BatchAndProxy = SortedTrianglesMeshBatches.Last();
 							BatchAndProxy.Mesh = &StaticMesh;
-							BatchAndProxy.Proxy = PrimitiveSceneInfo->Proxy;
+							BatchAndProxy.Proxy = PrimitiveSceneProxy;
 						}
 
 						// FIXME: Now if a primitive has one batch with a decal material all primitive mesh batches will be added as decals
@@ -1644,8 +1643,8 @@ void FRelevancePacket::ComputeRelevance(FDynamicPrimitiveIndexList& DynamicPrimi
 							MeshDecalBatches.AddUninitialized(1);
 							FMeshDecalBatch& BatchAndProxy = MeshDecalBatches.Last();
 							BatchAndProxy.Mesh = &StaticMesh;
-							BatchAndProxy.Proxy = PrimitiveSceneInfo->Proxy;
-							BatchAndProxy.SortKey = PrimitiveSceneInfo->Proxy->GetTranslucencySortPriority();
+							BatchAndProxy.Proxy = PrimitiveSceneProxy;
+							BatchAndProxy.SortKey = PrimitiveSceneProxy->GetTranslucencySortPriority();
 						}
 					}
 
@@ -1666,17 +1665,18 @@ void FRelevancePacket::ComputeRelevance(FDynamicPrimitiveIndexList& DynamicPrimi
 #if WITH_EDITOR
 		auto CollectSelectedNaniteInstanceDraws = [](
 			const FPrimitiveSceneInfo& PrimitiveSceneInfo,
+			const FPrimitiveSceneProxy* PrimitiveSceneProxy,
 			TArray<Nanite::FInstanceDraw>& OutInstanceDraws,
 			TArray<uint32>* OutSelectedInstanceHitProxyIDs,
 			bool bSelectedInstancesOnly
 		)
 		{
-			if (!PrimitiveSceneInfo.Proxy->IsNaniteMesh())
+			if (!PrimitiveSceneProxy->IsNaniteMesh())
 			{
 				return;
 			}
 
-			auto* NaniteProxy = static_cast<const Nanite::FSceneProxyBase*>(PrimitiveSceneInfo.Proxy);
+			auto* NaniteProxy = static_cast<const Nanite::FSceneProxyBase*>(PrimitiveSceneProxy);
 
 			//
 			if (bSelectedInstancesOnly && !NaniteProxy->IsSelected())
@@ -1728,12 +1728,12 @@ void FRelevancePacket::ComputeRelevance(FDynamicPrimitiveIndexList& DynamicPrimi
 
 		if (bEditorVisualizeLevelInstanceRelevance)
 		{
-			CollectSelectedNaniteInstanceDraws(*PrimitiveSceneInfo, EditorVisualizeLevelInstancesNanite, nullptr, false);
+			CollectSelectedNaniteInstanceDraws(*PrimitiveSceneInfo, PrimitiveSceneProxy, EditorVisualizeLevelInstancesNanite, nullptr, false);
 		}
 
 		if (bEditorSelectionRelevance)
 		{
-			CollectSelectedNaniteInstanceDraws(*PrimitiveSceneInfo, EditorSelectedInstancesNanite, &EditorSelectedNaniteHitProxyIds, true);
+			CollectSelectedNaniteInstanceDraws(*PrimitiveSceneInfo, PrimitiveSceneProxy, EditorSelectedInstancesNanite, &EditorSelectedNaniteHitProxyIds, true);
 		}
 #endif
 
@@ -4934,6 +4934,7 @@ void FDeferredShadingSceneRenderer::BeginInitViews(
 	FExclusiveDepthStencil::Type BasePassDepthStencilAccess,
 	FInstanceCullingManager& InstanceCullingManager,
 	FVirtualTextureUpdater* VirtualTextureUpdater,
+	FRDGExternalAccessQueue& ExternalAccessQueue,
 	FInitViewTaskDatas& TaskDatas)
 {
 	SCOPED_NAMED_EVENT(FDeferredShadingSceneRenderer_InitViews, FColor::Emerald);
@@ -4982,6 +4983,14 @@ void FDeferredShadingSceneRenderer::BeginInitViews(
 	}
 
 	LumenScenePDIVisualization();
+
+	// Process GPU scene prior to visibility to maximize overlap.
+	{
+		RDG_CSV_STAT_EXCLUSIVE_SCOPE(GraphBuilder, UpdateGPUScene);
+		RDG_GPU_STAT_SCOPE(GraphBuilder, GPUSceneUpdate);
+
+		Scene->GPUScene.Update(GraphBuilder, GetSceneUniforms(), *Scene, ExternalAccessQueue, TaskDatas.VisibilityTaskData);
+	}
 
 	TaskDatas.VisibilityTaskData->ProcessRenderThreadTasks(BasePassDepthStencilAccess, InstanceCullingManager, VirtualTextureUpdater);
 
@@ -5109,7 +5118,6 @@ void FDeferredShadingSceneRenderer::EndInitViews(
 	FRDGBuilder& GraphBuilder,
 	FLumenSceneFrameTemporaries& FrameTemporaries,
 	FInstanceCullingManager& InstanceCullingManager,
-	FRDGExternalAccessQueue& ExternalAccessQueue,
 	FInitViewTaskDatas& TaskDatas)
 {
 	SCOPED_NAMED_EVENT(FDeferredShadingSceneRenderer_InitViewsAfterPrepass, FColor::Emerald);
@@ -5148,7 +5156,7 @@ void FDeferredShadingSceneRenderer::EndInitViews(
 	if (IsForwardShadingEnabled(ShaderPlatform))
 	{
 		// Dynamic shadows are synced earlier when forward shading is enabled.
-		FinishInitDynamicShadows(GraphBuilder, TaskDatas.DynamicShadows, InstanceCullingManager, ExternalAccessQueue);
+		FinishInitDynamicShadows(GraphBuilder, TaskDatas.DynamicShadows, InstanceCullingManager);
 	}
 }
 
