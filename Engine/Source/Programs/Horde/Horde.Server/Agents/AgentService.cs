@@ -534,6 +534,11 @@ namespace Horde.Server.Agents
 					await CreateLeaseAsync(agent, lease);
 					return newAgent;
 				}
+				else
+				{
+					_logger.LogInformation("Failed adding lease {LeaseId} for agent {AgentId}", lease.Id.ToString(), agent.Id.ToString());
+					await source.CancelLeaseAsync(agent, lease.Id, Any.Parser.ParseFrom(lease.Payload));
+				}
 
 				// Update the agent
 				agent = await GetAgentAsync(agent.Id);

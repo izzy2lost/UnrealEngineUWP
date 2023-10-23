@@ -1093,7 +1093,7 @@ namespace Horde.Server.Jobs
 		/// <returns></returns>
 		async Task CancelLeaseAsync(IAgent agent, JobId jobId, JobStepBatchId batchId)
 		{
-			_logger.LogDebug("Cancelling lease for job {JobId}, batch {BatchId}", jobId, batchId);
+			_logger.LogInformation("Cancelling lease for job {JobId}, batch {BatchId}", jobId, batchId);
 
 			// Update the batch
 			for (; ; )
