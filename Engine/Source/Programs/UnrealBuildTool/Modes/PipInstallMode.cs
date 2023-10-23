@@ -144,30 +144,30 @@ namespace UnrealBuildTool.Modes
 				}
 			}
 
-			// if ((Action & (PipAction)ActionBits.ParseReqs) != 0)
-			// {
-
-			// 	if (!Pip.ParsePluginDependencies(MergedReqsInFile, MergedRequirementsFile))
-			// 	{
-			// 		return 1;
-			// 	}
-			// }
-
-			if ((Action & (PipAction)ActionBits.InstallReqs) != 0)
+			if ((Action & (PipAction)ActionBits.ParseReqs) != 0)
 			{
-				if (!Pip.InstallPluginDependencies(MergedReqsInFile, ExtraUrlsFile))
+
+				if (!Pip.ParsePluginDependencies(MergedReqsInFile, MergedRequirementsFile))
 				{
 					return 1;
 				}
 			}
 
-			// if ((Action & (PipAction)ActionBits.ViewLicenses) != 0)
-			// {
-			// 	if (!Pip.ViewInstalledLicenses(PluginsListingFile))
-			// 	{
-			// 		return 1;
-			// 	}
-			// }
+			if ((Action & (PipAction)ActionBits.InstallReqs) != 0)
+			{
+				if (!Pip.InstallPluginDependencies(MergedRequirementsFile, ExtraUrlsFile))
+				{
+					return 1;
+				}
+			}
+
+			if ((Action & (PipAction)ActionBits.ViewLicenses) != 0)
+			{
+				if (!Pip.ViewInstalledLicenses(PluginsListingFile))
+				{
+					return 1;
+				}
+			}
 
 			return 0;
 		}
@@ -245,7 +245,7 @@ namespace UnrealBuildTool.Modes
 					return false;
 				}
 
-				int result = RunPythonCmd(EnginePythonInterp, $"-m venv {InstallDir}", CmdLogger);
+				int result = RunPythonCmd(EnginePythonInterp, $"-m venv \"{InstallDir}\"", CmdLogger);
 				if (result != 0 || !FileReference.Exists(PythonVenv))
 				{
 					return false;
@@ -271,13 +271,13 @@ namespace UnrealBuildTool.Modes
 			return true;
 		}
 
-		// public bool ParsePluginDependencies(FileReference MergedReqsInFile, FileReference MergedRequirmentsFile, bool NoCheckMerged = false)
-		// {
-		// 	using (IBaseCmdProgressLogger CmdLogger = new PythonCmdLogger(Logger))
-		// 	{
-		// 		return (RunPythonVenv($"-m ue_parse_plugin_reqs -vv {MergedReqsInFile} {MergedRequirmentsFile}", CmdLogger) == 0);
-		// 	}
-		// }
+		public bool ParsePluginDependencies(FileReference MergedReqsInFile, FileReference MergedRequirmentsFile, bool NoCheckMerged = false)
+		{
+			using (IBaseCmdProgressLogger CmdLogger = new PythonCmdLogger(Logger))
+			{
+				return (RunPythonVenv($"-m ue_parse_plugin_reqs -vv \"{MergedReqsInFile}\" \"{MergedRequirmentsFile}\"", CmdLogger) == 0);
+			}
+		}
 
 		public bool InstallPluginDependencies(FileReference MergedRequirementsFile, FileReference ExtraUrlsFile, bool OfflineOnly = false, string? ForceIndexUrl = null)
 		{
@@ -362,7 +362,7 @@ namespace UnrealBuildTool.Modes
 				}
 			}
 
-			Args += " -r " + RequirementsFile.ToString();
+			Args += " -r \"" + RequirementsFile.ToString() + "\"";
 
 			using (IBaseCmdProgressLogger StatusLogger = LoggerFactory.Create("Installing Python Dependencies...", RequirementsCount))
 			{
@@ -432,7 +432,20 @@ namespace UnrealBuildTool.Modes
 
 		private bool SetupPipInstallUtils(IBaseCmdProgressLogger StatusLogger)
 		{
-			return true;
+			Logger.LogInformation("PipInstall: Updating UE PipInstall Utilities");
+			FileReference? PythonScriptPlugin = GetPythonScriptPlugin();
+			if (PythonScriptPlugin == null)
+			{
+				Logger.LogError("PipInstall: Unable to locate engine PythonScriptPlugin");
+				return false;
+			}
+			DirectoryReference PythonScriptDir = DirectoryReference.FromFile(PythonScriptPlugin);
+			DirectoryReference PipInstallUtilsDir = DirectoryReference.Combine(PythonScriptDir, "Content", "Python", "PipInstallUtils");
+			DirectoryReference PipWheelsDir = DirectoryReference.Combine(PythonScriptDir, "Content", "Python", "Lib", "wheels");
+			FileReference RequirementsFile = FileReference.Combine(PipInstallUtilsDir, "requirements.txt");
+			string Args = $"-m pip install --upgrade --no-index --find-links \"{PipWheelsDir}\" -r \"{RequirementsFile}\" ue-pipinstall-utils";
+			int Result = RunPythonVenv(Args, StatusLogger);
+			return (Result == 0);
 		}
 
 		private int RunPythonVenv(string Args, IBaseCmdProgressLogger InCmdLogger)

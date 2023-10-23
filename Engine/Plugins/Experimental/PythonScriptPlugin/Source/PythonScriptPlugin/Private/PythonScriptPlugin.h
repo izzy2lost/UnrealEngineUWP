@@ -162,6 +162,8 @@ private:
 
 	void ShutdownPython();
 
+	void InitPipInstaller();
+
 	void RunPipInstaller();
 
 	bool RunUBTPipAction(const FString& Action, const FText& Description, FFeedbackContext* Context);

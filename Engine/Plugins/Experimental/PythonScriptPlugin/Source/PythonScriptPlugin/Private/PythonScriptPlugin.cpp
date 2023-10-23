@@ -978,7 +978,8 @@ void FPythonScriptPlugin::InitializePython()
 		FPyWrapperTypeRegistry::Get().GenerateWrappedTypes();
 
 #if WITH_EDITOR
-		// Run PipInstall UBT task
+		// Init PipInstall task
+		InitPipInstaller();
 		RunPipInstaller();
 #endif // WITH_EDITOR
 
@@ -1125,13 +1126,13 @@ void FPythonScriptPlugin::ShutdownPython()
 	bRanStartupScripts = false;
 }
 
-void FPythonScriptPlugin::RunPipInstaller()
+void FPythonScriptPlugin::InitPipInstaller()
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(FPythonScriptPlugin::RunPipInstaller);
+	TRACE_CPUPROFILER_EVENT_SCOPE(FPythonScriptPlugin::InitPipInstaller);
 
-	// Run UBT Pip installer for python dependencies (if any)
+	// Init Pip installer for python dependencies (if any)
 	FFeedbackContext* Context = GWarn;
-	FScopedSlowTask PipInstallTask(0, LOCTEXT("PipInstall.RunTasks", "Running Pip Install Tasks..."), true, *Context);
+	FScopedSlowTask PipInstallTask(0, LOCTEXT("PipInstall.RunInit", "Running Pip Init Tasks..."), true, *Context);
 
 	const FString PipSitePackagePath = FPaths::ConvertRelativePathToFull(GetPipSitePackagesPath());
 
@@ -1139,35 +1140,64 @@ void FPythonScriptPlugin::RunPipInstaller()
 	TArray<TSharedRef<IPlugin>> PythonPlugins;
 	FPipInstall::WritePluginsListing(PythonPlugins);
 
-	TArray<FString> InReqLines;
+	TArray<FString> ReqInLines;
 	TArray<FString> ExtraUrls;
-	const FString InReqsFile = FPipInstall::WritePluginDependencies(PythonPlugins, InReqLines, ExtraUrls);
-	if (!FPaths::FileExists(InReqsFile) || InReqLines.IsEmpty())
+	const FString ReqsInFile = FPipInstall::WritePluginDependencies(PythonPlugins, ReqInLines, ExtraUrls);
+
+	bool bRunOnStartup = GetDefault<UPythonScriptPluginSettings>()->bRunPipInstallOnStartup;
+	if (ReqInLines.IsEmpty())
 	{
-		UE_LOG(LogPython, Display, TEXT("No enabled plugins with python dependencies found, skipping"));
+		UE_CLOG(bRunOnStartup, LogPython, Display, TEXT("No enabled plugins with python dependencies found, skipping"));
 		return;
 	}
 
 	// Just return immediately with warning if some python dependencies exist and pip install is disabled
 	bool bCmdLineDisable = FParse::Param(FCommandLine::Get(), TEXT("DisablePipInstall"));
-	if (bCmdLineDisable || !GetDefault<UPythonScriptPluginSettings>()->bRunPipInstallOnStartup)
+	if (bCmdLineDisable || !bRunOnStartup)
 	{
 		if (bCmdLineDisable || GIsBuildMachine)
 		{
 			// Don't warn if disabled on cmd-line or is build process
 			UE_LOG(LogPython, Display, TEXT("Enabled plugins have python dependencies, install manually to: %s"), *PipSitePackagePath);
-			UE_LOG(LogPython, Display, TEXT("  See package requirements: % s"), *InReqsFile);
+			UE_LOG(LogPython, Display, TEXT("  See package requirements: % s"), *ReqsInFile);
 		}
 		else
 		{
 			UE_LOG(LogPython, Warning, TEXT("Enabled plugins have python dependencies, enable 'Run Pip Install On Startup' or install manually to: %s"), *PipSitePackagePath);
-			UE_LOG(LogPython, Warning, TEXT("  See package requirements: % s"), *InReqsFile);
+			UE_LOG(LogPython, Warning, TEXT("  See package requirements: % s"), *ReqsInFile);
 		}
 		return;
 	}
 
+	FPipInstall::SetupPipEnv(Context);
+	FPipInstall::ParsePluginDependencies(ReqsInFile, Context);
+}
+
+void FPythonScriptPlugin::RunPipInstaller()
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(FPythonScriptPlugin::RunPipInstaller);
+
+	bool bRunOnStartup = GetDefault<UPythonScriptPluginSettings>()->bRunPipInstallOnStartup;
+	bool bCmdLineDisable = FParse::Param(FCommandLine::Get(), TEXT("DisablePipInstall"));
+	if (bCmdLineDisable || !bRunOnStartup)
+	{
+		return;
+	}
+
+	const FString ParsedReqsFile = FPaths::ConvertRelativePathToFull(FPipInstall::GetPipInstallPath() / FPipInstall::ParsedRequirementsFilename);
+
+	TArray<FString> ParsedReqLines;
+	if (!FPaths::FileExists(ParsedReqsFile) || !FFileHelper::LoadFileToStringArray(ParsedReqLines, *ParsedReqsFile) || ParsedReqLines.IsEmpty())
+	{
+		return;
+	}
+
+	FFeedbackContext* Context = GWarn;
+	FScopedSlowTask PipInstallTask(0, LOCTEXT("PipInstall.RunInstall", "Installing Python Dependencies..."), true, *Context);
+	//PipInstallTask.MakeDialog(true);
+
 	// Run install of all python dependencies for enabled plugins
-	if (!RunUBTPipAction("InstallNoRegen", LOCTEXT("PipInstall.InstallingDependencies", "Installing Python Dependencies..."), Context))
+	if (!RunUBTPipAction("InstallNoRegen", LOCTEXT("PipInstall.UBTInstall", "Pip Installing Plugin Dependencies..."), Context))
 	{
 		UE_LOG(LogPython, Warning, TEXT("Unable to install plugin python dependencies"));
 		return;
@@ -1176,7 +1206,7 @@ void FPythonScriptPlugin::RunPipInstaller()
 
 bool FPythonScriptPlugin::RunUBTPipAction(const FString& Action, const FText& Description, FFeedbackContext* Context)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(FPythonScriptPlugin::RunUBTPipAction)
+	TRACE_CPUPROFILER_EVENT_SCOPE(FPythonScriptPlugin::RunUBTPipAction);
 
 	int32 ExitCode;
 	const FString ProjectFileName = IFileManager::Get().ConvertToAbsolutePathForExternalAppForWrite(*FPaths::GetProjectFilePath());
@@ -1193,7 +1223,7 @@ bool FPythonScriptPlugin::RunUBTPipAction(const FString& Action, const FText& De
 
 FString FPythonScriptPlugin::GetPipSitePackagesPath()
 {
-	const FString VenvPath = FPaths::ProjectIntermediateDir() / TEXT("PipInstall");
+	const FString VenvPath = FPipInstall::GetPipInstallPath();
 #if PLATFORM_WINDOWS
 	return VenvPath / TEXT("Lib") / TEXT("site-packages");
 #elif PLATFORM_MAC || PLATFORM_LINUX

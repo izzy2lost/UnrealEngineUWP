@@ -9,14 +9,32 @@
 #if WITH_PYTHON
 
 class FJsonObject;
+class FFeedbackContext;
 
 class FPipInstall
 {
 public:
+	static const FString PluginsListingFilename;
+	static const FString RequirementsInputFilename;
+	static const FString ExtraUrlsFilename;
+	static const FString ParsedRequirementsFilename;
+
 	static FString WritePluginsListing(TArray<TSharedRef<IPlugin>>& OutPythonPlugins);
-    static FString WritePluginDependencies(const TArray<TSharedRef<IPlugin>>& PythonPlugins, TArray<FString>& OutRequirements, TArray<FString>& OutExtraUrls);
+	static FString WritePluginDependencies(const TArray<TSharedRef<IPlugin>>& PythonPlugins, TArray<FString>& OutRequirements, TArray<FString>& OutExtraUrls);
+
+	static void SetupPipEnv(FFeedbackContext* Context, bool bForceRebuild = false);
+	static FString ParsePluginDependencies(const FString& MergedInRequirementsFile, FFeedbackContext* Context);
+
+	static FString GetPipInstallPath();
 
 private:
+	static void SetupPipInstallUtils(const FString& VenvInterp, FFeedbackContext* Context);
+	static bool CheckPipInstallUtils(const FString& VenvInterp, FFeedbackContext* Context);
+	static int32 RunPythonCmd(const FText& Description, const FString& VenvInterp, const FString& Cmd, FFeedbackContext* Context);
+	static bool RunLoggedSubprocess(const FText& Description, const FString& URL, const FString& Params, FFeedbackContext* Context, int32* OutExitCode);
+
+	static FString GetPythonScriptPluginPath();
+	static FString GetVenvInterpreter(const FString& InstallPath);
 	static bool CheckCompatiblePlatform(const TSharedPtr<FJsonObject>& JsonObject, const FString& PlatformName);
 };
 
