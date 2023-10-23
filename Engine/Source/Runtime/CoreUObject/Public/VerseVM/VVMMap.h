@@ -6,7 +6,6 @@
 #error In order to use VerseVM, WITH_VERSE_VM must be set
 #endif
 
-#include "Async/Mutex.h"
 #include "Containers/Map.h"
 #include "CoreTypes.h"
 #include "VVMCell.h"
@@ -76,10 +75,6 @@ struct VMap : VHeapValue
 	DECLARE_VISIT_REFERENCES(COREUOBJECT_API);
 
 	VMapInternal InternalMap;
-
-	// TODO: Acquire global Mutex in a header somewhere to use for cases like this (marking race with external memory allocation)
-	// This lock should be acquired whenever the Map is mutating to prevent the GC from attempting to mark during mutation.
-	UE::FMutex MapMutex;
 
 	static VMap& New(FAllocationContext Context, uint32 InitialCapacity = 0)
 	{

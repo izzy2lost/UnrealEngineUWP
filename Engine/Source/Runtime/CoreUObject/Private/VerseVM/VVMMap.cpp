@@ -2,6 +2,7 @@
 
 #if WITH_VERSE_VM
 #include "VerseVM/VVMMap.h"
+#include "Async/ExternalMutex.h"
 #include "Async/UniqueLock.h"
 #include "Templates/TypeHash.h"
 #include "VerseVM/Inline/VVMAbstractVisitorInline.h"
@@ -30,7 +31,8 @@ TGlobalTrivialEmergentTypePtr<&VMap::StaticCppClassInfo> VMap::GlobalTrivialEmer
 
 void VMap::Add(const TWriteBarrier<VValue>& Key, const TWriteBarrier<VValue>& Value)
 {
-	UE::TUniqueLock Lock(MapMutex);
+	UE::FExternalMutex ExternalMutex(Mutex);
+	UE::TUniqueLock Lock(ExternalMutex);
 	const size_t PreviousAllocatedSize = GetAllocatedSize();
 	InternalMap.Add(Key, Value);
 	FHeap::ReportAllocatedNativeBytes((GetAllocatedSize() - PreviousAllocatedSize));
@@ -67,7 +69,8 @@ void VMap::VisitReferencesImpl(TVisitor& Visitor)
 {
 	VHeapValue::VisitReferences(this, Visitor);
 
-	UE::TUniqueLock Lock(MapMutex);
+	UE::FExternalMutex ExternalMutex(Mutex);
+	UE::TUniqueLock Lock(ExternalMutex);
 
 	for (VMapInternal::TIterator MapIt = InternalMap.CreateIterator(); MapIt; ++MapIt)
 	{

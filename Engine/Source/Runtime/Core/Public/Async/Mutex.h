@@ -12,6 +12,7 @@ namespace UE
 
 /**
  * A one-byte mutex that is not fair and does not support recursive locking.
+ * Note: Changes to this class should also be ported to FExternalMutex.
  */
 class FMutex final
 {

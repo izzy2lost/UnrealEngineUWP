@@ -12,6 +12,7 @@
 #include "VVMCppClassInfo.h"
 #include "VVMHeap.h"
 
+#include <atomic>
 #include <type_traits>
 
 namespace Verse
@@ -29,7 +30,8 @@ struct VCell
 	// (one reserved for GC)
 	uint32 EmergentTypeOffset;
 	uint8 GCData{0};
-	uint8 Misc1{0};
+	// The first two bits of this are used by FExternalMutexes in VCell subclasses.
+	std::atomic<uint8> Mutex{0};
 	union
 	{
 		struct

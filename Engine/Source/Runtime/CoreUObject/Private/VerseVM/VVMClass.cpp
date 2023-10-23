@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #if WITH_VERSE_VM
+#include "Async/ExternalMutex.h"
 #include "VerseVM/Inline/VVMAbstractVisitorInline.h"
 #include "VerseVM/Inline/VVMClassInline.h"
 #include "VerseVM/Inline/VVMObjectInline.h"
@@ -12,8 +13,6 @@
 
 namespace Verse
 {
-UE::FMutex VClass::Mutex;
-
 DEFINE_VISIT_REFERENCES(VClass)
 DEFINE_VCPPCLASSINFO(VClass, VHeapValue, TEXT("Class"));
 
@@ -46,7 +45,8 @@ VFields::FieldsMap VClass::GetCombinedFields(FAllocationContext Context, const V
 
 VEmergentType& VClass::GetOrCreateEmergentTypeForArchetype(FAllocationContext Context, VUniqueStringSet& ArchetypeFieldNames)
 {
-	UE::TUniqueLock Lock(Mutex);
+	UE::FExternalMutex ExternalMutex(Mutex);
+	UE::TUniqueLock Lock(ExternalMutex);
 
 	// TODO: This in the future shouldn't even require a hash table lookup when we introduce inline caching for this.
 	if (TWriteBarrier<VEmergentType>* ExistingEmergentType = EmergentTypesCache.FindByHash(GetTypeHash(ArchetypeFieldNames), ArchetypeFieldNames))
@@ -81,7 +81,8 @@ void VClass::VisitReferencesImpl(TVisitor& Visitor)
 	Visitor.Visit(Inherited(), NumInherited());
 
 	// We need both the unique string sets and emergent types that are being cached for fast lookup of emergent types to remain allocated.
-	UE::TUniqueLock Lock(Mutex);
+	UE::FExternalMutex ExternalMutex(Mutex);
+	UE::TUniqueLock Lock(ExternalMutex);
 	for (auto& Pair : EmergentTypesCache)
 	{
 		Visitor.Visit(Pair.Key);

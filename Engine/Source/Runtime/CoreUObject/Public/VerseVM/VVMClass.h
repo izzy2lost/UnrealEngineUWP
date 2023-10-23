@@ -82,8 +82,6 @@ private:
 	/// Each class is guarded with a write barrier because we need to be able to mark the inherited classes within this class as still live.
 	TWriteBarrier<VClass>* Inherited() const;
 
-	static UE::FMutex Mutex;
-
 	/// This class's fields and default values (if any). This also includes the inherited classes' fields/values.
 	const VFields::FieldsMap Fields;
 
