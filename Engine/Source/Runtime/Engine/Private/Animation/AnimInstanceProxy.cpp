@@ -477,6 +477,11 @@ void FAnimInstanceProxy::PreUpdate(UAnimInstance* InAnimInstance, float DeltaSec
 #if WITH_EDITORONLY_DATA
 	bIsGameWorld = World ? World->IsGameWorld() : false;
 
+	UpdatedNodesThisFrame.Reset();
+	NodeInputAttributesThisFrame.Reset();
+	NodeOutputAttributesThisFrame.Reset();
+	NodeSyncsThisFrame.Reset();
+
 	if (FAnimBlueprintDebugData* DebugData = GetAnimBlueprintDebugData())
 	{
 		DebugData->ResetNodeVisitSites();
@@ -1210,12 +1215,6 @@ void FAnimInstanceProxy::UpdateAnimation_WithRoot(const FAnimationUpdateContext&
 
 	if(InRootNode == RootNode)
 	{
-#if WITH_EDITORONLY_DATA
-	    UpdatedNodesThisFrame.Reset();
-	    NodeInputAttributesThisFrame.Reset();
-	    NodeOutputAttributesThisFrame.Reset();
-	    NodeSyncsThisFrame.Reset();
-#endif
 		if(bInitializeSubsystems && AnimClassInterface)
 		{
 			AnimClassInterface->ForEachSubsystem(GetAnimInstanceObject(), [this](const FAnimSubsystemInstanceContext& InContext)
