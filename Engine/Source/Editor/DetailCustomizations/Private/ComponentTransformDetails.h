@@ -70,6 +70,10 @@ private:
 
 	/** @return Whether the transform details panel should be enabled (editable) or not (read-only / greyed out) */
 	bool GetIsEnabled() const;
+	bool GetIsLocationEnabled() const;
+	bool GetIsRotationEnabled() const;
+	bool GetIsScaleEnabled() const;
+	bool GetIsTransformComponentEnabled(FName ComponentName) const;
 
 	/** Sets a vector based on two source vectors and an axis list */
 	FVector GetAxisFilteredVector(EAxisList::Type Axis, const FVector& NewValue, const FVector& OldValue);
@@ -173,6 +177,9 @@ private:
 	/** @return true if Absolute flag of transform type matches passed in bCheckAbsolute*/
 	bool IsAbsoluteTransformChecked( ETransformField::Type TransformField, bool bAbsoluteEnabled=true) const;
 
+	/** @return true if Absolute flag of transform can be changed */
+	bool CanChangeAbsoluteFlag(ETransformField::Type TransformField) const;
+
 	/** @return true of copy is enabled for the specified field */
 	bool OnCanCopy( ETransformField::Type TransformField ) const;
 
@@ -253,8 +260,8 @@ private:
 	/** Cache a single unit to display all location components in */
 	void CacheCommonLocationUnits();
 
-	/** Generate a property handle from a property name. */
-	TSharedPtr<IPropertyHandle> GeneratePropertyHandle(FName PropertyName, IDetailChildrenBuilder& ChildrenBuilder);
+	/** Get a property handle from a property name. */
+	TSharedPtr<IPropertyHandle> FindOrCreatePropertyHandle(FName PropertyName, IDetailChildrenBuilder& ChildrenBuilder);
 	/** Update the outer objects of the property handles generated from this transform. */
 	void UpdatePropertyHandlesObjects(const TArray<UObject*> NewSceneComponents);
 
@@ -327,7 +334,7 @@ private:
 	/** Bitmask to indicate which fields should be hidden (if any) */
 	uint8 HiddenFieldMask;
 	/** Holds this transform's property handles. */
-	TArray< TSharedPtr< IPropertyHandle> > PropertyHandles;
+	TMap<FName, TSharedPtr< IPropertyHandle> > PropertyHandles;
 	/** Holds the property handles' outer objects. Used to update the handles' objects when the actor construction script runs. */
 	TArray< TWeakObjectPtr<UObject> > CachedHandlesObjects;
 	/** Cached enabled value of the selected set */
