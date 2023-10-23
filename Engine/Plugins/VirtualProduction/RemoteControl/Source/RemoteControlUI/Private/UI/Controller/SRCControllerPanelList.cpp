@@ -436,7 +436,10 @@ void SRCControllerPanelList::Reset()
 	check(Preset);
 
 	PropertyRowGenerator->SetStructure(Preset->GetControllerContainerStructOnScope());
-	PropertyRowGenerator->OnFinishedChangingProperties().AddSP(this, &SRCControllerPanelList::OnFinishedChangingProperties);
+	if (!PropertyRowGenerator->OnFinishedChangingProperties().IsBoundToObject(this))
+	{
+		PropertyRowGenerator->OnFinishedChangingProperties().AddSP(this, &SRCControllerPanelList::OnFinishedChangingProperties);
+	}
 
 	// Generator should be moved to separate class
 	TArray<TSharedRef<IDetailTreeNode>> RootTreeNodes = PropertyRowGenerator->GetRootTreeNodes();
