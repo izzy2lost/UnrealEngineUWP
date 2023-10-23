@@ -93,13 +93,7 @@ void UWorldPartitionRuntimeHashSet::SetDefaultValues()
 void UWorldPartitionRuntimeHashSet::FlushStreaming()
 {
 	Super::FlushStreaming();
-	
-	check(PersistentPartitionDesc.Class);
-	PersistentPartitionDesc.Class = nullptr;
-	PersistentPartitionDesc.Name = NAME_None;
-	PersistentPartitionDesc.MainLayer = nullptr;
-
-	check(!RuntimeStreamingData.IsEmpty());
+	check(!PersistentPartitionDesc.Class);
 	RuntimeStreamingData.Empty();
 }
 
@@ -293,10 +287,7 @@ void UWorldPartitionRuntimeHashSet::ForEachStreamingCells(TFunctionRef<bool(cons
 	{
 		for (UWorldPartitionRuntimeCell* Cell : InCells)
 		{
-			if (IsCellRelevantFor(Cell->GetClientOnlyVisible()))
-			{
-				Func(Cell);
-			}
+			Func(Cell);
 		}
 	};
 

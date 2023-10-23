@@ -156,6 +156,14 @@ bool UWorldPartitionRuntimeHashSet::GenerateStreaming(UWorldPartitionStreamingPo
 	PersistentPartitionDesc.MainLayer = NewObject<URuntimePartition>(this, URuntimePartitionPersistent::StaticClass(), NAME_None);
 	PersistentPartitionDesc.MainLayer->Name = NAME_PersistentLevel;
 
+	ON_SCOPE_EXIT
+	{
+		check(PersistentPartitionDesc.Class);
+		PersistentPartitionDesc.Class = nullptr;
+		PersistentPartitionDesc.Name = NAME_None;
+		PersistentPartitionDesc.MainLayer = nullptr;
+	};
+
 	//
 	// Generate runtime partitions streaming cell desccriptors
 	//
