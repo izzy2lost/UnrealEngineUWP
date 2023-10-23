@@ -2014,6 +2014,7 @@ namespace UnrealBuildTool
 				// Resource tool can run remotely if possible
 				CompileAction.bCanExecuteRemotely = true;
 				CompileAction.bCanExecuteRemotelyWithSNDBS = false; // no tool template for SN-DBS results in warnings
+				CompileAction.bCanExecuteInBox = false;
 
 				List<string> Arguments = new List<string>();
 
