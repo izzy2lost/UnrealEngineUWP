@@ -147,11 +147,7 @@ void Linux_PlatformCreateDummyGLWindow( FPlatformOpenGLContext *OutContext )
  */
 bool Linux_PlatformOpenGLDebugCtx()
 {
-#if UE_BUILD_DEBUG
-	return ! FParse::Param(FCommandLine::Get(),TEXT("openglNoDebug"));
-#else
-	return FParse::Param(FCommandLine::Get(),TEXT("openglDebug"));
-#endif
+	return IsOGLDebugOutputEnabled();
 }
 
 /**

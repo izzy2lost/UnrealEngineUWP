@@ -71,7 +71,7 @@ public:
 	bool IsInitialized();
 	void InitBackBuffer();
 	void DestroyBackBuffer();
-	void Init( APIVariant API, uint32 MajorVersion, uint32 MinorVersion, bool bDebug);
+	void Init( APIVariant API, uint32 MajorVersion, uint32 MinorVersion);
 	void ReInit();
 	void UnBind();
 	void UnBindRender();

@@ -102,6 +102,7 @@ struct AndroidESPImpl
 	GLuint ResolveFrameBuffer;
 	GLuint DummyFrameBuffer;
 	FPlatformRect CachedWindowRect;
+	bool bIsDebug = false;
 
 	AndroidESPImpl();
 };
@@ -738,22 +739,24 @@ void AndroidEGL::ReInit()
 	SetCurrentSharedContext();
 }
 
-void AndroidEGL::Init(APIVariant API, uint32 MajorVersion, uint32 MinorVersion, bool bDebug)
+void AndroidEGL::Init(APIVariant API, uint32 MajorVersion, uint32 MinorVersion)
 {
 	check(IsInGameThread());
-
+	const bool bDebug = IsOGLDebugOutputEnabled();
 	if (PImplData->Initalized)
 	{
+		ensure(bDebug == PImplData->bIsDebug); // if this fires you would need to tear down the previous context and recreate to honour the debug change.
 		return;
 	}
-	InitEGL(API);
 
+	InitEGL(API);
+	PImplData->bIsDebug = bDebug;
 	if (bSupportsKHRCreateContext)
 	{
 		const uint32 MaxElements = 13;
 		uint32 Flags = 0;
 
-		Flags |= bDebug ? EGL_CONTEXT_OPENGL_DEBUG_BIT_KHR : 0;
+		Flags |= PImplData->bIsDebug ? EGL_CONTEXT_OPENGL_DEBUG_BIT_KHR : 0;
 
 		ContextAttributes = new int[MaxElements];
 		uint32 Element = 0;

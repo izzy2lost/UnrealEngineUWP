@@ -1104,7 +1104,7 @@ void FAndroidMisc::GetValidTargetPlatforms(TArray<FString>& TargetPlatformNames)
 void FAndroidAppEntry::PlatformInit()
 {
 	// Try to create an ES3.2 EGL here for gpu queries and don't have to recreate the GL context.
-	AndroidEGL::GetInstance()->Init(AndroidEGL::AV_OpenGLES, 3, 2, false);
+	AndroidEGL::GetInstance()->Init(AndroidEGL::AV_OpenGLES, 3, 2);
 }
 
 void FAndroidAppEntry::ReleaseEGL()

@@ -95,7 +95,7 @@ bool FOpenGLDynamicRHI::RHIEGLSupportsNoErrorContext() const
 
 void FOpenGLDynamicRHI::RHIInitEGLInstanceGLES2()
 {
-	AndroidEGL::GetInstance()->Init(AndroidEGL::AV_OpenGLES, 2, 0, false);
+	AndroidEGL::GetInstance()->Init(AndroidEGL::AV_OpenGLES, 2, 0);
 	AndroidEGL::GetInstance()->InitSurface(false, false);
 }
 

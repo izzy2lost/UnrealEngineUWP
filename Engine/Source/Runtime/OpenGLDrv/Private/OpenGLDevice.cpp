@@ -386,6 +386,9 @@ static const TCHAR* GetOpenGLDebugSeverityStringARB(GLenum Severity)
 	#ifndef GL_APIENTRY
 	#define GL_APIENTRY APIENTRY
 	#endif
+	#ifndef GL_DEBUG_SEVERITY_MEDIUM_ARB
+	#define GL_DEBUG_SEVERITY_MEDIUM_ARB GL_DEBUG_SEVERITY_LOW_ARB
+	#endif
 static void GL_APIENTRY OpenGLDebugMessageCallbackARB(
 #else
 static void APIENTRY OpenGLDebugMessageCallbackARB(
@@ -416,7 +419,7 @@ static void APIENTRY OpenGLDebugMessageCallbackARB(
 		if (!LogRHI.IsSuppressed(Verbosity))
 		{
 			FMsg::Logf(__FILE__, __LINE__, LogRHI.GetCategoryName(), Verbosity,
-				TEXT("[%s][%s][%s][%u] %s"),
+				TEXT("GL_DBG: [%s][%s][%s][%u] %s"),
 				SourceStr,
 				TypeStr,
 				SeverityStr,
@@ -719,7 +722,12 @@ void InitDebugContext()
 	// Set the debug output callback if the driver supports it.
 	VERIFY_GL(__FUNCTION__);
 	bool bDebugOutputInitialized = false;
-#if !ENABLE_VERIFY_GL
+	if (!IsOGLDebugOutputEnabled())
+	{
+		return;
+	}
+
+#if ENABLE_DEBUG_OUTPUT
 	#if defined(GL_ARB_debug_output)
 		if (glDebugMessageCallbackARB)
 		{
@@ -743,11 +751,15 @@ void InitDebugContext()
 			bDebugOutputInitialized = (glGetError() == GL_NO_ERROR);
 		}
 	#endif // GL_AMD_debug_output
-#endif // !ENABLE_VERIFY_GL
+ #endif // ENABLE_DEBUG_OUTPUT
 
 	if (!bDebugOutputInitialized)
 	{
 		UE_LOG(LogRHI,Warning,TEXT("OpenGL debug output extension not supported!"));
+	}
+	else
+	{
+		UE_LOG(LogRHI, Log, TEXT("OpenGL debug output extension enabled!"));
 	}
 
 	// this is to suppress feeding back of the debug markers and groups to the log, since those originate in the app anyways...
@@ -769,6 +781,19 @@ void InitDebugContext()
 		glDebugMessageControlKHR(GL_DEBUG_SOURCE_APPLICATION_KHR, GL_DEBUG_TYPE_PUSH_GROUP_KHR, GL_DONT_CARE, 0, NULL, GL_FALSE);
 		glDebugMessageControlKHR(GL_DEBUG_SOURCE_APPLICATION_KHR, GL_DEBUG_TYPE_POP_GROUP_KHR, GL_DONT_CARE, 0, NULL, GL_FALSE);
 		glDebugMessageControlKHR(GL_DEBUG_SOURCE_API_KHR, GL_DEBUG_TYPE_OTHER_KHR, GL_DEBUG_SEVERITY_NOTIFICATION, 0, NULL, GL_FALSE);
+
+		GLenum Severity;
+		switch (GetOGLDebugOutputLevel())
+		{
+			case 5: Severity = GL_DONT_CARE; break;
+			case 4: Severity = GL_DEBUG_SEVERITY_NOTIFICATION; break;
+			case 3: Severity = GL_DEBUG_SEVERITY_LOW_ARB; break;
+			case 2: Severity = GL_DEBUG_SEVERITY_MEDIUM_ARB; break;
+			case 1:
+				[[fallthrough]];
+			default: Severity = GL_DEBUG_SEVERITY_HIGH_ARB; break;
+		}
+		glDebugMessageControlKHR(GL_DEBUG_SOURCE_API_KHR, GL_DONT_CARE, Severity, 0, NULL, GL_TRUE);
 		UE_LOG(LogRHI,Verbose,TEXT("disabling reporting back of debug groups and markers to the OpenGL debug output callback"));
 	}
 #endif
