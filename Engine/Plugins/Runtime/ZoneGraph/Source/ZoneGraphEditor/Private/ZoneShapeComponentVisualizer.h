@@ -238,7 +238,18 @@ protected:
 	void OnSelectAllPoints() const;
 	bool CanSelectAllPoints() const;
 
+	void OnBreakAtPointNewActors() const;
+	void OnBreakAtPointNewComponents() const;
+	bool CanBreakAtPoint() const;
+
+	void OnBreakAtSegmentNewActors() const;
+	void OnBreakAtSegmentNewComponents() const;
+	bool CanBreakAtSegment() const;
+
 	void GenerateShapePointTypeSubMenu(FMenuBuilder& MenuBuilder) const;
+
+	void GenerateBreakAtPointSubMenu(FMenuBuilder& MenuBuilder) const;
+	void GenerateBreakAtSegmentSubMenu(FMenuBuilder& MenuBuilder) const;
 
 	// FGCObject interface
 	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
@@ -276,4 +287,8 @@ protected:
 	FQuat CachedRotation = FQuat::Identity;
 
 	bool bIsSelectingComponent = false;
+
+private:
+	void BreakAtPoint(bool bCreateNewActor) const;
+	void BreakAtSegment(bool bCreateNewActor) const;
 };
