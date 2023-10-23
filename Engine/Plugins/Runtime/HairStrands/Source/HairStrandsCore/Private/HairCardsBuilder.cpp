@@ -329,7 +329,7 @@ bool InternalCreateCardsGuides(
 		{
 			const FVector3f P0 = CenterPoints[PointIt];
 
-			OutGuides.BoundingBox += (FVector)P0;
+			OutGuides.BoundingBox += P0;
 
 			OutGuides.StrandsPoints.PointsPosition.Add(P0);
 			OutGuides.StrandsPoints.PointsCoordU.Add(FMath::Clamp(CurrentLength / TotalLength, 0.f, 1.f));
@@ -697,7 +697,6 @@ static bool InternalImportGeometry_WithGeneratedGuides(
 		struct FStrandsRootData
 		{
 			FVector3f Position;
-			uint32    CurveIndex;
 			FVector2f RootUV;
 		};
 		TArray<FStrandsRootData> StrandsRoots;
@@ -711,7 +710,6 @@ static bool InternalImportGeometry_WithGeneratedGuides(
 				FStrandsRootData& RootData = StrandsRoots.AddDefaulted_GetRef();
 				RootData.Position = InStrandsData.StrandsPoints.PointsPosition[Offset];
 				RootData.RootUV = HasHairAttribute(InAttribute, EHairAttribute::RootUV) ? InStrandsData.StrandsCurves.CurvesRootUV[CurveIt] : FVector2f(0,0);
-				RootData.CurveIndex = CurveIt;
 			}
 		}
 
@@ -774,31 +772,48 @@ static bool InternalImportGeometry_WithGeneratedGuides(
 		}
 		
 		// 3. Find cards root / curve root
-		for (const FCardsRootData& CardsRoot : CardsRoots)
+		ParallelFor(CardsRoots.Num(), 
+		[
+			&CardsRoots,
+			&StrandsRoots,
+			&Out,
+			&OutBulk
+		] (uint32 CardRootIt) 
+		//for (const FCardsRootData& CardsRoot : CardsRoots)
 		{
+			const FCardsRootData& CardsRoot = CardsRoots[CardRootIt];
 			for (uint32 CardsRootPositionIndex=0; CardsRootPositionIndex <2; CardsRootPositionIndex++)
 			{
 				// 3.1 Find closet root UV
 				// /!\ N^2 loop: the number of cards should be relatively small
-				auto FindRootUV = [&](const FVector3f CardsRootPosition)
+				auto FindRootUV = [&](const FVector3f CardsRootPosition0, const FVector3f CardsRootPosition1, FVector2f& OutRootUV0, FVector2f& OutRootUV1)
 				{
-					uint32 CurveIndex = ~0;
-					float ClosestDistance = FLT_MAX;
-					FVector2f RootUV = FVector2f::ZeroVector;
+					float ClosestDistance1 = FLT_MAX;
+					float ClosestDistance0 = FLT_MAX;
+					OutRootUV0 = FVector2f::ZeroVector;
+					OutRootUV1 = FVector2f::ZeroVector;
 					for (const FStrandsRootData& StrandsRoot : StrandsRoots)
 					{
-						const float Distance = FVector3f::Distance(StrandsRoot.Position, CardsRootPosition);
-						if (Distance < ClosestDistance)
+						const float Distance0 = FVector3f::Distance(StrandsRoot.Position, CardsRootPosition0);
+						const float Distance1 = FVector3f::Distance(StrandsRoot.Position, CardsRootPosition1);
+
+						if (Distance0 < ClosestDistance0)
 						{
-							ClosestDistance = Distance;
-							CurveIndex = StrandsRoot.CurveIndex;
-							RootUV = StrandsRoot.RootUV;
+							ClosestDistance0 = Distance0;
+							OutRootUV0 = StrandsRoot.RootUV;
+						}
+
+						if (Distance1 < ClosestDistance1)
+						{
+							ClosestDistance1 = Distance1;
+							OutRootUV1 = StrandsRoot.RootUV;
 						}
 					}
-					return RootUV;
+
 				};
-				const FVector2f RootUV0 = FindRootUV(CardsRoot.Root0.Position);
-				const FVector2f RootUV1 = FindRootUV(CardsRoot.Root1.Position);
+
+				FVector2f RootUV0, RootUV1;
+				FindRootUV(CardsRoot.Root0.Position, CardsRoot.Root1.Position, RootUV0, RootUV1);
 
 				// 3.2 Apply root UV to all cards vertices
 				{
@@ -829,7 +844,7 @@ static bool InternalImportGeometry_WithGeneratedGuides(
 					}
 				}
 			}
-		}
+		});
 	}
 
 	return bSuccess;

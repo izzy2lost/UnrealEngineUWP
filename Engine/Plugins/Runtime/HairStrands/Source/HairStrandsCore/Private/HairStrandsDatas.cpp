@@ -94,7 +94,7 @@ void FHairStrandsDatas::Reset()
 	StrandsCurves.Reset();
 	StrandsPoints.Reset();
 	HairDensity = 1;
-	BoundingBox = FBox(EForceInit::ForceInit);
+	BoundingBox = FBox3f(EForceInit::ForceInit);
 }
 
 void FHairStrandsInterpolationDatas::Reset()

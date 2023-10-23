@@ -141,7 +141,7 @@ public:
 	virtual const int32 GetNumSections() const = 0;
 	virtual const IMeshSectionData& GetSection(uint32 SectionIndex) const = 0;
 	virtual const FVector3f& GetVertexPosition(uint32 VertexIndex) const = 0;
-	virtual FVector2D GetVertexUV(uint32 VertexIndex, uint32 ChannelIndex) const = 0;
+	virtual FVector2f GetVertexUV(uint32 VertexIndex, uint32 ChannelIndex) const = 0;
 	virtual void GetSectionFromVertexIndex(uint32 InVertIndex, int32& OutSectionIndex) const = 0;
 	virtual ~IMeshLODData() {}
 };
@@ -267,11 +267,11 @@ public:
 		return MeshData->LODRenderData[LODIndex].StaticVertexBuffers.PositionVertexBuffer.VertexPosition(InVertexIndex);
 	}
 
-	virtual FVector2D GetVertexUV(uint32 InVertexIndex, uint32 InChannelIndex) const override
+	virtual FVector2f GetVertexUV(uint32 InVertexIndex, uint32 InChannelIndex) const override
 	{
 		check(MeshData);
 		check(MeshData->LODRenderData.IsValidIndex(LODIndex));
-		return FVector2D(MeshData->LODRenderData[LODIndex].StaticVertexBuffers.StaticMeshVertexBuffer.GetVertexUV(InVertexIndex, InChannelIndex));
+		return FVector2f(MeshData->LODRenderData[LODIndex].StaticVertexBuffers.StaticMeshVertexBuffer.GetVertexUV(InVertexIndex, InChannelIndex));
 	}
 
 	virtual void GetSectionFromVertexIndex(uint32 InVertIndex, int32& OutSectionIndex) const override
@@ -465,9 +465,9 @@ public:
 		return MeshData.Positions[VertexIndex];
 	}
 
-	virtual FVector2D GetVertexUV(uint32 VertexIndex, uint32 ChannelIndex) const override
+	virtual FVector2f GetVertexUV(uint32 VertexIndex, uint32 ChannelIndex) const override
 	{
-		return FVector2D(MeshData.TextureCoordinates[VertexIndex]);
+		return FVector2f(MeshData.TextureCoordinates[VertexIndex]);
 	}
 
 	virtual void GetSectionFromVertexIndex(uint32 InVertIndex, int32& OutSectionIndex) const override
@@ -852,13 +852,13 @@ namespace GroomBinding_RootProjection
 			uint32  I1;
 			uint32  I2;
 
-			FVector P0;
-			FVector P1;
-			FVector P2;
+			FVector3f P0;
+			FVector3f P1;
+			FVector3f P2;
 
-			FVector2D UV0;
-			FVector2D UV1;
-			FVector2D UV2;
+			FVector2f UV0;
+			FVector2f UV1;
+			FVector2f UV2;
 		};
 
 		struct FCell
@@ -867,16 +867,16 @@ namespace GroomBinding_RootProjection
 		};
 		typedef TArray<const FCell*> FCells;
 
-		FTriangleGrid(const FVector& InMinBound, const FVector& InMaxBound, float InVoxelWorldSize)
+		FTriangleGrid(const FVector3f& InMinBound, const FVector3f& InMaxBound, float InVoxelWorldSize)
 		{
 			MinBound = InMinBound;
 			MaxBound = InMaxBound;
 
 			// Compute the voxel volume resolution, and snap the max bound to the voxel grid
 			GridResolution = FIntVector::ZeroValue;
-			FVector VoxelResolutionF = (MaxBound - MinBound) / InVoxelWorldSize;
+			FVector3f VoxelResolutionF = (MaxBound - MinBound) / InVoxelWorldSize;
 			GridResolution = FIntVector(FMath::CeilToInt(VoxelResolutionF.X), FMath::CeilToInt(VoxelResolutionF.Y), FMath::CeilToInt(VoxelResolutionF.Z));
-			MaxBound = MinBound + FVector(GridResolution) * InVoxelWorldSize;
+			MaxBound = MinBound + FVector3f(GridResolution) * InVoxelWorldSize;
 
 			Cells.SetNum(GridResolution.X * GridResolution.Y * GridResolution.Z);
 		}
@@ -889,7 +889,7 @@ namespace GroomBinding_RootProjection
 				0 <= P.Z && P.Z < GridResolution.Z;
 		}
 
-		FORCEINLINE bool IsOutside(const FVector& MinP, const FVector& MaxP) const
+		FORCEINLINE bool IsOutside(const FVector3f& MinP, const FVector3f& MaxP) const
 		{
 			return
 				(MaxP.X <= MinBound.X || MaxP.Y <= MinBound.Y || MaxP.Z <= MinBound.Z) ||
@@ -905,10 +905,10 @@ namespace GroomBinding_RootProjection
 				FMath::Clamp(CellCoord.Z, 0, GridResolution.Z - 1));
 		}
 
-		FORCEINLINE FIntVector ToCellCoord(const FVector& P) const
+		FORCEINLINE FIntVector ToCellCoord(const FVector3f& P) const
 		{
 			bool bIsValid = false;
-			const FVector F = ((P - MinBound) / (MaxBound - MinBound));
+			const FVector3f F = ((P - MinBound) / (MaxBound - MinBound));
 			const FIntVector CellCoord = FIntVector(FMath::FloorToInt(F.X * GridResolution.X), FMath::FloorToInt(F.Y * GridResolution.Y), FMath::FloorToInt(F.Z * GridResolution.Z));
 			return ClampToVolume(CellCoord, bIsValid);
 		}
@@ -920,7 +920,7 @@ namespace GroomBinding_RootProjection
 			return CellIndex;
 		}
 
-		FCells ToCells(const FVector& P)
+		FCells ToCells(const FVector3f& P)
 		{
 			FCells Out;
 
@@ -973,14 +973,14 @@ namespace GroomBinding_RootProjection
 
 		bool IsTriangleValid(const FTriangle& T) const
 		{
-			const FVector A = T.P0;
-			const FVector B = T.P1;
-			const FVector C = T.P2;
+			const FVector3f A = T.P0;
+			const FVector3f B = T.P1;
+			const FVector3f C = T.P2;
 
-			const FVector AB = B - A;
-			const FVector AC = C - A;
-			const FVector BC = B - C;
-			return FVector::DotProduct(AB, AB) > 0 && FVector::DotProduct(AC, AC) > 0 && FVector::DotProduct(BC, BC) > 0;
+			const FVector3f AB = B - A;
+			const FVector3f AC = C - A;
+			const FVector3f BC = B - C;
+			return FVector3f::DotProduct(AB, AB) > 0 && FVector3f::DotProduct(AC, AC) > 0 && FVector3f::DotProduct(BC, BC) > 0;
 		}
 
 		bool Insert(const FTriangle& T)
@@ -990,12 +990,12 @@ namespace GroomBinding_RootProjection
 				return false;
 			}
 
-			FVector TriMinBound;
+			FVector3f TriMinBound;
 			TriMinBound.X = FMath::Min(T.P0.X, FMath::Min(T.P1.X, T.P2.X));
 			TriMinBound.Y = FMath::Min(T.P0.Y, FMath::Min(T.P1.Y, T.P2.Y));
 			TriMinBound.Z = FMath::Min(T.P0.Z, FMath::Min(T.P1.Z, T.P2.Z));
 
-			FVector TriMaxBound;
+			FVector3f TriMaxBound;
 			TriMaxBound.X = FMath::Max(T.P0.X, FMath::Max(T.P1.X, T.P2.X));
 			TriMaxBound.Y = FMath::Max(T.P0.Y, FMath::Max(T.P1.Y, T.P2.Y));
 			TriMaxBound.Z = FMath::Max(T.P0.Z, FMath::Max(T.P1.Z, T.P2.Z));
@@ -1029,8 +1029,8 @@ namespace GroomBinding_RootProjection
 			return bInserted;
 		}
 
-		FVector MinBound;
-		FVector MaxBound;
+		FVector3f MinBound;
+		FVector3f MaxBound;
 		FIntVector GridResolution;
 		TArray<FCell> Cells;
 	};
@@ -1039,39 +1039,39 @@ namespace GroomBinding_RootProjection
 	// Code from the book "Real-Time Collision Detection" by Christer Ericson
 	struct FTrianglePoint
 	{
-		FVector P;
-		FVector Barycentric;
+		FVector3f P;
+		FVector3f Barycentric;
 	};
 
-	static FTrianglePoint ComputeClosestPoint(const FTriangleGrid::FTriangle& Tri, const FVector& P)
+	static FTrianglePoint ComputeClosestPoint(const FTriangleGrid::FTriangle& Tri, const FVector3f& P)
 	{
-		const FVector A = Tri.P0;
-		const FVector B = Tri.P1;
-		const FVector C = Tri.P2;
+		const FVector3f A = Tri.P0;
+		const FVector3f B = Tri.P1;
+		const FVector3f C = Tri.P2;
 
 		// Check if P is in vertex region outside A.
-		FVector AB = B - A;
-		FVector AC = C - A;
-		FVector AP = P - A;
-		float D1 = FVector::DotProduct(AB, AP);
-		float D2 = FVector::DotProduct(AC, AP);
+		FVector3f AB = B - A;
+		FVector3f AC = C - A;
+		FVector3f AP = P - A;
+		float D1 = FVector3f::DotProduct(AB, AP);
+		float D2 = FVector3f::DotProduct(AC, AP);
 		if (D1 <= 0.f && D2 <= 0.f)
 		{
 			FTrianglePoint Out;
 			Out.P = A;
-			Out.Barycentric = FVector(1, 0, 0);
+			Out.Barycentric = FVector3f(1, 0, 0);
 			return Out;
 		}
 
 		// Check if P is in vertex region outside B.
-		FVector BP = P - B;
-		float D3 = FVector::DotProduct(AB, BP);
-		float D4 = FVector::DotProduct(AC, BP);
+		FVector3f BP = P - B;
+		float D3 = FVector3f::DotProduct(AB, BP);
+		float D4 = FVector3f::DotProduct(AC, BP);
 		if (D3 >= 0.f && D4 <= D3)
 		{
 			FTrianglePoint Out;
 			Out.P = B;
-			Out.Barycentric = FVector(0, 1, 0);
+			Out.Barycentric = FVector3f(0, 1, 0);
 			return Out;
 		}
 
@@ -1083,19 +1083,19 @@ namespace GroomBinding_RootProjection
 
 			FTrianglePoint Out;
 			Out.P = A + V * AB;
-			Out.Barycentric = FVector(1 - V, V, 0);
+			Out.Barycentric = FVector3f(1 - V, V, 0);
 			return Out;
 		}
 
 		// Check if P is in vertex region outside C.
-		FVector CP = P - C;
-		float D5 = FVector::DotProduct(AB, CP);
-		float D6 = FVector::DotProduct(AC, CP);
+		FVector3f CP = P - C;
+		float D5 = FVector3f::DotProduct(AB, CP);
+		float D6 = FVector3f::DotProduct(AC, CP);
 		if (D6 >= 0.f && D5 <= D6)
 		{
 			FTrianglePoint Out;
 			Out.P = C;
-			Out.Barycentric = FVector(0, 0, 1);
+			Out.Barycentric = FVector3f(0, 0, 1);
 			return Out;
 		}
 
@@ -1106,7 +1106,7 @@ namespace GroomBinding_RootProjection
 			float W = D2 / (D2 - D6);
 			FTrianglePoint Out;
 			Out.P = A + W * AC;
-			Out.Barycentric = FVector(1 - W, 0, W);
+			Out.Barycentric = FVector3f(1 - W, 0, W);
 			return Out;
 		}
 
@@ -1117,7 +1117,7 @@ namespace GroomBinding_RootProjection
 			float W = (D4 - D3) / (D4 - D3 + D5 - D6);
 			FTrianglePoint Out;
 			Out.P = B + W * (C - B);
-			Out.Barycentric = FVector(0, 1 - W, W);
+			Out.Barycentric = FVector3f(0, 1 - W, W);
 			return Out;
 		}
 
@@ -1128,7 +1128,7 @@ namespace GroomBinding_RootProjection
 
 		FTrianglePoint Out;
 		Out.P = A + AB * V + AC * W;
-		Out.Barycentric = FVector(1 - V - W, V, W);
+		Out.Barycentric = FVector3f(1 - V - W, V, W);
 		return Out;
 	}
 
@@ -1162,7 +1162,7 @@ namespace GroomBinding_RootProjection
 			const uint32 MaxSectionCount = GetHairStrandsMaxSectionCount();
 			const uint32 MaxTriangleCount = GetHairStrandsMaxTriangleCount();
 
-			FBox MeshBound;
+			FBox3f MeshBound;
 			MeshBound.Init();
 			const uint32 SectionCount = MeshLODData.GetNumSections();
 			
@@ -1198,15 +1198,15 @@ namespace GroomBinding_RootProjection
 
 					if (bHasTransferredPosition)
 					{
-						T.P0 = (FVector)InTransferredPositions[LODIt][T.I0];
-						T.P1 = (FVector)InTransferredPositions[LODIt][T.I1];
-						T.P2 = (FVector)InTransferredPositions[LODIt][T.I2];
+						T.P0 = InTransferredPositions[LODIt][T.I0];
+						T.P1 = InTransferredPositions[LODIt][T.I1];
+						T.P2 = InTransferredPositions[LODIt][T.I2];
 					}
 					else
 					{
-						T.P0 = (FVector)MeshLODData.GetVertexPosition(T.I0);
-						T.P1 = (FVector)MeshLODData.GetVertexPosition(T.I1);
-						T.P2 = (FVector)MeshLODData.GetVertexPosition(T.I2);
+						T.P0 = MeshLODData.GetVertexPosition(T.I0);
+						T.P1 = MeshLODData.GetVertexPosition(T.I1);
+						T.P2 = MeshLODData.GetVertexPosition(T.I2);
 					}
 
 					T.UV0 = MeshLODData.GetVertexUV(T.I0, ChannelIndex);
@@ -1225,10 +1225,10 @@ namespace GroomBinding_RootProjection
 			}
 
 			// Take the smallest bounding box between the groom and the skeletal mesh
-			const FVector MeshExtent = MeshBound.Max - MeshBound.Min;
-			const FVector HairExtent = InStrandsData.BoundingBox.Max - InStrandsData.BoundingBox.Min;
-			FVector GridMin;
-			FVector GridMax;
+			const FVector3f MeshExtent = MeshBound.Max - MeshBound.Min;
+			const FVector3f HairExtent = InStrandsData.BoundingBox.Max - InStrandsData.BoundingBox.Min;
+			FVector3f GridMin;
+			FVector3f GridMax;
 			if (MeshExtent.Size() < HairExtent.Size())
 			{
 				GridMin = MeshBound.Min;
@@ -1244,8 +1244,8 @@ namespace GroomBinding_RootProjection
 				// the groom bound to be correctly inserted.
 				if (ClosestTrianglePoint < FLT_MAX)
 				{
-					GridMin -= FVector(ClosestTrianglePoint * 1.25f);
-					GridMax += FVector(ClosestTrianglePoint * 1.25f);
+					GridMin -= FVector3f(ClosestTrianglePoint * 1.25f);
+					GridMax += FVector3f(ClosestTrianglePoint * 1.25f);
 				}
 			}
 
@@ -1275,15 +1275,15 @@ namespace GroomBinding_RootProjection
 
 					if (bHasTransferredPosition)
 					{
-						T.P0 = (FVector)InTransferredPositions[LODIt][T.I0];
-						T.P1 = (FVector)InTransferredPositions[LODIt][T.I1];
-						T.P2 = (FVector)InTransferredPositions[LODIt][T.I2];
+						T.P0 = InTransferredPositions[LODIt][T.I0];
+						T.P1 = InTransferredPositions[LODIt][T.I1];
+						T.P2 = InTransferredPositions[LODIt][T.I2];
 					}
 					else
 					{
-						T.P0 = (FVector)MeshLODData.GetVertexPosition(T.I0);
-						T.P1 = (FVector)MeshLODData.GetVertexPosition(T.I1);
-						T.P2 = (FVector)MeshLODData.GetVertexPosition(T.I2);
+						T.P0 = MeshLODData.GetVertexPosition(T.I0);
+						T.P1 = MeshLODData.GetVertexPosition(T.I1);
+						T.P2 = MeshLODData.GetVertexPosition(T.I2);
 					}
 
 					T.UV0 = MeshLODData.GetVertexUV(T.I0, ChannelIndex);
@@ -1329,7 +1329,7 @@ namespace GroomBinding_RootProjection
 		#endif
 			{
 				const uint32 Offset = InStrandsData.StrandsCurves.CurvesOffset[CurveIndex];
-				const FVector& RootP = (FVector)InStrandsData.StrandsPoints.PointsPosition[Offset];
+				const FVector3f& RootP = InStrandsData.StrandsPoints.PointsPosition[Offset];
 				const FTriangleGrid::FCells Cells = Grid.ToCells(RootP);
 
 				if (Cells.Num() == 0)
@@ -1343,18 +1343,18 @@ namespace GroomBinding_RootProjection
 
 				float ClosestDistance = FLT_MAX;
 				FTriangleGrid::FTriangle ClosestTriangle;
-				FVector2D ClosestBarycentrics;
+				FVector2f ClosestBarycentrics;
 				for (const FTriangleGrid::FCell* Cell : Cells)
 				{
 					for (const FTriangleGrid::FTriangle& CellTriangle : Cell->Triangles)
 					{
 						const FTrianglePoint Tri = ComputeClosestPoint(CellTriangle, RootP);
-						const float Distance = FVector::Distance(Tri.P, RootP);
+						const float Distance = FVector3f::Distance(Tri.P, RootP);
 						if (Distance < ClosestDistance)
 						{
 							ClosestDistance = Distance;
 							ClosestTriangle = CellTriangle;
-							ClosestBarycentrics = FVector2D(Tri.Barycentric.X, Tri.Barycentric.Y);
+							ClosestBarycentrics = FVector2f(Tri.Barycentric.X, Tri.Barycentric.Y);
 						}
 					}
 				}
@@ -1463,13 +1463,13 @@ namespace GroomBinding_Transfer
 			uint32  I1;
 			uint32  I2;
 
-			FVector P0;
-			FVector P1;
-			FVector P2;
+			FVector3f P0;
+			FVector3f P1;
+			FVector3f P2;
 
-			FVector2D UV0;
-			FVector2D UV1;
-			FVector2D UV2;
+			FVector2f UV0;
+			FVector2f UV1;
+			FVector2f UV2;
 		};
 
 		struct FCell
@@ -1482,8 +1482,8 @@ namespace GroomBinding_Transfer
 		{
 			GridResolution.X = Resolution;
 			GridResolution.Y = Resolution;
-			MinBound = FVector2D(0,0);
-			MaxBound = FVector2D(1,1);
+			MinBound = FVector2f(0,0);
+			MaxBound = FVector2f(1,1);
 
 			Cells.SetNum(GridResolution.X * GridResolution.Y);
 		}
@@ -1501,7 +1501,7 @@ namespace GroomBinding_Transfer
 				0 <= P.Y && P.Y < GridResolution.Y;
 		}
 
-		FORCEINLINE bool IsOutside(const FVector2D& MinP, const FVector2D& MaxP) const
+		FORCEINLINE bool IsOutside(const FVector2f& MinP, const FVector2f& MaxP) const
 		{
 			return
 				(MaxP.X <= MinBound.X || MaxP.Y <= MinBound.Y) ||
@@ -1516,10 +1516,10 @@ namespace GroomBinding_Transfer
 				FMath::Clamp(CellCoord.Y, 0, GridResolution.Y - 1));
 		}
 
-		FORCEINLINE FIntPoint ToCellCoord(const FVector2D& P) const
+		FORCEINLINE FIntPoint ToCellCoord(const FVector2f& P) const
 		{
 			bool bIsValid = false;
-			FVector2D PP;
+			FVector2f PP;
 			PP.X = FMath::Clamp(P.X, 0.f, 1.f);
 			PP.Y = FMath::Clamp(P.Y, 0.f, 1.f);
 			const FIntPoint CellCoord = FIntPoint(FMath::FloorToInt(PP.X * GridResolution.X), FMath::FloorToInt(PP.Y * GridResolution.Y));
@@ -1533,7 +1533,7 @@ namespace GroomBinding_Transfer
 			return CellIndex;
 		}
 
-		FCells ToCells(const FVector2D& P)
+		FCells ToCells(const FVector2f& P)
 		{
 			FCells Out;
 
@@ -1577,11 +1577,11 @@ namespace GroomBinding_Transfer
 
 		bool Insert(const FTriangle& T)
 		{
-			FVector2D TriMinBound;
+			FVector2f TriMinBound;
 			TriMinBound.X = FMath::Min(T.UV0.X, FMath::Min(T.UV1.X, T.UV2.X));
 			TriMinBound.Y = FMath::Min(T.UV0.Y, FMath::Min(T.UV1.Y, T.UV2.Y));
 
-			FVector2D TriMaxBound;
+			FVector2f TriMaxBound;
 			TriMaxBound.X = FMath::Max(T.UV0.X, FMath::Max(T.UV1.X, T.UV2.X));
 			TriMaxBound.Y = FMath::Max(T.UV0.Y, FMath::Max(T.UV1.Y, T.UV2.Y));
 
@@ -1611,8 +1611,8 @@ namespace GroomBinding_Transfer
 			return bInserted;
 		}
 
-		FVector2D MinBound;
-		FVector2D MaxBound;
+		FVector2f MinBound;
+		FVector2f MaxBound;
 		FIntPoint GridResolution;
 		TArray<FCell> Cells;
 	};
@@ -1622,40 +1622,40 @@ namespace GroomBinding_Transfer
 	// Code from the book "Real-Time Collision Detection" by Christer Ericson
 	struct FTrianglePoint
 	{
-		FVector P;
-		FVector Barycentric;
+		FVector3f P;
+		FVector3f Barycentric;
 	};
 
-	FTrianglePoint ComputeClosestPoint(const FVector2D& TriUV0, const FVector2D& TriUV1, const FVector2D& TriUV2, const FVector2D& UVs)
+	FTrianglePoint ComputeClosestPoint(const FVector2f& TriUV0, const FVector2f& TriUV1, const FVector2f& TriUV2, const FVector2f& UVs)
 	{
-		const FVector A = FVector(TriUV0, 0);
-		const FVector B = FVector(TriUV1, 0);
-		const FVector C = FVector(TriUV2, 0);
-		const FVector P = FVector(UVs, 0);
+		const FVector3f A = FVector3f(TriUV0, 0);
+		const FVector3f B = FVector3f(TriUV1, 0);
+		const FVector3f C = FVector3f(TriUV2, 0);
+		const FVector3f P = FVector3f(UVs, 0);
 
 		// Check if P is in vertex region outside A.
-		FVector AB = B - A;
-		FVector AC = C - A;
-		FVector AP = P - A;
-		float D1 = FVector::DotProduct(AB, AP);
-		float D2 = FVector::DotProduct(AC, AP);
+		FVector3f AB = B - A;
+		FVector3f AC = C - A;
+		FVector3f AP = P - A;
+		float D1 = FVector3f::DotProduct(AB, AP);
+		float D2 = FVector3f::DotProduct(AC, AP);
 		if (D1 <= 0.f && D2 <= 0.f)
 		{
 			FTrianglePoint Out;
 			Out.P = A;
-			Out.Barycentric = FVector(1, 0, 0);
+			Out.Barycentric = FVector3f(1, 0, 0);
 			return Out;
 		}
 
 		// Check if P is in vertex region outside B.
-		FVector BP = P - B;
-		float D3 = FVector::DotProduct(AB, BP);
-		float D4 = FVector::DotProduct(AC, BP);
+		FVector3f BP = P - B;
+		float D3 = FVector3f::DotProduct(AB, BP);
+		float D4 = FVector3f::DotProduct(AC, BP);
 		if (D3 >= 0.f && D4 <= D3)
 		{
 			FTrianglePoint Out;
 			Out.P = B;
-			Out.Barycentric = FVector(0, 1, 0);
+			Out.Barycentric = FVector3f(0, 1, 0);
 			return Out;
 		}
 
@@ -1667,19 +1667,19 @@ namespace GroomBinding_Transfer
 
 			FTrianglePoint Out;
 			Out.P = A + V * AB;
-			Out.Barycentric = FVector(1 - V, V, 0);
+			Out.Barycentric = FVector3f(1 - V, V, 0);
 			return Out;
 		}
 
 		// Check if P is in vertex region outside C.
-		FVector CP = P - C;
-		float D5 = FVector::DotProduct(AB, CP);
-		float D6 = FVector::DotProduct(AC, CP);
+		FVector3f CP = P - C;
+		float D5 = FVector3f::DotProduct(AB, CP);
+		float D6 = FVector3f::DotProduct(AC, CP);
 		if (D6 >= 0.f && D5 <= D6)
 		{
 			FTrianglePoint Out;
 			Out.P = C;
-			Out.Barycentric = FVector(0, 0, 1);
+			Out.Barycentric = FVector3f(0, 0, 1);
 			return Out;
 		}
 
@@ -1690,7 +1690,7 @@ namespace GroomBinding_Transfer
 			float W = D2 / (D2 - D6);
 			FTrianglePoint Out;
 			Out.P = A + W * AC;
-			Out.Barycentric = FVector(1 - W, 0, W);
+			Out.Barycentric = FVector3f(1 - W, 0, W);
 			return Out;
 		}
 
@@ -1701,7 +1701,7 @@ namespace GroomBinding_Transfer
 			float W = (D4 - D3) / (D4 - D3 + D5 - D6);
 			FTrianglePoint Out;
 			Out.P = B + W * (C - B);
-			Out.Barycentric = FVector(0, 1 - W, W);
+			Out.Barycentric = FVector3f(0, 1 - W, W);
 			return Out;
 		}
 
@@ -1712,7 +1712,7 @@ namespace GroomBinding_Transfer
 
 		FTrianglePoint Out;
 		Out.P = A + AB * V + AC * W;
-		Out.Barycentric = FVector(1 - V - W, V, W);
+		Out.Barycentric = FVector3f(1 - V - W, V, W);
 		return Out;
 	}
 
@@ -1753,9 +1753,9 @@ namespace GroomBinding_Transfer
 				T.I1 = SourceIndexBuffer[T.SectionBaseIndex + SourceTriangleIt * 3 + 1];
 				T.I2 = SourceIndexBuffer[T.SectionBaseIndex + SourceTriangleIt * 3 + 2];
 
-				T.P0 = (FVector)MeshLODData.GetVertexPosition(T.I0);
-				T.P1 = (FVector)MeshLODData.GetVertexPosition(T.I1);
-				T.P2 = (FVector)MeshLODData.GetVertexPosition(T.I2);
+				T.P0 = MeshLODData.GetVertexPosition(T.I0);
+				T.P1 = MeshLODData.GetVertexPosition(T.I1);
+				T.P2 = MeshLODData.GetVertexPosition(T.I2);
 
 				T.UV0 = MeshLODData.GetVertexUV(T.I0, InChannelIndex);
 				T.UV1 = MeshLODData.GetVertexUV(T.I1, InChannelIndex);
@@ -1826,10 +1826,10 @@ namespace GroomBinding_Transfer
 			const uint32 TargetTriangleCount = TargetMeshLODData.GetSection(LocalTargetSectionId).GetNumTriangles();
 			const uint32 TargetVertexCount = TargetMeshLODData.GetNumVertices();
 
-			TSet<FVector2D> UVs;
+			TSet<FVector2f> UVs;
 			for (uint32 TargetVertexIt = 0; TargetVertexIt < TargetVertexCount; ++TargetVertexIt)
 			{
-				const FVector2D Target_UV = TargetMeshLODData.GetVertexUV(TargetVertexIt, ChannelIndex);
+				const FVector2f Target_UV = TargetMeshLODData.GetVertexUV(TargetVertexIt, ChannelIndex);
 				UVs.Add(Target_UV);
 			}
 
@@ -1870,7 +1870,7 @@ namespace GroomBinding_Transfer
 				}
 
 				const FVector3f Target_P    = TargetMeshLODData.GetVertexPosition(TargetVertexIt);
-				const FVector2D Target_UV = TargetMeshLODData.GetVertexUV(TargetVertexIt, ChannelIndex);
+				const FVector2f Target_UV = TargetMeshLODData.GetVertexUV(TargetVertexIt, ChannelIndex);
 
 				// 2.1 Query closest triangles
 				FVector3f RetargetedVertexPosition = Target_P;
@@ -1883,7 +1883,7 @@ namespace GroomBinding_Transfer
 					for (const FTriangleGrid2D::FTriangle& CellTriangle : Cell->Triangles)
 					{
 						const FTrianglePoint ClosestPoint = ComputeClosestPoint(CellTriangle.UV0, CellTriangle.UV1, CellTriangle.UV2, Target_UV);
-						const float UVDistanceToTriangle = FVector2D::Distance(FVector2D(ClosestPoint.P.X, ClosestPoint.P.Y), Target_UV);
+						const float UVDistanceToTriangle = FVector2f::Distance(FVector2f(ClosestPoint.P.X, ClosestPoint.P.Y), Target_UV);
 						if (UVDistanceToTriangle < ClosestUVDistance)
 						{
 							RetargetedVertexPosition = FVector3f(

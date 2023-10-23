@@ -510,7 +510,7 @@ struct HAIRSTRANDSCORE_API FHairStrandsCurves
 	TArray<FIntVector> CurvesClosestGuideIDs;
 
 	/** Custom guid weights (indexed with StrandID) (optional) */
-	TArray<FVector> CurvesClosestGuideWeights;
+	TArray<FVector3f> CurvesClosestGuideWeights;
 
 	/** Flags for attributes */
 	uint32 AttributeFlags = 0;
@@ -547,7 +547,7 @@ struct HAIRSTRANDSCORE_API FHairStrandsDatas
 	float HairDensity = 1;
 
 	/* Strands bounding box */
-	FBox BoundingBox = FBox(EForceInit::ForceInit);
+	FBox3f BoundingBox = FBox3f(EForceInit::ForceInit);
 };
 
 struct HAIRSTRANDSCORE_API FHairStrandsBulkData : FHairStrandsBulkCommon
