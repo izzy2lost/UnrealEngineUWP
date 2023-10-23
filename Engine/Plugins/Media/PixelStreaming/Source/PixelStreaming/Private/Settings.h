@@ -70,6 +70,7 @@ namespace UE::PixelStreaming::Settings
 	extern TAutoConsoleVariable<bool> CVarPixelStreamingCaptureUseFence;
 	extern TAutoConsoleVariable<bool> CVarPixelStreamingDecoupleFramerate;
 	extern TAutoConsoleVariable<float> CVarPixelStreamingDecoupleWaitFactor;
+	extern TAutoConsoleVariable<bool> CVarPixelStreamingUseMediaCapture;
 	// Ends Pixel Streaming Plugin CVars
 
 	/* Pixel Streaming can limit who can send input (keyboard, mouse, etc). */

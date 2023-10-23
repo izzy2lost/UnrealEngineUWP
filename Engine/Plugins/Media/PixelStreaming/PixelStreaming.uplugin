@@ -95,6 +95,10 @@
 		{
 			"Name": "XRBase",
 			"Enabled": true
+		},
+		{
+			"Name": "MediaIOFramework",
+			"Enabled": true
 		}
 	]
 }

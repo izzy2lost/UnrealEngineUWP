@@ -66,7 +66,8 @@ namespace UnrealBuildTool.Rules
 				"InputDevice",
 				"WebRTC",
 				"PixelCapture",
-				"PixelStreamingInput"
+				"PixelStreamingInput",
+				"MediaIOCore",
 			});
 
 			PrivateDependencyModuleNames.AddRange(new string[]

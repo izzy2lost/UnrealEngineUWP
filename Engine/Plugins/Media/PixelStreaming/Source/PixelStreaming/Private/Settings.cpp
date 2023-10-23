@@ -303,6 +303,12 @@ namespace UE::PixelStreaming::Settings
 		TEXT("Changes the number of seconds between attempted reconnects to the signaling server. This is useful for reducing the log spam produced from attempted reconnects. A value <= 0 results in an immediate reconnect. Default: 2.0s"),
 		ECVF_Default);
 
+	TAutoConsoleVariable<bool> CVarPixelStreamingUseMediaCapture(
+		TEXT("PixelStreaming.UseMediaCapture"),
+		false,
+		TEXT("Use Media Capture from MediaIOFramework to capture frames rather than Pixel Streamings internal backbuffer sources."),
+		ECVF_Default);
+
 	FString DefaultStreamerID = TEXT("DefaultStreamer");
 	FString DefaultSignallingURL = TEXT("ws://127.0.0.1:8888");
 
@@ -704,6 +710,7 @@ namespace UE::PixelStreaming::Settings
 		CommandLineParseOption(TEXT("PixelStreamingNegotiateCodecs"), CVarPixelStreamingWebRTCNegotiateCodecs);
 		CommandLineParseOption(TEXT("PixelStreamingCaptureUseFence"), CVarPixelStreamingCaptureUseFence);
 		CommandLineParseOption(TEXT("PixelStreamingDecoupleFramerate"), CVarPixelStreamingDecoupleFramerate);
+		CommandLineParseOption(TEXT("PixelStreamingUseMediaCapture"), CVarPixelStreamingUseMediaCapture);
 
 		ReadSimulcastParameters();
 

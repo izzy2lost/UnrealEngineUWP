@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "PixelStreamingMediaOutput.h"
-#include "PixelStreamingMediaCapture.h"
 #include "IPixelStreamingModule.h"
 #include "PixelStreamingPlayerId.h"
 #include "IPixelStreamingStreamer.h"
@@ -29,7 +28,7 @@ void UPixelStreamingMediaOutput::BeginDestroy()
 
 UMediaCapture* UPixelStreamingMediaOutput::CreateMediaCaptureImpl()
 {
-	UPixelStreamingMediaCapture* Capture = NewObject<UPixelStreamingMediaCapture>();
+	UPixelStreamingMediaIOCapture* Capture = NewObject<UPixelStreamingMediaIOCapture>();
 	Capture->SetMediaOutput(this);
 
 	if (!VideoInput)

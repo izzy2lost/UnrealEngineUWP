@@ -53,6 +53,7 @@ THIRD_PARTY_INCLUDES_END
 #endif
 
 #include "PixelStreamingVideoInputBackBuffer.h"
+#include "PixelStreamingVideoInputMediaCapture.h"
 #include "VideoSourceGroup.h"
 #include "PixelStreamingPeerConnection.h"
 #include "Engine/GameEngine.h"
@@ -423,7 +424,14 @@ namespace UE::PixelStreaming
 		{
 			// The user has specified a URL on the command line meaning their intention is to start streaming immediately
 			// in that case, set up the video input for them (as long as we're not in editor)
-			DefaultStreamer->SetVideoInput(FPixelStreamingVideoInputBackBuffer::Create());
+			if (Settings::CVarPixelStreamingUseMediaCapture.GetValueOnAnyThread())
+			{
+				DefaultStreamer->SetVideoInput(FPixelStreamingVideoInputMediaCapture::Create());
+			}
+			else
+			{
+				DefaultStreamer->SetVideoInput(FPixelStreamingVideoInputBackBuffer::Create());
+			}
 		}
 	}
 

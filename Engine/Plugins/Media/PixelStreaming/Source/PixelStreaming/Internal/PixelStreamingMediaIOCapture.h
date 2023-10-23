@@ -5,11 +5,10 @@
 #include "MediaCapture.h"
 #include "Slate/SceneViewport.h"
 #include "PixelStreamingVideoInput.h"
-#include "PixelStreamingVideoInputVCam.h"
-#include "PixelStreamingMediaCapture.generated.h"
+#include "PixelStreamingMediaIOCapture.generated.h"
 
 UCLASS(BlueprintType)
-class UPixelStreamingMediaCapture : public UMediaCapture
+class PIXELSTREAMING_API UPixelStreamingMediaIOCapture : public UMediaCapture
 {
 	GENERATED_BODY()
 
@@ -50,8 +49,8 @@ public:
 	TSharedPtr<FSceneViewport> GetViewport() const { return SceneViewport.Pin(); }
 	virtual void ViewportResized(FViewport* Viewport, uint32 ResizeCode);
 	bool WasViewportResized() const { return bViewportResized; }
-	void SetVideoInput(TWeakPtr<FPixelStreamingVideoInputVCam> InVideoInput) { VideoInput = InVideoInput; }
-	TWeakPtr<FPixelStreamingVideoInputVCam> GetVideoInput() { return VideoInput; }
+	void SetVideoInput(TSharedPtr<FPixelStreamingVideoInput> InVideoInput) { VideoInput = InVideoInput; }
+	TWeakPtr<FPixelStreamingVideoInput> GetVideoInput() { return VideoInput; }
 
 	DECLARE_MULTICAST_DELEGATE(FOnCaptureViewportInitialized);
 	FOnCaptureViewportInitialized OnCaptureViewportInitialized;
@@ -61,11 +60,12 @@ private:
 
 private:
 	TWeakPtr<FSceneViewport> SceneViewport;
-	TWeakPtr<FPixelStreamingVideoInputVCam> VideoInput;
+	TWeakPtr<FPixelStreamingVideoInput> VideoInput;
 
 	/* We track whether the viewport has been resized since we created this capturer as resize means restart capturer. */
 	bool bViewportResized = false;
 
 	/* Whether we want the UMediaCapture to read back to frame into cpu memory or not. */
 	bool bDoGPUCopy = true;
+
 };

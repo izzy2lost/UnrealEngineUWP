@@ -4,7 +4,7 @@
 
 #include "MediaOutput.h"
 #include "IPixelStreamingStreamer.h"
-#include "PixelStreamingMediaCapture.h"
+#include "PixelStreamingMediaIOCapture.h"
 #include "PixelStreamingVideoInputVCam.h"
 #include "Delegates/DelegateCombinations.h"
 #include "PixelStreamingMediaOutput.generated.h"

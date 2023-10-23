@@ -258,7 +258,7 @@ namespace UE::PixelStreamingVCam::Private
 		}
 
 		// Create a capturer that will capture frames from viewport and send them to streamer
-		MediaCapture = Cast<UPixelStreamingMediaCapture>(MediaOutput->CreateMediaCapture());
+		MediaCapture = Cast<UPixelStreamingMediaIOCapture>(MediaOutput->CreateMediaCapture());
 		MediaCapture->OnStateChangedNative.AddSP(this, &FVCamPixelStreamingSessionLogic::OnCaptureStateChanged, WeakThisPtr);
 		StartCapture(WeakThisPtr);
 
@@ -273,7 +273,7 @@ namespace UE::PixelStreamingVCam::Private
 			return;
 		}
 
-		if(TSharedPtr<FPixelStreamingVideoInputVCam> VideoInput = MediaCapture->GetVideoInput().Pin())
+		if(TSharedPtr<FPixelStreamingVideoInput> VideoInput = MediaCapture->GetVideoInput().Pin())
 		{
 			TSharedPtr<IPixelStreamingStreamer> Streamer = MediaOutput->GetStreamer();
 			if(!Streamer)

@@ -9,7 +9,7 @@
 #include "UObject/WeakObjectPtrTemplates.h"
 
 class UVCamPixelStreamingSession;
-class UPixelStreamingMediaCapture;
+class UPixelStreamingMediaIOCapture;
 class UPixelStreamingMediaOutput;
 class IPixelStreamingStreamer;
 
@@ -43,7 +43,7 @@ namespace UE::PixelStreamingVCam::Private
 		bool bOldThrottleCPUWhenNotForeground;
 
 		TObjectPtr<UPixelStreamingMediaOutput> MediaOutput = nullptr;
-		TObjectPtr<UPixelStreamingMediaCapture> MediaCapture = nullptr;
+		TObjectPtr<UPixelStreamingMediaIOCapture> MediaCapture = nullptr;
 
 		void SetupSignallingServer();
 		void StopSignallingServer();
