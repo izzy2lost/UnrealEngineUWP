@@ -1748,21 +1748,17 @@ void* FD3D12Texture::Lock(class FRHICommandListImmediate* RHICmdList, uint32 Mip
 	check(LockedMap.Find(Subresource) == nullptr);
 	FD3D12LockedResource* LockedResource = new FD3D12LockedResource(Device);
 
-	// Calculate the dimensions of the mip-map.
-	const uint32 BlockSizeX = GPixelFormats[this->GetFormat()].BlockSizeX;
-	const uint32 BlockSizeY = GPixelFormats[this->GetFormat()].BlockSizeY;
-	const uint32 BlockBytes = GPixelFormats[this->GetFormat()].BlockBytes;
-	const uint32 MipSizeX = FMath::Max(this->GetSizeX() >> MipIndex, BlockSizeX);
-	const uint32 MipSizeY = FMath::Max(this->GetSizeY() >> MipIndex, BlockSizeY);
-	const uint32 NumBlocksX = (MipSizeX + BlockSizeX - 1) / BlockSizeX;
-	const uint32 NumBlocksY = (MipSizeY + BlockSizeY - 1) / BlockSizeY;
+	const D3D12_RESOURCE_DESC& ResourceDesc = GetResource()->GetDesc();
 
-	const uint32 XBytesAligned = Align(NumBlocksX * BlockBytes, FD3D12_TEXTURE_DATA_PITCH_ALIGNMENT);
-	const uint32 MipBytesAligned = XBytesAligned * NumBlocksY;
+	UINT64 TotalBytes;
+	D3D12_PLACED_SUBRESOURCE_FOOTPRINT PlacedFootprint;
+	Device->GetDevice()->GetCopyableFootprints(&ResourceDesc, Subresource, 1, 0, &PlacedFootprint, nullptr, nullptr, &TotalBytes);
 
+	LockedResource->Footprint = PlacedFootprint.Footprint;
+	DestStride = LockedResource->Footprint.RowPitch;
 	if (OutLockedByteCount)
 	{
-		*OutLockedByteCount = MipBytesAligned;
+		*OutLockedByteCount = TotalBytes;
 	}
 
 	FD3D12CommandContext& Context = Device->GetDefaultCommandContext();
@@ -1783,20 +1779,13 @@ void* FD3D12Texture::Lock(class FRHICommandListImmediate* RHICmdList, uint32 Mip
 	{
 		// If we're writing to the texture, allocate a system memory buffer to receive the new contents.
 		// Use an upload heap to copy data to a default resource.
-		//const uint32 bufferSize = (uint32)GetRequiredIntermediateSize(this->GetResource()->GetResource(), Subresource, 1);
-		const uint32 bufferSize = Align(MipBytesAligned, D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT);
 
-		void* pData = Device->GetDefaultFastAllocator().Allocate(bufferSize, D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT, &LockedResource->ResourceLocation);
+		void* pData = Device->GetDefaultFastAllocator().Allocate(TotalBytes, D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT, &LockedResource->ResourceLocation);
 		if (nullptr == pData)
 		{
 			check(false);
 			return nullptr;
 		}
-
-		DestStride = XBytesAligned;
-		LockedResource->LockedPitch = XBytesAligned;
-
-		check(LockedResource->LockedPitch % FD3D12_TEXTURE_DATA_PITCH_ALIGNMENT == 0);
 
 		Data = LockedResource->ResourceLocation.GetMappedBaseAddress();
 	}
@@ -1810,28 +1799,14 @@ void* FD3D12Texture::Lock(class FRHICommandListImmediate* RHICmdList, uint32 Mip
 		// If we're reading from the texture, we create a staging resource, copy the texture contents to it, and map it.
 
 		// Create the staging texture.
-		const D3D12_RESOURCE_DESC& StagingTextureDesc = GetResource()->GetDesc();
 		FD3D12Resource* StagingTexture = nullptr;
 
 		const FRHIGPUMask Node = Device->GetGPUMask();
-		VERIFYD3D12RESULT(Adapter->CreateBuffer(D3D12_HEAP_TYPE_READBACK, Node, Node, MipBytesAligned, &StagingTexture, nullptr));
+		VERIFYD3D12RESULT(Adapter->CreateBuffer(D3D12_HEAP_TYPE_READBACK, Node, Node, TotalBytes, &StagingTexture, nullptr));
 
-		LockedResource->ResourceLocation.AsStandAlone(StagingTexture, MipBytesAligned);
+		LockedResource->ResourceLocation.AsStandAlone(StagingTexture, TotalBytes);
 
-		// Copy the mip-map data from the real resource into the staging resource
-		D3D12_SUBRESOURCE_FOOTPRINT destSubresource;
-		destSubresource.Depth = 1;
-		destSubresource.Height = MipSizeY;
-		destSubresource.Width = MipSizeX;
-		destSubresource.Format = StagingTextureDesc.Format;
-		destSubresource.RowPitch = XBytesAligned;
-		check(destSubresource.RowPitch % FD3D12_TEXTURE_DATA_PITCH_ALIGNMENT == 0);
-
-		D3D12_PLACED_SUBRESOURCE_FOOTPRINT placedTexture2D = { 0 };
-		placedTexture2D.Offset = 0;
-		placedTexture2D.Footprint = destSubresource;
-
-		CD3DX12_TEXTURE_COPY_LOCATION DestCopyLocation(StagingTexture->GetResource(), placedTexture2D);
+		CD3DX12_TEXTURE_COPY_LOCATION DestCopyLocation(StagingTexture->GetResource(), PlacedFootprint);
 		CD3DX12_TEXTURE_COPY_LOCATION SourceCopyLocation(GetResource()->GetResource(), Subresource);
 
 		const auto& pfnCopyTextureRegion = [&]()
@@ -1864,11 +1839,6 @@ void* FD3D12Texture::Lock(class FRHICommandListImmediate* RHICmdList, uint32 Mip
 
 		// We need to execute the command list so we can read the data from the map below
 		Context.FlushCommands(ED3D12FlushFlags::WaitForCompletion);
-
-		LockedResource->LockedPitch = XBytesAligned;
-		DestStride = XBytesAligned;
-		check(LockedResource->LockedPitch % FD3D12_TEXTURE_DATA_PITCH_ALIGNMENT == 0);
-		check(DestStride == XBytesAligned);
 
 		Data = LockedResource->ResourceLocation.GetMappedBaseAddress();
 	}
@@ -2011,14 +1981,6 @@ void FD3D12Texture::UnlockInternal(class FRHICommandListImmediate* RHICmdList, F
 	// Calculate the subresource index corresponding to the specified mip-map.
 	const uint32 Subresource = CalcSubresource(MipIndex, ArrayIndex, this->GetNumMips());
 
-	// Calculate the dimensions of the mip-map.
-	const uint32 BlockSizeX = GPixelFormats[this->GetFormat()].BlockSizeX;
-	const uint32 BlockSizeY = GPixelFormats[this->GetFormat()].BlockSizeY;
-	const uint32 BlockBytes = GPixelFormats[this->GetFormat()].BlockBytes;
-	// MipSize not aligned to BlockSize is correct here...
-	const uint32 MipSizeX = FMath::Max(this->GetSizeX() >> MipIndex, BlockSizeX);
-	const uint32 MipSizeY = FMath::Max(this->GetSizeY() >> MipIndex, BlockSizeY);
-
 	auto* FirstObject = static_cast<FD3D12Texture*>(GetFirstLinkedObject());
 	TMap<uint32, FD3D12LockedResource*>& Map = FirstObject->LockedMap;
 	FD3D12LockedResource* LockedResource = Map[Subresource];
@@ -2037,20 +1999,11 @@ void FD3D12Texture::UnlockInternal(class FRHICommandListImmediate* RHICmdList, F
 			FD3D12ResourceLocation& UploadLocation = LockedResource->ResourceLocation;
 
 			// Copy the mip-map data from the real resource into the staging resource
-			const D3D12_RESOURCE_DESC& ResourceDesc = Resource->GetDesc();
-			D3D12_SUBRESOURCE_FOOTPRINT BufferPitchDesc;
-			BufferPitchDesc.Depth = 1;
-			BufferPitchDesc.Height = Align(MipSizeY, BlockSizeY);
-			BufferPitchDesc.Width = Align(MipSizeX, BlockSizeX);
-			BufferPitchDesc.Format = ResourceDesc.Format;
-			BufferPitchDesc.RowPitch = LockedResource->LockedPitch;
-			check(BufferPitchDesc.RowPitch % FD3D12_TEXTURE_DATA_PITCH_ALIGNMENT == 0);
 
-			D3D12_PLACED_SUBRESOURCE_FOOTPRINT PlacedTexture2D = { 0 };
-			PlacedTexture2D.Offset = UploadLocation.GetOffsetFromBaseOfResource();
-			PlacedTexture2D.Footprint = BufferPitchDesc;
-
-			CD3DX12_TEXTURE_COPY_LOCATION SourceCopyLocation(UploadLocation.GetResource()->GetResource(), PlacedTexture2D);
+			D3D12_PLACED_SUBRESOURCE_FOOTPRINT PlacedFootprint;
+			PlacedFootprint.Offset = UploadLocation.GetOffsetFromBaseOfResource();
+			PlacedFootprint.Footprint = LockedResource->Footprint;
+			CD3DX12_TEXTURE_COPY_LOCATION SourceCopyLocation(UploadLocation.GetResource()->GetResource(), PlacedFootprint);
 
 			// If we are on the render thread, queue up the copy on the RHIThread so it happens at the correct time.
 			if (ShouldDeferCmdListOperation(RHICmdList))

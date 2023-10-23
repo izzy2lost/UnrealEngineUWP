@@ -727,11 +727,6 @@ struct FD3D12LockedResource : public FD3D12DeviceChild
 	FD3D12LockedResource(FD3D12Device* Device)
 		: FD3D12DeviceChild(Device)
 		, ResourceLocation(Device)
-		, LockedOffset(0)
-		, LockedPitch(0)
-		, bLocked(false)
-		, bLockedForReadOnly(false)
-		, bHasNeverBeenLocked(true)
 	{}
 
 	inline void Reset()
@@ -739,16 +734,18 @@ struct FD3D12LockedResource : public FD3D12DeviceChild
 		ResourceLocation.Clear();
 		bLocked = false;
 		bLockedForReadOnly = false;
-		LockedOffset = 0;
-		LockedPitch = 0;
+		LockOffset = 0;
+		LockSize = 0;
+		FMemory::Memzero(Footprint);
 	}
 
 	FD3D12ResourceLocation ResourceLocation;
-	uint32 LockedOffset;
-	uint32 LockedPitch;
-	uint32 bLocked : 1;
-	uint32 bLockedForReadOnly : 1;
-	uint32 bHasNeverBeenLocked : 1;
+	D3D12_SUBRESOURCE_FOOTPRINT Footprint = {};
+	uint32 LockOffset = 0;
+	uint32 LockSize = 0;
+	uint32 bLocked : 1 = false;
+	uint32 bLockedForReadOnly : 1 = false;
+	uint32 bHasNeverBeenLocked : 1 = true;
 };
 
 /** Resource which might needs to be notified about changes on dependent resources (Views, RTGeometryObject, Cached binding tables) */
