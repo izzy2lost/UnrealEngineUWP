@@ -56,20 +56,19 @@ namespace Chaos
 		}
 		
 		void FImplicitBVH::CollectLeafObject(const FImplicitObject* Object, 
-			const FRigidTransform3& ParentTransform, const int32 RootObjectIndex, TArray<FImplicitBVHObject>& LeafObjects)
+			const FRigidTransform3& ParentTransform, const int32 RootObjectIndex, TArray<FImplicitBVHObject>& LeafObjects, const int32 LeafObjectIndex)
 		{
 			// @todo(chaos): clean this up (SetFromRawLowLevel). We know all the objects we visit are children of a UniquePtr because we own it
 			TSerializablePtr<FImplicitObject> SerializableObject;
 			SerializableObject.SetFromRawLowLevel(Object);
 
-			const int32 ObjectIndex = LeafObjects.Num();
 			LeafObjects.Emplace(
 				SerializableObject,
 				ParentTransform.GetTranslation(),
 				ParentTransform.GetRotation(),
 				Object->CalculateTransformedBounds(ParentTransform),
 				RootObjectIndex,
-				ObjectIndex);
+				LeafObjectIndex);
 		}
 
 		FImplicitBVH::FObjects FImplicitBVH::CollectLeafObjects(const TArrayView<const Chaos::FImplicitObjectPtr>& InRootObjects)
@@ -85,7 +84,7 @@ namespace Chaos
 				[RootObjectIndex, &Objects](const FImplicitObject* Object, const FRigidTransform3& ParentTransform,
 					const int32 UnusedRootObjectIndex, const int32 UnusedObjectIndex, const int32 UnusedLeafObjectIndex)
 				{
-					CollectLeafObject(Object, ParentTransform, RootObjectIndex, Objects);
+					CollectLeafObject(Object, ParentTransform, RootObjectIndex, Objects, Objects.Num());
 				});
 			}
 

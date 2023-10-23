@@ -45,6 +45,7 @@ namespace Chaos
 			// multiple times in the hierarchy in a union of transformed objects, each will have a different ObjectIndex.
 			// This is the ObjectIndex assigned when visiting the hierarchy via FImplicitObject::VisitHierachy and other 
 			// visit methods and can be used to index arrays initialized via those visitors.
+			// @todo(chaos): rename to GetObjectId()
 			int32 GetObjectIndex() const { return ObjectIndex; }
 
 			// The index of our most distant ancestor. I.e., the index in the root Union. This is used to map
@@ -113,7 +114,7 @@ namespace Chaos
 			static int32 CountLeafObjects(const TArrayView<const Chaos::FImplicitObjectPtr>& InRootObjects);
 			static FObjects CollectLeafObjects(const TArrayView<const Chaos::FImplicitObjectPtr>& InRootObjects);
 			static void CollectLeafObject(const FImplicitObject* Object, const FRigidTransform3& ParentTransform, const int32 RootObjectIndex,
-				TArray<FImplicitBVHObject>& LeafObjects);
+				TArray<FImplicitBVHObject>& LeafObjects, const int32 LeafObjectIndex);
 
 			// Create a BVH around a set of ImplicitObjects. Usually these are the immediate child elements of an FImplcitObjectUnion
 			// TryMake will then recurse into the geometry hierachy and add all descendents to the BVH. Will return null if the 

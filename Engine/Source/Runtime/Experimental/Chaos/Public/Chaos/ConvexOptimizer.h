@@ -46,6 +46,9 @@ namespace Private
 
 			// Valid flag to check if the edge has already been processed during merging
 			FValidEdges bValidEdges = {};
+
+			// Convex leaf offset that was used when the convex has been built
+			int32 ConvexId = 0;
 		};
 
 		using FTriboxNodes = TMap<FImplicitObject*, FTriboxNode>;
@@ -105,6 +108,12 @@ namespace Private
 
 		// BVH used to accelerate the collisions queries
 		TUniquePtr<Private::FImplicitBVH> BVH;
+
+		// Main tribox built from all the convexes
+		FTriboxNode MainTribox;
+
+		// Leaf offset to have a unique id for the midphase
+		int32 NextConvexId = 0;
 	};
 
 	// Visit all the collision objects if they exist / otherwise forward it to the RootHierarchy
