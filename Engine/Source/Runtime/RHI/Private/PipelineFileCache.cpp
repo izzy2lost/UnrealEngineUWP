@@ -388,7 +388,9 @@ RHI_API FArchive& operator<<(FArchive& Ar, FPipelineFileCacheRasterizerState& Ra
 	Ar << RasterizerStateInitializer.CullMode;
 	Ar << RasterizerStateInitializer.DepthClipMode;
 	Ar << RasterizerStateInitializer.bAllowMSAA;
-	if (Ar.GameNetVer() < (uint32)EPipelineCacheFileFormatVersions::RemovingLineAA)
+
+	// TODO: actually get versioning to work. Look for: MemReader.SetGameNetVer(FPipelineCacheFileFormatCurrentVersion);
+	//if (Ar.GameNetVer() < (uint32)EPipelineCacheFileFormatVersions::RemovingLineAA)
 	{
 		bool bEnableLineAA = false;
 		Ar << bEnableLineAA;
