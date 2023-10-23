@@ -71,6 +71,8 @@ class BEHAVIORTREEEDITOR_API UBehaviorTreeGraphNode_CompositeDecorator : public 
 
 	virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent) override;
 
+	virtual FLinearColor GetBackgroundColor(bool bIsActiveForDebugger) const override;
+
 	void ResetExecutionRange();
 
 	/** Execution index range of internal nodes, used by debugger */

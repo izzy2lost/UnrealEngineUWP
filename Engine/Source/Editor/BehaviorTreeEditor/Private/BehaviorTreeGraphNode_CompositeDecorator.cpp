@@ -2,6 +2,7 @@
 
 #include "BehaviorTreeGraphNode_CompositeDecorator.h"
 
+#include "BehaviorTreeColors.h"
 #include "BehaviorTree/BTCompositeNode.h"
 #include "BehaviorTree/BTDecorator.h"
 #include "BehaviorTree/BTNode.h"
@@ -304,6 +305,15 @@ void UBehaviorTreeGraphNode_CompositeDecorator::PostEditChangeProperty(struct FP
 	{
 		BuildDescription();
 	}
+}
+
+FLinearColor UBehaviorTreeGraphNode_CompositeDecorator::GetBackgroundColor(bool bIsActiveForDebugger) const
+{
+	return bIsActiveForDebugger
+		? BehaviorTreeColors::Debugger::ActiveDecorator
+		: (bInjectedNode || bRootLevel)
+			? BehaviorTreeColors::NodeBody::InjectedSubNode
+			: BehaviorTreeColors::NodeBody::Decorator;
 }
 
 struct FLogicDesc

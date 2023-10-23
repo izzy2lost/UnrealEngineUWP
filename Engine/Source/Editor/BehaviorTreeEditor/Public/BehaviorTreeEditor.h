@@ -265,6 +265,7 @@ protected:
 	FName GraphName;
 	FText CornerText;
 	FText TitleText;
+	FText RootNodeNoteText;
 
 private:
 	/** Create widget for graph editing */
@@ -350,4 +351,7 @@ public:
 	/** Modes in mode switcher */
 	static const FName BehaviorTreeMode;
 	static const FName BlackboardMode;
+
+	static FText BehaviorTreeModeText;
+	static FText BlackboardModeText;
 };

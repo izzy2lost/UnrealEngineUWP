@@ -119,6 +119,9 @@ class SWidget;
 const FName FBehaviorTreeEditor::BehaviorTreeMode(TEXT("BehaviorTree"));
 const FName FBehaviorTreeEditor::BlackboardMode(TEXT("Blackboard"));
 
+FText FBehaviorTreeEditor::BehaviorTreeModeText(LOCTEXT("BehaviorTreeMode", "Behavior Tree"));
+FText FBehaviorTreeEditor::BlackboardModeText(LOCTEXT("BlackboardMode", "Blackboard"));
+
 //////////////////////////////////////////////////////////////////////////
 FBehaviorTreeEditor::FBehaviorTreeEditor() 
 	: IBehaviorTreeEditor()
@@ -144,6 +147,7 @@ FBehaviorTreeEditor::FBehaviorTreeEditor()
 	GraphName = "Behavior Tree";
 	CornerText = LOCTEXT("AppearanceCornerText", "BEHAVIOR TREE");
 	TitleText = LOCTEXT("BehaviorTreeGraphLabel", "Behavior Tree");
+	RootNodeNoteText = LOCTEXT("RootLevelNode", "Root-level decorators are only valid and will be executed if this BT is be used\nas static a sub-tree (via \"Run Behavior\"). These decorators will be ignored if\ndynamically injected with \"Run Dynamic Behavior\".");
 }
 
 FBehaviorTreeEditor::~FBehaviorTreeEditor()
@@ -696,7 +700,7 @@ TSharedRef<SWidget> FBehaviorTreeEditor::SpawnProperties()
 				.Padding(FMargin(5.0f))
 				[
 					SNew(STextBlock)
-					.Text(LOCTEXT("RootLevelNode", "Root-level decorators are only valid and will be executed if this BT is be used\nas static a sub-tree (via \"Run Behavior\"). These decorators will be ignored if\ndynamically injected with \"Run Dynamic Behavior\"."))
+					.Text(RootNodeNoteText)
 				]
 			]
 			+SVerticalBox::Slot()
@@ -1589,8 +1593,8 @@ FText FBehaviorTreeEditor::GetLocalizedMode(FName InMode)
 
 	if (LocModes.Num() == 0)
 	{
-		LocModes.Add( BehaviorTreeMode, LOCTEXT("BehaviorTreeMode", "Behavior Tree") );
-		LocModes.Add( BlackboardMode, LOCTEXT("BlackboardMode", "Blackboard") );
+		LocModes.Add( BehaviorTreeMode, BehaviorTreeModeText );
+		LocModes.Add( BlackboardMode, BlackboardModeText );
 	}
 
 	check( InMode != NAME_None );

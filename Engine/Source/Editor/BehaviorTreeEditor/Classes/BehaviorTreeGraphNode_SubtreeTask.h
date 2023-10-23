@@ -26,4 +26,6 @@ class UBehaviorTreeGraphNode_SubtreeTask : public UBehaviorTreeGraphNode_Task
 
 	/** updates nodes injected from subtree's root */
 	bool UpdateInjectedNodes();
+
+	virtual FLinearColor GetBackgroundColor(bool bIsActiveForDebugger) const override;
 };
