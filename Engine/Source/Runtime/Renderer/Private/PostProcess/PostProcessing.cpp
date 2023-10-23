@@ -2925,7 +2925,7 @@ class FGBufferPickingCS : public FGlobalShader
 public:
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters) 
 	{ 
-		return ShaderPrint::IsSupported(Parameters.Platform) && !Substrate::IsSubstrateEnabled() &&
+		return ShaderPrint::IsSupported(Parameters.Platform) && !IsMobilePlatform(Parameters.Platform) && !Substrate::IsSubstrateEnabled() &&
 			EnumHasAllFlags(Parameters.Flags, EShaderPermutationFlags::HasEditorOnlyData);
 	}
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
