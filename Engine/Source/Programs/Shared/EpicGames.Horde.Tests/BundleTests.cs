@@ -3,6 +3,7 @@
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Bundles;
+using EpicGames.Horde.Storage.Bundles.V1;
 using EpicGames.Horde.Storage.Clients;
 using EpicGames.Horde.Storage.Nodes;
 using Microsoft.Extensions.Caching.Memory;
@@ -221,10 +222,10 @@ namespace EpicGames.Horde.Tests
 			BlobHandle refTarget =  await store.ReadRefTargetAsync(refName);
 			BlobHandle bundleTarget = store.CreateBlobHandle(refTarget.GetLocator().Outermost);
 			using BlobData bundleData = await bundleTarget.ReadAsync();
-			Bundle bundle = Bundle.FromMemory(bundleData.Data);
 
-			Assert.AreEqual(0, bundle.Header.Imports.Count);
-			Assert.AreEqual(3, bundle.Header.Exports.Count);
+			BundleHeader bundleHeader = BundleHeader.Read(bundleData.Data);
+			Assert.AreEqual(0, bundleHeader.Imports.Count);
+			Assert.AreEqual(3, bundleHeader.Exports.Count);
 
 			// Create a new bundle and read it back in again
 			DirectoryNode newRoot = await store.ReadRefAsync<DirectoryNode>(refName);

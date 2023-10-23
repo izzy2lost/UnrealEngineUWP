@@ -13,39 +13,8 @@ using EpicGames.Core;
 using EpicGames.Horde.Storage.Clients;
 using Microsoft.Extensions.Logging;
 
-namespace EpicGames.Horde.Storage.Bundles
+namespace EpicGames.Horde.Storage.Bundles.V1
 {
-	/// <summary>
-	/// Options for configuring a bundle serializer
-	/// </summary>
-	public class BundleOptions
-	{
-		/// <summary>
-		/// Maximum payload size fo a blob
-		/// </summary>
-		public int MaxBlobSize { get; set; } = 10 * 1024 * 1024;
-
-		/// <summary>
-		/// Compression format to use
-		/// </summary>
-		public BundleCompressionFormat CompressionFormat { get; set; } = BundleCompressionFormat.LZ4;
-
-		/// <summary>
-		/// Minimum size of a block to be compressed
-		/// </summary>
-		public int MinCompressionPacketSize { get; set; } = 16 * 1024;
-
-		/// <summary>
-		/// Maximum amount of data to store in memory. This includes any background writes as well as bundles being built.
-		/// </summary>
-		public long MaxWriteQueueLength { get; set; } = 256 * 1024 * 1024;
-
-		/// <summary>
-		/// Number of nodes to cache
-		/// </summary>
-		public int NodeCacheSize { get; set; } = 1024;
-	}
-
 	/// <summary>
 	/// Implementation of <see cref="BlobHandle"/> for nodes which can be read from storage
 	/// </summary>
@@ -278,7 +247,7 @@ namespace EpicGames.Horde.Storage.Bundles
 			}
 
 			// Whether this bundle is full
-			public bool IsFull() => (_queue.Count + 1000) >= Bundle.MaxExports || (_queuedRefs + 1000) >= Bundle.MaxExportRefs;
+			public bool IsFull() => (_queue.Count + 1000) >= BundleHeader.MaxExports || (_queuedRefs + 1000) >= BundleHeader.MaxExportRefs;
 
 			// Whether this bundle has finished writing
 			public bool IsComplete() => CompleteTask.IsCompleted;
@@ -426,17 +395,27 @@ namespace EpicGames.Horde.Storage.Bundles
 
 				try
 				{
-					Bundle bundle = CreateBundle();
+					(BundleHeader header, List<ReadOnlyMemory<byte>> packets) = CreateBundle();
 
 					// Write the bundle to storage
-					BlobHandle[] imports = new BlobHandle[bundle.Header.Imports.Count];
-					for (int idx = 0; idx < bundle.Header.Imports.Count; idx++)
+					BlobHandle[] imports = new BlobHandle[header.Imports.Count];
+					for (int idx = 0; idx < header.Imports.Count; idx++)
 					{
-						imports[idx] = store.CreateBlobHandle(new BlobLocator(bundle.Header.Imports[idx].Path));
+						imports[idx] = store.CreateBlobHandle(new BlobLocator(header.Imports[idx].Path));
 					}
 
+					// Create the output sequence
+					ReadOnlySequenceBuilder<byte> sequence = new ReadOnlySequenceBuilder<byte>();
+					header.AppendTo(sequence);
+
+					foreach (ReadOnlyMemory<byte> packet in packets)
+					{
+						sequence.Append(packet);
+					}
+
+					// Write it
 					BlobHandle handle;
-					using (ReadOnlySequenceStream stream = new ReadOnlySequenceStream(bundle.AsSequence()))
+					using (ReadOnlySequenceStream stream = new ReadOnlySequenceStream(sequence.Construct()))
 					{
 						handle = await store.WriteBlobAsync(BundleStorageClient.BundleBlobType, stream, imports, basePath);
 					}
@@ -469,7 +448,7 @@ namespace EpicGames.Horde.Storage.Bundles
 			public Task FlushAsync(CancellationToken cancellationToken) => _treeWriter.FlushAsync(cancellationToken);
 
 			// Mark the bundle as complete and create a bundle with the current state
-			public Bundle CreateBundle()
+			public (BundleHeader, List<ReadOnlyMemory<byte>>) CreateBundle()
 			{
 				lock (_lockObject)
 				{
@@ -477,7 +456,7 @@ namespace EpicGames.Horde.Storage.Bundles
 				}
 			}
 
-			Bundle CreateBundleInternal()
+			(BundleHeader, List<ReadOnlyMemory<byte>>) CreateBundleInternal()
 			{
 				// List of imported blobs
 				List<BlobLocator> imports = new List<BlobLocator>();
@@ -548,7 +527,7 @@ namespace EpicGames.Horde.Storage.Bundles
 
 				// Create the bundle
 				BundleHeader header = new BundleHeader(types.ToArray(), imports.ToArray(), exports.ToArray(), _packets.ToArray());
-				return new Bundle(header, packetData);
+				return (header, packetData);
 			}
 
 			static int FindOrAddItemIndex<TItem>(TItem item, List<TItem> items, Dictionary<TItem, int> itemToIndex) where TItem : notnull

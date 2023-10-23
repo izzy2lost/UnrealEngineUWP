@@ -10,6 +10,7 @@ using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Bundles;
+using EpicGames.Horde.Storage.Clients;
 using EpicGames.Horde.Storage.Nodes;
 using Microsoft.Extensions.Logging;
 
@@ -18,11 +19,11 @@ namespace Horde.Server.Commands.Bundles
 	[Command("bundle", "writetest", "Synthetic benchmark for bundle write performance")]
 	class BundleWriteTestCommand : Command
 	{
-		class FakeStorageClient : IStorageClient
+		class NullStorageClient : IStorageClient
 		{
 			public bool SupportsRedirects => false;
 
-			public FakeStorageClient()
+			public NullStorageClient()
 			{
 			}
 
@@ -41,20 +42,15 @@ namespace Horde.Server.Commands.Bundles
 			public Task<BlobHandle?> TryReadRefAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default) => throw new NotImplementedException();
 			public Task WriteRefAsync(RefName name, BlobHandle target, RefOptions? options = null, CancellationToken cancellationToken = default) => Task.CompletedTask;
 
-			public BundleWriter CreateWriter(string? basePath = null, BundleOptions? options = null)
-			{
-				_ = (this, basePath, options);
-				throw new NotImplementedException();// new BundleWriter(this, _reader, refName, options);
-			}
-
-			IStorageWriter IStorageClient.CreateWriter(string? basePath) => CreateWriter(basePath);
+			public IStorageWriter CreateWriter(string? basePath) => new DefaultStorageWriter(this, basePath);
 
 			public void GetStats(StorageStats stats) { }
 		}
 
 		public override async Task<int> ExecuteAsync(ILogger logger)
 		{
-			using FakeStorageClient store = new FakeStorageClient();
+			using NullStorageClient nullStore = new NullStorageClient();
+			using BundleStorageClient store = new BundleStorageClient(nullStore, BundleReaderCache.None, logger);
 
 			BundleOptions options = new BundleOptions();
 			options.CompressionFormat = BundleCompressionFormat.None;

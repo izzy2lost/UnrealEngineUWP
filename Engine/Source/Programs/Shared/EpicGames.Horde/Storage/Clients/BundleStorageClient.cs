@@ -50,7 +50,7 @@ namespace EpicGames.Horde.Storage.Clients
 				{
 					List<BlobHandle> refs = new List<BlobHandle>();
 
-					BundleHeader header = await _storageClient.ReadHeaderAsync(_locator, cancellationToken);
+					Bundles.V1.BundleHeader header = await _storageClient.ReadHeaderAsync(_locator, cancellationToken);
 					foreach (BlobLocator import in header.Imports)
 					{
 						refs.Add(_storageClient.CreateBlobHandle(new BlobLocator(import.Path)));
@@ -86,7 +86,7 @@ namespace EpicGames.Horde.Storage.Clients
 		}
 
 		readonly IStorageClient _inner;
-		readonly BundleReader _bundleReader;
+		readonly Bundles.V1.BundleReader _bundleReader;
 
 		/// <inheritdoc/>
 		public bool SupportsRedirects { get; } = false;
@@ -97,7 +97,7 @@ namespace EpicGames.Horde.Storage.Clients
 		public BundleStorageClient(IStorageClient inner, BundleReaderCache cache, ILogger logger)
 		{
 			_inner = inner;
-			_bundleReader = new BundleReader(this, cache, logger);
+			_bundleReader = new Bundles.V1.BundleReader(this, cache, logger);
 		}
 
 		/// <inheritdoc/>
@@ -186,7 +186,7 @@ namespace EpicGames.Horde.Storage.Clients
 			=> _inner.WriteBlobAsync(BundleBlobType, stream, references, basePath, cancellationToken);
 
 		/// <inheritdoc/>
-		public Task<BundleHeader> ReadHeaderAsync(BlobLocator locator, CancellationToken cancellationToken) => _bundleReader.ReadHeaderAsync(locator, cancellationToken);
+		public Task<Bundles.V1.BundleHeader> ReadHeaderAsync(BlobLocator locator, CancellationToken cancellationToken) => _bundleReader.ReadHeaderAsync(locator, cancellationToken);
 
 		#endregion
 
@@ -197,7 +197,7 @@ namespace EpicGames.Horde.Storage.Clients
 		{
 			if (locator.CanUnwrap())
 			{
-				return FlushedNodeHandle.FromBlobLocator(_bundleReader, locator);
+				return Bundles.V1.FlushedNodeHandle.FromBlobLocator(_bundleReader, locator);
 			}
 			else
 			{
@@ -206,7 +206,7 @@ namespace EpicGames.Horde.Storage.Clients
 		}
 
 		/// <inheritdoc/>
-		public BundleWriter CreateWriter(string? basePath = null, BundleOptions? options = null) => new BundleWriter(this, _bundleReader, basePath, options);
+		public IStorageWriter CreateWriter(string? basePath = null, BundleOptions? options = null) => new Bundles.V1.BundleWriter(this, _bundleReader, basePath, options);
 
 		/// <inheritdoc/>
 		IStorageWriter IStorageClient.CreateWriter(string? basePath) => CreateWriter(basePath);

@@ -11,7 +11,7 @@ using Microsoft.CodeAnalysis;
 using System.Diagnostics;
 using System.IO;
 
-namespace EpicGames.Horde.Storage.Bundles
+namespace EpicGames.Horde.Storage.Bundles.V1
 {
 	/// <summary>
 	/// Computed information about a bundle
@@ -447,25 +447,25 @@ namespace EpicGames.Horde.Storage.Bundles
 				await using (Stream stream = await handle.OpenAsync(0, prefetchSize, cancellationToken))
 				{
 					// Read the header data
-					byte[] prelude = new byte[BundleHeader.PreludeLength];
+					byte[] prelude = new byte[Bundle.SignatureLength];
 					await stream.ReadFixedLengthBytesAsync(prelude, cancellationToken);
 
 					// Make sure we've read enough to hold the header
-					int headerSize = BundleHeader.ReadPrelude(prelude);
-					if (headerSize > prefetchSize)
+					BundleSignature signature = Bundle.ReadSignature(prelude);
+					if (signature.HeaderLength > prefetchSize)
 					{
-						prefetchSize = headerSize;
+						prefetchSize = signature.HeaderLength;
 						continue;
 					}
 
 					// Parse the header and construct the bundle info from it
-					BundleHeader header = await BundleHeader.ReadAsync(prelude, stream, cancellationToken);
+					BundleHeader header = await BundleHeader.ReadAsync(signature, stream, cancellationToken);
 
 					// Construct the bundle info
-					BundleInfo bundleInfo = new BundleInfo(bundle.Locator, header, headerSize);
+					BundleInfo bundleInfo = new BundleInfo(bundle.Locator, header, signature.HeaderLength);
 
 					// Also add any encoded packets we prefetched
-					int packetOffset = headerSize;
+					int packetOffset = signature.HeaderLength;
 					for (int packetIdx = 0; packetIdx < header.Packets.Count; packetIdx++)
 					{
 						BundlePacket packet = header.Packets[packetIdx];

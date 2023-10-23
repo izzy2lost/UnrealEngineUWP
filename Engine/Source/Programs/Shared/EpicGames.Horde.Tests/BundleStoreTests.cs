@@ -17,6 +17,7 @@ using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging.Abstractions;
 using System.Reflection;
 using EpicGames.Horde.Storage.Bundles;
+using EpicGames.Horde.Storage.Bundles.V1;
 
 namespace EpicGames.Horde.Tests
 {
@@ -26,12 +27,9 @@ namespace EpicGames.Horde.Tests
 		[TestMethod]
 		public async Task CreateBundlesManuallyAsync()
 		{
-			Bundle a = CreateBundleManually();
-			Bundle b = await CreateBundleNormalAsync();
-
-			byte[] bytesA = a.AsSequence().ToArray();
-			byte[] bytesB = b.AsSequence().ToArray();
-			Assert.IsTrue(bytesA.SequenceEqual(bytesB));
+			byte[] a = CreateBundleManually();
+			byte[] b = await CreateBundleNormalAsync();
+			Assert.IsTrue(a.SequenceEqual(b));
 		}
 
 		[NodeType("{F63606D4-5DBB-4061-A655-6F444F65229E}")]
@@ -57,11 +55,11 @@ namespace EpicGames.Horde.Tests
 			Node.RegisterTypesFromAssembly(Assembly.GetExecutingAssembly());
 		}
 
-		static async Task<Bundle> CreateBundleNormalAsync()
+		static async Task<byte[]> CreateBundleNormalAsync()
 		{
 			using MemoryStorageClient memoryStore = new MemoryStorageClient();
 			using BundleStorageClient store = new BundleStorageClient(memoryStore, BundleReaderCache.None, NullLogger.Instance);
-			await using BundleWriter writer = store.CreateWriter(options: new BundleOptions { CompressionFormat = BundleCompressionFormat.None });
+			await using IStorageWriter writer = store.CreateWriter(options: new BundleOptions { CompressionFormat = BundleCompressionFormat.None });
 
 			TextNode node = new TextNode("Hello world");
 			BlobHandle handle = await writer.FlushAsync(node, CancellationToken.None);
@@ -69,10 +67,10 @@ namespace EpicGames.Horde.Tests
 			BlobHandle bundleHandle = store.CreateBlobHandle(handle.GetLocator().Outermost);
 			using BlobData blobData = await bundleHandle.ReadAsync();
 
-			return Bundle.FromMemory(blobData.Data.ToArray());
+			return blobData.Data.ToArray();
 		}
 
-		static Bundle CreateBundleManually()
+		static byte[] CreateBundleManually()
 		{
 			ArrayMemoryWriter payloadWriter = new ArrayMemoryWriter(200);
 			payloadWriter.WriteString("Hello world");
@@ -88,7 +86,11 @@ namespace EpicGames.Horde.Tests
 			packets.Add(new BundlePacket(BundleCompressionFormat.None, 0, payload.Length, payload.Length));
 
 			BundleHeader header = new BundleHeader(types.ToArray(), Array.Empty<BlobLocator>(), exports.ToArray(), packets.ToArray());
-			return new Bundle(header, new List<ReadOnlyMemory<byte>> { payload });
+
+			ReadOnlySequenceBuilder<byte> builder = new ReadOnlySequenceBuilder<byte>();
+			header.AppendTo(builder);
+			builder.Append(payload);
+			return builder.Construct().ToArray();
 		}
 
 		[TestMethod]
@@ -398,7 +400,7 @@ namespace EpicGames.Horde.Tests
 
 				HashedNodeRef<ChunkedDataNode> file = root.GetFileEntry("test");
 
-				long uniqueSize = memoryStore.Blobs.Values.Select(x => Bundle.FromMemory(x.Data)).SelectMany(x => x.Header.Packets).Sum(x => x.DecodedLength);
+				long uniqueSize = memoryStore.Blobs.Values.Select(x => BundleHeader.Read(x.Data)).SelectMany(x => x.Packets).Sum(x => x.DecodedLength);
 				Assert.IsTrue(uniqueSize < data.Length / 3); // random fraction meaning "lots of dedupe happened"
 			}
 		}

@@ -2,7 +2,7 @@
 
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
-using EpicGames.Horde.Storage.Bundles;
+using EpicGames.Horde.Storage.Bundles.V1;
 using Microsoft.Extensions.Logging;
 
 namespace Horde.Commands.Bundles
@@ -18,14 +18,10 @@ namespace Horde.Commands.Bundles
 
 		public override async Task<int> ExecuteAsync(ILogger logger)
 		{
-			Bundle bundle;
-			using (FileStream stream = FileReference.Open(Input, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete))
-			{
-				bundle = await Bundle.FromStreamAsync(stream);
-			}
+			byte[] data = await FileReference.ReadAllBytesAsync(Input);
 			logger.LogInformation("Summary for blob {Location}", Input);
 
-			BundleHeader header = bundle.Header;
+			BundleHeader header = BundleHeader.Read(data);
 
 			string[] types = new string[header.Types.Count];
 			for (int idx = 0; idx < header.Types.Count; idx++)

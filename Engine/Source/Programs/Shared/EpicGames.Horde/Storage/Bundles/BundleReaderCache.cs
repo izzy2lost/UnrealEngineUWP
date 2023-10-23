@@ -2,7 +2,6 @@
 
 using System;
 using System.Diagnostics.CodeAnalysis;
-using EpicGames.Horde.Storage.Bundles;
 using Microsoft.Extensions.Caching.Memory;
 
 namespace EpicGames.Horde.Storage
@@ -111,7 +110,7 @@ namespace EpicGames.Horde.Storage
 		/// <summary>
 		/// Adds a bundle info object to the cache
 		/// </summary>
-		public void AddCachedHeader(BlobLocator locator, BundleInfo bundleInfo)
+		public void AddCachedHeader(BlobLocator locator, Bundles.V1.BundleInfo bundleInfo)
 		{
 			AddCachedValue(_headerCache, GetBundleInfoCacheKey(locator), bundleInfo, bundleInfo.HeaderLength);
 		}
@@ -119,7 +118,7 @@ namespace EpicGames.Horde.Storage
 		/// <summary>
 		/// Try to read a bundle info object from the cache
 		/// </summary>
-		public bool TryGetCachedHeader(BlobLocator locator, [NotNullWhen(true)] out BundleInfo? bundleInfo)
+		public bool TryGetCachedHeader(BlobLocator locator, [NotNullWhen(true)] out Bundles.V1.BundleInfo? bundleInfo)
 		{
 			return TryGetCachedValue(_headerCache, GetBundleInfoCacheKey(locator), out bundleInfo);
 		}
