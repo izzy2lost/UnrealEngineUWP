@@ -492,6 +492,20 @@ public:
 
 
 	/**
+	* Appends a Triangulated Polygon (with vertices specified in 3D) to the Target Mesh.
+	* Uses Ear Clipping-based triangulation. Output vertices will always be 1:1 with input vertices.
+	* Polygon endpoint is not repeated.
+	*/
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Primitives", meta = (ScriptMethod))
+	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh*
+	AppendTriangulatedPolygon3D(
+		UDynamicMesh* TargetMesh,
+		FGeometryScriptPrimitiveOptions PrimitiveOptions,
+		FTransform Transform,
+		const TArray<FVector>& PolygonVertices3D,
+		UGeometryScriptDebug* Debug = nullptr);
+
+	/**
 	* Appends a linear staircase to the Target Mesh.
 	*/
 	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Primitives", meta=(ScriptMethod))
