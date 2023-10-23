@@ -1150,6 +1150,10 @@ void UWaterBodyComponent::OnPostEditChangeProperty(FOnWaterBodyChangedParams& In
 	{
 		UpdateWaterBodyStaticMeshComponents();
 	}
+	else if (PropertyChangedEvent.GetMemberPropertyName() == GET_MEMBER_NAME_CHECKED(UWaterBodyComponent, WaterZoneOverride))
+	{
+		UpdateWaterZones();
+	}
 }
 
 TArray<TSharedRef<FTokenizedMessage>> UWaterBodyComponent::CheckWaterBodyStatus()
