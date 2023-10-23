@@ -85,6 +85,7 @@ public:
 	ENGINE_API virtual bool ResolveSubobject(const TCHAR* SubObjectPath, UObject*& OutObject, bool bLoadIfExists) override;
 
 	// AActor overrides
+	ENGINE_API virtual bool CanEditChangeComponent(const UActorComponent* InComponent, const FProperty* InProperty) const override;
 	ENGINE_API virtual void CheckForErrors() override;
 	ENGINE_API virtual TUniquePtr<class FWorldPartitionActorDesc> CreateClassActorDesc() const override;
 	ENGINE_API virtual bool CanDeleteSelectedActor(FText& OutReason) const override;
@@ -96,10 +97,14 @@ public:
 	ENGINE_API virtual FBox GetComponentsBoundingBox(bool bNonColliding = false, bool bIncludeFromChildActors = false) const override;
 	ENGINE_API virtual FBox GetStreamingBounds() const override;
 	ENGINE_API virtual bool IsLockLocation() const override;
+	ENGINE_API virtual bool IsActorLabelEditable() const override;
 	ENGINE_API virtual bool GetReferencedContentObjects(TArray<UObject*>& Objects) const override;
 	ENGINE_API virtual bool GetSoftReferencedContentObjects(TArray<FSoftObjectPath>& SoftObjects) const override;
 	ENGINE_API virtual bool OpenAssetEditor() override;
-	ENGINE_API virtual bool EditorCanAttachFrom(const AActor* InChild, FText& OutReason) const override;
+	ENGINE_API virtual bool EditorCanAttachFrom(const AActor* InChild, FText& OutReason) const override;	
+	ENGINE_API virtual bool IsUserManaged() const override;
+	ENGINE_API virtual bool ShouldExport() override;
+	ENGINE_API virtual bool SupportsSubRootSelection() const override { return true; }
 	// End of AActor interface
 
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnLevelInstanceActorPostLoad, ALevelInstance*);

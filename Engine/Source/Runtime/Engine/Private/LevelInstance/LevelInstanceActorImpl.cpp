@@ -200,21 +200,6 @@ void FLevelInstanceActorImpl::PostEditImport(TFunctionRef<void()> SuperCall)
 	LevelInstance->UpdateLevelInstanceFromWorldAsset();
 }
 
-bool FLevelInstanceActorImpl::CanEditChange(const FProperty* Property) const
-{
-	if (LevelInstance->IsEditing())
-	{
-		return false;
-	}
-
-	if (LevelInstance->HasDirtyChildren())
-	{
-		return false;
-	}
-
-	return true;
-}
-
 void FLevelInstanceActorImpl::PreEditChange(FProperty* Property, bool bWorldAssetChange, TFunctionRef<void(FProperty*)> SuperCall)
 {
 	{
@@ -317,9 +302,55 @@ void FLevelInstanceActorImpl::EditorGetUnderlyingActors(TSet<AActor*>& OutUnderl
 	}
 }
 
+bool FLevelInstanceActorImpl::IsLockedActor() const
+{
+	AActor* LevelInstanceActor = CastChecked<AActor>(LevelInstance);
+	if (LevelInstanceActor->IsInLevelInstance() && !LevelInstanceActor->IsInEditLevelInstance())
+	{
+		return true;
+	}
+
+	if (LevelInstance->IsEditing())
+	{
+		return true;
+	}
+
+	if (LevelInstance->HasChildEdit())
+	{
+		return true;
+	}
+
+	return false;
+}
+
+bool FLevelInstanceActorImpl::ShouldExport() const
+{
+	return !IsLockedActor();
+}
+
+bool FLevelInstanceActorImpl::IsUserManaged() const
+{
+	return !IsLockedActor();
+}
+
 bool FLevelInstanceActorImpl::IsLockLocation() const
 {
-	return LevelInstance->IsEditing() || LevelInstance->HasChildEdit();
+	return IsLockedActor();
+}
+
+bool FLevelInstanceActorImpl::IsActorLabelEditable() const
+{
+	return !IsLockedActor();
+}
+
+bool FLevelInstanceActorImpl::CanEditChange(const FProperty* Property) const
+{
+	return !IsLockedActor();
+}
+
+bool FLevelInstanceActorImpl::CanEditChangeComponent(const UActorComponent* Component, const FProperty* InProperty) const
+{
+	return !IsLockedActor();
 }
 
 bool FLevelInstanceActorImpl::GetBounds(FBox& OutBounds) const

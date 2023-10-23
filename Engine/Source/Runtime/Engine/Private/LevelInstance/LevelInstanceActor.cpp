@@ -224,6 +224,11 @@ bool ALevelInstance::CanEditChange(const FProperty* Property) const
 	return Super::CanEditChange(Property) && LevelInstanceActorImpl.CanEditChange(Property);
 }
 
+bool ALevelInstance::CanEditChangeComponent(const UActorComponent* InComponent, const FProperty* InProperty) const
+{
+	return Super::CanEditChangeComponent(InComponent, InProperty) && LevelInstanceActorImpl.CanEditChangeComponent(InComponent, InProperty);
+}
+
 bool ALevelInstance::ResolveSubobject(const TCHAR* SubObjectPath, UObject*& OutObject, bool bLoadIfExists)
 {
 	return LevelInstanceActorImpl.ResolveSubobject(SubObjectPath, OutObject, bLoadIfExists);
@@ -266,9 +271,24 @@ FBox ALevelInstance::GetStreamingBounds() const
 	return Super::GetStreamingBounds();
 }
 
+bool ALevelInstance::IsUserManaged() const
+{
+	return Super::IsUserManaged() || LevelInstanceActorImpl.IsUserManaged();
+}
+
+bool ALevelInstance::ShouldExport()
+{
+	return Super::ShouldExport() && LevelInstanceActorImpl.ShouldExport();
+}
+
 bool ALevelInstance::IsLockLocation() const
 {
 	return Super::IsLockLocation() || LevelInstanceActorImpl.IsLockLocation();
+}
+
+bool ALevelInstance::IsActorLabelEditable() const
+{
+	return Super::IsActorLabelEditable() && LevelInstanceActorImpl.IsActorLabelEditable();
 }
 
 bool ALevelInstance::GetReferencedContentObjects(TArray<UObject*>& Objects) const
