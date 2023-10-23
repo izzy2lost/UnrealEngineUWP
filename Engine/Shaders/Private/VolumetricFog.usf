@@ -5,6 +5,7 @@
 #include "Common.ush"
 #include "Definitions.usf"
 #define SUPPORT_CONTACT_SHADOWS 0
+#define USE_SOURCE_TEXTURE USE_RECT_LIGHT_TEXTURE
 #include "DeferredLightingCommon.ush"
 #include "LightGridCommon.ush"
 #include "HeightFogCommon.ush"
@@ -456,6 +457,15 @@ float4 InjectShadowedLocalLightCommon(uint3 GridCoordinate)
 				FRect Rect = GetRect(ToLight, LightData);
 
 				Lighting = IntegrateLight(Rect);
+
+#if USE_RECT_LIGHT_TEXTURE
+				if (IsRectVisible(Rect))
+				{
+					const FRectTexture SourceTexture = ConvertToRectTexture(LightData);
+					const float3 FalloffColor = SampleSourceTexture(Lighting, Rect, SourceTexture);
+					LightColor *= FalloffColor;
+				}
+#endif // USE_RECT_LIGHT_TEXTURE
 			}
 			else
 			{
