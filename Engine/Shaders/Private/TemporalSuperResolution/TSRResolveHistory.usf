@@ -5,7 +5,7 @@
 
 //------------------------------------------------------- CONFIG
 
-#if DIM_NYQUIST
+#if DIM_NYQUIST_WAVE_SIZE != 0
 	#define WAVE_COUNT_X 1
 	#define WAVE_COUNT_Y 1
 
@@ -16,7 +16,13 @@
 	#define TILE_SIZE (GROUP_TILE_SIZE - 2u)
 
 	#define LANE_OUTPUT_STRIDE_X 2u
-	#define LANE_OUTPUT_STRIDE_Y 1u
+	#if DIM_NYQUIST_WAVE_SIZE == 16
+		#define LANE_OUTPUT_STRIDE_Y 2u
+	#elif DIM_NYQUIST_WAVE_SIZE == 32
+		#define LANE_OUTPUT_STRIDE_Y 1u
+	#else
+		#error Unknown wave size
+	#endif
 	#define LANE_INPUT_STRIDE_X (LANE_OUTPUT_STRIDE_X * DOWNSAMPLE_FACTOR)
 	#define LANE_INPUT_STRIDE_Y (LANE_OUTPUT_STRIDE_Y * DOWNSAMPLE_FACTOR)
 	
@@ -44,7 +50,7 @@
 
 //------------------------------------------------------- CONVOLUTIONS
 
-#if DIM_NYQUIST
+#if DIM_NYQUIST_WAVE_SIZE != 0
 	#include "TSRConvolutionNetwork.ush"
 #endif
 
@@ -133,10 +139,10 @@ RWTexture2D<tsr_halfC> SceneColorOutputMip1;
 
 //------------------------------------------------------- ENTRY POINT NYQUIST DOWNSAMPLE
 
-#if DIM_NYQUIST
+#if DIM_NYQUIST_WAVE_SIZE != 0
 
 #if COMPILER_SUPPORTS_WAVE_SIZE
-	WAVESIZE(32)
+	WAVESIZE(DIM_NYQUIST_WAVE_SIZE)
 #endif
 [numthreads(LANE_COUNT, 1, 1)]
 void MainCS(
@@ -269,7 +275,7 @@ void MainCS(
 	}
 }
 
-#else // !DIM_NYQUIST
+#else // DIM_NYQUIST_WAVE_SIZE == 0
 
 //------------------------------------------------------- ENTRY POINT REFERENCE
 
@@ -388,4 +394,4 @@ void MainCS(
 	#endif
 }
 
-#endif // !DIM_NYQUIST
+#endif // DIM_NYQUIST_WAVE_SIZE == 0
