@@ -83,16 +83,15 @@ public:
 		return CommonStruct;
 	}
 
-	virtual void GetInstances(TArray<TSharedPtr<FStructOnScope>>& OutInstances) const override
+	virtual void GetInstances(TArray<TSharedPtr<FStructOnScope>>& OutInstances, const UStruct* ExpectedBaseStructure) const override
 	{
 		// The returned instances need to be compatible with base structure.
 		// This function returns empty instances in case they are not compatible, with the idea that we have as many instances as we have outer objects.
-		const UScriptStruct* CommonStruct = Cast<UScriptStruct>(GetBaseStructure());
-		EnumerateInstances([&OutInstances, CommonStruct](const UScriptStruct* ScriptStruct, uint8* Memory, UPackage* Package)
+		EnumerateInstances([&OutInstances, ExpectedBaseStructure](const UScriptStruct* ScriptStruct, uint8* Memory, UPackage* Package)
 		{
 			TSharedPtr<FStructOnScope> Result;
 			
-			if (CommonStruct && ScriptStruct && ScriptStruct->IsChildOf(CommonStruct))
+			if (ExpectedBaseStructure && ScriptStruct && ScriptStruct->IsChildOf(ExpectedBaseStructure))
 			{
 				Result = MakeShared<FStructOnScope>(ScriptStruct, Memory);
 				Result->SetPackage(Package);
@@ -109,7 +108,7 @@ public:
 		return true;
 	}
 
-	virtual uint8* GetValueBaseAddress(uint8* ParentValueAddress, const UStruct* ExpectedType) const override
+	virtual uint8* GetValueBaseAddress(uint8* ParentValueAddress, const UStruct* ExpectedBaseStructure) const override
 	{
 		if (!ParentValueAddress)
 		{
@@ -117,11 +116,11 @@ public:
 		}
 
 		FInstancedStruct& InstancedStruct = *reinterpret_cast<FInstancedStruct*>(ParentValueAddress);
-		if (ExpectedType && InstancedStruct.GetScriptStruct() && InstancedStruct.GetScriptStruct()->IsChildOf(ExpectedType))
+		if (ExpectedBaseStructure && InstancedStruct.GetScriptStruct() && InstancedStruct.GetScriptStruct()->IsChildOf(ExpectedBaseStructure))
 		{
 			return InstancedStruct.GetMutableMemory();
 		}
-
+		
 		return nullptr;
 	}
 	

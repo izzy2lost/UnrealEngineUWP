@@ -25,6 +25,7 @@ public:
 		ClearCachedReadAddresses(true);
 		DestroyTree();
 		StructProvider = nullptr;
+		WeakCachedBaseStruct.Reset();
 	}
 
 	void SetStructure(TSharedPtr<FStructOnScope> InStructData)
@@ -53,7 +54,7 @@ public:
 		if (StructProvider)
 		{
 			TArray<TSharedPtr<FStructOnScope>> Instances;
-			StructProvider->GetInstances(Instances);
+			StructProvider->GetInstances(Instances, WeakCachedBaseStruct.Get());
 			
 			if (Instances.Num() > 0)
 			{
@@ -67,7 +68,7 @@ public:
 	{
 		if (StructProvider)
 		{
-			StructProvider->GetInstances(OutStructs);
+			StructProvider->GetInstances(OutStructs, WeakCachedBaseStruct.Get());
 		}
 	}
 
@@ -98,7 +99,7 @@ public:
 		}
 
 		TArray<TSharedPtr<FStructOnScope>> Instances;
-		StructProvider->GetInstances(Instances);
+		StructProvider->GetInstances(Instances, WeakCachedBaseStruct.Get());
 		bool bHasData = false;
 
 		for (TSharedPtr<FStructOnScope>& Instance : Instances)
@@ -142,7 +143,7 @@ public:
 		bool bAllTheSame = true;
 
 		TArray<TSharedPtr<FStructOnScope>> Instances;
-		StructProvider->GetInstances(Instances);
+		StructProvider->GetInstances(Instances, WeakCachedBaseStruct.Get());
 		
 		if (Instances.IsEmpty())
 		{
@@ -201,6 +202,7 @@ public:
 			}
 		}
 
+		bool bHasData = false;
 		if (bAllTheSame && OutAddresses)
 		{
 			for (TSharedPtr<FStructOnScope>& Instance : Instances)
@@ -209,11 +211,12 @@ public:
 				if (ReadAddress)
 				{
 					OutAddresses->Add(nullptr, InPropertyNode.GetValueBaseAddress(ReadAddress, InPropertyNode.HasNodeFlags(EPropertyNodeFlags::IsSparseClassData) != 0, /*bIsStruct=*/true), /*bIsStruct=*/true);
+					bHasData = true;
 				}
 			}
 		}
 
-		return bAllTheSame;
+		return bAllTheSame && bHasData;
 	}
 
 	void GetOwnerPackages(TArray<UPackage*>& OutPackages) const
@@ -221,7 +224,7 @@ public:
 		if (StructProvider)
 		{
 			TArray<TSharedPtr<FStructOnScope>> Instances;
-			StructProvider->GetInstances(Instances);
+			StructProvider->GetInstances(Instances, WeakCachedBaseStruct.Get());
 
 			for (TSharedPtr<FStructOnScope>& Instance : Instances)
 			{
@@ -254,7 +257,7 @@ public:
 		if (StructProvider)
 		{
 			TArray<TSharedPtr<FStructOnScope>> Instances;
-			StructProvider->GetInstances(Instances);
+			StructProvider->GetInstances(Instances, WeakCachedBaseStruct.Get());
 			
 			for (TSharedPtr<FStructOnScope>& Instance : Instances)
 			{
@@ -274,7 +277,7 @@ public:
 		if (StructProvider)
 		{
 			TArray<TSharedPtr<FStructOnScope>> Instances;
-			StructProvider->GetInstances(Instances);
+			StructProvider->GetInstances(Instances, WeakCachedBaseStruct.Get());
 			
 			for (TSharedPtr<FStructOnScope>& Instance : Instances)
 			{
@@ -292,7 +295,7 @@ public:
 		if (StructProvider)
 		{
 			TArray<TSharedPtr<FStructOnScope>> Instances;
-			StructProvider->GetInstances(Instances);
+			StructProvider->GetInstances(Instances, WeakCachedBaseStruct.Get());
 			
 			return Instances.Num();
 		}
@@ -304,7 +307,7 @@ public:
 		if (StructProvider)
 		{
 			TArray<TSharedPtr<FStructOnScope>> Instances;
-			StructProvider->GetInstances(Instances);
+			StructProvider->GetInstances(Instances, WeakCachedBaseStruct.Get());
 			if (Instances.IsValidIndex(Index) && Instances[Index].IsValid())
 			{
 				return Instances[Index]->GetStructMemory();
@@ -381,4 +384,7 @@ protected:
 
 private:
 	TSharedPtr<IStructureDataProvider> StructProvider;
+
+	/** The base struct at the time InitChildNodes() was called. */
+	TWeakObjectPtr<const UStruct> WeakCachedBaseStruct = nullptr;
 };

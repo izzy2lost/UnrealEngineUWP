@@ -42,6 +42,9 @@ void FStructurePropertyNode::InitChildNodes()
 		NewItemNode->InitNode(InitParams);
 		AddChildNode(NewItemNode);
 	}
+
+	// Cache the init time base struct so that we can determine of the struct has changed.
+	WeakCachedBaseStruct = Struct;
 }
 
 uint8* FStructurePropertyNode::GetValueBaseAddress(uint8* StartAddress, bool bIsSparseData, bool bIsStruct) const
@@ -68,11 +71,11 @@ uint8* FStructurePropertyNode::GetValueBaseAddress(uint8* StartAddress, bool bIs
 			const TSharedPtr<FPropertyNode> ParentNode = ParentNodeWeakPtr.Pin();
 			if (!ensureMsgf(ParentNode, TEXT("Expecting valid parent node when indirection structure provider is called with Object data.")))
 			{
-				return nullptr;				
+				return nullptr;
 			}
 			// Resolve from parent nodes data.
 			uint8* ParentValueAddress = ParentNode->GetValueAddress(StartAddress, bIsSparseData);
-			uint8* ValueAddress = StructProvider->GetValueBaseAddress(ParentValueAddress, GetBaseStructure());
+			uint8* ValueAddress = StructProvider->GetValueBaseAddress(ParentValueAddress, WeakCachedBaseStruct.Get());
 			return ValueAddress;
 		}
 
@@ -80,7 +83,7 @@ uint8* FStructurePropertyNode::GetValueBaseAddress(uint8* StartAddress, bool bIs
 		// In that case we can only support one instance, since we cannot discern them.
 		// Note: Multiple standalone structure instances are supported when bIsStruct is true (e.g. when the structure property is root node).
 		TArray<TSharedPtr<FStructOnScope>> Instances;
-		StructProvider->GetInstances(Instances);
+		StructProvider->GetInstances(Instances, WeakCachedBaseStruct.Get());
 		ensureMsgf(Instances.Num() <= 1, TEXT("Expecting max one instance on standalone structure provider."));
 		if (Instances.Num() == 1 && Instances[0].IsValid())
 		{
@@ -95,26 +98,12 @@ EPropertyDataValidationResult FStructurePropertyNode::EnsureDataIsValid()
 {
 	CachedReadAddresses.Reset();
 
-	const UStruct* BaseStruct = GetBaseStructure();
-	
-	// Check that struct node's children still belong to the current base struct.
-	for (const TSharedPtr<FPropertyNode>& ChildNode : ChildNodes)
+	// If the struct has changed, rebuild children.
+	const UStruct* CachedBaseStruct = WeakCachedBaseStruct.Get();
+	if (GetBaseStructure() != CachedBaseStruct)
 	{
-		if (ChildNode.IsValid())
-		{
-			if (const FProperty* ChildProperty = ChildNode->GetProperty())
-			{
-				const UStruct* OwnerStruct = ChildProperty->GetOwnerStruct();
-				if (!OwnerStruct
-					|| OwnerStruct->IsStructTrashed()
-					|| !BaseStruct
-					|| !BaseStruct->IsChildOf(OwnerStruct)) // OwnerStruct can be BaseStruct or one of structs BaseStruct is derived from.
-				{
-					RebuildChildren();
-					return EPropertyDataValidationResult::ChildrenRebuilt;
-				}
-			}
-		}
+		RebuildChildren();
+		return EPropertyDataValidationResult::ChildrenRebuilt;
 	}
 	
 	return FPropertyNode::EnsureDataIsValid();
