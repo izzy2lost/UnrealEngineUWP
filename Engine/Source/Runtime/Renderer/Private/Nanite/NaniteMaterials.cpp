@@ -339,8 +339,12 @@ void DrawBasePass(
 	AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(MultiViewRectScaleOffsets), 0);
 	AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(ViewsBuffer), 0);
 
+	const FNaniteMaterialCommands& MaterialCommands = Scene.NaniteMaterials[ENaniteMeshPass::BasePass];
+	const int32 NumMaterialCommands = MaterialCommands.GetCommands().Num();
+
 	// Classify materials for tile culling
 	// TODO: Run velocity export in here instead of depth pre-pass?
+	if(NumMaterialCommands > 0)
 	{
 		// Initialize acceleration/indexing structures for tile classification
 		{
@@ -408,8 +412,6 @@ void DrawBasePass(
 		}
 	}
 
-	const FNaniteMaterialCommands& MaterialCommands = Scene.NaniteMaterials[ENaniteMeshPass::BasePass];
-	const int32 NumMaterialCommands = MaterialCommands.GetCommands().Num();
 	MaterialPassCommands.Reset(NumMaterialCommands);
 
 	if (NumMaterialCommands > 0)
