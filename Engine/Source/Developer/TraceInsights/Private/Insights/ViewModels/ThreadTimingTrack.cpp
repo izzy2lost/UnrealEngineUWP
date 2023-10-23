@@ -786,6 +786,90 @@ void FThreadTimingSharedState::ToggleTrackVisibilityByGroup_Execute(const TCHAR*
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+TSharedPtr<const ITimingEvent> FThreadTimingSharedState::FindMaxEventInstance(uint32 TimerId, double StartTime, double EndTime)
+{
+	auto CompareAndAssignEvent = [](TSharedPtr<const ITimingEvent>& TimingEvent, TSharedPtr<const ITimingEvent>& TrackEvent)
+	{
+		if (!TrackEvent.IsValid())
+		{
+			return;
+		}
+
+		if (!TimingEvent.IsValid() || TrackEvent->GetDuration() > TimingEvent->GetDuration())
+		{
+			TimingEvent = TrackEvent;
+		}
+	};
+
+	TSharedPtr<const ITimingEvent> TimingEvent;
+	TSharedPtr<const ITimingEvent> TrackEvent;
+
+	for (const auto& KV : CpuTracks)
+	{
+		const FCpuTimingTrack& Track = *KV.Value;
+		if (Track.IsVisible())
+		{
+			TrackEvent = Track.FindMaxEventInstance(TimerId, StartTime, EndTime);
+			CompareAndAssignEvent(TimingEvent, TrackEvent);
+		}
+	}
+
+	GpuTrack->FindMaxEventInstance(TimerId, StartTime, EndTime);
+	CompareAndAssignEvent(TimingEvent, TrackEvent);
+
+	Gpu2Track->FindMaxEventInstance(TimerId, StartTime, EndTime);
+	CompareAndAssignEvent(TimingEvent, TrackEvent);
+	
+	return TimingEvent;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+TSharedPtr<const ITimingEvent> FThreadTimingSharedState::FindMinEventInstance(uint32 TimerId, double StartTime, double EndTime)
+{
+	auto CompareAndAssignEvent = [](TSharedPtr<const ITimingEvent>& TimingEvent, TSharedPtr<const ITimingEvent>& TrackEvent)
+	{
+		if (!TrackEvent.IsValid())
+		{
+			return;
+		}
+
+		if (!TimingEvent.IsValid() || TrackEvent->GetDuration() < TimingEvent->GetDuration())
+		{
+			TimingEvent = TrackEvent;
+		}
+	};
+
+	TSharedPtr<const ITimingEvent> TimingEvent;
+	TSharedPtr<const ITimingEvent> TrackEvent;
+
+	for (const auto& KV : CpuTracks)
+	{
+		const FCpuTimingTrack& Track = *KV.Value;
+		if (Track.IsVisible())
+		{
+			TrackEvent = Track.FindMinEventInstance(TimerId, StartTime, EndTime);
+			CompareAndAssignEvent(TimingEvent, TrackEvent);
+		}
+	}
+
+	if (GpuTrack.IsValid() && GpuTrack->IsVisible())
+	{
+		TrackEvent = GpuTrack->FindMinEventInstance(TimerId, StartTime, EndTime);
+		CompareAndAssignEvent(TimingEvent, TrackEvent);
+	}
+
+	if (Gpu2Track.IsValid() && Gpu2Track->IsVisible())
+	{
+		TrackEvent = Gpu2Track->FindMinEventInstance(TimerId, StartTime, EndTime);
+		CompareAndAssignEvent(TimingEvent, TrackEvent);
+	}
+
+	return TimingEvent;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
 // FThreadTimingTrack
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -1851,6 +1935,171 @@ void FThreadTimingTrack::SetFilterConfigurator(TSharedPtr<Insights::FFilterConfi
 		FilterConfigurator = InFilterConfigurator;
 		SetDirtyFlag();
 	}
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+TSharedPtr<const ITimingEvent> FThreadTimingTrack::FindMaxEventInstance(uint32 InTimerId, double InStartTime, double InEndTime) const
+{
+	TSharedPtr<const TraceServices::IAnalysisSession> Session = FInsightsManager::Get()->GetSession();
+	check(Session.IsValid());
+
+	TraceServices::FAnalysisSessionReadScope SessionReadScope(*Session.Get());
+
+	const TraceServices::ITimingProfilerProvider& TimingProfilerProvider = *TraceServices::ReadTimingProfilerProvider(*Session.Get());
+
+	const TraceServices::ITimingProfilerTimerReader* TimerReader;
+	TimingProfilerProvider.ReadTimers([&TimerReader](const TraceServices::ITimingProfilerTimerReader& Out) { TimerReader = &Out; });
+
+	struct CandidateEvent
+	{
+		double StartTime = 0.0f;
+		double EndTime = -1.0f;
+		uint32 Depth = 0;
+		uint32 TimerIndex = 0;
+	};
+
+	TSharedPtr<FThreadTrackEvent> TimingEvent;
+
+	TimingProfilerProvider.ReadTimeline(TimelineIndex,
+		[TimerReader, InStartTime, InEndTime, InTimerId, &TimingEvent, this](const TraceServices::ITimingProfilerProvider::Timeline& Timeline)
+		{
+			TArray<CandidateEvent> CandidateEvents;
+
+			TraceServices::ITimeline<TraceServices::FTimingProfilerEvent>::EnumerateAsyncParams Params;
+			Params.IntervalStart = InStartTime;
+			Params.IntervalEnd = InEndTime;
+			Params.Resolution = 0.0;
+			Params.SetupCallback = [&CandidateEvents](uint32 NumTasks)
+			{
+				CandidateEvents.AddDefaulted(NumTasks);
+			};
+			Params.Callback = [TimerReader, &CandidateEvents, InTimerId](double StartTime, double EndTime, uint32 Depth, const TraceServices::FTimingProfilerEvent& Event, uint32 TaskIndex)
+			{
+				const TraceServices::FTimingProfilerTimer* Timer = TimerReader->GetTimer(Event.TimerIndex);
+				if (ensure(Timer != nullptr))
+				{
+					if (Timer->Id == InTimerId)
+					{
+						double CandidateDuration = CandidateEvents[TaskIndex].EndTime - CandidateEvents[TaskIndex].StartTime;
+						double EventDuration = EndTime - StartTime;
+
+						if (EventDuration > CandidateDuration)
+						{
+							CandidateEvents[TaskIndex].StartTime = StartTime;
+							CandidateEvents[TaskIndex].EndTime = EndTime;
+							CandidateEvents[TaskIndex].Depth = Depth;
+							CandidateEvents[TaskIndex].TimerIndex = Event.TimerIndex;
+						}
+
+					}
+				}
+				return TraceServices::EEventEnumerate::Continue;
+			};
+
+			// Note: Enumerating events for filtering should not use downsampling.
+			Timeline.EnumerateEventsDownSampledAsync(Params);
+
+			CandidateEvent BestMatch;
+			for (const CandidateEvent& Event : CandidateEvents)
+			{
+				if ((Event.EndTime - Event.StartTime) > BestMatch.EndTime - BestMatch.StartTime)
+				{
+					BestMatch = Event;
+				}
+			}
+
+			if (BestMatch.EndTime > BestMatch.StartTime)
+			{
+				TimingEvent = MakeShared<FThreadTrackEvent>(SharedThis(this), BestMatch.StartTime, BestMatch.EndTime, BestMatch.Depth);
+				TimingEvent->SetTimerId(InTimerId);
+				TimingEvent->SetTimerIndex(BestMatch.TimerIndex);
+			}
+		});
+
+	return TimingEvent;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+TSharedPtr<const ITimingEvent> FThreadTimingTrack::FindMinEventInstance(uint32 InTimerId, double InStartTime, double InEndTime) const
+{
+	TSharedPtr<const TraceServices::IAnalysisSession> Session = FInsightsManager::Get()->GetSession();
+	check(Session.IsValid());
+
+	TraceServices::FAnalysisSessionReadScope SessionReadScope(*Session.Get());
+
+	const TraceServices::ITimingProfilerProvider& TimingProfilerProvider = *TraceServices::ReadTimingProfilerProvider(*Session.Get());
+
+	const TraceServices::ITimingProfilerTimerReader* TimerReader;
+	TimingProfilerProvider.ReadTimers([&TimerReader](const TraceServices::ITimingProfilerTimerReader& Out) { TimerReader = &Out; });
+
+	struct CandidateEvent
+	{
+		double StartTime = -std::numeric_limits<double>::infinity();
+		double EndTime = std::numeric_limits<double>::infinity();
+		uint32 Depth = 0;
+		uint32 TimerIndex = 0;
+	};
+
+	TSharedPtr<FThreadTrackEvent> TimingEvent;
+
+	TimingProfilerProvider.ReadTimeline(TimelineIndex,
+		[TimerReader, InStartTime, InEndTime, InTimerId, &TimingEvent, this](const TraceServices::ITimingProfilerProvider::Timeline& Timeline)
+		{
+			TArray<CandidateEvent> CandidateEvents;
+
+			TraceServices::ITimeline<TraceServices::FTimingProfilerEvent>::EnumerateAsyncParams Params;
+			Params.IntervalStart = InStartTime;
+			Params.IntervalEnd = InEndTime;
+			Params.Resolution = 0.0;
+			Params.SetupCallback = [&CandidateEvents](uint32 NumTasks)
+			{
+				CandidateEvents.AddDefaulted(NumTasks);
+			};
+			Params.Callback = [TimerReader, &CandidateEvents, InTimerId](double StartTime, double EndTime, uint32 Depth, const TraceServices::FTimingProfilerEvent& Event, uint32 TaskIndex)
+			{
+				const TraceServices::FTimingProfilerTimer* Timer = TimerReader->GetTimer(Event.TimerIndex);
+				if (ensure(Timer != nullptr))
+				{
+					if (Timer->Id == InTimerId)
+					{
+						double CandidateDuration = CandidateEvents[TaskIndex].EndTime - CandidateEvents[TaskIndex].StartTime;
+						double EventDuration = EndTime - StartTime;
+
+						if (EventDuration < CandidateDuration)
+						{
+							CandidateEvents[TaskIndex].StartTime = StartTime;
+							CandidateEvents[TaskIndex].EndTime = EndTime;
+							CandidateEvents[TaskIndex].Depth = Depth;
+							CandidateEvents[TaskIndex].TimerIndex = Event.TimerIndex;
+						}
+					}
+				}
+				return TraceServices::EEventEnumerate::Continue;
+			};
+
+			// Note: Enumerating events for filtering should not use downsampling.
+			Timeline.EnumerateEventsDownSampledAsync(Params);
+
+			CandidateEvent BestMatch;
+			for (const CandidateEvent& Event : CandidateEvents)
+			{
+				if ((Event.EndTime - Event.StartTime) < BestMatch.EndTime - BestMatch.StartTime)
+				{
+					BestMatch = Event;
+				}
+			}
+
+			if (BestMatch.StartTime != -std::numeric_limits<double>::infinity())
+			{
+				TimingEvent = MakeShared<FThreadTrackEvent>(SharedThis(this), BestMatch.StartTime, BestMatch.EndTime, BestMatch.Depth);
+				TimingEvent->SetTimerId(InTimerId);
+				TimingEvent->SetTimerIndex(BestMatch.TimerIndex);
+			}
+		});
+
+	return TimingEvent;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

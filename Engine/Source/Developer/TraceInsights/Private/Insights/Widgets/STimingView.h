@@ -49,6 +49,12 @@ namespace Insights
 	enum class ETimingEventsColoringMode : uint32;
 }
 
+enum class ESelectEventType : uint32
+{
+	Min = 0,
+	Max = 1
+};
+
 /** A custom widget used to display timing events. */
 class STimingView : public SCompoundWidget, public Insights::ITimingViewSession
 {
@@ -365,7 +371,7 @@ public:
 	const TSharedPtr<const ITimingEvent> GetSelectedEvent() const { return SelectedEvent; }
 
 	void SelectTimingTrack(const TSharedPtr<FBaseTimingTrack> InTrack, bool bBringTrackIntoView);
-	void SelectTimingEvent(const TSharedPtr<const ITimingEvent> InEvent, bool bBringEventIntoView);
+	void SelectTimingEvent(const TSharedPtr<const ITimingEvent> InEvent, bool bBringEventIntoViewHorizontally, bool bBringEventIntoViewVertically = false);
 
 	const TSharedPtr<ITimingEventFilter> GetEventFilter() const { return TimingEventFilter; }
 	void SetEventFilter(const TSharedPtr<ITimingEventFilter> InEventFilter);
@@ -388,6 +394,8 @@ public:
 	TSharedPtr<Insights::FFilterConfigurator> GetFilterConfigurator() { return FilterConfigurator; }
 
 	TMap<uint64, TSharedPtr<FBaseTimingTrack>>& GetAllTracks() { return AllTracks; }
+
+	void SelectEventInstance(uint32 TimerId, ESelectEventType Type, bool bUseSelection);
 
 protected:
 	virtual FVector2D ComputeDesiredSize(float) const override
@@ -698,6 +706,8 @@ protected:
 
 	bool bDrawTopSeparatorLine;
 	bool bDrawBottomSeparatorLine;
+
+	bool bBringSelectedEventIntoViewVerticallyOnNextTick = false;
 
 	// Debug stats
 	int32 NumUpdatedEvents;

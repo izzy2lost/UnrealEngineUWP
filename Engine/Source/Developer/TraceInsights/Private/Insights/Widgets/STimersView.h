@@ -148,6 +148,12 @@ private:
 	bool ContextMenu_OpenSource_CanExecute() const;
 	void ContextMenu_OpenSource_Execute() const;
 
+	bool ContextMenu_FindInstance_CanExecute() const;
+	void ContextMenu_FindInstance_Execute(bool bFindMax) const;
+
+	bool ContextMenu_FindInstanceInSelection_CanExecute() const;
+	void ContextMenu_FindInstanceInSelection_Execute(bool bFindMax) const;
+
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 	// Tree View - Columns' Header
 
@@ -303,6 +309,8 @@ private:
 	void ToggleTimingViewEventFilter(FTimerNodePtr TimerNode) const;
 
 	void TreeView_BuildPlotTimerMenu(FMenuBuilder& MenuBuilder);
+
+	void TreeView_FindMenu(FMenuBuilder& MenuBuilder);
 
 	TSharedPtr<FTimingGraphTrack> GetTimingViewMainGraphTrack() const;
 	TSharedPtr<SFrameTrack> GetFrameTrack() const;

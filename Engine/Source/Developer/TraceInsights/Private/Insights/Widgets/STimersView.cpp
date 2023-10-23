@@ -116,6 +116,30 @@ public:
 			"Opens the source file of the selected timer in the registered IDE.",
 			EUserInterfaceActionType::Button,
 			FInputChord());
+
+		UI_COMMAND(Command_FindMaxInstance,
+			"Maximum Duration Instance",
+			"Navigates to and selects the timing event instance with the maximum duration, for the selected timer.",
+			EUserInterfaceActionType::Button,
+			FInputChord());
+
+		UI_COMMAND(Command_FindMinInstance,
+			"Minimum Duration Instance",
+			"Navigates to and selects the timing event instance with the minimum duration, for the selected timer.",
+			EUserInterfaceActionType::Button,
+			FInputChord());
+
+		UI_COMMAND(Command_FindMaxInstanceInSelection,
+			"Maximum Duration Instance in Selection",
+			"Navigates to and selects the timing event instance with the maximum duration, for the selected timer, in the selected time range.",
+			EUserInterfaceActionType::Button,
+			FInputChord());
+
+		UI_COMMAND(Command_FindMinInstanceInSelection,
+			"Minimum Duration Instance in Selection",
+			"Navigates to and selects the timing event instance with the minimum duration, for the selected timer, in the selected time range.",
+			EUserInterfaceActionType::Button,
+			FInputChord());
 	}
 	UE_ENABLE_OPTIMIZATION_SHIP
 
@@ -126,6 +150,11 @@ public:
 	TSharedPtr<FUICommandInfo> Command_ExportThreads;
 	TSharedPtr<FUICommandInfo> Command_ExportTimers;
 	TSharedPtr<FUICommandInfo> Command_OpenSource;
+
+	TSharedPtr<FUICommandInfo> Command_FindMaxInstance;
+	TSharedPtr<FUICommandInfo> Command_FindMinInstance;
+	TSharedPtr<FUICommandInfo> Command_FindMaxInstanceInSelection;
+	TSharedPtr<FUICommandInfo> Command_FindMinInstanceInSelection;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -178,6 +207,10 @@ void STimersView::InitCommandList()
 	CommandList->MapAction(FTimersViewCommands::Get().Command_ExportThreads, FExecuteAction::CreateSP(this, &STimersView::ContextMenu_ExportThreads_Execute), FCanExecuteAction::CreateSP(this, &STimersView::ContextMenu_ExportThreads_CanExecute));
 	CommandList->MapAction(FTimersViewCommands::Get().Command_ExportTimers, FExecuteAction::CreateSP(this, &STimersView::ContextMenu_ExportTimers_Execute), FCanExecuteAction::CreateSP(this, &STimersView::ContextMenu_ExportTimers_CanExecute));
 	CommandList->MapAction(FTimersViewCommands::Get().Command_OpenSource, FExecuteAction::CreateSP(this, &STimersView::ContextMenu_OpenSource_Execute), FCanExecuteAction::CreateSP(this, &STimersView::ContextMenu_OpenSource_CanExecute));
+	CommandList->MapAction(FTimersViewCommands::Get().Command_FindMaxInstance, FExecuteAction::CreateSP(this, &STimersView::ContextMenu_FindInstance_Execute, true), FCanExecuteAction::CreateSP(this, &STimersView::ContextMenu_FindInstance_CanExecute));
+	CommandList->MapAction(FTimersViewCommands::Get().Command_FindMinInstance, FExecuteAction::CreateSP(this, &STimersView::ContextMenu_FindInstance_Execute, false), FCanExecuteAction::CreateSP(this, &STimersView::ContextMenu_FindInstance_CanExecute));
+	CommandList->MapAction(FTimersViewCommands::Get().Command_FindMaxInstanceInSelection, FExecuteAction::CreateSP(this, &STimersView::ContextMenu_FindInstanceInSelection_Execute, true), FCanExecuteAction::CreateSP(this, &STimersView::ContextMenu_FindInstanceInSelection_CanExecute));
+	CommandList->MapAction(FTimersViewCommands::Get().Command_FindMinInstanceInSelection, FExecuteAction::CreateSP(this, &STimersView::ContextMenu_FindInstanceInSelection_Execute, false), FCanExecuteAction::CreateSP(this, &STimersView::ContextMenu_FindInstanceInSelection_CanExecute));
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -553,6 +586,15 @@ TSharedPtr<SWidget> STimersView::TreeView_GetMenuContent()
 			FNewMenuDelegate::CreateSP(this, &STimersView::TreeView_BuildPlotTimerMenu),
 			false,
 			FSlateIcon(FAppStyle::Get().GetStyleSetName(), "Icons.AddGraphSeries")
+		);
+
+		MenuBuilder.AddSubMenu
+		(
+			LOCTEXT("ContextMenu_FindInstance_SubMenu", "Find Instance"),
+			LOCTEXT("ContextMenu_PlotInstance_SubMenu_Desc", "Find the instance of this timer with the minimum or maximum duration."),
+			FNewMenuDelegate::CreateSP(this, &STimersView::TreeView_FindMenu),
+			false,
+			FSlateIcon(FAppStyle::Get().GetStyleSetName(), "Icons.FindInstance")
 		);
 
 		// Open Source in IDE
@@ -967,6 +1009,49 @@ void STimersView::TreeView_BuildPlotTimerMenu(FMenuBuilder& MenuBuilder)
 	}
 
 	MenuBuilder.EndSection();
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void STimersView::TreeView_FindMenu(FMenuBuilder& MenuBuilder)
+{
+	MenuBuilder.AddMenuEntry
+	(
+		FTimersViewCommands::Get().Command_FindMaxInstance,
+		NAME_None,
+		TAttribute<FText>(),
+		TAttribute<FText>(),
+		FSlateIcon(FAppStyle::Get().GetStyleSetName(), "Icons.FindMaxInstance")
+	);
+
+	MenuBuilder.AddMenuEntry
+	(
+		FTimersViewCommands::Get().Command_FindMinInstance,
+		NAME_None,
+		TAttribute<FText>(),
+		TAttribute<FText>(),
+		FSlateIcon(FAppStyle::Get().GetStyleSetName(), "Icons.FindMinInstance")
+	);
+
+	MenuBuilder.AddMenuSeparator();
+
+	MenuBuilder.AddMenuEntry
+	(
+		FTimersViewCommands::Get().Command_FindMaxInstanceInSelection,
+		NAME_None,
+		TAttribute<FText>(),
+		TAttribute<FText>(),
+		FSlateIcon(FAppStyle::Get().GetStyleSetName(), "Icons.FindMaxInstance")
+	);
+
+	MenuBuilder.AddMenuEntry
+	(
+		FTimersViewCommands::Get().Command_FindMinInstanceInSelection,
+		NAME_None,
+		TAttribute<FText>(),
+		TAttribute<FText>(),
+		FSlateIcon(FAppStyle::Get().GetStyleSetName(), "Icons.FindMinInstance")
+	);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -3162,6 +3247,84 @@ void STimersView::ContextMenu_OpenSource_Execute() const
 	{
 		OpenSourceFileInIDE(SelectedNodes[0]);
 	}
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+bool STimersView::ContextMenu_FindInstance_CanExecute() const
+{
+	const TArray<FTimerNodePtr> SelectedNodes = TreeView->GetSelectedItems();
+	return SelectedNodes.Num() == 1 && !(SelectedNodes[0]->GetType() == ETimerNodeType::Group);
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void STimersView::ContextMenu_FindInstance_Execute(bool bFindMax) const
+{
+	const TArray<FTimerNodePtr> SelectedNodes = TreeView->GetSelectedItems();
+	if (SelectedNodes.Num() != 1)
+	{
+		return;
+	}
+
+	FTimerNodePtr SelectedNode = SelectedNodes[0];
+
+	TSharedPtr<STimingProfilerWindow> Wnd = FTimingProfilerManager::Get()->GetProfilerWindow();
+	TSharedPtr<STimingView> TimingView = Wnd.IsValid() ? Wnd->GetTimingView() : nullptr;
+
+	if (!TimingView.IsValid())
+	{
+		return;
+	}
+
+	ESelectEventType Type = bFindMax ? ESelectEventType::Max : ESelectEventType::Min;
+	TimingView->SelectEventInstance(SelectedNode->GetTimerId(), Type, false);
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+bool STimersView::ContextMenu_FindInstanceInSelection_CanExecute() const
+{
+	const TArray<FTimerNodePtr> SelectedNodes = TreeView->GetSelectedItems();
+
+	if (SelectedNodes.Num() != 1 || SelectedNodes[0]->GetType() == ETimerNodeType::Group)
+	{
+		return false;
+	}
+
+	TSharedPtr<STimingProfilerWindow> Wnd = FTimingProfilerManager::Get()->GetProfilerWindow();
+	TSharedPtr<STimingView> TimingView = Wnd.IsValid() ? Wnd->GetTimingView() : nullptr;
+
+	if (TimingView.IsValid())
+	{
+		return TimingView->GetSelectionEndTime() > TimingView->GetSelectionStartTime();
+	}
+
+	return false;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void STimersView::ContextMenu_FindInstanceInSelection_Execute(bool bFindMax) const
+{
+	const TArray<FTimerNodePtr> SelectedNodes = TreeView->GetSelectedItems();
+	if (SelectedNodes.Num() != 1)
+	{
+		return;
+	}
+
+	FTimerNodePtr SelectedNode = SelectedNodes[0];
+
+	TSharedPtr<STimingProfilerWindow> Wnd = FTimingProfilerManager::Get()->GetProfilerWindow();
+	TSharedPtr<STimingView> TimingView = Wnd.IsValid() ? Wnd->GetTimingView() : nullptr;
+
+	if (!TimingView.IsValid())
+	{
+		return;
+	}
+
+	ESelectEventType Type = bFindMax ? ESelectEventType::Max : ESelectEventType::Min;
+	TimingView->SelectEventInstance(SelectedNode->GetTimerId(), Type, true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

@@ -1084,6 +1084,16 @@ void STimingView::Tick(const FGeometry& AllottedGeometry, const double InCurrent
 
 	Viewport.ResetDirtyFlags();
 
+	if (bBringSelectedEventIntoViewVerticallyOnNextTick && SelectedEvent.IsValid())
+	{
+		if (SelectedEvent->GetTrack()->GetLocation() == ETimingTrackLocation::Scrollable)
+		{
+			BringScrollableTrackIntoView(*SelectedEvent->GetTrack());
+		}
+	}
+
+	bBringSelectedEventIntoViewVerticallyOnNextTick = false;
+
 	TickStopwatch.Stop();
 	TickDurationHistory.AddValue(TickStopwatch.AccumulatedTime);
 }
@@ -3821,7 +3831,7 @@ void STimingView::SelectHoveredTimingTrack()
 
 void STimingView::SelectHoveredTimingEvent()
 {
-	SelectTimingEvent(HoveredEvent, true);
+	SelectTimingEvent(HoveredEvent, true, false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -3855,7 +3865,7 @@ void STimingView::SelectTimingTrack(const TSharedPtr<FBaseTimingTrack> InTrack, 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void STimingView::SelectTimingEvent(const TSharedPtr<const ITimingEvent> InEvent, bool bBringEventIntoView)
+void STimingView::SelectTimingEvent(const TSharedPtr<const ITimingEvent> InEvent, bool bBringEventIntoViewHorizontally, bool bBringEventIntoViewVertically)
 {
 	if (SelectedEvent != InEvent)
 	{
@@ -3864,9 +3874,15 @@ void STimingView::SelectTimingEvent(const TSharedPtr<const ITimingEvent> InEvent
 		if (SelectedEvent.IsValid())
 		{
 			LastSelectionType = ESelectionType::TimingEvent;
-			if (bBringEventIntoView)
+			if (bBringEventIntoViewHorizontally)
 			{
 				BringIntoView(SelectedEvent->GetStartTime(), SelectedEvent->GetEndTime());
+			}
+			if (bBringEventIntoViewVertically)
+			{
+				bBringSelectedEventIntoViewVerticallyOnNextTick = true;
+				// We need the layout to be callculated in one frame, no animations, otherwise the event might not be in view at the end of the animation.
+				Viewport.AddDirtyFlags(ETimingTrackViewportDirtyFlags::VLayoutChanged);
 			}
 		}
 
@@ -5317,6 +5333,44 @@ ETraceFrameType STimingView::GetFrameTypeToSnapTo()
 
 	// TraceFrameType_Count is the Instance mode.
 	return ETraceFrameType::TraceFrameType_Count;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void STimingView::SelectEventInstance(uint32 TimerId, ESelectEventType Type, bool bUseSelection)
+{
+	SelectTimingEvent(nullptr, false, false);
+
+	double IntervalStart = 0.0f;
+	double IntervalEnd = std::numeric_limits<double>::infinity();
+
+	if (bUseSelection && SelectionEndTime > SelectionStartTime)
+	{
+		IntervalStart = SelectionStartTime;
+		IntervalEnd = SelectionEndTime;
+	}
+
+	TSharedPtr<const ITimingEvent> TimingEvent;
+
+	if (Type == ESelectEventType::Min)
+	{
+		TimingEvent = ThreadTimingSharedState->FindMinEventInstance(TimerId, IntervalStart, IntervalEnd);
+	}
+	else if (Type == ESelectEventType::Max)
+	{
+		TimingEvent = ThreadTimingSharedState->FindMaxEventInstance(TimerId, IntervalStart, IntervalEnd);
+	}
+
+	if (TimingEvent.IsValid())
+	{
+		SelectTimingEvent(TimingEvent, true, true);
+	}
+	else
+	{
+		FMessageLog ReportMessageLog(FTimingProfilerManager::Get()->GetLogListingName());
+		ReportMessageLog.Error(LOCTEXT("NoEventFound", "No event instance found!"));
+		ReportMessageLog.Notify();
+	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
