@@ -77,6 +77,8 @@ struct CONTROLRIG_API FAnimNode_ControlRigBase : public FAnimNode_CustomProperty
 
 protected:
 
+	void UpdateInputOutputMappingIfRequired(UBaseControlRig* InControlRig, const FBoneContainer& RequiredBones); 
+
 	UPROPERTY(EditAnywhere, Category = Links)
 	FPoseLink Source;
 

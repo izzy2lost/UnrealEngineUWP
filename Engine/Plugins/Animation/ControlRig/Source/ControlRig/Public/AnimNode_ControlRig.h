@@ -18,6 +18,8 @@ struct CONTROLRIG_API FAnimNode_ControlRig : public FAnimNode_ControlRigBase
 {
 	GENERATED_BODY()
 
+public:
+
 	FAnimNode_ControlRig();
 	~FAnimNode_ControlRig();
 
@@ -45,12 +47,22 @@ private:
 #endif
 private:
 
-	/** Cached ControlRig */
+	// The class to use for the rig. 
 	UPROPERTY(EditAnywhere, Category = ControlRig)
 	TSubclassOf<UBaseControlRig> ControlRigClass;
 
+	// The default class to use for the rig. This is needed
+	// only if the Control Rig Class is exposed as a pin.
+	UPROPERTY()
+	TSubclassOf<UBaseControlRig> DefaultControlRigClass;
+
+	/** Cached ControlRig */
 	UPROPERTY(transient)
 	TObjectPtr<UBaseControlRig> ControlRig;
+
+	/** Cached ControlRigs per class */
+	UPROPERTY(transient)
+	TMap<UClass*, TObjectPtr<UBaseControlRig>> ControlRigPerClass;
 
 	// alpha value handler
 	UPROPERTY(EditAnywhere, Category = Settings, meta = (PinShownByDefault))
@@ -121,9 +133,12 @@ private:
 	FCurveMappings OutputCurveMappings;
 
 protected:
-	virtual UClass* GetTargetClass() const override { return *ControlRigClass; }
+	virtual UClass* GetTargetClass() const override;
 	virtual void UpdateInput(UBaseControlRig* InControlRig, const FPoseContext& InOutput) override;
 	virtual void UpdateOutput(UBaseControlRig* InControlRig, FPoseContext& InOutput) override;
+
+	void SetControlRigClass(TSubclassOf<UBaseControlRig> InControlRigClass);
+	bool UpdateControlRigIfNeeded(const UAnimInstance* InAnimInstance);
 
 	// Helper function to update the initial ref pose within the Control Rig if needed
 	void UpdateControlRigRefPoseIfNeeded(const FAnimInstanceProxy* InProxy, bool bIncludePoseInHash = false);
@@ -136,6 +151,7 @@ public:
 	void PostSerialize(const FArchive& Ar);
 
 	friend class UAnimGraphNode_ControlRig;
+	friend class UAnimNodeControlRigLibrary;
 };
 
 template<>

@@ -558,12 +558,6 @@ void FAnimNode_ControlRigBase::CacheBones_AnyThread(const FAnimationCacheBonesCo
 
 	if (UBaseControlRig* ControlRig = GetControlRig())
 	{
-		URigHierarchy* Hierarchy = ControlRig->GetHierarchy();
-		if(Hierarchy == nullptr)
-		{
-			return;
-		}
-
 		// fill up node names
 		FBoneContainer& RequiredBones = Context.AnimInstanceProxy->GetRequiredBones();
 
@@ -579,173 +573,7 @@ void FAnimNode_ControlRigBase::CacheBones_AnyThread(const FAnimationCacheBonesCo
 			bControlRigRequiresInitialization = false;
 		}
 
-		ControlRigBoneInputMappingByIndex.Reset();
-		ControlRigBoneOutputMappingByIndex.Reset();
-		ControlRigCurveMappingByIndex.Reset();
-		ControlRigBoneInputMappingByName.Reset();
-		ControlRigBoneOutputMappingByName.Reset();
-		ControlRigCurveMappingByName.Reset();
-
-		if(RequiredBones.IsValid())
-		{
-			const TArray<FBoneIndexType>& RequiredBonesArray = RequiredBones.GetBoneIndicesArray();
-			const int32 NumBones = RequiredBonesArray.Num();
-
-			const FReferenceSkeleton& RefSkeleton = RequiredBones.GetReferenceSkeleton();
-
-			// @todo: thread-safe? probably not in editor, but it may not be a big issue in editor
-			if (NodeMappingContainer.IsValid())
-			{
-				// get target to source mapping table - this is reversed mapping table
-				TMap<FName, FName> TargetToSourceMappingTable;
-				NodeMappingContainer->GetTargetToSourceMappingTable(TargetToSourceMappingTable);
-
-				// now fill up node name
-				for (uint16 Index = 0; Index < NumBones; ++Index)
-				{
-					// get bone name, and find reverse mapping
-					FName TargetNodeName = RefSkeleton.GetBoneName(RequiredBonesArray[Index]);
-					FName* SourceName = TargetToSourceMappingTable.Find(TargetNodeName);
-					if (SourceName)
-					{
-						ControlRigBoneInputMappingByName.Add(*SourceName, Index);
-					}
-				}
-			}
-			else
-			{
-				TArray<FName> NodeNames;
-				TArray<FNodeItem> NodeItems;
-				ControlRig->GetMappableNodeData(NodeNames, NodeItems);
-
-				// even if not mapped, we map only node that exists in the controlrig
-				for (uint16 Index = 0; Index < NumBones; ++Index)
-				{
-					const FName& BoneName = RefSkeleton.GetBoneName(RequiredBonesArray[Index]);
-					if (NodeNames.Contains(BoneName))
-					{
-						ControlRigBoneInputMappingByName.Add(BoneName, Index);
-					}
-				}
-			}
-
-			auto UpdatingMappingFromSpecificTransferList = [] (
-				TArray<FBoneReference>& InTransferList,
-				const TWeakObjectPtr<UNodeMappingContainer>& InMappingContainer,
-				FBoneContainer& InRequiredBones,
-				const FReferenceSkeleton& InRefSkeleton,
-				const TArray<FBoneIndexType>& InRequiredBonesArray,
-				const UBaseControlRig* InControlRig,
-				TMap<FName, uint16>& OutMapping
-			) {
-				OutMapping.Reset();
-				
-				if (InMappingContainer.IsValid())
-				{
-					// get target to source mapping table - this is reversed mapping table
-					TMap<FName, FName> TargetToSourceMappingTable;
-					InMappingContainer->GetTargetToSourceMappingTable(TargetToSourceMappingTable);
-
-					for(FBoneReference& InputBoneToTransfer : InTransferList)
-					{
-						if(!InputBoneToTransfer.Initialize(InRequiredBones))
-						{
-							continue;
-						}
-						const FName TargetNodeName = InRefSkeleton.GetBoneName(InputBoneToTransfer.BoneIndex);
-						if (const FName* SourceName = TargetToSourceMappingTable.Find(TargetNodeName))
-						{
-							OutMapping.Add(*SourceName, InputBoneToTransfer.BoneIndex);
-						}
-					}
-				}
-				else
-				{
-					TArray<FName> NodeNames;
-					TArray<FNodeItem> NodeItems;
-					InControlRig->GetMappableNodeData(NodeNames, NodeItems);
-
-					for(FBoneReference& InputBoneToTransfer : InTransferList)
-					{
-						if(!InputBoneToTransfer.Initialize(InRequiredBones))
-						{
-							continue;
-						}
-						const FName& BoneName = InRefSkeleton.GetBoneName(InRequiredBonesArray[InputBoneToTransfer.BoneIndex]);
-						if (NodeNames.Contains(BoneName))
-						{
-							OutMapping.Add(BoneName, InputBoneToTransfer.BoneIndex);
-						}
-					}
-				}
-			};
-			
-			if(!InputBonesToTransfer.IsEmpty())
-			{
-				ControlRigBoneOutputMappingByName = ControlRigBoneInputMappingByName;
-
-				UpdatingMappingFromSpecificTransferList(
-					InputBonesToTransfer,
-					NodeMappingContainer,
-					RequiredBones,
-					RefSkeleton,
-					RequiredBonesArray,
-					ControlRig,
-					ControlRigBoneInputMappingByName);
-			}
-
-			if(!OutputBonesToTransfer.IsEmpty())
-			{
-				UpdatingMappingFromSpecificTransferList(
-					OutputBonesToTransfer,
-					NodeMappingContainer,
-					RequiredBones,
-					RefSkeleton,
-					RequiredBonesArray,
-					ControlRig,
-					ControlRigBoneOutputMappingByName);
-			}
-
-			// check if we can switch the bones to an index based mapping.
-			// we can only do that if there is no node mapping container set.
-			if(!NodeMappingContainer.IsValid())
-			{
-				for(int32 InputOutput = 0; InputOutput < 2; InputOutput++)
-				{
-					bool bIsMappingByIndex = true;
-					TMap<FName, uint16>& NameBasedMapping = InputOutput == 0 ? ControlRigBoneInputMappingByName : ControlRigBoneOutputMappingByName;
-					if(NameBasedMapping.IsEmpty())
-					{
-						continue;
-					}
-					
-					TArray<TPair<uint16, uint16>>& IndexBasedMapping = InputOutput == 0 ? ControlRigBoneInputMappingByIndex : ControlRigBoneOutputMappingByIndex;
-					
-					for (auto Iter = NameBasedMapping.CreateConstIterator(); Iter; ++Iter)
-					{
-						const uint16 SkeletonIndex = Iter.Value();
-						const int32 ControlRigIndex = Hierarchy->GetIndex(FRigElementKey(Iter.Key(), ERigElementType::Bone));
-						if(ControlRigIndex != INDEX_NONE)
-						{
-							IndexBasedMapping.Add(TPair<uint16, uint16>((uint16)ControlRigIndex, SkeletonIndex));
-						}
-						else
-						{
-							bIsMappingByIndex = false;
-						}
-					}
-
-					if(bIsMappingByIndex)
-					{
-						NameBasedMapping.Reset();
-					}
-					else
-					{
-						IndexBasedMapping.Reset();
-					}
-				}
-			}
-		}
+		UpdateInputOutputMappingIfRequired(ControlRig, RequiredBones);
 
 		if(bControlRigRequiresInitialization)
 		{
@@ -756,6 +584,183 @@ void FAnimNode_ControlRigBase::CacheBones_AnyThread(const FAnimationCacheBonesCo
 		}
 		
 		LastBonesSerialNumberForCacheBones = BonesSerialNumber;
+	}
+}
+
+void FAnimNode_ControlRigBase::UpdateInputOutputMappingIfRequired(UBaseControlRig* InControlRig, const FBoneContainer& InRequiredBones)
+{
+	const URigHierarchy* Hierarchy = InControlRig->GetHierarchy();
+	if(Hierarchy == nullptr)
+	{
+		return;
+	}
+
+	ControlRigBoneInputMappingByIndex.Reset();
+	ControlRigBoneOutputMappingByIndex.Reset();
+	ControlRigCurveMappingByIndex.Reset();
+	ControlRigBoneInputMappingByName.Reset();
+	ControlRigBoneOutputMappingByName.Reset();
+	ControlRigCurveMappingByName.Reset();
+
+	if(InRequiredBones.IsValid())
+	{
+		const TArray<FBoneIndexType>& RequiredBonesArray = InRequiredBones.GetBoneIndicesArray();
+		const int32 NumBones = RequiredBonesArray.Num();
+
+		const FReferenceSkeleton& RefSkeleton = InRequiredBones.GetReferenceSkeleton();
+
+		// @todo: thread-safe? probably not in editor, but it may not be a big issue in editor
+		if (NodeMappingContainer.IsValid())
+		{
+			// get target to source mapping table - this is reversed mapping table
+			TMap<FName, FName> TargetToSourceMappingTable;
+			NodeMappingContainer->GetTargetToSourceMappingTable(TargetToSourceMappingTable);
+
+			// now fill up node name
+			for (uint16 Index = 0; Index < NumBones; ++Index)
+			{
+				// get bone name, and find reverse mapping
+				FName TargetNodeName = RefSkeleton.GetBoneName(RequiredBonesArray[Index]);
+				FName* SourceName = TargetToSourceMappingTable.Find(TargetNodeName);
+				if (SourceName)
+				{
+					ControlRigBoneInputMappingByName.Add(*SourceName, Index);
+				}
+			}
+		}
+		else
+		{
+			TArray<FName> NodeNames;
+			TArray<FNodeItem> NodeItems;
+			InControlRig->GetMappableNodeData(NodeNames, NodeItems);
+
+			// even if not mapped, we map only node that exists in the controlrig
+			for (uint16 Index = 0; Index < NumBones; ++Index)
+			{
+				const FName& BoneName = RefSkeleton.GetBoneName(RequiredBonesArray[Index]);
+				if (NodeNames.Contains(BoneName))
+				{
+					ControlRigBoneInputMappingByName.Add(BoneName, Index);
+				}
+			}
+		}
+
+		auto UpdatingMappingFromSpecificTransferList = [] (
+			TArray<FBoneReference>& InTransferList,
+			const TWeakObjectPtr<UNodeMappingContainer>& InMappingContainer,
+			const FBoneContainer& InRequiredBones,
+			const FReferenceSkeleton& InRefSkeleton,
+			const TArray<FBoneIndexType>& InRequiredBonesArray,
+			const UBaseControlRig* InControlRig,
+			TMap<FName, uint16>& OutMapping
+		) {
+			OutMapping.Reset();
+			
+			if (InMappingContainer.IsValid())
+			{
+				// get target to source mapping table - this is reversed mapping table
+				TMap<FName, FName> TargetToSourceMappingTable;
+				InMappingContainer->GetTargetToSourceMappingTable(TargetToSourceMappingTable);
+
+				for(FBoneReference& InputBoneToTransfer : InTransferList)
+				{
+					if(!InputBoneToTransfer.Initialize(InRequiredBones))
+					{
+						continue;
+					}
+					const FName TargetNodeName = InRefSkeleton.GetBoneName(InputBoneToTransfer.BoneIndex);
+					if (const FName* SourceName = TargetToSourceMappingTable.Find(TargetNodeName))
+					{
+						OutMapping.Add(*SourceName, InputBoneToTransfer.BoneIndex);
+					}
+				}
+			}
+			else
+			{
+				TArray<FName> NodeNames;
+				TArray<FNodeItem> NodeItems;
+				InControlRig->GetMappableNodeData(NodeNames, NodeItems);
+
+				for(FBoneReference& InputBoneToTransfer : InTransferList)
+				{
+					if(!InputBoneToTransfer.Initialize(InRequiredBones))
+					{
+						continue;
+					}
+					const FName& BoneName = InRefSkeleton.GetBoneName(InRequiredBonesArray[InputBoneToTransfer.BoneIndex]);
+					if (NodeNames.Contains(BoneName))
+					{
+						OutMapping.Add(BoneName, InputBoneToTransfer.BoneIndex);
+					}
+				}
+			}
+		};
+		
+		if(!InputBonesToTransfer.IsEmpty())
+		{
+			ControlRigBoneOutputMappingByName = ControlRigBoneInputMappingByName;
+
+			UpdatingMappingFromSpecificTransferList(
+				InputBonesToTransfer,
+				NodeMappingContainer,
+				InRequiredBones,
+				RefSkeleton,
+				RequiredBonesArray,
+				InControlRig,
+				ControlRigBoneInputMappingByName);
+		}
+
+		if(!OutputBonesToTransfer.IsEmpty())
+		{
+			UpdatingMappingFromSpecificTransferList(
+				OutputBonesToTransfer,
+				NodeMappingContainer,
+				InRequiredBones,
+				RefSkeleton,
+				RequiredBonesArray,
+				InControlRig,
+				ControlRigBoneOutputMappingByName);
+		}
+
+		// check if we can switch the bones to an index based mapping.
+		// we can only do that if there is no node mapping container set.
+		if(!NodeMappingContainer.IsValid())
+		{
+			for(int32 InputOutput = 0; InputOutput < 2; InputOutput++)
+			{
+				bool bIsMappingByIndex = true;
+				TMap<FName, uint16>& NameBasedMapping = InputOutput == 0 ? ControlRigBoneInputMappingByName : ControlRigBoneOutputMappingByName;
+				if(NameBasedMapping.IsEmpty())
+				{
+					continue;
+				}
+				
+				TArray<TPair<uint16, uint16>>& IndexBasedMapping = InputOutput == 0 ? ControlRigBoneInputMappingByIndex : ControlRigBoneOutputMappingByIndex;
+				
+				for (auto Iter = NameBasedMapping.CreateConstIterator(); Iter; ++Iter)
+				{
+					const uint16 SkeletonIndex = Iter.Value();
+					const int32 ControlRigIndex = Hierarchy->GetIndex(FRigElementKey(Iter.Key(), ERigElementType::Bone));
+					if(ControlRigIndex != INDEX_NONE)
+					{
+						IndexBasedMapping.Add(TPair<uint16, uint16>((uint16)ControlRigIndex, SkeletonIndex));
+					}
+					else
+					{
+						bIsMappingByIndex = false;
+					}
+				}
+
+				if(bIsMappingByIndex)
+				{
+					NameBasedMapping.Reset();
+				}
+				else
+				{
+					IndexBasedMapping.Reset();
+				}
+			}
+		}
 	}
 }
 
