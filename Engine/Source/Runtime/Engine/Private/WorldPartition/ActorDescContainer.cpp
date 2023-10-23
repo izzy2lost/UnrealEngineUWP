@@ -8,6 +8,7 @@
 #include "Editor.h"
 #include "Algo/Transform.h"
 #include "Engine/Level.h"
+#include "ExternalPackageHelper.h"
 #include "UObject/ObjectSaveContext.h"
 #include "AssetRegistry/ARFilter.h"
 #include "AssetRegistry/AssetRegistryModule.h"
@@ -58,10 +59,7 @@ void UActorDescContainer::Initialize(const FInitializeParams& InitParams)
 		Filter.PackagePaths.Add(*ContainerExternalActorsPath);
 
 		TRACE_CPUPROFILER_EVENT_SCOPE(GetAssets);
-		AssetRegistry.GetAssets(Filter, Assets);
-		// Sort the list as the order affects the cooking which needs to be deterministic.
-		// @todo_ow: Remove this once UE-198035 is fixed.
-		Assets.Sort();
+		FExternalPackageHelper::GetSortedAssets(Filter, Assets);
 	}
 
 	FWorldPartitionClassDescRegistry& ClassDescRegistry = FWorldPartitionClassDescRegistry::Get();

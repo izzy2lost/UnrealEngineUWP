@@ -3965,10 +3965,7 @@ TArray<FString> ULevel::GetOnDiskExternalActorPackages(const FString& ExternalAc
 		TArray<FAssetData> ActorAssets;
 		IAssetRegistry& AssetRegistry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry")).Get();
 		AssetRegistry.ScanSynchronous({ ExternalActorsPath }, TArray<FString>());
-		AssetRegistry.GetAssets(Filter, ActorAssets);
-		// Sort the list as the order affects the cooking which needs to be deterministic.
-		// @todo_ow: Remove this once UE-198035 is fixed.
-		ActorAssets.Sort();
+		FExternalPackageHelper::GetSortedAssets(Filter, ActorAssets);
 
 		ActorPackageNames.Reserve(ActorAssets.Num());
 		Algo::Transform(ActorAssets, ActorPackageNames, [](const FAssetData& ActorAssetData) { return ActorAssetData.PackageName.ToString(); });

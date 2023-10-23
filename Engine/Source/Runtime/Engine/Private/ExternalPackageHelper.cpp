@@ -4,6 +4,7 @@
 
 #if WITH_EDITOR
 
+#include "AssetRegistry/IAssetRegistry.h"
 #include "Misc/ArchiveMD5.h"
 #include "Misc/Paths.h"
 #include "HAL/PlatformApplicationMisc.h"
@@ -177,5 +178,13 @@ void FExternalPackageHelper::CopyObjectsExternalPackageFilePathToClipboard(const
 		FPlatformApplicationMisc::ClipboardCopy(*Result);
 	}
 }
+
+void FExternalPackageHelper::GetSortedAssets(const FARFilter& Filter, TArray<FAssetData>& OutAssets)
+{
+	OutAssets.Reset();
+	IAssetRegistry::GetChecked().GetAssets(Filter, OutAssets);
+	OutAssets.Sort();
+}
+
 
 #endif

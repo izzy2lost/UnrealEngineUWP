@@ -92,6 +92,10 @@ public:
 	 */
 	static ENGINE_API void CopyObjectsExternalPackageFilePathToClipboard(const TArray<const UObject*>& InObjects);
 	
+	/**
+	 * Call AssetRegistry.GetAssets and sort the results for deterministic use in cooked data.
+	 */
+	static ENGINE_API void GetSortedAssets(const FARFilter& Filter, TArray<FAssetData>& OutAssets);
 private:
 	/** Get the external object package instance name. */
 	static ENGINE_API FString GetExternalObjectPackageInstanceName(const FString& OuterPackageName, const FString& ObjectPackageName);
@@ -116,10 +120,7 @@ void FExternalPackageHelper::LoadObjectsFromExternalPackages(UObject* InOuter, T
 	Filter.bRecursiveClasses = true;
 	Filter.PackagePaths.Add(*ExternalObjectsPath);
 	TArray<FAssetData> Assets;
-	AssetRegistry.GetAssets(Filter, Assets);
-	// Sort the list as the order affects the cooking which needs to be deterministic.
-	// @todo_ow: Remove this once UE-198035 is fixed.
-	Assets.Sort();
+	GetSortedAssets(Filter, Assets);
 
 	ObjectPackageNames.Reserve(Assets.Num());
 	for (const FAssetData& Asset : Assets)
