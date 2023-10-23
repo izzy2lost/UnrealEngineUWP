@@ -251,6 +251,8 @@ namespace DetailedCookStats
 	FCookStatsManager::FAutoRegisterCallback RegisterCookOnTheFlyServerStats([](FCookStatsManager::AddStatFuncRef AddStat)
 		{
 			AddStat(TEXT("Package.Load"), FCookStatsManager::CreateKeyValueArray(
+				TEXT("NumRequestedLoads"), NumRequestedLoads,
+				TEXT("NumPackagesLoaded"), NumDetectedLoads.load(),
 				TEXT("NumInlineLoads"), NumDetectedLoads - NumRequestedLoads));
 			AddStat(TEXT("Package.Save"), FCookStatsManager::CreateKeyValueArray(TEXT("NumPackagesIterativelySkipped"), NumPackagesIterativelySkipped));
 			AddStat(TEXT("CookOnTheFlyServer"), FCookStatsManager::CreateKeyValueArray(

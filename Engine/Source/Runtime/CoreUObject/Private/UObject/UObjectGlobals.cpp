@@ -137,11 +137,9 @@ CSV_DEFINE_CATEGORY(UObject, false);
 namespace LoadPackageStats
 {
 	static double LoadPackageTimeSec = 0.0;
-	int NumPackagesLoaded = 0;
 	static FCookStatsManager::FAutoRegisterCallback RegisterCookStats([](FCookStatsManager::AddStatFuncRef AddStat)
 	{
 		AddStat(TEXT("Package.Load"), FCookStatsManager::CreateKeyValueArray(
-			TEXT("NumPackagesLoaded"), NumPackagesLoaded,
 			TEXT("LoadPackageTimeSec"), LoadPackageTimeSec));
 	});
 }
@@ -1621,7 +1619,6 @@ bool ShouldAlwaysLoadPackageAsync(const FPackagePath& InPackagePath);
 UPackage* LoadPackageInternal(UPackage* InOuter, const FPackagePath& PackagePath, uint32 LoadFlags, FLinkerLoad* ImportLinker, FArchive* InReaderOverride,
 	const FLinkerInstancingContext* InstancingContext, const FPackagePath* DiffPackagePath)
 {
-	COOK_STAT(LoadPackageStats::NumPackagesLoaded++);
 	DECLARE_SCOPE_CYCLE_COUNTER(TEXT("LoadPackageInternal"), STAT_LoadPackageInternal, STATGROUP_ObjectVerbose);
 
 	FString TracePackageName;
