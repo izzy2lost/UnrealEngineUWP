@@ -135,7 +135,7 @@ TOnlineResult<FGetUserInfo> FUserInfoEOS::GetUserInfo(FGetUserInfo::Params&& Par
 
 	TSharedRef<FUserInfo> UserInfo = MakeShared<FUserInfo>();
 	UserInfo->AccountId = Params.AccountId;
-	UserInfo->DisplayName = UTF8_TO_TCHAR(EosBestDisplayName->DisplayNameSanitized);
+	UserInfo->DisplayName = GetBestDisplayNameStr(*EosBestDisplayName);
 
 	return TOnlineResult<FGetUserInfo>({UserInfo});
 }

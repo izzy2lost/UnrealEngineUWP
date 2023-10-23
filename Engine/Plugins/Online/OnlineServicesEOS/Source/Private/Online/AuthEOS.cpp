@@ -219,7 +219,7 @@ TOnlineAsyncOpHandle<FAuthLogin> FAuthEOS::Login(FAuthLogin::Params&& Params)
 
 		if (CopyBestDisplayNameResult == EOS_EResult::EOS_Success)
 		{
-			AccountInfoEOS->Attributes.Emplace(AccountAttributeData::DisplayName, UTF8_TO_TCHAR(BestDisplayName->DisplayNameSanitized));
+			AccountInfoEOS->Attributes.Emplace(AccountAttributeData::DisplayName, *GetBestDisplayNameStr(*BestDisplayName));
 			EOS_UserInfo_BestDisplayName_Release(BestDisplayName);
 		}
 		else

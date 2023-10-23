@@ -1081,10 +1081,10 @@ void FUserManagerEOS::UpdateUserInfo(IAttributeAccessInterfaceRef AttributeAcces
 	}
 
 	EOS_UserInfo_CopyBestDisplayNameOptions BestDisplayNameOptions = { };
-	Options.ApiVersion = 1;
+	BestDisplayNameOptions.ApiVersion = 1;
 	UE_EOS_CHECK_API_MISMATCH(EOS_USERINFO_COPYBESTDISPLAYNAME_API_LATEST, 1);
-	Options.LocalUserId = LocalId;
-	Options.TargetUserId = AccountId;
+	BestDisplayNameOptions.LocalUserId = LocalId;
+	BestDisplayNameOptions.TargetUserId = AccountId;
 
 	EOS_UserInfo_BestDisplayName* BestDisplayName;
 	EOS_EResult BestDisplayNameResult = EOS_UserInfo_CopyBestDisplayName(EOSSubsystem->UserInfoHandle, &BestDisplayNameOptions, &BestDisplayName);
@@ -1103,7 +1103,8 @@ void FUserManagerEOS::UpdateUserInfo(IAttributeAccessInterfaceRef AttributeAcces
 
 	if (BestDisplayNameResult == EOS_EResult::EOS_Success)
 	{
-		AttributeAccessRef->SetInternalAttribute(USER_ATTR_DISPLAY_NAME, UTF8_TO_TCHAR(BestDisplayName->DisplayNameSanitized));
+		// We'll prioritize which name is chosen: Nickname > DisplayNameSanitized > DisplayName
+		AttributeAccessRef->SetInternalAttribute(USER_ATTR_DISPLAY_NAME, *GetBestDisplayNameStr(*BestDisplayName));
 
 		EOS_UserInfo_BestDisplayName_Release(BestDisplayName);
 	}

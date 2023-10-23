@@ -289,6 +289,11 @@ bool LexFromString(EOS_ELoginCredentialType& OutEnum, const TCHAR* InString)
 	return true;
 }
 
+FString GetBestDisplayNameStr(const EOS_UserInfo_BestDisplayName& BestDisplayName)
+{
+	return FString(UTF8_TO_TCHAR(BestDisplayName.Nickname ? BestDisplayName.Nickname : BestDisplayName.DisplayNameSanitized ? BestDisplayName.DisplayNameSanitized : BestDisplayName.DisplayName));
+}
+
 bool LexFromString(EOS_ERTCBackgroundMode& OutEnum, const TCHAR* InString)
 {
 	if (FCString::Stricmp(InString, TEXT("LeaveRooms")) == 0)

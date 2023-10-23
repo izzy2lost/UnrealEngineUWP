@@ -37,8 +37,9 @@
 #endif
 #include "eos_base.h"
 #include "eos_common.h"
-#include "eos_version.h"
 #include "eos_types.h"
+#include "eos_userinfo_types.h"
+#include "eos_version.h"
 
 #if defined(DISABLE_EOSVOICECHAT_ENGINE)
 #define WITH_EOS_RTC 0
@@ -85,5 +86,8 @@ EOSSHARED_API bool LexFromString(EOS_EAuthScopeFlags& OutEnum, const FStringView
 EOSSHARED_API bool LexFromString(EOS_EExternalCredentialType& OutEnum, const TCHAR* InString);
 EOSSHARED_API bool LexFromString(EOS_ELoginCredentialType& OutEnum, const TCHAR* InString);
 EOSSHARED_API bool LexFromString(EOS_ERTCBackgroundMode& OutEnum, const TCHAR* InString);
+
+/** Extracts the display name FString from a EOS_UserInfo_BestDisplayName using the following logic: Nickname > DisplayNameSanitized > DisplayName */
+EOSSHARED_API FString GetBestDisplayNameStr(const EOS_UserInfo_BestDisplayName& BestDisplayName);
 
 #endif // WITH_EOS_SDK
