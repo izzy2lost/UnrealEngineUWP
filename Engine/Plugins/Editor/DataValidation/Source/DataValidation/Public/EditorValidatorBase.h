@@ -133,9 +133,6 @@ public:
 	}
 
 protected:
-	void LogElapsedTime(FFormatNamedArguments &Arguments);
-
-protected:
 	UPROPERTY(EditAnywhere, Category = "Asset Validation", meta = (BlueprintProtected = "true"))
 	bool bIsEnabled;
 	
@@ -149,7 +146,6 @@ private:
 	TArray<FText> AllErrors;
 	TArray<TSharedRef<FTokenizedMessage>> AllMessages;
 
-	FDateTime ValidationTime;
 	
 	UPROPERTY()
 	UObject* CurrentObjectBeingValidated;
