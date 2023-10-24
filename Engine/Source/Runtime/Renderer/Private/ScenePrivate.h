@@ -3601,6 +3601,16 @@ public:
 		return CreateLightPrimitiveInteractionsTask;
 	}
 
+	void WaitForGPUSkinCacheTask()
+	{
+		GPUSkinCacheTask.Wait();
+	}
+
+	UE::Tasks::FTask GetGPUSkinCacheTask() const
+	{
+		return GPUSkinCacheTask;
+	}
+
 	void WaitForCacheMeshDrawCommandsTask()
 	{
 		CacheMeshDrawCommandsTask.Wait();
@@ -3835,6 +3845,7 @@ private:
 	TSet<FPrimitiveSceneInfo*> DeletedPrimitiveSceneInfos;
 
 	UE::Tasks::FTask CreateLightPrimitiveInteractionsTask;
+	UE::Tasks::FTask GPUSkinCacheTask;
 	UE::Tasks::FTask CacheMeshDrawCommandsTask;
 	UE::Tasks::FTask CacheNaniteMaterialBinsTask;
 #if RHI_RAYTRACING
