@@ -2024,6 +2024,7 @@ FNiagaraCompilationNodeEmitter::FNiagaraCompilationNodeEmitter(const UNiagaraNod
 
 FNiagaraCompilationNodeEmitter::FNiagaraCompilationNodeEmitter(const FNiagaraCompilationNodeEmitter& InNode, FNiagaraCompilationGraphDuplicateContext& Context)
 	: FNiagaraCompilationNode(InNode, Context)
+	, EmitterID(InNode.EmitterID)
 	, EmitterUniqueName(InNode.EmitterUniqueName)
 	, EmitterName(InNode.EmitterName)
 	, EmitterPathName(InNode.EmitterPathName)
