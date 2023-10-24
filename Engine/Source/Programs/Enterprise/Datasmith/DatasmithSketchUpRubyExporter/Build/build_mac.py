@@ -37,7 +37,7 @@ SU_VERSION = args.sketchup_version
 TARGET_ARCHS = args.target_archs;
 
 arch_target_dict = {
-    'x86_64': 'x86_64-apple-macos10.15',
+    'x86_64': 'x86_64-apple-macos11',
     'arm64': 'arm64-apple-macos11'
 }
 

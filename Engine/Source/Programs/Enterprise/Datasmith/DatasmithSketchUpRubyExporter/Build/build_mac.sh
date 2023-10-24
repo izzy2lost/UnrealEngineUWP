@@ -46,9 +46,9 @@ SetupIntermediateDirectory() {
     chmod 777 "$Dylibs/$dylibLibTbb"
     chmod 777 "$Dylibs/$dylibLibTbbMalloc"
 
-    install_name_tool -id @loader_path/Dylibs/DatasmithSDK.dylib "$Dylibs/DatasmithSDK.dylib"
-    install_name_tool -id @loader_path/Dylibs/$dylibLibFreeImage "$Dylibs/$dylibLibFreeImage"
-    install_name_tool -change @rpath/$dylibLibFreeImage @loader_path/$dylibLibFreeImage "$Dylibs/DatasmithSDK.dylib"
+    install_name_tool -id @loader_path/Dylibs/DatasmithSDK.dylib "$Dylibs/DatasmithSDK.dylib" > /dev/null 2>&1
+    install_name_tool -id @loader_path/Dylibs/$dylibLibFreeImage "$Dylibs/$dylibLibFreeImage" > /dev/null 2>&1
+    install_name_tool -change @rpath/$dylibLibFreeImage @loader_path/$dylibLibFreeImage "$Dylibs/DatasmithSDK.dylib" > /dev/null 2>&1
 }
 
 # Technicaly our dylibs are already Universal Arm64+x86_64 binaries, so they shouldn't really go into the x86_64 folder,
