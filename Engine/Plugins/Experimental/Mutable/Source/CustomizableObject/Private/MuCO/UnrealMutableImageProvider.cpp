@@ -134,7 +134,7 @@ bool FUnrealMutableImageProvider::Tick(float DeltaTime)
 	TSoftObjectPtr<UTexture> TexturePtr = CO->ReferencedPassThroughTextures[Request->Id];
 
 	// This can cause a stall because of loading the asset.
-	UTexture2D* Texture = Cast<UTexture2D>( TexturePtr.Get() );
+	UTexture2D* Texture = Cast<UTexture2D>( TexturePtr.LoadSynchronous() );
 	if (!Texture)
 	{
 		// Failed to load the texture
