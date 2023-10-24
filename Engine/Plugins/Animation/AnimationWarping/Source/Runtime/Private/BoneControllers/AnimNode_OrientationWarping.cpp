@@ -576,5 +576,6 @@ void FAnimNode_OrientationWarping::Reset(const FAnimationBaseContext& Context)
 {
 	bIsFirstUpdate = true;
 	RootMotionDeltaDirection = FVector::ZeroVector;
+	ManualRootMotionVelocity = FVector::ZeroVector;
 	ActualOrientationAngleRad = 0.f;
 }
