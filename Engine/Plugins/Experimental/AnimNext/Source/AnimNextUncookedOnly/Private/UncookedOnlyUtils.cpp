@@ -477,10 +477,10 @@ void FUtils::Compile(UAnimNextGraph* InGraph)
 	URigVMCompiler* Compiler = URigVMCompiler::StaticClass()->GetDefaultObject<URigVMCompiler>();
 	EditorData->VMCompileSettings.SetExecuteContextStruct(EditorData->RigVMClient.GetExecuteContextStruct());
 	const FRigVMCompileSettings Settings = (EditorData->bCompileInDebugMode) ? FRigVMCompileSettings::Fast(EditorData->VMCompileSettings.GetExecuteContextStruct()) : EditorData->VMCompileSettings;
-	Compiler->Compile(Settings, { VMTempGraph }, TempController, InGraph->RigVM, InGraph->ExtendedExecuteContext, InGraph->GetRigVMExternalVariables(), & EditorData->PinToOperandMap);
+	Compiler->Compile(Settings, { VMTempGraph }, TempController, InGraph->VM, InGraph->ExtendedExecuteContext, InGraph->GetRigVMExternalVariables(), & EditorData->PinToOperandMap);
 
 	// Initialize right away, in packaged builds we initialize during PostLoad
-	InGraph->RigVM->Initialize(InGraph->ExtendedExecuteContext);
+	InGraph->VM->Initialize(InGraph->ExtendedExecuteContext);
 
 	if (EditorData->bErrorsDuringCompilation)
 	{
@@ -491,9 +491,9 @@ void FUtils::Compile(UAnimNextGraph* InGraph)
 	}
 
 	EditorData->bVMRecompilationRequired = false;
-	if(InGraph->RigVM)
+	if(InGraph->VM)
 	{
-		EditorData->RigVMCompiledEvent.Broadcast(InGraph, InGraph->RigVM, InGraph->ExtendedExecuteContext);
+		EditorData->RigVMCompiledEvent.Broadcast(InGraph, InGraph->VM, InGraph->ExtendedExecuteContext);
 	}
 
 	VMClient->RemoveController(VMTempGraph);
@@ -505,8 +505,9 @@ void FUtils::Compile(UAnimNextGraph* InGraph)
 
 void FUtils::RecreateVM(UAnimNextGraph* InGraph)
 {
-	InGraph->RigVM = NewObject<URigVM>(InGraph, TEXT("VM"), RF_NoFlags);
-	InGraph->RigVM->Reset(InGraph->ExtendedExecuteContext);
+	InGraph->VM = NewObject<URigVM>(InGraph, TEXT("VM"), RF_NoFlags);
+	InGraph->VM->Reset(InGraph->ExtendedExecuteContext);
+	InGraph->RigVM = InGraph->VM; // Local serialization
 }
 
 UAnimNextGraph_EditorData* FUtils::GetEditorData(const UAnimNextGraph* InAnimNextGraph)

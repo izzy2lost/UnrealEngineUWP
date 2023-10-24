@@ -10,6 +10,8 @@
 #include "Graph/RigUnit_AnimNextGraphEvaluator.h"
 #include "Param/ParamId.h"
 #include "Scheduler/IAnimNextScheduleTermInterface.h"
+#include "RigVMHost.h"
+
 #include "AnimNextGraph.generated.h"
 
 class UEdGraph;
@@ -77,11 +79,13 @@ private:
 
 // A user-created graph of logic used to supply data
 UCLASS(BlueprintType)
-class ANIMNEXT_API UAnimNextGraph : public UObject, public IAnimNextScheduleTermInterface
+class ANIMNEXT_API UAnimNextGraph :  public URigVMHost, public IAnimNextScheduleTermInterface
 {
 	GENERATED_BODY()
 
 public:
+	UAnimNextGraph(const FObjectInitializer& ObjectInitializer);
+
 	// UObject interface
 	virtual void PostLoad() override;
 	virtual void PostRename(UObject* OldOuter, const FName OldName) override;
@@ -146,14 +150,12 @@ protected:
 	UPROPERTY()
 	TObjectPtr<URigVM> RigVM;
 
-	// The ExtendedExecuteContext object holds instance/work data used by the RigVM internals. It is populated during compilation same as the URigVM object above.
-	// We also have a 1:1 mapping with the UAnimNextGraph but each instance of the anim graph also needs its own exetended execute context object. This one is used
-	// as a reference we copy from.
-	UPROPERTY()
+	// The ExtendedExecuteContext object holds the common work data used by the RigVM internals. It is populated during the initial VM initialization.
+	// Each instance of an AnimGraph requires a copy of this context and a call to initialize the VM instance with the context copy, 
+	// so the cached memory handles are updated to the correct memory addresses.
+	// This context is used as a reference to copy the common data for all instances created.
+	UPROPERTY(Transient)
 	FRigVMExtendedExecuteContext ExtendedExecuteContext;
-
-	UPROPERTY()
-	FRigVMRuntimeSettings VMRuntimeSettings;
 
 	// The parameter to use to access the reference pose
 	UPROPERTY(EditAnywhere, Category = "Graph", meta=(CustomWidget = "ParamName", AllowedParamType = "FAnimNextGraphReferencePose"))

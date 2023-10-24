@@ -48,6 +48,12 @@ bool FAnimNextGraphInstance::IsValid() const
 	return GraphInstancePtr.IsValid();
 }
 
+UAnimNextGraph::UAnimNextGraph(const FObjectInitializer& ObjectInitializer)
+	: Super(ObjectInitializer)
+{
+	SetRigVMExtendedExecuteContext(&ExtendedExecuteContext);
+}
+
 void UAnimNextGraph::AllocateInstance(FAnimNextGraphInstance& Instance) const
 {
 	SCOPE_CYCLE_COUNTER(STAT_AnimNext_Graph_AllocateInstance);
@@ -66,21 +72,21 @@ void UAnimNextGraph::AllocateInstance(FAnimNextGraphInstance& Instance) const
 
 	Instance.ExtendedExecuteContext.CopyMemoryStorage(ExtendedExecuteContext);
 
-	RigVM->InitializeInstance(Instance.ExtendedExecuteContext);
+	VM->InitializeInstance(Instance.ExtendedExecuteContext);
 }
 
 void UAnimNextGraph::Run(const UE::AnimNext::FContext& Context, FAnimNextGraphInstance& GraphInstance, EAnimNextGraphSimulationSteps SimulationSteps) const
 {
 	SCOPE_CYCLE_COUNTER(STAT_AnimNext_Graph);
 
-	if (RigVM && GraphInstance.IsValid())
+	if (VM && GraphInstance.IsValid())
 	{
 		FAnimNextExecuteContext& AnimNextContext = GraphInstance.ExtendedExecuteContext.GetPublicDataSafe<FAnimNextExecuteContext>();
 		AnimNextContext.SetContextData(Context);
 		AnimNextContext.InitializeWithGraph(this, SharedDataBuffer, GraphInstance.GraphInstancePtr);
 		AnimNextContext.SetSimulationSteps(SimulationSteps);
 
-		RigVM->ExecuteVM(GraphInstance.ExtendedExecuteContext, FRigUnit_AnimNextShimRoot::EventName);
+		VM->ExecuteVM(GraphInstance.ExtendedExecuteContext, FRigUnit_AnimNextShimRoot::EventName);
 
 		// Reset the context to avoid issues if we forget to reset it the next time we use it
 		AnimNextContext.DebugReset();
@@ -115,13 +121,18 @@ void UAnimNextGraph::PostLoad()
 	
 	Super::PostLoad();
 
+	VM = RigVM;
+
 	ExtendedExecuteContext.InvalidateCachedMemory();
 
 	// In packaged builds, initialize the VM
 	// In editor, the VM will be recompiled and initialized at RecompileVM
 #if !WITH_EDITOR
-	RigVM->ClearExternalVariables(ExtendedExecuteContext);
-	RigVM->Initialize(ExtendedExecuteContext);
+	if (VM)
+	{
+		VM->ClearExternalVariables(ExtendedExecuteContext);
+		VM->Initialize(ExtendedExecuteContext);
+	}
 #endif
 
 	ReferencePoseId = FParamId(ReferencePose);

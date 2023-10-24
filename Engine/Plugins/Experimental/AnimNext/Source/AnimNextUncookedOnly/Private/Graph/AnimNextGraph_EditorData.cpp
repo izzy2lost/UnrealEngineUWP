@@ -387,9 +387,9 @@ void UAnimNextGraph_EditorData::HandleConfigureRigVMController(const FRigVMClien
 		{
 			if(UAnimNextGraph* Graph = WeakThis->GetTypedOuter<UAnimNextGraph>())
 			{
-				if (Graph->RigVM)
+				if (Graph->VM)
 				{
-					return &Graph->RigVM->GetByteCode();
+					return &Graph->VM->GetByteCode();
 				}
 			}
 		}
