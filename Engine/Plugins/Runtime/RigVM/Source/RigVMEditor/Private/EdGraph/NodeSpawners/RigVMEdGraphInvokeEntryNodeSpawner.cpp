@@ -129,5 +129,22 @@ UEdGraphNode* URigVMEdGraphInvokeEntryNodeSpawner::Invoke(UEdGraph* ParentGraph,
 	return NewNode;
 }
 
+bool URigVMEdGraphInvokeEntryNodeSpawner::IsTemplateNodeFilteredOut(FBlueprintActionFilter const& Filter) const
+{
+	if(URigVMEdGraphNodeSpawner::IsTemplateNodeFilteredOut(Filter))
+	{
+		return true;
+	}
+
+	if (Blueprint.IsValid())
+	{
+		if (!Filter.Context.Blueprints.Contains(Blueprint.Get()))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
 #undef LOCTEXT_NAMESPACE
 
