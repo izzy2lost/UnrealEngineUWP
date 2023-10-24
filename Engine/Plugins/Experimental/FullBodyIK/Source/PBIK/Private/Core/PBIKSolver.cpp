@@ -31,6 +31,47 @@ namespace PBIK
 		Settings = InSettings;
 	}
 
+	void FEffector::UpdateChainRoot()
+	{
+		// NOTE: this function must be called AFTER InitBodies() due to it's reliance on the FBody.bIsSubRoot flag
+		
+		ChainRootBody = nullptr;
+		const int32 MaxDepth = Settings.ChainDepth;
+		const FBone* Parent = Bone->Parent;
+		int32 Depth = 1;
+		while (Parent)
+		{
+			if (!Parent->bIsSolved)
+			{
+				break; // this only happens when effector is on solver root
+			}
+
+			if (MaxDepth > 0)
+			{
+				// user specified a custom chain depth, so use it
+				if (Depth >= MaxDepth)
+				{
+					ChainRootBody = Parent->Body;
+					break;
+				}
+			}
+			else
+			{
+				// user did not specify a max depth, so use the nearest sub-root as the chain root
+				if (Parent->bIsSubRoot || Parent->bIsSolverRoot)
+				{
+					ChainRootBody = Parent->Body;
+					break;
+				}
+			}
+
+			++Depth;
+			Parent = Parent->Parent;
+		}
+
+		ChainRootDepthInitializedWith = Settings.ChainDepth;
+	}
+
 	void FEffector::UpdateFromInputs(const FBone& SolverRoot)
 	{
 		// blend effector transform by alpha and set pin goal transform
@@ -38,32 +79,37 @@ namespace PBIK
 		Rotation = FMath::Lerp(RotationOrig, RotationGoal, Settings.RotationAlpha);
 		Pin.Pin()->SetGoal(Position, Rotation, Settings.StrengthAlpha);
 
+		// in case user modified the chain depth at runtime, we may need to find the new chain root 
+		if (Settings.ChainDepth != ChainRootDepthInitializedWith)
+		{
+			UpdateChainRoot();
+		}
 		// update length of chain this effector controls in the input pose
-		DistToSubRootInInputPose = CalculateDistanceToSubRoot();
+		DistToChainRootInInputPose = CalculateDistanceToChainRoot();
 
-		// update distances to SUB root (along bones)
-		if (ParentSubRoot)
+		// update distances to chain root (along bones)
+		if (ChainRootBody)
 		{
 			DistancesFromEffector.Reset();
 			DistancesFromEffector.Add(0.0f);
-			DistToSubRootAlongBones = Bone->Length;
+			DistToChainRootAlongBones = Bone->Length;
 			const FBone* Parent = Bone->Parent;
-			while (Parent && Parent->Body != ParentSubRoot)
+			while (Parent && Parent->Body != ChainRootBody)
 			{
-				DistancesFromEffector.Add(DistToSubRootAlongBones);
-				DistToSubRootAlongBones += Parent->Length;
+				DistancesFromEffector.Add(DistToChainRootAlongBones);
+				DistToChainRootAlongBones += Parent->Length;
 				Parent = Parent->Parent;
 			}
 		}
 	}
 
-	float FEffector::CalculateDistanceToSubRoot() const
+	float FEffector::CalculateDistanceToChainRoot() const
 	{
 		// calculates distance from the bone on this effector to the parent sub-root (chain root)
-		if (ParentSubRoot)
+		if (ChainRootBody)
 		{
-			const FEffector* ParentEffector = ParentSubRoot->Effector;
-			const FVector ParentSubRootPosition = ParentEffector ? ParentEffector->PositionOrig : ParentSubRoot->Position;
+			const FEffector* ParentEffector = ChainRootBody->Effector;
+			const FVector ParentSubRootPosition = ParentEffector ? ParentEffector->PositionOrig : ChainRootBody->Position;
 			return (ParentSubRootPosition - Bone->Position).Size();
 		}
 
@@ -76,13 +122,13 @@ namespace PBIK
 		// apply amount of preferred angle proportional to the amount this sub-limb is squashed
 
 		// can't squash root chain
-		if (!ParentSubRoot)
+		if (!ChainRootBody)
 		{
 			return; 
 		}
 
 		// can't squash chain with zero length already
-		if (DistToSubRootInInputPose <= SMALL_NUMBER || DistToSubRootInRefPose <= SMALL_NUMBER)
+		if (DistToChainRootInInputPose <= SMALL_NUMBER)
 		{
 			return;
 		}
@@ -90,17 +136,17 @@ namespace PBIK
 		// we have to be careful here when calculating the distance to the parent sub-root.
 		// if the parent sub-root is attached to an effector, use the effector's position
 		// otherwise use the current position of the FRigidBody
-		const FEffector* ParentEffector = ParentSubRoot->Effector;
-		const FVector ParentSubRootPosition = ParentEffector ? ParentEffector->Position : ParentSubRoot->Position;
+		const FEffector* ParentEffector = ChainRootBody->Effector;
+		const FVector ParentSubRootPosition = ParentEffector ? ParentEffector->Position : ChainRootBody->Position;
 		const float DistToSubRootCurrent = (ParentSubRootPosition - Position).Size();
-		if (DistToSubRootCurrent >= DistToSubRootInInputPose)
+		if (DistToSubRootCurrent >= DistToChainRootInInputPose)
 		{
 			return; // limb is stretched
 		}
 
 		// amount squashed (clamped to scaled original length)
-		const float DeltaSquash = DistToSubRootInRefPose - DistToSubRootCurrent;
-		float SquashPercent = DeltaSquash / DistToSubRootInRefPose;
+		const float DeltaSquash = DistToChainRootInInputPose - DistToSubRootCurrent;
+		float SquashPercent = DeltaSquash / DistToChainRootInInputPose;
 		SquashPercent = PBIK::CircularEaseOut(SquashPercent);
 		if (FMath::IsNearlyZero(SquashPercent))
 		{
@@ -117,10 +163,9 @@ namespace PBIK
 				const FRigidBody* CurrentParent = Body->GetParentBody();
 				FQuat LocalRotation = CurrentParent ? CurrentParent->Rotation.Inverse() * Body->Rotation : Body->Rotation;
 				const FRotator AnglesFromInput = LocalRotation.Rotator();
-				const FRotator AnglesFromRefPose = Body->Bone->LocalRotationInitial;
 				const FRotator PreferredAngles = Body->J.PreferredAngles * SquashPercent;
 
-				auto CalcDeltaAngle = [](double PreferredAngle, double RefPoseAngle, double InputAngle) -> double
+				auto CalcDeltaAngle = [](double PreferredAngle, double InputAngle) -> double
 				{
 					if (FMath::Abs(PreferredAngle) <= SMALL_NUMBER)
 					{
@@ -128,10 +173,9 @@ namespace PBIK
 					}
 
 					// if the target angle is greater than the input pose, return a delta
-					const float TargetAngle = PreferredAngle + RefPoseAngle;
-					if (FMath::Abs(TargetAngle) > FMath::Abs(InputAngle))
+					if (FMath::Abs(PreferredAngle) > FMath::Abs(InputAngle))
 					{
-						return TargetAngle - InputAngle;
+						return PreferredAngle - InputAngle;
 					}
 
 					// body is already bent more than the preferred angle
@@ -139,14 +183,14 @@ namespace PBIK
 				};
 
 				FRotator LocalDeltaAngles;
-				LocalDeltaAngles.Pitch = CalcDeltaAngle(PreferredAngles.Pitch, AnglesFromRefPose.Pitch, AnglesFromInput.Pitch);
-				LocalDeltaAngles.Yaw = CalcDeltaAngle(PreferredAngles.Yaw, AnglesFromRefPose.Yaw, AnglesFromInput.Yaw);
-				LocalDeltaAngles.Roll = CalcDeltaAngle(PreferredAngles.Roll, AnglesFromRefPose.Roll, AnglesFromInput.Roll);
+				LocalDeltaAngles.Pitch = CalcDeltaAngle(PreferredAngles.Pitch, AnglesFromInput.Pitch);
+				LocalDeltaAngles.Yaw = CalcDeltaAngle(PreferredAngles.Yaw, AnglesFromInput.Yaw);
+				LocalDeltaAngles.Roll = CalcDeltaAngle(PreferredAngles.Roll, AnglesFromInput.Roll);
 				Body->Rotation = Body->Rotation * LocalDeltaAngles.Quaternion();
 				Body->Rotation.Normalize();
 			}
 
-			if (Parent == ParentSubRoot->Bone)
+			if (Parent == ChainRootBody->Bone)
 			{
 				return;
 			}
@@ -353,12 +397,12 @@ void FPBIKSolver::ApplyPullChainAlpha(const float GlobalPullChainAlpha)
 	
 	for (FEffector& Effector : Effectors)
 	{
-		if (!Effector.ParentSubRoot)
+		if (!Effector.ChainRootBody)
 		{
 			continue;
 		}
 
-		if (Effector.DistToSubRootAlongBones < SMALL_NUMBER)
+		if (Effector.DistToChainRootAlongBones < SMALL_NUMBER)
 		{
 			continue;
 		}
@@ -369,7 +413,7 @@ void FPBIKSolver::ApplyPullChainAlpha(const float GlobalPullChainAlpha)
 		}
 
 		// get original chain vector
-		const FVector ChainStartOrig = Effector.ParentSubRoot->InputPosition;
+		const FVector ChainStartOrig = Effector.ChainRootBody->InputPosition;
 		const FVector ChainEndOrig = Effector.PositionOrig;
 		FVector ChainVecOrig;
 		float ChainLenOrig;
@@ -377,15 +421,15 @@ void FPBIKSolver::ApplyPullChainAlpha(const float GlobalPullChainAlpha)
 
 		// get new chain vector
 		FVector ChainStartNew;
-		if (Effector.ParentSubRoot->Effector)
+		if (Effector.ChainRootBody->Effector)
 		{
 			// add effector offset to chain root
-			const FEffector* RootEffector = Effector.ParentSubRoot->Effector;
+			const FEffector* RootEffector = Effector.ChainRootBody->Effector;
 			FVector RootEffectorDelta = RootEffector->Position - RootEffector->PositionOrig;
-			ChainStartNew = Effector.ParentSubRoot->Position + RootEffectorDelta;
+			ChainStartNew = Effector.ChainRootBody->Position + RootEffectorDelta;
 		}else
 		{
-			ChainStartNew = Effector.ParentSubRoot->Position;
+			ChainStartNew = Effector.ChainRootBody->Position;
 		}
 		const FVector ChainEndNew = Effector.Position;
 		FVector ChainVecNew;
@@ -399,8 +443,8 @@ void FPBIKSolver::ApplyPullChainAlpha(const float GlobalPullChainAlpha)
 
 		const FBone* Bone = Effector.Bone->Parent;
 		int32 ChainIndex = 0;
-		const float InvChainLength = 1.0f / Effector.DistToSubRootAlongBones;
-		while (Bone && Bone->Body != Effector.ParentSubRoot)
+		const float InvChainLength = 1.0f / Effector.DistToChainRootAlongBones;
+		while (Bone && Bone->Body != Effector.ChainRootBody)
 		{		
 			// rotate body along with chain
 			const FVector BodyRelativeToChain = Bone->Body->Position - ChainStartNew;
@@ -479,11 +523,6 @@ bool FPBIKSolver::Initialize()
 	{
 		return false;
 	}
-
-	if (!InitEffectors())
-    {
-    	return false;
-    }
 
 	if (!InitConstraints())
 	{
@@ -651,35 +690,7 @@ bool FPBIKSolver::InitBodies()
 	// must be done AFTER setting: Bone.IsSubRoot/IsSolverRoot/Parent
 	for (FEffector& Effector : Effectors)
 	{
-		const FBone* Parent = Effector.Bone->Parent;
-		while (Parent)
-		{
-			if (!Parent->bIsSolved)
-			{
-				break; // this only happens when effector is on solver root
-			}
-
-			if (Parent->bIsSubRoot || Parent->bIsSolverRoot)
-			{
-				Effector.ParentSubRoot = Parent->Body;
-				break;
-			}
-
-			Parent = Parent->Parent;
-		}
-	}
-
-	return true;
-}
-
-bool FPBIKSolver::InitEffectors()
-{
-	using PBIK::FEffector;
-
-	// store the length of chain this effector controls in the reference pose
-	for (FEffector& Effector : Effectors)
-	{
-		Effector.DistToSubRootInRefPose = Effector.CalculateDistanceToSubRoot();
+		Effector.UpdateChainRoot();
 	}
 
 	return true;
@@ -789,7 +800,7 @@ int32 FPBIKSolver::AddBone(
 	return Bones.Emplace(Name, ParentIndex, InOrigPosition, InOrigRotation, bIsSolverRoot);
 }
 
-int32 FPBIKSolver::AddEffector(FName BoneName)
+int32 FPBIKSolver::AddEffector(const FName BoneName)
 {
 	for (PBIK::FBone& Bone : Bones)
 	{

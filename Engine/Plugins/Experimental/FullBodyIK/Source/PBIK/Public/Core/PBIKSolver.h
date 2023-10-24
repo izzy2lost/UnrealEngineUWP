@@ -45,6 +45,13 @@ struct FEffectorSettings
 	UPROPERTY(EditAnywhere, Category="Effector")
 	float StrengthAlpha = 1.0f;
 
+	/** Range 0-inf (default is 0). Explicitly set the number of bones up the hierarchy to consider part of this effector's 'chain'.
+	* The "chain" of bones is used to apply Preferred Angles, Pull Chain Alpha and Chain "Sub Solves".
+	* If left at 0, the solver will attempt to determine the root of the chain by searching up the hierarchy until it finds a branch or another effector, whichever it finds first.
+	*/
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Full Body IK Effector", meta = (ClampMin = "0", UIMin = "0"))
+	int32 ChainDepth = 0;
+
 	/** Range 0-1 (default is 1.0). When enabled (greater than 0.0), the solver internally partitions the skeleton into 'chains' which extend from the effector to the nearest fork in the skeleton.
 	*These chains are pre-rotated and translated, as a whole, towards the effector targets.
 	*This can improve the results for sparse bone chains, and significantly improve convergence on dense bone chains.
@@ -74,12 +81,12 @@ struct FEffector
 
 	FBone* Bone;
 	TWeakPtr<FPinConstraint> Pin;
-	FRigidBody* ParentSubRoot = nullptr;
-	float DistToSubRootInInputPose;
-	float DistToSubRootInRefPose;
+	FRigidBody* ChainRootBody = nullptr;
+	int32 ChainRootDepthInitializedWith = -1;
+	float DistToChainRootInInputPose;
 	
 	TArray<float> DistancesFromEffector;
-	float DistToSubRootAlongBones;
+	float DistToChainRootAlongBones;
 
 	FEffector(FBone* InBone);
 
@@ -88,8 +95,9 @@ struct FEffector
 		const FQuat& InRotationGoal,
 		const FEffectorSettings& InSettings);
 
+	void UpdateChainRoot();
 	void UpdateFromInputs(const FBone& SolverRoot);
-	float CalculateDistanceToSubRoot() const;
+	float CalculateDistanceToChainRoot() const;
 	void ApplyPreferredAngles() const;
 };
 	
@@ -240,15 +248,13 @@ public:
 		const FQuat& InOrigRotation,
 		bool bIsSolverRoot);
 
-	int32 AddEffector(FName BoneName);
+	int32 AddEffector(const FName BoneName);
 	
 private:
 
 	bool InitBones();
 
 	bool InitBodies();
-
-	bool InitEffectors();
 
 	bool InitConstraints();
 

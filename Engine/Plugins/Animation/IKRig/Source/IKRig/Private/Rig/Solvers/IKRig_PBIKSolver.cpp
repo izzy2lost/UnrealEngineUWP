@@ -104,6 +104,7 @@ void UIKRigFBIKSolver::Solve(FIKRigSkeleton& IKRigSkeleton, const FIKRigGoalCont
 		Settings.PositionAlpha = 1.0f; // this is constant because IKRig manages offset alphas itself
 		Settings.RotationAlpha = 1.0f; // this is constant because IKRig manages offset alphas itself
 		Settings.StrengthAlpha = Effector->StrengthAlpha;
+		Settings.ChainDepth = Effector->ChainDepth;
 		Settings.PullChainAlpha = Effector->PullChainAlpha;
 		Settings.PinRotation = Effector->PinRotation;
 		

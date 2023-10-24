@@ -179,6 +179,7 @@ FRigUnit_PBIK_Execute()
 		EffectorSettings.PositionAlpha = Effector.PositionAlpha;
 		EffectorSettings.RotationAlpha = Effector.RotationAlpha;
 		EffectorSettings.StrengthAlpha = Effector.StrengthAlpha;
+		EffectorSettings.ChainDepth = Effector.ChainDepth;
 		EffectorSettings.PullChainAlpha = Effector.PullChainAlpha;
 		EffectorSettings.PinRotation = Effector.PinRotation;
 		
