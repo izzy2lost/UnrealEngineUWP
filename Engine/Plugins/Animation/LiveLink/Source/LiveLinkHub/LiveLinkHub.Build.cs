@@ -25,6 +25,7 @@ namespace UnrealBuildTool.Rules
 				"InputCore",
 				"LiveLink",
 				"LiveLinkEditor",
+				"LiveLinkHubMessaging",
 				"LiveLinkInterface",
 				"LiveLinkMessageBusFramework",
 				"Slate",

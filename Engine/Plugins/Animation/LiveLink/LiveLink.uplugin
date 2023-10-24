@@ -78,6 +78,11 @@
 			"Name": "LiveLinkMultiUser",
 			"Type": "UncookedOnly",
 			"LoadingPhase": "PostEngineInit"
+		},
+		{
+			"Name": "LiveLinkHubMessaging",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
 		}
 	]
 }
