@@ -770,12 +770,20 @@ void FConcertClientSequencerManager::ApplyOpenEvent(const FConcertSequencerOpenE
 				UE_LOG(LogConcertSequencerSync, Display, TEXT("Missing Object %s when loading PendingTake"), *FString(MissingObject));
 			});
 
-		FConcertSyncWorldRemapper Remapper(
-			TEXT("/Engine/Transient.__PendingLevelSequence__"), PendingLevelSequence->GetPathName());
-		FConcertSyncObjectReader Reader(nullptr, MoveTemp(Remapper), nullptr, PendingLevelSequence, InOpenEvent.TakeData.Bytes,
-										MissingObjectDelegate);
-		Reader.SetSerializeNestedObjects(true);
-		Reader.SerializeObject(PendingLevelSequence);
+		if (InOpenEvent.TakeData.Bytes.Num() > 0)
+		{
+			FConcertSyncWorldRemapper Remapper(
+				TEXT("/Engine/Transient.__PendingLevelSequence__"), PendingLevelSequence->GetPathName());
+			FConcertSyncObjectReader Reader(nullptr, MoveTemp(Remapper), nullptr, PendingLevelSequence, InOpenEvent.TakeData.Bytes,
+											MissingObjectDelegate);
+			Reader.SetSerializeNestedObjects(true);
+			Reader.SerializeObject(PendingLevelSequence);
+		}
+		else
+		{
+			UE_LOG(LogConcertSequencerSync, Display, TEXT("Missing take data on pending take."));
+		}
+
 		#if WITH_EDITOR
 		if (GIsEditor)
 		{
