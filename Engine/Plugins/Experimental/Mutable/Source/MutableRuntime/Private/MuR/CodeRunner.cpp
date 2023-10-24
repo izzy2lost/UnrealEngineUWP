@@ -1645,6 +1645,62 @@ namespace mu
             break;
         }
 
+		case OP_TYPE::ME_MASKCLIPUVMASK:
+		{
+			OP::MeshMaskClipUVMaskArgs args = pModel->GetPrivate()->m_program.GetOpArgs<OP::MeshMaskClipUVMaskArgs>(item.At);
+			switch (item.Stage)
+			{
+			case 0:
+			{
+				AddOp(FScheduledOp(item.At, item, 1),
+					FScheduledOp(args.Source, item),
+					FScheduledOp(args.Mask, item));
+				break;
+			}
+			case 1:
+			{
+				MUTABLE_CPUPROFILER_SCOPE(ME_MASKCLIPUVMASK_1)
+
+				Ptr<const Mesh> Source = LoadMesh(FCacheAddress(args.Source, item));
+				Ptr<const Image> Mask = LoadImage(FCacheAddress(args.Mask, item));
+
+				// Only if both are valid.
+				if (Source.get() && Mask.get())
+				{
+					Ptr<Mesh> Result = CreateMesh();
+
+					bool bOutSuccess = false;
+					MeshMaskClipUVMask(Result.get(), Source.get(), Mask.get(), args.LayoutIndex, bOutSuccess);
+
+					Release(Source);
+					Release(Mask);
+					if (!bOutSuccess)
+					{
+						Release(Result);
+						StoreMesh(item, nullptr);
+					}
+					else
+					{
+						StoreMesh(item, Result);
+					}
+				}
+				else
+				{
+					Release(Source);
+					Release(Mask);
+					StoreMesh(item, nullptr);
+				}
+
+				break;
+			}
+
+			default:
+				check(false);
+			}
+
+			break;
+		}
+
         case OP_TYPE::ME_MASKDIFF:
         {
 			OP::MeshMaskDiffArgs args = pModel->GetPrivate()->m_program.GetOpArgs<OP::MeshMaskDiffArgs>(item.At);

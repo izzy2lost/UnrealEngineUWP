@@ -15,6 +15,7 @@
 #include "MuT/NodeModifierMeshClipDeform.h"
 #include "MuT/NodeModifierMeshClipMorphPlane.h"
 #include "MuT/NodeModifierMeshClipWithMesh.h"
+#include "MuT/NodeModifierMeshClipWithUVMask.h"
 #include "MuT/NodeObjectGroup.h"
 #include "MuT/NodeObjectNew.h"
 #include "MuT/NodePatchMesh.h"
@@ -52,8 +53,9 @@ namespace mu
         public Visitor<NodePatchMesh::Private, Ptr<ASTOp>, true>,
 
         public Visitor<NodeModifierMeshClipMorphPlane::Private, Ptr<ASTOp>, true>,
-        public Visitor<NodeModifierMeshClipWithMesh::Private, Ptr<ASTOp>, true>,
-        public Visitor<NodeModifierMeshClipDeform::Private, Ptr<ASTOp>, true>
+		public Visitor<NodeModifierMeshClipWithMesh::Private, Ptr<ASTOp>, true>,
+		public Visitor<NodeModifierMeshClipWithUVMask::Private, Ptr<ASTOp>, true>,
+		public Visitor<NodeModifierMeshClipDeform::Private, Ptr<ASTOp>, true>
 	{
 	public:
 
@@ -195,7 +197,8 @@ namespace mu
         Ptr<ASTOp> Visit(const NodeObjectGroup::Private&) override;
         Ptr<ASTOp> Visit(const NodeModifierMeshClipMorphPlane::Private&) override;
         Ptr<ASTOp> Visit(const NodeModifierMeshClipWithMesh::Private&) override;
-        Ptr<ASTOp> Visit(const NodeModifierMeshClipDeform::Private&) override;
+		Ptr<ASTOp> Visit(const NodeModifierMeshClipWithUVMask::Private&) override;
+		Ptr<ASTOp> Visit(const NodeModifierMeshClipDeform::Private&) override;
         Ptr<ASTOp> Visit(const NodePatchMesh::Private&) override;
 
 	private:

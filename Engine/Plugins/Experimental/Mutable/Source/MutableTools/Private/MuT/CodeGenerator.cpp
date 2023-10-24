@@ -30,6 +30,7 @@
 #include "MuT/ASTOpMeshClipDeform.h"
 #include "MuT/ASTOpMeshClipMorphPlane.h"
 #include "MuT/ASTOpMeshMaskClipMesh.h"
+#include "MuT/ASTOpMeshMaskClipUVMask.h"
 #include "MuT/ASTOpMeshRemoveMask.h"
 #include "MuT/ASTOpMeshDifference.h"
 #include "MuT/ASTOpMeshMorph.h"
@@ -65,12 +66,10 @@
 #include "MuT/NodeMeshMorph.h"
 #include "MuT/NodeMeshReshape.h"
 #include "MuT/NodeModifier.h"
-#include "MuT/NodeModifierMeshClipDeform.h"
 #include "MuT/NodeModifierMeshClipDeformPrivate.h"
-#include "MuT/NodeModifierMeshClipMorphPlane.h"
 #include "MuT/NodeModifierMeshClipMorphPlanePrivate.h"
-#include "MuT/NodeModifierMeshClipWithMesh.h"
 #include "MuT/NodeModifierMeshClipWithMeshPrivate.h"
+#include "MuT/NodeModifierMeshClipWithUVMaskPrivate.h"
 #include "MuT/NodeModifierPrivate.h"
 #include "MuT/NodeObject.h"
 #include "MuT/NodeObjectGroupPrivate.h"
@@ -2160,13 +2159,12 @@ namespace mu
 				ClipOptions.State = m_currentStateIndex;
 
 				FMeshGenerationResult clipResult;
-				GenerateMesh(ClipOptions, clipResult, TypedClipNode->m_clipMesh);
+				GenerateMesh(ClipOptions, clipResult, TypedClipNode->ClipMesh);
 				op->clip = clipResult.meshOp;
 
 				if (!op->clip)
 				{
-					m_pErrorLog->GetPrivate()->Add
-					("Clip mesh has not been generated", ELMT_ERROR, errorContext);
+					m_pErrorLog->GetPrivate()->Add("Clip mesh has not been generated", ELMT_ERROR, errorContext);
 					continue;
 				}
 
@@ -2189,6 +2187,51 @@ namespace mu
 			}
 		}
 
+		// Process clip-with-mask modifiers
+		for (const FirstPassGenerator::FModifier& m : modifiers)
+		{
+			if (const NodeModifierMeshClipWithUVMask::Private* TypedClipNode = dynamic_cast<const NodeModifierMeshClipWithUVMask::Private*>(m.node))
+			{
+				Ptr<ASTOpMeshMaskClipUVMask> op = new ASTOpMeshMaskClipUVMask();
+				op->Source = preModifiersMesh;
+				op->LayoutIndex = TypedClipNode->LayoutIndex;
+
+				// Parameters
+				FImageGenerationOptions ClipOptions;
+				ClipOptions.ImageLayoutStrategy = CompilerOptions::TextureLayoutStrategy::None;
+				ClipOptions.LayoutBlockId = -1;
+				ClipOptions.CurrentStateIndex = m_currentStateIndex;
+
+				FImageGenerationResult ClipMaskResult;
+				GenerateImage(ClipOptions, ClipMaskResult, TypedClipNode->ClipMask);
+
+				// It could be IF_L_UBIT, but since this should be optimized out at compile time, leave the most cpu efficient.
+				op->Mask = GenerateImageFormat(ClipMaskResult.op, mu::EImageFormat::IF_L_UBYTE);
+
+				if (!op->Mask)
+				{
+					m_pErrorLog->GetPrivate()->Add("Clip UV mask has not been generated", ELMT_ERROR, errorContext);
+					continue;
+				}
+
+				Ptr<ASTOp> maskAt = op;
+
+				if (!removeOp)
+				{
+					removeOp = new ASTOpMeshRemoveMask();
+					removeOp->source = lastMeshOp;
+					lastMeshOp = removeOp;
+				}
+
+				Ptr<ASTOpFixed> surfCondOp = new ASTOpFixed();
+				surfCondOp->op.type = OP_TYPE::BO_AND;
+				surfCondOp->SetChild(surfCondOp->op.args.BoolBinary.a, m.objectCondition);
+				surfCondOp->SetChild(surfCondOp->op.args.BoolBinary.b, m.surfaceCondition);
+				Ptr<ASTOp> fullCondition = surfCondOp;
+
+				removeOp->AddRemove(fullCondition, maskAt);
+			}
+		}
 
 		// Process clip-morph-plane modifiers
 		for (const FirstPassGenerator::FModifier& m : modifiers)

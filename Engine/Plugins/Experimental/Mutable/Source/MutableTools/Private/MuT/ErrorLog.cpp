@@ -293,6 +293,7 @@ namespace mu
 		TEXT("ME_MERGE         "),
 		TEXT("ME_INTERPOLATE   "),
 		TEXT("ME_MASKCLIPMESH  "),
+		TEXT("ME_MASKCLIPUVMASK"),
 		TEXT("ME_MASKDIFF      "),
         TEXT("ME_REMOVEMASK    "),
         TEXT("ME_FORMAT        "),

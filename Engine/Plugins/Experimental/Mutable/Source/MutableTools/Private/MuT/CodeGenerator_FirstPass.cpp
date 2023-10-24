@@ -22,6 +22,7 @@
 #include "MuT/NodeModifierMeshClipDeformPrivate.h"
 #include "MuT/NodeModifierMeshClipMorphPlanePrivate.h"
 #include "MuT/NodeModifierMeshClipWithMeshPrivate.h"
+#include "MuT/NodeModifierMeshClipWithUVMaskPrivate.h"
 #include "MuT/NodeObject.h"
 #include "MuT/NodeObjectGroupPrivate.h"
 #include "MuT/NodeObjectNewPrivate.h"
@@ -176,19 +177,36 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-    Ptr<ASTOp> FirstPassGenerator::Visit(const NodeModifierMeshClipWithMesh::Private& node)
+	Ptr<ASTOp> FirstPassGenerator::Visit(const NodeModifierMeshClipWithMesh::Private& node)
 	{
-        // Add the data about this modifier
+		// Add the data about this modifier
 		FModifier thisData;
 		thisData.node = &node;
-        thisData.objectCondition = m_currentCondition.Last().objectCondition;
-        thisData.stateCondition = m_currentStateCondition.Last();
-        thisData.lod = m_currentLOD;
-        thisData.positiveTags = m_currentPositiveTags;
-        thisData.negativeTags = m_currentNegativeTags;
-        modifiers.Add(thisData);
+		thisData.objectCondition = m_currentCondition.Last().objectCondition;
+		thisData.stateCondition = m_currentStateCondition.Last();
+		thisData.lod = m_currentLOD;
+		thisData.positiveTags = m_currentPositiveTags;
+		thisData.negativeTags = m_currentNegativeTags;
+		modifiers.Add(thisData);
 
-        return nullptr;
+		return nullptr;
+	}
+
+
+	//---------------------------------------------------------------------------------------------
+	Ptr<ASTOp> FirstPassGenerator::Visit(const NodeModifierMeshClipWithUVMask::Private& node)
+	{
+		// Add the data about this modifier
+		FModifier thisData;
+		thisData.node = &node;
+		thisData.objectCondition = m_currentCondition.Last().objectCondition;
+		thisData.stateCondition = m_currentStateCondition.Last();
+		thisData.lod = m_currentLOD;
+		thisData.positiveTags = m_currentPositiveTags;
+		thisData.negativeTags = m_currentNegativeTags;
+		modifiers.Add(thisData);
+
+		return nullptr;
 	}
 
 	

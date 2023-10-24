@@ -14,6 +14,7 @@
 #include "MuCOE/Nodes/CustomizableObjectNodeMeshClipDeform.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeMeshClipMorph.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeMeshClipWithMesh.h"
+#include "MuCOE/Nodes/CustomizableObjectNodeModifierClipWithUVMask.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SComboButton.h"
 #include "Widgets/Views/SListView.h"
@@ -294,6 +295,18 @@ void SCustomizableObjectEditorTagExplorer::FillTagInformation(UCustomizableObjec
 					if (Tags.Find(TypedNodeClipMesh->Tags[i]) == INDEX_NONE)
 					{
 						Tags.Add(TypedNodeClipMesh->Tags[i]);
+					}
+				}
+			}
+
+			if (UCustomizableObjectNodeModifierClipWithUVMask* TypedNodeClipMask = Cast<UCustomizableObjectNodeModifierClipWithUVMask>(Node))
+			{
+				for (int32 i = 0; i < TypedNodeClipMask->Tags.Num(); ++i)
+				{
+					NodeTags.Add(TypedNodeClipMask->Tags[i], TypedNodeClipMask);
+					if (Tags.Find(TypedNodeClipMask->Tags[i]) == INDEX_NONE)
+					{
+						Tags.Add(TypedNodeClipMask->Tags[i]);
 					}
 				}
 			}

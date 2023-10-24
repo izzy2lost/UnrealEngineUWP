@@ -669,7 +669,7 @@ struct FMutableGraphGenerationContext
 	TMap<class UCustomizableObjectNodeMaterial*, TArray<mu::NodeSurfaceNewPtr>> MapMaterialNodeToMutableSurfaceNodeArray;
 
 	// Map with pairs (Unreal Mutable clip mesh node, array with its corresponding Mutable mesh modifier nodes) to add tags
-	TMap<class UCustomizableObjectNodeMeshClipWithMesh*, TArray<mu::NodeModifierMeshClipWithMeshPtr>> MapClipMeshNodeToMutableClipMeshNodeArray;
+	TMap<class UCustomizableObjectNodeMeshClipWithMesh*, TArray<mu::Ptr<mu::NodeModifierMeshClipWithMesh>>> MapClipMeshNodeToMutableClipMeshNodeArray;
 
 	// Data used for MorphTarget reconstruction.
 	TArray<FMorphTargetInfo> ContributingMorphTargetsInfo;

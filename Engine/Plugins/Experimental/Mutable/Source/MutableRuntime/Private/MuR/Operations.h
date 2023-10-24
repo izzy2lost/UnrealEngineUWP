@@ -237,6 +237,9 @@ namespace mu
         //! clip mesh.
         ME_MASKCLIPMESH,
 
+        /** Create a new mask mesh selecting the faces of a source that have UVs inside the region marked in an image mask. */
+		ME_MASKCLIPUVMASK,
+
         //! Create a new mask mesh selecting all the faces of a source that match another mesh.
         ME_MASKDIFF,
 
@@ -850,17 +853,18 @@ namespace mu
             ADDRESS targets[ MUTABLE_OP_MAX_INTERPOLATE_COUNT-1 ];
         };
 
-        struct MeshMaskClipMeshArgs
-        {
-            ADDRESS source;
-            ADDRESS clip;
-        };
+		struct MeshMaskClipMeshArgs
+		{
+			ADDRESS source;
+			ADDRESS clip;
+		};
 
-        struct MeshRemapIndicesArgs
-        {
-            ADDRESS source;
-            ADDRESS reference;
-        };
+		struct MeshMaskClipUVMaskArgs
+		{
+			ADDRESS Source = 0;
+			ADDRESS Mask = 0;
+			uint8 LayoutIndex = 0;
+		};
 
         struct MeshMaskDiffArgs
         {

@@ -1,11 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 
-#include "MuT/NodeModifierMeshClipWithMesh.h"
+#include "MuT/NodeModifierMeshClipWithUVMask.h"
 
 #include "Misc/AssertionMacros.h"
-#include "MuT/NodeMesh.h"
-#include "MuT/NodeModifierMeshClipWithMeshPrivate.h"
+#include "MuT/NodeImage.h"
+#include "MuT/NodeModifierMeshClipWithUVMaskPrivate.h"
 #include "MuT/NodePrivate.h"
 
 
@@ -15,51 +15,57 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-    NODE_TYPE NodeModifierMeshClipWithMesh::Private::s_type =
-            NODE_TYPE( "NodeModifierMeshClipWithMesh", NodeModifier::GetStaticType() );
+    NODE_TYPE NodeModifierMeshClipWithUVMask::Private::s_type =
+            NODE_TYPE( "NodeModifierMeshClipWithUVMask", NodeModifier::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------
 	//!
 	//---------------------------------------------------------------------------------------------
 
-    MUTABLE_IMPLEMENT_NODE( NodeModifierMeshClipWithMesh, EType::MeshClipWithMesh, Node, Node::EType::Modifier)
+    MUTABLE_IMPLEMENT_NODE( NodeModifierMeshClipWithUVMask, EType::MeshClipWithMesh, Node, Node::EType::Modifier)
 
 
 	//---------------------------------------------------------------------------------------------
 	// Node Interface
 	//---------------------------------------------------------------------------------------------
-    int NodeModifierMeshClipWithMesh::GetInputCount() const
+    int NodeModifierMeshClipWithUVMask::GetInputCount() const
 	{
 		return 1;
 	}
 
 
 	//---------------------------------------------------------------------------------------------
-    Node* NodeModifierMeshClipWithMesh::GetInputNode( int i ) const
+    Node* NodeModifierMeshClipWithUVMask::GetInputNode( int i ) const
 	{
 		check( i>=0 && i< GetInputCount());
         (void)i;
-        return m_pD->ClipMesh.get();
+        return m_pD->ClipMask.get();
 	}
 
 
 	//---------------------------------------------------------------------------------------------
-    void NodeModifierMeshClipWithMesh::SetInputNode( int i, Ptr<Node> Input )
+    void NodeModifierMeshClipWithUVMask::SetInputNode( int i, Ptr<Node> Input )
 	{
 		check( i>=0 && i< GetInputCount());
         (void)i;
-		m_pD->ClipMesh = dynamic_cast<NodeMesh*>(Input.get());
-
+		m_pD->ClipMask = dynamic_cast<NodeImage*>(Input.get());
     }
 
 
 	//---------------------------------------------------------------------------------------------
 	// Own Interface
 	//---------------------------------------------------------------------------------------------
-	void NodeModifierMeshClipWithMesh::SetClipMesh(NodeMesh* clipMesh)
+	void NodeModifierMeshClipWithUVMask::SetClipMask(NodeImage* InClipMask)
 	{
-		m_pD->ClipMesh = clipMesh;
+		m_pD->ClipMask = InClipMask;
 	}
+
+	void NodeModifierMeshClipWithUVMask::SetLayoutIndex(uint8 LayoutIndex)
+	{
+		m_pD->LayoutIndex = LayoutIndex;
+	}
+
+	
 
 }

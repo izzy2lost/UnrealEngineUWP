@@ -9,6 +9,7 @@
 #include "MuT/NodeModifierMeshClipDeform.h"
 #include "MuT/NodeModifierMeshClipMorphPlane.h"
 #include "MuT/NodeModifierMeshClipWithMesh.h"
+#include "MuT/NodeModifierMeshClipWithUVMask.h"
 #include "MuT/NodeModifierPrivate.h"
 #include "MuT/NodePrivate.h"
 
@@ -56,6 +57,7 @@ namespace mu
 		if SERIALISE_CHILDREN(NodeModifierMeshClipMorphPlane, 			0 )
 		else if SERIALISE_CHILDREN(NodeModifierMeshClipWithMesh, 		1 )
 		else if SERIALISE_CHILDREN(NodeModifierMeshClipDeform, 		    2 )
+		else if SERIALISE_CHILDREN(NodeModifierMeshClipWithUVMask, 		3 )
 		else check(false);
 
 #undef SERIALISE_CHILDREN
@@ -76,7 +78,8 @@ namespace mu
 		{
 		case 0 :  return NodeModifierMeshClipMorphPlane::StaticUnserialise( arch ); break;
 		case 1 :  return NodeModifierMeshClipWithMesh::StaticUnserialise( arch ); break;
-		case 2 :  return NodeModifierMeshClipDeform::StaticUnserialise( arch ); break;
+		case 2 :  return NodeModifierMeshClipDeform::StaticUnserialise(arch); break;
+		case 3 :  return NodeModifierMeshClipWithUVMask::StaticUnserialise(arch); break;
 		default : check(false);
 		}
 

@@ -3,8 +3,8 @@
 #pragma once
 
 #include "MuT/NodeModifierPrivate.h"
-#include "MuT/NodeModifierMeshClipWithMesh.h"
-#include "MuT/NodeMesh.h"
+#include "MuT/NodeModifierMeshClipWithUVMask.h"
+#include "MuT/NodeImage.h"
 #include "MuT/AST.h"
 
 #include "MuR/MutableMath.h"
@@ -13,7 +13,7 @@
 namespace mu
 {
 
-    class NodeModifierMeshClipWithMesh::Private : public NodeModifier::Private
+    class NodeModifierMeshClipWithUVMask::Private : public NodeModifier::Private
 	{
 	public:
 
@@ -21,24 +21,24 @@ namespace mu
 
 	public:
 
-		Private()
-		{
-		}
-
 		static NODE_TYPE s_type;
 
-		//! 
-		Ptr<NodeMesh> ClipMesh;
+		/** Image with the regions to remove. It will be interpreted as a bitmap. */
+		Ptr<NodeImage> ClipMask;
+
+		/** Layout index of the UVs to use inthe source mesh to ben clipped with the mask. */
+		uint8 LayoutIndex = 0;
 
 		//!
 		void Serialise( OutputArchive& arch ) const
 		{
 			NodeModifier::Private::Serialise(arch);
 
-            uint32_t ver = 0;
+            uint32 ver = 0;
 			arch << ver;
 
-			arch << ClipMesh;
+			arch << ClipMask;
+			arch << LayoutIndex;
 		}
 
 		//!
@@ -46,11 +46,12 @@ namespace mu
 		{
 			NodeModifier::Private::Unserialise( arch );
 			
-            uint32_t ver;
+            uint32 ver;
 			arch >> ver;
             check(ver<=0);
 
-			arch >> ClipMesh;
+			arch >> ClipMask;
+			arch >> LayoutIndex;
 		}
 
 	};

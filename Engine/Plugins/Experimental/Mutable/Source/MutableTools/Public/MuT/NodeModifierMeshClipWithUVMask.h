@@ -12,12 +12,11 @@ namespace mu
 {
 
 	// Forward definitions
-	class NodeMesh;
-
+	class NodeImage;
 
 	//! This node makes a new component from several meshes and images.
 	//! \ingroup model
-	class MUTABLETOOLS_API NodeModifierMeshClipWithMesh : public NodeModifier
+	class MUTABLETOOLS_API NodeModifierMeshClipWithUVMask : public NodeModifier
 	{
 	public:
 
@@ -25,11 +24,11 @@ namespace mu
 		// Life cycle
 		//-----------------------------------------------------------------------------------------
 
-		NodeModifierMeshClipWithMesh();
+		NodeModifierMeshClipWithUVMask();
 
 		void SerialiseWrapper(OutputArchive& arch) const override;
-		static void Serialise( const NodeModifierMeshClipWithMesh* pNode, OutputArchive& arch );
-		static Ptr<NodeModifierMeshClipWithMesh> StaticUnserialise( InputArchive& arch );
+		static void Serialise( const NodeModifierMeshClipWithUVMask* pNode, OutputArchive& arch );
+		static Ptr<NodeModifierMeshClipWithUVMask> StaticUnserialise( InputArchive& arch );
 
 		//-----------------------------------------------------------------------------------------
         // Node interface
@@ -42,14 +41,17 @@ namespace mu
 
         int GetInputCount() const override;
         Node* GetInputNode( int i ) const override;
-        void SetInputNode( int i, Ptr<Node> ) override;
+        void SetInputNode( int i, Ptr<Node> pNode ) override;
 
 		//-----------------------------------------------------------------------------------------
         // Own interface
 		//-----------------------------------------------------------------------------------------
 
-		//! \param 
-		void SetClipMesh(NodeMesh*);
+		/** Set the expression generating the image witht he UV mask use to clip the mesh. */
+		void SetClipMask(NodeImage*);
+
+		/** Set the UV channel index for the UVs to check against the mask. */
+		void SetLayoutIndex(uint8 LayoutIndex);
 
 		//-----------------------------------------------------------------------------------------
 		// Interface pattern
@@ -61,7 +63,7 @@ namespace mu
 	protected:
 
 		//! Forbidden. Manage with the Ptr<> template.
-		~NodeModifierMeshClipWithMesh();
+		~NodeModifierMeshClipWithUVMask();
 
 	private:
 

@@ -183,6 +183,7 @@ namespace mu
 		{   0,   0,   0,   0 },	// ME_MERGE
 		{   0,   0, -20,   0 },	// ME_INTERPOLATE
 		{   0, -10,   0,   0 },	// ME_MASKCLIPMESH
+		{   0, -10,   0,   0 },	// ME_MASKCLIPUVMASK
 		{   0, -10,   0,   0 },	// ME_MASKDIFF
 		{   0,   0, -10,   0 },	// ME_REMOVEMASK
 		{   0,   0,   0,   0 },	// ME_FORMAT
