@@ -2011,9 +2011,12 @@ void USkeleton::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
 	OutTags.Add(FAssetRegistryTag(USkeleton::AnimSyncMarkerTag, SyncMarkersBuilder.ToString(), FAssetRegistryTag::TT_Hidden));
 	
 	// Allow asset user data to output tags
-	for(UAssetUserData* AssetUserDataItem : *GetAssetUserDataArray())
+	for(const UAssetUserData* AssetUserDataItem : *GetAssetUserDataArray())
 	{
-		AssetUserDataItem->GetAssetRegistryTags(OutTags);
+		if (AssetUserDataItem)
+		{
+			AssetUserDataItem->GetAssetRegistryTags(OutTags);
+		}
 	}
 }
 
