@@ -8,7 +8,6 @@
 class IDetailLayoutBuilder;
 class SCustomizableInstanceProperties;
 class UCustomizableObjectInstance;
-class UCustomizableSkeletalComponent;
 
 
 class FCustomizableInstanceDetails : public IDetailCustomization

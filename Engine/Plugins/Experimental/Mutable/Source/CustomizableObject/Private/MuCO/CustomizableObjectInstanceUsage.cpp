@@ -1,0 +1,537 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#include "MuCO/CustomizableObjectInstanceUsage.h"
+#include "MuCO/CustomizableSkeletalComponent.h"
+#include "MuCO/CustomizableObjectSystem.h"
+#include "MuCO/CustomizableInstancePrivateData.h"
+#include "MuCO/UnrealPortabilityHelpers.h"
+
+#include "AnimationRuntime.h"
+#include "Components/SkeletalMeshComponent.h"
+#include "Engine/SkeletalMesh.h"
+#include "Engine/SkinnedAssetCommon.h"
+#include "Engine/World.h"
+#include "GameFramework/Pawn.h"
+#include "Materials/MaterialInstanceDynamic.h"
+#include "Rendering/SkeletalMeshRenderData.h"
+#include "UObject/ObjectSaveContext.h"
+#include "Stats/Stats.h"
+
+
+void UCustomizableObjectInstanceUsage::Callbacks() const
+{
+	if (CustomizableSkeletalComponent)
+	{
+		CustomizableSkeletalComponent->UpdatedDelegate.ExecuteIfBound();
+
+		if (UpdatedDelegate.IsBound() && CustomizableSkeletalComponent->UpdatedDelegate.IsBound())
+		{
+			UE_LOG(LogMutable, Error, TEXT("The UpdatedDelegate is bound both in the UCustomizableObjectInstanceUsage and in its parent CustomizableSkeletalComponent. Only one should be bound."));
+			ensure(false);
+		}
+	}
+	
+	UpdatedDelegate.ExecuteIfBound();
+}
+
+
+void UCustomizableObjectInstanceUsage::SetCustomizableObjectInstance(UCustomizableObjectInstance* CustomizableObjectInstance)
+{
+	if (CustomizableSkeletalComponent)
+	{
+		CustomizableSkeletalComponent->CustomizableObjectInstance = CustomizableObjectInstance;
+	}
+	else
+	{
+		UsedCustomizableObjectInstance = CustomizableObjectInstance;
+	}
+}
+
+
+UCustomizableObjectInstance* UCustomizableObjectInstanceUsage::GetCustomizableObjectInstance() const
+{
+	if (CustomizableSkeletalComponent)
+	{
+		return CustomizableSkeletalComponent->CustomizableObjectInstance;
+	}
+	else
+	{
+		return UsedCustomizableObjectInstance;
+	}
+}
+
+
+void UCustomizableObjectInstanceUsage::SetComponentIndex(int32 ComponentIndex)
+{
+	if (CustomizableSkeletalComponent)
+	{
+		CustomizableSkeletalComponent->ComponentIndex = ComponentIndex;
+	}
+	else
+	{
+		UsedComponentIndex = ComponentIndex;
+	}
+}
+
+
+int32 UCustomizableObjectInstanceUsage::GetComponentIndex() const
+{
+	if (CustomizableSkeletalComponent)
+	{
+		return CustomizableSkeletalComponent->ComponentIndex;
+	}
+	else
+	{
+		return UsedComponentIndex;
+	}
+}
+
+
+void UCustomizableObjectInstanceUsage::SetPendingSetSkeletalMesh(bool bIsActive)
+{
+	if (CustomizableSkeletalComponent)
+	{
+		CustomizableSkeletalComponent->bPendingSetSkeletalMesh = bIsActive;
+	}
+	else
+	{
+		bUsedPendingSetSkeletalMesh = bIsActive;
+	}
+}
+
+
+bool UCustomizableObjectInstanceUsage::GetPendingSetSkeletalMesh() const
+{
+	if (CustomizableSkeletalComponent)
+	{
+		return CustomizableSkeletalComponent->bPendingSetSkeletalMesh;
+	}
+	else
+	{
+		return bUsedPendingSetSkeletalMesh;
+	}
+}
+
+
+void UCustomizableObjectInstanceUsage::SetSkipSetReferenceSkeletalMesh(bool bIsActive)
+{
+	if (CustomizableSkeletalComponent)
+	{
+		CustomizableSkeletalComponent->bSkipSetReferenceSkeletalMesh = bIsActive;
+	}
+	else
+	{
+		bUsedSkipSetReferenceSkeletalMesh = bIsActive;
+	}
+}
+
+
+bool UCustomizableObjectInstanceUsage::GetSkipSetReferenceSkeletalMesh() const
+{
+	if (CustomizableSkeletalComponent)
+	{
+		return CustomizableSkeletalComponent->bSkipSetReferenceSkeletalMesh;
+	}
+	else
+	{
+		return bUsedSkipSetReferenceSkeletalMesh;
+	}
+}
+
+
+void UCustomizableObjectInstanceUsage::AttachTo(USkeletalMeshComponent* SkeletalMeshComponent)
+{
+	if (CustomizableSkeletalComponent)
+	{
+		UE_LOG(LogMutable, Error, TEXT("Cannot change the attachment of a UCustomizableObjectInstanceUsage that has been automatically created by a CustomizableSkeletalComponent. Reattach the CustomizableSkeletalComponent instead."));
+		ensure(false);
+	}
+	else
+	{
+		UsedSkeletalMeshComponent = SkeletalMeshComponent;
+	}
+}
+
+
+USkeletalMeshComponent* UCustomizableObjectInstanceUsage::GetAttachParent() const
+{
+	if (CustomizableSkeletalComponent)
+	{
+		return Cast<USkeletalMeshComponent>(CustomizableSkeletalComponent->GetAttachParent());
+	}
+	else
+	{
+		return UsedSkeletalMeshComponent;
+	}
+}
+
+
+USkeletalMesh* UCustomizableObjectInstanceUsage::GetSkeletalMesh() const
+{
+	UCustomizableObjectInstance* CustomizableObjectInstance = GetCustomizableObjectInstance();
+
+	return CustomizableObjectInstance ? CustomizableObjectInstance->GetSkeletalMesh(GetComponentIndex()) : nullptr;
+}
+
+
+void UCustomizableObjectInstanceUsage::SetSkeletalMesh(USkeletalMesh* SkeletalMesh, bool bReinitPose, bool bForceClothReset)
+{
+	USkeletalMeshComponent* Parent = Cast<USkeletalMeshComponent>(GetAttachParent());
+
+	// LINUX_PLATFORM needs a more aggressive workaround so morph and cloth glitches
+	// are not visible. 
+	// TODO: Try to find a better way of setting BP Morphs and clothing and remove
+	// the workaround.  
+	if (Parent)
+	{
+#if PLATFORM_LINUX
+		const bool bDisableClothSimulation = Parent->bDisableClothSimulation;
+		if (bForceClothReset)
+		{
+			Parent->bDisableClothSimulation = true;
+		}
+#endif
+
+		if(UE_MUTABLE_GETSKINNEDASSET(Parent) == SkeletalMesh)
+		{
+			Parent->RecreateRenderState_Concurrent();
+		}
+		
+		TMap<FName, float> MorphTargetCurves = Parent->GetMorphTargetCurves();
+		Parent->SetSkeletalMesh(SkeletalMesh, bReinitPose);
+		
+		// USkeletalMeshCompoent MorphTargetCurves are reset when SetSkeletalMesh is called.
+		// Re-enable them if not bReinitPose.
+		if (!bReinitPose && MorphTargetCurves.Num() > 0)
+		{
+			for (const TPair<FName, float>& MorphTarget : MorphTargetCurves)
+			{
+				Parent->SetMorphTarget(MorphTarget.Key, MorphTarget.Value);
+			}
+
+#if PLATFORM_LINUX
+			FRenderStateRecreator RenderStateRecreator(Parent);
+			FAnimationRuntime::AppendActiveMorphTargets(SkeletalMesh, Parent->GetMorphTargetCurves(), Parent->ActiveMorphTargets, Parent->MorphTargetWeights);		
+#endif
+		}
+
+		if (bForceClothReset)
+		{
+			Parent->ForceClothNextUpdateTeleportAndReset();
+
+#if PLATFORM_LINUX
+			Parent->bDisableClothSimulation = bDisableClothSimulation;
+#endif
+		}
+
+		if (Parent->GetNumOverrideMaterials() > 0)
+		{
+			// For some reason the reference skeletal mesh materials are added as override materials, clear them if necessary
+			Parent->EmptyOverrideMaterials();
+		}	
+	}
+}
+
+void UCustomizableObjectInstanceUsage::SetPhysicsAsset(UPhysicsAsset* PhysicsAsset)
+{
+	USkeletalMeshComponent* Parent = Cast<USkeletalMeshComponent>(GetAttachParent());
+
+	if (Parent && Parent->GetWorld())
+	{
+		Parent->SetPhysicsAsset(PhysicsAsset, true);
+	}
+}
+
+
+USkeletalMesh* UCustomizableObjectInstanceUsage::GetAttachedSkeletalMesh() const
+{
+	USkeletalMeshComponent* Parent = Cast<USkeletalMeshComponent>(GetAttachParent());
+
+	if (Parent)
+	{
+		return UE_MUTABLE_GETSKELETALMESHASSET(Parent);
+	}
+
+	return nullptr;
+}
+
+
+void UCustomizableObjectInstanceUsage::UpdateSkeletalMeshAsync(bool bNeverSkipUpdate)
+{
+	UCustomizableObjectInstance* CustomizableObjectInstance = GetCustomizableObjectInstance();
+
+	if (CustomizableObjectInstance)
+	{
+		CustomizableObjectInstance->UpdateSkeletalMeshAsync(false, false);
+	}
+}
+
+
+void UCustomizableObjectInstanceUsage::UpdateSkeletalMeshAsyncResult(FInstanceUpdateDelegate Callback, bool bIgnoreCloseDist, bool bForceHighPriority)
+{
+	UCustomizableObjectInstance* CustomizableObjectInstance = GetCustomizableObjectInstance();
+
+	if (CustomizableObjectInstance)
+	{
+		CustomizableObjectInstance->UpdateSkeletalMeshAsyncResult(Callback, false, false);
+	}
+}
+
+
+void UCustomizableObjectInstanceUsage::BeginDestroy()
+{
+	Super::BeginDestroy();
+}
+
+
+#if WITH_EDITOR
+
+void UCustomizableObjectInstanceUsage::UpdateDistFromComponentToLevelEditorCamera(const FVector& CameraPosition)
+{
+	// We want instances in the editor to be generated
+	if (!GetWorld() || GetWorld()->WorldType != EWorldType::Editor)
+	{
+		return;
+	}
+
+	UCustomizableObjectInstance* CustomizableObjectInstance = GetCustomizableObjectInstance();
+
+	if (CustomizableObjectInstance)
+	{
+		USkeletalMeshComponent* SkeletalMeshComponent = GetAttachParent();
+		AActor* ParentActor = SkeletalMeshComponent ? SkeletalMeshComponent->GetAttachmentRootActor() : nullptr;
+		if (ParentActor && ParentActor->IsValidLowLevel())
+		{
+			// update distance to camera and set the instance as being used by a component
+			CustomizableObjectInstance->GetPrivate()->SetCOInstanceFlags(UsedByComponent);
+
+			float SquareDist = FVector::DistSquared(CameraPosition, ParentActor->GetActorLocation());
+			CustomizableObjectInstance->GetPrivate()->MinSquareDistFromComponentToPlayer = 
+				FMath::Min(SquareDist, CustomizableObjectInstance->GetPrivate()->MinSquareDistFromComponentToPlayer);
+		}
+
+		USkeletalMesh* AttachedSkeletalMesh = GetAttachedSkeletalMesh();
+		int32 ComponentIndex = GetComponentIndex();
+		USkeletalMesh* GeneratedSKeletalMesh = CustomizableObjectInstance->GetSkeletalMesh(ComponentIndex);
+		if (!AttachedSkeletalMesh && !CustomizableObjectInstance->GetPrivate()->HasCOInstanceFlags(CreatingSkeletalMesh))
+		{
+			UCustomizableObject* Object = CustomizableObjectInstance->GetCustomizableObject(); 
+			USkeletalMesh* RefMesh = Object ? Object->GetRefSkeletalMesh(ComponentIndex) : nullptr;
+			SetSkeletalMesh(GeneratedSKeletalMesh ? GeneratedSKeletalMesh : RefMesh);
+		}
+		else if (GeneratedSKeletalMesh && AttachedSkeletalMesh != GeneratedSKeletalMesh)
+		{
+			SetSkeletalMesh(GeneratedSKeletalMesh);
+		}
+	}
+}
+
+
+void UCustomizableObjectInstanceUsage::EditorUpdateComponent()
+{
+	UCustomizableObjectInstance* CustomizableObjectInstance = GetCustomizableObjectInstance();
+
+	if (CustomizableObjectInstance)
+	{
+		CustomizableObjectInstance->GetPrivate()->SetCOInstanceFlags(UsedByComponent);
+
+		USkeletalMeshComponent* SkeletalMeshComponent = GetAttachParent();
+		AActor* ParentActor = SkeletalMeshComponent ? SkeletalMeshComponent->GetAttachmentRootActor() : nullptr;
+		
+		if (ParentActor)
+		{
+			USkeletalMesh* AttachedSkeletalMesh = GetAttachedSkeletalMesh();
+			int32 ComponentIndex = GetComponentIndex();
+			USkeletalMesh* GeneratedSKeletalMesh = CustomizableObjectInstance->GetSkeletalMesh(ComponentIndex);
+			if (!AttachedSkeletalMesh && !CustomizableObjectInstance->GetPrivate()->HasCOInstanceFlags(CreatingSkeletalMesh))
+			{
+				SetSkeletalMesh(GeneratedSKeletalMesh ? GeneratedSKeletalMesh : CustomizableObjectInstance->GetCustomizableObject()->GetRefSkeletalMesh(ComponentIndex));
+			}
+			else if (GeneratedSKeletalMesh && AttachedSkeletalMesh != GeneratedSKeletalMesh)
+			{
+				SetSkeletalMesh(GeneratedSKeletalMesh);
+			}
+		}
+	}
+}
+#endif
+
+
+void UCustomizableObjectInstanceUsage::SetVisibilityOfSkeletalMeshSectionWithMaterialName(bool bInVisible, const FString& MaterialName, int32 LOD)
+{
+	UCustomizableObjectInstance* CustomizableObjectInstance = GetCustomizableObjectInstance();
+	int32 ComponentIndex = GetComponentIndex();
+
+	USkeletalMesh* SkeletalMesh = CustomizableObjectInstance->GetSkeletalMesh(ComponentIndex);
+
+	if (!SkeletalMesh)
+	{
+		return;
+	}
+
+	for (int32 i = 0; i < SkeletalMesh->GetMaterials().Num(); ++i)
+	{
+		UMaterialInstanceDynamic* MatInst = Cast<UMaterialInstanceDynamic>(SkeletalMesh->GetMaterials()[i].MaterialInterface);
+
+		if (MatInst && MatInst->Parent->GetName() == MaterialName)
+		{
+			if (FSkeletalMeshRenderData* SkelResource = SkeletalMesh->GetResourceForRendering() )
+			{
+				if ( SkelResource->LODRenderData.IsValidIndex(LOD))
+				{
+					FSkeletalMeshLODRenderData& LodData = SkelResource->LODRenderData[LOD];
+
+					for (int32 j = 0; j < LodData.RenderSections.Num(); ++j)
+					{
+						FSkelMeshRenderSection& Section = LodData.RenderSections[j];
+
+						if (Section.MaterialIndex == i)
+						{
+							Section.bDisabled = !bInVisible;
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+
+void UCustomizableObjectInstanceUsage::UpdateDistFromComponentToPlayer(const AActor* ViewCenter, const bool bForceEvenIfNotBegunPlay)
+{
+	UCustomizableObjectInstance* CustomizableObjectInstance = GetCustomizableObjectInstance();
+
+	if (CustomizableObjectInstance)
+	{
+		USkeletalMeshComponent* SkeletalMeshComponent = GetAttachParent();
+		AActor* ParentActor = SkeletalMeshComponent ? SkeletalMeshComponent->GetAttachmentRootActor() : nullptr;
+		
+		CustomizableObjectInstance->SetIsPlayerOrNearIt(false);
+
+		if (ParentActor && ParentActor->IsValidLowLevel())
+		{
+			if (ParentActor->HasActorBegunPlay() || bForceEvenIfNotBegunPlay)
+			{
+				float SquareDist = FLT_MAX;
+
+				if (ViewCenter && ViewCenter->IsValidLowLevel())
+				{
+					APawn* Pawn = Cast<APawn>(ParentActor);
+					bool bIsPlayer = Pawn ? Pawn->IsPlayerControlled() : false;
+					CustomizableObjectInstance->SetIsPlayerOrNearIt(bIsPlayer);
+
+					if (bIsPlayer)
+					{
+						SquareDist = -0.01f; // Negative value to give the player character more priority than any other character
+					}
+					else
+					{
+						SquareDist = FVector::DistSquared(ViewCenter->GetActorLocation(), ParentActor->GetActorLocation());
+					}
+				}
+				else if (bForceEvenIfNotBegunPlay)
+				{
+					SquareDist = -0.01f; // This is a manual update before begin play and the creation of the pawn, so it should probably be high priority
+					CustomizableObjectInstance->GetPrivate()->LastMinSquareDistFromComponentToPlayer = FMath::Min(SquareDist, CustomizableObjectInstance->GetPrivate()->MinSquareDistFromComponentToPlayer);
+				}
+				else
+				{
+					SquareDist = 0.f; // This a mutable tick before begin play and the creation of the pawn, so it should have a definite and high priority but less than a manual update
+					CustomizableObjectInstance->GetPrivate()->LastMinSquareDistFromComponentToPlayer = FMath::Min(SquareDist, CustomizableObjectInstance->GetPrivate()->MinSquareDistFromComponentToPlayer);
+				}
+
+				CustomizableObjectInstance->GetPrivate()->MinSquareDistFromComponentToPlayer = FMath::Min(SquareDist, CustomizableObjectInstance->GetPrivate()->MinSquareDistFromComponentToPlayer);
+				CustomizableObjectInstance->SetIsBeingUsedByComponentInPlay(true);
+
+				if (CustomizableObjectInstance->GetPrivate()->MinSquareDistFromComponentToPlayer == SquareDist)
+				{
+					CustomizableObjectInstance->NearestToActor = this;
+					CustomizableObjectInstance->NearestToViewCenter = ViewCenter;
+				}
+			}
+		}
+
+		int32 ComponentIndex = GetComponentIndex();
+
+		if (ParentActor && GetAttachedSkeletalMesh() == nullptr && CustomizableObjectInstance->GetSkeletalMesh(ComponentIndex) && !CustomizableObjectInstance->GetPrivate()->HasCOInstanceFlags(CreatingSkeletalMesh))
+		{
+			SetSkeletalMesh(CustomizableObjectInstance->GetSkeletalMesh(ComponentIndex));
+		}
+	}
+}
+
+
+void UCustomizableObjectInstanceUsage::Tick(float DeltaTime)
+{
+	UCustomizableObjectInstance* CustomizableObjectInstance = GetCustomizableObjectInstance();
+
+	if (!GetPendingSetSkeletalMesh() || !CustomizableObjectInstance || !CustomizableObjectInstance->GetCustomizableObject())
+	{
+		return;
+	}
+
+	if (USkeletalMeshComponent* Parent = Cast<USkeletalMeshComponent>(GetAttachParent()))
+	{
+		UCustomizableObject* CustomizableObject = CustomizableObjectInstance->GetCustomizableObject();
+
+		// Hacky. Replace once we know if the instance has been generated
+		const bool bInstanceGenerated = CustomizableObjectInstance->HasAnySkeletalMesh();
+
+		int32 ComponentIndex = GetComponentIndex();
+
+		// Generated SkeletalMesh to set, can be null if the component is empty
+		USkeletalMesh* SkeletalMesh = CustomizableObjectInstance->GetSkeletalMesh(ComponentIndex);
+
+		// If not generated yet, conditionally set the SkeletalMesh of reference
+		if (!bInstanceGenerated && !GetSkipSetReferenceSkeletalMesh()
+#if WITH_EDITORONLY_DATA
+			&& CustomizableObject->bEnableUseRefSkeletalMeshAsPlaceholder
+#endif
+			)
+		{
+			// Can be nullptr
+			SkeletalMesh = CustomizableObject->GetRefSkeletalMesh(ComponentIndex);
+		}
+
+		// Set SkeletalMesh
+		if (bInstanceGenerated || SkeletalMesh)
+		{
+			Parent->SetSkeletalMesh(SkeletalMesh);
+
+			if (Parent->OverrideMaterials.Num() > 0)
+			{
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+				if (Parent->GetClass()->GetFName() != FName(TEXT("SkeletalMeshComponentBudgeted"))) // Reduce unnecessary logging
+				{
+					UE_LOG(LogMutable, Warning, TEXT("Attaching Customizable Skeletal Component to Skeletal Mesh Component with overriden materials! Deleting overrides."));
+				}
+#endif
+
+				Parent->EmptyOverrideMaterials();
+			}
+
+			SetPendingSetSkeletalMesh(false);
+		}
+	}
+}
+
+
+TStatId UCustomizableObjectInstanceUsage::GetStatId() const
+{
+	RETURN_QUICK_DECLARE_CYCLE_STAT(UCustomizableObjectInstanceUsage, STATGROUP_Tickables);
+}
+
+
+bool UCustomizableObjectInstanceUsage::IsNetMode(ENetMode InNetMode) const
+{
+	if (CustomizableSkeletalComponent)
+	{
+		return CustomizableSkeletalComponent->IsNetMode(InNetMode);
+	}
+	else if(UsedSkeletalMeshComponent)
+	{
+		return UsedSkeletalMeshComponent->IsNetMode(InNetMode);
+	}
+
+	return false;
+}

@@ -15,9 +15,9 @@ class FProperty;
 class UAnimInstance;
 class UCustomizableInstancePrivateData; // This is used to hide Mutable SDK members in the public headers.
 class UCustomizableObject;
-class UCustomizableSkeletalComponent;
 class UTexture2D;
 class FUpdateContextPrivate;
+class UCustomizableObjectInstanceUsage;
 struct FFrame;
 struct FGameplayTagContainer;
 struct FPropertyChangedEvent;
@@ -648,7 +648,7 @@ public:
 	UCustomizableInstancePrivateData* GetPrivate() const;
 
 	// TEMP VARIABLE to check the Min desired LODs for this instance
-	TWeakObjectPtr<UCustomizableSkeletalComponent> NearestToActor;
+	TWeakObjectPtr<UCustomizableObjectInstanceUsage> NearestToActor;
 	TWeakObjectPtr<const AActor> NearestToViewCenter;
 
 #if WITH_EDITOR

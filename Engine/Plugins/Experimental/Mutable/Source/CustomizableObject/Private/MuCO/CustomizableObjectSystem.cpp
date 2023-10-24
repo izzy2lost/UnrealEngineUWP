@@ -15,7 +15,7 @@
 #include "MuCO/CustomizableInstancePrivateData.h"
 #include "MuCO/CustomizableObjectPrivate.h"
 #include "MuCO/DefaultImageProvider.h"
-#include "MuCO/CustomizableSkeletalComponent.h"
+#include "MuCO/CustomizableObjectInstanceUsage.h"
 #include "MuCO/ICustomizableObjectModule.h"
 #include "MuCO/LogBenchmarkUtil.h"
 #include "MuCO/LogInformationUtil.h"
@@ -29,6 +29,7 @@
 #include "Widgets/Notifications/SNotificationList.h"
 #include "ContentStreaming.h"
 #include "MuCO/EditorImageProvider.h"
+#include "Components/SkeletalMeshComponent.h"
 
 #if WITH_EDITOR
 #include "Editor.h"
@@ -325,24 +326,25 @@ void UCustomizableObjectSystem::LogShowData(bool bFullInfo, bool ShowMaterialInf
 
 	TArray<UCustomizableObjectInstance*> ArrayData;
 
-	for (TObjectIterator<UCustomizableSkeletalComponent> It; It; ++It)
+	for (TObjectIterator<UCustomizableObjectInstanceUsage> It; It; ++It)
 	{
-		const UCustomizableSkeletalComponent* CustomizableSkeletalComponent = *It;
+		const UCustomizableObjectInstanceUsage* CustomizableObjectInstanceUsage = *It;
 
 #if WITH_EDITOR
-		if (CustomizableSkeletalComponent && CustomizableSkeletalComponent->IsNetMode(NM_DedicatedServer))
+		if (CustomizableObjectInstanceUsage && CustomizableObjectInstanceUsage->IsNetMode(NM_DedicatedServer))
 		{
 			continue;
 		}
 #endif
 
-		if (CustomizableSkeletalComponent && CustomizableSkeletalComponent->CustomizableObjectInstance)
+		if (CustomizableObjectInstanceUsage && CustomizableObjectInstanceUsage->GetCustomizableObjectInstance() 
+			&& CustomizableObjectInstanceUsage->GetAttachParent())
 		{
-			const AActor* ParentActor = CustomizableSkeletalComponent->GetAttachmentRootActor();
+			const AActor* ParentActor = CustomizableObjectInstanceUsage->GetAttachParent()->GetAttachmentRootActor();
 
 			if (ParentActor != nullptr)
 			{
-				ArrayData.AddUnique(CustomizableSkeletalComponent->CustomizableObjectInstance);
+				ArrayData.AddUnique(CustomizableObjectInstanceUsage->GetCustomizableObjectInstance());
 			}
 		}
 	}
@@ -812,8 +814,8 @@ void FinishUpdateGlobal(const TSharedRef<FUpdateContextPrivate>& Context)
 
 	if (Context->UpdateResult == EUpdateResult::Success)
 	{
-		// Call Customizable Skeletal Components updated callbacks.
-		for (TObjectIterator<UCustomizableSkeletalComponent> It; It; ++It) // Since iterating objects is expensive, for now CustomizableSkeletalComponent does not have a FinishUpdate function.
+		// Call CustomizableObjectInstanceUsages updated callbacks.
+		for (TObjectIterator<UCustomizableObjectInstanceUsage> It; It; ++It) // Since iterating objects is expensive, for now CustomizableObjectInstanceUsage does not have a FinishUpdate function.
 		{
 #if WITH_EDITOR
 			if (It && It->IsNetMode(NM_DedicatedServer))
@@ -822,11 +824,11 @@ void FinishUpdateGlobal(const TSharedRef<FUpdateContextPrivate>& Context)
 			}
 #endif
 
-			if (const UCustomizableSkeletalComponent* CustomizableSkeletalComponent = *It;
-				CustomizableSkeletalComponent &&
-				CustomizableSkeletalComponent->CustomizableObjectInstance == Instance)
+			if (const UCustomizableObjectInstanceUsage* CustomizableObjectInstanceUsage = *It;
+				CustomizableObjectInstanceUsage &&
+				CustomizableObjectInstanceUsage->GetCustomizableObjectInstance() == Instance)
 			{
-				CustomizableSkeletalComponent->Callbacks();
+				CustomizableObjectInstanceUsage->Callbacks();
 			}
 		}
 	}
@@ -867,32 +869,32 @@ void UpdateSkeletalMesh(const TSharedRef<FUpdateContextPrivate>& Context)
 
 	UCustomizableInstancePrivateData* CustomizableObjectInstancePrivateData = CustomizableObjectInstance->GetPrivate();
 	check(CustomizableObjectInstancePrivateData != nullptr);
-	for (TObjectIterator<UCustomizableSkeletalComponent> It; It; ++It)
+	for (TObjectIterator<UCustomizableObjectInstanceUsage> It; It; ++It)
 	{
-		UCustomizableSkeletalComponent* CustomizableSkeletalComponent = *It;
+		UCustomizableObjectInstanceUsage* CustomizableObjectInstanceUsage = *It;
 
 #if WITH_EDITOR
-		if (CustomizableSkeletalComponent && CustomizableSkeletalComponent->IsNetMode(NM_DedicatedServer))
+		if (CustomizableObjectInstanceUsage && CustomizableObjectInstanceUsage->IsNetMode(NM_DedicatedServer))
 		{
 			continue;
 		}
 #endif
 
-		if (CustomizableSkeletalComponent &&
-			(CustomizableSkeletalComponent->CustomizableObjectInstance == CustomizableObjectInstance) &&
-			CustomizableObjectInstance->SkeletalMeshes.IsValidIndex(CustomizableSkeletalComponent->ComponentIndex)
+		if (CustomizableObjectInstanceUsage &&
+			(CustomizableObjectInstanceUsage->GetCustomizableObjectInstance() == CustomizableObjectInstance) &&
+			CustomizableObjectInstance->SkeletalMeshes.IsValidIndex(CustomizableObjectInstanceUsage->GetComponentIndex())
 		   )
 		{
 			MUTABLE_CPUPROFILER_SCOPE(UpdateSkeletalMesh_SetSkeletalMesh);
 
 			const bool bIsCreatingSkeletalMesh = CustomizableObjectInstancePrivateData->HasCOInstanceFlags(CreatingSkeletalMesh); //TODO MTBL-391: Review
-			CustomizableSkeletalComponent->SetSkeletalMesh(CustomizableObjectInstance->SkeletalMeshes[CustomizableSkeletalComponent->ComponentIndex], false, bIsCreatingSkeletalMesh);
+			CustomizableObjectInstanceUsage->SetSkeletalMesh(CustomizableObjectInstance->SkeletalMeshes[CustomizableObjectInstanceUsage->GetComponentIndex()], false, bIsCreatingSkeletalMesh);
 
 			if (CustomizableObjectInstancePrivateData->HasCOInstanceFlags(ReplacePhysicsAssets))
 			{
-				CustomizableSkeletalComponent->SetPhysicsAsset(
-					CustomizableObjectInstance->SkeletalMeshes[CustomizableSkeletalComponent->ComponentIndex] ? 
-					CustomizableObjectInstance->SkeletalMeshes[CustomizableSkeletalComponent->ComponentIndex]->GetPhysicsAsset() : nullptr);
+				CustomizableObjectInstanceUsage->SetPhysicsAsset(
+					CustomizableObjectInstance->SkeletalMeshes[CustomizableObjectInstanceUsage->GetComponentIndex()] ?
+					CustomizableObjectInstance->SkeletalMeshes[CustomizableObjectInstanceUsage->GetComponentIndex()]->GetPhysicsAsset() : nullptr);
 			}
 		}
 	}
@@ -2799,21 +2801,21 @@ namespace impl
 		bool bIsInEditorViewport = false;
 
 #if WITH_EDITOR
-		for (TObjectIterator<UCustomizableSkeletalComponent> CustomizableSkeletalComponent; CustomizableSkeletalComponent && !bIsInEditorViewport; ++CustomizableSkeletalComponent)
+		for (TObjectIterator<UCustomizableObjectInstanceUsage> CustomizableObjectInstanceUsage; CustomizableObjectInstanceUsage && !bIsInEditorViewport; ++CustomizableObjectInstanceUsage)
 		{
-			if (CustomizableSkeletalComponent && CustomizableSkeletalComponent->IsNetMode(NM_DedicatedServer))
+			if (CustomizableObjectInstanceUsage && CustomizableObjectInstanceUsage->IsNetMode(NM_DedicatedServer))
 			{
 				continue;
 			}
 
-			if (CustomizableSkeletalComponent &&
-				CustomizableSkeletalComponent->CustomizableObjectInstance == CandidateInstance)
+			if (CustomizableObjectInstanceUsage &&
+				CustomizableObjectInstanceUsage->GetCustomizableObjectInstance() == CandidateInstance)
 			{
 				EWorldType::Type WorldType = EWorldType::Type::None;
 
-				if (CustomizableSkeletalComponent->GetWorld())
+				if (CustomizableObjectInstanceUsage->GetWorld())
 				{
-					WorldType = CustomizableSkeletalComponent->GetWorld()->WorldType;
+					WorldType = CustomizableObjectInstanceUsage->GetWorld()->WorldType;
 				}
 
 				switch (WorldType)

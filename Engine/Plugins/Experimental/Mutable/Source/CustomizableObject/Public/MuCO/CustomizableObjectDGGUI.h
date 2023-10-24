@@ -7,7 +7,7 @@
 #include "CustomizableObjectDGGUI.generated.h"
 
 class UAnimInstance;
-class UCustomizableSkeletalComponent;
+class UCustomizableObjectInstanceUsage;
 class UObject;
 class UWorld;
 
@@ -18,11 +18,11 @@ class CUSTOMIZABLEOBJECT_API UDGGUI : public UUserWidget
 	GENERATED_BODY()
 public:
 	UFUNCTION(BlueprintImplementableEvent, Category = "DGGUI")
-	class UCustomizableSkeletalComponent* GetCustomizableSkeletalComponent();
+	class UCustomizableObjectInstanceUsage* GetCustomizableObjectInstanceUsage();
 
 	UFUNCTION(BlueprintImplementableEvent, Category = "DGGUI")
-	void SetCustomizableSkeletalComponent(class UCustomizableSkeletalComponent* CustomizableSkeletalComponent);
+	void SetCustomizableObjectInstanceUsage(class UCustomizableObjectInstanceUsage* CustomizableObjectInstanceUsage);
 
-	static void OpenDGGUI(const int32 SlotID, UCustomizableSkeletalComponent* SelectedCustomizableSkeletalComponent, const UWorld* CurrentWorld, const int32 PlayerIndex = 0);
+	static void OpenDGGUI(const int32 SlotID, UCustomizableObjectInstanceUsage* SelectedCustomizableObjectInstanceUsage, const UWorld* CurrentWorld, const int32 PlayerIndex = 0);
 	static bool CloseExistingDGGUI(const UWorld* CurrentWorld);
 };

@@ -8,7 +8,7 @@
 #include "ISettingsSection.h"
 #include "MessageLogModule.h"
 #include "MuCO/CustomizableObjectSystem.h"		// For defines related to memory function replacements.
-#include "MuCO/CustomizableSkeletalComponent.h"
+#include "MuCO/CustomizableObjectInstanceUsage.h"
 #include "MuCO/CustomizableSkeletalMeshActor.h"
 #include "MuCO/ICustomizableObjectModule.h"		// For instance editor command utility function
 #include "MuCOE/CustomizableInstanceDetails.h"
@@ -363,9 +363,9 @@ void FCustomizableObjectEditorModule::OpenCOIE(const TArray<FString>& Arguments)
 	const int32 PlayerIndex = 0;
 
 	// Open the Customizable Object Instance Editor
-	if (UCustomizableSkeletalComponent* SelectedCustomizableSkeletalComponent = GetPlayerCustomizableSkeletalComponent(SlotID, CurrentWorld, PlayerIndex))
+	if (UCustomizableObjectInstanceUsage* SelectedCustomizableObjectInstanceUsage = GetPlayerCustomizableObjectInstanceUsage(SlotID, CurrentWorld, PlayerIndex))
 	{
-		if (UCustomizableObjectInstance* COInstance = SelectedCustomizableSkeletalComponent->CustomizableObjectInstance)
+		if (UCustomizableObjectInstance* COInstance = SelectedCustomizableObjectInstanceUsage->GetCustomizableObjectInstance())
 		{
 			FAssetToolsModule& AssetToolsModule = FModuleManager::LoadModuleChecked<FAssetToolsModule>(TEXT("AssetTools"));
 			TWeakPtr<IAssetTypeActions> WeakAssetTypeActions = AssetToolsModule.Get().GetAssetTypeActionsForClass(UCustomizableObjectInstance::StaticClass());

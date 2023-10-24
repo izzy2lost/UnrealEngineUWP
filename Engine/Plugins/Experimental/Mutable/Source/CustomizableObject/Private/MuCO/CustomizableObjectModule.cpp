@@ -9,10 +9,11 @@
 #include "MuCO/CustomizableObject.h"
 #include "MuCO/CustomizableObjectDGGUI.h"
 #include "MuCO/CustomizableObjectExtension.h"
-#include "MuCO/CustomizableSkeletalComponent.h"
+#include "MuCO/CustomizableObjectInstanceUsage.h"
 #include "MuCO/ICustomizableObjectModule.h"
 #include "UObject/StrongObjectPtr.h"
 #include "GPUSkinPublicDefs.h"
+#include "Components/SkeletalMeshComponent.h"
 
 /**
  * Customizable Object module implementation (private)
@@ -216,29 +217,30 @@ void FCustomizableObjectModule::RefreshExtensionData()
 }
 
 
-UCustomizableSkeletalComponent* GetPlayerCustomizableSkeletalComponent(const int32 SlotID, const UWorld* CurrentWorld, const int32 PlayerIndex)
+UCustomizableObjectInstanceUsage* GetPlayerCustomizableObjectInstanceUsage(const int32 SlotID, const UWorld* CurrentWorld, const int32 PlayerIndex)
 {
 	// Get customizable skeletal component attached to player pawn
-	UCustomizableSkeletalComponent* SelectedCustomizableSkeletalComponent = nullptr;
+	UCustomizableObjectInstanceUsage* SelectedCustomizableObjectInstanceUsage = nullptr;
 	{
 		AActor* PlayerPawn = Cast<AActor>(UGameplayStatics::GetPlayerPawn(CurrentWorld, PlayerIndex));
 		int32 IndexFound = INDEX_NONE;
-		for (TObjectIterator<UCustomizableSkeletalComponent> CustomizableSkeletalComponent; CustomizableSkeletalComponent; ++CustomizableSkeletalComponent)
+		for (TObjectIterator<UCustomizableObjectInstanceUsage> CustomizableObjectInstanceUsage; CustomizableObjectInstanceUsage; ++CustomizableObjectInstanceUsage)
 		{
 #if WITH_EDITOR
-			if (CustomizableSkeletalComponent && CustomizableSkeletalComponent->IsNetMode(NM_DedicatedServer))
+			if (CustomizableObjectInstanceUsage && CustomizableObjectInstanceUsage->IsNetMode(NM_DedicatedServer))
 			{
 				continue;
 			}
 #endif
 
-			if (CustomizableSkeletalComponent->IsValidLowLevel() && !CustomizableSkeletalComponent->IsTemplate())
+			if (CustomizableObjectInstanceUsage->IsValidLowLevel() && !CustomizableObjectInstanceUsage->IsTemplate() 
+				&& CustomizableObjectInstanceUsage->GetAttachParent())
 			{
-				AActor* CustomizableActor = CustomizableSkeletalComponent->GetAttachmentRootActor();
+				AActor* CustomizableActor = CustomizableObjectInstanceUsage->GetAttachParent()->GetAttachmentRootActor();
 				if (CustomizableActor && PlayerPawn == CustomizableActor)
 				{
 					++IndexFound;
-					SelectedCustomizableSkeletalComponent = *CustomizableSkeletalComponent;
+					SelectedCustomizableObjectInstanceUsage = *CustomizableObjectInstanceUsage;
 					if (IndexFound == SlotID)
 					{
 						break;
@@ -250,23 +252,23 @@ UCustomizableSkeletalComponent* GetPlayerCustomizableSkeletalComponent(const int
 
 
 	// If none found, try getting a component without caring about the actor
-	if (!SelectedCustomizableSkeletalComponent)
+	if (!SelectedCustomizableObjectInstanceUsage)
 	{
 		AActor* PlayerPawn = Cast<AActor>(UGameplayStatics::GetPlayerPawn(CurrentWorld, PlayerIndex));
 		int32 IndexFound = INDEX_NONE;
-		for (TObjectIterator<UCustomizableSkeletalComponent> CustomizableSkeletalComponent; CustomizableSkeletalComponent; ++CustomizableSkeletalComponent)
+		for (TObjectIterator<UCustomizableObjectInstanceUsage> CustomizableObjectInstanceUsage; CustomizableObjectInstanceUsage; ++CustomizableObjectInstanceUsage)
 		{
 #if WITH_EDITOR
-			if (CustomizableSkeletalComponent && CustomizableSkeletalComponent->IsNetMode(NM_DedicatedServer))
+			if (CustomizableObjectInstanceUsage && CustomizableObjectInstanceUsage->IsNetMode(NM_DedicatedServer))
 			{
 				continue;
 			}
 #endif
 
-			if (CustomizableSkeletalComponent->IsValidLowLevel() && !CustomizableSkeletalComponent->IsTemplate())
+			if (CustomizableObjectInstanceUsage->IsValidLowLevel() && !CustomizableObjectInstanceUsage->IsTemplate())
 			{
 				++IndexFound;
-				SelectedCustomizableSkeletalComponent = *CustomizableSkeletalComponent;
+				SelectedCustomizableObjectInstanceUsage = *CustomizableObjectInstanceUsage;
 				if (IndexFound == SlotID)
 				{
 					break;
@@ -275,7 +277,7 @@ UCustomizableSkeletalComponent* GetPlayerCustomizableSkeletalComponent(const int
 		}
 	}
 
-	return SelectedCustomizableSkeletalComponent;
+	return SelectedCustomizableObjectInstanceUsage;
 }
 
 
@@ -314,8 +316,8 @@ void FCustomizableObjectModule::ToggleDGGUI(const TArray<FString>& Arguments)
 	{
 		return;
 	}
-	else if (UCustomizableSkeletalComponent* SelectedCustomizableSkeletalComponent = GetPlayerCustomizableSkeletalComponent(SlotID, CurrentWorld, PlayerIndex))
+	else if (UCustomizableObjectInstanceUsage* SelectedCustomizableObjectInstanceUsage = GetPlayerCustomizableObjectInstanceUsage(SlotID, CurrentWorld, PlayerIndex))
 	{
-		UDGGUI::OpenDGGUI(SlotID, SelectedCustomizableSkeletalComponent, CurrentWorld, PlayerIndex);
+		UDGGUI::OpenDGGUI(SlotID, SelectedCustomizableObjectInstanceUsage, CurrentWorld, PlayerIndex);
 	}
 }

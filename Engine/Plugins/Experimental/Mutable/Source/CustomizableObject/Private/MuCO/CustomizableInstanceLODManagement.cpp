@@ -11,8 +11,8 @@
 #include "MuCO/CustomizableObject.h"
 #include "MuCO/CustomizableObjectInstance.h"
 #include "MuCO/CustomizableObjectSystem.h"
-#include "MuCO/CustomizableSkeletalComponent.h"
 #include "MuCO/UnrealPortabilityHelpers.h"
+#include "MuCO/CustomizableObjectInstanceUsage.h"
 #include "UObject/UObjectIterator.h"
 #include "Components/SkeletalMeshComponent.h"
 
@@ -70,18 +70,18 @@ UCustomizableInstanceLODManagement::~UCustomizableInstanceLODManagement()
 // ViewCenter is the origin where the distances will be measured from.
 void UpdatePawnToInstancesDistances(const class UCustomizableObjectInstance* OnlyForInstance, const TWeakObjectPtr<const AActor> ViewCenter)
 {
-	for (TObjectIterator<UCustomizableSkeletalComponent> CustomizableSkeletalComponent; CustomizableSkeletalComponent; ++CustomizableSkeletalComponent)
+	for (TObjectIterator<UCustomizableObjectInstanceUsage> CustomizableObjectInstanceUsage; CustomizableObjectInstanceUsage; ++CustomizableObjectInstanceUsage)
 	{
 #if WITH_EDITOR
-		if (CustomizableSkeletalComponent && CustomizableSkeletalComponent->IsNetMode(NM_DedicatedServer))
+		if (CustomizableObjectInstanceUsage && CustomizableObjectInstanceUsage->IsNetMode(NM_DedicatedServer))
 		{
 			continue;
 		}
 #endif
 
-		if (CustomizableSkeletalComponent->IsValidLowLevel() && (OnlyForInstance == nullptr || CustomizableSkeletalComponent->CustomizableObjectInstance == OnlyForInstance))
+		if (CustomizableObjectInstanceUsage->IsValidLowLevel() && (OnlyForInstance == nullptr || CustomizableObjectInstanceUsage->GetCustomizableObjectInstance() == OnlyForInstance))
 		{
-			CustomizableSkeletalComponent->UpdateDistFromComponentToPlayer(ViewCenter.IsValid() ? ViewCenter.Get() : nullptr, OnlyForInstance != nullptr);
+			CustomizableObjectInstanceUsage->UpdateDistFromComponentToPlayer(ViewCenter.IsValid() ? ViewCenter.Get() : nullptr, OnlyForInstance != nullptr);
 		}
 	}
 }
@@ -90,17 +90,17 @@ void UpdatePawnToInstancesDistances(const class UCustomizableObjectInstance* Onl
 // Used to manually update instances in the level editor
 void UpdateCameraToInstancesDistance(const FVector CameraPosition)
 {
-	for (TObjectIterator<UCustomizableSkeletalComponent> CustomizableSkeletalComponent; CustomizableSkeletalComponent; ++CustomizableSkeletalComponent)
+	for (TObjectIterator<UCustomizableObjectInstanceUsage> CustomizableObjectInstanceUsage; CustomizableObjectInstanceUsage; ++CustomizableObjectInstanceUsage)
 	{
 #if WITH_EDITOR
-		if (CustomizableSkeletalComponent && CustomizableSkeletalComponent->IsNetMode(NM_DedicatedServer))
+		if (CustomizableObjectInstanceUsage && CustomizableObjectInstanceUsage->IsNetMode(NM_DedicatedServer))
 		{
 			continue;
 		}
 #endif
-		if (CustomizableSkeletalComponent->IsValidLowLevel() && !CustomizableSkeletalComponent->IsTemplate())
+		if (CustomizableObjectInstanceUsage->IsValidLowLevel() && !CustomizableObjectInstanceUsage->IsTemplate())
 		{
-			CustomizableSkeletalComponent->UpdateDistFromComponentToLevelEditorCamera(CameraPosition);
+			CustomizableObjectInstanceUsage->UpdateDistFromComponentToLevelEditorCamera(CameraPosition);
 		}
 	}
 }
@@ -116,23 +116,23 @@ void UCustomizableInstanceLODManagement::UpdateInstanceDistsAndLODs(FMutableInst
 
 		if (ViewCenters.Num() == 0) // Just use the first pawn
 		{
-			UCustomizableSkeletalComponent* FirstCustomizableSkeletalComponent = nullptr;
+			UCustomizableObjectInstanceUsage* FirstCustomizableObjectInstanceUsage = nullptr;
 
 	#if WITH_EDITOR
 			bool bLevelEditorInstancesUpdated = false;
 	#endif
 
-			for (TObjectIterator<UCustomizableSkeletalComponent> CustomizableSkeletalComponent; CustomizableSkeletalComponent; ++CustomizableSkeletalComponent)
+			for (TObjectIterator<UCustomizableObjectInstanceUsage> CustomizableObjectInstanceUsage; CustomizableObjectInstanceUsage; ++CustomizableObjectInstanceUsage)
 			{
 #if WITH_EDITOR
-				if (CustomizableSkeletalComponent && CustomizableSkeletalComponent->IsNetMode(NM_DedicatedServer))
+				if (CustomizableObjectInstanceUsage && CustomizableObjectInstanceUsage->IsNetMode(NM_DedicatedServer))
 				{
 					continue;
 				}
 #endif
-				if (CustomizableSkeletalComponent && !CustomizableSkeletalComponent->IsTemplate())
+				if (CustomizableObjectInstanceUsage && !CustomizableObjectInstanceUsage->IsTemplate())
 				{
-					UWorld* LocalWorld = CustomizableSkeletalComponent->GetWorld();
+					UWorld* LocalWorld = CustomizableObjectInstanceUsage->GetWorld();
 					APlayerController* Controller = LocalWorld ? LocalWorld->GetFirstPlayerController() : nullptr;
 					TWeakObjectPtr<const AActor> ViewCenter = Controller ? TWeakObjectPtr<const AActor>(Controller->GetPawn()) : nullptr;
 
@@ -143,9 +143,9 @@ void UCustomizableInstanceLODManagement::UpdateInstanceDistsAndLODs(FMutableInst
 					}
 
 	#if WITH_EDITOR
-					else if (CustomizableSkeletalComponent->GetWorld())
+					else if (CustomizableObjectInstanceUsage->GetWorld())
 					{
-						EWorldType::Type worldType = CustomizableSkeletalComponent->GetWorld()->WorldType;
+						EWorldType::Type worldType = CustomizableObjectInstanceUsage->GetWorld()->WorldType;
 					
 						// Level Editor Instances (non PIE)
 						if (!bLevelEditorInstancesUpdated && worldType == EWorldType::Editor)
@@ -164,7 +164,7 @@ void UCustomizableInstanceLODManagement::UpdateInstanceDistsAndLODs(FMutableInst
 						// Blueprint instances
 						else if (worldType == EWorldType::EditorPreview)
 						{
-							CustomizableSkeletalComponent->EditorUpdateComponent();
+							CustomizableObjectInstanceUsage->EditorUpdateComponent();
 						}
 					}
 	#endif // WITH_EDITOR
@@ -292,18 +292,18 @@ void UCustomizableInstanceLODManagement::UpdateInstanceDistsAndLODs(FMutableInst
 		TMap<TObjectPtr<UCustomizableObjectInstance>, FLODTracker> InstancesMinLOD;
 		InstancesMinLOD.Reserve(100);
 
-		for (TObjectIterator<UCustomizableSkeletalComponent> CustomizableSkeletalComponent; CustomizableSkeletalComponent; ++CustomizableSkeletalComponent)
+		for (TObjectIterator<UCustomizableObjectInstanceUsage> CustomizableObjectInstanceUsage; CustomizableObjectInstanceUsage; ++CustomizableObjectInstanceUsage)
 		{
 #if WITH_EDITOR
-			if (CustomizableSkeletalComponent && CustomizableSkeletalComponent->IsNetMode(NM_DedicatedServer))
+			if (CustomizableObjectInstanceUsage && CustomizableObjectInstanceUsage->IsNetMode(NM_DedicatedServer))
 			{
 				continue;
 			}
 #endif
 
-			if (CustomizableSkeletalComponent && !CustomizableSkeletalComponent->IsTemplate())
+			if (CustomizableObjectInstanceUsage && !CustomizableObjectInstanceUsage->IsTemplate())
 			{
-				UCustomizableObjectInstance* COI = CustomizableSkeletalComponent->CustomizableObjectInstance;
+				UCustomizableObjectInstance* COI = CustomizableObjectInstanceUsage->GetCustomizableObjectInstance();
 				if (!COI || !COI->GetCustomizableObject())
 				{
 					continue;
@@ -313,7 +313,7 @@ void UCustomizableInstanceLODManagement::UpdateInstanceDistsAndLODs(FMutableInst
 
 				EWorldType::Type WorldType = EWorldType::Type::None;
 
-				UWorld* World = CustomizableSkeletalComponent->GetWorld();
+				UWorld* World = CustomizableObjectInstanceUsage->GetWorld();
 				if (World)
 				{
 					WorldType = World->WorldType;
@@ -321,12 +321,12 @@ void UCustomizableInstanceLODManagement::UpdateInstanceDistsAndLODs(FMutableInst
 
 				// Blueprint instances and CO Editors
 				
-				const USceneComponent* const AttachParentComponent = CustomizableSkeletalComponent->GetAttachParent();
+				const USceneComponent* const AttachParentComponent = CustomizableObjectInstanceUsage->GetAttachParent();
 				bool bAttachParentActor = AttachParentComponent ? AttachParentComponent->GetOwner()!=nullptr : false;
 
 				if (WorldType == EWorldType::EditorPreview || (!World && !bAttachParentActor))
 				{
-					CustomizableSkeletalComponent->EditorUpdateComponent();
+					CustomizableObjectInstanceUsage->EditorUpdateComponent();
 					continue;
 				}
 
@@ -345,12 +345,12 @@ void UCustomizableInstanceLODManagement::UpdateInstanceDistsAndLODs(FMutableInst
 					LODTracker.bInitialized = true;
 				}
 
-				USkeletalMeshComponent* Parent = Cast<USkeletalMeshComponent>(CustomizableSkeletalComponent->GetAttachParent());
+				USkeletalMeshComponent* Parent = Cast<USkeletalMeshComponent>(CustomizableObjectInstanceUsage->GetAttachParent());
 				if (Parent)
 				{
 					COI->SetIsBeingUsedByComponentInPlay(true);
 
-					int32 ComponentIndex = CustomizableSkeletalComponent->ComponentIndex;
+					int32 ComponentIndex = CustomizableObjectInstanceUsage->GetComponentIndex();
 
 #if WITH_EDITOR
 					// If the instance is generated but the component doesn't have a mesh, set it.

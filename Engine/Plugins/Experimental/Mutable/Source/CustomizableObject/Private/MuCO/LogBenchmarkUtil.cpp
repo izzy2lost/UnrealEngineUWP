@@ -8,6 +8,7 @@
 #include "Engine/SkeletalMesh.h"
 #include "TextureResource.h"
 #include "GameFramework/Pawn.h"
+#include "Components/SkeletalMeshComponent.h"
 
 #if WITH_EDITOR
 #include "Editor/EditorEngine.h"
@@ -17,7 +18,7 @@
 #include "MuCO/CustomizableObjectSystemPrivate.h"
 #include "MuCO/CustomizableObjectSystem.h"
 #include "MuCO/CustomizableInstancePrivateData.h"
-#include "MuCO/CustomizableSkeletalComponent.h"
+#include "MuCO/CustomizableObjectInstanceUsage.h"
 
 
 extern ENGINE_API UEngine* GEngine;
@@ -294,18 +295,20 @@ void LogBenchmarkUtil::UpdateStats(FMutableStats& StatsToUpdate, const TArray< T
 				bool bFoundPlayer = false;
 				int32 MsgIndex = 15820; // Arbitrary big value to prevent collisions with other on-screen messages
 
-				for (TObjectIterator<UCustomizableSkeletalComponent> CustomizableSkeletalComponent; CustomizableSkeletalComponent; ++CustomizableSkeletalComponent)
+				for (TObjectIterator<UCustomizableObjectInstanceUsage> CustomizableObjectInstanceUsage; CustomizableObjectInstanceUsage; ++CustomizableObjectInstanceUsage)
 				{
-					if (CustomizableSkeletalComponent && CustomizableSkeletalComponent->IsNetMode(NM_DedicatedServer))
+					if (CustomizableObjectInstanceUsage && CustomizableObjectInstanceUsage->IsNetMode(NM_DedicatedServer))
 					{
 						continue;
 					}
 
-					AActor* ParentActor = CustomizableSkeletalComponent->GetAttachmentRootActor();
-					UCustomizableObjectInstance* Instance = CustomizableSkeletalComponent->CustomizableObjectInstance;
+					AActor* ParentActor = CustomizableObjectInstanceUsage->GetAttachParent() ? 
+						CustomizableObjectInstanceUsage->GetAttachParent()->GetAttachmentRootActor() 
+						:  nullptr;
+					UCustomizableObjectInstance* Instance = CustomizableObjectInstanceUsage->GetCustomizableObjectInstance();
 
 					APawn* PlayerPawn = nullptr;
-					if (UWorld* World = CustomizableSkeletalComponent->GetWorld())
+					if (UWorld* World = CustomizableObjectInstanceUsage->GetWorld())
 					{
 						PlayerPawn = UGameplayStatics::GetPlayerPawn(World, 0);
 					}
@@ -326,7 +329,7 @@ void LogBenchmarkUtil::UpdateStats(FMutableStats& StatsToUpdate, const TArray< T
 						GEngine->AddOnScreenDebugMessage(MsgIndex++, .0f, FColor::Green, TEXT("Animation tags: ") + TagString);
 
 						check(Instance->GetPrivate() != nullptr);
-						FCustomizableInstanceComponentData* ComponentData = Instance->GetPrivate()->GetComponentData(CustomizableSkeletalComponent->ComponentIndex);
+						FCustomizableInstanceComponentData* ComponentData = Instance->GetPrivate()->GetComponentData(CustomizableObjectInstanceUsage->GetComponentIndex());
 
 						if (ComponentData)
 						{
@@ -359,7 +362,7 @@ void LogBenchmarkUtil::UpdateStats(FMutableStats& StatsToUpdate, const TArray< T
 
 						GEngine->AddOnScreenDebugMessage(MsgIndex++, .0f, FColor::Cyan,
 							TEXT("Player Pawn Mutable Mesh/Animation info for component ") + FString::Printf(TEXT("%d"),
-								CustomizableSkeletalComponent->ComponentIndex));
+								CustomizableObjectInstanceUsage->GetComponentIndex()));
 					}
 				}
 
