@@ -80,7 +80,8 @@ enum class EPipelineCacheFileFormatVersions : uint32
 	MoreRenderTargetFlags = 23,
 	FragmentDensityAttachment = 24,
 	AddingDepthClipMode = 25,
-	RemovingLineAA = 26,
+	BeforeStableCacheVersioning = 26,
+	RemovingLineAA = 27,
 };
 
 const uint64 FPipelineCacheFileFormatMagic = 0x5049504543414348; // PIPECACH
@@ -389,8 +390,7 @@ RHI_API FArchive& operator<<(FArchive& Ar, FPipelineFileCacheRasterizerState& Ra
 	Ar << RasterizerStateInitializer.DepthClipMode;
 	Ar << RasterizerStateInitializer.bAllowMSAA;
 
-	// TODO: actually get versioning to work. Look for: MemReader.SetGameNetVer(FPipelineCacheFileFormatCurrentVersion);
-	//if (Ar.GameNetVer() < (uint32)EPipelineCacheFileFormatVersions::RemovingLineAA)
+	if (Ar.GameNetVer() < (uint32)EPipelineCacheFileFormatVersions::RemovingLineAA)
 	{
 		bool bEnableLineAA = false;
 		Ar << bEnableLineAA;
