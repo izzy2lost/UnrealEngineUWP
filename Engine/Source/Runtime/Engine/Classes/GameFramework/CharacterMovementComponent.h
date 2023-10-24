@@ -884,6 +884,9 @@ public:
 	UPROPERTY(Category="Character Movement (General Settings)", EditAnywhere, BlueprintReadWrite)
 	TEnumAsByte<enum EMovementMode> DefaultWaterMovementMode;
 
+	/** Accessor to the Last Server Movement Base, only relevant during server update*/
+	UPrimitiveComponent* GetLastServerMovementBase() const { return LastServerMovementBase.Get(); };
+
 private:
 	/**
 	 * Ground movement mode to switch to after falling and resuming ground movement.
