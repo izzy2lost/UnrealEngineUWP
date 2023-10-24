@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#include "/Engine/Shared/RayTracingTypes.h"
 #include "/Engine/Private/Common.ush"
 #include "/Engine/Private/SceneData.ush"
 #include "/Engine/Private/RayTracing/RayTracingHitGroupCommon.ush"
