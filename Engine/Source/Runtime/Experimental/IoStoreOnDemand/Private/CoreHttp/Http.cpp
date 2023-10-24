@@ -4038,6 +4038,22 @@ IOSTOREONDEMAND_API void IasHttpTest(const ANSICHAR* TestHost="localhost")
 		WaitForLoopIdle();
 	}
 
+	// tamper
+	for (int32 i = 1; i <= 100; ++i)
+	{
+		TAnsiStringBuilder<32> TamperUrl;
+		TamperUrl << "/data?tamper=" << i;
+		FAnsiStringView Url = BuildUrl(TamperUrl.ToString(), 9494);
+
+		for (int j = 0; j < 48; ++j)
+		{
+			FRequest Request = Loop.Request("GET", Url);
+			Loop.Send(MoveTemp(Request), NullSink);
+		}
+
+		WaitForLoopIdle();
+	}
+
 	LoopStop = true;
 	LoopTask.Wait();
 
