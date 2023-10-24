@@ -43,10 +43,16 @@ struct FRemoteDesc
 
 	bool					 bTlsEnable			   = true;	// Prefer TLS, if supported by protocol and remote server
 	bool					 bTlsVerifyCertificate = true;	// Disabling this allows self-signed certificates
-	std::string				 TlsSubject;					// Use host by default
+	bool					 bTlsVerifySubject	   = true;	// Disabling this is insecure, but may be useful during development
+	std::string				 TlsSubjectOverride;			// Use host address if empty (default)
 	std::shared_ptr<FBuffer> TlsCacert;	 // Custom CA to use for server certificate validation (system root CA is used by default)
 
+	const std::string& GetTlsSubject() const { return TlsSubjectOverride.length() ? TlsSubjectOverride : HostAddress; }
+
 	bool bAuthenticationRequired = false;
+	std::string LoginAddress; // Optional address of the server used for login requests. If empty, then HostAddress is used.
+
+	const std::string& GetLoginAddress() const { return LoginAddress.length() ? LoginAddress : HostAddress; }
 
 	uint32 RecvTimeoutSeconds = 0;
 

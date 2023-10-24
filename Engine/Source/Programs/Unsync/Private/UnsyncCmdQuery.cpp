@@ -203,9 +203,7 @@ CmdQuerySearch(const FCmdQueryOptions& Options)
 
 	auto CreateConnection = [Remote = Options.Remote]
 	{
-		FTlsClientSettings TlsSettings;
-		TlsSettings.Subject			   = Remote.HostAddress.data();
-		TlsSettings.bVerifyCertificate = Remote.bTlsVerifyCertificate;
+		FTlsClientSettings TlsSettings = Remote.GetTlsClientSettings();
 		return new FHttpConnection(Remote.HostAddress, Remote.HostPort, &TlsSettings);
 	};
 

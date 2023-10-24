@@ -172,8 +172,8 @@ FRemoteDesc::FromUrl(std::string_view Url)
 	Result.HostPort	   = HostPort;
 
 	Result.bTlsEnable			 = bUseTls;
-	Result.bTlsVerifyCertificate = Result.bTlsEnable;
-	Result.TlsSubject			 = HostAddress;
+	Result.bTlsVerifyCertificate = bUseTls;
+	Result.bTlsVerifySubject	 = bUseTls;
 
 	return ResultOk(Result);
 }
@@ -184,17 +184,18 @@ FRemoteDesc::GetTlsClientSettings() const
 	FTlsClientSettings Result = {};
 	if (bTlsEnable)
 	{
-		Result.Subject			  = TlsSubject.empty() ? nullptr : TlsSubject.c_str();
+		Result.Subject			  = GetTlsSubject();
 		Result.bVerifyCertificate = bTlsVerifyCertificate;
+		Result.bVerifySubject	  = bTlsVerifySubject;
 		if (TlsCacert)
 		{
-			Result.CacertData = TlsCacert->Data();
-			Result.CacertSize = TlsCacert->Size();
+			Result.CACert = TlsCacert->View();
 		}
 	}
 	else
 	{
 		Result.bVerifyCertificate = false;
+		Result.bVerifySubject	  = false;
 	}
 	return Result;
 }

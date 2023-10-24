@@ -568,7 +568,7 @@ RefreshAuthToken(const FAuthDesc& AuthDesc, const FAuthToken& PreviousToken)
 std::string
 GenerateTokenId(const FRemoteDesc& RemoteDesc)
 {
-	FHash128 Hash = HashBlake3String<FHash128>(RemoteDesc.HostAddress);
+	FHash128 Hash = HashBlake3String<FHash128>(RemoteDesc.GetLoginAddress());
 	return HashToHexString(Hash);
 }
 
@@ -847,7 +847,10 @@ GetAuthenticationDesc(const FRemoteDesc& RemoteDesc)
 		return AppError(L"Authentication is only implemented for UNSYNC protocol");
 	}
 
-	TResult<ProxyQuery::FHelloResponse> HelloResponseResult = ProxyQuery::Hello(RemoteDesc, /*bAnonymous*/ true);
+	FRemoteDesc LoginRemoteDesc = RemoteDesc;
+	LoginRemoteDesc.HostAddress = RemoteDesc.GetLoginAddress();
+
+	TResult<ProxyQuery::FHelloResponse> HelloResponseResult = ProxyQuery::Hello(LoginRemoteDesc, /*bAnonymous*/ true);
 	if (HelloResponseResult.IsError())
 	{
 		return MoveError<FAuthDesc>(HelloResponseResult);

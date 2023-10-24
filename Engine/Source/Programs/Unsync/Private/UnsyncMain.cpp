@@ -661,12 +661,13 @@ InnerMain(int Argc, char** Argv)
 	if (bAllowInsecureTls)
 	{
 		RemoteDesc.bTlsVerifyCertificate = false;
-		RemoteDesc.TlsSubject			 = {};
+		RemoteDesc.bTlsVerifySubject	 = false;
 		UNSYNC_WARNING(L"Remote server certificate verification is disabled.");
 	}
 	else
 	{
 		RemoteDesc.bTlsVerifyCertificate = true;
+		RemoteDesc.bTlsVerifySubject	 = true;
 	}
 
 	if (bNoOutputValidation)
@@ -699,6 +700,11 @@ InnerMain(int Argc, char** Argv)
 			}
 			RemoteDesc.TlsCacert->PushBack('\n');
 		}
+	}
+
+	if (bShouldLogin)
+	{
+		RemoteDesc.LoginAddress = RemoteDesc.HostAddress;
 	}
 
 	FRemoteDesc RootRemoteDesc = RemoteDesc;

@@ -5,6 +5,7 @@
 #include <stdint.h>
 
 #include "UnsyncCommon.h"
+#include "UnsyncBuffer.h"
 
 struct tls;
 
@@ -103,10 +104,10 @@ struct FSocketRaw : FSocketBase
 
 struct FTlsClientSettings
 {
-	const char*	 Subject			= nullptr;
-	bool		 bVerifyCertificate = true;
-	const uint8* CacertData			= nullptr;
-	uint64		 CacertSize			= 0;
+	std::string_view Subject			= {};
+	FBufferView		 CACert				= {};
+	bool			 bVerifyCertificate = true;
+	bool			 bVerifySubject		= true;
 };
 
 struct FSocketTls : FSocketBase

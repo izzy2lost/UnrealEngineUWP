@@ -338,9 +338,9 @@ FSocketTls::FSocketTls(FSocketHandle InHandle, FTlsClientSettings ClientSettings
 
 	tls_config* TlsCfg = tls_config_new();
 
-	if (ClientSettings.CacertData)
+	if (ClientSettings.CACert.Data)
 	{
-		tls_config_set_ca_mem(TlsCfg, ClientSettings.CacertData, (size_t)ClientSettings.CacertSize);
+		tls_config_set_ca_mem(TlsCfg, ClientSettings.CACert.Data, (size_t)ClientSettings.CACert.Size);
 	}
 	else
 	{
@@ -353,7 +353,7 @@ FSocketTls::FSocketTls(FSocketHandle InHandle, FTlsClientSettings ClientSettings
 		tls_config_insecure_noverifycert(TlsCfg);
 	}
 
-	if (!ClientSettings.Subject)
+	if (!ClientSettings.bVerifySubject)
 	{
 		tls_config_insecure_noverifyname(TlsCfg);
 	}
@@ -371,7 +371,9 @@ FSocketTls::FSocketTls(FSocketHandle InHandle, FTlsClientSettings ClientSettings
 
 	if (Err == 0)
 	{
-		Err = tls_connect_socket(TlsCtx, (int)Handle, ClientSettings.Subject);
+		UNSYNC_ASSERT(!ClientSettings.Subject.empty());
+		std::string TlsSubject(ClientSettings.Subject);
+		Err = tls_connect_socket(TlsCtx, (int)Handle, TlsSubject.c_str());
 	}
 
 	if (Err == 0)

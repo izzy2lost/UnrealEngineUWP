@@ -44,14 +44,7 @@ FProxy::FProxy(const FRemoteDesc& RemoteDesc, const FRemoteProtocolFeatures& InF
 {
 	UNSYNC_ASSERT(InRequestMap);
 
-	FTlsClientSettings TlsSettings;
-	TlsSettings.bVerifyCertificate = RemoteDesc.bTlsVerifyCertificate;
-	TlsSettings.Subject			   = RemoteDesc.TlsSubject.empty() ? nullptr : RemoteDesc.TlsSubject.c_str();
-	if (RemoteDesc.TlsCacert)
-	{
-		TlsSettings.CacertData = RemoteDesc.TlsCacert->Data();
-		TlsSettings.CacertSize = RemoteDesc.TlsCacert->Size();
-	}
+	FTlsClientSettings TlsSettings = RemoteDesc.GetTlsClientSettings();
 
 	if (RemoteDesc.Protocol == EProtocolFlavor::Jupiter)
 	{
@@ -585,9 +578,7 @@ ProxyQuery::DownloadFile(const FRemoteDesc& Remote, const std::string& Path, Pro
 {
 	auto CreateConnection = [Remote]
 	{
-		FTlsClientSettings TlsSettings;
-		TlsSettings.Subject			   = Remote.HostAddress.data();
-		TlsSettings.bVerifyCertificate = Remote.bTlsVerifyCertificate;
+		FTlsClientSettings TlsSettings = Remote.GetTlsClientSettings();
 		return new FHttpConnection(Remote.HostAddress, Remote.HostPort, &TlsSettings);
 	};
 

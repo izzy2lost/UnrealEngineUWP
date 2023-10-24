@@ -78,6 +78,7 @@ struct FHttpConnection
 
 	bool bKeepAlive = true;
 
+	bool					 bTlsVerifySubject = true;
 	std::string				 TlsSubject;
 	bool					 bTlsVerifyCertificate = true;
 	std::shared_ptr<FBuffer> TlsCacert;

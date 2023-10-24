@@ -70,9 +70,7 @@ CmdPush(const FCmdPushOptions& Options)
 
 		const bool bUseTls = Options.Remote.bTlsEnable;
 
-		FTlsClientSettings TlsSettings;
-		TlsSettings.Subject			   = Options.Remote.HostAddress.c_str();
-		TlsSettings.bVerifyCertificate = Options.Remote.bTlsVerifyCertificate;
+		FTlsClientSettings TlsSettings = Options.Remote.GetTlsClientSettings();
 
 		if (Options.Remote.StorageNamespace.empty())
 		{

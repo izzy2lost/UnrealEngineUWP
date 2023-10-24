@@ -491,12 +491,15 @@ FHttpConnection::FHttpConnection(const std::string_view InHostAddress, uint16 In
 {
 	if (InTlsSettings)
 	{
-		TlsSubject			  = InTlsSettings->Subject ? InTlsSettings->Subject : std::string();
+		UNSYNC_ASSERT(!InTlsSettings->Subject.empty());
+
+		TlsSubject			  = std::string(InTlsSettings->Subject);
 		bTlsVerifyCertificate = InTlsSettings->bVerifyCertificate;
-		if (InTlsSettings->CacertData)
+		bTlsVerifySubject	  = InTlsSettings->bVerifySubject;
+		if (InTlsSettings->CACert.Data)
 		{
 			TlsCacert = std::make_shared<FBuffer>();
-			TlsCacert->Append(InTlsSettings->CacertData, InTlsSettings->CacertSize);
+			TlsCacert->Append(InTlsSettings->CACert.Data, InTlsSettings->CACert.Size);
 		}
 	}
 }
@@ -506,6 +509,7 @@ FHttpConnection::FHttpConnection(const FHttpConnection& Other)
 , HostPort(Other.HostPort)
 , bUseTls(Other.bUseTls)
 , bKeepAlive(Other.bKeepAlive)
+, bTlsVerifySubject(Other.bTlsVerifySubject)
 , TlsSubject(Other.TlsSubject)
 , bTlsVerifyCertificate(Other.bTlsVerifyCertificate)
 , TlsCacert(Other.TlsCacert)
@@ -522,17 +526,14 @@ FHttpConnection
 FHttpConnection::CreateDefaultHttps(const std::string_view InHostAddress, uint16 Port)
 {
 	FTlsClientSettings TlsSettings;
-	TlsSettings.Subject			   = InHostAddress.data();
-	TlsSettings.bVerifyCertificate = true;
+	TlsSettings.Subject = InHostAddress.data();
 	return FHttpConnection(InHostAddress, Port, &TlsSettings);
 }
 
 FHttpConnection
 FHttpConnection::CreateDefaultHttps(const FRemoteDesc& RemoteDesc)
 {
-	FTlsClientSettings TlsSettings;
-	TlsSettings.Subject			   = RemoteDesc.HostAddress.data();
-	TlsSettings.bVerifyCertificate = RemoteDesc.bTlsVerifyCertificate;
+	FTlsClientSettings TlsSettings = RemoteDesc.GetTlsClientSettings();
 	return FHttpConnection(RemoteDesc.HostAddress, RemoteDesc.HostPort, &TlsSettings);
 }
 
@@ -558,16 +559,12 @@ FHttpConnection::Open()
 	{
 		FTlsClientSettings ClientSettings;
 		ClientSettings.bVerifyCertificate = bTlsVerifyCertificate;
-
-		if (bTlsVerifyCertificate && !TlsSubject.empty())
-		{
-			ClientSettings.Subject = TlsSubject.c_str();
-		}
+		ClientSettings.bVerifySubject	  = bTlsVerifySubject;
+		ClientSettings.Subject			  = TlsSubject;
 
 		if (TlsCacert && !TlsCacert->Empty())
 		{
-			ClientSettings.CacertData = TlsCacert->Data();
-			ClientSettings.CacertSize = TlsCacert->Size();
+			ClientSettings.CACert = TlsCacert->View();
 		}
 
 		FSocketTls* TlsSocket = new FSocketTls(RawSocketHandle, ClientSettings);
