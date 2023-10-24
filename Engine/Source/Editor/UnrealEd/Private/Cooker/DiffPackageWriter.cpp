@@ -180,11 +180,11 @@ void FDiffPackageWriter::WritePackageData(const FPackageInfo& Info, FLargeMemory
 	}
 	else
 	{
-		Accumulator.OnSecondSaveComplete(LocalInfo.HeaderSize);
-
-		// Avoid an assert when calling StaticFindObject during save to retrieve the actor's class.
+		// Avoid an assert when calling StaticFindObject during save, which we do to list the "exports" from a package.
 		// We are not writing the discovered objects into the saved package, so the call to StaticFindObject is legal.
 		TGuardValue<bool> GIsSavingPackageGuard(GIsSavingPackage, false);
+
+		Accumulator.OnSecondSaveComplete(LocalInfo.HeaderSize);
 
 		TMap<FName, FArchiveDiffStats> PackageDiffStats;
 		const TCHAR* CutoffString = TEXT("UEditorEngine::Save()");
