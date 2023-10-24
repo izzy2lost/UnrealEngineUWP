@@ -80,7 +80,7 @@ bool FOOJpegImageWrapper::SetCompressed(const void* InCompressedData, int64 InCo
 
 		// Then decode to a raw image
 		{
-			oojpeg_decode_context_t ctx = oojpeg_decode_mem_threaded_start(OojData, OojDataSize, 0);
+			oojpeg_decode_context_t ctx = oojpeg_decode_mem_threaded_start(OojData, OojDataSize, OOJPEG_FLAG_FASTDCT);
 			if (ctx.error)
 			{
 				FMemory::Free(OojData);
@@ -108,7 +108,7 @@ bool FOOJpegImageWrapper::SetCompressed(const void* InCompressedData, int64 InCo
 	}
 	else 
 	{
-		oojpeg_decode_context_t ctx = oojpeg_decode_mem_threaded_start((uint8*)InCompressedData, (uint32)InCompressedSize, 0);
+		oojpeg_decode_context_t ctx = oojpeg_decode_mem_threaded_start((uint8*)InCompressedData, (uint32)InCompressedSize, OOJPEG_FLAG_FASTDCT);
 		if (ctx.error)
 		{
 			return false;
@@ -258,7 +258,7 @@ void FOOJpegImageWrapper::Uncompress(const ERGBFormat InFormat, int32 InBitDepth
 	int32 NumColors;
 	int32 jpegWidth,jpegHeight;
 	uint8* OutData;
-	oojpeg_decode_context_t ctx = oojpeg_decode_mem_threaded_start(CompressedData.GetData(), CompressedData.Num(), 0);
+	oojpeg_decode_context_t ctx = oojpeg_decode_mem_threaded_start(CompressedData.GetData(), CompressedData.Num(), OOJPEG_FLAG_FASTDCT);
 	if (ctx.error)
 	{
 		return;

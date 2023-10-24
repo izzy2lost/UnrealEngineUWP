@@ -93,6 +93,7 @@ typedef enum {
 typedef enum {
   OOJPEG_FLAG_NONE            = 0x0, // no flags
   OOJPEG_FLAG_NO_COMPRESSION  = 0x1, // don't compress the coefficients, just store them
+  OOJPEG_FLAG_FASTDCT         = 0x2, // use a fast dct transform which matches libjpegturbo's fastdct.
 } oojpeg_flags_t;
 
 enum {
