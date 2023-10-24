@@ -10,7 +10,7 @@
 #include "RayTracingBuiltInResources.h"
 #include "RHIDefinitions.h"
 
-#if !defined(D3DINTERFACE)
+#if !defined(D3D12_MAJOR_VERSION)
 	#include "D3D12ThirdParty.h"
 #endif
 
