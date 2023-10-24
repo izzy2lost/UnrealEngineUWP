@@ -23,6 +23,110 @@ namespace UE::AnimNext::Graph
 const UE::AnimNext::FParamId OutputPoseId("UE_Internal_Graph_OutputPose");
 }
 
+#if WITH_EDITORONLY_DATA
+FAnimNextGraphInstance::FAnimNextGraphInstance(const FAnimNextGraphInstance& Other)
+{
+	*this = Other;
+}
+
+FAnimNextGraphInstance::FAnimNextGraphInstance(FAnimNextGraphInstance&& Other)
+{
+	*this = MoveTemp(Other);
+}
+
+FAnimNextGraphInstance& FAnimNextGraphInstance::operator=(const FAnimNextGraphInstance& Other)
+{
+	if (GraphInstancePtr.IsValid())
+	{
+		if (!Other.GraphInstancePtr.IsValid())
+		{
+			// We were valid but we won't be anymore, unregister ourself
+
+			FRWScopeLock Lock(Graph->GraphInstancesLock, SLT_Write);
+
+			check(Graph->GraphInstances.Contains(this));
+			Graph->GraphInstances.Remove(this);
+		}
+		else
+		{
+			// Both instances remain valid, nothing to do
+		}
+	}
+	else
+	{
+		if (Other.GraphInstancePtr.IsValid())
+		{
+			// We were invalid but we will become valid, register ourself
+
+			FRWScopeLock Lock(Graph->GraphInstancesLock, SLT_Write);
+
+			check(!Graph->GraphInstances.Contains(this));
+			Graph->GraphInstances.Add(this);
+		}
+		else
+		{
+			// Both instances were invalid, nothing to do
+		}
+	}
+
+	Graph = Other.Graph;
+	GraphInstancePtr =  Other.GraphInstancePtr;
+	ExtendedExecuteContext = Other.ExtendedExecuteContext;
+
+	return *this;
+}
+
+FAnimNextGraphInstance& FAnimNextGraphInstance::operator=(FAnimNextGraphInstance&& Other)
+{
+	if (GraphInstancePtr.IsValid())
+	{
+		if (!Other.GraphInstancePtr.IsValid())
+		{
+			// We were valid but we won't be anymore, unregister ourself
+			// Other will become valid, register it
+
+			FRWScopeLock Lock(Graph->GraphInstancesLock, SLT_Write);
+
+			check(Graph->GraphInstances.Contains(this));
+			Graph->GraphInstances.Remove(this);
+
+			check(!Graph->GraphInstances.Contains(&Other));
+			Graph->GraphInstances.Add(&Other);
+		}
+		else
+		{
+			// Both instances remain valid, nothing to do
+		}
+	}
+	else
+	{
+		if (Other.GraphInstancePtr.IsValid())
+		{
+			// We were invalid but we will become valid, register ourself
+			// Other will become invalid, unregister it
+
+			FRWScopeLock Lock(Graph->GraphInstancesLock, SLT_Write);
+
+			check(!Graph->GraphInstances.Contains(this));
+			Graph->GraphInstances.Add(this);
+
+			check(Graph->GraphInstances.Contains(&Other));
+			Graph->GraphInstances.Remove(&Other);
+		}
+		else
+		{
+			// Both instances were invalid, nothing to do
+		}
+	}
+
+	Swap(Graph, Other.Graph);
+	Swap(GraphInstancePtr, Other.GraphInstancePtr);
+	Swap(ExtendedExecuteContext, Other.ExtendedExecuteContext);
+
+	return *this;
+}
+#endif
+
 FAnimNextGraphInstance::~FAnimNextGraphInstance()
 {
 	Release();
@@ -39,8 +143,15 @@ void FAnimNextGraphInstance::Release()
 	UE::AnimNext::FExecutionContext Context(Graph->SharedDataBuffer);
 
 	GraphInstancePtr.Reset();
-	Graph = nullptr;
 	ExtendedExecuteContext.Reset();
+
+#if WITH_EDITORONLY_DATA
+	FRWScopeLock Lock(Graph->GraphInstancesLock, SLT_Write);
+	check(Graph->GraphInstances.Contains(this));
+	Graph->GraphInstances.Remove(this);
+#endif
+
+	Graph = nullptr;
 }
 
 bool FAnimNextGraphInstance::IsValid() const
@@ -73,6 +184,12 @@ void UAnimNextGraph::AllocateInstance(FAnimNextGraphInstance& Instance) const
 	Instance.ExtendedExecuteContext.CopyMemoryStorage(ExtendedExecuteContext);
 
 	VM->InitializeInstance(Instance.ExtendedExecuteContext);
+
+#if WITH_EDITORONLY_DATA
+	FRWScopeLock Lock(GraphInstancesLock, SLT_Write);
+	check(!GraphInstances.Contains(&Instance));
+	GraphInstances.Add(&Instance);
+#endif
 }
 
 void UAnimNextGraph::Run(const UE::AnimNext::FContext& Context, FAnimNextGraphInstance& GraphInstance, EAnimNextGraphSimulationSteps SimulationSteps) const
@@ -206,3 +323,25 @@ bool UAnimNextGraph::LoadFromArchiveBuffer(const TArray<uint8>& InSharedDataArch
 		return false;
 	}
 }
+
+#if WITH_EDITORONLY_DATA
+TArray<FAnimNextGraphInstance*> UAnimNextGraph::ReleaseAllInstances()
+{
+	// Make a copy of our live instances since we'll release them all
+	TArray<FAnimNextGraphInstance*> TempGraphInstances;
+	{
+		// Lock shouldn't be necessary here since this should be called before graph compilation
+		// If a graph is executing and we attempt to release it, things are likely to crash
+		// Compilation must happen at a point in the frame where animation isn't executing
+		FRWScopeLock Lock(GraphInstancesLock, SLT_Write);
+		TempGraphInstances = GraphInstances.Array();
+	}
+
+	for (FAnimNextGraphInstance* GraphInstance : TempGraphInstances)
+	{
+		GraphInstance->Release();
+	}
+
+	return TempGraphInstances;
+}
+#endif

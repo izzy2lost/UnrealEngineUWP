@@ -52,6 +52,19 @@ struct ANIMNEXT_API FAnimNextGraphInstance
 	// Creates an empty graph instance that doesn't reference anything
 	FAnimNextGraphInstance() = default;
 
+#if WITH_EDITORONLY_DATA
+	// In editor, we need custom copy/move semantics to update the live instance tracking
+	FAnimNextGraphInstance(const FAnimNextGraphInstance& Other);
+	FAnimNextGraphInstance(FAnimNextGraphInstance&& Other);
+	FAnimNextGraphInstance& operator=(const FAnimNextGraphInstance& Other);
+	FAnimNextGraphInstance& operator=(FAnimNextGraphInstance&& Other);
+#else
+	FAnimNextGraphInstance(const FAnimNextGraphInstance&) = default;
+	FAnimNextGraphInstance& operator=(const FAnimNextGraphInstance&) = default;
+	FAnimNextGraphInstance(FAnimNextGraphInstance&&) = default;
+	FAnimNextGraphInstance& operator=(FAnimNextGraphInstance&&) = default;
+#endif
+
 	// If the graph instance is allocated, we release it during destruction
 	~FAnimNextGraphInstance();
 
@@ -114,13 +127,25 @@ protected:
 
 	// Loads the graph data from the provided archive buffer and returns true on success, false otherwise
 	bool LoadFromArchiveBuffer(const TArray<uint8>& SharedDataArchiveBuffer);
-	
+
+#if WITH_EDITORONLY_DATA
+	// Releases all live graph instances and returns a list of the instances that were released
+	TArray<FAnimNextGraphInstance*> ReleaseAllInstances();
+#endif
+
 	friend class UAnimNextGraphFactory;
 	friend class UAnimNextGraph_EditorData;
 	friend struct UE::AnimNext::UncookedOnly::FUtils;
 	friend class UE::AnimNext::Editor::FGraphEditor;
 	friend struct FAnimNextGraphInstance;
 	friend class UAnimGraphNode_AnimNextGraph;
+
+#if WITH_EDITORONLY_DATA
+	mutable FRWLock GraphInstancesLock;
+
+	// This is a list of live graph instances that have been allocated, used in the editor to reset instances when we re-compile/live edit
+	mutable TSet<FAnimNextGraphInstance*> GraphInstances;
+#endif
 
 	// This is the execute method definition used by this graph
 	UPROPERTY()

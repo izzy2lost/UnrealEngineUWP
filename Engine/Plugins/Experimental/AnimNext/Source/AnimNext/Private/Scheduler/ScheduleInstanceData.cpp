@@ -102,6 +102,11 @@ void FScheduleInstanceData::AddReferencedObjects(FReferenceCollector& Collector)
 	{
 		Collector.AddPropertyReferencesWithStructARO(FAnimNextParameterCollection::StaticStruct(), &ParamPair.Value);
 	}
+
+	for (FAnimNextGraphInstance& GraphInstance : GraphInstanceData)
+	{
+		Collector.AddPropertyReferencesWithStructARO(FAnimNextGraphInstance::StaticStruct(), &GraphInstance);
+	}
 }
 
 FString FScheduleInstanceData::GetReferencerName() const

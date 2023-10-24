@@ -230,16 +230,17 @@ namespace Private
 		return nullptr;
 	}
 
-	TArray<FDecoratorStackMapping> CollectDecoratorStacks(const URigVMGraph* VMGraph)
+	TArray<FDecoratorStackMapping> CollectDecoratorStacks(const URigVMGraph* VMGraph, UAnimNextGraph_Controller* VMController)
 	{
 		const TArray<URigVMNode*>& VMNodes = VMGraph->GetNodes();
 		const URigVMUnitNode* VMRootNode = FindRootNode(VMNodes);
 
 		TArray<FDecoratorStackMapping> DecoratorStackNodes;
 
-		if (VMRootNode == nullptr)
+		if (!ensure(VMRootNode != nullptr))
 		{
-			return DecoratorStackNodes;
+			// Root node wasn't found, add it, we'll need it to compile
+			VMRootNode = VMController->AddUnitNode(FRigUnit_AnimNextGraphRoot::StaticStruct(), FRigUnit_AnimNextGraphRoot::EventName, FVector2D(0.0f, 0.0f), FString(), false);
 		}
 
 		TArray<const URigVMNode*> NodesToVisit;
@@ -268,6 +269,41 @@ namespace Private
 
 			const TArray<URigVMNode*> SourceNodes = VMNode->GetLinkedSourceNodes();
 			NodesToVisit.Append(SourceNodes);
+		}
+
+		if (DecoratorStackNodes.IsEmpty())
+		{
+			// If the graph is empty, add a dummy node that just pushes a reference pose
+			URigVMUnitNode* VMNode = VMController->AddUnitNode(FRigUnit_AnimNextDecoratorStack::StaticStruct(), FRigVMStruct::ExecuteName, FVector2D(0.0f, 0.0f), FString(), false);
+
+			const UScriptStruct* CppDecoratorStruct = FRigDecorator_AnimNextCppDecorator::StaticStruct();
+
+			FString DefaultValue;
+			{
+				const UE::AnimNext::FDecoratorUID ReferencePoseDecoratorUID(0xc03d6afc);	// Decorator header is private, reference by UID directly
+				const FDecorator* Decorator = FDecoratorRegistry::Get().Find(ReferencePoseDecoratorUID);
+				check(Decorator != nullptr);
+
+				const FRigDecorator_AnimNextCppDecorator DefaultCppDecoratorStructInstance;
+				FRigDecorator_AnimNextCppDecorator CppDecoratorStructInstance;
+				CppDecoratorStructInstance.DecoratorSharedDataStruct = Decorator->GetDecoratorSharedDataStruct();
+
+				const FProperty* Prop = FAnimNextCppDecoratorWrapper::StaticStruct()->FindPropertyByName(GET_MEMBER_NAME_STRING_CHECKED(FAnimNextCppDecoratorWrapper, CppDecorator));
+				check(Prop != nullptr);
+
+				Prop->ExportText_Direct(DefaultValue, &CppDecoratorStructInstance, &DefaultCppDecoratorStructInstance, nullptr, PPF_None);
+			}
+
+			VMController->AddDecorator(VMNode->GetFName(), *CppDecoratorStruct->GetPathName(), TEXT("ReferencePose"), DefaultValue, INDEX_NONE, false, false);
+
+			FDecoratorStackMapping Mapping(VMNode);
+			ForEachDecoratorInStack(VMNode,
+				[&Mapping](const URigVMNode* DecoratorStackNode, const URigVMPin* DecoratorPin, const FDecorator* Decorator)
+				{
+					Mapping.DecoratorEntries.Add(FDecoratorEntryMapping(DecoratorStackNode, DecoratorPin, Decorator));
+				});
+
+			DecoratorStackNodes.Add(MoveTemp(Mapping));
 		}
 
 		return DecoratorStackNodes;
@@ -312,23 +348,6 @@ namespace Private
 		return LatentPins;
 	}
 
-	TArray<FRigVMFunctionArgument> GetGraphEvaluatorFunctionArguments(const FRigVMPinInfoArray& LatentPins)
-	{
-		const FRigVMRegistry& Registry = FRigVMRegistry::Get();
-
-		TArray<FRigVMFunctionArgument> Arguments;
-		Arguments.Reserve(LatentPins.Num());
-
-		for (const FRigVMPinInfo& Pin : LatentPins)
-		{
-			const FRigVMTemplateArgumentType& TypeArg = Registry.GetType(Pin.TypeIndex);
-
-			Arguments.Add(FRigVMFunctionArgument(Pin.Name.ToString(), TypeArg.CPPType.ToString(), ERigVMFunctionArgumentDirection::Input));
-		}
-
-		return Arguments;
-	}
-
 	FAnimNextGraphEvaluatorExecuteDefinition GetGraphEvaluatorExecuteMethod(const FRigVMPinInfoArray& LatentPins)
 	{
 		const uint32 LatentPinListHash = GetTypeHash(LatentPins);
@@ -365,21 +384,25 @@ namespace Private
 void FUtils::Compile(UAnimNextGraph* InGraph)
 {
 	check(InGraph);
-	
+
 	UAnimNextGraph_EditorData* EditorData = GetEditorData(InGraph);
-	
-	if(EditorData->bIsCompiling)
+
+	if (EditorData->bIsCompiling)
 	{
 		return;
 	}
-	
+
 	TGuardValue<bool> CompilingGuard(EditorData->bIsCompiling, true);
-	
+
+	// Before we re-compile a graph, we need to release and live instances since we need the metadata we are about to replace
+	// to call decorator destructors etc
+	const TArray<FAnimNextGraphInstance*> PreviousLiveGraphInstances = InGraph->ReleaseAllInstances();
+
 	EditorData->bErrorsDuringCompilation = false;
 
 	EditorData->RigGraphDisplaySettings.MinMicroSeconds = EditorData->RigGraphDisplaySettings.LastMinMicroSeconds = DBL_MAX;
 	EditorData->RigGraphDisplaySettings.MaxMicroSeconds = EditorData->RigGraphDisplaySettings.LastMaxMicroSeconds = (double)INDEX_NONE;
-	
+
 	TGuardValue<bool> ReentrantGuardSelf(EditorData->bSuspendModelNotificationsForSelf, true);
 	TGuardValue<bool> ReentrantGuardOthers(EditorData->bSuspendModelNotificationsForOthers, true);
 
@@ -398,7 +421,8 @@ void FUtils::Compile(UAnimNextGraph* InGraph)
 	UAnimNextGraph_Controller* TempController = CastChecked<UAnimNextGraph_Controller>(VMClient->GetOrCreateController(VMTempGraph));
 
 	// Gather our decorator stacks
-	TArray<Private::FDecoratorStackMapping> DecoratorStackNodes = Private::CollectDecoratorStacks(VMTempGraph);
+	TArray<Private::FDecoratorStackMapping> DecoratorStackNodes = Private::CollectDecoratorStacks(VMTempGraph, TempController);
+	check(!DecoratorStackNodes.IsEmpty());
 
 	// Add our runtime shim root node
 	URigVMUnitNode* TempShimRootNode = TempController->AddUnitNode(FRigUnit_AnimNextShimRoot::StaticStruct(), FRigVMStruct::ExecuteName, FVector2D::ZeroVector, FString(), false);
@@ -497,6 +521,12 @@ void FUtils::Compile(UAnimNextGraph* InGraph)
 	}
 
 	VMClient->RemoveController(VMTempGraph);
+
+	// Now that the graph has been re-compiled, re-allocate the previous live instances
+	for (FAnimNextGraphInstance* GraphInstance : PreviousLiveGraphInstances)
+	{
+		InGraph->AllocateInstance(*GraphInstance);
+	}
 
 #if WITH_EDITOR
 //	RefreshBreakpoints(EditorData);
