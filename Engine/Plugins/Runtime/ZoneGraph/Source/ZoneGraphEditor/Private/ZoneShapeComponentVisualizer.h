@@ -248,6 +248,7 @@ protected:
 
 	void GenerateShapePointTypeSubMenu(FMenuBuilder& MenuBuilder) const;
 
+	void GenerateSnapAlignSubMenu(FMenuBuilder& MenuBuilder) const;
 	void GenerateBreakAtPointSubMenu(FMenuBuilder& MenuBuilder) const;
 	void GenerateBreakAtSegmentSubMenu(FMenuBuilder& MenuBuilder) const;
 

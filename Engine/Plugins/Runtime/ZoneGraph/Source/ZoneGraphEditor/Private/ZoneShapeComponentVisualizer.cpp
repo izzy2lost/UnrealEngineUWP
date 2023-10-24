@@ -35,6 +35,7 @@ IMPLEMENT_HIT_PROXY(HZoneShapeSegmentProxy, HZoneShapeVisProxy);
 IMPLEMENT_HIT_PROXY(HZoneShapeControlPointProxy, HZoneShapeVisProxy);
 
 #define LOCTEXT_NAMESPACE "ZoneShapeComponentVisualizer"
+DEFINE_LOG_CATEGORY_STATIC(LogZoneShapeComponentVisualizer, Log, All)
 
 /** Define commands for the shape component visualizer */
 class FZoneShapeComponentVisualizerCommands : public TCommands<FZoneShapeComponentVisualizerCommands>
@@ -962,6 +963,43 @@ bool FZoneShapeComponentVisualizer::HandleInputKey(FEditorViewportClient* Viewpo
 
 	if (Event == IE_Pressed)
 	{
+		// Add a new point to the shape when you hold the V key and press left mouse button
+		if (ShapeComp && Key == EKeys::LeftMouseButton && Viewport->KeyState(EKeys::V))
+		{
+			// Get clicked position
+			UWorld* World = ViewportClient->GetWorld();
+			FSceneViewFamilyContext ViewFamily(FSceneViewFamilyContext::ConstructionValues(ViewportClient->Viewport, ViewportClient->GetScene(), ViewportClient->EngineShowFlags)
+				.SetRealtimeUpdate(ViewportClient->IsRealtime()));
+			FSceneView* View = ViewportClient->CalcSceneView(&ViewFamily);
+			int32 MouseX = ViewportClient->Viewport->GetMouseX();
+			int32 MouseY = ViewportClient->Viewport->GetMouseY();
+			FViewportCursorLocation MouseViewportRay(View, ViewportClient, MouseX, MouseY);
+			FVector MouseViewportRayDirection = MouseViewportRay.GetDirection();
+
+			FVector Start = MouseViewportRay.GetOrigin();
+			FVector End = Start + WORLD_MAX * MouseViewportRayDirection;
+			if (ViewportClient->IsOrtho())
+			{
+				Start -= WORLD_MAX * MouseViewportRayDirection;
+			}
+			FHitResult Hit;
+			FCollisionQueryParams QueryParams;
+			QueryParams.bTraceComplex = true;
+			if (World->LineTraceSingleByChannel(Hit, Start, End, ECollisionChannel::ECC_WorldStatic, QueryParams))
+			{
+				// Add a new point at the position
+				TArray<FZoneShapePoint>& Points = ShapeComp->GetMutablePoints();
+				FZoneShapePoint PointToAdd(ShapeComp->GetComponentTransform().InverseTransformPosition(Hit.Location));
+				Points.Add(PointToAdd);
+				ShapeComp->UpdateShape();
+			}
+			else
+			{
+				UE_LOG(LogZoneShapeComponentVisualizer, Warning, TEXT("No hit found on click."));
+			}
+			return true;
+		}
+
 		bHandled = ShapeComponentVisualizerActions->ProcessCommandBindings(Key, FSlateApplication::Get().GetModifierKeys(), false);
 	}
 
@@ -1791,6 +1829,11 @@ TSharedPtr<SWidget> FZoneShapeComponentVisualizer::GenerateContextMenu() const
 				FNewMenuDelegate::CreateSP(this, &FZoneShapeComponentVisualizer::GenerateShapePointTypeSubMenu));
 
 			MenuBuilder.AddSubMenu(
+				LOCTEXT("SplineSnapAlign", "Snap/Align"),
+				LOCTEXT("SplineSnapAlignTooltip", "Snap align options."),
+				FNewMenuDelegate::CreateSP(this, &FZoneShapeComponentVisualizer::GenerateSnapAlignSubMenu));
+
+			MenuBuilder.AddSubMenu(
 				LOCTEXT("BreakAtPoint", "Break At Point"),
 				LOCTEXT("BreakAtPointTooltip", "Break the shape into pieces at the currently selected points."),
 				FNewMenuDelegate::CreateSP(this, &FZoneShapeComponentVisualizer::GenerateBreakAtPointSubMenu));
@@ -1819,6 +1862,12 @@ void FZoneShapeComponentVisualizer::GenerateShapePointTypeSubMenu(FMenuBuilder& 
 	{
 		MenuBuilder.AddMenuEntry(FZoneShapeComponentVisualizerCommands::Get().SetPointToLaneSegment);
 	}
+}
+
+void FZoneShapeComponentVisualizer::GenerateSnapAlignSubMenu(FMenuBuilder& MenuBuilder) const
+{
+	MenuBuilder.AddMenuEntry(FLevelEditorCommands::Get().SnapToFloor);
+	MenuBuilder.AddMenuEntry(FLevelEditorCommands::Get().AlignToFloor);
 }
 
 void FZoneShapeComponentVisualizer::GenerateBreakAtPointSubMenu(FMenuBuilder& MenuBuilder) const
