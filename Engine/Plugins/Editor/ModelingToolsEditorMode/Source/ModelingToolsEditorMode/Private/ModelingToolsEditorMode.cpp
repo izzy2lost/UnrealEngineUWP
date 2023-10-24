@@ -1008,6 +1008,25 @@ void UModelingToolsEditorMode::Enter()
 		}
 	});
 
+	// Restore saved selections when tool is cancelled or tool declares it is safe to do so via the IInteractiveToolManageGeometrySelectionAPI
+	GetToolManager()->OnToolEndedWithStatus.AddLambda([this](UInteractiveToolManager* Manager, UInteractiveTool* Tool, EToolShutdownType ShutdownType)
+	{
+		bool bCanRestore = (ShutdownType == EToolShutdownType::Cancel);
+		if (IInteractiveToolManageGeometrySelectionAPI* ManageSelectionTool = Cast<IInteractiveToolManageGeometrySelectionAPI>(Tool))
+		{
+			bCanRestore = bCanRestore || ManageSelectionTool->IsInputSelectionValidOnOutput();
+		}
+		if (bCanRestore)
+		{
+			GetSelectionManager()->RestoreSavedSelection();
+		}
+		else
+		{
+			GetSelectionManager()->DiscardSavedSelection();
+		}
+		ensureMsgf(!GetSelectionManager()->HasSavedSelection(), TEXT("Selection manager's saved selection should be cleared on tool end."));
+	});
+
 	// do any toolkit UI initialization that depends on the mode setup above
 	if (Toolkit.IsValid())
 	{
@@ -1568,7 +1587,8 @@ void UModelingToolsEditorMode::OnToolPostBuild(
 	// built, so that the Tool has a chance to see the Selection
 	if (GetSelectionManager() && GetSelectionManager()->HasSelection())
 	{
-		GetSelectionManager()->ClearSelection();
+		ensureMsgf(!GetSelectionManager()->HasSavedSelection(), TEXT("Selection manager should not already have a saved selection before we save-on-clear here in tool setup."));
+		GetSelectionManager()->ClearSelection(/*bSaveSelectionBeforeClear*/ true);
 	}
 }
 

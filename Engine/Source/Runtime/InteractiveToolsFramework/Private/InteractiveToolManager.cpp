@@ -282,6 +282,7 @@ void UInteractiveToolManager::DeactivateToolInternal(EToolSide Side, EToolShutdo
 
 		PostInvalidation();
 
+		OnToolEndedWithStatus.Broadcast(this, DoneTool, ShutdownType);
 		OnToolEnded.Broadcast(this, DoneTool);
 
 		bInToolShutdown = false;

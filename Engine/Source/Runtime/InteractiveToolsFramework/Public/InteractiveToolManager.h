@@ -316,6 +316,10 @@ public:
 	DECLARE_MULTICAST_DELEGATE_TwoParams(FToolManagerToolEndedSignature, UInteractiveToolManager*, UInteractiveTool*);
 	FToolManagerToolEndedSignature OnToolEnded;
 
+	// Variant of OnToolEnded that also reports the EToolShutdownType
+	DECLARE_MULTICAST_DELEGATE_ThreeParams(FToolManagerToolCancelledSignature, UInteractiveToolManager*, UInteractiveTool*, EToolShutdownType);
+	FToolManagerToolCancelledSignature OnToolEndedWithStatus;
+
 
 protected:
 	/** Pointer to current Context-Queries implementation */

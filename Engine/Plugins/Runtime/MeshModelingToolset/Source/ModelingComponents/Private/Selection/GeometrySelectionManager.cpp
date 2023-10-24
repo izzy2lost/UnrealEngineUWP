@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Selection/GeometrySelectionManager.h"
+#include "CoreGlobals.h" // for GIsTransacting
 #include "Engine/Engine.h"
 #include "Selection/DynamicMeshSelector.h"
 #include "Selection/ToolSelectionUtil.h"
@@ -41,6 +42,7 @@ void UGeometrySelectionManager::RegisterSelectorFactory(TUniquePtr<IGeometrySele
 
 void UGeometrySelectionManager::Shutdown()
 {
+	DiscardSavedSelection();
 	OnSelectionModified.Clear();
 	ToolsContext = nullptr;
 	TransactionsAPI = nullptr;
@@ -312,6 +314,7 @@ void UGeometrySelectionManager::ClearActiveTargets()
 	// undo that cannot be redone later, because on redo the Targets will not exist yet
 	// (one possibility would be to emit separate changes for when the target set is modified?? would that work w/ delete?? )
 	ensure(HasSelection() == false);
+	DiscardSavedSelection();
 
 	for (TSharedPtr<FGeometrySelectionTarget> Target : ActiveTargetReferences)
 	{
@@ -617,11 +620,16 @@ bool UGeometrySelectionManager::RayHitTest(
 }
 
 
-void UGeometrySelectionManager::ClearSelection()
+void UGeometrySelectionManager::ClearSelection(bool bSaveSelectionBeforeClear)
 {
 	if (!HasSelection())
 	{
 		return;
+	}
+
+	if (bSaveSelectionBeforeClear)
+	{
+		SaveCurrentSelection();
 	}
 
 	GetTransactionsAPI()->BeginUndoTransaction(LOCTEXT("ClearSelection", "Clear Selection"));
@@ -861,6 +869,87 @@ bool UGeometrySelectionManager::SetSelectionForComponent(UPrimitiveComponent* Co
 		}
 	}
 	return false;
+}
+
+void UGeometrySelectionManager::SaveCurrentSelection()
+{
+	SavedSelection.Reset();
+	for (TSharedPtr<FGeometrySelectionTarget> Target : ActiveTargetReferences)
+	{
+		SavedSelection.Targets.Add(Target->TargetIdentifier.TargetObject);
+		SavedSelection.Selections.Add(Target->Selection);
+	}
+}
+
+bool UGeometrySelectionManager::RestoreSavedSelection()
+{
+#if WITH_EDITORONLY_DATA
+	// Cannot update the selection if we're already in a transaction (can happen e.g. when we undo out of a tool)
+	if (GIsTransacting)
+	{
+		DiscardSavedSelection();
+		return false;
+	}
+#endif
+
+	check(SavedSelection.Targets.Num() == SavedSelection.Selections.Num());
+	GetTransactionsAPI()->BeginUndoTransaction(LOCTEXT("RestoreSelection", "Restore Selection"));
+
+	bool bSuccess = true;
+	for (int32 TargetIdx = 0; TargetIdx < SavedSelection.Targets.Num(); ++TargetIdx)
+	{
+		if (!SavedSelection.Targets[TargetIdx].IsValid())
+		{
+			bSuccess = false;
+			continue;
+		}
+		const FGeometrySelection& NewSelection = SavedSelection.Selections[TargetIdx];
+		bool bFound = false;
+		for (TSharedPtr<FGeometrySelectionTarget> Target : ActiveTargetReferences)
+		{
+			if (SavedSelection.Targets[TargetIdx] == Target->TargetIdentifier.TargetObject)
+			{
+				FGeometrySelection InitialSelection = Target->Selection;
+				FGeometrySelectionDelta AfterDelta;
+				Target->Selector->UpdateSelectionFromSelection(
+					NewSelection, true, *Target->SelectionEditor,
+					FGeometrySelectionUpdateConfig{ EGeometrySelectionChangeType::Replace }, &AfterDelta);
+				if (AfterDelta.IsEmpty() == false)
+				{
+					TUniquePtr<FGeometrySelectionReplaceChange> NewSelectionChange = MakeUnique<FGeometrySelectionReplaceChange>();
+					NewSelectionChange->Identifier = Target->TargetIdentifier;
+					NewSelectionChange->After = Target->Selection;
+					NewSelectionChange->Before = InitialSelection;
+					GetTransactionsAPI()->AppendChange(this, MoveTemp(NewSelectionChange), LOCTEXT("RestoreSelection", "Restore Selection"));
+
+					bSelectionRenderCachesDirty = true;
+					OnSelectionModified.Broadcast();
+				}
+				bFound = true;
+				break;
+			}
+		}
+		if (!bFound)
+		{
+			bSuccess = false;
+		}
+	}
+
+	GetTransactionsAPI()->EndUndoTransaction();
+
+	DiscardSavedSelection();
+
+	return bSuccess;
+}
+
+void UGeometrySelectionManager::DiscardSavedSelection()
+{
+	SavedSelection.Empty();
+}
+
+bool UGeometrySelectionManager::HasSavedSelection()
+{
+	return !SavedSelection.Selections.IsEmpty();
 }
 
 

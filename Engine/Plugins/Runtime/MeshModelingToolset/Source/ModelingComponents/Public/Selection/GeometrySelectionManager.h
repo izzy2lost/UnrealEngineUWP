@@ -160,8 +160,33 @@ public:
 	/**
 	 * Clear any active element selections. 
 	 * This function will emit a Transaction for the selection change.
+	 * @param bSaveSelectionBeforeClear if true, calls SaveCurrentSelection() before the selection is cleared, so it can be restored later.
 	 */
-	virtual void ClearSelection();
+	virtual void ClearSelection(bool bSaveSelectionBeforeClear = false);
+
+protected:
+	/**
+	 * Save the active selection. Overwrites any existing saved selections with the current selections. Typically used via ClearSelection(true)
+	 */
+	virtual void SaveCurrentSelection();
+
+public:
+	/**
+	 * Attempt to restore (and then discard) the most recent saved selection.
+	 * If there is no active saved selection, does nothing. On failure to restore, will still discard the saved selection.
+	 * @return false if could not restore selection, which can happen if the restore was called while transacting (e.g., when a tool is exited via undo), or if the selection objects were not found or not valid
+	 */
+	virtual bool RestoreSavedSelection();
+	
+	/**
+	 * Discard the saved selection, if there is one.
+	 */
+	virtual void DiscardSavedSelection();
+
+	/**
+	 * @return true if there is a non-empty saved selection, false otherwise.
+	 */
+	virtual bool HasSavedSelection();
 
 	/**
 	 * Use the given WorldRay to update the active element selection based on UpdateConfig.
@@ -458,6 +483,26 @@ protected:
 	UE::Geometry::FGeometrySelectionDelta InitialTrackedDelta;
 	UE::Geometry::FGeometrySelectionDelta ActiveTrackedDelta;
 	bool bSelectionModifiedDuringTrackedChange = false;
+
+private:
+
+	// Tracks saved selection state. Useful when the selection is temporarily cleared (e.g., for a tool)
+	struct FSavedSelection
+	{
+		TArray<TWeakObjectPtr<UObject>> Targets;
+		TArray<FGeometrySelection> Selections;
+		void Empty()
+		{
+			Targets.Empty();
+			Selections.Empty();
+		}
+		void Reset()
+		{
+			Targets.Reset();
+			Selections.Reset();
+		}
+	};
+	FSavedSelection SavedSelection;
 
 };
 
