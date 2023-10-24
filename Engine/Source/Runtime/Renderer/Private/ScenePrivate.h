@@ -2131,7 +2131,7 @@ public:
 
 	FGrowOnlySpanAllocator IndirectionTableAllocator;
 	TRefCountPtr<FRDGPooledBuffer> IndirectionTable;
-	FRDGScatterUploadBuffer IndirectionTableUploadBuffer;
+	FRDGAsyncScatterUploadBuffer IndirectionTableUploadBuffer;
 
 	TRefCountPtr<IPooledRenderTarget> IndirectionAtlas;
 	FTextureLayout3d IndirectionAtlasLayout;
@@ -2186,7 +2186,7 @@ private:
 	
 	void UploadAllAssetData(FRDGBuilder& GraphBuilder, FRDGBuffer* AssetDataBufferRDG);
 
-	void AsyncUpdate(FDistanceFieldAsyncUpdateParameters UpdateParameters);
+	void AsyncUpdate(FRHICommandListBase& RHICmdList, FDistanceFieldAsyncUpdateParameters& UpdateParameters);
 
 	void GenerateStreamingRequests(
 		FRDGBuilder& GraphBuilder, 
