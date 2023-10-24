@@ -429,21 +429,9 @@ void FVersionedNiagaraEmitterData::GatherStaticVariables(TArray<FNiagaraVariable
 
 	for (UNiagaraScript* Script : OutScripts)
 	{
-		TArray<FNiagaraVariable> StoreParams;
-		Script->RapidIterationParameters.GetParameters(StoreParams);
-
-		for (int32 i = 0; i < StoreParams.Num(); i++)
+		if (Script)
 		{
-			if (StoreParams[i].GetType().IsStatic())
-			{
-				const int32* Index = Script->RapidIterationParameters.FindParameterOffset(StoreParams[i]);
-				if (Index != nullptr)
-				{
-					StoreParams[i].SetData(Script->RapidIterationParameters.GetParameterData(*Index)); // This will memcopy the data in.			
-					OutVars.AddUnique(StoreParams[i]);					
-					//UE_LOG(LogNiagara, Log, TEXT("UNiagaraEmitter::GatherStaticVariables Added %s"), *StoreParams[i].ToString());
-				}
-			}
+			Script->GatherScriptStaticVariables(OutVars);
 		}
 	}
 }

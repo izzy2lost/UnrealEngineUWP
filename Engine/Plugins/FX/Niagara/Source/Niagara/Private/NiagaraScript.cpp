@@ -3991,6 +3991,35 @@ NIAGARA_API bool UNiagaraScript::DidScriptCompilationSucceed(bool bGPUScript) co
 	return false;
 }
 
+#if WITH_EDITORONLY_DATA
+void UNiagaraScript::GatherScriptStaticVariables(TArray<FNiagaraVariable>& StaticVariables) const
+{
+	for (const FNiagaraVariableWithOffset& Param : RapidIterationParameters.ReadParameterVariables())
+	{
+		if (Param.GetType().IsStatic() && Param.Offset != INDEX_NONE)
+		{
+			FNiagaraVariable StaticVariable = Param;
+			StaticVariable.SetData(RapidIterationParameters.GetParameterData(Param.Offset));
+
+			StaticVariables.AddUnique(StaticVariable);
+		}
+	}
+}
+
+bool UNiagaraScript::HasScriptStaticVariables() const
+{
+	for (const FNiagaraVariableWithOffset& Param : RapidIterationParameters.ReadParameterVariables())
+	{
+		if (Param.GetType().IsStatic() && Param.Offset != INDEX_NONE)
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+#endif
+
 void UNiagaraScript::SerializeNiagaraShaderMaps(FArchive& Ar, int32 NiagaraVer, bool IsValidShaderScript)
 {
 #if WITH_EDITORONLY_DATA

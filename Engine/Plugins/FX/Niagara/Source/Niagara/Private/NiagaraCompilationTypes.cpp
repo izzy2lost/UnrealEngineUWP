@@ -289,8 +289,6 @@ public:
 
 	virtual void Apply(const FNiagaraQueryCompilationOptions& Options) override
 	{
-		bool bAnyRIParametersDirtied = false;
-
 		// we need to do this apply in multiple passes.  Because the script's VMCompilationId has dependencies
 		// on the rapid iteration parameters of all the related scripts then we need to be sure to update the
 		// RI parameters with the data that we've collected before we actually try to set the results.
@@ -307,10 +305,7 @@ public:
 			UNiagaraScript* TargetScript = ResultIt->Key;
 			const FNiagaraScriptAsyncCompileData& ScriptCompileData = ResultIt->Value;
 
-			if (TargetScript->ApplyRapidIterationParameters(ScriptCompileData.RapidIterationParameters, bAllowParameterRemoval))
-			{
-				bAnyRIParametersDirtied = true;
-			}
+			TargetScript->ApplyRapidIterationParameters(ScriptCompileData.RapidIterationParameters, bAllowParameterRemoval);
 		}
 
 		// Now that the above code says they are all complete, go ahead and resolve them all at once.
@@ -339,19 +334,15 @@ public:
 					});
 				}
 
+				// because our compilation process includes the generation of rapid iteration parameters and static
+				// variables we need to generate the ExecutableDataId
 				// if we dirtied any RI parameters then we need to regenerate our CompilationId
 				FNiagaraVMExecutableDataId UpdatedCompileId;
-				const FNiagaraVMExecutableDataId* CompileIdToUse = &ScriptCompileData.CompileId;
-
-				if (bAnyRIParametersDirtied)
-				{
-					TargetScript->ComputeVMCompilationId(UpdatedCompileId, FGuid());
-					CompileIdToUse = &UpdatedCompileId;
-				}
+				TargetScript->ComputeVMCompilationId(UpdatedCompileId, FGuid());
 
 				constexpr bool bApplyRapidIterationParameters = false;
 				TargetScript->SetVMCompilationResults(
-					*CompileIdToUse,
+					UpdatedCompileId,
 					*ScriptCompileData.ExeData,
 					ScriptCompileData.UniqueEmitterName,
 					ObjectNameMap,

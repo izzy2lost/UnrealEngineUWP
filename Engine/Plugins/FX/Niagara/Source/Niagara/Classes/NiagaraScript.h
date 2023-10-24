@@ -1155,7 +1155,7 @@ public:
 
 #if WITH_EDITORONLY_DATA
 	template<typename T>
-	TOptional<T> GetStaticVariableValue(const FNiagaraVariableBase& InVar) const
+	TOptional<T> GetCompiledStaticVariableValue(const FNiagaraVariableBase& InVar) const
 	{
 		for (const FNiagaraVariable& StaticVariable : CachedScriptVM.StaticVariablesWritten)
 		{
@@ -1170,6 +1170,11 @@ public:
 
 		return TOptional<T>();
 	}
+
+	// use of this function differs from the above in that the data is being pulled from the RapidIterationParameters rather than
+	// the compiled data
+	void GatherScriptStaticVariables(TArray<FNiagaraVariable>& StaticVariables) const;
+	bool HasScriptStaticVariables() const;
 #endif
 
 	template<typename T>

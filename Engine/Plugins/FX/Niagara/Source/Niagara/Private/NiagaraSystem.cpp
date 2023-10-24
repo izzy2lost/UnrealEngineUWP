@@ -3468,50 +3468,29 @@ void UNiagaraSystem::SetEffectType(UNiagaraEffectType* InEffectType)
 
 void UNiagaraSystem::GatherStaticVariables(TArray<FNiagaraVariable>& OutVars, TArray<FNiagaraVariable>& OutEmitterVars) const
 {
-	TArray<UNiagaraScript*> OutScripts;
-	OutScripts.Add(SystemSpawnScript);
-	OutScripts.Add(SystemUpdateScript);
+	TArray<UNiagaraScript*> ScriptsToProcess;
+	ScriptsToProcess.Reserve(2 * (EmitterHandles.Num() + 1));
+	ScriptsToProcess.Add(SystemSpawnScript);
+	ScriptsToProcess.Add(SystemUpdateScript);
 
-	auto GatherFromScripts = [&](TArray<UNiagaraScript*> Scripts, TArray<FNiagaraVariable>& Vars)
-	{
-		for (UNiagaraScript* Script : Scripts)
-		{
-			TArray<FNiagaraVariable> StoreParams;
-			Script->RapidIterationParameters.GetParameters(StoreParams);
-
-			for (int32 i = 0; i < StoreParams.Num(); i++)
-			{
-				if (StoreParams[i].GetType().IsStatic())
-				{
-					const int32* Index = Script->RapidIterationParameters.FindParameterOffset(StoreParams[i]);
-					if (Index != nullptr)
-					{
-						StoreParams[i].SetData(Script->RapidIterationParameters.GetParameterData(*Index)); // This will memcopy the data in.
-						Vars.AddUnique(StoreParams[i]);
-
-						//UE_LOG(LogNiagara, Log, TEXT("UNiagaraSystem::GatherStaticVariables Added %s"), *StoreParams[i].ToString());
-					}
-				}
-			}
-		}
-	};
-
-	GatherFromScripts(OutScripts, OutVars);
-
-	TArray<UNiagaraScript*> EmitterScripts; 
-	//const TArray<FNiagaraEmitterHandle>& EmitterHandles = GetEmitterHandles();
 	for (int32 i = 0; i < EmitterHandles.Num(); i++)
 	{
 		const FNiagaraEmitterHandle& Handle = EmitterHandles[i];
 		FVersionedNiagaraEmitterData* EmitterData = Handle.GetEmitterData();
 		if (EmitterData && Handle.GetIsEnabled())
 		{
-			EmitterScripts.Add(EmitterData->EmitterSpawnScriptProps.Script);
-			EmitterScripts.Add(EmitterData->EmitterUpdateScriptProps.Script);
+			ScriptsToProcess.Add(EmitterData->EmitterSpawnScriptProps.Script);
+			ScriptsToProcess.Add(EmitterData->EmitterUpdateScriptProps.Script);
 		}		
 	}
 
-	GatherFromScripts(EmitterScripts, OutEmitterVars);
+	for (const UNiagaraScript* ScriptToProcess : ScriptsToProcess)
+	{
+		if (ScriptToProcess)
+		{
+			ScriptToProcess->GatherScriptStaticVariables(OutEmitterVars);
+		}
+	}
 }
 #endif
 

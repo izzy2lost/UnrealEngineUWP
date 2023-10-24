@@ -616,7 +616,7 @@ void UNiagaraMeshRendererProperties::CacheFromCompiledData(const FNiagaraDataSet
 				{
 					if (Mesh.LODLevelBinding.AliasedParameter.IsValid())
 					{
-						TOptional<int32> VariableValue = NiagaraScript->GetStaticVariableValue<int32>(Mesh.LODLevelBinding.ResolvedParameter);
+						TOptional<int32> VariableValue = NiagaraScript->GetCompiledStaticVariableValue<int32>(Mesh.LODLevelBinding.ResolvedParameter);
 						if (VariableValue.IsSet())
 						{
 							Mesh.LODLevel = VariableValue.GetValue();
@@ -624,7 +624,7 @@ void UNiagaraMeshRendererProperties::CacheFromCompiledData(const FNiagaraDataSet
 					}
 					if (Mesh.LODBiasBinding.AliasedParameter.IsValid())
 					{
-						TOptional<int32> VariableValue = NiagaraScript->GetStaticVariableValue<int32>(Mesh.LODBiasBinding.ResolvedParameter);
+						TOptional<int32> VariableValue = NiagaraScript->GetCompiledStaticVariableValue<int32>(Mesh.LODBiasBinding.ResolvedParameter);
 						if (VariableValue.IsSet())
 						{
 							Mesh.LODBias = VariableValue.GetValue();

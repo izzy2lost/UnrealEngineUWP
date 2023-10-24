@@ -631,7 +631,7 @@ int32 UNiagaraRendererProperties::GetDynamicParameterChannelMask(const FVersione
 			NameBuilder.Append(TEXT("ChannelMask"));
 
 			const FNiagaraVariableBase ChannelMaskVariable(FNiagaraTypeDefinition::GetIntDef().ToStaticDef(), FName(NameBuilder));
-			TOptional<int32> ChannelMaskValue = NiagaraScript->GetStaticVariableValue<int32>(ChannelMaskVariable);
+			TOptional<int32> ChannelMaskValue = NiagaraScript->GetCompiledStaticVariableValue<int32>(ChannelMaskVariable);
 			if (ChannelMaskValue.IsSet())
 			{
 				ChannelMask = ChannelMask.Get(0) | ChannelMaskValue.GetValue();
