@@ -1229,6 +1229,9 @@ public:
 	/** Remove all XYOffset values */
 	LANDSCAPE_API void RemoveXYOffsets();
 
+	/** Ensure the Update the Materials on the Nanite Static Meshes from the source ULandscapeComponent */
+	void UpdateNaniteMaterials();
+	
 	/** Update the material instances for all the landscape components */
 	LANDSCAPE_API void UpdateAllComponentMaterialInstances(bool bInInvalidateCombinationMaterials = false);
 	LANDSCAPE_API void UpdateAllComponentMaterialInstances(FMaterialUpdateContext& InOutMaterialContext, TArray<class FComponentRecreateRenderStateContext>& InOutRecreateRenderStateContext, bool bInInvalidateCombinationMaterials = false);

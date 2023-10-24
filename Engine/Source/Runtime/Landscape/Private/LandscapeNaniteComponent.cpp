@@ -327,6 +327,10 @@ FGraphEventRef ULandscapeNaniteComponent::InitializeForLandscapeAsync(ALandscape
 				Component->SetStaticMesh(InStaticMesh);
 				Component->SetProxyContentId(NewProxyContentId);
 				Component->SetEnabled(!Component->IsEnabled());
+
+				// Nanite Component should remember which ULandscapeComponents it was generated from if we need to update materials.
+				Component->SourceLandscapeComponents = AsyncBuildData->InputComponents;
+				
 				AsyncBuildData->LandscapeWeakRef->UpdateRenderingMethod();
 				AsyncBuildData->LandscapeWeakRef->NaniteComponents[InNaniteComponentIndex]->MarkRenderStateDirty();
 				AsyncBuildData->LandscapeWeakRef->NaniteComponents[InNaniteComponentIndex] = Component;
@@ -378,6 +382,24 @@ FGraphEventRef ULandscapeNaniteComponent::InitializeForLandscapeAsync(ALandscape
 
 
 	return StaticMeshBuildCompleteEvent;
+}
+
+void ULandscapeNaniteComponent::UpdateMaterials()
+{
+	if ( !GetLandscapeActor()->IsNaniteEnabled() )
+	{
+		return;
+	}
+	
+	TArray<TObjectPtr<ULandscapeComponent>>& LandscapeComponents = GetLandscapeProxy()->LandscapeComponents;
+	for (int32 SourceComponentIndex = 0; SourceComponentIndex < SourceLandscapeComponents.Num(); ++SourceComponentIndex)
+	{
+		TObjectPtr<ULandscapeComponent>* SourceLandscapeComponent = Algo::Find(LandscapeComponents, SourceLandscapeComponents[SourceComponentIndex]);
+		if (SourceLandscapeComponent)
+		{
+			GetStaticMesh()->SetMaterial(SourceComponentIndex,  (*SourceLandscapeComponent)->GetMaterial(0));	
+		}
+	}
 }
 
 bool ULandscapeNaniteComponent::InitializeForLandscape(ALandscapeProxy* Landscape, const FGuid& NewProxyContentId, const TArrayView<ULandscapeComponent*>& InComponentsToExport, int32 InNaniteComponentIndex)

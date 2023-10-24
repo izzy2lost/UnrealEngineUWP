@@ -546,6 +546,10 @@ void ULandscapeComponent::UpdateMaterialInstances()
 	// Recreate the render state for this component, needed to update the static drawlist which has cached the MaterialRenderProxies
 	// Must be after the FMaterialUpdateContext is destroyed
 	RecreateRenderStateContext.Reset();
+
+	// If this component is within a Nanite Enabled Landscape we have to update the materials on the
+	// ULandscapeNaniteComponents within the Parent Actor. 
+	GetLandscapeProxy()->UpdateNaniteMaterials(); 
 }
 
 void ULandscapeComponent::UpdateMaterialInstances(FMaterialUpdateContext& InOutMaterialContext, TArray<FComponentRecreateRenderStateContext>& InOutRecreateRenderStateContext)
@@ -566,6 +570,20 @@ void ALandscapeProxy::UpdateAllComponentMaterialInstances(FMaterialUpdateContext
 		Component->UpdateMaterialInstances(InOutMaterialContext, InOutRecreateRenderStateContext);
 	}
 
+}
+
+void ALandscapeProxy::UpdateNaniteMaterials()
+{
+	if ( !GetLandscapeActor()->IsNaniteEnabled() )
+	{
+		return;
+	}
+		
+	// Update the Nanite component Materials from the LandscapeComponents
+	for(ULandscapeNaniteComponent* NaniteComponent : NaniteComponents)
+	{
+		NaniteComponent->UpdateMaterials();
+	}
 }
 
 void ALandscapeProxy::UpdateAllComponentMaterialInstances(bool bInInvalidateCombinationMaterials)
@@ -597,6 +615,8 @@ void ALandscapeProxy::UpdateAllComponentMaterialInstances(bool bInInvalidateComb
 	// Recreate the render state for our components, needed to update the static drawlist which has cached the MaterialRenderProxies
 	// Must be after the FMaterialUpdateContext is destroyed
 	RecreateRenderStateContexts.Empty();
+
+	UpdateNaniteMaterials();
 }
 
 int32 ULandscapeComponent::GetNumMaterials() const
