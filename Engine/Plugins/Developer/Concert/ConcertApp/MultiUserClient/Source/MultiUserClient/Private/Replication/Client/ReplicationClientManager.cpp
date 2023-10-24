@@ -44,12 +44,23 @@ namespace UE::MultiUserClient
 		}
 	}
 
+	TArray<TNonNullPtr<FRemoteReplicationClient>> FReplicationClientManager::GetRemoteClients() const
+	{
+		TArray<TNonNullPtr<FRemoteReplicationClient>> Result;
+		Algo::Transform(RemoteClients, Result, [](const TUniquePtr<FRemoteReplicationClient>& Client) -> TNonNullPtr<FRemoteReplicationClient>
+		{
+			return Client.Get();
+		});
+		return Result;
+	}
+
 	const FRemoteReplicationClient* FReplicationClientManager::FindRemoteClient(const FGuid& EndpointId) const
 	{
-		return RemoteClients.FindByPredicate([&EndpointId](const FRemoteReplicationClient& Client)
+		const TUniquePtr<FRemoteReplicationClient>* Client = RemoteClients.FindByPredicate([&EndpointId](const TUniquePtr<FRemoteReplicationClient>& Client)
 		{
-			return Client.GetRemoteEndpointId() == EndpointId;
+			return Client->GetRemoteEndpointId() == EndpointId;
 		});
+		return Client ? Client->Get() : nullptr;
 	}
 
 	void FReplicationClientManager::AddReferencedObjects(FReferenceCollector& Collector)
@@ -70,18 +81,21 @@ namespace UE::MultiUserClient
 		case EConcertClientStatus::Disconnected:
 			{
 				const int32 Index = RemoteClients.IndexOfByPredicate(
-					[&ClientEndpointId](const FRemoteReplicationClient& Client)
+					[&ClientEndpointId](const TUniquePtr<FRemoteReplicationClient>& Client)
 					{
-						return Client.GetRemoteEndpointId() == ClientEndpointId;
+						return Client->GetRemoteEndpointId() == ClientEndpointId;
 					});
 				if (!ensure(RemoteClients.IsValidIndex(Index)))
 				{
 					return;
 				}
-				
-				const FRemoteReplicationClient& Client = RemoteClients[Index];
-				SessionContent->RemoveClient(*Client.GetClientContent());
-				RemoteClients.RemoveAtSwap(Index);
+
+				{
+					const TUniquePtr<FRemoteReplicationClient> Client = MoveTemp(RemoteClients[Index]);
+					SessionContent->RemoveClient(*Client->GetClientContent());
+					RemoteClients.RemoveAtSwap(Index);
+				}
+				// We want to broadcast after the client has been fully cleaned up
 				OnRemoteClientsChangedDelegate.Broadcast();
 			}
 			break;
@@ -94,7 +108,9 @@ namespace UE::MultiUserClient
 	
 	void FReplicationClientManager::CreateRemoteClient(const FGuid& ClientEndpointId, bool bBroadcastDelegate)
 	{
-		RemoteClients.Emplace(*SessionContent->AddClient(), ClientEndpointId, QueryService);
+		RemoteClients.Emplace(
+			MakeUnique<FRemoteReplicationClient>(*SessionContent->AddClient(), ClientEndpointId, QueryService)
+			);
 
 		if (bBroadcastDelegate)
 		{

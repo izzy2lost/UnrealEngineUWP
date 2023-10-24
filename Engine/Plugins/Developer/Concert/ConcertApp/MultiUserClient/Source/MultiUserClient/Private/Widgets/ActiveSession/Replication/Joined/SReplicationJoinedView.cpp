@@ -95,9 +95,9 @@ namespace UE::MultiUserClient
 	void SReplicationJoinedView::RebuildClientViewSwitcherChildren(const TArray<TSharedRef<SWidget>> OldClientWidgets)
 	{
 		TMap<FGuid, int32> OldRemoteClientToWidgetSwitcherIndex = MoveTemp(RemoteClientToWidgetSwitcherIndex);
-        for (const FRemoteReplicationClient& RemoteClient : ReplicationManager->GetClientManager()->GetRemoteClients())
+        for (const TNonNullPtr<FRemoteReplicationClient>& RemoteClient : ReplicationManager->GetClientManager()->GetRemoteClients())
         {
-        	const FGuid& EndpointId = RemoteClient.GetRemoteEndpointId();
+        	const FGuid& EndpointId = RemoteClient->GetRemoteEndpointId();
         	
         	const int32* ExistingClientWidgetIndex = OldRemoteClientToWidgetSwitcherIndex.Find(EndpointId);
         	if (ExistingClientWidgetIndex)
@@ -112,7 +112,7 @@ namespace UE::MultiUserClient
         		ClientViewSwitcher->AddSlot()
         		[
         			SNew(SReplicationClientView)
-        			.GetReplicationClient_Lambda([this, EndpointId = RemoteClient.GetRemoteEndpointId()]()
+        			.GetReplicationClient_Lambda([this, EndpointId = RemoteClient->GetRemoteEndpointId()]()
         			{
         				// It is unsafe to simply capture RemoteClient because the containing TArray may reallocate its location
         				return ReplicationManager->GetClientManager()->FindRemoteClient(EndpointId);
@@ -162,9 +162,9 @@ namespace UE::MultiUserClient
 			.Client(Client->GetConcertClient())
 			.SelectableClients_Lambda([this]()
 			{
-				const TArray<FRemoteReplicationClient>& RemoteClients = ReplicationManager->GetClientManager()->GetRemoteClients();
+				const TArray<TNonNullPtr<FRemoteReplicationClient>> RemoteClients = ReplicationManager->GetClientManager()->GetRemoteClients();
 				TArray<FGuid> Result;
-				Algo::Transform(RemoteClients, Result, [](const FRemoteReplicationClient& InClient){ return InClient.GetRemoteEndpointId(); });
+				Algo::Transform(RemoteClients, Result, [](const TNonNullPtr<FRemoteReplicationClient>& InClient){ return InClient->GetRemoteEndpointId(); });
 
 				const TSharedPtr<IConcertClientSession> CurrentSession = Client->GetConcertClient()->GetCurrentSession();
 				Result.Sort([&CurrentSession](const FGuid& Left, const FGuid& Right)

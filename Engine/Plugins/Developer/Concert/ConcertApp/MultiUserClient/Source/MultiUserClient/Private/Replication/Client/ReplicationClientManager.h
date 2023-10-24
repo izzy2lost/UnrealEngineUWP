@@ -10,11 +10,12 @@
 
 #include "UObject/GCObject.h"
 #include "Templates/UnrealTemplate.h"
-
-enum class EConcertClientStatus : uint8;
+#include "Templates/NonNullPointer.h"
 
 class IConcertClientSession;
 class IConcertSyncClient;
+
+enum class EConcertClientStatus : uint8;
 
 struct FConcertSessionClientInfo;
 
@@ -48,7 +49,7 @@ namespace UE::MultiUserClient
 
 		const FLocalReplicationClient& GetLocalClient() const { return LocalClient; }
 		FLocalReplicationClient& GetLocalClient() { return LocalClient; }
-		const TArray<FRemoteReplicationClient>& GetRemoteClients() const { return RemoteClients; }
+		TArray<TNonNullPtr<FRemoteReplicationClient>> GetRemoteClients() const;
 
 		/** Util for finding a remote client by its EndpointId. */
 		const FRemoteReplicationClient* FindRemoteClient(const FGuid& EndpointId) const;
@@ -88,8 +89,11 @@ namespace UE::MultiUserClient
 		
 		/** Manages the local client */
 		FLocalReplicationClient LocalClient;
-		/** Manages remote clients. Updated when client connects or disconnects to the active session. */
-		TArray<FRemoteReplicationClient> RemoteClients;
+		/**
+		 * Manages remote clients. Updated when client connects or disconnects to the active session.
+		 * UI keeps references to systems inside the client so it is TSharedRef in case TArray is reallocated.
+		 */
+		TArray<TUniquePtr<FRemoteReplicationClient>> RemoteClients;
 
 		/** Called when RemoteClients changes. */
 		FRemoteClientsChanged OnRemoteClientsChangedDelegate;
