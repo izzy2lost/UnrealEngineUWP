@@ -2327,6 +2327,11 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 		Log.debug("LittleCoreMask: 0x" + Integer.toHexString(littleCoreMask));
 		nativeSetAffinityInfo(bUseAffinity, bigCoreMask, littleCoreMask);
 
+		if (variables.containsKey("PSOServicePri"))
+		{
+			mPSOProgramServiceAccessor.SetServicePriority(true);
+		}
+
 		// send the variables to the engine
 		String[] keyValues = new String[variables.size() * 2];
 		int keyValueIndex = 0;

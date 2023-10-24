@@ -167,6 +167,9 @@ public class PSOProgramServiceAccessor
 
 	private static boolean IsNullOrEmpty(String string) { return string == null || string.isEmpty(); }
 
+	private boolean bServicePriHigh = false;
+	public void SetServicePriority(boolean bHigh) { bServicePriHigh = bHigh; }
+
 	public PSOProgramServiceAccessor()
 	{
 		//StrictMode.enableDefaults();
@@ -976,7 +979,13 @@ public class PSOProgramServiceAccessor
 			{
 				Intent intent = new Intent(mContext, ServiceClass);
 
-				mShouldUnbind = mContext.bindService(intent, mConnection, Context.BIND_AUTO_CREATE | Context.BIND_IMPORTANT);
+				int BindServiceFlags = Context.BIND_AUTO_CREATE;
+				if(	bServicePriHigh )
+				{
+					BindServiceFlags = BindServiceFlags | Context.BIND_IMPORTANT;
+				}
+
+				mShouldUnbind = mContext.bindService(intent, mConnection, BindServiceFlags);
 
 				Log.verbose("doBindService " + Name() + " needs unbind " + mShouldUnbind + " bound: " + mBound);
 			}
