@@ -390,7 +390,7 @@ void FLandscapeProxyUIDetails::CustomizeDetails( IDetailLayoutBuilder& DetailBui
 
 					DetailRow->GetDefaultWidgets(NameWidget, ValueWidget);
 
-					DetailRow->CustomWidget()
+					DetailRow->CustomWidget(/*bShowChildren = */true)
 					.NameContent()
 					[
 						SNew(SHorizontalBox)
