@@ -96,11 +96,20 @@ struct FMovieSceneObjectCache
 	MOVIESCENE_API void InvalidateExpiredObjects();
 
 	/**
-	 * Invalidate the object bindings for a specific object binding ID
+	 * Invalidate the object bindings for a specific object binding ID in this sequence
 	 *
 	 * @param InGuid			The object binding ID to invalidate bindings for
 	 */
 	MOVIESCENE_API void Invalidate(const FGuid& InGuid);
+
+	/**
+	 * Invalidate the object bindings for a specific object binding ID in the specified sequence ID.
+	 * If the sequence ID matches this one, then we will look for the guid in this sequence. 
+	 * If it does not, then we will see if any of our object bindings reference that one, and if so, they will be invalidated.
+	 * 
+	 * @param InGuid			The object binding ID to invalidate bindings for
+	 */
+	MOVIESCENE_API void Invalidate(const FGuid& InGuid, FMovieSceneSequenceIDRef InSequenceID);
 
 	/**
 	 * Invalidate the object bindings for a specific object binding ID if they are not already invalidated
@@ -207,6 +216,11 @@ private:
 	/** Map of child bindings for any given object binding */
 	typedef TArray<FGuid, TInlineAllocator<4>> FGuidArray;
 	TMap<FGuid, FGuidArray, FDefaultSetAllocator, TFastGuidKeyFuncs<FGuidArray>> ChildBindings;
+	
+	/** For possessables in this scene that map to a binding in another scene (for example to a spawnable in another scene).
+	  * Stored as reverse-lookup for speed of invalidation.
+	  */
+	TMap<FMovieSceneObjectBindingID, FGuidArray, FDefaultSetAllocator> ReverseMappedBindings;
 
 	/** Serial number for this cache */
 	uint32 SerialNumber = 0;

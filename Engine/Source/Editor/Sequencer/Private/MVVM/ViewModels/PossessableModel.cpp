@@ -140,6 +140,17 @@ void FPossessableModel::Delete()
 	}
 }
 
+FSlateColor FPossessableModel::GetInvalidBindingLabelColor() const
+{
+	UMovieScene* MovieScene = OwnerModel ? OwnerModel->GetMovieScene() : nullptr;
+	FMovieScenePossessable* Possessable = MovieScene ? MovieScene->FindPossessable(ObjectBindingID) : nullptr;
+	if (Possessable && Possessable->GetSpawnableObjectBindingID().IsValid())
+	{
+		return FSlateColor::UseSubduedForeground();
+	}
+	return FLinearColor::Red;
+}
+
 } // namespace Sequencer
 } // namespace UE
 

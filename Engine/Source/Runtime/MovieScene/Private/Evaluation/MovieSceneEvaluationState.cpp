@@ -239,6 +239,26 @@ void FMovieSceneObjectCache::Invalidate(const FGuid& InGuid)
 	UpdateSerialNumber();
 }
 
+void FMovieSceneObjectCache::Invalidate(const FGuid& InGuid, FMovieSceneSequenceIDRef InSequenceID)
+{
+	if (InSequenceID == SequenceID)
+	{
+		Invalidate(InGuid);
+	}
+	else
+	{
+		FMovieSceneObjectBindingID BindingID(UE::MovieScene::FFixedObjectBindingID(InGuid, InSequenceID));
+		if (FGuidArray* ReferencedGuids = ReverseMappedBindings.Find(BindingID))
+		{
+			for (FGuid ReferencedGuid : *ReferencedGuids)
+			{
+				Invalidate(ReferencedGuid);
+			}
+			ReverseMappedBindings.Remove(BindingID);
+		}
+	}
+}
+
 bool FMovieSceneObjectCache::InvalidateInternal(const FGuid& InGuid)
 {
 	// Don't manipulate the actual map structure, since this can be called from inside an iterator
@@ -266,6 +286,7 @@ void FMovieSceneObjectCache::Clear(IMovieScenePlayer& Player)
 {
 	BoundObjects.Reset();
 	ChildBindings.Reset();
+	ReverseMappedBindings.Reset();
 
 	UpdateSerialNumber();
 
@@ -390,13 +411,17 @@ void FMovieSceneObjectCache::UpdateBindings(const FGuid& InGuid, IMovieScenePlay
 
 				if (Possessable->GetSpawnableObjectBindingID().IsValid())
 				{
+					// We resolve this binding to fixed here, as we conveniently have a Player pointer already, and when being invalidated,
+					// the binding ID passed down will be relative to the root.
+					FMovieSceneObjectBindingID SpawnableFixedBindingID = Possessable->GetSpawnableObjectBindingID().ResolveToFixed(SequenceID, Player);
+					ReverseMappedBindings.FindOrAdd(SpawnableFixedBindingID).AddUnique(InGuid);
 					for (TWeakObjectPtr<> BoundObject : Possessable->GetSpawnableObjectBindingID().ResolveBoundObjects(SequenceID, Player))
 					{
 						if (BoundObject.IsValid())
 						{
 							FoundObjects.Add(BoundObject.Get());
 						}
-					}				
+					}
 				}
 				else
 				{
@@ -499,10 +524,10 @@ void FMovieSceneEvaluationState::InvalidateExpiredObjects()
 
 void FMovieSceneEvaluationState::Invalidate(const FGuid& InGuid, FMovieSceneSequenceIDRef SequenceID)
 {
-	FVersionedObjectCache* Cache = ObjectCaches.Find(SequenceID);
-	if (Cache)
+	// We need to send the invalidation method to all of the caches, as there may be other bindings in other sequences referencing this one that is being invalidated
+	for (auto& Pair : ObjectCaches)
 	{
-		Cache->ObjectCache.Invalidate(InGuid);
+		Pair.Value.ObjectCache.Invalidate(InGuid, SequenceID);
 	}
 }
 

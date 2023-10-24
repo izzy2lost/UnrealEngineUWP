@@ -114,6 +114,7 @@ public:
 	virtual FText GetTooltipForSingleObjectBinding() const;
 	virtual const UClass* FindObjectClass() const;
 	virtual bool SupportsRebinding() const;
+	virtual FSlateColor GetInvalidBindingLabelColor() const { return FLinearColor::Red; }
 
 public:
 

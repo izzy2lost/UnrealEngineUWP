@@ -349,18 +349,18 @@ FSlateColor FObjectBindingModel::GetLabelColor() const
 		}
 	}
 
-	// Spawnables don't have valid object bindings when their track hasn't spawned them yet,
+	// Find the last objecting binding ancestor and ask it for the invalid color to use.
+	// e.g. Spawnables don't have valid object bindings when their track hasn't spawned them yet,
 	// so we override the default behavior of red with a gray so that users don't think there is something wrong.
-	constexpr bool bIncludeThis = true;
-	for (TSharedPtr<FObjectBindingModel> Parent : GetAncestorsOfType<FObjectBindingModel>(bIncludeThis))
-	{
-		if (Parent->GetType() == EObjectBindingType::Spawnable)
+	TFunction<FSlateColor(const FObjectBindingModel&)> GetObjectBindingAncestorInvalidLabelColor = [&](const FObjectBindingModel& InObjectBindingModel) -> FSlateColor {
+		if (TSharedPtr<FObjectBindingModel> ParentBindingModel = InObjectBindingModel.FindAncestorOfType<FObjectBindingModel>())
 		{
-			return FSlateColor::UseSubduedForeground();
+			return GetObjectBindingAncestorInvalidLabelColor(*ParentBindingModel.Get());
 		}
-	}
+		return InObjectBindingModel.GetInvalidBindingLabelColor();
+	};
 
-	return FLinearColor::Red;
+	return GetObjectBindingAncestorInvalidLabelColor(*this);
 }
 
 FText FObjectBindingModel::GetTooltipForSingleObjectBinding() const
