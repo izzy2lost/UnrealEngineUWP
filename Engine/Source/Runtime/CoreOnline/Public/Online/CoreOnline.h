@@ -627,6 +627,25 @@ struct FUniqueNetIdWrapper
 		return GetV1().Get();
 	}
 
+	/**
+	* Friend function for using FUniqueNetIdWrapper as a hashable key
+	*/
+	friend inline uint32 GetTypeHash(const FUniqueNetIdWrapper& Value)
+	{
+		if (Value.IsValid())
+		{
+			if (Value.IsV1())
+			{
+				return GetTypeHash(*Value.GetV1Unsafe());
+			}
+			else
+			{
+				return GetTypeHash(Value.GetV2Unsafe());
+			}
+		}
+		return INDEX_NONE;
+	}
+
 	static FUniqueNetIdWrapper Invalid()
 	{
 		static FUniqueNetIdWrapper InvalidId(nullptr);
@@ -730,25 +749,6 @@ protected:
 	// Actual unique id
 	FVariantType Variant;
 };
-
-/**
- * Function for using FUniqueNetIdWrapper as a hashable key
- */
-inline uint32 GetTypeHash(const FUniqueNetIdWrapper& Value)
-{
-	if (Value.IsValid())
-	{
-		if (Value.IsV1())
-		{
-			return GetTypeHash(*Value.GetV1Unsafe());
-		}
-		else
-		{
-			return GetTypeHash(Value.GetV2Unsafe());
-		}
-	}
-	return INDEX_NONE;
-}
 
 template <typename ValueType>
 struct TUniqueNetIdMapKeyFuncs : public TDefaultMapKeyFuncs<FUniqueNetIdRef, ValueType, false>
