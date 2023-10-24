@@ -106,7 +106,30 @@ class GEOMETRYSCRIPTINGCORE_API UGeometryScriptLibrary_StaticMeshFunctions : pub
 public:
 	
 	/** 
+	* Check if a Static Mesh Asset has the RequestedLOD available, ie if CopyMeshFromStaticMesh will be able to
+	* succeed for the given LODType and LODIndex. 
+	*/
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|StaticMesh", meta = (ExpandEnumAsExecs = "Outcome"))
+	static bool
+	CheckStaticMeshHasAvailableLOD(
+		UStaticMesh* StaticMeshAsset, 
+		FGeometryScriptMeshReadLOD RequestedLOD,
+		EGeometryScriptSearchOutcomePins& Outcome,
+		UGeometryScriptDebug* Debug = nullptr);
+
+	/**
+	 * Determine the number of available LODs of the requested LODType in a Static Mesh Asset
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|StaticMesh")
+	static int
+	GetNumStaticMeshLODsOfType(
+		UStaticMesh* StaticMeshAsset, 
+		EGeometryScriptLODType LODType = EGeometryScriptLODType::SourceModel);
+
+	/** 
 	* Extracts a Dynamic Mesh from a Static Mesh Asset. 
+	* 
+	* Note that the LOD Index in RequestedLOD will be silently clamped to the available number of LODs (SourceModel or RenderData)
 	*/
 	UFUNCTION(BlueprintCallable, Category = "GeometryScript|StaticMesh", meta = (ExpandEnumAsExecs = "Outcome"))
 	static UPARAM(DisplayName = "Dynamic Mesh") UDynamicMesh* 
@@ -134,6 +157,14 @@ public:
 
     /** 
 	* Extracts the Material List and corresponding Material Indices from the specified LOD of the Static Mesh Asset. 
+	* The MaterialList is sorted by Section, so if CopyMeshToStaticMesh was used to create a DynamicMesh, then the returned
+	* MaterialList here will correspond to the MaterialIDs in that DynamicMesh (as each Static Mesh Section becomes a MaterialID, in-order). 
+	* So, the returned MaterialList can be passed directly to (eg) a DynamicMeshComponent.
+	* 
+	* @param MaterialIndex this returned array is the same size as MaterialList, with each value the index of that Material in the StaticMesh Material List
+	* @param MateriaSlotNames this returned array is the same size as MaterialList, with each value the Slot Name of that Material in the StaticMesh Material List
+	*
+	* Note that the LOD Index in RequestedLOD will be silently clamped to the available number of LODs (SourceModel or RenderData)
 	*/
 	UFUNCTION(BlueprintCallable, Category = "GeometryScript|StaticMesh", meta = (ExpandEnumAsExecs = "Outcome"))
 	static void
@@ -142,6 +173,7 @@ public:
 		FGeometryScriptMeshReadLOD RequestedLOD,
 		TArray<UMaterialInterface*>& MaterialList,
 		TArray<int32>& MaterialIndex,
+		TArray<FName>& MaterialSlotNames,
 		EGeometryScriptOutcomePins& Outcome,
 		UGeometryScriptDebug* Debug = nullptr);
 

@@ -47,6 +47,25 @@ public:
 		int ToMaterialID,
 		UGeometryScriptDebug* Debug = nullptr );
 
+
+	/**
+	 * Remap the Material IDs of the TargetMesh to a new set of Material IDs based on a 'From'/Current Material List, and a New Material List.
+	 * For each triangle, the current Material is determined as FromMaterialList[MaterialID], and then the first index of this Material is found
+	 * in the ToMaterialList, and this index is used as the new MaterialID 
+	 * 
+	 * If a Material cannot be found in ToMaterialList, a warning will be printed and the MaterialID left unmodified, 
+	 * unless MissingMaterialID is set to a value >= 0, in which case MissingMaterialID will be assigned
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Materials", meta=(ScriptMethod))
+	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh* 
+	RemapToNewMaterialIDsByMaterial( 
+		UDynamicMesh* TargetMesh, 
+		const TArray<UMaterialInterface*>& FromMaterialList,
+		const TArray<UMaterialInterface*>& ToMaterialList,
+		int MissingMaterialID = -1,
+		UGeometryScriptDebug* Debug = nullptr );
+
+
 	/**
 	 * Returns the current Material ID for a Triangle.  
 	 * If the mesh does not have Material IDs enabled or if the Triangle ID is not an element of the mesh, the value 0 will be returned and bIsValidTriangle will be false.

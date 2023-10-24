@@ -406,6 +406,90 @@ UDynamicMesh*  UGeometryScriptLibrary_StaticMeshFunctions::CopyMeshToStaticMesh(
 
 
 
+bool UGeometryScriptLibrary_StaticMeshFunctions::CheckStaticMeshHasAvailableLOD(
+	UStaticMesh* FromStaticMeshAsset,
+	FGeometryScriptMeshReadLOD RequestedLOD,
+	EGeometryScriptSearchOutcomePins& Outcome,
+	UGeometryScriptDebug* Debug)
+{
+	Outcome = EGeometryScriptSearchOutcomePins::NotFound;
+	if (FromStaticMeshAsset == nullptr)
+	{
+		UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("CheckStaticMeshHasAvailableLOD_InvalidInput1", "CheckStaticMeshHasAvailableLOD: FromStaticMeshAsset is Null"));
+		return false;
+	}
+
+	if (RequestedLOD.LODType == EGeometryScriptLODType::RenderData)
+	{
+		Outcome = (RequestedLOD.LODIndex >= 0 && RequestedLOD.LODIndex < FromStaticMeshAsset->GetNumLODs()) ?
+			EGeometryScriptSearchOutcomePins::Found : EGeometryScriptSearchOutcomePins::NotFound;
+
+#if !WITH_EDITOR
+		if (FromStaticMeshAsset->bAllowCPUAccess == false)
+		{
+			Outcome = EGeometryScriptSearchOutcomePins::NotFound;
+		}
+#endif
+
+		return (Outcome == EGeometryScriptSearchOutcomePins::Found);
+	}
+
+#if WITH_EDITOR
+	bool bResult = false;
+	if (RequestedLOD.LODType == EGeometryScriptLODType::HiResSourceModel)
+	{
+		bResult = FromStaticMeshAsset->IsHiResMeshDescriptionValid();
+	}
+	else if (RequestedLOD.LODType == EGeometryScriptLODType::SourceModel)
+	{
+		bResult = RequestedLOD.LODIndex >= 0
+			&& RequestedLOD.LODIndex < FromStaticMeshAsset->GetNumSourceModels()
+			&& FromStaticMeshAsset->IsSourceModelValid(RequestedLOD.LODIndex);
+	}
+	else if (RequestedLOD.LODType == EGeometryScriptLODType::MaxAvailable)
+	{
+		bResult = (FromStaticMeshAsset->GetNumSourceModels() > 0);
+	}
+	Outcome = (bResult) ? EGeometryScriptSearchOutcomePins::Found : EGeometryScriptSearchOutcomePins::NotFound;
+	return bResult;
+
+#else
+	Outcome = EGeometryScriptSearchOutcomePins::NotFound;
+	return false;
+#endif
+}
+
+
+
+int UGeometryScriptLibrary_StaticMeshFunctions::GetNumStaticMeshLODsOfType(
+	UStaticMesh* FromStaticMeshAsset,
+	EGeometryScriptLODType LODType)
+{
+	if (FromStaticMeshAsset == nullptr) return 0;
+
+#if WITH_EDITOR
+	if (LODType == EGeometryScriptLODType::RenderData)
+	{
+		return FromStaticMeshAsset->GetNumLODs();
+	}
+	if (LODType == EGeometryScriptLODType::HiResSourceModel)
+	{
+		return FromStaticMeshAsset->IsHiResMeshDescriptionValid() ? 1 : 0;
+	}
+	if (LODType == EGeometryScriptLODType::SourceModel || LODType == EGeometryScriptLODType::MaxAvailable)
+	{
+		return FromStaticMeshAsset->GetNumSourceModels();
+	}
+#else
+	if (LODType == EGeometryScriptLODType::RenderData && FromStaticMeshAsset->bAllowCPUAccess)
+	{
+		return FromStaticMeshAsset->GetNumLODs();
+	}
+#endif
+
+	return 0;
+}
+
 
 
 void UGeometryScriptLibrary_StaticMeshFunctions::GetSectionMaterialListFromStaticMesh(
@@ -413,6 +497,7 @@ void UGeometryScriptLibrary_StaticMeshFunctions::GetSectionMaterialListFromStati
 	FGeometryScriptMeshReadLOD RequestedLOD,
 	TArray<UMaterialInterface*>& MaterialList,
 	TArray<int32>& MaterialIndex,
+	TArray<FName>& MaterialSlotNames,
 	EGeometryScriptOutcomePins& Outcome,
 	UGeometryScriptDebug* Debug)
 {
@@ -423,23 +508,49 @@ void UGeometryScriptLibrary_StaticMeshFunctions::GetSectionMaterialListFromStati
 		UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("GetSectionMaterialListFromStaticMesh_InvalidInput1", "GetSectionMaterialListFromStaticMesh: FromStaticMeshAsset is Null"));
 		return;
 	}
+
+	// RenderData mesh sections directly reference a Material Index, which is set as the MaterialID in CopyMeshFromStaticMesh_RenderData
+	if (RequestedLOD.LODType == EGeometryScriptLODType::RenderData)
+	{
+		MaterialList.Reset();
+		MaterialIndex.Reset();
+		MaterialSlotNames.Reset();
+		const TArray<FStaticMaterial>& AssetMaterials = FromStaticMeshAsset->GetStaticMaterials();
+		for (int32 k = 0; k < AssetMaterials.Num(); ++k)
+		{
+			MaterialList.Add(AssetMaterials[k].MaterialInterface);
+			MaterialIndex.Add(k);
+			MaterialSlotNames.Add(AssetMaterials[k].MaterialSlotName);
+		}
+
+		Outcome = EGeometryScriptOutcomePins::Success;
+		return;
+	}
+
+#if WITH_EDITOR
+
 	if (RequestedLOD.LODType != EGeometryScriptLODType::MaxAvailable && RequestedLOD.LODType != EGeometryScriptLODType::SourceModel)
 	{
 		UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("GetSectionMaterialListFromStaticMesh_LODNotAvailable", "GetSectionMaterialListFromStaticMesh: Requested LOD is not available"));
 		return;
 	}
 
-	int32 UseLODIndex = FMath::Clamp(RequestedLOD.LODIndex, 0, FromStaticMeshAsset->GetNumLODs() - 1);
+	int32 UseLODIndex = FMath::Clamp(RequestedLOD.LODIndex, 0, FromStaticMeshAsset->GetNumSourceModels() - 1);
 
 	MaterialList.Reset();
 	MaterialIndex.Reset();
-	if (UE::AssetUtils::GetStaticMeshLODMaterialListBySection(FromStaticMeshAsset, UseLODIndex, MaterialList, MaterialIndex) == false)
+	MaterialSlotNames.Reset();
+	if (UE::AssetUtils::GetStaticMeshLODMaterialListBySection(FromStaticMeshAsset, UseLODIndex, MaterialList, MaterialIndex, MaterialSlotNames) == false)
 	{
 		UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("GetSectionMaterialListFromStaticMesh_QueryFailed", "GetSectionMaterialListFromStaticMesh: Could not fetch Material Set from Asset"));
 		return;
 	}
 
 	Outcome = EGeometryScriptOutcomePins::Success;
+
+#else
+	UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("GetSectionMaterialListFromStaticMesh_EditorOnly", "GetSectionMaterialListFromStaticMesh: Source Models are not available at Runtime"));
+#endif
 }
 
 

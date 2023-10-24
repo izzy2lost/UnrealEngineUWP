@@ -161,6 +161,60 @@ UDynamicMesh* UGeometryScriptLibrary_MeshMaterialFunctions::RemapMaterialIDs(
 }
 
 
+UDynamicMesh* UGeometryScriptLibrary_MeshMaterialFunctions::RemapToNewMaterialIDsByMaterial(
+	UDynamicMesh* TargetMesh,
+	const TArray<UMaterialInterface*>& FromMaterialList,
+	const TArray<UMaterialInterface*>& ToMaterialList,
+	int MissingMaterialID,
+	UGeometryScriptDebug* Debug)
+{
+	if (TargetMesh == nullptr)
+	{
+		UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("RemapToNewMaterialIDsByMaterial_InvalidInput", "RemapToNewMaterialIDsByMaterial: TargetMesh is Null"));
+		return TargetMesh;
+	}
+
+	TArray<int32> ToMaterialID;
+	ToMaterialID.SetNum(FromMaterialList.Num());
+	for (int32 k = 0; k < FromMaterialList.Num(); ++k)
+	{
+		int32 FoundIdx = ToMaterialList.IndexOfByKey(FromMaterialList[k]);
+		if (FoundIdx == INDEX_NONE)
+		{
+			if (MissingMaterialID >= 0)
+			{
+				ToMaterialID[k] = MissingMaterialID;
+			}
+			else
+			{
+				UE::Geometry::AppendWarning(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("RemapToNewMaterialIDsByMaterial_MaterialMissing", "RemapToNewMaterialIDsByMaterial: Material in FromMaterialList not found in ToMaterialList, skipping"));
+				ToMaterialID[k] = k;
+			}
+		}
+		else
+		{
+			ToMaterialID[k] = FoundIdx;
+		}
+	}
+
+	bool bHasMaterialIDs;
+	SimpleMeshMaterialEdit(TargetMesh, true, bHasMaterialIDs, 
+		[&](FDynamicMesh3& Mesh, FDynamicMeshMaterialAttribute& MaterialIDs) 
+	{
+		for (int32 TriangleID : Mesh.TriangleIndicesItr())
+		{
+			int32 CurID = MaterialIDs.GetValue(TriangleID);
+			int32 NewID = ToMaterialID[CurID];
+			MaterialIDs.SetValue(TriangleID, NewID);
+		}
+	});
+
+	return TargetMesh;
+}
+
+
+
+
 UDynamicMesh* UGeometryScriptLibrary_MeshMaterialFunctions::GetMaterialIDsOfTriangles( 
 	UDynamicMesh* TargetMesh, 
 	FGeometryScriptIndexList TriangleIDList,
