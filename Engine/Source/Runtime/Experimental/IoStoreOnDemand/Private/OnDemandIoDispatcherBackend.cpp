@@ -2025,27 +2025,30 @@ void FOnDemandIoBackend::InitializePrimaryEndpoint()
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(IasBackend::InitializePrimaryEndpoint);
 
-	UE_LOG(LogIas, Log, TEXT("Attempting to find the primary endpoint..."));
-
-	check(!AvailableEps.HasCurrent());
-
-	TConstArrayView<FString> Urls = AvailableEps.Urls;
-	const int32 MaxUrls = FMath::Min(GIasMaxEndpointTestCountAtStartup, AvailableEps.Urls.Num());
-	const FString TestPath = GetEndpointTestPath();
-	if (int32 Idx = LatencyTest(Urls.Left(MaxUrls), TestPath, bStopRequested); Idx != INDEX_NONE)
+	// We only need to run this code if we do not have an currently selected, most likely because
+	// a list of endpoints was polled from online rather than a url being provided by the cmdline/config system.
+	if (!AvailableEps.HasCurrent())
 	{
-		AvailableEps.Current = Idx;
-		UE_LOG(LogIas, Log, TEXT("Using endpoint '%s'"), *AvailableEps.GetCurrent());
-		
-		// We need to call this after a valid endpoint has been selected in case we need to download
-		// the .iochunktoc file.
-		FlushDeferredTocs(EFlushMode::All);
+		UE_LOG(LogIas, Log, TEXT("Attempting to find the primary endpoint..."));
+
+		TConstArrayView<FString> Urls = AvailableEps.Urls;
+		const int32 MaxUrls = FMath::Min(GIasMaxEndpointTestCountAtStartup, AvailableEps.Urls.Num());
+		const FString TestPath = GetEndpointTestPath();
+		if (int32 Idx = LatencyTest(Urls.Left(MaxUrls), TestPath, bStopRequested); Idx != INDEX_NONE)
+		{
+			AvailableEps.Current = Idx;
+			UE_LOG(LogIas, Log, TEXT("Using endpoint '%s'"), *AvailableEps.GetCurrent());
+		}
+		else
+		{
+			UE_LOG(LogIas, Error, TEXT("Unable to connect to any valid endpoint"));
+			BackendStatus.SetHttpError(true);
+			return;
+		}
 	}
-	else
-	{
-		UE_LOG(LogIas, Error, TEXT("Unable to connect to any valid endpoint"));
-		BackendStatus.SetHttpError(true);
-	}
+
+	// Now we have a valid endpoint, we need to flush any pending .iochunktoc download requests
+	FlushDeferredTocs(EFlushMode::All);
 }
 
 void FOnDemandIoBackend::FlushDeferredTocs(EFlushMode FlushMode)
