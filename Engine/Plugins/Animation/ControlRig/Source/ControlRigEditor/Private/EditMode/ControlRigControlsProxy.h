@@ -15,6 +15,7 @@
 
 struct FRigControlElement;
 class UBaseControlRig;
+class UControlRig;
 class IPropertyHandle;
 class FControlRigInteractionScope;
 
