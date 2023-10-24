@@ -72,21 +72,24 @@ UStruct* ResolveLeafValueStructType(FStateTreeDataView ValueView, const TArray<F
 
 	UStruct* Result = nullptr;
 
-	if (const FStructProperty* StructProperty = CastField<FStructProperty>(LastIndirection.GetProperty()))
+	if (LastIndirection.GetContainerAddress())
 	{
-		// Get the type of the instanced struct's value.
-		if (StructProperty->Struct == TBaseStructure<FInstancedStruct>::Get())
+		if (const FStructProperty* StructProperty = CastField<FStructProperty>(LastIndirection.GetProperty()))
 		{
-			const FInstancedStruct& InstancedStruct = *reinterpret_cast<const FInstancedStruct*>(LastIndirection.GetPropertyAddress());
-			Result = const_cast<UScriptStruct*>(InstancedStruct.GetScriptStruct());
+			// Get the type of the instanced struct's value.
+			if (StructProperty->Struct == TBaseStructure<FInstancedStruct>::Get())
+			{
+				const FInstancedStruct& InstancedStruct = *reinterpret_cast<const FInstancedStruct*>(LastIndirection.GetPropertyAddress());
+				Result = const_cast<UScriptStruct*>(InstancedStruct.GetScriptStruct());
+			}
 		}
-	}
-	else if (const FObjectProperty* ObjectProperty = CastField<FObjectProperty>(LastIndirection.GetProperty()))
-	{
-		// Get type of the instanced object.
-		if (const UObject* Object = *reinterpret_cast<UObject* const*>(LastIndirection.GetPropertyAddress()))
+		else if (const FObjectProperty* ObjectProperty = CastField<FObjectProperty>(LastIndirection.GetProperty()))
 		{
-			Result = Object->GetClass();
+			// Get type of the instanced object.
+			if (const UObject* Object = *reinterpret_cast<UObject* const*>(LastIndirection.GetPropertyAddress()))
+			{
+				Result = Object->GetClass();
+			}
 		}
 	}
 

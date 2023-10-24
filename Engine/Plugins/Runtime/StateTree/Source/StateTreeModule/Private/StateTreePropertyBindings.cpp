@@ -1358,12 +1358,10 @@ bool FStateTreePropertyPath::ResolveIndirectionsWithValue(const FStateTreeDataVi
 
 	const uint8* CurrentAddress = BaseValueView.GetMemory();
 	const UStruct* CurrentStruct = BaseValueView.GetStruct();
-
-	const bool bWithValue = CurrentAddress != nullptr;
 	
 	for (const TEnumerateRef<const FStateTreePropertyPathSegment> Segment : EnumerateRange(Segments))
 	{
-		if (CurrentStruct == nullptr || (bWithValue && CurrentAddress == nullptr))
+		if (CurrentStruct == nullptr)
 		{
 			if (OutError)
 			{
@@ -1375,6 +1373,7 @@ bool FStateTreePropertyPath::ResolveIndirectionsWithValue(const FStateTreeDataVi
 		}
 
 		const FProperty* Property = CurrentStruct->FindPropertyByName(Segment->GetName());
+		const bool bWithValue = CurrentAddress != nullptr;
 
 #if WITH_EDITORONLY_DATA
 		FName RedirectedName;
