@@ -2395,11 +2395,9 @@ static bool AddShelvedFilesToChangelist(FPerforceSourceControlProvider& SCCProvi
 			ItFilename = DepotToFileMap[It.Key()];
 		}
 
-		int32 Index = Algo::IndexOfByPredicate(ChangelistState->ShelvedFiles, [&ItFilename](const FSourceControlStateRef& ShelvedFile) {
-				return ShelvedFile->GetFilename() == ItFilename;
-			});
+		FSourceControlStateRef* SourceControlStateRef = ChangelistState->ShelvedFiles.Find(ItFilename);
 
-		if (Index < 0)
+		if (!SourceControlStateRef)
 		{
 			// Create new entry
 			TSharedRef<FPerforceSourceControlState, ESPMode::ThreadSafe> ShelvedFileState = MakeShareable(new FPerforceSourceControlState(ItFilename));
@@ -2417,11 +2415,10 @@ static bool AddShelvedFilesToChangelist(FPerforceSourceControlProvider& SCCProvi
 			}
 
 			// Add to shelved files
-			Index = ChangelistState->ShelvedFiles.Num();
-			ChangelistState->ShelvedFiles.Add(ShelvedFileState);
+			SourceControlStateRef = &ChangelistState->ShelvedFiles.Add(ItFilename, ShelvedFileState);
 		}
 
-		TSharedRef<FPerforceSourceControlState, ESPMode::ThreadSafe> FileState = StaticCastSharedRef<FPerforceSourceControlState>(ChangelistState->ShelvedFiles[Index]);
+		TSharedRef<FPerforceSourceControlState, ESPMode::ThreadSafe> FileState = StaticCastSharedRef<FPerforceSourceControlState>(*SourceControlStateRef);
 
  		FileState->SetState(It.Value());
  		FileState->TimeStamp = Now;
@@ -2472,7 +2469,8 @@ bool FPerforceGetPendingChangelistsWorker::UpdateStates() const
 		bool bUpdateShelvedFiles = (OutCLShelvedFilesStates.Num() == OutChangelistsStates.Num());
 		if(bUpdateShelvedFiles)
 		{
-			ChangelistState->ShelvedFiles.Reset(OutCLShelvedFilesStates[StatusIndex].Num());
+			ChangelistState->ShelvedFiles.Reset();
+			ChangelistState->ShelvedFiles.Reserve(OutCLShelvedFilesStates[StatusIndex].Num());
 			AddShelvedFilesToChangelist(GetSCCProvider(), OutCLShelvedFilesStates[StatusIndex], OutCLShelvedFilesMap[StatusIndex], ChangelistState, &Now);
 		}
 	}
@@ -3136,24 +3134,20 @@ bool FPerforceDeleteShelveWorker::UpdateStates() const
 
 		if (FilesToRemove.Num() > 0)
 		{
-			return ChangelistState->ShelvedFiles.RemoveAll([this](FSourceControlStateRef& State) -> bool
-				{
-					return Algo::AnyOf(FilesToRemove, [&State](auto& File) {
-						return State->GetFilename() == File;
-					});
-				}) > 0;
+			bool bRemovedFiles = false;
+			for (const FString& FileToRemove : FilesToRemove)
+			{
+				bRemovedFiles |= ChangelistState->ShelvedFiles.Remove(FileToRemove) > 0;
+			}
+			return bRemovedFiles;
 		}
-		else
-		{
-			bool bHadShelvedFiles = (ChangelistState->ShelvedFiles.Num() > 0);
-			ChangelistState->ShelvedFiles.Reset();
-			return bHadShelvedFiles;
-		}		
+
+		bool bHadShelvedFiles = (ChangelistState->ShelvedFiles.Num() > 0);
+		ChangelistState->ShelvedFiles.Reset();
+		return bHadShelvedFiles;
 	}
-	else
-	{
-		return false;
-	}
+
+	return false;
 }
 
 

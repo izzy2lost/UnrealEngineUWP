@@ -1082,7 +1082,7 @@ void SSourceControlChangelistsWidget::OnRefreshSourceControlWidgets(int64 CurrUp
 		}
 		ShelvedChangelistTreeItem = ChangelistTreeItem->ShelvedChangelistItem;
 
-		const bool bShelvedChangelistPassesFilter = ChangelistState->GetShelvedFilesStates().Num() > 0 && ChangelistTextFilter->PassesFilter(*ShelvedChangelistTreeItem);
+		const bool bShelvedChangelistPassesFilter = ChangelistState->GetShelvedFilesStatesNum() > 0 && ChangelistTextFilter->PassesFilter(*ShelvedChangelistTreeItem);
 		const bool bShelvedChangelistMustBeDisplayed = bShelvedChangelistPassesFilter && !ChangelistTextFilter->GetRawFilterText().IsEmpty();
 		const bool bChangelistPassedFilter = bShelvedChangelistMustBeDisplayed || ChangelistTextFilter->PassesFilter(*ChangelistTreeItem);
 		if (bChangelistPassedFilter)
@@ -1990,7 +1990,7 @@ bool SSourceControlChangelistsWidget::CanDeleteChangelist(FText* OutFailureMessa
 		}
 		return false;
 	}
-	else if (ChangelistState->GetFilesStates().Num() > 0 || ChangelistState->GetShelvedFilesStates().Num() > 0)
+	else if (ChangelistState->GetFilesStatesNum() > 0 || ChangelistState->GetShelvedFilesStatesNum() > 0)
 	{
 		if (OutFailureMessage)
 		{
@@ -2046,7 +2046,7 @@ void SSourceControlChangelistsWidget::OnRevertUnchanged()
 
 bool SSourceControlChangelistsWidget::CanRevertUnchanged()
 {
-	return HasFilesSelected() || (GetCurrentChangelistState() && GetCurrentChangelistState()->GetFilesStates().Num() > 0);
+	return HasFilesSelected() || (GetCurrentChangelistState() && GetCurrentChangelistState()->GetFilesStatesNum() > 0);
 }
 
 void SSourceControlChangelistsWidget::OnRevert()
@@ -2151,7 +2151,7 @@ bool SSourceControlChangelistsWidget::CanRevert()
 	FUncontrolledChangelistStatePtr CurrentUncontrolledChangelistState = GetCurrentUncontrolledChangelistState();
 
 	return HasFilesSelected()
-		|| (CurrentChangelistState.IsValid() && CurrentChangelistState->GetFilesStates().Num() > 0)
+		|| (CurrentChangelistState.IsValid() && CurrentChangelistState->GetFilesStatesNum() > 0)
 		|| (CurrentUncontrolledChangelistState.IsValid() && CurrentUncontrolledChangelistState->GetFilesStates().Num() > 0);
 }
 
@@ -2511,7 +2511,7 @@ bool SSourceControlChangelistsWidget::CanSubmitChangelist(FText* OutFailureMessa
 		}
 		return false;
 	}
-	else if (Changelist->GetFilesStates().Num() <= 0)
+	else if (Changelist->GetFilesStatesNum() <= 0)
 	{
 		if (OutFailureMessage)
 		{
@@ -2519,7 +2519,7 @@ bool SSourceControlChangelistsWidget::CanSubmitChangelist(FText* OutFailureMessa
 		}
 		return false;
 	}
-	else if (Changelist->GetShelvedFilesStates().Num() > 0)
+	else if (Changelist->GetShelvedFilesStatesNum() > 0)
 	{
 		if (OutFailureMessage)
 		{
@@ -2565,7 +2565,7 @@ void SSourceControlChangelistsWidget::OnValidateChangelist()
 bool SSourceControlChangelistsWidget::CanValidateChangelist()
 {
 	FSourceControlChangelistStatePtr Changelist = GetCurrentChangelistState();
-	return Changelist != nullptr && Changelist->GetFilesStates().Num() > 0;
+	return Changelist != nullptr && Changelist->GetFilesStatesNum() > 0;
 }
 
 void SSourceControlChangelistsWidget::OnNewUncontrolledChangelist()
@@ -3036,12 +3036,12 @@ TSharedPtr<SWidget> SSourceControlChangelistsWidget::OnOpenContextMenu()
 				FCanExecuteAction::CreateSP(this, &SSourceControlChangelistsWidget::CanRevert)));
 	}
 
-	if (bHasSelectedChangelist && (bHasSelectedFiles || bHasSelectedShelvedFiles || (bHasSelectedChangelist && (GetCurrentChangelistState()->GetFilesStates().Num() > 0 || GetCurrentChangelistState()->GetShelvedFilesStates().Num() > 0))))
+	if (bHasSelectedChangelist && (bHasSelectedFiles || bHasSelectedShelvedFiles || (bHasSelectedChangelist && (GetCurrentChangelistState()->GetFilesStatesNum() > 0 || GetCurrentChangelistState()->GetShelvedFilesStates().Num() > 0))))
 	{
 		Section.AddSeparator("ShelveSeparator");
 	}
 
-	if (bHasSelectedChangelist && (bHasSelectedFiles || (bHasSelectedChangelist && GetCurrentChangelistState()->GetFilesStates().Num() > 0)))
+	if (bHasSelectedChangelist && (bHasSelectedFiles || (bHasSelectedChangelist && GetCurrentChangelistState()->GetFilesStatesNum() > 0)))
 	{
 		Section.AddMenuEntry("Shelve",
 			LOCTEXT("SourceControl_Shelve", "Shelve Files"),

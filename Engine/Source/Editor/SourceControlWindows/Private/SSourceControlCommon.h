@@ -165,12 +165,12 @@ struct FChangelistTreeItem : public IChangelistTreeItem
 
 	int32 GetFileCount() const
 	{
-		return ChangelistState->GetFilesStates().Num();
+		return ChangelistState->GetFilesStatesNum();
 	}
 
 	int32 GetShelvedFileCount() const
 	{
-		return ChangelistState->GetShelvedFilesStates().Num();
+		return ChangelistState->GetShelvedFilesStatesNum();
 	}
 
 	TSharedRef<ISourceControlChangelistState> ChangelistState;
