@@ -10,6 +10,7 @@
 #include "LightSceneProxy.h"
 #include "SceneRendering.h"
 #include "RayTracingMaterialHitShaders.h"
+#include "RayTracingTypes.h"
 
 static TAutoConsoleVariable<int32> CVarRayTracingLightingCells(
 	TEXT("r.RayTracing.LightCulling.Cells"),
@@ -182,9 +183,9 @@ static void SetupRaytracingLightDataPacked(
 	OutLightData.Count = 0;
 
 	const FRayTracingLightFunctionMap* RayTracingLightFunctionMap = GraphBuilder.Blackboard.Get<FRayTracingLightFunctionMap>();
-	for (auto LightIndex : LightIndices)
+	for (int32 LightIndex : LightIndices)
 	{
-		auto Light = Lights[LightIndex];
+		const FLightSceneInfoCompact& Light = Lights[LightIndex];
 		const bool bHasStaticLighting = Light.LightSceneInfo->Proxy->HasStaticLighting() && Light.LightSceneInfo->IsPrecomputedLightingValid();
 		const bool bAffectReflection = Light.LightSceneInfo->Proxy->AffectReflection();
 		checkf(!bHasStaticLighting && bAffectReflection, TEXT("Lights need to be prefiltered by SelectRaytracingLights()."));

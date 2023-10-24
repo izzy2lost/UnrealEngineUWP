@@ -2,6 +2,7 @@
 
 #define USE_HAIR_COMPLEX_TRANSMITTANCE 1
 
+#include "/Engine/Shared/RayTracingTypes.h"
 #include "../Common.ush"
 
 // Additional rewiring to make DeferredShadingCommon happy

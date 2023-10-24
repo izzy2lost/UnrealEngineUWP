@@ -13,6 +13,7 @@
 #include "RayTracingCapsuleLight.ush"
 #include "RayTracingSkyLightEvaluation.ush"
 #include "RayTracingLightCullingCommon.ush"
+#include "/Engine/Shared/RayTracingTypes.h"
 
 #ifndef ENABLE_FAR_FIELD_TRACING
 #define ENABLE_FAR_FIELD_TRACING 0
@@ -25,98 +26,13 @@
 #define LIGHT_TYPE_RECT				3 
 #define LIGHT_TYPE_MAX				4 
 
-//Must match definition in RayTracingLighting.h and decoding in GetRayTracingLightData
-struct FRTLightingData
-{
-	uint Type;
-	float IESAtlasIndex;
-	float RectLightAtlasMaxLevel;
-	uint LightMissShaderIndex;
-	float3 TranslatedLightPosition;
-	float InvRadius;
-	float3 Direction;
-	float FalloffExponent;
-	float3 LightColor;
-	float SpecularScale;
-	float3 Tangent;
-	float SourceRadius;
-	float2 SpotAngles;
-	float SourceLength;
-	float SoftSourceRadius;
-	float2 DistanceFadeMAD;
-	float RectLightBarnCosAngle;
-	float RectLightBarnLength;
-	float2 RectLightAtlasUVOffset;
-	float2 RectLightAtlasUVScale;
-}; // 128 bytes total
-
-// Decode RTLightingData from a StructuredBuffer<uint4>
-// #dxr_todo: This function is required because it's currently not possible to declare a
-// structured buffer with a custom type in a uniform buffer.
-// #dxr_todo: Potentially could use a byte address buffer with templated load syntax instead.
-
-FRTLightingData GetRayTracingLightData(int LightIndex)
-{
-	StructuredBuffer<uint4> LightDataBuffer = RaytracingLightsDataPacked.LightDataBuffer;
-
-	FRTLightingData Data;
-	uint4 Element;
-
-	LightIndex *= 8; // sizeof(FRTLightingData)/sizeof(uint4)
-
-	Element = LightDataBuffer[LightIndex++];
-
-	Data.Type = Element.x;
-	Data.IESAtlasIndex = asfloat(Element.y);
-	Data.RectLightAtlasMaxLevel = asfloat(Element.z);
-	Data.LightMissShaderIndex = Element.w;
-
-	Element = LightDataBuffer[LightIndex++];
-
-	Data.TranslatedLightPosition = asfloat(Element.xyz);
-	Data.InvRadius = asfloat(Element.w);
-
-	Element = LightDataBuffer[LightIndex++];
-
-	Data.Direction = asfloat(Element.xyz);
-	Data.FalloffExponent = asfloat(Element.w);
-
-	Element = LightDataBuffer[LightIndex++];
-
-	Data.LightColor = asfloat(Element.xyz);
-	Data.SpecularScale = asfloat(Element.w);
-
-	Element = LightDataBuffer[LightIndex++];
-
-	Data.Tangent = asfloat(Element.xyz);
-	Data.SourceRadius = asfloat(Element.w);
-
-	Element = LightDataBuffer[LightIndex++];
-
-	Data.SpotAngles = asfloat(Element.xy);
-	Data.SourceLength = asfloat(Element.z);
-	Data.SoftSourceRadius = asfloat(Element.w);
-
-	Element = LightDataBuffer[LightIndex++];
-
-	Data.DistanceFadeMAD = asfloat(Element.xy);
-	Data.RectLightBarnCosAngle = asfloat(Element.z);
-	Data.RectLightBarnLength = asfloat(Element.w);
-
-	Element = LightDataBuffer[LightIndex++];
-	Data.RectLightAtlasUVOffset = asfloat(Element.xy);
-	Data.RectLightAtlasUVScale = asfloat(Element.zw);
-
-	return Data;
-}
-
 FDeferredLightData GetRayTracingDeferredLightData(
 	int LightIndex,
 	inout uint OutLightType,
 	inout uint OutLightMissShaderIndex)
 {
 	FDeferredLightData LightData = (FDeferredLightData)0;
-	FRTLightingData RayTracingLightData = GetRayTracingLightData(LightIndex);
+	FRTLightingData RayTracingLightData = RaytracingLightsDataPacked.LightDataBuffer[LightIndex];
 
 	const uint LightType = RayTracingLightData.Type;
 
