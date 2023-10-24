@@ -24,7 +24,7 @@ class UTickableConstraint;
 class UTickableTransformConstraint;
 class UTransformableHandle;
 struct FBakingAnimationKeySettings;
-class UBaseControlRig;
+class UControlRig;
 
 USTRUCT(BlueprintType)
 struct FControlRigSequencerBindingProxy
@@ -36,7 +36,7 @@ struct FControlRigSequencerBindingProxy
 		, Track(nullptr)
 	{}
 
-	FControlRigSequencerBindingProxy(const FMovieSceneBindingProxy& InProxy, UBaseControlRig* InControlRig, UMovieSceneControlRigParameterTrack* InTrack)
+	FControlRigSequencerBindingProxy(const FMovieSceneBindingProxy& InProxy, UControlRig* InControlRig, UMovieSceneControlRigParameterTrack* InTrack)
 		: Proxy(InProxy)
 		, ControlRig(InControlRig)
 		, Track(InTrack)
@@ -46,7 +46,7 @@ struct FControlRigSequencerBindingProxy
 	FMovieSceneBindingProxy Proxy;
 
 	UPROPERTY(BlueprintReadOnly, Category = ControlRig)
-	TObjectPtr<UBaseControlRig> ControlRig;
+	TObjectPtr<UControlRig> ControlRig;
 
 	UPROPERTY(BlueprintReadOnly, Category = ControlRig)
 	TObjectPtr<UMovieSceneControlRigParameterTrack> Track;
@@ -80,7 +80,7 @@ public:
 	* @return returns list of visible Control Rigs
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig")
-	static TArray<UBaseControlRig*> GetVisibleControlRigs();
+	static TArray<UControlRig*> GetVisibleControlRigs();
 
 	/**
 	* Get all of the control rigs and their bindings in the level sequence
@@ -251,7 +251,7 @@ public:
 	* @param TweenValue The tween value to use, range from -1(blend to previous) to 1(blend to next)
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig")
-	static bool TweenControlRig(ULevelSequence* LevelSequence, UBaseControlRig* ControlRig, float TweenValue);
+	static bool TweenControlRig(ULevelSequence* LevelSequence, UControlRig* ControlRig, float TweenValue);
 	
 	/**
 	* Peform specified blend operation based upon selected keys in the curve editor or selected control rig controls
@@ -336,7 +336,7 @@ public:
 	* @return Returns World Transform
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig")
-	static FTransform GetControlRigWorldTransform(ULevelSequence* LevelSequence, UBaseControlRig* ControlRig, FName ControlName, FFrameNumber Frame,
+	static FTransform GetControlRigWorldTransform(ULevelSequence* LevelSequence, UControlRig* ControlRig, FName ControlName, FFrameNumber Frame,
 		ESequenceTimeUnit TimeUnit = ESequenceTimeUnit::DisplayRate);
 
 	/**
@@ -349,7 +349,7 @@ public:
 	* @return Returns World Transforms
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig")
-	static TArray<FTransform> GetControlRigWorldTransforms(ULevelSequence* LevelSequence, UBaseControlRig* ControlRig, FName ControlName, const TArray<FFrameNumber>& Frames,
+	static TArray<FTransform> GetControlRigWorldTransforms(ULevelSequence* LevelSequence, UControlRig* ControlRig, FName ControlName, const TArray<FFrameNumber>& Frames,
 		ESequenceTimeUnit TimeUnit = ESequenceTimeUnit::DisplayRate);
 
 	/**
@@ -363,7 +363,7 @@ public:
 	* @param bSetKey Whether or not to set a key.
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig")
-	static void SetControlRigWorldTransform(ULevelSequence* LevelSequence, UBaseControlRig* ControlRig, FName ControlName, FFrameNumber Frame, const FTransform& WorldTransform,
+	static void SetControlRigWorldTransform(ULevelSequence* LevelSequence, UControlRig* ControlRig, FName ControlName, FFrameNumber Frame, const FTransform& WorldTransform,
 		ESequenceTimeUnit TimeUnit = ESequenceTimeUnit::DisplayRate, bool bSetKey = true);
 
 	/**
@@ -376,7 +376,7 @@ public:
 	* @param TimeUnit Unit for frame values, either in display rate or tick resolution
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig")
-	static void SetControlRigWorldTransforms(ULevelSequence* LevelSequence, UBaseControlRig* ControlRig, FName ControlName, const TArray<FFrameNumber>& Frames, 
+	static void SetControlRigWorldTransforms(ULevelSequence* LevelSequence, UControlRig* ControlRig, FName ControlName, const TArray<FFrameNumber>& Frames, 
 		 const TArray<FTransform>& WorldTransforms, ESequenceTimeUnit TimeUnit = ESequenceTimeUnit::DisplayRate);
 	
 	/**
@@ -389,7 +389,7 @@ public:
 	* @return Returns Value at that time
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig")
-	static float GetLocalControlRigFloat(ULevelSequence* LevelSequence, UBaseControlRig* ControlRig, FName ControlName, FFrameNumber Frame,
+	static float GetLocalControlRigFloat(ULevelSequence* LevelSequence, UControlRig* ControlRig, FName ControlName, FFrameNumber Frame,
 		ESequenceTimeUnit TimeUnit = ESequenceTimeUnit::DisplayRate);
 
 	/**
@@ -402,7 +402,7 @@ public:
 	* @return Returns Values at those times
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig")
-	static TArray<float> GetLocalControlRigFloats(ULevelSequence* LevelSequence, UBaseControlRig* ControlRig, FName ControlName, const TArray<FFrameNumber>& Frames,
+	static TArray<float> GetLocalControlRigFloats(ULevelSequence* LevelSequence, UControlRig* ControlRig, FName ControlName, const TArray<FFrameNumber>& Frames,
 		ESequenceTimeUnit TimeUnit = ESequenceTimeUnit::DisplayRate);
 
 	/**
@@ -416,7 +416,7 @@ public:
 	* @param bSetKey If True set a key, if not just set the value
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig")
-	static void SetLocalControlRigFloat(ULevelSequence* LevelSequence, UBaseControlRig* ControlRig, FName ControlName, FFrameNumber Frame, float Value,
+	static void SetLocalControlRigFloat(ULevelSequence* LevelSequence, UControlRig* ControlRig, FName ControlName, FFrameNumber Frame, float Value,
 		ESequenceTimeUnit TimeUnit = ESequenceTimeUnit::DisplayRate,bool bSetKey = true);
 
 	/**
@@ -429,7 +429,7 @@ public:
 	* @param TimeUnit Unit for frame values, either in display rate or tick resolution
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig")
-	static void SetLocalControlRigFloats(ULevelSequence* LevelSequence, UBaseControlRig* ControlRig, FName ControlName, const TArray<FFrameNumber>& Frames, const TArray<float> Values,
+	static void SetLocalControlRigFloats(ULevelSequence* LevelSequence, UControlRig* ControlRig, FName ControlName, const TArray<FFrameNumber>& Frames, const TArray<float> Values,
 		ESequenceTimeUnit TimeUnit = ESequenceTimeUnit::DisplayRate);
 
 	/**
@@ -442,7 +442,7 @@ public:
 	* @return Returns Value at that time
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig")
-	static bool GetLocalControlRigBool(ULevelSequence* LevelSequence, UBaseControlRig* ControlRig, FName ControlName, FFrameNumber Frame,
+	static bool GetLocalControlRigBool(ULevelSequence* LevelSequence, UControlRig* ControlRig, FName ControlName, FFrameNumber Frame,
 		ESequenceTimeUnit TimeUnit = ESequenceTimeUnit::DisplayRate);
 
 	/**
@@ -455,7 +455,7 @@ public:
 	* @return Returns Values at those times
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig")
-	static TArray<bool> GetLocalControlRigBools(ULevelSequence* LevelSequence, UBaseControlRig* ControlRig, FName ControlName, const TArray<FFrameNumber>& Frames,
+	static TArray<bool> GetLocalControlRigBools(ULevelSequence* LevelSequence, UControlRig* ControlRig, FName ControlName, const TArray<FFrameNumber>& Frames,
 		ESequenceTimeUnit TimeUnit = ESequenceTimeUnit::DisplayRate);
 
 	/**
@@ -469,7 +469,7 @@ public:
 	* @param bSetKey If True set a key, if not just set the value
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig")
-	static void SetLocalControlRigBool(ULevelSequence* LevelSequence, UBaseControlRig* ControlRig, FName ControlName, FFrameNumber Frame, bool Value,
+	static void SetLocalControlRigBool(ULevelSequence* LevelSequence, UControlRig* ControlRig, FName ControlName, FFrameNumber Frame, bool Value,
 		ESequenceTimeUnit TimeUnit = ESequenceTimeUnit::DisplayRate, bool bSetKey = true);
 
 	/**
@@ -482,7 +482,7 @@ public:
 	* @param TimeUnit Unit for frame values, either in display rate or tick resolution
 */
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig")
-	static void SetLocalControlRigBools(ULevelSequence* LevelSequence, UBaseControlRig* ControlRig, FName ControlName, const TArray<FFrameNumber>& Frames,
+	static void SetLocalControlRigBools(ULevelSequence* LevelSequence, UControlRig* ControlRig, FName ControlName, const TArray<FFrameNumber>& Frames,
 		const TArray<bool> Values, ESequenceTimeUnit TimeUnit = ESequenceTimeUnit::DisplayRate);
 
 	/**
@@ -495,7 +495,7 @@ public:
 	* @return Returns Value at that time
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig")
-	static int32 GetLocalControlRigInt(ULevelSequence* LevelSequence, UBaseControlRig* ControlRig, FName ControlName, FFrameNumber Frame, 
+	static int32 GetLocalControlRigInt(ULevelSequence* LevelSequence, UControlRig* ControlRig, FName ControlName, FFrameNumber Frame, 
 		ESequenceTimeUnit TimeUnit = ESequenceTimeUnit::DisplayRate);
 
 	/**
@@ -508,7 +508,7 @@ public:
 	* @return Returns Values at those times
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig")
-	static TArray<int32> GetLocalControlRigInts(ULevelSequence* LevelSequence, UBaseControlRig* ControlRig, FName ControlName, const TArray<FFrameNumber>& Frames,
+	static TArray<int32> GetLocalControlRigInts(ULevelSequence* LevelSequence, UControlRig* ControlRig, FName ControlName, const TArray<FFrameNumber>& Frames,
 		ESequenceTimeUnit TimeUnit = ESequenceTimeUnit::DisplayRate);
 
 	/**
@@ -522,7 +522,7 @@ public:
 	* @param bSetKey If True set a key, if not just set the value
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig")
-	static void SetLocalControlRigInt(ULevelSequence* LevelSequence, UBaseControlRig* ControlRig, FName ControlName, FFrameNumber Frame, int32 Value,
+	static void SetLocalControlRigInt(ULevelSequence* LevelSequence, UControlRig* ControlRig, FName ControlName, FFrameNumber Frame, int32 Value,
 		ESequenceTimeUnit TimeUnit = ESequenceTimeUnit::DisplayRate,bool bSetKey = true);
 
 
@@ -536,7 +536,7 @@ public:
 	* @param TimeUnit Unit for frame values, either in display rate or tick resolution
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig")
-	static void SetLocalControlRigInts(ULevelSequence* LevelSequence, UBaseControlRig* ControlRig, FName ControlName, const TArray<FFrameNumber>& Frames, const TArray<int32> Values,
+	static void SetLocalControlRigInts(ULevelSequence* LevelSequence, UControlRig* ControlRig, FName ControlName, const TArray<FFrameNumber>& Frames, const TArray<int32> Values,
 		ESequenceTimeUnit TimeUnit = ESequenceTimeUnit::DisplayRate);
 
 	/**
@@ -549,7 +549,7 @@ public:
 	* @return Returns Value at that time
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig")
-	static FVector2D GetLocalControlRigVector2D(ULevelSequence* LevelSequence, UBaseControlRig* ControlRig, FName ControlName, FFrameNumber Frame,
+	static FVector2D GetLocalControlRigVector2D(ULevelSequence* LevelSequence, UControlRig* ControlRig, FName ControlName, FFrameNumber Frame,
 		ESequenceTimeUnit TimeUnit = ESequenceTimeUnit::DisplayRate);
 
 	/**
@@ -562,7 +562,7 @@ public:
 	* @return Returns Values at those times
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig")
-	static TArray<FVector2D> GetLocalControlRigVector2Ds(ULevelSequence* LevelSequence, UBaseControlRig* ControlRig, FName ControlName, const TArray<FFrameNumber>& Frames,
+	static TArray<FVector2D> GetLocalControlRigVector2Ds(ULevelSequence* LevelSequence, UControlRig* ControlRig, FName ControlName, const TArray<FFrameNumber>& Frames,
 		ESequenceTimeUnit TimeUnit = ESequenceTimeUnit::DisplayRate);
 
 	/**
@@ -576,7 +576,7 @@ public:
 	* @param bSetKey If True set a key, if not just set the value
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig")
-	static void SetLocalControlRigVector2D(ULevelSequence* LevelSequence, UBaseControlRig* ControlRig, FName ControlName, FFrameNumber Frame, FVector2D Value,
+	static void SetLocalControlRigVector2D(ULevelSequence* LevelSequence, UControlRig* ControlRig, FName ControlName, FFrameNumber Frame, FVector2D Value,
 		ESequenceTimeUnit TimeUnit = ESequenceTimeUnit::DisplayRate,bool bSetKey = true);
 
 
@@ -590,7 +590,7 @@ public:
 	* @param TimeUnit Unit for frame values, either in display rate or tick resolution
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig")
-	static void SetLocalControlRigVector2Ds(ULevelSequence* LevelSequence, UBaseControlRig* ControlRig, FName ControlName, const TArray<FFrameNumber>& Frames, const TArray<FVector2D> Values,
+	static void SetLocalControlRigVector2Ds(ULevelSequence* LevelSequence, UControlRig* ControlRig, FName ControlName, const TArray<FFrameNumber>& Frames, const TArray<FVector2D> Values,
 		ESequenceTimeUnit TimeUnit = ESequenceTimeUnit::DisplayRate);
 
 	/**
@@ -603,7 +603,7 @@ public:
 	* @return Returns Value at that time
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig")
-	static FVector GetLocalControlRigPosition(ULevelSequence* LevelSequence, UBaseControlRig* ControlRig, FName ControlName, FFrameNumber Frame,
+	static FVector GetLocalControlRigPosition(ULevelSequence* LevelSequence, UControlRig* ControlRig, FName ControlName, FFrameNumber Frame,
 		ESequenceTimeUnit TimeUnit = ESequenceTimeUnit::DisplayRate);
 
 	/**
@@ -616,7 +616,7 @@ public:
 	* @return Returns Values at those times
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig")
-	static TArray<FVector> GetLocalControlRigPositions(ULevelSequence* LevelSequence, UBaseControlRig* ControlRig, FName ControlName, const TArray<FFrameNumber>& Frames,
+	static TArray<FVector> GetLocalControlRigPositions(ULevelSequence* LevelSequence, UControlRig* ControlRig, FName ControlName, const TArray<FFrameNumber>& Frames,
 		ESequenceTimeUnit TimeUnit = ESequenceTimeUnit::DisplayRate);
 
 	/**
@@ -630,7 +630,7 @@ public:
 	* @param bSetKey If True set a key, if not just set the value
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig")
-	static void SetLocalControlRigPosition(ULevelSequence* LevelSequence, UBaseControlRig* ControlRig, FName ControlName, FFrameNumber Frame, FVector Value,
+	static void SetLocalControlRigPosition(ULevelSequence* LevelSequence, UControlRig* ControlRig, FName ControlName, FFrameNumber Frame, FVector Value,
 		ESequenceTimeUnit TimeUnit = ESequenceTimeUnit::DisplayRate, bool bSetKey = true);
 
 	/**
@@ -643,7 +643,7 @@ public:
 	* @param TimeUnit Unit for frame values, either in display rate or tick resolution
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig")
-	static void SetLocalControlRigPositions(ULevelSequence* LevelSequence, UBaseControlRig* ControlRig, FName ControlName, const TArray<FFrameNumber>& Frames, const TArray<FVector> Values,
+	static void SetLocalControlRigPositions(ULevelSequence* LevelSequence, UControlRig* ControlRig, FName ControlName, const TArray<FFrameNumber>& Frames, const TArray<FVector> Values,
 		ESequenceTimeUnit TimeUnit = ESequenceTimeUnit::DisplayRate);
 
 	/**
@@ -656,7 +656,7 @@ public:
 	* @return Returns Value at that time
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig")
-	static FRotator GetLocalControlRigRotator(ULevelSequence* LevelSequence, UBaseControlRig* ControlRig, FName ControlName, FFrameNumber Frame,
+	static FRotator GetLocalControlRigRotator(ULevelSequence* LevelSequence, UControlRig* ControlRig, FName ControlName, FFrameNumber Frame,
 		ESequenceTimeUnit TimeUnit = ESequenceTimeUnit::DisplayRate);
 
 	/**
@@ -669,7 +669,7 @@ public:
 	* @return Returns Values at those times
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig")
-	static TArray<FRotator> GetLocalControlRigRotators(ULevelSequence* LevelSequence, UBaseControlRig* ControlRig, FName ControlName, const TArray<FFrameNumber>& Frames,
+	static TArray<FRotator> GetLocalControlRigRotators(ULevelSequence* LevelSequence, UControlRig* ControlRig, FName ControlName, const TArray<FFrameNumber>& Frames,
 		ESequenceTimeUnit TimeUnit = ESequenceTimeUnit::DisplayRate);
 
 	/**
@@ -683,7 +683,7 @@ public:
 	* @param bSetKey If True set a key, if not just set the value
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig")
-	static void SetLocalControlRigRotator(ULevelSequence* LevelSequence, UBaseControlRig* ControlRig, FName ControlName, FFrameNumber Frame, FRotator Value, 
+	static void SetLocalControlRigRotator(ULevelSequence* LevelSequence, UControlRig* ControlRig, FName ControlName, FFrameNumber Frame, FRotator Value, 
 		ESequenceTimeUnit TimeUnit = ESequenceTimeUnit::DisplayRate, bool bSetKey = true);
 
 	/**
@@ -696,7 +696,7 @@ public:
 	* @param TimeUnit Unit for frame values, either in display rate or tick resolution
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig")
-	static void SetLocalControlRigRotators(ULevelSequence* LevelSequence, UBaseControlRig* ControlRig, FName ControlName, const TArray<FFrameNumber>& Frames, const TArray<FRotator> Values,
+	static void SetLocalControlRigRotators(ULevelSequence* LevelSequence, UControlRig* ControlRig, FName ControlName, const TArray<FFrameNumber>& Frames, const TArray<FRotator> Values,
 		ESequenceTimeUnit TimeUnit = ESequenceTimeUnit::DisplayRate);
 
 	/**
@@ -709,7 +709,7 @@ public:
 	* @return Returns Value at that time
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig")
-	static FVector GetLocalControlRigScale(ULevelSequence* LevelSequence, UBaseControlRig* ControlRig, FName ControlName, FFrameNumber Frame,
+	static FVector GetLocalControlRigScale(ULevelSequence* LevelSequence, UControlRig* ControlRig, FName ControlName, FFrameNumber Frame,
 		ESequenceTimeUnit TimeUnit = ESequenceTimeUnit::DisplayRate);
 
 	/**
@@ -722,7 +722,7 @@ public:
 	* @return Returns Values at those times
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig")
-	static TArray<FVector> GetLocalControlRigScales(ULevelSequence* LevelSequence, UBaseControlRig* ControlRig, FName ControlName, const TArray<FFrameNumber>& Frames,
+	static TArray<FVector> GetLocalControlRigScales(ULevelSequence* LevelSequence, UControlRig* ControlRig, FName ControlName, const TArray<FFrameNumber>& Frames,
 		ESequenceTimeUnit TimeUnit = ESequenceTimeUnit::DisplayRate);
 
 	/**
@@ -736,7 +736,7 @@ public:
 	* @param bSetKey If True set a key, if not just set the value
 */
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig")
-	static void SetLocalControlRigScale(ULevelSequence* LevelSequence, UBaseControlRig* ControlRig, FName ControlName, FFrameNumber Frame, FVector Value, 
+	static void SetLocalControlRigScale(ULevelSequence* LevelSequence, UControlRig* ControlRig, FName ControlName, FFrameNumber Frame, FVector Value, 
 		ESequenceTimeUnit TimeUnit = ESequenceTimeUnit::DisplayRate, bool bSetKey = true);
 
 	/**
@@ -749,7 +749,7 @@ public:
 	* @param TimeUnit Unit for frame values, either in display rate or tick resolution
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig")
-	static void SetLocalControlRigScales(ULevelSequence* LevelSequence, UBaseControlRig* ControlRig, FName ControlName, const TArray<FFrameNumber>& Frames, const TArray<FVector> Values,
+	static void SetLocalControlRigScales(ULevelSequence* LevelSequence, UControlRig* ControlRig, FName ControlName, const TArray<FFrameNumber>& Frames, const TArray<FVector> Values,
 		ESequenceTimeUnit TimeUnit = ESequenceTimeUnit::DisplayRate);
 
 
@@ -763,7 +763,7 @@ public:
 	* @return Returns Value at that time
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig")
-	static FEulerTransform GetLocalControlRigEulerTransform(ULevelSequence* LevelSequence, UBaseControlRig* ControlRig, FName ControlName, FFrameNumber Frame,
+	static FEulerTransform GetLocalControlRigEulerTransform(ULevelSequence* LevelSequence, UControlRig* ControlRig, FName ControlName, FFrameNumber Frame,
 		ESequenceTimeUnit TimeUnit = ESequenceTimeUnit::DisplayRate);
 
 	/**
@@ -776,7 +776,7 @@ public:
 	* @return Returns Values at those times
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig")
-	static TArray<FEulerTransform> GetLocalControlRigEulerTransforms(ULevelSequence* LevelSequence, UBaseControlRig* ControlRig, FName ControlName, const TArray<FFrameNumber>& Frames,
+	static TArray<FEulerTransform> GetLocalControlRigEulerTransforms(ULevelSequence* LevelSequence, UControlRig* ControlRig, FName ControlName, const TArray<FFrameNumber>& Frames,
 		ESequenceTimeUnit TimeUnit = ESequenceTimeUnit::DisplayRate);
 
 	/**
@@ -790,7 +790,7 @@ public:
 	* @param bSetKey If True set a key, if not just set the value
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig")
-	static void SetLocalControlRigEulerTransform(ULevelSequence* LevelSequence, UBaseControlRig* ControlRig, FName ControlName, FFrameNumber Frame, FEulerTransform Value,
+	static void SetLocalControlRigEulerTransform(ULevelSequence* LevelSequence, UControlRig* ControlRig, FName ControlName, FFrameNumber Frame, FEulerTransform Value,
 		ESequenceTimeUnit TimeUnit = ESequenceTimeUnit::DisplayRate, bool bSetKey = true);
 
 	/**
@@ -803,7 +803,7 @@ public:
 	* @param TimeUnit Unit for frame values, either in display rate or tick resolution
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig")
-	static void SetLocalControlRigEulerTransforms(ULevelSequence* LevelSequence, UBaseControlRig* ControlRig, FName ControlName, const TArray<FFrameNumber>& Frames, const TArray<FEulerTransform> Values,
+	static void SetLocalControlRigEulerTransforms(ULevelSequence* LevelSequence, UControlRig* ControlRig, FName ControlName, const TArray<FFrameNumber>& Frames, const TArray<FEulerTransform> Values,
 		ESequenceTimeUnit TimeUnit = ESequenceTimeUnit::DisplayRate);
 
 	/**
@@ -816,7 +816,7 @@ public:
 	* @return Returns Value at that time
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig")
-	static FTransformNoScale GetLocalControlRigTransformNoScale(ULevelSequence* LevelSequence, UBaseControlRig* ControlRig, FName ControlName, FFrameNumber Frame,
+	static FTransformNoScale GetLocalControlRigTransformNoScale(ULevelSequence* LevelSequence, UControlRig* ControlRig, FName ControlName, FFrameNumber Frame,
 		ESequenceTimeUnit TimeUnit = ESequenceTimeUnit::DisplayRate);
 
 	/**
@@ -829,7 +829,7 @@ public:
 	* @return Returns Values at those times
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig")
-	static TArray<FTransformNoScale> GetLocalControlRigTransformNoScales(ULevelSequence* LevelSequence, UBaseControlRig* ControlRig, FName ControlName, const TArray<FFrameNumber>& Frames,
+	static TArray<FTransformNoScale> GetLocalControlRigTransformNoScales(ULevelSequence* LevelSequence, UControlRig* ControlRig, FName ControlName, const TArray<FFrameNumber>& Frames,
 		ESequenceTimeUnit TimeUnit = ESequenceTimeUnit::DisplayRate);
 
 	/**
@@ -843,7 +843,7 @@ public:
 	* @param bSetKey If True set a key, if not just set the value
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig")
-	static void SetLocalControlRigTransformNoScale(ULevelSequence* LevelSequence, UBaseControlRig* ControlRig, FName ControlName, FFrameNumber Frame, FTransformNoScale Value, 
+	static void SetLocalControlRigTransformNoScale(ULevelSequence* LevelSequence, UControlRig* ControlRig, FName ControlName, FFrameNumber Frame, FTransformNoScale Value, 
 		ESequenceTimeUnit TimeUnit = ESequenceTimeUnit::DisplayRate, bool bSetKey = true);
 
 	/**
@@ -856,7 +856,7 @@ public:
 	* @param TimeUnit Unit for frame values, either in display rate or tick resolution
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig")
-	static void SetLocalControlRigTransformNoScales(ULevelSequence* LevelSequence, UBaseControlRig* ControlRig, FName ControlName, const TArray<FFrameNumber>& Frames, const TArray<FTransformNoScale> Values,
+	static void SetLocalControlRigTransformNoScales(ULevelSequence* LevelSequence, UControlRig* ControlRig, FName ControlName, const TArray<FFrameNumber>& Frames, const TArray<FTransformNoScale> Values,
 		ESequenceTimeUnit TimeUnit = ESequenceTimeUnit::DisplayRate);
 
 	/**
@@ -869,7 +869,7 @@ public:
 	* @return Returns Value at that time
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig")
-	static FTransform GetLocalControlRigTransform(ULevelSequence* LevelSequence, UBaseControlRig* ControlRig, FName ControlName, FFrameNumber Frame, 
+	static FTransform GetLocalControlRigTransform(ULevelSequence* LevelSequence, UControlRig* ControlRig, FName ControlName, FFrameNumber Frame, 
 		ESequenceTimeUnit TimeUnit = ESequenceTimeUnit::DisplayRate);
 
 	/**
@@ -882,7 +882,7 @@ public:
 	* @return Returns Values at those times
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig")
-	static TArray<FTransform> GetLocalControlRigTransforms(ULevelSequence* LevelSequence, UBaseControlRig* ControlRig, FName ControlName, const TArray<FFrameNumber>& Frames,
+	static TArray<FTransform> GetLocalControlRigTransforms(ULevelSequence* LevelSequence, UControlRig* ControlRig, FName ControlName, const TArray<FFrameNumber>& Frames,
 		ESequenceTimeUnit TimeUnit = ESequenceTimeUnit::DisplayRate);
 
 	/**
@@ -896,7 +896,7 @@ public:
 	* @param bSetKey If True set a key, if not just set the value
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig")
-	static void SetLocalControlRigTransform(ULevelSequence* LevelSequence, UBaseControlRig* ControlRig, FName ControlName, FFrameNumber Frame, FTransform Value, 
+	static void SetLocalControlRigTransform(ULevelSequence* LevelSequence, UControlRig* ControlRig, FName ControlName, FFrameNumber Frame, FTransform Value, 
 		ESequenceTimeUnit TimeUnit = ESequenceTimeUnit::DisplayRate, bool bSetKey = true);
 
 	/**
@@ -909,7 +909,7 @@ public:
 	* @param TimeUnit Unit for frame values, either in display rate or tick resolution
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig")
-	static void SetLocalControlRigTransforms(ULevelSequence* LevelSequence, UBaseControlRig* ControlRig, FName ControlName, const TArray<FFrameNumber>& Frames, const TArray<FTransform> Values,
+	static void SetLocalControlRigTransforms(ULevelSequence* LevelSequence, UControlRig* ControlRig, FName ControlName, const TArray<FFrameNumber>& Frames, const TArray<FTransform> Values,
 		ESequenceTimeUnit TimeUnit = ESequenceTimeUnit::DisplayRate);
 
 	/*
@@ -980,7 +980,7 @@ public:
 	 * @param TimeUnit Unit for the InTime, either in display rate or tick resolution
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig")
-	static bool SetControlRigSpace(ULevelSequence* InSequence, UBaseControlRig* InControlRig, FName InControlName, const FRigElementKey& InSpaceKey, FFrameNumber InTime,  ESequenceTimeUnit TimeUnit = ESequenceTimeUnit::DisplayRate);
+	static bool SetControlRigSpace(ULevelSequence* InSequence, UControlRig* InControlRig, FName InControlName, const FRigElementKey& InSpaceKey, FFrameNumber InTime,  ESequenceTimeUnit TimeUnit = ESequenceTimeUnit::DisplayRate);
 
 	/** Bake specified Control Rig Controls to a specified Space based upon the current settings
 	* @param InSequence Sequence to bake
@@ -990,7 +990,7 @@ public:
 	* @param TimeUnit Unit for the start and end times in the InSettings parameter.
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig")
-	static bool BakeControlRigSpace(ULevelSequence* InSequence, UBaseControlRig* InControlRig, const TArray<FName>& InControlNames, FRigSpacePickerBakeSettings InSettings, ESequenceTimeUnit TimeUnit = ESequenceTimeUnit::DisplayRate);
+	static bool BakeControlRigSpace(ULevelSequence* InSequence, UControlRig* InControlRig, const TArray<FName>& InControlNames, FRigSpacePickerBakeSettings InSettings, ESequenceTimeUnit TimeUnit = ESequenceTimeUnit::DisplayRate);
 	
 	/** Delete the Control Rig Space Key for the Control at the specified time. This will delete any attached Control Rig keys at this time and will perform any needed compensation to the new space.
 	*
@@ -1002,7 +1002,7 @@ public:
 	* @return Will return false if function fails,  for example if there is no key at this time it will fail.
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig")
-	static bool DeleteControlRigSpace(ULevelSequence* InSequence, UBaseControlRig* InControlRig, FName InControlName, FFrameNumber InTime, ESequenceTimeUnit TimeUnit = ESequenceTimeUnit::DisplayRate);
+	static bool DeleteControlRigSpace(ULevelSequence* InSequence, UControlRig* InControlRig, FName InControlName, FFrameNumber InTime, ESequenceTimeUnit TimeUnit = ESequenceTimeUnit::DisplayRate);
 
 	/** Move the Control Rig Space Key for the Control at the specified time to the new time. This will also move any Control Rig keys at this space switch boundary.
 	*
@@ -1015,7 +1015,7 @@ public:
 	* @return Will return false if function fails, for example if there is no key at this time it will fail, or if the new time is invalid it could fail also
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig")
-	static bool MoveControlRigSpace(ULevelSequence* InSequence, UBaseControlRig* InControlRig, FName InControlName, FFrameNumber InTime, FFrameNumber InNewTime, ESequenceTimeUnit TimeUnit = ESequenceTimeUnit::DisplayRate);
+	static bool MoveControlRigSpace(ULevelSequence* InSequence, UControlRig* InControlRig, FName InControlName, FFrameNumber InTime, FFrameNumber InNewTime, ESequenceTimeUnit TimeUnit = ESequenceTimeUnit::DisplayRate);
 
 	/** Rename the Control Rig Channels in Sequencer to the specified new control names, which should be present on the Control Rig
 	* @param InSequence Sequence to rename controls
@@ -1025,7 +1025,7 @@ public:
 	* @return Return true if the function succeeds, false if it doesn't which can happen if the name arrays don't match in size or any of the new Control Names aren't valid
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig")
-	static bool RenameControlRigControlChannels(ULevelSequence* InSequence, UBaseControlRig* InControlRig, const TArray<FName>& InOldControlNames, const TArray<FName>& InNewControlNames);
+	static bool RenameControlRigControlChannels(ULevelSequence* InSequence, UControlRig* InControlRig, const TArray<FName>& InOldControlNames, const TArray<FName>& InNewControlNames);
 
 	/** Get the controls mask for the given ControlName */
 	UFUNCTION(BlueprintPure, Category = "Editor Scripting | Sequencer Tools | Control Rig")
@@ -1047,20 +1047,20 @@ public:
 	@param InControlRig Rig to test to see if FK Control Rig
 	**/
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig")
-	static bool IsFKControlRig(UBaseControlRig* InControlRig);
+	static bool IsFKControlRig(UControlRig* InControlRig);
 
 	/**	Whether or not the control rig is an Additive Control Rig.
 	@param InControlRig Rig to test to see if Additive Control Rig
 	**/
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig")
-	static bool IsAdditiveControlRig(UBaseControlRig* InControlRig);
+	static bool IsAdditiveControlRig(UControlRig* InControlRig);
 
 	/**	Get FKControlRig Apply Mode.
 	@param InControlRig Rig to test
 	@return The EControlRigFKRigExecuteMode mode it is in, either Replace,Additive or Direct
 	**/
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig")
-	static EControlRigFKRigExecuteMode  GetFKControlRigApplyMode(UBaseControlRig* InControlRig);
+	static EControlRigFKRigExecuteMode  GetFKControlRigApplyMode(UControlRig* InControlRig);
 
 	/**	Set the FK Control Rig to apply mode
 	@param InControlRig Rig to set 
@@ -1068,5 +1068,5 @@ public:
 	@return returns True if the mode was set, may not be set if the Control Rig doesn't support these modes currently only FKControlRig's do.
 	**/
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig")
-	static bool SetControlRigApplyMode(UBaseControlRig* InControlRig, EControlRigFKRigExecuteMode InApplyMode);
+	static bool SetControlRigApplyMode(UControlRig* InControlRig, EControlRigFKRigExecuteMode InApplyMode);
 };

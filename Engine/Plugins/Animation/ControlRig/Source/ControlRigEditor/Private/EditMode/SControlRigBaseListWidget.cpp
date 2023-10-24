@@ -17,7 +17,7 @@
 
 #include "ScopedTransaction.h"
 
-#include "BaseControlRig.h"
+#include "ControlRig.h"
 #include "UnrealEdGlobals.h"
 #include "EditMode/ControlRigEditMode.h"
 #include "Tools/ControlRigPose.h"

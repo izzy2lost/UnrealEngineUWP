@@ -8,7 +8,7 @@
 #include "Toolkits/ToolkitManager.h"
 #include "EditMode/SControlRigEditModeTools.h"
 #include "Algo/Transform.h"
-#include "BaseControlRig.h"
+#include "ControlRig.h"
 #include "HitProxies.h"
 #include "EditMode/ControlRigEditModeSettings.h"
 #include "ISequencer.h"

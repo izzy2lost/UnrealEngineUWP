@@ -17,7 +17,7 @@
 #include "EditorModeManager.h"
 #include "Misc/QualifiedFrameTime.h"
 #include "Modules/ModuleManager.h"
-#include "BaseControlRig.h"
+#include "ControlRig.h"
 #include "ControlRigSequencerEditorLibrary.h"
 #include "LevelSequence.h"
 #include "LevelSequenceEditorBlueprintLibrary.h"
@@ -61,10 +61,11 @@ static void GetControlRigsAndSequencer(TArray<TWeakObjectPtr<UBaseControlRig>>& 
 		SequencerPtr = LevelSequenceEditor ? LevelSequenceEditor->GetSequencer() : nullptr;
 		if (SequencerPtr.IsValid())
 		{
-			TArray<UBaseControlRig*> TempControlRigs;
+			TArray<UControlRig*> TempControlRigs;
 			TempControlRigs = UControlRigSequencerEditorLibrary::GetVisibleControlRigs();
-			for (UBaseControlRig* ControlRig : TempControlRigs)
+			for (UControlRig* ControlRig : TempControlRigs)
 			{
+				UBaseControlRig* Base = ControlRig;
 				ControlRigs.Add(ControlRig);
 			}
 		}
@@ -452,7 +453,8 @@ bool USequencerPivotTool::SetGizmoBasedOnSelection(bool bUseSaved)
 			}
 			if (bHasSavedPivot == false)
 			{
-				GizmoTransform = UControlRigSequencerEditorLibrary::GetControlRigWorldTransform(LevelSequence, ControlRig.Get(), Name, FrameTime.RoundToFrame(),
+				UControlRig* RealControlRig = Cast<UControlRig>(ControlRig.Get());
+				GizmoTransform = UControlRigSequencerEditorLibrary::GetControlRigWorldTransform(LevelSequence, RealControlRig, Name, FrameTime.RoundToFrame(),
 					ESequenceTimeUnit::TickResolution);
 				AverageLocation += GizmoTransform.GetLocation();
 				NumLocations++;
@@ -642,7 +644,8 @@ void USequencerPivotTool::GizmoTransformStarted(UTransformProxy* Proxy)
 								continue;
 							}
 						}
-						FTransform Transform = UControlRigSequencerEditorLibrary::GetControlRigWorldTransform(LevelSequence, ControlRig.Get(), Name, FrameNumber,
+						UControlRig* RealControlRig = Cast<UControlRig>(ControlRig.Get());
+						FTransform Transform = UControlRigSequencerEditorLibrary::GetControlRigWorldTransform(LevelSequence, RealControlRig, Name, FrameNumber,
 							ESequenceTimeUnit::TickResolution);
 
 						FControlRigSelectionDuringDrag ControlDrag;
@@ -770,6 +773,7 @@ void USequencerPivotTool::GizmoTransformChanged(UTransformProxy* Proxy, FTransfo
 		int32 Index = 0;
 		for (FControlRigSelectionDuringDrag& ControlDrag : ControlRigDrags)
 		{
+			UControlRig* RealControlRig = Cast<UControlRig>(ControlDrag.ControlRig);
 			if (bInPivotMode == false)
 			{
 				ControlDrag.CurrentTransform = Transform;
@@ -797,7 +801,7 @@ void USequencerPivotTool::GizmoTransformChanged(UTransformProxy* Proxy, FTransfo
 						OptQuat.EnforceShortestArcWith(ControlDrag.CurrentTransform.GetRotation());
 						ControlDrag.CurrentTransform.SetRotation(OptQuat);
 					}
-					UControlRigSequencerEditorLibrary::SetControlRigWorldTransform(ControlDrag.LevelSequence, ControlDrag.ControlRig, ControlDrag.ControlName,
+					UControlRigSequencerEditorLibrary::SetControlRigWorldTransform(ControlDrag.LevelSequence, RealControlRig, ControlDrag.ControlName,
 						ControlDrag.CurrentFrame, ControlDrag.CurrentTransform, ESequenceTimeUnit::TickResolution, bSetKey);
 					
 				}
@@ -805,13 +809,13 @@ void USequencerPivotTool::GizmoTransformChanged(UTransformProxy* Proxy, FTransfo
 				{
 					FVector DiffTranslation = StartDragTransform.GetRotation().RotateVector(Diff.GetTranslation());
 					ControlDrag.CurrentTransform.AddToTranslation(DiffTranslation);
-					UControlRigSequencerEditorLibrary::SetControlRigWorldTransform(ControlDrag.LevelSequence, ControlDrag.ControlRig, ControlDrag.ControlName,
+					UControlRigSequencerEditorLibrary::SetControlRigWorldTransform(ControlDrag.LevelSequence, RealControlRig, ControlDrag.ControlName,
 						ControlDrag.CurrentFrame, ControlDrag.CurrentTransform, ESequenceTimeUnit::TickResolution, bSetKey);
 				}
 			}
 			else //last one with shift we keep locked!
 			{
-				UControlRigSequencerEditorLibrary::SetControlRigWorldTransform(ControlDrag.LevelSequence, ControlDrag.ControlRig, ControlDrag.ControlName,
+				UControlRigSequencerEditorLibrary::SetControlRigWorldTransform(ControlDrag.LevelSequence, RealControlRig, ControlDrag.ControlName,
 					ControlDrag.CurrentFrame, ControlDrag.CurrentTransform, ESequenceTimeUnit::TickResolution, bSetKey);
 			}
 			
