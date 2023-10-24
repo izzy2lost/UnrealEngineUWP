@@ -932,8 +932,12 @@ TIoStatusOr<FIoStoreUploadResult> UploadContainerFiles(
 			{
 				for (const FOnDemandTocEntry& TocEntry : ContainerEntry.Entries)
 				{
-					ExistingChunks.Add(TocEntry.Hash);
-					TotalExistingBytes += TocEntry.EncodedSize;
+					bool bIsAlreadyInSet;
+					ExistingChunks.Add(TocEntry.Hash, &bIsAlreadyInSet);
+					if (!bIsAlreadyInSet)
+					{
+						TotalExistingBytes += TocEntry.EncodedSize;
+					}
 				}
 			}
 
