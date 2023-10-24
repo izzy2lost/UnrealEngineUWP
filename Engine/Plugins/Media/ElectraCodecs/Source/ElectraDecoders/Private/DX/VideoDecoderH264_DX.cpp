@@ -158,6 +158,7 @@ private:
 		FInputAccessUnit AccessUnit;
 		TMap<FString, FVariant> AdditionalOptions;
 		void* InputDataCopy = nullptr;
+		bool bDropOutput = false;
 	};
 
 	struct FDecoderOutputBuffer
@@ -364,15 +365,21 @@ IElectraDecoder::EDecoderError FElectraVideoDecoderH264_DX::DecodeAccessUnit(con
 		return IElectraDecoder::EDecoderError::EndOfData;
 	}
 
+	// CSD only buffer is not handled at the moment.
+	check((InInputAccessUnit.Flags & EElectraDecoderFlags::InitCSDOnly) == EElectraDecoderFlags::None);
+
+	// If this is discardable and won't be output we do not need to handle it at all.
+	if ((InInputAccessUnit.Flags & (EElectraDecoderFlags::DoNotOutput | EElectraDecoderFlags::IsDiscardable)) == (EElectraDecoderFlags::DoNotOutput | EElectraDecoderFlags::IsDiscardable))
+	{
+		return IElectraDecoder::EDecoderError::None;
+	}
+
 	// If there is pending output it is very likely that decoding this access unit would also generate output.
 	// Since that would result in loss of the pending output we return now.
 	if (CurrentOutput.IsValid())
 	{
 		return IElectraDecoder::EDecoderError::NoBuffer;
 	}
-
-	// CSD only buffer is not handled at the moment.
-	check((InInputAccessUnit.Flags & EElectraDecoderFlags::InitCSDOnly) == EElectraDecoderFlags::None);
 
 	// Create decoder transform if necessary.
 	if (!DecoderTransform.IsValid() && !InternalDecoderCreate(InAdditionalOptions))
@@ -416,6 +423,7 @@ IElectraDecoder::EDecoderError FElectraVideoDecoderH264_DX::DecodeAccessUnit(con
 
 					FDecoderInput In;
 					In.AdditionalOptions = InAdditionalOptions;
+					In.bDropOutput = (InInputAccessUnit.Flags & EElectraDecoderFlags::DoNotOutput) == EElectraDecoderFlags::DoNotOutput;
 					In.AccessUnit = InInputAccessUnit;
 					// If we need to hold on to the input data we need to make a local copy.
 					// For safety reasons we zero out the pointer we were given in the input data copy to now accidentally
@@ -850,6 +858,11 @@ bool FElectraVideoDecoderH264_DX::ConvertDecoderOutput()
 		return false;
 	}
 	*/
+
+	if (MatchingInput.bDropOutput)
+	{
+		return true;
+	}
 
 	TSharedPtr<FElectraVideoDecoderOutputH264_DX, ESPMode::ThreadSafe> NewOutput = MakeShared<FElectraVideoDecoderOutputH264_DX>();
 	NewOutput->PTS = MatchingInput.AccessUnit.PTS;

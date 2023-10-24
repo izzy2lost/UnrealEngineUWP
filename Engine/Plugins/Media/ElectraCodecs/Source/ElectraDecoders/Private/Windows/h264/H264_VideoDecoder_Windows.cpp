@@ -206,6 +206,7 @@ void IElectraVideoDecoderH264_DX::PlatformGetConfigurationOptions(TMap<FString, 
 {
 	OutOptions.Emplace(IElectraDecoderFeature::MinimumNumberOfOutputFrames, FVariant((int32)8));
 	OutOptions.Emplace(IElectraDecoderFeature::IsAdaptive, FVariant(false));
+	OutOptions.Emplace(IElectraDecoderFeature::SupportsDroppingOutput, FVariant(true));
 }
 
 

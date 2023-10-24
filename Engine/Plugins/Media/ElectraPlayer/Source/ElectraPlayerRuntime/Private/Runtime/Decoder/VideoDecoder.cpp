@@ -169,10 +169,13 @@ private:
 	EDecodingState															NextDecodingStateAfterDrain = EDecodingState::NormalDecoding;
 	bool																	bIsDecoderClean = true;
 	bool																	bDrainAfterDecode = false;
+	int32																	MinLoopSleepTimeMsec = 0;
 
 	bool																	bIsFirstAccessUnit = true;
 	bool																	bInDummyDecodeMode = false;
 	bool																	bDrainForCodecChange = false;
+	bool																	bWaitForSyncSample = true;
+	bool																	bWarnedMissingSyncSample = false;
 
 	bool																	bError = false;
 
@@ -206,6 +209,7 @@ private:
 	TMap<FString, FVariant>													DecoderConfigOptions;
 	TSharedPtr<IElectraDecoder, ESPMode::ThreadSafe>						DecoderInstance;
 	bool																	bIsAdaptiveDecoder = false;
+	bool																	bSupportsDroppingOutput = false;
 	bool																	bNeedsReplayData = true;
 	bool																	bMustBeSuspendedInBackground = false;
 
@@ -522,6 +526,7 @@ bool FVideoDecoderImpl::InternalDecoderCreate()
 	TMap<FString, FVariant> Features;
 	DecoderInstance->GetFeatures(Features);
 	bIsAdaptiveDecoder = ElectraDecodersUtil::GetVariantValueSafeI64(Features, IElectraDecoderFeature::IsAdaptive, 0) != 0;
+	bSupportsDroppingOutput = ElectraDecodersUtil::GetVariantValueSafeI64(Features, IElectraDecoderFeature::SupportsDroppingOutput, 0) != 0;
 	bNeedsReplayData = ElectraDecodersUtil::GetVariantValueSafeI64(Features, IElectraDecoderFeature::NeedReplayDataOnDecoderLoss, 0) != 0;
 	// If replay data is not needed we can let go of anything we may have collected (which should be only the first access unit).
 	if (!bNeedsReplayData)
@@ -563,6 +568,7 @@ void FVideoDecoderImpl::InternalDecoderDestroy()
 		PlatformResource = nullptr;
 	}
 	bIsAdaptiveDecoder = false;
+	bSupportsDroppingOutput = false;
 	bNeedsReplayData = true;
 }
 
@@ -925,6 +931,14 @@ FVideoDecoderImpl::ENextDecodingState FVideoDecoderImpl::HandleDecoding()
 			DecAU.Duration = CurrentAccessUnit->AccessUnit->Duration.GetAsTimespan();
 			DecAU.UserValue = CurrentAccessUnit->PTS;
 			DecAU.Flags = CurrentAccessUnit->BitstreamInfo.bIsSyncFrame ? EElectraDecoderFlags::IsSyncSample : EElectraDecoderFlags::None;
+			if (CurrentAccessUnit->BitstreamInfo.bIsDiscardable)
+			{
+				DecAU.Flags |= EElectraDecoderFlags::IsDiscardable;
+			}
+			if (bSupportsDroppingOutput && !CurrentAccessUnit->AdjustedPTS.IsValid())
+			{
+				DecAU.Flags |= EElectraDecoderFlags::DoNotOutput;
+			}
 			TMap<FString, FVariant> CSDOptions;
 			if (CurrentAccessUnit->BitstreamInfo.bIsSyncFrame && CurrentAccessUnit->AccessUnit->AUCodecData.IsValid())
 			{
@@ -932,14 +946,38 @@ FVideoDecoderImpl::ENextDecodingState FVideoDecoderImpl::HandleDecoding()
 				CSDOptions.Emplace(TEXT("dcr"), FVariant(CurrentAccessUnit->AccessUnit->AUCodecData->RawCSD));
 			}
 
+			// Need to wait for a sync sample?
+			if (bWaitForSyncSample && !CurrentAccessUnit->BitstreamInfo.bIsSyncFrame)
+			{
+				if (!bWarnedMissingSyncSample)
+				{
+					bWarnedMissingSyncSample = true;
+					UE_LOG(LogElectraPlayer, Warning, TEXT("Expected a video sync sample at PTS %lld, but did not get one. The stream may be packaged incorrectly. Dropping frames until one arrives, which may take a while. Please wait!"), (long long int)DecAU.PTS.GetTicks());
+				}
+				bDrainAfterDecode = CurrentAccessUnit->AccessUnit->bIsLastInPeriod;
+				CurrentAccessUnit.Reset();
+				// Report this up as "stalled" so that we get out of prerolling.
+				// This case here happens when seeking due to bad sync frame information in the container format
+				// and the next sync frame may be too far away to satisfy the prerolling finished condition.
+				NotifyReadyBufferListener(false);
+				return ENextDecodingState::NormalDecoding;
+			}
+
 			IElectraDecoder::EDecoderError DecErr = DecoderInstance->DecodeAccessUnit(DecAU, CSDOptions);
 			if (DecErr == IElectraDecoder::EDecoderError::None)
 			{
-				InDecoderInput.Emplace(CurrentAccessUnit);
-				InDecoderInput.Sort([](const TSharedPtr<FDecoderInput, ESPMode::ThreadSafe>& a, const TSharedPtr<FDecoderInput, ESPMode::ThreadSafe>& b)
+				if ((DecAU.Flags & EElectraDecoderFlags::DoNotOutput) == EElectraDecoderFlags::None)
 				{
-					return a->PTS < b->PTS;
-				});
+					InDecoderInput.Emplace(CurrentAccessUnit);
+					InDecoderInput.Sort([](const TSharedPtr<FDecoderInput, ESPMode::ThreadSafe>& a, const TSharedPtr<FDecoderInput, ESPMode::ThreadSafe>& b)
+					{
+						return a->PTS < b->PTS;
+					});
+				}
+				else
+				{
+					MinLoopSleepTimeMsec = 0;
+				}
 
 				// If this was the last access unit in a period we need to drain the decoder _after_ having sent it
 				// for decoding. We need to get its decoded output.
@@ -947,6 +985,8 @@ FVideoDecoderImpl::ENextDecodingState FVideoDecoderImpl::HandleDecoding()
 				CurrentAccessUnit.Reset();
 				// Since we decoded something the decoder is no longer clean.
 				bIsDecoderClean = false;
+				// Likewise we are no longer waiting for a sync sample.
+				bWaitForSyncSample = false;
 			}
 			else if (DecErr == IElectraDecoder::EDecoderError::NoBuffer)
 			{
@@ -1177,6 +1217,8 @@ bool FVideoDecoderImpl::CheckForFlush()
 		CurrentAccessUnit.Reset();
 		bIsDecoderClean = true;
 		bInDummyDecodeMode = false;
+		bWaitForSyncSample = true;
+		bWarnedMissingSyncSample = false;
 		CurrentDecodingState = EDecodingState::NormalDecoding;
 		BitstreamProcessor->Clear();
 		FlushDecoderSignal.Reset();
@@ -1223,10 +1265,13 @@ void FVideoDecoderImpl::WorkerThread()
 	bIsFirstAccessUnit = true;
 	bInDummyDecodeMode = false;
 	bIsAdaptiveDecoder = false;
+	bSupportsDroppingOutput = false;
 	// Start out assuming replay data will be needed. We only know this for sure once we have created a decoder instance.
 	bNeedsReplayData = true;
 	bDrainAfterDecode = false;
 	bIsDecoderClean = true;
+	bWaitForSyncSample = true;
+	bWarnedMissingSyncSample = false;
 	CurrentDecodingState = EDecodingState::NormalDecoding;
 
 	check(InitialCodecSpecificData.IsValid());
@@ -1254,6 +1299,7 @@ void FVideoDecoderImpl::WorkerThread()
 	CreateDecoderOutputPool();
 
 	int64 TimeLast = MEDIAutcTime::CurrentMSec();
+	const int32 kDefaultMinLoopSleepTimeMS = 5;
 	while(!TerminateThreadSignal.IsSignaled())
 	{
 		if (CheckBackgrounding())
@@ -1271,12 +1317,17 @@ void FVideoDecoderImpl::WorkerThread()
 		// To prevent this from becoming a tight loop we make sure to sleep at least some time  here to throttle down.
 		int64 TimeNow = MEDIAutcTime::CurrentMSec();
 		int64 elapsedMS = TimeNow - TimeLast;
-		const int32 kTotalSleepTimeMsec = 5;
-		if (elapsedMS < kTotalSleepTimeMsec)
+		if (elapsedMS < MinLoopSleepTimeMsec)
 		{
-			FMediaRunnable::SleepMilliseconds(kTotalSleepTimeMsec - elapsedMS);
+			FMediaRunnable::SleepMilliseconds(MinLoopSleepTimeMsec - elapsedMS);
+		}
+		else
+		{
+			FPlatformProcess::YieldThread();
 		}
 		TimeLast = TimeNow;
+		MinLoopSleepTimeMsec = kDefaultMinLoopSleepTimeMS;
+
 
 		// Get the next access unit to decode.
 		EAUChangeFlags NewAUFlags = GetAndPrepareInputAU();
