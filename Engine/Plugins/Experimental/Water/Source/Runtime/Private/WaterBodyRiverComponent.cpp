@@ -302,7 +302,7 @@ bool UWaterBodyRiverComponent::GenerateWaterBodyMesh(UE::Geometry::FDynamicMesh3
 
 	TArray<double> Distances;
 	TArray<FVector> Points;
-	SplineComp->DivideSplineIntoPolylineRecursiveWithDistances(0.f, SplineComp->GetSplineLength(), ESplineCoordinateSpace::Local, FMath::Square(5.f), Points, Distances);
+	SplineComp->ConvertSplineToPolyLineWithDistances(ESplineCoordinateSpace::Local, FMath::Square(5.f), Points, Distances);
 	if (Distances.Num() == 0)
 	{
 		return false;
