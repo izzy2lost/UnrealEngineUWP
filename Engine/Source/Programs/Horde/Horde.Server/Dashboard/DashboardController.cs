@@ -142,6 +142,11 @@ namespace Horde.Server.Dashboard
 
 			dashboardConfigResponse.DeviceProblemCooldownMinutes = _settings.DeviceProblemCooldownMinutes;
 
+			foreach (DashboardAgentCategoryConfig category in _globalConfig.Value.Dashboard.AgentCategories)
+			{
+				dashboardConfigResponse.AgentCategories.Add(new GetDashboardAgentCategoryResponse { Name = category.Name, Condition = category.Condition });
+			}
+
 			return dashboardConfigResponse;
 		}
 

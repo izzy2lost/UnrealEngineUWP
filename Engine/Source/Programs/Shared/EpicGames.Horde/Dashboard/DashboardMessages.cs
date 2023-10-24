@@ -1,6 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
+using System.Collections.Generic;
+using EpicGames.Horde.Common;
+
+#pragma warning disable CA2227 // Collection properties should be read only
 
 namespace EpicGames.Horde.Dashboard
 {
@@ -38,6 +42,27 @@ namespace EpicGames.Horde.Dashboard
 		/// Device problem cooldown in minutes
 		/// </summary>
 		public int DeviceProblemCooldownMinutes { get; set; }
+
+		/// <summary>
+		/// Categories to display on the agents page
+		/// </summary>
+		public List<GetDashboardAgentCategoryResponse> AgentCategories { get; set; } = new List<GetDashboardAgentCategoryResponse>();
+	}
+
+	/// <summary>
+	/// Describes a category for the agents page
+	/// </summary>
+	public class GetDashboardAgentCategoryResponse
+	{
+		/// <summary>
+		/// Title for the tab
+		/// </summary>
+		public string Name { get; set; } = "Unnamed";
+
+		/// <summary>
+		/// Condition for agents to be included in this category
+		/// </summary>
+		public Condition? Condition { get; set; }
 	}
 
 	/// <summary>
