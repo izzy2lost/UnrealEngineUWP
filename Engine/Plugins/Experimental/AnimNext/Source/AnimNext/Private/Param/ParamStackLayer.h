@@ -28,7 +28,7 @@ namespace UE::AnimNext
 struct FParamStackLayer
 {
 	FParamStackLayer() = default;
-	virtual ~FParamStackLayer() = default;
+	virtual ~FParamStackLayer();
 
 	friend struct FParamStack;
 	friend struct FParamStackLayerHandle;

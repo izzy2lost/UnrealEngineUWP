@@ -8,6 +8,10 @@
 namespace UE::AnimNext
 {
 
+FParamStackLayer::~FParamStackLayer()
+{
+}
+
 FParamStackLayer::FParamStackLayer(TConstArrayView<TPair<FParamId, Private::FParamEntry>> InParams)
 {
 	MinParamId = MAX_uint32;
