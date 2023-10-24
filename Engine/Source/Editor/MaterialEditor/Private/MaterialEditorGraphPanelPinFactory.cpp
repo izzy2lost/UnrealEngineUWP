@@ -28,14 +28,20 @@
 #include "KismetPins/SGraphPinVector.h"
 #include "KismetPins/SGraphPinVector4.h"
 #include "KismetPins/SGraphPinInteger.h"
+#include "MaterialValueType.h"
 
 TSharedPtr<class SGraphPin> FMaterialEditorGraphPanelPinFactory::CreatePin(class UEdGraphPin* InPin) const
 {
 	if (const UMaterialGraphSchema* MaterialGraphSchema = Cast<const UMaterialGraphSchema>(InPin->GetSchema()))
 	{
+		UMaterialGraph* MaterialGraph = CastChecked<UMaterialGraph>(InPin->GetOwningNode()->GetGraph());
 		if (InPin->PinType.PinCategory == MaterialGraphSchema->PC_Exec)
 		{
 			return SNew(SGraphPinExec, InPin);
+		}
+		else if (!MaterialGraph->IsInputActive(InPin) && InPin->PinType.PinCategory == MaterialGraphSchema->PC_MaterialInput)
+		{
+			return SNew(SGraphPinMaterialInput, InPin);
 		}
 		else
 		{
