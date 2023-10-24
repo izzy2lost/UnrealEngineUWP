@@ -232,7 +232,7 @@ void FEditorModeTools::RestoreSelection(FName SelectionStoreKey)
 UWorld* FEditorModeTools::GetWorld() const
 {
 	// When in 'Simulate' mode, the editor mode tools will actually interact with the PIE world
-	if( GEditor->bIsSimulatingInEditor )
+	if( GEditor->bIsSimulatingInEditor && GEditor->GetPIEWorldContext() )
 	{
 		return GEditor->GetPIEWorldContext()->World();
 	}
