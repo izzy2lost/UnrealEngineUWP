@@ -167,7 +167,7 @@ export class GraphBot implements GraphInterface, BotEventHandler {
 			this.botlist = [this.autoUpdater, ...this.botlist]
 		}
 
-		this.waitTime = Math.ceil(1000 * this.branchGraph.config.checkIntervalSecs) / this.botlist.length
+		this.waitTime = 1000 * this.branchGraph.config.checkIntervalSecs
 		this.startBotsAsync()
 	}
 
@@ -274,22 +274,22 @@ export class GraphBot implements GraphInterface, BotEventHandler {
 		while (true) {
 			const activity = new Map<string, TickJournal>()
 
-			for (const bot of this.botlist) {
+			const startTime = Date.now()
+
+			let tickBot = async function(bot: Bot, crashRequested: string|null): Promise<[Bot,boolean|Error]> {		
 				bot.isActive = true
 				let ticked = false
 				try {
 					// crashMe API support - simulate a bot crashing and stopping the GraphBot instance
-					if (this.crashRequested) {
-						const errMsg = this.crashRequested
-						this.crashRequested = null
-						throw new Error(errMsg)
+					if (crashRequested) {
+						throw new Error(crashRequested)
 					}
 
 					ticked = await bot.tick()
 				}
 				catch (err) {
-					this.handleNodebotError(bot, err)
-					return
+					bot.isActive = false
+					return [bot,err]
 				}
 				bot.isActive = false
 
@@ -298,19 +298,47 @@ export class GraphBot implements GraphInterface, BotEventHandler {
 					if (bot.tickJournal) {
 						const nodeBot = bot as NodeBot
 						bot.tickJournal.monitored = nodeBot.branch.isMonitored
+					}
+				}
+				return [bot,ticked]
+			}
+
+			// The autoupdater needs to fully run before we parallelize the remaining bots
+			if (this.autoUpdater) {
+				const autoUpdateResult = await tickBot(this.autoUpdater, null)
+				var tickResults = [autoUpdateResult, 
+							       ...await Promise.all(this.botlist.slice(1).map(async (bot, index) => tickBot(bot, index == 0 ? this.crashRequested : null)))]
+			}
+			else {
+				tickResults = await Promise.all(this.botlist.map(async (bot, index) => tickBot(bot, index == 0 ? this.crashRequested : null)))
+			}
+
+			this.crashRequested = null
+			
+			let botCrashed = false
+			for (const [bot, result] of tickResults)
+			{
+				if (typeof result === 'boolean') {
+					if (result && bot.tickJournal) {
+						const nodeBot = bot as NodeBot
 						activity.set(nodeBot.branch.upperName, bot.tickJournal)
 					}
 				}
-
-				if (this._shutdownCb) {
-					this._shutdownCb()
-					this._runningBots = false
-					delete this.eventTriggers
-					this._shutdownCb = null
-					return
+				else {
+					botCrashed = true
+					this.handleNodebotError(bot, result)
 				}
+			}
+			if (botCrashed) {
+				return
+			}
 
-				await new Promise(done => setTimeout(done, this.waitTime!))
+			if (this._shutdownCb) {
+				this._shutdownCb()
+				this._runningBots = false
+				delete this.eventTriggers
+				this._shutdownCb = null
+				return
 			}
 
 			const errPair = await this.handleRequestedIntegrationsForAllNodes()
@@ -322,6 +350,12 @@ export class GraphBot implements GraphInterface, BotEventHandler {
 
 			roboAnalytics!.reportActivity(this.branchGraph.botname, activity)
 			roboAnalytics!.reportMemoryUsage('main', process.memoryUsage().heapUsed)
+
+			const duration = Date.now() - startTime;
+			if (duration < this.waitTime!)
+			{
+				await new Promise(done => setTimeout(done, this.waitTime!-duration))
+			}
 
 			// reset tick journals to start counting all events, some of which may happen outside of the bot's tick
 			for (const bot of this.botlist) {

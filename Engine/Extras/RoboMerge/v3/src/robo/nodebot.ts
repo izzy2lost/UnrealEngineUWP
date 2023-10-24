@@ -35,7 +35,7 @@ const NAG_EMAIL_MIN_TIME_MINUTES = 60
 const NAG_EMAIL_MIN_TIME_DESCRIPTION = 'an hour'
 const SYNTAX_ERROR_PAUSE_TIMEOUT_SECONDS = 10 * 60
 
-const MAX_CHANGES_TO_PROCESS_BEFORE_YIELDING = 50 // when catching up, we seem to get through 10 changes a minute
+const MAX_CHANGES_TO_PROCESS_BEFORE_YIELDING = 10 // when catching up, we seem to get through 10 changes a minute
 
 const ALLOWED_STOMPABLE_NONBINARY = [
 	/\.collection$/
@@ -249,9 +249,7 @@ export class NodeBot extends PerforceStatefulBot implements NodeBotInterface {
 		if (this.previewMode) {
 			return false
 		}
-		for (const edgeBot of this.edges.values()) {
-			await edgeBot.tick()
-		}
+		await Promise.all(Array.from(this.edges.values(), async edgeBot => edgeBot.tick()))
 
 		// Pre-tick
 
@@ -287,7 +285,7 @@ export class NodeBot extends PerforceStatefulBot implements NodeBotInterface {
 			// reset integration timers - easier to do it here than on every integration code path
 			edgeBot.resetIntegrationTimestamp()
 		}
-	// End Pre-tick
+		// End Pre-tick
 
 		// see if our flow is paused
 		if (this.isManuallyPaused) {
