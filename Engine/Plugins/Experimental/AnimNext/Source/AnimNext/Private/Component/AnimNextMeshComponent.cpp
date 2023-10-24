@@ -2,13 +2,18 @@
 
 #include "AnimNextMeshComponent.h"
 #include "GenerationTools.h"
+#include "Engine/World.h"
 
 UAnimNextMeshComponent::UAnimNextMeshComponent()
 {
-	// Disable regular skeletal mesh ticking
-	PrimaryComponentTick.bCanEverTick = false;
-	PrimaryComponentTick.bStartWithTickEnabled = false;
-	PrimaryComponentTick.bAllowTickOnDedicatedServer = false;
+	PrimaryComponentTick.bRunOnAnyThread = true;
+}
+
+void UAnimNextMeshComponent::TickComponent(float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction *ThisTickFunction)
+{
+	// Simple tick mimicking a minimal tick of SkinnedMeshComponent
+	bRecentlyRendered = (GetLastRenderTime() > GetWorld()->TimeSeconds - 1.0f);
+	UpdateLODStatus();
 }
 
 void UAnimNextMeshComponent::CompleteAndDispatch(TConstArrayView<FBoneIndexType> InParentIndices, TConstArrayView<FBoneIndexType> InRequiredBoneIndices, TConstArrayView<FTransform> InLocalSpaceTransforms)

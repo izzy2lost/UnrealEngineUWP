@@ -88,8 +88,6 @@ public:
 
 	// UObject interface
 	virtual void PostLoad() override;
-	virtual void PostRename(UObject* OldOuter, const FName OldName) override;
-	virtual void GetPreloadDependencies(TArray<UObject*>& OutDeps) override;
 	virtual void Serialize(FArchive& Ar) override;
 
 	// IAnimNextScheduleTermInterface interface

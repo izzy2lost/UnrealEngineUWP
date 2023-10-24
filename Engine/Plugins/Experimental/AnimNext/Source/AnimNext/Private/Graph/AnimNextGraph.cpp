@@ -98,23 +98,6 @@ TArray<FRigVMExternalVariable> UAnimNextGraph::GetRigVMExternalVariables()
 	return TArray<FRigVMExternalVariable>(); 
 }
 
-static TArray<UClass*> GetClassObjectsInPackage(UPackage* InPackage)
-{
-	TArray<UObject*> Objects;
-	GetObjectsWithOuter(InPackage, Objects, false);
-
-	TArray<UClass*> ClassObjects;
-	for (UObject* Object : Objects)
-	{
-		if (UClass* Class = Cast<UClass>(Object))
-		{
-			ClassObjects.Add(Class);
-		}
-	}
-
-	return ClassObjects;
-}
-
 void UAnimNextGraph::PostLoad()
 {
 	using namespace UE::AnimNext;
@@ -138,42 +121,6 @@ void UAnimNextGraph::PostLoad()
 	ReferencePoseId = FParamId(ReferencePose);
 	CurrentLODId = FParamId(CurrentLOD);
 	DeltaTimeId = FParamId(DeltaTime);
-}
-
-void UAnimNextGraph::PostRename(UObject* OldOuter, const FName OldName)
-{
-	Super::PostRename(OldOuter, OldName);
-
-	// Whenever the asset is renamed/moved, generated classes parented to the old package
-	// are not moved to the new package automatically (see FAssetRenameManager), so we
-	// have to manually perform the move/rename, to avoid invalid reference to the old package
-
-	// Note: while asset duplication doesn't duplicate the classes either, it is not a problem there
-	// because we always recompile in post duplicate.
-	TArray<UClass*> ClassObjects = GetClassObjectsInPackage(OldOuter->GetPackage());
-
-	for (UClass* ClassObject : ClassObjects)
-	{
-		if (URigVMMemoryStorageGeneratorClass* MemoryClass = Cast<URigVMMemoryStorageGeneratorClass>(ClassObject))
-		{
-			MemoryClass->Rename(nullptr, GetPackage(), REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
-		}
-	}
-}
-
-void UAnimNextGraph::GetPreloadDependencies(TArray<UObject*>& OutDeps)
-{
-	Super::GetPreloadDependencies(OutDeps);
-
-	TArray<UClass*> ClassObjects = GetClassObjectsInPackage(GetPackage());
-
-	for (UClass* ClassObject : ClassObjects)
-	{
-		if (URigVMMemoryStorageGeneratorClass* MemoryClass = Cast<URigVMMemoryStorageGeneratorClass>(ClassObject))
-		{
-			OutDeps.Add(MemoryClass);
-		}
-	}
 }
 
 void UAnimNextGraph::Serialize(FArchive& Ar)

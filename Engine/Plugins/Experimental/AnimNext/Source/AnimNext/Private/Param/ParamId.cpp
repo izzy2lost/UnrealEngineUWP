@@ -324,6 +324,7 @@ void FParamId::RefreshConfigAdapters()
 						if(FParamTypeHandle::FromProperty(ReturnProperty).IsValid())
 						{
 							FString FunctionName = Function->GetName();
+							FunctionName.RemoveFromStart(TEXT("K2_"));
 							FunctionName.RemoveFromStart(TEXT("Get"));
 							
 							TStringBuilder<128> ParameterNameBuilder;

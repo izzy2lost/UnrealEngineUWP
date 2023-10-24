@@ -85,8 +85,6 @@ class UAnimNextParameterBlock : public URigVMHost, public IAnimNextParameterSour
 
 	// UObject interface
 	virtual void PostLoad() override;
-	virtual void PostRename(UObject* OldOuter, const FName OldName) override;
-	virtual void GetPreloadDependencies(TArray<UObject*>& OutDeps) override;
 	virtual void GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const override;
 	
 	FRigVMExtendedExecuteContext BaseRigVMContext;

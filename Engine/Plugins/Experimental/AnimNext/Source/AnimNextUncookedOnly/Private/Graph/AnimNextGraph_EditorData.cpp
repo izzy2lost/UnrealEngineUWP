@@ -158,11 +158,8 @@ void UAnimNextGraph_EditorData::PostLoad()
 		Entries.Add(InLoadedEntry);
 	});
 	
-	if (GIsEditor)
-	{
-		// delay compilation until the package has been loaded
-		FCoreUObjectDelegates::OnEndLoadPackage.AddUObject(this, &UAnimNextGraph_EditorData::HandlePackageDone);
-	}
+	// delay compilation until the package has been loaded
+	FCoreUObjectDelegates::OnEndLoadPackage.AddUObject(this, &UAnimNextGraph_EditorData::HandlePackageDone);
 #else // !WITH_EDITOR
 	RecompileVMIfRequired();
 #endif // WITH_EDITOR

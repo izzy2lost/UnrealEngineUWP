@@ -17,6 +17,8 @@ class UAnimNextMeshComponent : public USkeletalMeshComponent
 
 	UAnimNextMeshComponent();
 
+	virtual void TickComponent(float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction *ThisTickFunction) override;
+
 	// Converts local to component space, flips buffers, updates bounds and dispatches to renderer
 	void CompleteAndDispatch(TConstArrayView<FBoneIndexType> InParentIndices, TConstArrayView<FBoneIndexType> InRequiredBoneIndices, TConstArrayView<FTransform> InLocalSpaceTransforms);
 };

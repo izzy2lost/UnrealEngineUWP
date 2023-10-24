@@ -26,7 +26,7 @@ struct FAnimNextGraphEvaluatorExecuteDefinition
 	GENERATED_BODY();
 
 	UPROPERTY()
-	uint32 Hash;
+	uint32 Hash = 0;
 
 	UPROPERTY()
 	FString MethodName;
