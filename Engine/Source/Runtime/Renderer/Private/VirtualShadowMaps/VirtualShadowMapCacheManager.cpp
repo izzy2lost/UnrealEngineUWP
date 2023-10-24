@@ -1305,7 +1305,7 @@ void FVirtualShadowMapArrayCacheManager::ProcessInvalidations(
 			UniformParameters->PageFlags = RegExtCreateSrv(PrevBuffers.PageFlags, TEXT("Shadow.Virtual.PrevPageFlags"));
 			UniformParameters->PageRectBounds = RegExtCreateSrv(PrevBuffers.PageRectBounds, TEXT("Shadow.Virtual.PrevPageRectBounds"));
 			// Unused in this path... may be a better way to handle this
-			UniformParameters->PhysicalPagePool = GSystemTextures.GetZeroUIntArrayDummy(GraphBuilder);
+			UniformParameters->PhysicalPagePool = GSystemTextures.GetZeroUIntArrayAtomicCompatDummy(GraphBuilder);
 			UniformParameters->LightGridData = GraphBuilder.CreateSRV(GSystemTextures.GetDefaultStructuredBuffer(GraphBuilder, sizeof(uint32)));
 			UniformParameters->NumCulledLightsGrid = GraphBuilder.CreateSRV(GSystemTextures.GetDefaultStructuredBuffer(GraphBuilder, sizeof(uint32)));
 		}

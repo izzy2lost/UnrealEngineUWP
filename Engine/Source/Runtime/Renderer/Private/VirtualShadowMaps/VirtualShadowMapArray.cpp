@@ -494,7 +494,7 @@ void FVirtualShadowMapArray::Initialize(
 	else
 	{
 		CacheManager->FreePhysicalPool(GraphBuilder);
-		UniformParameters.PhysicalPagePool = GSystemTextures.GetZeroUIntArrayDummy(GraphBuilder);
+		UniformParameters.PhysicalPagePool = GSystemTextures.GetZeroUIntArrayAtomicCompatDummy(GraphBuilder);
 	}
 
 	if (bEnabled && bUseHzbOcclusion)

@@ -233,7 +233,10 @@ void FMetalShaderResourceView::UpdateView()
 		}
 		else
 		{
-            TextureType = SRVDimensionToMetalTextureType(Info.Dimension);
+            if(TextureType != mtlpp::TextureType::Texture2DMultisample)
+            {
+                TextureType = SRVDimensionToMetalTextureType(Info.Dimension);
+            }
 
             uint32_t ArrayStart = Info.ArrayRange.First;
             uint32_t ArraySize = Info.ArrayRange.Num;

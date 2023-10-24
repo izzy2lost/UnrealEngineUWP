@@ -670,6 +670,12 @@ FMetalDynamicRHI::FMetalDynamicRHI(ERHIFeatureLevel::Type RequestedFeatureLevel)
 	GMaxShadowDepthBufferSizeY = GMaxTextureDimensions;
 #endif
 
+    if([Device.GetPtr() supportsFamily:MTLGPUFamilyApple6] ||
+       [Device.GetPtr() supportsFamily:MTLGPUFamilyMac2])
+    {
+        GRHISupportsArrayIndexFromAnyShader = true;
+    }
+            
 	GRHIMaxDispatchThreadGroupsPerDimension.X = MAX_uint16;
 	GRHIMaxDispatchThreadGroupsPerDimension.Y = MAX_uint16;
 	GRHIMaxDispatchThreadGroupsPerDimension.Z = MAX_uint16;
