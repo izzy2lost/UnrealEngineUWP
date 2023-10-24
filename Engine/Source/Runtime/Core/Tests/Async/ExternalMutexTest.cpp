@@ -11,7 +11,7 @@
 namespace UE
 {
 
-TEST_CASE("Core::Async::ExternalMutex", "[Core][Async]")
+TEST_CASE("Core::Async::ExternalMutex", "[Core][Async][Slow]")
 {
 	constexpr static int32 TaskCount = 100;
 
