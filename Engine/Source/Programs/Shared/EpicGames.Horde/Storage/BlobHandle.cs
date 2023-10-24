@@ -156,10 +156,10 @@ namespace EpicGames.Horde.Storage
 		/// <inheritdoc/>
 		public override string ToString()
 		{
-			BlobLocator blobId;
-			if (TryGetLocator(out blobId))
+			BlobLocator locator;
+			if (TryGetLocator(out locator))
 			{
-				return blobId.ToString();
+				return locator.ToString();
 			}
 			return base.ToString() ?? "Unknown";
 		}

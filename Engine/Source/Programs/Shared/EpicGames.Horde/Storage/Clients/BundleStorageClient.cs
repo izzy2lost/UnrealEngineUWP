@@ -18,11 +18,6 @@ namespace EpicGames.Horde.Storage.Clients
 	public sealed class BundleStorageClient : IStorageClient
 	{
 		/// <summary>
-		/// Blob type for bundles
-		/// </summary>
-		public static BlobType BundleBlobType { get; } = new BlobType(Guid.Parse("{7C5BA294-2D21-4F92-85BE-852F48CC4C1E}"), 1);
-
-		/// <summary>
 		/// Handle to a bundle object
 		/// </summary>
 		class BundleHandle : BlobHandle
@@ -41,7 +36,7 @@ namespace EpicGames.Horde.Storage.Clients
 			}
 
 			/// <inheritdoc/>
-			public override ValueTask<BlobType> GetTypeAsync(CancellationToken cancellationToken = default) => new ValueTask<BlobType>(BundleBlobType);
+			public override ValueTask<BlobType> GetTypeAsync(CancellationToken cancellationToken = default) => new ValueTask<BlobType>(Bundle.BlobType);
 
 			/// <inheritdoc/>
 			public override async ValueTask<IReadOnlyList<BlobHandle>> GetRefsAsync(CancellationToken cancellationToken = default)
@@ -73,7 +68,7 @@ namespace EpicGames.Horde.Storage.Clients
 				using (Stream stream = await _storageClient.OpenBlobAsync(_locator, 0, cancellationToken: cancellationToken))
 				{
 					byte[] data = await stream.ReadAllBytesAsync(cancellationToken);
-					return new BlobData(BundleBlobType, data, await GetRefsAsync(cancellationToken));
+					return new BlobData(Bundle.BlobType, data, await GetRefsAsync(cancellationToken));
 				}
 			}
 
@@ -140,7 +135,7 @@ namespace EpicGames.Horde.Storage.Clients
 		/// <inheritdoc/>
 		public async ValueTask<BlobHandle> WriteBlobAsync(BlobType type, Stream stream, IReadOnlyList<BlobHandle> references, string? basePath = null, CancellationToken cancellationToken = default)
 		{
-			if (type == BundleBlobType)
+			if (type == Bundle.BlobType)
 			{
 				return await WriteBundleAsync(stream, references, basePath, cancellationToken);
 			}
@@ -183,7 +178,7 @@ namespace EpicGames.Horde.Storage.Clients
 		/// Write a bundle to the underlying storage
 		/// </summary>
 		ValueTask<BlobHandle> WriteBundleAsync(Stream stream, IReadOnlyList<BlobHandle> references, string? basePath = null, CancellationToken cancellationToken = default)
-			=> _inner.WriteBlobAsync(BundleBlobType, stream, references, basePath, cancellationToken);
+			=> _inner.WriteBlobAsync(Bundle.BlobType, stream, references, basePath, cancellationToken);
 
 		/// <inheritdoc/>
 		public Task<Bundles.V1.BundleHeader> ReadHeaderAsync(BlobLocator locator, CancellationToken cancellationToken) => _bundleReader.ReadHeaderAsync(locator, cancellationToken);

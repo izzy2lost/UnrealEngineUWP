@@ -12,7 +12,7 @@ using System.Threading.Tasks;
 using Amazon.EC2.Model;
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
-using EpicGames.Horde.Storage.Clients;
+using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage.Nodes;
 using Horde.Server.Acls;
 using Horde.Server.Server;
@@ -98,7 +98,7 @@ namespace Horde.Server.Storage
 			else
 			{
 				using Stream stream = file.OpenReadStream();
-				BlobHandle handle = await storageClient.WriteBlobAsync(BundleStorageClient.BundleBlobType, stream, Array.Empty<BlobHandle>(), prefix, cancellationToken);
+				BlobHandle handle = await storageClient.WriteBlobAsync(Bundle.BlobType, stream, Array.Empty<BlobHandle>(), prefix, cancellationToken);
 				return new WriteBlobResponse { Blob = handle.GetLocator().ToString(), SupportsRedirects = storageClient.SupportsRedirects };
 			}
 		}

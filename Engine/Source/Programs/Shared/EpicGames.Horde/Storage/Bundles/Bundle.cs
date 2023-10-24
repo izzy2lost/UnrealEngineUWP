@@ -63,6 +63,11 @@ namespace EpicGames.Horde.Storage.Bundles
 	public static class Bundle
 	{
 		/// <summary>
+		/// Blob type for bundles
+		/// </summary>
+		public static BlobType BlobType { get; } = new BlobType(Guid.Parse("{7C5BA294-2D21-4F92-85BE-852F48CC4C1E}"), 1);
+
+		/// <summary>
 		/// Number of bytes in a signature when serialized
 		/// </summary>
 		public const int SignatureLength = 8;

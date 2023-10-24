@@ -10,7 +10,6 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
-using EpicGames.Horde.Storage.Clients;
 using Microsoft.Extensions.Logging;
 
 namespace EpicGames.Horde.Storage.Bundles.V1
@@ -417,7 +416,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 					BlobHandle handle;
 					using (ReadOnlySequenceStream stream = new ReadOnlySequenceStream(sequence.Construct()))
 					{
-						handle = await store.WriteBlobAsync(BundleStorageClient.BundleBlobType, stream, imports, basePath);
+						handle = await store.WriteBlobAsync(Bundle.BlobType, stream, imports, basePath);
 					}
 
 					BlobLocator locator = handle.GetLocator();
