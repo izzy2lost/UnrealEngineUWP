@@ -590,6 +590,10 @@ void FD3D12StateCache::ApplyState(ED3D12PipelineType PipelineType)
 
 void FD3D12StateCache::ApplyResources(const FD3D12RootSignature* const pRootSignature, uint32 StartStage, uint32 EndStage)
 {
+	const bool bUAVs = pRootSignature->HasUAVs();
+	const bool bSRVs = pRootSignature->HasSRVs();
+	const bool bCBVs = pRootSignature->HasCBVs();
+
 	// Determine what resource bind slots are dirty for the current shaders and how many descriptor table slots we need.
 	// We only set dirty resources that can be used for the upcoming Draw/Dispatch.
 	SRVSlotMask CurrentShaderDirtySRVSlots[SF_NumStandardFrequencies] = {};
@@ -608,22 +612,25 @@ void FD3D12StateCache::ApplyResources(const FD3D12RootSignature* const pRootSign
 
 	for (uint32 iTries = 0; iTries < 2; ++iTries)
 	{
-		const UAVSlotMask CurrentShaderUAVRegisterMask = BitMask<UAVSlotMask>(PipelineState.Common.CurrentShaderUAVCounts[UAVStage]);
-		CurrentShaderDirtyUAVSlots = CurrentShaderUAVRegisterMask & PipelineState.Common.UAVCache.DirtySlotMask[UAVStage];
-		if (CurrentShaderDirtyUAVSlots)
+		if (bUAVs)
 		{
-			if (ResourceBindingTier <= D3D12_RESOURCE_BINDING_TIER_2)
+			const UAVSlotMask CurrentShaderUAVRegisterMask = BitMask<UAVSlotMask>(PipelineState.Common.CurrentShaderUAVCounts[UAVStage]);
+			CurrentShaderDirtyUAVSlots = CurrentShaderUAVRegisterMask & PipelineState.Common.UAVCache.DirtySlotMask[UAVStage];
+			if (CurrentShaderDirtyUAVSlots)
 			{
-				// Tier 1 and 2 HW requires the full number of UAV descriptors defined in the root signature's descriptor table.
-				NumUAVs = pRootSignature->MaxUAVCount(UAVStage);
-			}
-			else
-			{
-				NumUAVs = PipelineState.Common.CurrentShaderUAVCounts[UAVStage];
-			}
+				if (ResourceBindingTier <= D3D12_RESOURCE_BINDING_TIER_2)
+				{
+					// Tier 1 and 2 HW requires the full number of UAV descriptors defined in the root signature's descriptor table.
+					NumUAVs = pRootSignature->MaxUAVCount(UAVStage);
+				}
+				else
+				{
+					NumUAVs = PipelineState.Common.CurrentShaderUAVCounts[UAVStage];
+				}
 
-			check(NumUAVs > 0 && NumUAVs <= MAX_UAVS);
-			NumViews += NumUAVs;
+				check(NumUAVs > 0 && NumUAVs <= MAX_UAVS);
+				NumViews += NumUAVs;
+			}
 		}
 
 		for (uint32 Stage = StartStage; Stage < EndStage; ++Stage)
@@ -633,42 +640,48 @@ void FD3D12StateCache::ApplyResources(const FD3D12RootSignature* const pRootSign
 				continue;
 			}
 
-			// Note this code assumes the starting register is index 0.
-			const SRVSlotMask CurrentShaderSRVRegisterMask = BitMask<SRVSlotMask>(PipelineState.Common.CurrentShaderSRVCounts[Stage]);
-			CurrentShaderDirtySRVSlots[Stage] = CurrentShaderSRVRegisterMask & PipelineState.Common.SRVCache.DirtySlotMask[Stage];
-			if (CurrentShaderDirtySRVSlots[Stage])
+			if (bSRVs)
 			{
-				if (ResourceBindingTier == D3D12_RESOURCE_BINDING_TIER_1)
+				// Note this code assumes the starting register is index 0.
+				const SRVSlotMask CurrentShaderSRVRegisterMask = BitMask<SRVSlotMask>(PipelineState.Common.CurrentShaderSRVCounts[Stage]);
+				CurrentShaderDirtySRVSlots[Stage] = CurrentShaderSRVRegisterMask & PipelineState.Common.SRVCache.DirtySlotMask[Stage];
+				if (CurrentShaderDirtySRVSlots[Stage])
 				{
-					// Tier 1 HW requires the full number of SRV descriptors defined in the root signature's descriptor table.
-					NumSRVs[Stage] = pRootSignature->MaxSRVCount(Stage);
-				}
-				else
-				{
-					NumSRVs[Stage] = PipelineState.Common.CurrentShaderSRVCounts[Stage];
-				}
+					if (ResourceBindingTier == D3D12_RESOURCE_BINDING_TIER_1)
+					{
+						// Tier 1 HW requires the full number of SRV descriptors defined in the root signature's descriptor table.
+						NumSRVs[Stage] = pRootSignature->MaxSRVCount(Stage);
+					}
+					else
+					{
+						NumSRVs[Stage] = PipelineState.Common.CurrentShaderSRVCounts[Stage];
+					}
 
-				check(NumSRVs[Stage] > 0 && NumSRVs[Stage] <= MAX_SRVS);
-				NumViews += NumSRVs[Stage];
+					check(NumSRVs[Stage] > 0 && NumSRVs[Stage] <= MAX_SRVS);
+					NumViews += NumSRVs[Stage];
+				}
 			}
 
 #if D3D12RHI_USE_CONSTANT_BUFFER_VIEWS
-			const CBVSlotMask CurrentShaderCBVRegisterMask = BitMask<CBVSlotMask>(PipelineState.Common.CurrentShaderCBCounts[Stage]);
-			CurrentShaderDirtyCBVSlots[Stage] = CurrentShaderCBVRegisterMask & PipelineState.Common.CBVCache.DirtySlotMask[Stage];
-			if (CurrentShaderDirtyCBVSlots[Stage])
+			if (bCBVs)
 			{
-				if (ResourceBindingTier == D3D12_RESOURCE_BINDING_TIER_1)
+				const CBVSlotMask CurrentShaderCBVRegisterMask = BitMask<CBVSlotMask>(PipelineState.Common.CurrentShaderCBCounts[Stage]);
+				CurrentShaderDirtyCBVSlots[Stage] = CurrentShaderCBVRegisterMask & PipelineState.Common.CBVCache.DirtySlotMask[Stage];
+				if (CurrentShaderDirtyCBVSlots[Stage])
 				{
-					// Tier 1 HW requires the full number of SRV descriptors defined in the root signature's descriptor table.
-					NumCBVs[Stage] = pRootSignature->MaxCBVCount(Stage);
-				}
-				else
-				{
-					NumCBVs[Stage] = PipelineState.Common.CurrentShaderCBCounts[Stage];
-				}
+					if (ResourceBindingTier == D3D12_RESOURCE_BINDING_TIER_1)
+					{
+						// Tier 1 HW requires the full number of SRV descriptors defined in the root signature's descriptor table.
+						NumCBVs[Stage] = pRootSignature->MaxCBVCount(Stage);
+					}
+					else
+					{
+						NumCBVs[Stage] = PipelineState.Common.CurrentShaderCBCounts[Stage];
+					}
 
-				check(NumCBVs[Stage] > 0 && NumCBVs[Stage] <= MAX_SRVS);
-				NumViews += NumCBVs[Stage];
+					check(NumCBVs[Stage] > 0 && NumCBVs[Stage] <= MAX_CBS);
+					NumViews += NumCBVs[Stage];
+				}
 			}
 #endif
 			// Note: CBVs don't currently use descriptor tables but we still need to know what resource point slots are dirty.
@@ -701,6 +714,7 @@ void FD3D12StateCache::ApplyResources(const FD3D12RootSignature* const pRootSign
 	}
 
 	// Shader resource views
+	if (bSRVs)
 	{
 		//SCOPE_CYCLE_COUNTER(STAT_D3D12ApplyStateSetSRVTime);
 		FD3D12ShaderResourceViewCache& SRVCache = PipelineState.Common.SRVCache;
@@ -717,6 +731,7 @@ void FD3D12StateCache::ApplyResources(const FD3D12RootSignature* const pRootSign
 
 #if D3D12RHI_USE_CONSTANT_BUFFER_VIEWS
 	// Constant buffers
+	if (bCBVs)
 	{
 		//SCOPE_CYCLE_COUNTER(STAT_D3D12ApplyStateSetConstantBufferTime);
 		FD3D12ConstantBufferCache& CBVCache = PipelineState.Common.CBVCache;
@@ -744,6 +759,63 @@ void FD3D12StateCache::ApplyBindlessResources(const FD3D12RootSignature* const p
 		PipelineState.Common.QueuedBindlessSRVs[Index].Reset();
 		PipelineState.Common.QueuedBindlessUAVs[Index].Reset();
 	}
+
+#if D3D12RHI_USE_CONSTANT_BUFFER_VIEWS
+	if (pRootSignature->HasCBVs())
+	{
+		FD3D12ConstantBufferCache& CBVCache = PipelineState.Common.CBVCache;
+
+		CBVSlotMask CurrentShaderDirtyCBVSlots[SF_NumStandardFrequencies] = {};
+		uint32 NumCBVs[SF_NumStandardFrequencies] = {};
+
+		uint32 NumViews = 0;
+
+		for (uint32 iTries = 0; iTries < 2; ++iTries)
+		{
+			for (uint32 Stage = StartStage; Stage < EndStage; ++Stage)
+			{
+				if (ShouldSkipStage(Stage))
+				{
+					continue;
+				}
+
+				const uint32 ConstantBufferCount = PipelineState.Common.CurrentShaderCBCounts[Stage];
+
+				const CBVSlotMask CurrentShaderCBVRegisterMask = BitMask<CBVSlotMask>(ConstantBufferCount);
+				CurrentShaderDirtyCBVSlots[Stage] = CurrentShaderCBVRegisterMask & CBVCache.DirtySlotMask[Stage];
+				if (CurrentShaderDirtyCBVSlots[Stage])
+				{
+					check(ConstantBufferCount > 0 && ConstantBufferCount <= MAX_CBS);
+
+					NumCBVs[Stage] = ConstantBufferCount;
+					NumViews += ConstantBufferCount;
+				}
+				// Note: CBVs don't currently use descriptor tables but we still need to know what resource point slots are dirty.
+			}
+
+			// See if the descriptor slots will fit
+			if (!DescriptorCache.GetCurrentViewHeap()->CanReserveSlots(NumViews))
+			{
+				if (DescriptorCache.GetCurrentViewHeap()->RollOver())
+				{
+					// If descriptor heaps changed, then all our tables are dirty again and we need to recalculate the number of slots we need.
+					NumViews = 0;
+					continue;
+				}
+			}
+		}
+
+		uint32 ViewHeapSlot = DescriptorCache.GetCurrentViewHeap()->ReserveSlots(NumViews);
+
+		for (uint32 Index = StartStage; Index < EndStage; Index++)
+		{
+			if (CurrentShaderDirtyCBVSlots[Index])
+			{
+				DescriptorCache.SetConstantBufferViews(static_cast<EShaderFrequency>(Index), pRootSignature, CBVCache, CurrentShaderDirtyCBVSlots[Index], NumCBVs[Index], ViewHeapSlot);
+			}
+		}
+	}
+#endif // D3D12RHI_USE_CONSTANT_BUFFER_VIEWS
 }
 
 void FD3D12StateCache::ApplyConstants(const FD3D12RootSignature* const pRootSignature, uint32 StartStage, uint32 EndStage)

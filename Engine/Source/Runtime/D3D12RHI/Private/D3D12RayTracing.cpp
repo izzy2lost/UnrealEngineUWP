@@ -4214,15 +4214,16 @@ static bool SetRayTracingShaderResources(
 
 #if D3D12RHI_USE_CONSTANT_BUFFER_VIEWS
 		D3D12_CPU_DESCRIPTOR_HANDLE LocalCBVs[MAX_CBS];
-#else // D3D12RHI_USE_CONSTANT_BUFFER_VIEWS
-		D3D12_GPU_VIRTUAL_ADDRESS LocalCBVs[MAX_CBS];
-#endif // D3D12RHI_USE_CONSTANT_BUFFER_VIEWS
+#endif
+		D3D12_GPU_VIRTUAL_ADDRESS RemoteCBVs[MAX_CBS];
 
 		D3D12_CPU_DESCRIPTOR_HANDLE LocalSRVs[MAX_SRVS];
 		D3D12_CPU_DESCRIPTOR_HANDLE LocalUAVs[MAX_UAVS];
 		D3D12_CPU_DESCRIPTOR_HANDLE LocalSamplers[MAX_SAMPLERS];
 
+#if D3D12RHI_USE_CONSTANT_BUFFER_VIEWS
 		uint32 CBVVersions[MAX_CBS];
+#endif
 		uint32 SRVVersions[MAX_SRVS];
 		uint32 UAVVersions[MAX_SRVS];
 		uint32 SamplerVersions[MAX_SRVS];
@@ -4325,10 +4326,8 @@ static bool SetRayTracingShaderResources(
 			FD3D12OfflineDescriptor Descriptor = CBV->View->GetOfflineCpuHandle();
 			Bindings.LocalCBVs[CBVIndex] = Descriptor;
 			Bindings.CBVVersions[CBVIndex] = Descriptor.GetVersion();
-		#else // D3D12RHI_USE_CONSTANT_BUFFER_VIEWS
-			Bindings.LocalCBVs[CBVIndex] = CBV->ResourceLocation.GetGPUVirtualAddress();
-			Bindings.CBVVersions[CBVIndex] = 0; // not available with GPU address path
 		#endif // D3D12RHI_USE_CONSTANT_BUFFER_VIEWS
+			Bindings.RemoteCBVs[CBVIndex] = CBV->ResourceLocation.GetGPUVirtualAddress();
 			Bindings.BoundCBVMask |= 1ull << CBVIndex;
 
 			Bindings.ReferencedResources.Add(CBV->ResourceLocation.GetResource());
@@ -4383,9 +4382,8 @@ static bool SetRayTracingShaderResources(
 
 	#if D3D12RHI_USE_CONSTANT_BUFFER_VIEWS
 		Bindings.LocalCBVs[CBVIndex] = ConstantBufferView->GetOfflineCpuHandle();
-	#else // D3D12RHI_USE_CONSTANT_BUFFER_VIEWS
-		Bindings.LocalCBVs[CBVIndex] = ResourceLocation.GetGPUVirtualAddress();
 	#endif // D3D12RHI_USE_CONSTANT_BUFFER_VIEWS
+		Bindings.RemoteCBVs[CBVIndex] = ResourceLocation.GetGPUVirtualAddress();
 
 		Bindings.BoundCBVMask |= 1ull << CBVIndex;
 	}
@@ -4444,29 +4442,30 @@ static bool SetRayTracingShaderResources(
 	if (Shader->ResourceCounts.NumCBs)
 	{
 	#if D3D12RHI_USE_CONSTANT_BUFFER_VIEWS
-
-		const uint32 DescriptorTableBaseIndex = DescriptorCache.AllocateDeduplicated(Bindings.CBVVersions, Bindings.LocalCBVs, NumCBVs, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, WorkerIndex);
-		const uint32 BindSlot = RootSignature->CBVRDTBindSlot(SF_Compute);
-		check(BindSlot != 0xFF);
-
-		const D3D12_GPU_DESCRIPTOR_HANDLE ResourceDescriptorTableBaseGPU = DescriptorCache.ViewHeap.GetDescriptorGPU(DescriptorTableBaseIndex);
-		Binder.SetRootDescriptorTable(BindSlot, ResourceDescriptorTableBaseGPU);
-
-	#else // D3D12RHI_USE_CONSTANT_BUFFER_VIEWS
-
-		checkf(RootSignature->CBVRDTBindSlot(SF_Compute) == 0xFF, TEXT("Root CBV descriptor tables are not implemented for ray tracing shaders."));
-
-		const uint32 BindSlot = RootSignature->CBVRDBaseBindSlot(SF_Compute);
-		check(BindSlot != 0xFF);
-
-		for (uint32 i = 0; i < Shader->ResourceCounts.NumCBs; ++i)
+		if (!EnumHasAllFlags(Shader->ResourceCounts.UsageFlags, EShaderResourceUsageFlags::BindlessResources))
 		{
-			const uint64 SlotMask = (1ull << i);
-			D3D12_GPU_VIRTUAL_ADDRESS BufferAddress = (Bindings.BoundCBVMask & SlotMask) ? Bindings.LocalCBVs[i] : 0;
-			Binder.SetRootCBV(BindSlot, i, BufferAddress);
-		}
+			const uint32 DescriptorTableBaseIndex = DescriptorCache.AllocateDeduplicated(Bindings.CBVVersions, Bindings.LocalCBVs, NumCBVs, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, WorkerIndex);
+			const uint32 BindSlot = RootSignature->CBVRDTBindSlot(SF_Compute);
+			check(BindSlot != 0xFF);
 
+			const D3D12_GPU_DESCRIPTOR_HANDLE ResourceDescriptorTableBaseGPU = DescriptorCache.ViewHeap.GetDescriptorGPU(DescriptorTableBaseIndex);
+			Binder.SetRootDescriptorTable(BindSlot, ResourceDescriptorTableBaseGPU);
+		}
+		else
 	#endif // D3D12RHI_USE_CONSTANT_BUFFER_VIEWS
+		{
+			checkf(RootSignature->CBVRDTBindSlot(SF_Compute) == 0xFF, TEXT("Root CBV descriptor tables are not implemented for ray tracing shaders."));
+
+			const uint32 BindSlot = RootSignature->CBVRDBaseBindSlot(SF_Compute);
+			check(BindSlot != 0xFF);
+
+			for (uint32 i = 0; i < Shader->ResourceCounts.NumCBs; ++i)
+			{
+				const uint64 SlotMask = (1ull << i);
+				D3D12_GPU_VIRTUAL_ADDRESS BufferAddress = (Bindings.BoundCBVMask & SlotMask) ? Bindings.RemoteCBVs[i] : 0;
+				Binder.SetRootCBV(BindSlot, i, BufferAddress);
+			}
+		}
 	}
 
 	// Bind samplers

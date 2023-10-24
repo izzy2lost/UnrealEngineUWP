@@ -3,7 +3,16 @@
 #pragma once
 
 #include "D3D12RHI.h"
+#include "Containers/Array.h"
+#include "Containers/UnrealString.h"
+#include "Misc/EnumClassFlags.h"
+#include "Misc/StringBuilder.h"
 #include "RayTracingBuiltInResources.h"
+#include "RHIDefinitions.h"
+
+#if !defined(D3DINTERFACE)
+	#include "D3D12ThirdParty.h"
+#endif
 
 enum class ED3D12RootSignatureFlags
 {
@@ -21,10 +30,13 @@ namespace D3D12ShaderUtils
 	namespace StaticRootSignatureConstants
 	{
 		// Assume descriptors are volatile because we don't initialize all the descriptors in a table, just the ones used by the current shaders.
-		const D3D12_DESCRIPTOR_RANGE_FLAGS SRVDescriptorRangeFlags = D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE | D3D12_DESCRIPTOR_RANGE_FLAG_DESCRIPTORS_VOLATILE;
-		const D3D12_DESCRIPTOR_RANGE_FLAGS CBVDescriptorRangeFlags = D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE | D3D12_DESCRIPTOR_RANGE_FLAG_DESCRIPTORS_VOLATILE;
-		const D3D12_DESCRIPTOR_RANGE_FLAGS UAVDescriptorRangeFlags = D3D12_DESCRIPTOR_RANGE_FLAG_DATA_VOLATILE | D3D12_DESCRIPTOR_RANGE_FLAG_DESCRIPTORS_VOLATILE;
-		const D3D12_DESCRIPTOR_RANGE_FLAGS SamplerDescriptorRangeFlags = D3D12_DESCRIPTOR_RANGE_FLAG_DESCRIPTORS_VOLATILE;
+		constexpr D3D12_DESCRIPTOR_RANGE_FLAGS SRVDescriptorRangeFlags = D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE | D3D12_DESCRIPTOR_RANGE_FLAG_DESCRIPTORS_VOLATILE;
+		constexpr D3D12_DESCRIPTOR_RANGE_FLAGS CBVDescriptorRangeFlags = D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE | D3D12_DESCRIPTOR_RANGE_FLAG_DESCRIPTORS_VOLATILE;
+		constexpr D3D12_DESCRIPTOR_RANGE_FLAGS UAVDescriptorRangeFlags = D3D12_DESCRIPTOR_RANGE_FLAG_DATA_VOLATILE | D3D12_DESCRIPTOR_RANGE_FLAG_DESCRIPTORS_VOLATILE;
+		constexpr D3D12_DESCRIPTOR_RANGE_FLAGS SamplerDescriptorRangeFlags = D3D12_DESCRIPTOR_RANGE_FLAG_DESCRIPTORS_VOLATILE;
+
+		// We always set the data in an upload heap before calling Set*RootConstantBufferView.
+		constexpr D3D12_ROOT_DESCRIPTOR_FLAGS CBVRootDescriptorFlags = D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC;
 	}
 
 	enum class ERootSignatureRangeType
@@ -177,7 +189,8 @@ namespace D3D12ShaderUtils
 		virtual ~FRootSignatureCreator() = default;
 
 		virtual void AddRootFlag(D3D12_ROOT_SIGNATURE_FLAGS Flag) = 0;
-		virtual void AddShaderResourceViewParameter(uint32 Register, uint32 Space) = 0;
+		virtual void AddConstantBufferViewParameter(uint32 Register, uint32 Space, ERootSignatureVisibility Visibility = ERootSignatureVisibility::All) = 0;
+		virtual void AddShaderResourceViewParameter(uint32 Register, uint32 Space, ERootSignatureVisibility Visibility = ERootSignatureVisibility::All) = 0;
 		virtual void AddTable(ERootSignatureVisibility Visibility, ERootSignatureRangeType Type, int32 NumDescriptors, D3D12_DESCRIPTOR_RANGE_FLAGS FlagsOverride = D3D12_DESCRIPTOR_RANGE_FLAG_NONE) = 0;
 		virtual void AddConstantsParameter(uint32 Num32BitValues, uint32 Register, uint32 Space) = 0;
 
@@ -201,12 +214,22 @@ namespace D3D12ShaderUtils
 			}
 		}
 
+		bool HasFlags(ED3D12RootSignatureFlags InFlags) const
+		{
+			return EnumHasAllFlags(Flags, InFlags);
+		}
+
 		void SetRegisterSpace(uint32 InSpace)
 		{
 			RegisterSpace = InSpace;
 		}
 
-		inline bool ShouldSkipType(ERootSignatureRangeType Type)
+		uint32 GetRegisterSpace() const
+		{
+			return RegisterSpace;
+		}
+
+		inline bool ShouldSkipType(ERootSignatureRangeType Type) const
 		{
 			if (Type == ERootSignatureRangeType::SRV || Type == ERootSignatureRangeType::UAV)
 			{
@@ -222,7 +245,7 @@ namespace D3D12ShaderUtils
 		}
 	};
 
-	struct FBinaryRootSignatureCreator : public FRootSignatureCreator
+	struct FBinaryRootSignatureCreator final : public FRootSignatureCreator
 	{
 		D3D12_ROOT_SIGNATURE_FLAGS RootFlags = D3D12_ROOT_SIGNATURE_FLAG_NONE;
 		TArray<CD3DX12_DESCRIPTOR_RANGE1> DescriptorRanges;
@@ -243,10 +266,16 @@ namespace D3D12ShaderUtils
 			RootFlags |= RootFlag;
 		}
 
-		void AddShaderResourceViewParameter(uint32 Register, uint32 Space)
+		void AddConstantBufferViewParameter(uint32 Register, uint32 Space, ERootSignatureVisibility Visibility = ERootSignatureVisibility::All) override
 		{
 			CD3DX12_ROOT_PARAMETER1& Parameter = Parameters.AddZeroed_GetRef();
-			Parameter.InitAsShaderResourceView(Register, Space);
+			Parameter.InitAsConstantBufferView(Register, Space, StaticRootSignatureConstants::CBVRootDescriptorFlags, GetD3D12ShaderVisibility(Visibility));
+		}
+
+		void AddShaderResourceViewParameter(uint32 Register, uint32 Space, ERootSignatureVisibility Visibility = ERootSignatureVisibility::All) override
+		{
+			CD3DX12_ROOT_PARAMETER1& Parameter = Parameters.AddZeroed_GetRef();
+			Parameter.InitAsShaderResourceView(Register, Space, D3D12_ROOT_DESCRIPTOR_FLAG_NONE, GetD3D12ShaderVisibility(Visibility));
 		}
 
 		void AddConstantsParameter(uint32 Num32BitValues, uint32 Register, uint32 Space) override
@@ -295,7 +324,7 @@ namespace D3D12ShaderUtils
 	};
 
 	/* Root signature generator for DXC */
-	struct FTextRootSignatureCreator : public FRootSignatureCreator
+	struct FTextRootSignatureCreator final : public FRootSignatureCreator
 	{
 		void AddRootFlag(D3D12_ROOT_SIGNATURE_FLAGS InFlag) override
 		{
@@ -306,9 +335,19 @@ namespace D3D12ShaderUtils
 			RootFlags += GetFlagName(InFlag);
 		}
 
-		void AddShaderResourceViewParameter(uint32 Register, uint32 Space) override
+		void AddConstantBufferViewParameter(uint32 Register, uint32 Space, ERootSignatureVisibility Visibility = ERootSignatureVisibility::All) override
 		{
-			FString Line = FString::Printf(TEXT("SRV(t%d, space=%d))"), Register, Space);
+			FString Line = FString::Printf(TEXT("CBV(t%d, space=%d, visibility=%s))"), Register, Space, GetVisibilityFlag(Visibility));
+			if (Table.Len() > 0)
+			{
+				Table += ",";
+			}
+			Table += Line;
+		}
+
+		void AddShaderResourceViewParameter(uint32 Register, uint32 Space, ERootSignatureVisibility Visibility = ERootSignatureVisibility::All) override
+		{
+			FString Line = FString::Printf(TEXT("SRV(t%d, space=%d, visibility=%s))"), Register, Space, GetVisibilityFlag(Visibility));
 			if (Table.Len() > 0)
 			{
 				Table += ",";
@@ -415,7 +454,17 @@ namespace D3D12ShaderUtils
 			Creator.AddConstantsParameter(NumConstants, RAY_TRACING_SYSTEM_ROOTCONSTANT_REGISTER, UE_HLSL_SPACE_RAY_TRACING_SYSTEM);
 		}
 
-		AddAllStandardTablesForVisibility(Creator, ERootSignatureVisibility::All);
+		if (Creator.HasFlags(ED3D12RootSignatureFlags::BindlessResources))
+		{
+			for (uint32 Index = 0; Index < MAX_CBS; Index++)
+			{
+				Creator.AddConstantBufferViewParameter(Index, Creator.GetRegisterSpace());
+			}
+		}
+		else
+		{
+			AddAllStandardTablesForVisibility(Creator, ERootSignatureVisibility::All);
+		}
 
 		Creator.AddTable(ERootSignatureVisibility::All, ERootSignatureRangeType::UAV, MAX_UAVS, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE | D3D12_DESCRIPTOR_RANGE_FLAG_DESCRIPTORS_VOLATILE);
 	}

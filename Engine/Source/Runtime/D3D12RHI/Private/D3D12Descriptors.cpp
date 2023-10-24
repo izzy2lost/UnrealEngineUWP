@@ -120,13 +120,22 @@ FD3D12OnlineDescriptorManager::FD3D12OnlineDescriptorManager(FD3D12Device* Devic
 FD3D12OnlineDescriptorManager::~FD3D12OnlineDescriptorManager() = default;
 
 // Allocate and initialize the online heap
-void FD3D12OnlineDescriptorManager::Init(uint32 InTotalSize, uint32 InBlockSize)
+void FD3D12OnlineDescriptorManager::Init(uint32 InTotalSize, uint32 InBlockSize, bool bBindlessResources)
 {
-	Heap = GetParentDevice()->GetDescriptorHeapManager().AllocateHeap(
-		TEXT("Device Global - Online View Heap"),
-		ERHIDescriptorHeapType::Standard,
-		InTotalSize,
-		D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE);
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+	if (bBindlessResources)
+	{
+		Heap = GetParentDevice()->GetBindlessDescriptorManager().AllocateHeap(ERHIDescriptorHeapType::Standard, InTotalSize);
+	}
+	else
+#endif
+	{
+		Heap = GetParentDevice()->GetDescriptorHeapManager().AllocateHeap(
+			TEXT("Device Global - Online View Heap"),
+			ERHIDescriptorHeapType::Standard,
+			InTotalSize,
+			D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE);
+	}
 
 	// Update the stats
 	INC_DWORD_STAT(STAT_NumViewOnlineDescriptorHeaps);

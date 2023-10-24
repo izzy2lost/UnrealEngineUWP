@@ -444,10 +444,10 @@ void FD3D12RootSignature::InitStaticRayTracingGlobalRootSignatureDesc(ED3D12Root
 	Init(Creator.Finalize(), UE_HLSL_SPACE_RAY_TRACING_GLOBAL);
 }
 
-void FD3D12RootSignature::InitStaticRayTracingLocalRootSignatureDesc()
+void FD3D12RootSignature::InitStaticRayTracingLocalRootSignatureDesc(ED3D12RootSignatureFlags InFlags)
 {
 	D3D12ShaderUtils::FBinaryRootSignatureCreator Creator;
-	D3D12ShaderUtils::CreateRayTracingSignature(Creator, true, D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE, ED3D12RootSignatureFlags::None);
+	D3D12ShaderUtils::CreateRayTracingSignature(Creator, true, D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE, InFlags);
 	Init(Creator.Finalize(), UE_HLSL_SPACE_RAY_TRACING_LOCAL);
 }
 #endif // D3D12_RHI_RAYTRACING

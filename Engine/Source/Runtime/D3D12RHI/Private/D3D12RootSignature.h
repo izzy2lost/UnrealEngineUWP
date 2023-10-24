@@ -93,7 +93,7 @@ public:
 	void InitStaticComputeRootSignatureDesc(ED3D12RootSignatureFlags InFlags);
 #if D3D12_RHI_RAYTRACING
 	void InitStaticRayTracingGlobalRootSignatureDesc(ED3D12RootSignatureFlags InFlags);
-	void InitStaticRayTracingLocalRootSignatureDesc();
+	void InitStaticRayTracingLocalRootSignatureDesc(ED3D12RootSignatureFlags InFlags);
 #endif
 
 	ID3D12RootSignature* GetRootSignature() const { return RootSignature.GetReference(); }
@@ -181,7 +181,8 @@ public:
 	inline bool HasSRVs() const { return bHasSRVs; }
 	inline bool HasCBVs() const { return bHasCBVs; }
 	inline bool HasRootCBs() const { return bHasRootCBs; }
-	inline bool HasTableResources() const { return bHasUAVs || bHasSRVs || bHasCBVs; }
+	inline bool HasTableResources() const { return bHasUAVs || bHasSRVs; }
+	inline bool HasTableConstants() const { return bHasCBVs; }
 	inline bool HasSamplers() const { return bHasSamplers; }
 	inline bool UsesDynamicResources() const { return bUsesDynamicResources; }
 	inline bool UsesDynamicSamplers() const { return bUsesDynamicSamplers; }

@@ -17,6 +17,8 @@ public:
 	FD3D12BindlessDescriptorHeapManager() = delete;
 	FD3D12BindlessDescriptorHeapManager(FD3D12Device* InDevice, ERHIDescriptorHeapType InType, ERHIBindlessConfiguration InConfiguration, uint32 InNumDescriptorsPerHeap, TConstArrayView<TStatId> InStats);
 
+	FD3D12DescriptorHeap* AllocateHeap(int32 InSize);
+
 	FRHIDescriptorHandle Allocate();
 	void                 Free(FRHIDescriptorHandle InHandle);
 
@@ -105,6 +107,8 @@ public:
 
 	void UpdateImmediately(FRHIDescriptorHandle InHandle, D3D12_CPU_DESCRIPTOR_HANDLE InSourceCpuHandle);
 	void UpdateDeferred(FRHIDescriptorHandle InHandle, D3D12_CPU_DESCRIPTOR_HANDLE InSourceCpuHandle);
+
+	FD3D12DescriptorHeap* AllocateHeap(ERHIDescriptorHeapType InType, int32 InSize);
 
 	FD3D12DescriptorHeap* GetHeap(ERHIDescriptorHeapType InType);
 	FD3D12DescriptorHeap* GetHeap(ERHIDescriptorHeapType InType, ERHIBindlessConfiguration InConfiguration);

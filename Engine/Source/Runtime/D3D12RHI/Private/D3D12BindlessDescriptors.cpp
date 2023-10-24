@@ -38,6 +38,24 @@ FD3D12BindlessDescriptorHeapManager::FD3D12BindlessDescriptorHeapManager(FD3D12D
 	SetupInitialState(InNumDescriptorsPerHeap);
 }
 
+FD3D12DescriptorHeap* FD3D12BindlessDescriptorHeapManager::AllocateHeap(int32 InSize)
+{
+	check(NumAllocations == 0);
+
+	const int32 NewNumDescriptorsPerHeap = NumDescriptorsPerHeap + InSize;
+	ResizeHeaps(NewNumDescriptorsPerHeap);
+
+	check(Allocations.Num() == NewNumDescriptorsPerHeap);
+
+	const int32 Offset = 0;
+	const int32 Count = InSize;
+
+	Allocations.SetRange(Offset, Count, true);
+	NumAllocations += InSize;
+
+	return new FD3D12DescriptorHeap(GpuHeap.GetReference(), Offset, Count);
+}
+
 FRHIDescriptorHandle FD3D12BindlessDescriptorHeapManager::Allocate()
 {
 	FScopeLock Lock(&CriticalSection);
@@ -53,7 +71,8 @@ FRHIDescriptorHandle FD3D12BindlessDescriptorHeapManager::Allocate()
 	NumAllocations++;
 	RecordAlloc();
 
-	checkSlow(NumAllocations == Allocations.CountSetBits());
+	// TODO - find a faster way to verify Allocations
+	//checkSlow(NumAllocations == Allocations.CountSetBits());
 
 	return FRHIDescriptorHandle(Type, AllocatedIndex);
 }
@@ -71,7 +90,8 @@ void FD3D12BindlessDescriptorHeapManager::Free(FRHIDescriptorHandle InHandle)
 		NumAllocations--;
 		RecordFree();
 
-		checkSlow(NumAllocations == Allocations.CountSetBits());
+		// TODO - find a faster way to verify Allocations
+		//checkSlow(NumAllocations == Allocations.CountSetBits());
 	}
 }
 
@@ -264,6 +284,21 @@ void FD3D12BindlessDescriptorManager::UpdateDeferred(FRHIDescriptorHandle InHand
 
 	// Bad configuration?
 	checkNoEntry();
+}
+
+FD3D12DescriptorHeap* FD3D12BindlessDescriptorManager::AllocateHeap(ERHIDescriptorHeapType InType, int32 InSize)
+{
+	for (FD3D12BindlessDescriptorHeapManager& Manager : Managers)
+	{
+		if (Manager.HandlesAllocation(InType))
+		{
+			return Manager.AllocateHeap(InSize);
+		}
+	}
+
+	// Bad configuration?
+	checkNoEntry();
+	return nullptr;
 }
 
 FD3D12DescriptorHeap* FD3D12BindlessDescriptorManager::GetHeap(ERHIDescriptorHeapType InType)

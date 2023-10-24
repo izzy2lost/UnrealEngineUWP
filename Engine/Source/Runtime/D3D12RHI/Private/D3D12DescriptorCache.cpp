@@ -52,9 +52,9 @@ void FD3D12DescriptorCache::Init(uint32 InNumLocalViewDescriptors, uint32 InNumS
 	// lazily as a backup to save memory)
 	LocalSamplerHeap.Init(IsUsingBindlessSamplers() ? 0 : InNumSamplerDescriptors, ERHIDescriptorHeapType::Sampler);
 
-	NumLocalViewDescriptors = IsUsingBindlessResources() ? 0 : InNumLocalViewDescriptors;
+	NumLocalViewDescriptors = InNumLocalViewDescriptors;
 
-	CurrentViewHeap = IsUsingBindlessResources() ? nullptr : &SubAllocatedViewHeap;
+	CurrentViewHeap = &SubAllocatedViewHeap;
 	CurrentSamplerHeap = IsUsingBindlessSamplers() ? nullptr : &LocalSamplerHeap;
 }
 
@@ -154,11 +154,9 @@ void FD3D12DescriptorCache::OpenCommandList()
 	{
 		BindlessResourcesHeap = GetParentDevice()->GetBindlessDescriptorManager().GetHeap(ERHIDescriptorHeapType::Standard);
 	}
-	else
 #endif
-	{
-		CurrentViewHeap->OpenCommandList();
-	}
+
+	CurrentViewHeap->OpenCommandList();
 
 	if (!IsUsingBindlessSamplers())
 	{
@@ -173,10 +171,7 @@ void FD3D12DescriptorCache::OpenCommandList()
 
 void FD3D12DescriptorCache::CloseCommandList()
 {
-	if (!IsUsingBindlessResources())
-	{
-		CurrentViewHeap->CloseCommandList();
-	}
+	CurrentViewHeap->CloseCommandList();
 
 	if (!IsUsingBindlessSamplers())
 	{

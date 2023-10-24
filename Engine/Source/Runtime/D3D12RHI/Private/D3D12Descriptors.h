@@ -135,7 +135,7 @@ public:
 	~FD3D12OnlineDescriptorManager();
 
 	// Setup the actual heap
-	void Init(uint32 InTotalSize, uint32 InBlockSize);
+	void Init(uint32 InTotalSize, uint32 InBlockSize, bool bBindlessResources);
 
 	// Allocate an available sub heap block from the global heap
 	FD3D12OnlineDescriptorBlock* AllocateHeapBlock();

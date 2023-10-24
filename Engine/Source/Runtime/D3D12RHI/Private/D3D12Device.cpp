@@ -387,10 +387,7 @@ void FD3D12Device::SetupAfterDeviceCreation()
 		GlobalSamplerHeap.Init(GGlobalSamplerHeapSize);
 	}
 
-	if (!bFullyBindlessResources)
-	{
-		OnlineDescriptorManager.Init(GOnlineDescriptorHeapSize, GOnlineDescriptorHeapBlockSize);
-	}
+	OnlineDescriptorManager.Init(GOnlineDescriptorHeapSize, GOnlineDescriptorHeapBlockSize, bFullyBindlessResources);
 
 	// Make sure we create the default views before the first command context
 	CreateDefaultViews();

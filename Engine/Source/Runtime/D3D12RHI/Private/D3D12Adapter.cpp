@@ -1346,7 +1346,7 @@ void FD3D12Adapter::InitializeDevices()
 		}
 
 		StaticRayTracingGlobalRootSignature.InitStaticRayTracingGlobalRootSignatureDesc(RayTracingFlags);
-		StaticRayTracingLocalRootSignature.InitStaticRayTracingLocalRootSignatureDesc();
+		StaticRayTracingLocalRootSignature.InitStaticRayTracingLocalRootSignatureDesc(RayTracingFlags);
 #endif
 #endif // USE_STATIC_ROOT_SIGNATURE
 
