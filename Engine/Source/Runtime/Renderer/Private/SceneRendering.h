@@ -2661,7 +2661,7 @@ protected:
 
 	void PostRenderBasePass(FRHICommandList& RHICmdList, FViewInfo& View);
 
-	void RenderMobileEditorPrimitives(FRHICommandList& RHICmdList, const FViewInfo& View, const FMeshPassProcessorRenderState& DrawRenderState);
+	void RenderMobileEditorPrimitives(FRHICommandList& RHICmdList, const FViewInfo& View, const FMeshPassProcessorRenderState& DrawRenderState, const FInstanceCullingDrawParams* InstanceCullingDrawParams);
 
 	/** Renders the debug view pass for mobile. */
 	void RenderMobileDebugView(FRHICommandList& RHICmdList, const FViewInfo& View);
@@ -2684,7 +2684,7 @@ protected:
 
 
 	/** Renders decals. */
-	void RenderDecals(FRHICommandList& RHICmdList, const FViewInfo& View);
+	void RenderDecals(FRHICommandList& RHICmdList, const FViewInfo& View, const FInstanceCullingDrawParams* InstanceCullingDrawParams);
 	void RenderDBuffer(FRDGBuilder& GraphBuilder, FSceneTextures& SceneTextures, FDBufferTextures& DBufferTextures);
 
 	/** Renders the atmospheric and height fog */

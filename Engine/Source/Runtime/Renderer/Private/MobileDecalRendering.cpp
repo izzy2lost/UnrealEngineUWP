@@ -44,7 +44,7 @@ static bool DoesPlatformSupportDecals(EShaderPlatform ShaderPlatform)
 	return true;
 }
 
-void FMobileSceneRenderer::RenderDecals(FRHICommandList& RHICmdList, const FViewInfo& View)
+void FMobileSceneRenderer::RenderDecals(FRHICommandList& RHICmdList, const FViewInfo& View, const FInstanceCullingDrawParams* InstanceCullingDrawParams)
 {
 	if (!DoesPlatformSupportDecals(View.GetShaderPlatform()) || !ViewFamily.EngineShowFlags.Decals || View.bIsPlanarReflection)
 	{
@@ -70,6 +70,15 @@ void FMobileSceneRenderer::RenderDecals(FRHICommandList& RHICmdList, const FView
 	{
 		SCOPED_DRAW_EVENT(RHICmdList, MeshDecals);
 		RenderMeshDecalsMobile(RHICmdList, View, DecalRenderStage, RenderTargetMode);
+
+		// MeshDecals use DrawDynamicMeshPass which may change BatchedPrimitive binding, so we need to restore it
+		FUniformBufferStaticSlot BatchedPrimitiveSlot = FInstanceCullingContext::GetUniformBufferViewStaticSlot(View.GetShaderPlatform());
+		if (IsUniformBufferStaticSlotValid(BatchedPrimitiveSlot))
+		{
+			FRHIUniformBuffer* BatchedPrimitiveBufferRHI = InstanceCullingDrawParams->BatchedPrimitive.GetUniformBuffer()->GetRHI();
+			check(BatchedPrimitiveBufferRHI);
+			RHICmdList.SetStaticUniformBuffer(BatchedPrimitiveSlot, BatchedPrimitiveBufferRHI);
+		}
 	}
 }
 

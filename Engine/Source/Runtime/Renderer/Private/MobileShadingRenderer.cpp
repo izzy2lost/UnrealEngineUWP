@@ -1385,7 +1385,7 @@ void FMobileSceneRenderer::RenderForwardSinglePass(FRDGBuilder& GraphBuilder, FM
 		// scene depth is read only and can be fetched
 		RHICmdList.NextSubpass();
 		RHICmdList.SetCurrentStat(GET_STATID(STAT_CLMM_Translucency));
-		RenderDecals(RHICmdList, View);
+		RenderDecals(RHICmdList, View, &PassParameters->InstanceCullingDrawParams);
 		RenderModulatedShadowProjections(RHICmdList, ViewContext.ViewIndex, View);
 		if (GMaxRHIShaderPlatform != SP_METAL_SIM)
 		{
@@ -1487,7 +1487,7 @@ void FMobileSceneRenderer::RenderForwardMultiPass(FRDGBuilder& GraphBuilder, FMo
 			
 		// scene depth is read only and can be fetched
 		RHICmdList.SetCurrentStat(GET_STATID(STAT_CLMM_Translucency));
-		RenderDecals(RHICmdList, View);
+		RenderDecals(RHICmdList, View, &SecondPassParameters->InstanceCullingDrawParams);
 		RenderModulatedShadowProjections(RHICmdList, ViewContext.ViewIndex, View);
 		RenderFog(RHICmdList, View);
 		// Draw translucency.
@@ -1713,7 +1713,7 @@ void FMobileSceneRenderer::RenderDeferredSinglePass(FRDGBuilder& GraphBuilder, c
 		// SceneColor + GBuffer write, SceneDepth is read only
 		RHICmdList.NextSubpass();
 		RHICmdList.SetCurrentStat(GET_STATID(STAT_CLMM_Translucency));
-		RenderDecals(RHICmdList, View);
+		RenderDecals(RHICmdList, View, &PassParameters->InstanceCullingDrawParams);
 		// SceneColor write, SceneDepth is read only
 		RHICmdList.NextSubpass();
 		MobileDeferredShadingPass(RHICmdList, ViewContext.ViewIndex, Views.Num(), View, *Scene, SortedLightSet, VisibleLightInfos);
@@ -1778,7 +1778,7 @@ void FMobileSceneRenderer::RenderDeferredMultiPass(FRDGBuilder& GraphBuilder, cl
 		[this, SecondPassParameters, ViewContext](FRHICommandList& RHICmdList)
 	{
 		FViewInfo& View = *ViewContext.ViewInfo;
-		RenderDecals(RHICmdList, View);
+		RenderDecals(RHICmdList, View, &SecondPassParameters->InstanceCullingDrawParams);
 	});
 
 	auto* ThirdPassParameters = GraphBuilder.AllocParameters<FMobileRenderPassParameters>();

@@ -1775,6 +1775,36 @@ void ApplyViewOverridesToMeshDrawCommands(const FSceneView& View, FMeshCommandOn
 	}
 }
 
+class FDynamicBatchedPrimitiveLayout : public FRenderResource
+{
+public:
+	void InitRHI(FRHICommandListBase& RHICmdList) override 
+	{
+		// This Layout fully replicates BatchedPrimitive UB
+		// we replace RDG_SRV with a regular SRV to be able to update UB inside RDG passes
+		static FName BatchedPrimitiveSlotName = "BatchedPrimitive";
+		FRHIUniformBufferLayoutInitializer Initialzer(TEXT("DynamicBatchedPrimitive"), 16u);
+		Initialzer.bUniformView = true;
+		Initialzer.Resources.Add({0, UBMT_RDG_BUFFER_SRV});
+		Initialzer.StaticSlot = FUniformBufferStaticSlotRegistry::Get().FindSlotByName(BatchedPrimitiveSlotName);
+		Initialzer.BindingFlags = EUniformBufferBindingFlags::StaticAndShader;
+		Initialzer.ComputeHash();
+		// set view source to a regular SRV after hash computation, to make sure hash matches BatchedPrimitive layout
+		Initialzer.Resources[0].MemberType = UBMT_SRV;
+
+		LayoutRHI = RHICreateUniformBufferLayout(Initialzer);
+	}
+
+	void ReleaseRHI() override 
+	{
+		LayoutRHI = nullptr;
+	}
+
+	FUniformBufferLayoutRHIRef LayoutRHI;
+};
+
+TGlobalResource<FDynamicBatchedPrimitiveLayout> GDynamicBatchedPrimitiveLayout;
+
 void DrawDynamicMeshPassPrivate(
 	const FSceneView& View,
 	FRHICommandList& RHICmdList,
@@ -1786,22 +1816,19 @@ void DrawDynamicMeshPassPrivate(
 {
 	if (VisibleMeshDrawCommands.Num() > 0)
 	{
-		const ERHIFeatureLevel::Type FeatureLevel = View.GetFeatureLevel();
-		const bool bUseGPUScene = UseGPUScene(GMaxRHIShaderPlatform, FeatureLevel);
-
-		if (bUseGPUScene && PlatformGPUSceneUsesUniformBufferView(View.GetShaderPlatform()))
-		{
-			// FIXME: UniformBufferView path
-			return;
-		}
-				
 		// GPUCULL_TODO: workaround for the fact that DrawDynamicMeshPassPrivate et al. don't work with GPU-Scene instancing
 		//               we don't support dynamic instancing for this path since we require one primitive per draw command
 		//               This is because the stride on the instance data buffer is set to 0 so only the first will ever be fetched.
 		const bool bDynamicInstancing = false;
-
+		const ERHIFeatureLevel::Type FeatureLevel = View.GetFeatureLevel();
+		const bool bUseGPUScene = UseGPUScene(GMaxRHIShaderPlatform, FeatureLevel);
+		
 		FMeshDrawCommandSceneArgs SceneArgs;
-		SceneArgs.BatchedPrimitiveSlot = FInstanceCullingContext::GetUniformBufferViewStaticSlot(View.GetShaderPlatform());
+		if (bUseGPUScene)
+		{
+			SceneArgs.BatchedPrimitiveSlot = FInstanceCullingContext::GetUniformBufferViewStaticSlot(View.GetShaderPlatform());
+		}
+	
 		const uint32 PrimitiveIdBufferStride = FInstanceCullingContext::GetInstanceIdBufferStride(View.GetShaderPlatform());
 		
 		ApplyViewOverridesToMeshDrawCommands(View, VisibleMeshDrawCommands, DynamicMeshDrawCommandStorage, GraphicsMinimalPipelineStateSet, InNeedsShaderInitialisation);
@@ -1813,9 +1840,11 @@ void DrawDynamicMeshPassPrivate(
 
 		if (IsUniformBufferStaticSlotValid(SceneArgs.BatchedPrimitiveSlot))
 		{
-			// FIXME: UniformBufferView path
-			FRHIUniformBuffer* Buffer = nullptr;
-			RHICmdList.SetStaticUniformBuffer(SceneArgs.BatchedPrimitiveSlot, Buffer);
+			FShaderResourceViewRHIRef BatchedPrimitiveSRV = RHICmdList.CreateShaderResourceView(SceneArgs.PrimitiveIdsBuffer);
+			SceneArgs.PrimitiveIdsBuffer = nullptr;
+			FRHIShaderResourceView* SRV = BatchedPrimitiveSRV.GetReference();
+			FUniformBufferRHIRef UBRef = RHICreateUniformBuffer(&SRV, GDynamicBatchedPrimitiveLayout.LayoutRHI, UniformBuffer_SingleFrame, EUniformBufferValidation::None);
+			RHICmdList.SetStaticUniformBuffer(SceneArgs.BatchedPrimitiveSlot, UBRef);
 		}
 
 		SubmitMeshDrawCommandsRange(VisibleMeshDrawCommands, GraphicsMinimalPipelineStateSet, SceneArgs, PrimitiveIdBufferStride, bDynamicInstancing, 0, VisibleMeshDrawCommands.Num(), InstanceFactor, RHICmdList);

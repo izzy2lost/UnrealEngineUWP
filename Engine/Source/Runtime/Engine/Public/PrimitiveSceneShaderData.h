@@ -122,27 +122,3 @@ public:
 extern ENGINE_API TGlobalResource<FSinglePrimitiveStructured> GIdentityPrimitiveBuffer;
 UE_DEPRECATED(5.3, "Use IRendererModule::CreateSinglePrimitiveSceneUniformBuffer instead")
 extern ENGINE_API TGlobalResource<FSinglePrimitiveStructured> GTilePrimitiveBuffer;
-
-
-struct FBatchedPrimitiveShaderData
-{
-	static const uint32 DataStrideInFloat4s = BATCHED_PRIMITIVE_DATA_STRIDE_FLOAT4;
-
-	TStaticArray<FVector4f, DataStrideInFloat4s> Data;
-
-	FBatchedPrimitiveShaderData()
-		: Data(InPlace, NoInit)
-	{
-		Setup(GetIdentityPrimitiveParameters());
-	}
-
-	explicit FBatchedPrimitiveShaderData(const FPrimitiveUniformShaderParameters& PrimitiveUniformShaderParameters)
-		: Data(InPlace, NoInit)
-	{
-		Setup(PrimitiveUniformShaderParameters);
-	}
-
-	ENGINE_API FBatchedPrimitiveShaderData(const class FPrimitiveSceneProxy* RESTRICT Proxy);
-
-	ENGINE_API void Setup(const FPrimitiveUniformShaderParameters& PrimitiveUniformShaderParameters);
-};

@@ -23,6 +23,7 @@ class FGPUScene;
 class FGPUSceneDynamicContext;
 class FViewUniformShaderParameters;
 class FInstanceCullingOcclusionQueryRenderer;
+class FPrimitiveSceneProxy;
 class IVisibilityTaskData;
 
 DECLARE_GPU_STAT_NAMED_EXTERN(GPUSceneUpdate, TEXT("GPUSceneUpdate"))
@@ -97,6 +98,7 @@ public:
 	int32 Num() const {	return UploadData != nullptr ? UploadData->PrimitiveData.Num() : 0; }
 	int32 NumInstances() const { return UploadData != nullptr ? UploadData->TotalInstanceCount : 0; }
 	int32 NumPayloadDataSlots() const { return UploadData != nullptr ? UploadData->InstancePayloadDataFloat4Count : 0; }
+	const FPrimitiveUniformShaderParameters* GetPrimitiveShaderParameters(int32 PrimitiveId) const;
 
 #if DO_CHECK
 	/**
@@ -109,7 +111,6 @@ private:
 
 	friend class FGPUScene;
 	friend class FGPUSceneDynamicContext;
-	friend struct FGPUSceneCompactInstanceData;
 	friend struct FUploadDataSourceAdapterDynamicPrimitives;
 
 	struct FPrimitiveData
@@ -464,14 +465,29 @@ private:
 	FGPUScene& GPUScene;
 };
 
-struct FGPUSceneCompactInstanceData
+struct FBatchedPrimitiveShaderData
 {
-	FVector4f LocalToWorld0;
-	FVector4f LocalToWorld1;
-	FVector4f LocalToWorld2;
-	FVector4f LocalToWorld3;
-	FVector4f InvNonUniformScaleAndFlags;
+	static const uint32 DataStrideInFloat4s = BATCHED_PRIMITIVE_DATA_STRIDE_FLOAT4;
 
-	void Init(const FGPUScenePrimitiveCollector* PrimitiveCollector, int32 PrimitiveId);
-	void Init(const FScene* Scene, int32 PrimitiveId);
+	TStaticArray<FVector4f, DataStrideInFloat4s> Data;
+
+	FBatchedPrimitiveShaderData()
+		: Data(InPlace, NoInit)
+	{
+		Setup(GetIdentityPrimitiveParameters());
+	}
+
+	explicit FBatchedPrimitiveShaderData(const FPrimitiveUniformShaderParameters& PrimitiveUniformShaderParameters)
+		: Data(InPlace, NoInit)
+	{
+		Setup(PrimitiveUniformShaderParameters);
+	}
+
+	explicit FBatchedPrimitiveShaderData(const FPrimitiveSceneProxy* Proxy);
+	
+	static void Emplace(FBatchedPrimitiveShaderData* Dest, const FPrimitiveUniformShaderParameters& ShaderParams);
+	static void Emplace(FBatchedPrimitiveShaderData* Dest, const FPrimitiveSceneProxy* Proxy);
+
+private:
+	void Setup(const FPrimitiveUniformShaderParameters& PrimitiveUniformShaderParameters);
 };

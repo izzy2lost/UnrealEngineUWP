@@ -338,10 +338,6 @@ void FRendererModule::DrawTileMesh(FCanvasRenderContext& RenderContext, FMeshPas
 		PassParameters->View = View.GetShaderParameters();
 		PassParameters->InstanceCullingDrawParams.Scene = SceneUniforms.GetBuffer(GraphBuilder);
 		PassParameters->InstanceCullingDrawParams.InstanceCulling = FInstanceCullingContext::CreateDummyInstanceCullingUniformBuffer(GraphBuilder);
-		if (UseGPUScene(View.GetShaderPlatform(), FeatureLevel) && PlatformGPUSceneUsesUniformBufferView(View.GetShaderPlatform()))
-		{
-			PassParameters->InstanceCullingDrawParams.BatchedPrimitive = CreateSinglePrimitiveUniformView(GraphBuilder, View, Mesh);
-		}
 		PassParameters->ReflectionCapture = EmptyReflectionCaptureUniformBuffer;
 
 		// handle translucent material blend modes, not relevant in MaterialTexCoordScalesAnalysis since it outputs the scales.
