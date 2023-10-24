@@ -2756,7 +2756,8 @@ private:
 	int32						DeferredClusterIndex = 0;
 	/** Current index into Export objects array used to spread routing PostLoadInstances over several frames			*/
 	int32						PostLoadInstanceIndex = 0;
-	EAsyncPackageLoadingState2	AsyncPackageLoadingState = EAsyncPackageLoadingState2::NewPackage;
+	/** Current loading state of a package. */
+	std::atomic<EAsyncPackageLoadingState2> AsyncPackageLoadingState { EAsyncPackageLoadingState2::NewPackage };
 
 	struct FAllDependenciesState
 	{
