@@ -2180,8 +2180,6 @@ bool UIKRetargetProcessor::WasInitializedWithTheseAssets(
 	return bSourceMatches && bTargetMatches && bAssetMatches;
 }
 
-#if WITH_EDITOR
-
 void UIKRetargetProcessor::SetNeedsInitialized()
 {
 	bIsInitialized = false;
@@ -2191,6 +2189,8 @@ void UIKRetargetProcessor::SetNeedsInitialized()
 		IKRigProcessor->SetNeedsInitialized();
 	}
 }
+
+#if WITH_EDITOR
 
 bool UIKRetargetProcessor::IsBoneRetargeted(
 	const int32& BoneIndex,

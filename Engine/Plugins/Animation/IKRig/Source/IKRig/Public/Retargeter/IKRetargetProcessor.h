@@ -543,9 +543,10 @@ public:
 	/** logging system */
 	FIKRigLogger Log;
 
-#if WITH_EDITOR
 	/** Set that this processor needs to be reinitialized. */
 	void SetNeedsInitialized();
+	
+#if WITH_EDITOR
 	/** Returns true if the bone is part of a retarget chain or root bone, false otherwise. */
 	bool IsBoneRetargeted(const int32& BoneIndex, const int8& SkeletonToCheck) const;
 	/** Returns name of the chain associated with this bone. Returns NAME_None if bone is not in a chain. */

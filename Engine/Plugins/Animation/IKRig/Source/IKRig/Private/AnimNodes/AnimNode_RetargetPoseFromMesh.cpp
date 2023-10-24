@@ -61,6 +61,12 @@ void FAnimNode_RetargetPoseFromMesh::CacheBones_AnyThread(const FAnimationCacheB
 			}
 		}
 	}
+
+	// any time required bones are modified, retargeter needs reinitialized
+	if (Processor)
+	{
+		Processor->SetNeedsInitialized();
+	}
 }
 
 void FAnimNode_RetargetPoseFromMesh::Update_AnyThread(const FAnimationUpdateContext& Context)
