@@ -34,6 +34,11 @@ AUTORTFM_NO_ASAN UE_AUTORTFM_FORCEINLINE void FTransaction::RecordWriteMaxPageSi
 
 AUTORTFM_NO_ASAN UE_AUTORTFM_FORCEINLINE void FTransaction::RecordWrite(void* LogicalAddress, size_t Size)
 {
+    if (Size == 0)
+    {
+        return;
+    }
+
     // If we are recording a stack address that is relative to our current
     // transactions stack location, we do not need to record the data in the
     // write log because if that transaction aborted, that memory will cease to
