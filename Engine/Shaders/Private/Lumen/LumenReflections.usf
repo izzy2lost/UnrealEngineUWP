@@ -691,7 +691,7 @@ Texture2DArray ResolvedReflectionsDepth;
 Texture2DArray SpecularIndirectHistory;
 Texture2D DepthHistory;
 Texture2DArray<float> ResolveVariance;
-Texture2D ResolveVarianceHistory;
+Texture2DArray ResolveVarianceHistory;
 
 float HistoryDistanceThreshold;
 float MaxFramesAccumulated;
@@ -1007,7 +1007,7 @@ void ReflectionTemporalReprojectionCS(
 		NewResolveVariance = DisocclusionVariance;
 	}
 
-	float ResolveVarianceHistoryValue = VarianceHistoryWeight > 0.0f ? Texture2DSampleLevel(ResolveVarianceHistory, GlobalBilinearClampedSampler, HistoryCoordFromReflectHit.UV, 0).x : 0;
+	float ResolveVarianceHistoryValue = VarianceHistoryWeight > 0.0f ? Texture2DArraySampleLevel(ResolveVarianceHistory, GlobalBilinearClampedSampler, float3(HistoryCoordFromReflectHit.UV, Coord.ClosureIndex), 0).x : 0;
 	float AccumulatedResolveVariance = max(lerp(NewResolveVariance, ResolveVarianceHistoryValue, VarianceHistoryWeight), 0);
 	RWResolveVariance[Coord.SvPositionFlatten] = AccumulatedResolveVariance;
 	float AccumulatedResolveStdDev = sqrt(AccumulatedResolveVariance);
