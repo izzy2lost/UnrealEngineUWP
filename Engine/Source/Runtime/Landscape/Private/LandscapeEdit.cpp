@@ -88,6 +88,7 @@ LandscapeEdit.cpp: Landscape editing
 #include "Algo/ForEach.h"
 #include "Serialization/MemoryWriter.h"
 #include "Engine/Canvas.h"
+#include "Spatial/PointHashGrid2.h"
 
 DEFINE_LOG_CATEGORY(LogLandscape);
 DEFINE_LOG_CATEGORY(LogLandscapeBP);
@@ -98,11 +99,6 @@ static TAutoConsoleVariable<int32> CVarLandscapeApplyPhysicalMaterialChangesImme
     TEXT("landscape.ApplyPhysicalMaterialChangesImmediately"),
 	1,
     TEXT("Applies physical material task changes immediately rather than during the next cook/PIE."));
-
-static TAutoConsoleVariable<bool> CVarLandscapeMarchingSquaresVisibility(
-	TEXT("landscape.Nanite.MarchingSquaresVisibility"),
-	true,
-	TEXT("Use Marching Squares to make the visibility edges more accurate"));
 
 #if WITH_EDITOR
 
@@ -3824,19 +3820,16 @@ bool ALandscapeProxy::ExportToRawMesh(const FRawMeshExportParams& InExportParams
 
 bool ALandscapeProxy::ExportToRawMeshDataCopy(const FRawMeshExportParams& InExportParams, FMeshDescription& OutRawMesh, const UE::Landscape::Nanite::FAsyncBuildData& AsyncData) const
 {
-	check(InExportParams.ExportLOD == AsyncData.LOD);
-	if (CVarLandscapeMarchingSquaresVisibility.GetValueOnAnyThread())
+	const double StartTime = FPlatformTime::Seconds();
+	const FMeshDescription& Mesh = OutRawMesh;
+	ON_SCOPE_EXIT
 	{
-		return ExportToRawMeshDataCopyNew(InExportParams, OutRawMesh, AsyncData);
-	}
-	else
-	{
-		return ExportToRawMeshDataCopyOld(InExportParams, OutRawMesh, AsyncData);
-	}
-}
+		double StartupDuration = FPlatformTime::Seconds() - StartTime;
+		UE_LOG(LogLandscape, Verbose, TEXT("ExportToRawMeshDataCopy took %0.4f seconds for %i vertices, %i polygons"), StartupDuration, Mesh.Vertices().GetArraySize(), Mesh.Polygons().GetArraySize());
+	};
 
-bool ALandscapeProxy::ExportToRawMeshDataCopyNew(const FRawMeshExportParams& InExportParams, FMeshDescription& OutRawMesh, const UE::Landscape::Nanite::FAsyncBuildData& AsyncData) const
-{
+	check(InExportParams.ExportLOD == AsyncData.LOD);
+	
 	TRACE_CPUPROFILER_EVENT_SCOPE(ALandscapeProxy::ExportToRawMeshDataCopy);
 
 	TArray<ULandscapeComponent*> ComponentsToExport;
@@ -3854,7 +3847,6 @@ bool ALandscapeProxy::ExportToRawMeshDataCopyNew(const FRawMeshExportParams& InE
 		// Nothing to export :
 		return false;
 	}
-
 	
 	checkf(!InExportParams.ComponentsUVConfiguration.IsSet() || InExportParams.ComponentsUVConfiguration->Num() == ComponentsToExport.Num(), TEXT("If ComponentsUVConfiguration is passed (per-component UV configuration), it must have the same number of entries as the number of components to export."))
 	checkf(!InExportParams.ComponentsMaterialSlotName.IsSet() || InExportParams.ComponentsMaterialSlotName->Num() == ComponentsToExport.Num(), TEXT("If ComponentsMaterialSlotName is passed (per-component material slot), it must have the same number of entries as the number of components to export."))
@@ -3981,13 +3973,6 @@ bool ALandscapeProxy::ExportToRawMeshDataCopyNew(const FRawMeshExportParams& InE
 
 		const float SquaredSphereRadius = InExportParams.ExportBounds.IsSet() ? FMath::Square(static_cast<float>(InExportParams.ExportBounds->SphereRadius)) : 0.0f;
 
-		//We need to not duplicate the vertex position, so we use the FIndexAndZ to achieve fast result
-		TArray<FIndexAndZ> VertIndexAndZ;
-		VertIndexAndZ.Reserve(PaddedComponentSizeXQuadsLOD * PaddedComponentSizeYQuadsLOD * UE_ARRAY_COUNT(UE::Landscape::QuadPattern));
-		int32 CurrentIndex = 0;
-		TMap<int32, FVector> IndexToPosition;
-		IndexToPosition.Reserve(PaddedComponentSizeXQuadsLOD * PaddedComponentSizeYQuadsLOD * UE_ARRAY_COUNT(UE::Landscape::QuadPattern));
-
 		const float SkirtDepth = InExportParams.SkirtDepth.Get(0.0f);
 
 		auto GetVertex = [&CDI, ComponentSizeQuadsLOD, SkirtDepth, &HeightAndNormals](int32 VertexX, int32 VertexY) -> FVector
@@ -4063,57 +4048,13 @@ bool ALandscapeProxy::ExportToRawMeshDataCopyNew(const FRawMeshExportParams& InE
 
 		};
 
-		for (int32 PaddedY = 0; PaddedY < PaddedComponentSizeYQuadsLOD; PaddedY++)
-		{
-			int32 y = PaddedY - MinYPadding;
-			for (int32 PaddedX = 0; PaddedX < PaddedComponentSizeXQuadsLOD; PaddedX++)
-			{
-				int32 x = PaddedX - MinXPadding;
-				for (int32 i = 0; i < UE_ARRAY_COUNT(UE::Landscape::QuadPattern); i++)
-				{
-					int32 VertexX = x + UE::Landscape::QuadPattern[i].X;
-					int32 VertexY = y + UE::Landscape::QuadPattern[i].Y;
-					FVector Position = ComponentToExportCoordinatesTransform.TransformPosition(GetVertex(VertexX, VertexY));
-
-					// If at least one vertex is within the given bounds we should process the quad  
-					new(VertIndexAndZ)FIndexAndZ(CurrentIndex, (FVector3f)Position);
-					IndexToPosition.Add(CurrentIndex, Position);
-					CurrentIndex++;
-				}
-			}
-		}
-		// Sort the vertices by z value
-		VertIndexAndZ.Sort(FCompareIndexAndZ());
-
-		auto FindPreviousIndex = [&VertIndexAndZ, &IndexToPosition](int32 Index)->int32
-		{
-			const FVector& PositionA = IndexToPosition[Index];
-			FIndexAndZ CompressPosition(0, (FVector3f)PositionA);
-			// Search for lowest index duplicates
-			int32 BestIndex = MAX_int32;
-			for (int32 i = 0; i < IndexToPosition.Num(); i++)
-			{
-				if (CompressPosition.Z > (VertIndexAndZ[i].Z + SMALL_NUMBER))
-				{
-					//We will not find anything there is no point searching more
-					break;
-				}
-				const FVector& PositionB = IndexToPosition[VertIndexAndZ[i].Index];
-				if (PointsEqual((FVector3f)PositionA, (FVector3f)PositionB, SMALL_NUMBER))
-				{
-					if (VertIndexAndZ[i].Index < BestIndex)
-					{
-						BestIndex = VertIndexAndZ[i].Index;
-					}
-				}
-			}
-			return BestIndex < MAX_int32 ? BestIndex : Index;
-		};
-
+		// size the TPointHashGrid2 cells to be the size to something smaller than a landscape quad
+		const FVector TransformedCellSize = ComponentToExportCoordinatesTransform.TransformVector(FVector( 0.1f, 0.1f, 0.1f ));
+		const float CellSize = FMath::Min(TransformedCellSize.X , TransformedCellSize.Y);
+		UE::Geometry::TPointHashGrid2<FVertexID, float> DeduplicatedVertexIDs(CellSize, INDEX_NONE);
+		DeduplicatedVertexIDs.Reserve(( PaddedComponentSizeXQuadsLOD + 1) * (PaddedComponentSizeYQuadsLOD + 1));
+		
 		// Export to MeshDescription
-		TMap<int32, FVertexID> IndexToVertexID;
-		IndexToVertexID.Reserve(CurrentIndex);
-		CurrentIndex = 0;
 		for (int32 PaddedY = 0; PaddedY < PaddedComponentSizeYQuadsLOD; PaddedY++)
 		{
 			int32 y = PaddedY - MinYPadding;
@@ -4163,20 +4104,27 @@ bool ALandscapeProxy::ExportToRawMeshDataCopyNew(const FRawMeshExportParams& InE
 					// Fill positions
 					for (int32 i = 0; i < NewPositions.Num(); i++)
 					{
-						int32 DuplicateLowestIndex = FindPreviousIndex(CurrentIndex);
+						const FVector3f NewPos (NewPositions[i]);
+						const FVector2f NewPos2D (NewPos.X, NewPos.Y);
+						TPair<FVertexID, float> ExistingVertexID = DeduplicatedVertexIDs.FindNearestInRadius(
+							NewPos2D, TMathUtilConstants<float>::ZeroTolerance, 
+							[&VertexPositions, NewPos2D](const FVertexID& VertexID)
+							{
+								return FVector2f::DistSquared(FVector2f(VertexPositions[VertexID].X, VertexPositions[VertexID].Y), NewPos2D);
+							});
 						FVertexID VertexID;
-						if (DuplicateLowestIndex < CurrentIndex)
+						if (ExistingVertexID.Key == INDEX_NONE)
 						{
-							VertexID = IndexToVertexID[DuplicateLowestIndex];
+							VertexID = OutRawMesh.CreateVertex();
+							DeduplicatedVertexIDs.InsertPointUnsafe(VertexID, NewPos2D);
+							VertexPositions[VertexID] = NewPos;
 						}
 						else
 						{
-							VertexID = OutRawMesh.CreateVertex();
-							VertexPositions[VertexID] = FVector3f(NewPositions[i]);
+							VertexID = ExistingVertexID.Key;
 						}
-						IndexToVertexID.Add(CurrentIndex, VertexID);
+						
 						VertexIDs.Add(VertexID);
-						CurrentIndex++;
 					}
 
 					// Create triangles
@@ -4307,379 +4255,12 @@ bool ALandscapeProxy::ExportToRawMeshDataCopyNew(const FRawMeshExportParams& InE
 						
 					}
 				}
-				else
-				{
-					CurrentIndex += UE_ARRAY_COUNT(UE::Landscape::QuadPattern);
-				}
 			}
 		}
 	}
 
 	//Compact the MeshDescription, if there was visibility mask or some bounding box clip, it need to be compacted so the sparse array are from 0 to n with no invalid data in between. 
 	TRACE_CPUPROFILER_EVENT_SCOPE(ALandscapeProxy::ExportToRawMesh - Compact);
-	FElementIDRemappings ElementIDRemappings;
-	OutRawMesh.Compact(ElementIDRemappings);
-	return OutRawMesh.Polygons().Num() > 0;
-}
-
-bool ALandscapeProxy::ExportToRawMeshDataCopyOld(const FRawMeshExportParams& InExportParams, FMeshDescription& OutRawMesh, const UE::Landscape::Nanite::FAsyncBuildData& AsyncData) const
-{
-	TRACE_CPUPROFILER_EVENT_SCOPE(ALandscapeProxy::ExportToRawMeshDataCopy);
-
-	TArray<ULandscapeComponent*> ComponentsToExport;
-	if (InExportParams.ComponentsToExport.IsSet())
-	{
-		ComponentsToExport = *InExportParams.ComponentsToExport;
-	}
-	else
-	{
-		GetComponents(ComponentsToExport);
-	}
-
-	if (ComponentsToExport.IsEmpty())
-	{
-		// Nothing to export :
-		return false;
-	}
-
-	int32 LandscapeLODToExport = ExportLOD;
-	// User specified LOD to export : 
-	if (InExportParams.ExportLOD != INDEX_NONE)
-	{
-		LandscapeLODToExport = FMath::Clamp<int32>(InExportParams.ExportLOD, 0, FMath::CeilLogTwo(SubsectionSizeQuads + 1) - 1);
-	}
-
-	checkf(!InExportParams.ComponentsUVConfiguration.IsSet() || InExportParams.ComponentsUVConfiguration->Num() == ComponentsToExport.Num(), TEXT("If ComponentsUVConfiguration is passed (per-component UV configuration), it must have the same number of entries as the number of components to export."))
-	checkf(!InExportParams.ComponentsMaterialSlotName.IsSet() || InExportParams.ComponentsMaterialSlotName->Num() == ComponentsToExport.Num(), TEXT("If ComponentsMaterialSlotName is passed (per-component material slot), it must have the same number of entries as the number of components to export."))
-
-	// Get the tight bounds around the proxy's component (in quads, relative to the proxy's origin) :
-	const FIntRect LandscapeProxyBoundsRect = GetBoundingRect();
-	const FVector2f LandscapeProxyBoundsRectUVScale = FVector2f(1.0f, 1.0f) / FVector2f(LandscapeProxyBoundsRect.Size());
-
-	FStaticMeshAttributes Attributes(OutRawMesh);
-	TVertexAttributesRef<FVector3f> VertexPositions = Attributes.GetVertexPositions();
-	TEdgeAttributesRef<bool> EdgeHardnesses = Attributes.GetEdgeHardnesses();
-	TPolygonGroupAttributesRef<FName> PolygonGroupImportedMaterialSlotNames = Attributes.GetPolygonGroupMaterialSlotNames();
-	TVertexInstanceAttributesRef<FVector3f> VertexInstanceNormals = Attributes.GetVertexInstanceNormals();
-	TVertexInstanceAttributesRef<FVector3f> VertexInstanceTangents = Attributes.GetVertexInstanceTangents();
-	TVertexInstanceAttributesRef<float> VertexInstanceBinormalSigns = Attributes.GetVertexInstanceBinormalSigns();
-	TVertexInstanceAttributesRef<FVector2f> VertexInstanceUVs = Attributes.GetVertexInstanceUVs();
-
-	const int32 NumUVChannels = InExportParams.GetNumUVChannelsNeeded();
-	if (VertexInstanceUVs.GetNumChannels() < NumUVChannels)
-	{
-		VertexInstanceUVs.SetNumChannels(NumUVChannels);
-	}
-
-	const bool bGenerateOnePolygroupPerComponent = InExportParams.ComponentsMaterialSlotName.IsSet();
-
-	// Export data for each component
-	int32 ComponentIndex = 0;
-	FPolygonGroupID PolygonGroupID = INDEX_NONE;
-	OutRawMesh.ReserveNewPolygonGroups(bGenerateOnePolygroupPerComponent ? ComponentsToExport.Num() : 1);
-	for (ULandscapeComponent* Component : ComponentsToExport)
-	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(ALandscapeProxy::ExportToRawMesh - Component);
-
-		ON_SCOPE_EXIT
-		{
-			++ComponentIndex;
-		};
-
-		// Early out if the Landscape bounds and given bounds do not overlap at all
-		if (InExportParams.ExportBounds.IsSet() && !FBoxSphereBounds::BoxesIntersect(Component->Bounds, *InExportParams.ExportBounds))
-		{
-			continue;
-		}
-
-		FTransform ComponentToExportCoordinatesTransform = FTransform::Identity;
-		switch (InExportParams.ExportCoordinatesType)
-		{
-		case FRawMeshExportParams::EExportCoordinatesType::Absolute:
-			ComponentToExportCoordinatesTransform = Component->GetComponentTransform();
-			break;
-		case FRawMeshExportParams::EExportCoordinatesType::RelativeToProxy:
-			ComponentToExportCoordinatesTransform = Component->GetComponentTransform() * GetTransform().Inverse(); // component to world to proxy
-			break;
-		default:
-			break;
-		}
-
-		// For this component, what unique UV mapping types should we compute?
-		const FRawMeshExportParams::FUVConfiguration& ComponentUVConfiguration = InExportParams.GetUVConfiguration(ComponentIndex);
-
-		const FLandscapeComponentDataInterfaceBase& CDI = *AsyncData.ComponentData.Find(Component)->ComponentDataInterface;
-		const int32 ComponentSizeQuadsLOD = ((Component->ComponentSizeQuads + 1) >> LandscapeLODToExport) - 1;
-		const int32 SubsectionSizeQuadsLOD = ((Component->SubsectionSizeQuads + 1) >> LandscapeLODToExport) - 1;
-		float LODScale = (float)ComponentSizeQuadsLOD / ComponentSizeQuads;
-
-		const FIntPoint ComponentOffsetRelativeToProxyBoundsQuads = Component->GetSectionBase() - LandscapeSectionOffset - LandscapeProxyBoundsRect.Min;
-		const FVector2f ComponentOffsetRelativeToProxyBoundsQuadsLOD = FVector2f(ComponentOffsetRelativeToProxyBoundsQuads) * LODScale;
-		const FVector2f ComponentUVScaleRelativeToProxyBoundsLOD = LandscapeProxyBoundsRectUVScale / LODScale;
-
-		const FVector2f ComponentHeightmapUVBias = FVector2f(static_cast<float>(Component->HeightmapScaleBias.Z), static_cast<float>(Component->HeightmapScaleBias.W));
-		const FVector2f ComponentHeightmapUVScale = FVector2f(static_cast<float>(Component->HeightmapScaleBias.X), static_cast<float>(Component->HeightmapScaleBias.Y));
-		const FVector2f ComponentHeightmapUVScaleLOD = ComponentHeightmapUVScale / LODScale;
-		const FVector2f ComponentHeightmapUVPixelOffset = ComponentHeightmapUVScale * 0.5f;
-		const FVector2f ComponentWeightmapUVScale = FVector2f(static_cast<float>(Component->WeightmapScaleBias.X), static_cast<float>(Component->WeightmapScaleBias.Y));
-		const FVector2f ComponentWeightmapUVScaleLOD = ComponentWeightmapUVScale / LODScale;
-		const FVector2f ComponentWeightmapUVPixelOffset = ComponentWeightmapUVScale * 0.5f; // I could have used Component->WeightmapScaleBias.ZW but then it would be confusing because it doesn't have the same signification as the heightmap UV bias
-
-		const int32 NumFaces = FMath::Square(ComponentSizeQuadsLOD) * 2;
-		const int32 NumVertices = NumFaces * 3;
-
-		OutRawMesh.ReserveNewVertices(NumVertices);
-		OutRawMesh.ReserveNewPolygons(NumFaces);
-		OutRawMesh.ReserveNewVertexInstances(NumVertices);
-		OutRawMesh.ReserveNewEdges(NumVertices);
-
-		if (bGenerateOnePolygroupPerComponent || (OutRawMesh.PolygonGroups().Num() == 0))
-		{
-			PolygonGroupID = OutRawMesh.CreatePolygonGroup();
-			PolygonGroupImportedMaterialSlotNames[PolygonGroupID] = InExportParams.GetMaterialSlotName(ComponentIndex);;
-		}
-		check(PolygonGroupID != INDEX_NONE);
-
-		// Check if there are any holes
-		const int32 VisThreshold = 170;
-
-		const TArray<FColor>& HeightAndNormals = AsyncData.ComponentData.Find(Component)->HeightAndNormalData;
-		const TArray<uint8>& VisDataMap = AsyncData.ComponentData.Find(Component)->Visibility;
-
-		const FIntPoint QuadPattern[6] =
-		{
-			//face 1
-			FIntPoint(0, 0),
-			FIntPoint(0, 1),
-			FIntPoint(1, 1),
-			//face 2
-			FIntPoint(0, 0),
-			FIntPoint(1, 1),
-			FIntPoint(1, 0),
-		};
-
-		const float SquaredSphereRadius = InExportParams.ExportBounds.IsSet() ? FMath::Square(static_cast<float>(InExportParams.ExportBounds->SphereRadius)) : 0.0f;
-
-		//We need to not duplicate the vertex position, so we use the FIndexAndZ to achieve fast result
-		TArray<FIndexAndZ> VertIndexAndZ;
-		VertIndexAndZ.Reserve(ComponentSizeQuadsLOD * ComponentSizeQuadsLOD * UE_ARRAY_COUNT(QuadPattern));
-		int32 CurrentIndex = 0;
-		TMap<int32, FVector> IndexToPosition;
-		IndexToPosition.Reserve(ComponentSizeQuadsLOD * ComponentSizeQuadsLOD * UE_ARRAY_COUNT(QuadPattern));
-		for (int32 y = 0; y < ComponentSizeQuadsLOD; y++)
-		{
-			for (int32 x = 0; x < ComponentSizeQuadsLOD; x++)
-			{
-				for (int32 i = 0; i < UE_ARRAY_COUNT(QuadPattern); i++)
-				{
-					int32 VertexX = x + QuadPattern[i].X;
-					int32 VertexY = y + QuadPattern[i].Y;
-					FVector Position = ComponentToExportCoordinatesTransform.TransformPosition(CDI.GetLocalVertex(VertexX, VertexY, HeightAndNormals));
-
-					// If at least one vertex is within the given bounds we should process the quad  
-					new(VertIndexAndZ)FIndexAndZ(CurrentIndex, (FVector3f)Position);
-					IndexToPosition.Add(CurrentIndex, Position);
-					CurrentIndex++;
-				}
-			}
-		}
-		// Sort the vertices by z value
-		VertIndexAndZ.Sort(FCompareIndexAndZ());
-
-		auto FindPreviousIndex = [&VertIndexAndZ, &IndexToPosition](int32 Index)->int32
-		{
-			const FVector& PositionA = IndexToPosition[Index];
-			FIndexAndZ CompressPosition(0, (FVector3f)PositionA);
-			// Search for lowest index duplicates
-			int32 BestIndex = MAX_int32;
-			for (int32 i = 0; i < IndexToPosition.Num(); i++)
-			{
-				if (CompressPosition.Z > (VertIndexAndZ[i].Z + SMALL_NUMBER))
-				{
-					//We will not find anything there is no point searching more
-					break;
-				}
-				const FVector& PositionB = IndexToPosition[VertIndexAndZ[i].Index];
-				if (PointsEqual((FVector3f)PositionA, (FVector3f)PositionB, SMALL_NUMBER))
-				{
-					if (VertIndexAndZ[i].Index < BestIndex)
-					{
-						BestIndex = VertIndexAndZ[i].Index;
-					}
-				}
-			}
-			return BestIndex < MAX_int32 ? BestIndex : Index;
-		};
-
-		// Export to MeshDescription
-		TMap<int32, FVertexID> IndexToVertexID;
-		IndexToVertexID.Reserve(CurrentIndex);
-		CurrentIndex = 0;
-		for (int32 y = 0; y < ComponentSizeQuadsLOD; y++)
-		{
-			for (int32 x = 0; x < ComponentSizeQuadsLOD; x++)
-			{
-				FVector Positions[UE_ARRAY_COUNT(QuadPattern)];
-				FVector LocalPositions[UE_ARRAY_COUNT(QuadPattern)];
-				bool bProcess = !InExportParams.ExportBounds.IsSet();
-
-				// Fill positions
-				// TODO [jonathan.bard] : since, in a quad, vertex (0, 0) is duplicated (index 0 and 3), we could save one computation :
-				for (int32 i = 0; i < UE_ARRAY_COUNT(QuadPattern); i++)
-				{
-					int32 VertexX = x + QuadPattern[i].X;
-					int32 VertexY = y + QuadPattern[i].Y;
-					LocalPositions[i] = CDI.GetLocalVertex(VertexX, VertexY, HeightAndNormals);
-					Positions[i] = ComponentToExportCoordinatesTransform.TransformPosition(LocalPositions[i]);
-
-					// If at least one vertex is within the given bounds we should process the quad  
-					if (!bProcess && InExportParams.ExportBounds->ComputeSquaredDistanceFromBoxToPoint(Positions[i]) < SquaredSphereRadius)
-					{
-						bProcess = true;
-					}
-				}
-
-				if (bProcess)
-				{
-					//Fill the vertexID we need
-					TArray<FVertexID> VertexIDs;
-					VertexIDs.Reserve(UE_ARRAY_COUNT(QuadPattern));
-					TArray<FVertexInstanceID> VertexInstanceIDs;
-					VertexInstanceIDs.Reserve(UE_ARRAY_COUNT(QuadPattern));
-					// Fill positions
-					for (int32 i = 0; i < UE_ARRAY_COUNT(QuadPattern); i++)
-					{
-						int32 DuplicateLowestIndex = FindPreviousIndex(CurrentIndex);
-						FVertexID VertexID;
-						if (DuplicateLowestIndex < CurrentIndex)
-						{
-							VertexID = IndexToVertexID[DuplicateLowestIndex];
-						}
-						else
-						{
-							VertexID = OutRawMesh.CreateVertex();
-							VertexPositions[VertexID] = FVector3f(Positions[i]);
-						}
-						IndexToVertexID.Add(CurrentIndex, VertexID);
-						VertexIDs.Add(VertexID);
-						CurrentIndex++;
-					}
-
-					// Create triangle
-					{
-						// Whether this vertex is in hole
-						bool bInvisible = false;
-						if (VisDataMap.Num())
-						{
-							int32 TexelX, TexelY;
-							CDI.VertexXYToTexelXY(x, y, TexelX, TexelY);
-							bInvisible = (VisDataMap[CDI.TexelXYToIndex(TexelX, TexelY)] >= VisThreshold);
-						}
-						//Add vertexInstance and polygon only if we are visible
-						if (!bInvisible)
-						{
-							VertexInstanceIDs.Add(OutRawMesh.CreateVertexInstance(VertexIDs[0]));
-							VertexInstanceIDs.Add(OutRawMesh.CreateVertexInstance(VertexIDs[1]));
-							VertexInstanceIDs.Add(OutRawMesh.CreateVertexInstance(VertexIDs[2]));
-
-							VertexInstanceIDs.Add(OutRawMesh.CreateVertexInstance(VertexIDs[3]));
-							VertexInstanceIDs.Add(OutRawMesh.CreateVertexInstance(VertexIDs[4]));
-							VertexInstanceIDs.Add(OutRawMesh.CreateVertexInstance(VertexIDs[5]));
-
-							// Fill other vertex data
-							for (int32 i = 0; i < UE_ARRAY_COUNT(QuadPattern); i++)
-							{
-								int32 VertexX = x + QuadPattern[i].X;
-								int32 VertexY = y + QuadPattern[i].Y;
-
-								FVector LocalTangentX, LocalTangentY, LocalTangentZ;
-								CDI.GetLocalTangentVectors(VertexX, VertexY, LocalTangentX, LocalTangentY, LocalTangentZ, HeightAndNormals);
-
-								VertexInstanceTangents[VertexInstanceIDs[i]] = FVector3f(LocalTangentX);
-								VertexInstanceBinormalSigns[VertexInstanceIDs[i]] = GetBasisDeterminantSign(LocalTangentX, LocalTangentY, LocalTangentZ);
-								VertexInstanceNormals[VertexInstanceIDs[i]] = FVector3f(LocalTangentZ);
-
-								// TODO [jonathan.bard] : since, in a quad, vertex (0, 0) is duplicated (index 0 and 3), we could save one computation :
-								// Compute all UV values that we need :
-								for (int32 UVChannel = 0; UVChannel < NumUVChannels; ++UVChannel)
-								{
-									FRawMeshExportParams::EUVMappingType UVMappingType = ComponentUVConfiguration.ExportUVMappingTypes.IsValidIndex(UVChannel) ? ComponentUVConfiguration.ExportUVMappingTypes[UVChannel] : FRawMeshExportParams::EUVMappingType::None;
-									switch (UVMappingType)
-									{
-									case FRawMeshExportParams::EUVMappingType::RelativeToProxyBoundsUV:
-									{
-										FVector2f UV = (ComponentOffsetRelativeToProxyBoundsQuadsLOD + FVector2f(static_cast<float>(VertexX), static_cast<float>(VertexY))) * ComponentUVScaleRelativeToProxyBoundsLOD;
-										VertexInstanceUVs.Set(VertexInstanceIDs[i], UVChannel, UV);
-										break;
-									}
-									case FRawMeshExportParams::EUVMappingType::HeightmapUV:
-									{
-										FVector2f UV = FVector2f(static_cast<float>(VertexX), static_cast<float>(VertexY)) * ComponentHeightmapUVScaleLOD + ComponentHeightmapUVPixelOffset + ComponentHeightmapUVBias;
-										VertexInstanceUVs.Set(VertexInstanceIDs[i], UVChannel, UV);
-										break;
-									}
-									case FRawMeshExportParams::EUVMappingType::WeightmapUV:
-									{
-										FVector2f UV = FVector2f(static_cast<float>(VertexX), static_cast<float>(VertexY)) * ComponentWeightmapUVScaleLOD + ComponentWeightmapUVPixelOffset;
-										VertexInstanceUVs.Set(VertexInstanceIDs[i], UVChannel, UV);
-										break;
-									}
-									case FRawMeshExportParams::EUVMappingType::TerrainCoordMapping_XY:
-									case FRawMeshExportParams::EUVMappingType::TerrainCoordMapping_XZ:
-									case FRawMeshExportParams::EUVMappingType::TerrainCoordMapping_YZ:
-									{
-										FVector2f QuadCoords = (ComponentOffsetRelativeToProxyBoundsQuadsLOD + FVector2f(static_cast<float>(VertexX), static_cast<float>(VertexY)) / LODScale);
-										FVector2f UV;
-										if (UVMappingType == FRawMeshExportParams::EUVMappingType::TerrainCoordMapping_XY)
-										{
-											UV = QuadCoords;
-										}
-										else
-										{
-											UV[0] = (UVMappingType == FRawMeshExportParams::EUVMappingType::TerrainCoordMapping_XZ) ? QuadCoords[0] : QuadCoords[1];
-											UV[1] = static_cast<float>(LocalPositions[i].Z);
-										}
-										VertexInstanceUVs.Set(VertexInstanceIDs[i], UVChannel, UV);
-										break;
-									}
-									default:
-										// Valid case: we might not be computing a UV channel for this component
-										break;
-									}
-								}
-							}
-							auto AddTriangle = [&OutRawMesh, &EdgeHardnesses, &PolygonGroupID, &VertexIDs, &VertexInstanceIDs](int32 BaseIndex)
-							{
-								//Create a polygon from this triangle
-								TArray<FVertexInstanceID> PerimeterVertexInstances;
-								PerimeterVertexInstances.SetNum(3);
-								for (int32 Corner = 0; Corner < 3; ++Corner)
-								{
-									PerimeterVertexInstances[Corner] = VertexInstanceIDs[BaseIndex + Corner];
-								}
-								// Insert a polygon into the mesh
-								TArray<FEdgeID> NewEdgeIDs;
-								const FPolygonID NewPolygonID = OutRawMesh.CreatePolygon(PolygonGroupID, PerimeterVertexInstances, &NewEdgeIDs);
-								for (const FEdgeID& NewEdgeID : NewEdgeIDs)
-								{
-									EdgeHardnesses[NewEdgeID] = false;
-								}
-							};
-							AddTriangle(0);
-							AddTriangle(3);
-						}
-					}
-				}
-				else
-				{
-					CurrentIndex += UE_ARRAY_COUNT(QuadPattern);
-				}
-			}
-		}
-	}
-
-	//Compact the MeshDescription, if there was visibility mask or some bounding box clip, it need to be compacted so the sparse array are from 0 to n with no invalid data in between. 
-	TRACE_CPUPROFILER_EVENT_SCOPE(ALandscapeProxy::ExportToRawMesh-Compact);
 	FElementIDRemappings ElementIDRemappings;
 	OutRawMesh.Compact(ElementIDRemappings);
 	return OutRawMesh.Polygons().Num() > 0;

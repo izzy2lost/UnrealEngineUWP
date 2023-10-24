@@ -150,7 +150,7 @@ bool ULandscapeNaniteComponent::IsHLODRelevant() const
 
 FGraphEventRef ULandscapeNaniteComponent::InitializeForLandscapeAsync(ALandscapeProxy* Landscape, const FGuid& NewProxyContentId, bool bInIsAsync, const TArrayView<ULandscapeComponent*>& InComponentsToExport, int32 InNaniteComponentIndex)
 {
-	UE_LOG(LogLandscape, Log, TEXT("InitializeForLandscapeAsync actor: '%s' package:'%s'"), *Landscape->GetActorNameOrLabel(), *Landscape->GetPackage()->GetName());
+	UE_LOG(LogLandscape, VeryVerbose, TEXT("InitializeForLandscapeAsync actor: '%s' package:'%s'"), *Landscape->GetActorNameOrLabel(), *Landscape->GetPackage()->GetName());
 
 	UWorld* World = Landscape->GetWorld();
 	
@@ -166,7 +166,7 @@ FGraphEventRef ULandscapeNaniteComponent::InitializeForLandscapeAsync(ALandscape
 		{			
 			TRACE_CPUPROFILER_EVENT_SCOPE(ULandscapeNaniteComponent::ExportLandscapeAsync-ExportMeshTask);
 
-			UE_LOG(LogLandscape, Log, TEXT("Exporting actor '%s' package:'%s'"), *Name, *AsyncBuildData->LandscapeWeakRef->GetPackage()->GetName());
+			UE_LOG(LogLandscape, VeryVerbose, TEXT("Exporting actor '%s' package:'%s'"), *Name, *AsyncBuildData->LandscapeWeakRef->GetPackage()->GetName());
 			double StartTimeSeconds = FPlatformTime::Seconds();
 
 			if (!AsyncBuildData->LandscapeWeakRef.IsValid() || AsyncBuildData->bCancelled)
@@ -272,7 +272,7 @@ FGraphEventRef ULandscapeNaniteComponent::InitializeForLandscapeAsync(ALandscape
 			TRACE_CPUPROFILER_EVENT_SCOPE(ULandscapeNaniteComponent::ExportLandscapeAsync-BatchBuildTask);
 			AsyncBuildData->NaniteStaticMesh->ImportVersion = EImportStaticMeshVersion::LastVersion;
 
-			UE_LOG(LogLandscape, Log, TEXT("Build Static Mesh '%s' package:'%s'"), *Name, *AsyncBuildData->LandscapeWeakRef->GetPackage()->GetName());
+			UE_LOG(LogLandscape, VeryVerbose, TEXT("Build Static Mesh '%s' package:'%s'"), *Name, *AsyncBuildData->LandscapeWeakRef->GetPackage()->GetName());
 			auto CompleteStaticMesh = [AsyncBuildData, Component, NewProxyContentId, Name, StaticMeshBuildCompleteEvent, bInIsAsync, InNaniteComponentIndex, OnFinishTask](UStaticMesh* InStaticMesh)
 			{
 				// this is as horror as we have to mark all the objects created in the background thread as not async 
@@ -337,7 +337,7 @@ FGraphEventRef ULandscapeNaniteComponent::InitializeForLandscapeAsync(ALandscape
 					AsyncBuildData->LandscapeSubSystemWeakRef->DecNaniteBuild();
 				}
 
-				UE_LOG(LogLandscape, Log, TEXT("Complete Static Mesh '%s' package:'%s'"), *Name, *AsyncBuildData->LandscapeWeakRef->GetPackage()->GetName());
+				UE_LOG(LogLandscape, VeryVerbose, TEXT("Complete Static Mesh '%s' package:'%s'"), *Name, *AsyncBuildData->LandscapeWeakRef->GetPackage()->GetName());
 
 				StaticMeshBuildCompleteEvent->DispatchSubsequents();
 			};

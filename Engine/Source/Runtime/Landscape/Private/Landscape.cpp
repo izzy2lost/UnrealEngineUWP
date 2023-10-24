@@ -371,7 +371,7 @@ FGraphEventRef ALandscapeProxy::UpdateNaniteRepresentationAsync(const ITargetPla
 		const FGuid ComponentNaniteContentId = GetNaniteComponentContentId();
 		const bool bNaniteContentDirty = ComponentNaniteContentId != NaniteContentId;
 
-		UE_LOG(LogLandscape, Log, TEXT("UpdateNaniteRepresentationAsync actor: '%s' package:'%s' dirty:%i component guid:'%s' proxy guid:'%s'"), *GetActorNameOrLabel(), *GetPackage()->GetName(), bNaniteContentDirty, *ComponentNaniteContentId.ToString(), *NaniteContentId.ToString());
+		UE_LOG(LogLandscape, VeryVerbose, TEXT("UpdateNaniteRepresentationAsync actor: '%s' package:'%s' dirty:%i component guid:'%s' proxy guid:'%s'"), *GetActorNameOrLabel(), *GetPackage()->GetName(), bNaniteContentDirty, *ComponentNaniteContentId.ToString(), *NaniteContentId.ToString());
 
 		TArray<ULandscapeComponent*> StableOrderComponents(LandscapeComponents);
 		ULandscapeSubsystem* Subsystem = GetWorld()->GetSubsystem<ULandscapeSubsystem>();

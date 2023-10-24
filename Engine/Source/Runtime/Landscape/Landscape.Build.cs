@@ -25,6 +25,7 @@ public class Landscape : ModuleRules
 				"RHI",
 				"Renderer",
 				"Foliage",
+				"GeometryCore",
 				"DeveloperSettings"
 			}
 		);
