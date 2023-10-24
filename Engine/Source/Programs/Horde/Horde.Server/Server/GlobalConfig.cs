@@ -79,6 +79,27 @@ namespace Horde.Server.Server
 		/// Show automated tests on the server menu
 		/// </summary>
 		public bool ShowTests { get; set; } = true;
+
+		/// <summary>
+		/// Configuration for different agent pages
+		/// </summary>
+		public List<DashboardAgentCategoryConfig> AgentCategories { get; } = new List<DashboardAgentCategoryConfig>();
+	}
+
+	/// <summary>
+	/// Configuration for a category of agents
+	/// </summary>
+	public class DashboardAgentCategoryConfig
+	{
+		/// <summary>
+		/// Name of the category
+		/// </summary>
+		public string Name { get; set; } = "Unnamed";
+
+		/// <summary>
+		/// Condition string to be evaluated for this page
+		/// </summary>
+		public Condition? Condition { get; set; }
 	}
 
 	/// <summary>
