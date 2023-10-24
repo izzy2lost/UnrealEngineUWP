@@ -137,6 +137,8 @@ void FGeometryCollectionISM::InitISM(const FGeometryCollectionStaticMeshInstance
 	ISMComponent->bOverrideMinLOD = MeshInstance.Desc.MinLod > 0;
 	ISMComponent->MinLOD = MeshInstance.Desc.MinLod;
 	ISMComponent->SetLODDistanceScale(MeshInstance.Desc.LodScale);
+	ISMComponent->SetUseConservativeBounds(true);
+	ISMComponent->bComputeFastLocalBounds = true;
 	ISMComponent->SetMeshDrawCommandStatsCategory(MeshInstance.Desc.StatsCategory);
 	ISMComponent->ComponentTags = MeshInstance.Desc.Tags;
 }

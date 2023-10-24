@@ -178,6 +178,12 @@ static TAutoConsoleVariable<int32> CVarISMFetchInstanceCountFromScene(
 	1,
 	TEXT("Enables the data path that allows instance count to be fetched from the Scene rather than the Mesh Draw Commands (MDCs), which removes the need to re-cache MDCs when instance count changes."));
 
+static int32 GConservativeBoundsThreshold = 30;
+FAutoConsoleVariableRef CVarISMConservativeBoundsThreshold(
+	TEXT("r.InstancedStaticMeshes.ConservativeBounds.Threshold"),
+	GConservativeBoundsThreshold,
+	TEXT("Number of instances in an ISM before we start using conservative bounds. Set to -1 to disable conservative bounds."));
+
 class FISMExecHelper : public FSelfRegisteringExec
 {
 	virtual bool Exec_Runtime(class UWorld* InWorld, const TCHAR* Cmd, FOutputDevice& Ar)
@@ -2409,7 +2415,31 @@ void UInstancedStaticMeshComponent::BuildComponentInstanceData(FInstanceUpdateCo
 	OutData.BuildChangeSet = [&](FISMInstanceUpdateChangeSet &ChangeSet)
 	{
 		BuildInstanceDataDeltaChangeSetCommon(ChangeSet);
-		ChangeSet.SetInstanceTransforms(MakeStridedView(PerInstanceSMData, &FInstancedStaticMeshInstanceData::Transform));
+
+		const bool bUpdateConservativeBounds = bUseConservativeBounds && GConservativeBoundsThreshold >= 0 && PerInstanceSMData.Num() > GConservativeBoundsThreshold;
+		if (bUpdateConservativeBounds)
+		{
+			if (ChangeSet.IsFullUpdate())
+			{
+				CachedConservativeInstanceBounds.Init();
+			}
+			else if (!CachedConservativeInstanceBounds.IsValid && !Bounds.GetBox().GetSize().IsZero())
+			{
+				// Initialize to current bounds in local space.
+				CachedConservativeInstanceBounds = Bounds.GetBox().TransformBy(GetComponentTransform().Inverse());
+			}
+
+			// Use the variation of SetInstanceTransforms() that updates the conservative bounds.
+			// Do this here, rather than in a separate loop, to take advantage of the fact that we are already iterating over the transform data.
+			ChangeSet.SetInstanceTransforms(MakeStridedView(PerInstanceSMData, &FInstancedStaticMeshInstanceData::Transform), GetStaticMesh()->GetBounds().GetBox(), CachedConservativeInstanceBounds);
+		}
+		else
+		{
+			CachedConservativeInstanceBounds.Init();
+
+			ChangeSet.SetInstanceTransforms(MakeStridedView(PerInstanceSMData, &FInstancedStaticMeshInstanceData::Transform));
+		}
+
 		ChangeSet.SetInstancePrevTransforms(MakeArrayView(PerInstancePrevTransform));
 	};
 }
@@ -2620,6 +2650,18 @@ FBoxSphereBounds UInstancedStaticMeshComponent::CalcBoundsImpl(const FTransform&
 	}
 	
 	return FBoxSphereBounds(BoundTransform.GetLocation(), FVector::ZeroVector, 0.f);
+}
+
+void UInstancedStaticMeshComponent::UpdateBounds()
+{
+	if (bUseConservativeBounds && CachedConservativeInstanceBounds.IsValid)
+	{
+		Bounds = CachedConservativeInstanceBounds.TransformBy(GetComponentTransform());
+	}
+	else
+	{
+		Super::UpdateBounds();
+	}
 }
 
 #if WITH_EDITOR

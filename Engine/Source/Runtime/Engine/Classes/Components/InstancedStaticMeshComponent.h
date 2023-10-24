@@ -369,6 +369,13 @@ class UInstancedStaticMeshComponent : public UStaticMeshComponent, public ISMIns
 	/** Returns true if RemoveAtSwap is enabled. Derived classes may always return true regardless of whether SetRemoveSwapEnabled() was called. */
 	ENGINE_API virtual bool SupportsRemoveSwap() const;
 
+	/** 
+	 * Sets whether to use conservative bounds. 
+	 * This doesn't fully recalculate bounds on instance addition/removal/transform change.
+	 * Instead maintains a conservative bound that only grows.
+	 */
+	void SetUseConservativeBounds(bool bValue) { bUseConservativeBounds = bValue; CachedConservativeInstanceBounds.Init(); }
+
 #if WITH_EDITOR
 	ENGINE_API virtual bool ComponentIsTouchingSelectionBox(const FBox& InSelBBox, const bool bConsiderOnlyBSP, const bool bMustEncompassEntireComponent) const override;
 	ENGINE_API virtual bool ComponentIsTouchingSelectionFrustum(const FConvexVolume& InFrustum, const bool bConsiderOnlyBSP, const bool bMustEncompassEntireComponent) const override;
@@ -382,7 +389,13 @@ class UInstancedStaticMeshComponent : public UStaticMeshComponent, public ISMIns
 
 private:
 	bool bHasPreviousTransforms = false;
-	/** 
+
+	/** Flag for whether we are using conservative bounds. */
+	bool bUseConservativeBounds = false;
+	/** Current cached conservativ bounds. */
+	FBox CachedConservativeInstanceBounds;
+
+	/**
 	 *  Buffers with per-instance data laid out for rendering. 
 	 *  Serialized for cooked content. Used to create PerInstanceRenderData. 
 	 *  Alive between Serialize and PostLoad calls 
@@ -431,6 +444,8 @@ public:
 	ENGINE_API virtual bool CanEditSimulatePhysics() override;
 
 	ENGINE_API virtual FBoxSphereBounds CalcBounds(const FTransform& BoundTransform) const override;
+	ENGINE_API virtual void UpdateBounds() override;
+
 	virtual bool SupportsStaticLighting() const override { return true; }
 #if WITH_EDITOR
 	ENGINE_API virtual void GetStaticLightingInfo(FStaticLightingPrimitiveInfo& OutPrimitiveInfo,const TArray<ULightComponent*>& InRelevantLights,const FLightingBuildOptions& Options) override;

@@ -197,6 +197,16 @@ public:
 		TransformsDelta.GatherTransform(Transforms, InInstanceTransforms, [](const FMatrix &M) -> FRenderTransform { return FRenderTransform(M); });
 	}
 
+	inline void SetInstanceTransforms(TStridedView<FMatrix> InInstanceTransforms, FBox const& InInstanceBounds, FBox& OutGatheredBounds)
+	{
+		TransformsDelta.GatherTransform(Transforms, InInstanceTransforms, [&InInstanceBounds, &OutGatheredBounds](const FMatrix& M) -> FRenderTransform
+		{
+			FRenderTransform Transform(M);
+			OutGatheredBounds += InInstanceBounds.TransformBy(Transform.ToMatrix());
+			return Transform;
+		});
+	}
+
 	ENGINE_API void SetInstancePrevTransforms(TArrayView<FMatrix> InPrevInstanceTransforms, const FVector &Offset);
 	ENGINE_API void SetInstancePrevTransforms(TArrayView<FMatrix> InPrevInstanceTransforms);
 
