@@ -1813,7 +1813,7 @@ void FRigVMEditor::HandleVMExecutedEvent(URigVMHost* InHost, const FName& InEven
 		{
 			if(DebuggedHost)
 			{
-				RigVMBlueprint->RigGraphDisplaySettings.TotalMicroSeconds = DebuggedHost->GetDebugInfo().GetLastExecutionMicroSeconds();
+				RigVMBlueprint->RigGraphDisplaySettings.TotalMicroSeconds = DebuggedHost->GetProfilingInfo().GetLastExecutionMicroSeconds();
 			}
 
 			if(RigVMBlueprint->RigGraphDisplaySettings.bAutoDetermineRange)
@@ -1947,11 +1947,6 @@ void FRigVMEditor::OnFinishedChangingProperties(const FPropertyChangedEvent& Pro
 		{
 			RigVMBlueprint->VMRuntimeSettings.Validate();
 			RigVMBlueprint->PropagateRuntimeSettingsFromBPToInstances();
-
-			if(RigVMBlueprint->VMRuntimeSettings.bEnableProfiling && !RigVMBlueprint->IsInDebugMode())
-			{
-				SetExecutionMode(ERigVMEditorExecutionModeType_Debug);
-			}
 		}
 	}
 }

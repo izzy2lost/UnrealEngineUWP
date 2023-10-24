@@ -1505,11 +1505,11 @@ ERigVMExecuteResult URigVM::ExecuteVM(FRigVMExtendedExecuteContext& Context, con
 
 	if(bIsRootEntry)
 	{
-		if (FRigVMDebugInfo* RigVMDebugInfo = Context.GetRigVMDebugInfo())
+		if (FRigVMProfilingInfo* RigVMProfilingInfo = Context.GetRigVMProfilingInfo())
 		{
-			if (RigVMDebugInfo->GetFirstEntryEventInEventQueue() == NAME_None || RigVMDebugInfo->GetFirstEntryEventInEventQueue() == InEntryName)
+			if (RigVMProfilingInfo->GetFirstEntryEventInEventQueue() == NAME_None || RigVMProfilingInfo->GetFirstEntryEventInEventQueue() == InEntryName)
 			{
-				RigVMDebugInfo->SetupInstructionTracking(Instructions.Num(), Context.GetPublicData<>().RuntimeSettings.bEnableProfiling);
+				RigVMProfilingInfo->SetupInstructionTracking(Instructions.Num(), true);
 			}
 		}
 	}
@@ -1643,6 +1643,7 @@ ERigVMExecuteResult URigVM::ExecuteInstructions(FRigVMExtendedExecuteContext& Co
 #if WITH_EDITOR
 	TArray<FName>& FunctionNames = GetFunctionNames();
 	FRigVMDebugInfo* RigVMDebugInfo = Context.GetRigVMDebugInfo();
+	FRigVMProfilingInfo* RigVMProfilingInfo = Context.GetRigVMProfilingInfo();
 #endif
 	
 	while (Instructions.IsValidIndex(ContextPublicData.InstructionIndex))
@@ -1677,10 +1678,10 @@ ERigVMExecuteResult URigVM::ExecuteInstructions(FRigVMExtendedExecuteContext& Co
 
 		const int32 CurrentInstructionIndex = ContextPublicData.InstructionIndex;
 
-		if (RigVMDebugInfo != nullptr)
+		if (RigVMProfilingInfo != nullptr)
 		{
-			RigVMDebugInfo->SetInstructionVisitedDuringLastRun(ContextPublicData.InstructionIndex);
-			RigVMDebugInfo->AddInstructionIndexToVisitOrder(ContextPublicData.InstructionIndex);
+			RigVMProfilingInfo->SetInstructionVisitedDuringLastRun(ContextPublicData.InstructionIndex);
+			RigVMProfilingInfo->AddInstructionIndexToVisitOrder(ContextPublicData.InstructionIndex);
 		}
 	
 #endif
@@ -2045,23 +2046,23 @@ ERigVMExecuteResult URigVM::ExecuteInstructions(FRigVMExtendedExecuteContext& Co
 		}
 
 #if WITH_EDITOR
-		if (RigVMDebugInfo != nullptr)
+		if (RigVMProfilingInfo != nullptr)
 		{
-			if (ContextPublicData.RuntimeSettings.bEnableProfiling && !RigVMDebugInfo->GetInstructionVisitOrder().IsEmpty())
+			if (!RigVMProfilingInfo->GetInstructionVisitOrder().IsEmpty())
 			{
 				const uint64 EndCycles = FPlatformTime::Cycles64();
-				const uint64 Cycles = EndCycles - RigVMDebugInfo->GetStartCycles();
-				if (RigVMDebugInfo->GetInstructionCyclesDuringLastRun(CurrentInstructionIndex) == UINT64_MAX)
+				const uint64 Cycles = EndCycles - RigVMProfilingInfo->GetStartCycles();
+				if (RigVMProfilingInfo->GetInstructionCyclesDuringLastRun(CurrentInstructionIndex) == UINT64_MAX)
 				{
-					RigVMDebugInfo->SetInstructionCyclesDuringLastRun(CurrentInstructionIndex, Cycles);
+					RigVMProfilingInfo->SetInstructionCyclesDuringLastRun(CurrentInstructionIndex, Cycles);
 				}
 				else
 				{
-					RigVMDebugInfo->AddInstructionCyclesDuringLastRun(CurrentInstructionIndex, Cycles);
+					RigVMProfilingInfo->AddInstructionCyclesDuringLastRun(CurrentInstructionIndex, Cycles);
 				}
 
-				RigVMDebugInfo->SetStartCycles(EndCycles);
-				RigVMDebugInfo->AddOverallCycles(Cycles);
+				RigVMProfilingInfo->SetStartCycles(EndCycles);
+				RigVMProfilingInfo->AddOverallCycles(Cycles);
 			}
 		}
 
@@ -2119,12 +2120,12 @@ ERigVMExecuteResult URigVM::ExecuteInstructions(FRigVMExtendedExecuteContext& Co
 ERigVMExecuteResult URigVM::ExecuteBranch(FRigVMExtendedExecuteContext& Context, const FRigVMBranchInfo& InBranchToRun)
 {
 #if WITH_EDITOR
-	const double LastExecutionMicroSecondsGuard = Context.GetRigVMDebugInfo() ? Context.GetRigVMDebugInfo()->GetLastExecutionMicroSeconds() : 0.0;
+	const double LastExecutionMicroSecondsGuard = Context.GetRigVMProfilingInfo() ? Context.GetRigVMProfilingInfo()->GetLastExecutionMicroSeconds() : 0.0;
 	ON_SCOPE_EXIT
 	{
-		if (Context.GetRigVMDebugInfo())
+		if (Context.GetRigVMProfilingInfo())
 		{
-			Context.GetRigVMDebugInfo()->SetLastExecutionMicroSeconds(LastExecutionMicroSecondsGuard);
+			Context.GetRigVMProfilingInfo()->SetLastExecutionMicroSeconds(LastExecutionMicroSecondsGuard);
 		}
 	};
 #endif
@@ -2617,9 +2618,9 @@ void URigVM::RefreshExternalPropertyPaths()
 void URigVM::SetupInstructionTracking(FRigVMExtendedExecuteContext& Context, int32 InInstructionCount)
 {
 #if WITH_EDITOR
-	if (FRigVMDebugInfo* RigVMDebugInfo = Context.GetRigVMDebugInfo())
+	if (FRigVMProfilingInfo* RigVMProfilingInfo = Context.GetRigVMProfilingInfo())
 	{
-		RigVMDebugInfo->SetupInstructionTracking(InInstructionCount, Context.GetPublicData<>().RuntimeSettings.bEnableProfiling);
+		RigVMProfilingInfo->SetupInstructionTracking(InInstructionCount, true);
 	}
 #endif
 }
@@ -2627,9 +2628,9 @@ void URigVM::SetupInstructionTracking(FRigVMExtendedExecuteContext& Context, int
 void URigVM::StartProfiling(FRigVMExtendedExecuteContext& Context)
 {
 #if WITH_EDITOR
-	if (FRigVMDebugInfo* RigVMDebugInfo = Context.GetRigVMDebugInfo())
+	if (FRigVMProfilingInfo* RigVMProfilingInfo = Context.GetRigVMProfilingInfo())
 	{
-		RigVMDebugInfo->StartProfiling(Context.GetPublicData<>().RuntimeSettings.bEnableProfiling);
+		RigVMProfilingInfo->StartProfiling(true);
 	}
 #endif
 }
@@ -2637,9 +2638,9 @@ void URigVM::StartProfiling(FRigVMExtendedExecuteContext& Context)
 void URigVM::StopProfiling(FRigVMExtendedExecuteContext& Context)
 {
 #if WITH_EDITOR
-	if (FRigVMDebugInfo* RigVMDebugInfo = Context.GetRigVMDebugInfo())
+	if (FRigVMProfilingInfo* RigVMProfilingInfo = Context.GetRigVMProfilingInfo())
 	{
-		RigVMDebugInfo->StopProfiling();
+		RigVMProfilingInfo->StopProfiling();
 	}
 #endif
 }

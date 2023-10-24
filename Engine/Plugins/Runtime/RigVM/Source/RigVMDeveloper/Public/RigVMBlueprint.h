@@ -67,6 +67,7 @@ struct RIGVMDEVELOPER_API FRigVMEdGraphDisplaySettings
 		, MinMicroSeconds(0.0)
 		, MaxMicroSeconds(1.0)
 		, TotalMicroSeconds(0.0)
+		, AverageFrames(16)
 		, bAutoDetermineRange(true)
 		, LastMinMicroSeconds(0.0)
 		, LastMaxMicroSeconds(1.0)
@@ -113,6 +114,14 @@ struct RIGVMDEVELOPER_API FRigVMEdGraphDisplaySettings
 	// The total duration of the last execution of the rig
 	UPROPERTY(VisibleAnywhere, Category = "Graph Display Settings", transient)
 	double TotalMicroSeconds;
+
+	// If you set this to more than 1 the results will be averaged across multiple frames
+	UPROPERTY(EditAnywhere, Category = "Graph Display Settings")
+	int32 AverageFrames;
+
+	TArray<double> MinMicroSecondsFrames;
+	TArray<double> MaxMicroSecondsFrames;
+	TArray<double> TotalMicroSecondsFrames;
 
 	UPROPERTY(EditAnywhere, Category = "Graph Display Settings")
 	bool bAutoDetermineRange;

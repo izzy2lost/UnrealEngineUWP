@@ -705,6 +705,15 @@ bool UBaseControlRig::Execute(const FName& InEventName)
 		ExtendedExecuteContext.SetDebugInfo(nullptr);
 		GetSnapshotContext().Reset();
 	}
+	
+	if (IsProfilingEnabled())
+    {
+    	ExtendedExecuteContext.SetProfilingInfo(&ProfilingInfo);
+    }
+    else
+    {
+    	ExtendedExecuteContext.SetProfilingInfo(nullptr);
+    }
 #endif
 
 	FRigUnitContext& Context = PublicContext.UnitContext;

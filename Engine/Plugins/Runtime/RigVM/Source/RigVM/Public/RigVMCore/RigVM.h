@@ -445,9 +445,9 @@ public:
 	// Returns the number of times an instruction has been hit
 	int32 GetInstructionVisitedCount(const FRigVMExtendedExecuteContext& Context, int32 InIndex) const
 	{
-		if (const FRigVMDebugInfo* RigVMDebugInfo = Context.GetRigVMDebugInfo())
+		if (const FRigVMProfilingInfo* RigVMProfilingInfo = Context.GetRigVMProfilingInfo())
 		{
-			return RigVMDebugInfo->GetInstructionVisitedCountDuringLastRun(InIndex);
+			return RigVMProfilingInfo->GetInstructionVisitedCountDuringLastRun(InIndex);
 		}
 		return 0;
 	}
@@ -460,9 +460,9 @@ public:
 	// If there is no information available this function returns UINT64_MAX.
 	uint64 GetInstructionCycles(const FRigVMExtendedExecuteContext& Context, int32 InIndex) const
 	{
-		if (const FRigVMDebugInfo* RigVMDebugInfo = Context.GetRigVMDebugInfo())
+		if (const FRigVMProfilingInfo* RigVMProfilingInfo = Context.GetRigVMProfilingInfo())
 		{
-			return RigVMDebugInfo->GetInstructionCyclesDuringLastRun(InIndex);
+			return RigVMProfilingInfo->GetInstructionCyclesDuringLastRun(InIndex);
 		}
 		return UINT64_MAX;
 	}
@@ -489,9 +489,9 @@ public:
 	// Returns the order of all instructions during the last run
 	const TArray<int32> GetInstructionVisitOrder(const FRigVMExtendedExecuteContext& Context) const
 	{
-		if (const FRigVMDebugInfo* RigVMDebugInfo = Context.GetRigVMDebugInfo())
+		if (const FRigVMProfilingInfo* RigVMProfilingInfo = Context.GetRigVMProfilingInfo())
 		{
-			return RigVMDebugInfo->GetInstructionVisitOrder();
+			return RigVMProfilingInfo->GetInstructionVisitOrder();
 		}
 
 		return TArray<int32>();
@@ -502,9 +502,9 @@ public:
 
 	const void SetFirstEntryEventInEventQueue(FRigVMExtendedExecuteContext& Context, const FName& InFirstEventName) 
 	{ 
-		if (FRigVMDebugInfo* RigVMDebugInfo = Context.GetRigVMDebugInfo())
+		if (FRigVMProfilingInfo* RigVMProfilingInfo = Context.GetRigVMProfilingInfo())
 		{
-			RigVMDebugInfo->SetFirstEntryEventInEventQueue(InFirstEventName);
+			RigVMProfilingInfo->SetFirstEntryEventInEventQueue(InFirstEventName);
 		}
 	}
 

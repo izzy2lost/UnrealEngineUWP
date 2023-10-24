@@ -228,22 +228,6 @@ uint16 FRigVMDebugInfo::GetBreakpointHits(const FRigVMBreakpoint& InBreakpoint) 
 	return 0;
 }
 
-void FRigVMDebugInfo::SetupInstructionTracking(int32 InInstructionCount, bool bEnableProfiling)
-{
-#if WITH_EDITOR
-
-	ResetInstructionVisitedDuringLastRun(InInstructionCount);
-	SetNumInstructionVisitedDuringLastRunZeroed(InInstructionCount);
-	ResetInstructionVisitOrder(InInstructionCount);
-	ResetInstructionCyclesDuringLastRun(InInstructionCount);
-
-	if (bEnableProfiling)
-	{
-		InitInstructionCyclesDuringLastRunValues(InInstructionCount, UINT64_MAX);
-	}
-#endif
-}
-
 bool FRigVMDebugInfo::ResumeExecution()
 {
 	HaltedAtBreakpoint.Reset();
@@ -257,24 +241,4 @@ bool FRigVMDebugInfo::ResumeExecution()
 	}
 
 	return false;
-}
-
-void FRigVMDebugInfo::StartProfiling(bool bEnableProfiling)
-{
-#if WITH_EDITOR
-		SetStartCycles(0);
-		SetOverallCycles(0);
-		if (bEnableProfiling)
-		{
-			SetStartCycles(FPlatformTime::Cycles64());
-		}
-#endif
-}
-
-void FRigVMDebugInfo::StopProfiling()
-{
-#if WITH_EDITOR
-	const uint64 Cycles = GetOverallCycles() > 0 ? GetOverallCycles() : (FPlatformTime::Cycles64() - GetStartCycles());
-	LastExecutionMicroSeconds = Cycles * FPlatformTime::GetSecondsPerCycle() * 1000.0 * 1000.0;
-#endif
 }

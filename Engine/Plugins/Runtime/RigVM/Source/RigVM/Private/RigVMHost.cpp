@@ -521,6 +521,15 @@ bool URigVMHost::Execute(const FName& InEventName)
 	{
 		ExtendedExecuteContext.SetDebugInfo(nullptr);
 	}
+	
+	if (IsProfilingEnabled())
+	{
+		ExtendedExecuteContext.SetProfilingInfo(&ProfilingInfo);
+	}
+	else
+	{
+		ExtendedExecuteContext.SetProfilingInfo(nullptr);
+	}
 #endif
 
 	if (VM)

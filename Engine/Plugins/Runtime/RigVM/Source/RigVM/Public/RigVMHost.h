@@ -465,6 +465,7 @@ private:
 protected:
 	
 	FRigVMDebugInfo DebugInfo;
+	FRigVMProfilingInfo ProfilingInfo;
 	TMap<FString, bool> LoggedMessages;
 	void LogOnce(EMessageSeverity::Type InSeverity, int32 InInstructionIndex, const FString& InMessage);
 	
@@ -472,6 +473,10 @@ public:
 
 	void SetIsInDebugMode(const bool bValue) { bIsInDebugMode = bValue; }
 	bool IsInDebugMode() const { return bIsInDebugMode; }
+	bool IsProfilingEnabled() const
+	{
+		return IsInDebugMode() || VMRuntimeSettings.bEnableProfiling;
+	}
 	
 	/** Adds a breakpoint in the VM at the InstructionIndex for the Node / Subject */
 	void AddBreakpoint(int32 InstructionIndex, UObject* InSubject, uint16 InDepth);
@@ -492,6 +497,9 @@ public:
 	
 	FRigVMDebugInfo& GetDebugInfo() { return DebugInfo; }
 	const FRigVMDebugInfo& GetDebugInfo() const { return DebugInfo; }
+
+	FRigVMProfilingInfo& GetProfilingInfo() { return ProfilingInfo; }
+	const FRigVMProfilingInfo& GetProfilingInfo() const { return ProfilingInfo; }
 
 	/** Creates the snapshot VM if required and returns it */
 	URigVM* GetSnapshotVM(bool bCreateIfNeeded = true);

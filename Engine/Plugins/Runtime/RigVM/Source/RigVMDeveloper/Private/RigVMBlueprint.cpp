@@ -1183,6 +1183,9 @@ void URigVMBlueprint::RecompileVM()
 
 	RigGraphDisplaySettings.MinMicroSeconds = RigGraphDisplaySettings.LastMinMicroSeconds = DBL_MAX;
 	RigGraphDisplaySettings.MaxMicroSeconds = RigGraphDisplaySettings.LastMaxMicroSeconds = (double)INDEX_NONE;
+	RigGraphDisplaySettings.MinMicroSecondsFrames.Reset();
+	RigGraphDisplaySettings.MaxMicroSecondsFrames.Reset();
+	RigGraphDisplaySettings.TotalMicroSecondsFrames.Reset();
 
 	URigVMHost* CDO = Cast<URigVMHost>(RigClass->GetDefaultObject(true /* create if needed */));
 	if (CDO && CDO->VM != nullptr)
@@ -1606,10 +1609,6 @@ TArray<IRigVMGraphFunctionHost*> URigVMBlueprint::GetReferencedFunctionHosts(boo
 void URigVMBlueprint::SetDebugMode(const bool bValue)
 {
 	bCompileInDebugMode = bValue;
-	if(!bCompileInDebugMode)
-	{
-		VMRuntimeSettings.bEnableProfiling = false;
-	}
 }
 
 void URigVMBlueprint::ClearBreakpoints()

@@ -17,6 +17,7 @@
 #include "RigVMExternalVariable.h"
 #include "RigVMModule.h"
 #include "RigVMCore/RigVMDebugInfo.h"
+#include "RigVMCore/RigVMProfilingInfo.h"
 #include "RigVMCore/RigVMNameCache.h"
 #include "RigVMCore/RigVMMemoryStorageStruct.h"
 #include "RigVMLog.h"
@@ -784,5 +785,18 @@ struct RIGVM_API FRigVMExtendedExecuteContext
 	{
 		return DebugInfo;
 	}
+
+	FRigVMProfilingInfo* ProfilingInfo = nullptr;
+
+	void SetProfilingInfo(FRigVMProfilingInfo* InProfilingInfo)
+	{
+		ProfilingInfo = InProfilingInfo;
+	}
+
+	FRigVMProfilingInfo* GetRigVMProfilingInfo() const
+	{
+		return ProfilingInfo;
+	}
+
 #endif // WITH_EDITOR
 };
