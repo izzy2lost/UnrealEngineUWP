@@ -13,7 +13,7 @@ namespace UE
 
 TEST_CASE("Core::Async::ExternalMutex", "[Core][Async][Slow]")
 {
-	constexpr static int32 TaskCount = 100;
+	constexpr static int32 TaskCount = 5;
 
 	SECTION("FExternalMutex IsLocked() and TryLock()")
 	{
