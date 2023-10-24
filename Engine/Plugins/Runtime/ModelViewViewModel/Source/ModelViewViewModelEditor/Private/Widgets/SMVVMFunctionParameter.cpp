@@ -45,12 +45,8 @@ void SFunctionParameter::Construct(const FArguments& InArgs, UWidgetBlueprint* I
 	const FMVVMBlueprintViewBinding* Binding = View->GetBinding(BindingId);
 	check(Binding);
 
-	const UFunction* ConversionFunction = EditorSubsystem->GetConversionFunction(InWidgetBlueprint, *Binding, bSourceToDestination);
-	const FProperty* Property = ConversionFunction->FindPropertyByName(ParameterName);
-	check(Property);
-
 	TSharedRef<SWidget> ValueWidget = SNullWidget::NullWidget;
-	bool bIsBooleanPin = CastField<const FBoolProperty>(Property) != nullptr;
+	bool bIsBooleanPin = false;
 
 	if (UEdGraphPin* Pin = EditorSubsystem->GetConversionFunctionArgumentPin(InWidgetBlueprint, *Binding, ParameterName, bSourceToDestination))
 	{

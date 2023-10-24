@@ -402,7 +402,7 @@ FString UMVVMBlueprintViewEvent::GetSearchableString() const
 void UMVVMBlueprintViewEvent::PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChainEvent)
 {
 	Super::PostEditChangeChainProperty(PropertyChainEvent);
-	GetOuterUMVVMBlueprintView()->OnViewModelsUpdated.Broadcast();
+	GetOuterUMVVMBlueprintView()->OnEventsUpdated.Broadcast();
 }
 
 #undef LOCTEXT_NAMESPACE

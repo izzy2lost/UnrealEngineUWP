@@ -39,9 +39,7 @@ private:
 	TWeakObjectPtr<const UWidgetBlueprint> WidgetBlueprint;
 	TSharedPtr<SPropertyPath> PropertyPathWidget;
 	FOnGetPropertyPath OnGetPropertyPath;
-	TArray<FMVVMConstFieldVariant> CachedPropertyPath;
-	FName CachedWidgetName;
-	FGuid CachedContextId;
+	FMVVMBlueprintPropertyPath CachedPropertyPath;
 };
 
 } // namespace UE::MVVM

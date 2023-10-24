@@ -82,6 +82,7 @@ public:
 	bool RemoveViewModel(FGuid ViewModelId);
 	int32 RemoveViewModels(const TArrayView<FGuid> ViewModelIds);
 	bool RenameViewModel(FName OldViewModelName, FName NewViewModelName);
+	bool ReparentViewModel(FGuid ViewModelId, const UClass* ViewModelClass);
 
 	const TArrayView<const FMVVMBlueprintViewModelContext> GetViewModels() const
 	{
@@ -156,6 +157,9 @@ public:
 
 	DECLARE_EVENT(UMVVMBlueprintView, FOnBindingsAdded);
 	FOnBindingsAdded OnBindingsAdded;
+
+	DECLARE_EVENT(UMVVMBlueprintView, FOnEventsUpdated);
+	FOnEventsUpdated OnEventsUpdated;
 
 	DECLARE_EVENT(UMVVMBlueprintView, FOnViewModelsUpdated);
 	FOnViewModelsUpdated OnViewModelsUpdated;

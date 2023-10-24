@@ -45,7 +45,11 @@ private:
 	void GetChildrenOfEntry(TSharedPtr<FBindingEntry> Entry, TArray<TSharedPtr<FBindingEntry>>& OutChildren) const;
 
 	virtual FReply OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent) override;
-	void OnDeleteSelected();
+	void HandleDeleteSelected();
+	void HandleBreakSelectedPin();
+	void HandleRecombineSelectedPin();
+
+	void ForceRefresh();
 
 private:
 	TWeakPtr<SBindingsPanel> BindingPanel;

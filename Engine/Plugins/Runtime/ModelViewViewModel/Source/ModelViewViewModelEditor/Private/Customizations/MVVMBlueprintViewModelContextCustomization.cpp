@@ -3,7 +3,9 @@
 #include "MVVMBlueprintViewModelContextCustomization.h"
 
 #include "Bindings/MVVMBindingHelper.h"
+#include "DetailLayoutBuilder.h"
 #include "DetailWidgetRow.h"
+#include "Dialogs/Dialogs.h"
 #include "Features/IModularFeatures.h"
 #include "IDetailChildrenBuilder.h"
 #include "IPropertyAccessEditor.h"
@@ -19,6 +21,7 @@
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Input/SComboButton.h"
 #include "Widgets/Input/SEditableTextBox.h"
+#include "Widgets/SMVVMSelectViewModel.h"
 #include "Widgets/SMVVMViewModelPanel.h"
 
 #define LOCTEXT_NAMESPACE "BlueprintViewModelContextDetailCustomization"
@@ -201,9 +204,29 @@ void FBlueprintViewModelContextDetailCustomization::CustomizeChildren(TSharedRef
 
 	if (ensure(NotifyFieldValueClassHandle))
 	{
-		ChildBuilder.AddProperty(NotifyFieldValueClassHandle.ToSharedRef())
-			.IsEnabled(false)
-			.Visibility(MakeAttributeLambda([ContextPtr](){ return ContextPtr->InstancedViewModel != nullptr ? EVisibility::Collapsed : EVisibility::Visible; }));
+		IDetailPropertyRow& PropertyRow = ChildBuilder.AddProperty(NotifyFieldValueClassHandle.ToSharedRef())
+			.IsEnabled(bCanEdit)
+			.Visibility(MakeAttributeLambda([ContextPtr]() { return ContextPtr->InstancedViewModel != nullptr ? EVisibility::Collapsed : EVisibility::Visible; }));
+
+		TSharedPtr<SWidget> NameWidget, ValueWidget;
+		PropertyRow.GetDefaultWidgets(NameWidget, ValueWidget);
+		PropertyRow.CustomWidget()
+			.NameContent()
+			[
+				NameWidget.ToSharedRef()
+			]
+			.ValueContent()
+			[
+				SAssignNew(NotifyFieldValueClassComboButton, SComboButton)
+					.IsEnabled(bCanEdit)
+					.OnGetMenuContent(this, &FBlueprintViewModelContextDetailCustomization::HandleClassGetMenuContent)
+					.ButtonContent()
+					[
+						SNew(STextBlock)
+							.Text(this, &FBlueprintViewModelContextDetailCustomization::GetClassName)
+							.Font(IDetailLayoutBuilder::GetDetailFont())
+					]
+			];
 	}
 
 	if (ContextPtr->InstancedViewModel == nullptr)
@@ -349,6 +372,29 @@ void FBlueprintViewModelContextDetailCustomization::HandleClassChanged()
 	}
 }
 
+FText FBlueprintViewModelContextDetailCustomization::GetClassName() const
+{
+	UObject* Object = nullptr;
+	FPropertyAccess::Result ValueResult = NotifyFieldValueClassHandle->GetValue(Object);
+	if (ValueResult == FPropertyAccess::Success)
+	{
+		UClass* ViewModelClass = Cast<UClass>(Object);
+		if (ViewModelClass)
+		{
+			return ViewModelClass->GetDisplayNameText();
+		}
+		if (Object)
+		{
+			return FText::FromName(Object->GetFName());
+		}
+	}
+	else if (ValueResult == FPropertyAccess::MultipleValues)
+	{
+		return LOCTEXT("MultipleValues", "Multiple Values");
+	}
+	return LOCTEXT("None", "None");
+}
+
 TSharedRef<SWidget> FBlueprintViewModelContextDetailCustomization::CreateExecutionTypeMenuContent()
 {
 	const bool bCloseAfterSelection = true;
@@ -403,6 +449,69 @@ FText FBlueprintViewModelContextDetailCustomization::GetViewModalNameValueAsText
 	FText Result;
 	ViewModelNameHandle->GetValueAsFormattedText(Result);
 	return Result;
+}
+
+TSharedRef<SWidget> FBlueprintViewModelContextDetailCustomization::HandleClassGetMenuContent()
+{
+	return SNew(SBox)
+		.WidthOverride(600)
+		.HeightOverride(500)
+		[
+			SNew(SMVVMSelectViewModel, WidgetBlueprintEditor.Pin()->GetWidgetBlueprintObj())
+			.OnCancel(this, &FBlueprintViewModelContextDetailCustomization::HandleClassCancelMenu)
+			.OnViewModelCommitted(this, &FBlueprintViewModelContextDetailCustomization::HandleClassCommitted)
+			.DisallowedClassFlags(CLASS_HideDropDown | CLASS_Hidden | CLASS_Deprecated | CLASS_NotPlaceable)
+		];
+}
+
+void FBlueprintViewModelContextDetailCustomization::HandleClassCancelMenu()
+{
+	if (NotifyFieldValueClassComboButton)
+	{
+		NotifyFieldValueClassComboButton->SetIsOpen(false, false);
+	}
+}
+
+void FBlueprintViewModelContextDetailCustomization::HandleClassCommitted(const UClass* SelectedClass)
+{
+	if (NotifyFieldValueClassComboButton)
+	{
+		NotifyFieldValueClassComboButton->SetIsOpen(false, false);
+	}
+	bool bReparent = false;
+	FName ViewModelName;
+	{
+		UObject* Object = nullptr;
+		FPropertyAccess::Result ClassValueResult = NotifyFieldValueClassHandle->GetValue(Object);
+		UClass* PreviousClass = Cast<UClass>(Object);
+		FPropertyAccess::Result NameValueResult = ViewModelNameHandle->GetValue(ViewModelName);
+		if (ClassValueResult == FPropertyAccess::Success && SelectedClass && SelectedClass != PreviousClass
+			&& NameValueResult == FPropertyAccess::Success && !ViewModelName.IsNone())
+		{
+			const FText Title = LOCTEXT("ReparentTitle", "Reparent Viewmodel");
+			const FText Message = LOCTEXT("ReparentWarning", "Reparenting the viewmodel may cause data loss. Continue reparenting?");
+
+			// Warn the user that this may result in data loss
+			FSuppressableWarningDialog::FSetupInfo Info(Message, Title, "Warning_ReparentTitle");
+			Info.ConfirmText = LOCTEXT("ReparentYesButton", "Reparent");
+			Info.CancelText = LOCTEXT("ReparentNoButton", "Cancel");
+			Info.CheckBoxText = FText::GetEmpty();	// not suppressible
+
+			FSuppressableWarningDialog ReparentBlueprintDlg(Info);
+			if (ReparentBlueprintDlg.ShowModal() == FSuppressableWarningDialog::Confirm)
+			{
+				bReparent = true;
+			}
+		}
+	}
+
+	if (bReparent)
+	{
+		UMVVMEditorSubsystem* EditorSubsystem = GEditor->GetEditorSubsystem<UMVVMEditorSubsystem>();
+		check(EditorSubsystem);
+		FText ErrorMessage;
+		EditorSubsystem->ReparentViewModel(WidgetBlueprintEditor.Pin()->GetWidgetBlueprintObj(), ViewModelName, SelectedClass, ErrorMessage);
+	}
 }
 
 namespace Private

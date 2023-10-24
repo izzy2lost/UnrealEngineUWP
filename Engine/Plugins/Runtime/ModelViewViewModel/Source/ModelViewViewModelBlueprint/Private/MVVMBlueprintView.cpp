@@ -129,6 +129,35 @@ bool UMVVMBlueprintView::RenameViewModel(FName OldViewModelName, FName NewViewMo
 	return ViewModelContext != nullptr;
 }
 
+bool UMVVMBlueprintView::ReparentViewModel(FGuid ViewModelId, const UClass* ViewModelClass)
+{
+	if (ViewModelClass && ViewModelClass->ImplementsInterface(UNotifyFieldValueChanged::StaticClass()))
+	{
+		FMVVMBlueprintViewModelContext* ViewModelContext = AvailableViewModels.FindByPredicate([ViewModelId](const FMVVMBlueprintViewModelContext& Other)
+			{
+				return Other.GetViewModelId() == ViewModelId;
+			});
+		if (ViewModelContext)
+		{
+			ViewModelContext->NotifyFieldValueClass = const_cast<UClass*>(ViewModelClass);
+			TArray<EMVVMBlueprintViewModelContextCreationType> ValidCreationTypes = UE::MVVM::GetAllowedContextCreationType(ViewModelClass);
+			if (!ValidCreationTypes.Contains(ViewModelContext->CreationType))
+			{
+				if (ensureMsgf(ValidCreationTypes.Num() > 0, TEXT("There is no valid creation type for this class.")))
+				{
+					ViewModelContext->CreationType = ValidCreationTypes[0];
+				}
+			}
+
+			FBlueprintEditorUtils::MarkBlueprintAsModified(GetOuterUMVVMWidgetBlueprintExtension_View()->GetWidgetBlueprint());
+
+			OnViewModelsUpdated.Broadcast();
+			return true;
+		}
+	}
+	return false;
+}
+
 const FMVVMBlueprintViewBinding* UMVVMBlueprintView::FindBinding(const UWidget* Widget, const FProperty* Property) const
 {
 	return const_cast<UMVVMBlueprintView*>(this)->FindBinding(Widget, Property);
@@ -482,6 +511,10 @@ void UMVVMBlueprintView::PostEditChangeProperty(FPropertyChangedEvent& PropertyC
 	{
 		OnViewModelsUpdated.Broadcast();
 	}
+	if (PropertyChangedEvent.Property && PropertyChangedEvent.Property->GetFName() == GET_MEMBER_NAME_CHECKED(UMVVMBlueprintView, Events))
+	{
+		OnEventsUpdated.Broadcast();
+	}
 }
 
 void UMVVMBlueprintView::PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChainEvent)
@@ -497,7 +530,7 @@ void UMVVMBlueprintView::PostEditChangeChainProperty(FPropertyChangedChainEvent&
 	}
 	if (PropertyChainEvent.PropertyChain.Contains(UMVVMBlueprintView::StaticClass()->FindPropertyByName(GET_MEMBER_NAME_CHECKED(UMVVMBlueprintView, Events))))
 	{
-		OnViewModelsUpdated.Broadcast();
+		OnEventsUpdated.Broadcast();
 	}
 }
 
