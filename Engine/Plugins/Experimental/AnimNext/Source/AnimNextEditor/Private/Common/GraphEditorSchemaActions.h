@@ -4,44 +4,44 @@
 
 #include "CoreMinimal.h"
 #include "EdGraph/EdGraphSchema.h"
+#include "Editor/RigVMEditorStyle.h"
 #include "Styling/AppStyle.h"
-#include "ParametersEditorSchemaActions.generated.h"
+#include "GraphEditorSchemaActions.generated.h"
 
 struct FSlateBrush;
 
 USTRUCT()
-struct FAnimNextParameterSchemaAction : public FEdGraphSchemaAction
+struct FAnimNextSchemaAction : public FEdGraphSchemaAction
 {
 	GENERATED_BODY()
 
-	FAnimNextParameterSchemaAction() = default;
+	FAnimNextSchemaAction() = default;
 	
-	FAnimNextParameterSchemaAction(FText InNodeCategory, FText InMenuDesc, FText InToolTip, FText InKeywords = FText::GetEmpty())
+	FAnimNextSchemaAction(FText InNodeCategory, FText InMenuDesc, FText InToolTip, FText InKeywords = FText::GetEmpty())
 		: FEdGraphSchemaAction(MoveTemp(InNodeCategory), MoveTemp(InMenuDesc), MoveTemp(InToolTip), 0, MoveTemp(InKeywords))
 	{
 	}
 
 	virtual const FSlateBrush* GetIconBrush() const
 	{
-		return FAppStyle::Get().GetBrush("NoBrush");
+		return FRigVMEditorStyle::Get().GetBrush("RigVM.Unit");
 	}
 
 	virtual const FLinearColor& GetIconColor() const
 	{
-		static const FLinearColor DefaultColor;
-		return DefaultColor;
+		return FLinearColor::White;
 	}
 };
 
 USTRUCT()
-struct FAnimNextParameterSchemaAction_RigUnit : public FAnimNextParameterSchemaAction
+struct FAnimNextSchemaAction_RigUnit : public FAnimNextSchemaAction
 {
 	GENERATED_BODY()
 
-	FAnimNextParameterSchemaAction_RigUnit() = default;
+	FAnimNextSchemaAction_RigUnit() = default;
 	
-	FAnimNextParameterSchemaAction_RigUnit(UScriptStruct* InStructTemplate, FText InNodeCategory, FText InMenuDesc, FText InToolTip, FText InKeywords = FText::GetEmpty())
-		: FAnimNextParameterSchemaAction(InNodeCategory, InMenuDesc, InToolTip, InKeywords)
+	FAnimNextSchemaAction_RigUnit(UScriptStruct* InStructTemplate, FText InNodeCategory, FText InMenuDesc, FText InToolTip, FText InKeywords = FText::GetEmpty())
+		: FAnimNextSchemaAction(InNodeCategory, InMenuDesc, InToolTip, InKeywords)
 		, StructTemplate(InStructTemplate)
 	{}
 
@@ -54,18 +54,24 @@ private:
 	UScriptStruct* StructTemplate = nullptr;
 };
 
+
 USTRUCT()
-struct FAnimNextParameterSchemaAction_DispatchFactory : public FAnimNextParameterSchemaAction
+struct FAnimNextSchemaAction_DispatchFactory : public FAnimNextSchemaAction
 {
 	GENERATED_BODY()
 
-	FAnimNextParameterSchemaAction_DispatchFactory() = default;
+	FAnimNextSchemaAction_DispatchFactory() = default;
 
-	FAnimNextParameterSchemaAction_DispatchFactory(FName InNotation, FText InNodeCategory, FText InMenuDesc, FText InToolTip, FText InKeywords = FText::GetEmpty())
-		: FAnimNextParameterSchemaAction(InNodeCategory, InMenuDesc, InToolTip, InKeywords)
+	FAnimNextSchemaAction_DispatchFactory(FName InNotation, FText InNodeCategory, FText InMenuDesc, FText InToolTip, FText InKeywords = FText::GetEmpty())
+		: FAnimNextSchemaAction(InNodeCategory, InMenuDesc, InToolTip, InKeywords)
 		, Notation(InNotation)
 	{}
 
+	virtual const FSlateBrush* GetIconBrush() const
+	{
+		return FRigVMEditorStyle::Get().GetBrush("RigVM.Template");
+	}
+	
 	// FEdGraphSchemaAction Interface
 	virtual UEdGraphNode* PerformAction(UEdGraph* ParentGraph, TArray<UEdGraphPin*>& FromPins, const FVector2D Location, bool bSelectNewNode = true) override;
 	virtual UEdGraphNode* PerformAction(UEdGraph* ParentGraph, UEdGraphPin* FromPin, const FVector2D Location, bool bSelectNewNode = true) { return nullptr; }

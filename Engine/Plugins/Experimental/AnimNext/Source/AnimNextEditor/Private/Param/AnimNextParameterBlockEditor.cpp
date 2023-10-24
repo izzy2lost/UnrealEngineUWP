@@ -6,7 +6,7 @@
 #include "Param/AnimNextParameterBlock_EditorData.h"
 #include "EdGraphNode_Comment.h"
 #include "ExternalPackageHelper.h"
-#include "Param/SParametersActionMenu.h"
+#include "Common/SActionMenu.h"
 #include "UncookedOnlyUtils.h"
 #include "Framework/Commands/GenericCommands.h"
 #include "RigVMModel/RigVMController.h"
@@ -15,6 +15,7 @@
 #include "Param/AnimNextParameterBlockEntry.h"
 #include "Param/AnimNextParameterSettings.h"
 #include "ParameterBlockEditorMode.h"
+#include "Param/AnimNextParameterExecuteContext.h"
 #include "Widgets/Docking/SDockTab.h"
 
 #define LOCTEXT_NAMESPACE "AnimNextParameterBlockEditor"
@@ -224,12 +225,13 @@ TSharedRef<SGraphEditor> FParameterBlockEditor::CreateGraphEditorWidget(TSharedR
 
 FActionMenuContent FParameterBlockEditor::OnCreateGraphActionMenu(UEdGraph* InGraph, const FVector2D& InNodePosition, const TArray<UEdGraphPin*>& InDraggedPins, bool bAutoExpand, SGraphEditor::FActionMenuClosed InOnMenuClosed)
 {
-	TSharedRef<SParametersActionMenu> ActionMenu = SNew(SParametersActionMenu)
+	TSharedRef<SActionMenu> ActionMenu = SNew(SActionMenu)
 		.AutoExpandActionMenu(bAutoExpand)
 		.Graph(InGraph)
 		.NewNodePosition(InNodePosition)
 		.DraggedFromPins(InDraggedPins)
-		.OnClosedCallback(InOnMenuClosed);
+		.OnClosedCallback(InOnMenuClosed)
+		.AllowedExecuteContexts( { FRigVMExecuteContext::StaticStruct(), FAnimNextParameterExecuteContext::StaticStruct() });
 
 	TSharedPtr<SWidget> FilterTextBox = StaticCastSharedRef<SWidget>(ActionMenu->GetFilterTextBox());
 	return FActionMenuContent(StaticCastSharedRef<SWidget>(ActionMenu), FilterTextBox);

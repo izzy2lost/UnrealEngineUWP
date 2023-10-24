@@ -1,19 +1,26 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "ParametersEditorSchemaActions.h"
-#include "Param/AnimNextParameterBlock_EdGraph.h"
-#include "Param/AnimNextParameterBlock_EdGraphNode.h"
-#include "Param/AnimNextParameterBlock_EditorData.h"
+#include "GraphEditorSchemaActions.h"
+#include "EditorUtils.h"
+#include "Graph/AnimNextGraph_EdGraph.h"
+#include "Graph/AnimNextGraph_EdGraphNode.h"
+#include "Graph/AnimNextGraph_EditorData.h"
 #include "RigVMModel/Nodes/RigVMUnitNode.h"
 #include "Settings/ControlRigSettings.h"
-#include "EditorUtils.h"
+#include "Units/RigUnit.h"
 
-UEdGraphNode* FAnimNextParameterSchemaAction_RigUnit::PerformAction(UEdGraph* ParentGraph, TArray<UEdGraphPin*>& FromPins, const FVector2D Location, bool bSelectNewNode)
+UEdGraphNode* FAnimNextSchemaAction_RigUnit::PerformAction(UEdGraph* ParentGraph, TArray<UEdGraphPin*>& FromPins, const FVector2D Location, bool bSelectNewNode)
 {
-	UAnimNextParameterBlock_EditorData* EditorData = ParentGraph->GetTypedOuter<UAnimNextParameterBlock_EditorData>();
-	UAnimNextParameterBlock_EdGraphNode* NewNode = nullptr;
-	UAnimNextParameterBlock_EdGraph* EdGraph = Cast<UAnimNextParameterBlock_EdGraph>(ParentGraph);
+	UAnimNextGraph_EditorData* EditorData = ParentGraph->GetTypedOuter<UAnimNextGraph_EditorData>();
+	UAnimNextGraph_EdGraphNode* NewNode = nullptr;
+	UAnimNextGraph_EdGraph* EdGraph = Cast<UAnimNextGraph_EdGraph>(ParentGraph);
 
+	UEdGraphPin* FromPin = nullptr;
+	if (FromPins.Num() > 0)
+	{
+		FromPin = FromPins[0];
+	}
+	
 	if (EditorData != nullptr && EdGraph != nullptr)
 	{
 		FName Name = UE::AnimNext::Editor::FUtils::ValidateName(EditorData, StructTemplate->GetFName().ToString());
@@ -26,11 +33,13 @@ UEdGraphNode* FAnimNextParameterSchemaAction_RigUnit::PerformAction(UEdGraph* Pa
 
 		if (URigVMUnitNode* ModelNode = Controller->AddUnitNode(StructTemplate, FRigVMStruct::ExecuteName, Location, Name.ToString(), true, false))
 		{
-			NewNode = Cast<UAnimNextParameterBlock_EdGraphNode>(EdGraph->FindNodeForModelNodeName(ModelNode->GetFName()));
+			NewNode = Cast<UAnimNextGraph_EdGraphNode>(EdGraph->FindNodeForModelNodeName(ModelNode->GetFName()));
 			check(NewNode);
 
 			if (NewNode)
 			{
+				NewNode->AutowireNewNode(FromPin);
+
 				Controller->ClearNodeSelection(true);
 				Controller->SelectNode(ModelNode, true, true);
 			}
@@ -59,12 +68,18 @@ UEdGraphNode* FAnimNextParameterSchemaAction_RigUnit::PerformAction(UEdGraph* Pa
 }
 
 
-UEdGraphNode* FAnimNextParameterSchemaAction_DispatchFactory::PerformAction(UEdGraph* ParentGraph, TArray<UEdGraphPin*>& FromPins, const FVector2D Location, bool bSelectNewNode)
+UEdGraphNode* FAnimNextSchemaAction_DispatchFactory::PerformAction(UEdGraph* ParentGraph, TArray<UEdGraphPin*>& FromPins, const FVector2D Location, bool bSelectNewNode)
 {
-	UAnimNextParameterBlock_EditorData* EditorData = ParentGraph->GetTypedOuter<UAnimNextParameterBlock_EditorData>();
-	UAnimNextParameterBlock_EdGraphNode* NewNode = nullptr;
-	UAnimNextParameterBlock_EdGraph* EdGraph = Cast<UAnimNextParameterBlock_EdGraph>(ParentGraph);
+	UAnimNextGraph_EditorData* EditorData = ParentGraph->GetTypedOuter<UAnimNextGraph_EditorData>();
+	UAnimNextGraph_EdGraphNode* NewNode = nullptr;
+	UAnimNextGraph_EdGraph* EdGraph = Cast<UAnimNextGraph_EdGraph>(ParentGraph);
 
+	UEdGraphPin* FromPin = nullptr;
+	if (FromPins.Num() > 0)
+	{
+		FromPin = FromPins[0];
+	}
+	
 	if (EditorData != nullptr && EdGraph != nullptr)
 	{
 		const FRigVMTemplate* Template = FRigVMRegistry::Get().FindTemplate(Notation);
@@ -83,10 +98,12 @@ UEdGraphNode* FAnimNextParameterSchemaAction_DispatchFactory::PerformAction(UEdG
 
 		if (URigVMTemplateNode* ModelNode = Controller->AddTemplateNode(Notation, Location, Name.ToString(), true, false))
 		{
-			NewNode = Cast<UAnimNextParameterBlock_EdGraphNode>(EdGraph->FindNodeForModelNodeName(ModelNode->GetFName()));
+			NewNode = Cast<UAnimNextGraph_EdGraphNode>(EdGraph->FindNodeForModelNodeName(ModelNode->GetFName()));
 
 			if (NewNode)
 			{
+				NewNode->AutowireNewNode(FromPin);
+
 				Controller->ClearNodeSelection(true);
 				Controller->SelectNode(ModelNode, true, true);
 			}

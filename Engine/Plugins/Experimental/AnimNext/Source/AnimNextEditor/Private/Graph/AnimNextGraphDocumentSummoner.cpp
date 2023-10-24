@@ -1,7 +1,8 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AnimNextGraphDocumentSummoner.h"
-#include "SActionMenu.h"
+#include "Common/SActionMenu.h"
+#include "Graph/AnimNextExecuteContext.h"
 #include "Graph/AnimNextGraph_EdGraph.h"
 #include "Workspace/AnimNextWorkspaceEditor.h"
 
@@ -20,7 +21,8 @@ FActionMenuContent FAnimNextGraphDocumentSummoner::OnCreateGraphActionMenu(UEdGr
 		.Graph(InGraph)
 		.NewNodePosition(InNodePosition)
 		.DraggedFromPins(InDraggedPins)
-		.OnClosedCallback(InOnMenuClosed);
+		.OnClosedCallback(InOnMenuClosed)
+		.AllowedExecuteContexts( { FRigVMExecuteContext::StaticStruct(), FAnimNextExecuteContext::StaticStruct() });
 
 	TSharedPtr<SWidget> FilterTextBox = StaticCastSharedRef<SWidget>(ActionMenu->GetFilterTextBox());
 	return FActionMenuContent(StaticCastSharedRef<SWidget>(ActionMenu), FilterTextBox);

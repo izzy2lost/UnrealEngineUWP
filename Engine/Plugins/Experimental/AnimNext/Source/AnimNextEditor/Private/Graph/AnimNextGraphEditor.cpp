@@ -6,7 +6,7 @@
 #include "Graph/AnimNextGraph_EdGraphNode.h"
 #include "Graph/AnimNextGraph_EditorData.h"
 #include "EdGraphNode_Comment.h"
-#include "SActionMenu.h"
+#include "Common/SActionMenu.h"
 #include "UncookedOnlyUtils.h"
 #include "Framework/Commands/GenericCommands.h"
 #include "RigVMModel/RigVMController.h"
@@ -182,7 +182,8 @@ FActionMenuContent FGraphEditor::OnCreateGraphActionMenu(UEdGraph* InGraph, cons
 		.Graph(InGraph)
 		.NewNodePosition(InNodePosition)
 		.DraggedFromPins(InDraggedPins)
-		.OnClosedCallback(InOnMenuClosed);
+		.OnClosedCallback(InOnMenuClosed)
+		.AllowedExecuteContexts( { FRigVMExecuteContext::StaticStruct(), FAnimNextExecuteContext::StaticStruct() });
 
 	TSharedPtr<SWidget> FilterTextBox = StaticCastSharedRef<SWidget>(ActionMenu->GetFilterTextBox());
 	return FActionMenuContent(StaticCastSharedRef<SWidget>(ActionMenu), FilterTextBox);

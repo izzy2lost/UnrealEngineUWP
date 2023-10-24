@@ -149,7 +149,9 @@ void FWorkspaceEditor::OpenWorkspaceForAsset(UObject* InAsset, EOpenWorkspaceMet
 		}
 	}
 
-	auto HandleNewWorkspace = [InAsset]()
+	FWorkspaceEditor* WorkspaceEditor = nullptr;
+
+	auto HandleNewWorkspace = [InAsset, &WorkspaceEditor]()
 	{
 		UAnimNextWorkspaceFactory* Factory = NewObject<UAnimNextWorkspaceFactory>();
 		UPackage* Package = CreatePackage(nullptr);
@@ -159,16 +161,20 @@ void FWorkspaceEditor::OpenWorkspaceForAsset(UObject* InAsset, EOpenWorkspaceMet
 		NewWorkspace->MarkPackageDirty();
 		TSharedRef<FWorkspaceEditor> Editor = MakeShared<FWorkspaceEditor>();
 		Editor->InitEditor(EToolkitMode::Standalone, nullptr, NewWorkspace);
+
+		WorkspaceEditor = &Editor.Get();
 	};
 
-	auto HandleExistingWorkspace = [](const FAssetData& InAssetData)
+	auto HandleExistingWorkspace = [InAsset, &WorkspaceEditor](const FAssetData& InAssetData)
 	{
 		if(UAnimNextWorkspace* ExistingWorkspace = Cast<UAnimNextWorkspace>(InAssetData.GetAsset()))
 		{
 			GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->OpenEditorForAsset(ExistingWorkspace);
+
+			WorkspaceEditor = static_cast<FWorkspaceEditor*>(GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->FindEditorForAsset(ExistingWorkspace, true));
 		}
 	};
-	
+
 	if(InOpenMethod == EOpenWorkspaceMethod::AlwaysOpenNewWorkspace || RelevantWorkspaceAssets.Num() == 0)
 	{
 		// No relevant workspaces, so open a new one and add the asset
@@ -188,6 +194,11 @@ void FWorkspaceEditor::OpenWorkspaceForAsset(UObject* InAsset, EOpenWorkspaceMet
 			.OnNewAsset_Lambda(HandleNewWorkspace);
 
 		WorkspacePicker->ShowModal();
+	}
+	
+	if(WorkspaceEditor)
+	{
+		WorkspaceEditor->OpenDocument(InAsset, FDocumentTracker::OpenNewDocument);
 	}
 }
 

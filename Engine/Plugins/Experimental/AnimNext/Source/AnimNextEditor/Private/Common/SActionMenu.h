@@ -1,7 +1,7 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
-#include "AnimNextGraphEditor.h"
+#include "GraphEditor.h"
 #include "EdGraph/EdGraph.h"
 #include "EdGraph/EdGraphPin.h"
 #include "EdGraph/EdGraphSchema.h"
@@ -39,6 +39,8 @@ public:
 		SLATE_ARGUMENT(SGraphEditor::FActionMenuClosed, OnClosedCallback)
 		SLATE_ARGUMENT(bool, AutoExpandActionMenu)
 		SLATE_EVENT(FClosedReason, OnCloseReason)
+		SLATE_ARGUMENT(TArray<UScriptStruct*>, AllowedExecuteContexts)
+
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs);
@@ -55,6 +57,8 @@ protected:
 	/** Callback used to populate all actions list in SGraphActionMenu */
 	void CollectAllActions(FGraphActionListBuilderBase& OutAllActions);
 
+	void CollectAllAnimNextGraphActions(FGraphContextMenuBuilder& MenuBuilder) const;
+	
 private:
 	UEdGraph* Graph = nullptr;
 	bool bAutoExpandActionMenu = false;
@@ -67,6 +71,7 @@ private:
 	FClosedReason OnCloseReasonCallback;
 
 	TSharedPtr<SGraphActionMenu> GraphActionMenu;
+	TArray<UScriptStruct*> AllowedExecuteContexts;
 };
 
 }
