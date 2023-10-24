@@ -186,7 +186,7 @@ bool GetGGXDirection(float2 RandomUV, float Roughness, float3 V, inout float3 L,
 	float2 Alpha; 
 	GetGGXBasis(Roughness, WOLRD_NORMAL, Alpha);
 
-	float4 H = ImportanceSampleVisibleGGX(RandomUV, Alpha, V);
+	float4 H = ImportanceSampleVisibleGGX(RandomUV, Alpha, V, false);
 
 	Value = 0;
 	L = 0;
@@ -201,7 +201,7 @@ bool GetGGXDirection(float2 RandomUV, float Roughness, float3 V, inout float3 L,
 	}
 
 	// Reflection
-	Value = GGXEvalReflection(L, V, H.xyz, Alpha).x;
+	Value = GGXEvalReflection(L, V, H.xyz, Alpha, false).x;
 	return MODE_REFLECTION == 1;
 }
 
