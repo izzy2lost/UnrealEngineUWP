@@ -1569,8 +1569,8 @@ void UpdateHistoryScreenProbeGather(
 				}
 
 				GraphBuilder.QueueTextureExtraction(RoughSpecularIndirect, RoughSpecularIndirectHistoryState);
-				*HistoryNumFramesAccumulated = GSystemTextures.BlackDummy;
-				*FastUpdateModeHistoryState = GSystemTextures.BlackDummy;
+				*HistoryNumFramesAccumulated = GSystemTextures.BlackArrayDummy;
+				*FastUpdateModeHistoryState = GSystemTextures.BlackArrayDummy;
 			}
 		}
 
