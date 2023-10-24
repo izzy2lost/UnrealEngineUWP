@@ -382,6 +382,7 @@ FPlatformMemoryStats FAndroidPlatformMemory::GetStats()
 			else if (strstr(Line, "VmRSS:") == Line)
 			{
 				MemoryStats.UsedPhysical = AndroidPlatformMemory::GetBytesFromStatusLine(Line);
+				MemoryStats.VMRss = MemoryStats.UsedPhysical;
 				++FieldsSetSuccessfully;
 			}
 			else if (strstr(Line, "VmSwap:") == Line)
