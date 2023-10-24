@@ -225,6 +225,9 @@ public:
 	UFUNCTION(CallInEditor)
 	CHAOSCACHING_API void SetStartTime(float InStartTime);
 
+	UFUNCTION(BlueprintCallable, Category = "Caching")
+	void SetCurrentTime(float CurrentTime);
+
 	/** 
 	 * Resets all components back to the world space transform they had when the cache for them was originally recorded
 	 * if one is available

@@ -257,6 +257,13 @@ void AChaosCacheManager::SetStartTime(float InStartTime)
 	OnStartFrameChanged(InStartTime);
 }
 
+void AChaosCacheManager::SetCurrentTime(float CurrentTime)
+{
+	// follow to SetStartTime as this is the how we animate the cache 
+	// todo(chaos) : we should probably separate the concept of start time and current time 
+	SetStartTime(CurrentTime);
+}
+
 void AChaosCacheManager::ResetAllComponentTransforms()
 {
 	if(!CacheCollection)
