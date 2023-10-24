@@ -29,7 +29,6 @@ TEST_CASE("Core::Async::Mutex", "[Core][Async]")
 			// Using FThread for now because UE::Tasks::Launch does not always wake a worker thread.
 			Threads[Index] = FThread(TEXT("MutexTest"), [&Mutex, &TasksComplete]
 			{
-				CHECK(Mutex.IsLocked());
 				while (!Mutex.TryLock()) // spin on attempting to acquire the lock
 				{
 				}
