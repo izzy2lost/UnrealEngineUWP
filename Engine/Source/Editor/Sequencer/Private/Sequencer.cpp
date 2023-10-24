@@ -474,15 +474,7 @@ void FSequencer::InitSequencer(const FSequencerInitParams& InitParams, const TSh
 	InitialValueCache = UE::MovieScene::FInitialValueCache::GetGlobalInitialValues();
 	RootTemplateInstance.GetEntitySystemLinker()->AddExtension(InitialValueCache.Get());
 
-	// Add the camera cut playback capability.
-	FInstanceHandle RootInstanceHandle = RootTemplateInstance.GetRootInstanceHandle();
-	UMovieSceneEntitySystemLinker* Linker = GetEvaluationTemplate().GetEntitySystemLinker();
-	FInstanceRegistry* InstanceRegistry = Linker->GetInstanceRegistry();
-	TSharedRef<FSharedPlaybackState> SharedPlaybackState = InstanceRegistry->GetInstance(RootInstanceHandle).GetSharedPlaybackState();
-	if (!SharedPlaybackState->HasCapability<FCameraCutPlaybackCapability>())
-	{
-		SharedPlaybackState->AddCapabilityRaw<FCameraCutPlaybackCapability>((FCameraCutPlaybackCapability*)this);
-	}
+	InitRootSequenceInstance();
 
 	// Create tools and bind them to this sequencer
 	for( int32 DelegateIndex = 0; DelegateIndex < TrackEditorDelegates.Num(); ++DelegateIndex )
@@ -655,6 +647,27 @@ void FSequencer::InitSequencer(const FSequencerInitParams& InitParams, const TSh
 	AddNodeGroupsCollectionChangedDelegate();
 
 	OnActivateSequenceEvent.Broadcast(ActiveTemplateIDs[0]);
+}
+
+void FSequencer::OnPlaybackContextChanged()
+{
+	RootTemplateInstance.PlaybackContextChanged(*this);
+	InitRootSequenceInstance();
+}
+
+void FSequencer::InitRootSequenceInstance()
+{
+	using namespace UE::MovieScene;
+
+	// Add the camera cut playback capability.
+	FInstanceHandle RootInstanceHandle = RootTemplateInstance.GetRootInstanceHandle();
+	UMovieSceneEntitySystemLinker* Linker = GetEvaluationTemplate().GetEntitySystemLinker();
+	FInstanceRegistry* InstanceRegistry = Linker->GetInstanceRegistry();
+	TSharedRef<FSharedPlaybackState> SharedPlaybackState = InstanceRegistry->GetInstance(RootInstanceHandle).GetSharedPlaybackState();
+	if (!SharedPlaybackState->HasCapability<FCameraCutPlaybackCapability>())
+	{
+		SharedPlaybackState->AddCapabilityRaw<FCameraCutPlaybackCapability>((FCameraCutPlaybackCapability*)this);
+	}
 }
 
 FSequencer::FSequencer()
@@ -3257,7 +3270,7 @@ void FSequencer::UpdateCachedPlaybackContextAndClient()
 		CachedPlaybackContext = NewPlaybackContext;
 		CachedPlaybackClient = NewPlaybackClient;
 
-		RootTemplateInstance.PlaybackContextChanged(*this);
+		OnPlaybackContextChanged();
 	}
 }
 

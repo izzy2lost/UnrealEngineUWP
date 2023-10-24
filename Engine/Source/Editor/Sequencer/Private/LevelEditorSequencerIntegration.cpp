@@ -700,7 +700,7 @@ void FLevelEditorSequencerIntegration::OnPreBeginPIE(bool bIsSimulating)
 		{
 			if (Options.bRequiresLevelEvents)
 			{
-				In.GetEvaluationTemplate().PlaybackContextChanged(In);
+				In.OnPlaybackContextChanged();
 				In.RestorePreAnimatedState();
 				In.State.ClearObjectCaches(In);
 				In.RequestEvaluate();
@@ -738,7 +738,7 @@ void FLevelEditorSequencerIntegration::OnEndPlayMap()
 			if (Options.bRequiresLevelEvents)
 			{
 				// Update and clear any stale bindings 
-				In.GetEvaluationTemplate().PlaybackContextChanged(In);
+				In.OnPlaybackContextChanged();
 				In.State.ClearObjectCaches(In);
 				In.ForceEvaluate();
 			}
@@ -1261,7 +1261,7 @@ void FLevelEditorSequencerIntegration::OnMapChanged(UWorld* World, EMapChangeTyp
 		{
 			if (Options.bRequiresLevelEvents)
 			{
-				In.GetEvaluationTemplate().PlaybackContextChanged(In);
+				In.OnPlaybackContextChanged();
 				In.RestorePreAnimatedState();
 				In.State.ClearObjectCaches(In);
 

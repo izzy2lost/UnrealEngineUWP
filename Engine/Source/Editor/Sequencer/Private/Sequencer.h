@@ -134,6 +134,20 @@ public:
 	 */
 	void InitSequencer(const FSequencerInitParams& InitParams, const TSharedRef<ISequencerObjectChangeListener>& InObjectChangeListener, const TArray<FOnCreateTrackEditor>& TrackEditorDelegates, const TArray<FOnCreateEditorObjectBinding>& EditorObjectBindingDelegatess, const TArray<FOnCreateOutlinerColumn>& OutlinerColumnDelegates);
 
+	/**
+	 * Reinitializes sequencer after the playback context has changed
+	 *
+	 * The playback context changes when the user attaches the sequencer to a different world either
+	 * explicitly via the world dropdown picker, or indirectly when e.g. starting/stopping PIE.
+	 */
+	void OnPlaybackContextChanged();
+
+protected:
+
+	void InitRootSequenceInstance();
+
+public:
+
 	/** @return The current view range */
 	virtual FAnimatedRange GetViewRange() const override;
 	virtual void SetViewRange(TRange<double> NewViewRange, EViewRangeInterpolation Interpolation = EViewRangeInterpolation::Animated) override;
