@@ -645,8 +645,8 @@ export class PerforceContext {
 		return null
 	}
 
-	reloadWorkspace(workspaceName: string) {
-		return this._execP4Ztag(null, ['reload', '-c', workspaceName]);
+	reloadWorkspace(workspaceName: string, edgeServerAddress?: string) {
+		return this._execP4Ztag(null, ['reload', '-c', workspaceName], {edgeServerAddress});
 	}
 
 	getEdgeServerAddress(serverId: string) {

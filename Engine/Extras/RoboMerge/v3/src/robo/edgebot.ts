@@ -486,7 +486,7 @@ class EdgeBotImpl extends PerforceStatefulBot {
 			const existingWorkspaceIndex = existingWorkspaceInfos.findIndex((ws) => ws.client == info.targetWorkspaceOverride)
 			if (existingWorkspaceIndex >= 0) {
 				if (existingWorkspaceInfos[existingWorkspaceIndex].IsUnloaded) {
-					await this.p4.reloadWorkspace(info.targetWorkspaceOverride)
+					await this.p4.reloadWorkspace(info.targetWorkspaceOverride, edgeServer.address)
 				}
 				await p4util.cleanWorkspaces(this.p4, [[info.targetWorkspaceOverride, target.branch.rootPath]], edgeServer.address)
 			}
