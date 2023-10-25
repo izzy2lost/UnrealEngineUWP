@@ -62,7 +62,7 @@ BEGIN_SHADER_PARAMETER_STRUCT(FDebugDrawDataInterfaceParameters, )
 	SHADER_PARAMETER(FIntPoint, Resolution)
 	SHADER_PARAMETER(FVector2f, FontSize)
 	SHADER_PARAMETER(FVector2f, FontSpacing)
-	SHADER_PARAMETER(uint32, MaxValueCount)
+	SHADER_PARAMETER(uint32, MaxCharacterCount)
 	SHADER_PARAMETER(uint32, MaxSymbolCount)
 	SHADER_PARAMETER(uint32, MaxStateCount)
 	SHADER_PARAMETER(uint32, MaxLineCount)
@@ -128,7 +128,7 @@ FOptimusDebugDrawDataProviderProxy::FOptimusDebugDrawDataProviderProxy(UPrimitiv
 	Setup.FontSize = InDebugDrawParameters.FontSize;
 	Setup.MaxLineCount = Setup.bEnabled ? InDebugDrawParameters.MaxLineCount : 0;
 	Setup.MaxTriangleCount = Setup.bEnabled ? InDebugDrawParameters.MaxTriangleCount : 0;
-	Setup.MaxValueCount = Setup.bEnabled ? InDebugDrawParameters.MaxCharacterCount : 0;
+	Setup.MaxCharacterCount = Setup.bEnabled ? InDebugDrawParameters.MaxCharacterCount : 0;
 	Setup.PreViewTranslation = PreViewTranslation;
 
 	ShaderPrint::GetParameters(Setup, ConfigParameters);
@@ -183,7 +183,7 @@ void FOptimusDebugDrawDataProviderProxy::GatherDispatchData(FDispatchData const&
 		Parameters.Resolution = ConfigParameters.Resolution;
 		Parameters.FontSize = ConfigParameters.FontSize;
 		Parameters.FontSpacing = ConfigParameters.FontSpacing;
-		Parameters.MaxValueCount = ConfigParameters.MaxValueCount;
+		Parameters.MaxCharacterCount = ConfigParameters.MaxCharacterCount;
 		Parameters.MaxSymbolCount = ConfigParameters.MaxSymbolCount;
 		Parameters.MaxStateCount = ConfigParameters.MaxStateCount;
 		Parameters.MaxLineCount = ConfigParameters.MaxLineCount;

@@ -143,7 +143,7 @@ namespace ShaderPrint
 	//////////////////////////////////////////////////////////////////////////////////////////////////
 	// Struct & Functions
 
-	static uint32 GetMaxValueCount()
+	static uint32 GetMaxCharacterCount()
 	{
 		return FMath::Max(CVarMaxCharacterCount.GetValueOnAnyThread() + int32(GCachedShaderPrintMaxRequest.CharacterCount), 0);
 	}
@@ -170,10 +170,10 @@ namespace ShaderPrint
 	static uint32 GetPackedSymbolUintSize()   { return 4; }
 
 	// Get symbol buffer size
-	// This is some multiple of the value buffer size to allow for maximum value->symbol expansion
-	static uint32 GetMaxSymbolCountFromValueCount(uint32 MaxValueCount)
+	// This is some multiple of the character buffer size to allow for maximum character->symbol expansion
+	static uint32 GetMaxSymbolCountFromCharacterCount(uint32 InMaxCharacterCount)
 	{
-		return MaxValueCount * 12u;
+		return InMaxCharacterCount * 12u;
 	}
 
 	static bool IsDrawLocked()
@@ -245,8 +245,8 @@ namespace ShaderPrint
 		OutParameters.FontSpacing = FVector2f(FontWidth + SpaceWidth, FontHeight + SpaceHeight);
 		OutParameters.Resolution = InSetup.ViewRect.Size();
 		OutParameters.CursorCoord = InSetup.CursorCoord;
-		OutParameters.MaxValueCount = InSetup.MaxValueCount;
-		OutParameters.MaxSymbolCount = GetMaxSymbolCountFromValueCount(InSetup.MaxValueCount);
+		OutParameters.MaxCharacterCount = InSetup.MaxCharacterCount;
+		OutParameters.MaxSymbolCount = GetMaxSymbolCountFromCharacterCount(InSetup.MaxCharacterCount);
 		OutParameters.MaxStateCount = InSetup.MaxStateCount;
 		OutParameters.MaxLineCount = InSetup.MaxLineCount;
 		OutParameters.MaxTriangleCount = InSetup.MaxTriangleCount;
@@ -711,7 +711,7 @@ namespace ShaderPrint
 
 		FontSize = FIntPoint(FMath::Max(CVarFontSize.GetValueOnAnyThread(), 1), FMath::Max(CVarFontSize.GetValueOnAnyThread(), 1));
 		FontSpacing = FIntPoint(FMath::Max(CVarFontSpacingX.GetValueOnAnyThread(), 1), FMath::Max(CVarFontSpacingY.GetValueOnAnyThread(), 1));
-		MaxValueCount = bEnabled ? GetMaxValueCount() : 0;
+		MaxCharacterCount = bEnabled ? GetMaxCharacterCount() : 0;
 		MaxStateCount = bEnabled ? GetMaxWidgetCount() : 0;
 		MaxLineCount = bEnabled ? GetMaxLineCount() : 0;
 		MaxTriangleCount = bEnabled ? GetMaxTriangleCount(): 0;
@@ -729,7 +729,7 @@ namespace ShaderPrint
 
 		FontSize = FIntPoint(FMath::Max(CVarFontSize.GetValueOnAnyThread(), 1), FMath::Max(CVarFontSize.GetValueOnAnyThread(), 1));
 		FontSpacing = FIntPoint(FMath::Max(CVarFontSpacingX.GetValueOnAnyThread(), 1), FMath::Max(CVarFontSpacingY.GetValueOnAnyThread(), 1));
-		MaxValueCount = bEnabled ? GetMaxValueCount() : 0;
+		MaxCharacterCount = bEnabled ? GetMaxCharacterCount() : 0;
 		MaxStateCount = bEnabled ? GetMaxWidgetCount() : 0;
 		MaxLineCount = bEnabled ? GetMaxLineCount() : 0;
 		MaxTriangleCount = bEnabled ? GetMaxTriangleCount() : 0;
@@ -740,7 +740,7 @@ namespace ShaderPrint
 	{
 		const uint32 UintElementCount = 
 			GetCountersUintSize() + 
-			GetPackedSymbolUintSize() * In.MaxValueCount +
+			GetPackedSymbolUintSize() * In.MaxCharacterCount +
 			GetPackedLineUintSize() * In.MaxLineCount + 
 			GetPackedTriangleUintSize() * In.MaxTriangleCount;
 		return UintElementCount;
@@ -938,7 +938,7 @@ namespace ShaderPrint
 		FScreenPassTexture OutputTexture)
 	{
 		// Initialize graph managed resources
-		const uint32 UintElementCount = GetCountersUintSize() + GetPackedSymbolUintSize() * GetMaxSymbolCountFromValueCount(ShaderPrintData.Setup.MaxValueCount);
+		const uint32 UintElementCount = GetCountersUintSize() + GetPackedSymbolUintSize() * GetMaxSymbolCountFromCharacterCount(ShaderPrintData.Setup.MaxCharacterCount);
 		FRDGBufferRef SymbolBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(4, UintElementCount), TEXT("ShaderPrint.SymbolBuffer"));
 		FRDGBufferRef IndirectDispatchArgsBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateIndirectDesc<FRHIDispatchIndirectParameters>(1), TEXT("ShaderPrint.IndirectDispatchArgs"));
 		FRDGBufferRef IndirectDrawArgsBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateIndirectDesc(5), TEXT("ShaderPrint.IndirectDrawArgs"));

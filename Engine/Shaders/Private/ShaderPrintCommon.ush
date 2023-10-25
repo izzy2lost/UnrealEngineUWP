@@ -115,13 +115,13 @@ uint GetSymbolOffset(uint InIndex)
 {
 	return SHADER_PRINT_COUNTER_COUNT + SHADER_PRINT_UINT_COUNT_SYMBOL * InIndex; 
 }
-uint GetPrimitiveLineOffset(uint InIndex, uint MaxValueCount)
+uint GetPrimitiveLineOffset(uint InIndex, uint MaxCharacterCount)
 {
-	return SHADER_PRINT_COUNTER_COUNT + SHADER_PRINT_UINT_COUNT_SYMBOL * MaxValueCount + SHADER_PRINT_UINT_COUNT_LINE * InIndex; 
+	return SHADER_PRINT_COUNTER_COUNT + SHADER_PRINT_UINT_COUNT_SYMBOL * MaxCharacterCount + SHADER_PRINT_UINT_COUNT_LINE * InIndex; 
 }
-uint GetPrimitiveTriangleOffset(uint InIndex, uint MaxValueCount, uint MaxLineCount)
+uint GetPrimitiveTriangleOffset(uint InIndex, uint MaxCharacterCount, uint MaxLineCount)
 {
-	return SHADER_PRINT_COUNTER_COUNT + SHADER_PRINT_UINT_COUNT_SYMBOL * MaxValueCount + SHADER_PRINT_UINT_COUNT_LINE * MaxLineCount + SHADER_PRINT_UINT_COUNT_TRIANGLE * InIndex; 
+	return SHADER_PRINT_COUNTER_COUNT + SHADER_PRINT_UINT_COUNT_SYMBOL * MaxCharacterCount + SHADER_PRINT_UINT_COUNT_LINE * MaxLineCount + SHADER_PRINT_UINT_COUNT_TRIANGLE * InIndex; 
 }
 
 void ClearCounters(RWStructuredBuffer<uint> InRWBuffer)
@@ -298,7 +298,7 @@ struct FShaderPrintConfig
 	float3 TranslatedWorldOffset;
 	float2 FontSize;
 	float2 FontSpacing;
-	uint MaxValueCount;
+	uint MaxCharacterCount;
 	uint MaxSymbolCount;
 	uint MaxStateCount;
 	uint MaxLineCount;
@@ -341,8 +341,8 @@ void WriteSymbol(uint Offset, FShaderPrintItem In, FShaderPrintContext Ctx)
 
 void ShaderPrint_Internal(FShaderPrintContext Ctx, in FShaderPrintItem Item)
 {
-	// If MaxValueCount is 0 then we don't reset the buffer counter so early out here
-	if (!Ctx.bIsActive || Ctx.Config.MaxValueCount == 0)
+	// If MaxCharacterCount is 0 then we don't reset the buffer counter so early out here
+	if (!Ctx.bIsActive || Ctx.Config.MaxCharacterCount == 0)
 	{
 		return;
 	}
@@ -353,7 +353,7 @@ void ShaderPrint_Internal(FShaderPrintContext Ctx, in FShaderPrintItem Item)
 
 	// Prevent writing off the buffer
 	// Note that counter still increases so need clamp when reading it in later passes
-	if (uint(IndexToStore) >= Ctx.Config.MaxValueCount)
+	if (uint(IndexToStore) >= Ctx.Config.MaxCharacterCount)
 	{
 		return;
 	}
@@ -422,8 +422,8 @@ uint ShaderPrintGetHash(FShaderPrintText InTextEntry);
 // Function for reading global TEXT string
 float2 ShaderPrintText_Internal(FShaderPrintContext Ctx, bool bIsActive, float2 InPos, FShaderPrintText InTextEntry, FFontColor InColor)
 {
-	// If MaxValueCount is 0 then we don't reset the buffer counter so early out here
-	if (bIsActive && Ctx.Config.MaxValueCount > 0)
+	// If MaxCharacterCount is 0 then we don't reset the buffer counter so early out here
+	if (bIsActive && Ctx.Config.MaxCharacterCount > 0)
 	{
 		const uint Begin = ShaderPrintGetOffset(InTextEntry);
 		const uint End   = ShaderPrintGetOffset(InitShaderPrintText(InTextEntry.Index + 1));
@@ -434,7 +434,7 @@ float2 ShaderPrintText_Internal(FShaderPrintContext Ctx, bool bIsActive, float2 
 		// Note that counter still increases so need clamp when reading it in later passes
 		int IndexToStore = 0;
 		InterlockedAdd(SHADER_PRINT_RWENTRYBUFFER(Ctx,SHADER_PRINT_COUNTER_OFFSET_SYMBOL), Count, IndexToStore);
-		if (uint(IndexToStore + Count) < Ctx.Config.MaxValueCount)
+		if (uint(IndexToStore + Count) < Ctx.Config.MaxCharacterCount)
 		{
 			for (uint i = Begin; i < End; ++i)
 			{
@@ -747,9 +747,9 @@ FPackedTriangleElement PackTriangleElement(FTriangleElement In)
 	return Out;
 }
 
-FTriangleElement UnpackTriangleElement(StructuredBuffer<uint> InPrimitiveBuffer, uint InIndex, uint MaxValueCount, uint MaxLineCount)
+FTriangleElement UnpackTriangleElement(StructuredBuffer<uint> InPrimitiveBuffer, uint InIndex, uint MaxCharacterCount, uint MaxLineCount)
 {
-	const uint Index12 = GetPrimitiveTriangleOffset(InIndex, MaxValueCount, MaxLineCount);
+	const uint Index12 = GetPrimitiveTriangleOffset(InIndex, MaxCharacterCount, MaxLineCount);
 
 	FPackedTriangleElement Out = (FPackedTriangleElement)0;
 	Out.Packed0.x = InPrimitiveBuffer[Index12 + 0];
@@ -783,7 +783,7 @@ bool AllocateTriangleElement(FShaderPrintContext Ctx, uint Count, inout uint Out
 
 void AddTriangleElement(FShaderPrintContext Ctx, FTriangleElement In, uint Index)
 {
-	const uint Index12 = GetPrimitiveTriangleOffset(Index, Ctx.Config.MaxValueCount, Ctx.Config.MaxLineCount);
+	const uint Index12 = GetPrimitiveTriangleOffset(Index, Ctx.Config.MaxCharacterCount, Ctx.Config.MaxLineCount);
 
 	FPackedTriangleElement Out = PackTriangleElement(In);
 	SHADER_PRINT_RWENTRYBUFFER(Ctx, Index12 + 0) = Out.Packed0.x;
@@ -951,9 +951,9 @@ FPackedLineElement PackLineElement(FLineElement In)
 	return Out;
 }
 
-FLineElement UnpackLineElement(StructuredBuffer<uint> InPrimitiveBuffer, uint InIndex, uint MaxValueCount)
+FLineElement UnpackLineElement(StructuredBuffer<uint> InPrimitiveBuffer, uint InIndex, uint MaxCharacterCount)
 {
-	const uint Index8 = GetPrimitiveLineOffset(InIndex, MaxValueCount);
+	const uint Index8 = GetPrimitiveLineOffset(InIndex, MaxCharacterCount);
 
 	FPackedLineElement Out = (FPackedLineElement)0;
 	Out.Packed0.x = InPrimitiveBuffer[Index8 + 0];
@@ -982,7 +982,7 @@ bool AllocateLineElement(FShaderPrintContext Ctx, uint Count, inout uint OutInde
 
 void AddLineElement(FShaderPrintContext Ctx, FLineElement In, uint Index)
 {
-	const uint Index8 = GetPrimitiveLineOffset(Index, Ctx.Config.MaxValueCount);
+	const uint Index8 = GetPrimitiveLineOffset(Index, Ctx.Config.MaxCharacterCount);
 
 	FPackedLineElement Out = PackLineElement(In);
 	SHADER_PRINT_RWENTRYBUFFER(Ctx,Index8 + 0) = Out.Packed0.x;

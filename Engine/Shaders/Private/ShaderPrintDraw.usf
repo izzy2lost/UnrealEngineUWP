@@ -42,7 +42,7 @@ void ClearCounterCS()
 [numthreads(1, 1, 1)]
 void BuildIndirectDispatchArgsCS()
 {
-	uint ValueCount = min(ShaderPrintData.MaxValueCount, ValuesBuffer[SHADER_PRINT_COUNTER_OFFSET_SYMBOL]);
+	uint ValueCount = min(ShaderPrintData.MaxCharacterCount, ValuesBuffer[SHADER_PRINT_COUNTER_OFFSET_SYMBOL]);
 	WriteDispatchIndirectArgs(RWIndirectDispatchArgsBuffer, 0, (ValueCount + 63)/64, 1, 1);
 	ClearCounters(RWSymbolsBuffer);
 }
@@ -200,7 +200,7 @@ void AddHexSymbols(inout float2 ScreenPos, uint Value, in float3 Color)
 [numthreads(64, 1, 1)]
 void BuildSymbolBufferCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 {
-	uint ValueCount = min(ShaderPrintData.MaxValueCount, ValuesBuffer[SHADER_PRINT_COUNTER_OFFSET_SYMBOL]);
+	uint ValueCount = min(ShaderPrintData.MaxCharacterCount, ValuesBuffer[SHADER_PRINT_COUNTER_OFFSET_SYMBOL]);
 	if (DispatchThreadId.x >= ValueCount)
 	{
 		return;
@@ -434,7 +434,7 @@ void UploadCS(int2 DispatchThreadId : SV_DispatchThreadID)
 	In.TranslatedWorldOffset = ShaderPrintData.TranslatedWorldOffset;
 	In.FontSize = ShaderPrintData.FontSize;
 	In.FontSpacing = ShaderPrintData.FontSpacing;
-	In.MaxValueCount = ShaderPrintData.MaxValueCount;
+	In.MaxCharacterCount = ShaderPrintData.MaxCharacterCount;
 	In.MaxSymbolCount = ShaderPrintData.MaxSymbolCount;
 	In.MaxStateCount = ShaderPrintData.MaxStateCount;
 	In.MaxLineCount = ShaderPrintData.MaxLineCount;
@@ -477,13 +477,13 @@ void CopyDataType(FShaderPrintConfig Config, uint Type)
 	{
 		CounterOffset = SHADER_PRINT_COUNTER_OFFSET_LINE; 		
 		DataTypeSizeInUint = SHADER_PRINT_UINT_COUNT_LINE;
-		DataOffset0 = GetPrimitiveLineOffset(0, Config.MaxValueCount);
+		DataOffset0 = GetPrimitiveLineOffset(0, Config.MaxCharacterCount);
 	}
 	else if (Type == TYPE_TRIANGLE)
 	{
 		CounterOffset = SHADER_PRINT_COUNTER_OFFSET_TRIANGLE;	
 		DataTypeSizeInUint = SHADER_PRINT_UINT_COUNT_TRIANGLE;
-		DataOffset0 = GetPrimitiveTriangleOffset(0, Config.MaxValueCount, Config.MaxLineCount);	
+		DataOffset0 = GetPrimitiveTriangleOffset(0, Config.MaxCharacterCount, Config.MaxLineCount);	
 	}
 	else
 	{
