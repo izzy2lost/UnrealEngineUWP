@@ -338,8 +338,6 @@ FNaniteVisibilityQuery* FNaniteVisibility::BeginVisibilityQuery(
 	VisibilityQuery->bCullShadingBins		= GNaniteMaterialVisibilityShadingBins != 0;
 	VisibilityQuery->bUseComputeMaterials	= bUseComputeMaterials;
 
-	VisibilityQueries.Emplace(VisibilityQuery);
-
 	VisibilityQuery->bFinished = false;
 	if (bRunAsync)
 	{
@@ -349,14 +347,22 @@ FNaniteVisibilityQuery* FNaniteVisibility::BeginVisibilityQuery(
 			PerformNaniteVisibility(PrimitiveReferences, VisibilityQuery);
 
 		}, Scene.GetCacheNaniteMaterialBinsTask(), UE::Tasks::ETaskPriority::High);
-
-		ActiveEvents.Emplace(VisibilityQuery->CompletedEvent);
 	}
 	else
 	{
 		Scene.WaitForCacheNaniteMaterialBinsTask();
 		VisibilityQuery->Init(RasterPipelines, ShadingPipelines, MaterialCommands);
 	}
+
+	{
+		UE::TUniqueLock Lock(Mutex);
+		VisibilityQueries.Emplace(VisibilityQuery);
+		if (VisibilityQuery->CompletedEvent.IsValid())
+		{
+			ActiveEvents.Emplace(VisibilityQuery->CompletedEvent);
+		}
+	}
+
 	return VisibilityQuery;
 }
 
@@ -372,7 +378,11 @@ void FNaniteVisibility::FinishVisibilityQuery(FNaniteVisibilityQuery* Query, FNa
 		{
 			SCOPED_NAMED_EVENT_TEXT("EndPerformNaniteVisibility", FColor::Magenta);
 			Query->CompletedEvent.Wait();
-			ActiveEvents.RemoveSingleSwap(Query->CompletedEvent, false);
+			
+			{
+				UE::TUniqueLock Lock(Mutex);
+				ActiveEvents.RemoveSingleSwap(Query->CompletedEvent, false);
+			}
 		}
 		else
 		{

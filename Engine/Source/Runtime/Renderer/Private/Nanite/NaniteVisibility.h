@@ -126,6 +126,10 @@ public:
 	void BeginVisibilityFrame();
 	void FinishVisibilityFrame();
 
+	/**
+	 * BeginVisibilityQuery and FinishVisibilityQuery are thread safe with respect to each other,
+	 * but not with respect to BeginVisibilityFrame/FinishVisibilityFrame.
+	 **/
 	FNaniteVisibilityQuery* BeginVisibilityQuery(
 		FScene& Scene,
 		const TConstArrayView<FConvexVolume>& ViewList,
@@ -133,7 +137,6 @@ public:
 		const class FNaniteShadingPipelines* ShadingPipelines,
 		const class FNaniteMaterialCommands* MaterialCommands = nullptr
 	);
-
 	void FinishVisibilityQuery(FNaniteVisibilityQuery* Query, FNaniteVisibilityResults& OutResults);
 
 	PrimitiveRasterBinType*   GetRasterBinReferences(const FPrimitiveSceneInfo* SceneInfo);
@@ -151,6 +154,7 @@ private:
 	TArray<FNaniteVisibilityQuery*, TInlineAllocator<32>> VisibilityQueries;
 	TArray<UE::Tasks::FTask, SceneRenderingAllocator> ActiveEvents;
 	PrimitiveMapType PrimitiveReferences;
+	UE::FMutex Mutex;
 	uint8 bCalledBegin : 1;
 };
 
