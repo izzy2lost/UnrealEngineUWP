@@ -288,6 +288,13 @@ public class ModifyStageContext
 		}
 	}
 
+	private void AddCookedUFSFilesToList(List<FileReference> FileList, string Extension, DeploymentContext SC)
+	{
+		// look in SC and UFSFiles
+		FileList.AddRange(SC.FilesToStage.UFSFiles.Keys.Where(x => x.Name.EndsWith(Extension, StringComparison.OrdinalIgnoreCase)).Select(y => DeploymentContext.UnmakeRelativeStagedReference(SC, y)));
+		FileList.AddRange(UFSFilesToStage.Where(x => x.FullName.EndsWith(Extension, StringComparison.InvariantCultureIgnoreCase)));
+	}
+
 	private void AddUFSFilesToList(List<FileReference> FileList, string Extension, DeploymentContext SC)
 	{
 		// look in SC and UFSFiles
@@ -310,8 +317,8 @@ public class ModifyStageContext
 		}
 		else if (CookedMapMode == "uncooked")
 		{
-			// remove maps from SC and Context (SC has path to the cooked map, so we have to come back from Staged refernece that doesn't have the Cooked dir in it)
-			AddUFSFilesToList(FilesToUncook, ".umap", SC);
+			// remove maps from SC and Context (SC has path to the cooked map, so we have to come back from Staged reference that doesn't have the Cooked dir in it)
+			AddCookedUFSFilesToList(FilesToUncook, ".umap", SC);
 		}
 		else if (CookedMapMode == "none")
 		{
