@@ -459,6 +459,9 @@ public:
 	/** Determines if a plugin is in the Loaded state (or beyond) */
 	bool IsGameFeaturePluginLoaded(const FString& PluginURL) const;
 
+	/** Was this game feature plugin loaded using the LoadBuiltInGameFeaturePlugin path */
+	bool WasGameFeaturePluginLoadedAsBuiltIn(const FString& PluginURL) const;
+
 	/** Loads a single game feature plugin. */
 	void LoadGameFeaturePlugin(const FString& PluginURL, const FGameFeaturePluginLoadComplete& CompleteDelegate);
 	void LoadGameFeaturePlugin(const FString& PluginURL, const FGameFeatureProtocolOptions& ProtocolOptions, const FGameFeaturePluginLoadComplete& CompleteDelegate);

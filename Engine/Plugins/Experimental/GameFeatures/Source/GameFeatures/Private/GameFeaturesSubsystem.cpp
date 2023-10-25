@@ -917,6 +917,15 @@ bool UGameFeaturesSubsystem::IsGameFeaturePluginLoaded(const FString& PluginURL)
 	return false;
 }
 
+bool UGameFeaturesSubsystem::WasGameFeaturePluginLoadedAsBuiltIn(const FString& PluginURL) const
+{
+	if (const UGameFeaturePluginStateMachine* StateMachine = FindGameFeaturePluginStateMachine(PluginURL))
+	{
+		return StateMachine->WasLoadedAsBuiltIn();
+	}
+	return false;
+}
+
 void UGameFeaturesSubsystem::LoadGameFeaturePlugin(const FString& PluginURL, const FGameFeaturePluginLoadComplete& CompleteDelegate)
 {
 	LoadGameFeaturePlugin(PluginURL, FGameFeatureProtocolOptions(), CompleteDelegate);
@@ -1473,6 +1482,8 @@ void UGameFeaturesSubsystem::LoadBuiltInGameFeaturePlugin(const TSharedRef<IPlug
 					InitialAutoState = EBuiltInAutoState::Registered;
 				}
 				const EGameFeaturePluginState DestinationState = ConvertInitialFeatureStateToTargetState(InitialAutoState);
+
+				StateMachine->SetWasLoadedAsBuiltIn();
 
 				// If we're already at the destination or beyond, don't transition back
 				FGameFeaturePluginStateRange Destination(DestinationState, EGameFeaturePluginState::Active);

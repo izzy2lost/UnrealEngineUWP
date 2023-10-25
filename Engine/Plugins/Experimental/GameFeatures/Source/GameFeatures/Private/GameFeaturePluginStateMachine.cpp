@@ -3357,6 +3357,16 @@ bool UGameFeaturePluginStateMachine::AllowAsyncLoading() const
 	return StateProperties.AllowAsyncLoading();
 }
 
+void UGameFeaturePluginStateMachine::SetWasLoadedAsBuiltIn()
+{
+	StateProperties.bWasLoadedAsBuiltInGameFeaturePlugin = true;
+}
+
+bool UGameFeaturePluginStateMachine::WasLoadedAsBuiltIn() const
+{
+	return StateProperties.bWasLoadedAsBuiltInGameFeaturePlugin;
+}
+
 UGameFeatureData* UGameFeaturePluginStateMachine::GetGameFeatureDataForActivePlugin()
 {
 	if (GetCurrentState() == EGameFeaturePluginState::Active)

@@ -289,6 +289,9 @@ struct FGameFeaturePluginStateMachineProperties
 	/** Tracks whether or not this state machine added the plugin to the plugin manager. */
 	bool bAddedPluginToManager = false;
 
+	/** Was this plugin loaded using LoadBuiltInGameFeaturePlugin */
+	bool bWasLoadedAsBuiltInGameFeaturePlugin = false;
+
 	/** Whether this state machine should attempt to cancel the current transition */
 	bool bTryCancel = false;
 
@@ -528,6 +531,10 @@ public:
 
 	/** Whether this machine is allowed to be asynchronous */
 	bool AllowAsyncLoading() const;
+
+	void SetWasLoadedAsBuiltIn();
+
+	bool WasLoadedAsBuiltIn() const;
 
 	/** If the plugin is activated already, we will retrieve its game feature data */
 	UGameFeatureData* GetGameFeatureDataForActivePlugin();
