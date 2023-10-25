@@ -246,7 +246,8 @@ void UCustomizableObjectInstance::BindPostCompileDelegate(UCustomizableObject* I
 	}
 
 	// Bind callback to the new CO
-	if (InCustomizableObject)
+	if (InCustomizableObject &&
+		!InCustomizableObject->PostCompileDelegate.IsBoundToObject(GetPrivate()))
 	{
 		InCustomizableObject->PostCompileDelegate.AddUObject(GetPrivate(), &UCustomizableInstancePrivateData::OnPostCompile);
 	}
