@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
@@ -58,6 +59,12 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 
 		/// <inheritdoc/>
 		public override ValueTask FlushAsync(CancellationToken cancellationToken = default) => new ValueTask();
+
+		/// <inheritdoc/>
+		public override bool Equals(object? obj) => obj is FlushedNodeHandle other && BundleLocator == other.BundleLocator && ExportIdx == other.ExportIdx;
+
+		/// <inheritdoc/>
+		public override int GetHashCode() => HashCode.Combine(BundleLocator, ExportIdx);
 	}
 
 	/// <summary>
@@ -164,6 +171,12 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 					await pendingBundle.FlushAsync(cancellationToken);
 				}
 			}
+
+			/// <inheritdoc/>
+			public override bool Equals(object? obj) => ReferenceEquals(this, obj);
+
+			/// <inheritdoc/>
+			public override int GetHashCode() => RuntimeHelpers.GetHashCode(this);
 		}
 
 		// Information about a bundle being built. Metadata operations are synchronous, compression/writes are asynchronous.

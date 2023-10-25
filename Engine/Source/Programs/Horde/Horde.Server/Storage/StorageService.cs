@@ -99,6 +99,12 @@ namespace Horde.Server.Storage
 				locator = new BlobLocator(_path);
 				return true;
 			}
+
+			/// <inheritdoc/>
+			public override bool Equals(object? obj) => obj is LeafBlobHandle other && String.Equals(_path, other._path, StringComparison.Ordinal);
+
+			/// <inheritdoc/>
+			public override int GetHashCode() => _path.GetHashCode(StringComparison.Ordinal);
 		}
 
 		sealed class StorageClientImpl : IStorageClient

@@ -26,13 +26,21 @@ namespace EpicGames.Horde.Storage.Clients
 				_locator = locator;
 			}
 
+			/// <inheritdoc/>
 			public override ValueTask<BlobData> ReadAsync(CancellationToken cancellationToken = default) => _outer.ReadBlobAsync(_locator, cancellationToken);
 
+			/// <inheritdoc/>
 			public override bool TryGetLocator([NotNullWhen(true)] out BlobLocator locator)
 			{
 				locator = _locator;
 				return true;
 			}
+
+			/// <inheritdoc/>
+			public override bool Equals(object? obj) => obj is Handle other && _locator == other._locator;
+
+			/// <inheritdoc/>
+			public override int GetHashCode() => _locator.GetHashCode();
 		}
 
 		/// <inheritdoc/>

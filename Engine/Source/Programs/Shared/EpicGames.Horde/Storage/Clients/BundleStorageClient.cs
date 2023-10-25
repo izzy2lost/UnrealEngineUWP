@@ -78,6 +78,12 @@ namespace EpicGames.Horde.Storage.Clients
 				locator = _locator;
 				return true;
 			}
+
+			/// <inheritdoc/>
+			public override bool Equals(object? obj) => obj is BundleHandle other && _locator == other._locator;
+
+			/// <inheritdoc/>
+			public override int GetHashCode() => _locator.GetHashCode();
 		}
 
 		readonly IStorageClient _inner;

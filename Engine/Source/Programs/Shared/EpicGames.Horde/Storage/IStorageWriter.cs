@@ -178,6 +178,7 @@ namespace EpicGames.Horde.Storage
 				}
 			}
 
+			/// <inheritdoc/>
 			public override ValueTask FlushAsync(CancellationToken cancellationToken)
 			{
 				if (_inner == null)
@@ -190,6 +191,7 @@ namespace EpicGames.Horde.Storage
 				}
 			}
 
+			/// <inheritdoc/>
 			public override ValueTask<BlobData> ReadAsync(CancellationToken cancellationToken = default)
 			{
 				if (_inner == null)
@@ -201,6 +203,12 @@ namespace EpicGames.Horde.Storage
 					return _inner.ReadAsync(cancellationToken);
 				}
 			}
+
+			/// <inheritdoc/>
+			public override bool Equals(object? obj) => _inner is not null && obj is WrappedHandle other && _inner == other._inner;
+
+			/// <inheritdoc/>
+			public override int GetHashCode() => HashCode.Combine((_inner is null) ? 0 : _inner.GetHashCode(), 1);
 		}
 
 		/// <summary>

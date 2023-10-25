@@ -25,6 +25,9 @@ namespace EpicGames.Horde.Tests
 				locator = _locator;
 				return true;
 			}
+
+			public override bool Equals(object? obj) => obj is DummyHandle other && _locator == other._locator;
+			public override int GetHashCode() => _locator.GetHashCode();
 		}
 
 		[TestMethod]
