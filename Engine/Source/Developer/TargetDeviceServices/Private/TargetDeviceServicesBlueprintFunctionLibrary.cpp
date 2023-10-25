@@ -59,9 +59,7 @@ TMap<FString, FDeviceSnapshots> UTargetDeviceServicesBlueprintFunctionLibrary::G
 				FDeviceSnapshots* DeviceSnapshotsOfCurrentDeviceTypePtr = Snapshots.Find(DefaultDeviceType);
 				if (nullptr == DeviceSnapshotsOfCurrentDeviceTypePtr)
 				{
-					// Initializer list constructor call
-					TArray<FDeviceSnapshot> Entries{MoveTemp(DeviceSnapshot)};
-					Snapshots.Emplace(DefaultDeviceType, MoveTemp(Entries));
+					Snapshots.Emplace(DefaultDeviceType, FDeviceSnapshots{TArray<FDeviceSnapshot>{MoveTemp(DeviceSnapshot)}});
 				}
 				else
 				{
