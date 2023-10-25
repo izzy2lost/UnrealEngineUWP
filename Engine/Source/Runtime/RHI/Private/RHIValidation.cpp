@@ -761,8 +761,6 @@ static FString GetBreadcrumbPath()
 // FlushType: Thread safe
 void FValidationRHI::RHIBindDebugLabelName(FRHICommandListBase& RHICmdList, FRHITexture* Texture, const TCHAR* Name)
 {
-	check(IsInRenderingThread());
-
 	FString NameCopyRT = Name;
 	RHICmdList.EnqueueLambda([Texture, NameCopyRHIT = MoveTemp(NameCopyRT)](FRHICommandListBase& RHICmdList)
 	{
@@ -774,8 +772,6 @@ void FValidationRHI::RHIBindDebugLabelName(FRHICommandListBase& RHICmdList, FRHI
 
 void FValidationRHI::RHIBindDebugLabelName(FRHICommandListBase& RHICmdList, FRHIBuffer* Buffer, const TCHAR* Name)
 {
-	check(IsInRenderingThread());
-
 	FString NameCopyRT = Name;
 	RHICmdList.EnqueueLambda([Buffer, NameCopyRHIT = MoveTemp(NameCopyRT)](FRHICommandListBase& RHICmdList)
 	{
