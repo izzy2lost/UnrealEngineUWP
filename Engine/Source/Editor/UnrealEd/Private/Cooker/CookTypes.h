@@ -7,6 +7,7 @@
 #include "Containers/Set.h"
 #include "Containers/UnrealString.h"
 #include "Cooker/CookProfiling.h"
+#include "Cooker/MPCollector.h"
 #include "CookOnTheSide/CookOnTheFlyServer.h" // ECookTickFlags
 #include "DerivedDataRequestOwner.h"
 #include "HAL/LowLevelMemTracker.h"
@@ -16,6 +17,7 @@
 #include "Misc/AssertionMacros.h"
 #include "Serialization/PackageWriter.h"
 #include "Templates/Function.h"
+#include "UObject/CookEnums.h"
 #include "UObject/NameTypes.h"
 #include "UObject/SavePackage.h"
 
@@ -104,23 +106,6 @@ namespace UE::Cook
 		None,
 		Callback,
 		Cook
-	};
-
-	/* The Result of a Cook */
-	enum class ECookResult : uint8
-	{
-		/* CookResults have not yet been set */
-		NotAttempted,
-		/* The package was saved with success. */
-		Succeeded,
-		/* The package was processed but SavePackage failed. */
-		Failed,
-		/** The package is a NeverCook package that needs to be added to cookresults for dependency tracking. */
-		NeverCookPlaceholder,
-		/** No information for this platform (used in CookWorker replication) */
-		Invalid,
-		Count,
-		NumBits= FPlatformMath::ConstExprCeilLogTwo(ECookResult::Count),
 	};
 
 	/** Return type for functions called reentrantly that can succeed,fail,or be incomplete */
@@ -362,40 +347,6 @@ namespace UE::Cook
 
 		friend FCbWriter& ::operator<<(FCbWriter& Writer, const UE::Cook::FBeginCookConfigSettings& Value);
 		friend bool ::LoadFromCompactBinary(FCbFieldView Field, UE::Cook::FBeginCookConfigSettings& Value);
-	};
-
-	/**
-	 *  Identifier for a CookWorker process launched from a Director process, or for the local process.
-	 *  A director can have multiple CookWorkers.
-	 */
-	struct FWorkerId
-	{
-	public:
-		FWorkerId() { Id = InvalidId; }
-		constexpr static FWorkerId Invalid() { return FWorkerId(InvalidId); }
-		constexpr static FWorkerId Local() { return FWorkerId(LocalId); }
-		static FWorkerId FromRemoteIndex(uint8 Index) { check(Index < InvalidId-1U);  return FWorkerId(Index + 1U); }
-		static FWorkerId FromLocalOrRemoteIndex(uint8 Index) { check(Index < InvalidId);  return FWorkerId(Index); }
-
-		bool IsValid() const { return Id != InvalidId; }
-		bool IsInvalid() const { return Id == InvalidId; }
-		bool IsLocal() const { return Id == LocalId; }
-		bool IsRemote() const { return Id != InvalidId && Id != LocalId; }
-		uint8 GetRemoteIndex() const { check(IsRemote()); return Id - 1U; }
-		uint8 GetLocalOrRemoteIndex() const { check(IsValid()); return Id; }
-		bool operator==(const FWorkerId& Other) const { return Id == Other.Id; }
-		bool operator!=(const FWorkerId& Other) const { return Id != Other.Id; }
-		bool operator<(const FWorkerId& Other) const { return Id < Other.Id; }
-		inline friend int32 GetTypeHash(const FWorkerId& WorkerId) { return WorkerId.Id; }
-
-	private:
-		constexpr explicit FWorkerId(uint8 InId) : Id(InId) {}
-
-	private:
-		uint8 Id;
-
-		constexpr static uint8 InvalidId = 255;
-		constexpr static uint8 LocalId = 0;
 	};
 
 	/** Report whether commandline/config has disabled use of timeouts throughout the cooker, useful for debugging. */

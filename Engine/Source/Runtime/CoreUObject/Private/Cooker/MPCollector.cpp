@@ -1,8 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "CookMPCollector.h"
+#include "Cooker/MPCollector.h"
 
-#include "Serialization/CompactBinary.h"
+#if WITH_EDITOR
 
 namespace UE::Cook
 {
@@ -93,4 +93,6 @@ const ITargetPlatform* FMPCollectorServerMessageContext::IntToPlatform(uint8 Pla
 	return IntToPlatformImpl(PlatformAsInt, Platforms);
 }
 
-}
+} // namespace UE::Cook
+
+#endif // WITH_EDITOR

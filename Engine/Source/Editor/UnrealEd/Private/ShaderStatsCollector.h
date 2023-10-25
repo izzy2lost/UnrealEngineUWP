@@ -2,7 +2,8 @@
 
 #pragma once
 
-#include "Cooker/CookMPCollector.h"
+#include "Cooker/MPCollector.h"
+#include "ShaderCompiler.h"
 #include "TickableEditorObject.h"
 
 class FShaderStatsAggregator : public UE::Cook::IMPCollector{

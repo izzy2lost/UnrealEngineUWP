@@ -4,9 +4,9 @@
 
 #include "CompactBinaryTCP.h"
 #include "Containers/Array.h"
-#include "CookMPCollector.h"
+#include "Cooker/CookTypes.h"
+#include "Cooker/MPCollector.h"
 #include "CookOnTheSide/CookOnTheFlyServer.h"
-#include "CookTypes.h"
 #include "HAL/CriticalSection.h"
 #include "IPAddress.h"
 #include "Misc/Guid.h"

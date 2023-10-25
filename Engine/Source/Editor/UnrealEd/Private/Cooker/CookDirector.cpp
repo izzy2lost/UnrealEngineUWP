@@ -4,10 +4,9 @@
 
 #include "Async/Fundamental/Scheduler.h"
 #include "CompactBinaryTCP.h"
-#include "CookMPCollector.h"
-#include "CookPackageData.h"
-#include "CookPlatformManager.h"
-#include "CookWorkerServer.h"
+#include "Cooker/CookPackageData.h"
+#include "Cooker/CookPlatformManager.h"
+#include "Cooker/CookWorkerServer.h"
 #include "CookOnTheSide/CookOnTheFlyServer.h"
 #include "CoreGlobals.h"
 #include "GenericPlatform/GenericPlatformOutputDevices.h"

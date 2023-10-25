@@ -2,14 +2,19 @@
 
 #pragma once
 
+#if WITH_EDITOR
 #include "Async/Future.h"
 #include "Containers/Array.h"
 #include "Containers/ArrayView.h"
-#include "Cooker/CookTypes.h"
 #include "HAL/Platform.h"
 #include "Misc/Guid.h"
+#include "Serialization/CompactBinary.h"
 #include "Templates/Function.h"
 #include "Templates/RefCounting.h"
+#include "UObject/CookEnums.h"
+#endif
+
+#if WITH_EDITOR
 
 class FCbObject;
 class FCbObjectView;
@@ -22,16 +27,50 @@ namespace UE::Cook { class FCookWorkerServer; }
 namespace UE::Cook
 {
 
+/**
+ *  Identifier for a CookWorker process launched from a Director process, or for the local process.
+ *  A director can have multiple CookWorkers.
+ */
+struct FWorkerId
+{
+public:
+	FWorkerId() { Id = InvalidId; }
+	constexpr static FWorkerId Invalid() { return FWorkerId(InvalidId); }
+	constexpr static FWorkerId Local() { return FWorkerId(LocalId); }
+	static FWorkerId FromRemoteIndex(uint8 Index) { check(Index < InvalidId - 1U);  return FWorkerId(Index + 1U); }
+	static FWorkerId FromLocalOrRemoteIndex(uint8 Index) { check(Index < InvalidId);  return FWorkerId(Index); }
+
+	bool IsValid() const { return Id != InvalidId; }
+	bool IsInvalid() const { return Id == InvalidId; }
+	bool IsLocal() const { return Id == LocalId; }
+	bool IsRemote() const { return Id != InvalidId && Id != LocalId; }
+	uint8 GetRemoteIndex() const { check(IsRemote()); return Id - 1U; }
+	uint8 GetLocalOrRemoteIndex() const { check(IsValid()); return Id; }
+	bool operator==(const FWorkerId& Other) const { return Id == Other.Id; }
+	bool operator!=(const FWorkerId& Other) const { return Id != Other.Id; }
+	bool operator<(const FWorkerId& Other) const { return Id < Other.Id; }
+	inline friend int32 GetTypeHash(const FWorkerId& WorkerId) { return WorkerId.Id; }
+
+private:
+	constexpr explicit FWorkerId(uint8 InId) : Id(InId) {}
+
+private:
+	uint8 Id;
+
+	constexpr static uint8 InvalidId = 255;
+	constexpr static uint8 LocalId = 0;
+};
+
 class FMPCollectorClientTickContext
 {
 public:
 	TConstArrayView<const ITargetPlatform*> GetPlatforms() const { return Platforms; }
 	bool IsFlush()  const { return bFlush; }
 
-	void AddMessage(FCbObject Object);
+	COREUOBJECT_API void AddMessage(FCbObject Object);
 
-	uint8 PlatformToInt(const ITargetPlatform* Platform) const;
-	const ITargetPlatform* IntToPlatform(uint8 PlatformAsInt) const;
+	COREUOBJECT_API uint8 PlatformToInt(const ITargetPlatform* Platform) const;
+	COREUOBJECT_API const ITargetPlatform* IntToPlatform(uint8 PlatformAsInt) const;
 
 private:
 	TConstArrayView<const ITargetPlatform*> Platforms;
@@ -53,13 +92,13 @@ public:
 	TConstArrayView<FPlatformData> GetPlatformDatas() const { return PlatformDatas; }
 	FName GetPackageName() const { return PackageName; }
 
-	void AddMessage(FCbObject Object);
-	void AddAsyncMessage(TFuture<FCbObject>&& ObjectFuture);
-	void AddPlatformMessage(const ITargetPlatform* Platform, FCbObject Object);
-	void AddAsyncPlatformMessage(const ITargetPlatform* Platform, TFuture<FCbObject>&& ObjectFuture);
+	COREUOBJECT_API void AddMessage(FCbObject Object);
+	COREUOBJECT_API void AddAsyncMessage(TFuture<FCbObject>&& ObjectFuture);
+	COREUOBJECT_API void AddPlatformMessage(const ITargetPlatform* Platform, FCbObject Object);
+	COREUOBJECT_API void AddAsyncPlatformMessage(const ITargetPlatform* Platform, TFuture<FCbObject>&& ObjectFuture);
 
-	uint8 PlatformToInt(const ITargetPlatform* Platform) const;
-	const ITargetPlatform* IntToPlatform(uint8 PlatformAsInt) const;
+	COREUOBJECT_API uint8 PlatformToInt(const ITargetPlatform* Platform) const;
+	COREUOBJECT_API const ITargetPlatform* IntToPlatform(uint8 PlatformAsInt) const;
 
 private:
 	TArray<TPair<const ITargetPlatform*, FCbObject>> Messages;
@@ -76,8 +115,8 @@ class FMPCollectorClientMessageContext
 public:
 	TConstArrayView<const ITargetPlatform*> GetPlatforms() { return Platforms; }
 
-	uint8 PlatformToInt(const ITargetPlatform* Platform) const;
-	const ITargetPlatform* IntToPlatform(uint8 PlatformAsInt) const;
+	COREUOBJECT_API uint8 PlatformToInt(const ITargetPlatform* Platform) const;
+	COREUOBJECT_API const ITargetPlatform* IntToPlatform(uint8 PlatformAsInt) const;
 
 private:
 	TConstArrayView<const ITargetPlatform*> Platforms;
@@ -90,8 +129,8 @@ class FMPCollectorServerMessageContext
 public:
 	TConstArrayView<const ITargetPlatform*> GetPlatforms() { return Platforms; }
 
-	uint8 PlatformToInt(const ITargetPlatform* Platform) const;
-	const ITargetPlatform* IntToPlatform(uint8 PlatformAsInt) const;
+	COREUOBJECT_API uint8 PlatformToInt(const ITargetPlatform* Platform) const;
+	COREUOBJECT_API const ITargetPlatform* IntToPlatform(uint8 PlatformAsInt) const;
 	FWorkerId GetWorkerId() const { return WorkerId; }
 	int32 GetProfileId() const { return ProfileId; }
 	FCookWorkerServer* GetCookWorkerServer() { return Server; }
@@ -233,4 +272,6 @@ private:
 	TUniqueFunction<void(FMPCollectorServerMessageContext& Context, bool bReadSuccessful, MessageType&& Message)> Callback;
 };
 
-}
+} // namespace UE::Cook
+
+#endif // WITH_EDITOR

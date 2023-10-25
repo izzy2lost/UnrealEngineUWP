@@ -8,7 +8,7 @@
 #include "Containers/Map.h"
 #include "Containers/Set.h"
 #include "Containers/UnrealString.h"
-#include "Cooker/CookMPCollector.h"
+#include "Cooker/MPCollector.h"
 #include "Misc/AssetRegistryInterface.h"
 #include "Misc/Optional.h"
 #include "Templates/SharedPointer.h"
@@ -22,9 +22,11 @@ class IAssetRegistry;
 class ITargetPlatform;
 class IChunkDataGenerator;
 class UChunkDependencyInfo;
+class UCookOnTheFlyServer;
 struct FChunkDependencyTreeNode;
 struct FCookTagList;
 struct FSoftObjectPath;
+namespace UE::Cook { class FAssetRegistryMPCollector; }
 namespace UE::Cook { class FAssetRegistryPackageMessage; }
 namespace UE::Cook { class FCookSandbox; }
 namespace UE::Cook { class FCookWorkerClient; }
