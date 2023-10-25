@@ -912,6 +912,11 @@ void UClusterUnionComponent::SyncClusterUnionFromProxy()
 	{
 		OnComponentBoundsChangedEvent.Broadcast(this, CachedLocalBounds);
 	}
+
+	if (OnClusterUnionPostSyncBodiesEvent.IsBound())
+	{
+		OnClusterUnionPostSyncBodiesEvent.Broadcast({ this,GetPrimitiveComponents() });
+	}
 }
 
 void UClusterUnionComponent::HandleAddOrModifiedClusteredComponent(UPrimitiveComponent* ChangedComponent, const TMap<int32, FTransform>& PerBoneChildToParent)

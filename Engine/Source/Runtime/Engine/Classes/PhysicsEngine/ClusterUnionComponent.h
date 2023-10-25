@@ -93,6 +93,18 @@ struct FClusterUnionPendingAddData
 	TArray<FExternalSpatialAccelerationPayload> AccelerationPayloads;
 };
 
+USTRUCT()
+struct FClusterUnionInitializationData
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	TObjectPtr<UClusterUnionComponent> ClusterUnionComponent;
+
+	UPROPERTY()
+	TArray<UPrimitiveComponent*> ProcessedComponents;
+};
+
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnClusterUnionAddedComponent, UPrimitiveComponent*, Component, const TSet<int32>&, BoneIds, bool, bIsNew);
 DECLARE_MULTICAST_DELEGATE_ThreeParams(FOnClusterUnionAddedComponentNative, UPrimitiveComponent*, const TSet<int32>& /*BoneIds*/, bool /*bIsNew*/);
 
@@ -100,6 +112,8 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnClusterUnionRemovedComponent, UPr
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnClusterUnionRemovedComponentNative, UPrimitiveComponent*);
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnClusterUnionBoundsChanged, UClusterUnionComponent*, Component, const FBoxSphereBounds&, Bounds);
+
+DECLARE_MULTICAST_DELEGATE_OneParam(FOnClusterUnionPostSyncBodies, const FClusterUnionInitializationData&);
 
 /**
  * This does the bulk of the work exposing a physics cluster union to the game thread.
@@ -179,6 +193,7 @@ public:
 	// native (fast, low overhead) versions 
 	FOnClusterUnionAddedComponentNative OnComponentAddedNativeEvent;
 	FOnClusterUnionRemovedComponentNative OnComponentRemovedNativeEvent;
+	FOnClusterUnionPostSyncBodies OnClusterUnionPostSyncBodiesEvent;
 
 	// Lambda returns whether or not iteration should continue;
 	ENGINE_API void VisitAllCurrentChildComponents(const TFunction<bool(UPrimitiveComponent*)>& Lambda) const;
@@ -220,6 +235,11 @@ protected:
 	// it's possible to get a different list of physics objects when we get to removal). A
 	// side benefit here is being able to track which components are clustered.
 	TMap<TObjectKey<UPrimitiveComponent>, FClusteredComponentData> PerComponentData;
+
+
+	// Whether or not this code is running on the server.
+	UFUNCTION()
+	ENGINE_API bool IsAuthority() const;
 
 private:
 	// These are the statically clustered components. These should
@@ -291,10 +311,6 @@ private:
 	ENGINE_API TArray<UPrimitiveComponent*> GetAllCurrentChildComponents() const;
 	ENGINE_API TArray<AActor*> GetAllCurrentActors() const;
 	ENGINE_API void VisitAllCurrentChildComponentsForCollision(ECollisionChannel TraceChannel, const struct FCollisionQueryParams& Params, const struct FCollisionResponseParams& ResponseParams, const struct FCollisionObjectQueryParams& ObjectParams, const TFunction<bool(UPrimitiveComponent*)>& Lambda) const;
-
-	// Whether or not this code is running on the server.
-	UFUNCTION()
-	ENGINE_API bool IsAuthority() const;
 
 	// Merge all the physics objects geometries into the cluster union
 	ENGINE_API void AddGTParticleGeometry(const TArray<Chaos::FPhysicsObjectHandle>& PhysicsObjects);
