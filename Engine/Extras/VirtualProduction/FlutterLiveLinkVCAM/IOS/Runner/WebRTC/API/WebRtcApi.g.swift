@@ -67,6 +67,40 @@ enum RtcMediaStreamTrackKind: Int {
   case video = 1
 }
 
+/// State of an [RtcDataChannel].
+enum RtcDataChannelState: Int {
+  case connecting = 0
+  case open = 1
+  case closing = 2
+  case closed = 3
+}
+
+/// A buffer passed from/to WebRTC, which may contain either binary or text data.
+///
+/// Generated class from Pigeon that represents data sent in messages.
+struct RtcDataBuffer {
+  /// The binary data contained in the buffer.
+  var data: FlutterStandardTypedData
+  /// True if the buffer contains binary data; otherwise, it contains UTF-8 text.
+  var bIsBinary: Bool
+
+  static func fromList(_ list: [Any?]) -> RtcDataBuffer? {
+    let data = list[0] as! FlutterStandardTypedData
+    let bIsBinary = list[1] as! Bool
+
+    return RtcDataBuffer(
+      data: data,
+      bIsBinary: bIsBinary
+    )
+  }
+  func toList() -> [Any?] {
+    return [
+      data,
+      bIsBinary,
+    ]
+  }
+}
+
 /// Describes the configuration of one end of a peer-to-peer WebRtc connection.
 ///
 /// Generated class from Pigeon that represents data sent in messages.
@@ -408,11 +442,150 @@ class RtcPeerConnectionFlutterApi {
       completion()
     }
   }
-  /// Called when a MediaStreamTrack with the given [trackId] and [kind] is added to the PeerConnection with the given
+  /// Called when a MediaStreamTrack (described in [event]) is added to the PeerConnection with the given
   /// [connectionId].
   func onTrack(connectionId connectionIdArg: Int64, event eventArg: RtcTrackEvent, completion: @escaping () -> Void) {
     let channel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.live_link_vcam.RtcPeerConnectionFlutterApi.onTrack", binaryMessenger: binaryMessenger, codec: codec)
     channel.sendMessage([connectionIdArg, eventArg] as [Any?]) { _ in
+      completion()
+    }
+  }
+  /// Called when a DataChannel with the given [dataChannelId] is added to the PeerConnection with the given
+  /// [connectionId].
+  func onDataChannel(connectionId connectionIdArg: Int64, dataChannelId dataChannelIdArg: Int64, completion: @escaping () -> Void) {
+    let channel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.live_link_vcam.RtcPeerConnectionFlutterApi.onDataChannel", binaryMessenger: binaryMessenger, codec: codec)
+    channel.sendMessage([connectionIdArg, dataChannelIdArg] as [Any?]) { _ in
+      completion()
+    }
+  }
+}
+private class RtcDataChannelHostApiCodecReader: FlutterStandardReader {
+  override func readValue(ofType type: UInt8) -> Any? {
+    switch type {
+      case 128:
+        return RtcDataBuffer.fromList(self.readValue() as! [Any?])
+      default:
+        return super.readValue(ofType: type)
+    }
+  }
+}
+
+private class RtcDataChannelHostApiCodecWriter: FlutterStandardWriter {
+  override func writeValue(_ value: Any) {
+    if let value = value as? RtcDataBuffer {
+      super.writeByte(128)
+      super.writeValue(value.toList())
+    } else {
+      super.writeValue(value)
+    }
+  }
+}
+
+private class RtcDataChannelHostApiCodecReaderWriter: FlutterStandardReaderWriter {
+  override func reader(with data: Data) -> FlutterStandardReader {
+    return RtcDataChannelHostApiCodecReader(data: data)
+  }
+
+  override func writer(with data: NSMutableData) -> FlutterStandardWriter {
+    return RtcDataChannelHostApiCodecWriter(data: data)
+  }
+}
+
+class RtcDataChannelHostApiCodec: FlutterStandardMessageCodec {
+  static let shared = RtcDataChannelHostApiCodec(readerWriter: RtcDataChannelHostApiCodecReaderWriter())
+}
+
+/// API that receives messages about RtcDataChannel instances in the host language.
+///
+/// Generated protocol from Pigeon that represents a handler of messages from Flutter.
+protocol RtcDataChannelHostApi {
+  /// Send a message contained in [buffer] on the data channel with the given [dataChannelId].
+  func sendMessage(dataChannelId: Int64, buffer: RtcDataBuffer) throws
+}
+
+/// Generated setup class from Pigeon to handle messages through the `binaryMessenger`.
+class RtcDataChannelHostApiSetup {
+  /// The codec used by RtcDataChannelHostApi.
+  static var codec: FlutterStandardMessageCodec { RtcDataChannelHostApiCodec.shared }
+  /// Sets up an instance of `RtcDataChannelHostApi` to handle messages through the `binaryMessenger`.
+  static func setUp(binaryMessenger: FlutterBinaryMessenger, api: RtcDataChannelHostApi?) {
+    /// Send a message contained in [buffer] on the data channel with the given [dataChannelId].
+    let sendMessageChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.live_link_vcam.RtcDataChannelHostApi.sendMessage", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      sendMessageChannel.setMessageHandler { message, reply in
+        let args = message as! [Any?]
+        let dataChannelIdArg = args[0] is Int64 ? args[0] as! Int64 : Int64(args[0] as! Int32)
+        let bufferArg = args[1] as! RtcDataBuffer
+        do {
+          try api.sendMessage(dataChannelId: dataChannelIdArg, buffer: bufferArg)
+          reply(wrapResult(nil))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      sendMessageChannel.setMessageHandler(nil)
+    }
+  }
+}
+private class RtcDataChannelFlutterApiCodecReader: FlutterStandardReader {
+  override func readValue(ofType type: UInt8) -> Any? {
+    switch type {
+      case 128:
+        return RtcDataBuffer.fromList(self.readValue() as! [Any?])
+      default:
+        return super.readValue(ofType: type)
+    }
+  }
+}
+
+private class RtcDataChannelFlutterApiCodecWriter: FlutterStandardWriter {
+  override func writeValue(_ value: Any) {
+    if let value = value as? RtcDataBuffer {
+      super.writeByte(128)
+      super.writeValue(value.toList())
+    } else {
+      super.writeValue(value)
+    }
+  }
+}
+
+private class RtcDataChannelFlutterApiCodecReaderWriter: FlutterStandardReaderWriter {
+  override func reader(with data: Data) -> FlutterStandardReader {
+    return RtcDataChannelFlutterApiCodecReader(data: data)
+  }
+
+  override func writer(with data: NSMutableData) -> FlutterStandardWriter {
+    return RtcDataChannelFlutterApiCodecWriter(data: data)
+  }
+}
+
+class RtcDataChannelFlutterApiCodec: FlutterStandardMessageCodec {
+  static let shared = RtcDataChannelFlutterApiCodec(readerWriter: RtcDataChannelFlutterApiCodecReaderWriter())
+}
+
+/// API that receives messages about RtcDataChannel instances in Flutter.
+///
+/// Generated class from Pigeon that represents Flutter messages that can be called from Swift.
+class RtcDataChannelFlutterApi {
+  private let binaryMessenger: FlutterBinaryMessenger
+  init(binaryMessenger: FlutterBinaryMessenger){
+    self.binaryMessenger = binaryMessenger
+  }
+  var codec: FlutterStandardMessageCodec {
+    return RtcDataChannelFlutterApiCodec.shared
+  }
+  /// Called when the [state] of the DataChannel with the given [dataChannelId] changes.
+  func onStateChanged(dataChannelId dataChannelIdArg: Int64, state stateArg: RtcDataChannelState, completion: @escaping () -> Void) {
+    let channel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.live_link_vcam.RtcDataChannelFlutterApi.onStateChanged", binaryMessenger: binaryMessenger, codec: codec)
+    channel.sendMessage([dataChannelIdArg, stateArg.rawValue] as [Any?]) { _ in
+      completion()
+    }
+  }
+  /// Called when a message contained in [buffer] is received on the data channel with the given [dataChannelId].
+  func onMessage(dataChannelId dataChannelIdArg: Int64, buffer bufferArg: RtcDataBuffer, completion: @escaping () -> Void) {
+    let channel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.live_link_vcam.RtcDataChannelFlutterApi.onMessage", binaryMessenger: binaryMessenger, codec: codec)
+    channel.sendMessage([dataChannelIdArg, bufferArg] as [Any?]) { _ in
       completion()
     }
   }

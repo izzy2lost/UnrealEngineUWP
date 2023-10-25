@@ -178,6 +178,14 @@ extension FlutterRtcPeerConnection: RTCPeerConnectionDelegate {
     }
   }
   
+  func peerConnection(_ peerConnection: RTCPeerConnection, didOpen dataChannel: RTCDataChannel) {
+    let dataChannel: FlutterRtcDataChannel = FlutterRtcDataChannelApi.instance!.register(dataChannel: dataChannel)
+    
+    api.callFlutter { flutter in
+      flutter.onDataChannel(connectionId: self.id, dataChannelId: dataChannel.id) {}
+    }
+  }
+  
   func peerConnection(_ peerConnection: RTCPeerConnection, didChange stateChanged: RTCSignalingState) {}
   func peerConnection(_ peerConnection: RTCPeerConnection, didAdd stream: RTCMediaStream) {}
   func peerConnection(_ peerConnection: RTCPeerConnection, didRemove stream: RTCMediaStream) {}
@@ -185,5 +193,4 @@ extension FlutterRtcPeerConnection: RTCPeerConnectionDelegate {
   func peerConnection(_ peerConnection: RTCPeerConnection, didChange newState: RTCIceConnectionState) {}
   func peerConnection(_ peerConnection: RTCPeerConnection, didChange newState: RTCIceGatheringState) {}
   func peerConnection(_ peerConnection: RTCPeerConnection, didRemove candidates: [RTCIceCandidate]) {}
-  func peerConnection(_ peerConnection: RTCPeerConnection, didOpen dataChannel: RTCDataChannel) {}
 }

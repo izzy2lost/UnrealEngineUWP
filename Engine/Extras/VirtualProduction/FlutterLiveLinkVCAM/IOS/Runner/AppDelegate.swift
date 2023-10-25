@@ -7,6 +7,7 @@ import WebRTC
 @UIApplicationMain
 @objc class AppDelegate: FlutterAppDelegate {
   var peerConnectionApi: FlutterRtcPeerConnectionApi?
+  var dataChannelApi: FlutterRtcDataChannelApi?
   var videoViewControllerApi: FlutterRtcVideoViewControllerApi?
   
   override func application(
@@ -31,10 +32,11 @@ import WebRTC
     )
     
     // Register Pigeon APIs
-    let controller = window?.rootViewController as! FlutterViewController
+    let binaryMessenger = (window?.rootViewController as! FlutterViewController).binaryMessenger
     
-    peerConnectionApi = FlutterRtcPeerConnectionApi(binaryMessenger: controller.binaryMessenger)
-    videoViewControllerApi = FlutterRtcVideoViewControllerApi(binaryMessenger: controller.binaryMessenger)
+    peerConnectionApi = FlutterRtcPeerConnectionApi(binaryMessenger: binaryMessenger)
+    dataChannelApi = FlutterRtcDataChannelApi(binaryMessenger: binaryMessenger)
+    videoViewControllerApi = FlutterRtcVideoViewControllerApi(binaryMessenger: binaryMessenger)
   
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }

@@ -46,3 +46,18 @@ extension RTCPeerConnectionState {
     }
   }
 }
+
+extension RTCDataChannelState {
+  /// Convert from the native WebRTC data channel state to the Flutter equivalent.
+  func toFlutter() -> RtcDataChannelState {
+    switch (self) {
+    case .connecting: return .connecting
+    case .open: return .open
+    case .closing: return .closing
+    case .closed: return.closed
+      
+    @unknown default:
+      fatalError("Unknown native data channel state state \(self)")
+    }
+  }
+}
