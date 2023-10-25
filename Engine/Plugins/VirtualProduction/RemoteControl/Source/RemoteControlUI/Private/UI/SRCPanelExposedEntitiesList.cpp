@@ -467,6 +467,8 @@ void SRCPanelExposedEntitiesList::Tick(const FGeometry& AllottedGeometry, const 
 		ProcessRefresh();
 		bRefreshRequested = false;
 	}
+
+	ExposedEntitiesNodesRefresh();
 }
 
 TSharedPtr<SRCPanelTreeNode> SRCPanelExposedEntitiesList::GetSelectedGroup() const
@@ -617,9 +619,22 @@ FText SRCPanelExposedEntitiesList::HandleEntityListHeaderLabel() const
 	return LOCTEXT("PropertiesLabel", "Properties");
 }
 
+void SRCPanelExposedEntitiesList::ExposedEntitiesNodesRefresh()
+{
+	if (bNodesRefreshRequested)
+	{
+		for (const TPair <FGuid, TSharedPtr<SRCPanelTreeNode>>& Node : FieldWidgetMap)
+		{
+			Node.Value->Refresh();
+		}
+
+		bNodesRefreshRequested = false;
+	}
+}
+
 void SRCPanelExposedEntitiesList::OnObjectPropertyChange(UObject* InObject, FPropertyChangedEvent& InChangeEvent)
 {
-	EPropertyChangeType::Type TypesNeedingRefresh = EPropertyChangeType::ArrayAdd | EPropertyChangeType::ArrayClear | EPropertyChangeType::ArrayRemove | EPropertyChangeType::ValueSet | EPropertyChangeType::Duplicate;
+	static constexpr EPropertyChangeType::Type TypesNeedingRefresh = EPropertyChangeType::ArrayAdd | EPropertyChangeType::ArrayClear | EPropertyChangeType::ArrayRemove | EPropertyChangeType::ValueSet | EPropertyChangeType::Duplicate;
 	auto IsRelevantProperty = [](FFieldClass* PropertyClass)
 	{
 		return PropertyClass && (PropertyClass == FArrayProperty::StaticClass() || PropertyClass == FSetProperty::StaticClass() || PropertyClass == FMapProperty::StaticClass());
@@ -665,10 +680,16 @@ void SRCPanelExposedEntitiesList::OnObjectPropertyChange(UObject* InObject, FPro
 				}
 			}
 		}
-
-		for (const TPair <FGuid, TSharedPtr<SRCPanelTreeNode>>& Node : FieldWidgetMap)
+		
+		bool bShouldRefreshNodes = true;
+		if (const URemoteControlSettings* Settings = GetDefault<URemoteControlSettings>())
 		{
-			Node.Value->Refresh();
+			bShouldRefreshNodes = Settings->bRefreshExposedEntitiesOnObjectPropertyUpdate;
+		}
+
+		if (bShouldRefreshNodes)
+		{
+			bNodesRefreshRequested = true;
 		}
 	}
 

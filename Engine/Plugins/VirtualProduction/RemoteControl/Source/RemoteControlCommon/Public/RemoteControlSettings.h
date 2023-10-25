@@ -378,6 +378,10 @@ public:
 	
 	UPROPERTY(Config, EditAnywhere, Category = "Remote Control Preset", DisplayName = "Default mode (e.g. Setup/Operation)")
 	FName DefaultPanelMode = TEXT("Setup");
+
+	/** Refresh all widgets in the exposed properties list when object properties are updated */
+	UPROPERTY(config, EditAnywhere, Category = "Remote Control Preset", DisplayName = "Refresh all exposed entities widgets on object properties update")
+	bool bRefreshExposedEntitiesOnObjectPropertyUpdate = true;
 	
 private:
 	UPROPERTY(config)

@@ -203,6 +203,11 @@ private:
 
 	void ProcessRefresh();
 
+	/**
+	 * If necessary, will perform a refresh of the exposed entities nodes widgets.
+	 */
+	void ExposedEntitiesNodesRefresh();
+	
 private:
 	/** Holds the Groups list view. */
 	TSharedPtr<SListView<TSharedPtr<SRCPanelTreeNode>>> GroupsListView;
@@ -262,4 +267,7 @@ private:
 	FGuid CurrentlySelectedGroup;
 
 	bool bRefreshRequested = false;
+
+	/** When true, widgets of the Exposed Entities List will be refreshed on Tick */
+	bool bNodesRefreshRequested = false;
 };
