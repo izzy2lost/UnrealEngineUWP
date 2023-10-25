@@ -199,8 +199,7 @@ UMovieSceneEntityGroupingSystem::UMovieSceneEntityGroupingSystem(const FObjectIn
 		// This isn't something we *really* need, but pretty much all use-cases we have will want
 		// to group things using bound objects and/or bound scene components, so let's run after the
 		// systems that set those up.
-		DefineImplicitPrerequisite(UMovieSceneGenericBoundObjectInstantiator::StaticClass(), GetClass());
-		DefineImplicitPrerequisite(UMovieSceneBoundSceneComponentInstantiator::StaticClass(), GetClass());
+		DefineComponentConsumer(GetClass(), BuiltInComponents->BoundObject);
 	}
 }
 
