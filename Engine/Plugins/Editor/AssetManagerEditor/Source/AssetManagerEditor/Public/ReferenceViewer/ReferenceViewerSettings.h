@@ -92,6 +92,9 @@ public:
 	bool IsCompactMode() const;
 	void SetCompactModeEnabled(bool bNewEnabled);
 
+	bool IsShowExternalReferencers() const;
+	void SetShowExternalReferencersEnabled(bool bNewEnabled);
+
 	bool IsShowPath() const;
 	void SetShowPathEnabled(bool bNewEnabled);
 
@@ -179,6 +182,10 @@ private:
 	/* Whether to show the nodes in a compact (no thumbnail) view */
 	UPROPERTY(config)
 	bool bIsCompactMode;
+
+	/* Whether to show external referencers or collapsed owner asset */
+	UPROPERTY(config)
+	bool bIsShowExternalReferencers;
 
 	/* Whether to show the package's path as a comment */
 	UPROPERTY(config)

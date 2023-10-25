@@ -538,6 +538,45 @@ void UEdGraph_ReferenceViewer::GetSortedLinks(const TArray<FAssetIdentifier>& Id
 		if (bReferencers)
 		{
 			AssetRegistry.GetReferencers(AssetId, LinksToAsset, Query.Categories, Query.Flags);
+
+			if (!Settings->IsShowExternalReferencers())
+			{
+				TSet<FName> PackageNames;
+				for (const FAssetDependency& LinkToAsset : LinksToAsset)
+				{
+					if (!LinkToAsset.AssetId.IsValue() && !LinkToAsset.AssetId.PackageName.IsNone())
+					{
+						PackageNames.Add(LinkToAsset.AssetId.PackageName);
+					}
+				}
+
+				TMap<FName, FAssetData> PackagesToAssetDataMap;
+				UE::AssetRegistry::GetAssetForPackages(PackageNames.Array(), PackagesToAssetDataMap);
+
+				TSet<FName> OuterPathNames;
+				for (int32 LinksToAssetIndex = 0; LinksToAssetIndex < LinksToAsset.Num(); LinksToAssetIndex++)
+				{
+					FAssetDependency& AssetDependency = LinksToAsset[LinksToAssetIndex];				
+					if (FAssetData* AssetData = PackagesToAssetDataMap.Find(AssetDependency.AssetId.PackageName))
+					{
+						if (FName OuterPathName = AssetData->GetOptionalOuterPathName(); !OuterPathName.IsNone())
+						{
+							if (!OuterPathNames.Contains(OuterPathName))
+							{
+								FAssetDependency OuterDependency;
+								OuterDependency.AssetId = FAssetIdentifier(*FSoftObjectPath(OuterPathName.ToString()).GetLongPackageName());
+								OuterDependency.Category = AssetDependency.Category;
+								OuterDependency.Properties = AssetDependency.Properties;
+								LinksToAsset.Add(OuterDependency);
+
+								OuterPathNames.Add(OuterPathName);
+							}
+
+							LinksToAsset.RemoveAtSwap(LinksToAssetIndex--);
+						}
+					}
+				}
+			}
 		}
 		else
 		{

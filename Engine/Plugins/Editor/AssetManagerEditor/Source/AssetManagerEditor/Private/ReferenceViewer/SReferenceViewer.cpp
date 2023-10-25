@@ -1338,6 +1338,17 @@ bool SReferenceViewer::IsCompactModeChecked() const
 	return Settings->IsCompactMode();
 }
 
+void SReferenceViewer::OnShowExternalReferencersChanged()
+{
+	Settings->SetShowExternalReferencersEnabled(!Settings->IsShowExternalReferencers());
+	RebuildGraph();
+}
+
+bool SReferenceViewer::IsShowExternalReferencersChecked() const
+{
+	return Settings->IsShowExternalReferencers();
+}
+
 void SReferenceViewer::OnShowDuplicatesChanged()
 {
 	Settings->SetShowDuplicatesEnabled(!Settings->IsShowDuplicates());
@@ -1550,6 +1561,12 @@ void SReferenceViewer::RegisterActions()
 		FCanExecuteAction(),	
 		FIsActionChecked::CreateSP(this, &SReferenceViewer::IsCompactModeChecked),
 		FIsActionButtonVisible::CreateLambda([this] { return bShowCompactMode; }));
+
+	ReferenceViewerActions->MapAction(
+		FAssetManagerEditorCommands::Get().ShowExternalReferencers,
+		FExecuteAction::CreateSP(this, &SReferenceViewer::OnShowExternalReferencersChanged),
+		FCanExecuteAction(),	
+		FIsActionChecked::CreateSP(this, &SReferenceViewer::IsShowExternalReferencersChecked));
 
 	ReferenceViewerActions->MapAction(
 		FAssetManagerEditorCommands::Get().FilterSearch,
@@ -2254,6 +2271,7 @@ TSharedRef<SWidget> SReferenceViewer::GetShowMenuContent()
 	MenuBuilder.AddMenuEntry(FAssetManagerEditorCommands::Get().ShowDuplicates);
 	MenuBuilder.AddMenuEntry(FAssetManagerEditorCommands::Get().FilterSearch);
 	MenuBuilder.AddMenuEntry(FAssetManagerEditorCommands::Get().CompactMode);
+	MenuBuilder.AddMenuEntry(FAssetManagerEditorCommands::Get().ShowExternalReferencers);
 	MenuBuilder.AddMenuEntry(FAssetManagerEditorCommands::Get().ShowCommentPath);
 	MenuBuilder.EndSection();
 

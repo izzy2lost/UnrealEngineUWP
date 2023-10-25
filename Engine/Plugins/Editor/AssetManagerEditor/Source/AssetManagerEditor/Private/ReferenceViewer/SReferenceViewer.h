@@ -147,6 +147,9 @@ private:
 	void OnCompactModeChanged();
 	bool IsCompactModeChecked() const;
 
+	void OnShowExternalReferencersChanged();
+	bool IsShowExternalReferencersChecked() const;
+
 	void OnShowDuplicatesChanged();
 	bool IsShowDuplicatesChecked() const;
 
