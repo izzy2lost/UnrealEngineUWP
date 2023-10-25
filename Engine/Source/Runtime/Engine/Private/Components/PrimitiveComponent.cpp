@@ -598,22 +598,7 @@ void UPrimitiveComponent::CreateRenderState_Concurrent(FRegisterComponentContext
 		}
 	}
 
-	// Components are either registered as static or dynamic in the streaming manager.
-	// Static components are registered in batches the first frame the level becomes visible (or incrementally each frame when loaded but not yet visible). 
-	// The level static streaming data is never updated after this, and gets reused whenever the level becomes visible again (after being hidden).
-	// Dynamic components, on the other hand, are updated whenever their render states change.
-	// The following logic handles all cases where static components should fallback on the dynamic path.
-	// It is based on a design where each component must either have bHandledByStreamingManagerAsDynamic or bAttachedToStreamingManagerAsStatic set.
-	// If this is not the case, then the component has never been handled before.
-	// The bIgnoreStreamingManagerUpdate flag is used to prevent handling component that are already in the update list or that don't have streaming data.
-	if (!bIgnoreStreamingManagerUpdate && (Mobility != EComponentMobility::Static || bHandledByStreamingManagerAsDynamic || (!bAttachedToStreamingManagerAsStatic && OwnerLevelHasRegisteredStaticComponentsInStreamingManager(GetOwner()))))
-	{
-		FStreamingManagerCollection* Collection = IStreamingManager::Get_Concurrent();
-		if (Collection)
-		{
-			Collection->NotifyPrimitiveUpdated_Concurrent(this);
-		}
-	}
+	ConditionalNotifyStreamingPrimitiveUpdated_Concurrent();
 }
 
 void UPrimitiveComponent::SendRenderTransform_Concurrent()
@@ -903,6 +888,26 @@ void UPrimitiveComponent::MarkChildPrimitiveComponentRenderStateDirty()
 	}
 }
 
+
+void UPrimitiveComponent::ConditionalNotifyStreamingPrimitiveUpdated_Concurrent() const
+{
+	// Components are either registered as static or dynamic in the streaming manager.
+	// Static components are registered in batches the first frame the level becomes visible (or incrementally each frame when loaded but not yet visible). 
+	// The level static streaming data is never updated after this, and gets reused whenever the level becomes visible again (after being hidden).
+	// Dynamic components, on the other hand, are updated whenever their render states change.
+	// The following logic handles all cases where static components should fallback on the dynamic path.
+	// It is based on a design where each component must either have bHandledByStreamingManagerAsDynamic or bAttachedToStreamingManagerAsStatic set.
+	// If this is not the case, then the component has never been handled before.
+	// The bIgnoreStreamingManagerUpdate flag is used to prevent handling component that are already in the update list or that don't have streaming data.
+	if (!bIgnoreStreamingManagerUpdate && (Mobility != EComponentMobility::Static || bHandledByStreamingManagerAsDynamic || (!bAttachedToStreamingManagerAsStatic && OwnerLevelHasRegisteredStaticComponentsInStreamingManager(GetOwner()))))
+	{
+		FStreamingManagerCollection* Collection = IStreamingManager::Get_Concurrent();
+		if (Collection)
+		{
+			Collection->NotifyPrimitiveUpdated_Concurrent(this);
+		}
+	}
+}
 
 bool UPrimitiveComponent::IsWelded() const
 {

@@ -2390,6 +2390,9 @@ protected:
 
 	/**  Go through attached primitive components and call MarkRenderStateDirty */
 	ENGINE_API void MarkChildPrimitiveComponentRenderStateDirty();
+
+	/** Conditionally notify streamers that this primitive has updated its render state */
+	ENGINE_API void ConditionalNotifyStreamingPrimitiveUpdated_Concurrent() const;
 public:
 
 	//~ Begin UObject Interface.

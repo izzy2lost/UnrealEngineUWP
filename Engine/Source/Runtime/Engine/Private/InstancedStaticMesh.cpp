@@ -2171,6 +2171,10 @@ void UInstancedStaticMeshComponent::SendRenderInstanceData_Concurrent()
 		{
 			UpdateBounds();
 			GetWorld()->Scene->AddPrimitive(this);
+
+			// A scene proxy was not created during render state creation possibly due to lacking instance data.
+			// In that case, this component hasn't been added to the streamers so do it now
+			ConditionalNotifyStreamingPrimitiveUpdated_Concurrent();
 		}
 	}
 }
