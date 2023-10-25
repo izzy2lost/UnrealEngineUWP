@@ -583,7 +583,6 @@ UGeometryCollectionComponent::UGeometryCollectionComponent(const FObjectInitiali
 	, ReplicationAbandonAfterLevel(0)
 	, ReplicationMaxPositionAndVelocityCorrectionLevel(100)
 	, bInitializedRemovalDynamicAttribute(false)
-	, bRenderStateDirty(true)
 	, bEnableBoneSelection(false)
 	, ViewLevel(-1)
 	, NavmeshInvalidationTimeSliceIndex(0)
@@ -1014,6 +1013,11 @@ void UGeometryCollectionComponent::UpdateCachedBounds()
 {
 	ComponentSpaceBounds = ComputeBounds(FTransform::Identity);
 	UpdateBounds();
+}
+
+bool UGeometryCollectionComponent::ShouldCreateRenderState() const
+{
+	return !CanUseCustomRenderer();
 }
 
 void UGeometryCollectionComponent::CreateRenderState_Concurrent(FRegisterComponentContext* Context)
@@ -4180,15 +4184,17 @@ void UGeometryCollectionComponent::UpdateRenderSystemsIfNeeded(bool bDynamicColl
 			RefreshCustomRenderer();
 		}
 
-		if (SceneProxy && SceneProxy->IsNaniteMesh())
+		if (SceneProxy != nullptr)
 		{
-			FNaniteGeometryCollectionSceneProxy* NaniteProxy = static_cast<FNaniteGeometryCollectionSceneProxy*>(SceneProxy);
-			NaniteProxy->FlushGPUSceneUpdate_GameThread();
-		}
+			if (SceneProxy->IsNaniteMesh())
+			{
+				FNaniteGeometryCollectionSceneProxy* NaniteProxy = static_cast<FNaniteGeometryCollectionSceneProxy*>(SceneProxy);
+				NaniteProxy->FlushGPUSceneUpdate_GameThread();
+			}
 
-		MarkRenderTransformDirty();
-		MarkRenderDynamicDataDirty();
-		bRenderStateDirty = false;
+			MarkRenderTransformDirty();
+			MarkRenderDynamicDataDirty();
+		}
 	}
 }
 

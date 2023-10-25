@@ -583,9 +583,10 @@ public:
 	//~ End UObject Interface.
 
 	//~ Begin UActorComponent Interface.
+	GEOMETRYCOLLECTIONENGINE_API virtual bool ShouldCreateRenderState() const override;
 	GEOMETRYCOLLECTIONENGINE_API virtual void CreateRenderState_Concurrent(FRegisterComponentContext* Context) override;
 	GEOMETRYCOLLECTIONENGINE_API virtual void SendRenderDynamicData_Concurrent() override;
-	FORCEINLINE void SetRenderStateDirty() { bRenderStateDirty = true; }
+	FORCEINLINE void SetRenderStateDirty() { /* Deprecated. */ }
 	GEOMETRYCOLLECTIONENGINE_API virtual void SetCollisionObjectType(ECollisionChannel Channel) override;
 	GEOMETRYCOLLECTIONENGINE_API virtual void OnActorEnableCollisionChanged() override;
 	GEOMETRYCOLLECTIONENGINE_API virtual void BeginPlay() override;
@@ -1566,7 +1567,6 @@ private:
 	void ComputeCurrentGlobalsMatrices(TArray<FTransform3f>& OutTransforms) const;
 
 	bool bInitializedRemovalDynamicAttribute;
-	bool bRenderStateDirty;
 	bool bEnableBoneSelection;
 	int ViewLevel;
 
