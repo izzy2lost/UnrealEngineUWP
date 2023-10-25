@@ -466,6 +466,7 @@ class FGenerateSamplesCS : public FGlobalShader
 	SHADER_USE_PARAMETER_STRUCT(FGenerateSamplesCS, FGlobalShader)
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		RDG_BUFFER_ACCESS(IndirectArgs, ERHIAccess::IndirectArgs)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FStochasticShadowsParameters, StochasticShadowsParameters)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float>, RWDownsampledSceneDepth)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<uint32>, RWShadowMaskHistoryScreenCoord00)
@@ -857,6 +858,7 @@ class FShadeLightSamplesCS : public FGlobalShader
 	SHADER_USE_PARAMETER_STRUCT(FShadeLightSamplesCS, FGlobalShader)
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		RDG_BUFFER_ACCESS(IndirectArgs, ERHIAccess::IndirectArgs)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FStochasticShadowsParameters, StochasticShadowsParameters)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, RWSceneColor)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<uint>, ShadowMaskPageTable)
@@ -1271,6 +1273,7 @@ void FDeferredShadingSceneRenderer::RenderStochasticShadows(FRDGBuilder& GraphBu
 		for (int32 TileType = 0; TileType < (int32)StochasticShadows::ETileType::MAX; ++TileType)
 		{
 			FGenerateSamplesCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FGenerateSamplesCS::FParameters>();
+			PassParameters->IndirectArgs = DownsampledTileIndirectArgs;
 			PassParameters->StochasticShadowsParameters = StochasticShadowsParameters;
 			PassParameters->RWDownsampledSceneDepth = DownsampledSceneDepthUAV;
 			PassParameters->RWShadowMaskHistoryScreenCoord00 = ShadowMaskHistoryScreenCoord00UAV;
@@ -1590,6 +1593,7 @@ void FDeferredShadingSceneRenderer::RenderStochasticShadows(FRDGBuilder& GraphBu
 		for (int32 TileType = 0; TileType < (int32)StochasticShadows::ETileType::MAX; ++TileType)
 		{
 			FShadeLightSamplesCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FShadeLightSamplesCS::FParameters>();
+			PassParameters->IndirectArgs = TileIndirectArgs;
 			PassParameters->StochasticShadowsParameters = StochasticShadowsParameters;
 			PassParameters->ShadowMaskPageTable = ShadowMaskPageTable;
 			PassParameters->ShadowMaskTileAtlas = ShadowMaskTileAtlas;
