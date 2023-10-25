@@ -6,7 +6,7 @@
 
 #include "PCGEngineSettings.generated.h"
 
-UCLASS(config = Plugins, defaultconfig)
+UCLASS(config = Engine, defaultconfig)
 class PCG_API UPCGEngineSettings : public UDeveloperSettings
 {
 	GENERATED_BODY()
