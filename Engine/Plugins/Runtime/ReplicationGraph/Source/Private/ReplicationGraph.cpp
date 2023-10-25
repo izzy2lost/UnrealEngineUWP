@@ -3119,6 +3119,7 @@ void UNetReplicationGraphConnection::SetActorNotDormantOnConnection(AActor* InAc
 	{
 		Info->bDormantOnConnection = false;
 		Info->bGridSpatilization_AlreadyDormant = false;
+		Info->bForceCullDistanceToZero = false;
 		RemoveActorFromAllPrevDormantActorLists(InActor);
 	}
 }
