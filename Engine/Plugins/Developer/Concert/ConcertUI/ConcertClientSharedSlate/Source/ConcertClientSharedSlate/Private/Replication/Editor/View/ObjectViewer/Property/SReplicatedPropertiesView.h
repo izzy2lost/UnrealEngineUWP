@@ -10,12 +10,14 @@
 namespace UE::ConcertClientSharedSlate
 {
 	class FReplicatedPropertyData;
+	class SReplicationFilterBar;
 	
 	/** Displays a searchable tree view of properties (SReplicationTreeView) and decorates it with a SBasicFilterBar. */
 	class SReplicatedPropertiesView : public SCompoundWidget
 	{
-		using FFilterRef = TSharedRef<FFilterBase<TSharedPtr<FReplicatedPropertyData>>>;
 	public:
+		
+		using FFilterRef = TSharedRef<FFilterBase<TSharedPtr<FReplicatedPropertyData>>>;
 		
 		SLATE_BEGIN_ARGS(SReplicatedPropertiesView)
 		{}
@@ -52,7 +54,7 @@ namespace UE::ConcertClientSharedSlate
 		/** The tree view displaying the replicated properties */
 		TSharedPtr<SReplicationTreeView<FReplicatedPropertyData>> ReplicatedProperties;
 		/** Displays the active filters*/
-		TSharedPtr<SBasicFilterBar<TSharedPtr<FReplicatedPropertyData>>> FilterBar;
+		TSharedPtr<SReplicationFilterBar> FilterBar;
 
 		struct FBuildFilterBarResult
 		{
