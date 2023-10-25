@@ -15,15 +15,15 @@ UE_TRACE_CHANNEL_EXTERN(MutableChannel, MUTABLERUNTIME_API)
 
 
 /** Simple class that saves the time the scope is alive in the given location. */
-class FScopeTimer
+class FMutableScopeTimer
 {
 public:
-	FScopeTimer(double& InResult) : Result(InResult)
+	FMutableScopeTimer(double& InResult) : Result(InResult)
 	{
 		StartTime = FPlatformTime::Seconds();
 	}
 
-	~FScopeTimer()
+	~FMutableScopeTimer()
 	{
 		Result =  FPlatformTime::Seconds() - StartTime;
 	}
