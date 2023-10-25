@@ -104,6 +104,11 @@ namespace UE::ConcertClientSharedSlate
 		SubobjectAndPropertySection->RefreshPropertyData();
 	}
 
+	void SReplicationStreamViewer::ClearSubobjectSelection()
+	{
+		SubobjectAndPropertySection->ClearSubobjectSelection();
+	}
+
 	TSharedRef<FReplicatedObjectData> SReplicationStreamViewer::AllocateObjectData(FSoftObjectPath ObjectPath)
 	{
 		return MakeShared<FReplicatedObjectData>(MoveTemp(ObjectPath));

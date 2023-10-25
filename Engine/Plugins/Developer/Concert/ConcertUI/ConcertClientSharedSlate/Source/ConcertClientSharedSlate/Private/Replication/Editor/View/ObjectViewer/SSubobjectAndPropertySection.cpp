@@ -42,6 +42,14 @@ namespace UE::ConcertClientSharedSlate
 		}
 	}
 
+	void SSubobjectAndPropertySection::ClearSubobjectSelection() const
+	{
+		if (SubobjectView)
+		{
+			SubobjectView->ClearRootObjects();
+		}
+	}
+
 	void SSubobjectAndPropertySection::RefreshSubobjectData()
 	{
 		if (!SubobjectView)

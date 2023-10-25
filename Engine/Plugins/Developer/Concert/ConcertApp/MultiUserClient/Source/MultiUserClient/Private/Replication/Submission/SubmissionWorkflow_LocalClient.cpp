@@ -138,6 +138,7 @@ namespace UE::MultiUserClient
 		{
 			InProgressOperation->EmplaceAuthorityRequestPromise(FSubmitAuthorityChangesRequest{ EAuthoritySubmissionErrorCode::NoChange, *InProgressOperation });
 			InProgressOperation->EmplaceAuthorityResponsePromise(FSubmitAuthorityChangesResponse{ EAuthoritySubmissionErrorCode::NoChange, *InProgressOperation });
+			InProgressOperation.Reset();
 			return;
 		}
 		

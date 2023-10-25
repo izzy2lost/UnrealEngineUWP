@@ -80,6 +80,8 @@ namespace UE::ConcertClientSharedSlate
 		void RefreshSubobjectData();
 		void RefreshPropertyData();
 
+		void ClearSubobjectSelection();
+
 		/** @return Gets the root objects selected in the outliner; the subobject view chooses which of these objects (or their subobjects) end up in GetSelectedObjectShowingProperties. */
 		TArray<TSharedPtr<FReplicatedObjectData>> GetSelectedOutlinerObjects() const { return ReplicatedObjects->GetSelectedItems(); }
 		

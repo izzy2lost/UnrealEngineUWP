@@ -47,7 +47,7 @@ namespace UE::ConcertClientSharedSlate
 
 	bool FTransactionalPropertySelectionModel::MatchesContext(const FTransactionContext& InContext, const TArray<TPair<UObject*, FTransactionObjectEvent>>& TransactionObjectContexts) const
 	{
-		if (!ensure(OwningObject.IsValid()))
+		if (!OwningObject.IsValid())
 		{
 			return false;
 		}

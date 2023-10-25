@@ -114,6 +114,7 @@ namespace UE::ConcertClientSharedSlate
 
 		if (SubobjectModel->GetTopLevelObject().IsNull())
 		{
+			PathToObjectDataCache.Reset();
 			SubobjectTreeView->OnItemsChanged();
 			return;
 		}

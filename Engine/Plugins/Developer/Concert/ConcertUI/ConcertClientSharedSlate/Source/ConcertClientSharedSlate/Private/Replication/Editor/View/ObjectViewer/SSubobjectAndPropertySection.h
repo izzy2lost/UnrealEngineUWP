@@ -49,6 +49,8 @@ namespace UE::ConcertClientSharedSlate
 
 		/** If there is a subobject view, makes it select the root objects. */
 		void SelectRootObjects() const;
+		/** Clears the subobject selection */
+		void ClearSubobjectSelection() const;
 		
 		void RefreshSubobjectData();
 		void RefreshPropertyData();

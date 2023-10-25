@@ -143,6 +143,8 @@ namespace UE::ConcertSyncServer::Replication
 		const FConcertReplication_ChangeStream_Request& Request,
 		FConcertReplication_ChangeStream_Response& Response)
 	{
+		Response = {};
+		
 		const FGuid SendingClientId = ConcertSessionContext.SourceEndpointId;
 		const TSharedRef<FConcertReplicationClient>* SendingClient = Clients.Find(SendingClientId);
 		if (SendingClient && Private::ShouldAcceptRequest(Request, SendingClient->Get(), AuthorityManager.Get(), Response))
