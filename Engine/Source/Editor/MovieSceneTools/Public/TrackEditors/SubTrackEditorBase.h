@@ -273,6 +273,11 @@ TOptional<FFrameTime> TSubSectionMixin<ParentSectionClass>::GetSectionTime(FSequ
 		return TOptional<FFrameTime>();
 	}
 
+	if (!SubSectionObject.GetSequence() || !SubSectionObject.GetSequence()->GetMovieScene())
+	{
+		return TOptional<FFrameTime>();
+	}
+
 	const UMovieScene* SubSequenceMovieScene = SubSectionObject.GetSequence()->GetMovieScene();
 	const FFrameTime HintFrameTime = CurrentTime * SubSectionObject.OuterToInnerTransform();
 
