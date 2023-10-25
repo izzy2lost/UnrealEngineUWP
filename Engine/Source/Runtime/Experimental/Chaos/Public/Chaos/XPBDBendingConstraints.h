@@ -227,6 +227,26 @@ public:
 
 	const TArray<int32>& GetConstraintsPerColorStartIndex() const { return ConstraintsPerColorStartIndex; }
 
+	CHAOS_API void AddBendingResidualAndHessian(const FSolverParticles& Particles, const int32 ConstraintIndex, const int32 ConstraintIndexLocal, const FSolverReal Dt, TVec3<FSolverReal>& ParticleResidual, Chaos::PMatrix<FSolverReal, 3, 3>& ParticleHessian);
+
+	TArray<TArray<int32>> GetConstraintsArray() const
+	{
+		TArray<TArray<int32>> ConstraintsArray;
+		ConstraintsArray.SetNum(Constraints.Num());
+		for (int32 i = 0; i < Constraints.Num(); i++)
+		{
+			ConstraintsArray[i].SetNum(4);
+			for (int32 j = 0; j < 4; j++)
+			{
+				ConstraintsArray[i][j] = Constraints[i][j];
+			}
+		}
+		return ConstraintsArray;
+	}
+
+	CHAOS_API void AddInternalForceDifferential(const FSolverParticles& InParticles, const TArray<TVector<FSolverReal, 3>>& DeltaParticles, TArray<TVector<FSolverReal, 3>>& ndf);
+
+	CHAOS_API FSolverReal ComputeTotalEnergy(const FSolverParticles& InParticles, const FSolverReal ExplicitStiffness = -1.f);
 private:
 	CHAOS_API void InitColor(const FSolverParticles& InParticles);
 	CHAOS_API void ApplyHelper(FSolverParticles& Particles, const FSolverReal Dt, const int32 ConstraintIndex, const FSolverReal ExpStiffnessValue, const FSolverReal ExpBucklingValue, const FSolverReal DampingRatioValue) const;

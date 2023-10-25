@@ -471,7 +471,7 @@ void FXPBDAnisotropicBendingConstraints::ApplyHelper(FSolverParticles& Particles
 	const FSolverVec3& WarpWeftBiasBaseMultiplier = WarpWeftBiasBaseMultipliers[ConstraintIndex];
 
 	const FSolverReal BiphasicStiffnessValue = IsBuckled[ConstraintIndex] ?
-		WarpWeftBiasBaseMultiplier.Dot(ExpStiffnessValues) : WarpWeftBiasBaseMultiplier.Dot(ExpBucklingStiffnessValues);
+		WarpWeftBiasBaseMultiplier.Dot(ExpBucklingStiffnessValues): WarpWeftBiasBaseMultiplier.Dot(ExpStiffnessValues);
 
 	if (BiphasicStiffnessValue < MinStiffness || (Particles.InvM(i1) == (FSolverReal)0. && Particles.InvM(i2) == (FSolverReal)0. && Particles.InvM(i3) == (FSolverReal)0. && Particles.InvM(i4) == (FSolverReal)0.))
 	{
@@ -752,5 +752,149 @@ void FXPBDAnisotropicBendingConstraints::Apply(FSolverParticles& Particles, cons
 		}
 	}
 }
+
+void FXPBDAnisotropicBendingConstraints::ComputeGradTheta(const FSolverVec3& X0, const FSolverVec3& X1, const FSolverVec3& X2, const FSolverVec3& X3, const int32 Index, FSolverVec3& dThetadx, FSolverReal& Theta) 
+{
+	const FSolverVec3 E21 = X2 - X1;
+	const FSolverReal Norme = E21.Length();
+	const FSolverVec3 E10 = X1 - X0;
+	const FSolverVec3 E20 = X2 - X0;
+	const FSolverVec3 N0 = FSolverVec3::CrossProduct(E20, E10);
+	const FSolverReal SquaredNorm0 = N0.SquaredLength();
+
+	const FSolverVec3 E23 = X2 - X3;
+	const FSolverVec3 E13 = X1 - X3;
+	const FSolverVec3 N1 = FSolverVec3::CrossProduct(E13, E23); 
+	const FSolverReal SquaredNorm1 = N1.SquaredLength();
+
+	const FSolverVec3 N0CrossN1 = FSolverVec3::CrossProduct(N0, N1);
+	Theta = FMath::Atan2(FSolverVec3::DotProduct(N0CrossN1, E21) / Norme, N0.Dot(N1)); 
+
+	switch (Index)
+		{
+			case 0:
+				dThetadx = -(Norme / SquaredNorm0) * N0;
+				break;
+			case 1:
+				dThetadx = ((E20.Dot(E21)) / (Norme * SquaredNorm1)) * N1 + ((E23.Dot(E21)) / (Norme * SquaredNorm0)) * N0;
+				break;
+			case 2:
+				dThetadx = -((E10.Dot(E21)) / (Norme * SquaredNorm1)) * N1 - ((E13.Dot(E21)) / (Norme * SquaredNorm0)) * N0;
+				break;
+			case 3:
+				dThetadx = -(Norme / SquaredNorm1) * N1;
+				break;
+			default:
+				break;
+		}
+}
+
+void FXPBDAnisotropicBendingConstraints::AddAnisotropicBendingResidualAndHessian(const FSolverParticles& Particles, const int32 ConstraintIndex, const int32 ConstraintIndexLocal, const FSolverReal Dt, TVec3<FSolverReal>& ParticleResidual, Chaos::PMatrix<FSolverReal, 3, 3>& ParticleHessian)
+{
+	const FSolverVec3 ExpStiffnessValue((FSolverReal)StiffnessWeft, (FSolverReal)Stiffness, (FSolverReal)StiffnessBias);
+	const FSolverVec3 ExpBucklingValue((FSolverReal)BucklingStiffnessWeft, (FSolverReal)BucklingStiffness, (FSolverReal)BucklingStiffnessBias);
+	const FSolverReal DampingRatioValue = (FSolverReal)DampingRatio;
+	const FSolverVec3& WarpWeftBiasBaseMultiplier = WarpWeftBiasBaseMultipliers[ConstraintIndex];
+
+	const TVec4<int32>& Constraint = Constraints[ConstraintIndex];
+	const int32 i1 = Constraint[0];
+	const int32 i2 = Constraint[1];
+	const int32 i3 = Constraint[2];
+	const int32 i4 = Constraint[3];
+	const FSolverVec3& P1 = Particles.P(Constraint[0]);
+	const FSolverVec3& P2 = Particles.P(Constraint[1]);
+	const FSolverVec3& P3 = Particles.P(Constraint[2]);
+	const FSolverVec3& P4 = Particles.P(Constraint[3]);
+
+
+	FSolverVec3 DThetaDx(0.f);
+	FSolverReal Theta = 0.f;
+
+	//TStaticArray<int32, 4> LocalIndexMap { 2, 1, 0, 3 };{ 2, 1, 0, 3 };
+	constexpr int32 LocalIndexMap[] = { 2, 1, 0, 3 };
+	const int32 ActualConstraintIndexLocal = LocalIndexMap[ConstraintIndexLocal];
+
+	ComputeGradTheta(P3, P2, P1, P4, ActualConstraintIndexLocal, DThetaDx, Theta);
+
+	const FSolverReal CAngle = Theta - RestAngles[ConstraintIndex];
+
+	const FSolverReal BiphasicStiffnessValue = IsBuckled[ConstraintIndex] ?
+		WarpWeftBiasBaseMultiplier.Dot(ExpBucklingValue) : WarpWeftBiasBaseMultiplier.Dot(ExpStiffnessValue);
+
+	ParticleResidual -= Dt * Dt * BiphasicStiffnessValue * CAngle * DThetaDx;
+
+	for (int32 Alpha = 0; Alpha < 3; Alpha++)
+	{
+		ParticleHessian.SetRow(Alpha, ParticleHessian.GetRow(Alpha) + Dt * Dt * BiphasicStiffnessValue * DThetaDx[Alpha] * DThetaDx);
+	}
+}
+
+
+void FXPBDAnisotropicBendingConstraints::AddInternalForceDifferential(const FSolverParticles& InParticles, const TArray<TVector<FSolverReal, 3>>& DeltaParticles, TArray<TVector<FSolverReal, 3>>& ndf)
+{
+	const FSolverVec3 ExpStiffnessValue((FSolverReal)StiffnessWeft, (FSolverReal)Stiffness, (FSolverReal)StiffnessBias);
+	const FSolverVec3 ExpBucklingValue((FSolverReal)BucklingStiffnessWeft, (FSolverReal)BucklingStiffness, (FSolverReal)BucklingStiffnessBias);
+	const FSolverReal DampingRatioValue = (FSolverReal)DampingRatio;
+
+	int32 ParticleStart = 0;
+	int32 ParticleNum = InParticles.Size();
+	ensure(ndf.Num() == InParticles.Size());
+
+	const int32 ConstraintColorNum = ConstraintsPerColorStartIndex.Num() - 1;
+
+	for (int32 ConstraintColorIndex = 0; ConstraintColorIndex < ConstraintColorNum; ++ConstraintColorIndex)
+	{
+		const int32 ColorStart = ConstraintsPerColorStartIndex[ConstraintColorIndex];
+		const int32 ColorSize = ConstraintsPerColorStartIndex[ConstraintColorIndex + 1] - ColorStart;
+		PhysicsParallelFor(ColorSize, [&](const int32 Index)
+			{
+				const int32 ConstraintIndex = ColorStart + Index;
+				const TVec4<int32>& Constraint = Constraints[ConstraintIndex];
+				const int32 i1 = Constraint[0];
+				const int32 i2 = Constraint[1];
+				const int32 i3 = Constraint[2];
+				const int32 i4 = Constraint[3];
+
+				const FSolverVec3& P1 = InParticles.P(Constraint[0]);
+				const FSolverVec3& P2 = InParticles.P(Constraint[1]);
+				const FSolverVec3& P3 = InParticles.P(Constraint[2]);
+				const FSolverVec3& P4 = InParticles.P(Constraint[3]);
+				const FSolverVec3& WarpWeftBiasBaseMultiplier = WarpWeftBiasBaseMultipliers[ConstraintIndex];
+				FSolverReal Theta = 0.f;
+
+				TArray<FSolverVec3> Alldthetadx;
+				Alldthetadx.Init(FSolverVec3(0.f), 4);
+
+				constexpr int32 LocalIndexMap[] = { 2, 1, 0, 3 };
+				for (int32 i = 0; i < 4; i++)
+				{
+					int32 ActualConstraintIndexLocal = LocalIndexMap[i];
+					ComputeGradTheta(P3, P2, P1, P4, ActualConstraintIndexLocal, Alldthetadx[i], Theta);
+				}
+
+				const FSolverReal BiphasicStiffnessValue = IsBuckled[ConstraintIndex] ?
+					WarpWeftBiasBaseMultiplier.Dot(ExpBucklingValue) : WarpWeftBiasBaseMultiplier.Dot(ExpStiffnessValue);
+
+				FSolverReal DeltaC = 0.f;
+
+				for (int32 i = 0; i < 4; i++)
+				{
+					for (int32 j = 0; j < 3; j++)
+					{
+						DeltaC += Alldthetadx[i][j] * DeltaParticles[Constraint[i]][j];
+					}
+				}
+
+				for (int32 i = 0; i < 4; i++)
+				{
+					ndf[Constraint[i]] += BiphasicStiffnessValue * DeltaC * Alldthetadx[i];
+				}
+
+		});
+	}
+}
+
+
+
 
 }  // End namespace Chaos::Softs

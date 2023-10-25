@@ -85,6 +85,16 @@ namespace Chaos
 			M[5] = x21;
 		}
 
+		PMatrix(const FRealSingle x00)
+		{
+			M[0] = x00;
+			M[1] = x00;
+			M[2] = x00;
+			M[3] = x00;
+			M[4] = x00;
+			M[5] = x00;
+		}
+
 		TVector<FRealSingle, 3> operator*(const TVector<FRealSingle, 2>& Other)
 		{
 			return TVector<FRealSingle, 3>(
@@ -92,6 +102,41 @@ namespace Chaos
 				M[1] * Other[0] + M[4] * Other[1],
 				M[2] * Other[0] + M[5] * Other[1]);
 		}
+
+		PMatrix<FRealSingle, 3,2> operator-(const PMatrix<FRealSingle, 3, 2>& Other) const
+		{
+			return PMatrix<FRealSingle, 3, 2>(
+				M[0] - Other.M[0],
+				M[1] - Other.M[1],
+				M[2] - Other.M[2],
+				M[3] - Other.M[3],
+				M[4] - Other.M[4],
+				M[5] - Other.M[5]);
+		}
+
+		PMatrix<FRealSingle, 3, 2> operator+(const PMatrix<FRealSingle, 3, 2>& Other) const
+		{
+			return PMatrix<FRealSingle, 3, 2>(
+				M[0] + Other.M[0],
+				M[1] + Other.M[1],
+				M[2] + Other.M[2],
+				M[3] + Other.M[3],
+				M[4] + Other.M[4],
+				M[5] + Other.M[5]);
+		}
+
+		friend PMatrix<FRealSingle, 3, 2> operator*(const FRealSingle OtherF, const PMatrix<FRealSingle, 3, 2>& OtherM)
+		{
+			return PMatrix<FRealSingle, 3, 2>(
+				OtherF * OtherM.M[0],
+				OtherF * OtherM.M[1],
+				OtherF * OtherM.M[2],
+				OtherF * OtherM.M[3],
+				OtherF * OtherM.M[4],
+				OtherF * OtherM.M[5]);
+		}
+
+		
 	};
 
 	template<>
@@ -141,6 +186,11 @@ namespace Chaos
 			    -OneOverDeterminant * M[2],
 			    OneOverDeterminant * M[0]);
 		}
+
+		PMatrix<FReal, 2, 2> GetTransposed() const
+		{
+			return PMatrix<FReal, 2, 2>(M[0], M[2], M[1], M[3]);
+		}
 	};
 
 	template<>
@@ -189,6 +239,42 @@ namespace Chaos
 				-OneOverDeterminant * M[1],
 				-OneOverDeterminant * M[2],
 				OneOverDeterminant * M[0]);
+		}
+
+		PMatrix<FRealSingle, 2, 2> GetTransposed() const
+		{
+			return PMatrix<FRealSingle, 2, 2>(M[0], M[2], M[1], M[3]);
+		}
+
+		FRealSingle Determinant() const
+		{
+			return M[0] * M[3] - M[1] * M[2];
+		}
+
+		FORCEINLINE FRealSingle GetAt(int32 RowIndex, int32 ColIndex) const
+		{
+			return M[ColIndex * 2 + RowIndex];
+		}
+
+		//This is not column major so no need to invert matrix order when multiply them
+		PMatrix<FRealSingle, 2, 2> operator*(const PMatrix<FRealSingle, 2, 2>& Other) const
+		{
+			return PMatrix<FRealSingle, 2, 2>(
+				Other.M[0] * M[0] + Other.M[1] * M[2],
+				M[1] * Other.M[0] + M[3] * Other.M[1],
+				M[0] * Other.M[2] + M[2] * Other.M[3],
+				M[1] * Other.M[2] + M[3] * Other.M[3]);
+		}
+
+		friend PMatrix<FRealSingle, 3, 2> operator*(const PMatrix<FRealSingle, 3, 2>& First, const PMatrix<FRealSingle, 2, 2>& Other)
+		{
+			return PMatrix<FRealSingle, 3, 2>(
+				First.M[0] * Other.M[0] + First.M[3] * Other.M[1],
+				First.M[1] * Other.M[0] + First.M[4] * Other.M[1],
+				First.M[2] * Other.M[0] + First.M[5] * Other.M[1],
+				First.M[0] * Other.M[2] + First.M[3] * Other.M[3],
+				First.M[1] * Other.M[2] + First.M[4] * Other.M[3],
+				First.M[2] * Other.M[2] + First.M[5] * Other.M[3]);
 		}
 	};
 

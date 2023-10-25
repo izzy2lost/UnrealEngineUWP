@@ -7,6 +7,8 @@
 #include "Chaos/PBDSoftsEvolutionFwd.h"
 #include "Chaos/PBDLongRangeConstraints.h"
 #include "Chaos/PBDCollisionSpringConstraintsBase.h"
+#include "Chaos/Deformable/GaussSeidelMasterConstraint.h"
+#include "Chaos/Deformable/GaussSeidelCorotatedCodimensionalConstraints.h"
 
 namespace Chaos
 {
@@ -251,6 +253,8 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		void CreateAnimDriveConstraints(
 			const Softs::FCollectionPropertyConstFacade& ConfigProperties,
 			const TMap<FString, TConstArrayView<FRealSingle>>& WeightMaps);
+		void CreateGSRules();
+		void GetGSNumRules();
 
 		//~ Begin deprecated constraints
 		TSharedPtr<Softs::FPBDSpringConstraints> EdgeConstraints_Deprecated;
@@ -283,6 +287,8 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		TSharedPtr<Softs::FPBDCollisionSpringConstraints> SelfCollisionConstraints;
 		TSharedPtr<Softs::FPBDTriangleMeshIntersections> SelfIntersectionConstraints;
 		TSharedPtr<Softs::FPBDSelfCollisionSphereConstraints> SelfCollisionSphereConstraints;
+		TSharedPtr<Softs::FGaussSeidelMasterConstraint<Softs::FSolverReal, Softs::FSolverParticles>> GSMasterConstraint;
+		TSharedPtr<Softs::FGaussSeidelCorotatedCodimensionalConstraints<Softs::FSolverReal, Softs::FSolverParticles>> GSCorotatedCodimensionalConstraint;
 		
 		Softs::FPBDEvolution* Evolution;
 		const TArray<Softs::FSolverVec3>* AnimationPositions;

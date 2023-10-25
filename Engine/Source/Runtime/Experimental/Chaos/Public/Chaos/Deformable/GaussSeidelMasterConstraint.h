@@ -62,6 +62,8 @@ namespace Chaos::Softs
 		TArray<TFunction<void(const ParticleType&, const int32, const int32, const T, TVec3<T>&, Chaos::PMatrix<T, 3, 3>&)>>& DynamicConstraintResidualAndHessian() { return AddDynamicConstraintResidualAndHessian; }
 		const TArray<TFunction<void(const int32, const T, Chaos::PMatrix<T, 3, 3>&)>>& PerNodeHessian() const { return AddPerNodeHessian; }
 		TArray<TFunction<void(const int32, const T, Chaos::PMatrix<T, 3, 3>&)>>& PerNodeHessian() { return AddPerNodeHessian; }
+		const TArray<TFunction<void(const ParticleType&, const TArray<TVec3<T>>&, TArray<TVec3<T>>&)>>& InternalForceDifferentials() const { return AddInternalForceDifferentials; }
+		TArray<TFunction<void(const ParticleType&, const TArray<TVec3<T>>&, TArray<TVec3<T>>&)>>& InternalForceDifferentials() { return AddInternalForceDifferentials; }
 
 		int32 AddStaticConstraintResidualAndHessianRange(int32 NumConstraints)
 		{
@@ -84,14 +86,27 @@ namespace Chaos::Softs
 			return CurrentSize;
 		}
 
-		void AddStaticConstraints(const TArray<TArray<int32>>& ExtraConstraints, TArray<TArray<int32>>& ExtraIncidentElements, TArray<TArray<int32>>& ExtraIncidentElementsLocal);
-
-		void AddDynamicConstraints(const TArray<TArray<int32>>& ExtraConstraints, TArray<TArray<int32>>& ExtraIncidentElements, TArray<TArray<int32>>& ExtraIncidentElementsLocal, bool CheckIncidentElements = false);
-
-		void Apply(ParticleType& Particles, const T Dt)
+		int32 AddAddInternalForceDifferentialsRange(int32 NumConstraints)
 		{
-			PERF_SCOPE(STAT_ChaosGSMasterConstraint_Apply);
+			int32 CurrentSize = AddInternalForceDifferentials.Num();
+			AddInternalForceDifferentials.AddDefaulted(NumConstraints);
+			return CurrentSize;
+		}
 
+		CHAOS_API void AddStaticConstraints(const TArray<TArray<int32>>& ExtraConstraints, TArray<TArray<int32>>& ExtraIncidentElements, TArray<TArray<int32>>& ExtraIncidentElementsLocal);
+
+		CHAOS_API void AddDynamicConstraints(const TArray<TArray<int32>>& ExtraConstraints, TArray<TArray<int32>>& ExtraIncidentElements, TArray<TArray<int32>>& ExtraIncidentElementsLocal, bool CheckIncidentElements = false);
+
+		void Apply(ParticleType& Particles, const T Dt, const int32 MaxWriteIters = 10, const bool Write2File = false)
+		{
+ 			PERF_SCOPE(STAT_ChaosGSMasterConstraint_Apply);
+			
+			if (DebugResidual && PassedIters < MaxWriteIters)
+			{
+				ComputeNewtonResiduals(Particles, Dt, Write2File);
+			}
+			
+			
 			for (int32 i = 0; i < ParticlesPerColor.Num(); i++)
 			{
 				int32 NumBatch = ParticlesPerColor[i].Num() / CorotatedParams.XPBDCorotatedBatchSize;
@@ -99,7 +114,7 @@ namespace Chaos::Softs
 				{
 					NumBatch ++;
 				}
-
+			
 				PhysicsParallelFor(NumBatch, [&](const int32 BatchIndex)
 					{
 						for (int32 BatchSubIndex = 0; BatchSubIndex < CorotatedParams.XPBDCorotatedBatchSize; BatchSubIndex++) {
@@ -111,14 +126,15 @@ namespace Chaos::Softs
 							}
 						}
 					}, NumBatch < CorotatedParams.XPBDCorotatedBatchThreshold);
-
+			
 			}
-
+			
+						
 			if (bDoAcceleration)
 			{
 				AccelerationTechnique(Particles);
 			}
-
+			
 			CurrentIt ++;
 		}
 
@@ -139,6 +155,8 @@ namespace Chaos::Softs
 
 		void Init(const T Dt, const ParticleType& Particles)
 		{
+			Resize((int32)Particles.Size());
+
 			PERF_SCOPE(STAT_ChaosGSMasterConstraint_Init);
 			DynamicConstraints.SetNum(0);
 			for (int32 p = 0; p < DynamicIncidentElements.Num(); p++)
@@ -149,9 +167,10 @@ namespace Chaos::Softs
 			DynamicIncidentElementsOffsets.SetNum(0);
 			if (!bDoQuasistatics)
 			{
-				for (int32 i = 0; i < (int32)Particles.Size(); i++)
+				for (int32 i = 0; i < xtilde.Num(); i++)
 				{
-					xtilde[i] = Particles.X(i) + Dt * Particles.V(i);
+					//xtilde[i] = Particles.X(i) + Dt * Particles.V(i);
+					xtilde[i] = Particles.P(i);
 				}
 			}
 			CurrentIt = 0;
@@ -185,16 +204,19 @@ namespace Chaos::Softs
 			return false;
 		}
 
+		CHAOS_API TArray<TVec3<T>> ComputeNewtonResiduals(const ParticleType& Particles, const T Dt, const bool Write2File = false, TArray<PMatrix<T, 3, 3>>* AllParticleHessian = nullptr);
 		
+		CHAOS_API void ApplyCG(ParticleType& Particles, const T Dt);
+
 	private:
 
 		void ApplySingleParticle(const int32 p, const T Dt, ParticleType& Particles)
 		{
 			int32 ConstraintIndex = 0;
 			Chaos::TVector<T, 3> ParticleResidual((T)0.);
-			Chaos::PMatrix<T, 3, 3> ParticleHessian = Chaos::PMatrix<T, 3, 3>::Zero;
+			Chaos::PMatrix<T, 3, 3> ParticleHessian((T)0., (T)0., (T)0.);
 
-			ComputeInitialResidualAndHessian(Particles, p, ParticleResidual, ParticleHessian);
+			ComputeInitialResidualAndHessian(Particles, p, Dt, ParticleResidual, ParticleHessian);
 
 			for (int32 i = 0; i < StaticIncidentElements[p].Num(); i++)
 			{
@@ -204,7 +226,6 @@ namespace Chaos::Softs
 				}
 
 				AddStaticConstraintResidualAndHessian[ConstraintIndex](Particles, StaticIncidentElements[p][i] - StaticIncidentElementsOffsets[ConstraintIndex], StaticIncidentElementsLocal[p][i], Dt, ParticleResidual, ParticleHessian);
-
 			}
 
 			ConstraintIndex = 0;
@@ -217,7 +238,6 @@ namespace Chaos::Softs
 				}
 
 				AddDynamicConstraintResidualAndHessian[ConstraintIndex](Particles, DynamicIncidentElements[p][i] - DynamicIncidentElementsOffsets[ConstraintIndex], DynamicIncidentElementsLocal[p][i], Dt, ParticleResidual, ParticleHessian);
-
 			}
 
 			for (int32 i = 0; i < AddPerNodeHessian.Num(); i++)
@@ -227,18 +247,19 @@ namespace Chaos::Softs
 
 
 			T HessianDet = ParticleHessian.Determinant();
-			if (HessianDet > UE_SMALL_NUMBER)
+			if (HessianDet > UE_SMALL_NUMBER && ParticleResidual.Size() > UE_SMALL_NUMBER)
 			{
 				Chaos::PMatrix<T, 3, 3> HessianInv = ParticleHessian.SymmetricCofactorMatrix();
 				HessianInv *= T(1) / HessianDet;
 				Chaos::TVector<T, 3> Dx = HessianInv.GetTransposed() * (-ParticleResidual);
+
 				Particles.P(p) += Dx;
 			}
 		}
 		
 		void InitializeLambdas()
 		{
-			ComputeInitialResidualAndHessian = [this](const ParticleType& Particles, const int32 p, TVec3<T>& ParticleResidual, Chaos::PMatrix<T, 3, 3>& ParticleHessian)
+			ComputeInitialResidualAndHessian = [this](const ParticleType& Particles, const int32 p, const T Dt, TVec3<T>& ParticleResidual, Chaos::PMatrix<T, 3, 3>& ParticleHessian)
 			{
 				if (!this->bDoQuasistatics) {
 					for (int32 alpha = 0; alpha < 3; alpha++) {
@@ -246,6 +267,12 @@ namespace Chaos::Softs
 					}
 					for (int32 alpha = 0; alpha < 3; alpha++) {
 						ParticleHessian.SetAt(alpha, alpha, Particles.M(p));
+					}
+				}
+				else
+				{
+					for (int32 alpha = 0; alpha < 3; alpha++) {
+						ParticleResidual[alpha] = -Dt * Dt * ExternalForce[alpha] * Particles.M(p);
 					}
 				}
 			};
@@ -265,6 +292,7 @@ namespace Chaos::Softs
 			};
 		}
 
+
 		//Constraints storage:
 		TArray<TArray<int32>> StaticConstraints;
 		TArray<TArray<int32>> StaticIncidentElements;
@@ -274,7 +302,7 @@ namespace Chaos::Softs
 		TArray<TArray<int32>> DynamicIncidentElementsLocal;
 
 		//Lambds for spcifying residual/hessian computations:
-		TFunction<void(const ParticleType&, const int32, TVec3<T>&, Chaos::PMatrix<T, 3, 3>&)> ComputeInitialResidualAndHessian;
+		TFunction<void(const ParticleType&, const int32, const T, TVec3<T>&, Chaos::PMatrix<T, 3, 3>&)> ComputeInitialResidualAndHessian;
 		TArray<TFunction<void(const ParticleType&, const int32, const int32, const T, TVec3<T>&, Chaos::PMatrix<T, 3, 3>&)>> AddStaticConstraintResidualAndHessian;
 		TArray<TFunction<void(const ParticleType&, const int32, const int32, const T, TVec3<T>&, Chaos::PMatrix<T, 3, 3>&)>> AddDynamicConstraintResidualAndHessian;
 		TArray<TFunction<void(const int32, const T, Chaos::PMatrix<T, 3, 3>&)>> AddPerNodeHessian;
@@ -299,11 +327,28 @@ namespace Chaos::Softs
 		int32 CurrentIt = 0;
 		bool bDoAcceleration = true;
 		T OmegaSOR = T(1.6);
-		int32 SORStart = 1;
+		int32 SORStart = 1; //1 is smallest
 
 		int32 ParallelMax = 1000;
 
 		FDeformableXPBDCorotatedParams CorotatedParams;
 
+		//Newton solver variables:
+		TArray<TFunction<void(const ParticleType&, const TArray<TVec3<T>>&, TArray<TVec3<T>>&)>> AddInternalForceDifferentials;
+		TUniquePtr<TArray<int32>> use_list;
+
+		int32 NumTotalParticles;
+		TArray<TVec3<T>> ReorderedPs;
+
+		public:
+		bool DebugResidual = false;
+		bool IsFirstFrame = true;
+		int32 PassedIters = 0;
+
+		TVec3<T> ExternalForce = TVec3<T>((T)0.);
+
 	};
+
+	//template class FGaussSeidelMasterConstraint<FSolverReal, FSolverParticles>;
 }
+

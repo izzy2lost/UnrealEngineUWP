@@ -96,6 +96,26 @@ public:
 	const TArray<int32>& GetConstraintsPerColorStartIndex() const { return ConstraintsPerColorStartIndex; }
 	const TArray<FSolverVec3>& GetWarpWeftBiasBaseMultipliers() const { return WarpWeftBiasBaseMultipliers; }
 
+	CHAOS_API void AddAnisotropicBendingResidualAndHessian(const FSolverParticles& Particles, const int32 ConstraintIndex, const int32 ConstraintIndexLocal, const FSolverReal Dt, TVec3<FSolverReal>& ParticleResidual, Chaos::PMatrix<FSolverReal, 3, 3>& ParticleHessian);
+
+	TArray<TArray<int32>> GetConstraintsArray() const
+	{
+		TArray<TArray<int32>> ConstraintsArray;
+		ConstraintsArray.SetNum(Constraints.Num());
+		for (int32 i = 0; i < Constraints.Num(); i++)
+		{
+			ConstraintsArray[i].SetNum(4);
+			for (int32 j = 0; j < 4; j++)
+			{
+				ConstraintsArray[i][j] = Constraints[i][j];
+			}
+		}
+		return ConstraintsArray;
+	}
+
+	CHAOS_API void AddInternalForceDifferential(const FSolverParticles& InParticles, const TArray<TVector<FSolverReal, 3>>& DeltaParticles, TArray<TVector<FSolverReal, 3>>& ndf);
+
+
 private:
 	CHAOS_API void InitColor(const FSolverParticles& InParticles);
 	CHAOS_API void ApplyHelper(FSolverParticles& Particles, const FSolverReal Dt, const int32 ConstraintIndex, const FSolverVec3& ExpStiffnessValues, 
@@ -136,6 +156,7 @@ private:
 			return FSolverVec2(GetWeightedFloatXPBDAnisoRestAngle(PropertyCollection, 0.f));
 		}
 	}
+	void ComputeGradTheta(const FSolverVec3& X0, const FSolverVec3& X1, const FSolverVec3& X2, const FSolverVec3& X3, const int32 Index, FSolverVec3& dThetadx, FSolverReal& Theta); 
 
 	using Base::Constraints;
 	using Base::ParticleOffset;
