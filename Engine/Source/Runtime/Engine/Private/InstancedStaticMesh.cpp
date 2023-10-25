@@ -46,6 +46,7 @@
 #include "Rendering/RenderCommandPipes.h"
 #include "NaniteVertexFactory.h"
 #include "InstancedStaticMeshSceneProxyDesc.h"
+#include "InstancedStaticMesh/ISMInstanceDataManager.h"
 
 #if RHI_RAYTRACING
 #endif
@@ -2390,9 +2391,9 @@ void UInstancedStaticMeshComponent::BuildInstanceDataDeltaChangeSetCommon(FISMIn
 		if (MeshMapBuildData == nullptr && LODData.Num() > 0)
 		{
 			MeshMapBuildData = GetMeshMapBuildData(LODData[0], false);
-	}
+		}
 
-		for (int32 Index : ChangeSet.InstanceLightShadowUVBiasDelta)
+		for (int32 Index = 0; Index < ChangeSet.PostUpdateNumInstances; ++Index)
 		{
 			FVector2D LightmapUVBias = FVector2D(-1.0f, -1.0f);
 			FVector2D ShadowmapUVBias = FVector2D(-1.0f, -1.0f);
@@ -2401,10 +2402,9 @@ void UInstancedStaticMeshComponent::BuildInstanceDataDeltaChangeSetCommon(FISMIn
 			{
 				LightmapUVBias = FVector2D(MeshMapBuildData->PerInstanceLightmapData[Index].LightmapUVBias);
 				ShadowmapUVBias = FVector2D(MeshMapBuildData->PerInstanceLightmapData[Index].ShadowmapUVBias);
-}
+			}
 			ChangeSet.AddInstanceLightShadowUVBias(FVector4f(LightmapUVBias.X, LightmapUVBias.Y, ShadowmapUVBias.X, ShadowmapUVBias.Y));
 		}
-
 	}
 	ChangeSet.SetCustomData(MakeArrayView(PerInstanceSMCustomData), NumCustomDataFloats);
 }

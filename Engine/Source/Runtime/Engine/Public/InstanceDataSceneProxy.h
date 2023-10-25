@@ -9,85 +9,78 @@
 
 class FPrimitiveDrawInterface;
 
-/**
- * Helper to make it easy to query an empty array & index by FPrimitiveInstanceId.
- */
-class FChangeBitArray : public TBitArray<>
-{
-public:
-	/**
-	 * Returns true if the corresponding bit is set, false if it is not, OR if it does not exist.
-	 */
-	inline bool WasChanged(FPrimitiveInstanceId InstanceId) const 
-	{ 
-		return IsValidIndex(InstanceId.GetAsIndex()) && TBitArray<>::operator[](InstanceId.GetAsIndex()); 
-	}
-
-	inline bool operator[](FPrimitiveInstanceId InstanceId) const
-	{
-		return WasChanged(InstanceId);
-	}
-
-	inline FBitReference operator[](FPrimitiveInstanceId InstanceId)
-	{
-		return TBitArray<>::operator[](InstanceId.GetAsIndex());
-	}
-};
-
-struct FChangeMask
-{
-
-	FChangeBitArray AddedInstances;
-	FChangeBitArray RemovedInstances;
-	FChangeBitArray TransformChangedInstances;
-	FChangeBitArray CustomDataChangedInstances;
-#if WITH_EDITOR
-	bool bAnyEditorDataChanged = false;
-#endif	
-	// Do we need to track this?
-	FChangeBitArray IndexChangeInstances;
-	bool bNumCustomDataChanged = false;
-	bool bBakedLightingDataChanged = false;
-
-	void Reset()
-	{
-		AddedInstances.Reset();
-		RemovedInstances.Reset();
-		TransformChangedInstances.Reset();
-		CustomDataChangedInstances.Reset();
-#if WITH_EDITOR
-		bAnyEditorDataChanged = false;
-#endif	
-		IndexChangeInstances.Reset();
-		bNumCustomDataChanged = false;
-		bBakedLightingDataChanged = false;
-	}
-};
-
 class FInstanceIdIndexMap
 {
 public:
-	bool IsIdentity() const { return IndexToIdMap.IsEmpty(); }
+	/**
+	 * Returns true if the mapping is an identity mapping. I.e., each instance ID corresponds to the same index.
+	 */
+	FORCEINLINE bool IsIdentity() const { return IndexToIdMap.IsEmpty(); }
 
-	inline int32 GetMaxInstanceId() const { return IsIdentity() ? NumInstances : IdToIndexMap.Num();}
-	inline int32 GetMaxInstanceIndex() const { return IsIdentity() ? NumInstances : IndexToIdMap.Num();}
-	inline bool IsValidId(FPrimitiveInstanceId InstanceId) const { return InstanceId.Id >= 0 && InstanceId.Id < GetMaxInstanceId() && (IsIdentity() || IdToIndexMap[InstanceId.Id] != INDEX_NONE); }
-	inline int32 IdToIndex(FPrimitiveInstanceId InstanceId) const
+	/**
+	 * Returms the upper bound on the instance ID represented as an integer, may be larger than the number of instances but is never larger than the max that has ever been allocated.
+	 */
+	FORCEINLINE  int32 GetMaxInstanceId() const { return IsIdentity() ? NumInstances : IdToIndexMap.Num();}
+
+	/**
+	 * Returns the maximum instance index (or rather the maximum valid number plus one), AKA the number of instances represented.
+	 */
+	FORCEINLINE  int32 GetMaxInstanceIndex() const { return IsIdentity() ? NumInstances : IndexToIdMap.Num();}
+
+	/**
+	 * Returns true if InstanceId is in the mapped range AND .
+	 */
+	FORCEINLINE  bool IsValidId(FPrimitiveInstanceId InstanceId) const { return InstanceId.Id >= 0 && InstanceId.Id < GetMaxInstanceId() && (IsIdentity() || IdToIndexMap[InstanceId.Id] != INDEX_NONE); }
+	/**
+	 * Translate from FPrimitiveInstanceId to Index
+	 */
+	FORCEINLINE  int32 IdToIndex(FPrimitiveInstanceId InstanceId) const
 	{ 
 		return IsIdentity() ? InstanceId.Id : IdToIndexMap[InstanceId.Id]; 
 	}
 
-	inline FPrimitiveInstanceId IndexToId(int32 InstanceIndex) const
+	/**
+	 * Translate from Index to FPrimitiveInstanceId
+	 */
+	FORCEINLINE  FPrimitiveInstanceId IndexToId(int32 InstanceIndex) const
 	{ 
 		check(InstanceIndex < GetMaxInstanceIndex());
 		return IsIdentity() ? FPrimitiveInstanceId{ InstanceIndex } : IndexToIdMap[InstanceIndex]; 
 	}
 
-	void Reset()
+	/**
+	 * Set the index mapping for the given InstanceId to INDEX_NONE.
+	 */
+	FORCEINLINE void SetInvalid(FPrimitiveInstanceId InstanceId)
 	{
-		IndexToIdMap.Reset();
-		IdToIndexMap.Reset();		
+		IdToIndexMap[InstanceId.Id] = INDEX_NONE;
 	}
+
+	/**
+	 * Update the mapping from ID to index (and vice versa).
+	 */
+	FORCEINLINE void Update(FPrimitiveInstanceId InstanceId, int32 InstanceIndex)
+	{
+		IndexToIdMap[InstanceIndex] = InstanceId;
+		IdToIndexMap[InstanceId.Id] = InstanceIndex;
+	}
+
+	/**
+	 * Reset the mapping to an identity map of size InNumInstances.
+	 */
+	ENGINE_API void Reset(int32 InNumInstances);
+
+	/**
+	 * Make sure the mapping is explicit and add enough space to accommodate the InNumInstances & MaxInstanceId.
+	 */
+	ENGINE_API void ResizeExplicit(int32 InNumInstances, int32 MaxInstanceId);
+
+	/**
+	 * Convert an implicit identity mapping to an explicit one, by filling in the mapping arrays. 
+	 * Not allowed to be called if the mapping is already explicit.
+	 */
+	ENGINE_API void CreateExplicitIdentityMapping();
+
 	FInstanceIdIndexMap() = default;
 protected:
 	// Bidirectional mapping to / from ID.

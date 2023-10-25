@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "InstancedStaticMesh/ISMInstanceUpdateChangeSet.h"
+#include "InstancedStaticMesh/ISMScatterGatherUtil.h"
 #include "Engine/InstancedStaticMesh.h"
 #include "DataDrivenShaderPlatformInfo.h"
 #include "Rendering/RenderingSpatialHash.h"
@@ -42,7 +43,7 @@ FOpaqueHitProxyContainer::~FOpaqueHitProxyContainer()
 void FISMInstanceUpdateChangeSet::SetEditorData(const TArray<TRefCountPtr<HHitProxy>>& HitProxies, const TBitArray<> &InSelectedInstances)//, bool bWasHitProxiesReallocated)
 {
 	HitProxyContainer = MakeOpaqueHitProxyContainer(HitProxies);
-	for (int32 Index : InstanceEditorDataDelta)
+	for (int32 Index = 0; Index < HitProxies.Num(); ++Index)
 	{
 		// Record if the instance is selected
 		FColor HitProxyColor(ForceInit);
@@ -58,6 +59,27 @@ void FISMInstanceUpdateChangeSet::SetEditorData(const TArray<TRefCountPtr<HHitPr
 
 #endif
 
+void FISMInstanceUpdateChangeSet::SetInstanceTransforms(TStridedView<FMatrix> InInstanceTransforms, const FVector Offset)
+{
+
+	GatherTransform(GetTransformDelta(), Transforms, InInstanceTransforms, [Offset](const FMatrix &M) -> FRenderTransform { return FRenderTransform(M.ConcatTranslation(Offset)); });
+}
+
+void FISMInstanceUpdateChangeSet::SetInstanceTransforms(TStridedView<FMatrix> InInstanceTransforms)
+{
+	GatherTransform(GetTransformDelta(), Transforms, InInstanceTransforms, [](const FMatrix &M) -> FRenderTransform { return FRenderTransform(M); });
+}
+
+void FISMInstanceUpdateChangeSet::SetInstanceTransforms(TStridedView<FMatrix> InInstanceTransforms, FBox const& InInstanceBounds, FBox& OutGatheredBounds)
+{
+	GatherTransform(GetTransformDelta(),Transforms, InInstanceTransforms, [&InInstanceBounds, &OutGatheredBounds](const FMatrix& M) -> FRenderTransform
+	{
+		FRenderTransform Transform(M);
+		OutGatheredBounds += InInstanceBounds.TransformBy(Transform.ToMatrix());
+		return Transform;
+	});
+}
+
 void FISMInstanceUpdateChangeSet::SetInstancePrevTransforms(TArrayView<FMatrix> InPrevInstanceTransforms, const FVector &Offset)
 {
 	if (Flags.bHasPerInstanceDynamicData)
@@ -68,8 +90,7 @@ void FISMInstanceUpdateChangeSet::SetInstancePrevTransforms(TArrayView<FMatrix> 
 		}
 		else
 		{
-
-			TransformsDelta.GatherTransform(PrevTransforms, InPrevInstanceTransforms, [Offset](const FMatrix &M) -> FRenderTransform { return FRenderTransform(M.ConcatTranslation(Offset)); });
+			GatherTransform(GetTransformDelta(), PrevTransforms, InPrevInstanceTransforms, [Offset](const FMatrix &M) -> FRenderTransform { return FRenderTransform(M.ConcatTranslation(Offset)); });
 		}
 	}
 }
@@ -84,8 +105,7 @@ void FISMInstanceUpdateChangeSet::SetInstancePrevTransforms(TArrayView<FMatrix> 
 		}
 		else
 		{
-
-			TransformsDelta.GatherTransform(PrevTransforms, InPrevInstanceTransforms, [](const FMatrix &M) -> FRenderTransform { return FRenderTransform(M); });
+			GatherTransform(GetTransformDelta(), PrevTransforms, InPrevInstanceTransforms, [](const FMatrix &M) -> FRenderTransform { return FRenderTransform(M); });
 		}
 	}
 }
@@ -96,13 +116,13 @@ void FISMInstanceUpdateChangeSet::SetCustomData(const TArrayView<const float> &I
 	{
 		check(InNumCustomDataFloats == NumCustomDataFloats);
 		check(NumCustomDataFloats > 0);
-		check(InPerInstanceCustomData.Num() == InstanceIdIndexMap.GetMaxInstanceIndex() * NumCustomDataFloats);
+		//check(InPerInstanceCustomData.Num() == InstanceIdIndexMap.GetMaxInstanceIndex() * NumCustomDataFloats);
 
-		CustomDataDelta.Gather(PerInstanceCustomData, InPerInstanceCustomData, InNumCustomDataFloats);
+		Gather(GetCustomDataDelta(), PerInstanceCustomData, InPerInstanceCustomData, InNumCustomDataFloats);
 	}
 	else
 	{
-		check(CustomDataDelta.IsEmpty());
+		checkSlow(GetCustomDataDelta().IsEmpty());
 	}
 }
 

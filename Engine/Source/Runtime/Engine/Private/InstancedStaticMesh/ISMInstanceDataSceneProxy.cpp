@@ -2,6 +2,7 @@
 
 #include "InstancedStaticMesh/ISMInstanceDataSceneProxy.h"
 #include "InstancedStaticMesh/ISMInstanceUpdateChangeSet.h"
+#include "InstancedStaticMesh/ISMScatterGatherUtil.h"
 #include "Engine/InstancedStaticMesh.h"
 #include "DataDrivenShaderPlatformInfo.h"
 #include "Rendering/RenderingSpatialHash.h"
@@ -27,12 +28,12 @@ struct FIdentityIndexRemap
 {
 	inline int32 operator[](int32 InIndex) const { return InIndex; }
 
-	template <typename ValueType>
-	inline void Scatter(bool bHasData, const FArrayIndexDelta &Delta, TArray<ValueType> &DestData, int32 NumOutElements, TArray<ValueType> &&InData, int32 ElementStride = 1) const
+	template <typename DeltaType, typename ValueType>
+	inline void Scatter(bool bHasData, const DeltaType &Delta, TArray<ValueType> &DestData, int32 NumOutElements, TArray<ValueType> &&InData, int32 ElementStride = 1) const
 	{
 		if (bHasData)
 		{
-			Delta.Scatter(DestData, NumOutElements, MoveTemp(InData), ElementStride);
+			::Scatter(Delta, DestData, NumOutElements, MoveTemp(InData), ElementStride);
 		}
 		else
 		{
@@ -71,12 +72,12 @@ struct FReorderTableIndexRemap
 		return Index != INDEX_NONE; 
 	}
 
-	template <typename ValueType>
-	inline void Scatter(bool bHasData, const FArrayIndexDelta &Delta, TArray<ValueType> &DestData, int32 NumOutElements, TArray<ValueType> &&InData, int32 ElementStride = 1) const
+	template <typename DeltaType, typename ValueType>
+	inline void Scatter(bool bHasData, const DeltaType &Delta, TArray<ValueType> &DestData, int32 NumOutElements, TArray<ValueType> &&InData, int32 ElementStride = 1) const
 	{
 		if (bHasData)
 		{
-			Delta.Scatter(DestData, NumOutElements, MoveTemp(InData), *this, ElementStride);
+			::Scatter(Delta, DestData, NumOutElements, MoveTemp(InData), *this, ElementStride);
 		}
 		else
 		{
@@ -122,12 +123,15 @@ void FISMCInstanceDataSceneProxy::ApplyDataChanges(FISMInstanceUpdateChangeSet &
 
 	// unpack transform deltas
 	ProxyData.InstanceToPrimitiveRelative.SetNumUninitialized(PostUpdateNumInstances);
-	for (int32 PackedIndex = 0; PackedIndex < ChangeSet.TransformsDelta.Num(); ++PackedIndex)
+	auto TransformDelta = ChangeSet.GetTransformDelta();
+	for (auto It = TransformDelta.GetIterator(); It; ++It)
 	{
-		int32 InstanceIndex = ChangeSet.TransformsDelta[PackedIndex];
+		int32 ItemIndex = It.GetItemIndex();
+		int32 InstanceIndex = It.GetIndex();
+
 		if (IndexRemap.RemapIndex(InstanceIndex))
 		{
-			FRenderTransform LocalToPrimitiveRelativeWorld = ChangeSet.Transforms[PackedIndex] * ChangeSet.PrimitiveToRelativeWorld;
+			FRenderTransform LocalToPrimitiveRelativeWorld = ChangeSet.Transforms[ItemIndex] * ChangeSet.PrimitiveToRelativeWorld;
 			// Remove shear
 			LocalToPrimitiveRelativeWorld.Orthogonalize();
 			ProxyData.InstanceToPrimitiveRelative[InstanceIndex] = LocalToPrimitiveRelativeWorld;
@@ -138,12 +142,13 @@ void FISMCInstanceDataSceneProxy::ApplyDataChanges(FISMInstanceUpdateChangeSet &
 	{
 		FRenderTransform PrevPrimitiveToRelativeWorld = ChangeSet.PreviousPrimitiveToRelativeWorld.Get(ChangeSet.PrimitiveToRelativeWorld);
 		ProxyData.PrevInstanceToPrimitiveRelative.SetNumUninitialized(PostUpdateNumInstances);
-		for (int32 PackedIndex = 0; PackedIndex < ChangeSet.TransformsDelta.Num(); ++PackedIndex)
+		for (auto It = TransformDelta.GetIterator(); It; ++It)
 		{
-			int32 InstanceIndex = ChangeSet.TransformsDelta[PackedIndex];
+			int32 ItemIndex = It.GetItemIndex();
+			int32 InstanceIndex = It.GetIndex();
 			if (IndexRemap.RemapIndex(InstanceIndex))
 			{
-				FRenderTransform PrevLocalToPrimitiveRelativeWorld = ChangeSet.PrevTransforms[PackedIndex] * PrevPrimitiveToRelativeWorld;
+				FRenderTransform PrevLocalToPrimitiveRelativeWorld = ChangeSet.PrevTransforms[ItemIndex] * PrevPrimitiveToRelativeWorld;
 				PrevLocalToPrimitiveRelativeWorld.Orthogonalize();
 				ProxyData.PrevInstanceToPrimitiveRelative[InstanceIndex] = PrevLocalToPrimitiveRelativeWorld;
 			}
@@ -157,7 +162,7 @@ void FISMCInstanceDataSceneProxy::ApplyDataChanges(FISMInstanceUpdateChangeSet &
 	if (ChangeSet.Flags.bHasPerInstanceCustomData)
 	{
 		ProxyData.NumCustomDataFloats = ChangeSet.NumCustomDataFloats;
-		IndexRemap.Scatter(ChangeSet.Flags.bHasPerInstanceCustomData, ChangeSet.CustomDataDelta, ProxyData.InstanceCustomData, PostUpdateNumInstances, MoveTemp(ChangeSet.PerInstanceCustomData), ProxyData.NumCustomDataFloats);
+		IndexRemap.Scatter(ChangeSet.Flags.bHasPerInstanceCustomData, ChangeSet.GetCustomDataDelta(), ProxyData.InstanceCustomData, PostUpdateNumInstances, MoveTemp(ChangeSet.PerInstanceCustomData), ProxyData.NumCustomDataFloats);
 	}
 	else
 	{
@@ -165,9 +170,9 @@ void FISMCInstanceDataSceneProxy::ApplyDataChanges(FISMInstanceUpdateChangeSet &
 		ProxyData.InstanceCustomData.Reset();
 	}
 
-	IndexRemap.Scatter(ChangeSet.Flags.bHasPerInstanceLMSMUVBias, ChangeSet.InstanceLightShadowUVBiasDelta, ProxyData.InstanceLightShadowUVBias, PostUpdateNumInstances, MoveTemp(ChangeSet.InstanceLightShadowUVBias));
+	IndexRemap.Scatter(ChangeSet.Flags.bHasPerInstanceLMSMUVBias, ChangeSet.GetInstanceLightShadowUVBiasDelta(), ProxyData.InstanceLightShadowUVBias, PostUpdateNumInstances, MoveTemp(ChangeSet.InstanceLightShadowUVBias));
 #if WITH_EDITOR
-	IndexRemap.Scatter(ChangeSet.Flags.bHasPerInstanceEditorData, ChangeSet.InstanceEditorDataDelta, ProxyData.InstanceEditorData, PostUpdateNumInstances, MoveTemp(ChangeSet.InstanceEditorData));
+	IndexRemap.Scatter(ChangeSet.Flags.bHasPerInstanceEditorData, ChangeSet.GetInstanceEditorDataDelta(), ProxyData.InstanceEditorData, PostUpdateNumInstances, MoveTemp(ChangeSet.InstanceEditorData));
 
 	// replace the HP container.
 	if (ChangeSet.HitProxyContainer)
@@ -182,7 +187,6 @@ void FISMCInstanceDataSceneProxy::ApplyDataChanges(FISMInstanceUpdateChangeSet &
 	{
 		// TODO: only need to process added instances? No help for ISM since the move path would be taken.
 		// TODO: OTOH for HISM there is no meaningful data, so just skipping and letting the SetNumZeroed fill in the blanks is fine.
-		FArrayIndexDelta PerInstanceRandomDelta(PostUpdateNumInstances);
 
 		ProxyData.InstanceRandomIDs.SetNumZeroed(PostUpdateNumInstances);
 		if (ChangeSet.GeneratePerInstanceRandomIds)
@@ -191,6 +195,7 @@ void FISMCInstanceDataSceneProxy::ApplyDataChanges(FISMInstanceUpdateChangeSet &
 			TArray<float> TmpInstanceRandomIDs;
 			TmpInstanceRandomIDs.SetNumZeroed(PostUpdateNumInstances);
 			ChangeSet.GeneratePerInstanceRandomIds(TmpInstanceRandomIDs);
+			FIdentityDeltaRange PerInstanceRandomDelta(TmpInstanceRandomIDs.Num());
 			IndexRemap.Scatter(true, PerInstanceRandomDelta, ProxyData.InstanceRandomIDs, PostUpdateNumInstances, MoveTemp(TmpInstanceRandomIDs));
 		}
 		//else 
@@ -203,26 +208,6 @@ void FISMCInstanceDataSceneProxy::ApplyDataChanges(FISMInstanceUpdateChangeSet &
 		ProxyData.InstanceRandomIDs.Reset();
 	}
 }
-
-struct FDataRemap
-{
-	// Keep bit mask to efficiently iterate, but not save any data.
-	// TODO: Maybe make sparse in the future?
-	TBitArray<> Used;
-	TArray<int32> FromInices;
-
-	FDataRemap(int32 InNum)
-	{
-		Used.SetNum(InNum, false);
-		FromInices.AddUninitialized(InNum);
-	}
-
-	inline void Set(int32 To, int32 From)
-	{
-		Used[To] = true;
-		FromInices[To] = From;
-	}
-};
 
 template<typename ValueType>
 void CondMove(bool bCondition, TArray<ValueType> &Data, int32 FromIndex, int32 ToIndex, int32 NumElements = 1)
@@ -237,29 +222,64 @@ void FISMCInstanceDataSceneProxy::Build(FISMInstanceUpdateChangeSet&& ChangeSet)
 {
 	DecStatCounters();
 	check(ChangeSet.IsFullUpdate());
-	check(!ChangeSet.TransformsDelta.IsDelta());
-	check(!ChangeSet.CustomDataDelta.IsDelta() || (!ChangeSet.Flags.bHasPerInstanceCustomData && ChangeSet.CustomDataDelta.IsEmpty()));
-	check(!ChangeSet.InstanceLightShadowUVBiasDelta.IsDelta() || ChangeSet.InstanceLightShadowUVBiasDelta.IsEmpty());
+	checkSlow(!ChangeSet.GetTransformDelta().IsDelta());
+	checkSlow(!ChangeSet.GetCustomDataDelta().IsDelta() || (!ChangeSet.Flags.bHasPerInstanceCustomData && ChangeSet.GetCustomDataDelta().IsEmpty()));
+	checkSlow(!ChangeSet.GetInstanceLightShadowUVBiasDelta().IsDelta() || ChangeSet.GetInstanceLightShadowUVBiasDelta().IsEmpty());
 #if WITH_EDITOR
-	check(!ChangeSet.InstanceEditorDataDelta.IsDelta() || ChangeSet.InstanceEditorDataDelta.IsEmpty());
+	checkSlow(!ChangeSet.GetInstanceEditorDataDelta().IsDelta() || ChangeSet.GetInstanceEditorDataDelta().IsEmpty());
 #endif
-	check(ChangeSet.PostUpdateNumInstances == ChangeSet.InstanceIdIndexMap.GetMaxInstanceIndex());
+
 
 	FInstanceSceneDataBuffers::FAccessTag AccessTag(PointerHash(this));
 	FInstanceSceneDataBuffers::FWriteView WriteView = InstanceSceneDataBuffers.BeginWriteAccess(AccessTag);
 
 	WriteView.Flags = ChangeSet.Flags;
 
-	FIdentityIndexRemap IndexRemap;
-	ApplyDataChanges(ChangeSet, IndexRemap, ChangeSet.InstanceIdIndexMap.GetMaxInstanceIndex(), WriteView);
-	InstanceSceneDataBuffers.EndWriteAccess(AccessTag);
+	UpdateIdMapping(ChangeSet);
+	check(ChangeSet.PostUpdateNumInstances == InstanceIdIndexMap.GetMaxInstanceIndex());
 
-	ChangeMask = MoveTemp(ChangeSet.ChangeMask);
-	InstanceIdIndexMap = MoveTemp(ChangeSet.InstanceIdIndexMap);
+	FIdentityIndexRemap IndexRemap;
+	ApplyDataChanges(ChangeSet, IndexRemap, InstanceIdIndexMap.GetMaxInstanceIndex(), WriteView);
+	InstanceSceneDataBuffers.EndWriteAccess(AccessTag);
 
 	InstanceSceneDataBuffers.ValidateData();
 
 	IncStatCounters();
+}
+
+void FISMCInstanceDataSceneProxy::UpdateIdMapping(FISMInstanceUpdateChangeSet& ChangeSet)
+{
+	// update mapping, create explicit mapping if needed
+	if (ChangeSet.bIdentityIdMap)
+	{
+		// Reset to identity mapping with the new number of instances
+		InstanceIdIndexMap.Reset(ChangeSet.PostUpdateNumInstances);
+	}
+	else
+	{
+		InstanceIdIndexMap.ResizeExplicit(ChangeSet.PostUpdateNumInstances, ChangeSet.MaxInstanceId);
+
+		// If any were removed, we need to clear the associated IDs, before updating (since they may have been added again)
+		for (TConstSetBitIterator<> It(ChangeSet.InstanceAttributeTracker.GetRemovedIterator()); It; ++It)
+		{
+			// There may be more bits set as things that are marked as removed may no longer be in the map
+			if (It.GetIndex() >= InstanceIdIndexMap.GetMaxInstanceId())
+			{
+				break;
+			}
+			InstanceIdIndexMap.SetInvalid(FPrimitiveInstanceId{It.GetIndex()});
+		}
+
+		// Update index mappings (if not identity)
+		auto IndexDelta = ChangeSet.GetIndexChangedDelta();
+		for (auto It = IndexDelta.GetIterator(); It; ++It)
+		{
+			int32 NewInstanceIndex = It.GetIndex();
+			int32 ItemIndex = It.GetItemIndex();
+			FPrimitiveInstanceId InstanceId = ChangeSet.IndexToIdMapDeltaData[ItemIndex];
+			InstanceIdIndexMap.Update(InstanceId, NewInstanceIndex);
+		}
+	}
 }
 
 void FISMCInstanceDataSceneProxy::Update(FISMInstanceUpdateChangeSet&& ChangeSet)
@@ -273,54 +293,42 @@ void FISMCInstanceDataSceneProxy::Update(FISMInstanceUpdateChangeSet&& ChangeSet
 
 	ProxyData.Flags = ChangeSet.Flags;
 
-	int32 PostUpdateNumInstances = ChangeSet.InstanceIdIndexMap.GetMaxInstanceIndex();
-	check(ChangeSet.PostUpdateNumInstances == ChangeSet.InstanceIdIndexMap.GetMaxInstanceIndex());
+	int32 PostUpdateNumInstances = ChangeSet.PostUpdateNumInstances;
 
-	// 1. Perform any changes to instance ordering (that might have resulted from deleting or otherwise rearranging instances)
-	FDataRemap DataRemap(PostUpdateNumInstances);
-
-	// Build a remap from old instance order to new instance order, carrying out any movement requested to fill holes from removes
-		
-//FIXME:
-//	1. Resize dest arrays first, since we may move data to the upper reaches
-//	2. Filter out anything that is added or fully updated anyway
-//	3. Add validation to check that we don't validate reordering assumptions.
-
-	// Note: in general, it is more efficient to forego the source order (since it supports inefficient Remove() operations, not RemoveSwap) and instead figure out a 
-	//       better mapping for the renderer. However, this is the simplest implementation! Or supposed to be anyway.
-	for (TConstSetBitIterator<> BitIt(ChangeSet.ChangeMask.IndexChangeInstances); BitIt; ++BitIt)
+	// Handle data movement, needs old & new ID maps
+	// These can only be caused by removes, which means an item can only ever move towards lower index in the array.
+	// Thus, we can always safely overwrite the data in the new slot, since we do them in increasing order.
+	// NOTE: If we start allowing some other kind of permutation of the ISM data, this assumption will break.
+	// TODO: Add validation code somewhere in the pipeline.
+	const auto IndexDelta = ChangeSet.GetIndexChangedDelta();
+	for (auto It = IndexDelta.GetIterator(); It; ++It)
 	{
-		FPrimitiveInstanceId InstanceId{BitIt.GetIndex()};
-		// Filter out added instances, since they don't exist in the previous state.
-		if (!ChangeSet.ChangeMask.AddedInstances[InstanceId])
+		// Index in the source (e.g., component)
+		const int32 ToIndex = It.GetIndex();
+		if (!ChangeSet.InstanceAttributeTracker.TestFlag<FInstanceAttributeTracker::EFlag::Added>(ToIndex))
 		{
-			int32 ToIndex = ChangeSet.InstanceIdIndexMap.IdToIndex(InstanceId);
-			if (ToIndex != INDEX_NONE && ToIndex < PostUpdateNumInstances)
+			int32 ItemIndex = It.GetItemIndex();
+			FPrimitiveInstanceId InstanceId = ChangeSet.bIdentityIdMap ? FPrimitiveInstanceId{ToIndex} : ChangeSet.IndexToIdMapDeltaData[ItemIndex];
+			if (InstanceIdIndexMap.IsValidId(InstanceId))
 			{
-				DataRemap.Set(ToIndex, InstanceIdIndexMap.IdToIndex(InstanceId));
+				const int32 FromIndex =  InstanceIdIndexMap.IdToIndex(InstanceId);
+
+				ProxyData.InstanceToPrimitiveRelative[ToIndex] = ProxyData.InstanceToPrimitiveRelative[FromIndex];
+				CondMove(ChangeSet.Flags.bHasPerInstanceCustomData, ProxyData.InstanceCustomData, FromIndex, ToIndex, ChangeSet.NumCustomDataFloats);
+				CondMove(ChangeSet.Flags.bHasPerInstanceRandom, ProxyData.InstanceRandomIDs, FromIndex, ToIndex);
+				CondMove(ChangeSet.Flags.bHasPerInstanceLMSMUVBias, ProxyData.InstanceLightShadowUVBias, FromIndex, ToIndex);
+#if WITH_EDITOR
+				CondMove(ChangeSet.Flags.bHasPerInstanceEditorData, ProxyData.InstanceEditorData, FromIndex, ToIndex);
+#endif
 			}
 		}
 	}
 
-	// Iterate in order from low to high index since remove always moves data up (does not work for more general shuffling!)
-	for (TConstSetBitIterator<> BitIt(DataRemap.Used); BitIt; ++BitIt)
-	{
-		int32 ToIndex = BitIt.GetIndex();
-		int32 FromIndex = DataRemap.FromInices[ToIndex];
-		ProxyData.InstanceToPrimitiveRelative[ToIndex] = ProxyData.InstanceToPrimitiveRelative[FromIndex];
-		CondMove(ChangeSet.Flags.bHasPerInstanceCustomData, ProxyData.InstanceCustomData, FromIndex, ToIndex, ChangeSet.NumCustomDataFloats);
-		CondMove(ChangeSet.Flags.bHasPerInstanceRandom, ProxyData.InstanceRandomIDs, FromIndex, ToIndex);
-		CondMove(ChangeSet.Flags.bHasPerInstanceLMSMUVBias, ProxyData.InstanceLightShadowUVBias, FromIndex, ToIndex);
-#if WITH_EDITOR
-		CondMove(ChangeSet.Flags.bHasPerInstanceEditorData, ProxyData.InstanceEditorData, FromIndex, ToIndex);
-#endif
-	}
+	UpdateIdMapping(ChangeSet);
+	check(ChangeSet.PostUpdateNumInstances == InstanceIdIndexMap.GetMaxInstanceIndex());
 
 	FIdentityIndexRemap IndexRemap;
 	ApplyDataChanges(ChangeSet, IndexRemap, PostUpdateNumInstances, ProxyData);
-
-	ChangeMask = MoveTemp(ChangeSet.ChangeMask);
-	InstanceIdIndexMap = MoveTemp(ChangeSet.InstanceIdIndexMap);
 
 	InstanceSceneDataBuffers.EndWriteAccess(AccessTag);
 
@@ -332,7 +340,8 @@ void FISMCInstanceDataSceneProxy::Update(FISMInstanceUpdateChangeSet&& ChangeSet
 void FISMCInstanceDataSceneProxy::DebugDrawInstanceChanges(FPrimitiveDrawInterface* DebugPDI, ESceneDepthPriorityGroup SceneDepthPriorityGroup)
 {
 	InstanceDataUpdateTaskInfo.WaitForUpdateCompletion();
-
+#if 0
+	// TODO: The tracked changes are not available in the proxy. Need a new  mechanism to propagate this info, probably.
 	for (int Index = 0; Index < InstanceSceneDataBuffers.GetNumInstances(); ++Index)
 	{
 		FPrimitiveInstanceId InstanceId = InstanceIdIndexMap.IndexToId(Index);
@@ -345,6 +354,7 @@ void FISMCInstanceDataSceneProxy::DebugDrawInstanceChanges(FPrimitiveDrawInterfa
 			DrawCircle(DebugPDI, InstanceToWorld.GetOrigin(), FVector(1, 0, 0), FVector(0, 1, 0), FColor::Orange, 40.0f, 32, SceneDepthPriorityGroup);
 		}
 	}
+#endif
 }
 
 FISMCInstanceDataSceneProxyLegacyReordered::FISMCInstanceDataSceneProxyLegacyReordered(FStaticShaderPlatform InShaderPlatform, ERHIFeatureLevel::Type InFeatureLevel, bool bInLegacyReordered) 
@@ -369,10 +379,10 @@ void FISMCInstanceDataSceneProxyLegacyReordered::Update(FISMInstanceUpdateChange
 
 		ProxyData.VisibleInstances.SetNum(ChangeSet.PostUpdateNumInstances, true);
 		ProxyData.Flags.bHasPerInstanceVisible = true;
-		for (TConstSetBitIterator<> BitIt(ChangeSet.ChangeMask.RemovedInstances); BitIt; ++BitIt)
+		for (auto It = ChangeSet.InstanceAttributeTracker.GetRemovedIterator(); It; ++It)
 		{
 			// This is somewhat nonintuitive, but the current instance->index map is where we retain knowledge of where the instance used to be placed (in the component address space at last update)
-			int32 InstanceIndex = InstanceIdIndexMap.IdToIndex(FPrimitiveInstanceId{BitIt.GetIndex()});
+			int32 InstanceIndex = InstanceIdIndexMap.IdToIndex(FPrimitiveInstanceId{It.GetIndex()});
 			if (IndexRemapOld.RemapIndex(InstanceIndex))
 			{
 				LOG_INST_DATA(TEXT("Update/HideInstance, ID: %d, IDX: %d"), BitIt.GetIndex(), InstanceIndex);
@@ -380,6 +390,8 @@ void FISMCInstanceDataSceneProxyLegacyReordered::Update(FISMInstanceUpdateChange
 			}
 		}
 	}
+	UpdateIdMapping(ChangeSet);
+
 	LegacyInstanceReorderTable = MoveTemp(ChangeSet.LegacyInstanceReorderTable);
 	FReorderTableIndexRemap IndexRemap(LegacyInstanceReorderTable, ChangeSet.PostUpdateNumInstances);
 
@@ -387,9 +399,6 @@ void FISMCInstanceDataSceneProxyLegacyReordered::Update(FISMInstanceUpdateChange
 	ApplyDataChanges(ChangeSet, IndexRemap, ChangeSet.PostUpdateNumInstances, ProxyData);
 	
 	InstanceSceneDataBuffers.EndWriteAccess(AccessTag);
-
-	ChangeMask = MoveTemp(ChangeSet.ChangeMask);
-	InstanceIdIndexMap = MoveTemp(ChangeSet.InstanceIdIndexMap);
 
 	InstanceSceneDataBuffers.ValidateData();
 	IncStatCounters();
@@ -400,12 +409,12 @@ void FISMCInstanceDataSceneProxyLegacyReordered::Build(FISMInstanceUpdateChangeS
 {
 	DecStatCounters();
 	check(ChangeSet.IsFullUpdate());
-	check(!ChangeSet.TransformsDelta.IsDelta());
-	check(!ChangeSet.CustomDataDelta.IsDelta() || (!ChangeSet.Flags.bHasPerInstanceCustomData && ChangeSet.CustomDataDelta.IsEmpty()));
-	check(!ChangeSet.InstanceLightShadowUVBiasDelta.IsDelta() || ChangeSet.InstanceLightShadowUVBiasDelta.IsEmpty());
+	checkSlow(!ChangeSet.GetTransformDelta().IsDelta());
+	checkSlow(!ChangeSet.GetCustomDataDelta().IsDelta() || (!ChangeSet.Flags.bHasPerInstanceCustomData && ChangeSet.GetCustomDataDelta().IsEmpty()));
+	checkSlow(!ChangeSet.GetInstanceLightShadowUVBiasDelta().IsDelta() || ChangeSet.GetInstanceLightShadowUVBiasDelta().IsEmpty());
 	check(bLegacyReordered || ChangeSet.LegacyInstanceReorderTable.IsEmpty());
 #if WITH_EDITOR
-	check(!ChangeSet.InstanceEditorDataDelta.IsDelta() || ChangeSet.InstanceEditorDataDelta.IsEmpty());
+	checkSlow(!ChangeSet.GetInstanceEditorDataDelta().IsDelta() || ChangeSet.GetInstanceEditorDataDelta().IsEmpty());
 #endif
 
 	FInstanceSceneDataBuffers::FAccessTag AccessTag(PointerHash(this));
@@ -413,6 +422,8 @@ void FISMCInstanceDataSceneProxyLegacyReordered::Build(FISMInstanceUpdateChangeS
 
 	LegacyInstanceReorderTable = MoveTemp(ChangeSet.LegacyInstanceReorderTable);
 	ProxyData.Flags = ChangeSet.Flags;
+
+	UpdateIdMapping(ChangeSet);
 
 	FReorderTableIndexRemap IndexRemap(LegacyInstanceReorderTable, ChangeSet.PostUpdateNumInstances);
 	ApplyDataChanges(ChangeSet, IndexRemap, ChangeSet.PostUpdateNumInstances, ProxyData);
@@ -439,9 +450,6 @@ void FISMCInstanceDataSceneProxyLegacyReordered::Build(FISMInstanceUpdateChangeS
 	}	
 	InstanceSceneDataBuffers.EndWriteAccess(AccessTag);
 
-	ChangeMask = MoveTemp(ChangeSet.ChangeMask);
-	InstanceIdIndexMap = MoveTemp(ChangeSet.InstanceIdIndexMap);
-	
 	InstanceSceneDataBuffers.ValidateData();
 	IncStatCounters();
 }
@@ -599,8 +607,6 @@ void FISMCInstanceDataSceneProxyNoGPUScene::ApplyDataChanges(FISMInstanceUpdateC
 	{
 		// TODO: only need to process added instances? No help for ISM since the move path would be taken.
 		// TODO: OTOH for HISM there is no meaningful data, so just skipping and letting the SetNumZeroed fill in the blanks is fine.
-		FArrayIndexDelta PerInstanceRandomDelta(PostUpdateNumInstances);
-
 		InstanceRandomIDs.SetNumZeroed(PostUpdateNumInstances);
 		if (ChangeSet.GeneratePerInstanceRandomIds)
 		{
@@ -611,9 +617,12 @@ void FISMCInstanceDataSceneProxyNoGPUScene::ApplyDataChanges(FISMInstanceUpdateC
 	// unpack transform deltas
 	// TODO: Only do if requested / needed
 	ProxyData.InstanceToPrimitiveRelative.SetNumUninitialized(PostUpdateNumInstances);
-	for (int32 PackedIndex = 0; PackedIndex < ChangeSet.TransformsDelta.Num(); ++PackedIndex)
+	auto TransformDelta = ChangeSet.GetTransformDelta();
+	for (auto It = TransformDelta.GetIterator(); It; ++It)
 	{
-		int32 InstanceIndex = ChangeSet.TransformsDelta[PackedIndex];
+		int32 PackedIndex = It.GetItemIndex();
+		int32 InstanceIndex = It.GetIndex();
+
 		if (IndexRemap.RemapIndex(InstanceIndex))
 		{
 			LegacyInstanceData.SetInstance(InstanceIndex, ChangeSet.Transforms[PackedIndex].ToMatrix44f(), ChangeSet.Flags.bHasPerInstanceRandom ? InstanceRandomIDs[InstanceIndex] : 0.0f);
@@ -628,9 +637,11 @@ void FISMCInstanceDataSceneProxyNoGPUScene::ApplyDataChanges(FISMInstanceUpdateC
 
 	if (ChangeSet.Flags.bHasPerInstanceCustomData)
 	{
-		for (int32 PackedIndex = 0; PackedIndex < ChangeSet.CustomDataDelta.Num(); ++PackedIndex)
+		auto CustomDataDelta = ChangeSet.GetCustomDataDelta();
+		for (auto It = CustomDataDelta.GetIterator(); It; ++It)
 		{
-			int32 InstanceIndex = ChangeSet.CustomDataDelta[PackedIndex];
+			int32 PackedIndex = It.GetItemIndex();
+			int32 InstanceIndex = It.GetIndex();
 			if (IndexRemap.RemapIndex(InstanceIndex))
 			{
 				for (int32 j = 0; j < ProxyData.NumCustomDataFloats; ++j)
@@ -642,9 +653,11 @@ void FISMCInstanceDataSceneProxyNoGPUScene::ApplyDataChanges(FISMInstanceUpdateC
 	}
 	if (ChangeSet.Flags.bHasPerInstanceLMSMUVBias)
 	{
-		for (int32 PackedIndex = 0; PackedIndex < ChangeSet.InstanceLightShadowUVBiasDelta.Num(); ++PackedIndex)
+		auto InstanceLightShadowUVBiasDelta = ChangeSet.GetInstanceLightShadowUVBiasDelta();
+		for (auto It = InstanceLightShadowUVBiasDelta.GetIterator(); It; ++It)
 		{
-			int32 InstanceIndex = ChangeSet.InstanceLightShadowUVBiasDelta[PackedIndex];
+			int32 PackedIndex = It.GetItemIndex();
+			int32 InstanceIndex = It.GetIndex();
 			if (IndexRemap.RemapIndex(InstanceIndex))
 			{
 				FVector4f Packed = ChangeSet.InstanceLightShadowUVBias[PackedIndex];
@@ -659,9 +672,11 @@ void FISMCInstanceDataSceneProxyNoGPUScene::ApplyDataChanges(FISMInstanceUpdateC
 #if WITH_EDITOR
 	if (ChangeSet.Flags.bHasPerInstanceEditorData)
 	{
-		for (int32 PackedIndex = 0; PackedIndex < ChangeSet.InstanceEditorDataDelta.Num(); ++PackedIndex)
+		auto InstanceEditorDataDelta = ChangeSet.GetInstanceEditorDataDelta();
+		for (auto It = InstanceEditorDataDelta.GetIterator(); It; ++It)
 		{
-			int32 InstanceIndex = ChangeSet.InstanceEditorDataDelta[PackedIndex];
+			int32 PackedIndex = It.GetItemIndex();
+			int32 InstanceIndex = It.GetIndex();
 			if (IndexRemap.RemapIndex(InstanceIndex))
 			{
 				FColor HitProxyColor;
@@ -696,7 +711,6 @@ void FISMCInstanceDataSceneProxyNoGPUScene::Update(FISMInstanceUpdateChangeSet&&
 {
 	check(!ChangeSet.IsFullUpdate());
 
-	check(bLegacyReordered || ChangeSet.PostUpdateNumInstances == ChangeSet.InstanceIdIndexMap.GetMaxInstanceIndex());
 	check(bLegacyReordered || ChangeSet.LegacyInstanceReorderTable.IsEmpty());
 
 	DecStatCounters();
@@ -712,10 +726,10 @@ void FISMCInstanceDataSceneProxyNoGPUScene::Update(FISMInstanceUpdateChangeSet&&
 		// HISMTODO: move to own implementation
 		ProxyData.VisibleInstances.SetNum(ChangeSet.PostUpdateNumInstances, true);
 		ProxyData.Flags.bHasPerInstanceVisible = true;
-		for (TConstSetBitIterator<> BitIt(ChangeSet.ChangeMask.RemovedInstances); BitIt; ++BitIt)
+		for (auto It = ChangeSet.InstanceAttributeTracker.GetRemovedIterator(); It; ++It)
 		{
 			// This is somewhat nonintuitive, but the current instance->index map is where we retain knowledge of where the instance used to be placed (in the component address space at last update)
-			int32 InstanceIndex = InstanceIdIndexMap.IdToIndex(FPrimitiveInstanceId{BitIt.GetIndex()});
+			int32 InstanceIndex = InstanceIdIndexMap.IdToIndex(FPrimitiveInstanceId{It.GetIndex()});
 			if (IndexRemapOld.RemapIndex(InstanceIndex))
 			{
 				LOG_INST_DATA(TEXT("Update/HideInstance, ID: %d, IDX: %d"), BitIt.GetIndex(), InstanceIndex);
@@ -723,6 +737,10 @@ void FISMCInstanceDataSceneProxyNoGPUScene::Update(FISMInstanceUpdateChangeSet&&
 			}
 		}
 	}
+
+	UpdateIdMapping(ChangeSet);
+	check(bLegacyReordered || ChangeSet.PostUpdateNumInstances == InstanceIdIndexMap.GetMaxInstanceIndex());
+
 	LegacyInstanceReorderTable = MoveTemp(ChangeSet.LegacyInstanceReorderTable);
 	FReorderTableIndexRemap IndexRemap(LegacyInstanceReorderTable, ChangeSet.PostUpdateNumInstances);
 
@@ -732,9 +750,6 @@ void FISMCInstanceDataSceneProxyNoGPUScene::Update(FISMInstanceUpdateChangeSet&&
 
 	LegacyInstanceBuffer->SetFlushToGPUPending();
 		
-	ChangeMask = MoveTemp(ChangeSet.ChangeMask);
-	InstanceIdIndexMap = MoveTemp(ChangeSet.InstanceIdIndexMap);
-
 	IncStatCounters();
 }
 
@@ -742,15 +757,17 @@ void FISMCInstanceDataSceneProxyNoGPUScene::Build(FISMInstanceUpdateChangeSet&& 
 {
 	DecStatCounters();
 	check(ChangeSet.IsFullUpdate());
-	check(!ChangeSet.TransformsDelta.IsDelta());
-	check(!ChangeSet.CustomDataDelta.IsDelta() || (!ChangeSet.Flags.bHasPerInstanceCustomData && ChangeSet.CustomDataDelta.IsEmpty()));
-	check(!ChangeSet.InstanceLightShadowUVBiasDelta.IsDelta() || ChangeSet.InstanceLightShadowUVBiasDelta.IsEmpty());
+	checkSlow(!ChangeSet.GetTransformDelta().IsDelta());
+	checkSlow(!ChangeSet.GetCustomDataDelta().IsDelta() || (!ChangeSet.Flags.bHasPerInstanceCustomData && ChangeSet.GetCustomDataDelta().IsEmpty()));
+	checkSlow(!ChangeSet.GetInstanceLightShadowUVBiasDelta().IsDelta() || ChangeSet.GetInstanceLightShadowUVBiasDelta().IsEmpty());
 #if WITH_EDITOR
-	check(!ChangeSet.InstanceEditorDataDelta.IsDelta() || ChangeSet.InstanceEditorDataDelta.IsEmpty());
+	checkSlow(!ChangeSet.GetInstanceEditorDataDelta().IsDelta() || ChangeSet.GetInstanceEditorDataDelta().IsEmpty());
 #endif
 
-	check(bLegacyReordered || ChangeSet.PostUpdateNumInstances == ChangeSet.InstanceIdIndexMap.GetMaxInstanceIndex());
 	check(bLegacyReordered || ChangeSet.LegacyInstanceReorderTable.IsEmpty());
+
+	UpdateIdMapping(ChangeSet);
+	check(bLegacyReordered || ChangeSet.PostUpdateNumInstances == InstanceIdIndexMap.GetMaxInstanceIndex());
 
 	LegacyInstanceReorderTable = MoveTemp(ChangeSet.LegacyInstanceReorderTable);
 
@@ -789,9 +806,6 @@ void FISMCInstanceDataSceneProxyNoGPUScene::Build(FISMInstanceUpdateChangeSet&& 
 	}
 	LegacyInstanceBuffer->InitFromPreallocatedData(LegacyInstanceData);
 	LegacyInstanceBuffer->SetFlushToGPUPending();
-
-	ChangeMask = MoveTemp(ChangeSet.ChangeMask);
-	InstanceIdIndexMap = MoveTemp(ChangeSet.InstanceIdIndexMap);
 
 	IncStatCounters();
 }

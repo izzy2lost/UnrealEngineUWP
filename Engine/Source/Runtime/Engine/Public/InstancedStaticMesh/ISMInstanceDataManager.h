@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ISMInstanceDataSceneProxy.h"
+#include "InstanceAttributeTracker.h"
 
 class FPrimitiveSceneProxy;
 class HHitProxy;
@@ -120,14 +121,7 @@ public:
 
 	int32 GetMaxInstanceIndex() const;
 
-	/**
-	 * Resize (grow) the tracking state for data changes.
-	 * Returns true if the state is actually tracked, false otherwise.
-	 */
-	bool ResizeChangeTrackingState();
-
 	void CreateExplicitIdentityMapping();
-
 
 	ETrackingState GetState() const { return TrackingState; }
 
@@ -135,7 +129,11 @@ public:
 
 	void Invalidate(int32 InNumInstances);
 	
+#if DO_GUARD_SLOW
 	void ValidateMapping() const;
+#else
+	FORCEINLINE void ValidateMapping() const {};
+#endif
 
 	/**
 	 * Call to mark the manager as needing a full rebuild & having an external driver for this.
@@ -163,8 +161,12 @@ private:
 	template <typename TaskLambdaType>
 	void DispatchUpdateTask(bool bUnattached, const FInstanceDataBufferHeader &InstanceDataBufferHeader, TaskLambdaType &&TaskLambda);
 
-	inline void MarkChangeHelper(FChangeBitArray& TrackingArray, int32 InstanceIndex);
-	inline void MarkChangeHelper(FChangeBitArray& TrackingArray, FPrimitiveInstanceId InstanceId);
+	using EChangeFlag = FInstanceAttributeTracker::EFlag;
+
+	template<EChangeFlag Flag>
+	inline void MarkChangeHelper(int32 InstanceIndex);
+	template<EChangeFlag Flag>
+	inline void MarkChangeHelper(FPrimitiveInstanceId InstanceId);
 
 	void MarkComponentRenderInstancesDirty();
 
@@ -172,9 +174,7 @@ private:
 
 	bool ShouldTrackIds() const;
 
-	void MarkRemoved(FPrimitiveInstanceId InstanceId);
-
-	void MarkIndexChanged(FPrimitiveInstanceId InstanceId);
+	void FreeInstanceId(FPrimitiveInstanceId InstanceId);
 
 	void InitChangeSet(const union FChangeDesc &ChangeDesc, const FInstanceUpdateComponentDesc &ComponentData, FISMInstanceUpdateChangeSet &ChangeSet);
 
@@ -186,11 +186,8 @@ private:
 	int32 IdSearchStartIndex = 0;
 
 	// Change set.
-	FChangeBitArray AddedInstances;
-	FChangeBitArray RemovedInstances;
-	FChangeBitArray TransformChangedInstances;
-	FChangeBitArray CustomDataChangedInstances;
-	FChangeBitArray BakedLightingDataChangedInstances;
+	FInstanceAttributeTracker InstanceUpdateTracker;
+
 	bool bNumCustomDataChanged = false;
 	bool bBakedLightingDataChanged = false;
 	bool bTransformChangedAllInstances = false;
@@ -198,7 +195,6 @@ private:
 	bool bAnyEditorDataChanged = false;
 #endif	
 	bool bPrimitiveTransformChanged = false;
-	FChangeBitArray IndexChangeInstances;
 
 	TSharedPtr<FISMCInstanceDataSceneProxy, ESPMode::ThreadSafe> Proxy;
 	TWeakObjectPtr<UPrimitiveComponent> PrimitiveComponent = nullptr;

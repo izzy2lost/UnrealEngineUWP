@@ -20,6 +20,45 @@ DECLARE_DWORD_ACCUMULATOR_STAT(TEXT("Hierarchy Offset Instances"), STAT_Instance
 
 const FInstanceDataBufferHeader FInstanceDataBufferHeader::SinglePrimitiveHeader = { 1, 0, FInstanceDataFlags() };
 
+void FInstanceIdIndexMap::Reset(int32 InNumInstances)
+{
+	IndexToIdMap.Reset();
+	IdToIndexMap.Reset();
+	NumInstances = InNumInstances;
+}
+
+void FInstanceIdIndexMap::ResizeExplicit(int32 InNumInstances, int32 MaxInstanceId)
+{
+	if (IsIdentity())
+	{
+		// Create explicit mapping & before applying changes
+		CreateExplicitIdentityMapping();
+	}
+	IndexToIdMap.SetNumUninitialized(InNumInstances);
+	NumInstances = InNumInstances;
+	if (MaxInstanceId != IdToIndexMap.Num())
+	{
+		int32 OldCount = IdToIndexMap.Num();
+		IdToIndexMap.SetNumUninitialized(MaxInstanceId);
+		for (int32 Index = OldCount; Index < MaxInstanceId; ++Index)
+		{
+			IdToIndexMap[Index] = INDEX_NONE;
+		}
+	}
+}
+
+void FInstanceIdIndexMap::CreateExplicitIdentityMapping()
+{
+	check(IsIdentity());
+	IndexToIdMap.SetNumUninitialized(NumInstances);
+	IdToIndexMap.SetNumUninitialized(NumInstances);
+	for (int32 Index = 0; Index < NumInstances; ++Index)
+	{
+		IndexToIdMap[Index] = FPrimitiveInstanceId{Index};
+		IdToIndexMap[Index] = Index;
+	}
+}
+
 uint32 FInstanceSceneDataBuffers::CalcPayloadDataStride(FInstanceDataFlags Flags, int32 InNumCustomDataFloats, int32 InNumPayloadExtensionFloat4s)
 {
 	static_assert(sizeof(FRenderTransform) == sizeof(float) * 3 * 4); // Sanity check

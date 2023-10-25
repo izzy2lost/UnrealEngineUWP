@@ -2,6 +2,8 @@
 
 #include "InstancedStaticMesh/ISMInstanceDataManager.h"
 #include "InstancedStaticMesh/ISMInstanceUpdateChangeSet.h"
+#include "InstancedStaticMesh/ISMScatterGatherUtil.h"
+
 #include "Engine/InstancedStaticMesh.h"
 #include "DataDrivenShaderPlatformInfo.h"
 #include "Rendering/MotionVectorSimulation.h"
@@ -84,7 +86,7 @@ void FPrimitiveInstanceDataManager::Add(int32 InInstanceAddAtIndex, bool bInsert
 	if (HasIdentityMapping())
 	{
 		int32 InstanceId = NumInstances++;
-		MarkChangeHelper(AddedInstances, InstanceId);
+		MarkChangeHelper<EChangeFlag::Added>(InstanceId);
 
 		LOG_INST_DATA(TEXT("Add(IDX: %d, bInsert: %d) -> Id: %d"), InInstanceAddAtIndex, bInsert ? 1 : 0, InstanceId);
 		return;
@@ -113,7 +115,7 @@ void FPrimitiveInstanceDataManager::Add(int32 InInstanceAddAtIndex, bool bInsert
 			FPrimitiveInstanceId MovedId = IndexToIdMap[Index];
 			IdToIndexMap[MovedId.Id] = Index;
 			LOG_INST_DATA(TEXT("IdToIndexMap[%d] = %d"), MovedId.GetAsIndex(), Index);
-			MarkIndexChanged(MovedId);
+			InstanceUpdateTracker.MarkIndex<EChangeFlag::IndexChanged>(Index, GetMaxInstanceIndex());
 		}
 	}
 	else
@@ -126,7 +128,7 @@ void FPrimitiveInstanceDataManager::Add(int32 InInstanceAddAtIndex, bool bInsert
 	}
 	NumInstances = IndexToIdMap.Num();
 	check(ValidInstanceIdMask.Num() >= NumInstances);
-	MarkChangeHelper(AddedInstances, InstanceId);
+	MarkChangeHelper<EChangeFlag::Added>(InstanceId);
 	LOG_INST_DATA(TEXT("Add(IDX: %d, bInsert: %d) -> Id: %d"), InInstanceAddAtIndex, bInsert, InstanceId.Id);
 
 	ValidateMapping();
@@ -143,6 +145,10 @@ void FPrimitiveInstanceDataManager::RemoveAtSwap(int32 InstanceIndex)
 
 	check(Mode != EMode::ExternalLegacyData);
 
+	FPrimitiveInstanceId InstanceId = IndexToId(InstanceIndex);
+	// resize to the max at once so we don't have to grow piecemeal
+	InstanceUpdateTracker.RemoveAtSwap(InstanceId, InstanceIndex, GetMaxInstanceIndex());
+
 	// If the remove would cause reordering, we create the explicit mapping
 	const bool bCausesReordering = InstanceIndex != NumInstances - 1;
 	if (bCausesReordering && HasIdentityMapping())
@@ -152,19 +158,16 @@ void FPrimitiveInstanceDataManager::RemoveAtSwap(int32 InstanceIndex)
 
 	MarkComponentRenderInstancesDirty();
 
+	FreeInstanceId(InstanceId);
+
 	// If we still have the identity mapping, we must be removing the last item
 	if (HasIdentityMapping())
 	{
 		check(!bCausesReordering);
-		FPrimitiveInstanceId InstanceId {InstanceIndex};
-		MarkRemoved(InstanceId);
 		--NumInstances;
 		LOG_INST_DATA(TEXT("RemoveAtSwap(IDX: %d) -> Id: %d"), InstanceIndex, InstanceId.Id);
 		return;
 	}
-
-	FPrimitiveInstanceId InstanceId = IndexToIdMap[InstanceIndex];
-	MarkRemoved(InstanceId);
 
 	FPrimitiveInstanceId LastInstanceId = IndexToIdMap.Pop();
 	NumInstances = IndexToIdMap.Num();
@@ -175,7 +178,6 @@ void FPrimitiveInstanceDataManager::RemoveAtSwap(int32 InstanceIndex)
 		IdToIndexMap[LastInstanceId.Id] = InstanceIndex;
 		LOG_INST_DATA(TEXT("IdToIndexMap[%d] = %d"), LastInstanceId.Id, InstanceIndex);
 		IndexToIdMap[InstanceIndex] = LastInstanceId;
-		MarkIndexChanged(LastInstanceId);
 	}
 	ValidateMapping();
 	LOG_INST_DATA(TEXT("RemoveAtSwap(IDX: %d) -> Id: %d"), InstanceIndex, InstanceId.Id);
@@ -191,6 +193,9 @@ void FPrimitiveInstanceDataManager::RemoveAt(int32 InstanceIndex)
 	ValidateMapping();
 
 	check(Mode != EMode::ExternalLegacyData);
+	FPrimitiveInstanceId InstanceId = IndexToId(InstanceIndex);
+
+	InstanceUpdateTracker.RemoveAt(InstanceId, InstanceIndex, GetMaxInstanceIndex());
 		
 	const bool bCausesReordering = InstanceIndex != NumInstances - 1;
 	if (bCausesReordering && HasIdentityMapping())
@@ -199,20 +204,16 @@ void FPrimitiveInstanceDataManager::RemoveAt(int32 InstanceIndex)
 	}
 
 	MarkComponentRenderInstancesDirty();
+	FreeInstanceId(InstanceId);
 
 	// If we still have the identity mapping, do the simplified tracking update
 	if (HasIdentityMapping())
 	{
 		check(!bCausesReordering);
-		FPrimitiveInstanceId InstanceId {InstanceIndex};
-		MarkRemoved(InstanceId);
 		--NumInstances;
 		LOG_INST_DATA(TEXT("RemoveAt(IDX: %d) -> Id: %d"), InstanceIndex, InstanceId.Id);
 		return;
 	}
-
-	FPrimitiveInstanceId InstanceId = IndexToIdMap[InstanceIndex];
-	MarkRemoved(InstanceId);
 
 	if (InstanceIndex == IndexToIdMap.Num() - 1)
 	{
@@ -226,7 +227,6 @@ void FPrimitiveInstanceDataManager::RemoveAt(int32 InstanceIndex)
 			FPrimitiveInstanceId MovedId = IndexToIdMap[Index];
 			IdToIndexMap[MovedId.Id] = Index;
 			LOG_INST_DATA(TEXT("IdToIndexMap[%d] = %d"), MovedId.GetAsIndex(), Index);
-			MarkIndexChanged(MovedId);
 		}
 	}
 	NumInstances = IndexToIdMap.Num();
@@ -239,14 +239,15 @@ void FPrimitiveInstanceDataManager::RemoveAt(int32 InstanceIndex)
 void FPrimitiveInstanceDataManager::TransformChanged(int32 InstanceIndex)
 {
 	LOG_INST_DATA(TEXT("TransformChanged(IDX: %d)"), InstanceIndex);
-	MarkChangeHelper(TransformChangedInstances, InstanceIndex);
+	MarkChangeHelper<EChangeFlag::TransformChanged>( InstanceIndex);
 }
 
 void FPrimitiveInstanceDataManager::TransformChanged(FPrimitiveInstanceId InstanceId)
 {
 	LOG_INST_DATA(TEXT("TransformChanged(ID: %d)"), InstanceId.Id);
-	MarkChangeHelper(TransformChangedInstances, InstanceId);
+	MarkChangeHelper<EChangeFlag::TransformChanged>(InstanceId);
 }
+
 void FPrimitiveInstanceDataManager::TransformsChangedAll()
 {
 	if (GetState() == ETrackingState::Disabled)
@@ -262,13 +263,14 @@ void FPrimitiveInstanceDataManager::TransformsChangedAll()
 void FPrimitiveInstanceDataManager::CustomDataChanged(int32 InstanceIndex)
 {
 	LOG_INST_DATA(TEXT("CustomDataChanged(IDX: %d)"), InstanceIndex);
-	MarkChangeHelper(CustomDataChangedInstances, InstanceIndex);
+	MarkChangeHelper<EChangeFlag::CustomDataChanged>(InstanceIndex);
 }
 
 void FPrimitiveInstanceDataManager::BakedLightingDataChanged(int32 InstanceIndex)
 {
 	LOG_INST_DATA(TEXT("BakedLightingDataChanged(IDX: %d)"), InstanceIndex);
-	MarkChangeHelper(BakedLightingDataChangedInstances, InstanceIndex);
+	bBakedLightingDataChanged = true;
+	MarkComponentRenderInstancesDirty();
 }
 
 void FPrimitiveInstanceDataManager::BakedLightingDataChangedAll()
@@ -325,7 +327,7 @@ void FPrimitiveInstanceDataManager::PrimitiveTransformChanged()
 
 bool FPrimitiveInstanceDataManager::HasAnyInstanceChanges() const
 {
-	return !AddedInstances.IsEmpty() 
+	return InstanceUpdateTracker.HasAnyChanges() 
 #if WITH_EDITOR
 		|| bAnyEditorDataChanged 
 #endif
@@ -487,130 +489,21 @@ struct FLegacyRebuildChangeSet
 
 void FPrimitiveInstanceDataManager::InitChangeSet(const FChangeDesc &ChangeDesc, const FInstanceUpdateComponentDesc &ComponentData, FISMInstanceUpdateChangeSet &ChangeSet)
 {
-	if (ChangeSet.IsFullUpdate())
+	// Collect the delta data to be able to update the index mapping.
+	ChangeSet.MaxInstanceId = GetMaxInstanceId();
+	ChangeSet.bIdentityIdMap = IsIdentity();
+	if (!IsIdentity())
 	{
-		// Initialize to full update collection
-		// TODO: Initialize to empty conditionally using the Flags
-		ChangeSet.CustomDataDelta 
-#if WITH_EDITOR
-			= ChangeSet.InstanceEditorDataDelta 
-#endif
-			= ChangeSet.InstanceLightShadowUVBiasDelta 
-			= ChangeSet.TransformsDelta 
-			= FArrayIndexDelta(ComponentData.NumSourceInstances);
-	}
-	else
-	{
-		// TODO: It is moderately efficient to iterate all the bits multiple times... may need to use a different scheme anyway,
-		//       maybe collect set of "anything changed" indexes.
-
-		// If the primitive transform changed, or all instances changed, we want to send all the transforms since there is no proxy side storage of the pre-transformed ones.
-		bool bSendAllTransforms = ChangeDesc.bPrimitiveTransformChanged || bTransformChangedAllInstances;
-		// skip the delta collection if none is used
-		bool bAnyAddDeltaUsed = !(bSendAllTransforms  && bNumCustomDataChanged  && bBakedLightingDataChanged);
-		if (bAnyAddDeltaUsed)
-		{
-			for (TConstSetBitIterator<> BitIt(AddedInstances); BitIt; ++BitIt)
-			{
-				int32 Index = IdToIndex(FPrimitiveInstanceId{BitIt.GetIndex()});
-				check(Index != INDEX_NONE);
-				if (!bSendAllTransforms)
-				{
-					ChangeSet.TransformsDelta.AddIndex(Index);
-				}
-
-				if (!bNumCustomDataChanged && Flags.bHasPerInstanceCustomData)
-				{
-					ChangeSet.CustomDataDelta.AddIndex(Index);
-				}
-
-				if (!bBakedLightingDataChanged)
-				{
-					ChangeSet.InstanceLightShadowUVBiasDelta.AddIndex(Index);
-				}
-				//ChangeSet.InstanceEditorDataDelta.AddIndex(Index);
-			}
-		}
-#if WITH_EDITOR
-		// Bulk update editor data - the hit-proxies are recreated all the time.
-		ChangeSet.InstanceEditorDataDelta = FArrayIndexDelta(ComponentData.NumSourceInstances);
-#endif
-		if (bSendAllTransforms)
-		{
-			ChangeSet.TransformsDelta = FArrayIndexDelta(ComponentData.NumSourceInstances);
-		}
-		else
-		{
-			for (TConstSetBitIterator<> BitIt(TransformChangedInstances); BitIt; ++BitIt)
-			{
-				FPrimitiveInstanceId Id{BitIt.GetIndex()};
-				if (!AddedInstances[Id] && !RemovedInstances[Id])
-				{
-					int32 Index = IdToIndex(Id);
-					check(Index != INDEX_NONE);
-					ChangeSet.TransformsDelta.AddIndex(Index);
-				}
-			}
-		}
-
-		// Update all the custom data if there was a change in number of floats (this resets the whole thing).
-		if (Flags.bHasPerInstanceCustomData)
-		{
-			if (bNumCustomDataChanged)
-			{
-				ChangeSet.CustomDataDelta = FArrayIndexDelta(ComponentData.NumSourceInstances);
-			}
-			else
-			{
-				for (TConstSetBitIterator<> BitIt(CustomDataChangedInstances); BitIt; ++BitIt)
-				{
-					FPrimitiveInstanceId Id{BitIt.GetIndex()};
-					if (!AddedInstances[Id] && !RemovedInstances[Id])
-					{
-						int32 Index = IdToIndex(Id);
-						check(Index != INDEX_NONE);
-						ChangeSet.CustomDataDelta.AddIndex(Index);
-					}
-				}
-			}
-		}
-		else
-		{
-			ChangeSet.CustomDataDelta = FArrayIndexDelta();
-		}
-
-		if (bBakedLightingDataChanged)
-		{
-			ChangeSet.InstanceLightShadowUVBiasDelta = FArrayIndexDelta(ComponentData.NumSourceInstances);
-		}
-		else
-		{
-			for (TConstSetBitIterator<> BitIt(BakedLightingDataChangedInstances); BitIt; ++BitIt)
-			{
-				FPrimitiveInstanceId Id{BitIt.GetIndex()};
-				if (!AddedInstances[Id] && !RemovedInstances[Id])
-				{
-					int32 Index = IdToIndex(Id);
-					check(Index != INDEX_NONE);
-					ChangeSet.InstanceLightShadowUVBiasDelta.AddIndex(Index);
-				}
-			}
-		}
+		Gather(ChangeSet.GetIndexChangedDelta(), ChangeSet.IndexToIdMapDeltaData, IndexToIdMap);
 	}
 
-	// Move & reset tracked state
-	ChangeSet.ChangeMask.AddedInstances = MoveTemp(AddedInstances);
-	ChangeSet.ChangeMask.RemovedInstances = MoveTemp(RemovedInstances);
-	ChangeSet.ChangeMask.TransformChangedInstances = MoveTemp(TransformChangedInstances);
-	ChangeSet.ChangeMask.CustomDataChangedInstances = MoveTemp(CustomDataChangedInstances);
-	ChangeSet.ChangeMask.bNumCustomDataChanged = bNumCustomDataChanged;
-	ChangeSet.ChangeMask.bBakedLightingDataChanged = bBakedLightingDataChanged;
+	ChangeSet.bNumCustomDataChanged = bNumCustomDataChanged;
+	ChangeSet.bBakedLightingDataChanged = bBakedLightingDataChanged;
 
 #if WITH_EDITOR
-	ChangeSet.ChangeMask.bAnyEditorDataChanged = bAnyEditorDataChanged;
+	ChangeSet.bAnyEditorDataChanged = bAnyEditorDataChanged;
 	bAnyEditorDataChanged = false;
 #endif	
-	ChangeSet.ChangeMask.IndexChangeInstances = MoveTemp(IndexChangeInstances);
 
 	bTransformChangedAllInstances = false;
 	bNumCustomDataChanged = false;
@@ -621,11 +514,6 @@ void FPrimitiveInstanceDataManager::InitChangeSet(const FChangeDesc &ChangeDesc,
 	ChangeSet.Flags = Flags;
 	ChangeSet.AbsMaxDisplacement = AbsMaxDisplacement;
 	ChangeSet.NumCustomDataFloats = NumCustomDataFloats;
-	if (!ChangeSet.Flags.bHasPerInstanceCustomData)
-	{
-		ChangeSet.CustomDataDelta = FArrayIndexDelta();
-	}
-	ChangeSet.InstanceIdIndexMap = FInstanceIdIndexMap(*this);
 
 	// This is the odd one out
 	ChangeSet.SetInstanceLocalBounds(ComponentData.StaticMeshBounds);
@@ -670,7 +558,6 @@ bool FPrimitiveInstanceDataManager::FlushChanges(FInstanceUpdateComponentDesc &&
 		NumInstances = ComponentData.NumSourceInstances;
 	}
 	bFirstFlush = false;
-
 
 	bool bWasUpdateQueued = false;
 	// Marked for externally managed update, this may be combined with tracked changes (which results in double updates)
@@ -722,7 +609,6 @@ bool FPrimitiveInstanceDataManager::FlushChanges(FInstanceUpdateComponentDesc &&
 			FISMCInstanceDataSceneProxy &ProxyRef = *Proxy;
 			
 			// Forcibly destroy any tracking state
-			ProxyRef.ChangeMask.Reset();
 			ProxyRef.InstanceIdIndexMap = MoveTemp(ExternalChangeSet.InstanceIdIndexMap);
 #if WITH_EDITOR
 			ProxyRef.HitProxyContainer = MoveTemp(ExternalChangeSet.HitProxyContainer);
@@ -809,17 +695,29 @@ bool FPrimitiveInstanceDataManager::FlushChanges(FInstanceUpdateComponentDesc &&
 		// TODO: The states other than bCreateNewProxy _can_ be handled through delta updates (e.g., add instance + offset all the rest).
 		bool bNeedFullUpdate = ChangeDesc.bUntrackedState || ChangeDesc.bMaterialUsageFlagsChanged;
 
-		FISMInstanceUpdateChangeSet ChangeSet(bNeedFullUpdate);
+		// NOTE: Moving the update tracker to the change set implicitly resets it.
+		FISMInstanceUpdateChangeSet ChangeSet(bNeedFullUpdate, MoveTemp(InstanceUpdateTracker));
+		ChangeSet.bUpdateAllInstanceTransforms = ChangeDesc.bPrimitiveTransformChanged || bTransformChangedAllInstances;
+		ChangeSet.PostUpdateNumInstances = ComponentData.NumProxyInstances;
+		ChangeSet.NumSourceInstances = ComponentData.NumSourceInstances;
 
 		// Initialize the change set before collecting instance change data.
 		InitChangeSet(ChangeDesc, ComponentData, ChangeSet);
+
+		// Too many numbers, make sure they line up.
+		if (Mode == EMode::Default)
+		{
+			check(ChangeSet.LegacyInstanceReorderTable.IsEmpty());
+			check(ComponentData.NumSourceInstances == GetMaxInstanceIndex());
+			check(ComponentData.NumProxyInstances == GetMaxInstanceIndex());
+		}
 
 		// Callback to the owner to fill in change data.
 		ComponentData.BuildChangeSet(ChangeSet);
 		
 		// make sure the custom data change is correctly tracked
 		check(!ChangeSet.Flags.bHasPerInstanceCustomData || NumCustomDataFloats == ChangeSet.NumCustomDataFloats);
-		check(ChangeSet.Flags.bHasPerInstanceCustomData || ChangeSet.CustomDataDelta.IsEmpty() && ChangeSet.PerInstanceCustomData.IsEmpty());
+		checkSlow(ChangeSet.Flags.bHasPerInstanceCustomData || ChangeSet.GetCustomDataDelta().IsEmpty() && ChangeSet.PerInstanceCustomData.IsEmpty());
 
 		// If we have per-instance previous local to world, they are expected to be in the local space of the _previous_ local to world. If they are in fact not (e.g., if someone sets them explicitly from world space) then, well, this won't be correct
 		if (ChangeSet.Flags.bHasPerInstanceDynamicData)
@@ -838,19 +736,11 @@ bool FPrimitiveInstanceDataManager::FlushChanges(FInstanceUpdateComponentDesc &&
 		// Assemble header info to enable nonblocking primitive update.
 		FInstanceDataBufferHeader InstanceDataBufferHeader;
 
-		// Too many numbers, make sure they line up.
-		if (Mode == EMode::Default)
-		{
-			check(ChangeSet.LegacyInstanceReorderTable.IsEmpty());
-			check(ComponentData.NumSourceInstances == GetMaxInstanceIndex());
-			check(ComponentData.NumProxyInstances == GetMaxInstanceIndex());
-		}
-
-		ChangeSet.PostUpdateNumInstances = ComponentData.NumProxyInstances;
-		InstanceDataBufferHeader.NumInstances = ComponentData.NumProxyInstances;
+		InstanceDataBufferHeader.NumInstances = ChangeSet.PostUpdateNumInstances;
 		InstanceDataBufferHeader.PayloadDataStride = FInstanceSceneDataBuffers::CalcPayloadDataStride(ChangeSet.Flags, ChangeSet.NumCustomDataFloats, 0);
 		InstanceDataBufferHeader.Flags = ChangeSet.Flags;
 
+		CSV_CUSTOM_STAT_GLOBAL(NumInstanceTransformUpdates, ChangeSet.Transforms.Num(), ECsvCustomStatOp::Accumulate);
 
 		// Special handling for the case of external data & transform change, may want to extend this to others (but need to send data in that case)
 		if (Mode == EMode::ExternalLegacyData && ChangeDesc.bPrimitiveTransformChanged)
@@ -950,21 +840,15 @@ void FPrimitiveInstanceDataManager::ClearChangeTracking()
 	TrackingState = ETrackingState::Initial;
 
 	LegacyBuildData.Reset();
-
-	AddedInstances.Empty();
-	RemovedInstances.Empty();
-	TransformChangedInstances.Empty();
-	CustomDataChangedInstances.Empty();
+	InstanceUpdateTracker.Reset();
 	bNumCustomDataChanged = false;
 	bBakedLightingDataChanged = false;
 	bTransformChangedAllInstances = false;
 
-	BakedLightingDataChangedInstances.Empty();
 #if WITH_EDITOR
 	bAnyEditorDataChanged = false;
 #endif	
 	bPrimitiveTransformChanged = false;
-	IndexChangeInstances.Empty();
 }
 
 int32 FPrimitiveInstanceDataManager::GetMaxInstanceId() const
@@ -975,30 +859,6 @@ int32 FPrimitiveInstanceDataManager::GetMaxInstanceId() const
 int32 FPrimitiveInstanceDataManager::GetMaxInstanceIndex() const
 {
 	return HasIdentityMapping() ? NumInstances : IndexToIdMap.Num();
-}
-
-bool FPrimitiveInstanceDataManager::ResizeChangeTrackingState()
-{
-	if (GetState() == ETrackingState::Tracked)
-	{
-		int32 MaxInstanceId = GetMaxInstanceId();
-
-		// Grow to fit the new max
-		if (AddedInstances.Num() < MaxInstanceId)
-		{
-			AddedInstances.SetNum(MaxInstanceId, false);
-			RemovedInstances.SetNum(MaxInstanceId, false);
-			IndexChangeInstances.SetNum(MaxInstanceId, false);
-			TransformChangedInstances.SetNum(MaxInstanceId, false);
-			CustomDataChangedInstances.SetNum(MaxInstanceId, false);
-			BakedLightingDataChangedInstances.SetNum(MaxInstanceId, false);
-#if WITH_EDITOR
-			//bAnyEditorDataChanged = false;
-#endif	
-		}
-		return true;
-	}
-	return false;
 }
 
 void FPrimitiveInstanceDataManager::CreateExplicitIdentityMapping()
@@ -1014,11 +874,10 @@ void FPrimitiveInstanceDataManager::CreateExplicitIdentityMapping()
 	ValidInstanceIdMask.Reset();
 	ValidInstanceIdMask.SetNum(NumInstances, true);
 	IdSearchStartIndex = NumInstances;
-
-	ResizeChangeTrackingState();
 }
 
-void FPrimitiveInstanceDataManager::MarkChangeHelper(FChangeBitArray& TrackingArray, int32 InstanceIndex)
+template<FPrimitiveInstanceDataManager::EChangeFlag Flag>
+void FPrimitiveInstanceDataManager::MarkChangeHelper(int32 InstanceIndex)
 {
 	if (GetState() == ETrackingState::Disabled)
 	{
@@ -1032,10 +891,12 @@ void FPrimitiveInstanceDataManager::MarkChangeHelper(FChangeBitArray& TrackingAr
 		MarkComponentRenderInstancesDirty();
 		return;
 	}
-	MarkChangeHelper(TrackingArray, IndexToId(InstanceIndex));
+	InstanceUpdateTracker.MarkIndex<Flag>(InstanceIndex, GetMaxInstanceIndex());
+	MarkComponentRenderInstancesDirty();
 }
 
-void FPrimitiveInstanceDataManager::MarkChangeHelper(FChangeBitArray& TrackingArray, FPrimitiveInstanceId InstanceId)
+template<FPrimitiveInstanceDataManager::EChangeFlag Flag>
+void FPrimitiveInstanceDataManager::MarkChangeHelper(FPrimitiveInstanceId InstanceId)
 {
 	check(Mode != EMode::ExternalLegacyData);
 
@@ -1044,14 +905,7 @@ void FPrimitiveInstanceDataManager::MarkChangeHelper(FChangeBitArray& TrackingAr
 		MarkComponentRenderInstancesDirty();
 		return;
 	}
-
-	// Make sure we have (lazy) allocated the change tracking arrays
-	ResizeChangeTrackingState();
-
-	// Just mark the info, actual data will be pulled out when dispatching an update
-	TrackingArray[InstanceId] = true;
-
-	MarkComponentRenderInstancesDirty();
+	MarkChangeHelper<Flag>(IdToIndex(InstanceId));
 }
 
 void FPrimitiveInstanceDataManager::MarkComponentRenderInstancesDirty()
@@ -1076,16 +930,9 @@ bool FPrimitiveInstanceDataManager::ShouldTrackIds() const
 	return Proxy != nullptr;
 }
 
-void FPrimitiveInstanceDataManager::MarkRemoved(FPrimitiveInstanceId InstanceId)
+void FPrimitiveInstanceDataManager::FreeInstanceId(FPrimitiveInstanceId InstanceId)
 {
-	LOG_INST_DATA(TEXT("MarkRemoved(Id: %d)"), InstanceId.Id);
-
-	if (ResizeChangeTrackingState())
-	{
-		RemovedInstances[InstanceId] = true;
-		AddedInstances[InstanceId] = false;
-		IndexChangeInstances[InstanceId] = false;
-	}
+	LOG_INST_DATA(TEXT("FreeInstanceId(Id: %d)"), InstanceId.Id);
 
 	if (!HasIdentityMapping())
 	{
@@ -1096,12 +943,6 @@ void FPrimitiveInstanceDataManager::MarkRemoved(FPrimitiveInstanceId InstanceId)
 	}
 
 	LOG_INST_DATA(TEXT("IdToIndexMap[%d] = %d"), InstanceId.Id, INDEX_NONE);
-}
-
-void FPrimitiveInstanceDataManager::MarkIndexChanged(FPrimitiveInstanceId InstanceId)
-{
-	LOG_INST_DATA(TEXT("MarkIndexChanged(Id: %d)"), InstanceId.Id);
-	MarkChangeHelper(IndexChangeInstances, InstanceId);	
 }
 
 TSharedPtr<FISMCInstanceDataSceneProxy, ESPMode::ThreadSafe> FPrimitiveInstanceDataManager::GetOrCreateProxy(FStaticShaderPlatform InShaderPlatform, ERHIFeatureLevel::Type InFeatureLevel)
@@ -1147,9 +988,9 @@ void FPrimitiveInstanceDataManager::Invalidate(int32 InNumInstances)
 	}
 }
 
+#if DO_GUARD_SLOW
 void FPrimitiveInstanceDataManager::ValidateMapping() const
 {
-#if DO_GUARD_SLOW
 	check(HasIdentityMapping() || IndexToIdMap.Num() == NumInstances);
 	for (int32 Index = 0; Index < IndexToIdMap.Num(); ++Index)
 	{
@@ -1172,8 +1013,8 @@ void FPrimitiveInstanceDataManager::ValidateMapping() const
 	}
 	int32 FirstFalse = ValidInstanceIdMask.Find(false);
 	check(FirstFalse < 0 || FirstFalse >= IdSearchStartIndex);
-#endif
 }
+#endif
 
 void FPrimitiveInstanceDataManager::MarkForRebuildFromLegacy(TUniquePtr<FStaticMeshInstanceData> &&InLegacyInstanceData, const TArray<int32> &InstanceReorderTable, const TArray<TRefCountPtr<HHitProxy>> &HitProxies)
 {
@@ -1217,12 +1058,7 @@ void FPrimitiveInstanceDataManager::MarkForRebuildFromLegacy(TUniquePtr<FStaticM
 SIZE_T FPrimitiveInstanceDataManager::GetAllocatedSize() const
 {
 	return ValidInstanceIdMask.GetAllocatedSize() +
-		AddedInstances.GetAllocatedSize() +
-		RemovedInstances.GetAllocatedSize() +
-		TransformChangedInstances.GetAllocatedSize() +
-		CustomDataChangedInstances.GetAllocatedSize() +
-		BakedLightingDataChangedInstances.GetAllocatedSize() +
-		IndexChangeInstances.GetAllocatedSize();
+		InstanceUpdateTracker.GetAllocatedSize();
 }
 
 void FPrimitiveInstanceDataManager::OnRegister(int32 InNumInstances)

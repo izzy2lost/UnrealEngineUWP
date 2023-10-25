@@ -113,13 +113,9 @@ void UGrassInstancedStaticMeshComponent::BuildComponentInstanceData(FInstanceUpd
 	OutData.BuildChangeSet = [&](FISMInstanceUpdateChangeSet &ChangeSet)
 	{
 		// Cancel update as there is no source data
-		check(ChangeSet.TransformsDelta.IsEmpty());
-		ChangeSet.TransformsDelta = FArrayIndexDelta();
-		ChangeSet.InstanceLightShadowUVBiasDelta = FArrayIndexDelta();
-		ChangeSet.CustomDataDelta = FArrayIndexDelta();
-#if WITH_EDITOR
-		ChangeSet.InstanceEditorDataDelta = FArrayIndexDelta();
-#endif
+		check(ChangeSet.GetTransformDelta().IsEmpty());
+		check(ChangeSet.GetCustomDataDelta().IsEmpty());
+
 		BuildInstanceDataDeltaChangeSetCommon(ChangeSet);
 		check(GetTranslatedInstanceSpaceOrigin().IsNearlyZero());
 		check(PerInstanceSMData.IsEmpty());

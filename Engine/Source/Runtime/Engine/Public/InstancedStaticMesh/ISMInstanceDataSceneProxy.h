@@ -65,6 +65,9 @@ public:
 	ENGINE_API static FVector3f GetLocalBoundsPadExtent(const FRenderTransform& LocalToWorld, float PadAmount);
 
 protected:
+	// Update the InstanceIdIndexMap given the change set.
+	void UpdateIdMapping(FISMInstanceUpdateChangeSet& ChangeSet);
+
 	template <typename IndexRemapType>
 	void ApplyDataChanges(FISMInstanceUpdateChangeSet &ChangeSet, const IndexRemapType &IndexRemap, int32 PostUpdateNumInstances, FInstanceSceneDataBuffers::FWriteView &ProxyData);
 	
@@ -78,8 +81,6 @@ protected:
 	// Id allocation tracking
 	TBitArray<> ValidInstanceIdMask; // redundant, unsure if we need a copy of that, except insofar as to be able to scan the valid ones quicky? IdToIndexMap has the same info.
 	FInstanceIdIndexMap InstanceIdIndexMap;
-
-	FChangeMask ChangeMask;
 
 	FInstanceDataUpdateTaskInfo InstanceDataUpdateTaskInfo;
 	// True when it has never been updated before.
