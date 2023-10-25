@@ -38,8 +38,6 @@
 #include "GeometryCollection/Facades/CollectionAnchoringFacade.h"
 #include "GeometryCollection/Facades/CollectionConnectionGraphFacade.h"
 
-#include "Physics/Experimental/ChaosInterfaceUtils.h"
-
 #ifndef TODO_REIMPLEMENT_INIT_COMMANDS
 #define TODO_REIMPLEMENT_INIT_COMMANDS 0
 #endif
@@ -607,18 +605,12 @@ void FGeometryCollectionPhysicsProxy::Initialize(Chaos::FPBDRigidsEvolutionBase 
 				P->SetUserData(Parameters.UserData);
 				P->SetProxy(this);
 
-				if (Index == Parameters.InitialRootIndex && bUseStaticMeshCollisionForTraces && (OptionalTraceCollisionOverrideGeoms.Num() > 0))
+				if (Index == Parameters.InitialRootIndex && bUseStaticMeshCollisionForTraces && CreateTraceCollisionGeometryCallback != nullptr)
 				{
-					Chaos::FShapesArray Shapes;
+					const FTransform ToLocal = MassToLocal[Index].Inverse();
 					TArray<Chaos::FImplicitObjectPtr> Geoms;
-					for (const FTraceCollisionOverrideData& OverrideData : OptionalTraceCollisionOverrideGeoms)
-					{
-						// Copying Params so we can replace the local transform
-						FGeometryAddParams AddParams = OverrideData.Params;
-						AddParams.LocalTransform = AddParams.LocalTransform * MassToLocal[Index].Inverse();
-
-						OverrideData.CreateGeometryCallback(AddParams, Geoms, Shapes);
-					}
+					Chaos::FShapesArray Shapes;
+					CreateTraceCollisionGeometryCallback(ToLocal, Geoms, Shapes);
 
 					Chaos::FImplicitObjectPtr ImplicitGeometry = MakeImplicitObjectPtr<Chaos::FImplicitObjectUnion>(MoveTemp(Geoms));
 					P->SetGeometry(ImplicitGeometry);
@@ -2976,7 +2968,7 @@ void FGeometryCollectionPhysicsProxy::SetUseStaticMeshCollisionForTraces_Externa
 
 	// Expensive, so only do it when we need to
 	const bool bUseSMCollisionForTraces = ((bInUseStaticMeshCollisionForTraces && ForceOverrideGCCollisionSetupForTraces == GCCSFT_Property) || (ForceOverrideGCCollisionSetupForTraces == GCCSFT_ForceSM));
-	if (bUseStaticMeshCollisionForTraces != bUseSMCollisionForTraces && (OptionalTraceCollisionOverrideGeoms.Num() > 0))
+	if (bUseStaticMeshCollisionForTraces != bUseSMCollisionForTraces && CreateTraceCollisionGeometryCallback != nullptr)
 	{
 		const int32 Index = Parameters.InitialRootIndex;
 		if (GTParticles.Num() > Index)
@@ -2987,16 +2979,10 @@ void FGeometryCollectionPhysicsProxy::SetUseStaticMeshCollisionForTraces_Externa
 				{
 					const TManagedArray<FTransform>& MassToLocal = Parameters.RestCollection->GetAttribute<FTransform>("MassToLocal", FGeometryCollection::TransformGroup);
 
-					Chaos::FShapesArray Shapes;
+					const FTransform ToLocal = MassToLocal[Index].Inverse();
 					TArray<Chaos::FImplicitObjectPtr> Geoms;
-					for (const FTraceCollisionOverrideData& OverrideData : OptionalTraceCollisionOverrideGeoms)
-					{
-						// Copying Params so we can replace the local transform
-						FGeometryAddParams AddParams = OverrideData.Params;
-						AddParams.LocalTransform = AddParams.LocalTransform * MassToLocal[Index].Inverse();
-
-						OverrideData.CreateGeometryCallback(AddParams, Geoms, Shapes);
-					}
+					Chaos::FShapesArray Shapes;
+					CreateTraceCollisionGeometryCallback(ToLocal, Geoms, Shapes);
 
 					Chaos::FImplicitObjectPtr ImplicitGeometry = MakeImplicitObjectPtr<Chaos::FImplicitObjectUnion>(MoveTemp(Geoms));
 					P->SetGeometry(ImplicitGeometry);
@@ -5460,11 +5446,6 @@ Chaos::FPhysicsObjectHandle FGeometryCollectionPhysicsProxy::GetPhysicsObjectByI
 	}
 
 	return PhysicsObjects[Index].Get();
-}
-
-void FGeometryCollectionPhysicsProxy::RegisterNewTraceCollisionOverrideData(const FGeometryAddParams& InParams, FTraceCollisionCreateGeometryCallback InCreateGeometryCallback)
-{
-	OptionalTraceCollisionOverrideGeoms.Emplace(InParams, InCreateGeometryCallback);
 }
 
 FGeometryCollectionPhysicsProxy::FParticle* FGeometryCollectionPhysicsProxy::GetParticleByIndex_External(int32 Index)

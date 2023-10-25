@@ -3816,7 +3816,30 @@ void UGeometryCollectionComponent::RegisterAndInitializePhysicsProxy()
 		}
 	}
 
-	// Always set up the overrides in case the boolean flips later to allow SM collision on GT
+	auto CreateTraceCollisionFromStaticMeshGeometry = [this](const FTransform& InToLocal, TArray<Chaos::FImplicitObjectPtr>& OutGeoms, Chaos::FShapesArray& OutShapes) {
+		for (const TObjectPtr<UStaticMesh>& ProxyMesh : RestCollection->RootProxyData.ProxyMeshes)
+		{
+			// If these were null we wouldn't have set this callback in the first place
+			const UStaticMesh* StaticMesh = ProxyMesh.Get();
+			UBodySetup* BodySetup = ProxyMesh->GetBodySetup();
+
+			FBodyCollisionData BodyCollisionData;
+			BodyInstance.BuildBodyFilterData(BodyCollisionData.CollisionFilterData);
+			FBodyInstance::BuildBodyCollisionFlags(BodyCollisionData.CollisionFlags, BodyInstance.GetCollisionEnabled(), BodySetup->GetCollisionTraceFlag() == CTF_UseComplexAsSimple);
+
+			FGeometryAddParams AddParams;
+			AddParams.bDoubleSided = BodySetup->bDoubleSidedGeometry;
+			AddParams.CollisionData = BodyCollisionData;
+			AddParams.CollisionTraceType = BodySetup->GetCollisionTraceFlag();
+			AddParams.Scale = BodyInstance.Scale3D;
+			AddParams.SimpleMaterial = BodyInstance.GetSimplePhysicalMaterial();
+			AddParams.LocalTransform = InToLocal;
+			AddParams.WorldTransform = PhysicsProxy->GetSimParameters().WorldTransform;
+			AddParams.Geometry = &BodySetup->AggGeom;
+			ChaosInterface::CreateGeometry(AddParams, OutGeoms, OutShapes);
+		}
+	};
+
 	// todo(chaos): Remove this and move to a cook time approach of the SM data based on the GC property
 	if (RestCollection != nullptr)
 	{
@@ -3826,32 +3849,13 @@ void UGeometryCollectionComponent::RegisterAndInitializePhysicsProxy()
 			{
 				if (UBodySetup* BodySetup = ProxyMesh->GetBodySetup())
 				{
-					FBodyCollisionData BodyCollisionData;
-					BodyInstance.BuildBodyFilterData(BodyCollisionData.CollisionFilterData);
-					FBodyInstance::BuildBodyCollisionFlags(BodyCollisionData.CollisionFlags, BodyInstance.GetCollisionEnabled(), BodySetup->GetCollisionTraceFlag() == CTF_UseComplexAsSimple);
-
-					FGeometryAddParams AddParams;
-					AddParams.bDoubleSided = BodySetup->bDoubleSidedGeometry;
-					AddParams.CollisionData = BodyCollisionData;
-					AddParams.CollisionTraceType = BodySetup->GetCollisionTraceFlag();
-					AddParams.Scale = BodyInstance.Scale3D;
-					AddParams.SimpleMaterial = BodyInstance.GetSimplePhysicalMaterial();
-					AddParams.LocalTransform = FTransform::Identity;
-					AddParams.WorldTransform = PhysicsProxy->GetSimParameters().WorldTransform;
-					AddParams.Geometry = &BodySetup->AggGeom;
-
-					PhysicsProxy->RegisterNewTraceCollisionOverrideData(
-						AddParams,
-						[](const FGeometryAddParams& InParams, TArray<Chaos::FImplicitObjectPtr>& OutGeoms, Chaos::FShapesArray& OutShapes) {
-							ChaosInterface::CreateGeometry(InParams, OutGeoms, OutShapes);
-						}
-					);
+					// We have at least one valid mesh, so set the callback in case we are asked to use SM collision for traces
+					PhysicsProxy->SetCreateTraceCollisionGeometryCallback(CreateTraceCollisionFromStaticMeshGeometry);
+					break;
 				}
 			}
 		}
 	}
-
-	PhysicsProxy->SetUseStaticMeshCollisionForTraces_External(bUseStaticMeshCollisionForTraces);
 
 	FPhysScene_Chaos* PhysicsScene = GetInnerChaosScene();
 	if (ensure(PhysicsScene))

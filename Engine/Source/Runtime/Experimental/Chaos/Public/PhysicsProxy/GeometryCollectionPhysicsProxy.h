@@ -18,7 +18,6 @@
 #include "PBDRigidsSolver.h"
 #include "Chaos/Defines.h"
 #include "Chaos/GeometryParticlesfwd.h"
-#include "Physics/PhysicsInterfaceTypes.h"
 
 namespace Chaos
 {
@@ -496,8 +495,8 @@ public:
 	int32 GetNumParticles() const { return NumParticles; }
 
 	// todo(chaos): Remove this and move to a cook time approach of the SM data based on the GC property
-	using FTraceCollisionCreateGeometryCallback = TFunction<void(const FGeometryAddParams& InParams, TArray<Chaos::FImplicitObjectPtr>& OutGeoms, Chaos::FShapesArray& OutShapes)>;
-	CHAOS_API void RegisterNewTraceCollisionOverrideData(const FGeometryAddParams& InParams, FTraceCollisionCreateGeometryCallback InCreateGeometryCallback);
+	using FCreateTraceCollisionGeometryCallback = TFunction<void(const FTransform& InToLocal, TArray<Chaos::FImplicitObjectPtr>& OutGeoms, Chaos::FShapesArray& OutShapes)>;
+	void SetCreateTraceCollisionGeometryCallback(FCreateTraceCollisionGeometryCallback InCreateGeometryCallback) { CreateTraceCollisionGeometryCallback = InCreateGeometryCallback; }
 
 protected:
 
@@ -620,22 +619,9 @@ private:
 	TArray<int32> ValidGeometryTransformIndices;
 
 	// todo(chaos): Remove this and move to a cook time approach of the SM data based on the GC property
-	// These are created off of the static meshes in the event we want to use SM collision on the game thread
-	struct FTraceCollisionOverrideData
-	{
-		FTraceCollisionOverrideData() = default;
-
-		FTraceCollisionOverrideData(const FGeometryAddParams& InParams, FTraceCollisionCreateGeometryCallback InCallback)
-		: Params(InParams)
-		, CreateGeometryCallback(InCallback)
-		{}
-
-		FGeometryAddParams Params;
-		FTraceCollisionCreateGeometryCallback CreateGeometryCallback;
-	};
-	TArray<FTraceCollisionOverrideData> OptionalTraceCollisionOverrideGeoms;
+	FCreateTraceCollisionGeometryCallback CreateTraceCollisionGeometryCallback;
 	
-	// Use SetUseStaticMeshCollisionForTraces_External intead of setting this directly, so that the collision can be recreated if needed
+	// Use SetUseStaticMeshCollisionForTraces_External instead of setting this directly, so that the collision can be recreated if needed
 	bool bUseStaticMeshCollisionForTraces = false;
 
 #ifdef TODO_REIMPLEMENT_RIGID_CACHING
