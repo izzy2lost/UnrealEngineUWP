@@ -410,7 +410,7 @@ public:
 
 	UE::Tasks::FTask GetComputeRelevanceTask() const override
 	{
-		return Tasks.ComputeRelevance;
+		return Tasks.FinalizeRelevance;
 	}
 
 	UE::Tasks::FTask GetLightVisibilityTask() const override
