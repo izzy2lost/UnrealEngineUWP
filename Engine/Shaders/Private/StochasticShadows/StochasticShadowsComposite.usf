@@ -1,0 +1,120 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#include "../Common.ush"
+#include "../LightGridCommon.ush"
+#include "../ShaderPrint.ush"
+#include "StochasticShadows.ush"
+
+RWTexture2D<uint> RWShadowMaskTileAtlas;
+StructuredBuffer<uint2> ShadowMaskTileData;
+Texture2D<uint2> ShadowMaskHistoryScreenCoord00;
+Texture2D<float4> ShadowMaskHistoryWeights;
+Texture2D<uint> LightSamples;
+
+/**
+ * Run one thread per shadow mask pixel and composite current frame's traces.
+ * Also output a compacted tile list for shading.
+ */
+[numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, 1)]
+void CompositeShadowMaskTracesCS(
+	uint3 GroupId : SV_GroupID,
+	uint3 GroupThreadId : SV_GroupThreadID,
+	uint3 DispatchThreadId : SV_DispatchThreadID)
+{
+	uint ShadowMaskTileIndex = GroupId.x;
+	uint2 LocalShadowMaskTileCoord = GroupThreadId.xy;
+
+	uint LightSceneId = 0;
+	uint2 ShadowMaskScreenCoord = 0;	
+	UnpackShadowMaskTile(ShadowMaskTileData[ShadowMaskTileIndex], LightSceneId, ShadowMaskScreenCoord);
+	ShadowMaskScreenCoord += LocalShadowMaskTileCoord;
+
+#define DEBUG_MODE 0
+#if DEBUG_MODE
+	int2 DebugScreenCoord = View.CursorPosition.x >= 0 ? View.CursorPosition * View.ViewResolutionFraction : -1;
+	bool bDebug = all(ShadowMaskScreenCoord == DebugScreenCoord / SHADOW_MASK_DOWNSAMPLE_FACTOR);
+	FShaderPrintContext Context = InitShaderPrintContext(true, float2(0.1, 0.3));
+
+	if (bDebug)
+	{
+		Print(Context, TEXT("CompositeShadowMaskTracesCS"));
+	}
+#endif
+
+	if (all(ShadowMaskScreenCoord < ShadowMaskViewSize))
+	{
+		// Accumulate current frame traces
+		FShadowMask ShadowMask = InitShadowMask();
+		{
+			FShadowMaskAccumulator Accumulator = InitShadowMaskAccumulator();
+			for (uint LocalSampleY = 0; LocalSampleY < NUM_SAMPLES_PER_PIXEL_Y; ++LocalSampleY)
+			{
+				for (uint LocalSampleX = 0; LocalSampleX < NUM_SAMPLES_PER_PIXEL_X; ++LocalSampleX)
+				{
+					uint2 SampleCoord = ShadowMaskScreenCoord * uint2(NUM_SAMPLES_PER_PIXEL_X, NUM_SAMPLES_PER_PIXEL_Y) + uint2(LocalSampleX, LocalSampleY);
+					FLightSample LightSample = UnpackLightSample(LightSamples[SampleCoord]);
+
+					if (LightSample.LightSceneId == LightSceneId)
+					{
+						float Factor = LightSample.bVisible ? 1.0f : 0.0f;
+
+						float Weight = 1.0f;
+						Accumulator.FactorSum += Factor * Weight;
+						Accumulator.FactorSqSum += Pow2(Factor) * Weight;
+						Accumulator.WeightSum += Weight;
+					}
+				}
+			}
+
+			if (Accumulator.WeightSum > 0.0f)
+			{
+				ShadowMask.Age = 0;
+				ShadowMask.Factor = Accumulator.FactorSum / Accumulator.WeightSum;
+				ShadowMask.FactorSq = Accumulator.FactorSqSum / Accumulator.WeightSum;
+			}
+		}
+
+		// History reprojection
+		#if TEMPORAL_ACCUMULATION
+		{
+			int2 ScreenCoord00 = ShadowMaskHistoryScreenCoord00[ShadowMaskScreenCoord];
+			float4 Weights = ShadowMaskHistoryWeights[ShadowMaskScreenCoord];
+
+			if (any(Weights > 0.0f))
+			{
+				FShadowMaskAccumulator Accumulator = InitShadowMaskAccumulator();
+
+				AccumulateHistoryShadowMask(LightSceneId, ScreenCoord00 + uint2(0, 0), Weights.x, Accumulator);
+				AccumulateHistoryShadowMask(LightSceneId, ScreenCoord00 + uint2(1, 0), Weights.y, Accumulator);
+				AccumulateHistoryShadowMask(LightSceneId, ScreenCoord00 + uint2(0, 1), Weights.z, Accumulator);
+				AccumulateHistoryShadowMask(LightSceneId, ScreenCoord00 + uint2(1, 1), Weights.w, Accumulator);
+
+				if (Accumulator.WeightSum > 0.0f)
+				{
+					float HistoryShadowFactor = Accumulator.FactorSum / Accumulator.WeightSum;
+					float HistoryShadowFactorSq = Accumulator.FactorSqSum / Accumulator.WeightSum;
+
+					// Merge with reprojected history data
+					if (ShadowMask.IsValid())
+					{
+						float NewNumFramesAccumulated = max(Accumulator.MaxHistoryLength, 8.0f);
+						float Alpha = 1.0f / (1.0f + NewNumFramesAccumulated);
+						ShadowMask.Factor = lerp(HistoryShadowFactor, ShadowMask.Factor, Alpha);
+						ShadowMask.FactorSq = lerp(HistoryShadowFactorSq, ShadowMask.FactorSq, Alpha);
+						ShadowMask.Age = 0;
+					}
+					else
+					{
+						ShadowMask.Factor = HistoryShadowFactor;
+						ShadowMask.FactorSq = HistoryShadowFactorSq;
+						ShadowMask.Age = Accumulator.MinAge;
+					}
+				}
+			}
+		}
+		#endif
+
+		uint2 ShadowMaskTileAtlasCoord = GetShadowMaskTileAtlasCoord(ShadowMaskTileIndex, LocalShadowMaskTileCoord);
+		RWShadowMaskTileAtlas[ShadowMaskTileAtlasCoord] = PackShadowMask(ShadowMask);
+	}
+}

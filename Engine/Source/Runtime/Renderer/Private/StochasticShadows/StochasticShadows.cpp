@@ -160,6 +160,7 @@ static TAutoConsoleVariable<int> CVarStochasticShadowsCandidateLightMask(
 
 namespace StochasticShadows
 {
+	constexpr int32 TileSize = 8;
 	constexpr int32 ShadowMaskTileSize = 8;	// Stored downsampled
 	constexpr int32 MaxLightSceneIdXY = 16; // 16 * 16 = 256
 	constexpr int32 MaxShadingTilesPerGridCell = 16;
@@ -258,6 +259,14 @@ namespace StochasticShadows
 		NumTraces      = 2 * sizeof(FRHIDispatchIndirectParameters),
 		MAX = 3
 	};
+
+	// Keep in sync with TILE_TYPE_* in shaders
+	enum class ETileType : uint8
+	{
+		SimpleShading = 0,
+		ComplexShading = 1,
+		MAX = 2
+	};
 }
 
 BEGIN_SHADER_PARAMETER_STRUCT(FStochasticShadowsParameters, )
@@ -280,9 +289,76 @@ BEGIN_SHADER_PARAMETER_STRUCT(FStochasticShadowsParameters, )
 	SHADER_PARAMETER(FIntPoint, ShadingTileGridSize)
 	SHADER_PARAMETER(FVector2f, DownsampledBufferInvSize)
 	SHADER_PARAMETER(float, MinLightSampleWeight)
+	SHADER_PARAMETER(int32, TileDataStride)
+	SHADER_PARAMETER(int32, DownsampledTileDataStride)
 	SHADER_PARAMETER(int32, DebugMode)
 	SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float>, DownsampledSceneDepth)
 END_SHADER_PARAMETER_STRUCT()
+
+class FTileClassificationCS : public FGlobalShader
+{
+	DECLARE_GLOBAL_SHADER(FTileClassificationCS)
+	SHADER_USE_PARAMETER_STRUCT(FTileClassificationCS, FGlobalShader)
+
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER_STRUCT_INCLUDE(FStochasticShadowsParameters, StochasticShadowsParameters)
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<uint>, RWTileAllocator)
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<uint>, RWTileData)
+	END_SHADER_PARAMETER_STRUCT()
+
+	class FDownsampledClassification : SHADER_PERMUTATION_BOOL("DOWNSAMPLED_CLASSIFICATION");
+	using FPermutationDomain = TShaderPermutationDomain<FDownsampledClassification>;
+
+	static int32 GetGroupSize()
+	{	
+		return 8;
+	}
+
+	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		return StochasticShadows::ShouldCompileShaders(Parameters);
+	}
+
+	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+	{
+		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZE"), GetGroupSize());
+	}
+};
+
+IMPLEMENT_GLOBAL_SHADER(FTileClassificationCS, "/Engine/Private/StochasticShadows/StochasticShadows.usf", "TileClassificationCS", SF_Compute);
+
+class FInitTileIndirectArgsCS : public FGlobalShader
+{
+	DECLARE_GLOBAL_SHADER(FInitTileIndirectArgsCS)
+	SHADER_USE_PARAMETER_STRUCT(FInitTileIndirectArgsCS, FGlobalShader);
+
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER_STRUCT_INCLUDE(FStochasticShadowsParameters, StochasticShadowsParameters)
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, RWTileIndirectArgs)
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, RWDownsampledTileIndirectArgs)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, TileAllocator)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, DownsampledTileAllocator)
+	END_SHADER_PARAMETER_STRUCT()
+
+	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		return StochasticShadows::ShouldCompileShaders(Parameters);
+	}
+
+	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+	{
+		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZE"), GetGroupSize());
+	}
+
+	static int32 GetGroupSize()
+	{
+		return 64;
+	}
+};
+
+IMPLEMENT_GLOBAL_SHADER(FInitTileIndirectArgsCS, "/Engine/Private/StochasticShadows/StochasticShadows.usf", "InitTileIndirectArgsCS", SF_Compute);
 
 class FCompactLightSampleTracesCS : public FGlobalShader
 {
@@ -395,11 +471,13 @@ class FGenerateSamplesCS : public FGlobalShader
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<uint32>, RWShadowMaskHistoryScreenCoord00)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, RWShadowMaskHistoryWeights)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<uint>, RWShadowMaskTileAllocator)
-		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<uint2>, RWShadowMaskTileHeader)
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<uint2>, RWShadowMaskTileData)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<uint>, RWShadowMaskPageTable)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<uint>, RWShadowMaskHashTable)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<uint>, RWLightSamples)
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FForwardLightData, ForwardLightData)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, DownsampledTileAllocator)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, DownsampledTileData)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<uint>, ShadowMaskPageTableHistory)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, ShadowMaskHashTableHistory)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<uint>, ShadowMaskAtlasHistory)
@@ -409,13 +487,14 @@ class FGenerateSamplesCS : public FGlobalShader
 		SHADER_PARAMETER(FVector4f, HistoryScreenPositionScaleBias)
 	END_SHADER_PARAMETER_STRUCT()
 
+	class FTileType : SHADER_PERMUTATION_INT("TILE_TYPE", (int32)StochasticShadows::ETileType::MAX);
 	class FNumSamplesPerPixel : SHADER_PERMUTATION_SPARSE_INT("NUM_SAMPLES_PER_PIXEL", 1, 2, 4);
 	class FShadowMaskReprojectionWeights : SHADER_PERMUTATION_BOOL("SHADOW_MASK_REPROJECTION_WEIGHTS");
 	class FShadowFactorEstimate : SHADER_PERMUTATION_BOOL("SHADOW_FACTOR_ESTIMATE");
 	class FHashTable : SHADER_PERMUTATION_BOOL("HASH_TABLE");
 	class FCandidateLightMask : SHADER_PERMUTATION_BOOL("CANDIDATE_LIGHT_MASK");
 	class FDebugMode : SHADER_PERMUTATION_BOOL("DEBUG_MODE");
-	using FPermutationDomain = TShaderPermutationDomain<FNumSamplesPerPixel, FShadowMaskReprojectionWeights, FShadowFactorEstimate, FHashTable, FCandidateLightMask, FDebugMode>;
+	using FPermutationDomain = TShaderPermutationDomain<FTileType, FNumSamplesPerPixel, FShadowMaskReprojectionWeights, FShadowFactorEstimate, FHashTable, FCandidateLightMask, FDebugMode>;
 
 	static int32 GetGroupSize()
 	{	
@@ -692,7 +771,7 @@ class FCompositeShadowMaskTracesCS : public FGlobalShader
 		RDG_BUFFER_ACCESS(IndirectArgs, ERHIAccess::IndirectArgs)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<uint>, RWShadowMaskTileAtlas)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<uint>, ShadowMaskPageTable)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint2>, ShadowMaskTileHeader)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint2>, ShadowMaskTileData)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<uint32>, ShadowMaskHistoryScreenCoord00)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float4>, ShadowMaskHistoryWeights)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<uint>, ShadowMaskPageTableHistory)
@@ -728,7 +807,7 @@ class FCompositeShadowMaskTracesCS : public FGlobalShader
 	}
 };
 
-IMPLEMENT_GLOBAL_SHADER(FCompositeShadowMaskTracesCS, "/Engine/Private/StochasticShadows/StochasticShadows.usf", "CompositeShadowMaskTracesCS", SF_Compute);
+IMPLEMENT_GLOBAL_SHADER(FCompositeShadowMaskTracesCS, "/Engine/Private/StochasticShadows/StochasticShadowsComposite.usf", "CompositeShadowMaskTracesCS", SF_Compute);
 
 class FShadowMaskSpatialPassCS : public FGlobalShader
 {
@@ -743,7 +822,7 @@ class FShadowMaskSpatialPassCS : public FGlobalShader
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<uint>, RWShadingTileGrid)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<UNORM float>, RWShadingTileAtlas)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float4>, ShadowMaskUpsampleWeights)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint2>, ShadowMaskTileHeader)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint2>, ShadowMaskTileData)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<uint>, ShadowMaskPageTable)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<uint>, ShadowMaskTileAtlas)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, ShadowMaskHashTable)
@@ -772,16 +851,18 @@ class FShadowMaskSpatialPassCS : public FGlobalShader
 
 IMPLEMENT_GLOBAL_SHADER(FShadowMaskSpatialPassCS, "/Engine/Private/StochasticShadows/StochasticShadowsSpatial.usf", "ShadowMaskSpatialPassCS", SF_Compute);
 
-class FShadeLightSamplesWithShadowMaskCS : public FGlobalShader
+class FShadeLightSamplesCS : public FGlobalShader
 {
-	DECLARE_GLOBAL_SHADER(FShadeLightSamplesWithShadowMaskCS)
-	SHADER_USE_PARAMETER_STRUCT(FShadeLightSamplesWithShadowMaskCS, FGlobalShader)
+	DECLARE_GLOBAL_SHADER(FShadeLightSamplesCS)
+	SHADER_USE_PARAMETER_STRUCT(FShadeLightSamplesCS, FGlobalShader)
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT_INCLUDE(FStochasticShadowsParameters, StochasticShadowsParameters)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, RWSceneColor)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<uint>, ShadowMaskPageTable)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<uint>, ShadowMaskTileAtlas)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, TileAllocator)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, TileData)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, ShadowMaskTileAllocator)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, ShadingTileAllocator)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<uint>, ShadingTileGridAllocator)
@@ -796,8 +877,9 @@ class FShadeLightSamplesWithShadowMaskCS : public FGlobalShader
 		return 8;
 	}
 
+	class FTileType : SHADER_PERMUTATION_INT("TILE_TYPE", (int32)StochasticShadows::ETileType::MAX);
 	class FDebugMode : SHADER_PERMUTATION_BOOL("DEBUG_MODE");
-	using FPermutationDomain = TShaderPermutationDomain<FDebugMode>;
+	using FPermutationDomain = TShaderPermutationDomain<FTileType, FDebugMode>;
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
@@ -811,7 +893,7 @@ class FShadeLightSamplesWithShadowMaskCS : public FGlobalShader
 	}
 };
 
-IMPLEMENT_GLOBAL_SHADER(FShadeLightSamplesWithShadowMaskCS, "/Engine/Private/StochasticShadows/StochasticShadowsShading.usf", "ShadeLightSamplesWithShadowMaskCS", SF_Compute);
+IMPLEMENT_GLOBAL_SHADER(FShadeLightSamplesCS, "/Engine/Private/StochasticShadows/StochasticShadowsShading.usf", "ShadeLightSamplesCS", SF_Compute);
 
 #if RHI_RAYTRACING
 void FDeferredShadingSceneRenderer::PrepareStochasticShadows(const FViewInfo& View, const FScene& Scene, TArray<FRHIRayTracingShader*>& OutRayGenShaders)
@@ -996,37 +1078,6 @@ void FDeferredShadingSceneRenderer::RenderStochasticShadows(FRDGBuilder& GraphBu
 	FRDGTextureRef ShadowMaskTileAtlas = GraphBuilder.CreateTexture(
 		FRDGTextureDesc::Create2D(ShadowMaskTileAtlasSize, ShadowMaskTileAtlasFormat, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
 		TEXT("StochasticShadows.ShadowMaskTileAtlas"));
-
-	FStochasticShadowsParameters StochasticShadowsParameters;
-	{
-		StochasticShadowsParameters.ViewUniformBuffer = View.ViewUniformBuffer;
-		StochasticShadowsParameters.Scene = View.GetSceneUniforms().GetBuffer(GraphBuilder);
-		StochasticShadowsParameters.SceneTextures = GetSceneTextureParameters(GraphBuilder, SceneTextures.UniformBuffer);
-		StochasticShadowsParameters.SceneTexturesStruct = SceneTextures.UniformBuffer;
-		StochasticShadowsParameters.Substrate = Substrate::BindSubstrateGlobalUniformParameters(View);
-		StochasticShadowsParameters.BlueNoise = BlueNoiseUniformBuffer;
-		StochasticShadowsParameters.DownsampledViewSize = DownsampledViewSize;
-		StochasticShadowsParameters.SampleViewSize = SampleViewSize;
-		StochasticShadowsParameters.ShadowMaskViewSize = ShadowMaskViewSize;
-		StochasticShadowsParameters.StochasticShadowsStateFrameIndex = StochasticShadows::GetStateFrameIndex(View.ViewState);
-		StochasticShadowsParameters.DownsampledSceneDepth = DownsampledSceneDepth;
-		StochasticShadowsParameters.MaxShadowMaskTiles = MaxShadowMaskTiles;
-		StochasticShadowsParameters.MaxShadingTiles = (ShadingTileAtlasSize.X * ShadingTileAtlasSize.Y) / (StochasticShadows::ShadowMaskTileSize * StochasticShadows::ShadowMaskTileSize);
-		StochasticShadowsParameters.MaxShadingTilesPerGridCell = StochasticShadows::MaxShadingTilesPerGridCell;
-		StochasticShadowsParameters.ShadingTileGridSize = ShadingTileGridSize;
-		StochasticShadowsParameters.ShadowMaskHashTableIndexWrapMask = ShadowMaskHashTableSize - 1;
-		StochasticShadowsParameters.ShadowMaskPageTablePerLightSize = ShadowMaskPageTablePerLightSize;
-		StochasticShadowsParameters.DownsampledBufferInvSize = FVector2f(1.0f) / DownsampledBufferSize;
-		StochasticShadowsParameters.MinLightSampleWeight = CVarStochasticShadowsMinSampleWeight.GetValueOnRenderThread();
-		StochasticShadowsParameters.DebugMode = CVarStochasticShadowsDebug.GetValueOnRenderThread();
-
-		if (bDebug)
-		{
-			ShaderPrint::SetEnabled(true);
-			ShaderPrint::RequestSpaceForLines(1024);
-			ShaderPrint::SetParameters(GraphBuilder, View.ShaderPrintData, StochasticShadowsParameters.ShaderPrintUniformBuffer);
-		}
-	}
 	
 	bool bTemporal = CVarStochasticShadowsTemporal.GetValueOnRenderThread() != 0;
 	FRDGTextureRef ShadowMaskSceneDepthHistory = nullptr;
@@ -1082,6 +1133,118 @@ void FDeferredShadingSceneRenderer::RenderStochasticShadows(FRDGBuilder& GraphBu
 		}
 	}
 
+	const FIntPoint ViewSizeInTiles = FIntPoint::DivideAndRoundUp(View.ViewRect.Size(), StochasticShadows::TileSize);
+	const int32 TileDataStride = ViewSizeInTiles.X * ViewSizeInTiles.Y;
+
+	const FIntPoint DownsampledViewSizeInTiles = FIntPoint::DivideAndRoundUp(DownsampledViewSize, StochasticShadows::TileSize);
+	const int32 DownsampledTileDataStride = DownsampledViewSizeInTiles.X * DownsampledViewSizeInTiles.Y;
+
+	FStochasticShadowsParameters StochasticShadowsParameters;
+	{
+		StochasticShadowsParameters.ViewUniformBuffer = View.ViewUniformBuffer;
+		StochasticShadowsParameters.Scene = View.GetSceneUniforms().GetBuffer(GraphBuilder);
+		StochasticShadowsParameters.SceneTextures = GetSceneTextureParameters(GraphBuilder, SceneTextures.UniformBuffer);
+		StochasticShadowsParameters.SceneTexturesStruct = SceneTextures.UniformBuffer;
+		StochasticShadowsParameters.Substrate = Substrate::BindSubstrateGlobalUniformParameters(View);
+		StochasticShadowsParameters.BlueNoise = BlueNoiseUniformBuffer;
+		StochasticShadowsParameters.DownsampledViewSize = DownsampledViewSize;
+		StochasticShadowsParameters.SampleViewSize = SampleViewSize;
+		StochasticShadowsParameters.ShadowMaskViewSize = ShadowMaskViewSize;
+		StochasticShadowsParameters.StochasticShadowsStateFrameIndex = StochasticShadows::GetStateFrameIndex(View.ViewState);
+		StochasticShadowsParameters.DownsampledSceneDepth = DownsampledSceneDepth;
+		StochasticShadowsParameters.MaxShadowMaskTiles = MaxShadowMaskTiles;
+		StochasticShadowsParameters.MaxShadingTiles = (ShadingTileAtlasSize.X * ShadingTileAtlasSize.Y) / (StochasticShadows::ShadowMaskTileSize * StochasticShadows::ShadowMaskTileSize);
+		StochasticShadowsParameters.MaxShadingTilesPerGridCell = StochasticShadows::MaxShadingTilesPerGridCell;
+		StochasticShadowsParameters.ShadingTileGridSize = ShadingTileGridSize;
+		StochasticShadowsParameters.ShadowMaskHashTableIndexWrapMask = ShadowMaskHashTableSize - 1;
+		StochasticShadowsParameters.ShadowMaskPageTablePerLightSize = ShadowMaskPageTablePerLightSize;
+		StochasticShadowsParameters.DownsampledBufferInvSize = FVector2f(1.0f) / DownsampledBufferSize;
+		StochasticShadowsParameters.MinLightSampleWeight = CVarStochasticShadowsMinSampleWeight.GetValueOnRenderThread();
+		StochasticShadowsParameters.TileDataStride = TileDataStride;
+		StochasticShadowsParameters.DownsampledTileDataStride = DownsampledTileDataStride;
+		StochasticShadowsParameters.DebugMode = CVarStochasticShadowsDebug.GetValueOnRenderThread();
+
+		if (bDebug)
+		{
+			ShaderPrint::SetEnabled(true);
+			ShaderPrint::RequestSpaceForLines(1024);
+			ShaderPrint::SetParameters(GraphBuilder, View.ShaderPrintData, StochasticShadowsParameters.ShaderPrintUniformBuffer);
+		}
+	}
+
+	FRDGBufferRef TileAllocator = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), (int32)StochasticShadows::ETileType::MAX), TEXT("StochasticShadows.TileAllocator"));
+	FRDGBufferRef TileData = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), TileDataStride * (int32)StochasticShadows::ETileType::MAX), TEXT("StochasticShadows.TileData"));
+	AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(TileAllocator), 0);
+
+	FRDGBufferRef DownsampledTileAllocator = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), (int32)StochasticShadows::ETileType::MAX), TEXT("StochasticShadows.DownsampledTileAllocator"));
+	FRDGBufferRef DownsampledTileData = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), DownsampledTileDataStride * (int32)StochasticShadows::ETileType::MAX), TEXT("StochasticShadows.DownsampledTileData"));
+	AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(DownsampledTileAllocator), 0);
+
+	// Run tile classification to generate tiles for the subsequent passes
+	{
+		{
+			FTileClassificationCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FTileClassificationCS::FParameters>();
+			PassParameters->StochasticShadowsParameters = StochasticShadowsParameters;
+			PassParameters->RWTileAllocator = GraphBuilder.CreateUAV(TileAllocator);
+			PassParameters->RWTileData = GraphBuilder.CreateUAV(TileData);
+
+			FTileClassificationCS::FPermutationDomain PermutationVector;
+			PermutationVector.Set<FTileClassificationCS::FDownsampledClassification>(false);
+			auto ComputeShader = View.ShaderMap->GetShader<FTileClassificationCS>(PermutationVector);
+
+			const FIntVector GroupCount = FComputeShaderUtils::GetGroupCount(View.ViewRect.Size(), FTileClassificationCS::GetGroupSize());
+
+			FComputeShaderUtils::AddPass(
+				GraphBuilder,
+				RDG_EVENT_NAME("TileClassification %dx%d", View.ViewRect.Size().X, View.ViewRect.Size().Y),
+				ComputeShader,
+				PassParameters,
+				GroupCount);
+		}
+
+		{
+			FTileClassificationCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FTileClassificationCS::FParameters>();
+			PassParameters->StochasticShadowsParameters = StochasticShadowsParameters;
+			PassParameters->RWTileAllocator = GraphBuilder.CreateUAV(DownsampledTileAllocator);
+			PassParameters->RWTileData = GraphBuilder.CreateUAV(DownsampledTileData);
+
+			FTileClassificationCS::FPermutationDomain PermutationVector;
+			PermutationVector.Set<FTileClassificationCS::FDownsampledClassification>(true);
+			auto ComputeShader = View.ShaderMap->GetShader<FTileClassificationCS>(PermutationVector);
+
+			const FIntVector GroupCount = FComputeShaderUtils::GetGroupCount(View.ViewRect.Size(), FTileClassificationCS::GetGroupSize());
+
+			FComputeShaderUtils::AddPass(
+				GraphBuilder,
+				RDG_EVENT_NAME("DownsampledTileClassification %dx%d", DownsampledViewSize.X, DownsampledViewSize.Y),
+				ComputeShader,
+				PassParameters,
+				GroupCount);
+		}
+	}
+
+	FRDGBufferRef TileIndirectArgs = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateIndirectDesc<FRHIDispatchIndirectParameters>((int32)StochasticShadows::ETileType::MAX), TEXT("StochasticShadows.TileIndirectArgs"));
+	FRDGBufferRef DownsampledTileIndirectArgs = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateIndirectDesc<FRHIDispatchIndirectParameters>((int32)StochasticShadows::ETileType::MAX), TEXT("StochasticShadows.DownsampledTileIndirectArgs"));
+
+	// Setup indirect args for classified tiles
+	{
+		FInitTileIndirectArgsCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FInitTileIndirectArgsCS::FParameters>();
+		PassParameters->StochasticShadowsParameters = StochasticShadowsParameters;
+		PassParameters->RWTileIndirectArgs = GraphBuilder.CreateUAV(TileIndirectArgs);
+		PassParameters->RWDownsampledTileIndirectArgs = GraphBuilder.CreateUAV(DownsampledTileIndirectArgs);
+		PassParameters->TileAllocator = GraphBuilder.CreateSRV(TileAllocator);
+		PassParameters->DownsampledTileAllocator = GraphBuilder.CreateSRV(DownsampledTileAllocator);
+
+		auto ComputeShader = View.ShaderMap->GetShader<FInitTileIndirectArgsCS>();
+
+		FComputeShaderUtils::AddPass(
+			GraphBuilder,
+			RDG_EVENT_NAME("InitTileIndirectArgs"),
+			ComputeShader,
+			PassParameters,
+			FIntVector(1, 1, 1));
+	}
+
 	FRDGTextureRef ShadowMaskHistoryWeights = GraphBuilder.CreateTexture(
 		FRDGTextureDesc::Create2D(ShadowMaskBufferSize, PF_FloatRGBA, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
 		TEXT("StochasticShadows.ShadowMaskHistoryWeights"));
@@ -1090,49 +1253,63 @@ void FDeferredShadingSceneRenderer::RenderStochasticShadows(FRDGBuilder& GraphBu
 		FRDGTextureDesc::Create2D(ShadowMaskBufferSize, PF_R16G16_UINT, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
 		TEXT("StochasticShadows.ShadowMaskHistoryScreenCoord00"));
 
-	FRDGBufferRef ShadowMaskTileAllocator = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), 1), TEXT("StochasticShadowsParameters.ShadowMaskTileAllocator"));
-	FRDGBufferRef ShadowMaskTileHeader = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(2 * sizeof(uint32), MaxShadowMaskTiles), TEXT("StochasticShadowsParameters.ShadowMaskTileHeader"));
+	FRDGBufferRef ShadowMaskTileAllocator = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), 1), TEXT("StochasticShadows.ShadowMaskTileAllocator"));
+	FRDGBufferRef ShadowMaskTileData = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(2 * sizeof(uint32), MaxShadowMaskTiles), TEXT("StochasticShadows.ShadowMaskTileData"));
 	AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(ShadowMaskTileAllocator), 0);
 	
 	// Generate new candidate light samples
 	{
-		FGenerateSamplesCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FGenerateSamplesCS::FParameters>();
-		PassParameters->StochasticShadowsParameters = StochasticShadowsParameters;
-		PassParameters->RWDownsampledSceneDepth = GraphBuilder.CreateUAV(DownsampledSceneDepth);
-		PassParameters->RWShadowMaskHistoryScreenCoord00 = GraphBuilder.CreateUAV(ShadowMaskHistoryScreenCoord00);
-		PassParameters->RWShadowMaskHistoryWeights = GraphBuilder.CreateUAV(ShadowMaskHistoryWeights);
-		PassParameters->RWShadowMaskTileAllocator = GraphBuilder.CreateUAV(ShadowMaskTileAllocator);
-		PassParameters->RWShadowMaskTileHeader = GraphBuilder.CreateUAV(ShadowMaskTileHeader);
-		PassParameters->RWShadowMaskPageTable = ShadowMaskPageTable ? GraphBuilder.CreateUAV(ShadowMaskPageTable) : nullptr;
-		PassParameters->RWShadowMaskHashTable = ShadowMaskHashTable ? GraphBuilder.CreateUAV(ShadowMaskHashTable) : nullptr;
-		PassParameters->RWLightSamples = GraphBuilder.CreateUAV(LightSamples);
-		PassParameters->ForwardLightData = View.ForwardLightingResources.ForwardLightUniformBuffer;
-		PassParameters->ShadowMaskPageTableHistory = ShadowMaskPageTableHistory;
-		PassParameters->ShadowMaskHashTableHistory = ShadowMaskHashTableHistory ? GraphBuilder.CreateSRV(ShadowMaskHashTableHistory) : nullptr;
-		PassParameters->ShadowMaskAtlasHistory = ShadowMaskAtlasHistory;
-		PassParameters->ShadowMaskTileAtlas = ShadowMaskTileAtlas;
-		PassParameters->ShadowMaskSceneDepthHistory = ShadowMaskSceneDepthHistory;
-		PassParameters->HistoryScreenPositionScaleBias = HistoryScreenPositionScaleBias;
-		PassParameters->HistoryUVMinMax = HistoryUVMinMax;
+		FRDGTextureUAVRef DownsampledSceneDepthUAV = GraphBuilder.CreateUAV(DownsampledSceneDepth, ERDGUnorderedAccessViewFlags::SkipBarrier);
+		FRDGTextureUAVRef ShadowMaskHistoryScreenCoord00UAV = GraphBuilder.CreateUAV(ShadowMaskHistoryScreenCoord00, ERDGUnorderedAccessViewFlags::SkipBarrier);
+		FRDGTextureUAVRef ShadowMaskHistoryWeightsUAV = GraphBuilder.CreateUAV(ShadowMaskHistoryWeights, ERDGUnorderedAccessViewFlags::SkipBarrier);
+		FRDGBufferUAVRef ShadowMaskTileAllocatorUAV = GraphBuilder.CreateUAV(ShadowMaskTileAllocator, ERDGUnorderedAccessViewFlags::SkipBarrier);
+		FRDGBufferUAVRef ShadowMaskTileDataUAV = GraphBuilder.CreateUAV(ShadowMaskTileData, ERDGUnorderedAccessViewFlags::SkipBarrier);
+		FRDGTextureUAVRef ShadowMaskPageTableUAV = ShadowMaskPageTable ? GraphBuilder.CreateUAV(ShadowMaskPageTable, ERDGUnorderedAccessViewFlags::SkipBarrier) : nullptr;
+		FRDGBufferUAVRef ShadowMaskHashTableUAV = ShadowMaskHashTable ? GraphBuilder.CreateUAV(ShadowMaskHashTable, ERDGUnorderedAccessViewFlags::SkipBarrier) : nullptr;
+		FRDGTextureUAVRef LightSamplesUAV = GraphBuilder.CreateUAV(LightSamples, ERDGUnorderedAccessViewFlags::SkipBarrier);
 
-		FGenerateSamplesCS::FPermutationDomain PermutationVector;
-		PermutationVector.Set<FGenerateSamplesCS::FNumSamplesPerPixel>(NumSamplesPerPixel1d);
-		PermutationVector.Set<FGenerateSamplesCS::FShadowMaskReprojectionWeights>(bTemporal);
-		PermutationVector.Set<FGenerateSamplesCS::FShadowFactorEstimate>(bTemporal && CVarStochasticShadowsGuiding.GetValueOnRenderThread() != 0);
-		PermutationVector.Set<FGenerateSamplesCS::FDebugMode>(bDebug);
-		PermutationVector.Set<FGenerateSamplesCS::FHashTable>(bUseHashTable);
-		PermutationVector.Set<FGenerateSamplesCS::FCandidateLightMask>(ShadowMaskAtlasHistory && CVarStochasticShadowsCandidateLightMask.GetValueOnRenderThread() != 0);
-		PermutationVector = FGenerateSamplesCS::RemapPermutation(PermutationVector);
-		auto ComputeShader = View.ShaderMap->GetShader<FGenerateSamplesCS>(PermutationVector);
+		for (int32 TileType = 0; TileType < (int32)StochasticShadows::ETileType::MAX; ++TileType)
+		{
+			FGenerateSamplesCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FGenerateSamplesCS::FParameters>();
+			PassParameters->StochasticShadowsParameters = StochasticShadowsParameters;
+			PassParameters->RWDownsampledSceneDepth = DownsampledSceneDepthUAV;
+			PassParameters->RWShadowMaskHistoryScreenCoord00 = ShadowMaskHistoryScreenCoord00UAV;
+			PassParameters->RWShadowMaskHistoryWeights = ShadowMaskHistoryWeightsUAV;
+			PassParameters->RWShadowMaskTileAllocator = ShadowMaskTileAllocatorUAV;
+			PassParameters->RWShadowMaskTileData = ShadowMaskTileDataUAV;
+			PassParameters->RWShadowMaskPageTable = ShadowMaskPageTableUAV;
+			PassParameters->RWShadowMaskHashTable = ShadowMaskHashTableUAV;
+			PassParameters->RWLightSamples = LightSamplesUAV;
+			PassParameters->DownsampledTileAllocator = GraphBuilder.CreateSRV(DownsampledTileAllocator);
+			PassParameters->DownsampledTileData = GraphBuilder.CreateSRV(DownsampledTileData);
+			PassParameters->ForwardLightData = View.ForwardLightingResources.ForwardLightUniformBuffer;
+			PassParameters->ShadowMaskPageTableHistory = ShadowMaskPageTableHistory;
+			PassParameters->ShadowMaskHashTableHistory = ShadowMaskHashTableHistory ? GraphBuilder.CreateSRV(ShadowMaskHashTableHistory) : nullptr;
+			PassParameters->ShadowMaskAtlasHistory = ShadowMaskAtlasHistory;
+			PassParameters->ShadowMaskTileAtlas = ShadowMaskTileAtlas;
+			PassParameters->ShadowMaskSceneDepthHistory = ShadowMaskSceneDepthHistory;
+			PassParameters->HistoryScreenPositionScaleBias = HistoryScreenPositionScaleBias;
+			PassParameters->HistoryUVMinMax = HistoryUVMinMax;
 
-		const FIntVector GroupCount = FComputeShaderUtils::GetGroupCount(DownsampledViewSize, FGenerateSamplesCS::GetGroupSize());
+			FGenerateSamplesCS::FPermutationDomain PermutationVector;
+			PermutationVector.Set<FGenerateSamplesCS::FTileType>(TileType);
+			PermutationVector.Set<FGenerateSamplesCS::FNumSamplesPerPixel>(NumSamplesPerPixel1d);
+			PermutationVector.Set<FGenerateSamplesCS::FShadowMaskReprojectionWeights>(bTemporal);
+			PermutationVector.Set<FGenerateSamplesCS::FShadowFactorEstimate>(bTemporal && CVarStochasticShadowsGuiding.GetValueOnRenderThread() != 0);
+			PermutationVector.Set<FGenerateSamplesCS::FDebugMode>(bDebug);
+			PermutationVector.Set<FGenerateSamplesCS::FHashTable>(bUseHashTable);
+			PermutationVector.Set<FGenerateSamplesCS::FCandidateLightMask>(ShadowMaskAtlasHistory && CVarStochasticShadowsCandidateLightMask.GetValueOnRenderThread() != 0);
+			PermutationVector = FGenerateSamplesCS::RemapPermutation(PermutationVector);
+			auto ComputeShader = View.ShaderMap->GetShader<FGenerateSamplesCS>(PermutationVector);
 
-		FComputeShaderUtils::AddPass(
-			GraphBuilder,
-			RDG_EVENT_NAME("GenerateSamples SamplesPerPixel:%dx%d", NumSamplesPerPixel2d.X, NumSamplesPerPixel2d.Y),
-			ComputeShader,
-			PassParameters,
-			GroupCount);
+			FComputeShaderUtils::AddPass(
+				GraphBuilder,
+				RDG_EVENT_NAME("GenerateSamples SamplesPerPixel:%dx%d TileType:%d", NumSamplesPerPixel2d.X, NumSamplesPerPixel2d.Y, TileType),
+				ComputeShader,
+				PassParameters,
+				DownsampledTileIndirectArgs,
+				TileType * sizeof(FRHIDispatchIndirectParameters));
+		}
 	}
 
 	FRDGBufferRef ShadowMaskTileIndirectArgs = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateIndirectDesc<FRHIDispatchIndirectParameters>(1), TEXT("StochasticShadows.ShadowMaskTileIndirectArgs"));
@@ -1303,36 +1480,6 @@ void FDeferredShadingSceneRenderer::RenderStochasticShadows(FRDGBuilder& GraphBu
 		}
 	}
 
-	// Composite shadow masks traces
-	{
-		FCompositeShadowMaskTracesCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FCompositeShadowMaskTracesCS::FParameters>();
-		PassParameters->StochasticShadowsParameters = StochasticShadowsParameters;
-		PassParameters->IndirectArgs = ShadowMaskTileIndirectArgs;
-		PassParameters->RWShadowMaskTileAtlas = GraphBuilder.CreateUAV(ShadowMaskTileAtlas);
-		PassParameters->ShadowMaskPageTable = ShadowMaskPageTable;
-		PassParameters->ShadowMaskTileHeader = GraphBuilder.CreateSRV(ShadowMaskTileHeader);
-		PassParameters->ShadowMaskHistoryScreenCoord00 = ShadowMaskHistoryScreenCoord00;
-		PassParameters->ShadowMaskHistoryWeights = ShadowMaskHistoryWeights;
-		PassParameters->ShadowMaskPageTableHistory = ShadowMaskPageTableHistory;
-		PassParameters->ShadowMaskHashTableHistory = ShadowMaskHashTableHistory ? GraphBuilder.CreateSRV(ShadowMaskHashTableHistory) : nullptr;
-		PassParameters->ShadowMaskAtlasHistory = ShadowMaskAtlasHistory;
-		PassParameters->LightSamples = LightSamples;
-
-		FCompositeShadowMaskTracesCS::FPermutationDomain PermutationVector;
-		PermutationVector.Set<FCompositeShadowMaskTracesCS::FNumSamplesPerPixel>(NumSamplesPerPixel1d);
-		PermutationVector.Set<FCompositeShadowMaskTracesCS::FTemporalAccumulation>(bTemporal);
-		PermutationVector.Set<FCompositeShadowMaskTracesCS::FHashTable>(bUseHashTable);
-		auto ComputeShader = View.ShaderMap->GetShader<FCompositeShadowMaskTracesCS>(PermutationVector);
-
-		FComputeShaderUtils::AddPass(
-			GraphBuilder,
-			RDG_EVENT_NAME("CompositeShadowMaskTraces"),
-			ComputeShader,
-			PassParameters,
-			ShadowMaskTileIndirectArgs,
-			0);
-	}
-
 	FRDGTextureRef ShadowMaskUpsampleWeights = GraphBuilder.CreateTexture(
 		FRDGTextureDesc::Create2D(SceneTextures.Config.Extent, PF_FloatRGBA, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
 		TEXT("StochasticShadows.ShadowMaskUpsampleWeights"));
@@ -1377,6 +1524,37 @@ void FDeferredShadingSceneRenderer::RenderStochasticShadows(FRDGBuilder& GraphBu
 	AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(ShadingTileAllocator), 0u);
 	AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(ShadingTileGridAllocator), 0u);
 
+	// Composite shadow masks traces
+	{
+		FCompositeShadowMaskTracesCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FCompositeShadowMaskTracesCS::FParameters>();
+		PassParameters->StochasticShadowsParameters = StochasticShadowsParameters;
+		PassParameters->IndirectArgs = ShadowMaskTileIndirectArgs;
+		PassParameters->RWShadowMaskTileAtlas = GraphBuilder.CreateUAV(ShadowMaskTileAtlas);
+		PassParameters->ShadowMaskPageTable = ShadowMaskPageTable;
+		PassParameters->ShadowMaskTileData = GraphBuilder.CreateSRV(ShadowMaskTileData);
+		PassParameters->ShadowMaskHistoryScreenCoord00 = ShadowMaskHistoryScreenCoord00;
+		PassParameters->ShadowMaskHistoryWeights = ShadowMaskHistoryWeights;
+		PassParameters->ShadowMaskPageTableHistory = ShadowMaskPageTableHistory;
+		PassParameters->ShadowMaskHashTableHistory = ShadowMaskHashTableHistory ? GraphBuilder.CreateSRV(ShadowMaskHashTableHistory) : nullptr;
+		PassParameters->ShadowMaskAtlasHistory = ShadowMaskAtlasHistory;
+		PassParameters->LightSamples = LightSamples;
+
+		FCompositeShadowMaskTracesCS::FPermutationDomain PermutationVector;
+		PermutationVector.Set<FCompositeShadowMaskTracesCS::FNumSamplesPerPixel>(NumSamplesPerPixel1d);
+		PermutationVector.Set<FCompositeShadowMaskTracesCS::FTemporalAccumulation>(bTemporal);
+		PermutationVector.Set<FCompositeShadowMaskTracesCS::FHashTable>(bUseHashTable);
+		auto ComputeShader = View.ShaderMap->GetShader<FCompositeShadowMaskTracesCS>(PermutationVector);
+
+		FComputeShaderUtils::AddPass(
+			GraphBuilder,
+			RDG_EVENT_NAME("CompositeShadowMaskTraces"),
+			ComputeShader,
+			PassParameters,
+			ShadowMaskTileIndirectArgs,
+			0);
+	}
+
+	// Spatial denoising pass
 	{
 		FShadowMaskSpatialPassCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FShadowMaskSpatialPassCS::FParameters>();
 		PassParameters->StochasticShadowsParameters = StochasticShadowsParameters;
@@ -1386,7 +1564,7 @@ void FDeferredShadingSceneRenderer::RenderStochasticShadows(FRDGBuilder& GraphBu
 		PassParameters->RWShadingTileGrid = GraphBuilder.CreateUAV(ShadingTileGrid);
 		PassParameters->RWShadingTileAtlas = GraphBuilder.CreateUAV(ShadingTileAtlas);
 		PassParameters->ShadowMaskUpsampleWeights = ShadowMaskUpsampleWeights;
-		PassParameters->ShadowMaskTileHeader = GraphBuilder.CreateSRV(ShadowMaskTileHeader);
+		PassParameters->ShadowMaskTileData = GraphBuilder.CreateSRV(ShadowMaskTileData);
 		PassParameters->ShadowMaskPageTable = ShadowMaskPageTable;
 		PassParameters->ShadowMaskHashTable = ShadowMaskHashTable ? GraphBuilder.CreateSRV(ShadowMaskHashTable) : nullptr;
 		PassParameters->ShadowMaskTileAtlas = ShadowMaskTileAtlas;
@@ -1405,51 +1583,39 @@ void FDeferredShadingSceneRenderer::RenderStochasticShadows(FRDGBuilder& GraphBu
 			0);
 	}
 
-	FRDGBufferRef ShadingTileIndirectArgs = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateIndirectDesc<FRHIDispatchIndirectParameters>(1), TEXT("StochasticShadows.ShadingTileIndirectArgs"));
-
-	// Setup indirect args for shadow mask tile updates reusing FInitShadowMaskUpdateIndirectArgsCS
-	{
-		FInitShadowMaskUpdateIndirectArgsCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FInitShadowMaskUpdateIndirectArgsCS::FParameters>();
-		PassParameters->StochasticShadowsParameters = StochasticShadowsParameters;
-		PassParameters->RWIndirectArgs = GraphBuilder.CreateUAV(ShadingTileIndirectArgs);
-		PassParameters->ShadowMaskTileAllocator = GraphBuilder.CreateSRV(ShadingTileAllocator);
-
-		auto ComputeShader = View.ShaderMap->GetShader<FInitShadowMaskUpdateIndirectArgsCS>();
-
-		FComputeShaderUtils::AddPass(
-			GraphBuilder,
-			RDG_EVENT_NAME("InitShadingTileIndirectArgs"),
-			ComputeShader,
-			PassParameters,
-			FIntVector(1, 1, 1));
-	}
-
 	// Shade light samples
 	{
-		FShadeLightSamplesWithShadowMaskCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FShadeLightSamplesWithShadowMaskCS::FParameters>();
-		PassParameters->StochasticShadowsParameters = StochasticShadowsParameters;
-		PassParameters->ShadowMaskPageTable = ShadowMaskPageTable;
-		PassParameters->ShadowMaskTileAtlas = ShadowMaskTileAtlas;
-		PassParameters->ShadowMaskTileAllocator = GraphBuilder.CreateSRV(ShadowMaskTileAllocator);
-		PassParameters->ShadingTileAllocator = GraphBuilder.CreateSRV(ShadingTileAllocator);
-		PassParameters->ShadingTileGridAllocator = ShadingTileGridAllocator;
-		PassParameters->ShadingTileGrid = GraphBuilder.CreateSRV(ShadingTileGrid);
-		PassParameters->ShadingTileAtlas = ShadingTileAtlas;
-		PassParameters->RWSceneColor = GraphBuilder.CreateUAV(SceneTextures.Color.Target);
-		PassParameters->ShadowMaskHashTable = ShadowMaskHashTable ? GraphBuilder.CreateSRV(ShadowMaskHashTable) : nullptr;
+		FRDGTextureUAVRef SceneColorUAV = GraphBuilder.CreateUAV(SceneTextures.Color.Target, ERDGUnorderedAccessViewFlags::SkipBarrier);
 
-		FShadeLightSamplesWithShadowMaskCS::FPermutationDomain PermutationVector;
-		PermutationVector.Set<FShadeLightSamplesWithShadowMaskCS::FDebugMode>(bDebug);
-		auto ComputeShader = View.ShaderMap->GetShader<FShadeLightSamplesWithShadowMaskCS>(PermutationVector);
+		for (int32 TileType = 0; TileType < (int32)StochasticShadows::ETileType::MAX; ++TileType)
+		{
+			FShadeLightSamplesCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FShadeLightSamplesCS::FParameters>();
+			PassParameters->StochasticShadowsParameters = StochasticShadowsParameters;
+			PassParameters->ShadowMaskPageTable = ShadowMaskPageTable;
+			PassParameters->ShadowMaskTileAtlas = ShadowMaskTileAtlas;
+			PassParameters->ShadowMaskTileAllocator = GraphBuilder.CreateSRV(ShadowMaskTileAllocator);
+			PassParameters->TileAllocator = GraphBuilder.CreateSRV(TileAllocator);
+			PassParameters->TileData = GraphBuilder.CreateSRV(TileData);
+			PassParameters->ShadingTileAllocator = GraphBuilder.CreateSRV(ShadingTileAllocator);
+			PassParameters->ShadingTileGridAllocator = ShadingTileGridAllocator;
+			PassParameters->ShadingTileGrid = GraphBuilder.CreateSRV(ShadingTileGrid);
+			PassParameters->ShadingTileAtlas = ShadingTileAtlas;
+			PassParameters->RWSceneColor = SceneColorUAV;
+			PassParameters->ShadowMaskHashTable = ShadowMaskHashTable ? GraphBuilder.CreateSRV(ShadowMaskHashTable) : nullptr;
 
-		const FIntVector GroupCount = FComputeShaderUtils::GetGroupCount(View.ViewRect.Size(), FShadeLightSamplesWithShadowMaskCS::GetGroupSize());
+			FShadeLightSamplesCS::FPermutationDomain PermutationVector;
+			PermutationVector.Set<FShadeLightSamplesCS::FTileType>(TileType);
+			PermutationVector.Set<FShadeLightSamplesCS::FDebugMode>(bDebug);
+			auto ComputeShader = View.ShaderMap->GetShader<FShadeLightSamplesCS>(PermutationVector);
 
-		FComputeShaderUtils::AddPass(
-			GraphBuilder,
-			RDG_EVENT_NAME("ShadeLightSamplesWithShadowMask"),
-			ComputeShader,
-			PassParameters,
-			GroupCount);
+			FComputeShaderUtils::AddPass(
+				GraphBuilder,
+				RDG_EVENT_NAME("ShadeLightSamples TileType:%d", TileType),
+				ComputeShader,
+				PassParameters,
+				TileIndirectArgs,
+				TileType * sizeof(FRHIDispatchIndirectParameters));
+		}
 	}
 
 	if (View.ViewState && !View.bStatePrevViewInfoIsReadOnly)

@@ -17,6 +17,7 @@
 #define INVALID_LIGHT_SCENE_ID 0x3FFF
 #define LIGHT_SCENE_ID_MASK_SIZE (MAX_LIGHT_SCENE_ID / 32)
 
+#define TILE_SIZE 8
 #define SHADOW_MASK_TILE_SIZE 8
 #define INVALID_SHADOW_MASK_TILE_INDEX 0xFFFFFFFF
 #define MAX_SHADOW_MASK_AGE 7
@@ -34,6 +35,21 @@
 	#define NUM_SAMPLES_PER_PIXEL_Y 2
 	#define NUM_SAMPLES_PER_PIXEL_X 2
 #endif
+
+// Keep in sync with StochasticShadows::ETileType
+#define TILE_MODE_SIMPLE_SHADING	0
+#define TILE_MODE_COMPLEX_SHADING	1
+#define TILE_MODE_MAX				2
+
+uint PackTile(uint2 TileCoord)
+{
+	return TileCoord.x | (TileCoord.y << 16);
+}
+
+uint2 UnpackTile(uint PackedTile)
+{
+	return uint2(PackedTile & 0xFFFF, PackedTile >> 16);
+}
 
 float3 GetTranslatedWorldPositionFromScreenUV(float2 ScreenUV, float SceneDepth)
 {
@@ -232,21 +248,21 @@ float2 DownsampledScreenCoordToScreenUV(uint2 DownsampledScreenCoord)
 	return ScreenUV;
 }
 
-uint2 PackShadowMaskTileHeader(uint LightIndex, uint2 ShadowMaskScreenCoord)
+uint2 PackShadowMaskTile(uint LightIndex, uint2 ShadowMaskScreenCoord)
 {
 	ShadowMaskScreenCoord /= SHADOW_MASK_TILE_SIZE;
 
-	uint2 PackedHeader;
-	PackedHeader.x = LightIndex;
-	PackedHeader.y = (ShadowMaskScreenCoord.x & 0xFFFF) | ((ShadowMaskScreenCoord.y & 0xFFFF) << 16);
-	return PackedHeader;
+	uint2 PackedTile;
+	PackedTile.x = LightIndex;
+	PackedTile.y = (ShadowMaskScreenCoord.x & 0xFFFF) | ((ShadowMaskScreenCoord.y & 0xFFFF) << 16);
+	return PackedTile;
 }
 
-void UnpackShadowMaskTileHeader(uint2 PackedHeader, inout uint LightIndex, inout uint2 ShadowMaskScreenCoord)
+void UnpackShadowMaskTile(uint2 PackedTile, inout uint LightIndex, inout uint2 ShadowMaskScreenCoord)
 {
-	LightIndex = PackedHeader.x;
-	ShadowMaskScreenCoord.x = PackedHeader.y & 0xFFFF;
-	ShadowMaskScreenCoord.y = PackedHeader.y >> 16;
+	LightIndex = PackedTile.x;
+	ShadowMaskScreenCoord.x = PackedTile.y & 0xFFFF;
+	ShadowMaskScreenCoord.y = PackedTile.y >> 16;
 
 	ShadowMaskScreenCoord *= SHADOW_MASK_TILE_SIZE;
 }

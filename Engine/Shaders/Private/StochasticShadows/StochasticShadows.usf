@@ -5,6 +5,96 @@
 #include "../ShaderPrint.ush"
 #include "StochasticShadows.ush"
 
+groupshared uint SharedTileMode;
+
+RWStructuredBuffer<uint> RWTileAllocator;
+RWStructuredBuffer<uint> RWTileData;
+uint TileDataStride;
+uint DownsampledTileDataStride;
+uint2 DownsampledViewSize;
+
+/**
+ * Run tile classification to generate tiles for each subsequent pass
+ */
+[numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, 1)]
+void TileClassificationCS(
+	uint3 GroupId : SV_GroupID,
+	uint3 GroupThreadId : SV_GroupThreadID,
+	uint3 DispatchThreadId : SV_DispatchThreadID)
+{
+	if (all(GroupThreadId == 0))
+	{
+		SharedTileMode = 0;
+	}
+	
+	GroupMemoryBarrierWithGroupSync();
+
+	uint2 ScreenCoord = DispatchThreadId.xy;
+
+#if DOWNSAMPLED_CLASSIFICATION
+	if (all(ScreenCoord < DownsampledViewSize))
+#else
+	if (all(ScreenCoord < View.ViewRectMinAndSize.zw))
+#endif
+	{
+#if DOWNSAMPLED_CLASSIFICATION
+		float2 ScreenUV = DownsampledScreenCoordToScreenUV(ScreenCoord);
+#else
+		float2 ScreenUV = (ScreenCoord + 0.5f) * View.BufferSizeAndInvSize.zw;
+#endif
+		FGBufferData GBuffer = GetGBufferData(ScreenUV);
+
+		if (GBuffer.ShadingModelID == SHADINGMODELID_UNLIT)
+		{
+			// Skip mark
+		}
+		else if (GBuffer.ShadingModelID == SHADINGMODELID_DEFAULT_LIT)
+		{
+			InterlockedOr(SharedTileMode, 0x1);
+		}
+		else
+		{
+			InterlockedOr(SharedTileMode, 0x2);
+		}
+	}
+
+	GroupMemoryBarrierWithGroupSync();
+
+	if (all(GroupThreadId == 0))
+	{
+		const uint DataStride = DOWNSAMPLED_CLASSIFICATION ? DownsampledTileDataStride : TileDataStride;
+
+		if (SharedTileMode & 0x2)
+		{
+			uint StochasticShadowsTileIndex = 0;
+			InterlockedAdd(RWTileAllocator[TILE_MODE_COMPLEX_SHADING], 1, StochasticShadowsTileIndex);
+			RWTileData[DataStride * TILE_MODE_COMPLEX_SHADING + StochasticShadowsTileIndex] = PackTile(ScreenCoord / 8);
+		}
+		else if (SharedTileMode & 0x1)
+		{
+			uint StochasticShadowsTileIndex = 0;
+			InterlockedAdd(RWTileAllocator[TILE_MODE_SIMPLE_SHADING], 1, StochasticShadowsTileIndex);
+			RWTileData[DataStride * TILE_MODE_SIMPLE_SHADING + StochasticShadowsTileIndex] = PackTile(ScreenCoord / 8);
+		}
+	}
+}
+
+RWBuffer<uint> RWTileIndirectArgs;
+RWBuffer<uint> RWDownsampledTileIndirectArgs;
+StructuredBuffer<uint> TileAllocator;
+StructuredBuffer<uint> DownsampledTileAllocator;
+
+[numthreads(THREADGROUP_SIZE, 1, 1)]
+void InitTileIndirectArgsCS(uint3 DispatchThreadId : SV_DispatchThreadID)
+{
+	uint TileMode = DispatchThreadId.x;
+	if (TileMode < TILE_MODE_MAX)
+	{
+		WriteDispatchIndirectArgs(RWTileIndirectArgs, TileMode, TileAllocator[TileMode], 1, 1);
+		WriteDispatchIndirectArgs(RWDownsampledTileIndirectArgs, TileMode, DownsampledTileAllocator[TileMode], 1, 1);
+	}
+}
+
 RWBuffer<uint> RWIndirectArgs;
 StructuredBuffer<uint> ShadowMaskTileAllocator;
 uint MaxShadowMaskTiles;
@@ -90,115 +180,5 @@ void InitShadowMaskUpsampleWeightsCS(
 		InterpolationWeights /= max(dot(InterpolationWeights, 1), Epsilon);
 
 		RWShadowMaskUpsampleWeights[ScreenCoord] = InterpolationWeights;
-	}
-}
-
-RWTexture2D<uint> RWShadowMaskTileAtlas;
-StructuredBuffer<uint2> ShadowMaskTileHeader;
-Texture2D<uint2> ShadowMaskHistoryScreenCoord00;
-Texture2D<float4> ShadowMaskHistoryWeights;
-Texture2D<uint> LightSamples;
-
-/**
- * Run one thread per shadow mask pixel and composite current frame's traces.
- * Also output a compacted tile list for shading.
- */
-[numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, 1)]
-void CompositeShadowMaskTracesCS(
-	uint3 GroupId : SV_GroupID,
-	uint3 GroupThreadId : SV_GroupThreadID,
-	uint3 DispatchThreadId : SV_DispatchThreadID)
-{
-	uint ShadowMaskTileIndex = GroupId.x;
-	uint2 LocalShadowMaskTileCoord = GroupThreadId.xy;
-
-	uint LightSceneId = 0;
-	uint2 ShadowMaskScreenCoord = 0;	
-	UnpackShadowMaskTileHeader(ShadowMaskTileHeader[ShadowMaskTileIndex], LightSceneId, ShadowMaskScreenCoord);
-	ShadowMaskScreenCoord += LocalShadowMaskTileCoord;
-
-#define DEBUG_MODE 0
-#if DEBUG_MODE
-	int2 DebugScreenCoord = View.CursorPosition.x >= 0 ? View.CursorPosition * View.ViewResolutionFraction : -1;
-	bool bDebug = all(ShadowMaskScreenCoord == DebugScreenCoord / SHADOW_MASK_DOWNSAMPLE_FACTOR);
-	FShaderPrintContext Context = InitShaderPrintContext(true, float2(0.55, 0.2));
-
-	if (bDebug)
-	{
-		Print(Context, TEXT("CompositeShadowMaskTracesCS"));
-	}
-#endif
-
-	if (all(ShadowMaskScreenCoord < ShadowMaskViewSize))
-	{
-		FShadowMask ShadowMask = InitShadowMask();
-		uint2 ShadowMaskTileAtlasCoord = GetShadowMaskTileAtlasCoord(ShadowMaskTileIndex, LocalShadowMaskTileCoord);
-
-		#if TEMPORAL_ACCUMULATION
-		{
-			int2 ScreenCoord00 = ShadowMaskHistoryScreenCoord00[ShadowMaskScreenCoord];
-			float4 Weights = ShadowMaskHistoryWeights[ShadowMaskScreenCoord];
-
-			if (any(Weights > 0.0f))
-			{
-				FShadowMaskAccumulator Accumulator = InitShadowMaskAccumulator();
-
-				AccumulateHistoryShadowMask(LightSceneId, ScreenCoord00 + uint2(0, 0), Weights.x, Accumulator);
-				AccumulateHistoryShadowMask(LightSceneId, ScreenCoord00 + uint2(1, 0), Weights.y, Accumulator);
-				AccumulateHistoryShadowMask(LightSceneId, ScreenCoord00 + uint2(0, 1), Weights.z, Accumulator);
-				AccumulateHistoryShadowMask(LightSceneId, ScreenCoord00 + uint2(1, 1), Weights.w, Accumulator);
-
-				if (Accumulator.WeightSum > 0.0f)
-				{
-					ShadowMask = Accumulator.ResolveShadowMask();
-				}
-			}
-		}
-		#endif
-
-		// Upsample and composite current frame traces
-		{
-			// Accumulate traces
-			FShadowMaskAccumulator Accumulator = InitShadowMaskAccumulator();
-			for (uint LocalSampleY = 0; LocalSampleY < NUM_SAMPLES_PER_PIXEL_Y; ++LocalSampleY)
-			{
-				for (uint LocalSampleX = 0; LocalSampleX < NUM_SAMPLES_PER_PIXEL_X; ++LocalSampleX)
-				{
-					uint2 SampleCoord = ShadowMaskScreenCoord * uint2(NUM_SAMPLES_PER_PIXEL_X, NUM_SAMPLES_PER_PIXEL_Y) + uint2(LocalSampleX, LocalSampleY);
-					FLightSample LightSample = UnpackLightSample(LightSamples[SampleCoord]);
-
-					if (LightSample.LightSceneId == LightSceneId)
-					{
-						float Factor = LightSample.bVisible ? 1.0f : 0.0f;
-
-						float Weight = 1.0f;
-						Accumulator.FactorSum += Factor * Weight;
-						Accumulator.FactorSqSum += Pow2(Factor) * Weight;
-						Accumulator.WeightSum += Weight;
-					}
-				}
-			}
-
-			if (Accumulator.WeightSum > 0.0f)
-			{
-				// Merge with reprojected history data
-				if (ShadowMask.IsValid())
-				{
-					float NewNumFramesAccumulated = max(Accumulator.MaxHistoryLength, 8.0f);
-					float Alpha = 1.0f / (1.0f + NewNumFramesAccumulated);
-					ShadowMask.Factor = lerp(ShadowMask.Factor, Accumulator.FactorSum / Accumulator.WeightSum, Alpha);
-					ShadowMask.FactorSq = lerp(ShadowMask.FactorSq, Accumulator.FactorSqSum / Accumulator.WeightSum, Alpha);
-					ShadowMask.Age = 0;
-				}
-				else
-				{
-					ShadowMask.Factor = Accumulator.FactorSum / Accumulator.WeightSum;
-					ShadowMask.FactorSq = Accumulator.FactorSqSum / Accumulator.WeightSum;
-					ShadowMask.Age = 0;
-				}
-			}
-		}
-
-		RWShadowMaskTileAtlas[ShadowMaskTileAtlasCoord] = PackShadowMask(ShadowMask);
 	}
 }

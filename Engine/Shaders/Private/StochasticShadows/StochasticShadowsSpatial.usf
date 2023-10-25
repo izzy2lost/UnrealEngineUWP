@@ -8,7 +8,7 @@
 Texture2D<uint> ShadowMaskTileAtlas;
 Texture2D<uint> ShadowMaskPageTable;
 StructuredBuffer<uint> ShadowMaskHashTable;
-StructuredBuffer<uint2> ShadowMaskTileHeader;
+StructuredBuffer<uint2> ShadowMaskTileData;
 Texture2D<float> DownsampledSceneDepth;
 uint MaxShadingTiles;
 
@@ -58,7 +58,7 @@ void ShadowMaskSpatialPassCS(
 
 	uint LightSceneId = 0;
 	uint2 BaseShadowMaskScreenCoord = 0;	
-	UnpackShadowMaskTileHeader(ShadowMaskTileHeader[ShadowMaskTileIndex], LightSceneId, BaseShadowMaskScreenCoord);
+	UnpackShadowMaskTile(ShadowMaskTileData[ShadowMaskTileIndex], LightSceneId, BaseShadowMaskScreenCoord);
 
 	if (all(GroupThreadId == 0))
 	{
