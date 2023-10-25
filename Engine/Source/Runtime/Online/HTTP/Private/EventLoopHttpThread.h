@@ -40,6 +40,8 @@ protected:
 
 	void ResetTickTimer();
 
+	virtual void AddHttpThreadTask(TFunction<void()>&& Task, float InDelay) override;
+
 protected:
 	UE::EventLoop::FTimerHandle RequestTickTimer;
 };

@@ -10,6 +10,7 @@
 #include "Misc/Timespan.h"
 #include "Containers/Queue.h"
 #include "Containers/SpscQueue.h"
+#include "Containers/Ticker.h"
 
 #include <atomic>
 
@@ -81,9 +82,10 @@ public:
 	/**
 	 * Add task to be ran on the http thread next tick
 	 *
-	 * @param Task The task to be ran next tick
+	 * @param Task The task to be ran
+	 * @param InDelay The delay to wait before running the task
 	 */
-	void AddHttpThreadTask(TFunction<void()>&& Task);
+	virtual void AddHttpThreadTask(TFunction<void()>&& Task, float InDelay) = 0;
 
 protected:
 
@@ -101,7 +103,6 @@ protected:
 	 * Complete a request on the http thread
 	 */
 	virtual void CompleteThreadedRequest(IHttpThreadedRequest* Request);
-
 
 protected:
 	int32 GetRunningThreadedRequestLimit() const;
@@ -170,9 +171,6 @@ protected:
 	 * Added to on HTTP thread, processed then cleared on game thread (Single producer, single consumer)
 	 */
 	TSpscQueue<IHttpThreadedRequest*> CompletedThreadedRequests;
-
-	/** Queue of tasks to run on the game thread */
-	TQueue<TFunction<void()>, EQueueMode::Mpsc> HttpThreadQueue;
 };
 
 class FLegacyHttpThread	: public FHttpThreadBase
@@ -201,6 +199,9 @@ protected:
 	virtual void Stop() override;
 	//~ End FRunnable Interface
 
+	virtual void AddHttpThreadTask(TFunction<void()>&& Task, float InDelay) override;
+	virtual void HttpThreadTick(float DeltaSeconds) override;
+
 	/** signal request to stop and exit thread */
 	FThreadSafeCounter ExitRequest;
 
@@ -212,4 +213,7 @@ protected:
 	double HttpThreadIdleFrameTimeInSeconds;
 	/** Time in seconds to sleep minimally when idle, waiting for requests. */
 	double HttpThreadIdleMinimumSleepTimeInSeconds;
+
+	/* Ticker for functions to run in HTTP thread */
+	FTSTicker Ticker;
 };
