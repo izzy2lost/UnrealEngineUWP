@@ -8967,6 +8967,14 @@ void UWorld::ChangeFeatureLevel(ERHIFeatureLevel::Type InFeatureLevel, bool bSho
 	}
 }
 
+void UWorld::ShaderPlatformChanged()
+{
+	if (Scene)
+	{
+		Scene->UpdateEarlyZPassMode();
+	}
+}
+
 void UWorld::RecreateScene(ERHIFeatureLevel::Type InFeatureLevel, bool bBroadcastChange)
 {
 	if (Scene)

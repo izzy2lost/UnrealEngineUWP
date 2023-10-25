@@ -243,6 +243,11 @@ void SLevelEditor::Construct( const SLevelEditor::FArguments& InArgs)
 			World->ChangeFeatureLevel(NewFeatureLevel);
 		});
 
+	PreviewPlatformChangedHandle = GEditor->OnPreviewPlatformChanged().AddLambda([this]()
+		{
+			World->ShaderPlatformChanged();
+		});
+
 	FEditorDelegates::MapChange.AddRaw(this, &SLevelEditor::HandleEditorMapChange);
 	FEditorDelegates::OnAssetsDeleted.AddRaw(this, &SLevelEditor::HandleAssetsDeleted);
 	HandleEditorMapChange(MapChangeEventFlags::NewMap);
@@ -406,6 +411,7 @@ SLevelEditor::~SLevelEditor()
 	if (GEngine)
 	{
 		CastChecked<UEditorEngine>(GEngine)->OnPreviewFeatureLevelChanged().Remove(PreviewFeatureLevelChangedHandle);
+		CastChecked<UEditorEngine>(GEngine)->OnPreviewPlatformChanged().Remove(PreviewPlatformChangedHandle);
 	}
 
 	if (GEditor)

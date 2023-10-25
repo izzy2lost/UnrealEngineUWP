@@ -633,6 +633,8 @@ public:
 
 	virtual bool IsEditorScene() const { return false; }
 
+	virtual void UpdateEarlyZPassMode() {}
+
 	ERHIFeatureLevel::Type GetFeatureLevel() const { return FeatureLevel; }
 
 	ENGINE_API EShaderPlatform GetShaderPlatform() const;

@@ -1458,6 +1458,8 @@ public:
 	/** Change the feature level that this world is current rendering with */
 	void ChangeFeatureLevel(ERHIFeatureLevel::Type InFeatureLevel, bool bShowSlowProgressDialog = true);
 
+	void ShaderPlatformChanged();
+
 	void RecreateScene(ERHIFeatureLevel::Type InFeatureLevel, bool bBroadcastChange = true);
 
 	/** Recreate the editor world's FScene with a null scene interface to drop extra GPU memory during PIE */

@@ -3373,6 +3373,8 @@ public:
 	virtual void UpdatePrimitiveSelectedState_RenderThread(const FPrimitiveSceneInfo* PrimitiveSceneInfo, bool bIsSelected) override;
 	virtual void UpdatePrimitiveVelocityState_RenderThread(FPrimitiveSceneInfo* PrimitiveSceneInfo, bool bIsBeingMoved) override;
 
+	virtual void UpdateEarlyZPassMode() override;
+
 	virtual void Release() override;
 	virtual UWorld* GetWorld() const override { return World; }
 
@@ -3386,8 +3388,6 @@ public:
 	void FindClosestReflectionCaptures(FVector Position, const FReflectionCaptureProxy* (&SortedByDistanceOUT)[FPrimitiveSceneInfo::MaxCachedReflectionCaptureProxies]) const;
 
 	int64 GetCachedWholeSceneShadowMapsSize() const;
-
-	void UpdateEarlyZPassMode();
 
 	/**
 	 * Get the default base pass depth stencil access
