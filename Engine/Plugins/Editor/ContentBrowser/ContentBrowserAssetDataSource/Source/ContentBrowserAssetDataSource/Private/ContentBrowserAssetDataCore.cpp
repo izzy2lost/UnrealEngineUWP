@@ -583,14 +583,23 @@ bool CanSaveAssetFileItem(IAssetTools* InAssetTools, const FContentBrowserAssetF
 		return false;
 	}
 
-	if (EnumHasAnyFlags(InSaveFlags, EContentBrowserItemSaveFlags::SaveOnlyIfLoaded))
+	if (EnumHasAnyFlags(InSaveFlags, EContentBrowserItemSaveFlags::SaveOnlyIfLoaded | EContentBrowserItemSaveFlags::SaveOnlyIfDirty))
 	{
 		// Can't save a package that hasn't been loaded
 		UPackage* Package = InAssetPayload.GetPackage(/*bTryRecacheIfNull*/true);
 		if (!Package)
 		{
-			ContentBrowserAssetData::SetOptionalErrorMessage(OutErrorMsg, LOCTEXT("Error_CannotSaveUnloadedAsset", "Cannot save unloaded asset"));
+			ContentBrowserAssetData::SetOptionalErrorMessage(OutErrorMsg, LOCTEXT("Error_CannotSaveUnloadedAsset", "Cannot save unloaded item"));
 			return false;
+		}
+		
+		if (EnumHasAnyFlags(InSaveFlags, EContentBrowserItemSaveFlags::SaveOnlyIfDirty))
+		{
+			if (!Package->IsDirty())
+			{
+				ContentBrowserAssetData::SetOptionalErrorMessage(OutErrorMsg, LOCTEXT("Error_CannotSaveNonDirtyAsset", "Cannot save an unmodified item"));
+				return false;
+			}
 		}
 	}
 

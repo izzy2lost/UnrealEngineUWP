@@ -923,7 +923,7 @@ void FAssetContextMenu::ExecuteEditItems()
 
 void FAssetContextMenu::ExecuteSaveAsset()
 {
-	const EContentBrowserItemSaveFlags SaveFlags = EContentBrowserItemSaveFlags::SaveOnlyIfLoaded;
+	const EContentBrowserItemSaveFlags SaveFlags = EContentBrowserItemSaveFlags::None;
 
 	// Batch these by their data sources
 	TMap<UContentBrowserDataSource*, TArray<FContentBrowserItemData>> SourcesAndItems;
@@ -1281,7 +1281,7 @@ bool FAssetContextMenu::CanExecuteSaveAsset() const
 	bool bCanSave = false;
 	for (const FContentBrowserItem& SelectedItem : SelectedFiles)
 	{
-		bCanSave |= SelectedItem.CanSave(EContentBrowserItemSaveFlags::SaveOnlyIfLoaded);
+		bCanSave |= SelectedItem.CanSave(EContentBrowserItemSaveFlags::None);
 	}
 	return bCanSave;
 }

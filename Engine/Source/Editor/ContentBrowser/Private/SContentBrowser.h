@@ -415,7 +415,7 @@ private:
 	/** Handler to check to see if a save asset command is allowed */
 	bool HandleSaveAssetCommandCanExecute() const;
 
-	/** Handler for Rename */
+	/** Handler for save asset */
 	void HandleSaveAssetCommand();
 
 	/** Handler for SaveAll in folder */
