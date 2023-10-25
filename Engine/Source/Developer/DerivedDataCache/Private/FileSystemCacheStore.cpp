@@ -781,6 +781,12 @@ struct FFileSystemCacheStoreParams
 	/** Path to the optional access log that records every accessed file. */
 	FString AccessLogPath;
 
+	/** Optional name of a file containing redirection information so that if the file is present and valid, another cache store can be used in place of this FileSystemCacheStore. */
+	FString RedirectionFileName;
+
+	/** Optional name of a key within the RedirectionFileName containing redirection information so that if the file+key is present and valid, another cache store can be used in place of this FileSystemCacheStore. */
+	FString RedirectionKeyName;
+
 	/** Maximum total size of compressed data stored within a record package with multiple attachments. */
 	uint64 MaxRecordSizeKB = 256;
 	/** Maximum total size of compressed data stored within a value package, or a record package with one attachment. */
@@ -830,7 +836,9 @@ public:
 	static ILegacyCacheStore* TryCreate(
 		const FFileSystemCacheStoreParams& Params,
 		ICacheStoreOwner& Owner,
-		FString& OutPath);
+		ICacheStoreGraph* Graph,
+		FString& OutPath,
+		bool& bOutRedirected);
 
 private:
 	FFileSystemCacheStore(
@@ -849,6 +857,11 @@ private:
 		std::atomic<uint32>* NumLatencyTestsCompleted,
 		std::atomic<bool>* AbandonRequest);
 
+	static ILegacyCacheStore* TryRedirection(
+		const FFileSystemCacheStoreParams& Params,
+		ICacheStoreOwner& Owner,
+		ICacheStoreGraph* Graph);
+	
 	// ICacheStore Interface
 
 	void Put(
@@ -988,7 +1001,9 @@ private:
 ILegacyCacheStore* FFileSystemCacheStore::TryCreate(
 	const FFileSystemCacheStoreParams& Params,
 	ICacheStoreOwner& Owner,
-	FString& OutPath)
+	ICacheStoreGraph* Graph,
+	FString& OutPath,
+	bool& bOutRedirected)
 {
 	// If we find a platform that has more stringent limits, this needs to be rethought.
 	checkf(GMaxCacheRootLen + GMaxCacheKeyLen <= FPlatformMisc::GetMaxPathLength(),
@@ -1025,6 +1040,12 @@ ILegacyCacheStore* FFileSystemCacheStore::TryCreate(
 		bool bShared = Params.CacheName == TEXTVIEW("Shared");
 		if (!bShared || IFileManager::Get().DirectoryExists(*Params.CachePath))
 		{
+			if (ILegacyCacheStore* RedirectedStore = TryRedirection(Params, Owner, Graph))
+			{
+				bOutRedirected = true;
+				return RedirectedStore;
+			}
+
 			FDerivedDataCacheSpeedStats LocalSpeedStats;
 			LocalSpeedStats.ReadSpeedMBs = 999;
 			LocalSpeedStats.WriteSpeedMBs = 999;
@@ -1481,6 +1502,47 @@ bool FFileSystemCacheStore::RunSpeedTest(
 	OutWriteSpeedMBs = (bWriteTestPassed ? (TotalDataWritten / TotalWriteTime) : 0) / (1024 * 1024);
 
 	return bWriteTestPassed || bReadTestPassed;
+}
+
+ILegacyCacheStore* FFileSystemCacheStore::TryRedirection(
+	const FFileSystemCacheStoreParams& Params,
+	ICacheStoreOwner& Owner,
+	ICacheStoreGraph* Graph)
+{
+	if (Graph && !Params.RedirectionFileName.IsEmpty())
+	{
+		FString RedirectionFileName = FPaths::Combine(Params.CachePath, Params.RedirectionFileName);
+		FConfigFile RedirectionFile;
+		if (FConfigCacheIni::LoadLocalIniFile(RedirectionFile, *RedirectionFileName, false))
+		{
+			FString RedirectionKeyName = Params.RedirectionKeyName.IsEmpty() ? TEXT("Default") : Params.RedirectionKeyName;
+			FString RedirectionData;
+			if (RedirectionFile.GetString(TEXT("Redirect"), *RedirectionKeyName, RedirectionData))
+			{
+				RedirectionData.TrimStartInline();
+				RedirectionData.RemoveFromStart(TEXT("("));
+				RedirectionData.RemoveFromEnd(TEXT(")"));
+
+				FString EnvName;
+				FString EnvValue;
+				if (FParse::Value(*RedirectionData, TEXT("SetEnvName="), EnvName) && FParse::Value(*RedirectionData, TEXT("SetEnvValue="), EnvValue))
+				{
+					FPlatformMisc::SetEnvironmentVar(*EnvName, *EnvValue);
+				}
+
+				FString TargetName;
+				if (FParse::Value(*RedirectionData, TEXT("Target="), TargetName))
+				{
+					if (ILegacyCacheStore* RedirectedStore = Graph->Create(*TargetName))
+					{
+						return RedirectedStore;
+					}
+				}
+			}
+		}
+	}
+
+	return nullptr;
 }
 
 void FFileSystemCacheStore::LegacyStats(FDerivedDataCacheStatsNode& OutNode)
@@ -2985,17 +3047,22 @@ void FFileSystemCacheStoreParams::Parse(const TCHAR* Name, const TCHAR* Config)
 	FParse::Value(Config, TEXT("FoldersToClean="), MaxDirectoryScanCount);
 
 	GConfig->GetDouble(TEXT("DDCCleanup"), TEXT("TimeToWaitAfterInit"), MaintenanceDelayInSeconds, GEngineIni);
+
+	FParse::Value(Config, TEXT("RedirectionFileName="), RedirectionFileName);
+	FParse::Value(Config, TEXT("RedirectionKeyName="), RedirectionKeyName);
 }
 
 ILegacyCacheStore* CreateFileSystemCacheStore(
 	const TCHAR* Name,
 	const TCHAR* Config,
 	ICacheStoreOwner& Owner,
-	FString& OutPath)
+	ICacheStoreGraph* Graph,
+	FString& OutPath,
+	bool& bOutRedirected)
 {
 	FFileSystemCacheStoreParams Params;
 	Params.Parse(Name, Config);
-	return FFileSystemCacheStore::TryCreate(Params, Owner, OutPath);
+	return FFileSystemCacheStore::TryCreate(Params, Owner, Graph, OutPath, bOutRedirected);
 }
 
 } // UE::DerivedData

@@ -168,6 +168,12 @@ public:
 	virtual void LegacyResourceStats(TArray<FDerivedDataCacheResourceStat>& OutStats) const = 0;
 };
 
+class ICacheStoreGraph
+{
+public:
+	virtual ILegacyCacheStore* Create(const TCHAR* Name) = 0;
+};
+
 enum class ECacheStoreStatusCode : uint8
 {
 	None = 0,
