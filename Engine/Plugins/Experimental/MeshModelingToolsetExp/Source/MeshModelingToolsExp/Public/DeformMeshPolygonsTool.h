@@ -145,7 +145,7 @@ public:
  *
  */
 UCLASS()
-class MESHMODELINGTOOLSEXP_API UDeformMeshPolygonsTool : public UMeshSurfacePointTool
+class MESHMODELINGTOOLSEXP_API UDeformMeshPolygonsTool : public UMeshSurfacePointTool, public IInteractiveToolManageGeometrySelectionAPI
 {
 	GENERATED_BODY()
 
@@ -170,6 +170,12 @@ public:
 	virtual void OnEndDrag(const FRay& Ray) override;
 	virtual void OnCancelDrag() override;
 	virtual bool OnUpdateHover(const FInputDeviceRay& DevicePos) override;
+
+	// IInteractiveToolManageGeometrySelectionAPI -- this tool won't update external geometry selection or change selection-relevant mesh IDs
+	virtual bool IsInputSelectionValidOnOutput() override
+	{
+		return true;
+	}
 
 public:
 	virtual void NextTransformTypeAction();
