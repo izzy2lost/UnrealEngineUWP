@@ -37,7 +37,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		public static async Task CopyToStreamAsync(BlobHandle handle, Stream outputStream, CancellationToken cancellationToken)
 		{
-			using BlobData blobData = await handle.ReadAsync(cancellationToken);
+			using BlobData blobData = await handle.ReadBlobDataAsync(cancellationToken);
 			if (blobData.Type.Guid == s_leafNodeGuid)
 			{
 				await LeafChunkedDataNode.CopyToStreamAsync(blobData, outputStream, cancellationToken);

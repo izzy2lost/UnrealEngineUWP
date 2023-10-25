@@ -103,7 +103,7 @@ namespace Horde.Server.Ddc
 				throw new BlobNotFoundException(ns, blob);
 			}
 
-			using BlobData data = await alias.Target.ReadAsync(cancellationToken);
+			using BlobData data = await alias.Target.ReadBlobDataAsync(cancellationToken);
 			return new BlobContents(data.Data.ToArray());
 		}
 

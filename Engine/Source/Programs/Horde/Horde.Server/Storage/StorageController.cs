@@ -382,7 +382,7 @@ namespace Horde.Server.Storage
 
 			object content;
 
-			using BlobData blobData = await storageClient.CreateBlobHandle(locator).ReadAsync(cancellationToken);
+			using BlobData blobData = await storageClient.CreateBlobHandle(locator).ReadBlobDataAsync(cancellationToken);
 
 			Node node = Node.Deserialize(blobData);
 			switch (node)

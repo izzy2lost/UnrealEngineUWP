@@ -65,7 +65,7 @@ namespace EpicGames.Horde.Tests
 			BlobHandle handle = await writer.FlushAsync(node, CancellationToken.None);
 
 			BlobHandle bundleHandle = store.CreateBlobHandle(handle.GetLocator().Outermost);
-			using BlobData blobData = await bundleHandle.ReadAsync();
+			using BlobData blobData = await bundleHandle.ReadBlobDataAsync();
 
 			return blobData.Data.ToArray();
 		}

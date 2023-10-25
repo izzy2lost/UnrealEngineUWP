@@ -63,7 +63,7 @@ namespace EpicGames.Horde.Storage.Clients
 			}
 
 			/// <inheritdoc/>
-			public override async ValueTask<BlobData> ReadAsync(CancellationToken cancellationToken = default)
+			public override async ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default)
 			{
 				using (Stream stream = await _storageClient.OpenBlobAsync(_locator, 0, cancellationToken: cancellationToken))
 				{
@@ -135,7 +135,7 @@ namespace EpicGames.Horde.Storage.Clients
 		public async ValueTask<BlobData> ReadBlobAsync(BlobLocator locator, CancellationToken cancellationToken = default)
 		{
 			BlobHandle handle = CreateBlobHandle(locator);
-			return await handle.ReadAsync(cancellationToken);
+			return await handle.ReadBlobDataAsync(cancellationToken);
 		}
 
 		/// <inheritdoc/>

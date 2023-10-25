@@ -55,7 +55,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 		}
 
 		/// <inheritdoc/>
-		public override ValueTask<BlobData> ReadAsync(CancellationToken cancellationToken = default) => _reader.ReadNodeDataAsync(BundleLocator, ExportIdx, cancellationToken);
+		public override ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default) => _reader.ReadNodeDataAsync(BundleLocator, ExportIdx, cancellationToken);
 
 		/// <inheritdoc/>
 		public override ValueTask FlushAsync(CancellationToken cancellationToken = default) => new ValueTask();
@@ -135,7 +135,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 			}
 
 			/// <inheritdoc/>
-			public override async ValueTask<BlobData> ReadAsync(CancellationToken cancellationToken = default)
+			public override async ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default)
 			{
 				if (_flushedHandle == null)
 				{
@@ -149,7 +149,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 					}
 				}
 
-				return await _flushedHandle!.ReadAsync(cancellationToken);
+				return await _flushedHandle!.ReadBlobDataAsync(cancellationToken);
 			}
 
 			/// <inheritdoc/>

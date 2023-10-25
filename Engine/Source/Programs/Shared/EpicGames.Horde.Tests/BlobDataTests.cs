@@ -19,7 +19,7 @@ namespace EpicGames.Horde.Tests
 			readonly BlobLocator _locator;
 
 			public DummyHandle(string locator) => _locator = new BlobLocator(new Utf8String(locator));
-			public override ValueTask<BlobData> ReadAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
+			public override ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
 			public override bool TryGetLocator([NotNullWhen(true)] out BlobLocator locator)
 			{
 				locator = _locator;

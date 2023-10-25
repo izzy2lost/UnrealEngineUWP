@@ -755,7 +755,7 @@ namespace EpicGames.Horde.Storage
 			}
 
 			// Otherwise 
-			using BlobData blobData = await nodeRef.Handle.ReadAsync(cancellationToken);
+			using BlobData blobData = await nodeRef.Handle.ReadBlobDataAsync(cancellationToken);
 			await LeafChunkedDataNode.CopyToStreamAsync(blobData, outputStream, cancellationToken);
 		}
 

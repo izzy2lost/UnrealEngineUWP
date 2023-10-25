@@ -87,7 +87,7 @@ namespace Horde.Server.Storage
 			public override ValueTask<IReadOnlyList<BlobHandle>> GetRefsAsync(CancellationToken cancellationToken = default) => new ValueTask<IReadOnlyList<BlobHandle>>(Array.Empty<BlobHandle>());
 
 			/// <inheritdoc/>
-			public override async ValueTask<BlobData> ReadAsync(CancellationToken cancellationToken = default)
+			public override async ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default)
 			{
 				IReadOnlyMemoryOwner<byte> obj = await _backend.ReadAsync(_path, cancellationToken);
 				return new ReadOnlyMemoryOwnerBlobData(BlobType.Leaf, obj, Array.Empty<BlobHandle>());
@@ -172,7 +172,7 @@ namespace Horde.Server.Storage
 			public async ValueTask<BlobData> ReadBlobAsync(BlobLocator locator, CancellationToken cancellationToken = default)
 			{
 				BlobHandle handle = CreateBlobHandle(locator);
-				return await handle.ReadAsync(cancellationToken);
+				return await handle.ReadBlobDataAsync(cancellationToken);
 			}
 
 			/// <inheritdoc/>

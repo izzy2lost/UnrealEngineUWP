@@ -48,7 +48,7 @@ namespace EpicGames.Horde.Storage
 		/// <returns></returns>
 		public async ValueTask<Node> ExpandAsync(CancellationToken cancellationToken = default)
 		{
-			using BlobData blobData = await Handle!.ReadAsync(cancellationToken);
+			using BlobData blobData = await Handle!.ReadBlobDataAsync(cancellationToken);
 			return Node.Deserialize(blobData);
 		}
 	}

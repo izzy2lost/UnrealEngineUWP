@@ -21,10 +21,18 @@ namespace EpicGames.Horde.Storage
 
 			public ReadOnlyMemory<byte> Memory { get; }
 
-			public BlobDataFragment(BlobData data, int offset, int length)
+			public BlobDataFragment(BlobData data, int offset, int? length)
 			{
 				_data = data;
-				Memory = data.Data.Slice(offset, length);
+
+				if (length == null)
+				{
+					Memory = data.Data.Slice(offset);
+				}
+				else
+				{
+					Memory = data.Data.Slice(offset, Math.Min(length.Value, data.Data.Length - offset));
+				}
 			}
 
 			public void Dispose() => _data.Dispose();
@@ -76,7 +84,7 @@ namespace EpicGames.Horde.Storage
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		public virtual async ValueTask<BlobType> GetTypeAsync(CancellationToken cancellationToken = default)
 		{
-			using BlobData data = await ReadAsync(cancellationToken);
+			using BlobData data = await ReadBlobDataAsync(cancellationToken);
 			return data.Type;
 		}
 
@@ -86,7 +94,7 @@ namespace EpicGames.Horde.Storage
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		public virtual async ValueTask<IReadOnlyList<BlobHandle>> GetRefsAsync(CancellationToken cancellationToken = default)
 		{
-			using BlobData data = await ReadAsync(cancellationToken);
+			using BlobData data = await ReadBlobDataAsync(cancellationToken);
 			return data.Refs;
 		}
 
@@ -98,17 +106,21 @@ namespace EpicGames.Horde.Storage
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		public virtual async Task<Stream> OpenAsync(int offset = 0, int? length = null, CancellationToken cancellationToken = default)
 		{
-			BlobData blobData = await ReadAsync(cancellationToken);
+			BlobData blobData = await ReadBlobDataAsync(cancellationToken);
 			int maxLength = blobData.Data.Length - offset;
 			ReadOnlyMemory<byte> memory = blobData.Data.Slice(offset, length.HasValue ? Math.Min(length.Value, maxLength) : maxLength);
 			return new BlobDataStream(blobData, memory);
 		}
 
 		/// <summary>
-		/// Reads the blob's data
+		/// Reads part of the blob, and returns a handle that can be used to access the data.
 		/// </summary>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		public abstract ValueTask<BlobData> ReadAsync(CancellationToken cancellationToken = default);
+		/// <returns></returns>
+		public virtual async ValueTask<IReadOnlyMemoryOwner<byte>> ReadAsync(CancellationToken cancellationToken = default)
+		{
+			return await ReadPartialAsync(0, null, cancellationToken);
+		}
 
 		/// <summary>
 		/// Reads part of the blob, and returns a handle that can be used to access the data.
@@ -117,36 +129,17 @@ namespace EpicGames.Horde.Storage
 		/// <param name="length">Length of the data to read</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns></returns>
-		public virtual async ValueTask<IReadOnlyMemoryOwner<byte>> ReadPartialAsync(int offset, int length, CancellationToken cancellationToken = default)
+		public virtual async ValueTask<IReadOnlyMemoryOwner<byte>> ReadPartialAsync(int offset, int? length, CancellationToken cancellationToken = default)
 		{
-			BlobData data = await ReadAsync(cancellationToken);
+			BlobData data = await ReadBlobDataAsync(cancellationToken);
 			return new BlobDataFragment(data, offset, length);
 		}
 
 		/// <summary>
-		/// Creates a reader for this node's data
+		/// Reads the blob's data
 		/// </summary>
-		/// <param name="offset">Offset within the payload stream to start reading</param>
-		/// <param name="buffer">Buffer to receive the data that was read</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>Number of bytes that were read</returns>
-		public virtual async ValueTask<int> ReadPartialAsync(int offset, Memory<byte> buffer, CancellationToken cancellationToken = default)
-		{
-			using BlobData data = await ReadAsync(cancellationToken);
-
-			int length = data.Data.Length - offset;
-			if (length < 0)
-			{
-				return 0;
-			}
-			if (length > buffer.Length)
-			{
-				length = buffer.Length;
-			}
-
-			data.Data.Slice(offset, length).CopyTo(buffer);
-			return length;
-		}
+		public abstract ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Flush the referenced not to underlying storage
@@ -212,7 +205,7 @@ namespace EpicGames.Horde.Storage
 		}
 
 		/// <inheritdoc/>
-		public override ValueTask<BlobData> ReadAsync(CancellationToken cancellationToken = default)
+		public override ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default)
 		{
 			throw new NotSupportedException("Blob fragment handles cannot be read directly, and should be deconstructed into more specific types.");
 		}

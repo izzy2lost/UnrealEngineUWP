@@ -38,7 +38,7 @@ namespace EpicGames.Horde.Storage.Clients
 				=> _outer._backend.OpenAsync(_locator.ToString(), offset, length, cancellationToken);
 
 			/// <inheritdoc/>
-			public override ValueTask<BlobData> ReadAsync(CancellationToken cancellationToken = default)
+			public override ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default)
 				=> _outer.ReadBlobAsync(_locator, cancellationToken);
 
 			/// <inheritdoc/>

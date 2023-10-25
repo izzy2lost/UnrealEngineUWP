@@ -27,7 +27,7 @@ namespace EpicGames.Horde.Storage.Clients
 			}
 
 			/// <inheritdoc/>
-			public override ValueTask<BlobData> ReadAsync(CancellationToken cancellationToken = default) => _outer.ReadBlobAsync(_locator, cancellationToken);
+			public override ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default) => _outer.ReadBlobAsync(_locator, cancellationToken);
 
 			/// <inheritdoc/>
 			public override bool TryGetLocator([NotNullWhen(true)] out BlobLocator locator)

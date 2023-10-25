@@ -49,7 +49,7 @@ namespace Horde.Server.Ddc
 			}
 
 			BlobHandle blobHandle = blobAlias.Target;
-			using BlobData blobContents = await blobHandle.ReadAsync(cancellationToken);
+			using BlobData blobContents = await blobHandle.ReadBlobDataAsync(cancellationToken);
 			CbObject payload = new CbObject(blobContents.Data);
 
 			BlobId[] referencedBlobs = Array.Empty<BlobId>();
@@ -131,7 +131,7 @@ namespace Horde.Server.Ddc
 				throw new RefNotFoundException(ns, bucket, key);
 			}
 
-			BlobData data = await node.References.First(x => x.Hash == node.RootHash).Handle.ReadAsync(cancellationToken);
+			BlobData data = await node.References.First(x => x.Hash == node.RootHash).Handle.ReadBlobDataAsync(cancellationToken);
 			BlobContents contents = new BlobContents(data.Data.ToArray());
 
 			RefRecord record = new RefRecord(ns, bucket, key, DateTime.UtcNow, null, new BlobId(node.RootHash), true);

@@ -412,7 +412,7 @@ namespace EpicGames.Horde.Storage
 		/// <returns></returns>
 		public static async ValueTask<TNode> ReadNodeAsync<TNode>(this BlobHandle handle, CancellationToken cancellationToken = default) where TNode : Node
 		{
-			using BlobData blobData = await handle.ReadAsync(cancellationToken);
+			using BlobData blobData = await handle.ReadBlobDataAsync(cancellationToken);
 			return Node.Deserialize<TNode>(blobData);
 		}
 
@@ -449,7 +449,7 @@ namespace EpicGames.Horde.Storage
 				return null;
 			}
 
-			using BlobData blobData = await refTarget.ReadAsync(cancellationToken);
+			using BlobData blobData = await refTarget.ReadBlobDataAsync(cancellationToken);
 			return Node.Deserialize<TNode>(blobData);
 		}
 

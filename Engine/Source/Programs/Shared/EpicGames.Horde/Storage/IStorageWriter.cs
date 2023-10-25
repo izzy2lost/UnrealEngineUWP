@@ -192,7 +192,7 @@ namespace EpicGames.Horde.Storage
 			}
 
 			/// <inheritdoc/>
-			public override ValueTask<BlobData> ReadAsync(CancellationToken cancellationToken = default)
+			public override ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default)
 			{
 				if (_inner == null)
 				{
@@ -200,7 +200,7 @@ namespace EpicGames.Horde.Storage
 				}
 				else
 				{
-					return _inner.ReadAsync(cancellationToken);
+					return _inner.ReadBlobDataAsync(cancellationToken);
 				}
 			}
 
