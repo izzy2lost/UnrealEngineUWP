@@ -489,12 +489,13 @@ RENDERCORE_API bool IsMobileDeferredShadingEnabled(const FStaticShaderPlatform P
 {
 	static FShaderPlatformCachedIniValue<bool> MobileShadingPathIniValue(TEXT("r.Mobile.ShadingPath"));
 	static TConsoleVariableData<int32>* MobileAllowDeferredShadingOpenGL = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Mobile.AllowDeferredShadingOpenGL"));
+	static TConsoleVariableData<int32>* MobileHDR = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.MobileHDR"));
 
 	// OpenGL requires DXC for deferred shading
 	bool bSupportedPlatform = !IsOpenGLPlatform(Platform) ||
 		(MobileAllowDeferredShadingOpenGL && MobileAllowDeferredShadingOpenGL->GetValueOnAnyThread() != 0 && IsDxcEnabledForPlatform(Platform));
 
-	return MobileShadingPathIniValue.Get(Platform) == 1 && bSupportedPlatform;
+	return MobileShadingPathIniValue.Get(Platform) == 1 && bSupportedPlatform && MobileHDR->GetValueOnAnyThread() == 1;
 }
 
 RENDERCORE_API bool MobileRequiresSceneDepthAux(const FStaticShaderPlatform Platform)

@@ -267,6 +267,11 @@ void URendererSettings::PostEditChangeProperty(FPropertyChangedEvent& PropertyCh
 			{
 				bMobileSupportDeferredOnOpenGL = 0;
 			}
+			if(MobileShadingPath.GetValue() == 1)
+			{
+				bMobilePostProcessing = 1;
+				UpdateDependentPropertyInConfigFile(this, GET_MEMBER_NAME_CHECKED(URendererSettings, bMobilePostProcessing));
+			}
 		}
 
 		if ((PropertyChangedEvent.Property->GetFName() == GET_MEMBER_NAME_CHECKED(URendererSettings, bEnableSubstrate)))
@@ -368,6 +373,11 @@ bool URendererSettings::CanEditChange(const FProperty* InProperty) const
 	if ((InProperty->GetFName() == GET_MEMBER_NAME_CHECKED(URendererSettings, bMobileSupportDeferredOnOpenGL)))
 	{
 		return MobileShadingPath.GetValue() > 0;
+	}
+
+	if ((InProperty->GetFName() == GET_MEMBER_NAME_CHECKED(URendererSettings, bMobilePostProcessing)))
+	{
+		return MobileShadingPath.GetValue() == 0;
 	}
 
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS

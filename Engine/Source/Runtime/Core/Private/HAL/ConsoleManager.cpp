@@ -3171,7 +3171,7 @@ static TAutoConsoleVariable<int32> CVarMobileShadingPath(
 	TEXT("r.Mobile.ShadingPath"),
 	0,
 	TEXT("0: Forward shading (default)\n"
-		 "1: Deferred shading"),
+		 "1: Deferred shading (Mobile HDR is required for Deferred)"),
 	ECVF_RenderThreadSafe | ECVF_ReadOnly);
 
 static TAutoConsoleVariable<int32> CVarMobileAllowDeferredShadingOpenGL(
