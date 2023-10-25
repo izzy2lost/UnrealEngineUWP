@@ -91,7 +91,7 @@ FNewtonEvolution::FNewtonEvolution(
 	FSolverReal EMesh,
 	FSolverReal NuMesh,
 	FSolverReal NewtonTol,
-	FSolverReal CGTol,
+	FSolverReal CGTolIn,
 	bool bWriteDebugInfoIn)
 	: MParticles(MoveTemp(InParticles))
 	, MParticlesActiveView(MParticles)
@@ -112,7 +112,7 @@ FNewtonEvolution::FNewtonEvolution(
 	, MTime(0)
 	, MSmoothDt(1.f / 30.f)  // Initialize filtered timestep at 30fps
 	, MNewtonTol(NewtonTol)
-	, MCGTol(CGTol)
+	, MCGTol(CGTolIn)
 	, MConstrainedVertices(ConstrainedVertices)
 	, MBCPositions(BCPositions)
 	, bWriteDebugInfo(bWriteDebugInfoIn)

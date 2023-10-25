@@ -41,7 +41,7 @@ public:
 		FSolverReal EMesh = (FSolverReal)1000.,
 		FSolverReal NuMesh = (FSolverReal).3,
 		FSolverReal NewtonTol = (FSolverReal) 1e-6,
-		FSolverReal CGTol = (FSolverReal) 1e-8,
+		FSolverReal CGTolIn = (FSolverReal) 1e-8,
 		bool bWriteDebugInfoIn = true);
 	~FNewtonEvolution() {}
 
