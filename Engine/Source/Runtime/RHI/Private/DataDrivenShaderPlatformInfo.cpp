@@ -437,6 +437,7 @@ void FGenericDataDrivenShaderPlatformInfo::UpdatePreviewPlatforms()
 				Infos[ShaderPlatform].bSupportsMobileMultiView &= Infos[EditorSPForPreviewMaxFeatureLevel].bSupportsMobileMultiView;
 				Infos[ShaderPlatform].bSupportsVertexShaderSRVs = Infos[EditorSPForPreviewMaxFeatureLevel].bSupportsVertexShaderSRVs;
 				Infos[ShaderPlatform].bSupportsManualVertexFetch = Infos[EditorSPForPreviewMaxFeatureLevel].bSupportsManualVertexFetch;
+				Infos[ShaderPlatform].bSupportsRealTypes = Infos[EditorSPForPreviewMaxFeatureLevel].bSupportsRealTypes;
 				Infos[ShaderPlatform].bSupportsShaderRootConstants = false;
 				Infos[ShaderPlatform].bSupportsShaderBundleDispatch = false;
 				Infos[ShaderPlatform].bSupportsRenderTargetWriteMask = false;
