@@ -2235,9 +2235,6 @@ bool PreprocessVulkanShader(const FShaderCompilerInput& Input, const FShaderComp
 
 	CleanupUniformBufferCode(Input.Environment, PreprocessedShaderSource);
 
-	// Process TEXT macro.
-	TransformStringIntoCharacterArray(PreprocessedShaderSource);
-
 	// Run the shader minifier
 	if (InternalState.IsRayTracingShader() || InternalState.bUseBindlessUniformBuffer)
 	{

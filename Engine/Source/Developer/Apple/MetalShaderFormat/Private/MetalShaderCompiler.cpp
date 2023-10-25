@@ -874,9 +874,6 @@ bool PreprocessMetalShader(const FShaderCompilerInput& Input, const FShaderCompi
 
 	CleanupUniformBufferCode(Input.Environment, PreprocessOutput.EditSource());
 
-	// Process TEXT macro.
-	TransformStringIntoCharacterArray(PreprocessOutput.EditSource());
-
 	// Run the shader minifier
 	#if UE_METAL_SHADER_COMPILER_ALLOW_DEAD_CODE_REMOVAL
 	if (Input.Environment.CompilerFlags.Contains(CFLAG_RemoveDeadCode))

@@ -165,16 +165,41 @@ struct FStbPreprocessContext
 	uint32 VertexFactoryOffset = INDEX_NONE;					// Vertex factory dependencies start at this offset in LoadedIncludesCacheShared
 	uint32 VirtualSharedContentsOffset = INDEX_NONE;			// Virtual shared contents start at this offset in LoadedIncludesCacheShared
 
+	// TEXT macro processing state
+	struct FTextEntry
+	{
+		uint32  Index;
+		uint32  Hash;
+		uint32  Offset;
+		bool    bIsAssert;
+		FString SourceText;
+		FString ConvertedText;
+		FString EncodedText;
+	};
+	TArray<FTextEntry> TextEntries;
+	TArray<ANSICHAR> TextMacroSubstituted;
+	uint32 TextGlobalCount = 0;
+	uint32 TextAssertCount = 0;
+	uint32 TextPrintfCount = 0;
+	bool bInAssert = false;
+
+	bool HasIncludedHeader(const FString& Header)
+	{
+		// Checks if a given header  has been included.  Note that the header may be encountered through one of our FShaderPreprocessDependencies structures,
+		// so if those are valid, we need to check the corresponding elements in the LoadedIncludesCacheShared array to see if the path was encountered.
+		return
+			(PreprocessDependencies.IsValid() && HasDependencyFromResultPath(*PreprocessDependencies, Header, &LoadedIncludesCacheShared[0])) ||
+			(VertexFactoryDependencies.IsValid() && HasDependencyFromResultPath(*VertexFactoryDependencies, Header, &LoadedIncludesCacheShared[VertexFactoryOffset])) ||
+			LoadedIncludesCache.Contains(Header);
+	}
+
 	bool HasIncludedMandatoryHeaders()
 	{
-		// Checks if the mandatory PlatformHeader ("/Engine/Public/Platform.ush") has been included.  Note that the header may be
-		// encountered through one of our FShaderPreprocessDependencies structures, so if those are valid, we need to check the
-		// corresponding elements in the LoadedIncludesCacheShared array to see if the path was encountered.
-		return
-			(PreprocessDependencies.IsValid() && HasDependencyFromResultPath(*PreprocessDependencies, PlatformHeader, &LoadedIncludesCacheShared[0])) ||
-			(VertexFactoryDependencies.IsValid() && HasDependencyFromResultPath(*VertexFactoryDependencies, PlatformHeader, &LoadedIncludesCacheShared[VertexFactoryOffset])) ||
-			LoadedIncludesCache.Contains(PlatformHeader);
+		// Check if the mandatory PlatformHeader has been included ("/Engine/Public/Platform.ush")
+		return HasIncludedHeader(PlatformHeader);
 	}
+
+	void ShaderPrintGenerate(char* PreprocessFile, TArray<FShaderDiagnosticData>* OutDiagnosticDatas);
 };
 
 static void StbLoadedIncludeTrimPaddingChecked(FStbLoadedInclude* ContentsCached)
@@ -438,11 +463,203 @@ static const ANSICHAR* StbResolveInclude(const ANSICHAR* PathInSource, uint32 Pa
 	return nullptr;
 }
 
+static const char* ShaderPrintTextIdentifier = "TEXT";
+static const char* ShaderPrintAssertIdentifier = "UEReportAssertWithPayload";
+
+static const char* StbCustomMacroBegin(const char* OriginalText, void* RawContext)
+{
+	FStbPreprocessContext& Context = *reinterpret_cast<FStbPreprocessContext*>(RawContext);
+
+	// Check for assert macro
+	if (FCStringAnsi::Strstr(OriginalText, ShaderPrintAssertIdentifier) == OriginalText)
+	{
+		// We only need to track that we're in an assert, we don't need to do any substitution
+		Context.bInAssert = true;
+		return OriginalText;
+	}
+
+	// TEXT macro
+	check(FCStringAnsi::Strstr(OriginalText, ShaderPrintTextIdentifier) == OriginalText);
+	const char* TextChar = OriginalText;
+	while (*TextChar != '(')
+	{
+		TextChar++;
+	}
+	TextChar++;
+	while (*TextChar != ')' && *TextChar != '\"')
+	{
+		TextChar++;
+	}
+
+	// If no quoted text, that's a parse error
+	if (*TextChar != '\"')
+	{
+		return nullptr;
+	}
+
+	// We found a string, add an entry
+	const uint32 EntryIndex = Context.TextEntries.Num();
+	FStbPreprocessContext::FTextEntry& Entry = Context.TextEntries.AddDefaulted_GetRef();
+	Entry.Index = EntryIndex;
+	Entry.Offset = Context.TextGlobalCount;
+	Entry.bIsAssert = Context.bInAssert;
+	if (Entry.bIsAssert)
+	{
+		++Context.TextAssertCount;
+	}
+	else
+	{
+		++Context.TextPrintfCount;
+	}
+	
+	// Parse the string, handling escaped characters.  SourceText contains the raw text, ConvertedText removes escape back slashes,
+	// and EncodedText is an array of integer numeric values as ASCII.
+	TextChar++;
+	const char* TextStart = TextChar;
+	int32 CharCount = 0;
+	for (; *TextChar != '\"'; TextChar++)
+	{
+		if (*TextChar == '\\')
+		{
+			TextChar++;
+		}
+		CharCount++;
+	}
+	Entry.SourceText = FString(FAnsiStringView(TextStart, TextChar - TextStart));
+	Entry.ConvertedText.GetCharArray().SetNumUninitialized(CharCount + 1);
+	Entry.EncodedText.Reserve(CharCount * 4); // ~3 digits per character + a comma
+
+	TCHAR* ConvertedTextData = Entry.ConvertedText.GetCharArray().GetData();
+
+	int32 CharIndex = 0;
+	for (TextChar = TextStart; *TextChar != '\"'; TextChar++, CharIndex++)
+	{
+		if (*TextChar == '\\')
+		{
+			TextChar++;
+		}
+		ConvertedTextData[CharIndex] = *TextChar;
+
+		const char C = *TextChar;
+		Entry.EncodedText.AppendInt(uint8(C));
+		if (CharIndex + 1 != CharCount)
+		{
+			Entry.EncodedText += ',';
+		}
+	}
+	check(CharIndex == CharCount);
+	ConvertedTextData[CharIndex] = 0;
+
+	Entry.Hash = CityHash32((const char*)Entry.SourceText.GetCharArray().GetData(), sizeof(FString::ElementType) * Entry.SourceText.Len());
+	Context.TextGlobalCount += Entry.ConvertedText.Len();
+
+	// Generate substitution string
+	if (Entry.bIsAssert)
+	{
+		const FString HashString = FString::Printf(TEXT("%u"), Entry.Hash);
+		CopyStringToAnsiCharArray(*HashString, HashString.Len(), Context.TextMacroSubstituted);
+	}
+	else
+	{
+		const FString InitHashBegin(TEXT("InitShaderPrintText("));
+		const FString InitHashEnd(TEXT(")"));
+
+		const FString HashText = InitHashBegin + FString::FromInt(EntryIndex) + InitHashEnd;
+		CopyStringToAnsiCharArray(*HashText, HashText.Len(), Context.TextMacroSubstituted);
+	}
+
+	return Context.TextMacroSubstituted.GetData();
+}
+
+static void StbCustomMacroEnd(const char* OriginalText, void* RawContext, const char* SubstitutionText)
+{
+	FStbPreprocessContext& Context = *reinterpret_cast<FStbPreprocessContext*>(RawContext);
+
+	if (FCStringAnsi::Strstr(OriginalText, ShaderPrintAssertIdentifier) == OriginalText)
+	{
+		Context.bInAssert = false;
+	}
+}
+
+void FStbPreprocessContext::ShaderPrintGenerate(char* PreprocessedFile, TArray<FShaderDiagnosticData>* OutDiagnosticDatas)
+{
+	// Check if ShaderPrintCommon.ush was included, to decide whether to add the shader print generated code
+	static FString ShaderPrintHeader("/Engine/Private/ShaderPrintCommon.ush");
+	if (!HasIncludedHeader(ShaderPrintHeader))
+	{
+		return;
+	}
+
+	// 1. Write a global struct containing all the entries
+	// 2. Write the function for fetching character for a given entry index
+	const uint32 EntryCount = TextEntries.Num();
+	FString TextChars;
+	if (TextPrintfCount > 0 && EntryCount > 0 && TextGlobalCount > 0)
+	{
+		// 1. Encoded character for each text entry within a single global char array
+		TextChars = FString::Printf(TEXT("\n\nstatic const uint TEXT_CHARS[%d] = {\n"), TextGlobalCount);
+		for (FTextEntry& Entry : TextEntries)
+		{
+			TextChars += FString::Printf(TEXT("\t%s%s // %d: \"%s\"\n"), *Entry.EncodedText, Entry.Index < EntryCount - 1 ? TEXT(",") : TEXT(""), Entry.Index, *Entry.SourceText);
+		}
+		TextChars += TEXT("};\n\n");
+
+		// 2. Offset within the global array
+		TextChars += FString::Printf(TEXT("static const uint TEXT_OFFSETS[%d] = {\n"), EntryCount + 1);
+		for (FTextEntry& Entry : TextEntries)
+		{
+			TextChars += FString::Printf(TEXT("\t%d, // %d: \"%s\"\n"), Entry.Offset, Entry.Index, *Entry.SourceText);
+		}
+		TextChars += FString::Printf(TEXT("\t%d // end\n"), TextGlobalCount);
+		TextChars += TEXT("};\n\n");
+
+		// 3. Entry hashes
+		TextChars += TEXT("// Hashes are computed using the CityHash32 function\n");
+		TextChars += FString::Printf(TEXT("static const uint TEXT_HASHES[%d] = {\n"), EntryCount);
+		for (FTextEntry& Entry : TextEntries)
+		{
+			TextChars += FString::Printf(TEXT("\t0x%x%s // %d: \"%s\"\n"), Entry.Hash, Entry.Index < EntryCount - 1 ? TEXT(",") : TEXT(""), Entry.Index, *Entry.SourceText);
+		}
+		TextChars += TEXT("};\n\n");
+
+		TextChars += TEXT("uint ShaderPrintGetChar(uint InIndex)              { return TEXT_CHARS[InIndex]; }\n");
+		TextChars += TEXT("uint ShaderPrintGetOffset(FShaderPrintText InText) { return TEXT_OFFSETS[InText.Index]; }\n");
+		TextChars += TEXT("uint ShaderPrintGetHash(FShaderPrintText InText)   { return TEXT_HASHES[InText.Index]; }\n");
+	}
+	else
+	{
+		TextChars += TEXT("uint ShaderPrintGetChar(uint Index)                { return 0; }\n");
+		TextChars += TEXT("uint ShaderPrintGetOffset(FShaderPrintText InText) { return 0; }\n");
+		TextChars += TEXT("uint ShaderPrintGetHash(FShaderPrintText InText)   { return 0; }\n");
+	}
+
+	// 3. Insert global struct data + print function
+	TArray<ANSICHAR> TextCharsAnsi;
+	CopyStringToAnsiCharArray(*TextChars, TextChars.Len(), TextCharsAnsi);
+
+	preprocessor_file_append(PreprocessedFile, TextCharsAnsi.GetData(), TextCharsAnsi.Num() - 1);
+
+	// 4. Insert assert data into shader compilation output for runtime CPU lookup
+	if (OutDiagnosticDatas && TextAssertCount > 0)
+	{
+		OutDiagnosticDatas->Reserve(OutDiagnosticDatas->Num() + TextAssertCount);
+		for (const FTextEntry& E : TextEntries)
+		{
+			if (E.bIsAssert)
+			{
+				FShaderDiagnosticData& Data = OutDiagnosticDatas->AddDefaulted_GetRef();
+				Data.Hash = E.Hash;
+				Data.Message = E.SourceText;
+			}
+		}
+	}
+}
+
 class FShaderPreprocessorModule : public IModuleInterface
 {
 	virtual void StartupModule() override
 	{
-		init_preprocessor(&StbLoadFile, &StbFreeFile, &StbResolveInclude);
+		init_preprocessor(&StbLoadFile, &StbFreeFile, &StbResolveInclude, &StbCustomMacroBegin, &StbCustomMacroEnd);
 		// disable the "directive not at start of line" error; this allows a few things:
 		// 1. #define'ing #pragma messages - consumed by the preprocessor (to handle UESHADERMETADATA hackery)
 		// 2. #define'ing other #pragmas (those not processed explicitly by the preprocessor are copied into the preprocessed code
@@ -484,6 +701,9 @@ bool InnerPreprocessShaderStb(
 	stb_arena MacroArena = { 0 };
 	macro_definition** StbDefines = nullptr;
 	FShaderPreprocessorUtilities::PopulateDefines(Environment, AdditionalDefines, &MacroArena, StbDefines);
+
+	arrput(StbDefines, pp_define_custom_macro(&MacroArena, ShaderPrintTextIdentifier));
+	arrput(StbDefines, pp_define_custom_macro(&MacroArena, ShaderPrintAssertIdentifier));
 
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
@@ -594,6 +814,9 @@ bool InnerPreprocessShaderStb(
 
 	if (!HasError)
 	{
+		// Append ShaderPrint generated code at the end of the shader if necessary
+		Context.ShaderPrintGenerate(OutPreprocessedAnsi, &Output.EditDiagnosticDatas());
+
 		// "preprocessor_file_size" includes null terminator, so subtract one for Append call -- passing size saves an expensive strlen in Append
 		Output.EditSource().Append(OutPreprocessedAnsi, preprocessor_file_size(OutPreprocessedAnsi) - 1);
 	}

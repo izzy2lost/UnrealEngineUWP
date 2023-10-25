@@ -1317,9 +1317,6 @@ bool PreprocessD3DShader(
 
 	CleanupUniformBufferCode(Input.Environment, PreprocessedSource);
 
-	// Process TEXT macro.
-	TransformStringIntoCharacterArray(PreprocessedSource, &Output.EditDiagnosticDatas());
-
 	// Run the shader minifier
 	#if UE_D3D_SHADER_COMPILER_ALLOW_DEAD_CODE_REMOVAL
 	if (Environment.CompilerFlags.Contains(CFLAG_RemoveDeadCode))

@@ -3294,9 +3294,6 @@ bool PreprocessOpenGLShader(const FShaderCompilerInput& Input, const FShaderComp
 	// This requires removing the HLSLCC_NoPreprocess flag later on!
 	CleanupUniformBufferCode(Input.Environment, PreprocessOutput.EditSource());
 
-	// Process TEXT macro.
-	TransformStringIntoCharacterArray(PreprocessOutput.EditSource());
-
 	// Run the experimental shader minifier
 #if UE_OPENGL_SHADER_COMPILER_ALLOW_DEAD_CODE_REMOVAL
 	if (Input.Environment.CompilerFlags.Contains(CFLAG_RemoveDeadCode))

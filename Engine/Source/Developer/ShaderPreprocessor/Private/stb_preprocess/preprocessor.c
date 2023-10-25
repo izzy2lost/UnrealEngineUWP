@@ -104,6 +104,7 @@ struct macro_definition
 #define MACRO_NUM_PARAMETERS_line -3
 #define MACRO_NUM_PARAMETERS_defined -4
 #define MACRO_NUM_PARAMETERS_counter -5
+#define MACRO_NUM_PARAMETERS_custom -6
 
 static struct macro_definition predefined_FILE = {"__FILE__", 8, {0}, 0, MACRO_NUM_PARAMETERS_file, 1};
 static struct macro_definition predefined_LINE = {"__LINE__", 8, {0}, 0, MACRO_NUM_PARAMETERS_line, 1};
@@ -172,6 +173,8 @@ typedef struct
 static loadfile_callback_func loadfile_callback;
 static freefile_callback_func freefile_callback;
 static resolveinclude_callback_func resolveinclude_callback;
+static custommacro_begin_callback_func custommacro_begin;
+static custommacro_end_callback_func custommacro_end;
 
 #define HASH_EMPTY_MARKER 0
 #define HASH_TOMBSTONE 1
@@ -3126,6 +3129,76 @@ static void maybe_expand_macro(parse_state* cs, struct macro_definition* pending
 				++c->counter;
 				break;
 			}
+			case MACRO_NUM_PARAMETERS_custom:
+			{
+				while (char_is_whitespace(*p))
+					++p;
+
+				// If no parentheses or the macro is disabled (say because we are encountering it nested), just leave the echoed identifier
+				if (*p != '(' || md->disabled)
+				{
+					arrsetlen(cs->dest, (size_t)(q - cs->dest));  // set the output buffer size to account for the above-copied identifier
+					return;
+				}
+				++p;
+
+				// Generate a buffer and append the rest of the arguments to it
+				int arg_newlines = 0;
+				char* custom_macro_buffer = 0;
+				arrsetcap(custom_macro_buffer, identifier_length + 512);
+				arrsetlen(custom_macro_buffer, identifier_length + 1);
+				memcpy(custom_macro_buffer, identifier, identifier_length);
+				custom_macro_buffer[identifier_length] = '(';
+
+				for (;;)
+				{
+					p = copy_argument(p, &arg_newlines, &custom_macro_buffer);
+					if (*p == 0)
+					{
+						arrfree(custom_macro_buffer);
+						do_error(cs, "End-of-file in macro '%s' argument list", md->symbol_name);
+						return;
+					}
+
+					// Add the comma or close parentheses to macro buffer
+					arrput(custom_macro_buffer, *p);
+					if (*p++ == ')')
+					{
+						break;
+					}
+				}
+
+				// Null terminate
+				arrput(custom_macro_buffer, 0);
+
+				// Send the custom macro text to the callback, preprocess it, then signal the end of the custom macro
+				const char* substitution_text = custommacro_begin(custom_macro_buffer, c->custom_context);
+
+				if (substitution_text == 0)
+				{
+					arrfree(custom_macro_buffer);
+					do_error(cs, "Custom macro handler for '%s' failed", md->symbol_name);
+					return;
+				}
+
+				parse_state ncs = *cs;
+				ncs.parent = cs;
+				ncs.src = substitution_text;
+				ncs.src_offset = 0;
+				ncs.src_length = strlen(substitution_text);
+				md->disabled = 1;
+				preprocess_string(&ncs, IN_MACRO_yes, md->symbol_name, NULL);
+				md->disabled = 0;
+				cs->dest = ncs.dest;
+
+				custommacro_end(custom_macro_buffer, c->custom_context, substitution_text);
+				arrfree(custom_macro_buffer);
+
+				// Set source offset to the end of the macro
+				cs->src_offset = p - cs->src;
+				cs->src_line_number += arg_newlines;
+				break;
+			}
 		}
 	}
 	else
@@ -4764,6 +4837,21 @@ static void define_macro(pphash* map, struct macro_definition* m)
 	stringhash_put(map, m->symbol_name, m->symbol_name_length, m);
 }
 
+struct macro_definition* pp_define_custom_macro(struct stb_arena* a, const char* identifier)
+{
+	struct macro_definition* md = (struct macro_definition*)stb_arena_alloc(a, sizeof(*md));
+
+	memset(md, 0, sizeof(*md));
+	md->symbol_name = (char*)identifier;
+	md->symbol_name_length = strlen(identifier);
+	md->simple_expansion = 0;
+	md->simple_expansion_length = 0;
+	md->num_parameters = MACRO_NUM_PARAMETERS_custom;
+	md->predefined = 1;
+
+	return md;
+}
+
 char* preprocess_file(const char* filename,
 	void* custom_context,
 	struct macro_definition** predefined_macros,
@@ -4878,6 +4966,23 @@ int preprocessor_file_capacity(char* text)
 	return text ? arrcap(text) : 0;
 }
 
+void preprocessor_file_append(char* text, const char* appended_text, int appended_text_len)
+{
+	if (text)
+	{
+		int text_len = arrlen(text);
+
+		// The preprocessor text array length includes the null terminator, so we don't need to add one here
+		arrsetlen(text, text_len + appended_text_len);
+
+		// Subtract one, so we start writing at original null terminator
+		memcpy(text + text_len - 1, appended_text, appended_text_len);
+
+		// And add a new null terminator
+		text[text_len + appended_text_len - 1] = 0;
+	}
+}
+
 void preprocessor_file_free(char* text, pp_diagnostic* pd)
 {
 	int i, j;
@@ -4961,7 +5066,9 @@ static void init_char_type(void)
 void init_preprocessor(
 	loadfile_callback_func load_callback, 
 	freefile_callback_func free_callback,
-	resolveinclude_callback_func resolve_callback)
+	resolveinclude_callback_func resolve_callback,
+	custommacro_begin_callback_func custommacro_begin_callback,
+	custommacro_end_callback_func custommacro_end_callback)
 {
 #ifdef HASHTEST
 	test_stringhash();
@@ -4987,6 +5094,8 @@ void init_preprocessor(
 	loadfile_callback = load_callback;
 	freefile_callback = free_callback;
 	resolveinclude_callback = resolve_callback;
+	custommacro_begin = custommacro_begin_callback;
+	custommacro_end = custommacro_end_callback;
 }
 
 #pragma warning(pop)
