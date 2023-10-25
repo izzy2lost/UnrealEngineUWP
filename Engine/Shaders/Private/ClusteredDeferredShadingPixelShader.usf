@@ -157,6 +157,7 @@ float4 GetSimpleLightLighting(
 	#if SUBSTRATE_ENABLED && USE_HAIR_LIGHTING == 0
 		FDeferredLightData LightData = ConvertToDeferredLight(LocalLight);
 		LightData.ShadowedBits = 1;
+		LightData.bRectLight = false;
 
 		FSubstrateShadowTermInputParameters SubstrateShadowTermInputParameters	= GetInitialisedSubstrateShadowTermInputParameters();
 		SubstrateShadowTermInputParameters.bEvaluateShadowTerm					= false;
@@ -260,6 +261,7 @@ float4 GetLightGridLocalLighting(
 
 		FDeferredLightData LightData = ConvertToDeferredLight(LocalLight);
 		LightData.ShadowedBits = 1;
+		LightData.bRectLight = false;
 		float4 LightAttenuation = float4(1, 1, 1, 1);
 
 		// Find packed VSM projection result if present
