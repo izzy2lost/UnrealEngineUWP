@@ -26,6 +26,14 @@ public:
 	virtual void OnGameFeatureUnregistering() override;
 	//~End of UGameFeatureAction interface
 
+	DECLARE_DELEGATE_RetVal_OneParam(bool, FShouldAddChunkOverride, const UGameFeatureData*);
+	/**
+	 * Optionally bound delegate to determine when to add the chunk override.
+	 * When bound this will be checked before attempting to add the chunk override.
+	 * Bound delegates should return true if the GameFeatureData should have a chunk id overriden; otherwise, false.
+	 */
+	GAMEFEATURES_API static FShouldAddChunkOverride ShouldAddChunkOverride;
+
 #if WITH_EDITOR
 	/**
 	 * Given the package name will check if this is a package from a GFP that we want to assign a specific chunk to.

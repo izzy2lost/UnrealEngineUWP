@@ -21,9 +21,15 @@ namespace GameFeatureAction_AddChunkOverride
 	static TMap<FString, int32> PluginToChunkId;
 }
 
+UGameFeatureAction_AddChunkOverride::FShouldAddChunkOverride UGameFeatureAction_AddChunkOverride::ShouldAddChunkOverride;
+
 void UGameFeatureAction_AddChunkOverride::OnGameFeatureRegistering()
 {
-	AddChunkIdOverride();
+	const bool bShouldAddChunkOverride = ShouldAddChunkOverride.IsBound() ? ShouldAddChunkOverride.Execute(GetTypedOuter<UGameFeatureData>()) : true;
+	if (bShouldAddChunkOverride)
+	{
+		AddChunkIdOverride();
+	}
 }
 
 void UGameFeatureAction_AddChunkOverride::OnGameFeatureUnregistering()
