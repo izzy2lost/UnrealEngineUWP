@@ -43,7 +43,9 @@ void FNetworkPredictionPhysicsState::NetSend(const FNetSerializeParams& P, FBody
 	{
 		npEnsure(Body_External.CanTreatAsKinematic());
 		P.Ar << const_cast<Chaos::FVec3&>(Body_External.X());
-		P.Ar << const_cast<Chaos::FRotation3&>(Body_External.R());
+		Chaos::FRotation3 Rotation = Body_External.R();
+		P.Ar << Rotation;
+		Body_External.SetR(Rotation);
 		Chaos::FVec3 V = Body_External.V();
 		Chaos::FVec3 W = Body_External.W();
 		P.Ar << V;
@@ -54,7 +56,9 @@ void FNetworkPredictionPhysicsState::NetSend(const FNetSerializeParams& P, FBody
 		bool bSuccess = true;
 
 		SerializePackedVector<100, 30>(const_cast<Chaos::FVec3&>(Body_External.X()), P.Ar);
-		const_cast<Chaos::FRotation3&>(Body_External.R()).NetSerialize(P.Ar, nullptr, bSuccess);
+		Chaos::FRotation3 Rotation = Body_External.R();
+		Rotation.NetSerialize(P.Ar, nullptr, bSuccess);
+		Body_External.SetR(Rotation);
 
 		npEnsure(Body_External.CanTreatAsKinematic());
 		Chaos::FVec3 V = Body_External.V();

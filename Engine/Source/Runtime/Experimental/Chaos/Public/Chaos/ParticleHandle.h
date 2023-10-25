@@ -2565,7 +2565,7 @@ public:
 		MNonFrequentData.Modify(bInvalidate, MDirtyFlags, Proxy, [ParticleID](auto& Data) { Data.SetParticleID(ParticleID); });
 	}
 
-	const TRotation<T, d>& R() const { return MXR.Read().R(); }
+	const TRotation<T, d> R() const { return MXR.Read().R(); }
 	void SetR(const TRotation<T, d>& InR, bool bInvalidate = true);
 
 	const FParticlePositionRotation& XR() const { return MXR.Read(); }
@@ -3007,10 +3007,10 @@ public:
 		//Ar << MKinematicTarget; // TODO
 	}
 
-	const TVector<T, d>& V() const { return MVelocities.Read().V(); }
+	const TVector<T, d> V() const { return MVelocities.Read().V(); }
 	void SetV(const TVector<T, d>& InV, bool bInvalidate = true);
 
-	const TVector<T, d>& W() const { return MVelocities.Read().W(); }
+	const TVector<T, d> W() const { return MVelocities.Read().W(); }
 	void SetW(const TVector<T, d>& InW, bool bInvalidate = true);
 
 	const FKinematicTarget KinematicTarget() const {
@@ -3186,7 +3186,7 @@ public:
 		this->MInitialized = InInitialized;
 	}
 
-	const TVector<T, d>& Acceleration() const { return MDynamics.Read().Acceleration(); }
+	const TVector<T, d> Acceleration() const { return MDynamics.Read().Acceleration(); }
 	void SetAcceleration(const FVec3& Acceleration, bool bInvalidate = true)
 	{ 
 		MDynamics.Modify(bInvalidate, MDirtyFlags, Proxy, [&Acceleration](auto& Data) { Data.SetAcceleration(Acceleration); });
@@ -3215,7 +3215,7 @@ public:
 		}
 	}
 
-	const TVector<T, d>& AngularAcceleration() const { return MDynamics.Read().AngularAcceleration(); }
+	const TVector<T, d> AngularAcceleration() const { return MDynamics.Read().AngularAcceleration(); }
 	void SetAngularAcceleration(const TVector<T, d>& InTorque, bool bInvalidate = true)
 	{
 		MDynamics.Modify(bInvalidate, MDirtyFlags, Proxy, [&InTorque](auto& Data) { Data.SetAngularAcceleration(InTorque);});
@@ -3227,13 +3227,13 @@ public:
 		MDynamics.Modify(bInvalidate, MDirtyFlags, Proxy, [](auto& Data) { Data.SetAngularAcceleration(FVec3(0)); });
 	}
 
-	const TVector<T, d>& LinearImpulseVelocity() const { return MDynamics.Read().LinearImpulseVelocity(); }
+	const TVector<T, d> LinearImpulseVelocity() const { return MDynamics.Read().LinearImpulseVelocity(); }
 	void SetLinearImpulseVelocity(const TVector<T, d>& InLinearImpulseVelocity, bool bInvalidate = true)
 	{
 		MDynamics.Modify(bInvalidate,MDirtyFlags,Proxy,[&InLinearImpulseVelocity](auto& Data){ Data.SetLinearImpulseVelocity(InLinearImpulseVelocity);});
 	}
 
-	const TVector<T, d>& AngularImpulseVelocity() const { return MDynamics.Read().AngularImpulseVelocity(); }
+	const TVector<T, d> AngularImpulseVelocity() const { return MDynamics.Read().AngularImpulseVelocity(); }
 	void SetAngularImpulseVelocity(const TVector<T, d>& InAngularImpulseVelocity, bool bInvalidate = true)
 	{
 		MDynamics.Modify(bInvalidate,MDirtyFlags,Proxy,[&InAngularImpulseVelocity](auto& Data){ Data.SetAngularImpulseVelocity(InAngularImpulseVelocity);});
