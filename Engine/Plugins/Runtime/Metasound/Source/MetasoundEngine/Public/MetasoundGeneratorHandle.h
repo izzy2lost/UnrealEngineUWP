@@ -12,6 +12,7 @@
 
 #include "MetasoundGeneratorHandle.generated.h"
 
+struct FMetaSoundOutput;
 class UAudioComponent;
 class UMetaSoundSource;
 
@@ -21,9 +22,11 @@ namespace Metasound
 }
 
 DECLARE_DYNAMIC_DELEGATE_TwoParams(FOnMetasoundOutputValueChanged, FName, OutputName, const FMetaSoundOutput&, Output);
-
+DECLARE_DELEGATE_TwoParams(FOnMetasoundOutputValueChangedNative, FName, const FMetaSoundOutput&);
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnMetasoundOutputValueChangedMulticast, FName, Name, const FMetaSoundOutput&, Output);
+DECLARE_MULTICAST_DELEGATE_TwoParams(FOnMetasoundOutputValueChangedNativeMulticast, FName, const FMetaSoundOutput&);
+
 
 namespace Metasound
 {
@@ -113,6 +116,12 @@ namespace Metasound
 			FName AnalyzerName = NAME_None,
 			FName AnalyzerOutputName = NAME_None);
 
+		bool WatchOutput(
+			FName OutputName,
+			const FOnMetasoundOutputValueChangedNative& OnOutputValueChanged,
+			FName AnalyzerName = NAME_None,
+			FName AnalyzerOutputName = NAME_None);
+
 		/**
 		 * Update any watched outputs
 		 */
@@ -152,11 +161,27 @@ namespace Metasound
 
 		void SendParametersToGenerator() const;
 		
+		struct FWatchOutputUnifiedDelegate
+		{
+			FOnMetasoundOutputValueChanged WatchDelegate;
+			FOnMetasoundOutputValueChangedNative NativeWatchDelegate;
+
+			FWatchOutputUnifiedDelegate() {}
+			FWatchOutputUnifiedDelegate(const FOnMetasoundOutputValueChanged& Delegate) : WatchDelegate(Delegate) {}
+			FWatchOutputUnifiedDelegate(const FOnMetasoundOutputValueChangedNative& Delegate) : NativeWatchDelegate(Delegate) {}
+		};
+
+		bool WatchOutputInternal(
+			FName OutputName,
+			const FWatchOutputUnifiedDelegate& OnOutputValueChanged,
+			FName AnalyzerName = NAME_None,
+			FName AnalyzerOutputName = NAME_None);
+
 		void FixUpOutputWatchers();
 
 		void CreateOutputWatcher(
 			const Frontend::FAnalyzerAddress& AnalyzerAddress,
-			const FOnMetasoundOutputValueChanged& OnOutputValueChanged);
+			const FWatchOutputUnifiedDelegate& OnOutputValueChanged);
 		
 		TWeakObjectPtr<UAudioComponent> AudioComponent;
 		const uint64 AudioComponentId;
@@ -220,20 +245,45 @@ namespace Metasound
 				GetTypeHash(Key.AnalyzerMemberName));
 		}
 
+		struct FWatchOutputUnifiedMulticastDelegate
+		{
+			FOnMetasoundOutputValueChangedMulticast WatchDelegates;
+			FOnMetasoundOutputValueChangedNativeMulticast NativeWatchDelegates;
+
+			void Add(const FWatchOutputUnifiedDelegate& Delegate)
+			{
+				if (Delegate.WatchDelegate.IsBound())
+				{
+					WatchDelegates.AddUnique(Delegate.WatchDelegate);
+				}
+
+				if (Delegate.NativeWatchDelegate.IsBound())
+				{
+					NativeWatchDelegates.Add(Delegate.NativeWatchDelegate);
+				}
+			}
+
+			void Broadcast(FName OutputName, const FMetaSoundOutput& Output) const
+			{
+				WatchDelegates.Broadcast(OutputName, Output);
+				NativeWatchDelegates.Broadcast(OutputName, Output);
+			}
+		};
+
 		/**
 		 * Info about an output being watched by one or more listeners
 		 */
 		struct FOutputWatcher
 		{
 			Frontend::FAnalyzerAddress AnalyzerAddress;
-			FOnMetasoundOutputValueChangedMulticast OnOutputValueChanged;
+			FWatchOutputUnifiedMulticastDelegate OnOutputValueChanged;
 
 			FOutputWatcher(
 				const Frontend::FAnalyzerAddress& InAnalyzerAddress,
-				const FOnMetasoundOutputValueChanged& InOnOutputValueChanged)
+				const FWatchOutputUnifiedDelegate& InOnOutputValueChanged)
 					: AnalyzerAddress(InAnalyzerAddress)
 			{
-				OnOutputValueChanged.AddUnique(InOnOutputValueChanged);
+				OnOutputValueChanged.Add(InOnOutputValueChanged);
 			}
 		};
 		
@@ -342,6 +392,12 @@ public:
 	bool WatchOutput(
 		FName OutputName,
 		const FOnMetasoundOutputValueChanged& OnOutputValueChanged,
+		FName AnalyzerName = NAME_None,
+		FName AnalyzerOutputName = NAME_None);
+
+	bool WatchOutput(
+		FName OutputName,
+		const FOnMetasoundOutputValueChangedNative& OnOutputValueChanged,
 		FName AnalyzerName = NAME_None,
 		FName AnalyzerOutputName = NAME_None);
 

@@ -134,82 +134,16 @@ namespace Metasound
 		const FName AnalyzerName,
 		const FName AnalyzerOutputName)
 	{
-		METASOUND_LLM_SCOPE;
-		METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(FMetasoundGeneratorHandle::WatchOutput);
+		return WatchOutputInternal(OutputName, FWatchOutputUnifiedDelegate(OnOutputValueChanged), AnalyzerName, AnalyzerOutputName);
+	}
 
-		check(IsInGameThread());
-
-		if (!IsValid())
-		{
-			return false;
-		}
-
-		// Make the analyzer address.
-		Frontend::FAnalyzerAddress AnalyzerAddress;
-		AnalyzerAddress.InstanceID = GetAudioComponentId();
-		AnalyzerAddress.OutputName = OutputName;
-		AnalyzerAddress.AnalyzerName = AnalyzerName;
-		AnalyzerAddress.AnalyzerMemberName = AnalyzerOutputName;
-		AnalyzerAddress.AnalyzerInstanceID = FGuid::NewGuid();
-		
-		// Find the output node and get the data type/node id from that
-		{
-			const TWeakObjectPtr<UMetaSoundSource> Source = GetMetaSoundSource();
-
-			if (!Source.IsValid())
-			{
-				UE_LOG(LogMetaSound, Warning, TEXT("Couldn't find the MetaSound Source"));
-				return false;
-			}
-		
-			// Find the node id and type name
-			const FMetasoundFrontendClassOutput* OutputPtr =
-				Source->GetConstDocument().RootGraph.Interface.Outputs.FindByPredicate(
-					[&AnalyzerAddress](const FMetasoundFrontendClassOutput& Output)
-					{
-						return Output.Name == AnalyzerAddress.OutputName;
-					});
-
-			if (nullptr == OutputPtr)
-			{
-				return false;
-			}
-			
-			AnalyzerAddress.NodeID = OutputPtr->NodeID;
-			AnalyzerAddress.DataType = OutputPtr->TypeName;
-		}
-		
-		// If no analyzer name was provided, try to find a passthrough analyzer
-		if (AnalyzerAddress.AnalyzerName.IsNone())
-		{
-			if (!PassthroughAnalyzers.Contains(AnalyzerAddress.DataType))
-			{
-				return false;
-			}
-
-			AnalyzerAddress.AnalyzerName = PassthroughAnalyzers[AnalyzerAddress.DataType].AnalyzerName;
-			AnalyzerAddress.AnalyzerMemberName = PassthroughAnalyzers[AnalyzerAddress.DataType].OutputName;
-		}
-
-		// Check to see if the analyzer exists
-		{
-			using namespace Metasound::Frontend;
-			const IVertexAnalyzerFactory* Factory =
-				IVertexAnalyzerRegistry::Get().FindAnalyzerFactory(AnalyzerAddress.AnalyzerName);
-			
-			if (nullptr == Factory)
-			{
-				return false;
-			}
-		}
-
-		// Create the watcher
-		CreateOutputWatcher(AnalyzerAddress, OnOutputValueChanged);
-
-		// Update the generator's analyzers if necessary
-		FixUpOutputWatchers();
-
-		return true;
+	bool FMetasoundGeneratorHandle::WatchOutput(
+		const FName OutputName,
+		const FOnMetasoundOutputValueChangedNative& OnOutputValueChanged,
+		const FName AnalyzerName,
+		const FName AnalyzerOutputName)
+	{
+		return WatchOutputInternal(OutputName, FWatchOutputUnifiedDelegate(OnOutputValueChanged), AnalyzerName, AnalyzerOutputName);
 	}
 
 	void FMetasoundGeneratorHandle::UpdateOutputWatchers()
@@ -396,6 +330,90 @@ namespace Metasound
 		}
 	}
 
+	bool FMetasoundGeneratorHandle::WatchOutputInternal(
+		const FName OutputName,
+		const FWatchOutputUnifiedDelegate& OnOutputValueChanged,
+		const FName AnalyzerName,
+		const FName AnalyzerOutputName)
+	{
+		METASOUND_LLM_SCOPE;
+		METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(FMetasoundGeneratorHandle::WatchOutputInternal);
+
+		check(IsInGameThread());
+
+		if (!IsValid())
+		{
+			return false;
+		}
+
+		// Make the analyzer address.
+		Frontend::FAnalyzerAddress AnalyzerAddress;
+		AnalyzerAddress.InstanceID = GetAudioComponentId();
+		AnalyzerAddress.OutputName = OutputName;
+		AnalyzerAddress.AnalyzerName = AnalyzerName;
+		AnalyzerAddress.AnalyzerMemberName = AnalyzerOutputName;
+		AnalyzerAddress.AnalyzerInstanceID = FGuid::NewGuid();
+
+		// Find the output node and get the data type/node id from that
+		{
+			const TWeakObjectPtr<UMetaSoundSource> Source = GetMetaSoundSource();
+
+			if (!Source.IsValid())
+			{
+				UE_LOG(LogMetaSound, Warning, TEXT("Couldn't find the MetaSound Source"));
+				return false;
+			}
+
+			// Find the node id and type name
+			const FMetasoundFrontendClassOutput* OutputPtr =
+				Source->GetConstDocument().RootGraph.Interface.Outputs.FindByPredicate(
+					[&AnalyzerAddress](const FMetasoundFrontendClassOutput& Output)
+					{
+						return Output.Name == AnalyzerAddress.OutputName;
+					});
+
+			if (nullptr == OutputPtr)
+			{
+				return false;
+			}
+
+			AnalyzerAddress.NodeID = OutputPtr->NodeID;
+			AnalyzerAddress.DataType = OutputPtr->TypeName;
+		}
+
+		// If no analyzer name was provided, try to find a passthrough analyzer
+		if (AnalyzerAddress.AnalyzerName.IsNone())
+		{
+			if (!PassthroughAnalyzers.Contains(AnalyzerAddress.DataType))
+			{
+				return false;
+			}
+
+			AnalyzerAddress.AnalyzerName = PassthroughAnalyzers[AnalyzerAddress.DataType].AnalyzerName;
+			AnalyzerAddress.AnalyzerMemberName = PassthroughAnalyzers[AnalyzerAddress.DataType].OutputName;
+		}
+
+		// Check to see if the analyzer exists
+		{
+			using namespace Metasound::Frontend;
+			const IVertexAnalyzerFactory* Factory =
+				IVertexAnalyzerRegistry::Get().FindAnalyzerFactory(AnalyzerAddress.AnalyzerName);
+
+			if (nullptr == Factory)
+			{
+				return false;
+			}
+		}
+
+		// Create the watcher
+		CreateOutputWatcher(AnalyzerAddress, OnOutputValueChanged);
+
+		// Update the generator's analyzers if necessary
+		FixUpOutputWatchers();
+
+		return true;
+	}
+
 	void FMetasoundGeneratorHandle::FixUpOutputWatchers()
 	{
 		METASOUND_LLM_SCOPE;
@@ -421,7 +439,7 @@ namespace Metasound
 	
 	void FMetasoundGeneratorHandle::CreateOutputWatcher(
 		const Frontend::FAnalyzerAddress& AnalyzerAddress,
-		const FOnMetasoundOutputValueChanged& OnOutputValueChanged)
+		const FWatchOutputUnifiedDelegate& OnOutputValueChanged)
 	{
 		METASOUND_LLM_SCOPE;
 		METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(FMetasoundGeneratorHandle::CreateOutputWatcher);
@@ -438,7 +456,7 @@ namespace Metasound
 
 		if (FOutputWatcher* Watcher = OutputWatchers.Find(WatcherKey))
 		{
-			Watcher->OnOutputValueChanged.AddUnique(OnOutputValueChanged);
+			Watcher->OnOutputValueChanged.Add(OnOutputValueChanged);
 		}
 		// Otherwise add a new watcher
 		else
@@ -627,6 +645,23 @@ bool UMetasoundGeneratorHandle::RemoveGraphSetCallback(const FDelegateHandle& Ha
 bool UMetasoundGeneratorHandle::WatchOutput(
 	const FName OutputName,
 	const FOnMetasoundOutputValueChanged& OnOutputValueChanged,
+	const FName AnalyzerName,
+	const FName AnalyzerOutputName)
+{
+	METASOUND_LLM_SCOPE;
+	METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(UMetasoundGeneratorHandle::WatchOutput);
+
+	if (!IsValid())
+	{
+		return false;
+	}
+
+	return GeneratorHandle->WatchOutput(OutputName, OnOutputValueChanged, AnalyzerName, AnalyzerOutputName);
+}
+
+bool UMetasoundGeneratorHandle::WatchOutput(
+	const FName OutputName,
+	const FOnMetasoundOutputValueChangedNative& OnOutputValueChanged,
 	const FName AnalyzerName,
 	const FName AnalyzerOutputName)
 {
