@@ -107,16 +107,19 @@ namespace Chaos
 		FClusterUnionCreationParameters ClusterUnionParameters;
 
 		// Whether or not the position/rotation needs to be computed the first time a particle is added.
-		bool bNeedsXRInitialization = true;
+		bool bNeedsXRInitialization : 1 = true;
 
 		// Whether or not the anchor got set by the GT and we shouldn't try to recompute its value.
-		bool bAnchorLock = false;
+		bool bAnchorLock : 1 = false;
 
 		// Whether or not we need to check for connectivity for this cluster union.
-		bool bCheckConnectivity = false;
+		bool bCheckConnectivity : 1 = false;
 
 		// Whether or not to generate connectivity edges (used to differentiate between server graphs vs client graphs).
-		bool bGenerateConnectivityEdges = true;
+		bool bGenerateConnectivityEdges : 1 = true;
+
+		// Whether the geometry for the union has change such that we will need to push a copy to the game thread
+		bool bGeometryModified : 1 = true;
 
 		// Pending particles that need to be added into the connectivity graph.
 		TArray<TPair<FPBDRigidParticleHandle*, EClusterUnionConnectivityOperation>> PendingConnectivityOperations;

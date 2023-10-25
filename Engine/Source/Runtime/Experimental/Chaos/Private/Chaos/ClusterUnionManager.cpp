@@ -258,11 +258,13 @@ namespace Chaos
 
 	void FClusterUnion::ClearAllPendingGeometryOperations()
 	{
+		bGeometryModified = true;
 		PendingGeometryOperations.Empty();
 	}
 
 	void FClusterUnion::ClearPendingGeometryOperations(EClusterUnionGeometryOperation Op)
 	{
+		bGeometryModified = true;
 		PendingGeometryOperations.Remove(Op);
 	}
 

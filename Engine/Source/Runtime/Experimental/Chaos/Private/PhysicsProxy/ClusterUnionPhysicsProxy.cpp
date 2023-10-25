@@ -12,6 +12,9 @@
 
 namespace Chaos
 {
+	static int32 GShallowCopyClusterUnionGeometryOnUpdate = 1;
+	FAutoConsoleVariableRef CVar_ShallowCopyClusterUnionGeometryOnUpdate(TEXT("p.ShallowCopyOnClusterUnionUpdate"), GShallowCopyClusterUnionGeometryOnUpdate, TEXT("If 1, shallow copy the root union geometry of a cluster union when its geometry updates, otherwise deep copy the geometry hierarchy"));
+
 	namespace
 	{
 		FPBDRigidsEvolutionGBF* GetEvolution(FClusterUnionPhysicsProxy* Proxy)
@@ -585,10 +588,25 @@ namespace Chaos
 				}
 			}
 
-			// TODO: Probably only want to do this when something about the geometry changes.
-			if (!ClusterUnion->ChildParticles.IsEmpty())
+			if (ClusterUnion->bGeometryModified && !ClusterUnion->ChildParticles.IsEmpty())
 			{
-				BufferData.Geometry = ClusterUnion->Geometry->DeepCopyGeometry();
+				if(FImplicitObjectUnion* AsUnion = ClusterUnion->Geometry->AsA<FImplicitObjectUnion>();
+				   GShallowCopyClusterUnionGeometryOnUpdate && AsUnion)
+				{
+					// Shallow copy the root union for the GT update
+					// This ensures the GT has a snapshot of the union as it is now for this results data. The PT is free to
+					// continue modifying its geometry without potentially disrupting GT reads. Internally we don't want
+					// to duplicate all the geometry - we essentially just need the list of objects in the root union to
+					// point to the correct internal geometries, but have a separate list on GT and PT.
+					TArray<FImplicitObjectPtr> ObjectsCopy = AsUnion->GetObjects();
+					BufferData.Geometry = MakeImplicitObjectPtr<FImplicitObjectUnion>(MoveTemp(ObjectsCopy));
+				}
+				else
+				{
+					// Fallback to deep copy geometry hierarchy
+					BufferData.Geometry = ClusterUnion->Geometry->DeepCopyGeometry();
+				}
+				ClusterUnion->bGeometryModified = false;
 			}
 		}
 	}
