@@ -17,13 +17,13 @@ namespace Audio
 	public:
 		FInterpolatedMultiTapDelay() = default;
 		
-		SIGNALPROCESSING_API void Init(const int32 InBufferSizeSamples);
+		SIGNALPROCESSING_API void Init(const int32 InDelayBufferSamples);
 
-		SIGNALPROCESSING_API void Advance(const FAlignedFloatBuffer& InBuffer);
+		SIGNALPROCESSING_API void Advance(TArrayView<const float> InBuffer);
 
 		// Read and interpolate a variable number of samples back in the delay line
 		// return a fixed-point representation of fraction of the last sample, which should be passed as StartSampleFraction on successive reads for that tap.
-		SIGNALPROCESSING_API uint32 Read(const uint32 StartNumDelaySamples, const uint32 StartSampleFraction, const uint32 EndNumDelaySamples, FAlignedFloatBuffer& OutBuffer);
+		SIGNALPROCESSING_API uint32 Read(const uint32 StartNumDelaySamples, const uint32 StartSampleFraction, const uint32 EndNumDelaySamples, TArrayView<float> OutBuffer);
 		SIGNALPROCESSING_API void Reset();
 		SIGNALPROCESSING_API bool IsInitialized() const;
 
