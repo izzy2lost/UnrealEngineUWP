@@ -21,7 +21,6 @@
 #include "Misc/Optional.h"
 #include "Templates/UniquePtr.h"
 #include "Templates/IsConstructible.h"
-#include "Templates/AndOrNot.h"
 
 class FText;
 class FTextHistory;
@@ -611,7 +610,7 @@ public:
 	template <typename... ArgTypes>
 	static FORCEINLINE FText Format(FTextFormat Fmt, ArgTypes... Args)
 	{
-		static_assert(TAnd<TIsConstructible<FFormatArgumentValue, ArgTypes>...>::Value, "Invalid argument type passed to FText::Format");
+		static_assert((TIsConstructible<FFormatArgumentValue, ArgTypes>::Value && ...), "Invalid argument type passed to FText::Format");
 		static_assert(sizeof...(Args) > 0, "FText::Format expects at least one non-format argument"); // we do this to ensure that people don't call Format for no good reason
 
 		// We do this to force-select the correct overload, because overload resolution will cause compile
@@ -673,7 +672,7 @@ public:
 	template <typename... ArgTypes>
 	static FORCEINLINE FText Join(const FText& Delimiter, ArgTypes... Args)
 	{
-		static_assert(TAnd<TIsConstructible<FFormatArgumentValue, ArgTypes>...>::Value, "Invalid argument type passed to FText::Join");
+		static_assert((TIsConstructible<FFormatArgumentValue, ArgTypes>::Value && ...), "Invalid argument type passed to FText::Join");
 		static_assert(sizeof...(Args) > 0, "FText::Join expects at least one non-format argument"); // we do this to ensure that people don't call Join for no good reason
 
 		return Join(Delimiter, FFormatOrderedArguments{ MoveTemp(Args)... });
@@ -1272,7 +1271,7 @@ public:
 	template <typename... ArgTypes>
 	FORCEINLINE void AppendLineFormat(FTextFormat Pattern, ArgTypes... Args)
 	{
-		static_assert(TAnd<TIsConstructible<FFormatArgumentValue, ArgTypes>...>::Value, "Invalid argument type passed to FTextBuilder::AppendLineFormat");
+		static_assert((TIsConstructible<FFormatArgumentValue, ArgTypes>::Value && ...), "Invalid argument type passed to FTextBuilder::AppendLineFormat");
 		static_assert(sizeof...(Args) > 0, "FTextBuilder::AppendLineFormat expects at least one non-format argument"); // we do this to ensure that people don't call AppendLineFormat for no good reason
 
 		BuildAndAppendLine(FText::Format(MoveTemp(Pattern), FFormatOrderedArguments{ MoveTemp(Args)... }));

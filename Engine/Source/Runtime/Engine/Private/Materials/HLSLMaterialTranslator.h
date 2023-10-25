@@ -698,21 +698,21 @@ protected:
 	template <typename... Types>
 	int32 AddCodeChunk(EMaterialValueType Type, const TCHAR* Format, Types... Args)
 	{
-		static_assert(TAnd<TIsValidVariadicFunctionArg<Types>...>::Value, "Invalid argument(s) passed to AddCodeChunk");
+		static_assert((TIsValidVariadicFunctionArg<Types>::Value && ...), "Invalid argument(s) passed to AddCodeChunk");
 		return AddCodeChunkInner(Type, EDerivativeStatus::NotAware, false, Format, Args...);
 	}
 
 	template <typename... Types>
 	int32 AddCodeChunkZeroDeriv(EMaterialValueType Type, const TCHAR* Format, Types... Args)
 	{
-		static_assert(TAnd<TIsValidVariadicFunctionArg<Types>...>::Value, "Invalid argument(s) passed to AddCodeChunkZeroDeriv");
+		static_assert((TIsValidVariadicFunctionArg<Types>::Value && ...), "Invalid argument(s) passed to AddCodeChunkZeroDeriv");
 		return AddCodeChunkInner(Type, EDerivativeStatus::Zero, false, Format, Args...);
 	}
 
 	template <typename... Types>
 	int32 AddCodeChunkFiniteDeriv(EMaterialValueType Type, const TCHAR* Format, Types... Args)
 	{
-		static_assert(TAnd<TIsValidVariadicFunctionArg<Types>...>::Value, "Invalid argument(s) passed to AddCodeChunkFiniteDeriv");
+		static_assert((TIsValidVariadicFunctionArg<Types>::Value && ...), "Invalid argument(s) passed to AddCodeChunkFiniteDeriv");
 		return AddCodeChunkInner(Type, EDerivativeStatus::NotValid, false, Format, Args...);
 	}
 	
@@ -724,21 +724,21 @@ protected:
 	template <typename... Types>
 	int32 AddInlinedCodeChunk(EMaterialValueType Type, const TCHAR* Format, Types... Args)
 	{
-		static_assert(TAnd<TIsValidVariadicFunctionArg<Types>...>::Value, "Invalid argument(s) passed to AddInlinedCodeChunk");
+		static_assert((TIsValidVariadicFunctionArg<Types>::Value && ...), "Invalid argument(s) passed to AddInlinedCodeChunk");
 		return AddCodeChunkInner(Type, EDerivativeStatus::NotAware, true, Format, Args...);
 	}
 
 	template <typename... Types>
 	int32 AddInlinedCodeChunkZeroDeriv(EMaterialValueType Type, const TCHAR* Format, Types... Args)
 	{
-		static_assert(TAnd<TIsValidVariadicFunctionArg<Types>...>::Value, "Invalid argument(s) passed to AddInlinedCodeChunkZeroDeriv");
+		static_assert((TIsValidVariadicFunctionArg<Types>::Value && ...), "Invalid argument(s) passed to AddInlinedCodeChunkZeroDeriv");
 		return AddCodeChunkInner(Type, EDerivativeStatus::Zero, true, Format, Args...);
 	}
 
 	template <typename... Types>
 	int32 AddInlinedCodeChunkFiniteDeriv(EMaterialValueType Type, const TCHAR* Format, Types... Args)
 	{
-		static_assert(TAnd<TIsValidVariadicFunctionArg<Types>...>::Value, "Invalid argument(s) passed to AddInlinedCodeChunkFiniteDeriv");
+		static_assert((TIsValidVariadicFunctionArg<Types>::Value && ...), "Invalid argument(s) passed to AddInlinedCodeChunkFiniteDeriv");
 		return AddCodeChunkInner(Type, EDerivativeStatus::NotValid, true, Format, Args...);
 	}
 
