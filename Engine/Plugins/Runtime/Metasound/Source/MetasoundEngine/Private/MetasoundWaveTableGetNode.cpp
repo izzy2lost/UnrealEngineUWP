@@ -124,14 +124,6 @@ namespace Metasound
 		}
 
 	private:
-		FORCEINLINE static void WrapIndex(int32 InMax, float& InOutIndex)
-		{
-			InOutIndex = FMath::Abs(InOutIndex); // Avoids remainder offset flip at 0 crossing
-			const int32 WrapIndex = FMath::TruncToInt32(InOutIndex) % InMax;
-			const float Remainder = FMath::Frac(InOutIndex);
-			InOutIndex = WrapIndex + Remainder;
-		};
-
 		void ComputeGainIndexData(const TArray<FWaveTableData>& WaveTables, EWaveTableSamplingMode InSampleMode, ::WaveTable::FWaveTable& OutputWaveTable)
 		{
 			checkf(!WaveTables.IsEmpty(), TEXT("ComputGainIndexData must have WaveTable to operate on"));
@@ -210,7 +202,7 @@ namespace Metasound
 			}
 
 			GainIndexData.TableIndex = *TableIndexReadRef;
-			WrapIndex(WaveTables.Num(), GainIndexData.TableIndex);
+			FWaveTable::WrapIndexSmooth(WaveTables.Num(), GainIndexData.TableIndex);
 
 			const bool bIsLastIndex = FMath::IsNearlyEqual(GainIndexData.LastTableIndex, GainIndexData.TableIndex);
 			const bool bIsLastProxy = LastTableId == Proxy->GetObjectId();

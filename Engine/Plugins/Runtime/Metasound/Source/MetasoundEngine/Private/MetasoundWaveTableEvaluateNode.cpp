@@ -105,15 +105,6 @@ namespace Metasound
 
 		virtual ~FMetasoundWaveTableEvaluateNodeOperator() = default;
 
-		virtual void Bind(FVertexInterfaceData& InVertexData) const override
-		{
-			using namespace WaveTableEvaluateNode;
-			
-			FInputVertexInterfaceData& Inputs = InVertexData.GetInputs();
-
-			FOutputVertexInterfaceData& Outputs = InVertexData.GetOutputs();
-		}
-
 		virtual void BindInputs(FInputVertexInterfaceData& InOutVertexData) override
 		{
 			using namespace WaveTableEvaluateNode;
