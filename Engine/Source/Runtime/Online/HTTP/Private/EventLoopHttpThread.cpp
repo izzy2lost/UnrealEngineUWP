@@ -160,9 +160,3 @@ void FEventLoopHttpThread::ResetTickTimer()
 	FTimespan::FromSeconds(FHttpModule::Get().GetHttpEventLoopThreadTickIntervalInSeconds()),
 	true /* repeat */);
 }
-
-void FEventLoopHttpThread::AddHttpThreadTask(TFunction<void()>&& Task, float InDelay)
-{
-	UE::EventLoop::IEventLoop& EventLoop = GetEventLoopChecked();
-	EventLoop.SetTimer(Task, FTimespan::FromSeconds(InDelay));
-}

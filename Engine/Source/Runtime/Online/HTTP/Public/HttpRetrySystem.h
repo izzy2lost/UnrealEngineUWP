@@ -98,7 +98,7 @@ namespace FHttpRetrySystem
 		HTTP_API virtual void CancelRequest() override;
 
 		// FRequest
-		EStatus::Type GetRetryStatus() const { return RetryStatus; }
+		EStatus::Type GetRetryStatus() const { return Status; }
 
 	protected:
 		friend class FManager;
@@ -114,15 +114,13 @@ namespace FHttpRetrySystem
 		);
 
 		void HttpOnRequestProgress(FHttpRequestPtr InHttpRequest, uint64 BytesSent, uint64 BytesRcv);
-		void HttpOnProcessRequestComplete(FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded);
-		void HttpOnHeaderReceived(FHttpRequestPtr Request, const FString& HeaderName, const FString& NewHeaderValue);
 
 		/** Update our HTTP request's URL's domain from our RetryDomains */
 		void SetUrlFromRetryDomains();
 		/** Move to the next retry domain from our RetryDomains */
 		void MoveToNextRetryDomain();
 
-		EStatus::Type                        RetryStatus;
+		EStatus::Type                        Status;
 
 		FRetryLimitCountSetting              RetryLimitCountOverride;
 		FRetryTimeoutRelativeSecondsSetting  RetryTimeoutRelativeSecondsOverride;
@@ -170,9 +168,7 @@ public:
 	 *
 	 * @return                true if there are no failures or retries
 	 */
-	UE_DEPRECATED(5.4, "HttpRetrySystem::Update has been deprecated, all logic will be processed in http thread instead")
 	HTTP_API bool Update(uint32* FileCount = NULL, uint32* FailingCount = NULL, uint32* FailedCount = NULL, uint32* CompletedCount = NULL);
-
 	void SetRandomFailureRate(float Value) { RandomFailureRate = FRandomFailureRateSetting(Value); }
 	void SetDefaultRetryLimit(uint32 Value) { RetryLimitCountDefault = FRetryLimitCountSetting(Value); }
 
@@ -212,8 +208,6 @@ protected:
 
 		/** Number of requests that are in a retried state.  When this is non-zero, verbosity will be adjusted. */
 		int32 NumRetriedRequests = 0;
-		/** DecrementRetriedRequests can be called from game thread or http thread depends on the http request thread policy, make sure it's thread-safe */
-		FCriticalSection NumRetriedRequestsLock;
 		/** Verbosity to restore to when there are no requests being retried */
 		ELogVerbosity::Type OriginalVerbosity = ELogVerbosity::Error;
 		/** Config driven target verbosity to set to when requests are being retried.  NoLogging means the verbosity will not be modified. */
@@ -238,13 +232,6 @@ protected:
 	 * @param RequestEntry request to retry
 	 */
 	void RetryHttpRequest(FHttpRetryRequestEntry& RequestEntry);
-
-	/**
-	 * Retry an HTTP request with delay
-	 * @param RequestToRetry request to retry
-	 * @param InDelay the delay to wait before retrying
-	 */
-	void RetryHttpRequestWithDelay(const TSharedRef<FRequest>& Request, float InDelay);
 
 	// @return number of seconds to lockout for
 	float GetLockoutPeriodSeconds(const FHttpRetryRequestEntry& HttpRetryRequestEntry);

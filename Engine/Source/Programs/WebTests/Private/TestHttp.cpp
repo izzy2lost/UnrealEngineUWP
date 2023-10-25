@@ -38,7 +38,6 @@ public:
 		: WebServerIp(TEXT("127.0.0.1"))
 		, WebServerHttpPort(8000)
 		, bRunHeavyTests(false)
-		, bRetryEnabled(true)
 		, OldVerbosity(LogHttp.GetVerbosity())
 	{
 		ParseSettingsFromCommandLine();
@@ -66,7 +65,6 @@ public:
 	{
 		FParse::Value(FCommandLine::Get(), TEXT("web_server_ip"), WebServerIp);
 		FParse::Bool(FCommandLine::Get(), TEXT("run_heavy_tests"), bRunHeavyTests);
-		FParse::Bool(FCommandLine::Get(), TEXT("retry_enabled"), bRetryEnabled);
 	}
 
 	void DisableWarningsInThisTest()
@@ -85,7 +83,6 @@ public:
 	FHttpModule* HttpModule;
 
 	bool bRunHeavyTests;
-	bool bRetryEnabled;
 	ELogVerbosity::Type OldVerbosity;
 };
 
@@ -116,14 +113,56 @@ TEST_CASE_METHOD(FHttpModuleTestFixture, "Shutdown http module without issue whe
 	HttpModule->GetHttpManager().Tick(0.0f);
 }
 
-class FMockRetryManager : public FHttpRetrySystem::FManager
+class FWaitUntilQuitFromTestFixture : public FHttpModuleTestFixture
 {
 public:
-	using FHttpRetrySystem::FManager::FManager;
-	using FHttpRetrySystem::FManager::RequestList;
-	using FHttpRetrySystem::FManager::FHttpRetryRequestEntry;
-	using FHttpRetrySystem::FManager::RetryTimeoutRelativeSecondsDefault;
+	FWaitUntilQuitFromTestFixture()
+	{
+	}
+
+	~FWaitUntilQuitFromTestFixture()
+	{
+		WaitUntilQuitFromTest();
+	}
+
+	void WaitUntilQuitFromTest()
+	{
+		while (!bQuitRequested)
+		{
+			HttpModule->GetHttpManager().Tick(TickFrequency);
+			FPlatformProcess::Sleep(TickFrequency);
+		}
+	}
+
+	float TickFrequency = 1.0f / 60; /*60 FPS*/;
+	bool bQuitRequested = false;
 };
+
+TEST_CASE_METHOD(FWaitUntilQuitFromTestFixture, "Http request can be reused", HTTP_TAG)
+{
+	TSharedRef<IHttpRequest> HttpRequest = HttpModule->CreateRequest();
+	HttpRequest->SetURL(UrlToTestMethods());
+	HttpRequest->SetVerb(TEXT("POST"));
+
+	HttpRequest->OnProcessRequestComplete().BindLambda([this](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
+		CHECK(bSucceeded);
+		CHECK(HttpResponse->GetResponseCode() == 200);
+
+		uint32 Chunks = 3;
+		uint32 ChunkSize = 1024;
+		HttpRequest->SetURL(UrlStreamDownload(Chunks, ChunkSize));
+		HttpRequest->SetVerb(TEXT("GET"));
+		HttpRequest->OnProcessRequestComplete().BindLambda([this, Chunks, ChunkSize](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
+			CHECK(bSucceeded);
+			REQUIRE(HttpResponse != nullptr);
+			CHECK(HttpResponse->GetResponseCode() == 200);
+			CHECK(HttpResponse->GetContentLength() == Chunks * ChunkSize);
+			bQuitRequested = true;
+		});
+		HttpRequest->ProcessRequest();
+	});
+	HttpRequest->ProcessRequest();
+}
 
 class FWaitUntilCompleteHttpFixture : public FHttpModuleTestFixture
 {
@@ -132,12 +171,6 @@ public:
 	{
 		HttpModule->GetHttpManager().SetRequestAddedDelegate(FHttpManagerRequestAddedDelegate::CreateRaw(this, &FWaitUntilCompleteHttpFixture::OnRequestAdded));
 		HttpModule->GetHttpManager().SetRequestCompletedDelegate(FHttpManagerRequestCompletedDelegate::CreateRaw(this, &FWaitUntilCompleteHttpFixture::OnRequestCompleted));
-
-		if (bRetryEnabled)
-		{
-			HttpRetryManager = MakeShared<FMockRetryManager>(FHttpRetrySystem::FRetryLimitCountSetting(RetryLimitCount), FHttpRetrySystem::FRetryTimeoutRelativeSecondsSetting(/*RetryTimeoutRelativeSeconds*/));
-			HttpRetryManager->RetryTimeoutRelativeSecondsDefault = 2.0f; // Value is set so that retry system will use it at high level, will no longer wait for ever for HTTP code
-		}
 	}
 
 	~FWaitUntilCompleteHttpFixture()
@@ -171,21 +204,13 @@ public:
 		HttpModule->GetHttpManager().Tick(TickFrequency);
 	}
 
-	TSharedRef<IHttpRequest> CreateRequest()
-	{
-		return bRetryEnabled ? HttpRetryManager->CreateRequest() : HttpModule->CreateRequest();
-	}
-
 	std::atomic<int32> OngoingRequests = 0;
 	float TickFrequency = 1.0f / 60; /*60 FPS*/;
-
-	uint32 RetryLimitCount = 2;
-	TSharedPtr<FMockRetryManager> HttpRetryManager;
 };
 
 TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Http Methods", HTTP_TAG)
 {
-	TSharedRef<IHttpRequest> HttpRequest = CreateRequest();
+	TSharedRef<IHttpRequest> HttpRequest = HttpModule->CreateRequest();
 	CHECK(HttpRequest->GetVerb() == TEXT("GET"));
 
 	HttpRequest->SetURL(UrlToTestMethods());
@@ -220,7 +245,7 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Http Methods", HTTP_TAG)
 
 TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Get large response content without chunks", HTTP_TAG)
 {
-	TSharedRef<IHttpRequest> HttpRequest = CreateRequest();
+	TSharedRef<IHttpRequest> HttpRequest = HttpModule->CreateRequest();
 	HttpRequest->SetURL(FString::Format(TEXT("{0}/get_large_response_without_chunks/{1}/"), { *UrlHttpTests(), 1024 * 1024/*bytes_number*/}));
 	HttpRequest->SetVerb(TEXT("GET"));
 	HttpRequest->OnProcessRequestComplete().BindLambda([](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
@@ -234,7 +259,7 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Get large response content with
 // TODO: Enable this after finding a more reliable way of simulate timeout
 //TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Http request connect timeout", HTTP_TAG)
 //{
-//	TSharedRef<IHttpRequest> HttpRequest = CreateRequest();
+//	TSharedRef<IHttpRequest> HttpRequest = HttpModule->CreateRequest();
 //	HttpRequest->SetURL(UrlWithInvalidPortToTestConnectTimeout());
 //	HttpRequest->SetVerb(TEXT("GET"));
 //	HttpRequest->SetTimeout(7);
@@ -257,7 +282,7 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Streaming http download", HTTP_
 	uint32 Chunks = 3;
 	uint32 ChunkSize = 1024*1024;
 
-	TSharedRef<IHttpRequest> HttpRequest = CreateRequest();
+	TSharedRef<IHttpRequest> HttpRequest = HttpModule->CreateRequest();
 	HttpRequest->SetURL(UrlStreamDownload(Chunks, ChunkSize));
 	HttpRequest->SetVerb(TEXT("GET"));
 
@@ -407,7 +432,7 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Can run parallel stream downloa
 
 	for (int i = 0; i < 3; ++i)
 	{
-		TSharedRef<IHttpRequest> HttpRequest = CreateRequest();
+		TSharedRef<IHttpRequest> HttpRequest = HttpModule->CreateRequest();
 		HttpRequest->SetURL(UrlStreamDownload(Chunks, ChunkSize));
 		HttpRequest->SetVerb(TEXT("GET"));
 		HttpRequest->OnProcessRequestComplete().BindLambda([Chunks, ChunkSize](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
@@ -430,7 +455,7 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Can download big file exceeds 3
 	uint64 Chunks = 5 * 1024;
 	uint64 ChunkSize = 1024 * 1024;
 
-	TSharedRef<IHttpRequest> HttpRequest = CreateRequest();
+	TSharedRef<IHttpRequest> HttpRequest = HttpModule->CreateRequest();
 	HttpRequest->SetURL(UrlStreamDownload(Chunks, ChunkSize));
 	HttpRequest->SetVerb(TEXT("GET"));
 
@@ -455,7 +480,7 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Can download big file exceeds 3
 
 TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Streaming http upload from memory", HTTP_TAG)
 {
-	TSharedRef<IHttpRequest> HttpRequest = CreateRequest();
+	TSharedRef<IHttpRequest> HttpRequest = HttpModule->CreateRequest();
 	HttpRequest->SetURL(FString::Format(TEXT("{0}/streaming_upload_post"), { *UrlHttpTests() }));
 	HttpRequest->SetVerb(TEXT("POST"));
 
@@ -549,7 +574,7 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Can upload big file exceeds 32 
 	const uint64 TotalSize = 2147483647;
 	TSharedRef<FTestHttpUploadStream> Stream = MakeShared<FTestHttpUploadStream>(TotalSize);
 
-	TSharedRef<IHttpRequest> HttpRequest = CreateRequest();
+	TSharedRef<IHttpRequest> HttpRequest = HttpModule->CreateRequest();
 	HttpRequest->SetURL(FString::Format(TEXT("{0}/streaming_upload_put"), { *UrlHttpTests() }));
 	HttpRequest->SetVerb(TEXT("PUT"));
 	HttpRequest->SetContentFromStream(Stream);
@@ -578,7 +603,7 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Streaming http upload from file
 	FileToWrite->Close();
 	FMemory::Free(FileData);
 
-	TSharedRef<IHttpRequest> HttpRequest = CreateRequest();
+	TSharedRef<IHttpRequest> HttpRequest = HttpModule->CreateRequest();
 	HttpRequest->SetURL(FString::Format(TEXT("{0}/streaming_upload_put"), { *UrlHttpTests() }));
 	HttpRequest->SetVerb(TEXT("PUT"));
 	HttpRequest->SetHeader(TEXT("Content-Disposition"), TEXT("attachment;filename=TestStreamUpload.dat"));
@@ -593,7 +618,7 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Streaming http upload from file
 
 TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Redirect enabled by default and can work well", HTTP_TAG)
 {
-	TSharedRef<IHttpRequest> HttpRequest = CreateRequest();
+	TSharedRef<IHttpRequest> HttpRequest = HttpModule->CreateRequest();
 	HttpRequest->SetURL(FString::Format(TEXT("{0}/redirect_from"), { *UrlHttpTests() }));
 	HttpRequest->SetVerb(TEXT("GET"));
 	HttpRequest->OnProcessRequestComplete().BindLambda([](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
@@ -602,58 +627,6 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Redirect enabled by default and
 	});
 	HttpRequest->ProcessRequest();
 }
-
-
-class FWaitUntilQuitFromTestFixture : public FWaitUntilCompleteHttpFixture
-{
-public:
-	FWaitUntilQuitFromTestFixture()
-	{
-	}
-
-	~FWaitUntilQuitFromTestFixture()
-	{
-		WaitUntilQuitFromTest();
-	}
-
-	void WaitUntilQuitFromTest()
-	{
-		while (!bQuitRequested)
-		{
-			HttpModule->GetHttpManager().Tick(TickFrequency);
-			FPlatformProcess::Sleep(TickFrequency);
-		}
-	}
-
-	bool bQuitRequested = false;
-};
-
-TEST_CASE_METHOD(FWaitUntilQuitFromTestFixture, "Http request can be reused", HTTP_TAG)
-{
-	TSharedRef<IHttpRequest> HttpRequest = CreateRequest();
-	HttpRequest->SetURL(UrlToTestMethods());
-	HttpRequest->SetVerb(TEXT("POST"));
-
-	HttpRequest->OnProcessRequestComplete().BindLambda([this](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
-		CHECK(bSucceeded);
-		CHECK(HttpResponse->GetResponseCode() == 200);
-
-		uint32 Chunks = 3;
-		uint32 ChunkSize = 1024;
-		HttpRequest->SetURL(UrlStreamDownload(Chunks, ChunkSize));
-		HttpRequest->SetVerb(TEXT("GET"));
-		HttpRequest->OnProcessRequestComplete().BindLambda([this, Chunks, ChunkSize](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
-			CHECK(bSucceeded);
-			REQUIRE(HttpResponse != nullptr);
-			CHECK(HttpResponse->GetResponseCode() == 200);
-			CHECK(HttpResponse->GetContentLength() == Chunks * ChunkSize);
-			bQuitRequested = true;
-		});
-		HttpRequest->ProcessRequest();
-	});
-	HttpRequest->ProcessRequest();
-}
-
 
 // Response shared ptr should be able to be kept by user code and valid to access without http request
 class FValidateResponseDependencyFixture : public FWaitUntilCompleteHttpFixture
@@ -775,7 +748,7 @@ public:
 TEST_CASE_METHOD(FWaitThreadedHttpFixture, "Http streaming download request can work in non game thread", HTTP_TAG)
 {
 	ThreadedHttpRunnable.OnRunFromThread().BindLambda([this]() {
-		TSharedRef<IHttpRequest> HttpRequest = CreateRequest();
+		TSharedRef<IHttpRequest> HttpRequest = HttpModule->CreateRequest();
 		HttpRequest->SetURL(UrlStreamDownload(3/*Chunks*/, 1024/*ChunkSize*/));
 		HttpRequest->SetVerb(TEXT("GET"));
 		HttpRequest->SetDelegateThreadPolicy(EHttpRequestDelegateThreadPolicy::CompleteOnHttpThread);
@@ -811,7 +784,7 @@ TEST_CASE_METHOD(FWaitThreadedHttpFixture, "Http download request progress callb
 {
 	std::atomic<bool> bRequestProgressTriggered = false;
 	ThreadedHttpRunnable.OnRunFromThread().BindLambda([this, &bRequestProgressTriggered]() {
-		TSharedRef<IHttpRequest> HttpRequest = CreateRequest();
+		TSharedRef<IHttpRequest> HttpRequest = HttpModule->CreateRequest();
 		HttpRequest->SetURL(UrlStreamDownload(10/*Chunks*/, 1024*1024/*ChunkSize*/));
 		HttpRequest->SetVerb(TEXT("GET"));
 
@@ -885,52 +858,37 @@ void SetupURLRequestFilter(FHttpModule* HttpModule)
 }
 }
 
-// Pre-check failed requests won't be added into http manager, so it can't rely on the requested added/completed callback in FWaitUntilCompleteHttpFixture
-TEST_CASE_METHOD(FWaitUntilQuitFromTestFixture, "Http request pre check will fail by thread policy", HTTP_TAG)
+TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Http request pre check will fail by thread policy", HTTP_TAG)
 {
 	DisableWarningsInThisTest();
 
 	// Pre check will fail when domain is not allowed
 	UE::TestHttp::SetupURLRequestFilter(HttpModule);
 
-	TSharedRef<IHttpRequest> HttpRequest = CreateRequest();
+	TSharedRef<IHttpRequest> HttpRequest = HttpModule->CreateRequest();
 	HttpRequest->SetVerb(TEXT("GET"));
 	HttpRequest->SetURL(UrlToTestMethods());
 
 	SECTION("on game thread")
 	{
-		HttpRequest->OnProcessRequestComplete().BindLambda([this](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
+		HttpRequest->OnProcessRequestComplete().BindLambda([](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
 			CHECK(IsInGameThread());
 			CHECK(!bSucceeded);
-			bQuitRequested = true;
 		});
 	}
 	SECTION("on http thread")
 	{
 		HttpRequest->SetDelegateThreadPolicy(EHttpRequestDelegateThreadPolicy::CompleteOnHttpThread);
-		HttpRequest->OnProcessRequestComplete().BindLambda([this](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
+		HttpRequest->OnProcessRequestComplete().BindLambda([](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
 			CHECK(!IsInGameThread());
 			CHECK(!bSucceeded);
-			bQuitRequested = true;
 		});
 	}
 
 	HttpRequest->ProcessRequest();
 }
 
-class FWaitUnitilQuitFromTestThreadedFixture : public FWaitUntilQuitFromTestFixture
-{
-public:
-	~FWaitUnitilQuitFromTestThreadedFixture()
-	{
-		WaitUntilQuitFromTest();
-	}
-
-	FThreadedHttpRunnable ThreadedHttpRunnable;
-};
-
-// Pre-check failed requests won't be added into http manager, so it can't rely on the requested added/completed callback in FWaitUntilCompleteHttpFixture
-TEST_CASE_METHOD(FWaitUnitilQuitFromTestThreadedFixture, "Threaded http request pre check will fail by thread policy", HTTP_TAG)
+TEST_CASE_METHOD(FWaitThreadedHttpFixture, "Threaded http request pre check will fail by thread policy", HTTP_TAG)
 {
 	DisableWarningsInThisTest();
 
@@ -938,25 +896,23 @@ TEST_CASE_METHOD(FWaitUnitilQuitFromTestThreadedFixture, "Threaded http request 
 		// Pre check will fail when domain is not allowed
 		UE::TestHttp::SetupURLRequestFilter(HttpModule);
 
-		TSharedRef<IHttpRequest> HttpRequest = CreateRequest();
+		TSharedRef<IHttpRequest> HttpRequest = HttpModule->CreateRequest();
 		HttpRequest->SetVerb(TEXT("GET"));
 		HttpRequest->SetURL(UrlToTestMethods());
 
 		SECTION("on game thread")
 		{
-			HttpRequest->OnProcessRequestComplete().BindLambda([this](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
+			HttpRequest->OnProcessRequestComplete().BindLambda([](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
 				CHECK(IsInGameThread());
 				CHECK(!bSucceeded);
-				bQuitRequested = true;
 			});
 		}
 		SECTION("on http thread")
 		{
 			HttpRequest->SetDelegateThreadPolicy(EHttpRequestDelegateThreadPolicy::CompleteOnHttpThread);
-			HttpRequest->OnProcessRequestComplete().BindLambda([this](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
+			HttpRequest->OnProcessRequestComplete().BindLambda([](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
 				CHECK(!IsInGameThread());
 				CHECK(!bSucceeded);
-				bQuitRequested = true;
 			});
 		}
 
@@ -970,7 +926,7 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Cancel http request connect bef
 {
 	DisableWarningsInThisTest();
 
-	TSharedRef<IHttpRequest, ESPMode::ThreadSafe> HttpRequest = CreateRequest();
+	TSharedRef<IHttpRequest, ESPMode::ThreadSafe> HttpRequest = HttpModule->CreateRequest();
 	HttpRequest->SetURL(UrlWithInvalidPortToTestConnectTimeout());
 	HttpRequest->SetVerb(TEXT("GET"));
 	HttpRequest->SetTimeout(7);
@@ -987,48 +943,107 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Cancel http request connect bef
 	HttpRequest->CancelRequest();
 }
 
-class FThreadedBatchRequestsFixture : public FWaitThreadedHttpFixture
+class FMockRetryManager : public FHttpRetrySystem::FManager
 {
 public:
-	void LaunchBatchRequests(uint32 BatchSize)
+	using FHttpRetrySystem::FManager::FManager;
+	using FHttpRetrySystem::FManager::RequestList;
+	using FHttpRetrySystem::FManager::FHttpRetryRequestEntry;
+	using FHttpRetrySystem::FManager::RetryTimeoutRelativeSecondsDefault;
+};
+
+class FRetryHttpFixture : public FWaitUntilCompleteHttpFixture
+{
+public:
+	FRetryHttpFixture()
 	{
-		for (uint32 i = 0; i < BatchSize; ++i)
+		HttpRetryManager = MakeShared<FMockRetryManager>(FHttpRetrySystem::FRetryLimitCountSetting(RetryLimitCount), FHttpRetrySystem::FRetryTimeoutRelativeSecondsSetting(/*RetryTimeoutRelativeSeconds*/));
+		HttpRetryManager->RetryTimeoutRelativeSecondsDefault = 2.0f; // Value is set so that retry system will use it at high level, will no longer wait for ever for HTTP code
+	}
+
+	~FRetryHttpFixture()
+	{
+		// Make sure not destroy retry manager before waiting in FWaitUntilCompleteHttpFixture
+		while (HttpRetryManager->RequestList.Num())
 		{
-			TSharedRef<IHttpRequest> HttpRequest = CreateRequest();
+			HttpRetryManager->Update();
+			HttpModule->GetHttpManager().Tick(TickFrequency);
+			FPlatformProcess::Sleep(TickFrequency);
+		}
+	}
+
+	TSharedPtr<FMockRetryManager> HttpRetryManager;
+	uint32 RetryLimitCount = 2;
+
+	FThreadedHttpRunnable ThreadedHttpRunnable;
+};
+
+// TODO: Currently broken, will fix this in retry system
+//TEST_CASE_METHOD(FRetryHttpFixture, "Http request adaptor in retry system can work in non game thread", HTTP_TAG)
+//{
+//	ThreadedHttpRunnable.OnRunFromThread().BindLambda([this]() {
+//		TSharedRef<IHttpRequest> HttpRequest = HttpRetryManager->CreateRequest();
+//		HttpRequest->SetURL(UrlStreamDownload(3/*Chunks*/, 1024/*ChunkSize*/));
+//		HttpRequest->SetVerb(TEXT("GET"));
+//		HttpRequest->SetDelegateThreadPolicy(EHttpRequestDelegateThreadPolicy::CompleteOnHttpThread);
+//
+//		class FTestHttpReceiveStream final : public FArchive
+//		{
+//		public:
+//			virtual void Serialize(void* V, int64 Length) override
+//			{
+//				// No matter what's the thread policy, Serialize always get called in http thread.
+//				CHECK(!IsInGameThread());
+//			}
+//		};
+//		CHECK(HttpRequest->SetResponseBodyReceiveStream(MakeShared<FTestHttpReceiveStream>()));
+//
+//		HttpRequest->OnProcessRequestComplete().BindLambda([this](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
+//			// EHttpRequestDelegateThreadPolicy::CompleteOnHttpThread was used, so not in game thread here
+//			CHECK(!IsInGameThread());
+//			CHECK(bSucceeded);
+//			CHECK(HttpResponse->GetResponseCode() == 200);
+//			ThreadedHttpRunnable.UnblockGameThread();
+//		});
+//
+//		HttpRequest->ProcessRequest();
+//	});
+//
+//	ThreadedHttpRunnable.StartTestHttpThread(true/*bBlockGameThread*/);
+//}
+
+class FRetryHttpManagerThreadedRequestsFixture : public FRetryHttpFixture
+{
+public:
+	void LaunchDownloadRequests()
+	{
+		for (int32 i = 0; i < 10; ++i)
+		{
+			TSharedRef<IHttpRequest> HttpRequest = HttpRetryManager->CreateRequest();
 			HttpRequest->SetURL(UrlStreamDownload(3, 1024*1024));
 			HttpRequest->SetVerb(TEXT("GET"));
 			HttpRequest->ProcessRequest();
 		}
 	}
-
-	void BlockUntilFlushed()
-	{
-		if (bRetryEnabled)
-		{
-			HttpRetryManager->BlockUntilFlushed(5.0);
-		}
-		else
-		{
-			HttpModule->GetHttpManager().Flush(EHttpFlushReason::Default);
-		}
-	}
 };
 
-TEST_CASE_METHOD(FThreadedBatchRequestsFixture, "Retry manager and http manager is thread safe", HTTP_TAG)
+TEST_CASE_METHOD(FRetryHttpManagerThreadedRequestsFixture, "Retry manager is thread safe", HTTP_TAG)
 {
 	DisableWarningsInThisTest();
 
 	ThreadedHttpRunnable.OnRunFromThread().BindLambda([this]() {
-		LaunchBatchRequests(10);
-		BlockUntilFlushed();
+		LaunchDownloadRequests();
+		HttpRetryManager->BlockUntilFlushed(5.0);
 	});
 	ThreadedHttpRunnable.StartTestHttpThread(false/*bBlockGameThread*/);
 
-	LaunchBatchRequests(10);
-	BlockUntilFlushed();
+	LaunchDownloadRequests();
+	HttpRetryManager->BlockUntilFlushed(5.0);
 }
 
 
 // TODO: Add cancel test, with multiple cancel calls
+
+// TODO: Add a test case to make sure once Request completed and destroyed, if the user code still keeps the shared ptr of Response, any call to Response shouldn't have dependency to Request
 
 // TODO: Add test case to validate header received callback can be received in http/game thread, and can be received before the request complete

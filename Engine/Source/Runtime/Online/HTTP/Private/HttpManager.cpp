@@ -284,10 +284,10 @@ void FHttpManager::AddGameThreadTask(TFunction<void()>&& Task)
 	}
 }
 
-void FHttpManager::AddHttpThreadTask(TFunction<void()>&& Task, float InDelay)
+void FHttpManager::AddHttpThreadTask(TFunction<void()>&& Task)
 {
 	check(Thread);
-	Thread->AddHttpThreadTask(MoveTemp(Task), InDelay);
+	Thread->AddHttpThreadTask(MoveTemp(Task));
 }
 
 FHttpThreadBase* FHttpManager::CreateHttpThread()
@@ -546,9 +546,4 @@ bool FHttpManager::SupportsDynamicProxy() const
 void FHttpManager::BroadcastHttpRequestCompleted(const FHttpRequestRef& Request)
 {
 	RequestCompletedDelegate.ExecuteIfBound(Request);
-}
-
-FHttpThreadBase* FHttpManager::GetThread()
-{
-	return Thread;
 }

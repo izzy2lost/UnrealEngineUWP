@@ -110,10 +110,13 @@ uint32 FHttpThreadBase::Run()
 
 void FHttpThreadBase::Tick()
 {
-	const double AppTime = FPlatformTime::Seconds();
-	const double ElapsedTime = AppTime - LastTime;
-	LastTime = AppTime;
-	HttpThreadTick(ElapsedTime);
+	// Run HttpThread tasks
+	TFunction<void()> Task = nullptr;
+	while (HttpThreadQueue.Dequeue(Task))
+	{
+		check(Task);
+		Task();
+	}
 }
 
 bool FHttpThreadBase::NeedsSingleThreadTick() const
@@ -137,8 +140,17 @@ void FHttpThreadBase::UpdateConfigs()
 	}
 }
 
+void FHttpThreadBase::AddHttpThreadTask(TFunction<void()>&& Task)
+{
+	if (Task)
+	{
+		HttpThreadQueue.Enqueue(MoveTemp(Task));
+	}
+}
+
 void FHttpThreadBase::HttpThreadTick(float DeltaSeconds)
 {
+	// empty
 }
 
 bool FHttpThreadBase::StartThreadedRequest(IHttpThreadedRequest* Request)
@@ -345,21 +357,6 @@ void FLegacyHttpThread::Tick()
 		TArray<IHttpThreadedRequest*> RequestsToComplete;
 		Process(RequestsToCancel, RequestsToComplete);
 	}
-}
-
-void FLegacyHttpThread::AddHttpThreadTask(TFunction<void()>&& Task, float InDelay)
-{
-	Ticker.AddTicker(FTickerDelegate::CreateLambda([this, Task=MoveTemp(Task)](float) {
-		Task();
-		return false;
-	}), InDelay);
-}
-
-void FLegacyHttpThread::HttpThreadTick(float DeltaSeconds)
-{
-	FHttpThreadBase::HttpThreadTick(DeltaSeconds);
-
-	Ticker.Tick(DeltaSeconds);
 }
 
 bool FLegacyHttpThread::Init()

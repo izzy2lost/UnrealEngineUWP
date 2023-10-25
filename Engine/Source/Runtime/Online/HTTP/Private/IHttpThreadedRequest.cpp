@@ -4,20 +4,22 @@
 #include "HttpModule.h"
 #include "HttpManager.h"
 
-void IHttpThreadedRequest::FinishRequestNotInHttpManager()
+bool IHttpThreadedRequest::FinishRequestNotInHttpManager()
 {
 	if (IsInGameThread())
 	{
 		if (DelegateThreadPolicy == EHttpRequestDelegateThreadPolicy::CompleteOnGameThread)
 		{
 			FinishRequest();
+			return false;
 		}
 		else
 		{
 			FHttpModule::Get().GetHttpManager().AddHttpThreadTask([StrongThis = StaticCastSharedRef<IHttpThreadedRequest>(AsShared())]()
-			{
-				StrongThis->FinishRequest();
-			});
+				{
+					StrongThis->FinishRequest();
+				});
+			return true;
 		}
 	}
 	else
@@ -25,13 +27,15 @@ void IHttpThreadedRequest::FinishRequestNotInHttpManager()
 		if (DelegateThreadPolicy == EHttpRequestDelegateThreadPolicy::CompleteOnHttpThread)
 		{
 			FinishRequest();
+			return false;
 		}
 		else
 		{
 			FHttpModule::Get().GetHttpManager().AddGameThreadTask([StrongThis = StaticCastSharedRef<IHttpThreadedRequest>(AsShared())]()
-			{
-				StrongThis->FinishRequest();
-			});
+				{
+					StrongThis->FinishRequest();
+				});
+			return true;
 		}
 	}
 }
