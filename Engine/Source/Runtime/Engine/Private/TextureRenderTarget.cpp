@@ -385,7 +385,7 @@ UTexture* UTextureRenderTarget::ConstructTexture(UObject* InOuter, const FString
 		Result->DeferCompression = false;
 	}
 
-	if ((InFlags & CTF_SkipPostEdit) != 0)
+	if ((InFlags & CTF_SkipPostEdit) == 0)
 	{
 		Result->PostEditChange();
 	}
