@@ -166,7 +166,8 @@ constexpr int32 GSHADERFILECACHE_BUCKETS = 31; /* prime number for best distribu
 struct FShaderFileCacheEntry
 {
 	FString Source;
-	FShaderSharedAnsiStringPtr StrippedSource;		// Source with comments stripped out, and converted to ANSICHAR
+	FShaderSharedAnsiStringPtr StrippedSource;				// Source with comments stripped out, and converted to ANSICHAR
+	FShaderPreprocessDependenciesShared Dependencies;		// Stripped source with include dependencies, all in one shareable struct
 };
 
 struct FShaderFileCache
@@ -267,12 +268,17 @@ public:
 		return Platforms[ShaderPlatform].ShaderHashCache.Add(VirtualFilePath, FSHAHash());
 	}
 
+	static bool IsPlatformInclude(const FString& VirtualFilePath)
+	{
+		return (VirtualFilePath.StartsWith(TEXT("/Engine/Private/Platform/"))
+			|| VirtualFilePath.StartsWith(TEXT("/Engine/Public/Platform/"))
+			|| VirtualFilePath.StartsWith(TEXT("/Platform/")));
+	}
+
 	bool ShouldIgnoreInclude(const FString& VirtualFilePath, EShaderPlatform ShaderPlatform) const
 	{
 		// Ignore only platform specific files, which won't be used by the target platform.
-		if (VirtualFilePath.StartsWith(TEXT("/Engine/Private/Platform/"))
-			|| VirtualFilePath.StartsWith(TEXT("/Engine/Public/Platform/"))
-			|| VirtualFilePath.StartsWith(TEXT("/Platform/")))
+		if (IsPlatformInclude(VirtualFilePath))
 		{
 			const FString& PlatformIncludeDirectory = GetPlatformIncludeDirectory(ShaderPlatform);
 			if (PlatformIncludeDirectory.IsEmpty() || !(VirtualFilePath.Contains(PlatformIncludeDirectory)))
@@ -1533,6 +1539,8 @@ void CompileShaderPipeline(const TArray<const IShaderFormat*>& ShaderFormats, FS
 	PipelineJob->bSucceeded = true;
 }
 
+static void InternalGetShaderIncludes(const TCHAR* EntryPointVirtualFilePath, const TCHAR* VirtualFilePath, TArray<FString>& IncludeVirtualFilePaths, EShaderPlatform ShaderPlatform, uint32 DepthLimit, bool AddToIncludeFile, const FName* ShaderPlatformName, bool bPreprocessDependencies);
+
 /**
 * Add a new entry to the list of shader source files
 * Only unique entries which can be loaded are added as well as their #include files
@@ -1550,7 +1558,8 @@ void AddShaderSourceFileEntry(TArray<FString>& OutVirtualFilePaths, FString Virt
 		TArray<FString> ShaderIncludes;
 
 		const uint32 DepthLimit = 100;
-		GetShaderIncludes(*VirtualFilePath, *VirtualFilePath, OutVirtualFilePaths, ShaderPlatform, DepthLimit, ShaderPlatformName);
+		const bool bPreprocessDependencies = true;
+		InternalGetShaderIncludes(*VirtualFilePath, *VirtualFilePath, OutVirtualFilePaths, ShaderPlatform, DepthLimit, false, ShaderPlatformName, bPreprocessDependencies);
 		for( int32 IncludeIdx=0; IncludeIdx < ShaderIncludes.Num(); IncludeIdx++ )
 		{
 			OutVirtualFilePaths.AddUnique(ShaderIncludes[IncludeIdx]);
@@ -2238,10 +2247,102 @@ static const TCHAR* FindFirstInclude(const TCHAR* Text)
 	return nullptr;
 }
 
+static void StringCopyToAnsiCharArray(const TCHAR* Text, int32 TextLen, TArray<ANSICHAR>& Out)
+{
+	Out.SetNumUninitialized(TextLen + 1);
+	ANSICHAR* OutData = Out.GetData();
+	for (int32 CharIndex = 0; CharIndex < TextLen; CharIndex++, OutData++, Text++)
+	{
+		*OutData = (ANSICHAR)*Text;
+	}
+	*OutData = 0;
+}
+
+// Allocates structure and adds root file dependency
+static FShaderPreprocessDependencies* ShaderPreprocessDependenciesBegin(const TCHAR* VirtualFilePath)
+{
+	FShaderPreprocessDependencies* PreprocessDependencies = new FShaderPreprocessDependencies();
+
+	PreprocessDependencies->Dependencies.AddDefaulted();
+	StringCopyToAnsiCharArray(VirtualFilePath, FCString::Strlen(VirtualFilePath), PreprocessDependencies->Dependencies[0].ResultPath);
+	PreprocessDependencies->Dependencies[0].ResultPathHash = FCrc::Strihash_DEPRECATED(VirtualFilePath);
+
+	return PreprocessDependencies;
+}
+
+// Adds finished dependencies to the cache
+static void ShaderPreprocessDependenciesEnd(const TCHAR* VirtualFilePath, FShaderPreprocessDependencies* PreprocessDependencies, EShaderPlatform Platform)
+{
+	uint32 CurrentHash = FCrc::Strihash_DEPRECATED(VirtualFilePath);
+	FShaderFileCache& ShaderFileCache = GShaderFileCache[CurrentHash % GSHADERFILECACHE_BUCKETS];
+	{
+		FRWScopeLock ScopeLock(ShaderFileCache.Lock, SLT_Write);
+		FShaderFileCacheEntry* CachedFile = ShaderFileCache.Map.FindByHash(CurrentHash, VirtualFilePath);
+		if (CachedFile)
+		{
+			// Another thread could have finished the job...  If not, set the dependencies.
+			if (!CachedFile->Dependencies.IsValid())
+			{
+				CachedFile->Dependencies = MakeShareable(PreprocessDependencies);
+			}
+			else
+			{
+				delete PreprocessDependencies;
+			}
+		}
+	}
+}
+
+static void AddPreprocessDependency(FShaderPreprocessDependencies& Dependencies, const FShaderPreprocessDependency& Dependency)
+{
+	check(Dependency.StrippedSource.IsValid());
+
+	// First, check if the dependency already exists
+	for (uint32 HashIndex = Dependencies.BySource.First(GetTypeHash(Dependency.PathInSourceHash)); Dependencies.BySource.IsValid(HashIndex); HashIndex = Dependencies.BySource.Next(HashIndex))
+	{
+		FShaderPreprocessDependency& TestDependency = Dependencies.Dependencies[HashIndex];
+
+		// Subtract one from PathInSource.Num() to get length minus null terminator
+		if (TestDependency.EqualsPathInSource(Dependency.PathInSource.GetData(), Dependency.PathInSource.Num() - 1, Dependency.PathInSourceHash, Dependency.ParentPath.GetData()))
+		{
+			// The result path better be the same for both
+			check(!FCStringAnsi::Stricmp(TestDependency.ResultPath.GetData(), Dependency.ResultPath.GetData()));
+			return;
+		}
+	}
+
+	// Add the dependency
+	int32 AddedIndex = Dependencies.Dependencies.Add(Dependency);
+	Dependencies.BySource.Add(GetTypeHash(Dependency.PathInSourceHash), (uint32)AddedIndex);
+
+	// Then check if the result path already exists, so we can point ResultPathUniqueIndex at the first instance of the result path
+	uint32 ExistingResultIndex;
+	for (ExistingResultIndex = Dependencies.ByResult.First(Dependency.ResultPathHash); Dependencies.ByResult.IsValid(ExistingResultIndex); ExistingResultIndex = Dependencies.ByResult.Next(ExistingResultIndex))
+	{
+		FShaderPreprocessDependency& TestDependency = Dependencies.Dependencies[ExistingResultIndex];
+		if (TestDependency.EqualsResultPath(Dependency.ResultPath.GetData(), Dependency.ResultPathHash))
+		{
+			break;
+		}
+	}
+
+	if (Dependencies.ByResult.IsValid(ExistingResultIndex))
+	{
+		// Reference existing result
+		Dependencies.Dependencies[AddedIndex].ResultPathUniqueIndex = ExistingResultIndex;
+	}
+	else
+	{
+		// Add new result
+		Dependencies.Dependencies[AddedIndex].ResultPathUniqueIndex = (uint32)AddedIndex;
+		Dependencies.ByResult.Add(Dependency.ResultPathHash, (uint32)AddedIndex);
+	}
+}
+
 /**
  * Recursively populates IncludeFilenames with the unique include filenames found in the shader file named Filename.
  */
-static void InternalGetShaderIncludes(const TCHAR* EntryPointVirtualFilePath, const TCHAR* VirtualFilePath, const FString& FileContents, TArray<FString>& IncludeVirtualFilePaths, EShaderPlatform ShaderPlatform, uint32 DepthLimit, bool AddToIncludeFile, const FName* ShaderPlatformName)
+static void InternalGetShaderIncludes(const TCHAR* EntryPointVirtualFilePath, const TCHAR* VirtualFilePath, const FString& FileContents, TArray<FString>& IncludeVirtualFilePaths, EShaderPlatform ShaderPlatform, uint32 DepthLimit, bool AddToIncludeFile, const FName* ShaderPlatformName, FShaderPreprocessDependencies* OutDependencies)
 {
 	//avoid an infinite loop with a 0 length string
 	if (FileContents.Len() > 0)
@@ -2282,15 +2383,20 @@ static void InternalGetShaderIncludes(const TCHAR* EntryPointVirtualFilePath, co
 					}
 
 					//CRC the template, not the filled out version so that this shader's CRC will be independent of which material references it.
-					if (ExtractedIncludeFilename == TEXT("/Engine/Generated/Material.ush"))
+					const TCHAR* MaterialTemplateName = TEXT("/Engine/Private/MaterialTemplate.ush");
+					const TCHAR* MaterialGeneratedName = TEXT("/Engine/Generated/Material.ush");
+
+					bool bIsMaterialTemplate = false;
+					if (ExtractedIncludeFilename == MaterialGeneratedName)
 					{
-						ExtractedIncludeFilename = TEXT("/Engine/Private/MaterialTemplate.ush");
+						ExtractedIncludeFilename = MaterialTemplateName;
+						bIsMaterialTemplate = true;
 					}
 
-					ReplaceVirtualFilePathForShaderPlatform(ExtractedIncludeFilename, ShaderPlatform);
+					bool bIsPlatformFile = ReplaceVirtualFilePathForShaderPlatform(ExtractedIncludeFilename, ShaderPlatform);
 
 					// Fixup autogen file
-					ReplaceVirtualFilePathForShaderAutogen(ExtractedIncludeFilename, ShaderPlatform, ShaderPlatformName);
+					bIsPlatformFile |= ReplaceVirtualFilePathForShaderAutogen(ExtractedIncludeFilename, ShaderPlatform, ShaderPlatformName);
 
 					// Ignore uniform buffer, vertex factory and instanced stereo includes
 					bool bIgnoreInclude = ExtractedIncludeFilename.StartsWith(TEXT("/Engine/Generated/"));
@@ -2304,17 +2410,92 @@ static void InternalGetShaderIncludes(const TCHAR* EntryPointVirtualFilePath, co
 						bIgnoreInclude = bIgnoreInclude || GShaderHashCache.ShouldIgnoreInclude(ExtractedIncludeFilename, ShaderPlatform);
 					}
 
+					bIsPlatformFile |= FShaderHashCache::IsPlatformInclude(ExtractedIncludeFilename);
 
 					//vertex factories need to be handled separately
 					if (!bIgnoreInclude)
 					{
-						if (!IncludeVirtualFilePaths.Contains(ExtractedIncludeFilename))
+						int32 SeenFilenameIndex = IncludeVirtualFilePaths.Find(ExtractedIncludeFilename);
+						if (SeenFilenameIndex == INDEX_NONE)
 						{
+							// Preprocess dependencies don't include platform files.
+							FShaderPreprocessDependencies* ExtractedIncludeDependencies = nullptr;
+							if (OutDependencies && !bIsPlatformFile)
+							{
+								ExtractedIncludeDependencies = ShaderPreprocessDependenciesBegin(*ExtractedIncludeFilename);
+							}
+
+							// First element in Dependencies is root file, so initialize the StrippedSource pointer in it
 							FString IncludedFileContents;
-							LoadShaderSourceFile(*ExtractedIncludeFilename, ShaderPlatform, &IncludedFileContents, nullptr, ShaderPlatformName);
-							InternalGetShaderIncludes(EntryPointVirtualFilePath, *ExtractedIncludeFilename, IncludedFileContents, IncludeVirtualFilePaths, ShaderPlatform, DepthLimit - 1, true, ShaderPlatformName);
+							LoadShaderSourceFile(*ExtractedIncludeFilename, ShaderPlatform, &IncludedFileContents, nullptr, ShaderPlatformName,
+								ExtractedIncludeDependencies ? &ExtractedIncludeDependencies->Dependencies[0].StrippedSource : nullptr);
+
+							InternalGetShaderIncludes(EntryPointVirtualFilePath, *ExtractedIncludeFilename, IncludedFileContents, IncludeVirtualFilePaths, ShaderPlatform, DepthLimit - 1, true, ShaderPlatformName, ExtractedIncludeDependencies);
+
+							if (ExtractedIncludeDependencies)
+							{
+								// Some generated shaders are referenced as includes, and won't be found -- if so, just delete the dependencies
+								if (ExtractedIncludeDependencies->Dependencies[0].StrippedSource.IsValid())
+								{
+									ShaderPreprocessDependenciesEnd(*ExtractedIncludeFilename, ExtractedIncludeDependencies, ShaderPlatform);
+								}
+								else
+								{
+									delete ExtractedIncludeDependencies;
+								}
+							}
 						}
-					}
+
+						if (OutDependencies)
+						{
+							// Preprocess dependencies don't include platform files.
+							if (!bIsPlatformFile)
+							{
+								// The material template itself isn't added as a dependency, but child includes of it are.
+								FShaderSharedAnsiStringPtr StrippedContents;
+								if (!bIsMaterialTemplate && LoadShaderSourceFile(*ExtractedIncludeFilename, ShaderPlatform, nullptr, nullptr, nullptr, &StrippedContents))
+								{
+									// Add immediate dependency
+									FShaderPreprocessDependency Dependency;
+									Dependency.StrippedSource = StrippedContents;
+
+									// If the parent is the material template, switch its name to the generated name, so include dependencies from
+									// the material template to other non-procedural files can be cached.
+									const TCHAR* ParentNonTemplate = VirtualFilePath == MaterialTemplateName ? MaterialGeneratedName : VirtualFilePath;
+
+									// We want ResultPath to have consistent case, for the preprocessor which is case sensitive.  So we use the exact
+									// string from the previously found array element if it exists.  If this is the first time it's encountered, it will
+									// have been added to the array by the InternalGetShaderIncludes call above.
+									const FString& ResultPath = SeenFilenameIndex == INDEX_NONE ? ExtractedIncludeFilename : IncludeVirtualFilePaths[SeenFilenameIndex];
+
+									StringCopyToAnsiCharArray(IncludeFilenameBegin + 1, (int32)(IncludeFilenameEnd - IncludeFilenameBegin - 1), Dependency.PathInSource);
+									StringCopyToAnsiCharArray(ParentNonTemplate, FCString::Strlen(ParentNonTemplate), Dependency.ParentPath);
+									StringCopyToAnsiCharArray(*ResultPath, ResultPath.Len(), Dependency.ResultPath);
+									Dependency.ResultPathHash = GetTypeHash(ResultPath);
+
+									// Hash deliberately doesn't include null terminator, so we can generate hash from string view.  Xxhash is faster than
+									// the normal case insensitive string hash, so we choose that.
+									Dependency.PathInSourceHash = FXxHash64::HashBuffer(Dependency.PathInSource.GetData(), Dependency.PathInSource.Num() - 1);
+
+									AddPreprocessDependency(*OutDependencies, Dependency);
+								}
+
+								// Add recursive dependencies from the child
+								FShaderPreprocessDependenciesShared ChildDependenciesShared;
+								if (GetShaderPreprocessDependencies(*ExtractedIncludeFilename, ShaderPlatform, ChildDependenciesShared))
+								{
+									const FShaderPreprocessDependencies& ChildDependencies = *ChildDependenciesShared;
+
+									// Skip over first entry, which is the root file (its dependency is handled by the "add immediate dependency" code above)
+									for (int32 DependencyIndex = 1; DependencyIndex < ChildDependencies.Dependencies.Num(); DependencyIndex++)
+									{
+										AddPreprocessDependency(*OutDependencies, ChildDependencies.Dependencies[DependencyIndex]);
+									}
+								}
+
+							}  // if (!bIsPlatformFile)
+						}  // if (OutDependencies)
+					}  // if (!bIgnoreInclude)
 				}
 			}
 
@@ -2340,25 +2521,62 @@ static void InternalGetShaderIncludes(const TCHAR* EntryPointVirtualFilePath, co
 	}
 }
 
+bool GetShaderPreprocessDependencies(const TCHAR* VirtualFilePath, EShaderPlatform ShaderPlatform, FShaderPreprocessDependenciesShared& OutDependencies)
+{
+	// Same case insensitive hash used by FString
+	uint32 CurrentHash = FCrc::Strihash_DEPRECATED(VirtualFilePath);
+	FShaderFileCache& ShaderFileCache = GShaderFileCache[CurrentHash % GSHADERFILECACHE_BUCKETS];
+
+	FRWScopeLock ScopeLock(ShaderFileCache.Lock, SLT_ReadOnly);
+	FShaderFileCacheEntry* CachedFile = ShaderFileCache.Map.FindByHash(CurrentHash, VirtualFilePath);
+	if (CachedFile && CachedFile->Dependencies.IsValid())
+	{
+		OutDependencies = CachedFile->Dependencies;
+		return true;
+	}
+
+	return false;
+}
+
 /**
  * Recursively populates IncludeFilenames with the unique include filenames found in the shader file named Filename.
  */
-static void InternalGetShaderIncludes(const TCHAR* EntryPointVirtualFilePath, const TCHAR* VirtualFilePath, TArray<FString>& IncludeVirtualFilePaths, EShaderPlatform ShaderPlatform, uint32 DepthLimit, bool AddToIncludeFile, const FName* ShaderPlatformName)
+static void InternalGetShaderIncludes(const TCHAR* EntryPointVirtualFilePath, const TCHAR* VirtualFilePath, TArray<FString>& IncludeVirtualFilePaths, EShaderPlatform ShaderPlatform, uint32 DepthLimit, bool AddToIncludeFile, const FName* ShaderPlatformName, bool bPreprocessDependencies)
 {
-	FString FileContents;
-	LoadShaderSourceFile(VirtualFilePath, ShaderPlatform, &FileContents, nullptr, ShaderPlatformName);
+	FShaderPreprocessDependencies* PreprocessDependencies = nullptr;
+	if (bPreprocessDependencies)
+	{
+		// Check if they've already been generated.  These are platform independent, so we only need to generate them once if multiple platforms are being cooked,
+		// but in case we want to specialize them by platform in the future, the platform is passed in.
+		FShaderPreprocessDependenciesShared OutDependenciesIgnored;
+		if (!GetShaderPreprocessDependencies(VirtualFilePath, ShaderPlatform, OutDependenciesIgnored))
+		{
+			// Allocates dependency structure and adds root file element
+			PreprocessDependencies = ShaderPreprocessDependenciesBegin(VirtualFilePath);
+		}
+	}
 
-	InternalGetShaderIncludes(EntryPointVirtualFilePath, VirtualFilePath, FileContents, IncludeVirtualFilePaths, ShaderPlatform, DepthLimit, AddToIncludeFile, ShaderPlatformName);
+	// First element in Dependencies is root file, so initialize the StrippedSource pointer in it
+	FString FileContents;
+	LoadShaderSourceFile(VirtualFilePath, ShaderPlatform, &FileContents, nullptr, ShaderPlatformName, PreprocessDependencies ? &PreprocessDependencies->Dependencies[0].StrippedSource : nullptr);
+
+	InternalGetShaderIncludes(EntryPointVirtualFilePath, VirtualFilePath, FileContents, IncludeVirtualFilePaths, ShaderPlatform, DepthLimit, AddToIncludeFile, ShaderPlatformName, PreprocessDependencies);
+
+	if (PreprocessDependencies)
+	{
+		// Adds completed dependency structure to shader cache map entry
+		ShaderPreprocessDependenciesEnd(VirtualFilePath, PreprocessDependencies, ShaderPlatform);
+	}
 }
 
 void GetShaderIncludes(const TCHAR* EntryPointVirtualFilePath, const TCHAR* VirtualFilePath, TArray<FString>& IncludeVirtualFilePaths, EShaderPlatform ShaderPlatform, uint32 DepthLimit, const FName* ShaderPlatformName)
 {
-	InternalGetShaderIncludes(EntryPointVirtualFilePath, VirtualFilePath, IncludeVirtualFilePaths, ShaderPlatform, DepthLimit, false, ShaderPlatformName);
+	InternalGetShaderIncludes(EntryPointVirtualFilePath, VirtualFilePath, IncludeVirtualFilePaths, ShaderPlatform, DepthLimit, false, ShaderPlatformName, false);
 }
 
 void GetShaderIncludes(const TCHAR* EntryPointVirtualFilePath, const TCHAR* VirtualFilePath, const FString& FileContents, TArray<FString>& IncludeVirtualFilePaths, EShaderPlatform ShaderPlatform, uint32 DepthLimit, const FName* ShaderPlatformName)
 {
-	InternalGetShaderIncludes(EntryPointVirtualFilePath, VirtualFilePath, FileContents, IncludeVirtualFilePaths, ShaderPlatform, DepthLimit, false, ShaderPlatformName);
+	InternalGetShaderIncludes(EntryPointVirtualFilePath, VirtualFilePath, FileContents, IncludeVirtualFilePaths, ShaderPlatform, DepthLimit, false, ShaderPlatformName, nullptr);
 }
 
 void HashShaderFileWithIncludes(FArchive& HashingArchive, const TCHAR* VirtualFilePath, const FString& FileContents, EShaderPlatform ShaderPlatform, bool bOnlyHashIncludedFiles)

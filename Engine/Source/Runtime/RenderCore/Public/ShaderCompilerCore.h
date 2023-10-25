@@ -9,6 +9,7 @@
 #include "CoreMinimal.h"
 #include "HAL/FileManager.h"
 #include "Hash/Blake3.h"
+#include "Hash/xxhash.h"
 #include "Stats/Stats.h"
 #include "Templates/RefCounting.h"
 #include "Misc/EnumClassFlags.h"
@@ -770,6 +771,82 @@ extern RENDERCORE_API void ShaderConvertAndStripComments(const FString& ShaderSo
  * @return True if the file was successfully loaded.
  */
 extern RENDERCORE_API bool LoadShaderSourceFile(const TCHAR* VirtualFilePath, EShaderPlatform ShaderPlatform, FString* OutFileContents, TArray<FShaderCompilerError>* OutCompileErrors, const FName* ShaderPlatformName = nullptr, FShaderSharedAnsiStringPtr* OutStrippedContents = nullptr);
+
+
+struct FShaderPreprocessDependency
+{
+	FXxHash64					PathInSourceHash;		// PathInSourceHash doesn't include PathInSource's null terminator, so hash computation can use a string view
+	TArray<ANSICHAR>			PathInSource;			// Path as it appears in include directive in original shader source, allowing faster case sensitive hash
+	TArray<ANSICHAR>			ParentPath;				// For relative paths, ResultPath is dependent on the parent file the include directive is found in
+	TArray<ANSICHAR>			ResultPath;
+	uint32						ResultPathHash;			// Case insensitive hash of ResultPath (compatible with hash of corresponding FString)
+	uint32						ResultPathUniqueIndex;	// Index of first instance of a given result path in Dependencies array
+	FShaderSharedAnsiStringPtr	StrippedSource;			// Source with comments stripped out, and converted to ANSICHAR (output of ShaderConvertAndStripComments)
+
+	FORCEINLINE bool EqualsPathInSource(const ANSICHAR* InPathInSource, int32 InPathInSourceLen, FXxHash64 InPathInSourceHash, const ANSICHAR* InParentPath) const
+	{
+		// PathInSource is case sensitive, ParentPath is case insensitive.
+		// If the path is absolute (starts with '/'), then the parent path isn't relevant, and shouldn't be checked.
+		return
+			PathInSourceHash == InPathInSourceHash &&
+			(PathInSource[0] == '/' || !FCStringAnsi::Stricmp(ParentPath.GetData(), InParentPath)) &&
+			!FCStringAnsi::Strncmp(PathInSource.GetData(), InPathInSource, InPathInSourceLen);
+	}
+
+	FORCEINLINE bool EqualsResultPath(const FString& InResultPath, uint32 InResultPathHash) const
+	{
+		return (ResultPathHash == InResultPathHash) && InResultPath.Equals(ResultPath.GetData(), ESearchCase::IgnoreCase);
+	}
+
+	FORCEINLINE bool EqualsResultPath(const ANSICHAR* InResultPath, uint32 InResultPathHash) const
+	{
+		return (ResultPathHash == InResultPathHash) && !FCStringAnsi::Stricmp(ResultPath.GetData(), InResultPath);
+	}
+};
+
+
+// Structure that provides an array of #include dependencies for a given root shader file, including not just immediate
+// dependencies, but recursive dependencies from children as well.  Not exhaustive, as it does not include platform
+// specific or generated files, although it does include children of "/Engine/Generated/Material.ush", as derived from
+// "/Engine/Private/MaterialTemplate.ush".  Take the example of ClearUAV.usf:
+//
+// /Engine/Private/Tools/ClearUAV.usf    #include "../Common.ush"
+// /Engine/Private/Common.ush            #include "/Engine/Public/Platform.ush"
+//                                       #include "PackUnpack.ush"
+// /Engine/Public/Platform.ush           #include "FP16Math.ush"
+//
+// The above is a small subset, but the above (and many more) would all show up as elements in Dependencies:
+//
+//      PathInSource                   ParentPath                                ResultPath
+//      --------------------------------------------------------------------------------------------------------
+//      ../Common.ush                  /Engine/Private/Tools/ClearUAV.usf        /Engine/Private/Common.ush
+//      /Engine/Public/Platform.ush    /Engine/Private/Common.ush                /Engine/Public/Platform.ush
+//      PackUnpack.ush                 /Engine/Private/Common.ush                /Engine/Private/PackUnpack.ush
+//      FP16Math.ush                   /Engine/Public/Platform.ush               /Engine/Public/FP16Math.ush
+//
+// The goal of this structure is to allow a shader preprocessor implementation to fetch most of the source dependencies in a
+// single query of the loaded shader cache, and then efficiently search for dependencies encountered in the shader source
+// code, without needing to do string operations to resolve paths (such as converting relative paths like "../Common.ush" to
+// "/Engine/Private/Common.ush").  Besides that, the array organization can be used to manage encountered source files
+// by index, rather than needing a map, and the "ResultPath" strings from this structure can be referenced by pointer,
+// rather than needing to dynamically allocate a copy of the resolved path.  Lookups by PathInSource can use a much faster
+// case sensitive hash, because PathInSource has verbatim capitalization from the source code files.  Altogether, this
+// utility structure saves a bunch of shader cache query, hash, map, string, and memory allocation overhead.
+//
+struct FShaderPreprocessDependencies
+{
+	// First item in array contains stripped source for root file, and is not in the hash tables
+	TArray<FShaderPreprocessDependency> Dependencies;
+	FHashTable BySource;								// Hash table by PathInSource
+	FHashTable ByResult;								// Hash table by ResultPath
+};
+
+typedef TSharedPtr<FShaderPreprocessDependencies, ESPMode::ThreadSafe> FShaderPreprocessDependenciesShared;
+
+/**
+ * Utility function that returns a root shader file plus all non-platform include dependencies in a single batch call, useful for preprocessing.
+ */
+extern RENDERCORE_API bool GetShaderPreprocessDependencies(const TCHAR* VirtualFilePath, EShaderPlatform ShaderPlatform, FShaderPreprocessDependenciesShared& OutDependencies);
 
 enum class EShaderCompilerWorkerType : uint8
 {
