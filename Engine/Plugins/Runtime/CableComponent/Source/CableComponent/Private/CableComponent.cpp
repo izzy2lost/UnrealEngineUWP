@@ -97,9 +97,6 @@ public:
 
 		IndexBuffer.NumIndices = GetRequiredIndexCount();
 
-		// Enqueue initialization of render resource
-		BeginInitResource(&IndexBuffer, &UE::RenderCommandPipe::Cable);
-
 		// Grab material
 		Material = Component->GetMaterial(0);
 		if(Material == NULL)
@@ -126,6 +123,26 @@ public:
 		}
 #endif
 
+		ENQUEUE_RENDER_COMMAND(InitCableResources)(UE::RenderCommandPipe::Cable,
+			[this] (FRHICommandList& RHICmdList)
+		{
+			IndexBuffer.InitResource(RHICmdList);
+
+#if RHI_RAYTRACING
+
+			if (bSupportRayTracing)
+			{
+				FRayTracingGeometry& RayTracingGeometry = StaticRayTracingGeometry;
+				UpdateRayTracingGeometry_RenderingThread(RayTracingGeometry, RHICmdList);
+			}
+
+			if (IsRayTracingAllowed() && bNeedsDynamicRayTracingGeometries)
+			{
+				check(bDynamicRayTracingGeometry);
+				CreateDynamicRayTracingGeometries(RHICmdList);
+			}
+#endif
+		});
 	}
 
 	virtual ~FCableSceneProxy()
@@ -438,25 +455,6 @@ public:
 	virtual uint32 GetMemoryFootprint( void ) const override { return( sizeof( *this ) + GetAllocatedSize() ); }
 
 	uint32 GetAllocatedSize( void ) const { return( FPrimitiveSceneProxy::GetAllocatedSize() ); }
-
-	virtual void CreateRenderThreadResources(FRHICommandListBase& RHICmdList) override
-	{
-#if RHI_RAYTRACING
-
-		if (bSupportRayTracing)
-		{
-			FRayTracingGeometry& RayTracingGeometry = StaticRayTracingGeometry;
-			UpdateRayTracingGeometry_RenderingThread(RayTracingGeometry, RHICmdList);
-		}
-
-		if (IsRayTracingAllowed() && bNeedsDynamicRayTracingGeometries)
-		{
-			check(bDynamicRayTracingGeometry);
-			CreateDynamicRayTracingGeometries(RHICmdList);
-		}
-		
-#endif
-	}
 
 #if RHI_RAYTRACING
 	virtual void GetDynamicRayTracingInstances(FRayTracingMaterialGatheringContext& Context, TArray<FRayTracingInstance>& OutRayTracingInstances) override

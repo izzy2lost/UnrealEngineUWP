@@ -43,7 +43,6 @@
 #include "Elements/Interfaces/TypedElementWorldInterface.h"
 #include "UObject/UObjectIterator.h"
 #include "GenericPlatform/ICursor.h"
-#include "Rendering/RenderCommandPipes.h"
 #include "NaniteVertexFactory.h"
 #include "InstancedStaticMeshSceneProxyDesc.h"
 #include "InstancedStaticMesh/ISMInstanceDataManager.h"
@@ -715,8 +714,8 @@ void FInstancedStaticMeshVertexFactory::Copy(const FInstancedStaticMeshVertexFac
 	FInstancedStaticMeshVertexFactory* VertexFactory = this;
 	const FLocalVertexFactory::FDataType* DataCopy = &Other.Data;
 	const FInstancedStaticMeshDataType* InstanceDataCopy = &Other.InstanceData;
-	ENQUEUE_RENDER_COMMAND(FInstancedStaticMeshVertexFactoryCopyData)(UE::RenderCommandPipe::Scene,
-	[VertexFactory, DataCopy, InstanceDataCopy]
+	ENQUEUE_RENDER_COMMAND(FInstancedStaticMeshVertexFactoryCopyData)(
+	[VertexFactory, DataCopy, InstanceDataCopy] (FRHICommandListBase&)
 	{
 		VertexFactory->Data = *DataCopy;
 		VertexFactory->InstanceData = *InstanceDataCopy;

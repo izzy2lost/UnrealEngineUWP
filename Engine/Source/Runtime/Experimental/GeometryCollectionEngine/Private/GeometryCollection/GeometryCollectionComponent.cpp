@@ -45,7 +45,6 @@
 #include "PhysicsSolver.h"
 #include "UObject/FortniteValkyrieBranchObjectVersion.h"
 #include "Chaos/PBDRigidClusteringAlgo.h"
-#include "Rendering/RenderCommandPipes.h"
 
 #include "Algo/RemoveIf.h"
 
@@ -1046,8 +1045,8 @@ FPrimitiveSceneProxy* UGeometryCollectionComponent::CreateSceneProxy()
 			if (bForceMotionBlur)
 			{
 				bIsMoving = true;
-				ENQUEUE_RENDER_COMMAND(NaniteProxyOnMotionEnd)(UE::RenderCommandPipe::Scene,
-					[NaniteProxy]
+				ENQUEUE_RENDER_COMMAND(NaniteProxyOnMotionEnd)(
+					[NaniteProxy] (FRHICommandListBase&)
 					{
 						NaniteProxy->OnMotionBegin();
 					}
@@ -1670,8 +1669,8 @@ void UGeometryCollectionComponent::RestTransformsChanged()
 		if (SceneProxy->IsNaniteMesh())
 		{
 			FNaniteGeometryCollectionSceneProxy* GeometryCollectionSceneProxy = static_cast<FNaniteGeometryCollectionSceneProxy*>(SceneProxy);
-			ENQUEUE_RENDER_COMMAND(SendRenderDynamicData)(UE::RenderCommandPipe::Scene,
-				[GeometryCollectionSceneProxy, DynamicData]
+			ENQUEUE_RENDER_COMMAND(SendRenderDynamicData)(
+				[GeometryCollectionSceneProxy, DynamicData] (FRHICommandListBase&)
 				{
 					GeometryCollectionSceneProxy->SetDynamicData_RenderThread(DynamicData, GeometryCollectionSceneProxy->GetLocalToWorld());
 				}
@@ -1680,8 +1679,8 @@ void UGeometryCollectionComponent::RestTransformsChanged()
 		else
 		{
 			FGeometryCollectionSceneProxy* GeometryCollectionSceneProxy = static_cast<FGeometryCollectionSceneProxy*>(SceneProxy);
-			ENQUEUE_RENDER_COMMAND(SendRenderDynamicData)(UE::RenderCommandPipe::Scene,
-				[GeometryCollectionSceneProxy, DynamicData](FRHICommandListBase& RHICmdList)
+			ENQUEUE_RENDER_COMMAND(SendRenderDynamicData)(
+				[GeometryCollectionSceneProxy, DynamicData] (FRHICommandListBase& RHICmdList)
 				{
 					GeometryCollectionSceneProxy->SetDynamicData_RenderThread(RHICmdList, DynamicData);
 				}
@@ -3134,8 +3133,8 @@ FGeometryCollectionDynamicData* UGeometryCollectionComponent::InitDynamicData(bo
 				if (SceneProxy && SceneProxy->IsNaniteMesh())
 				{
 					FNaniteGeometryCollectionSceneProxy* NaniteProxy = static_cast<FNaniteGeometryCollectionSceneProxy*>(SceneProxy);
-					ENQUEUE_RENDER_COMMAND(NaniteProxyOnMotionEnd)(UE::RenderCommandPipe::Scene,
-						[NaniteProxy]
+					ENQUEUE_RENDER_COMMAND(NaniteProxyOnMotionEnd)(
+						[NaniteProxy] (FRHICommandListBase&)
 						{
 							NaniteProxy->OnMotionEnd();
 						}
@@ -3152,8 +3151,8 @@ FGeometryCollectionDynamicData* UGeometryCollectionComponent::InitDynamicData(bo
 				if (SceneProxy && SceneProxy->IsNaniteMesh())
 				{
 					FNaniteGeometryCollectionSceneProxy* NaniteProxy = static_cast<FNaniteGeometryCollectionSceneProxy*>(SceneProxy);
-					ENQUEUE_RENDER_COMMAND(NaniteProxyOnMotionBegin)(UE::RenderCommandPipe::Scene,
-						[NaniteProxy]
+					ENQUEUE_RENDER_COMMAND(NaniteProxyOnMotionBegin)(
+						[NaniteProxy] (FRHICommandListBase&)
 						{
 							NaniteProxy->OnMotionBegin();
 						}
@@ -4568,8 +4567,8 @@ void UGeometryCollectionComponent::SendRenderDynamicData_Concurrent()
 			if (SceneProxy->IsNaniteMesh())
 			{
 				FNaniteGeometryCollectionSceneProxy* GeometryCollectionSceneProxy = static_cast<FNaniteGeometryCollectionSceneProxy*>(SceneProxy);
-				ENQUEUE_RENDER_COMMAND(SendRenderDynamicData)(UE::RenderCommandPipe::Scene,
-					[GeometryCollectionSceneProxy, DynamicData]
+				ENQUEUE_RENDER_COMMAND(SendRenderDynamicData)(
+					[GeometryCollectionSceneProxy, DynamicData] (FRHICommandListBase&)
 					{
 						if (DynamicData)
 						{
@@ -4586,7 +4585,7 @@ void UGeometryCollectionComponent::SendRenderDynamicData_Concurrent()
 			else
 			{
 				FGeometryCollectionSceneProxy* GeometryCollectionSceneProxy = static_cast<FGeometryCollectionSceneProxy*>(SceneProxy);
-				ENQUEUE_RENDER_COMMAND(SendRenderDynamicData)(UE::RenderCommandPipe::Scene,
+				ENQUEUE_RENDER_COMMAND(SendRenderDynamicData)(
 					[GeometryCollectionSceneProxy, DynamicData](FRHICommandListBase& RHICmdList)
 					{
 						if (GeometryCollectionSceneProxy)

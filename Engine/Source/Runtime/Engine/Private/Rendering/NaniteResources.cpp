@@ -1277,8 +1277,8 @@ FSceneProxy::FFallbackLODInfo::FFallbackLODInfo(
 					FString ComponentPathName = InProxyDesc->GetPathName();
 					checkf(LODModel.VertexBuffers.PositionVertexBuffer.GetNumVertices() > 0, TEXT("LOD: %i of PathName: %s has an empty position stream."), LODIndex, *ComponentPathName);
 
-					ENQUEUE_RENDER_COMMAND(FLocalVertexFactoryCopyData)(UE::RenderCommandPipe::Scene,
-						[UniformBufferPtr, LocalVF, LODIndex, VertexBuffer, ComponentPathName]
+					ENQUEUE_RENDER_COMMAND(FLocalVertexFactoryCopyData)(
+						[UniformBufferPtr, LocalVF, LODIndex, VertexBuffer, ComponentPathName] (FRHICommandListBase&)
 						{
 							checkf(LocalVF->GetTangentsSRV(), TEXT("LOD: %i of PathName: %s has a null tangents srv."), LODIndex, *ComponentPathName);
 							checkf(LocalVF->GetTextureCoordinatesSRV(), TEXT("LOD: %i of PathName: %s has a null texcoord srv."), LODIndex, *ComponentPathName);

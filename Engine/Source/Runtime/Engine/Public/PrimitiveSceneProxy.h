@@ -41,11 +41,6 @@ struct FPrimitiveUniformShaderParametersBuilder;
 struct FPrimitiveSceneProxyDesc;
 class IPrimitiveComponent;
 
-namespace UE::RenderCommandPipe
-{
-	extern ENGINE_API FRenderCommandPipe Scene;
-}
-
 namespace Nanite
 {
 	using CoarseMeshStreamingHandle = int16;
@@ -676,7 +671,6 @@ public:
 	inline bool IsVisibleInLumenScene() const { return bVisibleInLumenScene; }
 	inline bool ShouldRenderInMainPass() const { return bRenderInMainPass; }
 	inline bool ShouldRenderInDepthPass() const { return bRenderInMainPass || bRenderInDepthPass; }
-	inline bool SupportsParallelCreateDestroy() const { return bSupportsParallelCreateDestroy; }
 	inline bool SupportsParallelGDME() const { return bSupportsParallelGDME; }
 	inline bool IsCollisionEnabled() const { return bCollisionEnabled; }
 	inline bool IsHovered() const { return bHovered; }
@@ -1192,12 +1186,6 @@ private:
 	friend class FLightPrimitiveInteraction;
 
 protected:
-
-	/** Whether this scene proxy supports {Create, Destroy}RenderThreadResources and OnTransformUpdate calls on the Scene render command pipe. If enabled (default),
-	 *  CreateRenderThreadResources is deferred and called asynchronously from the scene update to avoid race conditions with other render commands. DestroyRenderThreadResources
-	 *  and OnTransformUpdate is called on the Scene render command pipe. Disable to revert to legacy behavior which runs everything on the render thread.
-	 */
-	uint8 bSupportsParallelCreateDestroy : 1;
 
 	/** Whether the proxy supports asynchronously calling GetDynamicMeshElements. If disabled, all calls for various proxies are serialized with respect to each other. */
 	uint8 bSupportsParallelGDME : 1;

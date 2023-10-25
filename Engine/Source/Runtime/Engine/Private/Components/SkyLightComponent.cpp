@@ -25,7 +25,6 @@
 #include "UObject/ReleaseObjectVersion.h"
 #include "UObject/UE5MainStreamObjectVersion.h"
 #include "Engine/TextureCube.h"
-#include "Rendering/RenderCommandPipes.h"
 
 #if RHI_RAYTRACING
 #endif
@@ -255,9 +254,9 @@ FSkyLightSceneProxy::FSkyLightSceneProxy(const USkyLightComponent* InLightCompon
 	float InBlendFraction = InLightComponent->BlendFraction;
 	const FLinearColor* InSpecifiedCubemapColorScale = &InLightComponent->SpecifiedCubemapColorScale;
 	FSkyLightSceneProxy* LightSceneProxy = this;
-	ENQUEUE_RENDER_COMMAND(FInitSkyProxy)(&UE::RenderCommandPipe::Scene,
+	ENQUEUE_RENDER_COMMAND(FInitSkyProxy)(
 		[InIrradianceEnvironmentMap, BlendDestinationIrradianceEnvironmentMap, InAverageBrightness, 
-		BlendDestinationAverageBrightness, InBlendFraction, LightSceneProxy, InSpecifiedCubemapColorScale]
+		BlendDestinationAverageBrightness, InBlendFraction, LightSceneProxy, InSpecifiedCubemapColorScale] (FRHICommandListBase&)
 		{
 			// Only access the irradiance maps on the RT, even though they belong to the USkyLightComponent, 
 			// Because FScene::UpdateSkyCaptureContents does not block the RT so the writes could still be in flight
@@ -464,8 +463,8 @@ void USkyLightComponent::UpdateLimitedRenderingStateFast()
 		FLinearColor InLightColor = FLinearColor(LightColor) * Intensity;
 		float InIndirectLightingIntensity = IndirectLightingIntensity;
 		float InVolumetricScatteringIntensity = VolumetricScatteringIntensity;
-		ENQUEUE_RENDER_COMMAND(FFastUpdateSkyLightCommand)(&UE::RenderCommandPipe::Scene,
-			[LightSceneProxy, InLightColor, InIndirectLightingIntensity, InVolumetricScatteringIntensity]
+		ENQUEUE_RENDER_COMMAND(FFastUpdateSkyLightCommand)(
+			[LightSceneProxy, InLightColor, InIndirectLightingIntensity, InVolumetricScatteringIntensity] (FRHICommandListBase&)
 			{
 				LightSceneProxy->SetLightColor(InLightColor);
 				LightSceneProxy->IndirectLightingIntensity = InIndirectLightingIntensity;
@@ -483,8 +482,8 @@ void USkyLightComponent::UpdateOcclusionRenderingStateFast()
 		float InOcclusionExponent = OcclusionExponent;
 		float InMinOcclusion = MinOcclusion;
 		FColor InOcclusionTint = OcclusionTint;
-		ENQUEUE_RENDER_COMMAND(FFastUpdateSkyLightOcclusionCommand)(&UE::RenderCommandPipe::Scene,
-			[InLightSceneProxy, InContrast, InOcclusionExponent, InMinOcclusion, InOcclusionTint]
+		ENQUEUE_RENDER_COMMAND(FFastUpdateSkyLightOcclusionCommand)(
+			[InLightSceneProxy, InContrast, InOcclusionExponent, InMinOcclusion, InOcclusionTint] (FRHICommandListBase&)
 			{
 				InLightSceneProxy->Contrast = InContrast;
 				InLightSceneProxy->OcclusionExponent = InOcclusionExponent;
@@ -504,8 +503,8 @@ void USkyLightComponent::DestroyRenderState_Concurrent()
 		GetWorld()->Scene->DisableSkyLight(SceneProxy);
 
 		FSkyLightSceneProxy* LightSceneProxy = SceneProxy;
-		ENQUEUE_RENDER_COMMAND(FDestroySkyLightCommand)(&UE::RenderCommandPipe::Scene,
-			[LightSceneProxy]
+		ENQUEUE_RENDER_COMMAND(FDestroySkyLightCommand)(
+			[LightSceneProxy] (FRHICommandListBase&)
 			{
 				delete LightSceneProxy;
 			});
@@ -521,8 +520,8 @@ void USkyLightComponent::SendRenderTransform_Concurrent()
 		FSkyLightSceneProxy* InLightSceneProxy = SceneProxy;
 		FVector Position = GetComponentTransform().GetLocation();
 
-		ENQUEUE_RENDER_COMMAND(UpdateSkyLightCapturePosition)(&UE::RenderCommandPipe::Scene,
-			[InLightSceneProxy, Position]
+		ENQUEUE_RENDER_COMMAND(UpdateSkyLightCapturePosition)(
+			[InLightSceneProxy, Position] (FRHICommandListBase&)
 			{
 				InLightSceneProxy->CapturePosition = Position;
 			});
@@ -860,8 +859,8 @@ void USkyLightComponent::UpdateSkyCaptureContentsArray(UWorld* WorldToUpdate, TA
 #if WITH_EDITOR
 		CaptureComponent->SecondsSinceLastCapture += CaptureComponent->CaptureStatus == ESkyLightCaptureStatus::SLCS_CapturedButIncomplete ? WorldToUpdate->DeltaTimeSeconds : 0.0f;
 
-		ENQUEUE_RENDER_COMMAND(FUpdateSkyLightProxyStatusForcedCapture)(&UE::RenderCommandPipe::Scene,
-			[CaptureComponent, SecondsBetweenIncompleteCaptures, bCubemapSkyLightWaitingForCubemapAsset, bCaptureSkyLightWaitingCompiledShader, bCaptureSkyLightWaitingForMeshOrTexAssets]
+		ENQUEUE_RENDER_COMMAND(FUpdateSkyLightProxyStatusForcedCapture)(
+			[CaptureComponent, SecondsBetweenIncompleteCaptures, bCubemapSkyLightWaitingForCubemapAsset, bCaptureSkyLightWaitingCompiledShader, bCaptureSkyLightWaitingForMeshOrTexAssets] (FRHICommandListBase&)
 			{
 				FSkyLightSceneProxy* SkyLightSceneProxy = CaptureComponent->SceneProxy;
 				if (SkyLightSceneProxy)
@@ -1028,8 +1027,8 @@ void USkyLightComponent::SetCubemapBlend(UTextureCube* SourceCubemap, UTextureCu
 				const float* InBlendDestinationAverageBrightness = &BlendDestinationAverageBrightness;
 				FSkyLightSceneProxy* LightSceneProxy = SceneProxy;
 				const FLinearColor* InSpecifiedCubemapColorScale = &SpecifiedCubemapColorScale;
-				ENQUEUE_RENDER_COMMAND(FUpdateSkyProxy)(&UE::RenderCommandPipe::Scene,
-					[InIrradianceEnvironmentMap, InBlendDestinationIrradianceEnvironmentMap, InAverageBrightness, InBlendDestinationAverageBrightness, InBlendFraction, LightSceneProxy, InSpecifiedCubemapColorScale]
+				ENQUEUE_RENDER_COMMAND(FUpdateSkyProxy)(
+					[InIrradianceEnvironmentMap, InBlendDestinationIrradianceEnvironmentMap, InAverageBrightness, InBlendDestinationAverageBrightness, InBlendFraction, LightSceneProxy, InSpecifiedCubemapColorScale] (FRHICommandListBase&)
 					{
 						// Only access the irradiance maps on the RT, even though they belong to the USkyLightComponent, 
 						// Because FScene::UpdateSkyCaptureContents does not block the RT so the writes could still be in flight

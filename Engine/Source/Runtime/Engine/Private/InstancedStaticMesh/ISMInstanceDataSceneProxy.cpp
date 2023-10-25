@@ -7,7 +7,6 @@
 #include "DataDrivenShaderPlatformInfo.h"
 #include "Rendering/RenderingSpatialHash.h"
 #include "Rendering/MotionVectorSimulation.h"
-#include "Rendering/RenderCommandPipes.h"
 
 DEFINE_LOG_CATEGORY(LogInstanceProxy);
 
@@ -852,7 +851,7 @@ void FISMCInstanceDataSceneProxyNoGPUScene::ReleaseStaticMeshInstanceBuffer()
 {
 	if (LegacyInstanceBuffer)
 	{
-		ENQUEUE_RENDER_COMMAND(FReleasePerInstanceRenderData)(UE::RenderCommandPipe::Scene, 
+		ENQUEUE_RENDER_COMMAND(FReleasePerInstanceRenderData)(
 			[LegacyInstanceBufferRt = MoveTemp(LegacyInstanceBuffer)](FRHICommandList& RHICmdList) mutable
 			{
 				LegacyInstanceBufferRt->ReleaseResource();

@@ -8,7 +8,6 @@
 #include "DataDrivenShaderPlatformInfo.h"
 #include "Rendering/MotionVectorSimulation.h"
 #include "SceneInterface.h"
-#include "Rendering/RenderCommandPipes.h"
 
 #define IDPROXY_ENABLE_ASYNC_TASK 1
 
@@ -439,7 +438,7 @@ void FPrimitiveInstanceDataManager::DispatchUpdateTask(bool bIsUnattached, const
 	{
 		// Mutating an existing data, must dispatch from RT (such that it does not happen mid-frame).
 		// (One could imagine other scheduling mechanisms)
-		ENQUEUE_RENDER_COMMAND(UpdateInstanceProxyData)(UE::RenderCommandPipe::Scene, 
+		ENQUEUE_RENDER_COMMAND(UpdateInstanceProxyData)(
 			[InstanceDataUpdateTaskInfo, 
 			InstanceDataBufferHeader, 
 			OuterTaskLambda = MoveTemp(OuterTaskLambda)](FRHICommandList& RHICmdList) mutable
