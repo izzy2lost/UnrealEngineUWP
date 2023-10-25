@@ -5,7 +5,7 @@
 #include "Delegates/IDelegateInstance.h"
 #include "MassProcessingTypes.h"
 #include "MassProcessingPhaseManager.h"
-#include "Subsystems/WorldSubsystem.h"
+#include "MassSubsystemBase.h"
 #include "MassSimulationSubsystem.generated.h"
 
 
@@ -14,7 +14,7 @@ struct FMassEntityManager;
 DECLARE_LOG_CATEGORY_EXTERN(LogMassSim, Log, All);
 
 UCLASS(config = Game, defaultconfig)
-class MASSSIMULATION_API UMassSimulationSubsystem : public UWorldSubsystem
+class MASSSIMULATION_API UMassSimulationSubsystem : public UMassSubsystemBase
 {
 	GENERATED_BODY()
 public:
@@ -37,10 +37,12 @@ public:
 	bool IsDuringMassProcessing() const;
 
 protected:
+	// UWorldSubsystem BEGIN
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	virtual void PostInitialize() override;
 	virtual void OnWorldBeginPlay(UWorld& InWorld) override;
 	virtual void Deinitialize() override;
+	// UWorldSubsystem END
 	virtual void BeginDestroy() override;
 	
 	void RebuildTickPipeline();

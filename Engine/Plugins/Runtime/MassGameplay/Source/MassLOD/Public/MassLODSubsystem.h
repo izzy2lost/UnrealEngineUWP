@@ -6,7 +6,7 @@
 #include "MassProcessor.h"
 #include "IndexedHandle.h"
 #include "MassLODTypes.h"
-#include "Subsystems/WorldSubsystem.h"
+#include "MassSubsystemBase.h"
 #include "MassExternalSubsystemTraits.h"
 #include "MassLODSubsystem.generated.h"
 
@@ -61,7 +61,7 @@ DECLARE_MULTICAST_DELEGATE_ThreeParams(FOnViewerRemoved, FMassViewerHandle Viewe
  * Manager responsible to manage and synchronized available viewers
  */
 UCLASS(config = Mass, defaultconfig)
-class MASSLOD_API UMassLODSubsystem : public UTickableWorldSubsystem
+class MASSLOD_API UMassLODSubsystem : public UMassTickableSubsystemBase
 {
 	GENERATED_BODY()
 
@@ -97,9 +97,12 @@ public:
 	FOnViewerRemoved& GetOnViewerRemovedDelegate() { return OnViewerRemovedDelegate; }
 
 protected:
+	// USubsystem BEGIN
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
-	virtual TStatId GetStatId() const override;
 	virtual void Deinitialize() override;
+	// USubsystem END
+
+	virtual TStatId GetStatId() const override;
 
 	/** Called at the start of the PrePhysics mass processing phase and calls SynchronizeViewers */ 
 	void OnPrePhysicsPhaseStarted(float DeltaTime);

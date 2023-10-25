@@ -4,7 +4,7 @@
 
 #include "MassEntityTypes.h"
 #include "MassComponentHitTypes.h"
-#include "Subsystems/WorldSubsystem.h"
+#include "MassSubsystemBase.h"
 #include "Engine/HitResult.h"
 
 #include "MassComponentHitSubsystem.generated.h"
@@ -18,7 +18,7 @@ class UCapsuleComponent;
  * Subsystem that keeps track of the latest component hits and allow mass entities to retrieve and handle them
  */
 UCLASS()
-class MASSAIBEHAVIOR_API UMassComponentHitSubsystem : public UTickableWorldSubsystem
+class MASSAIBEHAVIOR_API UMassComponentHitSubsystem : public UMassTickableSubsystemBase
 {
 	GENERATED_BODY()
 

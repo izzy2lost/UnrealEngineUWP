@@ -7,7 +7,7 @@
 #include "MassEntityTemplate.h"
 #include "Misc/MTAccessDetector.h"
 #include "UObject/ObjectKey.h"
-#include "Subsystems/WorldSubsystem.h"
+#include "MassSubsystemBase.h"
 #include "MassActorSubsystem.generated.h"
 
 struct FMassEntityHandle;
@@ -130,7 +130,7 @@ protected:
  * A subsystem managing communication between Actors and Mass
  */
 UCLASS()
-class MASSACTORS_API UMassActorSubsystem : public UWorldSubsystem
+class MASSACTORS_API UMassActorSubsystem : public UMassSubsystemBase
 {
 	GENERATED_BODY()
 

@@ -8,7 +8,7 @@
 #include "MassCommonTypes.h"
 #include "Templates/SubclassOf.h"
 #include "GameFramework/Actor.h"
-#include "Subsystems/WorldSubsystem.h"
+#include "MassSubsystemBase.h"
 
 #include "MassActorSpawnerSubsystem.generated.h"
 
@@ -116,16 +116,18 @@ public:
  * A subsystem managing spawning of actors for all mass subsystems
  */
 UCLASS(transient)
-class MASSACTORS_API UMassActorSpawnerSubsystem : public UWorldSubsystem
+class MASSACTORS_API UMassActorSpawnerSubsystem : public UMassSubsystemBase
 {
 	GENERATED_BODY()
-public:
 
+protected:
 	// USubsystem BEGIN
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	virtual void Deinitialize() override;
-	static void AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector);
 	// USubsystem END
+
+public:
+	static void AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector);
 
 	/** Request an actor to spawn
 	 * Note: If you do not provide a spawn delegate, the requester is responsible to remove the request by hand.

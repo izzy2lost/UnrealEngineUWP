@@ -7,7 +7,7 @@
 #include "Misc/MTAccessDetector.h"
 #include "MassRepresentationTypes.h"
 #include "MassActorSpawnerSubsystem.h"
-#include "Subsystems/WorldSubsystem.h"
+#include "MassSubsystemBase.h"
 #include "MassRepresentationSubsystem.generated.h"
 
 class UMassVisualizationComponent;
@@ -25,7 +25,7 @@ class UWorldPartitionSubsystem;
  * Subsystem responsible for all visual of mass agents, will handle actors spawning and static mesh instances
  */
 UCLASS()
-class MASSREPRESENTATION_API UMassRepresentationSubsystem : public UWorldSubsystem
+class MASSREPRESENTATION_API UMassRepresentationSubsystem : public UMassSubsystemBase
 {
 	GENERATED_BODY()
 
