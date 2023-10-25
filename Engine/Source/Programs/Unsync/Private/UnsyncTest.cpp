@@ -915,6 +915,18 @@ RunTests(const std::string& Preset)
 		extern void TestMiniCb();
 		TestMiniCb();
 	}
+
+	if (Preset == "filetime" || Preset == "all")
+	{
+		extern void TestFileTime();
+		TestFileTime();
+	}
+
+	if (Preset == "fileattrib" || Preset == "all")
+	{
+		extern void TestFileAttrib();
+		TestFileAttrib();
+	}
 }
 
 }  // namespace unsync

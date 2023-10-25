@@ -464,6 +464,7 @@ uint64 GetAvailableDiskSpace(const FPath& Path);
 std::filesystem::recursive_directory_iterator RecursiveDirectoryScan(const FPath& Path);
 
 uint64 ToWindowsFileTime(const std::filesystem::file_time_type& T);
+std::filesystem::file_time_type FromWindowsFileTime(uint64 Ticks);
 
 struct FSyncFilter;
 FFileAttributeCache CreateFileAttributeCache(const FPath& Root, const FSyncFilter* SyncFilter = nullptr);

@@ -46,7 +46,8 @@ InnerMain(int Argc, char** Argv)
 		"Copyright Epic Games, Inc. All Rights Reserved.\n";
 
 	CLI::App Cli(AppDescription, "unsync");
-	Cli.allow_windows_style_options(true);
+
+	Cli.allow_windows_style_options(false); // never allow /flag syntax, only --flag
 	Cli.set_version_flag("--version", GetVersionString());
 
 	std::vector<CLI::App*> SubCommands;
@@ -857,13 +858,13 @@ InnerMain(int Argc, char** Argv)
 		}
 
 		FCmdLoginOptions LoginOptions;
-		LoginOptions.Remote		   = RemoteDesc;
-		LoginOptions.bInteractive  = bInteractive;
-		LoginOptions.bDecode	   = bDecode;
-		LoginOptions.bPrint		   = bPrint;
+		LoginOptions.Remote			  = RemoteDesc;
+		LoginOptions.bInteractive	  = bInteractive;
+		LoginOptions.bDecode		  = bDecode;
+		LoginOptions.bPrint			  = bPrint;
 		LoginOptions.bPrintHttpHeader = bPrintHttpHeader;
-		LoginOptions.bForceRefresh = bForceRefreshAuth;
-		LoginOptions.bQuick		   = bQuickLogin;
+		LoginOptions.bForceRefresh	  = bForceRefreshAuth;
+		LoginOptions.bQuick			  = bQuickLogin;
 		return CmdLogin(LoginOptions);
 	}
 	else if (Cli.got_subcommand(SubMount))

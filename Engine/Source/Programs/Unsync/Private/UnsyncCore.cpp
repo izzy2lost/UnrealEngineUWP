@@ -3759,12 +3759,11 @@ SyncDirectory(const FSyncDirectoryOptions& SyncOptions)
 			ProxyPool.Invalidate();
 		}
 	}
-
-	if (!ProxyPool.IsValid())
+	else
 	{
 		// TODO: bail out if remote connection is required for the download,
 		// such as when downloading data purely from Jupiter.
-		UNSYNC_WARNING(L"Attempting to sync without remote server connection");
+		UNSYNC_VERBOSE(L"Attempting to sync without remote server connection");
 	}
 
 	LogGlobalStatus(L"Copying files");
