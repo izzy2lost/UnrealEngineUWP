@@ -455,6 +455,7 @@ bool			FileRename(const FPath& From, const FPath& To, std::error_code& OutErrorC
 bool			FileCopy(const FPath& From, const FPath& To, std::error_code& OutErrorCode);
 bool			FileCopyOverwrite(const FPath& From, const FPath& To, std::error_code& OutErrorCode);
 bool			FileRemove(const FPath& Path, std::error_code& OutErrorCode);
+FPath			GetRelativePath(const FPath& Path, const FPath& Base);
 
 // Returns number of bytes that can be written to the given path.
 // Returns ~0ull if the available space could not be determined.
@@ -474,6 +475,6 @@ FPath MakeExtendedAbsolutePath(const FPath& InAbsolutePath);
 
 // Removes `\\?\` or `\\?\UNC\` prefix from a given path.
 // Returns original path on non-Windows.
-FPath RemoveExtendedPathPrefix(const FPath& InPath);
+FPathStringView RemoveExtendedPathPrefix(const FPath& InPath);
 
 }  // namespace unsync

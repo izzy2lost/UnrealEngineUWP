@@ -4,6 +4,7 @@
 
 #include <stdint.h>
 #include <cstring>
+#include <string_view>
 #include <filesystem>
 
 namespace unsync {
@@ -21,6 +22,7 @@ using int32 = int32_t;
 using int64 = int64_t;
 
 using FPath = std::filesystem::path;
+using FPathStringView = std::basic_string_view<FPath::value_type>;
 
 #define UNSYNC_DISALLOW_COPY_ASSIGN(T) \
 	T(const T&) = delete;              \

@@ -55,26 +55,45 @@ MakeExtendedAbsolutePath(const FPath& InAbsolutePath)
 #endif // UNSYNC_PLATFORM_WINDOWS
 }
 
-FPath
+FPathStringView
 RemoveExtendedPathPrefix(const FPath& InPath)
 {
+	FPathStringView InPathString = InPath.native();
 #if UNSYNC_PLATFORM_WINDOWS
-	const std::wstring& InPathString = InPath.native();
 	if (InPathString.starts_with(L"\\\\?\\UNC\\"))
 	{
-		return FPath(InPathString.substr(8));
+		return InPathString.substr(8);
 	}
 	else if (InPathString.starts_with(L"\\\\?\\"))
 	{
-		return FPath(InPathString.substr(4));
+		return InPathString.substr(4);
 	}
 	else
 	{
-		return InPath;
+		return InPathString;
 	}
 #else // UNSYNC_PLATFORM_WINDOWS
-	return InPath;
+	return InPathString;
 #endif // UNSYNC_PLATFORM_WINDOWS
+}
+
+FPath
+GetRelativePath(const FPath& Path, const FPath& Base)
+{
+	// Try a trivial case first, without touching the filesystem
+	FPathStringView PathView = RemoveExtendedPathPrefix(Path);
+	FPathStringView BaseView = RemoveExtendedPathPrefix(Base);
+	if (PathView.starts_with(BaseView))
+	{
+		FPathStringView RelativePath = PathView.substr(BaseView.length());
+		while (RelativePath.starts_with(FPath::preferred_separator))
+		{
+			RelativePath = RelativePath.substr(1);
+		}
+		return FPath(RelativePath);
+	}
+
+	return std::filesystem::relative(Path, Base);
 }
 
 #if UNSYNC_PLATFORM_WINDOWS

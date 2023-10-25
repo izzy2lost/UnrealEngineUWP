@@ -1811,14 +1811,16 @@ CreateDirectoryManifest(const FPath& Root, uint32 BlockSize, FAlgorithmOptions A
 			continue;
 		}
 
-		FPath RelativePath = std::filesystem::relative(Dir.path(), Root);
+		FPath RelativePath = GetRelativePath(Dir.path(), Root);
 
 		if (RelativePath.native().starts_with(UnsyncDirName.native()))
 		{
 			continue;
 		}
 
-		UNSYNC_VERBOSE2(L"Found '%ls'", RelativePath.wstring().c_str());
+		const std::wstring PathKey = RelativePath.wstring();
+
+		UNSYNC_VERBOSE2(L"Found '%ls'", PathKey.c_str());
 
 		FFileManifest FileManifest;
 
@@ -1827,11 +1829,9 @@ CreateDirectoryManifest(const FPath& Root, uint32 BlockSize, FAlgorithmOptions A
 		FileManifest.CurrentPath = Dir.path();
 		FileManifest.BlockSize	 = BlockSize;
 
-		std::wstring Key = RelativePath.wstring();
-
 		{
 			std::lock_guard<std::mutex> LockGuard(ResultMutex);
-			Result.Files[Key] = std::move(FileManifest);
+			Result.Files[PathKey] = std::move(FileManifest);
 		}
 
 		if (BlockSize)
@@ -1843,7 +1843,7 @@ CreateDirectoryManifest(const FPath& Root, uint32 BlockSize, FAlgorithmOptions A
 				UNSYNC_VERBOSE(L"Computing blocks for '%ls' (%.2f MB)", FilePath.wstring().c_str(), double(File->GetSize()) / (1 << 20));
 
 				Semaphore.Acquire();
-				TaskGroup.run([&Semaphore, &ResultMutex, &Result, File = std::move(File), Key = std::move(Key), BlockSize, Algorithm]() {
+				TaskGroup.run([&Semaphore, &ResultMutex, &Result, File = std::move(File), Key = std::move(PathKey), BlockSize, Algorithm]() {
 					FComputeMacroBlockParams MacroBlocks;
 
 					// TODO: macro block generation is only implemented for variable chunk mode
@@ -3228,7 +3228,7 @@ DeleteOldFilesInDirectory(FPath& Path, uint32 MaxFilesToKeep)
 	{
 		const FEntry& Oldest = Entries.back();
 
-		std::wstring PathStr = RemoveExtendedPathPrefix(Oldest.Path).wstring();
+		std::wstring PathStr = FPath(RemoveExtendedPathPrefix(Oldest.Path)).wstring();
 
 		if (GDryRun)
 		{
