@@ -102,7 +102,10 @@ UEdGraphNode* FAnimNextSchemaAction_DispatchFactory::PerformAction(UEdGraph* Par
 
 			if (NewNode)
 			{
-				NewNode->AutowireNewNode(FromPin);
+				if(FromPin)
+				{
+					NewNode->AutowireNewNode(FromPin);
+				}
 
 				Controller->ClearNodeSelection(true);
 				Controller->SelectNode(ModelNode, true, true);
