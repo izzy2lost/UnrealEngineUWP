@@ -13,6 +13,7 @@ using EpicGames.Core;
 using EpicGames.Horde.Artifacts;
 using EpicGames.Horde.Common;
 using EpicGames.Horde.Compute;
+using EpicGames.Horde.Devices;
 using EpicGames.Horde.Jobs.Templates;
 using EpicGames.Horde.Projects;
 using EpicGames.Horde.Secrets;
@@ -23,6 +24,7 @@ using EpicGames.Serialization;
 using Horde.Server.Acls;
 using Horde.Server.Agents.Pools;
 using Horde.Server.Configuration;
+using Horde.Server.Devices;
 using Horde.Server.Projects;
 using Horde.Server.Secrets;
 using Horde.Server.Storage;
@@ -595,22 +597,67 @@ namespace Horde.Server.Server
 	/// Configuration for a device platform 
 	/// </summary>
 	[DebuggerDisplay("{Id}")]
-	public class DevicePlatformConfig
+	public class DevicePlatformConfig : IDevicePlatform
 	{
 		/// <summary>
 		/// The id for this platform 
 		/// </summary>
-		public string Id { get; set; } = String.Empty;
+		[Required]
+		public DevicePlatformId Id { get; set; } = new DevicePlatformId("default");
 
 		/// <summary>
-		/// List of platform names for this device, which may be requested by Gauntlet 
+		/// Name of the platform
 		/// </summary>
-		public List<string> Names { get; set; } = new List<string>();
+		[Required]
+		public string Name { get; set; } = String.Empty;
 
 		/// <summary>
-		/// Model name for the high perf spec, which may be requested by Gauntlet (Deprecated)
+		/// A list of platform models 
+		/// </summary>
+		public List<string>? Models { get; set; }
+		IReadOnlyList<string>? IDevicePlatform.Models => Models;
+
+		/// <summary>
+		/// Legacy names which older versions of Gauntlet may be using
+		/// </summary>
+		public List<string>? LegacyNames { get; set; }
+		IReadOnlyList<string>? IDevicePlatform.LegacyNames => LegacyNames;
+
+		/// <summary>
+		/// Model name for the high perf spec, which may be requested by Gauntlet
 		/// </summary>
 		public string? LegacyPerfSpecHighModel { get; set; }
+	}
+
+	/// <summary>
+	/// Configuration for a device pool
+	/// </summary>
+	[DebuggerDisplay("{Id}")]
+	public class DevicePoolConfig : IDevicePool
+	{
+		/// <summary>
+		/// The id for this platform 
+		/// </summary>
+		[Required]
+		public DevicePoolId Id { get; set; } = new DevicePoolId("default");
+
+		/// <summary>
+		/// The name of the pool
+		/// </summary>
+		[Required]
+		public string Name { get; set; } = String.Empty;
+
+		/// <summary>
+		/// The type of the pool
+		/// </summary>
+		[Required]
+		[JsonConverter(typeof(JsonStringEnumConverter))]
+		public DevicePoolType PoolType { get; set; } = DevicePoolType.Automation;
+
+		/// <summary>
+		/// List of project ids associated with pool
+		/// </summary>
+		public List<ProjectId>? ProjectIds { get; set; }
 	}
 
 	/// <summary>
@@ -622,6 +669,12 @@ namespace Horde.Server.Server
 		/// List of device platforms
 		/// </summary>
 		public List<DevicePlatformConfig> Platforms { get; set; } = new List<DevicePlatformConfig>();
+
+		/// <summary>
+		/// List of device pools
+		/// </summary>
+		public List<DevicePoolConfig> Pools { get; set; } = new List<DevicePoolConfig>();
+
 	}
 
 	/// <summary>

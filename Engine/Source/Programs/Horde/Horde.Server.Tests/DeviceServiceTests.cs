@@ -12,8 +12,16 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 using Horde.Server.Server;
 using System;
-using EpicGames.Horde;
 using EpicGames.Horde.Devices;
+using EpicGames.Horde.Projects;
+using Horde.Server.Jobs.Graphs;
+using HordeCommon;
+using System.Linq;
+using EpicGames.Core;
+using EpicGames.Horde.Jobs.Templates;
+using EpicGames.Horde.Streams;
+using Horde.Server.Jobs.Templates;
+using Moq;
 
 namespace Horde.Server.Tests
 {
@@ -24,6 +32,8 @@ namespace Horde.Server.Tests
 	public class DeviceServiceTest : TestSetup
 	{
 		private DevicesController? _deviceController;
+
+		IGraph? _graph = null;
 
 		// override DeviceController with valid user
 		private DevicesController DeviceController
@@ -51,23 +61,85 @@ namespace Horde.Server.Tests
 			}
 		}
 
-		private async Task PopulateDevicesAsync()
+		static T ResultToValue<T>(ActionResult<T> result) where T: class
 		{
+			return ((result.Result! as JsonResult)!.Value! as T)!;
+		}
+
+		static NewGroup AddGroup(List<NewGroup> groups)
+		{
+			NewGroup group = new NewGroup("win64", new List<NewNode>());
+			groups.Add(group);
+			return group;
+		}
+
+		static NewNode AddNode(NewGroup group, string name, string[]? inputDependencies, Action<NewNode>? action = null, IReadOnlyNodeAnnotations? annotations= null)
+		{
+			NewNode node = new NewNode(name, inputDependencies: inputDependencies?.ToList(), orderDependencies: inputDependencies?.ToList(), annotations: annotations);
+			action?.Invoke(node);
+			group.Nodes.Add(node);			
+			return node;
+		}
+
+		async Task<IJob> StartBatchAsync(IJob job, IGraph graph, int batchIdx)
+		{
+			Assert.AreEqual(JobStepBatchState.Ready, job.Batches[batchIdx].State);
+			job = Deref(await JobCollection.TryUpdateBatchAsync(job, graph, job.Batches[batchIdx].Id, null, JobStepBatchState.Running, null));
+			Assert.AreEqual(JobStepBatchState.Running, job.Batches[batchIdx].State);
+			return job;
+		}
+
+		async Task<IJob> StartStepAsync(IJob job, IGraph graph, int batchIdx, int stepIdx)
+		{
+			Assert.AreEqual(JobStepState.Ready, job.Batches[batchIdx].Steps[stepIdx].State);
+			job = Deref(await JobCollection.TryUpdateStepAsync(job, graph, job.Batches[batchIdx].Id, job.Batches[batchIdx].Steps[stepIdx].Id, JobStepState.Running, JobStepOutcome.Success));
+			return job;
+		}
+
+		async Task<IJob> FinishStepAsync(IJob job, IGraph graph, int batchIdx, int stepIdx, JobStepOutcome outcome)
+		{
+			job = Deref(await JobCollection.TryUpdateStepAsync(job, graph, job.Batches[batchIdx].Id, job.Batches[batchIdx].Steps[stepIdx].Id, JobStepState.Completed, outcome));
+			Assert.AreEqual(JobStepState.Completed, job.Batches[batchIdx].Steps[stepIdx].State);
+			Assert.AreEqual(outcome, job.Batches[batchIdx].Steps[stepIdx].Outcome);
+			return job;
+		}
+
+		async Task<IJob> RunStepAsync(IJob job, IGraph graph, int batchIdx, int stepIdx, JobStepOutcome outcome)
+		{
+			job = Deref(await StartStepAsync(job, graph, batchIdx, stepIdx));
+			return  Deref(await FinishStepAsync(job, graph, batchIdx, stepIdx, outcome));
+		}
+
+		JobStepId GetStepId(IJob job, string nodeName)
+		{
+			NodeRef? installNode;
+			_graph!.TryFindNode(nodeName, out installNode);
+			Assert.IsNotNull(installNode);
+
+			IJobStep? step;
+			job.TryGetStepForNode(installNode, out step);
+			Assert.IsNotNull(step);
+
+			return step.Id;
+		}
+
+		async Task<bool> SetupDevicesAsync()
+		{
+
+			await CreateFixtureAsync();
+
 			DeviceConfig devices = new DeviceConfig();
 
 			// create 2 pools
 			for (int i = 1; i < 3; i++)
 			{
-				await DeviceController.CreatePoolAsync(new CreateDevicePoolRequest() { Name = "TestDevicePool" + i, PoolType = DevicePoolType.Automation, ProjectIds = new List<string>() { "ue5" } });
+				devices.Pools.Add(new DevicePoolConfig() { Id = new DevicePoolId("TestDevicePool" + i), Name = "TestDevicePool" + i, PoolType = DevicePoolType.Automation, ProjectIds = new List<ProjectId>() { new ProjectId("ue5") } });
 			}
-
-			Dictionary<string, string> platformMap = new Dictionary<string, string>();
 
 			// create 3 platforms
 			for (int i = 1; i < 4; i++)
 			{
 				string platformName = "TestDevicePlatform" + i;
-				await DevicesController.CreatePlatformAsync(new CreateDevicePlatformRequest() { Name = platformName });
 
 				List<string> modelIds = new List<string>();
 				for (int j = 2; j < 5; j++)
@@ -75,20 +147,16 @@ namespace Horde.Server.Tests
 					modelIds.Add(platformName + "_Model" + j);
 				}
 
-				// add models
-				await DevicesController.UpdatePlatformAsync(new DevicePlatformId(StringId.Sanitize(platformName)).ToString(), new UpdateDevicePlatformRequest() { ModelIds = modelIds.ToArray() });
-
-				platformMap[platformName] = platformName;
+				DevicePlatformConfig platform = new DevicePlatformConfig() { Id = new DevicePlatformId(platformName), Name = platformName, Models = modelIds };
 
 				// platform 3 has some name aliases
 				if (i == 3)
 				{
-					DevicePlatformConfig config = new DevicePlatformConfig();
-					config.Id = new DevicePlatformId(StringId.Sanitize(platformName)).ToString();
-					config.Names.Add("TestDevicePlatform3Alias");
-					config.LegacyPerfSpecHighModel = "TestDevicePlatform3_Model4";
-					devices.Platforms.Add(config);
+					platform.LegacyNames = new List<string>() { "TestDevicePlatform3Alias" };
+					platform.LegacyPerfSpecHighModel = "TestDevicePlatform3_Model4";
 				}
+
+				devices.Platforms.Add(platform);
 			}
 
 			UpdateConfig(x => x.Devices = devices);
@@ -109,34 +177,70 @@ namespace Horde.Server.Tests
 
 					await DeviceController.CreateDeviceAsync(new CreateDeviceRequest() { Name = "TestDevice" + j + "_Platform" + i + "_" + poolId, Address = "10.0.0.1", Enabled = true, PlatformId = "testdeviceplatform" + i, ModelId = modelId, PoolId = poolId });
 				}
-			}
+			}			
 
-			// tick to pick up config change
 			await DeviceService.TickForTestingAsync();
+
+			return true;
 		}
 
-		static T ResultToValue<T>(ActionResult<T> result) where T: class
+		async Task<IJob> SetupJobAsync()
 		{
-			return ((result.Result! as JsonResult)!.Value! as T)!;
+			Mock<ITemplate> templateMock = new Mock<ITemplate>(MockBehavior.Strict);
+			templateMock.SetupGet(x => x.InitialAgentType).Returns((string?)null);
+
+			IGraph baseGraph = await GraphCollection.AddAsync(templateMock.Object, null);
+
+			CreateJobOptions options = new CreateJobOptions();
+			options.Arguments.Add("-Target=Run Tests");
+
+			IJob job = await JobCollection.AddAsync(JobId.GenerateNewId(), new StreamId("ue5-main"), new TemplateId("test-build"), ContentHash.SHA1("hello"), baseGraph, "Test job", 123, 123, options);
+
+			job = await StartBatchAsync(job, baseGraph, 0);
+			job = await RunStepAsync(job, baseGraph, 0, 0, JobStepOutcome.Success); // Setup Build
+
+			List<NewGroup> newGroups = new List<NewGroup>();
+
+			NewGroup initialGroup = AddGroup(newGroups);
+			AddNode(initialGroup, "Update Version Files", null);
+			AddNode(initialGroup, "Compile Editor", new[] { "Update Version Files" });
+
+			NewGroup compileGroup = AddGroup(newGroups);
+			AddNode(compileGroup, "Compile Client", new[] { "Update Version Files" });
+
+			NewGroup cookGroup = AddGroup(newGroups);
+			AddNode(cookGroup, "Cook Client", new[] { "Compile Editor" });
+
+			NewGroup testGroup = AddGroup(newGroups);
+			NodeAnnotations annotations = new NodeAnnotations();
+			annotations.Add("DeviceReserveNodes", "Run Test 1,Run Test 2,Run Test 3,Run Test 4");
+			AddNode(testGroup, "Install Build", new[] { "Cook Client", "Compile Client" }, annotations: annotations);
+			AddNode(testGroup, "Run Test 1", new[] { "Install Build" });
+			AddNode(testGroup, "Run Test 2", new[] { "Install Build" });
+			AddNode(testGroup, "Run Test 3", new[] { "Install Build" });
+			AddNode(testGroup, "Run Test 4", new[] { "Install Build" });
+			AddNode(testGroup, "Run Tests", new[] { "Run Test 1", "Run Test 2", "Run Test 3", "Run Test 4" });
+
+			_graph = await GraphCollection.AppendAsync(baseGraph, newGroups, null, null);
+			job = Deref(await JobCollection.TryUpdateGraphAsync(job, baseGraph, _graph));
+
+			return job;
 		}
 
-		async Task<LegacyCreateReservationRequest> SetupReservationTestAsync(string poolId = "TestDevicePool1", string deviceType = "TestDevicePlatform1")
+		static LegacyCreateReservationRequest SetupReservationTestAsync(IJob job, string poolId = "TestDevicePool1", string deviceType = "TestDevicePlatform1", JobStepId? stepId = null)
 		{
-			await CreateFixtureAsync();
-			await PopulateDevicesAsync();
-
-			ActionResult<List<object>> res = await JobsController.FindJobsAsync();
-			Assert.AreEqual(2, res.Value!.Count);
-			GetJobResponse job = (res.Value[0] as GetJobResponse)!;
-
+			if (stepId == null)
+			{
+				stepId = JobStepId.Parse("abcd");
+			}
 			// Gauntlet uses the legacy v1 API
 			LegacyCreateReservationRequest request = new LegacyCreateReservationRequest();
 			request.PoolId = poolId;
 			request.DeviceTypes = new string[] { deviceType };
 			request.Hostname = "localhost";
 			request.Duration = "00:10:00";
-			request.JobId = job.Id;
-			request.StepId = "abcd";
+			request.JobId = job.Id.ToString();
+			request.StepId = stepId.ToString();
 
 			return request;
 		}
@@ -144,12 +248,15 @@ namespace Horde.Server.Tests
 		[TestMethod]
 		public async Task TestReservationAsync()
 		{
-			LegacyCreateReservationRequest request = await SetupReservationTestAsync();
+			await SetupDevicesAsync();
+
+			IJob job = await SetupJobAsync();
+			LegacyCreateReservationRequest request = SetupReservationTestAsync(job);
 			
 			// create a reservation
 			GetLegacyReservationResponse reservation = ResultToValue(await DeviceController!.CreateDeviceReservationV1Async(request));			
 			Assert.AreEqual(1, reservation.DeviceNames.Length);
-			Assert.AreEqual("hello2", reservation.JobName);
+			Assert.AreEqual("Test job", reservation.JobName);
 			Assert.AreEqual("abcd", reservation.StepId);
 
 			// get the device in the reservation, and make sure it is the right platform
@@ -170,18 +277,105 @@ namespace Horde.Server.Tests
 			Assert.AreEqual(telemetry[0].Telemetry.Count, 1);
 			Assert.AreEqual(telemetry[0].Telemetry[0].StreamId, "ue5-main");
 			Assert.AreEqual(telemetry[0].Telemetry[0].StepId, "abcd");
-			Assert.AreEqual(telemetry[0].Telemetry[0].JobName, "hello2");
+			Assert.AreEqual(telemetry[0].Telemetry[0].JobName, "Test job");
+		}
+
+		[TestMethod]
+		public async Task TestReservationNodesAsync()
+		{
+			await SetupDevicesAsync();
+			IJob job = await SetupJobAsync();
+
+			IGraph? graph = _graph!;
+
+			job = await StartBatchAsync(job, graph, 1);
+			job = await RunStepAsync(job, graph, 1, 0, JobStepOutcome.Success); // Update Version Files
+			job = await RunStepAsync(job, graph, 1, 1, JobStepOutcome.Success); // Compile Editor
+
+			job = await StartBatchAsync(job, graph, 2);
+			job = await RunStepAsync(job, graph, 2, 0, JobStepOutcome.Success); // Compile Client
+
+			job = await StartBatchAsync(job, graph, 3);
+			job = await RunStepAsync(job, graph, 3, 0, JobStepOutcome.Success); // Cook Client
+
+			job = await StartBatchAsync(job, graph, 4);
+			
+
+			// Install  the build
+			JobStepId stepId = GetStepId(job, "Install Build");
+			job = await StartStepAsync(job, graph, 4, 0); // Install Build														  
+			LegacyCreateReservationRequest request = SetupReservationTestAsync(job, stepId: stepId);
+			GetLegacyReservationResponse installReservation = ResultToValue(await DeviceController!.CreateDeviceReservationV1Async(request));
+			job = await FinishStepAsync(job, graph, 4, 0, JobStepOutcome.Success); // Install Build
+
+			for (int i = 1; i < 5; i++)
+			{
+				// Run Test 1
+				stepId = GetStepId(job, $"Run Test {i}");
+				job = await StartStepAsync(job, graph, 4, i);
+
+				request = SetupReservationTestAsync(job, stepId: stepId);
+
+				ActionResult<GetLegacyReservationResponse> result = await DeviceController!.CreateDeviceReservationV1Async(request);
+
+				GetLegacyReservationResponse? reservation;
+
+				if (i == 4)
+				{
+					// check parallel error conflict
+					Assert.AreEqual((result.Result as ConflictObjectResult)!.StatusCode, 409);
+					Assert.AreEqual((result.Result as ConflictObjectResult)!.Value, "Reserved nodes must not run in parallel: Run Test 3,Run Test 4");
+
+					// finish the step
+					job = await FinishStepAsync(job, graph, 4, 3, JobStepOutcome.Success);
+					result = await DeviceController!.CreateDeviceReservationV1Async(request);
+					reservation = ResultToValue(result);
+				}
+				else
+				{
+					reservation = ResultToValue(result);
+				}
+
+				Assert.IsNotNull(reservation);
+				
+
+				Assert.AreEqual(installReservation.Guid, reservation.Guid);				
+
+				// Do not finish test 3, to test parallel step error
+				if (i != 3)
+				{
+					job = await FinishStepAsync(job, graph, 4, i, JobStepOutcome.Success);
+				}
+				
+
+				await DeviceService.TickForTestingAsync();
+			}
+
+			List<IDeviceReservation> reservations = await DeviceService.GetReservationsAsync();
+			Assert.AreEqual(reservations.Count, 0);
+
+			// check that telemetry was created
+			List<GetDeviceTelemetryResponse> telemetry = (await DeviceController!.GetDeviceTelemetryAsync()).Value!;
+			Assert.AreEqual(telemetry.Count, 1);
+			Assert.AreEqual(telemetry[0].Telemetry.Count, 1);
+			Assert.AreEqual(telemetry[0].Telemetry[0].StreamId, "ue5-main");
+			Assert.AreEqual(telemetry[0].Telemetry[0].StepId, GetStepId(job, "Install Build").ToString());
+			Assert.AreEqual(telemetry[0].Telemetry[0].StepName, "Install Build");
+			Assert.AreEqual(telemetry[0].Telemetry[0].JobName, "Test job");
 		}
 
 		[TestMethod]
 		public async Task TestReservationPerfSpecWithAliasAsync()
 		{
-			LegacyCreateReservationRequest request = await SetupReservationTestAsync("TestDevicePool2", "TestDevicePlatform3Alias:High");
+			await SetupDevicesAsync();
+
+			IJob job = await SetupJobAsync();
+			LegacyCreateReservationRequest request = SetupReservationTestAsync(job, "TestDevicePool2", "TestDevicePlatform3Alias:High");
 
 			// create a reservation
 			GetLegacyReservationResponse reservation = ResultToValue(await DeviceController!.CreateDeviceReservationV1Async(request));
 			Assert.AreEqual(1, reservation.DeviceNames.Length);
-			Assert.AreEqual("hello2", reservation.JobName);
+			Assert.AreEqual("Test job", reservation.JobName);
 			Assert.AreEqual("abcd", reservation.StepId);
 
 			// get the device in the reservation, and make sure it is the right platform
@@ -203,14 +397,18 @@ namespace Horde.Server.Tests
 			Assert.AreEqual(telemetry[0].Telemetry.Count, 1);
 			Assert.AreEqual(telemetry[0].Telemetry[0].StreamId, "ue5-main");
 			Assert.AreEqual(telemetry[0].Telemetry[0].StepId, "abcd");
-			Assert.AreEqual(telemetry[0].Telemetry[0].JobName, "hello2");
+			Assert.AreEqual(telemetry[0].Telemetry[0].JobName, "Test job");
 		}
 
 		[TestMethod]
 		public async Task TestReservationPerfModelAsync()
 		{
+			await SetupDevicesAsync();
+
 			List<string> deviceModels = new List<string>() { "TestDevicePlatform1:TestDevicePlatform1_Model2", "TestDevicePlatform1_Model3" };
-			LegacyCreateReservationRequest request = await SetupReservationTestAsync("TestDevicePool1", String.Join(';', deviceModels));
+
+			IJob job = await SetupJobAsync();
+			LegacyCreateReservationRequest request = SetupReservationTestAsync(job, "TestDevicePool1", String.Join(';', deviceModels));
 
 			// update device model
 			UpdateDeviceRequest updateRequest = new UpdateDeviceRequest() { ModelId = "TestDevicePlatform1_Model2" };
@@ -219,7 +417,7 @@ namespace Horde.Server.Tests
 			// create a reservation
 			GetLegacyReservationResponse reservation = ResultToValue(await DeviceController!.CreateDeviceReservationV1Async(request));
 			Assert.AreEqual(1, reservation.DeviceNames.Length);
-			Assert.AreEqual("hello2", reservation.JobName);
+			Assert.AreEqual("Test job", reservation.JobName);
 			Assert.AreEqual("abcd", reservation.StepId);			
 
 			// get the device in the reservation, and make sure it is the right platform and an acceptable model
@@ -243,7 +441,10 @@ namespace Horde.Server.Tests
 		[TestMethod]
 		public async Task TestProblemDeviceAsync()
 		{
-			LegacyCreateReservationRequest request = await SetupReservationTestAsync();
+			await SetupDevicesAsync();
+
+			IJob job = await SetupJobAsync();
+			LegacyCreateReservationRequest request = SetupReservationTestAsync(job);
 
 			// create a reservation
 			GetLegacyReservationResponse reservation = ResultToValue(await DeviceController!.CreateDeviceReservationV1Async(request));
@@ -268,7 +469,10 @@ namespace Horde.Server.Tests
 		[TestMethod]
 		public async Task TestDevicePoolTelemetryCaptureAsync()
 		{
-			LegacyCreateReservationRequest reservationRequest = await SetupReservationTestAsync();
+			await SetupDevicesAsync();
+
+			IJob job = await SetupJobAsync();
+			LegacyCreateReservationRequest reservationRequest = SetupReservationTestAsync(job);
 
 			// set some device status
 			UpdateDeviceRequest request = new UpdateDeviceRequest();
@@ -310,7 +514,7 @@ namespace Horde.Server.Tests
 					Assert.AreEqual(true, t.Reserved?.ContainsKey("ue5-main"));
 					Assert.AreEqual(t.Reserved?["ue5-main"].Count, 1);
 					Assert.AreEqual(t.Reserved?["ue5-main"][0].DeviceId, reservedDevice.Id);
-					Assert.AreEqual(t.Reserved?["ue5-main"][0].JobName, "hello2");
+					Assert.AreEqual(t.Reserved?["ue5-main"][0].JobName, "Test job");
 					Assert.AreEqual(t.Reserved?["ue5-main"][0].StepId, "abcd");
 				}
 				else if (t.PlatformId == "testdeviceplatform3")

@@ -6,6 +6,7 @@ using EpicGames.Horde.Devices;
 using EpicGames.Horde.Projects;
 using EpicGames.Horde.Streams;
 using EpicGames.Horde.Users;
+using Horde.Server.Jobs;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 
@@ -82,6 +83,11 @@ namespace Horde.Server.Devices
 		public List<DeviceId> Devices { get; }
 
 		/// <summary>
+		/// StepIds that use the reservation
+		/// </summary>
+		public List<JobStepId>? ReservedStepIds { get; }
+
+		/// <summary>
 		/// The requested device platforms for reservation, which may differ from IDevice platform due to devices that support more than one platform, or legacy platforms
 		/// </summary>
 		public List<string> RequestedDevicePlatforms { get; }
@@ -111,12 +117,22 @@ namespace Horde.Server.Devices
 		/// A list of valid models for the platform
 		/// </summary>
 		public IReadOnlyList<string>? Models { get; }
+
+		/// <summary>
+		/// Legacy names which older versions of Gauntlet may be using
+		/// </summary>
+		public IReadOnlyList<string>? LegacyNames { get; }
+
+		/// <summary>
+		/// Model name for the high perf spec, which may be requested by Gauntlet
+		/// </summary>
+		public string? LegacyPerfSpecHighModel { get; }
 	}
 
-    /// <summary>
-    /// The type of device pool
-    /// </summary>
-    public enum DevicePoolType
+	/// <summary>
+	/// The type of device pool
+	/// </summary>
+	public enum DevicePoolType
     {
         /// <summary>
         /// Available to CIS jobs

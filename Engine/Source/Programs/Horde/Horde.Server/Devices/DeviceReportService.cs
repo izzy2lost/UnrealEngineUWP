@@ -186,8 +186,8 @@ namespace Horde.Server.Devices
 
 			_logger.LogInformation("Creating device report");
 
-			List<IDevicePool> pools = await _deviceService.GetPoolsAsync();
-			List<IDevicePlatform> platforms = await _deviceService.GetPlatformsAsync();
+			List<IDevicePool> pools = _deviceService.GetPools();
+			List<IDevicePlatform> platforms = _deviceService.GetPlatforms();
 			List<IDevice> devices = await _deviceService.GetDevicesAsync();
 
 			devices = devices.OrderBy(d => d.PlatformId.ToString()).ThenBy(d => d.PoolId.ToString()).ToList();

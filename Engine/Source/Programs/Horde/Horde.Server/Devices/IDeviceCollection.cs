@@ -4,8 +4,8 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using EpicGames.Horde.Devices;
-using EpicGames.Horde.Projects;
 using EpicGames.Horde.Users;
+using Horde.Server.Jobs;
 using MongoDB.Bson;
 
 namespace Horde.Server.Devices
@@ -52,60 +52,6 @@ namespace Horde.Server.Devices
 	/// </summary>
 	public interface IDeviceCollection
 	{
-		// PLATFORMS
-
-		/// <summary>
-		/// Add a platform 
-		/// </summary>
-		/// <param name="id">The id of the platform</param>
-		/// <param name="name">The friendly name of the platform</param>
-		Task<IDevicePlatform?> TryAddPlatformAsync(DevicePlatformId id, string name);
-
-		/// <summary>
-		/// Get a list of all available device platforms
-		/// </summary>		
-		Task<List<IDevicePlatform>> FindAllPlatformsAsync();
-
-		/// <summary>
-		/// Get a specific platform by id
-		/// </summary>
-		Task<IDevicePlatform?> GetPlatformAsync(DevicePlatformId platformId);
-
-		/// <summary>
-		/// Update a device platform
-		/// </summary>
-		/// <param name="platformId">The id of the device</param>
-		/// <param name="modelIds">The available model ids for the platform</param>
-		Task<bool> UpdatePlatformAsync(DevicePlatformId platformId, string[]? modelIds);
-
-		// POOLS
-
-		/// <summary>
-		/// Add a new device pool to the collection
-		/// </summary>
-		/// <param name="id">The id of the new pool</param>
-		/// <param name="name">The friendly name of the new pool</param>
-		/// <param name="poolType">The pool type</param>
-		/// <param name="projectIds">Projects associated with this pool</param>
-		Task<IDevicePool?> TryAddPoolAsync(DevicePoolId id, string name, DevicePoolType poolType, List<ProjectId>? projectIds );
-
-		/// <summary>
-		/// Update a device pool
-		/// </summary>
-		/// <param name="id">The id of the device pool to update</param>
-		/// <param name="projectIds">Associated project ids</param>
-		Task UpdatePoolAsync(DevicePoolId id, List<ProjectId>? projectIds);
-
-		/// <summary>
-		/// Get a pool by id
-		/// </summary>
-		Task<IDevicePool?> GetPoolAsync(DevicePoolId poolId);
-
-		/// <summary>
-		/// Gets a list of existing device pools
-		/// </summary>		
-		Task<List<IDevicePool>> FindAllPoolsAsync();
-
 		// DEVICES
 
 		/// <summary>
@@ -178,12 +124,11 @@ namespace Horde.Server.Devices
 		/// <param name="problemCooldown">The configured problem device cooldown in minutes</param>
 		/// <param name="hostname">The hostname of the machine making the reservation</param>
 		/// <param name="reservationDetails">The details of the reservation</param>
-		/// <param name="streamId">The Stream Id associated with the job</param>
-		/// <param name="jobId">The Job Id associated with the job</param>
+		/// <param name="job">The job reserving the device</param>
 		/// <param name="stepId">The Step Id associated with the job</param>
-		/// <param name="jobName">The Job name associated with the job</param>
-		/// <param name="stepName">The Step name associated with the job</param>		
-		Task<IDeviceReservation?> TryAddReservationAsync(DevicePoolId poolId, List<DeviceRequestData> request, int problemCooldown, string? hostname, string? reservationDetails, string? streamId, string? jobId, string? stepId, string? jobName, string? stepName);
+		/// <param name="stepName">The Step name associated with the job</param>
+		/// <param name="stepIds">The step ids of the job to hold sequential reservation</param>		
+		Task<IDeviceReservation?> TryAddReservationAsync(DevicePoolId poolId, List<DeviceRequestData> request, int problemCooldown, string? hostname, string? reservationDetails, IJob? job, JobStepId? stepId, string? stepName, List<JobStepId>? stepIds);
 
 		/// <summary>
 		/// Gets a reservation by guid for legacy clients
@@ -215,11 +160,6 @@ namespace Horde.Server.Devices
 		public Task<bool> DeleteReservationAsync(ObjectId id);
 
 		/// <summary>
-		/// Deletes expired reservations
-		/// </summary>
-		public Task<bool> ExpireReservationsAsync();
-
-		/// <summary>
 		/// Deletes user device checkouts
 		/// </summary>
 		/// <param name="checkoutDays"></param>
@@ -246,7 +186,7 @@ namespace Horde.Server.Devices
 		/// Creates a device pool telemetry snapshot
 		/// </summary>
 		/// <returns></returns>
-		public Task CreatePoolTelemetrySnapshot(int poolCooldown);
+		public Task CreatePoolTelemetrySnapshot(List<IDevicePool> pools, int poolCooldown);
 
 		/// <summary>
 		/// Gets pool telemetry for an optional date range

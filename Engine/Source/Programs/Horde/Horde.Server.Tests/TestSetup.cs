@@ -28,7 +28,6 @@ using Horde.Server.Logs.Builder;
 using Horde.Server.Notifications;
 using Horde.Server.Server;
 using Horde.Server.Storage;
-using Horde.Server.Tests.Stubs.Collections;
 using Horde.Server.Tests.Stubs.Services;
 using Horde.Server.Tools;
 using Horde.Server.Utilities;
@@ -278,8 +277,6 @@ namespace Horde.Server.Tests
 			services.AddSingleton<StorageService>();
 			services.AddSingleton<StorageBackendCache>();
 			services.AddSingleton<BundleReaderCache>();
-
-			services.AddSingleton<ISingletonDocument<DevicePlatformMapV1>>(new SingletonDocumentStub<DevicePlatformMapV1>());
 		}
 
 		public Task<Fixture> CreateFixtureAsync()
@@ -298,7 +295,7 @@ namespace Horde.Server.Tests
 		private DevicesController GetDevicesController()
 		{
 			ILogger<DevicesController> logger = ServiceProvider.GetRequiredService<ILogger<DevicesController>>();
-			DevicesController devicesCtrl = new DevicesController(UserCollection, DeviceService, GlobalConfigSnapshot, logger);
+			DevicesController devicesCtrl = new DevicesController(UserCollection, DeviceService, GlobalConfig, logger);
 			devicesCtrl.ControllerContext = GetControllerContext();
 			return devicesCtrl;
 		}

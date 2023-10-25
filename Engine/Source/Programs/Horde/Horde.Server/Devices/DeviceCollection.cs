@@ -5,9 +5,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using EpicGames.Horde.Devices;
-using EpicGames.Horde.Projects;
 using EpicGames.Horde.Streams;
 using EpicGames.Horde.Users;
+using Horde.Server.Jobs;
 using Horde.Server.Server;
 using Horde.Server.Utilities;
 using Microsoft.Extensions.Logging;
@@ -23,64 +23,6 @@ namespace Horde.Server.Devices
 	/// </summary>
 	public class DeviceCollection : IDeviceCollection
 	{
-
-		/// <summary>
-		/// Document representing a device platform
-		/// </summary>
-		class DevicePlatformDocument : IDevicePlatform
-		{
-			[BsonRequired, BsonId]
-			public DevicePlatformId Id { get; set; }
-
-			public string Name { get; set; }
-
-			public List<string> Models { get; set; } = new List<string>();
-
-			IReadOnlyList<string> IDevicePlatform.Models => Models;
-
-			[BsonConstructor]
-			private DevicePlatformDocument()
-			{
-				Name = null!;
-			}
-
-			public DevicePlatformDocument(DevicePlatformId id, string name)
-			{
-				Id = id;
-				Name = name;
-			}
-		}
-
-		/// <summary>
-		/// Document representing a pool of devices
-		/// </summary>
-		class DevicePoolDocument : IDevicePool
-		{
-			[BsonRequired, BsonId]
-			public DevicePoolId Id { get; set; }
-
-			[BsonRequired]
-			public DevicePoolType PoolType { get; set; }
-
-			[BsonIgnoreIfNull]
-			public List<ProjectId>? ProjectIds { get; set; }
-
-			[BsonRequired]
-			public string Name { get; set; } = null!;
-
-			[BsonConstructor]
-			private DevicePoolDocument()
-			{
-			}
-
-			public DevicePoolDocument(DevicePoolId id, string name, DevicePoolType poolType, List<ProjectId>? projectIds)
-			{
-				Id = id;
-				Name = name;
-				PoolType = poolType;
-				ProjectIds = projectIds;
-			}
-		}
 
 		/// <summary>
 		/// Document representing a reservation of devices
@@ -102,6 +44,9 @@ namespace Horde.Server.Devices
 			[BsonIgnoreIfNull]
 			public string? JobId { get; set; }
 
+			/// <summary>
+			/// Current Step Id
+			/// </summary>
 			[BsonIgnoreIfNull]
 			public string? StepId { get; set; }
 
@@ -143,13 +88,16 @@ namespace Horde.Server.Devices
 			// Legacy Guid
 			public string LegacyGuid { get; set; } = null!;
 
+			[BsonIgnoreIfNull]
+			public List<JobStepId>? ReservedStepIds { get; set; } = null;
+
 			[BsonConstructor]
 			private DeviceReservationDocument()
 			{
 
 			}
 
-			public DeviceReservationDocument(ObjectId id, DevicePoolId poolId, List<DeviceId> devices, List<string> requestedDevicePlatforms, DateTime createTimeUtc, string? hostname, string? reservationDetails, string? streamId, string? jobId, string? stepId, string? jobName, string? stepName)
+			public DeviceReservationDocument(ObjectId id, DevicePoolId poolId, List<DeviceId> devices, List<string> requestedDevicePlatforms, DateTime createTimeUtc, string? hostname, string? reservationDetails, string? streamId, string? jobId, string? stepId, string? jobName, string? stepName, List<JobStepId>? reservedStepIds)
 			{
 				Id = id;
 				PoolId = poolId;
@@ -164,7 +112,7 @@ namespace Horde.Server.Devices
 				StepId = stepId;
 				JobName = jobName;
 				StepName = stepName;
-
+				ReservedStepIds = reservedStepIds;
 				LegacyGuid = Guid.NewGuid().ToString();
 			}
 		}
@@ -479,11 +427,7 @@ namespace Horde.Server.Devices
 			}
 		}
 
-		readonly IMongoCollection<DevicePlatformDocument> _platforms;
-
 		readonly IMongoCollection<DeviceDocument> _devices;
-
-		readonly IMongoCollection<DevicePoolDocument> _pools;
 
 		readonly IMongoCollection<DeviceReservationDocument> _reservations;
 
@@ -501,8 +445,6 @@ namespace Horde.Server.Devices
 			_logger = logger;
 
 			_devices = mongoService.GetCollection<DeviceDocument>("Devices", keys => keys.Ascending(x => x.Name), unique: true);
-			_platforms = mongoService.GetCollection<DevicePlatformDocument>("Devices.Platforms", keys => keys.Ascending(x => x.Name), unique: true);
-			_pools = mongoService.GetCollection<DevicePoolDocument>("Devices.Pools", keys => keys.Ascending(x => x.Name), unique: true);
 			_reservations = mongoService.GetCollection<DeviceReservationDocument>("Devices.Reservations");
 
 			List<MongoIndex<DeviceTelemetryDocument>> deviceTelemetryIndexes = new List<MongoIndex<DeviceTelemetryDocument>>();
@@ -520,98 +462,6 @@ namespace Horde.Server.Devices
 			DeviceDocument newDevice = new DeviceDocument(id, platformId, poolId, name, enabled ?? true, address, modelId, userId);
 			await _devices.InsertOneAsync(newDevice);
 			return newDevice;
-		}
-
-		/// <inheritdoc/>
-		public async Task<IDevicePlatform?> TryAddPlatformAsync(DevicePlatformId id, string name)
-		{
-			DevicePlatformDocument newPlatform = new DevicePlatformDocument(id, name);
-
-			try
-			{
-				await _platforms.InsertOneAsync(newPlatform);
-				return newPlatform;
-			}
-			catch (MongoWriteException ex)
-			{
-				if (ex.WriteError.Category == ServerErrorCategory.DuplicateKey)
-				{
-					return null;
-				}
-				else
-				{
-					throw;
-				}
-			}
-		}
-
-		/// <inheritdoc/>
-		public async Task<List<IDevicePlatform>> FindAllPlatformsAsync()
-		{
-			List<DevicePlatformDocument> results = await _platforms.Find(x => true).ToListAsync();
-			return results.OrderBy(x => x.Name).Select<DevicePlatformDocument, IDevicePlatform>(x => x).ToList();
-		}
-
-		/// <inheritdoc/>
-		public async Task<bool> UpdatePlatformAsync(DevicePlatformId platformId, string[]? modelIds)
-		{
-			UpdateDefinitionBuilder<DevicePlatformDocument> updateBuilder = Builders<DevicePlatformDocument>.Update;
-
-			List<UpdateDefinition<DevicePlatformDocument>> updates = new List<UpdateDefinition<DevicePlatformDocument>>();
-
-			if (modelIds != null)
-			{
-				updates.Add(updateBuilder.Set(x => x.Models, modelIds.ToList()));
-			}
-
-			if (updates.Count > 0)
-			{
-				await _platforms.FindOneAndUpdateAsync<DevicePlatformDocument>(x => x.Id == platformId, updateBuilder.Combine(updates));
-			}
-
-			return true;
-
-		}
-
-		/// <inheritdoc/>
-		public async Task<IDevicePool?> TryAddPoolAsync(DevicePoolId id, string name, DevicePoolType poolType, List<ProjectId>? projectIds)
-		{
-			DevicePoolDocument newPool = new DevicePoolDocument(id, name, poolType, projectIds);
-
-			try
-			{
-				await _pools.InsertOneAsync(newPool);
-				return newPool;
-			}
-			catch (MongoWriteException ex)
-			{
-				if (ex.WriteError.Category == ServerErrorCategory.DuplicateKey)
-				{
-					return null;
-				}
-				else
-				{
-					throw;
-				}
-			}
-		}
-
-		/// <inheritdoc/>
-		public async Task UpdatePoolAsync(DevicePoolId id, List<ProjectId>? projectIds)
-		{
-			UpdateDefinitionBuilder<DevicePoolDocument> updateBuilder = Builders<DevicePoolDocument>.Update;
-
-			List<UpdateDefinition<DevicePoolDocument>> updates = new List<UpdateDefinition<DevicePoolDocument>>();
-
-			if (projectIds != null)
-			{
-				updates.Add(updateBuilder.Set(x => x.ProjectIds, projectIds));
-			}
-
-			if (updates.Count > 0)
-			{
-				await _pools.FindOneAndUpdateAsync<DevicePoolDocument>(x => x.Id == id, updateBuilder.Combine(updates));
-			}
 		}
 
 		/// <inheritdoc/>
@@ -633,25 +483,6 @@ namespace Horde.Server.Devices
 
 			List<DeviceDocument> results = await _devices.Find(filter).ToListAsync();
 			return results.OrderBy(x => x.Name).Select<DeviceDocument, IDevice>(x => x).ToList();
-		}
-
-		/// <inheritdoc/>
-		public async Task<List<IDevicePool>> FindAllPoolsAsync()
-		{
-			List<DevicePoolDocument> results = await _pools.Find(x => true).ToListAsync();
-			return results.OrderBy(x => x.Name).Select<DevicePoolDocument, IDevicePool>(x => x).ToList();
-		}
-
-		/// <inheritdoc/>
-		public async Task<IDevicePlatform?> GetPlatformAsync(DevicePlatformId platformId)
-		{
-			return await _platforms.Find<DevicePlatformDocument>(x => x.Id == platformId).FirstOrDefaultAsync();
-		}
-
-		/// <inheritdoc/>
-		public async Task<IDevicePool?> GetPoolAsync(DevicePoolId poolId)
-		{
-			return await _pools.Find<DevicePoolDocument>(x => x.Id == poolId).FirstOrDefaultAsync();
 		}
 
 		/// <inheritdoc/>
@@ -794,7 +625,7 @@ namespace Horde.Server.Devices
 		}
 
 		/// <inheritdoc/>
-		public async Task<IDeviceReservation?> TryAddReservationAsync(DevicePoolId poolId, List<DeviceRequestData> request, int problemCooldown, string? hostname, string? reservationDetails, string? streamId, string? jobId, string? stepId, string? jobName, string? stepName)
+		public async Task<IDeviceReservation?> TryAddReservationAsync(DevicePoolId poolId, List<DeviceRequestData> request, int problemCooldown, string? hostname, string? reservationDetails, IJob? job, JobStepId? stepId, string? stepName, List<JobStepId>? stepIds)
 		{
 
 			if (request.Count == 0)
@@ -802,11 +633,19 @@ namespace Horde.Server.Devices
 				return null;
 			}
 
-			DevicePoolDocument? pool = await _pools.Find<DevicePoolDocument>(x => x.Id == poolId).FirstOrDefaultAsync();
-
-			if (pool == null || pool.PoolType != DevicePoolType.Automation)
+			if (job != null && stepId != null) 
 			{
-				return null;
+				FilterDefinitionBuilder<DeviceReservationDocument> filterBuilder = Builders<DeviceReservationDocument>.Filter;
+				FilterDefinition<DeviceReservationDocument> filter = filterBuilder.Empty;
+
+				filter &= filterBuilder.Eq(x => x.JobId, job.Id.ToString());
+				filter &= filterBuilder.AnyEq(x => x.ReservedStepIds, stepId.Value);				
+
+				List<DeviceReservationDocument> results = await _reservations.Find(filter).ToListAsync();
+				if (results.Count > 0)
+				{
+					return results[0];					
+				}
 			}
 
 			HashSet<DeviceId> allocated = new HashSet<DeviceId>();
@@ -902,7 +741,7 @@ namespace Horde.Server.Devices
 					utilization = utilization.GetRange(0, 99);
 				}
 
-				utilization.Insert(0, new DeviceUtilizationTelemetry(reservationTimeUtc) { JobId = jobId, StepId = stepId });
+				utilization.Insert(0, new DeviceUtilizationTelemetry(reservationTimeUtc) { JobId = job?.Id.ToString(), StepId = stepId?.ToString()});
 
 				UpdateDefinitionBuilder<DeviceDocument> deviceBuilder = Builders<DeviceDocument>.Update;
 				List<UpdateDefinition<DeviceDocument>> deviceUpdates = new List<UpdateDefinition<DeviceDocument>>();
@@ -917,14 +756,14 @@ namespace Horde.Server.Devices
 			List<string> requestedPlatforms = deviceIds.Select(x => platformRequestMap[x]).ToList();
 
 			// Create new reservation
-			DeviceReservationDocument newReservation = new DeviceReservationDocument(ObjectId.GenerateNewId(), poolId, deviceIds, requestedPlatforms, reservationTimeUtc, hostname, reservationDetails, streamId, jobId, stepId, jobName, stepName);
+			DeviceReservationDocument newReservation = new DeviceReservationDocument(ObjectId.GenerateNewId(), poolId, deviceIds, requestedPlatforms, reservationTimeUtc, hostname, reservationDetails, job?.StreamId.ToString(), job?.Id.ToString(), stepId?.ToString(), job?.Name, stepName, stepIds);
 			await _reservations.InsertOneAsync(newReservation);
 
 			// Create device telemetry data for reservation
 			List<DeviceTelemetryDocument> telemetry = new List<DeviceTelemetryDocument>();
 			foreach (DeviceId deviceId in deviceIds)
 			{
-				telemetry.Add(new DeviceTelemetryDocument(deviceId, newReservation.Id, newReservation.CreateTimeUtc, streamId, jobId, stepId, jobName, stepName));
+				telemetry.Add(new DeviceTelemetryDocument(deviceId, newReservation.Id, newReservation.CreateTimeUtc, job?.StreamId.ToString(), job?.Id.ToString(), stepId?.ToString(), job?.Name, stepName));
 			}
 
 			if (telemetry.Count > 0)
@@ -954,29 +793,6 @@ namespace Horde.Server.Devices
 			FilterDefinition<DeviceReservationDocument> filter = Builders<DeviceReservationDocument>.Filter.Eq(x => x.Id, id);
 			DeleteResult result = await _reservations.DeleteOneAsync(filter);
 			return result.DeletedCount > 0;
-		}
-
-		/// <summary>
-		/// Deletes expired reservations
-		/// </summary>
-		public async Task<bool> ExpireReservationsAsync()
-		{
-			List<IDeviceReservation> reserves = await _reservations.Find(a => true).ToListAsync<DeviceReservationDocument, IDeviceReservation>();
-
-			DateTime utcNow = DateTime.UtcNow;
-
-			reserves = reserves.FindAll(r => (utcNow - r.UpdateTimeUtc).TotalMinutes > 10).ToList();
-
-			bool result = true;
-			foreach (IDeviceReservation reservation in reserves)
-			{
-				if (!await DeleteReservationAsync(reservation.Id))
-				{
-					result = false;
-				}
-			}
-
-			return result;
 		}
 
 		/// <summary>
@@ -1109,10 +925,9 @@ namespace Horde.Server.Devices
 		/// Create a device pool telemetry snapshot
 		/// </summary>
 		/// <returns></returns>
-		public async Task CreatePoolTelemetrySnapshot(int problemCooldown)
+		public async Task CreatePoolTelemetrySnapshot(List<IDevicePool> pools, int problemCooldown)
 		{
-			List<IDevice> devices = await FindAllDevicesAsync();
-			List<IDevicePool> pools = await FindAllPoolsAsync();			
+			List<IDevice> devices = await FindAllDevicesAsync();			
 			List<IDeviceReservation> reservations = await FindAllDeviceReservationsAsync();
 
 			// narrow to automation pools, may want to collect telemetry on other pools in the future
