@@ -54,7 +54,7 @@ UTexture2D* UCustomizableInstancePrivateData::CreateTexture()
 		NAME_None,
 		RF_Transient
 		);
-	UCustomizableObjectSystem::GetInstance()->GetPrivate()->CreatedTexture(NewTexture);
+	UCustomizableObjectSystem::GetInstance()->GetPrivate()->LogBenchmarkUtil.AddTexture(*NewTexture);
 	NewTexture->SetPlatformData( nullptr );
 
 	return NewTexture;
@@ -1832,8 +1832,6 @@ bool UCustomizableInstancePrivateData::UpdateSkeletalMesh_PostBeginUpdate0(UCust
 
 		USkeletalMesh* SkeletalMesh = Public->SkeletalMeshes[Component.Id];
 		check(SkeletalMesh);
-
-		INC_DWORD_STAT(STAT_MutableNumSkeletalMeshes);
 
 		// Set up the default information any mesh from this component will have (LODArrayInfos, RenderData, Mesh settings, etc). 
 		InitSkeletalMeshData(OperationData, SkeletalMesh, RefSkeletalMeshData, *CustomizableObject, Component.Id);

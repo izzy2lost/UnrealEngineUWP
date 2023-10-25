@@ -6,84 +6,100 @@
 #include "UObject/NameTypes.h"
 #include "Stats/Stats.h"
 
+class UTexture2D;
+
+/** Stat which automatically gets updated to Insights when modified. */
+#define DECLARE_BENCHMARK_STAT(Name, Type) \
+	struct F##Name \
+	{ \
+	private: \
+		Type Value = 0; \
+		\
+		mutable FCriticalSection Lock##Name; \
+		\
+	public: \
+		Type GetValue() const \
+		{ \
+			FScopeLock ScopedLock(&Lock##Name); \
+			return Value; \
+		} \
+		\
+		F##Name& operator+=(const Type& Rhs) \
+		{ \
+			FScopeLock ScopedLock(&Lock##Name); \
+			Value += Rhs; \
+			return *this; \
+		} \
+		\
+		F##Name& operator=(const Type& Rhs) \
+		{ \
+			FScopeLock ScopedLock(&Lock##Name); \
+			Value = Rhs; \
+		\
+		SET_DWORD_STAT(STAT_Mutable##Name, Value); \
+		\
+		return *this; \
+		} \
+	}; \
+	F##Name Name;
+
+#define DECLARE_BENCHMARK_INSIGHTS(Name, Description) \
+	DECLARE_DWORD_ACCUMULATOR_STAT(Description, STAT_Mutable##Name, STATGROUP_Mutable);
+
+
+class FUpdateContextPrivate;
 // Mutable stats
 DECLARE_STATS_GROUP(TEXT("Mutable"), STATGROUP_Mutable, STATCAT_Advanced);
-DECLARE_DWORD_ACCUMULATOR_STAT_EXTERN(TEXT("Num Created Mutable Skeletal Meshes"), STAT_MutableNumSkeletalMeshes, STATGROUP_Mutable, );
-DECLARE_DWORD_ACCUMULATOR_STAT_EXTERN(TEXT("Num Cached Mutable Skeletal Meshes"), STAT_MutableNumCachedSkeletalMeshes, STATGROUP_Mutable, );
-DECLARE_DWORD_ACCUMULATOR_STAT_EXTERN(TEXT("Num Allocated Mutable Skeletal Meshes"), STAT_MutableNumAllocatedSkeletalMeshes, STATGROUP_Mutable, );
-DECLARE_DWORD_ACCUMULATOR_STAT_EXTERN(TEXT("Num Instances at LOD 0"), STAT_MutableNumInstancesLOD0, STATGROUP_Mutable, );
-DECLARE_DWORD_ACCUMULATOR_STAT_EXTERN(TEXT("Num Instances at LOD 1"), STAT_MutableNumInstancesLOD1, STATGROUP_Mutable, );
-DECLARE_DWORD_ACCUMULATOR_STAT_EXTERN(TEXT("Num Instances at LOD 2 or more"), STAT_MutableNumInstancesLOD2, STATGROUP_Mutable, );
-DECLARE_DWORD_ACCUMULATOR_STAT_EXTERN(TEXT("Num Created Mutable Textures"), STAT_MutableNumTextures, STATGROUP_Mutable, );
-DECLARE_DWORD_ACCUMULATOR_STAT_EXTERN(TEXT("Num Cached Mutable Textures"), STAT_MutableNumCachedTextures, STATGROUP_Mutable, );
-DECLARE_DWORD_ACCUMULATOR_STAT_EXTERN(TEXT("Num Allocated Mutable Textures"), STAT_MutableNumAllocatedTextures, STATGROUP_Mutable, );
-DECLARE_DWORD_ACCUMULATOR_STAT_EXTERN(TEXT("Texture Resource Memory"), STAT_MutableTextureResourceMemory, STATGROUP_Mutable, );
-DECLARE_DWORD_ACCUMULATOR_STAT_EXTERN(TEXT("Texture Generated Memory"), STAT_MutableTextureGeneratedMemory, STATGROUP_Mutable, );
-DECLARE_DWORD_ACCUMULATOR_STAT_EXTERN(TEXT("Texture Locked Memory"), STAT_MutableTextureCacheMemory, STATGROUP_Mutable, );
-DECLARE_DWORD_ACCUMULATOR_STAT_EXTERN(TEXT("Pending Instance Updates"), STAT_MutablePendingInstanceUpdates, STATGROUP_Mutable, );
-DECLARE_DWORD_ACCUMULATOR_STAT_EXTERN(TEXT("Abandoned Instance Updates"), STAT_MutableAbandonedInstanceUpdates, STATGROUP_Mutable, );
-DECLARE_DWORD_ACCUMULATOR_STAT_EXTERN(TEXT("Last Instance Build Time"), STAT_MutableInstanceBuildTime, STATGROUP_Mutable, );
-DECLARE_DWORD_ACCUMULATOR_STAT_EXTERN(TEXT("Avrg Instance Build Time"), STAT_MutableInstanceBuildTimeAvrg, STATGROUP_Mutable, );
 
-struct FMutableStats;
+DECLARE_BENCHMARK_INSIGHTS(NumAllocatedSkeletalMeshes, TEXT("Num Allocated Mutable Skeletal Meshes"));
+DECLARE_BENCHMARK_INSIGHTS(NumAllocatedTextures, TEXT("Num Allocated Mutable Textures"));
+DECLARE_BENCHMARK_INSIGHTS(NumInstances, TEXT("Num Instances"));
+DECLARE_BENCHMARK_INSIGHTS(NumInstancesLOD0, TEXT("Num Instances at LOD 0"));
+DECLARE_BENCHMARK_INSIGHTS(NumInstancesLOD1, TEXT("Num Instances at LOD 1"));
+DECLARE_BENCHMARK_INSIGHTS(NumInstancesLOD2, TEXT("Num Instances at LOD 2 or more"));
+DECLARE_BENCHMARK_INSIGHTS(NumPendingInstanceUpdates, TEXT("Num Pending Instance Updates"));
+DECLARE_BENCHMARK_INSIGHTS(NumBuiltInstances, TEXT("Num Built Instances"))
+DECLARE_BENCHMARK_INSIGHTS(InstanceBuildTimeAvrg, TEXT("Avrg Instance Build Time"));
 
-class LogBenchmarkUtil
+
+/** Benchmarking system. Gathers stats and send it to Insights an Benchmarking Files. */
+class FLogBenchmarkUtil
 {
 public:
-	static void StartLogging();
-	static void ShutdownAndSaveResults();
+	~FLogBenchmarkUtil();
 
-	//! Update the stats logged in unreal's stats system.
-	static void UpdateStats(FMutableStats& StatsToUpdate, const TArray< TObjectPtr<class UTexture2D> >& ProtectedCachedTextures);
+	/** Enable or disable the system. */
+	void SetEnable(bool bEnable);
 
-	static void UpdateBuildTimeStats(FMutableStats& StatsToUpdate, double StartUpdateTime);
+	/** Get stats. */
+	void GetInstancesStats(int32& OutNumInstances, int32& OutNumBuiltInstances, int32& OutNumInstancesLOD0, int32& OutNumInstancesLOD1, int32& OutNumInstancesLOD2, int32& OutNumAllocatedSkeletalMeshes) const;
 
-	static void UpdateStat(const FName& Stat, int32 Value);
-	static void UpdateStat(const FName& Stat, double Value);
-	static void UpdateStat(const FName& Stat, long double Value);
+	/** Add Mutable created Texture to track. */
+	void AddTexture(UTexture2D& Texture);
 
-	static bool IsLoggingActive();
+	/** Update stats which can only be updated on the tick. */
+	void UpdateStats();
+
+	/** Gathers stats update stats when it has finished. */
+	void FinishUpdate(const TSharedRef<FUpdateContextPrivate>& Context);
+	
+	DECLARE_BENCHMARK_STAT(NumAllocatedTextures, uint32);
+	DECLARE_BENCHMARK_STAT(NumAllocatedSkeletalMeshes, int32);
+
+	DECLARE_BENCHMARK_STAT(NumInstances, int32);
+	DECLARE_BENCHMARK_STAT(NumInstancesLOD0, int32);
+	DECLARE_BENCHMARK_STAT(NumInstancesLOD1, int32);
+	DECLARE_BENCHMARK_STAT(NumInstancesLOD2, int32);
+
+	DECLARE_BENCHMARK_STAT(NumPendingInstanceUpdates, int32)
+	DECLARE_BENCHMARK_STAT(NumBuiltInstances, int32)
+	DECLARE_BENCHMARK_STAT(InstanceBuildTimeAvrg, double);
+
+	TArray<TWeakObjectPtr<UTexture2D>> TextureTrackerArray;
 
 private:
-	struct IntStat
-	{
-		int32 Total;
-		int32 Max;
-		int32 TotalCalls;
+	double TotalUpdateTime = 0;
+	uint32 NumUpdates = 0;
 
-		IntStat& operator+=(const int32& Rhs)
-		{
-			Total += Rhs;
-			Max = FGenericPlatformMath::Max(Max, Rhs);
-			TotalCalls++;
-			return *this;
-		}
-	};
-
-	struct FloatStat
-	{
-		long double Total;
-		long double Max;
-		int32 TotalCalls;
-
-		FloatStat& operator+=(const long double& Rhs)
-		{
-			Total += Rhs;
-			Max = FGenericPlatformMath::Max(Max, Rhs);
-			TotalCalls++;
-			return *this;
-		}
-	};
-
-	static bool bLoggingActive;
-	TMap<FName, IntStat> IntStats;
-	TMap<FName, FloatStat> FloatStats;
-
-	static LogBenchmarkUtil &GetInstance()
-	{
-		static LogBenchmarkUtil Instance;
-		return Instance;
-	}
-
-	LogBenchmarkUtil() = default;
+	TSharedPtr<FArchive> Archive;
 };

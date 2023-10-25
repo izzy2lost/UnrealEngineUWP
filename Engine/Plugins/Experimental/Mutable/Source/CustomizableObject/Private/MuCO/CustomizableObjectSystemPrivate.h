@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "LogBenchmarkUtil.h"
 #include "Containers/Queue.h"
 #include "MuCO/CustomizableObject.h"
 #include "MuCO/CustomizableObjectInstance.h"
@@ -464,13 +465,22 @@ public:
 
 	mu::FImageOperator::FImagePixelFormatFunc PixelFormatOverride;
 
+	bool UpdateStarted = false;
+
 	// Update stats
 	double StartUpdateTime = 0.0;
+	double UpdateTime = 0.0;
+
+	double TaskGetMeshTime = 0.0;
+	double TaskLockCacheTime = 0.0;
+	double TaskGetImagesTime = 0.0;
+	double TaskConvertResourcesTime = 0.0f;
+	double TaskCallbacksTime = 0.0;
 	
 #if WITH_EDITOR
 	/** Used for profiling in the editor. */
 	uint32 MutableRuntimeCycles = 0;
-#endif 
+#endif
 };
 
 
@@ -478,36 +488,6 @@ public:
 struct FMutableReleasePlatformOperationData
 {
 	TMap<uint32, FTexturePlatformData*> ImageToPlatformDataMap;
-};
-
-
-struct FMutableStats
-{
-	// Stores the number of pending instance updates, LOD Updates, discards and releases last tick
-	int32 MutablePendingInstanceWorkCount = 0;
-
-	// Total time spent building instances
-	int32 TotalBuildMs = 0;
-
-	// Total number of instances built or updated.
-	int32 TotalBuiltInstances = 0;
-
-	// Number of instances alive (built)
-	int32 NumInstances = 0;
-
-	// Number of CustomizableObjectInstances waiting to be updated.
-	int32 NumPendingInstances = 0;
-
-	// Total number of CustomizableObjectInstances, including not built.
-	int32 TotalInstances = 0;
-
-	// Total memory in bytes used for generated textures
-	int64_t TextureMemoryUsed = 0;
-
-	uint32 CountAllocatedSkeletalMesh = 0;
-
-	// \TODO: Remove this array if we are not gathering stats!
-	TArray<TWeakObjectPtr<UTexture2D>> TextureTrackerArray;
 };
 
 
@@ -599,9 +579,8 @@ public:
 	bool IsReplaceDiscardedWithReferenceMeshEnabled() const;
 	void SetReplaceDiscardedWithReferenceMeshEnabled(bool bIsEnabled);
 
-	int32 GetCountAllocatedSkeletalMesh() const;
-
-	mutable FMutableStats MutableStats;
+	/** Updated at the beginning of each tick. */
+	int32 GetNumSkeletalMeshes() const;
 
 	bool bReplaceDiscardedWithReferenceMesh = false;
 	bool bReleaseTexturesImmediately = false;
@@ -609,8 +588,6 @@ public:
 	bool bSupport16BitBoneIndex = false;
 
 	static FCustomizableObjectCompilerBase* (*NewCompilerFunc)();
-
-	void CreatedTexture(UTexture2D* Texture) const;
 
 	TMap<FMutableImageCacheKey, uint32> TextureReferenceCount; // Keeps a count of texture usage to decide if they have to be blocked from GC during an update
 
@@ -635,6 +612,10 @@ public:
 
 	/** See UCustomizableObjectInstance::IsUpdating. */
 	bool IsUpdating(const UCustomizableObjectInstance& Instance) const;
+
+	/** Update stats at each tick.
+	 * Used for stats that are costly to update. */
+	void UpdateStats();
 	
 	/** Mutable TaskGraph system (Mutable Thread). */
 	FMutableTaskGraph MutableTaskGraph;
@@ -643,5 +624,9 @@ public:
 	/** Mutable default image provider. Used by the COIEditor and Instance/Descriptor APIs. */
 	TObjectPtr<UEditorImageProvider> EditorImageProvider = nullptr;
 #endif
+
+	FLogBenchmarkUtil LogBenchmarkUtil;
+
+	int32 NumSkeletalMeshes = 0;
 };
 
