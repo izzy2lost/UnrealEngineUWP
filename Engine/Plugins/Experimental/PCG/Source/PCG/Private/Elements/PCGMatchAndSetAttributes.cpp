@@ -544,58 +544,121 @@ private:
 	TArray<TPair<const FPCGMetadataAttributeBase*, FPCGMetadataAttributeBase*>> AttributesToSet;
 };
 
-bool FPCGMatchAndSetAttributesElement::ExecuteInternal(FPCGContext* Context) const
+FPCGMatchAndSetAttributesExecutionState::~FPCGMatchAndSetAttributesExecutionState()
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGMatchAndSetAttributesElement::Execute);
+	if (Partition)
+	{
+		delete Partition;
+	}
+}
 
-	const UPCGMatchAndSetAttributesSettings* Settings = Context->GetInputSettings<UPCGMatchAndSetAttributesSettings>();
+bool FPCGMatchAndSetAttributesElement::PrepareDataInternal(FPCGContext* InContext) const
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGMatchAndSetAttributesElement::PrepareDataInternal);
+
+	const UPCGMatchAndSetAttributesSettings* Settings = InContext->GetInputSettings<UPCGMatchAndSetAttributesSettings>();
 	check(Settings);
 
-	TArray<FPCGTaggedData> Inputs = Context->InputData.GetInputsByPin(PCGPinConstants::DefaultInputLabel);
-	TArray<FPCGTaggedData> ParamDataInputs = Context->InputData.GetInputsByPin(PCGMatchAndSetAttributesConstants::MatchDataLabel);
-	TArray<FPCGTaggedData>& Outputs = Context->OutputData.TaggedData;
-	
-	const UPCGParamData* ParamData = nullptr;
+	FPCGMatchAndSetAttributesElement::ContextType* TimeSlicedContext = static_cast<FPCGMatchAndSetAttributesElement::ContextType*>(InContext);
+	check(TimeSlicedContext);
 
-	if (ParamDataInputs.Num() == 1)
+	TArray<FPCGTaggedData> Inputs = InContext->InputData.GetInputsByPin(PCGPinConstants::DefaultInputLabel);
+	TArray<FPCGTaggedData> ParamDataInputs = InContext->InputData.GetInputsByPin(PCGMatchAndSetAttributesConstants::MatchDataLabel);
+
+	EPCGTimeSliceInitResult InitResult = TimeSlicedContext->InitializePerExecutionState([Settings, &ParamDataInputs](FPCGMatchAndSetAttributesElement::ContextType* Context, FPCGMatchAndSetAttributesExecutionState& OutState) -> EPCGTimeSliceInitResult
 	{
-		ParamData = Cast<const UPCGParamData>(ParamDataInputs[0].Data);
-	}
+		const UPCGParamData* ParamData = nullptr;
 
-	if (!ParamData)
-	{
-		PCGE_LOG(Warning, GraphAndLog, LOCTEXT("NoMatchData", "Must have exactly one Attribute Set to match against"));
-		return true;
-	}
-
-	FPCGMatchAndSetPartition Partition(Context, Settings, Context->SourceComponent.Get(), ParamData);
-
-	if (!Partition.Initialize())
-	{
-		return true;
-	}
-
-	for (const FPCGTaggedData& Input : Inputs)
-	{
-		FPCGTaggedData& Output = Outputs.Add_GetRef(Input);
-
-		const UPCGPointData* InPointData = Cast<UPCGPointData>(Input.Data);
-		if (!InPointData)
+		if (ParamDataInputs.Num() == 1)
 		{
-			PCGE_LOG(Error, GraphAndLog, LOCTEXT("InvalidInputDataType", "Input data must be of type Point"));
-			continue;
+			ParamData = Cast<const UPCGParamData>(ParamDataInputs[0].Data);
 		}
 
-		UPCGPointData* OutPointData = NewObject<UPCGPointData>();
-		OutPointData->InitializeFromData(InPointData);
-		OutPointData->GetMutablePoints().Reserve(InPointData->GetPoints().Num());
+		if (!ParamData)
+		{
+			PCGE_LOG_C(Warning, GraphAndLog, Context, LOCTEXT("NoMatchData", "Must have exactly one Attribute Set to match against"));
+			return EPCGTimeSliceInitResult::AbortExecution;
+		}
 
-		int CurrentPointIndex = 0;
-		ensure(Partition.SelectPoints(*Context, InPointData, CurrentPointIndex, OutPointData));
-		Output.Data = OutPointData;
+		OutState.Partition = new FPCGMatchAndSetPartition(Context, Settings, Context->SourceComponent.Get(), ParamData);
+		check(OutState.Partition);
+
+		return OutState.Partition->Initialize() ? EPCGTimeSliceInitResult::Success : EPCGTimeSliceInitResult::AbortExecution;
+	});
+
+	if (InitResult == EPCGTimeSliceInitResult::AbortExecution)
+	{
+		PCGE_LOG_C(Warning, GraphAndLog, InContext, LOCTEXT("CouldNotInitializeExecutionState", "Could not initialize per-execution timeslice state data"));
+		return true;
+	}
+
+	TimeSlicedContext->InitializePerIterationStates(Inputs.Num(), [&Inputs, InContext](FPCGMatchAndSetAttributesIterationState& OutState, const FPCGMatchAndSetAttributesExecutionState&, int32 Index) -> EPCGTimeSliceInitResult
+	{
+		OutState.InputData = Inputs[Index];
+		OutState.InPointData = Cast<UPCGPointData>(OutState.InputData.Data);
+		if (!OutState.InPointData)
+		{
+			PCGE_LOG_C(Error, GraphAndLog, InContext, FText::Format(LOCTEXT("InvalidInputDataType", "Input {0}: Input data must be of type Point"), FText::AsNumber(Index)));
+			return EPCGTimeSliceInitResult::NoOperation;
+		}
+
+		OutState.OutPointData = NewObject<UPCGPointData>();
+		OutState.OutPointData->InitializeFromData(OutState.InPointData);
+		OutState.OutPointData->GetMutablePoints().Reserve(OutState.InPointData->GetPoints().Num());
+
+		return EPCGTimeSliceInitResult::Success;
+	});
+
+	if (!TimeSlicedContext->DataIsPreparedForExecution())
+	{
+		PCGE_LOG_C(Warning, GraphAndLog, InContext, LOCTEXT("CouldNotInitializeStateData", "Could not initialize timeslice state data"));
+		return true;
 	}
 
 	return true;
+}
+
+bool FPCGMatchAndSetAttributesElement::ExecuteInternal(FPCGContext* InContext) const
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGMatchAndSetAttributesElement::ExecuteInternal);
+
+	FPCGMatchAndSetAttributesElement::ContextType* TimeSlicedContext = static_cast<FPCGMatchAndSetAttributesElement::ContextType*>(InContext);
+	check(TimeSlicedContext);
+
+	TArray<FPCGTaggedData> Inputs = InContext->InputData.GetInputsByPin(PCGPinConstants::DefaultInputLabel);
+
+	// Prepare data failed, no need to execute. Return an empty output
+	if (!TimeSlicedContext->DataIsPreparedForExecution())
+	{
+		TimeSlicedContext->OutputData.TaggedData.Empty();
+		return true;
+	}
+
+	// The context will iterate over per-iteration states and execute the lambda until it returns true
+	return ExecuteSlice(TimeSlicedContext, [&Inputs](FPCGMatchAndSetAttributesElement::ContextType* Context, const FPCGMatchAndSetAttributesExecutionState& ExecState, FPCGMatchAndSetAttributesIterationState& IterState, const uint32 IterationIndex) -> bool
+	{
+		const EPCGTimeSliceInitResult InitResult = Context->GetIterationStateResult(IterationIndex);
+
+		// This iteration resulted in an early out for no sampling operation. Early out with a passthrough.
+		if (InitResult == EPCGTimeSliceInitResult::NoOperation)
+		{
+			Context->OutputData.TaggedData.Add(Inputs[IterationIndex]);
+			return true;
+		}
+
+		// It should be guaranteed to be a success at this point
+		check(InitResult == EPCGTimeSliceInitResult::Success);
+
+		// Run the execution until the time slice is finished
+		const bool bDone = ExecState.Partition->SelectPoints(*Context, IterState.InPointData, IterState.CurrentPointIndex, IterState.OutPointData);
+		if (bDone)
+		{
+			FPCGTaggedData& Output = Context->OutputData.TaggedData.Add_GetRef(Inputs[IterationIndex]);
+			Output.Data = IterState.OutPointData;
+		}
+		
+		return bDone;
+	});
 }
 
 #undef LOCTEXT_NAMESPACE

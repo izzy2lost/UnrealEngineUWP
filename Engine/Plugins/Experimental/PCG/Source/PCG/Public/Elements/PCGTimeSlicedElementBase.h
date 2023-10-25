@@ -154,7 +154,7 @@ public:
 
 	virtual FPCGContext* CreateContext() override { return new ContextType(); }
 
-	using ExecSignature = bool(ContextType* Context, const PerExecutionStateT& PerExecutionState, const PerIterationStateT& PerIterationState, const uint32 IterationIndex);
+	using ExecSignature = bool(ContextType* Context, const PerExecutionStateT& PerExecutionState, PerIterationStateT& PerIterationState, const uint32 IterationIndex);
 
 	/** Executes the delegate for every iteration. Will return false while still processing and true only when all tasks for all iterations are complete. */
 	bool ExecuteSlice(ContextType* Context, TFunctionRef<ExecSignature> ExecFunc) const;

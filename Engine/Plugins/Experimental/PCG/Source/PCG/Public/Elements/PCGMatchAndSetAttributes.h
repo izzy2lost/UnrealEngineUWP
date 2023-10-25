@@ -2,9 +2,30 @@
 
 #pragma once
 
+#include "PCGData.h"
 #include "PCGSettings.h"
+#include "Elements/PCGTimeSlicedElementBase.h"
 
 #include "PCGMatchAndSetAttributes.generated.h"
+
+// Defined in the cpp file
+class FPCGMatchAndSetPartition;
+class UPCGPointData;
+
+struct FPCGMatchAndSetAttributesExecutionState
+{
+	~FPCGMatchAndSetAttributesExecutionState();
+
+	FPCGMatchAndSetPartition* Partition = nullptr;
+};
+
+struct FPCGMatchAndSetAttributesIterationState
+{
+	int CurrentPointIndex = 0;
+	FPCGTaggedData InputData;
+	const UPCGPointData* InPointData = nullptr;
+	UPCGPointData* OutPointData = nullptr;
+};
 
 /** This class creates a PCG node that can match, select by weight or match & select by weight 
 * a 'matching' entry in a provided Attribute Set with multiple entries.
@@ -66,8 +87,9 @@ public:
 	FName WeightAttribute = NAME_None;
 };
 
-class FPCGMatchAndSetAttributesElement : public IPCGElement
+class FPCGMatchAndSetAttributesElement : public TPCGTimeSlicedElementBase<FPCGMatchAndSetAttributesExecutionState, FPCGMatchAndSetAttributesIterationState>
 {
-public:
-	virtual bool ExecuteInternal(FPCGContext* Context) const override;
+protected:
+	virtual bool PrepareDataInternal(FPCGContext* InContext) const override;
+	virtual bool ExecuteInternal(FPCGContext* InContext) const override;
 };
