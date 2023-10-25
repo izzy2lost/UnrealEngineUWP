@@ -421,4 +421,36 @@ namespace GLTF
 		}
 	}
 
+	FAccessor& FAsset::CreateBuffersForAccessorIndex(uint32 AccessorIndex)
+	{
+		if (!Accessors.IsValidIndex(AccessorIndex))
+		{
+			static FAccessor EmptyAccessor;
+			return EmptyAccessor;
+		}
+
+		FAccessor& Accessor = Accessors[AccessorIndex];
+
+		uint32 NumberOfComponents = Accessor.NumberOfComponents;
+		uint32 Stride = Accessor.ByteStride;
+		uint32 Count = Accessor.Count;
+		uint64 BufferSize = Stride * Count;
+
+		//Create Storage for Binary Data
+		TArray64<uint8>& BinaryData = UncompressedDracoBinData.AddDefaulted_GetRef();
+		BinaryData.Reserve(BufferSize);
+		BinaryData.SetNumUninitialized(BufferSize);
+
+		//Create Buffer
+		FBuffer Buffer(BufferSize);
+		Buffer.Data = BinaryData.GetData();
+
+		//create UncompressedBufferView
+		FBufferView UncompressedBufferView(Buffer, 0, BufferSize, Stride);
+
+		//Set the new FBufferView on the FAccessor:
+		Accessor.BufferView = UncompressedBufferView;
+
+		return Accessor;
+	}
 }  // namespace GLTF

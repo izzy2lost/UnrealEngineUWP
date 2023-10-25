@@ -21,7 +21,7 @@ namespace GLTF { struct FNode; }
 namespace GLTF { struct FSampler; }
 namespace GLTF { struct FSkinInfo; }
 namespace GLTF { struct FTexture; }
-namespace GLTF { struct FValidAccessor; }
+namespace GLTF { struct FAccessor; }
 struct FScriptContainerElement;
 
 namespace GLTF
@@ -83,10 +83,10 @@ namespace GLTF
 
 		FString Name;
 
-		TArray<FBuffer>        Buffers;
-		TArray<FBufferView>    BufferViews;
-		TArray<FValidAccessor> Accessors;
-		TArray<FMesh>          Meshes;
+		TArray<FBuffer>          Buffers;
+		TArray<FBufferView>      BufferViews;
+		TArray<FAccessor>        Accessors; //Note: We rely on order of the Accessors (both from glTF point of view and from internal Identification point of view).
+		TArray<FMesh>            Meshes;
 
 		TArray<FScene>     Scenes;
 		TArray<FNode>      Nodes;
@@ -138,12 +138,21 @@ namespace GLTF
 		 */
 		EValidationCheck ValidationCheck() const;
 
+		/**
+		* Creates and sets up FBuffer and FBufferView for a given FAccessor (at the given index 'id')
+		*/
+		FAccessor& CreateBuffersForAccessorIndex(uint32 AccessorIndex);
+
 	private:
 		// Binary glTF files can have embedded data after JSON.
 		// This will be empty when reading from a text glTF (common) or a binary glTF with no BIN chunk (rare).
 		TArray64<uint8> BinData;
+
 		// Extra binary data used for images from disk, mime data and so on.
 		TArray64<uint8> ExtraBinData;
+
+		//Stores (Draco) Uncompressed Binary Data
+		TArray<TArray64<uint8>>  UncompressedDracoBinData;
 
 		friend class FFileReader;
 	};

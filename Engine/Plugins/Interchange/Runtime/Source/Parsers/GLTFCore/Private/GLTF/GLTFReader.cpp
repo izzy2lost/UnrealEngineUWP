@@ -86,7 +86,7 @@ namespace GLTF
 			return FBase64::GetDecodedDataSize(EncodedData);
 		}
 
-		FAccessor& AccessorAtIndex(TArray<FValidAccessor>& Accessors, int32 Index)
+		FAccessor& AccessorAtIndex(TArray<FAccessor>& Accessors, int32 Index)
 		{
 			if (Accessors.IsValidIndex(Index))
 			{
@@ -94,12 +94,12 @@ namespace GLTF
 			}
 			else
 			{
-				static FVoidAccessor Void;
-				return Void;
+				static FAccessor EmptyAccessor;
+				return EmptyAccessor;
 			}
 		}
 
-		const FAccessor& AccessorAtIndex(const TArray<FValidAccessor>& Accessors, int32 Index)
+		const FAccessor& AccessorAtIndex(const TArray<FAccessor>& Accessors, int32 Index)
 		{
 			if (Accessors.IsValidIndex(Index))
 			{
@@ -107,8 +107,8 @@ namespace GLTF
 			}
 			else
 			{
-				static const FVoidAccessor Void;
-				return Void;
+				static const FAccessor EmptyAccessor;
+				return EmptyAccessor;
 			}
 		}
 
@@ -254,6 +254,8 @@ namespace GLTF
 
 	void FFileReader::SetupAccessor(const FJsonObject& Object) const
 	{
+		uint32 AccessorIndex = Asset->Accessors.Num();
+
 		const uint32 BufferViewIdx = GetUnsignedInt(Object, TEXT("bufferView"), BufferViewCount);
 		if (BufferViewIdx < BufferViewCount)  // must be true
 		{
@@ -279,23 +281,72 @@ namespace GLTF
 				const uint32 ValuesBufferViewIdx = GetUnsignedInt(ValuesObject, TEXT("bufferView"), BufferViewCount);
 				const uint64 ValuesByteOffset = GetUnsignedInt64(ValuesObject, TEXT("byteOffset"), 0);
 
-				Asset->Accessors.Emplace(Asset->BufferViews[BufferViewIdx], ByteOffset, Count, Type, CompType, Normalized, 
+				Asset->Accessors.Emplace(AccessorIndex,
+					Asset->BufferViews[BufferViewIdx], ByteOffset, 
+					Count, Type, CompType, Normalized,
 					FAccessor::FSparse(SparseCount, 
 						Asset->BufferViews[IndicesBufferViewIdx], IndicesByteOffset, IndicesCompType,
 						Asset->BufferViews[ValuesBufferViewIdx], ValuesByteOffset));
 			}
 			else
 			{
-				Asset->Accessors.Emplace(Asset->BufferViews[BufferViewIdx], ByteOffset, Count, Type, CompType, Normalized, FAccessor::FSparse());
+				Asset->Accessors.Emplace(AccessorIndex,
+					Asset->BufferViews[BufferViewIdx], ByteOffset, 
+					Count, Type, CompType, Normalized, 
+					FAccessor::FSparse());
 			}
-
-			ExtensionsHandler->SetupAccessorExtensions(Object, Asset->Accessors.Last());
 		}
+		else
+		{
+			if (!Object.HasTypedField<EJson::Number>(TEXT("bufferView")))
+			{
+				//if bufferView does not exist in the Object, then the presumption is that it is a (Draco) CompressedAccessor:
+				const uint32                    Count = GetUnsignedInt(Object, TEXT("count"), 0);
+				const FAccessor::EType          Type = AccessorTypeFromString(Object.GetStringField(TEXT("type")));
+				const FAccessor::EComponentType CompType = ComponentTypeFromNumber(GetUnsignedInt(Object, TEXT("componentType"), 0));
+				const bool                      Normalized = GetBool(Object, TEXT("normalized"));
+
+				//Sparse:
+				if (Object.HasField(TEXT("sparse")))
+				{
+					const FJsonObject& SparseObject = *Object.GetObjectField(TEXT("sparse"));
+
+					const uint32 SparseCount = GetUnsignedInt(SparseObject, TEXT("count"), 0);
+
+					const FJsonObject& IndicesObject = *SparseObject.GetObjectField(TEXT("indices"));
+					const uint32 IndicesBufferViewIdx = GetUnsignedInt(IndicesObject, TEXT("bufferView"), BufferViewCount);
+					const uint64 IndicesByteOffset = GetUnsignedInt64(IndicesObject, TEXT("byteOffset"), 0);
+					const FAccessor::EComponentType IndicesCompType = ComponentTypeFromNumber(GetUnsignedInt(IndicesObject, TEXT("componentType"), 0));
+
+					const FJsonObject& ValuesObject = *SparseObject.GetObjectField(TEXT("values"));
+					const uint32 ValuesBufferViewIdx = GetUnsignedInt(ValuesObject, TEXT("bufferView"), BufferViewCount);
+					const uint64 ValuesByteOffset = GetUnsignedInt64(ValuesObject, TEXT("byteOffset"), 0);
+
+					Asset->Accessors.Emplace(AccessorIndex,
+						Count, Type, CompType, Normalized,
+						FAccessor::FSparse(SparseCount,
+							Asset->BufferViews[IndicesBufferViewIdx], IndicesByteOffset, IndicesCompType,
+							Asset->BufferViews[ValuesBufferViewIdx], ValuesByteOffset));
+				}
+				else
+				{
+					Asset->Accessors.Emplace(AccessorIndex,
+						Count, Type, CompType, Normalized, 
+						FAccessor::FSparse());
+				}
+			}
+			else
+			{
+				Asset->Accessors.AddDefaulted();
+			}
+		}
+		
+		ExtensionsHandler->SetupAccessorExtensions(Object, Asset->Accessors.Last());
 	}
 
 	void FFileReader::SetupMorphTarget(const FJsonObject& Object, GLTF::FPrimitive& Primitive, const bool bMeshQuantized) const
 	{
-		const TArray<FValidAccessor>& A = Asset->Accessors;
+		const TArray<FAccessor>& A = Asset->Accessors;
 		FAccessor& Position = AccessorAtIndex(Asset->Accessors, GetIndex(Object, TEXT("POSITION")));
 		FAccessor& Normal = AccessorAtIndex(Asset->Accessors, GetIndex(Object, TEXT("NORMAL")));
 		FAccessor& Tangent = AccessorAtIndex(Asset->Accessors, GetIndex(Object, TEXT("TANGENT")));
@@ -321,7 +372,7 @@ namespace GLTF
 		}
 
 		const int32                   MaterialIndex = GetIndex(Object, TEXT("material"));
-		const TArray<FValidAccessor>& A             = Asset->Accessors;
+		const TArray<FAccessor>& A             = Asset->Accessors;
 
 		const FAccessor& Indices = AccessorAtIndex(A, GetIndex(Object, TEXT("indices")));
 
@@ -355,7 +406,7 @@ namespace GLTF
 			}
 		}
 
-		ExtensionsHandler->SetupPrimitiveExtensions(Object, Mesh.Primitives.Last());
+		ExtensionsHandler->SetupPrimitiveExtensions(Object, Mesh.Primitives.Last(), Mesh.Primitives.Num()-1, Mesh.UniqueId);
 	}
 
 	void FFileReader::SetupMesh(const FJsonObject& Object, const bool bMeshQuantized) const

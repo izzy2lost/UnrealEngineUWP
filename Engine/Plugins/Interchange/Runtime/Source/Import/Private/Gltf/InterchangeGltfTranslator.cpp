@@ -69,7 +69,8 @@ static const TArray<FString> ImporterSupportedExtensions = {
 	GLTF::ToString(GLTF::EExtension::KHR_TextureTransform),
 
 	/* Mesh */
-	GLTF::ToString(GLTF::EExtension::KHR_MeshQuantization)
+	GLTF::ToString(GLTF::EExtension::KHR_MeshQuantization),
+	GLTF::ToString(GLTF::EExtension::KHR_DracoMeshCompression)
 };
 
 namespace UE::Interchange::Gltf::Private
