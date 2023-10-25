@@ -180,7 +180,7 @@ public:
 
 	/** Partition actors methods */
 	void CleanupPartitionActors(const FBox& InBounds);
-	void DeletePartitionActors(bool bOnlyDeleteUnused);
+	void DeletePartitionActors(bool bOnlyDeleteUnused, bool bOnlyChildren = false);
 
 	/** Propagate to the graph compiler graph changes */
 	void NotifyGraphChanged(UPCGGraph* InGraph);

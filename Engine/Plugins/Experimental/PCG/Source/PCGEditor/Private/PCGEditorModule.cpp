@@ -172,6 +172,22 @@ void FPCGEditorModule::PopulateMenuActions(FMenuBuilder& MenuBuilder)
 					}
 				}
 			})),
+		NAME_None);	
+	
+	MenuBuilder.AddMenuEntry(
+		LOCTEXT("DeletePCGPartitionActors", "Delete all PCG partition actors children"),
+		LOCTEXT("DeletePCGPartitionActors_Tooltip", "Deletes all PCG partition actors children in the current world, but not the Partition Actors themselves"),
+		FSlateIcon(),
+		FUIAction(
+			FExecuteAction::CreateLambda([]() {
+				if (GEditor)
+				{
+					if (UPCGSubsystem* PCGSubsystem = UPCGSubsystem::GetInstance(GEditor->GetEditorWorldContext().World()))
+					{
+						PCGSubsystem->DeletePartitionActors(/*bOnlyDeleteUnused=*/false, /*bOnlyChildren=*/true);
+					}
+				}
+			})),
 		NAME_None);
 
 	MenuBuilder.AddMenuEntry(
