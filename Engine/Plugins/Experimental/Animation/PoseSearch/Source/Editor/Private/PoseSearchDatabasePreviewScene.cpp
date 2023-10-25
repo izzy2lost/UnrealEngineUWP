@@ -63,11 +63,12 @@ namespace UE::PoseSearch
 		if (!ViewModel->GetPreviewActors().IsEmpty() && FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndex(Database, ERequestAsyncBuildFlag::ContinueRequest))
 		{
 			const bool bDisplayRootMotionSpeed = ViewModel->IsDisplayRootMotionSpeedChecked();
+			const bool bDisplayBlockTransition = ViewModel->IsDisplayBlockTransitionChecked();
 			bool bDrawQueryVector = ViewModel->ShouldDrawQueryVector();
 
 			for (FDatabasePreviewActor& PreviewActor : ViewModel->GetPreviewActors())
 			{
-				bDrawQueryVector &= !PreviewActor.DrawPreviewActor(Database, bDisplayRootMotionSpeed, bDrawQueryVector ? ViewModel->GetQueryVector() : TConstArrayView<float>());
+				bDrawQueryVector &= !PreviewActor.DrawPreviewActor(Database, bDisplayRootMotionSpeed, bDisplayBlockTransition, bDrawQueryVector ? ViewModel->GetQueryVector() : TConstArrayView<float>());
 			}
 		}
 	}

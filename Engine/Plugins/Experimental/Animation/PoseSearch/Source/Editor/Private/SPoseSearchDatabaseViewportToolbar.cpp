@@ -34,6 +34,7 @@ namespace UE::PoseSearch
 			ShowMenuBuilder.AddMenuEntry(Commands.ShowDisplayRootMotionSpeed);
 			ShowMenuBuilder.AddMenuEntry(Commands.ShowQuantizeAnimationToPoseData);
 			ShowMenuBuilder.AddMenuEntry(Commands.ShowBones);
+			ShowMenuBuilder.AddMenuEntry(Commands.ShowDisplayBlockTransition);
 			ShowMenuBuilder.EndSection();
 		}
 

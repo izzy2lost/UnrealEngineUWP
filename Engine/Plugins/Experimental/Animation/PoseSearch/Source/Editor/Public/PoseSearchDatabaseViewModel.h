@@ -30,7 +30,7 @@ namespace UE::PoseSearch
 	public:
 		bool SpawnPreviewActor(UWorld* World, const UPoseSearchDatabase* PoseSearchDatabase, int32 IndexAssetIdx, int32 PoseIdxForTimeOffset = INDEX_NONE);
 		void UpdatePreviewActor(const UPoseSearchDatabase* PoseSearchDatabase, float PlayTime, bool bQuantizeAnimationToPoseData);
-		bool DrawPreviewActor(const UPoseSearchDatabase* PoseSearchDatabase, bool bDisplayRootMotionSpeed, TConstArrayView<float> QueryVector);
+		bool DrawPreviewActor(const UPoseSearchDatabase* PoseSearchDatabase, bool bDisplayRootMotionSpeed, bool bDisplayBlockTransition, TConstArrayView<float> QueryVector);
 		void Destroy();
 
 		const UDebugSkelMeshComponent* GetDebugSkelMeshComponent() const;
@@ -106,6 +106,9 @@ namespace UE::PoseSearch
 		void ToggleShowBones() { bShowBones = !bShowBones; }
 		bool IsShowBonesChecked() const { return bShowBones; }
 
+		void ToggleDisplayBlockTransition() { bDisplayBlockTransition = !bDisplayBlockTransition; }
+		bool IsDisplayBlockTransitionChecked() const { return bDisplayBlockTransition; }
+
 		void AddSequenceToDatabase(UAnimSequence* AnimSequence);
 		void AddBlendSpaceToDatabase(UBlendSpace* BlendSpace);
 		void AddAnimCompositeToDatabase(UAnimComposite* AnimComposite);
@@ -165,6 +168,7 @@ namespace UE::PoseSearch
 		bool bDisplayRootMotionSpeed = false;
 		bool bQuantizeAnimationToPoseData = false;
 		bool bShowBones = false;
+		bool bDisplayBlockTransition = false;
 
 		int32 SelectedActorIndexAssetIndex = INDEX_NONE;
 	};

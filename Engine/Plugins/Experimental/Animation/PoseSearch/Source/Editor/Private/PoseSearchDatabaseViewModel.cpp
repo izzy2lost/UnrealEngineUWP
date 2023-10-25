@@ -177,7 +177,7 @@ void FDatabasePreviewActor::Destroy()
 	}
 }
 
-bool FDatabasePreviewActor::DrawPreviewActor(const UPoseSearchDatabase* PoseSearchDatabase, bool bDisplayRootMotionSpeed, TConstArrayView<float> QueryVector)
+bool FDatabasePreviewActor::DrawPreviewActor(const UPoseSearchDatabase* PoseSearchDatabase, bool bDisplayRootMotionSpeed, bool bDisplayBlockTransition, TConstArrayView<float> QueryVector)
 {
 	if (!PoseSearchDatabase->GetSearchIndex().IsValidPoseIndex(GetCurrentPoseIndex()))
 	{
@@ -199,7 +199,7 @@ bool FDatabasePreviewActor::DrawPreviewActor(const UPoseSearchDatabase* PoseSear
 		DrawParams.DrawFeatureVector(QueryVector);
 	}
 
-	if (bDisplayRootMotionSpeed)
+	if (bDisplayRootMotionSpeed || bDisplayBlockTransition)
 	{
 		// initializing SampledRootMotion if required
 		if (SampledRootMotion.IsEmpty())
@@ -232,7 +232,10 @@ bool FDatabasePreviewActor::DrawPreviewActor(const UPoseSearchDatabase* PoseSear
 				SampledRootMotionSpeed[0] = SampledRootMotionSpeed[1];
 			}
 		}
+	}
 
+	if (bDisplayRootMotionSpeed)
+	{
 		// drawing PreviewActor.SampledRootMotion
 		const int32 SampledRootMotionNum = SampledRootMotion.Num();
 		if (SampledRootMotionNum > 1)
@@ -254,6 +257,30 @@ bool FDatabasePreviewActor::DrawPreviewActor(const UPoseSearchDatabase* PoseSear
 			}
 		}
 	}
+
+	if (bDisplayBlockTransition)
+	{
+		const FSearchIndex& SearchIndex = PoseSearchDatabase->GetSearchIndex();
+		const FSearchIndexAsset& IndexAsset = SearchIndex.Assets[IndexAssetIndex];
+
+		const int NumPoses = IndexAsset.GetNumPoses();
+		if (NumPoses == SampledRootMotion.Num())
+		{
+			for (int32 Index = 0; Index < NumPoses; ++Index)
+			{
+				const int32 IndexAssetPoseIdx = Index + IndexAsset.GetFirstPoseIdx();
+				if (SearchIndex.PoseMetadata[IndexAssetPoseIdx].IsBlockTransition())
+				{
+					DrawParams.DrawPoint(SampledRootMotion[Index], FColor::Red);
+				}
+				else
+				{
+					DrawParams.DrawPoint(SampledRootMotion[Index], FColor::Green);
+				}
+			}
+		}
+	}
+
 
 #if ENABLE_ANIM_DEBUG
 	const float DebugDrawSamplerSize = CVarDatabasePreviewDebugDrawSamplerSize.GetValueOnAnyThread();

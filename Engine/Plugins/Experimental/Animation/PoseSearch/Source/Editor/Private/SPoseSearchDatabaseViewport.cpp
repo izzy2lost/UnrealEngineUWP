@@ -61,6 +61,17 @@ namespace UE::PoseSearch
 		return AssetEditorPtr.Pin()->GetViewModelSharedPtr().ToSharedRef()->IsShowBonesChecked();
 	}
 
+	void SDatabaseViewport::OnToggleDisplayBlockTransition()
+	{
+		AssetEditorPtr.Pin()->GetViewModelSharedPtr().ToSharedRef()->ToggleDisplayBlockTransition();
+		Invalidate();
+	}
+
+	bool SDatabaseViewport::IsDisplayBlockTransitionChecked() const
+	{
+		return AssetEditorPtr.Pin()->GetViewModelSharedPtr().ToSharedRef()->IsDisplayBlockTransitionChecked();
+	}
+
 	void SDatabaseViewport::BindCommands()
 	{
 		SEditorViewport::BindCommands();
@@ -85,6 +96,11 @@ namespace UE::PoseSearch
 			FCanExecuteAction(),
 			FIsActionChecked::CreateSP(this, &SDatabaseViewport::IsShowBonesChecked));
 		
+		CommandList->MapAction(
+			Commands.ShowDisplayBlockTransition,
+			FExecuteAction::CreateSP(this, &SDatabaseViewport::OnToggleDisplayBlockTransition),
+			FCanExecuteAction(),
+			FIsActionChecked::CreateSP(this, &SDatabaseViewport::IsDisplayBlockTransitionChecked));
 	}
 
 	TSharedRef<FEditorViewportClient> SDatabaseViewport::MakeEditorViewportClient()

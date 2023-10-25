@@ -1098,16 +1098,17 @@ struct FPoseSearchDatabaseAsyncCacheTask
 	{
 		Notstarted,	// key generation failed (not all the asset has been post loaded). It'll be retried to StartNewRequestIfNeeded the next Update
 		Prestarted,	// key has been successfully generated and we kicked the DDC get
-		Cancelled,	// the task has been cancelled
+		PreCancelled,	// the task has been requested to be cancelled
+		Cancelled,		// the task cancellation has been finalized
 		Ended,		// the task has ended successfully
 		Failed		// the task has ended unsuccessfully
 	};
 
 	FPoseSearchDatabaseAsyncCacheTask(UPoseSearchDatabase* InDatabase, bool bPerformConditionalPostLoadIfRequired);
 	void StartNewRequestIfNeeded(bool bPerformConditionalPostLoadIfRequired);
-	bool CancelIfDependsOn(const UObject* Object);
 	void Update(FCriticalSection& OuterMutex);
 	void Wait(FCriticalSection& OuterMutex);
+	void PreCancelIfDependsOn(const UObject* Object);
 	void Cancel();
 	bool Poll() const;
 	void AddReferencedObjects(FReferenceCollector& Collector);
@@ -1181,6 +1182,7 @@ void FPoseSearchDatabaseAsyncCacheTask::StartNewRequestIfNeeded(bool bPerformCon
 	using namespace UE::DerivedData;
 
 	check(IsInGameThread());
+	check(GetState() != EState::PreCancelled);
 
 	// making sure there are no active requests
 	// Owner.Cancel must be performed before SearchIndex.Reset() in case any task is flying (launched by Owner.LaunchTask)
@@ -1226,6 +1228,28 @@ void FPoseSearchDatabaseAsyncCacheTask::StartNewRequestIfNeeded(bool bPerformCon
 	}
 }
 
+// it cancels and waits for the task to be done and set the state to PreCancelled, so no other new requests can start until the task gets cancelled
+void FPoseSearchDatabaseAsyncCacheTask::PreCancelIfDependsOn(const UObject* Object)
+{
+	check(IsInGameThread());
+
+	if (Object)
+	{
+		// DatabaseDependencies is updated only in StartNewRequestIfNeeded when there are no active requests, so it's thread safe to access it 
+		if (DatabaseDependencies.Contains(Object))
+		{
+			// Database can be null if the task was Ended/Failed and Database was already garbage collected, but Tick hasn't been called yet
+			FString DatabaseName = IsValid() ? *Database->GetName() : TEXT("Garbage Collected Database");
+			UE_LOG(LogPoseSearch, Log, TEXT("%s - %s PreCancelled because of %s"), *LexToString(DerivedDataKey), *DatabaseName, *Object->GetName());
+
+			// Owner.Cancel must be performed before SearchIndex.Reset() in case any task is flying (launched by Owner.LaunchTask)
+			Owner.Cancel();
+
+			SetState(EState::PreCancelled);
+		}
+	}
+}
+
 // it cancels and waits for the task to be done and reset the local SearchIndex. SetState to Cancelled
 void FPoseSearchDatabaseAsyncCacheTask::Cancel()
 {
@@ -1241,24 +1265,6 @@ void FPoseSearchDatabaseAsyncCacheTask::Cancel()
 
 	DerivedDataKey = FIoHash::Zero;
 	SetState(EState::Cancelled);
-}
-
-bool FPoseSearchDatabaseAsyncCacheTask::CancelIfDependsOn(const UObject* Object)
-{
-	if (Object)
-	{
-		// DatabaseDependencies is updated only in StartNewRequestIfNeeded when there are no active requests, so it's thread safe to access it 
-		if (DatabaseDependencies.Contains(Object))
-		{
-			// Database can be null if the task was Ended/Failed and Database was already garbage collected, but Tick hasn't been called yet
-			FString DatabaseName = IsValid() ? *Database->GetName() : TEXT("Garbage Collected Database");
-			UE_LOG(LogPoseSearch, Log, TEXT("%s - %s Cancelled because of %s"), *LexToString(DerivedDataKey), *DatabaseName, *Object->GetName());
-
-			Cancel();
-			return true;
-		}
-	}
-	return false;
 }
 
 void FPoseSearchDatabaseAsyncCacheTask::Update(FCriticalSection& OuterMutex)
@@ -1278,11 +1284,14 @@ void FPoseSearchDatabaseAsyncCacheTask::Update(FCriticalSection& OuterMutex)
 		Wait(OuterMutex);
 	}
 
+	if (GetState() != EState::PreCancelled)
+	{
 	if (bBroadcastOnDerivedDataRebuild)
 	{
 		Database->NotifyDerivedDataRebuild();
 		bBroadcastOnDerivedDataRebuild = false;
 	}
+}
 }
 
 // it waits for the task to be done and SetSearchIndex on the database. SetState to Ended/Failed
@@ -1771,6 +1780,8 @@ FAsyncPoseSearchDatabasesManagement::FAsyncPoseSearchDatabasesManagement()
 	OnObjectModifiedHandle = FCoreUObjectDelegates::OnObjectModified.AddRaw(this, &FAsyncPoseSearchDatabasesManagement::OnObjectModified);
 	OnObjectTransactedHandle = FCoreUObjectDelegates::OnObjectTransacted.AddRaw(this, &FAsyncPoseSearchDatabasesManagement::OnObjectTransacted);
 	OnPackageReloadedHandle = FCoreUObjectDelegates::OnPackageReloaded.AddRaw(this, &FAsyncPoseSearchDatabasesManagement::OnPackageReloaded);
+	OnPreObjectPropertyChangedHandle = FCoreUObjectDelegates::OnPreObjectPropertyChanged.AddRaw(this, &FAsyncPoseSearchDatabasesManagement::OnPreObjectPropertyChanged);
+	OnObjectPropertyChangedHandle = FCoreUObjectDelegates::OnObjectPropertyChanged.AddRaw(this, &FAsyncPoseSearchDatabasesManagement::OnObjectPropertyChanged);
 
 	FCoreDelegates::OnPreExit.AddRaw(this, &FAsyncPoseSearchDatabasesManagement::Shutdown);
 }
@@ -1819,6 +1830,8 @@ void FAsyncPoseSearchDatabasesManagement::SynchronizeDatabases()
 {
 	FScopeLock Lock(&Mutex);
 
+	if (!DatabasesToSynchronize.IsEmpty())
+	{
 	// copying DatabasesToSynchronize because modifying the database will call OnObjectModified that could populate DatabasesToSynchronize again
 	const TDatabasesToSynchronize DatabasesToSynchronizeCopy = DatabasesToSynchronize;
 	DatabasesToSynchronize.Reset();
@@ -1840,9 +1853,28 @@ void FAsyncPoseSearchDatabasesManagement::SynchronizeDatabases()
 		}
 	}
 }
+}
 
 // we're listening to OnObjectModified to cancel any pending Task indexing databases depending from Object to avoid multi threading issues
 void FAsyncPoseSearchDatabasesManagement::OnObjectModified(UObject* Object)
+{
+	PreModified(Object);
+}
+
+void FAsyncPoseSearchDatabasesManagement::ClearPreCancelled()
+{
+	// iterating backwards because of the possible RemoveAtSwap 
+	for (int32 TaskIndex = Tasks.Num() - 1; TaskIndex >= 0; --TaskIndex)
+	{
+		if (Tasks[TaskIndex]->GetState() == FPoseSearchDatabaseAsyncCacheTask::EState::PreCancelled)
+		{
+			UE_LOG(LogPoseSearch, Log, TEXT("%s - %s Removed because it was PreCancelled"), *LexToString(Tasks[TaskIndex]->GetDerivedDataKey()), *Tasks[TaskIndex]->GetDatabase()->GetName());
+			Tasks.RemoveAtSwap(TaskIndex, 1, false);
+		}
+	}
+}
+
+void FAsyncPoseSearchDatabasesManagement::PreModified(UObject* Object)
 {
 	check(IsInGameThread());
 
@@ -1851,26 +1883,30 @@ void FAsyncPoseSearchDatabasesManagement::OnObjectModified(UObject* Object)
 	// iterating backwards because of the possible RemoveAtSwap
 	for (int32 TaskIndex = Tasks.Num() - 1; TaskIndex >= 0; --TaskIndex)
 	{
-		if (Tasks[TaskIndex]->CancelIfDependsOn(Object))
-		{
-			Tasks.RemoveAtSwap(TaskIndex, 1, false);
-		}
+		Tasks[TaskIndex]->PreCancelIfDependsOn(Object);
 	}
 
 	// collecting databases to synchronize prior modifying the Object
 	CollectDatabasesToSynchronize(Object);
 }
 
-void FAsyncPoseSearchDatabasesManagement::OnObjectTransacted(UObject* Object, const FTransactionObjectEvent& TransactionObjectEvent)
+void FAsyncPoseSearchDatabasesManagement::PostModified(UObject* Object)
 {
 	check(IsInGameThread());
 
 	FScopeLock Lock(&Mutex);
 
-	// collecting databases to synchronize on Object transacted, and merging the results with the OnObjectModified collection
+	// collecting databases to synchronize, and merging the results with the PreModified collection
 	CollectDatabasesToSynchronize(Object);
 
 	SynchronizeDatabases();
+
+	ClearPreCancelled();
+}
+
+void FAsyncPoseSearchDatabasesManagement::OnObjectTransacted(UObject* Object, const FTransactionObjectEvent& TransactionObjectEvent)
+{
+	PostModified(Object);
 }
 
 void FAsyncPoseSearchDatabasesManagement::OnPackageReloaded(const EPackageReloadPhase InPackageReloadPhase, FPackageReloadedEvent* InPackageReloadedEvent)
@@ -1896,6 +1932,16 @@ void FAsyncPoseSearchDatabasesManagement::OnPackageReloaded(const EPackageReload
 	}
 }
 
+void FAsyncPoseSearchDatabasesManagement::OnPreObjectPropertyChanged(UObject* InObject, const FEditPropertyChain& InPropertyChain)
+{
+	PreModified(InObject);
+}
+
+void FAsyncPoseSearchDatabasesManagement::OnObjectPropertyChanged(UObject* InObject, FPropertyChangedEvent& InPropertyChangedEvent)
+{
+	PostModified(InObject);
+}
+
 void FAsyncPoseSearchDatabasesManagement::Shutdown()
 {
 	FScopeLock Lock(&Mutex);
@@ -1910,6 +1956,12 @@ void FAsyncPoseSearchDatabasesManagement::Shutdown()
 
 	FCoreUObjectDelegates::OnPackageReloaded.Remove(OnPackageReloadedHandle);
 	OnPackageReloadedHandle.Reset();
+
+	FCoreUObjectDelegates::OnPreObjectPropertyChanged.Remove(OnPreObjectPropertyChangedHandle);
+	OnPreObjectPropertyChangedHandle.Reset();
+
+	FCoreUObjectDelegates::OnObjectPropertyChanged.Remove(OnObjectPropertyChangedHandle);
+	OnObjectPropertyChangedHandle.Reset();
 }
 
 void FAsyncPoseSearchDatabasesManagement::Tick(float DeltaTime)

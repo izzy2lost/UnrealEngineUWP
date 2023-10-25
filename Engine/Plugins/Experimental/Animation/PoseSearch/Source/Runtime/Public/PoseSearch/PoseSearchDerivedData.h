@@ -37,9 +37,14 @@ namespace UE::PoseSearch
 		void OnObjectModified(UObject* Object);
 		void OnObjectTransacted(UObject* Object, const FTransactionObjectEvent& TransactionObjectEvent);
 		void OnPackageReloaded(const EPackageReloadPhase InPackageReloadPhase, FPackageReloadedEvent* InPackageReloadedEvent);
+		void OnPreObjectPropertyChanged(UObject* InObject, const FEditPropertyChain& InPropertyChain);
+		void OnObjectPropertyChanged(UObject* InObject, FPropertyChangedEvent& InPropertyChangedEvent);
 
 		void Shutdown();
 		void StartQueuedTasks(int32 MaxActiveTasks);
+		void PreModified(UObject* Object);
+		void PostModified(UObject* Object);
+		void ClearPreCancelled();
 
 		// Begin FTickableGameObject
 		virtual void Tick(float DeltaTime) override;
@@ -70,6 +75,8 @@ namespace UE::PoseSearch
 		FDelegateHandle OnObjectModifiedHandle;
 		FDelegateHandle OnObjectTransactedHandle;
 		FDelegateHandle OnPackageReloadedHandle;
+		FDelegateHandle OnPreObjectPropertyChangedHandle;
+		FDelegateHandle OnObjectPropertyChangedHandle;
 
 		static FCriticalSection Mutex;
 	};

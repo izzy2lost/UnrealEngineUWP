@@ -27,6 +27,7 @@ namespace UE::PoseSearch
 		TSharedPtr<FUICommandInfo> ShowDisplayRootMotionSpeed;
 		TSharedPtr<FUICommandInfo> ShowQuantizeAnimationToPoseData;
 		TSharedPtr<FUICommandInfo> ShowBones;
+		TSharedPtr<FUICommandInfo> ShowDisplayBlockTransition;
 	};
 }
 

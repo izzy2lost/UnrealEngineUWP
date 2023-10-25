@@ -58,6 +58,8 @@ namespace UE::PoseSearch
 		bool IsQuantizeAnimationToPoseDataChecked() const;
 		void OnToggleShowBones();
 		bool IsShowBonesChecked() const;
+		void OnToggleDisplayBlockTransition();
+		bool IsDisplayBlockTransitionChecked() const;
 
 		/** The viewport toolbar */
 		TSharedPtr<SPoseSearchDatabaseViewportToolBar> ViewportToolbar;
