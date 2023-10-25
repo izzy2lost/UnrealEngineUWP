@@ -3473,6 +3473,8 @@ IVisibilityTaskData* FSceneRenderer::OnRenderBegin(FRDGBuilder& GraphBuilder)
 			CreateHairStrandsBookmarkParameters(Scene, Views, AllFamilyViews, Parameters, false/*bComputeVisibleInstances*/);
 			if (Parameters.HasInstances())
 			{
+				Scene->WaitForGPUSkinCacheTask();
+
 				// 1. Select appropriate LOD & geometry type
 				RunHairStrandsBookmark(GraphBuilder, EHairStrandsBookmark::ProcessLODSelection, Parameters);
 			}
