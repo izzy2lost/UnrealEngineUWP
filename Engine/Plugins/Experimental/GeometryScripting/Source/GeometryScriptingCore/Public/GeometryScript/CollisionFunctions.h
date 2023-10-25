@@ -413,7 +413,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Collision", meta = (ScriptMethod))
 	static void CombineSimpleCollision(
 		UPARAM(ref) FGeometryScriptSimpleCollision& CollisionToUpdate,
-		const FGeometryScriptSimpleCollision& AppendCollision
+		const FGeometryScriptSimpleCollision& AppendCollision,
+		UGeometryScriptDebug* Debug = nullptr
 	);
 	
 	/**

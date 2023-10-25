@@ -814,9 +814,17 @@ FGeometryScriptSimpleCollision UGeometryScriptLibrary_CollisionFunctions::Transf
 
 void UGeometryScriptLibrary_CollisionFunctions::CombineSimpleCollision(
 	FGeometryScriptSimpleCollision& Collision,
-	const FGeometryScriptSimpleCollision& AppendCollision
+	const FGeometryScriptSimpleCollision& AppendCollision,
+	UGeometryScriptDebug* Debug
 )
 {
+	// specially handle appending to self
+	if (&Collision.AggGeom == &AppendCollision.AggGeom)
+	{
+		// No apparent reason to combine collision shapes with themselves aside from a bug, so rather than adding duplicates of each shape, log a warning and return
+		UE::Geometry::AppendWarning(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("CombineSimpleCollision Combining Collision Shapes with Self", "CombineSimpleCollision: Collision and AppendCollision must be different Simple Collision objects."));
+		return;
+	}
 	Collision.AggGeom.BoxElems.Append(AppendCollision.AggGeom.BoxElems);
 	Collision.AggGeom.ConvexElems.Append(AppendCollision.AggGeom.ConvexElems);
 	Collision.AggGeom.SphylElems.Append(AppendCollision.AggGeom.SphylElems);
