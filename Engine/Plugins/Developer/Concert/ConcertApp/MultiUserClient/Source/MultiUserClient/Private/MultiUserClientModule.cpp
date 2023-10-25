@@ -1293,8 +1293,8 @@ private:
 				);
 
 			SettingsModule->RegisterSettings("Project", "Plugins", "Multi User",
-				LOCTEXT("ConcertFrontendSyncSettingsName", "Multi-User Replication"),
-				LOCTEXT("ConcertFrontendSyncSettingsDescription", "Configure the Multi-User Replication settings."),
+				LOCTEXT("MultiUserReplicationSettingsName", "Multi-User Replication"),
+				LOCTEXT("MultiUserReplicationSettingsDescription", "Configure the Multi-User Replication settings."),
 				UMultiUserReplicationSettings::Get()
 				);
 
