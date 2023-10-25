@@ -146,17 +146,17 @@ FCookDirector::FCookDirector(UCookOnTheFlyServer& InCOTFS, int32 CookProcessCoun
 		RequestedCookWorkerCount+1, RequestedCookWorkerCount, RequestedCookWorkerCount > 1 ? TEXT("CookWorkers") : TEXT("CookWorker"));
 
 	Register(new FLogMessagesMessageHandler());
-	Register(new IMPCollectorCbServerMessage<FRetractionResultsMessage>([this]
+	Register(new TMPCollectorServerMessageCallback<FRetractionResultsMessage>([this]
 	(FMPCollectorServerMessageContext& Context, bool bReadSuccessful, FRetractionResultsMessage&& Message)
 		{
 			// Called from inside CommunicationLock
 			RetractionHandler->HandleRetractionMessage(Context, bReadSuccessful, MoveTemp(Message));
-		}, TEXT("HandleRetractionMessage")));
-	Register(new IMPCollectorCbServerMessage<FHeartbeatMessage>([this]
+		}));
+	Register(new TMPCollectorServerMessageCallback<FHeartbeatMessage>([this]
 	(FMPCollectorServerMessageContext& Context, bool bReadSuccessful, FHeartbeatMessage&& Message)
 		{
 			HandleHeartbeatMessage(Context, bReadSuccessful, MoveTemp(Message));
-		}, TEXT("HandleHeartbeatMessage")));
+		}));
 	Register(new FAssetRegistryMPCollector(COTFS));
 	Register(new FPackageWriterMPCollector(COTFS));
 

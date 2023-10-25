@@ -34,21 +34,21 @@ FCookWorkerClient::FCookWorkerClient(UCookOnTheFlyServer& InCOTFS)
 	LogMessageHandler = new FLogMessagesMessageHandler();
 	LogMessageHandler->InitializeClient();
 	Register(LogMessageHandler);
-	Register(new IMPCollectorCbClientMessage<FRetractionRequestMessage>([this]
+	Register(new TMPCollectorClientMessageCallback<FRetractionRequestMessage>([this]
 	(FMPCollectorClientMessageContext& Context, bool bReadSuccessful, FRetractionRequestMessage&& Message)
 		{
 			HandleRetractionMessage(Context, bReadSuccessful, MoveTemp(Message));
-		}, TEXT("HandleRetractionMessage")));
-	Register(new IMPCollectorCbClientMessage<FAbortPackagesMessage>([this]
+		}));
+	Register(new TMPCollectorClientMessageCallback<FAbortPackagesMessage>([this]
 	(FMPCollectorClientMessageContext& Context, bool bReadSuccessful, FAbortPackagesMessage&& Message)
 		{
 			HandleAbortPackagesMessage(Context, bReadSuccessful, MoveTemp(Message));
-		}, TEXT("HandleAbortPackagesMessage")));
-	Register(new IMPCollectorCbClientMessage<FHeartbeatMessage>([this]
+		}));
+	Register(new TMPCollectorClientMessageCallback<FHeartbeatMessage>([this]
 	(FMPCollectorClientMessageContext& Context, bool bReadSuccessful, FHeartbeatMessage&& Message)
 		{
 			HandleHeartbeatMessage(Context, bReadSuccessful, MoveTemp(Message));
-		}, TEXT("HandleHeartbeatMessage")));
+		}));
 	Register(new FAssetRegistryMPCollector(COTFS));
 	Register(new FPackageWriterMPCollector(COTFS));
 }
@@ -398,7 +398,7 @@ void FCookWorkerClient::CreateServerSocket(const FDirectorConnectionInfo& Connec
 
 	FWorkerConnectMessage ConnectMessage;
 	ConnectMessage.RemoteIndex = ConnectInfo.RemoteIndex;
-	EConnectionStatus Status = TryWritePacket(ServerSocket, SendBuffer, ConnectMessage);
+	EConnectionStatus Status = TryWritePacket(ServerSocket, SendBuffer, MarshalToCompactBinaryTCP(ConnectMessage));
 	if (Status == EConnectionStatus::Incomplete)
 	{
 		SendToState(EConnectStatus::PollWriteConnectMessage);
@@ -554,7 +554,7 @@ void FCookWorkerClient::LogConnected()
 void FCookWorkerClient::PumpSendMessages()
 {
 	UE::CompactBinaryTCP::EConnectionStatus Status = UE::CompactBinaryTCP::TryFlushBuffer(ServerSocket, SendBuffer);
-	if (Status == UE::CompactBinaryTCP::Failed)
+	if (Status == UE::CompactBinaryTCP::EConnectionStatus::Failed)
 	{
 		UE_LOG(LogCook, Error, TEXT("CookWorkerClient failed to write message to Director. We will abort the CookAsCookWorker commandlet."));
 		SendToState(EConnectStatus::LostConnection);
@@ -732,9 +732,10 @@ void FCookWorkerClient::PumpDisconnect(FTickStackData& StackData)
 	}
 }
 
-void FCookWorkerClient::SendMessage(const UE::CompactBinaryTCP::IMessage& Message)
+void FCookWorkerClient::SendMessage(const IMPCollectorMessage& Message)
 {
-	UE::CompactBinaryTCP::TryWritePacket(ServerSocket, SendBuffer, Message);
+	UE::CompactBinaryTCP::TryWritePacket(ServerSocket, SendBuffer,
+		MarshalToCompactBinaryTCP(Message));
 }
 
 void FCookWorkerClient::SendToState(EConnectStatus TargetStatus)

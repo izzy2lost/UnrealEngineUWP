@@ -337,30 +337,9 @@ EConnectionStatus TryWritePacket(FSocket* Socket, FSendBuffer& Buffer,
 		TArrayView<FMarshalledMessage>(&AppendMessage, 1), MaxPacketSize);
 }
 
-EConnectionStatus TryWritePacket(FSocket* Socket, FSendBuffer& Buffer,
-	const IMessage& AppendMessage, uint64 MaxPacketSize)
+void QueueMessage(FSendBuffer& Buffer, FMarshalledMessage&& Message)
 {
-	FMarshalledMessage Marshalled;
-	Marshalled.MessageType = AppendMessage.GetMessageType();
-	FCbWriter Writer;
-	Writer.BeginObject();
-	AppendMessage.Write(Writer);
-	Writer.EndObject();
-	Marshalled.Object = Writer.Save().AsObject();
-	return FCompactBinaryTCPImpl::TryWritePacket(Socket, Buffer,
-		TArrayView<FMarshalledMessage>(&Marshalled, 1), MaxPacketSize);
-}
-
-void QueueMessage(FSendBuffer& Buffer, const IMessage& AppendMessage)
-{
-	FMarshalledMessage Marshalled;
-	Marshalled.MessageType = AppendMessage.GetMessageType();
-	FCbWriter Writer;
-	Writer.BeginObject();
-	AppendMessage.Write(Writer);
-	Writer.EndObject();
-	Marshalled.Object = Writer.Save().AsObject();
-	FCompactBinaryTCPImpl::QueueMessage(Buffer, MoveTemp(Marshalled));
+	FCompactBinaryTCPImpl::QueueMessage(Buffer, MoveTemp(Message));
 }
 
 EConnectionStatus TryFlushBuffer(FSocket* Socket, FSendBuffer& Buffer, uint64 MaxPacketSize)

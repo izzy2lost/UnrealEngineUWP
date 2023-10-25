@@ -3,6 +3,7 @@
 #include "ShaderStatsCollector.h"
 #include "ShaderStats.h"
 #include "AnalyticsEventAttribute.h"
+#include "Serialization/CompactBinaryWriter.h"
 
 static TAutoConsoleVariable<int> CVarShaderCompilerStatsPrintoutInterval(
 	TEXT("r.ShaderCompiler.StatsPrintoutInterval"),

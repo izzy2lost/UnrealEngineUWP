@@ -5,7 +5,6 @@
 #include "Async/Future.h"
 #include "Containers/Array.h"
 #include "Containers/ArrayView.h"
-#include "Cooker/CompactBinaryTCP.h"
 #include "Cooker/CookTypes.h"
 #include "HAL/Platform.h"
 #include "Misc/Guid.h"
@@ -131,92 +130,107 @@ public:
 	virtual void ServerReceiveMessage(FMPCollectorServerMessageContext& Context, FCbObjectView Message) {}
 };
 
-/** A subinterface of IMPCollector that uses a UE::CompactBinaryTCP::IMessage subclass to serialize the message. */
-template <typename CompactBinaryTCPMessageType>
-class IMPCollectorCbMessage : public IMPCollector
+
+/** Baseclass for messages used by IMPCollectors that want to interpret their messages as c++ structs. */
+class IMPCollectorMessage
+{
+public:
+	virtual ~IMPCollectorMessage() {}
+
+	/** Marshall the message to a CompactBinaryObject. */
+	virtual void Write(FCbWriter& Writer) const = 0;
+	/** Unmarshall the message from a CompactBinaryObject. */
+	virtual bool TryRead(FCbObjectView Object) = 0;
+	/** Return the Guid that identifies the message to the remote connection. */
+	virtual FGuid GetMessageType() const = 0;
+	/** Return the debugname for diagnostics. */
+	virtual const TCHAR* GetDebugName() const = 0;
+};
+
+
+/** A subinterface of IMPCollector that uses a ICollectorMessage subclass to serialize the message. */
+template <typename MessageType>
+class IMPCollectorForMessage : public IMPCollector
 {
 public:
 	virtual void ClientReceiveMessage(FMPCollectorClientMessageContext& Context, bool bReadSuccessful,
-		CompactBinaryTCPMessageType&& Message) {}
+		MessageType&& Message) {}
 	virtual void ServerReceiveMessage(FMPCollectorServerMessageContext& Context, bool bReadSuccessful,
-		CompactBinaryTCPMessageType&& Message) {}
+		MessageType&& Message) {}
 
 	virtual FGuid GetMessageType() const override
 	{
-		return CompactBinaryTCPMessageType::MessageType;
+		return MessageType().GetMessageType();
+	}
+
+	virtual const TCHAR* GetDebugName() const override
+	{
+		return MessageType().GetDebugName();
 	}
 
 	virtual void ClientReceiveMessage(FMPCollectorClientMessageContext& Context, FCbObjectView Message) override
 	{
-		CompactBinaryTCPMessageType CBMessage;
+		MessageType CBMessage;
 		bool bReadSuccessful = CBMessage.TryRead(Message);
 		ClientReceiveMessage(Context, bReadSuccessful, MoveTemp(CBMessage));
 	}
 
 	virtual void ServerReceiveMessage(FMPCollectorServerMessageContext& Context, FCbObjectView Message) override
 	{
-		CompactBinaryTCPMessageType CBMessage;
+		MessageType CBMessage;
 		bool bReadSuccessful = CBMessage.TryRead(Message);
 		ServerReceiveMessage(Context, bReadSuccessful, MoveTemp(CBMessage));
 	}
 };
 
 /**
- * An implementation of IMPCollector that uses a UE::CompactBinaryTCP::IMessage subclass to serialize the message,
+ * An implementation of IMPCollector that uses an ICollectorMessage subclass to serialize the message,
  * and directs messages received on the client to the given callback.
  */
-template <typename CompactBinaryTCPMessageType>
-class IMPCollectorCbClientMessage : public IMPCollectorCbMessage<CompactBinaryTCPMessageType>
+template <typename MessageType>
+class TMPCollectorClientMessageCallback : public IMPCollectorForMessage<MessageType>
 {
 public:
-	IMPCollectorCbClientMessage(TUniqueFunction<void(FMPCollectorClientMessageContext& Context, bool bReadSuccessful,
-		CompactBinaryTCPMessageType&& Message)>&& InCallback, const TCHAR* InDebugName)
+	TMPCollectorClientMessageCallback(TUniqueFunction<void(FMPCollectorClientMessageContext& Context, bool bReadSuccessful,
+		MessageType&& Message)>&& InCallback)
 		: Callback(MoveTemp(InCallback))
-		, DebugName(InDebugName)
 	{
 		check(Callback);
 	}
 
-	virtual const TCHAR* GetDebugName() const override { return DebugName; }
-
 	virtual void ClientReceiveMessage(FMPCollectorClientMessageContext& Context, bool bReadSuccessful,
-		CompactBinaryTCPMessageType&& Message) override
+		MessageType&& Message) override
 	{
 		Callback(Context, bReadSuccessful, MoveTemp(Message));
 	}
 
 private:
-	TUniqueFunction<void(FMPCollectorClientMessageContext& Context, bool bReadSuccessful, CompactBinaryTCPMessageType&& Message)> Callback;
-	const TCHAR* DebugName;
+	TUniqueFunction<void(FMPCollectorClientMessageContext& Context, bool bReadSuccessful, MessageType&& Message)> Callback;
 };
 
 /**
- * An implementation of IMPCollector that uses a UE::CompactBinaryTCP::IMessage subclass to serialize the message,
+ * An implementation of IMPCollector that uses an IMPCollectorMessage subclass to serialize the message,
  * and directs messages received on the server to the given callback.
  */
-template <typename CompactBinaryTCPMessageType>
-class IMPCollectorCbServerMessage : public IMPCollectorCbMessage<CompactBinaryTCPMessageType>
+template <typename MessageType>
+class TMPCollectorServerMessageCallback : public IMPCollectorForMessage<MessageType>
 {
 public:
-	IMPCollectorCbServerMessage(TUniqueFunction<void(FMPCollectorServerMessageContext& Context, bool bReadSuccessful,
-		CompactBinaryTCPMessageType&& Message)>&& InCallback, const TCHAR* InDebugName)
+	TMPCollectorServerMessageCallback(TUniqueFunction<void(FMPCollectorServerMessageContext& Context, bool bReadSuccessful,
+		MessageType&& Message)>&& InCallback)
 		: Callback(MoveTemp(InCallback))
-		, DebugName(InDebugName)
 	{
 		check(Callback);
 	}
 
-	virtual const TCHAR* GetDebugName() const override { return DebugName; }
-
 	virtual void ServerReceiveMessage(FMPCollectorServerMessageContext& Context, bool bReadSuccessful,
-		CompactBinaryTCPMessageType&& Message) override
+		MessageType&& Message) override
 	{
 		Callback(Context, bReadSuccessful, MoveTemp(Message));
 	}
 
 private:
-	TUniqueFunction<void(FMPCollectorServerMessageContext& Context, bool bReadSuccessful, CompactBinaryTCPMessageType&& Message)> Callback;
-	const TCHAR* DebugName;
+	TUniqueFunction<void(FMPCollectorServerMessageContext& Context, bool bReadSuccessful, MessageType&& Message)> Callback;
 };
 
 }

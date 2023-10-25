@@ -7,6 +7,7 @@
 #include "Containers/ArrayView.h"
 #include "Containers/Map.h"
 #include "Containers/UnrealString.h"
+#include "CookMPCollector.h"
 #include "CookSockets.h"
 #include "CookTypes.h"
 #include "HAL/CriticalSection.h"
@@ -27,8 +28,6 @@ class FCbWriter;
 class FRunnableThread;
 class UCookOnTheFlyServer;
 namespace UE::Cook { class FCookWorkerServer; }
-namespace UE::Cook { class FMPCollectorServerMessageContext; }
-namespace UE::Cook { class IMPCollector; }
 namespace UE::Cook { struct FCookWorkerProfileData; }
 namespace UE::Cook { struct FHeartbeatMessage; }
 namespace UE::Cook { struct FInitialConfigMessage; }
@@ -274,12 +273,13 @@ struct FDirectorConnectionInfo
 };
 
 /** Message sent from a CookWorker to the Director to report that it is ready for setup messages and cooking. */
-struct FWorkerConnectMessage : public UE::CompactBinaryTCP::IMessage
+struct FWorkerConnectMessage : public IMPCollectorMessage
 {
 public:
 	virtual void Write(FCbWriter& Writer) const override;
 	virtual bool TryRead(FCbObjectView Object) override;
 	virtual FGuid GetMessageType() const override { return MessageType; }
+	virtual const TCHAR* GetDebugName() const override { return TEXT("WorkerConnectMessage"); }
 
 public:
 	int32 RemoteIndex = 0;
@@ -290,11 +290,12 @@ public:
  * Message sent from CookDirector to a CookWorker to cancel some of its assigned packages and return them
  * dispatch to idle workers.
  */
-struct FRetractionRequestMessage : public UE::CompactBinaryTCP::IMessage
+struct FRetractionRequestMessage : public IMPCollectorMessage
 {
 	virtual void Write(FCbWriter& Writer) const override;
 	virtual bool TryRead(FCbObjectView Object) override;
 	virtual FGuid GetMessageType() const override { return MessageType; }
+	virtual const TCHAR* GetDebugName() const override { return TEXT("RetractionRequestMessage"); }
 
 public:
 	int32 RequestedCount = 0;
@@ -305,11 +306,12 @@ public:
  * Message sent from CookWorker to CookDirector identifying which assigned packages it chose to satisfy a
  * a RetractionRequest.
  */
-struct FRetractionResultsMessage : public UE::CompactBinaryTCP::IMessage
+struct FRetractionResultsMessage : public IMPCollectorMessage
 {
 	virtual void Write(FCbWriter& Writer) const override;
 	virtual bool TryRead(FCbObjectView Object) override;
 	virtual FGuid GetMessageType() const override { return MessageType; }
+	virtual const TCHAR* GetDebugName() const override { return TEXT("RetractionResultsMessage"); }
 
 public:
 	TArray<FName> ReturnedPackages;

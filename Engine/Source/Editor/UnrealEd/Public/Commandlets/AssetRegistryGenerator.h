@@ -540,12 +540,13 @@ private:
 	friend FAssetRegistryMPCollector;
 };
 
-class FAssetRegistryPackageMessage : public UE::CompactBinaryTCP::IMessage
+class FAssetRegistryPackageMessage : public IMPCollectorMessage
 {
 public:
 	virtual void Write(FCbWriter& Writer) const override;
 	virtual bool TryRead(FCbObjectView Object) override;
 	virtual FGuid GetMessageType() const override { return MessageType; }
+	virtual const TCHAR* GetDebugName() const override { return TEXT("AssetRegistryPackageMessage"); }
 
 	FName PackageName;
 	const ITargetPlatform* TargetPlatform;

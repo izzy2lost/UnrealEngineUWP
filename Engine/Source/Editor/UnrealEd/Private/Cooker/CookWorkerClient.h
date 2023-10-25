@@ -4,6 +4,7 @@
 
 #include "CompactBinaryTCP.h"
 #include "Containers/Array.h"
+#include "CookMPCollector.h"
 #include "CookOnTheSide/CookOnTheFlyServer.h"
 #include "CookTypes.h"
 #include "HAL/CriticalSection.h"
@@ -109,7 +110,7 @@ private:
 	/** Helper for Tick, pump Send/Receive and check for whether we are done shutting down. */
 	void PumpDisconnect(FTickStackData& StackData);
 	/** Send the message immediately to the Socket. If cannot complete immediately, it will be finished during Tick. */
-	void SendMessage(const UE::CompactBinaryTCP::IMessage& Message);
+	void SendMessage(const IMPCollectorMessage& Message);
 	/** Send this into the given state. Update any state-dependent variables. */
 	void SendToState(EConnectStatus TargetStatus);
 	void LogInvalidMessage(const TCHAR* MessageTypeName);

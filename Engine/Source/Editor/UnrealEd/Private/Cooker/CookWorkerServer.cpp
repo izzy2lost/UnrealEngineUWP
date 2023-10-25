@@ -611,7 +611,7 @@ void FCookWorkerServer::TickWaitForDisconnect()
 void FCookWorkerServer::PumpSendMessages()
 {
 	UE::CompactBinaryTCP::EConnectionStatus Status = UE::CompactBinaryTCP::TryFlushBuffer(Socket, SendBuffer);
-	if (Status == UE::CompactBinaryTCP::Failed)
+	if (Status == UE::CompactBinaryTCP::EConnectionStatus::Failed)
 	{
 		UE_LOG(LogCook, Error, TEXT("CookWorkerCrash: CookWorker %d failed to write to socket, we will shutdown the remote process. Assigned packages will be returned to the director."),
 			ProfileId);
@@ -792,22 +792,22 @@ void FCookWorkerServer::HandleReceivedPackagePlatformMessages(FPackageData& Pack
 	}
 }
 
-void FCookWorkerServer::SendMessage(const UE::CompactBinaryTCP::IMessage& Message, ECookDirectorThread TickThread)
+void FCookWorkerServer::SendMessage(const IMPCollectorMessage& Message, ECookDirectorThread TickThread)
 {
 	FCommunicationScopeLock ScopeLock(this, TickThread, ETickAction::Tick);
 	SendMessageInLock(Message);
 }
 
-void FCookWorkerServer::SendMessageInLock(const UE::CompactBinaryTCP::IMessage& Message)
+void FCookWorkerServer::SendMessageInLock(const IMPCollectorMessage& Message)
 {
 	if (TickState.TickAction == ETickAction::Tick)
 	{
-		UE::CompactBinaryTCP::TryWritePacket(Socket, SendBuffer, Message);
+		UE::CompactBinaryTCP::TryWritePacket(Socket, SendBuffer, MarshalToCompactBinaryTCP(Message));
 	}
 	else
 	{
 		check(TickState.TickAction == ETickAction::Queue);
-		UE::CompactBinaryTCP::QueueMessage(SendBuffer, Message);
+		UE::CompactBinaryTCP::QueueMessage(SendBuffer, MarshalToCompactBinaryTCP(Message));
 	}
 }
 
@@ -973,6 +973,18 @@ FCookWorkerServer::FCommunicationScopeLock::~FCommunicationScopeLock()
 	check(Server.TickState.TickThread != ECookDirectorThread::Invalid);
 	Server.TickState.TickThread = ECookDirectorThread::Invalid;
 	Server.TickState.TickAction = ETickAction::Invalid;
+}
+
+UE::CompactBinaryTCP::FMarshalledMessage MarshalToCompactBinaryTCP(const IMPCollectorMessage& Message)
+{
+	UE::CompactBinaryTCP::FMarshalledMessage Marshalled;
+	Marshalled.MessageType = Message.GetMessageType();
+	FCbWriter Writer;
+	Writer.BeginObject();
+	Message.Write(Writer);
+	Writer.EndObject();
+	Marshalled.Object = Writer.Save().AsObject();
+	return Marshalled;
 }
 
 FAssignPackagesMessage::FAssignPackagesMessage(TArray<FAssignPackageData>&& InPackageDatas)
