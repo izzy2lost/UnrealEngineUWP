@@ -53,6 +53,9 @@
 //		
 //		#define FADE_OUT_SAMPLES 8					// Number of samples that will fade out at the end of the shadow (for a minor cost).
 //													// Recommended starting value: 8
+//		
+//		#define TRACK_HIT_UV 1						// Whether to track Hit UV while tracing (causes significant overhead on some platforms).
+//													// If disabled outHitUV will be (0,0)
 
 
 #if defined(__HLSL_VERSION) || defined(__hlsl_dx_compiler) || 1
@@ -71,7 +74,7 @@
 // 
 //	(int3)	inGroupID:			Compute shader group id register (SV_GroupID)
 //	(int)	inGroupThreadId:	Compute shader group thread id register (SV_GroupThreadID)
-void WriteScreenSpaceShadow(struct DispatchParameters inParameters, int3 inGroupID, int inGroupThreadID, out float outResult, out int2 outResultXY);
+void WriteScreenSpaceShadow(struct DispatchParameters inParameters, int3 inGroupID, int inGroupThreadID, out float outResult, out int2 outResultXY, out float2 outHitUV);
 
 
 
@@ -152,15 +155,15 @@ struct DispatchParameters
 										// If 'PointBorderSampler' is an Unnormalized sampler, then this value can be hard-coded to 1.
 										// The 'USE_HALF_PIXEL_OFFSET' macro might need to be defined if sampling at exact pixel coordinates isn't precise (e.g., if odd patterns appear in the shadow).
 
-	Texture2D<float> DepthTexture;		// Depth Buffer Texture (rasterized non-linear depth)
+	Texture2D DepthTexture;				// Depth Buffer Texture (rasterized non-linear depth)
 
 	SamplerState PointBorderSampler;	// A point sampler, with Wrap Mode set to Clamp-To-Border-Color (D3D12_TEXTURE_ADDRESS_MODE_BORDER), and Border Color set to "FarDepthValue" (typically zero), or some other far-depth value out of DepthBounds.
 										// If you have issues where invalid shadows are appearing from off-screen, it is likely that this sampler is not correctly setup
 };
 
 
-#if !defined(WAVE_SIZE) || !defined(SAMPLE_COUNT) || !defined(HARD_SHADOW_SAMPLES) || !defined(FADE_OUT_SAMPLES)
-	#error Before including bend_sss_gpu.h, four macros must be defined to configure the shader compile: WAVE_SIZE, SAMPLE_COUNT, HARD_SHADOW_SAMPLES, and FADE_OUT_SAMPLES. See the top of this file for details.
+#if !defined(WAVE_SIZE) || !defined(SAMPLE_COUNT) || !defined(HARD_SHADOW_SAMPLES) || !defined(FADE_OUT_SAMPLES) || !defined(TRACK_HIT_UV)
+	#error Before including bend_sss_gpu.h, four macros must be defined to configure the shader compile: WAVE_SIZE, SAMPLE_COUNT, HARD_SHADOW_SAMPLES, FADE_OUT_SAMPLES and TRACK_HIT_UV. See the top of this file for details.
 #else
 
 	static bool EarlyOutPixel(struct DispatchParameters inParameters, int2 pixel_xy, float depth)
@@ -239,12 +242,19 @@ struct DispatchParameters
 	groupshared float DepthData[READ_COUNT * WAVE_SIZE];
 	groupshared bool LdsEarlyOut;
 
+	#define DEBUG_HIT_UV (0)
+	#define PACKED_HIT_INDEX (1 && !DEBUG_HIT_UV)
+
+#if DEBUG_HIT_UV
+	groupshared float2 UVData[READ_COUNT * WAVE_SIZE];
+#endif
+
 	// Generate the shadow
 	//	Call this function from a compute shader with thread dimensions: numthreads[WAVE_SIZE, 1, 1]
 	// 
 	//	(int3)	inGroupID:			Compute shader group id register (SV_GroupID)
 	//	(int)	inGroupThreadId:	Compute shader group thread id register (SV_GroupThreadID)
-	void WriteScreenSpaceShadow(DispatchParameters inParameters, int3 inGroupID, int inGroupThreadID, out float outResult, out int2 outResultXY)
+	void WriteScreenSpaceShadow(DispatchParameters inParameters, int3 inGroupID, int inGroupThreadID, out float outResult, out int2 outResultXY, out float2 outHitUV)
 	{
 		float2 xy_delta;
 		float2 pixel_xy;
@@ -258,9 +268,14 @@ struct DispatchParameters
 		float shadowing_depth[READ_COUNT];
 		float depth_thickness_scale[READ_COUNT];
 		float sample_distance[READ_COUNT];
+	#if DEBUG_HIT_UV
+		float2 sample_uv[READ_COUNT];
+	#endif
 
 		const float direction = -inParameters.LightCoordinate.w;
 		const float z_sign = inParameters.NearDepthValue > inParameters.FarDepthValue ? -1 : +1;
+		
+		const float2 start_xy = pixel_xy;
 
 		int i;
 		bool is_edge = false;
@@ -290,14 +305,14 @@ struct DispatchParameters
 
 			// HLSL enforces that a pixel offset is a compile-time constant, which isn't strictly required (and can sometimes be a bit faster)
 			// So this fallback will use a manual uv offset instead
-			depths.x = inParameters.DepthTexture.SampleLevel(inParameters.PointBorderSampler, read_xy * inParameters.InvDepthTextureSize, 0);
-			depths.y = inParameters.DepthTexture.SampleLevel(inParameters.PointBorderSampler, (read_xy + offset_xy) * inParameters.InvDepthTextureSize, 0);
+			depths.x = inParameters.DepthTexture.SampleLevel(inParameters.PointBorderSampler, read_xy * inParameters.InvDepthTextureSize, 0).r;
+			depths.y = inParameters.DepthTexture.SampleLevel(inParameters.PointBorderSampler, (read_xy + offset_xy) * inParameters.InvDepthTextureSize, 0).r;
 		#else
 			int bias = bilinear > 0 ? 1 : -1;
 			int2 offset_xy = int2(x_axis_major ? 0 : bias, x_axis_major ? bias : 0);
 
-			depths.x = inParameters.DepthTexture.SampleLevel(inParameters.PointBorderSampler, read_xy * inParameters.InvDepthTextureSize, 0);
-			depths.y = inParameters.DepthTexture.SampleLevel(inParameters.PointBorderSampler, read_xy * inParameters.InvDepthTextureSize, 0, offset_xy);
+			depths.x = inParameters.DepthTexture.SampleLevel(inParameters.PointBorderSampler, read_xy * inParameters.InvDepthTextureSize, 0).r;
+			depths.y = inParameters.DepthTexture.SampleLevel(inParameters.PointBorderSampler, read_xy * inParameters.InvDepthTextureSize, 0, offset_xy).r;
 		#endif
 
 			// Depth thresholds (bilinear/shadow thickness) are based on a fractional ratio of the difference between sampled depth and the far clip depth
@@ -332,6 +347,9 @@ struct DispatchParameters
 
 			// Store for later
 			sample_distance[i] = pixel_distance + (WAVE_SIZE * i) * direction;
+		#if DEBUG_HIT_UV
+			sample_uv[i] = read_xy * inParameters.InvDepthTextureSize;
+		#endif
 
 			// Iterate to the next pixel along the ray. This will be WAVE_SIZE pixels along the ray...
 			pixel_xy += xy_delta * direction;
@@ -389,6 +407,9 @@ struct DispatchParameters
 			// Store the depth values in groupshared
 			int idx = (i * WAVE_SIZE) + inGroupThreadID.x;
 			DepthData[idx] = stored_depth;
+		#if DEBUG_HIT_UV
+			UVData[idx] = sample_uv[i];
+		#endif
 		}
 
 		// Sync wavefronts now groupshared DepthData is written
@@ -410,8 +431,13 @@ struct DispatchParameters
 		// Start by reading the next value
 		int sample_index = inGroupThreadID.x + 1;
 
+#if TRACK_HIT_UV && PACKED_HIT_INDEX
+		uint4 shadow_value_packed = asuint(1.0f);
+		uint hard_shadow_packed = asuint(1.0f);
+#else
 		float4 shadow_value = 1;
 		float hard_shadow = 1;
+#endif
 
 		// This is the inverse of how large the shadowing window is for the projected sample data. 
 		// All values in the LDS sample list are scaled by 1.0 / sample_distance, such that all light directions become parallel.
@@ -422,14 +448,38 @@ struct DispatchParameters
 		float depth_scale = min(sample_distance[0] + direction, 1.0 / inParameters.SurfaceThickness) * sample_distance[0] / depth_thickness_scale[0];
 
 		start_depth = start_depth * depth_scale - z_sign;
+		
+	#if TRACK_HIT_UV && !PACKED_HIT_INDEX
+		float hit_shadow = 1.0f;
+		int hit_index = 0;
+		#if DEBUG_HIT_UV
+			float2 hit_uv = 0.0f;
+		#endif
+	#endif
 
 		// The first number of hard shadow samples, a single pixel can produce a full shadow
 		[unroll] for (i = 0; i < HARD_SHADOW_SAMPLES; i++)
 		{
 			float depth_delta = abs(start_depth - DepthData[sample_index + i] * depth_scale);
 
+		#if TRACK_HIT_UV && PACKED_HIT_INDEX
+			uint depth_delta_packed = asuint(depth_delta) & 0xffffff80 | (i + 1);
+			hard_shadow_packed = min(hard_shadow_packed, depth_delta_packed);
+		#else
 			// We want to find the distance of the sample that is closest to the reference depth
 			hard_shadow = min(hard_shadow, depth_delta);
+		#endif
+
+		#if TRACK_HIT_UV && !PACKED_HIT_INDEX
+			if (depth_delta < hit_shadow)
+			{
+				hit_shadow = depth_delta;
+				hit_index = i + 1;
+			#if DEBUG_HIT_UV
+				hit_uv = UVData[sample_index + i];
+			#endif
+			}
+		#endif
 		}
 
 		// Brute force go!
@@ -438,21 +488,65 @@ struct DispatchParameters
 		{
 			float depth_delta = abs(start_depth - DepthData[sample_index + i] * depth_scale);
 
+		#if TRACK_HIT_UV && PACKED_HIT_INDEX
+			uint depth_delta_packed = asuint(depth_delta) & 0xffffff80 | (i + 1);
+			shadow_value_packed[i & 3] = min(shadow_value_packed[i & 3], depth_delta_packed);
+		#else
 			// Do the same as the hard_shadow code above, but this will accumulate to 4 separate values.
 			// By using 4 values, the average shadow can be taken, which can help soften single-pixel shadows.
 			shadow_value[i & 3] = min(shadow_value[i & 3], depth_delta);
+		#endif
+
+		#if TRACK_HIT_UV && !PACKED_HIT_INDEX
+			if (depth_delta < hit_shadow)
+			{
+				hit_shadow = depth_delta;
+				hit_index = i + 1;
+			#if DEBUG_HIT_UV
+				hit_uv = UVData[sample_index + i];
+			#endif
+			}
+		#endif
 		}
 
 		// Final fade out samples
 		[unroll] for (i = SAMPLE_COUNT - FADE_OUT_SAMPLES; i < SAMPLE_COUNT; i++)
 		{
-			float depth_delta = abs(start_depth - DepthData[sample_index + i] * depth_scale);
-
 			// Add the fade value to these samples
 			const float fade_out = (float)(i + 1 - (SAMPLE_COUNT - FADE_OUT_SAMPLES)) / (float)(FADE_OUT_SAMPLES + 1) * 0.75;
 
-			shadow_value[i & 3] = min(shadow_value[i & 3], depth_delta + fade_out);
+			float depth_delta = abs(start_depth - DepthData[sample_index + i] * depth_scale) + fade_out;
+
+		#if TRACK_HIT_UV && PACKED_HIT_INDEX
+			uint depth_delta_packed = asuint(depth_delta) & 0xffffff80 | (i + 1);
+			shadow_value_packed[i & 3] = min(shadow_value_packed[i & 3], depth_delta_packed);
+		#else
+			shadow_value[i & 3] = min(shadow_value[i & 3], depth_delta);
+		#endif
+			
+		#if TRACK_HIT_UV && !PACKED_HIT_INDEX
+			if (depth_delta < hit_shadow)
+			{
+				hit_shadow = depth_delta;
+				hit_index = i + 1;
+			#if DEBUG_HIT_UV
+				hit_uv = UVData[sample_index + i];
+			#endif
+			}
+		#endif
 		}
+
+	#if TRACK_HIT_UV && PACKED_HIT_INDEX
+		int hit_index = hard_shadow_packed;
+		hit_index = min(hit_index, shadow_value_packed.x);
+		hit_index = min(hit_index, shadow_value_packed.y);
+		hit_index = min(hit_index, shadow_value_packed.z);
+		hit_index = min(hit_index, shadow_value_packed.w);
+		hit_index &= 0x7f;
+
+		float4 shadow_value = asfloat(shadow_value_packed);
+		float hard_shadow = asfloat(hard_shadow_packed);
+	#endif
 
 		// Apply the contrast value.
 		// A value of 0 indicates a sample was exactly matched to the reference depth (and the result is fully shadowed)
@@ -479,6 +573,20 @@ struct DispatchParameters
 
 			outResult = result;
 			outResultXY = (int2)write_xy;
+
+		#if TRACK_HIT_UV
+			float2 hit_xy = floor(start_xy + hit_index * (xy_delta * direction) / WAVE_SIZE);
+			#if USE_HALF_PIXEL_OFFSET
+				hit_xy += 0.5;
+			#endif
+				outHitUV = hit_xy * inParameters.InvDepthTextureSize;
+
+			#if DEBUG_HIT_UV
+				outHitUV = hit_uv;
+			#endif
+		#else
+			outHitUV = 0.0f;
+		#endif
 		}
 	}
 

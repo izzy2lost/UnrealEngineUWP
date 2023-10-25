@@ -38,7 +38,45 @@ static FAutoConsoleVariableRef CVarBendShadowsOverrideSurfaceThickness(
 	TEXT("r.ContactShadows.Bend.OverrideSurfaceThickness"),
 	GBendShadowsOverrideSurfaceThickness,
 	TEXT("How thick the surface represented by a pixel is assumed to be when determining whether a ray intersects it."),
+	ECVF_RenderThreadSafe
+);
+
+enum class EContactShadowsIntensityMode
+{
+	PrimitiveFlag,
+	DepthBasedApproximation,
+	ForceCastingIntensity,
+
+	MAX
+};
+
+static int32 GContactShadowsIntensityMode = 0;
+static FAutoConsoleVariableRef CVarContactShadowsIntensityMode(
+	TEXT("r.ContactShadows.Intensity.Mode"),
+	GContactShadowsIntensityMode,
+	TEXT("Control how contact shadow intensity is calculated:\n")
+	TEXT("0 - Respect bCastContactShadow flag on Primitive Component.\n")
+	TEXT("1 - Depth based approximation.\n")
+	TEXT("2 - Use Casting Intensity."),
 	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
+static float GContactShadowsIntensityFadeStart = 1600; // 16m
+static FAutoConsoleVariableRef CVarContactShadowsIntensityFadeStart(
+	TEXT("r.ContactShadows.Intensity.FadeStart"),
+	GContactShadowsIntensityFadeStart,
+	TEXT("Depth value at which contact shadows starts fading from NonCastingIntensity to CastingIntensity.\n")
+	TEXT("Only used when r.ContactShadows.Intensity.Mode=1"),
+	ECVF_RenderThreadSafe
+);
+
+static float GContactShadowsIntensityFadeLength = 800; // 8m
+static FAutoConsoleVariableRef CVarContactShadowsIntensityFadeLength(
+	TEXT("r.ContactShadows.Intensity.FadeLength"),
+	GContactShadowsIntensityFadeLength,
+	TEXT("Length of the fading interval from NonCastingIntensity to CastingIntensity.\n")
+	TEXT("Only used when r.ContactShadows.Intensity.Mode=1"),
+	ECVF_RenderThreadSafe
 );
 
 extern void GetLightContactShadowParameters(const FLightSceneProxy* Proxy, float& OutLength, bool& bOutLengthInWS, float& OutCastingIntensity, float& OutNonCastingIntensity);
@@ -98,7 +136,7 @@ class FScreenSpaceShadowsBendCS : public FGlobalShader
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float>, OutputTexture)
-		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float>, DepthTexture)
+		SHADER_PARAMETER_STRUCT_INCLUDE(FSceneTextureShaderParameters, SceneTextures)
 		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D<uint2>, StencilTexture)
 		SHADER_PARAMETER_SAMPLER(SamplerState, PointBorderSampler)
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
@@ -107,6 +145,8 @@ class FScreenSpaceShadowsBendCS : public FGlobalShader
 		SHADER_PARAMETER(uint32, bContactShadowLengthInWS)
 		SHADER_PARAMETER(float, ContactShadowCastingIntensity)
 		SHADER_PARAMETER(float, ContactShadowNonCastingIntensity)
+		SHADER_PARAMETER(float, ContactShadowIntensityFadeStart)
+		SHADER_PARAMETER(float, ContactShadowIntensityFadeOneOverLength)
 		SHADER_PARAMETER(float, SurfaceThickness)
 		SHADER_PARAMETER(FIntRect, ScissorRectMinAndSize)
 		SHADER_PARAMETER(uint32, DownsampleFactor)
@@ -114,6 +154,9 @@ class FScreenSpaceShadowsBendCS : public FGlobalShader
 		SHADER_PARAMETER(FVector4f, LightCoordinate)
 		SHADER_PARAMETER(FIntVector, WaveOffset)
 	END_SHADER_PARAMETER_STRUCT()
+
+	class FIntensityModeDim : SHADER_PERMUTATION_ENUM_CLASS("DIM_INTENSITY_MODE", EContactShadowsIntensityMode);
+	using FPermutationDomain = TShaderPermutationDomain<FIntensityModeDim>;
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
@@ -344,7 +387,7 @@ void RenderScreenSpaceShadowsBend(
 
 			PassParameters->OutputTexture = GraphBuilder.CreateUAV(ShadowsTexture);
 
-			PassParameters->DepthTexture = SceneTextures.Depth.Resolve;
+			PassParameters->SceneTextures = SceneTextures.GetSceneTextureShaderParameters(View.GetFeatureLevel());
 			PassParameters->InvDepthTextureSize = FVector2f(1.0f / DepthDesc.Extent.X, 1.0f / DepthDesc.Extent.Y);
 
 			PassParameters->StencilTexture = SceneTextures.Stencil;
@@ -373,12 +416,17 @@ void RenderScreenSpaceShadowsBend(
 			PassParameters->bContactShadowLengthInWS = bContactShadowLengthInWS;
 			PassParameters->ContactShadowCastingIntensity = ContactShadowCastingIntensity;
 			PassParameters->ContactShadowNonCastingIntensity = ContactShadowNonCastingIntensity;
+			PassParameters->ContactShadowIntensityFadeStart = GContactShadowsIntensityFadeStart;
+			PassParameters->ContactShadowIntensityFadeOneOverLength = 1.0f / GContactShadowsIntensityFadeStart;
 			PassParameters->SurfaceThickness = GBendShadowsOverrideSurfaceThickness;
 
 			PassParameters->LightCoordinate = FVector4f(DispatchList.LightCoordinate_Shader[0], DispatchList.LightCoordinate_Shader[1], DispatchList.LightCoordinate_Shader[2], DispatchList.LightCoordinate_Shader[3]);
 			PassParameters->WaveOffset = FIntVector(Dispatch.WaveOffset_Shader[0], Dispatch.WaveOffset_Shader[1], 0);
 
-			auto ComputeShader = View.ShaderMap->GetShader<FScreenSpaceShadowsBendCS>();
+			FScreenSpaceShadowsBendCS::FPermutationDomain PermutationVector;
+			PermutationVector.Set<FScreenSpaceShadowsBendCS::FIntensityModeDim>((EContactShadowsIntensityMode)GContactShadowsIntensityMode);
+
+			auto ComputeShader = View.ShaderMap->GetShader<FScreenSpaceShadowsBendCS>(PermutationVector);
 
 			FComputeShaderUtils::AddPass(
 				GraphBuilder,
