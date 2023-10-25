@@ -141,6 +141,9 @@ protected:
 	/** Last activity time. */
 	std::atomic<double> LastActivityTime { 0.0 };
 
+	/** Flags which will be passed to send and sendto. */
+	int SendFlags = 0;
+
 	/** Pointer to the subsystem that created it. */
 	ISocketSubsystem* SocketSubsystem;
 };
