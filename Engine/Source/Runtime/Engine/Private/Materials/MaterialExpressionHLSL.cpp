@@ -124,6 +124,7 @@
 #include "Materials/MaterialExpressionNormalize.h"
 #include "Materials/MaterialExpressionNeuralPostProcessNode.h"
 #include "Materials/MaterialExpressionObjectBounds.h"
+#include "Materials/MaterialExpressionObjectLocalBounds.h"
 #include "Materials/MaterialExpressionObjectOrientation.h"
 #include "Materials/MaterialExpressionObjectPositionWS.h"
 #include "Materials/MaterialExpressionObjectRadius.h"
@@ -1939,6 +1940,7 @@ UE::Shader::EValueType UMaterialExpressionRuntimeVirtualTextureOutput::GetCustom
 	case 2:
 	case 5:
 	case 6:
+	case 7:
 		return EValueType::Float1;
 	case 4:
 		return EValueType::Double1;
@@ -1998,6 +2000,10 @@ bool UMaterialExpressionRuntimeVirtualTextureOutput::GenerateHLSLExpression(FMat
 	else if (OutputIndex == 6)
 	{
 		OutExpression = MakeOutputExpression(Mask, 1.f, ERuntimeVirtualTextureAttributeType::Mask);
+	}
+	else if (OutputIndex == 7)
+	{
+		OutExpression = MakeOutputExpression(Displacement, 0.f, ERuntimeVirtualTextureAttributeType::Displacement);
 	}
 	else
 	{
@@ -2088,8 +2094,42 @@ bool UMaterialExpressionFontSample::GenerateHLSLExpression(FMaterialHLSLGenerato
 bool UMaterialExpressionSceneTexture::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
 {
 	using namespace UE::HLSLTree;
+
 	if (OutputIndex == 0)
 	{
+		if (SceneTextureId == PPI_DecalMask)
+		{
+			return Generator.Error(TEXT("Decal Mask bit was moved from GBuffer to the Stencil Buffer for performance optimisation so therefore no longer available."));
+		}
+
+		const EMaterialDomain MaterialDomain = Generator.GetTargetMaterial()->MaterialDomain;
+		if (MaterialDomain == MD_DeferredDecal)
+		{
+			const bool bSceneTextureSupportsDecal = SceneTextureId == PPI_SceneDepth || SceneTextureId == PPI_WorldNormal || SceneTextureId == PPI_CustomDepth || SceneTextureId == PPI_CustomStencil;
+			if (!bSceneTextureSupportsDecal)
+			{
+				// Note: For DBuffer decals CustomDepth and CustomStencil are not available if r.CustomDepth.Order = 1
+				return Generator.Error(TEXT("Decals can only access SceneDepth, CustomDepth, CustomStencil, and WorldNormal."));
+			}
+		}
+
+		if (SceneTextureId == PPI_SceneColor && MaterialDomain != MD_Surface)
+		{
+			if (MaterialDomain == MD_PostProcess)
+			{
+				return Generator.Error(TEXT("SceneColor lookups are only available when MaterialDomain = Surface. PostProcessMaterials should use the SceneTexture PostProcessInput0."));
+			}
+			else
+			{
+				return Generator.Error(TEXT("SceneColor lookups are only available when MaterialDomain = Surface."));
+			}
+		}
+
+		if (SceneTextureId == PPI_Velocity && MaterialDomain != MD_PostProcess)
+		{
+			return Generator.Error(TEXT("Velocity scene textures are only available in post process materials."));
+		}
+
 		const FExpression* ExpressionTexCoord = nullptr;
 		if (Coordinates.GetTracedInput().Expression)
 		{
@@ -4146,6 +4186,52 @@ bool UMaterialExpressionObjectBounds::GenerateHLSLExpression(FMaterialHLSLGenera
 	const FStringView Code(TEXT("float3(GetPrimitiveData(Parameters).ObjectBoundsX, GetPrimitiveData(Parameters).ObjectBoundsY, GetPrimitiveData(Parameters).ObjectBoundsZ)"));
 	OutExpression = Generator.GetTree().NewExpression<FExpressionInlineCustomHLSL>(EValueType::Float3, Code);
 	return true;
+}
+
+bool UMaterialExpressionObjectLocalBounds::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
+{
+	using namespace UE::HLSLTree;
+	using namespace UE::Shader;
+
+	const UMaterial* TargetMaterial = Generator.GetTargetMaterial();
+	if (TargetMaterial)
+	{
+		if (TargetMaterial->MaterialDomain == MD_DeferredDecal)
+		{
+			return Generator.Error(TEXT("Expression not available in the deferred decal material domain."));
+		}
+		else if (TargetMaterial->MaterialDomain != MD_Surface && TargetMaterial->MaterialDomain != MD_Volume)
+		{
+			return Generator.Error(TEXT("The material expression 'ObjectLocalBounds' is only supported in the 'Surface' or 'Volume' material domain."));
+		}
+	}
+
+	switch (OutputIndex)
+	{
+	case 0: // Half extents
+		OutExpression = Generator.GetTree().NewExpression<FExpressionInlineCustomHLSL>(
+			EValueType::Float3,
+			TEXT("((GetPrimitiveData(Parameters).LocalObjectBoundsMax - GetPrimitiveData(Parameters).LocalObjectBoundsMin) / 2.0f)"));
+		return true;
+	case 1: // Full extents
+		OutExpression = Generator.GetTree().NewExpression<FExpressionInlineCustomHLSL>(
+			EValueType::Float3,
+			TEXT("(GetPrimitiveData(Parameters).LocalObjectBoundsMax - GetPrimitiveData(Parameters).LocalObjectBoundsMin)"));
+		return true;
+	case 2: // Min point
+		OutExpression = Generator.GetTree().NewExpression<FExpressionInlineCustomHLSL>(
+			EValueType::Float3,
+			TEXT("GetPrimitiveData(Parameters).LocalObjectBoundsMin"));
+		return true;
+	case 3: // Max point
+		OutExpression = Generator.GetTree().NewExpression<FExpressionInlineCustomHLSL>(
+			EValueType::Float3,
+			TEXT("GetPrimitiveData(Parameters).LocalObjectBoundsMax"));
+		return true;
+	default:
+		checkNoEntry();
+		return false;
+	}
 }
 
 bool UMaterialExpressionObjectOrientation::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const

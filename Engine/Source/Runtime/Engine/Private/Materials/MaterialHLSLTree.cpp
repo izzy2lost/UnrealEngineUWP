@@ -8,12 +8,14 @@
 #include "MaterialDomain.h"
 #include "MaterialShared.h"
 #include "MaterialCachedData.h"
+#include "Materials/MaterialAttributeDefinitionMap.h"
 #include "Materials/MaterialFunctionInterface.h"
 #include "Materials/MaterialExpressionVectorNoise.h"
 #include "Engine/BlendableInterface.h" // BL_AfterTonemapping
 #include "VT/VirtualTextureScalability.h"
 #include "VT/RuntimeVirtualTexture.h"
 #include "DataDrivenShaderPlatformInfo.h"
+#include "RenderUtils.h"
 
 namespace UE::HLSLTree::Material
 {
@@ -283,6 +285,18 @@ bool FExpressionExternalInput::PrepareValue(FEmitContext& Context, FEmitScope& S
 		FEmitData& EmitMaterialData = Context.FindData<FEmitData>();
 		const int32 TypeIndex = (int32)ResolvedInputType;
 		EmitMaterialData.ExternalInputMask[Context.ShaderFrequency][TypeIndex] = true;
+
+		if (EmitMaterialData.CachedExpressionData)
+		{
+			switch (ResolvedInputType)
+			{
+			case EExternalInput::PerInstanceRandom:
+				EmitMaterialData.CachedExpressionData->bHasPerInstanceRandom = true;
+				break;
+			default:
+				break;
+			}
+		}
 
 		if (Context.MaterialCompilationOutput)
 		{
@@ -784,6 +798,11 @@ bool FExpressionDynamicParameter::PrepareValue(FEmitContext& Context, FEmitScope
 	if (DefaultType.IsVoid())
 	{
 		return false;
+	}
+
+	if (Context.bMarkLiveValues)
+	{
+		Context.DynamicParticleParameterMask |= (1u << ParameterIndex);
 	}
 
 	return OutResult.SetType(Context, RequestedType, EExpressionEvaluation::Shader, Shader::EValueType::Float4);
@@ -2176,11 +2195,63 @@ bool FExpressionMaterialLayers::PrepareValue(FEmitContext& Context, FEmitScope& 
 
 bool FExpressionSceneTexture::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const
 {
+	// Guard against using unsupported textures with SLW
+	if (Context.Material)
+	{
+		const bool bHasSingleLayerWaterSM = Context.Material->GetShadingModels().HasShadingModel(MSM_SingleLayerWater);
+		if (bHasSingleLayerWaterSM && SceneTextureId != PPI_CustomDepth && SceneTextureId != PPI_CustomStencil)
+		{
+			return Context.Error(TEXT("Only custom depth and custom stencil can be sampled with SceneTexture when used with the Single Layer Water shading model."));
+		}
+
+		if (Context.Material->GetMaterialDomain() == MD_DeferredDecal)
+		{
+			const bool bSceneTextureRequiresSM5 = SceneTextureId == PPI_WorldNormal;
+			if (bSceneTextureRequiresSM5 && Context.TargetParameters.FeatureLevel < ERHIFeatureLevel::SM5)
+			{
+				FString FeatureLevelName;
+				GetFeatureLevelName(Context.TargetParameters.FeatureLevel, FeatureLevelName);
+				return Context.Errorf(TEXT("Node not supported in feature level %s. SM5 required."), *FeatureLevelName);
+			}
+
+			if (SceneTextureId == PPI_WorldNormal && Context.Material->HasNormalConnected() && !IsUsingDBuffers(Context.TargetParameters.ShaderPlatform))
+			{
+				// GBuffer decals can't bind Normal for read and write.
+				// Note: DBuffer decals can support this but only if the sampled WorldNormal isn't connected to the output normal.
+				return Context.Error(TEXT("Decals that read WorldNormal cannot output to normal at the same time. Enable DBuffer to support this."));
+			}
+		}
+	}
+
 	Context.PrepareExpression(TexCoordExpression, Scope, Shader::EValueType::Float2);
 	if (Context.bMarkLiveValues && Context.MaterialCompilationOutput)
 	{
 		Context.MaterialCompilationOutput->bNeedsSceneTextures = true;
 		Context.MaterialCompilationOutput->SetIsSceneTextureUsed((ESceneTextureId)SceneTextureId);
+
+		const bool bNeedsGBuffer = Context.MaterialCompilationOutput->NeedsGBuffer();
+		if (bNeedsGBuffer)
+		{
+			const EShaderPlatform ShaderPlatform = Context.TargetParameters.ShaderPlatform;
+			if (IsForwardShadingEnabled(ShaderPlatform) || (IsMobilePlatform(ShaderPlatform) && !IsMobileDeferredShadingEnabled(ShaderPlatform)))
+			{
+				return Context.Errorf(TEXT("GBuffer scene textures not available with forward shading (platform id %d)."), ShaderPlatform);
+			}
+
+			// Post-process can't access memoryless GBuffer on mobile
+			if (IsMobilePlatform(ShaderPlatform))
+			{
+				if (Context.Material->GetMaterialDomain() == MD_PostProcess)
+				{
+					return Context.Errorf(TEXT("GBuffer scene textures not available in post-processing with mobile shading (platform id %d)."), ShaderPlatform);
+				}
+
+				if (Context.Material->IsMobileSeparateTranslucencyEnabled())
+				{
+					return Context.Errorf(TEXT("GBuffer scene textures not available for separate translucency with mobile shading (platform id %d)."), ShaderPlatform);
+				}
+			}
+		}
 	}
 	return OutResult.SetType(Context, RequestedType, EExpressionEvaluation::Shader, Shader::EValueType::Float4);
 }
@@ -2728,9 +2799,18 @@ bool FExpressionPerInstanceCustomData::PrepareValue(FEmitContext& Context, FEmit
 		return false;
 	}
 
-	if (Context.bMarkLiveValues && Context.MaterialCompilationOutput)
+	if (Context.bMarkLiveValues)
 	{
-		Context.MaterialCompilationOutput->bUsesPerInstanceCustomData = true;
+		FEmitData& EmitData = Context.FindData<FEmitData>();
+		if (EmitData.CachedExpressionData)
+		{
+			EmitData.CachedExpressionData->bHasPerInstanceCustomData = true;
+		}
+
+		if (Context.MaterialCompilationOutput)
+		{
+			Context.MaterialCompilationOutput->bUsesPerInstanceCustomData = true;
+		}
 	}
 
 	return OutResult.SetType(Context, RequestedType, EExpressionEvaluation::Shader, GetCustomDataType());
@@ -3140,6 +3220,23 @@ void FExpressionDataDrivenShaderPlatformInfoSwitch::EmitValueShader(FEmitContext
 	}
 }
 
+bool FExpressionFinalShadingModelSwitch::IsInputActive(const FEmitContext& Context, int32 Index) const
+{
+	if (Context.TargetParameters.IsGenericTarget())
+	{
+		return true;
+	}
+
+	if (AllowPerPixelShadingModels(Context.TargetParameters.ShaderPlatform))
+	{
+		return Index == 0;
+	}
+	else
+	{
+		return Index == 1;
+	}
+}
+
 bool FExpressionAtmosphericFogColorFunction::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const
 {
 	const FPreparedType& PositionType = Context.PrepareExpression(PositionExpression, Scope, Shader::EValueType::Double3);
@@ -3210,6 +3307,68 @@ void FExpressionNeuralNetworkOutput::EmitValueShader(FEmitContext& Context, FEmi
 	}
 }
 
+bool FExpressionDefaultShadingModel::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const
+{
+	return OutResult.SetType(Context, RequestedType, EExpressionEvaluation::Constant, Shader::EValueType::Int1);
+}
+
+void FExpressionDefaultShadingModel::EmitValuePreshader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValuePreshaderResult& OutResult) const
+{
+	++Context.PreshaderStackPosition;
+
+	Shader::FValue Value;
+	if (Context.Material)
+	{
+		Value = (int32)Context.Material->GetShadingModels().GetFirstShadingModel();
+	}
+	else
+	{
+		check(Context.TargetParameters.IsGenericTarget());
+		Value = (int32)FMaterialAttributeDefinitionMap::GetDefaultValue(MP_ShadingModel).X;
+	}
+
+	OutResult.Type = Value.Type;
+	OutResult.Preshader.WriteOpcode(Shader::EPreshaderOpcode::Constant).Write(Value);
+}
+
+void FExpressionDefaultSubsurfaceColor::ComputeAnalyticDerivatives(FTree& Tree, FExpressionDerivatives& OutResult) const
+{
+	const Shader::FValue ZeroValue(Shader::EValueType::Float3);
+	OutResult.ExpressionDdx = Tree.NewConstant(ZeroValue);
+	OutResult.ExpressionDdy = OutResult.ExpressionDdx;
+}
+
+bool FExpressionDefaultSubsurfaceColor::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const
+{
+	return OutResult.SetType(Context, RequestedType, EExpressionEvaluation::Constant, Shader::EValueType::Float3);
+}
+
+namespace Private
+{
+FMaterialShadingModelField GetCompiledShadingModels(const FEmitContext& Context)
+{
+	if (Context.Material->IsShadingModelFromMaterialExpression())
+	{
+		check(Context.bCompiledShadingModels);
+		const FEmitData& EmitData = Context.FindData<FEmitData>();
+		if (EmitData.ShadingModelsFromCompilation.IsValid())
+		{
+			return EmitData.ShadingModelsFromCompilation;
+		}
+	}
+	return Context.Material->GetShadingModels();
+}
+}
+
+void FExpressionDefaultSubsurfaceColor::EmitValuePreshader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValuePreshaderResult& OutResult) const
+{
+	++Context.PreshaderStackPosition;
+	const bool bHasTwoSided = Context.Material && Private::GetCompiledShadingModels(Context).HasShadingModel(MSM_TwoSidedFoliage);
+	const Shader::FValue Value = bHasTwoSided ? FVector3f::ZeroVector : FVector3f(FMaterialAttributeDefinitionMap::GetDefaultValue(MP_SubsurfaceColor));
+	OutResult.Type = Value.Type;
+	OutResult.Preshader.WriteOpcode(Shader::EPreshaderOpcode::Constant).Write(Value);
+}
+
 int32 FEmitData::FindInterpolatorIndex(const FExpression* Expression) const
 {
 	for (int32 Index = 0; Index < VertexInterpolators.Num(); ++Index)
@@ -3231,10 +3390,12 @@ void FEmitData::AddInterpolator(const FExpression* Expression, const FRequestedT
 	}
 
 	bool bAnyComponentRequested = false;
-	const Shader::FType LocalType = PreparedType.GetResultType();
 	FVertexInterpolator& Interpolator = VertexInterpolators[InterpolatorIndex];
-	Interpolator.RequestedType = FRequestedType(RequestedType, false);
-	Interpolator.PreparedType = PreparedType;
+	
+	Interpolator.RequestedType.Type = Shader::CombineTypes(Interpolator.RequestedType.Type, RequestedType.Type);
+	Interpolator.PreparedType = MergePreparedTypes(Interpolator.PreparedType, PreparedType);
+	check(!Interpolator.RequestedType.IsVoid() && !Interpolator.PreparedType.IsVoid())
+
 	for (int32 ComponentIndex = 0; ComponentIndex < PreparedType.PreparedComponents.Num(); ++ComponentIndex)
 	{
 		if (RequestedType.IsComponentRequested(ComponentIndex))

@@ -58,6 +58,19 @@ const UE::HLSLTree::FExpression* FMaterialHLSLGenerator::GetMaterialAttributesDe
 	const UE::Shader::FStructType* StructType = GetMaterialAttributesType();
 	const FExpression* OutExpression = Tree.NewConstant(CachedTree.GetMaterialAttributesDefaultValue());
 
+	// Some default values are unknown at tree generation time
+	{
+		const UE::Shader::FStructField* ShadingModelField = StructType->FindFieldByName(*FMaterialAttributeDefinitionMap::GetAttributeName(MP_ShadingModel));
+		const FExpression* ShadingModelExpression = Tree.NewExpression<Material::FExpressionDefaultShadingModel>();
+		OutExpression = Tree.NewExpression<FExpressionSetStructField>(StructType, ShadingModelField, OutExpression, ShadingModelExpression);
+	}
+
+	{
+		const UE::Shader::FStructField* SubsurfaceColorField = StructType->FindFieldByName(*FMaterialAttributeDefinitionMap::GetAttributeName(MP_SubsurfaceColor));
+		const FExpression* SubsurfaceColorExpression = Tree.NewExpression<Material::FExpressionDefaultSubsurfaceColor>();
+		OutExpression = Tree.NewExpression<FExpressionSetStructField>(StructType, SubsurfaceColorField, OutExpression, SubsurfaceColorExpression);
+	}
+
 	// Some material attribute defaults aren't compile time constants
 	if (ensure(TargetMaterial) && !TargetMaterial->bTangentSpaceNormal)
 	{
@@ -230,6 +243,8 @@ bool FMaterialHLSLGenerator::GenerateResult(UE::HLSLTree::FScope& Scope)
 			FOwnerScope TreeOwnerScope(GetTree(), TargetMaterial);
 
 			const FStructField* PrevWPOField = CachedTree.GetMaterialAttributesType()->FindFieldByName(TEXT("PrevWorldPositionOffset"));
+			const FStructField* ShadingModelField = CachedTree.GetMaterialAttributesType()->FindFieldByName(*FMaterialAttributeDefinitionMap::GetAttributeName(MP_ShadingModel));
+
 			if (TargetMaterial->bUseMaterialAttributes)
 			{
 				FMaterialInputDescription InputDescription;
@@ -240,6 +255,14 @@ bool FMaterialHLSLGenerator::GenerateResult(UE::HLSLTree::FScope& Scope)
 
 					if (AttributesExpression)
 					{
+						// Special handling for ShadingModel to fallback to first material shading model if per pixel SM is not allowed
+						{
+							const FExpression* FallbackExpression = GetTree().NewExpression<Material::FExpressionDefaultShadingModel>();
+							FallbackExpression = GetTree().NewExpression<FExpressionSetStructField>(CachedTree.GetMaterialAttributesType(), ShadingModelField, AttributesExpression, FallbackExpression);
+							const FExpression* ShadingModelExpressions[] = { AttributesExpression, FallbackExpression };
+							AttributesExpression = GetTree().NewExpression<Material::FExpressionFinalShadingModelSwitch>(ShadingModelExpressions);
+						}
+
 						const FExpression* PrevAttributesExpression = GetTree().NewExpression<FExpressionDefaultValue>(AttributesExpression, CachedTree.GetMaterialAttributesDefaultValue());
 
 						const FString& WPOName = FMaterialAttributeDefinitionMap::GetAttributeName(MP_WorldPositionOffset);
@@ -274,11 +297,20 @@ bool FMaterialHLSLGenerator::GenerateResult(UE::HLSLTree::FScope& Scope)
 						const FExpression* InputExpression = CompileMaterialInput(*this, Scope, Property, TargetMaterial);
 						if (InputExpression)
 						{
+							if (Property == MP_ShadingModel)
+							{
+								// Special handling for ShadingModel to fallback to first material shading model if per pixel SM is not allowed
+								const FExpression* FallbackExpression = GetTree().NewExpression<Material::FExpressionDefaultShadingModel>();
+								const FExpression* ShadingModelExpressions[] = { InputExpression, FallbackExpression };
+								InputExpression = GetTree().NewExpression<Material::FExpressionFinalShadingModelSwitch>(ShadingModelExpressions);
+							}
+
 							AttributesExpression = GetTree().NewExpression<FExpressionSetStructField>(
 								CachedTree.GetMaterialAttributesType(),
 								AttributeField,
 								AttributesExpression,
 								InputExpression);
+
 							if (Property == MP_WorldPositionOffset)
 							{
 								const FExpression* PrevWPOExpression = GetTree().GetPreviousFrame(InputExpression, EValueType::Float3);

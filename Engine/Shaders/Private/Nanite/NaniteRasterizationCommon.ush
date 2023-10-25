@@ -368,6 +368,9 @@ struct FMaterialShader
 			SetVertexParameterInstanceData(VertexParameters, InstanceData, PrimitiveData, true /* WPO */);
 			SetVertexParameterAttributeData(VertexParameters, InputVert, InstanceDynamicData.LocalToTranslatedWorld, LocalToWorld);
 
+		#if ENABLE_NEW_HLSL_GENERATOR
+			EvaluateVertexMaterialAttributes(VertexParameters);
+		#endif
 			WorldPositionOffset = GetMaterialWorldPositionOffset(VertexParameters);
 		}
 	#endif

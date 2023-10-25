@@ -322,6 +322,10 @@ FNaniteTransformedTri TransformNaniteTriangle(FPrimitiveSceneData PrimitiveData,
 			SetVertexParameterInstanceData(PrevVertexParameters, InstanceData, PrimitiveData, true /* WPO */);
 			SetVertexParameterAttributeData(PrevVertexParameters, InVerts[i], Transforms.PrevLocalToTranslatedWorld, Transforms.PrevLocalToWorldNoScale);
 
+		#if ENABLE_NEW_HLSL_GENERATOR
+			EvaluateVertexMaterialAttributes(VertexParameters);
+			EvaluateVertexMaterialAttributes(PrevVertexParameters);
+		#endif
 			const float3 WorldPositionOffset = GetMaterialWorldPositionOffset(VertexParameters);
 			const float3 PrevWorldPositionOffset = GetMaterialPreviousWorldPositionOffset(PrevVertexParameters);
 			const float3 LocalOffset = mul(WorldPositionOffset, Transforms.WorldToLocalVector);
@@ -364,6 +368,9 @@ FNaniteTransformedTri TransformNaniteTriangle(FPrimitiveSceneData PrimitiveData,
 			SetVertexParameterInstanceData(VertexParameters, InstanceData, PrimitiveData, false /* WPO */);
 			SetVertexParameterAttributeData(VertexParameters, InVerts[i], Transforms.LocalToTranslatedWorld, Transforms.LocalToWorldNoScale);
 
+		#if ENABLE_NEW_HLSL_GENERATOR
+			EvaluateVertexMaterialAttributes(VertexParameters);
+		#endif
 			GetMaterialCustomizedUVs(VertexParameters, Tri.Verts[i].CustomizedUVs);
 			GetCustomInterpolators(VertexParameters, Tri.Verts[i].CustomizedUVs);
 		#endif
@@ -407,6 +414,10 @@ FNaniteTransformedVert TransformNaniteVertex(FPrimitiveSceneData PrimitiveData, 
 		SetVertexParameterInstanceData(PrevVertexParameters, InstanceData, PrimitiveData, true /* WPO */);
 		SetVertexParameterAttributeData(PrevVertexParameters, InVert, Transforms.PrevLocalToTranslatedWorld, Transforms.PrevLocalToWorldNoScale);
 
+	#if ENABLE_NEW_HLSL_GENERATOR
+		EvaluateVertexMaterialAttributes(VertexParameters);
+		EvaluateVertexMaterialAttributes(PrevVertexParameters);
+	#endif
 		const float3 WorldPositionOffset = GetMaterialWorldPositionOffset(VertexParameters);
 		const float3 PrevWorldPositionOffset = GetMaterialPreviousWorldPositionOffset(PrevVertexParameters);
 		const float3 LocalOffset = mul(WorldPositionOffset, Transforms.WorldToLocalVector);
@@ -437,6 +448,9 @@ FNaniteTransformedVert TransformNaniteVertex(FPrimitiveSceneData PrimitiveData, 
 		SetVertexParameterInstanceData(VertexParameters, InstanceData, PrimitiveData, false /* WPO */);
 		SetVertexParameterAttributeData(VertexParameters, InVert, Transforms.LocalToTranslatedWorld, Transforms.LocalToWorldNoScale);
 
+	#if ENABLE_NEW_HLSL_GENERATOR
+		EvaluateVertexMaterialAttributes(VertexParameters);
+	#endif
 		GetMaterialCustomizedUVs(VertexParameters, Vert.CustomizedUVs);
 		GetCustomInterpolators(VertexParameters, Vert.CustomizedUVs);
 	#endif

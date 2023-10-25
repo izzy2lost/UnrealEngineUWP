@@ -1378,10 +1378,7 @@ void FInstancedStaticMeshSceneProxy::SetupProxy(const FInstancedStaticMeshSceneP
 
 			bAnySegmentUsesWorldPositionOffset |= Section.Material->GetRelevance_Concurrent(GMaxRHIFeatureLevel).bUsesWorldPositionOffset;
 
-			const UMaterial* Material = Section.Material->GetMaterial_Concurrent();
-			check(Material != nullptr); // Should always be valid here
-
-			const FMaterialCachedExpressionData& CachedMaterialData = Material->GetCachedExpressionData();
+			const FMaterialCachedExpressionData& CachedMaterialData = Section.Material->GetCachedExpressionData();
 			bAnyMaterialHasPerInstanceRandom |= CachedMaterialData.bHasPerInstanceRandom;
 			bAnyMaterialHasPerInstanceCustomData |= CachedMaterialData.bHasPerInstanceCustomData;
 		}

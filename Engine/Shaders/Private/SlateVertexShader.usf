@@ -46,6 +46,8 @@ VertexToPixelInterpolants Main(
 	VertexParameters.SceneData.Primitive.Flags = GetDefaultPrimitiveSceneDataFlags();
 	VertexParameters.SceneData.Primitive.VisibilityFlags = GetDefaultPrimitiveVisibilityFlags();
 
+	bool bCalledEvaluateVertexMaterialAttributes = false;
+
 #if NUM_MATERIAL_TEXCOORDS_VERTEX
 
 #if !USE_SLATE_INSTANCING
@@ -75,6 +77,11 @@ VertexToPixelInterpolants Main(
 	}
 
 	#if HAS_MATERIAL_TEXCOORDS
+
+	#if ENABLE_NEW_HLSL_GENERATOR
+		EvaluateVertexMaterialAttributes(VertexParameters);
+		bCalledEvaluateVertexMaterialAttributes = true;
+	#endif
 
 		float2 CustomizedUVs[NUM_SLATE_TEXCOORDS];
 		GetMaterialCustomizedUVs(VertexParameters, CustomizedUVs);
@@ -106,6 +113,14 @@ VertexToPixelInterpolants Main(
 #endif // NUM_MATERIAL_TEXCOORDS_VERTEX
 
 #if HAS_SCREEN_POSITION
+
+#if ENABLE_NEW_HLSL_GENERATOR
+	if (!bCalledEvaluateVertexMaterialAttributes)
+	{
+		EvaluateVertexMaterialAttributes(VertexParameters);
+	}
+#endif
+
 	WorldPosition.xyz = GetMaterialWorldPositionOffset(VertexParameters);
 #endif
 

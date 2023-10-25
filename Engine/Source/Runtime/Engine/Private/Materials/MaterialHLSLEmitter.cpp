@@ -93,8 +93,6 @@ static FString GenerateMaterialTemplateHLSL(EShaderPlatform ShaderPlatform,
 		}
 	}
 
-	NumVertexTexCoords = FMath::Max(NumVertexTexCoords, NumPixelTexCoords);
-
 	const uint32 NumCustomVectors = (EmitMaterialData.NumInterpolatorComponents + 1) / 2;
 	const uint32 NumTexCoordVectors = NumPixelTexCoords + NumCustomVectors;
 
@@ -215,24 +213,9 @@ static FString GenerateMaterialTemplateHLSL(EShaderPlatform ShaderPlatform,
 	{
 		FString EvaluateMaterialDeclaration;
 
-		EvaluateMaterialDeclaration += TEXT("void EvaluateVertexMaterialAttributesInternal(in out FMaterialVertexParameters Parameters)" HLSL_LINE_TERMINATOR);
-		EvaluateMaterialDeclaration += TEXT("{" HLSL_LINE_TERMINATOR);
-		EvaluateMaterialDeclaration += VertexShaderCode;
-		EvaluateMaterialDeclaration += TEXT("}" HLSL_LINE_TERMINATOR);
-
 		EvaluateMaterialDeclaration += TEXT("void EvaluateVertexMaterialAttributes(in out FMaterialVertexParameters Parameters)" HLSL_LINE_TERMINATOR);
 		EvaluateMaterialDeclaration += TEXT("{" HLSL_LINE_TERMINATOR);
-		EvaluateMaterialDeclaration += TEXT("    EvaluateVertexMaterialAttributesInternal(Parameters);" HLSL_LINE_TERMINATOR);
-		for (uint32 TexCoordIndex = 0; TexCoordIndex < NumPixelTexCoords; ++TexCoordIndex)
-		{
-			const Material::EExternalInput TexCoordInput = Material::MakeInputTexCoord(TexCoordIndex);
-
-			if (EmitMaterialData.IsExternalInputUsed(SF_Pixel, TexCoordInput) && !EmitMaterialData.IsExternalInputUsed(SF_Vertex, TexCoordInput))
-			{
-				const FString AttributeName = FMaterialAttributeDefinitionMap::GetAttributeName((EMaterialProperty)(MP_CustomizedUVs0 + TexCoordIndex));
-				EvaluateMaterialDeclaration += FString::Printf(TEXT("    Parameters.MaterialAttributes.%s = Parameters.TexCoords[%d];") HLSL_LINE_TERMINATOR, *AttributeName, TexCoordIndex);
-			}
-		}
+		EvaluateMaterialDeclaration += VertexShaderCode;
 		EvaluateMaterialDeclaration += TEXT("}" HLSL_LINE_TERMINATOR);
 
 		FString EvaluateMaterialAttributesPhase0[2];
@@ -813,6 +796,13 @@ bool MaterialEmitHLSL(const FMaterialCompileTargetParameters& InCompilerTarget,
 	const FStructField* NormalField = CachedTree->GetMaterialAttributesType()->FindFieldByName(*FMaterialAttributeDefinitionMap::GetAttributeName(MP_Normal));
 	check(NormalField);
 
+	const FStructField* ShadingModelField = nullptr;
+	if (EmitContext.Material->IsShadingModelFromMaterialExpression())
+	{
+		ShadingModelField = CachedTree->GetMaterialAttributesType()->FindFieldByName(*FMaterialAttributeDefinitionMap::GetAttributeName(MP_ShadingModel));
+		check(ShadingModelField);
+	}
+
 	// Prepare pixel shader code
 	FStringBuilderBase* PixelCodePhase0[2] = { nullptr };
 	FStringBuilderBase* PixelCodePhase1[2] = { nullptr };
@@ -824,13 +814,35 @@ bool MaterialEmitHLSL(const FMaterialCompileTargetParameters& InCompilerTarget,
 		EmitContext.bUseAnalyticDerivatives = (DerivativeIndex == 1);
 		EmitContext.bMarkLiveValues = false;
 		FEmitScope* EmitResultScope = EmitContext.PrepareScope(CachedTree->GetResultScope());
+		FRequestedType RequestedPixelAttributesType(CachedTree->GetMaterialAttributesType(), false);
+
+		// Prepare ShadingModel first if necessary to populate FEmitData::ShadingModelsFromCompilation
+		if (ShadingModelField)
+		{
+			RequestedPixelAttributesType.SetFieldRequested(ShadingModelField);
+
+			const FPreparedType& ShadingModelType = EmitContext.PrepareExpression(CachedTree->GetResultExpression(), *EmitResultScope, RequestedPixelAttributesType);
+			if (ShadingModelType.IsVoid())
+			{
+				return false;
+			}
+
+			EmitContext.bMarkLiveValues = true;
+			EmitContext.PrepareExpression(CachedTree->GetResultExpression(), *EmitResultScope, RequestedPixelAttributesType);
+			EmitContext.bMarkLiveValues = false;
+			EmitContext.bCompiledShadingModels = true;
+			RequestedPixelAttributesType.SetFieldRequested(ShadingModelField, false);
+		}
+		else
+		{
+			EmitContext.bCompiledShadingModels = false;
+		}
 
 		// Prepare all fields *except* normal
-		FRequestedType RequestedPixelAttributesType(CachedTree->GetMaterialAttributesType(), false);
 		CachedTree->SetRequestedFields(EmitContext, RequestedPixelAttributesType);
 		RequestedPixelAttributesType.SetFieldRequested(NormalField, false);
 
-		const FPreparedType PixelResultType0 = EmitContext.PrepareExpression(CachedTree->GetResultExpression(), *EmitResultScope, RequestedPixelAttributesType);
+		const FPreparedType& PixelResultType0 = EmitContext.PrepareExpression(CachedTree->GetResultExpression(), *EmitResultScope, RequestedPixelAttributesType);
 		if (PixelResultType0.IsVoid())
 		{
 			return false;
@@ -975,6 +987,14 @@ bool MaterialEmitHLSL(const FMaterialCompileTargetParameters& InCompilerTarget,
 		bUsesWorldPositionOffset = CachedTree->IsAttributeUsed(EmitContext, *EmitResultScope, VertexResultType, MP_WorldPositionOffset);
 
 		CachedTree->GetTree().EmitShader(EmitContext, VertexCode);
+	}
+
+	// Don't allow opaque and masked materials to use scene depth as the results are undefined
+	if (OutCompilationOutput.IsSceneTextureUsed(PPI_SceneDepth)
+		&& EmitContext.Material->GetMaterialDomain() != MD_PostProcess
+		&& !IsTranslucentBlendMode(EmitContext.Material->GetBlendMode()))
+	{
+		EmitContext.Error(TEXT("Only transparent or postprocess materials can read from scene depth."));
 	}
 
 	if (EmitContext.NumErrors > 0)

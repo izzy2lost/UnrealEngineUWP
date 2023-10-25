@@ -652,19 +652,29 @@ static inline void EvaluateTernaryOp(FPreshaderStack& Stack, const Operation& Op
 // Runs the swizzle in place on the top item on the stack
 static void EvaluateComponentSwizzle(FPreshaderStack& Stack, FPreshaderDataContext& RESTRICT Data)
 {
-	const uint8 NumElements = ReadPreshaderValue<uint8>(Data);
-	const uint8 IndexR = ReadPreshaderValue<uint8>(Data);
-	const uint8 IndexG = ReadPreshaderValue<uint8>(Data);
-	const uint8 IndexB = ReadPreshaderValue<uint8>(Data);
-	const uint8 IndexA = ReadPreshaderValue<uint8>(Data);
-
 	// Get original type and adjust the count and type to the new type.  Adjusting the count doesn't destroy
 	// the elements, so we can still access them, but saves time over having to re-fetch the component pointer
 	// in case the component array gets resized between the read and write.
 	const FPreshaderType& OriginalType = Stack.PeekType();
 	check(OriginalType.IsStruct() == false);
 
-	int32 OriginalNumComponents = GetValueTypeDescription(OriginalType.ValueType).NumComponents;
+	const int32 OriginalNumComponents = GetValueTypeDescription(OriginalType.ValueType).NumComponents;
+	const int32 NumElements = (int32)ReadPreshaderValue<uint8>(Data);
+	
+	auto ReadNextSourceComponentIndex = [&Data, OriginalNumComponents]()
+	{
+		uint8 SourceComponentIndex = ReadPreshaderValue<uint8>(Data);
+		if (OriginalNumComponents == 1 && SourceComponentIndex != uint8(INDEX_NONE))
+		{
+			// Replicate scalar
+			SourceComponentIndex = 0;
+		}
+		return (int32)SourceComponentIndex;
+	};
+	const int32 IndexR = ReadNextSourceComponentIndex();
+	const int32 IndexG = ReadNextSourceComponentIndex();
+	const int32 IndexB = ReadNextSourceComponentIndex();
+	const int32 IndexA = ReadNextSourceComponentIndex();
 
 	Stack.AdjustComponentCount(NumElements - OriginalNumComponents);
 	Stack.OverrideTopType(UE::Shader::MakeValueType(OriginalType.ValueType, NumElements));

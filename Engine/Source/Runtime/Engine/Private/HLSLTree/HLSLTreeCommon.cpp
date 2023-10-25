@@ -730,7 +730,8 @@ void SwizzleEmitValueShader(FEmitContext& Context,
 	const FRequestedType RequestedInputType = Private::GetRequestedSwizzleType(Parameters, RequestedType);
 
 	// Make sure the input is cast to the explicit requested type, this ensures it will have enough components for the swizzle
-	// Alternately, we could avoid the cast, and update the logic to insert 0s for swizzle access to invalid components
+	// Alternately, we could avoid the cast, and update the logic to insert 0s for swizzle access to invalid components or
+	// replicate the first component in case the input is scalar
 	FEmitShaderExpression* EmitInput = Input->GetValueShader(Context, Scope, RequestedInputType, RequestedInputType.Type.GetConcreteType());
 
 	const Shader::FValueTypeDescription InputTypeDesc = Shader::GetValueTypeDescription(EmitInput->Type);

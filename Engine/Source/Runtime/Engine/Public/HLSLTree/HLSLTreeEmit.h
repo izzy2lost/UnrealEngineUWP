@@ -581,6 +581,7 @@ public:
 	bool bMarkLiveValues = false;
 	bool bUseAnalyticDerivatives = false;
 
+	bool bCompiledShadingModels = false;
 	bool bUsesSkyAtmosphere = false;
 	bool bUsesSpeedTree = false;
 	bool bUsesSphericalParticleOpacity = false;

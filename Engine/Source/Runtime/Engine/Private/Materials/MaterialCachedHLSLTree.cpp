@@ -8,6 +8,8 @@
 #include "Materials/Material.h"
 #include "Materials/MaterialAttributeDefinitionMap.h"
 #include "Materials/MaterialExpressionCustomOutput.h"
+#include "Materials/MaterialExpressionMaterialAttributeLayers.h"
+#include "Materials/MaterialExpressionMaterialFunctionCall.h"
 #include "MaterialHLSLGenerator.h"
 #include "MaterialHLSLTree.h"
 #include "HLSLTree/HLSLTreeEmit.h"
@@ -56,15 +58,48 @@ static UE::Shader::EValueType GetShaderType(EMaterialValueType MaterialType)
 
 bool FMaterialCachedHLSLTree::GenerateTree(UMaterial* Material, const FMaterialLayersFunctions* LayerOverrides, UMaterialExpression* PreviewExpression)
 {
-	const EMaterialShadingModel DefaultShadingModel = Material->GetShadingModels().GetFirstShadingModel();
-
 	for (UMaterialExpression* Expression : Material->GetExpressions())
 	{
-		UMaterialExpressionCustomOutput* CustomOutput = Cast<UMaterialExpressionCustomOutput>(Expression);
-		// We don't want anything with HasCustomSourceOutput() here (VertexInterpolators)
-		if (CustomOutput && !CustomOutput->HasCustomSourceOutput())
+		if (UMaterialExpressionCustomOutput* CustomOutput = Cast<UMaterialExpressionCustomOutput>(Expression))
 		{
-			MaterialCustomOutputs.Add(CustomOutput);
+			if (!CustomOutput->HasCustomSourceOutput())
+			{
+				// We don't want anything with HasCustomSourceOutput() here (VertexInterpolators)
+				MaterialCustomOutputs.Add(CustomOutput);
+			}
+		}
+		else if (UMaterialExpressionMaterialFunctionCall* FunctionCall = Cast<UMaterialExpressionMaterialFunctionCall>(Expression))
+		{
+			// TODO: avoid updating the same function call multiple times
+			FunctionCall->UpdateFromFunctionResource();
+		}
+		else if (UMaterialExpressionMaterialAttributeLayers* LayersExpression = Cast<UMaterialExpressionMaterialAttributeLayers>(Expression))
+		{
+			const FMaterialLayersFunctions& MaterialLayers = LayerOverrides ? *LayerOverrides : LayersExpression->DefaultLayers;
+
+			for (int32 LayerIndex = 0; LayerIndex < MaterialLayers.Layers.Num(); ++LayerIndex)
+			{
+				UMaterialFunctionInterface* LayerFunction = MaterialLayers.Layers[LayerIndex];
+
+				if (LayerFunction && MaterialLayers.EditorOnly.LayerStates[LayerIndex])
+				{
+					LayerFunction->UpdateFromFunctionResource();
+				}
+			}
+
+			for (int32 BlendIndex = 0; BlendIndex < MaterialLayers.Blends.Num(); ++BlendIndex)
+			{
+				UMaterialFunctionInterface* BlendFunction = MaterialLayers.Blends[BlendIndex];
+				const int32 LayerIndex = BlendIndex + 1;
+
+				if (BlendFunction
+					&& MaterialLayers.Layers.IsValidIndex(LayerIndex)
+					&& MaterialLayers.Layers[LayerIndex]
+					&& MaterialLayers.EditorOnly.LayerStates[LayerIndex])
+				{
+					BlendFunction->UpdateFromFunctionResource();
+				}
+			}
 		}
 	}
 
@@ -82,16 +117,8 @@ bool FMaterialCachedHLSLTree::GenerateTree(UMaterial* Material, const FMaterialL
 		{
 			MaterialAttributeFields.Emplace(PropertyName, ValueType);
 
-			if (PropertyType == MCT_ShadingModel)
-			{
-				check(ValueType == UE::Shader::EValueType::Int1);
-				MaterialAttributesDefaultValue.Component.Add((int32)DefaultShadingModel);
-			}
-			else
-			{
-				const UE::Shader::FValue DefaultValue = UE::Shader::Cast(FMaterialAttributeDefinitionMap::GetDefaultValue(AttributeID), ValueType);
-				MaterialAttributesDefaultValue.Component.Append(DefaultValue.Component);
-			}
+			const UE::Shader::FValue DefaultValue = UE::Shader::Cast(FMaterialAttributeDefinitionMap::GetDefaultValue(AttributeID), ValueType);
+			MaterialAttributesDefaultValue.Component.Append(DefaultValue.Component);
 		}
 	}
 
