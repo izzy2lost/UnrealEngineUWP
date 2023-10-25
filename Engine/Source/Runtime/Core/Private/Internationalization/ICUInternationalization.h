@@ -130,6 +130,7 @@ private:
 
 	// Map for associating ICU data file paths with cached file data, to prevent multiple copies of immutable ICU data files from residing in memory.
 	TMap<FString, FICUCachedFileData> PathToCachedFileDataMap;
+	FCriticalSection PathToCachedFileDataMapCS;
 };
 
 #endif
