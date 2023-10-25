@@ -60,11 +60,15 @@ void UWorldPartitionHLODEditorSubsystem::OnWorldPartitionInitialized(UWorldParti
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UWorldPartitionHLODEditorSubsystem::OnWorldPartitionInitialized);
 
+	UActorDescContainer* ActorDescContainer = InWorldPartition->GetActorDescContainer();
+	if (!ActorDescContainer || ActorDescContainer->IsTemplateContainer())
+	{
+		return;
+	}
+
 	InWorldPartition->LoaderAdapterStateChanged.AddUObject(this, &UWorldPartitionHLODEditorSubsystem::OnLoaderAdapterStateChanged);
 
-
 	FWorldPartitionHLODEditorData* HLODEditorData = WorldPartitionsHLODEditorData.Emplace(InWorldPartition, new FWorldPartitionHLODEditorData(InWorldPartition));
-
 	if (CVarHLODInEditorEnabled.GetValueOnGameThread())
 	{
 		HLODEditorData->LoadHLODActors();
@@ -75,6 +79,12 @@ void UWorldPartitionHLODEditorSubsystem::OnWorldPartitionInitialized(UWorldParti
 void UWorldPartitionHLODEditorSubsystem::OnWorldPartitionUninitialized(UWorldPartition* InWorldPartition)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UWorldPartitionHLODEditorSubsystem::OnWorldPartitionUninitialized);
+
+	UActorDescContainer* ActorDescContainer = InWorldPartition->GetActorDescContainer();
+	if (!ActorDescContainer || ActorDescContainer->IsTemplateContainer())
+	{
+		return;
+	}
 
 	InWorldPartition->LoaderAdapterStateChanged.RemoveAll(this);
 
