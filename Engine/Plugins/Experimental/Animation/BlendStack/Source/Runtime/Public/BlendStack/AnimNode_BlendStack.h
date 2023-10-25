@@ -6,7 +6,6 @@
 #include "Animation/AnimNode_SequencePlayer.h"
 #include "AnimNodes/AnimNode_BlendSpacePlayer.h"
 #include "AnimNodes/AnimNode_Mirror.h"
-#include "Containers/Deque.h"
 #include "AnimNode_BlendStack.generated.h"
 
 USTRUCT()
@@ -56,12 +55,15 @@ struct BLENDSTACK_API FBlendStackAnimPlayer
 
 private:
 	// Embedded standalone player to play sequence
+	UPROPERTY(Transient)
 	FAnimNode_SequencePlayer_Standalone SequencePlayerNode;
 
 	// Embedded standalone player to play blend spaces
+	UPROPERTY(Transient)
 	FAnimNode_BlendSpacePlayer_Standalone BlendSpacePlayerNode;
 
 	// Embedded mirror node to handle mirroring
+	UPROPERTY(Transient)
 	FAnimNode_Mirror_Standalone MirrorNode;
 
 	// if SequencePlayerNode.GetSequence() and BlendSpacePlayerNode.GetBlendSpace() are nullptr, 
@@ -92,7 +94,9 @@ struct FBlendStack_SampleGraphPoseLink
 	UPROPERTY()
 	int32 RootNodeIndex = INDEX_NONE;
 
+	UPROPERTY(Transient)
 	FPoseLink Root;
+
 	FBlendStackAnimPlayer* Player = nullptr;
 	FGraphTraversalCounter CacheBoneCounter;
 
@@ -110,7 +114,8 @@ struct BLENDSTACK_API FAnimNode_BlendStack_Standalone : public FAnimNode_AssetPl
 	TArray<FBlendStack_SampleGraphPoseLink> SampleGraphPoseLinks;
 	int32 CurrentSamplePoseLink = -1;
 
-	TDeque<FBlendStackAnimPlayer> AnimPlayers;
+	UPROPERTY(Transient)
+	TArray<FBlendStackAnimPlayer> AnimPlayers;
 
 	// FAnimNode_Base interface
 	virtual void Evaluate_AnyThread(FPoseContext& Output) override;

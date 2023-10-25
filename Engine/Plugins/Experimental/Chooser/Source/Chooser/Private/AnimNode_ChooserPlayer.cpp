@@ -97,7 +97,7 @@ void FAnimNode_ChooserPlayer::UpdateAssetPlayer(const FAnimationUpdateContext& C
 	{
 		if (!AnimPlayers.IsEmpty())
 		{
-			FBlendStackAnimPlayer& Player = AnimPlayers.First();
+			FBlendStackAnimPlayer& Player = AnimPlayers[0];
 			if (Player.GetPlayRate() * Context.GetDeltaTime() + Player.GetAccumulatedTime() > CurrentAsset->GetPlayLength())
 			{
 				NewAsset = ChooseAsset(Context);
@@ -148,7 +148,7 @@ void FAnimNode_ChooserPlayer::UpdateAssetPlayer(const FAnimationUpdateContext& C
 
 		if (!Settings.CurveOverrides.Values.IsEmpty())
 		{
-			TBaseBlendedCurve<FDefaultAllocator, UE::Anim::FCurveElement>& OverrideCurve = AnimPlayers.First().OverrideCurve;
+			TBaseBlendedCurve<FDefaultAllocator, UE::Anim::FCurveElement>& OverrideCurve = AnimPlayers[0].OverrideCurve;
 			OverrideCurve.Reserve(Settings.CurveOverrides.Values.Num());
 			for (const FAnimCurveOverride& CurveOverride : Settings.CurveOverrides.Values)
 			{
@@ -175,7 +175,7 @@ void FAnimNode_ChooserPlayer::UpdateAssetPlayer(const FAnimationUpdateContext& C
 		// apply blend space parameters only to the blendspace that is playing/blending in
 		if (!AnimPlayers.IsEmpty())
 		{
-			AnimPlayers.First().SetBlendParameters(BlendParameters);
+			AnimPlayers[0].SetBlendParameters(BlendParameters);
 		}
 	}
 
@@ -267,7 +267,7 @@ bool FAnimNode_ChooserPlayer::IsLooping() const
 {
 	if (!AnimPlayers.IsEmpty())
 	{
-		return AnimPlayers.First().IsLooping();
+		return AnimPlayers[0].IsLooping();
 	}
 	return false;
 }
