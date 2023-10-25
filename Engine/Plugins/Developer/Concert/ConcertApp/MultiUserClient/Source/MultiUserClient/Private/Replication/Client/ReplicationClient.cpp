@@ -2,6 +2,7 @@
 
 #include "ReplicationClient.h"
 
+#include "MultiUserReplicationSettings.h"
 #include "Assets/MultiUserReplicationClientPreset.h"
 #include "Replication/Editor/Model/IEditableObjectToPropertiesModel.h"
 #include "Replication/ReplicationWidgetFactories.h"
@@ -18,7 +19,11 @@ namespace UE::MultiUserClient
 		: ClientContentStorage(&InSessionContent)
 		, StreamSynchronizer(MoveTemp(InStreamSynchronizer))
 		, AuthoritySynchronizer(MoveTemp(InAuthoritySynchronizer))
-		, LocalClientEditModel(ConcertClientSharedSlate::CreatePropertySelectionModel(*ClientContentStorage->Stream, ClientContentStorage->Stream->MakeReplicationMapGetterAttribute()))
+		, LocalClientEditModel(ConcertClientSharedSlate::CreatePropertySelectionModel(
+			*ClientContentStorage->Stream,
+			ClientContentStorage->Stream->MakeReplicationMapGetterAttribute(),
+			TAttribute<const FConcertReplicationEditorSettings*>::CreateLambda([](){ return &UMultiUserReplicationSettings::Get()->ReplicationEditorSettings; })
+			))
 		, LocalClientStreamDiffer(
 			GetStreamSynchronizer(),
 			ClientContentStorage->Stream->MakeReplicationMapGetterAttribute(),

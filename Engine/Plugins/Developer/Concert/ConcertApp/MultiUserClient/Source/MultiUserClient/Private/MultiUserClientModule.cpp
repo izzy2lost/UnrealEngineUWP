@@ -50,6 +50,7 @@
 #include "DetailLayoutBuilder.h"
 #include "DetailCategoryBuilder.h"
 #include "DetailWidgetRow.h"
+#include "MultiUserReplicationSettings.h"
 
 
 #include "Widgets/SConcertBrowser.h"
@@ -1277,7 +1278,8 @@ private:
 			ISettingsSectionPtr SettingsSection = SettingsModule->RegisterSettings("Project", "Plugins", "Concert",
 				LOCTEXT("ConcertFrontendSettingsName", "Multi-User Editing"),
 				LOCTEXT("ConcertFrontendSettingsDescription", "Configure the Multi-User settings."),
-				GetMutableDefault<UConcertClientConfig>());
+				GetMutableDefault<UConcertClientConfig>()
+				);
 
 			if (SettingsSection.IsValid())
 			{
@@ -1287,7 +1289,14 @@ private:
 			SettingsModule->RegisterSettings("Project", "Plugins", "Concert Sync",
 				LOCTEXT("ConcertFrontendSyncSettingsName", "Multi-User Transactions"),
 				LOCTEXT("ConcertFrontendSyncSettingsDescription", "Configure the Multi-User Transactions settings."),
-				GetMutableDefault<UConcertSyncConfig>());
+				GetMutableDefault<UConcertSyncConfig>()
+				);
+
+			SettingsModule->RegisterSettings("Project", "Plugins", "Multi User",
+				LOCTEXT("ConcertFrontendSyncSettingsName", "Multi-User Replication"),
+				LOCTEXT("ConcertFrontendSyncSettingsDescription", "Configure the Multi-User Replication settings."),
+				UMultiUserReplicationSettings::Get()
+				);
 
 			// Register a special layout to validate user input when configuring the settings.
 			FPropertyEditorModule& PropertyModule = FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
