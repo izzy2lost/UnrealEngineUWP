@@ -62,6 +62,11 @@ static TAutoConsoleVariable<bool> CVarGraphMultithreading(
 	false,
 	TEXT("Controls whether the graph can dispatch multiple tasks at the same time"));
 
+static TAutoConsoleVariable<bool> CVarStripEmptyPointData(
+	TEXT("pcg.StripEmptyPointData"),
+	false,
+	TEXT("Will strip empty point data from being passed along as output"));
+
 FPCGGraphExecutor::FPCGGraphExecutor(UObject* InOwner)
 	: GraphCompiler(MakeUnique<FPCGGraphCompiler>())
 	, GraphCache(InOwner, &DataRootSet)
@@ -500,6 +505,7 @@ void FPCGGraphExecutor::Execute()
 	const int32 MaxNumThreads = FMath::Max(0, FMath::Min((int32)(FPlatformMisc::NumberOfCoresIncludingHyperthreads() * MaxPercentageOfThreadsToUse), CVarMaxNumTasks.GetValueOnAnyThread() - 1));
 	const bool bAllowMultiDispatch = CVarGraphMultithreading.GetValueOnAnyThread();
 	const bool bGraphCacheDebuggingEnabled = IsGraphCacheDebuggingEnabled();
+	const bool bStripEmptyPointData = CVarStripEmptyPointData.GetValueOnAnyThread();
 
 #if WITH_EDITOR
 	UpdateGenerationNotification();
@@ -762,7 +768,7 @@ void FPCGGraphExecutor::Execute()
 			}
 		}
 
-		auto PostTaskExecute = [this, &bAnyTaskEnded, bGraphCacheDebuggingEnabled](int32 TaskIndex)
+		auto PostTaskExecute = [this, &bAnyTaskEnded, bGraphCacheDebuggingEnabled, bStripEmptyPointData](int32 TaskIndex)
 		{
 			FPCGGraphActiveTask& ActiveTask = ActiveTasks[TaskIndex];
 
@@ -811,6 +817,16 @@ void FPCGGraphExecutor::Execute()
 				}
 			}
 #endif
+
+			// TODO: Evaluation code for finding elements that produce empty point data. This is temporary.
+			if (bStripEmptyPointData)
+			{
+				const int32 NumRemoved = ActiveTask.Context->OutputData.StripEmptyPointData();
+				if (NumRemoved > 0)
+				{
+					UE_LOG(LogPCG, Log, TEXT("%d empty point data stripped from node: %s"), NumRemoved, *ActiveTask.Context->Node->GetNodeTitle().ToString());
+				}
+			}
 
 			// Store output in data map
 			StoreResults(ActiveTask.NodeId, ActiveTask.Context->OutputData);

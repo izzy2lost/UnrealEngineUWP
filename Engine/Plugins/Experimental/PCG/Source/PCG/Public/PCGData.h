@@ -179,6 +179,9 @@ struct PCG_API FPCGDataCollection
 	/** Cleans up the collection, but does not unroot any previously rooted data. */
 	void Reset();
 
+	/** Strips all empty point data from the collection. */
+	int32 StripEmptyPointData();
+
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Data)
 	TArray<FPCGTaggedData> TaggedData;
 

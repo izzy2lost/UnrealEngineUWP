@@ -479,6 +479,15 @@ void FPCGDataCollection::Reset()
 	bCancelExecution = false;
 }
 
+int32 FPCGDataCollection::StripEmptyPointData()
+{
+	return TaggedData.RemoveAll([](const FPCGTaggedData& Data)
+	{
+		const UPCGPointData* PointData = Cast<UPCGPointData>(Data.Data);
+		return PointData && PointData->GetPoints().IsEmpty();
+	});
+}
+
 TArray<UPCGData*> UPCGDataFunctionLibrary::GetInputsByPredicate(const FPCGDataCollection& InCollection, TArray<FPCGTaggedData>& OutTaggedData, TFunctionRef<bool(const FPCGTaggedData&)> InPredicate)
 {
 	TArray<UPCGData*> Inputs;
