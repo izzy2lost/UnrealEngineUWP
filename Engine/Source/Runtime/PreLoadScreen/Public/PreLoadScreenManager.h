@@ -85,7 +85,7 @@ protected:
     //Separate tick that handles 
     PRELOADSCREEN_API void EarlyPlayFrameTick();
     PRELOADSCREEN_API void GameLogicFrameTick();
-	PRELOADSCREEN_API void EarlyPlayRenderFrameTick();
+    PRELOADSCREEN_API void EarlyPlayRenderFrameTick();
 	PRELOADSCREEN_API bool HasActivePreLoadScreenTypeForEarlyStartup() const;
 
 	PRELOADSCREEN_API void PlatformSpecificGameLogicFrameTick();
@@ -106,6 +106,13 @@ protected:
 	PRELOADSCREEN_API void HandleStopPreLoadScreen();
 	PRELOADSCREEN_API void CleanUpResources();
 
+	//Helpers that setup and clean-up delegates that only need to be active while we are playing an EarlyStartup PreLoadScreen
+	PRELOADSCREEN_API void RegisterDelegatesForEarlyStartupPlay();
+	PRELOADSCREEN_API void CleanUpDelegatesForEarlyStartupPlay();
+
+	PRELOADSCREEN_API void HandleFlushRenderingCommandsStart();
+	PRELOADSCREEN_API void HandleFlushRenderingCommandsEnd();
+
 	//Singleton Instance
 	struct FPreLoadScreenManagerDelete
 	{
@@ -117,7 +124,10 @@ protected:
 	static PRELOADSCREEN_API TUniquePtr<FPreLoadScreenManager, FPreLoadScreenManagerDelete> Instance;
 
 	static PRELOADSCREEN_API FCriticalSection AcquireCriticalSection;
-	static PRELOADSCREEN_API std::atomic<bool> bRenderingEnabled;
+	static PRELOADSCREEN_API TAtomic<bool> bRenderingEnabled;
+	static PRELOADSCREEN_API TAtomic<bool> bIsLocked;
+	static PRELOADSCREEN_API TAtomic<bool> bIsLockedByGameThread;
+	static PRELOADSCREEN_API TAtomic<bool> bIsLockedByRenderThread;
 
 	TArray<TSharedPtr<IPreLoadScreen>> PreLoadScreens;
 
@@ -125,7 +135,7 @@ protected:
     double LastTickTime;
 
     /** Widget renderer used to tick and paint windows in a thread safe way */
-    TSharedPtr<FPreLoadSlateWidgetRenderer> WidgetRenderer;
+    TSharedPtr<FPreLoadSlateWidgetRenderer, ESPMode::ThreadSafe> WidgetRenderer;
 
     /** The window that the loading screen resides in */
     TWeakPtr<class SWindow> MainWindow;
