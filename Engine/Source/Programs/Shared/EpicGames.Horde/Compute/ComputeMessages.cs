@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Text.Json.Serialization;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Leases;
 
@@ -40,6 +41,16 @@ namespace EpicGames.Horde.Compute
 		/// Port number on the remote machine
 		/// </summary>
 		public int Port { get; set; }
+		
+		/// <summary>
+		/// How to establish a connection to the remote machine
+		/// </summary>
+		public ConnectionMode ConnectionMode { get; set; }
+		
+		/// <summary>
+		/// An optional address (host:port) to use when connecting depending on connection mode
+		/// </summary>
+		public string? ConnectionAddress { get; set; }
 
 		/// <summary>
 		/// Cryptographic nonce to identify the request, as a hex string
@@ -70,6 +81,31 @@ namespace EpicGames.Horde.Compute
 		/// Properties of the agent assigned to do the work
 		/// </summary>
 		public IReadOnlyList<string> Properties { get; set; } = new List<string>();
+	}
+	
+	/// <summary>
+	/// Describe how to connect to the remote machine
+	/// </summary>
+	[JsonConverter(typeof(JsonStringEnumConverter))]
+	public enum ConnectionMode
+	{
+		/// <summary>
+		/// Connection is established directly to remote machine, behaving like a normal TCP/UDP connection
+		/// </summary>
+		Direct,
+		
+		/// <summary>
+		/// Connection is tunneled through Horde server.
+		/// When connecting, initiator must send a tunnel handshake request indicating which machine/IP to tunnel to.
+		/// Once handshake is complete, TCP connection behaves as normal.
+		/// </summary>
+		Tunnel,
+		
+		/// <summary>
+		/// Connection is established to remote machine via a relay.
+		/// Forwarding is transparent and behaves like a normal TCP/UDP connection.
+		/// </summary>
+		Relay
 	}
 	
 	/// <summary>
