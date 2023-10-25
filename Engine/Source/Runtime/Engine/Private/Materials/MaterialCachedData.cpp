@@ -35,6 +35,7 @@
 #include "SparseVolumeTexture/SparseVolumeTexture.h"
 #include "Engine/Font.h"
 #include "LandscapeGrassType.h"
+#include "Logging/LogScopedVerbosityOverride.h"
 #include "Curves/CurveLinearColor.h"
 #include "Curves/CurveLinearColorAtlas.h"
 #include "UObject/UE5MainStreamObjectVersion.h"
@@ -995,7 +996,7 @@ void FMaterialCachedExpressionData::UpdateForCachedHLSLTree(const FMaterialCache
 	}
 }
 
-void FMaterialCachedExpressionData::Validate()
+void FMaterialCachedExpressionData::Validate(const UMaterialInterface& Material)
 {
 	if (EditorOnlyData)
 	{
@@ -1009,7 +1010,9 @@ void FMaterialCachedExpressionData::Validate()
 
 		if (!FPlatformProperties::RequiresCookedData() && AllowShaderCompiling())
 		{
-			// TODO Validate the shader include paths in the editor before storing them on the expression instead
+			// Mute log errors created by GetShaderSourceFilePath during include path validation
+			LOG_SCOPE_VERBOSITY_OVERRIDE(LogShaders, ELogVerbosity::Fatal);
+
 			for (auto PathIt = EditorOnlyData->ExpressionIncludeFilePaths.CreateIterator(); PathIt; ++PathIt)
 			{
 				const FString& IncludeFilePath = *PathIt;
@@ -1030,7 +1033,7 @@ void FMaterialCachedExpressionData::Validate()
 
 				if (!bValidExpressionIncludePath)
 				{
-					UE_LOG(LogMaterial, Warning, TEXT("Expression include file path [%s] is invalid, removing from cached material data."), *IncludeFilePath);
+					UE_LOG(LogMaterial, Warning, TEXT("Expression include file path '%s' is invalid, removing from cached data for material '%s'."), *IncludeFilePath, *Material.GetPathName());
 					PathIt.RemoveCurrent();
 				}
 			}

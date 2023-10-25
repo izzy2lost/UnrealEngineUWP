@@ -215,7 +215,7 @@ void UMaterialInterface::Serialize(FArchive& Ar)
 		else
 		{
 #if WITH_EDITOR
-			CachedExpressionData->Validate();
+			CachedExpressionData->Validate(*this);
 #endif
 		}
 

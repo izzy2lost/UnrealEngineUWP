@@ -2070,7 +2070,7 @@ void UMaterial::UpdateCachedExpressionData()
 		LocalCachedExpressionData->EditorOnlyData->MaterialLayers.LinkAllLayersToParent();
 	}
 
-	LocalCachedExpressionData->Validate();
+	LocalCachedExpressionData->Validate(*this);
 
 	CachedExpressionData.Reset(LocalCachedExpressionData);
 	CachedHLSLTree.Reset(LocalCachedTree);
