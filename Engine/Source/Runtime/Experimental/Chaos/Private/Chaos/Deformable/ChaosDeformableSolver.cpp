@@ -124,7 +124,7 @@ namespace Chaos::Softs
 		Property = InProps;
 		MObjects = TArrayCollectionArray<const UObject*>();
 		FSolverParticles LocalParticlesDummy;
-		FSolverRigidParticles RigidParticles;
+		FSolverCollisionParticles RigidParticles;
 		Evolution.Reset(new FPBDEvolution(MoveTemp(LocalParticlesDummy), MoveTemp(RigidParticles), {},
 			Property.NumSolverIterations, (FSolverReal)0.,
 			/*SelfCollisionsThickness = */(FSolverReal)0.,
@@ -1677,7 +1677,7 @@ namespace Chaos::Softs
 		if (Evolution && GDeformableDebugParams.bDoDrawRigidCollisionGeometry)
 		{
 			Evolution->CollisionParticlesActiveView().RangeFor(
-				[this, ToFVec3, ToFVector, ToFQuat](FSolverRigidParticles& CollisionParticles, int32 CollisionOffset, int32 CollisionRange)
+				[this, ToFVec3, ToFVector, ToFQuat](FSolverCollisionParticles& CollisionParticles, int32 CollisionOffset, int32 CollisionRange)
 				{
 					for (int32 Index = CollisionOffset; Index < CollisionRange; Index++)
 					{

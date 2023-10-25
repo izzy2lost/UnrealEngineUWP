@@ -74,7 +74,7 @@ void FPBDEvolution::ResetGroups()
 
 FPBDEvolution::FPBDEvolution(
 	FSolverParticles&& InParticles,
-	FSolverRigidParticles&& InGeometryParticles,
+	FSolverCollisionParticles&& InGeometryParticles,
 	TArray<TVec3<int32>>&& CollisionTriangles,
 	int32 NumIterations, FSolverReal CollisionThickness,
 	FSolverReal SelfCollisionThickness,
@@ -550,7 +550,7 @@ void FPBDEvolution::AdvanceOneTimeStep(const FSolverReal Dt)
 			SCOPE_CYCLE_COUNTER(STAT_ChaosPBDCollisionKinematicUpdate);
 
 			MCollisionParticlesActiveView.SequentialFor(
-				[this, Dt](FSolverRigidParticles& CollisionParticles, int32 Index)
+				[this, Dt](FSolverCollisionParticles& CollisionParticles, int32 Index)
 				{
 					// Store active collision particle frames prior to the kinematic update for CCD collisions
 					MCollisionTransforms[Index] = FSolverRigidTransform3(CollisionParticles.X(Index), CollisionParticles.R(Index));

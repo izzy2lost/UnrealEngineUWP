@@ -75,7 +75,7 @@ void FNewtonEvolution::ResetGroups()
 
 FNewtonEvolution::FNewtonEvolution(
 	FSolverParticles&& InParticles,
-	FSolverRigidParticles&& InGeometryParticles,
+	FSolverCollisionParticles&& InGeometryParticles,
 	TArray<TVec3<int32>>&& CollisionTriangles,
 	const TArray<TVector<int32, 4>>& InMesh,
 	TArray<TArray<TVector<int32, 2>>>&& InIncidentElements,
@@ -776,7 +776,7 @@ void FNewtonEvolution::WriteOutputLog(const int32 Frame)
 				//SCOPE_CYCLE_COUNTER(STAT_ChaosNewtonCollisionKinematicUpdate);
 
 				MCollisionParticlesActiveView.SequentialFor(
-					[this, Dt](FSolverRigidParticles& CollisionParticles, int32 Index)
+					[this, Dt](FSolverCollisionParticles& CollisionParticles, int32 Index)
 					{
 						// Store active collision particle frames prior to the kinematic update for CCD collisions
 						MCollisionTransforms[Index] = FSolverRigidTransform3(CollisionParticles.X(Index), CollisionParticles.R(Index));

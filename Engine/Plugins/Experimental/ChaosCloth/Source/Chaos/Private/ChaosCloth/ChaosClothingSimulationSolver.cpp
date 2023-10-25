@@ -114,7 +114,7 @@ FClothingSimulationSolver::FClothingSimulationSolver()
 	SetConfig(nullptr); // This will generate a local default config so we have something to use if there are no cloth assets..
 
 	Softs::FSolverParticles LocalParticles;
-	Softs::FSolverRigidParticles RigidParticles;
+	Softs::FSolverCollisionParticles RigidParticles;
 	Evolution.Reset(
 		new Softs::FPBDEvolution(
 			MoveTemp(LocalParticles),
@@ -153,7 +153,7 @@ FClothingSimulationSolver::FClothingSimulationSolver()
 		});
 
 	Evolution->SetCollisionKinematicUpdateFunction(
-		[this](Softs::FSolverRigidParticles& ParticlesInput, const Softs::FSolverReal Dt, const Softs::FSolverReal LocalTime, const int32 Index)
+		[this](Softs::FSolverCollisionParticles& ParticlesInput, const Softs::FSolverReal Dt, const Softs::FSolverReal LocalTime, const int32 Index)
 		{
 			checkSlow(Dt > SMALL_NUMBER && DeltaTime > SMALL_NUMBER);
 			const Softs::FSolverReal Alpha = (LocalTime - Time) / DeltaTime;
@@ -1037,11 +1037,11 @@ void FClothingSimulationSolver::ApplyPreSimulationTransforms()
 		TRACE_CPUPROFILER_EVENT_SCOPE(FClothingSimulationSolver_CollisionPreSimulationTransforms);
 		SCOPE_CYCLE_COUNTER(STAT_ChaosClothCollisionPreSimulationTransforms);
 
-		const TPBDActiveView<Softs::FSolverRigidParticles>& CollisionParticlesActiveView = Evolution->CollisionParticlesActiveView();
+		const TPBDActiveView<Softs::FSolverCollisionParticles>& CollisionParticlesActiveView = Evolution->CollisionParticlesActiveView();
 		const TArray<uint32>& CollisionParticleGroupIds = Evolution->CollisionParticleGroupIds();
 
 		CollisionParticlesActiveView.SequentialFor(  // There's unlikely to ever have enough collision particles for a parallel for
-			[this, &CollisionParticleGroupIds, &DeltaLocalSpaceLocation](Softs::FSolverRigidParticles& CollisionParticles, int32 Index)
+			[this, &CollisionParticleGroupIds, &DeltaLocalSpaceLocation](Softs::FSolverCollisionParticles& CollisionParticles, int32 Index)
 			{
 				const Softs::FSolverRigidTransform3& GroupSpaceTransform = PreSimulationTransforms[CollisionParticleGroupIds[Index]];
 

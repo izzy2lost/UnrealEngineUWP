@@ -3,7 +3,10 @@
 
 // HEADER_UNIT_SKIP - Internal
 
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
 #include "Chaos/GeometryParticlesfwd.h"
+#endif
+#include "Chaos/SoftsSolverCollisionParticles.h"
 #include "Chaos/Transform.h"
 #include "Chaos/PBDActiveView.h"
 #include "Chaos/PBDSoftsSolverParticles.h"
@@ -18,7 +21,7 @@ class FPerParticlePBDCCDCollisionConstraint final
 {
 public:
 	FPerParticlePBDCCDCollisionConstraint(
-		const TPBDActiveView<FSolverRigidParticles>& InCollisionParticlesActiveView,
+		const TPBDActiveView<FSolverCollisionParticles>& InCollisionParticlesActiveView,
 		TArray<FSolverRigidTransform3>& InCollisionTransforms,
 		TArray<bool>& InCollided,
 		TArray<FSolverVec3>& InContacts,
@@ -75,7 +78,7 @@ private:
 				return;  // Continue
 			}
 
-			CollisionParticlesActiveView.SequentialFor([this, &Particles, &Index, DynamicGroupId, Thickness, Friction, Dt](FSolverRigidParticles& CollisionParticles, int32 CollisionIndex)
+			CollisionParticlesActiveView.SequentialFor([this, &Particles, &Index, DynamicGroupId, Thickness, Friction, Dt](FSolverCollisionParticles& CollisionParticles, int32 CollisionIndex)
 			{
 				const uint32 KinematicGroupId = KinematicGroupIds[CollisionIndex];  // Collision group Id
 
@@ -155,7 +158,7 @@ private:
 
 private:
 	// TODO(mlentine): Need a bb hierarchy
-	const TPBDActiveView<FSolverRigidParticles>& CollisionParticlesActiveView;
+	const TPBDActiveView<FSolverCollisionParticles>& CollisionParticlesActiveView;
 	const TArray<FSolverRigidTransform3>& CollisionTransforms;
 	TArray<bool>& Collided;
 	TArray<FSolverVec3>& Contacts;

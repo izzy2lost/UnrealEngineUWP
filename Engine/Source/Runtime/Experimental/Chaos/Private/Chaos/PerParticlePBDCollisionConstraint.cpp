@@ -213,7 +213,7 @@ void FPerParticlePBDCollisionConstraint::ApplyHelperISPC(FSolverParticles& InPar
 
 #if INTEL_ISPC
 		MCollisionParticlesActiveView.RangeFor(
-			[this, &InParticles, Dt, BatchBegin, BatchEnd, DynamicGroupId, PerGroupFriction, PerGroupThickness](FSolverRigidParticles& CollisionParticles, int32 CollisionOffset, int32 CollisionRange)
+			[this, &InParticles, Dt, BatchBegin, BatchEnd, DynamicGroupId, PerGroupFriction, PerGroupThickness](FSolverCollisionParticles& CollisionParticles, int32 CollisionOffset, int32 CollisionRange)
 			{
 				ispc::ApplyPerParticleCollisionFastFriction(
 					(ispc::FVector4f*)InParticles.GetPAndInvM().GetData(),
@@ -249,7 +249,7 @@ void FPerParticlePBDCollisionConstraint::ApplyHelperISPC(FSolverParticles& InPar
 
 #if INTEL_ISPC
 		MCollisionParticlesActiveView.RangeFor(
-			[this, &InParticles, Dt, BatchBegin, BatchEnd, DynamicGroupId, PerGroupThickness](FSolverRigidParticles& CollisionParticles, int32 CollisionOffset, int32 CollisionRange)
+			[this, &InParticles, Dt, BatchBegin, BatchEnd, DynamicGroupId, PerGroupThickness](FSolverCollisionParticles& CollisionParticles, int32 CollisionOffset, int32 CollisionRange)
 			{
 				ispc::ApplyPerParticleCollisionNoFriction(
 					(ispc::FVector4f*)InParticles.GetPAndInvM().GetData(),

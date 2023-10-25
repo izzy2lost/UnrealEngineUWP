@@ -5,7 +5,10 @@
 #include "Chaos/PBDActiveView.h"
 #include "Chaos/PBDSoftsEvolutionFwd.h"
 #include "Chaos/PBDSoftsSolverParticles.h"
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
 #include "Chaos/KinematicGeometryParticles.h"
+#endif
+#include "Chaos/SoftsSolverCollisionParticles.h"
 #include "Chaos/WeightedLatticeImplicitObject.h"
 #include "Chaos/Levelset.h"
 #include "HAL/PlatformMath.h"
@@ -33,14 +36,14 @@ class FPerParticlePBDCollisionConstraint final
 	};
 
 public:
-	FPerParticlePBDCollisionConstraint(const TPBDActiveView<FSolverRigidParticles>& InParticlesActiveView, TArray<bool>& Collided, TArray<uint32>& DynamicGroupIds, TArray<uint32>& KinematicGroupIds, const TArray<FSolverReal>& PerGroupThickness, const TArray<FSolverReal>& PerGroupFriction)
+	FPerParticlePBDCollisionConstraint(const TPBDActiveView<FSolverCollisionParticles>& InParticlesActiveView, TArray<bool>& Collided, TArray<uint32>& DynamicGroupIds, TArray<uint32>& KinematicGroupIds, const TArray<FSolverReal>& PerGroupThickness, const TArray<FSolverReal>& PerGroupFriction)
 	: bFastPositionBasedFriction(true)
 	, MCollisionParticlesActiveView(InParticlesActiveView)
 	, MCollided(Collided), MDynamicGroupIds(DynamicGroupIds)
 	, MKinematicGroupIds(KinematicGroupIds), MPerGroupThickness(PerGroupThickness)
 	, MPerGroupFriction(PerGroupFriction) {}
 
-	FPerParticlePBDCollisionConstraint(const TPBDActiveView<FSolverRigidParticles>& InParticlesActiveView, TArray<bool>& Collided,
+	FPerParticlePBDCollisionConstraint(const TPBDActiveView<FSolverCollisionParticles>& InParticlesActiveView, TArray<bool>& Collided,
 		TArray<FSolverVec3>& InContacts,
 		TArray<FSolverVec3>& InNormals, 
 		TArray<FSolverReal>& InPhis,
@@ -118,7 +121,7 @@ private:
 					return;  // Continue
 				}
 
-				MCollisionParticlesActiveView.SequentialFor([this, &Particles, &Dt, &Index, DynamicGroupId, PerGroupFriction, PerGroupThickness](FSolverRigidParticles& CollisionParticles, int32 i)
+				MCollisionParticlesActiveView.SequentialFor([this, &Particles, &Dt, &Index, DynamicGroupId, PerGroupFriction, PerGroupThickness](FSolverCollisionParticles& CollisionParticles, int32 i)
 				{
 					const uint32 KinematicGroupId = MKinematicGroupIds[i];  // Collision group Id
 
@@ -209,7 +212,7 @@ private:
 					return;  // Continue
 				}
 
-				MCollisionParticlesActiveView.SequentialFor([this, &Particles, &Dt, &Index, DynamicGroupId, PerGroupFriction, PerGroupThickness](FSolverRigidParticles& CollisionParticles, int32 i)
+				MCollisionParticlesActiveView.SequentialFor([this, &Particles, &Dt, &Index, DynamicGroupId, PerGroupFriction, PerGroupThickness](FSolverCollisionParticles& CollisionParticles, int32 i)
 				{
 					const uint32 KinematicGroupId = MKinematicGroupIds[i];  // Collision group Id
 
@@ -251,7 +254,7 @@ private:
 private:
 	bool bFastPositionBasedFriction;
 	// TODO(mlentine): Need a bb hierarchy
-	const TPBDActiveView<FSolverRigidParticles>& MCollisionParticlesActiveView;
+	const TPBDActiveView<FSolverCollisionParticles>& MCollisionParticlesActiveView;
 	TArray<bool>& MCollided;
 	TArray<FSolverVec3>* const Contacts = nullptr;
 	TArray<FSolverVec3>* const Normals = nullptr;
