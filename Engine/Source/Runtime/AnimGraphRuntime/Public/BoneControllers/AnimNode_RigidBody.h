@@ -178,17 +178,11 @@ struct FAnimNode_RigidBody : public FAnimNode_SkeletalControlBase
 	// TEMP: Exposed for use in PhAt as a quick way to get drag handles working with Chaos
 	virtual ImmediatePhysics::FSimulation* GetSimulation() { return PhysicsSimulation; }
 
-	/**
-	 * Set the override physics asset. This will automatically trigger a physics re-init in case the override physics asset changes. 
-	 * Users can get access to this in the Animation Blueprint via the Animation Node Functions.
-	 */
-	void SetOverridePhysicsAsset(UPhysicsAsset* PhysicsAsset);
-
 	UPhysicsAsset* GetPhysicsAsset() const { return UsePhysicsAsset; }
 
 public:
 	/** Physics asset to use. If empty use the skeletal mesh's default physics asset in case Default To Skeletal Mesh Physics Asset is set to True. */
-	UPROPERTY(EditAnywhere, Category = Settings)
+	UPROPERTY(EditAnywhere, Category = Settings, meta = (PinHiddenByDefault))
 	TObjectPtr<UPhysicsAsset> OverridePhysicsAsset;
 
 	/** Use the skeletal mesh physics asset as default in case set to True. The Override Physics Asset will always have priority over this. */
