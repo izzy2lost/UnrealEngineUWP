@@ -32,3 +32,8 @@ TConstArrayView<FObjectReplicationBridgeDeltaCompressionConfig> UObjectReplicati
 {
 	return MakeArrayView(DeltaCompressionConfigs);
 }
+
+TConstArrayView<FObjectReplicatedBridgeCriticalClassConfig> UObjectReplicationBridgeConfig::GetCriticalClassConfigs() const
+{
+	return MakeArrayView(CriticalClassConfigs);
+}

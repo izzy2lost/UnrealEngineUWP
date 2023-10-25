@@ -32,6 +32,7 @@
 #include "GameFramework/Actor.h"
 #include "Net/DataBunch.h"
 #include "Net/DataChannel.h"
+#include "Net/Core/Connection/NetCloseResult.h"
 #include "Net/Core/Misc/NetSubObjectRegistry.h"
 #include "Net/NetSubObjectRegistryGetter.h"
 #include "Templates/Casts.h"
@@ -1161,6 +1162,41 @@ void UActorReplicationBridge::OnProtocolMismatchDetected(FNetRefHandle ObjectHan
 	{
 		uint64 RawHandleId = ObjectHandle.GetId();
 		FNetControlMessage<NMT_IrisProtocolMismatch>::Send(NetDriver->ServerConnection, RawHandleId);
+	}
+}
+
+void UActorReplicationBridge::OnProtocolMismatchReported(FNetRefHandle RefHandle, uint32 ConnectionId)
+{
+	Super::OnProtocolMismatchReported(RefHandle, ConnectionId);
+
+	// If we are the server force the client to disconnect since not replicating a critical class will prevent the game from working.
+	if (NetDriver && NetDriver->IsServer())
+	{
+		const UObject* ReplicatedObject = GetReplicatedObject(RefHandle);
+
+		// If the object instance doesn't exist anymore, pass a null class anyway in case the config wants to disconnect on ALL class types.
+		const UClass* ObjectClass = ReplicatedObject ? ReplicatedObject->GetClass() : nullptr;
+
+		if (IsClassCritical(ObjectClass))
+		{
+			if (UNetConnection* ClientConnection = NetDriver->GetConnectionById(ConnectionId))
+			{
+				FString ErrorMsg = FString::Printf(TEXT("Protocol mismatch: %s:%s. Class: %s"), *RefHandle.ToString(), *GetNameSafe(ReplicatedObject), *GetNameSafe(ObjectClass));
+				UE_LOG(LogIrisBridge, Error, TEXT("%s: Closing connection due to: %s"), ToCStr(ClientConnection->Describe()), ToCStr(ErrorMsg));
+				{
+					UE::Net::FNetCloseResult CloseReason = ENetCloseResult::IrisProtocolMismatch;
+					ClientConnection->SendCloseReason(MoveTemp(CloseReason));
+				}
+
+				FNetControlMessage<NMT_Failure>::Send(ClientConnection, ErrorMsg);
+				ClientConnection->FlushNet(true);
+
+				{
+					UE::Net::FNetCloseResult CloseReason = ENetCloseResult::IrisProtocolMismatch;
+					ClientConnection->Close(MoveTemp(CloseReason));
+				}
+			}
+		}
 	}
 }
 

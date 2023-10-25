@@ -371,6 +371,12 @@ enum class ENetCloseResult : uint32
 	/** Join failure, unexpected control message */
 	BeaconSpawnUnexpectedError,
 
+	
+	/** Iris Error result types */
+
+	/** Protocol mismatch in Iris preventing a critical object instantiation */
+	IrisProtocolMismatch,
+
 
 	/** Fault Handler Error result types */
 

@@ -99,6 +99,7 @@ protected:
 	virtual bool ObjectLevelHasFinishedLoading(UObject* Object) const override;
 	virtual bool IsAllowedToDestroyInstance(const UObject* Instance) const override;
 	virtual void OnProtocolMismatchDetected(FNetRefHandle ObjectHandle) override;
+	virtual void OnProtocolMismatchReported(FNetRefHandle RefHandle, uint32 ConnectionId) override;
 
 	virtual float GetPollFrequencyOfRootObject(const UObject* ReplicatedObject) const override;
 

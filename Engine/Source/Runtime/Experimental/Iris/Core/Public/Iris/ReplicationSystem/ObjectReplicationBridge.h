@@ -290,6 +290,9 @@ protected:
 	 */
 	IRISCORE_API bool GetClassPollFrequency(const UClass* Class, float& OutPollPeriod) const;
 
+	/** Returns true if the class is considered critical and we force a disconnection if a protocol mismatch prevents instances of this class from replicating. */
+	IRISCORE_API bool IsClassCritical(const UClass* Class);
+
 	/** Current max tick rate set by the engine */
 	float GetMaxTickRate() const { return MaxTickRate; }
 
@@ -389,6 +392,9 @@ private:
 
 	// Delta compression
 	TMap<FName, bool> ClassesWithDeltaCompression;
+
+	// Classes that may force a disconnection when a protocol mismatch is detected.
+	TMap<FName, bool> ClassesFlaggedCritical;
 
 	// Array of dormant objects that has requested a flush
 	TArray<FNetRefHandle> DormantHandlesPendingFlush;

@@ -80,6 +80,20 @@ struct FObjectReplicationBridgeDeltaCompressionConfig
 	bool bEnableDeltaCompression = true;
 };
 
+USTRUCT()
+struct FObjectReplicatedBridgeCriticalClassConfig
+{
+	GENERATED_BODY()
+
+	/** Instances of this class or its subclasses will force a client disconnection when it detects a protocol mismatch.*/
+	UPROPERTY()
+	FName ClassName;
+
+	/** When true we force the client to disconnect when a protocol mismatch prevents it from instantiating replicated objects of this class. */
+	UPROPERTY()
+	bool bDisconnectOnProtocolMismatch = true;
+};
+
 UCLASS(transient, config=Engine)
 class UObjectReplicationBridgeConfig : public UObject
 {
@@ -93,8 +107,13 @@ public:
 	IRISCORE_API TConstArrayView<FObjectReplicationBridgeFilterConfig> GetFilterConfigs() const;
 	IRISCORE_API TConstArrayView<FObjectReplicationBridgePrioritizerConfig> GetPrioritizerConfigs() const;
 	IRISCORE_API TConstArrayView<FObjectReplicationBridgeDeltaCompressionConfig> GetDeltaCompressionConfigs() const;
+	IRISCORE_API TConstArrayView<FObjectReplicatedBridgeCriticalClassConfig> GetCriticalClassConfigs() const;
+
 	FName GetDefaultSpatialFilterName() const;
 	FName GetRequiredNetDriverChannelClassName() const;
+
+	/** When true any class with a protocol mismatch will force a disconnection. */
+	bool AreAllClassesCritical() const { return bAllClassesCritical; }
 
 protected:
 	UObjectReplicationBridgeConfig();
@@ -128,6 +147,14 @@ private:
 	UPROPERTY(Config)
 	TArray<FObjectReplicationBridgeDeltaCompressionConfig> DeltaCompressionConfigs;
 
+	/** Classes that are considered critical and will force a disconnection when a protocol mismatch is detected. */
+	UPROPERTY(Config)
+	TArray<FObjectReplicatedBridgeCriticalClassConfig> CriticalClassConfigs;
+
+	/** Set this to true if you want any class with a protocol mismatch to force a disconnection. */
+	UPROPERTY(Config)
+	bool bAllClassesCritical = false;
+
 	/**
 	 * The name of the filter to apply objects that can have spatial filtering applied.
 	 */
@@ -139,6 +166,9 @@ private:
 	 */
 	UPROPERTY(Config)
 	FName RequiredNetDriverChannelClassName;
+
+	UPROPERTY(Config)
+	TArray<FName> CriticalActorClasses;
 };
 
 inline FName UObjectReplicationBridgeConfig::GetDefaultSpatialFilterName() const

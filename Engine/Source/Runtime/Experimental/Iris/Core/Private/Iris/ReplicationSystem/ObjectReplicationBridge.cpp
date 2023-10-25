@@ -1373,6 +1373,28 @@ bool UObjectReplicationBridge::ShouldClassBeDeltaCompressed(const UClass* Class)
 	return false;
 }
 
+bool UObjectReplicationBridge::IsClassCritical(const UClass* Class)
+{
+	const UObjectReplicationBridgeConfig* BridgeConfig = UObjectReplicationBridgeConfig::GetConfig();
+	if (BridgeConfig->AreAllClassesCritical())
+	{
+		return true;
+	}
+
+	if (ClassesFlaggedCritical.Num() > 0)
+	{
+		for (; Class != nullptr; Class = Class->GetSuperClass())
+		{
+			if (bool* bIsClassCritical = ClassesFlaggedCritical.Find(GetConfigClassPathName(Class)))
+			{
+				return *bIsClassCritical;
+			}
+		}
+	}
+
+	return false;
+}
+
 void UObjectReplicationBridge::SetClassDynamicFilterConfig(FName ClassPathName, const UE::Net::FNetObjectFilterHandle FilterHandle)
 {
 	if (ClassPathName.IsNone())
@@ -1527,6 +1549,7 @@ void UObjectReplicationBridge::LoadConfig()
 	ClassesWithDynamicFilter.Empty();
 	ClassesWithPrioritizer.Empty();
 	ClassesWithDeltaCompression.Empty();
+	ClassesFlaggedCritical.Empty();
 
 	// Reset PathNameCache
 	ConfigClassPathNameCache.Empty();
@@ -1599,6 +1622,20 @@ void UObjectReplicationBridge::LoadConfig()
 			}
 
 			ClassesWithDeltaCompression.Add(DCConfig.ClassName, DCConfig.bEnableDeltaCompression);
+		}
+	}
+
+	// Critical classes
+	if (!BridgeConfig->AreAllClassesCritical())
+	{
+		for (const FObjectReplicatedBridgeCriticalClassConfig& CriticalClassConfig : BridgeConfig->GetCriticalClassConfigs())
+		{
+			if (!ensure(!ForbiddenNamesArray.Contains(CriticalClassConfig.ClassName)))
+			{
+				continue;
+			}
+
+			ClassesFlaggedCritical.Add(CriticalClassConfig.ClassName, CriticalClassConfig.bDisconnectOnProtocolMismatch);
 		}
 	}
 }
@@ -1755,10 +1792,10 @@ void UObjectReplicationBridge::OnProtocolMismatchReported(FNetRefHandle RefHandl
 	using namespace UE::Net;
 	using namespace UE::Net::Private;
 
-	// Ensure at the end so the log contains the most relevant information already
+	// Ensure at the end so the log contains all the relevant information
 	ON_SCOPE_EXIT
 	{
-		ensure(false);
+		ensureMsgf(false, TEXT("Protocol mismatch detected. Compare the CDO state in the server and client logs to find the source of the issue."));
 	};
 	
 
@@ -1806,6 +1843,6 @@ void UObjectReplicationBridge::OnProtocolMismatchReported(FNetRefHandle RefHandl
 			Fragments.Emplace(MoveTemp(FragmentInfo));
 		}
 
-		UE::Net::Private::ObjectBridgeDebugging::RemoteProtocolMismatchDetected(ReplicationSystem, 0 /*TODO: Local ConnectionId*/, Fragments, ObjInstance, ObjArchetype);
+		UE::Net::Private::ObjectBridgeDebugging::RemoteProtocolMismatchDetected(ReplicationSystem, 0 /*TODO: Local ConnectionId*/, Fragments, ObjArchetype, ObjInstance);
 	}
 }
