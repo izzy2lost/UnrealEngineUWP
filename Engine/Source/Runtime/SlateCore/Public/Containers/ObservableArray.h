@@ -484,9 +484,16 @@ public:
 	}
 
 	template <typename InPredicate>
+	UE_DEPRECATED(5.4, "IndexByPredicate is deprecated. Use IndexOfByPredicate instead")
 	SizeType IndexByPredicate(InPredicate Pred) const
 	{
-		return Array.IndexByPredicate(Pred);
+		return Array.IndexOfByPredicate(Pred);
+	}
+
+	template <typename InPredicate>
+	SizeType IndexOfByPredicate(InPredicate Pred) const
+	{
+		return Array.IndexOfByPredicate(Pred);
 	}
 
 public:
