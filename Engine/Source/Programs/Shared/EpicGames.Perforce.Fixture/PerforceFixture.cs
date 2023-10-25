@@ -32,6 +32,11 @@ public class DepotFileFixture
 		Digest = PerforceFixture.CalcMd5(content).ToUpperInvariant();
 		Content = content;
 	}
+
+	public override string ToString()
+	{
+		return $"DepotFile={DepotFile}, Size={Size}, Revision={Revision}, Digest={Digest}, Content={Content}";
+	}
 }
 
 public class ChangelistFixture
@@ -132,9 +137,15 @@ public class ChangelistFixture
 	
 	private (FileSet localFiles, FileSet streamFiles) GetFileSets(string clientRoot)
 	{
+		FileSet streamFiles = new(StreamFiles.Select(x => (x.ClientFile, x.Size, x.Digest)));
+		FileSet localFiles = GetLocalFileSet(clientRoot);
+		return (localFiles, streamFiles);
+	}
+	
+	public static FileSet GetLocalFileSet(string clientRoot)
+	{
 		EnumerationOptions options = new () { RecurseSubdirectories = true };
 
-		FileSet streamFiles = new(StreamFiles.Select(x => (x.ClientFile, x.Size, x.Digest)));
 		FileSet localFiles = new(Directory.EnumerateFiles(clientRoot, "*", options)
 			.Select(x => Path.GetRelativePath(clientRoot, x))
 			.Select(x => x.Replace("\\", "/", StringComparison.Ordinal))
@@ -150,7 +161,7 @@ public class ChangelistFixture
 				return (clientFile, size, PerforceFixture.CalcMd5(content).ToUpperInvariant());
 			}));
 		
-		return (localFiles, streamFiles);
+		return localFiles;
 	}
 
 	public (List<string> localFiles, List<string> streamFiles) GetFiles(string clientRoot)

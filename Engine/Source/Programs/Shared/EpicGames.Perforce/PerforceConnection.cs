@@ -3361,7 +3361,68 @@ namespace EpicGames.Perforce
 
 			return SingleResponseCommandAsync<StreamRecord>(connection, "stream", arguments, null, cancellationToken);
 		}
+		
+		/// <summary>
+		/// Updates an existing stream
+		/// </summary>
+		/// <param name="connection">Connection to the Perforce server</param>
+		/// <param name="record">Information of the stream to update</param>
+		/// <param name="cancellationToken">Token used to cancel the operation</param>
+		/// <returns>Stream information record</returns>
+		public static Task<PerforceResponse> TryUpdateStreamAsync(this IPerforceConnection connection, StreamRecord record, CancellationToken cancellationToken = default)
+		{
+			List<string> arguments = new () { "-i" };
+			return SingleResponseCommandAsync(connection, "stream", arguments, connection.SerializeRecord(record), null, cancellationToken);
+		}
+		
+		/// <summary>
+		/// Serializes a client record to a byte array
+		/// </summary>
+		/// <param name="connection">Connection to the Perforce server</param>
+		/// <param name="input">The input record</param>
+		/// <returns>Serialized record data</returns>
+		static byte[] SerializeRecord(this IPerforceConnection connection, StreamRecord input)
+		{
+			List<KeyValuePair<string, object>> nameToValue = new List<KeyValuePair<string, object>>();
 
+			void Add(string fieldName, string? value)
+			{
+				if (value != null)
+				{
+					nameToValue.Add(new KeyValuePair<string, object>(fieldName, value));
+				}
+			}
+			
+			Add("Stream", input.Stream);
+			Add("Owner", input.Owner);
+			Add("Name", input.Name);
+			Add("Parent", input.Parent);
+			Add("Type", input.Type);
+			Add("Description", input.Description);
+			Add("ParentView", input.ParentView);
+			
+			if (input.Options != StreamOptions.None)
+			{
+				nameToValue.Add(new KeyValuePair<string, object>("Options", PerforceReflection.GetEnumText(typeof(StreamOptions), input.Options)));
+			}
+			
+			if (input.Paths.Count > 0)
+			{
+				nameToValue.Add(new KeyValuePair<string, object>("Paths", input.Paths));
+			}
+			
+			if (input.View.Count > 0)
+			{
+				nameToValue.Add(new KeyValuePair<string, object>("View", input.View));
+			}
+			
+			if (input.ChangeView.Count > 0)
+			{
+				nameToValue.Add(new KeyValuePair<string, object>("ChangeView", input.ChangeView));
+			}
+
+			return connection.CreateRecord(nameToValue).Serialize();
+		}
 		#endregion
 
 		#region p4 streams
