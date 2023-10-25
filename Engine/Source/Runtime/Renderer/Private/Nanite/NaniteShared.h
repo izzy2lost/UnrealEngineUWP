@@ -258,7 +258,7 @@ public:
 	inline PassBuffers& GetPostPassBuffers() { return PostPassBuffers; }
 
 	TRefCountPtr<FRDGPooledBuffer>& GetStatsBufferRef() { return StatsBuffer; }
-	TRefCountPtr<FRDGPooledBuffer>& GetShadingBinMetaBufferRef() { return ShadingBinMetaBuffer; }
+	TRefCountPtr<FRDGPooledBuffer>& GetShadingBinDataBufferRef() { return ShadingBinDataBuffer; }
 
 #if !UE_BUILD_SHIPPING
 	FFeedbackManager* GetFeedbackManager() { return FeedbackManager; }
@@ -271,7 +271,7 @@ private:
 	TRefCountPtr<FRDGPooledBuffer> StatsBuffer;
 
 	// Used for visualizations
-	TRefCountPtr<FRDGPooledBuffer> ShadingBinMetaBuffer;
+	TRefCountPtr<FRDGPooledBuffer> ShadingBinDataBuffer;
 
 #if !UE_BUILD_SHIPPING
 	FFeedbackManager* FeedbackManager = nullptr;
@@ -302,10 +302,7 @@ BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FNaniteUniformParameters, )
 	SHADER_PARAMETER_RDG_TEXTURE(Texture2D<uint>,			DbgBuffer32)
 
 	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, RayTracingDataBuffer)
-
-	// TODO: Use FNaniteShadingBinMeta but need to cleanly expose the type to the generated UB header somehow
-	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint4>, ShadingBinMeta)
-	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>,  ShadingBinData)
+	SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer,  ShadingBinData)
 
 	// Multi view
 	SHADER_PARAMETER(uint32,												MultiViewEnabled)
@@ -467,6 +464,7 @@ public:
 
 		// Force shader model 6.0+
 		OutEnvironment.CompilerFlags.Add(CFLAG_ForceDXC);
+		OutEnvironment.CompilerFlags.Add(CFLAG_HLSL2021);
 
 		OutEnvironment.SetDefine(TEXT("VF_SUPPORTS_PRIMITIVE_SCENE_DATA"), 1);
 		OutEnvironment.SetDefine(TEXT("NANITE_MATERIAL_SHADER"), 1);
@@ -533,7 +531,9 @@ struct FNaniteRasterPipeline
 		HashKey.MaterialFlags |= bForceDisableWPO ? 0x2u : 0x0u;
 		HashKey.MaterialFlags |= bSplineMesh ? 0x4u : 0x0u;
 		HashKey.MaterialHash   = FHashKey::PointerHash(RasterMaterial);
-		return uint32(CityHash64((char*)&HashKey, sizeof(FHashKey)));
+
+		const uint64 PipelineHash = CityHash64((char*)&HashKey, sizeof(FHashKey));
+		return HashCombineFast(uint32(PipelineHash & 0xFFFFFFFF), uint32((PipelineHash >> 32) & 0xFFFFFFFF));
 	}
 
 	inline bool GetSecondaryPipeline(FNaniteRasterPipeline& OutSecondary) const
@@ -768,46 +768,54 @@ struct FNaniteShadingBin
 	}
 };
 
+struct FNaniteBasePassData;
+struct FNaniteLumenCardData;
+class FMeshDrawShaderBindings;
+
 struct FNaniteShadingPipeline
 {
-	const FMaterialRenderProxy* ShadingMaterial = nullptr;
-	const FLightCacheInterface* LightCacheInterface = nullptr;
-	ELightMapPolicyType LightMapPolicyType = ELightMapPolicyType::LMP_NO_LIGHTMAP;
-	bool bIsTwoSided = false;
-	bool bIsMasked = false;
+	TPimplPtr<FNaniteBasePassData, EPimplPtrMode::DeepCopy> BasePassData;
+	TPimplPtr<FNaniteLumenCardData, EPimplPtrMode::DeepCopy> LumenCardData;
+	TPimplPtr<FMeshDrawShaderBindings, EPimplPtrMode::DeepCopy> ShaderBindings;
+
+	const FMaterialRenderProxy* MaterialProxy = nullptr;
+	const FMaterial* Material = nullptr;
+	FRHIComputeShader* ComputeShader = nullptr;
+
+	uint32 BoundTargetMask = 0u;
+	uint32 ShaderBindingsHash = 0u;
+	uint32 MaterialBitFlags = 0x0u;
+
+	// Shading flags
+	union
+	{
+		struct
+		{
+			uint16 bIsTwoSided : 1;
+			uint16 bIsMasked : 1;
+			uint16 bNoDerivativeOps : 1;
+			uint16 bPadding : 13;
+		};
+
+		uint16 ShadingFlagsHash = 0;
+	};
 
 	inline uint32 GetPipelineHash() const
 	{
-		struct FHashKey
-		{
-			uint32 LightMapPolicy : 16;
-			uint32 MaterialFlags  : 16;
-			uint32 MaterialHash;
+		// Ignoring the lower 4 bits since they are likely zero anyway.
+		// Higher bits are more significant in 64 bit builds.
+		uint64 PipelineHash = uint64(reinterpret_cast<UPTRINT>(MaterialProxy) >> 4);
 
-			static inline uint32 PointerHash(const void* Key)
-			{
-			#if PLATFORM_64BITS
-				// Ignoring the lower 4 bits since they are likely zero anyway.
-				// Higher bits are more significant in 64 bit builds.
-				return reinterpret_cast<UPTRINT>(Key) >> 4;
-			#else
-				return reinterpret_cast<UPTRINT>(Key);
-			#endif
-			};
+		// Combine shader flags hash and material hash
+		PipelineHash = CityHash128to64({ PipelineHash, ShadingFlagsHash });
 
-		} HashKey;
+		// Combine with bound target mask
+		PipelineHash = CityHash128to64({ PipelineHash, BoundTargetMask });
 
-		HashKey.LightMapPolicy = uint16(LightMapPolicyType);
-		HashKey.MaterialFlags  = 0;
-		HashKey.MaterialFlags |= bIsTwoSided ? 0x1u : 0x0u;
-		HashKey.MaterialHash   = FHashKey::PointerHash(ShadingMaterial);
-		
-		if (LightCacheInterface != nullptr)
-		{
-			HashKey.MaterialHash = HashCombine(HashKey.MaterialHash, FHashKey::PointerHash(LightCacheInterface));
-		}
+		// Combine with shader bindings hash
+		PipelineHash = CityHash128to64({ PipelineHash, ShaderBindingsHash });
 
-		return uint32(CityHash64((char*)&HashKey, sizeof(FHashKey)));
+		return HashCombineFast(uint32(PipelineHash & 0xFFFFFFFF), uint32((PipelineHash >> 32) & 0xFFFFFFFF));
 	}
 
 	FORCENOINLINE friend uint32 GetTypeHash(const FNaniteShadingPipeline& Other)
@@ -818,7 +826,7 @@ struct FNaniteShadingPipeline
 
 struct FNaniteShadingEntry
 {
-	FNaniteShadingPipeline ShadingPipeline{};
+	TSharedPtr<FNaniteShadingPipeline> ShadingPipeline;
 	uint32 ReferenceCount = 0;
 	uint16 BinIndex = 0xFFFFu;
 };
@@ -863,167 +871,26 @@ public:
 		return PipelineMap;
 	}
 
+	bool bBuildCommands = true;
+
 private:
 	TBitArray<> PipelineBins;
 	FNaniteShadingPipelineMap PipelineMap;
 };
 
+struct FNaniteShadingCommand
+{
+	TSharedPtr<FNaniteShadingPipeline> Pipeline;
+	FRHIBatchedShaderParameters BatchedParameters;
+	FUint32Vector4 PassData;
+	uint16 ShadingBin = 0xFFFFu;
+	bool bVisible = true;
+
+	// The PSO precache state - updated at dispatch time and can be used to skip command when still precaching
+	EPSOPrecacheResult PSOPrecacheState = EPSOPrecacheResult::Unknown;
+};
+
 /// END-TODO: Work in progress / experimental
-
-struct FNaniteVisibilityQuery;
-
-class FNaniteVisibilityResults
-{
-	friend class FNaniteVisibility;
-
-public:
-	FNaniteVisibilityResults() = default;
-
-	bool IsRasterBinVisible(uint16 BinIndex) const;
-	bool IsShadingDrawVisible(uint32 DrawId) const;
-
-	void Invalidate();
-
-	FORCEINLINE bool IsRasterTestValid() const
-	{
-		return bRasterTestValid;
-	}
-
-	FORCEINLINE bool IsShadingTestValid() const
-	{
-		return bShadingTestValid;
-	}
-
-	FORCEINLINE void GetRasterBinStats(uint32& OutNumVisible, uint32& OutNumTotal) const
-	{
-		OutNumTotal = TotalRasterBins;
-		OutNumVisible = IsRasterTestValid() ? VisibleRasterBins : OutNumTotal;
-	}
-
-	FORCEINLINE void GetShadingDrawStats(uint32& OutNumVisible, uint32& OutNumTotal) const
-	{
-		OutNumTotal = TotalShadingDraws;
-		OutNumVisible = IsShadingTestValid() ? VisibleShadingDraws : OutNumTotal;
-	}
-
-	void SetRasterBinIndexTranslator(const FNaniteRasterBinIndexTranslator InTranslator)
-	{
-		BinIndexTranslator = InTranslator;
-	}
-
-	bool ShouldRenderCustomDepthPrimitive(uint32 PrimitiveId) const
-	{
-		if (!bRasterTestValid && !bShadingTestValid)
-		{
-			// no valid test results, so we didn't visibility test any primitives
-			return true;
-		}
-		return VisibleCustomDepthPrimitives.Contains(PrimitiveId);
-	}
-
-private:
-	TBitArray<> RasterBinVisibility;
-	TArray<uint32> ShadingDrawVisibility;
-	TSet<uint32> VisibleCustomDepthPrimitives;
-	FNaniteRasterBinIndexTranslator BinIndexTranslator;
-	uint32 TotalRasterBins		= 0;
-	uint32 TotalShadingDraws	= 0;
-	uint32 VisibleRasterBins	= 0;
-	uint32 VisibleShadingDraws	= 0;
-	bool bRasterTestValid		= false;
-	bool bShadingTestValid		= false;
-};
-
-class FNaniteVisibility
-{
-	friend class FNaniteVisibilityTask;
-
-public:
-	struct FPrimitiveBins
-	{
-		uint16 Primary = 0xFFFFu;
-		uint16 Secondary = 0xFFFFu;
-	};
-
-	using PrimitiveBinsType = TArray<FPrimitiveBins, TInlineAllocator<1>>;
-	using PrimitiveDrawType = TArray<uint32, TInlineAllocator<1>>;
-
-	struct FPrimitiveReferences
-	{
-		const FPrimitiveSceneInfo* SceneInfo = nullptr;
-		PrimitiveBinsType RasterBins;
-		PrimitiveDrawType ShadingDraws;
-		bool bWritesCustomDepthStencil = false;
-	};
-
-	using PrimitiveMapType = Experimental::TRobinHoodHashMap<const FPrimitiveSceneInfo*, FPrimitiveReferences>;
-
-public:
-	FNaniteVisibility();
-
-	void BeginVisibilityFrame();
-	void FinishVisibilityFrame();
-
-	/**
-	 * BeginVisibilityQuery and FinishVisibilityQuery are thread safe with respect to each other,
-	 * but not with respect to BeginVisibilityFrame/FinishVisibilityFrame.
-	 **/
-	FNaniteVisibilityQuery* BeginVisibilityQuery(
-		FScene& Scene,
-		const TConstArrayView<FConvexVolume>& ViewList,
-		const class FNaniteRasterPipelines* RasterPipelines,
-		const class FNaniteMaterialCommands* MaterialCommands = nullptr
-	);
-
-	void FinishVisibilityQuery(FNaniteVisibilityQuery* Query, FNaniteVisibilityResults& OutResults);
-
-	PrimitiveBinsType* GetRasterBinReferences(const FPrimitiveSceneInfo* SceneInfo);
-	PrimitiveDrawType* GetShadingDrawReferences(const FPrimitiveSceneInfo* SceneInfo);
-	void RemoveReferences(const FPrimitiveSceneInfo* SceneInfo);
-
-private:
-	FPrimitiveReferences* FindOrAddPrimitiveReferences(const FPrimitiveSceneInfo* SceneInfo);
-	void WaitForTasks();
-
-	// Translator should remain valid between Begin/FinishVisibilityFrame. That is, no adding or removing raster bins
-	FNaniteRasterBinIndexTranslator BinIndexTranslator;
-	TArray<FNaniteVisibilityQuery*, TInlineAllocator<32>> VisibilityQueries;
-	TArray<UE::Tasks::FTask, SceneRenderingAllocator> ActiveEvents;
-	PrimitiveMapType PrimitiveReferences;
-	UE::FMutex Mutex;
-	uint8 bCalledBegin : 1;
-};
-
-class FNaniteScopedVisibilityFrame
-{
-public:
-	FNaniteScopedVisibilityFrame(const bool bInEnabled, FNaniteVisibility& InVisibility)
-	: Visibility(InVisibility)
-	, bEnabled(bInEnabled)
-	{
-		if (bEnabled)
-		{
-			Visibility.BeginVisibilityFrame();
-		}
-	}
-
-	~FNaniteScopedVisibilityFrame()
-	{
-		if (bEnabled)
-		{
-			Visibility.FinishVisibilityFrame();
-		}
-	}
-
-	FORCEINLINE FNaniteVisibility& Get()
-	{
-		return Visibility;
-	}
-
-private:
-	FNaniteVisibility& Visibility;
-	bool bEnabled;
-};
 
 extern bool ShouldRenderNanite(const FScene* Scene, const FViewInfo& View, bool bCheckForAtomicSupport = true);
 
