@@ -1477,6 +1477,12 @@ namespace UM
 
 		/// [PropertyMetadata] Used for enum properties to define the subset of valid values as a comma-separated string; values outside of this subset are not made available.
 		ValidEnumValues,
+		
+		/// [PropertyMetadata] Causes assets to be filtered through a UFunction, e.g. meta=(GetAssetFilter="FuncName"). The UFunction should return true to exclude the asset.
+		///
+		/// UFUNCTION()
+		/// bool FuncName(const FAssetData& AssetData) const;
+		GetAssetFilter,
 
 	    /// [PropertyMetadata] Used for enum properties to define the subset of invalid values as a comma-separated string; values within this subset are not made available.
         InvalidEnumValues,

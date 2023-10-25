@@ -306,7 +306,6 @@ void SPropertyEditorAsset::Construct(const FArguments& InArgs, const TSharedPtr<
 	OwnerAssetDataArray = InArgs._OwnerAssetDataArray;
 	OnIsEnabled = InArgs._IsEnabled;
 	OnSetObject = InArgs._OnSetObject;
-	OnShouldFilterAsset = InArgs._OnShouldFilterAsset;
 	OnShouldFilterActor = InArgs._OnShouldFilterActor;
 	ObjectPath = InArgs._ObjectPath;
 
@@ -345,17 +344,45 @@ void SPropertyEditorAsset::Construct(const FArguments& InArgs, const TSharedPtr<
 	bIsSoftObjectPath = CastField<FSoftObjectProperty>(Property) != nullptr;
 	
 	InitializeAssetDataTags(Property);
+
+	auto AppendOnShouldFilterAssetCallback = [this](FOnShouldFilterAsset&& OnShouldFilterAssetCallback)
+	{
+		check(OnShouldFilterAssetCallback.IsBound());
+		if (OnShouldFilterAsset.IsBound())
+		{
+			OnShouldFilterAsset.BindLambda([BaseOnShouldFilterAsset = OnShouldFilterAsset, OnShouldFilterAssetCallback = MoveTemp(OnShouldFilterAssetCallback)](const FAssetData& InAssetData)
+			{
+				return BaseOnShouldFilterAsset.Execute(InAssetData) || OnShouldFilterAssetCallback.Execute(InAssetData);
+			});
+		}
+		else
+		{
+			OnShouldFilterAsset = MoveTemp(OnShouldFilterAssetCallback);
+		}
+	};
+
+	OnShouldFilterAsset = InArgs._OnShouldFilterAsset;
+	
 	if (DisallowedAssetDataTags.IsValid() || RequiredAssetDataTags.IsValid())
 	{
 		// re-route the filter delegate to our own if we have our own asset data tags filter :
-		OnShouldFilterAsset.BindLambda([this, AssetFilter = InArgs._OnShouldFilterAsset](const FAssetData& InAssetData)
+		AppendOnShouldFilterAssetCallback(FOnShouldFilterAsset::CreateRaw(this, &SPropertyEditorAsset::IsAssetAllowed));
+	}
+
+	if (Property && Property->GetOwnerProperty()->HasMetaData("GetAssetFilter"))
+	{
+		// Add MetaData asset filter
+		const FString GetAssetFilterFunctionName = Property->GetOwnerProperty()->GetMetaData("GetAssetFilter");
+		if (!GetAssetFilterFunctionName.IsEmpty())
 		{
-			if (IsAssetAllowed(InAssetData))
+			TArray<UObject*> ObjectList;
+			PropertyEditor->GetPropertyHandle()->GetOuterObjects(ObjectList);
+			const UFunction* GetAssetFilterFunction = !ObjectList.IsEmpty() ? ObjectList[0]->FindFunction(*GetAssetFilterFunctionName) : nullptr;
+			if (GetAssetFilterFunction)
 			{
-				return AssetFilter.IsBound() ? AssetFilter.Execute(InAssetData) : false;
+				AppendOnShouldFilterAssetCallback(FOnShouldFilterAsset::CreateUFunction(ObjectList[0], GetAssetFilterFunction->GetFName()));
 			}
-			return true;
-		});
+		}
 	}
 
 	InitializeClassFilters(Property);
