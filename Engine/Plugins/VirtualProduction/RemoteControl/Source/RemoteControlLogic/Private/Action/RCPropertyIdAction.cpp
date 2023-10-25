@@ -150,6 +150,7 @@ void URCPropertyIdAction::UpdatePropertyId()
 										{
 											CachedPropertySelfContainer.Add(PropertyClassName, NewObject<URCVirtualPropertySelfContainer>(this));
 											CachedPropertySelfContainer[PropertyClassName]->DuplicateProperty(NewPropertyIdName, *FieldIt);
+											CachedPropertySelfContainer[PropertyClassName]->PresetWeakPtr = PresetWeakPtr;
 											PropertySelfContainer.Add(PropertyClassName, CachedPropertySelfContainer[PropertyClassName]);
 										}
 										break;
@@ -169,6 +170,7 @@ void URCPropertyIdAction::UpdatePropertyId()
 								CachedPropertySelfContainer[PropertyClassName]->AddProperty(NewPropertyIdName,
 									PropertyIdHandler->GetPropertyType(Property),
 									PropertyIdHandler->GetPropertyTypeObject(Property));
+								CachedPropertySelfContainer[PropertyClassName]->PresetWeakPtr = PresetWeakPtr;
 								
 								PropertySelfContainer.Add(PropertyClassName, CachedPropertySelfContainer[PropertyClassName]);
 							}

@@ -4,6 +4,7 @@
 
 #include "IStructDeserializerBackend.h"
 #include "RCVirtualPropertyContainer.h"
+#include "RemoteControlPreset.h"
 #include "StructDeserializer.h"
 #include "StructSerializer.h"
 #include "UObject/TextProperty.h"
@@ -867,5 +868,10 @@ const FInstancedPropertyBag* URCVirtualPropertySelfContainer::GetPropertyBagInst
 
 TSharedPtr<FStructOnScope> URCVirtualPropertySelfContainer::CreateStructOnScope()
 {
-	return MakeShared<FStructOnScope>(Bag.GetPropertyBagStruct(), Bag.GetMutableValue().GetMemory());
+	TSharedRef<FStructOnScope> StructOnScope = MakeShared<FStructOnScope>(Bag.GetPropertyBagStruct(), Bag.GetMutableValue().GetMemory());
+	if (PresetWeakPtr.IsValid() && PresetWeakPtr->GetPackage())
+	{
+		StructOnScope->SetPackage(PresetWeakPtr->GetPackage());
+	}
+	return StructOnScope;
 }
