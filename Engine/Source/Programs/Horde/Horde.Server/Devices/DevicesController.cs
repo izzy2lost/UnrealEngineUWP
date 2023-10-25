@@ -601,12 +601,7 @@ namespace Horde.Server.Devices
 
 			ObjectId reservationIdValue = new ObjectId(reservationId);
 
-			bool deleted = await _deviceService.DeleteReservationAsync(reservationIdValue);
-
-			if (!deleted)
-			{
-				return BadRequest("Failed to delete reservation");
-			}
+			await _deviceService.DeleteReservationAsync(reservationIdValue);
 
 			return Ok();
 		}
@@ -892,12 +887,7 @@ namespace Horde.Server.Devices
 				return BadRequest($"Unable to find reservation for guid {reservationGuid}");
 			}
 
-			bool deleted = await _deviceService.DeleteReservationAsync(reservation.Id);
-
-			if (!deleted)
-			{
-				return BadRequest("Failed to delete reservation");
-			}
+			await _deviceService.DeleteReservationAsync(reservation.Id);
 
 			return Ok();
 		}
@@ -924,7 +914,7 @@ namespace Horde.Server.Devices
 				return BadRequest($"Unknown device platform {deviceName} {device.PlatformId}");
 			}
 
-			IDeviceReservation? reservation = await _deviceService.TryGetDeviceReservation(device.Id);
+			IDeviceReservation? reservation = await _deviceService.TryGetDeviceReservationAsync(device.Id);
 
 			string? platformName = null;
 

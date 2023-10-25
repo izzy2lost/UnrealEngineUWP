@@ -328,6 +328,7 @@ namespace Horde.Server.Tests
 
 					// finish the step
 					job = await FinishStepAsync(job, graph, 4, 3, JobStepOutcome.Success);
+
 					result = await DeviceController!.CreateDeviceReservationV1Async(request);
 					reservation = ResultToValue(result);
 				}
@@ -344,6 +345,7 @@ namespace Horde.Server.Tests
 				// Do not finish test 3, to test parallel step error
 				if (i != 3)
 				{
+					await DeviceController!.DeleteReservationV1Async(reservation.Guid);
 					job = await FinishStepAsync(job, graph, 4, i, JobStepOutcome.Success);
 				}
 				

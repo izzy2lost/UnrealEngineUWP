@@ -873,6 +873,12 @@ namespace Horde.Server.Devices
 		}
 
 		/// <inheritdoc/>
+		public async Task<IDeviceReservation?> TryGetReservationAsync(ObjectId reservationId)
+		{
+			return await _reservations.Find<DeviceReservationDocument>(r => r.Id == reservationId).FirstOrDefaultAsync();
+		}
+
+		/// <inheritdoc/>
 		public async Task<IDeviceReservation?> TryGetReservationFromLegacyGuidAsync(string legacyGuid)
 		{
 			return await _reservations.Find<DeviceReservationDocument>(r => r.LegacyGuid == legacyGuid).FirstOrDefaultAsync();

@@ -136,11 +136,17 @@ namespace Horde.Server.Devices
 		/// <param name="legacyGuid">YThe legacy guid of the reservation</param>
 		Task<IDeviceReservation?> TryGetReservationFromLegacyGuidAsync(string legacyGuid);
 
-        /// <summary>
-        /// Gets a reservation by device id
-        /// </summary>
-        /// <param name="id">A device contained in reservation</param>
-        Task<IDeviceReservation?> TryGetDeviceReservationAsync(DeviceId id);
+		/// <summary>
+		/// Gets a reservation by reservation id
+		/// </summary>
+		/// <param name="reservationId">The id of the reservation</param>
+		Task<IDeviceReservation?> TryGetReservationAsync(ObjectId reservationId);
+
+		/// <summary>
+		/// Gets a reservation by device id
+		/// </summary>
+		/// <param name="id">A device contained in reservation</param>
+		Task<IDeviceReservation?> TryGetDeviceReservationAsync(DeviceId id);
 
         /// <summary>
         /// Get a list of all reservations
