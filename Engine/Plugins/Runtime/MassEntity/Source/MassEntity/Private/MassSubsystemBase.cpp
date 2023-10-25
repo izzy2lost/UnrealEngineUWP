@@ -31,7 +31,7 @@ bool UMassSubsystemBase::AreRuntimeMassSubsystemsAllowed(UObject* Outer)
 
 bool UMassSubsystemBase::ShouldCreateSubsystem(UObject* Outer) const 
 {
-	return UMassSubsystemBase::AreRuntimeMassSubsystemsAllowed(Outer);
+	return UMassSubsystemBase::AreRuntimeMassSubsystemsAllowed(Outer) && Super::ShouldCreateSubsystem(Outer);
 }
 
 //-----------------------------------------------------------------------------
@@ -39,5 +39,5 @@ bool UMassSubsystemBase::ShouldCreateSubsystem(UObject* Outer) const
 //-----------------------------------------------------------------------------
 bool UMassTickableSubsystemBase::ShouldCreateSubsystem(UObject* Outer) const
 {
-	return UMassSubsystemBase::AreRuntimeMassSubsystemsAllowed(Outer);
+	return UMassSubsystemBase::AreRuntimeMassSubsystemsAllowed(Outer) && Super::ShouldCreateSubsystem(Outer);
 }
