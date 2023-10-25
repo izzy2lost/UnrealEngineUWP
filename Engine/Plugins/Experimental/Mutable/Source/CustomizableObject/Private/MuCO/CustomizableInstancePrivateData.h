@@ -265,7 +265,10 @@ public:
 	// The following method is basically copied from PostEditChangeProperty and/or SkeletalMesh.cpp to be able to replicate PostEditChangeProperty without the editor
 	void PostEditChangePropertyWithoutEditor(USkeletalMesh* SkeletalMesh);
 	
-	void DiscardResourcesAndSetReferenceSkeletalMesh(UCustomizableObjectInstance* Public);
+	void DiscardResourcesAndSetReferenceSkeletalMesh(UCustomizableObjectInstance* Instance);
+
+	// Releases all the mutable resources this instance holds, should only be called when it is not going to be used any more.
+	void ReleaseMutableResources(bool bCalledFromBeginDestroy, const UCustomizableObjectInstance& Instance);
 
 	const TArray<FAnimInstanceOverridePhysicsAsset>* GetGeneratedPhysicsAssetsForAnimInstance(TSubclassOf<UAnimInstance> AnimInstance) const;
 

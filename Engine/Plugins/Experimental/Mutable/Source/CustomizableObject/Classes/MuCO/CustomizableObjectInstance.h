@@ -270,9 +270,6 @@ public:
 
 	/** Immediately destroy the Mutable Core Live Update Instance attached to this (if exists). */
 	void DestroyLiveUpdateInstance();
-	
-	// Releases all the mutable resources this instance holds, should only be called when it is not going to be used any more.
-	void ReleaseMutableResources(bool bCalledFromBeginDestroy);
 
 	// Returns de description texture (ex: color bar) for this parameter and DescIndex
 	// This will only be valid if bBuildParameterDecorations was set to true before the last update.
