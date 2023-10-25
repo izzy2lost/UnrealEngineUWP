@@ -212,8 +212,8 @@ namespace PerfSummaries
 				}
 				else if (col.formula == "minimum")
 				{
-					value = statValues[startFrame];
-					for (int i = startFrame + 1; i < colEndFrame; i++)
+					value = double.MaxValue;
+					for (int i = startFrame; i < colEndFrame; i++)
 					{
 						if (col.filterOutZeros == false || statValues[i] > 0)
 						{
