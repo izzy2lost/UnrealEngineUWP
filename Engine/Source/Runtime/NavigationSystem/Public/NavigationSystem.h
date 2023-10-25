@@ -871,6 +871,9 @@ protected:
 
 	/** Get seed locations for invokers, @see InvokersMaximumDistanceFromSeed 
 	 *	By default these are the player pawn locations. If a player controller has no pawn assigned, the player's camera location will be used instead. */ 
+	NAVIGATIONSYSTEM_API virtual void GetInvokerSeedLocations(const UWorld& InWorld, TArray<FVector, TInlineAllocator<32>>& OutSeedLocations);
+
+	UE_DEPRECATED(5.4, "This function is deprecated. Use GetInvokerSeedLocations using TArray of FVector.")
 	NAVIGATIONSYSTEM_API virtual void GetInvokerSeedLocations(const UWorld& InWorld, TArray<FVector2D, TInlineAllocator<32>>& OutSeedLocations);
 
 	/** @return pointer to ANavigationData instance of given ID, or NULL if it was not found. Note it looks only through registered navigation data */

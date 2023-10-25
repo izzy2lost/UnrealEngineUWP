@@ -3793,7 +3793,19 @@ void UNavigationSystemV1::GatherNavigationBounds()
 	}
 }
 
+// Deprecated
 void UNavigationSystemV1::GetInvokerSeedLocations(const UWorld& InWorld, TArray<FVector2D, TInlineAllocator<32>>& OutSeedLocations)
+{
+	TArray<FVector, TInlineAllocator<32>> Locations;
+	GetInvokerSeedLocations(InWorld, Locations);
+
+	for (const FVector Location : Locations)
+	{
+		OutSeedLocations.Add(FVector2D(Location));	
+	}
+}
+
+void UNavigationSystemV1::GetInvokerSeedLocations(const UWorld& InWorld, TArray<FVector, TInlineAllocator<32>>& OutSeedLocations)
 {
 	for (FConstPlayerControllerIterator PlayerIt = InWorld.GetPlayerControllerIterator(); PlayerIt; ++PlayerIt)
 	{
@@ -3802,13 +3814,11 @@ void UNavigationSystemV1::GetInvokerSeedLocations(const UWorld& InWorld, TArray<
 		{
 			if (PlayerController->GetPawn())
 			{
-				const FVector2D SeedLoc(PlayerController->GetPawn()->GetActorLocation());
-				OutSeedLocations.Add(SeedLoc);
+				OutSeedLocations.Add(PlayerController->GetPawn()->GetActorLocation());
 			}
 			else if (PlayerController->PlayerCameraManager)
 			{
-				const FVector2D SeedLoc(PlayerController->PlayerCameraManager->GetCameraLocation());
-				OutSeedLocations.Add(SeedLoc);
+				OutSeedLocations.Add(PlayerController->PlayerCameraManager->GetCameraLocation());
 			}
 		}
 	}
@@ -5093,17 +5103,17 @@ void UNavigationSystemV1::UpdateInvokers()
 			QUICK_SCOPE_CYCLE_COUNTER(STAT_NavSys_Clusterize);
 
 			const bool bCheckMaximumDistanceFromSeeds = (InvokersMaximumDistanceFromSeed != -1) && World->IsGameWorld();
-			TArray<FVector2D, TInlineAllocator<32>> SeedLocations;
+			TArray<FVector, TInlineAllocator<32>> SeedLocations;
 			if (bCheckMaximumDistanceFromSeeds)
 			{
 				GetInvokerSeedLocations(*World, SeedLocations);
 
 				// Fill seed bounds
-				for (const FVector2D SeedLocation : SeedLocations)
+				for (const FVector SeedLocation : SeedLocations)
 				{
 					InvokersSeedBounds.Emplace(
-						FVector(SeedLocation.X-InvokersMaximumDistanceFromSeed, SeedLocation.Y-InvokersMaximumDistanceFromSeed, TNumericLimits<double>::Lowest()),
-						FVector(SeedLocation.X+InvokersMaximumDistanceFromSeed, SeedLocation.Y+InvokersMaximumDistanceFromSeed, TNumericLimits<double>::Max()));
+						FVector(SeedLocation.X-InvokersMaximumDistanceFromSeed, SeedLocation.Y-InvokersMaximumDistanceFromSeed, SeedLocation.Z-InvokersMaximumDistanceFromSeed),
+						FVector(SeedLocation.X+InvokersMaximumDistanceFromSeed, SeedLocation.Y+InvokersMaximumDistanceFromSeed, SeedLocation.Z+InvokersMaximumDistanceFromSeed));
 				}
 			}
 			
@@ -5131,9 +5141,9 @@ void UNavigationSystemV1::UpdateInvokers()
 						const double CheckDistanceSq = FMath::Square(InvokersMaximumDistanceFromSeed + GenerationRadius);
 
 						// Check if the invoker is close enough
-						for (const FVector2D SeedLocation : SeedLocations)
+						for (const FVector SeedLocation : SeedLocations)
 						{
-							const double InvokerDistanceToSeedSq = FVector2D::DistSquared(SeedLocation, FVector2D(ActorLocation));
+							const double InvokerDistanceToSeedSq = FVector::DistSquared(SeedLocation, ActorLocation);
 							if (InvokerDistanceToSeedSq <= CheckDistanceSq)
 							{
 								bKeep = true;
