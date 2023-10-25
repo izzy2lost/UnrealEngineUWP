@@ -112,6 +112,7 @@ FSetElementId FNavigationDataHandler::RegisterNavOctreeElement(UObject& ElementO
 void FNavigationDataHandler::AddElementToNavOctree(const FNavigationDirtyElement& DirtyElement)
 {
 	check(OctreeController.NavOctree.IsValid());
+	LLM_SCOPE_BYTAG(NavigationOctree);
 
 	// handle invalidated requests first
 	if (DirtyElement.bInvalidRequest)

@@ -230,6 +230,8 @@ void UNavCollision::Setup(UBodySetup* BodySetup)
 		return;
 	}
 
+	LLM_SCOPE_BYNAME(TEXT("NavigationCollision"));
+
 	BodySetupGuid = BodySetup->BodySetupGuid;
 
 	// Make sure all are cleared before we start

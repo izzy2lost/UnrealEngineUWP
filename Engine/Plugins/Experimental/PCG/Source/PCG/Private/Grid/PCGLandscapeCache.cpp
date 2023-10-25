@@ -400,6 +400,7 @@ void FPCGLandscapeCacheEntry::SerializeToBulkData(EPCGLandscapeCacheSerializatio
 bool FPCGLandscapeCacheEntry::SerializeFromBulkData() const
 {
 	check(!bDataLoaded);
+	LLM_SCOPE_BYNAME(TEXT("PCGLandscape"));
 
 	// Note: this call is not threadsafe by itself, it is meant to be called from a locked region
 	uint8* Data = nullptr;

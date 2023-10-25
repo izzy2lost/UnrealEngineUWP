@@ -2225,6 +2225,8 @@ bool ULandscapeMeshCollisionComponent::RecreateCollision()
 
 void ULandscapeHeightfieldCollisionComponent::Serialize(FArchive& Ar)
 {
+	LLM_SCOPE(ELLMTag::Landscape);
+
 #if WITH_EDITOR
 	if (Ar.UEVer() >= VER_UE4_LANDSCAPE_COLLISION_DATA_COOKING)
 	{
@@ -2282,6 +2284,8 @@ void ULandscapeHeightfieldCollisionComponent::Serialize(FArchive& Ar)
 
 void ULandscapeMeshCollisionComponent::Serialize(FArchive& Ar)
 {
+	LLM_SCOPE(ELLMTag::Landscape);
+
 	Super::Serialize(Ar);
 
 	if (Ar.UEVer() < VER_UE4_LANDSCAPE_COLLISION_DATA_COOKING)
