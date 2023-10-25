@@ -122,8 +122,6 @@ public:
 
 	ENGINE_API virtual void PostInitProperties() override;
 
-	ENGINE_API virtual bool IsReadyForFinishDestroy() override;
-
 	/** Max number of components of this system to keep resident in the world component pool. */
 	UPROPERTY(EditAnywhere, Category = Performance, AdvancedDisplay)
 	uint32 MaxPoolSize;

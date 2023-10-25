@@ -145,17 +145,6 @@ void UFXSystemAsset::PostInitProperties()
 #endif
 }
 
-bool UFXSystemAsset::IsReadyForFinishDestroy()
-{
-	// Don't touch PrecachePSOsEvent directly because the cleanup task could set to a nullptr
-	if (PrecachePSOsEvent)
-	{
-		return false;
-	}
-
-	return Super::IsReadyForFinishDestroy();
-}
-
 void UFXSystemAsset::LaunchPSOPrecaching(TArrayView<VFsPerMaterialData> VFsPerMaterials)
 {
 	FPSOPrecacheParams PreCachePSOParams;
@@ -177,25 +166,28 @@ void UFXSystemAsset::LaunchPSOPrecaching(TArrayView<VFsPerMaterialData> VFsPerMa
 	{
 		struct FReleasePrecachePSOsEventTask
 		{
-			explicit FReleasePrecachePSOsEventTask(FGraphEventRef& InPrecachePSOsEvent)
-				: PrecachePSOsEvent(&InPrecachePSOsEvent)
+			explicit FReleasePrecachePSOsEventTask(UFXSystemAsset* OwnerAsset)
+				: WeakOwnerAsset(OwnerAsset)
 			{
 			}
 
 			static TStatId GetStatId() { return TStatId(); }
-			static ENamedThreads::Type GetDesiredThread() { return ENamedThreads::AnyThread; }
+			static ENamedThreads::Type GetDesiredThread() { return ENamedThreads::GameThread; }
 			static ESubsequentsMode::Type GetSubsequentsMode() { return ESubsequentsMode::TrackSubsequents; }
 
 			void DoTask(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent)
 			{
-				*PrecachePSOsEvent = nullptr;
+				if (UFXSystemAsset* Asset = WeakOwnerAsset.Get())
+				{
+					Asset->PrecachePSOsEvent = nullptr;
+				}
 			}
 
-			FGraphEventRef* PrecachePSOsEvent;
+			TWeakObjectPtr<UFXSystemAsset> WeakOwnerAsset;
 		};
 
 		// need to set `PrecachePSOsEvent` before the task is launched to not race with its execution
-		TGraphTask<FReleasePrecachePSOsEventTask>* ReleasePrecachePSOsEventTask = TGraphTask<FReleasePrecachePSOsEventTask>::CreateTask(&PrecachePSOsEvents).ConstructAndHold(PrecachePSOsEvent);
+		TGraphTask<FReleasePrecachePSOsEventTask>* ReleasePrecachePSOsEventTask = TGraphTask<FReleasePrecachePSOsEventTask>::CreateTask(&PrecachePSOsEvents).ConstructAndHold(this);
 		PrecachePSOsEvent = ReleasePrecachePSOsEventTask->GetCompletionEvent();
 		ReleasePrecachePSOsEventTask->Unlock();
 	}
