@@ -28,7 +28,8 @@ struct FWorldPartitionHLODEditorData
 {
 public:
 	FWorldPartitionHLODEditorData(UWorldPartition* InWorldPartition);
-	
+	~FWorldPartitionHLODEditorData();
+
 	void UpdateLoadedActorsState();
 	void UpdateVisibility(const FVector& InCameraLocation, bool bForceVisibilityUpdate);
 

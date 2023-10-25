@@ -56,53 +56,8 @@ FWorldPartitionHLODEditorData::FWorldPartitionHLODEditorData(UWorldPartition* In
 	}
 }
 
-struct FBoundsWithVolume
+FWorldPartitionHLODEditorData::~FWorldPartitionHLODEditorData()
 {
-	FBoundsWithVolume(const FBox& InBox)
-		: Box(InBox)
-		, Volume(Box.GetVolume())
-	{
-	}
-
-	FBox Box;
-	FBox::FReal Volume;
-};
-
-// Gather Pinned Actors bounds - also include references & contained actors if the pinned actor is a container.
-static void GatherLoadedActorsBounds(TArray<FBoundsWithVolume>& OutLoadedBounds, const FWorldPartitionActorDesc* InActorDesc, const UActorDescContainer* InContainer, const TOptional<FTransform>& InContainerTransform = TOptional<FTransform>())
-{
-	if (InActorDesc)
-	{
-		// The actor itself - Include the actor bounds only if HLOD relevant
-		if (InActorDesc->GetIsSpatiallyLoaded() && InActorDesc->IsEditorRelevant() && InActorDesc->GetActorIsHLODRelevant())
-		{
-			const FBox Box = InContainerTransform.IsSet() ? InActorDesc->GetEditorBounds().TransformBy(InContainerTransform.GetValue()) : InActorDesc->GetEditorBounds();
-			OutLoadedBounds.Emplace(Box);
-		}
-
-		// Test its references
-		for (const FGuid& ReferenceGuid : InActorDesc->GetReferences())
-		{
-			if (const FWorldPartitionActorDesc* ReferenceActorDesc = InContainer->GetActorDesc(ReferenceGuid))
-			{
-				GatherLoadedActorsBounds(OutLoadedBounds, ReferenceActorDesc, InContainer, InContainerTransform);
-			}
-		}
-
-		// If it's a container, test the contained actors
-		if (InActorDesc->IsContainerInstance())
-		{
-			FWorldPartitionActorDesc::FContainerInstance ContainerInstance;
-			if (InActorDesc->GetContainerInstance(ContainerInstance))
-			{
-				FTransform ContainerWorldSpaceTransform = InContainerTransform.IsSet() ? ContainerInstance.Transform * InContainerTransform.GetValue() : ContainerInstance.Transform;
-				for (FActorDescList::TConstIterator<> ActorDescIt(ContainerInstance.Container); ActorDescIt; ++ActorDescIt)
-				{
-					GatherLoadedActorsBounds(OutLoadedBounds, *ActorDescIt, ContainerInstance.Container, ContainerWorldSpaceTransform);
-				}
-			}
-		}
-	}
 }
 
 void FWorldPartitionHLODEditorData::UpdateLoadedActorsState()
@@ -111,7 +66,19 @@ void FWorldPartitionHLODEditorData::UpdateLoadedActorsState()
 
 	// Increment update counter - used to quickly find out if an HLOD actor needs be hidden without having to flag the whole hierarchy
 	LastStateUpdate++;
-	
+
+	struct FBoundsWithVolume
+	{
+		FBoundsWithVolume(const FBox& InBox, const FBox::FReal InVolume)
+			: Box(InBox)
+			, Volume(InVolume)
+		{
+		}
+
+		FBox Box;
+		FBox::FReal Volume;
+	};
+
 	TArray<FBoundsWithVolume> LoadedBounds;
 
 	// Gather LoaderAdapter
@@ -121,7 +88,8 @@ void FWorldPartitionHLODEditorData::UpdateLoadedActorsState()
 		{
 			if (LoaderAdapter->IsLoaded() && LoaderAdapter->GetBoundingBox().IsSet())
 			{
-				LoadedBounds.Emplace(LoaderAdapter->GetBoundingBox().GetValue());
+				const FBox Box = LoaderAdapter->GetBoundingBox().GetValue();
+				LoadedBounds.Emplace(Box, Box.GetVolume());
 			}
 		}
 	}
@@ -137,7 +105,8 @@ void FWorldPartitionHLODEditorData::UpdateLoadedActorsState()
 				{
 					if (LoaderAdapter->IsLoaded() && LoaderAdapter->GetBoundingBox().IsSet())
 					{
-						LoadedBounds.Emplace(ActorDesc->GetEditorBounds());
+						const FBox Box = ActorDesc->GetEditorBounds();
+						LoadedBounds.Emplace(Box, Box.GetVolume());
 					}
 				}
 			}
@@ -145,17 +114,18 @@ void FWorldPartitionHLODEditorData::UpdateLoadedActorsState()
 
 		return true;
 	});
-	
-	// Gather Pinned Actors bounds
+
+	// Gather Pinned Actors
 	if (WorldPartition->PinnedActors)
 	{
-		for (const FWorldPartitionHandle& PinnedActor : WorldPartition->PinnedActors->GetActors())
+		WorldPartition->PinnedActors->ForEachReferencedActor([&LoadedBounds](const FWorldPartitionReference& LoadedActor)
 		{
-			if (PinnedActor.IsValid())
+			if (LoadedActor->GetIsSpatiallyLoaded() && LoadedActor->IsEditorRelevant() && LoadedActor->GetActorIsHLODRelevant())
 			{
-				GatherLoadedActorsBounds(LoadedBounds, *PinnedActor, WorldPartition->GetActorDescContainer());
+				const FBox Box = LoadedActor->GetEditorBounds();
+				LoadedBounds.Emplace(Box, Box.GetVolume());
 			}
-		}
+		});
 	}
 
 	// Sort Bounds by volume

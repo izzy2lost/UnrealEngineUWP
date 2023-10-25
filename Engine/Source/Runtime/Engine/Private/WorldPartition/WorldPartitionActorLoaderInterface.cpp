@@ -240,6 +240,23 @@ void IWorldPartitionActorLoaderInterface::ILoaderAdapter::OnActorDescContainerUn
 	}
 }
 
+void IWorldPartitionActorLoaderInterface::ILoaderAdapter::ForEachReferencedActor(TFunctionRef<void(const FWorldPartitionReference&)> InFunc) const
+{
+	for (const auto& [Container, ActorReferenceMap] : ContainerActorReferences)
+	{
+		if (Container.IsValid())
+		{
+			for (const auto& [ReferenceGuid, ReferenceMap] : ActorReferenceMap)
+			{
+				for (const auto& [Guid, ActorReference] : ReferenceMap)
+				{
+					InFunc(ActorReference);
+				}
+			}
+		}
+	}
+}
+
 bool IWorldPartitionActorLoaderInterface::ILoaderAdapter::ShouldActorBeLoaded(const FWorldPartitionHandle& Actor) const
 {
 	check(Actor.IsValid());
