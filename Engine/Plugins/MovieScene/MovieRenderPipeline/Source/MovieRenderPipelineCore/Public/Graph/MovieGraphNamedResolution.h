@@ -1,0 +1,50 @@
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
+#pragma once
+
+#include "Engine/EngineTypes.h"
+
+#include "MovieGraphNamedResolution.generated.h"
+
+/**
+ * Holds information about a screen resolution to be used for rendering.
+ */
+USTRUCT(BlueprintType)
+struct MOVIERENDERPIPELINECORE_API FMovieGraphNamedResolution
+{
+	GENERATED_BODY()
+
+public:
+
+	FMovieGraphNamedResolution() = default;
+
+	FMovieGraphNamedResolution(
+		const FName& InResolutionProfileName, const FIntPoint InResolution, const FString& InDescription)
+		: ProfileName(InResolutionProfileName)
+		, Resolution(InResolution)
+		, Description(InDescription)
+	{}
+
+	FMovieGraphNamedResolution(const FName& InResolutionProfileName);
+	
+	/** The name of the resolution this links to */
+	UPROPERTY(config, EditAnywhere, BlueprintReadWrite, Category = "Movie Graph|Resolution")
+	FName ProfileName = NAME_None;
+
+	/** The screen resolution (in pixels). */
+	UPROPERTY(config, EditAnywhere, BlueprintReadWrite, Category = "Movie Graph|Resolution")
+	FIntPoint Resolution = FIntPoint(1920, 1080);
+	
+	/** The description text for this screen resolution. */
+	UPROPERTY(config, EditAnywhere, BlueprintReadWrite, Category = "Movie Graph|Resolution")
+	FString Description = FString();
+
+	bool IsValid() const
+	{
+		return !ProfileName.IsNone() && Resolution.X > 0 && Resolution.Y > 0;
+	}
+
+	/**
+	 * The default resolution name to use when one is not defined.
+	 */
+	inline static FName DefaultResolutionName = TEXT("1080p (FHD)");
+};

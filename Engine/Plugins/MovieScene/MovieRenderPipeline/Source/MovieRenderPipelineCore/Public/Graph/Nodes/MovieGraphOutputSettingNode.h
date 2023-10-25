@@ -1,10 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
-#include "Graph/MovieGraphNode.h"
-#include "Misc/FrameRate.h"
-#include "MovieGraphOutputSettingNode.generated.h"
 
+#include "Graph/MovieGraphNamedResolution.h"
+#include "Graph/MovieGraphNode.h"
+
+#include "Misc/FrameRate.h"
+
+#include "MovieGraphOutputSettingNode.generated.h"
 
 UCLASS()
 class MOVIERENDERPIPELINECORE_API UMovieGraphOutputSettingNode : public UMovieGraphSettingNode
@@ -23,6 +26,8 @@ public:
 	virtual FSlateIcon GetIconAndTint(FLinearColor& OutColor) const override;
 #endif
 	// ~UMovieGraphSettingNode Interface
+
+	FIntPoint GetSyncedOutputResolution() const;
 
 public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
@@ -65,7 +70,7 @@ public:
 
 	/** What resolution should our output files be exported at? */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "File Output", meta = (EditCondition = "bOverride_OutputResolution"))
-	FIntPoint OutputResolution;
+	FMovieGraphNamedResolution OutputResolution;
 	
 	/** What frame rate should the output files be exported at? This overrides the Display Rate of the target sequence. If not overwritten, uses the default Sequence Display Rate. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "File Output", meta=(EditCondition="bOverride_OutputFrameRate"))
