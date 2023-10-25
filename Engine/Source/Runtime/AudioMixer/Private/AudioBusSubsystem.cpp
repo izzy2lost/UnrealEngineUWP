@@ -25,7 +25,7 @@ void UAudioBusSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 
 void UAudioBusSubsystem::Deinitialize()
 {
-	UE_LOG(LogAudioMixer, Log, TEXT("Deinitializing Audio Bus Subsystem for audio device with ID %d"), GetMixerDevice()->DeviceID);
+	UE_LOG(LogAudioMixer, Log, TEXT("Deinitializing Audio Bus Subsystem for audio device with ID %d"), GetMixerDevice() ? GetMixerDevice()->DeviceID : -1);
 	ShutdownDefaultAudioBuses();
 }
 
