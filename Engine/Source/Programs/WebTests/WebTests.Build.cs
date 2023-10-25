@@ -12,8 +12,7 @@ public class WebTests : TestModuleRules
 				"Core",
 				"HTTP",
 				"WebSockets",
-				"Chaos",
-				"ChaosUserDataPT"
+				"Json"
 			});
 		
 		UpdateBuildGraphPropertiesFile(new Metadata() { 
