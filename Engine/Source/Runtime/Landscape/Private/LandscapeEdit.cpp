@@ -574,7 +574,7 @@ void ALandscapeProxy::UpdateAllComponentMaterialInstances(FMaterialUpdateContext
 
 void ALandscapeProxy::UpdateNaniteMaterials()
 {
-	if ( !GetLandscapeActor()->IsNaniteEnabled() )
+	if (!GetLandscapeActor() || !GetLandscapeActor()->IsNaniteEnabled() )
 	{
 		return;
 	}

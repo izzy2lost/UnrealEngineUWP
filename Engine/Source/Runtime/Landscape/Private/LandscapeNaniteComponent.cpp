@@ -386,7 +386,7 @@ FGraphEventRef ULandscapeNaniteComponent::InitializeForLandscapeAsync(ALandscape
 
 void ULandscapeNaniteComponent::UpdateMaterials()
 {
-	if ( !GetLandscapeActor()->IsNaniteEnabled() )
+	if ( !GetLandscapeActor() || !GetLandscapeActor()->IsNaniteEnabled() )
 	{
 		return;
 	}
