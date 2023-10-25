@@ -695,26 +695,36 @@ void FLiveLinkClient::PushSubjectFrameData_AnyThread(const FLiveLinkSubjectKey& 
 	FPendingSubjectFrame SubjectFrame{ InSubjectKey, MoveTemp(InFrameData) };
 	const int32 MaxNumBufferToCached = CVarMaxNewFrameDataPerUpdate.GetValueOnAnyThread();
 	bool bLogError = false;
+
+	bool bCanPushFrame = true;
 	{
 		FScopeLock Lock(&CollectionAccessCriticalSection);
+
 		if (SubjectFrameToPush.Num() > MaxNumBufferToCached) // Something is wrong somewhere. Warn the user and discard the new Frame Data.
 		{
 			bLogError = true;
 			SubjectFrameToPush.RemoveAt(0, SubjectFrameToPush.Num() - MaxNumBufferToCached, false);
+			bCanPushFrame = false;
 		}
-		else
-		{
+	}
 
+	if (bCanPushFrame)
+	{
+		{
+			FScopeLock BroadcastLock(&SubjectFrameReceivedHandleseCriticalSection);
+			if (const FSubjectFramesReceivedHandles* Handles = SubjectFrameReceivedHandles.Find(InSubjectKey))
 			{
-				FScopeLock BroadcastLock(&SubjectFrameReceivedHandleseCriticalSection);
-				if (const FSubjectFramesReceivedHandles* Handles = SubjectFrameReceivedHandles.Find(InSubjectKey))
-				{
-					Handles->OnFrameDataReceived.Broadcast(SubjectFrame.FrameData);
-				}
+				Handles->OnFrameDataReceived.Broadcast(SubjectFrame.FrameData);
 			}
-			
-			SubjectFrameToPush.Add(MoveTemp(SubjectFrame));
 		}
+			
+		// Since the lock was released between setting bCanPushFrame and adding to the array, it is possible that
+		// we exceed MaxNumBufferToCached. But this should be rare and also harmless.
+		// The lock was released so that OnFrameDataReceived doesn't need to be called with the lock on,
+		// which can hang the game thread when it calls EvaluateFrame if the broadcast takes longer than usual.
+
+		FScopeLock Lock(&CollectionAccessCriticalSection);
+		SubjectFrameToPush.Add(MoveTemp(SubjectFrame));
 	}
 
 	if (bLogError)
