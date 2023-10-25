@@ -193,7 +193,7 @@ void APartyBeaconHost::Tick(float DeltaTime)
 									// if the timeout has been exceeded then add to list of players 
 									// that need to be logged out from the beacon
 									if ((bIsPlayerPendingJoin && PlayerEntry.ElapsedTime > TravelSessionTimeoutSecs) ||
-										(!bIsPlayerPendingJoin && PlayerEntry.ElapsedTime > SessionTimeoutSecs))
+										(!bIsPlayerPendingJoin && PlayerEntry.ElapsedTime > GetSessionTimeoutSecs(PlayerEntry.UniqueId)))
 									{
 										PlayersToLogout.AddUnique(PlayerEntry.UniqueId.GetUniqueNetId());
 									}
@@ -481,6 +481,11 @@ bool APartyBeaconHost::GetPlayerValidation(const FUniqueNetId& PlayerId, FString
 	}
 
 	return bHasValidation;
+}
+
+float APartyBeaconHost::GetSessionTimeoutSecs(const FUniqueNetIdRepl& PlayerId) const
+{
+	return SessionTimeoutSecs;
 }
 
 bool APartyBeaconHost::GetPartyLeader(const FUniqueNetIdRepl& InPartyMemberId, FUniqueNetIdRepl& OutPartyLeaderId) const
