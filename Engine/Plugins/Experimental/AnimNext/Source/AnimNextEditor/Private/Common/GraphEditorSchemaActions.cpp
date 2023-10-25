@@ -38,7 +38,10 @@ UEdGraphNode* FAnimNextSchemaAction_RigUnit::PerformAction(UEdGraph* ParentGraph
 
 			if (NewNode)
 			{
-				NewNode->AutowireNewNode(FromPin);
+				if(FromPin)
+				{
+					NewNode->AutowireNewNode(FromPin);
+				}
 
 				Controller->ClearNodeSelection(true);
 				Controller->SelectNode(ModelNode, true, true);
