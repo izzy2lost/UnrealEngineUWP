@@ -83,7 +83,7 @@ namespace Horde.Server.Server
 		/// <summary>
 		/// Configuration for different agent pages
 		/// </summary>
-		public List<DashboardAgentCategoryConfig> AgentCategories { get; } = new List<DashboardAgentCategoryConfig>();
+		public List<DashboardAgentCategoryConfig> AgentCategories { get; set; } = new List<DashboardAgentCategoryConfig>();
 	}
 
 	/// <summary>
