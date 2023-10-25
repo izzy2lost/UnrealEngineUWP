@@ -428,6 +428,20 @@ void SPackageTableTreeView::InitAvailableViewPresets()
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+void SPackageTableTreeView::UpdateBannerText()
+{
+	if (!bDataLoaded)
+	{
+		TreeViewBannerText = LOCTEXT("DataWillLoad", "Package data will load when session analysis is complete.");
+	}
+	else
+	{
+		STableTreeView::UpdateBannerText();
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 } // namespace Insights
 
 #undef LOCTEXT_NAMESPACE
