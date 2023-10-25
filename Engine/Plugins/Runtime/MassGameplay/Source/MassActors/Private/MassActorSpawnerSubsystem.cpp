@@ -10,6 +10,8 @@
 #include "MassSimulationSubsystem.h"
 #include "Logging/LogScopedVerbosityOverride.h"
 #include "ProfilingDebugging/CsvProfiler.h"
+#include "Engine/Level.h"
+
 
 CSV_DEFINE_CATEGORY(MassActors, true);
 
@@ -246,7 +248,8 @@ ESpawnRequestStatus UMassActorSpawnerSubsystem::SpawnOrRetrieveFromPool(FConstSt
 		}
 	}
 
-	ESpawnRequestStatus SpawnStatus = SpawnActor(SpawnRequestView, OutSpawnedActor);
+	FActorSpawnParameters ActorSpawnParameters;
+	ESpawnRequestStatus SpawnStatus = SpawnActor(SpawnRequestView, OutSpawnedActor, ActorSpawnParameters);
 
 	if (SpawnStatus == ESpawnRequestStatus::Succeeded)
 	{
@@ -269,7 +272,27 @@ ESpawnRequestStatus UMassActorSpawnerSubsystem::SpawnOrRetrieveFromPool(FConstSt
 	return SpawnStatus;
 }
 
- ESpawnRequestStatus UMassActorSpawnerSubsystem::SpawnActor(FConstStructView SpawnRequestView, TObjectPtr<AActor>& OutSpawnedActor) const
+TObjectPtr<AActor> UMassActorSpawnerSubsystem::FindActorByName(const FName ActorName, ULevel* OverrideLevel) const
+{
+	TObjectPtr<AActor> FoundActor;
+	check(GetWorld());
+	OverrideLevel = OverrideLevel ? OverrideLevel : GetWorld()->GetCurrentLevel();
+	
+	if (UObject* FoundObject = StaticFindObjectFast(nullptr, OverrideLevel, ActorName))
+	{
+		FoundActor = Cast<AActor>(FoundObject);
+		if (FoundObject)
+		{
+			if (IsValid(FoundActor) == false)
+			{
+				FoundActor->ClearGarbage();
+			}
+		}
+	}
+	return FoundActor;
+}
+
+ ESpawnRequestStatus UMassActorSpawnerSubsystem::SpawnActor(FConstStructView SpawnRequestView, TObjectPtr<AActor>& OutSpawnedActor, FActorSpawnParameters& InOutSpawnParameters) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UMassActorSpawnerSubsystem::SpawnActor);
 
@@ -278,9 +301,23 @@ ESpawnRequestStatus UMassActorSpawnerSubsystem::SpawnOrRetrieveFromPool(FConstSt
 
 	const FMassActorSpawnRequest& SpawnRequest = SpawnRequestView.Get<const FMassActorSpawnRequest>();
 
-	FActorSpawnParameters SpawnParameters;
-	SpawnParameters.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-	OutSpawnedActor = World->SpawnActor<AActor>(SpawnRequest.Template, SpawnRequest.Transform, SpawnParameters);
+	if (SpawnRequest.Guid.IsValid())
+	{
+		// offsetting `D` by 1 since `0` has special meaning for FNames
+		InOutSpawnParameters.Name = FName(FString::Printf(TEXT("%s_%ud_%ud_%ud"), *SpawnRequest.Template->GetName(), SpawnRequest.Guid.A, SpawnRequest.Guid.B, SpawnRequest.Guid.C), SpawnRequest.Guid.D + 1);
+		//InOutSpawnParameters.OverrideLevel = InOutSpawnParameters.OverrideLevel ? OverrideLevel : World->GetCurrentLevel();
+
+		OutSpawnedActor = FindActorByName(InOutSpawnParameters.Name, InOutSpawnParameters.OverrideLevel ? InOutSpawnParameters.OverrideLevel : World->GetCurrentLevel());
+		if (OutSpawnedActor)
+		{
+			OutSpawnedActor->SetActorEnableCollision(true);
+			OutSpawnedActor->SetActorHiddenInGame(false);
+			return ESpawnRequestStatus::Succeeded;
+		}
+	}
+	
+	InOutSpawnParameters.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	OutSpawnedActor = World->SpawnActor<AActor>(SpawnRequest.Template, SpawnRequest.Transform, InOutSpawnParameters);
 
 	return IsValid(OutSpawnedActor) ? ESpawnRequestStatus::Succeeded : ESpawnRequestStatus::Failed;
 }

@@ -143,6 +143,10 @@ AActor* UMassRepresentationSubsystem::GetOrSpawnActorFromTemplate(const FMassEnt
 	// If we reach here, means we need to create a spawn request
 	FMassActorSpawnRequest SpawnRequest;
 	SpawnRequest.MassAgent = MassAgent;
+	if (FMassGuidFragment* GuidFragment = EntityManager->GetFragmentDataPtr<FMassGuidFragment>(MassAgent))
+	{
+		SpawnRequest.Guid = GuidFragment->Guid;
+	}
 	SpawnRequest.Template = TemplateToSpawn;
 	SpawnRequest.Transform = Transform;
 	SpawnRequest.Priority = Priority;

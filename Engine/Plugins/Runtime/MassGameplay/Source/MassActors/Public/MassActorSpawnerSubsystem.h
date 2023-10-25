@@ -12,6 +12,10 @@
 
 #include "MassActorSpawnerSubsystem.generated.h"
 
+
+class ULevel; 
+struct FActorSpawnParameters;
+
 // Handle for an actor spawning request
 USTRUCT()
 struct MASSACTORS_API FMassActorSpawnRequestHandle : public FIndexedHandleBase
@@ -88,6 +92,9 @@ public:
 
 	/** Requested world time seconds */
 	double RequestedTime = 0.;
+
+	/** If set, will be used to name the spawned character */
+	FGuid Guid;
 
 	void Reset()
 	{
@@ -230,7 +237,9 @@ protected:
 
 	/** Actual code that will spawn the actor, overridable by subclass if need to be.
 	 *  @return spawned actor if succeeded. */
-	virtual ESpawnRequestStatus SpawnActor(FConstStructView SpawnRequestView, TObjectPtr<AActor>& OutSpawnedActor) const;
+	virtual ESpawnRequestStatus SpawnActor(FConstStructView SpawnRequestView, TObjectPtr<AActor>& OutSpawnedActor, FActorSpawnParameters& InOutSpawnParameters) const;
+
+	TObjectPtr<AActor> FindActorByName(const FName ActorName, ULevel* OverrideLevel) const;
 
 	/** Go through the spawning request and spawn them until we reach the budget 
 	 * @param MaxTimeSlicePerTick is the budget in seconds allowed to do spawning */

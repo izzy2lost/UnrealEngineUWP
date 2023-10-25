@@ -14,6 +14,14 @@ struct FMassEntityHandle;
 class AActor;
 struct FMassEntityManager;
 
+USTRUCT()
+struct MASSACTORS_API FMassGuidFragment : public FObjectWrapperFragment
+{
+	GENERATED_BODY()
+
+	FGuid Guid;
+};
+
 /**
  * Fragment to save the actor pointer of a mass entity if it exist
  */
