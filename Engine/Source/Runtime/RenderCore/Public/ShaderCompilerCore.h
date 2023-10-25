@@ -476,7 +476,7 @@ struct FShaderCompilerInput
 			Environment.Merge(SharedEnvironments[SharedEnvironmentIndex]);
 		}
 
-		int32 ShaderParameterStructureIndex;
+		int32 ShaderParameterStructureIndex = INDEX_NONE;
 		Ar << ShaderParameterStructureIndex;
 		if (ShaderParameterStructureIndex != INDEX_NONE)
 		{
