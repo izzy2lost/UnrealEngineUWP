@@ -1070,6 +1070,14 @@ void FAssetRegistryState::EnumerateAllAssets(TFunctionRef<void(const FAssetData&
 	}
 }
 
+void FAssetRegistryState::EnumerateAllPaths(TFunctionRef<void(FName PathName)> Callback) const
+{
+	for (const TPair<FName, TArray<FAssetData*>>& Pair : CachedAssetsByPath)
+	{
+		Callback(Pair.Key);
+	}
+}
+
 void FAssetRegistryState::GetPackagesByName(FStringView PackageName, TArray<FName>& OutPackageNames) const
 {
 	// Note that we use CachedAssetsByPackageName rather than CachedPackageData because CachedPackageData

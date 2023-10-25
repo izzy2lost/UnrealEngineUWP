@@ -365,6 +365,8 @@ private:
 	/** Moves a premade asset registry state into this AR */
 	void LoadPremadeAssetRegistry(Impl::FEventContext& Context,
 		Premade::ELoadResult LoadResult, FAssetRegistryState&& ARState);
+	/** Add MountPoints of all AssetDatas currently registered in this->State to the list of PersistentMountPoints. */
+	void UpdatePersistentMountPoints();
 
 private:
 
@@ -409,6 +411,12 @@ private:
 	/** Memory profiling information: How much memory is being used by the tags for each class. */
 	TMap<FTopLevelAssetPath, int64> TagSizeByClass;
 #endif
+
+	/**
+	 * MountPoints, in the format of LongPackageName with no trailing slash, that should not have their
+	 * AssetDatas removed even if the MountPoint is dismounted.
+	 */
+	TSet<FName> PersistentMountPoints;
 
 	/** Time spent processing Gather results */
 	float StoreGatherResultsTimeSeconds;

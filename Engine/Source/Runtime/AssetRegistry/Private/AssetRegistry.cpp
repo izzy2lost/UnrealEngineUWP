@@ -792,6 +792,7 @@ void FAssetRegistryImpl::LoadPremadeAssetRegistry(Impl::FEventContext& EventCont
 			{
 				AppendState(EventContext, ARState, FAssetRegistryState::EInitializationMode::OnlyUpdateNew);
 			}
+			UpdatePersistentMountPoints();
 		}
 		else
 		{
@@ -4623,6 +4624,7 @@ void FAssetRegistryImpl::Serialize(FArchive& Ar, Impl::FEventContext& EventConte
 	{
 		State.Load(Ar);
 		CachePathsFromState(EventContext, State);
+		UpdatePersistentMountPoints();
 	}
 	else if (Ar.IsSaving())
 	{
@@ -6602,6 +6604,13 @@ void FAssetRegistryImpl::OnContentPathDismounted(Impl::FEventContext& EventConte
 		GlobalGatherer->RemoveMountPoint(FileSystemPath);
 	}
 
+	FName MountPoint = FName(FStringView(AssetPathNoTrailingSlash));
+	if (PersistentMountPoints.Contains(MountPoint))
+	{
+		// This path is marked to never remove its AssetDatas. Skip the code below to remove it.
+		return;
+	}
+
 	// Remove all cached assets and Verse files found at this location
 	{
 		FName AssetPathNoTrailingSlashFName(*AssetPathNoTrailingSlash);
@@ -6642,6 +6651,22 @@ void FAssetRegistryImpl::OnContentPathDismounted(Impl::FEventContext& EventConte
 		const bool bEvenIfAssetsStillExist = true;
 		RemoveAssetPath(EventContext, FName(*AssetPathNoTrailingSlash), bEvenIfAssetsStillExist);
 	}
+}
+
+void FAssetRegistryImpl::UpdatePersistentMountPoints()
+{
+	State.EnumerateAllPaths([this](FName Path)
+		{
+			TStringBuilder<256> PathString(InPlace, Path);
+			bool bHadClassesPrefix;
+			FStringView MountPoint = FPathViews::GetMountPointNameFromPath(PathString, &bHadClassesPrefix, false /* bInWithoutSlashes*/);
+			if (!MountPoint.IsEmpty() && !bHadClassesPrefix)
+			{
+				// Format returned by GetMountPointNameFromPath is e.g. /Engine, which is the format we need:
+				// LongPackageName with no trailing slash
+				PersistentMountPoints.Add(FName(MountPoint));
+			}
+		});
 }
 
 }

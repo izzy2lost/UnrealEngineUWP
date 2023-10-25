@@ -266,6 +266,13 @@ public:
 	ASSETREGISTRY_API void EnumerateAllAssets(TFunctionRef<void(const FAssetData&)> Callback) const;
 
 	/**
+	 * Calls the callback with the LongPackageName of each path that has assets as direct children.
+	 * Callback will not be called for parent paths that have childpaths with direct children but do not
+	 * have direct children of their own.
+	 */
+	ASSETREGISTRY_API void EnumerateAllPaths(TFunctionRef<void(FName PathName)> Callback) const;
+
+	/**
 	 * Gets the LongPackageNames for all packages with the given PackageName.
 	 * Call to check existence of a LongPackageName or find all packages with a ShortPackageName.
 	 *
