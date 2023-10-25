@@ -465,32 +465,38 @@ void UCustomizableObjectInstanceUsage::Tick(float DeltaTime)
 {
 	UCustomizableObjectInstance* CustomizableObjectInstance = GetCustomizableObjectInstance();
 
-	if (!GetPendingSetSkeletalMesh() || !CustomizableObjectInstance || !CustomizableObjectInstance->GetCustomizableObject())
+	if (!GetPendingSetSkeletalMesh() || !CustomizableObjectInstance)
 	{
 		return;
 	}
+	
+	UCustomizableObject* CustomizableObject = CustomizableObjectInstance->GetCustomizableObject();
+	if (!CustomizableObject)
+	{
+		return;
+	}	
 
 	if (USkeletalMeshComponent* Parent = Cast<USkeletalMeshComponent>(GetAttachParent()))
 	{
-		UCustomizableObject* CustomizableObject = CustomizableObjectInstance->GetCustomizableObject();
+		const int32 ComponentIndex = GetComponentIndex();
 
-		// Hacky. Replace once we know if the instance has been generated
-		const bool bInstanceGenerated = CustomizableObjectInstance->HasAnySkeletalMesh();
+		USkeletalMesh* SkeletalMesh = nullptr;
 
-		int32 ComponentIndex = GetComponentIndex();
-
-		// Generated SkeletalMesh to set, can be null if the component is empty
-		USkeletalMesh* SkeletalMesh = CustomizableObjectInstance->GetSkeletalMesh(ComponentIndex);
-
-		// If not generated yet, conditionally set the SkeletalMesh of reference
-		if (!bInstanceGenerated && !GetSkipSetReferenceSkeletalMesh()
-#if WITH_EDITORONLY_DATA
-			&& CustomizableObject->bEnableUseRefSkeletalMeshAsPlaceholder
-#endif
-			)
+		const bool bInstanceGenerated = CustomizableObjectInstance->GetPrivate()->GetSkeletalMeshStatus() == ESkeletalMeshStatus::Success;		
+		if (bInstanceGenerated)
 		{
-			// Can be nullptr
-			SkeletalMesh = CustomizableObject->GetRefSkeletalMesh(ComponentIndex);
+			// Generated SkeletalMesh to set, can be null if the component is empty
+			SkeletalMesh = CustomizableObjectInstance->GetSkeletalMesh(ComponentIndex);
+		}
+		else
+		{
+			// If not generated yet, conditionally set the SkeletalMesh of reference
+			if (!bInstanceGenerated && !GetSkipSetReferenceSkeletalMesh() && 
+				CustomizableObject->IsEnableUseRefSkeletalMeshAsPlaceholder())
+			{
+				// Can be nullptr
+				SkeletalMesh = CustomizableObject->GetRefSkeletalMesh(ComponentIndex);
+			}
 		}
 
 		// Set SkeletalMesh

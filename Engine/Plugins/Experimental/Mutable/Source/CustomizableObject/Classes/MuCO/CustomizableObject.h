@@ -1207,15 +1207,15 @@ public:
 	UPROPERTY()
 	TArray<FCustomizableObjectStreamedExtensionData> StreamedExtensionData;
 
-#if WITH_EDITORONLY_DATA
-
+private:
 	/** Use the SkeletalMesh of reference as a placeholder until the custom mesh is ready to use.
 	  * 
-	  * Note: If disabled, a null mesh will be used to replace the discarded mesh due to 'ReplaceDiscardedWithReferenceMesh' being enabled.
-	  */
+	  * Note: If disabled, a null mesh will be used to replace the discarded mesh due to 'ReplaceDiscardedWithReferenceMesh' being enabled. */
 	UPROPERTY(EditAnywhere, Category = CustomizableObject)
 	bool bEnableUseRefSkeletalMeshAsPlaceholder = true;
 
+public:
+#if WITH_EDITORONLY_DATA
 	// Hide this property because it is not used yet.
 	//UPROPERTY(EditAnywhere, Category = CustomizableObject)
 	UPROPERTY()
@@ -1710,6 +1710,9 @@ public:
 
 	/** Return the MinLOD index to generate based on the active LODSettings (PerPlatformMinLOD or PerQualityLevelMinLOD) */
 	int32 GetMinLODIndex() const;
+
+	/** See bEnableUseRefSkeletalMeshAsPlaceholder. */
+	bool IsEnableUseRefSkeletalMeshAsPlaceholder() const;
 
 private:
 	

@@ -1846,6 +1846,12 @@ int32 UCustomizableObject::GetMinLODIndex() const
 }
 
 
+bool UCustomizableObject::IsEnableUseRefSkeletalMeshAsPlaceholder() const
+{
+	return bEnableUseRefSkeletalMeshAsPlaceholder;
+}
+
+
 FGuid UCustomizableObject::GetCompilationGuid() const
 {
 	return CompilationGuid;
@@ -2148,7 +2154,7 @@ FArchive& operator<<(FArchive& Ar, FMutableRefSkeletalMeshData& Data)
 void FMutableRefSkeletalMeshData::InitResources(UCustomizableObject* InOuter)
 {
 	check(InOuter);
-	if (InOuter->bEnableUseRefSkeletalMeshAsPlaceholder)
+	if (InOuter->IsEnableUseRefSkeletalMeshAsPlaceholder())
 	{
 		SkeletalMesh = TSoftObjectPtr<USkeletalMesh>(SkeletalMeshAssetPath).LoadSynchronous();
 	}
