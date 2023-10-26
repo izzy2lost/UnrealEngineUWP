@@ -13,8 +13,6 @@
 
 DEFINE_STAT(STAT_AnimNext_Port_SkeletalMeshComponent);
 
-const UE::AnimNext::FParamId UAnimNextSchedulePort_AnimNextMeshComponentPose::InputId("UE_Internal_AnimNextMeshComponentPose_Input");
-
 void UAnimNextSchedulePort_AnimNextMeshComponentPose::Run(const UE::AnimNext::FScheduleTermContext& InContext) const
 {
 	SCOPE_CYCLE_COUNTER(STAT_AnimNext_Port_SkeletalMeshComponent);
@@ -30,7 +28,7 @@ void UAnimNextSchedulePort_AnimNextMeshComponentPose::Run(const UE::AnimNext::FS
 		return;
 	}
 
-	const FAnimNextGraphLODPose* InputPose = InContext.GetLayerHandle().GetParamPtr<FAnimNextGraphLODPose>(InputId);
+	const FAnimNextGraphLODPose* InputPose = InContext.GetLayerHandle().GetParamPtr<FAnimNextGraphLODPose>(GetTerms()[0].GetId());
 	if(InputPose == nullptr)
 	{
 		return;
@@ -74,6 +72,8 @@ void UAnimNextSchedulePort_AnimNextMeshComponentPose::Run(const UE::AnimNext::FS
 TConstArrayView<UE::AnimNext::FScheduleTerm> UAnimNextSchedulePort_AnimNextMeshComponentPose::GetTerms() const
 {
 	using namespace UE::AnimNext;
+
+	static const FParamId InputId("UE_Internal_AnimNextMeshComponentPose_Input");
 
 	static const FScheduleTerm Terms[] =
 	{

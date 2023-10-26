@@ -13,7 +13,4 @@ class UAnimNextSchedulePort_AnimNextMeshComponentPose : public UAnimNextSchedule
 	// UAnimNextSchedulePort interface
 	virtual void Run(const UE::AnimNext::FScheduleTermContext& InContext) const override;
 	virtual TConstArrayView<UE::AnimNext::FScheduleTerm> GetTerms() const override;
-
-	// ID of our input
-	static const UE::AnimNext::FParamId InputId;
 };

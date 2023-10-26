@@ -18,11 +18,6 @@ DEFINE_STAT(STAT_AnimNext_Graph_AllocateInstance);
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(AnimNextGraph)
 
-namespace UE::AnimNext::Graph
-{
-const UE::AnimNext::FParamId OutputPoseId("UE_Internal_Graph_OutputPose");
-}
-
 #if WITH_EDITORONLY_DATA
 FAnimNextGraphInstance::FAnimNextGraphInstance(const FAnimNextGraphInstance& Other)
 {
@@ -291,9 +286,11 @@ TConstArrayView<UE::AnimNext::FScheduleTerm> UAnimNextGraph::GetTerms() const
 {
 	using namespace UE::AnimNext;
 
+	static const FParamId OutputPoseId("UE_Internal_Graph_OutputPose");
+
 	static const FScheduleTerm Terms[] =
 	{
-		FScheduleTerm(Graph::OutputPoseId, FAnimNextParamType::GetType<FAnimNextGraphLODPose>(), EScheduleTermDirection::Output)
+		FScheduleTerm(OutputPoseId, FAnimNextParamType::GetType<FAnimNextGraphLODPose>(), EScheduleTermDirection::Output)
 	};
 
 	return Terms;
