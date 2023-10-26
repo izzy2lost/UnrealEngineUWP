@@ -116,11 +116,6 @@ public:
 		Output.ShaderDiagnosticDatas = PreprocessOutput.GetDiagnosticDatas();
 	}
 
-	virtual bool SupportsIndependentPreprocessing() const
-	{
-		return true;
-	}
-
 	void AddShaderTargetDefines(FShaderCompilerInput& Input, uint32 ShaderTargetMajor, uint32 ShaderTargetMinor) const
 	{
 		// Inserting our own versions of these defines since we preprocess our shader source before we actually use something that defines them.

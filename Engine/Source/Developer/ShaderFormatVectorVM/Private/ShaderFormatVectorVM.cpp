@@ -63,11 +63,6 @@ public:
 		OutFormats.Add(NAME_VVM_1_0);
 	}
 
-	virtual bool SupportsIndependentPreprocessing() const override
-	{
-		return true;
-	}
-
 	virtual bool PreprocessShader(const FShaderCompilerInput& Input, const FShaderCompilerEnvironment& Environment, FShaderPreprocessOutput& PreprocessOutput) const override
 	{
 		CheckFormat(Input.ShaderFormat);

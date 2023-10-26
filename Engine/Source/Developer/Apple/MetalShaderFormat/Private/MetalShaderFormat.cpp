@@ -131,11 +131,6 @@ public:
 		OutFormats.Add(NAME_SF_METAL_MRT_MAC);
 	}
 
-	virtual bool SupportsIndependentPreprocessing() const override final
-	{
-		return true;
-	}
-
 	void CheckShaderFormat(FName Format) const
 	{
 		check(Format == NAME_SF_METAL

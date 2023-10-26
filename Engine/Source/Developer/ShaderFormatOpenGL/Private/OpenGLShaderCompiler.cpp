@@ -890,13 +890,7 @@ void BuildShaderOutputInternal(
 
 		Ar.Serialize((void*)USFSource, SourceLen + 1 - (USFSource - InShaderSource));
 
-		// extract final source code as requested by the Material Editor
-		if (ShaderInput.ExtraSettings.bExtractShaderSource)
-		{
-			TArray<ANSICHAR> GlslCodeOriginal;
-			GlslCodeOriginal.Append(USFSource, FCStringAnsi::Strlen(USFSource) + 1);
-			ShaderOutput.OptionalFinalShaderSource = FString(GlslCodeOriginal.GetData());
-		}
+		ShaderOutput.ModifiedShaderSource = USFSource;
 
 		if (ShaderInput.Environment.CompilerFlags.Contains(CFLAG_ExtraShaderData))
 		{

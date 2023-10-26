@@ -31,16 +31,16 @@ class FShaderPipelineCompileJob;
 typedef TSharedPtr<TArray<ANSICHAR>, ESPMode::ThreadSafe> FShaderSharedAnsiStringPtr;
 
 // this is for the protocol, not the data, bump if FShaderCompilerInput or ProcessInputFromArchive changes.
-inline const int32 ShaderCompileWorkerInputVersion = 22;
+inline const int32 ShaderCompileWorkerInputVersion = 23;
 // this is for the protocol, not the data, bump if FShaderCompilerOutput or WriteToOutputArchive changes.
-inline const int32 ShaderCompileWorkerOutputVersion = 18;
+inline const int32 ShaderCompileWorkerOutputVersion = 19;
 // this is for the protocol, not the data.
 inline const int32 ShaderCompileWorkerSingleJobHeader = 'S';
 // this is for the protocol, not the data.
 inline const int32 ShaderCompileWorkerPipelineJobHeader = 'P';
 
 // modify this for changes to the FShaderCompilerOutput data structure (in addition to ShaderCompileWorkerOutputVersion)
-inline const int32 FShaderCompilerOutputStructVersion = 2;
+inline const int32 FShaderCompilerOutputStructVersion = 3;
 
 namespace UE::ShaderCompiler
 {
@@ -246,6 +246,7 @@ struct FShaderCompilerInput
 	// Indicates which additional debug outputs should be written for this compile job.
 	EShaderDebugInfoFlags DebugInfoFlags;
 
+	UE_DEPRECATED(5.4, "bIndependentPreprocessed member no longer used now that all backends have been migrated to the new IShaderFormat API")
 	// True if the backend for this job implements the independent preprocessing API.
 	bool bIndependentPreprocessed;
 
@@ -298,7 +299,6 @@ struct FShaderCompilerInput
 		Target(SF_NumFrequencies, SP_NumPlatforms),
 		bSkipPreprocessedCache(false),
 		DebugInfoFlags(EShaderDebugInfoFlags::Default),
-		bIndependentPreprocessed(false),
 		bCachePreprocessed(false),
 		bCompilingForShaderPipeline(false),
 		bIncludeUsedOutputs(false)
@@ -642,17 +642,13 @@ struct FShaderCompilerOutput
 
 	TArray<FShaderDiagnosticData> ShaderDiagnosticDatas;
 
-	/** This field should be set by backends which do not implement the independent preprocessing API to contain the "final" shader source as 
-	 * passed to the platform compiler. For backends that do implement this API this is superceded by ModifiedShaderSource (and will eventually
-	 * be deprecated).
-	 */
+	UE_DEPRECATED(5.4, "OptionalFinalShaderSource is no longer used; set ModifiedShaderSource instead if the shader backend makes additional source code manipulations.")
 	FString OptionalFinalShaderSource;
 
-	/** Use this field to store the shader source code if it's modified as part of the shader format's compilation process. This field is only 
-	 * currently required for shader formats which implement the independent preprocessing API and should only be set when additional manipulation 
-	 * is required that is not part of the implementation of PreprocessShader. This version of the source, if set, will be what is written as part
-	 * of the debug dumps of preprocessed source, as well as used in place of OptionalFinalShaderSource for upstream code which explicitly requests
-	 * the final source code for other purposes (i.e. when ExtraSettings.bExtractShaderSource is set on the FShaderCompilerInput struct)
+	/** Use this field to store the shader source code if it's modified as part of the shader format's compilation process. This should only be set when 
+	 * additional manipulation of source code  is required that is not part of the implementation of PreprocessShader. This version of the source, if set, 
+	 * will be what is written as part of the debug dumps of preprocessed source, as well as used for upstream code which explicitly requests the final
+	 * source code for other purposes (i.e. when ExtraSettings.bExtractShaderSource is set on the FShaderCompilerInput struct)
 	 */
 	FString ModifiedShaderSource;
 
@@ -682,7 +678,6 @@ struct FShaderCompilerOutput
 		Ar << Output.bSupportsQueryingUsedAttributes << Output.UsedAttributes;
 		Ar << Output.CompileTime;
 		Ar << Output.PreprocessTime;
-		Ar << Output.OptionalFinalShaderSource;
 		Ar << Output.bSerializeModifiedSource;
 		if (Output.bSerializeModifiedSource)
 		{

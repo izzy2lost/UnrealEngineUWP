@@ -1143,12 +1143,16 @@ static void BuildShaderOutput(
 
 	ShaderOutput.bSucceeded = true;
 
+	// guard disassembly of SPIRV code on bExtractShaderSource setting since presumably this isn't that cheap.
+	// this roughly will maintain existing behaviour, except the debug usf will be this version of the code 
+	// instead of the output of  preprocessing if this setting is enabled (which is probably fine since this is only
+	// ever set in editor)
 	if (ShaderInput.ExtraSettings.bExtractShaderSource)
 	{
 		TArray<ANSICHAR> AssemblyText;
 		if (CrossCompiler::FShaderConductorContext::Disassemble(CrossCompiler::EShaderConductorIR::Spirv, SerializedOutput.Spirv.GetByteData(), SerializedOutput.Spirv.GetByteSize(), AssemblyText))
 		{
-			ShaderOutput.OptionalFinalShaderSource = FString(AssemblyText.GetData());
+			ShaderOutput.ModifiedShaderSource = FString(AssemblyText.GetData());
 		}
 	}
 	if (ShaderInput.ExtraSettings.OfflineCompilerPath.Len() > 0)

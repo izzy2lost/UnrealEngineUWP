@@ -93,11 +93,6 @@ public:
 		OutFormats.Add(NAME_VULKAN_SM6);
 	}
 
-	virtual bool SupportsIndependentPreprocessing() const override
-	{
-		return true;
-	}
-
 	virtual bool PreprocessShader(const FShaderCompilerInput& Input, const FShaderCompilerEnvironment& Environment, FShaderPreprocessOutput& PreprocessOutput) const
 	{
 		check(InternalGetVersion(Input.ShaderFormat) >= 0);

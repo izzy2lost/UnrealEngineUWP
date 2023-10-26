@@ -555,11 +555,7 @@ void BuildMetalShaderOutput(
 		Ar << Header;
 		Ar.Serialize((void*)USFSource, SourceLen + 1 - (USFSource - InShaderSource));
 		
-		if (ShaderInput.ExtraSettings.bExtractShaderSource)
-		{
-			ShaderOutput.OptionalFinalShaderSource = MetalCode;
-		}
-
+		ShaderOutput.ModifiedShaderSource = MetalCode;
 		ShaderOutput.NumInstructions = NumLines;
 		ShaderOutput.NumTextureSamplers = Header.Bindings.NumSamplers;
 		ShaderOutput.bSucceeded = true;
@@ -745,11 +741,7 @@ void BuildMetalShaderOutput(
 			ShaderOutput.NumTextureSamplers = Header.Bindings.NumSamplers;
 		}
 
-		if (ShaderInput.ExtraSettings.bExtractShaderSource)
-		{
-			ShaderOutput.OptionalFinalShaderSource = MetalCode;
-		}
-		
+		ShaderOutput.ModifiedShaderSource = MetalCode;
 		ShaderOutput.NumInstructions = NumLines;
 		ShaderOutput.bSucceeded = bSucceeded;
 	}

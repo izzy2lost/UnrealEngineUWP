@@ -1328,40 +1328,33 @@ public:
 	static void CompileShaderInternal(const IShaderFormat* Compiler, FShaderCompileJob& Job, const FString& WorkingDirectory, FString& OutExceptionMsg, FString& OutExceptionCallstack, int32* CompileCount)
 	{
 		double TimeStart = FPlatformTime::Seconds();
-		if (Compiler->SupportsIndependentPreprocessing())
+		if (!Job.Input.bCachePreprocessed)
 		{
-			if (!Job.Input.bCachePreprocessed)
-			{
-				PreprocessShaderInternal(Compiler, Job);
-			}
+			PreprocessShaderInternal(Compiler, Job);
+		}
 
-			Job.Output.Errors.Append(Job.PreprocessOutput.Errors);
+		Job.Output.Errors.Append(Job.PreprocessOutput.Errors);
 
-			if (Job.PreprocessOutput.bSucceeded)
+		if (Job.PreprocessOutput.bSucceeded)
+		{
+			if (Job.SecondaryPreprocessOutput.IsValid())
 			{
-				if (Job.SecondaryPreprocessOutput.IsValid())
-				{
-					Job.SecondaryOutput = MakeUnique<FShaderCompilerOutput>();
-				}
-				InvokeCompile(Compiler, Job, WorkingDirectory, OutExceptionMsg, OutExceptionCallstack);
-				if (Job.SecondaryOutput.IsValid())
-				{
-					Job.Output.bSucceeded = Job.Output.bSucceeded && Job.SecondaryOutput->bSucceeded;
-					if (Job.Output.bSucceeded)
-					{
-						Job.SecondaryOutput->GenerateOutputHash();
-					}
-					CombineOutputs(Compiler, Job);
-				}
+				Job.SecondaryOutput = MakeUnique<FShaderCompilerOutput>();
 			}
-			else
+			InvokeCompile(Compiler, Job, WorkingDirectory, OutExceptionMsg, OutExceptionCallstack);
+			if (Job.SecondaryOutput.IsValid())
 			{
-				Job.Output.bSucceeded = false;
+				Job.Output.bSucceeded = Job.Output.bSucceeded && Job.SecondaryOutput->bSucceeded;
+				if (Job.Output.bSucceeded)
+				{
+					Job.SecondaryOutput->GenerateOutputHash();
+				}
+				CombineOutputs(Compiler, Job);
 			}
 		}
 		else
 		{
-			InvokeCompile(Compiler, Job, WorkingDirectory, OutExceptionMsg, OutExceptionCallstack);
+			Job.Output.bSucceeded = false;
 		}
 
 		if (Job.Output.bSucceeded)
@@ -1453,27 +1446,18 @@ void CompileShader(const TArray<const IShaderFormat*>& ShaderFormats, FShaderCom
 	Job.bSucceeded = Job.Output.bSucceeded;
 	if (Job.Input.DumpDebugInfoEnabled())
 	{
-		if (Compiler->SupportsIndependentPreprocessing())
+		// if the preprocessed cache is disabled, dump debug output here, since we don't serialize preprocess output back to the cooker from SCW
+		// (if enabled this will occur in the job OnComplete callback)
+		if (!Job.Input.bCachePreprocessed)
 		{
-			// if the shader format supports independent preprocessing and preprocessed cache is disabled, dump debug output here, since we
-			// don't serialize preprocess output back to the cooker from SCW (if enabled this will occur in the job OnComplete callback)
-			if (!Job.Input.bCachePreprocessed)
+			if (Job.SecondaryPreprocessOutput.IsValid() && Job.SecondaryOutput.IsValid())
 			{
-				if (Job.SecondaryPreprocessOutput.IsValid() && Job.SecondaryOutput.IsValid())
-				{
-					Compiler->OutputDebugData(Job.Input, Job.PreprocessOutput, *Job.SecondaryPreprocessOutput, Job.Output, *Job.SecondaryOutput);
-				}
-				else
-				{
-					Compiler->OutputDebugData(Job.Input, Job.PreprocessOutput, Job.Output);
-				}
+				Compiler->OutputDebugData(Job.Input, Job.PreprocessOutput, *Job.SecondaryPreprocessOutput, Job.Output, *Job.SecondaryOutput);
 			}
-		}
-		else
-		{
-			// write down the output hash as a file
-			FString HashFileName = FPaths::Combine(Job.Input.DumpDebugInfoPath, TEXT("OutputHash.txt"));
-			FFileHelper::SaveStringToFile(Job.Output.OutputHash.ToString(), *HashFileName, FFileHelper::EEncodingOptions::ForceAnsi);
+			else
+			{
+				Compiler->OutputDebugData(Job.Input, Job.PreprocessOutput, Job.Output);
+			}
 		}
 	}
 }
@@ -3548,7 +3532,6 @@ FArchive& operator<<(FArchive& Ar, FShaderCompilerInput& Input)
 	Ar << Input.bCompilingForShaderPipeline;
 	Ar << Input.bIncludeUsedOutputs;
 	Ar << Input.bCachePreprocessed;
-	Ar << Input.bIndependentPreprocessed;
 	Ar << Input.UsedOutputs;
 	Ar << Input.DumpDebugInfoRootPath;
 	Ar << Input.DumpDebugInfoPath;
@@ -3859,33 +3842,30 @@ void FShaderCompileJob::SerializeOutput(FArchive& Ar)
 void FShaderCompileJob::OnComplete()
 {
 	const IShaderFormat* ShaderFormat = GetTargetPlatformManagerRef().FindShaderFormat(Input.ShaderFormat);
-	if (ShaderFormat->SupportsIndependentPreprocessing())
+	// For jobs using the preprocessed cache, we need to remap error messages whether or not the job was actually the one that ran
+	// the compilation step. In addition since we always run preprocessing we set the total preprocess time accordingly.
+	if (Input.bCachePreprocessed)
 	{
-		// For jobs using the preprocessed cache, we need to remap error messages whether or not the job was actually the one that ran
-		// the compilation step. In addition since we always run preprocessing we set the total preprocess time accordingly.
-		if (Input.bCachePreprocessed)
+		PreprocessOutput.RemapErrors(Output);
+		Output.PreprocessTime = PreprocessOutput.ElapsedTime;
+	}
+	// dump debug info for the job at this point if the preprocessed cache is enabled
+	// this ensures we get debug output for all jobs, including those that were found in the job cache,
+	// or matched another in-flight job's hash and so could share its results
+	if (Input.bCachePreprocessed 
+		&& Input.DumpDebugInfoEnabled()
+		// if we only want debug info for jobs which actually compiled, check the CompileTime
+		// (jobs deserialized from the cache/wait list/ddc will have a compiletime of 0.0)
+		&& (CVarDumpDebugInfoForCacheHits.GetValueOnAnyThread() || Output.CompileTime > 0.0f))
+	{
+		
+		if (SecondaryPreprocessOutput.IsValid() && SecondaryOutput.IsValid())
 		{
-			PreprocessOutput.RemapErrors(Output);
-			Output.PreprocessTime = PreprocessOutput.ElapsedTime;
+			ShaderFormat->OutputDebugData(Input, PreprocessOutput, *SecondaryPreprocessOutput, Output, *SecondaryOutput);
 		}
-		// dump debug info for the job at this point if the preprocessed cache is enabled
-		// this ensures we get debug output for all jobs, including those that were found in the job cache,
-		// or matched another in-flight job's hash and so could share its results
-		if (Input.bCachePreprocessed 
-			&& Input.DumpDebugInfoEnabled()
-			// if we only want debug info for jobs which actually compiled, check the CompileTime
-			// (jobs deserialized from the cache/wait list/ddc will have a compiletime of 0.0)
-			&& (CVarDumpDebugInfoForCacheHits.GetValueOnAnyThread() || Output.CompileTime > 0.0f))
+		else
 		{
-			
-			if (SecondaryPreprocessOutput.IsValid() && SecondaryOutput.IsValid())
-			{
-				ShaderFormat->OutputDebugData(Input, PreprocessOutput, *SecondaryPreprocessOutput, Output, *SecondaryOutput);
-			}
-			else
-			{
-				ShaderFormat->OutputDebugData(Input, PreprocessOutput, Output);
-			}
+			ShaderFormat->OutputDebugData(Input, PreprocessOutput, Output);
 		}
 	}
 }
@@ -3920,7 +3900,7 @@ void FShaderCompileJob::SerializeWorkerOutput(FArchive& Ar)
 	// edge case for backends which have implemented independent preprocessing API when the preprocessed cache is not enabled.
 	// if no modifications have occurred as part of the compile step, we still need a copy of the source back in the cooker
 	// if bExtractShaderSource is set, so explicitly serialize just that portion of the preprocess output struct here.
-	if (Input.ExtraSettings.bExtractShaderSource && Input.bIndependentPreprocessed && !Input.bCachePreprocessed && Output.ModifiedShaderSource.IsEmpty())
+	if (Input.ExtraSettings.bExtractShaderSource && !Input.bCachePreprocessed && Output.ModifiedShaderSource.IsEmpty())
 	{
 		Ar << PreprocessOutput.EditSource();
 	}
@@ -3954,28 +3934,19 @@ void FShaderCompileJob::SerializeWorkerInput(FArchive& Ar)
 
 const FString& FShaderCompileJob::GetFinalSource() const
 {
-	 // if the backend supports independent preprocessing, any modifications to the source
-	// done as part of the compile step will be written to the "ModifiedShaderSource" field
-	if (Input.bIndependentPreprocessed)
+	 // any modifications to the source done as part of the compile step will be written to the "ModifiedShaderSource" field
+	// always return empty string if source extraction was not requested; this will prevent bloat of material DDC data in the case where debug info is enabled 
+	// or Output.ModifiedShaderSource is unset (since the preprocess output unstripped source will always be set)
+	if (Input.ExtraSettings.bExtractShaderSource)
 	{
-		// always return empty string if source extraction was not requested; this will prevent bloat of material DDC data in the case where debug info is enabled 
-		// or Output.ModifiedShaderSource is unset (since the preprocess output unstripped source will always be set)
-		if (Input.ExtraSettings.bExtractShaderSource)
-		{
-			// if there are no such modifications, return the "unstripped" version of the source code (with comments & line directives maintained),
-			// otherwise return whatever the final modified source is as input to the compiler by the backend.
-			return Output.ModifiedShaderSource.IsEmpty() ? PreprocessOutput.GetUnstrippedSource() : Output.ModifiedShaderSource;
-		}
-		else
-		{
-			static FString Empty;
-			return Empty;
-		}
+		// if there are no such modifications, return the "unstripped" version of the source code (with comments & line directives maintained),
+		// otherwise return whatever the final modified source is as input to the compiler by the backend.
+		return Output.ModifiedShaderSource.IsEmpty() ? PreprocessOutput.GetUnstrippedSource() : Output.ModifiedShaderSource;
 	}
 	else
 	{
-		// backends that do not implement the independent preprocessing API populate this field based on the bExtractShaderSource setting.
-		return Output.OptionalFinalShaderSource;
+		static FString Empty;
+		return Empty;
 	}
 }
 
