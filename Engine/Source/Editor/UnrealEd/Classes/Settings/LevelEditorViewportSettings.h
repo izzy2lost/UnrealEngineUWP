@@ -111,6 +111,7 @@ struct FLevelEditorViewportInstanceSettings
 		// Show 'lighting needs to be rebuilt' message by default, avoids confusion when artists think lighting is built until they PIE
 		, bShowOnScreenStats(true)
 		, bShowFullToolbar(true)
+		, bAllowCinematicControl(true)
 	{ }
 
 	/** The viewport type */
@@ -202,6 +203,10 @@ struct FLevelEditorViewportInstanceSettings
 	/** When enabled, the full viewport toolbar will be shown. When disabled, a compact toolbar is used. */
 	UPROPERTY(EditAnywhere, config, Category=LookAndFeel)
 	bool bShowFullToolbar;
+
+	/** Whether or not this viewport is allowed to be possessed by cinematic/scrubbing tools. */
+	UPROPERTY(config)
+	bool bAllowCinematicControl;
 };
 
 
