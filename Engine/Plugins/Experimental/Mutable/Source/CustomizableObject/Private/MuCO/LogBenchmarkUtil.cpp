@@ -29,6 +29,10 @@ static TAutoConsoleVariable<bool> CVarEnableBenchmark(
 	false,
 	TEXT("Enable or disable the benchmarking."));
 
+static TAutoConsoleVariable<FString> CVarBenchmarkFilePath(
+	 TEXT("mutable.BenchmarkFilePath"),
+	FPaths::ProfilingDir() + TEXT("Mutable/Benchmark"),
+	TEXT("Sets the path where to store the generated mutable benchmark report file."));
 
 namespace LogBenchmarkUtil
 {
@@ -40,7 +44,7 @@ namespace LogBenchmarkUtil
 
 TSharedPtr<FArchive> CreateFile()
 {
-	const FString Directory = FPaths::ProfilingDir() + TEXT("Mutable/Benchmark/");
+	const FString Directory = CVarBenchmarkFilePath.GetValueOnGameThread();
 	IFileManager::Get().MakeDirectory(*Directory, true);
 
 	const FDateTime FileDate = FDateTime::Now();
