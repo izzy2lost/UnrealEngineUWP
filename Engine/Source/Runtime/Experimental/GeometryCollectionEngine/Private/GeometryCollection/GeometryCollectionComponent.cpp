@@ -3962,6 +3962,21 @@ bool UGeometryCollectionComponent::FBrokenAndDecayedStates::GetHasDecayed(int32 
 	return bIsRootBroken ? HasDecayed[TransformIndex] : false;
 }
 
+double UGeometryCollectionComponent::FBrokenAndDecayedStates::GetRootBrokenEventTimeInMs() const
+{ 
+	return RootBrokenEventTimeInMs;
+}
+
+double UGeometryCollectionComponent::FBrokenAndDecayedStates::GetRootBrokenElapsedTimeInMs() const
+{
+	if (bIsRootBroken)
+	{
+		const double CurrentTimeInMs = FPlatformTime::ToMilliseconds64(FPlatformTime::Cycles64());
+		return (CurrentTimeInMs - RootBrokenEventTimeInMs);
+	}
+	return 0;
+}
+
 void UGeometryCollectionComponent::FBrokenAndDecayedStates::Reset(int32 InNumTransforms)
 {
 	NumTransforms = InNumTransforms;
@@ -3969,6 +3984,7 @@ void UGeometryCollectionComponent::FBrokenAndDecayedStates::Reset(int32 InNumTra
 	NumDecaying = 0;
 	IsBroken.Empty();
 	HasDecayed.Empty();
+	RootBrokenEventTimeInMs = 0;
 }
 
 void UGeometryCollectionComponent::FBrokenAndDecayedStates::SetRootIsBroken(bool bIsBroken)
@@ -3981,11 +3997,13 @@ void UGeometryCollectionComponent::FBrokenAndDecayedStates::SetRootIsBroken(bool
 		{
 			IsBroken.Init(false, NumTransforms);
 			HasDecayed.Init(false, NumTransforms);
+			RootBrokenEventTimeInMs = FPlatformTime::ToMilliseconds64(FPlatformTime::Cycles64());
 		}
 		else
 		{
 			IsBroken.Empty();
 			HasDecayed.Empty();
+			RootBrokenEventTimeInMs = 0;
 		}
 	}
 }
@@ -4055,6 +4073,7 @@ void UGeometryCollectionComponent::OnPostPhysicsSync()
 	SCOPE_CYCLE_COUNTER(STAT_GCPostPhysicsSync);
 
 	// dirty the transform if the collection is
+	bool bHasRootMoved = false;
 	if (DynamicCollection && DynamicCollection->IsDirty())
 	{
 		// Can't be a const reference - we need to make a copy or else the next RequestRootTransform will change the value under our nose.
@@ -4062,13 +4081,10 @@ void UGeometryCollectionComponent::OnPostPhysicsSync()
 
 		OnTransformsDirty();
 		
-		if (OnRootMovedEvent.IsBound())
+		if (OnRootMovedEvent.IsBound() || OnRootMovedNativeEvent.IsBound())
 		{
 			const FTransform3f& NewRootTransform = ComponentSpaceTransforms.RequestRootTransform();
-			if (!PreviousRootTransform.EqualsNoScale(NewRootTransform))
-			{
-				OnRootMovedEvent.Broadcast();
-			}
+			bHasRootMoved = !PreviousRootTransform.EqualsNoScale(NewRootTransform);
 		}
 	}
 
@@ -4118,6 +4134,20 @@ void UGeometryCollectionComponent::OnPostPhysicsSync()
 	const bool bDynamicDataIsDirty = (DynamicCollection && DynamicCollection->IsDirty() && HasVisibleGeometry());
 	UpdateRenderSystemsIfNeeded(bDynamicDataIsDirty);
 	UpdateNavigationDataIfNeeded(bDynamicDataIsDirty);
+
+	// at this is called at the end as thos events may change some internal values of the component
+	// and interfere with transforms required for naviagtion or rendering 
+	if (bHasRootMoved)
+	{
+		if (OnRootMovedEvent.IsBound())
+		{
+			OnRootMovedEvent.Broadcast();
+		}
+		if (OnRootMovedNativeEvent.IsBound())
+		{
+			OnRootMovedNativeEvent.Broadcast(this);
+		}
+	}
 }
 
 void UGeometryCollectionComponent::MoveComponentToRootTransform()
@@ -5711,6 +5741,7 @@ const FTransform3f& UGeometryCollectionComponent::FComponentSpaceTransforms::Req
 			bIsRootDirty = false;
 		}
 
+		ensureAlways(!Transforms[RootIndex].ContainsNaN());
 		return Transforms[RootIndex];
 	}
 

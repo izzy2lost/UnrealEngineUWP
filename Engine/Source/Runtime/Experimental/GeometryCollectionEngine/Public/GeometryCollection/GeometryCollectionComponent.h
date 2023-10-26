@@ -58,7 +58,6 @@ enum class EObjectStateTypeEnum : uint8;
 namespace Chaos { enum class EObjectStateType: int8; }
 template<class InElementType> class TManagedArray;
 
-
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnChaosBreakEvent, const FChaosBreakEvent&, BreakEvent);
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnChaosRemovalEvent, const FChaosRemovalEvent&, RemovalEvent);
@@ -68,6 +67,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnChaosCrumblingEvent, const FChaos
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnGeometryCollectionFullyDecayedEvent);
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnGeometryCollectionRootMovedEvent);
+DECLARE_MULTICAST_DELEGATE_OneParam(FOnGeometryCollectionRootMovedNativeEvent, UGeometryCollectionComponent*);
 
 namespace GeometryCollection
 {
@@ -1227,6 +1227,7 @@ public:
 
 	FOnGeometryCollectionFullyDecayedEvent OnFullyDecayedEvent;
 	FOnGeometryCollectionRootMovedEvent OnRootMovedEvent;
+	FOnGeometryCollectionRootMovedNativeEvent OnRootMovedNativeEvent;
 
 	GEOMETRYCOLLECTIONENGINE_API void DispatchBreakEvent(const FChaosBreakEvent& Event);
 
@@ -1318,6 +1319,8 @@ public:
 	GEOMETRYCOLLECTIONENGINE_API void SetUpdateCustomRendererOnPostPhysicsSync(bool bValue) { bUpdateCustomRendererOnPostPhysicsSync = bValue; }
 
 	GEOMETRYCOLLECTIONENGINE_API bool ShouldUpdateComponentTransformToRootBone() const { return bUpdateComponentTransformToRootBone; }
+
+	GEOMETRYCOLLECTIONENGINE_API double GetRootBrokenElapsedTimeInMs() const { return BrokenAndDecayedStates.GetRootBrokenElapsedTimeInMs(); }
 
 public:
 	UPROPERTY(BlueprintAssignable, Category = "Collision")
@@ -1761,6 +1764,8 @@ private:
 		bool GetIsRootBroken() const { return bIsRootBroken; }
 		bool GetIsBroken(int32 TransformIndex) const;
 		bool GetHasDecayed(int32 TransformIndex) const;
+		double GetRootBrokenEventTimeInMs() const;
+		double GetRootBrokenElapsedTimeInMs() const;
 
 		void SetRootIsBroken(bool bIsBroken);
 		void SetIsBroken(int32 TransformIndex);
@@ -1775,6 +1780,7 @@ private:
 	private:
 		int32 NumTransforms = 0;
 		bool bIsRootBroken = false;
+		double RootBrokenEventTimeInMs = 0;
 		TBitArray<> IsBroken;
 		TBitArray<> HasDecayed;
 		int32 NumDecaying = 0;

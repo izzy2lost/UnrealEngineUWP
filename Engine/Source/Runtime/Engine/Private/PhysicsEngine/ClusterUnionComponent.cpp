@@ -1174,7 +1174,7 @@ void UClusterUnionComponent::OnRep_RigidState()
 	}
 
 	PhysicsProxy->SetIsAnchored_External(ReplicatedRigidState.bIsAnchored);
-	PhysicsProxy->SetObjectState_External(static_cast<Chaos::EObjectStateType>(ReplicatedRigidState.ObjectState));
+	SetRigidState(static_cast<Chaos::EObjectStateType>(ReplicatedRigidState.ObjectState));
 }
 
 void UClusterUnionComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -1220,13 +1220,17 @@ void UClusterUnionComponent::ForceSetChildToParent(UPrimitiveComponent* InCompon
 	}
 }
 
+void UClusterUnionComponent::SetRigidState(Chaos::EObjectStateType ObjectState)
+{
+	if (PhysicsProxy)
+	{
+		PhysicsProxy->SetObjectState_External(ObjectState);
+	}
+}
+
 void UClusterUnionComponent::SetSimulatePhysics(bool bSimulate)
 {
-	if (!PhysicsProxy)
-	{
-		return;
-	}
-	PhysicsProxy->SetObjectState_External(bSimulate ? Chaos::EObjectStateType::Dynamic : Chaos::EObjectStateType::Kinematic);
+	SetRigidState(bSimulate ? Chaos::EObjectStateType::Dynamic : Chaos::EObjectStateType::Kinematic);
 }
 
 void UClusterUnionComponent::WakeAllRigidBodies()
@@ -1239,7 +1243,7 @@ void UClusterUnionComponent::WakeAllRigidBodies()
 	Chaos::EObjectStateType State = PhysicsProxy->GetObjectState_External();
 	if (State == Chaos::EObjectStateType::Sleeping)
 	{
-		PhysicsProxy->SetObjectState_External(Chaos::EObjectStateType::Dynamic);
+		SetRigidState(Chaos::EObjectStateType::Dynamic);
 	}
 }
 
