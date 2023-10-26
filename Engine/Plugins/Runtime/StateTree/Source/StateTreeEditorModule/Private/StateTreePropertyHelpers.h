@@ -19,7 +19,7 @@ namespace UE::StateTree::PropertyHelpers {
  * @return Requested value as optional, in case of multiple values the optional is unset.
  */
 template<typename T>
-FPropertyAccess::Result GetStructValue(const TSharedPtr<IPropertyHandle>& ValueProperty, T& OutValue)
+FPropertyAccess::Result GetStructValue(const TSharedPtr<const IPropertyHandle>& ValueProperty, T& OutValue)
 {
 	if (!ValueProperty)
 	{
@@ -33,13 +33,13 @@ FPropertyAccess::Result GetStructValue(const TSharedPtr<IPropertyHandle>& ValueP
 	T Value = T();
 	bool bValueSet = false;
 
-	TArray<void*> RawData;
+	TArray<const void*> RawData;
 	ValueProperty->AccessRawData(RawData);
-	for (void* Data : RawData)
+	for (const void* Data : RawData)
 	{
 		if (Data)
 		{
-			const T& CurValue = *reinterpret_cast<T*>(Data);
+			const T& CurValue = *static_cast<const T*>(Data);
 			if (!bValueSet)
 			{
 				bValueSet = true;
