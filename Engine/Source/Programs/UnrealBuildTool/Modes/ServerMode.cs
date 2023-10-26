@@ -382,7 +382,7 @@ namespace UnrealBuildTool
 						Settings.ForcedIncludes = ModuleCompileEnvironment.ForceIncludeFiles.Select(x => x.ToString()).ToList();
 						Settings.CompilerPath = TargetToolChain.GetCppCompilerPath()?.ToString();
 						Settings.WindowsSdkVersion = CurrentTarget.Rules.WindowsPlatform.WindowsSdkVersion;
-						CurrentTargetIntellisenseInfo.ModuleToCompileSettings.Add(Module, Settings);
+						CurrentTargetIntellisenseInfo.ModuleToCompileSettings.TryAdd(Module, Settings);
 					}
 				}
 			}
