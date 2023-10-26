@@ -648,7 +648,7 @@ bool FIOSPlatformFile::IsReadOnly(const TCHAR* Filename)
 
 	if (access(TCHAR_TO_UTF8(*Filepath), W_OK) == -1)
 	{
-		return errno == EACCES;
+		return errno == EPERM || errno == EACCES;
 	}
 	return false;
 }
