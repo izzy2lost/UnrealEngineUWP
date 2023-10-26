@@ -510,6 +510,13 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		// We load PackageName rather than using GetObjectPath because external assets may be saved in a different package to their loaded path. 
 		UPackage* FoundPackage = FindObjectFast<UPackage>(nullptr, PackageName);
+
+		// We could find an existing package in memory that is still pending load in the loader.
+		if (FoundPackage && !FoundPackage->IsFullyLoaded())
+		{
+			FoundPackage = nullptr;
+		}
+
 		if (FoundPackage == nullptr && bLoad)
 		{
 			FLinkerInstancingContext InstancingContext(MoveTemp(LoadTags));
