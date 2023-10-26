@@ -1900,14 +1900,14 @@ uint32 OptimizeVectorVMScript(const uint8 *InBytecode, int InBytecodeLen, FVecto
 				{
 					case EVectorVMOp::cmplt:    NewOpCode = EVectorVMOp::cmplt_select;                             break;
 					case EVectorVMOp::cmple:    NewOpCode = EVectorVMOp::cmple_select;                             break;
-					case EVectorVMOp::cmpgt:    NewOpCode = EVectorVMOp::cmplt_select;      ReverseInputs = true;  break;
-					case EVectorVMOp::cmpge:    NewOpCode = EVectorVMOp::cmple_select;      ReverseInputs = true;  break;
+					case EVectorVMOp::cmpgt:    NewOpCode = EVectorVMOp::cmple_select;      ReverseInputs = true;  break;
+					case EVectorVMOp::cmpge:    NewOpCode = EVectorVMOp::cmplt_select;      ReverseInputs = true;  break;
 					case EVectorVMOp::cmpeq:    NewOpCode = EVectorVMOp::cmpeq_select;                             break;
 					case EVectorVMOp::cmpneq:   NewOpCode = EVectorVMOp::cmpeq_select;      ReverseInputs = true;  break;
 					case EVectorVMOp::cmplti:   NewOpCode = EVectorVMOp::cmplti_select;                            break;
 					case EVectorVMOp::cmplei:   NewOpCode = EVectorVMOp::cmplei_select;                            break;
-					case EVectorVMOp::cmpgti:   NewOpCode = EVectorVMOp::cmplti_select;     ReverseInputs = true;  break;
-					case EVectorVMOp::cmpgei:   NewOpCode = EVectorVMOp::cmplei_select;     ReverseInputs = true;  break;
+					case EVectorVMOp::cmpgti:   NewOpCode = EVectorVMOp::cmplei_select;     ReverseInputs = true;  break;
+					case EVectorVMOp::cmpgei:   NewOpCode = EVectorVMOp::cmplti_select;     ReverseInputs = true;  break;
 					case EVectorVMOp::cmpeqi:   NewOpCode = EVectorVMOp::cmpeqi_select;                            break;
 					case EVectorVMOp::cmpneqi:  NewOpCode = EVectorVMOp::cmpeqi_select;     ReverseInputs = true;  break;
 				}
