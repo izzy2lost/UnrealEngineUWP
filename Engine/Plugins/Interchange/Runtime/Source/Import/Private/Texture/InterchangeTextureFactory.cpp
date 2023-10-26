@@ -206,7 +206,7 @@ namespace UE::Interchange::Private::InterchangeTextureFactory
 
 	FTextureFactoryNodeVariant GetAsTextureFactoryNodeVariant(UInterchangeFactoryBaseNode* AssetNode, UClass* SupportedFactoryNodeClass)
 	{
-		static_assert(TVariantSize<FTextureFactoryNodeVariant>::Value == 7, "Please update the code below and this assert to reflect the change to the variant type.");
+		static_assert(TVariantSize_V<FTextureFactoryNodeVariant> == 7, "Please update the code below and this assert to reflect the change to the variant type.");
 
 		if (AssetNode)
 		{
@@ -270,7 +270,7 @@ namespace UE::Interchange::Private::InterchangeTextureFactory
 
 	UInterchangeTextureFactoryNode* GetTextureFactoryNodeFromVariant(const FTextureFactoryNodeVariant& FactoryNodeVariant)
 	{
-		static_assert(TVariantSize<FTextureFactoryNodeVariant>::Value == 7, "Please update the code below and this assert to reflect the change to the variant type.");
+		static_assert(TVariantSize_V<FTextureFactoryNodeVariant> == 7, "Please update the code below and this assert to reflect the change to the variant type.");
 
 		if (UInterchangeTexture2DFactoryNode* const* TextureFactoryNode = FactoryNodeVariant.TryGet<UInterchangeTexture2DFactoryNode*>())
 		{
@@ -315,9 +315,9 @@ namespace UE::Interchange::Private::InterchangeTextureFactory
 
 	FTextureNodeVariant GetTextureNodeVariantFromFactoryVariant(const FTextureFactoryNodeVariant& FactoryVariant, const UInterchangeBaseNodeContainer* NodeContainer)
 	{
-		static_assert(TVariantSize<FTextureFactoryNodeVariant>::Value == 7, "Please update the code below and this assert to reflect the change to the variant type.");
+		static_assert(TVariantSize_V<FTextureFactoryNodeVariant> == 7, "Please update the code below and this assert to reflect the change to the variant type.");
 
-		static_assert(TVariantSize<FTextureNodeVariant>::Value == 7, "Please update the code below and this assert to reflect the change to the variant type.");
+		static_assert(TVariantSize_V<FTextureNodeVariant> == 7, "Please update the code below and this assert to reflect the change to the variant type.");
 
 		FString TextureNodeUniqueID;
 
@@ -384,7 +384,7 @@ namespace UE::Interchange::Private::InterchangeTextureFactory
 
 	bool HasPayloadKey(const FTextureNodeVariant& TextureNodeVariant)
 	{
-		static_assert(TVariantSize<FTextureNodeVariant>::Value == 7, "Please update the code below and this assert to reflect the change to the variant type.");
+		static_assert(TVariantSize_V<FTextureNodeVariant> == 7, "Please update the code below and this assert to reflect the change to the variant type.");
 
 		if (const UInterchangeTexture2DNode* const* TextureNode =  TextureNodeVariant.TryGet<const UInterchangeTexture2DNode*>())
 		{
@@ -421,7 +421,7 @@ namespace UE::Interchange::Private::InterchangeTextureFactory
 
 	TOptional<FString> GetPayloadKey(const FTextureNodeVariant& TextureNodeVariant)
 	{
-		static_assert(TVariantSize<FTextureNodeVariant>::Value == 7, "Please update the code below and this assert to reflect the change to the variant type.");
+		static_assert(TVariantSize_V<FTextureNodeVariant> == 7, "Please update the code below and this assert to reflect the change to the variant type.");
 
 		if (const UInterchangeTexture2DNode* const* TextureNode =  TextureNodeVariant.TryGet<const UInterchangeTexture2DNode*>())
 		{
@@ -653,11 +653,11 @@ namespace UE::Interchange::Private::InterchangeTextureFactory
 
 	FTexturePayloadVariant GetTexturePayload(const UInterchangeSourceData* SourceData, const FString& PayloadKey, const FTextureNodeVariant& TextureNodeVariant, const FTextureFactoryNodeVariant& FactoryNodeVariant, const UInterchangeTranslatorBase* Translator, TOptional<FString>& AlternateTexturePath)
 	{
-		static_assert(TVariantSize<FTextureFactoryNodeVariant>::Value == 7, "Please update the code below and this assert to reflect the change to the variant type.");
+		static_assert(TVariantSize_V<FTextureFactoryNodeVariant> == 7, "Please update the code below and this assert to reflect the change to the variant type.");
 
-		static_assert(TVariantSize<FTexturePayloadVariant>::Value == 5, "Please update the code below and this assert to reflect the change to the variant type.");
+		static_assert(TVariantSize_V<FTexturePayloadVariant> == 5, "Please update the code below and this assert to reflect the change to the variant type.");
 
-		static_assert(TVariantSize<FTextureNodeVariant>::Value == 7, "Please update the code below and this assert to reflect the change to the variant type.");
+		static_assert(TVariantSize_V<FTextureNodeVariant> == 7, "Please update the code below and this assert to reflect the change to the variant type.");
 
 		// Standard texture 2D payload
 		if (const UInterchangeTexture2DNode* const* TextureNode =  TextureNodeVariant.TryGet<const UInterchangeTexture2DNode*>())
@@ -830,7 +830,7 @@ namespace UE::Interchange::Private::InterchangeTextureFactory
 
 	bool CanSetupTextureCubeSourceData(FTexturePayloadVariant& TexturePayload)
 	{
-		static_assert(TVariantSize<FTexturePayloadVariant>::Value == 5, "Please update the code below and this assert to reflect the change to the variant type.");
+		static_assert(TVariantSize_V<FTexturePayloadVariant> == 5, "Please update the code below and this assert to reflect the change to the variant type.");
 
 		if (TOptional<FImportSlicedImage>* SlicedImage = TexturePayload.TryGet<TOptional<FImportSlicedImage>>())
 		{
@@ -897,7 +897,7 @@ namespace UE::Interchange::Private::InterchangeTextureFactory
 
 	bool CanSetupTextureCubeArraySourceData(FTexturePayloadVariant& TexturePayload)
 	{
-		static_assert(TVariantSize<FTexturePayloadVariant>::Value == 5, "Please update the code below and this assert to reflect the change to the variant type.");
+		static_assert(TVariantSize_V<FTexturePayloadVariant> == 5, "Please update the code below and this assert to reflect the change to the variant type.");
 
 		if (TOptional<FImportSlicedImage>* SlicedImage = TexturePayload.TryGet<TOptional<FImportSlicedImage>>())
 		{
@@ -963,7 +963,7 @@ namespace UE::Interchange::Private::InterchangeTextureFactory
 
 	bool CanSetupTexture2DArraySourceData(FTexturePayloadVariant& TexturePayload)
 	{
-		static_assert(TVariantSize<FTexturePayloadVariant>::Value == 5, "Please update the code below and this assert to reflect the change to the variant type.");
+		static_assert(TVariantSize_V<FTexturePayloadVariant> == 5, "Please update the code below and this assert to reflect the change to the variant type.");
 
 		if (TOptional<FImportSlicedImage>* SlicedImage = TexturePayload.TryGet<TOptional<FImportSlicedImage>>())
 		{
@@ -1026,7 +1026,7 @@ namespace UE::Interchange::Private::InterchangeTextureFactory
 
 	bool CanSetupVolumeTextureSourceData(FTexturePayloadVariant& TexturePayload)
 	{
-		static_assert(TVariantSize<FTexturePayloadVariant>::Value == 5, "Please update the code below and this assert to reflect the change to the variant type.");
+		static_assert(TVariantSize_V<FTexturePayloadVariant> == 5, "Please update the code below and this assert to reflect the change to the variant type.");
 
 		if (TOptional<FImportSlicedImage>* SlicedImage = TexturePayload.TryGet<TOptional<FImportSlicedImage>>())
 		{
@@ -1253,7 +1253,7 @@ namespace UE::Interchange::Private::InterchangeTextureFactory
 
 	FSharedBuffer MoveRawDataToSharedBuffer(FTexturePayloadVariant& TexturePayload)
 	{
-		static_assert(TVariantSize<FTexturePayloadVariant>::Value == 5, "Please update the code below and this assert to reflect the change to the variant type.");
+		static_assert(TVariantSize_V<FTexturePayloadVariant> == 5, "Please update the code below and this assert to reflect the change to the variant type.");
 
 		if (TOptional<FImportBlockedImage>* BlockedImage = TexturePayload.TryGet<TOptional<FImportBlockedImage>>())
 		{
@@ -1335,7 +1335,7 @@ namespace UE::Interchange::Private::InterchangeTextureFactory
 
 	bool CanSetupTexture2DSourceData(FTexturePayloadVariant& TexturePayload)
 	{
-		static_assert(TVariantSize<FTexturePayloadVariant>::Value == 5, "Please update the code below and this assert to reflect the change to the variant type.");
+		static_assert(TVariantSize_V<FTexturePayloadVariant> == 5, "Please update the code below and this assert to reflect the change to the variant type.");
 
 #if WITH_EDITOR
 		if (TOptional<FImportBlockedImage>* BlockedImage = TexturePayload.TryGet<TOptional<FImportBlockedImage>>())
@@ -1899,7 +1899,7 @@ void UInterchangeTextureFactory::CheckForInvalidResolutions(UE::Interchange::Pri
 	bool bAllowNonPowerOfTwo = false;
 	TextureFactoryNode->GetCustomAllowNonPowerOfTwo(bAllowNonPowerOfTwo);
 
-	static_assert(TVariantSize<Private::InterchangeTextureFactory::FTexturePayloadVariant>::Value == 5, "Please update the code below and this assert to reflect the change to the variant type.");
+	static_assert(TVariantSize_V<Private::InterchangeTextureFactory::FTexturePayloadVariant> == 5, "Please update the code below and this assert to reflect the change to the variant type.");
 
 	FText ErrorMessage;
 	if (TOptional<FImportBlockedImage>* BlockedImagePtr = InPayloadVariant.TryGet<TOptional<FImportBlockedImage>>())
