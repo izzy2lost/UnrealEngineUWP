@@ -8,7 +8,7 @@
 #include "Chaos/ParticleHandleFwd.h"
 #include "Chaos/SpatialAccelerationFwd.h"
 #include "UObject/Object.h"
-#include "UObject/WeakObjectPtrTemplates.h"
+#include "UObject/ObjectKey.h"
 
 #include "ExternalSpatialAccelerationPayload.generated.h"
 
@@ -28,7 +28,8 @@ public:
 
 	ENGINE_API FExternalSpatialAccelerationPayload();
 
-	ENGINE_API void Initialize(UPrimitiveComponent* InComponent, int32 InBoneId);
+	ENGINE_API void Initialize(TObjectKey<UPrimitiveComponent> InComponent, int32 InBoneId);
+	ENGINE_API void Initialize(TObjectKey<UPrimitiveComponent> InComponent, int32 InBoneId, const Chaos::FUniqueIdx& UniqueIdx);
 
 	ENGINE_API Chaos::FGeometryParticle* GetExternalGeometryParticle_ExternalThread() const;
 	ENGINE_API bool operator==(const FExternalSpatialAccelerationPayload& Other) const;
@@ -44,7 +45,7 @@ public:
 
 	friend ENGINE_API uint32 GetTypeHash(const FExternalSpatialAccelerationPayload& Payload);
 private:
-	TWeakObjectPtr<UPrimitiveComponent> Component = nullptr;
+	TObjectKey<UPrimitiveComponent> Component = nullptr;
 	int32 BoneId = INDEX_NONE;
 	Chaos::FUniqueIdx CachedUniqueIdx;
 

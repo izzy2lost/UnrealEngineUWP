@@ -18,7 +18,9 @@
 #include "Physics/Experimental/PhysScene_Chaos.h"
 #endif
 #include "GeometryCollectionEditorSelection.h"
+#include "GeometryCollection/GeometryCollection.h"
 #include "GeometryCollection/GeometryCollectionDamagePropagationData.h"
+#include "GeometryCollectionObject.h"
 #include "GeometryCollection/RecordedTransformTrack.h"
 #include "GeometryCollection/GeometryCollectionSimulationTypes.h"
 #include "Templates/UniquePtr.h"
@@ -560,6 +562,8 @@ struct TStructOpsTypeTraits<FGeometryCollectionRepDynamicData> : public TStructO
 	};
 };
 
+struct FGCCollisionProfileScopedTransaction;
+
 /**
 *	GeometryCollectionComponent
 */
@@ -852,6 +856,14 @@ public:
 	GEOMETRYCOLLECTIONENGINE_API void SetPerParticleCollisionProfileName(const TArray<int32>& BoneIds, FName ProfileName);
 
 	GEOMETRYCOLLECTIONENGINE_API void SetPerParticleCollisionProfileName(const TSet<int32>& BoneIds, FName ProfileName);
+
+	GEOMETRYCOLLECTIONENGINE_API void SetParticleCollisionProfileName(int32 BoneId, FName ProfileName, FGCCollisionProfileScopedTransaction& InProfileNameUpdateTransaction);
+
+private:
+
+	bool UpdatePerParticleCollisionProfilesNum();
+
+public:
 
 	/** API for getting at geometry collection data */
 	GEOMETRYCOLLECTIONENGINE_API int32 GetNumElements(FName Group) const;
@@ -1798,4 +1810,52 @@ public:
 	GEOMETRYCOLLECTIONENGINE_API virtual bool IsHLODRelevant() const override;
 	//~ End UActorComponent interface.
 #endif
+
+	friend struct FGCCollisionProfileScopedTransaction;
+};
+
+/** Struct to be used as Transaction object used to make updates on particle per particle basis within a scope.
+ * It makes sure the collision profile names containers is up to date and the Collision profiles are loaded if needed when it goes out of scope
+ */
+struct GEOMETRYCOLLECTIONENGINE_API FGCCollisionProfileScopedTransaction
+{
+	explicit FGCCollisionProfileScopedTransaction(UGeometryCollectionComponent* InGCComponentInstance) : GCComponentInstance(InGCComponentInstance)
+	{
+		if (!ensure(GCComponentInstance))
+		{
+			return;
+		}
+
+		bHasChanged = InGCComponentInstance->UpdatePerParticleCollisionProfilesNum();	
+	}
+
+	~FGCCollisionProfileScopedTransaction()
+	{
+		if (!GCComponentInstance)
+		{
+			return;
+		}
+
+		if (bHasChanged)
+		{
+			GCComponentInstance->LoadCollisionProfiles();
+		}
+	}
+
+	FGCCollisionProfileScopedTransaction& operator=(const FGCCollisionProfileScopedTransaction& Other) = delete;
+	FGCCollisionProfileScopedTransaction& operator=(FGCCollisionProfileScopedTransaction&& Other) = delete;
+	FGCCollisionProfileScopedTransaction(FGCCollisionProfileScopedTransaction&& Other) = delete;
+	FGCCollisionProfileScopedTransaction(FGCCollisionProfileScopedTransaction& Other) = delete;
+
+	/** Marks this transaction dirty. It will load the collision profiles if needed when this transaction goes out of scope */
+	void MarkDirty()
+	{
+		bHasChanged = true;
+	}
+
+	bool IsValid() const { return GCComponentInstance != nullptr; }
+
+private:
+	UGeometryCollectionComponent* GCComponentInstance = nullptr;
+	bool bHasChanged = false;
 };

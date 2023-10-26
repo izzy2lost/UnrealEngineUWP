@@ -4385,6 +4385,46 @@ void UGeometryCollectionComponent::SetPerParticleCollisionProfileName(const TSet
 	}
 }
 
+bool UGeometryCollectionComponent::UpdatePerParticleCollisionProfilesNum()
+{
+	if (!RestCollection)
+	{
+		return false;
+	}
+
+	const int32 NumTransforms = RestCollection->GetGeometryCollection()->Transform.Num();
+	const bool bHasChanged = CollisionProfilePerParticle.Num() != NumTransforms;
+
+	if (bHasChanged)
+	{
+		CollisionProfilePerParticle.SetNumZeroed(NumTransforms);
+	}
+
+	return bHasChanged;
+}
+
+void UGeometryCollectionComponent::SetParticleCollisionProfileName(int32 BoneId, FName ProfileName, FGCCollisionProfileScopedTransaction& InProfileNameUpdateTransaction)
+{
+	if (!InProfileNameUpdateTransaction.IsValid())
+	{
+		return;
+	}
+	
+	if (!CollisionProfilePerParticle.IsValidIndex(BoneId))
+	{
+		return;
+	}
+
+	FName& CurrentProfileName = CollisionProfilePerParticle[BoneId];
+
+	if (CurrentProfileName !=  ProfileName)
+	{
+		CurrentProfileName = ProfileName;
+
+		InProfileNameUpdateTransaction.MarkDirty();
+	}
+}
+
 void UGeometryCollectionComponent::SetPerParticleCollisionProfileName(const TArray<int32>& BoneIds, FName ProfileName)
 {
 	const bool bHasChanged = SetPerParticleCollisionProfileNameFromIterable(RestCollection, BoneIds, ProfileName, CollisionProfilePerParticle);
