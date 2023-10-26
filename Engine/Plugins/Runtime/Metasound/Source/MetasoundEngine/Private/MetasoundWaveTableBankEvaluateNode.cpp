@@ -20,10 +20,10 @@ namespace Metasound
 {
 	namespace WaveTableBankEvaluateNode
 	{
-		METASOUND_PARAM(WaveTableBankParam, "WaveTableBank", "The WaveTableBank to evaluate");
-		METASOUND_PARAM(InputParam, "Input", "[0, 1] the X input with which to evaluate the wavetable");
-		METASOUND_PARAM(IndexParam, "Index", "The table index to interpolate and evaluate the result of (wraps over number of entries)");
-		METASOUND_PARAM(OutParam, "Output", "The linearly mixed value of the provided WaveTableBank's applicable entries");
+		METASOUND_PARAM(WaveTableBankEval_BankParam, "WaveTableBank", "The WaveTableBank to evaluate");
+		METASOUND_PARAM(WaveTableBankEval_InputParam, "Input", "The X input with which to evaluate the wavetable ([-1, 1] or [0, 1] depending on Bank's 'bipolar' setting)");
+		METASOUND_PARAM(WaveTableBankEval_IndexParam, "Index", "The table index to interpolate and evaluate the result of (wraps over number of entries)");
+		METASOUND_PARAM(WaveTableBankEval_OutParam, "Output", "The linearly mixed value of the provided WaveTableBank's applicable entries");
 	} // WaveTableBankEvaluateNode
 	
 	class FMetasoundWaveTableBankEvaluateNodeOperator : public TExecutableOperator<FMetasoundWaveTableBankEvaluateNodeOperator>
@@ -36,9 +36,9 @@ namespace Metasound
 
 			static const FVertexInterface DefaultInterface(
 				FInputVertexInterface(
-					TInputDataVertex<FWaveTableBankAsset>(METASOUND_GET_PARAM_NAME_AND_METADATA(WaveTableBankParam)),
-					TInputDataVertex<float>(METASOUND_GET_PARAM_NAME_AND_METADATA(InputParam), 0.0f),
-					TInputDataVertex<float>(METASOUND_GET_PARAM_NAME_AND_METADATA(IndexParam), 0.0f),
+					TInputDataVertex<FWaveTableBankAsset>(METASOUND_GET_PARAM_NAME_AND_METADATA(WaveTableBankEval_BankParam)),
+					TInputDataVertex<float>(METASOUND_GET_PARAM_NAME_AND_METADATA(WaveTableBankEval_InputParam), 0.0f),
+					TInputDataVertex<float>(METASOUND_GET_PARAM_NAME_AND_METADATA(WaveTableBankEval_IndexParam), 0.0f),
 					TInputDataVertex<FEnumWaveTableInterpolationMode>("Interpolation", FDataVertexMetadata
 					{
 						LOCTEXT("MetasoundWaveTableBankEvaluateNode_InterpDescription", "How interpolation occurs between WaveTable values."),
@@ -47,7 +47,7 @@ namespace Metasound
 					}, static_cast<int32>(FWaveTableSampler::EInterpolationMode::Linear))
 				),
 				FOutputVertexInterface(
-					TOutputDataVertex<float>(METASOUND_GET_PARAM_NAME_AND_METADATA(OutParam))
+					TOutputDataVertex<float>(METASOUND_GET_PARAM_NAME_AND_METADATA(WaveTableBankEval_OutParam))
 				)
 			);
 
@@ -116,16 +116,16 @@ namespace Metasound
 		virtual void BindInputs(FInputVertexInterfaceData& InOutVertexData) override
 		{
 			using namespace WaveTableBankEvaluateNode;
-			InOutVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(WaveTableBankParam), WaveTableBankReadRef);
-			InOutVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(InputParam), InputReadRef);
-			InOutVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(IndexParam), IndexReadRef);
+			InOutVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(WaveTableBankEval_BankParam), WaveTableBankReadRef);
+			InOutVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(WaveTableBankEval_InputParam), InputReadRef);
+			InOutVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(WaveTableBankEval_IndexParam), IndexReadRef);
 			InOutVertexData.BindReadVertex("Interpolation", InterpModeReadRef);
 		}
 
 		virtual void BindOutputs(FOutputVertexInterfaceData& InOutVertexData) override
 		{
 			using namespace WaveTableBankEvaluateNode;
-			InOutVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(OutParam), OutWriteRef);
+			InOutVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(WaveTableBankEval_OutParam), OutWriteRef);
 		}
 		
 		virtual FDataReferenceCollection GetInputs() const override
@@ -155,7 +155,9 @@ namespace Metasound
 			const FWaveTableBankAsset& WaveTableBankAsset = *WaveTableBankReadRef;
 			FWaveTableBankAssetProxyPtr Proxy = WaveTableBankAsset.GetProxy();
 			float NewIndex = 0.f;
-			const float Input = FMath::Clamp(*InputReadRef, 0.f, 1.f);
+
+			const float Min = WaveTableBankAsset->IsBipolar() ? -1.f : 0.f;
+			const float Input = FMath::Clamp(*InputReadRef, Min, 1.f);
 			if (!ResolveNextComputeIndex(Proxy, Input, NewIndex))
 			{
 				return;
