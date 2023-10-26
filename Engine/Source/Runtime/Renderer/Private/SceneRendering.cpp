@@ -2495,6 +2495,7 @@ FViewFamilyInfo::~FViewFamilyInfo()
 }
 
 TGlobalResource<FGlobalDynamicReadBuffer> FSceneRenderer::DynamicReadBufferForInitViews;
+TGlobalResource<FGlobalDynamicReadBuffer> FSceneRenderer::DynamicReadBufferForRayTracing;
 TGlobalResource<FGlobalDynamicReadBuffer> FSceneRenderer::DynamicReadBufferForShadows;
 
 /*-----------------------------------------------------------------------------

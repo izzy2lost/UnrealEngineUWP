@@ -2268,6 +2268,7 @@ public:
 	inline TConstStridedView<FSceneView> GetSceneViews() const { return MakeStridedViewOfBase<const FSceneView>(MakeArrayView(Views)); }
 
 	static TGlobalResource<FGlobalDynamicReadBuffer> DynamicReadBufferForInitViews;
+	static TGlobalResource<FGlobalDynamicReadBuffer> DynamicReadBufferForRayTracing;
 	static TGlobalResource<FGlobalDynamicReadBuffer> DynamicReadBufferForShadows;
 
 protected:

@@ -1103,7 +1103,7 @@ bool FDeferredShadingSceneRenderer::GatherRayTracingWorldInstancesForView(FRDGBu
 		ViewFamily,
 		GraphBuilder,
 		*View.RayTracingMeshResourceCollector,
-		DynamicReadBufferForInitViews
+		DynamicReadBufferForRayTracing
 	);
 
 	const float CurrentWorldTime = View.Family->Time.GetWorldTimeSeconds();
