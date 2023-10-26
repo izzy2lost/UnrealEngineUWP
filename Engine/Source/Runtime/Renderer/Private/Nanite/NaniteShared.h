@@ -880,8 +880,10 @@ private:
 
 struct FNaniteShadingCommand
 {
+	// Per-view parameters
+	TArray<FRHIBatchedShaderParameters> BatchedParameters;
+
 	TSharedPtr<FNaniteShadingPipeline> Pipeline;
-	FRHIBatchedShaderParameters BatchedParameters;
 	FUint32Vector4 PassData;
 	uint16 ShadingBin = 0xFFFFu;
 	bool bVisible = true;

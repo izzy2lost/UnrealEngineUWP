@@ -1362,7 +1362,6 @@ void FDeferredShadingSceneRenderer::RenderBasePassInternal(
 
 			if (UseNaniteComputeMaterials())
 			{
-				Nanite::BuildShadingCommands(*Scene, ENaniteMeshPass::BasePass);
 				Nanite::DispatchBasePass(
 					GraphBuilder,
 					Scene->NaniteShadingCommands[ENaniteMeshPass::BasePass],
@@ -1372,6 +1371,7 @@ void FDeferredShadingSceneRenderer::RenderBasePassInternal(
 					DBufferTextures,
 					*Scene,
 					View,
+					uint32(ViewIndex),
 					RasterResults
 				);
 			}
@@ -1392,6 +1392,11 @@ void FDeferredShadingSceneRenderer::RenderBasePassInternal(
 			}
 		}
 	};
+
+	if (bNaniteEnabled && UseNaniteComputeMaterials())
+	{
+		Nanite::BuildShadingCommands(*Scene, Views, ENaniteMeshPass::BasePass);
+	}
 
 	if (bRenderLightmapDensity || ViewFamily.UseDebugViewPS())
 	{

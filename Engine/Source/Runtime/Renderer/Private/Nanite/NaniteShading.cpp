@@ -390,7 +390,7 @@ bool HasNoDerivativeOps(FRHIComputeShader* ComputeShaderRHI)
 	}
 }
 
-void BuildShadingCommands(FScene& Scene, ENaniteMeshPass::Type MeshPass)
+void BuildShadingCommands(FScene& Scene, TArrayView<FViewInfo> Views, ENaniteMeshPass::Type MeshPass)
 {
 	FNaniteShadingPipelines& ShadingPipelines = Scene.NaniteShadingPipelines[MeshPass];
 	if (ShadingPipelines.bBuildCommands)
@@ -409,6 +409,11 @@ void BuildShadingCommands(FScene& Scene, ENaniteMeshPass::Type MeshPass)
 			const FNaniteShadingEntry& Entry = Iter.Value;
 			ShadingCommand.Pipeline = Entry.ShadingPipeline;
 			ShadingCommand.ShadingBin = Entry.BinIndex;
+			ShadingCommand.BatchedParameters.SetNum(Views.Num());
+			for (FRHIBatchedShaderParameters& Parameters : ShadingCommand.BatchedParameters)
+			{
+				Parameters.Reset();
+			}
 
 			ShadingCommands.MaxShadingBin = FMath::Max<uint32>(ShadingCommands.MaxShadingBin, uint32(ShadingCommand.ShadingBin));
 		}
@@ -667,6 +672,7 @@ inline void RecordShadingCommand(
 	FRHIComputeCommandList& RHICmdList,
 	FRHIBuffer* IndirectArgsBuffer,
 	const uint32 IndirectArgStride,
+	FRHIBatchedShaderParameters& ShadingParameters,
 	FNaniteShadingCommand& ShadingCommand
 )
 {
@@ -684,7 +690,7 @@ inline void RecordShadingCommand(
 		RHICmdList.SetShaderRootConstants(ShadingCommand.PassData);
 	}
 
-	RHICmdList.SetBatchedShaderParameters(ComputeShaderRHI, ShadingCommand.BatchedParameters);
+	RHICmdList.SetBatchedShaderParameters(ComputeShaderRHI, ShadingParameters);
 	RHICmdList.DispatchIndirectComputeShader(IndirectArgsBuffer, IndirectOffset);
 }
 
@@ -752,6 +758,7 @@ class FRecordShadingCommandsAnyThreadTask : public FRenderTask
 	FRHIBuffer* IndirectArgs = nullptr;
 	uint32 IndirectArgsStride;
 	uint32 DataByteOffset;
+	uint32 ViewIndex;
 	int32 TaskIndex;
 	int32 TaskNum;
 
@@ -766,6 +773,7 @@ public:
 		const TConstArrayView<FRHIUnorderedAccessView*> InOutputTargets,
 		FRHIUnorderedAccessView* InOutputTargetsArray,
 		const FUint32Vector4& InViewRect,
+		uint32 InViewIndex,
 		int32 InTaskIndex,
 		int32 InTaskNum
 	)
@@ -778,6 +786,7 @@ public:
 		, IndirectArgs(InIndirectArgs)
 		, IndirectArgsStride(InIndirectArgsStride)
 		, DataByteOffset(InDataByteOffset)
+		, ViewIndex(InViewIndex)
 		, TaskIndex(InTaskIndex)
 		, TaskNum(InTaskNum)
 	{}
@@ -806,8 +815,10 @@ public:
 			ShadingCommand.bVisible = !VisibilityData.IsValid() || VisibilityData->AccessCorrespondingBit(FRelativeBitReference(ShadingCommand.ShadingBin));
 			if (ShadingCommand.bVisible && PrepareShadingCommand(ShadingCommand))
 			{
+				FRHIBatchedShaderParameters& ShadingParameters = ShadingCommand.BatchedParameters[ViewIndex];
+
 				RecordShadingParameters(
-					ShadingCommand.BatchedParameters,
+					ShadingParameters,
 					ShadingCommand,
 					DataByteOffset,
 					ViewRect,
@@ -819,6 +830,7 @@ public:
 					RHICmdList,
 					IndirectArgs,
 					IndirectArgsStride,
+					ShadingParameters,
 					ShadingCommand
 				);
 			}
@@ -955,6 +967,7 @@ void DispatchBasePass(
 	const FDBufferTextures& DBufferTextures,
 	const FScene& Scene,
 	const FViewInfo& View,
+	const uint32 ViewIndex,
 	const FRasterResults& RasterResults
 )
 {
@@ -1081,6 +1094,7 @@ void DispatchBasePass(
 	(
 		FRDGParallelCommandListSet* ParallelCommandListSet,
 		const FUint32Vector4& ViewRect,
+		const uint32 ViewIndex,
 		TSharedPtr<TBitArray<SceneRenderingBitArrayAllocator>> VisibilityData,
 		FNaniteShadingCommands& ShadingCommands,
 		FShaderBundleRHIRef ShaderBundle,
@@ -1159,6 +1173,7 @@ void DispatchBasePass(
 						OutputTargets,
 						OutputTargetsArray,
 						ViewRect,
+						ViewIndex,
 						TaskIndex,
 						NumTasks
 					);
@@ -1298,8 +1313,9 @@ void DispatchBasePass(
 					ShadingCommand.bVisible = !VisibilityData.IsValid() || VisibilityData->AccessCorrespondingBit(FRelativeBitReference(ShadingCommand.ShadingBin));
 					if (ShadingCommand.bVisible && PrepareShadingCommand(ShadingCommand))
 					{
-						RecordShadingParameters(ShadingCommand.BatchedParameters, ShadingCommand, DataByteOffset, ViewRect, OutputTargets, OutputTargetsArray);
-						RecordShadingCommand(RHICmdList, IndirectArgsBuffer, IndirectArgStride, ShadingCommand);
+						FRHIBatchedShaderParameters& ShadingParameters = ShadingCommand.BatchedParameters[ViewIndex];
+						RecordShadingParameters(ShadingParameters, ShadingCommand, DataByteOffset, ViewRect, OutputTargets, OutputTargetsArray);
+						RecordShadingCommand(RHICmdList, IndirectArgsBuffer, IndirectArgStride, ShadingParameters, ShadingCommand);
 					}
 				}
 			}
@@ -1320,7 +1336,7 @@ void DispatchBasePass(
 			RDG_EVENT_NAME("ShadeGBufferCS"),
 			ShadingPassParameters,
 			ERDGPassFlags::Compute,
-			[&ShadePassWork, ShadingPassParameters, &ShadingCommands, IndirectArgStride, DataByteOffset = Binning.DataByteOffset, VisibilityData, &View, ViewRect, bSkipBarriers]
+			[&ShadePassWork, ShadingPassParameters, &ShadingCommands, IndirectArgStride, DataByteOffset = Binning.DataByteOffset, VisibilityData, &View, ViewRect, ViewIndex, bSkipBarriers]
 			(const FRDGPass* RDGPass, FRHICommandListImmediate& RHICmdList)
 			{
 				FParallelCommandListBindings CmdListBindings(ShadingPassParameters);
@@ -1335,6 +1351,7 @@ void DispatchBasePass(
 						(uint32)ViewRect.Max.X,
 						(uint32)ViewRect.Max.Y
 					),
+					ViewIndex,
 					VisibilityData,
 					ShadingCommands,
 					FShaderBundleRHIRef(),
@@ -1371,7 +1388,7 @@ void DispatchBasePass(
 			RDG_EVENT_NAME("ShadeGBufferCS"),
 			ShadingPassParameters,
 			ERDGPassFlags::Compute,
-			[&ShadePassWork, ShadingPassParameters, &ShadingCommands, ShaderBundle, IndirectArgStride, DataByteOffset = Binning.DataByteOffset, VisibilityData, &View, ViewRect, bSkipBarriers, bBundleShading, bBundleEmulation]
+			[&ShadePassWork, ShadingPassParameters, &ShadingCommands, ShaderBundle, IndirectArgStride, DataByteOffset = Binning.DataByteOffset, VisibilityData, &View, ViewRect, ViewIndex, bSkipBarriers, bBundleShading, bBundleEmulation]
 			(const FRDGPass* RDGPass, FRHIComputeCommandList& RHICmdList)
 			{
 				if (bBundleShading)
@@ -1381,7 +1398,7 @@ void DispatchBasePass(
 					ShadingPassParameters->ExecutionBuffer->MarkResourceAsUsed();
 				}
 
-				ShadePassWork(
+			ShadePassWork(
 					nullptr,
 					FUint32Vector4(
 						(uint32)ViewRect.Min.X,
@@ -1389,6 +1406,7 @@ void DispatchBasePass(
 						(uint32)ViewRect.Max.X,
 						(uint32)ViewRect.Max.Y
 					),
+					ViewIndex,
 					VisibilityData,
 					ShadingCommands,
 					ShaderBundle,

@@ -38,6 +38,7 @@ FShadeBinning ShadeBinning(
 
 void BuildShadingCommands(
 	FScene& Scene,
+	TArrayView<FViewInfo> Views,
 	ENaniteMeshPass::Type MeshPass
 );
 
@@ -64,6 +65,7 @@ void DispatchBasePass(
 	const FDBufferTextures& DBufferTextures,
 	const FScene& Scene,
 	const FViewInfo& View,
+	const uint32 ViewIndex,
 	const FRasterResults& RasterResults
 );
 
