@@ -53,7 +53,7 @@ namespace BuoyancyAlgorithms
 	// Given an OOBB and a water level, generate another OOBB which is 1. entirely contained
 	// within the input OOBB and 2. entirely contains the portion of the OOBB which is submerged
 	// below the water level.
-	bool ComputeSubmergedBounds(const FVector& WaterX, const FVector& WaterN, const Chaos::FAABB3& RigidBox, const Chaos::FRigidTransform3& RigidTransform, Chaos::FAABB3& OutSubmergedBounds);
+	bool FORCEINLINE ComputeSubmergedBounds(const FVector& SurfacePointLocal, const FVector& SurfaceNormalLocal, const Chaos::FAABB3& RigidBox, Chaos::FAABB3& OutSubmergedBounds);
 
 	// Given a bounds object, recursively subdivide it in eighths to a fixed maximum depth and
 	// a fixed minimum smallest subdivision volume.

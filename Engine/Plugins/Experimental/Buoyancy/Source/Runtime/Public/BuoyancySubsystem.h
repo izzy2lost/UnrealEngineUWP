@@ -9,6 +9,8 @@
 #include "PBDRigidsSolver.h"
 #include "Engine/EngineBaseTypes.h"
 #include "WaterBodyComponent.h"
+#include "BuoyancyWaterSplineData.h"
+#include "BuoyancyWaterSplineKeyCacheGrid.h"
 #include "BuoyancyEventFlags.h"
 #include "ChaosUserDataPT.h"
 #include "PhysicsProxy/SingleParticlePhysicsProxyFwd.h"
@@ -23,32 +25,6 @@ DECLARE_LOG_CATEGORY_EXTERN(LogBuoyancySubsystem, Log, All);
 // particles associated with it, but we'd like to only store a single copy
 // of the spline.
 //
-
-struct FBuoyancyWaterSplineData
-{
-	FBuoyancyWaterSplineData() { }
-	FBuoyancyWaterSplineData(
-		const Chaos::FRigidTransform3& InTransform,
-		const FInterpCurveVector& InPosition,
-		const EWaterBodyType InBodyType,
-		const TOptional<FInterpCurveFloat>& InWidth,
-		const TOptional<FInterpCurveFloat>& InVelocity)
-		: Transform(InTransform)
-		, Position(InPosition)
-		, BodyType(InBodyType)
-		, Width(InWidth)
-		, Velocity(InVelocity)
-	{ }
-
-	// Parameters that all water bodies have
-	Chaos::FRigidTransform3 Transform;
-	FInterpCurveVector Position;
-	EWaterBodyType BodyType;
-
-	// Parameters that only _some_ water bodies have
-	TOptional<FInterpCurveFloat> Width;
-	TOptional<FInterpCurveFloat> Velocity;
-};
 
 class FBuoyancyWaterSplineDataManager : public Chaos::TUserDataManagerPT< TSharedPtr<FBuoyancyWaterSplineData> > { };
 
@@ -80,13 +56,19 @@ struct FBuoyancySettings
 
 	int32 MaxNumBoundsSubdivisions = 2;
 
-	float MinBoundsSubdivisionVol = FMath::Pow(100.f, 3.f); // 1m^3
+	float MinBoundsSubdivisionVol = FMath::Pow(125.f, 3.f); // 1m^3
 
 	ECollisionChannel WaterCollisionChannel = ECollisionChannel::ECC_MAX;
 
 	uint8 SurfaceTouchCallbackFlags = EBuoyancyEventFlags::None;
 
 	float MinVelocityForSurfaceTouchCallback = 10.f;
+
+	bool bSplineKeyCacheGrid = true;
+
+	float SplineKeyCacheGridSize = 300.f;
+
+	uint32 SplineKeyCacheLimit = 256;
 };
 
 
@@ -316,4 +298,7 @@ private:
 	// Used to track the net mode of the world that owns the phys scene that this
 	// sim tick is taking place in.
 	ENetMode NetMode = ENetMode::NM_MAX;
+
+	// Local cache of spline keys to reduce spline evaluations.
+	FSplineKeyCacheGrid SplineKeyCache;
 };

@@ -28,8 +28,10 @@
 // CVars
 //
 
+#if ENABLE_DRAW_DEBUG
 bool bBuoyancyDebugDraw = false;
 FAutoConsoleVariableRef CVarBuoyancyDebugDraw(TEXT("p.Buoyancy.DebugDraw"), bBuoyancyDebugDraw, TEXT(""));
+#endif
 
 
 //
@@ -162,6 +164,9 @@ void UBuoyancySubsystem::ApplyRuntimeSettings(const UBuoyancyRuntimeSettings* In
 	BuoyancySettings.MaxNumBoundsSubdivisions = InSettings->MaxNumBoundsSubdivisions;
 	BuoyancySettings.MinBoundsSubdivisionVol = InSettings->MinBoundsSubdivisionVol;
 	BuoyancySettings.MinVelocityForSurfaceTouchCallback = InSettings->MinVelocityForSurfaceTouchCallback;
+	BuoyancySettings.bSplineKeyCacheGrid = InSettings->bEnableSplineKeyCacheGrid;
+	BuoyancySettings.SplineKeyCacheGridSize = InSettings->SplineKeyCacheGridSize; 
+	BuoyancySettings.SplineKeyCacheLimit = InSettings->SplineKeyCacheLimit;
 
 	// Based on server/client/editor, determine if we should generate callbacks.
 	// If we're editor, always generate callbacks. If we're not editor, only
@@ -439,11 +444,18 @@ void FBuoyancySubsystemSimCallback::OnPreSimulate_Internal()
 		if (Input->SplineData.IsSet())
 		{
 			SplineData = *Input->SplineData;
+
+			// New spline data means we need to reset our spline key cache
+			SplineKeyCache.Reset();
 		}
 
 		if (Input->BuoyancySettings.IsValid())
 		{
 			BuoyancySettings = MoveTemp(Input->BuoyancySettings);
+
+			// Set key cache properties
+			SplineKeyCache.SetGridSize(BuoyancySettings->SplineKeyCacheGridSize);
+			SplineKeyCache.SetCacheLimit(BuoyancySettings->SplineKeyCacheLimit);
 		}
 	}
 
@@ -452,6 +464,28 @@ void FBuoyancySubsystemSimCallback::OnPreSimulate_Internal()
 	{
 		return;
 	}
+
+	// If we have debug draw enabled
+#if ENABLE_DRAW_DEBUG
+	if (bBuoyancyDebugDraw)
+	{
+		// If we're using spline key cache grid, debug draw all cached points
+		if (BuoyancySettings->bSplineKeyCacheGrid)
+		{
+			SplineKeyCache.ForEachSplineKey([this](const FBuoyancyWaterSplineData& WaterSpline, const FVector& LocalPos, float SplineKey)
+			{
+				// Draw a box representing this spline's grid cell
+				const FVector WorldPos = WaterSpline.Transform.TransformPosition(LocalPos);
+				Chaos::FDebugDrawQueue::GetInstance().DrawDebugBox(WorldPos, FVector(SplineKeyCache.GetGridSize() * .5f), FQuat::Identity, FColor::White, false, -1.f, -1, 1.f);
+
+				// Draw an arrow from the center to the closest
+				const FVector ClosestPointLocal = WaterSpline.Position.Eval(SplineKey);
+				const FVector ClosestPoint = WaterSpline.Transform.TransformPosition(ClosestPointLocal);
+				Chaos::FDebugDrawQueue::GetInstance().DrawDebugDirectionalArrow(WorldPos, ClosestPoint, 20.f, FColor::Silver, false, -1.f, -1, 1.f);
+			});
+		}
+	}
+#endif
 }
 
 void FBuoyancySubsystemSimCallback::OnMidPhaseModification_Internal(Chaos::FMidPhaseModifierAccessor& MidPhaseAccessor)
@@ -593,10 +627,24 @@ void FBuoyancySubsystemSimCallback::TrackInteraction(
 
 		// Find water surface at the nearest point on the spline
 		const FVector ParticlePos = RigidParticle->XCom();
-		const FVector ParticleLocalPos = WaterSpline.Transform.InverseTransformPosition(ParticlePos);
-		float ParticleDistance;
-		ClosestSplineKey = WaterSpline.Position.FindNearest(ParticleLocalPos, ParticleDistance);
-		ClosestPoint = WaterSpline.Transform.TransformPosition(WaterSpline.Position.Eval(ClosestSplineKey));
+		{
+			SCOPE_CYCLE_COUNTER(STAT_BuoyancySubsystem_SplineEvaluation_FindNearest)
+
+			if (BuoyancySettings->bSplineKeyCacheGrid)
+			{
+				ClosestSplineKey = SplineKeyCache.GetClosestSplineKey(WaterSpline, ParticlePos);
+			}
+			else
+			{
+				const FVector ParticleLocalPos = WaterSpline.Transform.InverseTransformPosition(ParticlePos);
+				float ParticleDistance;
+				ClosestSplineKey = WaterSpline.Position.FindNearest(ParticleLocalPos, ParticleDistance);
+			}
+		}
+		{
+			SCOPE_CYCLE_COUNTER(STAT_BuoyancySubsystem_SplineEvaluation_Eval)
+			ClosestPoint = WaterSpline.Transform.TransformPosition(WaterSpline.Position.Eval(ClosestSplineKey));
+		}
 	}
 
 	{

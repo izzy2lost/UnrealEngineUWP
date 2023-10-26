@@ -48,7 +48,7 @@ public:
 
 	/** Minimum volume bounding box which can be produced by a subdivision operation */
 	UPROPERTY(EditAnywhere, Config, Category = SubmergedVolumeCalculation)
-	float MinBoundsSubdivisionVol = FMath::Pow(100.f, 3.f); // 1m^3
+	float MinBoundsSubdivisionVol = FMath::Pow(125.f, 3.f); // 1m^3
 
 	/** Callback data for water surface contacts will be generated according to these flags */
 	UPROPERTY(EditAnywhere, Config, Category = Callbacks, Meta = (Bitmask, BitmaskEnum = "/Script/Buoyancy.EBuoyancyEventFlags"))
@@ -59,6 +59,22 @@ public:
 	    every frame for as long as any object is submerged. */
 	UPROPERTY(EditAnywhere, Config, Category = Callbacks, Meta = (ClampMin = 0, ForceUnits = "cm/s", EditCondition = "bSubmersionCallbackEnabled"))
 	float MinVelocityForSurfaceTouchCallback = 100.f;
+
+	/** When enabled, cache computed water spline keys in a grid to avoid recalculation */
+	UPROPERTY(EditAnywhere, Config, Category = Splines)
+	bool bEnableSplineKeyCacheGrid = true;
+
+	/** When using EnableSplineKeyCacheGrid, set grid size to this value. Larger means
+		more caching/fewer spline evaluations, but less accurate water surface interactions. */
+	UPROPERTY(EditAnywhere, Config, Category = Splines, Meta = (ClampMin = 1, ForceUnits = "cm"))
+	float SplineKeyCacheGridSize = 300.f;
+
+	/** Number of grid cells a single spline can cache at one time. After this limit has been
+		exceeded, the cache will be reset. If the number of queries against a single body of
+		water exceeds this number, then the caching system will likely fail to continue to
+		provide performance benefits. */
+	UPROPERTY(EditAnywhere, Config, Category = Splines, Meta = (ClampMin = 1))
+	uint32 SplineKeyCacheLimit = 256;
 
 	virtual void PostInitProperties() override;
 

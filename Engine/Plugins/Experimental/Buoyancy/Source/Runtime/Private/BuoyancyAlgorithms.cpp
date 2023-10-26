@@ -221,6 +221,8 @@ namespace BuoyancyAlgorithms
 
 	void ScaleSubmergedVolume(const FPBDRigidsEvolutionGBF& Evolution, const FGeometryParticleHandle* Particle, FRealSingle& SubmergedVol, FRealSingle& TotalVol)
 	{
+		SCOPE_CYCLE_COUNTER(STAT_BuoyancyAlgorithms_ScaleSubmergedVolume)
+
 		// Get submerged object's "particle" volume and "shape" volume.
 		//
 		// The particle volume is the theoretical volume of the particle,
@@ -249,215 +251,11 @@ namespace BuoyancyAlgorithms
 		}
 	}
 
-	bool ComputeSubmergedVolume(const FPBDRigidsEvolutionGBF& Evolution, const FGeometryParticleHandle* ParticleA, const FGeometryParticleHandle* ParticleB, int32 NumSubdivisions, float MinVolume, TSparseArray<TBitArray<>>& SubmergedShapes, float& SubmergedVol, FVec3& SubmergedCoM, float& TotalVol)
-	{
-		if (ComputeSubmergedVolume(ParticleA, ParticleB, NumSubdivisions, MinVolume, SubmergedShapes, SubmergedVol, SubmergedCoM))
-		{
-			ScaleSubmergedVolume(Evolution, ParticleB, SubmergedVol, TotalVol);
-			return true;
-		}
 
-		return false;
-	}
-
-	bool ComputeSubmergedVolume(const FGeometryParticleHandle* ParticleA, const FGeometryParticleHandle* ParticleB, const int32 NumSubdivisions, const float MinVolume, TSparseArray<TBitArray<>>& SubmergedShapes, float& SubmergedVol, FVec3& SubmergedCoM)
+	bool ComputeSubmergedVolume(const FPBDRigidsEvolutionGBF& Evolution, const FGeometryParticleHandle* SubmergedParticle, const FGeometryParticleHandle* WaterParticle, const FVector& WaterX, const FVector& WaterN, int32 NumSubdivisions, float MinVolume, TSparseArray<TBitArray<>>& SubmergedShapes, float& SubmergedVol, FVec3& SubmergedCoM, float& TotalVol)
 	{
 		SCOPE_CYCLE_COUNTER(STAT_BuoyancyAlgorithms_ComputeSubmergedVolume)
 
-		SubmergedVol = 0.f;
-		SubmergedCoM = FVec3::ZeroVector;
-
-		const int32 ParticleIndexB = ParticleB->UniqueIdx().Idx;
-
-		const FImplicitObject* RootImplicitA = ParticleA->GetGeometry();
-		const FImplicitObject* RootImplicitB = ParticleB->GetGeometry();
-
-		const FConstGenericParticleHandle PA = ParticleA;
-		const FConstGenericParticleHandle PB = ParticleB;
-		const FShapeInstanceArray& ShapeInstancesA = ParticleA->ShapeInstances();
-		const FShapeInstanceArray& ShapeInstancesB = ParticleB->ShapeInstances();
-
-		// Particle transforms
-		const FRigidTransform3 ParticleWorldTransformA = PA->GetTransformPQ();
-		const FRigidTransform3 ParticleWorldTransformB = PB->GetTransformPQ();
-		const FRigidTransform3 ParticleTransformAToB = ParticleWorldTransformA.GetRelativeTransform(ParticleWorldTransformB);
-
-		// Detect collisions between Implicit Hierarchy of ParticleA and Implicit Hierarchy of
-		// ParticleB. Given an ImplicitObject from ParticleA (which we know overlaps the bounds
-		// of some parts of ParticleB), run collision detection on ImplicitA against the implicit
-		// object hierarchy of ParticleB.
-		RootImplicitA->VisitLeafObjects(
-			[ParticleA, &ShapeInstancesA, &ParticleWorldTransformA,
-			ParticleB, ParticleIndexB, &ShapeInstancesB, RootImplicitB, &ParticleWorldTransformB, &ParticleTransformAToB,
-			&NumSubdivisions, &MinVolume, &SubmergedShapes, &SubmergedVol, &SubmergedCoM]
-			(const FImplicitObject* ImplicitA, const FRigidTransform3& RelativeTransformA, const int32 RootObjectIndexA, const int32 ObjectIndex, const int32 LeafObjectIndexA)
-		{
-			const FAABB3 RelativeBoundsA = ImplicitA->CalculateTransformedBounds(RelativeTransformA);
-			const FAABB3 ShapeBoundsAInB = RelativeBoundsA.TransformedAABB(ParticleTransformAToB);
-			const int32 ShapeIndexA = (ShapeInstancesA.IsValidIndex(RootObjectIndexA)) ? RootObjectIndexA : 0;
-			const Chaos::FShapeInstance* ShapeInstanceA = ShapeInstancesA[ShapeIndexA].Get();
-			const Chaos::EImplicitObjectType ShapeTypeA = Chaos::Private::GetImplicitCollisionType(ParticleA, ImplicitA);
-
-			// Get the world-space bounds of shape A
-			const FRigidTransform3 ShapeWorldTransformA = RelativeTransformA * ParticleWorldTransformA;
-			const FAABB3 BoxAInA = ImplicitA->BoundingBox();
-			const FAABB3 ShapeWorldBoundsA = BoxAInA.TransformedAABB(ShapeWorldTransformA);
-
-			//
-			// TODO: Dig down into ImplicitB's leaves based on its type, so that
-			// we don't end up going down to the tiniest particles of a GC.
-			//
-
-			// Detect collisions between ImplicitA and Implicit Hierarchy of ParticleB
-			RootImplicitB->VisitOverlappingLeafObjects(ShapeBoundsAInB,
-				[ParticleA, ImplicitA, ShapeInstanceA, LeafObjectIndexA, ShapeTypeA,
-				&ParticleWorldTransformA, &RelativeTransformA,
-				ParticleB, ParticleIndexB, &ShapeInstancesB, &ParticleWorldTransformB,
-				&ShapeWorldTransformA, &BoxAInA, &ShapeWorldBoundsA,
-				&NumSubdivisions, &MinVolume, &SubmergedShapes, &SubmergedVol, &SubmergedCoM]
-				(const FImplicitObject* ImplicitB, const FRigidTransform3& RelativeTransformB, const int32 RootObjectIndexB, const int32 ObjectIndexB, const int32 LeafObjectIndexB)
-			{
-				// Get shape instance data for shape B
-				const int32 ShapeIndexB = (ShapeInstancesB.IsValidIndex(RootObjectIndexB)) ? RootObjectIndexB : 0;
-				const FShapeInstance* ShapeInstanceB = ShapeInstancesB[ShapeIndexB].Get();
-				const EImplicitObjectType ShapeTypeB = Chaos::Private::GetImplicitCollisionType(ParticleB, ImplicitB);
-
-				// If this shape pair doesn't pass a narrow phase test then skip it
-				if (!ShapePairNarrowPhaseFilter(ShapeTypeA, ShapeInstanceA, ShapeTypeB, ShapeInstanceB))
-				{
-					return;
-				}
-
-				// If this shape has already been submerged, skip it to avoid double-counting
-				// any buoyancy contributions.
-				if (IsShapeSubmerged_Internal(SubmergedShapes, ParticleIndexB, ObjectIndexB))
-				{
-					return;
-				}
-
-				// Get shape world-space bounds of shape B
-				const FRigidTransform3 ShapeWorldTransformB = RelativeTransformB * ParticleWorldTransformB;
-				const FAABB3 BoxBInB = ImplicitB->BoundingBox();
-				const FAABB3 ShapeWorldBoundsB = BoxBInB.TransformedAABB(ShapeWorldTransformB);
-
-				// World-bounds AABB intersect check
-				if (!ShapeWorldBoundsA.Intersects(ShapeWorldBoundsB)) { return; }
-
-				// OOBB vs AABB intersect checks
-				const FRigidTransform3 ShapeTransformBToA = ShapeWorldTransformB.GetRelativeTransform(ShapeWorldTransformA);
-				const FAABB3 BoxBInA = BoxBInB.TransformedAABB(ShapeTransformBToA);
-				if (!ImplicitA->BoundingBox().Intersects(BoxBInA)) { return; }
-				const FAABB3 BoxAInB = BoxAInA.TransformedAABB(ShapeTransformBToA.Inverse());
-				if (!ImplicitB->BoundingBox().Intersects(BoxAInB)) { return; }
-
-				// Generate subdivided bounds list
-				TArray<FAABB3> BoxesInB;
-				SubdivideBounds(BoxBInB, NumSubdivisions, MinVolume, BoxesInB);
-
-				// Loop over every subdivision of the shape bounds, counting up submerged portions
-				bool bSubmerged = false;
-				for (const FAABB3& BoxInB : BoxesInB)
-				{
-#if ENABLE_DRAW_DEBUG
-					if (bBuoyancyDebugDraw)
-					{
-						// Subdivided Rigid OOBB
-						Chaos::FDebugDrawQueue::GetInstance().DrawDebugBox(
-							ShapeWorldTransformB.TransformPosition(BoxInB.GetCenter()),
-							BoxInB.Extents() * .5f,
-							ShapeWorldTransformB.GetRotation(),
-							FColor::Green, false, -1.f, SDPG_Foreground, 1.f);
-					}
-#endif
-
-					// Compute approximate submerged bounds & update submersion
-					const float WaterZ = ShapeWorldBoundsA.Max().Z;
-					FAABB3 SubmergedBoundsInB;
-					if (ComputeSubmergedBounds(FVector::UpVector * WaterZ, FVector::UpVector, BoxInB, ShapeWorldTransformB, SubmergedBoundsInB))
-					{
-						// At this point we know that the shape is submerged
-						bSubmerged = true;
-
-						// This bounds box is submerged. Compute it's volume and center of mass
-						// in world space, and add those contributions to the submerged quantity.
-						const FVec3 LeafSubmergedCoM = ShapeWorldTransformB.TransformPosition(SubmergedBoundsInB.GetCenter());
-						const float LeafSubmergedVol = SubmergedBoundsInB.GetVolume();
-						SubmergedVol += LeafSubmergedVol;
-						SubmergedCoM += LeafSubmergedCoM * LeafSubmergedVol;
-
-						// Make sure the volume of the submerged portion never exceeds the total
-						// volume of the leaf bounds
-						const float LeafMaxVol = BoxBInB.GetVolume() + UE_SMALL_NUMBER;
-						ensureAlwaysMsgf(LeafSubmergedVol <= LeafMaxVol, TEXT("BuoyancyAlgorithms::ComputeSubmergedVolume: The volume of the submerged portion of the leaf bounds has somehow exceeded the volume of the overall leaf bounds."));
-
-#if ENABLE_DRAW_DEBUG
-						if (bBuoyancyDebugDraw)
-						{
-							// Submerged Bounds
-							Chaos::FDebugDrawQueue::GetInstance().DrawDebugBox(
-								ShapeWorldTransformB.TransformPosition(SubmergedBoundsInB.GetCenter()),
-								SubmergedBoundsInB.Extents() * .5f,
-								ShapeWorldTransformB.GetRotation(),
-								FColor::Orange, false, -1.f, SDPG_Foreground, 2.f);
-						}
-#endif
-					}
-				}
-
-				// If the shape pair overlapped, flag the submersion
-				if (bSubmerged)
-				{
-					SubmergeShape_Internal(SubmergedShapes, ParticleIndexB, ObjectIndexB);
-
-#if ENABLE_DRAW_DEBUG
-					if (bBuoyancyDebugDraw)
-					{
-						// Water OOBB
-						Chaos::FDebugDrawQueue::GetInstance().DrawDebugBox(
-							ShapeWorldTransformA.TransformPosition(BoxAInA.GetCenter()),
-							BoxAInA.Extents() * .5f,
-							ShapeWorldTransformA.GetRotation(),
-							FColor::Cyan, false, -1.f, SDPG_Foreground, 2.f);
-
-						// Rigid OOBB
-						Chaos::FDebugDrawQueue::GetInstance().DrawDebugBox(
-							ShapeWorldTransformB.TransformPosition(BoxBInB.GetCenter()),
-							BoxBInB.Extents() * .5f,
-							ShapeWorldTransformB.GetRotation(),
-							FColor::Green, false, -1.f, SDPG_Foreground, 2.f);
-					}
-#endif
-				}
-			});
-		});
-
-		// We've accumulated submersion data for all submerged leaves, now we need to
-		// normalize the submerged center of mass
-		if (SubmergedVol > SMALL_NUMBER)
-		{
-			SubmergedCoM /= SubmergedVol;
-
-#if ENABLE_DRAW_DEBUG
-			if (bBuoyancyDebugDraw)
-			{
-				// Draw a point at the submerged CoM
-				Chaos::FDebugDrawQueue::GetInstance().DrawDebugPoint(SubmergedCoM, FColor::Orange, false, -1.f, SDPG_Foreground, 5.f);
-			}
-#endif
-
-			return true;
-		}
-		else
-		{
-			return false;
-		}
-	}
-
-	// This variant of ComputesSubmergedVolume scales the submerged volume
-	// so as not to violate the actual volume of the object, and returns the
-	// total volume calculated.
-	bool ComputeSubmergedVolume(const FPBDRigidsEvolutionGBF& Evolution, const FGeometryParticleHandle* SubmergedParticle, const FGeometryParticleHandle* WaterParticle, const FVector& WaterX, const FVector& WaterN, int32 NumSubdivisions, float MinVolume, TSparseArray<TBitArray<>>& SubmergedShapes, float& SubmergedVol, FVec3& SubmergedCoM, float& TotalVol)
-	{
 		if (ComputeSubmergedVolume(SubmergedParticle, WaterParticle, WaterX, WaterN, NumSubdivisions, MinVolume, SubmergedShapes, SubmergedVol, SubmergedCoM))
 		{
 			ScaleSubmergedVolume(Evolution, SubmergedParticle, SubmergedVol, TotalVol);
@@ -535,6 +333,16 @@ namespace BuoyancyAlgorithms
 			}
 #endif
 
+			// Get the world space position of the shape
+			const FVec3 ShapePos = ShapeWorldTransform.GetTranslation();
+
+			// Get the projection of the shape position onto the water
+			const FVec3 ShapeDiff = ShapePos - WaterX;
+			const FVec3 ShapeSurfacePos = WaterX + ShapeDiff - (WaterN * FVec3::DotProduct(WaterN, ShapeDiff));
+
+			// Get the position and normal on the surface relative to the box
+			const FVec3 ShapeSurfacePosLocal = ShapeWorldTransform.InverseTransformPosition(ShapeSurfacePos);
+			const FVec3 SurfaceNormalLocal = ShapeWorldTransform.InverseTransformVector(WaterN);
 
 			// Generate subdivided bounds list
 			TArray<FAABB3> SubmergedBoxes;
@@ -544,16 +352,9 @@ namespace BuoyancyAlgorithms
 			bool bSubmerged = false;
 			for (const FAABB3& Box : SubmergedBoxes)
 			{
-				// Get the world space position of the shape
-				const FVec3 ShapePos = ShapeWorldTransform.GetTranslation();
-
-				// Get the projection of the shape position onto the water
-				const FVec3 ShapeDiff = ShapePos - WaterX;
-				const FVec3 ShapeSurfacePos = WaterX + ShapeDiff - (WaterN * FVec3::DotProduct(WaterN, ShapeDiff));
-
 				// Compute the portion of the object bounds that are submerged
 				FAABB3 SubmergedBox;
-				if (ComputeSubmergedBounds(ShapeSurfacePos, WaterN, Box, ShapeWorldTransform, SubmergedBox))
+				if (ComputeSubmergedBounds(ShapeSurfacePosLocal, SurfaceNormalLocal, Box, SubmergedBox))
 				{
 					// At this point we know that the shape is submerged
 					bSubmerged = true;
@@ -600,77 +401,73 @@ namespace BuoyancyAlgorithms
 		return false;
 	}
 
-	bool ComputeSubmergedBounds(const FVector& WaterX, const FVector& WaterN, const FAABB3& RigidBox, const FRigidTransform3& RigidTransform, FAABB3& OutSubmergedBounds)
+	bool ComputeSubmergedBounds(const FVector& SurfacePoint, const FVector& SurfaceNormal, const FAABB3& RigidBox, FAABB3& OutSubmergedBounds)
 	{
 		SCOPE_CYCLE_COUNTER(STAT_BuoyancyAlgorithms_ComputeSubmergedBounds)
 
-		// Get a point and a normal direction on the water representing the surface
-		// of the water in the space of the rigid object.
-		const FVec3 SurfaceNormal = RigidTransform.InverseTransformVector(WaterN);
-		const FVec3 SurfacePoint = RigidTransform.InverseTransformPosition(WaterX);
-
 		// Partly submerged object can have at most 10 points intersecting
 		// with the water surface
-		TArray<FVec3, TInlineAllocator<10>> SubmergedVertices;
+		static constexpr uint8 SubmergedVerticesMax = 10;
+		FVec3 SubmergedVertices[SubmergedVerticesMax];
+		uint8 SubmergedVerticesNum = 0;
 
-		// Find bound box indices that are submerged
+		// Find bound box indices that are submerged, and build an array
+		// of box vertices
+		FVec3 Vertices[8];
 		for (int32 VertexIndex = 0; VertexIndex < 8; ++VertexIndex)
 		{
-			const FVec3 Vertex = RigidBox.GetVertex(VertexIndex);
+			FVec3& Vertex = Vertices[VertexIndex];
+			Vertex = RigidBox.GetVertex(VertexIndex);
 			const float Depth = SurfaceNormal.Dot(SurfacePoint - Vertex);
-			if (Depth > 0.f)
+			if (Depth > SMALL_NUMBER)
 			{
-				SubmergedVertices.Add(Vertex);
+				SubmergedVertices[SubmergedVerticesNum++] = Vertex;
 			}
 		}
 
 		// If no box corners were submerged, then there can be no submerged edges so stop here
-		if (SubmergedVertices.Num() == 0)
+		if (SubmergedVerticesNum == 0)
 		{
 			return false;
 		}
 
+		// If all box corners were submerged, then return the original box
+		if (SubmergedVerticesNum == 8)
+		{
+			OutSubmergedBounds = RigidBox;
+			return true;
+		}
+
 		// Find intersections of AABB edges with the surface and add these
 		// points to the submerged verts list
-		TArray<FVec3, TInlineAllocator<6>> SurfaceVertices;
 		for (int32 EdgeIndex = 0; EdgeIndex < 12; ++EdgeIndex)
 		{
 			const FAABBEdge Edge = RigidBox.GetEdge(EdgeIndex);
-			const FVec3& Vert0 = RigidBox.GetVertex(Edge.VertexIndex0);
-			const FVec3& Vert1 = RigidBox.GetVertex(Edge.VertexIndex1);
+			const FVec3 Vert0 = Vertices[Edge.VertexIndex0];
+			const FVec3 Vert1 = Vertices[Edge.VertexIndex1];
 			const float Depth0 = SurfaceNormal.Dot(SurfacePoint - Vert0);
 			const float Depth1 = SurfaceNormal.Dot(SurfacePoint - Vert1);
-			const bool bSubmerged0 = (Depth0 > 0.f);
-			const bool bSubmerged1 = (Depth1 > 0.f);
+			const bool bSubmerged0 = (Depth0 > SMALL_NUMBER);
+			const bool bSubmerged1 = (Depth1 > SMALL_NUMBER);
 			if (bSubmerged0 ^ bSubmerged1)
 			{
 				const float DepthDiff = Depth0 - Depth1;
 				const float DepthAlpha = Depth0 / DepthDiff; // NOTE: Since one is submerged and one is not, we know that |DepthDiff| > 0
 				const FVec3 SurfaceVertex = FMath::Lerp(Vert0, Vert1, DepthAlpha);
-				SubmergedVertices.Add(SurfaceVertex);
+				SubmergedVertices[SubmergedVerticesNum++] = SurfaceVertex;
+
+				// No point in continuing if we've filled our cache - we know
+				// already that the remaining edges will be fruitless
+				if (SubmergedVerticesNum == SubmergedVerticesMax)
+				{
+					break;
+				}
 			}
 		}
-
-		// If we didn't have any submerged vertices, stop here
-		if (SubmergedVertices.Num() == 0)
-		{
-			return false;
-		}
-
-#if ENABLE_DRAW_DEBUG
-		if (bBuoyancyDebugDraw)
-		{
-			// Draw a point at each submerged vertex
-			for (const FVec3& SubmergedVertex : SubmergedVertices)
-			{
-				Chaos::FDebugDrawQueue::GetInstance().DrawDebugPoint(RigidTransform.TransformPosition(SubmergedVertex), FColor::Magenta, false, -1.f, SDPG_Foreground, 3.f);
-			}
-		}
-#endif
 
 		// Build and return an AABB which contains the submerged vertices of the rigid bounds
 		OutSubmergedBounds = FAABB3(SubmergedVertices[0], SubmergedVertices[0]);
-		for (int32 VertexIndex = 1; VertexIndex < SubmergedVertices.Num(); ++VertexIndex)
+		for (uint8 VertexIndex = 1; VertexIndex < SubmergedVerticesNum; ++VertexIndex)
 		{
 			OutSubmergedBounds.GrowToInclude(SubmergedVertices[VertexIndex]);
 		}
