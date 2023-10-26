@@ -32,6 +32,7 @@ namespace UE::ConcertClientSharedSlate
 		DECLARE_DELEGATE_OneParam(FDeleteItems, const TArray<TSharedPtr<TItemType>>& SelectedItems);
 		DECLARE_DELEGATE_TwoParams(FGetItemChildren, TSharedPtr<TItemType> Item, TFunctionRef<void(TSharedPtr<TItemType>)> ProcessChild);
 		DECLARE_DELEGATE(FOnSelectionChanged);
+		
 		DECLARE_DELEGATE_RetVal_OneParam(bool, FCustomFilter, const TSharedPtr<TItemType>& Item);
 		DECLARE_DELEGATE_RetVal_OneParam(bool, FIsSearchableItem, const TSharedPtr<TItemType>& Item);
 
@@ -86,10 +87,8 @@ namespace UE::ConcertClientSharedSlate
 			/** Optional widget to add between the search bar and the table view (e.g. a SBasicFilterBar). */
 			SLATE_NAMED_SLOT(FArguments, RowBelowSearchBar)
 
-			/** Optional, alternate content to show instead of the tree view when ContentToDisplay returns EContent::Custom. */
-			SLATE_NAMED_SLOT(FArguments, TreeAlternateContent)
-			/** Optional attribute that decides whether TreeAlternateContent is displayed instead of the tree view */
-			SLATE_ATTRIBUTE(EContent, ContentToDisplay)
+			/** Optional, alternate content to show instead of the tree view when there are no rows. */
+			SLATE_NAMED_SLOT(FArguments, NoItemsContent)
 		SLATE_END_ARGS()
 
 		void Construct(const FArguments& InArgs)
@@ -244,24 +243,17 @@ namespace UE::ConcertClientSharedSlate
 	template <typename TItemType>
 	TSharedRef<SWidget> SReplicationTreeView<TItemType>::CreateTreeView(const FArguments& InArgs)
 	{
-		return SNew(SBorder)
+		TSharedPtr<SVerticalBox> VerticalBox;
+		
+		TSharedRef<SWidget> Result = SNew(SBorder)
 			.BorderImage(FAppStyle::Get().GetBrush("ToolPanel.GroupBorder"))
 			.BorderBackgroundColor(FSlateColor(FLinearColor(0.6, 0.6, 0.6)))
 			.Padding(0)
 			[
-				SNew(SWidgetSwitcher)
-				.WidgetIndex_Lambda([GetContent = InArgs._ContentToDisplay]()
-				{
-					const bool bHasValue = GetContent.IsSet() || GetContent.IsBound();
-					return bHasValue && GetContent.Get() == EContent::Custom ? 0 : 1; 
-				})
-
-				+SWidgetSwitcher::Slot()
-				[
-					InArgs._TreeAlternateContent.Widget
-				]
+				SAssignNew(VerticalBox, SVerticalBox)
 				
-				+SWidgetSwitcher::Slot()
+				+SVerticalBox::Slot()
+				.FillHeight(1.f)
 				[
 					SAssignNew(TreeView, STreeView<TSharedPtr<TItemType>>)
 					.OnGetChildren(this, &SReplicationTreeView::GetRowChildren)
@@ -273,7 +265,25 @@ namespace UE::ConcertClientSharedSlate
 					.AllowOverscroll(EAllowOverscroll::No)
 					.HeaderRow(CreateHeaderRow(InArgs))
 				]
+
+				+SVerticalBox::Slot()
+				.FillHeight(1.f)
+				.HAlign(HAlign_Center)
+				.VAlign(VAlign_Center)
+				.Padding(0.f, 0.f, 0.f, 20.f)
+				[
+					SNew(SWidgetSwitcher)
+					.WidgetIndex_Lambda([this](){ return AllRootItems->IsEmpty() ? 1 : 0; })
+					.Visibility_Lambda([this](){ return AllRootItems->IsEmpty() || FilteredRootItems.IsEmpty() ? EVisibility::Visible : EVisibility::Collapsed; })
+					+SWidgetSwitcher::Slot() [ SNew(STextBlock).Text(LOCTEXT("AllFiltered", "All items are filtered.")) ]
+					+SWidgetSwitcher::Slot()
+					[
+						InArgs._NoItemsContent.Widget
+					]
+				]
 			];
+		
+		return Result;
 	}
 
 	template <typename TItemType>

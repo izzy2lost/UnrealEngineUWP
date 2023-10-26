@@ -66,6 +66,9 @@ namespace UE::ConcertClientSharedSlate
 			SLATE_NAMED_SLOT(FArguments, LeftOfObjectSearchBar)
 			/** Optional widget to add to the left of the property list search bar. */
 			SLATE_NAMED_SLOT(FArguments, LeftOfPropertySearchBar)
+
+			/** Optional text to display when no object is in the outliner. Defaults to "No objects to display." "*/
+			SLATE_ATTRIBUTE(FText, NoOutlinerObjects)
 		SLATE_END_ARGS()
 
 		void Construct(const FArguments& InArgs, TSharedRef<IObjectToPropertiesModel> InPropertiesModel);
@@ -115,7 +118,7 @@ namespace UE::ConcertClientSharedSlate
 
 		// Widget creation helpers
 		TSharedRef<SWidget> CreateContentWidget(const FArguments& InArgs);
-		TSharedRef<SWidget> CreateActorsSection(const FArguments& InArgs);
+		TSharedRef<SWidget> CreateOutlinerSection(const FArguments& InArgs);
 		TSharedRef<SWidget> CreatePropertiesSection(const FArguments& InArgs);
 
 		/** Sets RootObjectRowData to all non-root nodes from ObjectRowData. */

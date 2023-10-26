@@ -5,13 +5,13 @@
 #include "ConcertFrontendUtils.h"
 #include "Replication/Editor/Model/IObjectToPropertiesModel.h"
 #include "Replication/Editor/Model/ReplicatedObjectData.h"
-#include "Replication/Editor/Model/ReplicatedPropertyData.h"
 #include "Replication/Editor/View/ObjectViewer/Property/SReplicatedPropertiesView.h"
 #include "Replication/Editor/View/ObjectViewer/Tree/SelectionViewerColumns.h"
 #include "SSubobjectAndPropertySection.h"
 
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SSplitter.h"
+#include "Widgets/Layout/SWidgetSwitcher.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Text/STextBlock.h"
 
@@ -137,7 +137,7 @@ namespace UE::ConcertClientSharedSlate
 			+SSplitter::Slot()
 			 .Value(1.f)
 			[
-				CreateActorsSection(InArgs)
+				CreateOutlinerSection(InArgs)
 			]
 
 			+SSplitter::Slot()
@@ -148,7 +148,7 @@ namespace UE::ConcertClientSharedSlate
 			];
 	}
 
-	TSharedRef<SWidget> SReplicationStreamViewer::CreateActorsSection(const FArguments& InArgs)
+	TSharedRef<SWidget> SReplicationStreamViewer::CreateOutlinerSection(const FArguments& InArgs)
 	{
 		TArray Columns
 		{
@@ -158,6 +158,9 @@ namespace UE::ConcertClientSharedSlate
 		};
 		Columns.Append(InArgs._AdditionalObjectColumns);
 		
+		const bool bHasNoOutlinerObjectsAttribute = InArgs._NoOutlinerObjects.IsBound() || InArgs._NoOutlinerObjects.IsSet(); 
+		const TAttribute<FText> NoObjectsAttribute = bHasNoOutlinerObjectsAttribute ? InArgs._NoOutlinerObjects : LOCTEXT("NoObjects", "No objects to display");
+
 		return SAssignNew(ReplicatedObjects, SReplicationTreeView<FReplicatedObjectData>)
 			.RootItemsSource(&RootObjectRowData)
 			.OnGetChildren(this, &SReplicationStreamViewer::GetObjectRowChildren)
@@ -172,10 +175,8 @@ namespace UE::ConcertClientSharedSlate
 			.Columns(Columns)
 			.ExpandableColumnLabel(ReplicationColumns::TopLevel::LabelColumnId)
 			.SelectionMode(ESelectionMode::Multi)
-			.LeftOfSearchBar()
-			[
-				InArgs._LeftOfObjectSearchBar.Widget
-			];
+			.LeftOfSearchBar() [ InArgs._LeftOfObjectSearchBar.Widget ]
+			.NoItemsContent() [ SNew(STextBlock).Text(NoObjectsAttribute) ];
 	}
 
 	TSharedRef<SWidget> SReplicationStreamViewer::CreatePropertiesSection(const FArguments& InArgs)

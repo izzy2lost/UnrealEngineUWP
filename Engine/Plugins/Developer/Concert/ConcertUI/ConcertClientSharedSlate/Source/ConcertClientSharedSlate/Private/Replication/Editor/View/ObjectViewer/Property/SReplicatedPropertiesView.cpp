@@ -83,27 +83,8 @@ namespace UE::ConcertClientSharedSlate
 						InArgs._LeftOfSearchBar.Widget
 					]
 				]
-				.RowBelowSearchBar()
-				[
-					FilterBar.ToSharedRef()
-				]
-				.TreeAlternateContent()
-				[
-					SNew(SHorizontalBox)
-					+SHorizontalBox::Slot()
-					.HAlign(HAlign_Center)
-					.VAlign(VAlign_Center)
-					[
-						SNew(STextBlock) 
-						.Text(this, &SReplicatedPropertiesView::GetAllFilteredText)
-					]
-				]
-				.ContentToDisplay_Lambda([this]()
-				{
-					return !SelectedObjectsAttribute.Get().IsEmpty() && ReplicatedProperties->GetFilteredRootItems().IsEmpty()
-						? SReplicationTreeView<FReplicatedPropertyData>::EContent::Custom
-						: SReplicationTreeView<FReplicatedPropertyData>::EContent::TreeView;
-				})
+				.RowBelowSearchBar() [ FilterBar.ToSharedRef() ]
+				.NoItemsContent() [ SNew(STextBlock).Text(this, &SReplicatedPropertiesView::GetAllFilteredText) ]
 		];
 
 		// For better UX, hide certain properties by default (e.g. why would you want to replicate bools?)

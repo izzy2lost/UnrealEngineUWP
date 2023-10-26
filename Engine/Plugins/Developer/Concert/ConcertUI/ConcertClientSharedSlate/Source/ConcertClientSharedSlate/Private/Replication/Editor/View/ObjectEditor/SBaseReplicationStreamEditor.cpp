@@ -18,7 +18,7 @@
 #include "UObject/Class.h"
 #include "Widgets/SBoxPanel.h"
 
-#define LOCTEXT_NAMESPACE "SObjectToPropertyEditor"
+#define LOCTEXT_NAMESPACE "SBaseReplicationStreamEditor"
 
 namespace UE::ConcertClientSharedSlate
 {
@@ -67,6 +67,7 @@ namespace UE::ConcertClientSharedSlate
 				[
 					InArgs._LeftOfPropertySearchBar.Widget
 				]
+				.NoOutlinerObjects(LOCTEXT("NoObjects", "Add objects to replicate"))
 		];
 	}
 
