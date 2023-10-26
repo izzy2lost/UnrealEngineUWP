@@ -34,10 +34,10 @@ inline uint32 FEmergentTypesCacheKeyFuncs::GetKeyHash(const VUniqueStringSet& Ke
 	return GetTypeHash(Key);
 }
 
-inline VClass& VClass::New(FAllocationContext Context, VFields::FieldsMap&& InFields, const TArray<VClass*>& InInherited)
+inline VClass& VClass::New(FAllocationContext Context, const TArray<VClass*>& InInherited, VFields::FieldsMap&& InFields, VProcedure* Blocks)
 {
 	const size_t Size = AllocationSize(InInherited.Num());
-	return *new (Context.Allocate(FHeap::DestructorSpace, Size)) VClass(Context, MoveTemp(InFields), InInherited);
+	return *new (Context.Allocate(FHeap::DestructorSpace, Size)) VClass(Context, InInherited, MoveTemp(InFields), Blocks);
 }
 
 inline uint32 VClass::NumInherited() const
@@ -45,9 +45,11 @@ inline uint32 VClass::NumInherited() const
 	return NumInheritedClasses;
 }
 
-inline VClass::VClass(FAllocationContext Context, VFields::FieldsMap&& InFields, const TArray<VClass*>& InInherited)
+inline VClass::VClass(FAllocationContext Context, const TArray<VClass*>& InInherited, VFields::FieldsMap&& InFields, VProcedure* InBlocks)
 	: VHeapValue(Context, VEmergentTypeCreator::GetOrCreate(Context, VTypeCreator::GetOrCreate<VTypeClass>(Context), &StaticCppClassInfo))
 	, Fields([&InFields, &InInherited]() {
+		// Based on the chain of inheritance we want later derived classes to override the values of base classes
+		// earlier in the inheritance chain, followed by the actual fields being requested to archetype instantiate this class with.
 		VFields::FieldsMap Result;
 		Result.Reserve(InFields.Num() + InInherited.Num()); // Not the greatest way to predict the size needed.
 		for (const VClass* Inherited : InInherited)
@@ -57,6 +59,7 @@ inline VClass::VClass(FAllocationContext Context, VFields::FieldsMap&& InFields,
 		Result.Append(InFields);
 		return Result;
 	}()) // Note that the offset-based fields are _not_ re-ordered yet at this point!
+	, Blocks(Context, InBlocks)
 	, NumInheritedClasses(InInherited.Num())
 {
 	uint32 Index = 0;

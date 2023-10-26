@@ -123,8 +123,6 @@ struct VShape : VCell
 
 	uint64 GetNumFields() const;
 
-	uint64 GetNumIndexedFields() const;
-
 	bool operator==(const VShape& Other) const;
 
 	friend uint32 GetTypeHash(const VShape& Shape);
@@ -142,11 +140,11 @@ private:
 	/// We can't mark this map as `const` because we need to be able to mark the entries and names to hold strong references to them.
 	VFields::FieldsMap Fields;
 
+	uint64 NumIndexedFields;
+
 	/// Overridden because we want to ensure that the `TMap` of offsets above gets de-allocated
 	/// once the shape object lifetime ends. Otherwise it would not get its destructor called.
 	static void RunDestructorImpl(VCell* This);
-
-	uint64 NumIndexedFields;
 
 	friend struct VClass;
 	friend struct VObject;

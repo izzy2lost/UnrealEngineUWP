@@ -16,13 +16,8 @@ namespace Verse
 {
 inline VObject& VObject::New(FAllocationContext Context, VEmergentType& InEmergentType)
 {
-	// `Data` is a flexible array member of `VObject`, which means it's not accounted for in the `sizeof(VObject)` result.
-	// We therefore calculate the actual size based off the number of fields. `TWriteBarrier` just wraps around
-	// its templated type, so `sizeof(VRestValue)` is what the actual size required is.
-	const uint64 NumIndexedFields = InEmergentType.Shape->GetNumIndexedFields();
-	// Cache this so that subsequent queries don't have to iterate the fields again.
-	InEmergentType.Shape->NumIndexedFields = NumIndexedFields;
-	const uint64 Size = sizeof(VObject) + (NumIndexedFields * sizeof(VRestValue));
+	const uint64 NumIndexedFields = InEmergentType.Shape->NumIndexedFields;
+	const uint64 Size = AllocationSize(NumIndexedFields);
 	return *new (Context.AllocateFastCell(Size)) VObject(Context, InEmergentType);
 }
 
@@ -73,6 +68,9 @@ inline void VObject::SetField(FAllocationContext Context, VUniqueString& Name, V
 
 inline uint64 VObject::AllocationSize(const uint64 NumIndexedFields)
 {
+	// `Data` is a flexible array member of `VObject`, which means it's not accounted for in the `sizeof(VObject)` result.
+	// We therefore calculate the actual size based off the number of fields. `TWriteBarrier` just wraps around
+	// its templated type, so `sizeof(VRestValue)` is what the actual size required is.
 	return sizeof(VObject) + (NumIndexedFields * sizeof(VRestValue));
 }
 
@@ -81,7 +79,7 @@ inline VObject::VObject(FAllocationContext Context, VEmergentType& InEmergentTyp
 {
 	// We only need to allocate space for indexed fields since we are raising constants to the shape
 	// and not storing their data on per-object instances.
-	const uint64 NumIndexedFields = InEmergentType.Shape->NumIndexedFields; // This should already have been cached.
+	const uint64 NumIndexedFields = InEmergentType.Shape->NumIndexedFields;
 	for (uint64 Index = 0; Index < NumIndexedFields; ++Index)
 	{
 		// TODO SOL-4222: Pipe through proper split depth here.

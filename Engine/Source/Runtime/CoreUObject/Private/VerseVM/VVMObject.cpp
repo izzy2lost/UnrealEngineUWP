@@ -7,6 +7,7 @@
 #include "VerseVM/Inline/VVMUTF8StringInline.h"
 #include "VerseVM/VVMCppClassInfo.h"
 #include "VerseVM/VVMEmergentTypeCreator.h"
+#include "VerseVM/VVMVar.h"
 
 namespace Verse
 {
@@ -39,16 +40,7 @@ VObject& VObject::New(FAllocationContext Context, VClass& InClass, VUniqueString
 
 	// At this point, the new emergent type + shape contains all the re-ordered fields that combine the class and (if any)
 	// its inherited class fields and values as well.
-	const uint64 NumIndexedFields = NewEmergentType.Shape->GetNumIndexedFields();
-	NewEmergentType.Shape->NumIndexedFields = NumIndexedFields;
-	const uint64 SizeToAllocate = AllocationSize(NumIndexedFields);
-	VObject* NewObject = new (Context.AllocateFastCell(SizeToAllocate)) VObject(Context, NewEmergentType);
-
-	// Allocate the space for each offset's datum.
-	for (uint64 Index = 0; Index < NumIndexedFields; ++Index)
-	{
-		new (&NewObject->Data[Index]) VRestValue(0);
-	}
+	VObject& NewObject = VObject::New(Context, NewEmergentType);
 
 	// For fields that are not being overridden and are offset-based, we must grab the default values from the class's
 	// shape and copy them to the object so that the object can continue to set them in the future.
@@ -65,7 +57,7 @@ VObject& VObject::New(FAllocationContext Context, VClass& InClass, VUniqueString
 			{
 				case EFieldType::Mutable:
 				case EFieldType::Offset:
-					NewObject->Data[Pair.Value.Index].Set(Context, InValues[ElementId.AsInteger()]);
+					NewObject.Data[Pair.Value.Index].Set(Context, InValues[ElementId.AsInteger()]);
 					break;
 				case EFieldType::Constant:
 				default:
@@ -86,7 +78,14 @@ VObject& VObject::New(FAllocationContext Context, VClass& InClass, VUniqueString
 					VValue PairValue = Pair.Value.Constant.Get();
 					if (PairValue)
 					{
-						NewObject->Data[Pair.Value.Index].Set(Context, PairValue);
+						// TODO: This should be subsumed by more general support for effectful initializers.
+						if (Pair.Value.Type == EFieldType::Mutable)
+						{
+							VVar& Var = VVar::New(Context);
+							Var.SetNonTransactionally(Context, PairValue);
+							PairValue = Var;
+						}
+						NewObject.Data[Pair.Value.Index].Set(Context, PairValue);
 					}
 					break;
 				}
@@ -98,7 +97,7 @@ VObject& VObject::New(FAllocationContext Context, VClass& InClass, VUniqueString
 		}
 	}
 
-	return *NewObject;
+	return NewObject;
 }
 
 } // namespace Verse

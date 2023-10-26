@@ -152,23 +152,4 @@ inline const VFields::FieldsMap& VShape::GetFields() const
 	return Fields;
 }
 
-inline uint64 VShape::GetNumIndexedFields() const
-{
-	uint64 Result = 0;
-	for (const auto& Pair : Fields)
-	{
-		switch (Pair.Value.Type)
-		{
-			case EFieldType::Offset:
-			case EFieldType::Mutable:
-				++Result;
-				break;
-			case EFieldType::Constant:
-			default:
-				break;
-		}
-	}
-	return Result;
-}
-
 } // namespace Verse

@@ -1251,19 +1251,15 @@ class FInterpreter
 		// We explicitly copy here because we don't want to move the value out of the register, since
 		// subsequent bytecode might be relying on it!
 		VFields::FieldsMap FieldsCopy(Fields->GetFields());
-		VClass& NewClass = VClass::New(Context, MoveTemp(FieldsCopy), InheritedClasses);
+		VClass& NewClass = VClass::New(Context, InheritedClasses, MoveTemp(FieldsCopy), nullptr);
 		DEF(Op.Dest, NewClass);
 
 		return {FOpResult::Normal};
 	}
 
 	template <typename OpType>
-	FOpResult NewObjectImpl(OpType& Op)
+	FOpResult NewObjectImpl(OpType& Op, VClass& Class)
 	{
-		const VValue& ClassOperand = GetOperand(Op.Class);
-		REQUIRE_CONCRETE(ClassOperand);
-		VClass& Class = ClassOperand.StaticCast<VClass>();
-
 		const uint32 NumFields = Op.Fields->Num();
 		const uint32 NumValues = Op.Values.Num();
 
@@ -1678,7 +1674,6 @@ class FInterpreter
 				OP_IMPL(MapKey)
 				OP_IMPL(MapValue)
 				OP_IMPL(NewClass)
-				OP_IMPL(NewObject)
 				OP_IMPL(LoadField)
 				OP_IMPL(UnifyField)
 
@@ -1810,6 +1805,25 @@ class FInterpreter
 
 					// TODO: Add a test where this unification fails at the top level with no return continuation.
 					DEF(ReturnSlot, Value);
+				}
+				END_OP_CASE()
+
+				BEGIN_OP_CASE(NewObject)
+				{
+					VValue ClassOperand = GetOperand(Op.Class);
+					REQUIRE_CONCRETE(ClassOperand);
+					VClass& Class = ClassOperand.StaticCast<VClass>();
+
+					OP_IMPL_HELPER(NewObject, Class);
+
+					if (VProcedure* Blocks = Class.GetBlocks())
+					{
+						VFunction& Function = VFunction::New(Context, *Blocks, 0);
+						VValue ReturnSlot = VValue::Placeholder(VPlaceholder::New(Context, 0));
+						VFrame& NewFrame = MakeFrameForCallee(Context, State.Frame, NextPC, ReturnSlot, Function, 0,
+							[](uint32 Arg) -> VValue { VERSE_UNREACHABLE(); });
+						UpdateExecutionState(&NewFrame, Function.GetProcedure().GetOpsBegin(), *State.FailureContext);
+					}
 				}
 				END_OP_CASE()
 

@@ -13,6 +13,7 @@
 namespace Verse
 {
 struct VUniqueString;
+struct VProcedure;
 
 // TODO: (yiliang.siew) Need to have enough info so that can do dynamic casts in Verse at runtime.
 // TODO: (yiliang.siew) Maybe use this to store the inherited types instead?
@@ -56,18 +57,20 @@ struct VClass : VHeapValue
 	/**
 	 * Creates a new class.
 	 *
-	 * @param InFields 	This should contain the field names and default values (if any), along with the attributes of each entry.
 	 * @param InInherited 	This should be an array of the other classes, in order of inheritance, that this class inherits from.
+	 * @param InFields 	This should contain the field names and default values (if any), along with the attributes of each entry.
 	 */
-	static VClass& New(FAllocationContext Context, VFields::FieldsMap&& InFields, const TArray<VClass*>& InInherited);
+	static VClass& New(FAllocationContext Context, const TArray<VClass*>& InInherited, VFields::FieldsMap&& InFields, VProcedure* Blocks);
 
 	uint32 NumInherited() const;
 
 	/// Vends an emergent type based on requested fields to override in the class archetype instantiation.
 	VEmergentType& GetOrCreateEmergentTypeForArchetype(FAllocationContext Context, VUniqueStringSet& ArchetypeFieldNames);
 
+	VProcedure* GetBlocks() { return Blocks.Get(); }
+
 private:
-	VClass(FAllocationContext Context, VFields::FieldsMap&& InFields, const TArray<VClass*>& InInherited);
+	VClass(FAllocationContext Context, const TArray<VClass*>& InInherited, VFields::FieldsMap&& InFields, VProcedure* Blocks);
 	~VClass() = default;
 
 	/// Gets the combined fields (i.e. including inherited classes) and values. Can also specify additional fields
@@ -84,6 +87,9 @@ private:
 
 	/// This class's fields and default values (if any). This also includes the inherited classes' fields/values.
 	const VFields::FieldsMap Fields;
+
+	/// A procedure for the collection of blocks in the class body.
+	TWriteBarrier<VProcedure> Blocks;
 
 	// TODO: (yiliang.siew) This should be a weak map when we can support it in the GC. https://jira.it.epicgames.com/browse/SOL-5312
 	/// This is a cache that allows for fast vending of emergent types based on the fields being overridden.

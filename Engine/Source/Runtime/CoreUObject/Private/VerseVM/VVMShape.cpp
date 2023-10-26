@@ -74,6 +74,7 @@ VShape::VShape(FAllocationContext Context, VFields::FieldsMap&& InFields)
 				break;
 		}
 	}
+	NumIndexedFields = CurrentIndex;
 }
 
 template <typename TVisitor>

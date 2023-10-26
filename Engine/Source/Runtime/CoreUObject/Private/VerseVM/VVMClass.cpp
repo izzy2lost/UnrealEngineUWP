@@ -8,6 +8,7 @@
 #include "VerseVM/Inline/VVMShapeInline.h"
 #include "VerseVM/Inline/VVMUTF8StringInline.h"
 #include "VerseVM/VVMMarkStackVisitor.h"
+#include "VerseVM/VVMProcedure.h"
 #include "VerseVM/VVMTypeCreator.h"
 #include "VerseVM/VVMVisitorWrapper.h"
 
@@ -19,13 +20,6 @@ DEFINE_VCPPCLASSINFO(VClass, VHeapValue, TEXT("Class"));
 VFields::FieldsMap VClass::GetCombinedFields(FAllocationContext Context, const VUniqueStringSet& InFieldNames) const
 {
 	VFields::FieldsMap AllFields{Fields};
-	// Based on the chain of inheritance we want later derived classes to override the values of base classes
-	// earlier in the inheritance chain, followed by the actual fields being requested to archetype instantiate this class with.
-	for (uint32 Index = 0; Index < NumInherited(); ++Index)
-	{
-		const TWriteBarrier<VClass>& CurrentInherited = Inherited()[Index];
-		AllFields.Append(CurrentInherited->Fields);
-	}
 
 	for (const TWriteBarrier<VUniqueString>& FieldName : InFieldNames)
 	{
@@ -75,6 +69,8 @@ template <typename TVisitor>
 void VClass::VisitReferencesImpl(TVisitor& Visitor)
 {
 	VHeapValue::VisitReferences(this, Visitor);
+
+	Visitor.Visit(Blocks);
 
 	// Mark the inherited classes to ensure that they don't get swept during GC since we want to keep their information
 	// around when anything needs to query the class inheritance hierarchy.
