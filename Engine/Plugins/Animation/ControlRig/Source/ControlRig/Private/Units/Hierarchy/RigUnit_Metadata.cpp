@@ -190,7 +190,7 @@ FRigBaseMetadata* FRigDispatch_GetMetadata::FindMetadata(const FRigVMExtendedExe
 	const FControlRigExecuteContext& ExecuteContext = InContext.GetPublicData<FControlRigExecuteContext>();
 	if(Cache.UpdateCache(InKey, ExecuteContext.Hierarchy))
 	{
-		if(const FRigBaseElement* Element = ExecuteContext.Hierarchy->Get(Cache.GetIndex()))
+		if(FRigBaseElement* Element = ExecuteContext.Hierarchy->Get(Cache.GetIndex()))
 		{
 			// first try to find the metadata in the namespace
 			const FName Name = ExecuteContext.AdaptMetadataName(bUseNameSpace, InName);

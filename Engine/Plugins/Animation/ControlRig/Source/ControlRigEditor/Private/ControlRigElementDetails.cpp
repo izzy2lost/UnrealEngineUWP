@@ -1221,10 +1221,12 @@ void FRigBaseElementDetails::CustomizeMetadata(IDetailLayoutBuilder& DetailBuild
 		return;
 	}
 
+	URigHierarchy* Hierarchy = nullptr;
 	if (!MetadataHandle.IsValid())
 	{
 		const FPerElementInfo& Info = PerElementInfos[0];
-		URigHierarchy* Hierarchy = Info.IsValid() ? Info.GetHierarchy() : nullptr;
+		
+		Hierarchy = Info.IsValid() ? Info.GetHierarchy() : nullptr;
 		if (!Hierarchy)
 		{
 			return;
@@ -1241,17 +1243,19 @@ void FRigBaseElementDetails::CustomizeMetadata(IDetailLayoutBuilder& DetailBuild
 		});
 	}
 	
-	const FRigBaseElement* Element = PerElementInfos[0].Element.Get();
-	if(Element->NumMetadata() == 0)
+	FRigBaseElement* Element = PerElementInfos[0].Element.Get();
+	TArray<FName> MetadataNames = Element->GetOwner()->GetMetadataNames(Element->GetKey());
+	
+	if(MetadataNames.IsEmpty())
 	{
 		return;
 	}
 
 	IDetailCategoryBuilder& MetadataCategory = DetailBuilder.EditCategory(TEXT("Metadata"), LOCTEXT("Metadata", "Metadata"));
-	for(int32 Index=0;Index<Element->NumMetadata();Index++)
+	for(FName MetadataName: MetadataNames)
 	{
-		FRigBaseMetadata* Metadata = Element->GetMetadata(Index);
-		TSharedPtr<FStructOnScope> StructOnScope = MakeShareable(new FStructOnScope(Metadata->GetMetadataStruct(), (uint8*)Metadata));
+		FRigBaseMetadata* Metadata = Element->GetMetadata(MetadataName);
+		TSharedPtr<FStructOnScope> StructOnScope = MakeShareable(new FStructOnScope(Metadata->GetMetadataStruct(), reinterpret_cast<uint8*>(Metadata)));
 
 		FAddPropertyParams Params;
 		Params.CreateCategoryNodes(false);

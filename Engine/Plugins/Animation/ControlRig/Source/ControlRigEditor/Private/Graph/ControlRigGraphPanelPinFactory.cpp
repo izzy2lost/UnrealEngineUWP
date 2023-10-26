@@ -357,9 +357,9 @@ TSharedPtr<SGraphPin> FControlRigGraphPanelPinFactory::CreatePin_Internal(UEdGra
 										for(int32 ElementIndex=0; ElementIndex < ControlRig->GetHierarchy()->Num(); ElementIndex++)
 										{
 											const FRigBaseElement* OtherElement = ControlRig->GetHierarchy()->Get(ElementIndex);
-											for(int32 MetadataIndex = 0; MetadataIndex < OtherElement->NumMetadata(); MetadataIndex++)
+											for(FName MetadataName: ControlRig->GetHierarchy()->GetMetadataNames(OtherElement->GetKey()))
 											{
-												Names.AddUnique(OtherElement->GetMetadata(MetadataIndex)->GetName());
+												Names.AddUnique(MetadataName);
 											}
 										}
 

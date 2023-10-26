@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
-#include "CoreTypes.h"
 #include "Misc/Guid.h"
 
 // Custom serialization version for changes made in Dev-Anim stream
@@ -92,6 +91,9 @@ struct CONTROLRIG_API FControlRigObjectVersion
 
 		// Last bit required for Control supporting preferred rotation order
 		RigHierarchyControlPreferredRotationOrderFlag,
+
+		// Element metadata is now stored on URigHierarchy, rather than FRigBaseElement
+		RigHierarchyStoresElementMetadata,
 
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,

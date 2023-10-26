@@ -670,7 +670,7 @@ private:
 		{
 			return *Bone;
 		}
-		return FRigBoneElement();
+		return FRigBoneElement{};
 	}	
 	
 	/**
@@ -684,7 +684,7 @@ private:
 		{
 			return *Control;
 		}
-		return FRigControlElement();
+		return FRigControlElement{};
 	}	
 
 	/**
@@ -698,7 +698,7 @@ private:
 		{
 			return *Null;
 		}
-		return FRigNullElement();
+		return FRigNullElement{};
 	}
 	
 public:	
@@ -1034,7 +1034,7 @@ public:
 	 * @param InItem The element key to return the metadata keys for
 	 */
 	UFUNCTION(BlueprintPure, Category = URigHierarchy)
-	TArray<FName> GetMetadataNames(FRigElementKey InItem);
+	TArray<FName> GetMetadataNames(FRigElementKey InItem) const;
 
 	/**
 	 * Returns the type of metadata given its name the item it is stored under
@@ -1042,7 +1042,7 @@ public:
 	 * @param InMetadataName The name of the metadata to return the type for
 	 */
 	UFUNCTION(BlueprintPure, Category = URigHierarchy)
-	ERigMetadataType GetMetadataType(FRigElementKey InItem, FName InMetadataName);
+	ERigMetadataType GetMetadataType(FRigElementKey InItem, FName InMetadataName) const;
 
 	/**
 	 * Removes the metadata under a given element 
@@ -3429,28 +3429,12 @@ public:
 	/**
 	 * Returns the metadata version of this hierarchy
 	 */
-	uint16 GetMetadataVersion() const { return MetadataVersion; }
-
-	/**
-	 * Increments the metadata version
-	 */
-	void IncrementMetadataVersion(const FRigElementKey& InKey, const FName& InName)
-	{
-		MetadataVersion += 1 + (int32)HashCombine(GetTypeHash(InKey), GetTypeHash(InName));
-	}
+	uint32 GetMetadataVersion() const { return MetadataVersion; }
 
 	/**
      * Returns the metadata tag version of this hierarchy
 	 */
-	uint16 GetMetadataTagVersion() const { return MetadataTagVersion; }
-
-	/**
-	 * Increments the metadataTag version
-	 */
-	void IncrementMetadataTagVersion(const FRigElementKey& InKey, const FName& InTag, bool bAdded)
-	{
-		MetadataTagVersion += 1 + (int32)HashCombine(GetTypeHash(InKey), GetTypeHash(InTag));
-	}
+	uint32 GetMetadataTagVersion() const { return MetadataTagVersion; }
 
 	/**
 	 * Returns the current / initial pose of the hierarchy
@@ -4059,12 +4043,10 @@ private:
 	template<typename ElementType = FRigBaseElement>
 	ElementType* NewElement(int32 Num = 1)
 	{
-		ElementType* NewElements = (ElementType*)FMemory::Malloc(sizeof(ElementType) * Num);
+		ElementType* NewElements = static_cast<ElementType*>(FMemory::Malloc(sizeof(ElementType) * Num));
 		for(int32 Index=0;Index<Num;Index++)
 		{
-			new(&NewElements[Index]) ElementType();
-			NewElements[Index].MetadataChangedDelegate.BindStatic(&URigHierarchy::OnMetadataChanged_Static, this);
-			NewElements[Index].MetadataTagChangedDelegate.BindStatic(&URigHierarchy::OnMetadataTagChanged_Static, this);
+			new(&NewElements[Index]) ElementType(this);
 		}
 		NewElements[0].OwnedInstances = Num;
 		return NewElements;
@@ -4113,7 +4095,7 @@ private:
 	 * created or removed (not when the metadata values changes)
 	 */
 	UPROPERTY(transient)
-	uint16 MetadataVersion;
+	uint32 MetadataVersion;
 
 	/**
 	 * The metadata version of the hierarchy changes when metadata is being
@@ -4135,8 +4117,27 @@ private:
 	// Storage for the elements
 	mutable TArray<TArray<FRigBaseElement*>> ElementsPerType;
 
+	//
+	struct FMetaDataStorage
+	{
+		TMap<FName, FRigBaseMetadata*> MetadataMap;
+
+		void Reset();
+		void Serialize(FArchive& Ar);
+
+		friend FArchive& operator<<(FArchive& Ar, FMetaDataStorage& Storage)
+		{
+			Storage.Serialize(Ar);
+			return Ar;
+		}
+	};
+
 	// Managed lookup from Key to Index
 	TMap<FRigElementKey, int32> IndexLookup;
+
+	TMap<FRigElementKey, FString> UserDefinedElementName;
+
+	TMap<FRigElementKey, FMetaDataStorage> ElementMetadata;
 
 	// Static empty element array used for ref returns
 	static const FRigBaseElementChildrenArray EmptyElementArray;
@@ -4513,9 +4514,9 @@ private:
 	{
 		if(InElement)
 		{
-			if(FRigBaseMetadata* Metadata = InElement->GetMetadata(InMetadataName, InType))
+			if(const FRigBaseMetadata* Metadata = FindMetadataForElement(InElement->GetKey(), InMetadataName, InType))
 			{
-				return *(const T*)Metadata->GetValueData();
+				return *static_cast<const T*>(Metadata->GetValueData());
 			}
 		}
 		return DefaultValue;
@@ -4545,7 +4546,11 @@ private:
 	{
 		if(InElement)
 		{
-			return InElement->SetMetaData(InMetadataName, InType, &InValue, sizeof(T));
+			constexpr bool bNotify = true;
+			if (FRigBaseMetadata* Metadata = GetMetadataForElement(InElement->GetKey(), InMetadataName, InType, bNotify))
+			{
+				return Metadata->SetValueData(&InValue, sizeof(T));
+			}
 		}
 		return false;
 	}
@@ -4565,21 +4570,27 @@ private:
 	void OnMetadataChanged(const FRigElementKey& InKey, const FName& InName);
 	void OnMetadataTagChanged(const FRigElementKey& InKey, const FName& InTag, bool bAdded);
 
-protected:
-
-	static void OnMetadataChanged_Static(const FRigElementKey& InKey, const FName& InName, URigHierarchy* InHierarchy)
-	{
-		check(InHierarchy);
-		check(IsValid(InHierarchy));
-		InHierarchy->OnMetadataChanged(InKey, InName);
-	}
-	static void OnMetadataTagChanged_Static(const FRigElementKey& InKey, const FName& InTag, bool bAdded, URigHierarchy* InHierarchy)
-	{
-		check(InHierarchy);
-		check(IsValid(InHierarchy));
-		InHierarchy->OnMetadataTagChanged(InKey, InTag, bAdded);
-	}
+	/** Returns a metadata ptr to the given element's metadata. If the meta data, with the same name, doesn't exist already a new entry
+	    is created for that element. If the name matches but the type differs, the existing metadata is destroyed and a new one with the
+	    matching type is created instead.
+	    */
+	FRigBaseMetadata* GetMetadataForElement(const FRigElementKey& InKey, const FName& InName, ERigMetadataType InType, bool bInNotify);
 	
+	/** Attempts to find element's metadata of the given name and type. If either the element doesnt exist, the name doesn't exist or the
+	    type doesn't match, then \c nullptr is returned.
+	    */ 
+	FRigBaseMetadata* FindMetadataForElement(const FRigElementKey& InKey, const FName& InName, ERigMetadataType InType);
+	const FRigBaseMetadata* FindMetadataForElement(const FRigElementKey& InKey, const FName& InName, ERigMetadataType InType) const;
+	
+	/** Removes the named meta data for the given element, regardless of type. If the element doesn't exist, or it doesn't have any
+	    metadata of the given name, this function does nothing and returns \c false.
+		*/
+	bool RemoveMetadataForElement(const FRigElementKey& InKey, const FName& InName);
+	bool RemoveAllMetadataForElement(const FRigElementKey& InKey);
+	
+	void CopyAllMetadataFromElement(const FRigElementKey& InTargetKey, const FRigBaseElement* InSourceElement);
+	
+protected:
 	bool bEnableCacheValidityCheck;
 
 	static bool bEnableValidityCheckbyDefault;
@@ -4589,7 +4600,7 @@ protected:
 
 	mutable TMap<FRigElementKey, FRigElementKey> DefaultParentPerElement;
 
-	bool bUpdatePreferedEulerAngleWhenSettingTransform;
+	bool bUpdatePreferredEulerAngleWhenSettingTransform;
 	mutable bool bAllowNameSpaceWhenSanitizingName;
 
 private:
@@ -4659,6 +4670,7 @@ private:
 	friend class UBaseControlRig;
 	friend class UControlRig;
 	friend class FControlRigEditor;
+	friend struct FRigBaseElement;
 	friend struct FRigHierarchyValidityBracket;
 	friend struct FRigHierarchyGlobalValidityBracket;
 	friend struct FControlRigVisualGraphUtils;

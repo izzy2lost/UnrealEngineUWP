@@ -1875,7 +1875,7 @@ int32 URigHierarchyController::AddElement(FRigBaseElement* InElementToAdd, FRigB
 {
 	ensure(IsValid());
 
-	InElementToAdd->NameString.Reset();
+	InElementToAdd->CachedNameString.Reset();
 	InElementToAdd->SubIndex = Hierarchy->Num(InElementToAdd->Key.Type);
 	InElementToAdd->Index = Hierarchy->Elements.Add(InElementToAdd);
 	Hierarchy->ElementsPerType[URigHierarchy::RigElementTypeToFlatIndex(InElementToAdd->GetKey().Type)].Add(InElementToAdd);
@@ -2285,7 +2285,7 @@ bool URigHierarchyController::RenameElement(FRigBaseElement* InElement, const FN
    
 		TGuardValue<TMap<FRigElementKey, int32>> MapGuard(Hierarchy->IndexLookup, TemporaryMap);
 		InElement->Key.Name = GetSafeNewName(InName, InElement->GetType());
-		InElement->NameString.Reset();
+		InElement->CachedNameString.Reset();
 	}
 	
 	const FRigElementKey NewKey = InElement->GetKey();
@@ -2326,6 +2326,14 @@ bool URigHierarchyController::RenameElement(FRigBaseElement* InElement, const FN
 			}
 		}
 	}
+
+	// Rename metadata
+	URigHierarchy::FMetaDataStorage MetadataStorage;
+	if (Hierarchy->ElementMetadata.RemoveAndCopyValue(OldKey, MetadataStorage))
+	{
+		Hierarchy->ElementMetadata.Add(NewKey, MoveTemp(MetadataStorage));
+	}
+	
 	
 	Hierarchy->PreviousNameMap.FindOrAdd(NewKey) = OldKey;
 	Hierarchy->IncrementTopologyVersion();

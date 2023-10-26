@@ -102,7 +102,7 @@ protected:
 		bool& Found = *(bool*)Handles[Factory->FoundArgIndex].GetData();
 
 		// extract the metadata
-		if (MetadataType* Md = Cast<MetadataType>(FindMetadata(InContext, Item, Name, EnumValue, bUseNameSpace, Cache)))
+		if (const MetadataType* Md = Cast<MetadataType>(FindMetadata(InContext, Item, Name, EnumValue, bUseNameSpace, Cache)))
 		{
 			Value = Md->GetValue();
 			Found = true;

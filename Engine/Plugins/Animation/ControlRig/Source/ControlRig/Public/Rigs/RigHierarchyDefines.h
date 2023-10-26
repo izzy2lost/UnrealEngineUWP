@@ -1452,12 +1452,12 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Hierarchy", meta = (CustomWidget = "ElementName"))
 	FName Name;
 
-	FRigElementKey()
-		: Type(ERigElementType::None)
+	FRigElementKey(const ERigElementType InType = ERigElementType::None)
+		: Type(InType)
 		, Name(NAME_None)
 	{}
 
-	FRigElementKey(const FName& InName, ERigElementType InType)
+	FRigElementKey(const FName& InName, const ERigElementType InType)
 		: Type(InType)
 		, Name(InName)
 	{}

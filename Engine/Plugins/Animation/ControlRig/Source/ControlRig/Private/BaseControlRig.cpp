@@ -361,7 +361,7 @@ void UBaseControlRig::Evaluate_AnyThread()
 		
 		// Backwards solve
 		{
-			TGuardValue<bool> UpdatePreferredAngles(Hierarchy->bUpdatePreferedEulerAngleWhenSettingTransform, false);
+			TGuardValue<bool> UpdatePreferredAngles(Hierarchy->bUpdatePreferredEulerAngleWhenSettingTransform, false);
 			Execute(FRigUnit_InverseExecution::EventName);
 		}
 
@@ -421,7 +421,7 @@ void UBaseControlRig::Evaluate_AnyThread()
 		
 		// Forward solve
 		{
-			TGuardValue<bool> UpdatePreferredAngles(Hierarchy->bUpdatePreferedEulerAngleWhenSettingTransform, false);
+			TGuardValue<bool> UpdatePreferredAngles(Hierarchy->bUpdatePreferredEulerAngleWhenSettingTransform, false);
 			Execute(FRigUnit_BeginExecution::EventName);
 		}
 	}
