@@ -26,6 +26,8 @@ public:
 class UChooserTable;
 class FVariant;
 
+class FChooserIndexArray;
+
 USTRUCT()
 struct CHOOSER_API FChooserColumnBase
 {
@@ -34,7 +36,7 @@ struct CHOOSER_API FChooserColumnBase
 public:
 	virtual ~FChooserColumnBase() {}
 	virtual void PostLoad() {};
-	virtual void Filter(FChooserEvaluationContext& Context, const TArray<uint32>& IndexListIn, TArray<uint32>& IndexListOut) const {}
+	virtual void Filter(FChooserEvaluationContext& Context, const FChooserIndexArray& IndexListIn, FChooserIndexArray& IndexListOut) const {}
 
 	virtual bool HasFilters() const { return true; }
 	virtual bool HasOutputs() const { return false; }

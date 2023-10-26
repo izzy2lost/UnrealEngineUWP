@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #include "EnumColumn.h"
+#include "ChooserIndexArray.h"
 #include "ChooserPropertyAccess.h"
 #include "ChooserTrace.h"
 
@@ -62,7 +63,7 @@ bool FChooserEnumRowData::Evaluate(const uint8 LeftHandSide) const
 	}
 }
 
-void FEnumColumn::Filter(FChooserEvaluationContext& Context, const TArray<uint32>& IndexListIn, TArray<uint32>& IndexListOut) const
+void FEnumColumn::Filter(FChooserEvaluationContext& Context, const FChooserIndexArray& IndexListIn, FChooserIndexArray& IndexListOut) const
 {
 	uint8 Result = 0;
 	if (InputValue.IsValid() &&
@@ -84,7 +85,7 @@ void FEnumColumn::Filter(FChooserEvaluationContext& Context, const TArray<uint32
 				const FChooserEnumRowData& RowValue = RowValues[Index];
 				if (RowValue.Evaluate(Result))
 				{
-					IndexListOut.Emplace(Index);
+					IndexListOut.Push(Index);
 				}
 			}
 		}

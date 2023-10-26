@@ -6,6 +6,7 @@
 #include "ObjectTrace.h"
 #include "Engine/UserDefinedStruct.h"
 #include "Engine/Blueprint.h"
+#include "ChooserIndexArray.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(Chooser)
 
@@ -236,10 +237,12 @@ FObjectChooserBase::EIteratorStatus UChooserTable::EvaluateChooser(FChooserEvalu
 #if CHOOSER_DEBUGGING_ENABLED
 	Context.DebuggingInfo.CurrentChooser = Chooser;
 #endif
-	
 
-	TArray<uint32> Indices1;
-	TArray<uint32> Indices2;
+	uint32 Count = Chooser->ResultsStructs.Num();
+	uint32 BufferSize = Count * sizeof(uint32);
+
+	FChooserIndexArray Indices1(static_cast<uint32*>(FMemory_Alloca(BufferSize)), Count);
+	FChooserIndexArray Indices2(static_cast<uint32*>(FMemory_Alloca(BufferSize)), Count);
 
 	int RowCount = Chooser->ResultsStructs.Num();
 	Indices1.SetNum(RowCount);
@@ -247,8 +250,8 @@ FObjectChooserBase::EIteratorStatus UChooserTable::EvaluateChooser(FChooserEvalu
 	{
 		Indices1[i]=i;
 	}
-	TArray<uint32>* IndicesOut = &Indices1;
-	TArray<uint32>* IndicesIn = &Indices2;
+	FChooserIndexArray* IndicesOut = &Indices1;
+	FChooserIndexArray* IndicesIn = &Indices2;
 
 	for (const FInstancedStruct& ColumnData : Chooser->ColumnsStructs)
 	{
@@ -256,7 +259,7 @@ FObjectChooserBase::EIteratorStatus UChooserTable::EvaluateChooser(FChooserEvalu
 		if (Column.HasFilters())
 		{
 			Swap(IndicesIn, IndicesOut);
-			IndicesOut->SetNum(0, false);
+			IndicesOut->SetNum(0);
 			Column.Filter(Context, *IndicesIn, *IndicesOut);
 		}
 	}

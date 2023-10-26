@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #include "ObjectColumn.h"
+#include "ChooserIndexArray.h"
 #include "ChooserPropertyAccess.h"
 #include "ChooserTrace.h"
 
@@ -57,7 +58,7 @@ bool FChooserObjectRowData::Evaluate(const FSoftObjectPath& LeftHandSide) const
 	}
 }
 
-void FObjectColumn::Filter(FChooserEvaluationContext& Context, const TArray<uint32>& IndexListIn, TArray<uint32>& IndexListOut) const
+void FObjectColumn::Filter(FChooserEvaluationContext& Context, const FChooserIndexArray& IndexListIn, FChooserIndexArray& IndexListOut) const
 {
 	FSoftObjectPath Result;
 	if (InputValue.IsValid() &&
@@ -79,7 +80,7 @@ void FObjectColumn::Filter(FChooserEvaluationContext& Context, const TArray<uint
 				const FChooserObjectRowData& RowValue = RowValues[Index];
 				if (RowValue.Evaluate(Result))
 				{
-					IndexListOut.Emplace(Index);
+					IndexListOut.Push(Index);
 				}
 			}
 		}

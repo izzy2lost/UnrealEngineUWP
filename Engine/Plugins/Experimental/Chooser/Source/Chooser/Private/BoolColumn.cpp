@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #include "BoolColumn.h"
+#include "ChooserIndexArray.h"
 #include "ChooserPropertyAccess.h"
 #include "Chooser.h"
 #include "ChooserTrace.h"
@@ -19,7 +20,7 @@ FBoolColumn::FBoolColumn()
 	InputValue.InitializeAs(FBoolContextProperty::StaticStruct());
 }
 
-void FBoolColumn::Filter(FChooserEvaluationContext& Context, const TArray<uint32>& IndexListIn, TArray<uint32>& IndexListOut) const
+void FBoolColumn::Filter(FChooserEvaluationContext& Context, const FChooserIndexArray& IndexListIn, FChooserIndexArray& IndexListOut) const
 {
 	if (InputValue.IsValid())
 	{

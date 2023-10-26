@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #include "RandomizeColumn.h"
+#include "ChooserIndexArray.h"
 #include "ChooserPropertyAccess.h"
 
 bool FRandomizeContextProperty::GetValue(FChooserEvaluationContext& Context, const FChooserRandomizationContext*& OutResult) const
@@ -12,7 +13,7 @@ FRandomizeColumn::FRandomizeColumn()
 	InputValue.InitializeAs(FRandomizeContextProperty::StaticStruct());
 }
 
-void FRandomizeColumn::Filter(FChooserEvaluationContext& Context, const TArray<uint32>& IndexListIn, TArray<uint32>& IndexListOut) const
+void FRandomizeColumn::Filter(FChooserEvaluationContext& Context, const FChooserIndexArray& IndexListIn, FChooserIndexArray& IndexListOut) const
 {
 	int Count = IndexListIn.Num();
 	int Selection = 0;
@@ -82,7 +83,7 @@ void FRandomizeColumn::Filter(FChooserEvaluationContext& Context, const TArray<u
 
 	if (Selection < Count)
 	{
-		IndexListOut.Add(IndexListIn[Selection]);
+		IndexListOut.Push(IndexListIn[Selection]);
 	}
 }
 
