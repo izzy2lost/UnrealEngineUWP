@@ -27,6 +27,21 @@
 
 namespace UE::MultiUserClient
 {
+	namespace Private
+	{
+		static void ExecuteOnGameThreadIfSafe(TFunction<void()> Callback)
+		{
+			if (IsInGameThread())
+			{
+				Callback();
+			}
+			else if (!IsEngineExitRequested())
+			{
+				ExecuteOnGameThread(TEXT("SSubmissionControls"), MoveTemp(Callback));
+			}
+		}
+	}
+	
 	void SSubmissionControls::Construct(const FArguments& InArgs)
 	{
 		SubmissionWorkflowAttribute = InArgs._SubmissionWorkflow;
@@ -127,19 +142,20 @@ namespace UE::MultiUserClient
 	FReply SSubmissionControls::OnUploadButtonClicked() const
 	{
 		ISubmissionWorkflow& Workflow = GetSubmissionWorkflow();
-		// SubmitChanges implicitly checks whether Workflow.CanSubmit()
-		if (ISubmissionOperation* SubmissionOperation = Workflow.SubmitChanges())
+		// SubmitChanges implicitly checks whether Workflow.CanSubmit() and calls our lambda if true
+		if (const TSharedPtr<ISubmissionOperation> SubmissionOperation = Workflow.SubmitChanges())
 		{
-			SetupNotificationsFor(*SubmissionOperation);
+			SetupNotificationsFor(SubmissionOperation.ToSharedRef());
 		}
 		return FReply::Handled();
 	}
 
-	void SSubmissionControls::SetupNotificationsFor(ISubmissionOperation& SubmissionOperation) const
+	void SSubmissionControls::SetupNotificationsFor(TSharedRef<ISubmissionOperation> SubmissionOperation) const
 	{
-		HandleStreamUpdatedNotification(SubmissionOperation);
-		HandleAuthorityChangeRequestedNotification(SubmissionOperation);
+		HandleStreamUpdatedNotification(*SubmissionOperation);
+		HandleAuthorityChangeRequestedNotification(MoveTemp(SubmissionOperation));
 	}
+
 
 	void SSubmissionControls::HandleStreamUpdatedNotification(ISubmissionOperation& SubmissionOperation) const
 	{
@@ -152,83 +168,107 @@ namespace UE::MultiUserClient
 		NotificationInfo.bUseThrobber = true;
 		NotificationInfo.bUseSuccessFailIcons = true;
 		NotificationInfo.bFireAndForget = false;
+		NotificationInfo.ExpireDuration = 4.f;
 		
 		const TSharedPtr<SNotificationItem> Notification = FSlateNotificationManager::Get().AddNotification(NotificationInfo);
 		SubmissionOperation.OnStreamChangesSubmittedFuture()
 			.Next([Notification](FSubmitStreamChangesResponse&& SubmitChangesResult)
 			{
-				if (SubmitChangesResult.ErrorCode == EStreamSubmissionErrorCode::Cancelled)
+				// Not game thread e.g. if the message bus thread destroys the remote endpoint at timeout
+				Private::ExecuteOnGameThreadIfSafe([Notification, SubmitChangesResult]()
 				{
-					Notification->SetCompletionState(SNotificationItem::CS_Fail);
-					Notification->SetText(LOCTEXT("Uploading.Failure.Cancelled", "Updating Stream cancelled."));
-					return;
-				}
-
-				const TOptional<FCompletedChangeSubmission>& SubmissionInfo = SubmitChangesResult.SubmissionInfo;
-				if (SubmissionInfo.IsSet() && SubmissionInfo->Response.IsSuccess())
-				{
-					Notification->SetCompletionState(SNotificationItem::CS_Success);
-					Notification->SetText(LOCTEXT("Uploading.Success", "Changes accepted."));
-
-					const ConcertSyncClient::Replication::FChangeStreamRequest& Request = SubmissionInfo->Request;
-					// Multi-User adds only one stream so we only need to look at index 0
-					const int32 NumAdditions = Request.StreamsToAdd.IsEmpty() ? 0 : Request.StreamsToAdd[0].BaseDescription.ReplicationMap.ReplicatedObjects.Num();
-					const int32 NumPuts = Request.ObjectsToPut.Num() + NumAdditions;
-					Notification->SetSubText(FText::Format(LOCTEXT("Uploading.Success.SubText", "{0} puts, {1} removals"),
-						NumPuts,
-						Request.ObjectsToRemove.Num()
-						));
-				}
-				else
-				{
-					Notification->SetCompletionState(SNotificationItem::CS_Fail);
-					Notification->SetText(LOCTEXT("Uploading.Failure.Rejected", "Changes rejected."));
-					Notification->SetSubText(LOCTEXT("Uploading.Failure.Rejected.SubText", "See log for details."));
-
-					if (SubmissionInfo.IsSet())
-					{
-						FStringOutputDevice Errors;
-						SubmissionInfo->Response.LogErrors(Errors);
-						UE_LOG(LogConcert, Error, TEXT("Errors uploading stream changes:\n%s"), *Errors);
-					}
-					else
-					{
-						UE_LOG(LogConcert, Error, TEXT("Failed to submit changes. ESubmitChangesErrorCode: %d"), SubmitChangesResult.ErrorCode);
-					}
-				}
-
-				Notification->ExpireAndFadeout();
-           });
+					OnStreamChangesSubmitted(Notification, SubmitChangesResult.ErrorCode, SubmitChangesResult.SubmissionInfo);
+				});
+			});
 	}
 
-	void SSubmissionControls::HandleAuthorityChangeRequestedNotification(ISubmissionOperation& SubmissionOperation) const
+	void SSubmissionControls::OnStreamChangesSubmitted(const TSharedPtr<SNotificationItem>& Notification, EStreamSubmissionErrorCode ErrorCode, TOptional<FCompletedChangeSubmission> SubmissionInfo)
 	{
-		SubmissionOperation.OnAuthorityChangeRequestedFuture()
-			.Next([WeakThis = TWeakPtr<const SSubmissionControls>(SharedThis(this))](FSubmitAuthorityChangesRequest&& RequestMetaData)
+		ON_SCOPE_EXIT{ Notification->ExpireAndFadeout(); };
+				
+		if (ErrorCode == EStreamSubmissionErrorCode::Cancelled)
+		{
+			Notification->SetCompletionState(SNotificationItem::CS_Fail);
+			Notification->SetText(LOCTEXT("Uploading.Failure.UpdateCancelled", "Stream update cancelled."));
+			return;
+		}
+		if (ErrorCode == EStreamSubmissionErrorCode::Timeout)
+		{
+			Notification->SetCompletionState(SNotificationItem::CS_Fail);
+			Notification->SetText(LOCTEXT("Uploading.Failure.Timedout", "Stream update timed out."));
+			return;
+		}
+
+		if (SubmissionInfo.IsSet() && SubmissionInfo->Response.IsSuccess())
+		{
+			Notification->SetCompletionState(SNotificationItem::CS_Success);
+			Notification->SetText(LOCTEXT("Uploading.Success", "Changes accepted."));
+
+			const ConcertSyncClient::Replication::FChangeStreamRequest& Request = SubmissionInfo->Request;
+			// Multi-User adds only one stream so we only need to look at index 0
+			const int32 NumAdditions = Request.StreamsToAdd.IsEmpty() ? 0 : Request.StreamsToAdd[0].BaseDescription.ReplicationMap.ReplicatedObjects.Num();
+			const int32 NumPuts = Request.ObjectsToPut.Num() + NumAdditions;
+			Notification->SetSubText(FText::Format(LOCTEXT("Uploading.Success.SubText", "{0} puts, {1} removals"),
+				NumPuts,
+				Request.ObjectsToRemove.Num()
+				));
+		}
+		else
+		{
+			Notification->SetCompletionState(SNotificationItem::CS_Fail);
+			Notification->SetText(LOCTEXT("Uploading.Failure.Rejected", "Changes rejected."));
+			Notification->SetSubText(LOCTEXT("Uploading.Failure.Rejected.SubText", "See log for details."));
+
+			if (SubmissionInfo.IsSet())
 			{
-				if (RequestMetaData.ErrorCode != EAuthoritySubmissionErrorCode::Success)
+				FStringOutputDevice Errors;
+				SubmissionInfo->Response.LogErrors(Errors);
+				UE_LOG(LogConcert, Error, TEXT("Errors uploading stream changes:\n%s"), *Errors);
+			}
+			else
+			{
+				UE_LOG(LogConcert, Error, TEXT("Failed to submit changes. ESubmitChangesErrorCode: %d"), ErrorCode);
+			}
+		}
+	}
+
+	void SSubmissionControls::HandleAuthorityChangeRequestedNotification(TSharedRef<ISubmissionOperation> SubmissionOperation) const
+	{
+		SubmissionOperation->OnAuthorityChangeRequestedFuture()
+			.Next([SubmissionOperation = MoveTemp(SubmissionOperation)](FSubmitAuthorityChangesRequest&& RequestMetaData) mutable
+			{
+				if (RequestMetaData.ErrorCode != EAuthoritySubmissionRequestErrorCode::Success)
 				{
 					return;
 				}
 
-				FNotificationInfo NotificationInfo(LOCTEXT("Authority.InProgress.Text", "Requesting authority."));
-				NotificationInfo.bUseThrobber = true;
-				NotificationInfo.bUseSuccessFailIcons = true;
-				NotificationInfo.bFireAndForget = false;
-				const TSharedPtr<SNotificationItem> AuthorityChangeNotification = FSlateNotificationManager::Get().AddNotification(NotificationInfo);
+				// Not game thread e.g. if the message bus thread destroys the remote endpoint at timeout
+				Private::ExecuteOnGameThreadIfSafe([RequestMetaData = MoveTemp(RequestMetaData), SubmissionOperation = MoveTemp(SubmissionOperation)]() mutable
+				{
+					FNotificationInfo NotificationInfo(LOCTEXT("Authority.InProgress.Text", "Requesting authority."));
+					NotificationInfo.bUseThrobber = true;
+					NotificationInfo.bUseSuccessFailIcons = true;
+					NotificationInfo.bFireAndForget = false;
+					NotificationInfo.ExpireDuration = 4.f;
+					TSharedPtr<SNotificationItem> AuthorityChangeNotification = FSlateNotificationManager::Get().AddNotification(NotificationInfo);
 
-				const ConcertSyncClient::Replication::FAuthorityChangeRequest& Request = *RequestMetaData.Request ;
-				AuthorityChangeNotification->SetSubText(
-					FText::Format(LOCTEXT("Authority.InProgress.SubTextFmt", "Taking {0}|plural(one=object,other\nReleasing {1}|plural(one=object,other=objects)"),
-						Request.TakeAuthority.Num(),
-						Request.ReleaseAuthority.Num()
-					));
-				
-				RequestMetaData.OperationContext.OnAuthorityChangeResponseReceivedFuture()
-					.Next([Request, AuthorityChangeNotification](FSubmitAuthorityChangesResponse&& Response)
-					{
-						HandleAuthorityChangedResponseNotification(Request, Response, AuthorityChangeNotification.ToSharedRef());
-					});
+					ConcertSyncClient::Replication::FAuthorityChangeRequest& Request = *RequestMetaData.Request;
+					AuthorityChangeNotification->SetSubText(
+						FText::Format(LOCTEXT("Authority.InProgress.SubTextFmt", "Taking {0}|plural(one=object,other\nReleasing {1}|plural(one=object,other=objects)"),
+							Request.TakeAuthority.Num(),
+							Request.ReleaseAuthority.Num()
+						));
+					
+					SubmissionOperation->OnAuthorityChangeResponseReceivedFuture()
+						.Next([Request = MoveTemp(Request), AuthorityChangeNotification = MoveTemp(AuthorityChangeNotification)](FSubmitAuthorityChangesResponse&& Response) mutable
+						{
+							// Not game thread e.g. if the message bus thread destroys the remote endpoint at timeout
+							Private::ExecuteOnGameThreadIfSafe([Request = MoveTemp(Request), Response = MoveTemp(Response), AuthorityChangeNotification = MoveTemp(AuthorityChangeNotification)]()
+							{
+								HandleAuthorityChangedResponseNotification(Request, Response, AuthorityChangeNotification.ToSharedRef());
+							});
+						});
+				});
 			});
 	}
 
@@ -238,13 +278,13 @@ namespace UE::MultiUserClient
 		const TSharedRef<SNotificationItem>& NotificationItem
 		)
 	{
-		if (ResponseMetaData.ErrorCode == EAuthoritySubmissionErrorCode::NoChange)
+		if (ResponseMetaData.ErrorCode == EAuthoritySubmissionResponseErrorCode::NoChange)
 		{
 			return;
 		}
 		
 		ON_SCOPE_EXIT{ NotificationItem->ExpireAndFadeout(); };
-		if (ResponseMetaData.ErrorCode != EAuthoritySubmissionErrorCode::Success)
+		if (ResponseMetaData.ErrorCode != EAuthoritySubmissionResponseErrorCode::Success)
 		{
 			NotificationItem->SetCompletionState(SNotificationItem::CS_Fail);
 			NotificationItem->SetText(LOCTEXT("Authority.Failed.Text", "Authority request failed."));

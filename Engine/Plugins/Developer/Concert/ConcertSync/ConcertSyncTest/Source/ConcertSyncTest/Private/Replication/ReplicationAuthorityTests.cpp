@@ -111,7 +111,8 @@ namespace UE::ConcertSyncTests::Replication::Authority
 			.Next([this, &bSenderReceivedResponse](const ConcertSyncClient::Replication::FAuthorityChangeResponse& Response) mutable
 			{
 				bSenderReceivedResponse = true;
-				TestEqual(TEXT("No rejection taking authority"), Response.RejectedObjects.Num(), 0); 
+				TestEqual(TEXT("No rejection taking authority"), Response.RejectedObjects.Num(), 0);
+				TestTrue(TEXT("ErrorCode == Handled"), Response.ErrorCode == EReplicationResponseErrorCode::Handled);
 			});
 		TickClient(Client_Sender);
 		TickServer();
@@ -124,6 +125,7 @@ namespace UE::ConcertSyncTests::Replication::Authority
 			{
 				bReceiverReceivedResponse = true;
 				TestEqual(TEXT("Rejected because Sender already has authority"), Response.RejectedObjects.Num(), 1);
+				TestTrue(TEXT("ErrorCode == Handled"), Response.ErrorCode == EReplicationResponseErrorCode::Handled);
 				
 				if (const FConcertStreamArray* RejectedStreams = Response.RejectedObjects.Find(TestObjectPath))
 				{
@@ -146,6 +148,7 @@ namespace UE::ConcertSyncTests::Replication::Authority
 			{
 				bSenderReceivedResponse = true;
 				TestEqual(TEXT("No rejection releasing object"), Response.RejectedObjects.Num(), 0); 
+				TestTrue(TEXT("ErrorCode == Handled"), Response.ErrorCode == EReplicationResponseErrorCode::Handled);
 			});
 		TickClient(Client_Sender);
 		TickServer();
@@ -158,6 +161,7 @@ namespace UE::ConcertSyncTests::Replication::Authority
 			{
 				bReceiverReceivedResponse = true;
 				TestEqual(TEXT("No rejection because the object should not be released"), Response.RejectedObjects.Num(), 0); 
+				TestTrue(TEXT("ErrorCode == Handled"), Response.ErrorCode == EReplicationResponseErrorCode::Handled);
 			});
 		TickClient(Client_Receiver);
 		TickServer();
@@ -188,6 +192,7 @@ namespace UE::ConcertSyncTests::Replication::Authority
 				bReceivedResponse = true;
 				TestTrue(TEXT("Cannot take authority over unregistered object"), Response.RejectedObjects.Contains(SomePath));
 				TestEqual(TEXT("Rejected exactly 1 object"), Response.RejectedObjects.Num(), 1);
+				TestTrue(TEXT("ErrorCode == Handled"), Response.ErrorCode == EReplicationResponseErrorCode::Handled);
 
 				if (const FConcertStreamArray* RejectedStreams = Response.RejectedObjects.Find(SomePath))
 				{
@@ -226,6 +231,7 @@ namespace UE::ConcertSyncTests::Replication::Authority
 			{
 				bSenderReceivedResponse = true;
 				TestEqual(TEXT("No rejection taking authority (sender)"), Response.RejectedObjects.Num(), 0); 
+				TestTrue(TEXT("ErrorCode == Handled"), Response.ErrorCode == EReplicationResponseErrorCode::Handled);
 			});
 		TickClient(Client_Sender);
 		TickServer();
@@ -243,6 +249,7 @@ namespace UE::ConcertSyncTests::Replication::Authority
 			{
 				bReceiverReceivedResponse = true;
 				TestEqual(TEXT("No rejection taking authority (receiver)"), Response.RejectedObjects.Num(), 0); 
+				TestTrue(TEXT("ErrorCode == Handled"), Response.ErrorCode == EReplicationResponseErrorCode::Handled);
 			});
 		TickClient(Client_Receiver);
 		TickServer();
@@ -270,6 +277,7 @@ namespace UE::ConcertSyncTests::Replication::Authority
 			{
 				bSenderReceivedResponse = true;
 				TestEqual(TEXT("No rejection taking authority (sender)"), Response.RejectedObjects.Num(), 0); 
+				TestTrue(TEXT("ErrorCode == Handled"), Response.ErrorCode == EReplicationResponseErrorCode::Handled);
 			});
 		TickClient(Client_Sender);
 		TickServer();
@@ -287,6 +295,7 @@ namespace UE::ConcertSyncTests::Replication::Authority
 			{
 				bReceiverReceivedResponse = true;
 				TestEqual(TEXT("No rejection taking authority (receiver)"), Response.RejectedObjects.Num(), 0); 
+				TestTrue(TEXT("ErrorCode == Handled"), Response.ErrorCode == EReplicationResponseErrorCode::Handled);
 			});
 		TickClient(Client_Receiver);
 		TickServer();
@@ -314,6 +323,7 @@ namespace UE::ConcertSyncTests::Replication::Authority
 			{
 				bSenderReceivedTakeResponse = true;
 				TestEqual(TEXT("No rejection taking authority"), Response.RejectedObjects.Num(), 0); 
+				TestTrue(TEXT("ErrorCode == Handled"), Response.ErrorCode == EReplicationResponseErrorCode::Handled);
 			});
 		TestTrue(TEXT("Sender received response taking authority"), bSenderReceivedTakeResponse);
 
@@ -328,12 +338,31 @@ namespace UE::ConcertSyncTests::Replication::Authority
 			{
 				bSenderReceivedReleaseResponse = true;
 				TestEqual(TEXT("No rejection releasing authority"), Response.RejectedObjects.Num(), 0); 
+				TestTrue(TEXT("ErrorCode == Handled"), Response.ErrorCode == EReplicationResponseErrorCode::Handled);
 			});
 		TestTrue(TEXT("Sender received response releasing authority"), bSenderReceivedReleaseResponse);
 		
 		// 4. Test: Removed TestObject from tracked objects
 		TestEqual(TEXT("Removed tracked object"), BridgeMock_Sender->TrackedObjects.Num(), 0);
 
+		return true;
+	}
+
+	/**
+	 * Tests that client updates its local cache of the server state when RequestAuthorityChange times out.
+	 */
+	IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FChangingAuthorityTimeoutRetainsServerState, FSendReceiveObjectTestBase, "Concert.Replication.Authority.ChangeAuthorityTimeoutRetainsServerState", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter);
+	bool FChangingAuthorityTimeoutRetainsServerState::RunTest(const FString& Parameters)
+	{
+		// 1. Init
+		SetUpClientAndServer();
+		ServerSession->SetTestFlags(EServerSessionTestingFlags::AllowRequestTimeouts);
+		
+		ClientReplicationManager_Sender->TakeAuthorityOver({ TestObject });
+		ServerSession->UnregisterCustomRequestHandler<FConcertReplication_ChangeAuthority_Request>();
+		ClientReplicationManager_Sender->ReleaseAuthorityOf({ TestObject });
+
+		TestTrue(TEXT("Timed out ReleaseAuthorityOf reverted local server prediction"), ClientReplicationManager_Sender->GetClientOwnedObjects().Contains(TestObject));
 		return true;
 	}
 }

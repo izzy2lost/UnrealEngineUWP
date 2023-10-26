@@ -3,8 +3,6 @@
 #pragma once
 
 #include "ConcertMessageData.h"
-#include "Replication/Data/ClientQueriedInfo.h"
-#include "Replication/Data/ObjectIds.h"
 #include "Misc/Optional.h"
 #include "ObjectReplication.generated.h"
 

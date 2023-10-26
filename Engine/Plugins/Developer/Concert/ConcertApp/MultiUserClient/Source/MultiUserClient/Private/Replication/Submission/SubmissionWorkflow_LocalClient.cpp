@@ -52,7 +52,7 @@ namespace UE::MultiUserClient
 		return bHasChanges ? EChangeRevertability::Revertable : EChangeRevertability::NoChanges;
 	}
 
-	ISubmissionOperation* FSubmissionWorkflow_LocalClient::SubmitChanges()
+	TSharedPtr<ISubmissionOperation> FSubmissionWorkflow_LocalClient::SubmitChanges()
 	{
 		using namespace ConcertSyncClient::Replication;
 		IConcertClientReplicationManager* ReplicationManager = Client->GetReplicationManager();
@@ -68,11 +68,13 @@ namespace UE::MultiUserClient
 		const FStreamChangelist& Changelist = StreamChangeTracker.GetCachedDeltaChange();
 		const bool bIsChangelistEmpty = Changelist.ObjectsToPut.IsEmpty() && Changelist.ObjectsToRemove.IsEmpty();
 		const bool bModifyStreams = !bIsChangelistEmpty;
-		InProgressOperation.Emplace(bModifyStreams);
+		
+		const TSharedRef<FSingleClientSubmissionOperation> Operation = MakeShared<FSingleClientSubmissionOperation>(bModifyStreams);
+		InProgressOperation.Emplace(Operation);
 		
 		if (bIsChangelistEmpty)
 		{
-			InProgressOperation->EmplaceStreamPromise(FSubmitStreamChangesResponse{ EStreamSubmissionErrorCode::NoChange, *InProgressOperation });
+			Operation->EmplaceStreamPromise(FSubmitStreamChangesResponse{ EStreamSubmissionErrorCode::NoChange });
 			SendAuthorityChangeRequest(MoveTemp(AuthorityChangeRequest));
 		}
 		else
@@ -84,7 +86,7 @@ namespace UE::MultiUserClient
 			ReplicationManager->ChangeStream(Request)
 				.Next([this, DestructionDetection = LifetimeToken->AsWeak(), Request, AuthorityChangeRequest = MoveTemp(AuthorityChangeRequest)](FChangeStreamResponse&& Response)
 				{
-					const FSubmitStreamChangesResponse SubmissionResult { EStreamSubmissionErrorCode::Success, *InProgressOperation, { FCompletedChangeSubmission{Request, Response } } };
+					const FSubmitStreamChangesResponse SubmissionResult { EStreamSubmissionErrorCode::Success, { FCompletedChangeSubmission{Request, Response } } };
 					// The request might execute after we're destroyed, e.g. by leaving session while request is on the way.
 					// In that case, the Concert session triggers the OnSessionConnectionChanged which destroys us. Only after that, all the requests are timed out.
 					if (DestructionDetection.IsValid())
@@ -95,8 +97,9 @@ namespace UE::MultiUserClient
 					return SubmissionResult;
 				});
 		}
-		
-		return InProgressOperation.GetPtrOrNull();
+
+		// Note that InProgressOperation might already be unset due to ChangeStream failing instantly
+		return Operation;
 	}
 
 	void FSubmissionWorkflow_LocalClient::OnStreamChangeCompleted(
@@ -105,21 +108,25 @@ namespace UE::MultiUserClient
 		ConcertSyncClient::Replication::FAuthorityChangeRequest AuthorityChangeRequest
 		)
 	{
-		InProgressOperation->EmplaceStreamPromise(FSubmitStreamChangesResponse{
-			EStreamSubmissionErrorCode::Success,
-			*InProgressOperation,
+		const TSharedRef<FSingleClientSubmissionOperation> Operation = *InProgressOperation;
+		
+		const EStreamSubmissionErrorCode ErrorCode = ChangeStreamResponse.ErrorCode == EReplicationResponseErrorCode::Handled
+			? EStreamSubmissionErrorCode::Success
+			: EStreamSubmissionErrorCode::Timeout;
+		Operation->EmplaceStreamPromise(FSubmitStreamChangesResponse{
+			ErrorCode,
 			{ FCompletedChangeSubmission{ Request, ChangeStreamResponse } }
 		});
 		
-		if (!ChangeStreamResponse.IsSuccess())
+		if (ChangeStreamResponse.IsSuccess())
 		{
-			InProgressOperation->EmplaceAuthorityRequestPromise(FSubmitAuthorityChangesRequest{ EAuthoritySubmissionErrorCode::CancelledDueToStreamUpdate, *InProgressOperation });
-			InProgressOperation->EmplaceAuthorityResponsePromise(FSubmitAuthorityChangesResponse{ EAuthoritySubmissionErrorCode::CancelledDueToStreamUpdate, *InProgressOperation });
-			InProgressOperation.Reset();
+			SendAuthorityChangeRequest(MoveTemp(AuthorityChangeRequest));
 		}
 		else
 		{
-			SendAuthorityChangeRequest(MoveTemp(AuthorityChangeRequest));
+			Operation->EmplaceAuthorityRequestPromise(FSubmitAuthorityChangesRequest{ EAuthoritySubmissionRequestErrorCode::CancelledDueToStreamUpdate });
+			Operation->EmplaceAuthorityResponsePromise(FSubmitAuthorityChangesResponse{ EAuthoritySubmissionResponseErrorCode::CancelledDueToStreamUpdate });
+			InProgressOperation.Reset();
 		}
 	}
 
@@ -133,22 +140,26 @@ namespace UE::MultiUserClient
 			return;
 		}
 
+		const TSharedRef<FSingleClientSubmissionOperation> Operation = *InProgressOperation;
 		const bool bHasNoChanges = AuthorityChangeRequest.ReleaseAuthority.IsEmpty() && AuthorityChangeRequest.TakeAuthority.IsEmpty();
 		if (bHasNoChanges)
 		{
-			InProgressOperation->EmplaceAuthorityRequestPromise(FSubmitAuthorityChangesRequest{ EAuthoritySubmissionErrorCode::NoChange, *InProgressOperation });
-			InProgressOperation->EmplaceAuthorityResponsePromise(FSubmitAuthorityChangesResponse{ EAuthoritySubmissionErrorCode::NoChange, *InProgressOperation });
+			Operation->EmplaceAuthorityRequestPromise(FSubmitAuthorityChangesRequest{ EAuthoritySubmissionRequestErrorCode::NoChange });
+			Operation->EmplaceAuthorityResponsePromise(FSubmitAuthorityChangesResponse{ EAuthoritySubmissionResponseErrorCode::NoChange });
 			InProgressOperation.Reset();
 			return;
 		}
 		
-		InProgressOperation->EmplaceAuthorityRequestPromise(FSubmitAuthorityChangesRequest{ EAuthoritySubmissionErrorCode::Success, *InProgressOperation, AuthorityChangeRequest });
+		Operation->EmplaceAuthorityRequestPromise(FSubmitAuthorityChangesRequest{ EAuthoritySubmissionRequestErrorCode::Success, AuthorityChangeRequest });
 		ReplicationManager->RequestAuthorityChange(MoveTemp(AuthorityChangeRequest))
 			.Next([this, DestructionDetection = LifetimeToken->AsWeak()](FAuthorityChangeResponse&& Response)
 			{
 				if (DestructionDetection.IsValid())
 				{
-					InProgressOperation->EmplaceAuthorityResponsePromise(FSubmitAuthorityChangesResponse{ EAuthoritySubmissionErrorCode::Success, *InProgressOperation, MoveTemp(Response) });
+					const EAuthoritySubmissionResponseErrorCode ErrorCode = Response.ErrorCode == EReplicationResponseErrorCode::Handled
+						? EAuthoritySubmissionResponseErrorCode::Success
+						: EAuthoritySubmissionResponseErrorCode::Timeout;
+					InProgressOperation->Get().EmplaceAuthorityResponsePromise(FSubmitAuthorityChangesResponse{ ErrorCode, MoveTemp(Response) });
 					InProgressOperation.Reset();
 				}
 			});

@@ -32,6 +32,8 @@ namespace UE::ConcertSyncTests::Replication::Stream
 		Request.ClientEndpointIds = { SenderEndpointId };
 		auto TestReplicationMapContent = [this, &SenderEndpointId](const ConcertSyncClient::Replication::FClientQueryResponse& Response)
 		{
+			TestTrue(TEXT("ErrorCode == Handled"), Response.ErrorCode == EReplicationResponseErrorCode::Handled);
+			
 			const FReplicationClientQueriedInfo* Info = Response.ClientInfo.Find(SenderEndpointId);
 			if (!Info)
 			{
@@ -60,6 +62,8 @@ namespace UE::ConcertSyncTests::Replication::Stream
 			.Next([this, &SenderEndpointId, &TestReplicationMapContent, &bReceivedFirstQueryResponse](ConcertSyncClient::Replication::FClientQueryResponse&& Response) mutable
 			{
 				bReceivedFirstQueryResponse = true;
+				TestTrue(TEXT("ErrorCode == Handled"), Response.ErrorCode == EReplicationResponseErrorCode::Handled);
+				
 				TestReplicationMapContent(Response);
 				if (const FReplicationClientQueriedInfo* Info = Response.ClientInfo.Find(SenderEndpointId))
 				{
@@ -75,6 +79,7 @@ namespace UE::ConcertSyncTests::Replication::Stream
 			{
 				bSenderReceivedResponse = true;
 				TestEqual(TEXT("No rejection taking authority"), Response.RejectedObjects.Num(), 0); 
+				TestTrue(TEXT("ErrorCode == Handled"), Response.ErrorCode == EReplicationResponseErrorCode::Handled);
 			});
 		TestTrue(TEXT("Received response taking authority"), bSenderReceivedResponse);
 
@@ -83,6 +88,7 @@ namespace UE::ConcertSyncTests::Replication::Stream
 			.Next([this, &SenderEndpointId, &TestReplicationMapContent, &TestObjectPath, &bReceivedSecondQueryResponse](ConcertSyncClient::Replication::FClientQueryResponse&& Response) mutable
 			{
 				bReceivedSecondQueryResponse = true;
+				TestTrue(TEXT("ErrorCode == Handled"), Response.ErrorCode == EReplicationResponseErrorCode::Handled);
 				TestReplicationMapContent(Response);
 				
 				const FReplicationClientQueriedInfo* Info = Response.ClientInfo.Find(SenderEndpointId);
@@ -108,6 +114,7 @@ namespace UE::ConcertSyncTests::Replication::Stream
 			.Next([this, &SenderEndpointId, &bReceivedResponse_SkipStreamInfo](ConcertSyncClient::Replication::FClientQueryResponse&& Response) mutable
 			{
 				bReceivedResponse_SkipStreamInfo = true;
+				TestTrue(TEXT("ErrorCode == Handled"), Response.ErrorCode == EReplicationResponseErrorCode::Handled);
 				if (const FReplicationClientQueriedInfo* Info = Response.ClientInfo.Find(SenderEndpointId))
 				{
 					TestEqual(TEXT("SkipStreamInfo > No stream data"), Info->Streams.Num(), 0);
@@ -123,6 +130,7 @@ namespace UE::ConcertSyncTests::Replication::Stream
 			{
 				bReceivedResponse_SkipProperties = true;
 				const FReplicationClientQueriedInfo* Info = Response.ClientInfo.Find(SenderEndpointId);
+				TestTrue(TEXT("ErrorCode == Handled"), Response.ErrorCode == EReplicationResponseErrorCode::Handled);
 				if (!Info || Info->Streams.IsEmpty())
 				{
 					AddError(TEXT("SkipProperties > No stream info"));
@@ -146,6 +154,7 @@ namespace UE::ConcertSyncTests::Replication::Stream
         	.Next([this, &SenderEndpointId, &bReceivedResponse_SkipAuthority](ConcertSyncClient::Replication::FClientQueryResponse&& Response) mutable
         	{
         		bReceivedResponse_SkipAuthority = true;
+				TestTrue(TEXT("ErrorCode == Handled"), Response.ErrorCode == EReplicationResponseErrorCode::Handled);
         		if (const FReplicationClientQueriedInfo* Info = Response.ClientInfo.Find(SenderEndpointId))
         		{
         			TestEqual(TEXT("SkipAuthority > No authority data"), Info->Authority.Num(), 0);
@@ -234,6 +243,7 @@ namespace UE::ConcertSyncTests::Replication::Stream
 				.Next([this, &InTestName, &bModifiedInitialStream](FChangeStreamResponse&& Response)
 				{
 					bModifiedInitialStream = true;
+					TestTrue(TEXT("ErrorCode == Handled"), Response.ErrorCode == EReplicationResponseErrorCode::Handled);
 					TestTrue(FString::Printf(TEXT("%s > Modify Stream > Success"), *InTestName), Response.IsSuccess());
 				});
 			TestTrue(FString::Printf(TEXT("%s > Modify Stream > Received response"), *InTestName), bModifiedInitialStream);
@@ -251,6 +261,7 @@ namespace UE::ConcertSyncTests::Replication::Stream
 				.Next([this, &InTestName, &bQueriedClientInfo, &Streams, &SenderId](FClientQueryResponse&& Response)
 				{
 					bQueriedClientInfo = true;
+					TestTrue(TEXT("ErrorCode == Handled"), Response.ErrorCode == EReplicationResponseErrorCode::Handled);
 					const FReplicationClientQueriedInfo* Info = Response.ClientInfo.Find(SenderId);
 					const bool bRegisteredAndQueriedStreamsAreEqual = Info->Streams == Streams;
 					TestTrue(FString::Printf(TEXT("%s > Registered and queried streams are equal"), *InTestName), bRegisteredAndQueriedStreamsAreEqual);
@@ -331,6 +342,7 @@ namespace UE::ConcertSyncTests::Replication::Stream
 			.Next([this, &bTookAuthority](FAuthorityChangeResponse&& Response)
 			{
 				bTookAuthority = true;
+				TestTrue(TEXT("ErrorCode == Handled"), Response.ErrorCode == EReplicationResponseErrorCode::Handled);
 				TestTrue(TEXT("Authority request > Success"), Response.RejectedObjects.IsEmpty());
 			});
 		TestTrue(TEXT("Authority request > Received response"), bTookAuthority);
@@ -370,6 +382,7 @@ namespace UE::ConcertSyncTests::Replication::Stream
 			.Next([this, &bSenderTookAuthority](const FAuthorityChangeResponse& Response) mutable
 			{
 				bSenderTookAuthority = true;
+				TestTrue(TEXT("ErrorCode == Handled"), Response.ErrorCode == EReplicationResponseErrorCode::Handled);
 				TestEqual(TEXT("Sender > No rejection taking authority"), Response.RejectedObjects.Num(), 0); 
 			});
 		TestTrue(TEXT("Sender > Received response taking authority"), bSenderTookAuthority);
@@ -383,6 +396,7 @@ namespace UE::ConcertSyncTests::Replication::Stream
 			.Next([this, &bAddedVectorStream](FChangeStreamResponse&& Response)
 			{
 				bAddedVectorStream = true;
+				TestTrue(TEXT("ErrorCode == Handled"), Response.ErrorCode == EReplicationResponseErrorCode::Handled);
 				TestTrue(TEXT("Vector Stream > Success"), Response.IsSuccess());
 			});
 		TestTrue(TEXT("Vector Stream> Received response"), bAddedVectorStream);
@@ -394,6 +408,7 @@ namespace UE::ConcertSyncTests::Replication::Stream
 			.Next([this, &bReceiverTookAuthority](const ConcertSyncClient::Replication::FAuthorityChangeResponse& Response) mutable
 			{
 				bReceiverTookAuthority = true;
+				TestTrue(TEXT("ErrorCode == Handled"), Response.ErrorCode == EReplicationResponseErrorCode::Handled);
 				TestEqual(TEXT("Receiver > No rejection taking authority"), Response.RejectedObjects.Num(), 0); 
 			});
 		TestTrue(TEXT("Receiver > Received response taking authority"), bReceiverTookAuthority);
@@ -412,6 +427,7 @@ namespace UE::ConcertSyncTests::Replication::Stream
 			.Next([this, TestObject, SenderStreamID = SenderStreamID, &TestObjectInReceiverStreamId, &bReceivedResponseAddingFloat](FChangeStreamResponse&& Response)
 			{
 				bReceivedResponseAddingFloat = true;
+				TestTrue(TEXT("ErrorCode == Handled"), Response.ErrorCode == EReplicationResponseErrorCode::Handled);
 				TestEqual(TEXT("Append Float > 1 conflict"), Response.AuthorityConflicts.Num(), 1);
 				if (const FReplicatedObjectId* ConflictingObject = Response.AuthorityConflicts.Find(TestObjectInReceiverStreamId))
 				{
@@ -461,6 +477,7 @@ namespace UE::ConcertSyncTests::Replication::Stream
 			.Next([this, &bReceivedChangeStreamResponse](FChangeStreamResponse&& Response)
 			{
 				bReceivedChangeStreamResponse = true;
+				TestTrue(TEXT("ErrorCode == Handled"), Response.ErrorCode == EReplicationResponseErrorCode::Handled);
 				TestTrue(TEXT("Invalid Request > Modify Stream > Failure"), Response.IsFailure());
 			});
 		
@@ -488,6 +505,7 @@ namespace UE::ConcertSyncTests::Replication::Stream
 		ClientReplicationManager_Sender->TakeAuthorityOver({ TestObject })
 			.Next([this](FAuthorityChangeResponse&& Response)
 			{
+				TestTrue(TEXT("ErrorCode == Handled"), Response.ErrorCode == EReplicationResponseErrorCode::Handled);
 				TestTrue(TEXT("Sender > Success taking authority"), Response.RejectedObjects.IsEmpty());
 			});
 
@@ -500,9 +518,41 @@ namespace UE::ConcertSyncTests::Replication::Stream
 		ClientReplicationManager_Receiver->TakeAuthorityOver({ TestObject })
 			.Next([this](FAuthorityChangeResponse&& Response)
 			{
+				TestTrue(TEXT("ErrorCode == Handled"), Response.ErrorCode == EReplicationResponseErrorCode::Handled);
 				TestTrue(TEXT("Receiver > Success taking authority"), Response.RejectedObjects.IsEmpty());
 			});
 		
 		return true;
 	}
+
+	/**
+     * Tests that client updates its local cache of the server state when RequestAuthorityChange times out.
+     */
+    IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FChangingStreamTimeoutRetainsServerState, FChangeStreamsTestBase, "Concert.Replication.Stream.ChangeStreamTimeoutRetainsServerState", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter);
+    bool FChangingStreamTimeoutRetainsServerState::RunTest(const FString& Parameters)
+    {
+    	// 1. Start up client with float property stream
+    	UTestReflectionObject* TestObject = NewObject<UTestReflectionObject>(GetTransientPackage());
+    	auto[InitialStreamId, InitialStream] = CreateFloatPropertyStream(*TestObject);
+    	SenderArgs.Streams = { InitialStream };
+    	SetUpClientAndServer();
+		ServerSession->SetTestFlags(EServerSessionTestingFlags::AllowRequestTimeouts);
+
+    	// 2. Timeout request
+    	ServerSession->UnregisterCustomRequestHandler<FConcertReplication_ChangeStream_Request>();
+    	ConcertSyncClient::Replication::FChangeStreamRequest Request;
+    	Request.ObjectsToRemove.Add({ InitialStreamId, TestObject });
+    	ClientReplicationManager_Sender->ChangeStream(Request);
+
+    	// 3. Check that the local client's server prediction was reverted
+    	TArray<FReplicationStreamDescription> Streams = ClientReplicationManager_Sender->GetRegisteredStreams();
+    	if (Streams.IsEmpty())
+    	{
+    		AddError(TEXT("Stream change was not reverted"));
+    		return true;
+    	}
+    	TestTrue(TEXT("Timed out Stream change reverted"), Streams[0].BaseDescription.ReplicationMap.ReplicatedObjects.Contains(TestObject));
+    	
+    	return true;
+    }
 }

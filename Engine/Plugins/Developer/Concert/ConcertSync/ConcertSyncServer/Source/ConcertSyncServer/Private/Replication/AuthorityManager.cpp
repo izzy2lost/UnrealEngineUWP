@@ -185,6 +185,7 @@ namespace UE::ConcertSyncServer::Replication
 			}
 		});
 
+		Response.ErrorCode = EReplicationResponseErrorCode::Handled;
 		return EConcertSessionResponseCode::Success;
 	}
 	

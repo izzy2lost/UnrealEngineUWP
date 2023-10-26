@@ -6,15 +6,15 @@
 
 namespace UE::MultiUserClient
 {
-	FText LexToText(EAuthoritySubmissionErrorCode ErrorCode)
+	FText LexToText(EAuthoritySubmissionResponseErrorCode ErrorCode)
 	{
 		switch (ErrorCode)
 		{
-		case EAuthoritySubmissionErrorCode::Success: return LOCTEXT("Success", "Success");
-		case EAuthoritySubmissionErrorCode::NoChange: return LOCTEXT("NoChange", "No Change");
-		case EAuthoritySubmissionErrorCode::Timeout: return LOCTEXT("Timeout", "Timeout");
-		case EAuthoritySubmissionErrorCode::CancelledDueToStreamUpdate: return LOCTEXT("CancelledDueToStreamUpdate", "Failed because stream dependency could not be updated");
-		case EAuthoritySubmissionErrorCode::Cancelled: return LOCTEXT("Cancelled", "Cancelled");
+		case EAuthoritySubmissionResponseErrorCode::Success: return LOCTEXT("Success", "Success");
+		case EAuthoritySubmissionResponseErrorCode::NoChange: return LOCTEXT("NoChange", "No Change");
+		case EAuthoritySubmissionResponseErrorCode::Timeout: return LOCTEXT("Timeout", "Timeout");
+		case EAuthoritySubmissionResponseErrorCode::CancelledDueToStreamUpdate: return LOCTEXT("CancelledDueToStreamUpdate", "Failed because stream dependency could not be updated");
+		case EAuthoritySubmissionResponseErrorCode::Cancelled: return LOCTEXT("Cancelled", "Cancelled");
 		default:
 			checkNoEntry();
 			return LOCTEXT("Unknown", "Unknown");;

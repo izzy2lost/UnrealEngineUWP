@@ -29,7 +29,7 @@ namespace UE::MultiUserClient
 			);
 		
 		//~ Begin ISubmissionWorkflow Interface
-		virtual ISubmissionOperation* SubmitChanges() override;
+		virtual TSharedPtr<ISubmissionOperation> SubmitChanges() override;
 		virtual void RevertChanges() override;
 		virtual EChangeUploadability GetUploadability() const override;
 		virtual EChangeRevertability GetRevertability() const override;
@@ -55,7 +55,7 @@ namespace UE::MultiUserClient
 		 * Set for as long as there is a SubmitChanges operation in progress.
 		 * Automatically cancels pending promises when destroyed.
 		 */
-		TOptional<FSingleClientSubmissionOperation> InProgressOperation;
+		TOptional<TSharedRef<FSingleClientSubmissionOperation>> InProgressOperation;
 
 		FGuid GetLocalClientStreamId() const { return StreamSynchronizer.GetStreamId(); }
 

@@ -61,7 +61,7 @@ namespace UE::ConcertSyncClient::Replication
 					return;
 				}
 
-				if (Response.ErrorCode == EJoinReplicationErrorCode::Success)
+				if (Response.JoinErrorCode == EJoinReplicationErrorCode::Success)
 				{
 					This->ChangeState(
 						MakeShared<FReplicationManagerState_Connected>(This->LiveSession, This->ReplicationBridge, MoveTemp(This->RequestArgs.Streams), This->GetOwner())
@@ -73,7 +73,7 @@ namespace UE::ConcertSyncClient::Replication
 				}
 
 				This->bFulfilledPromise = true;
-				This->JoinSessionPromise.EmplaceValue(Response.ErrorCode, Response.DetailedErrorMessage);
+				This->JoinSessionPromise.EmplaceValue(Response.JoinErrorCode, Response.DetailedErrorMessage);
 			});
 	}
 

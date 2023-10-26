@@ -19,6 +19,7 @@ class IConcertServerSession;
 struct FConcertReplication_ChangeStream_Response;
 struct FConcertReplication_QueryReplicationInfo_Response;
 struct FConcertReplication_QueryReplicationInfo_Request;
+struct FReplicationAuthorityInfo;
 
 namespace UE::ConcertSyncCore
 {

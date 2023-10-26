@@ -130,6 +130,7 @@ namespace UE::ConcertSyncServer::Replication
 		/** Checks whether this request is valid to apply. */
 		static bool ShouldAcceptRequest(const FConcertReplication_ChangeStream_Request& Request, const FConcertReplicationClient& Client, const FAuthorityManager& AuthorityManager, FConcertReplication_ChangeStream_Response& OutResponse)
 		{
+			OutResponse.ErrorCode = EReplicationResponseErrorCode::Handled;
 			ValidatePutObjectsRequestSemantics(Request, Client, OutResponse);
 			ValidateAddedStreamsAreUnique(Request, Client, OutResponse);
 			LookForAuthorityConflicts(Request, Client, AuthorityManager, OutResponse);
@@ -164,6 +165,7 @@ namespace UE::ConcertSyncServer::Replication
 			UE_LOG(LogConcert, Warning, TEXT("Rejecting ChangeStream request from %s"), *SendingClientId.ToString(EGuidFormats::Short));
 		}
 		
+		Response.ErrorCode = EReplicationResponseErrorCode::Handled;
 		return EConcertSessionResponseCode::Success;
 	}
 }

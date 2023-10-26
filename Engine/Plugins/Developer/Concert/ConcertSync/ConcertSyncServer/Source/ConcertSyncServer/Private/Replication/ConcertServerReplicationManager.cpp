@@ -6,6 +6,7 @@
 #include "ConcertLogGlobal.h"
 #include "IConcertSession.h"
 #include "Replication/ConcertReplicationClient.h"
+#include "Replication/Data/ClientQueriedInfo.h"
 #include "Replication/Formats/FullObjectFormat.h"
 #include "Replication/Messages/ChangeStream.h"
 #include "Replication/Messages/ClientQuery.h"
@@ -80,8 +81,8 @@ namespace UE::ConcertSyncServer::Replication
 		
 		const EConcertSessionResponseCode Result = InternalHandleJoinReplicationSessionRequest(ConcertSessionContext, Request, Response);
 		
-		UE_CLOG(Response.ErrorCode == EJoinReplicationErrorCode::Success, LogConcert, Log, TEXT("Accepted replication join request"));
-		UE_CLOG(Response.ErrorCode != EJoinReplicationErrorCode::Success, LogConcert, Log, TEXT("Rejected replication join request. %s: %s"), *ConcertSyncCore::Replication::LexJoinErrorCode(Response.ErrorCode), *Response.DetailedErrorMessage);
+		UE_CLOG(Response.JoinErrorCode == EJoinReplicationErrorCode::Success, LogConcert, Log, TEXT("Accepted replication join request"));
+		UE_CLOG(Response.JoinErrorCode != EJoinReplicationErrorCode::Success, LogConcert, Log, TEXT("Rejected replication join request. %s: %s"), *ConcertSyncCore::Replication::LexJoinErrorCode(Response.JoinErrorCode), *Response.DetailedErrorMessage);
 		return Result;
 	}
 
@@ -144,6 +145,7 @@ namespace UE::ConcertSyncServer::Replication
 			}
 		}
 
+		Response.ErrorCode = EReplicationResponseErrorCode::Handled;
 		return EConcertSessionResponseCode::Success;
 	}
 

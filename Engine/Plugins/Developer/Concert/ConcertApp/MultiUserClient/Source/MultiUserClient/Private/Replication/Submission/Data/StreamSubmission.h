@@ -16,6 +16,9 @@ namespace UE::MultiUserClient
 		/** No change was sent to the server because there were no local changes. */
 		NoChange,
 
+		/** The request timed out */
+		Timeout,
+
 		/** The request was cancelled (e.g. because client disconnected while operation was in progress) */
 		Cancelled
 	};
@@ -32,9 +35,6 @@ namespace UE::MultiUserClient
 	{
 		/** Error code of the submission. Determines whether Response is valid. */
 		EStreamSubmissionErrorCode ErrorCode;
-
-		/** The operation this was executed as part of. You cannot keep any reference to this. */
-		ISubmissionOperation& OperationContext; 
 
 		/** Valid if ErrorCode != ESubmitChangesErrorCode::AlreadyInProgress. */
 		TOptional<FCompletedChangeSubmission> SubmissionInfo;

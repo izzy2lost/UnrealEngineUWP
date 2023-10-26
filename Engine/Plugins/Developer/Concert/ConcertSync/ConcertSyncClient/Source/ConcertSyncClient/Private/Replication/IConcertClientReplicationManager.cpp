@@ -51,7 +51,7 @@ TFuture<UE::ConcertSyncClient::Replication::FAuthorityChangeResponse> IConcertCl
 		UE_LOG(LogConcert, Error, TEXT("Attempted to take authority while not connected!"));
 		TMap<FSoftObjectPath, FConcertStreamArray> Result;
 		Algo::Transform(Objects, Result, [](const FSoftObjectPath& Path){ return Path; });
-		return MakeFulfilledPromise<FAuthorityChangeResponse>(FAuthorityChangeResponse{{ MoveTemp(Result) }}).GetFuture();
+		return MakeFulfilledPromise<FAuthorityChangeResponse>(FAuthorityChangeResponse{{ EReplicationResponseErrorCode::Handled ,MoveTemp(Result) }}).GetFuture();
 	}
 
 	FAuthorityChangeRequest Request;
@@ -82,7 +82,7 @@ TFuture<UE::ConcertSyncClient::Replication::FAuthorityChangeResponse> IConcertCl
 		UE_LOG(LogConcert, Error, TEXT("Attempted to take authority while not connected!"));
 		TMap<FSoftObjectPath, FConcertStreamArray> Result;
 		Algo::Transform(Objects, Result, [](const FSoftObjectPath& Path){ return Path; });
-		return MakeFulfilledPromise<FAuthorityChangeResponse>(FAuthorityChangeResponse{{ MoveTemp(Result) }}).GetFuture();
+		return MakeFulfilledPromise<FAuthorityChangeResponse>(FAuthorityChangeResponse{{ EReplicationResponseErrorCode::Handled, MoveTemp(Result) }}).GetFuture();
 	}
 	
 	FAuthorityChangeRequest Request;

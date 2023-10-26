@@ -147,6 +147,14 @@ namespace UE::ConcertSyncTests
 		FConcertClientInfo ClientInfo;
 	};
 
+	enum class EServerSessionTestingFlags
+	{
+		None = 0,
+		/** In FConcertServerSessionMock::DispatchEvent if no request handler is registered, it is allowed to timeout the request. Otherwise a check() is triggered. */
+		AllowRequestTimeouts = 1 << 0
+	};
+	ENUM_CLASS_FLAGS(EServerSessionTestingFlags);
+
 	/** Specializes the base concert server session to act as a fake server session. */
 	class FConcertServerSessionMock : public FConcertServerSessionBaseMock
 	{
@@ -155,6 +163,11 @@ namespace UE::ConcertSyncTests
 		FConcertServerSessionMock()
 		{
 			RegisterCustomEventHandler<FConcertSession_LeaveSessionEvent>(this, &FConcertServerSessionMock::HandleClientLeaveEvent);
+		}
+		
+		void SetTestFlags(EServerSessionTestingFlags InFlags)
+		{
+			TestFlags = InFlags;
 		}
 		
 		virtual void InternalSendCustomEvent(const UScriptStruct* EventType, const void* EventData, const TArray<FGuid>& TargetEndpointIds, EConcertMessageFlags, TOptional<FConcertSequencedCustomEvent> InSequenceId={}) override
@@ -279,6 +292,14 @@ namespace UE::ConcertSyncTests
 					check(false); // The test suite is not expected to fire any other result than Success or Failed.
 				}
 			}
+			else 
+			{
+				const bool bAllowTimeout = EnumHasAnyFlags(TestFlags, EServerSessionTestingFlags::AllowRequestTimeouts);
+				if (ensureAlways(bAllowTimeout))
+				{
+					ResponseHandler->HandleResponse(nullptr);
+				}
+			}
 		}
 
 		virtual bool FindSessionClient(const FGuid& EndpointId, FConcertSessionClientInfo& OutSessionClientInfo) const override
@@ -309,6 +330,8 @@ namespace UE::ConcertSyncTests
 
 		/** Connected clients sessions. */
 		TArray<FConcertClientSessionBaseMock*> ClientSessions;
+
+		EServerSessionTestingFlags TestFlags = EServerSessionTestingFlags::None;
 		
 		void HandleClientLeaveEvent(const FConcertSessionContext& Context, const FConcertSession_LeaveSessionEvent& Event)
 		{

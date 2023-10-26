@@ -83,6 +83,7 @@ namespace UE::ConcertSyncTests::Replication::SendReceiveFlow
 			{
 				bReceivedChangeStreamResponse = true;
 				Test.TestTrue(TEXT("Changed Stream"), Response.IsSuccess());
+				Test.TestTrue(TEXT("ErrorCode == Handled"), Response.ErrorCode == EReplicationResponseErrorCode::Handled);
 			});
 		Test.TestTrue(TEXT("Received change stream response"), bReceivedChangeStreamResponse);
 	}

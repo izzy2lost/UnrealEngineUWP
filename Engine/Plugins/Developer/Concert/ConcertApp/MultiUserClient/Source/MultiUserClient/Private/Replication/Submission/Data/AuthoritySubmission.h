@@ -8,16 +8,13 @@ namespace UE::MultiUserClient
 {
 	class ISubmissionOperation;
 	
-	enum class EAuthoritySubmissionErrorCode
+	enum class EAuthoritySubmissionRequestErrorCode
 	{
 		/** The operation completed as expected */
 		Success,
 
 		/** No change was sent to the server because there were no local changes. */
 		NoChange, 
-
-		/** The request timed out */
-		Timeout,
 
 		/** Cancelled because the required stream update could not be made. */
 		CancelledDueToStreamUpdate,
@@ -26,14 +23,29 @@ namespace UE::MultiUserClient
 		Cancelled
 	};
 
-	FText LexToText(EAuthoritySubmissionErrorCode ErrorCode);
+	enum class EAuthoritySubmissionResponseErrorCode
+    {
+    	/** The operation completed as expected */
+    	Success,
+
+    	/** No change was sent to the server because there were no local changes. */
+    	NoChange, 
+
+    	/** The request timed out */
+    	Timeout,
+
+    	/** Cancelled because the required stream update could not be made. */
+    	CancelledDueToStreamUpdate,
+    	
+    	/** The request was cancelled (e.g. because client disconnected while operation was in progress) */
+    	Cancelled
+    };
+
+	FText LexToText(EAuthoritySubmissionResponseErrorCode ErrorCode);
 
 	struct FSubmitAuthorityChangesRequest
 	{
-		EAuthoritySubmissionErrorCode ErrorCode;
-		
-		/** The operation this was executed as part of. You cannot keep any reference to this. */
-		ISubmissionOperation& OperationContext;
+		EAuthoritySubmissionRequestErrorCode ErrorCode;
 		
 		/** Only valid if ErrorCode == EAuthoritySubmissionErrorCode::Success */
 		TOptional<ConcertSyncClient::Replication::FAuthorityChangeRequest> Request;
@@ -41,10 +53,7 @@ namespace UE::MultiUserClient
 	
 	struct FSubmitAuthorityChangesResponse
 	{
-		EAuthoritySubmissionErrorCode ErrorCode;
-		
-		/** The operation this was executed as part of. You cannot keep any reference to this. */
-		ISubmissionOperation& OperationContext;
+		EAuthoritySubmissionResponseErrorCode ErrorCode;
 		
 		/** Only valid if ErrorCode == EAuthoritySubmissionErrorCode::Success */
 		TOptional<ConcertSyncClient::Replication::FAuthorityChangeResponse> Response;

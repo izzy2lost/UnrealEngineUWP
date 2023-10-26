@@ -5,6 +5,9 @@
 #include "Data/EChangeRevertability.h"
 #include "Data/EChangeUploadability.h"
 
+#include "Templates/Function.h"
+#include "Templates/SharedPointer.h"
+
 namespace UE::MultiUserClient
 {
 	class ISubmissionOperation;
@@ -23,11 +26,16 @@ namespace UE::MultiUserClient
 	public:
 
 		/**
-		 * Synchronizes the server with the locally made changes streams and authority.
-		 * @return Operation object which emits special events. You cannot keep any reference to it. Null if there is already an operation in progress.
+		 * Synchronizes the server with the locally made changes to streams and authority.
+		 *
+		 * This function creates an operation object which emits special events.
+		 * If there is already an operation in progress, this function fails.
 		 * @see CanSubmit
+		 *
+		 * @note The operation might start and instantly stop before SubmitChanges finishes (e.g. a network request fails to be created instantly).
+		 * @return The operation object if the operation was started
 		 */
-		virtual ISubmissionOperation* SubmitChanges() = 0;
+		virtual TSharedPtr<ISubmissionOperation> SubmitChanges() = 0;
 
 		/** Reverts all local changes */
 		virtual void RevertChanges() = 0;

@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "Replication/Data/ObjectIds.h"
+#include "EReplicationResponseErrorCode.h"
 #include "ChangeAuthority.generated.h"
 
 USTRUCT()
@@ -51,6 +51,10 @@ struct FConcertReplication_ChangeAuthority_Response
 {
 	GENERATED_BODY()
 
+	/** Concert's custom requests are default constructed when they timeout. Server always sets this to Handled when processed. */
+	UPROPERTY()
+	EReplicationResponseErrorCode ErrorCode = EReplicationResponseErrorCode::Timeout;
+	
 	/**
 	 * Objects streams the client did not receive authority over.
 	 * The client is implied to have authority over all other request objects.

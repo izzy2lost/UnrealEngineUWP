@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "EReplicationResponseErrorCode.h"
 #include "Replication/Data/ObjectIds.h"
 #include "Replication/Data/ConcertPropertySelection.h"
 #include "Replication/Data/ReplicationStreamDescription.h"
@@ -152,6 +153,10 @@ struct FConcertReplication_ChangeStream_Response
 {
 	GENERATED_BODY()
 
+	/** Concert's custom requests are default constructed when they timeout. Server always sets this to Handled when processed. */
+	UPROPERTY()
+	EReplicationResponseErrorCode ErrorCode = EReplicationResponseErrorCode::Timeout;
+	
 	/**
 	 * Reports dynamic authority errors with ObjectsToPut:
 	 * Changing an object over which a client already has authority can yield unresolvable conflicts for which the entire FConcertChangeStream_Request is rejected.
@@ -178,7 +183,7 @@ struct FConcertReplication_ChangeStream_Response
 	UPROPERTY()
 	TSet<FGuid> FailedStreamCreation;
 
-	bool IsSuccess() const { return AuthorityConflicts.IsEmpty() && ObjectsToPutSemanticErrors.IsEmpty() && FailedStreamCreation.IsEmpty(); }
+	bool IsSuccess() const { return ErrorCode == EReplicationResponseErrorCode::Handled && AuthorityConflicts.IsEmpty() && ObjectsToPutSemanticErrors.IsEmpty() && FailedStreamCreation.IsEmpty(); }
 	bool IsFailure() const { return !IsSuccess(); }
 
 	bool WasObjectPutSuccessful(const FObjectInStreamID& Object) const { return !AuthorityConflicts.Contains(Object) && !ObjectsToPutSemanticErrors.Contains(Object); }

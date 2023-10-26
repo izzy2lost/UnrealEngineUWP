@@ -24,15 +24,15 @@ namespace UE::MultiUserClient
 		{
 			if (!bStreamPromiseWasSet)
 			{
-				StreamChangesPromise.EmplaceValue(FSubmitStreamChangesResponse{ EStreamSubmissionErrorCode::Cancelled, *this });
+				StreamChangesPromise.EmplaceValue(FSubmitStreamChangesResponse{ EStreamSubmissionErrorCode::Cancelled });
 			}
 			if (!bAuthorityRequestPromiseWasSet)
 			{
-				AuthorityChangeRequestPromise.EmplaceValue(FSubmitAuthorityChangesRequest{ EAuthoritySubmissionErrorCode::Cancelled, *this });
+				AuthorityChangeRequestPromise.EmplaceValue(FSubmitAuthorityChangesRequest{ EAuthoritySubmissionRequestErrorCode::Cancelled });
 			}
 			if (!bAuthorityResponsePromiseWasSet)
 			{
-				AuthorityChangeResponsePromise.EmplaceValue(FSubmitAuthorityChangesResponse{ EAuthoritySubmissionErrorCode::Cancelled, *this });
+				AuthorityChangeResponsePromise.EmplaceValue(FSubmitAuthorityChangesResponse{ EAuthoritySubmissionResponseErrorCode::Cancelled });
 			}
 		}
 

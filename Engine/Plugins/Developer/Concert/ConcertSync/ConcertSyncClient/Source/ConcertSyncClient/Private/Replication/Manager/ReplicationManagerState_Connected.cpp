@@ -21,6 +21,22 @@
 
 namespace UE::ConcertSyncClient::Replication
 {
+	TAutoConsoleVariable<bool> CVarSimulateAuthorityTimeouts(
+		TEXT("Concert.Replication.SimulateAuthorityTimeouts"),
+		false,
+		TEXT("Whether the client should pretend that authority requests timed out instead of sending to the server.")
+		);
+	TAutoConsoleVariable<bool> CVarSimulateQueryTimeouts(
+		TEXT("Concert.Replication.SimulateQueryTimeouts"),
+		false,
+		TEXT("Whether the client should pretend that query requests timed out instead of sending to the server.")
+		);
+	TAutoConsoleVariable<bool> CVarSimulateStreamChangeTimeouts(
+		TEXT("Concert.Replication.SimulateStreamChangeTimeouts"),
+		false,
+		TEXT("Whether the client should pretend that stream change requests timed out instead of sending to the server.")
+		);
+	
 	FReplicationManagerState_Connected::FReplicationManagerState_Connected(
 		TSharedRef<IConcertClientSession> LiveSession,
 		IConcertClientReplicationBridge* ReplicationBridge,
@@ -82,6 +98,11 @@ namespace UE::ConcertSyncClient::Replication
 
 	TFuture<FAuthorityChangeResponse> FReplicationManagerState_Connected::RequestAuthorityChange(FAuthorityChangeRequest Args)
 	{
+		if (CVarSimulateAuthorityTimeouts.GetValueOnGameThread())
+		{
+			return MakeFulfilledPromise<FAuthorityChangeResponse>(FAuthorityChangeResponse{ EReplicationResponseErrorCode::Timeout }).GetFuture();
+		}
+		
 		// Stop replicating removed objects right now: the server will remove authority after processing this request.
 		// At that point, it will log errors for receiving replication data from a client without authority.
 		HandleReleasingReplicatedObjects(Args);
@@ -89,9 +110,15 @@ namespace UE::ConcertSyncClient::Replication
 		return LiveSession->SendCustomRequest<FConcertReplication_ChangeAuthority_Request, FConcertReplication_ChangeAuthority_Response>(Args, LiveSession->GetSessionServerEndpointId())
 			.Next([WeakThis = TWeakPtr<FReplicationManagerState_Connected>(SharedThis(this)), Args](FConcertReplication_ChangeAuthority_Response&& Response) mutable
 			{
-				if (const TSharedPtr<FReplicationManagerState_Connected> ThisPin = WeakThis.Pin())
+				if (const TSharedPtr<FReplicationManagerState_Connected> ThisPin = WeakThis.Pin()
+					; ThisPin && Response.ErrorCode == EReplicationResponseErrorCode::Handled)
 				{
 					ThisPin->UpdateReplicatedObjectsAfterAuthorityChange(MoveTemp(Args), Response);
+				}
+				else if (ThisPin && Response.ErrorCode == EReplicationResponseErrorCode::Timeout)
+				{
+					// HandleReleasingReplicatedObjects caused Args.ReleaseAuthority to stop being replicated. Revert.
+					ThisPin->RevertReleasingReplicatedObjects(Args);
 				}
 
 				return FAuthorityChangeResponse { MoveTemp(Response) };
@@ -100,6 +127,11 @@ namespace UE::ConcertSyncClient::Replication
 
 	TFuture<FClientQueryResponse> FReplicationManagerState_Connected::QueryClientInfo(FClientQueryRequest Args)
 	{
+		if (CVarSimulateQueryTimeouts.GetValueOnGameThread())
+		{
+			return MakeFulfilledPromise<FClientQueryResponse>(FClientQueryResponse{ EReplicationResponseErrorCode::Timeout }).GetFuture();
+		}
+		
 		if (EnumHasAllFlags(Args.QueryFlags, EConcertQueryClientStreamFlags::SkipAuthority | EConcertQueryClientStreamFlags::SkipStreamInfo))
 		{
 			UE_LOG(LogConcert, Warning, TEXT("Request QueryClientInfo is pointless because SkipAuthority and SkipStreamInfo are both set. Returning immediately..."));
@@ -115,6 +147,11 @@ namespace UE::ConcertSyncClient::Replication
 
 	TFuture<FChangeStreamResponse> FReplicationManagerState_Connected::ChangeStream(FChangeStreamRequest Args)
 	{
+		if (CVarSimulateStreamChangeTimeouts.GetValueOnGameThread())
+		{
+			return MakeFulfilledPromise<FChangeStreamResponse>(FChangeStreamResponse{ EReplicationResponseErrorCode::Timeout }).GetFuture();
+		}
+		
 		// Stop replicating removed objects right now: the server will remove authority after processing this request.
 		// At that point, it will log errors for receiving replication data from a client without authority.
 		HandleRemovingReplicatedObjects(Args);
@@ -126,6 +163,11 @@ namespace UE::ConcertSyncClient::Replication
 				if (ThisPin && Response.IsSuccess())
 				{
 					ThisPin->UpdateReplicatedObjectsAfterStreamChange(Args, Response);
+				}
+				else if (ThisPin && Response.ErrorCode == EReplicationResponseErrorCode::Timeout)
+				{
+					// HandleRemovingReplicatedObjects caused Request.ObjectsToRemove to stop being replicated. Revert.
+					ThisPin->RevertRemovingReplicatedObjects(Args);
 				}
 				
 				return FChangeStreamResponse { MoveTemp(Response) };
@@ -231,18 +273,36 @@ namespace UE::ConcertSyncClient::Replication
 		}
 	}
 
+	namespace Private
+	{
+		static void ForEachObjectRemovedFromStreams(const FChangeStreamRequest& Request, TFunctionRef<void(const FSoftObjectPath& ObjectPath, const TArray<FGuid>& Streams)> Callback)
+		{
+			TMap<FSoftObjectPath, TArray<FGuid>> BundledRemovedObjects;
+			for (const FObjectInStreamID& RemovedObject : Request.ObjectsToRemove)
+			{
+				BundledRemovedObjects.FindOrAdd(RemovedObject.Object).Add(RemovedObject.StreamId);
+			}
+			for (const TPair<FSoftObjectPath, TArray<FGuid>>& RemovedObjectInfo : BundledRemovedObjects)
+			{
+				Callback(RemovedObjectInfo.Key, RemovedObjectInfo.Value);
+			}
+		}
+	}
+
 	void FReplicationManagerState_Connected::HandleRemovingReplicatedObjects(const FChangeStreamRequest& Request) const
 	{
-		TMap<FSoftObjectPath, TArray<FGuid>> BundledRemovedObjects;
-		for (const FObjectInStreamID& RemovedObject : Request.ObjectsToRemove)
+		Private::ForEachObjectRemovedFromStreams(Request, [this](const FSoftObjectPath& Object, const TArray<FGuid>& RemovedStreams)
 		{
-			BundledRemovedObjects.FindOrAdd(RemovedObject.Object).Add(RemovedObject.StreamId);
-		}
-		for (const TPair<FSoftObjectPath, TArray<FGuid>>& RemovedObjectInfo : BundledRemovedObjects)
+			ReplicationDataSource->RemoveReplicatedObjectStreams(Object, RemovedStreams);
+		});
+	}
+
+	void FReplicationManagerState_Connected::RevertRemovingReplicatedObjects(const FChangeStreamRequest& Request) const
+	{
+		Private::ForEachObjectRemovedFromStreams(Request, [this](const FSoftObjectPath& Object, const TArray<FGuid>& RemovedStreams)
 		{
-			// Removing an object from a stream implies removing its authority so stop replicating it
-			ReplicationDataSource->RemoveReplicatedObjectStreams(RemovedObjectInfo.Key, RemovedObjectInfo.Value);
-		}
+			ReplicationDataSource->AddReplicatedObjectStreams(Object, RemovedStreams);
+		});
 	}
 
 	void FReplicationManagerState_Connected::UpdateReplicatedObjectsAfterAuthorityChange(FAuthorityChangeRequest&& Request, const FConcertReplication_ChangeAuthority_Response& Response) const
@@ -280,6 +340,14 @@ namespace UE::ConcertSyncClient::Replication
 		for (const TPair<FSoftObjectPath, FConcertStreamArray>& ReleaseAuthority : Request.ReleaseAuthority)
 		{
 			ReplicationDataSource->RemoveReplicatedObjectStreams(ReleaseAuthority.Key, ReleaseAuthority.Value.StreamIds);
+		}
+	}
+
+	void FReplicationManagerState_Connected::RevertReleasingReplicatedObjects(const FAuthorityChangeRequest& Request) const
+	{
+		for (const TPair<FSoftObjectPath, FConcertStreamArray>& ReleaseAuthority : Request.ReleaseAuthority)
+		{
+			ReplicationDataSource->AddReplicatedObjectStreams(ReleaseAuthority.Key, ReleaseAuthority.Value.StreamIds);
 		}
 	}
 }

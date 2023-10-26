@@ -81,7 +81,7 @@ struct FConcertReplication_Join_Response
 	 * Hence NetworkError means timeout, etc.
 	 */
 	UPROPERTY()
-	EJoinReplicationErrorCode ErrorCode = EJoinReplicationErrorCode::NetworkError;
+	EJoinReplicationErrorCode JoinErrorCode = EJoinReplicationErrorCode::NetworkError;
 
 	/** More information about ErrorCode to help the user resolve the issue. */
 	UPROPERTY()

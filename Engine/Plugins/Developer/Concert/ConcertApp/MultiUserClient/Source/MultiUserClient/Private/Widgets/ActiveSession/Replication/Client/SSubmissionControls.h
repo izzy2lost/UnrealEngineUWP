@@ -46,9 +46,16 @@ namespace UE::MultiUserClient
 		FReply OnUploadButtonClicked() const;
 
 		// Handle submission events
-		void SetupNotificationsFor(ISubmissionOperation& SubmissionOperation) const;
+		void SetupNotificationsFor(TSharedRef<ISubmissionOperation> SubmissionOperation) const;
+
+		/** Shows a notification that the stream is being updated */
 		void HandleStreamUpdatedNotification(ISubmissionOperation& SubmissionOperation) const;
-		void HandleAuthorityChangeRequestedNotification(ISubmissionOperation& SubmissionOperation) const;
+		/** Closes the stream update notification */
+		static void OnStreamChangesSubmitted(const TSharedPtr<SNotificationItem>& Notification, EStreamSubmissionErrorCode ErrorCode, TOptional<FCompletedChangeSubmission> SubmissionInfo);
+
+		/** Shows a notification that the authority is being updated. */
+		void HandleAuthorityChangeRequestedNotification(TSharedRef<ISubmissionOperation> SubmissionOperation) const;
+		/** Hides the authority hiding notification. */
 		static void HandleAuthorityChangedResponseNotification(
 			const ConcertSyncClient::Replication::FAuthorityChangeRequest& Request,
 			const FSubmitAuthorityChangesResponse& ResponseMetaData,

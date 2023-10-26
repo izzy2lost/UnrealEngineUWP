@@ -121,6 +121,7 @@ namespace UE::ConcertSyncClient::Replication
 		/** Updates replicated objects affected by the change request. */
 		void UpdateReplicatedObjectsAfterStreamChange(const FChangeStreamRequest& Request, const FConcertReplication_ChangeStream_Response& Response);
 		void HandleRemovingReplicatedObjects(const FChangeStreamRequest& Request) const;
+		void RevertRemovingReplicatedObjects(const FChangeStreamRequest& Request) const;
 
 		/**
 		 * Updates the objects which should be replicated after changing authority.
@@ -130,5 +131,6 @@ namespace UE::ConcertSyncClient::Replication
 		 */
 		void UpdateReplicatedObjectsAfterAuthorityChange(FAuthorityChangeRequest&& Request, const FConcertReplication_ChangeAuthority_Response& Response) const;
 		void HandleReleasingReplicatedObjects(const FAuthorityChangeRequest& Request) const;
+		void RevertReleasingReplicatedObjects(const FAuthorityChangeRequest& Request) const;
 	};
 }

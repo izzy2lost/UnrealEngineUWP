@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "EReplicationResponseErrorCode.h"
 #include "Replication/Data/ClientQueriedInfo.h"
 #include "ClientQuery.generated.h"
 
@@ -51,10 +52,14 @@ struct FConcertReplication_QueryReplicationInfo_Request
 };
 
 USTRUCT()
-struct FConcertReplication_QueryReplicationInfo_Response
+struct FConcertReplication_QueryReplicationInfo_Response 
 {
 	GENERATED_BODY()
-
+	
+	/** Concert's custom requests are default constructed when they timeout. Server always sets this to Handled when processed. */
+	UPROPERTY()
+	EReplicationResponseErrorCode ErrorCode = EReplicationResponseErrorCode::Timeout;
+	
 	/**
 	 * Binds client participating in the replication session to their info.
 	 * 
