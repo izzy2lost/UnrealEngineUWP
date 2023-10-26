@@ -2093,6 +2093,23 @@
             <param name="cancellationToken">Token used to cancel the operation</param>
             <returns>Stream information record</returns>
         </member>
+        <member name="M:EpicGames.Perforce.PerforceConnectionExtensions.TryUpdateStreamAsync(EpicGames.Perforce.IPerforceConnection,EpicGames.Perforce.StreamRecord,System.Threading.CancellationToken)">
+            <summary>
+            Updates an existing stream
+            </summary>
+            <param name="connection">Connection to the Perforce server</param>
+            <param name="record">Information of the stream to update</param>
+            <param name="cancellationToken">Token used to cancel the operation</param>
+            <returns>Stream information record</returns>
+        </member>
+        <member name="M:EpicGames.Perforce.PerforceConnectionExtensions.SerializeRecord(EpicGames.Perforce.IPerforceConnection,EpicGames.Perforce.StreamRecord)">
+            <summary>
+            Serializes a client record to a byte array
+            </summary>
+            <param name="connection">Connection to the Perforce server</param>
+            <param name="input">The input record</param>
+            <returns>Serialized record data</returns>
+        </member>
         <member name="M:EpicGames.Perforce.PerforceConnectionExtensions.GetStreamsAsync(EpicGames.Perforce.IPerforceConnection,System.String,System.Threading.CancellationToken)">
             <summary>
             Enumerates all streams in a depot
@@ -6761,6 +6778,11 @@
             Options for this stream
             </summary>
         </member>
+        <member name="P:EpicGames.Perforce.StreamRecord.ParentView">
+            <summary>
+            Parent view
+            </summary>
+        </member>
         <member name="P:EpicGames.Perforce.StreamRecord.Paths">
             <summary>
             List of paths in the stream spec
@@ -6780,6 +6802,18 @@
             <summary>
             Private constructor for serialization
             </summary>
+        </member>
+        <member name="M:EpicGames.Perforce.StreamRecord.#ctor(System.String,System.String,System.String,System.String,System.String,System.String,System.Collections.Generic.List{System.String})">
+            <summary>
+            Constructor
+            </summary>
+            <param name="stream">Stream</param>
+            <param name="owner">Owner</param>
+            <param name="name">Name of the stream</param>
+            <param name="parent">Parent stream</param>
+            <param name="type">Stream type</param>
+            <param name="parentView">Parent view</param>
+            <param name="paths">List of paths in the stream spec</param>
         </member>
         <member name="T:EpicGames.Perforce.StreamsOptions">
             <summary>
