@@ -14,6 +14,7 @@
 #include "UObject/UObjectGlobals.h"
 #include "ControlRigObjectVersion.h"
 #include "BlueprintCompilationManager.h"
+#include "ModularRig.h"
 #include "RigVMCompiler/RigVMCompiler.h"
 #include "RigVMCore/RigVMRegistry.h"
 #include "Units/Execution/RigUnit_BeginExecution.h"
@@ -69,6 +70,11 @@ UControlRigBlueprint::UControlRigBlueprint(const FObjectInitializer& ObjectIniti
 	{
 		CommonInitialization(ObjectInitializer);
 	}
+
+	ModularRigModel.SetOuterClientHost(this);
+	UModularRigController* ModularController = ModularRigModel.GetController();
+	ModularController->OnModified().AddUObject(this, &UControlRigBlueprint::HandleRigModulesModified);
+	
 }
 
 UControlRigBlueprint::UControlRigBlueprint()
@@ -181,6 +187,16 @@ bool UControlRigBlueprint::CanTurnIntoControlRigModule(bool InAutoConvertHierarc
 		if(OutErrorMessage)
 		{
 			static const FString Message = TEXT("This asset is already a Control Rig Module.");
+			*OutErrorMessage = Message;
+		}
+		return false;
+	}
+
+	if (GetRigVMHostClass()->IsChildOf<UModularRig>())
+	{
+		if(OutErrorMessage)
+		{
+			static const FString Message = TEXT("This asset is a Modular Rig.");
 			*OutErrorMessage = Message;
 		}
 		return false;
@@ -819,6 +835,7 @@ void UControlRigBlueprint::SetPreviewMesh(USkeletalMesh* PreviewMesh, bool bMark
 void UControlRigBlueprint::Serialize(FArchive& Ar)
 {
 	RigVMClient.SetOuterClientHost(this, GET_MEMBER_NAME_CHECKED(UControlRigBlueprint, RigVMClient));
+	ModularRigModel.SetOuterClientHost(this);
 	
 	Super::Serialize(Ar);
 
@@ -866,6 +883,8 @@ void UControlRigBlueprint::Serialize(FArchive& Ar)
 			TGuardValue<bool> DisableClientNotifs(RigVMClient.bSuspendNotifications, true);
 			RigVMClient.SetFromDeprecatedData(Model_DEPRECATED, FunctionLibrary_DEPRECATED);
 		}
+
+		ModularRigModel.UpdateCachedChildren();
 	}
 }
 
@@ -924,11 +943,19 @@ bool UControlRigBlueprint::ResolveConnector(const FRigElementKey& DraggedKey, co
 			return false;
 		}
 		ExistingTargetKey = TargetKey;
+
+		// Add connection to the model
+		if (UModularRigController* Controller = GetModularRigController())
+		{
+			Controller->ConnectModuleToElement(DraggedKey, TargetKey);
+		}
 	}
 	else
 	{
 		ConnectionMap.Remove(DraggedKey);
 	}
+
+	RecompileModularRig();
 
 	PropagateHierarchyFromBPToInstances();
 
@@ -1096,6 +1123,7 @@ void UControlRigBlueprint::HandlePackageDone()
 	PropagateHierarchyFromBPToInstances();
 
 	Super::HandlePackageDone();
+	RecompileModularRig();
 }
 
 void UControlRigBlueprint::HandleConfigureRigVMController(const FRigVMClient* InClient, URigVMController* InControllerToConfigure)
@@ -1142,6 +1170,16 @@ UClass* UControlRigBlueprint::GetRigVMEdGraphClass() const
 UClass* UControlRigBlueprint::GetRigVMEditorSettingsClass() const
 {
 	return UControlRigEditorSettings::StaticClass();
+}
+
+void UControlRigBlueprint::GetPreloadDependencies(TArray<UObject*>& OutDeps)
+{
+	Super::GetPreloadDependencies(OutDeps);
+
+	for (FRigModuleReference& Module : ModularRigModel.Modules)
+	{
+		OutDeps.Add(Module.Class.Get());
+	}
 }
 
 #if WITH_EDITOR
@@ -1250,6 +1288,14 @@ void UControlRigBlueprint::PostDuplicate(bool bDuplicateForPIE)
 		Controller->OnModified().RemoveAll(this);
 		Controller->OnModified().AddUObject(this, &UControlRigBlueprint::HandleHierarchyModified);
 	}
+
+	if (UModularRigController* ModularController = ModularRigModel.GetController())
+	{
+		ModularController->OnModified().RemoveAll(this);
+		ModularController->OnModified().AddUObject(this, &UControlRigBlueprint::HandleRigModulesModified);
+	}
+
+	ModularRigModel.UpdateCachedChildren();
 }
 
 TArray<UControlRigBlueprint*> UControlRigBlueprint::GetCurrentlyOpenRigBlueprints()
@@ -1440,6 +1486,70 @@ void UControlRigBlueprint::ClearTransientControls()
 			if (InstancedControlRig)
 			{
 				InstancedControlRig->ClearTransientControls();
+			}
+		}
+	}
+}
+
+UModularRigController* UControlRigBlueprint::GetModularRigController() 
+{
+	if (!GetControlRigClass()->IsChildOf(UModularRig::StaticClass()))
+	{
+		return nullptr;
+	}
+
+	return ModularRigModel.GetController();
+}
+
+static void AddModulesRecursively(UModularRig* Rig, const FRigModuleReference* InModule, FRigModuleInstance* InParent)
+{
+	// Make sure the inner is loaded and valid
+	{
+		if (!InModule->Class.IsValid())
+		{
+			InModule->Class.LoadSynchronous();
+		}
+		if (!InModule->Class.IsValid())
+		{
+			return;
+		}
+	}
+	
+	FRigModuleInstance* NewModule = Rig->AddModuleInstance(InModule->Name, InModule->Class.Get(), InParent, InModule->Connections);
+	
+	for (const FRigModuleReference* ChildModule : InModule->CachedChildren)
+	{
+		AddModulesRecursively(Rig, ChildModule, NewModule);
+	}
+}
+
+static void BuildModularRig(UModularRig* Rig, const FModularRigModel& Model)
+{
+	Rig->ResetModules();
+	for (const FRigModuleReference* RootModule : Model.RootModules)
+	{
+		AddModulesRecursively(Rig, RootModule, nullptr);
+	}
+	Rig->InitializeVMs(true);
+}
+
+void UControlRigBlueprint::RecompileModularRig()
+{
+	if (UClass* MyControlRigClass = GeneratedClass)
+	{
+		if (UModularRig* DefaultObject = Cast<UModularRig>(MyControlRigClass->GetDefaultObject(false)))
+		{
+			BuildModularRig(DefaultObject, ModularRigModel);
+
+			// Initialize Archetype Instances
+			TArray<UObject*> ArchetypeInstances;
+			DefaultObject->GetArchetypeInstances(ArchetypeInstances);
+			for (UObject* Instance : ArchetypeInstances)
+			{
+				if (UModularRig* ModularRigInstance = Cast<UModularRig>(Instance))
+				{
+					BuildModularRig(ModularRigInstance, ModularRigModel);
+				}
 			}
 		}
 	}
@@ -1892,7 +2002,7 @@ void UControlRigBlueprint::UpdateElementKeyRedirector(UBaseControlRig* InControl
 {
 	InControlRig->HierarchySettings = HierarchySettings;
 	InControlRig->RigModuleSettings = RigModuleSettings;
-	InControlRig->ElementKeyRedirector = FRigElementKeyRedirector(ConnectionMap, Hierarchy);
+	InControlRig->ElementKeyRedirector = FRigElementKeyRedirector(ConnectionMap, InControlRig->GetHierarchy());
 }
 
 void UControlRigBlueprint::PropagatePoseFromInstanceToBP(UBaseControlRig* InControlRig) const
@@ -1952,6 +2062,7 @@ void UControlRigBlueprint::PropagateHierarchyFromBPToInstances() const
 					InstanceRig->PostInitInstanceIfRequired();
 					InstanceRig->GetHierarchy()->CopyHierarchy(Hierarchy);
 					InstanceRig->HierarchySettings = HierarchySettings;
+					UpdateElementKeyRedirector(InstanceRig);
 					InstanceRig->Initialize(true);
 				}
 			}
@@ -2124,6 +2235,11 @@ void UControlRigBlueprint::HandleHierarchyModified(ERigHierarchyNotification InN
 	HierarchyModifiedEvent.Broadcast(InNotification, InHierarchy, InElement);
 	
 #endif
+}
+
+void UControlRigBlueprint::HandleRigModulesModified(EModularRigNotification InNotification, const FRigModuleReference* InModule)
+{
+	RecompileModularRig();
 }
 
 UControlRigBlueprint::FControlValueScope::FControlValueScope(UControlRigBlueprint* InBlueprint)

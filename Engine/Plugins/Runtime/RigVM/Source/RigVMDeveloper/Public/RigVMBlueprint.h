@@ -311,7 +311,7 @@ public:
 	virtual void PostEditChangeChainProperty(struct FPropertyChangedChainEvent& PropertyChangedEvent) override;
 	virtual void PostRename(UObject* OldOuter, const FName OldName) override;
 	/** Called during cooking. Must return all objects that will be Preload()ed when this is serialized at load time. */
-	void GetPreloadDependencies(TArray<UObject*>& OutDeps) override;
+	virtual void GetPreloadDependencies(TArray<UObject*>& OutDeps) override;
 
 	// IRigVMClientHost interface
 	virtual FRigVMClient* GetRigVMClient() override;

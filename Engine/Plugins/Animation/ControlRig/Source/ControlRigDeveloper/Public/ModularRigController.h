@@ -1,0 +1,63 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#pragma once
+
+#include "BaseControlRig.h"
+#include "ModularRigController.generated.h"
+
+struct FRigModuleReference;
+struct FModularRigModel;
+
+DECLARE_MULTICAST_DELEGATE_TwoParams(FModularRigModifiedEvent, EModularRigNotification /* type */, const FRigModuleReference* /* element */);
+
+
+UENUM()
+enum class EModularRigNotification : uint8
+{
+	ModuleAdded,
+
+	ConnectionChanged,
+
+	/** MAX - invalid */
+	Max UMETA(Hidden),
+};
+
+UCLASS(BlueprintType)
+class CONTROLRIGDEVELOPER_API UModularRigController : public UObject
+{
+	GENERATED_UCLASS_BODY()
+
+	UModularRigController()
+		: Model(nullptr)
+		, bSuspendNotifications(false)
+	{
+	}
+
+	FModularRigModel* Model;
+
+	FModularRigModifiedEvent ModifiedEvent;
+
+	bool bSuspendNotifications;
+
+
+	UFUNCTION(BlueprintCallable, Category = "Control Rig | Modules")
+	bool AddModule(const FName& InModuleName, TSubclassOf<UBaseControlRig> InClass, const FString& InParentModulePath);
+
+	UFUNCTION(BlueprintCallable, Category = "Control Rig | Modules")
+	bool ConnectModuleToElement(const FRigElementKey& InConnectorKey, const FRigElementKey& InTargetKey);
+
+	UFUNCTION(BlueprintCallable, Category = "ControlRig | Modules")
+	bool RemoveModule(const FString& InModulesPath);
+
+	UFUNCTION(BlueprintCallable, Category = "ControlRig | Modules")
+	bool RenameModule(const FString& InModulesPath, const FName& InNewName);
+
+	UFUNCTION(BlueprintCallable, Category = "ControlRig | Modules")
+	bool ReparentModule(const FString& InModulesPath, const FString& InNewParentModulePath);
+
+
+	void SetModel(FModularRigModel* InModel) { Model = InModel; }
+	FRigModuleReference* FindModule(const FString& InPath);
+	FModularRigModifiedEvent& OnModified() { return ModifiedEvent; }
+	void Notify(const EModularRigNotification& InNotification, const FRigModuleReference* InElement);
+};

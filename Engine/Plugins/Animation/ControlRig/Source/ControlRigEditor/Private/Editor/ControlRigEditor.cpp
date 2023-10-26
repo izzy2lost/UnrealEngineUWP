@@ -28,6 +28,8 @@
 #include "IPersonaPreviewScene.h"
 #include "Animation/AnimData/BoneMaskFilter.h"
 #include "BaseControlRig.h"
+#include "ControlRig.h"
+#include "ModularRig.h"
 #include "Editor/ControlRigSkeletalMeshComponent.h"
 #include "ControlRigObjectBinding.h"
 #include "RigVMBlueprintUtils.h"
@@ -1100,6 +1102,8 @@ void FControlRigEditor::Compile()
 		{
 			FRigVMEditor::Compile();
 		}
+
+		ControlRigBlueprint->RecompileModularRig();
 
 		// ensure the skeletal mesh is still bound
 		UControlRigSkeletalMeshComponent* SkelMeshComponent = Cast<UControlRigSkeletalMeshComponent>(GetPersonaToolkit()->GetPreviewScene()->GetPreviewMeshComponent());
@@ -3020,19 +3024,22 @@ void FControlRigEditor::OnHierarchyModified(ERigHierarchyNotification InNotif, U
 	{
 		case ERigHierarchyNotification::ElementAdded:
 		{
-			if(InElement->GetType() == ERigElementType::Connector)
+			if (GetControlRig()->IsA<UControlRig>())
 			{
-				if(InHierarchy->GetConnectors().Num() == 1)
+				if(InElement->GetType() == ERigElementType::Connector)
 				{
-					FNotificationInfo Info(LOCTEXT("FirstConnectorEncountered", "Looks like you have added the first connector. This rig will now be configured as a module, settings can be found in the class settings Hierarchy -> Module Settings."));
-					Info.bFireAndForget = true;
-					Info.FadeOutDuration = 5.0f;
-					Info.ExpireDuration = 5.0f;
+					if(InHierarchy->GetConnectors().Num() == 1)
+					{
+						FNotificationInfo Info(LOCTEXT("FirstConnectorEncountered", "Looks like you have added the first connector. This rig will now be configured as a module, settings can be found in the class settings Hierarchy -> Module Settings."));
+						Info.bFireAndForget = true;
+						Info.FadeOutDuration = 5.0f;
+						Info.ExpireDuration = 5.0f;
 
-					TSharedPtr<SNotificationItem> NotificationPtr = FSlateNotificationManager::Get().AddNotification(Info);
-					NotificationPtr->SetCompletionState(SNotificationItem::CS_Success);
+						TSharedPtr<SNotificationItem> NotificationPtr = FSlateNotificationManager::Get().AddNotification(Info);
+						NotificationPtr->SetCompletionState(SNotificationItem::CS_Success);
 
-					RigBlueprint->TurnIntoControlRigModule();
+						RigBlueprint->TurnIntoControlRigModule();
+					}
 				}
 			}
 			// no break - fall through

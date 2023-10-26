@@ -168,11 +168,20 @@ bool UControlRig::Execute_Internal(const FName& InEventName)
 		FRigHierarchyExecuteContextBracket HierarchyContextGuard(Hierarchy, &Context);
 
 		// setup the module information
-		FControlRigExecuteContext& PublicContext = Context.GetPublicDataSafe<FControlRigExecuteContext>();
-		FControlRigExecuteContextRigModuleGuard RigModuleGuard(PublicContext, this);
-		FRigHierarchyRedirectorGuard ElementRedirectorGuard(this);
+		bool bSuccess;
+		if (!IsRigModuleInstance())
+		{
+			FControlRigExecuteContext& PublicContext = Context.GetPublicDataSafe<FControlRigExecuteContext>();
+			FControlRigExecuteContextRigModuleGuard RigModuleGuard(PublicContext, this);
+			FRigHierarchyRedirectorGuard ElementRedirectorGuard(this);
 
-		const bool bSuccess = VM->ExecuteVM(Context, InEventName) != ERigVMExecuteResult::Failed;
+			bSuccess = VM->ExecuteVM(Context, InEventName) != ERigVMExecuteResult::Failed;
+		}
+		else
+		{
+			bSuccess = VM->ExecuteVM(Context, InEventName) != ERigVMExecuteResult::Failed;
+		}
+
 
 #if UE_RIGVM_PROFILE_EXECUTE_UNITS_NUM
 		const uint64 EndCycles = FPlatformTime::Cycles64();
@@ -191,11 +200,5 @@ bool UControlRig::Execute_Internal(const FName& InEventName)
 	return false;
 }
 
-#if WITH_EDITOR
-void UControlRig::SetFirstEntryEventInEventQueue(FRigVMExtendedExecuteContext& Context, const FName& InFirstEventName)
-{
-	VM->SetFirstEntryEventInEventQueue(Context, NAME_None);
-}
-#endif
 
 #undef LOCTEXT_NAMESPACE

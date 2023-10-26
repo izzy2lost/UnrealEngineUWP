@@ -191,12 +191,14 @@ private:
 	uint32 RigModuleNameSpaceHash;
 
 	friend class FControlRigExecuteContextRigModuleGuard;
+	friend class UModularRig;
 };
 
 class CONTROLRIG_API FControlRigExecuteContextRigModuleGuard
 {
 public:
 	FControlRigExecuteContextRigModuleGuard(FControlRigExecuteContext& InContext, const UBaseControlRig* InControlRig);
+	FControlRigExecuteContextRigModuleGuard(FControlRigExecuteContext& InContext, const FString& InNewModuleNameSpace);
 	~FControlRigExecuteContextRigModuleGuard();
 
 private:

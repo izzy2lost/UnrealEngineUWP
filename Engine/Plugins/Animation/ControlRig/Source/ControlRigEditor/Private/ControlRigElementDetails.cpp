@@ -5113,7 +5113,7 @@ void FRigConnectorElementDetails::CustomizeDetails(IDetailLayoutBuilder& DetailB
 	FRigTransformElementDetails::CustomizeDetails(DetailBuilder);
 	CustomizeTransform(DetailBuilder);
 	CustomizeSettings(DetailBuilder);
-	CustomizeMetadata(DetailBuilder);
+	//CustomizeMetadata(DetailBuilder);
 }
 
 void FRigConnectorElementDetails::CustomizeSettings(IDetailLayoutBuilder& DetailBuilder)

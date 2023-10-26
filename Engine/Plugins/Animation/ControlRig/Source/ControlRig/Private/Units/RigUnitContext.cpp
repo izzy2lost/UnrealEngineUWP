@@ -80,7 +80,16 @@ FControlRigExecuteContextRigModuleGuard::FControlRigExecuteContextRigModuleGuard
 	Context.RigModuleNameSpace = InControlRig->GetRigModuleNameSpace();
 	Context.RigModuleNameSpaceHash = GetTypeHash(Context.RigModuleNameSpace);
 }
-	
+
+FControlRigExecuteContextRigModuleGuard::FControlRigExecuteContextRigModuleGuard(FControlRigExecuteContext& InContext, const FString& InNewModuleNameSpace)
+	: Context(InContext)
+	, PreviousRigModuleNameSpace(InContext.RigModuleNameSpace)
+	, PreviousRigModuleNameSpaceHash(InContext.RigModuleNameSpaceHash)
+{
+	Context.RigModuleNameSpace = InNewModuleNameSpace;
+	Context.RigModuleNameSpaceHash = GetTypeHash(Context.RigModuleNameSpace);
+}
+
 FControlRigExecuteContextRigModuleGuard::~FControlRigExecuteContextRigModuleGuard()
 {
 	Context.RigModuleNameSpace = PreviousRigModuleNameSpace;

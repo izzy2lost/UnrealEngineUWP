@@ -49,7 +49,6 @@ public:
 	virtual void InitializeVMsFromCDO() override { URigVMHost::InitializeFromCDO(); }
 	virtual void RequestInitVMs() override { URigVMHost::RequestInit(); }
 	virtual bool Execute_Internal(const FName& InEventName) override;
-	virtual void EvaluateVMs_AnyThread() override { URigVMHost::Evaluate_AnyThread(); }
 #if WITH_EDITOR
 	virtual void SetFirstEntryEventInEventQueue(FRigVMExtendedExecuteContext& Context, const FName& InFirstEventName) override;
 #endif

@@ -404,7 +404,7 @@ void FControlRigBlueprintActions::OnSpawnedSkeletalMeshActorChanged(UObject* InO
 
 					ObjectName.RemoveFromEnd(TEXT("_C"));
 
-					// This is either a UControlRig or a UModularControlRig
+					// This is either a UControlRig or a UModularRig
 					ControlRig = NewObject<UBaseControlRig>(Track, ControlRigClass, FName(*ObjectName), RF_Transactional);
 					ControlRig->SetObjectBinding(MakeShared<FControlRigObjectBinding>());
 					ControlRig->GetObjectBinding()->BindToObject(MeshActor->GetSkeletalMeshComponent());

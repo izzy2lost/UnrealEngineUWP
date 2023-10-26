@@ -333,7 +333,7 @@ void UBaseControlRig::Evaluate_AnyThread()
 	{
 		if (bRequiresInitExecution)
 		{
-			EvaluateVMs_AnyThread();
+			Super::Evaluate_AnyThread();
 		}
 		
 		// we can have other systems trying to poke into running instances of Control Rigs
@@ -427,7 +427,7 @@ void UBaseControlRig::Evaluate_AnyThread()
 	}
 	else
 	{
-		EvaluateVMs_AnyThread();
+		Super::Evaluate_AnyThread();
 	}
 }
 
@@ -493,38 +493,41 @@ void UBaseControlRig::InitializeFromCDO()
 	// copy CDO property you need to here
 	if (!HasAnyFlags(RF_ClassDefaultObject))
 	{
-		// similar to FControlRigBlueprintCompilerContext::CopyTermDefaultsToDefaultObject,
-		// where CDO is initialized from BP there,
-		// we initialize all other instances of Control Rig from the CDO here
-		UBaseControlRig* CDO = GetClass()->GetDefaultObject<UBaseControlRig>();
-		URigHierarchy* Hierarchy = GetHierarchy();
-
-		// copy hierarchy
+		if (!IsRigModuleInstance())
 		{
-			FRigHierarchyValidityBracket ValidityBracketA(Hierarchy);
-			FRigHierarchyValidityBracket ValidityBracketB(CDO->GetHierarchy());
+			// similar to FControlRigBlueprintCompilerContext::CopyTermDefaultsToDefaultObject,
+			// where CDO is initialized from BP there,
+			// we initialize all other instances of Control Rig from the CDO here
+			UBaseControlRig* CDO = GetClass()->GetDefaultObject<UBaseControlRig>();
+			URigHierarchy* Hierarchy = GetHierarchy();
+
+			// copy hierarchy
+			{
+				FRigHierarchyValidityBracket ValidityBracketA(Hierarchy);
+				FRigHierarchyValidityBracket ValidityBracketB(CDO->GetHierarchy());
 			
-			TGuardValue<bool> Guard(Hierarchy->GetSuspendNotificationsFlag(), true);
-			Hierarchy->CopyHierarchy(CDO->GetHierarchy());
-			Hierarchy->ResetPoseToInitial(ERigElementType::All);
-		}
+				TGuardValue<bool> Guard(Hierarchy->GetSuspendNotificationsFlag(), true);
+				Hierarchy->CopyHierarchy(CDO->GetHierarchy());
+				Hierarchy->ResetPoseToInitial(ERigElementType::All);
+			}
 
 #if WITH_EDITOR
-		// current hierarchy should always mirror CDO's hierarchy whenever a change of interest happens
-		CDO->GetHierarchy()->RegisterListeningHierarchy(Hierarchy);
+			// current hierarchy should always mirror CDO's hierarchy whenever a change of interest happens
+			CDO->GetHierarchy()->RegisterListeningHierarchy(Hierarchy);
 #endif
 
-		// notify clients that the hierarchy has changed
-		Hierarchy->Notify(ERigHierarchyNotification::HierarchyReset, nullptr);
+			// notify clients that the hierarchy has changed
+			Hierarchy->Notify(ERigHierarchyNotification::HierarchyReset, nullptr);
 
-		// copy hierarchy settings
-		HierarchySettings = CDO->HierarchySettings;
-		ElementKeyRedirector = FRigElementKeyRedirector(CDO->ElementKeyRedirector, Hierarchy); 
+			// copy hierarchy settings
+			HierarchySettings = CDO->HierarchySettings;
+			ElementKeyRedirector = FRigElementKeyRedirector(CDO->ElementKeyRedirector, Hierarchy); 
 		
-		// increment the procedural limit based on the number of elements in the CDO
-		if(const URigHierarchy* CDOHierarchy = CDO->GetHierarchy())
-		{
-			HierarchySettings.ProceduralElementLimit += CDOHierarchy->Num();
+			// increment the procedural limit based on the number of elements in the CDO
+			if(const URigHierarchy* CDOHierarchy = CDO->GetHierarchy())
+			{
+				HierarchySettings.ProceduralElementLimit += CDOHierarchy->Num();
+			}
 		}
 
 		ExternalVariableDataAssetLinks.Reset();
@@ -569,28 +572,29 @@ bool UBaseControlRig::AllConnectorsAreResolved(FString* OutFailureReason, FRigEl
 		// todo: introduce a cache here based on ElementKeyDirector hash and
 		// topology hash of the hierarchy
 		
-		const TArray<FRigConnectorElement*> Connectors = Hierarchy->GetConnectors(false);
+		const TArray<FRigModuleConnector> Connectors = GetRigModuleSettings().ExposedConnectors;
 
 		// collect the connection map
 		TMap<FRigElementKey, FRigElementKey> ConnectionMap;
-		for(const FRigConnectorElement* Connector : Connectors)
+		for(const FRigModuleConnector& Connector : Connectors)
 		{
-			if(const FCachedRigElement* Cache = ElementKeyRedirector.Find(Connector->GetKey()))
+			const FRigElementKey ConnectorKey(*Connector.Name, ERigElementType::Connector);
+			if(const FCachedRigElement* Cache = ElementKeyRedirector.Find(ConnectorKey))
 			{
 				if(const_cast<FCachedRigElement*>(Cache)->UpdateCache(Hierarchy))
 				{
-					ConnectionMap.Add(Connector->GetKey(), Cache->GetKey());
+					ConnectionMap.Add(ConnectorKey, Cache->GetKey());
 				}
 				else
 				{
 					if(OutFailureReason)
 					{
-						static constexpr TCHAR Format[] = TEXT("Connector '%s' has invalid target '%s'.");
-						*OutFailureReason = FString::Printf(Format, *Connector->GetName(), *Cache->GetKey().ToString());
+						static constexpr TCHAR Format[] = TEXT("Connector '%s%s' has invalid target '%s'.");
+						*OutFailureReason = FString::Printf(Format, *GetRigModuleNameSpace(), *Connector.Name, *Cache->GetKey().ToString());
 					}
 					if(OutConnector)
 					{
-						*OutConnector = Connector->GetKey();
+						*OutConnector = ConnectorKey;
 					}
 					return false;
 				}
@@ -600,11 +604,11 @@ bool UBaseControlRig::AllConnectorsAreResolved(FString* OutFailureReason, FRigEl
 				if(OutFailureReason)
 				{
 					static constexpr TCHAR Format[] = TEXT("Connector '%s' is not resolved.");
-					*OutFailureReason = FString::Printf(Format, *Connector->GetName());
+					*OutFailureReason = FString::Printf(Format, *Connector.Name);
 				}
 				if(OutConnector)
 				{
-					*OutConnector = Connector->GetKey();
+					*OutConnector = ConnectorKey;
 				}
 				return false;
 			}
@@ -1570,7 +1574,7 @@ const FString& UBaseControlRig::GetRigModuleNameSpace() const
 		{
 			const FString& ParentNameSpace = ParentRig->GetRigModuleNameSpace();
 			static constexpr TCHAR JoinFormat[] = TEXT("%s%s:");
-			RigModuleNameSpace = FString::Printf(JoinFormat, *ParentNameSpace, *GetName());
+			RigModuleNameSpace = FString::Printf(JoinFormat, *ParentNameSpace, *GetFName().ToString());
 			return RigModuleNameSpace;
 		}
 
@@ -1601,6 +1605,11 @@ FRigElementKeyRedirector& UBaseControlRig::GetElementKeyRedirector()
 
 	static FRigElementKeyRedirector EmptyRedirector = FRigElementKeyRedirector();
 	return EmptyRedirector;
+}
+
+void UBaseControlRig::SetElementKeyRedirector(const FRigElementKeyRedirector InElementRedirector)
+{
+	ElementKeyRedirector = InElementRedirector;
 }
 
 TArray<FRigControlElement*> UBaseControlRig::AvailableControls() const
@@ -3070,6 +3079,18 @@ void UBaseControlRig::PostInitInstance(URigVMHost* InCDO)
 	}
 
 	RequestInit();
+}
+
+void UBaseControlRig::SetDynamicHierarchy(TObjectPtr<URigHierarchy> InHierarchy)
+{
+	// Delete any existing hierarchy
+	if (DynamicHierarchy->GetOuter() == this)
+	{
+		DynamicHierarchy->OnUndoRedo().RemoveAll(this);
+		DynamicHierarchy->Rename(nullptr, GetTransientPackage(), REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
+		DynamicHierarchy->MarkAsGarbage();
+	}
+	DynamicHierarchy = InHierarchy;
 }
 
 UTransformableControlHandle* UBaseControlRig::CreateTransformableControlHandle(

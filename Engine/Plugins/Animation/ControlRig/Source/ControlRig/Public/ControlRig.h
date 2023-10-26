@@ -19,10 +19,6 @@ public:
 	virtual void InitializeVMsFromCDO() override { URigVMHost::InitializeFromCDO(); }
 	virtual void RequestInitVMs() override { URigVMHost::RequestInit(); }
 	virtual bool Execute_Internal(const FName& InEventName) override;
-	virtual void EvaluateVMs_AnyThread() override { URigVMHost::Evaluate_AnyThread(); }
-#if WITH_EDITOR
-	virtual void SetFirstEntryEventInEventQueue(FRigVMExtendedExecuteContext& Context, const FName& InFirstEventName) override;
-#endif
 	// END BaseControlRig
 
 	UE_DEPRECATED(5.4, "InteractionRig is no longer used") UFUNCTION(BlueprintGetter, meta = (DeprecatedFunction, DeprecationMessage = "InteractionRig is no longer used"))

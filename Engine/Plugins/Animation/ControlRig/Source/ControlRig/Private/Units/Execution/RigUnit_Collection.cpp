@@ -115,7 +115,7 @@ FRigUnit_CollectionChildrenArray_Execute()
 	}
 	
 	uint32 Hash = GetTypeHash(StaticStruct()) + ExecuteContext.Hierarchy->GetTopologyVersion() * 17;
-	Hash = HashCombine(Hash, GetTypeHash(Parent));
+	Hash = HashCombine(Hash, GetTypeHash(ExecuteContext.Hierarchy->GetResolvedTarget(Parent)));
 	Hash = HashCombine(Hash, bRecursive ? 2 : 0);
 	Hash = HashCombine(Hash, bIncludeParent ? 1 : 0);
 	Hash = HashCombine(Hash, (int32)TypeToSearch * 8);

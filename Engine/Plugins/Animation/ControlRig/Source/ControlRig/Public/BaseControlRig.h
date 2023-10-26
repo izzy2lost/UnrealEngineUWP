@@ -102,7 +102,10 @@ public:
 	const FString& GetRigModuleNameSpace() const;
 
 	// Returns the redirector from key to key for this rig
-	FRigElementKeyRedirector& GetElementKeyRedirector();
+	virtual FRigElementKeyRedirector& GetElementKeyRedirector();
+
+	// Returns the redirector from key to key for this rig
+	virtual void SetElementKeyRedirector(const FRigElementKeyRedirector InElementRedirector);
 
 	/** Creates a transformable control handle for the specified control to be used by the constraints system. Should use the UObject from 
 	ConstraintsScriptingLibrary::GetManager(UWorld* InWorld)*/
@@ -129,9 +132,6 @@ public:
 
 	/** Evaluates the ControlRig */
 	virtual void Evaluate_AnyThread() override;
-
-	/** Calls Evaluate_AnyThread on all VMs in this Rig */
-	virtual void EvaluateVMs_AnyThread() PURE_VIRTUAL(UBaseControlRig::EvaluateVMs_AnyThread, return Super::Evaluate_AnyThread(); );
 
 	/** Ticks animation of the skeletal mesh component bound to this control rig */
 	bool EvaluateSkeletalMeshComponent(double InDeltaTime);
@@ -366,6 +366,8 @@ public:
 
 	virtual USceneComponent* GetOwningSceneComponent() override;
 
+	void SetDynamicHierarchy(TObjectPtr<URigHierarchy> InHierarchy);
+
 protected:
 
 	virtual void PostInitInstance(URigVMHost* InCDO) override;
@@ -596,7 +598,7 @@ protected:
 
 
 #if WITH_EDITOR
-	virtual void SetFirstEntryEventInEventQueue(FRigVMExtendedExecuteContext& Context, const FName& InFirstEventName) PURE_VIRTUAL(UBaseControlRig::SetFirstEntryEventInEventQueue, return; );
+	virtual void SetFirstEntryEventInEventQueue(FRigVMExtendedExecuteContext& Context, const FName& InFirstEventName) { VM->SetFirstEntryEventInEventQueue(Context, NAME_None); }
 
 	static void OnHierarchyTransformUndoRedoWeak(URigHierarchy* InHierarchy, const FRigElementKey& InKey, ERigTransformType::Type InTransformType, const FTransform& InTransform, bool bIsUndo, TWeakObjectPtr<UBaseControlRig> WeakThis)
 	{
@@ -796,6 +798,7 @@ private:
 	friend class AControlRigShapeActor;
 	friend class FRigTransformElementDetails;
 	friend class FControlRigEditorModule;
+	friend class UModularRig;
 };
 
 class CONTROLRIG_API FControlRigBracketScope

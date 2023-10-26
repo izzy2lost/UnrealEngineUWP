@@ -4669,6 +4669,7 @@ private:
 	friend class URigHierarchyController;
 	friend class UBaseControlRig;
 	friend class UControlRig;
+	friend class UModularRig;
 	friend class FControlRigEditor;
 	friend struct FRigBaseElement;
 	friend struct FRigHierarchyValidityBracket;
@@ -4744,6 +4745,8 @@ private:
 
 	friend class UBaseControlRig;
 	friend class UControlRig;
+	friend class UModularRig;
+	friend class UModularRigController;
 };
 
 struct CONTROLRIG_API FRigHierarchyValidityBracket

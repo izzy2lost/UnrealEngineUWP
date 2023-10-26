@@ -2386,6 +2386,9 @@ void URigHierarchy::Traverse(TFunction<void(FRigBaseElement*, bool& /* continue 
 
 bool URigHierarchy::CanConnect(const FRigConnectionInfo* InConnectionInfo, FString* OutFailureReason, FRigElementKey* OutConnector) const
 {
+	// todo: Check if the rules are satisfied
+	return true;
+	
 	check(InConnectionInfo);
 	check(InConnectionInfo->IsValid());
 
@@ -2502,15 +2505,17 @@ bool URigHierarchy::CanConnect(const FRigConnectionInfo* InConnectionInfo, FStri
 
 const FRigElementKey& URigHierarchy::GetResolvedTarget(const FRigElementKey& InConnectorKey) const
 {
-	if(ElementKeyRedirector)
+	if (InConnectorKey.Type == ERigElementType::Connector)
 	{
-		if(const FCachedRigElement* Target = ElementKeyRedirector->Find(InConnectorKey))
+		if(ElementKeyRedirector)
 		{
-			return Target->GetKey();
+			if(const FCachedRigElement* Target = ElementKeyRedirector->Find(InConnectorKey))
+			{
+				return Target->GetKey();
+			}
 		}
 	}
-	static const FRigElementKey InValidKey;
-	return InValidKey;
+	return InConnectorKey;
 }
 
 bool URigHierarchy::Undo()

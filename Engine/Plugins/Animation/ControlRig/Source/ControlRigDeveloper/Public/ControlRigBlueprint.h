@@ -18,6 +18,7 @@
 #include "ControlRigValidationPass.h"
 #include "RigVMBlueprint.h"
 #include "Rigs/RigModuleDefines.h"
+#include "ModularRigModel.h"
 
 #if WITH_EDITOR
 #include "Kismet2/CompilerResultsLog.h"
@@ -48,6 +49,7 @@ public:
 	virtual UClass* GetRigVMEdGraphSchemaClass() const override;
 	virtual TArray<FString> GeneratePythonCommands(const FString InNewBlueprintName) override;
 	virtual UClass* GetRigVMEditorSettingsClass() const override;
+	virtual void GetPreloadDependencies(TArray<UObject*>& OutDeps) override;
 #if WITH_EDITOR
 	virtual const FName& GetPanelPinFactoryName() const override;
 	static const FName ControlRigPanelNodeFactoryName;
@@ -205,6 +207,15 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Hierarchy")
 	URigHierarchyController* GetHierarchyController() { return Hierarchy->GetController(true); }
 
+	UPROPERTY(BlueprintReadOnly, Category = "Modules")
+	FModularRigModel ModularRigModel;
+
+	UFUNCTION(BlueprintCallable, Category = "Modules")
+	UModularRigController* GetModularRigController();
+
+	UFUNCTION(BlueprintCallable, Category = "Control Rig Blueprint")
+	void RecompileModularRig();
+
 private:
 
 	/** Whether or not this rig has an Inversion Event */
@@ -270,6 +281,8 @@ private:
 	FRigHierarchyModifiedEvent	HierarchyModifiedEvent;
 
 	void HandleHierarchyModified(ERigHierarchyNotification InNotification, URigHierarchy* InHierarchy, const FRigBaseElement* InElement);
+
+	void HandleRigModulesModified(EModularRigNotification InNotification, const FRigModuleReference* InModule);
 
 #if WITH_EDITOR
 	virtual void HandlePackageDone() override;

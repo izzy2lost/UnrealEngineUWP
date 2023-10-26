@@ -4,6 +4,7 @@
 #include "BaseControlRig.h"
 #include "AnimationCoreLibrary.h"
 #include "UObject/Package.h"
+#include "ModularRig.h"
 
 #if WITH_EDITOR
 #include "Framework/Notifications/NotificationManager.h"
@@ -1996,6 +1997,7 @@ bool URigHierarchyController::RemoveElement(FRigBaseElement* InElement)
 
 	// make sure this element is part of this hierarchy
 	ensure(Hierarchy->FindChecked(InElement->Key) == InElement);
+	ensure(InElement->OwnedInstances == 1);
 
 	// deselect if needed
 	if(InElement->IsSelected())
@@ -2096,7 +2098,10 @@ bool URigHierarchyController::RemoveElement(FRigBaseElement* InElement)
 		Notify(ERigHierarchyNotification::HierarchyReset, nullptr);
 	}
 
-	Hierarchy->DestroyElement(InElement);
+	if (InElement->OwnedInstances == 1)
+	{
+		Hierarchy->DestroyElement(InElement);
+	}
 
 	Hierarchy->EnsureCacheValidity();
 
