@@ -630,7 +630,10 @@ void UPCGSubsystem::CancelGeneration(UPCGComponent* Component)
 	TArray<UPCGComponent*> CancelledComponents = GraphExecutor->Cancel(Component);
 	for (UPCGComponent* CancelledComponent : CancelledComponents)
 	{
-		CancelledComponent->OnProcessGraphAborted(/*bQuiet=*/true);
+		if (ensure(CancelledComponent))
+		{
+			CancelledComponent->OnProcessGraphAborted(/*bQuiet=*/true);
+		}
 	}	
 }
 
@@ -646,7 +649,10 @@ void UPCGSubsystem::CancelGeneration(UPCGGraph* Graph)
 	TArray<UPCGComponent*> CancelledComponents = GraphExecutor->Cancel(Graph);
 	for (UPCGComponent* CancelledComponent : CancelledComponents)
 	{
-		CancelledComponent->OnProcessGraphAborted(/*bQuiet=*/true);
+		if (ensure(CancelledComponent))
+		{
+			CancelledComponent->OnProcessGraphAborted(/*bQuiet=*/true);
+		}
 	}
 }
 
@@ -655,9 +661,12 @@ void UPCGSubsystem::CancelAllGeneration()
 	check(GraphExecutor);
 
 	TArray<UPCGComponent*> CancelledComponents = GraphExecutor->CancelAll();
-	for (UPCGComponent* Component : CancelledComponents)
+	for (UPCGComponent* CancelledComponent : CancelledComponents)
 	{
-		Component->OnProcessGraphAborted(/*bQuiet=*/true);
+		if (ensure(CancelledComponent))
+		{
+			CancelledComponent->OnProcessGraphAborted(/*bQuiet=*/true);
+		}
 	}
 }
 

@@ -303,9 +303,10 @@ TSet<UPCGComponent*> FPCGGraphExecutor::Cancel(TFunctionRef<bool(TWeakObjectPtr<
 
 				if (bContainsDependency)
 				{
-					if (!CancelledComponents.Contains(ScheduledTask.SourceComponent.Get()))
+					UPCGComponent* TaskComponent = ScheduledTask.SourceComponent.Get();
+					if (TaskComponent && !CancelledComponents.Contains(TaskComponent))
 					{
-						CancelledComponents.Add(ScheduledTask.SourceComponent.Get());
+						CancelledComponents.Add(TaskComponent);
 						bStableCancellationSet = false;
 					}
 
