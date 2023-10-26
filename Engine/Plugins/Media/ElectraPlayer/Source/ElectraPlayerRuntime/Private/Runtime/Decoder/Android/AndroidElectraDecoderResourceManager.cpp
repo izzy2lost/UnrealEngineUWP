@@ -174,9 +174,12 @@ public:
 	{ BufferIndex = InIndex; }
 	void SetValidCount(int32 InValidCount) override
 	{ ValidCount = InValidCount; }
+	bool ShouldReleaseBufferImmediately() override
+	{ return bReleaseImmediately; }
 
 	int32 BufferIndex = -1;
 	int32 ValidCount = -1;
+	bool bReleaseImmediately = false;
 };
 
 
@@ -213,6 +216,7 @@ bool FElectraDecoderResourceManagerAndroid::SetupRenderBufferFromDecoderOutput(I
 		InOutBufferPropertes->Set(IDecoderOutputOptionNames::Pitch, FVariantValue((int64)InDecoderOutput->GetDecodedWidth() * ((NumBits > 8) ? 2 : 1)));
 
 		FElectraDecoderVideoOutputCopyResources cr;
+		cr.bReleaseImmediately = InInst->SurfaceType == IDecoderPlatformResourceAndroid::ISurfaceRequestCallback::ESurfaceType::Surface;
 		IElectraDecoderVideoOutput::EImageCopyResult CopyResult = InDecoderOutput->CopyPlatformImage(&cr);
 		if (CopyResult != IElectraDecoderVideoOutput::EImageCopyResult::Succeeded)
 		{

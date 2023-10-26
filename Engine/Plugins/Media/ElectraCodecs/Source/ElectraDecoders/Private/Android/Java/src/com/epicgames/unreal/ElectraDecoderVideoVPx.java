@@ -144,7 +144,8 @@ public class ElectraDecoderVideoVPx
 			MediaCodecList cl = new MediaCodecList(MediaCodecList.ALL_CODECS);
 			MediaCodecInfo[] codecInfos = cl.getCodecInfos();
 			int numCodecs = codecInfos.length;
-			for(int pass=0; pass<2; ++pass)
+//			for(int pass=0; pass<2; ++pass)
+			for(int pass=0; pass<1; ++pass)
 			{
 				for(int i=0; i<numCodecs; ++i)
 				{
@@ -172,12 +173,12 @@ public class ElectraDecoderVideoVPx
 							boolean bSupportsLowLatency = DoesDecoderSupportsLowLatency(codecInfos[i], mimeType);
 
 							//Log.w(TAG, "["+pass+"] ElectraDecoderVideoVPx: " + codecInfos[i].getCanonicalName() + "; ll="+bSupportsLowLatency);
-
+/*
 							if (pass==0 && !bSupportsLowLatency)
 							{
 								continue;
 							}
-
+*/
 							// Rumor has it that the codec list is sorted from "best" to "worst".
 							// Assuming this to be true we just return the first one matching the MIME type.
 							FCodecInformation Info = new FCodecInformation();
@@ -339,7 +340,8 @@ public class ElectraDecoderVideoVPx
 				}
 			}
 			// Ask for low-latency.
-			Format.setInteger("low-latency", 1);
+//			Format.setInteger("low-latency", 1);
+
 
 			// Configure the decoder
 			android.view.Surface OutputSurface = null;

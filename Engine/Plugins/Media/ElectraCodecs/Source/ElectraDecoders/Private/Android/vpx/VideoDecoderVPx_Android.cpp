@@ -100,7 +100,7 @@ public:
 	TMap<FString, FVariant> ExtraValues;
 
 	TWeakPtr<FElectraVideoDecoderVPx_Android, ESPMode::ThreadSafe> OwningDecoder;
-	IElectraVPxVideoDecoderAndroidJava::FOutputBufferInfo OwningDecoderBufferInfo;
+	mutable IElectraVPxVideoDecoderAndroidJava::FOutputBufferInfo OwningDecoderBufferInfo;
 	mutable bool bBufferGotReferenced = false;
 };
 
@@ -1059,6 +1059,7 @@ void FElectraVideoDecoderOutputVPx_Android::ReleaseOutputBuffer()
 		{
 			Decoder->ReleaseOutputBuffer(&OwningDecoderBufferInfo, bBufferGotReferenced, -1);
 		}
+		OwningDecoderBufferInfo.BufferIndex = -1;
 	}
 }
 
@@ -1071,6 +1072,12 @@ IElectraDecoderVideoOutput::EImageCopyResult FElectraVideoDecoderOutputVPx_Andro
 
 		InCopyResources->SetBufferIndex(OwningDecoderBufferInfo.BufferIndex);
 		InCopyResources->SetValidCount(OwningDecoderBufferInfo.ValidCount);
+
+		if (InCopyResources->ShouldReleaseBufferImmediately())
+		{
+			Decoder->ReleaseOutputBuffer(&OwningDecoderBufferInfo, bBufferGotReferenced, -1);
+			OwningDecoderBufferInfo.BufferIndex = -1;
+		}
 
 		return IElectraDecoderVideoOutput::EImageCopyResult::Succeeded; 
 	}

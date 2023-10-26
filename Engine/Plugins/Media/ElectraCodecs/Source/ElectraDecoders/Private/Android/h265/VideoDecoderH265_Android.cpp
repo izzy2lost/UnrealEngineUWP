@@ -100,7 +100,7 @@ public:
 	TMap<FString, FVariant> ExtraValues;
 
 	TWeakPtr<FElectraVideoDecoderH265_Android, ESPMode::ThreadSafe> OwningDecoder;
-	IElectraH265VideoDecoderAndroidJava::FOutputBufferInfo OwningDecoderBufferInfo;
+	mutable IElectraH265VideoDecoderAndroidJava::FOutputBufferInfo OwningDecoderBufferInfo;
 	mutable bool bBufferGotReferenced = false;
 };
 
@@ -1125,6 +1125,7 @@ void FElectraVideoDecoderOutputH265_Android::ReleaseOutputBuffer()
 		{
 			Decoder->ReleaseOutputBuffer(&OwningDecoderBufferInfo, bBufferGotReferenced, -1);
 		}
+		OwningDecoderBufferInfo.BufferIndex = -1;
 	}
 }
 
@@ -1137,6 +1138,12 @@ IElectraDecoderVideoOutput::EImageCopyResult FElectraVideoDecoderOutputH265_Andr
 
 		InCopyResources->SetBufferIndex(OwningDecoderBufferInfo.BufferIndex);
 		InCopyResources->SetValidCount(OwningDecoderBufferInfo.ValidCount);
+
+		if (InCopyResources->ShouldReleaseBufferImmediately())
+		{
+			Decoder->ReleaseOutputBuffer(&OwningDecoderBufferInfo, bBufferGotReferenced, -1);
+			OwningDecoderBufferInfo.BufferIndex = -1;
+		}
 
 		return IElectraDecoderVideoOutput::EImageCopyResult::Succeeded; 
 	}
