@@ -453,6 +453,8 @@ export type UpdateAgentRequest = {
 
 	requestRestart?: boolean;
 
+	requestForceRestart?: boolean;
+
 	requestShutdown?: boolean;
 
 	/**Per-agent override for the desired client version */

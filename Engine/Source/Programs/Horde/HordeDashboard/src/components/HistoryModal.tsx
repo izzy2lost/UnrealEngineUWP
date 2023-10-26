@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-import { ConstrainMode, DefaultButton, DetailsHeader, DetailsList, DetailsListLayoutMode, DetailsRow, Dialog, DialogFooter, DialogType, GroupedList, GroupHeader, IColumn, IContextualMenuItem, IContextualMenuProps, IDetailsHeaderProps, IDetailsHeaderStyles, IDetailsListProps, IGroup, ITextField, ITooltipHostStyles, mergeStyleSets, Modal, Pivot, PivotItem, PrimaryButton, ScrollablePane, ScrollbarVisibility, Selection, SelectionMode, Spinner, SpinnerSize, Stack, Sticky, StickyPositionType, Text, TextField } from "@fluentui/react";
+import { Checkbox, ConstrainMode, DefaultButton, DetailsHeader, DetailsList, DetailsListLayoutMode, DetailsRow, Dialog, DialogFooter, DialogType, GroupedList, GroupHeader, ICheckbox, IColumn, IContextualMenuItem, IContextualMenuProps, IDetailsHeaderProps, IDetailsHeaderStyles, IDetailsListProps, IGroup, ITextField, ITooltipHostStyles, mergeStyleSets, Modal, Pivot, PivotItem, PrimaryButton, ScrollablePane, ScrollbarVisibility, Selection, SelectionMode, Spinner, SpinnerSize, Stack, Sticky, StickyPositionType, Text, TextField } from "@fluentui/react";
 import { action, makeObservable, observable } from "mobx";
 import { observer } from "mobx-react-lite";
 import React, { useState } from "react";
@@ -282,6 +282,7 @@ export const HistoryModal: React.FC<{ agentId: string | undefined, onDismiss: (.
    const [selectedAgent, setSelectedAgent] = useState<string | undefined>(undefined);
    const [actionState, setActionState] = useState<{ action?: string, confirmed?: boolean, comment?: string }>({});
    const actionTextInputRef = React.useRef<ITextField>(null);
+   const forceRestartCheckboxRef = React.useRef<ICheckbox>(null);
 
    const { hordeClasses, modeColors } = getHordeStyling();
    const theme = getHordeTheme();
@@ -362,7 +363,7 @@ export const HistoryModal: React.FC<{ agentId: string | undefined, onDismiss: (.
       {
          name: 'Request Restart',
          confirmText: "Are you sure you would like to request an agent restart?",
-         update: (request) => { request.requestRestart = true }
+         update: (request) => { request.requestRestart = !forceRestartCheckboxRef.current?.checked; request.requestForceRestart = !!forceRestartCheckboxRef.current?.checked; }
       },
       {
          name: 'Request Shutdown',
@@ -781,6 +782,7 @@ export const HistoryModal: React.FC<{ agentId: string | undefined, onDismiss: (.
                   <Text>{currentAction.confirmText}</Text>
                </Stack>
                {!!currentAction.textInput && <TextField componentRef={actionTextInputRef} label={"Disable Reason"} />}
+               {currentAction.name === "Request Restart" && <Checkbox componentRef={forceRestartCheckboxRef} label={"Force Restart"} />}
                <DialogFooter>
                   <PrimaryButton disabled={actionState.confirmed} onClick={() => { setActionState({ ...actionState, confirmed: true, comment: actionTextInputRef.current?.value }) }} text={currentAction.name} />
                   <DefaultButton disabled={actionState.confirmed} onClick={() => { setActionState({}) }} text="Cancel" />

@@ -310,12 +310,12 @@ class LocalState {
       });
    }
 
-   async requestBuilderUpdate(conform: boolean, restart: boolean, fullConform?: boolean, shutdown?: boolean) {
+   async requestBuilderUpdate(conform: boolean, restart: boolean, fullConform?: boolean, shutdown?: boolean, forceRestart?: boolean) {
       let that = this;
       const allUpdates: any[] = [];
       const selectedAgents = this.currentSelection;
       selectedAgents.forEach(agent => {
-         allUpdates.push(backend.updateAgent(agent.id, { requestConform: conform, requestFullConform: fullConform, requestRestart: restart, requestShutdown: shutdown }));
+         allUpdates.push(backend.updateAgent(agent.id, { requestConform: conform, requestFullConform: fullConform, requestRestart: restart, requestShutdown: shutdown, requestForceRestart: !!forceRestart }));
       });
       await Promise.all(allUpdates).then(function (responses) {
          if (restart) {
@@ -2274,9 +2274,8 @@ export const AgentViewInner: React.FC<{ agentId?: string, poolId?: string, searc
          isOpen={localState.restartAgentDialogIsOpen}
          confirmText={"Restart"}
          cancelText={"Cancel"}
-         textBoxLabel={"Type Confirm to confirm"}
-         isTextBoxSpawned={true}
-         onConfirm={() => { localState.requestBuilderUpdate(false, true) }}
+         checkBoxText='Force Restart'
+         onConfirm={(_, force) => { localState.requestBuilderUpdate(false, !force ? true : false, false, false, !!force) }}
          onCancel={() => { localState.setRestartBuilderDialogOpen(false) }}
       />
       <ConfirmationDialog
