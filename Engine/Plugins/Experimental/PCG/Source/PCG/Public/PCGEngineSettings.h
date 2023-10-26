@@ -3,11 +3,12 @@
 #pragma once
 
 #include "Engine/DeveloperSettings.h"
+#include "Engine/DeveloperSettingsBackedByCVars.h"
 
 #include "PCGEngineSettings.generated.h"
 
 UCLASS(config = Engine, defaultconfig)
-class PCG_API UPCGEngineSettings : public UDeveloperSettings
+class PCG_API UPCGEngineSettings : public UDeveloperSettingsBackedByCVars
 {
 	GENERATED_BODY()
 
@@ -49,8 +50,5 @@ public:
 
 	//~ Begin UObject Interface
 	virtual void PostInitProperties() override;
-#if WITH_EDITOR
-	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
-#endif
 	//~ End UObject Interface
 };

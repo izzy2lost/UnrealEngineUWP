@@ -2,6 +2,9 @@
 
 #include "PCGEngineSettings.h"
 
+#include "HAL/IConsoleManager.h"
+#include "Misc/ConfigUtilities.h"
+
 #define LOCTEXT_NAMESPACE "PCGEngineSettings"
 
 FName UPCGEngineSettings::GetCategoryName() const
@@ -18,26 +21,15 @@ FText UPCGEngineSettings::GetSectionText() const
 
 void UPCGEngineSettings::PostInitProperties()
 {
-	Super::PostInitProperties();
-
 #if WITH_EDITOR
 	if (IsTemplate())
 	{
-		ImportConsoleVariableValues();
+		// We want the .ini file to have precedence over the CVar constructor, so we apply the ini to the CVar before following the regular UDeveloperSettingsBackedByCVars flow
+		UE::ConfigUtilities::ApplyCVarSettingsFromIni(TEXT("/Script/PCG.PCGEngineSettings"), *GEngineIni, ECVF_SetByProjectSetting);
 	}
 #endif // WITH_EDITOR
-}
 
-#if WITH_EDITOR
-void UPCGEngineSettings::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
-{
-	Super::PostEditChangeProperty(PropertyChangedEvent);
-
-	if (PropertyChangedEvent.Property)
-	{
-		ExportValuesToConsoleVariables(PropertyChangedEvent.Property);
-	}
+	Super::PostInitProperties();
 }
-#endif // WITH_EDITOR
 
 #undef LOCTEXT_NAMESPACE
