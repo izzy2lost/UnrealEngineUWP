@@ -9355,19 +9355,40 @@ bool UploadIoStoreContainerFiles(const TCHAR* ContainerPathOrWildcard)
 
 bool DownloadIoStoreContainerFiles(const TCHAR* TocPath)
 {
+	using namespace UE::IO::IAS;
 	check(TocPath);
 
-	TIoStatusOr<UE::IO::IAS::FIoStoreDownloadParams> Params = UE::IO::IAS::FIoStoreDownloadParams::Parse(FCommandLine::Get());
+	TIoStatusOr<FIoStoreDownloadParams> Params = FIoStoreDownloadParams::Parse(FCommandLine::Get());
 	if (Params.IsOk() == false)
 	{
 		UE_LOG(LogIoStore, Error, TEXT("Failed to download container file(s), reason '%s'"), *Params.Status().ToString());
 		return false;
 	}
 
-	FIoStatus Status = UE::IO::IAS::DownloadContainerFiles(Params.ConsumeValueOrDie(), TocPath);
+	FIoStatus Status = DownloadContainerFiles(Params.ConsumeValueOrDie(), TocPath);
 	if (Status.IsOk() == false)
 	{
 		UE_LOG(LogIoStore, Error, TEXT("Failed to download container file(s), reason '%s'"), *Status.ToString());
+	}
+
+	return Status.IsOk();
+}
+
+bool ListOnDemandTocs()
+{
+	using namespace UE::IO::IAS;
+
+	TIoStatusOr<FIoStoreListTocsParams> Params = FIoStoreListTocsParams::Parse(FCommandLine::Get());
+	if (Params.IsOk() == false)
+	{
+		UE_LOG(LogIoStore, Error, TEXT("Failed to list TOC file(s), reason '%s'"), *Params.Status().ToString());
+		return false;
+	}
+
+	FIoStatus Status = ListTocs(Params.ConsumeValueOrDie());
+	if (Status.IsOk() == false)
+	{
+		UE_LOG(LogIoStore, Error, TEXT("Failed to list TOC file(s), reason '%s'"), *Status.ToString());
 	}
 
 	return Status.IsOk();

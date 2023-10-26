@@ -5473,6 +5473,11 @@ bool ExecuteUnrealPak(const TCHAR* CmdLine)
 			{
 				return PrimeEndPoint(*IoStoreArg);
 			}
+
+			if (FParse::Param(CmdLine, TEXT("ListTocs")))
+			{
+				return ListOnDemandTocs();
+			}
 		}
 	}
 
