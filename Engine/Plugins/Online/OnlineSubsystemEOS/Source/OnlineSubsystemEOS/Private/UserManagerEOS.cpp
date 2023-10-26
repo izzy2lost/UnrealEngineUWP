@@ -1081,8 +1081,8 @@ void FUserManagerEOS::UpdateUserInfo(IAttributeAccessInterfaceRef AttributeAcces
 	}
 
 	EOS_UserInfo_CopyBestDisplayNameOptions BestDisplayNameOptions = { };
-	BestDisplayNameOptions.ApiVersion = 1;
-	UE_EOS_CHECK_API_MISMATCH(EOS_USERINFO_COPYBESTDISPLAYNAME_API_LATEST, 1);
+	BestDisplayNameOptions.ApiVersion = 3; // Temporarily using the wrong API version to bypass the crash EOS_UserInfo_CopyBestDisplayName hits in UEFN 
+	//UE_EOS_CHECK_API_MISMATCH(EOS_USERINFO_COPYBESTDISPLAYNAME_API_LATEST, 1);
 	BestDisplayNameOptions.LocalUserId = LocalId;
 	BestDisplayNameOptions.TargetUserId = AccountId;
 
