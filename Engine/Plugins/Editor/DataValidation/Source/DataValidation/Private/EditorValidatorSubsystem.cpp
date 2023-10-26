@@ -424,6 +424,9 @@ EDataValidationResult UEditorValidatorSubsystem::ValidateAssetsInternal(
 			++OutResults.NumSkipped;
 			continue;
 		}
+
+		// Flush here in case loading something in this loop caused something later in the loop to start async loading, but not finish before we get to it
+		FlushAsyncLoading();
 		
 		DataValidationLog.Info()
 			->AddToken(FAssetDataToken::Create(Data))
