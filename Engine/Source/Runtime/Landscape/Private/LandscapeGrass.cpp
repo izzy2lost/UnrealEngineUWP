@@ -2406,7 +2406,6 @@ void ALandscapeProxy::FlushGrassComponents(const TSet<ULandscapeComponent*>* Onl
 }
 
 static uint32 GGrassExclusionChangeTag = 1;
-static uint32 GFrameNumberLastStaleCheck = 0;
 static TMap<FWeakObjectPtr, FBox, FDefaultSetAllocator, TWeakObjectPtrMapKeyFuncs<FWeakObjectPtr, FBox>> GGrassExclusionBoxes;
 
 void ALandscapeProxy::AddExclusionBox(FWeakObjectPtr Owner, const FBox& Box)
@@ -2425,6 +2424,18 @@ void ALandscapeProxy::RemoveAllExclusionBoxes()
 	{
 		GGrassExclusionBoxes.Empty();
 		GGrassExclusionChangeTag++;
+	}
+}
+
+void ALandscapeProxy::RemoveInvalidExclusionBoxes()
+{
+	for (auto Iter = GGrassExclusionBoxes.CreateIterator(); Iter; ++Iter)
+	{
+		if (!Iter->Key.IsValid())
+		{
+			Iter.RemoveCurrent();
+			GGrassExclusionChangeTag++;
+		}
 	}
 }
 
@@ -2691,19 +2702,6 @@ void ALandscapeProxy::UpdateGrass(const TArray<FVector>& Cameras, int32& InOutNu
 		return;
 	}
 
-	if (GFrameNumberLastStaleCheck != GFrameNumber && GIgnoreExcludeBoxes == 0)
-	{
-		GFrameNumberLastStaleCheck = GFrameNumber;
-		for (auto Iter = GGrassExclusionBoxes.CreateIterator(); Iter; ++Iter)
-		{
-			if (!Iter->Key.IsValid())
-			{
-				Iter.RemoveCurrent();
-				GGrassExclusionChangeTag++;
-			}
-		}
-	}
-
 	UWorld* World = GetWorld();
 	ULandscapeSubsystem* LandscapeSubsystem = World ? World->GetSubsystem<ULandscapeSubsystem>() : nullptr;
 	const bool bIsGrassCreationPrioritized = LandscapeSubsystem ? LandscapeSubsystem->IsGrassCreationPrioritized() : false;
@@ -2820,8 +2818,11 @@ void ALandscapeProxy::UpdateGrass(const TArray<FVector>& Cameras, int32& InOutNu
 						{
 							if (Pair.Value.Intersect(WorldBox))
 							{
-								// this will also filter out boxes that are completely inside of the other boxes
-								Component->ActiveExcludedBoxes.AddUnique(ULandscapeComponent::FExcludeBox(Pair.Value));
+								if (Pair.Key.IsValid())
+								{
+									// this will also filter out boxes that are completely inside of the other boxes
+									Component->ActiveExcludedBoxes.AddUnique(ULandscapeComponent::FExcludeBox(Pair.Value));
+								}
 							}
 						}
 

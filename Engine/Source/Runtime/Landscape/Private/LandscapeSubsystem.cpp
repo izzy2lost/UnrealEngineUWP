@@ -126,10 +126,13 @@ void ULandscapeSubsystem::Initialize(FSubsystemCollectionBase& Collection)
     	}
     });
     	
+	FCoreUObjectDelegates::GetPostGarbageCollect().AddUObject(this, &ULandscapeSubsystem::HandlePostGarbageCollect);
 }
 
 void ULandscapeSubsystem::Deinitialize()
 {
+	FCoreUObjectDelegates::GetPostGarbageCollect().RemoveAll(this);
+
 	if (OnNaniteWorldSettingsChangedHandle.IsValid())
 	{
 		UWorld* World = GetWorld();
@@ -172,6 +175,11 @@ void ULandscapeSubsystem::Deinitialize()
 	Proxies.Empty();
 
 	Super::Deinitialize();
+}
+
+void ULandscapeSubsystem::HandlePostGarbageCollect()
+{
+	ALandscapeProxy::RemoveInvalidExclusionBoxes();
 }
 
 TStatId ULandscapeSubsystem::GetStatId() const

@@ -131,6 +131,8 @@ private:
 	void OnNaniteWorldSettingsChanged(AWorldSettings* WorldSettings) { RegenerateGrass(true, true); }
 	void OnNaniteEnabledChanged(IConsoleVariable*);
 
+	void HandlePostGarbageCollect();
+
 	bool bIsGrassCreationPrioritized = false;
 	TArray<TWeakObjectPtr<ALandscapeProxy>> Proxies;
 	FDelegateHandle OnNaniteWorldSettingsChangedHandle;
