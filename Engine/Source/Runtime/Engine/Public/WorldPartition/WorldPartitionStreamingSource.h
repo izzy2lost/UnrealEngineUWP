@@ -153,15 +153,14 @@ enum class EStreamingSourceTargetBehavior : uint8
 class FStreamingSourceShapeHelper
 {
 public:
-
-	FORCEINLINE static bool IsSourceAffectingGrid(const TSet<FName>& InSourceTargetGrids, const TSet<FSoftObjectPath>& InSourceTargetHLODLayers, EStreamingSourceTargetBehavior InSourceTargetBehavior, FName InGridName, const FSoftObjectPath& InGridHLODLayer)
+	FORCEINLINE static bool IsSourceAffectingGrid(const TSet<FName>& InSourceTargetGrids, EStreamingSourceTargetBehavior InSourceTargetBehavior, FName InGridName)
 	{
 		switch (InSourceTargetBehavior)
 		{
 		case EStreamingSourceTargetBehavior::Include:
-			return (InSourceTargetGrids.IsEmpty() && InSourceTargetHLODLayers.IsEmpty()) || (InSourceTargetGrids.Contains(InGridName) || InSourceTargetHLODLayers.Contains(InGridHLODLayer));
+			return InSourceTargetGrids.IsEmpty() || InSourceTargetGrids.Contains(InGridName);
 		case EStreamingSourceTargetBehavior::Exclude:
-			return !(InSourceTargetGrids.Contains(InGridName) || InSourceTargetHLODLayers.Contains(InGridHLODLayer));
+			return !InSourceTargetGrids.Contains(InGridName);
 		default:
 			checkNoEntry();
 		}
@@ -264,7 +263,6 @@ struct FWorldPartitionStreamingQuerySource
 		Rotation = Other.Rotation;
 		TargetBehavior = Other.TargetBehavior;
 		TargetGrids = Other.TargetGrids;
-		TargetHLODLayers = Other.TargetHLODLayers;
 		Shapes = Other.Shapes;
 		return *this;
 	}
@@ -296,24 +294,20 @@ struct FWorldPartitionStreamingQuerySource
 	/* Reserved settings used by UWorldPartitionStreamingSourceComponent::IsStreamingCompleted. */
 	FRotator Rotation;
 	
-	/** Defines how TargetGrids/TargetHLODLayers will be applied to this streaming source. */
+	/** Defines how TargetGrids will be applied to this streaming source. */
 	EStreamingSourceTargetBehavior TargetBehavior;
 
 	TSet<FName> TargetGrids;
 
+	UE_DEPRECATED(5.4, "TargetHLODLayers is depredcated, use TargetGrids instead.")
 	TSet<FSoftObjectPath> TargetHLODLayers;
 	
 	TArray<FStreamingSourceShape> Shapes;
 
 	/** Helper method that iterates over all shapes. If none is provided, it will still pass a sphere shape using Radius or grid's loading range (see bUseGridLoadingRange). */
-	FORCEINLINE void ForEachShape(float InGridLoadingRange, FName InGridName, const FSoftObjectPath& InGridHLODLayer, bool bInProjectIn2D, TFunctionRef<void(const FSphericalSector&)> InOperation) const
+	FORCEINLINE void ForEachShape(float InGridLoadingRange, FName InGridName, bool bInProjectIn2D, TFunctionRef<void(const FSphericalSector&)> InOperation) const
 	{
-		if (!bSpatialQuery)
-		{
-			return;
-		}
-
-		if (FStreamingSourceShapeHelper::IsSourceAffectingGrid(TargetGrids, TargetHLODLayers, TargetBehavior, InGridName, InGridHLODLayer))
+		if (bSpatialQuery && FStreamingSourceShapeHelper::IsSourceAffectingGrid(TargetGrids, TargetBehavior, InGridName))
 		{
 			FStreamingSourceShapeHelper::ForEachShape(InGridLoadingRange, bUseGridLoadingRange ? InGridLoadingRange : Radius, bInProjectIn2D, Location, Rotation, Shapes, InOperation);
 		}
@@ -397,7 +391,6 @@ struct FWorldPartitionStreamingSource
 		DebugColor = Other.DebugColor;
 		TargetBehavior = Other.TargetBehavior;
 		TargetGrids = Other.TargetGrids;
-		TargetHLODLayers = Other.TargetHLODLayers;
 		Shapes = Other.Shapes;
 		bReplay = Other.bReplay;
 		bRemote = Other.bRemote;
@@ -454,6 +447,7 @@ struct FWorldPartitionStreamingSource
 	TSet<FName> TargetGrids;
 	
 	/** When set, this will change how this streaming source is applied to the provided HLODLayers based on the TargetBehavior. */
+	UE_DEPRECATED(5.4, "TargetHLODLayers is depredcated, use TargetGrids instead.")
 	TSet<FSoftObjectPath> TargetHLODLayers;
 
 	/** Source internal shapes. When none are provided, a sphere is automatically used. It's radius is equal to grid's loading range and center equals source's location. */
@@ -466,10 +460,10 @@ struct FWorldPartitionStreamingSource
 	bool bRemote;
 
 	/** Returns a box encapsulating all shapes. */
-	FBox CalcBounds(float InGridLoadingRange, FName InGridName, const FSoftObjectPath& InGridHLODLayer, bool bCalcIn2D = false) const
+	FBox CalcBounds(float InGridLoadingRange, FName InGridName, bool bCalcIn2D = false) const
 	{
 		FBox OutBounds(ForceInit);
-		ForEachShape(InGridLoadingRange, InGridName, InGridHLODLayer, bCalcIn2D, [&OutBounds](const FSphericalSector& Sector)
+		ForEachShape(InGridLoadingRange, InGridName, bCalcIn2D, [&OutBounds](const FSphericalSector& Sector)
 		{
 			OutBounds += Sector.CalcBounds();
 		});
@@ -477,9 +471,9 @@ struct FWorldPartitionStreamingSource
 	}
 
 	/** Helper method that iterates over all shapes. If none is provided, it will still pass a sphere shape using grid's loading range. */
-	void ForEachShape(float InGridLoadingRange, FName InGridName, const FSoftObjectPath& InGridHLODLayer, bool bInProjectIn2D, TFunctionRef<void(const FSphericalSector&)> InOperation) const
+	void ForEachShape(float InGridLoadingRange, FName InGridName, bool bInProjectIn2D, TFunctionRef<void(const FSphericalSector&)> InOperation) const
 	{
-		if (FStreamingSourceShapeHelper::IsSourceAffectingGrid(TargetGrids, TargetHLODLayers, TargetBehavior, InGridName, InGridHLODLayer))
+		if (FStreamingSourceShapeHelper::IsSourceAffectingGrid(TargetGrids, TargetBehavior, InGridName))
 		{
 			FStreamingSourceShapeHelper::ForEachShape(InGridLoadingRange, InGridLoadingRange, bInProjectIn2D, Location, Rotation, Shapes, InOperation, ExtraRadius, ExtraAngle);
 		}

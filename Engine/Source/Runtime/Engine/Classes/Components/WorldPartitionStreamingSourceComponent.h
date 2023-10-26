@@ -68,8 +68,8 @@ class UWorldPartitionStreamingSourceComponent : public UActorComponent, public I
 	FColor DebugColor;
 
 	/** Optional target HLODLayers affected by the streaming source. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Streaming")
-	TArray<TObjectPtr<const UHLODLayer>> TargetHLODLayers;
+	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "Use TargetGrids instead."))
+	TArray<TObjectPtr<const UHLODLayer>> TargetHLODLayers_DEPRECATED;
 
 	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "Use TargetHLODLayers instead."))
 	TObjectPtr<const UHLODLayer> TargetHLODLayer_DEPRECATED;

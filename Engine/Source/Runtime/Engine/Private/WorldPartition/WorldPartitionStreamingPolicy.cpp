@@ -879,7 +879,6 @@ bool UWorldPartitionStreamingPolicy::IsStreamingCompleted(const TArray<FWorldPar
 		QuerySource.Rotation = StreamingSource.Rotation;
 		QuerySource.TargetBehavior = StreamingSource.TargetBehavior;
 		QuerySource.TargetGrids = StreamingSource.TargetGrids;
-		QuerySource.TargetHLODLayers = StreamingSource.TargetHLODLayers;
 		QuerySource.Shapes = StreamingSource.Shapes;
 		QuerySource.bUseGridLoadingRange = true;
 		QuerySource.Radius = 0.f;
