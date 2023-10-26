@@ -781,7 +781,7 @@ void UVCamOutputProviderBase::ConditionallySetUpGameplayViewTargets()
 void UVCamOutputProviderBase::CleanUpGameplayViewTargets()
 {
 	UCineCameraComponent* CineCamera = TargetCamera.Get();
-	if (!CineCamera || !GameplayViewTargetPolicy)
+	if (!CineCamera || !IsValid(GameplayViewTargetPolicy))
 	{
 		return;
 	}
