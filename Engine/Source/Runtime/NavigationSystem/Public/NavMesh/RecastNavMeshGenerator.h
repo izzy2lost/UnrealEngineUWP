@@ -1005,8 +1005,13 @@ protected:
 		bool bTileWasAlreadyAdded = false;
 	};
 
-	/** Used internally, when LogNavigationDirtyArea is VeryVerbose, to log the number of tiles a dirty area is requesting. */
+	UE_DEPRECATED(5.4, "Use new version with ARecastNavMesh owner instead.")
 	NAVIGATIONSYSTEM_API void LogDirtyAreas(const TMap<FPendingTileElement, TArray<FNavigationDirtyAreaPerTileDebugInformation>>& DirtyAreasDebuggingInformation) const; 
+	
+	/** Used internally, when LogNavigationDirtyArea is VeryVerbose, to log the number of tiles a dirty area is requesting. */
+	NAVIGATIONSYSTEM_API void LogDirtyAreas(const UObject& OwnerNav,
+		const TMap<FPendingTileElement, TArray<FNavigationDirtyAreaPerTileDebugInformation>>& DirtyAreasDebuggingInformation) const;
+
 #endif
 	
 protected:
