@@ -181,6 +181,11 @@ public:
 	virtual IDetailPropertyRow* EditDefaultProperty(TSharedPtr<IPropertyHandle> InPropertyHandle) = 0;
 
 	/**
+	 * @return true if the category contains child rows. 
+	 */
+	virtual bool DoesCategoryHaveGeneratedChildren(FName CategoryName) = 0;
+
+	/**
 	 * Hides an entire category
 	 *
 	 * @param CategoryName	The name of the category to hide

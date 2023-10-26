@@ -78,17 +78,21 @@ void SDetailCategoryTableRow::Construct(const FArguments& InArgs, TSharedRef<FDe
 					}
 					return EVisibility::Visible;
 				})
-		]
-		+ SHorizontalBox::Slot()
-		.VAlign(VAlign_Center)
-		.Padding(4, 0, 0, 0)
-		.FillWidth(1)
-		[
-			SNew(STextBlock)
-			.Text(InArgs._DisplayName)
-			.Font(FAppStyle::Get().GetFontStyle(bIsInnerCategory ? PropertyEditorConstants::PropertyFontStyle : PropertyEditorConstants::CategoryFontStyle))
-			.TextStyle(FAppStyle::Get(), "DetailsView.CategoryTextStyle")
 		];
+	
+	if (!InArgs._WholeRowHeaderContent)
+	{
+		HeaderBox->AddSlot()
+			.VAlign(VAlign_Center)
+			.Padding(4, 0, 0, 0)
+			.FillWidth(1)
+			[
+				SNew(STextBlock)
+				.Text(InArgs._DisplayName)
+				.Font(FAppStyle::Get().GetFontStyle(bIsInnerCategory ? PropertyEditorConstants::PropertyFontStyle : PropertyEditorConstants::CategoryFontStyle))
+				.TextStyle(FAppStyle::Get(), "DetailsView.CategoryTextStyle")
+			];
+	}
 
 	if (InArgs._HeaderContent.IsValid())
 	{

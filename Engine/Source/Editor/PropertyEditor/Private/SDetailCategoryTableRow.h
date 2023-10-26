@@ -26,6 +26,7 @@ public:
 		SLATE_ARGUMENT(FText, DisplayName)
 		SLATE_ARGUMENT(bool, InnerCategory)
 		SLATE_ARGUMENT(TSharedPtr<SWidget>, HeaderContent)
+		SLATE_ARGUMENT(bool, WholeRowHeaderContent)
 		SLATE_ARGUMENT(bool, ShowBorder)
 		
 		/** If true, this Category should have no UProperty data associated with it, and will be shown as an 

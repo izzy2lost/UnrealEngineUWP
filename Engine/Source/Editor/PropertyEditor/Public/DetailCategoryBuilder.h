@@ -63,8 +63,9 @@ public:
 	 * Adds header content to the category
 	 *
 	 * @param InHeaderContent	The header content widget
+	 * @param bWholeRowContent	The header content should span the whole row (hides category name)
 	 */
-	virtual IDetailCategoryBuilder& HeaderContent(TSharedRef<SWidget> InHeaderContent) = 0;
+	virtual IDetailCategoryBuilder& HeaderContent(TSharedRef<SWidget> InHeaderContent, bool bWholeRowContent = false) = 0;
 
 	/**
 	 * Gets the current sort order of the category

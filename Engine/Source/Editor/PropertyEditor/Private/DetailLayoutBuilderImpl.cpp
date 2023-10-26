@@ -219,6 +219,29 @@ IDetailPropertyRow* FDetailLayoutBuilderImpl::EditDefaultProperty(TSharedPtr<IPr
 	return nullptr;
 }
 
+bool FDetailLayoutBuilderImpl::DoesCategoryHaveGeneratedChildren(FName CategoryName)
+{
+	FDetailNodeList Children;
+
+	FDetailCategoryImpl* Category = nullptr;
+	for (const TSharedRef<FDetailTreeNode>& RootTreeNode : AllRootTreeNodes)
+	{
+		if (RootTreeNode->GetNodeType() == EDetailNodeType::Category && 
+			CategoryName == RootTreeNode->GetNodeName())
+		{
+			Category = (FDetailCategoryImpl*)&RootTreeNode.Get();
+		}
+	}
+
+	if (Category)
+	{
+		Category->GetGeneratedChildren(Children, /*bIgnoreVisibility*/true, /*bIgnoreAdvancedDropdown*/false);
+	}
+
+	return Children.Num() > 0;
+}
+
+
 TSharedRef<IPropertyHandle> FDetailLayoutBuilderImpl::GetProperty( const FName PropertyPath, const UStruct* ClassOutermost, FName InInstanceName ) const
 {	
 	TSharedPtr<FPropertyHandleBase> PropertyHandle; 

@@ -383,10 +383,11 @@ IDetailCategoryBuilder& FDetailCategoryImpl::RestoreExpansionState(bool bRestore
 	return *this;
 }
 
-IDetailCategoryBuilder& FDetailCategoryImpl::HeaderContent(TSharedRef<SWidget> InHeaderContent)
+IDetailCategoryBuilder& FDetailCategoryImpl::HeaderContent(TSharedRef<SWidget> InHeaderContent, bool bWholeRowContent)
 {
 	ensureMsgf(!this->HeaderContentWidget.IsValid(), TEXT("Category already has a header content widget defined!"));
 	this->HeaderContentWidget = InHeaderContent;
+	this->bHeaderContentWholeRowContent = bWholeRowContent;
 	return *this;
 }
 
@@ -845,7 +846,8 @@ TSharedRef<ITableRow> FDetailCategoryImpl::GenerateWidgetForTableView(const TSha
 		.IsEmpty( bIsEmpty )
 		.InnerCategory(ParentLayout.IsValid() ? ParentLayout->IsLayoutForExternalRoot() : false)
 		.DisplayName(GetDisplayName())
-		.HeaderContent(HeaderContent);
+		.HeaderContent(HeaderContent)
+		.WholeRowHeaderContent(bHeaderContentWholeRowContent);
 }
 
 void FDetailCategoryImpl::InitializeObjectName()
