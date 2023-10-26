@@ -1933,11 +1933,18 @@ void UWaterBodyComponent::SetWaterBodyStaticMeshEnabled(bool bEnabled)
 
 void UWaterBodyComponent::UpdateWaterBodyRenderData()
 {
-	UpdateWaterInfoMeshComponents();
+	// Avoid updating any mesh data if we are in a PIE world if dynamic data changes aren't allowed.
+	if (const UWorld* World = GetWorld())
+	{
+		if (!World->HasBegunPlay() || AreDynamicDataChangesAllowed())
+		{
+			UpdateWaterInfoMeshComponents();
 
-	UpdateWaterBodyStaticMeshComponents();
+			UpdateWaterBodyStaticMeshComponents();
 
-	OnWaterBodyRenderDataUpdated();
+			OnWaterBodyRenderDataUpdated();
+		}
+	}
 }
 
 void UWaterBodyComponent::OnWaterBodyRenderDataUpdated()
