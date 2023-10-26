@@ -14,6 +14,8 @@ class FOperatorDmlMeanVarianceNormalization : public FOperatorDml
 	Util::FSmallUIntArray	Axes;
 	int32					AcrossChannels;
 	int32					NormalizeVariance;
+	static constexpr uint32 NumAllowedInputTensors = 1, NumAllowedOutputTensors = 1;
+	static constexpr int32 	MinTensorRank = 0, MaxTensorRank = GMaxTensorRank;
 
 public:
 
@@ -24,13 +26,30 @@ public:
 
 	static bool Validate(const NNE::FAttributeMap& AttributeMap, TConstArrayView<ENNETensorDataType> InputTypes, TConstArrayView<NNE::FSymbolicTensorShape> InputShapes)
 	{
+		const FString OpName = TEXT("MeanVarianceNormalization");
+
+		if(InputShapes.Num() != NumAllowedInputTensors)
+		{
+			UE_LOG(LogNNE, Warning, TEXT("DML %s: Invalid number of input tensors. %d provided, it should be %d."), *OpName, InputShapes.Num(), NumAllowedInputTensors);
+			return false;
+		}
+		
+		if (!CheckGenericTensor(OpName, InputTypes[0], InputShapes[0], 
+			{ 	ENNETensorDataType::Float, ENNETensorDataType::Half
+			},
+			MinTensorRank, MaxTensorRank
+		  	))
+		{
+			return false;
+		}
+
 		return true;
 	}
 
 	virtual bool Initialize(TConstArrayView<NNE::FTensorDesc> Inputs, TConstArrayView<NNE::FTensorDesc> Outputs, const NNE::FAttributeMap& Attributes) override
 	{
-		check(Inputs.Num() == 1);
-		check(Outputs.Num() == 1);
+		check(Inputs.Num() == NumAllowedInputTensors);
+		check(Outputs.Num() == NumAllowedOutputTensors);
 
 		// Read attributes
 		AcrossChannels = Attributes.GetValueOrDefault<int32>(TEXT("across_channels"), 0);
@@ -74,12 +93,6 @@ public:
 	{
 		const NNE::Internal::FTensor& InputTensor = *InputTensors[0];
 		const NNE::Internal::FTensor& OutputTensor = *OutputTensors[0];
-
-		if (InputTensor.GetShape().Rank() > 8)
-		{
-			UE_LOG(LogNNE, Warning, TEXT("InputTensor rank should be between 1 and 8, got:%d"), InputTensor.GetShape().Rank());
-			return false;
-		}
 
 		FTensorDescDml	DmlInputTensorDesc;
 		

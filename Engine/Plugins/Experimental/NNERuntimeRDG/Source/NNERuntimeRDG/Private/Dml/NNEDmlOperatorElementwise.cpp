@@ -13,10 +13,12 @@ namespace UE::NNERuntimeRDG::Private::Dml
 template
 <
 	typename DmlElementWiseOpDescType, 
-	DML_OPERATOR_TYPE DmlElementWiseOpType
+	DML_OPERATOR_TYPE DmlElementWiseOpType,
+	TCHAR const *OpName
 >
 class FOperatorDmlElementWiseUnary : public FOperatorDml
 {
+	static constexpr uint32 NumAllowedInputTensors = 1, NumAllowedOutputTensors = 1;
 public:
 
 	static FOperatorDml* Create()
@@ -26,18 +28,12 @@ public:
 
 	static bool Validate(const NNE::FAttributeMap& AttributeMap, TConstArrayView<ENNETensorDataType> InputTypes, TConstArrayView<NNE::FSymbolicTensorShape> InputShapes)
 	{
-		if (InputShapes.Num() != 1)
+		if(InputShapes.Num() != NumAllowedInputTensors)
 		{
-			UE_LOG(LogNNE, Warning, TEXT("Invalid number of input tensors"));
+			UE_LOG(LogNNE, Warning, TEXT("DML %s: Invalid number of input tensors. %d provided, it should be %d."), OpName, InputShapes.Num(), NumAllowedInputTensors);
 			return false;
 		}
-
-		if (!CheckElementwiseTensor(InputTypes[0], InputShapes[0]))
-		{
-			return false;
-		}
-
-		return true;
+		return CheckElementwiseTensor(OpName, InputTypes[0], InputShapes[0]);
 	}
 
 	virtual ~FOperatorDmlElementWiseUnary() = default;
@@ -88,8 +84,8 @@ public:
 
 	virtual int PrepareOutputs(TConstArrayView<NNE::Internal::FTensorRef> InputTensors, TArrayView<NNE::Internal::FTensorRef> OutputTensors) const override
 	{
-		check(InputTensors.Num() == 1);
-		check(OutputTensors.Num() == 1);
+		check(InputTensors.Num() == NumAllowedInputTensors);
+		check(OutputTensors.Num() == NumAllowedOutputTensors);
 		OutputTensors[0]->SetShape(InputTensors[0]->GetShape());
 
 		return 0;
@@ -148,11 +144,12 @@ private:
 template
 <
 	typename DmlElementWiseOpDescType, 
-	DML_OPERATOR_TYPE DmlElementWiseOpType
+	DML_OPERATOR_TYPE DmlElementWiseOpType,
+	TCHAR const *OpName
 >
 class FOperatorDmlElementWiseBinary : public FOperatorDml
 {
-
+	static constexpr uint32 NumAllowedInputTensors = 2, NumAllowedOutputTensors = 1;
 public:
 
 	static FOperatorDml* Create()
@@ -162,18 +159,18 @@ public:
 
 	static bool Validate(const NNE::FAttributeMap& AttributeMap, TConstArrayView<ENNETensorDataType> InputTypes, TConstArrayView<NNE::FSymbolicTensorShape> InputShapes)
 	{
-		if (InputShapes.Num() != 2)
+		if(InputShapes.Num() != NumAllowedInputTensors)
 		{
-			UE_LOG(LogNNE, Warning, TEXT("Invalid number of input tensors"));
+			UE_LOG(LogNNE, Warning, TEXT("DML %s: Invalid number of input tensors. %d provided, it should be %d."), OpName, InputShapes.Num(), NumAllowedInputTensors);
 			return false;
 		}
 
-		if (!CheckElementwiseTensor(InputTypes[0], InputShapes[0]))
+		if(!CheckElementwiseTensor(OpName, InputTypes[0], InputShapes[0]))
 		{
 			return false;
 		}
 
-		if (!CheckElementwiseTensor(InputTypes[1], InputShapes[1]))
+		if(!CheckElementwiseTensor(OpName, InputTypes[1], InputShapes[1]))
 		{
 			return false;
 		}
@@ -194,8 +191,8 @@ public:
 
 	virtual int PrepareOutputs(TConstArrayView<NNE::Internal::FTensorRef> InputTensors, TArrayView<NNE::Internal::FTensorRef> OutputTensors) const override
 	{
-		check(InputTensors.Num() == 2);
-		check(OutputTensors.Num() == 1);
+		check(InputTensors.Num() == NumAllowedInputTensors);
+		check(OutputTensors.Num() == NumAllowedOutputTensors);
 
 		TConstArrayView<uint32> ShapeA = InputTensors[0]->GetShape().GetData();
 		TConstArrayView<uint32> ShapeB = InputTensors[1]->GetShape().GetData();
@@ -291,11 +288,12 @@ private:
 };
 
 #define REGISTER_OP_ELEMENT_WISE(OpName, DmlOpName, OpClass) \
+TCHAR const Op##OpName##Name[] = TEXT(#OpName); \
 struct FDmlOperator##OpName##Registrator \
 { \
 	FDmlOperator##OpName##Registrator() \
 	{ \
-		FOperatorRegistryDml::Get()->OpAdd(TEXT(#OpName), OpClass<DML_ELEMENT_WISE_##DmlOpName##_OPERATOR_DESC, DML_OPERATOR_ELEMENT_WISE_##DmlOpName>::Create, OpClass<DML_ELEMENT_WISE_##DmlOpName##_OPERATOR_DESC, DML_OPERATOR_ELEMENT_WISE_##DmlOpName>::Validate); \
+		FOperatorRegistryDml::Get()->OpAdd(TEXT(#OpName), OpClass<DML_ELEMENT_WISE_##DmlOpName##_OPERATOR_DESC, DML_OPERATOR_ELEMENT_WISE_##DmlOpName, Op##OpName##Name>::Create, OpClass<DML_ELEMENT_WISE_##DmlOpName##_OPERATOR_DESC, DML_OPERATOR_ELEMENT_WISE_##DmlOpName, Op##OpName##Name>::Validate); \
 	} \
 }; \
 \

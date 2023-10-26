@@ -18,6 +18,9 @@ class FOperatorDmlSpaceToDepth : public FOperatorDml
 
 	int32 BlockSize;
 
+	static constexpr uint32 NumAllowedInputTensors = 1, NumAllowedOutputTensors = 1;
+	static constexpr int32 	MinTensorRank = 4, MaxTensorRank = 4;
+
 public:
 
 	static FOperatorDml* Create()
@@ -27,13 +30,33 @@ public:
 
 	static bool Validate(const NNE::FAttributeMap& AttributeMap, TConstArrayView<ENNETensorDataType> InputTypes, TConstArrayView<NNE::FSymbolicTensorShape> InputShapes)
 	{
+		const FString OpName = TEXT("SpaceToDepth");
+
+		if(InputShapes.Num() != NumAllowedInputTensors)
+		{
+			UE_LOG(LogNNE, Warning, TEXT("DML %s: Invalid number of input tensors. %d provided, it should be %d."), *OpName, InputShapes.Num(), NumAllowedInputTensors);
+			return false;
+		}
+		
+		if (!CheckGenericTensor(OpName, InputTypes[0], InputShapes[0], 
+			{ 	ENNETensorDataType::Double, ENNETensorDataType::Float, ENNETensorDataType::Half, 
+				ENNETensorDataType::Int64, ENNETensorDataType::Int32, ENNETensorDataType::Int16,
+				ENNETensorDataType::Int8, ENNETensorDataType::UInt64, ENNETensorDataType::UInt32, 
+				ENNETensorDataType::UInt16, ENNETensorDataType::UInt8
+			},
+			MinTensorRank, MaxTensorRank
+		  	))
+		{
+			return false;
+		}
+
 		return true;
 	}
 
 	virtual bool Initialize(TConstArrayView<NNE::FTensorDesc> Inputs, TConstArrayView<NNE::FTensorDesc> Outputs, const NNE::FAttributeMap& Attributes) override
 	{
-		check(Inputs.Num() == 1);
-		check(Outputs.Num() == 1);
+		check(Inputs.Num() == NumAllowedInputTensors);
+		check(Outputs.Num() == NumAllowedOutputTensors);
 
 		const FNNEAttributeValue* BlockSizeAttr = Attributes.GetAttributeValue(TEXT("blocksize"));
 		if (BlockSizeAttr)
@@ -74,6 +97,7 @@ public:
 		FTensorDescDml	DmlOutputTensorDesc;
 
 		if (!DmlInputTensorDesc
+				.SetTensorRank(MinTensorRank, MaxTensorRank)
 				.SetFromTensor(InputTensor)
 				.Validate())
 		{
@@ -82,6 +106,7 @@ public:
 		}
 
 		if (!DmlOutputTensorDesc
+				.SetTensorRank(MinTensorRank, MaxTensorRank)
 				.SetFromTensor(OutputTensor)
 				.Validate())
 		{

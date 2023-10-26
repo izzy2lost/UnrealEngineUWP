@@ -32,36 +32,36 @@ public:
 
 	static bool Validate(const NNE::FAttributeMap& AttributeMap, TConstArrayView<ENNETensorDataType> InputTypes, TConstArrayView<NNE::FSymbolicTensorShape> InputShapes)
 	{
+		const FString OpName = TEXT("BatchNormalization");
+
 		if (InputShapes.Num() != Count)
 		{
-			UE_LOG(LogNNE, Warning, TEXT("DML input tensors must be %d"), Count);
+			UE_LOG(LogNNE, Warning, TEXT("DML %s: invalid number of input tensors. %d provided, it should be %d."), *OpName, InputShapes.Num(), Count);
         	return false;
 		}
-		
-		const int32 InputRank = InputShapes[0].Rank();
-		if (InputRank > 8)
+
+		if (!CheckGenericTensor(OpName, InputTypes[0], InputShapes[0], {ENNETensorDataType::Float, ENNETensorDataType::Half}))
 		{
-			UE_LOG(LogNNE, Warning, TEXT("DML InputTensor rank should be between 1 and 8, it's %d"), InputRank);
-        	return false;
+			return false;
 		}
 		
 		const int32 bTrainingMode = AttributeMap.GetValueOrDefault<int32>(TEXT("training_mode"), 0);
 		if (bTrainingMode)
 		{
-			UE_LOG(LogNNE, Warning, TEXT("DML BatchNormalization doesn't support training mode"));
+			UE_LOG(LogNNE, Warning, TEXT("DML %s: training mode not supported"), *OpName);
 			return false;
 		}
 
 		for (int32 Idx = X; Idx < Count; ++Idx)
 		{
-			if (!CheckElementwiseTensor(InputTypes[Idx], InputShapes[Idx]))
+			if (!CheckGenericTensor(OpName, InputTypes[Idx], InputShapes[Idx], {ENNETensorDataType::Float, ENNETensorDataType::Half}))
 			{
 				return false;
 			}
 			
 			if (!IsEqualOrBroadcastable(InputShapes[0].GetData(), InputShapes[Idx].GetData()))
 			{
-				UE_LOG(LogNNE, Warning, TEXT("DML BatchNormalization other tensors' shapes must be equal or broadcastable to input tensor's"));
+				UE_LOG(LogNNE, Warning, TEXT("DML %s: tensor %d has shape that's not equal or broadcastable to input tensor's"), *OpName, Idx);
 				return false;
 			}
 		}

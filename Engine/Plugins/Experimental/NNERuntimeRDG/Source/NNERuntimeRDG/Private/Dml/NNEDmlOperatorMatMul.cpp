@@ -2,12 +2,15 @@
 
 #ifdef NNE_USE_DIRECTML
 #include "NNEDmlOperator.h"
+#include "NNEDmlOperatorUtils.h"
 
 namespace UE::NNERuntimeRDG::Private::Dml
 {
 
 class FOperatorDmlMatMul : public FOperatorDml
 {
+	static constexpr uint32 NumAllowedInputTensors = 2, NumAllowedOutputTensors = 1;
+	static constexpr int32 	MinTensorRank = 2, MaxTensorRank = TNumericLimits<int32>::Max();
 public:
 
 	static FOperatorDml* Create()
@@ -17,21 +20,47 @@ public:
 
 	static bool Validate(const NNE::FAttributeMap& AttributeMap, TConstArrayView<ENNETensorDataType> InputTypes, TConstArrayView<NNE::FSymbolicTensorShape> InputShapes)
 	{
+		const FString OpName = TEXT("MatMul");
+
+		if(InputShapes.Num() != NumAllowedInputTensors)
+		{
+			UE_LOG(LogNNE, Warning, TEXT("DML %s: Invalid number of input tensors. %d provided, it should be %d."), *OpName, InputShapes.Num(), NumAllowedInputTensors);
+			return false;
+		}
+		
+		if (!CheckGenericTensor(OpName, InputTypes[0], InputShapes[0], 
+			{ 	ENNETensorDataType::Float, ENNETensorDataType::Half
+			},
+			MinTensorRank, MaxTensorRank
+		  	))
+		{
+			return false;
+		}
+
+		if (!CheckGenericTensor(OpName, InputTypes[1], InputShapes[1], 
+			{ 	ENNETensorDataType::Float, ENNETensorDataType::Half
+			},
+			MinTensorRank, MaxTensorRank
+		  	))
+		{
+			return false;
+		}
+
 		return true;
 	}
 
 	virtual bool Initialize(TConstArrayView<NNE::FTensorDesc> Inputs, TConstArrayView<NNE::FTensorDesc> Outputs, const NNE::FAttributeMap& Attributes) override
 	{
-		check(Inputs.Num() == 2);
-		check(Outputs.Num() == 1);
+		check(Inputs.Num() == NumAllowedInputTensors);
+		check(Outputs.Num() == NumAllowedOutputTensors);
 
 		return true;
 	}
 
 	virtual int PrepareOutputs(TConstArrayView<NNE::Internal::FTensorRef> InputTensors, TArrayView<NNE::Internal::FTensorRef> OutputTensors) const override
 	{
-		check(InputTensors.Num() >= 2 && InputTensors.Num() <= 3);
-		check(OutputTensors.Num() == 1);
+		check(InputTensors.Num() == NumAllowedInputTensors);
+		check(OutputTensors.Num() == NumAllowedOutputTensors);
 
 		const NNE::FTensorShape& InputA = InputTensors[0]->GetShape();
 		const NNE::FTensorShape& InputB = InputTensors[1]->GetShape();

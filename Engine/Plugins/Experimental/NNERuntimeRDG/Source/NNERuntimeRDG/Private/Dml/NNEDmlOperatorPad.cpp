@@ -2,6 +2,7 @@
 
 #ifdef NNE_USE_DIRECTML
 #include "NNEDmlOperator.h"
+#include "NNEDmlOperatorUtils.h"
 
 namespace UE::NNERuntimeRDG::Private::Dml
 {
@@ -32,6 +33,9 @@ class FOperatorDmlPad : public FOperatorDml
 		}
 	}
 
+	static constexpr uint32 MinAllowedInputTensors = 1, MaxAllowedInputTensors = 2, NumAllowedOutputTensors = 1;
+	static constexpr int32 	MinTensorRank = 0, MaxTensorRank = GMaxTensorRank;
+
 public:
 
 	static FOperatorDml* Create()
@@ -41,13 +45,47 @@ public:
 
 	static bool Validate(const NNE::FAttributeMap& AttributeMap, TConstArrayView<ENNETensorDataType> InputTypes, TConstArrayView<NNE::FSymbolicTensorShape> InputShapes)
 	{
+		const FString OpName = TEXT("Pad");
+
+		if (InputShapes.Num() < MinAllowedInputTensors || InputShapes.Num() > MaxAllowedInputTensors)
+		{
+			UE_LOG(LogNNE, Warning, TEXT("DML %s: invalid number of input tensors. %d provided, it should be in [%d, %d]."), 
+										*OpName, InputShapes.Num(), MinAllowedInputTensors, MaxAllowedInputTensors);
+			return false;
+		}
+
+		if (!CheckGenericTensor(OpName, InputTypes[0], InputShapes[0], 
+			{ 	ENNETensorDataType::Double, ENNETensorDataType::Float, ENNETensorDataType::Half, 
+				ENNETensorDataType::Int64, ENNETensorDataType::Int32, ENNETensorDataType::Int16,
+				ENNETensorDataType::Int8, ENNETensorDataType::UInt64, ENNETensorDataType::UInt32, 
+				ENNETensorDataType::UInt16, ENNETensorDataType::UInt8
+			},
+			MinTensorRank, MaxTensorRank
+		  	))
+		{
+			return false;
+		}
+
+		if(InputShapes.Num() >= 2)
+		{
+			//pads are 1D
+			if (!CheckGenericTensor1D(OpName, InputTypes[1], InputShapes[1], 
+				{ 	
+					ENNETensorDataType::Int64
+				}
+				))
+			{
+				return false;
+			}
+		}
+
 		return true;
 	}
 
 	virtual bool Initialize(TConstArrayView<NNE::FTensorDesc> Inputs, TConstArrayView<NNE::FTensorDesc> Outputs, const NNE::FAttributeMap& Attributes) override
 	{
-		check(Inputs.Num() >= 1);
-		check(Outputs.Num() == 1);
+		check(Inputs.Num() >= MinAllowedInputTensors && Inputs.Num() <= MaxAllowedInputTensors);
+		check(Outputs.Num() == NumAllowedOutputTensors);
 
 		// Read attributes
 		Value = Attributes.GetValueOrDefault<float>(TEXT("value"), 0.0f);

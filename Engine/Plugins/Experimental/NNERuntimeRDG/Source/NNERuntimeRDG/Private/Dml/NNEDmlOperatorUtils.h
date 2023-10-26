@@ -83,33 +83,34 @@ static bool IsEqualOrBroadcastable(TConstArrayView<T> ShapeA, TConstArrayView<T>
 	return true;
 }
 
-static bool CheckGenericTensor(ENNETensorDataType DataType, const NNE::FSymbolicTensorShape& TensorShape)
+static bool CheckGenericTensor(const FString& OpName, ENNETensorDataType DataType, const NNE::FSymbolicTensorShape& TensorShape, 
+							   const TSet<ENNETensorDataType>& AllowedDataTypes,
+							   const int32 MinTensorRank = 0, const int32 MaxTensorRank = GMaxTensorRank)
 {
-	const int32 MinTensorRank(0), MaxTensorRank(DML_TENSOR_DIMENSION_COUNT_MAX1);
-
+	if(!AllowedDataTypes.Contains(DataType))
+	{
+		UE_LOG(LogNNE, Warning, TEXT("DML %s: Invalid data type: %s"), *OpName, *UEnum::GetDisplayValueAsText(DataType).ToString());
+		return false;
+	}
 	if (TensorShape.Rank() < MinTensorRank || TensorShape.Rank() > MaxTensorRank)
 	{
-		UE_LOG(LogNNE, Warning, TEXT("Invalid DML tensor rank: %d [%d,%d]"), TensorShape.Rank(), MinTensorRank, MaxTensorRank);
+		UE_LOG(LogNNE, Warning, TEXT("DML %s: Invalid tensor rank: %d [%d,%d]"), *OpName, TensorShape.Rank(), MinTensorRank, MaxTensorRank);
 		return false;
 	}
 
 	return true;
 }
 
-static bool CheckElementwiseTensor(ENNETensorDataType DataType, const NNE::FSymbolicTensorShape& TensorShape)
+static bool CheckGenericTensor1D(const FString& OpName, ENNETensorDataType DataType, const NNE::FSymbolicTensorShape& TensorShape, 
+							   const TSet<ENNETensorDataType>& AllowedDataTypes)
 {
-	if (DataType != ENNETensorDataType::Float)
-	{
-		UE_LOG(LogNNE, Warning, TEXT("Invalid DML tensor data type"));
-		return false;
-	}
+	return CheckGenericTensor(OpName, DataType, TensorShape, AllowedDataTypes, 0, 1); // Scalar is "cast" to 1D due to lack of support in Dml.
+}
 
-	if(!CheckGenericTensor(DataType, TensorShape))
-	{
-		return false;
-	}
-
-	return true;
+static bool CheckElementwiseTensor(const FString& OpName, ENNETensorDataType DataType, const NNE::FSymbolicTensorShape& TensorShape,
+								   TSet<ENNETensorDataType> AllowedDataTypes = {ENNETensorDataType::Float, ENNETensorDataType::Half})
+{
+	return CheckGenericTensor(OpName, DataType, TensorShape, AllowedDataTypes);
 }
 
 static Util::FSmallUIntArray KernelPadding(

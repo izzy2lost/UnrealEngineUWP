@@ -25,6 +25,7 @@ static FDmlOperator##OpName##Registrator RegisterDmlOperator##OpName;
 namespace UE::NNERuntimeRDG::Private::Dml
 {
 
+static constexpr int32  GMaxTensorRank = DML_TENSOR_DIMENSION_COUNT_MAX1;
 static constexpr uint32 NcdhwDimensionCount = 5;
 static constexpr uint32 NcdhwSpatialDimensionCount = 3;
 static constexpr uint32 NonspatialDimensionCount = 2;		//!< The batch and channel dimensions of NCW, NCHW, NCDHW....

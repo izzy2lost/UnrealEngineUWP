@@ -13,6 +13,7 @@ class FOperatorDmlCumSum : public FOperatorDml
 	DML_AXIS_DIRECTION	AxisDirection;
 	int32				HasExclusiveSum;
 	mutable int32		Axis;
+	static constexpr uint32 NumAllowedInputTensors = 2, NumAllowedOutputTensors = 1;
 
 public:
 
@@ -23,13 +24,38 @@ public:
 
 	static bool Validate(const NNE::FAttributeMap& AttributeMap, TConstArrayView<ENNETensorDataType> InputTypes, TConstArrayView<NNE::FSymbolicTensorShape> InputShapes)
 	{
+		const FString OpName = TEXT("CumSum");
+
+		if(InputShapes.Num() != NumAllowedInputTensors)
+		{
+			UE_LOG(LogNNE, Warning, TEXT("DML %s: Invalid number of input tensors. %d provided, it should be %d."), *OpName, InputShapes.Num(), NumAllowedInputTensors);
+			return false;
+		}
+		
+		if (!CheckGenericTensor(OpName, InputTypes[0], InputShapes[0], 
+			{ ENNETensorDataType::Float, ENNETensorDataType::Half, 
+			  ENNETensorDataType::Int64, ENNETensorDataType::Int32, 
+			  ENNETensorDataType::UInt64, ENNETensorDataType::UInt32 }
+		  	))
+		{
+			return false;
+		}
+
+		//axis is scalar
+		if (!CheckGenericTensor1D(OpName, InputTypes[1], InputShapes[1], 
+			{ ENNETensorDataType::Int64, ENNETensorDataType::Int32 }
+		  	))
+		{
+			return false;
+		}
+
 		return true;
 	}
 
 	virtual bool Initialize(TConstArrayView<NNE::FTensorDesc> Inputs, TConstArrayView<NNE::FTensorDesc> Outputs, const NNE::FAttributeMap& Attributes) override
 	{
-		check(Inputs.Num() == 2);
-		check(Outputs.Num() == 1);
+		check(Inputs.Num() == NumAllowedInputTensors);
+		check(Outputs.Num() == NumAllowedOutputTensors);
 
 		ConstantCPUInputs.Add(1);
 

@@ -116,6 +116,8 @@ class FOperatorDmlConv : public FOperatorDml
 
 	mutable FConvArgs	Args;
 
+	static constexpr int32 MinTensorRank = 3, MaxTensorRank = 5;
+	static constexpr uint32 MinAllowedInputTensors = 2, MaxAllowedInputTensors = 3;
 public:
 
 	static FOperatorDml* Create()
@@ -125,11 +127,37 @@ public:
 
 	static bool Validate(const NNE::FAttributeMap& AttributeMap, TConstArrayView<ENNETensorDataType> InputTypes, TConstArrayView<NNE::FSymbolicTensorShape> InputShapes)
 	{
+		FString OpName = Direction == DML_CONVOLUTION_DIRECTION_FORWARD ? TEXT("Conv") : TEXT("ConvTranspose");
+
+		if (InputShapes.Num() < MinAllowedInputTensors || InputShapes.Num() > MaxAllowedInputTensors)
+		{
+			UE_LOG(LogNNE, Warning, TEXT("DML %s: invalid number of input tensors. %d provided, it should be in [%d, %d]."), 
+										*OpName, InputShapes.Num(), MinAllowedInputTensors, MaxAllowedInputTensors);
+			return false;
+		}
+
+		if (!CheckGenericTensor(OpName, InputTypes[0], InputShapes[0], {ENNETensorDataType::Float, ENNETensorDataType::Half}, MinTensorRank, MaxTensorRank) || 
+			!CheckGenericTensor(OpName, InputTypes[1], InputShapes[1], {ENNETensorDataType::Float, ENNETensorDataType::Half}, MinTensorRank, MaxTensorRank))
+		{
+			return false;
+		}
+
+		if(InputShapes.Num() == 3)
+		{
+			// Bias tensor must be 1D
+			if (!CheckGenericTensor1D(OpName, InputTypes[2], InputShapes[2], {ENNETensorDataType::Float, ENNETensorDataType::Half}))
+			{
+				return false;
+			}
+		}
+
 		return true;
 	}
 
 	virtual bool Initialize(TConstArrayView<NNE::FTensorDesc> Inputs, TConstArrayView<NNE::FTensorDesc> Outputs, const NNE::FAttributeMap& Attributes) override
 	{
+		check(Inputs.Num() >= MinAllowedInputTensors && Inputs.Num() <= MaxAllowedInputTensors);
+
 		const NNE::FTensorDesc& InputTensor = Inputs[0];
 		const NNE::FTensorDesc& FilterTensor = Inputs[1];
 
@@ -163,7 +191,7 @@ public:
 		FTensorDescDml	DmlOutputTensorDesc;
 
 		if (!DmlInputTensorDesc
-				.SetTensorRank(3, 5)
+				.SetTensorRank(MinTensorRank, MaxTensorRank)
 				.SetFromTensor(InputTensor)
 				.Validate())
 		{
@@ -172,7 +200,7 @@ public:
 		}
 
 		if (!DmlFilterTensorDesc
-				.SetTensorRank(3, 5)
+				.SetTensorRank(MinTensorRank, MaxTensorRank)
 				.SetFromTensor(FilterTensor)
 				.Validate())
 		{
@@ -185,7 +213,7 @@ public:
 			const NNE::Internal::FTensor& BiasTensor = *InputTensors[2];
 
 			if (!DmlBiasTensorDesc
-					.SetTensorRank(3, 5)
+					.SetTensorRank(MinTensorRank, MaxTensorRank)
 					.SetFromTensor1D(BiasTensor, InputTensor.GetShape().Rank())
 					.Validate())
 			{
@@ -195,7 +223,7 @@ public:
 		}
 
 		if (!DmlOutputTensorDesc
-				.SetTensorRank(3, 5)
+				.SetTensorRank(MinTensorRank, MaxTensorRank)
 				.SetFromTensor(OutputTensor)
 				.Validate())
 		{

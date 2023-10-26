@@ -13,7 +13,7 @@ namespace UE::NNERuntimeRDG::Private::Dml
 /**
  *  Pooling operators (local and global)
  */
-template <typename TDmlPoolOpDesc, DML_OPERATOR_TYPE DmlOpType, bool UseGlobalPooling>
+template <typename TDmlPoolOpDesc, DML_OPERATOR_TYPE DmlOpType, bool UseGlobalPooling, TCHAR const *OpName>
 class FOperatorDmlPool : public FOperatorDml
 {
 	using FIntArray = TArray<int32>;
@@ -79,24 +79,61 @@ class FOperatorDmlPool : public FOperatorDml
 	mutable FPoolingArgs	Args;
 	int32					IncludePadding;
 	uint32					P;
+	static constexpr uint32 NumAllowedInputTensors = 1, MinAllowedOutputTensors = 1, MaxAllowedOutputTensors = 2;
+	static constexpr int32 	MinTensorRank = 4, MaxTensorRank = 5;
 
 public:
 
 	static FOperatorDml* Create()
 	{
-		return new FOperatorDmlPool<TDmlPoolOpDesc, DmlOpType, UseGlobalPooling>();
+		return new FOperatorDmlPool<TDmlPoolOpDesc, DmlOpType, UseGlobalPooling, OpName>();
 	}
 
 	static bool Validate(const NNE::FAttributeMap& AttributeMap, TConstArrayView<ENNETensorDataType> InputTypes, TConstArrayView<NNE::FSymbolicTensorShape> InputShapes)
 	{
+
+		if(InputShapes.Num() != NumAllowedInputTensors)
+		{
+			UE_LOG(LogNNE, Warning, TEXT("DML %s: Invalid number of input tensors. %d provided, it should be %d."), OpName, InputShapes.Num(), NumAllowedInputTensors);
+			return false;
+		}
+
+		TSet<ENNETensorDataType> AllowedDataTypes;
+		if constexpr (DmlOpType == DML_OPERATOR_MAX_POOLING)
+		{
+			AllowedDataTypes = 
+					{ 	
+						ENNETensorDataType::Float, ENNETensorDataType::Half, 
+						ENNETensorDataType::Int64, ENNETensorDataType::Int32, ENNETensorDataType::Int16,
+						ENNETensorDataType::Int8, ENNETensorDataType::UInt64, ENNETensorDataType::UInt32, 
+						ENNETensorDataType::UInt16, ENNETensorDataType::UInt8
+					};
+		}
+		else
+		{
+			AllowedDataTypes = 
+					{ 	
+						ENNETensorDataType::Float, ENNETensorDataType::Half
+					};
+		}
+
+		if (!CheckGenericTensor(OpName, InputTypes[0], InputShapes[0], 
+			AllowedDataTypes,
+			MinTensorRank, MaxTensorRank
+			))
+		{
+			return false;
+		}
+
+
 		return true;
 	}
 
 	virtual bool Initialize(TConstArrayView<NNE::FTensorDesc> Inputs, TConstArrayView<NNE::FTensorDesc> Outputs, const NNE::FAttributeMap& Attributes) override
 	{
 		// TODO: int64 attributes
-		check(Inputs.Num() == 1);
-		check(Outputs.Num() == 1 || Outputs.Num() == 2);
+		check(Inputs.Num() == NumAllowedInputTensors);
+		check(Outputs.Num() >= MinAllowedOutputTensors && Outputs.Num() <= MaxAllowedOutputTensors);
 
 		// Attribute storage_order is not supported
 		const int32 StorageOrder = Attributes.GetValueOrDefault<int32>(TEXT("storage_order"), 0);
@@ -173,7 +210,7 @@ public:
 		FTensorDescDml DmlInputTensorDesc;
 
 		if (!DmlInputTensorDesc
-				.SetTensorRank(4, 5)
+				.SetTensorRank(MinTensorRank, MaxTensorRank)
 				.SetFromTensor(*InputTensors[0])
 				.Validate())
 		{
@@ -184,7 +221,7 @@ public:
 		FTensorDescDml DmlOutputTensorDesc;
 
 		if (!DmlOutputTensorDesc
-				.SetTensorRank(4, 5)
+				.SetTensorRank(MinTensorRank, MaxTensorRank)
 				.SetFromTensor(*OutputTensors[0])
 				.Validate())
 		{
@@ -225,7 +262,7 @@ public:
 				FTensorDescDml DmlIndicesTensorDesc;
 				
 				if (!DmlIndicesTensorDesc
-						.SetTensorRank(4, 5)
+						.SetTensorRank(MinTensorRank, MaxTensorRank)
 						.SetFromTensor(*OutputTensors[1])
 						.SetDataType(ENNETensorDataType::UInt64)
 						.Validate())
@@ -262,11 +299,12 @@ public:
 };
 
 #define NNE_DML_REGISTER_POOLING_OP(OpName, DmlPrefix, UseGlobalPooling) \
+TCHAR const Op##OpName##Name[] = TEXT(#OpName); \
 struct FDmlOperator##OpName##Registrator \
 { \
 	FDmlOperator##OpName##Registrator() \
 	{ \
-		FOperatorRegistryDml::Get()->OpAdd(TEXT(#OpName), FOperatorDmlPool<DML_##DmlPrefix##_POOLING_OPERATOR_DESC, DML_OPERATOR_##DmlPrefix##_POOLING, UseGlobalPooling>::Create); \
+		FOperatorRegistryDml::Get()->OpAdd(TEXT(#OpName), FOperatorDmlPool<DML_##DmlPrefix##_POOLING_OPERATOR_DESC, DML_OPERATOR_##DmlPrefix##_POOLING, UseGlobalPooling, Op##OpName##Name>::Create, FOperatorDmlPool<DML_##DmlPrefix##_POOLING_OPERATOR_DESC, DML_OPERATOR_##DmlPrefix##_POOLING, UseGlobalPooling, Op##OpName##Name>::Validate); \
 	} \
 }; \
 \

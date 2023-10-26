@@ -2,6 +2,8 @@
 
 #ifdef NNE_USE_DIRECTML
 #include "NNEDmlOperator.h"
+#include "NNEDmlOperatorUtils.h"
+#include "Algo/Count.h"
 
 namespace UE::NNERuntimeRDG::Private::Dml
 {
@@ -63,6 +65,11 @@ class FOperatorDmlResample : public FOperatorDml
 		}
 	}
 
+	static constexpr uint32 ResizeMinAllowedInputTensors = 1, ResizeMaxAllowedInputTensors = 4;
+	static constexpr uint32 UpsampleNumAllowedInputTensors = 2;
+	static constexpr uint32 NumAllowedOutputTensors = 1;
+	static constexpr int32 	MinTensorRank = 0, MaxTensorRank = 4;
+
 public:
 
 	static FOperatorDml* Create()
@@ -72,13 +79,93 @@ public:
 
 	static bool Validate(const NNE::FAttributeMap& AttributeMap, TConstArrayView<ENNETensorDataType> InputTypes, TConstArrayView<NNE::FSymbolicTensorShape> InputShapes)
 	{
+		const FString OpName = IsResize ? TEXT("Resize") : TEXT("Upsample");
+		if constexpr (IsResize)
+		{
+			if (InputShapes.Num() < ResizeMinAllowedInputTensors || InputShapes.Num() > ResizeMaxAllowedInputTensors)
+			{
+				UE_LOG(LogNNE, Warning, TEXT("DML %s: invalid number of input tensors. %d provided, it should be in [%d, %d]."), 
+											*OpName, InputShapes.Num(), ResizeMinAllowedInputTensors, ResizeMaxAllowedInputTensors);
+				return false;
+			}
+
+			if(InputShapes.Num() > 1)
+			{
+				if (!CheckGenericTensor1D(OpName, InputTypes[1], InputShapes[1], 
+					{ 	ENNETensorDataType::Double, ENNETensorDataType::Float, ENNETensorDataType::Half
+					}
+					))
+				{
+					return false;
+				}
+			}
+
+			if(InputShapes.Num() == 3)
+			{
+				if (!CheckGenericTensor1D(OpName, InputTypes[2], InputShapes[2], 
+					{ 	ENNETensorDataType::Float
+					}
+					))
+				{
+					return false;
+				}
+			}
+
+			if(InputShapes.Num() == 4)
+			{
+				if (!CheckGenericTensor1D(OpName, InputTypes[3], InputShapes[3], 
+					{ 	ENNETensorDataType::Int64
+					}
+					))
+				{
+					return false;
+				}
+			}
+		}
+		else
+		{
+			if(InputShapes.Num() != UpsampleNumAllowedInputTensors)
+			{
+				UE_LOG(LogNNE, Warning, TEXT("DML %s: Invalid number of input tensors. %d provided, it should be %d."), *OpName, InputShapes.Num(), UpsampleNumAllowedInputTensors);
+				return false;
+			}
+
+			if(InputShapes.Num() > 1)
+			{
+				if (!CheckGenericTensor1D(OpName, InputTypes[1], InputShapes[1], 
+					{ 	ENNETensorDataType::Float
+					}
+					))
+				{
+					return false;
+				}
+			}
+		}
+		
+		if (!CheckGenericTensor(OpName, InputTypes[0], InputShapes[0], 
+			{ 	
+				ENNETensorDataType::Float, ENNETensorDataType::Half
+			},
+			MinTensorRank, MaxTensorRank + Algo::Count(InputShapes[0].GetData(), (int32) 1) // Allow ones due to squeezing (see Create method)
+		  	))
+		{
+			return false;
+		}
+
 		return true;
 	}
 
 	virtual bool Initialize(TConstArrayView<NNE::FTensorDesc> Inputs, TConstArrayView<NNE::FTensorDesc> Outputs, const NNE::FAttributeMap& Attributes) override
 	{
-		check(Inputs.Num() >= 1 && Inputs.Num() <= 4);
-		check(Outputs.Num() == 1);
+		if constexpr (IsResize)
+		{
+			check(Inputs.Num() >= ResizeMinAllowedInputTensors && Inputs.Num() <= ResizeMaxAllowedInputTensors);
+		}
+		else
+		{
+			check(Inputs.Num() == UpsampleNumAllowedInputTensors);
+		}
+		check(Outputs.Num() == NumAllowedOutputTensors);
 
 		bUseSizesTensor = Inputs.Num() == 4;
 
@@ -316,11 +403,11 @@ public:
 		FTensorDescDml	DmlOutputTensorDesc;
 
 		DmlInputTensorDesc
-			.SetTensorRank(1, 4)
+			.SetTensorRank(MinTensorRank, MaxTensorRank)
 			.SetFromTensor(InputTensor);
 		
 		DmlOutputTensorDesc
-			.SetTensorRank(1, 4)
+			.SetTensorRank(MinTensorRank, MaxTensorRank)
 			.SetFromTensor(OutputTensor);
 		
 		// Find any useless dimensions of size 1 that occur in both input and output
@@ -384,7 +471,7 @@ struct FDmlOperator##OpName##Registrator \
 { \
 	FDmlOperator##OpName##Registrator() \
 	{ \
-		FOperatorRegistryDml::Get()->OpAdd(TEXT(#OpName), FOperatorDmlResample<IsResize>::Create); \
+		FOperatorRegistryDml::Get()->OpAdd(TEXT(#OpName), FOperatorDmlResample<IsResize>::Create, FOperatorDmlResample<IsResize>::Validate); \
 	} \
 }; \
 \

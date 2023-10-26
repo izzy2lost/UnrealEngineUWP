@@ -3,6 +3,7 @@
 #ifdef NNE_USE_DIRECTML
 
 #include "NNEDmlOperator.h"
+#include "NNEDmlOperatorUtils.h"
 #include "Misc/EnumerateRange.h"
 #include "Algo/Copy.h"
 #include "Algo/ForEach.h"
@@ -133,6 +134,9 @@ class FOperatorDmlSlice : public FOperatorDml
 
 	ENNETensorDataType InputIndexDataType;
 
+	static constexpr uint32 MinAllowedInputTensors = 3, MaxAllowedInputTensors = 5, NumAllowedOutputTensors = 1;
+	static constexpr int32 	MinTensorRank = 0, MaxTensorRank = GMaxTensorRank;
+
 public:
 
 	static FOperatorDml* Create()
@@ -142,14 +146,63 @@ public:
 
 	static bool Validate(const NNE::FAttributeMap& AttributeMap, TConstArrayView<ENNETensorDataType> InputTypes, TConstArrayView<NNE::FSymbolicTensorShape> InputShapes)
 	{
+		const FString OpName = TEXT("Slice");
+
+		if (InputShapes.Num() < MinAllowedInputTensors || InputShapes.Num() > MaxAllowedInputTensors)
+		{
+			UE_LOG(LogNNE, Warning, TEXT("DML %s: invalid number of input tensors. %d provided, it should be in [%d, %d]."), 
+										*OpName, InputShapes.Num(), MinAllowedInputTensors, MaxAllowedInputTensors);
+			return false;
+		}
+		
+		if (!CheckGenericTensor(OpName, InputTypes[0], InputShapes[0], 
+			{ 	ENNETensorDataType::Double, ENNETensorDataType::Float, ENNETensorDataType::Half, 
+				ENNETensorDataType::Int64, ENNETensorDataType::Int32, ENNETensorDataType::Int16,
+				ENNETensorDataType::Int8, ENNETensorDataType::UInt64, ENNETensorDataType::UInt32, 
+				ENNETensorDataType::UInt16, ENNETensorDataType::UInt8
+			},
+			MinTensorRank, MaxTensorRank
+		  	))
+		{
+			return false;
+		}
+		
+		ENNETensorDataType IndexDataTypeToCheck = ENNETensorDataType::None;
+
+		for (int Idx = 1; Idx < InputShapes.Num(); Idx++)
+		{
+			if (!CheckGenericTensor1D(OpName, InputTypes[Idx], InputShapes[Idx], 
+				{ 	ENNETensorDataType::Int64, ENNETensorDataType::Int32
+				}
+				))
+			{
+				return false;
+			}
+			
+			if (Idx == 1)
+			{
+				IndexDataTypeToCheck = InputTypes[Idx];
+			}
+			else
+			{
+				if (InputTypes[Idx] != IndexDataTypeToCheck)
+				{
+					UE_LOG(LogNNE, Warning, TEXT("DML %s: data type of tensor at position %d differs from data type of 'starts' tensor."), 
+										*OpName, Idx);
+					return false;
+				}
+			}
+
+		}
+
 		return true;
 	}
 
 	virtual bool Initialize(TConstArrayView<NNE::FTensorDesc> Inputs, TConstArrayView<NNE::FTensorDesc> Outputs, const NNE::FAttributeMap& Attributes) override
 	{
-		check(Inputs.Num() >= 3);
-		check(Inputs.Num() <= 5);
-		check(Outputs.Num() == 1);
+		check(Inputs.Num() >= MinAllowedInputTensors);
+		check(Inputs.Num() <= MaxAllowedInputTensors);
+		check(Outputs.Num() == NumAllowedOutputTensors);
 
 		InputIndexDataType = ENNETensorDataType::None;
 

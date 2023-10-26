@@ -12,6 +12,7 @@ namespace UE::NNERuntimeRDG::Private::Dml
 
 class FOperatorDmlConcat : public FOperatorDml
 {
+	static constexpr uint32 MinAllowedInputTensors = 1, AllowedOutputTensors = 1;
 	int32 Axis;
 
 public:
@@ -23,9 +24,18 @@ public:
 
 	static bool Validate(const NNE::FAttributeMap& AttributeMap, TConstArrayView<ENNETensorDataType> InputTypes, TConstArrayView<NNE::FSymbolicTensorShape> InputShapes)
 	{
-		if (InputShapes.Num() == 0)
+		const FString OpName = TEXT("Concat");
+		
+		const TSet<ENNETensorDataType> AllowedDataTypes = 
+								{ENNETensorDataType::Double, ENNETensorDataType::Float, ENNETensorDataType::Half, 
+								 ENNETensorDataType::Int64, ENNETensorDataType::Int32, ENNETensorDataType::Int16,
+								 ENNETensorDataType::Int8, ENNETensorDataType::UInt64, ENNETensorDataType::UInt32, 
+								 ENNETensorDataType::UInt16, ENNETensorDataType::UInt8};
+
+		if (InputShapes.Num() < MinAllowedInputTensors)
 		{
-			UE_LOG(LogNNE, Warning, TEXT("DML no input tensors"));
+			UE_LOG(LogNNE, Warning, TEXT("DML %s: invalid number of input tensors. %d provided, it should be in [%d, inf]."), 
+										*OpName, InputShapes.Num(), MinAllowedInputTensors);
 			return false;
 		}
 
@@ -34,25 +44,25 @@ public:
 		int32 Axis = HandleNegativeAxis(AttributeMap.GetValue<int32>(TEXT("axis")), InputRank);
 		if (Axis >= InputRank)
 		{
-			UE_LOG(LogNNE, Warning, TEXT("DML invalid axis: %d"), Axis);
+			UE_LOG(LogNNE, Warning, TEXT("DML %s: invalid axis: %d"), *OpName, Axis);
 			return false;
 		}
 
-		if (!CheckGenericTensor(InputTypes[0], InputShapes[0]))
+		if (!CheckGenericTensor(OpName, InputTypes[0], InputShapes[0], AllowedDataTypes))
 		{
 			return false;
 		}
 		
 		for (int32 Idx = 1; Idx < InputShapes.Num(); ++Idx)
 		{
-			if (!CheckGenericTensor(InputTypes[Idx], InputShapes[Idx]))
+			if (!CheckGenericTensor(OpName, InputTypes[Idx], InputShapes[Idx], AllowedDataTypes))
 			{
 				return false;
 			}
 
 			if (InputShapes[Idx].Rank() != InputRank)
 			{
-				UE_LOG(LogNNE, Warning, TEXT("DML concat rank mismatch for tensor %d"), Idx);
+				UE_LOG(LogNNE, Warning, TEXT("DML %s: rank mismatch for tensor %d"), *OpName, Idx);
 				return false;
 			}
 
@@ -62,7 +72,7 @@ public:
 				{
 					if (InputShapes[Idx].GetData()[Dim] != InputShapes[0].GetData()[Dim])
 					{
-						UE_LOG(LogNNE, Warning, TEXT("DML concat dimension mismatch for tensor %d"), Idx);
+						UE_LOG(LogNNE, Warning, TEXT("DML %s: dimension mismatch for tensor %d"), *OpName, Idx);
 						return false;
 					}
 				}
@@ -74,8 +84,8 @@ public:
 
 	virtual bool Initialize(TConstArrayView<NNE::FTensorDesc> Inputs, TConstArrayView<NNE::FTensorDesc> Outputs, const NNE::FAttributeMap& Attributes) override
 	{
-		check(Inputs.Num() >= 1);
-		check(Outputs.Num() == 1);
+		check(Inputs.Num() >= MinAllowedInputTensors);
+		check(Outputs.Num() == AllowedOutputTensors);
 
 		const int32 InputRank = Inputs[0].GetShape().Rank();
 

@@ -13,6 +13,8 @@ class FOperatorDmlLRN : public FOperatorDml
 	float Alpha;
 	float Beta;
 	float Bias;
+	static constexpr uint32 NumAllowedInputTensors = 1, NumAllowedOutputTensors = 1;
+	static constexpr int32 	MinTensorRank = 4, MaxTensorRank = 4;
 
 public:
 
@@ -23,13 +25,30 @@ public:
 
 	static bool Validate(const NNE::FAttributeMap& AttributeMap, TConstArrayView<ENNETensorDataType> InputTypes, TConstArrayView<NNE::FSymbolicTensorShape> InputShapes)
 	{
+		const FString OpName = TEXT("LRN");
+
+		if(InputShapes.Num() != NumAllowedInputTensors)
+		{
+			UE_LOG(LogNNE, Warning, TEXT("DML %s: Invalid number of input tensors. %d provided, it should be %d."), *OpName, InputShapes.Num(), NumAllowedInputTensors);
+			return false;
+		}
+		
+		if (!CheckGenericTensor(OpName, InputTypes[0], InputShapes[0], 
+			{ 	ENNETensorDataType::Float, ENNETensorDataType::Half
+			},
+			MinTensorRank, MaxTensorRank
+		  	))
+		{
+			return false;
+		}
+
 		return true;
 	}
 
 	virtual bool Initialize(TConstArrayView<NNE::FTensorDesc> Inputs, TConstArrayView<NNE::FTensorDesc> Outputs, const NNE::FAttributeMap& Attributes) override
 	{
-		check(Inputs.Num() == 1);
-		check(Outputs.Num() == 1);
+		check(Inputs.Num() == NumAllowedInputTensors);
+		check(Outputs.Num() == NumAllowedOutputTensors);
 
 		// Read attributes
 		Size = Attributes.GetValueOrDefault<int32>(TEXT("size"), 0);
@@ -54,7 +73,7 @@ public:
 		FTensorDescDml	DmlInputTensorDesc;
 
 		if (!DmlInputTensorDesc
-				.SetTensorRank(4, 4)
+				.SetTensorRank(MinTensorRank, MaxTensorRank)
 				.SetFromTensor(InputTensor)
 				.Validate())
 		{
@@ -65,7 +84,7 @@ public:
 		FTensorDescDml	DmlOutputTensorDesc;
 
 		if (!DmlOutputTensorDesc
-				.SetTensorRank(4, 4)
+				.SetTensorRank(MinTensorRank, MaxTensorRank)
 				.SetFromTensor(OutputTensor)
 				.Validate())
 		{

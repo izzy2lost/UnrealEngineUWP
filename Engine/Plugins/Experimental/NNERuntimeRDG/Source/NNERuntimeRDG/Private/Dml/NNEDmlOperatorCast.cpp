@@ -10,6 +10,8 @@ namespace UE::NNERuntimeRDG::Private::Dml
 
 class FOperatorDmlCast : public FOperatorDml
 {
+	static constexpr uint32 NumAllowedInputTensors = 1, NumAllowedOutputTensors = 1;
+
 public:
 
 	static FOperatorDml* Create()
@@ -19,13 +21,18 @@ public:
 
 	static bool Validate(const NNE::FAttributeMap& AttributeMap, TConstArrayView<ENNETensorDataType> InputTypes, TConstArrayView<NNE::FSymbolicTensorShape> InputShapes)
 	{
-		if (InputShapes.Num() != 1)
-		{
-			UE_LOG(LogNNE, Warning, TEXT("There must be only 1 DML input tensor"));
-        	return false;
-		}
+		const FString OpName = TEXT("Cast");
 
-		if (!CheckGenericTensor(InputTypes[0], InputShapes[0]))
+		if(InputShapes.Num() != NumAllowedInputTensors)
+		{
+			UE_LOG(LogNNE, Warning, TEXT("DML %s: Invalid number of input tensors. %d provided, it should be %d."), *OpName, InputShapes.Num(), NumAllowedInputTensors);
+			return false;
+		}
+		
+		if (!CheckGenericTensor(OpName, InputTypes[0], InputShapes[0], 
+			{ENNETensorDataType::Float, ENNETensorDataType::Half, ENNETensorDataType::Int64, ENNETensorDataType::Int32, ENNETensorDataType::Int16,
+			ENNETensorDataType::Int8, ENNETensorDataType::UInt64, ENNETensorDataType::UInt32, ENNETensorDataType::UInt16, ENNETensorDataType::UInt8}
+		  	))
 		{
 			return false;
 		}
@@ -35,8 +42,8 @@ public:
 
 	virtual bool Initialize(TConstArrayView<NNE::FTensorDesc> Inputs, TConstArrayView<NNE::FTensorDesc> Outputs, const NNE::FAttributeMap& Attributes) override
 	{
-		check(Inputs.Num() == 1);
-		check(Outputs.Num() == 1);
+		check(Inputs.Num() == NumAllowedInputTensors);
+		check(Outputs.Num() == NumAllowedOutputTensors);
 		
 		TConstArrayView<int32> InputShape = Inputs[0].GetShape().GetData();
 		TConstArrayView<int32> OutputShape = Outputs[0].GetShape().GetData();
@@ -69,8 +76,8 @@ public:
 
 	virtual int PrepareOutputs(TConstArrayView<NNE::Internal::FTensorRef> InputTensors, TArrayView<NNE::Internal::FTensorRef> OutputTensors) const override
 	{
-		check(InputTensors.Num() == 1);
-		check(OutputTensors.Num() == 1);
+		check(InputTensors.Num() == NumAllowedInputTensors);
+		check(OutputTensors.Num() == NumAllowedOutputTensors);
 		OutputTensors[0]->SetShape(InputTensors[0]->GetShape());
 
 		return 0;

@@ -2,12 +2,15 @@
 
 #ifdef NNE_USE_DIRECTML
 #include "NNEDmlOperator.h"
+#include "NNEDmlOperatorUtils.h"
 
 namespace UE::NNERuntimeRDG::Private::Dml
 {
 
 class FOperatorDmlGemm : public FOperatorDml
 {
+	static constexpr uint32 MinAllowedInputTensors = 2, MaxAllowedInputTensors = 3, NumAllowedOutputTensors = 1;
+	static constexpr int32 MinTensorRank = 2, MaxTensorRank = 4;
 	float Alpha = 1.0f;
 	float Beta = 1.0f;
 	int32 TransA = 0;
@@ -22,6 +25,42 @@ public:
 
 	static bool Validate(const NNE::FAttributeMap& AttributeMap, TConstArrayView<ENNETensorDataType> InputTypes, TConstArrayView<NNE::FSymbolicTensorShape> InputShapes)
 	{
+		const FString OpName = TEXT("Gemm");
+
+		if (InputShapes.Num() < MinAllowedInputTensors || InputShapes.Num() > MaxAllowedInputTensors)
+		{
+			UE_LOG(LogNNE, Warning, TEXT("DML %s: invalid number of input tensors. %d provided, it should be in [%d, %d]."), 
+										*OpName, InputShapes.Num(), MinAllowedInputTensors, MaxAllowedInputTensors);
+			return false;
+		}
+
+		if (!CheckGenericTensor(OpName, InputTypes[0], InputShapes[0], 
+			{ ENNETensorDataType::Float, ENNETensorDataType::Half },
+			MinTensorRank, MaxTensorRank
+		  	))
+		{
+			return false;
+		}
+
+		if (!CheckGenericTensor(OpName, InputTypes[1], InputShapes[1], 
+			{ ENNETensorDataType::Float, ENNETensorDataType::Half },
+			MinTensorRank, MaxTensorRank
+		  	))
+		{
+			return false;
+		}
+
+		if(InputShapes.Num() == 3)
+		{
+			if (!CheckGenericTensor(OpName, InputTypes[2], InputShapes[2], 
+				{ ENNETensorDataType::Float, ENNETensorDataType::Half },
+				0, MaxTensorRank
+				))
+			{
+				return false;
+			}
+		}
+		
 		return true;
 	}
 
@@ -35,15 +74,15 @@ public:
 		const NNE::FTensorDesc& InputA = Inputs[0];
 		const NNE::FTensorDesc& InputB = Inputs[1];
 
-		if (InputA.GetShape().Rank() < 2 || InputA.GetShape().Rank() > 4)
+		if (InputA.GetShape().Rank() < MinTensorRank || InputA.GetShape().Rank() > MaxTensorRank)
 		{
-			UE_LOG(LogNNE, Error, TEXT("Gemm InputA tensor rank needs to be [2,4]"));
+			UE_LOG(LogNNE, Error, TEXT("Gemm InputA tensor rank needs to be [%d,%d]"), MinTensorRank, MaxTensorRank);
 			return false;
 		}
 
-		if (InputB.GetShape().Rank() < 2 || InputB.GetShape().Rank() > 4)
+		if (InputB.GetShape().Rank() < MinTensorRank || InputB.GetShape().Rank() > MaxTensorRank)
 		{
-			UE_LOG(LogNNE, Error, TEXT("Gemm InputB tensor rank needs to be [2,4]"));
+			UE_LOG(LogNNE, Error, TEXT("Gemm InputB tensor rank needs to be [%d,%d]"), MinTensorRank, MaxTensorRank);
 			return false;
 		}
 
@@ -51,9 +90,9 @@ public:
 		{
 			const NNE::FTensorDesc& InputC = Inputs[2];
 
-			if (InputC.GetShape().Rank() > 4)
+			if (InputC.GetShape().Rank() > MaxTensorRank)
 			{
-				UE_LOG(LogNNE, Error, TEXT("Gemm InputC tensor rank needs to be max rank 4"));
+				UE_LOG(LogNNE, Error, TEXT("Gemm InputC tensor rank needs to be max rank %d"), MaxTensorRank);
 				return false;
 			}
 		}
@@ -63,14 +102,14 @@ public:
 
 	virtual int PrepareOutputs(TConstArrayView<NNE::Internal::FTensorRef> InputTensors, TArrayView<NNE::Internal::FTensorRef> OutputTensors) const override
 	{
-		check(InputTensors.Num() >= 2 && InputTensors.Num() <= 3);
-		check(OutputTensors.Num() == 1);
+		check(InputTensors.Num() >= MinAllowedInputTensors && InputTensors.Num() <= MaxAllowedInputTensors);
+		check(OutputTensors.Num() == NumAllowedOutputTensors);
 
 		const NNE::FTensorShape& InputA = InputTensors[0]->GetShape();
 		const NNE::FTensorShape& InputB = InputTensors[1]->GetShape();
 		
-		checkf(InputA.Rank() >= 2, TEXT("Gemm InputA needs to have tensor rank at least size of 2"));
-		checkf(InputB.Rank() >= 2, TEXT("Gemm InputB needs to have tensor rank at least size of 2"));
+		checkf(InputA.Rank() >= MinTensorRank, TEXT("Gemm InputA needs to have tensor rank at least size of %d"), MinTensorRank);
+		checkf(InputB.Rank() >= MinTensorRank, TEXT("Gemm InputB needs to have tensor rank at least size of %d"), MinTensorRank);
 
 		const uint32 M = TransA != 0 ? InputA.GetData()[1] : InputA.GetData()[0];
 		const uint32 N = TransB != 0 ? InputB.GetData()[0] : InputB.GetData()[1];
@@ -95,7 +134,7 @@ public:
 		FTensorDescDml	DmlOutputTensorDesc;
 
 		if (!DmlInputATensorDesc
-				.SetTensorRank(2, 4)
+				.SetTensorRank(MinTensorRank, MaxTensorRank)
 				.SetFromTensor(InputATensor)
 				.Validate())
 		{
@@ -104,7 +143,7 @@ public:
 		}
 
 		if (!DmlInputBTensorDesc
-				.SetTensorRank(2, 4)
+				.SetTensorRank(MinTensorRank, MaxTensorRank)
 				.SetFromTensor(InputBTensor)
 				.Validate())
 		{
@@ -117,7 +156,7 @@ public:
 			const NNE::Internal::FTensor& InputCTensor = *InputTensors[2];
 
 			if (!DmlInputCTensorDesc
-					.SetTensorRank(2, 4)
+					.SetTensorRank(MinTensorRank, MaxTensorRank)
 					.SetFromTensorBroadcast(InputCTensor, OutputTensor.GetShape())
 					.Validate())
 			{
@@ -127,7 +166,7 @@ public:
 		}
 
 		if (!DmlOutputTensorDesc
-				.SetTensorRank(2, 4)
+				.SetTensorRank(MinTensorRank, MaxTensorRank)
 				.SetFromTensor(OutputTensor)
 				.Validate())
 		{

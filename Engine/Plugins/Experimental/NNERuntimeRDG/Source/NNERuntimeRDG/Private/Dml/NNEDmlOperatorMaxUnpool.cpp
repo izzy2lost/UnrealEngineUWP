@@ -47,6 +47,8 @@ class FOperatorDmlMaxUnpool : public FOperatorDml
 	};
 
 	mutable FUnpoolingArgs Args;
+	static constexpr uint32 MinAllowedInputTensors = 2, MaxAllowedInputTensors = 3, NumAllowedOutputTensors = 1;
+	static constexpr int32 	MinTensorRank = 4, MaxTensorRank = 4;
 
 public:
 
@@ -57,13 +59,54 @@ public:
 
 	static bool Validate(const NNE::FAttributeMap& AttributeMap, TConstArrayView<ENNETensorDataType> InputTypes, TConstArrayView<NNE::FSymbolicTensorShape> InputShapes)
 	{
+		const FString OpName = TEXT("MaxUnpool");
+
+		if (InputShapes.Num() < MinAllowedInputTensors || InputShapes.Num() > MaxAllowedInputTensors)
+		{
+			UE_LOG(LogNNE, Warning, TEXT("DML %s: invalid number of input tensors. %d provided, it should be in [%d, %d]."), 
+										*OpName, InputShapes.Num(), MinAllowedInputTensors, MaxAllowedInputTensors);
+			return false;
+		}
+		
+		if (!CheckGenericTensor(OpName, InputTypes[0], InputShapes[0], 
+			{ ENNETensorDataType::Float, ENNETensorDataType::Half, 
+			  ENNETensorDataType::Int64, ENNETensorDataType::Int32, 
+			  ENNETensorDataType::Int16, ENNETensorDataType::Int8, 
+			  ENNETensorDataType::UInt64, ENNETensorDataType::UInt32,
+			  ENNETensorDataType::UInt16, ENNETensorDataType::UInt8 },
+			MinTensorRank, MaxTensorRank
+		  	))
+		{
+			return false;
+		}
+
+		if (!CheckGenericTensor(OpName, InputTypes[1], InputShapes[1], 
+			{ 	ENNETensorDataType::Int64
+			},
+			MinTensorRank, MaxTensorRank
+		  	))
+		{
+			return false;
+		}
+
+		if(InputShapes.Num() == 3)
+		{
+			if (!CheckGenericTensor1D(OpName, InputTypes[2], InputShapes[2], 
+				{ 	ENNETensorDataType::Int64
+				}
+				))
+			{
+				return false;
+			}
+		}
+
 		return true;
 	}
 
 	virtual bool Initialize(TConstArrayView<NNE::FTensorDesc> Inputs, TConstArrayView<NNE::FTensorDesc> Outputs, const NNE::FAttributeMap& Attributes) override
 	{
-		check(Inputs.Num() == 2 || Inputs.Num() == 3);
-		check(Outputs.Num() == 1);
+		check(Inputs.Num() >= MinAllowedInputTensors && Inputs.Num() <= MaxAllowedInputTensors);
+		check(Outputs.Num() == NumAllowedOutputTensors);
 
 		if (Inputs.Num() == 3)
 		{
@@ -126,7 +169,7 @@ public:
 		FTensorDescDml	DmlOutputTensorDesc;
 
 		if (!DmlInputTensorDesc
-				.SetTensorRank(4, 4)
+				.SetTensorRank(MinTensorRank, MaxTensorRank)
 				.SetFromTensor(InputTensor)
 				.Validate())
 		{
@@ -135,7 +178,7 @@ public:
 		}
 
 		if (!DmlIndicesTensorDesc
-				.SetTensorRank(4, 4)
+				.SetTensorRank(MinTensorRank, MaxTensorRank)
 				.SetFromTensor(IndicesTensor)
 				.SetDataType(ENNETensorDataType::UInt64)
 				.Validate())
@@ -145,7 +188,7 @@ public:
 		}
 		
 		if (!DmlOutputTensorDesc
-				.SetTensorRank(4, 4)
+				.SetTensorRank(MinTensorRank, MaxTensorRank)
 				.SetFromTensor(OutputTensor)
 				.Validate())
 		{

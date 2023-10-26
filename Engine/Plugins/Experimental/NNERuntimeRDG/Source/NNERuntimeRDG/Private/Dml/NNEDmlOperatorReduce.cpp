@@ -19,7 +19,7 @@ namespace UE::NNERuntimeRDG::Private::Dml
 // ReduceProd
 // ReduceSum
 // ReduceSumSquare
-template<DML_REDUCE_FUNCTION ReduceFunc>
+template<DML_REDUCE_FUNCTION ReduceFunc, TCHAR const *OpName>
 class FOperatorDmlReduce : public FOperatorDml
 {
 	inline static void HandleEmptyAxes(TArray<int32>& Axes, int32 Rank)
@@ -40,23 +40,43 @@ class FOperatorDmlReduce : public FOperatorDml
 	mutable Util::FSmallArray<bool>	IsReducedDims;
 	int32							KeepDims;
 	DML_AXIS_DIRECTION				AxisDirection{ DML_AXIS_DIRECTION_INCREASING };
+	static constexpr uint32 NumAllowedInputTensors = 1, NumAllowedOutputTensors = 1;
+	static constexpr int32 	MinTensorRank = 0, MaxTensorRank = GMaxTensorRank;
 
 public:
 
 	static FOperatorDml* Create()
 	{
-		return new FOperatorDmlReduce<ReduceFunc>();
+		return new FOperatorDmlReduce<ReduceFunc, OpName>();
 	}
 
 	static bool Validate(const NNE::FAttributeMap& AttributeMap, TConstArrayView<ENNETensorDataType> InputTypes, TConstArrayView<NNE::FSymbolicTensorShape> InputShapes)
 	{
+		if(InputShapes.Num() != NumAllowedInputTensors)
+		{
+			UE_LOG(LogNNE, Warning, TEXT("DML %s: Invalid number of input tensors. %d provided, it should be %d."), OpName, InputShapes.Num(), NumAllowedInputTensors);
+			return false;
+		}
+		
+		if (!CheckGenericTensor(OpName, InputTypes[0], InputShapes[0], 
+			{ 	ENNETensorDataType::Float, ENNETensorDataType::Half, 
+				ENNETensorDataType::Int64, ENNETensorDataType::Int32, ENNETensorDataType::Int16,
+				ENNETensorDataType::Int8, ENNETensorDataType::UInt64, ENNETensorDataType::UInt32, 
+				ENNETensorDataType::UInt16, ENNETensorDataType::UInt8
+			},
+			MinTensorRank, MaxTensorRank
+			))
+		{
+			return false;
+		}
+
 		return true;
 	}
 
 	virtual bool Initialize(TConstArrayView<NNE::FTensorDesc> Inputs, TConstArrayView<NNE::FTensorDesc> Outputs, const NNE::FAttributeMap& Attributes) override
 	{
-		checkf(Inputs.Num() == 1, TEXT("Dml Reduce op supports only 1 input"));
-		check(Outputs.Num() == 1);
+		checkf(Inputs.Num() == NumAllowedInputTensors, TEXT("Dml Reduce op supports only 1 input"));
+		check(Outputs.Num() == NumAllowedOutputTensors);
 
 		KeepDims = Attributes.GetValueOrDefault<int32>(TEXT("keepdims"), 1);
 
@@ -217,31 +237,35 @@ public:
 	}
 };
 
-// Register Reshape operator on Module startup
-#define OP(OpName, ReduceFunc) FOperatorRegistryDml::Get()->OpAdd(TEXT(#OpName), FOperatorDmlReduce<ReduceFunc>::Create)
 
-struct FOperatorDmlReduceRegistrator
-{
-	FOperatorDmlReduceRegistrator()
-	{
-		OP(ReduceL1,		DML_REDUCE_FUNCTION_L1);
-		OP(ReduceL2,		DML_REDUCE_FUNCTION_L2);
-		OP(ReduceLogSum,	DML_REDUCE_FUNCTION_LOG_SUM);
-		OP(ReduceLogSumExp,	DML_REDUCE_FUNCTION_LOG_SUM_EXP);
-		OP(ReduceMin,		DML_REDUCE_FUNCTION_MIN);
-		OP(ReduceMax,		DML_REDUCE_FUNCTION_MAX);
-		OP(ReduceMean,		DML_REDUCE_FUNCTION_AVERAGE);
-		OP(ReduceProd,		DML_REDUCE_FUNCTION_MULTIPLY);
-		OP(ReduceSum,		DML_REDUCE_FUNCTION_SUM);
-		OP(ReduceSumSquare,	DML_REDUCE_FUNCTION_SUM_SQUARE);
-		OP(ArgMax,			DML_REDUCE_FUNCTION_ARGMAX);
-		OP(ArgMin,			DML_REDUCE_FUNCTION_ARGMIN);
-	}
-};
+#define NNE_DML_REGISTER_REDUCE_OP(OpName, ReduceFunc) \
+TCHAR const Op##OpName##Name[] = TEXT(#OpName); \
+struct FDmlOperator##OpName##Registrator \
+{ \
+	FDmlOperator##OpName##Registrator() \
+	{ \
+		FOperatorRegistryDml::Get()->OpAdd(TEXT(#OpName), FOperatorDmlReduce<ReduceFunc, Op##OpName##Name>::Create, FOperatorDmlReduce<ReduceFunc, Op##OpName##Name>::Validate); \
+	} \
+}; \
+\
+static FDmlOperator##OpName##Registrator RegisterDmlOperator##OpName;
 
-#undef OP
+NNE_DML_REGISTER_REDUCE_OP(ReduceL1,		DML_REDUCE_FUNCTION_L1)
+NNE_DML_REGISTER_REDUCE_OP(ReduceL2,		DML_REDUCE_FUNCTION_L2)
+NNE_DML_REGISTER_REDUCE_OP(ReduceLogSum,	DML_REDUCE_FUNCTION_LOG_SUM)
+NNE_DML_REGISTER_REDUCE_OP(ReduceLogSumExp,	DML_REDUCE_FUNCTION_LOG_SUM_EXP)
+NNE_DML_REGISTER_REDUCE_OP(ReduceMin,		DML_REDUCE_FUNCTION_MIN)
+NNE_DML_REGISTER_REDUCE_OP(ReduceMax,		DML_REDUCE_FUNCTION_MAX)
+NNE_DML_REGISTER_REDUCE_OP(ReduceMean,		DML_REDUCE_FUNCTION_AVERAGE)
+NNE_DML_REGISTER_REDUCE_OP(ReduceProd,		DML_REDUCE_FUNCTION_MULTIPLY)
+NNE_DML_REGISTER_REDUCE_OP(ReduceSum,		DML_REDUCE_FUNCTION_SUM)
+NNE_DML_REGISTER_REDUCE_OP(ReduceSumSquare,	DML_REDUCE_FUNCTION_SUM_SQUARE)
+NNE_DML_REGISTER_REDUCE_OP(ArgMax,			DML_REDUCE_FUNCTION_ARGMAX)
+NNE_DML_REGISTER_REDUCE_OP(ArgMin,			DML_REDUCE_FUNCTION_ARGMIN)
 
-static FOperatorDmlReduceRegistrator RegisterReduceOperators;
+
+#undef NNE_DML_REGISTER_REDUCE_OP
+
 
 
 } // namespace UE::NNERuntimeRDG::Private::Dml
