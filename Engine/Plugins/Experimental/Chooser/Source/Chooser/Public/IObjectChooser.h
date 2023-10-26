@@ -6,6 +6,7 @@
 #include "UObject/Object.h"
 #include "UObject/Interface.h"
 #include "InstancedStruct.h"
+#include "StructView.h"
 #include "IObjectChooser.generated.h"
 
 #if UE_TRACE_ENABLED && !IS_PROGRAM && !UE_BUILD_SHIPPING && !UE_BUILD_TEST
@@ -42,6 +43,8 @@ USTRUCT()
 struct CHOOSER_API FChooserEvaluationInputObject
 {
 	GENERATED_BODY()
+	FChooserEvaluationInputObject() {}
+	FChooserEvaluationInputObject (UObject* InObject) : Object(InObject) {}
 	TObjectPtr<UObject> Object;
 };
 
@@ -51,13 +54,22 @@ struct CHOOSER_API FChooserEvaluationContext
 	FChooserEvaluationContext() {}
 	FChooserEvaluationContext(UObject* ContextObject)
 	{
-		AddParam(ContextObject);
+		AddObjectParam(ContextObject);
 	}
-	void AddParam(UObject* ContextObject)
+
+	// Add a UObject Parameter to the context
+	void AddObjectParam(UObject* Param)
 	{
-		Params.AddDefaulted();
-		Params.Last().InitializeAs(FChooserEvaluationInputObject::StaticStruct());
-		Params.Last().GetMutable<FChooserEvaluationInputObject>().Object = ContextObject;
+		ObjectParams.Add(Param);
+		AddStructParam(ObjectParams.Last());
+	}
+
+	// Add a struct Parameter to the Context
+	// the struct will be referred to by reference, and so must have a lifetime that is longer than this context
+	template <class T>
+	void AddStructParam(T& Param)
+	{
+		Params.Add(FStructView::Make(Param));
 	}
 
 	#if CHOOSER_DEBUGGING_ENABLED
@@ -65,7 +77,10 @@ struct CHOOSER_API FChooserEvaluationContext
     #endif
 	
 	GENERATED_BODY()
-	TArray<FInstancedStruct, TInlineAllocator<4>> Params;
+	TArray<FStructView, TInlineAllocator<4>> Params;
+
+	// storage for Object Params, call AddObjectParam to allocate one FChooserEvaluationInputObject in this array and then add a StructView of it to the Params array
+	TArray<FChooserEvaluationInputObject, TFixedAllocator<4>> ObjectParams;
 };
 
 USTRUCT()

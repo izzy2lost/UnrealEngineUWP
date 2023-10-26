@@ -185,9 +185,9 @@ void UChooserTable::UpdateDebugging(FChooserEvaluationContext& Context) const
 {
 	FScopeLock Lock(&DebugLock);
 	
-	for (const FInstancedStruct& Param : Context.Params)
+	for (const FStructView& Param : Context.Params)
 	{
-		if (const FChooserEvaluationInputObject* ObjectParam = Param.GetPtr<FChooserEvaluationInputObject>())
+		if (const FChooserEvaluationInputObject* ObjectParam = Param.GetPtr<const FChooserEvaluationInputObject>())
 		{
 			if (UObject* ContextObject = ObjectParam->Object)
 			{
@@ -202,7 +202,7 @@ void UChooserTable::UpdateDebugging(FChooserEvaluationContext& Context) const
 					}
 				}
 				
-				if (ContextObject == DebugTarget)
+				if (ContextObject == DebugTarget) 
 				{
 					bDebugTestValuesValid = true;
 					Context.DebuggingInfo.bCurrentDebugTarget = true;

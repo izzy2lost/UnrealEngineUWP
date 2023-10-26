@@ -314,7 +314,7 @@ namespace UE::Chooser
 			return false;
 		}
 		
-		if (FChooserEvaluationInputObject* ObjectInput = Context.Params[CompiledBinding.ContextIndex].GetMutablePtr<FChooserEvaluationInputObject>())
+		if (FChooserEvaluationInputObject* ObjectInput = Context.Params[CompiledBinding.ContextIndex].GetPtr<FChooserEvaluationInputObject>())
 		{
 			UObject* Object = ObjectInput->Object.Get();
 			Container = reinterpret_cast<uint8*>(Object);
@@ -325,7 +325,7 @@ namespace UE::Chooser
 		}
 		else
 		{
-			Container = Context.Params[CompiledBinding.ContextIndex].GetMutableMemory();
+			Container = Context.Params[CompiledBinding.ContextIndex].GetMemory();
 			InputType = Context.Params[CompiledBinding.ContextIndex].GetScriptStruct();
 		}
 
@@ -535,7 +535,7 @@ namespace UE::Chooser
 		{
 			uint8* Container = nullptr;
 			const UStruct* StructType = nullptr;
-			if (FChooserEvaluationInputObject* ObjectParam = Context.Params[PropertyBinding.ContextIndex].GetMutablePtr<FChooserEvaluationInputObject>())
+			if (FChooserEvaluationInputObject* ObjectParam = Context.Params[PropertyBinding.ContextIndex].GetPtr<FChooserEvaluationInputObject>())
 			{
 				Container = static_cast<uint8*>(ObjectParam->Object);
 				if (Container)
@@ -545,7 +545,7 @@ namespace UE::Chooser
 			}
 			else
 			{
-				Container = Context.Params[PropertyBinding.ContextIndex].GetMutableMemory();
+				Container = Context.Params[PropertyBinding.ContextIndex].GetMemory();
 				StructType = Context.Params[PropertyBinding.ContextIndex].GetScriptStruct();
 			}
 

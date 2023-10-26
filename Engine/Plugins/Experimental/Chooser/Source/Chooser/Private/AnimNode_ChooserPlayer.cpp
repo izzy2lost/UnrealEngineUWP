@@ -27,8 +27,6 @@ UAnimationAsset* FAnimNode_ChooserPlayer::ChooseAsset(const FAnimationUpdateCont
 	if (Chooser.IsValid())
 	{
 		// reset settings to default
-		FChooserPlayerSettings& Settings = ChooserContext.Params[1].GetMutable<FChooserPlayerSettings>();
-		
 		Settings = DefaultSettings;
 		
 		const FObjectChooserBase& ChooserBase = Chooser.Get<FObjectChooserBase>();
@@ -64,12 +62,12 @@ void FAnimNode_ChooserPlayer::Initialize_AnyThread(const FAnimationInitializeCon
 {
 	DECLARE_SCOPE_HIERARCHICAL_COUNTER_ANIMNODE(Initialize_AnyThread)
 	FAnimNode_BlendStack_Standalone::Initialize_AnyThread(Context);
-
-	FInstancedStruct This;
-	This.InitializeAs(FChooserEvaluationInputObject::StaticStruct());
-	This.GetMutable<FChooserEvaluationInputObject>().Object = Context.AnimInstanceProxy->GetAnimInstanceObject();
-	ChooserContext.Params.Add(This);
-	ChooserContext.Params.Add(FInstancedStruct(FChooserPlayerSettings::StaticStruct()));
+	
+	if(ChooserContext.Params.IsEmpty())
+	{
+		ChooserContext.AddObjectParam(Context.GetAnimInstanceObject());
+		ChooserContext.AddStructParam(Settings);
+	}
 }
 
 
@@ -108,8 +106,6 @@ void FAnimNode_ChooserPlayer::UpdateAssetPlayer(const FAnimationUpdateContext& C
 	{
 		NewAsset = ChooseAsset(Context);
 	}
-
-	const FChooserPlayerSettings& Settings = ChooserContext.Params[1].Get<FChooserPlayerSettings>();
 
 	// Restart the animation:
 	// - if this node just became relevant
@@ -194,8 +190,6 @@ void FAnimNode_ChooserPlayer::Evaluate_AnyThread(FPoseContext& Output)
 	ANIM_MT_SCOPE_CYCLE_COUNTER_VERBOSE(MotionMatching, !IsInGameThread());
 
 	FAnimNode_BlendStack_Standalone::Evaluate_AnyThread(Output);
-
-	const FChooserPlayerSettings& Settings = ChooserContext.Params[1].Get<FChooserPlayerSettings>();
 }
 
 FName FAnimNode_ChooserPlayer::GetGroupName() const

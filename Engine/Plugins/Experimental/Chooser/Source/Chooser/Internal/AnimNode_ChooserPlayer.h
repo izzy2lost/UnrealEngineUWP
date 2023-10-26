@@ -155,11 +155,13 @@ public:
 	
 private:
 	UAnimationAsset* ChooseAsset(const FAnimationUpdateContext& Context);
+	FChooserPlayerSettings Settings;
 	FChooserEvaluationContext ChooserContext;
 	UAnimationAsset* CurrentAsset = nullptr;
 	float CurrentStartTime = 0;
 	bool CurrentMirror = false;
 	uint32 CurrentCurveOverridesHash = 0;
+	
 
 	// Update Counter for detecting being relevant
 	FGraphTraversalCounter UpdateCounter;

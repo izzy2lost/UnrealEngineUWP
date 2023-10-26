@@ -12,10 +12,7 @@ UObject* UProxyTableFunctionLibrary::EvaluateProxyAsset(const UObject* ContextOb
 	UObject* Result = nullptr;
 	if (Proxy)
 	{
-		FChooserEvaluationContext Context;
-		Context.Params.AddDefaulted();
-		Context.Params.Last().InitializeAs(FChooserEvaluationInputObject::StaticStruct());
-		Context.Params.Last().GetMutable<FChooserEvaluationInputObject>().Object = const_cast<UObject*>(ContextObject);
+		FChooserEvaluationContext Context(const_cast<UObject*>(ContextObject));
 		
 		Result = Proxy->FindProxyObject(Context);
 		if (ObjectClass && Result && !Result->IsA(ObjectClass))
@@ -34,10 +31,7 @@ UObject* UProxyTableFunctionLibrary::EvaluateProxyTable(const UObject* ContextOb
 	{
 		FGuid Guid;
 		Guid.A = GetTypeHash(Key);
-		FChooserEvaluationContext Context;
-		Context.Params.AddDefaulted();
-		Context.Params.Last().InitializeAs(FChooserEvaluationInputObject::StaticStruct());
-		Context.Params.Last().GetMutable<FChooserEvaluationInputObject>().Object = const_cast<UObject*>(ContextObject);
+		FChooserEvaluationContext Context(const_cast<UObject*>(ContextObject));
 		if (UObject* Value = ProxyTable->FindProxyObject(Guid, Context))
 		{
 			return Value;
