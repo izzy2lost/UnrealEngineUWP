@@ -271,7 +271,7 @@ void FLumenSurfaceCacheAllocator::Init(const FIntPoint& InPageAtlasSizeInPages)
 	PageAtlasSizeInPages = InPageAtlasSizeInPages;
 	PhysicalPageFreeCount = InPageAtlasSizeInPages.X * InPageAtlasSizeInPages.Y;
 	PhysicalPageList.Init(false, PhysicalPageFreeCount);
-	PageBinLookup = FPageBinLookup(InPlace, InvalidPageBinIndex);
+	PageBinLookup = FPageBinLookup(InPlace, 0xFF /*InvalidPageBinIndex*/);
 }
 
 FIntPoint FLumenSurfaceCacheAllocator::AllocatePhysicalAtlasPage()
