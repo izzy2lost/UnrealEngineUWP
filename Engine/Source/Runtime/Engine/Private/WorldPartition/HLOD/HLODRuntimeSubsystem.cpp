@@ -572,6 +572,18 @@ bool UWorldPartitionHLODRuntimeSubsystem::PrepareToWarmup(const UWorldPartitionR
 		{
 			WarmupState.WarmupCallsUntilReady = CVarHLODWarmupNumFrames.GetValueOnGameThread();
 			WarmupState.WarmupBounds = InCell->GetContentBounds();
+
+			// If we're dealing with an instanced world partition, take the instance transform into account
+			const UWorldPartition* WorldPartition = InCell->GetOuterWorld()->GetWorldPartition();
+			if (ensure(WorldPartition) && !WorldPartition->IsMainWorldPartition())
+			{
+				WarmupState.WarmupBounds = WarmupState.WarmupBounds.TransformBy(WorldPartition->GetInstanceTransform());
+			}			
+		}
+		else if (WarmupState.WarmupCallsUntilReady != 0)
+		{	
+			// Progress toward warmup readiness
+			WarmupState.WarmupCallsUntilReady--;
 		}
 		
 		bHLODActorNeedsWarmUp = WarmupState.WarmupCallsUntilReady != 0;
@@ -816,12 +828,6 @@ void UWorldPartitionHLODRuntimeSubsystem::OnBeginRenderViews(const FSceneViewFam
 				}
 #endif
 			}
-		}
-
-		// Progress toward warmup readiness
-		if (HLODWarmupState.WarmupCallsUntilReady != 0)
-		{
-			HLODWarmupState.WarmupCallsUntilReady--;
 		}
 
 		if (!HLODActor)
