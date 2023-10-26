@@ -624,7 +624,7 @@ public:
 
 	const FExpression* NewFunctionCall(FScope& Scope, FFunction* Function, int32 OutputIndex);
 
-	FExpressionDerivatives GetAnalyticDerivatives(const FExpression* InExpression);
+	ENGINE_API FExpressionDerivatives GetAnalyticDerivatives(const FExpression* InExpression);
 	const FExpression* GetPreviousFrame(const FExpression* InExpression, const FRequestedType& RequestedType);
 
 	FScope* NewScope(FScope& Scope);
@@ -678,7 +678,7 @@ public:
 
 	const FExpression* NewTruncateLWC(const FExpression* Input) { return NewUnaryOp(EOperation::TruncateLWC, Input); }
 
-	const FExpression* NewAppend(const FExpression* Lhs, const FExpression* Rhs);
+	ENGINE_API const FExpression* NewAppend(const FExpression* Lhs, const FExpression* Rhs);
 
 	template <typename... ArgTypes>
 	const FExpression* NewAppend(const FExpression* Lhs, ArgTypes&&... Rhs)

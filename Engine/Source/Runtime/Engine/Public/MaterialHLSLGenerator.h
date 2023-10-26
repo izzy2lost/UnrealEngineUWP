@@ -145,7 +145,7 @@ public:
 
 	bool GenerateStatements(UE::HLSLTree::FScope& Scope, UMaterialExpression* MaterialExpression);
 
-	const UE::HLSLTree::FExpression* GenerateMaterialParameter(FName InParameterName,
+	ENGINE_API const UE::HLSLTree::FExpression* GenerateMaterialParameter(FName InParameterName,
 		const FMaterialParameterMetadata& InParameterMeta,
 		EMaterialSamplerType InSamplerType = SAMPLERTYPE_Color,
 		const FGuid& InExternalTextureGuid = FGuid());

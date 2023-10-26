@@ -554,7 +554,7 @@ public:
 	virtual void EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const override;
 };
 
-class FExpressionTextureSample : public FExpression
+class ENGINE_API FExpressionTextureSample : public FExpression
 {
 public:
 	FExpressionTextureSample(const FExpression* InTextureExpression,
