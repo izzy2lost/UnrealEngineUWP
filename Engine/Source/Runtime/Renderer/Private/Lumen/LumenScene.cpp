@@ -259,108 +259,55 @@ bool FLumenPrimitiveGroup::HasMergedInstances() const
 	return HasInstancesToMerge;
 }
 
-FLumenSurfaceCacheAllocator::FPageBin::FPageBin(FIntPoint InElementSize)
+FLumenSurfaceCacheAllocator::FPageBin::FPageBin(const FIntPoint& InElementSize)
 {
 	ensure(InElementSize.GetMax() <= Lumen::PhysicalPageSize);
 	ElementSize = InElementSize;
 	PageSizeInElements = FIntPoint(Lumen::PhysicalPageSize) / InElementSize;
 }
 
-void FLumenSurfaceCacheAllocator::Init(FIntPoint PageAtlasSizeInPages)
+void FLumenSurfaceCacheAllocator::Init(const FIntPoint& InPageAtlasSizeInPages)
 {
-	PhysicalPageFreeList.SetNum(PageAtlasSizeInPages.X * PageAtlasSizeInPages.Y);
-	for (int32 CoordY = 0; CoordY < PageAtlasSizeInPages.Y; ++CoordY)
-	{
-		for (int32 CoordX = 0; CoordX < PageAtlasSizeInPages.X; ++CoordX)
-		{
-			const int32 PageFreeListIndex = PageAtlasSizeInPages.X * PageAtlasSizeInPages.Y - 1 - (CoordX + PageAtlasSizeInPages.X * CoordY);
-			PhysicalPageFreeList[PageFreeListIndex].X = CoordX;
-			PhysicalPageFreeList[PageFreeListIndex].Y = CoordY;
-		}
-	}
+	PageAtlasSizeInPages = InPageAtlasSizeInPages;
+	PhysicalPageFreeCount = InPageAtlasSizeInPages.X * InPageAtlasSizeInPages.Y;
+	PhysicalPageList.Init(false, PhysicalPageFreeCount);
+	PageBinLookup = FPageBinLookup(InPlace, InvalidPageBinIndex);
 }
 
 FIntPoint FLumenSurfaceCacheAllocator::AllocatePhysicalAtlasPage()
 {
-	FIntPoint NewPageCoord = FIntPoint(-1, -1);
-
-	if (PhysicalPageFreeList.Num() > 0)
-	{
-		NewPageCoord = PhysicalPageFreeList.Last();
-		PhysicalPageFreeList.Pop();
-	}
-
-	return NewPageCoord;
+	const int32 LinearIndex = PhysicalPageList.FindAndSetFirstZeroBit();
+	--PhysicalPageFreeCount;
+	check(LinearIndex != INDEX_NONE);
+	return FIntPoint(LinearIndex % PageAtlasSizeInPages.X, LinearIndex / PageAtlasSizeInPages.X);
 }
 
-void FLumenSurfaceCacheAllocator::FreePhysicalAtlasPage(FIntPoint PageCoord)
+void FLumenSurfaceCacheAllocator::FreePhysicalAtlasPage(const FIntPoint& PageCoord)
 {
-	if (PageCoord.X >= 0 && PageCoord.Y >= 0)
-	{
-		PhysicalPageFreeList.Add(PageCoord);
-	}
+	const uint32 LinearIndex = PageCoord.X + PageCoord.Y * PageAtlasSizeInPages.X;
+	++PhysicalPageFreeCount;
+	check(PhysicalPageList.IsValidIndex(LinearIndex));
+	PhysicalPageList[LinearIndex] = false;
 }
 
 void FLumenSurfaceCacheAllocator::Allocate(const FLumenPageTableEntry& Page, FAllocation& Allocation)
 {
 	if (Page.IsSubAllocation())
 	{
-		FPageBin* MatchingBin = nullptr;
+		FPageBin* MatchingBin = GetOrAddBin(Page.SubAllocationSize);
+		check(MatchingBin);
 
-		for (FPageBin& Bin : PageBins)
-		{
-			if (Bin.ElementSize == Page.SubAllocationSize)
-			{
-				MatchingBin = &Bin;
-				break;
-			}
-		}
-
-		if (!MatchingBin)
-		{
-			PageBins.Add(FPageBin(Page.SubAllocationSize));
-			MatchingBin = &PageBins.Last();
-		}
-
-		FPageBinAllocation* MatchingBinAllocation = nullptr;
-
-		for (FPageBinAllocation& BinAllocation : MatchingBin->BinAllocations)
-		{
-			if (BinAllocation.FreeList.Num() > 0)
-			{
-				MatchingBinAllocation = &BinAllocation;
-				break;
-			}
-		}
+		FPageBinAllocation* MatchingBinAllocation = MatchingBin->GetBinAllocation();
 
 		if (!MatchingBinAllocation)
 		{
-			const FIntPoint PageCoord = AllocatePhysicalAtlasPage();
-
-			if (PageCoord.X >= 0 && PageCoord.Y >= 0)
-			{
-				MatchingBin->BinAllocations.AddDefaulted(1);
-
-				FPageBinAllocation& NewBinAllocation = MatchingBin->BinAllocations.Last();
-				NewBinAllocation.PageCoord = PageCoord;
-
-				NewBinAllocation.FreeList.SetNum(MatchingBin->PageSizeInElements.X * MatchingBin->PageSizeInElements.Y);
-				for (int32 ElementsY = 0; ElementsY < MatchingBin->PageSizeInElements.Y; ++ElementsY)
-				{
-					for (int32 ElementsX = 0; ElementsX < MatchingBin->PageSizeInElements.X; ++ElementsX)
-					{
-						NewBinAllocation.FreeList[ElementsX + ElementsY * MatchingBin->PageSizeInElements.X] = FIntPoint(ElementsX, ElementsY);
-					}
-				}
-
-				MatchingBinAllocation = &NewBinAllocation;
-			}
+			MatchingBinAllocation = MatchingBin->AddBinAllocation(AllocatePhysicalAtlasPage());
 		}
 
 		if (MatchingBinAllocation)
 		{
-			const FIntPoint ElementCoord = MatchingBinAllocation->FreeList.Last();
-			MatchingBinAllocation->FreeList.Pop();
+			const FIntPoint ElementCoord = MatchingBinAllocation->Add();
+			check(MatchingBinAllocation->PageCoord.X >= 0 && MatchingBinAllocation->PageCoord.Y >= 0);
 
 			const FIntPoint ElementOffset = MatchingBinAllocation->PageCoord * Lumen::PhysicalPageSize + ElementCoord * MatchingBin->ElementSize;
 
@@ -381,44 +328,13 @@ void FLumenSurfaceCacheAllocator::Free(const FLumenPageTableEntry& Page)
 {
 	if (Page.IsSubAllocation())
 	{
-		FPageBin* MatchingBin = nullptr;
-		for (FPageBin& Bin : PageBins)
-		{
-			if (Bin.ElementSize == Page.SubAllocationSize)
-			{
-				MatchingBin = &Bin;
-				break;
-			}
-		}
-
+		FPageBin* MatchingBin = GetBin(Page.SubAllocationSize);
 		check(MatchingBin);
-		bool bRemoved = false;
 
-		for (int32 AllocationIndex = 0; AllocationIndex < MatchingBin->BinAllocations.Num(); AllocationIndex++)
+		if (MatchingBin->RemoveBinAllocation(Page))
 		{
-			FPageBinAllocation& BinAllocation = MatchingBin->BinAllocations[AllocationIndex];
-
-			const FIntPoint ElementCoord = (Page.PhysicalAtlasRect.Min - BinAllocation.PageCoord * Lumen::PhysicalPageSize) / MatchingBin->ElementSize;
-
-			if (ElementCoord.X >= 0
-				&& ElementCoord.Y >= 0
-				&& ElementCoord.X < MatchingBin->PageSizeInElements.X
-				&& ElementCoord.Y < MatchingBin->PageSizeInElements.Y)
-			{
-				BinAllocation.FreeList.Add(ElementCoord);
-
-				if (BinAllocation.FreeList.Num() == MatchingBin->GetNumElements())
-				{
-					FreePhysicalAtlasPage(BinAllocation.PageCoord);
-					MatchingBin->BinAllocations.RemoveAt(AllocationIndex);
-				}
-
-				bRemoved = true;
-				break;
-			}
+			FreePhysicalAtlasPage(Page.PhysicalPageCoord);
 		}
-
-		check(bRemoved);
 	}
 	else
 	{
@@ -437,7 +353,7 @@ bool FLumenSurfaceCacheAllocator::IsSpaceAvailable(const FLumenCard& Card, int32
 
 	const int32 ReqSizeInPages = bSinglePage ? 1 : (MipMapDesc.SizeInPages.X * MipMapDesc.SizeInPages.Y);
 
-	if (PhysicalPageFreeList.Num() >= ReqSizeInPages)
+	if (PhysicalPageFreeCount >= ReqSizeInPages)
 	{
 		return true;
 	}
@@ -445,22 +361,9 @@ bool FLumenSurfaceCacheAllocator::IsSpaceAvailable(const FLumenCard& Card, int32
 	// No free pages, but maybe there's some space in one of the existing bins
 	if (MipMapDesc.bSubAllocation)
 	{
-		const FPageBin* MatchingBin = nullptr;
-
-		for (const FPageBin& Bin : PageBins)
+		if (const FPageBin* MatchingBin = GetBin(MipMapDesc.Resolution))
 		{
-			if (Bin.ElementSize == MipMapDesc.Resolution)
-			{
-				for (const FPageBinAllocation& BinAllocation : Bin.BinAllocations)
-				{
-					if (BinAllocation.FreeList.Num() > 0)
-					{
-						return true;
-					}
-				}
-
-				break;
-			}
+			return MatchingBin->HasFreeElements();
 		}
 	}
 
@@ -469,22 +372,16 @@ bool FLumenSurfaceCacheAllocator::IsSpaceAvailable(const FLumenCard& Card, int32
 
 void FLumenSurfaceCacheAllocator::GetStats(FStats& Stats) const
 {
-	Stats.NumFreePages = PhysicalPageFreeList.Num();
+	Stats.NumFreePages = PhysicalPageFreeCount;
 
 	for (const FPageBin& Bin : PageBins)
 	{
-		uint32 NumFreeElements = 0;
-
-		for (const FPageBinAllocation& BinAllocation : Bin.BinAllocations)
-		{
-			NumFreeElements += BinAllocation.FreeList.Num();
-		}
-
+		const uint32 NumFreeElements = Bin.GetSubPageFreeCount();
 		const uint32 NumElementsPerPage = Bin.PageSizeInElements.X * Bin.PageSizeInElements.Y;
-		const uint32 NumElements = Bin.BinAllocations.Num() * NumElementsPerPage - NumFreeElements;
+		const uint32 NumElements = Bin.GetBinAllocationCount() * NumElementsPerPage - NumFreeElements;
 
-		Stats.BinNumPages += Bin.BinAllocations.Num();
-		Stats.BinNumWastedPages += Bin.BinAllocations.Num() - FMath::DivideAndRoundUp(NumElements, NumElementsPerPage);
+		Stats.BinNumPages += Bin.GetBinAllocationCount();
+		Stats.BinNumWastedPages += Bin.GetBinAllocationCount() - FMath::DivideAndRoundUp(NumElements, NumElementsPerPage);
 		Stats.BinPageFreeTexels += NumFreeElements * Bin.ElementSize.X * Bin.ElementSize.Y;
 
 		if (NumElements > 0)
@@ -492,7 +389,7 @@ void FLumenSurfaceCacheAllocator::GetStats(FStats& Stats) const
 			FBinStats& NewBinStats = Stats.Bins.AddDefaulted_GetRef();
 			NewBinStats.ElementSize = Bin.ElementSize;
 			NewBinStats.NumAllocations = NumElements;
-			NewBinStats.NumPages = Bin.BinAllocations.Num();
+			NewBinStats.NumPages = Bin.GetBinAllocationCount();
 		}
 	}
 
