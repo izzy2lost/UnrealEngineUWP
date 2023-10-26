@@ -162,8 +162,11 @@ void VisualizeQuadsCS(
 	//#TODO: Implement Substrate support
 	if (VisualizeMode == VISUALIZE_MODE_DEDICATED_REFLECTION_RAYS)
 	{
-		FGBufferData GBuffer = GetGBufferData(ViewportUV);
-		FinalColor.rgb = Luminance(GBuffer.BaseColor);
+		const float2 GBufferUV = (ViewportUV * View.ViewRectMinAndSize.zw + 0.5f) * View.BufferSizeAndInvSize.zw;
+		const FGBufferData GBuffer = GetGBufferData(GBufferUV);
+
+		FinalColor.rgb = Luminance(sqrt(GBuffer.BaseColor));
+
 		const bool bFoliage = GBuffer.ShadingModelID == SHADINGMODELID_TWOSIDED_FOLIAGE || GBuffer.ShadingModelID == SHADINGMODELID_SUBSURFACE;
 
 		// Mark pixels which require dedicated reflection rays
