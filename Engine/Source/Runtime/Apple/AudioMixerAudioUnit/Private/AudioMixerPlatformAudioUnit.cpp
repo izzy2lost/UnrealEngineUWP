@@ -82,7 +82,8 @@ namespace Audio
 			return false;
 		}
 		
-        bSupportsBackgroundAudio = GConfig->GetBool(TEXT("/Script/IOSRuntimeSettings.IOSRuntimeSettings"), TEXT("bSupportsBackgroundAudio"), bSupportsBackgroundAudio, GEngineIni);
+		bSupportsBackgroundAudio = false;
+		GConfig->GetBool(TEXT("/Script/IOSRuntimeSettings.IOSRuntimeSettings"), TEXT("bSupportsBackgroundAudio"), bSupportsBackgroundAudio, GEngineIni);
 
 		OSStatus Status;
 		GraphSampleRate = (double) InternalPlatformSettings.SampleRate;
