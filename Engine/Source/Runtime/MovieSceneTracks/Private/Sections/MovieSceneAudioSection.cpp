@@ -105,16 +105,6 @@ namespace MovieSceneAudioSectionPrivate
 	}
 }
 
-void UMovieSceneAudioSection::Serialize(FArchive& Ar)
-{
-	Super::Serialize(Ar);
-
-	if (Ar.IsLoading())
-	{
-		CacheChannelProxy();
-	}
-}
-
 void UMovieSceneAudioSection::PostEditImport()
 {
 	Super::PostEditImport();
@@ -274,6 +264,8 @@ void UMovieSceneAudioSection::MigrateFrameTimes(FFrameRate SourceRate, FFrameRat
 void UMovieSceneAudioSection::PostLoad()
 {
 	Super::PostLoad();
+
+	CacheChannelProxy();
 
 	if (AudioDilationFactor_DEPRECATED != AudioDeprecatedMagicNumber)
 	{

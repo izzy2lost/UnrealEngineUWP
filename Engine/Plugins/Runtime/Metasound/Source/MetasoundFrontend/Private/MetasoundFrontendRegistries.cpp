@@ -373,17 +373,26 @@ namespace Metasound
 
 		FNodeRegistryKey FRegistryContainerImpl::RegisterGraph(const FSoftObjectPath& InAssetPath, const TScriptInterface<IMetaSoundDocumentInterface>& InDocumentInterface, bool bAsync)
 		{
-			METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(Metasound::FRegistryContainerImpl::RegisterGraph);
-
 			using namespace UE;
+
+			METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(Metasound::FRegistryContainerImpl::RegisterGraph);
 
 			check(InDocumentInterface);
 			check(IsInGameThread());
 
 			const FMetasoundFrontendDocument& Document = InDocumentInterface->GetConstDocument();
 			FNodeRegistryKey RegistryKey = FNodeRegistryKey(Document.RootGraph);
-			FNodeClassInfo NodeClassInfo(Document.RootGraph, InAssetPath);
+
+			if (!RegistryKey.IsValid())
+			{
+				// Do not attempt to build and register a MetaSound with an invalid registry key
+				UE_LOG(LogMetaSound, Warning, TEXT("Registry key is invalid when attemping to register graph for asset %s"), *InAssetPath.ToString());
+				return RegistryKey;
+			}
+
 			METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*FString::Printf(TEXT("FRegistryContainerImpl::RegisterGraph key:%s, asset %s"), *RegistryKey.ToString(), *InAssetPath.ToString()));
+
+			FNodeClassInfo NodeClassInfo(Document.RootGraph, InAssetPath);
 
 			// Proxies are created synchronously to avoid creating proxies in async tasks. Proxies
 			// are created from UObjects which need to be protected from GC and non-GT access.
