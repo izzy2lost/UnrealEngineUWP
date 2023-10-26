@@ -354,8 +354,8 @@ private:
 	 */
 	void InitializeAssetDataTags(const FProperty* Property);
 
-	/** @return Returns true if the asset is relevant for this property*/
-	bool IsAssetAllowed(const FAssetData& InAssetData);
+	/** @return Returns true if the asset is excluded for this property*/
+	bool IsAssetFiltered(const FAssetData& InAssetData);
 
 private:
 

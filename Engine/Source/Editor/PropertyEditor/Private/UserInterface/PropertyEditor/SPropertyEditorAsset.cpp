@@ -256,7 +256,7 @@ void SPropertyEditorAsset::InitializeAssetDataTags(const FProperty* Property)
 	}
 }
 
-bool SPropertyEditorAsset::IsAssetAllowed(const FAssetData& InAssetData)
+bool SPropertyEditorAsset::IsAssetFiltered(const FAssetData& InAssetData)
 {
 	if (DisallowedAssetDataTags.IsValid())
 	{
@@ -264,7 +264,7 @@ bool SPropertyEditorAsset::IsAssetAllowed(const FAssetData& InAssetData)
 		{
 			if (InAssetData.TagsAndValues.ContainsKeyValue(DisallowedTagAndValue.Key, DisallowedTagAndValue.Value))
 			{
-				return false;
+				return true;
 			}
 		}
 	}
@@ -280,11 +280,11 @@ bool SPropertyEditorAsset::IsAssetAllowed(const FAssetData& InAssetData)
 				{
 					continue;
 				}
-				return false;
+				return true;
 			}
 		}
 	}
-	return true;
+	return false;
 }
 
 // Awful hack to deal with UClass::FindCommonBase taking an array of non-const classes...
@@ -366,7 +366,7 @@ void SPropertyEditorAsset::Construct(const FArguments& InArgs, const TSharedPtr<
 	if (DisallowedAssetDataTags.IsValid() || RequiredAssetDataTags.IsValid())
 	{
 		// re-route the filter delegate to our own if we have our own asset data tags filter :
-		AppendOnShouldFilterAssetCallback(FOnShouldFilterAsset::CreateRaw(this, &SPropertyEditorAsset::IsAssetAllowed));
+		AppendOnShouldFilterAssetCallback(FOnShouldFilterAsset::CreateRaw(this, &SPropertyEditorAsset::IsAssetFiltered));
 	}
 
 	if (Property && Property->GetOwnerProperty()->HasMetaData("GetAssetFilter"))
