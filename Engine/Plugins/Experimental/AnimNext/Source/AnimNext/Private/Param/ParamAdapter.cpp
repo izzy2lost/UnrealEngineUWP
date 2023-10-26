@@ -19,7 +19,7 @@ FParamResult FParamAdapter::GetParamData(FParamTypeHandle InTypeHandle, TConstAr
 		return EParamResult::TypeError;
 	}
 
-	UObject* ContextObject = FScheduleContext::Get().Entry->ResolvedObject;
+	UObject* ContextObject = FScheduleContext::Get().GetContextObject();
 	if(const uint8* Data = Function(ContextObject, Definition.Id))
 	{
 		OutParamData = TConstArrayView<uint8>(Data, Definition.TypeHandle.GetSize());
@@ -52,7 +52,7 @@ FParamResult FParamAdapter::GetMutableParamData(FParamTypeHandle InTypeHandle, T
 		return EParamResult::TypeError;
 	}
 
-	UObject* ContextObject = FScheduleContext::Get().Entry->ResolvedObject;
+	UObject* ContextObject = FScheduleContext::Get().GetContextObject();
 	if(uint8* Data = Function(ContextObject, Definition.Id))
 	{
 		OutParamData = TArrayView<uint8>(Data, Definition.TypeHandle.GetSize());

@@ -36,6 +36,10 @@ public:
 		, Entry(InEntry)
 	{}
 
+	explicit FScheduleContext(UObject* InContextObject)
+		: ContextObject(InContextObject)
+	{}
+	
 	// Get a string that can identify this schedule for debugging
 	FString GetDebugString() const 
 	{ 
@@ -53,6 +57,9 @@ public:
 		return *InstanceData.Get(); 
 	}
 
+	// Get the current object context that the schedule is running in 
+	UObject* GetContextObject() const;
+
 	// Current schedule
 	const UAnimNextSchedule* Schedule = nullptr;
 
@@ -61,6 +68,9 @@ public:
 
 	// Instance data for the schedule
 	TUniquePtr<FScheduleInstanceData> InstanceData;
+
+	// Context object - only valid when we dont have a running schedule
+	UObject* ContextObject = nullptr;
 };
 
 }

@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ScheduleContext.h"
+#include "AnimNextSchedulerEntry.h"
 #include "Scheduler/AnimNextSchedule.h"
 
 namespace UE::AnimNext
@@ -25,6 +26,18 @@ const FScheduleContext& FScheduleContext::Get()
 {
 	check(GScheduleContext != nullptr);
 	return *GScheduleContext;
+}
+
+UObject* FScheduleContext::GetContextObject() const
+{
+	if(Entry)
+	{
+		return Entry->ResolvedObject;
+	}
+	else
+	{
+		return ContextObject;
+	}
 }
 
 }

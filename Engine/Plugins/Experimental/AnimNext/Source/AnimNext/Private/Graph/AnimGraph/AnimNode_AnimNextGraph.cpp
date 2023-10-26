@@ -16,6 +16,7 @@
 #include "BoneContainer.h"
 #include "Param/ParamStack.h"
 #include "AnimGraphParamStackScope.h"
+#include "Scheduler/ScheduleContext.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(AnimNode_AnimNextGraph)
 
@@ -143,13 +144,16 @@ void FAnimNode_AnimNextGraph::Evaluate_AnyThread(FPoseContext& Output)
 
 		FAnimNextGraphLODPose ResultPose(FLODPoseHeap(RefPose, LODLevel, true, Output.ExpectsAdditivePose()));
 
-		UE::AnimNext::FAnimGraphParamStackScope Scope(Output);
+		FScheduleContext ScheduleContext(SkeletalMeshComponent);
+		FScheduleContext::AttachToCurrentThread(ScheduleContext);
+
+		FAnimGraphParamStackScope Scope(Output);
 		FParamStack& ParamStack = FParamStack::Get();
 		FParamStack::FPushedLayerHandle LayerHandle = ParamStack.PushValues(
-			"GraphReferencePose", GraphReferencePose,
-			"ResultPose", ResultPose,
-			"GraphLODLevel", LODLevel,
-			"GraphExpectsAdditive", Output.ExpectsAdditivePose()
+			AnimNextGraph->GetReferencePoseParam(), GraphReferencePose,
+			"UE_Internal_ResultPose", ResultPose,
+			AnimNextGraph->GetCurrentLODParam(), LODLevel,
+			"UE_Internal_GraphExpectsAdditive", Output.ExpectsAdditivePose()
 		);
 
 		AnimNextGraph->Run(Context, GraphInstance, EAnimNextGraphSimulationSteps::Evaluate);
@@ -157,6 +161,8 @@ void FAnimNode_AnimNextGraph::Evaluate_AnyThread(FPoseContext& Output)
 		FGenerationTools::RemapPose(ResultPose.LODPose, Output);
 
 		ParamStack.PopLayer(LayerHandle);
+
+		FScheduleContext::DetachFromCurrentThread();
 	}
 	else
 	{
