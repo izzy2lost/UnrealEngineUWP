@@ -80,6 +80,10 @@ namespace UE::ConcertClientSharedSlate
 		void RefreshSubobjectData();
 		void RefreshPropertyData();
 
+		/** Selects the given objects from the top level view, if applicable. */
+		void SelectTopLevelObjects(TConstArrayView<FSoftObjectPath> Objects);
+		
+		/** Clears all objects selected in the subobject view, if there is one. */
 		void ClearSubobjectSelection();
 
 		/** @return Gets the root objects selected in the outliner; the subobject view chooses which of these objects (or their subobjects) end up in GetSelectedObjectShowingProperties. */
@@ -98,12 +102,8 @@ namespace UE::ConcertClientSharedSlate
 		/** Tree view for replicated objects. */
 		TSharedPtr<SReplicationTreeView<FReplicatedObjectData>> ReplicatedObjects;
 		
-		/**
-		 * These instances can be subclasses of FReplicatedObjectData, e.g. FReplicatedObjectData_Editor.
-		 * Their type can be overridden by subclasses.
-		 * @see GetObjectData
-		 */
-		TArray<TSharedPtr<FReplicatedObjectData>> ObjectRowData;
+		/** All object row data */
+		TArray<TSharedPtr<FReplicatedObjectData>> AllObjectRowData;
 		/** The instances of ObjectRowData which do not have any parents. This acts as the item source for the tree view. */
 		TArray<TSharedPtr<FReplicatedObjectData>> RootObjectRowData;
 		/** Inverse map of ObjectRowData using FReplicatedObjectData::GetObjectPath as key. Contains all elements of ObjectRowData. */

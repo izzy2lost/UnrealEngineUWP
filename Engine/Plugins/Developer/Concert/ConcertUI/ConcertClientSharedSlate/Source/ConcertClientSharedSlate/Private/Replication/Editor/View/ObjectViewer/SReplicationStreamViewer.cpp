@@ -62,7 +62,7 @@ namespace UE::ConcertClientSharedSlate
 		const int32 NumElements = PropertiesModel->GetNumReplicatedObjects();
 		// Re-using existing instances is tricky: we cannot update the object path in an item because the list view will no detect this change;
 		// list view only looks at the shared ptr address. So the UI will not be refreshed. Since the number of items will be small, just reallocate... 
-		ObjectRowData.Empty(NumElements);
+		AllObjectRowData.Empty(NumElements);
 
 		// Try to re-use old instances by using the old PathToObjectDataCache. This is also done so the expansion states restore correctly in the tree view.
 		TMap<FSoftObjectPath, TSharedPtr<FReplicatedObjectData>> NewPathToObjectDataCache;
@@ -74,7 +74,7 @@ namespace UE::ConcertClientSharedSlate
 		{
 			const TSharedPtr<FReplicatedObjectData>* ExistingItem = PathToObjectDataCache.Find(Path);
 			const TSharedRef<FReplicatedObjectData> Item = ExistingItem ? ExistingItem->ToSharedRef() : AllocateObjectData(Path);
-			ObjectRowData.Emplace(Item);
+			AllObjectRowData.Emplace(Item);
 			NewPathToObjectDataCache.Emplace(Path, Item);
 			return EBreakBehavior::Continue;
 		});
@@ -102,6 +102,21 @@ namespace UE::ConcertClientSharedSlate
 	void SReplicationStreamViewer::RefreshPropertyData()
 	{
 		SubobjectAndPropertySection->RefreshPropertyData();
+	}
+
+	void SReplicationStreamViewer::SelectTopLevelObjects(TConstArrayView<FSoftObjectPath> Objects)
+	{
+		TArray<TSharedPtr<FReplicatedObjectData>> NewSelectedItems; 
+		Algo::TransformIf(AllObjectRowData, NewSelectedItems, [&Objects](const TSharedPtr<FReplicatedObjectData>& ObjectData)
+			{
+				return Objects.Contains(ObjectData->GetObjectPath());
+			},
+			[](const TSharedPtr<FReplicatedObjectData>& ObjectData){ return ObjectData; }
+		);
+		if (!NewSelectedItems.IsEmpty())
+		{
+			ReplicatedObjects->SetSelectedItems(NewSelectedItems, true);
+		}
 	}
 
 	void SReplicationStreamViewer::ClearSubobjectSelection()
@@ -202,7 +217,7 @@ namespace UE::ConcertClientSharedSlate
 	void SReplicationStreamViewer::BuildRootObjectRowData()
 	{
 		TSet<TSharedPtr<FReplicatedObjectData>> NonRootNodes;
-		for (const TSharedPtr<FReplicatedObjectData>& Node : ObjectRowData)
+		for (const TSharedPtr<FReplicatedObjectData>& Node : AllObjectRowData)
 		{
 			GetObjectRowChildren(Node, [&NonRootNodes](TSharedPtr<FReplicatedObjectData> Child)
 			{
@@ -212,7 +227,7 @@ namespace UE::ConcertClientSharedSlate
 
 		// Make RootObjectRowData only contain those nodes which were not listed as children 
 		RootObjectRowData.Empty(NonRootNodes.Num());
-		for (const TSharedPtr<FReplicatedObjectData>& Node : ObjectRowData)
+		for (const TSharedPtr<FReplicatedObjectData>& Node : AllObjectRowData)
 		{
 			if (!NonRootNodes.Contains(Node))
 			{

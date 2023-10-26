@@ -103,6 +103,17 @@ namespace UE::ConcertClientSharedSlate
 	void SBaseReplicationStreamEditor::OnObjectsChanged(TConstArrayView<UObject*> AddedObjects, TConstArrayView<FSoftObjectPath> RemovedObjects, EReplicatedObjectChangeReason ChangeReason)
 	{
 		ReplicationViewer->RefreshObjectData();
+
+		// Newly added objects should be automatically selected
+		if (!AddedObjects.IsEmpty())
+		{
+			TArray<FSoftObjectPath> TopLevelObjects;
+			Algo::TransformIf(AddedObjects, TopLevelObjects, [this](const UObject* Object)
+			{
+				return PropertiesModelAdapter->IsTopLevelObject(Object);
+			}, [](const UObject* Object){ return Object; });
+			ReplicationViewer->SelectTopLevelObjects(TopLevelObjects);
+		}
 	}
 
 	void SBaseReplicationStreamEditor::OnPropertiesChanged()

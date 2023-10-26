@@ -28,6 +28,9 @@ namespace UE::ConcertClientSharedSlate
 			: RealModel(MoveTemp(RealModel))
 			, PropertySelectionSource(MoveTemp(PropertySelectionSource))
 		{}
+		
+		/** Whether this object should be displayed in the outliner. */
+		bool IsTopLevelObject(const FSoftObjectPath& ObjectPath) const;
 
 		//~ Begin IObjectToPropertiesModel Interface
 		
@@ -53,8 +56,6 @@ namespace UE::ConcertClientSharedSlate
 
 		/** Returns all objects that must be listed in the top-outliner section of the replication view. */
 		bool IterateTopLevelObjects(TFunctionRef<EBreakBehavior(const FSoftObjectPath& Object)> Delegate) const;
-		/** Whether this object should be displayed in the outliner. */
-		bool IsTopLevelObject(const FSoftObjectPath& ObjectPath) const;
 
 		/** Iterates all properties on the given object's path. */
 		bool IterateDisplayedProperties(const FSoftObjectPath& ObjectPath, TFunctionRef<EBreakBehavior(const FConcertPropertyChain& Property)> Delegate) const;

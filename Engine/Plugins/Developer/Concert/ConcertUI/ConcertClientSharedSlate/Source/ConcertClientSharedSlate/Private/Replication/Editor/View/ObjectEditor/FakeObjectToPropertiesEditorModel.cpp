@@ -42,6 +42,13 @@ namespace UE::ConcertClientSharedSlate
 		}
 	}
 	
+	bool FFakeObjectToPropertiesEditorModel::IsTopLevelObject(const FSoftObjectPath& ObjectPath) const
+	{
+		const FSoftClassPath ClassPath = GetObjectClass(ObjectPath);
+		const UClass* LoadedClass = ClassPath.TryLoadClass<UObject>();
+		return LoadedClass && LoadedClass->IsChildOf(AActor::StaticClass());
+	}
+	
 	FSoftClassPath FFakeObjectToPropertiesEditorModel::GetObjectClass(const FSoftObjectPath& Object) const
 	{
 		const FSoftClassPath ResolvedClass = RealModel->GetObjectClass(Object);
@@ -57,7 +64,7 @@ namespace UE::ConcertClientSharedSlate
 
 	bool FFakeObjectToPropertiesEditorModel::ForEachReplicatedObject(TFunctionRef<EBreakBehavior(const FSoftObjectPath& Object)> Delegate) const
 	{
-		// This makes SObjectToPropertyViewer only show actors in the outliner
+		// This makes SObjectToPropertyView only show actors in the outliner
 		return IterateTopLevelObjects(Delegate);
 	}
 
@@ -119,13 +126,6 @@ namespace UE::ConcertClientSharedSlate
 		return bResult;
 	}
 
-	bool FFakeObjectToPropertiesEditorModel::IsTopLevelObject(const FSoftObjectPath& ObjectPath) const
-	{
-		const FSoftClassPath ClassPath = GetObjectClass(ObjectPath);
-		const UClass* LoadedClass = ClassPath.TryLoadClass<UObject>();
-		return LoadedClass && LoadedClass->IsChildOf(AActor::StaticClass());
-	}
-
 	bool FFakeObjectToPropertiesEditorModel::IterateDisplayedProperties(const FSoftObjectPath& ObjectPath, TFunctionRef<EBreakBehavior(const FConcertPropertyChain& Property)> Delegate) const
 	{
 		// GetObjectClass might return null because ObjectPath might not be contained in the model
@@ -141,7 +141,7 @@ namespace UE::ConcertClientSharedSlate
 			return false;
 		}
 		
-		// This makes SObjectToPropertyViewer list all available properties
+		// This makes SObjectToPropertyView list all available properties
 		PropertySelectionSource->GetPropertySource(LoadedClass)
 		   ->EnumerateSelectableItems([&Delegate](const FSelectablePropertyInfo& PropertyInfo)
 		   {
