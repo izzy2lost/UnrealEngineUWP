@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Chaos/ClusterCreationParameters.h"
+#include "Chaos/ImplicitFwd.h"
 #include "Chaos/ParticleHandle.h"
 #include "Chaos/PhysicsObject.h"
 #include "Chaos/ShapeInstanceFwd.h"
@@ -82,6 +83,7 @@ namespace Chaos
 		CHAOS_API TArray<FPerShapeData*> GetAllShapes(TArrayView<const FConstPhysicsObjectHandle> InObjects);
 
 		CHAOS_API TArray<TThreadShapeInstance<Id>*> GetAllThreadShapes(TArrayView<const FConstPhysicsObjectHandle> InObjects);
+		CHAOS_API FImplicitObjectRef GetGeometry(const FConstPhysicsObjectHandle Handle);
 
 		// Returns true if a shape is found and we can stop iterating.
 		CHAOS_API void VisitEveryShape(TArrayView<const FConstPhysicsObjectHandle> InObjects, TFunctionRef<bool(const FConstPhysicsObjectHandle, TThreadShapeInstance<Id>*)> Lambda);

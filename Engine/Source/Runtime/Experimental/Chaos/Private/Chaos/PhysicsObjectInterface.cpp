@@ -480,6 +480,22 @@ namespace Chaos
 	}
 
 	template<EThreadContext Id>
+	FImplicitObjectRef FReadPhysicsObjectInterface<Id>::GetGeometry(const FConstPhysicsObjectHandle Handle)
+	{
+		if (!Handle)
+		{
+			return nullptr;
+		}
+
+		if (TThreadParticle<Id>* Particle = Handle->GetParticle<Id>())
+		{
+			return Particle->GetGeometry();
+		}
+
+		return nullptr;
+	}
+
+	template<EThreadContext Id>
 	void FReadPhysicsObjectInterface<Id>::VisitEveryShape(TArrayView<const FConstPhysicsObjectHandle> InObjects, TFunctionRef<bool(const FConstPhysicsObjectHandle, TThreadShapeInstance<Id>*)> Lambda)
 	{
 		for (const FConstPhysicsObjectHandle Object : InObjects)
