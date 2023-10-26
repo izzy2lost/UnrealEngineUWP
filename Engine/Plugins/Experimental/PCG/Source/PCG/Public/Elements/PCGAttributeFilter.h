@@ -6,37 +6,10 @@
 #include "Metadata/PCGAttributePropertySelector.h"
 #include "Metadata/PCGMetadataTypesConstantStruct.h"
 
-#include "PCGPointFilter.generated.h"
+#include "PCGAttributeFilter.generated.h"
 
 UENUM()
-enum class UE_DEPRECATED(5.2, "Not used anymore") EPCGPointTargetFilterType : uint8
-{
-	Property,
-	Metadata
-};
-
-UENUM()
-enum class UE_DEPRECATED(5.2, "Not used anymore") EPCGPointThresholdType : uint8
-{
-	Property,
-	Metadata,
-	Constant
-};
-
-UENUM()
-enum class UE_DEPRECATED(5.2, "Not used anymore") EPCGPointFilterConstantType : uint8
-{
-	Integer64,
-	Float,
-	Vector,
-	Vector4,
-	//Rotation,
-	String,
-	Unknown UMETA(Hidden)
-};
-
-UENUM()
-enum class EPCGPointFilterOperator : uint8
+enum class EPCGAttributeFilterOperator : uint8
 {
 	Greater UMETA(DisplayName=">"),
 	GreaterOrEqual UMETA(DisplayName=">="),
@@ -50,7 +23,7 @@ enum class EPCGPointFilterOperator : uint8
 };
 
 USTRUCT(BlueprintType)
-struct PCG_API FPCGPointFilterThresholdSettings
+struct PCG_API FPCGAttributeFilterThresholdSettings
 {
 	GENERATED_BODY()
 
@@ -68,7 +41,7 @@ struct PCG_API FPCGPointFilterThresholdSettings
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "!bUseConstantThreshold", EditConditionHides, PCG_NotOverridable))
 	FPCGAttributePropertyInputSelector ThresholdAttribute;
 
-	/** For Point Data, enabling this option will use sampling rather than comparing points 1 to 1 directly. For other spatial data, this is always true. */
+	/** For Point Data, enabling this option will use sampling rather than comparing points 1 to 1 directly. For other spatial data, this is always true, and for attribute sets, always false. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "!bUseConstantThreshold", EditConditionHides, PCG_Overridable))
 	bool bUseSpatialQuery = true;
 
@@ -77,8 +50,8 @@ struct PCG_API FPCGPointFilterThresholdSettings
 };
 
 /**
-* Point filter that allows to do "A op B" type filtering, where A is the input spatial data,
-* and B is either a constant, another spatial data, a param data (in filter) or the input itself.
+* Attribute filter that allows to do "A op B" type filtering, where A is the input spatial data or Attribute set,
+* and B is either a constant, another spatial data (if input is a spatial data), an Attribute set (in filter) or the input itself.
 * The filtering can be done either on properties or attributes.
 * Some examples:
 * - Threshold on property by constant (A.Density > 0.5)
@@ -89,12 +62,12 @@ struct PCG_API FPCGPointFilterThresholdSettings
 * - Threshold on attribute by property(A.aaa == B.color)
 */
 UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGPointFilterSettings : public UPCGSettings
+class PCG_API UPCGAttributeFilteringSettings : public UPCGSettings
 {
 	GENERATED_BODY()
 
 public:
-	UPCGPointFilterSettings();
+	UPCGAttributeFilteringSettings();
 
 	//~Begin UObject interface
 	virtual void PostLoad() override;
@@ -102,10 +75,13 @@ public:
 
 	//~Begin UPCGSettings interface
 #if WITH_EDITOR
-	virtual FName GetDefaultNodeName() const override { return FName(TEXT("PointFilter")); }
-	virtual FText GetDefaultNodeTitle() const override { return NSLOCTEXT("PCGPointFilterElement", "NodeTitle", "Point Filter"); }
+	virtual FName GetDefaultNodeName() const override { return FName(TEXT("AttributeFilter")); }
+	virtual FText GetDefaultNodeTitle() const override { return NSLOCTEXT("PCGAttributeFilteringElement", "NodeTitle", "Attribute Filter"); }
+	virtual TArray<FText> GetNodeTitleAliases() const { return { NSLOCTEXT("PCGAttributeFilteringElement", "AliasNodeTitle", "Point Filter") }; }
 	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::Filter; }
+	virtual bool HasDynamicPins() const override { return true; }
 #endif
+	virtual EPCGDataType GetCurrentPinTypes(const UPCGPin* InPin) const override;
 
 protected:
 	virtual TArray<FPCGPinProperties> InputPinProperties() const override;
@@ -115,7 +91,7 @@ protected:
 
 public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
-	EPCGPointFilterOperator Operator = EPCGPointFilterOperator::Greater;
+	EPCGAttributeFilterOperator Operator = EPCGAttributeFilterOperator::Greater;
 
 	/** Target property/attribute related properties */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
@@ -134,52 +110,12 @@ public:
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "bUseConstantThreshold", EditConditionHides, ShowOnlyInnerProperties, DisplayAfter = "bUseConstantThreshold", PCG_NotOverridable))
 	FPCGMetadataTypesConstantStruct AttributeTypes;
-
-#if WITH_EDITORONLY_DATA
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	UPROPERTY()
-	EPCGPointTargetFilterType TargetFilterType_DEPRECATED = EPCGPointTargetFilterType::Property;
-
-	UPROPERTY()
-	EPCGPointProperties TargetPointProperty_DEPRECATED = EPCGPointProperties::Density;
-
-	UPROPERTY()
-	FName TargetAttributeName_DEPRECATED = NAME_None;
-
-	UPROPERTY()
-	EPCGPointThresholdType ThresholdFilterType_DEPRECATED = EPCGPointThresholdType::Property;
-
-	UPROPERTY()
-	EPCGPointProperties ThresholdPointProperty_DEPRECATED = EPCGPointProperties::Density;
-
-	UPROPERTY()
-	FName ThresholdAttributeName_DEPRECATED = NAME_None;
-
-	UPROPERTY()
-	EPCGPointFilterConstantType ThresholdConstantType_DEPRECATED = EPCGPointFilterConstantType::Float;
-
-	UPROPERTY()
-	int64 Integer64Constant_DEPRECATED = 0;
-
-	UPROPERTY()
-	float FloatConstant_DEPRECATED = 0;
-
-	UPROPERTY()
-	FVector VectorConstant_DEPRECATED = FVector::Zero();
-
-	UPROPERTY()
-	FVector4 Vector4Constant_DEPRECATED = FVector4::Zero();
-
-	UPROPERTY()
-	FString StringConstant_DEPRECATED;
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-#endif 
 };
 
 
 /**
-* Point filter on range that allows to do "A op B" type filtering, where A is the input spatial data,
-* and B is either a constant, another spatial data, a param data (in filter) or the input itself.
+* Attribute filter on range that allows to do "A op B" type filtering, where A is the input spatial data or Attribute set,
+* and B is either a constant, another spatial data (if input is a spatial data), an Attribute set (in filter) or the input itself.
 * The filtering can be done either on properties or attributes.
 * Some examples (that might not make sense, but are valid):
 * - Threshold on property by constant (A.Density in [0.2, 0.5])
@@ -190,12 +126,12 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 * - Threshold on attribute by property(A.aaa in [B.position, B.scale])
 */
 UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGPointFilterRangeSettings : public UPCGSettings
+class PCG_API UPCGAttributeFilteringRangeSettings : public UPCGSettings
 {
 	GENERATED_BODY()
 
 public:
-	UPCGPointFilterRangeSettings();
+	UPCGAttributeFilteringRangeSettings();
 
 	//~Begin UObject interface
 #if WITH_EDITOR
@@ -205,10 +141,13 @@ public:
 
 	//~Begin UPCGSettings interface
 #if WITH_EDITOR
-	virtual FName GetDefaultNodeName() const override { return FName(TEXT("PointFilterRange")); }
-	virtual FText GetDefaultNodeTitle() const override { return NSLOCTEXT("PCGPointFilterElement", "NodeTitleRange", "Point Filter Range"); }
+	virtual FName GetDefaultNodeName() const override { return FName(TEXT("AttributeFilterRange")); }
+	virtual FText GetDefaultNodeTitle() const override { return NSLOCTEXT("PCGAttributeFilteringElement", "NodeTitleRange", "Attribute Filter Range"); }
+	virtual TArray<FText> GetNodeTitleAliases() const { return { NSLOCTEXT("PCGAttributeFilteringElement", "AliasNodeTitleRange", "Point Filter Range") }; }
 	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::Filter; }
+	virtual bool HasDynamicPins() const override { return true; }
 #endif
+	virtual EPCGDataType GetCurrentPinTypes(const UPCGPin* InPin) const override;
 
 protected:
 	virtual TArray<FPCGPinProperties> InputPinProperties() const override;
@@ -223,25 +162,25 @@ public:
 
 	/** Threshold property/attribute/constant related properties */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
-	FPCGPointFilterThresholdSettings MinThreshold;
+	FPCGAttributeFilterThresholdSettings MinThreshold;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
-	FPCGPointFilterThresholdSettings MaxThreshold;
+	FPCGAttributeFilterThresholdSettings MaxThreshold;
 };
 
-class FPCGPointFilterElementBase : public IPCGElement
+class FPCGAttributeFilterElementBase : public IPCGElement
 {
 protected:
-	bool DoFiltering(FPCGContext* Context, EPCGPointFilterOperator InOperation, const FPCGAttributePropertyInputSelector& TargetAttribute, const FPCGPointFilterThresholdSettings& FirstThreshold, const FPCGPointFilterThresholdSettings* SecondThreshold = nullptr) const;
+	bool DoFiltering(FPCGContext* Context, EPCGAttributeFilterOperator InOperation, const FPCGAttributePropertyInputSelector& TargetAttribute, const FPCGAttributeFilterThresholdSettings& FirstThreshold, const FPCGAttributeFilterThresholdSettings* SecondThreshold = nullptr) const;
 };
 
-class FPCGPointFilterElement : public FPCGPointFilterElementBase
+class FPCGAttributeFilterElement : public FPCGAttributeFilterElementBase
 {
 protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;
 };
 
-class FPCGPointFilterRangeElement : public FPCGPointFilterElementBase
+class FPCGAttributeFilterRangeElement : public FPCGAttributeFilterElementBase
 {
 protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;

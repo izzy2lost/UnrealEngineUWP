@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Elements/PCGAttributeFilterElement.h"
+#include "Elements/PCGAttributeFilterNamesElement.h"
 
 #include "PCGContext.h"
 #include "PCGParamData.h"
@@ -8,17 +8,15 @@
 #include "Data/PCGSpatialData.h"
 #include "Helpers/PCGHelpers.h"
 
-#include UE_INLINE_GENERATED_CPP_BY_NAME(PCGAttributeFilterElement)
-
 #define LOCTEXT_NAMESPACE "PCGAttributeFilterElement"
 
 namespace PCGAttributeFilterConstants
 {
-	const FName NodeName = TEXT("FilterAttribute");
-	const FText NodeTitle = LOCTEXT("NodeTitle", "Filter Attribute");
+	const FName NodeName = TEXT("FilterAttributesByName");
+	const FText NodeTitle = LOCTEXT("NodeTitle", "Filter Attributes By Name");
 }
 
-void UPCGAttributeFilterSettings::PostLoad()
+void UPCGAttributeFilterNamesSettings::PostLoad()
 {
 	Super::PostLoad();
 
@@ -44,18 +42,18 @@ void UPCGAttributeFilterSettings::PostLoad()
 }
 
 #if WITH_EDITOR
-FName UPCGAttributeFilterSettings::GetDefaultNodeName() const
+FName UPCGAttributeFilterNamesSettings::GetDefaultNodeName() const
 {
 	return PCGAttributeFilterConstants::NodeName;
 }
 
-FText UPCGAttributeFilterSettings::GetDefaultNodeTitle() const
+FText UPCGAttributeFilterNamesSettings::GetDefaultNodeTitle() const
 {
 	return PCGAttributeFilterConstants::NodeTitle;
 }
 #endif
 
-EPCGDataType UPCGAttributeFilterSettings::GetCurrentPinTypes(const UPCGPin* InPin) const
+EPCGDataType UPCGAttributeFilterNamesSettings::GetCurrentPinTypes(const UPCGPin* InPin) const
 {
 	check(InPin);
 	if (!InPin->IsOutputPin())
@@ -68,7 +66,7 @@ EPCGDataType UPCGAttributeFilterSettings::GetCurrentPinTypes(const UPCGPin* InPi
 	return (InputTypeUnion != EPCGDataType::None) ? InputTypeUnion : EPCGDataType::Any;
 }
 
-FName UPCGAttributeFilterSettings::AdditionalTaskName() const
+FName UPCGAttributeFilterNamesSettings::AdditionalTaskName() const
 {
 	TArray<FString> AttributesToKeep = PCGHelpers::GetStringArrayFromCommaSeparatedString(SelectedAttributes);
 
@@ -95,7 +93,7 @@ FName UPCGAttributeFilterSettings::AdditionalTaskName() const
 	}
 }
 
-TArray<FPCGPinProperties> UPCGAttributeFilterSettings::InputPinProperties() const
+TArray<FPCGPinProperties> UPCGAttributeFilterNamesSettings::InputPinProperties() const
 {
 	TArray<FPCGPinProperties> PinProperties;
 	PinProperties.Emplace(PCGPinConstants::DefaultInputLabel, EPCGDataType::Any);
@@ -103,7 +101,7 @@ TArray<FPCGPinProperties> UPCGAttributeFilterSettings::InputPinProperties() cons
 	return PinProperties;
 }
 
-TArray<FPCGPinProperties> UPCGAttributeFilterSettings::OutputPinProperties() const
+TArray<FPCGPinProperties> UPCGAttributeFilterNamesSettings::OutputPinProperties() const
 {
 	TArray<FPCGPinProperties> PinProperties;
 	PinProperties.Emplace(PCGPinConstants::DefaultOutputLabel, EPCGDataType::Any);
@@ -111,18 +109,18 @@ TArray<FPCGPinProperties> UPCGAttributeFilterSettings::OutputPinProperties() con
 	return PinProperties;
 }
 
-FPCGElementPtr UPCGAttributeFilterSettings::CreateElement() const
+FPCGElementPtr UPCGAttributeFilterNamesSettings::CreateElement() const
 {
-	return MakeShared<FPCGAttributeFilterElement>();
+	return MakeShared<FPCGAttributeFilterNamesElement>();
 }
 
-bool FPCGAttributeFilterElement::ExecuteInternal(FPCGContext* Context) const
+bool FPCGAttributeFilterNamesElement::ExecuteInternal(FPCGContext* Context) const
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGAttributeFilterElement::Execute);
+	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGAttributeFilterNamesElement::Execute);
 
 	check(Context);
 
-	const UPCGAttributeFilterSettings* Settings = Context->GetInputSettings<UPCGAttributeFilterSettings>();
+	const UPCGAttributeFilterNamesSettings* Settings = Context->GetInputSettings<UPCGAttributeFilterNamesSettings>();
 
 	const bool bAddAttributesFromParent = (Settings->Operation == EPCGAttributeFilterOperation::DeleteSelectedAttributes);
 	const EPCGMetadataFilterMode FilterMode = bAddAttributesFromParent ? EPCGMetadataFilterMode::ExcludeAttributes : EPCGMetadataFilterMode::IncludeAttributes;

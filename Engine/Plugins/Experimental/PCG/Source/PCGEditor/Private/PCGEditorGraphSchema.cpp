@@ -360,6 +360,14 @@ void UPCGEditorGraphSchema::GetNativeElementActions(FGraphActionMenuBuilder& Act
 					TSharedPtr<FPCGEditorGraphSchemaAction_NewNativeElement> NewAction(new FPCGEditorGraphSchemaAction_NewNativeElement(Category, MenuDesc, Description, 0));
 					NewAction->SettingsClass = SettingsClass;
 					ActionMenuBuilder.AddAction(NewAction);
+
+					// Also add all aliases
+					for (const FText& Alias : PCGSettings->GetNodeTitleAliases())
+					{
+						TSharedPtr<FPCGEditorGraphSchemaAction_NewNativeElement> NewAliasAction(new FPCGEditorGraphSchemaAction_NewNativeElement(Category, Alias, Description, 0));
+						NewAliasAction->SettingsClass = SettingsClass;
+						ActionMenuBuilder.AddAction(NewAliasAction);
+					}
 				}
 
 				// Also add preconfigured settings

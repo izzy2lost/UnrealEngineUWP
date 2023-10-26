@@ -4,7 +4,7 @@
 
 #include "PCGSettings.h"
 
-#include "PCGAttributeFilterElement.generated.h"
+#include "PCGAttributeFilterNamesElement.generated.h"
 
 UENUM()
 enum class EPCGAttributeFilterOperation
@@ -21,7 +21,7 @@ enum class EPCGAttributeFilterOperation
 * The output will be the original data with the updated metadata.
 */
 UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGAttributeFilterSettings : public UPCGSettings
+class PCG_API UPCGAttributeFilterNamesSettings : public UPCGSettings
 {
 	GENERATED_BODY()
 
@@ -60,7 +60,7 @@ public:
 };
 
 
-class FPCGAttributeFilterElement : public IPCGElement
+class FPCGAttributeFilterNamesElement : public IPCGElement
 {
 protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;
