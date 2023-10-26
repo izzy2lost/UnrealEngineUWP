@@ -237,7 +237,7 @@ namespace Private
 
 		TArray<FDecoratorStackMapping> DecoratorStackNodes;
 
-		if (!ensure(VMRootNode != nullptr))
+		if (VMRootNode == nullptr)
 		{
 			// Root node wasn't found, add it, we'll need it to compile
 			VMRootNode = VMController->AddUnitNode(FRigUnit_AnimNextGraphRoot::StaticStruct(), FRigUnit_AnimNextGraphRoot::EventName, FVector2D(0.0f, 0.0f), FString(), false);

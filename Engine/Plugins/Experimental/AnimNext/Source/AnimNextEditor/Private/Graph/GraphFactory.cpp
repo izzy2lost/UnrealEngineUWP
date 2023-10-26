@@ -1,6 +1,6 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "GraphFactory.h"
+#include "Graph/GraphFactory.h"
 #include "Graph/AnimNextGraph.h"
 #include "Graph/AnimNextGraph_EditorData.h"
 #include "Graph/AnimNextGraph_EdGraph.h"
