@@ -9,7 +9,6 @@ struct FAssetHeaderPatcher
 {
 	enum class EResult
 	{
-		None,
 		Success,
 		ErrorFailedToLoadSourceAsset,
 		ErrorFailedToDeserializeSourceAsset,

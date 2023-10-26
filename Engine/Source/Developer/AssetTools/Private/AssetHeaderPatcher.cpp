@@ -67,6 +67,7 @@ namespace
 	{
 		Summary,
 		NameTable,
+		ImportTable,
 		ExportTable,
 		ThumbnailTable,
 		AssetRegistryData
@@ -140,20 +141,6 @@ namespace
 	private:
 		TArray<FName>& NameTable;
 	};
-
-	int FindInPath(FStringView HayStack, FStringView Needle, int At = 0) 
-	{
-		check(At >= 0);
-		for (; At < HayStack.Len() - Needle.Len(); ++At)
-		{
-			if (FPathViews::Equals(FStringView(HayStack.GetData() + At, Needle.Len()), Needle))
-			{
-				return At;
-			}			
-		}
-
-		return -1;
-	}
 
 	struct FSummaryOffsetMeta
 	{
@@ -246,6 +233,17 @@ namespace
 		return Out;
 	}
 
+	FStringView Find(const TMap<FString, FString>& Table, FStringView Needle)
+	{
+		uint32 NeedleHash = TMap<FString, FString>::KeyFuncsType::GetKeyHash<FStringView>(Needle);
+		const FString* MaybeNewItem = Table.FindByHash<FStringView>(NeedleHash, Needle);
+		if (MaybeNewItem)
+		{
+			return *MaybeNewItem;
+		}
+
+		return {};
+	}
 }
 
 // The information we need in the task to do patching.
@@ -395,7 +393,7 @@ FAssetHeaderPatcher::EResult FAssetHeaderPatcher::Test_DoPatch(FArchive& InReade
 FAssetHeaderPatcher::EResult FAssetHeaderPatcherInner::PatchHeader()
 {
 	FAssetHeaderPatcher::EResult Result = PatchHeader_Deserialize();
-	if (Result != EResult::None)
+	if (Result != EResult::Success)
 	{
 		return Result;
 	}
@@ -417,6 +415,10 @@ FAssetHeaderPatcher::EResult FAssetHeaderPatcherInner::PatchHeader_Deserialize()
 	MemAr.SetLicenseeUEVer(Summary.GetFileVersionLicenseeUE());
 	MemAr.SetEngineVer(Summary.SavedByEngineVersion);
 	MemAr.SetCustomVersions(Summary.GetCustomVersionContainer());
+	if (Summary.GetPackageFlags() & PKG_FilterEditorOnly)
+	{
+		MemAr.SetFilterEditorOnly(true);
+	}
 
 	if (Summary.DataResourceOffset > 0)
 	{
@@ -552,12 +554,50 @@ FAssetHeaderPatcher::EResult FAssetHeaderPatcherInner::PatchHeader_Deserialize()
 
 bool FAssetHeaderPatcherInner::DoPatch(FString& InOutString)
 {
-	for (const TPair<FString, FString>& KeyValue : SearchAndReplace)
 	{
-		if (FPathViews::Equals(InOutString, KeyValue.Key))
+		// Find a Path, change a Path.
+		FStringView MaybeReplacement = Find(SearchAndReplace, InOutString);
+		if (!MaybeReplacement.IsEmpty())
 		{
-			InOutString = KeyValue.Value;
+			InOutString = MaybeReplacement;
 			return true;
+		}
+	}
+
+	{
+		// Patch Object paths.
+		// Path occurs to the left of a ":"
+		int Idx{};
+		if (InOutString.FindChar(TCHAR(':'), Idx))
+		{
+			if (InOutString[Idx + 1] == TCHAR(':'))
+			{
+				// "::" is not a path delim
+				return false;
+			}
+			FStringView MaybeReplacement = Find(SearchAndReplace, FStringView(*InOutString, Idx));
+			if (!MaybeReplacement.IsEmpty())
+			{
+				FString Tmp = MaybeReplacement + InOutString.RightChop(Idx);;
+				InOutString = MoveTemp(Tmp);
+				return true;
+			}
+		}
+	}
+	
+	{
+		// Patch quoted paths.
+		// Path occurs to the right of the first "'" 
+		int Idx{};
+		if (InOutString.FindChar(TCHAR('\''), Idx) && InOutString.EndsWith(TEXT("'")))
+		{
+			FStringView MaybeReplacement = Find(SearchAndReplace, FStringView(*InOutString + Idx + 1, InOutString.Len() - (Idx + 2)));
+			if (!MaybeReplacement.IsEmpty())
+			{
+				FString Tmp = InOutString.LeftChop(Idx + 1) + MaybeReplacement + TCHAR('\'');
+				InOutString = MoveTemp(Tmp);
+				return true;
+			}
 		}
 	}
 
@@ -592,11 +632,42 @@ void FAssetHeaderPatcherInner::PatchHeader_PatchSections()
 {
 	DoPatch(Summary.PackageName);
 
-	for (FName& Name : NameTable)
-	{
-		DoPatch(Name);
+	{	// Patch the Name table
+		// This data is used by all FGNames in the file.
+		// So if we patch a Identifier we append it to the name table.
+		// This is because there may be FNames in data we dont want to patch in structures we dont look at.
+		// If we patch the ident at inplace, then we would change those names.
+		TArray<FName> ToAppend;
+		for (FName& Name : NameTable)
+		{
+			FString TmpName = Name.GetPlainNameString();
+			if (DoPatch(TmpName)) 
+			{
+				// If the string does not contain any path seperators, then call it an Identifyer.
+				if (!(TmpName.Contains(TEXT("/")) || TmpName.Contains(TEXT("\\"))))
+				{
+					ToAppend.Add(FName(TmpName, NAME_NO_NUMBER));
+				} 
+				else
+				{
+					Name = FName(TmpName, Name.GetNumber());
+				}
+			}
+		}
+		NameTable.Append(ToAppend);
+
+		Summary.NameCount = NameTable.Num();
 	}
 
+	// Build Name Path table
+	// This is used to generate the indices saved by the FNamePatchingWriter
+	NameToIndexMap.Reserve(NameTable.Num());
+	for (TConstEnumerateRef<FName> Name : EnumerateRange(NameTable))
+	{
+		NameToIndexMap.Add(Name->GetDisplayIndex()) = Name.GetIndex();
+	}
+
+	// Import table
 	for (FObjectImport& Import : ImportTable)
 	{
 		DoPatch(Import.ObjectName);
@@ -671,13 +742,6 @@ void FAssetHeaderPatcherInner::PatchHeader_PatchSections()
 			}
 		}
 	}
-
-	// Build Name Path table
-	NameToIndexMap.Reserve(NameTable.Num());
-	for (TConstEnumerateRef<FName> Name : EnumerateRange(NameTable))
-	{
-		NameToIndexMap.Add(Name->GetDisplayIndex()) = Name.GetIndex();
-	}
 }
 
 FAssetHeaderPatcher::EResult FAssetHeaderPatcherInner::PatchHeader_WriteDestinationFile()
@@ -688,6 +752,7 @@ FAssetHeaderPatcher::EResult FAssetHeaderPatcherInner::PatchHeader_WriteDestinat
 	const FSectionData SourceSections[] = {
 		{ EPatchedSection::Summary,					0,										HeaderInformation.SummarySize,			true },
 		{ EPatchedSection::NameTable,				Summary.NameOffset,						HeaderInformation.NameTableSize,		true },
+		{ EPatchedSection::ImportTable,				Summary.ImportOffset,					HeaderInformation.ImportTableSize,		true },
 		{ EPatchedSection::ExportTable,				Summary.ExportOffset,					HeaderInformation.ExportTableSize,		true },
 		{ EPatchedSection::ThumbnailTable,			Summary.ThumbnailTableOffset,			HeaderInformation.ThumbnailTableSize,	false },
 		{ EPatchedSection::AssetRegistryData,		Summary.AssetRegistryDataOffset,		AsetRegistryData.SectionSize,			true },
@@ -740,6 +805,10 @@ FAssetHeaderPatcher::EResult FAssetHeaderPatcherInner::PatchHeader_WriteDestinat
 	Writer.SetLicenseeUEVer(Summary.GetFileVersionLicenseeUE());
 	Writer.SetEngineVer(Summary.SavedByEngineVersion);
 	Writer.SetCustomVersions(Summary.GetCustomVersionContainer());
+	if (Summary.GetPackageFlags() & PKG_FilterEditorOnly)
+	{
+		Writer.SetFilterEditorOnly(true);
+	}
 
 	int64 LastSectionEndedAt = 0;
 	
@@ -800,6 +869,23 @@ FAssetHeaderPatcher::EResult FAssetHeaderPatcherInner::PatchHeader_WriteDestinat
 				break;
 			}
 
+			case EPatchedSection::ImportTable:
+			{
+				const int64 ImportTableStartOffset = Writer.Tell();
+				for (FObjectImport& Import : ImportTable)
+				{
+					Writer << Import;
+				}
+				const int64 ImportTableSize = Writer.Tell() - ImportTableStartOffset;
+				const int64 Delta = ImportTableSize - SourceSection.Size;
+				check(Delta == 0);
+				checkf(ImportTableSize == SourceSection.Size, TEXT("%d == %d"), (int)ImportTableSize, (int)SourceSection.Size); // We only patch export table offsets, we should not be patching size
+				checkf(Summary.ImportCount == ImportTable.Num(), TEXT("%d == %d"), Summary.ImportCount, ImportTable.Num());
+				checkf(Summary.ImportOffset == ImportTableStartOffset, TEXT("%d == %d"), Summary.ImportOffset, ImportTableStartOffset);
+
+				break;
+			}
+
 			case EPatchedSection::ExportTable:
 			{
 				// The export table offsets aren't correct yet.
@@ -811,8 +897,7 @@ FAssetHeaderPatcher::EResult FAssetHeaderPatcherInner::PatchHeader_WriteDestinat
 				}
 				const int64 ExportTableSize = Writer.Tell() - ExportTableStartOffset;
 				const int64 Delta = ExportTableSize - SourceSection.Size;
-				PatchSummaryOffsets(Summary, ExportTableStartOffset, Delta);
-
+				check(Delta == 0);
 				checkf(ExportTableSize == SourceSection.Size, TEXT("%d == %d"), (int)ExportTableSize, (int)SourceSection.Size); // We only patch export table offsets, we should not be patching size
 				checkf(Summary.ExportCount == ExportTable.Num(), TEXT("%d == %d"), Summary.ExportCount, ExportTable.Num());
 				checkf(Summary.ExportOffset == ExportTableStartOffset, TEXT("%d == %d"), Summary.ExportOffset, ExportTableStartOffset);

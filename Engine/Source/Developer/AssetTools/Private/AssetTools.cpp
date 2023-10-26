@@ -110,6 +110,9 @@
 #include "Factories/SceneImportFactory.h"
 #include "Misc/AssetFilterData.h"
 
+#include "AssetHeaderPatcher.h"
+#include "Algo/Copy.h"
+
 #include UE_INLINE_GENERATED_CPP_BY_NAME(AssetTools)
 
 #define LOCTEXT_NAMESPACE "AssetTools"
@@ -442,6 +445,18 @@ namespace UE::AssetTools::Private
 				UE_LOG(LogAssetTools, Log, TEXT("Folder Read Permissions:\n%s"), *IAssetTools::Get().GetFolderPermissionList()->ToString());
 				UE_LOG(LogAssetTools, Log, TEXT("Folder Write Permissions:\n%s"), *IAssetTools::Get().GetWritableFolderPermissionList()->ToString());
 			}));
+
+	/** 
+	 * CVar to specify if we should use Header patching in advanced copy.
+	 * Default is false.
+	 */
+	bool bEnableHeaderPatching = false;
+	FAutoConsoleVariableRef CVarEnableHeaderPatching(
+		TEXT("AssetTools.UseHeaderPatchingAdvancedCopy"),
+		bEnableHeaderPatching,
+		TEXT("If set to true, this will use Header Patching to copy the files instead of performing a full load."),
+		ECVF_Default
+	);
 
 	// use a struct as a namespace to allow easier friend declarations
 	struct FPackageMigrationImpl
@@ -2135,6 +2150,88 @@ void UAssetToolsImpl::GetAllAdvancedCopySources(FName SelectedPackage, FAdvanced
 	}
 }
 
+namespace 
+{
+bool IsSlashOrBackslash(TCHAR C) 
+{
+	return C == TEXT('/') || C == TEXT('\\'); 
+}
+	
+TMap<FString, FString> AllSourceAndDestPackages(const TMap<FString, FString>& SourceAndDestPackages)
+{
+	TMap<FString, FString> Result;
+
+	IAssetRegistry& Registry = *IAssetRegistry::Get();
+
+	TArray< TTuple<FString, FString> > ToProcess;
+	Algo::Copy(SourceAndDestPackages, ToProcess);
+
+	while (ToProcess.Num())
+	{
+		TTuple<FString, FString> Package = ToProcess.Pop();
+
+		if (Result.Contains(Package.Key))
+		{
+			continue;
+		}
+
+		// Become a patching name even if it doesn't have a file.
+		Result.Add({ Package.Key, Package.Value });
+
+		TArray<FName> Dependencies;
+
+		if (!Registry.GetDependencies(FName(*Package.Key), Dependencies))
+		{
+			continue;
+		}
+
+		// Making String Views into strings because the String.Replace used inside the loop cannot use the views.
+		FString SrcPackageRoot = FString(FPackageName::SplitPackageNameRoot(Package.Key, nullptr));
+		FString DstPackageRoot = FString(FPackageName::SplitPackageNameRoot(Package.Value, nullptr));
+
+		for (const FName Dependency : Dependencies)
+		{
+			const FString SrcDependencyString = Dependency.ToString();
+			
+			// checking from +1 Dependency has a leading '/' 
+			if (IsSlashOrBackslash(SrcDependencyString[0])
+				&& FStringView(*SrcDependencyString + 1, SrcPackageRoot.Len()) == SrcPackageRoot
+				&& IsSlashOrBackslash(SrcDependencyString[SrcPackageRoot.Len() + 1]))
+			{
+				// if a dep start with the package name, then we are going to copy the asset.
+				// but we need to recurse on this asset as it may have sub dependencies we don't know of yet.
+				const FString DstDependencyString = SrcDependencyString.Replace(*SrcPackageRoot, *DstPackageRoot, ESearchCase::CaseSensitive);
+				ToProcess.Add({ SrcDependencyString , DstDependencyString });
+			}
+		}
+	}
+
+	return Result;
+}
+
+TMap<FString, FString> GenerateAdditionalAssetMappings(const TMap<FString, FString>& SourceAndDestPackages)
+{
+	TMap<FString, FString> Result;
+
+	for (const TTuple<FString, FString>& Package : SourceAndDestPackages)
+	{
+		// FPathViews::GetBaseFilename gives the same result as FPackageName::GetShortName
+		// for a file path, but returns a StringView not a String.
+		FStringView SrcPackageName = FPathViews::GetBaseFilename(Package.Key); 
+		FStringView DstPackageName = FPathViews::GetBaseFilename(Package.Value);
+
+		// Inject Path.ObjectName
+		Result.Add({ Package.Key + TCHAR('.') + SrcPackageName, Package.Value + TCHAR('.') + DstPackageName });
+		if (SrcPackageName != DstPackageName)
+		{
+			Result.Add({ FString(SrcPackageName), FString(DstPackageName) });
+		}
+	}
+
+	return Result;
+}
+}
+
 bool UAssetToolsImpl::AdvancedCopyPackages(
 	const TMap<FString, FString>& SourceAndDestPackages,
 	const bool bForceAutosave,
@@ -2142,6 +2239,8 @@ bool UAssetToolsImpl::AdvancedCopyPackages(
 	FDuplicatedObjects* OutDuplicatedObjects,
 	EMessageSeverity::Type NotificationSeverityFilter) const
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(AdvancedCopyPackages);
+
 	if (ValidateFlattenedAdvancedCopyDestinations(SourceAndDestPackages))
 	{
 		TArray<FString> SuccessfullyCopiedDestinationFiles;
@@ -2163,58 +2262,110 @@ bool UAssetToolsImpl::AdvancedCopyPackages(
 		ExistingObjectSet.Reserve(SourceAndDestPackages.Num());
 		NewObjectSet.Reserve(SourceAndDestPackages.Num());
 
-		TUniquePtr<FScopedSlowTask> LoopProgress = MakeUnique<FScopedSlowTask>(static_cast<float>(SourceAndDestPackages.Num()), LOCTEXT("AdvancedCopyPackages.CopyingFilesAndDependencies", "Copying Files and Dependencies..."));
-		LoopProgress->MakeDialog();
+		TUniquePtr<FScopedSlowTask> LoopProgress;
 
-		for (const auto& Package : SourceAndDestPackages)
+		if (UE::AssetTools::Private::bEnableHeaderPatching)
 		{
-			const FString& PackageName = Package.Key;
-			const FString& DestFilename = Package.Value;
-			FString SrcFilename;
+			std::atomic<int32> PatchAssetsCompletedCount = 0;
+			UE::Tasks::FTaskEvent PatchAssetsCompletionTask{ UE_SOURCE_LOCATION };
 
-			if (FPackageName::DoesPackageExist(PackageName, &SrcFilename))
+			TMap<FString, FString> ToCopyAndPatch = AllSourceAndDestPackages(SourceAndDestPackages);
+			TMap<FString, FString> PatchingPatterns = GenerateAdditionalAssetMappings(SourceAndDestPackages);
+			PatchingPatterns.Append(ToCopyAndPatch);
+
+			LoopProgress = MakeUnique<FScopedSlowTask>(static_cast<float>(ToCopyAndPatch.Num()), LOCTEXT("AdvancedCopyPackages.ReplacingAssetReferences", "Replacing Asset References..."));
+			LoopProgress->MakeDialog();
+
+			for (const TTuple<FString, FString>& Package : ToCopyAndPatch)
 			{
 				LoopProgress->EnterProgressFrame();
-				UPackage* Pkg = LoadPackage(nullptr, *PackageName, LOAD_None);
-				if (Pkg)
+
+				const FString& PackageName = Package.Key;
+				const FString& DestPackage = Package.Value;
+				FString SrcFilename;
+
+				if (FPackageName::DoesPackageExist(PackageName, &SrcFilename))
 				{
-					FString Name = ObjectTools::SanitizeObjectName(FPaths::GetBaseFilename(SrcFilename));
-					UObject* ExistingObject = StaticFindObject(UObject::StaticClass(), Pkg, *Name);
-					if (ExistingObject)
+					FString DestFilename = FPackageName::LongPackageNameToFilename(DestPackage, FString(FPathViews::GetExtension(SrcFilename, true)));
+					UE::Tasks::TTask<FAssetHeaderPatcher::EResult> PatcherTask = FAssetHeaderPatcher::Start(SrcFilename, DestFilename, PatchingPatterns);
+					UE::Tasks::FTask PatcherLifetimeTask = UE::Tasks::Launch(UE_SOURCE_LOCATION, [&PatchAssetsCompletedCount]
+						{
+							PatchAssetsCompletedCount.fetch_add(1, std::memory_order_relaxed);
+						},
+						MoveTemp(PatcherTask), UE::Tasks::ETaskPriority::Default, UE::Tasks::EExtendedTaskPriority::Inline);
+					PatchAssetsCompletionTask.AddPrerequisites(PatcherLifetimeTask);
+				}
+			}
+
+			PatchAssetsCompletionTask.Trigger();
+			while (!PatchAssetsCompletionTask.Wait(FTimespan::FromSeconds(0.5)))
+			{
+				LoopProgress->CompletedWork = (float)PatchAssetsCompletedCount.load(std::memory_order_relaxed);
+				LoopProgress->TickProgress();
+			}
+
+			for (const TTuple<FString, FString>& Package : SourceAndDestPackages)
+			{			
+				SuccessfullyCopiedSourcePackages.Add(FName(Package.Key));
+				SuccessfullyCopiedDestinationFiles.Add(Package.Value);
+			}
+		}
+		else
+		{
+			LoopProgress = MakeUnique<FScopedSlowTask>(static_cast<float>(SourceAndDestPackages.Num()), LOCTEXT("AdvancedCopyPackages.CopyingFilesAndDependencies", "Copying Files and Dependencies..."));
+			LoopProgress->MakeDialog();
+
+			for (const auto& Package : SourceAndDestPackages)
+			{
+				const FString& PackageName = Package.Key;
+				const FString& DestPackage = Package.Value;
+				FString SrcFilename;
+
+				if (FPackageName::DoesPackageExist(PackageName, &SrcFilename))
+				{
+					LoopProgress->EnterProgressFrame();
+
+					UPackage* Pkg = LoadPackage(nullptr, *PackageName, LOAD_None);
+					if (Pkg)
 					{
-						TSet<UPackage*> ObjectsUserRefusedToFullyLoad;
-						ObjectTools::FPackageGroupName PGN;
-						PGN.GroupName = TEXT("");
-						PGN.ObjectName = FPaths::GetBaseFilename(DestFilename);
-						PGN.PackageName = DestFilename;
-						const bool bShouldPromptForDestinationConflict = !bCopyOverAllDestinationOverlaps;
-						TMap<TSoftObjectPtr<UObject>, TSoftObjectPtr<UObject>> DuplicatedObjects;
-						FName PackageFName(*PackageName);
-
-
-						// Temp fix for some codepaths that allows advanced copy of world packages. For partitioned worlds, this can only be supported for worlds with
-						// streaming disabled and this code should be removed once the callers switch to the same codepath as editor save as.
-						if (UWorld* World = Cast<UWorld>(ExistingObject))
+						FString Name = ObjectTools::SanitizeObjectName(FPaths::GetBaseFilename(SrcFilename));
+						UObject* ExistingObject = StaticFindObject(UObject::StaticClass(), Pkg, *Name);
+						if (ExistingObject)
 						{
-							if (UWorldPartition* WorldPartition = World->GetWorldPartition())
+							TSet<UPackage*> ObjectsUserRefusedToFullyLoad;
+							ObjectTools::FPackageGroupName PGN;
+							PGN.GroupName = TEXT("");
+							PGN.ObjectName = FPaths::GetBaseFilename(DestPackage);
+							PGN.PackageName = DestPackage;
+							const bool bShouldPromptForDestinationConflict = !bCopyOverAllDestinationOverlaps;
+							TMap<TSoftObjectPtr<UObject>, TSoftObjectPtr<UObject>> DuplicatedObjects;
+							FName PackageFName(*PackageName);
+
+
+							// Temp fix for some codepaths that allows advanced copy of world packages. For partitioned worlds, this can only be supported for worlds with
+							// streaming disabled and this code should be removed once the callers switch to the same codepath as editor save as.
+							if (UWorld* World = Cast<UWorld>(ExistingObject))
 							{
-								check(!WorldPartition->IsStreamingEnabled());
-								if (!WorldPartition->IsInitialized())
+								if (UWorldPartition* WorldPartition = World->GetWorldPartition())
 								{
-									WorldPartition->Initialize(World, FTransform::Identity);
+									check(!WorldPartition->IsStreamingEnabled());
+									if (!WorldPartition->IsInitialized())
+									{
+										WorldPartition->Initialize(World, FTransform::Identity);
+									}
+									CopiedWorldPartitionMaps.Add(PackageFName);
 								}
-								CopiedWorldPartitionMaps.Add(PackageFName);
 							}
-						}
 
-						if (UObject* NewObject = ObjectTools::DuplicateSingleObject(ExistingObject, PGN, ObjectsUserRefusedToFullyLoad, bShouldPromptForDestinationConflict, &DuplicatedObjects))
-						{
-							ExistingObjectSet.Add(ExistingObject);
-							NewObjectSet.Add(NewObject);
-							DuplicatedObjectsForEachPackage.Add(MoveTemp(DuplicatedObjects));
-							SuccessfullyCopiedSourcePackages.Add(PackageFName);
-							SuccessfullyCopiedDestinationFiles.Add(DestFilename);
-							SuccessfullyCopiedDestinationPackages.Add(NewObject->GetPackage());
+							if (UObject* NewObject = ObjectTools::DuplicateSingleObject(ExistingObject, PGN, ObjectsUserRefusedToFullyLoad, bShouldPromptForDestinationConflict, &DuplicatedObjects))
+							{
+								ExistingObjectSet.Add(ExistingObject);
+								NewObjectSet.Add(NewObject);
+								DuplicatedObjectsForEachPackage.Add(MoveTemp(DuplicatedObjects));
+								SuccessfullyCopiedSourcePackages.Add(PackageFName);
+								SuccessfullyCopiedDestinationFiles.Add(DestPackage);
+								SuccessfullyCopiedDestinationPackages.Add(NewObject->GetPackage());
+							}
 						}
 					}
 				}
@@ -2272,19 +2423,22 @@ bool UAssetToolsImpl::AdvancedCopyPackages(
 				}
 			}
 
-			for (FName Dependency : Dependencies)
+			if (!UE::AssetTools::Private::bEnableHeaderPatching)
 			{
-				const int32 DependencyIndex = SuccessfullyCopiedSourcePackages.IndexOfByKey(Dependency);
-				if (DependencyIndex != INDEX_NONE)
+				for (FName Dependency : Dependencies)
 				{
-					Consolidations.Reserve(Consolidations.Num() + DuplicatedObjectsForEachPackage[DependencyIndex].Num());
-					for (const TPair<TSoftObjectPtr<UObject>, TSoftObjectPtr<UObject>>& Duplication : DuplicatedObjectsForEachPackage[DependencyIndex])
+					const int32 DependencyIndex = SuccessfullyCopiedSourcePackages.IndexOfByKey(Dependency);
+					if (DependencyIndex != INDEX_NONE)
 					{
-						UObject* SourceObject = Duplication.Key.Get();
-						UObject* NewObject = Duplication.Value.Get();
-						if (SourceObject && NewObject)
+						Consolidations.Reserve(Consolidations.Num() + DuplicatedObjectsForEachPackage[DependencyIndex].Num());
+						for (const TPair<TSoftObjectPtr<UObject>, TSoftObjectPtr<UObject>>& Duplication : DuplicatedObjectsForEachPackage[DependencyIndex])
 						{
-							Consolidations.FindOrAdd(NewObject).AddUnique(SourceObject);
+							UObject* SourceObject = Duplication.Key.Get();
+							UObject* NewObject = Duplication.Value.Get();
+							if (SourceObject && NewObject)
+							{
+								Consolidations.FindOrAdd(NewObject).AddUnique(SourceObject);
+							}
 						}
 					}
 				}
