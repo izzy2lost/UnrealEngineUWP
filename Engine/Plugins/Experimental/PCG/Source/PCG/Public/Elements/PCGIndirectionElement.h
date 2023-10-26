@@ -7,6 +7,16 @@
 
 #include "PCGIndirectionElement.generated.h"
 
+class UPCGBlueprintElement;
+
+UENUM()
+enum class EPCGProxyInterfaceMode : uint8
+{
+	ByNativeElement = 0u UMETA(Tooltip = "Select a native element to define the pin interface"),
+	ByBlueprintElement UMETA(Tooltip = "Select a custom blueprint element to define the pin interface"),
+	BySettings UMETA(Tooltip = "User defined settings will define the pin interface")
+};
+
 UCLASS(BlueprintType, ClassGroup=(Procedural))
 class PCG_API UPCGIndirectionSettings : public UPCGSettings
 {
@@ -19,16 +29,31 @@ public:
 	virtual FText GetDefaultNodeTitle() const override;
 	virtual FText GetNodeTooltipText() const override;
 	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::Generic; }
-#endif
+	virtual FName AdditionalTaskName() const override;
+#endif // WITH_EDITOR
 
 protected:
+	virtual TArray<FPCGPinProperties> InputPinProperties() const override;
 	virtual TArray<FPCGPinProperties> OutputPinProperties() const override;
 
 	virtual FPCGElementPtr CreateElement() const override;
 	//~End UPCGSettings interface
 
 public:
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
+	/** Defines which interface to use for populating pins */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
+	EPCGProxyInterfaceMode ProxyInterfaceMode = EPCGProxyInterfaceMode::BySettings;
+
+	/** The element settings class used to define the pin interface for this node instance */
+	UPROPERTY(EditAnywhere, Category = Settings, meta = (EditCondition = "ProxyInterfaceMode == EPCGProxyInterfaceMode::ByNativeElement", EditConditionHides))
+	TSubclassOf<UPCGSettings> SettingsClass;
+
+	/** The blueprint element class used to define the pin interface for this node instance */
+	UPROPERTY(EditAnywhere, Category = Settings, meta = (EditCondition = "ProxyInterfaceMode == EPCGProxyInterfaceMode::ByBlueprintElement", EditConditionHides))
+    TSubclassOf<UPCGBlueprintElement> BlueprintElementClass;
+
+	/** The element settings, which can be overriden, that will be used during the proxy execution */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta = (PCG_Overridable))
 	TSoftObjectPtr<UPCGSettings> Settings;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
@@ -42,6 +67,7 @@ struct FPCGIndirectionContext : public FPCGContext
 	FPCGElementPtr InnerElement;
 	FPCGContext* InnerContext = nullptr;
 	bool bNeedsToUnrootInnerSettings = false;
+	bool bShouldActAsPassthrough = false;
 };
 
 class FPCGIndirectionElement : public IPCGElement
