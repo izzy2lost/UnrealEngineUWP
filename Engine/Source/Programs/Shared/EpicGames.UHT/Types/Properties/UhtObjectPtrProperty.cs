@@ -103,7 +103,7 @@ namespace EpicGames.UHT.Types
 					outerStruct.Outer == null ||
 					!outerStruct.Outer.SourceName.Equals("UPlayerMappableInputConfig", StringComparison.Ordinal))
 				{
-					outerStruct.LogError("UFunctions cannot take a TObjectPtr as a parameter.");
+					outerStruct.LogError("UFunctions cannot take a TObjectPtr as a function parameter or return value.");
 				}
 			}
 		}

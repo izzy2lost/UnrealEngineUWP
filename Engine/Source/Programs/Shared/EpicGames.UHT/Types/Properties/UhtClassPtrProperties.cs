@@ -77,7 +77,7 @@ namespace EpicGames.UHT.Types
 			// UFunctions with a smart pointer as return type will crash when called via blueprint, because they are not supported in VM.
 			if (!options.HasAnyFlags(UhtValidationOptions.IsKey) && PropertyCategory != UhtPropertyCategory.Member)
 			{
-				outerStruct.LogError("UFunctions cannot take a TObjectPtr as a parameter.");
+				outerStruct.LogError("UFunctions cannot take a TObjectPtr as a function parameter or return value.");
 			}
 		}
 	}
