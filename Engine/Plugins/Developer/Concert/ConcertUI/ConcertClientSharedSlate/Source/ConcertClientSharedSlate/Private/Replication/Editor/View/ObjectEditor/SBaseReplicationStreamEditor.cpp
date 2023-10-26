@@ -263,7 +263,8 @@ namespace UE::ConcertClientSharedSlate
 				return EditablePropertiesModel->ContainsObjects({ Item.Object.Get() } );
 			}),
 			TAttribute<bool>::CreateLambda([this]() { return !IsEditingDisabled(); }),
-			TAttribute<FText>::CreateLambda([this]() { return GetEditingDisabledText(); })
+			TAttribute<FText>::CreateLambda([this]() { return GetEditingDisabledText(); }),
+			EItemPickerFlags::DisplayOptionListInline
 		}; 
 	}
 }

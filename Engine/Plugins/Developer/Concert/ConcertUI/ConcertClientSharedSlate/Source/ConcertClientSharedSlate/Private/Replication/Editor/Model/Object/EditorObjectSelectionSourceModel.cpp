@@ -22,8 +22,8 @@ namespace UE::ConcertClientSharedSlate
 					LOCTEXT("ObjectsCategory.Tooltip", "Options for adding objects from the open editor world")
 				},
 				{
-					MakeShared<FWorldActorSource>(),
-					MakeShared<FSelectedActorsSource>()
+					MakeShared<FSelectedActorsSource>(),
+					MakeShared<FWorldActorSource>()
 				}
 			};
 		}())
