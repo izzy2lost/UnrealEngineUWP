@@ -85,6 +85,16 @@ namespace GameFeatureVersePathMapper
 		}
 	};
 
+	FString GetVerseAppDomain()
+	{
+		FString AppDomain;
+		if (!GConfig->GetString(TEXT("Verse"), TEXT("AppDomain"), AppDomain, GGameIni))
+		{
+			AppDomain = FPaths::Combine(TEXTVIEW("/"), FString(FApp::GetProjectName()) + TEXTVIEW(".com"));
+		}
+		return AppDomain;
+	}
+
 	class FInstallBundleResolver
 	{
 		TArray<TPair<FString, TArray<FRegexPattern>>> BundleRegexList;
@@ -98,8 +108,7 @@ namespace GameFeatureVersePathMapper
 				GConfig->FindOrLoadPlatformConfig(MaybeLoadedConfig, *GInstallBundleIni, IniPlatformName) :
 				GConfig->FindConfigFile(GInstallBundleIni);
 
-			// Cosemtics no longer set a regex (use VFS streaming instead) so they won't bloat this list
-			// We want to load regex even if PlatformChunkID=-1 to make sure we map GFPs that are only on content service
+			// We want to load regex even if PlatformChunkID=-1 to make sure we map GFPs that are not packaged
 			BundleRegexList = InstallBundleUtil::LoadBundleRegexFromConfig(*InstallBundleConfig);
 		}
 
@@ -356,6 +365,7 @@ namespace GameFeatureVersePathMapper
 
 		FInstallBundleResolver InstallBundleResolver(TargetPlatform ? *TargetPlatform->IniPlatformName() : nullptr);
 
+		const FString AppDomain = GameFeatureVersePathMapper::GetVerseAppDomain();
 		const FString GameFeatureRootVersePath = UGameFeatureVersePathMapperCommandlet::GetGameFeatureRootVersePath();
 		const FString ChunkPatternFormat = GetChunkPatternFormat();
 
@@ -377,7 +387,9 @@ namespace GameFeatureVersePathMapper
 
 			Output.VersePathToGfpMap.Add(FPaths::Combine(GameFeatureRootVersePath, PluginNameView), PluginName);
 
-			if (!Plugin->GetVersePath().IsEmpty())
+			// Add a virtual GFP to support plugin specified verse paths
+			if (!Plugin->GetVersePath().IsEmpty() && 
+				Plugin->GetVersePath() != AppDomain) // Filter out references to the root path, we don't wan't to allow resolving all content (and we don't register sub-paths)
 			{
 				// Add a virtual GFP with this verse path that depends on this GFP
 				FName& VirtualGFPName = Output.VersePathToGfpMap.FindOrAdd(Plugin->GetVersePath());
@@ -526,10 +538,5 @@ int32 UGameFeatureVersePathMapperCommandlet::Main(const FString& CmdLineParams)
 
 /*static*/ FString UGameFeatureVersePathMapperCommandlet::GetGameFeatureRootVersePath()
 {
-	FString AppDomain;
-	if (!GConfig->GetString(TEXT("Verse"), TEXT("AppDomain"), AppDomain, GGameIni))
-	{
-		AppDomain = FPaths::Combine(TEXTVIEW("/"), FString(FApp::GetProjectName()) + TEXTVIEW(".com"));
-	}
-	return FPaths::Combine(AppDomain, TEXTVIEW("GameFeatures"));
+	return FPaths::Combine(GameFeatureVersePathMapper::GetVerseAppDomain(), TEXTVIEW("GameFeatures"));
 }
