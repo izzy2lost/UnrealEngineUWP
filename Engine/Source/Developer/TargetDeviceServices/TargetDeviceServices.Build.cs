@@ -11,7 +11,6 @@ namespace UnrealBuildTool.Rules
 					"Core",
 					"TargetPlatform",
 					"DesktopPlatform",
-					"Engine",
 				});
 
 			PrivateDependencyModuleNames.AddRange(
