@@ -3,6 +3,7 @@
 #include "Polygroups/PolygroupsGenerator.h"
 
 #include "Clustering/FaceNormalClustering.h"
+#include "Containers/StaticArray.h"
 #include "DynamicMesh/MeshNormals.h"
 #include "Selections/MeshConnectedComponents.h"
 #include "Util/IndexUtil.h"
@@ -203,7 +204,7 @@ bool FPolygroupsGenerator::FindSourceMeshPolygonPolygroups(
 
 	// For each triangle, there are 3 possible adjacent triangles that form valid quads. 
 	// TriPotentialQuads is an [N][3] array of those potential quads, stored as FTriPairQuad
-	TArray<FTriPairQuad[3]> TriPotentialQuads;
+	TArray<TStaticArray<FTriPairQuad, 3>> TriPotentialQuads;
 	TriPotentialQuads.SetNum(MaxTriangleID);
 	for (int32 tid : Mesh->TriangleIndicesItr())
 	{

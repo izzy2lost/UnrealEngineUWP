@@ -3,6 +3,7 @@
 #include "Online/AuthEOS.h"
 
 #include "Algo/Transform.h"
+#include "Containers/StaticArray.h"
 #include "EOSShared.h"
 #include "IEOSSDKManager.h"
 #include "Online/AuthErrors.h"
@@ -367,7 +368,7 @@ TFuture<FAccountId> FAuthEOS::ResolveAccountId(const FAccountId& LocalAccountId,
 	return ResolveAccountIdImpl(*this, LocalAccountId, ProductUserId);
 }
 
-using FEpicAccountIdStrBuffer = char[EOS_EPICACCOUNTID_MAX_LENGTH + 1];
+using FEpicAccountIdStrBuffer = TStaticArray<char, EOS_EPICACCOUNTID_MAX_LENGTH + 1>;
 
 TFuture<TArray<FAccountId>> FAuthEOS::ResolveAccountIds(const FAccountId& LocalAccountId, const TArray<EOS_EpicAccountId>& InEpicAccountIds)
 {
@@ -414,7 +415,7 @@ TFuture<TArray<FAccountId>> FAuthEOS::ResolveAccountIds(const FAccountId& LocalA
 		FEpicAccountIdStrBuffer& EpicAccountIdStr = EpicAccountIdStrsToQuery.Emplace_GetRef();
 		int32_t BufferSize = sizeof(EpicAccountIdStr);
 		if (!EOS_EpicAccountId_IsValid(EpicAccountId) ||
-			EOS_EpicAccountId_ToString(EpicAccountId, EpicAccountIdStr, &BufferSize) != EOS_EResult::EOS_Success)
+			EOS_EpicAccountId_ToString(EpicAccountId, EpicAccountIdStr.GetData(), &BufferSize) != EOS_EResult::EOS_Success)
 		{
 			checkNoEntry();
 			return MakeFulfilledPromise<TArray<FAccountId>>().GetFuture();
@@ -454,7 +455,7 @@ TFuture<TArray<FAccountId>> FAuthEOS::ResolveAccountIds(const FAccountId& LocalA
 					{
 						FEpicAccountIdStrBuffer EpicAccountIdStr;
 						int32_t BufferSize = sizeof(EpicAccountIdStr);
-						verify(EOS_EpicAccountId_ToString(EpicAccountId, EpicAccountIdStr, &BufferSize) == EOS_EResult::EOS_Success);
+						verify(EOS_EpicAccountId_ToString(EpicAccountId, EpicAccountIdStr.GetData(), &BufferSize) == EOS_EResult::EOS_Success);
 						Options.TargetExternalUserId = &EpicAccountIdStr[0];
 						const EOS_ProductUserId ProductUserId = EOS_Connect_GetExternalAccountMapping(ConnectHandle, &Options);
 						AccountId = CreateAccountId(EpicAccountId, ProductUserId);
@@ -540,10 +541,10 @@ TFuture<TArray<FAccountId>> FAuthEOS::ResolveAccountIds(const FAccountId& LocalA
 						FEpicAccountIdStrBuffer EpicAccountIdStr;
 						int32_t BufferLength = sizeof(EpicAccountIdStr);
 						EOS_EpicAccountId EpicAccountId = nullptr;
-						const EOS_EResult Result = EOS_Connect_GetProductUserIdMapping(ConnectHandle, &Options, EpicAccountIdStr, &BufferLength);
+						const EOS_EResult Result = EOS_Connect_GetProductUserIdMapping(ConnectHandle, &Options, EpicAccountIdStr.GetData(), &BufferLength);
 						if (Result == EOS_EResult::EOS_Success)
 						{
-							EpicAccountId = EOS_EpicAccountId_FromString(EpicAccountIdStr);
+							EpicAccountId = EOS_EpicAccountId_FromString(EpicAccountIdStr.GetData());
 							check(EOS_EpicAccountId_IsValid(EpicAccountId));
 						}
 						AccountId = CreateAccountId(EpicAccountId, ProductUserId);
