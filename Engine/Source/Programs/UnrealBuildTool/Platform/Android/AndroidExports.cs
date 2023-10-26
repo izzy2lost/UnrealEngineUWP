@@ -131,5 +131,15 @@ namespace UnrealBuildTool
 		{
 			return UEDeployAndroid.GetDontBundleLibrariesInAPK(ProjectFile, bForceDontBundleLibrariesInAPK, Configuration, bIsArchive, bFromMSBuild, bIsFromUAT, Logger);
 		}
+
+		/// <summary>
+		/// 
+		/// </summary>
+		/// <param name="Target"></param>
+		/// <param name="Logger"></param>
+		public static string GetAFSExecutable(UnrealTargetPlatform Target, ILogger Logger)
+		{
+			return UEDeployAndroid.GetAFSExecutable(Target, Logger);
+		}
 	}
 }

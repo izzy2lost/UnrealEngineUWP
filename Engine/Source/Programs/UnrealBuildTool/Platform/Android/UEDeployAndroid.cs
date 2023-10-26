@@ -4832,7 +4832,7 @@ namespace UnrealBuildTool
 
 					AFSToken = string.IsNullOrEmpty(AFSToken) ? "" : " -k " + AFSToken;
 
-					string AFSExecutable = Path.Combine(Unreal.EngineDirectory.ToString(), @"Binaries/DotNET/Android/UnrealAndroidFileTool/UnrealAndroidFileTool");
+					string AFSExecutable = Path.Combine(Unreal.EngineDirectory.ToString(), @"Binaries/DotNET/Android/UnrealAndroidFileTool", GetAFSExecutable(UnrealTargetPlatform.Win64, Logger));
 					string AFS = $"{AFSExecutable} -p {PackageName}{AFSToken}";
 
 					string? SOPushScriptLocation = Path.GetDirectoryName(FinalSOName)!;
@@ -5531,6 +5531,24 @@ popd
 			}
 
 			Logger.LogInformation("\n===={Time}====COMPLETED MAKE APK=======================================================================", DateTime.Now.ToString());
+		}
+
+		public static string GetAFSExecutable(UnrealTargetPlatform Target, ILogger Logger)
+		{
+			if (Target == UnrealTargetPlatform.Win64)
+			{
+				return "win-x64/UnrealAndroidFileTool.exe";
+			}
+			if (Target == UnrealTargetPlatform.Mac)
+			{
+				return "osx-x64/UnrealAndroidFileTool";
+			}
+			if (Target == UnrealTargetPlatform.Linux)
+			{
+				return "linux-x64/UnrealAndroidFileTool";
+			}
+			Logger.LogWarning("GetAFSExecutable unsupported target, assuming Win64");
+			return "win-x64/UnrealAndroidFileTool.exe";
 		}
 
 		private List<string> CollectPluginDataPaths(TargetReceipt Receipt)

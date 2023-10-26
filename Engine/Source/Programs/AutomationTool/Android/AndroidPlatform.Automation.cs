@@ -1526,20 +1526,7 @@ public class AndroidPlatform : Platform
 
 	string GetAFSExecutable(UnrealTargetPlatform Target)
 	{
-		if (Target == UnrealTargetPlatform.Win64)
-		{
-			return "win-x64/UnrealAndroidFileTool.exe";
-		}
-		if (Target == UnrealTargetPlatform.Mac)
-		{
-			return "osx-x64/UnrealAndroidFileTool";
-		}
-		if (Target == UnrealTargetPlatform.Linux)
-		{
-			return "linux-x64/UnrealAndroidFileTool";
-		}
-		Logger.LogWarning("GetAFSExecutable unsupported target, assuming Win64");
-		return "win-x64/UnrealAndroidFileTool.exe";
+		return AndroidExports.GetAFSExecutable(Target, Logger);
 	}
 
 	private class OverflowBatchInstallInfo
