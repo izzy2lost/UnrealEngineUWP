@@ -56,7 +56,7 @@ namespace UE::ConcertClientSharedSlate
 		void RefreshPropertyData();
 		
 		const TArray<TSharedPtr<FReplicatedPropertyData>>& GetPropertyRowData() const { return PropertyRowData; }
-		TArray<FSoftObjectPath> GetSelectedObjects() const;
+		TArray<FSoftObjectPath> GetObjectsSelectedForPropertyEditing() const;
 
 	private:
 		

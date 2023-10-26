@@ -54,7 +54,7 @@ namespace UE::ConcertClientSharedSlate
 
 	TArray<FSoftObjectPath> SReplicationStreamViewer::GetObjectsBeingPropertyEdited() const
 	{
-		return SubobjectAndPropertySection->GetSelectedObjects();
+		return SubobjectAndPropertySection->GetObjectsSelectedForPropertyEditing();
 	}
 
 	void SReplicationStreamViewer::RefreshObjectData()

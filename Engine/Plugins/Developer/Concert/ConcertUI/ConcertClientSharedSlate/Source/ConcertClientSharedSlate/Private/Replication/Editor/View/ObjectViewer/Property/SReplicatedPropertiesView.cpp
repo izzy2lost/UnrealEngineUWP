@@ -5,6 +5,7 @@
 #include "Filters/SBasicFilterBar.h"
 #include "PropertyFilter_ByPropertyType.h"
 #include "PropertyFrontendFilter.h"
+#include "Replication/Editor/Model/DisplayUtils.h"
 #include "Replication/Editor/Model/ReplicatedPropertyData.h"
 
 #include "UObject/UnrealType.h"
@@ -53,8 +54,9 @@ namespace UE::ConcertClientSharedSlate
 	
 	void SReplicatedPropertiesView::Construct(const FArguments& InArgs)
 	{
-		const FBuildFilterBarResult Filters = BuildFilterBar();
+		SelectedObjectsAttribute = InArgs._SelectedObjects;
 		
+		const FBuildFilterBarResult Filters = BuildFilterBar();
 		ChildSlot
 		[
 			SAssignNew(ReplicatedProperties, SReplicationTreeView<FReplicatedPropertyData>)
@@ -85,6 +87,23 @@ namespace UE::ConcertClientSharedSlate
 				[
 					FilterBar.ToSharedRef()
 				]
+				.TreeAlternateContent()
+				[
+					SNew(SHorizontalBox)
+					+SHorizontalBox::Slot()
+					.HAlign(HAlign_Center)
+					.VAlign(VAlign_Center)
+					[
+						SNew(STextBlock) 
+						.Text(this, &SReplicatedPropertiesView::GetAllFilteredText)
+					]
+				]
+				.ContentToDisplay_Lambda([this]()
+				{
+					return !SelectedObjectsAttribute.Get().IsEmpty() && ReplicatedProperties->GetFilteredRootItems().IsEmpty()
+						? SReplicationTreeView<FReplicatedPropertyData>::EContent::Custom
+						: SReplicationTreeView<FReplicatedPropertyData>::EContent::TreeView;
+				})
 		];
 
 		// For better UX, hide certain properties by default (e.g. why would you want to replicate bools?)
@@ -170,6 +189,27 @@ namespace UE::ConcertClientSharedSlate
 	bool SReplicatedPropertiesView::PassesFilters(const TSharedPtr<FReplicatedPropertyData>& ReplicatedPropertyData) const
 	{
 		return FilterBar->GetAllActiveFilters()->PassesAllFilters(ReplicatedPropertyData);
+	}
+
+	FText SReplicatedPropertiesView::GetAllFilteredText() const
+	{
+		const TArray<FSoftObjectPath> Objects = SelectedObjectsAttribute.Get();
+		if (Objects.IsEmpty())
+		{
+			return FText::GetEmpty();
+		}
+
+		TSet<FString> Names;
+		Algo::Transform(Objects, Names, [](const FSoftObjectPath& ObjectPath)
+		{
+			return DisplayUtils::GetObjectDisplayText(ObjectPath).ToString();
+		});
+		
+		const FText ObjectsText = FText::FromString(FString::Join(Names, TEXT(", ")));
+		return FText::Format(LOCTEXT("AllFitleredFmt", "All properties filtered for selected {0}|plural(one=object,other=objects): {1}."),
+			Objects.Num(),
+			ObjectsText
+		);
 	}
 }
 

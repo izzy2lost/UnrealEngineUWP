@@ -10,6 +10,7 @@
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/Input/SSearchBox.h"
 #include "Widgets/Layout/SScrollBox.h"
+#include "Widgets/Layout/SWidgetSwitcher.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Views/STreeView.h"
 
@@ -33,6 +34,12 @@ namespace UE::ConcertClientSharedSlate
 		DECLARE_DELEGATE(FOnSelectionChanged);
 		DECLARE_DELEGATE_RetVal_OneParam(bool, FCustomFilter, const TSharedPtr<TItemType>& Item);
 		DECLARE_DELEGATE_RetVal_OneParam(bool, FIsSearchableItem, const TSharedPtr<TItemType>& Item);
+
+		enum class EContent
+		{
+			TreeView,
+			Custom
+		};
 
 		SLATE_BEGIN_ARGS(SReplicationTreeView<TItemType>)
 			: _HeaderRowVisibility(EVisibility::Visible)
@@ -78,6 +85,11 @@ namespace UE::ConcertClientSharedSlate
 			SLATE_NAMED_SLOT(FArguments, LeftOfSearchBar)
 			/** Optional widget to add between the search bar and the table view (e.g. a SBasicFilterBar). */
 			SLATE_NAMED_SLOT(FArguments, RowBelowSearchBar)
+
+			/** Optional, alternate content to show instead of the tree view when ContentToDisplay returns EContent::Custom. */
+			SLATE_NAMED_SLOT(FArguments, TreeAlternateContent)
+			/** Optional attribute that decides whether TreeAlternateContent is displayed instead of the tree view */
+			SLATE_ATTRIBUTE(EContent, ContentToDisplay)
 		SLATE_END_ARGS()
 
 		void Construct(const FArguments& InArgs)
@@ -141,6 +153,7 @@ namespace UE::ConcertClientSharedSlate
 				[
 					SNew(SScrollBox)
 					+SScrollBox::Slot()
+					.FillSize(1.f)
 					[
 						CreateTreeView(InArgs)
 					]
@@ -168,6 +181,7 @@ namespace UE::ConcertClientSharedSlate
 		}
 		
 		TArray<TSharedPtr<TItemType>> GetSelectedItems() const { return TreeView->GetSelectedItems(); }
+		const TArray<TSharedPtr<TItemType>>& GetFilteredRootItems() const { return FilteredRootItems; }
 		
 		virtual FReply OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent) override;
 
@@ -235,15 +249,30 @@ namespace UE::ConcertClientSharedSlate
 			.BorderBackgroundColor(FSlateColor(FLinearColor(0.6, 0.6, 0.6)))
 			.Padding(0)
 			[
-				SAssignNew(TreeView, STreeView<TSharedPtr<TItemType>>)
-				.OnGetChildren(this, &SReplicationTreeView::GetRowChildren)
-				.TreeItemsSource(&FilteredRootItems)
-				.OnGenerateRow(this, &SReplicationTreeView::OnGenerateRowWidget)
-				.OnContextMenuOpening(InArgs._OnContextMenuOpening)
-				.OnSelectionChanged_Lambda([OnSelectionChanged = InArgs._OnSelectionChanged](auto, auto){ OnSelectionChanged.ExecuteIfBound(); })
-				.SelectionMode(InArgs._SelectionMode)
-				.AllowOverscroll(EAllowOverscroll::No)
-				.HeaderRow(CreateHeaderRow(InArgs))
+				SNew(SWidgetSwitcher)
+				.WidgetIndex_Lambda([GetContent = InArgs._ContentToDisplay]()
+				{
+					const bool bHasValue = GetContent.IsSet() || GetContent.IsBound();
+					return bHasValue && GetContent.Get() == EContent::Custom ? 0 : 1; 
+				})
+
+				+SWidgetSwitcher::Slot()
+				[
+					InArgs._TreeAlternateContent.Widget
+				]
+				
+				+SWidgetSwitcher::Slot()
+				[
+					SAssignNew(TreeView, STreeView<TSharedPtr<TItemType>>)
+					.OnGetChildren(this, &SReplicationTreeView::GetRowChildren)
+					.TreeItemsSource(&FilteredRootItems)
+					.OnGenerateRow(this, &SReplicationTreeView::OnGenerateRowWidget)
+					.OnContextMenuOpening(InArgs._OnContextMenuOpening)
+					.OnSelectionChanged_Lambda([OnSelectionChanged = InArgs._OnSelectionChanged](auto, auto){ OnSelectionChanged.ExecuteIfBound(); })
+					.SelectionMode(InArgs._SelectionMode)
+					.AllowOverscroll(EAllowOverscroll::No)
+					.HeaderRow(CreateHeaderRow(InArgs))
+				]
 			];
 	}
 

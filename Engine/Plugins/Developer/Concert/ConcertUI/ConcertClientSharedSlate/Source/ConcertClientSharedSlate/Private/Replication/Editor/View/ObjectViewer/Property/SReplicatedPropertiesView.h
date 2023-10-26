@@ -9,6 +9,7 @@
 
 namespace UE::ConcertClientSharedSlate
 {
+	class FReplicatedObjectData;
 	class FReplicatedPropertyData;
 	class SReplicationFilterBar;
 	
@@ -42,6 +43,9 @@ namespace UE::ConcertClientSharedSlate
 
 			/*************** Own arguments ***************/
 			// Please add new arguments here in the future
+
+			/** Gets the objects being property edited. */
+			SLATE_ATTRIBUTE(TArray<FSoftObjectPath>, SelectedObjects)
 		SLATE_END_ARGS()
 
 		void Construct(const FArguments& InArgs);
@@ -56,6 +60,9 @@ namespace UE::ConcertClientSharedSlate
 		/** Displays the active filters*/
 		TSharedPtr<SReplicationFilterBar> FilterBar;
 
+		/** Used to tell the user that the selected object have all properties filtered out. */
+		TAttribute<TArray<FSoftObjectPath>> SelectedObjectsAttribute;
+
 		struct FBuildFilterBarResult
 		{
 			TArray<FFilterRef> EnabledByDefault;
@@ -66,6 +73,9 @@ namespace UE::ConcertClientSharedSlate
 
 		/** Runs all filters through this item */
 		bool PassesFilters(const TSharedPtr<FReplicatedPropertyData>& ReplicatedPropertyData) const;
+
+		/** Gets the message to display when all properties are filtered out. */
+		FText GetAllFilteredText() const;
 	};
 }
 

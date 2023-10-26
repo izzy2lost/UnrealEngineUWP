@@ -65,7 +65,7 @@ namespace UE::ConcertClientSharedSlate
 	
 	void SSubobjectAndPropertySection::RefreshPropertyData()
 	{
-		const TArray<FSoftObjectPath> SelectedObjects = GetSelectedObjects();
+		const TArray<FSoftObjectPath> SelectedObjects = GetObjectsSelectedForPropertyEditing();
 		if (SelectedObjects.IsEmpty())
 		{
 			SetPropertyContent(EReplicatedPropertyContent::NoSelection);
@@ -113,7 +113,7 @@ namespace UE::ConcertClientSharedSlate
 		ReplicatedProperties->OnItemsChanged();
 	}
 
-	TArray<FSoftObjectPath> SSubobjectAndPropertySection::GetSelectedObjects() const
+	TArray<FSoftObjectPath> SSubobjectAndPropertySection::GetObjectsSelectedForPropertyEditing() const
 	{
 		if (SubobjectView)
 		{
@@ -134,20 +134,37 @@ namespace UE::ConcertClientSharedSlate
 		{
 			SubobjectView = InArgs._SubobjectView;
 			SubobjectView->OnSelectionChanged().AddSP(this, &SSubobjectAndPropertySection::OnSubobjectSelectionChanged);
-			return SNew(SSplitter)
-				.Orientation(Orient_Vertical)
-
-				+SSplitter::Slot()
-				.Value(1.f)
+			return SNew(SWidgetSwitcher)
+				.WidgetIndex_Lambda([this]()
+				{
+					return GetSelectedRootObjectsDelegate.Execute().IsEmpty() ? 1 : 0;
+				})
+			
+				+SWidgetSwitcher::Slot()
 				[
-					SubobjectView.ToSharedRef()
+					SNew(SSplitter)
+					.Orientation(Orient_Vertical)
+
+					+SSplitter::Slot()
+					.Value(1.f)
+					[
+						SubobjectView.ToSharedRef()
+					]
+					
+					+SSplitter::Slot()
+					.Value(2.f)
+					[
+						CreatePropertiesView(InArgs)
+					]
 				]
 			
-				+SSplitter::Slot()
-				.Value(2.f)
+				+SWidgetSwitcher::Slot()
+				.VAlign(VAlign_Center)
+				.HAlign(HAlign_Center)
 				[
-                	CreatePropertiesView(InArgs)
-                ];
+					SNew(STextBlock)
+					.Text(LOCTEXT("NoRootObjects", "Select an object to see selected properties"))
+				];
 		}
 		
 		return CreatePropertiesView(InArgs);
@@ -179,6 +196,7 @@ namespace UE::ConcertClientSharedSlate
 				[
 					InArgs._LeftOfPropertySearchBar.Widget
 				]
+				.SelectedObjects(this, &SSubobjectAndPropertySection::GetObjectsSelectedForPropertyEditing)
 			]
 			
 			// EReplicatedPropertyContent::NoSelection
@@ -187,7 +205,7 @@ namespace UE::ConcertClientSharedSlate
 			.HAlign(HAlign_Center)
 			[
 				SNew(STextBlock)
-				.Text(LOCTEXT("NoSelection", "Select an object to see selected properties"))
+				.Text(LOCTEXT("NoPropertyEditedObjects", "Select an object to see selected properties"))
 			]
 			
 			// EReplicatedPropertyContent::SelectionTooBig
