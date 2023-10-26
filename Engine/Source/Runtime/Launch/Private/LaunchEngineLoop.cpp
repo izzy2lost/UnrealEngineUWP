@@ -6838,6 +6838,13 @@ void FEngineLoop::AppPreExit( )
 
 void FEngineLoop::AppExit()
 {
+	static bool bCalledOnce;
+	if (bCalledOnce)
+	{
+		return;
+	}
+	bCalledOnce = true;
+	
 	// when compiled WITH_ENGINE, this will happen in FEngineLoop::Exit()
 #if !WITH_ENGINE
 #if STATS
