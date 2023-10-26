@@ -2336,7 +2336,7 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// Builds the target, appending list of output files and returns building result.
 		/// </summary>
-		public async Task<TargetMakefile> BuildAsync(BuildConfiguration BuildConfiguration, ISourceFileWorkingSet WorkingSet, TargetDescriptor TargetDescriptor, ILogger Logger, bool bInitOnly = false)
+		public async Task<TargetMakefile> BuildAsync(BuildConfiguration BuildConfiguration, ISourceFileWorkingSet WorkingSet, TargetDescriptor TargetDescriptor, ILogger Logger, bool bInitOnly = false, bool bGenUHTOnly = false)
 		{
 			CppConfiguration CppConfiguration = GetCppConfiguration(Configuration);
 
@@ -2553,17 +2553,14 @@ namespace UnrealBuildTool
 				ExternalExecution.SetupUObjectModules(ModulesToGenerateHeadersFor, Rules.Platform, ProjectDescriptor, Makefile.UObjectModules, Makefile.UObjectModuleHeaders, Rules.GeneratedCodeVersion, MetadataCache, Logger);
 			}
 
-			List<string> UHTAdditionalArguments = new List<string>();
 			if (Rules.NativePointerMemberBehaviorOverride != null)
 			{
-				UHTAdditionalArguments.Add("-ini:Engine:[UnrealHeaderTool]:EngineNativePointerMemberBehavior=" + Rules.NativePointerMemberBehaviorOverride);
-				UHTAdditionalArguments.Add("-ini:Engine:[UnrealHeaderTool]:EnginePluginNativePointerMemberBehavior=" + Rules.NativePointerMemberBehaviorOverride);
-				UHTAdditionalArguments.Add("-ini:Engine:[UnrealHeaderTool]:NonEngineNativePointerMemberBehavior=" + Rules.NativePointerMemberBehaviorOverride);
-			}
-
-			if ((UHTAdditionalArguments != null) && (UHTAdditionalArguments.Any()))
-			{
-				Makefile.UHTAdditionalArguments = UHTAdditionalArguments.ToArray();
+				Makefile.UHTAdditionalArguments = new string[]
+				{
+					$"-ini:Engine:[UnrealHeaderTool]:EngineNativePointerMemberBehavior={Rules.NativePointerMemberBehaviorOverride}",
+					$"-ini:Engine:[UnrealHeaderTool]:EnginePluginNativePointerMemberBehavior={Rules.NativePointerMemberBehaviorOverride}",
+					$"-ini:Engine:[UnrealHeaderTool]:NonEngineNativePointerMemberBehavior={Rules.NativePointerMemberBehaviorOverride}",
+				};
 			}
 
 			// UHT mode uses this to create the makefile at least to the point where UHT would have valid manifest information
@@ -2608,6 +2605,11 @@ namespace UnrealBuildTool
 #if __VPROJECT_AVAILABLE__
 			await VNITask;
 #endif
+
+			if (bGenUHTOnly)
+			{
+				return Makefile;
+			}
 
 			foreach (UEBuildModuleCPP Module in Modules.Values.OfType<UEBuildModuleCPP>())
 			{

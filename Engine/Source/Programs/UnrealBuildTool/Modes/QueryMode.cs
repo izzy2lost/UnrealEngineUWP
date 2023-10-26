@@ -109,6 +109,9 @@ namespace UnrealBuildTool
 		[CommandLine("-Indented")]
 		public bool bIndented;
 
+		[CommandLine("-GenFiles")]
+		public bool bGenFiles = false;
+
 		private BuildConfiguration BuildConfiguration = new();
 
 		public override Task<int> ExecuteAsync(CommandLineArguments Arguments, ILogger Logger)
@@ -313,6 +316,13 @@ namespace UnrealBuildTool
 					}
 				}
 
+				if (bGenFiles)
+				{
+					// Create the makefile for the target and export the module information
+					using ISourceFileWorkingSet WorkingSet = new EmptySourceFileWorkingSet();
+					TargetMakefile Makefile = await CurrentTarget.BuildAsync(BuildConfiguration, WorkingSet, TargetDescriptors[0], Logger, bGenUHTOnly: true);
+				}
+
 				TargetIntellisenseInfo CurrentTargetIntellisenseInfo = new TargetIntellisenseInfo();
 
 				// Partially duplicated from UEBuildTarget.Build because we just want to get C++ compile actions without running UHT
@@ -390,6 +400,8 @@ namespace UnrealBuildTool
 					ModuleToCompileSettings = CurrentTargetIntellisenseInfo.ModuleToCompileSettings.ToImmutableSortedDictionary(x => x.Key.Name, x => x.Value),
 					LaunchSettings = CurrentLaunchSettings,
 				};
+				
+			
 
 				await WriteResultsAsync(Result, JsonOptions, Logger);
 				return 0;
