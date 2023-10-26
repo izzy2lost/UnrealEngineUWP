@@ -43,18 +43,30 @@ namespace UE::MultiUserClient
 	}
 
 	void FReplicationClient::OnObjectsChanged(
-		TConstArrayView<UObject*> Objects,
-		TConstArrayView<FSoftObjectPath> SoftObjectPaths,
+		TConstArrayView<UObject*> AddedObjects,
+		TConstArrayView<FSoftObjectPath> RemovedObjects,
 		ConcertClientSharedSlate::EReplicatedObjectChangeReason ReplicatedObjectChangeReason
 		)
 	{
 		// Could improve performance by just considering what actually changed instead of doing a full rebuild
+		// This must be done before SetAuthorityIfAllowed because it uses the cache for checking whether the object has properties assigned
 		LocalClientStreamDiffer.RefreshChangesCache();
+		
+		// Util for clients: automatically take authority for newly added objects
+		for (const UObject* Object : AddedObjects)
+		{
+			LocalAuthorityDiffer.SetAuthorityIfAllowed(Object, true);
+		}
+
+		// Refresh because authority changes may no longer be valid after modifying the stream
+		LocalAuthorityDiffer.RefreshChanges();
 	}
 
 	void FReplicationClient::OnPropertiesChanged()
 	{
 		// Could improve performance by just considering what actually changed instead of doing a full rebuild
 		LocalClientStreamDiffer.RefreshChangesCache();
+		// Refresh because authority changes may no longer be valid after modifying the stream
+		LocalAuthorityDiffer.RefreshChanges();
 	}
 }
