@@ -3,6 +3,7 @@
 #pragma once
 
 #include "MuR/Image.h"
+#include "MuR/ImageTypes.h"
 
 #include "MuR/SerialisationPrivate.h"
 #include "MuR/MutableMath.h"
@@ -16,7 +17,6 @@ namespace mu
 	MUTABLE_DEFINE_ENUM_SERIALISABLE( EMinFilterMethod );
 	MUTABLE_DEFINE_ENUM_SERIALISABLE( EImageFormat );
 	MUTABLE_DEFINE_ENUM_SERIALISABLE( EAddressMode );
-
 
 	//---------------------------------------------------------------------------------------------
 	//!
