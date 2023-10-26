@@ -808,6 +808,9 @@ void PatchRasterize( uint VisibleIndex, uint GroupThreadIndex )
 			Verts[2] = float4( GroupVerts[ VertIndexes.z ], 1 );
 	
 			FRasterTri Tri = SetupTriangle< NANITE_SUBPIXEL_SAMPLES, !NANITE_TWO_SIDED >( Raster.ScissorRect, Verts );
+
+			if( max3( Verts[0].z, Verts[1].z, Verts[2].z ) > 1 )
+				Tri.bIsValid = false;
 	
 			if( Tri.bIsValid )
 			{

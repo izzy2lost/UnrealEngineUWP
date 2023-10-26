@@ -1062,6 +1062,7 @@ class FPatchSplitCS : public FNaniteGlobalShader
 	{
 		FNaniteGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
 
+		OutEnvironment.SetDefine(TEXT("NANITE_TESSELLATION"), 1);
 		OutEnvironment.CompilerFlags.Add(CFLAG_Wave32);
 
 		FVirtualShadowMapArray::SetShaderDefines(OutEnvironment);

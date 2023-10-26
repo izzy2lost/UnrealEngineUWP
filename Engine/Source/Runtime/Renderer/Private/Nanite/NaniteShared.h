@@ -346,8 +346,6 @@ public:
 		
 		OutEnvironment.SetDefine(TEXT("VF_SUPPORTS_PRIMITIVE_SCENE_DATA"), 1);
 
-		OutEnvironment.SetDefine(TEXT("NANITE_TESSELLATION"), NaniteTessellationSupported() ? 1 : 0);
-
 		// Use the spline mesh texture when possible for performance
 		OutEnvironment.SetDefine(TEXT("USE_SPLINE_MESH_SCENE_RESOURCES"), UseSplineMeshSceneResources(Parameters.Platform));
 

@@ -261,11 +261,10 @@ struct FSplitPatch
 
 	float3 TransformBarycentrics( float3 Local )
 	{
-		precise float3 Global =
+		return INVARIANT(
 			Barycentrics[0] * Local.x +
 			Barycentrics[1] * Local.y +
-			Barycentrics[2] * Local.z;
-		return Global;
+			Barycentrics[2] * Local.z );
 	}
 
 	FBarycentrics TransformBarycentrics( FBarycentrics Local )

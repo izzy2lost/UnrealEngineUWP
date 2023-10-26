@@ -571,17 +571,23 @@ FMaterialPixelParameters FetchNaniteMaterialPixelParameters(FPrimitiveSceneData 
 	}
 #endif
 
-	const float3 PrevPointLocal = Lerp( Tri.Verts[0].PrevPointLocal, Tri.Verts[1].PrevPointLocal, Tri.Verts[2].PrevPointLocal, Barycentrics ).Value;
-	const float3 PrevPointWorld = mul(float4(PrevPointLocal.xyz, 1), InstanceDynamicData.PrevLocalToTranslatedWorld).xyz;
-	Result.PrevScreenPosition = mul(float4(PrevPointWorld, 1), NaniteView.PrevTranslatedWorldToClip);
-	//Result.PrevScreenPosition = float4( Result.PrevScreenPosition.xyz / Result.PrevScreenPosition.w, 1 );
-
 	const TDual< float3 > PointWorld = Lerp( Tri.Verts[0].PointWorld, Tri.Verts[1].PointWorld, Tri.Verts[2].PointWorld, Barycentrics );
 	Result.WorldPosition_CamRelative	= PointWorld.Value;
 	Result.WorldPosition_DDX			= PointWorld.Value_dx;
 	Result.WorldPosition_DDY			= PointWorld.Value_dy;
 
 	Result.WorldPosition_NoOffsets_CamRelative = Lerp( Tri.Verts[0].PointWorld_NoOffset, Tri.Verts[1].PointWorld_NoOffset, Tri.Verts[2].PointWorld_NoOffset, Barycentrics ).Value;
+
+	const float3 PrevPointLocal = Lerp( Tri.Verts[0].PrevPointLocal, Tri.Verts[1].PrevPointLocal, Tri.Verts[2].PrevPointLocal, Barycentrics ).Value;
+	float3 PrevPointWorld = mul(float4(PrevPointLocal.xyz, 1), InstanceDynamicData.PrevLocalToTranslatedWorld).xyz;
+#if USES_DISPLACEMENT
+	// TODO PixelTranslatedWorld is already calculated outside this function.
+	// TODO GetMaterialPreviousDisplacementScaled so that dynamic displacement gets velocities.
+	const float4 PixelTranslatedWorld = mul( SvPosition, NaniteView.SVPositionToTranslatedWorld );
+	const float3 Displacement = PixelTranslatedWorld.xyz / PixelTranslatedWorld.w - PointWorld.Value;
+	PrevPointWorld += Displacement;
+#endif
+	Result.PrevScreenPosition = mul(float4(PrevPointWorld, 1), NaniteView.PrevTranslatedWorldToClip);
 
 	// Update screen W and all screen derivatives. This is rarely used and will be dead code eliminated most of the time.
 	{

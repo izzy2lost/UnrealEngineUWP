@@ -317,7 +317,7 @@ struct TNaniteWritePixel
 		}
 	#endif
 
-	#if NANITE_PIXEL_PROGRAMMABLE
+	#if NANITE_PIXEL_PROGRAMMABLE && !NANITE_TESSELLATION
 		FBarycentrics Barycentrics = CalculateBarycentrics( Tri, C );
 
 		float4 SvPosition = float4( Pixel.Position.xy + 0.5, Pixel.Depth, 1.0 );
@@ -386,14 +386,7 @@ struct FMaterialShader
 			TransformedTri.Verts[2].PointLocal,
 			Barycentrics ).Value;
 
-	#if NANITE_TESSELLATION && USES_DISPLACEMENT
-		float3 Normal = Lerp(
-			TransformedTri.Verts[0].PostDeformNormal,
-			TransformedTri.Verts[1].PostDeformNormal,
-			TransformedTri.Verts[2].PostDeformNormal,
-			Barycentrics ).Value;
-		Normal = normalize( Normal );
-
+	#if NANITE_TESSELLATION
 		// Hopefully never used and will be dead code eliminated. TODO VT feedback needs this right now :(
 		float4 SvPosition = Lerp( 
 			TransformedTri.Verts[0].PointClip,
@@ -419,12 +412,30 @@ struct FMaterialShader
 			MaterialParameters.WorldPosition_CamRelative,
 			MaterialParameters.WorldPosition_NoOffsets_CamRelative );
 
+	#if USES_DISPLACEMENT
+		float3 Normal = Lerp(
+			TransformedTri.Verts[0].PostDeformNormal,
+			TransformedTri.Verts[1].PostDeformNormal,
+			TransformedTri.Verts[2].PostDeformNormal,
+			Barycentrics ).Value;
+		Normal = normalize( Normal );
+
 		const float Displacement = GetMaterialDisplacementScaled(PixelMaterialInputs);
 		PointLocal += Normal * Displacement;
+	#endif
 	#endif
 
 		float3 PointWorld = mul( float4( PointLocal, 1 ), InstanceDynamicData.LocalToTranslatedWorld ).xyz;
 		float4 PointClip = mul( float4( PointWorld, 1 ), NaniteView.TranslatedWorldToClip );
+
+	#if NANITE_TESSELLATION && NANITE_PIXEL_PROGRAMMABLE && MATERIALBLENDING_MASKED
+		if( GetMaterialMask(PixelMaterialInputs) < 0.0 )
+		{
+			PointClip.z = -2.0;
+			PointClip.w = -1.0;
+		}
+	#endif
+
 		return PointClip;
 	}
 #endif

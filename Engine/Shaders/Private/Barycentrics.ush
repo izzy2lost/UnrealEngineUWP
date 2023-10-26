@@ -19,11 +19,7 @@ TDual<T> Lerp( T Value0, T Value1, T Value2, FBarycentrics Barycentrics )
 	Result.Value_dy	= Value0 * Barycentrics.Value_dy.x + Value1 * Barycentrics.Value_dy.y + Value2 * Barycentrics.Value_dy.z;
 
 #if NANITE_TESSELLATION
-	precise T Value =
-		Value0 * Barycentrics.Value.x +
-		Value1 * Barycentrics.Value.y +
-		Value2 * Barycentrics.Value.z;
-	Result.Value = Value;
+	Result.Value = INVARIANT( Result.Value );
 #endif
 
 	return Result;

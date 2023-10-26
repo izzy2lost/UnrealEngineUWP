@@ -185,6 +185,10 @@ uint FSplitTask::Run()
 	float3 BoundsCenter = 0.5 * ( BoundsMax + BoundsMin );
 	float3 BoundsExtent = 0.5 * ( BoundsMax - BoundsMin );
 
+	// Extend the bounds for WPO
+	// NOTE: always extend the bounds if any material ignores the Enable WPO flag
+	BoundsExtent += GetLocalMaxWPOExtent( PrimitiveData, InstanceData, bWPOEnabled );
+
 	FBoxCull Cull;
 	Cull.Init( NaniteView, BoundsCenter, BoundsExtent, InstanceData.NonUniformScale.xyz, InstanceDynamicData.LocalToTranslatedWorld, InstanceDynamicData.PrevLocalToTranslatedWorld );
 	Cull.Distance();
