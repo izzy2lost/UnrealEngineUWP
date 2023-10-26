@@ -446,7 +446,8 @@ public:
 	enum class EMethod
 	{
 		Get,
-		Put
+		Put,
+		Delete,
 	};
 
 	FS3Request(FS3Client& S3Client);
@@ -461,6 +462,7 @@ private:
 	static size_t WriteBodyCallback(void* Ptr, size_t SizeInBlocks, size_t BlockSizeInBytes, void* UserData);
 	static int SslCertVerify(int PreverifyOk, X509_STORE_CTX* Context);
 	static CURLcode SslContextCallback(CURL* curl, void* sslctx, void* parm);
+	const ANSICHAR* LexToString(EMethod Method);
 
 	FS3Client& Client;
 	FCurlHandle Curl;
@@ -489,7 +491,7 @@ FS3Response FS3Client::FS3Request::Perform(EMethod Method, const ANSICHAR* Url, 
 
 	RequestBody = Body;
 	const uint64 ContentLength = Body.GetSize();
-	check(Method == EMethod::Get || ContentLength > 0);
+	check((Method == EMethod::Get || Method == EMethod::Delete) || ContentLength > 0);
 
 	// Find the host from the URL
 	const ANSICHAR* ProtocolEnd = FCStringAnsi::Strchr(Url, ':');
@@ -536,7 +538,7 @@ FS3Response FS3Client::FS3Request::Perform(EMethod Method, const ANSICHAR* Url, 
 		CurlHeaders = curl_slist_append(CurlHeaders, *WriteToAnsiString<512>("x-amz-security-token: ", *Client.Credentials.GetSessionToken()));
 	}
 
-	const ANSICHAR* MethodString = Method == EMethod::Get ? "GET" : "PUT";
+	const ANSICHAR* MethodString = LexToString(Method);
 	CurlHeaders = curl_slist_append(CurlHeaders, GetAuthorizationHeader(Curl, Client, MethodString, UrlHostEnd, QueryString, CurlHeaders, *TimeString, *PayloadSha256, AuthHeader));
 
 	// Append the unsigned headers
@@ -553,13 +555,18 @@ FS3Response FS3Client::FS3Request::Perform(EMethod Method, const ANSICHAR* Url, 
 	{
 		curl_easy_setopt(Curl, CURLOPT_HTTPGET, 1L);
 	}
-	else
+	else if (Method == EMethod::Put)
 	{
 		curl_easy_setopt(Curl, CURLOPT_PUT, 1L);
 		curl_easy_setopt(Curl, CURLOPT_UPLOAD, 1L);
 		curl_easy_setopt(Curl, CURLOPT_INFILESIZE, ContentLength);
 		curl_easy_setopt(Curl, CURLOPT_READDATA, this);
 		curl_easy_setopt(Curl, CURLOPT_READFUNCTION, &ReadBodyCallback);
+	}
+	else
+	{
+		check(Method == EMethod::Delete);
+		curl_easy_setopt(Curl, CURLOPT_CUSTOMREQUEST, "DELETE");
 	}
 
 	curl_easy_setopt(Curl, CURLOPT_FOLLOWLOCATION, 1L);
@@ -725,6 +732,22 @@ CURLcode FS3Client::FS3Request::SslContextCallback(CURL* curl, void* sslctx, voi
 	return CURLE_OK;
 }
 
+const ANSICHAR* FS3Client::FS3Request::LexToString(EMethod Method)
+{
+	switch(Method)
+	{
+	case EMethod::Get:
+		return "GET";
+	case EMethod::Put:
+		return "PUT";
+	case EMethod::Delete:
+		return "DELETE";
+	default:
+		check(false);
+		return nullptr;
+	}
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 FS3Client::FS3Client(const FS3ClientConfig& ClientConfig, const FS3ClientCredentials& ClientCredentials)
 	: Config(ClientConfig)
@@ -866,6 +889,15 @@ FS3ListObjectResponse FS3Client::ListObjects(const FS3ListObjectsRequest& ListRe
 	}
 
 	return FS3ListObjectResponse{{200, FSharedBuffer()}, MoveTemp(BucketName), MoveTemp(Objects)};
+}
+
+FS3DeleteObjectResponse FS3Client::DeleteObject(const FS3DeleteObjectRequest& DeleteRequest)
+{
+	TAnsiStringBuilder<256> Url;
+	Url << StringCast<ANSICHAR>(*Config.ServiceUrl) << "/" << StringCast<ANSICHAR>(*DeleteRequest.BucketName) << "/" << StringCast<ANSICHAR>(*DeleteRequest.Key);
+
+	FS3Request Request(*this);
+	return Request.Perform(FS3Request::EMethod::Delete, Url.ToString(), FSharedBuffer());
 }
 
 } // namespace UE
