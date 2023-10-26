@@ -25,6 +25,11 @@ UWorldPartitionHLODEditorSubsystem::~UWorldPartitionHLODEditorSubsystem()
 {
 }
 
+bool UWorldPartitionHLODEditorSubsystem::IsHLODInEditorEnabled()
+{
+	return CVarHLODInEditorEnabled.GetValueOnGameThread();
+}
+
 bool UWorldPartitionHLODEditorSubsystem::DoesSupportWorldType(const EWorldType::Type WorldType) const
 {
 	return WorldType == EWorldType::Editor && !IsRunningCommandlet();
@@ -38,7 +43,6 @@ void UWorldPartitionHLODEditorSubsystem::Initialize(FSubsystemCollectionBase& Co
 	Super::Initialize(Collection);
 
 	bForceHLODStateUpdate = true;
-	bHLODInEditorEnabled = CVarHLODInEditorEnabled.GetValueOnGameThread();
 	
 	GetWorld()->OnWorldPartitionInitialized().AddUObject(this, &UWorldPartitionHLODEditorSubsystem::OnWorldPartitionInitialized);
 	GetWorld()->OnWorldPartitionUninitialized().AddUObject(this, &UWorldPartitionHLODEditorSubsystem::OnWorldPartitionUninitialized);
@@ -59,15 +63,11 @@ void UWorldPartitionHLODEditorSubsystem::Deinitialize()
 void UWorldPartitionHLODEditorSubsystem::OnWorldPartitionInitialized(UWorldPartition* InWorldPartition)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UWorldPartitionHLODEditorSubsystem::OnWorldPartitionInitialized);
-
-	InWorldPartition->LoaderAdapterStateChanged.AddUObject(this, &UWorldPartitionHLODEditorSubsystem::OnLoaderAdapterStateChanged);
-
-
-	FWorldPartitionHLODEditorData* HLODEditorData = WorldPartitionsHLODEditorData.Emplace(InWorldPartition, new FWorldPartitionHLODEditorData(InWorldPartition));
-
-	if (CVarHLODInEditorEnabled.GetValueOnGameThread())
+	
+	if (InWorldPartition->IsMainWorldPartition())
 	{
-		HLODEditorData->LoadHLODActors();
+		InWorldPartition->LoaderAdapterStateChanged.AddUObject(this, &UWorldPartitionHLODEditorSubsystem::OnLoaderAdapterStateChanged);
+		HLODEditorData = MakePimpl<FWorldPartitionHLODEditorData>(InWorldPartition);
 		ForceHLODStateUpdate();
 	}
 }
@@ -76,10 +76,11 @@ void UWorldPartitionHLODEditorSubsystem::OnWorldPartitionUninitialized(UWorldPar
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UWorldPartitionHLODEditorSubsystem::OnWorldPartitionUninitialized);
 
-	InWorldPartition->LoaderAdapterStateChanged.RemoveAll(this);
-
-	FWorldPartitionHLODEditorData* HLODEditorData = WorldPartitionsHLODEditorData.FindAndRemoveChecked(InWorldPartition);
-	delete HLODEditorData;
+	if (InWorldPartition->IsMainWorldPartition())
+	{
+		InWorldPartition->LoaderAdapterStateChanged.RemoveAll(this);
+		HLODEditorData = nullptr;
+	}
 }
 
 void UWorldPartitionHLODEditorSubsystem::OnLoaderAdapterStateChanged(const IWorldPartitionActorLoaderInterface::ILoaderAdapter* LoaderAdapter)
@@ -91,56 +92,45 @@ void UWorldPartitionHLODEditorSubsystem::OnLoaderAdapterStateChanged(const IWorl
 
 void UWorldPartitionHLODEditorSubsystem::ForceHLODStateUpdate()
 {
-	bForceHLODStateUpdate = true;
+	if (IsHLODInEditorEnabled())
+	{
+		bForceHLODStateUpdate = true;
+	}
 }
 
 void UWorldPartitionHLODEditorSubsystem::Tick(float DeltaTime)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UWorldPartitionHLODEditorSubsystem::Tick);
 
-	if (CVarHLODInEditorEnabled.GetValueOnGameThread() != bHLODInEditorEnabled)
+	if (HLODEditorData)
 	{
-		bHLODInEditorEnabled = CVarHLODInEditorEnabled.GetValueOnGameThread();
-		for (auto& [WorldPartition, HLODEditorData] : WorldPartitionsHLODEditorData)
+		HLODEditorData->SetHLODLoadingState(IsHLODInEditorEnabled());
+		
+		if (IsHLODInEditorEnabled())
 		{
-			if (bHLODInEditorEnabled)
+			if (bForceHLODStateUpdate)
 			{
-				HLODEditorData->LoadHLODActors();
+				HLODEditorData->UpdateLoadedActorsState();
 			}
-			else
+
+			UUnrealEditorSubsystem* UnrealEditorSubsystem = GEditor->GetEditorSubsystem<UUnrealEditorSubsystem>();
+			if (UnrealEditorSubsystem)
 			{
-				HLODEditorData->UnloadHLODActors();
+				FVector CameraLocation;
+				FRotator CameraRotation;
+				UnrealEditorSubsystem->GetLevelViewportCameraInfo(CameraLocation, CameraRotation);
+
+				if (bForceHLODStateUpdate || CameraLocation != CachedCameraLocation)
+				{
+					CachedCameraLocation = CameraLocation;
+
+					HLODEditorData->UpdateVisibility(CameraLocation, bForceHLODStateUpdate);
+				}
 			}
+
+			bForceHLODStateUpdate = false;
 		}
 	}
-
-	if (bForceHLODStateUpdate)
-	{
-		for (auto& [WorldPartition, HLODEditorData] : WorldPartitionsHLODEditorData)
-		{
-			HLODEditorData->UpdateLoadedActorsState();
-		}
-	}
-
-	UUnrealEditorSubsystem* UnrealEditorSubsystem = GEditor->GetEditorSubsystem<UUnrealEditorSubsystem>();
-	if (UnrealEditorSubsystem)
-	{
-		FVector CameraLocation;
-		FRotator CameraRotation;
-		UnrealEditorSubsystem->GetLevelViewportCameraInfo(CameraLocation, CameraRotation);
-
-		if (bForceHLODStateUpdate || CameraLocation != CachedCameraLocation)
-		{
-			CachedCameraLocation = CameraLocation;			
-
-			for (auto& [WorldPartition, HLODEditorData] : WorldPartitionsHLODEditorData)
-			{
-				HLODEditorData->UpdateVisibility(CameraLocation, bForceHLODStateUpdate);
-			}
-		}
-	}
-
-	bForceHLODStateUpdate = false;
 }
 
 TStatId UWorldPartitionHLODEditorSubsystem::GetStatId() const

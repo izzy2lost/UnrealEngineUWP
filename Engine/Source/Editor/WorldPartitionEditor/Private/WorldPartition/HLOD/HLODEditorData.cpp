@@ -56,8 +56,53 @@ FWorldPartitionHLODEditorData::FWorldPartitionHLODEditorData(UWorldPartition* In
 	}
 }
 
-FWorldPartitionHLODEditorData::~FWorldPartitionHLODEditorData()
+struct FBoundsWithVolume
 {
+	FBoundsWithVolume(const FBox& InBox)
+		: Box(InBox)
+		, Volume(Box.GetVolume())
+	{
+	}
+
+	FBox Box;
+	FBox::FReal Volume;
+};
+
+// Gather Pinned Actors bounds - also include references & contained actors if the pinned actor is a container.
+static void GatherLoadedActorsBounds(TArray<FBoundsWithVolume>& OutLoadedBounds, const FWorldPartitionActorDesc* InActorDesc, const UActorDescContainer* InContainer, const TOptional<FTransform>& InContainerTransform = TOptional<FTransform>())
+{
+	if (InActorDesc)
+	{
+		// The actor itself - Include the actor bounds only if HLOD relevant
+		if (InActorDesc->GetIsSpatiallyLoaded() && InActorDesc->IsEditorRelevant() && InActorDesc->GetActorIsHLODRelevant())
+		{
+			const FBox Box = InContainerTransform.IsSet() ? InActorDesc->GetEditorBounds().TransformBy(InContainerTransform.GetValue()) : InActorDesc->GetEditorBounds();
+			OutLoadedBounds.Emplace(Box);
+		}
+
+		// Test its references
+		for (const FGuid& ReferenceGuid : InActorDesc->GetReferences())
+		{
+			if (const FWorldPartitionActorDesc* ReferenceActorDesc = InContainer->GetActorDesc(ReferenceGuid))
+			{
+				GatherLoadedActorsBounds(OutLoadedBounds, ReferenceActorDesc, InContainer, InContainerTransform);
+			}
+		}
+
+		// If it's a container, test the contained actors
+		if (InActorDesc->IsContainerInstance())
+		{
+			FWorldPartitionActorDesc::FContainerInstance ContainerInstance;
+			if (InActorDesc->GetContainerInstance(ContainerInstance))
+			{
+				FTransform ContainerWorldSpaceTransform = InContainerTransform.IsSet() ? ContainerInstance.Transform * InContainerTransform.GetValue() : ContainerInstance.Transform;
+				for (FActorDescList::TConstIterator<> ActorDescIt(ContainerInstance.Container); ActorDescIt; ++ActorDescIt)
+				{
+					GatherLoadedActorsBounds(OutLoadedBounds, *ActorDescIt, ContainerInstance.Container, ContainerWorldSpaceTransform);
+				}
+			}
+		}
+	}
 }
 
 void FWorldPartitionHLODEditorData::UpdateLoadedActorsState()
@@ -66,19 +111,7 @@ void FWorldPartitionHLODEditorData::UpdateLoadedActorsState()
 
 	// Increment update counter - used to quickly find out if an HLOD actor needs be hidden without having to flag the whole hierarchy
 	LastStateUpdate++;
-
-	struct FBoundsWithVolume
-	{
-		FBoundsWithVolume(const FBox& InBox, const FBox::FReal InVolume)
-			: Box(InBox)
-			, Volume(InVolume)
-		{
-		}
-
-		FBox Box;
-		FBox::FReal Volume;
-	};
-
+	
 	TArray<FBoundsWithVolume> LoadedBounds;
 
 	// Gather LoaderAdapter
@@ -88,8 +121,7 @@ void FWorldPartitionHLODEditorData::UpdateLoadedActorsState()
 		{
 			if (LoaderAdapter->IsLoaded() && LoaderAdapter->GetBoundingBox().IsSet())
 			{
-				const FBox Box = LoaderAdapter->GetBoundingBox().GetValue();
-				LoadedBounds.Emplace(Box, Box.GetVolume());
+				LoadedBounds.Emplace(LoaderAdapter->GetBoundingBox().GetValue());
 			}
 		}
 	}
@@ -105,8 +137,7 @@ void FWorldPartitionHLODEditorData::UpdateLoadedActorsState()
 				{
 					if (LoaderAdapter->IsLoaded() && LoaderAdapter->GetBoundingBox().IsSet())
 					{
-						const FBox Box = ActorDesc->GetEditorBounds();
-						LoadedBounds.Emplace(Box, Box.GetVolume());
+						LoadedBounds.Emplace(ActorDesc->GetEditorBounds());
 					}
 				}
 			}
@@ -114,18 +145,17 @@ void FWorldPartitionHLODEditorData::UpdateLoadedActorsState()
 
 		return true;
 	});
-
-	// Gather Pinned Actors
+	
+	// Gather Pinned Actors bounds
 	if (WorldPartition->PinnedActors)
 	{
-		WorldPartition->PinnedActors->ForEachReferencedActor([&LoadedBounds](const FWorldPartitionReference& LoadedActor)
+		for (const FWorldPartitionHandle& PinnedActor : WorldPartition->PinnedActors->GetActors())
 		{
-			if (LoadedActor->GetIsSpatiallyLoaded() && LoadedActor->IsEditorRelevant() && LoadedActor->GetActorIsHLODRelevant())
+			if (PinnedActor.IsValid())
 			{
-				const FBox Box = LoadedActor->GetEditorBounds();
-				LoadedBounds.Emplace(Box, Box.GetVolume());
+				GatherLoadedActorsBounds(LoadedBounds, *PinnedActor, WorldPartition->GetActorDescContainer());
 			}
-		});
+		}
 	}
 
 	// Sort Bounds by volume
@@ -222,12 +252,14 @@ void FHLODSceneNode::UpdateVisibility(const FVector& InCameraLocation, bool bInF
 	}
 }
 
-void FWorldPartitionHLODEditorData::LoadHLODActors()
+void FWorldPartitionHLODEditorData::SetHLODLoadingState(bool bInShouldBeLoaded)
 {
-	HLODActorsLoader.Reset(new FLoaderAdapterHLOD(WorldPartition->GetTypedOuter<UWorld>()));
-}
-
-void FWorldPartitionHLODEditorData::UnloadHLODActors()
-{
-	HLODActorsLoader.Reset();
+	if (bInShouldBeLoaded && !HLODActorsLoader.IsValid())
+	{
+		HLODActorsLoader.Reset(new FLoaderAdapterHLOD(WorldPartition->GetTypedOuter<UWorld>()));
+	}
+	else if (!bInShouldBeLoaded && HLODActorsLoader.IsValid())
+	{
+		HLODActorsLoader.Reset();
+	}
 }

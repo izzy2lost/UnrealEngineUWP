@@ -48,8 +48,6 @@ public:
 		ENGINE_API void OnActorDescContainerInitialize(UActorDescContainer* Container);
 		ENGINE_API void OnActorDescContainerUninitialize(UActorDescContainer* Container);
 
-		ENGINE_API void ForEachReferencedActor(TFunctionRef<void(const FWorldPartitionReference&)>) const;
-
 	protected:
 		// Private interface
 		virtual void ForEachActor(TFunctionRef<void(const FWorldPartitionHandle&)> InOperation) const =0;

@@ -5,6 +5,7 @@
 #include "Subsystems/WorldSubsystem.h"
 #include "WorldPartition/WorldPartitionActorLoaderInterface.h"
 #include "WorldPartition/WorldPartitionHandle.h"
+#include "Templates/PimplPtr.h"
 
 #include "HLODEditorSubsystem.generated.h"
 
@@ -42,6 +43,8 @@ public:
 	virtual TStatId GetStatId() const override;
 	//~ End FTickableGameObject Interface
 
+	static bool IsHLODInEditorEnabled();
+
 private:
 	void OnWorldPartitionInitialized(UWorldPartition* InWorldPartition);
 	void OnWorldPartitionUninitialized(UWorldPartition* InWorldPartition);
@@ -53,7 +56,6 @@ private:
 private:
 	FVector CachedCameraLocation;
 	bool bForceHLODStateUpdate;
-	bool bHLODInEditorEnabled;
 
-	TMap<TObjectPtr<UWorldPartition>, FWorldPartitionHLODEditorData*> WorldPartitionsHLODEditorData;
+	TPimplPtr<FWorldPartitionHLODEditorData> HLODEditorData;
 };
