@@ -24,7 +24,7 @@ namespace UE::AnimNext::Editor
 
 struct FUtils
 {
-	static FName ValidateName(const UAnimNextGraph_EditorData* InEditorData, const FString& InName);
+	static FName ValidateName(const UObject* InObject, const FString& InName);
 
 	static void GetAllGraphNames(const UAnimNextGraph_EditorData* InEditorData, TSet<FName>& OutNames);
 

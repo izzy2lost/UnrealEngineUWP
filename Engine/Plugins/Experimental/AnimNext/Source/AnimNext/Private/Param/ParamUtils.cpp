@@ -14,7 +14,7 @@ namespace UE::AnimNext
 
 FParamCompatibility FParamUtils::GetCompatibility(const FParamTypeHandle& InLHS, const FParamTypeHandle& InRHS)
 {
-	auto CheckClassCast = [](const FParamTypeHandle& InLHS, const UClass* InRHSClass)
+	auto CheckClassCastToCustom = [](const FParamTypeHandle& InLHS, const UClass* InRHSClass)
 	{
 		FAnimNextParamType::EValueType ValueTypeLHS;
 		FAnimNextParamType::EContainerType ContainerTypeLHS;
@@ -26,6 +26,26 @@ FParamCompatibility FParamUtils::GetCompatibility(const FParamTypeHandle& InLHS,
 			if(const UClass* Class = Cast<UClass>(ValueTypeObjectLHS))
 			{
 				if(InRHSClass->IsChildOf(Class))
+				{
+					return true;
+				}
+			}
+		}
+		return false;
+	};
+
+	auto CheckClassCastFromCustom = [](const UClass* InLHSClass, const FParamTypeHandle& InRHS)
+	{
+		FAnimNextParamType::EValueType ValueTypeRHS;
+		FAnimNextParamType::EContainerType ContainerTypeRHS;
+		const UObject* ValueTypeObjectRHS;
+
+		InRHS.GetCustomTypeInfo(ValueTypeRHS, ContainerTypeRHS, ValueTypeObjectRHS);
+		if(ContainerTypeRHS == FAnimNextParamType::EContainerType::None && ValueTypeRHS == FAnimNextParamType::EValueType::Object)
+		{
+			if(const UClass* Class = Cast<UClass>(ValueTypeObjectRHS))
+			{
+				if(Class->IsChildOf(InLHSClass))
 				{
 					return true;
 				}
@@ -172,6 +192,11 @@ FParamCompatibility FParamUtils::GetCompatibility(const FParamTypeHandle& InLHS,
 		{
 		case FParamTypeHandle::EParamType::Object:
 			return EParamCompatibility::Compatible_Equal;
+		case FParamTypeHandle::EParamType::Custom:
+			if(CheckClassCastToCustom(InLHS, UObject::StaticClass()))
+			{
+				return EParamCompatibility::Compatible_Cast;
+			}
 		}
 		break;
 	case FParamTypeHandle::EParamType::CharacterMovementComponent:
@@ -182,7 +207,7 @@ FParamCompatibility FParamUtils::GetCompatibility(const FParamTypeHandle& InLHS,
 		case FParamTypeHandle::EParamType::CharacterMovementComponent:
 			return EParamCompatibility::Compatible_Equal;
 		case FParamTypeHandle::EParamType::Custom:
-			if(CheckClassCast(InLHS, UCharacterMovementComponent::StaticClass()))
+			if(CheckClassCastToCustom(InLHS, UCharacterMovementComponent::StaticClass()))
 			{
 				return EParamCompatibility::Compatible_Cast;
 			}
@@ -196,7 +221,7 @@ FParamCompatibility FParamUtils::GetCompatibility(const FParamTypeHandle& InLHS,
 		case FParamTypeHandle::EParamType::AnimNextMeshComponent:
 			return EParamCompatibility::Compatible_Equal;
 		case FParamTypeHandle::EParamType::Custom:
-			if(CheckClassCast(InLHS, UAnimNextMeshComponent::StaticClass()))
+			if(CheckClassCastToCustom(InLHS, UAnimNextMeshComponent::StaticClass()))
 			{
 				return EParamCompatibility::Compatible_Cast;
 			}
@@ -210,7 +235,7 @@ FParamCompatibility FParamUtils::GetCompatibility(const FParamTypeHandle& InLHS,
 		case FParamTypeHandle::EParamType::AnimSequence:
 			return EParamCompatibility::Compatible_Equal;
 		case FParamTypeHandle::EParamType::Custom:
-			if(CheckClassCast(InLHS, UAnimSequence::StaticClass()))
+			if(CheckClassCastToCustom(InLHS, UAnimSequence::StaticClass()))
 			{
 				return EParamCompatibility::Compatible_Cast;
 			}
@@ -233,6 +258,30 @@ FParamCompatibility FParamUtils::GetCompatibility(const FParamTypeHandle& InLHS,
 	case FParamTypeHandle::EParamType::Custom:
 		switch (InLHS.GetParameterType())
 		{
+		case FParamTypeHandle::EParamType::Object:
+			if(CheckClassCastFromCustom(UObject::StaticClass(), InRHS))
+			{
+				return EParamCompatibility::Compatible_Cast;
+			}
+			break;
+		case FParamTypeHandle::EParamType::CharacterMovementComponent:
+			if(CheckClassCastFromCustom(UCharacterMovementComponent::StaticClass(), InRHS))
+			{
+				return EParamCompatibility::Compatible_Cast;
+			}
+			break;
+		case FParamTypeHandle::EParamType::AnimNextMeshComponent:
+			if(CheckClassCastFromCustom(UAnimNextMeshComponent::StaticClass(), InRHS))
+			{
+				return EParamCompatibility::Compatible_Cast;
+			}
+			break;
+		case FParamTypeHandle::EParamType::AnimSequence:
+			if(CheckClassCastFromCustom(UAnimSequence::StaticClass(), InRHS))
+			{
+				return EParamCompatibility::Compatible_Cast;
+			}
+			break;
 		case FParamTypeHandle::EParamType::Custom:
 			{
 				FAnimNextParamType::EValueType ValueTypeLHS, ValueTypeRHS;

@@ -11,9 +11,9 @@
 
 UEdGraphNode* FAnimNextSchemaAction_RigUnit::PerformAction(UEdGraph* ParentGraph, TArray<UEdGraphPin*>& FromPins, const FVector2D Location, bool bSelectNewNode)
 {
-	UAnimNextGraph_EditorData* EditorData = ParentGraph->GetTypedOuter<UAnimNextGraph_EditorData>();
-	UAnimNextGraph_EdGraphNode* NewNode = nullptr;
-	UAnimNextGraph_EdGraph* EdGraph = Cast<UAnimNextGraph_EdGraph>(ParentGraph);
+	IRigVMClientHost* Host = ParentGraph->GetImplementingOuter<IRigVMClientHost>();
+	URigVMEdGraphNode* NewNode = nullptr;
+	URigVMEdGraph* EdGraph = Cast<URigVMEdGraph>(ParentGraph);
 
 	UEdGraphPin* FromPin = nullptr;
 	if (FromPins.Num() > 0)
@@ -21,10 +21,10 @@ UEdGraphNode* FAnimNextSchemaAction_RigUnit::PerformAction(UEdGraph* ParentGraph
 		FromPin = FromPins[0];
 	}
 	
-	if (EditorData != nullptr && EdGraph != nullptr)
+	if (Host != nullptr && EdGraph != nullptr)
 	{
-		FName Name = UE::AnimNext::Editor::FUtils::ValidateName(EditorData, StructTemplate->GetFName().ToString());
-		URigVMController* Controller = EditorData->GetRigVMClient()->GetController(ParentGraph);
+		FName Name = UE::AnimNext::Editor::FUtils::ValidateName(Cast<UObject>(Host), StructTemplate->GetFName().ToString());
+		URigVMController* Controller = Host->GetRigVMClient()->GetController(ParentGraph);
 
 		Controller->OpenUndoBracket(FString::Printf(TEXT("Add '%s' Node"), *Name.ToString()));
 
@@ -33,7 +33,7 @@ UEdGraphNode* FAnimNextSchemaAction_RigUnit::PerformAction(UEdGraph* ParentGraph
 
 		if (URigVMUnitNode* ModelNode = Controller->AddUnitNode(StructTemplate, FRigVMStruct::ExecuteName, Location, Name.ToString(), true, false))
 		{
-			NewNode = Cast<UAnimNextGraph_EdGraphNode>(EdGraph->FindNodeForModelNodeName(ModelNode->GetFName()));
+			NewNode = Cast<URigVMEdGraphNode>(EdGraph->FindNodeForModelNodeName(ModelNode->GetFName()));
 			check(NewNode);
 
 			if (NewNode)
@@ -73,9 +73,9 @@ UEdGraphNode* FAnimNextSchemaAction_RigUnit::PerformAction(UEdGraph* ParentGraph
 
 UEdGraphNode* FAnimNextSchemaAction_DispatchFactory::PerformAction(UEdGraph* ParentGraph, TArray<UEdGraphPin*>& FromPins, const FVector2D Location, bool bSelectNewNode)
 {
-	UAnimNextGraph_EditorData* EditorData = ParentGraph->GetTypedOuter<UAnimNextGraph_EditorData>();
-	UAnimNextGraph_EdGraphNode* NewNode = nullptr;
-	UAnimNextGraph_EdGraph* EdGraph = Cast<UAnimNextGraph_EdGraph>(ParentGraph);
+	IRigVMClientHost* Host = ParentGraph->GetImplementingOuter<IRigVMClientHost>();
+	URigVMEdGraphNode* NewNode = nullptr;
+	URigVMEdGraph* EdGraph = Cast<URigVMEdGraph>(ParentGraph);
 
 	UEdGraphPin* FromPin = nullptr;
 	if (FromPins.Num() > 0)
@@ -83,7 +83,7 @@ UEdGraphNode* FAnimNextSchemaAction_DispatchFactory::PerformAction(UEdGraph* Par
 		FromPin = FromPins[0];
 	}
 	
-	if (EditorData != nullptr && EdGraph != nullptr)
+	if (Host != nullptr && EdGraph != nullptr)
 	{
 		const FRigVMTemplate* Template = FRigVMRegistry::Get().FindTemplate(Notation);
 		if (Template == nullptr)
@@ -94,14 +94,14 @@ UEdGraphNode* FAnimNextSchemaAction_DispatchFactory::PerformAction(UEdGraph* Par
 		const int32 NotationHash = (int32)GetTypeHash(Notation);
 		const FString TemplateName = TEXT("RigVMTemplate_") + FString::FromInt(NotationHash);
 
-		FName Name = UE::AnimNext::Editor::FUtils::ValidateName(EditorData, Template->GetName().ToString());
-		URigVMController* Controller = EditorData->GetRigVMClient()->GetController(ParentGraph);
+		FName Name = UE::AnimNext::Editor::FUtils::ValidateName(Cast<UObject>(Host), Template->GetName().ToString());
+		URigVMController* Controller = Host->GetRigVMClient()->GetController(ParentGraph);
 
 		Controller->OpenUndoBracket(FString::Printf(TEXT("Add '%s' Node"), *Name.ToString()));
 
 		if (URigVMTemplateNode* ModelNode = Controller->AddTemplateNode(Notation, Location, Name.ToString(), true, false))
 		{
-			NewNode = Cast<UAnimNextGraph_EdGraphNode>(EdGraph->FindNodeForModelNodeName(ModelNode->GetFName()));
+			NewNode = Cast<URigVMEdGraphNode>(EdGraph->FindNodeForModelNodeName(ModelNode->GetFName()));
 
 			if (NewNode)
 			{

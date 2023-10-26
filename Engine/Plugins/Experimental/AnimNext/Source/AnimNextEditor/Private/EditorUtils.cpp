@@ -30,14 +30,13 @@ void FUtils::GetAllGraphNames(const UAnimNextGraph_EditorData* InEditorData, TSe
 
 static const int32 MaxNameLength = 100;
 
-FName FUtils::ValidateName(const UAnimNextGraph_EditorData* InEditorData, const FString& InName)
+FName FUtils::ValidateName(const UObject* InObject, const FString& InName)
 {
 	struct FNameValidator : public INameValidatorInterface
 	{
-		explicit FNameValidator(const UAnimNextGraph_EditorData* InEditorData)
-			: EditorData(InEditorData)
+		explicit FNameValidator(const UObject* InObject)
+			: Object(InObject)
 		{
-			GetAllGraphNames(EditorData, Names);
 		}
 		
 		virtual EValidatorResult IsValid (const FName& Name, bool bOriginal = false) override
@@ -60,7 +59,7 @@ FName FUtils::ValidateName(const UAnimNextGraph_EditorData* InEditorData, const 
 					ValidatorResult = EValidatorResult::Ok;
 
 					// Check for collision with an existing object.
-					if (UObject* ExistingObject = StaticFindObject(/*Class=*/ nullptr, const_cast<UAnimNextGraph_EditorData*>(EditorData), *Name.ToString(), true))
+					if (UObject* ExistingObject = StaticFindObject(/*Class=*/ nullptr, const_cast<UObject*>(Object), *Name.ToString(), true))
 					{
 						ValidatorResult = EValidatorResult::AlreadyInUse;
 					}
@@ -89,7 +88,7 @@ FName FUtils::ValidateName(const UAnimNextGraph_EditorData* InEditorData, const 
 		/** Name set to validate */
 		TSet<FName> Names;
 		/** The editor data to check for validity within */
-		const UAnimNextGraph_EditorData* EditorData;
+		const UObject* Object;
 	};
 	
 	FString Name = InName;
@@ -98,7 +97,7 @@ FName FUtils::ValidateName(const UAnimNextGraph_EditorData* InEditorData, const 
 		Name.RightChopInline(8, false);
 	}
 
-	FNameValidator NameValidator(InEditorData);
+	FNameValidator NameValidator(InObject);
 
 	// Clean up BaseName to not contain any invalid characters, which will mean we can never find a legal name no matter how many numbers we add
 	if (NameValidator.IsValid(Name) == EValidatorResult::ContainsInvalidCharacters)
