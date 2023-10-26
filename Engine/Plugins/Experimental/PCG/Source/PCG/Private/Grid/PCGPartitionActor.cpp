@@ -169,6 +169,16 @@ void APCGPartitionActor::PostRegisterAllComponents()
 	}
 }
 
+void APCGPartitionActor::PostUnregisterAllComponents()
+{
+	if (!PCGHelpers::IsRuntimeOrPIE())
+	{
+		UnregisterPCG();
+	}
+
+	Super::PostUnregisterAllComponents();
+}
+
 void APCGPartitionActor::BeginPlay()
 {
 	// bIsRuntimeGenerated is not set yet, so we also need to check if the PA is transient.

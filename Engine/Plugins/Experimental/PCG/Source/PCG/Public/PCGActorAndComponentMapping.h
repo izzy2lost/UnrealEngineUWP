@@ -138,7 +138,7 @@ private:
 	void OnActorAdded_Internal(AActor* InActor, bool bShouldDirty, int32 LevelInstanceDepth);
 	void OnActorDeleted(AActor* InActor);
 	void OnActorUnloaded(AActor& InActor);
-	void OnActorDeleted_Internal(AActor* InActor, int32 LevelInstanceDepth);
+	void OnActorDeleted_Internal(AActor* InActor, bool bShouldDirty, int32 LevelInstanceDepth);
 	void OnActorMoved(AActor* InActor);
 	void OnActorMoved_Internal(AActor* InActor, int32 LevelInstanceDepth);
 	void OnLandscapeChanged(ALandscapeProxy* InLandscape, const FLandscapeProxyComponentDataChangedParams& InChangeParams);
@@ -159,8 +159,9 @@ private:
 	/** Trigger an update when the actor changed. 
 	* Can specify if the actor has moved to also update components that were at its previous position.
 	* Can also specify an optional object, originating the change, to avoid re-dirtying a component if it was the origin.
+	* Another option when an actor is deleted/unload, don't refresh their components.
 	*/
-	void OnActorChanged(AActor* InActor, bool bInHasMoved, const UObject* InOriginatingChangeObject = nullptr, int32 LevelInstanceDepth = 0);
+	void OnActorChanged(AActor* InActor, bool bInHasMoved, const UObject* InOriginatingChangeObject = nullptr, int32 LevelInstanceDepth = 0, bool bNoRefreshOnOwner = false);
 
 	/** Update dependencies for a given tracked actor. */
 	void UpdateActorDependencies(AActor* InActor);

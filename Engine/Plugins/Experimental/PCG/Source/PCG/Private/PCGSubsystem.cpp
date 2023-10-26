@@ -797,8 +797,8 @@ namespace PCGSubsystem
 				if (IntersectedBounds.IsValid)
 				{
 					TSharedPtr<TSet<FWorldPartitionReference>> ActorReferences = MakeShared<TSet<FWorldPartitionReference>>();
-
-					auto PostCreation = [GridSize, &GridGuid](APartitionActor* Actor) { CastChecked<APCGPartitionActor>(Actor)->PostCreation(GridGuid); };
+					bool bWasCreated = false;
+					auto PostCreation = [GridSize, &GridGuid, &bWasCreated](APartitionActor* Actor) { CastChecked<APCGPartitionActor>(Actor)->PostCreation(GridGuid); bWasCreated = true;};
 
 					APCGPartitionActor* PCGActor = Cast<APCGPartitionActor>(PartitionSubsystem->GetActor(
 						APCGPartitionActor::StaticClass(),
@@ -841,9 +841,9 @@ namespace PCGSubsystem
 							PCGActor = Cast<APCGPartitionActor>(PCGActorDesc->GetActor());
 						}
 					}
-					else if(PCGActor)
+					// We still need to keep a reference on the PCG actor - note that newly created PCG actors will not have a reference here, but won't be unloaded
+					else if(PCGActor && bWasCreated)
 					{
-						// We still need to keep a reference on the PCG actor - note that newly created PCG actors will not have a reference here, but won't be unloaded
 						ActorReferences->Add(FWorldPartitionReference(World->GetWorldPartition(), PCGActor->GetActorGuid()));
 					}
 

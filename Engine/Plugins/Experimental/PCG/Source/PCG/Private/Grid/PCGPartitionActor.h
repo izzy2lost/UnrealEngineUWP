@@ -38,6 +38,7 @@ public:
 	virtual void Destroyed() override;
 	virtual void GetActorBounds(bool bOnlyCollidingComponents, FVector& Origin, FVector& BoxExtent, bool bIncludeFromChildActors) const override;
 	virtual void PostRegisterAllComponents() override;
+	virtual void PostUnregisterAllComponents() override;
 #if WITH_EDITOR
 	virtual FBox GetStreamingBounds() const override;
 	virtual AActor* GetSceneOutlinerParent() const override;

@@ -22,6 +22,7 @@
 #include "LevelInstance/LevelInstanceInterface.h"
 #include "LevelInstance/LevelInstanceSubsystem.h"
 #include "LevelInstance/LevelInstanceEditorInstanceActor.h"
+#include "Materials/MaterialInterface.h"
 
 namespace PCGActorAndComponentMapping
 {
@@ -1359,7 +1360,8 @@ bool FPCGActorAndComponentMapping::UnregisterActor(AActor* InActor)
 
 void FPCGActorAndComponentMapping::OnActorUnloaded(AActor& InActor)
 {
-	OnActorDeleted(&InActor);
+	// Don't dirty on unload (to mirror the behavior in load)
+	OnActorDeleted_Internal(&InActor, /*bShouldDirty=*/false, /*LevelInstanceDepth=*/0);
 }
 
 void FPCGActorAndComponentMapping::OnActorDeleted(AActor* InActor)
@@ -1390,10 +1392,10 @@ void FPCGActorAndComponentMapping::OnActorDeleted(AActor* InActor)
 #endif
 
 	// Implementation note: since this is called only for actors directly in the current level, the depth here is 0.
-	OnActorDeleted_Internal(InActor, LevelInstanceDepth);
+	OnActorDeleted_Internal(InActor, /*bShouldDirty=*/true, LevelInstanceDepth);
 }
 
-void FPCGActorAndComponentMapping::OnActorDeleted_Internal(AActor* InActor, int32 LevelInstanceDepth)
+void FPCGActorAndComponentMapping::OnActorDeleted_Internal(AActor* InActor, bool bShouldDirty, int32 LevelInstanceDepth)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGActorAndComponentMapping::OnActorDeleted);
 	check(InActor && PCGSubsystem && InActor->GetWorld() == PCGSubsystem->GetWorld());
@@ -1409,11 +1411,11 @@ void FPCGActorAndComponentMapping::OnActorDeleted_Internal(AActor* InActor, int3
 		{
 			if (ILevelInstanceInterface* LevelInstance = LevelInstanceSubsystem->GetLevelInstance(LevelInstanceId))
 			{
-				LevelInstanceSubsystem->ForEachActorInLevelInstance(LevelInstance, [this, LevelInstanceDepth, LevelInstanceEditorInstance](AActor* LevelActor)
+				LevelInstanceSubsystem->ForEachActorInLevelInstance(LevelInstance, [this, LevelInstanceDepth, LevelInstanceEditorInstance, bShouldDirty](AActor* LevelActor)
 				{
 					if (LevelActor != LevelInstanceEditorInstance)
 					{
-						OnActorDeleted_Internal(LevelActor, LevelInstanceDepth + 1);
+						OnActorDeleted_Internal(LevelActor, bShouldDirty, LevelInstanceDepth + 1);
 					}
 
 					return true;
@@ -1422,9 +1424,9 @@ void FPCGActorAndComponentMapping::OnActorDeleted_Internal(AActor* InActor, int3
 		}
 	}
 
-	PCGActorAndComponentMapping::PropagateToLevelInstanceActors(InActor, PCGSubsystem, [this, LevelInstanceDepth](AActor* LevelActor)
+	PCGActorAndComponentMapping::PropagateToLevelInstanceActors(InActor, PCGSubsystem, [this, LevelInstanceDepth, bShouldDirty](AActor* LevelActor)
 	{
-		OnActorDeleted_Internal(LevelActor, LevelInstanceDepth + 1);
+		OnActorDeleted_Internal(LevelActor, bShouldDirty, LevelInstanceDepth + 1);
 		return true;
 	});
 #endif // WITH_EDITOR
@@ -1434,8 +1436,11 @@ void FPCGActorAndComponentMapping::OnActorDeleted_Internal(AActor* InActor, int3
 		return;
 	}
 
-	// Notify all components that the actor has changed (was removed), but the Refresh will only happen AFTER the actor was actually removed from the world (because of delayed refresh).
-	OnActorChanged(InActor, /*bInHasMoved=*/ false, nullptr, LevelInstanceDepth);
+	if (bShouldDirty)
+	{
+		// Notify all components that the actor has changed (was removed), but the Refresh will only happen AFTER the actor was actually removed from the world (because of delayed refresh).
+		OnActorChanged(InActor, /*bInHasMoved=*/ false, nullptr, LevelInstanceDepth, /*bNoRefreshOnOwner=*/true);
+	}
 
 	// And then delete everything
 	UnregisterActor(InActor);
@@ -1588,7 +1593,7 @@ void FPCGActorAndComponentMapping::OnObjectPropertyChanged(UObject* InObject, FP
 	}
 }
 
-void FPCGActorAndComponentMapping::OnActorChanged(AActor* InActor, bool bInHasMoved, const UObject* InOriginatingChangeObject, int32 LevelInstanceDepth)
+void FPCGActorAndComponentMapping::OnActorChanged(AActor* InActor, bool bInHasMoved, const UObject* InOriginatingChangeObject, int32 LevelInstanceDepth, bool bNoRefreshOwner)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGActorAndComponentMapping::OnActorChanged);
 
@@ -1632,14 +1637,15 @@ void FPCGActorAndComponentMapping::OnActorChanged(AActor* InActor, bool bInHasMo
 		// Then do an octree find to get all components that intersect with this actor.
 		// If the actor has moved, we also need to find components that intersected with it before
 		// We first do it for non-partitioned, then we do it for partitioned
-		auto UpdateNonPartitioned = [this, &DirtyComponents, InActor, CulledTrackedComponents, &RemovedTags, DirtyFlag, InOriginatingChangeObject](const FPCGComponentRef& ComponentRef) -> void
+		auto UpdateNonPartitioned = [this, &DirtyComponents, InActor, CulledTrackedComponents, &RemovedTags, DirtyFlag, InOriginatingChangeObject, bNoRefreshOwner](const FPCGComponentRef& ComponentRef) -> void
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(FPCGActorAndComponentMapping::OnActorChanged::UpdateNonPartitioned);
 
-			// Don't dirty if the component was already dirtied, not tracked, or the origin of the change.
+			// Don't dirty if the component was already dirtied, not tracked, the origin of the change or its owner is the changed actor and we should not refresh.
 			if (DirtyComponents.Contains(ComponentRef.Component) || 
 				!CulledTrackedComponents->Contains(ComponentRef.Component) ||
-				InOriginatingChangeObject == ComponentRef.Component)
+				(InOriginatingChangeObject == ComponentRef.Component) ||
+				(bNoRefreshOwner && ComponentRef.Component->GetOwner() == InActor))
 			{
 				return;
 			}
@@ -1655,15 +1661,16 @@ void FPCGActorAndComponentMapping::OnActorChanged(AActor* InActor, bool bInHasMo
 
 		// For partitioned, we first need check if the original component intersect with the bounds, then forward the dirty call only to locals that intersect with the bounds.
 		// Note: CurrentActorBoundsPtr is passed by reference because it will be modified between lambda calls (cf comment above).
-		auto UpdatePartitioned = [this, &DirtyComponents, InActor, CulledTrackedComponents, &CurrentActorBoundsPtr, &RemovedTags, DirtyFlag, InOriginatingChangeObject](const FPCGComponentRef& ComponentRef)  -> void
+		auto UpdatePartitioned = [this, &DirtyComponents, InActor, CulledTrackedComponents, &CurrentActorBoundsPtr, &RemovedTags, DirtyFlag, InOriginatingChangeObject, bNoRefreshOwner](const FPCGComponentRef& ComponentRef)  -> void
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(FPCGActorAndComponentMapping::OnActorChanged::UpdatePartitioned);
 
-			// Don't dirty if the component is not tracked, or the origin of the change.
+			// Don't dirty if the component is not tracked, the origin of the change or its owner is the changed actor and we should not refresh.
 			// We can "re-dirty" it because changes can impact different local components, from the same
 			// original component.
 			if (!CulledTrackedComponents->Contains(ComponentRef.Component) ||
-				InOriginatingChangeObject == ComponentRef.Component)
+				(InOriginatingChangeObject == ComponentRef.Component) ||
+				(bNoRefreshOwner && ComponentRef.Component->GetOwner() == InActor))
 			{
 				return;
 			}
@@ -1721,7 +1728,7 @@ void FPCGActorAndComponentMapping::OnActorChanged(AActor* InActor, bool bInHasMo
 
 		for (UPCGComponent* PCGComponent : *AlwaysTrackedComponents)
 		{
-			if (!PCGComponent || PCGComponent == InOriginatingChangeObject)
+			if (!PCGComponent || PCGComponent == InOriginatingChangeObject || (bNoRefreshOwner && PCGComponent->GetOwner() == InActor))
 			{
 				continue;
 			}
@@ -1766,7 +1773,7 @@ void FPCGActorAndComponentMapping::OnActorChanged(AActor* InActor, bool bInHasMo
 	// And refresh all dirtied components
 	for (UPCGComponent* Component : DirtyComponents)
 	{
-		if (Component)
+		if (Component && (!bNoRefreshOwner || Component->GetOwner() != InActor))
 		{
 			// When an object changes, we need to make sure that we don't trigger a refresh on PCG components that are "higher" in the
 			// level hierarchy, otherwise we will end up generating in the Level Instance level, which is wrong.
@@ -1841,7 +1848,8 @@ void FPCGActorAndComponentMapping::UpdateActorDependencies(AActor* InActor)
 	static const TArray<UClass*> ExcludedClasses =
 	{
 		UPCGComponent::StaticClass(),
-		UPCGGraphInterface::StaticClass()
+		UPCGGraphInterface::StaticClass(),
+		UMaterialInterface::StaticClass()
 	};
 
 	TSet<TObjectPtr<UObject>>& DependenciesSet = TrackedActorsToDependenciesMap.FindOrAdd(InActor);
