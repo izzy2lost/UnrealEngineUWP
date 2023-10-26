@@ -42,17 +42,34 @@ namespace PCGSpawnActorHelpers
 		FActorSingleOverride(const FPCGAttributePropertySelector& InputSelector, const FString& OutputProperty, AActor* TemplateActor, const UPCGPointData* PointData)
 		{
 			ActorOverrideInputAccessor = PCGAttributeAccessorHelpers::CreateConstAccessor(PointData, InputSelector);
-			ActorOverrideOutputAccessor = PCGAttributeAccessorHelpers::CreatePropertyAccessor(FName(OutputProperty), TemplateActor->GetClass());
+			FPCGAttributePropertySelector OutputSelector = FPCGAttributePropertySelector::CreateSelectorFromString(OutputProperty);
+			const TArray<FString>& ExtraNames = OutputSelector.GetExtraNames();
+			if (ExtraNames.IsEmpty())
+			{
+				ActorOverrideOutputAccessor = PCGAttributeAccessorHelpers::CreatePropertyAccessor(FName(OutputProperty), TemplateActor->GetClass());
+			}
+			else
+			{
+				TArray<FName> PropertyNames;
+				PropertyNames.Reserve(ExtraNames.Num() + 1);
+				PropertyNames.Add(OutputSelector.GetAttributeName());
+				for (const FString& Name : ExtraNames)
+				{
+					PropertyNames.Add(FName(Name));
+				}
+
+				ActorOverrideOutputAccessor = PCGAttributeAccessorHelpers::CreatePropertyChainAccessor(PropertyNames, TemplateActor->GetClass());
+			}
 
 			if (!ActorOverrideInputAccessor.IsValid() || !ActorOverrideOutputAccessor.IsValid())
 			{
-				UE_LOG(LogPCG, Warning, TEXT("ActorOverride from input %s or output %s is invalid or unsupported. Will be skipped."), *InputSelector.GetName().ToString(), *OutputProperty);
+				UE_LOG(LogPCG, Warning, TEXT("ActorOverride from input %s or output %s is invalid or unsupported. Will be skipped."), *InputSelector.GetName().ToString(), *OutputSelector.GetDisplayText().ToString());
 				return;
 			}
 
 			if (!PCG::Private::IsBroadcastable(ActorOverrideInputAccessor->GetUnderlyingType(), ActorOverrideOutputAccessor->GetUnderlyingType()))
 			{
-				UE_LOG(LogPCG, Warning, TEXT("ActorOverride cannot set input %s to output %s. Types are incompatibles. Will be skipped."), *InputSelector.GetName().ToString(), *OutputProperty);
+				UE_LOG(LogPCG, Warning, TEXT("ActorOverride cannot set input %s to output %s. Types are incompatibles. Will be skipped."), *InputSelector.GetName().ToString(), *OutputSelector.GetDisplayText().ToString());
 				ActorOverrideInputAccessor.Reset();
 				ActorOverrideOutputAccessor.Reset();
 				return;

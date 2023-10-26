@@ -30,9 +30,19 @@ TArray<void*> PCGPropertyAccessor::GetContainerKeys(int32 Index, int32 Range, IP
 	return ContainerKeys;
 }
 
+IPCGPropertyChainAccessor::IPCGPropertyChainAccessor(const FProperty* Property, TArray<const FProperty*>&& ExtraProperties)
+	: PropertyChain(std::forward<TArray<const FProperty*>>(ExtraProperties))
+{
+	// Fix property chain
+	if (PropertyChain.IsEmpty() || PropertyChain.Last() != Property)
+	{
+		PropertyChain.Add(Property);
+	}
+}
+
 bool FPCGEnumPropertyAccessor::GetRangeImpl(TArrayView<int64> OutValues, int32 Index, const IPCGAttributeAccessorKeys& Keys) const
 {
-	return PCGPropertyAccessor::IterateGet(Property, OutValues, Index, Keys, [this](const void* PropertyAddressData) -> Type
+	return PCGPropertyAccessor::IterateGet(GetPropertyChain(), OutValues, Index, Keys, [this](const void* PropertyAddressData) -> Type
 		{
 			return Property->GetUnderlyingProperty()->GetSignedIntPropertyValue(PropertyAddressData);
 		});
@@ -40,7 +50,7 @@ bool FPCGEnumPropertyAccessor::GetRangeImpl(TArrayView<int64> OutValues, int32 I
 
 bool FPCGEnumPropertyAccessor::SetRangeImpl(TArrayView<const int64> InValues, int32 Index, IPCGAttributeAccessorKeys& Keys, EPCGAttributeAccessorFlags)
 {
-	return PCGPropertyAccessor::IterateSet(Property, InValues, Index, Keys, [this](void* PropertyAddressData, const int64& Value) -> void
+	return PCGPropertyAccessor::IterateSet(GetPropertyChain(), InValues, Index, Keys, [this](void* PropertyAddressData, const int64& Value) -> void
 		{
 			Property->GetUnderlyingProperty()->SetIntPropertyValue(PropertyAddressData, Value);
 		});

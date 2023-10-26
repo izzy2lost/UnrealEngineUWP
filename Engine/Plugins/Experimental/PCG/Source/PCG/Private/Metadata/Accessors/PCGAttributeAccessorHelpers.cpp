@@ -14,6 +14,7 @@
 #include "Metadata/Accessors/PCGPropertyAccessor.h"
 #include "Metadata/Accessors/PCGAttributeExtractor.h"
 
+#include "Engine/UserDefinedStruct.h"
 #include "UObject/EnumProperty.h"
 
 namespace PCGAttributeAccessorHelpers
@@ -348,12 +349,12 @@ namespace PCGAttributeAccessorHelpers
 		return ReturnType{};
 	}
 
-	template <typename ClassType, typename Func>
-	decltype(auto) DispatchPropertyTypes(const FName InPropertyName, const ClassType* InClass, Func&& Functor)
+	template <typename Func>
+	decltype(auto) DispatchPropertyTypes(const FName InPropertyName, const UStruct* InStruct, Func&& Functor)
 	{
-		if (InClass)
+		if (InStruct)
 		{
-			if (const FProperty* Property = InClass->FindPropertyByName(InPropertyName))
+			if (const FProperty* Property = InStruct->FindPropertyByName(InPropertyName))
 			{
 				return DispatchPropertyTypes(Property, std::forward<Func>(Functor));
 			}
@@ -362,20 +363,71 @@ namespace PCGAttributeAccessorHelpers
 		using ReturnType = decltype(Functor(static_cast<FPCGPropertyPathAccessor<FSoftObjectPath>*>(nullptr), static_cast<const FProperty*>(nullptr)));
 		return ReturnType{};
 	}
+
+	bool GetPropertyChain(const TArray<FName>& InPropertyNames, const UStruct* InStruct, TArray<const FProperty*>& OutProperties)
+	{
+		check(InStruct);
+
+		const UStruct* CurrentStruct = InStruct;
+		OutProperties.Reserve(InPropertyNames.Num());
+
+		for (int32 i = 0; i < InPropertyNames.Num(); ++i)
+		{
+			const FProperty* Property = nullptr;
+			const FName PropertyName = InPropertyNames[i];
+
+			// Try to get the property. If it is coming from a user struct, we need to iterate on all properties because the property name is mangled
+			if (const UUserDefinedStruct* UserDefinedStruct = Cast<UUserDefinedStruct>(CurrentStruct))
+			{
+				for (TFieldIterator<const FProperty> PropIt(UserDefinedStruct, EFieldIterationFlags::IncludeSuper); PropIt; ++PropIt)
+				{
+					const FName TempPropertyName = *UserDefinedStruct->GetAuthoredNameForField(*PropIt);
+					if (TempPropertyName == PropertyName)
+					{
+						Property = *PropIt;
+						break;
+					}
+				}
+			}
+			else
+			{
+				Property = FindFProperty<FProperty>(CurrentStruct, PropertyName);
+			}
+
+			if (!Property)
+			{
+				UE_LOG(LogPCG, Error, TEXT("Property '%s' does not exist in %s."), *PropertyName.ToString(), *CurrentStruct->GetName());
+				return false;
+			}
+
+			OutProperties.Add(Property);
+
+			// Check for a struct or object for all properties except the last one.
+			if (i < InPropertyNames.Num() - 1)
+			{
+				if (const FStructProperty* StructProperty = CastField<FStructProperty>(Property))
+				{
+					CurrentStruct = StructProperty->Struct;
+				}
+				else if (const FObjectProperty* ObjectProperty = CastField<FObjectProperty>(Property))
+				{
+					CurrentStruct = ObjectProperty->PropertyClass;
+				}
+				else
+				{
+					UE_LOG(LogPCG, Error, TEXT("Property '%s' does exist in % s, but is not extractable."), *PropertyName.ToString(), *CurrentStruct->GetName());
+					return false;
+				}
+			}
+		}
+
+		return true;
+	}
 }
 
 TUniquePtr<IPCGAttributeAccessor> PCGAttributeAccessorHelpers::CreatePropertyAccessor(const FProperty* InProperty)
 {
 	return PCGAttributeAccessorHelpers::DispatchPropertyTypes(InProperty, [](auto SignatureDummy, const auto* TypedProperty) -> TUniquePtr<IPCGAttributeAccessor>
-	{
-		using TypedAccessor = typename decltype(SignatureDummy)::Type;
-		return MakeUnique<TypedAccessor>(TypedProperty);
-	});
-}
-
-TUniquePtr<IPCGAttributeAccessor> PCGAttributeAccessorHelpers::CreatePropertyAccessor(const FName InPropertyName, const UClass* InClass)
-{
-	return PCGAttributeAccessorHelpers::DispatchPropertyTypes(InPropertyName, InClass, [](auto SignatureDummy, const auto* TypedProperty) -> TUniquePtr<IPCGAttributeAccessor>
 	{
 		using TypedAccessor = typename decltype(SignatureDummy)::Type;
 		return MakeUnique<TypedAccessor>(TypedProperty);
@@ -391,17 +443,36 @@ TUniquePtr<IPCGAttributeAccessor> PCGAttributeAccessorHelpers::CreatePropertyAcc
 	});
 }
 
-bool PCGAttributeAccessorHelpers::IsPropertyAccessorSupported(const FProperty* InProperty)
+TUniquePtr<IPCGAttributeAccessor> PCGAttributeAccessorHelpers::CreatePropertyChainAccessor(TArray<const FProperty*>&& InProperties)
 {
-	return PCGAttributeAccessorHelpers::DispatchPropertyTypes(InProperty, [](auto, const auto*) -> bool
+	if (InProperties.IsEmpty())
 	{
-		return true;
+		return TUniquePtr<IPCGAttributeAccessor>{};
+	}
+
+	return PCGAttributeAccessorHelpers::DispatchPropertyTypes(InProperties.Last(), [&InProperties](auto SignatureDummy, const auto* TypedProperty) -> TUniquePtr<IPCGAttributeAccessor>
+	{
+		using TypedAccessor = typename decltype(SignatureDummy)::Type;
+		return MakeUnique<TypedAccessor>(TypedProperty, std::forward<TArray<const FProperty*>>(InProperties));
 	});
 }
 
-bool PCGAttributeAccessorHelpers::IsPropertyAccessorSupported(const FName InPropertyName, const UClass* InClass)
+TUniquePtr<IPCGAttributeAccessor> PCGAttributeAccessorHelpers::CreatePropertyChainAccessor(const TArray<FName>& InPropertyNames, const UStruct* InStruct)
 {
-	return PCGAttributeAccessorHelpers::DispatchPropertyTypes(InPropertyName, InClass, [](auto, const auto*) -> bool
+	TArray<const FProperty*> PropertyChain;
+	if (!PCGAttributeAccessorHelpers::GetPropertyChain(InPropertyNames, InStruct, PropertyChain))
+	{
+		return TUniquePtr<IPCGAttributeAccessor>{};
+	}
+	else
+	{
+		return PCGAttributeAccessorHelpers::CreatePropertyChainAccessor(std::move(PropertyChain));
+	}
+}
+
+bool PCGAttributeAccessorHelpers::IsPropertyAccessorSupported(const FProperty* InProperty)
+{
+	return PCGAttributeAccessorHelpers::DispatchPropertyTypes(InProperty, [](auto, const auto*) -> bool
 	{
 		return true;
 	});
@@ -413,6 +484,14 @@ bool PCGAttributeAccessorHelpers::IsPropertyAccessorSupported(const FName InProp
 	{
 		return true;
 	});
+}
+
+bool PCGAttributeAccessorHelpers::IsPropertyAccessorChainSupported(const TArray<FName>& InPropertyNames, const UStruct* InStruct)
+{
+	TArray<const FProperty*> PropertyChain;
+	return PCGAttributeAccessorHelpers::GetPropertyChain(InPropertyNames, InStruct, PropertyChain) &&
+		!PropertyChain.IsEmpty() &&
+		PCGAttributeAccessorHelpers::IsPropertyAccessorSupported(PropertyChain.Last());
 }
 
 TUniquePtr<IPCGAttributeAccessor> PCGAttributeAccessorHelpers::CreateExtraAccessor(EPCGExtraProperties InExtraProperties)

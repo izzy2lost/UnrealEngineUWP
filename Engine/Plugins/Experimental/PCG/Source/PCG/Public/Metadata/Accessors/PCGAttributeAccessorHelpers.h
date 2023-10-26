@@ -25,12 +25,14 @@ struct FPCGSettingsOverridableParam;
 namespace PCGAttributeAccessorHelpers
 {
 	PCG_API bool IsPropertyAccessorSupported(const FProperty* InProperty);
-	PCG_API bool IsPropertyAccessorSupported(const FName InPropertyName, const UClass* InClass);
 	PCG_API bool IsPropertyAccessorSupported(const FName InPropertyName, const UStruct* InStruct);
+	PCG_API bool IsPropertyAccessorChainSupported(const TArray<FName>& InPropertyNames, const UStruct* InStruct);
 
 	PCG_API TUniquePtr<IPCGAttributeAccessor> CreatePropertyAccessor(const FProperty* InProperty);
-	PCG_API TUniquePtr<IPCGAttributeAccessor> CreatePropertyAccessor(const FName InPropertyName, const UClass* InClass);
 	PCG_API TUniquePtr<IPCGAttributeAccessor> CreatePropertyAccessor(const FName InPropertyName, const UStruct* InStruct);
+
+	PCG_API TUniquePtr<IPCGAttributeAccessor> CreatePropertyChainAccessor(TArray<const FProperty*>&& InProperties);
+	PCG_API TUniquePtr<IPCGAttributeAccessor> CreatePropertyChainAccessor(const TArray<FName>& InPropertyNames, const UStruct* InStruct);
 
 	PCG_API TUniquePtr<IPCGAttributeAccessor> CreateExtraAccessor(EPCGExtraProperties InExtraProperties);
 

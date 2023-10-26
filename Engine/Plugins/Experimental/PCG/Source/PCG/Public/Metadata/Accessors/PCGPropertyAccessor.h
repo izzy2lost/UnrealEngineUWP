@@ -17,8 +17,34 @@ namespace PCGPropertyAccessor
 	TArray<const void*> GetContainerKeys(int32 Index, int32 Range, const IPCGAttributeAccessorKeys& Keys);
 	TArray<void*> GetContainerKeys(int32 Index, int32 Range, IPCGAttributeAccessorKeys& Keys);
 
+	template <typename T>
+	void AddressOffset(const TArray<const FProperty*>& InProperties, TArray<T>& InContainerKeys)
+	{
+		for (int32 j = 0; j < InProperties.Num(); ++j)
+		{
+			const FProperty* Property = InProperties[j];
+			check(Property);
+			// No indirection for last property
+			const FObjectProperty* ObjectProperty = (j < InProperties.Num() - 1) ? CastField<const FObjectProperty>(Property) : nullptr;
+			if (ObjectProperty)
+			{
+				for (int32 i = 0; i < InContainerKeys.Num(); ++i)
+				{
+					InContainerKeys[i] = ObjectProperty->GetObjectPropertyValue_InContainer(InContainerKeys[i]);
+				}
+			}
+			else
+			{
+				for (int32 i = 0; i < InContainerKeys.Num(); ++i)
+				{
+					InContainerKeys[i] = Property->ContainerPtrToValuePtr<void>(InContainerKeys[i]);
+				}
+			}
+		}
+	}
+
 	template <typename T, typename Func>
-	bool IterateGet(const FProperty* Property, TArrayView<T>& OutValues, int32 Index, const IPCGAttributeAccessorKeys& Keys, Func&& Getter)
+	bool IterateGet(const TArray<const FProperty*>& Properties, TArrayView<T>& OutValues, int32 Index, const IPCGAttributeAccessorKeys& Keys, Func&& Getter)
 	{
 		TArray<const void*> ContainerKeys = GetContainerKeys(Index, OutValues.Num(), Keys);
 		if (ContainerKeys.IsEmpty())
@@ -26,17 +52,19 @@ namespace PCGPropertyAccessor
 			return false;
 		}
 
+		// Update the addresses of all
+		AddressOffset<const void*>(Properties, ContainerKeys);
+
 		for (int32 i = 0; i < OutValues.Num(); ++i)
 		{
-			const void* PropertyAddressData = Property->ContainerPtrToValuePtr<void>(ContainerKeys[i]);
-			OutValues[i] = Getter(PropertyAddressData);
+			OutValues[i] = Getter(ContainerKeys[i]);
 		}
 
 		return true;
 	}
 
 	template <typename T, typename Func>
-	bool IterateSet(const FProperty* Property, TArrayView<const T>& InValues, int32 Index, IPCGAttributeAccessorKeys& Keys, Func&& Setter)
+	bool IterateSet(const TArray<const FProperty*>& Properties, TArrayView<const T>& InValues, int32 Index, IPCGAttributeAccessorKeys& Keys, Func&& Setter)
 	{
 		TArray<void*> ContainerKeys = GetContainerKeys(Index, InValues.Num(), Keys);
 		if (ContainerKeys.IsEmpty())
@@ -44,15 +72,34 @@ namespace PCGPropertyAccessor
 			return false;
 		}
 
+		// Update the addresses of all
+		AddressOffset<void*>(Properties, ContainerKeys);
+
 		for (int32 i = 0; i < InValues.Num(); ++i)
 		{
-			void* PropertyAddressData = Property->ContainerPtrToValuePtr<void>(ContainerKeys[i]);
-			Setter(PropertyAddressData, InValues[i]);
+			Setter(ContainerKeys[i], InValues[i]);
 		}
 
 		return true;
 	}
 }
+
+/**
+* Interface for Property chain to factorize ctor, fix the chain and storing the property chain
+*/
+class IPCGPropertyChainAccessor
+{
+public:
+	virtual ~IPCGPropertyChainAccessor() = default;
+
+protected:
+	IPCGPropertyChainAccessor(const FProperty* Property, TArray<const FProperty*>&& ExtraProperties);
+
+	const TArray<const FProperty*>& GetPropertyChain() const { return PropertyChain; }
+
+private:
+	TArray<const FProperty*> PropertyChain;
+};
 
 /**
 * Templated accessor class for numeric properties. Will wrap around a numeric property.
@@ -61,14 +108,15 @@ namespace PCGPropertyAccessor
 * Key supported: Generic object
 */
 template <typename T>
-class FPCGNumericPropertyAccessor : public IPCGAttributeAccessorT<FPCGNumericPropertyAccessor<T>>
+class FPCGNumericPropertyAccessor : public IPCGAttributeAccessorT<FPCGNumericPropertyAccessor<T>>, IPCGPropertyChainAccessor
 {
 public:
 	using Type = T;
 	using Super = IPCGAttributeAccessorT<FPCGNumericPropertyAccessor<T>>;
 
-	FPCGNumericPropertyAccessor(const FNumericProperty* InProperty)
+	FPCGNumericPropertyAccessor(const FNumericProperty* InProperty, TArray<const FProperty*>&& ExtraProperties = {})
 		: Super(/*bInReadOnly=*/ false)
+		, IPCGPropertyChainAccessor(InProperty, std::forward<TArray<const FProperty*>>(ExtraProperties))
 		, Property(InProperty)
 	{
 		static_assert(std::is_integral_v<T> || std::is_floating_point_v<T>);
@@ -77,7 +125,7 @@ public:
 
 	bool GetRangeImpl(TArrayView<T> OutValues, int32 Index, const IPCGAttributeAccessorKeys& Keys) const
 	{
-		return PCGPropertyAccessor::IterateGet(Property, OutValues, Index, Keys, [this](const void* PropertyAddressData) -> T
+		return PCGPropertyAccessor::IterateGet(GetPropertyChain(), OutValues, Index, Keys, [this](const void* PropertyAddressData) -> T
 			{
 				if constexpr (std::is_integral_v<T>)
 				{
@@ -92,7 +140,7 @@ public:
 
 	bool SetRangeImpl(TArrayView<const T> InValues, int32 Index, IPCGAttributeAccessorKeys& Keys, EPCGAttributeAccessorFlags)
 	{
-		return PCGPropertyAccessor::IterateSet(Property, InValues, Index, Keys, [this](void* PropertyAddressData, const T& Value) -> void
+		return PCGPropertyAccessor::IterateSet(GetPropertyChain(), InValues, Index, Keys, [this](void* PropertyAddressData, const T& Value) -> void
 			{
 				if constexpr (std::is_integral_v<T>)
 				{
@@ -115,14 +163,15 @@ private:
 * Do not instanciate it manually, use PCGAttributeAccessorHelpers::CreatePropertyAccessor.
 * Key supported: Generic object
 */
-class FPCGEnumPropertyAccessor : public IPCGAttributeAccessorT<FPCGEnumPropertyAccessor>
+class FPCGEnumPropertyAccessor : public IPCGAttributeAccessorT<FPCGEnumPropertyAccessor>, IPCGPropertyChainAccessor
 {
 public:
 	using Type = int64;
 	using Super = IPCGAttributeAccessorT<FPCGEnumPropertyAccessor>;
 
-	FPCGEnumPropertyAccessor(const FEnumProperty* InProperty)
+	FPCGEnumPropertyAccessor(const FEnumProperty* InProperty, TArray<const FProperty*>&& ExtraProperties = {})
 		: Super(/*bInReadOnly=*/ false)
+		, IPCGPropertyChainAccessor(InProperty, std::forward<TArray<const FProperty*>>(ExtraProperties))
 		, Property(InProperty)
 	{
 		check(Property);
@@ -143,14 +192,15 @@ private:
 * Key supported: Generic object
 */
 template <typename T>
-class FPCGPropertyStructAccessor : public IPCGAttributeAccessorT<FPCGPropertyStructAccessor<T>>
+class FPCGPropertyStructAccessor : public IPCGAttributeAccessorT<FPCGPropertyStructAccessor<T>>, IPCGPropertyChainAccessor
 {
 public:
 	using Type = T;
 	using Super = IPCGAttributeAccessorT<FPCGPropertyStructAccessor<T>>;
 
-	FPCGPropertyStructAccessor(const FStructProperty* InProperty)
+	FPCGPropertyStructAccessor(const FStructProperty* InProperty, TArray<const FProperty*>&& ExtraProperties = {})
 		: Super(/*bInReadOnly=*/ false)
+		, IPCGPropertyChainAccessor(InProperty, std::forward<TArray<const FProperty*>>(ExtraProperties))
 		, Property(InProperty)
 	{
 		static_assert(PCG::Private::IsPCGType<T>());
@@ -159,7 +209,7 @@ public:
 
 	bool GetRangeImpl(TArrayView<T> OutValues, int32 Index, const IPCGAttributeAccessorKeys& Keys) const
 	{
-		return PCGPropertyAccessor::IterateGet(Property, OutValues, Index, Keys, [this](const void* PropertyAddressData) -> T
+		return PCGPropertyAccessor::IterateGet(GetPropertyChain(), OutValues, Index, Keys, [this](const void* PropertyAddressData) -> T
 			{
 				return *reinterpret_cast<const T*>(PropertyAddressData);
 			});
@@ -167,7 +217,7 @@ public:
 
 	bool SetRangeImpl(TArrayView<const T> InValues, int32 Index, IPCGAttributeAccessorKeys& Keys, EPCGAttributeAccessorFlags)
 	{
-		return PCGPropertyAccessor::IterateSet(Property, InValues, Index, Keys, [this](void* PropertyAddressData, const T& Value) -> void
+		return PCGPropertyAccessor::IterateSet(GetPropertyChain(), InValues, Index, Keys, [this](void* PropertyAddressData, const T& Value) -> void
 			{
 				*reinterpret_cast<T*>(PropertyAddressData) = Value;
 			});
@@ -184,14 +234,15 @@ private:
 * Key supported: Generic object
 */
 template <typename T, typename PropertyType>
-class FPCGPropertyAccessor : public IPCGAttributeAccessorT<FPCGPropertyAccessor<T, PropertyType>>
+class FPCGPropertyAccessor : public IPCGAttributeAccessorT<FPCGPropertyAccessor<T, PropertyType>>, IPCGPropertyChainAccessor
 {
 public:
 	using Type = T;
 	using Super = IPCGAttributeAccessorT<FPCGPropertyAccessor<T, PropertyType>>;
 
-	FPCGPropertyAccessor(const PropertyType* InProperty)
+	FPCGPropertyAccessor(const PropertyType* InProperty, TArray<const FProperty*>&& ExtraProperties = {})
 		: Super(/*bInReadOnly=*/ false)
+		, IPCGPropertyChainAccessor(InProperty, std::forward<TArray<const FProperty*>>(ExtraProperties))
 		, Property(InProperty)
 	{
 		static_assert(PCG::Private::IsPCGType<T>());
@@ -200,7 +251,7 @@ public:
 
 	bool GetRangeImpl(TArrayView<T> OutValues, int32 Index, const IPCGAttributeAccessorKeys& Keys) const
 	{
-		return PCGPropertyAccessor::IterateGet(Property, OutValues, Index, Keys, [this](const void* PropertyAddressData) -> T
+		return PCGPropertyAccessor::IterateGet(GetPropertyChain(), OutValues, Index, Keys, [this](const void* PropertyAddressData) -> T
 			{
 				return Property->GetPropertyValue(PropertyAddressData);
 			});
@@ -208,7 +259,7 @@ public:
 
 	bool SetRangeImpl(TArrayView<const T> InValues, int32 Index, IPCGAttributeAccessorKeys& Keys, EPCGAttributeAccessorFlags)
 	{
-		return PCGPropertyAccessor::IterateSet(Property, InValues, Index, Keys, [this](void* PropertyAddressData, const T& Value) -> void
+		return PCGPropertyAccessor::IterateSet(GetPropertyChain(), InValues, Index, Keys, [this](void* PropertyAddressData, const T& Value) -> void
 			{
 				Property->SetPropertyValue(PropertyAddressData, Value);
 			});
@@ -225,14 +276,15 @@ private:
 * Key supported: Generic object
 */
 template <typename T>
-class FPCGPropertyPathAccessor : public IPCGAttributeAccessorT<FPCGPropertyPathAccessor<T>>
+class FPCGPropertyPathAccessor : public IPCGAttributeAccessorT<FPCGPropertyPathAccessor<T>>, IPCGPropertyChainAccessor
 {
 public:
 	using Type = FString;
 	using Super = IPCGAttributeAccessorT<FPCGPropertyPathAccessor<T>>;
 
-	FPCGPropertyPathAccessor(const FProperty* InProperty)
+	FPCGPropertyPathAccessor(const FProperty* InProperty, TArray<const FProperty*>&& ExtraProperties = {})
 		: Super(/*bInReadOnly=*/ false)
+		, IPCGPropertyChainAccessor(InProperty, std::forward<TArray<const FProperty*>>(ExtraProperties))
 		, Property(InProperty)
 	{
 		static_assert(std::is_same_v<FSoftObjectPath, T> || std::is_same_v<FSoftClassPath, T>);
@@ -241,7 +293,7 @@ public:
 
 	bool GetRangeImpl(TArrayView<Type> OutValues, int32 Index, const IPCGAttributeAccessorKeys& Keys) const
 	{
-		return PCGPropertyAccessor::IterateGet(Property, OutValues, Index, Keys, [this](const void* PropertyAddressData) -> Type
+		return PCGPropertyAccessor::IterateGet(GetPropertyChain(), OutValues, Index, Keys, [this](const void* PropertyAddressData) -> Type
 			{
 				return reinterpret_cast<const T*>(PropertyAddressData)->ToString();
 			});
@@ -249,7 +301,7 @@ public:
 
 	bool SetRangeImpl(TArrayView<const Type> InValues, int32 Index, IPCGAttributeAccessorKeys& Keys, EPCGAttributeAccessorFlags)
 	{
-		return PCGPropertyAccessor::IterateSet(Property, InValues, Index, Keys, [this](void* PropertyAddressData, const Type& Value) -> void
+		return PCGPropertyAccessor::IterateSet(GetPropertyChain(), InValues, Index, Keys, [this](void* PropertyAddressData, const Type& Value) -> void
 			{
 				reinterpret_cast<T*>(PropertyAddressData)->SetPath(Value);
 			});
@@ -264,14 +316,15 @@ private:
 * Do not instantiate it manually, use PCGAttributeAccessorHelpers::CreatePropertyAccessor.
 * Key supported: Generic object
 */
-class FPCGPropertySoftObjectPathAccessor : public IPCGAttributeAccessorT<FPCGPropertySoftObjectPathAccessor>
+class FPCGPropertySoftObjectPathAccessor : public IPCGAttributeAccessorT<FPCGPropertySoftObjectPathAccessor>, IPCGPropertyChainAccessor
 {
 public:
 	using Type = FSoftObjectPath;
 	using Super = IPCGAttributeAccessorT<FPCGPropertySoftObjectPathAccessor>;
 
-	FPCGPropertySoftObjectPathAccessor(const FSoftObjectProperty* InProperty)
+	FPCGPropertySoftObjectPathAccessor(const FSoftObjectProperty* InProperty, TArray<const FProperty*>&& ExtraProperties = {})
 		: Super(/*bInReadOnly=*/ false)
+		, IPCGPropertyChainAccessor(InProperty, std::forward<TArray<const FProperty*>>(ExtraProperties))
 		, Property(InProperty)
 	{
 		check(Property);
@@ -279,7 +332,7 @@ public:
 
 	bool GetRangeImpl(TArrayView<Type> OutValues, int32 Index, const IPCGAttributeAccessorKeys& Keys) const
 	{
-		return PCGPropertyAccessor::IterateGet(Property, OutValues, Index, Keys, [this](const void* PropertyAddressData) -> Type
+		return PCGPropertyAccessor::IterateGet(GetPropertyChain(), OutValues, Index, Keys, [this](const void* PropertyAddressData) -> Type
 		{
 			return Property->GetPropertyValue(PropertyAddressData).ToSoftObjectPath();
 		});
@@ -287,7 +340,7 @@ public:
 
 	bool SetRangeImpl(TArrayView<const Type> InValues, int32 Index, IPCGAttributeAccessorKeys& Keys, EPCGAttributeAccessorFlags)
 	{
-		return PCGPropertyAccessor::IterateSet(Property, InValues, Index, Keys, [this](void* PropertyAddressData, const Type& Value) -> void
+		return PCGPropertyAccessor::IterateSet(GetPropertyChain(), InValues, Index, Keys, [this](void* PropertyAddressData, const Type& Value) -> void
 		{
 			Property->SetPropertyValue(PropertyAddressData, FSoftObjectPtr(Value));
 		});
@@ -302,14 +355,15 @@ private:
 * Do not instantiate it manually, use PCGAttributeAccessorHelpers::CreatePropertyAccessor.
 * Key supported: Generic object
 */
-class FPCGPropertySoftClassPathAccessor : public IPCGAttributeAccessorT<FPCGPropertySoftClassPathAccessor>
+class FPCGPropertySoftClassPathAccessor : public IPCGAttributeAccessorT<FPCGPropertySoftClassPathAccessor>, IPCGPropertyChainAccessor
 {
 public:
 	using Type = FSoftClassPath;
 	using Super = IPCGAttributeAccessorT<FPCGPropertySoftClassPathAccessor>;
 
-	FPCGPropertySoftClassPathAccessor(const FSoftClassProperty* InProperty)
+	FPCGPropertySoftClassPathAccessor(const FSoftClassProperty* InProperty, TArray<const FProperty*>&& ExtraProperties = {})
 		: Super(/*bInReadOnly=*/ false)
+		, IPCGPropertyChainAccessor(InProperty, std::forward<TArray<const FProperty*>>(ExtraProperties))
 		, Property(InProperty)
 	{
 		check(Property);
@@ -317,7 +371,7 @@ public:
 
 	bool GetRangeImpl(TArrayView<Type> OutValues, int32 Index, const IPCGAttributeAccessorKeys& Keys) const
 	{
-		return PCGPropertyAccessor::IterateGet(Property, OutValues, Index, Keys, [this](const void* PropertyAddressData) -> Type
+		return PCGPropertyAccessor::IterateGet(GetPropertyChain(), OutValues, Index, Keys, [this](const void* PropertyAddressData) -> Type
 		{
 			return FSoftClassPath(Property->GetPropertyValue(PropertyAddressData).ToString());
 		});
@@ -325,7 +379,7 @@ public:
 
 	bool SetRangeImpl(TArrayView<const Type> InValues, int32 Index, IPCGAttributeAccessorKeys& Keys, EPCGAttributeAccessorFlags)
 	{
-		return PCGPropertyAccessor::IterateSet(Property, InValues, Index, Keys, [this](void* PropertyAddressData, const Type& Value) -> void
+		return PCGPropertyAccessor::IterateSet(GetPropertyChain(), InValues, Index, Keys, [this](void* PropertyAddressData, const Type& Value) -> void
 		{
 			Property->SetPropertyValue(PropertyAddressData, FSoftObjectPtr(Value));
 		});
@@ -341,14 +395,15 @@ private:
 * Will always convert to FString for PCG
 * Key supported: Generic object
 */
-class FPCGPropertyObjectPtrAccessor : public IPCGAttributeAccessorT<FPCGPropertyObjectPtrAccessor>
+class FPCGPropertyObjectPtrAccessor : public IPCGAttributeAccessorT<FPCGPropertyObjectPtrAccessor>, IPCGPropertyChainAccessor
 {
 public:
 	using Type = FString;
 	using Super = IPCGAttributeAccessorT<FPCGPropertyObjectPtrAccessor>;
 
-	FPCGPropertyObjectPtrAccessor(const FObjectProperty* InProperty)
+	FPCGPropertyObjectPtrAccessor(const FObjectProperty* InProperty, TArray<const FProperty*>&& ExtraProperties = {})
 		: Super(/*bInReadOnly=*/ false)
+		, IPCGPropertyChainAccessor(InProperty, std::forward<TArray<const FProperty*>>(ExtraProperties))
 		, Property(InProperty)
 	{
 		check(Property);
@@ -356,7 +411,7 @@ public:
 
 	bool GetRangeImpl(TArrayView<Type> OutValues, int32 Index, const IPCGAttributeAccessorKeys& Keys) const
 	{
-		return PCGPropertyAccessor::IterateGet(Property, OutValues, Index, Keys, [this](const void* PropertyAddressData) -> Type
+		return PCGPropertyAccessor::IterateGet(GetPropertyChain(), OutValues, Index, Keys, [this](const void* PropertyAddressData) -> Type
 		{
 			return Property->GetPropertyValue(PropertyAddressData).GetPath();
 		});
@@ -364,7 +419,7 @@ public:
 
 	bool SetRangeImpl(TArrayView<const Type> InValues, int32 Index, IPCGAttributeAccessorKeys& Keys, EPCGAttributeAccessorFlags)
 	{
-		return PCGPropertyAccessor::IterateSet(Property, InValues, Index, Keys, [this](void* PropertyAddressData, const Type& Value) -> void
+		return PCGPropertyAccessor::IterateSet(GetPropertyChain(), InValues, Index, Keys, [this](void* PropertyAddressData, const Type& Value) -> void
 		{
 			Property->SetPropertyValue(PropertyAddressData, FSoftObjectPath(Value).TryLoad());
 		});
@@ -378,14 +433,15 @@ private:
 * Special accessor to support attribute selector overrides. Interface with a string.
 * Key supported: All
 */
-class FPCGAttributePropertySelectorAccessor : public IPCGAttributeAccessorT<FPCGAttributePropertySelectorAccessor>
+class FPCGAttributePropertySelectorAccessor : public IPCGAttributeAccessorT<FPCGAttributePropertySelectorAccessor>, IPCGPropertyChainAccessor
 {
 public:
 	using Type = FString;
 	using Super = IPCGAttributeAccessorT<FPCGAttributePropertySelectorAccessor>;
 
-	FPCGAttributePropertySelectorAccessor(const FStructProperty* InProperty)
+	FPCGAttributePropertySelectorAccessor(const FStructProperty* InProperty, TArray<const FProperty*>&& ExtraProperties = {})
 		: Super(/*bInReadOnly=*/ false)
+		, IPCGPropertyChainAccessor(InProperty, std::forward<TArray<const FProperty*>>(ExtraProperties))
 		, Property(InProperty)
 	{
 		ensure(InProperty && InProperty->Struct && InProperty->Struct->IsA(FPCGAttributePropertySelector::StaticStruct()->GetClass()));
@@ -393,7 +449,7 @@ public:
 
 	bool GetRangeImpl(TArrayView<FString> OutValues, int32 Index, const IPCGAttributeAccessorKeys& Keys) const
 	{
-		return PCGPropertyAccessor::IterateGet(Property, OutValues, Index, Keys, [this](const void* PropertyAddressData) -> FString
+		return PCGPropertyAccessor::IterateGet(GetPropertyChain(), OutValues, Index, Keys, [this](const void* PropertyAddressData) -> FString
 		{
 			return reinterpret_cast<const FPCGAttributePropertySelector*>(PropertyAddressData)->GetDisplayText().ToString();
 		});
@@ -401,7 +457,7 @@ public:
 
 	bool SetRangeImpl(TArrayView<const FString> InValues, int32 Index, IPCGAttributeAccessorKeys& Keys, EPCGAttributeAccessorFlags Flags)
 	{
-		return PCGPropertyAccessor::IterateSet(Property, InValues, Index, Keys, [this](void* PropertyAddressData, const FString& Value) -> void
+		return PCGPropertyAccessor::IterateSet(GetPropertyChain(), InValues, Index, Keys, [this](void* PropertyAddressData, const FString& Value) -> void
 		{
 			reinterpret_cast<FPCGAttributePropertySelector*>(PropertyAddressData)->Update(Value);
 		});
