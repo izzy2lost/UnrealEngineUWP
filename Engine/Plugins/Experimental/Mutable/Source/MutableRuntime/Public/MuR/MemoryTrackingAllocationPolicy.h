@@ -4,98 +4,13 @@
 
 #include "Containers/ContainerAllocationPolicies.h"
 #include "Containers/ContainersFwd.h"
-#include "HAL/CriticalSection.h"
+#include "MuR/MemoryTrackingUtils.h"
 
 #include <atomic>
 #include <type_traits>
 
-
-#ifndef UE_MUTABLE_TRACK_ALLOCATOR_MEMORY_PEAK
-#define UE_MUTABLE_TRACK_ALLOCATOR_MEMORY_PEAK 0
-#endif
-
 namespace mu
 {
-
-#if UE_MUTABLE_TRACK_ALLOCATOR_MEMORY_PEAK
-	struct FGlobalMemoryCounter
-	{
-	private:
-		 static inline SSIZE_T AbsoluteCounter { 0 };
-		 static inline SSIZE_T AbsolutePeakValue { 0 };
-		 static inline SSIZE_T Counter { 0 };
-		 static inline SSIZE_T PeakValue { 0 };
-		
-		 static inline FCriticalSection Mutex {};
-
-	public:
-		static void Update(SSIZE_T Differential)
-		{
-			FScopeLock Lock(&Mutex);
-
-			Counter += Differential;
-			PeakValue = FMath::Max(PeakValue, Counter);
-
-			AbsoluteCounter += Differential;
-			AbsolutePeakValue = FMath::Max(AbsolutePeakValue, AbsoluteCounter);
-		}
-
-		static void Zero()
-		{
-			FScopeLock Lock(&Mutex);
-
-			Counter = 0;	
-			PeakValue = 0;
-		}
-
-		static void Restore()
-		{
-			FScopeLock Lock(&Mutex);
-
-			Counter = AbsoluteCounter;
-			PeakValue = AbsolutePeakValue;
-		}
-
-		static SSIZE_T GetPeak()
-		{
-			FScopeLock Lock(&Mutex);
-
-			const volatile SSIZE_T Result = PeakValue;
-			return Result;
-		}
-
-
-		static SSIZE_T GetCounter()
-		{
-			FScopeLock Lock(&Mutex);
-
-			const volatile SSIZE_T Result = Counter;
-			return Result;
-		}
-	};
-#else
-	struct FGlobalMemoryCounter
-	{
-		static void Zero()
-		{
-		}
-
-		static void Restore()
-		{
-		}
-
-		static SSIZE_T GetPeak()
-		{
-			return 0;
-		}
-
-		static SSIZE_T GetCounter()
-		{
-			return 0;
-		}
-	};
-#endif
-
 	template<typename TagType>
 	struct TMemoryCounter
 	{
