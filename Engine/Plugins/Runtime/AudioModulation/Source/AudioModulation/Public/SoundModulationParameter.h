@@ -292,7 +292,9 @@ namespace AudioModulation
 	/*
 	 * Returns given registered parameter instance reference or creates it from the given asset if not registered.
 	 * @param InParameter - Parameter asset associated with the pre-existing or to-create parameter
-	 * @param InBreadcrumb - String identifying get or register request initiator.
+	 * @param InName	  - Name of the modulator requesting the parameter.
+	 * @param InClassName - Name of the modulator class requesting the parameter.
+	 * 
 	 */
-	AUDIOMODULATION_API const Audio::FModulationParameter& GetOrRegisterParameter(const USoundModulationParameter* InParameter, const FString& InBreadcrumb);
+	AUDIOMODULATION_API const Audio::FModulationParameter& GetOrRegisterParameter(const USoundModulationParameter* InParameter, const FString& InName, const FString& InClassName);
 } // namespace AudioModulation

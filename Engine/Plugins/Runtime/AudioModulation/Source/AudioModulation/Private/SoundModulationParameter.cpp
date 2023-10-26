@@ -343,7 +343,7 @@ float USoundModulationParameterAdditive::GetUnitMin() const
 
 namespace AudioModulation
 {
-	const Audio::FModulationParameter& GetOrRegisterParameter(const USoundModulationParameter* InParameter, const FString& InBreadcrumb)
+	const Audio::FModulationParameter& GetOrRegisterParameter(const USoundModulationParameter* InParameter, const FString& InName, const FString& InClassName)
 	{
 		FName ParamName;
 		if (InParameter)
@@ -351,10 +351,20 @@ namespace AudioModulation
 			ParamName = InParameter->GetFName();
 			if (!Audio::IsModulationParameterRegistered(ParamName))
 			{
+				TStringBuilder<128> Breadcrumb;
+				if (InClassName.IsEmpty())
+				{
+					Breadcrumb.Append(*InName);
+				}
+				else
+				{
+					Breadcrumb.Append(*InClassName).Append(" '").Append(*InName).Append("'");
+				}
+
 				UE_LOG(LogAudioModulation, Display,
 					TEXT("Parameter '%s' not registered.  Registration forced via '%s'."),
 					*ParamName.ToString(),
-					*InBreadcrumb);
+					*Breadcrumb);
 
 				Audio::RegisterModulationParameter(ParamName, InParameter->CreateParameter());
 			}
@@ -366,6 +376,6 @@ namespace AudioModulation
 
 	FSoundModulationPluginParameterAssetProxy::FSoundModulationPluginParameterAssetProxy(USoundModulationParameter* InParameter)
 	{
-		Parameter = GetOrRegisterParameter(InParameter, TEXT("FSoundModulationPluginParameterAssetProxy construction"));
+		Parameter = GetOrRegisterParameter(InParameter, TEXT("FSoundModulationPluginParameterAssetProxy construction"), FString());
 	}
 }

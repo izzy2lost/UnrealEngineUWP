@@ -114,7 +114,7 @@ namespace AudioModulation
 		TArray<FString> GetDebugValues() const
 		{
 			TArray<FString> DebugValues;
-			DebugValues.Add(GetName());
+			DebugValues.Add(GetName().ToString());
 			DebugValues.Add(FString::FormatAsNumber(GetRefCount()));
 
 			Generator->GetDebugValues(DebugValues);

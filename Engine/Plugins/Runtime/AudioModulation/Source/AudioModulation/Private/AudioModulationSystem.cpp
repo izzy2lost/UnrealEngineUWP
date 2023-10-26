@@ -448,7 +448,7 @@ namespace AudioModulation
 				{
 					if (LastStatus != CurrentStatus)
 					{
-						UE_LOG(LogAudioModulation, Verbose, TEXT("Audio modulation mix '%s' stopped."), *Pair.Value.GetName());
+						UE_LOG(LogAudioModulation, Verbose, TEXT("Audio modulation mix '%s' stopped."), *Pair.Value.GetName().ToString());
 					}
 					StoppedMixIds.Add(Pair.Key);
 				}
@@ -858,7 +858,7 @@ namespace AudioModulation
 #if !UE_BUILD_SHIPPING
 			else
 			{
-				UE_LOG(LogAudioModulation, Verbose, TEXT("Update to '%s' Ignored: Control Bus Mix is inactive."), *MixSettings.GetName());
+				UE_LOG(LogAudioModulation, Verbose, TEXT("Update to '%s' Ignored: Control Bus Mix is inactive."), *MixSettings.GetName().ToString());
 			}
 #endif // !UE_BUILD_SHIPPING
 		});
@@ -878,7 +878,7 @@ namespace AudioModulation
 #if !UE_BUILD_SHIPPING
 				else
 				{
-					UE_LOG(LogAudioModulation, Verbose, TEXT("Update to '%s' Ignored: Generator is inactive."), *GeneratorSettings.GetName());
+					UE_LOG(LogAudioModulation, Verbose, TEXT("Update to '%s' Ignored: Generator is inactive."), *GeneratorSettings.GetName().ToString());
 				}
 #endif // !UE_BUILD_SHIPPING
 			});
@@ -897,7 +897,7 @@ namespace AudioModulation
 #if !UE_BUILD_SHIPPING
 				else
 				{
-					UE_LOG(LogAudioModulation, Verbose, TEXT("Update to '%s' Ignored: Control Bus is inactive."), *BusSettings.GetName());
+					UE_LOG(LogAudioModulation, Verbose, TEXT("Update to '%s' Ignored: Control Bus is inactive."), *BusSettings.GetName().ToString());
 				}
 #endif // !UE_BUILD_SHIPPING
 			});
@@ -916,7 +916,7 @@ namespace AudioModulation
 #if !UE_BUILD_SHIPPING
 				else
 				{
-					UE_LOG(LogAudioModulation, Verbose, TEXT("Update to '%s' Ignored: Patch is inactive."), *PatchSettings.GetName());
+					UE_LOG(LogAudioModulation, Verbose, TEXT("Update to '%s' Ignored: Patch is inactive."), *PatchSettings.GetName().ToString());
 				}
 #endif // !UE_BUILD_SHIPPING
 			});

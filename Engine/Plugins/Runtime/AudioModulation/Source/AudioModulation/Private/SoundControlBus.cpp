@@ -149,11 +149,9 @@ TSharedPtr<Audio::IProxyData> USoundControlBus::CreateProxyData(const Audio::FPr
 const Audio::FModulationParameter& USoundControlBus::GetOutputParameter() const
 {
 #if !UE_BUILD_SHIPPING
-	TStringBuilder<128> StringBuilder;
-	StringBuilder.Append(*GetClass()->GetName()).Append(" '").Append(*GetName()).Append("'");
-	return AudioModulation::GetOrRegisterParameter(Parameter, StringBuilder.ToString());
+	return AudioModulation::GetOrRegisterParameter(Parameter, GetName(), GetClass()->GetName());
 #else
-	return AudioModulation::GetOrRegisterParameter(Parameter, FString());
+	return AudioModulation::GetOrRegisterParameter(Parameter, FString(), FString());
 #endif
 }
 
