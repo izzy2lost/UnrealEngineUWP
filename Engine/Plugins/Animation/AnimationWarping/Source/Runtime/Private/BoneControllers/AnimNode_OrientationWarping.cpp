@@ -185,7 +185,12 @@ void FAnimNode_OrientationWarping::EvaluateSkeletalControl_AnyThread(FComponentS
 			LocomotionForward = SkeletalMeshRelativeRotation.UnrotateVector(LocomotionRotation.GetForwardVector()).GetSafeNormal();
 
 			// @todo: Graph mode using a "manual value" makes no sense. Restructure logic to address this in the future.
-			const FVector RootMotionDeltaTranslation = bUseManualRootMotionVelocity ? (ManualRootMotionVelocity * DeltaSeconds) : RootMotionTransformDelta.GetTranslation();
+			if (bUseManualRootMotionVelocity)
+			{
+				RootMotionTransformDelta.SetTranslation(ManualRootMotionVelocity * DeltaSeconds);
+			}
+
+			const FVector RootMotionDeltaTranslation = RootMotionTransformDelta.GetTranslation();
 
 			const float RootMotionDeltaSpeed = RootMotionDeltaTranslation.Size() / DeltaSeconds;
 			if (RootMotionDeltaSpeed < MinRootMotionSpeedThreshold)

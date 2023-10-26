@@ -86,10 +86,10 @@ struct ANIMATIONWARPINGRUNTIME_API FAnimNode_OrientationWarping : public FAnimNo
 	UPROPERTY(EditAnywhere, Category=Settings, meta=(EditCondition="RotationInterpSpeed > 0.0f"))
 	bool bCounterCompenstateInterpolationByRootMotion = true;
 
-	UPROPERTY(EditAnywhere, Category=Experimental, meta=(EditCondition="Mode == EWarpingEvaluationMode::Graph"))
+	UPROPERTY(EditAnywhere, Category=Experimental, meta=(PinHiddenByDefault))
 	bool bUseManualRootMotionVelocity = false;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Experimental, meta=(PinHiddenByDefault, EditCondition="bUseManualRootMotionVelocity && (Mode == EWarpingEvaluationMode::Graph)"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Experimental, meta=(PinHiddenByDefault))
 	FVector ManualRootMotionVelocity = FVector::ZeroVector;
 
 #if WITH_EDITORONLY_DATA
