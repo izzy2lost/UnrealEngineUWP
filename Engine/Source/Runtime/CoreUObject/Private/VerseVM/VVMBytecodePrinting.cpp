@@ -88,6 +88,16 @@ struct FBytecodePrinter
 				Procedure.NumRegisters,
 				Procedure.NumRegisters - 1);
 		}
+		if (Procedure.NumParameters)
+		{
+			String += FString::Printf(TEXT("    # Frame contains %u parameters: r0..r%u\n"),
+				Procedure.NumParameters,
+				Procedure.NumParameters - 1);
+		}
+		else
+		{
+			String += FString::Printf(TEXT("    # Frame contains 0 parameters\n"));
+		}
 
 		// Print the procedure's ops.
 		DispatchOps(Procedure.GetOpsBegin(), Procedure.GetOpsEnd(), *this);
