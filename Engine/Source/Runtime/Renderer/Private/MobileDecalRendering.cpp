@@ -73,7 +73,7 @@ void FMobileSceneRenderer::RenderDecals(FRHICommandList& RHICmdList, const FView
 
 		// MeshDecals use DrawDynamicMeshPass which may change BatchedPrimitive binding, so we need to restore it
 		FUniformBufferStaticSlot BatchedPrimitiveSlot = FInstanceCullingContext::GetUniformBufferViewStaticSlot(View.GetShaderPlatform());
-		if (IsUniformBufferStaticSlotValid(BatchedPrimitiveSlot))
+		if (IsUniformBufferStaticSlotValid(BatchedPrimitiveSlot) && InstanceCullingDrawParams->BatchedPrimitive)
 		{
 			FRHIUniformBuffer* BatchedPrimitiveBufferRHI = InstanceCullingDrawParams->BatchedPrimitive.GetUniformBuffer()->GetRHI();
 			check(BatchedPrimitiveBufferRHI);
