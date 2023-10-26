@@ -1269,13 +1269,13 @@ class FInterpreter
 
 		V_DIE_UNLESS(NumFields == NumValues);
 
-		TArray<VFields::VEntry> Values;
+		TArray<VValue> Values;
 		Values.Reserve(NumValues);
 		for (uint32 Index = 0; Index < NumValues; ++Index)
 		{
-			const VValue& CurrentValue = GetOperand(Op.Values[Index]);
+			VValue CurrentValue = GetOperand(Op.Values[Index]);
 			REQUIRE_CONCRETE(CurrentValue);
-			Values.Add({Context, CurrentValue});
+			Values.Add(CurrentValue);
 		}
 		VObject& NewObject = VObject::New(Context, Class, *Op.Fields.Get(), Values);
 		DEF(Op.Dest, NewObject);

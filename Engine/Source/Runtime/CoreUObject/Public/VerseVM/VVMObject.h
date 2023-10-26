@@ -25,7 +25,7 @@ struct VObject : VHeapValue
 	static VObject& New(FAllocationContext Context, VEmergentType& InEmergentType);
 
 	/// `InValues` should match the order of fields in `InFields` before this is called.
-	static VObject& New(FAllocationContext Context, VClass& InClass, VUniqueStringSet& InFields, const TArray<VFields::VEntry>& InValues);
+	static VObject& New(FAllocationContext Context, VClass& InClass, VUniqueStringSet& InFields, const TArray<VValue>& InValues);
 
 	const VValue LoadField(FAllocationContext Context, const VUniqueString& Name);
 
@@ -39,7 +39,6 @@ private:
 	static uint64 AllocationSize(const uint64 NumIndexedFields);
 
 	VObject(FAllocationContext Context, VEmergentType& InEmergentType);
-	VObject(FAllocationContext Context, VClass& InClass, VUniqueStringSet& InFields, const TArray<VFields::VEntry>& InValues);
 
 	/*
 	 * Mutable variables store their data as a `VRestValue`.

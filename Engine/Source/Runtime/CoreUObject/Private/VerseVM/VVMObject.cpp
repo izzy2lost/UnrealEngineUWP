@@ -13,7 +13,7 @@ namespace Verse
 DEFINE_VCPPCLASSINFO(VObject, VHeapValue, TEXT("Object"));
 TGlobalTrivialEmergentTypePtr<&VObject::StaticCppClassInfo> VObject::GlobalTrivialEmergentType;
 
-VObject& VObject::New(FAllocationContext Context, VClass& InClass, VUniqueStringSet& InFields, const TArray<VFields::VEntry>& InValues)
+VObject& VObject::New(FAllocationContext Context, VClass& InClass, VUniqueStringSet& InFields, const TArray<VValue>& InValues)
 {
 	/*
 	 * We are allocating _all_ fields since for now we're "flattening" the fields in the shape vended. i.e.
@@ -42,8 +42,7 @@ VObject& VObject::New(FAllocationContext Context, VClass& InClass, VUniqueString
 	const uint64 NumIndexedFields = NewEmergentType.Shape->GetNumIndexedFields();
 	NewEmergentType.Shape->NumIndexedFields = NumIndexedFields;
 	const uint64 SizeToAllocate = AllocationSize(NumIndexedFields);
-	VObject* NewObject = new (Context.AllocateFastCell(SizeToAllocate)) VObject(Context, InClass, InFields, InValues);
-	NewObject->SetEmergentType(Context, &NewEmergentType);
+	VObject* NewObject = new (Context.AllocateFastCell(SizeToAllocate)) VObject(Context, NewEmergentType);
 
 	// Allocate the space for each offset's datum.
 	for (uint64 Index = 0; Index < NumIndexedFields; ++Index)
@@ -62,12 +61,11 @@ VObject& VObject::New(FAllocationContext Context, VClass& InClass, VUniqueString
 		const FSetElementId ElementId = InFields.FindId(Pair.Key->AsStringView());
 		if (InFields.IsValidId(ElementId))
 		{
-			const VFields::VEntry OverridingEntry = InValues[ElementId.AsInteger()];
 			switch (Pair.Value.Type)
 			{
 				case EFieldType::Mutable:
 				case EFieldType::Offset:
-					NewObject->Data[Pair.Value.Index].Set(Context, OverridingEntry.Constant.Get());
+					NewObject->Data[Pair.Value.Index].Set(Context, InValues[ElementId.AsInteger()]);
 					break;
 				case EFieldType::Constant:
 				default:
@@ -101,12 +99,6 @@ VObject& VObject::New(FAllocationContext Context, VClass& InClass, VUniqueString
 	}
 
 	return *NewObject;
-}
-
-VObject::VObject(FAllocationContext Context, VClass& InClass, VUniqueStringSet& InFields, const TArray<VFields::VEntry>& InValues)
-	: VHeapValue(Context, &GlobalTrivialEmergentType.Get(Context))
-{
-	// All the hard work has already been done in `VObject::New`.
 }
 
 } // namespace Verse
