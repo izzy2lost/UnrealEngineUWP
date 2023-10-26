@@ -130,7 +130,7 @@ protected:
 		if (CachedObjects.IsEmpty())
 		{
 			// Unregister tick event
-			if (TickHandle.IsValid())
+			if (TickableGameObject.IsValid() && TickHandle.IsValid())
 			{
 				TickableGameObject->OnTick().Remove(TickHandle);
 			}
