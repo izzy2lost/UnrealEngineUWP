@@ -815,31 +815,6 @@ void FPCGSpawnActorElement::SpawnActors(FPCGSubgraphContext* Context, AActor* Ta
 	const UPCGSpawnActorSettings* Settings = Context->GetInputSettings<UPCGSpawnActorSettings>();
 	check(Settings && Settings->Option != EPCGSpawnActorOption::CollapseActors);
 
-	TArray<UFunction*> PostSpawnFunctions;
-	for (FName PostSpawnFunctionName : Settings->PostSpawnFunctionNames)
-	{
-		if (PostSpawnFunctionName == NAME_None)
-		{
-			continue;
-		}
-
-		if (UFunction* PostSpawnFunction = InTemplateActorClass->FindFunctionByName(PostSpawnFunctionName))
-		{
-			if (PostSpawnFunction->NumParms != 0)
-			{
-				PCGE_LOG(Warning, GraphAndLog, FText::Format(LOCTEXT("ParametersMissing", "PostSpawnFunction '{0}' requires parameters. We only support parameter-less functions. Call will be skipped."), FText::FromName(PostSpawnFunctionName)));
-			}
-			else
-			{
-				PostSpawnFunctions.Add(PostSpawnFunction);
-			}
-		}
-		else
-		{
-			PCGE_LOG(Warning, GraphAndLog, FText::Format(LOCTEXT("FunctionNotFound", "PostSpawnFunction '{0}' was not found in class '{1}'"), FText::FromName(PostSpawnFunctionName), FText::FromName(InTemplateActorClass->GetFName())));
-		}
-	}
-
 	const bool bForceDisableActorParsing = (Settings->bForceDisableActorParsing);
 
 	AActor* TemplateActor = nullptr;
@@ -953,6 +928,8 @@ void FPCGSpawnActorElement::SpawnActors(FPCGSubgraphContext* Context, AActor* Ta
 #if WITH_EDITOR
 		PCGHelpers::GetGeneratedActorsFolderPath(TargetActor, GeneratedActorsFolderPath);
 #endif
+
+		const TArray<UFunction*> PostSpawnFunctions = PCGHelpers::FindUserFunctions(InTemplateActorClass, Settings->PostSpawnFunctionNames, Context);
 
 		for (int32 i = 0; i < Points.Num(); ++i)
 		{

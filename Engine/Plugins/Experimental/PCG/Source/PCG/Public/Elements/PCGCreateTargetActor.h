@@ -71,6 +71,10 @@ public:
 
 	UPROPERTY(meta = (PCG_Overridable))
 	FTransform ActorPivot;
+
+	/** Specify a list of functions to be called on the target actor after creation. Functions need to be parameter-less and with "CallInEditor" flag enabled. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
+	TArray<FName> PostProcessFunctionNames;
 };
 
 class FPCGCreateTargetActorElement : public IPCGElement

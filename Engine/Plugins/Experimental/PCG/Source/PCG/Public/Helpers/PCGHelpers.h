@@ -13,6 +13,7 @@ class ALandscapeProxy;
 class UPCGComponent;
 class UPCGGraph;
 class UWorld;
+struct FPCGContext;
 
 namespace PCGHelpers
 {
@@ -70,4 +71,7 @@ namespace PCGHelpers
 #endif
 
 	PCG_API void AttachToParent(AActor* InActorToAttach, AActor* InParent, EPCGAttachOptions AttachOptions, const FString& GeneratedPath = FString());
+
+	/** Finds functions on the actor matching the provided function names. Functions must be marked as CallInEditor and take no parameters. */
+	PCG_API TArray<UFunction*> FindUserFunctions(TSubclassOf<AActor> ActorClass, const TArray<FName>& FunctionNames, const FPCGContext* InContext = nullptr);
 };

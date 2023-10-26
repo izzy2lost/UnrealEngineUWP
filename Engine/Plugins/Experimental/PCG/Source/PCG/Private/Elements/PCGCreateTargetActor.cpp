@@ -283,6 +283,11 @@ bool FPCGCreateTargetActorElement::ExecuteInternal(FPCGContext* Context) const
 
 	GeneratedActor->Tags.Add(PCGHelpers::DefaultPCGActorTag);
 
+	for (UFunction* Function : PCGHelpers::FindUserFunctions(GeneratedActor->GetClass(), Settings->PostProcessFunctionNames, Context))
+	{
+		GeneratedActor->ProcessEvent(Function, nullptr);
+	}
+
 	if (UPCGComponent* SourceComponent = Context->SourceComponent.Get())
 	{
 		UPCGManagedActors* ManagedActors = NewObject<UPCGManagedActors>(SourceComponent);

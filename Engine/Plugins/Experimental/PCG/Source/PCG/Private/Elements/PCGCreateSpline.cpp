@@ -215,6 +215,15 @@ bool FPCGCreateSplineElement::ExecuteInternal(FPCGContext* Context) const
 			Context->SourceComponent->AddToManagedResources(ManagedComponent);
 		}
 
+		// Execute PostProcess Functions
+		if (SplineActor)
+		{
+			for (UFunction* Function : PCGHelpers::FindUserFunctions(SplineActor->GetClass(), Settings->PostProcessFunctionNames, Context))
+			{
+				SplineActor->ProcessEvent(Function, nullptr);
+			}
+		}
+
 		FPCGTaggedData& Output = Outputs.Add_GetRef(Input);
 		Output.Data = SplineData;
 	}

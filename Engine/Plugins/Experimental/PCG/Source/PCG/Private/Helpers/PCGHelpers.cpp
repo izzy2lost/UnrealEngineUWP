@@ -3,6 +3,7 @@
 #include "Helpers/PCGHelpers.h"
 
 #include "PCGComponent.h"
+#include "PCGContext.h"
 #include "PCGGraph.h"
 #include "PCGModule.h"
 #include "PCGSubsystem.h"
@@ -18,6 +19,8 @@
 #else
 #include "Engine/World.h"
 #endif
+
+#define LOCTEXT_NAMESPACE "PCGHelpers"
 
 namespace PCGHelpers
 {
@@ -492,4 +495,49 @@ namespace PCGHelpers
 		}
 #endif
 	}
+
+	TArray<UFunction*> FindUserFunctions(TSubclassOf<AActor> ActorClass, const TArray<FName>& FunctionNames, const FPCGContext* InContext)
+	{
+		TArray<UFunction*> Functions;
+
+		if (!ActorClass)
+		{
+			return Functions;
+		}
+
+		for (FName FunctionName : FunctionNames)
+		{
+			if (FunctionName == NAME_None)
+			{
+				continue;
+			}
+
+			if (UFunction* Function = ActorClass->FindFunctionByName(FunctionName))
+			{
+				// TODO: support Parameters
+				if (Function->NumParms != 0)
+				{
+					PCGLog::LogWarningOnGraph(FText::Format(LOCTEXT("ParametersMissing", "Function '{0}' in class '{1}' has parameters, but only parameter-less functions are supported. Call will be skipped."), FText::FromName(FunctionName), FText::FromName(ActorClass->GetFName())), InContext);
+				}
+#if WITH_EDITOR
+				else if (!Function->GetBoolMetaData(TEXT("CallInEditor")))
+				{
+					PCGLog::LogWarningOnGraph(FText::Format(LOCTEXT("CallInEditorFailed", "Function '{0}' in class '{1}' requires CallInEditor to be true while in-editor."), FText::FromName(FunctionName), FText::FromName(ActorClass->GetFName())), InContext);
+				}
+#endif
+				else
+				{
+					Functions.Add(Function);
+				}
+			}
+			else
+			{
+				PCGLog::LogWarningOnGraph(FText::Format(LOCTEXT("FunctionNotFound", "Function '{0}' was not found in class '{1}'."), FText::FromName(FunctionName), FText::FromName(ActorClass->GetFName())), InContext);
+			}
+		}
+
+		return Functions;
+	}
 }
+
+#undef LOCTEXT_NAMESPACE
