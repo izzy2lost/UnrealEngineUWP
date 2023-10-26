@@ -9,8 +9,9 @@
 
 #include "Components/StaticMeshComponent.h"
 
-namespace UE::DisplayCluster::Preview
+namespace UE::DisplayCluster::ViewportPreviewMesh
 {
+	/** Return ptr on UObject if it is still valid. */
 	template<class T>
 	static inline T* GetObjectProperty(const TObjectPtr<T>& InProperty)
 	{
@@ -23,10 +24,35 @@ namespace UE::DisplayCluster::Preview
 
 		return InProperty;
 	}
-}
+
+	/** Reset the mesh material to default values from its archetype. */
+	static inline bool RestoreMeshMaterialsFromArchetype(UMeshComponent* InMeshComponent)
+	{
+		if (const UMeshComponent* MeshArchetype = Cast<UMeshComponent>(InMeshComponent->GetArchetype()))
+		{
+			// Retrieve material on the preview mesh from an archetype or OrigMaterial.
+			if (UMaterialInterface* OrigMaterial = MeshArchetype->OverrideMaterials.IsValidIndex(0) ? MeshArchetype->OverrideMaterials[0] : nullptr)
+			{
+				InMeshComponent->SetMaterial(0, OrigMaterial);
+
+				return true;
+			}
+		}
+
+		return false;
+	}
+};
+
 ////////////////////////////////////////////////////////////////////////////////////////
 // FDisplayClusterViewportPreviewMesh
 ////////////////////////////////////////////////////////////////////////////////////////
+EDisplayClusterDisplayDeviceMaterialType FDisplayClusterViewportPreviewMesh::GetCurrentMaterialType() const
+{
+	return Configuration->IsTechvisEnabled()
+		? EDisplayClusterDisplayDeviceMaterialType::PreviewMeshTechvisMaterial
+		: EDisplayClusterDisplayDeviceMaterialType::PreviewMeshMaterial;
+}
+
 void FDisplayClusterViewportPreviewMesh::Update(FDisplayClusterViewport* InViewport, UDisplayClusterDisplayDeviceBaseComponent* InDisplayDeviceComponent)
 {
 	// Reset runtime flags before each update
@@ -43,11 +69,7 @@ void FDisplayClusterViewportPreviewMesh::Update(FDisplayClusterViewport* InViewp
 	DefaultMaterialPtr = InDisplayDeviceComponent->GetDisplayDeviceMaterial(EDisplayClusterDisplayDeviceMaterialType::DefaultPreviewMeshMaterial);
 
 	// Get current preview material
-	EDisplayClusterDisplayDeviceMaterialType NewCurrentMaterialType = InViewport->GetConfiguration().IsTechvisEnabled()
-		? EDisplayClusterDisplayDeviceMaterialType::PreviewMeshTechvisMaterial
-		: EDisplayClusterDisplayDeviceMaterialType::PreviewMeshMaterial;
-
-	UMaterial* InMeshMaterial = InDisplayDeviceComponent->GetDisplayDeviceMaterial(NewCurrentMaterialType);
+	UMaterial* InMeshMaterial = InDisplayDeviceComponent->GetDisplayDeviceMaterial(GetCurrentMaterialType());
 	if (!InMeshMaterial)
 	{
 		// The mesh component and its resources are no longer used.
@@ -63,6 +85,11 @@ void FDisplayClusterViewportPreviewMesh::Update(FDisplayClusterViewport* InViewp
 		// Release the reference to the old mesh component
 		Release(InViewport);
 	}
+	else if (CurrentMaterialPtr != InMeshMaterial)
+	{
+		// Release a material instance when the material is changed
+		ReleaseMaterialInstance();
+	}
 
 	if (NewMeshComponent != GetMeshComponent())
 	{
@@ -77,25 +104,87 @@ void FDisplayClusterViewportPreviewMesh::Update(FDisplayClusterViewport* InViewp
 	// Update material instance and assign to the  mesh
 	if (UMeshComponent* MeshComponent = GetMeshComponent())
 	{
-		if (GetCurrentMaterial() != InMeshMaterial || GetMaterialInstance() == nullptr)
+		// Update material instance and assign to the  mesh
+		if (GetMaterialInstance() == nullptr)
 		{
 			CurrentMaterialPtr = InMeshMaterial;
-			CurrentMaterialType = NewCurrentMaterialType;
 
 			MaterialInstancePtr = UMaterialInstanceDynamic::Create(InMeshMaterial, MeshComponent);
 			EnumAddFlags(RuntimeFlags, EDisplayClusterViewportPreviewMeshFlags::HasChangedMaterialInstance);
+		}
 
-			// Set preview material
-			MeshComponent->SetMaterial(0, GetMaterialInstance());
+		// The material must be assigned to the mesh at each tick, without any conditions in case it can be changed externally.
+		MeshComponent->SetMaterial(0, GetMaterialInstance());
+	}
+
+	// Handling the material overlay logic for the preview mesh:
+	UpdateOverlayMaterial(InViewport);
+}
+
+void FDisplayClusterViewportPreviewMesh::SetCustomOverlayMaterial(UMeshComponent* InMeshComponent, UMaterialInterface* InOverlayMaterial)
+{
+	if (InMeshComponent)
+	{
+		if (OrigOverlayMaterial == nullptr)
+		{
+			OrigOverlayMaterial = InMeshComponent->GetOverlayMaterial();
+		}
+
+		InMeshComponent->SetOverlayMaterial(InOverlayMaterial);
+	}
+}
+
+void FDisplayClusterViewportPreviewMesh::RestoreOverlayMaterial(UMeshComponent* InMeshComponent)
+{
+	if (InMeshComponent)
+	{
+		if (OrigOverlayMaterial)
+		{
+			InMeshComponent->SetOverlayMaterial(OrigOverlayMaterial);
+		}
+		else
+		{
+			if (const UMeshComponent* MeshArchetype = Cast<UMeshComponent>(InMeshComponent->GetArchetype()))
+			{
+				// Retrieve material on the preview mesh from an archetype or OrigMaterial.
+				if (UMaterialInterface* ArchetypeOverlayMaterial = MeshArchetype->GetOverlayMaterial())
+				{
+					InMeshComponent->SetOverlayMaterial(ArchetypeOverlayMaterial);
+				}
+			}
 		}
 	}
 }
 
-void FDisplayClusterViewportPreviewMesh::Release(FDisplayClusterViewport* InViewport)
+void FDisplayClusterViewportPreviewMesh::UpdateOverlayMaterial(FDisplayClusterViewport* InViewport)
 {
+	// Update material instance and assign to the  mesh
+	if (UMeshComponent* MeshComponent = GetMeshComponent())
+	{
+		if (Configuration->GetPreviewSettings().bPreviewEnableOverlayMaterial)
+		{
+			// Restore overlay material
+			RestoreOverlayMaterial(MeshComponent);
+		}
+		else
+		{
+			// Disable overlay material when preview is used
+			SetCustomOverlayMaterial(MeshComponent, nullptr);
+		}
+	}
+}
+
+void FDisplayClusterViewportPreviewMesh::ReleaseMeshComponent(FDisplayClusterViewport* InViewport)
+{
+	using namespace UE::DisplayCluster::ViewportPreviewMesh;
+
 	UMeshComponent* MeshComponent = GetMeshComponent();
 	if (!MeshComponent && MeshComponentPtr)
 	{
+		// Restore materials on deleted mesh
+		RestoreOverlayMaterial(MeshComponentPtr);
+		RestoreMeshMaterialsFromArchetype(MeshComponentPtr);
+
 		// The mesh was destroyed earlier, (re-running build scripts inside RootActor), but we need to update the new mesh component to.
 		MeshComponent = GetOrCreatePreviewMeshComponent(InViewport, bIsRootActorMeshComponent);
 	}
@@ -104,22 +193,31 @@ void FDisplayClusterViewportPreviewMesh::Release(FDisplayClusterViewport* InView
 	{
 		EnumAddFlags(RuntimeFlags, EDisplayClusterViewportPreviewMeshFlags::HasDeletedMeshComponent);
 
+		// Restore materials on exists mesh
+		RestoreOverlayMaterial(MeshComponent);
+		if (!RestoreMeshMaterialsFromArchetype(MeshComponent) && DefaultMaterialPtr)
+		{
+			MeshComponent->SetMaterial(0, DefaultMaterialPtr);
+		}
+
 		if (!bIsRootActorMeshComponent)
 		{
 			// Release this mesh component from DCRA
 			MeshComponent->UnregisterComponent();
 			MeshComponent->DestroyComponent();
 		}
-		else if (UMaterial* DefaultMaterial = GetDefaultMaterial())
+		else
 		{
 			// Restore the default material for an existing mesh in DCRA
 			EnumAddFlags(RuntimeFlags, EDisplayClusterViewportPreviewMeshFlags::HasRestoredDefaultMaterial);
-
-			CurrentMaterialPtr = DefaultMaterial;
-			MeshComponent->SetMaterial(0, DefaultMaterial);
 		}
 	}
 
+	MeshComponentPtr = nullptr;
+}
+
+void FDisplayClusterViewportPreviewMesh::ReleaseMaterialInstance()
+{
 	// The material instance references the mesh, so it must also be deleted
 	if (UMaterialInstanceDynamic* MaterialInstance = GetMaterialInstance())
 	{
@@ -133,9 +231,8 @@ void FDisplayClusterViewportPreviewMesh::Release(FDisplayClusterViewport* InView
 		}
 	}
 
-	MeshComponentPtr = nullptr;
 	MaterialInstancePtr = nullptr;
-	CurrentMaterialType = EDisplayClusterDisplayDeviceMaterialType::DefaultPreviewMeshMaterial;
+	CurrentMaterialPtr = nullptr;
 }
 
 bool FDisplayClusterViewportPreviewMesh::ShouldUseMeshComponent(FDisplayClusterViewport* InViewport) const
@@ -146,7 +243,7 @@ bool FDisplayClusterViewportPreviewMesh::ShouldUseMeshComponent(FDisplayClusterV
 		return false;
 	}
 
-	const FDisplayClusterViewport_PreviewSettings PreviewSettings = InViewport->Configuration->GetRenderFrameSettings().PreviewSettings;
+	const FDisplayClusterViewport_PreviewSettings PreviewSettings = Configuration->GetRenderFrameSettings().PreviewSettings;
 	TSharedPtr<IDisplayClusterProjectionPolicy, ESPMode::ThreadSafe> ProjectionPolicy = InViewport->GetProjectionPolicy();
 	if (ProjectionPolicy.IsValid())
 	{
@@ -190,20 +287,14 @@ UMeshComponent* FDisplayClusterViewportPreviewMesh::GetOrCreatePreviewMeshCompon
 
 UMeshComponent* FDisplayClusterViewportPreviewMesh::GetMeshComponent() const
 {
-	return UE::DisplayCluster::Preview::GetObjectProperty(MeshComponentPtr);
+	using namespace UE::DisplayCluster::ViewportPreviewMesh;
+
+	return GetObjectProperty(MeshComponentPtr);
 }
 
 UMaterialInstanceDynamic* FDisplayClusterViewportPreviewMesh::GetMaterialInstance() const
 {
-	return UE::DisplayCluster::Preview::GetObjectProperty(MaterialInstancePtr);
-}
+	using namespace UE::DisplayCluster::ViewportPreviewMesh;
 
-UMaterial* FDisplayClusterViewportPreviewMesh::GetCurrentMaterial() const
-{
-	return UE::DisplayCluster::Preview::GetObjectProperty(CurrentMaterialPtr);
-}
-
-UMaterial* FDisplayClusterViewportPreviewMesh::GetDefaultMaterial() const
-{
-	return UE::DisplayCluster::Preview::GetObjectProperty(DefaultMaterialPtr);
+	return GetObjectProperty(MaterialInstancePtr);
 }

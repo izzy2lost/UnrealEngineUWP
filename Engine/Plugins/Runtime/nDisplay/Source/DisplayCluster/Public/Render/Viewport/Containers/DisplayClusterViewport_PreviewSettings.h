@@ -31,6 +31,9 @@ struct FDisplayClusterViewport_PreviewSettings
 	// But in it, PostProcess is also rendered with the flag turned off.
 	bool bPreviewEnablePostProcess = false;
 
+	// Show overlay material on the preview mesh when preview rendering is enabled (UMeshComponent::OverlayMaterial)
+	bool bPreviewEnableOverlayMaterial = true;
+
 	// Allows you to process preview meshes inside DCRA (get or create a mesh from a projection policy, update materials on the preview mesh, etc.).
 	bool bEnablePreviewMesh = false;
 

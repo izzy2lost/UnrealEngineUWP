@@ -1160,6 +1160,7 @@ FDisplayClusterViewport_PreviewSettings ADisplayClusterRootActor::GetPreviewSett
 
 	OutPreviewSettings.bEnablePreviewTechvis     = bEnablePreviewTechvis;
 	OutPreviewSettings.bPreviewEnablePostProcess = bPreviewEnablePostProcess;
+	OutPreviewSettings.bPreviewEnableOverlayMaterial = bPreviewEnableOverlayMaterial;
 
 	OutPreviewSettings.bPreviewICVFXFrustums           = bPreviewICVFXFrustums;
 	OutPreviewSettings.PreviewICVFXFrustumsFarDistance = PreviewICVFXFrustumsFarDistance;

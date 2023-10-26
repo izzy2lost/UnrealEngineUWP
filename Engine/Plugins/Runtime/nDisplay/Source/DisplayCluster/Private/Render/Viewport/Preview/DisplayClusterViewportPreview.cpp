@@ -17,8 +17,8 @@ FDisplayClusterViewportPreview::FDisplayClusterViewportPreview(const TSharedRef<
 	: Configuration(InConfiguration)
 	, ViewportId(InViewportId)
 	, ClusterNodeId(InConfiguration->GetClusterNodeId())
-	, PreviewMesh(EDisplayClusterViewportPreviewMeshType::PreviewMesh)
-	, PreviewEditableMesh(EDisplayClusterViewportPreviewMeshType::PreviewEditableMesh)
+	, PreviewMesh(EDisplayClusterViewportPreviewMeshType::PreviewMesh, InConfiguration)
+	, PreviewEditableMesh(EDisplayClusterViewportPreviewMeshType::PreviewEditableMesh, InConfiguration)
 { }
 
 FDisplayClusterViewportPreview::~FDisplayClusterViewportPreview()

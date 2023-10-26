@@ -1643,6 +1643,7 @@ void FDisplayClusterLightCardEditorViewportClient::UpdatePreviewActor(ADisplayCl
 				RootActorProxy->bPreviewICVFXFrustums = false;
 				RootActorProxy->bEnablePreviewTechvis = false;
 				RootActorProxy->bPreviewEnablePostProcess = true;
+				RootActorProxy->bPreviewEnableOverlayMaterial = false;
 				RootActorProxy->bPreviewEnable = true;
 				RootActorProxy->bPreviewICVFXFrustums = false;
 

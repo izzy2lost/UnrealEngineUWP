@@ -7,6 +7,7 @@
 #include "Materials/MaterialInstanceDynamic.h"
 
 #include "Render/DisplayDevice/Containers/DisplayClusterDisplayDevice_Enums.h"
+#include "Render/Viewport/Configuration/DisplayClusterViewportConfiguration.h"
 
 #include "Misc/DisplayClusterObjectRef.h"
 
@@ -52,8 +53,8 @@ ENUM_CLASS_FLAGS(EDisplayClusterViewportPreviewMeshFlags);
 class FDisplayClusterViewportPreviewMesh
 {
 public:
-	FDisplayClusterViewportPreviewMesh(const EDisplayClusterViewportPreviewMeshType InMeshType)
-		: MeshType(InMeshType)
+	FDisplayClusterViewportPreviewMesh(const EDisplayClusterViewportPreviewMeshType InMeshType, const TSharedRef<FDisplayClusterViewportConfiguration, ESPMode::ThreadSafe> InConfiguration)
+		: Configuration(InConfiguration), MeshType(InMeshType)
 	{ }
 
 	~FDisplayClusterViewportPreviewMesh() = default;
@@ -65,22 +66,18 @@ public:
 	/** Get MID used on preview mesh. */
 	UMaterialInstanceDynamic* GetMaterialInstance() const;
 
-	EDisplayClusterDisplayDeviceMaterialType GetCurrentMaterialType() const
-	{
-		return CurrentMaterialType;
-	}
-
-	/** Get current material. */
-	UMaterial* GetCurrentMaterial() const;
-
-	/** Get default material. */
-	UMaterial* GetDefaultMaterial() const;
+	/** Return current material type that used on this mesh. */
+	EDisplayClusterDisplayDeviceMaterialType GetCurrentMaterialType() const;
 
 	/** Update mesh component and materials for viewport. */
 	void Update(FDisplayClusterViewport* InViewport, UDisplayClusterDisplayDeviceBaseComponent* InDisplayDeviceComponent);
 
 	/** Restore default material and release mesh component with materials for viewport. */
-	void Release(FDisplayClusterViewport* InViewport);
+	void Release(FDisplayClusterViewport* InViewport)
+	{
+		ReleaseMeshComponent(InViewport);
+		ReleaseMaterialInstance();
+	}
 
 	/** Returns true if the runtime flags have any of the input flags. */
 	bool HasAnyFlag(const EDisplayClusterViewportPreviewMeshFlags InMeshFlags) const
@@ -92,13 +89,32 @@ private:
 	/** Returns true if this mesh type is supported by the viewport projection policy and DCRA. */
 	bool ShouldUseMeshComponent(FDisplayClusterViewport* InViewport) const;
 
+	/** Release material instance */
+	void ReleaseMaterialInstance();
+
+	/** Release mesh component. */
+	void ReleaseMeshComponent(FDisplayClusterViewport* InViewport);
+
+	/** Update overlay materials on mesh. */
+	void UpdateOverlayMaterial(FDisplayClusterViewport* InViewport);
+
+	/** Set custom overlay materials on mesh. */
+	void SetCustomOverlayMaterial(UMeshComponent* InMeshComponent, UMaterialInterface* InOverlayMaterial);
+
+	/** Restore overlay material on mesh.*/
+	void RestoreOverlayMaterial(UMeshComponent* InMeshComponent);
+
 	/** Get mesh component. */
 	UMeshComponent* GetOrCreatePreviewMeshComponent(FDisplayClusterViewport* InViewport, bool& bOutIsRootActorComponent) const;
 
-private:
+public:
+	// Configuration of the current cluster node
+	const TSharedRef<FDisplayClusterViewportConfiguration, ESPMode::ThreadSafe> Configuration;
+
 	// the type of mesh
 	const EDisplayClusterViewportPreviewMeshType MeshType;
 
+private:
 	// runtime flags
 	EDisplayClusterViewportPreviewMeshFlags RuntimeFlags;
 
@@ -108,6 +124,9 @@ private:
 	// This mesh component exists in DCRA and does not need to be deleted.
 	bool bIsRootActorMeshComponent = false;
 
+	// Overlay materials for the mesh can be customized when using preview rendering.
+	TObjectPtr<UMaterialInterface> OrigOverlayMaterial;
+
 	// Preview material used on the mesh
 	TObjectPtr<UMaterialInstanceDynamic> MaterialInstancePtr = nullptr;
 
@@ -116,7 +135,4 @@ private:
 
 	// The default material defined in the DisplayDevice
 	TObjectPtr<UMaterial> DefaultMaterialPtr = nullptr;
-
-	// The type of material that is currently used on the mesh
-	EDisplayClusterDisplayDeviceMaterialType CurrentMaterialType = EDisplayClusterDisplayDeviceMaterialType::DefaultPreviewMeshMaterial;
 };
