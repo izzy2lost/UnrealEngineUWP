@@ -25,6 +25,11 @@ namespace EpicGames.Horde.Compute
 		/// It's recommended to pick something globally unique, such as a UUID.
 		/// </summary>
 		public string? RequestId { get; set; }
+		
+		/// <summary>
+		/// Type of connection mode that is preferred by the client. Server can still override.
+		/// </summary>
+		public ConnectionMode? ConnectionPreference { get; set; } 
 	}
 
 	/// <summary>

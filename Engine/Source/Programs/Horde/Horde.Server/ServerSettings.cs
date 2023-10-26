@@ -415,10 +415,16 @@ namespace Horde.Server
 		public int Http2Port { get; set; }
 
 		/// <summary>
-		/// Port for tunneling compute sockets to agents
+		/// Port to listen on for tunneling compute sockets to agents
 		/// </summary>
 		public int ComputeTunnelPort { get; set; }
 
+		/// <summary>
+		/// What address (host:port) clients should connect to for compute socket tunneling
+		/// Port may differ from <see cref="ComputeTunnelPort" /> if Horde server is behind a reverse proxy/firewall
+		/// </summary>
+		public string? ComputeTunnelAddress { get; set; }
+		
 		/// <summary>
 		/// MongoDB connection string
 		/// </summary>

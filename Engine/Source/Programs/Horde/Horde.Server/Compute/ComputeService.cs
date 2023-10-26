@@ -46,6 +46,44 @@ namespace Horde.Server.Compute
 		/// </summary>
 		Denied
 	}
+
+	/// <summary>
+	/// Parameters for allocating a resource
+	/// </summary>
+	public class AllocateResourceParams
+	{
+		/// <summary>
+		/// Criteria for selecting an agent
+		/// </summary>
+		public Requirements Requirements { get; }
+		
+		/// <summary>
+		/// Unique ID of this allocation request. If the same allocation retried, the same request ID should be used
+		/// </summary> 
+		public string? RequestId { get; init; }
+		
+		/// <summary>
+		/// IP address of the requester
+		/// </summary>
+		public IPAddress? RequesterIp { get; init; }
+		
+		/// <summary>
+		/// Optional parent lease
+		/// </summary>
+		public LeaseId? ParentLeaseId { get; init; }
+		
+		/// <inheritdoc cref="EpicGames.Horde.Compute.AssignComputeRequest.ConnectionPreference" />
+		public ConnectionMode? ConnectionPreference { get; init; }
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		/// <param name="requirements"></param>
+		public AllocateResourceParams(Requirements requirements)
+		{
+			Requirements = requirements;
+		}
+	}
 	
 	/// <summary>
 	/// Assigns compute leases to agents
@@ -81,6 +119,7 @@ namespace Horde.Server.Compute
 		readonly ILogFileService _logService;
 		readonly AgentService _agentService;
 		readonly RedisService _redisService;
+		readonly IOptionsMonitor<ServerSettings> _settings;
 		readonly IOptionsMonitor<GlobalConfig> _globalConfig;
 		readonly IClock _clock;
 		readonly Tracer _tracer;
@@ -95,12 +134,23 @@ namespace Horde.Server.Compute
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public ComputeService(IAgentCollection agentCollection, ILogFileService logService, AgentService agentService, RedisService redisService, IOptionsMonitor<GlobalConfig> globalConfig, IClock clock, Tracer tracer, Meter meter, ILogger<ComputeService> logger)
+		public ComputeService(
+			IAgentCollection agentCollection,
+			ILogFileService logService,
+			AgentService agentService,
+			RedisService redisService,
+			IOptionsMonitor<ServerSettings> settings,
+			IOptionsMonitor<GlobalConfig> globalConfig,
+			IClock clock,
+			Tracer tracer,
+			Meter meter,
+			ILogger<ComputeService> logger)
 		{
 			_agentCollection = agentCollection;
 			_logService = logService;
 			_agentService = agentService;
 			_redisService = redisService;
+			_settings = settings;
 			_globalConfig = globalConfig;
 			_clock = clock;
 			_tracer = tracer;
@@ -202,26 +252,23 @@ namespace Horde.Server.Compute
 		/// <summary>
 		/// Allocates a compute resource
 		/// </summary>
-		/// <param name="requestId">Unique ID of this allocation request. If the same allocation retried, the same request ID should be used</param>
-		/// <param name="requesterIp">IP address of the requester</param>
-		/// <param name="requirements">Criteria for selecting an agent</param>
-		/// <param name="parentLeaseId">Optional parent lease</param>
+		/// <param name="p">Allocation parameters</param>
 		/// <param name="cancellationToken">Cancellation token</param>
 		/// <returns>A compute resource if successful</returns>
-		public async Task<ComputeResource?> TryAllocateResourceAsync(string? requestId, IPAddress? requesterIp, Requirements requirements, LeaseId? parentLeaseId, CancellationToken cancellationToken)
+		public async Task<ComputeResource?> TryAllocateResourceAsync(AllocateResourceParams p, CancellationToken cancellationToken)
 		{
 			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(ComputeService)}.{nameof(TryAllocateResourceAsync)}");
-			span.SetAttribute("requestId", requestId);
-			span.SetAttribute("requestIp", requesterIp?.ToString());
-			span.SetAttribute("parentLeaseId", parentLeaseId?.ToString());
-			span.SetAttribute("req.pool", requirements.Pool);
-			span.SetAttribute("req.condition", requirements.Condition?.ToString());
-			span.SetAttribute("req.exclusive", requirements.Exclusive);
+			span.SetAttribute("requestId", p.RequestId);
+			span.SetAttribute("requestIp", p.RequesterIp?.ToString());
+			span.SetAttribute("parentLeaseId", p.ParentLeaseId?.ToString());
+			span.SetAttribute("req.pool", p.Requirements.Pool);
+			span.SetAttribute("req.condition", p.Requirements.Condition?.ToString());
+			span.SetAttribute("req.exclusive", p.Requirements.Exclusive);
 
-			requirements.Pool = ResolvePoolId(requirements.Pool, requesterIp);
-			span.SetAttribute("req.poolResolved", requirements.Pool);
+			p.Requirements.Pool = ResolvePoolId(p.Requirements.Pool, p.RequesterIp);
+			span.SetAttribute("req.poolResolved", p.Requirements.Pool);
 
-			foreach ((string name, ResourceRequirements resReq) in requirements.Resources)
+			foreach ((string name, ResourceRequirements resReq) in p.Requirements.Resources)
 			{
 				span.SetAttribute($"req.res.{name}.min", resReq.Min);
 				span.SetAttribute($"req.res.{name}.max", resReq.Max);
@@ -231,17 +278,17 @@ namespace Horde.Server.Compute
 			foreach (IAgent agent in agents)
 			{
 				Dictionary<string, int> assignedResources = new Dictionary<string, int>();
-				if (agent.MeetsRequirements(requirements, assignedResources))
+				if (agent.MeetsRequirements(p.Requirements, assignedResources))
 				{
 					LeaseId leaseId = new LeaseId(BinaryIdUtils.CreateNew());
 					ILogFile? log = await _logService.CreateLogFileAsync(JobId.Empty, leaseId, agent.SessionId, LogType.Json, useNewStorageBackend: true, cancellationToken: cancellationToken);
 
-					ComputeTask computeTask = CreateComputeTask(assignedResources, log?.Id, parentLeaseId);
+					ComputeTask computeTask = CreateComputeTask(assignedResources, log?.Id, p.ParentLeaseId);
 
 					byte[] payload = Any.Pack(computeTask).ToByteArray();
-					AgentLease lease = new AgentLease(leaseId, parentLeaseId, "Compute task", null, null, log?.Id, LeaseState.Pending, assignedResources, requirements.Exclusive, payload);
+					AgentLease lease = new AgentLease(leaseId, p.ParentLeaseId, "Compute task", null, null, log?.Id, LeaseState.Pending, assignedResources, p.Requirements.Exclusive, payload);
 
-					ComputeResource? resource = TryAssign(agent, computeTask, leaseId);
+					ComputeResource? resource = TryAssign(agent, computeTask, leaseId, p.ConnectionPreference);
 					if (resource != null)
 					{
 						IAgent? newAgent = await _agentCollection.TryAddLeaseAsync(agent, lease);
@@ -252,14 +299,14 @@ namespace Horde.Server.Compute
 							span.SetAttribute("allocatedLeaseId", leaseId.ToString());
 							span.SetAttribute("allocatedAgentId", newAgent.Id.ToString());
 
-							await LogRequestAsync(AllocationOutcome.Accepted, requestId, requirements, parentLeaseId, span);
+							await LogRequestAsync(AllocationOutcome.Accepted, p.RequestId, p.Requirements, p.ParentLeaseId, span);
 							return resource;
 						}
 					}
 				}
 			}
 
-			await LogRequestAsync(AllocationOutcome.Denied, requestId, requirements, parentLeaseId, span);
+			await LogRequestAsync(AllocationOutcome.Denied, p.RequestId, p.Requirements, p.ParentLeaseId, span);
 			return null;
 		}
 
@@ -492,7 +539,18 @@ namespace Horde.Server.Compute
 			return childLeaseIds.Count;
 		}
 
-		static ComputeResource? TryAssign(IAgent agent, ComputeTask computeTask, LeaseId leaseId)
+		private (ConnectionMode mode, string? address) ResolveBestConnection(ConnectionMode? connectionPreference)
+		{
+			string? tunnelAddress = _settings.CurrentValue.ComputeTunnelAddress;
+			return connectionPreference switch
+			{
+				ConnectionMode.Direct => (ConnectionMode.Direct, null),
+				ConnectionMode.Tunnel when tunnelAddress != null => (ConnectionMode.Tunnel, tunnelAddress),
+				_ => (ConnectionMode.Direct, null)
+			};
+		}
+
+		private ComputeResource? TryAssign(IAgent agent, ComputeTask computeTask, LeaseId leaseId, ConnectionMode? connectionPreference)
 		{
 			string? ipStr = agent.GetPropertyValues("ComputeIp").FirstOrDefault();
 			if (ipStr == null || !IPAddress.TryParse(ipStr, out IPAddress? ip))
@@ -506,7 +564,8 @@ namespace Horde.Server.Compute
 				return null;
 			}
 
-			return new ComputeResource(ip, port, computeTask, agent.Properties, agent.Id, leaseId);
+			(ConnectionMode connectionMode, string? connectionAddress) = ResolveBestConnection(connectionPreference);
+			return new ComputeResource(ip, port, connectionMode, connectionAddress, computeTask, agent.Properties, agent.Id, leaseId);
 		}
 
 		static ComputeTask CreateComputeTask(Dictionary<string, int> assignedResources, LogId? logId, LeaseId? parentLeaseId)

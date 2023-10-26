@@ -65,7 +65,14 @@ namespace Horde.Server.Compute
 
 			Requirements requirements = request.Requirements ?? new Requirements();
 
-			ComputeResource? computeResource = await _computeService.TryAllocateResourceAsync(request.RequestId, HttpContext.Connection.RemoteIpAddress, requirements, parentLeaseId, cancellationToken);
+			AllocateResourceParams arp = new(requirements)
+			{
+				RequestId = request.RequestId,
+				RequesterIp = HttpContext.Connection.RemoteIpAddress,
+				ParentLeaseId = parentLeaseId,
+				ConnectionPreference = request.ConnectionPreference
+			};
+			ComputeResource? computeResource = await _computeService.TryAllocateResourceAsync(arp, cancellationToken);
 			if (computeResource == null)
 			{
 				return StatusCode((int)HttpStatusCode.ServiceUnavailable);
@@ -74,6 +81,8 @@ namespace Horde.Server.Compute
 			AssignComputeResponse response = new AssignComputeResponse();
 			response.Ip = computeResource.Ip.ToString();
 			response.Port = computeResource.Port;
+			response.ConnectionMode = computeResource.ConnectionMode;
+			response.ConnectionAddress = computeResource.ConnectionAddress;
 			response.Nonce = StringUtils.FormatHexString(computeResource.Task.Nonce.Span);
 			response.Key = StringUtils.FormatHexString(computeResource.Task.Key.Span);
 			response.AgentId = computeResource.AgentId;

@@ -32,6 +32,12 @@ namespace Horde.Server.Compute
 		/// Port to connect on
 		/// </summary>
 		public int Port { get; }
+		
+		/// <inheritdoc cref="EpicGames.Horde.Compute.AssignComputeResponse.ConnectionMode" />
+		public ConnectionMode ConnectionMode { get; }
+		
+		/// <inheritdoc cref="EpicGames.Horde.Compute.AssignComputeResponse.ConnectionAddress" />
+		public string? ConnectionAddress { get; }
 
 		/// <summary>
 		/// Information about the compute task
@@ -56,10 +62,12 @@ namespace Horde.Server.Compute
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public ComputeResource(IPAddress ip, int port, ComputeTask task, IReadOnlyList<string> properties, AgentId agentId, LeaseId leaseId)
+		public ComputeResource(IPAddress ip, int port, ConnectionMode connectionMode, string? connectionAddress, ComputeTask task, IReadOnlyList<string> properties, AgentId agentId, LeaseId leaseId)
 		{
 			Ip = ip;
 			Port = port;
+			ConnectionMode = connectionMode;
+			ConnectionAddress = connectionAddress;
 			Task = task;
 			Properties = properties;
 			AgentId = agentId;
