@@ -519,10 +519,8 @@ bool FWorldPartitionLevelHelper::LoadActors(const FLoadActorsParams& InParams)
 					const bool bDirectAccess = true;
 					const FGuid ActorFolderGuid = Actor->GetFolderGuid(bDirectAccess);
 					// Resolve folder guid from source container level and resolve/backup the folder path
-					if (UActorFolder* SrcFolder = ContainerWorld->PersistentLevel->GetActorFolder(ActorFolderGuid))
-					{
-						SrcActorFolderPath = SrcFolder->GetPath();
-					}
+					UActorFolder* SrcFolder = ContainerWorld->PersistentLevel->GetActorFolder(ActorFolderGuid);
+					SrcActorFolderPath = SrcFolder ? SrcFolder->GetPath() : NAME_None;
 				}
 
 				if (!PackageObjectMapping->ContainerID.IsMainContainer())

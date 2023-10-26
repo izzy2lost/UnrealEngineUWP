@@ -1450,7 +1450,7 @@ void AActor::SetFolderGuidInternal(const FGuid& InFolderGuid, bool bInBroadcastC
 void AActor::SetFolderPathInternal(const FName& InNewFolderPath, bool bInBroadcastChange)
 {
 	FName OldPath = FolderPath;
-	if (InNewFolderPath.IsEqual(OldPath, ENameCase::CaseSensitive))
+	if (InNewFolderPath.IsEqual(OldPath, ENameCase::CaseSensitive) && !FolderGuid.IsValid())
 	{
 		return;
 	}
