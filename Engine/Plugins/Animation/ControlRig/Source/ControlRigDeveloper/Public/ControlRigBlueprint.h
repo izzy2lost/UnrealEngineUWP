@@ -84,6 +84,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Control Rig Blueprint")
 	UBaseControlRig* CreateControlRig() { return Cast<UBaseControlRig>(CreateRigVMHost()); }
 
+	UFUNCTION(BlueprintCallable, Category = "Control Rig Blueprint")
+	UBaseControlRig* GetDebuggedControlRig() { return Cast<UBaseControlRig>(GetDebuggedRigVMHost()); } 
+
 	/** IInterface_PreviewMeshProvider interface */
 	UFUNCTION(BlueprintCallable, Category = "Control Rig Blueprint")
 	virtual void SetPreviewMesh(USkeletalMesh* PreviewMesh, bool bMarkAsDirty = true) override;

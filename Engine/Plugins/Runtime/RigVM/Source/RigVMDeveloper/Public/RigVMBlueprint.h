@@ -521,6 +521,9 @@ public:
 	URigVMHost* CreateRigVMHost();
 
 	UFUNCTION(BlueprintCallable, Category = "VM")
+	URigVMHost* GetDebuggedRigVMHost() { return Cast<URigVMHost>(GetObjectBeingDebugged()); }
+
+	UFUNCTION(BlueprintCallable, Category = "VM")
 	virtual TArray<UStruct*> GetAvailableRigVMStructs() const;
 
 #if WITH_EDITOR
