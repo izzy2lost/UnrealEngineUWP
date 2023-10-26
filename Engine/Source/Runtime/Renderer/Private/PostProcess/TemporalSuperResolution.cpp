@@ -1391,10 +1391,11 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 #if WITH_EDITOR
 	// Do not composite translucency if we are visualizing a buffer, unless it is the overview mode.
 	static FName OverviewName = FName(TEXT("Overview"));
+	static FName PerformanceOverviewName = FName(TEXT("PerformanceOverview"));
 	bHasSeparateTranslucency &= 
 		   (!View.Family->EngineShowFlags.VisualizeBuffer    || (View.Family->EngineShowFlags.VisualizeBuffer    && View.CurrentBufferVisualizationMode == OverviewName))
 		&& (!View.Family->EngineShowFlags.VisualizeNanite    || (View.Family->EngineShowFlags.VisualizeNanite    && View.CurrentNaniteVisualizationMode == OverviewName))
-		&& (!View.Family->EngineShowFlags.VisualizeLumen     || (View.Family->EngineShowFlags.VisualizeLumen     && View.CurrentLumenVisualizationMode  == OverviewName))
+		&& (!View.Family->EngineShowFlags.VisualizeLumen     || (View.Family->EngineShowFlags.VisualizeLumen     && (View.CurrentLumenVisualizationMode  == OverviewName || View.CurrentLumenVisualizationMode == PerformanceOverviewName)))
 		&& (!View.Family->EngineShowFlags.VisualizeGroom     || (View.Family->EngineShowFlags.VisualizeGroom     && View.CurrentGroomVisualizationMode  == OverviewName));
 #endif
 	if (bHasSeparateTranslucency)

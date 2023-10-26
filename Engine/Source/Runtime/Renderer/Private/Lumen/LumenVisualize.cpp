@@ -27,24 +27,26 @@ FAutoConsoleVariableRef CVarLumenVisualize(
 	GLumenVisualize,
 	TEXT("Lumen scene visualization mode.\n")
 	TEXT("0 - Disable\n")
-	TEXT("1 - Final lighting\n")
-	TEXT("2 - Reflection View\n")
-	TEXT("3 - Surface Cache Coverage\n")
-	TEXT("4 - Overview\n")
+	TEXT("1 - Overview\n")
+	TEXT("2 - Performance Overview\n")
+	TEXT("3 - Final lighting\n")
+	TEXT("4 - Surface Cache Coverage\n")
 	TEXT("5 - Geometry normals\n")
-	TEXT("6 - Albedo\n")
-	TEXT("7 - Normals\n")
-	TEXT("8 - Emissive\n")
-	TEXT("9 - Opacity (disable alpha masking)\n")
-	TEXT("10 - Card weights\n")
-	TEXT("11 - Direct lighting\n")
-	TEXT("12 - Indirect lighting\n")
-	TEXT("13 - Local Position (hardware ray-tracing only)\n")
-	TEXT("14 - Velocity (hardware ray-tracing only)\n")
-	TEXT("15 - Direct lighting updates\n")
-	TEXT("16 - Indirect lighting updates\n")
-	TEXT("17 - Last used pages\n")
-	TEXT("18 - Last used high res pages"),
+	TEXT("6 - Dedicated Reflection Rays\n")
+	TEXT("7 - Albedo\n")
+	TEXT("8 - Normals\n")
+	TEXT("9 - Emissive\n")
+	TEXT("10 - Opacity (disable alpha masking)\n")
+	TEXT("11 - Card weights\n")
+	TEXT("12 - Direct lighting\n")
+	TEXT("13 - Indirect lighting\n")
+	TEXT("14 - Local Position (hardware ray-tracing only)\n")
+	TEXT("15 - Velocity (hardware ray-tracing only)\n")
+	TEXT("16 - Direct lighting updates\n")
+	TEXT("17 - Indirect lighting updates\n")
+	TEXT("18 - Last used pages\n")
+	TEXT("19 - Last used high res pages")
+	TEXT("20 - Pixels which trace reflections"),
 	ECVF_RenderThreadSafe
 );
 
@@ -289,6 +291,7 @@ class FVisualizeLumenSceneCS : public FGlobalShader
 	SHADER_USE_PARAMETER_STRUCT(FVisualizeLumenSceneCS, FGlobalShader)
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER_STRUCT_INCLUDE(FSceneTextureShaderParameters, SceneTextures)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FLumenCardTracingParameters, TracingParameters)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FLumenMeshSDFGridParameters, MeshSDFGridParameters)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FLumenVisualizeSceneSoftwareRayTracingParameters, VisualizeParameters)
@@ -721,6 +724,7 @@ void VisualizeLumenScene(
 	FScreenPassTexture Output,
 	FRDGTextureRef ColorGradingTexture,
 	FRDGBufferRef EyeAdaptationBuffer,
+	FSceneTextureShaderParameters SceneTextures,
 	int32 VisualizeMode,
 	int32 VisualizeTileIndex,
 	bool bLumenGIEnabled)
@@ -792,6 +796,7 @@ void VisualizeLumenScene(
 
 		FVisualizeLumenSceneCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FVisualizeLumenSceneCS::FParameters>();
 		PassParameters->RWSceneColor = SceneColorUAV;
+		PassParameters->SceneTextures = SceneTextures;
 		PassParameters->MeshSDFGridParameters = MeshSDFGridParameters;
 		PassParameters->VisualizeParameters = VisualizeParameters;
 		LumenRadianceCache::GetInterpolationParameters(View, GraphBuilder, RadianceCacheState, RadianceCacheInputs, PassParameters->RadianceCacheParameters);
@@ -851,7 +856,7 @@ FScreenPassTexture AddVisualizeLumenScenePass(FRDGBuilder& GraphBuilder, const F
 			const int32 VisualizeMode = GetLumenVisualizeMode(View);
 
 			// In the overview mode we don't fully overwrite, copy the old Scene Color
-			if (VisualizeMode == VISUALIZE_MODE_OVERVIEW)
+			if (VisualizeMode == VISUALIZE_MODE_OVERVIEW || VisualizeMode == VISUALIZE_MODE_PERFORMANCE_OVERVIEW)
 			{
 				FRHICopyTextureInfo CopyInfo;
 
@@ -887,7 +892,7 @@ FScreenPassTexture AddVisualizeLumenScenePass(FRDGBuilder& GraphBuilder, const F
 
 				for (int32 TileIndex = 0; TileIndex < LumenVisualize::NumOverviewTilesPerRow; ++TileIndex)
 				{
-					VisualizeLumenScene(Scene, GraphBuilder, ViewFamily.EngineShowFlags, View, FrameTemporaries, Output, Inputs.ColorGradingTexture, Inputs.EyeAdaptationBuffer, VisualizeTiles[TileIndex].Mode, TileIndex, bLumenGIEnabled);	
+					VisualizeLumenScene(Scene, GraphBuilder, ViewFamily.EngineShowFlags, View, FrameTemporaries, Output, Inputs.ColorGradingTexture, Inputs.EyeAdaptationBuffer, Inputs.SceneTextures, VisualizeTiles[TileIndex].Mode, TileIndex, bLumenGIEnabled);
 				}
 
 				AddDrawCanvasPass(GraphBuilder, RDG_EVENT_NAME("LumenVisualizeLabels"), View, FScreenPassRenderTarget(Output, ERenderTargetLoadAction::ELoad),
@@ -909,9 +914,55 @@ FScreenPassTexture AddVisualizeLumenScenePass(FRDGBuilder& GraphBuilder, const F
 					}
 				});
 			}
+			else if (VisualizeMode == VISUALIZE_MODE_PERFORMANCE_OVERVIEW)
+			{
+				struct FVisualizeTile
+				{
+					int32 Mode;
+					FString Name;
+				};
+
+				LumenReflections::FCompositeParameters ReflectionCompositeParameters;
+				LumenReflections::SetupCompositeParameters(View, ReflectionCompositeParameters);
+				extern float GLumenReflectionRoughnessFadeLength;
+
+				FVisualizeTile VisualizeTiles[1];
+				VisualizeTiles[0].Mode = VISUALIZE_MODE_DEDICATED_REFLECTION_RAYS;
+				VisualizeTiles[0].Name = FString::Printf(
+					TEXT("Pixels tracing dedicated reflection rays.")
+					TEXT("\nGreen - foliage(Subsurface or Two Sided Foliage shading model). Red - other.")
+					TEXT("\nMaxRoughness: %.2f MaxFoliageRoughness: %.2f FadeLength: %.2f"),
+					ReflectionCompositeParameters.MaxRoughnessToTrace,
+					ReflectionCompositeParameters.MaxRoughnessToTraceForFoliage,
+					GLumenReflectionRoughnessFadeLength);
+
+				for (int32 TileIndex = 0; TileIndex < UE_ARRAY_COUNT(VisualizeTiles); ++TileIndex)
+				{
+					VisualizeLumenScene(Scene, GraphBuilder, ViewFamily.EngineShowFlags, View, FrameTemporaries, Output, Inputs.ColorGradingTexture, Inputs.EyeAdaptationBuffer, Inputs.SceneTextures, VisualizeTiles[TileIndex].Mode, TileIndex, bLumenGIEnabled);
+				}
+
+				AddDrawCanvasPass(GraphBuilder, RDG_EVENT_NAME("LumenVisualizeLabels"), View, FScreenPassRenderTarget(Output, ERenderTargetLoadAction::ELoad),
+					[&ViewRect = Inputs.SceneColor.ViewRect, &VisualizeTiles](FCanvas& Canvas)
+					{
+						const float DPIScale = Canvas.GetDPIScale();
+						Canvas.SetBaseTransform(FMatrix(FScaleMatrix(DPIScale) * Canvas.CalcBaseTransform2D(Canvas.GetViewRect().Width(), Canvas.GetViewRect().Height())));
+
+						const FLinearColor LabelColor(1, 1, 0);
+
+						for (int32 TileIndex = 0; TileIndex < UE_ARRAY_COUNT(VisualizeTiles); ++TileIndex)
+						{
+							FIntPoint OutputViewSize;
+							FIntPoint OutputViewOffset;
+							GetVisualizeTileOutputView(ViewRect, TileIndex, OutputViewOffset, OutputViewSize);
+
+							FIntPoint LabelLocation(OutputViewOffset.X + 2 * LumenVisualize::OverviewTileMargin, OutputViewOffset.Y + OutputViewSize.Y - 46);
+							Canvas.DrawShadowedString(LabelLocation.X / DPIScale, LabelLocation.Y / DPIScale, *VisualizeTiles[TileIndex].Name, GetStatsFont(), LabelColor);
+						}
+					});
+			}
 			else
 			{
-				VisualizeLumenScene(Scene, GraphBuilder, ViewFamily.EngineShowFlags, View, FrameTemporaries, Output, Inputs.ColorGradingTexture, Inputs.EyeAdaptationBuffer, VisualizeMode, /*VisualizeTileIndex*/ -1, bLumenGIEnabled);
+				VisualizeLumenScene(Scene, GraphBuilder, ViewFamily.EngineShowFlags, View, FrameTemporaries, Output, Inputs.ColorGradingTexture, Inputs.EyeAdaptationBuffer, Inputs.SceneTextures, VisualizeMode, /*VisualizeTileIndex*/ -1, bLumenGIEnabled);
 			}
 		}
 	}

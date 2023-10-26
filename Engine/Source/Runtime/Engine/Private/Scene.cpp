@@ -607,13 +607,11 @@ FPostProcessSettings::FPostProcessSettings()
 	ScreenPercentage_DEPRECATED = 100.0f;
 	ReflectionsType_DEPRECATED = EReflectionsType::RayTracing;
 
-	static const auto VarLumenReflectionMaxRoughnessToTrace = IConsoleManager::Get().FindTConsoleVariableDataFloat(TEXT("r.Lumen.Reflections.MaxRoughnessToTrace"));
-
 	ReflectionMethod = EReflectionMethod::Lumen;
 	LumenReflectionQuality = 1;
 	LumenRayLightingMode = ELumenRayLightingModeOverride::Default;
 	LumenFrontLayerTranslucencyReflections = false;
-	LumenMaxRoughnessToTraceReflections = VarLumenReflectionMaxRoughnessToTrace->GetValueOnAnyThread();
+	LumenMaxRoughnessToTraceReflections = 0.4f;
 	LumenMaxReflectionBounces = 1;
 
 	ScreenSpaceReflectionIntensity = 100.0f;
