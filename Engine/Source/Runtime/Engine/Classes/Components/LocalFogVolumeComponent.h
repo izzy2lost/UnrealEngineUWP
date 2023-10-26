@@ -47,6 +47,21 @@ class ULocalFogVolumeComponent : public USceneComponent
 	/** The priority can be used as a way to override the sorting by distance. A lower value means the volume will be considered further away, i.e. it will draw behind the one with a higher priority value. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Sorting", meta = (UIMin = "-127", UIMax = "127", ClampMin = -127, ClampMax = 127))
 	int32 FogSortPriority = 0;
+	
+	UFUNCTION(BlueprintCallable, Category = "Rendering", meta = (DisplayName = "Set Radial Fog Density"))
+	ENGINE_API void SetRadialFogExtinction(float NewValue);
+	UFUNCTION(BlueprintCallable, Category = "Rendering", meta = (DisplayName = "Set Height Fog Density"))
+	ENGINE_API void SetHeightFogExtinction(float NewValue);
+	UFUNCTION(BlueprintCallable, Category = "Rendering")
+	ENGINE_API void SetHeightFogFalloff(float NewValue);
+	UFUNCTION(BlueprintCallable, Category = "Rendering")
+	ENGINE_API void SetHeightFogOffset(float NewValue);
+	UFUNCTION(BlueprintCallable, Category = "Rendering", meta = (DisplayName = "Set Scattering Distribution"))
+	ENGINE_API void SetFogPhaseG(float NewValue);
+	UFUNCTION(BlueprintCallable, Category = "Rendering")
+	ENGINE_API void SetFogAlbedo(FLinearColor NewValue);
+	UFUNCTION(BlueprintCallable, Category = "Rendering")
+	ENGINE_API void SetFogEmissive(FLinearColor NewValue);
 
 public:
 

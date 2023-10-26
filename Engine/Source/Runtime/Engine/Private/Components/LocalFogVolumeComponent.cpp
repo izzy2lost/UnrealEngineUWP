@@ -86,6 +86,42 @@ void ULocalFogVolumeComponent::DestroyRenderState_Concurrent()
 	}
 }
 
+#define LFV_BLUEPRINT_SETFUNCTION(MemberType, MemberName) void ULocalFogVolumeComponent::Set##MemberName(MemberType NewValue)\
+{\
+	if (AreDynamicDataChangesAllowed() && MemberName != NewValue)\
+	{\
+		MemberName = FMath::Max(MemberType(0), NewValue);\
+		MarkRenderStateDirty();\
+	}\
+}\
+
+#define LFV_BLUEPRINT_SETFUNCTION_LINEARCOLOR(MemberName) void ULocalFogVolumeComponent::Set##MemberName(FLinearColor NewValue)\
+{\
+	if (AreDynamicDataChangesAllowed() && MemberName != NewValue)\
+	{\
+		MemberName = NewValue.GetClamped(0.0f, 1e38f); \
+		MarkRenderStateDirty();\
+	}\
+}\
+
+#define LFV_BLUEPRINT_SETFUNCTION_LINEARCOLOR01(MemberName) void ULocalFogVolumeComponent::Set##MemberName(FLinearColor NewValue)\
+{\
+	if (AreDynamicDataChangesAllowed() && MemberName != NewValue)\
+	{\
+		MemberName = NewValue.GetClamped(0.0f, 1.0f); \
+		MarkRenderStateDirty();\
+	}\
+}\
+
+LFV_BLUEPRINT_SETFUNCTION(float, RadialFogExtinction);
+LFV_BLUEPRINT_SETFUNCTION(float, HeightFogExtinction);
+LFV_BLUEPRINT_SETFUNCTION(float, HeightFogFalloff);
+LFV_BLUEPRINT_SETFUNCTION(float, HeightFogOffset);
+LFV_BLUEPRINT_SETFUNCTION(float, FogPhaseG);
+LFV_BLUEPRINT_SETFUNCTION_LINEARCOLOR01(FogAlbedo);
+LFV_BLUEPRINT_SETFUNCTION_LINEARCOLOR(FogEmissive);
+
+
 #if WITH_EDITOR
 
 bool ULocalFogVolumeComponent::CanEditChange(const FProperty* InProperty) const
