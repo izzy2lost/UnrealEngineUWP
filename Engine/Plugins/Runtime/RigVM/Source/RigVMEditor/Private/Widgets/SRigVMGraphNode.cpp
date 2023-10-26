@@ -103,7 +103,7 @@ void SRigVMGraphNode::Construct( const FArguments& InArgs )
 	.ColorAndOpacity(FLinearColor::White)
 	.ShadowColorAndOpacity(FLinearColor(0.1f, 0.1f, 0.1f, 1.f))
 	.Visibility(EVisibility::Visible)
-	.ToolTipText(LOCTEXT("NodeHitCountToolTip", "This number represents the hit count for a node.\nFor functions / collapse nodes it represents the sum of all hit counts of contained nodes.\n\nYou can enable / disable the display of the number in the Class Settings\n(Rig Graph Display Settings -> Show Node Run Counts)"));
+	.ToolTipText(LOCTEXT("NodeHitCountToolTip", "This number represents the number of instructions hit for a node.\nIf the node has auxiliary instructions (such as Copies) you'll first see the primary instructions followed by the overall instructions in braces.\nFor functions / collapse nodes it represents the sum of all hit instructions of contained nodes.\n\nYou can enable / disable the display of the number in the Class Settings\n(Rig Graph Display Settings -> Show Node Run Counts)"));
 
 	SAssignNew(InstructionDurationTextBlockWidget, STextBlock)
 	.Margin(FMargin(2.0f, 2.0f, 2.0f, 1.0f))
@@ -112,7 +112,7 @@ void SRigVMGraphNode::Construct( const FArguments& InArgs )
 	.ColorAndOpacity(FLinearColor::White)
 	.ShadowColorAndOpacity(FLinearColor(0.1f, 0.1f, 0.1f, 1.f))
 	.Visibility(EVisibility::Visible)
-	.ToolTipText(LOCTEXT("NodeDurationToolTip", "This number represents the duration in microseconds for a node.\nFor functions / collapse nodes it represents the accumulated time of contained nodes.\n\nYou can enable / disable the display of the number in the Class Settings\n(VM Runtime Settings -> Enable Profiling)"));
+	.ToolTipText(LOCTEXT("NodeDurationToolTip", "This number represents the duration in microseconds for a node.\nFor functions / collapse nodes it represents the accumulated time of contained nodes.\n\nIf you have more than one node selected you'll see also the overall summed up time of the selection.\n\nYou can enable / disable the display of the number in the Class Settings\n(VM Runtime Settings -> Enable Profiling)"));
 
 	EdGraphNode->OnNodeTitleDirtied().AddSP(this, &SRigVMGraphNode::HandleNodeTitleDirtied);
 	EdGraphNode->OnNodePinsChanged().AddSP(this, &SRigVMGraphNode::HandleNodePinsChanged);
@@ -1263,11 +1263,14 @@ FText SRigVMGraphNode::GetInstructionCountText() const
 					{
 						RunCount = ModelNode->GetInstructionVisitedCount(DebuggedHost->GetRigVMExtendedExecuteContext(), DebuggedHost->GetVM(), FRigVMASTProxy());
 						bShowNodeRunCount = RunCount > Blueprint->RigGraphDisplaySettings.NodeRunLowerBound;
+
+						// toodoo here we want to differentiate between primary and secondary instructions. (call extern vs copy).
+						// const TArray<int32>& Instructions = ModelNode->GetInstructionsForVM(DebuggedHost->GetRigVMExtendedExecuteContext(), DebuggedHost->GetVM());
 					}
 
 					if(bShowInstructionIndex)
 					{
-						const TArray<int32> Instructions = ModelNode->GetInstructionsForVM(DebuggedHost->GetRigVMExtendedExecuteContext(), DebuggedHost->GetVM());
+						const TArray<int32>& Instructions = ModelNode->GetInstructionsForVM(DebuggedHost->GetRigVMExtendedExecuteContext(), DebuggedHost->GetVM());
 						bShowInstructionIndex = Instructions.Num() > 0;
 						if(bShowInstructionIndex)
 						{
@@ -1312,15 +1315,30 @@ FText SRigVMGraphNode::GetInstructionDurationText() const
 	{
 		if(Blueprint->VMRuntimeSettings.bEnableProfiling)
 		{
-			if (ModelNode.IsValid())
+			if(const URigVMEdGraphNode* RigGraphNode = Cast<URigVMEdGraphNode>(GraphNode))
 			{
-				if(URigVMHost* DebuggedHost = Cast<URigVMHost>(Blueprint->GetObjectBeingDebugged()))
+				const double MicroSeconds = RigGraphNode->MicroSeconds;
+				if(MicroSeconds >= 0)
 				{
-					const double MicroSeconds = ModelNode->GetInstructionMicroSeconds(DebuggedHost->GetRigVMExtendedExecuteContext(), DebuggedHost->GetVM(), FRigVMASTProxy());
-					if(MicroSeconds >= 0)
+					if (const SGraphPanel* MyOwnerPanel = GetOwnerPanel().Get())
 					{
-						return FText::FromString(FString::Printf(TEXT("%d µs"), (int32)MicroSeconds));
+						const TArray<UEdGraphNode*> SelectedNodes = MyOwnerPanel->GetSelectedGraphNodes();
+						if((SelectedNodes.Num() > 1) && SelectedNodes.Contains(RigGraphNode))
+						{
+							double OverallMicroSeconds = 0;
+							for(const UEdGraphNode* SelectedNode : SelectedNodes)
+							{
+								if(const URigVMEdGraphNode* SelectedRigGraphNode = Cast<URigVMEdGraphNode>(SelectedNode))
+								{
+									OverallMicroSeconds += SelectedRigGraphNode->MicroSeconds;
+								}
+							}
+							
+							return FText::FromString(FString::Printf(TEXT("%.02f µs of %.02f µs"), (float)MicroSeconds, (float)OverallMicroSeconds));
+						}
 					}
+
+					return FText::FromString(FString::Printf(TEXT("%.02f µs"), (float)MicroSeconds));
 				}
 			}
 		}

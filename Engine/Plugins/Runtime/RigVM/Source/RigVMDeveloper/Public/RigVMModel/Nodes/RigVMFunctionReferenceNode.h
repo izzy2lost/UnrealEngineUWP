@@ -60,6 +60,7 @@ private:
 
 	virtual FText GetToolTipTextForPin(const URigVMPin* InPin) const override;
 	bool RequiresVariableRemappingInternal(TArray<FRigVMExternalVariable>& InnerVariables) const;
+	virtual TArray<int32> GetInstructionsForVMImpl(const FRigVMExtendedExecuteContext& Context, URigVM* InVM, const FRigVMASTProxy& InProxy = FRigVMASTProxy()) const override; 
 
 	//void SetReferencedFunctionData(FRigVMGraphFunctionData* Data);
 

@@ -64,6 +64,7 @@ TArray<int32> URigVMLibraryNode::GetInstructionsForVMImpl(const FRigVMExtendedEx
 	}
 
 #endif
+
 	
 	return Instructions;
 }

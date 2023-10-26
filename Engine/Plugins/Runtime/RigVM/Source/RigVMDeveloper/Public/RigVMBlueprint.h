@@ -67,7 +67,7 @@ struct RIGVMDEVELOPER_API FRigVMEdGraphDisplaySettings
 		, MinMicroSeconds(0.0)
 		, MaxMicroSeconds(1.0)
 		, TotalMicroSeconds(0.0)
-		, AverageFrames(16)
+		, AverageFrames(64)
 		, bAutoDetermineRange(true)
 		, LastMinMicroSeconds(0.0)
 		, LastMaxMicroSeconds(1.0)
@@ -116,7 +116,7 @@ struct RIGVMDEVELOPER_API FRigVMEdGraphDisplaySettings
 	double TotalMicroSeconds;
 
 	// If you set this to more than 1 the results will be averaged across multiple frames
-	UPROPERTY(EditAnywhere, Category = "Graph Display Settings")
+	UPROPERTY(EditAnywhere, Category = "Graph Display Settings", meta = (UIMin=1, UIMax=256))
 	int32 AverageFrames;
 
 	TArray<double> MinMicroSecondsFrames;
@@ -139,6 +139,11 @@ struct RIGVMDEVELOPER_API FRigVMEdGraphDisplaySettings
 	// The color of the slowest instruction / node
 	UPROPERTY(EditAnywhere, Category = "Graph Display Settings")
 	FLinearColor MaxDurationColor;
+
+	void SetTotalMicroSeconds(double InTotalMicroSeconds);
+	void SetLastMinMicroSeconds(double InMinMicroSeconds);
+	void SetLastMaxMicroSeconds(double InMaxMicroSeconds);
+	double AggregateAverage(TArray<double>& InFrames, double InPrevious, double InNext) const;
 };
 
 enum class ERigVMBlueprintLoadType : uint8

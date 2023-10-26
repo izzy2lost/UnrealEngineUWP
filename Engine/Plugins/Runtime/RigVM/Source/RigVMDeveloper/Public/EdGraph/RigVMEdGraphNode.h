@@ -254,6 +254,10 @@ private:
 	static void ConfigurePin(UEdGraphPin* EdGraphPin, const URigVMPin* ModelPin);
 	TArray<URigVMPin*>& PinListForPin(const URigVMPin* InModelPin);
 
+#if WITH_EDITOR
+	void UpdateProfilingSettings();
+#endif
+	
 	FLinearColor CachedTitleColor;
 	FLinearColor CachedNodeColor;
 
@@ -279,6 +283,8 @@ private:
 
 	mutable const FRigVMTemplate* CachedTemplate;
 	mutable TOptional<bool> DrawAsCompactNodeCache;
+	mutable double MicroSeconds;
+	mutable TArray<double> MicroSecondsFrames;
 
 	friend class SRigVMGraphNode;
 	friend class FRigVMFunctionArgumentLayout;

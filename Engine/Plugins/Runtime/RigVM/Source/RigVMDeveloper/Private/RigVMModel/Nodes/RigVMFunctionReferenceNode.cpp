@@ -221,3 +221,16 @@ URigVMLibraryNode* URigVMFunctionReferenceNode::LoadReferencedNode() const
 	return Cast<URigVMLibraryNode>(LibraryNode);
 	
 }
+
+TArray<int32> URigVMFunctionReferenceNode::GetInstructionsForVMImpl(const FRigVMExtendedExecuteContext& Context, URigVM* InVM, const FRigVMASTProxy& InProxy) const
+{
+	TArray<int32> Instructions = URigVMNode::GetInstructionsForVMImpl(Context, InVM, InProxy);
+
+	// if the base cannot find any matching instructions, fall back to the library node's implementation
+	if(Instructions.IsEmpty())
+	{
+		Instructions = Super::GetInstructionsForVMImpl(Context, InVM, InProxy);
+	}
+	
+	return Instructions;
+}

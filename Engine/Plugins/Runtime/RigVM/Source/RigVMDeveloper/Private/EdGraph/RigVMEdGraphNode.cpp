@@ -44,9 +44,14 @@ URigVMEdGraphNode::URigVMEdGraphNode()
 , bEnableProfiling(false)
 #endif
 , CachedTemplate(nullptr)
+, MicroSeconds(0)
 {
 	bHasCompilerMessage = false;
 	ErrorType = (int32)EMessageSeverity::Info + 1;
+	
+#if WITH_EDITOR
+	UpdateProfilingSettings();
+#endif
 }
 
 FText URigVMEdGraphNode::GetNodeTitle(ENodeTitleType::Type TitleType) const
@@ -208,14 +213,7 @@ void URigVMEdGraphNode::ReconstructNode_Internal(bool bForce)
 	}
 
 #if WITH_EDITOR
-	bEnableProfiling = false;
-	if(RigGraph)
-	{
-		if(URigVMBlueprint* RigBlueprint = RigGraph->GetBlueprint())
-		{
-			bEnableProfiling = RigBlueprint->VMRuntimeSettings.bEnableProfiling;
-		}
-	}
+	UpdateProfilingSettings();
 #endif
 
 	// Clear previously set messages
@@ -1132,18 +1130,19 @@ FLinearColor URigVMEdGraphNode::GetNodeProfilingColor() const
 			{
 				if(const URigVMNode* ModelNode = GetModelNode())
 				{
-					const double MicroSeconds = ModelNode->GetInstructionMicroSeconds(DebuggedHost->GetRigVMExtendedExecuteContext(), DebuggedHost->GetVM(), FRigVMASTProxy());
+					const double CurrentMicroSeconds = ModelNode->GetInstructionMicroSeconds(DebuggedHost->GetRigVMExtendedExecuteContext(), DebuggedHost->GetVM(), FRigVMASTProxy());
+					MicroSeconds = Blueprint->RigGraphDisplaySettings.AggregateAverage(MicroSecondsFrames, MicroSeconds, CurrentMicroSeconds);
 					if(MicroSeconds >= 0.0)
 					{
 						if(Blueprint->RigGraphDisplaySettings.bAutoDetermineRange)
 						{
-							if(MicroSeconds < Blueprint->RigGraphDisplaySettings.MinMicroSeconds)
+							if(CurrentMicroSeconds < Blueprint->RigGraphDisplaySettings.MinMicroSeconds)
 							{
-								Blueprint->RigGraphDisplaySettings.MinMicroSeconds = MicroSeconds;
+								Blueprint->RigGraphDisplaySettings.MinMicroSeconds = CurrentMicroSeconds;
 							}
-							if(MicroSeconds > Blueprint->RigGraphDisplaySettings.MaxMicroSeconds)
+							if(CurrentMicroSeconds > Blueprint->RigGraphDisplaySettings.MaxMicroSeconds)
 							{
-								Blueprint->RigGraphDisplaySettings.MaxMicroSeconds = MicroSeconds;
+								Blueprint->RigGraphDisplaySettings.MaxMicroSeconds = CurrentMicroSeconds;
 							}
 						}
 							
@@ -1163,6 +1162,11 @@ FLinearColor URigVMEdGraphNode::GetNodeProfilingColor() const
 				}
 			}
 		}
+	}
+	else
+	{
+		MicroSeconds = 0;
+		MicroSecondsFrames.Reset();
 	}
 #endif
 	return FLinearColor::Black;
@@ -1810,6 +1814,23 @@ TArray<URigVMPin*>& URigVMEdGraphNode::PinListForPin(const URigVMPin* InModelPin
 	static TArray<URigVMPin*> EmptyList;
 	return EmptyList;
 }
+
+#if WITH_EDITOR
+void URigVMEdGraphNode::UpdateProfilingSettings()
+{
+	bEnableProfiling = false;
+	MicroSeconds = 0;
+	MicroSecondsFrames.Reset();
+
+	if(const URigVMEdGraph* RigGraph = Cast<URigVMEdGraph>(GetOuter()))
+	{
+		if(const URigVMBlueprint* RigBlueprint = RigGraph->GetBlueprint())
+		{
+			bEnableProfiling = RigBlueprint->VMRuntimeSettings.bEnableProfiling;
+		}
+	}
+}
+#endif
 
 #undef LOCTEXT_NAMESPACE
 

@@ -50,6 +50,8 @@ void SRigStackItem::Construct(const FArguments& InArgs, const TSharedRef<STableV
 	WeakStackEntry = InStackEntry;
 	WeakBlueprint = InBlueprint;
 	WeakCommandList = InCommandList;
+	MicroSeconds = 0;
+	MicroSecondsFrames.Reset();
 
 	TSharedPtr< STextBlock > NumberWidget;
 	TSharedPtr< STextBlock > TextWidget;
@@ -225,10 +227,11 @@ FText SRigStackItem::GetDurationText() const
 				{
 					if(URigVM* VM = RigVMHost->GetVM())
 					{
-						const double MicroSeconds = VM->GetInstructionMicroSeconds(RigVMHost->GetRigVMExtendedExecuteContext(), WeakStackEntry.Pin()->InstructionIndex);
+						const double CurrentMicroSeconds = VM->GetInstructionMicroSeconds(RigVMHost->GetRigVMExtendedExecuteContext(), WeakStackEntry.Pin()->InstructionIndex);
+						MicroSeconds = WeakBlueprint->RigGraphDisplaySettings.AggregateAverage(MicroSecondsFrames, MicroSeconds, CurrentMicroSeconds);
 						if(MicroSeconds > 0.0)
 						{
-							return FText::FromString(FString::Printf(TEXT("%d µs"), (int32)MicroSeconds));
+							return FText::FromString(FString::Printf(TEXT("%.02f µs"), (float)MicroSeconds));
 						}
 					}
 				}
@@ -967,7 +970,12 @@ void SRigVMExecutionStackView::HandleModifiedEvent(ERigVMGraphNotifType InNotifT
 					}
 				}
 			}
-			TreeView->SetItemSelection(SelectedItems, true, ESelectInfo::Direct);
+
+			if(!SelectedItems.IsEmpty())
+			{
+				TreeView->SetItemSelection(SelectedItems, true, ESelectInfo::Direct);
+				TreeView->RequestScrollIntoView(SelectedItems[0]);
+			}
 			break;
 		}
 		default:

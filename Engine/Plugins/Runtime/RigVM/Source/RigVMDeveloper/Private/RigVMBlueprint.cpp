@@ -66,6 +66,50 @@ static TArray<UClass*> GetClassObjectsInPackage(UPackage* InPackage)
 	return ClassObjects;
 }
 
+void FRigVMEdGraphDisplaySettings::SetTotalMicroSeconds(double InTotalMicroSeconds)
+{
+	TotalMicroSeconds = AggregateAverage(TotalMicroSecondsFrames, TotalMicroSeconds, InTotalMicroSeconds);
+}
+
+void FRigVMEdGraphDisplaySettings::SetLastMinMicroSeconds(double InMinMicroSeconds)
+{
+	LastMinMicroSeconds = AggregateAverage(MinMicroSecondsFrames, LastMinMicroSeconds, InMinMicroSeconds);
+}
+
+void FRigVMEdGraphDisplaySettings::SetLastMaxMicroSeconds(double InMaxMicroSeconds)
+{
+	LastMaxMicroSeconds = AggregateAverage(MaxMicroSecondsFrames, LastMaxMicroSeconds, InMaxMicroSeconds);
+}
+
+double FRigVMEdGraphDisplaySettings::AggregateAverage(TArray<double>& InFrames, double InPrevious, double InNext) const
+{
+	const int32 NbFrames = FMath::Min(AverageFrames, 256);
+	if(NbFrames < 2)
+	{
+		InFrames.Reset();
+		return InNext;
+	}
+	
+	InFrames.Add(InNext);
+	if(InFrames.Num() >= NbFrames)
+	{
+		double Average = 0;
+		for(const double Value : InFrames)
+		{
+			Average += Value;
+		}
+		Average /= double(NbFrames);
+		InFrames.Reset();
+		return Average;
+	}
+
+	if(InPrevious == DBL_MAX || InPrevious < -SMALL_NUMBER)
+	{
+		return InNext;
+	}
+	return InPrevious;
+}
+
 FEdGraphPinType FRigVMOldPublicFunctionArg::GetPinType() const
 {
 	FRigVMExternalVariable Variable;
@@ -1181,8 +1225,18 @@ void URigVMBlueprint::RecompileVM()
 	
 	bErrorsDuringCompilation = false;
 
-	RigGraphDisplaySettings.MinMicroSeconds = RigGraphDisplaySettings.LastMinMicroSeconds = DBL_MAX;
-	RigGraphDisplaySettings.MaxMicroSeconds = RigGraphDisplaySettings.LastMaxMicroSeconds = (double)INDEX_NONE;
+	if(RigGraphDisplaySettings.bAutoDetermineRange)
+	{
+		RigGraphDisplaySettings.MinMicroSeconds = RigGraphDisplaySettings.LastMinMicroSeconds = DBL_MAX;
+		RigGraphDisplaySettings.MaxMicroSeconds = RigGraphDisplaySettings.LastMaxMicroSeconds = (double)INDEX_NONE;
+	}
+	else if(RigGraphDisplaySettings.MaxMicroSeconds < RigGraphDisplaySettings.MinMicroSeconds)
+	{
+		RigGraphDisplaySettings.MinMicroSeconds = 0;
+		RigGraphDisplaySettings.MaxMicroSeconds = 5;
+	}
+	
+	RigGraphDisplaySettings.TotalMicroSeconds = 0.0;
 	RigGraphDisplaySettings.MinMicroSecondsFrames.Reset();
 	RigGraphDisplaySettings.MaxMicroSecondsFrames.Reset();
 	RigGraphDisplaySettings.TotalMicroSecondsFrames.Reset();

@@ -1813,21 +1813,20 @@ void FRigVMEditor::HandleVMExecutedEvent(URigVMHost* InHost, const FName& InEven
 		{
 			if(DebuggedHost)
 			{
-				RigVMBlueprint->RigGraphDisplaySettings.TotalMicroSeconds = DebuggedHost->GetProfilingInfo().GetLastExecutionMicroSeconds();
+				RigVMBlueprint->RigGraphDisplaySettings.SetTotalMicroSeconds(DebuggedHost->GetProfilingInfo().GetLastExecutionMicroSeconds());
 			}
 
 			if(RigVMBlueprint->RigGraphDisplaySettings.bAutoDetermineRange)
 			{
 				if(RigVMBlueprint->RigGraphDisplaySettings.LastMaxMicroSeconds < 0.0)
 				{
-					RigVMBlueprint->RigGraphDisplaySettings.LastMinMicroSeconds = RigVMBlueprint->RigGraphDisplaySettings.MinMicroSeconds; 
-					RigVMBlueprint->RigGraphDisplaySettings.LastMaxMicroSeconds = RigVMBlueprint->RigGraphDisplaySettings.MaxMicroSeconds;
+					RigVMBlueprint->RigGraphDisplaySettings.SetLastMinMicroSeconds(RigVMBlueprint->RigGraphDisplaySettings.MinMicroSeconds); 
+					RigVMBlueprint->RigGraphDisplaySettings.SetLastMaxMicroSeconds(RigVMBlueprint->RigGraphDisplaySettings.MaxMicroSeconds);
 				}
 				else if(RigVMBlueprint->RigGraphDisplaySettings.MaxMicroSeconds >= 0.0)
 				{
-					const double T = 0.05;
-					RigVMBlueprint->RigGraphDisplaySettings.LastMinMicroSeconds = FMath::Lerp<double>(RigVMBlueprint->RigGraphDisplaySettings.LastMinMicroSeconds, RigVMBlueprint->RigGraphDisplaySettings.MinMicroSeconds, T); 
-					RigVMBlueprint->RigGraphDisplaySettings.LastMaxMicroSeconds = FMath::Lerp<double>(RigVMBlueprint->RigGraphDisplaySettings.LastMaxMicroSeconds, RigVMBlueprint->RigGraphDisplaySettings.MaxMicroSeconds, T); 
+					RigVMBlueprint->RigGraphDisplaySettings.SetLastMinMicroSeconds(RigVMBlueprint->RigGraphDisplaySettings.MinMicroSeconds); 
+					RigVMBlueprint->RigGraphDisplaySettings.SetLastMaxMicroSeconds(RigVMBlueprint->RigGraphDisplaySettings.MaxMicroSeconds); 
 				}
 
 				RigVMBlueprint->RigGraphDisplaySettings.MinMicroSeconds = DBL_MAX; 
@@ -1835,8 +1834,8 @@ void FRigVMEditor::HandleVMExecutedEvent(URigVMHost* InHost, const FName& InEven
 			}
 			else
 			{
-				RigVMBlueprint->RigGraphDisplaySettings.LastMinMicroSeconds = RigVMBlueprint->RigGraphDisplaySettings.MinMicroSeconds; 
-				RigVMBlueprint->RigGraphDisplaySettings.LastMaxMicroSeconds = RigVMBlueprint->RigGraphDisplaySettings.MaxMicroSeconds;
+				RigVMBlueprint->RigGraphDisplaySettings.SetLastMinMicroSeconds(RigVMBlueprint->RigGraphDisplaySettings.MinMicroSeconds); 
+				RigVMBlueprint->RigGraphDisplaySettings.SetLastMaxMicroSeconds(RigVMBlueprint->RigGraphDisplaySettings.MaxMicroSeconds);
 			}
 		}
 	}

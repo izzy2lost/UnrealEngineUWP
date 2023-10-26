@@ -56,6 +56,9 @@ private:
 	TWeakObjectPtr<URigVMBlueprint> WeakBlueprint;
 	TWeakPtr<FUICommandList> WeakCommandList;
 
+	mutable double MicroSeconds;
+	mutable TArray<double> MicroSecondsFrames;
+
 	FText GetIndexText() const;
 	FText GetLabelText() const;
 	FSlateFontInfo GetLabelFont() const;
