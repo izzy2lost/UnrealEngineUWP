@@ -160,6 +160,7 @@ void VisualizeQuadsCS(
 	FinalColor.rgb = VisualizeTonemap(FinalColor.rgb);
 
 	//#TODO: Implement Substrate support
+	#if ENABLE_VISUALIZE_MODE == 1
 	if (VisualizeMode == VISUALIZE_MODE_DEDICATED_REFLECTION_RAYS)
 	{
 		const float2 GBufferUV = (ViewportUV * View.ViewRectMinAndSize.zw + 0.5f) * View.BufferSizeAndInvSize.zw;
@@ -181,6 +182,7 @@ void VisualizeQuadsCS(
 			FinalColor.rgb = VisualizeTonemap(EvaluateSkyRadiance(CameraVector));
 		}
 	}
+	#endif
 
 	RWSceneColor[OutputScreenCoord] = FinalColor;
 }
