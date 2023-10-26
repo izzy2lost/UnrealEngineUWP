@@ -831,7 +831,6 @@ StoleARO:
 			CurrentObjects = MakeArrayView(Block->Objects, BlockSize);
 		} // while (true)
 		
-		check(!Context.ObjectsToSerialize.HasWork());
 		Processor.LogDetailedStatsSummary();
 	}
 
