@@ -294,16 +294,16 @@ void FWorldPartitionClassDescRegistry::PrefetchClassDescs(const TArray<FTopLevel
 			AssetData = MoveTemp(RedirectAssets[0]);
 		}
 
-		// Register redirects
-		for (const FTopLevelAssetPath& ClassRedirect : ClassRedirects)
-		{
-			const FTopLevelAssetPath SourceClassPath(GetAssetDataClassNameForBlueprint(ClassRedirect.ToString()));
-			const FTopLevelAssetPath RedirectedClassPath(GetAssetDataClassName(AssetData));
-			RedirectClassMap.Add(SourceClassPath, RedirectedClassPath);
-		}
-
 		if (AssetData.IsValid())
 		{
+			// Register redirects
+			for (const FTopLevelAssetPath& ClassRedirect : ClassRedirects)
+			{
+				const FTopLevelAssetPath SourceClassPath(GetAssetDataClassNameForBlueprint(ClassRedirect.ToString()));
+				const FTopLevelAssetPath RedirectedClassPath(GetAssetDataClassName(AssetData));
+				RedirectClassMap.Add(SourceClassPath, RedirectedClassPath);
+			}
+
 			FString ParentClassName;
 			if (AssetData.GetTagValue(FBlueprintTags::ParentClassPath, ParentClassName))
 			{
