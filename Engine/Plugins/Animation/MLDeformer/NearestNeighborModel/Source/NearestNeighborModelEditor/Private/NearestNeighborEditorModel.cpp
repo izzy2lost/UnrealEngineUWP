@@ -612,7 +612,6 @@ namespace UE::NearestNeighborModel
 		const int32 TotalNumNeighbors = NearestNeighborModel->GetTotalNumNeighbors();
 		Deltas.SetNumZeroed((1 + TotalNumPCACoeffs + TotalNumNeighbors) * NumBaseMeshVerts);
 	
-		using FSection = UNearestNeighborModel::FSection;
 		using Private::AddFloatArrayToDeltaArray;
 		int32 MorphOffset = 1;
 		for (int32 SectionIndex = 0; SectionIndex < NearestNeighborModel->GetNumSections(); ++SectionIndex)
