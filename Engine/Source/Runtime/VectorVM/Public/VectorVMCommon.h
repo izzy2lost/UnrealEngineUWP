@@ -259,8 +259,11 @@ struct FStatStackEntry
 //Some require RWBuffer like support.
 struct FDataSetMeta
 {
-	TArrayView<uint8 const* RESTRICT const> InputRegisters;
-	TArrayView<uint8 const* RESTRICT const> OutputRegisters;
+	using FInputRegisterView = TArrayView<uint8 const* RESTRICT const>;
+	using FOutputRegisterView = TArrayView<uint8* RESTRICT const>;
+
+	FInputRegisterView InputRegisters;
+	FOutputRegisterView OutputRegisters;
 
 	uint32 InputRegisterTypeOffsets[3];
 	uint32 OutputRegisterTypeOffsets[3];
@@ -315,8 +318,8 @@ struct FDataSetMeta
 
 	FORCEINLINE void Reset()
 	{
-		InputRegisters = TArrayView<uint8 const* RESTRICT const>();
-		OutputRegisters = TArrayView<uint8 const* RESTRICT const>();
+		InputRegisters = FInputRegisterView();
+		OutputRegisters = FOutputRegisterView();
 		DataSetAccessIndex = INDEX_NONE;
 		InstanceOffset = INDEX_NONE;
 		IDTable = nullptr;
@@ -327,7 +330,7 @@ struct FDataSetMeta
 		IDAcquireTag = INDEX_NONE;
 	}
 
-	FORCEINLINE void Init(const TArrayView<uint8 const* RESTRICT const>& InInputRegisters, const TArrayView<uint8 const* RESTRICT const>& InOutputRegisters, int32 InInstanceOffset, TArray<int32>* InIDTable, TArray<int32>* InFreeIDTable, int32* InNumFreeIDs, int32 *InNumSpawnedIDs, int32* InMaxUsedID, int32 InIDAcquireTag, TArray<int32>* InSpawnedIDsTable)
+	FORCEINLINE void Init(FInputRegisterView InInputRegisters, FOutputRegisterView InOutputRegisters, int32 InInstanceOffset, TArray<int32>* InIDTable, TArray<int32>* InFreeIDTable, int32* InNumFreeIDs, int32 *InNumSpawnedIDs, int32* InMaxUsedID, int32 InIDAcquireTag, TArray<int32>* InSpawnedIDsTable)
 	{
 		InputRegisters = InInputRegisters;
 		OutputRegisters = InOutputRegisters;

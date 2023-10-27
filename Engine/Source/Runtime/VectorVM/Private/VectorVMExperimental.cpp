@@ -405,7 +405,7 @@ VM_FORCEINLINE VectorRegister4i VVMIntLShift(VectorRegister4i v0, VectorRegister
 
 #endif
 
-static uint8 *SetupBatchStatePtrs(FVectorVMExecContext *ExecCtx, FVectorVMBatchState *BatchState)
+static void SetupBatchStatePtrs(FVectorVMExecContext *ExecCtx, FVectorVMBatchState *BatchState)
 {
 	uint8 *BatchDataPtr        = (uint8 *) VVM_ALIGN_64((size_t)BatchState + sizeof(FVectorVMBatchState));
 	size_t NumPtrRegsInTable   = ExecCtx->VVMState->NumTempRegisters + ExecCtx->VVMState->NumConstBuffers + ExecCtx->VVMState->NumInputBuffers * 2 + ExecCtx->VVMState->NumOutputBuffers;
@@ -417,6 +417,8 @@ static uint8 *SetupBatchStatePtrs(FVectorVMExecContext *ExecCtx, FVectorVMBatchS
 	BatchState->ChunkLocalData.StartingOutputIdxPerDataSet	= (uint32 *) BatchDataPtr;                  BatchDataPtr += ExecCtx->VVMState->ChunkLocalDataOutputIdxNumBytes;
 	BatchState->ChunkLocalData.NumOutputPerDataSet          = (uint32 *) BatchDataPtr;                  BatchDataPtr += ExecCtx->VVMState->ChunkLocalNumOutputNumBytes;
 	BatchState->ChunkLocalData.OutputMaskIdx                = (uint8 **) BatchDataPtr;                  BatchDataPtr += ExecCtx->VVMState->ChunkLocalOutputMaskIdxNumBytes;
+	BatchState->ChunkLocalData.RandCounters = nullptr; //these get malloc'd separately if they're ever used... which they very rarely are
+
 	for (uint32 i = 0; i < ExecCtx->VVMState->MaxOutputDataSet; ++i) {
 		BatchState->ChunkLocalData.OutputMaskIdx[i] = BatchState->OutputMaskIdx + i * NumLoops;
 	}
@@ -431,7 +433,6 @@ static uint8 *SetupBatchStatePtrs(FVectorVMExecContext *ExecCtx, FVectorVMBatchS
 	size_t PtrStart               = (size_t)BatchState;
 	size_t PtrAfterExtFnDecodeReg = (size_t)BatchDataPtr;
 	check(PtrAfterExtFnDecodeReg - PtrStart <= ExecCtx->VVMState->BatchOverheadSize + ExecCtx->Internal.PerBatchRegisterDataBytesRequired);
-
 
 	{ //build the register pointer table which contains pointers (in order) to:
 		uint32 **TempRegPtr     = (uint32 **)BatchState->RegPtrTable;                      //1. Temp Registers
@@ -492,25 +493,27 @@ static uint8 *SetupBatchStatePtrs(FVectorVMExecContext *ExecCtx, FVectorVMBatchS
 		//outputs
 		for (uint32 i = 0; i < ExecCtx->VVMState->NumOutputBuffers; ++i)
 		{
-			uint8 DataSetIdx              = ExecCtx->VVMState->OutputRemapDataSetIdx[i];
-			uint16 OutputDataType         = ExecCtx->VVMState->OutputRemapDataType[i];
-			uint16 OutputMapDst           = ExecCtx->VVMState->OutputRemapDst[i];
-			uint32 TypeOffset             = ExecCtx->DataSets[DataSetIdx].OutputRegisterTypeOffsets[OutputDataType];
-			uint32 InstanceOffset         = ExecCtx->DataSets[DataSetIdx].InstanceOffset;
-			uint32 **DataSetOutputBuffers = (uint32 **)ExecCtx->DataSets[DataSetIdx].OutputRegisters.GetData();
-			OutputPtr[i] = OutputMapDst == 0xFFFF ? NULL : (DataSetOutputBuffers[TypeOffset + OutputMapDst] + InstanceOffset); //I don't actually think this can be null?
+			const uint8 DataSetIdx              = ExecCtx->VVMState->OutputRemapDataSetIdx[i];
+			check(DataSetIdx < ExecCtx->DataSets.Num());
+
+			const uint16 OutputDataType         = ExecCtx->VVMState->OutputRemapDataType[i];
+			check(OutputDataType < UE_ARRAY_COUNT(FDataSetMeta::OutputRegisterTypeOffsets));
+
+			const uint16 OutputMapDst           = ExecCtx->VVMState->OutputRemapDst[i];
+
+			if (OutputMapDst == 0xFFFF)
+			{
+				OutputPtr[i] = nullptr;
+			}
+			else
+			{
+				const uint32 TypeOffset = ExecCtx->DataSets[DataSetIdx].OutputRegisterTypeOffsets[OutputDataType];
+				const uint32 OutputBufferIdx = TypeOffset + OutputMapDst;
+				const uint32 InstanceOffset = ExecCtx->DataSets[DataSetIdx].InstanceOffset;
+
+				OutputPtr[i] = reinterpret_cast<uint32*>(ExecCtx->DataSets[DataSetIdx].OutputRegisters[OutputBufferIdx]) + InstanceOffset;
+			}
 		}
-	}
-
-	BatchState->ChunkLocalData.RandCounters = nullptr; //these get malloc'd separately if they're ever used... which they very rarely are
-
-	if ((size_t)(BatchDataPtr - (uint8 *)BatchState) <= ExecCtx->Internal.NumBytesRequiredPerBatch)
-	{
-		return BatchDataPtr;
-	}
-	else
-	{
-		return nullptr;
 	}
 }
 
@@ -2690,10 +2693,6 @@ void ExecVectorVMState(FVectorVMExecContext *ExecCtx, FVectorVMSerializeState *S
 		ExecCtx->VVMState->NumInstancesExecCached = ExecCtx->NumInstances;
 	}
 
-	for (uint32 i = 0; i < ExecCtx->VVMState->MaxOutputDataSet; ++i)
-	{
-		ExecCtx->VVMState->NumOutputPerDataSet[i] = 0;
-	}
 	VVMSer_initSerializationState(ExecCtx, SerializeState, SerializeState->OptimizeCtx, SerializeState->Flags | VVMSer_OptimizedBytecode);
 
 #if VECTORVM_SUPPORTS_SERIALIZATION && !defined(VVM_SERIALIZE_NO_WRITE)
@@ -2711,11 +2710,8 @@ void ExecVectorVMState(FVectorVMExecContext *ExecCtx, FVectorVMSerializeState *S
 			return;
 		}
 		FVectorVMBatchState *BatchState = (FVectorVMBatchState *)FMemory::Malloc(ExecCtx->VVMState->BatchOverheadSize + ExecCtx->Internal.PerBatchRegisterDataBytesRequired);
-		bool RegIncSetForAVX = false;
-		if (SetupBatchStatePtrs(ExecCtx, BatchState) == nullptr)
-		{
-			return;
-		}
+		SetupBatchStatePtrs(ExecCtx, BatchState);
+
 		if (ExecCtx->VVMState->Flags & VVMFlag_HasRandInstruction)
 		{
 			SetupRandStateForBatch(BatchState);

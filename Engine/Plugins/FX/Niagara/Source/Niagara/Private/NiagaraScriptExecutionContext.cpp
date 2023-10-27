@@ -140,8 +140,8 @@ void FNiagaraScriptExecutionContextBase::BindData(int32 Index, FNiagaraDataSet& 
 	DataSetInfo[Index].Init(&DataSet, Input, StartInstance, bUpdateInstanceCounts);
 
 	//Would be nice to roll this and DataSetInfo into one but currently the VM being in it's own Engine module prevents this. Possibly should move the VM into Niagara itself.
-	TArrayView<uint8 const* RESTRICT const> InputRegisters = Input ? Input->GetRegisterTable() : TArrayView<uint8 const* RESTRICT const>();
-	TArrayView<uint8 const* RESTRICT const> OutputRegisters = Output ? Output->GetRegisterTable() : TArrayView<uint8 const* RESTRICT const>();
+	FDataSetMeta::FInputRegisterView InputRegisters = Input ? Input->ReadRegisterTable() : FDataSetMeta::FInputRegisterView();
+	FDataSetMeta::FOutputRegisterView OutputRegisters = Output ? Output->EditRegisterTable() : FDataSetMeta::FOutputRegisterView();
 
 	DataSetMetaTable.SetNum(FMath::Max(DataSetMetaTable.Num(), Index + 1));
 	DataSetMetaTable[Index].Init(InputRegisters, OutputRegisters, StartInstance,
@@ -167,10 +167,10 @@ void FNiagaraScriptExecutionContextBase::BindData(int32 Index, FNiagaraDataBuffe
 	FNiagaraDataSet* DataSet = Input->GetOwner();
 	DataSetInfo[Index].Init(DataSet, Input, StartInstance, bUpdateInstanceCounts);
 
-	TArrayView<uint8 const* RESTRICT const> InputRegisters = Input->GetRegisterTable();
+	FDataSetMeta::FInputRegisterView InputRegisters = Input->ReadRegisterTable();
 
 	DataSetMetaTable.SetNum(FMath::Max(DataSetMetaTable.Num(), Index + 1));
-	DataSetMetaTable[Index].Init(InputRegisters, TArrayView<uint8 const* RESTRICT const>(), StartInstance, nullptr, nullptr, DataSet->GetNumFreeIDsPtr(), &DataSet->NumSpawnedIDs, DataSet->GetMaxUsedIDPtr(), DataSet->GetIDAcquireTag(), &DataSet->GetSpawnedIDsTable());
+	DataSetMetaTable[Index].Init(InputRegisters, FDataSetMeta::FOutputRegisterView(), StartInstance, nullptr, nullptr, DataSet->GetNumFreeIDsPtr(), &DataSet->NumSpawnedIDs, DataSet->GetMaxUsedIDPtr(), DataSet->GetIDAcquireTag(), &DataSet->GetSpawnedIDsTable());
 
 	if (InputRegisters.Num() > 0)
 	{
