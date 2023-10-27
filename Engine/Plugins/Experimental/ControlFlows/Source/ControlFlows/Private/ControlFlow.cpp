@@ -317,6 +317,16 @@ FControlFlow& FControlFlow::QueueDelay(const float InDelay, const FString& NodeN
 	return *this;
 }
 
+FControlFlow& FControlFlow::QueueSetCancelledNodeAsComplete(const bool bCancelledNodeIsComplete, const FString& NodeName /*= FString()*/)
+{
+	QueueFunction(NodeName).BindSPLambda(this, [this, bCancelledNodeIsComplete]()
+		{
+			this->SetCancelledNodeAsComplete(bCancelledNodeIsComplete);
+		});
+
+	return *this;
+}
+
 FControlFlow& FControlFlow::TrackActivities(TSharedPtr<FTrackedActivity> InActivity)
 {
 	if (!InActivity)
