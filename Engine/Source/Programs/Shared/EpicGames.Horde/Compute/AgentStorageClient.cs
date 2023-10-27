@@ -50,7 +50,8 @@ namespace EpicGames.Horde.Compute
 			await _semaphore.WaitAsync(cancellationToken);
 			try
 			{
-				ReadOnlyMemory<byte> data = await _channel.ReadBlobAsync(locator.ToString(), 0, 0, cancellationToken);
+				// TODO: Want to pass 0 for length to read here (meaning entire blob), but older streams misinterpret this as a 0 byte read.
+				ReadOnlyMemory<byte> data = await _channel.ReadBlobAsync(locator.ToString(), 0, 128 * 1024 * 1024, cancellationToken);
 				return new BlobData(BlobType.Leaf, data, Array.Empty<BlobHandle>());
 			}
 			finally

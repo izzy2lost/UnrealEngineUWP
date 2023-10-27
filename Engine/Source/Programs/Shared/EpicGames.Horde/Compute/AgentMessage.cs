@@ -656,7 +656,7 @@ namespace EpicGames.Horde.Compute
 			using Stream stream = await handle.OpenAsync(offset, (length == 0)? null : length, cancellationToken);
 
 			const int MaxChunkSize = 512 * 1024;
-			for (int chunkOffset = 0; chunkOffset < stream.Length;)
+			for (int chunkOffset = 0; ;)
 			{
 				int chunkLength = (int)Math.Min(stream.Length - chunkOffset, MaxChunkSize);
 				using (IAgentMessageBuilder response = await channel.CreateMessageAsync(AgentMessageType.ReadBlobResponse, chunkLength + 128, cancellationToken))
@@ -669,7 +669,12 @@ namespace EpicGames.Horde.Compute
 
 					response.Send();
 				}
+
 				chunkOffset += chunkLength;
+				if(chunkOffset == stream.Length)
+				{
+					break;
+				}
 			}
 		}
 
