@@ -184,7 +184,7 @@ namespace Horde.Server.Tests
 			return true;
 		}
 
-		async Task<IJob> SetupJobAsync()
+		async Task<IJob> SetupJobAsync(string? annotationsIn = null)
 		{
 			Mock<ITemplate> templateMock = new Mock<ITemplate>(MockBehavior.Strict);
 			templateMock.SetupGet(x => x.InitialAgentType).Returns((string?)null);
@@ -212,13 +212,30 @@ namespace Horde.Server.Tests
 			AddNode(cookGroup, "Cook Client", new[] { "Compile Editor" });
 
 			NewGroup testGroup = AddGroup(newGroups);
-			NodeAnnotations annotations = new NodeAnnotations();
-			annotations.Add("DeviceReserveNodes", "Run Test 1,Run Test 2,Run Test 3,Run Test 4");
+			NodeAnnotations? annotations = String.IsNullOrEmpty(annotationsIn) ? null : new NodeAnnotations();
+			if (annotationsIn == "DeviceReserveNodes")
+			{					
+				annotations!.Add("DeviceReserveNodes", "Run Test 1,Run Test 2,Run Test 3,Run Test 4");
+			}
+			else if (annotationsIn == "DeviceReserve")
+			{
+				annotations!.Add("DeviceReserve", "Begin");
+			}
+			
 			AddNode(testGroup, "Install Build", new[] { "Cook Client", "Compile Client" }, annotations: annotations);
 			AddNode(testGroup, "Run Test 1", new[] { "Install Build" });
 			AddNode(testGroup, "Run Test 2", new[] { "Install Build" });
-			AddNode(testGroup, "Run Test 3", new[] { "Install Build" });
+
+			annotations = annotationsIn == "DeviceReserve" ? new NodeAnnotations() : null;
+			if (annotations != null)
+			{
+				annotations!.Add("DeviceReserve", "End");
+			}
+			
+
+			AddNode(testGroup, "Run Test 3", new[] { "Install Build" }, annotations: annotations);
 			AddNode(testGroup, "Run Test 4", new[] { "Install Build" });
+				
 			AddNode(testGroup, "Run Tests", new[] { "Run Test 1", "Run Test 2", "Run Test 3", "Run Test 4" });
 
 			_graph = await GraphCollection.AppendAsync(baseGraph, newGroups, null, null);
@@ -284,7 +301,7 @@ namespace Horde.Server.Tests
 		public async Task TestReservationNodesAsync()
 		{
 			await SetupDevicesAsync();
-			IJob job = await SetupJobAsync();
+			IJob job = await SetupJobAsync("DeviceReserveNodes");
 
 			IGraph? graph = _graph!;
 
@@ -359,6 +376,76 @@ namespace Horde.Server.Tests
 			// check that telemetry was created
 			List<GetDeviceTelemetryResponse> telemetry = (await DeviceController!.GetDeviceTelemetryAsync()).Value!;
 			Assert.AreEqual(telemetry.Count, 1);
+			Assert.AreEqual(telemetry[0].Telemetry.Count, 1);
+			Assert.AreEqual(telemetry[0].Telemetry[0].StreamId, "ue5-main");
+			Assert.AreEqual(telemetry[0].Telemetry[0].StepId, GetStepId(job, "Install Build").ToString());
+			Assert.AreEqual(telemetry[0].Telemetry[0].StepName, "Install Build");
+			Assert.AreEqual(telemetry[0].Telemetry[0].JobName, "Test job");
+		}
+
+		[TestMethod]
+		public async Task TestReservationMarkersAsync()
+		{
+			await SetupDevicesAsync();
+			IJob job = await SetupJobAsync("DeviceReserve");
+
+			IGraph? graph = _graph!;
+
+			job = await StartBatchAsync(job, graph, 1);
+			job = await RunStepAsync(job, graph, 1, 0, JobStepOutcome.Success); // Update Version Files
+			job = await RunStepAsync(job, graph, 1, 1, JobStepOutcome.Success); // Compile Editor
+
+			job = await StartBatchAsync(job, graph, 2);
+			job = await RunStepAsync(job, graph, 2, 0, JobStepOutcome.Success); // Compile Client
+
+			job = await StartBatchAsync(job, graph, 3);
+			job = await RunStepAsync(job, graph, 3, 0, JobStepOutcome.Success); // Cook Client
+
+			job = await StartBatchAsync(job, graph, 4);
+
+			// Install  the build
+			JobStepId stepId = GetStepId(job, "Install Build");
+			job = await StartStepAsync(job, graph, 4, 0); // Install Build														  
+			LegacyCreateReservationRequest request = SetupReservationTestAsync(job, stepId: stepId);
+			GetLegacyReservationResponse installReservation = ResultToValue(await DeviceController!.CreateDeviceReservationV1Async(request));
+			job = await FinishStepAsync(job, graph, 4, 0, JobStepOutcome.Success); // Install Build
+
+			for (int i = 1; i < 5; i++)
+			{
+				// Run Test 1
+				stepId = GetStepId(job, $"Run Test {i}");
+				job = await StartStepAsync(job, graph, 4, i);
+
+				request = SetupReservationTestAsync(job, stepId: stepId);
+
+				ActionResult<GetLegacyReservationResponse> result = await DeviceController!.CreateDeviceReservationV1Async(request);
+
+				GetLegacyReservationResponse? reservation = ResultToValue(result);
+
+				Assert.IsNotNull(reservation);
+
+				if (i != 4)
+				{
+					Assert.AreEqual(installReservation.Guid, reservation.Guid);
+				}
+				else
+				{
+					Assert.AreNotEqual(installReservation.Guid, reservation.Guid);
+				}
+				
+
+				await DeviceController!.DeleteReservationV1Async(reservation.Guid);
+				job = await FinishStepAsync(job, graph, 4, i, JobStepOutcome.Success);
+
+				await DeviceService.TickForTestingAsync();
+			}
+
+			List<IDeviceReservation> reservations = await DeviceService.GetReservationsAsync();
+			Assert.AreEqual(reservations.Count, 0);
+
+			// check that telemetry was created
+			List<GetDeviceTelemetryResponse> telemetry = (await DeviceController!.GetDeviceTelemetryAsync()).Value!;
+			Assert.AreEqual(telemetry.Count, 2);
 			Assert.AreEqual(telemetry[0].Telemetry.Count, 1);
 			Assert.AreEqual(telemetry[0].Telemetry[0].StreamId, "ue5-main");
 			Assert.AreEqual(telemetry[0].Telemetry[0].StepId, GetStepId(job, "Install Build").ToString());

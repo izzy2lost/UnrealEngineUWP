@@ -6,6 +6,7 @@ using System.Linq;
 using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
+using EpicGames.Core;
 using EpicGames.Horde.Devices;
 using EpicGames.Horde.Projects;
 using EpicGames.Horde.Users;
@@ -413,27 +414,29 @@ namespace Horde.Server.Devices
 		{
 			IJob? job = null;
 			IGraph? graph = null;
-
-			IJobStep? jobStep = null;
-			INode? stepNode = null;
 			string? stepName = null;
 			
 			List<JobStepId>? reserveStepIds = null;
 
 			if (jobId != null)
-			{
+			{				
+				IJobStepBatch? stepBatch = null;
+				IJobStep? jobStep = null;
+				INode? stepNode = null;
+
 				job = await _jobService.GetJobAsync(jobId.Value);
 				if (job != null)
-				{					
+				{
 					if (stepId != null)
 					{
 						graph = await _jobService.GetGraphAsync(job);
 						foreach (IJobStepBatch batch in job.Batches)
 						{
-							IJobStep? step;							
+							IJobStep? step;
 							if (batch.TryGetStep(stepId.Value, out step))
 							{
 								jobStep = step;
+								stepBatch = batch;
 								stepNode = graph.Groups[batch.GroupIdx].Nodes[step.NodeIdx];
 								stepName = graph.Groups[batch.GroupIdx].Nodes[step.NodeIdx].Name;
 								break;
@@ -441,37 +444,58 @@ namespace Horde.Server.Devices
 						}
 					}
 
-					string? reserveNodesValue;
-
-					if (stepNode != null && stepNode.Annotations != null && stepNode.Annotations.TryGetValue("DeviceReserveNodes", out reserveNodesValue) && reserveNodesValue.Length > 0)
+					if (stepBatch != null && stepNode != null && stepNode.Annotations != null)
 					{
 						List<IJobStep> reserveSteps = new List<IJobStep>();
-						List<string> reserveNodes = reserveNodesValue.Split(',').Select(x => x.Trim()).ToList();
 
-						reserveNodes.ForEach(nodeName =>
+						// List of reserve nodes
+						string? reserveNodesValue;
+						if (stepNode.Annotations.TryGetValue("DeviceReserveNodes", out reserveNodesValue) && reserveNodesValue.Length > 0)
 						{
-							NodeRef? nodeRef;
+							List<string> reserveNodes = reserveNodesValue.Split(',').Select(x => x.Trim()).ToList();
 
-							if (graph!.TryFindNode(nodeName, out nodeRef))
+							reserveNodes.ForEach(nodeName =>
 							{
-								IJobStep? jobStep = null;
-								if (job.TryGetStepForNode(nodeRef, out jobStep))
-								{
-									reserveSteps.Add(jobStep);
-								}
-							}
-						});
+								NodeRef? nodeRef;
 
-						if (jobStep != null && !reserveSteps.Any(s => s.Id == stepId))
-						{
-							reserveSteps.Insert(0, jobStep);
+								if (graph!.TryFindNode(nodeName, out nodeRef))
+								{
+									IJobStep? jobStep = null;
+									if (job.TryGetStepForNode(nodeRef, out jobStep))
+									{
+										reserveSteps.Add(jobStep);
+									}
+								}
+							});
+
+							if (jobStep != null && !reserveSteps.Any(s => s.Id == stepId))
+							{
+								reserveSteps.Insert(0, jobStep);
+							}															
 						}
 
-						reserveStepIds = reserveSteps.Select(s => s.Id).ToList();	
+						// Reserve begin/end markers
+						string? deviceReserve;
+						if (stepNode.Annotations.TryGetValue("DeviceReserve", out deviceReserve) && String.Equals(deviceReserve, "Begin", StringComparison.OrdinalIgnoreCase))
+						{
+							int index = stepBatch.Steps.FindIndex(x => x.Id == jobStep!.Id);
+							for (int i = index; i < stepBatch.Steps.Count; i++)
+							{
+								reserveSteps.Add(stepBatch.Steps[i]);
+
+								INode node = graph!.Groups[stepBatch.GroupIdx].Nodes[stepBatch.Steps[i].NodeIdx];
+								if (node.Annotations.TryGetValue("DeviceReserve", out deviceReserve) && String.Equals(deviceReserve, "End", StringComparison.OrdinalIgnoreCase))
+								{
+									break;
+								}								
+							}
+						}
+
+						reserveStepIds = reserveSteps.Select(s => s.Id).ToList();
 					}
 				}
 				else
-				{					
+				{
 					return (null, $"Unable to find job for reservation, {jobId}");
 				}
 			}
