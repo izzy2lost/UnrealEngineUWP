@@ -52,6 +52,9 @@ protected:
 	// The number of PCM samples we want to generate. This can't be larger than SamplesNeeded in GeneratePCMData callback, but can be less.
 	int32 NumSamplesToGeneratePerCallback;
 
+	// Procedural Sounds don't represent a wav file, don't do anything when serializing cue points
+	virtual void SerializeCuePoints(FArchive& Ar, const bool bIsLoadingFromCookedArchive) {}
+
 public:
 	ENGINE_API USoundWaveProcedural(const FObjectInitializer& ObjectInitializer);
 

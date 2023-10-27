@@ -85,6 +85,12 @@ FAutoConsoleVariableRef CvarAllowReverbForMultichannelSources(
 	TEXT("0: Disable, >0: Enable"),
 	ECVF_Default);
 
+inline FArchive& operator<<(FArchive& Ar, FSoundWaveCuePoint& CuePoint)
+{
+	FSoundWaveCuePoint::StaticStruct()->SerializeItem(Ar, &CuePoint, nullptr);
+	return Ar;
+}
+
 namespace SoundWave_Private
 {
 	static ESoundWaveLoadingBehavior GetDefaultLoadingBehaviorCVar()
@@ -178,8 +184,6 @@ void FSoundWaveData::InitializeDataFromSoundWave(USoundWave& InWave)
 	}
 	
 	SoundWaveKeyCached = FObjectKey(&InWave);
-	CuePoints = InWave.GetCuePoints();
-	LoopRegions = InWave.GetLoopRegions();
 	SampleRate = InWave.GetSampleRateForCurrentPlatform();
 	Duration = InWave.Duration;
 	NumChannels = InWave.NumChannels;
@@ -279,6 +283,23 @@ void FSoundWaveData::DiscardZerothChunkData()
 #endif
 
 	ZerothChunkData.Empty();
+}
+
+void FSoundWaveData::SetAllCuePoints(const TArray<FSoundWaveCuePoint>& InCuePoints)
+{
+	CuePoints.Reset();
+	LoopRegions.Reset();
+	for (const FSoundWaveCuePoint& CuePoint : InCuePoints)
+	{
+		if (!CuePoint.IsLoopRegion())
+		{
+			CuePoints.Add(CuePoint);
+		}
+		else
+		{
+			LoopRegions.Add(CuePoint);
+		}
+	}
 }
 
 FSoundWaveData::MaxChunkSizeResults FSoundWaveData::GetMaxChunkSizeResults() const
@@ -1175,6 +1196,8 @@ void USoundWave::Serialize( FArchive& Ar )
 		bSupportsStreaming = true;
 	}
 
+	SerializeCuePoints(Ar, bCooked && Ar.IsLoading());
+
 	if (bCooked)
 	{
 #if WITH_EDITOR
@@ -1346,28 +1369,12 @@ void USoundWave::SetSoundAssetCompressionType(ESoundAssetCompressionType InSound
 
 TArray<FSoundWaveCuePoint> USoundWave::GetCuePoints() const
 {
-	TArray<FSoundWaveCuePoint> OutCuePoints;
-	for (const FSoundWaveCuePoint& CuePoint : CuePoints)
-	{
-		if (!CuePoint.bIsLoopRegion)
-		{
-			OutCuePoints.Add(CuePoint);
-		}
-	}
-	return OutCuePoints;
+	return SoundWaveDataPtr->GetCuePoints();
 }
 
 TArray<FSoundWaveCuePoint> USoundWave::GetLoopRegions() const
 {
-	TArray<FSoundWaveCuePoint> OutLoopRegions;
-	for (const FSoundWaveCuePoint& CuePoint : CuePoints)
-	{
-		if (CuePoint.bIsLoopRegion)
-		{
-			OutLoopRegions.Add(CuePoint);
-		}
-	}
-	return OutLoopRegions;
+	return SoundWaveDataPtr->GetLoopRegions();
 }
 
 FName USoundWave::GetRuntimeFormat() const
@@ -4392,6 +4399,63 @@ void USoundWave::CacheInheritedLoadingBehavior() const
 #if WITH_EDITORONLY_DATA		
 		SoundWaveDataPtr->SizeOfFirstAudioChunkInSeconds = SoundClassSizeOfFirstAudioChunkInSeconds;
 #endif //WITH_EDITORONLY_DATA		
+	}
+}
+
+void USoundWave::SerializeCuePoints(FArchive& Ar, const bool bIsLoadingFromCookedArchive)
+{
+	TArray<FSoundWaveCuePoint> CuePointsCopy;
+#if WITH_EDITORONLY_DATA
+	if (Ar.IsCooking())
+	{
+		CuePointsCopy = CuePoints;
+		float ResampleRatio = -1.0f;
+		const ITargetPlatform* CookingTarget = Ar.CookingTarget();
+		if (ensure(CookingTarget))
+		{
+			if (const FPlatformAudioCookOverrides* Overrides = FPlatformCompressionUtilities::GetCookOverrides(*CookingTarget->IniPlatformName()))
+			{
+				if (Overrides->bResampleForDevice)
+				{
+					const float TargetSampleRate = GetSampleRateForTargetPlatform(CookingTarget);
+
+					// annoyingly, read the entire imported sound wave data to successfully get the ImportedSampleRate at this point
+					TArray<uint8> RawWaveData;
+					uint32 OriginalSampleRate = 0;
+					uint16 OriginalNumChannels = 0;
+					ensureMsgf(GetImportedSoundWaveData(RawWaveData, OriginalSampleRate, OriginalNumChannels), TEXT("SerializeCuePoints: %s Failed to retrieve imported sound wave data: OriginalSampleRate = %d"), *GetName(), OriginalSampleRate);
+					
+					if (OriginalSampleRate > 0 && !FMath::IsNearlyEqual(TargetSampleRate, OriginalSampleRate))
+					{
+						ResampleRatio = TargetSampleRate / (float)OriginalSampleRate;
+					}
+
+					if (ResampleRatio > 0.0f)
+					{
+						for (FSoundWaveCuePoint& CuePoint : CuePointsCopy)
+						{
+							CuePoint.ScaleFrameValues(ResampleRatio);
+						}
+					}
+				}
+			}
+		}
+	}
+	else if (Ar.IsLoading() && !bIsLoadingFromCookedArchive)
+	{
+		SoundWaveDataPtr->SetAllCuePoints(CuePoints);
+		return;
+	}
+#endif
+
+	if (Ar.IsCooking() || bIsLoadingFromCookedArchive)
+	{
+		Ar << CuePointsCopy;
+	}
+
+	if (bIsLoadingFromCookedArchive)
+	{
+		SoundWaveDataPtr->SetAllCuePoints(CuePointsCopy);
 	}
 }
 

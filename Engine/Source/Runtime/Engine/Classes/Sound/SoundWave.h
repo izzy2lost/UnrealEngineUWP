@@ -396,6 +396,16 @@ struct FSoundWaveCuePoint
 	UPROPERTY(Category = Info, VisibleAnywhere, BlueprintReadOnly)
 	int32 FrameLength = 0;
 
+	bool IsLoopRegion() const { return bIsLoopRegion; }
+
+#if WITH_EDITORONLY_DATA
+	void ScaleFrameValues(float Factor)
+	{
+		FramePosition = FMath::FloorToInt((float)FramePosition * Factor);
+		FrameLength = FMath::FloorToInt((float)FrameLength * Factor);
+	}
+#endif // WITH_EDITORONLY_DATA
+
 	friend class USoundFactory;
 	friend class USoundWave;
 private:
@@ -489,7 +499,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Audio")
 	ENGINE_API void SetSoundAssetCompressionType(ESoundAssetCompressionType InSoundAssetCompressionType, bool bMarkDirty = true);
 
-	/** Filters for the cue points that are _not_ loop regions and returns those as a new array*/
+	/** Filters for the cue points that are _not_ loop regions and returns those as a new array */
 	UFUNCTION(BlueprintCallable, Category = "Audio")
 	ENGINE_API TArray<FSoundWaveCuePoint> GetCuePoints() const;
 
@@ -747,10 +757,6 @@ public:
 	UPROPERTY(Category = Info, AssetRegistrySearchable, VisibleAnywhere)
 	int32 NumChannels;
 
-	/** Cue point data parsed fro the .wav file. Contains "Loop Regions" as cue points as well! */
-	UPROPERTY(Category = Info, VisibleAnywhere, BlueprintReadOnly)
-	TArray<FSoundWaveCuePoint> CuePoints;
-
 #if WITH_EDITORONLY_DATA
 	/** Offsets into the bulk data for the source wav data */
 	UPROPERTY()
@@ -772,7 +778,13 @@ protected:
 	/** Sample rate of the imported sound wave. */
 	UPROPERTY(Category = Info, AssetRegistrySearchable, VisibleAnywhere)
 	int32 ImportedSampleRate;
+
+	/** Cue point data parsed fro the .wav file. Contains "Loop Regions" as cue points as well! */
+	UPROPERTY(Category = Info, VisibleAnywhere, BlueprintGetter = GetCuePoints)
+	TArray<FSoundWaveCuePoint> CuePoints;
 #endif
+
+	ENGINE_API virtual void SerializeCuePoints(FArchive& Ar, const bool bIsLoadingFromCookedArchive);
 
 public:
 
@@ -1492,6 +1504,7 @@ public:
 	uint32 GetNumChannels() const { return NumChannels; }
 	const TArray<FSoundWaveCuePoint>& GetCuePoints() const { return CuePoints; }
 	const TArray<FSoundWaveCuePoint>& GetLoopRegions() const { return LoopRegions; }
+	void SetAllCuePoints(const TArray<FSoundWaveCuePoint>& InCuePoints);
 
 	ENGINE_API MaxChunkSizeResults GetMaxChunkSizeResults() const;
 
