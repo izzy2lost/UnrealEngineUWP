@@ -580,6 +580,19 @@ namespace EGBufferFormat
 	};
 }
 
+
+/** 
+ * Enumerates available MobileLocalLightSetting. 
+ * @warning When this enum is updated please update CVarMobileForwardEnableLocalLights comments 
+ */
+UENUM()
+enum EMobileLocalLightSetting : int
+{
+	LOCAL_LIGHTS_DISABLED UMETA(DisplayName = "Local Lights Disabled"),
+	LOCAL_LIGHTS_ENABLED UMETA(DisplayName = "Local Lights Enabled"),
+	LOCAL_LIGHTS_BUFFER UMETA(DisplayName = "Local Lights Buffer Enabled")
+};
+
 /** Controls the way that the width scale property affects animation trails. */
 UENUM()
 enum ETrailWidthMode : int

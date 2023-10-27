@@ -1076,10 +1076,10 @@ class URendererSettings : public UDeveloperSettings
 
 	UPROPERTY(config, EditAnywhere, Category = Mobile, meta = (
 		ConsoleVariable = "r.Mobile.Forward.EnableLocalLights",
-		DisplayName = "Enable local lights support on mobile forward",
-		ToolTip = "Enable local lights support for mobile forward shading (including translucency in deferred). 0 is disabled, 1 is enabled (default). Changing this setting requires restarting the editor.",
+		DisplayName = "Mobile Local Light Setting",
+		ToolTip = "Select which Local Light Setting to use for Mobile. Changing this setting requires restarting the editor.",
 		ConfigRestartRequired = true))
-		uint32 bMobileForwardEnableLocalLights : 1;
+		TEnumAsByte<EMobileLocalLightSetting> MobileLocalLightSetting;
 
 	UPROPERTY(config, EditAnywhere, Category = Mobile, meta = (
 		ConsoleVariable = "r.Mobile.Forward.EnableClusteredReflections",

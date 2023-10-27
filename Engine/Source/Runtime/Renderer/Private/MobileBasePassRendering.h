@@ -105,12 +105,6 @@ enum EOutputFormat
 	HDR_LINEAR_64,
 };
 
-enum EMobileLocalLightSetting
-{
-	LOCAL_LIGHTS_DISABLED,
-	LOCAL_LIGHTS_ENABLED,
-	LOCAL_LIGHTS_BUFFER
-};
 EMobileLocalLightSetting GetMobileForwardLocalLightSetting(EShaderPlatform ShaderPlatform, bool bIsTranslucent);
 
 bool ShouldCacheShaderByPlatformAndOutputFormat(EShaderPlatform Platform, EOutputFormat OutputFormat);
