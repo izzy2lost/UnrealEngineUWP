@@ -41,6 +41,8 @@
 #include "VerseVM/VVMVar.h"
 #include <stdio.h>
 
+static_assert(UE_AUTORTFM, "New VM depends on AutoRTFM.");
+
 namespace Verse
 {
 
