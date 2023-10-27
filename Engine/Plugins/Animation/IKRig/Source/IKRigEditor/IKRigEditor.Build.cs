@@ -54,6 +54,8 @@ namespace UnrealBuildTool.Rules
 					"AnimationCore",
                     "AnimationWidgets",
                     "ApplicationCore",
+					"MeshDescription",
+					"SkeletalMeshDescription"
                 }
             );
         }

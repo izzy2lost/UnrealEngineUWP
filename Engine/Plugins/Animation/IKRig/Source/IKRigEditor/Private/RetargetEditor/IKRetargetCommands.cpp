@@ -19,6 +19,12 @@ void FIKRetargetCommands::RegisterCommands()
 	UI_COMMAND(ResetSelectedBones, "Reset Selected Bones", "Sets the selected bones to the mesh reference pose.", EUserInterfaceActionType::Button, FInputChord());
 	UI_COMMAND(ResetSelectedAndChildrenBones, "Reset Selected and Children Bones", "Sets the selected bones (and all children recursively) to the mesh reference pose.", EUserInterfaceActionType::Button, FInputChord());
 
+	UI_COMMAND(AutoAlignAllBones, "Align All Bones", "Goes through all bones contained in mapped retarget chains and rotates them to match the worldspace orientation of the equivalent bone on the other skeleton.", EUserInterfaceActionType::Button, FInputChord());
+	UI_COMMAND(AlignSelected, "Align Selected", "Goes through the selected bones contained in mapped retarget chains and rotates them to match the worldspace orientation of the equivalent bone on the other skeleton.", EUserInterfaceActionType::Button, FInputChord());
+	UI_COMMAND(AlignSelectedAndChildren, "Align Selected and Children", "Goes through the selected bones (and their children). If the bone is contained in a mapped retarget chains, it is rotated to match the worldspace orientation of the equivalent bone on the other skeleton.", EUserInterfaceActionType::Button, FInputChord());
+	UI_COMMAND(AlignSelectedUsingMesh, "Align Selected Using Mesh", "Align the selected bones using the mesh to determine the bone directions.", EUserInterfaceActionType::Button, FInputChord());
+	UI_COMMAND(SnapCharacterToGround, "Snap Character to Ground", "Move the character vertically to restore original height from the ground. Uses the selected bone as the reference point for a grounded limb. Otherwise searches the skeleton for the lowest retargeted bone.", EUserInterfaceActionType::Button, FInputChord());
+
 	UI_COMMAND(NewRetargetPose, "Create", "Create a new retarget pose.", EUserInterfaceActionType::Button, FInputChord());
 	UI_COMMAND(DuplicateRetargetPose, "Duplicate Current", "Duplicate the current retarget pose.", EUserInterfaceActionType::Button, FInputChord());
 	UI_COMMAND(DeleteRetargetPose, "Delete", "Delete current retarget pose.", EUserInterfaceActionType::Button, FInputChord());

@@ -202,8 +202,10 @@ private:
 UENUM()
 enum class ERetargetSourceOrTarget : uint8
 {
-	Source,	// the SOURCE skeleton (to copy FROM)
-	Target, // the TARGET skeleton (to copy TO)
+	// the SOURCE skeleton (to copy FROM)
+	Source,
+	// the TARGET skeleton (to copy TO)
+	Target,
 };
 
 // which skeleton are we referring to?

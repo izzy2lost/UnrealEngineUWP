@@ -248,6 +248,8 @@ struct FChainFK
 		const TArray<FTransform> &InitialGlobalPose,
 		FIKRigLogger& Log);
 
+	FTransform GetTransformAtParam(const TArray<FTransform>& Transforms, const float& Param) const;
+
 private:
 	
 	bool CalculateBoneParameters(FIKRigLogger& Log);
@@ -301,13 +303,8 @@ struct FChainDecoderFK : public FChainFK
 		FChainEncoderFK& SourceChain,
 		const FTargetSkeleton& TargetSkeleton,
 		TArray<FTransform> &InOutGlobalPose);
-
-private:
 	
-	FTransform GetTransformAtParam(
-		const TArray<FTransform>& Transforms,
-		const TArray<float>& InParams,
-		const float& Param) const;
+private:
 	
 	void UpdateIntermediateParents(
 		const FTargetSkeleton& TargetSkeleton,
@@ -491,8 +488,7 @@ public:
 	*/
 	TArray<FTransform>& RunRetargeter(
 		const TArray<FTransform>& InSourceGlobalPose,
-		const TMap<FName,
-		float>& SpeedValuesFromCurves,
+		const TMap<FName, float>& SpeedValuesFromCurves,
 		const float DeltaTime);
 
 	/** Apply the settings stored in a retarget profile. Call this before RunRetargeter() to use the settings stored in a profile. */
@@ -500,18 +496,12 @@ public:
 	
 	/** Apply the settings stored in the retargeter asset. */
 	void ApplySettingsFromAsset();
-	
-	/** Get read-only access to the target skeleton. */
-	const FTargetSkeleton& GetTargetSkeleton() const { return TargetSkeleton; };
 
-	/** Get read-only access to the source skeleton. */
-	const FRetargetSkeleton& GetSourceSkeleton() const { return SourceSkeleton; };
+	/** Get read-only access to either source or target skeleton. */
+	const FRetargetSkeleton& GetSkeleton(ERetargetSourceOrTarget SourceOrTarget) const;
 
-	/** Get index of the root bone of the source skeleton. */
-	const int32 GetSourceRetargetRoot() const { return RootRetargeter.Source.BoneIndex; };
-
-	/** Get index of the root bone of the target skeleton. */
-	const int32 GetTargetRetargetRoot() const { return RootRetargeter.Target.BoneIndex; };
+	/** Get name of the root bone of the given skeleton. */
+	FName GetRetargetRoot(ERetargetSourceOrTarget SourceOrTarget) const;
 	
 	/** Get whether this processor is ready to call RunRetargeter() and generate new poses. */
 	bool IsInitialized() const { return bIsInitialized; };
@@ -540,6 +530,10 @@ public:
 	/** Reset the IK planting state. */
 	void ResetPlanting();
 
+	/** Does a partial reinitialization (at runtime) whenever the retarget pose is swapped to a different or if the
+	 * pose has been modified. Does nothing if the pose has not changed. */
+	void UpdateRetargetPoseAtRuntime(const FName NewRetargetPoseName, ERetargetSourceOrTarget SourceOrTarget);
+
 	/** logging system */
 	FIKRigLogger Log;
 
@@ -548,9 +542,21 @@ public:
 	
 #if WITH_EDITOR
 	/** Returns true if the bone is part of a retarget chain or root bone, false otherwise. */
-	bool IsBoneRetargeted(const int32& BoneIndex, const int8& SkeletonToCheck) const;
+	bool IsBoneRetargeted(const FName BoneName, const ERetargetSourceOrTarget SourceOrTarget) const;
+	/** Returns index of the bone with the given name in either Source or Target skeleton. */
+	int32 GetBoneIndexFromName(const FName BoneName, const ERetargetSourceOrTarget SourceOrTarget) const;
 	/** Returns name of the chain associated with this bone. Returns NAME_None if bone is not in a chain. */
-	FName GetChainNameForBone(const int32& BoneIndex, const int8& SkeletonToCheck) const;
+	FName GetChainNameForBone(const FName BoneName, const ERetargetSourceOrTarget SourceOrTarget) const;
+	/** Get a transform at a given param in a chain */
+	FTransform GetGlobalRetargetPoseAtParam(const FName InChainName, const float Param, const ERetargetSourceOrTarget SourceOrTarget) const;
+	/** Get access to the internal chain on the given skeleton */
+	const FChainFK* GetChain(const FName InChainName, const ERetargetSourceOrTarget SourceOrTarget) const;
+	/** Get the param of the bone in it's retarget chain. Ranges from 0 to NumBonesInChain. */
+	float GetParamOfBoneInChain(const FName InBoneName, const ERetargetSourceOrTarget SourceOrTarget) const;
+	/** Get the bone in the chain at the given param. */
+	FName GetBoneAtParam(const FName InChainName, const float InParam, const ERetargetSourceOrTarget SourceOrTarget) const;
+	/** Get the chain mapped to this one. */
+	FName GetMappedChainName(const FName InChainName, const ERetargetSourceOrTarget SourceOrTarget);
 	/** store data for debug drawing */
 	FRetargetDebugData DebugData;
 #endif
@@ -628,8 +634,4 @@ private:
 
 	/** Run all post process operations on the retargeted result. */
 	void RunRetargetOps(const TArray<FTransform>& InSourceGlobalPose, TArray<FTransform>& OutTargetGlobalPose);
-
-	/** Does a partial reinitialization (at runtime) whenever the retarget pose is swapped to a different or if the
-	 * pose has been modified. Does nothing if the pose has not changed. */
-	void ApplyNewRetargetPose(const FName NewRetargetPoseName, ERetargetSourceOrTarget SourceOrTarget);
 };

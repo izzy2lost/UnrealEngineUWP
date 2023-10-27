@@ -2,6 +2,7 @@
 #pragma once
 
 #include "IKRetargetDetails.h"
+#include "IKRetargeterPoseGenerator.h"
 #include "IKRetargetPoseExporter.h"
 #include "IPersonaToolkit.h"
 #include "SIKRetargetAssetBrowser.h"
@@ -64,7 +65,7 @@ struct FBoundIKRig
 
 struct FRetargetPlaybackManager : public TSharedFromThis<FRetargetPlaybackManager>
 {
-	FRetargetPlaybackManager(TWeakPtr<FIKRetargetEditorController> InEditorController);
+	FRetargetPlaybackManager(const TWeakPtr<FIKRetargetEditorController>& InEditorController);
 	void PlayAnimationAsset(UAnimationAsset* AssetToPlay);
 	void StopPlayback();
 	void PausePlayback();
@@ -120,6 +121,8 @@ public:
 
 	// import / export retarget poses
 	TSharedPtr<FIKRetargetPoseExporter> PoseExporter;
+	// auto pose generator
+	TUniquePtr<FRetargetAutoPoseGenerator> AutoPoseGenerator;
 
 	// manage playback of animation in the editor
 	TUniquePtr<FRetargetPlaybackManager> PlaybackManager;
@@ -253,6 +256,9 @@ public:
 	// to frame selection when pressing "f" in viewport
 	bool GetCameraTargetForSelection(FSphere& OutTarget) const;
 
+	// check if any bone is selected
+	bool IsAnyBoneSelected() const;
+
 	// ------------------------- END SELECTION -----------------------------
 
 	// determine if bone in the specified skeleton is part of the retarget (in a mapped chain)
@@ -274,7 +280,11 @@ public:
 	void HandleResetAllBones() const;
 	void HandleResetSelectedBones() const;
 	void HandleResetSelectedAndChildrenBones() const;
-	bool CanResetSelected() const;
+	
+	// auto generate retarget pose
+	void HandleAlignAllBones() const;
+	void HandleAlignSelectedBones(const ERetargetAutoAlignMethod Method, const bool bIncludeChildren) const;
+	void HandleSnapToGround() const;
 
 	// create new retarget pose
 	void HandleNewPose();
@@ -312,6 +322,8 @@ public:
 	void RenderSkeleton(FPrimitiveDrawInterface* PDI, ERetargetSourceOrTarget SourceOrTarget) const;
 
 private:
+
+	TArray<FName> GetSelectedBonesAndChildren() const;
 
 	// modal dialog to ask user if they want to fix root bones that are "on the ground"
 	bool PromptToFixRootHeight(ERetargetSourceOrTarget SourceOrTarget) const;

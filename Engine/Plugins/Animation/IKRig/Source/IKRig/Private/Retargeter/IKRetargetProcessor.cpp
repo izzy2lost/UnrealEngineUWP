@@ -453,6 +453,48 @@ bool FChainFK::Initialize(
 	return CalculateBoneParameters(Log);
 }
 
+FTransform FChainFK::GetTransformAtParam(const TArray<FTransform>& Transforms, const float& Param) const
+{
+	check(Transforms.Num() == Params.Num());
+	
+	if (Params.Num() == 1)
+	{
+		return Transforms[0];
+	}
+	
+	if (Param < KINDA_SMALL_NUMBER)
+	{
+		return Transforms[0];
+	}
+
+	if (Param > 1.0f - KINDA_SMALL_NUMBER)
+	{
+		return Transforms.Last();
+	}
+
+	for (int32 ChainIndex=1; ChainIndex<Params.Num(); ++ChainIndex)
+	{
+		const float CurrentParam = Params[ChainIndex];
+		if (CurrentParam <= Param)
+		{
+			continue;
+		}
+		
+		const float PrevParam = Params[ChainIndex-1];
+		const float PercentBetweenParams = (Param - PrevParam) / (CurrentParam - PrevParam);
+		const FTransform& Prev = Transforms[ChainIndex-1];
+		const FTransform& Next = Transforms[ChainIndex];
+		const FVector Position = FMath::Lerp(Prev.GetTranslation(), Next.GetTranslation(), PercentBetweenParams);
+		const FQuat Rotation = FQuat::FastLerp(Prev.GetRotation(), Next.GetRotation(), PercentBetweenParams).GetNormalized();
+		const FVector Scale = FMath::Lerp(Prev.GetScale3D(), Next.GetScale3D(), PercentBetweenParams);
+		
+		return FTransform(Rotation,Position, Scale);
+	}
+
+	checkNoEntry();
+	return FTransform::Identity;
+}
+
 bool FChainFK::CalculateBoneParameters(FIKRigLogger& Log)
 {
 	Params.Reset();
@@ -641,16 +683,8 @@ void FChainDecoderFK::DecodePose(
 				// get the initial and current transform of source chain at param
 				// this is the interpolated transform along the chain
 				const float Param = Params[ChainIndex];
-					
-				SourceCurrentTransform = GetTransformAtParam(
-					SourceChain.CurrentGlobalTransforms,
-					SourceChain.Params,
-					Param);
-
-				SourceInitialTransform = GetTransformAtParam(
-					SourceChain.InitialGlobalTransforms,
-					SourceChain.Params,
-					Param);
+				SourceCurrentTransform = SourceChain.GetTransformAtParam(SourceChain.CurrentGlobalTransforms, Param);
+				SourceInitialTransform = SourceChain.GetTransformAtParam(SourceChain.InitialGlobalTransforms, Param);
 			}
 			break;
 			case ERetargetRotationMode::OneToOne:
@@ -804,49 +838,6 @@ void FChainDecoderFK::UpdateIntermediateParents(
 	{
 		TargetSkeleton.UpdateGlobalTransformOfSingleBone(ParentIndex, TargetSkeleton.RetargetLocalPose, InOutGlobalPose);
 	}
-}
-
-FTransform FChainDecoderFK::GetTransformAtParam(
-	const TArray<FTransform>& Transforms,
-	const TArray<float>& InParams,
-	const float& Param) const
-{
-	if (InParams.Num() == 1)
-	{
-		return Transforms[0];
-	}
-	
-	if (Param < KINDA_SMALL_NUMBER)
-	{
-		return Transforms[0];
-	}
-
-	if (Param > 1.0f - KINDA_SMALL_NUMBER)
-	{
-		return Transforms.Last();
-	}
-
-	for (int32 ChainIndex=1; ChainIndex<InParams.Num(); ++ChainIndex)
-	{
-		const float CurrentParam = InParams[ChainIndex];
-		if (CurrentParam <= Param)
-		{
-			continue;
-		}
-		
-		const float PrevParam = InParams[ChainIndex-1];
-		const float PercentBetweenParams = (Param - PrevParam) / (CurrentParam - PrevParam);
-		const FTransform& Prev = Transforms[ChainIndex-1];
-		const FTransform& Next = Transforms[ChainIndex];
-		const FVector Position = FMath::Lerp(Prev.GetTranslation(), Next.GetTranslation(), PercentBetweenParams);
-		const FQuat Rotation = FQuat::FastLerp(Prev.GetRotation(), Next.GetRotation(), PercentBetweenParams).GetNormalized();
-		const FVector Scale = FMath::Lerp(Prev.GetScale3D(), Next.GetScale3D(), PercentBetweenParams);
-		
-		return FTransform(Rotation,Position, Scale);
-	}
-
-	checkNoEntry();
-	return FTransform::Identity;
 }
 
 bool FChainRetargeterIK::InitializeSource(
@@ -1903,7 +1894,7 @@ TArray<FTransform>&  UIKRetargetProcessor::RunRetargeter(
 	}
 	
 	// IK CHAIN retargeting
-	if (GlobalSettings.bEnableIK && bAtLeastOneValidBoneChainPair && bIKRigInitialized)
+	if (bAtLeastOneValidBoneChainPair && bIKRigInitialized)
 	{
 		RunIKRetarget(InSourceGlobalPose, TargetSkeleton.OutputGlobalPose, SpeedValuesFromCurves, DeltaTime);
 	}
@@ -2002,12 +1993,15 @@ void UIKRetargetProcessor::RunIKRetarget(
 		ChainPair.IKChainRetargeter.SaveDebugInfo(OutTargetGlobalPose);
 	}
 
-	// copy input pose to start IK solve from
-	IKRigProcessor->SetInputPoseGlobal(OutTargetGlobalPose);
-	// run IK solve
-	IKRigProcessor->Solve();
-	// copy results of solve
-	IKRigProcessor->CopyOutputGlobalPoseToArray(OutTargetGlobalPose);
+	if (GlobalSettings.bEnableIK)
+	{
+		// copy input pose to start IK solve from
+		IKRigProcessor->SetInputPoseGlobal(OutTargetGlobalPose);
+		// run IK solve
+		IKRigProcessor->Solve();
+		// copy results of solve
+		IKRigProcessor->CopyOutputGlobalPoseToArray(OutTargetGlobalPose);
+	}
 }
 
 void UIKRetargetProcessor::RunPoleVectorMatching(
@@ -2173,8 +2167,8 @@ bool UIKRetargetProcessor::WasInitializedWithTheseAssets(
 		return false;
 	}
 
-	const bool bSourceMatches = InSourceMesh == GetSourceSkeleton().SkeletalMesh;
-	const bool bTargetMatches = InTargetMesh == GetTargetSkeleton().SkeletalMesh;
+	const bool bSourceMatches = InSourceMesh == GetSkeleton(ERetargetSourceOrTarget::Source).SkeletalMesh;
+	const bool bTargetMatches = InTargetMesh == GetSkeleton(ERetargetSourceOrTarget::Target).SkeletalMesh;
 	const bool bAssetMatches = InRetargetAsset == RetargeterAsset;
 	
 	return bSourceMatches && bTargetMatches && bAssetMatches;
@@ -2193,13 +2187,19 @@ void UIKRetargetProcessor::SetNeedsInitialized()
 #if WITH_EDITOR
 
 bool UIKRetargetProcessor::IsBoneRetargeted(
-	const int32& BoneIndex,
-	const int8& SkeletonToCheck) const
+	const FName BoneName,
+	const ERetargetSourceOrTarget SourceOrTarget) const
 {
-	const bool bUseSourceSkeleton = SkeletonToCheck == 0;
-	const FRetargetSkeleton& Skeleton = bUseSourceSkeleton ? SourceSkeleton : TargetSkeleton;
-	const int32 RootBoneIndex = bUseSourceSkeleton ? GetSourceRetargetRoot() : GetTargetRetargetRoot();
-	if (BoneIndex==RootBoneIndex)
+	const FRetargetSkeleton& Skeleton = GetSkeleton(SourceOrTarget);
+	const int32 BoneIndex = Skeleton.FindBoneIndexByName(BoneName);
+	if (BoneIndex == INDEX_NONE)
+	{
+		// bone doesn't exist, therefore not retargeted
+		return false;
+	}
+	
+	const FName RootBoneName = GetRetargetRoot(SourceOrTarget);
+	if (BoneName == RootBoneName)
 	{
 		// retarget root is always retargeted
 		return true;
@@ -2220,7 +2220,7 @@ bool UIKRetargetProcessor::IsBoneRetargeted(
 			continue;
 		}
 		
-		if (bUseSourceSkeleton)
+		if (SourceOrTarget == ERetargetSourceOrTarget::Source)
 		{
 			if (ChainMap->SourceChain == ChainThatContainsBone)
 			{
@@ -2239,17 +2239,113 @@ bool UIKRetargetProcessor::IsBoneRetargeted(
 	return false;
 }
 
-FName UIKRetargetProcessor::GetChainNameForBone(const int32& BoneIndex, const int8& SkeletonToCheck) const
+int32 UIKRetargetProcessor::GetBoneIndexFromName(
+	const FName BoneName,
+	const ERetargetSourceOrTarget SourceOrTarget) const
 {
-	const bool bUseSourceSkeleton = SkeletonToCheck == 0;
-	const FRetargetSkeleton& Skeleton = bUseSourceSkeleton ? SourceSkeleton : TargetSkeleton;
-	const int32 RootBoneIndex = bUseSourceSkeleton ? GetSourceRetargetRoot() : GetTargetRetargetRoot();
-	if (RootBoneIndex == BoneIndex)
+	return GetSkeleton(SourceOrTarget).FindBoneIndexByName(BoneName);
+}
+
+FName UIKRetargetProcessor::GetChainNameForBone(const FName BoneName, const ERetargetSourceOrTarget SourceOrTarget) const
+{
+	const bool bUseSource = SourceOrTarget == ERetargetSourceOrTarget::Source;
+	const FRetargetSkeleton& Skeleton = bUseSource ? SourceSkeleton : TargetSkeleton;
+	const int32 BoneIndex = GetBoneIndexFromName(BoneName, SourceOrTarget);
+	const FName RootBoneName = GetRetargetRoot(SourceOrTarget);
+	if (BoneName == RootBoneName)
 	{
 		return FName("Retarget Root");
 	}
 
 	return Skeleton.ChainThatContainsBone[BoneIndex];
+}
+
+FTransform UIKRetargetProcessor::GetGlobalRetargetPoseAtParam(
+	const FName InChainName,
+	const float Param,
+	const ERetargetSourceOrTarget SourceOrTarget) const
+{
+	if (const FChainFK* Chain = GetChain(InChainName, SourceOrTarget))
+	{
+		return Chain->GetTransformAtParam(Chain->InitialGlobalTransforms, Param);
+	}
+
+	checkNoEntry();
+	return FTransform::Identity;
+}
+
+const FChainFK* UIKRetargetProcessor::GetChain(const FName InChainName, const ERetargetSourceOrTarget SourceOrTarget) const
+{
+	const bool bIsSource = SourceOrTarget == ERetargetSourceOrTarget::Source;
+	for (const FRetargetChainPairFK& ChainPair : ChainPairsFK)
+	{
+		const FName ChainName = bIsSource ? ChainPair.SourceBoneChainName : ChainPair.TargetBoneChainName;
+		if (ChainName == InChainName)
+		{
+			const FChainFK* Encoder = &ChainPair.FKEncoder;
+			const FChainFK* Decoder = &ChainPair.FKDecoder;
+			return bIsSource ? Encoder : Decoder;
+		}
+	}
+
+	return nullptr;
+}
+
+float UIKRetargetProcessor::GetParamOfBoneInChain(
+	const FName InBoneName,
+	const ERetargetSourceOrTarget SourceOrTarget) const
+{
+	const FName ChainName = GetChainNameForBone(InBoneName, SourceOrTarget);
+	const FChainFK* Chain = GetChain(ChainName, SourceOrTarget);
+	if (!Chain)
+	{
+		return INDEX_NONE;
+	}
+
+	const int32 BoneIndexInSkeleton = GetBoneIndexFromName(InBoneName, SourceOrTarget);
+	const int32 BoneIndexInChain =  Chain->BoneIndices.Find(BoneIndexInSkeleton);
+	return Chain->Params[BoneIndexInChain];
+}
+
+FName UIKRetargetProcessor::GetBoneAtParam(
+	const FName InChainName, 
+	const float InParam,
+	const ERetargetSourceOrTarget SourceOrTarget) const
+{
+	const FChainFK* Chain = GetChain(InChainName, SourceOrTarget);
+	const FRetargetSkeleton& Skeleton = GetSkeleton(SourceOrTarget);
+	if (Chain->BoneIndices.Num() == 1 || InParam < 0.0f)
+	{
+		return Skeleton.BoneNames[Chain->BoneIndices[0]];
+	}
+	
+	for (int32 ChainIndex = Chain->Params.Num()-1; ChainIndex >= 0 ; --ChainIndex)
+	{
+		if (Chain->Params[ChainIndex] <= InParam)
+		{
+			return Skeleton.BoneNames[Chain->BoneIndices[ChainIndex]];
+		}
+	}
+
+	checkNoEntry();
+	return NAME_None;
+}
+
+FName UIKRetargetProcessor::GetMappedChainName(
+	const FName InChainName,
+	const ERetargetSourceOrTarget SourceOrTarget)
+{
+	const bool bIsSource = SourceOrTarget == ERetargetSourceOrTarget::Source;
+	for (const FRetargetChainPairFK& ChainPair : ChainPairsFK)
+	{
+		const FName ChainName = bIsSource ? ChainPair.SourceBoneChainName : ChainPair.TargetBoneChainName;
+		if (ChainName == InChainName)
+		{
+			return bIsSource ? ChainPair.TargetBoneChainName : ChainPair.SourceBoneChainName;
+		}
+	}
+
+	return NAME_None;
 }
 
 #endif
@@ -2292,8 +2388,8 @@ void UIKRetargetProcessor::ApplySettingsFromAsset()
 	// apply current retarget poses (only applied if the pose has been switched to a different one OR if the current pose was modified)
 	const FName SourcePose = RetargeterAsset->GetCurrentRetargetPoseName(ERetargetSourceOrTarget::Source);
 	const FName TargetPose = RetargeterAsset->GetCurrentRetargetPoseName(ERetargetSourceOrTarget::Target);
-	ApplyNewRetargetPose(SourcePose, ERetargetSourceOrTarget::Source);
-	ApplyNewRetargetPose(TargetPose, ERetargetSourceOrTarget::Target);
+	UpdateRetargetPoseAtRuntime(SourcePose, ERetargetSourceOrTarget::Source);
+	UpdateRetargetPoseAtRuntime(TargetPose, ERetargetSourceOrTarget::Target);
 
 	// apply the current profile
 	// (this is always applied last so that profile overrides take precedence over asset settings)
@@ -2303,16 +2399,26 @@ void UIKRetargetProcessor::ApplySettingsFromAsset()
 	}
 }
 
+const FRetargetSkeleton& UIKRetargetProcessor::GetSkeleton(ERetargetSourceOrTarget SourceOrTarget) const
+{
+	return SourceOrTarget == ERetargetSourceOrTarget::Source ? SourceSkeleton : TargetSkeleton;
+}
+
+FName UIKRetargetProcessor::GetRetargetRoot(ERetargetSourceOrTarget SourceOrTarget) const
+{
+	return SourceOrTarget == ERetargetSourceOrTarget::Source ? RootRetargeter.Source.BoneName : RootRetargeter.Target.BoneName;
+}
+
 void UIKRetargetProcessor::ApplySettingsFromProfile(const FRetargetProfile& Profile)
 {
 	// assign retarget poses specified in the profile
 	if (Profile.bApplySourceRetargetPose)
 	{
-		ApplyNewRetargetPose(Profile.SourceRetargetPoseName, ERetargetSourceOrTarget::Source);
+		UpdateRetargetPoseAtRuntime(Profile.SourceRetargetPoseName, ERetargetSourceOrTarget::Source);
 	}
 	if (Profile.bApplyTargetRetargetPose)
 	{
-		ApplyNewRetargetPose(Profile.TargetRetargetPoseName, ERetargetSourceOrTarget::Target);
+		UpdateRetargetPoseAtRuntime(Profile.TargetRetargetPoseName, ERetargetSourceOrTarget::Target);
 	}
 
 	// assign chain settings
@@ -2351,7 +2457,7 @@ void UIKRetargetProcessor::ApplySettingsFromProfile(const FRetargetProfile& Prof
 	}
 }
 
-void UIKRetargetProcessor::ApplyNewRetargetPose(
+void UIKRetargetProcessor::UpdateRetargetPoseAtRuntime(
 	const FName NewRetargetPoseName,
 	ERetargetSourceOrTarget SourceOrTarget)
 {

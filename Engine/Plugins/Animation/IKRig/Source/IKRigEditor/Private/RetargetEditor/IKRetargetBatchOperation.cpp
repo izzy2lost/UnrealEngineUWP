@@ -326,7 +326,7 @@ void UIKRetargetBatchOperation::ConvertAnimation(
 	}
 
 	// target skeleton data
-	const FTargetSkeleton& TargetSkeleton = Processor->GetTargetSkeleton();
+	const FRetargetSkeleton& TargetSkeleton = Processor->GetSkeleton(ERetargetSourceOrTarget::Target);
 	const TArray<FName>& TargetBoneNames = TargetSkeleton.BoneNames;
 	const int32 NumTargetBones = TargetBoneNames.Num();
 
@@ -335,7 +335,7 @@ void UIKRetargetBatchOperation::ConvertAnimation(
 	BoneTracks.SetNumZeroed(NumTargetBones);
 
 	// source skeleton data
-	const FRetargetSkeleton& SourceSkeleton = Processor->GetSourceSkeleton();
+	const FRetargetSkeleton& SourceSkeleton = Processor->GetSkeleton(ERetargetSourceOrTarget::Source);
 	const TArray<FName>& SourceBoneNames = SourceSkeleton.BoneNames;
 	const int32 NumSourceBones = SourceBoneNames.Num();
 

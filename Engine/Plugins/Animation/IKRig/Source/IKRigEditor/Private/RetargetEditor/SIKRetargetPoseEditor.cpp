@@ -119,6 +119,13 @@ TSharedRef<SWidget>  SIKRetargetPoseEditor::MakeToolbar(TSharedPtr<FUICommandLis
 		LOCTEXT("ResetPoseToolTip_Label", "Reset bones to reference pose."),
 		FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Refresh"));
 
+	ToolbarBuilder.AddComboButton(
+		FUIAction(),
+		FOnGetContent::CreateSP(this, &SIKRetargetPoseEditor::GenerateEditMenuContent, Commands),
+		LOCTEXT("ResetPose_Label", "Auto Align"),
+		LOCTEXT("ResetPoseToolTip_Label", "Automatically aligns bones on source skeleton to target (or vice versa)."),
+		FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Edit"));
+
 	ToolbarBuilder.EndSection();
 
 	ToolbarBuilder.BeginSection("Create Poses");
@@ -152,24 +159,27 @@ TSharedRef<SWidget>  SIKRetargetPoseEditor::MakeToolbar(TSharedPtr<FUICommandLis
 TSharedRef<SWidget> SIKRetargetPoseEditor::GenerateResetMenuContent(TSharedPtr<FUICommandList> Commands)
 {
 	FMenuBuilder MenuBuilder(true, Commands);
+	MenuBuilder.AddMenuEntry(FIKRetargetCommands::Get().ResetSelectedBones);
+	MenuBuilder.AddMenuEntry(FIKRetargetCommands::Get().ResetSelectedAndChildrenBones);
+	MenuBuilder.AddMenuEntry(FIKRetargetCommands::Get().ResetAllBones);
+	return MenuBuilder.MakeWidget();
+}
 
-	MenuBuilder.AddMenuEntry(
-		FIKRetargetCommands::Get().ResetSelectedBones,
-		TEXT("Reset Selected"),
-		TAttribute<FText>(),
-		TAttribute<FText>());
+TSharedRef<SWidget> SIKRetargetPoseEditor::GenerateEditMenuContent(TSharedPtr<FUICommandList> Commands)
+{
+	FMenuBuilder MenuBuilder(true, Commands);
 
-	MenuBuilder.AddMenuEntry(
-		FIKRetargetCommands::Get().ResetSelectedAndChildrenBones,
-		TEXT("Reset Selected And Children"),
-		TAttribute<FText>(),
-		TAttribute<FText>());
-
-	MenuBuilder.AddMenuEntry(
-		FIKRetargetCommands::Get().ResetAllBones,
-		TEXT("Reset All"),
-		TAttribute<FText>(),
-		TAttribute<FText>());
+	MenuBuilder.AddMenuEntry(FIKRetargetCommands::Get().AutoAlignAllBones);
+	MenuBuilder.AddSeparator();
+	
+	MenuBuilder.AddMenuEntry(FIKRetargetCommands::Get().AlignSelected);
+	MenuBuilder.AddMenuEntry(FIKRetargetCommands::Get().AlignSelectedAndChildren);
+	MenuBuilder.AddSeparator();
+	
+	MenuBuilder.AddMenuEntry(FIKRetargetCommands::Get().AlignSelectedUsingMesh);
+	MenuBuilder.AddSeparator();
+	
+	MenuBuilder.AddMenuEntry(FIKRetargetCommands::Get().SnapCharacterToGround);
 
 	return MenuBuilder.MakeWidget();
 }
@@ -181,30 +191,15 @@ TSharedRef<SWidget> SIKRetargetPoseEditor::GenerateNewMenuContent(TSharedPtr<FUI
 	UToolMenu* ToolMenu = UToolMenus::Get()->ExtendMenu(MenuName);
 
 	FToolMenuSection& CreateSection = ToolMenu->AddSection("Create", LOCTEXT("CreatePoseOperations", "Create New Retarget Pose"));
-	CreateSection.AddMenuEntry(
-		FIKRetargetCommands::Get().NewRetargetPose,
-		TAttribute<FText>(),
-        TAttribute<FText>());
-	CreateSection.AddMenuEntry(
-		FIKRetargetCommands::Get().DuplicateRetargetPose,
-		TAttribute<FText>(),
-		TAttribute<FText>());
+	CreateSection.AddMenuEntry(FIKRetargetCommands::Get().NewRetargetPose);
+	CreateSection.AddMenuEntry(FIKRetargetCommands::Get().DuplicateRetargetPose);
 	
 	FToolMenuSection& ImportSection = ToolMenu->AddSection("Import",LOCTEXT("ImportPoseOperations", "Import Retarget Pose"));
-	ImportSection.AddMenuEntry(
-			FIKRetargetCommands::Get().ImportRetargetPose,
-			TAttribute<FText>(),
-			TAttribute<FText>());
-	ImportSection.AddMenuEntry(
-		FIKRetargetCommands::Get().ImportRetargetPoseFromAnim,
-		TAttribute<FText>(),
-		TAttribute<FText>());
+	ImportSection.AddMenuEntry(FIKRetargetCommands::Get().ImportRetargetPose);
+	ImportSection.AddMenuEntry(FIKRetargetCommands::Get().ImportRetargetPoseFromAnim);
 
 	FToolMenuSection& ExportSection = ToolMenu->AddSection("Export",LOCTEXT("ExportPoseOperations", "Export Retarget Pose"));
-	ExportSection.AddMenuEntry(
-			FIKRetargetCommands::Get().ExportRetargetPose,
-			TAttribute<FText>(),
-			TAttribute<FText>());
+	ExportSection.AddMenuEntry(FIKRetargetCommands::Get().ExportRetargetPose);
 
 	return UToolMenus::Get()->GenerateWidget(MenuName, FToolMenuContext(Commands));
 }

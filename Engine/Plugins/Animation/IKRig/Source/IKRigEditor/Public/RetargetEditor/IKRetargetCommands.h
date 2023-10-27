@@ -50,6 +50,17 @@ public:
 	// reset retarget pose to ref pose
 	TSharedPtr< FUICommandInfo > ResetSelectedAndChildrenBones;
 
+	// auto generate retarget pose
+	TSharedPtr< FUICommandInfo > AutoAlignAllBones;
+	// auto align selected bones
+	TSharedPtr< FUICommandInfo > AlignSelected;
+	// auto align selected bones and children
+	TSharedPtr< FUICommandInfo > AlignSelectedAndChildren;
+	// auto align selected bones
+	TSharedPtr< FUICommandInfo > AlignSelectedUsingMesh;
+	// auto align selected bones
+	TSharedPtr< FUICommandInfo > SnapCharacterToGround;
+	
 	// delete retarget pose
 	TSharedPtr< FUICommandInfo > DeleteRetargetPose;
 	// rename retarget pose

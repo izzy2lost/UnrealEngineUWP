@@ -13,6 +13,10 @@
 #include "Animation/PoseAsset.h"
 #include "Dialog/SCustomDialog.h"
 #include "Preferences/PersonaOptions.h"
+#include "IKRigEditor.h"
+#include "MeshDescription.h"
+#include "SkeletalMeshAttributes.h"
+#include "Rendering/SkeletalMeshRenderData.h"
 #include "RetargetEditor/IKRetargetAnimInstance.h"
 #include "RetargetEditor/IKRetargetDefaultMode.h"
 #include "RetargetEditor/IKRetargetEditPoseMode.h"
@@ -26,6 +30,7 @@
 #include "RetargetEditor/SRetargetOpStack.h"
 #include "RigEditor/SIKRigOutputLog.h"
 #include "RigEditor/IKRigController.h"
+#include "ScopedTransaction.h"
 #include "Styling/AppStyle.h"
 
 #define LOCTEXT_NAMESPACE "IKRetargetEditorController"
@@ -56,7 +61,7 @@ void FBoundIKRig::UnBind() const
 	IKRigController->OnRetargetChainRenamed().Remove(RenameChainDelegateHandle);
 }
 
-FRetargetPlaybackManager::FRetargetPlaybackManager(TWeakPtr<FIKRetargetEditorController> InEditorController)
+FRetargetPlaybackManager::FRetargetPlaybackManager(const TWeakPtr<FIKRetargetEditorController>& InEditorController)
 {
 	check(InEditorController.Pin())
 	EditorController = InEditorController;
@@ -131,7 +136,7 @@ void FRetargetPlaybackManager::ResumePlayback() const
 
 bool FRetargetPlaybackManager::IsStopped() const
 {
-	UIKRetargetAnimInstance* AnimInstance = EditorController.Pin()->SourceAnimInstance.Get();
+	const UIKRetargetAnimInstance* AnimInstance = EditorController.Pin()->SourceAnimInstance.Get();
 	if (!AnimInstance)
 	{
 		return true;
@@ -151,6 +156,8 @@ void FIKRetargetEditorController::Initialize(TSharedPtr<FIKRetargetEditor> InEdi
 	PoseExporter->Initialize(SharedThis(this));
 
 	PlaybackManager = MakeUnique<FRetargetPlaybackManager>(SharedThis(this));
+
+	AutoPoseGenerator = MakeUnique<FRetargetAutoPoseGenerator>(SharedThis(this));
 
 	SelectedBoneNames.Add(ERetargetSourceOrTarget::Source);
 	SelectedBoneNames.Add(ERetargetSourceOrTarget::Target);
@@ -458,6 +465,11 @@ bool FIKRetargetEditorController::GetCameraTargetForSelection(FSphere& OutTarget
 	return false;
 }
 
+bool FIKRetargetEditorController::IsAnyBoneSelected() const
+{
+	return !GetSelectedBones().IsEmpty();
+}
+
 bool FIKRetargetEditorController::IsBoneRetargeted(const FName& BoneName, ERetargetSourceOrTarget SourceOrTarget) const
 {
 	// get an initialized processor
@@ -467,16 +479,8 @@ bool FIKRetargetEditorController::IsBoneRetargeted(const FName& BoneName, ERetar
 		return false;
 	}
 
-	// get the bone index
-	const FRetargetSkeleton& Skeleton = SourceOrTarget == ERetargetSourceOrTarget::Source ? Processor->GetSourceSkeleton() : Processor->GetTargetSkeleton();
-	const int32 BoneIndex = Skeleton.FindBoneIndexByName(BoneName);
-	if (BoneIndex == INDEX_NONE)
-	{
-		return false;
-	}
-
 	// return if it's a retargeted bone
-	return Processor->IsBoneRetargeted(BoneIndex, (int8)SourceOrTarget);
+	return Processor->IsBoneRetargeted(BoneName, SourceOrTarget);
 }
 
 FName FIKRetargetEditorController::GetChainNameFromBone(const FName& BoneName, ERetargetSourceOrTarget SourceOrTarget) const
@@ -487,16 +491,8 @@ FName FIKRetargetEditorController::GetChainNameFromBone(const FName& BoneName, E
 	{
 		return NAME_None;
 	}
-
-	// get the bone index
-	const FRetargetSkeleton& Skeleton = SourceOrTarget == ERetargetSourceOrTarget::Source ? Processor->GetSourceSkeleton() : Processor->GetTargetSkeleton();
-	const int32 BoneIndex = Skeleton.FindBoneIndexByName(BoneName);
-	if (BoneIndex == INDEX_NONE)
-	{
-		return NAME_None;
-	}
-
-	return Processor->GetChainNameForBone(BoneIndex, (int8)SourceOrTarget);
+	
+	return Processor->GetChainNameForBone(BoneName, SourceOrTarget);
 }
 
 TObjectPtr<UIKRetargetBoneDetails> FIKRetargetEditorController::GetOrCreateBoneDetailsObject(const FName& BoneName)
@@ -539,7 +535,7 @@ UDebugSkelMeshComponent* FIKRetargetEditorController::GetEditedSkeletalMesh() co
 
 const FRetargetSkeleton& FIKRetargetEditorController::GetCurrentlyEditedSkeleton(const UIKRetargetProcessor& Processor) const
 {
-	return CurrentlyEditingSourceOrTarget == ERetargetSourceOrTarget::Source ? Processor.GetSourceSkeleton() : Processor.GetTargetSkeleton();
+	return Processor.GetSkeleton(CurrentlyEditingSourceOrTarget);
 }
 
 FTransform FIKRetargetEditorController::GetGlobalRetargetPoseOfBone(
@@ -1317,46 +1313,69 @@ void FIKRetargetEditorController::HandleResetSelectedBones() const
 
 void FIKRetargetEditorController::HandleResetSelectedAndChildrenBones() const
 {
-	// get the reference skeleton we're operating on
-	const USkeletalMesh* SkeletalMesh = GetSkeletalMesh(GetSourceOrTarget());
-	if (!SkeletalMesh)
-	{
-		return;
-	}
-	const FReferenceSkeleton RefSkeleton = SkeletalMesh->GetRefSkeleton();
-	
-	// get list of all children of selected bones
-	TArray<int32> AllChildrenIndices;
-	for (const FName& SelectedBone : SelectedBoneNames[CurrentlyEditingSourceOrTarget])
-	{
-		const int32 SelectedBoneIndex = RefSkeleton.FindBoneIndex(SelectedBone);
-		AllChildrenIndices.Add(SelectedBoneIndex);
-		
-		for (int32 ChildIndex = 0; ChildIndex < RefSkeleton.GetNum(); ++ChildIndex)
-		{
-			const int32 ParentIndex = RefSkeleton.GetParentIndex(ChildIndex);
-			if (ParentIndex != INDEX_NONE && AllChildrenIndices.Contains(ParentIndex))
-			{
-				AllChildrenIndices.Add(ChildIndex);
-			}
-		}
-	}
-
-	// merge total list of all selected bones and their children
-	TArray<FName> BonesToReset = SelectedBoneNames[CurrentlyEditingSourceOrTarget];
-	for (const int32 ChildIndex : AllChildrenIndices)
-	{
-		BonesToReset.AddUnique(RefSkeleton.GetBoneName(ChildIndex));
-	}
+	// get all selected bones and their children (recursive)
+	const TArray<FName> BonesToReset = GetSelectedBonesAndChildren();
 	
 	// reset the bones in the current pose
 	const FName CurrentPose = AssetController->GetCurrentRetargetPoseName(CurrentlyEditingSourceOrTarget);
 	AssetController->ResetRetargetPose(CurrentPose, BonesToReset, GetSourceOrTarget());
 }
 
-bool FIKRetargetEditorController::CanResetSelected() const
+void FIKRetargetEditorController::HandleAlignAllBones() const
 {
-	return !GetSelectedBones().IsEmpty();
+	// get all the bones in the current skeleton
+	const UIKRetargetProcessor* Processor = GetRetargetProcessor();
+	if (!(Processor && Processor->IsInitialized()))
+	{
+		return;
+	}
+
+	// undo transaction
+	constexpr bool bShouldTransact = true;
+	FScopedTransaction Transaction(LOCTEXT("AutoAlignSelectedBones", "Auto Align All Bones"), bShouldTransact);
+	AssetController->GetAsset()->Modify();
+	
+	// suppress warnings about bones that cannot be aligned when aligning ALL bones
+	const TArray<FName>& AllBones = Processor->GetSkeleton(GetSourceOrTarget()).BoneNames;
+	constexpr bool bSuppressWarnings = true;
+	AutoPoseGenerator.Get()->AlignBones(
+		AllBones,
+		ERetargetAutoAlignMethod::ChainToChain,
+		GetSourceOrTarget(),
+		bSuppressWarnings);
+
+	// if the retarget root was aligned
+	AutoPoseGenerator.Get()->SnapToGround(NAME_None, GetSourceOrTarget());
+}
+
+void FIKRetargetEditorController::HandleAlignSelectedBones(const ERetargetAutoAlignMethod Method, const bool bIncludeChildren) const
+{
+	// undo transaction
+	constexpr bool bShouldTransact = true;
+	FScopedTransaction Transaction(LOCTEXT("AutoAlignSelectedBones", "Auto Align Selected Bones"), bShouldTransact);
+	AssetController->GetAsset()->Modify();
+
+	const TArray<FName> BonesToAlign = bIncludeChildren ? GetSelectedBonesAndChildren() : GetSelectedBones();
+	
+	// allow warnings about bones that cannot be aligned when bones are explicitly specified by user
+	constexpr bool bSuppressWarnings = false;
+	AutoPoseGenerator.Get()->AlignBones(
+		BonesToAlign,
+		Method,
+		GetSourceOrTarget(),
+		bSuppressWarnings);
+}
+
+void FIKRetargetEditorController::HandleSnapToGround() const
+{
+	// undo transaction
+	constexpr bool bShouldTransact = true;
+	FScopedTransaction Transaction(LOCTEXT("AutoSnapToGround", "Snap Retarget Pose to Ground"), bShouldTransact);
+	AssetController->GetAsset()->Modify();
+	
+	const TArray<FName> SelectedBones = GetSelectedBones();
+	const FName FirstSelectedBone = SelectedBones.IsEmpty() ? NAME_None : SelectedBones[0];
+	AutoPoseGenerator.Get()->SnapToGround(FirstSelectedBone, GetSourceOrTarget());
 }
 
 void FIKRetargetEditorController::HandleRenamePose()
@@ -1549,6 +1568,43 @@ void FIKRetargetEditorController::RenderSkeleton(FPrimitiveDrawInterface* PDI, E
 		HitProxies,
 		DrawConfig
 	);
+}
+
+TArray<FName> FIKRetargetEditorController::GetSelectedBonesAndChildren() const
+{
+	// get the reference skeleton we're operating on
+	const USkeletalMesh* SkeletalMesh = GetSkeletalMesh(GetSourceOrTarget());
+	if (!SkeletalMesh)
+	{
+		return {};
+	}
+	const FReferenceSkeleton RefSkeleton = SkeletalMesh->GetRefSkeleton();
+
+	// get list of all children of selected bones
+	TArray<int32> AllChildrenIndices;
+	for (const FName& SelectedBone : SelectedBoneNames[CurrentlyEditingSourceOrTarget])
+	{
+		const int32 SelectedBoneIndex = RefSkeleton.FindBoneIndex(SelectedBone);
+		AllChildrenIndices.Add(SelectedBoneIndex);
+		
+		for (int32 ChildIndex = 0; ChildIndex < RefSkeleton.GetNum(); ++ChildIndex)
+		{
+			const int32 ParentIndex = RefSkeleton.GetParentIndex(ChildIndex);
+			if (ParentIndex != INDEX_NONE && AllChildrenIndices.Contains(ParentIndex))
+			{
+				AllChildrenIndices.Add(ChildIndex);
+			}
+		}
+	}
+
+	// merge total list of all selected bones and their children
+	TArray<FName> BonesToReturn = SelectedBoneNames[CurrentlyEditingSourceOrTarget];
+	for (const int32 ChildIndex : AllChildrenIndices)
+	{
+		BonesToReturn.AddUnique(RefSkeleton.GetBoneName(ChildIndex));
+	}
+
+	return BonesToReturn;
 }
 
 void FIKRetargetEditorController::FixZeroHeightRetargetRoot(ERetargetSourceOrTarget SourceOrTarget) const
