@@ -910,6 +910,22 @@ void UControlRigBlueprint::PreSave(FObjectPreSaveContext ObjectSaveContext)
 	});
 
 	UpdateExposedModuleConnectors();
+
+	if (IsControlRigModule())
+	{
+		ControlRigType = EControlRigType::RigModule;
+		ItemTypeDisplayName = TEXT("Rig Module");
+	}
+	else if (GetControlRigClass()->IsChildOf(UModularRig::StaticClass()))
+	{
+		ControlRigType = EControlRigType::ModularRig;
+		ItemTypeDisplayName = TEXT("Modular Rig");
+	}
+	else
+	{
+		ControlRigType = EControlRigType::IndependentRig;
+		ItemTypeDisplayName = TEXT("Control Rig");
+	}
 }
 
 void UControlRigBlueprint::UpdateExposedModuleConnectors() const

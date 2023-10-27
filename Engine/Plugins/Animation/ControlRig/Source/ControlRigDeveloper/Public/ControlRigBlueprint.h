@@ -31,6 +31,14 @@ class USkeletalMesh;
 class UControlRigGraph;
 struct FEndLoadPackageContext;
 
+UENUM(BlueprintType)
+enum class EControlRigType : uint8
+{
+	IndependentRig = 0,
+	RigModule = 1,
+	ModularRig =2,
+};
+
 
 UCLASS(BlueprintType, meta=(IgnoreClassThumbnail))
 class CONTROLRIGDEVELOPER_API UControlRigBlueprint : public URigVMBlueprint, public IInterface_PreviewMeshProvider
@@ -218,6 +226,12 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Control Rig Blueprint")
 	void RecompileModularRig();
+
+	UPROPERTY(AssetRegistrySearchable)
+	EControlRigType ControlRigType;
+
+	UPROPERTY(AssetRegistrySearchable)
+	FName ItemTypeDisplayName = TEXT("Control Rig");
 
 private:
 
