@@ -2295,6 +2295,12 @@ void FOnDemandIoBackend::ProcessHttpRequests(FHttpClient& HttpClient, FBitWindow
 					{
 						CompleteRequest(ChunkRequest);
 					});
+
+					// Technically this request is being skipped because of a pre-existing error. It is not
+					// an error itself and it is not being canceled by higher level code. However we do not
+					// currently have a statistic for that and we have to call one of the existing types in
+					// order to correctly reduce the pending count.
+					Stats.OnHttpCancel();
 				}
 				else
 				{
