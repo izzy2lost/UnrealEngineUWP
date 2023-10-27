@@ -436,15 +436,18 @@ void FMainMenu::MakeMainMenu(const TSharedPtr<FTabManager>& TabManager, const FN
 
 	ToolMenuContext.AppendCommandList(FMainFrameCommands::ActionList);
 
-	TabManager->SetGeneratePerWindowMainMenuDelegate(FGenerateMenu::CreateLambda([MenuName,ToolMenuContext](TSharedPtr<FTabManager> TabManager) {
-		USlateTabManagerContext* ContextObject = NewObject<USlateTabManagerContext>();
-		ContextObject->TabManager = TabManager;
+	USlateTabManagerContext* ContextObject = NewObject<USlateTabManagerContext>();
+	ContextObject->TabManager = TabManager;
+	ToolMenuContext.AddObject(ContextObject);
 
-		FToolMenuContext ContextCopy = ToolMenuContext;
-		ContextCopy.AddObject(ContextObject);
-
-		return UToolMenus::Get()->GenerateWidget(MenuName, ContextCopy);
-	}));
+	// Create the menu bar!
+	TSharedRef<SWidget> MenuBarWidget = UToolMenus::Get()->GenerateWidget(MenuName, ToolMenuContext);
+	if (MenuBarWidget != SNullWidget::NullWidget)
+	{
+		// Tell tab-manager about the multi-box for platforms with a global menu bar
+		TSharedRef<SMultiBoxWidget> MultiBoxWidget = StaticCastSharedRef<SMultiBoxWidget>(MenuBarWidget);
+		TabManager->SetMenuMultiBox(ConstCastSharedRef<FMultiBox>(MultiBoxWidget->GetMultiBox()), MultiBoxWidget);
+	}
 }
 
 void FMainMenu::RegisterMainMenu()

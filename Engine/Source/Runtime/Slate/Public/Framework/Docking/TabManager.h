@@ -21,7 +21,6 @@ class SDockingTabStack;
 class FLayoutExtender;
 struct FTabMatcher;
 struct FSidebarTabLists;
-class FTabManager;
 
 DECLARE_MULTICAST_DELEGATE_TwoParams(
 	FOnActiveTabChanged,
@@ -29,12 +28,7 @@ DECLARE_MULTICAST_DELEGATE_TwoParams(
 	TSharedPtr<SDockTab>,
 	/** Previously active tab */
 	TSharedPtr<SDockTab> );
-
-DECLARE_DELEGATE_RetVal_OneParam(
-	TSharedRef<SWidget>,
-	FGenerateMenu,
-	TSharedPtr<FTabManager>
-);
+	
 
 enum class ESidebarLocation : uint8
 {
@@ -968,17 +962,11 @@ class FTabManager : public TSharedFromThis<FTabManager>
 		bool AllowsWindowMenuBar() const { return bAllowPerWindowMenu; }
 
 		/**
-		 * Set delegate for generating a new main menu widget.
-		 * @param GenerateMenu This delegate will be called every time this tab manager needs to populate a new window with a main menu widget. This delegate is expected to return a new unique widget each time it's called.
-		 */
-		SLATE_API void SetGeneratePerWindowMainMenuDelegate(const FGenerateMenu& GenerateMenu);
-
-		/**
 		 * Set the multi-box to use for generating a global menu bar.  The implementation is platform and setting specific
-		 * @param NewMenuMutliBox This parameter is unused.
-		 * @param MenuWidget This widget will be used for all windows that tabs of this tab manager appear in. If you see flickering issues because the same widget is drawn in multiple windows, use SetGeneratePerWindowMainMenuDelegate instead.
+		 * On Mac the menu bar appears globally at the top of the desktop in all cases regardless of whether or not SetAllowWindowMenuBar is called.  On other desktop platforms the menu appears at the top of the window this tab manager is a part of only if SetAllowWindowMenuBar(true) is called.
+		 * @param NewMenuMutliBox The multi-box to generate the global menu bar from.
 		 */
-		SLATE_API void SetMenuMultiBox(const TSharedPtr<FMultiBox> Unused, const TSharedPtr<SWidget> MenuWidget);
+		SLATE_API void SetMenuMultiBox(const TSharedPtr<FMultiBox> NewMenuMutliBox, const TSharedPtr<SWidget> MenuWidget);
 
 		/**
 		 * Update the native, global menu bar if it is being used.
@@ -1053,9 +1041,9 @@ class FTabManager : public TSharedFromThis<FTabManager>
 		SLATE_API const TSharedPtr<const FTabSpawnerEntry> FindTabSpawnerFor(FName TabId) const;
 
 	protected:
-		SLATE_API void OnWindowBeingDestroyed(const SWindow& WindowBeingDestoyed);
-
 		SLATE_API void InvokeTabForMenu( FName TabId );
+
+	protected:
 		
 		SLATE_API void InsertDocumentTab( FName PlaceholderId, const FSearchPreference& SearchPreference, const TSharedRef<SDockTab>& UnmanagedTab, bool bPlaySpawnAnim );
 		SLATE_API void InsertDocumentTab( FName PlaceholderId, FName NewTabId, const FSearchPreference& SearchPreference, const TSharedRef<SDockTab>& UnmanagedTab, bool bPlaySpawnAnim );
@@ -1134,7 +1122,7 @@ class FTabManager : public TSharedFromThis<FTabManager>
 		 */
 	    SLATE_API TSharedPtr<FArea> GetFAreaFromInitialLayoutWithTabType(const FTabId& InTabIdToMatch ) const;
 
-	protected:
+protected:
 		SLATE_API bool HasValidTabs( const TSharedRef<FTabManager::FLayoutNode>& SomeNode ) const;
 
 		/**
@@ -1215,11 +1203,9 @@ class FTabManager : public TSharedFromThis<FTabManager>
 		/** A Major tab that contains this TabManager's widgets. */
 		TWeakPtr<SDockTab> OwnerTabPtr;
 
-		/** Delegate that can generate a widget for this tab manager's main menu. */
-		FGenerateMenu GeneratePerWindowMainMenu;
-
-		/** Map from SWindow to generated main-menu widget. This helps us generate a main menu widget only once per window. */
-		TMap<SWindow*, TWeakPtr<SWidget>> WindowToGeneratedMainMenuWidgetsMap;
+		/** The current menu multi-box for the tab, used to construct platform native main menus */
+		TSharedPtr<FMultiBox> MenuMultiBox;
+		TSharedPtr<SWidget> MenuWidget;
 
 		/** Protected private API that must only be accessed by the docking framework internals */
 		TSharedRef<FPrivateApi> PrivateApi;

@@ -15,7 +15,6 @@
 #include "Framework/Docking/SDockingSplitter.h"
 #include "Framework/Docking/SDockingArea.h"
 #include "Widgets/Docking/SDockTab.h"
-#include "Widgets/SNullWidget.h"
 #include "Framework/Docking/SDockingTabStack.h"
 #include "Framework/Docking/SDockingTabWell.h"
 #include "Framework/Docking/LayoutExtender.h"
@@ -763,33 +762,19 @@ void FTabManager::SetAllowWindowMenuBar(bool bInAllowWindowMenuBar)
 	bAllowPerWindowMenu = bInAllowWindowMenuBar;
 }
 
-void FTabManager::SetGeneratePerWindowMainMenuDelegate(const FGenerateMenu& InGeneratePerWindowMainMenu)
+void FTabManager::SetMenuMultiBox(const TSharedPtr<FMultiBox> NewMenuMutliBox, const TSharedPtr<SWidget> NewMenuWidget)
 {
-	GeneratePerWindowMainMenu = InGeneratePerWindowMainMenu;
-
-	UpdateMainMenu(OwnerTabPtr.Pin(), false);
-}
-
-void FTabManager::SetMenuMultiBox(const TSharedPtr<FMultiBox>, const TSharedPtr<SWidget> MenuWidget)
-{
-	// Set this delegate for backwards compatibility.
-	GeneratePerWindowMainMenu = FGenerateMenu::CreateLambda([MenuWidget](TSharedPtr<FTabManager>)
-	{
-		if (MenuWidget)
-		{
-			return MenuWidget.ToSharedRef();
-		}
-		else
-		{
-			return SNullWidget::NullWidget;
-		}
-	});
+	// We only use the platform native global menu bar on Mac
+	MenuMultiBox = NewMenuMutliBox;
+	MenuWidget = NewMenuWidget;
 
 	UpdateMainMenu(OwnerTabPtr.Pin(), false);
 }
 
 void FTabManager::UpdateMainMenu(TSharedPtr<SDockTab> ForTab, const bool bForce)
 {
+	bool bIsMajorTab = true;
+
 	TSharedPtr<SWindow> ParentWindowOfOwningTab;
 	if (ForTab && (ForTab->GetTabRole() == ETabRole::MajorTab || ForTab->GetVisualTabRole() == ETabRole::MajorTab))
 	{
@@ -804,57 +789,22 @@ void FTabManager::UpdateMainMenu(TSharedPtr<SDockTab> ForTab, const bool bForce)
 		ParentWindowOfOwningTab = MainNonCloseableTabPinned->GetParentWindow();
 	}
 
-	TSharedPtr<SWidget> MainMenuWidget;
-
-	if (GeneratePerWindowMainMenu.IsBound())
+	if (bAllowPerWindowMenu)
 	{
-		// Try to retrieve a previously generated main menu widget.
 		if (ParentWindowOfOwningTab)
 		{
-			SWindow* const WindowPtr = ParentWindowOfOwningTab.Get();
-			
-			if (WindowToGeneratedMainMenuWidgetsMap.Contains(WindowPtr))
-			{
-				TWeakPtr<SWidget> WeakMainMenuWidget = WindowToGeneratedMainMenuWidgetsMap[WindowPtr];
-				MainMenuWidget = WeakMainMenuWidget.Pin();
-			}
-		}
-
-		// Generate a main menu widget if we still don't have a valid one.
-		if (!MainMenuWidget)
-		{
-			TSharedRef<SWidget> MenuBarWidget = GeneratePerWindowMainMenu.Execute(AsShared());
-			MainMenuWidget = MenuBarWidget.ToSharedPtr();
-
-			// Save the newly generated main menu widget for next time.
-			if (ParentWindowOfOwningTab)
-			{
-				SWindow* const WindowPtr = ParentWindowOfOwningTab.Get();
-				WindowToGeneratedMainMenuWidgetsMap.Add(WindowPtr, MainMenuWidget.ToWeakPtr());
-			}
+			ParentWindowOfOwningTab->GetTitleBar()->UpdateWindowMenu(MenuWidget);
 		}
 	}
-
-	// Remove all Window-Widget pairs where the main menu widget is no longer valid.
-	for (auto It = WindowToGeneratedMainMenuWidgetsMap.CreateIterator(); It; ++It)
+	else
 	{
-		if (!It.Value().IsValid())
-		{
-			It.RemoveCurrent();
-		}
-	}
-
-	if (ParentWindowOfOwningTab)
-	{
-		if (bAllowPerWindowMenu && MainMenuWidget)
-		{
-			ParentWindowOfOwningTab->GetTitleBar()->UpdateWindowMenu(MainMenuWidget);
-		}
-		else
+		MenuMultiBox.Reset();
+		MenuWidget.Reset();
+		if (ParentWindowOfOwningTab)
 		{
 			ParentWindowOfOwningTab->GetTitleBar()->UpdateWindowMenu(nullptr);
 		}
-    }
+	}
 }
 
 void FTabManager::SetMainTab(const FTabId& InMainTabID)
@@ -1584,11 +1534,6 @@ FUIAction FTabManager::GetUIActionForTabSpawnerMenuEntry(TSharedPtr<FTabSpawnerE
 		);
 }
 
-void FTabManager::OnWindowBeingDestroyed(const SWindow& WindowBeingDestoyed)
-{
-	WindowToGeneratedMainMenuWidgetsMap.Remove(&WindowBeingDestoyed);
-}
-
 void FTabManager::InvokeTabForMenu( FName TabId )
 {
 	TryInvokeTab(TabId);
@@ -1652,11 +1597,6 @@ FTabManager::FTabManager( const TSharedPtr<SDockTab>& InOwnerTab, const TSharedR
 , TabPermissionList( MakeShareable(new FNamePermissionList()) )
 {
 	LocalWorkspaceMenuRoot = FWorkspaceItem::NewGroup(LOCTEXT("LocalWorkspaceRoot", "Local Workspace Root"));
-
-	if (FSlateApplication::IsInitialized())
-	{
-		FSlateApplication::Get().OnWindowBeingDestroyed().AddRaw(this, &FTabManager::OnWindowBeingDestroyed);
-	}
 }
 
 TSharedPtr<SDockingArea> FTabManager::RestoreArea(const TSharedRef<FArea>& AreaToRestore, const TSharedPtr<SWindow>& InParentWindow, const bool bEmbedTitleAreaContent, const EOutputCanBeNullptr OutputCanBeNullptr, bool bForceOpenWindowIfNeeded)
@@ -2198,11 +2138,6 @@ TSharedPtr<SDockTab> FTabManager::FindExistingLiveTab( const FTabId& TabId ) con
 
 FTabManager::~FTabManager()
 {
-	if (FSlateApplication::IsInitialized())
-	{
-		FSlateApplication::Get().OnWindowBeingDestroyed().RemoveAll(this);
-	}
-
 	ClearPendingLayoutSave();
 }
 
