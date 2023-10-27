@@ -119,14 +119,14 @@ public:
 		return false;
 	}
 
-	/** Update Editable mesh material instance parameters.
-	* (this function is called every tick)
+	/** Perform any operations on the  mesh and material instance, such as setting parameter values.
 	* 
-	* @param InViewport              - the current viewport
-	* @param InEditableMeshComponent - editable mesh component
-	* @param InMaterialType          - the type of material being requested
-	* @param InMaterialInstance      - material instance
+	* @param InViewport - current viewport
+	* @param InMeshType - mesh type
+	* @param InMaterialType - type of material being requested
+	* @param InMeshComponent - mesh component to be updated
+	* @param InMeshMaterialInstance - material instance that used on this mesh
 	*/
-	virtual void OnUpdatePreviewEditableMesh(IDisplayClusterViewportPreview& InViewportPreview, UMeshComponent* InEditableMeshComponent, const EDisplayClusterDisplayDeviceMaterialType InMaterialType, UMaterialInstanceDynamic* InMaterialInstance) const
+	virtual void OnUpdateDisplayDeviceMeshAndMaterialInstance(IDisplayClusterViewportPreview& InViewportPreview, const EDisplayClusterDisplayDeviceMeshType InMeshType, const EDisplayClusterDisplayDeviceMaterialType InMaterialType, UMeshComponent* InMeshComponent, UMaterialInstanceDynamic* InMeshMaterialInstance) const
 	{ }
 };

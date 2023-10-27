@@ -27,10 +27,16 @@ bool FDisplayClusterViewportResources::GetRHIResources_RenderThread(const EDispl
 	{
 		for (const TSharedPtr<FDisplayClusterViewportResource, ESPMode::ThreadSafe>& ViewportResourceIt : *ExistResources)
 		{
-			if (FRHITexture2D* RHITexture2D = ViewportResourceIt.IsValid() ? ViewportResourceIt->GetViewportResourceRHI_RenderThread() : nullptr)
+			if (ViewportResourceIt.IsValid())
 			{
-				// Collects only valid resources.
-				OutResources.Add(RHITexture2D);
+				// When resource accessed on rendering thread, update this flag
+				EnumAddFlags(ViewportResourceIt->GetResourceState(), EDisplayClusterViewportResourceState::UpdatedOnRenderingThread);
+
+				if (FRHITexture2D* RHITexture2D = ViewportResourceIt->GetViewportResourceRHI_RenderThread())
+				{
+					// Collects only valid resources.
+					OutResources.Add(RHITexture2D);
+				}
 			}
 		}
 

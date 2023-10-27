@@ -32,7 +32,7 @@ public:
 
 	virtual bool HasPreviewEditableMesh(IDisplayClusterViewport* InViewport) override;
 
-	virtual void OnUpdatePreviewEditableMesh(IDisplayClusterViewportPreview& InViewportPreview, UMeshComponent* InEditableMeshComponent, const EDisplayClusterDisplayDeviceMaterialType InMaterialType, UMaterialInstanceDynamic* InMaterialInstance) const override;
+	virtual void OnUpdateDisplayDeviceMeshAndMaterialInstance(IDisplayClusterViewportPreview& InViewportPreview, const EDisplayClusterDisplayDeviceMeshType InMeshType, const EDisplayClusterDisplayDeviceMaterialType InMaterialType, UMeshComponent* InMeshComponent, UMaterialInstanceDynamic* InMeshMaterialInstance) const override;
 	//~~ End IDisplayClusterWarpPolicy
 
 private:
@@ -50,10 +50,10 @@ private:
 
 #if WITH_EDITOR
 	/** Renders a debug visualization for the group bounding box */
-	void DrawDebugGroupBoundingBox(ADisplayClusterRootActor* RootActor, const FColor& Color);
+	void DrawDebugGroupBoundingBox(ADisplayClusterRootActor* RootActor, const FLinearColor& Color);
 
 	/** Renders a debug visualization for the group frustum */
-	void DrawDebugGroupFrustum(ADisplayClusterRootActor* RootActor, UDisplayClusterInFrustumFitCameraComponent* CameraComponent, const FColor& Color);
+	void DrawDebugGroupFrustum(ADisplayClusterRootActor* RootActor, UDisplayClusterInFrustumFitCameraComponent* CameraComponent, const FLinearColor& Color);
 #endif
 
 private:

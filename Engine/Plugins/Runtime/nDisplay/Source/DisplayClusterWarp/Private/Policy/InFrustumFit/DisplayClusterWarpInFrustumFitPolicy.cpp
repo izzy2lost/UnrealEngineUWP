@@ -10,7 +10,7 @@
 #include "Render/Projection/IDisplayClusterProjectionPolicy.h"
 
 #include "IDisplayClusterWarpBlend.h"
-#include "DisplayClusterWarpStrings.h"
+#include "PDisplayClusterWarpStrings.h"
 
 #include "Components/DisplayClusterCameraComponent.h"
 #include "Components/DisplayClusterInFrustumFitCameraComponent.h"
@@ -52,7 +52,7 @@ FDisplayClusterWarpInFrustumFitPolicy::FDisplayClusterWarpInFrustumFitPolicy(con
 
 const FString& FDisplayClusterWarpInFrustumFitPolicy::GetType() const
 {
-	static const FString Type(DisplayClusterWarpStrings::warp::InFrustumFit);
+	static const FString Type(UE::DisplayClusterWarpStrings::warp::InFrustumFit);
 
 	return Type;
 }
@@ -296,29 +296,27 @@ void FDisplayClusterWarpInFrustumFitPolicy::EndCalcFrustum(IDisplayClusterViewpo
 	}
 }
 
-void FDisplayClusterWarpInFrustumFitPolicy::OnUpdatePreviewEditableMesh(IDisplayClusterViewportPreview& InViewportPreview, UMeshComponent* InEditableMeshComponent, const EDisplayClusterDisplayDeviceMaterialType InMaterialType, UMaterialInstanceDynamic* InMaterialInstance) const
+void FDisplayClusterWarpInFrustumFitPolicy::OnUpdateDisplayDeviceMeshAndMaterialInstance(IDisplayClusterViewportPreview& InViewportPreview, const EDisplayClusterDisplayDeviceMeshType InMeshType, const EDisplayClusterDisplayDeviceMaterialType InMaterialType, UMeshComponent* InMeshComponent, UMaterialInstanceDynamic* InMeshMaterialInstance) const
 {
-	if (!InEditableMeshComponent || !InMaterialInstance)
-	{
-		return;
-	}
+	// The preview material used for editable meshes requires a set of unique parameters that are set from the warp policy.
+	check(InMeshComponent && InMeshMaterialInstance);
 
-	IDisplayClusterViewport* InViewport = InViewportPreview.GetViewport();
-	if (!InViewport)
+	if (InMeshType != EDisplayClusterDisplayDeviceMeshType::PreviewEditableMesh)
 	{
+		// Only for editable mesh
 		return;
 	}
 
 	// Process only viewports with a projection policy based on the warpblend interface.
 	TSharedPtr<IDisplayClusterWarpBlend, ESPMode::ThreadSafe> WarpBlend;
-	if (!InViewport->GetProjectionPolicy().IsValid() || !InViewport->GetProjectionPolicy()->GetWarpBlendInterface(WarpBlend))
+	IDisplayClusterViewport* InViewport = InViewportPreview.GetViewport();
+	if (!InViewport || !InViewport->GetProjectionPolicy().IsValid() || !InViewport->GetProjectionPolicy()->GetWarpBlendInterface(WarpBlend))
 	{
 		return;
 	}
 
-	FDisplayClusterWarpData& WarpData = WarpBlend->GetWarpData(0);
-
 	// Not all projection policies support a editable mesh.
+	const FDisplayClusterWarpData& WarpData = WarpBlend->GetWarpData(0);
 	if (WarpData.bValid && WarpData.bHasWarpPolicyChanges)
 	{
 		const FTransform CameraTransform(WarpData.WarpProjection.CameraRotation.Quaternion(), WarpData.WarpProjection.CameraLocation);
@@ -327,64 +325,60 @@ void FDisplayClusterWarpInFrustumFitPolicy::OnUpdatePreviewEditableMesh(IDisplay
 		const float VScale = (WarpData.WarpProjection.Top - WarpData.WarpProjection.Bottom) / (WarpData.GeometryWarpProjection.Top - WarpData.GeometryWarpProjection.Bottom);
 
 		checkf(FMath::IsNearlyEqual(HScale, VScale), TEXT("Streching the stage geometry to fit a different aspect ratio is not supported!"));
+		const FVector Scale(1, HScale, HScale);
 
-		const FVector Scale = FVector(1, HScale, HScale);
+		const FMatrix CameraBasis = FRotationMatrix::Make(WarpData.WarpProjection.CameraRotation).Inverse();
 
 		// Compute the relative transform from the view origin to the geometry
-		FTransform RelativeTransform(WarpData.WarpContext.MeshToStageMatrix * WarpData.Local2World.Inverse());
+		FTransform RelativeTransform = FTransform(WarpData.WarpContext.MeshToStageMatrix * WarpData.Local2World.Inverse());
 		RelativeTransform.ScaleTranslation(Scale);
 
 		// Final transform is computed from the relative transform of the geometry to the view point, the frustum fit transform
 		// which will scale and position the geometry based on the fitted frustum, and the camera transform
 		const FTransform FinalTransform = RelativeTransform * CameraTransform;
-
-		InEditableMeshComponent->SetRelativeTransform(FinalTransform);
-
-		const FMatrix CameraBasis = FRotationMatrix::Make(WarpData.WarpProjection.CameraRotation).Inverse();
+		InMeshComponent->SetRelativeTransform(FinalTransform);
 
 		// Since the mesh needs to be skewed to scale appropriately, and since Unreal Engine does not support a skew transform
 		// through FTransform, the mesh needs to be skewed through the vertex shader using WorldPositionOffset,
 		// so pass in the "global" scale to the preview mesh's material instance
-		switch (InMaterialType)
-		{
-		case EDisplayClusterDisplayDeviceMaterialType::PreviewMeshMaterial:
-		case EDisplayClusterDisplayDeviceMaterialType::PreviewMeshTechvisMaterial:
-
-			InMaterialInstance->SetVectorParameterValue(TEXT("GlobalScale"), Scale);
-			InMaterialInstance->SetVectorParameterValue(TEXT("GlobalForward"), CameraBasis.GetUnitAxis(EAxis::X));
-			InMaterialInstance->SetVectorParameterValue(TEXT("GlobalRight"), CameraBasis.GetUnitAxis(EAxis::Y));
-			InMaterialInstance->SetVectorParameterValue(TEXT("GlobalUp"), CameraBasis.GetUnitAxis(EAxis::Z));
-			break;
-
-		default:
-			break;
-		}
-
+		InMeshMaterialInstance->SetVectorParameterValue(UE::DisplayClusterWarpStrings::InFrustumFit::material::attr::GlobalScale, Scale);
+		InMeshMaterialInstance->SetVectorParameterValue(UE::DisplayClusterWarpStrings::InFrustumFit::material::attr::GlobalForward, CameraBasis.GetUnitAxis(EAxis::X));
+		InMeshMaterialInstance->SetVectorParameterValue(UE::DisplayClusterWarpStrings::InFrustumFit::material::attr::GlobalRight, CameraBasis.GetUnitAxis(EAxis::Y));
+		InMeshMaterialInstance->SetVectorParameterValue(UE::DisplayClusterWarpStrings::InFrustumFit::material::attr::GlobalUp, CameraBasis.GetUnitAxis(EAxis::Z));
 	}
 }
 
 #if WITH_EDITOR
-void FDisplayClusterWarpInFrustumFitPolicy::DrawDebugGroupBoundingBox(ADisplayClusterRootActor* RootActor, const FColor& Color)
+#include "Components/LineBatchComponent.h"
+
+void FDisplayClusterWarpInFrustumFitPolicy::DrawDebugGroupBoundingBox(ADisplayClusterRootActor* SceneRootActor, const FLinearColor& Color)
 {
-	if (RootActor)
+	// DCRA uses its own LineBatcher
+	ULineBatchComponent* LineBatcher = SceneRootActor ? SceneRootActor->GetLineBatchComponent() : nullptr;
+	UWorld* World = SceneRootActor ? SceneRootActor->GetWorld() : nullptr;
+	if (LineBatcher && World)
 	{
-		if (UWorld* World = RootActor->GetWorld())
-		{
-			FBox WorldBox = GroupAABBox.TransformBy(RootActor->GetActorTransform());
-			DrawDebugBox(World, WorldBox.GetCenter(), WorldBox.GetExtent(), Color);
-			DrawDebugPoint(World, WorldBox.GetCenter(), 5, Color);
-		}
+		const float Thickness = 1.f;
+		const float PointSize = 5.f;
+		const FBox WorldBox = GroupAABBox.TransformBy(SceneRootActor->GetActorTransform());
+
+		LineBatcher->DrawBox(WorldBox.GetCenter(), WorldBox.GetExtent(), Color, 0, SDPG_World, Thickness);
+		LineBatcher->DrawPoint(WorldBox.GetCenter(), Color, PointSize, SDPG_World);
 	}
 }
 
-void FDisplayClusterWarpInFrustumFitPolicy::DrawDebugGroupFrustum(ADisplayClusterRootActor* RootActor, UDisplayClusterInFrustumFitCameraComponent* CameraComponent, const FColor& Color)
+void FDisplayClusterWarpInFrustumFitPolicy::DrawDebugGroupFrustum(ADisplayClusterRootActor* SceneRootActor, UDisplayClusterInFrustumFitCameraComponent* CameraComponent, const FLinearColor& Color)
 {
-	if (RootActor && CameraComponent)
+	// DCRA uses its own LineBatcher
+	ULineBatchComponent* LineBatcher = SceneRootActor ? SceneRootActor->GetLineBatchComponent() : nullptr;
+	if (LineBatcher && CameraComponent)
 	{
-		UWorld* World = RootActor->GetWorld();
-		IDisplayClusterViewportConfiguration* ViewportConfiguration = RootActor->GetViewportConfiguration();
+		UWorld* World = SceneRootActor->GetWorld();
+		IDisplayClusterViewportConfiguration* ViewportConfiguration = SceneRootActor->GetViewportConfiguration();
 		if (ViewportConfiguration && World)
 		{
+			const float Thickness = 1.0f;
+
 			// Get the configuration in use
 			const UDisplayClusterInFrustumFitCameraComponent& ConfigurationCameraComponent = CameraComponent->GetConfigurationInFrustumFitCameraComponent(*ViewportConfiguration);
 
@@ -400,7 +394,7 @@ void FDisplayClusterWarpInFrustumFitPolicy::DrawDebugGroupFrustum(ADisplayCluste
 			}
 			else
 			{
-				const FBox WorldBox = GroupAABBox.TransformBy(RootActor->GetActorTransform());
+				const FBox WorldBox = GroupAABBox.TransformBy(SceneRootActor->GetActorTransform());
 				ViewDirection = (WorldBox.GetCenter() - CameraComponent->GetComponentLocation()).GetSafeNormal();
 
 				if (SymmetricForwardCorrection.IsSet())
@@ -409,7 +403,6 @@ void FDisplayClusterWarpInFrustumFitPolicy::DrawDebugGroupFrustum(ADisplayCluste
 				}
 			}
 
-			DrawDebugLine(World, CameraLoc, CameraLoc + ViewDirection * 50, Color);
 
 			const FRotator ViewRotator = ViewDirection.ToOrientationRotator();
 			const FVector FrustumTopLeft = ViewRotator.RotateVector(FVector(GroupGeometryWarpProjection.ZNear, GroupGeometryWarpProjection.Left, GroupGeometryWarpProjection.Top) / GroupGeometryWarpProjection.ZNear);
@@ -430,23 +423,25 @@ void FDisplayClusterWarpInFrustumFitPolicy::DrawDebugGroupFrustum(ADisplayCluste
 				CameraLoc + FrustumBottomLeft * FarPlane,
 			};
 
+			LineBatcher->DrawLine(CameraLoc, CameraLoc + ViewDirection * 50, Color, SDPG_World, Thickness, 0.f);
+
 			// Near plane rectangle
-			DrawDebugLine(World, FrustumVertices[0], FrustumVertices[1], Color);
-			DrawDebugLine(World, FrustumVertices[1], FrustumVertices[2], Color);
-			DrawDebugLine(World, FrustumVertices[2], FrustumVertices[3], Color);
-			DrawDebugLine(World, FrustumVertices[3], FrustumVertices[0], Color);
+			LineBatcher->DrawLine(FrustumVertices[0], FrustumVertices[1], Color, SDPG_World, Thickness, 0.f);
+			LineBatcher->DrawLine(FrustumVertices[1], FrustumVertices[2], Color, SDPG_World, Thickness, 0.f);
+			LineBatcher->DrawLine(FrustumVertices[2], FrustumVertices[3], Color, SDPG_World, Thickness, 0.f);
+			LineBatcher->DrawLine(FrustumVertices[3], FrustumVertices[0], Color, SDPG_World, Thickness, 0.f);
 
 			// Frustum
-			DrawDebugLine(World, FrustumVertices[0], FrustumVertices[4], Color);
-			DrawDebugLine(World, FrustumVertices[1], FrustumVertices[5], Color);
-			DrawDebugLine(World, FrustumVertices[2], FrustumVertices[6], Color);
-			DrawDebugLine(World, FrustumVertices[3], FrustumVertices[7], Color);
+			LineBatcher->DrawLine(FrustumVertices[0], FrustumVertices[4], Color, SDPG_World, Thickness, 0.f);
+			LineBatcher->DrawLine(FrustumVertices[1], FrustumVertices[5], Color, SDPG_World, Thickness, 0.f);
+			LineBatcher->DrawLine(FrustumVertices[2], FrustumVertices[6], Color, SDPG_World, Thickness, 0.f);
+			LineBatcher->DrawLine(FrustumVertices[3], FrustumVertices[7], Color, SDPG_World, Thickness, 0.f);
 
 			// Far plane rectangle
-			DrawDebugLine(World, FrustumVertices[4], FrustumVertices[5], Color);
-			DrawDebugLine(World, FrustumVertices[5], FrustumVertices[6], Color);
-			DrawDebugLine(World, FrustumVertices[6], FrustumVertices[7], Color);
-			DrawDebugLine(World, FrustumVertices[7], FrustumVertices[4], Color);
+			LineBatcher->DrawLine(FrustumVertices[4], FrustumVertices[5], Color, SDPG_World, Thickness, 0.f);
+			LineBatcher->DrawLine(FrustumVertices[5], FrustumVertices[6], Color, SDPG_World, Thickness, 0.f);
+			LineBatcher->DrawLine(FrustumVertices[6], FrustumVertices[7], Color, SDPG_World, Thickness, 0.f);
+			LineBatcher->DrawLine(FrustumVertices[7], FrustumVertices[4], Color, SDPG_World, Thickness, 0.f);
 		}
 	}
 }

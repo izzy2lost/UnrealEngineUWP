@@ -6,14 +6,14 @@
 
 #include "Render/DisplayDevice/Components/DisplayClusterDisplayDeviceBaseComponent.h"
 #include "Render/Projection/IDisplayClusterProjectionPolicy.h"
-
+#include "Components/DisplayClusterCameraComponent.h"
 #include "Components/StaticMeshComponent.h"
 
 namespace UE::DisplayCluster::ViewportPreviewMesh
 {
 	/** Return ptr on UObject if it is still valid. */
 	template<class T>
-	static inline T* GetObjectProperty(const TObjectPtr<T>& InProperty)
+	static inline T* GetExistingObject(const TObjectPtr<T>& InProperty)
 	{
 		if (InProperty == nullptr
 			|| InProperty->GetName().Find(TEXT("TRASH_")) != INDEX_NONE
@@ -41,6 +41,24 @@ namespace UE::DisplayCluster::ViewportPreviewMesh
 
 		return false;
 	}
+
+	/** Get material for preview mesh. */
+	TObjectPtr<UMaterial> FindPreviewMeshMaterial(const EDisplayClusterDisplayDeviceMeshType InMeshType, const EDisplayClusterDisplayDeviceMaterialType InMaterialType, UDisplayClusterDisplayDeviceBaseComponent* InDisplayDeviceComponent, UDisplayClusterCameraComponent* ViewPointComponent)
+	{
+		TObjectPtr<UMaterial> OutMaterial = nullptr;
+
+		// First get the material from the ViewPoint component (WarpPolicy)
+		OutMaterial = GetExistingObject(ViewPointComponent ? ViewPointComponent->GetDisplayDeviceMaterial(InMeshType, InMaterialType) : nullptr);
+
+		// Finally, get the material from the DisplayDevice
+		if (!OutMaterial)
+		{
+			OutMaterial = GetExistingObject(InDisplayDeviceComponent ? InDisplayDeviceComponent->GetDisplayDeviceMaterial(InMeshType, InMaterialType) : nullptr);
+		}
+
+		// Ignore deleted materials
+		return OutMaterial;
+	}
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -53,27 +71,31 @@ EDisplayClusterDisplayDeviceMaterialType FDisplayClusterViewportPreviewMesh::Get
 		: EDisplayClusterDisplayDeviceMaterialType::PreviewMeshMaterial;
 }
 
-void FDisplayClusterViewportPreviewMesh::Update(FDisplayClusterViewport* InViewport, UDisplayClusterDisplayDeviceBaseComponent* InDisplayDeviceComponent)
+void FDisplayClusterViewportPreviewMesh::Update(FDisplayClusterViewport* InViewport, UDisplayClusterDisplayDeviceBaseComponent* InDisplayDeviceComponent, UDisplayClusterCameraComponent* ViewPointComponent)
 {
+	using namespace UE::DisplayCluster::ViewportPreviewMesh;
+
 	// Reset runtime flags before each update
 	RuntimeFlags = EDisplayClusterViewportPreviewMeshFlags::None;
 
-	if (!InViewport || !ShouldUseMeshComponent(InViewport) || !InDisplayDeviceComponent)
+	if (!InViewport || !InViewport->ViewportPreview->HasAnyFlags(EDisplayClusterViewportPreviewFlags::HasValidPreviewRTT) || !ShouldUseMeshComponent(InViewport) || !InDisplayDeviceComponent)
 	{
 		// The mesh component and its resources are no longer used.
 		Release(InViewport);
+
 		return;
 	}
 
 	// Update default material
-	DefaultMaterialPtr = InDisplayDeviceComponent->GetDisplayDeviceMaterial(EDisplayClusterDisplayDeviceMaterialType::DefaultPreviewMeshMaterial);
+	DefaultMaterialPtr = FindPreviewMeshMaterial(EDisplayClusterDisplayDeviceMeshType::DefaultMesh, GetCurrentMaterialType(), InDisplayDeviceComponent, ViewPointComponent);
 
 	// Get current preview material
-	UMaterial* InMeshMaterial = InDisplayDeviceComponent->GetDisplayDeviceMaterial(GetCurrentMaterialType());
+	UMaterial* InMeshMaterial = FindPreviewMeshMaterial(MeshType, GetCurrentMaterialType(), InDisplayDeviceComponent, ViewPointComponent);
 	if (!InMeshMaterial)
 	{
-		// The mesh component and its resources are no longer used.
+		// Do not use preview if material is not defined.
 		Release(InViewport);
+
 		return;
 	}
 
@@ -249,10 +271,10 @@ bool FDisplayClusterViewportPreviewMesh::ShouldUseMeshComponent(FDisplayClusterV
 	{
 		switch (MeshType)
 		{
-		case EDisplayClusterViewportPreviewMeshType::PreviewMesh:
+		case EDisplayClusterDisplayDeviceMeshType::PreviewMesh:
 			return ProjectionPolicy->HasPreviewMesh(InViewport) && PreviewSettings.bEnablePreviewMesh;
 
-		case EDisplayClusterViewportPreviewMeshType::PreviewEditableMesh:
+		case EDisplayClusterDisplayDeviceMeshType::PreviewEditableMesh:
 			return ProjectionPolicy->HasPreviewEditableMesh(InViewport) && PreviewSettings.bEnablePreviewEditableMesh;
 
 		default:
@@ -270,10 +292,10 @@ UMeshComponent* FDisplayClusterViewportPreviewMesh::GetOrCreatePreviewMeshCompon
 	{
 		switch (MeshType)
 		{
-		case EDisplayClusterViewportPreviewMeshType::PreviewMesh:
+		case EDisplayClusterDisplayDeviceMeshType::PreviewMesh:
 			return ProjectionPolicy->GetOrCreatePreviewMeshComponent(InViewport, bOutIsRootActorComponent);
 
-		case EDisplayClusterViewportPreviewMeshType::PreviewEditableMesh:
+		case EDisplayClusterDisplayDeviceMeshType::PreviewEditableMesh:
 			bOutIsRootActorComponent = false;
 			return ProjectionPolicy->GetOrCreatePreviewEditableMeshComponent(InViewport);
 
@@ -289,12 +311,12 @@ UMeshComponent* FDisplayClusterViewportPreviewMesh::GetMeshComponent() const
 {
 	using namespace UE::DisplayCluster::ViewportPreviewMesh;
 
-	return GetObjectProperty(MeshComponentPtr);
+	return GetExistingObject(MeshComponentPtr);
 }
 
 UMaterialInstanceDynamic* FDisplayClusterViewportPreviewMesh::GetMaterialInstance() const
 {
 	using namespace UE::DisplayCluster::ViewportPreviewMesh;
 
-	return GetObjectProperty(MaterialInstancePtr);
+	return GetExistingObject(MaterialInstancePtr);
 }

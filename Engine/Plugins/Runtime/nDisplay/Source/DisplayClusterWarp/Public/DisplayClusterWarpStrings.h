@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 
-namespace DisplayClusterWarpStrings
+namespace UE::DisplayClusterWarpStrings
 {
 	namespace warp
 	{

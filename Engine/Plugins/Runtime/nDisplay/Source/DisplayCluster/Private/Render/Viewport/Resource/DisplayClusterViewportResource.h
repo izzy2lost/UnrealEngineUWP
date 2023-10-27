@@ -28,6 +28,9 @@ enum class EDisplayClusterViewportResourceState : uint8
 
 	// Disable reallocation of this resource for the current frame
 	DisableReallocate = 1 << 3,
+
+	// This resource was updated in the rendering thread
+	UpdatedOnRenderingThread = 1 << 4,
 };
 ENUM_CLASS_FLAGS(EDisplayClusterViewportResourceState);
 

@@ -18,7 +18,7 @@ FDisplayClusterWarpModule::FDisplayClusterWarpModule()
 
 	// InFrustumFit warp policy
 	Factory = MakeShared<FDisplayClusterWarpInFrustumFitPolicyFactory>();
-	WarpPolicyFactories.Emplace(DisplayClusterWarpStrings::warp::InFrustumFit, Factory);
+	WarpPolicyFactories.Emplace(UE::DisplayClusterWarpStrings::warp::InFrustumFit, Factory);
 
 	UE_LOG(LogDisplayClusterWarp, Log, TEXT("Warp module has been instantiated"));
 }

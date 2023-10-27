@@ -9,9 +9,6 @@
 */
 enum class EDisplayClusterDisplayDeviceMaterialType : uint8
 {
-	// Default material used on preview mesh when preview is disabled
-	DefaultPreviewMeshMaterial = 0,
-
 	// Preview on mesh
 	PreviewMeshMaterial,
 
@@ -24,9 +21,13 @@ enum class EDisplayClusterDisplayDeviceMaterialType : uint8
 */
 enum class EDisplayClusterDisplayDeviceMeshType : uint8
 {
+	// Default mesh without preview
+	DefaultMesh = 0,
+
 	// Preview mesh
-	PreviewMesh = 0,
+	PreviewMesh,
 
 	// Preview editable mesh
 	PreviewEditableMesh,
+
 };

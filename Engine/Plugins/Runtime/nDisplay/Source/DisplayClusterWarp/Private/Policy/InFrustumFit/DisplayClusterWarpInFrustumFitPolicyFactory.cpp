@@ -13,7 +13,7 @@ TSharedPtr<IDisplayClusterWarpPolicy, ESPMode::ThreadSafe> FDisplayClusterWarpIn
 {
 	TSharedPtr<IDisplayClusterWarpPolicy, ESPMode::ThreadSafe> Result;
 
-	if (InWarpPolicyType == DisplayClusterWarpStrings::warp::InFrustumFit)
+	if (InWarpPolicyType == UE::DisplayClusterWarpStrings::warp::InFrustumFit)
 	{
 		Result = MakeShared<FDisplayClusterWarpInFrustumFitPolicy, ESPMode::ThreadSafe>(InWarpPolicyName);
 	}

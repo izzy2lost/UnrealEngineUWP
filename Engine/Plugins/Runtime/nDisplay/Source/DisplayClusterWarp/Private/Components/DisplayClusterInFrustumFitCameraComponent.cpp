@@ -8,7 +8,7 @@
 #include "CineCameraComponent.h"
 
 #include "DisplayClusterWarpLog.h"
-#include "DisplayClusterWarpStrings.h"
+#include "PDisplayClusterWarpStrings.h"
 
 #include "IDisplayCluster.h"
 #include "IDisplayClusterWarpBlend.h"
@@ -20,6 +20,9 @@
 #include "Render/Projection/IDisplayClusterProjectionPolicy.h"
 #include "Render/Warp/IDisplayClusterWarpPolicyFactory.h"
 #include "Render/Warp/IDisplayClusterWarpPolicy.h"
+
+#include "Materials/Material.h"
+#include "UObject/ConstructorHelpers.h"
 
 #include "DisplayClusterRootActor.h"
 
@@ -40,7 +43,6 @@ namespace UE::DisplayClusterWarp::ViewPointComponent
 		return nullptr;
 	}
 };
-using namespace UE::DisplayClusterWarp::ViewPointComponent;
 
 //--------------------------------------------------------------------------------
 // UDisplayClusterInFrustumFitCameraComponent
@@ -52,6 +54,55 @@ UDisplayClusterInFrustumFitCameraComponent::UDisplayClusterInFrustumFitCameraCom
 	PrimaryComponentTick.TickGroup = TG_PostUpdateWork;
 	PrimaryComponentTick.bStartWithTickEnabled = true;
 	bAutoActivate = true;
+}
+
+TObjectPtr<UMaterial> UDisplayClusterInFrustumFitCameraComponent::GetDisplayDeviceMaterial(const EDisplayClusterDisplayDeviceMeshType InMeshType, const EDisplayClusterDisplayDeviceMaterialType InMaterialType) const
+{
+	// Uses its own material to display additional deformed preview meshes in front of the camera.
+	if (IsEnabled() && WarpPolicy.IsValid())
+	{
+		// Special preview material is used for editable meshes: they should fly in front of the camera and deform according to its frustum.
+		if (InMeshType == EDisplayClusterDisplayDeviceMeshType::PreviewEditableMesh)
+		{
+			static TObjectPtr<UMaterial> InFrustumFitMaterial = LoadObject<UMaterial>(nullptr, UE::DisplayClusterWarpStrings::InFrustumFit::material::Name, nullptr, LOAD_None, nullptr);
+			if (InFrustumFitMaterial && InMeshType == EDisplayClusterDisplayDeviceMeshType::PreviewEditableMesh)
+			{
+				switch (InMaterialType)
+				{
+				case EDisplayClusterDisplayDeviceMaterialType::PreviewMeshMaterial:
+				case EDisplayClusterDisplayDeviceMaterialType::PreviewMeshTechvisMaterial:
+					// Note: Add additional techvis material for 'InFrustumFitCamera' if needed.
+					return InFrustumFitMaterial.Get();
+
+				default:
+					break;
+				}
+			}
+		}
+	}
+
+	return nullptr;
+}
+
+void UDisplayClusterInFrustumFitCameraComponent::OnUpdateDisplayDeviceMeshAndMaterialInstance(IDisplayClusterViewportPreview& InViewportPreview, const EDisplayClusterDisplayDeviceMeshType InMeshType, const EDisplayClusterDisplayDeviceMaterialType InMaterialType, UMeshComponent* InMeshComponent, UMaterialInstanceDynamic* InMeshMaterialInstance) const
+{
+	if (IsEnabled() && WarpPolicy.IsValid())
+	{
+		// The preview material used for editable meshes requires a set of unique parameters that are set from the warp policy.
+		if (InMeshComponent && InMeshMaterialInstance && InMeshType == EDisplayClusterDisplayDeviceMeshType::PreviewEditableMesh)
+		{
+			switch (InMaterialType)
+			{
+			case EDisplayClusterDisplayDeviceMaterialType::PreviewMeshMaterial:
+			case EDisplayClusterDisplayDeviceMaterialType::PreviewMeshTechvisMaterial:
+				WarpPolicy->OnUpdateDisplayDeviceMeshAndMaterialInstance(InViewportPreview, InMeshType, InMaterialType, InMeshComponent, InMeshMaterialInstance);
+				break;
+
+			default:
+				break;
+			}
+		}
+	}
 }
 
 const UDisplayClusterInFrustumFitCameraComponent& UDisplayClusterInFrustumFitCameraComponent::GetConfigurationInFrustumFitCameraComponent(IDisplayClusterViewportConfiguration& InViewportConfiguration) const
@@ -135,8 +186,10 @@ bool UDisplayClusterInFrustumFitCameraComponent::ShouldUseEntireClusterViewports
 
 IDisplayClusterWarpPolicy* UDisplayClusterInFrustumFitCameraComponent::GetWarpPolicy(IDisplayClusterViewportManager* InViewportManager)
 {
+	using namespace UE::DisplayClusterWarp::ViewPointComponent;
+
 	// We can ask for different types of warp policies, depending on the rules of the user settings
-	const FString NewWaprPolicyType = DisplayClusterWarpStrings::warp::InFrustumFit;
+	const FString NewWaprPolicyType = UE::DisplayClusterWarpStrings::warp::InFrustumFit;
 
 	// when returns different type, this will recreate warp policy instance
 	if (WarpPolicy.IsValid() && WarpPolicy->GetType() != NewWaprPolicyType)

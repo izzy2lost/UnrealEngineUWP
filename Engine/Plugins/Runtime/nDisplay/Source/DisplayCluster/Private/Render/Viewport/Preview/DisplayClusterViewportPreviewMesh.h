@@ -12,16 +12,8 @@
 #include "Misc/DisplayClusterObjectRef.h"
 
 class UDisplayClusterDisplayDeviceBaseComponent;
+class UDisplayClusterCameraComponent;
 class FDisplayClusterViewport;
-
-/**
-* DCRA has several types of preview meshes.
-*/
-enum class EDisplayClusterViewportPreviewMeshType : uint8
-{
-	PreviewMesh = 0,
-	PreviewEditableMesh
-};
 
 /**
  * Runtime configuration of preview mesh.
@@ -53,7 +45,7 @@ ENUM_CLASS_FLAGS(EDisplayClusterViewportPreviewMeshFlags);
 class FDisplayClusterViewportPreviewMesh
 {
 public:
-	FDisplayClusterViewportPreviewMesh(const EDisplayClusterViewportPreviewMeshType InMeshType, const TSharedRef<FDisplayClusterViewportConfiguration, ESPMode::ThreadSafe> InConfiguration)
+	FDisplayClusterViewportPreviewMesh(const EDisplayClusterDisplayDeviceMeshType InMeshType, const TSharedRef<FDisplayClusterViewportConfiguration, ESPMode::ThreadSafe> InConfiguration)
 		: Configuration(InConfiguration), MeshType(InMeshType)
 	{ }
 
@@ -70,7 +62,7 @@ public:
 	EDisplayClusterDisplayDeviceMaterialType GetCurrentMaterialType() const;
 
 	/** Update mesh component and materials for viewport. */
-	void Update(FDisplayClusterViewport* InViewport, UDisplayClusterDisplayDeviceBaseComponent* InDisplayDeviceComponent);
+	void Update(FDisplayClusterViewport* InViewport, UDisplayClusterDisplayDeviceBaseComponent* InDisplayDeviceComponent, UDisplayClusterCameraComponent* ViewPointComponent);
 
 	/** Restore default material and release mesh component with materials for viewport. */
 	void Release(FDisplayClusterViewport* InViewport)
@@ -112,7 +104,7 @@ public:
 	const TSharedRef<FDisplayClusterViewportConfiguration, ESPMode::ThreadSafe> Configuration;
 
 	// the type of mesh
-	const EDisplayClusterViewportPreviewMeshType MeshType;
+	const EDisplayClusterDisplayDeviceMeshType MeshType;
 
 private:
 	// runtime flags

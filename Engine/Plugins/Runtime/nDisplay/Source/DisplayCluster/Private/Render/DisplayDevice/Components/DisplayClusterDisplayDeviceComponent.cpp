@@ -15,28 +15,28 @@
 UDisplayClusterDisplayDeviceComponent::UDisplayClusterDisplayDeviceComponent()
 { }
 
-void UDisplayClusterDisplayDeviceComponent::OnUpdateDisplayDeviceMaterialInstance(IDisplayClusterViewportPreview& InViewportPreview, const EDisplayClusterDisplayDeviceMeshType InMeshType, const EDisplayClusterDisplayDeviceMaterialType InMaterialType, UMaterialInstanceDynamic* InMaterialInstance) const
+void UDisplayClusterDisplayDeviceComponent::OnUpdateDisplayDeviceMeshAndMaterialInstance(IDisplayClusterViewportPreview& InViewportPreview, const EDisplayClusterDisplayDeviceMeshType InMeshType, const EDisplayClusterDisplayDeviceMaterialType InMaterialType, UMeshComponent* InMeshComponent, UMaterialInstanceDynamic* InMeshMaterialInstance) const
 {
-	if (!InMaterialInstance || !ShouldUseDisplayDevice(InViewportPreview.GetConfiguration()))
+	// Call a method of the base class
+	Super::OnUpdateDisplayDeviceMeshAndMaterialInstance(InViewportPreview, InMeshType, InMaterialType, InMeshComponent, InMeshMaterialInstance);
+
+	// Customizes and overrides material parameters after the base class
+	if (InMeshMaterialInstance && ShouldUseDisplayDevice(InViewportPreview.GetConfiguration()))
 	{
-		return;
+		switch (InMaterialType)
+		{
+		case EDisplayClusterDisplayDeviceMaterialType::PreviewMeshMaterial:
+			InMeshMaterialInstance->SetScalarParameterValue(UE::DisplayClusterDisplayDeviceStrings::material::attr::Exposure, 0.f);
+			break;
+
+		case EDisplayClusterDisplayDeviceMaterialType::PreviewMeshTechvisMaterial:
+			InMeshMaterialInstance->SetScalarParameterValue(UE::DisplayClusterDisplayDeviceStrings::material::attr::Exposure, Exposure);
+			break;
+
+		default:
+			break;
+		}
 	}
-
-	switch (InMaterialType)
-	{
-	case EDisplayClusterDisplayDeviceMaterialType::PreviewMeshMaterial:
-		InMaterialInstance->SetScalarParameterValue(UE::DisplayClusterDisplayDeviceStrings::material::attr::Exposure, 0.f);
-		break;
-
-	case EDisplayClusterDisplayDeviceMaterialType::PreviewMeshTechvisMaterial:
-		InMaterialInstance->SetScalarParameterValue(UE::DisplayClusterDisplayDeviceStrings::material::attr::Exposure, Exposure);
-		break;
-
-	default:
-		break;
-	}
-
-	Super::OnUpdateDisplayDeviceMaterialInstance(InViewportPreview, InMeshType, InMaterialType, InMaterialInstance);
 }
 
 void UDisplayClusterDisplayDeviceComponent::UpdateDisplayDeviceProxyImpl(IDisplayClusterViewportConfiguration& InConfiguration)

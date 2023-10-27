@@ -12,6 +12,7 @@ class UMaterial;
 class FSceneView;
 class FSceneViewFamily;
 class UMeshComponent;
+class UDisplayClusterCameraComponent;
 class UWorld;
 
 class IDisplayClusterDisplayDeviceProxy;
@@ -37,27 +38,20 @@ public:
 public:
 	/** Receive material by type
 	* 
+	* @param InMeshType     - mesh type
 	* @param InMaterialType - the type of material being requested
 	*/
-	virtual TObjectPtr<UMaterial> GetDisplayDeviceMaterial(const EDisplayClusterDisplayDeviceMaterialType InMaterialType) const;
+	virtual TObjectPtr<UMaterial> GetDisplayDeviceMaterial(const EDisplayClusterDisplayDeviceMeshType InMeshType, const EDisplayClusterDisplayDeviceMaterialType InMaterialType) const;
 	
 	/** Perform any operations on the  material instance, such as setting parameter values.
 	* 
-	* @param InViewport         - current viewport
+	* @param InViewportPreview  - current viewport
 	* @param InMeshType         - mesh type
 	* @param InMaterialType     - type of material being requested
-	* @param InMaterialInstance - material instance
-	*/
-	virtual void OnUpdateDisplayDeviceMaterialInstance(IDisplayClusterViewportPreview& InViewportPreview, const EDisplayClusterDisplayDeviceMeshType InMeshType, const EDisplayClusterDisplayDeviceMaterialType InMaterialType, UMaterialInstanceDynamic* InMaterialInstance) const;
-
-	/** Update preview mesh component, projection policy, preview meshes etc.
-	* Techvis should be implemented inside this function.
-	*
-	* @param InViewport      - the current viewport
-	* @param InMeshType      - mesh type
 	* @param InMeshComponent - mesh component to be updated
+	* @param InMeshMaterialInstance - material instance that used on this mesh
 	*/
-	virtual void OnUpdateDisplayDeviceMeshComponent(IDisplayClusterViewportPreview& InViewportPreview, const EDisplayClusterDisplayDeviceMeshType InMeshType,UMeshComponent* InMeshComponent) const;
+	virtual void OnUpdateDisplayDeviceMeshAndMaterialInstance(IDisplayClusterViewportPreview& InViewportPreview, const EDisplayClusterDisplayDeviceMeshType InMeshType, const EDisplayClusterDisplayDeviceMaterialType InMaterialType, UMeshComponent* InMeshComponent, UMaterialInstanceDynamic* InMeshMaterialInstance) const;
 
 	/** Update and Get proxy object for rendering thread.
 	* 

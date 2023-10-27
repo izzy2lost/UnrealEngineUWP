@@ -14,10 +14,13 @@ enum class EDisplayClusterViewportPreviewFlags : uint8
 	// the RTT has been changed
 	HasChangedPreviewRTT = 1 << 0,
 
+	// This viewport has a valid preview texture.
+	HasValidPreviewRTT = 1 << 1,
+
 	// Preview mesh material instance has been changed.
-	HasChangedPreviewMeshMaterialInstance = 1 << 1,
+	HasChangedPreviewMeshMaterialInstance = 1 << 2,
 
 	// Preview editable mesh material instance has been changed.
-	HasChangedPreviewEditableMeshMaterialInstance = 1 << 2,
+	HasChangedPreviewEditableMeshMaterialInstance = 1 << 3,
 };
 ENUM_CLASS_FLAGS(EDisplayClusterViewportPreviewFlags);

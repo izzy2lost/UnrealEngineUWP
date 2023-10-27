@@ -7,6 +7,7 @@
 #include "Render/Warp/IDisplayClusterWarpPolicy.h"
 
 #include "Render/DisplayDevice/Components/DisplayClusterDisplayDeviceBaseComponent.h"
+#include "Components/DisplayClusterCameraComponent.h"
 
 #include "Components/StaticMeshComponent.h"
 
@@ -17,8 +18,8 @@ FDisplayClusterViewportPreview::FDisplayClusterViewportPreview(const TSharedRef<
 	: Configuration(InConfiguration)
 	, ViewportId(InViewportId)
 	, ClusterNodeId(InConfiguration->GetClusterNodeId())
-	, PreviewMesh(EDisplayClusterViewportPreviewMeshType::PreviewMesh, InConfiguration)
-	, PreviewEditableMesh(EDisplayClusterViewportPreviewMeshType::PreviewEditableMesh, InConfiguration)
+	, PreviewMesh(EDisplayClusterDisplayDeviceMeshType::PreviewMesh, InConfiguration)
+	, PreviewEditableMesh(EDisplayClusterDisplayDeviceMeshType::PreviewEditableMesh, InConfiguration)
 { }
 
 FDisplayClusterViewportPreview::~FDisplayClusterViewportPreview()
@@ -53,12 +54,19 @@ void FDisplayClusterViewportPreview::Update()
 		PreviewRTT = NewPreviewRTT;
 	}
 
+	if (PreviewRTT.IsValid() && EnumHasAnyFlags(PreviewRTT->GetResourceState(), EDisplayClusterViewportResourceState::UpdatedOnRenderingThread))
+	{
+		// Update flags when preview RTT is valid
+		EnumAddFlags(RuntimeFlags, EDisplayClusterViewportPreviewFlags::HasValidPreviewRTT);
+	}
+
 	FDisplayClusterViewport* InViewport = GetViewportImpl();
+	UDisplayClusterCameraComponent* ViewPointComponent = InViewport ? InViewport->GetViewPointCameraComponent(EDisplayClusterRootActorType::Configuration) : nullptr;
 	UDisplayClusterDisplayDeviceBaseComponent* InDisplayDeviceComponent = InViewport ? InViewport->GetDisplayDeviceComponent(EDisplayClusterRootActorType::Configuration) : nullptr;
 
 	// Update preview meshes only if DisplayDevice is used
-	PreviewMesh.Update(InViewport, InDisplayDeviceComponent);
-	PreviewEditableMesh.Update(InViewport, InDisplayDeviceComponent);
+	PreviewMesh.Update(InViewport, InDisplayDeviceComponent, ViewPointComponent);
+	PreviewEditableMesh.Update(InViewport, InDisplayDeviceComponent, ViewPointComponent);
 
 	// Update Runtime Flags:
 	if (PreviewMesh.HasAnyFlag(EDisplayClusterViewportPreviewMeshFlags::HasDeletedMaterialInstance | EDisplayClusterViewportPreviewMeshFlags::HasChangedMaterialInstance))
@@ -73,22 +81,16 @@ void FDisplayClusterViewportPreview::Update()
 	// Update the preview mesh and materials in the DisplayDevice component
 	if (InDisplayDeviceComponent)
 	{
-		// Update material instances
-		InDisplayDeviceComponent->OnUpdateDisplayDeviceMaterialInstance(*this, EDisplayClusterDisplayDeviceMeshType::PreviewMesh, PreviewMesh.GetCurrentMaterialType(), PreviewMesh.GetMaterialInstance());
-		InDisplayDeviceComponent->OnUpdateDisplayDeviceMaterialInstance(*this, EDisplayClusterDisplayDeviceMeshType::PreviewEditableMesh, PreviewMesh.GetCurrentMaterialType(), PreviewEditableMesh.GetMaterialInstance());
-
-		// Update mesh components
-		InDisplayDeviceComponent->OnUpdateDisplayDeviceMeshComponent(*this, EDisplayClusterDisplayDeviceMeshType::PreviewMesh, PreviewMesh.GetMeshComponent());
-		InDisplayDeviceComponent->OnUpdateDisplayDeviceMeshComponent(*this, EDisplayClusterDisplayDeviceMeshType::PreviewEditableMesh, PreviewEditableMesh.GetMeshComponent());
+		// Update mesh and material instances
+		InDisplayDeviceComponent->OnUpdateDisplayDeviceMeshAndMaterialInstance(*this, EDisplayClusterDisplayDeviceMeshType::PreviewMesh, PreviewMesh.GetCurrentMaterialType(), PreviewMesh.GetMeshComponent(), PreviewMesh.GetMaterialInstance());
+		InDisplayDeviceComponent->OnUpdateDisplayDeviceMeshAndMaterialInstance(*this, EDisplayClusterDisplayDeviceMeshType::PreviewEditableMesh, PreviewMesh.GetCurrentMaterialType(), PreviewEditableMesh.GetMeshComponent(), PreviewEditableMesh.GetMaterialInstance());
 	}
 
-	// The warp policy can update editable meshes and their material parameters
-	if (InViewport && InViewport->GetProjectionPolicy().IsValid())
+	// Update the preview mesh and materials in the ViewPointComponent component
+	if (ViewPointComponent)
 	{
-		if (IDisplayClusterWarpPolicy* WarpPolicy = InViewport->GetProjectionPolicy()->GetWarpPolicy())
-		{
-			WarpPolicy->OnUpdatePreviewEditableMesh(*this, PreviewEditableMesh.GetMeshComponent(), PreviewEditableMesh.GetCurrentMaterialType(), PreviewEditableMesh.GetMaterialInstance());
-		}
+		ViewPointComponent->OnUpdateDisplayDeviceMeshAndMaterialInstance(*this, EDisplayClusterDisplayDeviceMeshType::PreviewMesh, PreviewMesh.GetCurrentMaterialType(), PreviewMesh.GetMeshComponent(), PreviewMesh.GetMaterialInstance());
+		ViewPointComponent->OnUpdateDisplayDeviceMeshAndMaterialInstance(*this, EDisplayClusterDisplayDeviceMeshType::PreviewEditableMesh, PreviewMesh.GetCurrentMaterialType(), PreviewEditableMesh.GetMeshComponent(), PreviewEditableMesh.GetMaterialInstance());
 	}
 }
 
