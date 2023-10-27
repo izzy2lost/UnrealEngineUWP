@@ -28,6 +28,7 @@ class UInputComponent;
 class UPlayerInput;
 class FCommonAnalogCursor;
 class IInputProcessor;
+class UCommonInputActionDomainTable;
 
 enum class EProcessHoldActionResult;
 class FActivatableTreeNode;
@@ -178,6 +179,7 @@ private:
 
 	void HandlePostGarbageCollect();
 
+	const UCommonInputActionDomainTable* GetActionDomainTable() const;
 	bool ProcessInputOnActionDomains(ECommonInputMode ActiveInputMode, FKey Key, EInputEvent InputEvent) const;
 	EProcessHoldActionResult ProcessHoldInputOnActionDomains(ECommonInputMode ActiveInputMode, FKey Key, EInputEvent InputEvent) const;
 
