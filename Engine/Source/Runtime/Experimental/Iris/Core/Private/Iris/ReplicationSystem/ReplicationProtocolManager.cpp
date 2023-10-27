@@ -13,6 +13,7 @@
 #include "HAL/PlatformString.h"
 #include "Containers/StringFwd.h"
 #include "Logging/LogScopedVerbosityOverride.h"
+#include "Iris/Stats/NetStats.h"
 
 #ifndef UE_NET_ENABLE_PROTOCOLMANAGER_LOG
 // Default is to enable protocol logs in non-shipping
@@ -217,12 +218,12 @@ void FReplicationProtocolManager::FragmentListToString(FStringBuilderBase& Strin
 	}
 }
 
-const FReplicationProtocol* FReplicationProtocolManager::CreateReplicationProtocol(const UObject* ArchetypeOrCDOUsedAsKey, const FReplicationProtocolIdentifier ProtocolId, const FReplicationFragments& Fragments, const TCHAR* DebugName, bool bVerifyId)
+const FReplicationProtocol* FReplicationProtocolManager::CreateReplicationProtocol(const FReplicationProtocolIdentifier ProtocolId, const FReplicationFragments& Fragments, const TCHAR* DebugName, const FCreateReplicationProtocolParameters& Params)
 {
-	if (bVerifyId)
+	if (Params.bValidateProtocolId)
 	{
 		const FReplicationProtocolIdentifier NewProtocolId = CalculateProtocolIdentifier(Fragments);
-		if (NewProtocolId != ProtocolId)
+		if (!ensureMsgf(NewProtocolId == ProtocolId, TEXT("FReplicationProtocolManager::CreateReplicationProtocol Id mismatch when creating protocol named %s with in ProtocolId:0x%" UINT64_x_FMT "Calculated ProtocolId:0x$%" UINT64_x_FMT), DebugName, ProtocolId, NewProtocolId))
 		{
 			UE_LOG(LogIris, Warning, TEXT("FReplicationProtocolManager::CreateReplicationProtocol Id mismatch when creating protocol named %s with ProtocolId:0x%" UINT64_x_FMT), DebugName, ProtocolId);
  #if UE_NET_ENABLE_PROTOCOLMANAGER_LOG
@@ -238,7 +239,7 @@ const FReplicationProtocol* FReplicationProtocolManager::CreateReplicationProtoc
 		}
 	}
 
-	check(GetReplicationProtocol(ProtocolId, ArchetypeOrCDOUsedAsKey) == nullptr);
+	check(GetReplicationProtocol(ProtocolId, Params.ArchetypeOrCDOUsedAsKey) == nullptr);
 
 	// Create the protocol
 	const uint32 FragmentCount = Fragments.Num();
@@ -366,24 +367,29 @@ const FReplicationProtocol* FReplicationProtocolManager::CreateReplicationProtoc
 	Protocol->ProtocolIdentifier = ProtocolId;
 	Protocol->ProtocolTraits = ProtocolTraits;
 	Protocol->DebugName = CreatePersistentNetDebugName(DebugName);
+	Protocol->TypeStatsIndex = Params.TypeStatsIndex >= 0 ? Params.TypeStatsIndex : FNetTypeStats::DefaultTypeStatsIndex;
 	Protocol->RefCount = 0;
 
 	// Register protocol
 	FRegisteredProtocolInfo Info;
-	Info.ArchetypeOrCDOUsedAsKey = ArchetypeOrCDOUsedAsKey;
+	Info.ArchetypeOrCDOUsedAsKey = Params.ArchetypeOrCDOUsedAsKey;
 	Info.Protocol = Protocol;
 
 	RegisteredProtocols.AddUnique(ProtocolId, Info);
 	ProtocolToInfoMap.Add(Protocol, Info);
 
-	UE_LOG_PROTOCOLMANAGER(Verbose, TEXT("FReplicationProtocolManager::CreateReplicationProtocol Created new protocol %s with ProtocolId:0x%" UINT64_x_FMT), ToCStr(Protocol->DebugName), ProtocolId);
 #if UE_NET_ENABLE_PROTOCOLMANAGER_LOG
 	if (bIrisLogReplicationProtocols)
 	{
 		TStringBuilder<4096> StringBuilder;
 		FragmentListToString(StringBuilder, Fragments);
 		LOG_SCOPE_VERBOSITY_OVERRIDE(LogIris, ELogVerbosity::Log);
+		UE_LOG_PROTOCOLMANAGER(Log, TEXT("FReplicationProtocolManager::CreateReplicationProtocol Created new protocol %s with ProtocolId:0x%" UINT64_x_FMT), ToCStr(Protocol->DebugName), ProtocolId);
 		UE_LOG_PROTOCOLMANAGER(Log, TEXT("%s"), StringBuilder.ToString());
+	}
+	else
+	{
+		UE_LOG_PROTOCOLMANAGER(Verbose, TEXT("FReplicationProtocolManager::CreateReplicationProtocol Created new protocol %s with ProtocolId:0x%" UINT64_x_FMT), ToCStr(Protocol->DebugName), ProtocolId);	
 	}
 #endif
 

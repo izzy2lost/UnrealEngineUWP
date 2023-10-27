@@ -566,6 +566,7 @@ private:
 	const UPartialNetObjectAttachmentHandler* PartialNetObjectAttachmentHandler = nullptr;
 	const UNetObjectBlobHandler* NetObjectBlobHandler = nullptr;
 	FNetExports* NetExports = nullptr;
+	FNetTypeStats* NetTypeStats = nullptr;
 
 	FWriteContext WriteContext;
 	FBitStreamInfo WriteBitStreamInfo;

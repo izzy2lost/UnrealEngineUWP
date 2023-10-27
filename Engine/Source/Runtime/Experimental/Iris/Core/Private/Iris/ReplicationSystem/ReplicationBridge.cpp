@@ -305,9 +305,9 @@ void UReplicationBridge::Initialize(UReplicationSystem* InReplicationSystem)
 
 	// Create destruction info protocol
 	{
-		constexpr bool bIgnoreProtocolValidation = false;
 		const FReplicationFragments RegisteredFragments;
-		DestructionInfoProtocol = ReplicationProtocolManager->CreateReplicationProtocol(FReplicationProtocolManager::CalculateProtocolIdentifier(RegisteredFragments), RegisteredFragments, TEXT("InternalDestructionInfo"), bIgnoreProtocolValidation);
+		FCreateReplicationProtocolParameters CreateProtocolParams {.bValidateProtocolId = false, .TypeStatsIndex =  GetReplicationSystem()->GetReplicationSystemInternal()->GetNetTypeStats().GetOrCreateTypeStats(FName("DestructionInfo"))};
+		DestructionInfoProtocol = ReplicationProtocolManager->CreateReplicationProtocol(FReplicationProtocolManager::CalculateProtocolIdentifier(RegisteredFragments), RegisteredFragments, TEXT("InternalDestructionInfo"), CreateProtocolParams);
 	}
 }
 
@@ -718,6 +718,7 @@ void UReplicationBridge::InternalFlushStateData(FNetRefHandle Handle)
 	FNetSerializationContext SerializationContext;
 	FInternalNetSerializationContext InternalContext(ReplicationSystem);
 	SerializationContext.SetInternalContext(&InternalContext);
+	SerializationContext.SetNetStatsContext(ReplicationSystem->GetReplicationSystemInternal()->GetNetTypeStats().GetNetStatsContext());
 
 	InternalFlushStateData(SerializationContext, ChangeMaskCache, ChangeMaskWriter, InternalObjectIndex);
 
@@ -773,6 +774,7 @@ void UReplicationBridge::InternalTearOff(FNetRefHandle Handle)
 		FNetSerializationContext SerializationContext;
 		FInternalNetSerializationContext InternalContext(ReplicationSystem);
 		SerializationContext.SetInternalContext(&InternalContext);
+		SerializationContext.SetNetStatsContext(ReplicationSystem->GetReplicationSystemInternal()->GetNetTypeStats().GetNetStatsContext());
 
 		if (ObjectData.InstanceProtocol && EnumHasAnyFlags(ObjectData.InstanceProtocol->InstanceTraits, EReplicationInstanceProtocolTraits::NeedsPoll | EReplicationInstanceProtocolTraits::NeedsPreSendUpdate))
 		{

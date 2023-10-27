@@ -16,6 +16,7 @@ namespace UE::Net
 	{
 		class FInternalNetSerializationContext;
 		class FNetExportContext;
+		class FNetStatsContext;
 	}
 }
 
@@ -75,6 +76,9 @@ public:
 	void SetExportContext(Private::FNetExportContext* InExportContext) { ExportContext = InExportContext; }
 	Private::FNetExportContext* GetExportContext() { return ExportContext; }
 
+	void SetNetStatsContext(Private::FNetStatsContext* InNetStatsContext) { NetStatsContext = InNetStatsContext; }
+	Private::FNetStatsContext* GetNetStatsContext() { return NetStatsContext; }
+
 	void SetIsInitializingDefaultState(bool bInIsInitializingDefaultState) { bIsInitializingDefaultState = bInIsInitializingDefaultState; }
 	bool IsInitializingDefaultState() const { return bIsInitializingDefaultState; }
 
@@ -91,6 +95,7 @@ private:
 	FNetTraceCollector* TraceCollector;
 	Private::FInternalNetSerializationContext* InternalContext;
 	Private::FNetExportContext* ExportContext;
+	Private::FNetStatsContext* NetStatsContext;
 	const FNetBitArrayView* ChangeMask;
 	INetBlobReceiver* NetBlobReceiver;
 	uint32 LocalConnectionId;
@@ -108,6 +113,7 @@ inline FNetSerializationContext::FNetSerializationContext(FNetBitStreamReader* I
 , TraceCollector(nullptr)
 , InternalContext(nullptr)
 , ExportContext(nullptr)
+, NetStatsContext(nullptr)
 , ChangeMask(nullptr)
 , NetBlobReceiver(nullptr)
 , LocalConnectionId(0)

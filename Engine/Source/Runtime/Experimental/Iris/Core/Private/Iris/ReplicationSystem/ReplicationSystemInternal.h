@@ -98,6 +98,8 @@ public:
 	FDeltaCompressionBaselineManager& GetDeltaCompressionBaselineManager() { return DeltaCompressionBaselineManager; }
 	FDeltaCompressionBaselineInvalidationTracker& GetDeltaCompressionBaselineInvalidationTracker() { return DeltaCompressionBaselineInvalidationTracker; }
 
+	FNetTypeStats& GetNetTypeStats() { return TypeStats; }
+
 	FNetSendStats& GetSendStats()
 	{ 
 		return SendStats;
@@ -135,6 +137,7 @@ private:
 	FDeltaCompressionBaselineManager DeltaCompressionBaselineManager;
 	FDeltaCompressionBaselineInvalidationTracker DeltaCompressionBaselineInvalidationTracker;
 	FNetSendStats SendStats;
+	FNetTypeStats TypeStats;
 	FForwardNetRPCCallMulticastDelegate ForwardNetRPCCallMulticastDelegate;
 	uint32 Id;
 

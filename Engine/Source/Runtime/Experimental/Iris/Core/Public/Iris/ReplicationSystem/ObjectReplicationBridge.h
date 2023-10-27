@@ -172,6 +172,10 @@ public:
 	IRISCORE_API void SetClassDynamicFilterConfig(FName ClassPathName, const UE::Net::FNetObjectFilterHandle FilterHandle);
 	IRISCORE_API void SetClassDynamicFilterConfig(FName ClassPathName, FName FilterName);
 
+	/** Set the TypeStats to use for specified class and any derived classes without explicit config */
+	IRISCORE_API void SetClassTypeStatsConfig(FName ClassPathName, FName TypeStatsName);
+	IRISCORE_API void SetClassTypeStatsConfig(const FString& ClassPathName, const FString& TypeStatsName);
+
 public:
 
 	// Debug functions exposed via console commands
@@ -339,10 +343,12 @@ private:
 	/** Returns true if instances of this class should be delta compressed */
 	bool ShouldClassBeDeltaCompressed(const UClass* Class);
 
+	/** Returns the TypeStatsIndex this class should use */
+	int32 GetTypeStatsIndex(const UClass* Class);
+
 	FInstancePreUpdateFunction PreUpdateInstanceFunction;
 	FInstanceGetWorldObjectInfoFunction GetInstanceWorldObjectInfoFunction;
 	
-
 	FName GetConfigClassPathName(const UClass* Class);
 
 	void InitConditionalPropertyDelegates();
@@ -395,6 +401,9 @@ private:
 
 	// Classes that may force a disconnection when a protocol mismatch is detected.
 	TMap<FName, bool> ClassesFlaggedCritical;
+
+	// Type stats
+	TMap<FName, FName> ClassesWithTypeStats;
 
 	// Array of dormant objects that has requested a flush
 	TArray<FNetRefHandle> DormantHandlesPendingFlush;

@@ -11,6 +11,7 @@
 #include "Iris/ReplicationSystem/NetRefHandle.h"
 
 #include "Iris/Core/IrisProfiler.h"
+#include "Iris/Stats/NetStatsContext.h"
 
 #include "Net/Core/Trace/NetDebugName.h"
 
@@ -21,6 +22,7 @@ FObjectPoller::FObjectPoller(const FInitParams& InitParams)
 	: ObjectReplicationBridge(InitParams.ObjectReplicationBridge)
 	, ReplicationSystemInternal(InitParams.ReplicationSystemInternal)
 	, LocalNetRefHandleManager(ReplicationSystemInternal->GetNetRefHandleManager())
+	, NetStatsContext(nullptr)
 	, ReplicatedInstances(LocalNetRefHandleManager.GetReplicatedInstances())
 	, AccumulatedDirtyObjects(ReplicationSystemInternal->GetDirtyNetObjectTracker().GetAccumulatedDirtyNetObjects())
 	, DirtyObjectsToCopy(LocalNetRefHandleManager.GetDirtyObjectsToCopy())
@@ -33,11 +35,14 @@ FObjectPoller::FObjectPoller(const FInitParams& InitParams)
 void FObjectPoller::PreUpdatePass(const FNetBitArrayView& ObjectsConsideredForPolling)
 {
 	IRIS_PROFILER_SCOPE_VERBOSE(PreUpdatePass);
+	NetStatsContext = ReplicationSystemInternal->GetNetTypeStats().GetNetStatsContext();
 
 	ObjectsConsideredForPolling.ForAllSetBits([this](FInternalNetRefIndex Objectindex)
 	{
 		CallPreUpdate(Objectindex);
 	});
+
+	NetStatsContext = nullptr;
 }
 
 void FObjectPoller::CallPreUpdate(FInternalNetRefIndex ObjectIndex)
@@ -53,8 +58,12 @@ void FObjectPoller::CallPreUpdate(FInternalNetRefIndex ObjectIndex)
 	// Call per-instance PreUpdate function
 	if (ObjectReplicationBridge->PreUpdateInstanceFunction && EnumHasAnyFlags(ObjectData.InstanceProtocol->InstanceTraits, EReplicationInstanceProtocolTraits::NeedsPreSendUpdate))
 	{
+		UE_NET_IRIS_STATS_TIMER(Timer, NetStatsContext);
+	
 		ObjectReplicationBridge->PreUpdateInstanceFunction(ObjectData.RefHandle, ReplicatedInstances[ObjectIndex], ObjectReplicationBridge);
 		++PollStats.PreUpdatedObjectCount;
+		
+		UE_NET_IRIS_STATS_ADD_TIME_AND_COUNT_FOR_OBJECT(Timer, PreUpdate, ObjectIndex);
 	}
 }
 
@@ -62,6 +71,8 @@ void FObjectPoller::PollObjects(const FNetBitArrayView& ObjectsConsideredForPoll
 {
 	FDirtyObjectsAccessor DirtyObjectsAccessor(ReplicationSystemInternal->GetDirtyNetObjectTracker());
 	DirtyObjectsThisFrame = DirtyObjectsAccessor.GetDirtyNetObjects();
+
+	NetStatsContext = ReplicationSystemInternal->GetNetTypeStats().GetNetStatsContext();
 
 	if (IsIrisPushModelEnabled())
 	{
@@ -79,12 +90,16 @@ void FObjectPoller::PollObjects(const FNetBitArrayView& ObjectsConsideredForPoll
 			ForcePollObject(Objectindex);
 		});
 	}
+
+	NetStatsContext = nullptr;
 }
 
 void FObjectPoller::PollSingleObject(FNetRefHandle Handle)
 {
 	if (uint32 InternalObjectIndex = LocalNetRefHandleManager.GetInternalIndex(Handle))
 	{
+		NetStatsContext = ReplicationSystemInternal->GetNetTypeStats().GetNetStatsContext();
+
 		CallPreUpdate(InternalObjectIndex);
 
 		FDirtyObjectsAccessor DirtyObjectsAccessor(ReplicationSystemInternal->GetDirtyNetObjectTracker());
@@ -98,6 +113,7 @@ void FObjectPoller::PollSingleObject(FNetRefHandle Handle)
 
 		// Clear ref to locked dirty bit array
 		DirtyObjectsThisFrame = FNetBitArrayView();
+		NetStatsContext = nullptr;
 	}
 }
 
@@ -118,6 +134,7 @@ void FObjectPoller::ForcePollObject(FInternalNetRefIndex ObjectIndex)
 	if (EnumHasAnyFlags(ObjectData.InstanceProtocol->InstanceTraits, EReplicationInstanceProtocolTraits::NeedsPoll))
 	{
 		IRIS_PROFILER_SCOPE_VERBOSE(Poll);
+		UE_NET_IRIS_STATS_TIMER(Timer, NetStatsContext);
 
 		const bool bIsGCAffectedObject = GarbageCollectionAffectedObjects.GetBit(ObjectIndex);
 		GarbageCollectionAffectedObjects.ClearBit(ObjectIndex);
@@ -130,8 +147,14 @@ void FObjectPoller::ForcePollObject(FInternalNetRefIndex ObjectIndex)
 		const bool bPollFoundDirty = FReplicationInstanceOperations::PollAndRefreshCachedPropertyData(ObjectData.InstanceProtocol, PollOptions);
 		if (bWasAlreadyDirty || bPollFoundDirty)
 		{
+			UE_NET_IRIS_STATS_ADD_TIME_AND_COUNT_FOR_OBJECT(Timer, Poll, ObjectIndex);
+
 			DirtyObjectsToCopy.SetBit(ObjectIndex);
 			DirtyObjectsThisFrame.SetBit(ObjectIndex);
+		}
+		else
+		{
+			UE_NET_IRIS_STATS_ADD_TIME_AND_COUNT_FOR_OBJECT_AS_WASTE(Timer, Poll, ObjectIndex);
 		}
 		++PollStats.PolledObjectCount;
 	}
@@ -175,6 +198,7 @@ void FObjectPoller::PushModelPollObject(FInternalNetRefIndex ObjectIndex)
 	}
 
 	IRIS_PROFILER_SCOPE_VERBOSE(PollPushBased);
+	UE_NET_IRIS_STATS_TIMER(Timer, NetStatsContext);
 
 	// Does the object need to poll all states once.
 	const bool bWantsFullPoll = ObjectData.bWantsFullPoll;
@@ -226,8 +250,14 @@ void FObjectPoller::PushModelPollObject(FInternalNetRefIndex ObjectIndex)
 
 	if (bIsDirtyObject || bPollFoundDirty)
 	{
+		UE_NET_IRIS_STATS_ADD_TIME_AND_COUNT_FOR_OBJECT(Timer, Poll, ObjectIndex);
+
 		DirtyObjectsToCopy.SetBit(ObjectIndex);
 		DirtyObjectsThisFrame.SetBit(ObjectIndex);
+	}
+	else
+	{
+		UE_NET_IRIS_STATS_ADD_TIME_AND_COUNT_FOR_OBJECT_AS_WASTE(Timer, Poll, ObjectIndex);
 	}
 }
 

@@ -234,6 +234,13 @@ public:
 		}
 
 		ConnectionsPendingPostTickDispatchSend.Init(ReplicationSystemInternal.GetConnections().GetMaxConnectionCount());
+
+		FNetTypeStats& NetStats = ReplicationSystemInternal.GetNetTypeStats();
+		{
+			FNetTypeStats::FInitParams InitParams;
+			InitParams.NetRefHandleManager = &NetRefHandleManager;
+			NetStats.Init(InitParams);
+		}
 	}
 
 	void Deinit()
@@ -404,6 +411,7 @@ public:
 		FInternalNetSerializationContext InternalContext(ReplicationSystem);
 
 		SerializationContext.SetInternalContext(&InternalContext);
+		SerializationContext.SetNetStatsContext(ReplicationSystemInternal.GetNetTypeStats().GetNetStatsContext());
 
 		// Copy the state data of objects that were dirty this frame.
 		FNetBitArrayView DirtyObjectsToCopy = NetRefHandleManager.GetDirtyObjectsToCopy();
@@ -779,8 +787,11 @@ void UReplicationSystem::PostSendUpdate()
 
 #if UE_NET_IRIS_CSV_STATS && CSV_PROFILER
 		{
-			UE::Net::FNetSendStats& SendStats = Impl->ReplicationSystemInternal.GetSendStats();
+			FNetSendStats& SendStats = Impl->ReplicationSystemInternal.GetSendStats();
 			SendStats.ReportCsvStats();
+
+			FNetTypeStats& TypeStats = Impl->ReplicationSystemInternal.GetNetTypeStats();
+			TypeStats.ReportCSVStats();
 		}
 #endif
 

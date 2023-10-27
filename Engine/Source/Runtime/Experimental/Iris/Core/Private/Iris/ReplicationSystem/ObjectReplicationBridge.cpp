@@ -293,8 +293,8 @@ UE::Net::FNetRefHandle UObjectReplicationBridge::BeginReplication(UObject* Insta
 	const FReplicationProtocol* ReplicationProtocol = ProtocolManager->GetReplicationProtocol(ProtocolIdentifier, ArchetypeOrCDOUsedAsKey);
 	if (!ReplicationProtocol)
 	{
-		constexpr bool bIgnoreProtocolValidation = false;
-		ReplicationProtocol = ProtocolManager->CreateReplicationProtocol(ArchetypeOrCDOUsedAsKey, ProtocolIdentifier, RegisteredFragments, *Instance->GetClass()->GetName(), bIgnoreProtocolValidation);
+		FCreateReplicationProtocolParameters CreateProtocolParams {.ArchetypeOrCDOUsedAsKey = ArchetypeOrCDOUsedAsKey, .TypeStatsIndex = GetTypeStatsIndex(Instance->GetClass()) };
+		ReplicationProtocol = ProtocolManager->CreateReplicationProtocol(ProtocolIdentifier, RegisteredFragments, *Instance->GetClass()->GetName(), CreateProtocolParams);
 	}
 #if UE_IRIS_VALIDATE_PROTOCOLS
 	else
@@ -680,8 +680,8 @@ FReplicationBridgeCreateNetRefHandleResult UObjectReplicationBridge::CreateNetRe
 	const FReplicationProtocol* ReplicationProtocol = ProtocolManager->GetReplicationProtocol(ReceivedProtocolId, ArchetypeOrCDOUsedAsKey);
 	if (!ReplicationProtocol)
 	{
-		constexpr bool bVerifyProtocol = true;
-		ReplicationProtocol = ProtocolManager->CreateReplicationProtocol(ArchetypeOrCDOUsedAsKey, ReceivedProtocolId, RegisteredFragments, *(InstancePtr->GetClass()->GetName()), bVerifyProtocol);
+		FCreateReplicationProtocolParameters CreateProtocolParams {.ArchetypeOrCDOUsedAsKey = ArchetypeOrCDOUsedAsKey, .bValidateProtocolId = true};
+		ReplicationProtocol = ProtocolManager->CreateReplicationProtocol(ReceivedProtocolId, RegisteredFragments, *(InstancePtr->GetClass()->GetName()), CreateProtocolParams);
 	}
 	else
 	{
@@ -1395,6 +1395,42 @@ bool UObjectReplicationBridge::IsClassCritical(const UClass* Class)
 	return false;
 }
 
+int32 UObjectReplicationBridge::GetTypeStatsIndex(const UClass* Class)
+{
+	using namespace UE::Net;
+	using namespace UE::Net::Private;
+	
+	if (ClassesWithTypeStats.Num() > 0)
+	{
+		FNetTypeStats& TypeStats = GetReplicationSystem()->GetReplicationSystemInternal()->GetNetTypeStats();
+		for (; Class != nullptr; Class = Class->GetSuperClass())
+		{
+			if (FName* TypeStatsName = ClassesWithTypeStats.Find(GetConfigClassPathName(Class)))
+			{
+				return TypeStats.GetOrCreateTypeStats(*TypeStatsName);
+			}
+		}
+	}
+
+	return FNetTypeStats::DefaultTypeStatsIndex;
+}
+
+void UObjectReplicationBridge::SetClassTypeStatsConfig(FName ClassPathName, FName TypeStatsName)
+{
+	if (ClassPathName.IsNone())
+	{
+		return;
+	}
+
+	ClassesWithTypeStats.Add(ClassPathName, TypeStatsName);
+
+}
+
+void UObjectReplicationBridge::SetClassTypeStatsConfig(const FString& ClassPathName, const FString& TypeStatsName)
+{
+	SetClassTypeStatsConfig(FName(ClassPathName), FName(TypeStatsName));
+}
+
 void UObjectReplicationBridge::SetClassDynamicFilterConfig(FName ClassPathName, const UE::Net::FNetObjectFilterHandle FilterHandle)
 {
 	if (ClassPathName.IsNone())
@@ -1636,6 +1672,21 @@ void UObjectReplicationBridge::LoadConfig()
 			}
 
 			ClassesFlaggedCritical.Add(CriticalClassConfig.ClassName, CriticalClassConfig.bDisconnectOnProtocolMismatch);
+		}
+	}
+	// Load TypeStats settings
+	{
+		for (const FObjectReplicationBridgeTypeStatsConfig& TypeStatsConfig : BridgeConfig->GetTypeStatsConfigs())
+		{
+#if !UE_NET_IRIS_VERBOSE_CSV_STATS
+			// Skip all non shipping TypeStats
+			if (!TypeStatsConfig.bIncludeInMinimalCSVStats)
+			{
+				continue;
+			}
+#endif			
+			ClassesWithTypeStats.Add(TypeStatsConfig.ClassName, TypeStatsConfig.TypeStatsName);
+
 		}
 	}
 }

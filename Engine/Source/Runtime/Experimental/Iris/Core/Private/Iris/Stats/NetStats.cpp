@@ -1,14 +1,42 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Iris/Stats/NetStats.h"
-#include "ProfilingDebugging/CsvProfiler.h"
+#include "Iris/Stats/NetStatsContext.h"
+#include "Iris/Core/IrisProfiler.h"
+#include "HAL/IConsoleManager.h"
 #include "Misc/ScopeLock.h"
+#include "ProfilingDebugging/CsvProfiler.h"
 
-namespace UE::Net
+namespace UE::Net::Private
 {
+
+static bool bCVARShouldIncludeSubObjectWithRoot = true;
+static FAutoConsoleVariableRef CShouldIncludeSubObjectWithRoot(
+	TEXT("net.Iris.Stats.ShouldIncludeSubObjectWithRoot"),
+	bCVARShouldIncludeSubObjectWithRoot,
+	TEXT("If enabled SubObjects will reports stats with RootObject, if set to false SubObjects will be treated as separate objects."
+	));
 
 // Enable Iris category by default on servers
 CSV_DEFINE_CATEGORY(Iris, WITH_SERVER_CODE);
+
+// Per type stats
+CSV_DEFINE_CATEGORY(IrisPreUpdateMS, WITH_SERVER_CODE);
+CSV_DEFINE_CATEGORY(IrisPreUpdateCount, WITH_SERVER_CODE);
+CSV_DEFINE_CATEGORY(IrisPollMS, WITH_SERVER_CODE);
+CSV_DEFINE_CATEGORY(IrisPollCount, WITH_SERVER_CODE);
+CSV_DEFINE_CATEGORY(IrisPollWasteMS, WITH_SERVER_CODE);
+CSV_DEFINE_CATEGORY(IrisPollWasteCount, WITH_SERVER_CODE);
+CSV_DEFINE_CATEGORY(IrisCopyMS, WITH_SERVER_CODE);
+CSV_DEFINE_CATEGORY(IrisCopyCount, WITH_SERVER_CODE);
+CSV_DEFINE_CATEGORY(IrisWriteMS, WITH_SERVER_CODE);
+CSV_DEFINE_CATEGORY(IrisWriteCount, WITH_SERVER_CODE);
+CSV_DEFINE_CATEGORY(IrisWriteKBytes, WITH_SERVER_CODE);
+CSV_DEFINE_CATEGORY(IrisWriteWasteMS, WITH_SERVER_CODE);
+CSV_DEFINE_CATEGORY(IrisWriteWasteCount, WITH_SERVER_CODE);
+CSV_DEFINE_CATEGORY(IrisWriteWasteKBytes, WITH_SERVER_CODE);
+CSV_DEFINE_CATEGORY(IrisWriteCreationInfoCount, WITH_SERVER_CODE);
+CSV_DEFINE_CATEGORY(IrisWriteCreationInfoKBytes, WITH_SERVER_CODE);
 
 void FNetSendStats::Accumulate(const FNetSendStats& Other)
 {
@@ -19,13 +47,11 @@ void FNetSendStats::Accumulate(const FNetSendStats& Other)
 	Stats.ReplicatedObjectCount += Other.Stats.ReplicatedObjectCount;
 	Stats.ReplicatedDestructionInfoCount += Other.Stats.ReplicatedDestructionInfoCount;
 	Stats.DeltaCompressedObjectCount += Other.Stats.DeltaCompressedObjectCount;
-	Stats.ReplicationWasteObjectCount += Other.Stats.ReplicationWasteObjectCount;
 	Stats.ReplicatedObjectStatesMaskedOut += Other.Stats.ReplicatedObjectStatesMaskedOut;
 	Stats.ActiveHugeObjectCount += Other.Stats.ActiveHugeObjectCount;
 	Stats.HugeObjectsWaitingForAckCount += Other.Stats.HugeObjectsWaitingForAckCount;
 	Stats.HugeObjectsStallingCount += Other.Stats.HugeObjectsStallingCount;
 
-	Stats.ReplicationWasteTimeInSeconds += Other.Stats.ReplicationWasteTimeInSeconds;
 	Stats.HugeObjectWaitingForAckTimeInSeconds += Other.Stats.HugeObjectWaitingForAckTimeInSeconds;
 	Stats.HugeObjectStallingTimeInSeconds += Other.Stats.HugeObjectStallingTimeInSeconds;
 }
@@ -49,7 +75,6 @@ void FNetSendStats::ReportCsvStats()
 		CSV_CUSTOM_STAT(Iris, AvgReplicatedRootObjectCount, Stats.ReplicatedRootObjectCount/ConnectionCountFloat, ECsvCustomStatOp::Set);
 		CSV_CUSTOM_STAT(Iris, AvgReplicatedObjectCount, Stats.ReplicatedObjectCount/ConnectionCountFloat, ECsvCustomStatOp::Set);
 		CSV_CUSTOM_STAT(Iris, AvgReplicatedDestructionInfoCount, Stats.ReplicatedDestructionInfoCount/ConnectionCountFloat, ECsvCustomStatOp::Set);
-		CSV_CUSTOM_STAT(Iris, AvgReplicationWasteObjectCount, Stats.ReplicationWasteObjectCount/ConnectionCountFloat, ECsvCustomStatOp::Set);
 		CSV_CUSTOM_STAT(Iris, AvgReplicatedObjectStatesMaskedOut, Stats.ReplicatedObjectStatesMaskedOut/ConnectionCountFloat, ECsvCustomStatOp::Set);
 		CSV_CUSTOM_STAT(Iris, AvgDeltaCompressedObjectCount, Stats.DeltaCompressedObjectCount/ConnectionCountFloat, ECsvCustomStatOp::Set);
 	}
@@ -60,7 +85,6 @@ void FNetSendStats::ReportCsvStats()
 		CSV_CUSTOM_STAT(Iris, AvgReplicatedObjectCount, 0, ECsvCustomStatOp::Set);
 		CSV_CUSTOM_STAT(Iris, AvgReplicatedDestructionInfoCount, 0, ECsvCustomStatOp::Set);
 		CSV_CUSTOM_STAT(Iris, AvgReplicatedHugeObjectCount, 0, ECsvCustomStatOp::Set);
-		CSV_CUSTOM_STAT(Iris, AvgReplicationWasteObjectCount, 0, ECsvCustomStatOp::Set);
 		CSV_CUSTOM_STAT(Iris, AvgDeltaCompressedObjectCount, 0, ECsvCustomStatOp::Set);
 	}
 
@@ -71,10 +95,145 @@ void FNetSendStats::ReportCsvStats()
 
 	CSV_CUSTOM_STAT(Iris, ReplicatingConnectionCount, Stats.ReplicatingConnectionCount, ECsvCustomStatOp::Set);
 
-	CSV_CUSTOM_STAT(Iris, ReplicationWasteTimeMilliseconds, Stats.ReplicationWasteTimeInSeconds*1000.0, ECsvCustomStatOp::Set);
 	CSV_CUSTOM_STAT(Iris, HugeObjectWaitingForAckTimeInSeconds, Stats.HugeObjectWaitingForAckTimeInSeconds, ECsvCustomStatOp::Set);
 	CSV_CUSTOM_STAT(Iris, HugeObjectStallingTimeInSeconds, Stats.HugeObjectStallingTimeInSeconds, ECsvCustomStatOp::Set);
 #endif
 }
+
+FNetTypeStats::FNetTypeStats()
+{
+	StatsContext = TUniquePtr<FNetStatsContext>(CreateNetStatsContext());
+	// Add default TypeStats
+	GetOrCreateTypeStats(TEXT("Undefined"));
+	GetOrCreateTypeStats(TEXT("OOBChannel"));
+}
+
+FNetTypeStats::~FNetTypeStats()
+{
+}
+
+void FNetTypeStats::Init(FInitParams& InitParams)
+{
+	NetRefHandleManager = InitParams.NetRefHandleManager;
+	ResetStats();
+}
+
+void FNetTypeStats::ResetStats()
+{
+	UpdateContext(*StatsContext);
+}
+
+int32 FNetTypeStats::GetOrCreateTypeStats(FName Name)
+{
+	const int32 ExistingIndex = TypeStatsNames.Find(Name);
+	if (ExistingIndex != INDEX_NONE)
+	{
+		return ExistingIndex;
+	}
+
+	const int32 NewTypeStatsIndex = int32(TypeStatsNames.Num());
+	TypeStatsNames.Add(Name);
+	StatsContext->TypeStatsData.SetNum(TypeStatsNames.Num());
+
+	return NewTypeStatsIndex;
+}
+
+void FNetTypeStats::UpdateContext(FNetStatsContext& Context)
+{
+	Context.ResetStats(TypeStatsNames.Num());
+	Context.NetRefHandleManager = NetRefHandleManager;
+	Context.bShouldIncludeSubObjectWithRoot = bCVARShouldIncludeSubObjectWithRoot;
+};
+
+FNetStatsContext* FNetTypeStats::CreateNetStatsContext()
+{
+	FNetStatsContext* Context = new FNetStatsContext;
+	UpdateContext(*Context);
+	return Context;
+};
+
+void FNetTypeStats::Accumulate(FNetStatsContext& Context)
+{
+	IRIS_PROFILER_SCOPE(FNetTypeStats_Accumulate);
+
+	// Skip default context as that is our target.
+	if (&Context == StatsContext.Get())
+	{
+		return;
+	}
+
+	if (!ensureMsgf(Context.TypeStatsData.Num() <= TypeStatsNames.Num(), TEXT("Invalid Context")))
+	{
+		return;
+	}
+
+	// Accumulate stats
+	const FNetTypeStatsData* Src = Context.TypeStatsData.GetData();
+	FNetTypeStatsData* Dst = StatsContext->TypeStatsData.GetData();
+	for (int32 StatsIndex = 0, EndIndex = FMath::Min(Context.TypeStatsData.Num(), StatsContext->TypeStatsData.Num()); StatsIndex < EndIndex; ++StatsIndex)
+	{
+		Dst[StatsIndex].Accumulate(Src[StatsIndex]);
+	}
+
+	Context.ResetStats(TypeStatsNames.Num());
+}
+
+#define UE_NET_STATS_RECORD_TYPESTATS_TIME(StatsName, ValueName, StatsData) FCsvProfiler::RecordCustomStat(StatsName, CSV_CATEGORY_INDEX(Iris##ValueName##MS), FGenericPlatformTime::ToMilliseconds64(StatsData.Values[FNetTypeStatsData::EStatsIndex::ValueName].Time), ECsvCustomStatOp::Set)
+#define UE_NET_STATS_RECORD_TYPESTATS_COUNT(StatsName, ValueName, StatsData) FCsvProfiler::RecordCustomStat(StatsName, CSV_CATEGORY_INDEX(Iris##ValueName##Count), static_cast<int32>(StatsData.Values[FNetTypeStatsData::EStatsIndex::ValueName].Count) , ECsvCustomStatOp::Set)
+#define UE_NET_STATS_RECORD_TYPESTATS_BITS(StatsName, ValueName, StatsData) FCsvProfiler::RecordCustomStat(StatsName, CSV_CATEGORY_INDEX(Iris##ValueName##KBytes), ((StatsData.Values[FNetTypeStatsData::EStatsIndex::ValueName].Bits + 7U) / 8) / 1000.f , ECsvCustomStatOp::Set)
+
+void FNetTypeStats::ReportCSVStats()
+{
+#if UE_NET_IRIS_CSV_STATS && CSV_PROFILER
+
+	FCsvProfiler* Profiler = FCsvProfiler::Get();
+	bIsEnabled = Profiler->IsCapturing();
+
+	if (bIsEnabled)
+	{
+		IRIS_PROFILER_SCOPE(FNetTypeStats_ReportCSVStats);
+
+		// Report stats for this frame
+		FNetTypeStatsData* TypeStatsDatas = StatsContext->TypeStatsData.GetData();
+		for (int32 StatsIndex = 0; StatsIndex < TypeStatsNames.Num(); ++StatsIndex)
+		{
+			const FName StatsName = TypeStatsNames[StatsIndex];
+			FNetTypeStatsData& TypeStatsData = TypeStatsDatas[StatsIndex];
+
+			// Report, we could do a loop here but we might end up not wanting to report all collected stats.
+			UE_NET_STATS_RECORD_TYPESTATS_TIME(StatsName, PreUpdate, TypeStatsData);
+			UE_NET_STATS_RECORD_TYPESTATS_COUNT(StatsName, PreUpdate, TypeStatsData);
+
+			UE_NET_STATS_RECORD_TYPESTATS_TIME(StatsName, Poll, TypeStatsData);
+			UE_NET_STATS_RECORD_TYPESTATS_COUNT(StatsName, Poll, TypeStatsData);
+
+			UE_NET_STATS_RECORD_TYPESTATS_TIME(StatsName, PollWaste, TypeStatsData);
+			UE_NET_STATS_RECORD_TYPESTATS_COUNT(StatsName, PollWaste, TypeStatsData);
+
+			UE_NET_STATS_RECORD_TYPESTATS_TIME(StatsName, Copy, TypeStatsData);
+			UE_NET_STATS_RECORD_TYPESTATS_COUNT(StatsName, Copy, TypeStatsData);
+
+			UE_NET_STATS_RECORD_TYPESTATS_TIME(StatsName, Write, TypeStatsData);
+			UE_NET_STATS_RECORD_TYPESTATS_COUNT(StatsName, Write, TypeStatsData);
+			UE_NET_STATS_RECORD_TYPESTATS_BITS(StatsName, Write, TypeStatsData);
+
+			UE_NET_STATS_RECORD_TYPESTATS_TIME(StatsName, WriteWaste, TypeStatsData);
+			UE_NET_STATS_RECORD_TYPESTATS_COUNT(StatsName, Write, TypeStatsData);
+			UE_NET_STATS_RECORD_TYPESTATS_BITS(StatsName, WriteWaste, TypeStatsData);
+
+			UE_NET_STATS_RECORD_TYPESTATS_BITS(StatsName, WriteCreationInfo, TypeStatsData);
+			UE_NET_STATS_RECORD_TYPESTATS_COUNT(StatsName, WriteCreationInfo, TypeStatsData);
+
+			// Reset
+			TypeStatsData.Reset();
+		}
+	}
+
+#endif
+}
+
+#undef UE_NET_STATS_RECORD_TYPESTATS_TIME
+#undef UE_NET_STATS_RECORD_TYPESTATS_COUNT
+#undef UE_NET_STATS_RECORD_TYPESTATS_BITS
 
 }

@@ -28,6 +28,7 @@
 #include "HAL/IConsoleManager.h"
 #include "Iris/Core/IrisProfiler.h"
 #include "Net/Core/Trace/NetDebugName.h"
+#include "Iris/Stats/NetStatsContext.h"
 
 namespace UE::Net::Private
 {
@@ -78,6 +79,7 @@ uint32 FReplicationInstanceOperationsInternal::CopyObjectStateData(FNetBitStream
 		if (Object.InstanceProtocol && Object.Protocol->InternalTotalSize > 0U)
 		{
 			IRIS_PROFILER_PROTOCOL_NAME(Object.Protocol->DebugName->Name);
+			UE_NET_IRIS_STATS_TIMER(Timer, SerializationContext.GetNetStatsContext());
 
 			// if the object was scopable prev frame we can do partial copy
 			bool bShouldPropagateChangedStates = Object.bShouldPropagateChangedStates;
@@ -131,6 +133,8 @@ uint32 FReplicationInstanceOperationsInternal::CopyObjectStateData(FNetBitStream
 			{
 				Cache.PopLastEntry();
 			}
+
+			UE_NET_IRIS_STATS_ADD_TIME_AND_COUNT_FOR_OBJECT(Timer, Copy, InternalIndex);
 
 			return 1U;
 		}

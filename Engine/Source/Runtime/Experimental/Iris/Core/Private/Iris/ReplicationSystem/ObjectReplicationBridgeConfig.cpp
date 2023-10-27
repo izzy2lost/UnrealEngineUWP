@@ -37,3 +37,8 @@ TConstArrayView<FObjectReplicatedBridgeCriticalClassConfig> UObjectReplicationBr
 {
 	return MakeArrayView(CriticalClassConfigs);
 }
+
+TConstArrayView<FObjectReplicationBridgeTypeStatsConfig> UObjectReplicationBridgeConfig::GetTypeStatsConfigs() const
+{
+	return MakeArrayView(TypeStatsConfigs);
+}

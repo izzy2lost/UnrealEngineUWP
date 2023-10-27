@@ -4,8 +4,16 @@
 
 #include "HAL/Platform.h"
 #include "HAL/CriticalSection.h"
+#include "Templates/UniquePtr.h"
+#include "Containers/Array.h"
 
-namespace UE::Net
+namespace UE::Net::Private
+{
+	class FNetRefHandleManager;
+	class FNetStatsContext;
+}
+
+namespace UE::Net::Private
 {
 
 /**
@@ -74,14 +82,12 @@ private:
 	{
 		double HugeObjectWaitingForAckTimeInSeconds = 0;
 		double HugeObjectStallingTimeInSeconds = 0;
-		double ReplicationWasteTimeInSeconds = 0;
 
 		int32 ScheduledForReplicationRootObjectCount = 0;
 		int32 ReplicatedRootObjectCount = 0;
 		int32 ReplicatedObjectCount = 0;
 		int32 ReplicatedDestructionInfoCount = 0;
 		int32 DeltaCompressedObjectCount = 0;
-		int32 ReplicationWasteObjectCount = 0;
 		int32 ReplicatedObjectStatesMaskedOut = 0;
 		int32 ActiveHugeObjectCount = 0;
 		int32 HugeObjectsWaitingForAckCount = 0;
@@ -145,15 +151,62 @@ inline void FNetSendStats::AddHugeObjectStallTime(double Seconds)
 	Stats.HugeObjectStallingTimeInSeconds += Seconds;
 }
 
-inline void FNetSendStats::AddReplicationWasteTime(double Seconds)
-{
-	++Stats.ReplicationWasteObjectCount;
-	Stats.ReplicationWasteTimeInSeconds += Seconds;
-}
-
 inline void FNetSendStats::SetNumberOfReplicatingConnections(uint32 Count)
 {
 	Stats.ReplicatingConnectionCount = Count;
 }
+
+/**
+ * Stats defined per object type for Iris replication reported to the CSV profiler. Mostly of interest on the server side due to the server authoritative network model.
+ * Currently we use a single NetStatsContext when collecting the stats, when we go wide we need to extend this to use separate contexts for different threads.
+ */
+class FNetTypeStats
+{
+public:
+
+	struct FInitParams
+	{
+		FNetRefHandleManager* NetRefHandleManager = nullptr;
+	};
+
+	// Preset stats type indices
+	static constexpr int32 DefaultTypeStatsIndex = 0U;
+	static constexpr int32 OOBChannelTypeStatsIndex = 1U;
+
+public:
+	FNetTypeStats();
+	FNetTypeStats(const FNetTypeStats&) = delete;
+	FNetTypeStats& operator=(const FNetTypeStats&) = delete;
+	~FNetTypeStats();
+
+	void Init(FInitParams& InitParams);
+
+	/** Reset stats */
+	void ResetStats();
+		
+	/** Returns the TypeStatIndex associated with the Name or creates a new one if it does not exist */
+	int32 GetOrCreateTypeStats(FName Name);
+
+	/** Get default context if stats is enabled, once we decide to go wide we will need to expose methods to create and refresh StatsContexts per thread */
+	FNetStatsContext* GetNetStatsContext() { return IsEnabled() ?  StatsContext.Get() : nullptr; }
+
+	/** Updated every frame based on the state of the CSVProfiler */
+	bool IsEnabled() const { return bIsEnabled; }
+
+	/** Accumulate stats from context to main context */
+	void Accumulate(FNetStatsContext& Context);
+
+	/** ReportCSVStats and reset context */
+	void ReportCSVStats();
+
+private:
+	FNetStatsContext* CreateNetStatsContext();
+	void UpdateContext(FNetStatsContext& Context);
+
+	TUniquePtr<FNetStatsContext> StatsContext = nullptr;
+	FNetRefHandleManager* NetRefHandleManager = nullptr;
+	TArray<FName> TypeStatsNames;
+	bool bIsEnabled = false;
+};
 
 }

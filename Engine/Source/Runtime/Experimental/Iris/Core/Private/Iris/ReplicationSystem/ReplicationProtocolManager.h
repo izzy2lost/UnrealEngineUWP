@@ -11,19 +11,20 @@
 namespace UE::Net::Private
 {
 
+struct FCreateReplicationProtocolParameters
+{
+	const UObject* ArchetypeOrCDOUsedAsKey = nullptr;
+	bool bValidateProtocolId = false;
+	int32 TypeStatsIndex = INDEX_NONE;
+};
+
 class FReplicationProtocolManager
 {
 public:
 	~FReplicationProtocolManager();
 
 	/* Create protocol from registered fragment data with provided Id, verification is optional */
-	IRISCORE_API const FReplicationProtocol* CreateReplicationProtocol(const UObject* ArchetypeOrCDOUsedAsKey, const FReplicationProtocolIdentifier ProtocolId, const FReplicationFragments& Fragments, const TCHAR* DebugName, bool bVerifyId = false);
-
-	/* Create protocol from registered fragment data with provided Id, verification is optional */
-	const FReplicationProtocol* CreateReplicationProtocol(const FReplicationProtocolIdentifier ProtocolId, const FReplicationFragments& Fragments, const TCHAR* DebugName, bool bVerifyId = false)
-	{
-		return CreateReplicationProtocol(nullptr, ProtocolId, Fragments, DebugName, bVerifyId);
-	}
+	IRISCORE_API const FReplicationProtocol* CreateReplicationProtocol(const FReplicationProtocolIdentifier ProtocolId, const FReplicationFragments& Fragments, const TCHAR* DebugName, const FCreateReplicationProtocolParameters& Params = FCreateReplicationProtocolParameters());
 
 	/* Get an existing replication protocol */
 	IRISCORE_API const FReplicationProtocol* GetReplicationProtocol(FReplicationProtocolIdentifier ProtocolId, const UObject* ArchetypeOrCDOUsedAsKey = nullptr);
@@ -32,7 +33,6 @@ public:
 	template<typename T>
 	void ForEachProtocol(FReplicationProtocolIdentifier ProtocolId, T&& Functor) const;
 	
-
 	/* Destroy existing replication protocol */
 	IRISCORE_API void DestroyReplicationProtocol(const FReplicationProtocol* ReplicationProtocol);
 

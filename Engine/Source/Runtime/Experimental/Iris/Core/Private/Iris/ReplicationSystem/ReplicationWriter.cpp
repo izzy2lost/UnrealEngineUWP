@@ -24,7 +24,7 @@
 #include "Iris/Serialization/NetBitStreamUtil.h"
 #include "Iris/Serialization/NetSerializer.h"
 #include "Iris/Serialization/NetExportContext.h"
-#include "Iris/Stats/NetStats.h"
+#include "Iris/Stats/NetStatsContext.h"
 #include "HAL/IConsoleManager.h"
 #include "ProfilingDebugging/CsvProfiler.h"
 #include <algorithm>
@@ -68,24 +68,6 @@ static bool bValidateObjectsWithDirtyChanges = false;
 static FAutoConsoleVariableRef CvarValidateObjectsWithDirtyChanges(TEXT("net.Iris.ReplicationWriter.ValidateObjectsWithDirtyChanges"), bValidateObjectsWithDirtyChanges, TEXT("Ensure that we don't try to mark invalid objects as dirty when they shouldn't."));
 
 static const FName NetError_ObjectStateTooLarge("Object state is too large to be split.");
-
-/** Helper class for timing various operations. */
-class FIrisStatsTimer
-{
-public:
-	FIrisStatsTimer()
-	: StartCycle(FPlatformTime::Cycles64()) 
-	{
-	}
-
-	double GetSeconds() const
-	{
-		return FPlatformTime::ToSeconds64(FPlatformTime::Cycles64() - StartCycle);
-	}
-
-private:
-	uint64 StartCycle;
-};
 
 const TCHAR* FReplicationWriter::LexToString(const EReplicatedObjectState State)
 {
@@ -383,6 +365,7 @@ void FReplicationWriter::Init(const FReplicationParameters& InParameters)
 	const FNetBlobManager* NetBlobManager = &ReplicationSystemInternal->GetNetBlobManager();
 	PartialNetObjectAttachmentHandler = NetBlobManager->GetPartialNetObjectAttachmentHandler();
 	NetObjectBlobHandler = NetBlobManager->GetNetObjectBlobHandler();
+	NetTypeStats = &ReplicationSystemInternal->GetNetTypeStats();
 
 	// Init book keeping
 	ReplicatedObjects.SetNumZeroed(Parameters.MaxActiveReplicatedObjectCount);
@@ -1857,7 +1840,7 @@ FReplicationWriter::EWriteObjectStatus FReplicationWriter::WriteObjectAndSubObje
 	UE_NET_TRACE_OBJECT_SCOPE(NetRefHandleForTraceScope, Writer, Context.GetTraceCollector(), ENetTraceVerbosity::Trace);
 #endif
 
-	// We only need to write batch 
+	// We only need to write batch info for root objects
 	const bool bWriteBatchInfo = !Info.IsSubObject;
 	uint32 InitialStateHeaderPos = 0U;
 	const uint32 NumBitsUsedForBatchSize = Parameters.NumBitsUsedForBatchSize;
@@ -2060,6 +2043,8 @@ FReplicationWriter::EWriteObjectStatus FReplicationWriter::WriteObjectAndSubObje
 				}
 				// Serialize initial state data for this object using delta compression against default state
 				FReplicationProtocolOperations::SerializeInitialStateWithMask(Context, Info.GetChangeMaskStoragePointer(), ReplicatedObjectStateBuffer, ObjectData.Protocol);
+
+				UE_NET_IRIS_STATS_ADD_BITS_WRITTEN_AND_COUNT_FOR_OBJECT(Context.GetNetStatsContext(), Writer.GetPosBits() - ObjectRollbackScope.GetStartPos(), WriteCreationInfo, InternalIndex);
 			}
 			else
 			{
@@ -2154,6 +2139,7 @@ FReplicationWriter::EWriteObjectStatus FReplicationWriter::WriteObjectAndSubObje
 
 		if (Writer.IsOverflown())
 		{
+			UE_NET_IRIS_STATS_ADD_BITS_WRITTEN_FOR_OBJECT_AS_WASTE(Context.GetNetStatsContext(), Writer.GetPosBits() - ObjectRollbackScope.GetStartPos(), Write, InternalIndex);
 			return EWriteObjectStatus::BitStreamOverflow;
 		}
 
@@ -2209,12 +2195,11 @@ FReplicationWriter::EWriteObjectStatus FReplicationWriter::WriteObjectAndSubObje
 	CreatedBaselineIndex = FDeltaCompressionBaselineManager::InvalidBaselineIndex;
 
 	// Write dirty sub objects
-	bool bWroteSubObjectData = false;
+	const uint32 SubObjectStartPos = Writer.GetPosBits();
+	uint32 SubObjectsWrittenBits = 0U;
 	if (Info.HasDirtySubObjects && !Info.IsSubObject)
 	{
 		bool bHasDirtySubObjects = false;
-
-		const uint32 SubObjectStartPos = Writer.GetPosBits();
 		
 		FReplicationConditionals::FSubObjectsToReplicateArray SubObjectsToReplicate;
 		ReplicationConditionals->GetSubObjectsToReplicate(Parameters.ConnectionId, InternalIndex, SubObjectsToReplicate);		
@@ -2230,6 +2215,8 @@ FReplicationWriter::EWriteObjectStatus FReplicationWriter::WriteObjectAndSubObje
 			EWriteObjectStatus SubObjectWriteStatus = WriteObjectAndSubObjects(Context, SubObjectInternalIndex, WriteObjectFlags, OutBatchInfo);
 			if (!IsWriteObjectSuccess(SubObjectWriteStatus))
 			{
+				// SubObject will rollback on fail (and report its own waste) but we as we will rollback successfully written subobjects it is better to at least report it with the owner.
+				UE_NET_IRIS_STATS_ADD_BITS_WRITTEN_FOR_OBJECT_AS_WASTE(Context.GetNetStatsContext(), Writer.GetPosBits() - ObjectRollbackScope.GetStartPos(), Write, InternalIndex);
 				return SubObjectWriteStatus;
 			}
 
@@ -2241,7 +2228,7 @@ FReplicationWriter::EWriteObjectStatus FReplicationWriter::WriteObjectAndSubObje
 			}
 		}
 
-		bWroteSubObjectData = Writer.GetPosBits() != SubObjectStartPos;
+		SubObjectsWrittenBits = Writer.GetPosBits() - SubObjectStartPos;
 
 		// Update parent batch info
 		{
@@ -2259,12 +2246,14 @@ FReplicationWriter::EWriteObjectStatus FReplicationWriter::WriteObjectAndSubObje
 		const uint32 WrittenBitsInBatch = (Writer.GetPosBits() - InitialStateHeaderPos) - NumBitsUsedForBatchSize;
 		
 		const bool bWroteData = (ParentBatchEntry.bSentState || ParentBatchEntry.bSentAttachments || bSentTearOff || Info.SubObjectPendingDestroy);
-		if (bWroteData || bWroteSubObjectData)
+		if (bWroteData || (SubObjectsWrittenBits != 0U))
 		{
 			const FObjectReferenceCache::EWriteExportsResult WriteExportResult = ObjectReferenceCache->WritePendingExports(Context);
 
 			if (WriteExportResult == FObjectReferenceCache::EWriteExportsResult::BitStreamOverflow)
 			{
+				// If we fail to write exports, we fail the entire object
+				UE_NET_IRIS_STATS_ADD_BITS_WRITTEN_FOR_OBJECT_AS_WASTE(Context.GetNetStatsContext(), Writer.GetPosBits() - ObjectRollbackScope.GetStartPos(), Write, InternalIndex);
 				return EWriteObjectStatus::BitStreamOverflow;	
 			}
 
@@ -2280,6 +2269,8 @@ FReplicationWriter::EWriteObjectStatus FReplicationWriter::WriteObjectAndSubObje
 			}
 
 			ParentBatchEntry.bSentBatchData = 1U;
+
+			UE_NET_IRIS_STATS_ADD_BITS_WRITTEN_FOR_OBJECT(Context.GetNetStatsContext(), (Writer.GetPosBits() - ObjectRollbackScope.GetStartPos()) - SubObjectsWrittenBits, Write, InternalIndex);
 		}
 		// If we did not write any data we rollback any written headers and report a success
 		else
@@ -2296,6 +2287,8 @@ FReplicationWriter::EWriteObjectStatus FReplicationWriter::WriteObjectInBatch(FN
 {
 	IRIS_PROFILER_SCOPE(FReplicationWriter_WriteObjectInBatch);
 
+	UE_NET_IRIS_STATS_TIMER(Timer, Context.GetNetStatsContext());
+
 	// Reset pending exports
 	FNetExportContext* ExportContext = Context.GetExportContext();
 	if (ExportContext)
@@ -2307,8 +2300,11 @@ FReplicationWriter::EWriteObjectStatus FReplicationWriter::WriteObjectInBatch(FN
 	const EWriteObjectStatus WriteObjectStatus = WriteObjectAndSubObjects(Context, InternalIndex, WriteObjectFlags, OutBatchInfo);
 	if (!IsWriteObjectSuccess(WriteObjectStatus))
 	{
+		UE_NET_IRIS_STATS_ADD_TIME_AND_COUNT_FOR_OBJECT_AS_WASTE(Timer, Write, InternalIndex);
 		return WriteObjectStatus;
 	}
+
+	UE_NET_IRIS_STATS_ADD_TIME_AND_COUNT_FOR_OBJECT(Timer, Write, InternalIndex);
 
 	// Include dependent objects as separate batch, (for hugeobjects they will be included as they are written to a separate bitstream)
 	{
@@ -2759,16 +2755,7 @@ uint32 FReplicationWriter::WriteObjects(FNetSerializationContext& Context)
 	{
 		if (!this->WriteContext.ObjectsWrittenThisPacket.GetBit(InternalIndex) && this->CanSendObject(InternalIndex))
 		{
-#if UE_NET_IRIS_CSV_STATS && CSV_PROFILER
-			FIrisStatsTimer Timer;
-#endif
 			const int32 Result = this->WriteObjectBatch(Context, InternalIndex, WriteObjectFlag_State | WriteObjectFlag_Attachments);
-#if UE_NET_IRIS_CSV_STATS && CSV_PROFILER
-			if (Result <= 0)
-			{
-				this->WriteContext.Stats.AddReplicationWasteTime(Timer.GetSeconds());
-			}
-#endif
 			if (Result >= 0)
 			{
 				WrittenObjectCount += Result;
@@ -3180,7 +3167,8 @@ UDataStream::EWriteResult FReplicationWriter::Write(FNetSerializationContext& Co
 	// Setup internal context
 	FInternalNetSerializationContext InternalContext(Parameters.ReplicationSystem);
 	Context.SetLocalConnectionId(Parameters.ConnectionId);
-	Context.SetInternalContext(&InternalContext);	
+	Context.SetInternalContext(&InternalContext);
+	Context.SetNetStatsContext(NetTypeStats->GetNetStatsContext());
 
 	// Give some info for the case when we consider splitting a huge object.
 	WriteBitStreamInfo.ReplicationStartPos = Writer.GetPosBits();

@@ -17,6 +17,7 @@ namespace UE::Net
 
 		class FReplicationSystemInternal;
 		class FNetRefHandleManager;
+		class FNetStatsContext;
 	}
 }
 
@@ -77,6 +78,7 @@ private:
 	FReplicationSystemInternal* ReplicationSystemInternal;
 
 	FNetRefHandleManager& LocalNetRefHandleManager;
+	FNetStatsContext* NetStatsContext = nullptr;
 	const TArray<UObject*>& ReplicatedInstances;
 
 	const FNetBitArrayView AccumulatedDirtyObjects;
