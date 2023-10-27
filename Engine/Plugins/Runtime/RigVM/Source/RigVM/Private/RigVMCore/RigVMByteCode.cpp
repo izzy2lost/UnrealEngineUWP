@@ -1855,6 +1855,13 @@ void FRigVMByteCode::SetSubject(int32 InInstructionIndex, const FString& InCallP
 	}
 }
 
+void FRigVMByteCode::AddInstructionForSubject(UObject* InSubject, int32 InInstructionIndex)
+{
+	check(InSubject);
+	TWeakObjectPtr<UObject> WeakSubject(InSubject);
+	SubjectToInstructions.FindOrAdd(WeakSubject).AddUnique(InInstructionIndex);
+}
+
 const TArray<TWeakObjectPtr<UObject>>* FRigVMByteCode::GetCallstackForInstruction(int32 InInstructionIndex) const
 {
 	if (CallstackPerInstruction.IsValidIndex(InInstructionIndex))

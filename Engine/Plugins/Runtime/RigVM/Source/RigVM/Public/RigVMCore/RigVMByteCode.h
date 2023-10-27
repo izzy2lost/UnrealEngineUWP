@@ -1393,6 +1393,7 @@ private:
 #if WITH_EDITOR
 
 	void SetSubject(int32 InInstructionIndex, const FString& InCallPath, const TArray<TWeakObjectPtr<UObject>>& InCallstack);
+	void AddInstructionForSubject(UObject* InSubject, int32 InInstructionIndex);
 
 #endif
 

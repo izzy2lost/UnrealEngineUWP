@@ -2499,7 +2499,18 @@ bool URigVMCompiler::TraverseInlineFunction(const FRigVMInlineFunctionExprAST* I
 
 			if (WorkData.Settings.SetupNodeInstructionIndex)
 			{
-				WorkData.VM->GetByteCode().SetSubject(i, FuncRefCallstack.GetCallPath(), FuncRefCallstack.GetStack());
+				if (const TArray<TWeakObjectPtr<UObject>>* Callstack = FunctionByteCode.GetCallstackForInstruction(i-InstructionIndexStart))
+				{
+					if (Callstack->Num() > 1)
+					{
+						FRigVMCallstack InstructionCallstack = FuncRefCallstack;
+						InstructionCallstack.Stack.Append(&(*Callstack)[1], Callstack->Num()-1);
+						WorkData.VM->GetByteCode().SetSubject(i, InstructionCallstack.GetCallPath(), InstructionCallstack.GetStack());
+					}
+				}
+
+				// also store the instruction for the subject so that profiling can determine the cost of functions.
+				WorkData.VM->GetByteCode().AddInstructionForSubject(FunctionReferenceNode, i);
 			}
 		}
 
