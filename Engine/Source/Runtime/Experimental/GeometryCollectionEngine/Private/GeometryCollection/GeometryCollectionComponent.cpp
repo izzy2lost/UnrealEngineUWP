@@ -6835,6 +6835,17 @@ void UGeometryCollectionComponent::PostLoad()
 	}
 }
 
+void UGeometryCollectionComponent::SetPhysMaterialOverride(UPhysicalMaterial* NewPhysMaterial)
+{
+	Super::SetPhysMaterialOverride(NewPhysMaterial);
+
+	UPhysicalMaterial* EnginePhysicalMaterial = GetPhysicalMaterial();
+	if (ensure(EnginePhysicalMaterial) && PhysicsProxy && !PhysicsProxy->IsInitializedOnPhysicsThread())
+	{
+		PhysicsProxy->GetSimParameters().PhysicalMaterialHandle = EnginePhysicalMaterial->GetPhysicsMaterial();
+	}
+}
+
 void UGeometryCollectionComponent::FlushNetDormancyIfNeeded() const
 {
 	if (GetDesiredNetAwakeningMode() != ENetAwakeningMode::FlushNetDormancy)
