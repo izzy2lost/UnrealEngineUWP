@@ -13,6 +13,9 @@ void UDefaultGameFeaturesProjectPolicies::InitGameFeatureManager()
 
 	auto AdditionalFilter = [&](const FString& PluginFilename, const FGameFeaturePluginDetails& PluginDetails, FBuiltInGameFeaturePluginBehaviorOptions& OutOptions) -> bool
 	{
+		// By default, force all initially loaded plugins to synchronously load, this overrides the behavior of GameFeaturePlugin.AsyncLoad which will be used for later loads
+		OutOptions.bForceSyncLoading = true;
+
 		return true;
 	};
 
