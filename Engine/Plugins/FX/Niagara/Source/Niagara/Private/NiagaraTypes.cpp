@@ -661,6 +661,7 @@ FNiagaraTypeDefinition FNiagaraTypeHelper::GetLWCType(const FNiagaraTypeDefiniti
 		return InType;
 	}
 
+	InitLWCTypes();
 	if(InType == FNiagaraTypeDefinition::GetFloatDef())
 	{
 		return DoubleDef;
@@ -695,7 +696,7 @@ FNiagaraTypeDefinition FNiagaraTypeHelper::GetLWCType(const FNiagaraTypeDefiniti
 	return InType;
 }
 
-void FNiagaraTypeHelper::InitStaticTypes()
+void FNiagaraTypeHelper::InitLWCTypes()
 {
 	if (Vector2DDef.IsValid() == false)
 	{
@@ -708,7 +709,7 @@ void FNiagaraTypeHelper::InitStaticTypes()
 	}
 }
 
-void FNiagaraTypeHelper::RegisterStaticTypes()
+void FNiagaraTypeHelper::RegisterLWCTypes()
 {
 	FNiagaraTypeRegistry::Register(Vector2DDef, ENiagaraTypeRegistryFlags::None);
 	FNiagaraTypeRegistry::Register(VectorDef, ENiagaraTypeRegistryFlags::None);
@@ -719,26 +720,31 @@ void FNiagaraTypeHelper::RegisterStaticTypes()
 
 FNiagaraTypeDefinition FNiagaraTypeHelper::GetVector2DDef()
 {
+	InitLWCTypes();
 	return Vector2DDef;
 }
 
 FNiagaraTypeDefinition FNiagaraTypeHelper::GetVectorDef()
 {
+	InitLWCTypes();
 	return VectorDef;
 }
 
 FNiagaraTypeDefinition FNiagaraTypeHelper::GetVector4Def()
 {
+	InitLWCTypes();
 	return Vector4Def;
 }
 
 FNiagaraTypeDefinition FNiagaraTypeHelper::GetQuatDef()
 {
+	InitLWCTypes();
 	return QuatDef;
 }
 
 FNiagaraTypeDefinition FNiagaraTypeHelper::GetDoubleDef()
 {
+	InitLWCTypes();
 	return DoubleDef;
 }
 

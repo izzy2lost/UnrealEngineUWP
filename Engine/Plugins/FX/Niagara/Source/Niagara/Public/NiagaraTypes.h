@@ -437,8 +437,8 @@ public:
 	static NIAGARA_API FNiagaraTypeDefinition GetQuatDef();
 	static NIAGARA_API FNiagaraTypeDefinition GetDoubleDef();
 
-	static NIAGARA_API void InitStaticTypes();
-	static NIAGARA_API void RegisterStaticTypes();
+	static NIAGARA_API void InitLWCTypes();
+	static NIAGARA_API void RegisterLWCTypes();
 private:
 	struct FRemapEntry
 	{

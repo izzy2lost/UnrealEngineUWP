@@ -279,11 +279,11 @@ FNiagaraVariable INiagaraModule::Translator_CallID;
 void INiagaraModule::StartupModule()
 {
 	VectorVM::Init();
-	FNiagaraTypeHelper::InitStaticTypes();
+	FNiagaraTypeHelper::InitLWCTypes();
 
 	LLM_SCOPE(ELLMTag::Niagara);
 	FNiagaraTypeDefinition::Init();
-	FNiagaraTypeHelper::RegisterStaticTypes();
+	FNiagaraTypeHelper::RegisterLWCTypes();
 
 	if (IsRunningCookCommandlet())
 	{
