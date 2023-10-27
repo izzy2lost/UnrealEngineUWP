@@ -100,9 +100,12 @@ void FNetSendStats::ReportCsvStats()
 #endif
 }
 
+FNetStatsContext::FNetStatsContext() = default;
+FNetStatsContext::~FNetStatsContext() = default;
+
 FNetTypeStats::FNetTypeStats()
 {
-	StatsContext = TUniquePtr<FNetStatsContext>(CreateNetStatsContext());
+	StatsContext = CreateNetStatsContext();
 	// Add default TypeStats
 	GetOrCreateTypeStats(TEXT("Undefined"));
 	GetOrCreateTypeStats(TEXT("OOBChannel"));
@@ -110,6 +113,7 @@ FNetTypeStats::FNetTypeStats()
 
 FNetTypeStats::~FNetTypeStats()
 {
+	delete StatsContext;
 }
 
 void FNetTypeStats::Init(FInitParams& InitParams)
@@ -157,7 +161,7 @@ void FNetTypeStats::Accumulate(FNetStatsContext& Context)
 	IRIS_PROFILER_SCOPE(FNetTypeStats_Accumulate);
 
 	// Skip default context as that is our target.
-	if (&Context == StatsContext.Get())
+	if (&Context == StatsContext)
 	{
 		return;
 	}

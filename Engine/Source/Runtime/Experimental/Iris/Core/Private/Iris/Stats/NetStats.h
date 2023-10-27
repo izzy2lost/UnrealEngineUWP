@@ -4,7 +4,6 @@
 
 #include "HAL/Platform.h"
 #include "HAL/CriticalSection.h"
-#include "Templates/UniquePtr.h"
 #include "Containers/Array.h"
 
 namespace UE::Net::Private
@@ -188,7 +187,7 @@ public:
 	int32 GetOrCreateTypeStats(FName Name);
 
 	/** Get default context if stats is enabled, once we decide to go wide we will need to expose methods to create and refresh StatsContexts per thread */
-	FNetStatsContext* GetNetStatsContext() { return IsEnabled() ?  StatsContext.Get() : nullptr; }
+	FNetStatsContext* GetNetStatsContext() { return IsEnabled() ?  StatsContext : nullptr; }
 
 	/** Updated every frame based on the state of the CSVProfiler */
 	bool IsEnabled() const { return bIsEnabled; }
@@ -203,7 +202,7 @@ private:
 	FNetStatsContext* CreateNetStatsContext();
 	void UpdateContext(FNetStatsContext& Context);
 
-	TUniquePtr<FNetStatsContext> StatsContext = nullptr;
+	FNetStatsContext* StatsContext = nullptr;
 	FNetRefHandleManager* NetRefHandleManager = nullptr;
 	TArray<FName> TypeStatsNames;
 	bool bIsEnabled = false;

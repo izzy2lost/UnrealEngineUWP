@@ -59,7 +59,8 @@ struct FNetTypeStatsData
 class FNetStatsContext
 {
 public:
-	FNetStatsContext() = default;
+	FNetStatsContext();
+	~FNetStatsContext();
 	FNetStatsContext(const FNetStatsContext&) = delete;
 	FNetStatsContext& operator=(const FNetStatsContext&) = delete;
 
