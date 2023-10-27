@@ -1026,7 +1026,7 @@ void UClusterUnionComponent::HandleAddOrModifiedClusteredComponent(const FMapped
 
 	}
 
-	TArray<int32> RemovedBoneIDs;
+	TArray<FClusterUnionBoneData> RemovedBoneIDs;
 	RemovedBoneIDs.Reserve(ComponentData.BonesData.Num());
 
 	// In the case where we need to keep the acceleration structure up to date, we need to make sure old bone ids are properly
@@ -1046,7 +1046,7 @@ void UClusterUnionComponent::HandleAddOrModifiedClusteredComponent(const FMapped
 						AccelerationStructure->RemoveElement(Handle);
 					}
 				}
-				RemovedBoneIDs.Emplace(BoneData.ID);
+				RemovedBoneIDs.Emplace(FClusterUnionBoneData(BoneData.ID, BoneData.ParticleID));
 			}
 		}
 	}
@@ -1059,7 +1059,7 @@ void UClusterUnionComponent::HandleAddOrModifiedClusteredComponent(const FMapped
 		return FClusterUnionBoneData{MappedData.Key, MappedData.Value.ParticleID };
 	});
 
-	BroadcastComponentAddedEvents(ChangedComponentData.ComponentPtr, ComponentData.BonesData, bIsNew, MoveTemp(RemovedBoneIDs));
+	BroadcastComponentAddedEvents(ChangedComponentData.ComponentPtr, ComponentData.BonesData, bIsNew, RemovedBoneIDs);
 
 	if (IsAuthority() && ComponentData.ReplicatedProxyComponent.IsValid())
 	{
@@ -1147,7 +1147,7 @@ void UClusterUnionComponent::HandleRemovedClusteredComponent(TObjectKey<UPrimiti
 
 		if (UPrimitiveComponent* ChangedComponent = RemovedComponent.ResolveObjectPtr())
 		{
-			BroadcastComponentRemovedEvents(ChangedComponent);
+			BroadcastComponentRemovedEvents(ChangedComponent, Data->BonesData);
 		}
 		PerComponentData.Remove(RemovedComponent);
 	}
@@ -1155,7 +1155,7 @@ void UClusterUnionComponent::HandleRemovedClusteredComponent(TObjectKey<UPrimiti
 	PendingComponentSync.Remove(RemovedComponent);
 }
 
-void UClusterUnionComponent::BroadcastComponentAddedEvents(UPrimitiveComponent* ChangedComponent, const TSet<FClusterUnionBoneData>& BoneIds, bool bIsNew, TArray<int32>&& RemovedBoneIDs)
+void UClusterUnionComponent::BroadcastComponentAddedEvents(UPrimitiveComponent* ChangedComponent, const TSet<FClusterUnionBoneData>& BoneIds, bool bIsNew, const TArray<FClusterUnionBoneData>& RemovedBoneIDs)
 {
 	// TODO: Add a new delegate that takes a TArray and deprecate this one
 	if (OnComponentAddedEvent.IsBound())
@@ -1166,11 +1166,11 @@ void UClusterUnionComponent::BroadcastComponentAddedEvents(UPrimitiveComponent* 
 	}
 	if (OnComponentAddedNativeEvent.IsBound())
 	{
-		OnComponentAddedNativeEvent.Broadcast(ChangedComponent, BoneIds, MoveTemp(RemovedBoneIDs), bIsNew);
+		OnComponentAddedNativeEvent.Broadcast(ChangedComponent, BoneIds, RemovedBoneIDs, bIsNew);
 	}
 }
 
-void UClusterUnionComponent::BroadcastComponentRemovedEvents(UPrimitiveComponent* ChangedComponent)
+void UClusterUnionComponent::BroadcastComponentRemovedEvents(UPrimitiveComponent* ChangedComponent, const TSet<FClusterUnionBoneData>& InRemovedBonesData)
 {
 	if (OnComponentRemovedEvent.IsBound())
 	{
@@ -1178,7 +1178,7 @@ void UClusterUnionComponent::BroadcastComponentRemovedEvents(UPrimitiveComponent
 	}
 	if (OnComponentRemovedNativeEvent.IsBound())
 	{
-		OnComponentRemovedNativeEvent.Broadcast(ChangedComponent);
+		OnComponentRemovedNativeEvent.Broadcast(ChangedComponent, InRemovedBonesData);
 	}
 }
 
