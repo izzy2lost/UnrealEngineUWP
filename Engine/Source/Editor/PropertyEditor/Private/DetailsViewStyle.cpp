@@ -2,6 +2,97 @@
 
 
 #include "DetailsViewStyle.h"
+#include "Containers/Map.h"
+#include "Brushes/SlateImageBrush.h"
+#include "Styling/StyleColors.h"
+#include "Styling/StarshipCoreStyle.h"
+#include "Brushes/SlateRoundedBoxBrush.h"
+
+const FSlateBrush& FOverridesWidgetStyleKey::GetConstStyleBrush() const
+{
+	return ImageBrush;
+}
+
+const FComboButtonStyle& FDetailsViewStyle::GetOverridesComboButtonStyle(
+										const FOverridesWidgetStyleKey* OverridesWidgetStyleKey,
+										const bool bIsOverridesWidgetForOuterCategory) const
+{
+	static TMap<const FOverridesWidgetStyleKey*, const FComboButtonStyle> OverridesKeyToComboButtonStyleMap;
+	const FComboButtonStyle* ComboButtonStylePtr = OverridesKeyToComboButtonStyleMap.Find(OverridesWidgetStyleKey);
+
+	if ( ComboButtonStylePtr )
+	{
+		return *ComboButtonStylePtr;
+	}
+	
+	const FSlateColor BackgroundColor = bIsOverridesWidgetForOuterCategory ? FStyleColors::Header : FStyleColors::Panel;
+	static const FSlateColor HoveredBackgroundColor = FStyleColors::Header;
+			
+	const FButtonStyle OverridesButton = FButtonStyle()
+	                                     .SetNormalForeground(FStyleColors::AccentBlue)
+	                                     .SetHoveredForeground(FStyleColors::AccentBlue)
+	                                     .SetPressedForeground(FStyleColors::AccentBlue)
+	                                     .SetHovered(FSlateRoundedBoxBrush(HoveredBackgroundColor, 0.f))
+	                                     .SetNormal(FSlateRoundedBoxBrush(BackgroundColor, 0.f))
+	                                     .SetPressed(FSlateRoundedBoxBrush(BackgroundColor, 0.f))
+	                                     .SetNormalPadding(FMargin(2.f, 0.f, 0.f, 0.f))
+	                                     .SetPressedPadding(FMargin(2.f, 0.f, 0.f, 0.f));
+			
+
+	OverridesKeyToComboButtonStyleMap.Add(OverridesWidgetStyleKey, FComboButtonStyle(FStarshipCoreStyle::GetCoreStyle().GetWidgetStyle<FComboButtonStyle>("ComboButton"))
+												   .SetButtonStyle(OverridesButton)
+												   .SetDownArrowImage(OverridesWidgetStyleKey->GetConstStyleBrush())
+												   .SetDownArrowPadding(FMargin(2.f, 5.f, 3.f, 5.f)));
+
+		
+	return *OverridesKeyToComboButtonStyleMap.Find(OverridesWidgetStyleKey);
+}
+
+const FOverridesWidgetStyleKey& FOverridesWidgetStyleKeys::Here()
+{
+	static const FOverridesWidgetStyleKey Here{"OverrideHere"};
+	return Here;
+}
+
+const FOverridesWidgetStyleKey& FOverridesWidgetStyleKeys::Added()
+{
+	static const FOverridesWidgetStyleKey Added{"OverrideAdded"};
+	return Added;
+}
+
+const FOverridesWidgetStyleKey& FOverridesWidgetStyleKeys::Options()
+{
+	static const FOverridesWidgetStyleKey Options{"OverrideOptions"};
+	return Options;
+}
+
+const FOverridesWidgetStyleKey& FOverridesWidgetStyleKeys::Removed()
+{
+	static const FOverridesWidgetStyleKey Removed{"OverrideRemoved"};
+	return Removed;
+}
+
+const FOverridesWidgetStyleKey& FOverridesWidgetStyleKeys::Inside()
+{
+	static const FOverridesWidgetStyleKey Inside{"OverrideInside"};
+	return Inside;
+}
+
+const FOverridesWidgetStyleKey& FOverridesWidgetStyleKeys::HereInside()
+{
+	static const FOverridesWidgetStyleKey HereInside{"OverrideHereInside"};
+	return HereInside;
+}
+
+FOverridesWidgetStyleKey::FOverridesWidgetStyleKey(FName InName) : Name{InName}
+{
+	static const FVector2D Icon16x16{16.0f, 16.0f};
+	static const FString Path = FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::EngineContentDir(), TEXT("Slate/Starship/Common/")));
+		
+	const FSlateVectorImageBrush Brush{Path + Name.ToString() + ".svg", Icon16x16};
+	const FSlateBrush* SlateBrushPtr = &Brush;
+	ImageBrush = *SlateBrushPtr;
+}
 
 FDetailsViewStyle::FDetailsViewStyle()
 {

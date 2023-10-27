@@ -3044,27 +3044,6 @@ void FStarshipEditorStyle::FStyle::SetupPropertyEditorStyles()
 		CategoryComboButton.ButtonStyle = CategoryRowButton;
 		Set( "DetailsView.CategoryComboButton", CategoryComboButton);
 
-		Set( "DetailsView.OverrideAdded", new CORE_IMAGE_BRUSH_SVG("Starship/Common/OverrideAdded", Icon16x16));
-		Set( "DetailsView.OverrideInside", new CORE_IMAGE_BRUSH_SVG("Starship/Common/OverrideInside", Icon16x16));
-		Set( "DetailsView.OverrideHereInside", new CORE_IMAGE_BRUSH_SVG("Starship/Common/OverrideHereInside", Icon16x16));
-		Set( "DetailsView.OverrideHere", new CORE_IMAGE_BRUSH_SVG("Starship/Common/OverrideHere", Icon16x16));	
-		Set( "DetailsView.OverrideOptions", new CORE_IMAGE_BRUSH_SVG("Starship/Common/OverrideOptions", Icon16x16));
-		Set( "DetailsView.OverrideRemoved", new CORE_IMAGE_BRUSH_SVG("Starship/Common/OverrideRemoved", Icon16x16));
-
-		const FButtonStyle OverridesButton = FButtonStyle()
-			.SetNormalForeground(FStyleColors::Primary)
-			.SetNormal(FSlateRoundedBoxBrush(FStyleColors::Primary, 0.f))
-			.SetHovered(FSlateRoundedBoxBrush(FStyleColors::Primary, 0.f))
-			.SetPressed(FSlateRoundedBoxBrush(FStyleColors::Primary, 0.f))
-			.SetDisabled(FSlateRoundedBoxBrush(FStyleColors::Primary, 0.f))
-			.SetNormalPadding(FMargin(2.f, 0.f, 2.f, 0.f))
-			.SetPressedPadding(FMargin(2.f, 0.f, 2.f, 0.f));
-		
-		FComboButtonStyle OverridesComboButton = FComboButtonStyle(FStarshipCoreStyle::GetCoreStyle().GetWidgetStyle<FComboButtonStyle>("ComboButton"))
-		.SetButtonStyle(OverridesButton)
-		.SetDownArrowPadding(FMargin(2.f, 5.f, 3.f, 5.f));
-		OverridesComboButton.ButtonStyle = CategoryRowButton;
-		Set( "DetailsView.OverridesComboButton", OverridesComboButton);
 		Set( "DetailsView.CategoryTop_Hovered",       new FSlateColorBrush(FStyleColors::Hover));
 		Set( "DetailsView.CategoryBottom",            new FSlateColorBrush(FStyleColors::Recessed));
 		

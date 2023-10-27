@@ -153,7 +153,7 @@ void SDetailCategoryTableRow::Construct(const FArguments& InArgs, TSharedRef<FDe
 
 			SNew(SHorizontalBox)
 			+SHorizontalBox::Slot()
-			.HAlign(HAlign_Left)
+			.HAlign(HAlign_Right)
 			.VAlign(VAlign_Center)
 			.AutoWidth()
 			[
@@ -171,7 +171,7 @@ void SDetailCategoryTableRow::Construct(const FArguments& InArgs, TSharedRef<FDe
 				SNullWidget::NullWidget
 			]
 			+SHorizontalBox::Slot()
-			.HAlign(HAlign_Left)
+			.HAlign(HAlign_Right)
 			.VAlign(VAlign_Center)
 			.AutoWidth()
 			[

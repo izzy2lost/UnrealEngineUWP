@@ -1,11 +1,83 @@
 //  Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
+
+#include "CoreMinimal.h"
+#include "Brushes/SlateImageBrush.h"
 #include "DetailsViewStyleKey.h"
 #include "Layout/Margin.h"
-#include "Styling/AppStyle.h"
+#include "Styling/SlateTypes.h"
+#include "Misc/Paths.h"
 #include "Styling/SlateWidgetStyle.h"
-#include "UObject/NameTypes.h"
+
+/**
+ * A class which provides a key with the information to create the Overrides widget style (including the Icom)
+ */
+class FOverridesWidgetStyleKey
+{
+public:
+
+	/**
+	 * The constructor for the style key.
+	 *
+	 * @param InName the FName which is the name of the key
+	 */
+	PROPERTYEDITOR_API FOverridesWidgetStyleKey(FName InName);
+
+	const FSlateBrush& GetConstStyleBrush() const;
+
+	/**
+	 * the name of the key
+	 */
+	const FName Name;
+
+private:
+
+	/**
+	 * The image brush specified by this style key
+	 */
+	FSlateBrush ImageBrush;
+};
+
+/**
+ * The FOverridesWidgetStyleKeys class provides style keys which can
+ * create the needed styles for overrides widgets
+ */
+class FOverridesWidgetStyleKeys
+{
+public:
+
+	/**
+	 * The style for an override widget when an item is completely overridden and has no
+	 * nested properties which are not.
+	 */
+	PROPERTYEDITOR_API static const FOverridesWidgetStyleKey& Here();
+
+	/**
+	 * The style for the override widget when an item has been newly added 
+	 */
+	static const FOverridesWidgetStyleKey& Added();
+
+	/**
+	 * The style for the override widget when the user hovers over it which shows that they have associated
+	 * action options to choose from
+	 */
+	PROPERTYEDITOR_API static const FOverridesWidgetStyleKey& Options();
+
+	/**
+	 * The style for the override widget when an item has been removed 
+	 */
+	static const FOverridesWidgetStyleKey& Removed();
+
+	/**
+	 * The style for the override widget when it has some nested items inside that have been overridden, but
+	 * not all of them
+	 */
+	static const FOverridesWidgetStyleKey& Inside();
+
+	static const FOverridesWidgetStyleKey& HereInside();
+
+};
 
 /**
  * A Class which holds information regarding the style of a Details View
@@ -13,6 +85,13 @@
 class FDetailsViewStyle : public FSlateWidgetStyle
 {
 public:
+
+	/**
+	 * returns the const FComboButtonStyle& for the key const FOverridesWidgetStyleKey* OverridesWidgetStyleKey
+	 *
+	 * @param OverridesWidgetStyleKey the FOverridesWidgetStyleKey for the overrides combobutton style
+	 */
+	PROPERTYEDITOR_API const FComboButtonStyle& GetOverridesComboButtonStyle(const FOverridesWidgetStyleKey* OverridesWidgetStyleKey, const bool bIsForOuterCategory = false) const;
 
 	/**
 	 * The default constructor of this @code FDetailsViewStyle @endcode.
@@ -45,7 +124,7 @@ public:
 	/**
 	 * Returns the padding for the outer Category row
 	 */
-	 FMargin GetOuterCategoryRowPadding() const;
+	FMargin GetOuterCategoryRowPadding() const;
 	
 	/**
 	 * Returns the padding for details panel rows which are not outer Category rows
@@ -162,9 +241,9 @@ private:
 	/** the Slate Units of the top padding for an outer Category row */
 	float TopCategoryPadding = 0.f;
 	
- 	/**
-	* The FMargin which provides the padding around the whole details view table with scrollbar
-	*/
+	/**
+   * The FMargin which provides the padding around the whole details view table with scrollbar
+   */
 	FMargin TablePaddingWithScrollbar = FMargin(0, 0, 16, 1);
 
 	/**
@@ -175,8 +254,8 @@ private:
 	/**
 	* The FMargin which provides the padding around the Category buttons
 	*/
-	FMargin CategoryButtonsMargin = FMargin(0, 0,  10, 0);
-	
+	FMargin CategoryButtonsMargin = FMargin(0, 0,  0, 0);
 	
 };
+	
 

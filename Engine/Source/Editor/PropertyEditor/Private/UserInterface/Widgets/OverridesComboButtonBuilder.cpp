@@ -1,11 +1,17 @@
 //  Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "UserInterface/Widgets/OverridesComboButtonBuilder.h"
-#include "Styling/SlateBrush.h"
 
-FOverridesComboButtonBuilder::FOverridesComboButtonBuilder( TSharedRef<FDetailsDisplayManager> InDetailsDisplayManager):
+#include "DetailsViewStyle.h"
+#include "Styling/SlateBrush.h"
+#include "Brushes/SlateRoundedBoxBrush.h"
+
+FOverridesComboButtonBuilder::FOverridesComboButtonBuilder(
+	TSharedRef<FDetailsDisplayManager> InDetailsDisplayManager,
+	bool bInIsCategoryOverridesComboButton):
 	FPropertyUpdatedWidgetBuilder(),
-	DisplayManager(InDetailsDisplayManager)
+	DisplayManager(InDetailsDisplayManager),
+	bIsCategoryOverridesComboButton(bInIsCategoryOverridesComboButton)
 {
 }
 
@@ -18,17 +24,9 @@ FOverridesComboButtonBuilder& FOverridesComboButtonBuilder::Set_OnGetContent(FOn
 
 TSharedPtr<SWidget> FOverridesComboButtonBuilder::GenerateWidget()
 {
-	static FComboButtonStyle NormalStyle =  FAppStyle::Get().GetWidgetStyle<FComboButtonStyle>("DetailsView.OverridesComboButton");
-	static FComboButtonStyle HoverStyle =  FAppStyle::Get().GetWidgetStyle<FComboButtonStyle>("DetailsView.OverridesComboButton");
-	static const FSlateBrush* OverrideOptionsBrush = FAppStyle::GetBrush("DetailsView.OverrideOptions");
-	static const FSlateBrush* OverrideHereBrush = FAppStyle::GetBrush("DetailsView.OverrideHere");
+    const FDetailsViewStyle* DetailsViewStyle = DisplayManager->GetDetailsViewStyle();
 
-	NormalStyle.SetDownArrowImage( *OverrideHereBrush );
-	HoverStyle.SetDownArrowImage( *OverrideOptionsBrush );
- 
-	bool bShouldShowOverrides = true;
-	return 	bShouldShowOverrides  ?
-				SNew(SHorizontalBox)
+	return	SNew(SHorizontalBox)
 				.Visibility(IsVisible)
 				+SHorizontalBox::Slot()
 					
@@ -37,7 +35,8 @@ TSharedPtr<SWidget> FOverridesComboButtonBuilder::GenerateWidget()
 				.AutoWidth()
 				[
 					SNew( SComboButton )
-					.ComboButtonStyle( &NormalStyle )
+					.ComboButtonStyle( &DetailsViewStyle->GetOverridesComboButtonStyle(
+										GetOverridesStyleKey(false ), bIsCategoryOverridesComboButton ) )
 					.Visibility_Lambda([this]
 					{
 						if ( IsRowHoveredAttr.IsBound() && IsRowHoveredAttr.Get())
@@ -55,7 +54,7 @@ TSharedPtr<SWidget> FOverridesComboButtonBuilder::GenerateWidget()
 				.AutoWidth()
 				[
 					SNew( SComboButton )
-					.ComboButtonStyle( &HoverStyle )
+					.ComboButtonStyle(  &DetailsViewStyle->GetOverridesComboButtonStyle( GetOverridesStyleKey(true), bIsCategoryOverridesComboButton ))
 					.Visibility_Lambda([this]
 					{
 						if (IsRowHoveredAttr.IsBound() && IsRowHoveredAttr.Get())
@@ -66,14 +65,26 @@ TSharedPtr<SWidget> FOverridesComboButtonBuilder::GenerateWidget()
 					})
 					.HasDownArrow(true)
 					.OnGetMenuContent(OnGetContent)
-				]
-	:
-				SNullWidget::NullWidget;
+				];
 }
 
 TSharedRef<SWidget> FOverridesComboButtonBuilder::operator*()
 {
 	return GenerateWidget().ToSharedRef();
+}
+
+const FOverridesWidgetStyleKey* FOverridesComboButtonBuilder::GetOverridesStyleKey(bool bIsHoveredOver) const
+{
+	if (bIsCategoryOverridesComboButton && !bIsHoveredOver)
+	{
+		return &FOverridesWidgetStyleKeys::Here();
+	} 
+	if (!bIsHoveredOver)
+	{
+		return &FOverridesWidgetStyleKeys::Here();
+	}
+	
+	return &FOverridesWidgetStyleKeys::Options();
 }
 
 FOverridesComboButtonBuilder::~FOverridesComboButtonBuilder()

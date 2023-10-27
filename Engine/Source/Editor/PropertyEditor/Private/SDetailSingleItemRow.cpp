@@ -656,7 +656,7 @@ void SDetailSingleItemRow::Construct( const FArguments& InArgs, FDetailLayoutCus
 				SNew(SBorder)
 				.BorderImage(FAppStyle::Get().GetBrush("DetailsView.CategoryMiddle"))
 				.BorderBackgroundColor(this, &SDetailSingleItemRow::GetOuterBackgroundColor)
-				.HAlign(HAlign_Fill)
+				.HAlign(HAlign_Right)
 				.VAlign(VAlign_Center)
 				.Padding(0)
 				[
