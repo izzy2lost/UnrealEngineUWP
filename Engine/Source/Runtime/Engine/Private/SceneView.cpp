@@ -1641,6 +1641,7 @@ void FSceneView::OverridePostProcessSettings(const FPostProcessSettings& Src, fl
 		SET_PP(LumenFrontLayerTranslucencyReflections);
 		SET_PP(LumenMaxRoughnessToTraceReflections);
 		SET_PP(LumenMaxReflectionBounces);
+		SET_PP(LumenMaxRefractionBounces);
 		SET_PP(ReflectionMethod);
 		SET_PP(LumenReflectionQuality);
 		SET_PP(RayTracingAO);

@@ -614,6 +614,8 @@ FPostProcessSettings::FPostProcessSettings()
 	LumenMaxRoughnessToTraceReflections = 0.4f;
 	LumenMaxReflectionBounces = 1;
 
+	LumenMaxRefractionBounces = 0;
+
 	ScreenSpaceReflectionIntensity = 100.0f;
 	ScreenSpaceReflectionQuality = 50.0f;
 	ScreenSpaceReflectionMaxRoughness = 0.6f;

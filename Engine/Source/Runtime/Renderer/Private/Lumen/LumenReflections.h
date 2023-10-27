@@ -55,6 +55,7 @@ BEGIN_SHADER_PARAMETER_STRUCT(FLumenReflectionTracingParameters, )
 	SHADER_PARAMETER(uint32, UseJitter)
 	SHADER_PARAMETER(uint32, UseHighResSurface)
 	SHADER_PARAMETER(uint32, MaxReflectionBounces)
+	SHADER_PARAMETER(uint32, MaxRefractionBounces)
 
 	SHADER_PARAMETER(float, NearFieldMaxTraceDistance)
 	SHADER_PARAMETER(float, NearFieldMaxTraceDistanceDitherScale)
@@ -101,10 +102,12 @@ namespace LumenReflections
 {
 	bool UseFarField(const FSceneViewFamily& ViewFamily);
 	bool UseHitLighting(const FViewInfo& View, bool bLumenGIEnabled);
+	bool UseTranslucentRayTracing(const FViewInfo& View);
 	bool IsHitLightingForceEnabled(const FViewInfo& View, bool bLumenGIEnabled);
 	bool UseSurfaceCacheFeedback();
 	float GetSampleSceneColorNormalTreshold();
 	uint32 GetMaxReflectionBounces(const FViewInfo& View);
+	uint32 GetMaxRefractionBounces(const FViewInfo& View);
 
 	enum ETraceCompactionMode
 	{

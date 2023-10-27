@@ -236,4 +236,5 @@ static void AddLumenRayTraceDispatchIndirectPass(
 BEGIN_UNIFORM_BUFFER_STRUCT(FLumenHardwareRayTracingUniformBufferParameters, )
 	SHADER_PARAMETER(float, SkipBackFaceHitDistance)
 	SHADER_PARAMETER(float, SkipTwoSidedHitDistance)
+	SHADER_PARAMETER(float, SkipTranslucent)
 END_UNIFORM_BUFFER_STRUCT()

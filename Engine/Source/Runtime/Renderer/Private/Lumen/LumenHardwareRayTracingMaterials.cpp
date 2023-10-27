@@ -15,6 +15,7 @@
 #include "ShaderCompilerCore.h"
 #include "Lumen/LumenHardwareRayTracingCommon.h"
 #include "Nanite/NaniteRayTracing.h"
+#include "Lumen/LumenReflections.h"
 
 static TAutoConsoleVariable<float> CVarLumenHardwareRayTracingSkipBackFaceHitDistance(
 	TEXT("r.Lumen.HardwareRayTracing.SkipBackFaceHitDistance"),
@@ -121,7 +122,8 @@ void FDeferredShadingSceneRenderer::SetupLumenHardwareRayTracingUniformBuffer(FR
 {
 	FLumenHardwareRayTracingUniformBufferParameters* LumenHardwareRayTracingUniformBufferParameters = GraphBuilder.AllocParameters<FLumenHardwareRayTracingUniformBufferParameters>();
 	LumenHardwareRayTracingUniformBufferParameters->SkipBackFaceHitDistance = CVarLumenHardwareRayTracingSkipBackFaceHitDistance.GetValueOnRenderThread();
-	LumenHardwareRayTracingUniformBufferParameters->SkipTwoSidedHitDistance = CVarLumenHardwareRayTracingSkipTwoSidedHitDistance.GetValueOnRenderThread();;
+	LumenHardwareRayTracingUniformBufferParameters->SkipTwoSidedHitDistance = CVarLumenHardwareRayTracingSkipTwoSidedHitDistance.GetValueOnRenderThread();
+	LumenHardwareRayTracingUniformBufferParameters->SkipTranslucent         = LumenReflections::UseTranslucentRayTracing(View) ? 0.0f : 1.0f;
 	View.LumenHardwareRayTracingUniformBuffer = GraphBuilder.CreateUniformBuffer(LumenHardwareRayTracingUniformBufferParameters);
 }
 

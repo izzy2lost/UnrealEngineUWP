@@ -75,6 +75,7 @@ int HitLightingForceEnabled;
 int SampleSceneColor;
 float RelativeDepthThickness;
 uint MaxReflectionBounces;
+uint MaxRefractionBounces;
 
 Texture2DArray<uint2> TraceBookmark;
 
@@ -142,6 +143,11 @@ LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenReflectionHardwareRayTracing)
 		Context.FarFieldMaxTraceDistance = FarFieldMaxTraceDistance;
 		Context.FarFieldReferencePos = FarFieldReferencePos;
 		Context.bUseBookmark = true;
+
+	#if RECURSIVE_REFRACTION_TRACES
+		Context.MaxRefractionBounces = MaxRefractionBounces;
+		Context.InstanceMask |= RAY_TRACING_MASK_TRANSLUCENT;  
+	#endif
 
 		FRayTracedLightingResult Result = CreateRayTracedLightingResult();
 		#if RAY_TRACING_PASS == RAY_TRACING_PASS_HIT_LIGHTING

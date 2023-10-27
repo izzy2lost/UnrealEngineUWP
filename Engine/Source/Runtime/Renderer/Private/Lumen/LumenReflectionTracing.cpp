@@ -146,6 +146,13 @@ static TAutoConsoleVariable<int32> CVarLumenReflectionsVisualizeTraces(
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
+static TAutoConsoleVariable<int32> CVarLumenReflectionsHardwareRayTracingTranslucentMaxRefractionBounces(
+	TEXT("r.Lumen.Reflections.HardwareRayTracing.Translucent.MaxRefractionBounces"),
+	0,
+	TEXT("The maximum count of refraction event to trace."),
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
 float LumenReflections::GetSampleSceneColorNormalTreshold()
 {
 	const float Radians = FMath::DegreesToRadians(FMath::Clamp(CVarLumenReflectionsSampleSceneColorNormalTreshold.GetValueOnRenderThread(), 0.0f, 180.0f));
@@ -160,6 +167,16 @@ uint32 LumenReflections::GetMaxReflectionBounces(const FViewInfo& View)
 		MaxBounces = View.FinalPostProcessSettings.LumenMaxReflectionBounces;
 	}
 	return FMath::Clamp(MaxBounces, 1, 64);
+}
+
+uint32 LumenReflections::GetMaxRefractionBounces(const FViewInfo& View)
+{
+	int32 LumenMaxRefractionBounces = CVarLumenReflectionsHardwareRayTracingTranslucentMaxRefractionBounces.GetValueOnRenderThread();
+	if (LumenMaxRefractionBounces <= 0)
+	{
+		LumenMaxRefractionBounces = View.FinalPostProcessSettings.LumenMaxRefractionBounces;
+	}
+	return FMath::Clamp(1 + LumenMaxRefractionBounces, 1, 64);	// we add one to account for the first loop in the shader that is mandatory to at least get reflection.
 }
 
 class FReflectionClearTracesCS : public FGlobalShader
