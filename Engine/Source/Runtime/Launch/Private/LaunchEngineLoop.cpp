@@ -3725,6 +3725,9 @@ int32 FEngineLoop::PreInitPostStartupScreen(const TCHAR* CmdLine)
 		}
 #endif
 
+		// Initialize CVar cache after config reload
+		InitializeReadonlyCVarCache();
+
 		InitGameTextLocalization();
 
 		DECLARE_SCOPE_CYCLE_COUNTER(TEXT("Initial UObject load"), STAT_InitialUObjectLoad, STATGROUP_LoadTime);

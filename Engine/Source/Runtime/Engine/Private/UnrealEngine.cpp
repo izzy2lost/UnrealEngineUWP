@@ -2044,10 +2044,6 @@ void UEngine::Init(IEngineLoop* InEngineLoop)
 
 	UTextRenderComponent::InitializeMIDCache();
 
-	// Initialize scene cached cvars
-	extern FReadOnlyCVARCache GReadOnlyCVARCache;
-	GReadOnlyCVARCache.Init();
-
 	if (GIsEditor)
 	{
 		// Create a WorldContext for the editor to use and create an initially empty world.

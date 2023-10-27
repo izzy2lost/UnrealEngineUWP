@@ -2997,6 +2997,9 @@ extern ENGINE_API FSharedSamplerState* Clamp_WorldGroupSettings;
 /** Initializes the shared sampler states. */
 extern ENGINE_API void InitializeSharedSamplerStates();
 
+/** Initialized the cache of read-only CVars */
+extern ENGINE_API void InitializeReadonlyCVarCache();
+
 /**
 * Cache of read-only console variables used by the scene renderer
 */

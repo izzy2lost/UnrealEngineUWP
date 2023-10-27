@@ -1515,6 +1515,12 @@ ELightInteractionType FLightCacheInterface::GetStaticInteraction(const FLightSce
 
 FReadOnlyCVARCache GReadOnlyCVARCache;
 
+void InitializeReadonlyCVarCache()
+{
+	GReadOnlyCVARCache.Init();
+}
+
+
 const FReadOnlyCVARCache& FReadOnlyCVARCache::Get()
 {
 	checkSlow(GReadOnlyCVARCache.bInitialized);
@@ -1554,7 +1560,7 @@ void FReadOnlyCVARCache::Init()
 	MobileSkyLightPermutation = CVarMobileSkyLightPermutation->GetValueOnAnyThread();
 	bMobileEnableNoPrecomputedLightingCSMShader = CVarMobileEnableNoPrecomputedLightingCSMShader->GetValueOnAnyThread() != 0;
 
-	const bool bShowMissmatchedLowQualityLightmapsWarning = (!bEnableLowQualityLightmaps) && (GEngine->bShouldGenerateLowQualityLightmaps_DEPRECATED);
+	const bool bShowMissmatchedLowQualityLightmapsWarning = (!bEnableLowQualityLightmaps) && (GEngine && GEngine->bShouldGenerateLowQualityLightmaps_DEPRECATED);
 	if ( bShowMissmatchedLowQualityLightmapsWarning )
 	{
 		UE_LOG(LogInit, Warning, TEXT("Mismatch between bShouldGenerateLowQualityLightmaps(%d) and r.SupportLowQualityLightmaps(%d), UEngine::bShouldGenerateLowQualityLightmaps has been deprecated please use r.SupportLowQualityLightmaps instead"), GEngine->bShouldGenerateLowQualityLightmaps_DEPRECATED, bEnableLowQualityLightmaps);
