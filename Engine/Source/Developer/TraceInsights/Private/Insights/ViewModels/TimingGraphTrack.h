@@ -99,6 +99,8 @@ public:
 	TSharedPtr<FTimingGraphSeries> AddStatsCounterSeries(uint32 CounterId, FLinearColor Color);
 	void RemoveStatsCounterSeries(uint32 CounterId);
 
+	uint32 GetNumSeriesForTimer(uint32 TimerId);
+
 protected:
 	void UpdateFrameSeries(FTimingGraphSeries& Series, const FTimingTrackViewport& Viewport);
 	void UpdateTimerSeries(FTimingGraphSeries& Series, const FTimingTrackViewport& Viewport);
@@ -123,6 +125,7 @@ private:
 	FDelegateHandle RenderingFrameSeriesVisibilityHandle;
 
 	TWeakPtr<STimingView> TimingView;
+	bool bNotifyTimersOnDestruction;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

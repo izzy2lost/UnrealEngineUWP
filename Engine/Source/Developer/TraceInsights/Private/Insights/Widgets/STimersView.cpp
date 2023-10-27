@@ -821,11 +821,18 @@ void STimersView::TreeView_BuildPlotTimerMenu(FMenuBuilder& MenuBuilder)
 	const int32 NumSelectedNodes = SelectedNodes.Num();
 	FTimerNodePtr SelectedNode = NumSelectedNodes ? SelectedNodes[0] : nullptr;
 
-	auto CanExecute = [NumSelectedNodes, SelectedNode]()
+	auto CanExecuteAddToGraphTrack = [NumSelectedNodes, SelectedNode]()
 	{
 		TSharedPtr<STimingProfilerWindow> Wnd = FTimingProfilerManager::Get()->GetProfilerWindow();
 		TSharedPtr<STimingView> TimingView = Wnd.IsValid() ? Wnd->GetTimingView() : nullptr;
 		return TimingView.IsValid() && NumSelectedNodes == 1 && SelectedNode.IsValid() && SelectedNode->GetType() != ETimerNodeType::Group;
+	};
+
+	auto CanExecuteAddToFramesTrack = [NumSelectedNodes, SelectedNode]()
+	{
+		TSharedPtr<STimingProfilerWindow> Wnd = FTimingProfilerManager::Get()->GetProfilerWindow();
+		TSharedPtr<SFrameTrack> FrameTrack = Wnd.IsValid() ? Wnd->GetFrameView() : nullptr;
+		return FrameTrack.IsValid() && NumSelectedNodes == 1 && SelectedNode.IsValid() && SelectedNode->GetType() != ETimerNodeType::Group;
 	};
 
 	MenuBuilder.BeginSection("Instance", LOCTEXT("Plot_Series_Instance_Section", "Instance"));
@@ -833,7 +840,7 @@ void STimersView::TreeView_BuildPlotTimerMenu(FMenuBuilder& MenuBuilder)
 	// Add/remove series to/from graph track
 	{
 		FUIAction Action_ToggleTimerInGraphTrack;
-		Action_ToggleTimerInGraphTrack.CanExecuteAction = FCanExecuteAction::CreateLambda(CanExecute);
+		Action_ToggleTimerInGraphTrack.CanExecuteAction = FCanExecuteAction::CreateLambda(CanExecuteAddToGraphTrack);
 		Action_ToggleTimerInGraphTrack.ExecuteAction = FExecuteAction::CreateSP(this, &STimersView::ToggleTimingViewMainGraphEventSeries, SelectedNode);
 
 		if (SelectedNode.IsValid() &&
@@ -871,7 +878,7 @@ void STimersView::TreeView_BuildPlotTimerMenu(FMenuBuilder& MenuBuilder)
 	// Add/remove game frame stats series to/from graph track
 	{
 		FUIAction Action_ToggleFrameStatsTimerInGraphTrack;
-		Action_ToggleFrameStatsTimerInGraphTrack.CanExecuteAction = FCanExecuteAction::CreateLambda(CanExecute);
+		Action_ToggleFrameStatsTimerInGraphTrack.CanExecuteAction = FCanExecuteAction::CreateLambda(CanExecuteAddToGraphTrack);
 		Action_ToggleFrameStatsTimerInGraphTrack.ExecuteAction = FExecuteAction::CreateSP(this, &STimersView::ToggleTimingViewMainGraphEventFrameStatsSeries, SelectedNode, ETraceFrameType::TraceFrameType_Game);
 
 		if (SelectedNode.IsValid() &&
@@ -905,7 +912,7 @@ void STimersView::TreeView_BuildPlotTimerMenu(FMenuBuilder& MenuBuilder)
 	// Add/remove game frame stats series to/from frame track
 	{
 		FUIAction Action_ToggleFrameStatsTimerInFrameTrack;
-		Action_ToggleFrameStatsTimerInFrameTrack.CanExecuteAction = FCanExecuteAction::CreateLambda(CanExecute);
+		Action_ToggleFrameStatsTimerInFrameTrack.CanExecuteAction = FCanExecuteAction::CreateLambda(CanExecuteAddToFramesTrack);
 		Action_ToggleFrameStatsTimerInFrameTrack.ExecuteAction = FExecuteAction::CreateSP(this, &STimersView::ToggleFrameTrackSeries, SelectedNode, ETraceFrameType::TraceFrameType_Game);
 
 		if (SelectedNode.IsValid() &&
@@ -943,7 +950,7 @@ void STimersView::TreeView_BuildPlotTimerMenu(FMenuBuilder& MenuBuilder)
 	// Add/remove rendering frame stats series to/from graph track
 	{
 		FUIAction Action_ToggleFrameStatsTimerInGraphTrack;
-		Action_ToggleFrameStatsTimerInGraphTrack.CanExecuteAction = FCanExecuteAction::CreateLambda(CanExecute);
+		Action_ToggleFrameStatsTimerInGraphTrack.CanExecuteAction = FCanExecuteAction::CreateLambda(CanExecuteAddToGraphTrack);
 		Action_ToggleFrameStatsTimerInGraphTrack.ExecuteAction = FExecuteAction::CreateSP(this, &STimersView::ToggleTimingViewMainGraphEventFrameStatsSeries, SelectedNode, ETraceFrameType::TraceFrameType_Rendering);
 
 		if (SelectedNode.IsValid() &&
@@ -977,7 +984,7 @@ void STimersView::TreeView_BuildPlotTimerMenu(FMenuBuilder& MenuBuilder)
 	// Add/remove rendering frame stats series to/from frame track
 	{
 		FUIAction Action_ToggleFrameStatsTimerInFrameTrack;
-		Action_ToggleFrameStatsTimerInFrameTrack.CanExecuteAction = FCanExecuteAction::CreateLambda(CanExecute);
+		Action_ToggleFrameStatsTimerInFrameTrack.CanExecuteAction = FCanExecuteAction::CreateLambda(CanExecuteAddToFramesTrack);
 		Action_ToggleFrameStatsTimerInFrameTrack.ExecuteAction = FExecuteAction::CreateSP(this, &STimersView::ToggleFrameTrackSeries, SelectedNode, ETraceFrameType::TraceFrameType_Rendering);
 
 		if (SelectedNode.IsValid() &&
@@ -2419,6 +2426,9 @@ void STimersView::RebuildTree(bool bResync)
 			check(TimerCount > PreviousNodeCount);
 			TimerNodes.Reserve(TimerCount);
 
+			TSharedPtr<FTimingGraphTrack> GraphTrack = GetTimingViewMainGraphTrack();
+			TSharedPtr<SFrameTrack> FrameTrack = GetFrameTrack();
+
 			// Add nodes only for new timers.
 			for (uint32 TimerIndex = PreviousNodeCount; TimerIndex < TimerCount; ++TimerIndex)
 			{
@@ -2427,6 +2437,27 @@ void STimersView::RebuildTree(bool bResync)
 				const ETimerNodeType Type = Timer.IsGpuTimer ? ETimerNodeType::GpuScope : ETimerNodeType::CpuScope;
 				FTimerNodePtr TimerNodePtr = MakeShared<FTimerNode>(Timer.Id, Timer.Name, Type);
 				TimerNodePtr->SetDefaultSortOrder(TimerIndex + 1);
+
+				if (GraphTrack.IsValid())
+				{
+					uint32 NumSeries = GraphTrack->GetNumSeriesForTimer(Timer.Id);
+					while (NumSeries > 0)
+					{
+						TimerNodePtr->OnAddedToGraph();
+						--NumSeries;
+					}
+				}
+
+				if (FrameTrack.IsValid())
+				{
+					uint32 NumSeries = FrameTrack->GetNumSeriesForTimer(Timer.Id);
+					while (NumSeries > 0)
+					{
+						TimerNodePtr->OnAddedToGraph();
+						--NumSeries;
+					}
+				}
+
 				TimerNodes.Add(TimerNodePtr);
 			}
 			ensure(TimerNodes.Num() == TimerCount);

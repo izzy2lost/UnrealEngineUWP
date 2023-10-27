@@ -20,6 +20,7 @@
 #include "Insights/ViewModels/TimingTrackViewport.h"
 #include "Insights/ViewModels/ThreadTimingTrack.h"
 #include "Insights/Widgets/STimingProfilerWindow.h"
+#include "Insights/Widgets/STimersView.h"
 #include "Insights/Widgets/STimingView.h"
 
 #define LOCTEXT_NAMESPACE "GraphTrack"
@@ -138,6 +139,8 @@ FTimingGraphTrack::FTimingGraphTrack(TSharedPtr<STimingView> InTimingView)
 	
 	// Add non editable options.
 	EnabledOptions = EnabledOptions | EGraphOptions::ShowBaseline | EGraphOptions::ShowVerticalAxisGrid | EGraphOptions::ShowHeader;
+
+	bNotifyTimersOnDestruction = InTimingView->GetName() == FInsightsManagerTabs::TimingProfilerTabId;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -171,6 +174,33 @@ FTimingGraphTrack::~FTimingGraphTrack()
 		{
 			RenderingFramesSeries->VisibilityChangedDelegate.Remove(RenderingFrameSeriesVisibilityHandle);
 		}
+	}
+
+	TSharedPtr<STimersView> TimersView;
+	if (bNotifyTimersOnDestruction)
+	{
+		TSharedPtr<STimingProfilerWindow> ProfilerWindow = FTimingProfilerManager::Get()->GetProfilerWindow();
+		if (ProfilerWindow.IsValid())
+		{
+			TimersView = ProfilerWindow->GetTimersView();
+		}
+	}
+
+	if(TimersView)
+	{
+		for (const TSharedPtr<FGraphSeries>& Series : AllSeries)
+		{
+			const TSharedPtr<FTimingGraphSeries> TimingSeries = StaticCastSharedPtr<FTimingGraphSeries>(Series);
+			if (TimingSeries.IsValid() &&
+				(TimingSeries->Type == FTimingGraphSeries::ESeriesType::Timer || TimingSeries->Type == FTimingGraphSeries::ESeriesType::FrameStatsTimer))
+			{
+				FTimerNodePtr TimerNode = TimersView->GetTimerNode(TimingSeries->TimerId);
+				if (TimerNode)
+				{
+					TimerNode->OnRemovedFromGraph();
+				}
+			}
+		};
 	}
 }
 
@@ -972,6 +1002,26 @@ void FTimingGraphTrack::DrawVerticalAxisGrid(const ITimingTrackDrawContext& Cont
 
 		DrawContext.LayerId++;
 	}
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+uint32 FTimingGraphTrack::GetNumSeriesForTimer(uint32 TimerId)
+{
+	uint32 NumSeries = 0;
+
+	for(const TSharedPtr<FGraphSeries>& Series : AllSeries)
+	{
+		const TSharedPtr<FTimingGraphSeries> TimingSeries = StaticCastSharedPtr<FTimingGraphSeries>(Series);
+		if (TimingSeries.IsValid() && 
+			(TimingSeries->Type == FTimingGraphSeries::ESeriesType::Timer || TimingSeries->Type == FTimingGraphSeries::ESeriesType::FrameStatsTimer) && 
+			TimingSeries->TimerId == TimerId)
+		{
+			++NumSeries;
+		}
+	};
+
+	return NumSeries;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
