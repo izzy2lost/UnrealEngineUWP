@@ -938,7 +938,7 @@ FAudioTrackEditor::FAudioTrackEditor( TSharedRef<ISequencer> InSequencer )
 FAudioTrackEditor::~FAudioTrackEditor()
 {
 	TSharedPtr<ISequencer> SequencerPtr = GetSequencer();
-	if (MovieSceneChangedDelegate.IsValid())
+	if (SequencerPtr.IsValid() && MovieSceneChangedDelegate.IsValid())
 	{
 		SequencerPtr->OnMovieSceneDataChanged().Remove(MovieSceneChangedDelegate);
 	}
