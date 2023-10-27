@@ -3467,6 +3467,9 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 		{
 			// Generate the Sky/Atmosphere look up tables
 			RenderSkyAtmosphereLookUpTables(GraphBuilder, ExternalAccessQueue);
+
+			// Sky env map capture uses the view UB, which contains the LUTs computed above. We need to transition them to readable now.
+			ExternalAccessQueue.Submit(GraphBuilder);
 		}
 	
 		// Early occlusion queries
