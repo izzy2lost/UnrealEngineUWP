@@ -393,6 +393,9 @@ struct FMassGenericPayloadView
 		}
 	}
 
+	/** Moves NumToMove elements to the back of the viewed collection. */
+	void SwapElementsToEnd(int32 StartIndex, int32 NumToMove);
+
 	TArrayView<FStructArrayView> Content;
 };
 

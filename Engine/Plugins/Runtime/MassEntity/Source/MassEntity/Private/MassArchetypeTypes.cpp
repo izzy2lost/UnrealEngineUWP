@@ -198,6 +198,11 @@ void FMassArchetypeEntityCollectionWithPayload::CreateEntityRangesWithPayload(co
 		int32 ArchetypeIndex = INDEX_NONE;
 		int32 TrueIndex = INDEX_NONE;
 
+		bool operator==(const FEntityInArchetype& Other) const
+		{
+			return ArchetypeIndex == Other.ArchetypeIndex && TrueIndex == Other.TrueIndex;
+		}
+
 		bool operator<(const FEntityInArchetype& Other) const
 		{
 			return ArchetypeIndex < Other.ArchetypeIndex || (ArchetypeIndex == Other.ArchetypeIndex && TrueIndex < Other.TrueIndex);
@@ -255,8 +260,14 @@ void FMassArchetypeEntityCollectionWithPayload::CreateEntityRangesWithPayload(co
 		}
 	}
 
-	UE::Mass::Utils::AbstractSort(Entities.Num(), [&EntityData](const int32 LHS, const int32 RHS)
+	// A paranoid programmer might point out that there are no guarantees that a sorting algorithm will compare all elements.
+	// While that's true we make an assumption here, that the elements next to each other will in fact all get compared
+	// and since all we care about with `bDuplicatesFound` is whether same elements exist (that will be right next to each other
+	// in the final lineup) we feel safe in the assumption.
+	bool bDuplicatesFound = false;
+	UE::Mass::Utils::AbstractSort(Entities.Num(), [&EntityData, &bDuplicatesFound](const int32 LHS, const int32 RHS)
 		{
+			bDuplicatesFound = bDuplicatesFound || (EntityData[LHS] == EntityData[RHS]);
 			return EntityData[LHS] < EntityData[RHS];
 		}
 		, [&EntityData, &Payload](const int32 A, const int32 B)
@@ -264,6 +275,51 @@ void FMassArchetypeEntityCollectionWithPayload::CreateEntityRangesWithPayload(co
 			::Swap(EntityData[A], EntityData[B]);
 			Payload.Swap(A, B);
 		});
+	ensureMsgf(bDuplicatesFound == false || (DuplicatesHandling != FMassArchetypeEntityCollection::NoDuplicates)
+		, TEXT("Caller declared lack of duplicates in the input data, but duplicates have been found"));
+
+#if !UE_BUILD_SHIPPING
+	// in non shipping builds we still want to verify that the assumption expressed in bDuplicatesFound comment above
+	// is correct
+	if (!bDuplicatesFound && (DuplicatesHandling == FMassArchetypeEntityCollection::FoldDuplicates))
+	{
+		for (int32 EntryIndex = 0; EntryIndex < EntityData.Num() - 1; ++EntryIndex)
+		{
+			checkf(EntityData[EntryIndex] != EntityData[EntryIndex + 1], TEXT("Assumption regarding comparison between identical elements while sorting is wrong!"));
+		}
+	}
+#endif // !UE_BUILD_SHIPPING
+
+	if (bDuplicatesFound && (DuplicatesHandling == FMassArchetypeEntityCollection::FoldDuplicates))
+	{
+		// we cannot remove elements from Payload, since it's a view to existing data, we need to sort the data in 
+		// such a way that all the duplicates end up at the end of the view. We can then ignore the appropriate
+		// number of elements.
+		
+		// processing Num - 1 elements since there's no point in checking the last one - there's nothing to compare it against
+		for (int32 EntryIndex = 0; EntryIndex < EntityData.Num() - 1; ++EntryIndex)
+		{	
+			FEntityInArchetype& Entry = EntityData[EntryIndex];
+			if (Entry != EntityData[EntryIndex + 1])
+			{
+				continue;
+			}
+
+			int32 DuplicateIndex = EntryIndex + 1;
+			while (DuplicateIndex + 1 < EntityData.Num() && Entry == EntityData[DuplicateIndex + 1])
+			{
+				++DuplicateIndex;
+			};
+
+			const int32 NumDuplicates = DuplicateIndex - EntryIndex;
+
+			EntityData.RemoveAt(EntryIndex + 1, NumDuplicates, /*bAllowShrinking=*/false);
+			Payload.SwapElementsToEnd(EntryIndex + 1, NumDuplicates);
+			// even though we don't remove the elements from payload we later limit the number of elements used with
+			// ArchetypeInfo.Count, so we need to update that
+			Archetypes[Entry.ArchetypeIndex].Count -= NumDuplicates;
+		}
+	}
 
 	int32 ProcessedEntitiesCount = 0;
 	int32 ArchetypeIndex = 0;
