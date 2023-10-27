@@ -962,6 +962,11 @@ bool FCurlHttpRequest::SetupRequestHttpThread()
 	}
 #endif
 
+#if WITH_CURL_QUICKEXIT
+	// Avoid hanging and waiting for threaded resolver
+	curl_easy_setopt(EasyHandle, CURLOPT_QUICK_EXIT, 1L);
+#endif
+
 	UE_LOG(LogHttp, Log, TEXT("%p: Starting %s request to URL='%s'"), this, *Verb, *URL);
 
 	return true;
@@ -978,8 +983,7 @@ bool FCurlHttpRequest::ProcessRequest()
 
 	if (!PreCheck() || !SetupRequest())
 	{
-		FinishRequestNotInHttpManager();
-		return false;
+		return FinishRequestNotInHttpManager();
 	}
 
 	// Clear the info cache log so we don't output messages from previous requests when reusing/retrying a request
@@ -1261,7 +1265,7 @@ void FCurlHttpRequest::FinishRequest()
 		{
 			UE_LOG(LogHttp, Warning, TEXT("%p: request failed, libcurl multi error: %d (%s)"), this, (int32)CurlAddToMultiResult, ANSI_TO_TCHAR(curl_multi_strerror(CurlAddToMultiResult)));
 		}
-		else if (CurlCompletionResult != CURLE_OK)
+		else
 		{
 			UE_LOG(LogHttp, Warning, TEXT("%p: request failed, libcurl error: %d (%s)"), this, (int32)CurlCompletionResult, ANSI_TO_TCHAR(curl_easy_strerror(CurlCompletionResult)));
 		}
