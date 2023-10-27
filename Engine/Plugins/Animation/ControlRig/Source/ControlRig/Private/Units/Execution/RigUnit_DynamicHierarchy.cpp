@@ -807,6 +807,39 @@ FRigUnit_HierarchyAddControlRotator_Execute()
 	}
 }
 
+void FRigUnit_HierarchyAddControlTransform_LimitSettings::ConfigureFrom(const FRigControlElement* InControlElement, const FRigControlSettings& InSettings)
+{
+	LimitTranslationX = InSettings.LimitEnabled[0];
+	LimitTranslationY = InSettings.LimitEnabled[1];
+	LimitTranslationZ = InSettings.LimitEnabled[2];
+	LimitPitch = InSettings.LimitEnabled[3];
+	LimitYaw = InSettings.LimitEnabled[4];
+	LimitRoll = InSettings.LimitEnabled[5];
+	LimitScaleX = InSettings.LimitEnabled[6];
+	LimitScaleY = InSettings.LimitEnabled[7];
+	LimitScaleZ = InSettings.LimitEnabled[8];
+	MinValue = InSettings.MinimumValue.Get<FRigControlValue::FEulerTransform_Float>().ToTransform();
+	MaxValue = InSettings.MaximumValue.Get<FRigControlValue::FEulerTransform_Float>().ToTransform();
+	bDrawLimits = InSettings.bDrawLimits;
+}
+
+void FRigUnit_HierarchyAddControlTransform_LimitSettings::Configure(FRigControlSettings& OutSettings) const
+{
+	OutSettings.SetupLimitArrayForType(false, false, false);
+	OutSettings.LimitEnabled[0] = LimitTranslationX;
+	OutSettings.LimitEnabled[1] = LimitTranslationY;
+	OutSettings.LimitEnabled[2] = LimitTranslationZ;
+	OutSettings.LimitEnabled[3] = LimitPitch;
+	OutSettings.LimitEnabled[4] = LimitYaw;
+	OutSettings.LimitEnabled[5] = LimitRoll;
+	OutSettings.LimitEnabled[6] = LimitScaleX;
+	OutSettings.LimitEnabled[7] = LimitScaleY;
+	OutSettings.LimitEnabled[8] = LimitScaleZ;
+	OutSettings.MinimumValue = FRigControlValue::Make<FRigControlValue::FEulerTransform_Float>(MinValue);
+	OutSettings.MaximumValue = FRigControlValue::Make<FRigControlValue::FEulerTransform_Float>(MaxValue);
+	OutSettings.bDrawLimits = bDrawLimits;
+}
+
 void FRigUnit_HierarchyAddControlTransform_Settings::ConfigureFrom(const FRigControlElement* InControlElement, const FRigControlSettings& InSettings)
 {
 	FRigUnit_HierarchyAddControl_Settings::ConfigureFrom(InControlElement, InSettings);
@@ -816,6 +849,7 @@ void FRigUnit_HierarchyAddControlTransform_Settings::ConfigureFrom(const FRigCon
 	PreferredRotationOrder = InSettings.PreferredRotationOrder;
 
 	Proxy.ConfigureFrom(InControlElement, InSettings);
+	Limits.ConfigureFrom(InControlElement, InSettings);
 	Shape.ConfigureFrom(InControlElement, InSettings);
 }
 
@@ -829,6 +863,7 @@ void FRigUnit_HierarchyAddControlTransform_Settings::Configure(FRigControlSettin
 	OutSettings.PreferredRotationOrder = PreferredRotationOrder;
 
 	Proxy.Configure(OutSettings);
+	Limits.Configure(OutSettings);
 	Shape.Configure(OutSettings);
 }
 

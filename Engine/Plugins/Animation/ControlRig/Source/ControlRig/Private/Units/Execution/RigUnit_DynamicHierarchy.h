@@ -954,7 +954,7 @@ struct CONTROLRIG_API FRigUnit_HierarchyAddControlRotator_Settings : public FRig
 	ERigVMTransformSpace InitialSpace;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
-	FRigUnit_HierarchyAddControlRotator_LimitSettings Limits;;
+	FRigUnit_HierarchyAddControlRotator_LimitSettings Limits;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
 	FRigUnit_HierarchyAddControl_ShapeSettings Shape;
@@ -999,6 +999,67 @@ struct CONTROLRIG_API FRigUnit_HierarchyAddControlRotator : public FRigUnit_Hier
 };
 
 USTRUCT(BlueprintType)
+struct CONTROLRIG_API FRigUnit_HierarchyAddControlTransform_LimitSettings
+{
+	GENERATED_BODY();
+	
+	FRigUnit_HierarchyAddControlTransform_LimitSettings()
+		: LimitTranslationX(false, false)
+		, LimitTranslationY(false, false)
+		, LimitTranslationZ(false, false)
+		, LimitPitch(false, false)
+		, LimitYaw(false, false)
+		, LimitRoll(false, false)
+		, LimitScaleX(false, false)
+		, LimitScaleY(false, false)
+		, LimitScaleZ(false, false)
+		, MinValue(FEulerTransform(FVector(-100.f, -100.f, -100.f), FRotator(-180.f, -180.f, -180.f), FVector(0.f, 0.f, 0.f)))
+		, MaxValue(FEulerTransform(FVector(100.f, 100.f, 100.f), FRotator(180.f, 180.f, 180.f), FVector(10.f, 10.f, 10.f)))
+		, bDrawLimits(true)
+	{}
+
+	void ConfigureFrom(const FRigControlElement* InControlElement, const FRigControlSettings& InSettings);
+	void Configure(FRigControlSettings& OutSettings) const;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
+	FRigControlLimitEnabled LimitTranslationX;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
+	FRigControlLimitEnabled LimitTranslationY;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
+	FRigControlLimitEnabled LimitTranslationZ;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
+	FRigControlLimitEnabled LimitPitch;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
+	FRigControlLimitEnabled LimitYaw;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
+	FRigControlLimitEnabled LimitRoll;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
+	FRigControlLimitEnabled LimitScaleX;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
+	FRigControlLimitEnabled LimitScaleY;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
+	FRigControlLimitEnabled LimitScaleZ;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
+	FEulerTransform MinValue;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
+	FEulerTransform MaxValue;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
+	bool bDrawLimits;
+};
+
+
+USTRUCT(BlueprintType)
 struct CONTROLRIG_API FRigUnit_HierarchyAddControlTransform_Settings : public FRigUnit_HierarchyAddControl_Settings
 {
 	GENERATED_BODY()
@@ -1025,6 +1086,9 @@ struct CONTROLRIG_API FRigUnit_HierarchyAddControlTransform_Settings : public FR
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
 	EEulerRotationOrder PreferredRotationOrder;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
+	FRigUnit_HierarchyAddControlTransform_LimitSettings Limits;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
 	FRigUnit_HierarchyAddControl_ShapeSettings Shape;
