@@ -3,7 +3,9 @@
 #include "CoreTypes.h"
 #include "Misc/AutomationTest.h"
 #include "Tests/Benchmark.h"
+#include "Tasks/Task.h"
 #include "Tasks/Pipe.h"
+#include "Tasks/TaskConcurrencyLimiter.h"
 #include "HAL/Thread.h"
 #include "Async/ParallelFor.h"
 #include "Tests/TestHarnessAdapter.h"
@@ -1518,6 +1520,119 @@ namespace UE { namespace TasksTests
 
 			Blocker.Trigger();
 		}
+	}
+
+	// produces work for FTaskConcurrencyLimiter from multiple threads to check it's thread-safety, checks that:
+	// * it doesn't go over max concurrency
+	// * can check (not 100% reliably but still useful for local runs) that max concurrency is actually reached
+	// * slots don't overlap
+	template<uint32 MaxConcurrency, uint32 NumItems, uint32 NumPushingTasks>
+	void TaskConcurrencyLimiterStressTest()
+	{
+		static_assert(NumItems % NumPushingTasks == 0);
+
+		std::atomic<uint32> CurrentConcurrency = 0;
+		std::atomic<uint32> ActualMaxConcurrency = 0;
+		std::atomic<uint32> NumProcessed = 0;
+
+		std::atomic<bool> Slots[MaxConcurrency] = {};
+
+		TArray<FTask> PushingTasks;
+		PushingTasks.Reserve(NumPushingTasks);
+
+		FTaskConcurrencyLimiter TaskConcurrencyLimiter(MaxConcurrency);
+
+		for (uint32 i = 0; i != NumPushingTasks; ++i)
+		{
+			PushingTasks.Add(Launch(UE_SOURCE_LOCATION, 
+				[&TaskConcurrencyLimiter, &CurrentConcurrency, &ActualMaxConcurrency, &Slots, &NumProcessed]
+				{
+					TRACE_CPUPROFILER_EVENT_SCOPE(PushTasks);
+					for (int32 i = 0; i != NumItems / NumPushingTasks; ++i)
+					{
+						TaskConcurrencyLimiter.Push(UE_SOURCE_LOCATION,
+							[&CurrentConcurrency, &ActualMaxConcurrency, &Slots, &NumProcessed](uint32 Slot)
+							{
+								TRACE_CPUPROFILER_EVENT_SCOPE(Task);
+								check(Slot < MaxConcurrency);
+								check(!Slots[Slot].load(std::memory_order_relaxed));
+								Slots[Slot].store(true, std::memory_order_relaxed);
+
+								uint32 CurrentConcurrencyLocal = CurrentConcurrency.fetch_add(1, std::memory_order_relaxed) + 1;
+								check(CurrentConcurrencyLocal <= MaxConcurrency);
+								uint32 ActualMaxConcurrencyLocal = ActualMaxConcurrency.load(std::memory_order_relaxed);
+								while (ActualMaxConcurrencyLocal < CurrentConcurrencyLocal &&
+									!ActualMaxConcurrency.compare_exchange_weak(ActualMaxConcurrencyLocal, CurrentConcurrencyLocal, std::memory_order_relaxed, std::memory_order_relaxed))
+								{
+									check(ActualMaxConcurrencyLocal <= MaxConcurrency);
+								}
+
+								FPlatformProcess::YieldCycles(10000);
+
+								CurrentConcurrencyLocal = CurrentConcurrency.fetch_sub(1, std::memory_order_relaxed) - 1;
+								check(CurrentConcurrencyLocal >= 0);
+
+								Slots[Slot].store(false, std::memory_order_relaxed);
+
+								NumProcessed.fetch_add(1, std::memory_order_release);
+							}
+						);
+					}
+				}
+			));
+		}
+
+		Wait(PushingTasks);
+		TaskConcurrencyLimiter.Wait();
+		check(NumProcessed.load(std::memory_order_acquire) == NumItems);
+
+		// unreliable check that MaxConcurrency is actually reached, but reliable enough for testing locally
+		//check(ActualMaxConcurrency.load(std::memory_order_relaxed) == MaxConcurrency);
+	}
+
+	TEST_CASE_NAMED(FTasksConcurrencyLimiterTest, "System::Core::Async::Tasks::TaskConcurrencyLimiter", "[.][ApplicationContextMask][EngineFilter]")
+	{
+		UE_BENCHMARK(5, TaskConcurrencyLimiterStressTest<8, 1'000'000, 10>);
+	}
+
+	template<uint32 RepeatCount>
+	void TaskConcurrencyLimiter_WaitingStressTest()
+	{
+		for (uint32 RepeatIndex = 0; RepeatIndex < RepeatCount; ++RepeatIndex)
+		{
+			FTaskConcurrencyLimiter TaskConcurrencyLimiter{ 1 };
+			FEventRef Blocker;
+			std::atomic<bool> bDone{ false };
+			TaskConcurrencyLimiter.Push(UE_SOURCE_LOCATION, 
+				[&Blocker, &bDone](uint32) 
+				{ 
+					TRACE_CPUPROFILER_EVENT_SCOPE(Blocked);
+					Blocker->Wait(); 
+					bDone.store(true, std::memory_order_relaxed); 
+				}
+			);
+			const uint32 NumWaitingTasks = 10;
+			TArray<FTask> WaitingTasks;
+			WaitingTasks.Reserve(NumWaitingTasks);
+			for (uint32 WaitIndex = 0; WaitIndex < NumWaitingTasks; ++WaitIndex)
+			{
+				WaitingTasks.Add(Launch(UE_SOURCE_LOCATION, 
+					[&TaskConcurrencyLimiter, &bDone] 
+					{
+						TRACE_CPUPROFILER_EVENT_SCOPE(Waiting);
+						TaskConcurrencyLimiter.Wait(); 
+						check(bDone.load(std::memory_order_relaxed)); 
+					}
+				));
+			}
+			Blocker->Trigger();
+			Wait(WaitingTasks);
+		}
+	}
+
+	TEST_CASE_NAMED(FTasksConcurrencyLimiterWaitingTest, "System::Core::Async::Tasks::TaskConcurrencyLimiter::Waiting", "[.][ApplicationContextMask][EngineFilter]")
+	{
+		UE_BENCHMARK(5, TaskConcurrencyLimiter_WaitingStressTest<10'000>);
 	}
 }}
 
