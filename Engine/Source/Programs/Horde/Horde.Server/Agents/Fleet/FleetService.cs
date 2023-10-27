@@ -346,11 +346,14 @@ namespace Horde.Server.Agents.Fleet
 		/// <exception cref="ArgumentException">If fleet manager could not be instantiated</exception>
 		public IFleetManager CreateFleetManager(IPool pool)
 		{
-			foreach (FleetManagerInfo info in pool.FleetManagers)
+			if (pool.FleetManagers != null)
 			{
-				if (info.Condition == null || info.Condition.Evaluate(GetPropValues))
+				foreach (FleetManagerInfo info in pool.FleetManagers)
 				{
-					return _fleetManagerFactory.CreateFleetManager(info.Type, info.Config);
+					if (info.Condition == null || info.Condition.Evaluate(GetPropValues))
+					{
+						return _fleetManagerFactory.CreateFleetManager(info.Type, info.Config);
+					}
 				}
 			}
 
@@ -366,7 +369,7 @@ namespace Horde.Server.Agents.Fleet
 		/// <exception cref="ArgumentException"></exception>
 		public IPoolSizeStrategy CreatePoolSizeStrategy(IPool pool)
 		{
-			if (pool.SizeStrategies.Count > 0)
+			if (pool.SizeStrategies != null && pool.SizeStrategies.Count > 0)
 			{
 				foreach (PoolSizeStrategyInfo info in pool.SizeStrategies)
 				{
@@ -404,6 +407,7 @@ namespace Horde.Server.Agents.Fleet
 			}
 
 			// These is the legacy way of creating and configuring strategies (list-based approach above is preferred)
+#pragma warning disable CS0618
 			switch (pool.SizeStrategy ?? _settings.Value.DefaultAgentPoolSizeStrategy)
 			{
 				case PoolSizeStrategy.JobQueue:
@@ -424,6 +428,7 @@ namespace Horde.Server.Agents.Fleet
 				default:
 					throw new ArgumentException("Unknown pool size strategy " + pool.SizeStrategy);
 			}
+#pragma warning restore CS0618
 		}
 
 		/// <summary>

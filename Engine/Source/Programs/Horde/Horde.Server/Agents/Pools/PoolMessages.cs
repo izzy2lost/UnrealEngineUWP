@@ -531,9 +531,11 @@ namespace Horde.Server.Agents.Pools
 			ConformInterval = pool.ConformInterval == null ? null : (int)pool.ConformInterval.Value.TotalHours;
 			ScaleOutCooldown = pool.ScaleOutCooldown == null ? null : (int)pool.ScaleOutCooldown.Value.TotalSeconds;
 			ScaleInCooldown = pool.ScaleInCooldown == null ? null : (int)pool.ScaleInCooldown.Value.TotalSeconds;
-			SizeStrategies = pool.SizeStrategies.Select(x => new PoolSizeStrategyMessage(x)).ToList();
-			FleetManagers = pool.FleetManagers.Select(x => new FleetManagerMessage(x)).ToList();
-			SizeStrategy = pool.SizeStrategy;
+			SizeStrategies = pool.SizeStrategies?.Select(x => new PoolSizeStrategyMessage(x))?.ToList() ?? new List<PoolSizeStrategyMessage>();
+			FleetManagers = pool.FleetManagers?.Select(x => new FleetManagerMessage(x))?.ToList() ?? new List<FleetManagerMessage>();
+#pragma warning disable CS0618 // Type or member is obsolete
+			SizeStrategy = pool.SizeStrategy ?? default;
+#pragma warning restore CS0618 // Type or member is obsolete
 			LeaseUtilizationSettings = pool.LeaseUtilizationSettings == null ? null : new LeaseUtilizationSettingsMessage(pool.LeaseUtilizationSettings);
 			JobQueueSettings = pool.JobQueueSettings == null ? null : new JobQueueSettingsMessage(pool.JobQueueSettings);
 			ComputeQueueAwsMetricSettings = pool.ComputeQueueAwsMetricSettings == null ? null : new ComputeQueueAwsMetricSettingsMessage(pool.ComputeQueueAwsMetricSettings);

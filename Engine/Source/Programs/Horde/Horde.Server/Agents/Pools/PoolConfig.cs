@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using EpicGames.Horde.Common;
 using Horde.Server.Agents.Fleet;
 
@@ -51,62 +52,26 @@ namespace Horde.Server.Agents.Pools
 		/// Interval between conforms. If zero, the pool will not conform on a schedule.
 		/// </summary>
 		public TimeSpan? ConformInterval { get; }
-
-		/// <summary>
-		/// Last time the pool was (auto) scaled up
-		/// </summary>
-		public DateTime? LastScaleUpTime { get; }
-
-		/// <summary>
-		/// Last time the pool was (auto) scaled down
-		/// </summary>
-		public DateTime? LastScaleDownTime { get; }
-
-		/// <summary>
-		/// Cooldown time between scale-out events
-		/// </summary>
-		public TimeSpan? ScaleOutCooldown { get; }
-
-		/// <summary>
-		/// Cooldown time between scale-in events
-		/// </summary>
-		public TimeSpan? ScaleInCooldown { get; }
 		
 		/// <summary>
 		/// Time to wait before shutting down an agent that has been disabled
 		/// </summary>
 		public TimeSpan? ShutdownIfDisabledGracePeriod { get; }
-		
-		/// <summary>
-		/// Last result from scaling the pool
-		/// </summary>
-		public ScaleResult? LastScaleResult { get; }
-		
-		/// <summary>
-		/// Last known agent count
-		/// </summary>
-		public int? LastAgentCount { get; }
 
-		/// <summary>
-		/// Last known desired agent count
-		/// </summary>
-		public int? LastDesiredAgentCount { get; }
-
-		/// <summary>
-		/// Pool sizing strategy to be used for this pool
-		/// </summary>
-		public PoolSizeStrategy? SizeStrategy { get; }
+		/// <inheritdoc/>
+		[Obsolete("Use SizeStrategies instead")]
+		public PoolSizeStrategy? SizeStrategy { get; set; }
 
 		/// <summary>
 		/// List of pool sizing strategies for this pool. The first strategy with a matching condition will be picked.
 		/// </summary>
-		public IReadOnlyList<PoolSizeStrategyInfo> SizeStrategies { get; }
+		public IReadOnlyList<PoolSizeStrategyInfo>? SizeStrategies { get; }
 
 		/// <summary>
 		/// List of fleet managers for this pool. The first strategy with a matching condition will be picked.
 		/// If empty or no conditions match, a default fleet manager will be used.
 		/// </summary>
-		public IReadOnlyList<FleetManagerInfo> FleetManagers { get; }
+		public IReadOnlyList<FleetManagerInfo>? FleetManagers { get; }
 
 		/// <summary>
 		/// Settings for lease utilization pool sizing strategy (if used)
@@ -127,19 +92,22 @@ namespace Horde.Server.Agents.Pools
 	/// <summary>
 	/// Mutable configuration for a pool
 	/// </summary>
+	[DebuggerDisplay("{Id}")]
 	public class PoolConfig : IPoolConfig
 	{
 		/// <inheritdoc/>
 		public PoolId Id { get; set; }
 
+		/// <summary>
+		/// Base pool config to copy settings from
+		/// </summary>
+		public PoolId? Base { get; set; }
+		
 		/// <inheritdoc/>
 		public string Name { get; set; } = String.Empty;
 
 		/// <inheritdoc/>
 		public Condition? Condition { get; set; }
-
-		/// <inheritdoc/>
-		public bool UseAutoSdk { get; set; } = true;
 
 		/// <inheritdoc cref="IPoolConfig.Properties"/>
 		public Dictionary<string, string> Properties { get; set; } = new Dictionary<string, string>();
@@ -147,8 +115,11 @@ namespace Horde.Server.Agents.Pools
 		/// <inheritdoc/>
 		IReadOnlyDictionary<string, string> IPoolConfig.Properties => Properties;
 
+		/// <inheritdoc cref="IPoolConfig.EnableAutoscaling"/>
+		public bool? EnableAutoscaling { get; set; }
+
 		/// <inheritdoc/>
-		public bool EnableAutoscaling { get; set; } = true;
+		bool IPoolConfig.EnableAutoscaling => EnableAutoscaling ?? true;
 
 		/// <inheritdoc/>
 		public int? MinAgents { get; set; }
@@ -173,30 +144,22 @@ namespace Horde.Server.Agents.Pools
 		
 		/// <inheritdoc/>
 		public TimeSpan? ShutdownIfDisabledGracePeriod { get; set;  }
-		
-		/// <inheritdoc/>
-		public ScaleResult? LastScaleResult { get; set; }
 
 		/// <inheritdoc/>
-		public int? LastAgentCount { get; set; }
-		
-		/// <inheritdoc/>
-		public int? LastDesiredAgentCount { get; set; }
-		
-		/// <inheritdoc/>
-		public PoolSizeStrategy? SizeStrategy { get; set; }
+		[Obsolete("Use SizeStrategies instead")]
+		public PoolSizeStrategy? SizeStrategy{ get; set; }
 
 		/// <inheritdoc/>
-		public List<PoolSizeStrategyInfo> SizeStrategies { get; } = new List<PoolSizeStrategyInfo>();
+		public List<PoolSizeStrategyInfo>? SizeStrategies { get; set; }
 
 		/// <inheritdoc cref="IPoolConfig.SizeStrategies"/>
-		IReadOnlyList<PoolSizeStrategyInfo> IPoolConfig.SizeStrategies => SizeStrategies;
+		IReadOnlyList<PoolSizeStrategyInfo>? IPoolConfig.SizeStrategies => SizeStrategies;
 
 		/// <inheritdoc/>
-		public List<FleetManagerInfo> FleetManagers { get; } = new List<FleetManagerInfo>();
+		public List<FleetManagerInfo>? FleetManagers { get; set; }
 
 		/// <inheritdoc cref="IPoolConfig.FleetManagers"/>
-		IReadOnlyList<FleetManagerInfo> IPoolConfig.FleetManagers => FleetManagers;
+		IReadOnlyList<FleetManagerInfo>? IPoolConfig.FleetManagers => FleetManagers;
 
 		/// <inheritdoc/>
 		public LeaseUtilizationSettings? LeaseUtilizationSettings { get; set; }

@@ -118,6 +118,41 @@ namespace Horde.Server.Agents.Pools
 		public AutoSdkConfig? AutoSdkConfig { get; }
 
 		/// <summary>
+		/// Cooldown time between scale-out events
+		/// </summary>
+		public TimeSpan? ScaleOutCooldown { get; }
+
+		/// <summary>
+		/// Cooldown time between scale-in events
+		/// </summary>
+		public TimeSpan? ScaleInCooldown { get; }
+
+		/// <summary>
+		/// Last time the pool was (auto) scaled up
+		/// </summary>
+		public DateTime? LastScaleUpTime { get; }
+
+		/// <summary>
+		/// Last time the pool was (auto) scaled down
+		/// </summary>
+		public DateTime? LastScaleDownTime { get; }
+
+		/// <summary>
+		/// Last known agent count
+		/// </summary>
+		public int? LastAgentCount { get; }
+
+		/// <summary>
+		/// Last known desired agent count
+		/// </summary>
+		public int? LastDesiredAgentCount { get; }
+
+		/// <summary>
+		/// Last result from scaling the pool
+		/// </summary>
+		public ScaleResult? LastScaleResult { get; }
+
+		/// <summary>
 		/// Revision string for the config file describing this pool, or null if added manually.
 		/// </summary>
 		public string? Revision { get; }

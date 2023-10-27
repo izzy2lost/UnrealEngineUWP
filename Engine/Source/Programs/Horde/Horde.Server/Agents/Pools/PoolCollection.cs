@@ -116,11 +116,9 @@ namespace Horde.Server.Agents.Pools
 				MinAgents = other.MinAgents;
 				NumReserveAgents = other.NumReserveAgents;
 				ConformInterval = other.ConformInterval;
-				LastScaleUpTime = other.LastScaleUpTime;
-				LastScaleDownTime = other.LastScaleDownTime;
-				ScaleOutCooldown = other.ScaleOutCooldown;
-				ScaleInCooldown = other.ScaleInCooldown;
+#pragma warning disable CS0618 // Type or member is obsolete
 				SizeStrategy = other.SizeStrategy;
+#pragma warning restore CS0618 // Type or member is obsolete
 				if (other.SizeStrategies != null && other.SizeStrategies.Count > 0)
 				{
 					SizeStrategies = new List<PoolSizeStrategyInfo>(other.SizeStrategies);

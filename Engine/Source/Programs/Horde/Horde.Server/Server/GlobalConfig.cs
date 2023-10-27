@@ -317,6 +317,8 @@ namespace Horde.Server.Server
 				secret.PostLoad(this);
 			}
 
+			ConfigType.MergeDefaults<string, PoolConfig>(Pools.Select(x => (x.Id.ToString(), x.Base?.ToString(), x)));
+
 			Storage.PostLoad(this);
 		}
 

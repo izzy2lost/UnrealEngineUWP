@@ -21,8 +21,10 @@ namespace Horde.Server.Tests
 	        GetPoolResponse response = (rawResult.Value![0] as GetPoolResponse)!;
 	        Assert.AreEqual(pool1.Id.ToString(), response.Id);
 	        Assert.AreEqual(pool1.Name, response.Name);
-	        Assert.AreEqual(pool1.SizeStrategy, response.SizeStrategy);
-        }
+#pragma warning disable CS0618
+			Assert.AreEqual(pool1.SizeStrategy, response.SizeStrategy);
+#pragma warning restore CS0618
+		}
         
         [TestMethod]
         public async Task CreatePoolsTestAsync()
@@ -48,12 +50,12 @@ namespace Horde.Server.Tests
 	        Assert.AreEqual(request.JobQueueSettings.ScaleOutFactor, pool.JobQueueSettings!.ScaleOutFactor, 0.0001);
 	        Assert.AreEqual(request.JobQueueSettings.ScaleInFactor, pool.JobQueueSettings!.ScaleInFactor, 0.0001);
 	        Assert.AreEqual(1, request.SizeStrategies.Count);
-	        Assert.AreEqual(request.SizeStrategies[0].Type, pool.SizeStrategies[0].Type);
+	        Assert.AreEqual(request.SizeStrategies[0].Type, pool.SizeStrategies![0].Type);
 	        Assert.AreEqual(request.SizeStrategies[0].Condition!.Text, pool.SizeStrategies[0].Condition!.Text);
 	        Assert.AreEqual(request.SizeStrategies[0].Config, pool.SizeStrategies[0].Config);
 	        Assert.AreEqual(request.SizeStrategies[0].ExtraAgentCount, pool.SizeStrategies[0].ExtraAgentCount);
 	        Assert.AreEqual(1, request.FleetManagers.Count);
-	        Assert.AreEqual(request.FleetManagers[0].Type, pool.FleetManagers[0].Type);
+	        Assert.AreEqual(request.FleetManagers[0].Type, pool.FleetManagers![0].Type);
 	        Assert.AreEqual(request.FleetManagers[0].Condition!.Text, pool.FleetManagers[0].Condition!.Text);
 	        Assert.AreEqual(request.FleetManagers[0].Config, pool.FleetManagers[0].Config);
         }
