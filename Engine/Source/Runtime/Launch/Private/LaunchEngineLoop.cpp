@@ -81,7 +81,7 @@
 
 #include "Compression/OodleDataCompression.h"
 
-#if WITH_VERSE_VM
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 #include "VerseVM/VVMVerse.h"
 #endif
 
@@ -3454,7 +3454,7 @@ int32 FEngineLoop::PreInitPreStartupScreen(const TCHAR* CmdLine)
 	PreInitContext.CommandletCommandLine = CommandletCommandLine;
 #endif // UE_EDITOR || WITH_ENGINE
 
-#if WITH_VERSE_VM
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 	Verse::VerseVM::Startup();
 #endif
 
@@ -6814,7 +6814,7 @@ void FEngineLoop::AppPreExit( )
 		GShaderCompilerStats = nullptr;
 	}
 
-#if WITH_VERSE_VM
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 	Verse::VerseVM::Shutdown();
 #endif
 

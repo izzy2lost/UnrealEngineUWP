@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#if WITH_VERSE_VM
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 #include "VerseVM/VVMVerse.h"
 #include "VerseVM/VVMEmergentTypeCreator.h"
 #include "VerseVM/VVMFalse.h"
@@ -22,4 +22,4 @@ void VerseVM::Shutdown()
 {
 }
 } // namespace Verse
-#endif // WITH_VERSE_VM
+#endif // WITH_VERSE_VM || defined(__INTELLISENSE__)

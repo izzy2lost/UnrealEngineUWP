@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#if WITH_VERSE_VM
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 #include "VerseVM/VVMContext.h"
 #include "VerseVM/VVMLog.h"
 #include "VerseVM/VVMStoppedWorld.h"
@@ -50,4 +50,4 @@ FStopRequest FHandshakeContext::RequestStop() const
 }
 
 } // namespace Verse
-#endif // WITH_VERSE_VM
+#endif // WITH_VERSE_VM || defined(__INTELLISENSE__)

@@ -304,7 +304,7 @@ public:
 		}
 	}
 
-#if WITH_VERSE_VM
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 	/**
 	* Handles VCell reference from the token stream. Performance is critical here so we're FORCEINLINING this function.
 	*

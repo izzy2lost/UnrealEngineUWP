@@ -777,7 +777,7 @@ public:
 	*/
 	COREUOBJECT_API void MarkAsReachable() const;
 
-#if WITH_VERSE_VM
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 	/**
 	* Coming from verse, marks the object as Reachable if it's currently marked as MaybeUnreachable by incremental GC.
 	*/

@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#if WITH_VERSE_VM
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 #include "VerseVM/VVMCollectionCycleRequest.h"
 #include "Async/UniqueLock.h"
 #include "VerseVM/VVMContext.h"
@@ -40,4 +40,4 @@ void FCollectionCycleRequest::Wait(FIOContext Context) const
 }
 
 } // namespace Verse
-#endif // WITH_VERSE_VM
+#endif // WITH_VERSE_VM || defined(__INTELLISENSE__)

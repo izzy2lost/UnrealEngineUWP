@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#if WITH_VERSE_VM
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 #include "AutoRTFM/AutoRTFM.h"
 #include "HAL/Platform.h"
 #include "HAL/PlatformMisc.h"
@@ -2090,4 +2090,4 @@ VValue VFunction::InvokeInTransaction(FRunningContext Context, VValue Argument)
 }
 
 } // namespace Verse
-#endif // WITH_VERSE_VM
+#endif // WITH_VERSE_VM || defined(__INTELLISENSE__)

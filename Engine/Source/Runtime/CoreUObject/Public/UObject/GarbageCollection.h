@@ -76,7 +76,7 @@ private:
 	uint64 SchemaView = 0;
 };
 
-#if WITH_VERSE_VM
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 /**
 * Enable/Disable merger of UE and Verse GC
 *

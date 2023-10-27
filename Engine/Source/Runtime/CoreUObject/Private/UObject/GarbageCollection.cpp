@@ -45,7 +45,7 @@
 
 #include <atomic>
 
-#if WITH_VERSE_VM
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 #include "VerseVM/VVMCollectionCycleRequest.h"
 #include "VerseVM/VVMContext.h"
 #include "VerseVM/VVMHeap.h"
@@ -110,7 +110,7 @@ static FGCTimingInfo GTimingInfo;
 
 bool GIsGarbageCollecting = false;
 
-#if WITH_VERSE_VM
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 namespace UE::GC
 {
 bool GIsFrankenGCCollecting = false;
@@ -219,7 +219,7 @@ static FAutoConsoleVariableRef CMultithreadedDestructionEnabled(
 	ECVF_Default
 );
 
-#if WITH_VERSE_VM
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 bool GEnableFrankenGC = true;
 static FAutoConsoleVariableRef CEnableFrankenGC(
 	TEXT("gc.EnableFrankenGC"),
@@ -1038,7 +1038,7 @@ static bool MarkClusterMutableObjectsAsReachable(FUObjectCluster& Cluster, Conta
 	return bAddClusterObjectsToSerialize;
 }
 
-#if WITH_VERSE_VM
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 static void MarkClusterMutableCellsAsReachable(FUObjectCluster& Cluster)
 {
 	if (GIsFrankenGCCollecting && Cluster.MutableCells.Num() > 0)
@@ -3018,7 +3018,7 @@ struct TBatchDispatcher
 	FReferenceCollector& Collector;
 	TReferenceBatcher<FMutableReference, FResolvedMutableReference, ProcessorType> KillableBatcher;
 	TReferenceBatcher<FImmutableReference, FImmutableReference, ProcessorType> ImmutableBatcher;
-#if WITH_VERSE_VM
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 	Verse::FMarkStack VerseGCMarkStack;
 #endif
 	FStructBatcher StructBatcher;
@@ -3072,7 +3072,7 @@ struct TBatchDispatcher
 		HandleReferenceDirectly(ReferencingObject, WeakObject, MemberId, EKillable::No);
 	}
 
-#if WITH_VERSE_VM
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 	FORCEINLINE_DEBUGGABLE void HandleVerseValueDirectly(UObject* ReferencingObject, Verse::VValue& Value, FMemberId MemberId, EOrigin Origin)
 	{
 		if (Verse::VCell* Cell = Value.ExtractCell())
@@ -3424,7 +3424,7 @@ struct TDebugDispatcher
 	ProcessorType& Processor;
 	FWorkerContext& Context;
 	FReferenceCollector& Collector;
-#if WITH_VERSE_VM
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 	Verse::FMarkStack VerseGCMarkStack;
 #endif
 
@@ -3473,7 +3473,7 @@ struct TDebugDispatcher
 		HandleKillableReferences(ToView(Array), MemberId, Origin);
 	}
 
-#if WITH_VERSE_VM
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 	FORCEINLINE_DEBUGGABLE void HandleVerseValueDirectly(UObject* ReferencingObject, Verse::VValue& Value, FMemberId MemberId, EOrigin Origin)
 	{
 		if (Verse::VCell* Cell = Value.ExtractCell())
@@ -4235,7 +4235,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	bool VerseGCActive()
 	{
-#if WITH_VERSE_VM
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 		if (!GIsFrankenGCCollecting)
 		{
 			return false;
@@ -5040,7 +5040,7 @@ EGCOptions GetReferenceCollectorOptions(bool bPerformFullPurge)
 		((GAllowIncrementalReachability && !bPerformFullPurge) ? EGCOptions::IncrementalReachability : EGCOptions::None);
 }
 
-#if WITH_VERSE_VM
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 static bool UpdateFrankenGCMode()
 {
 	bool bNewState = GEnableFrankenGC;
@@ -5756,7 +5756,7 @@ FORCEINLINE static void MarkObjectItemAsReachable(FUObjectItem* ObjectItem)
 {
 	using namespace UE::GC::Private;
 
-#if WITH_VERSE_VM
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 	if constexpr (bIsVerse)
 	{
 		// When verse VM is enabled, this method is also used to report that a UObject is being referenced inside of a VCell
@@ -5805,7 +5805,7 @@ void UObject::MarkAsReachable() const
 	::MarkAsReachable<false>(this);
 }
 
-#if WITH_VERSE_VM
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 void UObject::VerseMarkAsReachable() const
 {
 	::MarkAsReachable<true>(this);

@@ -52,7 +52,7 @@ FName ToName(EMemberType Type)
 			Names[(uint8)EMemberType::ARO] =							"ARO";
 			Names[(uint8)EMemberType::SlowARO] =						"SlowARO";
 			Names[(uint8)EMemberType::MemberARO] =						"MemberARO";
-#if WITH_VERSE_VM
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 			Names[(uint8)EMemberType::VerseValue] =						"VerseValue";
 			Names[(uint8)EMemberType::VerseValueArray] =				"VerseValueArray";
 #endif

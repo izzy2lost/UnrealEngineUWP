@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#if WITH_VERSE_VM
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 #include "VerseVM/VVMLocalAllocator.h"
 #include "VerseVM/VVMLog.h"
 #include "VerseVM/VVMTrue.h"
@@ -17,4 +17,4 @@ FLocalAllocator::~FLocalAllocator()
 }
 
 } // namespace Verse
-#endif // WITH_VERSE_VM
+#endif // WITH_VERSE_VM || defined(__INTELLISENSE__)

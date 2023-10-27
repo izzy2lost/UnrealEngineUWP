@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#if WITH_VERSE_VM
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 #include "VerseVM/VVMTuple.h"
 #include "Templates/TypeHash.h"
 #include "VerseVM/Inline/VVMAbstractVisitorInline.h"
@@ -56,4 +56,4 @@ uint32 VTuple::GetTypeHashImpl(VCell* ThisCell)
 }
 
 } // namespace Verse
-#endif // WITH_VERSE_VM
+#endif // WITH_VERSE_VM || defined(__INTELLISENSE__)

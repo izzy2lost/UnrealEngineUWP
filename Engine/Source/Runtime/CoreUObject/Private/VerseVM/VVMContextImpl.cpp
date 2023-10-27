@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#if WITH_VERSE_VM
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 #include "VerseVM/VVMContextImpl.h"
 #include "Async/UniqueLock.h"
 #include "Experimental/Async/MultiUniqueLock.h"
@@ -767,4 +767,4 @@ VCell* FContextImpl::RunWeakReadBarrierUnmarkedWhenActive(VCell* Cell)
 }
 
 } // namespace Verse
-#endif // WITH_VERSE_VM
+#endif // WITH_VERSE_VM || defined(__INTELLISENSE__)

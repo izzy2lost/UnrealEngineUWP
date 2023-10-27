@@ -46,7 +46,7 @@
  * [3] https://golang.org/LICENSE
  */
 
-#if WITH_VERSE_VM
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 #include "VerseVM/VVMHeapInt.h"
 #include "VerseVM/VVMCppClassInfo.h"
 
@@ -1161,4 +1161,4 @@ VHeapInt* VHeapInt::RightTrim(FRunningContext Context)
 	return TrimmedBigInt;
 }
 } // namespace Verse
-#endif // WITH_VERSE_VM
+#endif // WITH_VERSE_VM || defined(__INTELLISENSE__)

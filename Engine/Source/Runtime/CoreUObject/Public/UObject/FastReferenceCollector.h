@@ -18,7 +18,7 @@
 #include "UObject/DynamicallyTypedValue.h"
 #include "UObject/GCObject.h"
 
-#if WITH_VERSE_VM
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 #include "VerseVM/VVMValue.h"
 #include "VerseVM/VVMWriteBarrier.h"
 #endif
@@ -595,7 +595,7 @@ FORCEINLINE_DEBUGGABLE void VisitMembers(DispatcherType& Dispatcher, FSchemaView
 			return; // ARO is an implicit stop
 			case EMemberType::Stop:
 			return; // Stop schema without ARO call
-#if WITH_VERSE_VM
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 			case EMemberType::VerseValue:				Dispatcher.HandleVerseValue(*(Verse::TWriteBarrier<Verse::VValue>*)MemberPtr, FMemberId(DebugIdx), Origin);
 			break;
 			case EMemberType::VerseValueArray:			Dispatcher.HandleVerseValueArray(*(TArray<Verse::TWriteBarrier<Verse::VValue>>*)MemberPtr, FMemberId(DebugIdx), Origin);
@@ -670,7 +670,7 @@ struct TDirectDispatcher
 		HandleKillableReferences(ToView(Array), MemberId, Origin);
 	}
 
-#if WITH_VERSE_VM
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 	// Some helper templates to detect if the ProcessorType supports HasHandleTokenStreamVerseCellReference
 	template <typename T, typename = void>
 	struct HasHandleTokenStreamVerseCellReference : std::false_type {};

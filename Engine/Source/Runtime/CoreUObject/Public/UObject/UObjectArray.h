@@ -11,7 +11,7 @@
 #include "UObject/ObjectMacros.h"
 #include "UObject/UObjectBase.h"
 
-#if WITH_VERSE_VM
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 namespace Verse
 {
 	struct VCell;
@@ -1202,7 +1202,7 @@ struct FUObjectCluster
 	TArray<int32> MutableObjects;
 	/** List of clusters that direcly reference this cluster. Used when dissolving a cluster. */
 	TArray<int32> ReferencedByClusters;
-#if WITH_VERSE_VM
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 	/** All verse cells are considered mutable.  They will just be added directly to verse gc when the cluster is marked */
 	TArray<Verse::VCell*> MutableCells;
 #endif

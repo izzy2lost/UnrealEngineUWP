@@ -161,7 +161,7 @@ public:
 		}
 	}
 
-#if WITH_VERSE_VM
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 	/**
 	* Handles VCell reference from the token stream. Performance is critical here so we're FORCEINLINING this function.
 	*
@@ -221,7 +221,7 @@ void ULevelActorContainer::CreateCluster()
 
 		if (UE_LOG_ACTIVE(LogLevelActorContainer, Verbose))
 		{
-#if WITH_VERSE_VM
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 			FString ExtraDetail = FString::Printf(TEXT(", %d verse cells"), Cluster.MutableCells.Num());
 #else
 			FString ExtraDetail;

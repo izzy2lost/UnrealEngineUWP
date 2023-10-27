@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#if WITH_VERSE_VM
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 #include "VerseVM/VVMLazyInitialized.h"
 #include "Async/Mutex.h"
 #include "Async/UniqueLock.h"
@@ -19,4 +19,4 @@ COREUOBJECT_API void AddLeakedObjectForLazyInitialization(void* Object)
 }
 
 } // namespace Verse
-#endif // WITH_VERSE_VM
+#endif // WITH_VERSE_VM || defined(__INTELLISENSE__)

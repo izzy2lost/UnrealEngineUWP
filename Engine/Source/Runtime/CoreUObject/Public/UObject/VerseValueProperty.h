@@ -21,7 +21,7 @@ class FVerseValueProperty : public FProperty
 
 public:
 
-#if WITH_VERSE_VM
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 	using TCppType = Verse::TWriteBarrier<Verse::VValue>;
 #endif
 

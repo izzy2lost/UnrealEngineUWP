@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#if WITH_VERSE_VM
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 #include "VerseVM/VVMArray.h"
 #include "Templates/TypeHash.h"
 #include "VerseVM/Inline/VVMAbstractVisitorInline.h"
@@ -63,4 +63,4 @@ VArray::VArray(FAllocationContext Context, uint32 InitialCapacity)
 }
 
 } // namespace Verse
-#endif // WITH_VERSE_VM
+#endif // WITH_VERSE_VM || defined(__INTELLISENSE__)

@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#if WITH_VERSE_VM
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 #include "VerseVM/VVMValuePrinting.h"
 #include "Containers/UnrealString.h"
 #include "VerseVM/Inline/VVMCellInline.h"
@@ -232,4 +232,4 @@ FString VRestValue::ToString(FAllocationContext Context, const FCellFormatter& C
 	return ::Verse::ToString(Context, Value.Get(), CellFormatter);
 }
 } // namespace Verse
-#endif // WITH_VERSE_VM
+#endif // WITH_VERSE_VM || defined(__INTELLISENSE__)

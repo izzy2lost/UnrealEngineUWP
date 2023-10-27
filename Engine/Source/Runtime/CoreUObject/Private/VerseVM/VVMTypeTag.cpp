@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#if WITH_VERSE_VM
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 #include "VerseVM/VVMTypeTag.h"
 
 #include "Containers/UnrealString.h"
@@ -23,4 +23,4 @@ FString DebugName(EVerseTypeTag Tag)
 	VERSE_UNREACHABLE();
 }
 } // namespace Verse
-#endif // WITH_VERSE_VM
+#endif // WITH_VERSE_VM || defined(__INTELLISENSE__)

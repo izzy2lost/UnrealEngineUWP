@@ -35,7 +35,7 @@ enum class EMemberType : uint8
 	ARO,								// Call Add[Struct]ReferencedObjects() on current object / struct
 	SlowARO,							// Call or queue AddReferencedObjects() on current object
 	MemberARO,							// Call AddStructReferencedObjects() on a struct member in current object / struct
-#if WITH_VERSE_VM
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 	VerseValue,							// Member - Verse value
 	VerseValueArray,					// Member - Verse value array
 #endif
@@ -333,7 +333,7 @@ TMemberDeclaration<T> MakeNestedMember(const char* Name, uint32 Offset, TArray<S
     return TMemberDeclaration<T>(Name, Offset, EMemberType::StructArray, InnerSchema.Build());
 }
 
-#if WITH_VERSE_VM
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 template<class T>
 TMemberDeclaration<T> MakeMember(const char* Name, uint32 Offset, ::Verse::TWriteBarrier<::Verse::VValue> T::*)
 {

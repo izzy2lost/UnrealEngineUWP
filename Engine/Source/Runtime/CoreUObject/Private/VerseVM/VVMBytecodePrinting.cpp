@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#if WITH_VERSE_VM
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 #include "VerseVM/VVMBytecodePrinting.h"
 #include "Containers/Map.h"
 #include "Containers/UnrealString.h"
@@ -235,4 +235,4 @@ FString Verse::PrintProcedure(FAllocationContext Context, VProcedure& Procedure)
 	FBytecodePrinter Printer{Context, Procedure};
 	return Printer.Print();
 }
-#endif // WITH_VERSE_VM
+#endif // WITH_VERSE_VM || defined(__INTELLISENSE__)

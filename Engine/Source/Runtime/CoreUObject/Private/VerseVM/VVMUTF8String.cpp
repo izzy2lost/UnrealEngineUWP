@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#if WITH_VERSE_VM
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 #include "Async/UniqueLock.h"
 #include "Containers/StringView.h"
 #include "VerseVM/Inline/VVMAbstractVisitorInline.h"
@@ -131,4 +131,4 @@ void VUniqueStringSet::VisitReferencesImpl(TVisitor& Visitor)
 }
 
 } // namespace Verse
-#endif // WITH_VERSE_VM
+#endif // WITH_VERSE_VM || defined(__INTELLISENSE__)

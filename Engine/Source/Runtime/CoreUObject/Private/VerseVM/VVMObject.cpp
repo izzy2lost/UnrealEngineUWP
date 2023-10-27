@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#if WITH_VERSE_VM
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 #include "VerseVM/Inline/VVMClassInline.h"
 #include "VerseVM/Inline/VVMObjectInline.h"
 #include "VerseVM/Inline/VVMShapeInline.h"
@@ -101,4 +101,4 @@ VObject& VObject::New(FAllocationContext Context, VClass& InClass, VUniqueString
 }
 
 } // namespace Verse
-#endif // WITH_VERSE_VM
+#endif // WITH_VERSE_VM || defined(__INTELLISENSE__)

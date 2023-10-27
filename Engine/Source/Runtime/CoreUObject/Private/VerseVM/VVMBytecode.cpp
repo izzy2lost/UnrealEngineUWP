@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#if WITH_VERSE_VM
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 #include "VerseVM/VVMBytecode.h"
 #include "VerseVM/VVMBytecodeOps.h"
 
@@ -21,4 +21,4 @@ const char* Verse::ToString(Verse::EOpcode Opcode)
 {
 	return Ops[static_cast<size_t>(Opcode)].Name;
 }
-#endif // WITH_VERSE_VM
+#endif // WITH_VERSE_VM || defined(__INTELLISENSE__)

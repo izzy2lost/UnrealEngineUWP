@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#if WITH_VERSE_VM
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 #include "VerseVM/VVMGlobalTrivialEmergentTypePtr.h"
 #include "VerseVM/Inline/VVMAbstractVisitorInline.h"
 #include "VerseVM/VVMMarkStackVisitor.h"
@@ -26,4 +26,4 @@ void FGlobalTrivialEmergentTypePtrRoot::VisitImpl(TVisitor& Visitor)
 }
 
 } // namespace Verse
-#endif // WITH_VERSE_VM
+#endif // WITH_VERSE_VM || defined(__INTELLISENSE__)

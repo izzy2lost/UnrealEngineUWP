@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#if WITH_VERSE_VM
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 #include "VerseVM/VVMIntrinsics.h"
 #include "VerseVM/Inline/VVMIntInline.h"
 #include "VerseVM/Inline/VVMValueInline.h"

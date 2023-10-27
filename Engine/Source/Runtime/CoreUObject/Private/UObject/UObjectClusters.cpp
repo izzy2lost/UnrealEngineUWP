@@ -98,7 +98,7 @@ void FUObjectClusterContainer::FreeCluster(int32 InClusterIndex)
 	Cluster.MutableObjects.Reset();
 	Cluster.ReferencedClusters.Reset();
 	Cluster.ReferencedByClusters.Reset();
-#if WITH_VERSE_VM
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 	Cluster.MutableCells.Reset();
 #endif
 	Cluster.bNeedsDissolving = false;
@@ -307,7 +307,7 @@ void DumpClusterToLog(const FUObjectCluster& Cluster, bool bHierarchy, bool bInd
 
 	FUObjectItem* RootItem = GUObjectArray.IndexToObjectUnsafeForGC(Cluster.RootIndex);
 	UObject* RootObject = static_cast<UObject*>(RootItem->Object);
-#if WITH_VERSE_VM
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 	FString ExtraDetail = FString::Printf(TEXT(", MutableCells: %d"), Cluster.MutableCells.Num());
 #else
 	FString ExtraDetail;
@@ -372,7 +372,7 @@ void DumpClusterToLog(const FUObjectCluster& Cluster, bool bHierarchy, bool bInd
 				UE_LOG(LogObj, Display, TEXT("    => nullptr"));
 			}
 		}
-#if WITH_VERSE_VM
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 		UE_LOG(LogObj, Display, TEXT("  External (mutable) cells: %d"), Cluster.MutableCells.Num());
 		for (Verse::VCell* Cell : Cluster.MutableCells)
 		{
@@ -424,7 +424,7 @@ void ListClusters(const TArray<FString>& Args)
 				return A->MutableObjects.Num();
 			});
 		}
-#if WITH_VERSE_VM
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 		else if (Arg == TEXT("SortByMutableCellCount"))
 		{
 			Algo::SortBy(AllClusters, [](FUObjectCluster* A)
@@ -765,7 +765,7 @@ public:
 		}
 	}
 
-#if WITH_VERSE_VM
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 	/**
 	* Handles VCell reference from the token stream. Performance is critical here so we're FORCEINLINING this function.
 	*
@@ -969,7 +969,7 @@ void UObjectBaseUtility::CreateCluster()
 		Cluster.MutableObjects.Sort();
 
 #if UE_GCCLUSTER_VERBOSE_LOGGING
-#if WITH_VERSE_VM
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 		FString ExtraDetail = FString::Printf(TEXT(", %d verse cells"), Cluster.MutableCells.Num());
 #else
 		FString ExtraDetail;
@@ -983,7 +983,7 @@ void UObjectBaseUtility::CreateCluster()
 	else
 	{
 #if UE_GCCLUSTER_VERBOSE_LOGGING
-#if WITH_VERSE_VM
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 		FString ExtraDetail = FString::Printf(TEXT(", %d verse cells"), Cluster.MutableCells.Num());
 #else
 		FString ExtraDetail;

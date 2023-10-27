@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#if WITH_VERSE_VM
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 #include "VerseVM/VVMGlobalHeapRoot.h"
 #include "Async/Mutex.h"
 #include "Async/UniqueLock.h"
@@ -20,4 +20,4 @@ FGlobalHeapRoot::FGlobalHeapRoot()
 }
 
 } // namespace Verse
-#endif // WITH_VERSE_VM
+#endif // WITH_VERSE_VM || defined(__INTELLISENSE__)
