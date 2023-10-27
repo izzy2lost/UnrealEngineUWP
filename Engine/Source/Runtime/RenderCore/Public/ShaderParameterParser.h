@@ -28,19 +28,6 @@ enum class EBindlessParameterMode : uint8
 	Vulkan,
 };
 
-inline FStringView StripTemplateFromType(const FStringView& Input)
-{
-	FStringView UntemplatedType = FStringView(Input);
-	if (int32 Index = Input.Find(TEXT("<")); Index != INDEX_NONE)
-	{
-		// Remove the template argument but don't forget to clean up the type name
-		const int32 NumChars = Input.Len() - Index;
-		UntemplatedType = Input.LeftChop(NumChars).TrimEnd();
-	}
-
-	return UntemplatedType;
-}
-
 /** Validates and moves all the shader loose data parameter defined in the root scope of the shader into the root uniform buffer. */
 class FShaderParameterParser
 {
@@ -87,8 +74,6 @@ public:
 		friend class FShaderParameterParser;
 	};
 
-	RENDERCORE_API FShaderParameterParser();
-
 	UE_DEPRECATED(5.3, "Use FShaderParameterParser constructor which accepts FShaderCompilerFlags")
 	RENDERCORE_API FShaderParameterParser(const TCHAR* InConstantBufferType);
 	UE_DEPRECATED(5.3, "Use FShaderParameterParser constructor which accepts FShaderCompilerFlags")
@@ -101,8 +86,6 @@ public:
 		TConstArrayView<const TCHAR*> InExtraUAVTypes = {});
 
 	RENDERCORE_API virtual ~FShaderParameterParser();
-
-	FShaderParameterParser& operator=(FShaderParameterParser&&) = default;
 
 	static constexpr const TCHAR* kBindlessSRVPrefix = TEXT("BindlessSRV_");
 	static constexpr const TCHAR* kBindlessUAVPrefix = TEXT("BindlessUAV_");
@@ -184,8 +167,6 @@ public:
 	}
 
 	bool DidModifyShader() const { return bModifiedShader; }
-
-	friend FArchive& operator<<(FArchive& Ar, FShaderParameterParser& Parser);
 
 protected:
 	/** Parses the preprocessed shader code */

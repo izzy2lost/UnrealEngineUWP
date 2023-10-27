@@ -10,6 +10,7 @@
 #include "Serialization/MemoryWriter.h"
 #include "ShaderCompilerDefinitions.h"
 #include "ShaderFormatOpenGL.h"
+#include "ShaderParameterParser.h"
 #include "ShaderPreprocessTypes.h"
 #include "SpirvReflectCommon.h"
 #include <algorithm>

@@ -6,6 +6,19 @@
 #include "String/RemoveFrom.h"
 #include "Misc/StringBuilder.h"
 
+inline FStringView StripTemplateFromType(const FStringView& Input)
+{
+	FStringView UntemplatedType = FStringView(Input);
+	if (int32 Index = Input.Find(TEXT("<")); Index != INDEX_NONE)
+	{
+		// Remove the template argument but don't forget to clean up the type name
+		const int32 NumChars = Input.Len() - Index;
+		UntemplatedType = Input.LeftChop(NumChars).TrimEnd();
+	}
+
+	return UntemplatedType;
+}
+
 template<typename TParameterFunction>
 static void IterateShaderParameterMembersInternal(
 	const FShaderParametersMetadata& ParametersMetadata,
@@ -134,7 +147,6 @@ static void AddNoteToDisplayShaderParameterMemberOnCppSide(
 	CompilerOutput.Errors.Add(Error);
 }
 
-FShaderParameterParser::FShaderParameterParser() = default;
 FShaderParameterParser::~FShaderParameterParser() = default;
 
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
@@ -1422,76 +1434,6 @@ void FShaderParameterParser::ValidateShaderParameterTypes(
 
 			ValidateShaderParameterType(CompilerInput, ShaderBindingName, BoundOffset, BoundSize, bPlatformSupportsPrecisionModifier, CompilerOutput);
 		});
-}
-
-void SerializeStringView(FArchive& Ar, FStringView& StringView, const TCHAR* BasePtr)
-{
-	if (Ar.IsSaving())
-	{
-		uint32 Len = StringView.Len();
-		uint64 Offset = StringView.GetData() - BasePtr;
-		Ar << Len;
-		Ar << Offset;
-	}
-	else
-	{
-		uint32 Len;
-		uint64 Offset;
-		Ar << Len;
-		Ar << Offset;
-		StringView = FStringView(BasePtr + Offset, Len);
-	}
-}
-void SerializeParam(FArchive& Ar, FShaderParameterParser::FParsedShaderParameter& Param, const TCHAR* StringViewBase)
-{
-	Ar << Param.BaseType;
-	Ar << Param.PrecisionModifier;
-	Ar << Param.NumRows;
-	Ar << Param.NumColumns;
-	Ar << Param.MemberSize;
-	SerializeStringView(Ar, Param.ParsedName, StringViewBase);
-	SerializeStringView(Ar, Param.ParsedType, StringViewBase);
-	SerializeStringView(Ar, Param.ParsedArraySize, StringViewBase);
-	Ar << Param.ConstantBufferOffset;
-	Ar << Param.ParsedPragmaLineOffset;
-	Ar << Param.ParsedLineOffset;
-	Ar << Param.ParsedCharOffsetStart;
-	Ar << Param.ParsedCharOffsetEnd;
-	Ar << Param.BindlessConversionType;
-	Ar << Param.ConstantBufferParameterType;
-	Ar << Param.bGloballyCoherent;
-	Ar << Param.bIsBindable;
-	Ar << Param.ParsedTypeDecl;
-}
-FArchive& operator<<(FArchive& Ar, FShaderParameterParser& Parser)
-{
-	Ar << Parser.bMovedLoosedParametersToRootConstantBuffer;
-	Ar << Parser.bModifiedShader;
-	Ar << Parser.OriginalParsedShader;
-	if (Ar.IsSaving())
-	{
-		int32 ParsedParamCount = Parser.ParsedParameters.Num();
-		Ar << ParsedParamCount;
-		for (TPair<FString, FShaderParameterParser::FParsedShaderParameter>& ParsedParam : Parser.ParsedParameters)
-		{
-			Ar << ParsedParam.Key;
-			SerializeParam(Ar, ParsedParam.Value, Parser.OriginalParsedShader.GetCharArray().GetData());
-		}
-	}
-	else
-	{
-		uint32 ParsedParameterCount;
-		Ar << ParsedParameterCount;
-		Parser.ParsedParameters.Reserve(ParsedParameterCount);
-		for (uint32 CurParam = 0; CurParam < ParsedParameterCount; ++CurParam)
-		{
-			FString Name;
-			Ar << Name;
-			FShaderParameterParser::FParsedShaderParameter& ParsedParam = Parser.ParsedParameters.Add(Name);
-			SerializeParam(Ar, ParsedParam, Parser.OriginalParsedShader.GetCharArray().GetData());
-		}
-	}
-	return Ar;
 }
 
 void FShaderParameterParser::ExtractFileAndLine(int32 PragmaLineOffset, int32 LineOffset, FString& OutFile, FString& OutLine) const

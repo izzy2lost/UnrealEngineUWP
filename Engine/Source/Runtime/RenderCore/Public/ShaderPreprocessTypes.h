@@ -6,7 +6,6 @@
 #include "Containers/UnrealString.h"
 #include "ShaderCompilerCore.h"
 #include "ShaderCore.h"
-#include "ShaderParameterParser.h"
 
 struct FShaderCompilerEnvironment;
 struct FShaderCompilerError;
@@ -153,32 +152,6 @@ public:
 		return MakeArrayView(Errors);
 	}
 
-	inline bool ParseAndModify(
-		const FShaderCompilerInput& Input, 
-		const FShaderCompilerEnvironment& Environment, 
-		const TCHAR* ConstantBufferType, 
-		const TArrayView<const TCHAR* const> ExtraSRVTypes = {}, 
-		const TArrayView<const TCHAR* const> ExtraUAVTypes = {}, 
-		EBindlessParameterMode BindlessParameterMode = EBindlessParameterMode::Default)
-	{
-		FShaderParameterParser Tmp(Environment.CompilerFlags, ConstantBufferType, ExtraSRVTypes, ExtraUAVTypes);
-		ParameterParser = MoveTemp(Tmp);
-		return ParameterParser.ParseAndModify(Input, Errors, PreprocessedSource, BindlessParameterMode);
-	}
-
-	inline bool ParseAndModify(
-		const FShaderCompilerInput& Input,
-		const FShaderCompilerEnvironment& Environment,
-		EBindlessParameterMode BindlessParameterMode)
-	{
-		return ParseAndModify(Input, Environment, nullptr, {}, {}, BindlessParameterMode);
-	}
-
-	inline const FShaderParameterParser& GetParameterParser() const
-	{
-		return ParameterParser;
-	}
-
 	double GetElapsedTime() const
 	{
 		return ElapsedTime;
@@ -225,7 +198,9 @@ private:
 	bool bSucceeded = false;
 	bool bIsSecondary = false;
 
-	FShaderParameterParser ParameterParser;
-
 	TArray<FShaderDiagnosticData> ShaderDiagnosticDatas;
 };
+
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
+#include "ShaderParameterParser.h"
+#endif

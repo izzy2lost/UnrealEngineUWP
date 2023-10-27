@@ -246,7 +246,7 @@ static const FString kHitGroupSystemRootConstantsSymbolName = TEXT("HitGroupSyst
 // A collection of states and data that is locked in at the top level call and doesn't change throughout the compilation process
 struct FVulkanShaderCompilerInternalState
 {
-	FVulkanShaderCompilerInternalState(const FShaderCompilerInput& InInput, const FShaderParameterParser& InParameterParser)
+	FVulkanShaderCompilerInternalState(const FShaderCompilerInput& InInput, const FShaderParameterParser* InParameterParser)
 		: Input(InInput)
 		, ParameterParser(InParameterParser)
 		, Version(FormatToVersion(Input.ShaderFormat))
@@ -265,7 +265,7 @@ struct FVulkanShaderCompilerInternalState
 	}
 
 	const FShaderCompilerInput& Input;
-	const FShaderParameterParser& ParameterParser;
+	const FShaderParameterParser* ParameterParser;
 
 	const EVulkanShaderVersion Version;
 	const CrossCompiler::FShaderConductorOptions::ETargetEnvironment MinimumTargetEnvironment;
@@ -1425,7 +1425,8 @@ static bool BuildShaderOutputFromSpirv(
 				check(SpvResult == SPV_REFLECT_RESULT_SUCCESS);
 
 				const int32 ReflectionSlot = SerializedOutput.Spirv.ReflectionInfo.Add(FVulkanSpirv::FEntry(ResourceName, BindingIndex));
-				const FShaderParameterParser::FParsedShaderParameter* ParsedParam = InternalState.ParameterParser.FindParameterInfosUnsafe(ResourceName);
+				check(InternalState.ParameterParser);
+				const FShaderParameterParser::FParsedShaderParameter* ParsedParam = InternalState.ParameterParser->FindParameterInfosUnsafe(ResourceName);
 
 				auto AddShaderValidationType = [] (uint32_t VulkanBindingIndex, const FShaderParameterParser::FParsedShaderParameter* ParsedParam, FShaderCompilerOutput& Output) {
 					/*if (ParsedParam)
@@ -2155,7 +2156,7 @@ static void RemoveUnusedBindlessHeaps(FString& PreprocessedShaderSource, const T
 
 bool PreprocessVulkanShader(const FShaderCompilerInput& Input, const FShaderCompilerEnvironment& Environment, FShaderPreprocessOutput& PreprocessOutput)
 {
-	const FVulkanShaderCompilerInternalState InternalState(Input, PreprocessOutput.GetParameterParser());
+	const FVulkanShaderCompilerInternalState InternalState(Input, nullptr);
 
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS		// FShaderCompilerDefinitions will be made internal in the future, marked deprecated until then
 
@@ -2552,7 +2553,7 @@ void CompileVulkanShader(const FShaderCompilerInput& Input, const FString& InPre
 		return;
 	}
 
-	FVulkanShaderCompilerInternalState InternalState(Input, ShaderParameterParser);
+	FVulkanShaderCompilerInternalState InternalState(Input, &ShaderParameterParser);
 
 	const EHlslShaderFrequency HlslFrequency = InternalState.GetHlslShaderFrequency();
 	if (HlslFrequency == HSF_InvalidFrequency)
