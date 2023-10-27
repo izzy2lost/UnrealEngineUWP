@@ -21,6 +21,22 @@ enum class ECookingDLC
 	No,
 };
 
+/**
+ * The cookcommandlet can run in MPCook mode, where it creates worker processes to use more parallelism and
+ * reduce wall time of the cook. This enum is reported or received by some API functions on the cooker, and describes
+ * whether the current process the cooker and caller are in is the MPCook director, or an MPCook worker, or a cooker
+ * running as a singleprocess without MPCook.
+ */
+enum class EProcessType
+{
+	SingleProcess,
+	Director,
+	Worker,
+
+	/** Used only when passed as a filter: matches either Director or Worker. */
+	AllMPCook,
+};
+
 /* The Result of the Cook-Save of a package */
 enum class ECookResult : uint8
 {

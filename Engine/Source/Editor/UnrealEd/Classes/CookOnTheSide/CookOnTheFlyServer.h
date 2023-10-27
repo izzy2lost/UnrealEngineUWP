@@ -624,6 +624,13 @@ public:
 	// ICookInfo interface
 	UNREALED_API virtual UE::Cook::FInstigator GetInstigator(FName PackageName) override;
 	UNREALED_API virtual TArray<UE::Cook::FInstigator> GetInstigatorChain(FName PackageName) override;
+	UNREALED_API virtual UE::Cook::ECookType GetCookType() override;
+	UNREALED_API virtual UE::Cook::ECookingDLC GetCookingDLC() override;
+	UNREALED_API virtual UE::Cook::EProcessType GetProcessType() override;
+	UNREALED_API virtual void RegisterCollector(UE::Cook::IMPCollector* Collector,
+		UE::Cook::EProcessType ProcessType = UE::Cook::EProcessType::AllMPCook) override;
+	UNREALED_API virtual void UnregisterCollector(UE::Cook::IMPCollector* Collector) override;
+
 
 	/** Dumps cooking stats to the log. Run from the exec command "Cook stats". */
 	UNREALED_API void DumpStats();
@@ -836,9 +843,11 @@ public:
 	UNREALED_API void OnObjectSaved( UObject *ObjectSaved, FObjectPreSaveContext SaveContext );
 
 	DECLARE_MULTICAST_DELEGATE(FOnCookByTheBookStarted);
+	UE_DEPRECATED(5.4, "Use UE::Cook::FDelegates::CookByTheBookStarted (CoreUObject/Public/UObject/ICookInfo.h.")
 	static FOnCookByTheBookStarted& OnCookByTheBookStarted() { return CookByTheBookStartedEvent; };
 
 	DECLARE_MULTICAST_DELEGATE(FOnCookByTheBookFinished);
+	UE_DEPRECATED(5.4, "Use UE::Cook::FDelegates::CookByTheBookFinished (CoreUObject/Public/UObject/ICookInfo.h.")
 	static FOnCookByTheBookFinished& OnCookByTheBookFinished() { return CookByTheBookFinishedEvent; };
 	/**
 	* Marks a package as dirty for cook

@@ -7158,6 +7158,77 @@ TArray<UE::Cook::FInstigator> UCookOnTheFlyServer::GetInstigatorChain(FName Pack
 	return Result; // Unreachable
 }
 
+UE::Cook::ECookType UCookOnTheFlyServer::GetCookType()
+{
+	if (IsDirectorCookByTheBook())
+	{
+		return UE::Cook::ECookType::ByTheBook;
+	}
+	else
+	{
+		check(this->IsDirectorCookOnTheFly());
+		return UE::Cook::ECookType::OnTheFly;
+	}
+}
+
+UE::Cook::ECookingDLC UCookOnTheFlyServer::GetCookingDLC()
+{
+	using namespace UE::Cook;
+	return IsCookingDLC() ? ECookingDLC::Yes : ECookingDLC::No;
+}
+
+UE::Cook::EProcessType UCookOnTheFlyServer::GetProcessType()
+{
+	using namespace UE::Cook;
+	if (IsCookWorkerMode())
+	{
+		return EProcessType::Worker;
+	}
+	else if (CookDirector)
+	{
+		return EProcessType::Director;
+	}
+	else
+	{
+		return EProcessType::SingleProcess;
+	}
+}
+
+void UCookOnTheFlyServer::RegisterCollector(UE::Cook::IMPCollector* Collector, UE::Cook::EProcessType ProcessType)
+{
+	using namespace UE::Cook;
+
+	TRefCountPtr<IMPCollector> DeleteIfUnusedAndCallerHasNoReference(Collector);
+	if (CookDirector)
+	{
+		if (ProcessType == EProcessType::Director || ProcessType == EProcessType::AllMPCook)
+		{
+			CookDirector->Register(Collector);
+		}
+	}
+	else if (CookWorkerClient)
+	{
+		if (ProcessType == EProcessType::Worker || ProcessType == EProcessType::AllMPCook)
+		{
+			CookWorkerClient->Register(Collector);
+		}
+	}
+}
+
+void UCookOnTheFlyServer::UnregisterCollector(UE::Cook::IMPCollector* Collector)
+{
+	TRefCountPtr<UE::Cook::IMPCollector> DeleteIfCallerHasNoReference(Collector);
+	if (CookDirector)
+	{
+		CookDirector->Unregister(Collector);
+	}
+	else if (CookWorkerClient)
+	{
+		CookWorkerClient->Unregister(Collector);
+	}
+}
+
+
 void UCookOnTheFlyServer::DumpStats()
 {
 	UE_LOG(LogCook, Display, TEXT("IntStats:"));
@@ -9860,7 +9931,10 @@ void UCookOnTheFlyServer::CookByTheBookFinished()
 	}
 
 	ShutdownCookSession();
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
 	CookByTheBookFinishedEvent.Broadcast();
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+	UE::Cook::FDelegates::CookByTheBookFinished.Broadcast(*this);
 	UE_LOG(LogCook, Display, TEXT("Done!"));
 }
 
@@ -11042,7 +11116,10 @@ void UCookOnTheFlyServer::StartCookByTheBook( const FCookByTheBookStartupOptions
 	RecordDLCPackagesFromBaseGame(BeginContext);
 	RegisterCookByTheBookDelegates();
 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
 	CookByTheBookStartedEvent.Broadcast();
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+	UE::Cook::FDelegates::CookByTheBookStarted.Broadcast(*this);
 }
 
 const UCookOnTheFlyServer::FCookByTheBookStartupOptions& UCookOnTheFlyServer::BlockOnPrebootCookGate(bool& bOutAbortCook,
@@ -11217,7 +11294,10 @@ void UCookOnTheFlyServer::StartCookAsCookWorker()
 	{
 		RegisterCookByTheBookDelegates();
 		BeginCookFinishShaderCodeLibrary(BeginContext);
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS;
 		CookByTheBookStartedEvent.Broadcast();
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+		UE::Cook::FDelegates::CookByTheBookStarted.Broadcast(*this);
 	}
 }
 
@@ -11260,7 +11340,10 @@ void UCookOnTheFlyServer::CookAsCookWorkerFinished()
 	LogCookWorkerStats();
 	if (IsDirectorCookByTheBook())
 	{
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS;
 		CookByTheBookFinishedEvent.Broadcast();
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+		UE::Cook::FDelegates::CookByTheBookFinished.Broadcast(*this);
 	}
 	CookWorkerClient->FlushLogs();
 }
