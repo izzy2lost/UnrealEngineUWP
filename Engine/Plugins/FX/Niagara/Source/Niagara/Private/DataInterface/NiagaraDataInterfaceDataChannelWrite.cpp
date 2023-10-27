@@ -489,7 +489,7 @@ void UNiagaraDataInterfaceDataChannelWrite::GetFeedback(UNiagaraSystem* InAsset,
 	if (const UNiagaraDataChannel* DataChannel = RuntimeDI->Channel->Get())
 	{
 		//Ensure the data channel contains all the parameters this function is requesting.
-		TConstArrayView<FNiagaraVariable> ChannelVars = DataChannel->GetVariables();
+		TConstArrayView<FNiagaraDataChannelVariable> ChannelVars = DataChannel->GetVariables();
 		for (const FNDIDataChannelFunctionInfo& FuncInfo : RuntimeDI->GetCompiledData().GetFunctionInfo())
 		{
 			TArray<FNiagaraVariableBase> MissingParams;
@@ -499,7 +499,7 @@ void UNiagaraDataInterfaceDataChannelWrite::GetFeedback(UNiagaraSystem* InAsset,
 				for (const FNiagaraVariableBase& FuncParam : Parameters)
 				{
 					bool bParamFound = false;
-					for (const FNiagaraVariable& ChannelVar : ChannelVars)
+					for (const FNiagaraDataChannelVariable& ChannelVar : ChannelVars)
 					{
 						FNiagaraVariable SWCVar(ChannelVar);
 

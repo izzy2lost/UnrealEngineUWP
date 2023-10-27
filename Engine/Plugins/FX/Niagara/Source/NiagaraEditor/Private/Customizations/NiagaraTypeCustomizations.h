@@ -16,6 +16,7 @@ class IPropertyHandle;
 class IPropertyHandleArray;
 class UMaterialInterface;
 struct FMaterialParameterInfo;
+struct FNiagaraDataChannelVariable;
 class UNiagaraGraph;
 class UNiagaraParameterDefinitions;
 class UNiagaraRendererProperties;
@@ -458,3 +459,19 @@ private:
 	TSharedRef<SWidget> GetTypeMenu(TSharedPtr<IPropertyHandle> InPropertyHandle, FNiagaraVariable* Var);
 };
 
+//** Properties customization for FNiagaraDataChannelVariable. */
+class FNiagaraDataChannelVariableDetailsCustomization : public IPropertyTypeCustomization
+{
+public:
+	static TSharedRef<IPropertyTypeCustomization> MakeInstance()
+	{
+		return MakeShared<FNiagaraDataChannelVariableDetailsCustomization>();
+	}
+
+	virtual void CustomizeHeader(TSharedRef<IPropertyHandle> PropertyHandle, FDetailWidgetRow& HeaderRow, IPropertyTypeCustomizationUtils& CustomizationUtils) override;
+
+	virtual void CustomizeChildren(TSharedRef<IPropertyHandle> PropertyHandle, IDetailChildrenBuilder& ChildBuilder, IPropertyTypeCustomizationUtils& CustomizationUtils) override;
+
+private:
+	TSharedRef<SWidget> GetTypeMenu(TSharedPtr<IPropertyHandle> InPropertyHandle, FNiagaraDataChannelVariable* Var);
+};

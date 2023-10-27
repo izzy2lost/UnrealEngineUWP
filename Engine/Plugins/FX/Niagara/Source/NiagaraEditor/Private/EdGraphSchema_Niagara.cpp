@@ -1547,7 +1547,7 @@ FLinearColor UEdGraphSchema_Niagara::GetTypeColor(const FNiagaraTypeDefinition& 
 {
 	const UGraphEditorSettings* Settings = GetDefault<UGraphEditorSettings>();
 	const UNiagaraSettings* NiagaraSettings = GetDefault<UNiagaraSettings>();
-	if (Type == FNiagaraTypeDefinition::GetFloatDef())
+	if (Type == FNiagaraTypeDefinition::GetFloatDef() || Type == FNiagaraTypeHelper::GetDoubleDef())
 	{
 		return Settings->FloatPinTypeColor;
 	}
@@ -1559,7 +1559,7 @@ FLinearColor UEdGraphSchema_Niagara::GetTypeColor(const FNiagaraTypeDefinition& 
 	{
 		return Settings->BooleanPinTypeColor;
 	}
-	else if (Type == FNiagaraTypeDefinition::GetVec3Def())
+	else if (Type == FNiagaraTypeDefinition::GetVec3Def() || Type == FNiagaraTypeHelper::GetVectorDef())
 	{
 		return Settings->VectorPinTypeColor;
 	}

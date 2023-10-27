@@ -766,8 +766,8 @@ void FNiagaraDataInterfaceNodeActionProvider_DataChannelWrite::GetNodeContextMen
 					if(Channel && Node)
 					{
 						Node->RemoveAllDynamicPins();
-						TConstArrayView<FNiagaraVariable> ChannelVars = Channel->GetVariables();
-						for (const FNiagaraVariable& Var : ChannelVars)
+						TConstArrayView<FNiagaraDataChannelVariable> ChannelVars = Channel->GetVariables();
+						for (const FNiagaraDataChannelVariable& Var : ChannelVars)
 						{
 							FNiagaraTypeDefinition Type = Var.GetType();
 							if (Type.IsEnum() == false)
@@ -857,8 +857,8 @@ void FNiagaraDataInterfaceNodeActionProvider_DataChannelRead::CollectAddPinActio
 
 	auto GatherAddPinsForChannel = [&](UNiagaraDataChannel* Channel)
 	{
-		TConstArrayView<FNiagaraVariable> ChannelVars = Channel->GetVariables();
-		for (const FNiagaraVariable& Var : ChannelVars)
+		TConstArrayView<FNiagaraDataChannelVariable> ChannelVars = Channel->GetVariables();
+		for (const FNiagaraDataChannelVariable& Var : ChannelVars)
 		{
 			FNiagaraTypeDefinition Type = Var.GetType();
 			if (Type.IsEnum() == false)
@@ -926,8 +926,8 @@ void FNiagaraDataInterfaceNodeActionProvider_DataChannelRead::AddDataChannelInit
 				if (Channel && Node)
 				{
 					Node->RemoveAllDynamicPins();
-					TConstArrayView<FNiagaraVariable> ChannelVars = Channel->GetVariables();
-					for (const FNiagaraVariable& Var : ChannelVars)
+					TConstArrayView<FNiagaraDataChannelVariable> ChannelVars = Channel->GetVariables();
+					for (const FNiagaraDataChannelVariable& Var : ChannelVars)
 					{
 						FNiagaraTypeDefinition Type = Var.GetType();
 						if (Type.IsEnum() == false)

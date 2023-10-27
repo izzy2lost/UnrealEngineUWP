@@ -88,32 +88,32 @@ public:
 	GENERATED_BODY()
 
 	//UObject Interface
-	NIAGARA_API virtual void PostInitProperties()override;
-	NIAGARA_API virtual void PostLoad();
-	NIAGARA_API virtual void BeginDestroy();
+	NIAGARA_API virtual void PostInitProperties() override;
+	NIAGARA_API virtual void PostLoad() override;
+	NIAGARA_API virtual void BeginDestroy() override;
 #if WITH_EDITOR
-	NIAGARA_API virtual void PreEditChange(FProperty* PropertyAboutToChange)override;
-	NIAGARA_API virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedDataChannel)override;
+	NIAGARA_API virtual void PreEditChange(FProperty* PropertyAboutToChange) override;
+	NIAGARA_API virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedDataChannel) override;
 #endif
 	//UObject Interface End.
 
-	const UNiagaraDataChannelAsset* GetAsset()const { return CastChecked<UNiagaraDataChannelAsset>(GetOuter()); }
-	TConstArrayView<FNiagaraVariable> GetVariables()const { return Variables; }
+	const UNiagaraDataChannelAsset* GetAsset() const { return CastChecked<UNiagaraDataChannelAsset>(GetOuter()); }
+	TConstArrayView<FNiagaraDataChannelVariable> GetVariables() const { return ChannelVariables; }
 
 	/** If true, we keep our previous frame's data. Some users will prefer a frame of latency to tick dependency. */
-	bool KeepPreviousFrameData()const { return bKeepPreviousFrameData; }
+	bool KeepPreviousFrameData() const { return bKeepPreviousFrameData; }
 
 	/** Returns the compiled data describing the data layout for DataChannels in this channel. */
-	NIAGARA_API const FNiagaraDataSetCompiledData& GetCompiledData(ENiagaraSimTarget SimTarget)const;
+	NIAGARA_API const FNiagaraDataSetCompiledData& GetCompiledData(ENiagaraSimTarget SimTarget) const;
 
 	/** Create the appropriate handler object for this data channel. */
 	NIAGARA_API virtual UNiagaraDataChannelHandler* CreateHandler(UWorld* OwningWorld) const PURE_VIRTUAL(UNiagaraDataChannel::CreateHandler, {return nullptr;} );
 	
-	const FNiagaraDataChannelGameDataLayout& GetGameDataLayout()const { return GameDataLayout; }
+	const FNiagaraDataChannelGameDataLayout& GetGameDataLayout() const { return GameDataLayout; }
 
-	NIAGARA_API FNiagaraDataChannelGameDataPtr CreateGameData()const;
+	NIAGARA_API FNiagaraDataChannelGameDataPtr CreateGameData() const;
 
-	bool IsValid()const;
+	bool IsValid() const;
 
 	#if !UE_BUILD_SHIPPING
 	void SetVerboseLogging(bool bValue){ bVerboseLogging = bValue; }
@@ -123,16 +123,23 @@ public:
 	template<typename TFunc>
 	static void ForEachDataChannel(TFunc Func);
 
-	bool ShouldEnforceTickGroupReadWriteOrder()const {return bEnforceTickGroupReadWriteOrder;}
+	bool ShouldEnforceTickGroupReadWriteOrder() const {return bEnforceTickGroupReadWriteOrder;}
 	
 	/** If we are enforcing tick group read/write ordering the this returns the final tick group that this NDC can be written to. All reads must happen in Tick groups after this or next frame. */
-	ETickingGroup GetFinalWriteTickGroup()const { return FinalWriteTickGroup; }
+	ETickingGroup GetFinalWriteTickGroup() const { return FinalWriteTickGroup; }
 
+#if WITH_EDITORONLY_DATA
+	/** Can be used to track structural changes that would need recompilation of downstream assets. */
+	NIAGARA_API FGuid GetVersion() const { return VersionGuid; }
+#endif
+	
 private:
 
+	//TODO: add default values for editor previews
+	
 	/** The variables that define the data contained in this Data Channel. */
 	UPROPERTY(EditAnywhere, Category = "Data Channel", meta=(EnforceUniqueNames = true))
-	TArray<FNiagaraVariable> Variables;
+	TArray<FNiagaraDataChannelVariable> ChannelVariables;
 
 	/** If true, we keep our previous frame's data. This comes at a memory and performance cost but allows users to avoid tick order dependency by reading last frame's data. Some users will prefer a frame of latency to tick order dependency. */
 	UPROPERTY(EditAnywhere, Category = "Data Channel")
@@ -145,6 +152,14 @@ private:
 	/** The final tick group that this data channel can be written to. */
 	UPROPERTY(EditAnywhere, Category = "Data Channel", meta=(EditCondition="bEnforceTickGroupReadWriteOrder"))
 	TEnumAsByte<ETickingGroup> FinalWriteTickGroup = ETickingGroup::TG_EndPhysics;
+
+#if WITH_EDITORONLY_DATA
+	UPROPERTY()
+	FGuid VersionGuid;
+
+	UPROPERTY(meta=(DeprecatedProperty))
+	TArray<FNiagaraVariable> Variables_DEPRECATED;
+#endif
 
 	/**
 	Data layout for payloads in Niagara datasets.
@@ -197,7 +212,7 @@ class NIAGARA_API UNiagaraDataChannelLibrary : public UBlueprintFunctionLibrary
 	 * @param bVisibleToCPU	If true, the data written to this data channel is visible to Niagara CPU emitters
 	 * @param bVisibleToGPU	If true, the data written to this data channel is visible to Niagara GPU emitters
 	 */
-	UFUNCTION(BlueprintCallable, Category = NiagaraDataChannel, meta = (Keywords = "niagara DataChannel", WorldContext = "WorldContextObject", UnsafeDuringActorConstruction = "true"))
+	UFUNCTION(BlueprintCallable, Category = NiagaraDataChannel, DisplayName="Write To Niagara Data Channel (Batch)", meta = (AdvancedDisplay = "SearchParams", Keywords = "niagara DataChannel", WorldContext = "WorldContextObject", UnsafeDuringActorConstruction = "true"))
 	static UNiagaraDataChannelWriter* WriteToNiagaraDataChannel(const UObject* WorldContextObject, const UNiagaraDataChannelAsset* Channel, FNiagaraDataChannelSearchParameters SearchParams, int32 Count, UPARAM(DisplayName = "Visible to Blueprint") bool bVisibleToGame, UPARAM(DisplayName = "Visible to Niagara CPU") bool bVisibleToCPU, UPARAM(DisplayName = "Visible to Niagara GPU") bool bVisibleToGPU);
 
 	/**
@@ -213,7 +228,20 @@ class NIAGARA_API UNiagaraDataChannelLibrary : public UBlueprintFunctionLibrary
 	UFUNCTION(BlueprintCallable, Category = NiagaraDataChannel, meta = (Keywords = "niagara DataChannel", WorldContext = "WorldContextObject", UnsafeDuringActorConstruction = "true"))
 	static UNiagaraDataChannelReader* ReadFromNiagaraDataChannel(const UObject* WorldContextObject, const UNiagaraDataChannelAsset* Channel, FNiagaraDataChannelSearchParameters SearchParams, bool bReadPreviousFrame);
 
-	static UNiagaraDataChannelHandler* GetNiagaraDataChannel(const UObject* WorldContextObject, const UNiagaraDataChannel* Channel);
-	static UNiagaraDataChannelWriter* WriteToNiagaraDataChannel(const UObject* WorldContextObject, const UNiagaraDataChannel* Channel, FNiagaraDataChannelSearchParameters SearchParams, int32 Count, bool bVisibleToGame, bool bVisibleToCPU, bool bVisibleToGPU);
-	static UNiagaraDataChannelReader* ReadFromNiagaraDataChannel(const UObject* WorldContextObject, const UNiagaraDataChannel* Channel, FNiagaraDataChannelSearchParameters SearchParams, bool bReadPreviousFrame);
+	/**
+	 * Writes a single element to a Niagara Data Channel
+	 *
+	 * @param WorldContextObject	World to execute in
+	 * @param Channel				The channel to write to
+	 * @param SearchParams			Parameters used when retrieving a specific set of Data Channel Data to read or write like the islands data channel type.
+	 * @param bVisibleToBlueprint	If true, the data written to this data channel is visible to Blueprint and C++ logic reading from it
+	 * @param bVisibleToNiagaraCPU	If true, the data written to this data channel is visible to Niagara CPU emitters
+	 * @param bVisibleToNiagaraGPU	If true, the data written to this data channel is visible to Niagara GPU emitters
+	 */
+	UFUNCTION(BlueprintInternalUseOnly, Category = NiagaraDataChannel, DisplayName="Write To Niagara Data Channel", meta = (bVisibleToBlueprint="true", bVisibleToNiagaraCPU="true", bVisibleToNiagaraGPU="true", AdvancedDisplay = "bVisibleToBlueprint, bVisibleToNiagaraCPU, bVisibleToNiagaraGPU, SearchParams", Keywords = "niagara DataChannel event writer", WorldContext = "WorldContextObject", UnsafeDuringActorConstruction = "true"))
+	static void WriteToNiagaraDataChannelSingle(const UObject* WorldContextObject, const UNiagaraDataChannelAsset* Channel, FNiagaraDataChannelSearchParameters SearchParams, bool bVisibleToBlueprint, bool bVisibleToNiagaraCPU, bool bVisibleToNiagaraGPU);
+
+	static UNiagaraDataChannelHandler* FindDataChannelHandler(const UObject* WorldContextObject, const UNiagaraDataChannel* Channel);
+	static UNiagaraDataChannelWriter* CreateDataChannelWriter(const UObject* WorldContextObject, const UNiagaraDataChannel* Channel, FNiagaraDataChannelSearchParameters SearchParams, int32 Count, bool bVisibleToGame, bool bVisibleToCPU, bool bVisibleToGPU);
+	static UNiagaraDataChannelReader* CreateDataChannelReader(const UObject* WorldContextObject, const UNiagaraDataChannel* Channel, FNiagaraDataChannelSearchParameters SearchParams, bool bReadPreviousFrame);
 };

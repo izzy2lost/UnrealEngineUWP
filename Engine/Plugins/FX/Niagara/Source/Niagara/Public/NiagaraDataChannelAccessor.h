@@ -62,6 +62,9 @@ public:
 	NIAGARA_API int32 ReadInt(FName VarName, int32 Index)const;
 
 	UFUNCTION(BlueprintCallable, Category = NiagaraDataChannel, meta = (Keywords = "Niagara DataChannel"))
+	NIAGARA_API uint8 ReadEnum(FName VarName, int32 Index)const;
+
+	UFUNCTION(BlueprintCallable, Category = NiagaraDataChannel, meta = (Keywords = "Niagara DataChannel"))
 	NIAGARA_API bool ReadBool(FName VarName, int32 Index)const;
 
 	UFUNCTION(BlueprintCallable, Category = NiagaraDataChannel, meta = (Keywords = "Niagara DataChannel"))
@@ -112,6 +115,9 @@ public:
 	
 	UFUNCTION(BlueprintCallable, Category = NiagaraDataChannel, meta = (Keywords = "niagara DataChannel"))
 	NIAGARA_API void WriteInt(FName VarName, int32 Index, int32 InData);
+
+	UFUNCTION(BlueprintCallable, Category = NiagaraDataChannel, meta = (Keywords = "niagara DataChannel"))
+	NIAGARA_API void WriteEnum(FName VarName, int32 Index, uint8 InData);
 
 	UFUNCTION(BlueprintCallable, Category = NiagaraDataChannel, meta = (Keywords = "niagara DataChannel"))
 	NIAGARA_API void WriteBool(FName VarName, int32 Index, bool InData);

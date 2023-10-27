@@ -25,11 +25,11 @@ namespace NDCCVars
 
 //////////////////////////////////////////////////////////////////////////
 
-void FNiagaraDataChannelGameDataLayout::Init(const TArray<FNiagaraVariable>& Variables)
+void FNiagaraDataChannelGameDataLayout::Init(const TArray<FNiagaraDataChannelVariable>& Variables)
 {
 	VariableIndices.Reset();
 	LwcConverters.Reserve(Variables.Num());
-	for (const FNiagaraVariable& Var : Variables)
+	for (const FNiagaraDataChannelVariable& Var : Variables)
 	{
 		//Sigh.
 		//We must convert from the variable stored var in the data channels definition as we currently cannot serialize/store actual LWC types in FNiagawraTypeDefinitions.
@@ -787,87 +787,65 @@ const FNiagaraDataSetCompiledData& FNiagaraDataChannelData::GetCompiledData(ENia
 
 //////////////////////////////////////////////////////////////////////////
 
-namespace NiagaraDataChannel
-{
-	FNiagaraTypeDefinition GetFVectorDef()
-	{
-		static UPackage* CoreUObjectPkg = FindObjectChecked<UPackage>(nullptr, TEXT("/Script/CoreUObject"));
-		static UScriptStruct* VectorStruct = FindObjectChecked<UScriptStruct>(CoreUObjectPkg, TEXT("Vector"));
-		return FNiagaraTypeDefinition(VectorStruct, FNiagaraTypeDefinition::EAllowUnfriendlyStruct::Allow);
-	}
-	
-	FNiagaraTypeDefinition GetDoubleDef()
-	{
-		static UPackage* NiagaraPkg = FindObjectChecked<UPackage>(nullptr, TEXT("/Script/Niagara"));
-		static UScriptStruct* DoubleStruct = FindObjectChecked<UScriptStruct>(NiagaraPkg, TEXT("NiagaraDouble"));
-		return FNiagaraTypeDefinition(DoubleStruct, FNiagaraTypeDefinition::EAllowUnfriendlyStruct::Allow);
-	}
-
-	FNiagaraTypeDefinition GetFQuatDef()
-	{
-		static UPackage* CoreUObjectPkg = FindObjectChecked<UPackage>(nullptr, TEXT("/Script/CoreUObject"));
-		static UScriptStruct* Struct = FindObjectChecked<UScriptStruct>(CoreUObjectPkg, TEXT("Quat"));
-		return FNiagaraTypeDefinition(Struct, FNiagaraTypeDefinition::EAllowUnfriendlyStruct::Allow);
-	}
-	
-	FNiagaraTypeDefinition GetFVector2DDef()
-	{
-		static UPackage* CoreUObjectPkg = FindObjectChecked<UPackage>(nullptr, TEXT("/Script/CoreUObject"));
-		static UScriptStruct* VectorStruct = FindObjectChecked<UScriptStruct>(CoreUObjectPkg, TEXT("Vector2D"));
-		return FNiagaraTypeDefinition(VectorStruct, FNiagaraTypeDefinition::EAllowUnfriendlyStruct::Allow);
-	}
-
-	FNiagaraTypeDefinition GetFVector4Def()
-	{
-		static UPackage* CoreUObjectPkg = FindObjectChecked<UPackage>(nullptr, TEXT("/Script/CoreUObject"));
-		static UScriptStruct* Vector4Struct = FindObjectChecked<UScriptStruct>(CoreUObjectPkg, TEXT("Vector4"));
-		return FNiagaraTypeDefinition(Vector4Struct, FNiagaraTypeDefinition::EAllowUnfriendlyStruct::Allow);
-	}
-}
-
 void UNiagaraDataChannel::PostInitProperties()
 {
 	Super::PostInitProperties();
 	INiagaraModule::RequestRefreshDataChannels();
 }
 
+void AddVarToHash(const FNiagaraVariable& Var, FBlake3& Builder)
+{
+	FNameBuilder VarName(Var.GetName());
+	FStringView Name = VarName.ToView();
+	uint32 ClassHash = GetTypeHash(Var.GetType().ClassStructOrEnum);
+	Builder.Update(Name.GetData(), Name.Len());
+	Builder.Update(&ClassHash, sizeof(uint32));
+	Builder.Update(&Var.GetType().UnderlyingType, sizeof(uint16));
+}
+
 void UNiagaraDataChannel::PostLoad()
 {
 	Super::PostLoad();
 
-	for (int i = 0; i < Variables.Num(); i++)
+#if WITH_EDITORONLY_DATA
+	static FGuid BaseVersion(TEXT("182b8dd3-f963-477f-a57d-70a449d922d8"));
+	for (const FNiagaraVariable& Var : Variables_DEPRECATED)
 	{
-		// fix up variables deserialized with wrong type
-		// TODO (mga) find a better solution than this
-		FNiagaraVariable& Var = Variables[i];
-		if (Var.GetType() == FNiagaraTypeDefinition::GetVec3Def())
-		{
-			Var.SetType(NiagaraDataChannel::GetFVectorDef());
-		}
-		else if (Var.GetType() == FNiagaraTypeDefinition::GetFloatDef())
-		{
-			Var.SetType(NiagaraDataChannel::GetDoubleDef());
-		}
-		else if (Var.GetType() == FNiagaraTypeDefinition::GetQuatDef())
-		{
-			Var.SetType(NiagaraDataChannel::GetFQuatDef());
-		}
-		else if (Var.GetType() == FNiagaraTypeDefinition::GetVec2Def())
-		{
-			Var.SetType(NiagaraDataChannel::GetFVector2DDef());
-		}
-		else if (Var.GetType() == FNiagaraTypeDefinition::GetVec4Def())
-		{
-			Var.SetType(NiagaraDataChannel::GetFVector4Def());
-		}
+		FNiagaraDataChannelVariable ChannelVar;
+		ChannelVar.SetName(Var.GetName());
+		ChannelVar.SetType(FNiagaraDataChannelVariable::ToDataChannelType(Var.GetType()));
+
+		FBlake3 VarHashBuilder;
+		VarHashBuilder.Update(&BaseVersion, sizeof(FGuid));
+		AddVarToHash(Var, VarHashBuilder);
+		FBlake3Hash VarHash = VarHashBuilder.Finalize();
+		ChannelVar.Version = FGuid::NewGuidFromHash(VarHash);
+		
+		ChannelVariables.Add(ChannelVar);
 	}
+	Variables_DEPRECATED.Empty();
+	
+	if (!VersionGuid.IsValid())
+	{
+		// If we don't have a guid yet we create one by hashing the existing variables to get a deterministic start guid
+		FBlake3 Builder;
+		Builder.Update(&BaseVersion, sizeof(FGuid));
+		for (const FNiagaraDataChannelVariable& Var : ChannelVariables)
+		{
+			AddVarToHash(Var, Builder);
+		}
+
+		FBlake3Hash Hash = Builder.Finalize();
+		VersionGuid = FGuid::NewGuidFromHash(Hash);
+	}
+#endif
 
 	//Init compiled data. These are not currently serialized as we have no mechanism to rebuild then on internal data format changes like those in scripts.
 	GetCompiledData(ENiagaraSimTarget::CPUSim);
 	GetCompiledData(ENiagaraSimTarget::GPUComputeSim);
 
 	//TODO: Can serialize?
-	GameDataLayout.Init(Variables);
+	GameDataLayout.Init(ChannelVariables);
 
 	INiagaraModule::RequestRefreshDataChannels();
 }
@@ -891,31 +869,37 @@ void UNiagaraDataChannel::PreEditChange(FProperty* PropertyAboutToChange)
 
 void UNiagaraDataChannel::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
-	FName VariablesMemberName = GET_MEMBER_NAME_CHECKED(UNiagaraDataChannel, Variables);
+	FName VariablesMemberName = GET_MEMBER_NAME_CHECKED(UNiagaraDataChannel, ChannelVariables);
 	if (PropertyChangedEvent.ChangeType == EPropertyChangeType::ArrayAdd && PropertyChangedEvent.GetPropertyName() == VariablesMemberName)
 	{
 		TSet<FName> ExistingNames;
-		for (const FNiagaraVariable& Var : Variables)
+		for (const FNiagaraDataChannelVariable& Var : ChannelVariables)
 		{
 			ExistingNames.Add(Var.GetName());
 		}
 		FName UniqueName = FNiagaraUtilities::GetUniqueName(FName("MyNewVar"), ExistingNames);
-		Variables.Last().SetName(UniqueName);
+		ChannelVariables.Last().SetName(UniqueName);
 	}
 	if (PropertyChangedEvent.ChangeType == EPropertyChangeType::Duplicate && PropertyChangedEvent.GetPropertyName() == VariablesMemberName)
 	{
 		int32 ArrayIndex = PropertyChangedEvent.GetArrayIndex(VariablesMemberName.ToString());
-		if (Variables.IsValidIndex(ArrayIndex + 1))
+		if (ChannelVariables.IsValidIndex(ArrayIndex + 1))
 		{
 			TSet<FName> ExistingNames;
-			for (const FNiagaraVariable& Var : Variables)
+			for (const FNiagaraDataChannelVariable& Var : ChannelVariables)
 			{
 				ExistingNames.Add(Var.GetName());
 			}
-			FNiagaraVariable& NewEntry = Variables[ArrayIndex + 1];
+			FNiagaraDataChannelVariable& NewEntry = ChannelVariables[ArrayIndex + 1];
 			FName UniqueName = FNiagaraUtilities::GetUniqueName(NewEntry.GetName(), ExistingNames);
 			NewEntry.SetName(UniqueName);
+			NewEntry.Version = FGuid::NewGuid();
 		}
+	}
+	if (PropertyChangedEvent.GetPropertyName() == VariablesMemberName || PropertyChangedEvent.GetMemberPropertyName() == VariablesMemberName)
+	{
+		VersionGuid = FGuid::NewGuid();
+		// the guid of the variable is updated by the details customization, as we don't want to change it when just renaming a variable
 	}
 	
 	Super::PostEditChangeProperty(PropertyChangedEvent);
@@ -928,7 +912,7 @@ void UNiagaraDataChannel::PostEditChangeProperty(FPropertyChangedEvent& Property
 	GetCompiledData(ENiagaraSimTarget::CPUSim);
 	GetCompiledData(ENiagaraSimTarget::GPUComputeSim);
 
-	GameDataLayout.Init(Variables);
+	GameDataLayout.Init(ChannelVariables);
 
 	INiagaraModule::RequestRefreshDataChannels();
 }
@@ -939,12 +923,12 @@ const FNiagaraDataSetCompiledData& UNiagaraDataChannel::GetCompiledData(ENiagara
 {
 	if(SimTarget == ENiagaraSimTarget::CPUSim)
 	{
-		if (CompiledData.Variables.Num() != Variables.Num())
+		if (CompiledData.Variables.Num() != ChannelVariables.Num())
 		{
 			//Build the compiled data from the current variables but convert to Simulation types.
 			CompiledData.Empty();
 			CompiledData.SimTarget = ENiagaraSimTarget::CPUSim;
-			for (FNiagaraVariableBase Var : Variables)
+			for (FNiagaraVariableBase Var : ChannelVariables)
 			{
 				if(Var.GetType().IsEnum() == false)
 				{
@@ -958,13 +942,13 @@ const FNiagaraDataSetCompiledData& UNiagaraDataChannel::GetCompiledData(ENiagara
 	}
 	else
 	{
-		if (CompiledDataGPU.Variables.Num() != Variables.Num())
+		if (CompiledDataGPU.Variables.Num() != ChannelVariables.Num())
 		{
 			check(SimTarget == ENiagaraSimTarget::GPUComputeSim);
 			//Build the compiled data from the current variables but convert to Simulation types.
 			CompiledDataGPU.Empty();
 			CompiledDataGPU.SimTarget = ENiagaraSimTarget::GPUComputeSim;
-			for (FNiagaraVariableBase Var : Variables)
+			for (FNiagaraVariableBase Var : ChannelVariables)
 			{
 				if (Var.GetType().IsEnum() == false)
 				{
@@ -987,7 +971,7 @@ FNiagaraDataChannelGameDataPtr UNiagaraDataChannel::CreateGameData()const
 
 bool UNiagaraDataChannel::IsValid()const
 {
-	return Variables.Num() > 0 && CompiledData.Variables.Num() == Variables.Num() && CompiledDataGPU.Variables.Num() == Variables.Num();
+	return ChannelVariables.Num() > 0 && CompiledData.Variables.Num() == ChannelVariables.Num() && CompiledDataGPU.Variables.Num() == ChannelVariables.Num();
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -999,20 +983,25 @@ UNiagaraDataChannelLibrary::UNiagaraDataChannelLibrary(const FObjectInitializer&
 
 UNiagaraDataChannelHandler* UNiagaraDataChannelLibrary::GetNiagaraDataChannel(const UObject* WorldContextObject, const UNiagaraDataChannelAsset* Channel)
 {
-	return GetNiagaraDataChannel(WorldContextObject, Channel->Get());
+	return FindDataChannelHandler(WorldContextObject, Channel->Get());
 }
 
 UNiagaraDataChannelWriter* UNiagaraDataChannelLibrary::WriteToNiagaraDataChannel(const UObject* WorldContextObject, const UNiagaraDataChannelAsset* Channel, FNiagaraDataChannelSearchParameters SearchParams, int32 Count, bool bVisibleToGame, bool bVisibleToCPU, bool bVisibleToGPU)
 {
-	return WriteToNiagaraDataChannel(WorldContextObject, Channel->Get(), SearchParams, Count, bVisibleToGame, bVisibleToCPU, bVisibleToGPU);
+	return CreateDataChannelWriter(WorldContextObject, Channel->Get(), SearchParams, Count, bVisibleToGame, bVisibleToCPU, bVisibleToGPU);
 }
 
 UNiagaraDataChannelReader* UNiagaraDataChannelLibrary::ReadFromNiagaraDataChannel(const UObject* WorldContextObject, const UNiagaraDataChannelAsset* Channel, FNiagaraDataChannelSearchParameters SearchParams, bool bReadPreviousFrame)
 {
-	return ReadFromNiagaraDataChannel(WorldContextObject, Channel->Get(), SearchParams, bReadPreviousFrame);
+	return CreateDataChannelReader(WorldContextObject, Channel->Get(), SearchParams, bReadPreviousFrame);
 }
 
-UNiagaraDataChannelHandler* UNiagaraDataChannelLibrary::GetNiagaraDataChannel(const UObject* WorldContextObject, const UNiagaraDataChannel* Channel)
+void UNiagaraDataChannelLibrary::WriteToNiagaraDataChannelSingle(const UObject*, const UNiagaraDataChannelAsset*, FNiagaraDataChannelSearchParameters, bool, bool, bool)
+{
+	// this function is just a placeholder and calls into CreateDataChannelWriter and its individual write functions from the BP node
+}
+
+UNiagaraDataChannelHandler* UNiagaraDataChannelLibrary::FindDataChannelHandler(const UObject* WorldContextObject, const UNiagaraDataChannel* Channel)
 {
 	UWorld* World = (WorldContextObject != nullptr) ? GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::LogAndReturnNull) : nullptr;
 	if (World)
@@ -1025,7 +1014,7 @@ UNiagaraDataChannelHandler* UNiagaraDataChannelLibrary::GetNiagaraDataChannel(co
 	return nullptr;
 }
 
-UNiagaraDataChannelWriter* UNiagaraDataChannelLibrary::WriteToNiagaraDataChannel(const UObject* WorldContextObject, const UNiagaraDataChannel* Channel, FNiagaraDataChannelSearchParameters SearchParams, int32 Count, bool bVisibleToGame, bool bVisibleToCPU, bool bVisibleToGPU)
+UNiagaraDataChannelWriter* UNiagaraDataChannelLibrary::CreateDataChannelWriter(const UObject* WorldContextObject, const UNiagaraDataChannel* Channel, FNiagaraDataChannelSearchParameters SearchParams, int32 Count, bool bVisibleToGame, bool bVisibleToCPU, bool bVisibleToGPU)
 {
 	check(IsInGameThread());
 	UWorld* World = (WorldContextObject != nullptr) ? GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::LogAndReturnNull) : nullptr;
@@ -1048,7 +1037,7 @@ UNiagaraDataChannelWriter* UNiagaraDataChannelLibrary::WriteToNiagaraDataChannel
 	return nullptr;
 }
 
-UNiagaraDataChannelReader* UNiagaraDataChannelLibrary::ReadFromNiagaraDataChannel(const UObject* WorldContextObject, const UNiagaraDataChannel* Channel, FNiagaraDataChannelSearchParameters SearchParams, bool bReadPreviousFrame)
+UNiagaraDataChannelReader* UNiagaraDataChannelLibrary::CreateDataChannelReader(const UObject* WorldContextObject, const UNiagaraDataChannel* Channel, FNiagaraDataChannelSearchParameters SearchParams, bool bReadPreviousFrame)
 {
 	UWorld* World = (WorldContextObject != nullptr) ? GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::LogAndReturnNull) : nullptr;
 	if (World)
@@ -1094,6 +1083,52 @@ void UNiagaraDataChannelAsset::PostEditChangeProperty(FPropertyChangedEvent& Pro
 
 #endif
 
+bool FNiagaraDataChannelVariable::Serialize(FArchive& Ar)
+{
+	if (FNiagaraVariableBase::Serialize(Ar))
+	{
+		if (Ar.IsLoading())
+		{
+			// fix up variables serialized with wrong type
+			// this happens because we only save swc types
+			SetType(ToDataChannelType(GetType()));
+		}
+		return true;
+	}
+	return false;
+}
+
+#if WITH_EDITORONLY_DATA
+bool FNiagaraDataChannelVariable::IsAllowedType(const FNiagaraTypeDefinition& Type)
+{
+	return !(Type.IsDataInterface() || Type.GetClass() || Type == FNiagaraTypeDefinition::GetParameterMapDef() || Type == FNiagaraTypeDefinition::GetGenericNumericDef() || Type == FNiagaraTypeDefinition::GetHalfDef() || Type == FNiagaraTypeDefinition::GetMatrix4Def());
+}
+#endif
+
+FNiagaraTypeDefinition FNiagaraDataChannelVariable::ToDataChannelType(const FNiagaraTypeDefinition& Type)
+{
+	if (Type == FNiagaraTypeDefinition::GetVec3Def())
+	{
+		return FNiagaraTypeHelper::GetVectorDef();
+	}
+	if (Type == FNiagaraTypeDefinition::GetFloatDef())
+	{
+		return FNiagaraTypeHelper::GetDoubleDef();
+	}
+	if (Type == FNiagaraTypeDefinition::GetQuatDef())
+	{
+		return FNiagaraTypeHelper::GetQuatDef();
+	}
+	if (Type == FNiagaraTypeDefinition::GetVec2Def())
+	{
+		return FNiagaraTypeHelper::GetVector2DDef();
+	}
+	if (Type == FNiagaraTypeDefinition::GetVec4Def())
+	{
+		return FNiagaraTypeHelper::GetVector4Def();
+	}
+	return Type;
+}
 
 //////////////////////////////////////////////////////////////////////////
 

@@ -369,11 +369,10 @@ FString FNiagaraTypeHelper::ToString(const uint8* ValueData, const UObject* Stru
 
 FNiagaraLwcStructConverter BuildSWCStructure(UScriptStruct* NewStruct, UScriptStruct* InStruct)
 {
-	static UPackage* CoreUObjectPkg = FindObjectChecked<UPackage>(nullptr, TEXT("/Script/CoreUObject"));
-	static UScriptStruct* Vector2fStruct = FindObjectChecked<UScriptStruct>(CoreUObjectPkg, TEXT("Vector2f"));
-	static UScriptStruct* Vector3fStruct = FindObjectChecked<UScriptStruct>(CoreUObjectPkg, TEXT("Vector3f"));
-	static UScriptStruct* Vector4fStruct = FindObjectChecked<UScriptStruct>(CoreUObjectPkg, TEXT("Vector4f"));
-	static UScriptStruct* Quat4fStruct = FindObjectChecked<UScriptStruct>(CoreUObjectPkg, TEXT("Quat4f"));
+	static UScriptStruct* Vector2fStruct = FNiagaraTypeDefinition::GetVec2Struct();
+	static UScriptStruct* Vector3fStruct = FNiagaraTypeDefinition::GetVec3Struct();
+	static UScriptStruct* Vector4fStruct = FNiagaraTypeDefinition::GetVec4Struct();
+	static UScriptStruct* Quat4fStruct = FNiagaraTypeDefinition::GetQuatStruct();
 
 	FNiagaraLwcStructConverter StructConverter;
 	int32 AlignedOffset = 0;
@@ -554,34 +553,25 @@ UScriptStruct* FNiagaraTypeHelper::GetSWCStruct(UScriptStruct* LWCStruct)
 			if (IsLWCStructure(LWCStruct))
 			{
 				//Return common SWC variant of common LWC Types.
-				static UPackage* CoreUObjectPkg = FindObjectChecked<UPackage>(nullptr, TEXT("/Script/CoreUObject"));
-				static UScriptStruct* Vector2Struct = FindObjectChecked<UScriptStruct>(CoreUObjectPkg, TEXT("Vector2D"));
-				static UScriptStruct* Vector3Struct = FindObjectChecked<UScriptStruct>(CoreUObjectPkg, TEXT("Vector"));
-				static UScriptStruct* Vector4Struct = FindObjectChecked<UScriptStruct>(CoreUObjectPkg, TEXT("Vector4"));
-				static UScriptStruct* QuatStruct = FindObjectChecked<UScriptStruct>(CoreUObjectPkg, TEXT("Quat"));
-				if(LWCStruct == FNiagaraDouble::StaticStruct())
+				if (LWCStruct == FNiagaraDouble::StaticStruct())
 				{
 					SWCStruct = FNiagaraFloat::StaticStruct();
 				}
-				else if(LWCStruct == Vector2Struct) 
+				else if(LWCStruct == GetVector2DDef().GetStruct()) 
 				{
-					static UScriptStruct* Vector2fStruct = FindObjectChecked<UScriptStruct>(CoreUObjectPkg, TEXT("Vector2f"));
-					SWCStruct = Vector2fStruct;
+					SWCStruct = FNiagaraTypeDefinition::GetVec2Struct();
 				}
-				else if (LWCStruct == Vector3Struct)
+				else if (LWCStruct == GetVectorDef().GetStruct())
 				{
-					static UScriptStruct* Vector3fStruct = FindObjectChecked<UScriptStruct>(CoreUObjectPkg, TEXT("Vector3f"));
-					SWCStruct = Vector3fStruct;
+					SWCStruct = FNiagaraTypeDefinition::GetVec3Struct();
 				}
-				else if (LWCStruct == Vector4Struct)
+				else if (LWCStruct == GetVector4Def().GetStruct())
 				{
-					static UScriptStruct* Vector4fStruct = FindObjectChecked<UScriptStruct>(CoreUObjectPkg, TEXT("Vector4f"));
-					SWCStruct = Vector4fStruct;
+					SWCStruct = FNiagaraTypeDefinition::GetVec4Struct();
 				}
-				else if (LWCStruct == QuatStruct)
+				else if (LWCStruct == GetQuatDef().GetStruct())
 				{
-					static UScriptStruct* Quat4fStruct = FindObjectChecked<UScriptStruct>(CoreUObjectPkg, TEXT("Quat4f"));
-					SWCStruct = Quat4fStruct;
+					SWCStruct = FNiagaraTypeDefinition::GetQuatStruct();
 				}
 				//More?
 				else
@@ -619,7 +609,7 @@ UScriptStruct* FNiagaraTypeHelper::GetSWCStruct(UScriptStruct* LWCStruct)
 			{
 				SWCStruct = LWCStruct;
 			}
-			FRemapEntry& RemapEntry = RemapTable.Add(LWCStruct);
+			FRemapEntry& RemapEntry = RemapTable.Add(TWeakObjectPtr<UScriptStruct>(LWCStruct));
 			RemapEntry.Struct = SWCStruct;
 		#if WITH_EDITORONLY_DATA
 			RemapEntry.SerialNumber = LWCStruct->FieldPathSerialNumber;
@@ -716,6 +706,15 @@ void FNiagaraTypeHelper::InitStaticTypes()
 		QuatDef = FNiagaraTypeDefinition(FindObjectChecked<UScriptStruct>(CoreUObjectPkg, TEXT("Quat")), FNiagaraTypeDefinition::EAllowUnfriendlyStruct::Allow);
 		DoubleDef = FNiagaraTypeDefinition(FNiagaraDouble::StaticStruct(), FNiagaraTypeDefinition::EAllowUnfriendlyStruct::Allow);
 	}
+}
+
+void FNiagaraTypeHelper::RegisterStaticTypes()
+{
+	FNiagaraTypeRegistry::Register(Vector2DDef, ENiagaraTypeRegistryFlags::None);
+	FNiagaraTypeRegistry::Register(VectorDef, ENiagaraTypeRegistryFlags::None);
+	FNiagaraTypeRegistry::Register(Vector4Def, ENiagaraTypeRegistryFlags::None);
+	FNiagaraTypeRegistry::Register(QuatDef, ENiagaraTypeRegistryFlags::None);
+	FNiagaraTypeRegistry::Register(DoubleDef, ENiagaraTypeRegistryFlags::None);
 }
 
 FNiagaraTypeDefinition FNiagaraTypeHelper::GetVector2DDef()
