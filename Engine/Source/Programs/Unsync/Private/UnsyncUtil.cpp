@@ -63,9 +63,9 @@ BytesToHexString(const uint8* Data, uint64 Size)
 	return Result;
 }
 
-FTimingLogger::FTimingLogger(const char* InName, bool InEnabled) : Enabled(InEnabled), Name(InName)
+FTimingLogger::FTimingLogger(const char* InName, bool bInEnabled) : bEnabled(bInEnabled), Name(InName)
 {
-	if (Enabled)
+	if (bEnabled)
 	{
 		TimeBegin = TimePointNow();
 	}
@@ -73,7 +73,12 @@ FTimingLogger::FTimingLogger(const char* InName, bool InEnabled) : Enabled(InEna
 
 FTimingLogger::~FTimingLogger()
 {
-	if (Enabled)
+	Finish();
+}
+
+void FTimingLogger::Finish()
+{
+	if (bEnabled)
 	{
 		FTimePoint	  TimeEnd	   = TimePointNow();
 		FTimeDuration Duration	   = FTimeDuration(TimeEnd - TimeBegin);
@@ -93,6 +98,8 @@ FTimingLogger::~FTimingLogger()
 		}
 
 		LogFlush();
+
+		bEnabled = false;
 	}
 }
 
@@ -137,10 +144,11 @@ ConvertUtf8ToWide(std::string_view StringUtf8)
 	return Result;
 }
 
-std::string
-ConvertWideToUtf8(std::wstring_view StringWide)
+
+void
+ConvertWideToUtf8(std::wstring_view StringWide, std::string& Result)
 {
-	std::string Result;
+	Result.clear();
 
 	if (IsTrivialAsciiString(StringWide))
 	{
@@ -155,7 +163,13 @@ ConvertWideToUtf8(std::wstring_view StringWide)
 		std::wstring_convert<std::codecvt_utf8<wchar_t>> Cvt;
 		Result = Cvt.to_bytes(StringWide.data(), StringWide.data() + StringWide.length());
 	}
+}
 
+std::string
+ConvertWideToUtf8(std::wstring_view StringWide)
+{
+	std::string Result;
+	ConvertWideToUtf8(StringWide, Result);
 	return Result;
 }
 

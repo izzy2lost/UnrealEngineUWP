@@ -82,11 +82,13 @@ struct FRange
 
 struct FTimingLogger
 {
-	bool		Enabled	  = false;
+	bool		bEnabled  = false;
 	FTimePoint	TimeBegin = FTimePoint{};
 	std::string Name;
+
 	FTimingLogger(const char* InName, bool InEnabled = true);
 	~FTimingLogger();
+	void Finish();
 };
 
 inline double
@@ -134,6 +136,7 @@ HashToHexString(const HashType& Hash)
 
 std::wstring ConvertUtf8ToWide(std::string_view StringUtf8);
 std::string	 ConvertWideToUtf8(std::wstring_view StringWide);
+void		 ConvertWideToUtf8(std::wstring_view StringWide, std::string& Result);
 
 std::wstring StringToLower(const std::wstring& Input);
 std::wstring StringToUpper(const std::wstring& Input);
@@ -296,6 +299,38 @@ CountLeadingZeros64(uint64 X)
 	unsigned long XLog2;
 	long		  Mask = -long(_BitScanReverse64(&XLog2, X) != 0);
 	return ((63 - XLog2) & Mask) | (64 & ~Mask);
+}
+
+template<typename StorageT>
+struct TBitArrayInfo
+{
+	static constexpr size_t ElemSizeInBits	= sizeof(StorageT) * 8;
+	const uint64			ElemIndex;
+	const StorageT			BitMask;
+	TBitArrayInfo(uint64 BitIndex) : ElemIndex(BitIndex / ElemSizeInBits), BitMask(StorageT(1) << (BitIndex % ElemSizeInBits)) {}
+};
+
+template<typename StorageT>
+inline bool
+BitArrayGet(const StorageT* Storage, uint64 BitIndex)
+{
+	TBitArrayInfo<StorageT> Info(BitIndex);
+	return (Storage[Info.ElemIndex] & Info.BitMask) != 0;
+}
+
+template<typename StorageT>
+inline void
+BitArraySet(StorageT* Storage, uint64 BitIndex, bool bValue)
+{
+	TBitArrayInfo<StorageT> Info(BitIndex);
+	if (bValue)
+	{
+		Storage[Info.ElemIndex] |= Info.BitMask;
+	}
+	else
+	{
+		Storage[Info.ElemIndex] &= ~Info.BitMask;
+	}
 }
 
 FPath NormalizeFilenameUtf8(const std::string& InFilename);

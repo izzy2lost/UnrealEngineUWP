@@ -27,7 +27,7 @@ UNSYNC_THIRD_PARTY_INCLUDES_START
 #include <md5-sse2.h>
 UNSYNC_THIRD_PARTY_INCLUDES_END
 
-#define UNSYNC_VERSION_STR "1.0.61-dev"
+#define UNSYNC_VERSION_STR "1.0.61-dev2"
 
 namespace unsync {
 
@@ -1828,6 +1828,7 @@ CreateDirectoryManifest(const FPath& Root, uint32 BlockSize, FAlgorithmOptions A
 		FileManifest.Size		 = Dir.file_size();
 		FileManifest.CurrentPath = Dir.path();
 		FileManifest.BlockSize	 = BlockSize;
+		FileManifest.bReadOnly	 = IsReadOnly(Dir.status().permissions());
 
 		{
 			std::lock_guard<std::mutex> LockGuard(ResultMutex);
@@ -2089,7 +2090,10 @@ LoadOrCreateDirectoryManifest(FDirectoryManifest& Result, const FPath& Root, uin
 		// Otherwise just do a quick manifest generation, without file blocks.
 		uint32 NewManifestBlockSize = GDryRun ? BlockSize : 0;
 
+		UNSYNC_VERBOSE(L"Creating lightweight manifest for '%ls'", Root.wstring().c_str());
 		NewDirectoryManifest = CreateDirectoryManifest(Root, NewManifestBlockSize, Algorithm);
+
+		UNSYNC_VERBOSE(L"Comparing manifests");
 		for (const auto& OldManifestIt : OldDirectoryManifest.Files)
 		{
 			auto NewManifestIt = NewDirectoryManifest.Files.find(OldManifestIt.first);
@@ -2125,6 +2129,7 @@ LoadOrCreateDirectoryManifest(FDirectoryManifest& Result, const FPath& Root, uin
 
 		if (BlockSize)
 		{
+			UNSYNC_VERBOSE(L"Updating manifest blocks");
 			UpdateDirectoryManifestBlocks(NewDirectoryManifest, Root, BlockSize, Algorithm);
 		}
 	}
@@ -2179,10 +2184,11 @@ ComputeManifestStableSignature(const FDirectoryManifest& Manifest)
 
 	std::sort(SortedFiles.begin(), SortedFiles.end());
 
+	std::string FileNameUtf8;
 	for (const std::wstring& FileName : SortedFiles)
 	{
 		// Canonical unsync file paths are utf8 with unix-style separator `/`
-		std::string FileNameUtf8 = ConvertWideToUtf8(FileName);
+		ConvertWideToUtf8(FileName, FileNameUtf8);
 		std::replace(FileNameUtf8.begin(), FileNameUtf8.end(), '\\', '/');
 
 		const FFileManifest& FileManifest = Manifest.Files.at(FileName);
@@ -2506,17 +2512,17 @@ SyncFile(const FNeedList&		   NeedList,
 				}
 			}
 
-			std::error_code Ec = {};
-			FileRename(TempTargetFilePath, TargetFilePath, Ec);
+			std::error_code ErrorCode = {};
+			FileRename(TempTargetFilePath, TargetFilePath, ErrorCode);
 
-			if (Ec.value() == 0)
+			if (ErrorCode.value() == 0)
 			{
 				Result.Status = EFileSyncStatus::Ok;
 			}
 			else
 			{
 				Result.Status		   = EFileSyncStatus::ErrorFinalRename;
-				Result.SystemErrorCode = Ec;
+				Result.SystemErrorCode = ErrorCode;
 			}
 		}
 
@@ -3320,6 +3326,8 @@ SyncDirectory(const FSyncDirectoryOptions& SyncOptions)
 
 	const bool bCaseSensitiveTargetFileSystem = IsCaseSensitiveFileSystem(TargetTempPath);
 
+	FTimingLogger ManifestLoadTimingLogger("Manifest load time");
+
 	if (SyncOptions.SourceType == ESyncSourceType::ServerWithManifestHash)
 	{
 		if (!ProxyPool.IsValid())
@@ -3375,7 +3383,7 @@ SyncDirectory(const FSyncDirectoryOptions& SyncOptions)
 	{
 		UNSYNC_VERBOSE(L"Loaded manifest properties:");
 		UNSYNC_LOG_INDENT;
-		FDirectoryManifestInfo ManifestInfo = GetManifestInfo(SourceDirectoryManifest);
+		FDirectoryManifestInfo ManifestInfo = GetManifestInfo(SourceDirectoryManifest, false /*bGenerateSignature*/);
 		LogManifestInfo(ELogLevel::Debug, ManifestInfo);
 		if (ProxyPool.RemoteDesc.Protocol == EProtocolFlavor::Jupiter && ManifestInfo.NumMacroBlocks == 0)
 		{
@@ -3384,9 +3392,15 @@ SyncDirectory(const FSyncDirectoryOptions& SyncOptions)
 		}
 	}
 
+	ManifestLoadTimingLogger.Finish();
+
 	// Propagate algorithm selection from source
 	FAlgorithmOptions  Algorithm			   = SourceDirectoryManifest.Options;
+
+	FTimingLogger TargetManifestTimingLogger("Target directory manifest generation time");
+	UNSYNC_VERBOSE(L"Creating manifest for directory '%ls'", TargetPath.wstring().c_str());
 	FDirectoryManifest TargetDirectoryManifest = CreateDirectoryManifest(TargetPath, 0, Algorithm);
+	TargetManifestTimingLogger.Finish();
 
 	if (!bCaseSensitiveTargetFileSystem)
 	{
@@ -3525,7 +3539,7 @@ SyncDirectory(const FSyncDirectoryOptions& SyncOptions)
 
 		if (bSourceManifestOk)
 		{
-			FFileAttributes BaseFileAttrib = GetFileAttrib(BaseFilePath, &BaseAttribCache);
+			FFileAttributes BaseFileAttrib = GetCachedFileAttrib(BaseFilePath, BaseAttribCache);
 
 			if (!BaseFileAttrib.bValid)
 			{
@@ -3770,6 +3784,11 @@ SyncDirectory(const FSyncDirectoryOptions& SyncOptions)
 	UNSYNC_VERBOSE(L"Copying files");
 
 	{
+		// Throttle background tasks by trying to keep them to some sensible memory budget. Best effort only, not a hard limit.
+		static constexpr uint64 BackgroundTaskMemoryBudget	= 2_GB;
+		static constexpr uint64 TargetTotalSizePerTaskBatch = BackgroundTaskMemoryBudget;
+		static constexpr uint64 MaxFilesPerTaskBatch		= 1000;
+
 		struct FBackgroundTaskResult
 		{
 			FPath			TargetFilePath;
@@ -3796,7 +3815,25 @@ SyncDirectory(const FSyncDirectoryOptions& SyncOptions)
 			FFileSyncTaskBatch CurrentBatch;
 			for (const FFileSyncTask& FileTask : AllFileTasks)
 			{
-				if (CurrentBatch.FileTasks.size() && CurrentBatch.NeedBytesFromSource + FileTask.NeedBytesFromSource > MaxBatchDownloadSize)
+				bool bShouldBreakBatch = false;
+
+				if (!CurrentBatch.FileTasks.empty())
+				{
+					if (CurrentBatch.NeedBytesFromSource + FileTask.NeedBytesFromSource > MaxBatchDownloadSize)
+					{
+						bShouldBreakBatch = true;
+					}
+					else if (CurrentBatch.FileTasks.size() >= MaxFilesPerTaskBatch)
+					{
+						bShouldBreakBatch = true;
+					}
+					else if (CurrentBatch.TotalSizeBytes >= TargetTotalSizePerTaskBatch)
+					{
+						bShouldBreakBatch = true;
+					}
+				}
+
+				if (bShouldBreakBatch)
 				{
 					SyncTaskList.push_back(std::move(CurrentBatch));
 					CurrentBatch = {};
@@ -3869,6 +3906,10 @@ SyncDirectory(const FSyncDirectoryOptions& SyncOptions)
 				{
 					BaseFile = nullptr;
 					SetFileMtime(Item.TargetFilePath, Item.SourceManifest->Mtime);
+					if (Item.SourceManifest->bReadOnly)
+					{
+						SetFileReadOnly(Item.TargetFilePath, true);
+					}
 				}
 
 				if (bBackground)
@@ -3911,8 +3952,6 @@ SyncDirectory(const FSyncDirectoryOptions& SyncOptions)
 		FTaskGroup BackgroundTaskGroup;
 		FTaskGroup ForegroundTaskGroup;
 
-		// Throttle background tasks by trying to keep them to some sensible memory budget. Best effort only, not a hard limit.
-		const uint64		BackgroundTaskMemoryBudget = 2_GB;
 		std::atomic<uint64> BackgroundTaskMemory	   = {};
 		std::atomic<uint64> RemainingSourceBytes	   = EstimatedNeedBytesFromSource;
 
@@ -4585,7 +4624,7 @@ ToString(EFileSyncStatus Status)
 }
 
 FDirectoryManifestInfo
-GetManifestInfo(const FDirectoryManifest& Manifest)
+GetManifestInfo(const FDirectoryManifest& Manifest, bool bGenerateSignature)
 {
 	FDirectoryManifestInfo Result = {};
 
@@ -4621,8 +4660,10 @@ GetManifestInfo(const FDirectoryManifest& Manifest)
 	Result.NumMacroBlocks = UniqueMacroBlockSet.size();
 	Result.NumFiles		  = Manifest.Files.size();
 	Result.Algorithm	  = Manifest.Options;
-	Result.SerializedHash = ComputeSerializedManifestHash(Manifest);
-	Result.Signature	  = ComputeManifestStableSignature(Manifest);
+	if (bGenerateSignature)
+	{
+		Result.StableSignature = ComputeManifestStableSignature(Manifest);
+	}
 
 	return Result;
 }
@@ -4630,10 +4671,15 @@ GetManifestInfo(const FDirectoryManifest& Manifest)
 void
 LogManifestInfo(ELogLevel LogLevel, const FDirectoryManifestInfo& Info)
 {
-	FHash160	ManifestSignature = ToHash160(Info.Signature);
-	std::string SignatureHexStr	  = HashToHexString(ManifestSignature);
+	FHash160	ManifestSignature = ToHash160(Info.StableSignature);
+	const FHash160 EmptySignature = {};
 
-	LogPrintf(LogLevel, L"Manifest signature: %hs\n", SignatureHexStr.c_str());
+	if (ManifestSignature != EmptySignature)
+	{
+		std::string SignatureHexStr = HashToHexString(ManifestSignature);
+		LogPrintf(LogLevel, L"Manifest signature: %hs\n", SignatureHexStr.c_str());
+	}
+
 	LogPrintf(LogLevel, L"Chunking mode: %hs\n", ToString(Info.Algorithm.ChunkingAlgorithmId));
 	LogPrintf(LogLevel, L"Weak hash: %hs\n", ToString(Info.Algorithm.WeakHashAlgorithmId));
 	LogPrintf(LogLevel, L"Strong hash: %hs\n", ToString(Info.Algorithm.StrongHashAlgorithmId));

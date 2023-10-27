@@ -283,6 +283,27 @@ LoadMacroBlocks(FIOReaderStream& Reader, uint64 Version)
 }
 
 static FBuffer
+LoadFileReadOnlyMask(FIOReaderStream& Reader, FSerializedSectionHeader Header)
+{
+	FBuffer Result;
+
+	if (Header.Version != FFileReadOnlyMaskSection::VERSION)
+	{
+		UNSYNC_ERROR(L"Found read-only file mask section version %llu, but only version %lly is supported.",
+					 llu(Header.Version),
+					 llu(FFileReadOnlyMaskSection::VERSION));
+		return Result;
+	}
+
+	Result.Resize(Header.Size);
+	uint8* ResultData = Result.Data();
+
+	Reader.Read(ResultData, Header.Size);
+
+	return Result;
+}
+
+static FBuffer
 SaveMacroBlocks(const FDirectoryManifest& Manifest)
 {
 	FBuffer			 Result;
@@ -311,6 +332,29 @@ SaveMacroBlocks(const FDirectoryManifest& Manifest)
 			Writer.WriteT<uint32>(Block.Size);
 			Writer.Write(Block.HashStrong.Data, MacroBlockHashSize);
 		}
+	}
+
+	return Result;
+}
+
+static FBuffer
+SaveFileReadOnlyMask(const FDirectoryManifest& Manifest)
+{
+	FBuffer			 Result;
+	FVectorStreamOut Writer(Result);
+
+	const uint64 NumFiles		  = Manifest.Files.size();
+	const uint64 NumBitArrayBytes = DivUp(NumFiles, 8);
+
+	Result.Resize(NumBitArrayBytes);
+	memset(Result.Data(), 0, Result.Size());
+
+	uint64 FileIndex = 0;
+	for (const auto& FileIt : Manifest.Files)
+	{
+		const FFileManifest& FileManifest = FileIt.second;
+		BitArraySet(Result.Data(), FileIndex, FileManifest.bReadOnly);
+		++FileIndex;
 	}
 
 	return Result;
@@ -365,6 +409,8 @@ LoadDirectoryManifest(FDirectoryManifest& OutManifest, const FPath& Root, FIORea
 
 	std::unordered_map<FHash256, FGenericBlockArray> MacroBlocks;
 
+	FBuffer FileReadOnlyMask;
+
 	if (Version >= FDirectoryManifest::EVersions::V7_OptionalSections)
 	{
 		// Load optional sections until terminator is encountered
@@ -399,6 +445,11 @@ LoadDirectoryManifest(FDirectoryManifest& OutManifest, const FPath& Root, FIORea
 							MacroBlocks = LoadMacroBlocks(Stream, SectionHeader.Version);
 							break;
 						}
+					case SERIALIZED_SECTION_ID_FILE_READ_ONLY_MASK:
+						{
+							FileReadOnlyMask = LoadFileReadOnlyMask(Stream, SectionHeader);
+							break;
+						}
 					case SERIALIZED_SECTION_ID_TERMINATOR:
 						bDoneLoadingOptionalSections = true;
 						break;
@@ -427,9 +478,12 @@ LoadDirectoryManifest(FDirectoryManifest& OutManifest, const FPath& Root, FIORea
 	if (AlgorithmCompatibility == EAlgorithmCompatibilityResult::Ok)
 	{
 		Serialize(Stream, NumFiles);
-		for (uint64 I = 0; I < NumFiles; ++I)
+
+		const bool bReadOnlyMaskValid = NumFiles <= FileReadOnlyMask.Size() * 8;
+
+		std::string FilenameUtf8; // shared buffer to avoid some of the reallocations
+		for (uint64 FileIndex = 0; FileIndex < NumFiles; ++FileIndex)
 		{
-			std::string FilenameUtf8;
 			Serialize(Stream, FilenameUtf8);
 
 			FFileManifest FileManifest;
@@ -479,6 +533,13 @@ LoadDirectoryManifest(FDirectoryManifest& OutManifest, const FPath& Root, FIORea
 			}
 
 			FileManifest.CurrentPath	= Root / Filename;
+
+			if (bReadOnlyMaskValid)
+			{
+				FileManifest.bReadOnly = BitArrayGet(FileReadOnlyMask.Data(), FileIndex);
+			}
+
+			// Store output
 			OutManifest.Files[Filename] = std::move(FileManifest);
 		}
 	}
@@ -555,6 +616,13 @@ WriteSection(FVectorStreamOut& Stream, const FMetadataStringSection& Section)
 	WriteSection(Stream, FMetadataStringSection::MAGIC, FMetadataStringSection::VERSION, StreamBuffer.View());
 }
 
+template<typename SectionHeaderType>
+static void
+WriteSection(FVectorStreamOut& Stream, FBufferView SectionData)
+{
+	WriteSection(Stream, SectionHeaderType::MAGIC, SectionHeaderType::VERSION, SectionData);
+}
+
 bool
 SaveDirectoryManifest(const FDirectoryManifest& Manifest, FVectorStreamOut& Stream)
 {
@@ -592,8 +660,13 @@ SaveDirectoryManifest(const FDirectoryManifest& Manifest, FVectorStreamOut& Stre
 
 	{
 		// TODO: only save macro block section if it's valid
-		FBuffer SerializedMacroBlocks = SaveMacroBlocks(Manifest);
-		WriteSection(Stream, FMacroBlockSection::MAGIC, FMacroBlockSection::VERSION, SerializedMacroBlocks.View());
+		FBuffer SectionBuffer = SaveMacroBlocks(Manifest);
+		WriteSection<FMacroBlockSection>(Stream, SectionBuffer.View());
+	}
+
+	{
+		FBuffer SectionBuffer = SaveFileReadOnlyMask(Manifest);
+		WriteSection<FFileReadOnlyMaskSection>(Stream, SectionBuffer.View());
 	}
 
 	// End with the terminator section (default-constructed);

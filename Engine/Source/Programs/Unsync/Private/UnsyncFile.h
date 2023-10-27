@@ -444,7 +444,15 @@ struct FFileAttributeCache
 	const bool Exists(const FPath& Path) const;
 };
 
+inline bool
+IsReadOnly(std::filesystem::perms Perms)
+{
+	return (Perms & std::filesystem::perms::owner_write) == std::filesystem::perms::none;
+}
+
 FFileAttributes GetFileAttrib(const FPath& Path, FFileAttributeCache* AttribCache = nullptr);
+FFileAttributes GetCachedFileAttrib(const FPath& Path, FFileAttributeCache& AttribCache);
+
 bool			SetFileMtime(const FPath& Path, uint64 Mtime, bool bAllowInDryRun = false);
 bool			SetFileReadOnly(const FPath& Path, bool ReadOnly);
 bool			IsDirectory(const FPath& Path);

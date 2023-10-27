@@ -128,6 +128,7 @@ struct FFileManifest
 	FGenericBlockArray Blocks;
 	FGenericBlockArray MacroBlocks;
 	FPath			   CurrentPath;
+	bool			   bReadOnly = false;
 };
 
 struct FAlgorithmOptionsV5
@@ -179,18 +180,17 @@ struct FDirectoryManifest
 
 struct FDirectoryManifestInfo
 {
-	uint64	 TotalSize		= 0;
-	uint64	 UniqueSize		= 0;
-	uint64	 NumBlocks		= 0;
-	uint64	 NumMacroBlocks = 0;
-	uint64	 NumFiles		= 0;
-	FHash256 SerializedHash = {};
-	FHash256 Signature		= {};
+	uint64	 TotalSize		 = 0;
+	uint64	 UniqueSize		 = 0;
+	uint64	 NumBlocks		 = 0;
+	uint64	 NumMacroBlocks	 = 0;
+	uint64	 NumFiles		 = 0;
+	FHash256 StableSignature = {};
 
 	FAlgorithmOptions Algorithm = {};
 };
 
-FDirectoryManifestInfo GetManifestInfo(const FDirectoryManifest& Manifest);
+FDirectoryManifestInfo GetManifestInfo(const FDirectoryManifest& Manifest, bool bGenerateSignature = true);
 void				   LogManifestInfo(ELogLevel LogLevel, const FDirectoryManifestInfo& Info);
 void				   LogManifestFiles(ELogLevel LogLevel, const FDirectoryManifestInfo& Info);
 

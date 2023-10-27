@@ -51,7 +51,7 @@ CmdPush(const FCmdPushOptions& Options)
 	}
 
 	FDirectoryManifestInfo ManifestInfo			= GetManifestInfo(Manifest);
-	FHash160			   ManifestSignature	= ToHash160(ManifestInfo.Signature);
+	FHash160			   ManifestSignature	= ToHash160(ManifestInfo.StableSignature);
 	std::string			   ManifestSignatureStr = BytesToHexString(ManifestSignature.Data, sizeof(ManifestSignature.Data));
 
 	LogManifestInfo(ELogLevel::Debug, ManifestInfo);

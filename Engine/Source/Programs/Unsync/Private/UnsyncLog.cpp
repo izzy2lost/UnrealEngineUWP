@@ -252,12 +252,12 @@ LogPrintf(ELogLevel Level, const wchar_t* Str, ...)
 	if (Level == ELogLevel::Error)
 	{
 		Prefix = L"ERROR: ";
-		bShouldOutputThreadIndex = true;
+		bShouldOutputThreadIndex = ThreadIndex != 0;
 	}
 	else if (Level == ELogLevel::Warning)
 	{
 		Prefix = L"WARNING: ";
-		bShouldOutputThreadIndex = true;
+		bShouldOutputThreadIndex = ThreadIndex != 0;
 	}
 	else if (GLogIndent)
 	{

@@ -4,6 +4,7 @@
 #include "UnsyncCore.h"
 #include "UnsyncMemory.h"
 #include "UnsyncThread.h"
+#include "UnsyncThread.h"
 
 #include <mutex>
 
@@ -123,6 +124,21 @@ GetRelativePath(const FPath& Path, const FPath& Base)
 	}
 
 	return std::filesystem::relative(Path, Base);
+}
+
+FFileAttributes GetCachedFileAttrib(const FPath& Path, FFileAttributeCache& AttribCache)
+{
+	FFileAttributes Result;
+
+	FPath ExtendedPath = MakeExtendedAbsolutePath(Path);
+
+	auto It = AttribCache.Map.find(ExtendedPath);
+	if (It != AttribCache.Map.end())
+	{
+		Result = It->second;
+	}
+
+	return Result;
 }
 
 #if UNSYNC_PLATFORM_WINDOWS
@@ -796,7 +812,7 @@ GetFileAttrib(const FPath& Path, FFileAttributeCache* AttribCache)
 		Result.bDirectory = Entry.is_directory();
 		Result.Size		  = Result.bDirectory ? 0 : Entry.file_size();
 		Result.Mtime	  = ToWindowsFileTime(Entry.last_write_time());
-		Result.bReadOnly  = (Status.permissions() & std::filesystem::perms::owner_write) == std::filesystem::perms::none;
+		Result.bReadOnly  = IsReadOnly(Status.permissions());
 		Result.bValid	  = true;
 	}
 
@@ -1117,6 +1133,7 @@ CreateFileAttributeCache(const FPath& Root, const FSyncFilter* SyncFilter)
 		Attr.Mtime	= ToWindowsFileTime(Dir.last_write_time());
 		Attr.Size	= Dir.file_size();
 		Attr.bValid = true;
+		Attr.bReadOnly = IsReadOnly(Dir.status().permissions());
 
 		Result.Map[Dir.path().native()] = Attr;
 
