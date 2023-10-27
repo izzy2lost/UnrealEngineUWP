@@ -5741,7 +5741,6 @@ const FTransform3f& UGeometryCollectionComponent::FComponentSpaceTransforms::Req
 			bIsRootDirty = false;
 		}
 
-		ensureAlways(!Transforms[RootIndex].ContainsNaN());
 		return Transforms[RootIndex];
 	}
 
