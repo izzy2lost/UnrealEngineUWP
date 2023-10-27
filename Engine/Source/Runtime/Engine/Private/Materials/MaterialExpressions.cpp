@@ -15010,7 +15010,7 @@ static const FFunctionExpressionInput* FindInputByName(const FName& Name, const 
 	for (int32 InputIndex = 0; InputIndex < Inputs.Num(); InputIndex++)
 	{
 		const FFunctionExpressionInput& CurrentInput = Inputs[InputIndex];
-		if (CurrentInput.ExpressionInput->InputName == Name)
+		if (CurrentInput.ExpressionInput && CurrentInput.ExpressionInput->InputName == Name)
 		{
 			return &CurrentInput;
 		}
