@@ -462,6 +462,13 @@ void UAnimSequence::AddReferencedObjects(UObject* This, FReferenceCollector& Col
 	Collector.AddReferencedObject(AnimSeq->CompressedData.CurveCompressionCodec);
 }
 
+void UAnimSequence::GetResourceSizeEx(FResourceSizeEx& CumulativeResourceSize)
+{
+	Super::GetResourceSizeEx(CumulativeResourceSize);
+
+	CumulativeResourceSize.AddDedicatedSystemMemoryBytes(TEXT("CompressedData"), GetApproxCompressedSize());
+}
+
 #if WITH_EDITOR
 void UAnimSequence::WillNeverCacheCookedPlatformDataAgain()
 {
