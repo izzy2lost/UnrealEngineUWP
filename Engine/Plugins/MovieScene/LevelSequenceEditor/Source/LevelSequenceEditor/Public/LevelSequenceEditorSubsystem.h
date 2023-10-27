@@ -28,6 +28,7 @@ class UMovieSceneCompiledDataManager;
 class UMovieSceneFolder;
 class UMovieSceneSection;
 class USequencerScriptingLayer;
+class USequencerCurveEditorObject;
 
 USTRUCT(BlueprintType)
 struct FMovieSceneScriptingParams
@@ -59,6 +60,10 @@ public:
 	/** Retrieve the outliner */
 	UFUNCTION(BlueprintPure, Category = "Level Sequence Editor")
 	USequencerScriptingLayer* GetScriptingLayer();
+
+	/** Retrieve the curve editor */
+	UFUNCTION(BlueprintPure, Category = "Level Sequence Editor")
+	USequencerCurveEditorObject* GetCurveEditor();
 
 	/** Add existing actors to Sequencer. Tracks will be automatically added based on default track settings. */
 	UFUNCTION(BlueprintCallable, Category = "Level Sequence Editor")
@@ -223,6 +228,12 @@ private:
 
 	/* List of sequencers that have been created */
 	TArray<TWeakPtr<ISequencer>> Sequencers;
+
+	/* Map of curve editors with their sequencers*/
+	TMap<TWeakPtr<ISequencer>, TObjectPtr<USequencerCurveEditorObject>> CurveEditorObjects;
+	/* property array of the curve editors*/
+	UPROPERTY()
+	TArray<TObjectPtr<USequencerCurveEditorObject>> CurveEditorArray;
 
 	TSharedPtr<FUICommandList> CommandList;
 

@@ -3,7 +3,7 @@
 #include "LevelSequenceEditorSubsystem.h"
 #include "MVVM/ViewModels/SequencerEditorViewModel.h"
 #include "Scripting/SequencerScriptingLayer.h"
-
+#include "SequencerCurveEditorObject.h"
 #include "Evaluation/MovieScenePlayback.h"
 #include "ISequencerModule.h"
 #include "Framework/Commands/UICommandList.h"
@@ -237,6 +237,28 @@ USequencerScriptingLayer* ULevelSequenceEditorSubsystem::GetScriptingLayer()
 		return Sequencer->GetViewModel()->GetScriptingLayer();
 	}
 	return nullptr;
+}
+
+USequencerCurveEditorObject* ULevelSequenceEditorSubsystem::GetCurveEditor()
+{
+	TObjectPtr<USequencerCurveEditorObject> CurveEditorObject;
+	TSharedPtr<ISequencer> Sequencer = GetActiveSequencer();
+	if (Sequencer)
+	{
+		TObjectPtr<USequencerCurveEditorObject> *ExistingCurveEditorObject = CurveEditorObjects.Find(Sequencer);
+		if (ExistingCurveEditorObject)
+		{
+			CurveEditorObject = *ExistingCurveEditorObject;
+		}
+		else
+		{
+			CurveEditorObject = NewObject<USequencerCurveEditorObject>(this);
+			CurveEditorObject->SetSequencer(Sequencer);
+			CurveEditorObjects.Add(Sequencer, CurveEditorObject);
+			CurveEditorArray.Add(CurveEditorObject);
+		}
+	}
+	return CurveEditorObject;
 }
 
 TArray<FMovieSceneBindingProxy> ULevelSequenceEditorSubsystem::AddActors(const TArray<AActor*>& InActors)

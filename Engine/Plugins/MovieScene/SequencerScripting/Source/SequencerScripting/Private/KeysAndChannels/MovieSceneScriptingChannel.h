@@ -44,6 +44,15 @@ public:
 	*/
 	virtual TArray<UMovieSceneScriptingKey*> GetKeys() const PURE_VIRTUAL(UMovieSceneScriptingChannel::GetKeys, return TArray<UMovieSceneScriptingKey*>(););
 
+	/**
+	* Gets the keys in this channel specified by the specific index
+	* @Indices  The indices from which to get the keys from
+	* @return	An array of UMovieSceneScriptingKey's contained by this channel.
+	*			Returns all keys specified by the indices, even if out of range.
+	*/
+	virtual TArray<UMovieSceneScriptingKey*> GetKeysByIndex(const TArray<int32> &Indices) const PURE_VIRTUAL(UMovieSceneScriptingChannel::GetKeysByIndex, return TArray<UMovieSceneScriptingKey*>(););
+
+
 	UPROPERTY(BlueprintReadOnly, Category="Sequencer|Keys")
 	FName ChannelName;
 };
@@ -120,6 +129,42 @@ struct TMovieSceneScriptingChannel
 		}
 
 		FFrame::KismetExecutionMessage(TEXT("Invalid ChannelHandle for MovieSceneScriptingChannel, failed to remove key."), ELogVerbosity::Error);
+	}
+
+	static TArray<UMovieSceneScriptingKey*> GetKeysInChannelByIndex(TMovieSceneChannelHandle<ChannelType> ChannelHandle, TWeakObjectPtr<UMovieSceneSequence> Sequence, TWeakObjectPtr<UMovieSceneSection> Section,
+		const TArray<int32>& Indices)
+	{
+		TArray<UMovieSceneScriptingKey*> OutScriptingKeys;
+		ChannelType* Channel = ChannelHandle.Get();
+		if (Channel)
+		{
+			TArray<FFrameNumber> OutTimes;
+			TArray<FKeyHandle> OutKeys;
+			Channel->GetKeys(TRange<FFrameNumber>(), &OutTimes, &OutKeys);
+
+			for (int32 Index: Indices)
+			{
+				if (Index >= 0 && Index < OutTimes.Num())
+				{
+					ScriptingKeyType * Key = NewObject<ScriptingKeyType>();
+					Key->KeyHandle = OutKeys[Index];
+					Key->ChannelHandle = ChannelHandle;
+					Key->OwningSequence = Sequence;
+					Key->OwningSection = Section;
+					OutScriptingKeys.Add(Key);
+				}
+				else
+				{
+					FFrame::KismetExecutionMessage(TEXT("Invalid index for MovieSceneScriptingChannel, failed to get keys by index."), ELogVerbosity::Error);
+				}
+			}
+		}
+		else
+		{
+			FFrame::KismetExecutionMessage(TEXT("Invalid ChannelHandle for MovieSceneScriptingChannel, failed to get keys."), ELogVerbosity::Error);
+		}
+
+		return OutScriptingKeys;
 	}
 
 	static TArray<UMovieSceneScriptingKey*> GetKeysInChannel(TMovieSceneChannelHandle<ChannelType> ChannelHandle, TWeakObjectPtr<UMovieSceneSequence> Sequence, TWeakObjectPtr<UMovieSceneSection> Section)

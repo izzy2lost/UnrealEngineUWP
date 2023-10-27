@@ -387,6 +387,17 @@ void FMovieSceneEventSectionData::Offset(FFrameNumber DeltaPosition)
 	GetData().Offset(DeltaPosition);
 }
 
+
+FKeyHandle FMovieSceneEventSectionData::GetHandle(int32 Index)
+{
+	return GetData().GetHandle(Index);
+}
+
+int32 FMovieSceneEventSectionData::GetIndex(FKeyHandle Handle)
+{
+	return GetData().GetIndex(Handle);
+}
+
 /* UMovieSceneSection structors
  *****************************************************************************/
 

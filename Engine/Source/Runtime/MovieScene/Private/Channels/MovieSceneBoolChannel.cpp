@@ -181,6 +181,16 @@ void FMovieSceneBoolChannel::Offset(FFrameNumber DeltaPosition)
 	GetData().Offset(DeltaPosition);
 }
 
+FKeyHandle FMovieSceneBoolChannel::GetHandle(int32 Index)
+{
+	return GetData().GetHandle(Index);
+}
+
+int32 FMovieSceneBoolChannel::GetIndex(FKeyHandle Handle)
+{
+	return GetData().GetIndex(Handle);
+}
+
 void FMovieSceneBoolChannel::ClearDefault()
 {
 	bHasDefaultValue = false;

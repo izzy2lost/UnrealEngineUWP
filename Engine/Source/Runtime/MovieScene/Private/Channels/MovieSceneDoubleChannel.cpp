@@ -158,6 +158,16 @@ void FMovieSceneDoubleChannel::Offset(FFrameNumber DeltaPosition)
 	AutoSetTangents();
 }
 
+FKeyHandle FMovieSceneDoubleChannel::GetHandle(int32 Index)
+{
+	return GetData().GetHandle(Index);
+}
+
+int32 FMovieSceneDoubleChannel::GetIndex(FKeyHandle Handle)
+{
+	return GetData().GetIndex(Handle);
+}
+
 void FMovieSceneDoubleChannel::Optimize(const FKeyDataOptimizationParams& Params)
 {
 	FMovieSceneDoubleChannelImpl::Optimize(this, Params);

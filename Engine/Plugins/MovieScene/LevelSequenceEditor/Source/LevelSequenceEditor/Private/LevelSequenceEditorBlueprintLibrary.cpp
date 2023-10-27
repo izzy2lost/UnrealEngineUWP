@@ -3,12 +3,20 @@
 #include "LevelSequenceEditorBlueprintLibrary.h"
 
 #include "ISequencer.h"
+#include "MVVM/ViewModels/ChannelModel.h"
+#include "MVVM/ViewModels/SectionModel.h"
+#include "MVVM/ViewModels/SequencerEditorViewModel.h"
+#include "MVVM/SectionModelStorageExtension.h"
+#include "MVVM/Selection/Selection.h"
 #include "IKeyArea.h"
 #include "LevelSequence.h"
+#include "Channels/MovieSceneChannel.h"
 
 #include "LevelEditorViewport.h"
 #include "MovieSceneBindingProxy.h"
 #include "Subsystems/AssetEditorSubsystem.h"
+
+#include "ExtensionLibraries/MovieSceneSectionExtensions.h"
 
 #include "MovieSceneObjectBindingID.h"
 #include "MovieSceneSequencePlayer.h"
@@ -257,6 +265,64 @@ TArray<FSequencerChannelProxy> ULevelSequenceEditorBlueprintLibrary::GetSelected
 	return OutSelectedChannels;
 }
 
+TArray<FSequencerChannelProxy> ULevelSequenceEditorBlueprintLibrary::GetChannelsWithSelectedKeys()
+{
+	using namespace UE::Sequencer;
+
+	TArray<FSequencerChannelProxy> OutSelectedChannels;
+	TSet<FChannelModel*> ChannelModels;
+	if (CurrentSequencer.IsValid())
+	{
+		const FKeySelection KeySelection = CurrentSequencer.Pin()->GetViewModel()->GetSelection()->KeySelection;
+
+		for (FKeyHandle Key : KeySelection)
+		{
+			TSharedPtr<FChannelModel> Channel = KeySelection.GetModelForKey(Key);
+			if (Channel)
+			{
+				ChannelModels.Add(Channel.Get());
+			}
+		}
+
+		for (FChannelModel* Channel : ChannelModels)
+		{
+			if (Channel)
+			{
+				FSequencerChannelProxy ChannelProxy(Channel->GetChannelName(), Channel->GetSection());
+				OutSelectedChannels.Add(ChannelProxy);
+			}
+		}
+	}
+	return OutSelectedChannels;
+}
+
+TArray<int32> ULevelSequenceEditorBlueprintLibrary::GetSelectedKeys(const FSequencerChannelProxy& ChannelProxy)
+{
+	TArray<int32> SelectedKeys;
+	using namespace UE::Sequencer;
+
+	if (CurrentSequencer.IsValid())
+	{
+		const FKeySelection KeySelection = CurrentSequencer.Pin()->GetViewModel()->GetSelection()->KeySelection;
+
+		for (FKeyHandle Key : KeySelection)
+		{
+			if (TSharedPtr<FChannelModel> Channel = KeySelection.GetModelForKey(Key))
+			{
+				if (Channel->GetChannelName() == ChannelProxy.ChannelName)
+				{
+					int32 Index = Channel->GetChannel()->GetIndex(Key);
+					if (Index != INDEX_NONE)
+					{
+						SelectedKeys.Add(Index);
+					}
+				}
+			}
+		}
+	}
+	return SelectedKeys;
+}
+
 TArray<UMovieSceneFolder*> ULevelSequenceEditorBlueprintLibrary::GetSelectedFolders()
 {
 	TArray<UMovieSceneFolder*> OutSelectedFolders;
@@ -319,6 +385,42 @@ void ULevelSequenceEditorBlueprintLibrary::SelectChannels(const TArray<FSequence
 				TArray<FName> ChannelNames;
 				ChannelNames.Add(ChannelProxy.ChannelName);
 				CurrentSequencer.Pin()->SelectByChannels(Section, ChannelNames, false, true);
+			}
+		}
+	}
+}
+
+void ULevelSequenceEditorBlueprintLibrary::SelectKeys(const FSequencerChannelProxy& ChannelProxy, const TArray<int32>& Indices)
+{
+	using namespace UE::Sequencer;
+	if (CurrentSequencer.IsValid())
+	{
+		if (UMovieSceneSection* Section = ChannelProxy.Section)
+		{
+			FSectionModelStorageExtension* SectionModelStorage = CurrentSequencer.Pin()->GetViewModel()->GetRootModel()->CastDynamic<FSectionModelStorageExtension>();
+			check(SectionModelStorage);
+
+			TSharedPtr<FSectionModel> SectionHandle = SectionModelStorage->FindModelForSection(Section);
+			if (SectionHandle)
+			{
+				TParentFirstChildIterator<FChannelGroupModel> KeyAreaNodes = SectionHandle->GetParentTrackModel().AsModel()->GetDescendantsOfType<FChannelGroupModel>();
+				for (const TViewModelPtr<FChannelGroupModel>& KeyAreaNode : KeyAreaNodes)
+				{
+					if (KeyAreaNode->GetChannelName() == ChannelProxy.ChannelName)
+					{
+						if (TSharedPtr<FChannelModel> ChannelModel = KeyAreaNode->GetChannel(Section))
+						{
+							FMovieSceneChannel* MovieSceneChannel = ChannelModel->GetChannel();
+							FKeySelection& KeySelection = CurrentSequencer.Pin()->GetViewModel()->GetSelection()->KeySelection;
+							for (int32 Index : Indices)
+							{
+								FKeyHandle KeyHandle = MovieSceneChannel->GetHandle(Index);
+								KeySelection.Select(ChannelModel, KeyHandle);
+							}
+							break;
+						}
+					}
+				}
 			}
 		}
 	}

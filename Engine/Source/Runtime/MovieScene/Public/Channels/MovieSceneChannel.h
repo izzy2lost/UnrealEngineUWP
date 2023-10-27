@@ -10,6 +10,7 @@
 #include "Misc/CoreDefines.h"
 #include "Misc/FrameNumber.h"
 #include "Misc/FrameRate.h"
+#include "Curves/KeyHandle.h"
 #include "UObject/ObjectMacros.h"
 
 #include "MovieSceneChannel.generated.h"
@@ -17,7 +18,6 @@
 struct FFrameNumber;
 struct FFrameRate;
 struct FKeyDataOptimizationParams;
-struct FKeyHandle;
 struct FMovieSceneChannel;
 
 /*
@@ -240,6 +240,28 @@ struct FMovieSceneChannel
 	 *
 	 */
 	virtual void PostEditChange() {}
+
+	/**
+	* Retrieve a key handle for the specified key time index
+	*
+	* @param Index          The index to retrieve
+	* @return A key handle that identifies the key at the specified index, regardless of re-ordering
+	*/
+	virtual FKeyHandle GetHandle(int32 Index)
+	{
+		return FKeyHandle();
+	}
+
+	/**
+	 * Attempt to retrieve the index of key from its handle
+	 *
+	 * @param Handle         The handle to retrieve
+	 * @return The index of the key, or INDEX_NONE
+	 */
+	virtual int32 GetIndex(FKeyHandle Handle)
+	{
+		return INDEX_NONE;
+	}
 
 public:
 

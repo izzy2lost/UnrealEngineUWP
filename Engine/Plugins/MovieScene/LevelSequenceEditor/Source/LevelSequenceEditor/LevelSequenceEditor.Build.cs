@@ -22,6 +22,7 @@ public class LevelSequenceEditor : ModuleRules
 		PublicDependencyModuleNames.AddRange(
 			new string[] {
 				"SequencerScripting",
+				"SequencerScriptingEditor",
 			}
 		);
         

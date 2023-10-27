@@ -420,6 +420,25 @@ public:
 	}
 
 	/**
+	* Gets the keys in this channel specified by the specific index
+	* @Indices  The indices from which to get the keys from
+	* @return	An array of UMovieSceneScriptingKey's contained by this channel.
+	*			Returns all keys specified by the indices, even if out of range.
+	*/
+	UFUNCTION(BlueprintCallable, Category = "Sequencer|Keys", meta = (DisplayName = "Get Keys By Index (Float)"))
+	virtual TArray<UMovieSceneScriptingKey*> GetKeysByIndex(const TArray<int32>& Indices) const override
+	{
+		if (FloatChannelHandle.Get())
+		{
+			return FloatImpl::GetKeysInChannelByIndex(FloatChannelHandle, OwningSequence, OwningSection, Indices);
+		}
+		else
+		{
+			return DoubleImpl::GetKeysInChannelByIndex(DoubleChannelHandle, OwningSequence, OwningSection, Indices);
+		}
+	}
+
+	/**
 	* Returns number of keys in this channel.
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Sequencer|Keys", meta = (DisplayName = "Get Num Keys (Float)"))

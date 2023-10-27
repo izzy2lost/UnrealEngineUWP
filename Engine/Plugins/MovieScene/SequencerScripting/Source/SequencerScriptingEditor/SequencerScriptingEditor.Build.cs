@@ -47,7 +47,9 @@ public class SequencerScriptingEditor : ModuleRules
 				"EditorFramework",
                 "UnrealEd",
                 "Sequencer",
-                "BlueprintGraph"
+                "BlueprintGraph",
+				"CurveEditor",
+				"SequencerCore"
             }
 		);
 

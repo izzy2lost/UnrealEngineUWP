@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Kismet/BlueprintFunctionLibrary.h"
+#include "SequencerCurveEditorObject.h"
 #include "LevelSequenceEditorBlueprintLibrary.generated.h"
 
 struct FMovieSceneBindingProxy;
@@ -15,27 +16,6 @@ class UMovieSceneFolder;
 class UMovieSceneSection;
 class UMovieSceneSubSection;
 class UMovieSceneTrack;
-
-USTRUCT(BlueprintType)
-struct FSequencerChannelProxy
-{
-	GENERATED_BODY()
-
-	FSequencerChannelProxy()
-		: Section(nullptr)
-	{}
-
-	FSequencerChannelProxy(const FName& InChannelName, UMovieSceneSection* InSection)
-		: ChannelName(InChannelName)
-		, Section(InSection)
-	{}
-
-	UPROPERTY(BlueprintReadWrite, Category=Channel)
-	FName ChannelName;
-
-	UPROPERTY(BlueprintReadWrite, Category=Channel)
-	TObjectPtr<UMovieSceneSection> Section;
-};
 
 
 UCLASS()
@@ -163,6 +143,14 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Level Sequence Editor")
 	static TArray<FSequencerChannelProxy> GetSelectedChannels();
 
+	/** Gets the channel with selected keys. */
+	UFUNCTION(BlueprintPure, Category = "Level Sequence Editor")
+	static TArray<FSequencerChannelProxy> GetChannelsWithSelectedKeys();
+
+	/** Gets the selected key indices with this channel */
+	UFUNCTION(BlueprintPure, Category = "Level Sequence Editor")
+	static TArray<int32> GetSelectedKeys(const FSequencerChannelProxy& ChannelProxy);
+
 	/** Gets the currently selected folders. */
 	UFUNCTION(BlueprintPure, Category = "Level Sequence Editor")
 	static TArray<UMovieSceneFolder*> GetSelectedFolders();
@@ -182,6 +170,10 @@ public:
 	/** Select channels */
 	UFUNCTION(BlueprintCallable, Category = "Level Sequence Editor")
 	static void SelectChannels(const TArray<FSequencerChannelProxy>& Channels);
+
+	/** Select keys from indices */
+	UFUNCTION(BlueprintCallable, Category = "Level Sequence Editor")
+	static void SelectKeys(const FSequencerChannelProxy& Channel, const TArray<int32>& Indices);
 
 	/** Select folders */
 	UFUNCTION(BlueprintCallable, Category = "Level Sequence Editor")
@@ -256,27 +248,39 @@ public:
 public:
 
 	/** Get if a custom color for specified channel idendified by it's class and identifier exists */
-	UFUNCTION(BlueprintCallable, Category = "Level Sequence Editor")
+	UE_DEPRECATED(5.4, "Use USequencerCurveEditorObject::HasCustomColorForChannel")
+	UFUNCTION(BlueprintCallable, Category = "Level Sequence Editor",
+	meta = (DeprecatedFunction, DeprecationMessage = "Use USequencerCurveEditorObject::HasCustomColorForChannel"))
 	static bool HasCustomColorForChannel(UClass* Class, const FString& Identifier);
 	
 	/** Get custom color for specified channel idendified by it's class and identifier,if none exists will return white*/
-	UFUNCTION(BlueprintCallable, Category = "Level Sequence Editor")
+	UE_DEPRECATED(5.4, "Use USequencerCurveEditorObject::GetCustomColorForChannel")
+	UFUNCTION(BlueprintCallable, Category = "Level Sequence Editor",
+	meta = (DeprecatedFunction, DeprecationMessage = "Use USequencerCurveEditorObject::HasCustomColorForChannel"))
 	static FLinearColor GetCustomColorForChannel(UClass* Class, const FString& Identifier);
 	
 	/** Set Custom Color for specified channel idendified by it's class and identifier. This will be stored in editor user preferences.*/
-	UFUNCTION(BlueprintCallable, Category = "Level Sequence Editor")
+	UE_DEPRECATED(5.4, "Use USequencerCurveEditorObject::SetCustomColorForChannel")
+	UFUNCTION(BlueprintCallable, Category = "Level Sequence Editor",
+	meta = (DeprecatedFunction, DeprecationMessage = "Use USequencerCurveEditorObject::SetCustomColorForChannel"))
 	static void SetCustomColorForChannel(UClass* Class, const FString& Identifier, const FLinearColor& NewColor);
 	
 	/** Set Custom Color for specified channels idendified by it's class and identifiers. This will be stored in editor user preferences.*/
-	UFUNCTION(BlueprintCallable, Category = "Level Sequence Editor")
+	UE_DEPRECATED(5.4, "Use USequencerCurveEditorObject::DeleteColorForChannels")
+	UFUNCTION(BlueprintCallable, Category = "Level Sequence Editor",
+	meta = (DeprecatedFunction, DeprecationMessage = "Use USequencerCurveEditorObject::DeleteColorForChannels"))
 	static void SetCustomColorForChannels(UClass* Class, const TArray<FString>& Identifiers, const TArray<FLinearColor>& NewColors);
 	
 	/** Set Random Colors for specified channels idendified by it's class and identifiers. This will be stored in editor user preferences.*/
-	UFUNCTION(BlueprintCallable, Category = "Level Sequence Editor")
+	UE_DEPRECATED(5.4, "Use USequencerCurveEditorObject::SetRandomColorForChannels")
+	UFUNCTION(BlueprintCallable, Category = "Level Sequence Editor",
+	meta = (DeprecatedFunction, DeprecationMessage = "Use USequencerCurveEditorObject::SetRandomColorForChannels"))
 	static void SetRandomColorForChannels(UClass* Class, const TArray<FString>& Identifiers);
 	
 	/** Delete for specified channel idendified by it's class and identifier.*/
-	UFUNCTION(BlueprintCallable, Category = "Level Sequence Editor")
+	UE_DEPRECATED(5.4, "Use USequencerCurveEditorObject::DeleteColorForChannels")
+	UFUNCTION(BlueprintCallable, Category = "Level Sequence Editor",
+	meta = (DeprecatedFunction, DeprecationMessage = "Use USequencerCurveEditorObject::DeleteColorForChannels"))
 	static void DeleteColorForChannels(UClass* Class, FString& Identifier);
 
 public:
