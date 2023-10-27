@@ -2,11 +2,13 @@
 #pragma once
 
 #include "MLDeformerMorphModelInstance.h"
+#include "Misc/Optional.h"
 #include "NearestNeighborModelInstance.generated.h"
 
-
+class UNearestNeighborModel;
 class UNearestNeighborModelInputInfo;
 class UNearestNeighborModelInstance;
+class UNearestNeighborOptimizedNetwork;
 class UNearestNeighborOptimizedNetworkInstance;
 namespace UE::NearestNeighborModel
 {
@@ -27,6 +29,7 @@ public:
     virtual bool SetupInputs() override;
     virtual FString CheckCompatibility(USkeletalMeshComponent* InSkelMeshComponent, bool LogIssues=false) override;
     virtual void Tick(float DeltaTime, float ModelWeight) override;
+    virtual int64 SetBoneTransforms(float* OutputBuffer, int64 OutputBufferSize, int64 StartIndex) override;
     // ~END UMLDeformerModelInstance overrides
 
     friend class UNearestNeighborModelInputInfo;
@@ -35,33 +38,34 @@ public:
     friend class UE::NearestNeighborModel::FNearestNeighborEditorModel;
     friend class UE::NearestNeighborModel::FNearestNeighborEditorModelActor;
 
-private:
-#if WITH_EDITORONLY_DATA
-    const TArray<uint32>& GetNearestNeighborIds() const { return NearestNeighborIds; }
-    uint32 NearestNeighborId(int32 PartId) const { return NearestNeighborIds[PartId]; }
-    int32 NeighborIdNum() const { return NearestNeighborIds.Num(); }
+#if WITH_EDITOR
+    TArray<uint32> GetNearestNeighborIds() const;
 #endif
 
-    void InitPreviousWeights();
-    void InitOptimizedNetworkInstance();
-    void GetInputDataPointer(float*& OutInputData, int32& OutNumInputFloats);
-    void GetOutputDataPointer(float*& OutOutputData, int32& OutNumOutputFloats);
+private:
+    using UNetworkPtr = TWeakObjectPtr<UNearestNeighborOptimizedNetwork>;
+    using UConstNetworkPtr = const TWeakObjectPtr<const UNearestNeighborOptimizedNetwork>;
 
-    virtual int64 SetBoneTransforms(float* OutputBuffer, int64 OutputBufferSize, int64 StartIndex) override;
+    void InitInstanceData(int32 NumMorphWeights = INDEX_NONE);
+
+    UNearestNeighborModel* GetCastModel() const;
+    void InitOptimizedNetworkInstance();
+    TOptional<TArrayView<float>> GetInputView() const;
+    TOptional<TArrayView<float>> GetOutputView() const;
 
     void RunNearestNeighborModel(float DeltaTime, float ModelWeight);
-    int32 FindNearestNeighbor(const float* PCAData, int32 PartId);
-    void UpdateWeightWithDecay(TArray<float>& MorphWeights, int32 Index, float W, float DecayCoeff);
 
+    /** This is the slow version of network inference. It is used by python. */
     UFUNCTION(BlueprintCallable, Category = "Python")
     TArray<float> Eval(const TArray<float>& InputData);
 
-#if WITH_EDITORONLY_DATA
+#if WITH_EDITOR
     TArray<uint32> NearestNeighborIds;
 #endif
 
     TArray<float> PreviousWeights;
+    TArray<float> DistanceBuffer;
 
-    UPROPERTY(Transient)
-    TObjectPtr<UNearestNeighborOptimizedNetworkInstance> OptimizedNetworkInstance = nullptr;
+    UPROPERTY()
+    TObjectPtr<UNearestNeighborOptimizedNetworkInstance> OptimizedNetworkInstance;
 };

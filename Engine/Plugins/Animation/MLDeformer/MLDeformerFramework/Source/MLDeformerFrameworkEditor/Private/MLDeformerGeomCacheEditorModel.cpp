@@ -63,7 +63,7 @@ namespace UE::MLDeformer
 	UGeometryCache* FMLDeformerGeomCacheEditorModel::GetActiveGeometryCache() const
 	{
 		const int32 ActiveAnimIndex = GetActiveTrainingInputAnimIndex();
-		if (ActiveAnimIndex == INDEX_NONE || ActiveAnimIndex >= GetNumTrainingInputAnims())
+		if (ActiveAnimIndex == INDEX_NONE)
 		{
 			return nullptr;
 		}
@@ -148,11 +148,8 @@ namespace UE::MLDeformer
 		UGeometryCache* GeomCache = nullptr;
 		if (ActiveAnimIndex != INDEX_NONE)
 		{
-			if (ActiveAnimIndex < GetNumTrainingInputAnims())
-			{
-				FMLDeformerGeomCacheTrainingInputAnim* Anim = static_cast<FMLDeformerGeomCacheTrainingInputAnim*>(GetTrainingInputAnim(ActiveAnimIndex));
-				GeomCache = Anim ? Anim->GetGeometryCache() : nullptr;
-			}
+			FMLDeformerGeomCacheTrainingInputAnim* Anim = static_cast<FMLDeformerGeomCacheTrainingInputAnim*>(GetTrainingInputAnim(ActiveAnimIndex));
+			GeomCache = Anim ? Anim->GetGeometryCache() : nullptr;
 		}
 
 		const FLinearColor LabelColor = FMLDeformerEditorStyle::Get().GetColor("MLDeformer.TargetMesh.LabelColor");

@@ -32,6 +32,7 @@ class UGeometryCache;
 class UMorphTarget;
 class FMorphTargetVertexInfoBuffers;
 struct FMLDeformerTrainingInputAnim;
+struct FMLDeformerTrainingInputAnimName;
 
 /** Training process return codes. */
 UENUM()
@@ -868,7 +869,7 @@ namespace UE::MLDeformer
 		void InvalidateDeltas();
 
 	protected:
-		void CreateSamplers();
+		virtual void CreateSamplers();
 
 		void AddAnimatedBonesToBonesIncludeList(const UAnimSequence* AnimSequence);
 		void AddAnimatedCurvesToCurvesIncludeList(const UAnimSequence* AnimSequence);
@@ -894,6 +895,11 @@ namespace UE::MLDeformer
 		 * You can call ClearWorld to include that.
 		 */
 		void DeleteEditorActors();
+
+		/**
+		 * Set the names of the anim sequences in the timeline. 
+		 */
+		void SetTimelineAnimNames(const TArray<TSharedPtr<FMLDeformerTrainingInputAnimName>>& AnimNames);
 
 		/**
 		 * Perform some basic checks to see if the editor can be ready to train the model.
@@ -985,6 +991,7 @@ namespace UE::MLDeformer
 		void UpdateCompareActorLabels();		
 
 		int32 CalcNumValidCompareActorsPriorTo(int32 CompareActorIndex) const;
+		virtual bool IsAnimIndexValid(int32 AnimIndex) const;
 
 	protected:
 		/** The runtime model associated with this editor model. */

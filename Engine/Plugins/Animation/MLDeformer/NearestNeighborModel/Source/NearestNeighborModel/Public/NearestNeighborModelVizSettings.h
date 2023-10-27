@@ -2,14 +2,13 @@
 
 #pragma once
 
-#include "CoreTypes.h"
 #include "MLDeformerMorphModelVizSettings.h"
 #include "NearestNeighborModelVizSettings.generated.h"
 
 class UGeometryCache;
 namespace UE::NearestNeighborModel
 {
-    class FNearestNeighborEditorModel;
+	class FNearestNeighborModelVizSettingsDetails;
 };
 
 /**
@@ -24,23 +23,24 @@ class NEARESTNEIGHBORMODEL_API UNearestNeighborModelVizSettings
 public:
 	static FName GetNearestNeighborActorsOffsetPropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModelVizSettings, NearestNeighborActorsOffset); }
 	static FName GetNearestNeighborIdsPropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModelVizSettings, NearestNeighborIds); }
-	static FName GetNeighborStatsPartIdPropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModelVizSettings, NeighborStatsPartId); }
 	
-	friend class UE::NearestNeighborModel::FNearestNeighborEditorModel;
+	/** Whether to show verts */
+	UPROPERTY(EditAnywhere, Category = "Training Meshes")
+	bool bDrawVerts = false;
 
-protected:
-	UPROPERTY(EditAnywhere, Category = "Live Settings")
+	/** Show vertices in this section */
+	UPROPERTY(EditAnywhere, Category = "Training Meshes", Meta = (DisplayName = "Show Verts in", EditorCondition = "bDrawVerts"))
+	int32 VertVizSectionIndex = INDEX_NONE;
+
+	/** The section used to display the nearest neighbor. */	
+	UPROPERTY(EditAnywhere, Category = "Live Settings", Meta = (DisplayName = "Actor Section Index"))
+	int32 NearestNeighborActorSectionIndex = 0;
+	
+	/** The offset of the nearest neighbor actor from the mesh. */
+	UPROPERTY(EditAnywhere, Category = "Live Settings", Meta = (DisplayName = "Actor Offset"))
 	float NearestNeighborActorsOffset = 2.0f;
-
+	
 	UPROPERTY(VisibleAnywhere, Category = "Live Settings")
-	TArray<uint32> NearestNeighborIds;
-
-	UPROPERTY(EditAnywhere, Category = "Live Settings", meta = (DisplayName = "Part Id"))
-	int32 NeighborStatsPartId = 0;
-
-private:
-	void SetNearestNeighborActorsOffset(float InOffset) { NearestNeighborActorsOffset = InOffset; }
-	float GetNearestNeighborActorsOffset() const { return NearestNeighborActorsOffset; }
-	void SetNearestNeighborIds(const TArray<uint32>& InNearestNeighborIds) { NearestNeighborIds = InNearestNeighborIds; }
+	TArray<int32> NearestNeighborIds;
 #endif
 };

@@ -27,6 +27,7 @@ namespace UnrealBuildTool.Rules
 					"SlateCore",
 					"EditorWidgets",
 					"EditorStyle",
+					"DesktopPlatform",
 					"GeometryCache",
 					"MLDeformerFramework",
 					"MLDeformerFrameworkEditor",

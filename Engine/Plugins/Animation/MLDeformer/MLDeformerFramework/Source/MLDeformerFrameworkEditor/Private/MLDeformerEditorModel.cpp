@@ -384,6 +384,11 @@ namespace UE::MLDeformer
 		return Result;
 	}
 
+	bool FMLDeformerEditorModel::IsAnimIndexValid(int32 AnimIndex) const
+	{
+		return FMath::IsWithinInclusive<int32>(AnimIndex, 0, GetNumTrainingInputAnims());
+	}
+
 	void FMLDeformerEditorModel::UpdateMeshOffsetFactors()
 	{
 		// Set the default mesh translation offsets for our ground truth actors.
@@ -511,6 +516,15 @@ namespace UE::MLDeformer
 			delete EditorActor;
 		}
 		EditorActors.Empty();
+	}
+
+	void FMLDeformerEditorModel::SetTimelineAnimNames(const TArray<TSharedPtr<FMLDeformerTrainingInputAnimName>>& AnimNames)
+	{
+		SMLDeformerTimeline* Timeline = GetEditor()->GetTimeSlider();
+		if (Timeline)
+		{
+			Timeline->SetTrainingAnimNames(AnimNames);
+		}
 	}
 
 	FMLDeformerEditorActor* FMLDeformerEditorModel::FindEditorActor(int32 ActorTypeID) const
@@ -1579,7 +1593,7 @@ namespace UE::MLDeformer
 
 	void FMLDeformerEditorModel::SetActiveTrainingInputAnimIndex(int32 Index)
 	{
-		check(FMath::IsWithinInclusive<int32>(Index, 0, GetNumTrainingInputAnims()));
+		check(IsAnimIndexValid(Index));
 		ActiveTrainingInputAnimIndex = Index;
 	}
 
@@ -2806,12 +2820,7 @@ namespace UE::MLDeformer
 			}
 		}
 
-		// Pass this to the timeline.
-		SMLDeformerTimeline* Timeline = GetEditor()->GetTimeSlider();
-		if (Timeline)
-		{
-			Timeline->SetTrainingAnimNames(NameList);
-		}
+		SetTimelineAnimNames(NameList);
 	}
 
 	void FMLDeformerEditorModel::InvalidateDeltas()

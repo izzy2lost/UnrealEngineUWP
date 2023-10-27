@@ -1,161 +1,172 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "NearestNeighborTrainingModel.h"
+
+#include "Animation/AnimSequence.h"
+#include "Components/SkeletalMeshComponent.h"
+#include "Engine/SkeletalMesh.h"
+#include "NearestNeighborEditorModel.h"
 #include "NearestNeighborModel.h"
 #include "NearestNeighborModelInstance.h"
-#include "NearestNeighborEditorModel.h"
-#include "Animation/AnimSequence.h"
+#include "Tools/NearestNeighborKMeansTool.h"
+#include "Tools/NearestNeighborStatsTool.h"
 
 #define LOCTEXT_NAMESPACE "NearestNeighborTrainingModel"
 
+using UE::NearestNeighborModel::FNearestNeighborEditorModel;
+
 UNearestNeighborTrainingModel::~UNearestNeighborTrainingModel() = default;
 
-void UNearestNeighborTrainingModel::Init(::UE::MLDeformer::FMLDeformerEditorModel* InEditorModel)
+void UNearestNeighborTrainingModel::Init(UE::MLDeformer::FMLDeformerEditorModel* InEditorModel)
 {
-	UMLDeformerTrainingModel::Init(InEditorModel);
+	UMLDeformerGeomCacheTrainingModel::Init(InEditorModel);
 	check(InEditorModel != nullptr);
 	check(InEditorModel->GetModel() != nullptr);
-	NearestNeighborModel = static_cast<UNearestNeighborModel*>(InEditorModel->GetModel());
 }
 
 UNearestNeighborModel* UNearestNeighborTrainingModel::GetNearestNeighborModel() const
 {
-	return Cast<UNearestNeighborModel>(GetModel());
+	return GetCastModel();
 }
 
-UE::NearestNeighborModel::FNearestNeighborEditorModel* UNearestNeighborTrainingModel::GetNearestNeighborEditorModel() const
+int32 UNearestNeighborTrainingModel::GetNumFrames(const UAnimSequence* Anim) const
 {
-	return static_cast<UE::NearestNeighborModel::FNearestNeighborEditorModel*>(EditorModel);
+	return UE::NearestNeighborModel::FHelpers::GetNumFrames(Anim);
 }
 
-const TArray<int32> UNearestNeighborTrainingModel::GetPartVertexMap(const int32 PartId) const
+const USkeleton* UNearestNeighborTrainingModel::GetModelSkeleton(const UMLDeformerModel* Model) const
 {
-	const TArray<uint32>& VertexMap = NearestNeighborModel->PartVertexMap(PartId);
-	return TArray<int32>((int32*)VertexMap.GetData(), VertexMap.Num());
-}
-
-int32 UNearestNeighborTrainingModel::SetSamplerPartData(const int32 PartId)
-{
-	return GetNearestNeighborEditorModel()->SetSamplerPartData(PartId);
-}
-
-int32 UNearestNeighborTrainingModel::GetPartNumNeighbors(const int32 PartId) const
-{
-	return FMath::Min(NearestNeighborModel->GetNumNeighborsFromAnimSequence(PartId), NearestNeighborModel->GetNumNeighborsFromGeometryCache(PartId));
-}
-
-bool UNearestNeighborTrainingModel::SetAnimToSample(UAnimSequence* AnimToSample)
-{
-	if (!NearestNeighborModel || !AnimToSample)
+	if (Model)
 	{
-		return false;
+		if (const USkeletalMesh* const SkeletalMesh = Model->GetSkeletalMesh())
+		{
+			return SkeletalMesh->GetSkeleton();
+		}
 	}
-	if (!AnimSampler.Get())
+	return nullptr;
+}
+
+
+bool UNearestNeighborTrainingModel::SetCustomSamplerData(UAnimSequence* Anim, UGeometryCache* Cache)
+{
+	if (!CustomSampler.Get())
 	{
-		SetNewAnimSampler();
-		check(AnimSampler.Get());
+		SetNewCustomSampler();
+		if (!CustomSampler.Get() || !CustomSampler->IsInitialized())
+		{
+			UE_LOG(LogNearestNeighborModel, Error, TEXT("Failed to initialize CustomSampler. Please provide at least one AnimSequence in TrainingAnimList"))
+			return false;
+		}
 	}
-	AnimSampler->SetAnimToSample(*AnimToSample);
+	CustomSampler->Customize(Anim, Cache);
 	return true;
 }
 
-
-bool UNearestNeighborTrainingModel::SampleAnim(int32 Frame)
+bool UNearestNeighborTrainingModel::CustomSample(int32 Frame)
 {
-	if (!AnimSampler.Get())
+	if (!CustomSampler.Get())
 	{
 		return false;
 	}
-	if (!AnimSampler->SampleAnim(Frame))
+	if (!CustomSampler->CustomSample(Frame))
 	{
 		return false;
 	}
 
-	SampleBoneRotations = AnimSampler->GetBoneRotations();
+	CustomSamplerBoneRotations = CustomSampler->GetBoneRotations();
+	CustomSamplerDeltas = CustomSampler->GetVertexDeltas();
 	return true;
 }
 
-int32 UNearestNeighborTrainingModel::GetAnimNumFrames() const
+bool UNearestNeighborTrainingModel::SetCustomSamplerDataFromSection(int32 SectionIndex)
 {
-	if (!AnimSampler.Get())
+	if (!CustomSampler.Get())
 	{
-		return 0;
+		SetNewCustomSampler();
+		if (!CustomSampler.Get() || !CustomSampler->IsInitialized())
+		{
+			UE_LOG(LogNearestNeighborModel, Error, TEXT("Failed to initialize CustomSampler. Please provide at least one AnimSequence in TrainingAnimList"))
+			return false;
+		}
 	}
-	return AnimSampler->GetAnimNumFrames();
-}
 
-bool UNearestNeighborTrainingModel::SampleKmeansAnim(const int32 SkeletonId)
-{
-	if (!AnimSampler.Get())
+	const UNearestNeighborModel* const NearestNeighborModel = GetCastModel();
+	if (!NearestNeighborModel)
 	{
-		SetNewAnimSampler();
-		check(AnimSampler.Get());
+		return false;
 	}
-	return AnimSampler->SampleKMeansAnim(SkeletonId);
-}
 
-bool UNearestNeighborTrainingModel::SampleKmeansFrame(const int32 Frame)
-{
-	return SampleAnim(Frame);
-}
-
-int32 UNearestNeighborTrainingModel::GetKmeansNumAnims() const
-{
-	return NearestNeighborModel->SourceAnims.Num();
-}
-
-int32 UNearestNeighborTrainingModel::GetKmeansAnimNumFrames(const int32 SkeletonId) const
-{
-	if (SkeletonId < NearestNeighborModel->SourceAnims.Num())
+	if (SectionIndex < 0 || SectionIndex >= NearestNeighborModel->GetNumSections())
 	{
-		return NearestNeighborModel->SourceAnims[SkeletonId]->GetDataModel()->GetNumberOfFrames();
+		return false;
 	}
-	return 0;
+
+	const UNearestNeighborModel::FSection& Section = NearestNeighborModel->GetSection(SectionIndex);
+	UAnimSequence* AnimSequence = Section.GetMutableNeighborPoses();
+	UGeometryCache* GeometryCache = Section.GetMutableNeighborMeshes();
+	return SetCustomSamplerData(AnimSequence, GeometryCache);
 }
 
-int32 UNearestNeighborTrainingModel::GetKmeansNumClusters() const
+namespace UE::NearestNeighborModel::Private
 {
-	return NearestNeighborModel->NumClusters;
-}
-
-const TArray<float> UNearestNeighborTrainingModel::GetUnskinnedVertexPositions() const
-{
-	UE::MLDeformer::FMLDeformerSampler* BaseSampler = EditorModel->GetNumTrainingInputAnims() > 0 ? EditorModel->GetSamplerForTrainingAnim(0) : nullptr;
-	UE::NearestNeighborModel::FNearestNeighborGeomCacheSampler* Sampler = static_cast<UE::NearestNeighborModel::FNearestNeighborGeomCacheSampler*>(BaseSampler);
-	if (Sampler == nullptr)
+	TArray<float> VectorToFloat(TConstArrayView<FVector3f> VectorArr)
 	{
+		TArray<float> FloatArr;
+		FloatArr.SetNumUninitialized(VectorArr.Num() * 3);
+		for (int32 i = 0; i < VectorArr.Num(); i++)
+		{
+			FloatArr[i * 3] = VectorArr[i].X;
+			FloatArr[i * 3 + 1] = VectorArr[i].Y;
+			FloatArr[i * 3 + 2] = VectorArr[i].Z;
+		}
+		return FloatArr;
+	}
+};
+
+TArray<float> UNearestNeighborTrainingModel::GetUnskinnedVertexPositions()
+{
+	TArray<float> Empty;
+	if (!CustomSampler.Get())
+	{
+		SetNewCustomSampler();
+	}
+	if (!CustomSampler.Get() || !CustomSampler->IsInitialized())
+	{
+		UE_LOG(LogNearestNeighborModel, Error, TEXT("Failed to initialize customSampler. Please provide at least one AnimSequence in TrainingAnimList"))
 		return TArray<float>();
 	}
-
-	const TArray<FVector3f>& PositionsVec = Sampler->GetUnskinnedVertexPositions();
-	TArray<float> PositionsFloat; 
-	PositionsFloat.SetNumUninitialized(PositionsVec.Num() * 3);
-	for (int32 i = 0; i < PositionsVec.Num(); i++)
-	{
-		PositionsFloat[i * 3] = PositionsVec[i].X;
-		PositionsFloat[i * 3 + 1] = PositionsVec[i].Y;
-		PositionsFloat[i * 3 + 2] = PositionsVec[i].Z;
-	}
-	return MoveTemp(PositionsFloat);
+	const TArray<FVector3f>& PositionsVec = CustomSampler->GetUnskinnedVertexPositions();
+	return UE::NearestNeighborModel::Private::VectorToFloat(PositionsVec);
 }
 
-const TArray<int32> UNearestNeighborTrainingModel::GetMeshIndexBuffer() const
+TArray<int32> UNearestNeighborTrainingModel::GetMeshIndexBuffer()
 {
-	UE::MLDeformer::FMLDeformerSampler* BaseSampler = EditorModel->GetNumTrainingInputAnims() > 0 ? EditorModel->GetSamplerForTrainingAnim(0) : nullptr;
-	UE::NearestNeighborModel::FNearestNeighborGeomCacheSampler* Sampler = static_cast<UE::NearestNeighborModel::FNearestNeighborGeomCacheSampler*>(BaseSampler);
-	if (Sampler == nullptr)
+	if (!CustomSampler.Get())
 	{
+		SetNewCustomSampler();
+	}
+	if (!CustomSampler.Get() || !CustomSampler->IsInitialized())
+	{
+		UE_LOG(LogNearestNeighborModel, Error, TEXT("Failed to initialize customSampler. Please provide at least one AnimSequence in TrainingAnimList"))
 		return TArray<int32>();
 	}
-	TArray<uint32> UIndexBuffer = Sampler->GetMeshIndexBuffer();
+	TArray<uint32> UIndexBuffer = CustomSampler->GetMeshIndexBuffer();
 	return TArray<int32>((int32*)UIndexBuffer.GetData(), UIndexBuffer.Num());
 }
 
 UNearestNeighborModelInstance* UNearestNeighborTrainingModel::CreateModelInstance()
 {
-	UNearestNeighborModelInstance* ModelInstance = NewObject<UNearestNeighborModelInstance>(this);
-	ModelInstance->SetModel(GetNearestNeighborModel());
-	ModelInstance->Init(nullptr);
+	UNearestNeighborModelInstance* const ModelInstance = NewObject<UNearestNeighborModelInstance>(this);
+	UNearestNeighborModel* const NearestNeighborModel = GetCastModel();
+	if (!NearestNeighborModel)
+	{
+		return nullptr;
+	}
+	ModelInstance->SetModel(NearestNeighborModel);
+	USkeletalMeshComponent* const DummySKC = NewObject<USkeletalMeshComponent>(ModelInstance);
+	DummySKC->SetSkeletalMesh(NearestNeighborModel->GetSkeletalMesh());
+
+	ModelInstance->Init(DummySKC);
 	ModelInstance->PostMLDeformerComponentInit();
 	return ModelInstance;
 }
@@ -165,25 +176,20 @@ void UNearestNeighborTrainingModel::DestroyModelInstance(UNearestNeighborModelIn
 	ModelInstance->ConditionalBeginDestroy();
 }
 
-void UNearestNeighborTrainingModel::SetNewAnimSampler()
+void UNearestNeighborTrainingModel::SetNewCustomSampler()
 {
-	AnimSampler = MakeUnique<UE::NearestNeighborModel::FNearestNeighborGeomCacheSampler>();
-	AnimSampler->Init(EditorModel, 0);
+	CustomSampler = MakeUnique<UE::NearestNeighborModel::FNearestNeighborGeomCacheSampler>();
+	CustomSampler->Init(EditorModel, 0);
 }
 
-const UAnimSequence* UNearestNeighborTrainingModel::GetTestAnim() const
+UNearestNeighborModel* UNearestNeighborTrainingModel::GetCastModel() const
 {
-	if (!EditorModel)
-	{
-		return nullptr;
-	}
-	const UE::NearestNeighborModel::FNearestNeighborEditorModel* NNEditorModel = static_cast<UE::NearestNeighborModel::FNearestNeighborEditorModel*>(EditorModel);
-	const UNearestNeighborModelVizSettings* Viz = NNEditorModel->GetNearestNeighborModelVizSettings();
-	if (!Viz)
-	{
-		return nullptr;
-	}
-	return Viz->GetTestAnimSequence();
+	return Cast<UNearestNeighborModel>(GetModel());
+}
+
+UE::NearestNeighborModel::FNearestNeighborEditorModel* UNearestNeighborTrainingModel::GetCastEditorModel() const
+{
+	return static_cast<UE::NearestNeighborModel::FNearestNeighborEditorModel*>(GetEditorModel());
 }
 
 

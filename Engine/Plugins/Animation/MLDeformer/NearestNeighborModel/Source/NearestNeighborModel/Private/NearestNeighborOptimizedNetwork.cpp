@@ -192,9 +192,9 @@ void UNearestNeighborOptimizedNetwork::SetNumOutputs(int32 InNumOutputs)
 	NumOutputs = InNumOutputs;
 }
 
-UNearestNeighborOptimizedNetworkInstance* UNearestNeighborOptimizedNetwork::CreateInstance()
+UNearestNeighborOptimizedNetworkInstance* UNearestNeighborOptimizedNetwork::CreateInstance(UObject* Parent) const
 {
-	UNearestNeighborOptimizedNetworkInstance* Instance = NewObject<UNearestNeighborOptimizedNetworkInstance>(this);
+	UNearestNeighborOptimizedNetworkInstance* Instance = NewObject<UNearestNeighborOptimizedNetworkInstance>(Parent);
 	Instance->Init(this);
 	return Instance;
 }
@@ -238,7 +238,7 @@ const UNearestNeighborOptimizedNetwork* UNearestNeighborOptimizedNetworkInstance
 	return Network.Get();
 }
 
-void UNearestNeighborOptimizedNetworkInstance::Init(UNearestNeighborOptimizedNetwork* InNeuralNetwork)
+void UNearestNeighborOptimizedNetworkInstance::Init(const UNearestNeighborOptimizedNetwork* InNeuralNetwork)
 {
 	Network = InNeuralNetwork;
 	Inputs.SetNumZeroed(Network->GetNumInputs());

@@ -1,13 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "NearestNeighborModelStyle.h"
-#include "Styling/SlateStyle.h"
-#include "Styling/SlateStyleRegistry.h"
-#include "Styling/SlateStyleMacros.h"
-#include "Styling/SlateTypes.h"
-#include "Math/Color.h"
+
 #include "Interfaces/IPluginManager.h"
+#include "Math/Color.h"
 #include "Misc/Paths.h"
+#include "Styling/SlateStyleRegistry.h"
 
 namespace UE::NearestNeighborModel
 {
@@ -21,6 +19,7 @@ namespace UE::NearestNeighborModel
 		// Colors and sizes.
 		Set("NearestNeighborModel.NearestNeighborActors.WireframeColor", FLinearColor(1.0f, 1.0f, 0.0f));
 		Set("NearestNeighborModel.NearestNeighborActors.LabelColor", FLinearColor(1.0f, 1.0f, 0.0f));
+		Set("NearestNeighborModel.Verts.VertsColor", FLinearColor(1.0f, 0.5f, 0.0f));
 
 		FSlateStyleRegistry::RegisterSlateStyle(*this);
 	}

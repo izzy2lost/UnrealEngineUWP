@@ -102,7 +102,8 @@ public:
 	 * Create an instance of this neural network.
 	 * @return A pointer to the neural network instance.
 	 */
-	virtual UNearestNeighborOptimizedNetworkInstance* CreateInstance();
+	virtual UNearestNeighborOptimizedNetworkInstance* CreateInstance(UObject* Parent = nullptr) const;
+
 
 	/**
 	 * Get the number of inputs, which is the number of floats the network takes as input.
@@ -218,7 +219,7 @@ protected:
 	 * This is automatically called by the UNearestNeighborOptimizedNetwork::CreateInstance() method.
 	 * @param InNeuralNetwork The network that this is an instance of.
 	 */
-	void Init(UNearestNeighborOptimizedNetwork* InNeuralNetwork);
+	void Init(const UNearestNeighborOptimizedNetwork* InNeuralNetwork);
 
 protected:
 	/** The input values. */
@@ -232,5 +233,5 @@ protected:
 
 	/** The neural network this is an instance of. */
 	UPROPERTY(Transient)
-	TObjectPtr<UNearestNeighborOptimizedNetwork> Network;
+	TObjectPtr<const UNearestNeighborOptimizedNetwork> Network;
 };

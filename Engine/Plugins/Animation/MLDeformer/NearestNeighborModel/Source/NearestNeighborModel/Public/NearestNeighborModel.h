@@ -2,95 +2,27 @@
 #pragma once
 
 #include "CoreTypes.h"
-#include "MLDeformerModel.h"
-#include "MLDeformerVizSettings.h"
-#include "MLDeformerInputInfo.h"
+
 #include "MLDeformerMorphModel.h"
-#include "NearestNeighborModelVizSettings.h"
-#include "UObject/Object.h"
+#include "NearestNeighborModelHelpers.h"
+
 #include "NearestNeighborModel.generated.h"
 
-struct FSkelMeshImportedMeshInfo;
-class USkeletalMesh;
-class UGeometryCache;
 class UAnimSequence;
-class UMLDeformerAsset;
-class USkeleton;
-class IPropertyHandle;
-class UNearestNeighborModelInstance;
+class UGeometryCache;
 class UNearestNeighborOptimizedNetwork;
-class UNearestNeighborTrainingModel;
+struct FMLDeformerGeomCacheTrainingInputAnim;
+
 
 namespace UE::NearestNeighborModel
 {
-	class FNearestNeighborEditorModel;
-	class FNearestNeighborGeomCacheSampler;
+#if WITH_EDITOR
 	class FNearestNeighborModelDetails;
-};
-
-NEARESTNEIGHBORMODEL_API DECLARE_LOG_CATEGORY_EXTERN(LogNearestNeighborModel, Log, All);
-
-namespace UE::NearestNeighborModel
-{
-	template<class T>
-	class FArrayBufferWithSRV : public FVertexBufferWithSRV
-	{
-	public:
-		void Init(TArray<T>* InArray, const FString& InDebugName);
-
-	private:
-		void InitRHI(FRHICommandListBase& RHICmdList) override;
-
-		TArray<T>* Array = nullptr;
-		FString DebugName;
-	};
-
-	template<class T>
-	class FVertexBufferWithUAV : public FVertexBufferWithSRV
-	{
-	public:
-		void Init(int32 InNumElements, const FString& InDebugName);
-
-	private:
-		void InitRHI(FRHICommandListBase& RHICmdList) override;
-
-		int32 NumElements = 0;
-		FString DebugName;
-	};
+#endif
 };
 
 USTRUCT(BlueprintType, Blueprintable)
-struct FSkeletonCachePair
-{
-	GENERATED_BODY()
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nearest Neighbors")
-	TObjectPtr<UAnimSequence> Skeletons = nullptr;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nearest Neighbors")
-	TObjectPtr<UGeometryCache> Cache = nullptr;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nearest Neighbors")
-	TArray<int32> ExcludedFrames;
-};
-
-USTRUCT(BlueprintType, Blueprintable)
-struct FClothPartEditorData
-{
-	GENERATED_BODY()
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (ClampMin = "1", ClampMax = "128"), Category = "Nearest Neighbors")
-	int32 PCACoeffNum = 128;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nearest Neighbors", meta = (DisplayName = "Vertex Map Path (Optional)"))
-	FString VertexMapPath;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nearest Neighbors")
-	int32 MeshIndex = 0;
-};
-
-USTRUCT(BlueprintType, Blueprintable)
-struct FClothPartData
+struct UE_DEPRECATED(5.4, "FClothPartData is deprecated. Use UNearestNeighborModelSection instead.") FClothPartData
 {
 	GENERATED_BODY()
 
@@ -110,7 +42,6 @@ struct FClothPartData
 	UPROPERTY()
 	uint32 NumNeighbors = 0;
 
-#if WITH_EDITORONLY_DATA
 	/** Vertex indices for this cloth part */
 	UPROPERTY()
 	TArray<uint32> VertexMap;
@@ -134,37 +65,207 @@ struct FClothPartData
 	/** Mapping from NeighborCoeffs to AssetNeighborCoeffs */
 	UPROPERTY()
 	TArray<int32> AssetNeighborIndexMap;
-#endif
 
 	UPROPERTY()
 	TArray<float> NeighborCoeffs;
 };
 
-namespace UE::NearestNeighborModel
+/**
+ * The section of the nearest neighbor model.
+ * Each section contains a set of vertices in the original skeletal mesh.
+ * The nearest neighbor search is performed on each section separately.
+ * For example, if a character asset has both shirt and pants mesh, 
+ * user can define sperate two separate sections for shirt and pants, 
+ * and the nearest neighbor search will be performed separately on those two sections.
+ */
+UCLASS()
+class NEARESTNEIGHBORMODEL_API UNearestNeighborModelSection : public UObject
 {
-	enum EUpdateResult : uint8
-	{
-		SUCCESS = 0,
-		ERROR = 1,
-		WARNING = 2
-	};
+	GENERATED_BODY()
 
-	static bool HasError(uint8 Flag)
-	{
-		return (Flag & EUpdateResult::ERROR) != 0;
-	}
+public:
+	DECLARE_MULTICAST_DELEGATE_TwoParams(FPropertyChangedDelegate, FPropertyChangedEvent&, UNearestNeighborModelSection&);
+	using EOpFlag = UE::NearestNeighborModel::EOpFlag;
+
+	int32 GetNumPCACoeffs() const;
+	int32 GetNumVertices() const;
+	int32 GetRuntimeNumNeighbors() const;
+
+	bool IsReadyForTraining() const;
+	bool IsReadyForInference() const;
+
+	const TArray<float>& GetNeighborCoeffs() const;
+
+#if WITH_EDITOR
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+	
+	UFUNCTION(BlueprintPure, Category = "Section")
+	int32 GetAssetNumNeighbors() const;
+	
+	const UAnimSequence* GetNeighborPoses() const;
+	const UGeometryCache* GetNeighborMeshes() const;
+	// Avoid mutable getters. Changing NeighborPoses or NeighborMeshes may cause unexpected errors.  
+	UAnimSequence* GetMutableNeighborPoses() const;
+	UGeometryCache* GetMutableNeighborMeshes() const;
+	
+	void SetVertexMapString(const FString& InString);
+
+	int32 GetMeshIndex() const;
+	void SetMeshIndex(int32 Index);
+
+	UFUNCTION(BlueprintPure, Category = "Section")
+	const TArray<int32>& GetVertexMap() const;
+	
+	UFUNCTION(BlueprintPure, Category = "Section")
+	const TArray<float>& GetPCABasis() const;
+	
+	UFUNCTION(BlueprintPure, Category = "Section")
+	const TArray<float>& GetVertexMean() const;
+	
+	UFUNCTION(BlueprintPure, Category = "Section")
+	const TArray<float>& GetAssetNeighborCoeffs() const;
+
+	const TArray<float>& GetAssetNeighborOffsets() const;
+	const TArray<int32>& GetExcludedFrames() const;
+	const TArray<int32>& GetAssetNeighborIndexMap() const;
+
+	FMLDeformerGeomCacheTrainingInputAnim* GetInputAnim() const;
+
+	EOpFlag UpdateForTraining();
+	EOpFlag UpdateForInference();
+	void InvalidateTraining();
+	void InvalidateInference();
+
+	bool UpdateRuntimeNeighbors();
+	bool GetRuntimeNeighborOffsets(TArray<float>& OutNeighborOffsets) const;
+
+	void SetModel(UNearestNeighborModel* InModel);
+	const UNearestNeighborModel* GetModel() const;
+
+	static FName GetNumPCACoeffsPropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModelSection, NumPCACoeffs); }
+	static FName GetVertexMapStringPropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModelSection, VertexMapString); }
+	static FName GetNeighborPosesPropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModelSection, NeighborPoses); }
+	static FName GetNeighborMeshesPropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModelSection, NeighborMeshes); }
+	static FName GetExcludedFramesPropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModelSection, ExcludedFrames); }
+#endif
+#if WITH_EDITORONLY_DATA
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	UE_DEPRECATED(5.4, "InitFromClothPartData is deprecated. This function is only used for backward compatibility.")
+	void InitFromClothPartData(FClothPartData& InPart);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+#endif
+
+protected:
+#if WITH_EDITORONLY_DATA
+
+	/** Poses of the nearest neighbor ROM. */
+	UPROPERTY(EditAnywhere, Category = "Section")
+	TObjectPtr<UAnimSequence> NeighborPoses;
+
+	/** Geometry cache of the nearest neighbor ROM. */
+	UPROPERTY(EditAnywhere, Category = "Section")
+	TObjectPtr<UGeometryCache> NeighborMeshes;
+
+	/** A string containing vertex indices for this section, e.g. "2, 3, 5-8, 9, 11-20" */
+	UPROPERTY(EditAnywhere, Category = "Section", meta = (DisplayName = "Vertex Indices"))
+	FString VertexMapString;
+
+	/** Frames to be excluded from the nearest neighbor ROM */
+	UPROPERTY(EditAnywhere, Category = "Section")
+	TArray<int32> ExcludedFrames;
+
+	/** The mesh index in SkeletalMeshRenderData */
+	UPROPERTY()
+	int32 MeshIndex = 0;
+
+	/** The parent nearest neighbor model */
+	UPROPERTY()
+	TObjectPtr<UNearestNeighborModel> Model = nullptr;
+
+	/** Vertex indices for this section */
+	UPROPERTY()
+	TArray<int32> VertexMap;
+	
+	/** Flattened array of PCA basis. The shape of PCA basis is (PCACoeffNum, NumVertices * 3)  */
+	UPROPERTY()
+	TArray<float> PCABasis;
+	
+	/** The vertex mean used in PCA computation. This array has a size of NumVertices * 3 */
+	UPROPERTY()
+	TArray<float> VertexMean;
+
+	/** Flattened array of neighbor PCA coefficients before excluding frames. The shape of this array is (NumNeighbors, NumPCACoeffs) */
+	UPROPERTY()
+	TArray<float> AssetNeighborCoeffs;
+	
+	/** Flattened array of neighbor offsets before excluding frames. The shape of this array is (NumNeighbors, NumVertices * 3) */
+	UPROPERTY()
+	TArray<float> AssetNeighborOffsets;
+
+	/** The index into the original nearest neighbor ROM asset after frames are excluded. */
+	UPROPERTY()
+	TArray<int32> AssetNeighborIndexMap;
+#endif
+
+	/** Number of PCA coefficients for this section. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (ClampMin = "1", DefaultValue = "64"), Category = "Section")
+	int32 NumPCACoeffs = 64;
+
+	/** Number of vertices in this section */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Section Private")
+	int32 NumVertices = 0;
+	
+	/** Number of neighbors in this section after excluding frames */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Section Private")
+	int32 RuntimeNumNeighbors = 0;
+	
+	/** Flattened array of neighbor offsets after excluding frames. */
+	UPROPERTY()
+	TArray<float> RuntimeNeighborCoeffs;
+
+private:
+	/** Whether the section is ready for training */
+	UPROPERTY()
+	bool bIsReadyForTraining = false;
+	
+	/** Whether the section is ready for inference */
+	UPROPERTY()
+	bool bIsReadyForInference = false;
+
+#if WITH_EDITOR
+	bool IsPCAValid() const;
+	bool IsPCAEmpty() const;
+	bool IsNearestNeighborValid() const;
+	bool IsNearestNeighborEmpty() const;
+
+	UFUNCTION(BlueprintCallable, Category = "Section")
+	void SetPCAData(const TArray<float>& InVertexMean, const TArray<float>& InPCABasis);
+	
+	UFUNCTION(BlueprintCallable, Category = "Section")
+	void SetNeighborData(const TArray<float>& InNeighborCoeffs, const TArray<float>& InNeighborOffsets);
+
+	void Reset();
+	void ResetPCAData();
+	void ResetNearestNeighborData();
+	EOpFlag UpdateVertexMap();
+	
+	static FString BackwardCompatibleVertexString;
+
+	/** A temporary InputAnim used by GetInputAnim() function. */
+	mutable TUniquePtr<FMLDeformerGeomCacheTrainingInputAnim> InputAnim;
+#endif
 };
 
 /**
  * The nearest neighbor model.
- * This model contains the PCA basis of the cloth vertex deltas and a small set of cloth for nearest neighbor search. 
+ * This model contains the PCA basis of the vertex deltas and a small set of meshes for nearest neighbor search. 
  * Given a new pose, the pre-trained neural network first predicts the PCA coefficients of the vertex deltas. 
- * Then this model uses the predicted PCA coeffcients to find a nearest neighbor in the small cloth set.
+ * Then this model uses the predicted PCA coeffcients to find a nearest neighbor in the small dataset.
  * The total vertex delta is computed by
  * 		vertex_delta = mean_delta + pca_basis * pca_coeff + nearest_neighbor_delta
  * To prevent popping, a time filtering is applied on predicted vertex deltas. The vertex delta at time t is computed by  
  * 		vertex_delta(t) = decay_factor * vertex_delta(t-1) + (1 - decay_factor) * vertex_delta 
- * The cloth can be separated into several parts (e.g. shirt, pants...). The nearest neighbor search is carried out separately for each part. 
+ * The mesh can be separated into several sections (e.g. shirt, pants...). The nearest neighbor search is carried out separately for each section. 
  * The pca basis and the nearest neighbor data are compressed into morph targets.
  */
 UCLASS()
@@ -174,10 +275,16 @@ class NEARESTNEIGHBORMODEL_API UNearestNeighborModel
 	GENERATED_BODY()
 
 public:
+	using FSection = UNearestNeighborModelSection;
+	using UNetwork = UNearestNeighborOptimizedNetwork;
+
 	UNearestNeighborModel(const FObjectInitializer& ObjectInitializer);
 
 	// UObject overrides.
 	virtual void GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const override;
+#if WITH_EDITOR
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+#endif
 	// ~END UObject overrides.
 
 	// UMLDeformerModel overrides.
@@ -186,293 +293,266 @@ public:
 	virtual bool DoesSupportQualityLevels() const override { return false; }
 	virtual UMLDeformerModelInstance* CreateModelInstance(UMLDeformerComponent* Component) override;
 	virtual UMLDeformerInputInfo* CreateInputInfo() override;
-	virtual FString GetDisplayName() const override { return "Nearest Neighbor Model"; }
-	virtual bool IsTrained() const override;
-	// ~END UMLDeformerModel overrides.
-
-	friend class UNearestNeighborModelInstance;
-	friend class UNearestNeighborTrainingModel;
-	friend class UE::NearestNeighborModel::FNearestNeighborEditorModel;
-	friend class UE::NearestNeighborModel::FNearestNeighborGeomCacheSampler;
-	friend class UE::NearestNeighborModel::FNearestNeighborModelDetails;
-
-private:
-	UFUNCTION(BlueprintPure, Category = "Nearest Neighbor Model")
-	int32 GetNumParts() const { return ClothPartData.Num(); }
-
-	UFUNCTION(BlueprintPure, Category = "Nearest Neighbor Model")
-	int32 GetPartNumVerts(int32 PartId) const { return ClothPartData[PartId].NumVertices; }
-	
-	UFUNCTION(BlueprintPure, Category = "Nearest Neighbor Model")
-	int32 GetPCACoeffStart(int32 PartId) const { return ClothPartData[PartId].PCACoeffStart; }
-
-	UFUNCTION(BlueprintPure, Category = "Nearest Neighbor Model")
-	int32 GetPCACoeffNum(int32 PartId) const { return ClothPartData[PartId].PCACoeffNum; }
-
-	int32 GetNumNeighbors(int32 PartId) const { return ClothPartData[PartId].NumNeighbors; }
-
-	int32 GetTotalNumPCACoeffs() const;
-	int32 GetTotalNumNeighbors() const;
-
-	float GetDecayFactor() const { return DecayFactor; };
-	float GetNearestNeighborOffsetWeight() const { return NearestNeighborOffsetWeight; }
-
-	UFUNCTION(BlueprintPure, Category = "Nearest Neighbor Model")
-	TArray<float> ClipInputs(const TArray<float>& Input) const;
-
-	void ClipInputs(float* InputPtr, int NumInputs) const;
-
-	void InitInputInfo();
-
-	void ResetMorphBuffers();
-
-	const TArray<float>& NeighborCoeffs(int32 PartId) const { return ClothPartData[PartId].NeighborCoeffs; }
-
+	virtual FString GetDisplayName() const override;
 	virtual int32 GetNumFloatsPerBone() const override { return NearestNeighborNumFloatsPerBone; }
 	virtual int32 GetNumFloatsPerCurve() const override { return NearestNeighborNumFloatsPerCurve; }
+	virtual bool IsTrained() const override;
+	virtual FString GetDefaultDeformerGraphAssetPath() const;
+	// ~END UMLDeformerModel overrides.
 
-	bool DoesUseOptimizedNetwork() const;
-	bool ShouldUseOptimizedNetwork() const;
-	UNearestNeighborOptimizedNetwork* GetOptimizedNetwork() const { return OptimizedNetwork.Get(); }
-	int32 GetOptimizedNetworkNumOutputs() const;
-	void SetOptimizedNetwork(UNearestNeighborOptimizedNetwork* InOptimizedNetwork);
+	UFUNCTION(BlueprintPure, Category = "Nearest Neighbor Model")
+	int32 GetNumSections() const;
 
-	UE_DEPRECATED(5.4, "Onnx file no longer used for training network. Use LoadOptimizedNetworkFromFile instead.")
-	bool LoadOptimizedNetwork(const FString& OnnxPath);
+	// GetSectionPtr is reserved for python. Use GetSection for C++.
+	UFUNCTION(BlueprintPure, Category = "Python")
+	const UNearestNeighborModelSection* GetSectionPtr(int32 Index) const;
+	const UNearestNeighborModelSection& GetSection(int32 Index) const;
 
-	bool LoadOptimizedNetworkFromFile(const FString& Filename);
+	UFUNCTION(BlueprintPure, Category = "Nearest Neighbor Model")
+	const TArray<int32>& GetPCACoeffStarts() const;
+
+	UFUNCTION(BlueprintPure, Category = "Nearest Neighbor Model")
+	int32 GetTotalNumPCACoeffs() const;
+
+	int32 GetTotalNumNeighbors() const;
+	float GetDecayFactor() const;
+	float GetNearestNeighborOffsetWeight() const;
+
+	TWeakObjectPtr<const UNetwork> GetOptimizedNetwork() const;
+	int32 GetNumNetworkOutputs() const;
+	void ClipInputs(TArrayView<float> Inputs) const;
+
+	UFUNCTION(BlueprintPure, Category = "Nearest Neighbor Model")
+	bool IsReadyForTraining() const;
+
+	UFUNCTION(BlueprintPure, Category = "Nearest Neighbor Model")
+	bool IsReadyForInference() const;
+
+	bool DoesUseRBF() const;
+	float GetRBFSigma() const;
 
 #if WITH_EDITOR
 	UFUNCTION(BlueprintPure, Category = "Nearest Neighbor Model")
-	int32 GetAssetNumNeighbors(int32 PartId) const;
-
-	const TArray<uint32>& PartVertexMap(int32 PartId) const { return ClothPartData[PartId].VertexMap; }
-
-	UFUNCTION(BlueprintPure, Category = "Nearest Neighbor Model")
-	const TArray<float>& PCABasis(int32 PartId) const { return ClothPartData[PartId].PCABasis; }
-
-	TArray<float>& PCABasis(int32 PartId) { return ClothPartData[PartId].PCABasis; }
-
-	UFUNCTION(BlueprintCallable, Category = "Nearest Neighbor Model")
-	void SetPCABasis(int32 PartId, const TArray<float>& PCABasis) { ClothPartData[PartId].PCABasis = PCABasis; }
-
-	UFUNCTION(BlueprintPure, Category = "Nearest Neighbor Model")
-	const TArray<float>& VertexMean(int32 PartId) const { return ClothPartData[PartId].VertexMean; }
-
-	TArray<float>& VertexMean(int32 PartId) { return ClothPartData[PartId].VertexMean; }
-
-	UFUNCTION(BlueprintCallable, Category = "Nearest Neighbor Model")
-	void SetVertexMean(int32 PartId, const TArray<float>& VertexMean) { ClothPartData[PartId].VertexMean = VertexMean; }
-
-	void SetNumNeighbors(int32 PartId, int32 InNumNeighbors) { ClothPartData[PartId].NumNeighbors = InNumNeighbors; }
-
-	UFUNCTION(BlueprintCallable, Category = "Nearest Neighbor Model")
-	void SetAssetNeighborCoeffs(int32 PartId, const TArray<float>& AssetNeighborCoeffs) { ClothPartData[PartId].AssetNeighborCoeffs = AssetNeighborCoeffs; }
-
-	void SetNeighborCoeffs(int32 PartId, const TArray<float>& NeighborCoeffs) { ClothPartData[PartId].NeighborCoeffs = NeighborCoeffs; }
-
-	UFUNCTION(BlueprintPure, Category = "Nearest Neighbor Model")
-	const TArray<float>& AssetNeighborCoeffs(int32 PartId) const { return ClothPartData[PartId].AssetNeighborCoeffs; }
+	int32 GetInputDim() const { return InputDim; }
 	
-	const TArray<float>& AssetNeighborOffsets(int32 PartId) const { return ClothPartData[PartId].AssetNeighborOffsets; }
-
-	UFUNCTION(BlueprintCallable, Category = "Nearest Neighbor Model")
-	void SetAssetNeighborOffsets(int32 PartId, const TArray<float>& AssetNeighborOffsets) { ClothPartData[PartId].AssetNeighborOffsets = AssetNeighborOffsets; }
-#endif
-
-#if WITH_EDITORONLY_DATA
-	TObjectPtr<UAnimSequence> GetNearestNeighborSkeletons(int32 PartId);
-	const TObjectPtr<UAnimSequence> GetNearestNeighborSkeletons(int32 PartId) const;
-	TObjectPtr<UGeometryCache> GetNearestNeighborCache(int32 PartId);
-	const TObjectPtr<UGeometryCache> GetNearestNeighborCache(int32 PartId) const;
-	int32 GetNumNeighborsFromGeometryCache(int32 PartId) const;
-	int32 GetNumNeighborsFromAnimSequence(int32 PartId) const;
-
-	void UpdateNetworkInputDim();
-	void UpdateNetworkOutputDim();
-	bool CheckPCAData(int32 PartId) const;
-	UE::NearestNeighborModel::EUpdateResult UpdateClothPartData();
-	UE::NearestNeighborModel::EUpdateResult UpdateVertexMap(int32 PartId, const FString& VertexMapPath, const FSkelMeshImportedMeshInfo& Info);
-	void UpdatePCACoeffNums();
-	void UpdateNetworkSize();
-	void UpdateMorphTargetSize();
-	void UpdateInputMultipliers();
-
-	void InvalidateClothPartData() { bClothPartDataValid = false; bNearestNeighborDataValid = false; bMorphTargetDataValid = false; }
-	void ValidateClothPartData() { bClothPartDataValid = true; }
-	void InvalidateNearestNeighborData() { bNearestNeighborDataValid = false; bMorphTargetDataValid = false; }
-	void ValidateNearestNeighborData() {bNearestNeighborDataValid = true; }
-	void InvalidateMorphTargetData() { bMorphTargetDataValid = false; }
-	void ValidateMorphTargetData() { bMorphTargetDataValid = true;}
-	bool IsClothPartDataValid() const { return bClothPartDataValid; }
-	bool IsNearestNeighborDataValid() const { return bNearestNeighborDataValid; }
-	bool IsMorphTargetDataValid() const { return bMorphTargetDataValid; }
-	void SetUseOptimizedNetwork(bool bInUseOptimizedNetwork);
-#endif
-
-#if WITH_EDITOR
 	UFUNCTION(BlueprintPure, Category = "Nearest Neighbor Model")
-	const int32	GetInputDim() const { return InputDim; }
-	static FName GetInputDimPropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModel, InputDim); }
+	TArray<int32> GetHiddenLayerDims() const { return HiddenLayerDims; }
+	
+	UFUNCTION(BlueprintPure, Category = "Nearest Neighbor Model")
+	int32 GetOutputDim() const { return OutputDim; }
+	
+	UFUNCTION(BlueprintPure, Category = "Nearest Neighbor Model")
+	int32 GetNumEpochs() const { return NumEpochs; }
+	
+	UFUNCTION(BlueprintPure, Category = "Nearest Neighbor Model")
+	int32 GetBatchSize() const { return BatchSize; }
+	
+	UFUNCTION(BlueprintPure, Category = "Nearest Neighbor Model")
+	float GetLearningRate() const { return LearningRate; }
 
 	UFUNCTION(BlueprintPure, Category = "Nearest Neighbor Model")
-	const TArray<int32>& GetHiddenLayerDims() const { return HiddenLayerDims; }
-	static FName GetHiddenLayerDimsPropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModel, HiddenLayerDims); }
-
-	UFUNCTION(BlueprintPure, Category = "Nearest Neighbor Model")
-	const int32	GetOutputDim() const { return OutputDim; }
-	static FName GetOutputDimPropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModel, OutputDim); }
-
-	UFUNCTION(BlueprintPure, Category = "Nearest Neighbor Model")
-	const int32	GetNumEpochs() const { return NumEpochs; }
-	static FName GetNumEpochsPropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModel, NumEpochs); }
-
-	UFUNCTION(BlueprintPure, Category = "Nearest Neighbor Model")
-	const int32	GetBatchSize() const { return BatchSize; }
-	static FName GetBatchSizePropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModel, BatchSize); }
-
-	UFUNCTION(BlueprintPure, Category = "Nearest Neighbor Model")
-	const float	GetLearningRate() const { return LearningRate; }
-	static FName GetLearningRatePropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModel, LearningRate); }
-
-	UFUNCTION(BlueprintPure, Category = "Nearest Neighbor Model")
-	const TArray<FClothPartEditorData>&	GetClothPartEditorData() const { return ClothPartEditorData; }
-	static FName GetClothPartEditorDataPropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModel, ClothPartEditorData); }
-
-	UFUNCTION(BlueprintPure, Category = "Nearest Neighbor Model")
-	const TArray<FSkeletonCachePair>& GetNearestNeighborData() const { return NearestNeighborData; }
-	static FName GetNearestNeighborDataPropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModel, NearestNeighborData); }
-
-	static FName GetNearestNeighborOffsetWeightPropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModel, NearestNeighborOffsetWeight); }
-
-	static FName GetSavedNetworkSizePropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModel, SavedNetworkSize); }
-	static FName GetMorphDataSizePropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModel, MorphDataSize); }
-
-	bool GetUseFileCache() const { return bUseFileCache; }
-	static FName GetUseFileCachePropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModel, bUseFileCache); }
-	static FName GetFileCacheDirectoryPropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModel, FileCacheDirectory); }
-	static FName GetRecomputeDeltasPropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModel, bRecomputeDeltas); }
-	static FName GetRecomputePCAPropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModel, bRecomputePCA); }
+	int32 GetEarlyStopEpochs() const { return EarlyStopEpochs; }
 
 	UFUNCTION(BlueprintPure, Category = "Nearest Neighbor Model")
 	FString GetModelDir() const;
-
-	int32 GetPartMeshIndex(int32 PartId) const { return ClothPartEditorData[PartId].MeshIndex; }
-	void SetPartMeshIndex(int32 PartId, int32 MeshIndex) { ClothPartEditorData[PartId].MeshIndex = MeshIndex; }
-	int32 GetMaxPartMeshIndex() const;
-
+	
+	bool DoesUseFileCache() const { return bUseFileCache; }
 	bool DoesUseDualQuaternionDeltas() const { return bUseDualQuaternionDeltas; }
+
+	FDateTime GetNetworkLastWriteTime() const;
+	FString GetNetworkLastWriteArchitectureString() const;
+	FDateTime GetMorphTargetsLastWriteTime() const;
+
+	UFUNCTION(BlueprintPure, Category = "Nearest Neighbor Model")
+	TArray<FString> GetCachedDeltasPaths() const;
+
+	UFUNCTION(BlueprintPure, Category = "Nearest Neighbor Model")
+	TArray<FString> GetCachedPCAPaths() const;
+
+	UFUNCTION(BlueprintPure, Category = "Nearest Neighbor Model")
+	TArray<FString> GetCachedNetworkPaths() const;
+	
+	TOptional<FDateTime> GetCachedDeltasTimestamp() const;
+	TOptional<FDateTime> GetCachedPCATimestamp() const;
+	TOptional<FDateTime> GetCachedNetworkTimestamp() const;
+
+	using EOpFlag = UE::NearestNeighborModel::EOpFlag;
+	EOpFlag UpdateForTraining();
+	void InvalidateTraining();
+	void InvalidateTrainingModelOnly();
+	EOpFlag UpdateForInference();
+	void InvalidateInference();
+	void InvalidateInferenceModelOnly();
+	bool LoadOptimizedNetworkFromFile(const FString& Filename);
+	void ClearOptimizedNetwork();
+
+	FMLDeformerGeomCacheTrainingInputAnim* GetNearestNeighborAnim(int32 SectionIndex);
+	const FMLDeformerGeomCacheTrainingInputAnim* GetNearestNeighborAnim(int32 SectionIndex) const;
+
+	void UpdateFileCache();
+	const FString& GetFileCacheDirectory() const;
+	void SetFileCacheDirectory(const FString& InFileCacheDirectory);
+
+	/** Make sure to call this function after changing the morph targets.
+	* Do not call this function without calling InitEngineMorphTargets first. */
+	void UpdateMorphTargetsLastWriteTime();
+
+	void UpdateNetworkInputDim();
+	void UpdateNetworkOutputDim();
+
+	bool IsBeforeCustomVersionWasAdded() const;
+
+	static FName GetInputDimPropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModel, InputDim); }
+	static FName GetHiddenLayerDimsPropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModel, HiddenLayerDims); }
+	static FName GetOutputDimPropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModel, OutputDim); }
+	static FName GetNumEpochsPropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModel, NumEpochs); }
+	static FName GetBatchSizePropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModel, BatchSize); }
+	static FName GetLearningRatePropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModel, LearningRate); }
+	static FName GetEarlyStopEpochsPropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModel, EarlyStopEpochs); }
+	static FName GetSectionsPropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModel, Sections); }
+	static FName GetNearestNeighborOffsetWeightPropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModel, NearestNeighborOffsetWeight); }
+	static FName GetUseFileCachePropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModel, bUseFileCache); }
+	static FName GetFileCacheDirectoryPropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModel, FileCacheDirectory); }
+	static FName GetUseDualQuaternionDeltasPropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModel, bUseDualQuaternionDeltas); }
+	static FName GetDecayFactorPropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModel, DecayFactor); }
+	static FName GetUseRBFPropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModel, bUseRBF); }
+	static FName GetRBFSigmaPropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModel, RBFSigma); }
 #endif
-
+	
 protected:
-
+	/** Network input dimensions. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Training Settings")
 	int32 InputDim = 0;
 
+	/** Network output dimensions. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Training Settings")
 	int32 OutputDim = 0;
 
 #if WITH_EDITORONLY_DATA
+	/** Dimension of hidden layers in the network. This cannot be empty. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Training Settings")
 	TArray<int32> HiddenLayerDims;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Training Settings", meta = (ClampMin = "1"))
+	/** Max number of cycles iterated through the training set. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Training Settings", AdvancedDisplay, meta = (ClampMin = "1"))
 	int32 NumEpochs = 10000;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Training Settings", meta = (ClampMin = "1"))
+	/** Number of data samples processed together as a group in a single pass. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Training Settings", AdvancedDisplay, meta = (ClampMin = "1"))
 	int32 BatchSize = 256;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Training Settings", meta = (ClampMin = "0.000001", ClampMax = "1.0"))
+	/** The size of the step when optimizing the network. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Training Settings", AdvancedDisplay, meta = (ClampMin = "0.000001", ClampMax = "1.0"))
 	float LearningRate = 0.001f;
 
-	UPROPERTY()
-	bool bClothPartDataValid = false;
+	/** The number of epochs to stop training if there is no improvement in accuracy. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Training Settings", AdvancedDisplay, meta = (ClampMin = "1"))
+	int32 EarlyStopEpochs = 100;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cloth Parts")
-	TArray<FClothPartEditorData> ClothPartEditorData;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cloth Parts", meta = (ClampMin = "0"))
-	int32 BasisSmoothIter = 0;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cloth Parts")
-	bool bUseDualQuaternionDeltas = false;
-
-	UPROPERTY()
-	bool bNearestNeighborDataValid = false;
-
-	UPROPERTY()
-	bool bMorphTargetDataValid = false;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nearest Neighbors")
-	TArray<FSkeletonCachePair> NearestNeighborData;
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Training Settings", meta = (ClampMin = "0.0"))
-	float SavedNetworkSize = 0.0f;
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Morph Targets", meta = (ClampMin = "0.0"))
-	float MorphDataSize = 0.0f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "File Cache")
+	/** Whether to cache intermediate results on disk. CAUTION: failing to manually clear caches could cause unexpected results. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "File Cache", meta = (DisplayName = "Use File Cache (Advanced)"))
 	bool bUseFileCache = false;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "File Cache")
+	/** Directory to save the intermediate results. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "File Cache", meta = (EditCondition = "bUseFileCache"))
 	FString FileCacheDirectory = FPaths::ProjectIntermediateDir() + "NearestNeighborModel";
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "File Cache")
-	bool bRecomputeDeltas = true;
+	TOptional<FDateTime> CachedDeltasTimestamp;
+	TOptional<FDateTime> CachedPCATimestamp;
+	TOptional<FDateTime> CachedNetworkTimestamp;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "File Cache")
-	bool bRecomputePCA = true;
-
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	UE_DEPRECATED(5.4, "ClothPartData is deprecated. Use Sections instead.")
+	UPROPERTY()
+	TArray<FClothPartData> ClothPartData_DEPRECATED;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 #endif
 
 	static constexpr int32 NearestNeighborNumFloatsPerBone = 3;
 	static constexpr int32 NearestNeighborNumFloatsPerCurve = 0;
-	
-#if WITH_EDITORONLY_DATA
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "KMeans Pose Generator")
-	TArray<TObjectPtr<UAnimSequence>> SourceAnims;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "KMeans Pose Generator", meta = (ClampMin = "1"))
-	int32 NumClusters;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "KMeans Pose Generator")
-	int32 KMeansPartId = 0;
-#endif
-
+	/** Whether to use input multipliers. This can be used to debug bad network input. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Debugging")
 	bool bUseInputMultipliers = false;
 
+	/** Values to be multiplied to the input. This can be used to debug bad network input. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Debugging")
 	TArray<FVector3f> InputMultipliers;
 
-	UPROPERTY()
-	TArray<FClothPartData> ClothPartData;
-
+	/** The min input values observed throughout the entire training set. This is used to clamp the input value at inference time.  The values are set in python. */
 	UPROPERTY(BlueprintReadWrite, Category = "Network IO")
 	TArray<float> InputsMin;
 
+	/** The max input values observed throughout the entire training set. This is used to clamp the input value at inference time.  The values are set in python. */
 	UPROPERTY(BlueprintReadWrite, Category = "Network IO")
 	TArray<float> InputsMax;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nearest Neighbors", META = (ClampMin = "0", ClampMax = "1"))
+	/** Whether to use dual quaternion deltas. If false, LBS deltas will be used. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nearest Neighbor Settings")
+	bool bUseDualQuaternionDeltas = true;
+
+	/** The ratio of previous frame deltas added into the current frame deltas. A bigger value will make wrinkles "stick" longer. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nearest Neighbor Settings", META = (ClampMin = "0", ClampMax = "1"))
 	float DecayFactor = 0.85f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nearest Neighbors", META = (ClampMin = "0", ClampMax = "1"))
+	/** The weight multiplied to nearest neighbor deltas. A value of 0 means completely removing nearest neighbor deltas. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nearest Neighbor Settings", META = (ClampMin = "0", ClampMax = "1"))
 	float NearestNeighborOffsetWeight = 1.0f;
 
-	/** Use radial basis function (RBF). This will blend multiple nearest neighbors instead of finding a single neighbor. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nearest Neighbors")
+	/** Whether to use radial basis function to blend multiple nearest neighbors to produce smoother result. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nearest Neighbor Settings")
 	bool bUseRBF = false;
 
-	/** The smaller this value is, the more similar it is to a single nearest neighbor. The bigger this value is, the more smeared out the geometric details are. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nearest Neighbors", META = (ClampMin = "0.001"))
+	/** Range to blend nearest neighbors. A bigger range will blend more neighbors, produce smoother result and may be slower in game. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nearest Neighbor Settings", META = (ClampMin = "0"))
 	float RBFSigma = 1.0f;
 
 private:
+	TWeakObjectPtr<UNetwork> GetOptimizedNetwork();
+
+#if WITH_EDITOR
+	UNearestNeighborModelSection* OnSectionAdded(int32 NewIndex);
+	FSection& GetSection(int32 Index);
+
+	void SetOptimizedNetwork(UNearestNeighborOptimizedNetwork* InOptimizedNetwork);
+
+	void UpdatePCACoeffStarts();
+
+	EOpFlag CheckHiddenLayerDims();
+	void UpdateInputMultipliers();
+
+	void UpdateCachedDeltasTimestamp();
+	void UpdateCachedPCATimestamp();
+	void UpdateCachedNetworkTimestamp();
+	// FNearestNeighborModelDetails needs to call private function GetSection(int32).
+	friend class UE::NearestNeighborModel::FNearestNeighborModelDetails;
+#endif
+
+	UPROPERTY(EditAnywhere, Category = "Mesh Sections")
+	TArray<TObjectPtr<UNearestNeighborModelSection>> Sections;
+	
 	UPROPERTY()
-	TObjectPtr<UNearestNeighborOptimizedNetwork> OptimizedNetwork = nullptr;
+	TArray<int32> PCACoeffStarts;
+	
+	UPROPERTY()
+	bool bIsReadyForTraining = false;
 
 	UPROPERTY()
-	bool bUseOptimizedNetwork = true;
+	bool bIsReadyForInference = false;
+
+	UPROPERTY()
+	TObjectPtr<UNearestNeighborOptimizedNetwork> OptimizedNetwork;
+
+	int32 Version = INDEX_NONE;
+
+#if WITH_EDITORONLY_DATA
+	UPROPERTY()
+	int64 NetworkLastWriteTime = 0;
+
+	UPROPERTY()
+	int64 MorphTargetsLastWriteTime = 0;
+
+	UPROPERTY()
+	FString NetworkLastWriteArchitectureString;
+#endif
 };

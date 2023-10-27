@@ -44,7 +44,8 @@ namespace UE::MLDeformer
 		UMLDeformerGeomCacheModel* GeomCacheModel = Cast<UMLDeformerGeomCacheModel>(InModel->GetModel());
 		check(GeomCacheModel);
 
-		UGeometryCache* GeomCache = GeomCacheModel->GetTrainingInputAnims()[InAnimIndex].GetGeometryCache();
+		FMLDeformerGeomCacheTrainingInputAnim* GeomCacheAnim = static_cast<FMLDeformerGeomCacheTrainingInputAnim*>(EditorModel->GetTrainingInputAnim(InAnimIndex));
+		UGeometryCache* GeomCache = GeomCacheAnim->GetGeometryCache();
 		GeometryCacheComponent->SetGeometryCache(GeomCache);
 		GeometryCacheComponent->SetManualTick(true);
 		GeometryCacheComponent->SetVisibility(false);
