@@ -546,15 +546,15 @@ void FSceneOutlinerModule::CreateActorInfoColumns(FSceneOutlinerInitializationOp
 	};
 
 	// The "Level" column should be named "Package Short Name" in wp enabled levels
-	auto LevelColumnName = TAttribute<FText>::CreateLambda([WorldPtr]() -> FText
+	FText LevelColumnName;
+	if(WorldPtr && WorldPtr->PersistentLevel && WorldPtr->PersistentLevel->IsUsingExternalActors())
 	{
-		if (WorldPtr && WorldPtr->PersistentLevel->IsUsingExternalActors())
-		{
-			return FSceneOutlinerBuiltInColumnTypes::PackageShortName_Localized();
-		}
-
-		return FSceneOutlinerBuiltInColumnTypes::Level_Localized();
-	});
+		LevelColumnName = FSceneOutlinerBuiltInColumnTypes::PackageShortName_Localized();
+	}
+	else
+	{
+		LevelColumnName = FSceneOutlinerBuiltInColumnTypes::Level_Localized();
+	}
 
 	AddTextInfoColumn(FSceneOutlinerBuiltInColumnTypes::Mobility(), FSceneOutlinerBuiltInColumnTypes::Mobility_Localized(), MobilityInfoText);
 	AddTextInfoColumn(FSceneOutlinerBuiltInColumnTypes::Level(), LevelColumnName, LevelInfoText);
