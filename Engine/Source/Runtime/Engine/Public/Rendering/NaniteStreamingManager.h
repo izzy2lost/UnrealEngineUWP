@@ -215,7 +215,7 @@ private:
 
 		FORCEINLINE bool operator==(const FVirtualPage& Other) const
 		{
-			return Priority == Priority && RegisteredPageIndex == Other.RegisteredPageIndex;
+			return Priority == Other.Priority && RegisteredPageIndex == Other.RegisteredPageIndex;
 		}
 	};
 
