@@ -206,7 +206,10 @@ bool FChoosersTrack::UpdateInternal()
 				bChanged = true;
 			}
 		
-			bChanged = bChanged || Children[i]->Update();
+			if (Children[i]->Update())
+			{
+				bChanged = true;
+			}
 		}
 	}
 	

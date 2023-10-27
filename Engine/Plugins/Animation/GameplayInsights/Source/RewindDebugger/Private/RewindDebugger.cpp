@@ -24,6 +24,7 @@
 #include "RewindDebuggerCommands.h"
 #include "RewindDebuggerModule.h"
 #include "RewindDebuggerObjectTrack.h"
+#include "RewindDebuggerPlaceholderTrack.h"
 #include "RewindDebuggerSettings.h"
 #include "SLevelViewport.h"
 #include "ToolMenus.h"
@@ -294,22 +295,6 @@ void FRewindDebugger::GetTargetObjectIds(TArray<uint64>& OutTargetObjectIds) con
 #endif
 }
 
-class FRewindDebuggerDummyTrack : public RewindDebugger::FRewindDebuggerTrack
-{
-public:
-
-	FRewindDebuggerDummyTrack(const FName& InObjectName, const FText& InDisplayName)
-		: ObjectName(InObjectName), DisplayName(InDisplayName)
-	{
-	}
-
-private:
-	virtual FName GetNameInternal() const override { return ObjectName; }
-	virtual FText GetDisplayNameInternal() const override { return DisplayName; }
-	
-	FName ObjectName;
-	FText DisplayName;
-};
 
 void FRewindDebugger::RefreshDebugTracks()
 {
@@ -336,8 +321,8 @@ void FRewindDebugger::RefreshDebugTracks()
 
 		if (DebugTracks[1] == nullptr || DebugTracks[0] == nullptr || DebugTracks[0]->GetName().ToString() != DebugTargetActor.Get() )
 		{
-			DebugTracks[0] = MakeShared<FRewindDebuggerDummyTrack>(FName(DebugTargetActorName), FText::FromString(DebugTargetActorName)); 
-			DebugTracks[1] = MakeShared<FRewindDebuggerDummyTrack>(DebugMessageTrackName, NSLOCTEXT("RewindDebugger", "No Debug Data", " - Start a recording to debug"));
+			DebugTracks[0] = MakeShared<FRewindDebuggerPlaceholderTrack>(FName(DebugTargetActorName), FText::FromString(DebugTargetActorName)); 
+			DebugTracks[1] = MakeShared<FRewindDebuggerPlaceholderTrack>(DebugMessageTrackName, NSLOCTEXT("RewindDebugger", "No Debug Data", " - Start a recording to debug"));
 			ComponentListChangedDelegate.ExecuteIfBound();
 		}
 	}
@@ -379,7 +364,10 @@ void FRewindDebugger::RefreshDebugTracks()
     			// update all tracks
     			for (TSharedPtr<RewindDebugger::FRewindDebuggerTrack>& DebugTrack : DebugTracks )
     			{
-    				bChanged = bChanged || DebugTrack->Update();
+    				if (DebugTrack->Update())
+    				{
+    					bChanged = true;
+    				}
     			}
     
     			if (bChanged)

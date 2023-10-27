@@ -204,8 +204,11 @@ bool FPoseWatchTrack::UpdateInternal()
 				Children[i] = MakeShared<FPoseWatchCurveTrack>(ObjectId, UniqueCurveIds[i], PoseWatchTrackId);
 				bChanged = true;
 			}
-
-			bChanged = bChanged || Children[i]->Update();
+			
+			if (Children[i]->Update())
+			{
+				bChanged = true;
+			}
 		}
 
 		if(const TCHAR* FoundName = AnimationProvider->GetName(NameId))
@@ -323,7 +326,10 @@ bool FPoseWatchesTrack::UpdateInternal()
 				bChanged = true;
 			}
 
-			bChanged = bChanged || Children[i]->Update();
+			if (Children[i]->Update())
+			{
+				bChanged = true;
+			}
 		}
 	}
 	

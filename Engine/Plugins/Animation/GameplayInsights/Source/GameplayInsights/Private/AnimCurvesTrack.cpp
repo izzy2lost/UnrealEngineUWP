@@ -14,6 +14,7 @@ namespace RewindDebugger
 
 FAnimCurvesTrack::FAnimCurvesTrack(uint64 InObjectId) : ObjectId(InObjectId)
 {
+	ChildPlaceholder = MakeShared<FRewindDebuggerPlaceholderTrack>( "Child", LOCTEXT("No Curves", "No Curves to Display"));
 	SetIsExpanded(false);
 	Icon = FSlateIcon("EditorStyle", "AnimGraph.Attribute.Curves.Icon", "AnimGraph.Attribute.Curves.Icon");
 }
@@ -28,6 +29,11 @@ TSharedPtr<SWidget> FAnimCurvesTrack::GetDetailsViewInternal()
 
 void FAnimCurvesTrack::IterateSubTracksInternal(TFunction<void(TSharedPtr<FRewindDebuggerTrack> SubTrack)> IteratorFunction)
 {
+	if (Children.Num() == 0)
+	{
+		IteratorFunction(ChildPlaceholder);
+	}
+	
 	for(TSharedPtr<FAnimCurveTrack>& Track : Children)
 	{
 		IteratorFunction(Track);
@@ -36,6 +42,11 @@ void FAnimCurvesTrack::IterateSubTracksInternal(TFunction<void(TSharedPtr<FRewin
 
 bool FAnimCurvesTrack::UpdateInternal()
 {
+	if (!GetIsExpanded())
+	{
+		return false;
+	}
+	
 	TArray<uint32> UniqueTrackIds;
 
 	IRewindDebugger* RewindDebugger = IRewindDebugger::Instance();
@@ -89,7 +100,10 @@ bool FAnimCurvesTrack::UpdateInternal()
 				bChanged = true;
 			}
 
-			bChanged = bChanged || Children[i]->Update();
+			if (Children[i]->Update())
+			{
+				bChanged = true;
+			}
 		}
 	}
 
