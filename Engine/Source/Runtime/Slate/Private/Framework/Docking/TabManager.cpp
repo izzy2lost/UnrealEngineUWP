@@ -1653,7 +1653,10 @@ FTabManager::FTabManager( const TSharedPtr<SDockTab>& InOwnerTab, const TSharedR
 {
 	LocalWorkspaceMenuRoot = FWorkspaceItem::NewGroup(LOCTEXT("LocalWorkspaceRoot", "Local Workspace Root"));
 
-	FSlateApplication::Get().OnWindowBeingDestroyed().AddRaw(this, &FTabManager::OnWindowBeingDestroyed);
+	if (FSlateApplication::IsInitialized())
+	{
+		FSlateApplication::Get().OnWindowBeingDestroyed().AddRaw(this, &FTabManager::OnWindowBeingDestroyed);
+	}
 }
 
 TSharedPtr<SDockingArea> FTabManager::RestoreArea(const TSharedRef<FArea>& AreaToRestore, const TSharedPtr<SWindow>& InParentWindow, const bool bEmbedTitleAreaContent, const EOutputCanBeNullptr OutputCanBeNullptr, bool bForceOpenWindowIfNeeded)
