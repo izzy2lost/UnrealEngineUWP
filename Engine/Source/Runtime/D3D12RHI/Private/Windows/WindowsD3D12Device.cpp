@@ -849,6 +849,7 @@ void FD3D12DynamicRHIModule::FindAdapter()
 	TRefCountPtr<IDXGIAdapter> TempAdapter;
 	const D3D_FEATURE_LEVEL MinRequiredFeatureLevel = GetRequiredD3DFeatureLevel();
 
+	FD3D12AdapterDesc PreferredAdapter;
 	FD3D12AdapterDesc FirstDiscreteAdapter;
 	FD3D12AdapterDesc BestMemoryAdapter;
 	FD3D12AdapterDesc FirstAdapter;
@@ -940,31 +941,32 @@ void FD3D12DynamicRHIModule::FindAdapter()
 
 				const bool bSkipAdapter = bSkipWARP || bSkipPerfHUDAdapter || bSkipHmdGraphicsAdapter || bSkipExplicitAdapter || FParse::Param(FCommandLine::Get(), TEXT("ForceZeroAdapters"));
 
-				if (!bSkipAdapter)
+				if (!bSkipAdapter && CurrentAdapter.IsValid())
 				{
-					if ((PreferredVendor != EGpuVendorId::Unknown) && (PreferredVendor == RHIConvertToGpuVendorId(AdapterDesc.VendorId)) && FirstDiscreteAdapter.IsValid())
+					if (PreferredVendor != EGpuVendorId::Unknown && PreferredVendor == RHIConvertToGpuVendorId(AdapterDesc.VendorId) && !PreferredAdapter.IsValid())
 					{
-						FirstDiscreteAdapter = CurrentAdapter;
+						PreferredAdapter = CurrentAdapter;
 					}
-					else if (!bIsWARP && !CurrentAdapter.bIsIntegrated)
+					
+					if (!bIsWARP && !CurrentAdapter.bIsIntegrated)
 					{
 						if (!FirstDiscreteAdapter.IsValid())
 						{
 							FirstDiscreteAdapter = CurrentAdapter;
 						}
 
-						if ((PreferredVendor == EGpuVendorId::Unknown || PreferredVendor == RHIConvertToGpuVendorId(AdapterDesc.VendorId)) &&
-						    CurrentAdapter.Desc.DedicatedVideoMemory > BestMemoryAdapter.Desc.DedicatedVideoMemory)
+						if (CurrentAdapter.Desc.DedicatedVideoMemory > BestMemoryAdapter.Desc.DedicatedVideoMemory)
 						{
 							BestMemoryAdapter = CurrentAdapter;
+							if (PreferredVendor != EGpuVendorId::Unknown && PreferredVendor == RHIConvertToGpuVendorId(AdapterDesc.VendorId))
+							{
+								// Choose the best option of the preferred IHV devices
+								PreferredAdapter = BestMemoryAdapter;
+							}
 						}
 					}
 
 					if (!FirstAdapter.IsValid())
-					{
-						FirstAdapter = CurrentAdapter;
-					}
-					else if ((PreferredVendor != EGpuVendorId::Unknown) && (PreferredVendor == RHIConvertToGpuVendorId(AdapterDesc.VendorId)) && FirstAdapter.IsValid())
 					{
 						FirstAdapter = CurrentAdapter;
 					}
@@ -977,7 +979,12 @@ void FD3D12DynamicRHIModule::FindAdapter()
 	if (bFavorDiscreteAdapter)
 	{
 		// We assume Intel is integrated graphics (slower than discrete) than NVIDIA or AMD cards and rather take a different one
-		if (BestMemoryAdapter.IsValid())
+		if (PreferredAdapter.IsValid())
+		{
+			NewAdapter = TSharedPtr<FD3D12Adapter>(new FWindowsD3D12Adapter(PreferredAdapter));
+			ChosenAdapters.Add(NewAdapter);
+		}
+		else if (BestMemoryAdapter.IsValid())
 		{
 			NewAdapter = TSharedPtr<FD3D12Adapter>(new FWindowsD3D12Adapter(BestMemoryAdapter));
 			ChosenAdapters.Add(NewAdapter);
