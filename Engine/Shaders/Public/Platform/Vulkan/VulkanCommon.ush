@@ -96,7 +96,7 @@ void ImageInterlockedMaxUInt64(RWTexture2D<UlongType> Dest, uint2 Coord, UlongTy
 
 	static const FHitGroupSystemRootConstants HitGroupSystemRootConstants = VulkanHitGroupSystemParameters.RootConstants;
 
-	ByteAddressBuffer VULKAN_RESOURCE_HEAP(HitGroupSystemBuffers)[];
-	static const ByteAddressBuffer HitGroupSystemIndexBuffer = VULKAN_RESOURCE_HEAP(HitGroupSystemBuffers)[VulkanHitGroupSystemParameters.BindlessHitGroupSystemIndexBuffer];
-	static const ByteAddressBuffer HitGroupSystemVertexBuffer = VULKAN_RESOURCE_HEAP(HitGroupSystemBuffers)[VulkanHitGroupSystemParameters.BindlessHitGroupSystemVertexBuffer];
+	ByteAddressBuffer VULKAN_SRV_HEAP(HitGroupSystemBuffers)[];
+	static const ByteAddressBuffer HitGroupSystemIndexBuffer = VULKAN_SRV_HEAP(HitGroupSystemBuffers)[VulkanHitGroupSystemParameters.BindlessHitGroupSystemIndexBuffer];
+	static const ByteAddressBuffer HitGroupSystemVertexBuffer = VULKAN_SRV_HEAP(HitGroupSystemBuffers)[VulkanHitGroupSystemParameters.BindlessHitGroupSystemVertexBuffer];
 #endif
