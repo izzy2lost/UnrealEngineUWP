@@ -2,6 +2,7 @@
 
 #if WITH_VERSE_VM
 #include "VerseVM/VVMTypeCreator.h"
+#include "VerseVM/VVMType.h"
 #include "VerseVM/VVMUniqueCreator.h"
 
 namespace Verse
