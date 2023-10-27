@@ -127,7 +127,7 @@ public:
 	// create goals 
 	void AddNewGoals(const TArray<FName>& GoalNames, const TArray<FName>& BoneNames);
 	// clear all selected objects 
-	void ClearSelection();
+	void ClearSelection() const;
 	// callback when goal is selected in the viewport 
 	void HandleGoalSelectedInViewport(const FName& GoalName, bool bReplace) const;
 	// callback when bone is selected in the viewport 
@@ -138,6 +138,8 @@ public:
 	void RefreshTreeView() const;
 	// clear the output log 
 	void ClearOutputLog() const;
+	// automatically generates retarget chains 
+	void AutoGenerateRetargetChains() const;
 
 	// return list of those solvers in the stack that are selected by user 
 	void GetSelectedSolvers(TArray<TSharedPtr<FSolverStackElement> >& OutSelectedSolvers) const;

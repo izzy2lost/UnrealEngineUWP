@@ -114,6 +114,11 @@ void FIKRigEditorToolkit::BindCommands()
 		EUIActionRepeatMode::RepeatDisabled);
 
 	ToolkitCommands->MapAction(
+		Commands.GenerateRetargetChains,
+		FExecuteAction::CreateSP(EditorController, &FIKRigEditorController::AutoGenerateRetargetChains),
+		EUIActionRepeatMode::RepeatDisabled);
+
+	ToolkitCommands->MapAction(
 		Commands.ShowAssetSettings,
 		FExecuteAction::CreateLambda([this]()
 		{
@@ -151,6 +156,13 @@ void FIKRigEditorToolkit::FillToolbar(FToolBarBuilder& ToolbarBuilder)
 			TAttribute<FText>(),
 			TAttribute<FText>(),
 			FSlateIcon(FAppStyle::Get().GetStyleSetName(),"Icons.Refresh"));
+
+		ToolbarBuilder.AddToolBarButton(
+			FIKRigCommands::Get().GenerateRetargetChains,
+			NAME_None,
+			TAttribute<FText>(),
+			TAttribute<FText>(),
+			FSlateIcon(FAppStyle::Get().GetStyleSetName(),"Icons.Edit"));
 	}
 	ToolbarBuilder.EndSection();
 

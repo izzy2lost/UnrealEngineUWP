@@ -2,6 +2,7 @@
 
 #include "RigEditor/IKRigEditorController.h"
 
+#include "RigEditor/IKRigAutoCharacterizer.h"
 #include "RigEditor/IKRigController.h"
 #include "RigEditor/SIKRigHierarchy.h"
 #include "RigEditor/SIKRigSolverStack.h"
@@ -18,6 +19,8 @@
 #include "Animation/DebugSkelMeshComponent.h"
 #include "Dialog/SCustomDialog.h"
 #include "ScopedTransaction.h"
+#include "Framework/Notifications/NotificationManager.h"
+#include "Widgets/Notifications/SNotificationList.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(IKRigEditorController)
 
@@ -465,6 +468,86 @@ void FIKRigEditorController::ClearOutputLog() const
 	}
 }
 
+void FIKRigEditorController::AutoGenerateRetargetChains() const
+{
+	USkeletalMesh* Mesh = AssetController->GetSkeletalMesh();
+	if (!Mesh)
+	{
+		FNotificationInfo Info(LOCTEXT("NoMeshToAutoCharacterize", "No mesh to auto-characterize. Operation cancelled."));
+		Info.ExpireDuration = 3.0f;
+		FSlateNotificationManager::Get().AddNotification(Info);
+		return;
+	}
+
+	// auto generate a retarget definition
+	FAutoCharacterizeResults Results;
+	AssetController->AutoGenerateRetargetDefinition(Results);
+	
+	// notify user of the results of the auto characterization
+	if (Results.bUsedTemplate)
+	{
+		// actually apply the auto-generated retarget definition
+		// TODO move this outside the condition once procedural retarget definitions are supported
+		AssetController->SetRetargetDefinition(Results.RetargetDefinition);
+		
+		// notify user of which skeleton was detected
+		const FText ScoreAsText = FText::AsPercent(Results.BestPercentageOfTemplateScore);
+		const FText NameAsText = FText::FromName(Results.BestTemplateName);
+		const FText Message = FText::Format(
+			LOCTEXT("AutoCharacterizeResults", "Using {0} template. Skeletal structure matches with {1} accuracy."),
+			NameAsText, ScoreAsText);
+		FNotificationInfo Info(Message);
+		Info.ExpireDuration = 5.0f;
+		FSlateNotificationManager::Get().AddNotification(Info);
+
+		// log all the differences between the template the skeleton
+		if (UIKRigProcessor* Processor = GetIKRigProcessor())
+		{
+			FIKRigLogger& Log = Processor->Log;
+
+			// missing bones
+			for (const FName& MissingBone : Results.MissingBones)
+			{
+				Log.LogWarning(FText::Format(
+				LOCTEXT("MissingTemplateBone", "{0} but was not found in this skeleton, but is used by {1}."),
+				FText::FromName(MissingBone),
+				FText::FromName(Results.BestTemplateName)));
+			}
+
+			// different parents
+			for (const FName& MissingParent : Results.BonesWithMissingParent)
+			{
+				Log.LogWarning(FText::Format(
+				LOCTEXT("MissingTemplateBone", "{0} has a different parent in the template: {1}."),
+				FText::FromName(MissingParent),
+				FText::FromName(Results.BestTemplateName)));
+			}
+
+			// expanded chains
+			if (Results.NumBonesAddedToSpineChain > 0)
+			{
+				Log.LogWarning(FText::Format(
+				LOCTEXT("ExpandedSpineChain", "The Spine chain was expanded beyond the template by {0} bones."),
+				FText::AsNumber(Results.NumBonesAddedToSpineChain)));
+			}
+			if (Results.NumBonesAddedToNeckChain > 0)
+			{
+				Log.LogWarning(FText::Format(
+				LOCTEXT("ExpandedNeckChain", "The Neck chain was expanded beyond the template by {0} bones."),
+				FText::AsNumber(Results.NumBonesAddedToNeckChain)));
+			}
+		}
+	}
+	else
+	{
+		// notify user that no skeleton template was used
+		// TODO change this message once procedurally generated retarget definitions are provided
+		FNotificationInfo Info(LOCTEXT("AutoCharacterizeResults", "No matching skeletal template found. Characterization skipped."));
+		Info.ExpireDuration = 5.0f;
+		FSlateNotificationManager::Get().AddNotification(Info);
+	}
+}
+
 void FIKRigEditorController::AddNewGoals(const TArray<FName>& GoalNames, const TArray<FName>& BoneNames)
 {
 	check(GoalNames.Num() == BoneNames.Num());
@@ -511,7 +594,7 @@ void FIKRigEditorController::AddNewGoals(const TArray<FName>& GoalNames, const T
 	}
 }
 
-void FIKRigEditorController::ClearSelection()
+void FIKRigEditorController::ClearSelection() const
 {
 	if (SkeletonView.IsValid())
 	{

@@ -21,6 +21,9 @@ public:
 	// reset whole system to initial state
 	TSharedPtr< FUICommandInfo > Reset;
 
+	// automatically generate retarget chains
+	TSharedPtr< FUICommandInfo > GenerateRetargetChains;
+
 	// show settings of the asset in the details panel
 	TSharedPtr< FUICommandInfo > ShowAssetSettings;
 
