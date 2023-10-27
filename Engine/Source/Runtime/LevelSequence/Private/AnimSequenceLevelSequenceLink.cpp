@@ -26,9 +26,11 @@ UAnimSequenceLevelSequenceLink::UAnimSequenceLevelSequenceLink(class FObjectInit
 
 void UAnimSequenceLevelSequenceLink::PostLoad()
 {
+#if WITH_EDITOR
 	Super::PostLoad();
 	if (PathToLevelSequence.TryLoad() == nullptr)
 	{
 		PathToLevelSequence.Reset();
 	}
+#endif
 }
