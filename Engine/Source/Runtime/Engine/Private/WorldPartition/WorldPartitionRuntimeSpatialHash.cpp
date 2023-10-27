@@ -916,7 +916,7 @@ void FSpatialHashStreamingGrid::Draw2D(const UWorldPartitionRuntimeSpatialHash* 
 					// Draw Cell using its debug color
 					FVector2D StartPos = CellWorldBounds.Min + CellOffset;
 					{
-						DrawContext.LocalDrawTile(GridScreenBounds, StartPos, CellBoundsSize, Cell->GetDebugColor(VisualizeMode).CopyWithNewOpacity(0.25f), WorldToScreen);
+						DrawContext.LocalDrawTile(GridScreenBounds, StartPos, CellBoundsSize, Cell->GetDebugColor(VisualizeMode).CopyWithNewOpacity((VisualizeMode == EWorldPartitionRuntimeCellVisualizeMode::StreamingPriority) ? 0.75f : 0.25f), WorldToScreen);
 					}
 
 					CellOffset.Y += CellBoundsSize.Y;

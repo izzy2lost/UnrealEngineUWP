@@ -112,17 +112,6 @@ bool UWorldPartitionRuntimeCell::IsDebugShown() const
 			RuntimeCellData->IsDebugShown();
 }
 
-FLinearColor UWorldPartitionRuntimeCell::GetDebugStreamingPriorityColor() const
-{
-#if !UE_BUILD_SHIPPING
-	if (DebugStreamingPriority >= 0.f && DebugStreamingPriority <= 1.f)
-	{
-		return FWorldPartitionDebugHelper::GetHeatMapColor(1.f - DebugStreamingPriority);
-	}
-#endif
-	return FLinearColor::Transparent;
-}
-
 UDataLayerManager* UWorldPartitionRuntimeCell::GetDataLayerManager() const
 {
 	return GetOuterWorld()->GetWorldPartition()->GetDataLayerManager();

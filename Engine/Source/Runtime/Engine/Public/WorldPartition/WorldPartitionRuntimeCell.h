@@ -273,8 +273,6 @@ class UWorldPartitionRuntimeCell : public UObject, public IWorldPartitionCell
 #endif
 
 protected:
-	ENGINE_API FLinearColor GetDebugStreamingPriorityColor() const;
-
 	//@todo_ow: Implement ServerOnlyVisible and refactor ClientOnlyVisible.
 	//          Instead of this function, server would not not wait for client level visibility 
 	//          for server-only visible cells.

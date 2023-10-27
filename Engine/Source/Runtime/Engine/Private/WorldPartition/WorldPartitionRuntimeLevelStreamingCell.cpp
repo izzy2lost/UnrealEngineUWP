@@ -201,22 +201,27 @@ EStreamingStatus UWorldPartitionRuntimeLevelStreamingCell::GetStreamingStatus() 
 
 FLinearColor UWorldPartitionRuntimeLevelStreamingCell::GetDebugColor(EWorldPartitionRuntimeCellVisualizeMode VisualizeMode) const
 {
+#if !UE_BUILD_SHIPPING
 	switch (VisualizeMode)
 	{
 		case EWorldPartitionRuntimeCellVisualizeMode::StreamingPriority:
 		{
-			return GetDebugStreamingPriorityColor();
+			if (DebugStreamingPriority >= 0.0f && DebugStreamingPriority <= 1.0f)
+			{
+				const float PriorityGradient = FMath::Cube(1.0f - DebugStreamingPriority);
+				return FLinearColor(PriorityGradient, PriorityGradient, PriorityGradient, 1.0f);
+			}
+			return FLinearColor::Transparent;
 		}
 		case EWorldPartitionRuntimeCellVisualizeMode::StreamingStatus:
 		{
 			// Return streaming status color
 			return LevelStreaming ? ULevelStreaming::GetLevelStreamingStatusColor(LevelStreaming->GetLevelStreamingStatus()) : FLinearColor::Black;
 		}
-		default:
-		{
-			return Super::GetDebugColor(VisualizeMode);
-		}
 	}
+#endif
+
+	return Super::GetDebugColor(VisualizeMode);
 }
 
 void UWorldPartitionRuntimeLevelStreamingCell::SetIsAlwaysLoaded(bool bInIsAlwaysLoaded)
