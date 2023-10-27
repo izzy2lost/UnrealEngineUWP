@@ -553,6 +553,18 @@ protected:
 
 	CHAOS_API void UpdateDamageThreshold_Internal();
 
+
+	CHAOS_API void SetWorldTransform_Internal(const FTransform& WorldTransform);
+	CHAOS_API void SetFilterData_Internal(const FCollisionFilterData& NewSimFilter, const FCollisionFilterData& NewQueryFilter);
+	CHAOS_API void SetPerParticleFilterData_Internal(const TArray<FParticleCollisionFilterData>& PerParticleData);
+	CHAOS_API void SetDamagePropagationData_Internal(bool bEnabled, float BreakDamagePropagationFactor, float ShockDamagePropagationFactor);
+	CHAOS_API void SetDamageThresholds_Internal(const TArray<float>& DamageThresholds);
+	CHAOS_API void SetDamageModel_Internal(EDamageModelTypeEnum DamageModel);
+	CHAOS_API void SetUseMaterialDamageModifiers_Internal(bool bUseMaterialDamageModifiers);
+	CHAOS_API void SetMaterialOverrideMassScaleMultiplier_Internal(float InMultiplier);
+	CHAOS_API void SetGravityGroupIndex_Internal(int32 GravityGroupIndex);
+	CHAOS_API void SetIsOneWayInteraction_Internal(bool bInIsOneWayInteraction);
+
 private:
 
 	static TBitArray<> CalculateClustersToCreateFromChildren(const FGeometryDynamicCollection& DynamicCollection, int32 NumTransforms);
@@ -656,15 +668,9 @@ private:
 	FGeometryDynamicCollection PhysicsThreadCollection;
 	FGeometryDynamicCollection& GameThreadCollection;
 
-	// this data flows from Game thread to physics thread
-	// todo: replace this with proper structure copies between the two threads 
-	FGeometryCollectioPerFrameData GameThreadPerFrameData;
-	float MaterialOverrideMassScaleMultiplierChange;
-	uint8 bIsPhysicsThreadWorldTransformDirty : 1;
-	uint8 bIsCollisionFilterDataDirty: 1;
-	uint8 bIsDamageThresholdDataDirty: 1;
-	uint8 bIsGravityGroupIndexDirty: 1;
-	uint8 bIsOneWayInteractionDirty : 1;
+	// todo : we should probably keep a simulation parameter copy on the game thread instead 
+	FTransform WorldTransform_External;
+	uint8 bIsGameThreadWorldTransformDirty : 1;
 
 	// Currently this is using triple buffers for game-physics and 
 	// physics-game thread communication, but not for any reason other than this 
