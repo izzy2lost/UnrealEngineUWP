@@ -52,6 +52,7 @@
 #include "Misc/FileHelper.h"
 #include "EdGraphUtilities.h"
 #include "HAL/PlatformApplicationMisc.h"
+#include "Subsystems/AssetEditorSubsystem.h"
 
 #include "Graph/MovieGraphConfig.h"
 #include "Graph/Nodes/MovieGraphVariableNode.h"
@@ -665,6 +666,13 @@ void SMoviePipelineGraphPanel::OnSelectedNodesChanged(const TSet<UObject*>& NewS
 
 void SMoviePipelineGraphPanel::OnNodeDoubleClicked(class UEdGraphNode* Node)
 {
+	if (Node != nullptr)
+	{
+		if (UObject* Object = Node->GetJumpTargetForDoubleClick())
+		{
+			GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->OpenEditorForAsset(Object);
+		}
+	}
 }
 
 void SMoviePipelineGraphPanel::OnNodeTitleCommitted(const FText& NewText, ETextCommit::Type CommitInfo, UEdGraphNode* NodeBeingChanged)
