@@ -195,7 +195,7 @@ namespace mu
 			}
 	
 			// Remove
-			MeshRemoveVerticesWithMap( pApplied, VertexMask.GetData(), VertexMask.Num());
+			MeshRemoveVerticesWithMap( pApplied, VertexMask.GetData(), (uint32)VertexMask.Num());
 		}
 
 		//
