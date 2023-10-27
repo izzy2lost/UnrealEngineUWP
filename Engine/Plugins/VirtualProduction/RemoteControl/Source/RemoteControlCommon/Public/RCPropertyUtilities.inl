@@ -572,4 +572,24 @@ namespace RemoteControlPropertyUtilities
 		
 		return SetterFunction;
 	}
+
+#if WITH_EDITOR
+	template <>
+	inline bool Deserialize<FProperty>(const FRCPropertyVariant& InSrc, FRCPropertyVariant& OutDst)
+	{
+		const FProperty* Property = OutDst.GetProperty();
+		FOREACH_CAST_PROPERTY(Property, Deserialize<CastPropertyType>(InSrc, OutDst))
+
+		return true;
+	}
+
+	template <>
+	inline bool Serialize<FProperty>(const FRCPropertyVariant& InSrc, FRCPropertyVariant& OutDst)
+	{
+		const FProperty* Property = InSrc.GetProperty();
+		FOREACH_CAST_PROPERTY(Property, Serialize<CastPropertyType>(InSrc, OutDst))
+
+		return true;
+	}
+#endif
 }

@@ -7,7 +7,7 @@
 #include "RivermaxMediaSource.h"
 #include "Customization/RivermaxMediaDetailsCustomization.h"
 
-class FRivermaxEditorModule : public IModuleInterface
+class FRivermaxMediaEditorModule : public IModuleInterface
 {
 public:
 
@@ -57,4 +57,4 @@ private:
 };
 
 
-IMPLEMENT_MODULE(FRivermaxEditorModule, RivermaxMediaEditor);
+IMPLEMENT_MODULE(FRivermaxMediaEditorModule, RivermaxMediaEditor);

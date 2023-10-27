@@ -39,11 +39,6 @@
 
 #define LOCTEXT_NAMESPACE "FDisplayClusterLaunchEditorModule"
 
-void CloseAllMenus()
-{
-	FSlateApplication::Get().DismissAllMenus();
-}
-
 FString EnumToString(const FString EnumName, const int32 EnumValue)
 {
 	const FString EnumPath = "/Script/DisplayClusterLaunchEditor." + EnumName;
