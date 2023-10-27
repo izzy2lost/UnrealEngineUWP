@@ -319,6 +319,7 @@ protected:
 	TArray<FLinearColor> ReadImageBuffer;
 
 	/** Emissive is a special case and uses different code than capture of color/property channels */
+	UE_DEPRECATED(5.4, "Please use CaptureBufferVisualizationFromPosition with VisualizationMode=PreTonemapHDRColor instead")
 	bool CaptureEmissiveFromPosition(
 		const FFrame3d& Frame,
 		double HorzFOVDegrees,
@@ -344,7 +345,7 @@ protected:
 
 	/**
 	 * The following values for VisualizationMode are supported:
-	 *   BaseColor, Metallic, Roughness, Specular, WorldNormal, Opacity, SubsurfaceColor
+	 *   BaseColor, Metallic, Roughness, Specular, WorldNormal, Opacity, SubsurfaceColor, PreTonemapHDRColor
 	 * 
 	 * Its not clear where the valid VisualizationMode FNames are defined, it may be in the [Engine.BufferVisualizationMaterials] section of
 	 * Config/BaseEngine.ini, which is read by FBufferVisualizationData::Initialize() and called when the engine initializes in UEngine::Init()
