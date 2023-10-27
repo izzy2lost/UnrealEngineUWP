@@ -1332,7 +1332,7 @@ void FIKRetargetEditorController::HandleAlignAllBones() const
 
 	// undo transaction
 	constexpr bool bShouldTransact = true;
-	FScopedTransaction Transaction(LOCTEXT("AutoAlignSelectedBones", "Auto Align All Bones"), bShouldTransact);
+	FScopedTransaction Transaction(LOCTEXT("AutoAlignAllBones", "Auto Align All Bones"), bShouldTransact);
 	AssetController->GetAsset()->Modify();
 	
 	// suppress warnings about bones that cannot be aligned when aligning ALL bones

@@ -122,8 +122,8 @@ TSharedRef<SWidget>  SIKRetargetPoseEditor::MakeToolbar(TSharedPtr<FUICommandLis
 	ToolbarBuilder.AddComboButton(
 		FUIAction(),
 		FOnGetContent::CreateSP(this, &SIKRetargetPoseEditor::GenerateEditMenuContent, Commands),
-		LOCTEXT("ResetPose_Label", "Auto Align"),
-		LOCTEXT("ResetPoseToolTip_Label", "Automatically aligns bones on source skeleton to target (or vice versa)."),
+		LOCTEXT("AutoAlign_Label", "Auto Align"),
+		LOCTEXT("AutoAlignTip_Label", "Automatically aligns bones on source skeleton to target (or vice versa)."),
 		FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Edit"));
 
 	ToolbarBuilder.EndSection();
