@@ -1,18 +1,31 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
+#include "VerseVM/Inline/VVMAbstractVisitorInline.h"
 #include "VerseVM/Inline/VVMClassInline.h"
 #include "VerseVM/Inline/VVMObjectInline.h"
 #include "VerseVM/Inline/VVMShapeInline.h"
 #include "VerseVM/Inline/VVMUTF8StringInline.h"
 #include "VerseVM/VVMCppClassInfo.h"
 #include "VerseVM/VVMEmergentTypeCreator.h"
+#include "VerseVM/VVMMarkStackVisitor.h"
 #include "VerseVM/VVMVar.h"
 
 namespace Verse
 {
+DEFINE_VISIT_REFERENCES(VObject);
 DEFINE_VCPPCLASSINFO(VObject, VHeapValue, TEXT("Object"));
 TGlobalTrivialEmergentTypePtr<&VObject::StaticCppClassInfo> VObject::GlobalTrivialEmergentType;
+
+template <typename TVisitor>
+void VObject::VisitReferencesImpl(TVisitor& Visitor)
+{
+	VHeapValue::VisitReferences(this, Visitor);
+	for (uint64 Index = 0; Index < GetEmergentType()->Shape->NumIndexedFields; ++Index)
+	{
+		Visitor.Visit(Data[Index]);
+	}
+}
 
 VObject& VObject::New(FAllocationContext Context, VClass& InClass, VUniqueStringSet& InFields, const TArray<VValue>& InValues)
 {
