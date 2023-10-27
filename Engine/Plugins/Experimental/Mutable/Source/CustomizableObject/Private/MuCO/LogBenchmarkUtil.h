@@ -66,6 +66,7 @@ DECLARE_BENCHMARK_INSIGHTS(InstanceBuildTimeAvrg, TEXT("Avrg Instance Build Time
 class FLogBenchmarkUtil
 {
 public:
+	FLogBenchmarkUtil();
 	~FLogBenchmarkUtil();
 
 	/** Enable or disable the system. */
