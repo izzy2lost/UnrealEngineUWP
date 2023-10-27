@@ -36,20 +36,12 @@ extern bool StripShader_Metal(TArray<uint8>& Code, class FString const& DebugPat
 extern uint64 AppendShader_Metal(class FString const& ArchivePath, const FSHAHash& Hash, TArray<uint8>& Code);
 extern bool FinalizeLibrary_Metal(class FName const& Format, class FString const& ArchivePath, class FString const& LibraryPath, TSet<uint64> const& Shaders, class FString const& DebugOutputDir);
 
+/** Version for shader format, this becomes part of the DDC key. */
+static const FGuid UE_SHADER_METAL_VER = FGuid("FB0EA082-A9FC-469F-AE8F-03CFE0418EA5");
+
 class FMetalShaderFormat : public IShaderFormat
 {
 public:
-	enum
-	{
-		HEADER_VERSION = 72,
-	};
-	
-	struct FVersion
-	{
-		uint16 XcodeVersion;
-		uint16 HLSLCCMinor		: 8;
-		uint16 Format			: 8;
-	};
 	FMetalShaderFormat()
 	{
 		FMetalCompilerToolchain::CreateAndInit();
@@ -60,13 +52,6 @@ public:
 	}
 	virtual uint32 GetVersion(FName Format) const override final
 	{
-		static_assert(sizeof(FMetalShaderFormat::FVersion) == sizeof(uint32), "Out of bits!");
-		union
-		{
-			FMetalShaderFormat::FVersion Version;
-			uint32 Raw;
-		} Version;
-
 		// If there's no compiler on this machine, this is irrelevant so just return 0
 		if (!FMetalCompilerToolchain::Get()->IsCompilerAvailable())
 		{
@@ -100,16 +85,10 @@ public:
 			// Since Metal minor/patch version changes every Xcode minor version, we don't want users to rebuild shaders for every minor version update
 		}
 
-		Version.Version.XcodeVersion = HashValue;
-		Version.Version.Format = FMetalShaderFormat::HEADER_VERSION;
-		Version.Version.HLSLCCMinor = HLSLCC_VersionMinor;
+		uint32 Result = GetTypeHash(HashValue);
 
-		// Check that we didn't overwrite any bits
-		check(Version.Version.XcodeVersion == HashValue);
-		check(Version.Version.Format == FMetalShaderFormat::HEADER_VERSION);
-		check(Version.Version.HLSLCCMinor == HLSLCC_VersionMinor);
-
-		uint32 Result = Version.Raw;
+		Result = HashCombine(Result, GetTypeHash(HLSLCC_VersionMinor));
+		Result = HashCombine(Result, GetTypeHash(UE_SHADER_METAL_VER));
 
 #if UE_METAL_SHADER_COMPILER_ALLOW_DEAD_CODE_REMOVAL
 		Result = HashCombine(Result, 0x75E2FE85);

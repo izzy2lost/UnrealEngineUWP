@@ -30,33 +30,32 @@ extern void OutputVulkanDebugData(
 	const FShaderPreprocessOutput& PreprocessOutput, 
 	const FShaderCompilerOutput& Output);
 
+static const FGuid UE_SHADER_VULKAN_ES3_1_VER = FGuid("6D333063-D2F7-4AA5-A79D-BA73F32C898E");
+static const FGuid UE_SHADER_VULKAN_SM5_VER = FGuid("6EC81E81-BDE8-4F09-8A70-AD09A817B32A");
+static const FGuid UE_SHADER_VULKAN_SM6_VER = FGuid("C732FBB7-4CAD-4249-A760-912777047233");
+
 class FShaderFormatVulkan : public IShaderFormat
 {
-	enum 
-	{
-		UE_SHADER_VULKAN_ES3_1_VER	= 37,
-		UE_SHADER_VULKAN_SM5_VER 	= 37,
-		UE_SHADER_VULKAN_SM6_VER	= 37,
-	};
-
-	int32 InternalGetVersion(FName Format) const
+	FGuid InternalGetVersion(FName Format) const
 	{
 		if (Format == NAME_VULKAN_SM6)
 		{
 			return UE_SHADER_VULKAN_SM6_VER;
 		}
-		else if (Format == NAME_VULKAN_SM5 || Format == NAME_VULKAN_SM5_ANDROID)
+
+		if (Format == NAME_VULKAN_SM5 || Format == NAME_VULKAN_SM5_ANDROID)
 		{
 			return UE_SHADER_VULKAN_SM5_VER;
 		}
-		else if (Format == NAME_VULKAN_ES3_1_ANDROID || Format == NAME_VULKAN_ES3_1)
+
+		if (Format == NAME_VULKAN_ES3_1_ANDROID || Format == NAME_VULKAN_ES3_1)
 		{
 			return UE_SHADER_VULKAN_ES3_1_VER;
 		}
 
 		FString FormatStr = Format.ToString();
 		checkf(0, TEXT("Invalid shader format passed to Vulkan shader compiler: %s"), *FormatStr);
-		return -1;
+		return FGuid();
 	}
 
 	uint32 ShaderConductorVersionHash;
@@ -95,14 +94,11 @@ public:
 
 	virtual bool PreprocessShader(const FShaderCompilerInput& Input, const FShaderCompilerEnvironment& Environment, FShaderPreprocessOutput& PreprocessOutput) const
 	{
-		check(InternalGetVersion(Input.ShaderFormat) >= 0);
-
 		return PreprocessVulkanShader(Input, Environment, PreprocessOutput);
 	}
 
 	virtual void CompilePreprocessedShader(const FShaderCompilerInput& Input, const FShaderPreprocessOutput& PreprocessOutput, FShaderCompilerOutput& Output,const FString& WorkingDirectory) const override
 	{
-		check(InternalGetVersion(Input.ShaderFormat) >= 0);
 		CompileVulkanShader(Input, PreprocessOutput.GetSource(), Output, WorkingDirectory);
 	}
 

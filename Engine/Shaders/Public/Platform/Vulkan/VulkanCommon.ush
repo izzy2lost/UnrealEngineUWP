@@ -4,11 +4,10 @@
 	VulkanCommon.ush: Common Vulkan shader code
 =============================================================================*/
 
-// Update this GUID to improve shader recompilation for Vulkan only shaders
-// GUID = 8931F79A-3E7B-4BB4-BB26-341699B0D77E
-
 #pragma once
 
+// Update this GUID to invalidate shader recompilation for only Vulkan shaders
+#pragma message("UESHADERMETADATA_VERSION BB707B6A-C217-4B23-9A22-086E9EC77FCF")
 
 #define COMPILER_SUPPORTS_ULONG_TYPES 1
 #define COMPILER_SUPPORTS_UINT64_IMAGE_ATOMICS (1 && COMPILER_SUPPORTS_ULONG_TYPES)

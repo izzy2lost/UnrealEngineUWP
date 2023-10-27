@@ -12,6 +12,9 @@
 // Make sure we recompile ray tracing shaders if the main shader version changes
 #include "/Engine/Public/ShaderVersion.ush"
 
+// Update this GUID to invalidate RayTracing shaders and force a shader recompilation.
+#pragma message("UESHADERMETADATA_VERSION 84C59757-69B5-48FB-A7AA-C168F63C2354")
+
 #include "../ShadingCommon.ush"
 #include "../OctahedralCommon.ush"
 #include "../SceneData.ush"

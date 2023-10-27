@@ -28,14 +28,11 @@ extern void CompileOpenGLShader(
 	const FString& WorkingDirectory,
 	GLSLVersion Version);
 
+/** Version for shader format, this becomes part of the DDC key. */
+static const FGuid UE_SHADER_GLSL_VER = FGuid("45CB4440-A342-475E-AAD1-4CB8E228D1C9");
+
 class FShaderFormatGLSL : public UE::ShaderCompilerCommon::FBaseShaderFormat 
 {
-	enum
-	{
-		/** Version for shader format, this becomes part of the DDC key. */
-		UE_SHADER_GLSL_VER = 107,
-	};
-
 	static void CheckFormat(FName Format)
 	{
 		check(Format == NAME_GLSL_150_ES3_1 || Format == NAME_GLSL_ES3_1_ANDROID);
@@ -45,17 +42,16 @@ public:
 	virtual uint32 GetVersion(FName Format) const override
 	{
 		CheckFormat(Format);
-		uint32 GLSLVersion = 0;
-		if (Format == NAME_GLSL_150_ES3_1 || Format == NAME_GLSL_ES3_1_ANDROID)
+		FGuid GLSLVersion{};
+		if (ensure(Format == NAME_GLSL_150_ES3_1 || Format == NAME_GLSL_ES3_1_ANDROID))
 		{
 			GLSLVersion = UE_SHADER_GLSL_VER;
 		}
-		else
-		{
-			check(0);
-		}
 
-		uint32 Version = ((HLSLCC_VersionMinor & 0xff) << 8) | (GLSLVersion & 0xff);
+		const uint32 BaseHash = GetTypeHash(GLSLVersion);
+
+		uint32 Version = GetTypeHash(HLSLCC_VersionMinor);
+		Version = HashCombine(Version, BaseHash);
 
 	#if UE_OPENGL_SHADER_COMPILER_ALLOW_DEAD_CODE_REMOVAL
 		Version = HashCombine(Version, 0x75E2FE85);

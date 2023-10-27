@@ -4,10 +4,10 @@
 	MetalCommon.usf: Common Metal shader code
 =============================================================================*/
 
-// Update this GUID to improve shader recompilation for Metal only shaders
-// GUID = 1E938C6C-E047-46A0-A37A-CA31AD446D64
-
 #pragma once
+
+// Update this GUID to invalidate shader recompilation for only Metal shaders
+#pragma message("UESHADERMETADATA_VERSION 059503F5-57EB-4E3E-96DB-63F381FC9FEC")
 
 #if VERTEXSHADER && HULLSHADER
 #ifndef TESSELLATIONSHADER
