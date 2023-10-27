@@ -33,6 +33,7 @@ public:
 	float LayerHeightKm;
 
 	float TracingStartMaxDistance;
+	float TracingStartDistanceFromCamera;
 	uint8 TracingMaxDistanceMode;
 	float TracingMaxDistance;
 

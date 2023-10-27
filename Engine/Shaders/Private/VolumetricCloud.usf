@@ -655,6 +655,10 @@ void MainCommon(in FMaterialPixelParameters MaterialParameters, in float4 SvPosi
 			}
 		}
 
+		// Account for the tracing start distance
+		TMin = max(TMin, RenderVolumetricCloudParameters.TracingStartDistanceFromCamera);
+		TMax = max(TMin, TMax);
+
 		// When we do trace, we want a minimum amount of sample count. This avoid situation with 0 sample count due to InvDistanceToSampleCountMax.
 		const uint  IStepCount = max(RenderVolumetricCloudParameters.SampleCountMin, RenderVolumetricCloudParameters.SampleCountMax * saturate((TMax - TMin) * RenderVolumetricCloudParameters.InvDistanceToSampleCountMax));
 		const float StepCount = float(IStepCount);
