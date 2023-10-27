@@ -260,6 +260,12 @@ namespace UnrealBuildTool
 		bool bGenerateIntelliSenseData = true;
 
 		/// <summary>
+		/// True if visual studio project should be generated in linux mode.
+		/// </summary>
+		[XmlConfigFile]
+		public static bool bVisualStudioLinux = false;
+
+		/// <summary>
 		/// True if we should include documentation in the generated projects.
 		/// </summary>
 		[XmlConfigFile]
@@ -1566,6 +1572,10 @@ namespace UnrealBuildTool
 							
 							case "-FORCEUPDATEALL":
 								bForceUpdateAllFiles = true;
+								break;
+
+							case "-VISUALSTUDIOLINUX":
+								bVisualStudioLinux = true;
 								break;
 						}
 					}
