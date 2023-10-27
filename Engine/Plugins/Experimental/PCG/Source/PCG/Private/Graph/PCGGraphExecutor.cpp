@@ -1014,8 +1014,9 @@ void FPCGGraphExecutor::QueueNextTasks(FPCGTaskId FinishedTask)
 			bool bAllPrerequisitesMet = true;
 			FPCGGraphTask* SuccessorTaskPtr = Tasks.Find(Successor);
 
-			// This should never be null, but later recovery should be able to cleanup this properly
-			if (ensure(SuccessorTaskPtr))
+			// This should rarely be null, but can happen when we have a task waiting on the execution of multiple other components, and one/many get cancelled.
+			// Example: R gets data from C0 and C1. C0 is cancelled due to a change in params, which will cancel R, but not C1. C1 finishes executing and has a null successor here, but that's fine.
+			if (SuccessorTaskPtr)
 			{
 				FPCGGraphTask& SuccessorTask = *SuccessorTaskPtr;
 
@@ -1060,6 +1061,19 @@ bool FPCGGraphExecutor::CancelNextTasks(FPCGTaskId CancelledTask, TSet<UPCGCompo
 
 		TaskSuccessors.Remove(CancelledTask);
 	}
+
+	// Tasks cancelled might have an impact on scheduled-but-not-processed tasks
+	ScheduleLock.Lock();
+	for (FPCGGraphScheduleTask& ScheduledTask : ScheduledTasks)
+	{
+		if (!OutCancelledComponents.Contains(ScheduledTask.SourceComponent.Get()) &&
+			Algo::AnyOf(ScheduledTask.Tasks[ScheduledTask.FirstTaskIndex].Inputs, [CancelledTask](const FPCGGraphTaskInput& Input) { return Input.TaskId == CancelledTask; }))
+		{
+			OutCancelledComponents.Add(ScheduledTask.SourceComponent.Get());
+			bAddedComponents = true;
+		}
+	}
+	ScheduleLock.Unlock();
 
 	return bAddedComponents;
 }
