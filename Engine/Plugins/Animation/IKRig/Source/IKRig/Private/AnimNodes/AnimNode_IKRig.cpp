@@ -338,6 +338,9 @@ void FAnimNode_IKRig::CacheBones_AnyThread(const FAnimationCacheBonesContext& Co
 		const FName Name = MeshRefSkeleton.GetBoneName(MeshBone);
 		CompactPoseToRigIndices.Add(CPIndex) = MeshRefSkeleton.FindBoneIndex(Name);
 	}
+
+	// must reinitialize if bone count changes
+	IKRigProcessor->SetNeedsInitialized();
 }
 
 void FAnimNode_IKRig::InitializeProperties(const UObject* InSourceInstance, UClass* InTargetClass)
