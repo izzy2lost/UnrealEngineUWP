@@ -1161,14 +1161,16 @@ FGeometryScriptSimpleCollision UGeometryScriptLibrary_CollisionFunctions::MergeS
 		HullVertexStarts[HullIdx] = LastEnd;
 	}
 
-	// Currently we use dense proximity to propose which shapes can be merged.
-	// Note: To efficiently handle larger shape counts, consider optionally limiting these by some approximate proximity (e.g. expanded bounding box overlap)
 	TArray<TPair<int32, int32>> HullProximity;
-	for (int32 ConvexA = 0; ConvexA < InitialNumConvex; ++ConvexA)
+	if (MergeOptions.bConsiderAllPossibleMerges)
 	{
-		for (int32 ConvexB = ConvexA + 1; ConvexB < InitialNumConvex; ++ConvexB)
+		// Add all n^2 possible merge combinations for consideration
+		for (int32 ConvexA = 0; ConvexA < InitialNumConvex; ++ConvexA)
 		{
-			HullProximity.Emplace(ConvexA, ConvexB);
+			for (int32 ConvexB = ConvexA + 1; ConvexB < InitialNumConvex; ++ConvexB)
+			{
+				HullProximity.Emplace(ConvexA, ConvexB);
+			}
 		}
 	}
 
@@ -1176,11 +1178,13 @@ FGeometryScriptSimpleCollision UGeometryScriptLibrary_CollisionFunctions::MergeS
 	Decomposition.InitializeFromHulls(HullVertexStarts.Num(),
 		[&HullVolumes](int32 HullIdx) { return HullVolumes[HullIdx]; }, [&HullVertexCounts](int32 HullIdx) { return HullVertexCounts[HullIdx]; },
 		[&HullVertexStarts, &HullVertices](int32 HullIdx, int32 VertIdx) { return HullVertices[HullVertexStarts[HullIdx] + VertIdx]; }, HullProximity);
+	double MinProximityOverlapTolerance = 0;
 	FSphereCovering NegativeSpace;
 	// Build the negative space of the collision shapes, if requested
 	if (MergeOptions.bComputeNegativeSpace)
 	{
 		FNegativeSpaceSampleSettings SampleSettings = UELocal::ConvertNegativeSpaceOptions(MergeOptions.ComputeNegativeSpaceOptions);
+		MinProximityOverlapTolerance = FMath::Max(SampleSettings.ReduceRadiusMargin * .5, MinProximityOverlapTolerance);
 		FDynamicMeshAABBTree3 CollisionAABBTree(CollisionMesh.Get(), true);
 		TFastWindingTree<FDynamicMesh3> CollisionFastWinding(&CollisionAABBTree, true);
 		NegativeSpace.AddNegativeSpace(CollisionFastWinding, SampleSettings);
@@ -1191,7 +1195,15 @@ FGeometryScriptSimpleCollision UGeometryScriptLibrary_CollisionFunctions::MergeS
 		NegativeSpace.Append(*MergeOptions.PrecomputedNegativeSpace.Spheres);
 	}
 	FSphereCovering* UseNegativeSpace = NegativeSpace.Num() > 0 ? &NegativeSpace : nullptr;
-	Decomposition.MergeBest(MergeOptions.MaxShapeCount, MergeOptions.ErrorTolerance, MergeOptions.MinThicknessTolerance, true, false, MergeOptions.MaxShapeCount, UseNegativeSpace, nullptr /*optional FTransform for negative space*/);
+	if (!MergeOptions.bConsiderAllPossibleMerges)
+	{
+		// Find possible shape merges based on the shape bounding box overlaps,
+		// where bounds are expanded by: Max(a quarter their min dimension, a tenth their max dimension, the half reduce radius margin if negative space is computed)
+		Decomposition.InitializeProximityFromDecompositionBoundingBoxOverlaps(.25, .1, MinProximityOverlapTolerance);
+	}
+	int32 MaxShapeCount = FMath::Max(0, MergeOptions.MaxShapeCount);
+	Decomposition.RestrictMergeSearchToLocalAfterTestNumConnections = 1000 + MaxShapeCount * MaxShapeCount; // Restrict searches in very large search cases, when not close to max shape count, to avoid excessive search time
+	Decomposition.MergeBest(MaxShapeCount, MergeOptions.ErrorTolerance, MergeOptions.MinThicknessTolerance, true, false, MaxShapeCount, UseNegativeSpace, nullptr /*optional FTransform for negative space*/);
 
 	// Algorithm decided not to merge
 	if (Decomposition.NumHulls() == InitialNumConvex)

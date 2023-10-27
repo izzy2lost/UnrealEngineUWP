@@ -192,6 +192,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options, meta = (UIMin = "0", UIMax = "100.", Units = cm))
 	double MinThicknessTolerance = 0.0;
 
+	/** Whether to consider merges between every shape. If false, will only merge shapes that have overlapping or nearby bounding boxes. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	bool bConsiderAllPossibleMerges = false;
+
 	// Negative space that must be preserved during merging
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NegativeSpace)
 	FGeometryScriptSphereCovering PrecomputedNegativeSpace;

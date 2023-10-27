@@ -169,6 +169,14 @@ public:
 	 */
 	GEOMETRYCORE_API void InitializeFromHulls(int32 NumHulls, TFunctionRef<double(int32)> HullVolumes, TFunctionRef<int32(int32)> HullNumVertices, TFunctionRef<FVector3d(int32, int32)> HullVertices, TArrayView<const TPair<int32, int32>> Proximity);
 
+	/**
+	 * Create the proximity graph from the current decomposition, using bounding box overlaps. To consider non-overlapping proximity, the bounding boxes can be expanded by a factor of their own size or by an absolute amount.
+	 * @param BoundsExpandByMinDimFactor		Part bounds will be expanded by at least this factor of their own min dimension, before finding overlaps
+	 * @param BoundsExpandByMaxDimFactor		Part bounds will be expanded by at least this factor of their own max dimension, before finding overlaps
+	 * @param MinBoundsExpand					Part bounds will be expanded by at least this fixed amount, before finding overlaps
+	 */
+	GEOMETRYCORE_API void InitializeProximityFromDecompositionBoundingBoxOverlaps(double BoundsExpandByMinDimFactor, double BoundsExpandByMaxDimFactor, double MinBoundsExpand);
+
 	GEOMETRYCORE_API void InitializeFromMesh(const FDynamicMesh3& SourceMesh, bool bMergeEdges);
 
 	/**
@@ -209,6 +217,10 @@ public:
 	// Maximum number of convex edges to sample for possible cutting planes when calling SplitWorst() to generate an initial convex decomposition
 	// Larger values will cost more to run but can let the algorithm find a cleaner decomposition
 	int32 MaxConvexEdgePlanes = 50;
+
+
+	// If > 0, search for best merges will be restricted to a greedy local search after testing this many connections. Helpful when there are many potential merges.
+	int32 RestrictMergeSearchToLocalAfterTestNumConnections = -1;
 
 	// TODO: Provide hull approximation options?
 

@@ -14,6 +14,7 @@
 #include "DynamicMesh/MeshTransforms.h"
 #include "DynamicMesh/DynamicMeshAABBTree3.h"
 #include "Spatial/FastWinding.h"
+#include "Spatial/SparseDynamicOctree3.h"
 #include "Implicit/Morphology.h"
 
 #include "Async/ParallelFor.h"
@@ -1598,6 +1599,48 @@ void FConvexDecomposition3::InitializeFromHulls(int32 NumHulls, TFunctionRef<dou
 	}
 }
 
+void FConvexDecomposition3::InitializeProximityFromDecompositionBoundingBoxOverlaps(double ExpandByBoundsMinDimFactor, double ExpandByBoundsMaxDimFactor, double MinExpandAmount)
+{
+	Proximities.Empty();
+	DecompositionToProximity.Empty();
+	
+	FAxisAlignedBox3d OverallBounds;
+	double MaxDim = 0;
+	TArray<FAxisAlignedBox3d> ExpandedBounds;
+	ExpandedBounds.SetNum(Decomposition.Num());
+	for (int32 PartIdx = 0; PartIdx < Decomposition.Num(); ++PartIdx)
+	{
+		FAxisAlignedBox3d Bounds = Decomposition[PartIdx].Bounds;
+		double ExpandAmount = FMath::Max3(MinExpandAmount, Bounds.MinDim() * ExpandByBoundsMinDimFactor, Bounds.MaxDim() * ExpandByBoundsMaxDimFactor);
+		Bounds.Expand(ExpandAmount);
+		OverallBounds.Contain(Bounds);
+		MaxDim = FMath::Max(MaxDim, Bounds.MaxDim());
+		ExpandedBounds[PartIdx] = Bounds;
+	}
+	FSparseDynamicOctree3 Octree;
+	Octree.RootDimension = FMath::Max(MaxDim, OverallBounds.MaxDim() / 2.0);
+	TArray<int32> Overlaps;
+	for (int32 PartIdx = 0; PartIdx < Decomposition.Num(); ++PartIdx)
+	{
+		FAxisAlignedBox3d QueryBounds = ExpandedBounds[PartIdx];
+		
+		Overlaps.Reset();
+		Octree.RangeQuery(QueryBounds, Overlaps);
+		for (int32 OverlapIdx : Overlaps)
+		{
+			// Filter range query results for actual overlaps with query bounds
+			if (QueryBounds.Intersects(ExpandedBounds[OverlapIdx]))
+			{
+				int32 ProxIdx = Proximities.Emplace(FIndex2i(OverlapIdx, PartIdx), FPlane3d(), false /*bPlaneSeparates*/);
+				DecompositionToProximity.Add(OverlapIdx, ProxIdx);
+				DecompositionToProximity.Add(PartIdx, ProxIdx);
+			}
+		}
+
+		Octree.InsertObject(PartIdx, ExpandedBounds[PartIdx]);
+	}
+}
+
 int32 FConvexDecomposition3::MergeBest(int32 InTargetNumParts, double MaxErrorTolerance, double MinThicknessToleranceWorldSpace, bool bAllowCompact, bool bRequireHullTriangles, int32 MaxOutputHulls,
 	const FSphereCovering* OptionalNegativeSpace, const FTransform* OptionalTransformIntoNegativeSpace)
 {
@@ -1614,7 +1657,11 @@ int32 FConvexDecomposition3::MergeBest(int32 InTargetNumParts, double MaxErrorTo
 
 	int32 MergeNum = 0;
 
+	
+	// Map from proximity index to a pre-computed convex part that would result if the proximity-linked parts were merged
 	TMap<int32, TUniquePtr<FConvexPart>> ProximityComputedParts;
+	// threshold at which we will start to more aggressively evict cached computed parts from ProximityComputedParts
+	constexpr int32 EvictComputedPartsThreshold = 10000;
 
 	auto ConvexNegativeSpaceSphereOverlapTest = [OptionalNegativeSpace, OptionalTransformIntoNegativeSpace](FConvexPart* Part, int PtIdx)
 	{
@@ -1860,11 +1907,25 @@ int32 FConvexDecomposition3::MergeBest(int32 InTargetNumParts, double MaxErrorTo
 		double BestKnownCost = FMathd::MaxReal;
 		bool bOnlyAllowMustMerges = VolumeTolerance == 0 && Decomposition.Num() <= TargetNumParts;
 		int32 BestKnownIdx = -1;
+		int32 ConsideredCount = 0;
 		for (int32 ProxIdx = 0; ProxIdx < Proximities.Num(); ProxIdx++)
 		{
 			if (!Proximities[ProxIdx].bIsValidLink)
 			{
 				continue;
+			}
+
+			// Once we've considered a certain number of links and found a merge candidate, only consider links that are in the neighborhood of the current best link
+			// This prevents excessive computation to find the absolute best merge, when we only really need a local best merge
+			ConsideredCount++;
+			if (RestrictMergeSearchToLocalAfterTestNumConnections > -1 && ConsideredCount > RestrictMergeSearchToLocalAfterTestNumConnections && BestKnownIdx != -1)
+			{
+				FIndex2i BestLink = Proximities[BestKnownIdx].Link;
+				FIndex2i CurLink = Proximities[ProxIdx].Link;
+				if (!BestLink.Contains(CurLink.A) && !BestLink.Contains(CurLink.B))
+				{
+					continue;
+				}
 			}
 
 			bool bIncludesMustMergePart =
@@ -1875,6 +1936,8 @@ int32 FConvexDecomposition3::MergeBest(int32 InTargetNumParts, double MaxErrorTo
 				Decomposition[Proximities[ProxIdx].Link.B].bMustMerge;
 
 			double MergeCost;
+			// attempt to remove parts from the proximity store if we're at the size limit
+			bool bShouldRemoveParts = ProximityComputedParts.Num() > EvictComputedPartsThreshold;
 			if (Proximities[ProxIdx].HasMergedVolume())
 			{
 				MergeCost = Proximities[ProxIdx].GetMergeCost(Decomposition);
@@ -1895,6 +1958,11 @@ int32 FConvexDecomposition3::MergeBest(int32 InTargetNumParts, double MaxErrorTo
 					bOnlyAllowMustMerges // or we're currently only considering must-merge parts (e.g., already at or below desired number of parts)
 				))
 			{
+				// remove pre-computed part if they won't pass volume tolerance or we're at the part limit
+				if (bShouldRemoveParts || (!bAboveMax && VolumeTolerance > 0 && MergeCost > VolumeTolerance))
+				{
+					ProximityComputedParts.Remove(ProxIdx);
+				}
 				continue;
 			}
 
@@ -1925,6 +1993,8 @@ int32 FConvexDecomposition3::MergeBest(int32 InTargetNumParts, double MaxErrorTo
 				{
 					// Mark link as invalid so we don't repeat this overlap test in later iterations
 					Proximities[ProxIdx].bIsValidLink = false;
+					// Never keep precomputed proximity for invalid links
+					ProximityComputedParts.Remove(ProxIdx);
 					continue;
 				}
 			}
@@ -1933,6 +2003,10 @@ int32 FConvexDecomposition3::MergeBest(int32 InTargetNumParts, double MaxErrorTo
 			{
 				BestKnownCost = MergeCost;
 				BestKnownIdx = ProxIdx;
+			}
+			else if (bShouldRemoveParts) // if we are at the precomputed proximity part limit and it's not the best part, don't keep it
+			{
+				ProximityComputedParts.Remove(ProxIdx);
 			}
 		}
 
