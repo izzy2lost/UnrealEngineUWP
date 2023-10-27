@@ -314,7 +314,13 @@ namespace EpicGames.Core
 		{
 			if (line.Length > 0 && line[0] == '{')
 			{
-				byte[] data = Encoding.UTF8.GetBytes(line);
+				int length = line.Length;
+				while(length > 0 && Char.IsWhiteSpace(line[length - 1]))
+				{
+					length--;
+				}
+
+				byte[] data = Encoding.UTF8.GetBytes(line, 0, length);
 				try
 				{
 					JsonLogEvent jsonEvent;
