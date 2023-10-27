@@ -1425,7 +1425,10 @@ namespace UnrealBuildTool
 			{
 				PrecompiledHeaderAction OldAction = CompileEnvironment.PrecompiledHeaderAction;
 				CompileEnvironment.PrecompiledHeaderAction = PrecompiledHeaderAction.None;
-				ToolChain.CreateSpecificFileAction(CompileEnvironment, ModuleDirectory, IntermediateDirectory, Graph);
+				foreach (DirectoryReference Directory in ModuleDirectories)
+				{
+					ToolChain.CreateSpecificFileAction(CompileEnvironment, Directory, IntermediateDirectory, Graph);
+				}
 				CompileEnvironment.PrecompiledHeaderAction = OldAction;
 			}
 
