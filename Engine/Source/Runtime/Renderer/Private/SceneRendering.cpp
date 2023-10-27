@@ -2831,7 +2831,13 @@ FIntPoint FSceneRenderer::ApplyResolutionFraction(const FSceneViewFamily& ViewFa
 FIntPoint FSceneRenderer::QuantizeViewRectMin(const FIntPoint& ViewRectMin)
 {
 	FIntPoint Out;
-	QuantizeSceneBufferSize(ViewRectMin, Out);
+
+	// Some code paths of Nanite require that view rect is aligned on 8x8 boundary.
+	static const auto EnableNaniteCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Nanite"));
+	const bool bNaniteEnabled = (EnableNaniteCVar != nullptr) ? (EnableNaniteCVar->GetInt() != 0) : true;
+	const int kMinimumNaniteDivisor = 8;	// HTILE size
+
+	QuantizeSceneBufferSize(ViewRectMin, Out, bNaniteEnabled ? kMinimumNaniteDivisor : 0);
 	return Out;
 }
 

@@ -362,7 +362,7 @@ RENDERCORE_API FBufferRHIRef& GetUnitCubeAABBVertexBuffer();
 * rendering pipeline. Currently ensures that sizes are multiples of 4 so that they can safely
 * be halved in size several times.
 */
-RENDERCORE_API void QuantizeSceneBufferSize(const FIntPoint& InBufferSize, FIntPoint& OutBufferSize);
+RENDERCORE_API void QuantizeSceneBufferSize(const FIntPoint& InBufferSize, FIntPoint& OutBufferSize, const uint32 SuggestedDivisor = 0);
 
 /**
 * Checks if virtual texturing enabled and supported

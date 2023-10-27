@@ -1128,7 +1128,7 @@ RENDERCORE_API FBufferRHIRef& GetUnitCubeAABBVertexBuffer()
 }
 #endif // RHI_RAYTRACING
 
-RENDERCORE_API void QuantizeSceneBufferSize(const FIntPoint& InBufferSize, FIntPoint& OutBufferSize)
+RENDERCORE_API void QuantizeSceneBufferSize(const FIntPoint& InBufferSize, FIntPoint& OutBufferSize, const uint32 SuggestedDivisor)
 {
 	// Ensure sizes are dividable by SUBSTRATE_TILE_SIZE (==8) 2d tiles to make it more convenient.
 	const uint32 SubstrateDividableBy = SUBSTRATE_TILE_SIZE;
@@ -1138,7 +1138,7 @@ RENDERCORE_API void QuantizeSceneBufferSize(const FIntPoint& InBufferSize, FIntP
 	const uint32 LegacyDividableBy = 4;
 	static_assert(LegacyDividableBy % 4 == 0, "A lot of graphic algorithms where previously assuming DividableBy == 4");
 
-	const uint32 DividableBy = Substrate::IsSubstrateEnabled() ? SubstrateDividableBy : LegacyDividableBy;
+	const uint32 DividableBy = FMath::Max(Substrate::IsSubstrateEnabled() ? SubstrateDividableBy : LegacyDividableBy, SuggestedDivisor);
 
 	const uint32 Mask = ~(DividableBy - 1);
 	OutBufferSize.X = (InBufferSize.X + DividableBy - 1) & Mask;
