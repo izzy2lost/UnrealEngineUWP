@@ -1010,7 +1010,7 @@ struct FMutableRefSkeletalMeshData
 #if WITH_EDITORONLY_DATA
 	friend FArchive& operator<<(FArchive& Ar, FMutableRefSkeletalMeshData& Data);
 
-	void InitResources(UCustomizableObject* InOuter);
+	void InitResources(UCustomizableObject* InOuter, const ITargetPlatform* InTargetPlatform);
 #endif
 
 };
@@ -1535,7 +1535,7 @@ public:
 	
 	/** Generic Save/Load methods to write/read compiled data */
 	void SaveCompiledData(FArchive& Ar, bool bSkipEditorOnlyData = false);
-	void LoadCompiledData(FArchive& Ar, bool bSkipEditorOnlyData = false);
+	void LoadCompiledData(FArchive& Ar, const ITargetPlatform* InTargetPlatform, bool bSkipEditorOnlyData = false);
 
 	/** Load compiled data from disk, this is used to load Editor Compilations and Cook Compilations (when using OnCookStart) */
 	void LoadCompiledDataFromDisk(bool bIsEditorData = true, const ITargetPlatform* InTargetPlatform = nullptr);
