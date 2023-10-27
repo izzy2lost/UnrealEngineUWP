@@ -539,6 +539,33 @@ struct FPreloadMembersHelper
 		}
 	}
 
+	static void PreloadExternalNativeDependencies(UObject* InObject)
+	{
+		TArray<UObject*> MemberReferences;
+		FReferenceFinder ComponentCollector(MemberReferences, nullptr, false, true, true, true);
+		ComponentCollector.FindReferences(InObject);
+
+		for (UObject* CurrentObject : MemberReferences)
+		{
+			check(CurrentObject);
+
+			const bool bIsValidNativeDependency =
+				CurrentObject->HasAnyFlags(RF_NeedLoad) &&
+				!CurrentObject->IsA<UClass>() &&
+				!CurrentObject->GetClass()->HasAnyClassFlags(CLASS_CompiledFromBlueprint)
+			;
+
+			if (bIsValidNativeDependency)
+			{
+				if (FLinkerLoad* Linker = CurrentObject->GetLinker())
+				{
+					Linker->Preload(CurrentObject);
+					PreloadExternalNativeDependencies(CurrentObject);
+				}
+			}
+		}
+	}
+
 	static void PreloadObject(UObject* InObject)
 	{
 		if (InObject && !InObject->HasAnyFlags(RF_LoadCompleted))
@@ -732,6 +759,9 @@ bool FLinkerLoad::RegenerateBlueprintClass(UClass* LoadClass, UObject* ClassDefa
 				CreateExportAndPreload(ExportIndex, bForcePreload);
 			}
 		}
+
+		// The CDO may reference default values that live in other packages, which need to be preloaded.
+		FPreloadMembersHelper::PreloadExternalNativeDependencies(ClassDefaultObject);
 
 		{
 			// RegenerateClass largely performs redundant work since we already preloaded the remaining exports.
