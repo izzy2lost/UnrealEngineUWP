@@ -101,6 +101,9 @@ struct FNavigationRelevantData : public TSharedFromThis<FNavigationRelevantData,
 
 	uint32 bSupportsGatheringGeometrySlices : 1;
 
+	/** Indicates that this data will not dirty the navmesh when added or removed from the octree. */
+	uint32 bShouldSkipDirtyAreaOnAddOrRemove : 1;
+
 	/** From level loading (only valid in WP dynamic mode) */
 	uint32 bLoadedData : 1;
 
@@ -110,6 +113,7 @@ struct FNavigationRelevantData : public TSharedFromThis<FNavigationRelevantData,
 		, bPendingLazyModifiersGathering(false)
 		, bPendingChildLazyModifiersGathering(false)
 		, bSupportsGatheringGeometrySlices(false)
+		, bShouldSkipDirtyAreaOnAddOrRemove(false)
 		, bLoadedData(false)
 	{}
 
@@ -120,6 +124,13 @@ struct FNavigationRelevantData : public TSharedFromThis<FNavigationRelevantData,
 	FORCEINLINE bool IsPendingChildLazyModifiersGathering() const { return bPendingChildLazyModifiersGathering; }
 	FORCEINLINE bool NeedAnyPendingLazyModifiersGathering() const { return bPendingLazyModifiersGathering || bPendingChildLazyModifiersGathering; }
 	FORCEINLINE bool SupportsGatheringGeometrySlices() const { return bSupportsGatheringGeometrySlices; }
+
+	/**
+	 * Indicates that this object will not dirty the navmesh when added or removed from the octree.
+	 * In this case we expect it to manually dirty areas (e.g. using OnObjectBoundsChanged).
+	 */
+	FORCEINLINE bool ShouldSkipDirtyAreaOnAddOrRemove() const { return bShouldSkipDirtyAreaOnAddOrRemove; }
+
 	FORCEINLINE bool IsEmpty() const { return !HasGeometry() && !HasModifiers(); }
 	FORCEINLINE SIZE_T GetAllocatedSize() const { return CollisionData.GetAllocatedSize() + VoxelData.GetAllocatedSize() + Modifiers.GetAllocatedSize(); }
 	FORCEINLINE SIZE_T GetGeometryAllocatedSize() const { return CollisionData.GetAllocatedSize() + VoxelData.GetAllocatedSize(); }
@@ -177,6 +188,11 @@ class INavRelevantInterface
 
 	/** Indicates if this instance knows how to export sub-sections of self */
 	virtual bool SupportsGatheringGeometrySlices() const { return false; }
+	
+	/** Indicates if the area covered by the navigation bounds of the object should not be dirtied when inserting, or removing, the object in the navigation octree.
+	 * In this case we expect that object to manually dirty areas (e.g. using OnObjectBoundsChanged).
+	 */
+	virtual bool ShouldSkipDirtyAreaOnAddOrRemove() const { return false; }
 
 	/** This function is called "on demand", whenever that specified piece of geometry is needed for navigation generation */
 	virtual void GatherGeometrySlice(FNavigableGeometryExport& GeomExport, const FBox& SliceBox) const {}

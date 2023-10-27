@@ -155,6 +155,8 @@ void FNavigationOctree::AddNode(UObject* ElementOb, INavRelevantInterface* NavEl
 	{
 		checkf(ElementOb, TEXT("We assume NavElement is ElementOb already cast"));
 
+		Element.Data->bShouldSkipDirtyAreaOnAddOrRemove = NavElement && NavElement->ShouldSkipDirtyAreaOnAddOrRemove();
+
 		const bool bDoInstantGathering = !IsLazyGathering(*NavElement);
 
 		if (bGatherGeometry)

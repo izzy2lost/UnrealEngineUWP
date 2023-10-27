@@ -2036,7 +2036,6 @@ UHierarchicalInstancedStaticMeshComponent::UHierarchicalInstancedStaticMeshCompo
 #if WITH_EDITOR
 	, bCanEnableDensityScaling(true)
 #endif
-	, AccumulatedNavigationDirtyArea(ForceInit)
 {
 	PrimitiveInstanceDataManager.SetMode(FPrimitiveInstanceDataManager::EMode::Legacy);
 	bCanEverAffectNavigation = true;
@@ -3223,8 +3222,7 @@ void UHierarchicalInstancedStaticMeshComponent::GetNavigationPerInstanceTransfor
 	{
 		// This area should be processed again by navigation system when cluster tree is available
 		// Store smaller tile box in accumulated dirty area, so we will not unintentionally mark as dirty neighbor tiles 
-		const FBox SmallTileBox = AreaBox.ExpandBy(-AreaBox.GetExtent()/2.f);
-		AccumulatedNavigationDirtyArea+= SmallTileBox;
+		AccumulatedNavigationDirtyAreas.Emplace(AreaBox.ExpandBy(-AreaBox.GetExtent()/2.f));
 	}
 }
 
@@ -3232,7 +3230,7 @@ void UHierarchicalInstancedStaticMeshComponent::PartialNavigationUpdate(const in
 {
 	if (InstanceIdx == INDEX_NONE)
 	{
-		AccumulatedNavigationDirtyArea.Init();
+		AccumulatedNavigationDirtyAreas.Reset();
 		FNavigationSystem::UpdateComponentData(*this);
 	}
 	else if (GetStaticMesh() && FNavigationSystem::HasComponentData(*this))
@@ -3244,7 +3242,7 @@ void UHierarchicalInstancedStaticMeshComponent::PartialNavigationUpdate(const in
 			const FBox InstanceBounds = GetInstanceNavigationBounds();
 			if (InstanceBounds.IsValid)
 			{
-				AccumulatedNavigationDirtyArea += InstanceBounds.TransformBy(InstanceTransformInWorldSpace);
+				AccumulatedNavigationDirtyAreas.Emplace(InstanceBounds.TransformBy(InstanceTransformInWorldSpace));
 			}
 		}
 	}
@@ -3252,7 +3250,7 @@ void UHierarchicalInstancedStaticMeshComponent::PartialNavigationUpdate(const in
 
 void UHierarchicalInstancedStaticMeshComponent::FlushAccumulatedNavigationUpdates()
 {
-	if (AccumulatedNavigationDirtyArea.IsValid)
+	if (AccumulatedNavigationDirtyAreas.Num() > 0)
 	{
 		QUICK_SCOPE_CYCLE_COUNTER(STAT_UHierarchicalInstancedStaticMeshComponent_FlushAccumulatedNavigationUpdates);
 
@@ -3260,10 +3258,10 @@ void UHierarchicalInstancedStaticMeshComponent::FlushAccumulatedNavigationUpdate
 		if (ClusterTree.Num())
 		{
 			const FBox NewBounds = GetClusterTreeBounds(ClusterTree, TranslatedInstanceSpaceOrigin).TransformBy(GetComponentTransform());
-			FNavigationSystem::OnComponentBoundsChanged(*this, NewBounds, AccumulatedNavigationDirtyArea);
+			FNavigationSystem::OnObjectBoundsChanged(*this, NewBounds, AccumulatedNavigationDirtyAreas);
 		}
-			
-		AccumulatedNavigationDirtyArea.Init();
+
+		AccumulatedNavigationDirtyAreas.Reset();
 	}
 }
 

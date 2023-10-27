@@ -386,7 +386,10 @@ protected:
 	ENGINE_API virtual void PartialNavigationUpdate(int32 InstanceIdx) override;
 	virtual bool SupportsPartialNavigationUpdate() const override { return true; }
 	ENGINE_API void FlushAccumulatedNavigationUpdates();
-	mutable FBox AccumulatedNavigationDirtyArea;
+
+	UE_DEPRECATED(5.4, "Use AccumulatedNavigationDirtyAreas instead.")
+    mutable FBox AccumulatedNavigationDirtyArea;
+	mutable TArray<FBox> AccumulatedNavigationDirtyAreas;
 
 	FGraphEventArray BuildTreeAsyncTasks;
 	EHISMViewRelevanceType ViewRelevanceType = EHISMViewRelevanceType::HISM;

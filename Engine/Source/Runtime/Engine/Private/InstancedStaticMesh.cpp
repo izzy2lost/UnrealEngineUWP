@@ -2535,8 +2535,6 @@ void UInstancedStaticMeshComponent::CreateAllInstanceBodies()
 					Transforms.Add(InstanceTM);
 				}
 			}
-
-	    	PartialNavigationUpdate(i);
 	    }
 
 		if (InstanceBodiesSanitized.Num() > 0 && Mobility != EComponentMobility::Movable)
@@ -2558,14 +2556,12 @@ void UInstancedStaticMeshComponent::ClearAllInstanceBodies()
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_UInstancedStaticMeshComponent_ClearAllInstanceBodies);
 	STAT(FScopeCycleCounter Context(StatId);)
 
-	for (int32 i = 0; i < InstanceBodies.Num(); i++)
+	for (FBodyInstance*& Instance : InstanceBodies)
 	{
-		if (InstanceBodies[i])
+		if (Instance)
 		{
-			PartialNavigationUpdate(i);
-			
-			InstanceBodies[i]->TermBody();
-			delete InstanceBodies[i];
+			Instance->TermBody();
+			delete Instance;
 		}
 	}
 
@@ -2638,6 +2634,11 @@ FBoxSphereBounds UInstancedStaticMeshComponent::CalcBounds(const FTransform& Bou
 	return CalcBoundsImpl(BoundTransform, /*bForNavigation*/false);
 }
 
+void UInstancedStaticMeshComponent::CalcAndCacheNavigationBounds()
+{
+	NavigationBounds = CalcBoundsImpl(GetComponentTransform(), /*bForNavigation*/true).GetBox();
+}
+
 FBoxSphereBounds UInstancedStaticMeshComponent::CalcBoundsImpl(const FTransform& BoundTransform, const bool bForNavigation) const
 {
 	if (GetStaticMesh() && PerInstanceSMData.Num() > 0)
@@ -2668,6 +2669,11 @@ void UInstancedStaticMeshComponent::UpdateBounds()
 	else
 	{
 		Super::UpdateBounds();
+	}
+
+	if (bCanEverAffectNavigation && IsRegistered())
+	{
+		CalcAndCacheNavigationBounds();
 	}
 }
 
@@ -3161,6 +3167,16 @@ TArray<int32> UInstancedStaticMeshComponent::AddInstancesInternal(TConstArrayVie
 
 	PerInstanceSMData.Reserve(InstanceIndex + Count);
 
+	// Perform partial navigation update if supported and explicitly requested.
+	// Note that we also test navigation relevancy but on the base class since this class
+	// implementation also take the number of instance into account which can be 0 here.
+	const bool bDoPartialNavigationUpdate = bUpdateNavigation && Super::IsNavigationRelevant() && SupportsPartialNavigationUpdate();
+	TArray<FTransform> NavigationUpdateTransforms;
+	if (bDoPartialNavigationUpdate)
+	{
+		NavigationUpdateTransforms.Reserve(InstanceTransforms.Num());
+	}
+	
 	for (const FTransform& InstanceTransform : InstanceTransforms)
 	{
 		FInstancedStaticMeshInstanceData& NewInstanceData = PerInstanceSMData.AddDefaulted_GetRef();
@@ -3174,7 +3190,7 @@ TArray<int32> UInstancedStaticMeshComponent::AddInstancesInternal(TConstArrayVie
 			NewInstanceIndices.Add(InstanceIndex);
 		}
 
-		if (bUpdateNavigation && SupportsPartialNavigationUpdate())
+		if (bDoPartialNavigationUpdate)
 		{
 			// If it's the first instance, register the component. 
 			// If there was no instance on component register, component registration was skipped because of UInstancedStaticMeshComponent::IsNavigationRelevant().
@@ -3186,8 +3202,8 @@ TArray<int32> UInstancedStaticMeshComponent::AddInstancesInternal(TConstArrayVie
 					FNavigationSystem::RegisterComponent(*this);
 				}
 			}
-			
-			PartialNavigationUpdate(InstanceIndex);
+
+			NavigationUpdateTransforms.Emplace(InstanceTransform);
 		}
 
 		if (FInstancedStaticMeshDelegates::OnInstanceIndexUpdated.IsBound())
@@ -3199,9 +3215,16 @@ TArray<int32> UInstancedStaticMeshComponent::AddInstancesInternal(TConstArrayVie
 		++InstanceIndex;
 	}
 
-	if (bUpdateNavigation && !SupportsPartialNavigationUpdate())
+	if (bUpdateNavigation)
 	{
-		FullNavigationUpdate();
+		if (bDoPartialNavigationUpdate)
+		{
+			PartialNavigationUpdates(NavigationUpdateTransforms);
+		}
+		else
+		{
+			FullNavigationUpdate();
+		}
 	}
 
 	return NewInstanceIndices;
@@ -3605,19 +3628,48 @@ void UInstancedStaticMeshComponent::OnUpdateTransform(EUpdateTransformFlags Upda
 	Super::OnUpdateTransform(UpdateTransformFlags | EUpdateTransformFlags::SkipPhysicsUpdate, Teleport);
 
 	const bool bTeleport = TeleportEnumToFlag(Teleport);
+	const bool bDoPartialNavigationUpdate = IsNavigationRelevant() && SupportsPartialNavigationUpdate();
+	const bool bUpdateBodies = bPhysicsStateCreated && !(EUpdateTransformFlags::SkipPhysicsUpdate & UpdateTransformFlags);
 
-	// Always send new transform to physics
-	if (bPhysicsStateCreated && !(EUpdateTransformFlags::SkipPhysicsUpdate & UpdateTransformFlags))
+	if (bDoPartialNavigationUpdate || bUpdateBodies)
 	{
+		TArray<FTransform> NavigationUpdateTransforms;
+		if (bDoPartialNavigationUpdate)
+		{
+			NavigationUpdateTransforms.Reserve(PerInstanceSMData.Num());
+		}
+
 		for (int32 i = 0; i < PerInstanceSMData.Num(); i++)
 		{
-			const FTransform InstanceTransform(PerInstanceSMData[i].Transform);
-			UpdateInstanceBodyTransform(i, InstanceTransform * GetComponentTransform(), bTeleport);
+			const FTransform NewInstanceTransform(FTransform(PerInstanceSMData[i].Transform) * GetComponentTransform());
+
+			// Append instance's previous and new transforms to dirty both areas
+			if (bDoPartialNavigationUpdate)
+			{
+				NavigationUpdateTransforms.Append(
+					{
+						FTransform(PerInstanceSMData[i].Transform) * PreviousComponentTransform,
+						NewInstanceTransform
+					});
+			}
+
+			// Send new transforms to physics
+			if (bUpdateBodies)
+			{
+				UpdateInstanceBodyTransform(i, NewInstanceTransform, bTeleport);
+			}
+		}
+		
+		if (bDoPartialNavigationUpdate)
+		{
+			PartialNavigationUpdates(NavigationUpdateTransforms);
 		}
 	}
 
 	// TODO: bTeleport???
 	PrimitiveInstanceDataManager.PrimitiveTransformChanged();
+
+	PreviousComponentTransform = GetComponentTransform();
 }
 
 void UInstancedStaticMeshComponent::UpdateInstanceBodyTransform(int32 InstanceIndex, const FTransform& WorldSpaceInstanceTransform, bool bTeleport)
@@ -3634,9 +3686,6 @@ void UInstancedStaticMeshComponent::UpdateInstanceBodyTransform(int32 InstanceIn
 	{
 		if (InstanceBodyInstance)
 		{
-			// Update navigation at current position (before removal)
-			PartialNavigationUpdate(InstanceIndex);
-			
 			// delete BodyInstance
 			InstanceBodyInstance->TermBody();
 			delete InstanceBodyInstance;
@@ -3647,9 +3696,6 @@ void UInstancedStaticMeshComponent::UpdateInstanceBodyTransform(int32 InstanceIn
 	{
 		if (InstanceBodyInstance)
 		{
-			// Update navigation at current position (before applying the transform)
-			PartialNavigationUpdate(InstanceIndex);
-			
 			// Update existing BodyInstance
 			InstanceBodyInstance->SetBodyTransform(WorldSpaceInstanceTransform, TeleportFlagToEnum(bTeleport));
 			InstanceBodyInstance->UpdateBodyScale(WorldSpaceInstanceTransform.GetScale3D());
@@ -3660,13 +3706,10 @@ void UInstancedStaticMeshComponent::UpdateInstanceBodyTransform(int32 InstanceIn
 			InstanceBodyInstance = new FBodyInstance();
 			InitInstanceBody(InstanceIndex, InstanceBodyInstance);
 		}
-
-		// Update navigation at new instance location
-		PartialNavigationUpdate(InstanceIndex);
 	}
 }
 
-bool UInstancedStaticMeshComponent::UpdateInstanceTransform(int32 InstanceIndex, const FTransform& NewInstanceTransform, bool bWorldSpace, bool bMarkRenderStateDirty, bool bTeleport)
+bool UInstancedStaticMeshComponent::UpdateInstanceTransform(const int32 InstanceIndex, const FTransform& NewInstanceTransform, const bool bWorldSpace, const bool bMarkRenderStateDirty, const bool bTeleport)
 {
 	if (!PerInstanceSMData.IsValidIndex(InstanceIndex))
 	{
@@ -3677,18 +3720,28 @@ bool UInstancedStaticMeshComponent::UpdateInstanceTransform(int32 InstanceIndex,
 
 	FInstancedStaticMeshInstanceData& InstanceData = PerInstanceSMData[InstanceIndex];
 
-    // TODO: Computing LocalTransform is useless when we're updating the world location for the entire mesh.
+	// TODO: Computing LocalTransform is useless when we're updating the world location for the entire mesh.
 	// Should find some way around this for performance.
-    
+
+	if (IsNavigationRelevant() && SupportsPartialNavigationUpdate())
+	{
+		// Append instance's previous and new transforms to dirty both areas
+		PartialNavigationUpdates(
+			{
+				FTransform(InstanceData.Transform) * GetComponentTransform(),
+				(bWorldSpace ? NewInstanceTransform : NewInstanceTransform * GetComponentTransform())
+			});
+	}
+
 	// Render data uses local transform of the instance
-	FTransform LocalTransform = bWorldSpace ? NewInstanceTransform.GetRelativeTransform(GetComponentTransform()) : NewInstanceTransform;
+	const FTransform LocalTransform = bWorldSpace ? NewInstanceTransform.GetRelativeTransform(GetComponentTransform()) : NewInstanceTransform;
 	InstanceData.Transform = LocalTransform.ToMatrixWithScale();
 	PrimitiveInstanceDataManager.TransformChanged(InstanceIndex);
 
 	if (bPhysicsStateCreated)
 	{
 		// Physics uses world transform of the instance
-		FTransform WorldTransform = bWorldSpace ? NewInstanceTransform : (LocalTransform * GetComponentTransform());
+		const FTransform WorldTransform = bWorldSpace ? NewInstanceTransform : (LocalTransform * GetComponentTransform());
 		UpdateInstanceBodyTransform(InstanceIndex, WorldTransform, bTeleport);
 	}
 
@@ -3716,6 +3769,13 @@ bool UInstancedStaticMeshComponent::BatchUpdateInstancesTransforms(int32 StartIn
 
 	Modify();
 
+	const bool bDoPartialNavigationUpdate = IsNavigationRelevant() && SupportsPartialNavigationUpdate();
+	TArray<FTransform> NavigationUpdateTransforms;
+	if (bDoPartialNavigationUpdate)
+	{
+		NavigationUpdateTransforms.Reserve(NewInstancesTransforms.Num());
+	}
+
 	for (int32 Index = 0; Index < NewInstancesTransforms.Num(); Index++)
 	{
 		const int32 InstanceIndex = StartInstanceIndex + Index;
@@ -3726,6 +3786,16 @@ bool UInstancedStaticMeshComponent::BatchUpdateInstancesTransforms(int32 StartIn
 		FInstancedStaticMeshInstanceData& InstanceData = PerInstanceSMData[InstanceIndex];
 		FMatrix& PrevInstanceData = PerInstancePrevTransform[InstanceIndex];
 
+		// Append instance's previous and new transforms to dirty both areas
+		if (bDoPartialNavigationUpdate)
+		{
+			NavigationUpdateTransforms.Append(
+			{
+				FTransform(InstanceData.Transform) * GetComponentTransform(),
+				(bWorldSpace ? NewInstanceTransform : NewInstanceTransform * GetComponentTransform())
+			});
+		}
+		
 		// TODO: Computing LocalTransform is useless when we're updating the world location for the entire mesh.
 		// Should find some way around this for performance.
 
@@ -3743,6 +3813,11 @@ bool UInstancedStaticMeshComponent::BatchUpdateInstancesTransforms(int32 StartIn
 			FTransform WorldTransform = bWorldSpace ? NewInstanceTransform : (LocalTransform * GetComponentTransform());
 			UpdateInstanceBodyTransform(InstanceIndex, WorldTransform, bTeleport);
 		}
+	}
+
+	if (bDoPartialNavigationUpdate)
+	{
+		PartialNavigationUpdates(NavigationUpdateTransforms);
 	}
 
 	if (bMarkRenderStateDirty)
@@ -3970,11 +4045,28 @@ bool UInstancedStaticMeshComponent::BatchUpdateInstancesTransformsInternal(int32
 
 	Modify();
 
+	const bool bDoPartialNavigationUpdate = IsNavigationRelevant() && SupportsPartialNavigationUpdate();
+	TArray<FTransform> NavigationUpdateTransforms;
+	if (bDoPartialNavigationUpdate)
+	{
+		NavigationUpdateTransforms.Reserve(NewInstancesTransforms.Num());
+	}
+
 	int32 InstanceIndex = StartInstanceIndex;
 	for (const FTransform& NewInstanceTransform : NewInstancesTransforms)
 	{
 		FInstancedStaticMeshInstanceData& InstanceData = PerInstanceSMData[InstanceIndex];
 
+		// Append instance's previous and new transforms to dirty both areas
+		if (bDoPartialNavigationUpdate)
+		{
+			NavigationUpdateTransforms.Append(
+			{
+				FTransform(InstanceData.Transform) * GetComponentTransform(),
+				(bWorldSpace ? NewInstanceTransform : NewInstanceTransform * GetComponentTransform())
+			});
+		}
+		
 		// TODO: Computing LocalTransform is useless when we're updating the world location for the entire mesh.
 		// Should find some way around this for performance.
 
@@ -3991,6 +4083,11 @@ bool UInstancedStaticMeshComponent::BatchUpdateInstancesTransformsInternal(int32
 		}
 
 		InstanceIndex++;
+	}
+
+	if (bDoPartialNavigationUpdate)
+	{
+		PartialNavigationUpdates(NavigationUpdateTransforms);
 	}
 
 	if (bMarkRenderStateDirty)
@@ -4010,11 +4107,28 @@ bool UInstancedStaticMeshComponent::BatchUpdateInstancesTransform(int32 StartIns
 
 	Modify();
 
+	const bool bDoPartialNavigationUpdate = IsNavigationRelevant() && SupportsPartialNavigationUpdate();
+	TArray<FTransform> NavigationUpdateTransforms;
+	if (bDoPartialNavigationUpdate)
+	{
+		NavigationUpdateTransforms.Reserve(NumInstances);
+	}
+	
 	int32 EndInstanceIndex = StartInstanceIndex + NumInstances;
 	for(int32 InstanceIndex = StartInstanceIndex; InstanceIndex < EndInstanceIndex; ++InstanceIndex)
 	{
 		FInstancedStaticMeshInstanceData& InstanceData = PerInstanceSMData[InstanceIndex];
 
+		// Append instance's previous and new transforms to dirty both areas
+		if (bDoPartialNavigationUpdate)
+		{
+			NavigationUpdateTransforms.Append(
+			{
+				FTransform(InstanceData.Transform) * GetComponentTransform(),
+				(bWorldSpace ? NewInstancesTransform : NewInstancesTransform * GetComponentTransform())
+			});
+		}
+		
 		// TODO: Computing LocalTransform is useless when we're updating the world location for the entire mesh.
 		// Should find some way around this for performance.
 
@@ -4029,6 +4143,11 @@ bool UInstancedStaticMeshComponent::BatchUpdateInstancesTransform(int32 StartIns
 			FTransform WorldTransform = bWorldSpace ? NewInstancesTransform : (LocalTransform * GetComponentTransform());
 			UpdateInstanceBodyTransform(InstanceIndex, WorldTransform, bTeleport);
 		}
+	}
+
+	if (bDoPartialNavigationUpdate)
+	{
+		PartialNavigationUpdates(NavigationUpdateTransforms);
 	}
 
 	if(bMarkRenderStateDirty)
@@ -4048,11 +4167,28 @@ bool UInstancedStaticMeshComponent::BatchUpdateInstancesData(int32 StartInstance
 
 	Modify();
 
+	const bool bDoPartialNavigationUpdate = IsNavigationRelevant() && SupportsPartialNavigationUpdate();
+	TArray<FTransform> NavigationUpdateTransforms;
+	if (bDoPartialNavigationUpdate)
+	{
+		NavigationUpdateTransforms.Reserve(NumInstances);
+	}
+	
 	for (int32 Index = 0; Index < NumInstances; ++Index)
 	{
 		int32 InstanceIndex = StartInstanceIndex + Index;
 		FInstancedStaticMeshInstanceData& InstanceData = PerInstanceSMData[InstanceIndex];
 
+		// Append instance's previous and new transforms to dirty both areas
+		if (bDoPartialNavigationUpdate)
+		{
+			NavigationUpdateTransforms.Append(
+			{
+				FTransform(InstanceData.Transform) * GetComponentTransform(),
+				FTransform(StartInstanceData[Index].Transform) * GetComponentTransform()
+			});
+		}
+		
 		InstanceData = StartInstanceData[Index];
 		PrimitiveInstanceDataManager.TransformChanged(InstanceIndex);
 
@@ -4062,6 +4198,11 @@ bool UInstancedStaticMeshComponent::BatchUpdateInstancesData(int32 StartInstance
 			FTransform WorldTransform = FTransform(InstanceData.Transform) * GetComponentTransform();
 			UpdateInstanceBodyTransform(InstanceIndex, WorldTransform, bTeleport);
 		}
+	}
+
+	if (bDoPartialNavigationUpdate)
+	{
+		PartialNavigationUpdates(NavigationUpdateTransforms);
 	}
 
 	if (bMarkRenderStateDirty)
@@ -4363,6 +4504,8 @@ void UInstancedStaticMeshComponent::InitPerInstanceRenderData(bool InitializeFro
 void UInstancedStaticMeshComponent::OnRegister()
 {
 	Super::OnRegister();
+	
+	PreviousComponentTransform = GetComponentTransform();
 
 	if (FApp::CanEverRender() && !HasAnyFlags(RF_ClassDefaultObject | RF_ArchetypeObject))
 	{
@@ -4738,14 +4881,34 @@ void UInstancedStaticMeshComponent::PartialNavigationUpdate(int32 InstanceIdx)
 		return;
 	}
 
+	FTransform InstanceTransform;
+	if (GetInstanceTransform(InstanceIdx, InstanceTransform, /*bWorldSpace*/true))
+	{
+		PartialNavigationUpdates({InstanceTransform});
+	}
+}
+
+void UInstancedStaticMeshComponent::PartialNavigationUpdates(const TConstArrayView<FTransform> InstanceTransforms)
+{
+	if (!IsNavigationRelevant() || InstanceTransforms.IsEmpty())
+	{
+		return;
+	}
+
 	const FBox InstanceBounds = GetInstanceNavigationBounds();
 	if (InstanceBounds.IsValid)
 	{
-		FTransform InstanceTransform;
-		if (GetInstanceTransform(InstanceIdx, InstanceTransform, /*bWorldSpace*/true))
+		// Update cached navigation bounds
+		CalcAndCacheNavigationBounds();
+
+		// Dirty areas around the modified instances
+		TArray<FBox> DirtyAreas;
+		DirtyAreas.Reserve(InstanceTransforms.Num());
+		for (const FTransform& InstanceTransform : InstanceTransforms)
 		{
-			FNavigationSystem::OnComponentBoundsChanged(*this, GetNavigationBounds(), InstanceBounds.TransformBy(InstanceTransform));
+			DirtyAreas.Emplace(InstanceBounds.TransformBy(InstanceTransform));
 		}
+		FNavigationSystem::OnObjectBoundsChanged(*this, GetNavigationBounds(), DirtyAreas);
 	}
 }
 
@@ -4948,12 +5111,21 @@ void UInstancedStaticMeshComponent::GetNavigationData(FNavigationRelevantData& D
 
 FBox UInstancedStaticMeshComponent::GetNavigationBounds() const
 {
-	return CalcBoundsImpl(GetComponentTransform(), /*bForNavigation*/true).GetBox();
+	ensureMsgf(NavigationBounds.IsValid, TEXT("Navigation bounds should be calculated before being requested."));
+	return NavigationBounds;
 }
 
 bool UInstancedStaticMeshComponent::IsNavigationRelevant() const
 {
 	return GetInstanceCount() > 0 && Super::IsNavigationRelevant();
+}
+
+bool UInstancedStaticMeshComponent::ShouldSkipDirtyAreaOnAddOrRemove() const
+{
+	// If partial navigation updates are supported then we don't want to dirty the
+	// whole area covered by the navigation bounds when added added to the navigation octree,
+	// instead we use the partial update to push the list of dirty areas.
+	return SupportsPartialNavigationUpdate();
 }
 
 FBox UInstancedStaticMeshComponent::GetInstanceNavigationBounds() const

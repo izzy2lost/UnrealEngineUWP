@@ -51,25 +51,19 @@ void FNavigationDirtyAreasController::Tick(const float DeltaSeconds, const TArra
 void FNavigationDirtyAreasController::AddArea(const FBox& NewArea, const int32 Flags, const TFunction<UObject*()>& ObjectProviderFunc /*= nullptr*/,
 	const FNavigationDirtyElement* DirtyElement /*= nullptr*/, const FName& DebugReason /*= NAME_None*/)
 {
+	AddAreas({NewArea}, Flags, ObjectProviderFunc, DirtyElement, DebugReason);
+}
+
+void FNavigationDirtyAreasController::AddAreas(const TConstArrayView<FBox> NewAreas, const int32 Flags, const TFunction<UObject*()>& ObjectProviderFunc, const FNavigationDirtyElement* DirtyElement, const FName& DebugReason)
+{
 #if !UE_BUILD_SHIPPING
 	// always keep track of reported areas even when filtered out by invalid area as long as flags are valid
 	bDirtyAreasReportedWhileAccumulationLocked = bDirtyAreasReportedWhileAccumulationLocked || (Flags > 0 && !bCanAccumulateDirtyAreas);
+
+	checkf(NewAreas.Num() > 0, TEXT("All callers of this method are expected to provide at least one area."));
 #endif // !UE_BUILD_SHIPPING
 
-	if (!NewArea.IsValid)
-	{
-		UE_LOG(LogNavigationDirtyArea, Warning, TEXT("Skipping dirty area creation because of invalid bounds (object: %s, from: %s)"),
-			*GetFullNameSafe(ObjectProviderFunc ? ObjectProviderFunc() : nullptr), *DebugReason.ToString());
-		return;
-	}
-
-	const FVector2D BoundsSize(NewArea.GetSize());
-	if (BoundsSize.IsNearlyZero())
-	{
-		UE_LOG(LogNavigationDirtyArea, Warning, TEXT("Skipping dirty area creation because of empty bounds (object: %s, from: %s)"),
-			*GetFullNameSafe(ObjectProviderFunc ? ObjectProviderFunc() : nullptr), *DebugReason.ToString());
-		return;
-	}
+	UObject* SourceObject = ObjectProviderFunc ? ObjectProviderFunc() : nullptr;
 
 	if (bUseWorldPartitionedDynamicMode)
 	{
@@ -78,62 +72,78 @@ void FNavigationDirtyAreasController::AddArea(const FBox& NewArea, const int32 F
 		//  If there is no visibility change, the change is not from loading/unloading a cell (dirtiness must be applied)
 		
 		// ObjectProviderFunc() is not always providing a valid object.
-		if (const bool bIsFromVisibilityChange = (DirtyElement && DirtyElement->bIsFromVisibilityChange) || (ObjectProviderFunc && FNavigationSystem::IsLevelVisibilityChanging(ObjectProviderFunc())))
+		if (const bool bIsFromVisibilityChange = (DirtyElement && DirtyElement->bIsFromVisibilityChange) || (SourceObject && FNavigationSystem::IsLevelVisibilityChanging(SourceObject)))
 		{
 			// If the area is from the addition or removal of objects caused by level loading/unloading and it's already in the base navmesh ignore the dirtiness.
-			if (const bool bIsIncludedInBaseNavmesh = (DirtyElement && DirtyElement->bIsInBaseNavmesh) || (ObjectProviderFunc && FNavigationSystem::IsInBaseNavmesh(ObjectProviderFunc())))
+			if (const bool bIsIncludedInBaseNavmesh = (DirtyElement && DirtyElement->bIsInBaseNavmesh) || (SourceObject && FNavigationSystem::IsInBaseNavmesh(SourceObject)))
 			{
 				UE_LOG(LogNavigationDirtyArea, VeryVerbose, TEXT("Ignoring dirtyness (visibility changed and in base navmesh). (object: %s from: %s)"),
-					*GetFullNameSafe(ObjectProviderFunc ? ObjectProviderFunc() : nullptr), *DebugReason.ToString());
+					*GetFullNameSafe(SourceObject), *DebugReason.ToString());
 				return;
 			}
-		}		
+		}
 	}
 
-	if (ShouldSkipObjectPredicate.IsBound() && ObjectProviderFunc)
+	if (ShouldSkipObjectPredicate.IsBound() && SourceObject)
 	{
-		UObject* Object = ObjectProviderFunc();
-		if (Object && ShouldSkipObjectPredicate.Execute(*Object))
+		if (ShouldSkipObjectPredicate.Execute(*SourceObject))
 		{
 			return;
 		}
 	}
 
-#if !UE_BUILD_SHIPPING
-	auto DumpExtraInfo = [ObjectProviderFunc, DebugReason, BoundsSize, NewArea]() {
-		FString ObjectInfo;
-		const UObject* Object = nullptr;
-		if (ObjectProviderFunc)
+	int32 NumInvalidBounds = 0;
+	int32 NumEmptyBounds = 0;
+	for (const FBox& NewArea : NewAreas)
+	{
+		if (!NewArea.IsValid)
 		{
-			Object = ObjectProviderFunc();
-			if (const UObject* ObjectOwner = (Object != nullptr ? Object->GetOuter() : nullptr))
-			{
-				UE_VLOG_BOX(ObjectOwner, LogNavigationDirtyArea, Log, NewArea, FColor::Red, TEXT(""));
-				ObjectInfo = FString::Printf(TEXT(" | Element's owner: %s"), *GetFullNameSafe(ObjectOwner));
-			}
+			NumInvalidBounds++;
+			continue;
 		}
 
-		return FString::Printf(TEXT("From: %s | Object: %s %s | Bounds: %s"),
-			*DebugReason.ToString(),
-			*GetFullNameSafe(Object),
-			*ObjectInfo,
-			*BoundsSize.ToString());
-	};
+		const FVector2D BoundsSize(NewArea.GetSize());
+		if (BoundsSize.IsNearlyZero())
+		{
+			NumEmptyBounds++;
+			continue;
+		}
 
-	if (ShouldReportOversizedDirtyArea() && BoundsSize.GetMax() > DirtyAreaWarningSizeThreshold)
-	{
-		UE_LOG(LogNavigationDirtyArea, Warning, TEXT("Adding an oversized dirty area: %s | Threshold: %.2f"), *DumpExtraInfo(), DirtyAreaWarningSizeThreshold);
-	}
-	else
-	{
-		UE_LOG(LogNavigationDirtyArea, VeryVerbose, TEXT("Adding dirty area object: %s"), *DumpExtraInfo());
-	}
+#if !UE_BUILD_SHIPPING
+		auto DumpExtraInfo = [SourceObject, DebugReason, BoundsSize, NewArea]() {
+				FString ObjectInfo;
+				if (const UObject* ObjectOwner = (SourceObject != nullptr ? SourceObject->GetOuter() : nullptr))
+				{
+					UE_VLOG_BOX(ObjectOwner, LogNavigationDirtyArea, Log, NewArea, FColor::Red, TEXT(""));
+					ObjectInfo = FString::Printf(TEXT(" | Element's owner: %s"), *GetFullNameSafe(ObjectOwner));
+				}
+
+				return FString::Printf(TEXT("From: %s | Object: %s %s | Bounds: %s"),
+					*DebugReason.ToString(),
+					*GetFullNameSafe(SourceObject),
+					*ObjectInfo,
+					*BoundsSize.ToString());
+		};
+
+		if (ShouldReportOversizedDirtyArea() && BoundsSize.GetMax() > DirtyAreaWarningSizeThreshold)
+		{
+			UE_LOG(LogNavigationDirtyArea, Warning, TEXT("Adding an oversized dirty area: %s | Threshold: %.2f"), *DumpExtraInfo(), DirtyAreaWarningSizeThreshold);
+		}
+		else
+		{
+			UE_LOG(LogNavigationDirtyArea, VeryVerbose, TEXT("Adding dirty area object: %s"), *DumpExtraInfo());
+		}
 #endif // !UE_BUILD_SHIPPING
 
-	if (Flags > 0 && bCanAccumulateDirtyAreas)
-	{
-		DirtyAreas.Add(FNavigationDirtyArea(NewArea, Flags, ObjectProviderFunc ? ObjectProviderFunc() : nullptr));
+		if (Flags > 0 && bCanAccumulateDirtyAreas)
+		{
+			DirtyAreas.Add(FNavigationDirtyArea(NewArea, Flags, SourceObject));
+		}
 	}
+	
+	UE_CLOG(NumInvalidBounds > 0 || NumEmptyBounds > 0, LogNavigationDirtyArea, Warning,
+		TEXT("Skipped some dirty area creation due to: %d invalid bounds, %d empty bounds (object: %s, from: %s)"),
+		NumInvalidBounds, NumEmptyBounds, *GetFullNameSafe(SourceObject), *DebugReason.ToString());
 }
 
 void FNavigationDirtyAreasController::OnNavigationBuildLocked()

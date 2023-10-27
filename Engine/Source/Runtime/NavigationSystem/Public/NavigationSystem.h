@@ -957,14 +957,14 @@ public:
 	/** force updating parent node and all its children */
 	NAVIGATIONSYSTEM_API void UpdateNavOctreeParentChain(UObject* ElementOwner, bool bSkipElementOwnerUpdate = false);
 
-	UE_DEPRECATED(5.4, "Use UpdateNavOctreeElementBounds with object reference.")
+	UE_DEPRECATED(5.4, "Use the overloaded version with object reference and list of dirty areas as parameters instead.")
 	/** update component bounds in navigation octree and mark only specified area as dirty, doesn't re-export component geometry */
 	NAVIGATIONSYSTEM_API bool UpdateNavOctreeElementBounds(UActorComponent* Comp, const FBox& NewBounds, const FBox& DirtyArea);
 
 	/** update object bounds in navigation octree and mark only specified area as dirty, doesn't re-export geometry */
-	NAVIGATIONSYSTEM_API bool UpdateNavOctreeElementBounds(UObject& Object, const FBox& NewBounds, const FBox& DirtyArea);
+	NAVIGATIONSYSTEM_API bool UpdateNavOctreeElementBounds(UObject& Object, const FBox& NewBounds, TConstArrayView<FBox> DirtyAreas);
 
-	/** fetched Object's data from the octree and replaces occurences of OldArea with NewArea */
+	/** fetched Object's data from the octree and replaces occurrences of OldArea with NewArea */
 	NAVIGATIONSYSTEM_API bool ReplaceAreaInOctreeData(const UObject& Object, TSubclassOf<UNavArea> OldArea, TSubclassOf<UNavArea> NewArea, bool bReplaceChildClasses = false);
 
 	//----------------------------------------------------------------------//

@@ -105,6 +105,14 @@ class UInstancedStaticMeshComponent : public UStaticMeshComponent, public ISMIns
 	UPROPERTY(Transient)
 	TArray<FMatrix> PerInstancePrevTransform;
 
+	/** Bounds are calculated and cached on component registration. */
+	UPROPERTY(Transient)
+	FBox NavigationBounds;
+	
+	/** Main transform stored to be able to send updates when component's transform changed. */
+	UPROPERTY(Transient)
+	FTransform PreviousComponentTransform;
+
 	/** Defines the number of floats that will be available per instance for custom data */
 	UPROPERTY(EditAnywhere, Category=Instances, AdvancedDisplay)
 	int32 NumCustomDataFloats;
@@ -479,6 +487,7 @@ public:
 	ENGINE_API virtual void GetNavigationData(FNavigationRelevantData& Data) const override;
 	ENGINE_API virtual FBox GetNavigationBounds() const override;
 	ENGINE_API virtual bool IsNavigationRelevant() const override;
+	ENGINE_API virtual bool ShouldSkipDirtyAreaOnAddOrRemove() const override;
 	//~ End UNavRelevantInterface Interface
 
 	//~ Begin UObject Interface
@@ -548,6 +557,9 @@ public:
 	/** Request to navigation system to update only part of navmesh occupied by specified instance. */
 	ENGINE_API virtual void PartialNavigationUpdate(int32 InstanceIdx);
 
+	/** Request to navigation system to update only part of navmesh occupied specified instances transforms. */
+	ENGINE_API virtual void PartialNavigationUpdates(TConstArrayView<FTransform> InstanceTransforms);
+
 	/** 
 	 * Flag for using RemoveAtSwap on instance removal. 
 	 * The implementation is free to ignore this flag, but should honor whatever behavior is being returned by SupportsRemoveSwap().
@@ -564,11 +576,12 @@ public:
 	/** 
 	 * Clears all the updated instance tracking data AND instance ID association, also forcing a full update of the instance data the next time it is flushed.	 
 	 * NOTE: Destroying the instance updated tracking means the renderer has to treat the instances as completely new, preventing e.g., velocity tracking and caching from working reliably.
-	 * This function is only intended to be used when some outside entity has modified the instance data, this is not recomended and access to the public data will be removed in a future release.
+	 * This function is only intended to be used when some outside entity has modified the instance data, this is not recommended and access to the public data will be removed in a future release.
 	 */
 	ENGINE_API void InvalidateInstanceDataTracking();
 
 private:
+	void CalcAndCacheNavigationBounds();
 
 	/** Sets up new instance data to sensible defaults, creates physics counterparts if possible. */
 	ENGINE_API void SetupNewInstanceData(FInstancedStaticMeshInstanceData& InOutNewInstanceData, int32 InInstanceIndex, const FTransform& InInstanceTransform);
