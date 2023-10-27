@@ -179,6 +179,9 @@ public:
 	uint8 bForceNavigationObstacle : 1;
 
 	UPROPERTY(EditAnywhere, Category = "Component Settings")
+	uint8 bFillCollisionUnderneathForNavmesh : 1;
+
+	UPROPERTY(EditAnywhere, Category = "Component Settings")
 	int32 WorldPositionOffsetDisableDistance;
 
 	UPROPERTY(EditAnywhere, Category = "Component Settings")
