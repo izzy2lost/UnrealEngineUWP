@@ -2930,7 +2930,8 @@ public:
 	 * @param InElement The element to retrieve the children for
 	 * @return Returns the child elements
 	 */
-	const FRigBaseElementChildrenArray& GetChildren(const FRigBaseElement* InElement) const;
+	TConstArrayView<FRigBaseElement*> GetChildren(const FRigBaseElement* InElement) const;
+	TArrayView<FRigBaseElement*> GetChildren(const FRigBaseElement* InElement);
 
 	/**
 	 * Returns the child elements of a given element
@@ -3404,7 +3405,7 @@ public:
 	/**
 	 * Returns the topology version of this hierarchy
 	 */
-	uint16 GetTopologyVersion() const { return TopologyVersion; }
+	uint32 GetTopologyVersion() const { return TopologyVersion; }
 
 	/**
 	 * Returns the hash of this hierarchy used for cached element keys
@@ -4004,24 +4005,14 @@ private:
     bool IsSelected(const FRigBaseElement* InElement) const;
 
 	/**
-	 * Removes the transient cached children table for all elements.
-	 */
-	void ResetCachedChildren();
-
-	/**
-	 * Updates the transient cached children table for a given element if needed (or if bForce == true).
-	 * @param InElement The element to update the children table for
-	 * @param bForce If set to true the table will always be updated
+	 * Updates the transient cached children table if the topology version is out of date with the one
+	 * stored with the cached table.
 	 * @return Returns true if a change was performed
 	 */
-	bool UpdateCachedChildren(const FRigBaseElement* InElement, bool bForce = false) const;
+	void EnsureCachedChildrenAreCurrent() const;
 
-	/**
-	* Updates the transient cached children table for all elements if needed.
-	 * @param bForce If set to true the table will always be updated
-	*/
-	void UpdateAllCachedChildren(bool bForce = false) const;
-
+	void UpdateCachedChildren();
+	
 	/**
 	 * Corrects a parent element key for space switching
 	 */
@@ -4088,7 +4079,7 @@ private:
 	 * added, removed, re-parented or renamed.
 	 */
 	UPROPERTY(transient)
-	uint16 TopologyVersion;
+	uint32 TopologyVersion;
 
 	/**
 	 * The metadata version of the hierarchy changes when metadata is being
@@ -4137,10 +4128,29 @@ private:
 
 	TMap<FRigElementKey, FString> UserDefinedElementName;
 
+	// Element metadata storage. Storage is defined here rather than on the elements
+	// to reduce memory consumption. Only elements created by MakeElement point to
+	// the element storage. Copied elements via the copy constructor or copy operator
+	// do not have URigHierarchy as an owner and therefore do not carry metadata with them.
 	TMap<FRigElementKey, FMetaDataStorage> ElementMetadata;
 
-	// Static empty element array used for ref returns
-	static const FRigBaseElementChildrenArray EmptyElementArray;
+	// A quick-lookup cache for elements' children. Each element that has a ChildCacheIndex
+	// not equal to INDEX_NONE is an index into the offset and count cache below, which in
+	// turn contains an offset into the ChildElementCache, which stores consecutive runs of
+	// children for that element. This makes it quick to get a TArrayView on the list of
+	// children.
+	struct FChildElementOffsetAndCount
+	{
+		int32 Offset;
+		int32 Count;
+	};
+	
+	TArray<FChildElementOffsetAndCount> ChildElementOffsetAndCountCache;
+	TArray<FRigBaseElement*> ChildElementCache;
+
+	// The topology version at which the child element cache was constructed. If it differs
+	// from the stored TopologyVersion, then the cache is rebuilt. 
+	uint32 ChildElementCacheTopologyVersion = std::numeric_limits<uint32>::max();
 
 	///////////////////////////////////////////////
 	/// Undo redo related

@@ -2362,11 +2362,9 @@ bool URigHierarchyController::ReorderElement(FRigBaseElement* InElement, int32 I
 	InIndex = FMath::Max<int32>(InIndex, 0);
 
 	TArray<FRigBaseElement*> LocalElements;
-	const FRigBaseElement* ParentElement = Hierarchy->GetFirstParent(InElement);
-	if(ParentElement)
+	if(const FRigBaseElement* ParentElement = Hierarchy->GetFirstParent(InElement))
 	{
-		const FRigBaseElementChildrenArray& Children = Hierarchy->GetChildren(ParentElement);
-		LocalElements.Append(Children);
+		LocalElements.Append(Hierarchy->GetChildren(ParentElement));
 	}
 	else
 	{

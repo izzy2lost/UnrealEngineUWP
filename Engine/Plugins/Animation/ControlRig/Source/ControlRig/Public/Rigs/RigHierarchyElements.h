@@ -642,9 +642,8 @@ protected:
 	// Set by URigHierarchy::NewElement.
 	int32 OwnedInstances = 0;
 
-	mutable uint16 TopologyVersion = 0;
-	
-	mutable FRigBaseElementChildrenArray CachedChildren;
+	// Index into the child cache offset and count table in URigHierarchy. Set by URigHierarchy::UpdateCachedChildren
+	int32 ChildCacheIndex = INDEX_NONE;
 	
 	mutable FString CachedNameString;
 

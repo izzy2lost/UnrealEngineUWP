@@ -3270,8 +3270,7 @@ void FRigControlElementDetails::CustomizeAnimationChannels(IDetailLayoutBuilder&
 	Category.HeaderContent(HeaderContentWidget);
 
 	bool bHasAnimationChannels = false;
-	const FRigBaseElementChildrenArray ChildElements = Hierarchy->GetChildren(ControlElement);
-	for(const FRigBaseElement* ChildElement : ChildElements)
+	for(const FRigBaseElement* ChildElement : Hierarchy->GetChildren(ControlElement))
 	{
 		if(const FRigControlElement* ChildControlElement = Cast<FRigControlElement>(ChildElement))
 		{

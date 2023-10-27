@@ -9,6 +9,7 @@
 #include "Math/ControlRigMathLibrary.h"
 #include "UObject/AnimObjectVersion.h"
 #include "ControlRigObjectVersion.h"
+#include "Algo/Count.h"
 #include "Serialization/MemoryReader.h"
 #include "Serialization/MemoryWriter.h"
 #include "HAL/LowLevelMemTracker.h"
@@ -87,8 +88,6 @@ FAutoConsoleCommandWithWorldAndArgs FCmdControlRigHierarchyTraceFrames
 ////////////////////////////////////////////////////////////////////////////////
 // URigHierarchy
 ////////////////////////////////////////////////////////////////////////////////
-
-const FRigBaseElementChildrenArray URigHierarchy::EmptyElementArray;
 
 #if URIGHIERARCHY_ENSURE_CACHE_VALIDITY
 bool URigHierarchy::bEnableValidityCheckbyDefault = true;
@@ -296,8 +295,6 @@ void URigHierarchy::Load(FArchive& Ar)
 		}
 	}
 
-	UpdateAllCachedChildren(true);
-
 	if(Ar.IsTransacting())
 	{
 		for(const FRigElementKey& SelectedKey : SelectedKeys)
@@ -396,6 +393,11 @@ void URigHierarchy::Reset_Impl(bool bResetElements)
 	OrderedSelection.Reset();
 	PoseVersionPerElement.Reset();
 	ElementDependencyCache.Reset();
+
+	ChildElementOffsetAndCountCache.Reset();
+	ChildElementCache.Reset();
+	ChildElementCacheTopologyVersion = std::numeric_limits<uint32>::max();
+
 
 	if(!IsGarbageCollecting())
 	{
@@ -567,7 +569,6 @@ void URigHierarchy::CopyHierarchy(URigHierarchy* InHierarchy)
 			check(Target->Key.Type == Source->Key.Type);
 			Target->InitializeFrom(Source);
 
-			Target->TopologyVersion = InHierarchy->GetTopologyVersion();
 			IncrementPoseVersion(Index);
 		}
 
@@ -586,10 +587,12 @@ void URigHierarchy::CopyHierarchy(URigHierarchy* InHierarchy)
 	}
 
 	PreviousNameMap.Append(InHierarchy->PreviousNameMap);
-	TopologyVersion = InHierarchy->GetTopologyVersion();
+
+	// Increment the topology version to invalidate our cached children.
+	IncrementTopologyVersion();
+	
 	MetadataVersion = InHierarchy->GetMetadataVersion();
 
-	UpdateAllCachedChildren(true);
 	EnsureCacheValidity();
 }
 
@@ -1510,78 +1513,115 @@ FString URigHierarchy::GetControlPinDefaultValue(FRigControlElement* InControlEl
 TArray<FRigElementKey> URigHierarchy::GetChildren(FRigElementKey InKey, bool bRecursive) const
 {
 	LLM_SCOPE_BYNAME(TEXT("Animation/ControlRig"));
-	FRigBaseElementChildrenArray LocalChildren;
-	const FRigBaseElementChildrenArray* ChildrenPtr = nullptr;
-	if(bRecursive)
+
+	auto ConvertElementsToKeys = [this](TConstArrayView<FRigBaseElement*> InElements) -> TArray<FRigElementKey>
 	{
-		LocalChildren = GetChildren(Find(InKey), true);
-		ChildrenPtr = & LocalChildren;
+		TArray<FRigElementKey> ElementKeys;
+		ElementKeys.Reserve(InElements.Num());
+		for (const FRigBaseElement* Element: InElements)
+		{
+			ElementKeys.Add(Element->Key);
+		}
+		return ElementKeys;
+	};
+
+	if (bRecursive)
+	{
+		return ConvertElementsToKeys(GetChildren(Find(InKey), true));
 	}
 	else
 	{
-		ChildrenPtr = &GetChildren(Find(InKey));
+		return ConvertElementsToKeys(GetChildren(Find(InKey)));
 	}
-
-	const FRigBaseElementChildrenArray& Children = *ChildrenPtr;
-
-	TArray<FRigElementKey> Keys;
-	for(const FRigBaseElement* Child : Children)
-	{
-		Keys.Add(Child->Key);
-	}
-	return Keys;
 }
 
 TArray<int32> URigHierarchy::GetChildren(int32 InIndex, bool bRecursive) const
 {
 	LLM_SCOPE_BYNAME(TEXT("Animation/ControlRig"));
-	FRigBaseElementChildrenArray LocalChildren;
-	const FRigBaseElementChildrenArray* ChildrenPtr = nullptr;
-	if(bRecursive)
+
+	if (!ensure(Elements.IsValidIndex(InIndex)))
 	{
-		LocalChildren = GetChildren(Get(InIndex), true);
-		ChildrenPtr = & LocalChildren;
+		return {};
 	}
-	else
+	
+	TArray<int32> ChildIndexes;
+
+	auto AddIndexesFromElements = [this, &ChildIndexes](TConstArrayView<FRigBaseElement*> InElements) -> void
 	{
-		ChildrenPtr = &GetChildren(Get(InIndex));
+		ChildIndexes.Reserve(ChildIndexes.Num() + InElements.Num());
+		for (const FRigBaseElement* Element: InElements)
+		{
+			ChildIndexes.Add(Element->Index);
+		}
+	};
+	
+	AddIndexesFromElements(GetChildren(Elements[InIndex]));
+
+	if (bRecursive)
+	{
+		// Go along the children array and add all children. Once we stop adding children, the traversal index
+		// will reach the end and we're done.
+		for(int32 TraversalIndex = 0; TraversalIndex != ChildIndexes.Num(); TraversalIndex++)
+		{
+			AddIndexesFromElements(GetChildren(Elements[ChildIndexes[TraversalIndex]]));
+		}
 	}
 
-	const FRigBaseElementChildrenArray& Children = *ChildrenPtr;
-
-	TArray<int32> Indices;
-	for(const FRigBaseElement* Child : Children)
-	{
-		Indices.Add(Child->Index);
-	}
-	return Indices;
+	return ChildIndexes;
 }
 
-const FRigBaseElementChildrenArray& URigHierarchy::GetChildren(const FRigBaseElement* InElement) const
+TConstArrayView<FRigBaseElement*> URigHierarchy::GetChildren(const FRigBaseElement* InElement) const
 {
 	LLM_SCOPE_BYNAME(TEXT("Animation/ControlRig"));
 	if(InElement)
 	{
-		UpdateCachedChildren(InElement);
-		return InElement->CachedChildren;
+		EnsureCachedChildrenAreCurrent();
+
+		if (InElement->ChildCacheIndex != INDEX_NONE)
+		{
+			const FChildElementOffsetAndCount& OffsetAndCount = ChildElementOffsetAndCountCache[InElement->ChildCacheIndex];
+			return TConstArrayView<FRigBaseElement*>(&ChildElementCache[OffsetAndCount.Offset], OffsetAndCount.Count);
+		}
 	}
-	return EmptyElementArray;
+	return {};
 }
+
+TArrayView<FRigBaseElement*> URigHierarchy::GetChildren(const FRigBaseElement* InElement)
+{
+	LLM_SCOPE_BYNAME(TEXT("Animation/ControlRig"));
+	if(InElement)
+	{
+		EnsureCachedChildrenAreCurrent();
+
+		if (InElement->ChildCacheIndex != INDEX_NONE)
+		{
+			const FChildElementOffsetAndCount& OffsetAndCount = ChildElementOffsetAndCountCache[InElement->ChildCacheIndex];
+			return TArrayView<FRigBaseElement*>(&ChildElementCache[OffsetAndCount.Offset], OffsetAndCount.Count);
+		}
+	}
+	return {};
+}
+
+
 
 FRigBaseElementChildrenArray URigHierarchy::GetChildren(const FRigBaseElement* InElement, bool bRecursive) const
 {
 	LLM_SCOPE_BYNAME(TEXT("Animation/ControlRig"));
-	// call the non-recursive variation
-	FRigBaseElementChildrenArray Children = GetChildren(InElement);
-	
-	if(bRecursive)
+
+	FRigBaseElementChildrenArray Children;
+
+	Children.Append(GetChildren(InElement));
+
+	if (bRecursive)
 	{
-		for(int32 ChildIndex = 0; ChildIndex < Children.Num(); ChildIndex++)
+		// Go along the children array and add all children. Once we stop adding children, the traversal index
+		// will reach the end and we're done.
+		for(int32 TraversalIndex = 0; TraversalIndex != Children.Num(); TraversalIndex++)
 		{
-			Children.Append(GetChildren(Children[ChildIndex], true));
+			Children.Append(GetChildren(Children[TraversalIndex]));
 		}
 	}
-
+	
 	return Children;
 }
 
@@ -2341,8 +2381,7 @@ void URigHierarchy::Traverse(FRigBaseElement* InElement, bool bTowardsChildren,
 	{
 		if(bTowardsChildren)
 		{
-			const FRigBaseElementChildrenArray& Children = GetChildren(InElement);
-			for (FRigBaseElement* Child : Children)
+			for (FRigBaseElement* Child : GetChildren(InElement))
 			{
 				Traverse(Child, true, PerElementFunction);
 			}
@@ -3246,8 +3285,7 @@ void URigHierarchy::SetTransform(FRigTransformElement* InTransformElement, const
 					// only fire these notes if we are inside the asset editor
 					if(World->WorldType == EWorldType::EditorPreview)
 					{
-						const FRigBaseElementChildrenArray& Children = GetChildren(InTransformElement);
-						for (FRigBaseElement* Child : Children)
+						for (FRigBaseElement* Child : GetChildren(InTransformElement))
 						{
 							const bool bChildFound = WrittenTransformsAtRuntime.ContainsByPredicate([Child](const TInstructionSliceElement& Entry) -> bool
 							{
@@ -4449,11 +4487,11 @@ int32 URigHierarchy::GetLocalIndex(const FRigBaseElement* InElement) const
 	
 	if(const FRigBaseElement* ParentElement = GetFirstParent(InElement))
 	{
-		const FRigBaseElementChildrenArray& Children = GetChildren(ParentElement);
-		return Children.Find((FRigBaseElement*)InElement);
+		TConstArrayView<FRigBaseElement*> Children = GetChildren(ParentElement);
+		return Children.Find(const_cast<FRigBaseElement*>(InElement));
 	}
 
-	return GetRootElements().Find((FRigBaseElement*)InElement);
+	return GetRootElements().Find(const_cast<FRigBaseElement*>(InElement));
 }
 
 bool URigHierarchy::IsTracingChanges() const
@@ -4607,99 +4645,124 @@ bool URigHierarchy::IsSelected(const FRigBaseElement* InElement) const
 	return bIsSelected;
 }
 
-void URigHierarchy::ResetCachedChildren()
+
+void URigHierarchy::EnsureCachedChildrenAreCurrent() const
 {
 	LLM_SCOPE_BYNAME(TEXT("Animation/ControlRig"));
-	for (int32 ElementIndex = 0; ElementIndex < Elements.Num(); ElementIndex++)
+
+	if(ChildElementCacheTopologyVersion != TopologyVersion)
 	{
-		FRigBaseElement* Element = Elements[ElementIndex];
-		Element->CachedChildren.Reset();
+		const_cast<URigHierarchy*>(this)->UpdateCachedChildren();
 	}
 }
-
-bool URigHierarchy::UpdateCachedChildren(const FRigBaseElement* InElement, bool bForce) const
+	
+void URigHierarchy::UpdateCachedChildren()
 {
-	LLM_SCOPE_BYNAME(TEXT("Animation/ControlRig"));
-	check(InElement);
+	FScopeLock Lock(&ElementsLock);
+	
+	// First we tally up how many children each element has, then we allocate for the total
+	// count and do the same loop again.
+	TArray<int32> ChildrenCount;
+	ChildrenCount.SetNumZeroed(Elements.Num());
 
-	if(InElement->TopologyVersion == TopologyVersion && !bForce)
-	{
-		return false;
-	}
-
-	// we collect the transforms into a separate array to loop faster,
-	// since some hierarchies have a very large number of curves / non transform elements.
-	TArray<FRigTransformElement*> TransformElements;
-	TransformElements.Reserve(Elements.Num());
+	// Bit array that denotes elements that have parents. We'll use this to quickly iterate
+	// for the second pass.
+	TBitArray<> ElementHasParent(false, Elements.Num());
 
 	for (int32 ElementIndex = 0; ElementIndex < Elements.Num(); ElementIndex++)
 	{
-		FRigBaseElement* Element = Elements[ElementIndex];
-		if(bForce || (Element->TopologyVersion != TopologyVersion))
+		const FRigBaseElement* Element = Elements[ElementIndex];
+		
+		if(const FRigSingleParentElement* SingleParentElement = Cast<FRigSingleParentElement>(Element))
 		{
-			if(FRigTransformElement* TransformElement = Cast<FRigTransformElement>(Element))
+			if(const FRigTransformElement* ParentElement = SingleParentElement->ParentElement)
 			{
-				TransformElements.Add(TransformElement);
-				TransformElement->CachedChildren.Reset();
-			}
-			else
-			{
-				Element->TopologyVersion = TopologyVersion;
+				ChildrenCount[ParentElement->Index]++;
+				ElementHasParent[ElementIndex] = true;
 			}
 		}
-	}
-
-	// since we'll have to loop over all children anyway - it makes sense to update all of them
-	// at the same time.
-	for (FRigTransformElement* Element : TransformElements)
-	{
-		if(FRigSingleParentElement* SingleParentElement = Cast<FRigSingleParentElement>(Element))
-		{
-			if(FRigTransformElement* ParentElement = SingleParentElement->ParentElement)
-			{
-				if(bForce || (ParentElement->TopologyVersion != TopologyVersion))
-				{
-					ParentElement->CachedChildren.Add(SingleParentElement);
-				}
-			}
-		}
-		else if(FRigMultiParentElement* MultiParentElement = Cast<FRigMultiParentElement>(Element))
+		else if(const FRigMultiParentElement* MultiParentElement = Cast<FRigMultiParentElement>(Element))
 		{
 			for(const FRigElementParentConstraint& ParentConstraint : MultiParentElement->ParentConstraints)
 			{
-				if(FRigTransformElement* ParentElement = ParentConstraint.ParentElement)
+				if(const FRigTransformElement* ParentElement = ParentConstraint.ParentElement)
 				{
-					if(bForce || (ParentElement->TopologyVersion != TopologyVersion))
-					{
-						ParentElement->CachedChildren.Add(MultiParentElement);
-					}
+					ChildrenCount[ParentElement->Index]++;
+					ElementHasParent[ElementIndex] = true;
 				}
 			}
 		}
 	}
 
-	for (FRigTransformElement* Element : TransformElements)
-	{
-		Element->TopologyVersion = TopologyVersion;
-	}
+	// Tally up how many elements have children.
+	const int32 NumElementsWithChildren = Algo::CountIf(ChildrenCount, [](int32 InCount) { return InCount > 0; });
 
-	return true;
-}
+	ChildElementOffsetAndCountCache.Reset(NumElementsWithChildren);
 
-void URigHierarchy::UpdateAllCachedChildren(bool bForce) const
-{
-	LLM_SCOPE_BYNAME(TEXT("Animation/ControlRig"));
-	
-	for (const FRigBaseElement* Element : Elements)
+	// Tally up how many children there are in total and set the index on each of the elements as we go.
+	int32 TotalChildren = 0;
+	for (int32 ElementIndex = 0; ElementIndex < Elements.Num(); ElementIndex++)
 	{
-		// as soon as one element was updated,
-		// as a side effect all other elements are updated.
-		if(UpdateCachedChildren(Element, bForce))
+		if (ChildrenCount[ElementIndex])
 		{
-			return;
+			Elements[ElementIndex]->ChildCacheIndex = ChildElementOffsetAndCountCache.Num();
+			ChildElementOffsetAndCountCache.Add({TotalChildren, ChildrenCount[ElementIndex]});
+			TotalChildren += ChildrenCount[ElementIndex];
+		}
+		else
+		{
+			// This element has no children, mark it as having no entry in the child table.
+			Elements[ElementIndex]->ChildCacheIndex = INDEX_NONE;
 		}
 	}
+
+	// Now run through all elements that are known to have parents and start filling up the children array.
+	ChildElementCache.Reset();
+	ChildElementCache.SetNumZeroed(TotalChildren);
+
+	// Recycle this array to indicate where we are with each set of children, as a local offset into each
+	// element's children sub-array.
+	ChildrenCount.Reset();
+	ChildrenCount.SetNumZeroed(Elements.Num());	
+
+	auto SetChildElement = [this, &ChildrenCount](
+		const FRigTransformElement* InParentElement,
+		FRigBaseElement* InChildElement)
+	{
+		const int32 ParentElementIndex = InParentElement->Index;
+		const int32 CacheOffset = ChildElementOffsetAndCountCache[InParentElement->ChildCacheIndex].Offset;
+
+		ChildElementCache[CacheOffset + ChildrenCount[ParentElementIndex]] = InChildElement;
+		ChildrenCount[ParentElementIndex]++;
+	};
+	
+	for (TConstSetBitIterator<> ElementIt(ElementHasParent); ElementIt; ++ElementIt)
+	{
+		FRigBaseElement* Element = Elements[ElementIt.GetIndex()];
+		
+		if(const FRigSingleParentElement* SingleParentElement = Cast<FRigSingleParentElement>(Element))
+		{
+			if(const FRigTransformElement* ParentElement = SingleParentElement->ParentElement)
+			{
+				SetChildElement(ParentElement, Element);
+			}
+		}
+		else if(const FRigMultiParentElement* MultiParentElement = Cast<FRigMultiParentElement>(Element))
+		{
+			for(const FRigElementParentConstraint& ParentConstraint : MultiParentElement->ParentConstraints)
+			{
+				if(const FRigTransformElement* ParentElement = ParentConstraint.ParentElement)
+				{
+					SetChildElement(ParentElement, Element);
+				}
+			}
+		}
+	}
+
+	// Mark the cache up-to-date.
+	ChildElementCacheTopologyVersion = TopologyVersion;
 }
+
 	
 FRigElementKey URigHierarchy::PreprocessParentElementKeyForSpaceSwitching(const FRigElementKey& InChildKey, const FRigElementKey& InParentKey)
 {

@@ -102,6 +102,7 @@ void FRigBaseElement::Load(FArchive& Ar, ESerializationPhase SerializationPhase)
 		ensure(LoadedKey.Type == Key.Type);
 		Key = LoadedKey;
 
+		ChildCacheIndex = INDEX_NONE;
 		CachedNameString.Reset();
 
 		if (Ar.CustomVer(FControlRigObjectVersion::GUID) >= FControlRigObjectVersion::HierarchyElementMetadata &&
@@ -208,8 +209,6 @@ void FRigBaseElement::InitializeFrom(const FRigBaseElement* InOther)
 	SubIndex = InOther->SubIndex;
 	CreatedAtInstructionIndex = InOther->CreatedAtInstructionIndex;
 	bSelected = false;
-	TopologyVersion = 0;
-	CachedChildren.Reset();
 }
 
 

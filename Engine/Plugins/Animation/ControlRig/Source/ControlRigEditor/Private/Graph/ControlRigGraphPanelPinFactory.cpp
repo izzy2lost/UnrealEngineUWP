@@ -288,8 +288,7 @@ TSharedPtr<SGraphPin> FControlRigGraphPanelPinFactory::CreatePin_Internal(UEdGra
 
 									if(const FRigControlElement* ControlElement = Hierarchy->Find<FRigControlElement>(ControlKey))
 									{
-										FRigBaseElementChildrenArray Children = Hierarchy->GetChildren(ControlElement);
-										for(const FRigBaseElement* Child : Children)
+										for(const FRigBaseElement* Child : Hierarchy->GetChildren(ControlElement))
 										{
 											if(const FRigControlElement* ChildControl = Cast<FRigControlElement>(Child))
 											{
