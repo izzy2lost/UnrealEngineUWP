@@ -704,6 +704,8 @@ namespace Horde.Server.Devices
 			List<IDevicePool> pools = _deviceService.GetPools();
 			List<IDevicePlatform> platforms = _deviceService.GetPlatforms();
 
+			_logger.LogInformation("Device reservation Pools:{Pools} Platforms:{Platforms}", String.Join(';', pools.Select(p => p.Name)), String.Join(';', platforms.Select(p => p.Name)));
+
 			string? poolId = request.PoolId;
 
 			// @todo: Remove this once all streams are updated to provide jobid
@@ -755,6 +757,8 @@ namespace Horde.Server.Devices
 				}
 
 				DevicePlatformId platformId = DevicePlatformId.Sanitize(platformName);
+
+				_logger.LogInformation("Device reservation platform {PlatformId}", platformId.ToString());
 
 				IDevicePlatform? platform = platforms.FirstOrDefault(x => x.Id == platformId || (x.LegacyNames != null && x.LegacyNames.Contains(platformName)));
 
