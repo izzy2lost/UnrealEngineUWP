@@ -979,25 +979,25 @@ void ULandscapeComponent::GetLayerDebugColorKey(int32& R, int32& G, int32& B) co
 
 		for (auto It = Info->Layers.CreateConstIterator(); It; It++)
 		{
-			const FLandscapeInfoLayerSettings& LayerStruct = *It;
-			if (LayerStruct.DebugColorChannel > 0
-				&& LayerStruct.LayerInfoObj)
+			const FLandscapeInfoLayerSettings& LayerSettings = *It;
+			if (LayerSettings.DebugColorChannel > 0
+				&& LayerSettings.LayerInfoObj)
 			{
 				const TArray<FWeightmapLayerAllocationInfo>& ComponentWeightmapLayerAllocations = GetWeightmapLayerAllocations();
 
 				for (int32 LayerIdx = 0; LayerIdx < ComponentWeightmapLayerAllocations.Num(); LayerIdx++)
 				{
-					if (ComponentWeightmapLayerAllocations[LayerIdx].LayerInfo == LayerStruct.LayerInfoObj)
+					if (ComponentWeightmapLayerAllocations[LayerIdx].LayerInfo == LayerSettings.LayerInfoObj)
 					{
-						if (LayerStruct.DebugColorChannel & 1) // R
+						if (LayerSettings.DebugColorChannel & 1) // R
 						{
 							R = (ComponentWeightmapLayerAllocations[LayerIdx].WeightmapTextureIndex * 4 + ComponentWeightmapLayerAllocations[LayerIdx].WeightmapTextureChannel);
 						}
-						if (LayerStruct.DebugColorChannel & 2) // G
+						if (LayerSettings.DebugColorChannel & 2) // G
 						{
 							G = (ComponentWeightmapLayerAllocations[LayerIdx].WeightmapTextureIndex * 4 + ComponentWeightmapLayerAllocations[LayerIdx].WeightmapTextureChannel);
 						}
-						if (LayerStruct.DebugColorChannel & 4) // B
+						if (LayerSettings.DebugColorChannel & 4) // B
 						{
 							B = (ComponentWeightmapLayerAllocations[LayerIdx].WeightmapTextureIndex * 4 + ComponentWeightmapLayerAllocations[LayerIdx].WeightmapTextureChannel);
 						}
@@ -2651,20 +2651,6 @@ FArchive& operator<<(FArchive& Ar, FLandscapeAddCollision& U)
 	return Ar << U.Corners[0] << U.Corners[1] << U.Corners[2] << U.Corners[3];
 }
 #endif // WITH_EDITORONLY_DATA
-
-FArchive& operator<<(FArchive& Ar, FLandscapeLayerStruct*& L)
-{
-	if (L)
-	{
-		Ar << L->LayerInfoObj;
-#if WITH_EDITORONLY_DATA
-		return Ar << L->ThumbnailMIC;
-#else
-		return Ar;
-#endif // WITH_EDITORONLY_DATA
-	}
-	return Ar;
-}
 
 void ULandscapeInfo::Serialize(FArchive& Ar)
 {

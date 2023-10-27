@@ -103,44 +103,6 @@ struct FLandscapeEditorLayerSettings
 #endif // WITH_EDITORONLY_DATA
 };
 
-USTRUCT()
-struct FLandscapeLayerStruct
-{
-	GENERATED_USTRUCT_BODY()
-
-	UPROPERTY()
-	TObjectPtr<ULandscapeLayerInfoObject> LayerInfoObj;
-
-#if WITH_EDITORONLY_DATA
-	UPROPERTY(transient)
-	TObjectPtr<ULandscapeMaterialInstanceConstant> ThumbnailMIC;
-
-	UPROPERTY()
-	TObjectPtr<ALandscapeProxy> Owner;
-
-	UPROPERTY(transient)
-	int32 DebugColorChannel;
-
-	UPROPERTY(transient)
-	uint32 bSelected:1;
-
-	UPROPERTY()
-	FString SourceFilePath;
-#endif // WITH_EDITORONLY_DATA
-
-	FLandscapeLayerStruct()
-		: LayerInfoObj(nullptr)
-#if WITH_EDITORONLY_DATA
-		, ThumbnailMIC(nullptr)
-		, Owner(nullptr)
-		, DebugColorChannel(0)
-		, bSelected(false)
-		, SourceFilePath()
-#endif // WITH_EDITORONLY_DATA
-	{
-	}
-};
-
 UENUM()
 enum class ELandscapeImportAlphamapType : uint8
 {
