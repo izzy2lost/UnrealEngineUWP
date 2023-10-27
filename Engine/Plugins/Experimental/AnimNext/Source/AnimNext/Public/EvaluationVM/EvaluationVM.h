@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 
-#include "BoneContainer.h"
+#include "Animation/AnimCurveFilter.h"
 #include "EvaluationVM/EvaluationFlags.h"
 #include "EvaluationVM/KeyframeState.h"
 #include "ReferencePose.h"
@@ -185,9 +185,6 @@ namespace UE::AnimNext
 		// Returns an uninitialized keyframe with memory pre-allocated
 		[[nodiscard]] FKeyframeState MakeUninitializedKeyframe(bool bAdditiveKeyframe) const;
 
-		// Returns the bone container we are evaluating with
-		[[nodiscard]] const FBoneContainer& GetBoneContainer() const;
-
 	private:
 		// Disallow copy
 		FEvaluationVM(const FEvaluationVM&) = delete;
@@ -205,9 +202,6 @@ namespace UE::AnimNext
 		// Various internal stacks that tasks can use (e.g. keyframe state)
 		TMap<FName, FEvaluationVMStack> InternalStacks;
 
-		// The bone container we are evaluating with
-		FBoneContainer BoneContainer;
-
 		// Reference pose
 		const UE::AnimNext::FReferencePose* ReferencePose = nullptr;
 
@@ -216,6 +210,9 @@ namespace UE::AnimNext
 
 		// Flags that control what we wish to evaluate
 		EEvaluationFlags EvaluationFlags = EEvaluationFlags::All;
+
+		// Default curve filter
+		UE::Anim::FCurveFilter CurveFilter;
 
 		// TODO: Use a stack based allocator for the stack entries and mark freed entries on Pop and coalesce when we can
 		// Can allocate stack segments from memstack, limit allocation size to 1024 bytes, allocate segments of 8192 bytes

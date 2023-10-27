@@ -56,12 +56,43 @@ void FAnimNextAnimSequenceKeyframeTask::Execute(UE::AnimNext::FEvaluationVM& VM)
 
 		if (EnumHasAnyFlags(VM.GetFlags(), EEvaluationFlags::Attributes))
 		{
-			FCompactPose Pose;		// Dummy but we need the bone container
-			Pose.SetBoneContainer(&VM.GetBoneContainer());
+			// TODO: A few notes here:
+			// The attributes store a compact/lod bone index, this needs fixup if we feed the output into an AnimBP or whoever reads this later
+			// To be able to sample attributes, we need to sample bones as well, otherwise we'll have no refpose object
+			// We could assign the ref pose even if we don't sample bones, that would allow us to be more selective
 
-			FAnimationPoseData PoseData(Pose, Keyframe.Curves, Keyframe.Attributes);
+			QUICK_SCOPE_CYCLE_COUNTER(STAT_EvaluateAttributes);
 
-			AnimSequencePtr->EvaluateAttributes(PoseData, ExtractionContext, bUseRawData);
+#if WITH_EDITOR
+			if (bUseRawData)
+			{
+				AnimSequencePtr->ValidateModel();
+
+				for (const FAnimatedBoneAttribute& Attribute : AnimSequencePtr->GetDataModel()->GetAttributes())
+				{
+					const int32 LODBoneIndex = Keyframe.Pose.GetRefPose().GetLODBoneIndexFromSkeletonBoneIndex(Attribute.Identifier.GetBoneIndex());
+					// Only add attribute if the bone its tied to exists in the currently evaluated set of bones
+					if (LODBoneIndex != INDEX_NONE)
+					{
+						UE::Anim::Attributes::GetAttributeValue(Keyframe.Attributes, FCompactPoseBoneIndex(LODBoneIndex), Attribute, ExtractionContext.CurrentTime);
+					}
+				}
+			}
+			else
+#endif // WITH_EDITOR
+			{
+				for (const TPair<FAnimationAttributeIdentifier, FAttributeCurve>& BakedAttribute : AnimSequencePtr->AttributeCurves)
+				{
+					const int32 LODBoneIndex = Keyframe.Pose.GetRefPose().GetLODBoneIndexFromSkeletonBoneIndex(BakedAttribute.Key.GetBoneIndex());
+					// Only add attribute if the bone its tied to exists in the currently evaluated set of bones
+					if (LODBoneIndex != INDEX_NONE)
+					{
+						UE::Anim::FAttributeId Info(BakedAttribute.Key.GetName(), FCompactPoseBoneIndex(LODBoneIndex));
+						uint8* AttributePtr = Keyframe.Attributes.FindOrAdd(BakedAttribute.Key.GetType(), Info);
+						BakedAttribute.Value.EvaluateToPtr(BakedAttribute.Key.GetType(), ExtractionContext.CurrentTime, AttributePtr);
+					}
+				}
+			}
 		}
 
 		VM.PushValue(KEYFRAME_STACK_NAME, MakeUnique<FKeyframeState>(MoveTemp(Keyframe)));

@@ -195,7 +195,7 @@ struct TLODPose : public FLODPose
 		RefPose = &InRefPose;
 
 		const int32 NumTransforms = InRefPose.GetNumBonesForLOD(InLODLevel);
-		LocalTransforms.SetNum(NumTransforms);
+		LocalTransforms.SetNumUninitialized(NumTransforms);
 		LocalTransformsView = LocalTransforms.GetView();
 
 		Flags = (ELODPoseFlags)(bAdditive ? (Flags | ELODPoseFlags::Additive) : Flags & ELODPoseFlags::Additive);

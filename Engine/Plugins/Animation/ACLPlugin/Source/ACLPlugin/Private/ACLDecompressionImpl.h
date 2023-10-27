@@ -3,6 +3,7 @@
 
 // Copyright 2018 Nicholas Frechette. All Rights Reserved.
 
+#include "Animation/AnimBoneDecompressionData.h"
 #include "Animation/AnimSequenceDecompressionContext.h"
 #include "Animation/AnimTypes.h"
 #include "AnimEncoding.h"
@@ -153,6 +154,111 @@ struct FUE4OutputWriter final : public acl::track_writer
 
 		FACLTransform& BoneAtom = Atoms[AtomIndex];
 		BoneAtom.SetScale3DRaw(Scale);
+	}
+};
+
+/*
+ * Output pose writer that can selectively skip certain tracks.
+ */
+template<bool bUseBindPose>
+struct FUEOutputWriterSoA final : public acl::track_writer
+{
+	// Raw pointer for performance reasons, caller is responsible for ensuring data is valid
+
+	// The bind pose
+	const FTransform* RefPoses;
+
+	// Maps track indices to bone indices
+	const FTrackToSkeletonMap* TrackToBoneMapping;
+
+	// The track to output transform index map
+	const FAtomIndices* TrackToAtomsMap;
+
+	// The output transforms we write
+	FQuat* Rotations;
+	FVector* Translations;
+	FVector* Scales3D;
+
+	FUEOutputWriterSoA(
+		const FAtomIndices* InTrackToAtomsMap,
+		TArrayView<FQuat>& InRotations,
+		TArrayView<FVector>& InTranslations,
+		TArrayView<FVector>& InScales3D)
+		: RefPoses(nullptr)
+		, TrackToBoneMapping(nullptr)
+		, TrackToAtomsMap(InTrackToAtomsMap)
+		, Rotations(InRotations.GetData())
+		, Translations(InTranslations.GetData())
+		, Scales3D(InScales3D.GetData())
+	{}
+
+	FUEOutputWriterSoA(
+		const TArrayView<const FTransform>& InRefPoses,
+		const TArrayView<const FTrackToSkeletonMap>& TrackToSkeletonMap,
+		const FAtomIndices* InTrackToAtomsMap,
+		TArrayView<FQuat>& InRotations,
+		TArrayView<FVector>& InTranslations,
+		TArrayView<FVector>& InScales3D)
+		: RefPoses(InRefPoses.GetData())
+		, TrackToBoneMapping(TrackToSkeletonMap.GetData())
+		, TrackToAtomsMap(InTrackToAtomsMap)
+		, Rotations(InRotations.GetData())
+		, Translations(InTranslations.GetData())
+		, Scales3D(InScales3D.GetData())
+	{}
+
+	//////////////////////////////////////////////////////////////////////////
+	// Override the OutputWriter behavior
+	// If we use the bind pose, each default sub-track will grab the bind pose value
+	// Otherwise we output the constant default values
+	FORCEINLINE_DEBUGGABLE bool skip_track_rotation(uint32_t BoneIndex) const { return TrackToAtomsMap[BoneIndex].Rotation == 0xFFFF; }
+	FORCEINLINE_DEBUGGABLE bool skip_track_translation(uint32_t BoneIndex) const { return TrackToAtomsMap[BoneIndex].Translation == 0xFFFF; }
+	FORCEINLINE_DEBUGGABLE bool skip_track_scale(uint32_t BoneIndex) const { return TrackToAtomsMap[BoneIndex].Scale == 0xFFFF; }
+
+	static constexpr acl::default_sub_track_mode get_default_rotation_mode() { return bUseBindPose ? acl::default_sub_track_mode::variable : acl::default_sub_track_mode::constant; }
+	static constexpr acl::default_sub_track_mode get_default_translation_mode() { return bUseBindPose ? acl::default_sub_track_mode::variable : acl::default_sub_track_mode::constant; }
+	// Always legacy for scale since there is no scale present in the bind pose
+	static constexpr acl::default_sub_track_mode get_default_scale_mode() { return acl::default_sub_track_mode::legacy; }
+
+	// TODO: There is a performance impact here because the ref pose might use doubles on PC
+	FORCEINLINE_DEBUGGABLE rtm::quatf RTM_SIMD_CALL get_variable_default_rotation(uint32_t TrackIndex) const
+	{
+		return UEQuatToACL(RefPoses[TrackToBoneMapping[TrackIndex].BoneTreeIndex].GetRotation());
+	}
+
+	FORCEINLINE_DEBUGGABLE rtm::vector4f RTM_SIMD_CALL get_variable_default_translation(uint32_t TrackIndex) const
+	{
+		return UEVector3ToACL(RefPoses[TrackToBoneMapping[TrackIndex].BoneTreeIndex].GetTranslation());
+	}
+
+	//////////////////////////////////////////////////////////////////////////
+	// Called by the decoder to write out a quaternion rotation value for a specified bone index
+	FORCEINLINE_DEBUGGABLE void RTM_SIMD_CALL write_rotation(uint32_t BoneIndex, rtm::quatf_arg0 Rotation)
+	{
+		const uint32 AtomIndex = TrackToAtomsMap[BoneIndex].Rotation;
+
+		FQuat& OutRotation = Rotations[AtomIndex];
+		OutRotation = (FQuat)ACLQuatToUE(Rotation);
+	}
+
+	//////////////////////////////////////////////////////////////////////////
+	// Called by the decoder to write out a translation value for a specified bone index
+	FORCEINLINE_DEBUGGABLE void RTM_SIMD_CALL write_translation(uint32_t BoneIndex, rtm::vector4f_arg0 Translation)
+	{
+		const uint32 AtomIndex = TrackToAtomsMap[BoneIndex].Translation;
+
+		FVector& OutTranslation = Translations[AtomIndex];
+		OutTranslation = (FVector)ACLVector3ToUE(Translation);
+	}
+
+	//////////////////////////////////////////////////////////////////////////
+	// Called by the decoder to write out a scale value for a specified bone index
+	FORCEINLINE_DEBUGGABLE void RTM_SIMD_CALL write_scale(uint32_t BoneIndex, rtm::vector4f_arg0 Scale)
+	{
+		const uint32 AtomIndex = TrackToAtomsMap[BoneIndex].Scale;
+
+		FVector& OutScale = Scales3D[AtomIndex];
+		OutScale = (FVector)ACLVector3ToUE(Scale);
 	}
 };
 
@@ -370,6 +476,79 @@ FORCEINLINE_DEBUGGABLE void DecompressPose(FAnimSequenceDecompressionContext& De
 		constexpr bool bUseBindPose = false;
 
 		FUE4OutputWriter<bUseBindPose> PoseWriter(TrackToAtomsMap, OutAtoms);
+		ACLContext.decompress_tracks(PoseWriter);
+	}
+}
+
+template<class ACLContextType>
+FORCEINLINE_DEBUGGABLE void DecompressPose(
+	const FAnimSequenceDecompressionContext& DecompContext,
+	ACLContextType& ACLContext,
+	const UE::Anim::FAnimPoseDecompressionData& DecompressionData)
+{
+	const float Time = DecompContext.GetEvaluationTime();
+
+	// Seek first, we'll start prefetching ahead right away
+	ACLContext.seek(Time, get_rounding_policy(DecompContext.Interpolation));
+
+	const acl::compressed_tracks* CompressedClipData = ACLContext.get_compressed_tracks();
+	const int32 TrackCount = CompressedClipData->get_num_tracks();
+
+	// TODO: Allocate this with padding and use SIMD to set everything to 0xFF
+	FAtomIndices* TrackToAtomsMap = new(FMemStack::Get()) FAtomIndices[TrackCount];
+	FMemory::Memset(TrackToAtomsMap, 0xFF, sizeof(FAtomIndices) * TrackCount);
+
+	// TODO: We should only need 1x uint16 atom index for each track/bone index
+	// and we need 3 bits to tell whether we care about the rot/trans/scale
+	// The rot and scale pairs are often the same array, skip the scale iteration and set both flags while
+	// iterating on the rotation pairs. This will reduce the mapping size by 2 bytes if we use 4 bytes.
+	// All reads will be aligned, can we pack further with 1x uint16 and 1x uint8 and do unaligned loads?
+	// Need to double check what the ASM looks like on x64 and ARM first to make sure it's good
+	// Maybe having two arrays side by side is better with uint16/uint8? Or having 1 bitset array?
+	// Ultimately, when we load these indices, they will be in the L1 since we write them here just before
+	// we use them during decompression. Optimizing for quick loading/unpacking it best.
+
+	for (const BoneTrackPair& Pair : DecompressionData.GetRotationPairs())
+	{
+		TrackToAtomsMap[Pair.TrackIndex].Rotation = (uint16)Pair.AtomIndex;
+	}
+
+	for (const BoneTrackPair& Pair : DecompressionData.GetTranslationPairs())
+	{
+		TrackToAtomsMap[Pair.TrackIndex].Translation = (uint16)Pair.AtomIndex;
+	}
+
+	const acl::acl_impl::tracks_header& TracksHeader = acl::acl_impl::get_tracks_header(*CompressedClipData);
+	if (TracksHeader.get_has_scale())
+	{
+		for (const BoneTrackPair& Pair : DecompressionData.GetScalePairs())
+		{
+			TrackToAtomsMap[Pair.TrackIndex].Scale = (uint16)Pair.AtomIndex;
+		}
+	}
+
+	// We will decompress the whole pose even if we only care about a smaller subset of bone tracks.
+	// This ensures we read the compressed pose data once, linearly.
+
+	// See [Bind pose stripping] for details
+	// Are we non-additive?
+	if (CompressedClipData->get_default_scale() != 0)
+	{
+		// Non-additive anim sequences must write out the bind pose for default sub-tracks since they
+		// have been stripped from the data. Additive anim sequences always have the additive identity
+		// stripped, no need for the bind pose.
+		constexpr bool bUseBindPose = true;
+
+		FUEOutputWriterSoA<bUseBindPose> PoseWriter(DecompContext.GetRefLocalPoses(), DecompContext.GetTrackToSkeletonMap(), TrackToAtomsMap, DecompressionData.GetOutAtomRotations(), DecompressionData.GetOutAtomTranslations(), DecompressionData.GetOutAtomScales3D());
+		ACLContext.decompress_tracks(PoseWriter);
+	}
+	else
+	{
+		// Additive anim sequences have the identity stripped out, we'll output it.
+		// We also output the regular identity if bind pose stripping isn't enabled.
+		constexpr bool bUseBindPose = false;
+
+		FUEOutputWriterSoA<bUseBindPose> PoseWriter(TrackToAtomsMap, DecompressionData.GetOutAtomRotations(), DecompressionData.GetOutAtomTranslations(), DecompressionData.GetOutAtomScales3D());
 		ACLContext.decompress_tracks(PoseWriter);
 	}
 }

@@ -39,10 +39,35 @@ namespace UE::AnimNext
 		PostUpdate,
 	};
 
+	// This structure is transient and lives either on the stack or the memstack and its destructor may not be called
 	struct FUpdateEntry
 	{
+		// The decorator handle that points to our node to update
 		FWeakDecoratorPtr	DecoratorPtr;
+
+		// Which step we wish to perform when we next see this entry
 		EUpdateStep			DesiredStep = EUpdateStep::PreUpdate;
+
+		// Once we've called PreUpdate, we cache the decorator binding to avoid a redundant query to call PostUpdate
+		TDecoratorBinding<IUpdate> UpdateDecorator;
+
+		// These pointers are mutually exclusive
+		// An entry is either part of the pending stack, the free list, or neither
+		union
+		{
+			// Next entry in the linked list of free entries
+			FUpdateEntry* NextFreeEntry = nullptr;
+
+			// Previous entry below us in the nodes pending stack
+			FUpdateEntry* PrevStackEntry;
+		};
+
+		FUpdateEntry(const FWeakDecoratorPtr& InDecoratorPtr, EUpdateStep InDesiredStep, FUpdateEntry* InPrevStackEntry = nullptr)
+			: DecoratorPtr(InDecoratorPtr)
+			, DesiredStep(InDesiredStep)
+			, PrevStackEntry(InPrevStackEntry)
+		{
+		}
 	};
 
 	void UpdateGraph(FExecutionContext& Context, FUpdateTraversalContext& TraversalContext, FWeakDecoratorPtr GraphRootPtr)
@@ -54,31 +79,47 @@ namespace UE::AnimNext
 			return;	// Nothing to update
 		}
 
-		FMemMark Mark(FMemStack::Get());
-
-		TArray<FUpdateEntry, TMemStackAllocator<>> NodesPendingUpdate;
-		NodesPendingUpdate.Reserve(64);
+		FMemStack& MemStack = FMemStack::Get();
+		FMemMark Mark(MemStack);
 
 		FChildrenArray Children;
-		Children.Reserve(64);
+		Children.Reserve(16);
 
 		FScopedTraversalContext ScopedTraversalContext(Context, TraversalContext);
 
 		// Add the graph root to kick start the update process
-		NodesPendingUpdate.Push({ GraphRootPtr, EUpdateStep::PreUpdate });
+		FUpdateEntry GraphRootEntry(GraphRootPtr, EUpdateStep::PreUpdate);
+		FUpdateEntry* NodesPendingUpdateStackTop = &GraphRootEntry;
+
+		// List of free entries we can recycle
+		FUpdateEntry* FreeEntryList = nullptr;
+
+		TDecoratorBinding<IHierarchy> HierarchyDecorator;
 
 		// Process every node twice: pre-update and post-update
-		while (!NodesPendingUpdate.IsEmpty())
+		while (NodesPendingUpdateStackTop != nullptr)
 		{
 			// Grab the top most entry
-			const bool bAllowShrinking = false;	// Don't allow shrinking to avoid churn
-			const FUpdateEntry Entry = NodesPendingUpdate.Pop(bAllowShrinking);
+			FUpdateEntry* Entry = NodesPendingUpdateStackTop;
+			bool bIsEntryUsed = true;
 
-			if (Entry.DesiredStep == EUpdateStep::PreUpdate)
+			if (Entry->DesiredStep == EUpdateStep::PreUpdate)
 			{
-				// This is the first time we visit this node, time to pre-update
-				// Queue our node again so that post-update is called afterwards
-				NodesPendingUpdate.Push({ Entry.DecoratorPtr, EUpdateStep::PostUpdate });
+				if (Context.GetInterface(Entry->DecoratorPtr, Entry->UpdateDecorator))
+				{
+					// This is the first time we visit this node, time to pre-update
+					Entry->UpdateDecorator.PreUpdate(Context);
+
+					// Leave our entry on top of the stack, we'll need to call PostUpdate once the children
+					// we'll push on top finish
+					Entry->DesiredStep = EUpdateStep::PostUpdate;
+				}
+				else
+				{
+					// This node doesn't implement IUpdate, we can pop it from the stack
+					NodesPendingUpdateStackTop = Entry->PrevStackEntry;
+					bIsEntryUsed = false;
+				}
 
 				// Performance note
 				// When we process an animation graph for a frame, typically we'll update first before we evaluate
@@ -120,21 +161,33 @@ namespace UE::AnimNext
 				// perform as much useful work as possible while waiting for memory, hiding its slow latency by fully
 				// leveraging out-of-order CPU execution.
 
-				TDecoratorBinding<IUpdate> UpdateDecorator;
-				if (Context.GetInterface(Entry.DecoratorPtr, UpdateDecorator))
-				{
-					UpdateDecorator.PreUpdate(Context);
-				}
-
-				TDecoratorBinding<IHierarchy> HierarchyDecorator;
-				if (Context.GetInterface(Entry.DecoratorPtr, HierarchyDecorator))
+				if (Context.GetInterface(Entry->DecoratorPtr, HierarchyDecorator))
 				{
 					HierarchyDecorator.GetChildren(Context, Children);
 
 					// Append our children in reserve order so that they are visited in the same order they were added
 					for (int32 ChildIndex = Children.Num() - 1; ChildIndex >= 0; --ChildIndex)
 					{
-						NodesPendingUpdate.Push({ Children[ChildIndex], EUpdateStep::PreUpdate });
+						// Insert our new child on top of the stack
+
+						FUpdateEntry* ChildEntry;
+						if (FreeEntryList != nullptr)
+						{
+							// Grab an entry from the free list
+							ChildEntry = FreeEntryList;
+							FreeEntryList = ChildEntry->NextFreeEntry;
+
+							ChildEntry->DecoratorPtr = Children[ChildIndex];
+							ChildEntry->DesiredStep = EUpdateStep::PreUpdate;
+							ChildEntry->PrevStackEntry = NodesPendingUpdateStackTop;
+						}
+						else
+						{
+							// Allocate a new entry
+							ChildEntry = new(MemStack) FUpdateEntry(Children[ChildIndex], EUpdateStep::PreUpdate, NodesPendingUpdateStackTop);
+						}
+
+						NodesPendingUpdateStackTop = ChildEntry;
 					}
 
 					// Reset our container for the next time we need it
@@ -147,14 +200,22 @@ namespace UE::AnimNext
 			else
 			{
 				// We've already visited this node once, time to post-update
-				TDecoratorBinding<IUpdate> UpdateDecorator;
-				if (Context.GetInterface(Entry.DecoratorPtr, UpdateDecorator))
-				{
-					UpdateDecorator.PostUpdate(Context);
-				}
+				check(Entry->UpdateDecorator.IsValid());
+				Entry->UpdateDecorator.PostUpdate(Context);
+
+				// Now that we are done processing this entry, we can pop it
+				NodesPendingUpdateStackTop = Entry->PrevStackEntry;
+				bIsEntryUsed = false;
 
 				// Break and continue to the next top-most entry
 				// It is either a sibling read for its post-update or our parent entry ready for its post-update
+			}
+
+			if (!bIsEntryUsed)
+			{
+				// This entry is no longer used, add it to the free list
+				Entry->NextFreeEntry = FreeEntryList;
+				FreeEntryList = Entry;
 			}
 		}
 	}

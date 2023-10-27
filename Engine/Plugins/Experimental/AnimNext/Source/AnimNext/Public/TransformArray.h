@@ -41,8 +41,12 @@ struct TTransformArrayAoS
 
 	void SetNum(int32 NumTransforms, bool bAllowShrinking = true)
 	{
-		constexpr int32 TransformSize = sizeof(FVector) + sizeof(FQuat) + sizeof(FVector);
 		Transforms.SetNum(NumTransforms, bAllowShrinking);
+	}
+
+	void SetNumUninitialized(int32 NumTransforms, bool bAllowShrinking = true)
+	{
+		Transforms.SetNumUninitialized(NumTransforms, bAllowShrinking);
 	}
 
 	inline void SetIdentity(bool bAdditiveIdentity = false)
@@ -314,6 +318,14 @@ struct TTransformArraySoA
 	{
 		constexpr int32 TransformSize = sizeof(FVector) + sizeof(FQuat) + sizeof(FVector);
 		AllocatedMemory.SetNum(NumTransforms * TransformSize, bAllowShrinking);
+
+		UpdateViews(AllocatedMemory.GetData(), NumTransforms);
+	}
+
+	void SetNumUninitialized(int32 NumTransforms, bool bAllowShrinking = true)
+	{
+		constexpr int32 TransformSize = sizeof(FVector) + sizeof(FQuat) + sizeof(FVector);
+		AllocatedMemory.SetNumUninitialized(NumTransforms * TransformSize, bAllowShrinking);
 
 		UpdateViews(AllocatedMemory.GetData(), NumTransforms);
 	}

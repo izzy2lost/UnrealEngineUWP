@@ -33,10 +33,12 @@ namespace UE::AnimNext
 		, CurrentLOD(InCurrentLOD)
 		, EvaluationFlags(InEvaluationFlags)
 	{
-		const UE::Anim::FCurveFilterSettings CurveFilterSettings(UE::Anim::ECurveFilterMode::DisallowAll);
-		if(USkeleton* Skeleton = const_cast<USkeleton*>(InReferencePose.Skeleton.Get())) // const_cast because the bone container takes a mutable reference
+		CurveFilter.SetFilterMode(UE::Anim::ECurveFilterMode::DisallowAll);
+
+		//const UE::Anim::FCurveFilterSettings CurveFilterSettings(UE::Anim::ECurveFilterMode::DisallowAll);
+		//if(USkeleton* Skeleton = const_cast<USkeleton*>(InReferencePose.Skeleton.Get())) // const_cast because the bone container takes a mutable reference
 		{
-			BoneContainer.InitializeTo(InReferencePose.GetLODBoneIndexToMeshBoneIndexMap(InCurrentLOD), CurveFilterSettings, *Skeleton);
+			//BoneContainer.InitializeTo(InReferencePose.GetLODBoneIndexToMeshBoneIndexMap(InCurrentLOD), CurveFilterSettings, *Skeleton);
 
 			// TODO: In AnimInstanceProxy this is how we initialize the bone container, we need to get the component somehow or we
 			// gotta figure out how to support ref pose overrides
@@ -59,7 +61,7 @@ namespace UE::AnimNext
 
 	bool FEvaluationVM::IsValid() const
 	{
-		return ReferencePose != nullptr && BoneContainer.IsValid();
+		return ReferencePose != nullptr;
 	}
 
 	void FEvaluationVM::Shrink()
@@ -86,7 +88,7 @@ namespace UE::AnimNext
 
 		if (EnumHasAnyFlags(EvaluationFlags, EEvaluationFlags::Curves))
 		{
-			Keyframe.Curves.InitFrom(BoneContainer);
+			Keyframe.Curves.SetFilter(&CurveFilter);
 		}
 
 		return Keyframe;
@@ -105,15 +107,10 @@ namespace UE::AnimNext
 
 		if (EnumHasAnyFlags(EvaluationFlags, EEvaluationFlags::Curves))
 		{
-			Keyframe.Curves.InitFrom(BoneContainer);
+			Keyframe.Curves.SetFilter(&CurveFilter);
 		}
 
 		return Keyframe;
-	}
-
-	const FBoneContainer& FEvaluationVM::GetBoneContainer() const
-	{
-		return BoneContainer;
 	}
 
 	FEvaluationVMStack& FEvaluationVM::GetOrCreateStack(const FEvaluationVMStackName& StackName, uint32 TypeID)
