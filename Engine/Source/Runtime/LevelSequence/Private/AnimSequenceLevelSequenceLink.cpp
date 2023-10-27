@@ -23,3 +23,12 @@ UAnimSequenceLevelSequenceLink::UAnimSequenceLevelSequenceLink(class FObjectInit
 {
 
 }
+
+void UAnimSequenceLevelSequenceLink::PostLoad()
+{
+	Super::PostLoad();
+	if (PathToLevelSequence.TryLoad() == nullptr)
+	{
+		PathToLevelSequence.Reset();
+	}
+}

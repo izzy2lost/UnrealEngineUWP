@@ -23,3 +23,16 @@ ULevelSequenceAnimSequenceLink::ULevelSequenceAnimSequenceLink(class FObjectInit
 {
 
 }
+
+void ULevelSequenceAnimSequenceLink::PostLoad()
+{
+	Super::PostLoad();
+	for (int32 Index = AnimSequenceLinks.Num() - 1; Index >= 0; --Index)
+	{
+		if (AnimSequenceLinks[Index].PathToAnimSequence.TryLoad() == nullptr)
+		{
+			AnimSequenceLinks[Index].PathToAnimSequence.Reset();
+			AnimSequenceLinks.RemoveAt(Index);
+		}
+	}
+}
