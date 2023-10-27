@@ -67,6 +67,65 @@ namespace AutomationTest
 
 		return Result;
 	}
+
+	/*
+		Determine the level that a log item should be written to the automation log based on the properties of the current test.
+		only Display/Warning/Error are supported in the automation log so anything with NoLogging/Log will not be shown
+	*/
+	static ELogVerbosity::Type GetAutomationLogLevel(ELogVerbosity::Type LogVerbosity, FName LogCategory, FAutomationTestBase* CurrentTest)
+	{
+		ELogVerbosity::Type EffectiveVerbosity = LogVerbosity;
+
+		static FCriticalSection ActionCS;
+		static FAutomationTestBase* LastTest = nullptr;
+
+		if (AutomationTest::bCaptureLogEvents == false)
+		{
+			return ELogVerbosity::NoLogging;
+		}
+
+		{
+			FScopeLock Lock(&ActionCS);
+			if (CurrentTest != LastTest)
+			{
+				FAutomationTestBase::SuppressedLogCategories.Empty();
+				FAutomationTestBase::LoadDefaultLogSettings();
+				LastTest = CurrentTest;
+			}
+		}
+
+		if (CurrentTest)
+		{
+			if (CurrentTest->SuppressLogs() || CurrentTest->GetSuppressedLogCategories().Contains(LogCategory.ToString()))
+			{
+				EffectiveVerbosity = ELogVerbosity::NoLogging;
+			}
+			else
+			{
+				if (EffectiveVerbosity == ELogVerbosity::Warning)
+				{
+					if (CurrentTest->SuppressLogWarnings())
+					{
+						EffectiveVerbosity = ELogVerbosity::NoLogging;
+					}
+					else if (CurrentTest->ElevateLogWarningsToErrors())
+					{
+						EffectiveVerbosity = ELogVerbosity::Error;
+					}
+				}
+
+				if (EffectiveVerbosity == ELogVerbosity::Error)
+				{
+					if (CurrentTest->SuppressLogErrors())
+					{
+						EffectiveVerbosity = ELogVerbosity::NoLogging;
+					}
+				}
+			}
+		}
+
+		return EffectiveVerbosity;
+	}
 };
 
 bool FAutomationTestBase::bSuppressLogWarnings = false;
@@ -106,69 +165,10 @@ CORE_API const TMap<FString, EAutomationTestFlags::Type>& EAutomationTestFlags::
 	return FlagsMap;
 };
 
-/*
-	Determine the level that a log item should be written to the automation log based on the properties of the current test. 
-	only Display/Warning/Error are supported in the automation log so anything with NoLogging/Log will not be shown
-	(Should be moved under a namespace for 4.27).
-*/
-CORE_API ELogVerbosity::Type GetAutomationLogLevel(ELogVerbosity::Type LogVerbosity, FName LogCategory, FAutomationTestBase* CurrentTest)
-{
-	ELogVerbosity::Type EffectiveVerbosity = LogVerbosity;
-
-	// agrant-todo: these should be controlled by FAutomationTestBase for 4.27 with the same project-level override that
-	// FunctionalTest has. Now that warnings are correctly associated with tests they need to be something all tests
-	// can leverage, not just functional tests
-	static FAutomationTestBase* LastTest = nullptr;
-
-	if (AutomationTest::bCaptureLogEvents == false)
-	{
-		return ELogVerbosity::NoLogging;
-	}
-
-	if (CurrentTest != LastTest) 
-	{
-		FAutomationTestBase::SuppressedLogCategories.Empty();
-		FAutomationTestBase::LoadDefaultLogSettings();
-		LastTest = CurrentTest;
-	}
-
-	if (CurrentTest)
-	{
-		if (CurrentTest->SuppressLogs() || CurrentTest->GetSuppressedLogCategories().Contains(LogCategory.ToString()))
-		{
-			EffectiveVerbosity = ELogVerbosity::NoLogging;
-		}
-		else
-		{
-			if (EffectiveVerbosity == ELogVerbosity::Warning)
-			{
-				if (CurrentTest->SuppressLogWarnings())
-				{
-					EffectiveVerbosity = ELogVerbosity::NoLogging;
-				}
-				else if (CurrentTest->ElevateLogWarningsToErrors())
-				{
-					EffectiveVerbosity = ELogVerbosity::Error;
-				}
-			}
-
-			if (EffectiveVerbosity == ELogVerbosity::Error)
-			{
-				if (CurrentTest->SuppressLogErrors())
-				{
-					EffectiveVerbosity = ELogVerbosity::NoLogging;
-				}
-			}
-		}
-	}
-
-	return EffectiveVerbosity;
-}
-
 void FAutomationTestFramework::FAutomationTestOutputDevice::Serialize( const TCHAR* V, ELogVerbosity::Type Verbosity, const class FName& Category )
 {
 	const int32 STACK_OFFSET = 8;//FMsg::Logf_InternalImpl
-	// TODO would be nice to search for the first stack frame that isn't in outputdevice or other logging files, would be more robust.
+	// TODO would be nice to search for the first stack frame that isn't in output device or other logging files, would be more robust.
 
 	if (!IsRunningCommandlet() && (Verbosity == ELogVerbosity::SetColor))
 	{
@@ -185,20 +185,13 @@ void FAutomationTestFramework::FAutomationTestOutputDevice::Serialize( const TCH
 
 		if (CaptureLog)
 		{
-		
-			ELogVerbosity::Type EffectiveVerbosity = GetAutomationLogLevel(Verbosity, Category, LocalCurTest);
+			ELogVerbosity::Type EffectiveVerbosity = AutomationTest::GetAutomationLogLevel(Verbosity, Category, LocalCurTest);
 
-			FString FormattedMsg = FString::Printf(TEXT("%s: %s"), *Category.ToString(), V);
+			FString FormattedMsg = FString::Printf(TEXT("%s: %s [log]"), *Category.ToString(), V);
 			
 			// Errors
 			if (EffectiveVerbosity == ELogVerbosity::Error)
 			{
-				FScopeLock Lock(&ActionCS);
-				if (!LoggedFailureCause.Contains(LocalCurTest))
-				{
-					LocalCurTest->AddError(FString::Printf(TEXT("%s will be marked as failing due to errors being logged"), *LocalCurTest->GetTestFullName()), STACK_OFFSET);
-					LoggedFailureCause.Add(LocalCurTest);
-				}
 				LocalCurTest->AddError(FormattedMsg, STACK_OFFSET);
 			}
 			// Warnings

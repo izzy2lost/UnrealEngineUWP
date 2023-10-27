@@ -11,7 +11,7 @@
 
 
 #if WITH_DEV_AUTOMATION_TESTS
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FEnumerateAssetsPerformance, "Engine.AssetRegistry.AssetRegistryState.EnumerateAssetsPerformance",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FEnumerateAssetsPerformance, "System.AssetRegistry.AssetRegistryState.EnumerateAssetsPerformance",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::PerfFilter);
 
 bool FEnumerateAssetsPerformance::RunTest(const FString& Parameters)

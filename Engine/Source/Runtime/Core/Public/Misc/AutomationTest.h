@@ -1218,12 +1218,6 @@ private:
 	private:
 		/** Associated automation test; all warnings, errors, etc. are routed to the automation test to track */
 		std::atomic<FAutomationTestBase*>CurTest;
-
-		/** Critical section */
-		FCriticalSection ActionCS;
-
-		/** Tests that we've logged the failure cause when an error is involved */
-		TSet<FAutomationTestBase*> LoggedFailureCause;
 	};
 
 	 /** Special feedback context used during automated testing to filter messages that happen during tests */
