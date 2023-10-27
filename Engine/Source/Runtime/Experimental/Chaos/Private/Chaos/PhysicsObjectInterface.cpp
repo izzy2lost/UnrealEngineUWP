@@ -739,12 +739,10 @@ namespace Chaos
 				continue;
 			}
 
-			const FTransform WorldTransform = GetTransform(Object);
-
 			FBox ParticleBox(ForceInit);
 			if (const FImplicitObjectRef Geometry = Particle->GetGeometry(); Geometry && Geometry->HasBoundingBox())
 			{
-				const Chaos::FAABB3 WorldBox = Geometry->CalculateTransformedBounds(WorldTransform);
+				const Chaos::FAABB3 WorldBox = Geometry->CalculateTransformedBounds(TRigidTransform<FReal, 3>(Particle->X(), Particle->R()));
 				ParticleBox = FBox{ WorldBox.Min(), WorldBox.Max() };
 			}
 
