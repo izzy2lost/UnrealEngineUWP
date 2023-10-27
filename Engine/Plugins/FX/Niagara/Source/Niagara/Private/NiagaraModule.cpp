@@ -283,6 +283,7 @@ void INiagaraModule::StartupModule()
 
 	LLM_SCOPE(ELLMTag::Niagara);
 	FNiagaraTypeDefinition::Init();
+	FNiagaraTypeRegistry::ProcessRegistryQueue();
 	FNiagaraTypeHelper::RegisterLWCTypes();
 
 	if (IsRunningCookCommandlet())
