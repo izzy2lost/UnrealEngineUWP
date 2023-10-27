@@ -314,7 +314,9 @@ bool FAnalyticsProviderET::Tick(float DeltaSeconds)
 {
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_FAnalyticsProviderET_Tick);
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	HttpRetryManager->Update();
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	// hold a lock the entire time here because we're making several calls to the event cache that we need to be consistent when we decide to flush.
 	// With more care, we can likely avoid holding this lock the entire time.

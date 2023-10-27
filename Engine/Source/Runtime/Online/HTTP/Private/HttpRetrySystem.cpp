@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "HttpRetrySystem.h"
+#include "HAL/ConsoleManager.h"
 #include "HAL/PlatformTime.h"
 #include "HAL/PlatformProcess.h"
 #include "HAL/LowLevelMemTracker.h"
@@ -8,9 +9,16 @@
 #include "HttpModule.h"
 #include "Http.h"
 #include "HttpManager.h"
+#include "HttpThread.h"
 #include "Stats/Stats.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/CoreDelegates.h"
+
+TAutoConsoleVariable<bool> CVarHttpRetrySystemNonGameThreadSupportEnabled(
+	TEXT("Http.RetrySystemNonGameThreadSupportEnabled"),
+	false,
+	TEXT("Enable retry system non-game thread support")
+);
 
 LLM_DEFINE_TAG(HTTP);
 
@@ -71,7 +79,7 @@ FHttpRetrySystem::FRequest::FRequest(
 	const FHttpRetrySystem::FRetryDomainsPtr& InRetryDomains
 	)
     : FHttpRequestAdapterBase(HttpRequest)
-    , Status(FHttpRetrySystem::FRequest::EStatus::NotStarted)
+    , RetryStatus(FHttpRetrySystem::FRequest::EStatus::NotStarted)
     , RetryLimitCountOverride(InRetryLimitCountOverride)
     , RetryTimeoutRelativeSecondsOverride(InRetryTimeoutRelativeSecondsOverride)
 	, RetryResponseCodes(InRetryResponseCodes)
@@ -109,6 +117,8 @@ bool FHttpRetrySystem::FRequest::ProcessRequest()
 	}
 
 	HttpRequest->OnRequestProgress64().BindThreadSafeSP(RetryRequest, &FHttpRetrySystem::FRequest::HttpOnRequestProgress);
+	HttpRequest->OnProcessRequestComplete().BindThreadSafeSP(RetryRequest, &FHttpRetrySystem::FRequest::HttpOnProcessRequestComplete);
+	HttpRequest->OnHeaderReceived().BindThreadSafeSP(RetryRequest, &FHttpRetrySystem::FRequest::HttpOnHeaderReceived);
 
 	return RetryManager.ProcessRequest(RetryRequest);
 }
@@ -148,6 +158,76 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	OnRequestProgress().ExecuteIfBound(AsShared(), BytesSent, BytesRcv);
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	OnRequestProgress64().ExecuteIfBound(AsShared(), BytesSent, BytesRcv);
+}
+
+void FHttpRetrySystem::FRequest::HttpOnProcessRequestComplete(FHttpRequestPtr InHttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded)
+{
+	if (!CVarHttpRetrySystemNonGameThreadSupportEnabled.GetValueOnAnyThread())
+	{
+		return;
+	}
+
+	TSharedRef<FRequest> SelfPtr = StaticCastSharedRef<FRequest>(AsShared()); // In case no ref after removing from RetryManager
+
+	FScopeLock ScopeLock(&RetryManager.RequestListLock);
+
+	uint32 EntryIndex = RetryManager.RequestList.IndexOfByPredicate([this](const FManager::FHttpRetryRequestEntry& Entry) { return Entry.Request == AsShared(); });
+	check(EntryIndex != INDEX_NONE);
+	FManager::FHttpRetryRequestEntry* HttpRetryRequestEntry = &RetryManager.RequestList[EntryIndex];
+
+	if (RetryStatus == FHttpRetrySystem::FRequest::EStatus::Cancelled)
+	{
+		// Do nothing here
+	}
+	if (GetStatus() == EHttpRequestStatus::Failed_ConnectionError || GetStatus() == EHttpRequestStatus::Failed)
+	{
+		if (GetStatus() == EHttpRequestStatus::Failed_ConnectionError && RetryDomains.IsValid())
+		{
+			MoveToNextRetryDomain();
+		}
+
+		if (RetryManager.ShouldRetry(*HttpRetryRequestEntry) && RetryManager.CanRetry(*HttpRetryRequestEntry))
+		{
+			const double NowAbsoluteSeconds = FPlatformTime::Seconds();
+			float LockoutPeriod = RetryManager.GetLockoutPeriodSeconds(*HttpRetryRequestEntry);
+
+			RetryStatus = FHttpRetrySystem::FRequest::EStatus::ProcessingLockout;
+
+			{
+				QUICK_SCOPE_CYCLE_COUNTER(STAT_FHttpRetrySystem_FManager_Update_OnRequestWillRetry);
+				OnRequestWillRetry().ExecuteIfBound(HttpRetryRequestEntry->Request, GetResponse(), LockoutPeriod);
+			}
+
+			RetryManager.RetryHttpRequestWithDelay(HttpRetryRequestEntry->Request, LockoutPeriod);
+			return;
+		}
+
+		RetryStatus = FHttpRetrySystem::FRequest::EStatus::FailedRetry;
+	}
+	else
+	{
+		RetryStatus = FHttpRetrySystem::FRequest::EStatus::Succeeded;
+	}
+
+	if (HttpRetryRequestEntry->CurrentRetryCount > 0)
+	{
+		FHttpRetrySystem::FManager::FHttpLogVerbosityTracker::Get().DecrementRetriedRequests();
+	}
+
+	RetryManager.RequestList.RemoveAtSwap(EntryIndex);
+
+	OnProcessRequestComplete().ExecuteIfBound(SelfPtr, HttpResponse, bSucceeded);
+}
+
+void FHttpRetrySystem::FRequest::HttpOnHeaderReceived(FHttpRequestPtr Request, const FString& HeaderName, const FString& NewHeaderValue)
+{
+	if (!CVarHttpRetrySystemNonGameThreadSupportEnabled.GetValueOnAnyThread())
+	{
+		return;
+	}
+
+	TSharedRef<FRequest> SelfPtr = StaticCastSharedRef<FRequest>(AsShared());
+	OnHeaderReceived().ExecuteIfBound(SelfPtr, HeaderName, NewHeaderValue);
 }
 
 FHttpRetrySystem::FManager::FManager(const FRetryLimitCountSetting& InRetryLimitCountDefault, const FRetryTimeoutRelativeSecondsSetting& InRetryTimeoutRelativeSecondsDefault)
@@ -292,18 +372,28 @@ bool FHttpRetrySystem::FManager::HasTimedOut(const FHttpRetryRequestEntry& HttpR
 void FHttpRetrySystem::FManager::RetryHttpRequest(FHttpRetryRequestEntry& RequestEntry)
 {
 	// if this fails the HttpRequest's state will be failed which will cause the retry logic to kick(as expected)
-	const bool bProcessRequestSuccess = RequestEntry.Request->HttpRequest->ProcessRequest();
-	if (bProcessRequestSuccess)
+	if (RequestEntry.CurrentRetryCount == 0)
 	{
-		UE_LOG(LogHttp, Warning, TEXT("Retry %d on %s"), RequestEntry.CurrentRetryCount + 1, *(RequestEntry.Request->GetURL()));
-
-		if (RequestEntry.CurrentRetryCount == 0)
-		{
-			FHttpLogVerbosityTracker::Get().IncrementRetriedRequests();
-		}
-		++RequestEntry.CurrentRetryCount;
-		RequestEntry.Request->Status = FRequest::EStatus::Processing;
+		FHttpLogVerbosityTracker::Get().IncrementRetriedRequests();
 	}
+	++RequestEntry.CurrentRetryCount;
+	RequestEntry.Request->RetryStatus = FRequest::EStatus::Processing;
+	UE_LOG(LogHttp, Warning, TEXT("Retry %d on %s"), RequestEntry.CurrentRetryCount, *(RequestEntry.Request->GetURL()));
+	RequestEntry.Request->HttpRequest->ProcessRequest();
+}
+
+void FHttpRetrySystem::FManager::RetryHttpRequestWithDelay(const TSharedRef<FRequest>& Request, float InDelay)
+{
+	FHttpModule::Get().GetHttpManager().AddHttpThreadTask([this, Request]() {
+		FScopeLock ScopeLock(&RequestListLock);
+		// Check if it's still there in case it has been cancelled during the delay period
+		uint32 EntryIndex = RequestList.IndexOfByPredicate([Request](const FManager::FHttpRetryRequestEntry& Entry) { return Entry.Request == Request; });
+		if (EntryIndex != INDEX_NONE)
+		{
+			FManager::FHttpRetryRequestEntry* HttpRetryRequestEntry = &RequestList[EntryIndex];
+			RetryHttpRequest(*HttpRetryRequestEntry);
+		}
+	}, InDelay);
 }
 
 float FHttpRetrySystem::FManager::GetLockoutPeriodSeconds(const FHttpRetryRequestEntry& HttpRetryRequestEntry)
@@ -341,6 +431,11 @@ static FRandomStream TempRandomStream(4435261);
 
 bool FHttpRetrySystem::FManager::Update(uint32* FileCount, uint32* FailingCount, uint32* FailedCount, uint32* CompletedCount)
 {
+	if (CVarHttpRetrySystemNonGameThreadSupportEnabled.GetValueOnAnyThread())
+	{
+		return true;
+	}
+
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_FHttpRetrySystem_FManager_Update);
 	LLM_SCOPE_BYTAG(HTTP);
 
@@ -411,21 +506,21 @@ bool FHttpRetrySystem::FManager::Update(uint32* FileCount, uint32* FailingCount,
 		if (HttpRetryRequestEntry->bShouldCancel)
 		{
 			UE_LOG(LogHttp, Warning, TEXT("Request cancelled on %s"), *(HttpRetryRequest->GetURL()));
-			HttpRetryRequest->Status = FHttpRetrySystem::FRequest::EStatus::Cancelled;
+			HttpRetryRequest->RetryStatus = FHttpRetrySystem::FRequest::EStatus::Cancelled;
 		}
 		else
 		{
 			if (!HasTimedOut(*HttpRetryRequestEntry, NowAbsoluteSeconds))
 			{
-				if (HttpRetryRequest->Status == FHttpRetrySystem::FRequest::EStatus::NotStarted)
+				if (HttpRetryRequest->RetryStatus == FHttpRetrySystem::FRequest::EStatus::NotStarted)
 				{
 					if (RequestStatus != EHttpRequestStatus::NotStarted)
 					{
-						HttpRetryRequest->Status = FHttpRetrySystem::FRequest::EStatus::Processing;
+						HttpRetryRequest->RetryStatus = FHttpRetrySystem::FRequest::EStatus::Processing;
 					}
 				}
 
-				if (HttpRetryRequest->Status == FHttpRetrySystem::FRequest::EStatus::Processing)
+				if (HttpRetryRequest->RetryStatus == FHttpRetrySystem::FRequest::EStatus::Processing)
 				{
 					bool forceFail = false;
 
@@ -470,7 +565,7 @@ bool FHttpRetrySystem::FManager::Update(uint32* FileCount, uint32* FailingCount,
 							}
 
 							HttpRetryRequestEntry->LockoutEndTimeAbsoluteSeconds = NowAbsoluteSeconds + LockoutPeriod;
-							HttpRetryRequest->Status = FHttpRetrySystem::FRequest::EStatus::ProcessingLockout;
+							HttpRetryRequest->RetryStatus = FHttpRetrySystem::FRequest::EStatus::ProcessingLockout;
 							
 							QUICK_SCOPE_CYCLE_COUNTER(STAT_FHttpRetrySystem_FManager_Update_OnRequestWillRetry);
 							HttpRetryRequest->OnRequestWillRetry().ExecuteIfBound(HttpRetryRequest, HttpRetryRequest->GetResponse(), LockoutPeriod);
@@ -483,7 +578,7 @@ bool FHttpRetrySystem::FManager::Update(uint32* FileCount, uint32* FailingCount,
 							{
 								++(*FailedCount);
 							}
-							HttpRetryRequest->Status = FHttpRetrySystem::FRequest::EStatus::FailedRetry;
+							HttpRetryRequest->RetryStatus = FHttpRetrySystem::FRequest::EStatus::FailedRetry;
 						}
 					}
 					else if (RequestStatus == EHttpRequestStatus::Succeeded)
@@ -498,11 +593,11 @@ bool FHttpRetrySystem::FManager::Update(uint32* FileCount, uint32* FailingCount,
 							++(*CompletedCount);
 						}
 
-						HttpRetryRequest->Status = FHttpRetrySystem::FRequest::EStatus::Succeeded;
+						HttpRetryRequest->RetryStatus = FHttpRetrySystem::FRequest::EStatus::Succeeded;
 					}
 				}
 
-				if (HttpRetryRequest->Status == FHttpRetrySystem::FRequest::EStatus::ProcessingLockout)
+				if (HttpRetryRequest->RetryStatus == FHttpRetrySystem::FRequest::EStatus::ProcessingLockout)
 				{
 					if (NowAbsoluteSeconds >= HttpRetryRequestEntry->LockoutEndTimeAbsoluteSeconds)
 					{
@@ -520,7 +615,7 @@ bool FHttpRetrySystem::FManager::Update(uint32* FileCount, uint32* FailingCount,
 			{
 				UE_LOG(LogHttp, Warning, TEXT("Timeout on retry %d: %s"), HttpRetryRequestEntry->CurrentRetryCount + 1, *(HttpRetryRequest->GetURL()));
 				bIsGreen = false;
-				HttpRetryRequest->Status = FHttpRetrySystem::FRequest::EStatus::FailedTimeout;
+				HttpRetryRequest->RetryStatus = FHttpRetrySystem::FRequest::EStatus::FailedTimeout;
 				if (FailedCount != nullptr)
 				{
 					++(*FailedCount);
@@ -531,13 +626,13 @@ bool FHttpRetrySystem::FManager::Update(uint32* FileCount, uint32* FailingCount,
 		bool bWasCompleted = false;
 		bool bWasSuccessful = false;
 
-        if (HttpRetryRequest->Status == FHttpRetrySystem::FRequest::EStatus::Cancelled ||
-            HttpRetryRequest->Status == FHttpRetrySystem::FRequest::EStatus::FailedRetry ||
-            HttpRetryRequest->Status == FHttpRetrySystem::FRequest::EStatus::FailedTimeout ||
-            HttpRetryRequest->Status == FHttpRetrySystem::FRequest::EStatus::Succeeded)
+        if (HttpRetryRequest->RetryStatus == FHttpRetrySystem::FRequest::EStatus::Cancelled ||
+            HttpRetryRequest->RetryStatus == FHttpRetrySystem::FRequest::EStatus::FailedRetry ||
+            HttpRetryRequest->RetryStatus == FHttpRetrySystem::FRequest::EStatus::FailedTimeout ||
+            HttpRetryRequest->RetryStatus == FHttpRetrySystem::FRequest::EStatus::Succeeded)
 		{
 			bWasCompleted = true;
-            bWasSuccessful = HttpRetryRequest->Status == FHttpRetrySystem::FRequest::EStatus::Succeeded;
+            bWasSuccessful = HttpRetryRequest->RetryStatus == FHttpRetrySystem::FRequest::EStatus::Succeeded;
 		}
 
 		if (bWasCompleted)
@@ -589,15 +684,12 @@ bool FHttpRetrySystem::FManager::ProcessRequest(TSharedRef<FHttpRetrySystem::FRe
 {
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_FHttpRetrySystem_FManager_ProcessRequest);
 
-	bool bResult = HttpRetryRequest->HttpRequest->ProcessRequest();
+	FScopeLock ScopeLock(&RequestListLock);
+	RequestList.Add(FHttpRetryRequestEntry(HttpRetryRequest));
+	HttpRetryRequest->RetryStatus = FHttpRetrySystem::FRequest::EStatus::Processing;
+	HttpRetryRequest->HttpRequest->ProcessRequest();
 
-	if (bResult)
-	{
-		FScopeLock ScopeLock(&RequestListLock);
-		RequestList.Add(FHttpRetryRequestEntry(HttpRetryRequest));
-	}
-
-	return bResult;
+	return true;
 }
 
 void FHttpRetrySystem::FManager::CancelRequest(TSharedRef<FHttpRetrySystem::FRequest, ESPMode::ThreadSafe>& HttpRetryRequest)
@@ -626,7 +718,9 @@ void FHttpRetrySystem::FManager::CancelRequest(TSharedRef<FHttpRetrySystem::FReq
 		RetryRequestEntry.bShouldCancel = true;
 		RequestList.Add(RetryRequestEntry);
 	}
+
 	HttpRetryRequest->HttpRequest->CancelRequest();
+	HttpRetryRequest->RetryStatus = FHttpRetrySystem::FRequest::EStatus::Cancelled;
 }
 
 /* This should only be used when shutting down or suspending, to make sure 
@@ -637,13 +731,22 @@ void FHttpRetrySystem::FManager::BlockUntilFlushed(float InTimeoutSec)
 	float TimeElapsed = 0.0f;
 	uint32 FileCount, FailingCount, FailedCount, CompleteCount;
 
-	FScopeLock ScopeLock(&RequestListLock);
-
-	// TODO: Cache completed request adaptors and trigger the delegates in expected thread
-	while (RequestList.Num() > 0 && TimeElapsed < InTimeoutSec)
+	while (TimeElapsed < InTimeoutSec)
 	{
+		{
+			FScopeLock ScopeLock(&RequestListLock);
+			if (RequestList.IsEmpty())
+			{
+				break;
+			}
+		}
+
 		FHttpModule::Get().GetHttpManager().Tick(SleepInterval);
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		Update(&FileCount, &FailingCount, &FailedCount, &CompleteCount);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 		FPlatformProcess::Sleep(SleepInterval);
 		TimeElapsed += SleepInterval;
 	}
@@ -668,7 +771,8 @@ FHttpRetrySystem::FManager::FHttpLogVerbosityTracker::~FHttpLogVerbosityTracker(
 
 void FHttpRetrySystem::FManager::FHttpLogVerbosityTracker::IncrementRetriedRequests()
 {
-	check(IsInGameThread());
+	FScopeLock ScopeLock(&NumRetriedRequestsLock);
+
 	++NumRetriedRequests;
 	if (NumRetriedRequests == 1)
 	{
@@ -686,7 +790,8 @@ void FHttpRetrySystem::FManager::FHttpLogVerbosityTracker::IncrementRetriedReque
 
 void FHttpRetrySystem::FManager::FHttpLogVerbosityTracker::DecrementRetriedRequests()
 {
-	check(IsInGameThread());
+	FScopeLock ScopeLock(&NumRetriedRequestsLock);
+
 	--NumRetriedRequests;
 	check(NumRetriedRequests >= 0);
 	if (NumRetriedRequests == 0)

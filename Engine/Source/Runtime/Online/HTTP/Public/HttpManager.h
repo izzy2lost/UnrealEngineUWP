@@ -232,9 +232,10 @@ public:
 	/**
 	 * Add task to be ran on the http thread next tick
 	 *
-	 * @param Task The task to be ran next tick
+	 * @param Task The task to be ran
+	 * @param InDelay The delay to wait before running the task
 	 */
-	HTTP_API void AddHttpThreadTask(TFunction<void()>&& Task);
+	HTTP_API void AddHttpThreadTask(TFunction<void()>&& Task, float InDelay = 0.0f);
 
 	/**
 	 * Set url request filter through code, instead of setting it through config.
@@ -315,4 +316,9 @@ PACKAGE_SCOPE:
 	 * Called explicitly by non-threaded requests
 	 */
 	HTTP_API void BroadcastHttpRequestCompleted(const FHttpRequestRef& Request);
+
+	/**
+	 * Access http thread of http manager for internal usage
+	 */
+	HTTP_API FHttpThreadBase* GetThread();
 };
