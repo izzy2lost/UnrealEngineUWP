@@ -324,28 +324,68 @@ UE_IMPLEMENT_STRUCT("/Script/Engine", Vector2MaterialInput);
 UE_IMPLEMENT_STRUCT("/Script/Engine", MaterialAttributesInput);
 
 #if WITH_EDITOR
+
+struct FConnectionMask
+{
+	bool Mask;
+	bool MaskR;
+	bool MaskG;
+	bool MaskB;
+	bool MaskA;
+};
+
+/** Helper function that returns the intersection of components mask between specified input
+ * and its connected output. */
+static FConnectionMask GetConnectionMask(const FExpressionInput* Input)
+{
+	FConnectionMask CM = {
+		(bool)Input->Mask,
+		(bool)Input->MaskR,
+		(bool)Input->MaskG,
+		(bool)Input->MaskB,
+		(bool)Input->MaskA,
+	};
+
+	if (Input->Expression->GetOutputs().IsValidIndex(Input->OutputIndex))
+	{
+		FExpressionOutput& Output = Input->Expression->GetOutputs()[Input->OutputIndex];
+		CM.MaskR = (bool)Output.MaskR && (!CM.Mask || CM.MaskR);
+		CM.MaskG = (bool)Output.MaskG && (!CM.Mask || CM.MaskG);
+		CM.MaskB = (bool)Output.MaskB && (!CM.Mask || CM.MaskB);
+		CM.MaskA = (bool)Output.MaskA && (!CM.Mask || CM.MaskA);
+		CM.Mask |= (bool)Output.Mask;
+	}
+
+	return CM;
+}
+
 int32 FExpressionInput::Compile(class FMaterialCompiler* Compiler)
 {
-	if(Expression)
+	if (!Expression)
 	{
-		Expression->ValidateState();
-		
-		int32 ExpressionResult = Compiler->CallExpression(FMaterialExpressionKey(Expression, OutputIndex, Compiler->GetMaterialAttribute(), Compiler->IsCurrentlyCompilingForPreviousFrame()),Compiler);
-
-		if(Mask && ExpressionResult != INDEX_NONE)
-		{
-			return Compiler->ComponentMask(
-				ExpressionResult,
-				!!MaskR,!!MaskG,!!MaskB,!!MaskA
-				);
-		}
-		else
-		{
-			return ExpressionResult;
-		}
-	}
-	else
 		return INDEX_NONE;
+	}
+
+	Expression->ValidateState();
+	int32 ExpressionResult = Compiler->CallExpression(FMaterialExpressionKey(Expression, OutputIndex, Compiler->GetMaterialAttribute(), Compiler->IsCurrentlyCompilingForPreviousFrame()),Compiler);
+	
+	// Early out if compiling expression failed
+	if (ExpressionResult == INDEX_NONE)
+	{
+		return INDEX_NONE;
+	}
+
+	// Use the intersection of components mask between this input and connected output.
+	// We do this to make sure that an out-of-date expression input (that most likely caches the mask from its
+	// connected output) gets the correct mask if the output mask has changed (for instance because now it
+	// specifies a mask where it didn't before when the material was saved)
+	FConnectionMask CM = GetConnectionMask(this);
+	if (CM.Mask)
+	{
+		ExpressionResult = Compiler->ComponentMask(ExpressionResult, CM.MaskR, CM.MaskG, CM.MaskB, CM.MaskA);
+	}
+
+	return ExpressionResult;
 }
 
 const UE::HLSLTree::FExpression* FExpressionInput::TryAcquireHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 InputIndex) const
@@ -355,7 +395,11 @@ const UE::HLSLTree::FExpression* FExpressionInput::TryAcquireHLSLExpression(FMat
 	if (Expression)
 	{
 		Expression->ValidateState();
-		const FSwizzleParameters SwizzleParams = Mask ? MakeSwizzleMask(!!MaskR, !!MaskG, !!MaskB, !!MaskA) : FSwizzleParameters();
+
+		// Use the intersection of components mask between this input and connected output.
+		FConnectionMask CM = GetConnectionMask(this);
+		const FSwizzleParameters SwizzleParams = CM.Mask ? MakeSwizzleMask(CM.MaskR, CM.MaskG, CM.MaskB, CM.MaskA) : FSwizzleParameters();
+		
 		Result = Generator.AcquireExpression(Scope, InputIndex, Expression, OutputIndex, SwizzleParams);
 	}
 	return Result;
