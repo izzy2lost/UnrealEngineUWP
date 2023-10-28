@@ -803,8 +803,8 @@ void UCommonUIActionRouterBase::HandlePostGarbageCollect()
 
 const UCommonInputActionDomainTable* UCommonUIActionRouterBase::GetActionDomainTable() const
 {
-	UCommonInputSubsystem& CommonInputSubsystem = GetInputSubsystem();
-	return CommonInputSubsystem.GetActionDomainTable();
+	UCommonInputSubsystem* InputSubsytem = GetLocalPlayerChecked()->GetSubsystem<UCommonInputSubsystem>();
+	return InputSubsytem ? InputSubsytem->GetActionDomainTable() : nullptr;
 }
 
 bool UCommonUIActionRouterBase::ProcessInputOnActionDomains(ECommonInputMode ActiveInputMode, FKey Key, EInputEvent InputEvent) const
