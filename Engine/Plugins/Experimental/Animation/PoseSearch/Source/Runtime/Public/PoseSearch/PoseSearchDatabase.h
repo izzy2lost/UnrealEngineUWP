@@ -380,7 +380,7 @@ public:
 	// End UObject
 	
 	UE::PoseSearch::FSearchResult Search(UE::PoseSearch::FSearchContext& SearchContext) const;
-	FPoseSearchCost SearchContinuingPose(UE::PoseSearch::FSearchContext& SearchContext) const;
+	UE::PoseSearch::FSearchResult SearchContinuingPose(UE::PoseSearch::FSearchContext& SearchContext) const;
 
 #if WITH_EDITOR
 	int32 GetNumberOfPrincipalComponents() const;

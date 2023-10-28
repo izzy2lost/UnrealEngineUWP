@@ -315,7 +315,7 @@ void UPoseSearchLibrary::UpdateMotionMatchingState(
 		FSearchResult SearchResult;
 		if (!SearchContext.IsForceInterrupt() && bCanAdvance)
 		{
-			SearchResult.PoseCost = SearchContext.GetCurrentResult().Database->SearchContinuingPose(SearchContext);
+			SearchResult = SearchContext.GetCurrentResult().Database->SearchContinuingPose(SearchContext);
 			SearchContext.UpdateCurrentBestCost(SearchResult.PoseCost);
 		}
 
@@ -340,6 +340,32 @@ void UPoseSearchLibrary::UpdateMotionMatchingState(
 			SearchResult.BruteForcePoseCost = SearchResult.PoseCost;
 		}
 #endif // UE_POSE_SEARCH_TRACE_ENABLED
+
+#if !NO_LOGGING
+		if (!SearchResult.IsValid())
+		{
+			TStringBuilder<1024> StringBuilder;
+			StringBuilder << "UPoseSearchLibrary::UpdateMotionMatchingState invalid search result : ForceInterrupt [";
+			StringBuilder << SearchContext.IsForceInterrupt();
+			StringBuilder << "], CanAdvance [";
+			StringBuilder << bCanAdvance;
+			StringBuilder << "], Databases [";
+
+			for (int32 DatabaseIndex = 0; DatabaseIndex < Databases.Num(); ++DatabaseIndex)
+			{
+				StringBuilder << GetNameSafe(Databases[DatabaseIndex]);
+				if (DatabaseIndex != Databases.Num() - 1)
+				{
+					StringBuilder << ", ";
+				}
+			}
+			
+			StringBuilder << "] ";
+
+			FString String = StringBuilder.ToString();
+			UE_LOG(LogPoseSearch, Warning, TEXT("%s"), *String);
+		}
+#endif // !NO_LOGGING
 
 		if (bJumpToPose)
 		{
