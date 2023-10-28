@@ -39,12 +39,13 @@
 #include "/Engine/Private/Substrate/SubstrateLightingCommon.ush"
 #include "Lumen/LumenReflectionsCombine.ush"
 
-#if SUBSTRATE_ENABLED && LUMEN_STANDALONE_REFLECTIONS
-Texture2DArray ReflectionTexture;
+#if LUMEN_STANDALONE_REFLECTIONS
+Texture2DArray LumenReflectionTexture;
+SamplerState LumenReflectionTextureSampler;
 #else
 Texture2D ReflectionTexture;
-#endif
 SamplerState ReflectionTextureSampler;
+#endif
 
 #if ENABLE_DYNAMIC_SKY_LIGHT
 #include "VolumetricCloudCommon.ush"
@@ -144,7 +145,11 @@ float3 ReflectionEnvironment(FGBufferData GBuffer, float AmbientOcclusion, float
 	R = GetOffSpecularPeakReflectionDir(N, R, GBuffer.Roughness);
 
 	// Sample input reflection texture that may contain SSR, planar reflections, RT reflections or Lumen Reflections
+#if LUMEN_STANDALONE_REFLECTIONS
+	float4 ReflectionInput = Texture2DArraySample(LumenReflectionTexture, LumenReflectionTextureSampler, float3(BufferUV, 0));
+#else
 	float4 ReflectionInput = Texture2DSample(ReflectionTexture, ReflectionTextureSampler, BufferUV);
+#endif
 
 	Color = CompositeReflections(ReflectionInput, BufferUV, GBuffer.Roughness, ShadingModelID);
 
@@ -438,7 +443,7 @@ void ReflectionEnvironmentSkyLighting(
 	
 		#if LUMEN_STANDALONE_REFLECTIONS
 			{
-				const float4 LumenReflections = GetLumenReflectionOnly(SubstrateEnvLight, BSDF, BSDFThroughput, Texture2DArraySample(ReflectionTexture, ReflectionTextureSampler, float3(BufferUV, ClosureIndex)));
+				const float4 LumenReflections = GetLumenReflectionOnly(SubstrateEnvLight, BSDF, BSDFThroughput, Texture2DArraySample(LumenReflectionTexture, LumenReflectionTextureSampler, float3(BufferUV, ClosureIndex)));
 				SpecularLighting *= LumenReflections.a;
 				SpecularLighting += LumenReflections.xyz * BSDFThroughput * SubstrateEnvLight.SpecularWeight;
 			}

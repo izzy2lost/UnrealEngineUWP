@@ -380,6 +380,9 @@ class FReflectionEnvironmentSkyLightingPS : public FGlobalShader
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, ReflectionTexture)
 		SHADER_PARAMETER_SAMPLER(SamplerState, ReflectionTextureSampler)
 
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, LumenReflectionTexture)
+		SHADER_PARAMETER_SAMPLER(SamplerState, LumenReflectionTextureSampler)
+
 		SHADER_PARAMETER_TEXTURE(Texture2D, PreIntegratedGF)
 		SHADER_PARAMETER_SAMPLER(SamplerState, PreIntegratedGFSampler)
 
@@ -1667,8 +1670,16 @@ static void AddSkyReflectionPass(
 		PassParameters->PS.AmbientOcclusionTexture = AmbientOcclusionTexture;
 		PassParameters->PS.AmbientOcclusionSampler = TStaticSamplerState<SF_Point>::GetRHI();
 
-		PassParameters->PS.ReflectionTexture = ReflectionsColor ? ReflectionsColor : SystemTextures.Black;
-		PassParameters->PS.ReflectionTextureSampler = TStaticSamplerState<SF_Point>::GetRHI();
+		if (bLumenStandaloneReflections)
+		{
+			PassParameters->PS.LumenReflectionTexture = ReflectionsColor ? ReflectionsColor : SystemTextures.BlackArray;
+			PassParameters->PS.LumenReflectionTextureSampler = TStaticSamplerState<SF_Point>::GetRHI();
+		}
+		else
+		{
+			PassParameters->PS.ReflectionTexture = ReflectionsColor ? ReflectionsColor : SystemTextures.Black;
+			PassParameters->PS.ReflectionTextureSampler = TStaticSamplerState<SF_Point>::GetRHI();
+		}
 
 		if (Scene->HasVolumetricCloud())
 		{

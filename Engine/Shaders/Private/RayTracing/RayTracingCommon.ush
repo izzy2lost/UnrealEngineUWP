@@ -610,7 +610,7 @@ struct FPackedMaterialClosestHitPayload : FMinimalPayload
 	void SetRayCone(FRayCone NewRayCone)	{ PackedRayCone = PackRayCone(NewRayCone); }
 
 	float GetMipBias()						{ return UnpackR8(Flags>>8u); }
-	void SetMipBias(float NewMipBias)		{ Flags = (Flags & 0xFFFF00FFF) | (PackR8(NewMipBias) << 8u); }
+	void SetMipBias(float NewMipBias)		{ Flags = (Flags & 0xFFFF00FFFu) | (PackR8(NewMipBias) << 8u); }
 
 	void SetRadiance(in float3 In)			{ Radiance = PackR11G11B10F(In); }
 	float3 GetRadiance()					{ return UnpackR11G11B10F(Radiance); }
