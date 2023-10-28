@@ -23,8 +23,4 @@ public:
 
 	LEVELSEQUENCE_API void SetLevelSequence(ULevelSequence* InLevelSequence);
 	LEVELSEQUENCE_API ULevelSequence* ResolveLevelSequence();
-
-	//~ Begin UObject Interface
-	virtual void PostLoad() override;
-
 };

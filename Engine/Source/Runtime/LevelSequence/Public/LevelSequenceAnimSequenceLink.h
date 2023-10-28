@@ -62,7 +62,4 @@ public:
 
 	UPROPERTY(BlueprintReadWrite, Category = Links)
 	TArray< FLevelSequenceAnimSequenceLinkItem> AnimSequenceLinks;
-
-	//~ Begin UObject Interface
-	virtual void PostLoad() override;
 };
