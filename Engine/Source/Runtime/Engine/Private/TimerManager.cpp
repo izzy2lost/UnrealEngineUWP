@@ -461,7 +461,12 @@ FTimerHandle FTimerManager::K2_FindDynamicTimerHandle(FTimerDynamicDelegate InDy
 	return Result;
 }
 
-void FTimerManager::InternalSetTimer(FTimerHandle& InOutHandle, FTimerUnifiedDelegate&& InDelegate, float InRate, bool InbLoop, float InFirstDelay)
+void FTimerManager::InternalSetTimer(FTimerHandle& InOutHandle, FTimerUnifiedDelegate&& InDelegate, float InRate, bool bInLoop, float InFirstDelay)
+{
+	InternalSetTimer(InOutHandle, MoveTemp(InDelegate), InRate, FTimerManagerTimerParameters{ .bLoop = bInLoop, .FirstDelay = InFirstDelay });
+}
+
+void FTimerManager::InternalSetTimer(FTimerHandle& InOutHandle, FTimerUnifiedDelegate&& InDelegate, float InRate, const FTimerManagerTimerParameters& InTimerParameters)
 {
 	SCOPE_CYCLE_COUNTER(STAT_SetTimer);
 
@@ -482,7 +487,8 @@ void FTimerManager::InternalSetTimer(FTimerHandle& InOutHandle, FTimerUnifiedDel
 		NewTimerData.TimerDelegate = MoveTemp(InDelegate);
 
 		NewTimerData.Rate = InRate;
-		NewTimerData.bLoop = InbLoop;
+		NewTimerData.bLoop = InTimerParameters.bLoop;
+		NewTimerData.bMaxOncePerFrame = InTimerParameters.bMaxOncePerFrame;
 		NewTimerData.bRequiresDelegate = NewTimerData.TimerDelegate.IsBound();
 
 		// Set level collection
@@ -492,7 +498,7 @@ void FTimerManager::InternalSetTimer(FTimerHandle& InOutHandle, FTimerUnifiedDel
 			NewTimerData.LevelCollection = OwningWorld->GetActiveLevelCollection()->GetType();
 		}
 
-		const float FirstDelay = (InFirstDelay >= 0.f) ? InFirstDelay : InRate;
+		const float FirstDelay = (InTimerParameters.FirstDelay >= 0.f) ? InTimerParameters.FirstDelay : InRate;
 
 		FTimerHandle NewTimerHandle;
 		if (HasBeenTickedThisFrame())
@@ -762,6 +768,7 @@ void FTimerManager::UnPauseTimer(FTimerHandle InHandle)
 
 FTimerData::FTimerData()
 	: bLoop(false)
+	, bMaxOncePerFrame(false)
 	, bRequiresDelegate(false)
 	, Status(ETimerStatus::Active)
 	, Rate(0)
@@ -932,7 +939,7 @@ void FTimerManager::Tick(float DeltaTime)
 				// Update Top pointer, in case it has been invalidated by the Execute call
 				Top = FindTimer(CurrentlyExecutingTimer);
 				checkf(!Top || !WillRemoveTimerAssert(CurrentlyExecutingTimer), TEXT("RemoveTimer(CurrentlyExecutingTimer) - due to fail after Execute()"));
-				if (!Top || Top->Status != ETimerStatus::Executing)
+				if (!Top || Top->Status != ETimerStatus::Executing || Top->bMaxOncePerFrame)
 				{
 					break;
 				}

@@ -637,12 +637,13 @@ class UKismetSystemLibrary : public UBlueprintFunctionLibrary
 	 * @param Event						Event. Can be a K2 function or a Custom Event.
 	 * @param Time						How long to wait before executing the delegate, in seconds. Setting a timer to <= 0 seconds will clear it if it is set.
 	 * @param bLooping					True to keep executing the delegate every Time seconds, false to execute delegate only once.
+	 * @param bMaxOncePerFrame			For looping timers, whether to execute only once when the timer would otherwise expires multiple times in the current frame.
 	 * @param InitialStartDelay			Initial delay passed to the timer manager, in seconds.
 	 * @param InitialStartDelayVariance	Use this to add some variance to when the timer starts in lieu of doing a random range on the InitialStartDelay input, in seconds. 
 	 * @return							The timer handle to pass to other timer functions to manipulate this timer.
 	 */
 	UFUNCTION(BlueprintCallable, meta=(DisplayName = "Set Timer by Event", ScriptName = "SetTimerDelegate", AdvancedDisplay="InitialStartDelay, InitialStartDelayVariance"), Category="Utilities|Time")
-	static ENGINE_API FTimerHandle K2_SetTimerDelegate(UPARAM(DisplayName="Event") FTimerDynamicDelegate Delegate, float Time, bool bLooping, float InitialStartDelay = 0.f, float InitialStartDelayVariance = 0.f);
+	static ENGINE_API FTimerHandle K2_SetTimerDelegate(UPARAM(DisplayName="Event") FTimerDynamicDelegate Delegate, float Time, bool bLooping, bool bMaxOncePerFrame = false, float InitialStartDelay = 0.f, float InitialStartDelayVariance = 0.f);
 
 	/**
 	 * Set a timer to execute a delegate next tick.
@@ -806,13 +807,14 @@ class UKismetSystemLibrary : public UBlueprintFunctionLibrary
 	 * @param Object					Object that implements the delegate function. Defaults to self (this blueprint)
 	 * @param FunctionName				Delegate function name. Can be a K2 function or a Custom Event.
 	 * @param Time						How long to wait before executing the delegate, in seconds. Setting a timer to <= 0 seconds will clear it if it is set.
-	 * @param bLooping					true to keep executing the delegate every Time seconds, false to execute delegate only once.
+	 * @param bLooping					True to keep executing the delegate every Time seconds, false to execute delegate only once.
+	 * @param bMaxOncePerFrame			For looping timers, whether to execute only once when the timer would otherwise expires multiple times in the current frame.
 	 * @param InitialStartDelay			Initial delay passed to the timer manager to allow some variance in when the timer starts, in seconds.
 	 * @param InitialStartDelayVariance	Use this to add some variance to when the timer starts in lieu of doing a random range on the InitialStartDelay input, in seconds.
 	 * @return							The timer handle to pass to other timer functions to manipulate this timer.
 	 */
 	UFUNCTION(BlueprintCallable, meta=(DisplayName = "Set Timer by Function Name", ScriptName = "SetTimer", DefaultToSelf = "Object", AdvancedDisplay="InitialStartDelay, InitialStartDelayVariance"), Category="Utilities|Time")
-	static ENGINE_API FTimerHandle K2_SetTimer(UObject* Object, FString FunctionName, float Time, bool bLooping, float InitialStartDelay = 0.f, float InitialStartDelayVariance = 0.f);
+	static ENGINE_API FTimerHandle K2_SetTimer(UObject* Object, FString FunctionName, float Time, bool bLooping, bool bMaxOncePerFrame = false, float InitialStartDelay = 0.f, float InitialStartDelayVariance = 0.f);
 
 	/**
 	 * Set a timer to execute a delegate on the next tick.
