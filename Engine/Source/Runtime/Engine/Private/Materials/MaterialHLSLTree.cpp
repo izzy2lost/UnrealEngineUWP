@@ -2440,13 +2440,13 @@ bool FExpressionSceneColor::PrepareValue(FEmitContext& Context, FEmitScope& Scop
 		Context.MaterialCompilationOutput->SetIsSceneTextureUsed(PPI_SceneColor);
 	}
 
-	return OutResult.SetType(Context, RequestedType, EExpressionEvaluation::Shader, Shader::EValueType::Float4);
+	return OutResult.SetType(Context, RequestedType, EExpressionEvaluation::Shader, Shader::EValueType::Float3);
 }
 
 void FExpressionSceneColor::EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const
 {
 	FEmitShaderExpression* EmitScreenUV = ScreenUVExpression->GetValueShader(Context, Scope, Shader::EValueType::Float2);
-	OutResult.Code = Context.EmitExpression(Scope, Shader::EValueType::Float4, TEXT("DecodeSceneColorAndAlpharForMaterialNode(%)"), EmitScreenUV);
+	OutResult.Code = Context.EmitExpression(Scope, Shader::EValueType::Float3, TEXT("DecodeSceneColorForMaterialNode(%)"), EmitScreenUV);
 }
 
 bool FExpressionNoise::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const

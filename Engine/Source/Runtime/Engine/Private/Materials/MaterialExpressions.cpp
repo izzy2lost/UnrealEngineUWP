@@ -11255,13 +11255,8 @@ UMaterialExpressionSceneColor::UMaterialExpressionSceneColor(const FObjectInitia
 	MenuCategories.Add(ConstructorStatics.NAME_Texture);
 
 	bShaderInputData = true;
-	bShowOutputNameOnPin = true;
 #endif
 	ConstInput = FVector2D(0.f, 0.f);
-
-	Outputs.Reset();
-	Outputs.Add(FExpressionOutput(TEXT("RGB"), 1, 1, 1, 1, 0));
-	Outputs.Add(FExpressionOutput(TEXT("A"), 1, 0, 0, 0, 1));
 }
 
 void UMaterialExpressionSceneColor::PostLoad()

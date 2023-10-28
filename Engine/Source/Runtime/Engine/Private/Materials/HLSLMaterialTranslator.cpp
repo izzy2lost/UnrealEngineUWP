@@ -7526,8 +7526,8 @@ int32 FHLSLMaterialTranslator::SceneColor(int32 Offset, int32 ViewportUV, bool b
 
 	int32 ScreenUVCode = GetScreenAlignedUV(Offset, ViewportUV, bUseOffset);
 	return AddCodeChunk(
-		MCT_Float4,
-		TEXT("DecodeSceneColorAndAlpharForMaterialNode(%s)"),
+		MCT_Float3,
+		TEXT("DecodeSceneColorForMaterialNode(%s)"),
 		*GetParameterCode(ScreenUVCode)
 		);
 }
