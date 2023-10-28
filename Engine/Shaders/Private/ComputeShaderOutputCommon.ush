@@ -66,6 +66,10 @@ uint4 PassData;
 	RWTexture2D<float4> OutTarget2;
 #endif
 
+#if PIXELSHADEROUTPUT_MRT3
+	RWTexture2D<float4> OutTarget3;
+#endif
+
 #if SUBSTRATE_OPAQUE_DEFERRED
 	RWTexture2DArray<uint> OutTargets;
 
@@ -80,10 +84,6 @@ uint4 PassData;
 	#endif
 
 #else // SUBSTRATE_OPAQUE_DEFERRED
-
-	#if PIXELSHADEROUTPUT_MRT3
-		RWTexture2D<float4> OutTarget3;
-	#endif
 
 	#if PIXELSHADEROUTPUT_MRT4
 		RWTexture2D<float4> OutTarget4;
