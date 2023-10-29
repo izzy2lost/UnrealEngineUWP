@@ -26,7 +26,6 @@ struct FRemoteDesc;
 struct FIOReader;
 struct FIOWriter;
 struct FIOReaderWriter;
-struct FComputeMacroBlockParams;
 
 struct FIdentityHash32
 {
@@ -108,16 +107,6 @@ FNeedListSize ComputeNeedListSize(const FNeedList& NeedList);
 
 using FGenericBlockArray = std::vector<FGenericBlock>;
 
-struct FComputeMacroBlockParams
-{
-	// Inputs
-	uint64 TargetBlockSize = 3_MB;
-	uint64 MaxBlockSize	   = 5_MB;	// Maximum allowed by Jupiter
-
-	// Outputs
-	FGenericBlockArray Output;
-};
-
 struct FFileManifest
 {
 	uint64 Mtime	 = 0;
@@ -129,6 +118,8 @@ struct FFileManifest
 	FGenericBlockArray MacroBlocks;
 	FPath			   CurrentPath;
 	bool			   bReadOnly = false;
+
+	bool IsValid() const { return Mtime != 0 && Size != 0; }
 };
 
 struct FAlgorithmOptionsV5
@@ -166,7 +157,8 @@ struct FDirectoryManifest
 
 	// wide string at runtime, utf8 serialized
 	// TODO: keep paths in canonical form (utf-8, unix-style separators)
-	std::unordered_map<std::wstring, FFileManifest> Files;
+	using FFileMap = std::unordered_map<std::wstring, FFileManifest>;
+	FFileMap Files;
 
 	// runtime data
 	FAlgorithmOptions Options = {};
@@ -196,22 +188,33 @@ void				   LogManifestFiles(ELogLevel LogLevel, const FDirectoryManifestInfo& In
 
 const std::string& GetVersionString();
 
-FGenericBlockArray ComputeBlocks(FIOReader&				   Reader,
-								 uint32					   BlockSize,
-								 FAlgorithmOptions		   Algorithm,
-								 FComputeMacroBlockParams* OutMacroBlocks = nullptr);
+struct FComputeBlocksParams
+{
+	uint32			  BlockSize = 64_KB;
+	FAlgorithmOptions Algorithm;
 
-FGenericBlockArray ComputeBlocks(const uint8*			   Data,
-								 uint64					   Size,
-								 uint32					   BlockSize,
-								 FAlgorithmOptions		   Algorithm,
-								 FComputeMacroBlockParams* OutMacroBlocks = nullptr);
+	bool   bNeedMacroBlocks		= false;
+	uint64 MacroBlockTargetSize = 3_MB;
+	uint64 MacroBlockMaxSize	= 5_MB;	 // Maximum allowed by Jupiter
+};
 
-FGenericBlockArray ComputeBlocksVariable(FIOReader&				   Reader,
-										 uint32					   BlockSize,
-										 EWeakHashAlgorithmID	   WeakHasher,
-										 EStrongHashAlgorithmID	   StrongHasher,
-										 FComputeMacroBlockParams* OutMacroBlocks = nullptr);
+struct FComputeBlocksResult
+{
+	FGenericBlockArray Blocks;
+	FGenericBlockArray MacroBlocks;
+};
+
+FComputeBlocksResult ComputeBlocks(FIOReader& Reader, const FComputeBlocksParams& Params);
+FComputeBlocksResult ComputeBlocks(const uint8* Data, uint64 Size, const FComputeBlocksParams& Params);
+FComputeBlocksResult ComputeBlocksVariable(FIOReader& Reader, const FComputeBlocksParams& Params);
+
+FGenericBlockArray ComputeBlocks(FIOReader& Reader, uint32 BlockSize, FAlgorithmOptions Algorithm);
+FGenericBlockArray ComputeBlocks(const uint8* Data, uint64 Size, uint32 BlockSize, FAlgorithmOptions Algorithm);
+FGenericBlockArray ComputeBlocksVariable(FIOReader&				Reader,
+										 uint32					BlockSize,
+										 EWeakHashAlgorithmID	WeakHasher,
+										 EStrongHashAlgorithmID StrongHasher);
+
 
 FNeedList DiffBlocks(const uint8*			   BaseData,
 					 uint64					   BaseDataSize,

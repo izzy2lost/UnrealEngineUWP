@@ -12,7 +12,7 @@ CmdHash(const FCmdHashOptions& Options)
 {
 	if (unsync::IsDirectory(Options.Input))
 	{
-		UNSYNC_VERBOSE(L"'%ls' is a directory", Options.Input.wstring().c_str());
+		UNSYNC_VERBOSE(L"Generating manifest for directory '%ls'", Options.Input.wstring().c_str());
 
 		FPath InputRoot	   = Options.Input;
 		FPath ManifestRoot = InputRoot / ".unsync";
@@ -52,18 +52,26 @@ CmdHash(const FCmdHashOptions& Options)
 
 		if (!GDryRun)
 		{
+			UNSYNC_VERBOSE(L"Saving directory manifest '%ls'", DirectoryManifestPath.wstring().c_str());
+
 			SaveDirectoryManifest(DirectoryManifest, DirectoryManifestPath);
 		}
 	}
 	else
 	{
-		UNSYNC_VERBOSE(L"'%ls' is a file", Options.Input.wstring().c_str());
+		UNSYNC_VERBOSE(L"Generating manfiest for file '%ls'", Options.Input.wstring().c_str());
 
 		FNativeFile OverlappedFile(Options.Input);
 		if (OverlappedFile.IsValid())
 		{
 			UNSYNC_VERBOSE(L"Computing blocks for '%ls' (%.2f MB)", Options.Input.wstring().c_str(), SizeMb(OverlappedFile.GetSize()));
-			FGenericBlockArray GenericBlocks = ComputeBlocks(OverlappedFile, Options.BlockSize, Options.Algorithm);
+			FComputeBlocksParams ComputeBlocksParams;
+			ComputeBlocksParams.Algorithm	 = Options.Algorithm;
+			ComputeBlocksParams.BlockSize	 = Options.BlockSize;
+
+			FComputeBlocksResult ComputedBlocks = ComputeBlocks(OverlappedFile, ComputeBlocksParams);
+
+			const FGenericBlockArray& GenericBlocks = ComputedBlocks.Blocks;
 
 			FPath OutputFilename = Options.Output;
 			if (OutputFilename.empty())
