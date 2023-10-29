@@ -2756,6 +2756,7 @@ uint32 OptimizeVectorVMScript(const uint8 *InBytecode, int InBytecodeLen, FVecto
 				switch (OutputRegs[i].OutputIns->OpCode)
 				{
 					case EVectorVMOp::outputdata_float:
+					case EVectorVMOp::outputdata_float_from_half:
 						OptContext->OutputRemapDataType[SerialIdx] = 0;
 					break;
 
@@ -2764,7 +2765,6 @@ uint32 OptimizeVectorVMScript(const uint8 *InBytecode, int InBytecodeLen, FVecto
 					break;
 
 					case EVectorVMOp::outputdata_half:
-					case EVectorVMOp::outputdata_float_from_half:
 					case EVectorVMOp::outputdata_half_from_half:
 						OptContext->OutputRemapDataType[SerialIdx] = 2;
 					break;
