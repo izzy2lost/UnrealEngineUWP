@@ -3167,7 +3167,9 @@ FGeometryCollectionDynamicData* UGeometryCollectionComponent::InitDynamicData(bo
 
 void UGeometryCollectionComponent::OnUpdateTransform(EUpdateTransformFlags UpdateTransformFlags, ETeleportType Teleport)
 {
-	Super::OnUpdateTransform(UpdateTransformFlags, Teleport);
+	// Don't allow the primitive component to update physics as that does processing to set a transform for
+	// UPrimitiveComponent::BodyInstance as it is unecessary for geometry collections. Out update is handled below.
+	Super::OnUpdateTransform(UpdateTransformFlags | EUpdateTransformFlags::SkipPhysicsUpdate, Teleport);
 
 	const bool bSkipPhysicsUpdate = ((UpdateTransformFlags & EUpdateTransformFlags::SkipPhysicsUpdate) == EUpdateTransformFlags::SkipPhysicsUpdate);
 	if (!bSkipPhysicsUpdate && PhysicsProxy)
