@@ -11,6 +11,7 @@
 #include "Graph/MovieGraphBlueprintLibrary.h"
 #include "Modules/ModuleManager.h"
 #include "MoviePipelineUtils.h"
+#include "MoviePipelineImageSequenceOutput.h" // for FAsyncImageQuantization
 #include "MovieRenderPipelineCoreModule.h"
 #include "ImageWriteQueue.h"
 #include "Misc/Paths.h"
@@ -240,6 +241,7 @@ void UMovieGraphImageSequenceOutputNode::OnReceiveImageDataImpl(UMovieGraphPipel
 		TileImageTask->Filename = FileName;
 		TileImageTask->PixelData = RenderData.Value->CopyImageData();
 
+		bool bQuantizationEncodeSRGB = true;
 #if WITH_EDITOR
 		if (OCIOConfiguration.bIsEnabled)
 		{
@@ -247,11 +249,20 @@ void UMovieGraphImageSequenceOutputNode::OnReceiveImageDataImpl(UMovieGraphPipel
 			if (OCIOPixelPreProcessor)
 			{
 				TileImageTask->PixelPreProcessors.Emplace(MoveTemp(OCIOPixelPreProcessor));
+				
+				// We assume that any encoding on the output transform should be done by OCIO
+				bQuantizationEncodeSRGB = false;
 			}
 		}
 #endif
 
 		EImagePixelType PixelType = TileImageTask->PixelData->GetType();
+
+		if (bQuantizeTo8Bit && TileImageTask->PixelData->GetBitDepth() > 8u)
+		{
+			TileImageTask->PixelPreProcessors.Emplace(UE::MoviePipeline::FAsyncImageQuantization(TileImageTask.Get(), bQuantizationEncodeSRGB));
+			PixelType = EImagePixelType::Color;
+		}
 
 		// Perform compositing if any composited passes were found earlier
 		for (TPair<FMovieGraphRenderDataIdentifier, TUniquePtr<FImagePixelData>>& CompositedPass : CompositedPasses)

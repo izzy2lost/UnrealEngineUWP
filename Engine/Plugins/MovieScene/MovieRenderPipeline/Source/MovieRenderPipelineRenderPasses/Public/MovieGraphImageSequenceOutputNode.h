@@ -52,6 +52,9 @@ protected:
 	/** The output format (as known used by the ImageWriteQueue) to output into. */
 	EImageFormat OutputFormat;
 
+	/** Whether we enforce 8-bit depth on the output. */
+	bool bQuantizeTo8Bit;
+
 	/** A pointer to the image write queue used for asynchronously writing images */
 	IImageWriteQueue* ImageWriteQueue;
 
@@ -71,6 +74,7 @@ public:
 	UMovieGraphImageSequenceOutputNode_EXR()
 	{
 		OutputFormat = EImageFormat::EXR;
+		bQuantizeTo8Bit = false;
 		Compression = EEXRCompressionFormat::PIZ;
 		bMultilayer = true;
 	}
@@ -159,6 +163,7 @@ public:
 	UMovieGraphImageSequenceOutputNode_BMP()
 	{
 		OutputFormat = EImageFormat::BMP;
+		bQuantizeTo8Bit = true;
 	}
 
 #if WITH_EDITOR
@@ -207,6 +212,7 @@ public:
 	UMovieGraphImageSequenceOutputNode_JPG()
 	{
 		OutputFormat = EImageFormat::JPEG;
+		bQuantizeTo8Bit = true;
 	}
 
 #if WITH_EDITOR
@@ -254,6 +260,9 @@ public:
 	UMovieGraphImageSequenceOutputNode_PNG()
 	{
 		OutputFormat = EImageFormat::PNG;
+
+		// Note: we could offer linear 16-bit pngs simply by letting users turn this to false.
+		bQuantizeTo8Bit = true;
 	}
 
 #if WITH_EDITOR

@@ -26,23 +26,27 @@
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MoviePipelineImageSequenceOutput)
 
 DECLARE_CYCLE_STAT(TEXT("ImgSeqOutput_RecieveImageData"), STAT_ImgSeqRecieveImageData, STATGROUP_MoviePipeline);
-struct FAsyncImageQuantization
+
+namespace UE
 {
-	FAsyncImageQuantization(FImageWriteTask* InWriteTask, const bool bInApplysRGB)
-		: ParentWriteTask(InWriteTask)
-		, bApplysRGB(bInApplysRGB)
-	{}
-
-	void operator()(FImagePixelData* PixelData)
+	namespace MoviePipeline
 	{
-		// Convert the incoming data to 8-bit, potentially with sRGB applied.
-		TUniquePtr<FImagePixelData> QuantizedPixelData = UE::MoviePipeline::QuantizeImagePixelDataToBitDepth(PixelData, 8, nullptr,  bApplysRGB);
-		ParentWriteTask->PixelData = MoveTemp(QuantizedPixelData);
-	}
+		FAsyncImageQuantization::FAsyncImageQuantization(FImageWriteTask* InWriteTask, const bool bInConvertToSRGB)
+			: ParentWriteTask(InWriteTask)
+			, bConvertToSRGB(bInConvertToSRGB)
+		{
+		}
 
-	FImageWriteTask* ParentWriteTask;
-	bool bApplysRGB;
-};
+		void FAsyncImageQuantization::operator()(FImagePixelData* PixelData)
+		{
+			// Note: Ideally we would use FImageCore routines here, but there is no easy way to construct pixel data from an FImage currently.
+
+			// Convert the incoming data to 8-bit, potentially with sRGB applied.
+			TUniquePtr<FImagePixelData> QuantizedPixelData = QuantizeImagePixelDataToBitDepth(PixelData, 8, nullptr, bConvertToSRGB);
+			ParentWriteTask->PixelData = MoveTemp(QuantizedPixelData);
+		}
+	}
+}
 
 UMoviePipelineImageSequenceOutputBase::UMoviePipelineImageSequenceOutputBase()
 {
@@ -208,7 +212,7 @@ void UMoviePipelineImageSequenceOutputBase::OnReceiveImageDataImpl(FMoviePipelin
 			// All three of these formats only support 8 bit data, so we need to take the incoming buffer type,
 			// copy it into a new 8-bit array and apply a little noise to the data to help hide gradient banding.
 			const bool bApplysRGB = !(ColorSetting && ColorSetting->OCIOConfiguration.bIsEnabled);
-			TileImageTask->PixelPreProcessors.Add(FAsyncImageQuantization(TileImageTask.Get(), bApplysRGB));
+			TileImageTask->PixelPreProcessors.Add(UE::MoviePipeline::FAsyncImageQuantization(TileImageTask.Get(), bApplysRGB));
 
 			// The pixel type will get changed by this pre-processor so future calculations below need to know the correct type they'll be editing.
 			QuantizedPixelType = EImagePixelType::Color; 
