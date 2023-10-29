@@ -13,6 +13,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
+#include <functional>
 
 namespace unsync {
 
@@ -188,6 +189,8 @@ void				   LogManifestFiles(ELogLevel LogLevel, const FDirectoryManifestInfo& In
 
 const std::string& GetVersionString();
 
+using FOnBlockGenerated = std::function<void(const FGenericBlock& Block, FBufferView Data)>;
+
 struct FComputeBlocksParams
 {
 	bool			  bNeedBlocks = true;
@@ -197,6 +200,10 @@ struct FComputeBlocksParams
 	bool   bNeedMacroBlocks		= false;
 	uint64 MacroBlockTargetSize = 3_MB;
 	uint64 MacroBlockMaxSize	= 5_MB;	 // Maximum allowed by Jupiter
+
+	// Callbacks may be called from worker threads
+	FOnBlockGenerated OnBlockGenerated;
+	FOnBlockGenerated OnMacroBlockGenerated;
 };
 
 struct FComputeBlocksResult

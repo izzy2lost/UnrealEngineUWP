@@ -5,6 +5,7 @@
 #include "UnsyncCmdHash.h"
 #include "UnsyncCmdLogin.h"
 #include "UnsyncCmdMount.h"
+#include "UnsyncCmdPack.h"
 #include "UnsyncCmdPatch.h"
 #include "UnsyncCmdPush.h"
 #include "UnsyncCmdQuery.h"
@@ -76,6 +77,7 @@ InnerMain(int Argc, char** Argv)
 	std::string				 QueryStringUtf8;
 	std::vector<std::string> QueryArgsUtf8;
 	std::string				 ScavengeRootUtf8;
+	std::string				 P4HavePathUtf8;
 	bool					 bForceOperation	 = false;
 	bool					 bAllowInsecureTls	 = false;
 	bool					 bUseTls			 = false;
@@ -149,6 +151,13 @@ InnerMain(int Argc, char** Argv)
 		bIncrementalMode,
 		"Create a directory manifest incrementally, by updating an existing manifest if one exists (only process changed files)");
 	SubCommands.push_back(SubHash);
+
+	// Configure pack
+
+	CLI::App* SubPack = Cli.add_subcommand("pack", "EXPERIMENTAL: Generate manifest for a directory and store all referenced data in a compressed pack file");
+	SubPack->add_option("Input", InputFilenameUtf8, "Input directory path")->required();
+	SubPack->add_option("--p4havefile", P4HavePathUtf8, "Use `p4 have` output from a given file to explicitly specify files included in the manifest");
+	SubCommands.push_back(SubPack);
 
 	// Configure push
 
@@ -552,7 +561,7 @@ InnerMain(int Argc, char** Argv)
 	UNSYNC_VERBOSE2(L"Using threads: %d", GMaxThreads);
 	FConcurrencyPolicyScope ConcurrencyLimitScope(GMaxThreads);
 
-	if (Cli.got_subcommand(SubHash) || Cli.got_subcommand(SubSync))
+	if (Cli.got_subcommand(SubHash) || Cli.got_subcommand(SubSync) || Cli.got_subcommand(SubPack))
 	{
 		UNSYNC_VERBOSE(L"Using block size: %d KB", HashOrSyncBlockSize / 1024);
 	}
@@ -568,7 +577,7 @@ InnerMain(int Argc, char** Argv)
 		DefaultChunkingAlgorithm = EChunkingAlgorithmID::FixedBlocks;
 	}
 
-	if (Cli.got_subcommand(SubHash) || Cli.got_subcommand(SubDiff))
+	if (Cli.got_subcommand(SubHash) || Cli.got_subcommand(SubDiff) || Cli.got_subcommand(SubPack))
 	{
 		if (!bIncrementalMode)
 		{
@@ -743,6 +752,17 @@ InnerMain(int Argc, char** Argv)
 		HashOptions.bIncremental = bIncrementalMode;
 
 		return CmdHash(HashOptions);
+	}
+	if (Cli.got_subcommand(SubPack))
+	{
+		FCmdPackOptions PackOptions;
+
+		PackOptions.RootPath	 = InputFilename;
+		PackOptions.P4HavePath	 = NormalizeFilenameUtf8(P4HavePathUtf8);
+		PackOptions.BlockSize	 = HashOrSyncBlockSize;
+		PackOptions.Algorithm	 = Algorithm;
+
+		return CmdPack(PackOptions);
 	}
 	else if (Cli.got_subcommand(SubDiff))
 	{

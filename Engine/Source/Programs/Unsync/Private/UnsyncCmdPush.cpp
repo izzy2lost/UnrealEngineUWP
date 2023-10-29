@@ -41,8 +41,9 @@ CmdPush(const FCmdPushOptions& Options)
 	AlgorithmOptions.StrongHashAlgorithmId = EStrongHashAlgorithmID::Blake3_128;
 
 	FComputeBlocksParams ComputeBlocksParams;
-	ComputeBlocksParams.Algorithm = AlgorithmOptions;
-	ComputeBlocksParams.BlockSize = BlockSize;
+	ComputeBlocksParams.Algorithm		 = AlgorithmOptions;
+	ComputeBlocksParams.BlockSize		 = BlockSize;
+	ComputeBlocksParams.bNeedMacroBlocks = true;
 
 	FDirectoryManifest Manifest;
 	FPath			   ManifestPath	  = Options.Input / ".unsync" / "manifest.bin";	 // TODO: allow manifest path override

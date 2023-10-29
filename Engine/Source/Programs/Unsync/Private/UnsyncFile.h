@@ -105,6 +105,7 @@ struct FIOBuffer
 	}
 
 	FBufferView GetBufferView() const { return FBufferView{GetData(), GetSize()}; }
+	FMutBufferView GetMutBufferView() { return FMutBufferView{GetData(), GetSize()}; }
 
 private:
 	static constexpr uint64 CANARY = 0x67aced0423000de5ull;

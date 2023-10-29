@@ -27,7 +27,7 @@ UNSYNC_THIRD_PARTY_INCLUDES_START
 #include <md5-sse2.h>
 UNSYNC_THIRD_PARTY_INCLUDES_END
 
-#define UNSYNC_VERSION_STR "1.0.61-dev2"
+#define UNSYNC_VERSION_STR "1.0.61-dev3"
 
 namespace unsync {
 
@@ -247,11 +247,27 @@ ComputeBlocksVariableT(FIOReader& Reader, const FComputeBlocksParams& Params)
 																	 sizeof(CurrentMacroBlock.HashStrong.Data));
 											  Task.MacroBlocks.push_back(CurrentMacroBlock);
 
+											  if (Params.OnMacroBlockGenerated)
+											  {
+												  FBufferView BlockView;
+												  BlockView.Data = (LastBlockEnd + Block.Size) - CurrentMacroBlock.Size;
+												  BlockView.Size = CurrentMacroBlock.Size;
+												  Params.OnMacroBlockGenerated(CurrentMacroBlock, BlockView);
+											  }
+
 											  // Reset macro block state
 											  blake3_hasher_init(&MacroBlockHasher);
 											  CurrentMacroBlock.Offset += CurrentMacroBlock.Size;
 											  CurrentMacroBlock.Size = 0;
 										  }
+									  }
+
+									  if (Params.OnBlockGenerated)
+									  {
+										  FBufferView BlockView;
+										  BlockView.Data = LastBlockEnd;
+										  BlockView.Size = Block.Size;
+										  Params.OnBlockGenerated(Block, BlockView);
 									  }
 
 									  if (!Task.Blocks.empty())
@@ -2014,29 +2030,31 @@ UpdateDirectoryManifestBlocks(FDirectoryManifest& Result, const FPath& Root, con
 		++NumProcessedFiles;
 
 		FPath FilePath = Root / It.first;
-		auto  File	   = std::make_shared<FNativeFile>(FilePath, EFileMode::ReadOnlyUnbuffered);
-		if (File->IsValid())
+
+		Semaphore.Acquire();
+
+		UNSYNC_VERBOSE(L"Computing blocks for '%ls' (%.2f MB)", FilePath.wstring().c_str(), SizeMb(It.second.Size));
+		auto BlockTask = [&FileManifest, &Semaphore, &Params, FilePath = std::move(FilePath)]()
 		{
-			UNSYNC_VERBOSE(L"Computing blocks for '%ls' (%.2f MB)", FilePath.wstring().c_str(), double(File->GetSize()) / (1 << 20));
-
-			Semaphore.Acquire();
-			TaskGroup.run([&FileManifest, &Semaphore, &Params, File = std::move(File)]() {
-
-				FComputeBlocksResult ComputedBlocks = ComputeBlocks(*File, Params);
+			FNativeFile File(FilePath, EFileMode::ReadOnlyUnbuffered);
+			if (File.IsValid())
+			{
+				FComputeBlocksResult ComputedBlocks = ComputeBlocks(File, Params);
 				std::swap(FileManifest.Blocks, ComputedBlocks.Blocks);
 				std::swap(FileManifest.MacroBlocks, ComputedBlocks.MacroBlocks);
 
 				FileManifest.BlockSize = Params.BlockSize;
+			}
+			else
+			{
+				UNSYNC_FATAL(L"Failed to open file '%ls' while computing manifest blocks. %hs",
+							 FilePath.wstring().c_str(),
+							 FormatSystemErrorMessage(File.GetError()).c_str());
+			}
+			Semaphore.Release();
+		};
 
-				Semaphore.Release();
-			});
-		}
-		else
-		{
-			UNSYNC_FATAL(L"Failed to open file '%ls' while computing manifest blocks. %hs",
-						 FilePath.wstring().c_str(),
-						 FormatSystemErrorMessage(File->GetError()).c_str());
-		}
+		TaskGroup.run(BlockTask);
 	}
 
 	TaskGroup.wait();

@@ -50,6 +50,8 @@ set(src
 	Private/UnsyncCmdQuery.h
 	Private/UnsyncCmdSync.cpp
 	Private/UnsyncCmdSync.h
+	Private/UnsyncCmdPack.cpp
+	Private/UnsyncCmdPack.h
 	Private/UnsyncCommon.h
 	Private/UnsyncCompression.cpp
 	Private/UnsyncCompression.h
