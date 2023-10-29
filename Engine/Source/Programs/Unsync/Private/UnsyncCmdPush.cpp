@@ -40,9 +40,13 @@ CmdPush(const FCmdPushOptions& Options)
 	AlgorithmOptions.WeakHashAlgorithmId   = EWeakHashAlgorithmID::BuzHash;
 	AlgorithmOptions.StrongHashAlgorithmId = EStrongHashAlgorithmID::Blake3_128;
 
+	FComputeBlocksParams ComputeBlocksParams;
+	ComputeBlocksParams.Algorithm = AlgorithmOptions;
+	ComputeBlocksParams.BlockSize = BlockSize;
+
 	FDirectoryManifest Manifest;
 	FPath			   ManifestPath	  = Options.Input / ".unsync" / "manifest.bin";	 // TODO: allow manifest path override
-	bool			   bManifestValid = LoadOrCreateDirectoryManifest(Manifest, Options.Input, BlockSize, AlgorithmOptions);
+	bool			   bManifestValid = LoadOrCreateDirectoryManifest(Manifest, Options.Input, ComputeBlocksParams);
 
 	if (!bManifestValid)
 	{

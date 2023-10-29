@@ -161,7 +161,7 @@ struct FDirectoryManifest
 	FFileMap Files;
 
 	// runtime data
-	FAlgorithmOptions Options = {};
+	FAlgorithmOptions Algorithm = {};
 	uint64			  Version = 0;
 
 	bool IsValid() const
@@ -190,7 +190,8 @@ const std::string& GetVersionString();
 
 struct FComputeBlocksParams
 {
-	uint32			  BlockSize = 64_KB;
+	bool			  bNeedBlocks = true;
+	uint32			  BlockSize	  = 64_KB;
 	FAlgorithmOptions Algorithm;
 
 	bool   bNeedMacroBlocks		= false;
@@ -413,10 +414,10 @@ struct FSyncDirectoryOptions
 
 bool SyncDirectory(const FSyncDirectoryOptions& SyncOptions);
 
-void UpdateDirectoryManifestBlocks(FDirectoryManifest& Result, const FPath& Root, uint32 BlockSize, FAlgorithmOptions Algorithm);
-FDirectoryManifest CreateDirectoryManifest(const FPath& Root, uint32 BlockSize, FAlgorithmOptions Algorithm);
-FDirectoryManifest CreateDirectoryManifestIncremental(const FPath& Root, uint32 BlockSize, FAlgorithmOptions Algorithm);
-bool LoadOrCreateDirectoryManifest(FDirectoryManifest& Result, const FPath& Root, uint32 BlockSize, FAlgorithmOptions Algorithm);
+void			   UpdateDirectoryManifestBlocks(FDirectoryManifest& Result, const FPath& Root, const FComputeBlocksParams& Params);
+FDirectoryManifest CreateDirectoryManifest(const FPath& Root, const FComputeBlocksParams& Params);
+FDirectoryManifest CreateDirectoryManifestIncremental(const FPath& Root, const FComputeBlocksParams& Params);
+bool			   LoadOrCreateDirectoryManifest(FDirectoryManifest& Result, const FPath& Root, const FComputeBlocksParams& Params);
 
 // Computes a Blake3 hash of the manifest blocks and file metadata, ignoring any other metadata.
 // Files are processed in sorted order, with file names treated as utf-8.

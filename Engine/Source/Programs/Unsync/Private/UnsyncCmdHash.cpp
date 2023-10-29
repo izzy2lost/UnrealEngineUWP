@@ -35,19 +35,26 @@ CmdHash(const FCmdHashOptions& Options)
 			DirectoryManifestPath = Options.Output;
 		}
 
+		FComputeBlocksParams ComputeBlocksParams;
+
+		ComputeBlocksParams.Algorithm = Options.Algorithm;
+		ComputeBlocksParams.BlockSize = Options.BlockSize;
+		// TODO: macro block generation is only implemented for variable chunk mode
+		ComputeBlocksParams.bNeedMacroBlocks = ComputeBlocksParams.Algorithm.ChunkingAlgorithmId == EChunkingAlgorithmID::VariableBlocks;
+
 		FDirectoryManifest DirectoryManifest;
 		if (Options.bForce)
 		{
-			DirectoryManifest = CreateDirectoryManifest(Options.Input, Options.BlockSize, Options.Algorithm);
+			DirectoryManifest = CreateDirectoryManifest(Options.Input, ComputeBlocksParams);
 		}
 		else if (Options.bIncremental)
 		{
 			UNSYNC_VERBOSE(L"Performing incremental directory manifest generation");
-			DirectoryManifest = CreateDirectoryManifestIncremental(Options.Input, Options.BlockSize, Options.Algorithm);
+			DirectoryManifest = CreateDirectoryManifestIncremental(Options.Input, ComputeBlocksParams);
 		}
 		else
 		{
-			LoadOrCreateDirectoryManifest(DirectoryManifest, Options.Input, Options.BlockSize, Options.Algorithm);
+			LoadOrCreateDirectoryManifest(DirectoryManifest, Options.Input, ComputeBlocksParams);
 		}
 
 		if (!GDryRun)

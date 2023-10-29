@@ -403,8 +403,8 @@ LoadDirectoryManifest(FDirectoryManifest& OutManifest, const FPath& Root, FIORea
 
 	if (Version >= FDirectoryManifest::EVersions::V6_VariableHash)
 	{
-		AlgorithmCompatibility = LoadOptionsSectionV5(Stream, OutManifest.Options);
-		HashSize			   = GetHashSize(ToHashType(OutManifest.Options.StrongHashAlgorithmId));
+		AlgorithmCompatibility = LoadOptionsSectionV5(Stream, OutManifest.Algorithm);
+		HashSize			   = GetHashSize(ToHashType(OutManifest.Algorithm.StrongHashAlgorithmId));
 	}
 
 	std::unordered_map<FHash256, FGenericBlockArray> MacroBlocks;
@@ -547,7 +547,7 @@ LoadDirectoryManifest(FDirectoryManifest& OutManifest, const FPath& Root, FIORea
 	// Old manifest versions always stored options after file blocks
 	if (Version < FDirectoryManifest::EVersions::V6_VariableHash)
 	{
-		AlgorithmCompatibility = LoadOptionsSectionV5(Stream, OutManifest.Options);
+		AlgorithmCompatibility = LoadOptionsSectionV5(Stream, OutManifest.Algorithm);
 	}
 
 	if (AlgorithmCompatibility != EAlgorithmCompatibilityResult::Ok)
@@ -557,7 +557,7 @@ LoadDirectoryManifest(FDirectoryManifest& OutManifest, const FPath& Root, FIORea
 	}
 
 	// Set the hash type in all file manifests
-	const EHashType HashType = ToHashType(OutManifest.Options.StrongHashAlgorithmId);
+	const EHashType HashType = ToHashType(OutManifest.Algorithm.StrongHashAlgorithmId);
 	for (auto& It : OutManifest.Files)
 	{
 		FFileManifest& FileManifest = It.second;
@@ -628,7 +628,7 @@ SaveDirectoryManifest(const FDirectoryManifest& Manifest, FVectorStreamOut& Stre
 {
 	// TODO: use compact binary to store the manifest
 
-	const size_t HashSize = GetHashSize(ToHashType(Manifest.Options.StrongHashAlgorithmId));
+	const size_t HashSize = GetHashSize(ToHashType(Manifest.Algorithm.StrongHashAlgorithmId));
 
 	FBuffer			 BlockStreamBuffer;
 	FVectorStreamOut BlockStream(BlockStreamBuffer);
@@ -638,7 +638,7 @@ SaveDirectoryManifest(const FDirectoryManifest& Manifest, FVectorStreamOut& Stre
 	Serialize(Stream, FDirectoryManifest::MAGIC);
 	Serialize(Stream, FDirectoryManifest::VERSION);
 
-	Serialize(Stream, Manifest.Options);
+	Serialize(Stream, Manifest.Algorithm);
 
 	// Save optional sections
 
