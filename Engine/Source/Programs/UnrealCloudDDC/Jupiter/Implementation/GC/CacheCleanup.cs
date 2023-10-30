@@ -114,16 +114,10 @@ namespace Jupiter.Implementation
 							"Attempting to delete object {Namespace} {Bucket} {Name} as it was last updated {LastAccessTime} which is older then {CutoffTime}",
 							ns, bucket, name, lastAccessTime, cutoffTime);
 
-						bool storeDelete = await DeleteRefAsync(ns, bucket, name);
+						await DeleteRefAsync(ns, bucket, name);
 					
-						if (storeDelete)
-						{
 							Interlocked.Increment(ref countOfDeletedRecords);
-						}
-						else
-						{
-							_logger.LogWarning("Failed to delete record {Bucket} {Name} in {Namespace}", bucket, name, ns);
-						}
+
 						return;
 					}
 
