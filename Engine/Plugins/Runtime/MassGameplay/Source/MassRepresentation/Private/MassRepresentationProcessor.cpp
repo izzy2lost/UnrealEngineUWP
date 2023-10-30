@@ -73,6 +73,7 @@ void UMassRepresentationProcessor::UpdateRepresentation(FMassExecutionContext& C
 		const FMassRepresentationLODFragment& RepresentationLOD = RepresentationLODList[EntityIdx];
 		FMassRepresentationFragment& Representation = RepresentationList[EntityIdx];
 		FMassActorFragment& ActorInfo = ActorList[EntityIdx];
+		AActor* Actor = ActorInfo.GetMutable();
 
 		// Keeping a copy of the that last calculated previous representation
 		const EMassRepresentationType PrevRepresentationCopy = Representation.PrevRepresentation;
@@ -87,13 +88,33 @@ void UMassRepresentationProcessor::UpdateRepresentation(FMassExecutionContext& C
 		{
 			WantedRepresentationType = RepresentationParams.CachedDefaultRepresentationType;
 		}
+
+		// If bForceActorRepresentationForExternalActors is enabled and we have an Actor reference for this entity, forcibly use it
+		// by enforcing an actor representation as the WantedRepresentation. If we're coming from ISMC, we'll remove the instance
+		// and switch to this actor, commiting either LowResSpawnedActor or HighResSpawnedActor as the new CurrentRepresentation.
+		// Once the Actor is destroyed however, this override stops, allowing the natural WantedRepresentationType to return.
+		//
+		// Useful for server-authoritative Actor spawning, with replicated Actors inserting themselves into Mass whilst they're
+		// replicated, enforcing actor representation on clients whilst they're present.
+		if (RepresentationParams.bForceActorRepresentationForExternalActors && IsValid(Actor) && !ActorInfo.IsOwnedByMass())
+		{
+			WantedRepresentationType = Representation.CurrentRepresentation == EMassRepresentationType::LowResSpawnedActor ? EMassRepresentationType::LowResSpawnedActor : EMassRepresentationType::HighResSpawnedActor;
+		}
+
+		// Has Actor unexpectedly been unset / destroyed since we last ran? 
+		if (!IsValid(Actor) && (Representation.CurrentRepresentation == EMassRepresentationType::LowResSpawnedActor || Representation.CurrentRepresentation == EMassRepresentationType::HighResSpawnedActor))
+		{
+			// Set CurrentRepresentation = None so we get a chance to see CurrentRepresentation != WantedRepresentationType and spawn 
+			// another actor.
+			Representation.CurrentRepresentation = EMassRepresentationType::None;
+		}
 		
 		auto DisableActorForISM = [&](AActor*& Actor)
 		{
 			if (!Actor || ActorInfo.IsOwnedByMass())
 			{
 				// Execute only if the high res is different than the low res Actor 
-				// Or if we do not wish to keep the low res actor while in ISM
+				// Or if we do not wish to keep the low res actor while in TransformList
 				if (Representation.HighResTemplateActorIndex != Representation.LowResTemplateActorIndex || !RepresentationParams.bKeepLowResActors)
 				{
 					// Try releasing the high actor or any high res spawning request
@@ -128,7 +149,6 @@ void UMassRepresentationProcessor::UpdateRepresentation(FMassExecutionContext& C
 				Representation.PrevLODSignificance = RepresentationLOD.LODSignificance;
 			}
 
-			AActor* Actor = ActorInfo.GetMutable();
 			switch (WantedRepresentationType)
 			{
 				case EMassRepresentationType::HighResSpawnedActor:
@@ -218,7 +238,6 @@ void UMassRepresentationProcessor::UpdateRepresentation(FMassExecutionContext& C
 				 Representation.PrevRepresentation == EMassRepresentationType::StaticMeshInstance &&
 			    (PrevRepresentationCopy == EMassRepresentationType::HighResSpawnedActor || PrevRepresentationCopy == EMassRepresentationType::LowResSpawnedActor))
 		{
-			AActor* Actor = ActorInfo.GetMutable();
 			DisableActorForISM(Actor);
 		}
 	}

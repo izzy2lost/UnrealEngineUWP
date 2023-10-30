@@ -110,17 +110,33 @@ struct FMassRepresentationParameters : public FMassSharedFragment
 	UPROPERTY(EditAnywhere, Category = "Mass|Representation", config)
 	EMassRepresentationType LODRepresentation[EMassLOD::Max] = { EMassRepresentationType::HighResSpawnedActor, EMassRepresentationType::LowResSpawnedActor, EMassRepresentationType::StaticMeshInstance, EMassRepresentationType::None };
 
+	/** 
+	 * If true, forces UMassRepresentationProcessor to override the WantedRepresentationType to actor representation whenever an external (non Mass owned)
+	 * actor is set on an entitie's FMassActorFragment fragment. If / when the actor fragment is reset, WantedRepresentationType resumes selecting the 
+	 * appropriate representation for the current representation LOD.
+	 *
+	 * Useful for server-authoritative actor spawning to force actor representation on clients for replicated actors. 
+	 */ 
+	UPROPERTY(EditAnywhere, Category = "Mass|Representation", config)
+	uint8 bForceActorRepresentationForExternalActors : 1 = false;
+
 	/** If true, LowRes actors will be kept around, disabled, whilst StaticMeshInstance representation is active */
 	UPROPERTY(EditAnywhere, Category = "Mass|Representation", config)
-	bool bKeepLowResActors = true;
+	uint8 bKeepLowResActors : 1  = true;
 
 	/** When switching to ISM keep the actor an extra frame, helps cover rendering glitches (i.e. occlusion query being one frame late) */
 	UPROPERTY(EditAnywhere, Category = "Mass|Representation", config)
-	bool bKeepActorExtraFrame = false;
+	uint8 bKeepActorExtraFrame : 1  = false;
 
 	/** If true, will spread the first visualization update over the period specified in NotVisibleUpdateRate member */
 	UPROPERTY(EditAnywhere, Category = "Mass|Representation", config)
-	bool bSpreadFirstVisualizationUpdate = false;
+	uint8 bSpreadFirstVisualizationUpdate : 1  = false;
+
+#if WITH_EDITORONLY_DATA
+	/** the property is marked like this to ensure it won't show up in UI */
+	UPROPERTY(EditDefaultsOnly, Category = "Mass|Visual")
+	uint8 bCanModifyRepresentationActorManagementClass : 1 = true;
+#endif // WITH_EDITORONLY_DATA
 
 	/** World Partition grid name to test collision against, default None will be the main grid */
 	UPROPERTY(EditAnywhere, Category = "Mass|Representation", config)
@@ -138,12 +154,6 @@ struct FMassRepresentationParameters : public FMassSharedFragment
 
 	UPROPERTY(Transient)
 	mutable TObjectPtr<UMassRepresentationActorManagement> CachedRepresentationActorManagement = nullptr;
-
-#if WITH_EDITORONLY_DATA
-	/** the property is marked like this to ensure it won't show up in UI */
-	UPROPERTY(EditDefaultsOnly, Category = "Mass|Visual")
-	bool bCanModifyRepresentationActorManagementClass = true;
-#endif // WITH_EDITORONLY_DATA
 };
 
 template<>
