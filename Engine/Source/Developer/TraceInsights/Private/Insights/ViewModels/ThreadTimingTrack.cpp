@@ -425,6 +425,16 @@ void FThreadTimingSharedState::GetVisibleTimelineIndexes(TSet<uint32>& OutSet) c
 			OutSet.Add(Track.GetTimelineIndex());
 		}
 	}
+
+	if (GpuTrack.IsValid() && GpuTrack->IsVisible())
+	{
+		OutSet.Add(GpuTrack->GetTimelineIndex());
+	}
+
+	if (Gpu2Track.IsValid() && Gpu2Track->IsVisible())
+	{
+		OutSet.Add(Gpu2Track->GetTimelineIndex());
+	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
