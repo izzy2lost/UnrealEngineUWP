@@ -46,6 +46,7 @@ static void InitImageStorage(FImage& Image)
 
 	check( Image.IsImageInfoValid() );
 
+	// if the Image.RawData is already the right size, this does not re-allocate
 	int64 NumBytes = Image.GetImageSizeBytes();
 	Image.RawData.Empty(NumBytes);
 	Image.RawData.AddUninitialized(NumBytes);
@@ -884,7 +885,8 @@ void FImage::TransformToWorkingColorSpace(const FVector2d& SourceRedChromaticity
 	return FImageCore::TransformToWorkingColorSpace(*this, SourceRedChromaticity, SourceGreenChromaticity, SourceBlueChromaticity, SourceWhiteChromaticity, Method, EqualityTolerance);
 }
 
-static FLinearColor SampleImage(const FLinearColor* Pixels, int Width, int Height, float X, float Y)
+// bad legacy resizer, do not use this except when required to maintain legacy behavior ; use "ResizeImage" instead
+static FLinearColor Bad_SampleImage(const FLinearColor* Pixels, int Width, int Height, float X, float Y)
 {
 	const int64 TexelX0 = FMath::FloorToInt(X);
 	const int64 TexelY0 = FMath::FloorToInt(Y);
@@ -908,7 +910,8 @@ static FLinearColor SampleImage(const FLinearColor* Pixels, int Width, int Heigh
 		Color11 * (FracX1 * FracY1);
 }
 
-static void ResizeImage(const FImageView & SrcImage, const FImageView & DestImage)
+// bad legacy resizer, do not use this except when required to maintain legacy behavior ; use "ResizeImage" instead
+static void Bad_ResizeImage_Bilinear(const FImageView & SrcImage, const FImageView & DestImage)
 {
 	// Src and Dest should both now be RGBA32F and Linear gamma
 	check( SrcImage.Format == ERawImageFormat::RGBA32F );
@@ -926,7 +929,7 @@ static void ResizeImage(const FImageView & SrcImage, const FImageView & DestImag
 		for (int64 DestX = 0; DestX < DestImage.SizeX; ++DestX)
 		{
 			const float SrcX = (float)DestX * DestToSrcScaleX;
-			const FLinearColor Color = SampleImage(SrcPixels, SrcImage.SizeX, SrcImage.SizeY, SrcX, SrcY);
+			const FLinearColor Color = Bad_SampleImage(SrcPixels, SrcImage.SizeX, SrcImage.SizeY, SrcX, SrcY);
 			DestPixels[DestY * DestImage.SizeX + DestX] = Color;
 		}
 	}
@@ -1035,11 +1038,13 @@ void FImageView::CopyTo(FImage& DestImage, ERawImageFormat::Type DestFormat, EGa
 	FImageCore::CopyImage(*this, DestImage);
 }
 
+// bad legacy resizer, do not use this except when required to maintain legacy behavior ; use "ResizeImage" instead
 void FImage::ResizeTo(FImage& DestImage, int32 DestSizeX, int32 DestSizeY, ERawImageFormat::Type DestFormat, EGammaSpace DestGammaSpace) const
 {
 	FImageCore::ResizeTo(*this,DestImage,DestSizeX,DestSizeY,DestFormat,DestGammaSpace);
 }
 
+// bad legacy resizer, do not use this except when required to maintain legacy behavior ; use "ResizeImage" instead
 void FImageCore::ResizeTo(const FImageView & SourceImage,FImage& DestImage, int32 DestSizeX, int32 DestSizeY, ERawImageFormat::Type DestFormat, EGammaSpace DestGammaSpace)
 {
 	check(SourceImage.NumSlices == 1); // only support 1 slice for now
@@ -1071,7 +1076,7 @@ void FImageCore::ResizeTo(const FImageView & SourceImage,FImage& DestImage, int3
 		DestImage.Format = DestFormat;
 		DestImage.GammaSpace = DestGammaSpace;
 		InitImageStorage(DestImage);
-		ResizeImage(SrcImageView, DestImage);
+		Bad_ResizeImage_Bilinear(SrcImageView, DestImage);
 	}
 	else
 	{
@@ -1083,7 +1088,7 @@ void FImageCore::ResizeTo(const FImageView & SourceImage,FImage& DestImage, int3
 		TempDestImage.Format = ERawImageFormat::RGBA32F;
 		TempDestImage.GammaSpace = EGammaSpace::Linear;
 		InitImageStorage(TempDestImage);
-		ResizeImage(SrcImageView, TempDestImage);
+		Bad_ResizeImage_Bilinear(SrcImageView, TempDestImage);
 
 		// then convert to dest format/gamma :
 		if ( DestGammaSpace == EGammaSpace::Pow22 )
@@ -1760,3 +1765,312 @@ bool FImageInfo::ImageInfoFromCompactBinary(const FCbObject& InObject)
 	return true;
 }
 
+
+
+//--------------------------------------------------
+//{ resize
+
+#if USING_CODE_ANALYSIS
+	// disable static analysis warnings from inside stb_image_resize2.h
+	MSVC_PRAGMA( warning(push) )
+	MSVC_PRAGMA( warning( disable : ALL_CODE_ANALYSIS_WARNINGS ) )
+#endif
+
+THIRD_PARTY_INCLUDES_START
+#define STBIR_ASSERT(x) checkSlow(x)
+#define STBIR_MALLOC(size,user_data) FMemory::Malloc(size,16)
+#define STBIR_FREE(ptr,user_data)	 FMemory::Free(ptr)
+#define STB_IMAGE_RESIZE_IMPLEMENTATION
+#define STBIR_DONT_CHANGE_FP_CONTRACT
+#include "ThirdParty/stb_image_resize/stb_image_resize2.h"
+THIRD_PARTY_INCLUDES_END
+
+#if USING_CODE_ANALYSIS
+	MSVC_PRAGMA( warning(pop) )
+#endif
+
+namespace FImageCore
+{
+
+static bool GetFormatSTBIR(ERawImageFormat::Type Format,EGammaSpace GammaSpace,
+	int & DestNumChannels,
+	stbir_datatype & DestDataType,
+	stbir_pixel_layout & DestLayout)
+{
+	check( Format < ERawImageFormat::MAX ); // MAX is not max, it is count
+
+	// the "PM" Layouts mean STBIR doesn't change us to pre-multiplied
+	//	we are not pre-multiplied
+	//	the RGB channels are filtered without reference to the alpha values
+
+	switch(Format)
+	{
+		case ERawImageFormat::G8: // G8 = gray = replicate to RGB
+			DestNumChannels = 1;
+			if ( GammaSpace != EGammaSpace::Linear ) // Pow22 also
+				DestDataType = STBIR_TYPE_UINT8_SRGB;
+			else
+				DestDataType = STBIR_TYPE_UINT8;
+			DestLayout = STBIR_1CHANNEL;
+			return true;
+		case ERawImageFormat::BGRA8:
+			DestNumChannels = 4;
+			if ( GammaSpace != EGammaSpace::Linear ) // Pow22 also
+				DestDataType = STBIR_TYPE_UINT8_SRGB; // A is linear
+			else
+				DestDataType = STBIR_TYPE_UINT8;
+			DestLayout = STBIR_BGRA_PM;
+			return true;
+		case ERawImageFormat::BGRE8:
+			return false; // BGRE cannot use STB
+		case ERawImageFormat::RGBA16:
+			DestNumChannels = 4;
+			DestDataType = STBIR_TYPE_UINT16;
+			DestLayout = STBIR_RGBA_PM;
+			return true;
+		case ERawImageFormat::RGBA16F:
+			DestNumChannels = 4;
+			DestDataType = STBIR_TYPE_HALF_FLOAT;
+			DestLayout = STBIR_RGBA_PM;
+			return true;
+		case ERawImageFormat::RGBA32F:
+			DestNumChannels = 4;
+			DestDataType = STBIR_TYPE_FLOAT;
+			DestLayout = STBIR_RGBA_PM;
+			return true;
+		case ERawImageFormat::G16: // G16 = gray = replicate to RGB
+			DestNumChannels = 1;
+			DestDataType = STBIR_TYPE_UINT16;
+			DestLayout = STBIR_1CHANNEL;
+			return true;
+		case ERawImageFormat::R16F:
+			DestNumChannels = 1;
+			DestDataType = STBIR_TYPE_HALF_FLOAT;
+			DestLayout = STBIR_1CHANNEL;
+			return true;
+		case ERawImageFormat::R32F:
+			DestNumChannels = 1;
+			DestDataType = STBIR_TYPE_FLOAT;
+			DestLayout = STBIR_1CHANNEL;
+			return true;
+			
+		default: // Invalid!
+			return false;
+	}
+}
+
+static bool FilterIsNopWhenSameSize(EResizeImageFilter Filter)
+{
+	switch(Filter)
+	{
+		case EResizeImageFilter::PointSample:
+		case EResizeImageFilter::Box:
+		case EResizeImageFilter::Triangle:
+		case EResizeImageFilter::Default: // see stbir__set_sampler
+		case EResizeImageFilter::AdaptiveSharp:
+		case EResizeImageFilter::AdaptiveSmooth:
+			return true;
+		
+		// Cubic filters still change the image with size the same
+		case EResizeImageFilter::CubicGaussian:
+		case EResizeImageFilter::CubicSharp:
+		case EResizeImageFilter::CubicMitchell:
+			return false;
+
+		default: // all enum values should be explicitly listed above
+			check(false);
+			return false;
+	}
+}
+
+static stbir_filter MapFilterToStb(EResizeImageFilter Filter,int64 SizeFm,int64 SizeTo)
+{
+	if ( SizeFm == SizeTo && FilterIsNopWhenSameSize(Filter) )
+	{
+		return STBIR_FILTER_POINT_SAMPLE;
+	}
+
+	switch(Filter)
+	{
+		case EResizeImageFilter::Box: return STBIR_FILTER_BOX;
+		case EResizeImageFilter::Triangle: return STBIR_FILTER_TRIANGLE;
+		case EResizeImageFilter::CubicGaussian: return STBIR_FILTER_CUBICBSPLINE;
+		case EResizeImageFilter::CubicSharp: return STBIR_FILTER_CATMULLROM;
+		case EResizeImageFilter::CubicMitchell: return STBIR_FILTER_MITCHELL;
+		case EResizeImageFilter::PointSample: return STBIR_FILTER_POINT_SAMPLE;
+
+		case EResizeImageFilter::Default: // AdaptiveSharp matches STBIR_FILTER_DEFAULT
+		case EResizeImageFilter::AdaptiveSharp:
+			return ( SizeFm < SizeTo ) ? STBIR_FILTER_CATMULLROM : STBIR_FILTER_MITCHELL;
+			
+		case EResizeImageFilter::AdaptiveSmooth:
+			return ( SizeFm < SizeTo ) ? STBIR_FILTER_MITCHELL : STBIR_FILTER_CUBICBSPLINE;
+
+		default:
+			check(false);
+			return STBIR_FILTER_DEFAULT;
+	}
+}
+	
+}; // namespace
+
+IMAGECORE_API void FImageCore::ResizeImage(const FImageView & SourceImage,const FImageView & DestImage, EResizeImageFilter Filter)
+{
+	check( SourceImage.IsImageInfoValid() );
+	check( DestImage.IsImageInfoValid() );
+
+	int64 DestNumPixels = DestImage.GetNumPixels();
+	if ( DestNumPixels == 0 )
+	{
+		return;
+	}
+
+	check( SourceImage.NumSlices == 1 && DestImage.NumSlices == 1 ); // @todo Oodle : slices ?
+
+	if ( SourceImage.SizeX == DestImage.SizeX && SourceImage.SizeY == DestImage.SizeY &&
+		FilterIsNopWhenSameSize(Filter) )
+	{
+		// images are same size, just blit
+		//	note manually selected Cubic filters run on same-size image will still apply the filter
+		FImageCore::CopyImage(SourceImage,DestImage);
+		return;
+	}
+	
+	int SourceNumChannels;
+	stbir_datatype SourceDataType;
+	stbir_pixel_layout SourceLayout;
+	bool SourceOk = GetFormatSTBIR(SourceImage.Format,SourceImage.GetGammaSpace(),
+		SourceNumChannels,SourceDataType,SourceLayout);
+		
+	int DestNumChannels;
+	stbir_datatype DestDataType;
+	stbir_pixel_layout DestLayout;
+	bool DestOk = GetFormatSTBIR(DestImage.Format,DestImage.GetGammaSpace(),
+		DestNumChannels,DestDataType,DestLayout);
+
+	if ( !SourceOk || !DestOk ||
+		( SourceNumChannels != DestNumChannels ) )
+	{
+		// Source and Dest formats have different channel count
+		//	it's hard to get this right in all cases through the stb_resize API
+		//	so just convert through linear
+	
+		FImageView SourceImageF32Linear = SourceImage;
+		FImage SourceScratch;
+		if ( SourceImageF32Linear.Format != ERawImageFormat::RGBA32F )
+		{
+			// convert source to linear, alloc scratch
+			SourceImage.CopyTo(SourceScratch,ERawImageFormat::RGBA32F,EGammaSpace::Linear);
+			SourceImageF32Linear = SourceScratch;
+		}
+		
+		FImageView DestImageF32Linear = DestImage;
+		FImage DestScratch;
+		if ( DestImageF32Linear.Format != ERawImageFormat::RGBA32F )
+		{
+			// alloc empty linear DestScratch
+			DestScratch.Init(DestImage.SizeX,DestImage.SizeY,ERawImageFormat::RGBA32F,EGammaSpace::Linear);
+			DestImageF32Linear = DestScratch;
+		}
+
+		// do the resize on the linears :
+		ResizeImage(SourceImageF32Linear,DestImageF32Linear, Filter);
+
+		// if we didn't resize directly to dest, copy now :
+		if ( DestImageF32Linear.RawData != DestImage.RawData )
+		{
+			FImageCore::CopyImage(DestImageF32Linear,DestImage);
+		}
+
+		return;
+	}
+
+	// do the resize!
+		
+	STBIR_RESIZE resize;
+	stbir_resize_init( &resize,
+		SourceImage.RawData,SourceImage.SizeX,SourceImage.SizeY,SourceImage.GetBytesPerPixel()*SourceImage.SizeX,
+		DestImage.RawData,DestImage.SizeX,DestImage.SizeY,DestImage.GetBytesPerPixel()*DestImage.SizeX,
+		SourceLayout,SourceDataType);
+
+	stbir_filter StbirFilterX = MapFilterToStb(Filter,SourceImage.SizeX,DestImage.SizeX);
+	stbir_filter StbirFilterY = MapFilterToStb(Filter,SourceImage.SizeY,DestImage.SizeY);
+
+	stbir_set_filters(&resize, StbirFilterX, StbirFilterY);
+	stbir_set_pixel_layouts(&resize,SourceLayout,DestLayout);
+	stbir_set_datatypes(&resize,SourceDataType,DestDataType);
+
+	const int32 NumWorkers = FTaskGraphInterface::Get().GetNumWorkerThreads();
+
+	// 2 jobs per worker, minus 1 for some slack :
+	int32 MaxNumSplits = NumWorkers*2 - 1;
+	
+	// parallel over Dest pixels
+	if ( MaxNumSplits * MinPixelsPerJob > DestNumPixels )
+	{
+		MaxNumSplits = (int)(DestNumPixels/MinPixelsPerJob);
+	}
+
+	if ( MaxNumSplits <= 1 )
+	{
+		// just run synchronous :
+		bool ok = !! stbir_resize_extended(&resize);
+		check(ok);
+
+		return;
+	}
+
+	// threaded :
+
+	int64 NumSplits = stbir_build_samplers_with_splits(&resize,MaxNumSplits);
+	check( NumSplits > 0 );
+
+	if ( NumSplits == 1 )
+	{
+		stbir_resize_extended_split(&resize,0,1);
+	}
+	else
+	{
+		ParallelFor(TEXT("ResizeImage"), NumSplits, 1, [&](int64 SplitIndex)
+		{
+			stbir_resize_extended_split(&resize,SplitIndex,1);
+		}, EParallelForFlags::Unbalanced);
+	}
+
+	stbir_free_samplers(&resize);
+}
+	
+IMAGECORE_API void FImageCore::ResizeImageAllocDest(const FImageView & SourceImage,FImage & DestImage,int32 DestSizeX, int32 DestSizeY, ERawImageFormat::Type DestFormat, EGammaSpace DestGammaSpace, EResizeImageFilter Filter)
+{
+	check( DestImage.RawData.Num() == 0 || SourceImage.RawData != DestImage.GetPixelPointer(0,0) ); // must not be resizing onto self
+
+	// note that if DestImage was already allocated to the right size, this will not re-allocate it
+	DestImage.Init(DestSizeX,DestSizeY,DestFormat,DestGammaSpace);
+	ResizeImage(SourceImage,DestImage,Filter);
+}
+
+IMAGECORE_API void FImageCore::ResizeImageAllocDest(const FImageView & SourceImage,FImage & DestImage,int32 DestSizeX, int32 DestSizeY, EResizeImageFilter Filter)
+{
+	ResizeImageAllocDest(SourceImage,DestImage,DestSizeX,DestSizeY,SourceImage.Format,SourceImage.GetGammaSpace(),Filter);
+}
+
+IMAGECORE_API void FImageCore::ResizeImageInPlace(FImage & Image,int32 DestSizeX, int32 DestSizeY, ERawImageFormat::Type DestFormat, EGammaSpace DestGammaSpace, EResizeImageFilter Filter)
+{
+	if ( DestSizeX == Image.SizeX && DestSizeY == Image.SizeY && DestFormat == Image.Format && DestGammaSpace == Image.GetGammaSpace() )
+	{
+		// nop!
+		return;
+	}
+
+	FImage Source;
+	Image.Swap(Source);
+	ResizeImageAllocDest(Source,Image,DestSizeX,DestSizeY,DestFormat,DestGammaSpace, Filter);
+}
+
+IMAGECORE_API void FImageCore::ResizeImageInPlace(FImage & Image,int32 DestSizeX, int32 DestSizeY, EResizeImageFilter Filter)
+{
+	ResizeImageInPlace(Image,DestSizeX,DestSizeY,Image.Format,Image.GetGammaSpace(), Filter);
+}
+
+//} resize
+//----------------------
