@@ -910,6 +910,10 @@ public:
 	{
 		ContextRedirect(RHISetBlendFactor(BlendFactor));
 	}
+	FORCEINLINE void RHISetShaderRootConstants(const FUint32Vector4& Constants) final override
+	{
+		ContextRedirect(RHISetShaderRootConstants(Constants));
+	}
 	FORCEINLINE virtual void RHIDrawPrimitive(uint32 BaseVertexIndex, uint32 NumPrimitives, uint32 NumInstances) final override
 	{
 		ContextRedirect(RHIDrawPrimitive(BaseVertexIndex, NumPrimitives, NumInstances));
