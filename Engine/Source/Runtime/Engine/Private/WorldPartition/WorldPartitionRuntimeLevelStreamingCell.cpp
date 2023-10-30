@@ -4,6 +4,7 @@
 #include "WorldPartition/WorldPartitionLevelStreamingDynamic.h"
 #include "WorldPartition/WorldPartitionActorDescView.h"
 #include "WorldPartition/WorldPartitionLevelStreamingPolicy.h"
+#include "WorldPartition/WorldPartitionDebugHelper.h"
 #include "Engine/LevelStreaming.h"
 #include "Engine/Level.h"
 #include "Misc/HierarchicalLogArchive.h"
@@ -209,7 +210,21 @@ FLinearColor UWorldPartitionRuntimeLevelStreamingCell::GetDebugColor(EWorldParti
 			if (DebugStreamingPriority >= 0.0f && DebugStreamingPriority <= 1.0f)
 			{
 				const float PriorityGradient = FMath::Cube(1.0f - DebugStreamingPriority);
-				return FLinearColor(PriorityGradient, PriorityGradient, PriorityGradient, 1.0f);
+
+				if (FWorldPartitionDebugHelper::GetRuntimeSpatialHashCellStreamingPriorityMode() == 2)
+				{
+					// Grayscale
+					return FLinearColor(PriorityGradient, PriorityGradient, PriorityGradient, 1.0f);
+				}
+
+				// Heatmap
+				static TArray<FLinearColor, TInlineAllocator<4>> Colors { FLinearColor::Blue, FLinearColor::Green, FLinearColor::Yellow, FLinearColor::Red };
+				const float ColorGrad = FMath::Clamp(PriorityGradient, 0.0f, 1.0f) * (Colors.Num() - 1);
+				return FLinearColor::LerpUsingHSV(
+					Colors[FMath::Min<int32>(ColorGrad, Colors.Num() - 1)],
+					Colors[FMath::Min<int32>(ColorGrad + 1, Colors.Num() - 1)],
+					FMath::Frac(ColorGrad)
+				);
 			}
 			return FLinearColor::Transparent;
 		}

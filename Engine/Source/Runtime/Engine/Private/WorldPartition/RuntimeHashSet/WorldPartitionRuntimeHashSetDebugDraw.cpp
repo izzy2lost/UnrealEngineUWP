@@ -143,7 +143,7 @@ bool UWorldPartitionRuntimeHashSet::Draw2D(FWorldPartitionDraw2DContext& DrawCon
 				{
 				case 0:
 					CellColors.Add(Cell->GetDebugColor(VisualizeMode));
-					CellOpacity = 0.25f / FMath::Max<float>(GShowRuntimeHashSetDebugDisplayLevelCount, 1);
+					CellOpacity = (VisualizeMode == EWorldPartitionRuntimeCellVisualizeMode::StreamingPriority) ? 0.75f : 0.25f / FMath::Max<float>(GShowRuntimeHashSetDebugDisplayLevelCount, 1);
 					break;
 				case 1:
 					if (DataLayerDebugColors.Num() && Cell->GetDataLayers().Num())
