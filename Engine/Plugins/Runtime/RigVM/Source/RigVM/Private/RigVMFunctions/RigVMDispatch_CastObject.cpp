@@ -8,21 +8,24 @@
 const FName FRigVMDispatch_CastObject::ValueName = TEXT("Value");
 const FName FRigVMDispatch_CastObject::ResultName = TEXT("Result");
 
-const TArray<FRigVMTemplateArgument>& FRigVMDispatch_CastObject::GetArguments() const
+const TArray<FRigVMTemplateArgumentInfo>& FRigVMDispatch_CastObject::GetArgumentInfos() const
 {
-	static const TArray<FRigVMTemplateArgument::ETypeCategory> ElementCategories =
+	static TArray<FRigVMTemplateArgumentInfo> OutInfos;
+	if (OutInfos.IsEmpty())
 	{
-		FRigVMTemplateArgument::ETypeCategory_SingleObjectValue
-	};
-
-	static const TArray<FRigVMTemplateArgument> Arguments = BuildArgumentListFromPrimaryArgument(
+		static const TArray<FRigVMTemplateArgument::ETypeCategory> ElementCategories =
 		{
-			FRigVMTemplateArgument(ValueName, ERigVMPinDirection::Input, ElementCategories),
-			FRigVMTemplateArgument(ResultName, ERigVMPinDirection::Output)
-		},
-		ValueName);
+			FRigVMTemplateArgument::ETypeCategory_SingleObjectValue
+		};
+		
+		static TArray<FRigVMTemplateArgumentInfo> Infos;
+		Infos.Emplace(ValueName, ERigVMPinDirection::Input, ElementCategories);
+		Infos.Emplace(ResultName, ERigVMPinDirection::Output, INDEX_NONE);
+		
+		OutInfos = BuildArgumentListFromPrimaryArgument(Infos, ValueName);
+	}
 
-	return Arguments;
+	return OutInfos;
 }
 
 TArray<FRigVMTemplateTypeMap> FRigVMDispatch_CastObject::GetPermutationsFromArgumentType(const FName& InArgumentName, const TRigVMTypeIndex& InTypeIndex) const

@@ -61,22 +61,24 @@ FString FRigVMDispatch_SetLayerParameter::GetArgumentDefaultValue(const FName& I
 }
 #endif
 
-const TArray<FRigVMTemplateArgument>& FRigVMDispatch_SetLayerParameter::GetArguments() const
+const TArray<FRigVMTemplateArgumentInfo>& FRigVMDispatch_SetLayerParameter::GetArgumentInfos() const
 {
-	static const TArray<FRigVMTemplateArgument::ETypeCategory> ValueCategories =
+	static TArray<FRigVMTemplateArgumentInfo> Infos;
+	if(Infos.IsEmpty())
 	{
-		FRigVMTemplateArgument::ETypeCategory_SingleAnyValue,
-		FRigVMTemplateArgument::ETypeCategory_ArrayAnyValue
-	};
+		static const TArray<FRigVMTemplateArgument::ETypeCategory> ValueCategories =
+		{
+			FRigVMTemplateArgument::ETypeCategory_SingleAnyValue,
+			FRigVMTemplateArgument::ETypeCategory_ArrayAnyValue
+		};
 	
-	static const TArray<FRigVMTemplateArgument> Arguments = { 
-		FRigVMTemplateArgument(ParameterName, ERigVMPinDirection::Input, RigVMTypeUtils::TypeIndex::FName),
-		FRigVMTemplateArgument(ValueName, ERigVMPinDirection::Input, ValueCategories),
-		FRigVMTemplateArgument(ParameterIdName, ERigVMPinDirection::Hidden, RigVMTypeUtils::TypeIndex::UInt32),
-		FRigVMTemplateArgument(TypeHandleName, ERigVMPinDirection::Hidden, RigVMTypeUtils::TypeIndex::UInt32),
-	};
+		Infos.Emplace(ParameterName, ERigVMPinDirection::Input, RigVMTypeUtils::TypeIndex::FName);
+		Infos.Emplace(ValueName, ERigVMPinDirection::Input, ValueCategories);
+		Infos.Emplace(ParameterIdName, ERigVMPinDirection::Hidden, RigVMTypeUtils::TypeIndex::UInt32);
+		Infos.Emplace(TypeHandleName, ERigVMPinDirection::Hidden, RigVMTypeUtils::TypeIndex::UInt32);
+	}
 
-	return Arguments;
+	return Infos;
 }
 
 TArray<FRigVMExecuteArgument>& FRigVMDispatch_SetLayerParameter::GetExecuteArguments_Impl(const FRigVMDispatchContext& InContext) const

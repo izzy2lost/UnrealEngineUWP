@@ -155,8 +155,8 @@ bool FRigVMDispatchFactory::IsLazyInputArgument(const FName& InArgumentName) con
 
 FName FRigVMDispatchFactory::GetArgumentNameForOperandIndex(int32 InOperandIndex, int32 InTotalOperands) const
 {
-	check(GetArguments().Num() == InTotalOperands);
-	return GetArguments()[InOperandIndex].GetName();
+	check(GetArgumentInfos().Num() == InTotalOperands);
+	return GetArgumentInfos()[InOperandIndex].Name;
 }
 
 const TArray<FName>& FRigVMDispatchFactory::GetControlFlowBlocks(const FRigVMDispatchContext& InContext) const
@@ -200,9 +200,9 @@ const TArray<FName>* FRigVMDispatchFactory::UpdateArgumentNameCache_NoLock(int32
 	return ArgumentNames.Get();
 }
 
-const TArray<FRigVMTemplateArgument>& FRigVMDispatchFactory::GetArguments() const
+const TArray<FRigVMTemplateArgumentInfo>& FRigVMDispatchFactory::GetArgumentInfos() const
 {
-	static TArray<FRigVMTemplateArgument> EmptyArguments;
+	static const TArray<FRigVMTemplateArgumentInfo> EmptyArguments;
 	return EmptyArguments;
 }
 
@@ -268,68 +268,80 @@ TArray<FRigVMFunction> FRigVMDispatchFactory::CreateDispatchPredicates_NoLock(co
 FString FRigVMDispatchFactory::GetPermutationName(const FRigVMTemplateTypeMap& InTypes) const
 {
 #if WITH_EDITOR
-	const TArray<FRigVMTemplateArgument>& Arguments = GetArguments();
-	check(InTypes.Num() == Arguments.Num());
-	for(const FRigVMTemplateArgument& Argument : Arguments)
+	const TArray<FRigVMTemplateArgumentInfo>& Arguments = GetArgumentInfos();
+	
+	checkf(InTypes.Num() == Arguments.Num(), TEXT("Failed getting permutation names for '%s' "), *GetFactoryName().ToString());
+	
+	for(const FRigVMTemplateArgumentInfo& Argument : Arguments)
 	{
-		check(InTypes.Contains(Argument.GetName()));
+		check(InTypes.Contains(Argument.Name));
 	}
 #endif
 	return GetPermutationNameImpl(InTypes);
 }
 
-TArray<FRigVMTemplateArgument> FRigVMDispatchFactory::BuildArgumentListFromPrimaryArgument(const TArray<FRigVMTemplateArgument>& InArguments, const FName& InPrimaryArgumentName) const
+TArray<FRigVMTemplateArgumentInfo> FRigVMDispatchFactory::BuildArgumentListFromPrimaryArgument(const TArray<FRigVMTemplateArgumentInfo>& InInfos, const FName& InPrimaryArgumentName) const
 {
-	TArray<FRigVMTemplateArgument> NewArguments;
-	const FRigVMTemplateArgument* PrimaryArgument = InArguments.FindByPredicate([InPrimaryArgumentName](const FRigVMTemplateArgument& Arg)
+	TArray<FRigVMTemplateArgumentInfo> NewInfos;
+	
+	const FRigVMTemplateArgumentInfo* PrimaryInfo = InInfos.FindByPredicate([InPrimaryArgumentName](const FRigVMTemplateArgumentInfo& Arg)
 	{
 		return Arg.Name == InPrimaryArgumentName;
 	});
-	
-	if (!PrimaryArgument)
+
+	if (!PrimaryInfo)
 	{
-		return NewArguments;
+		return NewInfos;
 	}
 
-	NewArguments.SetNum(InArguments.Num());
-	for (int32 Index=0; Index < InArguments.Num(); ++Index)
-	{
-		NewArguments[Index].Name = InArguments[Index].Name;
-		NewArguments[Index].Direction = InArguments[Index].Direction;
-		NewArguments[Index].TypeCategories = InArguments[Index].TypeCategories;
-	}
-	
-	TSet<TRigVMTypeIndex> ProcessedTypes;
-	for (const TRigVMTypeIndex& Type : PrimaryArgument->TypeIndices)
-	{
-		if (ProcessedTypes.Contains(Type))
-		{
-			continue;
-		}
+	const int32 NumInfos = InInfos.Num();
+	TArray< TArray<TRigVMTypeIndex> > TypeIndicesArray;
+	TypeIndicesArray.SetNum(NumInfos);
 
+	const FRigVMTemplateArgument PrimaryArgument = PrimaryInfo->GetArgument();
+	for (const TRigVMTypeIndex& Type : PrimaryArgument.TypeIndices)
+	{
 		const TArray<FRigVMTemplateTypeMap> Permutations = GetPermutationsFromArgumentType(InPrimaryArgumentName, Type);
 		for (const FRigVMTemplateTypeMap& Permutation : Permutations)
 		{
-			for (int32 Index=0; Index < InArguments.Num(); ++Index)
+			for (int32 Index=0; Index < InInfos.Num(); ++Index)
 			{
-				const TRigVMTypeIndex* PermutationArg = Permutation.Find(NewArguments[Index].Name);
+				const TRigVMTypeIndex* PermutationArg = Permutation.Find(InInfos[Index].Name);
 				if (!PermutationArg)
 				{
-					NewArguments.Reset();
-					return NewArguments;
+					NewInfos.Reset();
+					return NewInfos;
 				}
-				NewArguments[Index].TypeIndices.Add(*PermutationArg);
+				TypeIndicesArray[Index].Add(*PermutationArg);
 			}
 		}
 	}
 
-	for (FRigVMTemplateArgument& Argument : NewArguments)
+	NewInfos.Reserve(NumInfos);
+	for (int32 Index=0; Index < NumInfos; ++Index)
 	{
-		Argument.EnsureValidExecuteType();
-		Argument.UpdateTypeToPermutations();
+		const FRigVMTemplateArgument Argument = InInfos[Index].GetArgument();
+		const TArray<TRigVMTypeIndex>& TypeIndices = TypeIndicesArray[Index];
+
+		const FName Name = InInfos[Index].Name;
+		const ERigVMPinDirection Direction = Argument.Direction;
+		const TArray<FRigVMTemplateArgument::ETypeCategory> TypeCategories = Argument.TypeCategories;
+		
+		NewInfos.Emplace(Name, Direction, [TypeIndices, TypeCategories](const FName InName, ERigVMPinDirection InDirection)
+		{
+			FRigVMTemplateArgument Argument;
+			Argument.Name = InName;
+			Argument.Direction = InDirection;
+			Argument.TypeCategories = TypeCategories;
+			Argument.TypeIndices = TypeIndices;
+			
+			Argument.EnsureValidExecuteType();
+			Argument.UpdateTypeToPermutations();
+			return Argument;
+		} );
 	}
 	
-	return NewArguments;
+	return NewInfos;
 }
 
 FString FRigVMDispatchFactory::GetPermutationNameImpl(const FRigVMTemplateTypeMap& InTypes) const
@@ -363,11 +375,12 @@ const FRigVMTemplate* FRigVMDispatchFactory::GetTemplate() const
 		return CachedTemplate;
 	}
 
-	const TArray<FRigVMTemplateArgument>& Arguments = GetArguments();
+	const TArray<FRigVMTemplateArgumentInfo>& Arguments = GetArgumentInfos();
 
 	// we don't allow execute types on arguments
-	for(const FRigVMTemplateArgument& Argument : Arguments)
+	for(const FRigVMTemplateArgumentInfo& Info : Arguments)
 	{
+		const FRigVMTemplateArgument Argument = Info.GetArgument();
 		for(const TRigVMTypeIndex& TypeIndex : Argument.GetTypeIndices())
 		{
 			if(Registry.IsExecuteType(TypeIndex))
@@ -381,34 +394,10 @@ const FRigVMTemplate* FRigVMDispatchFactory::GetTemplate() const
 	}
 
 	FRigVMTemplateDelegates Delegates;
-	Delegates.NewArgumentTypeDelegate = FRigVMTemplate_NewArgumentTypeDelegate::CreateLambda(
-		[this](const FRigVMTemplate*, const FName& InArgumentName, int32 InTypeIndex)
-		{
-			return OnNewArgumentType(InArgumentName, InTypeIndex);
-		});
-
-	Delegates.GetPermutationsFromArgumentTypeDelegate = FRigVMTemplate_GetPermutationsFromArgumentTypeDelegate::CreateLambda(
-		[this](const FRigVMTemplate*, const FName& InArgumentName, int32 InTypeIndex)
-		{
-			return GetPermutationsFromArgumentType(InArgumentName, InTypeIndex);
-		});
-
 	Delegates.GetDispatchFactoryDelegate = FRigVMTemplate_GetDispatchFactoryDelegate::CreateLambda(
-[FactoryName]()
+	[FactoryName]()
 	{
 		return FRigVMRegistry::Get().FindDispatchFactory(FactoryName);
-	});
-
-	Delegates.RequestDispatchFunctionDelegate = FRigVMTemplate_RequestDispatchFunctionDelegate::CreateLambda(
-	[this](const FRigVMTemplate*, const FRigVMTemplateTypeMap& InTypes)
-	{
-		return CreateDispatchFunction(InTypes);
-	});
-
-	Delegates.RequestDispatchPredicatesDelegate = FRigVMTemplate_RequestDispatchPredicatesDelegate::CreateLambda(
-	[this](const FRigVMTemplate*, const FRigVMTemplateTypeMap& InTypes)
-	{
-		return CreateDispatchPredicates(InTypes);
 	});
 
 	CachedTemplate = Registry.AddTemplateFromArguments(GetFactoryName(), Arguments, Delegates); 

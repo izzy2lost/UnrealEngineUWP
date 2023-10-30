@@ -235,13 +235,13 @@ public:
 	// Defines and retrieves a template given its arguments
 	const FRigVMTemplate* GetOrAddTemplateFromArguments(
 		const FName& InName,
-		const TArray<FRigVMTemplateArgument>& InArguments,
+		const TArray<FRigVMTemplateArgumentInfo>& InInfos,
 		const FRigVMTemplateDelegates& InDelegates);
 
 	// Adds a new template given its arguments
 	const FRigVMTemplate* AddTemplateFromArguments(
 		const FName& InName,
-		const TArray<FRigVMTemplateArgument>& InArguments,
+		const TArray<FRigVMTemplateArgumentInfo>& InInfos,
 		const FRigVMTemplateDelegates& InDelegates);
 
 	// Returns a dispatch factory given its name (or nullptr)
@@ -348,7 +348,7 @@ private:
 
 	const FRigVMTemplate* AddTemplateFromArguments_NoLock(
 		const FName& InName,
-		const TArray<FRigVMTemplateArgument>& InArguments,
+		const TArray<FRigVMTemplateArgumentInfo>& InInfos,
 		const FRigVMTemplateDelegates& InDelegates);
 
 	// memory for all (known) types

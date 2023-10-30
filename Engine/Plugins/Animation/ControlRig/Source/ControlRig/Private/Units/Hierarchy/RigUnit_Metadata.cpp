@@ -66,16 +66,16 @@ FString FRigDispatch_MetadataBase::GetNodeTitle(const FRigVMTemplateTypeMap& InT
 
 #endif
 
-const TArray<FRigVMTemplateArgument>& FRigDispatch_MetadataBase::GetArguments() const
+const TArray<FRigVMTemplateArgumentInfo>& FRigDispatch_MetadataBase::GetArgumentInfos() const
 {
-	if(Arguments.IsEmpty())
+	if(Infos.IsEmpty())
 	{
-		ItemArgIndex = Arguments.Emplace(ItemArgName, ERigVMPinDirection::Input, FRigVMRegistry::Get().GetTypeIndex<FRigElementKey>());
-		NameArgIndex = Arguments.Emplace(NameArgName, ERigVMPinDirection::Input, RigVMTypeUtils::TypeIndex::FName);
-		UseNameSpaceArgIndex = Arguments.Emplace(UseNameSpaceArgName, ERigVMPinDirection::Input, RigVMTypeUtils::TypeIndex::Bool);
-		CacheArgIndex = Arguments.Emplace(CacheArgName, ERigVMPinDirection::Hidden, FRigVMRegistry::Get().GetTypeIndex<FCachedRigElement>());
+		ItemArgIndex = Infos.Emplace(ItemArgName, ERigVMPinDirection::Input, FRigVMRegistry::Get().GetTypeIndex<FRigElementKey>());
+		NameArgIndex = Infos.Emplace(NameArgName, ERigVMPinDirection::Input, RigVMTypeUtils::TypeIndex::FName);
+		UseNameSpaceArgIndex = Infos.Emplace(UseNameSpaceArgName, ERigVMPinDirection::Input, RigVMTypeUtils::TypeIndex::Bool);
+		CacheArgIndex = Infos.Emplace(CacheArgName, ERigVMPinDirection::Hidden, FRigVMRegistry::Get().GetTypeIndex<FCachedRigElement>());
 	};
-	return Arguments;
+	return Infos;
 }
 
 #if WITH_EDITOR
@@ -171,16 +171,16 @@ const TArray<TRigVMTypeIndex>& FRigDispatch_MetadataBase::GetValueTypes() const
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-const TArray<FRigVMTemplateArgument>& FRigDispatch_GetMetadata::GetArguments() const
+const TArray<FRigVMTemplateArgumentInfo>& FRigDispatch_GetMetadata::GetArgumentInfos() const
 {
 	if(ValueArgIndex == INDEX_NONE)
 	{
-		Arguments = Super::GetArguments(); 
-		DefaultArgIndex = Arguments.Emplace(DefaultArgName, ERigVMPinDirection::Input, GetValueTypes());
-		ValueArgIndex = Arguments.Emplace(ValueArgName, ERigVMPinDirection::Output, GetValueTypes());
-		FoundArgIndex = Arguments.Emplace(FoundArgName, ERigVMPinDirection::Output, RigVMTypeUtils::TypeIndex::Bool);
+		Infos = Super::GetArgumentInfos(); 
+		DefaultArgIndex = Infos.Emplace(DefaultArgName, ERigVMPinDirection::Input, GetValueTypes());
+		ValueArgIndex = Infos.Emplace(ValueArgName, ERigVMPinDirection::Output, GetValueTypes());
+		FoundArgIndex = Infos.Emplace(FoundArgName, ERigVMPinDirection::Output, RigVMTypeUtils::TypeIndex::Bool);
 	};
-	return Arguments;
+	return Infos;
 }
 
 FRigBaseMetadata* FRigDispatch_GetMetadata::FindMetadata(const FRigVMExtendedExecuteContext& InContext,
@@ -296,15 +296,15 @@ FRigVMFunctionPtr FRigDispatch_GetMetadata::GetDispatchFunctionImpl(const FRigVM
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-const TArray<FRigVMTemplateArgument>& FRigDispatch_SetMetadata::GetArguments() const
+const TArray<FRigVMTemplateArgumentInfo>& FRigDispatch_SetMetadata::GetArgumentInfos() const
 {
 	if(ValueArgIndex == INDEX_NONE)
 	{
-		Arguments = Super::GetArguments(); 
-		ValueArgIndex = Arguments.Emplace(ValueArgName, ERigVMPinDirection::Input, GetValueTypes());
-		SuccessArgIndex = Arguments.Emplace(SuccessArgName, ERigVMPinDirection::Output, RigVMTypeUtils::TypeIndex::Bool);
+		Infos = Super::GetArgumentInfos(); 
+		ValueArgIndex = Infos.Emplace(ValueArgName, ERigVMPinDirection::Input, GetValueTypes());
+		SuccessArgIndex = Infos.Emplace(SuccessArgName, ERigVMPinDirection::Output, RigVMTypeUtils::TypeIndex::Bool);
 	};
-	return Arguments;
+	return Infos;
 }
 
 const TArray<FRigVMExecuteArgument>& FRigDispatch_SetMetadata::GetExecuteArguments_Impl(const FRigVMDispatchContext& InContext) const

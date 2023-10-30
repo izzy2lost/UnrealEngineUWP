@@ -419,6 +419,102 @@ TArray<FString> FRigVMTemplateArgument::GetSupportedTypeStrings(const TArray<int
 
 #endif
 
+/**
+ * FRigVMTemplateArgumentInfo 
+ */
+
+FRigVMTemplateArgumentInfo::FRigVMTemplateArgumentInfo(const FName InName, ERigVMPinDirection InDirection, const TArray<TRigVMTypeIndex>& InTypeIndices)
+	: Name(InName)
+	, Direction(InDirection)
+	, FactoryCallback([InTypeIndices](const FName InName, ERigVMPinDirection InDirection){ return FRigVMTemplateArgument(InName, InDirection, InTypeIndices); } )
+{}
+
+FRigVMTemplateArgumentInfo::FRigVMTemplateArgumentInfo(const FName InName, ERigVMPinDirection InDirection, TRigVMTypeIndex InTypeIndex)
+	: Name(InName)
+	, Direction(InDirection)
+	, FactoryCallback( [InTypeIndex](const FName InName, ERigVMPinDirection InDirection){ return FRigVMTemplateArgument(InName, InDirection, InTypeIndex); } )
+{}
+
+FRigVMTemplateArgumentInfo::FRigVMTemplateArgumentInfo(
+	const FName InName, ERigVMPinDirection InDirection,
+	const TArray<FRigVMTemplateArgument::ETypeCategory>& InTypeCategories)
+	: Name(InName)
+	, Direction(InDirection)
+	, FactoryCallback([InTypeCategories](const FName InName, ERigVMPinDirection InDirection){ return FRigVMTemplateArgument(InName, InDirection, InTypeCategories); })
+{}
+
+FRigVMTemplateArgumentInfo::FRigVMTemplateArgumentInfo(const FName InName, ERigVMPinDirection InDirection)
+	: Name(InName)
+	, Direction(InDirection)
+	, FactoryCallback([](const FName InName, ERigVMPinDirection InDirection){ return FRigVMTemplateArgument(InName, InDirection); })
+{}
+
+FRigVMTemplateArgumentInfo::FRigVMTemplateArgumentInfo(const FName InName, ERigVMPinDirection InDirection, ArgumentCallback&& InCallback)
+	: Name(InName)
+	, Direction(InDirection)
+	, FactoryCallback(InCallback)
+{}
+
+FRigVMTemplateArgument FRigVMTemplateArgumentInfo::GetArgument() const
+{
+	FRigVMTemplateArgument Argument = FactoryCallback(Name, Direction);
+	return MoveTemp(Argument);
+}
+
+FName FRigVMTemplateArgumentInfo::ComputeTemplateNotation(const FName InTemplateName, const TArray<FRigVMTemplateArgumentInfo>& InInfos)
+{
+	if (InInfos.IsEmpty())
+	{
+		return NAME_None;	
+	}
+		
+	TArray<FString> ArgumentNotations;
+	Algo::TransformIf(
+		InInfos,
+		ArgumentNotations,
+		[](const FRigVMTemplateArgumentInfo& Info){ return Info.Direction != ERigVMPinDirection::Invalid && Info.Direction != ERigVMPinDirection::Hidden; },
+		[](const FRigVMTemplateArgumentInfo& Info){ return FRigVMTemplate::GetArgumentNotation(Info.Name, Info.Direction); }
+	);
+
+	if (ArgumentNotations.IsEmpty())
+	{
+		return NAME_None;
+	}
+	
+	const FString NotationStr = FString::Printf(TEXT("%s(%s)"), *InTemplateName.ToString(), *FString::Join(ArgumentNotations, TEXT(",")));
+	return *NotationStr;
+}
+
+TArray<TRigVMTypeIndex> FRigVMTemplateArgumentInfo::GetTypesFromCategories(
+	const TArray<FRigVMTemplateArgument::ETypeCategory>& InTypeCategories,
+	const FRigVMTemplateArgument::FTypeFilter& InTypeFilter)
+{
+	TSet<TRigVMTypeIndex> AllTypes;
+	for (const FRigVMTemplateArgument::ETypeCategory TypeCategory : InTypeCategories)
+	{
+		AllTypes.Append(FRigVMRegistry::Get().GetTypesForCategory(TypeCategory));
+	}
+
+	TArray<TRigVMTypeIndex> Types;
+	if (!InTypeFilter.IsBound())
+	{
+		Types = AllTypes.Array();
+	}
+	else
+	{
+		Types.Reserve(AllTypes.Num());
+		for (const TRigVMTypeIndex& Type : AllTypes)
+		{
+			if (InTypeFilter.Execute(Type))
+			{
+				Types.Add(Type);
+			}
+		}
+	}
+	
+	return MoveTemp(Types);
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 FRigVMTemplate::FRigVMTemplate()
@@ -478,7 +574,7 @@ FRigVMTemplate::FRigVMTemplate(UScriptStruct* InStruct, const FString& InTemplat
 			FRigVMTemplateArgument Argument(*It);
 			Argument.Index = Arguments.Num();
 
-			if(!Argument.IsExecute() && IsValidArgumentForTemplate(Argument) && Argument.GetDirection() != ERigVMPinDirection::Hidden)
+			if(!Argument.IsExecute() && IsValidArgumentForTemplate(Argument.GetDirection()) && Argument.GetDirection() != ERigVMPinDirection::Hidden)
 			{
 				Arguments.Add(Argument);
 			}
@@ -493,7 +589,7 @@ FRigVMTemplate::FRigVMTemplate(UScriptStruct* InStruct, const FString& InTemplat
 		{
 			if(!Argument->IsExecute() && Argument->GetDirection() != ERigVMPinDirection::Hidden)
 			{
-				ArgumentNotations.Add(GetArgumentNotation(*Argument));
+				ArgumentNotations.Add(GetArgumentNotation(Argument->Name, Argument->Direction));
 			}
 		}
 	}
@@ -515,34 +611,23 @@ FRigVMTemplate::FRigVMTemplate(UScriptStruct* InStruct, const FString& InTemplat
 	}
 }
 
-FRigVMTemplate::FRigVMTemplate(const FName& InTemplateName, const TArray<FRigVMTemplateArgument>& InArguments)
+FRigVMTemplate::FRigVMTemplate(const FName& InTemplateName, const TArray<FRigVMTemplateArgumentInfo>& InInfos)
 	: Index(INDEX_NONE)
 	, Notation(NAME_None)
 	, Hash(UINT32_MAX)
 {
-	TArray<FString> ArgumentNotations;
-	for (const FRigVMTemplateArgument& InArgument : InArguments)
+	for (const FRigVMTemplateArgumentInfo& InInfo : InInfos)
 	{
-		FRigVMTemplateArgument Argument = InArgument;
-		Argument.Index = Arguments.Num();
-
-		if(IsValidArgumentForTemplate(Argument))
+		if(IsValidArgumentForTemplate(InInfo.Direction))
 		{
-			Arguments.Add(Argument);
-			if(Argument.GetDirection() != ERigVMPinDirection::Hidden)
-			{
-				ArgumentNotations.Add(GetArgumentNotation(Argument));
-			}
+			FRigVMTemplateArgument Argument = InInfo.GetArgument();
+			Argument.Index = Arguments.Num();
+			Arguments.Emplace(MoveTemp(Argument));
 		}
 	}
-
-	if (ArgumentNotations.Num() > 0)
-	{
-		const FString NotationStr = FString::Printf(TEXT("%s(%s)"), *InTemplateName.ToString(), *FString::Join(ArgumentNotations, TEXT(",")));
-		Notation = *NotationStr;
-
-		UpdateTypesHashToPermutation(Permutations.Num()-1);
-	}
+	
+	Notation = FRigVMTemplateArgumentInfo::ComputeTemplateNotation(InTemplateName, InInfos);
+	UpdateTypesHashToPermutation(Permutations.Num()-1);
 }
 
 FLinearColor FRigVMTemplate::GetColorFromMetadata(FString InMetadata)
@@ -572,47 +657,35 @@ FLinearColor FRigVMTemplate::GetColorFromMetadata(FString InMetadata)
 	return Color;
 }
 
-bool FRigVMTemplate::IsValidArgumentForTemplate(const FRigVMTemplateArgument& InArgument)
+bool FRigVMTemplate::IsValidArgumentForTemplate(const ERigVMPinDirection InDirection)
 {
-	static const TArray<ERigVMPinDirection> ValidDirections = {
-		ERigVMPinDirection::Input,
-		ERigVMPinDirection::Output,
-		ERigVMPinDirection::IO,
-		ERigVMPinDirection::Hidden,
-		ERigVMPinDirection::Visible
-	};
-
-	if(!ValidDirections.Contains(InArgument.Direction))
-	{
-		return false;
-	}
-	return true;
+	return InDirection != ERigVMPinDirection::Invalid;
 }
 
 
-const FString& FRigVMTemplate::GetArgumentNotationPrefix(const FRigVMTemplateArgument& InArgument)
+const FString& FRigVMTemplate::GetDirectionPrefix(const ERigVMPinDirection InDirection)
 {
 	static const FString EmptyPrefix = FString();
 	static const FString InPrefix = TEXT("in ");
 	static const FString OutPrefix = TEXT("out ");
 	static const FString IOPrefix = TEXT("io ");
 
-	switch(InArgument.Direction)
+	switch(InDirection)
 	{
-		case ERigVMPinDirection::Input:
-		case ERigVMPinDirection::Visible:
+	case ERigVMPinDirection::Input:
+	case ERigVMPinDirection::Visible:
 		{
 			return InPrefix;
 		}
-		case ERigVMPinDirection::Output:
+	case ERigVMPinDirection::Output:
 		{
 			return OutPrefix;
 		}
-		case ERigVMPinDirection::IO:
+	case ERigVMPinDirection::IO:
 		{
 			return IOPrefix;
 		}
-		default:
+	default:
 		{
 			break;
 		}
@@ -621,21 +694,19 @@ const FString& FRigVMTemplate::GetArgumentNotationPrefix(const FRigVMTemplateArg
 	return EmptyPrefix;
 }
 
-FString FRigVMTemplate::GetArgumentNotation(const FRigVMTemplateArgument& InArgument)
+FString FRigVMTemplate::GetArgumentNotation(const FName InName, const ERigVMPinDirection InDirection)
 {
-	return FString::Printf(TEXT("%s%s"),
-		*GetArgumentNotationPrefix(InArgument),
-		*InArgument.GetName().ToString());
+	return FString::Printf(TEXT("%s%s"), *GetDirectionPrefix(InDirection), *InName.ToString());
 }
 
 void FRigVMTemplate::ComputeNotationFromArguments(const FString& InTemplateName)
 {
 	TArray<FString> ArgumentNotations;			
-	for (FRigVMTemplateArgument& Argument : Arguments)
+	for (const FRigVMTemplateArgument& Argument : Arguments)
 	{
-		if(FRigVMTemplate::IsValidArgumentForTemplate(Argument))
+		if(IsValidArgumentForTemplate(Argument.GetDirection()))
 		{
-			ArgumentNotations.Add(FRigVMTemplate::GetArgumentNotation(Argument));
+			ArgumentNotations.Add(GetArgumentNotation(Argument.Name, Argument.Direction));
 		}
 	}
 
@@ -1233,11 +1304,11 @@ const FRigVMFunction* FRigVMTemplate::GetOrCreatePermutation(int32 InIndex)
 		{
 			Types.Add(Argument.GetName(), Argument.TypeIndices[InIndex]);
 		}
-		
-		if(const FRigVMFunctionPtr DispatchFunction = Delegates.RequestDispatchFunctionDelegate.Execute(this, Types))
+
+		FRigVMDispatchFactory* Factory = Delegates.GetDispatchFactoryDelegate.Execute();
+		if (ensure(Factory))
 		{
-			FRigVMDispatchFactory* Factory = Delegates.GetDispatchFactoryDelegate.Execute();
-			check(Factory);
+			const FRigVMFunctionPtr DispatchFunction = Factory->CreateDispatchFunction(Types);
 
 			TArray<FRigVMFunctionArgument> FunctionArguments;
 			for(const FRigVMTemplateArgument& Argument : Arguments)
@@ -1262,11 +1333,8 @@ const FRigVMFunction* FRigVMTemplate::GetOrCreatePermutation(int32 InIndex)
 			Registry.Functions[FunctionIndex].TemplateIndex = Index;
 			Registry.FunctionNameToIndex.Add(*PermutationName, FunctionIndex);
 
-			if (Delegates.RequestDispatchPredicatesDelegate.IsBound())
-			{
-				TArray<FRigVMFunction> Predicates = Delegates.RequestDispatchPredicatesDelegate.Execute(this, Types);
-				Registry.StructNameToPredicates.Add(*PermutationName, Predicates);
-			}
+			TArray<FRigVMFunction> Predicates = Factory->CreateDispatchPredicates(Types);
+			Registry.StructNameToPredicates.Add(*PermutationName, MoveTemp(Predicates));
 
 			return &Registry.Functions[FunctionIndex];
 		}
@@ -1693,13 +1761,18 @@ bool FRigVMTemplate::AddTypeForArgument(const FName& InArgumentName, TRigVMTypeI
 	InvalidateHash();
 
 	TArray<FRigVMTemplateTypeMap> TypesArray;
-	if (OnGetPermutationsFromArgumentType().IsBound())
+
+	if(Delegates.GetDispatchFactoryDelegate.IsBound())
 	{
-		TypesArray = OnGetPermutationsFromArgumentType().Execute(this, InArgumentName, InTypeIndex);
+		const FRigVMDispatchFactory* Factory = Delegates.GetDispatchFactoryDelegate.Execute();
+		if(ensure(Factory))
+		{
+			TypesArray = Factory->GetPermutationsFromArgumentType(InArgumentName, InTypeIndex);
+		}
 	}
 	else if(OnNewArgumentType().IsBound())
 	{
-		FRigVMTemplateTypeMap Types = OnNewArgumentType().Execute(this, InArgumentName, InTypeIndex);
+		FRigVMTemplateTypeMap Types = OnNewArgumentType().Execute(InArgumentName, InTypeIndex);
 		TypesArray = {Types};
 	}
 

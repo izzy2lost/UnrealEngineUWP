@@ -1559,35 +1559,33 @@ const TChunkedArray<FRigVMTemplate>& FRigVMRegistry::GetTemplates() const
 	return Templates;
 }
 
-const FRigVMTemplate* FRigVMRegistry::GetOrAddTemplateFromArguments(const FName& InName, const TArray<FRigVMTemplateArgument>& InArguments, const FRigVMTemplateDelegates& InDelegates)
+const FRigVMTemplate* FRigVMRegistry::GetOrAddTemplateFromArguments(const FName& InName, const TArray<FRigVMTemplateArgumentInfo>& InInfos, const FRigVMTemplateDelegates& InDelegates)
 {
 	FScopeLock RegisterTemplateScopeLock(&RegisterTemplateMutex);
 	
-	FRigVMTemplate Template(InName, InArguments);
-
 	// avoid reentry in FindTemplate. try to find an existing
 	// template only if we are not yet in ::FindTemplate.
-	if(const FRigVMTemplate* ExistingTemplate = FindTemplate(Template.GetNotation()))
+	const FName Notation = FRigVMTemplateArgumentInfo::ComputeTemplateNotation(InName, InInfos);
+	if(const FRigVMTemplate* ExistingTemplate = FindTemplate(Notation))
 	{
 		return ExistingTemplate;
 	}
 
-	return AddTemplateFromArguments_NoLock(InName, InArguments, InDelegates);
+	return AddTemplateFromArguments_NoLock(InName, InInfos, InDelegates);
 }
 
-const FRigVMTemplate* FRigVMRegistry::AddTemplateFromArguments(const FName& InName, const TArray<FRigVMTemplateArgument>& InArguments, const FRigVMTemplateDelegates& InDelegates)
+const FRigVMTemplate* FRigVMRegistry::AddTemplateFromArguments(const FName& InName, const TArray<FRigVMTemplateArgumentInfo>& InInfos, const FRigVMTemplateDelegates& InDelegates)
 {
 	FScopeLock RegisterTemplateScopeLock(&RegisterTemplateMutex);
-	return AddTemplateFromArguments_NoLock(InName, InArguments, InDelegates);
+	return AddTemplateFromArguments_NoLock(InName, InInfos, InDelegates);
 }
 
-const FRigVMTemplate* FRigVMRegistry::AddTemplateFromArguments_NoLock(const FName& InName, const TArray<FRigVMTemplateArgument>& InArguments, const FRigVMTemplateDelegates& InDelegates)
+const FRigVMTemplate* FRigVMRegistry::AddTemplateFromArguments_NoLock(const FName& InName, const TArray<FRigVMTemplateArgumentInfo>& InInfos, const FRigVMTemplateDelegates& InDelegates)
 {
-	FRigVMTemplate Template(InName, InArguments);
-	
 	// we only support to ask for templates here which provide singleton types
 	int32 NumPermutations = 0;
-	for(const FRigVMTemplateArgument& Argument : InArguments)
+	FRigVMTemplate Template(InName, InInfos);
+	for(const FRigVMTemplateArgument& Argument : Template.Arguments)
 	{
 		if(!Argument.IsSingleton() && NumPermutations > 1)
 		{

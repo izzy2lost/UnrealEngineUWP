@@ -321,18 +321,18 @@ FString FRigDispatch_AnimAttributeBase::GetNodeTitle(const FRigVMTemplateTypeMap
 }
 #endif
 
-const TArray<FRigVMTemplateArgument>& FRigDispatch_AnimAttributeBase::GetArguments() const
+const TArray<FRigVMTemplateArgumentInfo>& FRigDispatch_AnimAttributeBase::GetArgumentInfos() const
 {
-	if (Arguments.IsEmpty())
+	if (Infos.IsEmpty())
 	{
-		NameArgIndex = Arguments.Emplace(NameArgName, ERigVMPinDirection::Input, RigVMTypeUtils::TypeIndex::FName);
-		BoneNameArgIndex = Arguments.Emplace(BoneNameArgName, ERigVMPinDirection::Input, RigVMTypeUtils::TypeIndex::FName);
+		NameArgIndex = Infos.Emplace(NameArgName, ERigVMPinDirection::Input, RigVMTypeUtils::TypeIndex::FName);
+		BoneNameArgIndex = Infos.Emplace(BoneNameArgName, ERigVMPinDirection::Input, RigVMTypeUtils::TypeIndex::FName);
 
-		CachedBoneNameArgIndex = Arguments.Emplace(CachedBoneNameArgName, ERigVMPinDirection::Hidden, RigVMTypeUtils::TypeIndex::FName);
-		CachedBoneIndexArgIndex = Arguments.Emplace(CachedBoneIndexArgName, ERigVMPinDirection::Hidden, RigVMTypeUtils::TypeIndex::Int32);
+		CachedBoneNameArgIndex = Infos.Emplace(CachedBoneNameArgName, ERigVMPinDirection::Hidden, RigVMTypeUtils::TypeIndex::FName);
+		CachedBoneIndexArgIndex = Infos.Emplace(CachedBoneIndexArgName, ERigVMPinDirection::Hidden, RigVMTypeUtils::TypeIndex::Int32);
 	}
 	
-	return Arguments;
+	return Infos;
 }
 
 #if WITH_EDITOR
@@ -372,23 +372,23 @@ FText FRigDispatch_AnimAttributeBase::GetArgumentTooltip(const FName& InArgument
 
 
 
-const TArray<FRigVMTemplateArgument>& FRigDispatch_GetAnimAttribute::GetArguments() const
+const TArray<FRigVMTemplateArgumentInfo>& FRigDispatch_GetAnimAttribute::GetArgumentInfos() const
 {
 	if (ValueArgIndex == INDEX_NONE)
 	{
-		Arguments = Super::GetArguments(); 
+		Infos = Super::GetArgumentInfos(); 
 
 		FRigVMTemplateArgument::FTypeFilter	TypeFilter;
 		TypeFilter.BindStatic(&FRigDispatch_AnimAttributeBase::IsTypeSupported);
+		const TArray<TRigVMTypeIndex> Types = FRigVMTemplateArgumentInfo::GetTypesFromCategories(GetValueTypeCategory(), TypeFilter);
 		
-		DefaultArgIndex = Arguments.Emplace(DefaultArgName, ERigVMPinDirection::Input, GetValueTypeCategory(), TypeFilter);
-		ValueArgIndex = Arguments.Emplace(ValueArgName, ERigVMPinDirection::Output, GetValueTypeCategory(), TypeFilter);
+		DefaultArgIndex = Infos.Emplace(DefaultArgName, ERigVMPinDirection::Input, Types);
+		ValueArgIndex = Infos.Emplace(ValueArgName, ERigVMPinDirection::Output, Types);
 		
-		FoundArgIndex = Arguments.Emplace(FoundArgName, ERigVMPinDirection::Output, RigVMTypeUtils::TypeIndex::Bool);
+		FoundArgIndex = Infos.Emplace(FoundArgName, ERigVMPinDirection::Output, RigVMTypeUtils::TypeIndex::Bool);
 	}
 
-	
-	return Arguments;
+	return Infos;
 }
 
 FRigVMTemplateTypeMap FRigDispatch_GetAnimAttribute::OnNewArgumentType(const FName& InArgumentName,
@@ -455,20 +455,21 @@ FRigVMFunctionPtr FRigDispatch_GetAnimAttribute::GetDispatchFunctionImpl(const F
 	return nullptr;
 }
 
-const TArray<FRigVMTemplateArgument>& FRigDispatch_SetAnimAttribute::GetArguments() const
+const TArray<FRigVMTemplateArgumentInfo>& FRigDispatch_SetAnimAttribute::GetArgumentInfos() const
 {
 	if (ValueArgIndex == INDEX_NONE)
 	{
-		Arguments = Super::GetArguments();
+		Infos = Super::GetArgumentInfos();
 
 		FRigVMTemplateArgument::FTypeFilter	TypeFilter;
 		TypeFilter.BindStatic(&FRigDispatch_AnimAttributeBase::IsTypeSupported);
+		const TArray<TRigVMTypeIndex> Types = FRigVMTemplateArgumentInfo::GetTypesFromCategories(GetValueTypeCategory(), TypeFilter);
 		
-		ValueArgIndex = Arguments.Emplace(ValueArgName, ERigVMPinDirection::Input, GetValueTypeCategory(), TypeFilter);
-		SuccessArgIndex = Arguments.Emplace(SuccessArgName, ERigVMPinDirection::Output, RigVMTypeUtils::TypeIndex::Bool);
+		ValueArgIndex = Infos.Emplace(ValueArgName, ERigVMPinDirection::Input, Types);
+		SuccessArgIndex = Infos.Emplace(SuccessArgName, ERigVMPinDirection::Output, RigVMTypeUtils::TypeIndex::Bool);
 	}
 	
-	return Arguments;
+	return Infos;
 }
 
 const TArray<FRigVMExecuteArgument>& FRigDispatch_SetAnimAttribute::GetExecuteArguments_Impl(const FRigVMDispatchContext& InContext) const

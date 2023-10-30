@@ -11,16 +11,19 @@
 const FName FRigVMDispatch_MakeStruct::ElementsName = TEXT("Elements");
 const FName FRigVMDispatch_MakeStruct::StructName = TEXT("Struct");
 
-const TArray<FRigVMTemplateArgument>& FRigVMDispatch_MakeStruct::GetArguments() const
+const TArray<FRigVMTemplateArgumentInfo>& FRigVMDispatch_MakeStruct::GetArgumentInfos() const
 {
-	static const TArray<FRigVMTemplateArgument::ETypeCategory> Categories = {
-		FRigVMTemplateArgument::ETypeCategory_SingleScriptStructValue
-	};
-	static TArray<FRigVMTemplateArgument> Arguments = {
-		{ElementsName, ERigVMPinDirection::Input, Categories},
-		{StructName, ERigVMPinDirection::Output, Categories}
-	};
-	return Arguments;
+	static TArray<FRigVMTemplateArgumentInfo> Infos;
+	if(Infos.IsEmpty())
+	{
+		static const TArray<FRigVMTemplateArgument::ETypeCategory> Categories = {
+			FRigVMTemplateArgument::ETypeCategory_SingleScriptStructValue
+		};
+		
+		Infos.Emplace(ElementsName, ERigVMPinDirection::Input, Categories);
+		Infos.Emplace(StructName, ERigVMPinDirection::Output, Categories);
+	}
+	return Infos;
 }
 
 FRigVMTemplateTypeMap FRigVMDispatch_MakeStruct::OnNewArgumentType(const FName& InArgumentName, TRigVMTypeIndex InTypeIndex) const
@@ -102,16 +105,19 @@ void FRigVMDispatch_MakeStruct::Execute(FRigVMExtendedExecuteContext& InContext,
 	URigVMMemoryStorage::CopyProperty(TargetProperty, TargetMemory, SourceProperty, SourceMemory);
 }
 
-const TArray<FRigVMTemplateArgument>& FRigVMDispatch_BreakStruct::GetArguments() const
+const TArray<FRigVMTemplateArgumentInfo>& FRigVMDispatch_BreakStruct::GetArgumentInfos() const
 {
-	static const TArray<FRigVMTemplateArgument::ETypeCategory> Categories = {
-		FRigVMTemplateArgument::ETypeCategory_SingleScriptStructValue
-	};
-	static const TArray<FRigVMTemplateArgument> Arguments = {
-		{StructName, ERigVMPinDirection::Input, Categories},
-		{ElementsName, ERigVMPinDirection::Output, Categories}
-	};
-	return Arguments;
+	static TArray<FRigVMTemplateArgumentInfo> Infos;
+	if(Infos.IsEmpty())
+	{
+		static const TArray<FRigVMTemplateArgument::ETypeCategory> Categories = {
+			FRigVMTemplateArgument::ETypeCategory_SingleScriptStructValue
+		};
+
+		Infos.Emplace(StructName, ERigVMPinDirection::Input, Categories);
+		Infos.Emplace(ElementsName, ERigVMPinDirection::Output, Categories);
+	}
+	return Infos;
 }
 
 #if WITH_EDITOR
