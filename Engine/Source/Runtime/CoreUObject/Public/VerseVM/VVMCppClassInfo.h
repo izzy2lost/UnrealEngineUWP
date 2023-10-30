@@ -84,6 +84,7 @@ public:                                                                         
 			This->StaticCast<CellType>().VisitInheritedAndNonInheritedReferences(Visitor);                                                                                      \
 		},                                                                                                                                                                      \
 		[](::Verse::VCell* This, ::Verse::FAbstractVisitor& Visitor) -> void {                                                                                                  \
+			::Verse::FAbstractVisitorDispatch::FReferrerContext Context(Visitor, This);                                                                                         \
 			This->StaticCast<CellType>().VisitInheritedAndNonInheritedReferences(Visitor);                                                                                      \
 		},                                                                                                                                                                      \
 		[](::Verse::VCell* This) -> void {                                                                                                                                      \
