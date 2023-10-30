@@ -69,9 +69,28 @@ USTRUCT()
 struct FClusteredComponentData
 {
 	GENERATED_BODY()
+	
+	FClusteredComponentData() = default;
 
+#if WITH_EDITORONLY_DATA
+	UE_DEPRECATED(5.4, "This property is deprecated. Please use BonesData instead.")
 	// Set of bone Ids that we actually added into the cluster union.
-	TSet<FClusterUnionBoneData> BonesData;
+	TSet<int32> BoneIds;
+
+	UE_DEPRECATED(5.4, "This property is deprecated and no longer used. It will be removed in future versions.")
+	// Cached acceleration structure handles - needed to properly cleanup the component from the accel structure.
+	TSet<FExternalSpatialAccelerationPayload> CachedAccelerationPayloads;
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	FClusteredComponentData(const FClusteredComponentData& Other) = default;
+	FClusteredComponentData(FClusteredComponentData&& Other) = default;
+	FClusteredComponentData& operator=(const FClusteredComponentData& Other) = default;
+	FClusteredComponentData& operator=(FClusteredComponentData&& Other) = default;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+#endif // WITH_EDITORONLY_DATA
+
+	// Array of bone Ids that we actually added into the cluster union.
+	TArray<FClusterUnionBoneData> BonesData;
 
 	// Using a TWeakObjectPtr here because the UClusterUnionReplicatedProxyComponent will have a pointer back
 	// and we don't want to get into a situation where a circular reference occurs.
@@ -116,6 +135,24 @@ struct FClusterUnionPendingAddData
 {
 	GENERATED_BODY()
 
+	FClusterUnionPendingAddData() = default;
+	
+#if WITH_EDITORONLY_DATA
+	UE_DEPRECATED(5.4, "This property is deprecated. Please use BonesData instead.")
+	TArray<int32> BoneIds;
+
+	UE_DEPRECATED(5.4, "This property is deprecated and no longer used. It will be removed in future versions.")
+	UPROPERTY()
+	TArray<FExternalSpatialAccelerationPayload> AccelerationPayloads;
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	FClusterUnionPendingAddData(const FClusterUnionPendingAddData& Other) = default;
+	FClusterUnionPendingAddData(FClusterUnionPendingAddData&& Other) = default;
+	FClusterUnionPendingAddData& operator=(const FClusterUnionPendingAddData& Other) = default;
+	FClusterUnionPendingAddData& operator=(FClusterUnionPendingAddData&& Other) = default;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+#endif // WITH_EDITORONLY_DATA
+
 	UPROPERTY()
 	TSet<FClusterUnionBoneData> BonesData;
 };
@@ -133,10 +170,10 @@ struct FClusterUnionInitializationData
 };
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnClusterUnionAddedComponent, UPrimitiveComponent*, Component, const TSet<int32>&, BoneIds, bool, bIsNew);
-DECLARE_MULTICAST_DELEGATE_FourParams(FOnClusterUnionAddedComponentNative, UPrimitiveComponent*, const TSet<FClusterUnionBoneData>& /*BoneIds*/, const TArray<FClusterUnionBoneData>& /*RemovedBoneIds*/, bool /*bIsNew*/);
+DECLARE_MULTICAST_DELEGATE_FourParams(FOnClusterUnionAddedComponentNative, UPrimitiveComponent*, const TArray<FClusterUnionBoneData>& /*BoneIds*/, const TArray<FClusterUnionBoneData>& /*RemovedBoneIds*/, bool /*bIsNew*/);
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnClusterUnionRemovedComponent, UPrimitiveComponent*, Component);
-DECLARE_MULTICAST_DELEGATE_TwoParams(FOnClusterUnionRemovedComponentNative, UPrimitiveComponent*, const TSet<FClusterUnionBoneData>& /*RemovedBonesData*/);
+DECLARE_MULTICAST_DELEGATE_TwoParams(FOnClusterUnionRemovedComponentNative, UPrimitiveComponent*, const TArray<FClusterUnionBoneData>& /*RemovedBonesData*/);
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnClusterUnionBoundsChanged, UClusterUnionComponent*, Component, const FBoxSphereBounds&, Bounds);
 
@@ -304,8 +341,8 @@ protected:
 	UFUNCTION()
 	ENGINE_API void ForceSetChildToParent(UPrimitiveComponent* InComponent, const TArray<int32>& BoneIds, const TArray<FTransform>& ChildToParent);
 
-	ENGINE_API void BroadcastComponentAddedEvents(UPrimitiveComponent* ChangedComponent, const TSet<FClusterUnionBoneData>& BoneIds, bool bIsNew, const TArray<FClusterUnionBoneData>& RemovedBoneIDs);
-	ENGINE_API void BroadcastComponentRemovedEvents(UPrimitiveComponent* ChangedComponent, const TSet<FClusterUnionBoneData>& InRemovedBonesData);
+	ENGINE_API void BroadcastComponentAddedEvents(UPrimitiveComponent* ChangedComponent, const TArray<FClusterUnionBoneData>& BoneIds, bool bIsNew, const TArray<FClusterUnionBoneData>& RemovedBoneIDs);
+	ENGINE_API void BroadcastComponentRemovedEvents(UPrimitiveComponent* ChangedComponent, const TArray<FClusterUnionBoneData>& InRemovedBonesData);
 
 	Chaos::FClusterUnionPhysicsProxy* GetPhysicsProxy() const { return PhysicsProxy; }
 	Chaos::FClusterUnionPhysicsProxy* GetPhysicsProxy() { return PhysicsProxy; }

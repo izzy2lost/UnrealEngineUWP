@@ -373,7 +373,7 @@ void UClusterUnionComponent::RemoveComponentBonesFromCluster(UPrimitiveComponent
 	TSet<Chaos::FPhysicsObjectHandle> PhysicsObjectsToRemove;
 	if (FClusteredComponentData* ComponentData = PerComponentData.Find(ComponentKey))
 	{
-		for (TSet<FClusterUnionBoneData>::TIterator RemoveBoneDataIterator = ComponentData->BonesData.CreateIterator(); RemoveBoneDataIterator; ++RemoveBoneDataIterator)
+		for (TArray<FClusterUnionBoneData>::TIterator RemoveBoneDataIterator = ComponentData->BonesData.CreateIterator(); RemoveBoneDataIterator; ++RemoveBoneDataIterator)
 		{
 			if (AccelerationStructure)
 			{
@@ -876,7 +876,12 @@ void UClusterUnionComponent::SyncClusterUnionFromProxy()
 	const Chaos::FClusterUnionSyncedData& FullData = PhysicsProxy->GetSyncedData_External();
 
 	TArray<Chaos::FPBDRigidParticle*> ChildParticles;
-	ChildParticles.Reserve(FullData.ChildParticles.Num());
+
+	if (FullData.bDidSyncGeometry)
+	{
+		ChildParticles.Reserve(FullData.ChildParticles.Num());
+	}
+	
 	PerShapeComponentBone.Reset(FullData.ChildParticles.Num());
 
 	// Note that at the UClusterUnionComponent level we really only want to be dealing with components.
@@ -897,7 +902,11 @@ void UClusterUnionComponent::SyncClusterUnionFromProxy()
 				Chaos::FPhysicsObjectHandle Handle = Component->GetPhysicsObjectById(ChildData.BoneId);
 				
 				Chaos::FPBDRigidParticle* Particle = Interface->GetRigidParticle(Handle);
-				ChildParticles.Add(Particle);
+
+				if (FullData.bDidSyncGeometry)
+				{
+					ChildParticles.Add(Particle);
+				}
 
 				FMappedBoneData MappedBoneData(Handle, Particle, Particle ? Particle->UniqueIdx() : Chaos::FUniqueIdx(), ChildData.ChildToParent);
 				BoneIDToBoneData.Add(ChildData.BoneId, MappedBoneData);
@@ -906,7 +915,11 @@ void UClusterUnionComponent::SyncClusterUnionFromProxy()
 			}
 			else
 			{
-				ChildParticles.Add(nullptr);
+				if (FullData.bDidSyncGeometry)
+				{
+					ChildParticles.Add(nullptr);
+				}
+			
 				PerShapeComponentBone.Add({});
 			}
 		}
@@ -1023,31 +1036,28 @@ void UClusterUnionComponent::HandleAddOrModifiedClusteredComponent(const FMapped
 				ComponentData.ReplicatedProxyComponent = ReplicatedProxy;
 			}
 		}
-
 	}
 
 	TArray<FClusterUnionBoneData> RemovedBoneIDs;
 	RemovedBoneIDs.Reserve(ComponentData.BonesData.Num());
 
-	// In the case where we need to keep the acceleration structure up to date, we need to make sure old bone ids are properly
-	// removed from the acceleration structure.
-	if (AccelerationStructure)
+	for (const FClusterUnionBoneData& BoneData : ComponentData.BonesData)
 	{
-		for (const FClusterUnionBoneData& BoneData : ComponentData.BonesData)
+		if (!PerBoneChildToParent.Contains(BoneData.ID))
 		{
-			if (!PerBoneChildToParent.Contains(BoneData.ID))
+			// In the case where we need to keep the acceleration structure up to date, we need to make sure old bone ids are properly
+			// removed from the acceleration structure.
+			if (AccelerationStructure)
 			{
-				if (Chaos::FPhysicsObjectHandle PhysicsObject = ChangedComponentData.ComponentPtr->GetPhysicsObjectById(BoneData.ID))
+				FExternalSpatialAccelerationPayload Handle;
+				Handle.Initialize(ChangedComponentData.ComponentKey, BoneData.ID, BoneData.ParticleID);
+				if (ensure(Handle.IsValid()))
 				{
-					FExternalSpatialAccelerationPayload Handle;
-					Handle.Initialize(ChangedComponentData.ComponentKey, BoneData.ID, BoneData.ParticleID);
-					if (ensure(Handle.IsValid()))
-					{
-						AccelerationStructure->RemoveElement(Handle);
-					}
+					AccelerationStructure->RemoveElement(Handle);
 				}
-				RemovedBoneIDs.Emplace(FClusterUnionBoneData(BoneData.ID, BoneData.ParticleID));
 			}
+
+			RemovedBoneIDs.Emplace(FClusterUnionBoneData(BoneData.ID, BoneData.ParticleID));
 		}
 	}
 
@@ -1155,7 +1165,7 @@ void UClusterUnionComponent::HandleRemovedClusteredComponent(TObjectKey<UPrimiti
 	PendingComponentSync.Remove(RemovedComponent);
 }
 
-void UClusterUnionComponent::BroadcastComponentAddedEvents(UPrimitiveComponent* ChangedComponent, const TSet<FClusterUnionBoneData>& BoneIds, bool bIsNew, const TArray<FClusterUnionBoneData>& RemovedBoneIDs)
+void UClusterUnionComponent::BroadcastComponentAddedEvents(UPrimitiveComponent* ChangedComponent, const TArray<FClusterUnionBoneData>& BoneIds, bool bIsNew, const TArray<FClusterUnionBoneData>& RemovedBoneIDs)
 {
 	// TODO: Add a new delegate that takes a TArray and deprecate this one
 	if (OnComponentAddedEvent.IsBound())
@@ -1170,7 +1180,7 @@ void UClusterUnionComponent::BroadcastComponentAddedEvents(UPrimitiveComponent* 
 	}
 }
 
-void UClusterUnionComponent::BroadcastComponentRemovedEvents(UPrimitiveComponent* ChangedComponent, const TSet<FClusterUnionBoneData>& InRemovedBonesData)
+void UClusterUnionComponent::BroadcastComponentRemovedEvents(UPrimitiveComponent* ChangedComponent, const TArray<FClusterUnionBoneData>& InRemovedBonesData)
 {
 	if (OnComponentRemovedEvent.IsBound())
 	{
