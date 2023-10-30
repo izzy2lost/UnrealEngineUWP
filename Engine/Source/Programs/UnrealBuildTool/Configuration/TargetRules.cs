@@ -3070,6 +3070,16 @@ namespace UnrealBuildTool
 
 			Logger.LogDebug("Using EngineIncludeOrderVersion.{Version} for target {Target}", IncludeOrderVersion, File!.GetFileName());
 		}
+
+		/// <summary>
+		/// Prints diagnostic messages about default settings which have changed in newer versions of the engine
+		/// </summary>
+		public void PrintBuildSettingsInfoWarnings()
+		{
+			List<string> Diagnostics = new();
+			GetBuildSettingsInfo(Diagnostics);
+			Diagnostics.ForEach(x => Logger.LogWarning("Warning: {Message}", x));
+		}
 	}
 
 	/// <summary>

@@ -1302,7 +1302,15 @@ namespace UnrealBuildTool
 			// If we're using the shared build environment, make sure all the settings are valid
 			if (RulesObject.BuildEnvironment == TargetBuildEnvironment.Shared)
 			{
-				ValidateSharedEnvironment(RulesAssembly, Descriptor.Name, Descriptor.AdditionalArguments, RulesObject, Logger);
+				try
+				{
+					ValidateSharedEnvironment(RulesAssembly, Descriptor.Name, Descriptor.AdditionalArguments, RulesObject, Logger);
+				}
+				catch (Exception)
+				{
+					RulesObject.PrintBuildSettingsInfoWarnings();
+					throw;
+				}
 			}
 
 			// If we're precompiling, generate a list of all the files that we depend on
