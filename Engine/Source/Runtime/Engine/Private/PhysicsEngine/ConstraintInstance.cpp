@@ -65,10 +65,8 @@ FVector RevolutionsToRads(const FVector Revolutions)
 	return Revolutions * 2.f * UE_PI;
 }
 
-#if WITH_EDITORONLY_DATA
-
 /** Returns the 'To' bone's transform relative to the 'From' bone. */
-FTransform CalculateRelativeBoneTransform(const FName ToBoneName, const FName FromBoneName, FReferenceSkeleton& ReferenceSkeleton)
+FTransform CalculateRelativeBoneTransform(const FName ToBoneName, const FName FromBoneName, const FReferenceSkeleton& ReferenceSkeleton)
 {
 	FTransform RelativeBoneTransform = FTransform::Identity;
 
@@ -112,8 +110,6 @@ FTransform CalculateRelativeBoneTransform(const FName ToBoneName, const FName Fr
 
 	return RelativeBoneTransform;
 }
-
-#endif // WITH_EDITORONLY_DATA
 
 #if WITH_EDITOR
 void FConstraintProfileProperties::SyncChangedConstraintProperties(FPropertyChangedChainEvent& PropertyChangedEvent)

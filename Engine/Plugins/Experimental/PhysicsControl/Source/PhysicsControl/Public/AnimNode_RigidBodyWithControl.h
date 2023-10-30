@@ -185,6 +185,12 @@ public:
 	uint8 bClampLinearTranslationLimitToRefPose : 1;
 
 	/**
+		Change the parent space transforms of constraints read from the physics asset to match the relative bone transforms in the in-coming skeleton.
+	*/
+	UPROPERTY(EditAnywhere, Category = PhysicsAssetConditioning, meta = (InlineEditConditionToggle))
+	uint8 bModifyConstraintTransformsToMatchSkeleton : 1;
+
+	/**
 		For world-space simulations, if the magnitude of the component's 3D scale is less than WorldSpaceMinimumScale, do not update the node.
 	*/
 	UPROPERTY(EditAnywhere, Category = Settings)
@@ -265,6 +271,15 @@ public:
 	 */
 	UPROPERTY(EditAnywhere, Category = Controls, meta = (PinShownByDefault))
 	FRigidBodyKinematicTargets KinematicTargets;
+
+	/**
+	 * When enabled, each Constraint's transform relative to its parent bone will be updated to account for any difference 
+	 * in the transform of its child bone relative to its parent bone between the skeleton used to author the physics asset
+	 * and the current skeleton (if the authored skeleton is defined) or snapped to the default transform relative to the
+	 * parent bone (if the authored skeleton is not defined).
+	 */
+	UPROPERTY(EditAnywhere, Category = PhysicsAssetConditioning, meta = (DisplayName = "Map constraints to Skeleton", editcondition = "bModifyConstraintTransformsToMatchSkeleton"))
+	USkeletalMesh* PhysicsAssetAuthoredSkeletalMesh;
 
 	/**
 	 * The constraint profile to use on all the joints in the physics asset
@@ -374,6 +389,9 @@ private:
 		FVector& SpaceAngularVel,
 		FVector& SpaceLinearAcc,
 		FVector& SpaceAngularAcc);
+
+	// Modify Constraint transforms relative to the parent bone to correct for the difference between the Skeleton used to create the Physics asset and the current skeleton.
+	void TransformConstraintsToMatchSkeletalMesh(const USkeletalMesh* const SkeletalMeshAsset, TArray<FConstraintInstance*>& ConstraintInstances);
 
 	// Gather cloth collision sources from the supplied Skeltal Mesh and add a kinematic actor representing each one of them to the sim.
 	void CollectClothColliderObjects(const USkeletalMeshComponent* SkeletalMeshComp);

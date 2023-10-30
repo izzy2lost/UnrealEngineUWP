@@ -22,6 +22,7 @@ class FMaterialRenderProxy;
 class FPrimitiveDrawInterface;
 class FMaterialRenderProxy;
 class UPhysicsAsset;
+struct FReferenceSkeleton;
 
 UENUM()
 enum class EConstraintTransformComponentFlags : uint8
@@ -41,6 +42,9 @@ enum class EConstraintTransformComponentFlags : uint8
 };
 
 ENUM_CLASS_FLAGS(EConstraintTransformComponentFlags);
+
+/** Returns the 'To' bone's transform relative to the 'From' bone. */
+ENGINE_API FTransform CalculateRelativeBoneTransform(const FName ToBoneName, const FName FromBoneName, const FReferenceSkeleton& ReferenceSkeleton);
 
 /** Container for properties of a physics constraint that can be easily swapped at runtime. This is useful for switching different setups when going from ragdoll to standup for example */
 USTRUCT()

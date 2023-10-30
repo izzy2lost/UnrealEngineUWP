@@ -1090,6 +1090,11 @@ void FAnimNode_RigidBodyWithControl::InitPhysics(const UAnimInstance* InAnimInst
 			FPhysicsAggregateHandle(),
 			bCreateBodiesInRefPose);
 
+		if (bModifyConstraintTransformsToMatchSkeleton)
+		{
+			TransformConstraintsToMatchSkeletalMesh(SkeletalMeshAsset, HighLevelConstraintInstances);
+		}
+
 		TMap<FName, ImmediatePhysics::FActorHandle*> NamesToHandles;
 		TArray<ImmediatePhysics::FActorHandle*> IgnoreCollisionActors;
 
