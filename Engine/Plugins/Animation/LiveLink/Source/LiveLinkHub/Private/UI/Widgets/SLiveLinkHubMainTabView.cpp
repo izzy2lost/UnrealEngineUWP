@@ -2,6 +2,7 @@
 
 #include "SLiveLinkHubMainTabView.h"
 
+#include "Clients/LiveLinkHubClientsController.h"
 #include "Features/IModularFeatures.h"
 #include "IDetailsView.h"
 #include "ILiveLinkClient.h"
@@ -209,23 +210,27 @@ TSharedRef<SDockTab> SLiveLinkHubMainTabView::SpawnPlaybackTab(const FSpawnTabAr
 
 TSharedRef<SDockTab> SLiveLinkHubMainTabView::SpawnClientsTab(const FSpawnTabArgs& InTabArgs)
 {
+	FLiveLinkHubModule& LiveLinkHubModule = FModuleManager::Get().GetModuleChecked<FLiveLinkHubModule>("LiveLinkHub");
+	TSharedPtr<FLiveLinkHubClientsController> ClientsController = LiveLinkHubModule.GetLiveLinkHub()->GetClientsController();
+
 	return SNew(SDockTab)
 		.Label(ClientsTabName)
 		.TabRole(PanelTab)
 		[
-			SNew(STextBlock)
-			.Text(LOCTEXT("TemporaryClientText", "Client list here"))
+			ClientsController->MakeClientsView()
 		];
 }
 
 TSharedRef<SDockTab> SLiveLinkHubMainTabView::SpawnClientDetailsTab(const FSpawnTabArgs& InTabArgs)
 {
+	FLiveLinkHubModule& LiveLinkHubModule = FModuleManager::Get().GetModuleChecked<FLiveLinkHubModule>("LiveLinkHub");
+	TSharedPtr<FLiveLinkHubClientsController> ClientsController = LiveLinkHubModule.GetLiveLinkHub()->GetClientsController();
+
 	return SNew(SDockTab)
 		.Label(ClientDetailsTabName)
 		.TabRole(PanelTab)
 		[
-			SNew(STextBlock)
-			.Text(LOCTEXT("TemporaryClientDetailsText", "Client details here"))
+			ClientsController->MakeClientDetailsView()
 		];
 }
 

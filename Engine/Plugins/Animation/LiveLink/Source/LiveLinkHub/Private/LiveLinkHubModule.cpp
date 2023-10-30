@@ -2,6 +2,7 @@
 
 #include "LiveLinkHubModule.h"
 
+#include "Clients/LiveLinkHubProvider.h"
 #include "LiveLinkHubApplication.h"
 #include "Modules/ModuleManager.h"
 #include "Recording/LiveLinkHubPlaybackController.h"
@@ -24,7 +25,7 @@ TSharedPtr<FLiveLinkHub> FLiveLinkHubModule::GetLiveLinkHub() const
 	return LiveLinkHub;
 }
 
-TSharedPtr<ILiveLinkProvider> FLiveLinkHubModule::GetLiveLinkProvider() const
+TSharedPtr<FLiveLinkHubProvider> FLiveLinkHubModule::GetLiveLinkProvider() const
 {
 	return LiveLinkHub->LiveLinkProvider;
 }

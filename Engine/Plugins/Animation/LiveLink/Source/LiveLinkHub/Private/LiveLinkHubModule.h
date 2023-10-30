@@ -6,9 +6,9 @@
 #include "Templates/SharedPointer.h"
 
 class FLiveLinkHub;
-struct ILiveLinkProvider;
-class FLiveLinkHubRecordingController;
 class FLiveLinkHubPlaybackController;
+class FLiveLinkHubProvider;
+class FLiveLinkHubRecordingController;
 class FLiveLinkHubRecordingListController;
 
 class FLiveLinkHubModule : public ILiveLinkHubModule
@@ -21,7 +21,7 @@ public:
 	/** Get the livelink hub object. */
 	TSharedPtr<FLiveLinkHub> GetLiveLinkHub() const;
 	/** Get the livelink provider responsible for forwarding livelink data to connected UE clients. */
-	TSharedPtr<ILiveLinkProvider> GetLiveLinkProvider() const;
+	TSharedPtr<FLiveLinkHubProvider> GetLiveLinkProvider() const;
 	/** Get the recording controller. */
 	TSharedPtr<FLiveLinkHubRecordingController> GetRecordingController() const;
 	/** Get the recording list controller. */

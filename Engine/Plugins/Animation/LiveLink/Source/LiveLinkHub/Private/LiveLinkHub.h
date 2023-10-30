@@ -6,12 +6,13 @@
 #include "Templates/SubclassOf.h"
 
 class FLiveLinkHubClient;
+class FLiveLinkHubClientsController;
 class FLiveLinkHubPlaybackController;
 class FLiveLinkHubRecordingController;
 class FLiveLinkHubRecordingListController;
 class FLiveLinkHubWindowController;
 struct FLiveLinkSubjectKey;
-struct ILiveLinkProvider;
+class FLiveLinkHubProvider;
 class SWindow;
 class ULiveLinkRole;
 
@@ -22,7 +23,6 @@ class ILiveLinkHub
 {
 public:
 	virtual ~ILiveLinkHub() {}
-	// todo: replace with GetStatus?
 
 	/** Whether the hub is currently playing a recording. */
 	virtual bool IsInPlayback() const = 0;
@@ -52,13 +52,15 @@ public:
 	/** Get the root window that hosts the hub's slate application. */
 	TSharedRef<SWindow> GetRootWindow() const;
 	/** Get the livelink provider used to rebroadcast livelink data to connected UE clients. */
-	TSharedPtr<ILiveLinkProvider> GetLiveLinkProvider() const;
+	TSharedPtr<FLiveLinkHubProvider> GetLiveLinkProvider() const;
 	/** Get the controller that manages recording livelink data. */
 	TSharedPtr<FLiveLinkHubRecordingController> GetRecordingController() const;
 	/** Get the recording list controller, that handles displaying livelink recording assets. */
 	TSharedPtr<FLiveLinkHubRecordingListController> GetRecordingListController() const;
 	/** Get the controller that manages playing back livelink data. */
 	TSharedPtr<FLiveLinkHubPlaybackController> GetPlaybackController() const;
+	/** Get the controller that manages clients. */
+	TSharedPtr<FLiveLinkHubClientsController> GetClientsController() const;
 	
 private:
 	//~ LiveLink Client delegates
@@ -69,18 +71,20 @@ private:
 	//~ LiveLink Client delegates
 
 private:
-	/** Recording controller. */
+	/** Implements the logic to manage the clients tabs. */
+	TSharedPtr<FLiveLinkHubClientsController> ClientsController;
+	/**  Implements the logic for triggering recording. */
 	TSharedPtr<FLiveLinkHubRecordingController> RecordingController;
-	/** Recordings list controller. */
+	/** Implements the logic for displaying the list of recordings. */
 	TSharedPtr<FLiveLinkHubRecordingListController> RecordingListController;
-	/** Playback controller. */
+	/** Implements the logic for triggering the playback of a livelink recording. */
 	TSharedPtr<FLiveLinkHubPlaybackController> PlaybackController;
-	/** Window controller */
+	/** Controller responsible for creating and managing the app's slate windows. */
 	TSharedPtr<FLiveLinkHubWindowController> WindowController;
 	/** LiveLinkHub's livelink client. */
 	TSharedPtr<FLiveLinkHubClient> LiveLinkHubClient;
 	/** LiveLinkProvider used to transfer data to connected UE clients. */
-	TSharedPtr<ILiveLinkProvider> LiveLinkProvider;
+	TSharedPtr<FLiveLinkHubProvider> LiveLinkProvider;
 
 	friend class FLiveLinkHubModule;
 };

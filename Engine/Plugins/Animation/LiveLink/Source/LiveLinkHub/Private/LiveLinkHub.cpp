@@ -2,6 +2,8 @@
 
 #include "LiveLinkHub.h"
 
+#include "Clients/LiveLinkHubClientsController.h"
+#include "Clients/LiveLinkHubProvider.h"
 #include "Features/IModularFeatures.h"
 #include "LiveLinkHubClient.h"
 #include "LiveLinkProvider.h"
@@ -17,7 +19,7 @@
 
 void FLiveLinkHub::Initialize()
 {
-	LiveLinkProvider = ILiveLinkProvider::CreateLiveLinkProvider(TEXT("LiveLink Hub"));
+	LiveLinkProvider = MakeShared<FLiveLinkHubProvider>();
 	LiveLinkHubClient = MakeShared<FLiveLinkHubClient>(AsShared());
 
 	IModularFeatures::Get().RegisterModularFeature(ILiveLinkClient::ModularFeatureName, LiveLinkHubClient.Get());
@@ -25,6 +27,7 @@ void FLiveLinkHub::Initialize()
 	RecordingController = MakeShared<FLiveLinkHubRecordingController>();
 	PlaybackController = MakeShared<FLiveLinkHubPlaybackController>();
 	RecordingListController = MakeShared<FLiveLinkHubRecordingListController>(AsShared());
+	ClientsController = MakeShared<FLiveLinkHubClientsController>(LiveLinkProvider);
 
 	FString LiveLinkHubLayoutIni = GConfig->GetConfigFilename(TEXT("LiveLinkHubLayout"));
 	WindowController = MakeShared<FLiveLinkHubWindowController>(FLiveLinkHubWindowInitParams{ LiveLinkHubLayoutIni });
@@ -56,7 +59,6 @@ bool FLiveLinkHub::IsRecording() const
 {
 	return RecordingController->IsRecording();
 }
-
 void FLiveLinkHub::Tick()
 {
 	LiveLinkHubClient->Tick();
@@ -67,9 +69,14 @@ TSharedRef<SWindow> FLiveLinkHub::GetRootWindow() const
 	return WindowController->GetRootWindow().ToSharedRef();
 }
 
-TSharedPtr<ILiveLinkProvider> FLiveLinkHub::GetLiveLinkProvider() const
+TSharedPtr<FLiveLinkHubProvider> FLiveLinkHub::GetLiveLinkProvider() const
 {
 	return LiveLinkProvider;
+}
+
+TSharedPtr<FLiveLinkHubClientsController> FLiveLinkHub::GetClientsController() const
+{
+	return ClientsController;
 }
 
 TSharedPtr<FLiveLinkHubRecordingController> FLiveLinkHub::GetRecordingController() const
