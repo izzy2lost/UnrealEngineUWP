@@ -2793,6 +2793,7 @@ void FAssetRegistryState::Dump(const TArray<FString>& Arguments, TArray<FString>
 		AddLine();
 
 		InitializeSortedAssets();
+		TArray<FName> SortedTagKeys;
 		for (const FAssetData* AssetData : SortedAssets)
 		{
 			if (AssetData->TagsAndValues.Num() == 0)
@@ -2804,11 +2805,18 @@ void FAssetRegistryState::Dump(const TArray<FString>& Arguments, TArray<FString>
 			PageBuffer << TEXT("  ") << FCachedAssetKey(AssetData);
 			AddLine();
 
-			AssetData->TagsAndValues.ForEach([&](const TPair<FName, FAssetTagValueRef>& TagPair) 
+			SortedTagKeys.Reset();
+			AssetData->TagsAndValues.ForEach([&SortedTagKeys](const TPair<FName, FAssetTagValueRef>& TagPair)
 			{
-				PageBuffer << TEXT("    ") << TagPair.Key << TEXT(" : ") << *TagPair.Value.AsString();
-				AddLine();	
+				SortedTagKeys.Add(TagPair.Key);
 			});
+			Algo::Sort(SortedTagKeys, FNameLexicalLess());
+			for (FName TagKey : SortedTagKeys)
+			{
+				FAssetTagValueRef Value = AssetData->TagsAndValues.FindTag(TagKey);
+				PageBuffer << TEXT("    ") << TagKey << TEXT(" : ") << *Value.AsString();
+				AddLine();
+			}
 		}
 
 		PageBuffer.Appendf(TEXT("--- End AssetTags : %d entries ---"), Counter);
