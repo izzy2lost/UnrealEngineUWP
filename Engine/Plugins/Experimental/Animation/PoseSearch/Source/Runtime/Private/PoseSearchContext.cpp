@@ -353,7 +353,7 @@ void FDebugDrawParams::DrawFeatureVector(int32 PoseIdx)
 // FSearchContext
 FSearchContext::FSearchContext(const UAnimInstance* InAnimInstance, const IPoseHistory* InHistory, TConstArrayView<const UAnimationAsset*> InAnimationsToConsider,
 		const FPoseSearchQueryTrajectory* InTrajectory, float InDesiredPermutationTimeOffset, const FPoseIndicesHistory* InPoseIndicesHistory,
-		const FSearchResult& InCurrentResult, const FFloatInterval& InPoseJumpThresholdTime, bool bInForceInterrupt)
+		const FSearchResult& InCurrentResult, const FFloatInterval& InPoseJumpThresholdTime)
 : AnimInstance(InAnimInstance)
 , History(InHistory)
 , AnimationsToConsider(InAnimationsToConsider)
@@ -362,7 +362,6 @@ FSearchContext::FSearchContext(const UAnimInstance* InAnimInstance, const IPoseH
 , PoseIndicesHistory(InPoseIndicesHistory)
 , CurrentResult(InCurrentResult)
 , PoseJumpThresholdTime(InPoseJumpThresholdTime)
-, bForceInterrupt(bInForceInterrupt)
 {
 	check(AnimInstance);
 	if (CurrentResult.IsValid())

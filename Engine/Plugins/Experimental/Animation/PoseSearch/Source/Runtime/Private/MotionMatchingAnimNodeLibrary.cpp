@@ -42,11 +42,11 @@ void UMotionMatchingAnimNodeLibrary::GetMotionMatchingSearchResult(const FMotion
 	}
 }
 
-void UMotionMatchingAnimNodeLibrary::SetDatabaseToSearch(const FMotionMatchingAnimNodeReference& MotionMatchingNode, UPoseSearchDatabase* Database, bool bForceInterruptIfNew)
+void UMotionMatchingAnimNodeLibrary::SetDatabaseToSearch(const FMotionMatchingAnimNodeReference& MotionMatchingNode, UPoseSearchDatabase* Database, EPoseSearchInterruptMode InterruptMode)
 {
 	if (FAnimNode_MotionMatching* MotionMatchingNodePtr = MotionMatchingNode.GetAnimNodePtr<FAnimNode_MotionMatching>())
 	{
-		MotionMatchingNodePtr->SetDatabaseToSearch(Database, bForceInterruptIfNew);
+		MotionMatchingNodePtr->SetDatabaseToSearch(Database, InterruptMode);
 	}
 	else
 	{
@@ -54,11 +54,11 @@ void UMotionMatchingAnimNodeLibrary::SetDatabaseToSearch(const FMotionMatchingAn
 	}
 }
 
-void UMotionMatchingAnimNodeLibrary::SetDatabasesToSearch(const FMotionMatchingAnimNodeReference& MotionMatchingNode, const TArray<UPoseSearchDatabase*>& Databases, bool bForceInterruptIfNew)
+void UMotionMatchingAnimNodeLibrary::SetDatabasesToSearch(const FMotionMatchingAnimNodeReference& MotionMatchingNode, const TArray<UPoseSearchDatabase*>& Databases, EPoseSearchInterruptMode InterruptMode)
 {
 	if (FAnimNode_MotionMatching* MotionMatchingNodePtr = MotionMatchingNode.GetAnimNodePtr<FAnimNode_MotionMatching>())
 	{
-		MotionMatchingNodePtr->SetDatabasesToSearch(Databases, bForceInterruptIfNew);
+		MotionMatchingNodePtr->SetDatabasesToSearch(Databases, InterruptMode);
 	}
 	else
 	{
@@ -66,11 +66,11 @@ void UMotionMatchingAnimNodeLibrary::SetDatabasesToSearch(const FMotionMatchingA
 	}
 }
 
-void UMotionMatchingAnimNodeLibrary::ResetDatabasesToSearch(const FMotionMatchingAnimNodeReference& MotionMatchingNode, bool bForceInterrupt)
+void UMotionMatchingAnimNodeLibrary::ResetDatabasesToSearch(const FMotionMatchingAnimNodeReference& MotionMatchingNode, EPoseSearchInterruptMode InterruptMode)
 {
 	if (FAnimNode_MotionMatching* MotionMatchingNodePtr = MotionMatchingNode.GetAnimNodePtr<FAnimNode_MotionMatching>())
 	{
-		MotionMatchingNodePtr->ResetDatabasesToSearch(bForceInterrupt);
+		MotionMatchingNodePtr->ResetDatabasesToSearch(InterruptMode);
 	}
 	else
 	{
@@ -78,11 +78,11 @@ void UMotionMatchingAnimNodeLibrary::ResetDatabasesToSearch(const FMotionMatchin
 	}
 }
 
-void UMotionMatchingAnimNodeLibrary::ForceInterruptNextUpdate(const FMotionMatchingAnimNodeReference& MotionMatchingNode)
+void UMotionMatchingAnimNodeLibrary::SetInterruptMode(const FMotionMatchingAnimNodeReference& MotionMatchingNode, EPoseSearchInterruptMode InterruptMode)
 {
 	if (FAnimNode_MotionMatching* MotionMatchingNodePtr = MotionMatchingNode.GetAnimNodePtr<FAnimNode_MotionMatching>())
 	{
-		MotionMatchingNodePtr->ForceInterruptNextUpdate();
+		MotionMatchingNodePtr->SetInterruptMode(InterruptMode);
 	}
 	else
 	{

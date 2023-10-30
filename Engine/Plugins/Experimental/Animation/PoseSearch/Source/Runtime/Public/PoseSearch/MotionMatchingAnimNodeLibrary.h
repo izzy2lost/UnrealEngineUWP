@@ -45,38 +45,33 @@ public:
 	 * Set the database to search on the motion matching node. This overrides the Database property on the motion matching node.
 	 * @param MotionMatchingNode - The motion matching node to operate on.
 	 * @param Database - The database for the motion matching node to search.
-	 * @param bForceInterruptIfNew - If true, ignore the continuing pose (the current clip that's playing) and force a search of the new database. 
-		If false, the continuing pose will continue to play until a better match is found in the new database. This setting is ignored if the 
-		motion matching node is already searching this database.
+	 * @param InterruptMode - mode to control the continuing pose search (the current animation that's playing)
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Animation|MotionMatching", meta = (BlueprintThreadSafe))
-	static void SetDatabaseToSearch(const FMotionMatchingAnimNodeReference& MotionMatchingNode, UPoseSearchDatabase* Database, bool bForceInterruptIfNew);
+	static void SetDatabaseToSearch(const FMotionMatchingAnimNodeReference& MotionMatchingNode, UPoseSearchDatabase* Database, EPoseSearchInterruptMode InterruptMode);
 
 	/**
 	 * Set the database to search on the motion matching node. This overrides the Database property on the motion matching node.
 	 * @param MotionMatchingNode - The motion matching node to operate on.
 	 * @param Databases - Array of databases for the motion matching node to search.
-	 * @param bForceInterruptIfNew - If true, ignore the continuing pose (the current clip that's playing) and force a search of the new databases. 
-		If false, the continuing pose will continue to play until a better match is found in one of the new databases. This setting is ignored if the 
-		motion matching node is already searching this array of databases (note: a subset of databases or the same databases in a different order is
-		considered to be a new array of databases).
+	 * @param InterruptMode - mode to control the continuing pose search (the current animation that's playing)
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Animation|MotionMatching", meta = (BlueprintThreadSafe))
-	static void SetDatabasesToSearch(const FMotionMatchingAnimNodeReference& MotionMatchingNode, const TArray<UPoseSearchDatabase*>& Databases, bool bForceInterruptIfNew);
+	static void SetDatabasesToSearch(const FMotionMatchingAnimNodeReference& MotionMatchingNode, const TArray<UPoseSearchDatabase*>& Databases, EPoseSearchInterruptMode InterruptMode);
 
 	/**
 	 * Clear the effects of SetDatabaseToSearch/SetDatabasesToSearch and resume searching the Database property on the motion matching node.
 	 * @param MotionMatchingNode - The motion matching node to operate on.
-	 * @param bForceInterrupt - Force a search after the reset. If false, the continuing pose (the current clip that's playing) will continue
-		to play until a better match is found from the Database property.
+	 * @param InterruptMode - mode to control the continuing pose search (the current animation that's playing)
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Animation|MotionMatching", meta = (BlueprintThreadSafe))
-	static void ResetDatabasesToSearch(const FMotionMatchingAnimNodeReference& MotionMatchingNode, bool bForceInterrupt);
+	static void ResetDatabasesToSearch(const FMotionMatchingAnimNodeReference& MotionMatchingNode, EPoseSearchInterruptMode InterruptMode);
 
 	/**
 	 * Ignore the continuing pose (the current clip that's playing) and force a new search.
 	 * @param MotionMatchingNode - The motion matching node to operate on.
+	 * @param InterruptMode - mode to control the continuing pose search (the current animation that's playing)
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Animation|MotionMatching", meta = (BlueprintThreadSafe))
-	static void ForceInterruptNextUpdate(const FMotionMatchingAnimNodeReference& MotionMatchingNode);
+	static void SetInterruptMode(const FMotionMatchingAnimNodeReference& MotionMatchingNode, EPoseSearchInterruptMode InterruptMode);
 };

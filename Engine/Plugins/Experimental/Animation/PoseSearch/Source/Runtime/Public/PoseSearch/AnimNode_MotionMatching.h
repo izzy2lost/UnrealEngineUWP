@@ -17,17 +17,17 @@ struct POSESEARCH_API FAnimNode_MotionMatching : public FAnimNode_BlendStack_Sta
 	GENERATED_BODY()
 
 public:
-	// Search InDatabase instead of the Database property on this node. Use bForceInterruptIfNew to ignore the continuing pose if InDatabase is new.
-	void SetDatabaseToSearch(UPoseSearchDatabase* InDatabase, bool bForceInterruptIfNew);
+	// Search InDatabase instead of the Database property on this node. Use InterruptMode to control the continuing pose search
+	void SetDatabaseToSearch(UPoseSearchDatabase* InDatabase, EPoseSearchInterruptMode InterruptMode);
 
-	// Search InDatabases instead of the Database property on the node. Use bForceInterruptIfNew to ignore the continuing pose if InDatabases is new.
-	void SetDatabasesToSearch(TConstArrayView<UPoseSearchDatabase*> InDatabases, bool bForceInterruptIfNew);
+	// Search InDatabases instead of the Database property on the node. Use InterruptMode to control the continuing pose search.
+	void SetDatabasesToSearch(TConstArrayView<UPoseSearchDatabase*> InDatabases, EPoseSearchInterruptMode InterruptMode);
 
 	// Reset the effects of SetDatabaseToSearch/SetDatabasesToSearch and use the Database property on this node.
-	void ResetDatabasesToSearch(bool bInForceInterrupt);
+	void ResetDatabasesToSearch(EPoseSearchInterruptMode InterruptMode);
 
-	// Ignore the continuing pose on the next update and force a search.
-	void ForceInterruptNextUpdate();
+	// Use InterruptMode to control the continuing pose search
+	void SetInterruptMode(EPoseSearchInterruptMode InterruptMode);
 
 	const FMotionMatchingState& GetMotionMatchingState() const { return MotionMatchingState; }
 
@@ -124,8 +124,8 @@ private:
 	UPROPERTY()
 	TArray<TObjectPtr<const UPoseSearchDatabase>> DatabasesToSearch;
 
-	// Ignore the continuing pose on the next update and use the best result from DatabasesToSearch. This is set back to false after each update.
-	bool bForceInterruptNextUpdate = false;
+	// Applied EPoseSearchInterruptMode on the next update that controls the continuing pose search eveluation. This is set back to EPoseSearchInterruptMode::DoNotInterrupt after each update.
+	EPoseSearchInterruptMode NextUpdateInterruptMode = EPoseSearchInterruptMode::DoNotInterrupt;
 
 	// True if the Database property on this node has been overridden by SetDatabaseToSearch/SetDatabasesToSearch.
 	bool bOverrideDatabaseInput = false;

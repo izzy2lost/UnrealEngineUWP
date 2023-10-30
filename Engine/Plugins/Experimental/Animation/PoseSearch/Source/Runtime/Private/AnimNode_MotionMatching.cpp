@@ -145,7 +145,7 @@ void FAnimNode_MotionMatching::UpdateAssetPlayer(const FAnimationUpdateContext& 
 		const UPoseSearchDatabase* CurrentDatabase = MotionMatchingState.CurrentSearchResult.Database.Get();
 		const UAnimationAsset* CurrentAnimationAsset = AnimPlayers.IsEmpty() ? nullptr : AnimPlayers[0].GetAnimationAsset();
 
-		FString DebugInfo = FString::Printf(TEXT("bForceInterruptNextUpdate(%d)\n"), bForceInterruptNextUpdate);
+		FString DebugInfo = FString::Printf(TEXT("NextUpdateInterruptMode(%s)\n"), *UEnum::GetValueAsString(NextUpdateInterruptMode));
 		DebugInfo += FString::Printf(TEXT("Current Database(%s)\n"), *GetNameSafe(CurrentDatabase));
 		DebugInfo += FString::Printf(TEXT("Current Asset(%s)\n"), *GetNameSafe(CurrentAnimationAsset));
 		if (CVarAnimNodeMotionMatchingDrawInfoVerbose.GetValueOnAnyThread())
@@ -180,7 +180,7 @@ void FAnimNode_MotionMatching::UpdateAssetPlayer(const FAnimationUpdateContext& 
 		MotionMatchingState,
 		YawFromAnimationBlendRate,
 		YawFromAnimationTrajectoryBlendTime,
-		bForceInterruptNextUpdate,
+		NextUpdateInterruptMode,
 		bShouldSearch
 		#if ENABLE_ANIM_DEBUG
 		, CVarAnimNodeMotionMatchingDrawQuery.GetValueOnAnyThread()
@@ -213,7 +213,7 @@ void FAnimNode_MotionMatching::UpdateAssetPlayer(const FAnimationUpdateContext& 
 	FAnimNode_BlendStack_Standalone::UpdatePlayRate(MotionMatchingState.WantedPlayRate);
 	FAnimNode_BlendStack_Standalone::UpdateAssetPlayer(Context);
 
-	bForceInterruptNextUpdate = false;
+	NextUpdateInterruptMode = EPoseSearchInterruptMode::DoNotInterrupt;
 }
 
 const FAnimNodeFunctionRef& FAnimNode_MotionMatching::GetOnUpdateMotionMatchingStateFunction() const
@@ -221,26 +221,9 @@ const FAnimNodeFunctionRef& FAnimNode_MotionMatching::GetOnUpdateMotionMatchingS
 	return GET_ANIM_NODE_DATA(FAnimNodeFunctionRef, OnMotionMatchingStateUpdated);
 }
 
-void FAnimNode_MotionMatching::SetDatabaseToSearch(UPoseSearchDatabase* InDatabase, bool bForceInterruptIfNew)
+void FAnimNode_MotionMatching::SetDatabaseToSearch(UPoseSearchDatabase* InDatabase, EPoseSearchInterruptMode InterruptMode)
 {
-	if (DatabasesToSearch.Num() == 1 && DatabasesToSearch[0] == InDatabase)
-	{
-		UE_LOG(LogPoseSearch, Verbose, TEXT("FAnimNode_MotionMatching::SetDatabaseToSearch - Database(%s) is already set."), *GetNameSafe(InDatabase));
-	}
-	else
-	{
-		DatabasesToSearch.Reset();
-		bOverrideDatabaseInput = false;
-		if (InDatabase)
-		{
-			DatabasesToSearch.Add(InDatabase);
-			bOverrideDatabaseInput = true;
-		}
-
-		bForceInterruptNextUpdate |= bForceInterruptIfNew;
-
-		UE_LOG(LogPoseSearch, Verbose, TEXT("FAnimNode_MotionMatching::SetDatabaseToSearch - Setting to Database(%s), bForceInterruptIfNew(%d)."), *GetNameSafe(InDatabase), bForceInterruptIfNew);
-	}
+	SetDatabasesToSearch(MakeArrayView(&InDatabase, 1), InterruptMode);
 }
 
 FVector FAnimNode_MotionMatching::GetEstimatedFutureRootMotionVelocity() const
@@ -248,60 +231,27 @@ FVector FAnimNode_MotionMatching::GetEstimatedFutureRootMotionVelocity() const
 	return MotionMatchingState.GetEstimatedFutureRootMotionVelocity();
 }
 
-void FAnimNode_MotionMatching::SetDatabasesToSearch(TConstArrayView<UPoseSearchDatabase*> InDatabases, bool bForceInterruptIfNew)
+void FAnimNode_MotionMatching::SetDatabasesToSearch(TConstArrayView<UPoseSearchDatabase*> InDatabases, EPoseSearchInterruptMode InterruptMode)
 {
-	// Check if InDatabases and DatabasesToSearch are the same.
-	bool bDatabasesAlreadySet = true;
-	if (DatabasesToSearch.Num() != InDatabases.Num())
+	DatabasesToSearch.Reset();
+	for (UPoseSearchDatabase* InDatabase : InDatabases)
 	{
-		bDatabasesAlreadySet = false;
+		DatabasesToSearch.AddUnique(InDatabase);
 	}
-	else
-	{
-		for (int32 Index = 0; Index < InDatabases.Num(); ++Index)
-		{
-			if (DatabasesToSearch[Index] != InDatabases[Index])
-			{
-				bDatabasesAlreadySet = false;
-				break;
-			}
-		}
-	}
-
-	if (bDatabasesAlreadySet)
-	{
-		UE_LOG(LogPoseSearch, Verbose, TEXT("FAnimNode_MotionMatching::SetDatabasesToSearch - Databases(#%d) already set."), InDatabases.Num());
-	}
-	else
-	{
-		DatabasesToSearch.Reset();
-		bOverrideDatabaseInput = false;
-		if (!InDatabases.IsEmpty())
-		{
-			DatabasesToSearch.Append(InDatabases);
-			bOverrideDatabaseInput = true;
-		}
-
-		bForceInterruptNextUpdate |= bForceInterruptIfNew;
-
-		UE_LOG(LogPoseSearch, Verbose, TEXT("FAnimNode_MotionMatching::SetDatabaseToSearch - Setting to Databases(#%d), bForceInterruptIfNew(%d)."), InDatabases.Num(), bForceInterruptIfNew);
-	}
+	NextUpdateInterruptMode = InterruptMode;
+	bOverrideDatabaseInput = true;
 }
 
-void FAnimNode_MotionMatching::ResetDatabasesToSearch(bool bInForceInterrupt)
+void FAnimNode_MotionMatching::ResetDatabasesToSearch(EPoseSearchInterruptMode InterruptMode)
 {
 	DatabasesToSearch.Reset();
 	bOverrideDatabaseInput = false;
-	bForceInterruptNextUpdate = bInForceInterrupt;
-
-	UE_LOG(LogPoseSearch, Verbose, TEXT("FAnimNode_MotionMatching::ResetDatabasesToSearch - Resetting databases, bInForceInterrupt(%d)."), bInForceInterrupt);
+	NextUpdateInterruptMode = InterruptMode;
 }
 
-void FAnimNode_MotionMatching::ForceInterruptNextUpdate()
+void FAnimNode_MotionMatching::SetInterruptMode(EPoseSearchInterruptMode InterruptMode)
 {
-	bForceInterruptNextUpdate = true;
-
-	UE_LOG(LogPoseSearch, Verbose, TEXT("FAnimNode_MotionMatching::ForceInterruptNextUpdate - Forcing interrupt."));
+	NextUpdateInterruptMode = InterruptMode;
 }
 
 // FAnimNode_AssetPlayerBase interface

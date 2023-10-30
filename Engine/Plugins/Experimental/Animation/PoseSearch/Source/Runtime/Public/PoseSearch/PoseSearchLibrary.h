@@ -19,6 +19,19 @@ namespace UE::PoseSearch
 	struct FSearchContext;
 } // namespace UE::PoseSearch
 
+UENUM()
+enum class EPoseSearchInterruptMode : uint8
+{
+	// continuing pose search will be performed if valid
+	DoNotInterrupt,
+
+	// continuing pose search will be interrupted if its database is not listed in the searchable databases
+	InterruptOnDatabaseChange,
+
+	// continuing pose search will always be interrupted
+	ForceInterrupt,
+};
+
 struct FAnimationUpdateContext;
 struct FPoseSearchQueryTrajectory;
 
@@ -109,7 +122,7 @@ public:
 	* @param SearchThrottleTime				Input minimum amount of time to wait between searching for a new pose segment. It allows users to define how often the system searches, default for locomotion is searching every update, but you may only want to search once for other situations, like jump.
 	* @param PlayRate						Input effective range of play rate that can be applied to the animations to account for discrepancies in estimated velocity between the movement modeland the animation.
 	* @param InOutMotionMatchingState		Input/Output encapsulated motion matching algorithm and state
-	* @param bForceInterrupt				Input force interrupt request (if true the continuing pose will be invalidated)
+	* @param InterruptMode					Input continuing pose search interrupt mode
 	* @param bShouldSearch					Input if false search will happen only if there's no valid continuing pose
 	* @param bDebugDrawQuery				Input draw the composed query if valid
 	* @param bDebugDrawCurResult			Input draw the current result if valid
@@ -128,7 +141,7 @@ public:
 		FMotionMatchingState& InOutMotionMatchingState,
 		float YawFromAnimationBlendRate,
 		float YawFromAnimationTrajectoryBlendTime,
-		bool bForceInterrupt = false,
+		EPoseSearchInterruptMode InterruptMode = EPoseSearchInterruptMode::DoNotInterrupt,
 		bool bShouldSearch = true,
 		bool bDebugDrawQuery = false,
 		bool bDebugDrawCurResult = false,
