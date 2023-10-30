@@ -460,7 +460,12 @@ namespace Metasound
 			FGraphOperatorData::FOperatorInfo& OperatorInfo = OperatorMap.FindChecked(OperatorID);
 
 			{
-				METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*FString::Printf(TEXT("Metasound::FOperatorBuilder::CreateOperators::CreateAndBind %s"), *Node->GetMetadata().ClassName.GetFullName().ToString()));
+#if METASOUND_CPUPROFILERTRACE_ENABLED
+				// Use node class name if valid, otherwise (for example graph nodes) use instance name 
+				const FNodeClassName& NodeClassName = Node->GetMetadata().ClassName;
+				const FString& NodeTraceName = NodeClassName.IsValid() ? NodeClassName.GetFullName().ToString() : Node->GetInstanceName().ToString();
+				METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*FString::Printf(TEXT("Metasound::FOperatorBuilder::CreateOperators::CreateAndBind %s"), *NodeTraceName));
+#endif // METASOUND_CPUPROFILERTRACE_ENABLED
 
 				FBuildOperatorParams CreateParams{*Node, InOutContext.Settings, OperatorInfo.VertexData.GetInputs(), InOutContext.Environment, this};
 				FOperatorFactorySharedRef Factory = Node->GetDefaultOperatorFactory();
