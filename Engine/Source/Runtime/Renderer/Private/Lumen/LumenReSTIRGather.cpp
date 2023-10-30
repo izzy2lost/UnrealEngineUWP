@@ -20,7 +20,6 @@
 #include "DepthCopy.h"
 
 #if RHI_RAYTRACING
-#include "RayTracing/RayTracingDeferredMaterials.h"
 #include "RayTracing/RaytracingOptions.h"
 #include "RayTracing/RayTracingLighting.h"
 #include "LumenHardwareRayTracingCommon.h"

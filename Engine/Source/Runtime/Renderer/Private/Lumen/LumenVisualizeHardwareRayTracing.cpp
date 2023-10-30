@@ -19,7 +19,6 @@
 #include "LumenScreenProbeGather.h"
 
 #if RHI_RAYTRACING
-#include "RayTracing/RayTracingDeferredMaterials.h"
 #include "RayTracing/RaytracingOptions.h"
 #include "RayTracing/RayTracingLighting.h"
 #include "LumenHardwareRayTracingCommon.h"
@@ -165,10 +164,6 @@ namespace LumenVisualize
 	};
 
 } // namespace LumenVisualize
-
-void FDeferredShadingSceneRenderer::PrepareLumenHardwareRayTracingVisualizeDeferredMaterial(const FViewInfo& View, TArray<FRHIRayTracingShader*>& OutRayGenShaders)
-{
-}
 
 class FLumenVisualizeCreateTilesCS : public FGlobalShader
 {

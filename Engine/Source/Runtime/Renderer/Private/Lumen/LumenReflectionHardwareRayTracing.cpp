@@ -14,7 +14,6 @@
 #include "HairStrands/HairStrandsData.h"
 
 #if RHI_RAYTRACING
-#include "RayTracing/RayTracingDeferredMaterials.h"
 #include "RayTracing/RaytracingOptions.h"
 #include "RayTracing/RayTracingLighting.h"
 #include "LumenHardwareRayTracingCommon.h"
@@ -276,10 +275,6 @@ void FDeferredShadingSceneRenderer::PrepareLumenHardwareRayTracingReflections(co
 			}
 		}
 	}
-}
-
-void FDeferredShadingSceneRenderer::PrepareLumenHardwareRayTracingReflectionsDeferredMaterial(const FViewInfo& View, TArray<FRHIRayTracingShader*>& OutRayGenShaders)
-{
 }
 
 void FDeferredShadingSceneRenderer::PrepareLumenHardwareRayTracingReflectionsLumenMaterial(const FViewInfo& View, TArray<FRHIRayTracingShader*>& OutRayGenShaders)

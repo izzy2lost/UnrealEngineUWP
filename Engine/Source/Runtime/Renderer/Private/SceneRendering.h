@@ -1563,9 +1563,6 @@ public:
 	// Material shaders are only available when using this pipeline.
 	FRayTracingPipelineState* RayTracingMaterialPipeline = nullptr;
 
-	// Pipeline state object to be used with deferred material processing.
-	FRayTracingPipelineState* RayTracingMaterialGatherPipeline = nullptr;
-
 	// Pipeline state object to be used with lumen hardware ray tracing
 	FRayTracingPipelineState* LumenHardwareRayTracingMaterialPipeline = nullptr;
 

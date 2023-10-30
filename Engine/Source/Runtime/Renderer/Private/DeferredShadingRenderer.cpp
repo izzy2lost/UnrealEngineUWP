@@ -1923,32 +1923,6 @@ bool FDeferredShadingSceneRenderer::SetupRayTracingPipelineStates(FRDGBuilder& G
 		}
 	}
 
-	// Add deferred material gather shaders
-	if (GRHISupportsRayTracingShaders)
-	{
-		TArray<FRHIRayTracingShader*> DeferredMaterialRayGenShaders;
-		if (!IsForwardShadingEnabled(ShaderPlatform))
-		{
-			for (const FViewInfo& View : Views)
-			{
-				if (DoesPlatformSupportLumenGI(ShaderPlatform))
-				{
-					PrepareLumenHardwareRayTracingReflectionsDeferredMaterial(View, DeferredMaterialRayGenShaders);
-					PrepareLumenHardwareRayTracingRadianceCacheDeferredMaterial(View, DeferredMaterialRayGenShaders);
-					PrepareLumenHardwareRayTracingScreenProbeGatherDeferredMaterial(View, DeferredMaterialRayGenShaders);
-					PrepareLumenHardwareRayTracingVisualizeDeferredMaterial(View, DeferredMaterialRayGenShaders);
-				}
-			}
-		}
-
-		DeduplicateRayGenerationShaders(DeferredMaterialRayGenShaders);
-
-		if (DeferredMaterialRayGenShaders.Num())
-		{
-			ReferenceView.RayTracingMaterialGatherPipeline = CreateRayTracingDeferredMaterialGatherPipeline(GraphBuilder.RHICmdList, ReferenceView, DeferredMaterialRayGenShaders);
-		}
-	}
-
 	// Add Lumen hardware ray tracing materials
 	if (GRHISupportsRayTracingShaders)
 	{
@@ -2324,12 +2298,6 @@ void FDeferredShadingSceneRenderer::WaitForRayTracingScene(FRDGBuilder& GraphBui
 		{
 			if (GRHISupportsRayTracingShaders)
 			{
-				if (ReferenceView.RayTracingMaterialGatherPipeline)
-				{
-					RHICmdList.SetRayTracingMissShader(ReferenceView.GetRayTracingSceneChecked(), RAY_TRACING_MISS_SHADER_SLOT_DEFAULT, ReferenceView.RayTracingMaterialGatherPipeline, 0 /* MissShaderPipelineIndex */, 0, nullptr, 0);
-					BindRayTracingDeferredMaterialGatherPipeline(RHICmdList, ReferenceView, ReferenceView.RayTracingMaterialGatherPipeline);
-				}
-
 				if (ReferenceView.LumenHardwareRayTracingMaterialPipeline)
 				{
 					RHICmdList.SetRayTracingMissShader(ReferenceView.GetRayTracingSceneChecked(), RAY_TRACING_MISS_SHADER_SLOT_DEFAULT, ReferenceView.LumenHardwareRayTracingMaterialPipeline, 0 /* MissShaderPipelineIndex */, 0, nullptr, 0);
@@ -2350,7 +2318,6 @@ void FDeferredShadingSceneRenderer::WaitForRayTracingScene(FRDGBuilder& GraphBui
 			FViewInfo* View = const_cast<FViewInfo*>(static_cast<const FViewInfo*>(AllFamilyViews[ViewIndex]));
 			if (View->bHasAnyRayTracingPass && View != &ReferenceView)
 			{
-				View->RayTracingMaterialGatherPipeline = ReferenceView.RayTracingMaterialGatherPipeline;
 				View->LumenHardwareRayTracingMaterialPipeline = ReferenceView.LumenHardwareRayTracingMaterialPipeline;
 			}
 		}
