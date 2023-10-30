@@ -157,6 +157,8 @@ namespace Jupiter
 
 					switch (scheme.Implementation)
 					{
+						case SchemeImplementations.NotUsed:
+							break;
 						case SchemeImplementations.JWTBearer:
 							availableSchemes.Add(name);
 							authenticationBuilder.AddJwtBearer(name, options =>
@@ -550,7 +552,8 @@ namespace Jupiter
 	public enum SchemeImplementations
 	{
 		JWTBearer,
-		Okta
+		Okta,
+		NotUsed
 	};
 
 	public class AuthSchemeEntry: IValidatableObject
