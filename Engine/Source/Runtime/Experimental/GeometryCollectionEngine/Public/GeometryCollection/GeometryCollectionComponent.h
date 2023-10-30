@@ -282,12 +282,17 @@ private:
 //This generates pointers to arrays marked private. Macro assumes getters are public
 //todo(ocohen): may want to take in a static name
 #define COPY_ON_WRITE_ATTRIBUTE(Type, Name, Group)											\
+	UE_DEPRECATED(5.4, "Use GetGeometryCollection()->"#Name" instead.")						\
 	GEOMETRYCOLLECTIONENGINE_API const TManagedArray<Type>& Get##Name##Array() const;		\
+	UE_DEPRECATED(5.4, "Use GetGeometryCollection()->"#Name" instead.")						\
 	GEOMETRYCOLLECTIONENGINE_API TManagedArray<Type>& Get##Name##ArrayCopyOnWrite();		\
+	UE_DEPRECATED(5.4, "Use GetGeometryCollection()->"#Name" instead.")						\
 	GEOMETRYCOLLECTIONENGINE_API void Reset##Name##ArrayDynamic();							\
+	UE_DEPRECATED(5.4, "Use GetGeometryCollection()->"#Name" instead.")						\
 	GEOMETRYCOLLECTIONENGINE_API const TManagedArray<Type>& Get##Name##ArrayRest() const;	\
 private:																					\
-	TManagedArray<Type>* Indirect##Name##Array;												\
+	/* Deprecated */																		\
+	/*TManagedArray<Type>* Indirect##Name##Array;*/											\
 public:
 
 /**
@@ -1664,7 +1669,6 @@ private:
 
 	FGeometryCollectionPhysicsProxy* PhysicsProxy;
 	TUniquePtr<FGeometryDynamicCollection> DynamicCollection;
-	TArray<FManagedArrayBase**> CopyOnWriteAttributeList;
 
 	// Temporary dummies to interface with Physx expectations of the SQ syatem
 	friend class FGeometryCollectionSQAccelerator;
