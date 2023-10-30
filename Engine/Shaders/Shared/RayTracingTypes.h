@@ -49,7 +49,7 @@ struct FPathTracingLight {
 	float3  dPdv;
 	float3  Color;
 	float2  Dimensions; // Radius,Length or RectWidth,RectHeight or Sin(Angle/2),0 depending on light type
-	uint    Shaping;    // Barndoor controls for RectLights, Cone angles for spots lights, encoded as f16x2
+	float2  Shaping;    // Barndoor controls for RectLights, Cone angles for spots lights
 	float   SpecularScale;
 	float   Attenuation;
 	float   FalloffExponent; // for non-inverse square decay lights only
@@ -57,12 +57,10 @@ struct FPathTracingLight {
 	int     IESAtlasIndex;
 	uint    Flags; // see defines PATHTRACER_FLAG_*
 	uint    MissShaderIndex;  // used to implement light functions
-	float3  TranslatedBoundMin;
-	float3  TranslatedBoundMax;
-	uint	RectLightAtlasUVScale;  // Rect. light atlas UV transformation, encoded as f16x2
-	uint	RectLightAtlasUVOffset; // Rect. light atlas UV transformation, encoded as f16x2
+	float2  RectLightAtlasUVScale;  // Rect. light atlas UV transformation
+	float2  RectLightAtlasUVOffset; // Rect. light atlas UV transformation
 };
-HLSL_STATIC_ASSERT(sizeof(FPathTracingLight) == 132, "Path tracing light structure should be kept as small as possible");
+HLSL_STATIC_ASSERT(sizeof(FPathTracingLight) == 120, "Path tracing light structure should be kept as small as possible");
 
 struct FPathTracingPackedPathState {
 	uint      RandSeqSampleIndex;
