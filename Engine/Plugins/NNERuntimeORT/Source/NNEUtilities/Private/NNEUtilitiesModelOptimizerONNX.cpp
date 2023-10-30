@@ -62,9 +62,13 @@ public:
 			Ort::SessionOptions SessOptions;
 
 			SessOptions.SetGraphOptimizationLevel(OptimizationLevel);
-			SessOptions.SetOptimizedModelFilePath(*ModelOptimizedPath);
-
-			Ort::Session Session(Env, *ModelToOptimizePath, SessOptions);
+			#if PLATFORM_WINDOWS
+				SessOptions.SetOptimizedModelFilePath(*ModelOptimizedPath);
+				Ort::Session Session(Env, *ModelToOptimizePath, SessOptions);
+			#else
+				SessOptions.SetOptimizedModelFilePath(TCHAR_TO_ANSI(*ModelOptimizedPath));
+				Ort::Session Session(Env, TCHAR_TO_ANSI(*ModelToOptimizePath), SessOptions);
+			#endif
 		}
 		FFileHelper::LoadFileToArray(Model.Data, *ModelOptimizedPath);
 

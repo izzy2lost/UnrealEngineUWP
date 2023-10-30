@@ -16,20 +16,29 @@ public class NNEOnnxruntimeEditor : ModuleRules
 		string LibDirPath = Path.Combine(ModuleDirectory, "lib", PlatformDir);
 		string OrtPlatformRelativePath = Path.Combine("Binaries", "ThirdParty", "OnnxruntimeEditor", PlatformDir);
 		string OrtPlatformPath = Path.Combine(PluginDirectory, OrtPlatformRelativePath);
-		string SharedLibName = "onnxruntime";
-
-		PublicIncludePaths.Add(IncDirPath);
-		PublicDefinitions.Add("ORT_API_MANUAL_INIT");
-		PublicDefinitions.Add("ONNXRUNTIME_PLATFORM_PATH=" + OrtPlatformRelativePath.Replace('\\', '/'));
+		string SharedLibFileName = "UNSUPPORTED_PLATFORM";
 
 		if (Target.Platform == UnrealTargetPlatform.Win64)
 		{
-			string DllFileName = SharedLibName + ".dll";
-			string DllFilePath = Path.Combine(OrtPlatformPath, DllFileName);
-
-			PublicAdditionalLibraries.Add(Path.Combine(LibDirPath, SharedLibName + ".lib"));
-			PublicDelayLoadDLLs.Add(DllFileName);
-			RuntimeDependencies.Add(DllFilePath);
+			SharedLibFileName = "onnxruntime.dll";
+			PublicAdditionalLibraries.Add(Path.Combine(LibDirPath, "onnxruntime.lib"));
+			PublicDelayLoadDLLs.Add("onnxruntime.dll");
+			RuntimeDependencies.Add(Path.Combine(OrtPlatformPath, "onnxruntime.dll"));
 		}
+		else if (Target.Platform == UnrealTargetPlatform.Linux)
+		{
+			SharedLibFileName = "libonnxruntime.so.1.14.1";
+			PublicAdditionalLibraries.Add(Path.Combine(OrtPlatformPath, "libonnxruntime.so"));
+			PublicDelayLoadDLLs.Add(Path.Combine(OrtPlatformPath, "libonnxruntime.so"));
+			PublicDelayLoadDLLs.Add(Path.Combine(OrtPlatformPath, "libonnxruntime.so.1.14.1"));
+			RuntimeDependencies.Add(Path.Combine(OrtPlatformPath, "libonnxruntime.so"));
+			RuntimeDependencies.Add(Path.Combine(OrtPlatformPath, "libonnxruntime.so.1.14.1"));
+		}
+
+		string SharedLibRelativePath = Path.Combine(OrtPlatformRelativePath, SharedLibFileName);
+
+		PublicIncludePaths.Add(IncDirPath);
+		PublicDefinitions.Add("ORT_API_MANUAL_INIT");
+		PublicDefinitions.Add("ONNXRUNTIME_SHAREDLIB_PATH=" + SharedLibRelativePath.Replace('\\', '/'));
 	}
 }

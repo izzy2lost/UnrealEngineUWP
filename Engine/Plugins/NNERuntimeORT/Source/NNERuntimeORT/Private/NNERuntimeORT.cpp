@@ -237,9 +237,9 @@ bool UNNERuntimeORTDml::CanCreateModelGPU(TObjectPtr<UNNEModelData> ModelData) c
 	return false;
 }
 
-TUniquePtr<UE::NNE::IModelGPU> UNNERuntimeORTDml::CreateModelGPU(TObjectPtr<UNNEModelData> ModelData)
+TSharedPtr<UE::NNE::IModelGPU> UNNERuntimeORTDml::CreateModelGPU(TObjectPtr<UNNEModelData> ModelData)
 {
-	return TUniquePtr<UE::NNE::IModelGPU>();
+	return TSharedPtr<UE::NNE::IModelGPU>();
 }
 
 #endif // PLATFORM_WINDOWS

@@ -37,11 +37,10 @@ namespace UE::NNERuntimeORT::Private::DllHelper
 
 void FNNERuntimeORTModule::StartupModule()
 {
-#if PLATFORM_WINDOWS
 	const FString PluginDir = IPluginManager::Get().FindPlugin("NNERuntimeORT")->GetBaseDir();
-	const FString OrtBinPath = FPaths::Combine(PluginDir, TEXT(PREPROCESSOR_TO_STRING(ONNXRUNTIME_PLATFORM_PATH)));
+	const FString OrtSharedLibPath = FPaths::Combine(PluginDir, TEXT(PREPROCESSOR_TO_STRING(ONNXRUNTIME_SHAREDLIB_PATH)));
 
-	if (!UE::NNERuntimeORT::Private::DllHelper::GetDllHandle(FPaths::Combine(OrtBinPath, TEXT("onnxruntime.dll")), DllHandles))
+	if (!UE::NNERuntimeORT::Private::DllHelper::GetDllHandle(OrtSharedLibPath, DllHandles))
 	{
 		UE_LOG(LogNNE, Error, TEXT("Failed to load OnnxRuntime shared library. ORT Runtimes won't be available."));
 		return;
@@ -49,6 +48,7 @@ void FNNERuntimeORTModule::StartupModule()
 
 	Ort::InitApi();
 
+#if PLATFORM_WINDOWS
 	// NNE runtime ORT Dml startup
 	NNERuntimeORTDml = NewObject<UNNERuntimeORTDml>();
 	if (NNERuntimeORTDml.IsValid())
@@ -59,6 +59,7 @@ void FNNERuntimeORTModule::StartupModule()
 		NNERuntimeORTDml->AddToRoot();
 		UE::NNE::RegisterRuntime(RuntimeDmlInterface);
 	}
+#endif
 
 	// NNE runtime ORT Cpu startup
 	NNERuntimeORTCpu = NewObject<UNNERuntimeORTCpu>();
@@ -70,12 +71,10 @@ void FNNERuntimeORTModule::StartupModule()
 		NNERuntimeORTCpu->AddToRoot();
 		UE::NNE::RegisterRuntime(RuntimeCPUInterface);
 	}
-#endif
 }
 
 void FNNERuntimeORTModule::ShutdownModule()
 {
-#if PLATFORM_WINDOWS
 	// NNE runtime ORT Cpu shutdown
 	if (NNERuntimeORTCpu.IsValid())
 	{
@@ -102,8 +101,6 @@ void FNNERuntimeORTModule::ShutdownModule()
 		FPlatformProcess::FreeDllHandle(DllHandle);
 	}
 	DllHandles.Empty();
-	
-#endif
 }
 
 IMPLEMENT_MODULE(FNNERuntimeORTModule, NNERuntimeORT);

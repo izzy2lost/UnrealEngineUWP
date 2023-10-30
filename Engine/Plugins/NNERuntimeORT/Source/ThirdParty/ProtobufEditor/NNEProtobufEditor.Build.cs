@@ -11,11 +11,16 @@ public class NNEProtobufEditor : ModuleRules
 
 		PublicSystemIncludePaths.Add(Path.Combine(ModuleDirectory, "include"));
 
-		string LibraryPath = Path.Combine(ModuleDirectory, "lib");
+		string LibraryName = "libprotobuf-lite";
+		string PlatformDir = Target.Platform.ToString();
+		string LibraryPath = Path.Combine(ModuleDirectory, "lib", PlatformDir);
+		string LibPlatformExtension = ".lib";//Win64
 
-		if (Target.Platform == UnrealTargetPlatform.Win64)
+		if (Target.Platform == UnrealTargetPlatform.Linux)
 		{
-			PublicAdditionalLibraries.Add(Path.Combine(LibraryPath, "Win64", "libprotobuf-lite.lib"));
+			LibPlatformExtension = ".a";
 		}
+
+		PublicAdditionalLibraries.Add(Path.Combine(LibraryPath, LibraryName + LibPlatformExtension));
 	}
 }
