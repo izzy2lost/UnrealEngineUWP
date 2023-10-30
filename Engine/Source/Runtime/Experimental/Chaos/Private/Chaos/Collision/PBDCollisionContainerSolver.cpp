@@ -156,7 +156,7 @@ namespace Chaos
 		// Initial Phi for initial-overlap depenetration.
 		// If we have an initial contact, calculate the initial overlap. This will get saved in SetSolverResults
 		FRealSingle WorldContactInitialPhi = 0;
-		if (MaxDepentrationVelocity >= 0)
+		if ((MaxDepentrationVelocity >= 0) && CVars::bChaos_Collision_EnableInitialDepenetration)
 		{
 			if (ManifoldPoint.Flags.bInitialContact)
 			{
