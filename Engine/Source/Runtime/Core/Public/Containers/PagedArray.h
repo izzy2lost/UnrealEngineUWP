@@ -390,7 +390,10 @@ public:
 		Append(InList.begin(), static_cast<SizeType>(InList.size()));
 	}
 
-	template <typename ContainerType, std::enable_if_t<TIsContiguousContainer<ContainerType>::Value>* = nullptr>
+	template <
+		typename ContainerType
+		UE_REQUIRES(TIsContiguousContainer<ContainerType>::Value)
+	>
 	FORCEINLINE void Append(ContainerType&& Container)
 	{
 		Append(GetData(Container), GetNum(Container));
@@ -428,7 +431,10 @@ public:
 		Append(InList.begin(), static_cast<SizeType>(InList.size()));
 	}
 
-	template <typename ContainerType, std::enable_if_t<TIsContiguousContainer<ContainerType>::Value>* = nullptr>
+	template <
+		typename ContainerType
+		UE_REQUIRES(TIsContiguousContainer<ContainerType>::Value)
+	>
 	void Assign(ContainerType&& Container)
 	{
 		Reset();

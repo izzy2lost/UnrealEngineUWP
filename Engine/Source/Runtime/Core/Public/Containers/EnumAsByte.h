@@ -4,23 +4,18 @@
 
 #include "CoreTypes.h"
 #include "Templates/IsPODType.h"
-#include "Templates/IsEnumClass.h"
 #include "Templates/TypeHash.h"
-
-template <bool> struct TEnumAsByte_EnumClass;
-template <> struct UE_DEPRECATED(4.15, "TEnumAsByte is not intended for use with enum classes - please derive your enum class from uint8 instead.") TEnumAsByte_EnumClass<true> {};
-template <> struct TEnumAsByte_EnumClass<false> {};
 
 /**
  * Template to store enumeration values as bytes in a type-safe way.
  */
-template<class TEnum>
+template <class InEnumType>
 class TEnumAsByte
 {
-	typedef TEnumAsByte_EnumClass<TIsEnumClass<TEnum>::Value> Check;
+	static_assert(std::is_enum_v<InEnumType> && std::is_convertible_v<InEnumType, int>, "TEnumAsByte is not intended for use with enum classes - please derive your enum class from uint8 instead.");
 
 public:
-	typedef TEnum EnumType;
+	using EnumType = InEnumType;
 
 	TEnumAsByte() = default;
 	TEnumAsByte(const TEnumAsByte&) = default;
@@ -31,7 +26,7 @@ public:
 	 *
 	 * @param InValue value to construct with.
 	 */
-	FORCEINLINE TEnumAsByte( TEnum InValue )
+	FORCEINLINE TEnumAsByte( EnumType InValue )
 		: Value(static_cast<uint8>(InValue))
 	{ }
 
@@ -60,9 +55,9 @@ public:
 	 * @param InValue The value to compare with.
 	 * @return true if the two values are equal, false otherwise.
 	 */
-	bool operator==( TEnum InValue ) const
+	bool operator==( EnumType InValue ) const
 	{
-		return static_cast<TEnum>(Value) == InValue;
+		return static_cast<EnumType>(Value) == InValue;
 	}
 
 	/**
@@ -76,10 +71,10 @@ public:
 		return Value == InValue.Value;
 	}
 
-	/** Implicit conversion to TEnum. */
-	operator TEnum() const
+	/** Implicit conversion to EnumType. */
+	operator EnumType() const
 	{
-		return (TEnum)Value;
+		return (EnumType)Value;
 	}
 
 public:
@@ -89,9 +84,9 @@ public:
 	 *
 	 * @return The enumeration value.
 	 */
-	TEnum GetValue() const
+	EnumType GetValue() const
 	{
-		return (TEnum)Value;
+		return (EnumType)Value;
 	}
 
 	/**
@@ -129,3 +124,7 @@ template <typename T> struct TIsTEnumAsByte<               TEnumAsByte<T>> { sta
 template <typename T> struct TIsTEnumAsByte<const          TEnumAsByte<T>> { static constexpr bool Value = true; };
 template <typename T> struct TIsTEnumAsByte<      volatile TEnumAsByte<T>> { static constexpr bool Value = true; };
 template <typename T> struct TIsTEnumAsByte<const volatile TEnumAsByte<T>> { static constexpr bool Value = true; };
+
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
+#include "Templates/IsEnumClass.h"
+#endif

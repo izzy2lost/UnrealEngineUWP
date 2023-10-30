@@ -16,7 +16,6 @@
 #include <initializer_list>
 #include "Templates/TypeHash.h"
 #include "Containers/SparseArray.h"
-#include "Templates/Decay.h"
 #include "Serialization/StructuredArchive.h"
 #include "Serialization/MemoryImageWriter.h"
 #include "ContainersFwd.h"
@@ -165,8 +164,8 @@ public:
 
 	/** Initialization constructor. */
 	template <
-		typename InitType,
-		typename = std::enable_if_t<!std::is_same_v<TSetElementBase, typename TDecay<InitType>::Type>>
+		typename InitType
+		UE_REQUIRES(!std::is_same_v<TSetElementBase, std::decay_t<InitType>>)
 	>
 	explicit FORCEINLINE TSetElementBase(InitType&& InValue)
 		: Value(Forward<InitType>(InValue))
@@ -199,8 +198,8 @@ public:
 
 	/** Initialization constructor. */
 	template <
-		typename InitType,
-		typename = std::enable_if_t<!std::is_same_v<TSetElementBase, typename TDecay<InitType>::Type>>
+		typename InitType
+		UE_REQUIRES(!std::is_same_v<TSetElementBase, std::decay_t<InitType>>)
 	>
 	explicit FORCEINLINE TSetElementBase(InitType&& InValue)
 		: Value(Forward<InitType>(InValue))
@@ -234,8 +233,8 @@ public:
 
 	/** Initialization constructor. */
 	template <
-		typename InitType,
-		typename = std::enable_if_t<!std::is_same_v<TSetElement, typename TDecay<InitType>::Type>>
+		typename InitType
+		UE_REQUIRES(!std::is_same_v<TSetElement, std::decay_t<InitType>>)
 	>
 	explicit FORCEINLINE TSetElement(InitType&& InValue)
 		: Super(Forward<InitType>(InValue))
@@ -1315,8 +1314,8 @@ public:
 	 */
 	template <
 		typename OtherKeyFuncs,
-		typename AliasElementType = ElementType,
-		typename std::enable_if_t<TIsContainerElementTypeCopyable<AliasElementType>::Value>* = nullptr
+		typename AliasElementType = ElementType
+		UE_REQUIRES(TIsContainerElementTypeCopyable<AliasElementType>::Value)
 	>
 	TSet& operator=(TSet<typename TContainerElementTypeCompatibility<ElementType>::CopyFromOtherType, OtherKeyFuncs, Allocator>&& Other)
 	{
@@ -1336,8 +1335,8 @@ public:
 	template <
 		typename OtherKeyFuncs,
 		typename OtherAllocator,
-		typename AliasElementType = ElementType,
-		typename std::enable_if_t<TIsContainerElementTypeCopyable<AliasElementType>::Value>* = nullptr
+		typename AliasElementType = ElementType
+		UE_REQUIRES(TIsContainerElementTypeCopyable<AliasElementType>::Value)
 	>
 	TSet& operator=(const TSet<typename TContainerElementTypeCompatibility<ElementType>::CopyFromOtherType, OtherKeyFuncs, OtherAllocator>& Other)
 	{
@@ -1355,8 +1354,8 @@ public:
 	template <
 		typename OtherKeyFuncs,
 		typename OtherAllocator,
-		typename AliasElementType = ElementType,
-		typename std::enable_if_t<TIsContainerElementTypeCopyable<AliasElementType>::Value>* = nullptr
+		typename AliasElementType = ElementType
+		UE_REQUIRES(TIsContainerElementTypeCopyable<AliasElementType>::Value)
 	>
 	void Append(const TSet<typename TContainerElementTypeCompatibility<ElementType>::CopyFromOtherType, OtherKeyFuncs, OtherAllocator>& OtherSet)
 	{
@@ -1375,8 +1374,8 @@ public:
 	 */
 	template <
 		typename OtherKeyFuncs,
-		typename AliasElementType = ElementType,
-		typename std::enable_if_t<TIsContainerElementTypeCopyable<AliasElementType>::Value>* = nullptr
+		typename AliasElementType = ElementType
+		UE_REQUIRES(TIsContainerElementTypeCopyable<AliasElementType>::Value)
 	>
 	void Append(TSet<typename TContainerElementTypeCompatibility<ElementType>::CopyFromOtherType, OtherKeyFuncs, Allocator>&& OtherSet)
 	{
@@ -1633,7 +1632,7 @@ private:
 	public:
 		using KeyArgumentType =
 			std::conditional_t<
-				std::is_reference<ReferenceOrValueType>::value,
+				std::is_reference_v<ReferenceOrValueType>,
 				TRetainedRef<std::remove_reference_t<ReferenceOrValueType>>,
 				KeyInitType
 			>;
@@ -2275,3 +2274,7 @@ bool LegacyCompareNotEqual(const TSet<ElementType, KeyFuncs, Allocator>& A,const
 {
 	return !TSetPrivateFriend::LegacyCompareEqual(A, B);
 }
+
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
+#include "Templates/Decay.h"
+#endif

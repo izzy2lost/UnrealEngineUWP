@@ -133,17 +133,23 @@ UE_NODISCARD inline const uint8 TCharToNibble(const TCHAR Hex)
 }
 
 /** Convert numeric types to a string */
-template <typename StringType = FString, typename T>
-UE_NODISCARD typename TEnableIf<TIsArithmetic<T>::Value, StringType>::Type
-LexToString(const T& Value)
+template <
+	typename StringType = FString,
+	typename T
+	UE_REQUIRES(std::is_arithmetic_v<T>)
+>
+UE_NODISCARD StringType LexToString(const T& Value)
 {
 	// std::remove_cv_t to remove potential volatile decorations. Removing const is pointless, but harmless because it's specified in the param declaration.
 	return StringType::Printf(TFormatSpecifier<std::remove_cv_t<T>>::GetFormatSpecifier(), Value);
 }
 
-template <typename StringType = FString, typename CharType>
-UE_NODISCARD typename TEnableIf<TIsCharType<CharType>::Value, StringType>::Type
-LexToString(const CharType* Ptr)
+template <
+	typename StringType = FString,
+	typename CharType
+	UE_REQUIRES(TIsCharType_V<CharType>)
+>
+UE_NODISCARD StringType LexToString(const CharType* Ptr)
 {
 	return StringType(Ptr);
 }
@@ -195,9 +201,12 @@ struct TTypeToString
 
 /** Parse a string into this type, returning whether it was successful */
 /** Specialization for arithmetic types */
-template <typename T, typename CharType>
-typename TEnableIf<TIsArithmetic<T>::Value, bool>::Type
-LexTryParseString(T& OutValue, const CharType* Buffer)
+template <
+	typename T,
+	typename CharType
+	UE_REQUIRES(std::is_arithmetic_v<T>)
+>
+bool LexTryParseString(T& OutValue, const CharType* Buffer)
 {
 	if (Buffer[0] == '\0')
 	{
@@ -215,7 +224,7 @@ LexTryParseString(T& OutValue, const CharType* Buffer)
 			C = *(++Buffer);
 		}
 
-		while (C != CHARTEXT(CharType, '\0') && !TChar<CharType>::IsWhitespace(C) && (TIsFloatingPoint<T>::Value || C != CHARTEXT(CharType, '.')))
+		while (C != CHARTEXT(CharType, '\0') && !TChar<CharType>::IsWhitespace(C) && (std::is_floating_point_v<T> || C != CHARTEXT(CharType, '.')))
 		{
 			bSawZero = bSawZero || (C == CHARTEXT(CharType, '0'));
 			if (!bSawZero && C != CHARTEXT(CharType, '.'))

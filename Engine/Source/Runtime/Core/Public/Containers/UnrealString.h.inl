@@ -52,46 +52,6 @@ private:
 	typedef TArray<ElementType, AllocatorType> DataType;
 	DataType Data;
 
-	template <typename RangeType>
-	using TRangeElementType = std::remove_cv_t<typename TRemovePointer<decltype(GetData(DeclVal<RangeType>()))>::Type>;
-
-	template <typename CharRangeType>
-	struct TIsRangeOfCharType : TIsCharType<TRangeElementType<CharRangeType>>
-	{
-	};
-
-	template <typename CharRangeType>
-	struct TIsRangeOfElementType
-	{
-		enum { Value = std::is_same_v<ElementType, TRangeElementType<CharRangeType>> };
-	};
-
-	/** Trait testing whether a type is a contiguous range of characters, and not CharType[]. */
-	template <typename CharRangeType>
-	using TIsCharRangeNotCArray = TAnd<
-		TIsContiguousContainer<CharRangeType>,
-		TNot<TIsArray<typename TRemoveReference<CharRangeType>::Type>>,
-		TIsRangeOfCharType<CharRangeType>>;
-
-	/** Trait testing whether a type is a contiguous range of characters, and not CharType[] and not a string class type. */
-	template <typename CharRangeType>
-	using TIsCharRangeNotCArrayNotStringClass = TAnd<
-		TIsCharRangeNotCArray<CharRangeType>,
-		TNot<TIsDerivedFrom<typename TDecay<CharRangeType>::Type, UE_STRING_CLASS>>>;
-
-	/** Trait testing whether a type is a contiguous range of ElementType, and not CharType[]. */
-	template <typename CharRangeType>
-	using TIsTCharRangeNotCArray = TAnd<
-		TIsContiguousContainer<CharRangeType>,
-		TNot<TIsArray<typename TRemoveReference<CharRangeType>::Type>>,
-		TIsRangeOfElementType<CharRangeType>>;
-
-	/** Trait testing whether a type is a contiguous range of ElementType, and not CharType[] and not a string class type. */
-	template <typename CharRangeType>
-	using TIsTCharRangeNotCArrayNotStringClass = TAnd<
-		TIsTCharRangeNotCArray<CharRangeType>,
-		TNot<TIsDerivedFrom<typename TDecay<CharRangeType>::Type, UE_STRING_CLASS>>>;
-
 	/** Like the TIsCharEncodingCompatibleWithTCHAR trait, but for the element type of the string */
 	template <typename SrcEncoding>
 	using TIsCharEncodingCompatibleWithElementType = TIsCharEncodingCompatibleWith<SrcEncoding, ElementType>;
@@ -144,13 +104,31 @@ public:
 	CORE_API UE_STRING_CLASS(const UCS2CHAR* Str, int32 ExtraSlack);
 
 	/** Construct from contiguous range of characters such as a string view or string builder */
-	template <typename CharRangeType, typename TEnableIf<TIsCharRangeNotCArrayNotStringClass<CharRangeType>::Value>::Type* = nullptr>
+	template <
+		typename CharRangeType,
+		typename CharRangeElementType = TElementType_T<CharRangeType>
+		UE_REQUIRES(
+			TIsContiguousContainer<CharRangeType>::Value &&
+			!std::is_array_v<std::remove_reference_t<CharRangeType>> &&
+			TIsCharType_V<CharRangeElementType> &&
+			!std::is_base_of_v<UE_STRING_CLASS, std::decay_t<CharRangeType>>
+		)
+	>
 	FORCEINLINE explicit UE_STRING_CLASS(CharRangeType&& Str) : UE_STRING_CLASS(GetNum(Str), GetData(Forward<CharRangeType>(Str)))
 	{
 	}
 
 	/** Construct from contiguous range of characters with extra slack on top of original string length */
-	template <typename CharRangeType, typename TEnableIf<TIsCharRangeNotCArrayNotStringClass<CharRangeType>::Value>::Type* = nullptr>
+	template <
+		typename CharRangeType,
+		typename CharRangeElementType = TElementType_T<CharRangeType>
+		UE_REQUIRES(
+			TIsContiguousContainer<CharRangeType>::Value &&
+			!std::is_array_v<std::remove_reference_t<CharRangeType>>&&
+			TIsCharType_V<CharRangeElementType> &&
+			!std::is_base_of_v<UE_STRING_CLASS, std::decay_t<CharRangeType>>
+		)
+	>
 	explicit UE_STRING_CLASS(CharRangeType&& Str, int32 ExtraSlack)
 	{
 		uint32 InLen = GetNum(Str);
@@ -189,7 +167,15 @@ public:
 
 	CORE_API UE_STRING_CLASS& operator=(const ElementType* Str);
 
-	template <typename CharRangeType, typename TEnableIf<TIsTCharRangeNotCArray<CharRangeType>::Value>::Type* = nullptr>
+	template <
+		typename CharRangeType,
+		typename CharRangeElementType = TElementType_T<CharRangeType>
+		UE_REQUIRES(
+			TIsContiguousContainer<CharRangeType>::Value &&
+			!std::is_array_v<std::remove_reference_t<CharRangeType>> &&
+			std::is_same_v<ElementType, CharRangeElementType>
+		)
+	>
 	FORCEINLINE UE_STRING_CLASS& operator=(CharRangeType&& Range)
 	{
 		AssignRange(GetData(Range), GetNum(Range));
@@ -379,7 +365,11 @@ public:
 	}
 
 	/** Append a string and return a reference to this */
-	template <typename CharRangeType, typename TEnableIf<TIsCharRangeNotCArray<CharRangeType>::Value>::Type* = nullptr>
+	template <
+		typename CharRangeType,
+		typename CharRangeElementType = TElementType_T<CharRangeType>
+		UE_REQUIRES(TIsContiguousContainer<CharRangeType>::Value && TIsCharType_V<CharRangeElementType>)
+	>
 	FORCEINLINE UE_STRING_CLASS& Append(CharRangeType&& Str)
 	{
 		AppendChars(GetData(Str), GetNum(Str));
@@ -398,8 +388,8 @@ public:
 
 	/** Append a single character and return a reference to this */
 	template <
-		typename AppendedCharType,
-		std::enable_if_t<TIsCharType<AppendedCharType>::Value>* = nullptr
+		typename AppendedCharType
+		UE_REQUIRES(TIsCharType_V<AppendedCharType>)
 	>
 	FORCEINLINE UE_STRING_CLASS& operator+=(AppendedCharType Char)
 	{
@@ -432,10 +422,19 @@ public:
 	 * @param InPrefix the prefix to search for at the start of the string to remove.
 	 * @return true if the prefix was removed, otherwise false.
 	 */
-	template <typename TCharRangeType, std::enable_if_t<TIsCharRangeNotCArrayNotStringClass<TCharRangeType>::Value>* = nullptr>
-	bool RemoveFromStart(TCharRangeType&& InPrefix, ESearchCase::Type SearchCase = ESearchCase::IgnoreCase)
+	template <
+		typename CharRangeType,
+		typename CharRangeElementType = TElementType_T<CharRangeType>
+		UE_REQUIRES(
+			TIsContiguousContainer<CharRangeType>::Value &&
+			!std::is_array_v<std::remove_reference_t<CharRangeType>>&&
+			TIsCharType_V<CharRangeElementType> &&
+			!std::is_base_of_v<UE_STRING_CLASS, std::decay_t<CharRangeType>>
+		)
+	>
+	bool RemoveFromStart(CharRangeType&& InPrefix, ESearchCase::Type SearchCase = ESearchCase::IgnoreCase)
 	{
-		static_assert(std::is_same_v<typename TElementType<TCharRangeType>::Type, ElementType>, "Expected a range of ElementType");
+		static_assert(std::is_same_v<CharRangeElementType, ElementType>, "Expected a range of ElementType");
 		return RemoveFromStart(GetData(InPrefix), GetNum(InPrefix), SearchCase);
 	}
 
@@ -476,10 +475,19 @@ public:
 	 * @param InSuffix the suffix to search for at the end of the string to remove.
 	 * @return true if the suffix was removed, otherwise false.
 	 */
-	template <typename TCharRangeType, std::enable_if_t<TIsCharRangeNotCArrayNotStringClass<TCharRangeType>::Value>* = nullptr>
-	bool RemoveFromEnd(TCharRangeType&& InSuffix, ESearchCase::Type SearchCase = ESearchCase::IgnoreCase)
+	template <
+		typename CharRangeType,
+		typename CharRangeElementType = TElementType_T<CharRangeType>
+		UE_REQUIRES(
+			TIsContiguousContainer<CharRangeType>::Value &&
+			!std::is_array_v<std::remove_reference_t<CharRangeType>>&&
+			TIsCharType_V<CharRangeElementType> &&
+			!std::is_base_of_v<UE_STRING_CLASS, std::decay_t<CharRangeType>>
+		)
+	>
+	bool RemoveFromEnd(CharRangeType&& InSuffix, ESearchCase::Type SearchCase = ESearchCase::IgnoreCase)
 	{
-		static_assert(std::is_same_v<typename TElementType<TCharRangeType>::Type, ElementType>, "Expected a range of ElementType");
+		static_assert(std::is_same_v<CharRangeElementType, ElementType>, "Expected a range of ElementType");
 		return RemoveFromEnd(GetData(InSuffix), GetNum(InSuffix), SearchCase);
 	}
 
@@ -530,8 +538,11 @@ public:
 	 *
 	 * @return The concatenated string.
 	 */
-	template <typename CharType>
-	UE_NODISCARD FORCEINLINE friend typename TEnableIf<TIsCharType<CharType>::Value, UE_STRING_CLASS>::Type operator+(const UE_STRING_CLASS& Lhs, CharType Rhs)
+	template <
+		typename CharType
+		UE_REQUIRES(TIsCharType_V<CharType>)
+	>
+	UE_NODISCARD FORCEINLINE friend UE_STRING_CLASS operator+(const UE_STRING_CLASS& Lhs, CharType Rhs)
 	{
 		Lhs.CheckInvariants();
 
@@ -549,8 +560,11 @@ public:
 	 *
 	 * @return The concatenated string.
 	 */
-	template <typename CharType>
-	UE_NODISCARD FORCEINLINE friend typename TEnableIf<TIsCharType<CharType>::Value, UE_STRING_CLASS>::Type operator+(UE_STRING_CLASS&& Lhs, CharType Rhs)
+	template <
+		typename CharType
+		UE_REQUIRES(TIsCharType_V<CharType>)
+	>
+	UE_NODISCARD FORCEINLINE friend UE_STRING_CLASS operator+(UE_STRING_CLASS&& Lhs, CharType Rhs)
 	{
 		Lhs.CheckInvariants();
 
@@ -584,14 +598,62 @@ public:
 	UE_NODISCARD FORCEINLINE friend UE_STRING_CLASS operator+(const UE_STRING_CLASS& Lhs, const ElementType* Rhs)		{ return ConcatFC(Lhs, Rhs); }
 	UE_NODISCARD FORCEINLINE friend UE_STRING_CLASS operator+(UE_STRING_CLASS&& Lhs, const ElementType* Rhs)			{ return ConcatFC(MoveTemp(Lhs), Rhs); }
 
-	template <typename T, typename TEnableIf<TIsTCharRangeNotCArrayNotStringClass<T>::Value>::Type* = nullptr>
-	UE_NODISCARD FORCEINLINE friend UE_STRING_CLASS operator+(T&& Lhs, const UE_STRING_CLASS& Rhs)						{ return ConcatRF(GetData(Lhs), GetNum(Lhs), Rhs); }
-	template <typename T, typename TEnableIf<TIsTCharRangeNotCArrayNotStringClass<T>::Value>::Type* = nullptr>
-	UE_NODISCARD FORCEINLINE friend UE_STRING_CLASS operator+(T&& Lhs, UE_STRING_CLASS&& Rhs)							{ return ConcatRF(GetData(Lhs), GetNum(Lhs), MoveTemp(Rhs)); }
-	template <typename T, typename TEnableIf<TIsTCharRangeNotCArrayNotStringClass<T>::Value>::Type* = nullptr>
-	UE_NODISCARD FORCEINLINE friend UE_STRING_CLASS operator+(const UE_STRING_CLASS& Lhs, T&& Rhs)						{ return ConcatFR(Lhs, GetData(Rhs), GetNum(Rhs)); }
-	template <typename T, typename TEnableIf<TIsTCharRangeNotCArrayNotStringClass<T>::Value>::Type* = nullptr>
-	UE_NODISCARD FORCEINLINE friend UE_STRING_CLASS operator+(UE_STRING_CLASS&& Lhs, T&& Rhs)							{ return ConcatFR(MoveTemp(Lhs), GetData(Rhs), GetNum(Rhs)); }
+	template <
+		typename CharRangeType,
+		typename CharRangeElementType = TElementType_T<CharRangeType>
+		UE_REQUIRES(
+			TIsContiguousContainer<CharRangeType>::Value &&
+			!std::is_array_v<std::remove_reference_t<CharRangeType>> &&
+			std::is_same_v<ElementType, CharRangeElementType> &&
+			!std::is_base_of_v<UE_STRING_CLASS, std::decay_t<CharRangeType>>
+		)
+	>
+	UE_NODISCARD FORCEINLINE friend UE_STRING_CLASS operator+(CharRangeType&& Lhs, const UE_STRING_CLASS& Rhs)
+	{
+		return ConcatRF(GetData(Lhs), GetNum(Lhs), Rhs);
+	}
+	template <
+		typename CharRangeType,
+		typename CharRangeElementType = TElementType_T<CharRangeType>
+		UE_REQUIRES(
+			TIsContiguousContainer<CharRangeType>::Value &&
+			!std::is_array_v<std::remove_reference_t<CharRangeType>>&&
+			std::is_same_v<ElementType, CharRangeElementType> &&
+			!std::is_base_of_v<UE_STRING_CLASS, std::decay_t<CharRangeType>>
+		)
+	>
+	UE_NODISCARD FORCEINLINE friend UE_STRING_CLASS operator+(CharRangeType&& Lhs, UE_STRING_CLASS&& Rhs)
+	{
+		return ConcatRF(GetData(Lhs), GetNum(Lhs), MoveTemp(Rhs));
+	}
+	template <
+		typename CharRangeType,
+		typename CharRangeElementType = TElementType_T<CharRangeType>
+		UE_REQUIRES(
+			TIsContiguousContainer<CharRangeType>::Value &&
+			!std::is_array_v<std::remove_reference_t<CharRangeType>>&&
+			std::is_same_v<ElementType, CharRangeElementType> &&
+			!std::is_base_of_v<UE_STRING_CLASS, std::decay_t<CharRangeType>>
+		)
+	>
+	UE_NODISCARD FORCEINLINE friend UE_STRING_CLASS operator+(const UE_STRING_CLASS& Lhs, CharRangeType&& Rhs)
+	{
+		return ConcatFR(Lhs, GetData(Rhs), GetNum(Rhs));
+	}
+	template <
+		typename CharRangeType,
+		typename CharRangeElementType = TElementType_T<CharRangeType>
+		UE_REQUIRES(
+			TIsContiguousContainer<CharRangeType>::Value &&
+			!std::is_array_v<std::remove_reference_t<CharRangeType>>&&
+			std::is_same_v<ElementType, CharRangeElementType> &&
+			!std::is_base_of_v<UE_STRING_CLASS, std::decay_t<CharRangeType>>
+		)
+	>
+	UE_NODISCARD FORCEINLINE friend UE_STRING_CLASS operator+(UE_STRING_CLASS&& Lhs, CharRangeType&& Rhs)
+	{
+		return ConcatFR(MoveTemp(Lhs), GetData(Rhs), GetNum(Rhs));
+	}
 
 	/**
 	 * Concatenate this path with given path ensuring the / character is used between them
@@ -613,7 +675,15 @@ public:
 	* @param Str path CharRangeType (string class/string view/string builder etc) to be concatenated onto the end of this
 	* @return reference to path
 	*/
-	template <typename CharRangeType, typename TEnableIf<TIsTCharRangeNotCArray <CharRangeType>::Value>::Type* = nullptr>
+	template <
+		typename CharRangeType,
+		typename CharRangeElementType = TElementType_T<CharRangeType>
+		UE_REQUIRES(
+			TIsContiguousContainer<CharRangeType>::Value &&
+			!std::is_array_v<std::remove_reference_t<CharRangeType>>&&
+			std::is_same_v<ElementType, CharRangeElementType>
+		)
+	>
 	FORCEINLINE UE_STRING_CLASS& operator/=(CharRangeType&& Str)
 	{
 		PathAppend(GetData(Str), GetNum(Str));
@@ -626,7 +696,10 @@ public:
 	* @param Str path array of CharType (that needs converting) to be concatenated onto the end of this
 	* @return reference to path
 	*/
-	template <typename CharType,typename TEnableIf<TIsCharType<CharType>::Value>::Type* = nullptr>
+	template <
+		typename CharType
+		UE_REQUIRES(TIsCharType_V<CharType>)
+	>
 	FORCEINLINE UE_STRING_CLASS& operator/=(const CharType* Str)
 	{
 		UE_STRING_CLASS Temp = Str;
@@ -1079,11 +1152,20 @@ public:
 	 *
 	 *        Consider using UE::String::FindLast() as an alternative.
 	 */
-	template <typename TCharRangeType, std::enable_if_t<TIsCharRangeNotCArrayNotStringClass<TCharRangeType>::Value>* = nullptr>
-	UE_NODISCARD int32 Find(TCharRangeType&& SubStr, ESearchCase::Type SearchCase = ESearchCase::IgnoreCase,
+	template <
+		typename CharRangeType,
+		typename CharRangeElementType = TElementType_T<CharRangeType>
+		UE_REQUIRES(
+			TIsContiguousContainer<CharRangeType>::Value &&
+			!std::is_array_v<std::remove_reference_t<CharRangeType>>&&
+			TIsCharType_V<CharRangeElementType> &&
+			!std::is_base_of_v<UE_STRING_CLASS, std::decay_t<CharRangeType>>
+		)
+	>
+	UE_NODISCARD int32 Find(CharRangeType&& SubStr, ESearchCase::Type SearchCase = ESearchCase::IgnoreCase,
 		ESearchDir::Type SearchDir = ESearchDir::FromStart, int32 StartPosition = INDEX_NONE) const
 	{
-		static_assert(std::is_same_v<typename TElementType<TCharRangeType>::Type, ElementType>, "Expected a range of ElementType");
+		static_assert(std::is_same_v<CharRangeElementType, ElementType>, "Expected a range of ElementType");
 		return Find(GetData(SubStr), GetNum(SubStr), SearchCase, SearchDir, StartPosition);
 	}
 
@@ -1153,12 +1235,21 @@ public:
 	 * @param SearchDir			Indicates whether the search starts at the beginning or at the end ( defaults to ESearchDir::FromStart )
 	 * @return					Returns whether the string contains the substring. If the substring is empty, returns true.
 	 **/
-	template <typename TCharRangeType, std::enable_if_t<TIsCharRangeNotCArrayNotStringClass<TCharRangeType>::Value>* = nullptr>
-	UE_NODISCARD FORCEINLINE bool Contains(TCharRangeType&& SubStr, ESearchCase::Type SearchCase = ESearchCase::IgnoreCase,
+	template <
+		typename CharRangeType,
+		typename CharRangeElementType = TElementType_T<CharRangeType>
+		UE_REQUIRES(
+			TIsContiguousContainer<CharRangeType>::Value &&
+			!std::is_array_v<std::remove_reference_t<CharRangeType>>&&
+			TIsCharType_V<CharRangeElementType> &&
+			!std::is_base_of_v<UE_STRING_CLASS, std::decay_t<CharRangeType>>
+		)
+	>
+	UE_NODISCARD FORCEINLINE bool Contains(CharRangeType&& SubStr, ESearchCase::Type SearchCase = ESearchCase::IgnoreCase,
 		ESearchDir::Type SearchDir = ESearchDir::FromStart) const
 	{
-		static_assert(std::is_same_v<typename TElementType<TCharRangeType>::Type, ElementType>, "Expected a range of characters");
-		return Find(Forward<TCharRangeType>(SubStr), SearchCase, SearchDir) != INDEX_NONE;
+		static_assert(std::is_same_v<CharRangeElementType, ElementType>, "Expected a range of characters");
+		return Find(Forward<CharRangeType>(SubStr), SearchCase, SearchDir) != INDEX_NONE;
 	}
 
 	/** 
@@ -1442,10 +1533,19 @@ public:
 	 * @param SearchCase		Indicates whether the search is case sensitive or not ( defaults to ESearchCase::IgnoreCase )
 	 * @return true if this string begins with specified text, false otherwise
 	 */
-	template <typename TCharRangeType, std::enable_if_t<TIsCharRangeNotCArrayNotStringClass<TCharRangeType>::Value>* = nullptr>
-	UE_NODISCARD bool StartsWith(TCharRangeType&& InPrefix, ESearchCase::Type SearchCase = ESearchCase::IgnoreCase) const
+	template <
+		typename CharRangeType,
+		typename CharRangeElementType = TElementType_T<CharRangeType>
+		UE_REQUIRES(
+			TIsContiguousContainer<CharRangeType>::Value &&
+			!std::is_array_v<std::remove_reference_t<CharRangeType>>&&
+			TIsCharType_V<CharRangeElementType> &&
+			!std::is_base_of_v<UE_STRING_CLASS, std::decay_t<CharRangeType>>
+		)
+	>
+	UE_NODISCARD bool StartsWith(CharRangeType&& InPrefix, ESearchCase::Type SearchCase = ESearchCase::IgnoreCase) const
 	{
-		static_assert(std::is_same_v<typename TElementType<TCharRangeType>::Type, ElementType>, "Expected a range of characters");
+		static_assert(std::is_same_v<CharRangeElementType, ElementType>, "Expected a range of characters");
 		return StartsWith(GetData(InPrefix), GetNum(InPrefix), SearchCase);
 	}
 
@@ -1485,10 +1585,19 @@ public:
 	 * @param SearchCase		Indicates whether the search is case sensitive or not ( defaults to ESearchCase::IgnoreCase )
 	 * @return true if this string ends with specified text, false otherwise
 	 */
-	template <typename TCharRangeType, std::enable_if_t<TIsCharRangeNotCArrayNotStringClass<TCharRangeType>::Value>* = nullptr>
-	UE_NODISCARD bool EndsWith(TCharRangeType&& InSuffix, ESearchCase::Type SearchCase = ESearchCase::IgnoreCase) const
+	template <
+		typename CharRangeType,
+		typename CharRangeElementType = TElementType_T<CharRangeType>
+		UE_REQUIRES(
+			TIsContiguousContainer<CharRangeType>::Value &&
+			!std::is_array_v<std::remove_reference_t<CharRangeType>>&&
+			TIsCharType_V<CharRangeElementType> &&
+			!std::is_base_of_v<UE_STRING_CLASS, std::decay_t<CharRangeType>>
+		)
+	>
+	UE_NODISCARD bool EndsWith(CharRangeType&& InSuffix, ESearchCase::Type SearchCase = ESearchCase::IgnoreCase) const
 	{
-		static_assert(std::is_same_v<typename TElementType<TCharRangeType>::Type, ElementType>, "Expected a range of characters");
+		static_assert(std::is_same_v<CharRangeElementType, ElementType>, "Expected a range of characters");
 		return EndsWith(GetData(InSuffix), GetNum(InSuffix), SearchCase);
 	}
 
@@ -1530,10 +1639,19 @@ public:
 	 * @return true if this string matches the *?-type wildcard given. 
 	 * @warning This is a simple, SLOW routine. Use with caution
 	 */
-	template <typename TCharRangeType, std::enable_if_t<TIsCharRangeNotCArrayNotStringClass<TCharRangeType>::Value>* = nullptr>
-	UE_NODISCARD bool MatchesWildcard(TCharRangeType&& Wildcard, ESearchCase::Type SearchCase = ESearchCase::IgnoreCase) const
+	template <
+		typename CharRangeType,
+		typename CharRangeElementType = TElementType_T<CharRangeType>
+		UE_REQUIRES(
+			TIsContiguousContainer<CharRangeType>::Value &&
+			!std::is_array_v<std::remove_reference_t<CharRangeType>>&&
+			TIsCharType_V<CharRangeElementType> &&
+			!std::is_base_of_v<UE_STRING_CLASS, std::decay_t<CharRangeType>>
+		)
+	>
+	UE_NODISCARD bool MatchesWildcard(CharRangeType&& Wildcard, ESearchCase::Type SearchCase = ESearchCase::IgnoreCase) const
 	{
-		static_assert(std::is_same_v<typename TElementType<TCharRangeType>::Type, ElementType>, "Expected a range of characters");
+		static_assert(std::is_same_v<CharRangeElementType, ElementType>, "Expected a range of characters");
 		return MatchesWildcard(GetData(Wildcard), GetNum(Wildcard), SearchCase);
 	}
 

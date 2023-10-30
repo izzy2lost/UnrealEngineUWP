@@ -21,6 +21,8 @@
 #include "Misc/CoreMisc.h"
 #include "StateGraphFwd.h"
 #include "Templates/IsClass.h"
+#include "Templates/IsInvocable.h"
+#include "Templates/IsMemberPointer.h"
 #include "Templates/UnrealTemplate.h"
 #include "UObject/NameTypes.h"
 

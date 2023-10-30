@@ -6,7 +6,6 @@
 #include "Misc/AssertionMacros.h"
 #include "Misc/ReverseIterate.h"
 #include "HAL/UnrealMemory.h"
-#include "Templates/IsSigned.h"
 #include "Templates/UnrealTypeTraits.h"
 #include "Templates/UnrealTemplate.h"
 #include "Containers/ContainerAllocationPolicies.h"
@@ -20,14 +19,11 @@
 #include "Algo/Impl/BinaryHeap.h"
 #include "Algo/StableSort.h"
 #include "Concepts/GetTypeHashable.h"
-#include "Templates/AndOrNot.h"
 #include "Templates/IdentityFunctor.h"
 #include "Templates/Invoke.h"
 #include "Templates/Less.h"
 #include "Templates/Sorting.h"
 #include "Templates/AlignmentTemplates.h"
-#include "Templates/IsConstructible.h"
-#include "Templates/MakeUnsigned.h"
 #include "Traits/ElementType.h"
 
 #include <limits>
@@ -333,28 +329,16 @@ namespace UE4Array_Private
 	// {
 	//     TArray<FThing> Arr; // this will cause errors without this workaround
 	// };
-	//
-	// This should be changed to use std::disjunction and std::is_constructible, and the usage
-	// changed to use ::value instead of ::Value, when std::disjunction (C++17) is available everywhere.
 	template <typename DestType, typename SourceType>
-	using TArrayElementsAreCompatible = TOrValue<std::is_same<DestType, std::decay_t<SourceType>>::value, TIsConstructible<DestType, SourceType>>;
+	constexpr bool TArrayElementsAreCompatible_V = std::disjunction_v<std::is_same<DestType, std::decay_t<SourceType>>, std::is_constructible<DestType, SourceType>>;
+
+	template <typename ElementType, typename AllocatorType>
+	static char (&ResolveIsTArrayPtr(const volatile TArray<ElementType, AllocatorType>*))[2];
+
+	static char(&ResolveIsTArrayPtr(...))[1];
 
 	template <typename T>
-	struct TIsTArrayOrDerivedFromTArray
-	{
-		template <typename ElementType, typename AllocatorType>
-		static char (&Resolve(const volatile TArray<ElementType, AllocatorType>*))[2];
-
-		static char(&Resolve(...))[1];
-
-		enum { Value = sizeof(Resolve((T*)nullptr)) == 2 };
-	};
-
-	template <typename ElementType, typename RangeType>
-	struct TTypeIsCompatibleWithRangeElementType
-	{
-		enum { Value = TArrayElementsAreCompatible<ElementType, TElementType_T<RangeType>>::Value };
-	};
+	constexpr bool TIsTArrayOrDerivedFromTArray_V = sizeof(ResolveIsTArrayPtr((T*)nullptr)) == 2;
 }
 
 namespace UE::Core::Private
@@ -386,19 +370,16 @@ public:
 	typedef InAllocatorType AllocatorType;
 
 private:
-	using USizeType = typename TMakeUnsigned<SizeType>::Type;
+	using USizeType = typename std::make_unsigned_t<SizeType>;
 
 public:
-	UE_DEPRECATED(5.0, "TArray::Allocator type is deprecated, please use TArray::AllocatorType instead.")
-	typedef InAllocatorType Allocator;
-
 	using ElementAllocatorType = std::conditional_t<
 		AllocatorType::NeedsElementType,
 		typename AllocatorType::template ForElementType<ElementType>,
 		typename AllocatorType::ForAnyElementType
 	>;
 
-	static_assert(TIsSigned<SizeType>::Value, "TArray only supports signed index types");
+	static_assert(std::is_signed_v<SizeType>, "TArray only supports signed index types");
 
 	/**
 	 * Constructor, initializes element number counters.
@@ -449,8 +430,8 @@ public:
 	 */
 	template <
 		typename OtherElementType,
-		typename OtherAllocator,
-		std::enable_if_t<UE4Array_Private::TArrayElementsAreCompatible<ElementType, const OtherElementType&>::Value>* = nullptr
+		typename OtherAllocator
+		UE_REQUIRES(UE4Array_Private::TArrayElementsAreCompatible_V<ElementType, const OtherElementType&>)
 	>
 	FORCEINLINE explicit TArray(const TArray<OtherElementType, OtherAllocator>& Other)
 	{
@@ -638,8 +619,8 @@ public:
 	 */
 	template <
 		typename OtherElementType,
-		typename OtherAllocator,
-		std::enable_if_t<UE4Array_Private::TArrayElementsAreCompatible<ElementType, OtherElementType&&>::Value>* = nullptr
+		typename OtherAllocator
+		UE_REQUIRES(UE4Array_Private::TArrayElementsAreCompatible_V<ElementType, OtherElementType&&>)
 	>
 	FORCEINLINE explicit TArray(TArray<OtherElementType, OtherAllocator>&& Other)
 	{
@@ -654,8 +635,8 @@ public:
 	 *                   at the end of the array in the number of elements.
 	 */
 	template <
-		typename OtherElementType,
-		std::enable_if_t<UE4Array_Private::TArrayElementsAreCompatible<ElementType, OtherElementType&&>::Value>* = nullptr
+		typename OtherElementType
+		UE_REQUIRES(UE4Array_Private::TArrayElementsAreCompatible_V<ElementType, OtherElementType&&>)
 	>
 	TArray(TArray<OtherElementType, AllocatorType>&& Other, SizeType ExtraSlack)
 	{
@@ -837,8 +818,7 @@ public:
 	 * @param bAllowShrinking If this call allows shrinking of the array during element remove.
 	 * @returns Popped element.
 	 */
-	template<typename ET=InElementType>
-	FORCEINLINE typename TEnableIf<!TIsAbstract<ET>::Value, ElementType>::Type Pop(bool bAllowShrinking = true)
+	FORCEINLINE ElementType Pop(bool bAllowShrinking = true)
 	{
 		RangeCheck(0);
 		ElementType Result = MoveTempIfPossible(GetData()[ArrayNum - 1]);
@@ -1980,16 +1960,12 @@ public:
 	 * @see Add, Insert
 	 */
 	template <
-		typename RangeType,
-		typename RangeValueType = std::remove_reference_t<RangeType>,
-		typename RangeElementType = TElementType_T<RangeValueType>,
-		std::enable_if_t<
-			TAnd<
-				TIsContiguousContainer<RangeValueType>,
-				TNot<UE4Array_Private::TIsTArrayOrDerivedFromTArray<RangeValueType>>,
-				UE4Array_Private::TTypeIsCompatibleWithRangeElementType<ElementType, RangeType>
-			>::Value
-		>* = nullptr
+		typename RangeType
+		UE_REQUIRES(
+			TIsContiguousContainer<RangeType>::Value &&
+			!UE4Array_Private::TIsTArrayOrDerivedFromTArray_V<std::remove_reference_t<RangeType>> &&
+			UE4Array_Private::TArrayElementsAreCompatible_V<ElementType, TElementType_T<RangeType>>
+		)
 	>
 	void Append(RangeType&& Source)
 	{
@@ -2295,9 +2271,9 @@ public:
 #if !UE_DEPRECATE_MUTABLE_TOBJECTPTR
 	/** Mutable implicit conversion operator to container of compatible element type. */
 	template <
-		typename AliasElementType = ElementType,
-		std::enable_if_t<TIsContainerElementTypeReinterpretable<AliasElementType>::Value>* = nullptr
-		>
+		typename AliasElementType = ElementType
+		UE_REQUIRES(TIsContainerElementTypeReinterpretable<AliasElementType>::Value)
+	>
 	operator TArray<typename TContainerElementTypeCompatibility<AliasElementType>::ReinterpretType, AllocatorType>& ()
 	{
 		using ElementCompat = TContainerElementTypeCompatibility<ElementType>;
@@ -2308,9 +2284,9 @@ public:
   
 	/** Immutable implicit conversion operator to constant container of compatible element type. */
 	template <
-		typename AliasElementType = ElementType,
-		typename std::enable_if_t<TIsContainerElementTypeReinterpretable<AliasElementType>::Value>* = nullptr
-		>
+		typename AliasElementType = ElementType
+		UE_REQUIRES(TIsContainerElementTypeReinterpretable<AliasElementType>::Value)
+	>
 	operator const TArray<typename TContainerElementTypeCompatibility<AliasElementType>::ReinterpretType, AllocatorType>& () const
 	{
 		using ElementCompat = TContainerElementTypeCompatibility<ElementType>;
@@ -2325,8 +2301,8 @@ public:
 	 * @param Other Array to assign and move from.
 	 */
 	template <
-		typename AliasElementType = ElementType,
-		typename std::enable_if_t<TIsContainerElementTypeCopyable<AliasElementType>::Value>* = nullptr
+		typename AliasElementType = ElementType
+		UE_REQUIRES(TIsContainerElementTypeCopyable<AliasElementType>::Value)
 	>
 	TArray& operator=(TArray<typename TContainerElementTypeCompatibility<ElementType>::CopyFromOtherType, AllocatorType>&& Other)
 	{
@@ -2345,8 +2321,8 @@ public:
 	 */
 	template <
 		typename OtherAllocator,
-		typename AliasElementType = ElementType,
-		typename std::enable_if_t<TIsContainerElementTypeCopyable<AliasElementType>::Value>* = nullptr
+		typename AliasElementType = ElementType
+		UE_REQUIRES(TIsContainerElementTypeCopyable<AliasElementType>::Value)
 	>
 	TArray& operator=(const TArray<typename TContainerElementTypeCompatibility<ElementType>::CopyFromOtherType, OtherAllocator>& Other)
 	{
@@ -2366,8 +2342,8 @@ public:
 	 */
 	template <
 		typename OtherAllocator,
-		typename AliasElementType = ElementType,
-		typename std::enable_if_t<TIsContainerElementTypeCopyable<AliasElementType>::Value>* = nullptr
+		typename AliasElementType = ElementType
+		UE_REQUIRES(TIsContainerElementTypeCopyable<AliasElementType>::Value)
 	>
 	SizeType Insert(const TArray<typename TContainerElementTypeCompatibility<ElementType>::CopyFromOtherType, OtherAllocator>& Items, const SizeType InIndex)
 	{
@@ -2391,8 +2367,8 @@ public:
 	 */
 	template <
 		typename OtherAllocator,
-		typename AliasElementType = ElementType,
-		typename std::enable_if_t<TIsContainerElementTypeCopyable<AliasElementType>::Value>* = nullptr
+		typename AliasElementType = ElementType
+		UE_REQUIRES(TIsContainerElementTypeCopyable<AliasElementType>::Value)
 	>
 	SizeType Insert(TArray<typename TContainerElementTypeCompatibility<ElementType>::CopyFromOtherType, OtherAllocator>&& Items, const SizeType InIndex)
 	{
@@ -2417,8 +2393,8 @@ public:
 	 * @see Add, Insert
 	 */
 	template <
-		typename AliasElementType = ElementType,
-		typename std::enable_if_t<TIsContainerElementTypeCopyable<AliasElementType>::Value>* = nullptr
+		typename AliasElementType = ElementType
+		UE_REQUIRES(TIsContainerElementTypeCopyable<AliasElementType>::Value)
 	>
 	void Append(const typename TContainerElementTypeCompatibility<ElementType>::CopyFromOtherType* Ptr, SizeType Count)
 	{
@@ -3607,3 +3583,10 @@ uint32 GetTypeHash(const TArray<InElementType, InAllocatorType>& A)
 	}
 	return Hash;
 }
+
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
+#include "Templates/IsSigned.h"
+#include "Templates/AndOrNot.h"
+#include "Templates/IsConstructible.h"
+#include "Templates/MakeUnsigned.h"
+#endif

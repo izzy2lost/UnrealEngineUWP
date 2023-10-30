@@ -10,10 +10,7 @@
 #include "Containers/ContainerAllocationPolicies.h"
 #include "Containers/Array.h"
 #include "Misc/CString.h"
-#include "Templates/AndOrNot.h"
-#include "Templates/EnableIf.h"
 #include "Templates/IsArray.h"
-#include "Templates/RemoveReference.h"
 #include "Templates/UnrealTemplate.h"
 #include "Templates/UnrealTypeTraits.h"
 #include "Traits/ElementType.h"
@@ -31,8 +28,8 @@ public:
 	typedef To   ToType;
 
 	template <
-		typename CharType,
-		std::enable_if_t<TIsCharEncodingCompatibleWith_V<CharType, FromType>>* = nullptr
+		typename CharType
+		UE_REQUIRES(TIsCharEncodingCompatibleWith_V<CharType, FromType>)
 	>
 	FORCEINLINE static void Convert(To* Dest, int32 DestLen, const CharType* Source, int32 SourceLen)
 	{
@@ -41,8 +38,8 @@ public:
 	}
 
 	template <
-		typename CharType,
-		std::enable_if_t<TIsCharEncodingCompatibleWith_V<CharType, FromType>>* = nullptr
+		typename CharType
+		UE_REQUIRES(TIsCharEncodingCompatibleWith_V<CharType, FromType>)
 	>
 	static int32 ConvertedLength(const CharType* Source, int32 SourceLen)
 	{
@@ -291,8 +288,8 @@ namespace UE::Core::Private
 		 * @return          The number of bytes written to Dest, up to DestLen, or -1 if the entire Source string could did not fit in DestLen bytes.
 		 */
 		template <
-			typename SrcBufferType,
-			std::enable_if_t<TIsCharEncodingCompatibleWith_V<SrcBufferType, FromType>>* = nullptr
+			typename SrcBufferType
+			UE_REQUIRES(TIsCharEncodingCompatibleWith_V<SrcBufferType, FromType>)
 		>
 		static FORCEINLINE int32 Convert(IntendedToType* Dest, int32 DestLen, const SrcBufferType* Source, int32 SourceLen)
 		{
@@ -305,8 +302,8 @@ namespace UE::Core::Private
 			return (int32)(Result - Dest);
 		}
 		template <
-			typename SrcBufferType,
-			std::enable_if_t<TIsCharEncodingCompatibleWith_V<SrcBufferType, FromType>>* = nullptr
+			typename SrcBufferType
+			UE_REQUIRES(TIsCharEncodingCompatibleWith_V<SrcBufferType, FromType>)
 		>
 		static FORCEINLINE int32 Convert(ToType* Dest, int32 DestLen, const SrcBufferType* Source, int32 SourceLen)
 		{
@@ -320,8 +317,8 @@ namespace UE::Core::Private
 		 * @return The length of the string in UTF-8 code units.
 		 */
 		template <
-			typename SrcBufferType,
-			std::enable_if_t<TIsCharEncodingCompatibleWith_V<SrcBufferType, FromType>>* = nullptr
+			typename SrcBufferType
+			UE_REQUIRES(TIsCharEncodingCompatibleWith_V<SrcBufferType, FromType>)
 		>
 		static FORCEINLINE int32 ConvertedLength(const SrcBufferType* Source, int32 SourceLen)
 		{
@@ -354,8 +351,8 @@ public:
 	 * @param SourceLen The length of the source string.
 	 */
 	template <
-		typename SrcBufferType,
-		std::enable_if_t<TIsCharEncodingCompatibleWith_V<SrcBufferType, FromType>>* = nullptr
+		typename SrcBufferType
+		UE_REQUIRES(TIsCharEncodingCompatibleWith_V<SrcBufferType, FromType>)
 	>
 	static FORCEINLINE void Convert(ToType* Dest, const int32 DestLen, const SrcBufferType* Source, const int32 SourceLen)
 	{
@@ -374,8 +371,8 @@ public:
 	 * @return The length of the string in UTF-16 or UTF-32 characters.
 	 */
 	template <
-		typename SrcBufferType,
-		std::enable_if_t<TIsCharEncodingCompatibleWith_V<SrcBufferType, FromType>>* = nullptr
+		typename SrcBufferType
+		UE_REQUIRES(TIsCharEncodingCompatibleWith_V<SrcBufferType, FromType>)
 	>
 	static int32 ConvertedLength(const SrcBufferType* Source, const int32 SourceLen)
 	{
@@ -462,8 +459,8 @@ public:
 	 * @param SourceLen The length of the source string.
 	 */
 	template <
-		typename SrcBufferType,
-		std::enable_if_t<TIsCharEncodingCompatibleWith_V<SrcBufferType, FromType>>* = nullptr
+		typename SrcBufferType
+		UE_REQUIRES(TIsCharEncodingCompatibleWith_V<SrcBufferType, FromType>)
 	>
 	static FORCEINLINE void Convert(ToType* Dest, int32 DestLen, const SrcBufferType* Source, int32 SourceLen)
 	{
@@ -476,8 +473,8 @@ public:
 	 * @return The length of the string in UTF-16 code units.
 	 */
 	template <
-		typename SrcBufferType,
-		std::enable_if_t<TIsCharEncodingCompatibleWith_V<SrcBufferType, FromType>>* = nullptr
+		typename SrcBufferType
+		UE_REQUIRES(TIsCharEncodingCompatibleWith_V<SrcBufferType, FromType>)
 	>
 	static FORCEINLINE int32 ConvertedLength(const SrcBufferType* Source, int32 SourceLen)
 	{
@@ -538,8 +535,8 @@ public:
 	 * @param SourceLen The length of the source string.
 	 */
 	template <
-		typename SrcBufferType,
-		std::enable_if_t<TIsCharEncodingCompatibleWith_V<SrcBufferType, FromType>>* = nullptr
+		typename SrcBufferType
+		UE_REQUIRES(TIsCharEncodingCompatibleWith_V<SrcBufferType, FromType>)
 	>
 	static FORCEINLINE void Convert(ToType* Dest, const int32 DestLen, const SrcBufferType* Source, const int32 SourceLen)
 	{
@@ -554,8 +551,8 @@ public:
 	 * @return The length of the string in UTF-32 characters.
 	 */
 	template <
-		typename SrcBufferType,
-		std::enable_if_t<TIsCharEncodingCompatibleWith_V<SrcBufferType, FromType>>* = nullptr
+		typename SrcBufferType
+		UE_REQUIRES(TIsCharEncodingCompatibleWith_V<SrcBufferType, FromType>)
 	>
 	static int32 ConvertedLength(const SrcBufferType* Source, const int32 SourceLen)
 	{
@@ -678,8 +675,8 @@ public:
 	TStringConversion& operator=(const TStringConversion&) = delete;
 
 	template <
-		typename SrcBufferType,
-		std::enable_if_t<TIsCharEncodingCompatibleWith_V<SrcBufferType, FromType>>* = nullptr
+		typename SrcBufferType
+		UE_REQUIRES(TIsCharEncodingCompatibleWith_V<SrcBufferType, FromType>)
 	>
 	explicit TStringConversion(const SrcBufferType* Source)
 	{
@@ -699,8 +696,8 @@ public:
 	}
 
 	template <
-		typename SrcBufferType,
-		std::enable_if_t<TIsCharEncodingCompatibleWith_V<SrcBufferType, FromType>>* = nullptr
+		typename SrcBufferType
+		UE_REQUIRES(TIsCharEncodingCompatibleWith_V<SrcBufferType, FromType>)
 	>
 	TStringConversion(const SrcBufferType* Source, int32 SourceLen)
 	{
@@ -732,14 +729,12 @@ public:
 	 */
 	template <
 		typename FromRangeType,
-		typename FromRangeCharType = std::remove_cv_t<std::remove_pointer_t<decltype(GetData(DeclVal<FromRangeType>()))>>,
-		std::enable_if_t<
-			TAnd<
-				TIsContiguousContainer<FromRangeType>,
-				TNot<TIsArray<typename TRemoveReference<FromRangeType>::Type>>,
-				TIsCharEncodingCompatibleWith<FromRangeCharType, FromType>
-			>::Value
-		>* = nullptr
+		typename FromRangeCharType = std::remove_cv_t<std::remove_pointer_t<decltype(GetData(std::declval<FromRangeType>()))>>
+		UE_REQUIRES(
+			TIsContiguousContainer<FromRangeType>::Value &&
+			!TIsArray<std::remove_reference_t<FromRangeType>>::Value &&
+			TIsCharEncodingCompatibleWith<FromRangeCharType, FromType>::Value
+		)
 	>
 	TStringConversion(FromRangeType&& Source)
 		: TStringConversion((const FromType*)GetData(Source), GetNum(Source))
@@ -812,8 +807,8 @@ public:
 
 public:
 	template <
-		typename SrcBufferType,
-		std::enable_if_t<TIsCharEncodingCompatibleWith_V<SrcBufferType, FromType>>* = nullptr
+		typename SrcBufferType
+		UE_REQUIRES(TIsCharEncodingCompatibleWith_V<SrcBufferType, FromType>)
 	>
 	explicit TStringPointer(const SrcBufferType* Source)
 	{
@@ -830,8 +825,8 @@ public:
 	}
 
 	template <
-		typename SrcBufferType,
-		std::enable_if_t<TIsCharEncodingCompatibleWith_V<SrcBufferType, FromType>>* = nullptr
+		typename SrcBufferType
+		UE_REQUIRES(TIsCharEncodingCompatibleWith_V<SrcBufferType, FromType>)
 	>
 	TStringPointer(const SrcBufferType* Source, int32 SourceLen)
 	{
@@ -858,14 +853,12 @@ public:
 	 */
 	template <
 		typename FromRangeType,
-		typename FromRangeCharType = std::remove_cv_t<std::remove_pointer_t<decltype(GetData(DeclVal<FromRangeType>()))>>,
-		std::enable_if_t<
-			TAnd<
-				TIsContiguousContainer<FromRangeType>,
-				TNot<TIsArray<typename TRemoveReference<FromRangeType>::Type>>,
-				TIsCharEncodingCompatibleWith<FromRangeCharType, FromType>
-			>::Value
-		>* = nullptr
+		typename FromRangeCharType = std::remove_cv_t<std::remove_pointer_t<decltype(GetData(std::declval<FromRangeType>()))>>
+		UE_REQUIRES(
+			TIsContiguousContainer<FromRangeType>::Value &&
+			!TIsArray<std::remove_reference_t<FromRangeType>>::Value &&
+			TIsCharEncodingCompatibleWith<FromRangeCharType, FromType>::Value
+		)
 	>
 	TStringPointer(FromRangeType&& Source)
 		: TStringPointer((const FromType*)GetData(Source), GetNum(Source))
@@ -1295,3 +1288,9 @@ FORCEINLINE TArray<ToType> StringToArray(const FromType* Str)
 {
 	return StringToArray<ToType>(Str, TCString<FromType>::Strlen(Str) + 1);
 }
+
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
+#include "Templates/AndOrNot.h"
+#include "Templates/EnableIf.h"
+#include "Templates/RemoveReference.h"
+#endif

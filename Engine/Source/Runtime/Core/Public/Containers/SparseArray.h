@@ -5,10 +5,8 @@
 #include "CoreTypes.h"
 #include "Misc/AssertionMacros.h"
 #include "HAL/UnrealMemory.h"
-#include "Templates/IsTriviallyCopyConstructible.h"
 #include "Templates/UnrealTypeTraits.h"
 #include "Templates/UnrealTemplate.h"
-#include "Templates/IsTriviallyDestructible.h"
 #include "Containers/ContainerAllocationPolicies.h"
 #include "Templates/Less.h"
 #include "Containers/Array.h"
@@ -333,7 +331,7 @@ public:
 	/** Removes Count elements from the array, starting from Index. */
 	void RemoveAt(int32 Index,int32 Count = 1)
 	{
-		if constexpr (!TIsTriviallyDestructible<ElementType>::Value)
+		if constexpr (!std::is_trivially_destructible_v<ElementType>)
 		{
 			FElementOrFreeListLink* DataPtr = (FElementOrFreeListLink*)Data.GetData();
 			for (int32 It = Index, ItCount = Count; ItCount; ++It, --ItCount)
@@ -376,9 +374,9 @@ public:
 	void Empty(int32 ExpectedNumElements = 0)
 	{
 		// Destruct the allocated elements.
-		if constexpr ( !TIsTriviallyDestructible<ElementType>::Value )
+		if constexpr (!std::is_trivially_destructible_v<ElementType>)
 		{
-			for(TIterator It(*this);It;++It)
+			for (TIterator It(*this); It; ++It)
 			{
 				ElementType& Element = *It;
 				Element.~ElementType();
@@ -396,9 +394,9 @@ public:
 	void Reset()
 	{
 		// Destruct the allocated elements.
-		if constexpr ( !TIsTriviallyDestructible<ElementType>::Value )
+		if constexpr (!std::is_trivially_destructible_v<ElementType>)
 		{
-			for(TIterator It(*this);It;++It)
+			for (TIterator It(*this); It; ++It)
 			{
 				ElementType& Element = *It;
 				Element.~ElementType();
@@ -774,7 +772,7 @@ public:
 			const FElementOrFreeListLink* SrcData  = (const FElementOrFreeListLink*)InCopy.Data.GetData();
 
 			// Determine whether we need per element construction or bulk copy is fine
-			if constexpr (!TIsTriviallyCopyConstructible<ElementType>::Value)
+			if constexpr (!std::is_trivially_copy_constructible_v<ElementType>)
 			{
 				// Use the inplace new to copy the element to an array element
 				for (int32 Index = 0; Index < SrcMax; ++Index)
@@ -809,7 +807,7 @@ private:
 	FORCEINLINE static void Move(SparseArrayType& ToArray, SparseArrayType& FromArray)
 	{
 		// Destruct the allocated elements.
-		if constexpr ( !TIsTriviallyDestructible<ElementType>::Value )
+		if constexpr (!std::is_trivially_destructible_v<ElementType>)
 		{
 			for (ElementType& Element : ToArray)
 			{
@@ -1534,3 +1532,8 @@ void operator<<(FStructuredArchive::FSlot Slot, TSparseArray<ElementType, Alloca
 		}
 	}
 }
+
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
+#include "Templates/IsTriviallyCopyConstructible.h"
+#include "Templates/IsTriviallyDestructible.h"
+#endif

@@ -27,8 +27,8 @@ template <typename KeyInitType, typename ValueInitType>
 class TPairInitializer
 {
 public:
-	typename TRValueToLValueReference<KeyInitType  >::Type Key;
-	typename TRValueToLValueReference<ValueInitType>::Type Value;
+	std::conditional_t<std::is_rvalue_reference_v<KeyInitType>,   KeyInitType&,   KeyInitType>   Key;
+	std::conditional_t<std::is_rvalue_reference_v<ValueInitType>, ValueInitType&, ValueInitType> Value;
 
 	/** Initialization constructor. */
 	FORCEINLINE TPairInitializer(KeyInitType InKey, ValueInitType InValue)
@@ -58,12 +58,13 @@ template <typename KeyInitType>
 class TKeyInitializer
 {
 public:
-	typename TRValueToLValueReference<KeyInitType>::Type Key;
+	std::conditional_t<std::is_rvalue_reference_v<KeyInitType>, KeyInitType&, KeyInitType> Key;
 
 	/** Initialization constructor. */
 	FORCEINLINE explicit TKeyInitializer(KeyInitType InKey)
 		: Key(InKey)
-	{ }
+	{
+	}
 
 	template <typename KeyType, typename ValueType>
 	operator TPair<KeyType, ValueType>() const

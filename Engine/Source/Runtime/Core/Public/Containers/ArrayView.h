@@ -3,9 +3,6 @@
 #pragma once
 
 #include "CoreTypes.h"
-#include "Templates/IsConst.h"
-#include "Templates/IsSigned.h"
-#include "Templates/PointerIsConvertibleFromTo.h"
 #include "Misc/AssertionMacros.h"
 #include "Misc/ReverseIterate.h"
 #include "Templates/Invoke.h"
@@ -13,22 +10,18 @@
 #include "Traits/ElementType.h"
 #include "Containers/Array.h"
 #include "Math/UnrealMathUtility.h"
+#include <type_traits>
 
 namespace UE::Core::ArrayView::Private
 {
 	/**
 	 * Trait testing whether a type is compatible with the view type
+	 *
+	 * The extra stars here are *IMPORTANT*
+	 * They prevent TMultiArrayView<Base>(TArray<Derived>&) from compiling!
 	 */
 	template <typename T, typename ElementType>
-	struct TIsCompatibleElementType
-	{
-	public:
-		/** NOTE:
-		 * The stars in the TPointerIsConvertibleFromTo test are *IMPORTANT*
-		 * They prevent TArrayView<Base>(TArray<Derived>&) from compiling!
-		 */
-		enum { Value = TPointerIsConvertibleFromTo<T*, ElementType* const>::Value };
-	};
+	constexpr bool TIsCompatibleElementType_V =std::is_convertible_v<T**, ElementType* const*>;
 
 	// Simply forwards to an unqualified GetData(), but can be called from within TArrayView
 	// where GetData() is already a member and so hides any others.
@@ -58,7 +51,7 @@ namespace UE::Core::ArrayView::Private
 	template <typename RangeType, typename ElementType>
 	struct TIsCompatibleRangeType
 	{
-		static constexpr bool Value = TIsCompatibleElementType<std::remove_pointer_t<decltype(GetData(DeclVal<RangeType&>()))>, ElementType>::Value;
+		static constexpr bool Value = TIsCompatibleElementType_V<std::remove_pointer_t<decltype(GetData(DeclVal<RangeType&>()))>, ElementType>;
 
 		template <typename T>
 		static decltype(auto) GetData(T&& Arg)
@@ -81,7 +74,7 @@ namespace UE::Core::ArrayView::Private
 		static constexpr bool Value = 
 			!std::is_same_v<typename TypeCompat::ReinterpretType, NaturalElementType>
 			&&
-			TIsCompatibleElementType<typename TypeCompat::ReinterpretType, ElementType>::Value
+			TIsCompatibleElementType_V<typename TypeCompat::ReinterpretType, ElementType>
 			&&
 			(!UE_DEPRECATE_MUTABLE_TOBJECTPTR
 			 || std::is_same_v<ElementType, std::remove_pointer_t<typename TypeCompat::ReinterpretType>* const>
@@ -145,7 +138,7 @@ public:
 	using ElementType = InElementType;
 	using SizeType = InSizeType;
 
-	static_assert(TIsSigned<SizeType>::Value, "TArrayView only supports signed index types");
+	static_assert(std::is_signed_v<SizeType>, "TArrayView only supports signed index types");
 
 	// Defaulted object behavior - we want compiler-generated functions rather than going through the generic range constructor.
 	TArrayView(const TArrayView&) = default;
@@ -162,9 +155,6 @@ public:
 	}
 
 private:
-	template <typename T>
-	using TIsCompatibleElementType = UE::Core::ArrayView::Private::TIsCompatibleElementType<T, ElementType>;
-
 	template <typename T>
 	using TIsCompatibleRangeType = UE::Core::ArrayView::Private::TIsCompatibleRangeType<T, ElementType>;
 
@@ -187,8 +177,9 @@ public:
 					TIsCompatibleRangeType<OtherRangeType>,
 					TIsReinterpretableRangeType<OtherRangeType>
 				>
-			>::Value && 
-			TIsTArrayView_V<CVUnqualifiedOtherRangeType> && !std::is_same_v<CVUnqualifiedOtherRangeType, TArrayView>
+			>::Value &&
+			TIsTArrayView_V<CVUnqualifiedOtherRangeType> &&
+			!std::is_same_v<CVUnqualifiedOtherRangeType, TArrayView>
 		)
 	>
 	FORCEINLINE TArrayView(OtherRangeType&& Other)
@@ -251,7 +242,7 @@ public:
 	 */
 	template <
 		typename OtherElementType
-		UE_REQUIRES(TIsCompatibleElementType<OtherElementType>::Value)
+		UE_REQUIRES(UE::Core::ArrayView::Private::TIsCompatibleElementType_V<OtherElementType, ElementType>)
 	>
 	FORCEINLINE TArrayView(OtherElementType* InData UE_LIFETIMEBOUND, SizeType InCount)
 		: DataPtr(InData)
@@ -915,3 +906,9 @@ FORCEINLINE TArray<InElementType, InAllocatorType>& TArray<InElementType, InAllo
 	CopyToEmpty(Other.GetData(), Other.Num(), ArrayMax);
 	return *this;
 }
+
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
+#include "Templates/IsConst.h"
+#include "Templates/IsSigned.h"
+#include "Templates/PointerIsConvertibleFromTo.h"
+#endif
