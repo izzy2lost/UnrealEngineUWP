@@ -1330,10 +1330,20 @@ bool FNetworkFileServerClientConnection::PackageFile( FString& Filename, FString
 		}
 		else
 		{
-			FileBytesSent += File->Size();
-			// read it
-			Contents.AddUninitialized(File->Size());
-			File->Read(Contents.GetData(), Contents.Num());
+			if (IntFitsIn<int32, int64>(File->Size()))
+			{
+				int32 FileSize32 = static_cast<int32>(File->Size());
+
+				FileBytesSent += FileSize32;
+				// read it
+				Contents.AddUninitialized(FileSize32);
+				File->Read(Contents.GetData(), Contents.Num());
+			}
+			else
+			{
+				UE_LOG(LogFileServer, Warning, TEXT("Unable to open %s because it is too large"), *Filename);
+				bRetVal = false;
+			}
 		}
 
 		// close it

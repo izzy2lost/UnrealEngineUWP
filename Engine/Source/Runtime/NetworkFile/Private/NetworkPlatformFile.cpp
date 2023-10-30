@@ -168,8 +168,15 @@ bool FNetworkPlatformFile::SendPayloadAndReceiveResponse(TArray<uint8>& In, TArr
 	}
 
 	TUniquePtr<FArchive> ResponsePayload = Response.ReadBody();
-	Out.SetNum(ResponsePayload->TotalSize());
-	ResponsePayload->Serialize(Out.GetData(), ResponsePayload->TotalSize());
+	
+	if (!IntFitsIn<int32, int64>(ResponsePayload->TotalSize()))
+	{
+		UE_LOG(LogCookOnTheFly, Warning, TEXT("Failed to parse 'CookOnTheFlyResponse' because the payload was too large"));
+		return false;
+	}
+	
+	Out.SetNum(static_cast<int32>(ResponsePayload->TotalSize()));
+	ResponsePayload->Serialize(Out.GetData(), Out.Num());
 	return true;
 }
 
@@ -182,8 +189,15 @@ void FNetworkPlatformFile::OnCookOnTheFlyMessage(const UE::Cook::FCookOnTheFlyMe
 	{
 		TUniquePtr<FArchive> PayloadReader = Message.ReadBody();
 		TArray<uint8> Payload;
-		Payload.SetNum(PayloadReader->TotalSize());
-		PayloadReader->Serialize(Payload.GetData(), PayloadReader->TotalSize());
+
+		if (!IntFitsIn<int32, int64>(PayloadReader->TotalSize()))
+		{
+			UE_LOG(LogCookOnTheFly, Warning, TEXT("Failed to parse 'CookOnTheFlyMessage' because the payload was too large"));
+			return;
+		}
+
+		Payload.SetNum(static_cast<int32>(PayloadReader->TotalSize()));
+		PayloadReader->Serialize(Payload.GetData(), Payload.Num());
 		PendingPayloads.Enqueue(MoveTemp(Payload));
 		NewPayloadEvent->Trigger();
 	}
