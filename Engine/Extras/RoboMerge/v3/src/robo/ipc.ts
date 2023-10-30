@@ -182,6 +182,10 @@ export class IPC {
 			return {statusCode: 400, message: `Invalid CL parameter: ${cl}`}
 		}
 
+		if (!this.robo.graph) {
+			return {statusCode: 503, message: 'Service is not ready to process request'}
+		}
+
 		let userTags = new Set<string>()
 		for (const tag in tagsObj) {
 			userTags.add(tag)
