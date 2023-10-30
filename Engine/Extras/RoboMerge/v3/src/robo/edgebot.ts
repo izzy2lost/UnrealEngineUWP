@@ -8,7 +8,7 @@ import { Recipients } from "../common/mailer";
 import { Change, coercePerforceWorkspace, ConflictedResolveNFile, EditChangeOpts, EXCLUSIVE_CHECKOUT_REGEX, getRootDirectoryForBranch, IntegrationSource, IntegrationTarget, isExecP4Error, OpenedFileRecord, PerforceContext } from "../common/perforce";
 import { VersionReader } from "../common/version";
 import { EdgeBotInterface, IPCControls, ReconsiderArgs } from "./bot-interfaces";
-import { AlreadyIntegrated, Branch, ChangeInfo, ConflictingFile, Failure, MergeAction, PendingChange } from "./branch-interfaces";
+import { AlreadyIntegrated, Branch, ChangeInfo, ConflictingFile, ExclusiveFile, Failure, MergeAction, PendingChange } from "./branch-interfaces";
 import { EdgeOptions } from "./branchdefs";
 import { PersistentConflict } from "./conflict-interfaces";
 import { BotEventTriggers } from "./events";
@@ -259,13 +259,13 @@ class EdgeBotImpl extends PerforceStatefulBot {
 		return results
 	}
 
-	private async analyzeIntegrationError(errors: string[]) {
-		if (errors.length > MAX_INTEGRATION_ERRORS_TO_ANALYZE) {
+	private async analyzeIntegrationError(errors: string[], analyzeAllIntegrationErrors?: boolean) {
+		if (!analyzeAllIntegrationErrors && errors.length > MAX_INTEGRATION_ERRORS_TO_ANALYZE) {
 			this.edgeBotLogger.error(`Integration error: ${errors.length} files, checking first ${MAX_INTEGRATION_ERRORS_TO_ANALYZE}`)
 		}
 		
 		const openedRequests: [RegExpMatchArray, Promise<OpenedFileRecord[]>, Promise<OpenedFileRecord[]>][] = []
-		for (const err of errors.slice(0, MAX_INTEGRATION_ERRORS_TO_ANALYZE)) {
+		for (const err of analyzeAllIntegrationErrors ? errors : errors.slice(0, MAX_INTEGRATION_ERRORS_TO_ANALYZE)) {
 			const match = err.match(EXCLUSIVE_CHECKOUT_REGEX)
 			if (match) {
 				openedRequests.push([match, this.p4.opened(null, match[1] + match[2], true), this.p4.opened(null, match[1] + match[2])])
@@ -277,12 +277,12 @@ class EdgeBotImpl extends PerforceStatefulBot {
 			const recs = await exclusiveReq
 			if (recs.length > 0) {
 				// should only be one, since we're looking for exclusive check-out errors
-				results.push({name: match[2], user: recs[0].user})
+				results.push({depotPath: match[1] + match[2], name: match[2], user: recs[0].user, client: recs[0].client})
 			} else {
 				const recs = await addReq
 				if (recs.length > 0) {
 					// should only be one, since we're looking for exclusive check-out errors
-					results.push({name: match[2], user: recs[0].user})
+					results.push({depotPath: match[1] + match[2], name: match[2], user: recs[0].user, client: recs[0].client})
 				}
 			}
 		}
@@ -554,19 +554,19 @@ class EdgeBotImpl extends PerforceStatefulBot {
 		}
 
 		const errors = results as string[]
-		const exclusiveFiles = await this.analyzeIntegrationError(errors)
+		const exclusiveFiles = await this.analyzeIntegrationError(errors, info.analyzeAllIntegrationErrors)
 
 		const description = errors.join('\n')
 		let failure: Failure | null = null
 
 		if (exclusiveFiles.length > 0) {
 			// will need to store the exclusive file if we want to @ people in Slack
-			const exclCheckoutMessages = exclusiveFiles.map(exc => `${exc.name} checked out by ${exc.user}`)
-			if (errors.length > MAX_INTEGRATION_ERRORS_TO_ANALYZE) {
+			const exclCheckoutMessages = exclusiveFiles.map(exc => `${exc.depotPath} checked out by ${exc.user}`)
+			if (!info.analyzeAllIntegrationErrors && errors.length > MAX_INTEGRATION_ERRORS_TO_ANALYZE) {
 				exclCheckoutMessages.push(`... and up to ${errors.length - MAX_INTEGRATION_ERRORS_TO_ANALYZE} more`)
 			}
-			const exclCheckoutUsers = Array.from(new Set(exclusiveFiles.map(exc => `${exc.user.toLowerCase()}`))).map(user => ({user, userEmail: this.p4.getEmail(user)}))
-			failure = { kind: 'Exclusive check-out', description, summary: exclCheckoutMessages.join('\n'), additionalInfo: exclCheckoutUsers }
+			const exclusiveLockUsers = Array.from(new Set(exclusiveFiles.map(exc => `${exc.user.toLowerCase()}`))).map(user => ({user, userEmail: this.p4.getEmail(user)}))
+			failure = { kind: 'Exclusive check-out', description, summary: exclCheckoutMessages.join('\n'), additionalInfo: {exclusiveLockUsers,exclusiveFiles} }
 		}
 		else {
 			failure  = { kind: 'Integration error', description }
@@ -1137,9 +1137,4 @@ export class EdgeBot
 			forceSetLastClWithContext: this.forceSetLastClWithContext
 		}
 	}
-}
-
-interface ExclusiveFile {
-	name: string
-	user: string
 }

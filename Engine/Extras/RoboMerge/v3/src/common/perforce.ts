@@ -60,6 +60,7 @@ export interface OpenedFileRecord {
 	action: string
 	type: string
 	user: string
+	client: string
 
 	movedFile?: string
 }
@@ -1145,6 +1146,25 @@ export class PerforceContext {
 			args.push(exclusive && perforceMultiServerEnvironment ? '-x' : '-a', arg)
 		}
 		return this._execP4Ztag(workspace, args) as Promise<OpenedFileRecord[]>
+	}
+
+	async revertFile(file: string) {
+		let opened = await this.opened(null, file, true)
+		if (opened.length == 0) {
+			opened = await this.opened(null, file)
+			if (opened.length == 0) {
+				this.logger.warn(`${file} does not appear to be open, cannot revert`)
+				return null
+			}
+		}
+		const client = opened[0].client
+		return this.revertFiles([file],client)
+	}
+
+	async revertFiles(files: string[], client: string) {
+		const edgeServer = await this.getWorkspaceEdgeServer(client)
+		const args = ['revert', '-C', client, ...files]
+		return this._execP4Ztag(null, args, {edgeServerAddress: edgeServer?.address})
 	}
 
 	// revert a CL deleting any files marked for add

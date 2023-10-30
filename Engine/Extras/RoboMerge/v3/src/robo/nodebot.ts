@@ -10,7 +10,7 @@ import { IPCControls, NodeBotInterface, QueuedChange, ReconsiderArgs } from './b
 import { ApprovalOptions, BotConfig, EdgeOptions, NodeOptions } from './branchdefs'
 import { BlockagePauseInfo, BranchStatus } from './status-types';
 import { AlreadyIntegrated, Blockage, Branch, BranchArg, BranchGraphInterface, ChangeInfo, EndIntegratingToGateEvent, Failure } from './branch-interfaces';
-import { MergeAction, OperationResult, PendingChange, resolveBranchArg, StompedRevision, StompVerification, StompVerificationFile }  from './branch-interfaces';
+import { MergeAction, OperationResult, PendingChange, resolveBranchArg, StompedRevision, StompVerification, StompVerificationFile, UnlockVerification }  from './branch-interfaces';
 import { Conflicts } from './conflicts';
 import { EdgeBot, EdgeMergeResults } from './edgebot';
 import { BotEventTriggers } from './events';
@@ -958,7 +958,7 @@ export class NodeBot extends PerforceStatefulBot implements NodeBotInterface {
 			return { success: false, message: "Missing parameters for stompChanges node operation" }
 		}
 
-		// Reverify, but don't revert on a successfull verification!
+		// Reverify, but don't revert on a successful verification!
 		const verifyResult = await this.verifyStomp(changeCl, targetBranchName)
 
 		if (!verifyResult.success) {
@@ -999,6 +999,126 @@ export class NodeBot extends PerforceStatefulBot implements NodeBotInterface {
 
 	}
 
+	async verifyUnlock(changeCl: number, targetBranchName: string) : Promise<UnlockVerification> {
+		this._log_action(`Verifying unlock request of CL ${changeCl} to ${targetBranchName}`, "verbose")
+		if (!changeCl || !targetBranchName) {
+			return { success: false, message: "Missing parameters for unlock operation" }
+		}
+
+		const targetBranch = this._getBranch(targetBranchName)
+
+		if (!targetBranch) {
+			return { success: false, message: `Unable to retrieve branch infomation for "${targetBranchName}". Unable to unlock, please contact Robomerge support."` }
+		}
+
+		const edge = this.getImmediateEdge(targetBranch)
+
+		if (!edge) {
+			return { success: false, message: `This bot has no edge for specified branch "${targetBranch.name}" on ${this.fullName}`}
+		}
+
+		// Ensure we're paused on a non-manual pause blockage
+		if (!edge.isBlocked) {
+			return { success: false, message: "Branch needs to have conflict to unlock files." }
+		}
+
+		// Get the pause info of the edge
+		const blockageInfo = edge.pauseState.blockagePauseInfo!
+
+		// We've ensured we're on a blockage now. Make sure the CL is still valid.
+		if (blockageInfo.change !== changeCl) {
+			return { success: false, message: `Requested change CL "${changeCl}" does not match blockage change CL "${blockageInfo.change}"` }
+		}
+
+		let conflict = this.conflicts.getConflictByChangeCl(changeCl, targetBranch)
+
+		if (!conflict) {
+			return { success: false, message: `Unable to retrieve conflict for CL ${changeCl} merging to ${targetBranch.name}. Unable to unlock, please contact Robomerge support.` }
+		}
+		if (conflict.kind !== 'Exclusive check-out') {
+			return { success: false, message: `Unlock only usable when edge is blocked by exclusive check-out ${targetBranch.name}. ` + 
+				`If you thinks this is an error, contact Robomerge support.` }
+		}
+
+		return { success: true, validRequest: true, message: "Unlock verified", lockedFiles: blockageInfo.additionalInfo.exclusiveFiles}
+	}
+
+	// First, re-verify the unlock request
+	// If verified, we should have a list of files to unlock
+	async unlockChanges(owner: string, changeCl: number, targetBranchName: string): Promise<OperationResult> {
+		// Ensure this is a valid request
+		// Parameter validation (should not be blank)
+		if (!owner || !changeCl || !targetBranchName) {
+			return { success: false, message: "Missing parameters for unlockChanges node operation" }
+		}
+
+		const verifyResult = await this.verifyUnlock(changeCl, targetBranchName)
+
+		if (!verifyResult.success) {
+			return { success: false, message: `unlockChanges Request Failed Due to Bad Verification: ${verifyResult.message}` }
+		}
+
+		if (!verifyResult.validRequest) {
+			return { success: false, message: `unlockChanges Request Cannot Be Completed: ${verifyResult.message}` }
+		}
+
+		this.nodeBotLogger.info(`Unlock Request for cl ${changeCl} by ${owner} validated, unlocking files`)
+
+		let filesByClient = new Map<string,string[]>()
+		let filesByUser = new Map<string,string[]>()
+		for (const lockedFile of verifyResult.lockedFiles!) {
+			filesByClient.set(lockedFile.client, [...(filesByClient.get(lockedFile.client) || []), lockedFile.depotPath])
+			filesByUser.set(lockedFile.user, [...(filesByUser.get(lockedFile.user) || []), lockedFile.depotPath])
+		}
+
+		filesByClient.forEach((files,client) => this.p4.revertFiles(files,client))
+
+		if (this.slackMessages) {
+			
+			filesByUser.forEach(async (files, author) => {
+
+				let userToNotify = `@${author}`
+				const emailAddress = await this.findEmail(author)
+				if (emailAddress)
+				{
+					const user = await this.slackMessages!.getSlackUser(emailAddress)
+					if (user) {
+						userToNotify = `<@${user}>`
+					}
+				}
+				const unlockMessage: SlackMessage = {
+					text: `${userToNotify} - ${owner} has unlocked the following files:\n${files.join('\n')}`,
+					style: SlackMessageStyles.DANGER,
+					channel: this.branchGraph.config.slackChannel,
+					mrkdwn: true
+				}
+
+				this.slackMessages!.postReply(changeCl, targetBranchName, unlockMessage)
+			})
+		}
+
+		if (this.tickJournal) {
+			// Add number of successful unlocks
+			++this.tickJournal.unlockQueued
+		}
+
+		const targetBranch = this._getBranch(targetBranchName)
+
+		if (!targetBranch) {
+			return { success: false, message: `Unable to retrieve branch infomation for "${targetBranchName}". Unable to unlock, please contact Robomerge support."` }
+		}
+
+		const edge = this.getImmediateEdge(targetBranch)
+
+		if (!edge) {
+			return { success: false, message: `This bot has no edge for specified branch "${targetBranch.name}" on ${this.fullName}`}
+		}
+
+		edge.unblock("files unlocked")
+
+		return { success: true, message: 'Queued unlock request' }
+	}
+
 	createEdgeBlockageInfo(edgeBranch: Branch, failure: Failure, pending: PendingChange): BlockagePauseInfo {
 		// Check source node if it is currently tracking this conflict
 		let existingConflict = this.getConflictByBranchAndSourceCl(edgeBranch, pending.change.source_cl)
@@ -1007,7 +1127,8 @@ export class NodeBot extends PerforceStatefulBot implements NodeBotInterface {
 			failure.description,
 			<PendingChange> pending,
 			existingConflict ? existingConflict.time : new Date,
-			edgeBranch
+			edgeBranch,
+			failure.additionalInfo
 		)
 
 		// Check to see if this conflict has been acknowledged
@@ -1019,7 +1140,7 @@ export class NodeBot extends PerforceStatefulBot implements NodeBotInterface {
 		return pauseInfo
 	}
 
-	private static _makeBlockageInfo(errstr: string, errlong: string, arg: ChangeInfo | PendingChange, startedAt: Date, targetBranch?: Branch): BlockagePauseInfo {
+	private static _makeBlockageInfo(errstr: string, errlong: string, arg: ChangeInfo | PendingChange, startedAt: Date, targetBranch?: Branch, additionalInfo?: any): BlockagePauseInfo {
 		const MAX_LEN = 700
 		if (errlong.length > MAX_LEN) {
 			errlong = errlong.substring(0,MAX_LEN) + "..."
@@ -1034,7 +1155,8 @@ export class NodeBot extends PerforceStatefulBot implements NodeBotInterface {
 			change: info.cl,
 			sourceCl: info.source_cl,
 			source: info.source,
-			message: `${errstr}:\n${errlong}`
+			message: `${errstr}:\n${errlong}`,
+			additionalInfo
 		}
 
 		if (maybePendingChange.change) {
@@ -1208,6 +1330,16 @@ export class NodeBot extends PerforceStatefulBot implements NodeBotInterface {
 				)
 
 				urls.stompUrl = OperationUrlHelper.createStompUrl(
+					externalUrl,
+					botname,
+					branchname,
+					cl,
+					blockage.action.branch.name
+				)
+			}
+
+			if (blockage.failure.kind === 'Exclusive check-out') {
+				urls.unlockUrl = OperationUrlHelper.createUnlockUrl(
 					externalUrl,
 					botname,
 					branchname,

@@ -1401,11 +1401,17 @@ function renderActionsCell_Common(actionCell, data, operationFunction, operation
 			}, `Retry merge of ${conflict.cl} and create a shelf in a specified P4 workspace`)
 			
 			// Stomp
-			const stompRequest = `/op/stomp?` + queryParams + location.hash
+			const stompRequest = '/op/stomp?' + queryParams + location.hash
 			const stompOption = createActionOption('Stomp Changes using ' + conflict.cl + toTargetText, function() {
 				window.location.href = stompRequest;
 			}, `Use ${conflict.cl} to stomp binary changes in ${conflict.target}`);
 
+			// Unlock files
+			const unlockFilesRequest = '/op/unlock?' + queryParams
+			const unlockOption = createActionOption('Unlock Files blocking ' + conflict.cl + toTargetText, function() {
+				window.location.href = unlockFilesRequest;
+			}, `Unlock files blocking ${conflict.cl} in ${conflict.target}`);
+			
 			// Can only create shelves for merge conflicts and commit failures
 			if (conflict.kind !== 'Merge conflict' &&
 				conflict.kind !== 'Commit failure') {
@@ -1415,16 +1421,27 @@ function renderActionsCell_Common(actionCell, data, operationFunction, operation
 				shelfOption.attr('data-original-title', `Shelving not available for ${conflict.kind.toLowerCase()}.`)
 			}
 
+			dropdownEntries.push(shelfOption)
+
 			// Can only perform stomps for merge conflicts
-			if (conflict.kind !== 'Merge conflict')
-			{
+			if (conflict.kind === 'Merge conflict') {
+				dropdownEntries.push(stompOption)
+			}
+			else {
 				stompOption.addClass("disabled")
 				stompOption.off('click')
 				stompOption.attr('data-original-title', `Stomp not available for ${conflict.kind.toLowerCase()}.`)
 			}
 
-			dropdownEntries.push(shelfOption)
-			dropdownEntries.push(stompOption)
+			if (conflict.kind === 'Exclusive check-out') {
+				dropdownEntries.push(unlockOption)
+			}
+			else {
+				unlockOption.addClass("disabled")
+				unlockOption.off('click')
+				unlockOption.attr('data-original-title', `Unlock not required for ${conflict.kind.toLowerCase()}.`)
+			}
+
 		}
 
 		// Exposing this section in the case of a blockage but no conflict

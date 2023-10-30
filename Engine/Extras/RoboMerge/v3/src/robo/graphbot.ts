@@ -434,7 +434,8 @@ export class GraphBot implements GraphInterface, BotEventHandler {
 				acknowledgeUrl: OperationUrlHelper.createAcknowledgeUrl(this.externalUrl, 'botname', 'sourcebranch', '0'),
 				createShelfUrl: OperationUrlHelper.createCreateShelfUrl(this.externalUrl, 'botname', 'sourcebranch', '0', 'targetbranch', 'targetstream'),
 				skipUrl: OperationUrlHelper.createSkipUrl(this.externalUrl, 'botname', 'sourcebranch', '0', 'targetbranch'),
-				stompUrl: OperationUrlHelper.createStompUrl(this.externalUrl, 'botname', 'sourcebranch', '0', 'targetbranch')
+				stompUrl: OperationUrlHelper.createStompUrl(this.externalUrl, 'botname', 'sourcebranch', '0', 'targetbranch'),
+				unlockUrl: OperationUrlHelper.createUnlockUrl(this.externalUrl, 'botname', 'sourcebranch', '0', 'targetbranch')
 			}
 			return urls
 		}

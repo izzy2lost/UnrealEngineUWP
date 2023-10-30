@@ -632,6 +632,9 @@ class RoboWebApp implements AppInterface {
 			case "stomp":
 				return await readUtf8File('public/stomp.html')
 
+			case "unlock":
+				return await readUtf8File('public/unlock.html')
+
 			default:
 				return {statusCode: 404, message: `Unknown node operation requested: "${operation}"`}
 		}
@@ -763,6 +766,7 @@ export interface BlockageNodeOpUrls {
 	createShelfUrl?: string
 	skipUrl?: string
 	stompUrl?: string
+	unlockUrl?: string
 }
 export class OperationUrlHelper {
 	static createAcknowledgeUrl(externalRobomergeUrl: string, botname: string, branchname: string, changelistNum: string, edge?: string) {
@@ -801,4 +805,12 @@ export class OperationUrlHelper {
 			`&target=${encodeURIComponent(target)}`
 	}
 	
+	static createUnlockUrl(externalRobomergeUrl: string, botname: string, branchname: string, changelistNum: string, target: string) {
+		return `${externalRobomergeUrl}/op/unlock?` +
+			`bot=${encodeURIComponent(botname)}`+ 
+			`&branch=${encodeURIComponent(branchname)}` +
+			`&cl=${encodeURIComponent(changelistNum)}` +
+			`&target=${encodeURIComponent(target)}`
+	}
+
 }

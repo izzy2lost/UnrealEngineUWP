@@ -713,6 +713,53 @@ export class IPC {
 			this.ipcLogger.error('Error processing stomp: ' + operationResult.message)
 			return { statusCode: 500, message: operationResult.message }
 
+		// Requires: cl, target
+		case 'verifyunlock':
+			cl = parseInt(query.cl)
+			if (isNaN(cl)) {
+				return { statusCode: 400, message: 'Invalid CL parameter: ' + cl }
+			}
+
+			target = query.target
+			if (!target) {
+				return { statusCode: 400, message: 'Target parameter is required' }
+			}
+
+			// Attempt to stomp changes
+			let unlockVerification = await bot.verifyUnlock(cl, target)
+			if (unlockVerification.success) {
+				return { 
+					statusCode: 200,
+					message: JSON.stringify({
+						message: unlockVerification.message,
+						files: unlockVerification.lockedFiles,
+						validRequest: unlockVerification.validRequest
+					} )
+				}
+			}
+
+			this.ipcLogger.error('Error verifying unlock: ' + unlockVerification.message)
+			return { statusCode: 500, message: unlockVerification.message }
+
+		case 'unlockchanges':
+			cl = parseInt(query.cl)
+			if (isNaN(cl)) {
+				return { statusCode: 400, message: 'Invalid CL parameter: ' + cl }
+			}
+
+			target = query.target
+			if (!target) {
+				return { statusCode: 400, message: 'Target parameter is required' }
+			}
+
+			// Attempt to unlock changes
+			operationResult = await bot.unlockChanges(query.who, cl, target)
+			if (operationResult.success) {
+				return { statusCode: 200, message: operationResult.message }
+			}
+			this.ipcLogger.error('Error processing unlock: ' + operationResult.message)
+			return { statusCode: 500, message: operationResult.message }
+
 		case 'bypassgatewindow':
 			const sense = query.sense.toLowerCase().startsWith('t');
 			const prefix = sense ? 'en' : 'dis'

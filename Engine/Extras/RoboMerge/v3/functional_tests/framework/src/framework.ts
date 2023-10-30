@@ -652,6 +652,61 @@ export abstract class FunctionalTest {
 		}
 	}
 
+	async verifyUnlockRequest(source: string, target: string, edgeState: EdgeState) {
+		if (!edgeState.isBlocked()) {
+			throw new Error('edge must be blocked to unlock!')
+		}
+
+		const conflictCl = edgeState.conflict && edgeState.conflict.change
+		const sourceBranchName = this.fullBranchName(source)
+		const targetBranchName = this.fullBranchName(target)
+
+		// verify unlock
+		const endpoint = OPERATION_URL_TEMPLATE
+			.replace('<bot>', this.botName)
+			.replace('<node>', sourceBranchName)
+			.replace('<op>', 'verifyunlock')
+		const url = `${endpoint}?cl=${conflictCl}&target=${targetBranchName}`
+		let verifyResult: any
+
+		try {
+			const post = bent('POST', 'json', 200, 400)
+			verifyResult = await post(url)
+		}
+		catch (err) {
+			this.error(err)
+			throw new Error(`Verifying Unlock with Url "${url}" returned an error.`)
+		}
+
+		return verifyResult
+	}
+
+	async performUnlockRequest(source: string, target: string, edgeState: EdgeState) {
+		const conflictCl = edgeState.conflict && edgeState.conflict.change
+		const sourceBranchName = this.fullBranchName(source)
+		const targetBranchName = this.fullBranchName(target)
+
+		const unlockEndpoint = OPERATION_URL_TEMPLATE
+			.replace('<bot>', this.botName)
+			.replace('<node>', sourceBranchName)
+			.replace('<op>', 'unlockchanges')
+		const url = `${unlockEndpoint}?cl=${conflictCl}&target=${targetBranchName}`
+
+		const post = bent('POST', 200, 400, 500)
+		let response: bent.BentResponse
+		try {
+			response = await post(url) as bent.BentResponse
+		}
+		catch(err) {
+			this.error(err)
+			throw new Error(`Performing Unlock with Url "${url}" returned an error.`)
+		}
+		return {
+			statusCode: response.statusCode,
+			body: response
+		}
+	}
+
 	async reconsider(source: string, cl: number, target?: string, commandOverride?: string) {
 		const sourceBranchName = this.fullBranchName(source)
 
@@ -756,16 +811,55 @@ export abstract class FunctionalTest {
 		if (!verifyResult.validRequest)
 		{
 			this.warn(verifyResult.message)
-			// this.warn("nonBinaryFilesResolved=" + verifyResult.nonBinaryFilesResolved)
-			// this.warn("remainingAllBinary=" + verifyResult.remainingAllBinary)
-			// this.warn("files=" + (Array.isArray(verifyResult.files)
-				// ? verifyResult.files[0].targetFileName : `no files (${verifyResult.files})`))
 			throw new Error('Stomp verify returned unexpected values')
 		}
 
 		// attempt stomp
 		const stompResult = await this.performStompRequest(source, target, edgeState)
 		this.verbose('Waiting for RoboMerge to process Stomp')
+		await this.waitForRobomergeIdle()
+
+		return { verify: verifyResult, stomp: stompResult }
+	}
+
+	async verifyAndPerformUnlock(source: string, target: string, additionalSlackChannel?: string) {
+		const edgeState: EdgeState = await this.getEdgeState(source, target)
+
+		const conflictCl: number | undefined = edgeState.conflict && edgeState.conflict.change
+		if (!conflictCl) {
+			throw new Error('no conflict cl in edge state')
+		}
+
+		const checkSlack = async () => {
+			const slackChannel = this.botName.toLowerCase()
+			const channelsStr = slackChannel + (additionalSlackChannel ? ' and ' + additionalSlackChannel : '')
+
+			this.info(`Ensuring Slack message sent to ${channelsStr} for CL#${conflictCl}`)
+
+			const channels = [slackChannel]
+			if (additionalSlackChannel) {
+				channels.push(additionalSlackChannel)
+			}
+
+			await Promise.all(channels.map(channel =>
+				this.ensureConflictMessagePostedToSlack(source, target, channel)))
+		}
+
+		this.info(`Unlock ${source} -> ${target} @ CL#${conflictCl}`)
+		const [verifyResult] = await Promise.all([
+			this.verifyUnlockRequest(source, target, edgeState),
+			checkSlack()
+		])
+
+		if (!verifyResult.validRequest)
+		{
+			this.warn(verifyResult.message)
+			throw new Error('Unlock verify returned unexpected values')
+		}
+
+		// attempt stomp
+		const stompResult = await this.performUnlockRequest(source, target, edgeState)
+		this.verbose('Waiting for RoboMerge to process Unlock')
 		await this.waitForRobomergeIdle()
 
 		return { verify: verifyResult, stomp: stompResult }

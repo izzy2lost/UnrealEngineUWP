@@ -54,7 +54,7 @@ function stompVerify() {
             
             // Verify the request branch is paused
             if (!requestedEdge.blockage) {
-                stompFailure(`${requestedEdge.display_name} not currently blocked, no need to skip.`)
+                stompFailure(`${requestedEdge.display_name} not currently blocked, no need to stomp.`)
                 $('#result').append(renderSingleBranchTable(requestedNode))
                 return
             }

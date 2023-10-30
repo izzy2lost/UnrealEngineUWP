@@ -6,7 +6,7 @@ import { Args } from '../common/args';
 import { Badge } from '../common/badge';
 import { Random } from '../common/helper';
 import { ContextualLogger } from '../common/logger';
-import { Blockage, Branch, BranchArg, ForcedCl, MergeAction, NodeOpUrlGenerator, resolveBranchArg } from './branch-interfaces';
+import { Blockage, Branch, BranchArg, ExclusiveLockInfo, ForcedCl, MergeAction, NodeOpUrlGenerator, resolveBranchArg } from './branch-interfaces';
 import { PersistentConflict, Resolution } from './conflict-interfaces';
 import { BotEventHandler, BotEvents } from './events';
 import { NodeBot } from './nodebot';
@@ -545,7 +545,7 @@ export class BotNotifications implements BotEventHandler {
 			messagesToPost.push({ message })
 
 			if (blockage.failure.kind === 'Exclusive check-out') {
-				const exclusiveLockUsers = blockage.failure.additionalInfo as any[]			
+				const exclusiveLockUsers = (blockage.failure.additionalInfo as ExclusiveLockInfo).exclusiveLockUsers
 				let text = ''
 
 				for (const exclusiveLockUser of exclusiveLockUsers) {
