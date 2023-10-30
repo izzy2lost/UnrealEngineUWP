@@ -2932,7 +2932,7 @@ bool UTextureFactory::ImportImage(const uint8* Buffer, int64 Length, FFeedbackCo
 			// branch for JPEG, if retaining the jpeg compressed data
 			// this is inside the DecompressImage branch even though we don't use the LoadedImage at all
 			//	 just to ensure that the jpeg will decode successfully
-			if (ImageFormat == EImageFormat::JPEG || ImageFormat == EImageFormat::OOJPEG)
+			if (ImageFormat == EImageFormat::JPEG || ImageFormat == EImageFormat::UEJPEG)
 			{
 				// unusual loader, retains jpeg
 				bool bRetainJpegFormat = false;
@@ -2971,8 +2971,8 @@ bool UTextureFactory::ImportImage(const uint8* Buffer, int64 Length, FFeedbackCo
 						}
 						else
 						{
-							OutImage.RawDataCompressionFormat = ETextureSourceCompressionFormat::TSCF_OOJPEG;
-							UE_LOG(LogEditorFactories,Display,TEXT("OOJPEG imported and retained as OOJPEG in uasset."));
+							OutImage.RawDataCompressionFormat = ETextureSourceCompressionFormat::TSCF_UEJPEG;
+							UE_LOG(LogEditorFactories,Display,TEXT("UEJPEG imported and retained as UEJPEG in uasset."));
 						}
 
 						return true;
@@ -5004,14 +5004,14 @@ UVirtualTextureBuilderExporterPNG::UVirtualTextureBuilderExporterPNG(const FObje
 
 //========================================================
 
-UTextureExporterOOJPEG::UTextureExporterOOJPEG(const FObjectInitializer& ObjectInitializer)
+UTextureExporterUEJPEG::UTextureExporterUEJPEG(const FObjectInitializer& ObjectInitializer)
 	: UTextureExporterGeneric(ObjectInitializer)
 {
-	FormatExtension.Add(TEXT("OOJ"));
-	FormatDescription.Add(TEXT("Oodle JPEG"));
+	FormatExtension.Add(TEXT("UEJ"));
+	FormatDescription.Add(TEXT("UE JPEG"));
 }
 
-bool UTextureExporterOOJPEG::SupportsTexture(UTexture* Texture) const
+bool UTextureExporterUEJPEG::SupportsTexture(UTexture* Texture) const
 {
 	ETextureSourceFormat TSF = Texture->Source.GetFormat();
 	ERawImageFormat::Type RawFormat = FImageCoreUtils::ConvertToRawImageFormat(TSF);
@@ -5219,7 +5219,7 @@ bool UTextureExporterJPEG::SupportsObject(UObject* Object) const
 			}
 
 			// Check it has JPEG BulkData :
-			if ( (Texture->Source.GetSourceCompression() == TSCF_JPEG || Texture->Source.GetSourceCompression() == TSCF_OOJPEG) &&
+			if ( (Texture->Source.GetSourceCompression() == TSCF_JPEG || Texture->Source.GetSourceCompression() == TSCF_UEJPEG) &&
 				Texture->Source.GetSizeOnDisk() > 0 )
 			{
 				ETextureSourceFormat TSF = Texture->Source.GetFormat();
@@ -5238,7 +5238,7 @@ bool UTextureExporterJPEG::ExportBinary(UObject* Object, const TCHAR* Type, FArc
 	UTexture2D* Texture = Cast<UTexture2D>(Object);
 	check(Texture != nullptr);
 
-	check((Texture->Source.GetSourceCompression() == TSCF_JPEG || Texture->Source.GetSourceCompression() == TSCF_OOJPEG) &&
+	check((Texture->Source.GetSourceCompression() == TSCF_JPEG || Texture->Source.GetSourceCompression() == TSCF_UEJPEG) &&
 			Texture->Source.GetSizeOnDisk() > 0 );
 
 	// just write the JPEG data we already have :
@@ -5253,7 +5253,7 @@ bool UTextureExporterJPEG::ExportBinary(UObject* Object, const TCHAR* Type, FArc
 		else
 		{
 			IImageWrapperModule& ImageWrapperModule = FModuleManager::LoadModuleChecked<IImageWrapperModule>(FName("ImageWrapper"));
-			TSharedPtr<IImageWrapper> ImageWrapper = ImageWrapperModule.CreateImageWrapper(EImageFormat::OOJPEG);
+			TSharedPtr<IImageWrapper> ImageWrapper = ImageWrapperModule.CreateImageWrapper(EImageFormat::UEJPEG);
 			ImageWrapper->SetCompressed(BulkDataBuffer.GetData(), BulkDataBuffer.GetSize());
 			TArray64<uint8> ExportData = ImageWrapper->GetExportData();
 			Ar.Serialize(ExportData.GetData(), ExportData.Num());

@@ -17,9 +17,9 @@ FStringView ImageWrapperHelper::GetFormatExtension(EImageFormat InImageFormat, b
 	case EImageFormat::GrayscaleJPEG:
 		StringExtension = TEXT(".jpg");
 		break;
-	case EImageFormat::OOJPEG:
-	case EImageFormat::GrayscaleOOJPEG:
-		StringExtension = TEXT(".ooj");
+	case EImageFormat::UEJPEG:
+	case EImageFormat::GrayscaleUEJPEG:
+		StringExtension = TEXT(".uej");
 		break;
 	case EImageFormat::BMP:
 		StringExtension = TEXT(".bmp");
@@ -77,9 +77,9 @@ EImageFormat ImageWrapperHelper::GetImageFormat(FStringView StringExtention)
 	{
 		return EImageFormat::JPEG;
 	}
-	if (StringExtention.Equals(TEXT("ooj"), ESearchCase::IgnoreCase))
+	if (StringExtention.Equals(TEXT("uej"), ESearchCase::IgnoreCase))
 	{
-		return EImageFormat::OOJPEG;
+		return EImageFormat::UEJPEG;
 	}
 	if (StringExtention.Equals(TEXT("bmp"), ESearchCase::IgnoreCase))
 	{

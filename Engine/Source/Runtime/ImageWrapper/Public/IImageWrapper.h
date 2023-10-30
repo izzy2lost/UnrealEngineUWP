@@ -60,11 +60,11 @@ enum class EImageFormat : int8
 	/** DirectDraw Surface */
 	DDS,
 
-	/** Oodle JPEG format. */
-	OOJPEG,
+	/** UE JPEG format. */
+	UEJPEG,
 
-	/** Single channel Oodle JPEG. */
-	GrayscaleOOJPEG,
+	/** Single channel UE JPEG. */
+	GrayscaleUEJPEG,
 };
 
 

@@ -38,7 +38,7 @@ public class ImageWrapper : ModuleRules
 			"UElibPNG",
 			"LibTiff",
 			"OodleDataCompression",
-			"OodleJPEG"
+			"UEJpegComp"
 		);
 
 		// Jpeg Decoding

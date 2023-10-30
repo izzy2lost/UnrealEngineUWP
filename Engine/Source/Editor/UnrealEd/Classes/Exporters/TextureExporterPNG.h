@@ -44,7 +44,7 @@ class UTextureExporterJPEG : public UExporter
 
 
 UCLASS()
-class UTextureExporterOOJPEG : public UTextureExporterGeneric
+class UTextureExporterUEJPEG : public UTextureExporterGeneric
 {
 	GENERATED_UCLASS_BODY()
 	

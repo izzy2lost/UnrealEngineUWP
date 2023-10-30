@@ -41,7 +41,7 @@
 #include "Serialization/EditorBulkData.h"
 #include "Texture/InterchangeBlockedTexturePayloadInterface.h"
 #include "Texture/InterchangeJPGTranslator.h"
-#include "Texture/InterchangeOOJPGTranslator.h"
+#include "Texture/InterchangeUEJPEGTranslator.h"
 #include "Texture/InterchangeSlicedTexturePayloadInterface.h"
 #include "Texture/InterchangeTextureLightProfilePayloadInterface.h"
 #include "Texture/InterchangeTexturePayloadInterface.h"
@@ -680,7 +680,7 @@ namespace UE::Interchange::Private::InterchangeTextureFactory
 				if (BlockAndSourceDataFiles.IsEmpty())
 				{
 					if (Translator->GetClass() == UInterchangeJPGTranslator::StaticClass() 
-						|| Translator->GetClass() == UInterchangeOOJPGTranslator::StaticClass())
+						|| Translator->GetClass() == UInterchangeUEJPEGTranslator::StaticClass())
 					{
 						// Honor setting from TextureImporter.RetainJpegFormat in Editor.ini if it exists (ideally we should deprecate this as it is confusing and probably not thread safe)
 						const bool bShouldImportRawCache = bShoudImportCompressedImage;
