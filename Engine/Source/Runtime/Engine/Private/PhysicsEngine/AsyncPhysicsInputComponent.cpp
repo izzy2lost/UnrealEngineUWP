@@ -39,9 +39,9 @@ struct FAsyncPhysicsInputRewindCallback : public Chaos::IRewindCallback
 			if (APlayerController* PC = World->GetFirstPlayerController())
 			{
 				ensure(Chaos::FPhysicsSolverBase::IsNetworkPhysicsPredictionEnabled());
-				if (PC->GetLocalToServerAsyncPhysicsTickOffsetAssigned())
+				if (PC->GetNetworkPhysicsTickOffsetAssigned())
 				{
-					const int32 LocalToServerOffset = PC->GetLocalToServerAsyncPhysicsTickOffset();
+					const int32 LocalToServerOffset = PC->GetNetworkPhysicsTickOffset();
 					ServerFrame = PhysicsStep + LocalToServerOffset;
 				}
 			}
@@ -74,9 +74,9 @@ struct FAsyncPhysicsInputRewindCallback : public Chaos::IRewindCallback
 				// -----------------------------------------------------------------
 
 				ensure(Chaos::FPhysicsSolverBase::IsNetworkPhysicsPredictionEnabled());
-				if (PC->GetLocalToServerAsyncPhysicsTickOffsetAssigned())
+				if (PC->GetNetworkPhysicsTickOffsetAssigned())
 				{
-					const int32 LocalToServerOffset = PC->GetLocalToServerAsyncPhysicsTickOffset();
+					const int32 LocalToServerOffset = PC->GetNetworkPhysicsTickOffset();
 					CachedServerFrame = PhysicsStep + LocalToServerOffset;
 				}
 			}

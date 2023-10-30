@@ -329,7 +329,7 @@ void FPhysicsReplication::OnTick(float DeltaSeconds, TMap<TWeakObjectPtr<UPrimit
 			{
 				if (APlayerController* PlayerController = World->GetFirstPlayerController())
 				{
-					LocalFrameOffset = PlayerController->GetLocalToServerAsyncPhysicsTickOffset();
+					LocalFrameOffset = PlayerController->GetNetworkPhysicsTickOffset();
 				}
 			}
 		}

@@ -268,6 +268,14 @@ struct FNetworkPhysicsCallback : public Chaos::IRewindCallback
 	// but also needs to be able to access GT data (actor iterator, actor state)
 	void UpdateReplicationMap_Internal(int32 PhysicsStep);
 
+	// Update client player on GT
+	UE_DEPRECATED(5.4, "Physics frame offset is handled by the PlayerController automatically, it's recommended to use APlayerController::GetAsyncPhysicsTimestamp() to get the ServerFrame and LocalFrame on both client and server. Also disable the deprecated flow by setting p.net.CmdOffsetEnabled = 0")
+	void UpdateClientPlayer_External(int32 PhysicsStep);
+
+	// Update server player on GT
+	UE_DEPRECATED(5.4, "Physics frame offset is handled by the PlayerController automatically, it's recommended to use APlayerController::GetAsyncPhysicsTimestamp() to get the ServerFrame and LocalFrame on both client and server. Also disable the deprecated flow by setting p.net.CmdOffsetEnabled = 0")
+	void UpdateServerPlayer_External(int32 PhysicsStep);
+
 	// Cache the current netmode for use in PT
 	void UpdateNetMode()
 	{
@@ -392,6 +400,10 @@ public:
 
 	// Delegate linked to the physics rewind callback to send record local inputs/states
 	ENGINE_API void OnPostProcessInputsInternal(const int32 PhysicsStep);
+
+	// Correct the player controller Server to local offset based on the received replicated states
+	UE_DEPRECATED(5.4, "Physics frame offset is handled by the PlayerController automatically, it's recommended to use APlayerController::GetAsyncPhysicsTimestamp() to get the ServerFrame and LocalFrame on both client and server. Also disable the deprecated flow by setting p.net.CmdOffsetEnabled = 0")
+	ENGINE_API void CorrectServerToLocalOffset(const int32 LocalToServerOffset);
 
 	// Used to create any physics engine information for this component 
 	ENGINE_API virtual void BeginPlay() override;

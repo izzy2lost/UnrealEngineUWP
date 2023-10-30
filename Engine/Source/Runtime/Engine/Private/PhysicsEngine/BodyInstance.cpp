@@ -3342,7 +3342,7 @@ void FBodyInstance::ApplyAsyncPhysicsCommand(FAsyncPhysicsTimestamp TimeStamp, c
 			OwnerComponent->GetWorld() ? OwnerComponent->GetWorld()->GetFirstPlayerController() : nullptr;
 		if (LocalController)
 		{
-			TimeStamp.LocalFrame = TimeStamp.ServerFrame - LocalController->GetLocalToServerAsyncPhysicsTickOffset();
+			TimeStamp.LocalFrame = TimeStamp.ServerFrame - LocalController->GetNetworkPhysicsTickOffset();
 			LocalController->ExecuteAsyncPhysicsCommand(TimeStamp, OwnerComponent.Get(), Command);
 		}
 	}
