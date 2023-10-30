@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
-#include "BaseControlRig.h"
+#include "ControlRig.h"
 #include "Units/Hierarchy/RigUnit_AddBoneTransform.h"
 #include "AdditiveControlRig.generated.h"
 
@@ -16,7 +16,7 @@ class CONTROLRIG_API UAdditiveControlRig : public UControlRig
 	GENERATED_UCLASS_BODY()
 
 public: 
-	// BEGIN BaseControlRig
+	// BEGIN ControlRig
 	virtual void Initialize(bool bInitRigUnits = true) override;
 	virtual void InitializeVMs(bool bRequestInit = true) override { URigVMHost::Initialize(bRequestInit); }
 	virtual bool InitializeVMs(const FName& InEventName) override { return URigVMHost::InitializeVM(InEventName); }
@@ -26,7 +26,7 @@ public:
 #if WITH_EDITOR
 	virtual void SetFirstEntryEventInEventQueue(FRigVMExtendedExecuteContext& Context, const FName& InFirstEventName) override;
 #endif
-	// END BaseControlRig
+	// END ControlRig
 
 	// utility function to 
 	static FName GetControlName(const FName& InBoneName);

@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ControlRigBlueprintCompiler.h"
-#include "BaseControlRig.h"
+#include "ControlRig.h"
 #include "ControlRigBlueprint.h"
 #include "Kismet2/KismetReinstanceUtilities.h"
 

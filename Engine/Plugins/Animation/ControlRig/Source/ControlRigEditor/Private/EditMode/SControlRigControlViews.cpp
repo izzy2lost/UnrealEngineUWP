@@ -2,7 +2,7 @@
 
 
 #include "EditMode/SControlRigControlViews.h"
-#include "BaseControlRig.h"
+#include "ControlRig.h"
 #include "Tools/ControlRigPose.h"
 #include "Widgets/Input/SEditableTextBox.h"
 #include "Styling/AppStyle.h"

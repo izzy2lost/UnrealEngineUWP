@@ -28,7 +28,7 @@
 #include "Editor/EditorEngine.h"
 #include "HelperUtil.h"
 #include "Widgets/Text/SInlineEditableTextBlock.h"
-#include "BaseControlRig.h"
+#include "ControlRig.h"
 #include "HAL/PlatformApplicationMisc.h"
 #include "HAL/PlatformTime.h"
 #include "Dialogs/Dialogs.h"

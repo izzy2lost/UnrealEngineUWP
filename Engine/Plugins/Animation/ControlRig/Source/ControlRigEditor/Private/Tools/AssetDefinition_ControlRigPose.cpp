@@ -4,7 +4,7 @@
 
 #include "ContentBrowserModule.h"
 #include "ContentBrowserMenuContexts.h"
-#include "BaseControlRig.h"
+#include "ControlRig.h"
 #include "EditorModeManager.h"
 #include "EditMode/ControlRigEditMode.h"
 #include "EditMode/SControlRigRenamePoseControls.h"

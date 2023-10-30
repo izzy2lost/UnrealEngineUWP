@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "BaseControlRig.h"
+#include "ControlRig.h"
 #include "Animation/InputScaleBias.h"
 #include "AnimNode_ControlRigBase.h"
 #include "Animation/AnimBulkCurves.h"

@@ -10,7 +10,7 @@
 #include "Animation/SkeletalMeshActor.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Materials/MaterialInstanceDynamic.h"
-#include "BaseControlRig.h"
+#include "ControlRig.h"
 #include "CanvasTypes.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ControlRigThumbnailRenderer)

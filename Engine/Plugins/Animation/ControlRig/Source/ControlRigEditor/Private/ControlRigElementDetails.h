@@ -7,7 +7,7 @@
 #include "IPropertyTypeCustomization.h"
 #include "Rigs/RigHierarchyDefines.h"
 #include "Rigs/RigHierarchy.h"
-#include "BaseControlRig.h"
+#include "ControlRig.h"
 #include "ControlRigBlueprint.h"
 #include "Editor/ControlRigWrapperObject.h"
 #include "Widgets/SRigVMGraphPinNameListValueWidget.h"

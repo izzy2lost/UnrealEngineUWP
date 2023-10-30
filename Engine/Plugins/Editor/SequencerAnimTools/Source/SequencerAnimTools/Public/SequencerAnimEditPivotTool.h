@@ -250,6 +250,6 @@ public:
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
 #include "BaseGizmos/TransformProxy.h"
-#include "BaseControlRig.h"
+#include "ControlRig.h"
 #include "CoreMinimal.h"
 #endif

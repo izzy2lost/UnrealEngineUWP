@@ -2,7 +2,7 @@
 
 #include "RigUnit_RigLogic.h"
 
-#include "BaseControlRig.h"
+#include "ControlRig.h"
 #include "DNAReader.h"
 #include "Engine/SkeletalMesh.h"
 #include "RigInstance.h"

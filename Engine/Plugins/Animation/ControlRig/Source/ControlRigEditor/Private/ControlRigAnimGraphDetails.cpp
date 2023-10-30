@@ -2,7 +2,7 @@
 
 #include "ControlRigAnimGraphDetails.h"
 
-#include "BaseControlRig.h"
+#include "ControlRig.h"
 #include "Widgets/SWidget.h"
 #include "DetailLayoutBuilder.h"
 #include "Styling/AppStyle.h"

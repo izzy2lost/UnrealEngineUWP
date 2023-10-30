@@ -6,7 +6,7 @@
 #include "IDetailsView.h"
 #include "ISequencer.h"
 #include "PropertyHandle.h"
-#include "BaseControlRig.h"
+#include "ControlRig.h"
 #include "EditMode/ControlRigEditModeSettings.h"
 #include "IDetailRootObjectCustomization.h"
 #include "Modules/ModuleManager.h"

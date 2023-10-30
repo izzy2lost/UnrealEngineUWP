@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "BaseControlRig.h"
+#include "ControlRig.h"
 #include "ModularRigController.h"
 #include "ModularRigModel.generated.h"
 

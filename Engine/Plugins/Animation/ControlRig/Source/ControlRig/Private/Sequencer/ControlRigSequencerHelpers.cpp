@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #include "Sequencer/ControlRigSequencerHelpers.h"
-#include "BaseControlRig.h"
+#include "ControlRig.h"
 #include "Rigs/RigHierarchyElements.h"
 #include "Channels/MovieSceneChannelProxy.h"
 #include "Sequencer/MovieSceneControlRigParameterSection.h"

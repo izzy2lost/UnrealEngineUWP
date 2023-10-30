@@ -28,7 +28,7 @@
 #include "AnimEncoding.h"
 #include "Async/ParallelFor.h"
 #include "BoneWeights.h"
-#include "BaseControlRig.h"
+#include "ControlRig.h"
 #include "Evaluation/MovieSceneSequenceTransform.h"
 #include "IMovieScenePlayer.h"
 #include "Interfaces/ITargetPlatform.h"

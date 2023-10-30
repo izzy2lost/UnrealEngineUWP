@@ -4,7 +4,7 @@
 #include "AnimationEditorViewportClient.h"
 #include "IPersonaPreviewScene.h"
 #include "AssetEditorModeManager.h"
-#include "BaseControlRig.h"
+#include "ControlRig.h"
 #include "ControlRigBlueprint.h"
 #include "ControlRigGizmoActor.h"
 #include "Preferences/PersonaOptions.h"

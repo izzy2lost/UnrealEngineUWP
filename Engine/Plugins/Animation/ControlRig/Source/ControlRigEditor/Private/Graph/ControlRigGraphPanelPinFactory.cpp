@@ -12,7 +12,7 @@
 #include "Widgets/SRigVMGraphPinUserDataPath.h"
 #include "KismetPins/SGraphPinExec.h"
 #include "SGraphPinComboBox.h"
-#include "BaseControlRig.h"
+#include "ControlRig.h"
 #include "NodeFactory.h"
 #include "EdGraphSchema_K2.h"
 #include "Curves/CurveFloat.h"

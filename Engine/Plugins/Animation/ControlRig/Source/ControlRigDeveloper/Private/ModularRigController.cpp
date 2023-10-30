@@ -2,7 +2,7 @@
 
 #include "ModularRigController.h"
 
-#include "BaseControlRig.h"
+#include "ControlRig.h"
 #include "ModularRig.h"
 #include "ControlRigBlueprint.h"
 #include "ModularRigModel.h"

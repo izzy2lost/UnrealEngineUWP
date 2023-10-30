@@ -3,7 +3,7 @@
 #include "ControlRigBlueprintActions.h"
 #include "ControlRigBlueprintFactory.h"
 #include "ControlRigBlueprint.h"
-#include "BaseControlRig.h"
+#include "ControlRig.h"
 #include "Editor/RigVMEditorStyle.h"
 #include "IControlRigEditorModule.h"
 

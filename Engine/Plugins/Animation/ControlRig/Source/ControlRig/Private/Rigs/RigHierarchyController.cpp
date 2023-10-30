@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Rigs/RigHierarchyController.h"
-#include "BaseControlRig.h"
+#include "ControlRig.h"
 #include "AnimationCoreLibrary.h"
 #include "UObject/Package.h"
 #include "ModularRig.h"

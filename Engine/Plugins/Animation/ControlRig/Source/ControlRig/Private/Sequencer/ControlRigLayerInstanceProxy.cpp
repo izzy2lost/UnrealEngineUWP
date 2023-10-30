@@ -4,7 +4,7 @@
 #include "AnimNode_ControlRig_ExternalSource.h"
 #include "Sequencer/ControlRigLayerInstance.h"
 #include "AnimSequencerInstance.h"
-#include "BaseControlRig.h"
+#include "ControlRig.h"
 #include "Sequencer/MovieSceneControlRigParameterTrack.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ControlRigLayerInstanceProxy)

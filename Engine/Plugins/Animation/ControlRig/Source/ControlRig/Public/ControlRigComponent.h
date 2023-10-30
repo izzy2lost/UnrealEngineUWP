@@ -3,7 +3,7 @@
 #pragma once
 
 #include "Components/PrimitiveComponent.h"
-#include "BaseControlRig.h"
+#include "ControlRig.h"
 #include "ControlRigAnimInstance.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "PrimitiveSceneProxy.h"

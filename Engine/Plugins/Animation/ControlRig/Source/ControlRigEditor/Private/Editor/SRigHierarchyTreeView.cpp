@@ -12,7 +12,7 @@
 #include "Editor/EditorEngine.h"
 #include "HelperUtil.h"
 #include "Widgets/Text/SInlineEditableTextBlock.h"
-#include "BaseControlRig.h"
+#include "ControlRig.h"
 #include "ControlRigEditorStyle.h"
 #include "Editor/SRigHierarchy.h"
 #include "Settings/ControlRigSettings.h"

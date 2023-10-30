@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
-#include "BaseControlRig.h"
+#include "ControlRig.h"
 
 #include "ModularRig.generated.h"
 
@@ -43,14 +43,14 @@ class CONTROLRIG_API UModularRig : public UControlRig
 
 public:
 
-	// BEGIN BaseControlRig
+	// BEGIN ControlRig
 	virtual void InitializeVMs(bool bRequestInit = true) override;
 	virtual bool InitializeVMs(const FName& InEventName) override;
 	virtual void InitializeVMsFromCDO() override { URigVMHost::InitializeFromCDO(); }
 	virtual void RequestInitVMs() override { URigVMHost::RequestInit(); }
 	virtual bool Execute_Internal(const FName& InEventName) override;
 	virtual FRigElementKeyRedirector& GetElementKeyRedirector() override { return ElementKeyRedirector; }
-	// END BaseControlRig
+	// END ControlRig
 
 	// BEGIN UObject
 	virtual void BeginDestroy() override;

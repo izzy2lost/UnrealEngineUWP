@@ -9,7 +9,7 @@
 #include "ControlRigObjectVersion.h"
 #include "Constraints/ControlRigTransformableHandle.h"
 #include "UObject/DevObjectVersion.h"
-#include "BaseControlRig.h"
+#include "ControlRig.h"
 
 // Unique Control Rig Object version id
 const FGuid FControlRigObjectVersion::GUID(0xA7820CFB, 0x20A74359, 0x8C542C14, 0x9623CF50);

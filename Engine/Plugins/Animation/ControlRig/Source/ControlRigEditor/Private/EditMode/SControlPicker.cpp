@@ -13,7 +13,7 @@
 #include "Widgets/Input/SButton.h"
 #include "ScopedTransaction.h"
 #include "EditMode/ControlRigEditMode.h"
-#include "BaseControlRig.h"
+#include "ControlRig.h"
 #include "EditorModeManager.h"
 #include "EditMode/SEditorUserWidgetHost.h"
 #include "ControlRigBlueprint.h"

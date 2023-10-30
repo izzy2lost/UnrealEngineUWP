@@ -7,7 +7,7 @@
 #include "EdGraphNode_Comment.h"
 #include "Engine/SkeletalMesh.h"
 #include "BlueprintActionDatabaseRegistrar.h"
-#include "BaseControlRig.h"
+#include "ControlRig.h"
 #include "Graph/ControlRigGraph.h"
 #include "Graph/ControlRigGraphSchema.h"
 #include "UObject/ObjectSaveContext.h"

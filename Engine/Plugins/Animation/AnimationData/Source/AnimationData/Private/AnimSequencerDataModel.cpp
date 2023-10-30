@@ -7,7 +7,7 @@
 #include "AnimDataController.h"
 #include "Async/ParallelFor.h"
 #include "IAnimationEditor.h"
-#include "BaseControlRig.h"
+#include "ControlRig.h"
 #include "ControlRigObjectBinding.h"
 #include "Algo/Accumulate.h"
 #include "Animation/AnimSequenceHelpers.h"

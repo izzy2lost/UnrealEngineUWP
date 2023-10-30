@@ -8,7 +8,7 @@
 #include "Engine/Blueprint.h"
 #include "Factories/Factory.h"
 #include "ControlRigBlueprint.h"
-#include "BaseControlRig.h"
+#include "ControlRig.h"
 #include "ControlRigBlueprintFactory.generated.h"
 
 UCLASS(HideCategories=Object)

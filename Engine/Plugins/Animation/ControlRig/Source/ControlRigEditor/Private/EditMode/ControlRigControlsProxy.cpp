@@ -3,7 +3,7 @@
 #include "EditMode/ControlRigControlsProxy.h"
 #include "EditorModeManager.h"
 #include "EditMode/ControlRigEditMode.h"
-#include "BaseControlRig.h"
+#include "ControlRig.h"
 #include "Rigs/RigHierarchy.h"
 
 #include "Components/SkeletalMeshComponent.h"

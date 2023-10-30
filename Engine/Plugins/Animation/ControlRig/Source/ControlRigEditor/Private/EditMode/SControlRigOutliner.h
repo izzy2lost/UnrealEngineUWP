@@ -8,7 +8,7 @@
 #include "EditMode/ControlRigBaseDockableView.h"
 #include "Widgets/SWidget.h"
 #include "Widgets/SCompoundWidget.h"
-#include "BaseControlRig.h"
+#include "ControlRig.h"
 #include "Rigs/RigHierarchy.h"
 #include "Editor/SRigHierarchyTreeView.h"
 #include "Widgets/SBoxPanel.h"

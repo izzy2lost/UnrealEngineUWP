@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AnimNode_ControlRig.h"
-#include "BaseControlRig.h"
+#include "ControlRig.h"
 #include "ControlRigComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Animation/AnimInstanceProxy.h"

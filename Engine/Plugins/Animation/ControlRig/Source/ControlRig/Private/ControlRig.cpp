@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "BaseControlRig.h"
+#include "ControlRig.h"
 #include "Engine/SkeletalMesh.h"
 #include "GameFramework/Actor.h"
 #include "Misc/RuntimeErrors.h"
@@ -37,7 +37,7 @@
 #include "UObject/UObjectIterator.h"
 #include "RigVMCore/RigVMAssetUserData.h"
 
-#include UE_INLINE_GENERATED_CPP_BY_NAME(BaseControlRig)
+#include UE_INLINE_GENERATED_CPP_BY_NAME(ControlRig)
 
 #define LOCTEXT_NAMESPACE "ControlRig"
 

@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
-#include "BaseControlRig.h"
+#include "ControlRig.h"
 #include "Rigs/RigHierarchyController.h"
 #include "Units/Hierarchy/RigUnit_SetTransform.h"
 #include "Units/Hierarchy/RigUnit_SetCurveValue.h"
@@ -42,7 +42,7 @@ class CONTROLRIG_API UFKControlRig : public UControlRig
 
 public: 
 
-	// BEGIN BaseControlRig
+	// BEGIN ControlRig
 	virtual void Initialize(bool bInitRigUnits = true) override;
 	virtual void InitializeVMs(bool bRequestInit = true) override { URigVMHost::Initialize(bRequestInit); }
 	virtual bool InitializeVMs(const FName& InEventName) override { return URigVMHost::InitializeVM(InEventName); }
@@ -53,7 +53,7 @@ public:
 	virtual void SetFirstEntryEventInEventQueue(FRigVMExtendedExecuteContext& Context, const FName& InFirstEventName) override;
 #endif
 	virtual void SetBoneInitialTransformsFromSkeletalMeshComponent(USkeletalMeshComponent* InSkelMeshComp, bool bUseAnimInstance = false) override;
-	// END BaseControlRig
+	// END ControlRig
 
 	// utility function to generate a valid control element name
 	static FName GetControlName(const FName& InName, const ERigElementType& InType);

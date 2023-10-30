@@ -4,9 +4,9 @@
 #include "Constraints/ControlRigTransformableHandle.h"
 
 #include "Components/SkeletalMeshComponent.h"
-#include "BaseControlRig.h"
+#include "ControlRig.h"
 #include "ControlRigComponent.h"
-#include "BaseControlRig.h"
+#include "ControlRig.h"
 #include "IControlRigObjectBinding.h"
 #include "Rigs/RigHierarchyElements.h"
 #include "Sequencer/MovieSceneControlRigParameterSection.h"

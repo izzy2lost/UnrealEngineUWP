@@ -8,7 +8,7 @@
 #include "Engine/StaticMesh.h"
 #include "Materials/Material.h"
 #include "Materials/MaterialInstanceDynamic.h"
-#include "BaseControlRig.h"
+#include "ControlRig.h"
 #include "Rigs/RigHierarchyContainer.h"
 #include "Rigs/RigControlHierarchy.h"
 
