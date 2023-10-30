@@ -62,7 +62,7 @@
 	<Option Name="EnableSymbolStore" DefaultValue="$(IsBuildMachine)" Restrict="true|false" Description="Enables the upload of debugging symbols" />
 	<Property Name="SymbolServerPath" Value="" If="$(EnableSymbolStore) == 'false'"/>
 
-	<!-- This will define options for all platforms and create lists called EditorPlatforms, RequiredEditorPlatforms, and TargetPlatforms. E.g. TargetPlatforms=Win64+Mac+PS4 -->
+	<!-- This will define options for all platforms and create lists called EditorPlatforms, RequiredEditorPlatforms, and TargetPlatforms. E.g. TargetPlatforms=Win64+Mac+Android -->
 	<Include Script="Inc/PlatformOptions.xml" />
 
 	<!-- For compatibility with build graphs relying on PlatformsToSkipTests option from PlatformOptions that was replaced with Editor/Target specific options -->
@@ -201,7 +201,7 @@
 				<Do If="$(WithRemoteExecWorkers)" >
 					<Compile Target="BaseTextureBuildWorker" Platform="$(EditorPlatform)" Configuration="Development" Arguments="-project=&quot;$(RootDir)/$(TargetProject)&quot; $(GenericCompileArguments)"/>
 					<Do If="'$(EditorPlatform)' == 'Win64'" >
-						<ForEach Name="TargetPlatform" Values="PS4+PS5+Switch+XboxOneGDK+XB1+XSX" Separator="+">
+						<ForEach Name="TargetPlatform" Values="$(AllConsolePlatforms)" Separator="+">
 							<Compile Target="$(TargetPlatform)TextureBuildWorker" Platform="$(EditorPlatform)" Configuration="Development" Arguments="-project=&quot;$(RootDir)/$(TargetProject)&quot; $(GenericCompileArguments)" If="ContainsItem('$(TargetPlatforms)', '$(TargetPlatform)', '+')"/>
 						</ForEach>
 					</Do>
