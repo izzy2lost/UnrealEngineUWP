@@ -156,20 +156,6 @@ bool ReverseWindingOrder(FNaniteView NaniteView, FPrimitiveSceneData PrimitiveDa
 	}
 #endif
 
-#if USE_SPLINEDEFORM
-	BRANCH
-	if ((PrimitiveData.Flags & PRIMITIVE_SCENE_DATA_FLAG_SPLINE_MESH) != 0 &&
-		(InstanceData.Flags & INSTANCE_SCENE_DATA_FLAG_HAS_PAYLOAD_EXTENSION) != 0)
-	{
-		// Effect facing direction by spline mesh scale
-		FSplineMeshShaderParams SplineMeshParams = SplineMeshLoadParamsFromInstancePayload(InstanceData);
-		if (SplineMeshParams.StartScale.x < 0.0f != SplineMeshParams.StartScale.y < 0.0f)
-		{
-			bReverseInstanceCull = !bReverseInstanceCull;
-		}
-	}
-#endif
-
 	bool bViewReverseCull = (NaniteView.Flags & NANITE_VIEW_FLAG_REVERSE_CULLING);
 	
 	// Logical XOR
@@ -290,8 +276,11 @@ void ClusterRasterize( uint VisibleIndex, uint GroupThreadIndex )
 
 	// Should be all scalar.
 	FVisibleCluster VisibleCluster = GetVisibleCluster( VisibleIndex, VIRTUAL_TEXTURE_TARGET );
-	FInstanceSceneData InstanceData = GetInstanceSceneData( VisibleCluster.InstanceId, false );
-	FPrimitiveSceneData PrimitiveData = GetPrimitiveData(InstanceData.PrimitiveId);
+	
+	FPrimitiveSceneData PrimitiveData;
+	FInstanceSceneData InstanceData;
+	GetNaniteMaterialSceneData(VisibleCluster, PrimitiveData, InstanceData);
+
 	FNaniteView NaniteView = GetNaniteView( VisibleCluster.ViewId );
 #if ALWAYS_EVALUATE_WORLD_POSITION_OFFSET
 	const bool bEvaluateWPO = true;
@@ -621,8 +610,11 @@ void PatchRasterize( uint VisibleIndex, uint GroupThreadIndex )
 #endif
 
 		FVisibleCluster VisibleCluster = GetVisibleCluster( VisibleClusterIndex, VIRTUAL_TEXTURE_TARGET );
-		FInstanceSceneData InstanceData = GetInstanceSceneData( VisibleCluster.InstanceId, false );
-		FPrimitiveSceneData PrimitiveData = GetPrimitiveData( InstanceData.PrimitiveId );
+		
+		FPrimitiveSceneData PrimitiveData;
+		FInstanceSceneData InstanceData;
+		GetNaniteMaterialSceneData(VisibleCluster, PrimitiveData, InstanceData);
+
 		FNaniteView NaniteView = GetNaniteView( VisibleCluster.ViewId );
 	#if ALWAYS_EVALUATE_WORLD_POSITION_OFFSET
 		const bool bEvaluateWPO = true;
@@ -1069,8 +1061,11 @@ PrimitiveOutput HWRasterizeVS(PrimitiveInput Input)
 
 	// Should be all scalar.
 	FVisibleCluster VisibleCluster = GetVisibleCluster( VisibleIndex, VIRTUAL_TEXTURE_TARGET );
-	FInstanceSceneData InstanceData = GetInstanceSceneData( VisibleCluster.InstanceId, false );
-	FPrimitiveSceneData PrimitiveData = GetPrimitiveData(InstanceData.PrimitiveId);
+	
+	FPrimitiveSceneData PrimitiveData;
+	FInstanceSceneData InstanceData;
+	GetNaniteMaterialSceneData(VisibleCluster, PrimitiveData, InstanceData);
+	
 	FNaniteView NaniteView = GetNaniteView( VisibleCluster.ViewId );
 	const bool bReverseWindingOrder = ReverseWindingOrder(NaniteView, PrimitiveData, InstanceData);
 
@@ -1316,8 +1311,7 @@ void HWRasterizeMS(
 	{
 		TriRange = GetIndexAndTriRangeHW(VisibleIndex);
 		VisibleCluster = GetVisibleCluster(VisibleIndex, VIRTUAL_TEXTURE_TARGET);
-		InstanceData = GetInstanceSceneData(VisibleCluster.InstanceId, false);
-		PrimitiveData = GetPrimitiveData(InstanceData.PrimitiveId);
+		GetNaniteMaterialSceneData(VisibleCluster, PrimitiveData, InstanceData);
 		NaniteView = GetNaniteView(VisibleCluster.ViewId);
 		bReverseWindingOrder = ReverseWindingOrder(NaniteView, PrimitiveData, InstanceData);
 
@@ -1405,8 +1399,11 @@ VSOut HWRasterizeVS(
 #endif
 
 	FVisibleCluster VisibleCluster = GetVisibleCluster( VisibleIndex, VIRTUAL_TEXTURE_TARGET );
-	FInstanceSceneData InstanceData = GetInstanceSceneData( VisibleCluster.InstanceId, false );
-	FPrimitiveSceneData PrimitiveData = GetPrimitiveData(InstanceData.PrimitiveId);
+	
+	FPrimitiveSceneData PrimitiveData;
+	FInstanceSceneData InstanceData;
+	GetNaniteMaterialSceneData(VisibleCluster, PrimitiveData, InstanceData);
+
 	FNaniteView NaniteView = GetNaniteView( VisibleCluster.ViewId );
 	const bool bReverseWindingOrder = ReverseWindingOrder(NaniteView, PrimitiveData, InstanceData);
 

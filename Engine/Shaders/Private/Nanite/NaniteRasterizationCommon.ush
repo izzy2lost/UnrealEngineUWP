@@ -380,10 +380,10 @@ struct FMaterialShader
 #if NANITE_VERTEX_PROGRAMMABLE || NANITE_PIXEL_PROGRAMMABLE
 	float4 EvaluateDomain( FBarycentrics Barycentrics )
 	{
-		float3 PointLocal = Lerp( 
-			TransformedTri.Verts[0].PointLocal,
-			TransformedTri.Verts[1].PointLocal,
-			TransformedTri.Verts[2].PointLocal,
+		float3 PointPostDeform = Lerp( 
+			TransformedTri.Verts[0].PointPostDeform,
+			TransformedTri.Verts[1].PointPostDeform,
+			TransformedTri.Verts[2].PointPostDeform,
 			Barycentrics ).Value;
 
 	#if NANITE_TESSELLATION
@@ -414,18 +414,18 @@ struct FMaterialShader
 
 	#if USES_DISPLACEMENT
 		float3 Normal = Lerp(
-			TransformedTri.Verts[0].PostDeformNormal,
-			TransformedTri.Verts[1].PostDeformNormal,
-			TransformedTri.Verts[2].PostDeformNormal,
+			TransformedTri.Verts[0].NormalPostDeform,
+			TransformedTri.Verts[1].NormalPostDeform,
+			TransformedTri.Verts[2].NormalPostDeform,
 			Barycentrics ).Value;
 		Normal = normalize( Normal );
 
 		const float Displacement = GetMaterialDisplacementScaled(PixelMaterialInputs);
-		PointLocal += Normal * Displacement;
+		PointPostDeform += Normal * Displacement;
 	#endif
 	#endif
 
-		float3 PointWorld = mul( float4( PointLocal, 1 ), InstanceDynamicData.LocalToTranslatedWorld ).xyz;
+		float3 PointWorld = mul( float4( PointPostDeform, 1 ), InstanceDynamicData.LocalToTranslatedWorld ).xyz;
 		float4 PointClip = mul( float4( PointWorld, 1 ), NaniteView.TranslatedWorldToClip );
 
 	#if NANITE_TESSELLATION && NANITE_PIXEL_PROGRAMMABLE && MATERIALBLENDING_MASKED

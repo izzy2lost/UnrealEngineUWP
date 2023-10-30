@@ -46,6 +46,26 @@ struct FVertexFactoryInterpolantsVSToPS
 	nointerpolation uint ViewIndex				: PACKED_VIEW_INDEX;
 };
 
+void GetNaniteMaterialSceneData(FVisibleCluster VisibleCluster, inout FPrimitiveSceneData PrimitiveData, inout FInstanceSceneData InstanceData)
+{
+	InstanceData	= GetInstanceSceneData(VisibleCluster, false);
+	PrimitiveData	= GetPrimitiveData(InstanceData.PrimitiveId);
+
+#if USE_SPLINEDEFORM
+	BRANCH
+	if ((PrimitiveData.Flags & PRIMITIVE_SCENE_DATA_FLAG_SPLINE_MESH) != 0 &&
+		(InstanceData.Flags & INSTANCE_SCENE_DATA_FLAG_HAS_PAYLOAD_EXTENSION) != 0)
+	{
+		// Flip the determinant sign if the spline mesh params cause the mesh to mirror
+		FSplineMeshShaderParams SplineMeshParams = SplineMeshLoadParamsFromInstancePayload(InstanceData);
+		if (SplineMeshParams.StartScale.x < 0.0f != SplineMeshParams.StartScale.y < 0.0f)
+		{
+			InstanceData.DeterminantSign = -InstanceData.DeterminantSign;
+		}
+	}
+#endif
+}
+
 #if IS_NANITE_RASTER_PASS
 
 // TODO: PROG_RASTER
@@ -241,11 +261,12 @@ struct FNaniteTransformedVert
 {
 	uint VertIndex;
 	float3 PointLocal;
-	float3 PrevPointLocal;
+	float3 PointPostDeform;
+	float3 PrevPointPostDeform;
 	float3 PointWorld;
 	float3 PointWorld_NoOffset;
 	float4 PointClip;
-	half3 PostDeformNormal;
+	half3 NormalPostDeform;
 	FNaniteRawAttributeData RawAttributeData;
 	float SplineDist;
 #if NUM_TEX_COORD_INTERPOLATORS
@@ -334,9 +355,10 @@ FNaniteTransformedTri TransformNaniteTriangle(FPrimitiveSceneData PrimitiveData,
 			Tri.Verts[i].VertIndex				= InVerts[i].VertIndex;
 			Tri.Verts[i].RawAttributeData		= InVerts[i].RawAttributeData;
 			Tri.Verts[i].SplineDist				= InVerts[i].SplineDist;
-			Tri.Verts[i].PostDeformNormal		= InVerts[i].Normal;
-			Tri.Verts[i].PointLocal				= InVerts[i].Position + LocalOffset;
-			Tri.Verts[i].PrevPointLocal			= InVerts[i].Position + PrevLocalOffset;
+			Tri.Verts[i].NormalPostDeform		= InVerts[i].Normal;
+			Tri.Verts[i].PointLocal				= InVerts[i].PointLocal;
+			Tri.Verts[i].PointPostDeform		= InVerts[i].Position + LocalOffset;
+			Tri.Verts[i].PrevPointPostDeform	= InVerts[i].Position + PrevLocalOffset;
 			Tri.Verts[i].PointWorld				= VertexParameters.WorldPosition + WorldPositionOffset;
 			Tri.Verts[i].PointWorld_NoOffset	= VertexParameters.WorldPosition;
 			Tri.Verts[i].PointClip				= mul(float4(Tri.Verts[i].PointWorld, 1), Transforms.TranslatedWorldToClip);
@@ -356,10 +378,11 @@ FNaniteTransformedTri TransformNaniteTriangle(FPrimitiveSceneData PrimitiveData,
 			Tri.Verts[i].VertIndex				= InVerts[i].VertIndex;
 			Tri.Verts[i].RawAttributeData		= InVerts[i].RawAttributeData;
 			Tri.Verts[i].SplineDist				= InVerts[i].SplineDist;
-			Tri.Verts[i].PostDeformNormal		= InVerts[i].Normal;
-			Tri.Verts[i].PointLocal				= InVerts[i].Position;
-			Tri.Verts[i].PrevPointLocal			= InVerts[i].Position;
-			Tri.Verts[i].PointWorld				= mul(float4(Tri.Verts[i].PointLocal, 1), Transforms.LocalToTranslatedWorld).xyz;
+			Tri.Verts[i].NormalPostDeform		= InVerts[i].Normal;
+			Tri.Verts[i].PointLocal				= InVerts[i].PointLocal;
+			Tri.Verts[i].PointPostDeform		= InVerts[i].Position;
+			Tri.Verts[i].PrevPointPostDeform	= InVerts[i].Position;
+			Tri.Verts[i].PointWorld				= mul(float4(Tri.Verts[i].PointPostDeform, 1), Transforms.LocalToTranslatedWorld).xyz;
 			Tri.Verts[i].PointWorld_NoOffset	= Tri.Verts[i].PointWorld;
 			Tri.Verts[i].PointClip				= mul(float4(Tri.Verts[i].PointWorld, 1), Transforms.TranslatedWorldToClip);
 
@@ -394,7 +417,8 @@ FNaniteTransformedVert TransformNaniteVertex(FPrimitiveSceneData PrimitiveData, 
 
 	Vert.VertIndex = InVert.VertIndex;
 	Vert.RawAttributeData = InVert.RawAttributeData;
-	Vert.PostDeformNormal = InVert.Normal;
+	Vert.NormalPostDeform = InVert.Normal;
+	Vert.PointLocal = InVert.PointLocal;
 	Vert.SplineDist = InVert.SplineDist;
 
 #if USES_WORLD_POSITION_OFFSET
@@ -423,8 +447,8 @@ FNaniteTransformedVert TransformNaniteVertex(FPrimitiveSceneData PrimitiveData, 
 		const float3 LocalOffset = mul(WorldPositionOffset, Transforms.WorldToLocalVector);
 		const float3 PrevLocalOffset = mul(PrevWorldPositionOffset, Transforms.PrevWorldToLocalVector);
 
-		Vert.PointLocal = InVert.Position + LocalOffset;
-		Vert.PrevPointLocal = InVert.Position + PrevLocalOffset;
+		Vert.PointPostDeform = InVert.Position + LocalOffset;
+		Vert.PrevPointPostDeform = InVert.Position + PrevLocalOffset;
 		Vert.PointWorld = VertexParameters.WorldPosition + WorldPositionOffset;
 		Vert.PointWorld_NoOffset = VertexParameters.WorldPosition;
 		Vert.PointClip = mul(float4(Vert.PointWorld, 1), Transforms.TranslatedWorldToClip);
@@ -437,9 +461,9 @@ FNaniteTransformedVert TransformNaniteVertex(FPrimitiveSceneData PrimitiveData, 
 	else
 #endif // USES WORLD_POSITION_OFFSET
 	{
-		Vert.PointLocal = InVert.Position;
-		Vert.PrevPointLocal = InVert.Position;
-		Vert.PointWorld = mul(float4(Vert.PointLocal, 1), Transforms.LocalToTranslatedWorld).xyz;
+		Vert.PointPostDeform = InVert.Position;
+		Vert.PrevPointPostDeform = InVert.Position;
+		Vert.PointWorld = mul(float4(Vert.PointPostDeform, 1), Transforms.LocalToTranslatedWorld).xyz;
 		Vert.PointWorld_NoOffset = Vert.PointWorld;
 		Vert.PointClip = mul(float4(Vert.PointWorld, 1), Transforms.TranslatedWorldToClip);
 
@@ -473,12 +497,13 @@ FNaniteTransformedVert WaveReadLaneAt(FNaniteTransformedVert Vert, uint SrcIndex
 	Result.VertIndex			= WaveReadLaneAt( Vert.VertIndex,			SrcIndex );
 	Result.RawAttributeData		= WaveReadLaneAt( Vert.RawAttributeData,	SrcIndex );
 	Result.PointLocal			= WaveReadLaneAt( Vert.PointLocal,			SrcIndex );
-	Result.PrevPointLocal		= WaveReadLaneAt( Vert.PrevPointLocal,		SrcIndex );
+	Result.PointPostDeform		= WaveReadLaneAt( Vert.PointPostDeform,		SrcIndex );
+	Result.PrevPointPostDeform	= WaveReadLaneAt( Vert.PrevPointPostDeform,	SrcIndex );
 	Result.PointWorld			= WaveReadLaneAt( Vert.PointWorld,			SrcIndex );
 	Result.PointWorld_NoOffset	= WaveReadLaneAt( Vert.PointWorld_NoOffset,	SrcIndex );
 	Result.PointClip			= WaveReadLaneAt( Vert.PointClip,			SrcIndex );
 	Result.SplineDist			= WaveReadLaneAt( Vert.SplineDist,			SrcIndex );
-	Result.PostDeformNormal		= WaveReadLaneAt( Vert.PostDeformNormal,	SrcIndex );
+	Result.NormalPostDeform		= WaveReadLaneAt( Vert.NormalPostDeform,	SrcIndex );
 #if NUM_TEX_COORD_INTERPOLATORS
 	UNROLL
 	for (uint i = 0; i < NUM_TEX_COORD_INTERPOLATORS; ++i)
@@ -578,8 +603,8 @@ FMaterialPixelParameters FetchNaniteMaterialPixelParameters(FPrimitiveSceneData 
 
 	Result.WorldPosition_NoOffsets_CamRelative = Lerp( Tri.Verts[0].PointWorld_NoOffset, Tri.Verts[1].PointWorld_NoOffset, Tri.Verts[2].PointWorld_NoOffset, Barycentrics ).Value;
 
-	const float3 PrevPointLocal = Lerp( Tri.Verts[0].PrevPointLocal, Tri.Verts[1].PrevPointLocal, Tri.Verts[2].PrevPointLocal, Barycentrics ).Value;
-	float3 PrevPointWorld = mul(float4(PrevPointLocal.xyz, 1), InstanceDynamicData.PrevLocalToTranslatedWorld).xyz;
+	const float3 PrevPointPostDeform = Lerp( Tri.Verts[0].PrevPointPostDeform, Tri.Verts[1].PrevPointPostDeform, Tri.Verts[2].PrevPointPostDeform, Barycentrics ).Value;
+	float3 PrevPointWorld = mul(float4(PrevPointPostDeform.xyz, 1), InstanceDynamicData.PrevLocalToTranslatedWorld).xyz;
 #if USES_DISPLACEMENT
 	// TODO PixelTranslatedWorld is already calculated outside this function.
 	// TODO GetMaterialPreviousDisplacementScaled so that dynamic displacement gets velocities.
@@ -707,8 +732,10 @@ FMaterialPixelParameters FetchNaniteMaterialPixelParameters(FNaniteView NaniteVi
 #else
 		FVisibleCluster VisibleCluster           = GetVisibleCluster( VisibleClusterIndex );
 #endif
-		FInstanceSceneData InstanceData          = GetInstanceSceneData(VisibleCluster, false);
-		FPrimitiveSceneData PrimitiveData        = GetPrimitiveData(InstanceData.PrimitiveId);
+		FPrimitiveSceneData PrimitiveData;
+		FInstanceSceneData InstanceData;
+		GetNaniteMaterialSceneData(VisibleCluster, PrimitiveData, InstanceData);
+
 		FInstanceDynamicData InstanceDynamicData = CalculateInstanceDynamicData(NaniteView, InstanceData);
 		FCluster Cluster                         = GetCluster(VisibleCluster.PageIndex, VisibleCluster.ClusterIndex);
 
@@ -745,12 +772,12 @@ FMaterialPixelParameters FetchNaniteMaterialPixelParameters(FNaniteView NaniteVi
 				PixelLocal.xyz / PixelLocal.w,
 				( PixelLocal.xyz + PixelLocal_dx.xyz ) / PixelLocal.w,
 				( PixelLocal.xyz + PixelLocal_dy.xyz ) / PixelLocal.w,
-				Tri.Verts[0].PointLocal,
-				Tri.Verts[1].PointLocal,
-				Tri.Verts[2].PointLocal,
-				Tri.Verts[0].PostDeformNormal,
-				Tri.Verts[1].PostDeformNormal,
-				Tri.Verts[2].PostDeformNormal );
+				Tri.Verts[0].PointPostDeform,
+				Tri.Verts[1].PointPostDeform,
+				Tri.Verts[2].PointPostDeform,
+				Tri.Verts[0].NormalPostDeform,
+				Tri.Verts[1].NormalPostDeform,
+				Tri.Verts[2].NormalPostDeform );
 		#else
 			Barycentrics = CalculateTriangleBarycentrics(PixelClip, Tri.Verts[0].PointClip, Tri.Verts[1].PointClip, Tri.Verts[2].PointClip, NaniteView.ViewSizeAndInvSize.zw);
 		#endif
