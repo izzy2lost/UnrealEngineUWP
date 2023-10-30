@@ -137,16 +137,7 @@ UObjectBase::UObjectBase(UClass* InClass,
 #if CSV_PROFILER && CSV_TRACK_UOBJECT_COUNT
 	UObjectStats::IncrementUObjectCount();
 #endif
-
-	if (UE::GC::Private::GIsIncrementalReachabilityPending)
-	{
-		ClassPrivate->MarkAsReachable();
-		if (OuterPrivate)
-		{
-			OuterPrivate->MarkAsReachable();
 		}	
-	}
-}
 
 
 /**
@@ -191,15 +182,6 @@ void UObjectBase::DeferredRegister(UClass *UClassStaticClass,const TCHAR* Packag
 	check(UClassStaticClass);
 	check(!ClassPrivate);
 	ClassPrivate = UClassStaticClass;
-
-	if (UE::GC::Private::GIsIncrementalReachabilityPending)
-	{
-		ClassPrivate->MarkAsReachable();
-		if (OuterPrivate)
-		{
-			OuterPrivate->MarkAsReachable();
-		}
-	}
 
 	// Add to the global object table.
 	AddObject(FName(InName), EInternalObjectFlags::None);
@@ -259,11 +241,7 @@ void UObjectBase::LowLevelRename(FName NewName,UObject *NewOuter)
 	if (NewOuter)
 	{
 		OuterPrivate = NewOuter;
-		if (UE::GC::Private::GIsIncrementalReachabilityPending)
-		{
-			OuterPrivate->MarkAsReachable();
 		}
-	}
 	HashObject(this);
 }
 
@@ -324,11 +302,6 @@ void UObjectBase::SetClass(UClass* NewClass)
 	ClassPrivate->DestroyPersistentUberGraphFrame((UObject*)this);
 #endif
 	ClassPrivate = NewClass;
-	if (UE::GC::Private::GIsIncrementalReachabilityPending)
-	{
-		checkf(ClassPrivate, TEXT("SetClass called on %s with a null class"), *GetFName().ToString());
-		ClassPrivate->MarkAsReachable();
-	}
 #if USE_UBER_GRAPH_PERSISTENT_FRAME
 	ClassPrivate->CreatePersistentUberGraphFrame((UObject*)this, /*bCreateOnlyIfEmpty =*/false, /*bSkipSuperClass =*/false, OldClass);
 #endif

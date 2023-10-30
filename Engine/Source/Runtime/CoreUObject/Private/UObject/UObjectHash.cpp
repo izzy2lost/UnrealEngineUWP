@@ -813,7 +813,7 @@ UObject* StaticFindObjectFastInternalThreadSafe(FUObjectHashTables& ThreadHash, 
 	// Not found.
 	if (Result && UE::GC::Private::GIsIncrementalReachabilityPending)
 	{
-		Result->MarkAsReachable();
+		UE::GC::MarkAsReachable(Result);
 	}
 	return Result;
 }
@@ -1141,7 +1141,7 @@ void GetObjectsWithOuter(const class UObjectBase* Outer, TArray<UObject *>& Resu
 			{
 				if (UE::GC::Private::GIsIncrementalReachabilityPending)
 				{
-					Object->MarkAsReachable();
+					UE::GC::MarkAsReachable(Object);
 				}
 				Results.Add(Object);
 			}
@@ -1164,7 +1164,7 @@ void GetObjectsWithOuter(const class UObjectBase* Outer, TArray<UObject *>& Resu
 						{
 							if (UE::GC::Private::GIsIncrementalReachabilityPending)
 							{
-								Object->MarkAsReachable();
+								UE::GC::MarkAsReachable(Object);
 							}
 							Results.Add(Object);
 						}
@@ -1216,7 +1216,7 @@ void ForEachObjectWithOuterBreakable(const class UObjectBase* Outer, TFunctionRe
 			{
 				if (UE::GC::Private::GIsIncrementalReachabilityPending)
 				{
-					Object->MarkAsReachable();
+					UE::GC::MarkAsReachable(Object);
 				}
 				if (!Operation(Object))
 				{
@@ -1273,7 +1273,7 @@ UObjectBase* FindObjectWithOuter(const class UObjectBase* Outer, const class UCl
 			}
 			if (Result && UE::GC::Private::GIsIncrementalReachabilityPending)
 			{
-				Result->MarkAsReachable();
+				UE::GC::MarkAsReachable(Result);
 			}
 		}
 	}
@@ -1334,7 +1334,7 @@ void ForEachObjectWithPackage(const class UPackage* Package, TFunctionRef<bool(U
 			{
 				if (UE::GC::Private::GIsIncrementalReachabilityPending)
 				{
-					Object->MarkAsReachable();
+					UE::GC::MarkAsReachable(Object);
 				}
 				if (!Operation(Object))
 				{
@@ -1427,7 +1427,7 @@ FORCEINLINE void ForEachObjectOfClasses_Implementation(FUObjectHashTables& Threa
 				{
 					if (UE::GC::Private::GIsIncrementalReachabilityPending)
 					{
-						Object->MarkAsReachable();
+						UE::GC::MarkAsReachable(Object);
 					}
 					Operation(Object);
 				}

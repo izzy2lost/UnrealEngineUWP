@@ -18,6 +18,7 @@
 #include "UObject/ObjectMacros.h"
 #include "UObject/UObjectGlobals.h"
 #include "UObject/UnrealNames.h"
+#include "UObject/ObjectPtr.h"
 
 class UClass;
 class UEnum;
@@ -47,7 +48,9 @@ class UObjectBase
 		);
 protected:
 	UObjectBase() :
-		 NamePrivate(NoInit)  // screwy, but the name was already set and we don't want to set it again
+		ClassPrivate(NoInit),
+		NamePrivate(NoInit),  // screwy, but the name was already set and we don't want to set it again
+		OuterPrivate(NoInit)
 	{
 	}
 
@@ -249,13 +252,13 @@ private:
 	int32							InternalIndex;
 
 	/** Class the object belongs to. */
-	UClass*							ClassPrivate;
+	ObjectPtr_Private::TNonAccessTrackedObjectPtr<UClass>							ClassPrivate;
 
 	/** Name of this object */
 	FName							NamePrivate;
 
 	/** Object this object resides in. */
-	UObject*						OuterPrivate;
+	ObjectPtr_Private::TNonAccessTrackedObjectPtr<UObject>						OuterPrivate;
 	
 	friend class FBlueprintCompileReinstancer;
 	friend class FVerseObjectClassReplacer;

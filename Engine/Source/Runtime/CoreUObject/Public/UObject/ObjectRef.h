@@ -3,8 +3,9 @@
 #pragma once
 
 #include "Misc/StringBuilder.h"
-#include "UObject/UObjectBaseUtility.h"
 #include "UObject/ObjectHandleDefines.h"
+#include "UObject/ObjectFwd.h"
+#include "UObject/ObjectMacros.h"
 
 #if UE_WITH_OBJECT_HANDLE_LATE_RESOLVE || UE_WITH_OBJECT_HANDLE_TRACKING
 
@@ -120,5 +121,9 @@ private:
 
 UE_DEPRECATED(5.2, "Use FObjectRef::IsNull() instead")
 inline bool IsObjectRefNull(const FObjectRef& ObjectRef) { return ObjectRef.IsNull(); }
+
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
+#include "UObject/UObjectBaseUtility.h"
+#endif
 
 #endif
