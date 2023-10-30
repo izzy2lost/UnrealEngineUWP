@@ -91,6 +91,7 @@ private:
 	TSharedRef<SWidget> OnGetMenuContent();
 	
 	FReply OnTagMenu(const FPointerEvent& MouseEvent, const FGameplayTag GameplayTag);
+	FReply OnEmptyMenu(const FPointerEvent& MouseEvent);
 	FReply OnEditClicked(const FGameplayTag TagToHilight);
 	FReply OnClearAllClicked();
 	FReply OnClearTagClicked(const FGameplayTag TagToClear);

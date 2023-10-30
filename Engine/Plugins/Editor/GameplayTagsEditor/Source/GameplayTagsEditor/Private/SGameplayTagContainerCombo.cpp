@@ -104,6 +104,15 @@ void SGameplayTagContainerCombo::Construct(const FArguments& InArgs)
 					SNew(SBorder)
 					.Padding(FMargin(6,2))
 					.BorderImage(FGameplayTagStyle::GetBrush("GameplayTags.Container"))
+					.OnMouseButtonDown_Lambda([WeakSelf](const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
+					{
+						const TSharedPtr<SGameplayTagContainerCombo> Self = WeakSelf.Pin();
+						if (Self.IsValid() && MouseEvent.IsMouseButtonDown(EKeys::RightMouseButton) && Self->TagsToEdit.Num() <= 0)
+						{
+							return Self->OnEmptyMenu(MouseEvent);
+						}
+						return FReply::Unhandled();
+					})
 					[
 						SNew(SHorizontalBox)
 
@@ -283,6 +292,23 @@ FReply SGameplayTagContainerCombo::OnTagMenu(const FPointerEvent& MouseEvent, co
 
 	return FReply::Handled();
 
+}
+
+FReply SGameplayTagContainerCombo::OnEmptyMenu(const FPointerEvent& MouseEvent)
+{
+	FMenuBuilder MenuBuilder(/*bShouldCloseWindowAfterMenuSelection=*/ true, /*CommandList=*/ nullptr);
+	
+	MenuBuilder.AddMenuEntry(
+	NSLOCTEXT("PropertyView", "PasteProperty", "Paste"),
+		LOCTEXT("GameplayTagContainerCombo_PasteTagTooltip", "Paste tags from clipboard."),
+		FSlateIcon(FAppStyle::GetAppStyleSetName(), "GenericCommands.Paste"),
+		FUIAction(FExecuteAction::CreateSP(this, &SGameplayTagContainerCombo::OnPasteTag), FCanExecuteAction::CreateSP(this, &SGameplayTagContainerCombo::CanPaste)));
+
+	// Spawn context menu
+	const FWidgetPath WidgetPath = MouseEvent.GetEventPath() != nullptr ? *MouseEvent.GetEventPath() : FWidgetPath();
+	FSlateApplication::Get().PushMenu(AsShared(), WidgetPath, MenuBuilder.MakeWidget(), MouseEvent.GetScreenSpacePosition(), FPopupTransitionEffect(FPopupTransitionEffect::ContextMenu));
+	
+	return FReply::Handled();
 }
 
 void SGameplayTagContainerCombo::OnSearchForAnyReferences() const
