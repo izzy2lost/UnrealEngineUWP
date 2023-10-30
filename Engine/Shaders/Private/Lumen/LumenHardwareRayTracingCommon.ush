@@ -411,9 +411,6 @@ FLumenMinimalRayResult TraceLumenMinimalRay(
 		{
 			Payload.HitT = TraceResult.HitT;
 
-			const int Primitive = TraceResult.InstanceID;
-			Payload.SetPrimitiveIndex(Primitive);
-
 			// Our SBTs always have 2 slots per material. Therefore InstanceContributionToHitGroupIndex has a RAY_TRACING_NUM_SHADER_SLOTS multiplier.
 			// But because we only encode 1 material into LumenHardwareRayTracingHitDataBuffer we want to get actual material index.
 			uint InstanceContributionIndex = TraceResult.InstanceContributionToHitGroupIndex / RAY_TRACING_NUM_SHADER_SLOTS;
@@ -421,8 +418,10 @@ FLumenMinimalRayResult TraceLumenMinimalRay(
 
 			FHitGroupRootConstants HitData = Context.HitGroupData[HitGroupIndex];
 
+			const int Primitive = TraceResult.InstanceID;
 			const int PrimitiveInstanceIndex = TraceResult.InstanceIndex - HitData.BaseInstanceIndex;
-			Payload.SetInstanceIndex(PrimitiveInstanceIndex);
+			const uint GPUSceneInstanceIndex = GetGPUSceneInstanceIndex(Primitive, PrimitiveInstanceIndex);
+			Payload.SetGPUSceneInstanceIndex(GPUSceneInstanceIndex);
 
 			uint MaterialShaderIndex = HitData.UserData & 0x3FFFFFFF;
 			Payload.SetMaterialShaderIndex(MaterialShaderIndex);
@@ -472,7 +471,7 @@ FLumenMinimalRayResult TraceLumenMinimalRay(
 		MinimalRayResult.bTwoSided = Payload.IsTwoSided();
 		MinimalRayResult.HitNormal = Payload.GetWorldNormal();
 		MinimalRayResult.HitT = Payload.HitT;
-		MinimalRayResult.SceneInstanceIndex = GetGPUSceneInstanceIndex(Payload.GetPrimitiveIndex(), Payload.GetInstanceIndex());
+		MinimalRayResult.SceneInstanceIndex = Payload.GetGPUSceneInstanceIndex();
 		MinimalRayResult.MaterialShaderIndex = Payload.GetMaterialShaderIndex();
 	}
 	return MinimalRayResult;

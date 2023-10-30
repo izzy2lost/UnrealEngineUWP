@@ -11,14 +11,14 @@ struct FLumenRayHitBookmark
 
 #define LUMEN_RAYHIT_BOOKMARK_MISS 0xFFFFFFFF
 
-#define PRIMITIVE_INDEX 2
-#define INSTANCE_INDEX 3
-#define NORMAL_INDEX 1
 #define MATERIAL_INDEX 0
+#define NORMAL_INDEX 1
+#define GPU_SCENE_INSTANCE_INDEX 2
 
+// #lumen_todo: Pack more agressively. HitT - 2 bytes, GPUSceneIndex - 3 bytes, MaterialIndex - 3 bytes
 struct FLumenMinimalPayload : FMinimalPayload
 {
-	uint PackedData[4];
+	uint PackedData[3];
 
 	void SetIsTranslucent(uint bIsTranslucent)
 	{
@@ -63,26 +63,17 @@ struct FLumenMinimalPayload : FMinimalPayload
 		return UnpackNormalFromUInt32(PackedData[NORMAL_INDEX]);
 	}
 
-	void SetPrimitiveIndex(int PrimitiveIndex)
+	void SetGPUSceneInstanceIndex(uint GPUSceneInstanceIndex)
 	{
-		PackedData[PRIMITIVE_INDEX] = PrimitiveIndex;
+		PackedData[GPU_SCENE_INSTANCE_INDEX] = GPUSceneInstanceIndex;
 	}
 
-	int GetPrimitiveIndex()
+	uint GetGPUSceneInstanceIndex()
 	{
-		return asint(PackedData[PRIMITIVE_INDEX]);
-	}
-
-	void SetInstanceIndex(int InstanceIndex)
-	{
-		PackedData[INSTANCE_INDEX] = InstanceIndex;
-	}
-
-	int GetInstanceIndex()
-	{
-		return PackedData[INSTANCE_INDEX];
+		return asint(PackedData[GPU_SCENE_INSTANCE_INDEX]);
 	}
 };
+
 #if IS_PAYLOAD_ENABLED(RT_PAYLOAD_TYPE_LUMEN_MINIMAL)
-CHECK_RT_PAYLOAD_SIZE(FLumenMinimalPayload)
+	CHECK_RT_PAYLOAD_SIZE(FLumenMinimalPayload)
 #endif
