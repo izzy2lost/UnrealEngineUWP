@@ -211,7 +211,7 @@ void FRigVMEditor::InitRigVMEditor(const EToolkitMode::Type Mode, const TSharedP
 	FString ActiveTabNodePath;
 	TArray<FString> OpenedTabNodePaths;
 
-	if (Blueprints.Num() > 0)
+	if (ShouldOpenGraphByDefault() && (Blueprints.Num() > 0))
 	{
 		bool bBroughtGraphToFront = false;
 		for(UEdGraph* Graph : Blueprints[0]->UbergraphPages)
@@ -301,9 +301,12 @@ void FRigVMEditor::InitRigVMEditor(const EToolkitMode::Type Mode, const TSharedP
 		}
 	}
 
-	if (UEdGraph* ActiveGraph = InRigVMBlueprint->GetEdGraph(ActiveTabNodePath))
+	if(ShouldOpenGraphByDefault())
 	{
-		OpenGraphAndBringToFront(ActiveGraph, true);
+		if (UEdGraph* ActiveGraph = InRigVMBlueprint->GetEdGraph(ActiveTabNodePath))
+		{
+			OpenGraphAndBringToFront(ActiveGraph, true);
+		}
 	}
 
 	FRigVMBlueprintUtils::HandleRefreshAllNodes(InRigVMBlueprint);
@@ -1506,6 +1509,50 @@ bool FRigVMEditor::IsSectionVisible(NodeSectionID::Type InSectionID) const
 		}
 	}
 	return false;
+}
+
+bool FRigVMEditor::AreEventGraphsAllowed() const
+{
+	if(const URigVMBlueprint* RigVMBlueprint = GetRigVMBlueprint())
+	{
+		return RigVMBlueprint->SupportsEventGraphs();
+	}
+	return FBlueprintEditor::AreEventGraphsAllowed();
+}
+
+bool FRigVMEditor::AreMacrosAllowed() const
+{
+	if(const URigVMBlueprint* RigVMBlueprint = GetRigVMBlueprint())
+	{
+		return RigVMBlueprint->SupportsMacros();
+	}
+	return FBlueprintEditor::AreMacrosAllowed();
+}
+
+bool FRigVMEditor::AreDelegatesAllowed() const
+{
+	if(const URigVMBlueprint* RigVMBlueprint = GetRigVMBlueprint())
+	{
+		return RigVMBlueprint->SupportsDelegates();
+	}
+	return FBlueprintEditor::AreDelegatesAllowed();
+}
+
+bool FRigVMEditor::NewDocument_IsVisibleForType(ECreatedDocumentType GraphType) const
+{
+	switch(GraphType)
+	{
+		case ECreatedDocumentType::CGT_NewMacroGraph:
+		case ECreatedDocumentType::CGT_NewAnimationLayer:
+		{
+			return false;
+		}
+		default:
+		{
+			break;
+		}
+	}
+	return FBlueprintEditor::NewDocument_IsVisibleForType(GraphType);
 }
 
 FGraphAppearanceInfo FRigVMEditor::GetGraphAppearance(UEdGraph* InGraph) const

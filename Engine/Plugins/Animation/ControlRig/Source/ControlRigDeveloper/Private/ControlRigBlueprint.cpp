@@ -152,9 +152,18 @@ void UControlRigBlueprint::PostEditChangeChainProperty(FPropertyChangedChainEven
 	}
 }
 
-UClass* UControlRigBlueprint::GetControlRigClass()
+UClass* UControlRigBlueprint::GetControlRigClass() const
 {
 	return GetRigVMHostClass();
+}
+
+bool UControlRigBlueprint::IsModularRig() const
+{
+	if(const UClass* Class = GetControlRigClass())
+	{
+		return Class->IsChildOf(UModularRig::StaticClass());
+	}
+	return false;
 }
 
 USkeletalMesh* UControlRigBlueprint::GetPreviewMesh() const

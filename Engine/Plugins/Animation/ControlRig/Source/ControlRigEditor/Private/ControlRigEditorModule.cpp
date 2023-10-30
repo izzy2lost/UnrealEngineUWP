@@ -191,6 +191,13 @@ void FControlRigEditorModule::StartupModule()
 		false,
 		8500);
 
+	FEditorModeRegistry::Get().RegisterMode<FModularRigEditorEditMode>(
+		FModularRigEditorEditMode::ModeName,
+		NSLOCTEXT("RiggingModeToolkit", "DisplayName", "Rigging"),
+		FSlateIcon(FRigVMEditorStyle::Get().GetStyleSetName(), "RigVMEditMode", "RigVMEditMode.Small"),
+		false,
+		9000);
+
 	ICurveEditorModule& CurveEditorModule = FModuleManager::LoadModuleChecked<ICurveEditorModule>("CurveEditor");
 	FControlRigSpaceChannelCurveModel::ViewID = CurveEditorModule.RegisterView(FOnCreateCurveEditorView::CreateStatic(
 		[](TWeakPtr<FCurveEditor> WeakCurveEditor) -> TSharedRef<SCurveEditorView>
@@ -233,6 +240,7 @@ void FControlRigEditorModule::ShutdownModule()
 	//UThumbnailManager::Get().UnregisterCustomRenderer(UControlRigBlueprint::StaticClass());
 	//UActorFactorySkeletalMesh::UnregisterDelegatesForAssetClass(UControlRigBlueprint::StaticClass());
 
+	FEditorModeRegistry::Get().UnregisterMode(FModularRigEditorEditMode::ModeName);
 	FEditorModeRegistry::Get().UnregisterMode(FControlRigEditorEditMode::ModeName);
 	FEditorModeRegistry::Get().UnregisterMode(FControlRigEditMode::ModeName);
 

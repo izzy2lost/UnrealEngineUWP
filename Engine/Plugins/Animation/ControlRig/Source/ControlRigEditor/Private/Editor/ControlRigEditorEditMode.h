@@ -28,3 +28,9 @@ public:
 	/** Drawing options */
 	UPersonaOptions* ConfigOption = nullptr;
 };
+
+class FModularRigEditorEditMode : public FControlRigEditorEditMode
+{
+public:
+	static FName ModeName;
+};

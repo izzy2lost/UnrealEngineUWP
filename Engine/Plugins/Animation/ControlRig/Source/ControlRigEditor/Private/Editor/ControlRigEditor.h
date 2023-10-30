@@ -80,11 +80,14 @@ public:
 	UE_DEPRECATED(5.4, "Please use HandleVMCompiledEvent with ExtendedExecuteContext parameter.")
 	virtual void HandleVMCompiledEvent(UObject* InCompiledObject, URigVM* InVM) override {}
 	virtual void HandleVMCompiledEvent(UObject* InCompiledObject, URigVM* InVM, FRigVMExtendedExecuteContext& InContext) override;
+	virtual bool ShouldOpenGraphByDefault() const override { return !IsModularRig(); }
 
 	// allows the editor to fill an empty graph
 	virtual void CreateEmptyGraphContent(URigVMController* InController) override;
 
 	int32 GetRigHierarchyTabCount() const { return RigHierarchyTabCount; }
+
+	bool IsModularRig() const;
 
 public:
 	
@@ -99,7 +102,9 @@ public:
 
 	// BlueprintEditor interface
 	virtual FReply OnSpawnGraphNodeByShortcut(FInputChord InChord, const FVector2D& InPosition, UEdGraph* InGraph) override;
-	
+	virtual bool IsSectionVisible(NodeSectionID::Type InSectionID) const override;
+	virtual bool NewDocument_IsVisibleForType(ECreatedDocumentType GraphType) const override;
+
 	virtual void PostTransaction(bool bSuccess, const FTransaction* Transaction, bool bIsRedo) override;
 
 	void EnsureValidRigElementsInDetailPanel();

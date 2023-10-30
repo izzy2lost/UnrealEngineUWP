@@ -80,6 +80,12 @@ public:
 	virtual void PostDuplicate(bool bDuplicateForPIE) override;
 	virtual bool RequiresForceLoadMembers(UObject* InObject) const override;
 
+	virtual bool SupportsGlobalVariables() const override { return true; }
+	virtual bool SupportsLocalVariables() const override { return !IsModularRig(); }
+	virtual bool SupportsFunctions() const override { return !IsModularRig(); }
+	virtual bool SupportsEventGraphs() const override { return !IsModularRig(); }
+
+
 	// UObject interface
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 	virtual void PostEditChangeChainProperty(struct FPropertyChangedChainEvent& PropertyChangedEvent) override;
@@ -87,7 +93,9 @@ public:
 #endif	// #if WITH_EDITOR
 
 	UFUNCTION(BlueprintCallable, Category = "VM")
-	UClass* GetControlRigClass();
+	UClass* GetControlRigClass() const;
+
+	bool IsModularRig() const;
 
 	UFUNCTION(BlueprintCallable, Category = "Control Rig Blueprint")
 	UControlRig* CreateControlRig() { return Cast<UControlRig>(CreateRigVMHost()); }

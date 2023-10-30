@@ -87,6 +87,7 @@ public:
 	virtual FReply OnSpawnGraphNodeByShortcut(FInputChord InChord, const FVector2D& InPosition, UEdGraph* InGraph) override;
 	virtual bool ShouldLoadBPLibrariesFromAssetRegistry() override { return false; }
 	virtual void JumpToHyperlink(const UObject* ObjectReference, bool bRequestRename = false) override;
+	virtual bool ShouldOpenGraphByDefault() const { return true; }
 
 	// FEditorUndoClient Interface
 	virtual void PostUndo(bool bSuccess) override;
@@ -150,6 +151,10 @@ protected:
 	virtual void CreateDefaultTabContents(const TArray<UBlueprint*>& InBlueprints) override;
 	virtual void NewDocument_OnClicked(ECreatedDocumentType GraphType) override;
 	virtual bool IsSectionVisible(NodeSectionID::Type InSectionID) const override;
+	virtual bool AreEventGraphsAllowed() const override;
+	virtual bool AreMacrosAllowed() const override;
+	virtual bool AreDelegatesAllowed() const override;
+	virtual bool NewDocument_IsVisibleForType(ECreatedDocumentType GraphType) const;
 	virtual FGraphAppearanceInfo GetGraphAppearance(class UEdGraph* InGraph) const override;
 	virtual bool IsEditable(UEdGraph* InGraph) const override;
 	virtual bool IsCompilingEnabled() const override;

@@ -172,6 +172,69 @@ UClass* FControlRigEditor::GetDetailWrapperClass() const
 	return UControlRigWrapperObject::StaticClass();
 }
 
+bool FControlRigEditor::IsSectionVisible(NodeSectionID::Type InSectionID) const
+{
+	if(!IControlRigEditor::IsSectionVisible(InSectionID))
+	{
+		return false;
+	}
+
+	if(const UControlRigBlueprint* RigBlueprint = GetControlRigBlueprint())
+	{
+		if(IsModularRig())
+		{
+			switch (InSectionID)
+			{
+				case NodeSectionID::GRAPH:
+				{
+					return RigBlueprint->SupportsEventGraphs();
+				}
+				case NodeSectionID::FUNCTION:
+				{
+					return RigBlueprint->SupportsFunctions();
+				}
+				default:
+				{
+					break;
+				}
+			}
+		}
+	}
+	return true;
+}
+
+bool FControlRigEditor::NewDocument_IsVisibleForType(ECreatedDocumentType GraphType) const
+{
+	if(!IControlRigEditor::NewDocument_IsVisibleForType(GraphType))
+	{
+		return false;
+	}
+
+	if(const UControlRigBlueprint* RigBlueprint = GetControlRigBlueprint())
+	{
+		if(IsModularRig())
+		{
+			switch(GraphType)
+			{
+				case CGT_NewEventGraph:
+				{
+					return RigBlueprint->SupportsEventGraphs();
+				}
+				case CGT_NewFunctionGraph:
+				{
+					return RigBlueprint->SupportsFunctions();
+				}
+				default:
+				{
+					break;
+				}
+			}
+		}
+	}
+
+	return true;
+}
+
 void FControlRigEditor::CreateEmptyGraphContent(URigVMController* InController)
 {
 	URigVMNode* Node = InController->AddUnitNode(FRigUnit_BeginExecution::StaticStruct(), FRigUnit::GetMethodName(), FVector2D::ZeroVector, FString(), false);
@@ -286,12 +349,21 @@ const FName FControlRigEditor::GetEditorAppName() const
 
 const FName FControlRigEditor::GetEditorModeName() const
 {
+	if(IsModularRig())
+	{
+		return FModularRigEditorEditMode::ModeName;
+	}
 	return FControlRigEditorEditMode::ModeName;
 }
 
 TSharedPtr<FApplicationMode> FControlRigEditor::CreateEditorMode()
 {
 	CreatePersonaToolKitIfRequired();
+
+	if(IsModularRig())
+	{
+		return MakeShareable(new FModularRigEditorMode(SharedThis(this)));
+	}
 	return MakeShareable(new FControlRigEditorMode(SharedThis(this)));
 }
 
@@ -1271,6 +1343,15 @@ void FControlRigEditor::SaveAssetAs_Execute()
 	FBlueprintActionDatabase& ActionDatabase = FBlueprintActionDatabase::Get();
 	ActionDatabase.ClearAssetActions(UControlRigBlueprint::StaticClass());
 	ActionDatabase.RefreshClassActions(UControlRigBlueprint::StaticClass());
+}
+
+bool FControlRigEditor::IsModularRig() const
+{
+	if(UControlRigBlueprint* RigBlueprint = Cast<UControlRigBlueprint>(GetBlueprintObj()))
+	{
+		return RigBlueprint->IsModularRig();
+	}
+	return false;
 }
 
 FName FControlRigEditor::GetToolkitFName() const
@@ -3460,7 +3541,7 @@ void FControlRigEditor::ResetAllBoneModification()
 
 FControlRigEditorEditMode* FControlRigEditor::GetEditMode() const
 {
-	return static_cast<FControlRigEditorEditMode*>(GetEditorModeManager().GetActiveMode(FControlRigEditorEditMode::ModeName));
+	return static_cast<FControlRigEditorEditMode*>(GetEditorModeManager().GetActiveMode(GetEditorModeName()));
 }
 
 
