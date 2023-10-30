@@ -89,6 +89,13 @@ protected:
 	EVisibility IsToBeSkipped_GetVisibility() const;
 
 	/**
+	* Change opacity of skipped button if it is hovered.
+	*
+	* Return the Linear Color with different opacity based on hovered status.
+	*/
+	FSlateColor IsToBeSkipped_GetColorAndOpacity() const;
+
+	/**
 	* Is the test inside exclude list through direct exclusion (not through propagation).
 	*
 	* @return true if the test is inside the exclude list by direct exclusion.
@@ -205,6 +212,9 @@ private:
 
 	/** Is Session local. */
 	bool IsLocalSession;
+
+	/** Is Skip button hovered. */
+	bool bIsToBeSkippedButtonHovered = false;
 
 	/** Holds the highlight string for the automation test. */
 	TAttribute<FText> HighlightText;
