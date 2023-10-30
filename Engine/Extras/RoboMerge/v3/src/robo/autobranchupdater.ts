@@ -117,7 +117,7 @@ export class AutoBranchUpdater implements Bot {
 			}
 		}
 		catch (err) {
-			// if we're in devmode we support files open for add or not in perforce so absord the exception
+			// if we're in devmode we support files open for add or not in perforce so absorb the exception
 			if (!AutoBranchUpdater.config.devMode) {
 				this.abuLogger.printException(err, 'Branch specs: error while querying P4 for changes');
 				return false
