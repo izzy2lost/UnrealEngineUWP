@@ -374,6 +374,22 @@ extern SHADERCOMPILERCOMMON_API bool RemoveUnusedInputs(
 
 extern SHADERCOMPILERCOMMON_API bool RemoveUnusedInputs(FString& InOutSourceCode, const TArray<FString>& InUsedInputs, FString& InOutEntryPoint, TArray<FString>& OutErrors);
 
+// Shader input/output parameter storage classes. Naming adopted from SPIR-V nomenclature.
+enum class EShaderParameterStorageClass
+{
+	Input,
+	Output,
+};
+
+// Returns the semantic names of all individual entry point parameters (i.e. all structure fields are inlined)
+extern SHADERCOMPILERCOMMON_API bool FindEntryPointParameters(
+	const FString& InSourceCode,
+	const FString& InEntryPoint,
+	EShaderParameterStorageClass ParameterStorageClass,
+	TArray<FString>& OutParameterSemantics,
+	TArray<FString>& OutErrors
+);
+
 extern SHADERCOMPILERCOMMON_API bool ConvertFromFP32ToFP16(FString& InOutSourceCode, TArray<FString>& OutErrors);
 
 enum class EShaderConductorTarget

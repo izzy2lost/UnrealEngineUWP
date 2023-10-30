@@ -113,6 +113,27 @@ static inline TCHAR* MakeIndexedSemantic(CrossCompiler::FLinearAllocator* Alloca
 	return Allocator->Strdup(Out);
 }
 
+static bool CheckSimpleVectorType(const TCHAR* SimpleType)
+{
+	if (!FCString::Strncmp(SimpleType, TEXT("float"), 5))
+	{
+		SimpleType += 5;
+	}
+	else if (!FCString::Strncmp(SimpleType, TEXT("int"), 3))
+	{
+		SimpleType += 3;
+	}
+	else if (!FCString::Strncmp(SimpleType, TEXT("half"), 4))
+	{
+		SimpleType += 4;
+	}
+	else
+	{
+		return false;
+	}
+	return FChar::IsDigit(SimpleType[0]) && SimpleType[1] == 0;
+}
+
 struct FRemoveAlgorithm
 {
 	FString EntryPoint;
@@ -322,28 +343,6 @@ struct FRemoveAlgorithm
 		}
 
 		return true;
-	}
-
-	bool CheckSimpleVectorType(const TCHAR* SimpleType)
-	{
-		if (!FCString::Strncmp(SimpleType, TEXT("float"), 5))
-		{
-			SimpleType += 5;
-		}
-		else if (!FCString::Strncmp(SimpleType, TEXT("int"), 3))
-		{
-			SimpleType += 3;
-		}
-		else if (!FCString::Strncmp(SimpleType, TEXT("half"), 4))
-		{
-			SimpleType += 4;
-		}
-		else
-		{
-			return false;
-		}
-
-		return FChar::IsDigit(SimpleType[0]) && SimpleType[1] == 0;
 	}
 
 	CrossCompiler::AST::FDeclaratorList* CreateLocalVariable(const TCHAR* Type, const TCHAR* Name, CrossCompiler::AST::FExpression* Initializer = nullptr)
@@ -1434,6 +1433,232 @@ bool RemoveUnusedInputs(FString& InOutSourceCode, const TArray<FString>& InInput
 {
 	const TArray<FStringView> Inputs(MakeArrayView(InInputs));
 	return RemoveUnusedInputs(InOutSourceCode, Inputs, {}, EntryPoint, OutErrors);
+}
+
+struct FFindEntryPointParameters
+{
+	FString EntryPoint;
+	const bool bFindOutputSemantics;
+
+	bool bSuccess;
+	TArray<FString> Errors;
+	CrossCompiler::FLinearAllocator* Allocator;
+
+	TArray<FString> FoundSemantics;
+
+	FFindEntryPointParameters(const FStringView& EntryPoint, EShaderParameterStorageClass SemanticsStorageClass) :
+		EntryPoint(EntryPoint),
+		bFindOutputSemantics(SemanticsStorageClass == EShaderParameterStorageClass::Output),
+		bSuccess(false),
+		Allocator(nullptr)
+	{
+	}
+
+	CrossCompiler::AST::FFunctionDefinition* FindEntryPointAndPopulateSymbolTable(CrossCompiler::TLinearArray<CrossCompiler::AST::FNode*>& ASTNodes, TArray<CrossCompiler::AST::FStructSpecifier*>& OutMiniSymbolTable)
+	{
+		using namespace CrossCompiler::AST;
+		FFunctionDefinition* EntryFunction = nullptr;
+		for (int32 Index = 0; Index < ASTNodes.Num(); ++Index)
+		{
+			FNode* Node = ASTNodes[Index];
+			if (FDeclaratorList* DeclaratorList = Node->AsDeclaratorList())
+			{
+				if (FStructSpecifier* StructSpecifier = DeclaratorList->Type->Specifier->Structure)
+				{
+					// Skip unnamed structures
+					if (StructSpecifier->Name)
+					{
+						OutMiniSymbolTable.Add(StructSpecifier);
+					}
+				}
+			}
+			else if (FFunctionDefinition* FunctionDefinition = Node->AsFunctionDefinition())
+			{
+				if (FCString::Strcmp(*EntryPoint, FunctionDefinition->Prototype->Identifier) == 0)
+				{
+					EntryFunction = FunctionDefinition;
+				}
+			}
+		}
+
+		return EntryFunction;
+	}
+
+	CrossCompiler::AST::FStructSpecifier* FindStructSpecifier(TArray<CrossCompiler::AST::FStructSpecifier*>& MiniSymbolTable, const TCHAR* StructName)
+	{
+		for (auto* StructSpecifier : MiniSymbolTable)
+		{
+			if (!FCString::Strcmp(StructSpecifier->Name, StructName))
+			{
+				return StructSpecifier;
+			}
+		}
+		return nullptr;
+	}
+
+	bool ProcessParameterSemantic(CrossCompiler::AST::FSemanticSpecifier& SemanticSpecifier, const TCHAR* ParameterIdentifier, bool bIsOutput)
+	{
+		if (const TCHAR* SemanticName = SemanticSpecifier.Semantic)
+		{
+			if (bFindOutputSemantics == bIsOutput)
+			{
+				FoundSemantics.Add(SemanticName);
+			}
+			return true;
+		}
+		else
+		{
+			check(ParameterIdentifier);
+			Errors.Add(FString::Printf(TEXT("FindEntryPointParameters: Function %s with parameter %s doesn't have a valid semantic name"), *EntryPoint, ParameterIdentifier));
+			return false;
+		}
+	}
+
+	bool ProcessStructParameterSemantics(CrossCompiler::AST::FStructSpecifier& StructSpecifier, TArray<CrossCompiler::AST::FStructSpecifier*>& SymbolTable, bool bIsOutput)
+	{
+		using namespace CrossCompiler::AST;
+		for (FNode* MemberNode : StructSpecifier.Members)
+		{
+			FDeclaratorList* DeclList = MemberNode->AsDeclaratorList();
+			if (!DeclList)
+			{
+				continue;
+			}
+			for (FNode* MemberNodeDecl : DeclList->Declarations)
+			{
+				if (FDeclaration* MemberDecl = MemberNodeDecl->AsDeclaration())
+				{
+					if (FSemanticSpecifier* Semantic = MemberDecl->Semantic)
+					{
+						if (!ProcessParameterSemantic(*Semantic, MemberDecl->Identifier, bIsOutput))
+						{
+							return false;
+						}
+					}
+					else if (FStructSpecifier* SubStructSpecifier = FindStructSpecifier(SymbolTable, DeclList->Type->Specifier->TypeName))
+					{
+						if (!ProcessStructParameterSemantics(*SubStructSpecifier, SymbolTable, bIsOutput))
+						{
+							return false;
+						}
+					}
+					else if (CheckSimpleVectorType(DeclList->Type->Specifier->TypeName))
+					{
+						Errors.Add(FString::Printf(TEXT("FindEntryPointParameters: Function %s with parameter %s doesn't have a return semantic"), *EntryPoint, MemberDecl->Identifier));
+						return false;
+					}
+					else
+					{
+						Errors.Add(FString::Printf(TEXT("FindEntryPointParameters: Invalid return type %s for parameter %s in function %s"), DeclList->Type->Specifier->TypeName, MemberDecl->Identifier, *EntryPoint));
+						return false;
+					}
+				}
+			}
+		}
+		return true;
+	}
+
+	bool ProcessFunctionParameters(CrossCompiler::AST::FFunctionDefinition* EntryFunction, TArray<CrossCompiler::AST::FStructSpecifier*>& SymbolTable)
+	{
+		using namespace CrossCompiler::AST;
+		for (FNode* ParamNode : EntryFunction->Prototype->Parameters)
+		{
+			FParameterDeclarator* ParameterDeclarator = ParamNode->AsParameterDeclarator();
+			check(ParameterDeclarator);
+			const bool bIsOutput = ParameterDeclarator->Type->Qualifier.bOut;
+			if (FSemanticSpecifier* Semantic = ParameterDeclarator->Semantic)
+			{
+				if (!ProcessParameterSemantic(*Semantic, ParameterDeclarator->Identifier, bIsOutput))
+				{
+					return false;
+				}
+			}
+			else if (FStructSpecifier* StructSpecifier = FindStructSpecifier(SymbolTable, ParameterDeclarator->Type->Specifier->TypeName))
+			{
+				if (!ProcessStructParameterSemantics(*StructSpecifier, SymbolTable, bIsOutput))
+				{
+					return false;
+				}
+			}
+			else if (CheckSimpleVectorType(ParameterDeclarator->Type->Specifier->TypeName))
+			{
+				Errors.Add(FString::Printf(TEXT("FindEntryPointParameters: Function %s with parameter %s doesn't have a return semantic"), *EntryPoint, ParameterDeclarator->Identifier));
+				return false;
+			}
+			else
+			{
+				Errors.Add(FString::Printf(TEXT("FindEntryPointParameters: Invalid return type %s for parameter %s in function %s"), ParameterDeclarator->Type->Specifier->TypeName, ParameterDeclarator->Identifier, *EntryPoint));
+				return false;
+			}
+		}
+		return true;
+	}
+
+	void FindEntryPointParameters(CrossCompiler::TLinearArray<CrossCompiler::AST::FNode*>& ASTNodes)
+	{
+		using namespace CrossCompiler::AST;
+
+		// Find Entry point from original AST nodes
+		TArray<FStructSpecifier*> SymbolTable;
+		FFunctionDefinition* EntryFunction = FindEntryPointAndPopulateSymbolTable(ASTNodes, SymbolTable);
+		if (!EntryFunction)
+		{
+			Errors.Add(FString::Printf(TEXT("FindEntryPointParameters: Unable to find entry point %s"), *EntryPoint));
+			bSuccess = false;
+			return;
+		}
+
+		if (!ProcessFunctionParameters(EntryFunction, SymbolTable))
+		{
+			bSuccess = false;
+			return;
+		}
+
+		bSuccess = true;
+	}
+};
+
+bool FindEntryPointParameters(
+	const FString& InSourceCode,
+	const FString& InEntryPoint,
+	EShaderParameterStorageClass ParameterStorageClass,
+	TArray<FString>& OutParameterSemantics,
+	TArray<FString>& OutErrors)
+{
+	check(ParameterStorageClass == EShaderParameterStorageClass::Input || ParameterStorageClass == EShaderParameterStorageClass::Output);
+
+	FString DummyFilename(TEXT("/Engine/Private/FindEntryPointParameters.usf"));
+	FFindEntryPointParameters Data(InEntryPoint, ParameterStorageClass);
+	auto ResultCallbackFunction = [&Data](CrossCompiler::FLinearAllocator* Allocator, CrossCompiler::TLinearArray<CrossCompiler::AST::FNode*>& ASTNodes) -> void
+		{
+			Data.Allocator = Allocator;
+			Data.FindEntryPointParameters(ASTNodes);
+		};
+	CrossCompiler::FCompilerMessages Messages;
+	if (!CrossCompiler::Parser::Parse(InSourceCode, DummyFilename, Messages, {}, ResultCallbackFunction))
+	{
+		Data.Errors.Add(FString(TEXT("FindEntryPointParameters: Failed to parse HLSL source!")));
+		OutErrors = MoveTemp(Data.Errors);
+		for (auto& Message : Messages.MessageList)
+		{
+			OutErrors.Add(Message.Message);
+		}
+		return false;
+	}
+
+	for (auto& Message : Messages.MessageList)
+	{
+		OutErrors.Add(Message.Message);
+	}
+
+	if (Data.bSuccess)
+	{
+		OutParameterSemantics = MoveTemp(Data.FoundSemantics);
+		return true;
+	}
+
+	OutErrors = MoveTemp(Data.Errors);
+	return false;
 }
 
 struct FConvertFP32ToFP16 {

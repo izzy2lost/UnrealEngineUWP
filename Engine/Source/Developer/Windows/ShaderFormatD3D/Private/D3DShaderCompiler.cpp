@@ -507,7 +507,12 @@ static void PatchSpirvForPrecompilation(FSpirv& Spirv)
 }
 
 // @param StageVariablesStorageClass Must be SpvStorageClassOutput for vertex shaders and SpvStorageClassInput for pixel shaders.
-static bool PatchHlslWithReorderedIOVariables(FString& HlslSourceString, const FSpirv& Spirv, SpvStorageClass StageVariablesStorageClass)
+static bool PatchHlslWithReorderedIOVariables(
+	FString& HlslSourceString,
+	const FString& OriginalShaderSource,
+	const FString& OriginalEntryPoint,
+	SpvStorageClass StageVariablesStorageClass,
+	TArray<FShaderCompilerError>& OutErrors)
 {
 	check(StageVariablesStorageClass == SpvStorageClassInput || StageVariablesStorageClass == SpvStorageClassOutput);
 
@@ -538,8 +543,16 @@ static bool PatchHlslWithReorderedIOVariables(FString& HlslSourceString, const F
 	StageVariableDeclarationSource.ParseIntoArrayLines(StageVariableDeclarationLines);
 
 	// Parse variable names from SPIR-V input
-	TArray<FString> Variables;
-	ParseSpirvGlobalVariables(Spirv, StageVariablesStorageClass, Variables);
+	TArray<FString> Variables, ParsingErrors;
+	const EShaderParameterStorageClass ParameterStorageClass = (StageVariablesStorageClass == SpvStorageClassOutput ? EShaderParameterStorageClass::Output : EShaderParameterStorageClass::Input);
+	if (!FindEntryPointParameters(OriginalShaderSource, OriginalEntryPoint, ParameterStorageClass, Variables, ParsingErrors))
+	{
+		for (FString& Error : ParsingErrors)
+		{
+			OutErrors.Add(FShaderCompilerError(MoveTemp(Error)));
+		}
+		return false;
+	}
 
 	if (Variables.Num() != StageVariableDeclarationLines.Num())
 	{
@@ -554,7 +567,8 @@ static bool PatchHlslWithReorderedIOVariables(FString& HlslSourceString, const F
 	{
 		for (FString& SourceLine : StageVariableDeclarationLines)
 		{
-			if (SourceLine.Find(Variable, ESearchCase::CaseSensitive) != INDEX_NONE)
+			// Search for semantic name (always case insensitive) in current stage variable source line
+			if (SourceLine.Find(Variable, ESearchCase::IgnoreCase) != INDEX_NONE)
 			{
 				// Append source line for current variable at the end of sorted declaration string.
 				// Then empty this source line to avoid unnecessary string comparisons for next variables.
@@ -574,7 +588,12 @@ static bool PatchHlslWithReorderedIOVariables(FString& HlslSourceString, const F
 }
 
 // @todo-lh: use ANSI string class whenever UE core gets one
-static void PatchHlslForPrecompilation(TArray<ANSICHAR>& HlslSource, const EShaderFrequency Frequency, const FSpirv& Spirv)
+static void PatchHlslForPrecompilation(
+	TArray<ANSICHAR>& HlslSource,
+	const EShaderFrequency Frequency,
+	const FString& OriginalShaderSource,
+	const FString& OriginalEntryPoint,
+	TArray<FShaderCompilerError>& OutErrors)
 {
 	FString HlslSourceString;
 
@@ -618,8 +637,8 @@ static void PatchHlslForPrecompilation(TArray<ANSICHAR>& HlslSource, const EShad
 
 	if (Frequency == SF_Vertex)
 	{
-		// Ensure order of output variables remains the same as declared in SPIR-V input
-		PatchHlslWithReorderedIOVariables(HlslSourceString, Spirv, SpvStorageClassOutput);
+		// Ensure order of output variables remains the same as declared in original shader source
+		PatchHlslWithReorderedIOVariables(HlslSourceString, OriginalShaderSource, OriginalEntryPoint, SpvStorageClassOutput, OutErrors);
 	}
 	else if (Frequency == SF_Pixel)
 	{
@@ -638,8 +657,8 @@ static void PatchHlslForPrecompilation(TArray<ANSICHAR>& HlslSource, const EShad
 			}
 		}
 
-		// Ensure order of input variables remains the same as declared in SPIR-V input
-		PatchHlslWithReorderedIOVariables(HlslSourceString, Spirv, SpvStorageClassInput);
+		// Ensure order of input variables remains the same as declared in original shader source
+		PatchHlslWithReorderedIOVariables(HlslSourceString, OriginalShaderSource, OriginalEntryPoint, SpvStorageClassInput, OutErrors);
 	}
 
 	// Return new HLSL source
@@ -788,7 +807,7 @@ static bool CompileAndProcessD3DShaderFXCExt(
 			}
 
 			// Patch HLSL for workarounds to prevent potential additional FXC failures
-			PatchHlslForPrecompilation(CrossCompiledSource, Frequency, Spirv);
+			PatchHlslForPrecompilation(CrossCompiledSource, Frequency, PreprocessedShaderSource, EntryPointName, Output.Errors);
 
 			if (bDumpDebugInfo && CrossCompiledSource.Num() > 1)
 			{
