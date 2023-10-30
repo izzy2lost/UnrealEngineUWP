@@ -7,10 +7,8 @@
 #include "Internationalization/Text.h"
 #include "Math/NumericLimits.h"
 #include "Misc/CString.h"
-#include "Templates/EnableIf.h"
-#include "Templates/IsFloatingPoint.h"
-#include "Templates/IsIntegral.h"
-#include "Templates/IsSigned.h"
+
+#include <type_traits>
 
 /** Rules used to format or parse a decimal number */
 struct FDecimalNumberFormattingRules
@@ -79,13 +77,13 @@ struct FDecimalNumberIntegralLimits
 	uint64 NumericLimitMax;
 	bool bIsNumericSigned;
 
-	template<
-		typename IntegralType,
-		typename TEnableIf<TIsIntegral<IntegralType>::Value>::Type * = nullptr
+	template <
+		typename IntegralType
+		UE_REQUIRES(std::is_integral_v<IntegralType>)
 	>
 	static FDecimalNumberIntegralLimits FromNumericLimits()
 	{
-		return FDecimalNumberIntegralLimits(TNumericLimits<IntegralType>::Lowest(), TNumericLimits<IntegralType>::Max(), TIsSigned<IntegralType>::Value);
+		return FDecimalNumberIntegralLimits(TNumericLimits<IntegralType>::Lowest(), TNumericLimits<IntegralType>::Max(), std::is_signed_v<IntegralType>);
 	}
 };
 
@@ -98,9 +96,9 @@ struct FDecimalNumberFractionalLimits
 	double NumericLimitLowest;
 	double NumericLimitMax;
 
-	template<
-		typename FloatingType,
-		typename TEnableIf<TIsFloatingPoint<FloatingType>::Value>::Type * = nullptr
+	template <
+		typename FloatingType
+		UE_REQUIRES(std::is_floating_point_v<FloatingType>)
 	>
 	static FDecimalNumberFractionalLimits FromNumericLimits()
 	{
@@ -206,3 +204,10 @@ CORE_API const FDecimalNumberFormattingRules& GetCultureAgnosticFormattingRules(
 CORE_API uint64 Pow10(const int32 InExponent);
 
 } // namespace FastDecimalFormat
+
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
+#include "Templates/EnableIf.h"
+#include "Templates/IsFloatingPoint.h"
+#include "Templates/IsIntegral.h"
+#include "Templates/IsSigned.h"
+#endif

@@ -1029,7 +1029,10 @@ struct FGenericPlatformMath
 	 * If there was overflow, it returns false, and OutResult may or may not be written.
 	 * If there wasn't overflow, it returns true, and the result of the addition is written to OutResult.
 	 */
-	template<typename IntType, std::enable_if_t<std::is_integral_v<IntType>>* = nullptr>
+	template <
+		typename IntType
+		UE_REQUIRES(std::is_integral_v<IntType>)
+	>
 	static FORCEINLINE bool AddAndCheckForOverflow(IntType A, IntType B, IntType& OutResult)
 	{
 		// This follows Hacker's Delight, Chapter 2-12
@@ -1076,7 +1079,10 @@ struct FGenericPlatformMath
 	 * If there was overflow, it returns false, and OutResult may or may not be written.
 	 * If there wasn't overflow, it returns true, and the result of the subtraction is written to OutResult.
 	 */
-	template<typename IntType, std::enable_if_t<std::is_integral_v<IntType>>* = nullptr>
+	template <
+		typename IntType
+		UE_REQUIRES(std::is_integral_v<IntType>)
+	>
 	static FORCEINLINE bool SubtractAndCheckForOverflow(IntType A, IntType B, IntType& OutResult)
 	{
 		// This follows Hacker's Delight, Chapter 2-12
@@ -1117,7 +1123,10 @@ struct FGenericPlatformMath
 	 * If there was overflow, it returns false, and OutResult may or may not be written.
 	 * If there wasn't overflow, it returns true, and the result of the multiplication is written to OutResult.
 	 */
-	template<typename IntType, std::enable_if_t<std::is_integral_v<IntType>>* = nullptr>
+	template <
+		typename IntType
+		UE_REQUIRES(std::is_integral_v<IntType>)
+	>
 	static FORCEINLINE bool MultiplyAndCheckForOverflow(IntType A, IntType B, IntType& OutResult)
 	{
 		// Handle the case where the second factor is 0 specially (why will become clear in a minute).

@@ -6,8 +6,6 @@
 
 PRAGMA_DISABLE_SHADOW_VARIABLE_WARNINGS
 
-#include <type_traits>
-
 // Include the intrinsic functions header
 #if ((PLATFORM_WINDOWS || PLATFORM_HOLOLENS) && PLATFORM_64BITS)
 #include <arm64_neon.h>
@@ -531,21 +529,20 @@ FORCEINLINE VectorRegister2Double VectorSetComponentImpl(const VectorRegister2Do
 	return vsetq_lane_f64(Scalar, Vec, ElementIndex);
 }
 
-template<int ElementIndex, typename std::enable_if< (ElementIndex > 1), bool >::type = true >
+template <int ElementIndex>
 FORCEINLINE VectorRegister4Double VectorSetComponentImpl(const VectorRegister4Double& Vec, double Scalar)
 {
 	VectorRegister4Double Result;
-	Result.XY = Vec.XY;
-	Result.ZW = VectorSetComponentImpl<ElementIndex - 2>(Vec.ZW, Scalar);
-	return Result;
-}
-
-template<int ElementIndex, typename std::enable_if < (ElementIndex <= 1), bool >::type = true >
-FORCEINLINE VectorRegister4Double VectorSetComponentImpl(const VectorRegister4Double& Vec, double Scalar)
-{
-	VectorRegister4Double Result;
-	Result.XY = VectorSetComponentImpl<ElementIndex>(Vec.XY, Scalar);
-	Result.ZW = Vec.ZW;
+	if constexpr (ElementIndex > 1)
+	{
+		Result.XY = Vec.XY;
+		Result.ZW = VectorSetComponentImpl<ElementIndex - 2>(Vec.ZW, Scalar);
+	}
+	else
+	{
+		Result.XY = VectorSetComponentImpl<ElementIndex>(Vec.XY, Scalar);
+		Result.ZW = Vec.ZW;
+	}
 	return Result;
 }
 
@@ -745,21 +742,20 @@ FORCEINLINE VectorRegister2Double VectorReplicateImpl(const VectorRegister2Doubl
 	return vdupq_n_f64(vgetq_lane_f64(Vec, ElementIndex));
 }
 
-template <int ElementIndex, typename std::enable_if < (ElementIndex <= 1), bool >::type = true >
+template <int ElementIndex>
 FORCEINLINE VectorRegister4Double VectorReplicateImpl(const VectorRegister4Double& Vec)
 {
 	VectorRegister4Double Result;
-	Result.XY = VectorReplicateImpl<ElementIndex>(Vec.XY);
-	Result.ZW = Result.XY;
-	return Result;
-}
-
-template <int ElementIndex, typename std::enable_if < (ElementIndex > 1), bool >::type = true >
-FORCEINLINE VectorRegister4Double VectorReplicateImpl(const VectorRegister4Double& Vec)
-{
-	VectorRegister4Double Result;
-	Result.ZW = VectorReplicateImpl<ElementIndex - 2>(Vec.ZW);
-	Result.XY = Result.ZW;
+	if constexpr (ElementIndex <= 1)
+	{
+		Result.XY = VectorReplicateImpl<ElementIndex>(Vec.XY);
+		Result.ZW = Result.XY;
+	}
+	else
+	{
+		Result.ZW = VectorReplicateImpl<ElementIndex - 2>(Vec.ZW);
+		Result.XY = Result.ZW;
+	}
 	return Result;
 }
 
@@ -1299,28 +1295,31 @@ FORCEINLINE VectorRegister4Float VectorSwizzleImpl(VectorRegister4Float Vec)
 	return __builtin_shufflevector(Vec, Vec, X, Y, Z, W);
 }
 
-template <int X, int Y, typename std::enable_if < (X <= 1) && (Y <= 1), bool >::type = true>
+template <int X, int Y>
 FORCEINLINE VectorRegister2Double VectorSwizzleImpl2(VectorRegister4Double Vec)
 {
-	return __builtin_shufflevector(Vec.XY, Vec.XY, X, Y);
-}
-
-template <int X, int Y, typename std::enable_if < (X <= 1) && (Y > 1), bool >::type = true>
-FORCEINLINE VectorRegister2Double VectorSwizzleImpl2(VectorRegister4Double Vec)
-{
-	return __builtin_shufflevector(Vec.XY, Vec.ZW, X, Y);
-}
-
-template <int X, int Y, typename std::enable_if < (X > 1) && (Y <= 1), bool >::type = true>
-FORCEINLINE VectorRegister2Double VectorSwizzleImpl2(VectorRegister4Double Vec)
-{
-	return __builtin_shufflevector(Vec.ZW, Vec.XY, X - 2, Y + 2);
-}
-
-template <int X, int Y, typename std::enable_if < (X > 1) && (Y > 1), bool >::type = true>
-FORCEINLINE VectorRegister2Double VectorSwizzleImpl2(VectorRegister4Double Vec)
-{
-	return __builtin_shufflevector(Vec.ZW, Vec.ZW, X - 2, Y);
+	if constexpr (X <= 1)
+	{
+		if constexpr (Y <= 1)
+		{
+			return __builtin_shufflevector(Vec.XY, Vec.XY, X, Y);
+		}
+		else
+		{
+			return __builtin_shufflevector(Vec.XY, Vec.ZW, X, Y);
+		}
+	}
+	else
+	{
+		else if constexpr (Y <= 1)
+		{
+			return __builtin_shufflevector(Vec.ZW, Vec.XY, X - 2, Y + 2);
+		}
+		else
+		{
+			return __builtin_shufflevector(Vec.ZW, Vec.ZW, X - 2, Y);
+		}
+	}
 }
 
 template <int X, int Y, int Z, int W>
@@ -1802,16 +1801,17 @@ FORCEINLINE double VectorGetComponentImpl(VectorRegister2Double Vec)
 	return vgetq_lane_f64(Vec, ElementIndex);
 }
 
-template<int ElementIndex, typename std::enable_if< (ElementIndex > 1), bool >::type = true >
+template <int ElementIndex>
 FORCEINLINE double VectorGetComponentImpl(const VectorRegister4Double& Vec)
 {
-	return VectorGetComponentImpl<ElementIndex - 2>(Vec.ZW);
-}
-
-template<int ElementIndex, typename std::enable_if < (ElementIndex <= 1), bool >::type = true >
-FORCEINLINE double VectorGetComponentImpl(const VectorRegister4Double& Vec)
-{
-	return VectorGetComponentImpl<ElementIndex>(Vec.XY);
+	if constexpr (ElementIndex > 1)
+	{
+		return VectorGetComponentImpl<ElementIndex - 2>(Vec.ZW);
+	}
+	else
+	{
+		return VectorGetComponentImpl<ElementIndex>(Vec.XY);
+	}
 }
 
 #define VectorGetComponent(Vec, ElementIndex) VectorGetComponentImpl<ElementIndex>(Vec)
@@ -2883,3 +2883,7 @@ FORCEINLINE VectorRegister4i VectorIntExpandLow16To32(VectorRegister4i V) {
 // To be continued...
 
 PRAGMA_ENABLE_SHADOW_VARIABLE_WARNINGS
+
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
+#include <type_traits>
+#endif

@@ -843,7 +843,6 @@ FORCEINLINE void VectorStoreFloat1(const VectorRegister4Double& Vec, double* Dst
 
 namespace SSEPermuteHelpers
 {
-	// These need to be #define and not constexpr to make them work with enable_if
 #define InLane0(Index0, Index1)		((Index0) <= 1 && (Index1) <= 1)
 #define InLane1(Index0, Index1)		((Index0) >= 2 && (Index1) >= 2)
 #define InSameLane(Index0, Index1)	(InLane0(Index0, Index1) || InLane1(Index0, Index1))
@@ -856,32 +855,35 @@ namespace SSEPermuteHelpers
 	// Double Swizzle helpers
 	// Templated swizzles required for double shuffles when using __m128d, since we have to break it down in to two separate operations.
 
-	// [0,1]:[0,1]
-	template<int Index0, int Index1, typename std::enable_if< (Index0 <= 1) && (Index1 <= 1), bool >::type = true>
+	template <int Index0, int Index1>
 	FORCEINLINE VectorRegister2Double SelectVectorSwizzle2(const VectorRegister4Double& Vec)
 	{
-		return _mm_shuffle_pd(Vec.GetXY(), Vec.GetXY(), SHUFFLEMASK2(Index0, Index1));
-	}
-
-	// [0,1]:[2,3]
-	template<int Index0, int Index1, typename std::enable_if< (Index0 <= 1) && (Index1 >= 2), bool >::type = true>
-	FORCEINLINE VectorRegister2Double SelectVectorSwizzle2(const VectorRegister4Double& Vec)
-	{
-		return _mm_shuffle_pd(Vec.GetXY(), Vec.GetZW(), SHUFFLEMASK2(Index0, Index1 - 2));
-	}
-
-	// [2,3]:[0,1]
-	template<int Index0, int Index1, typename std::enable_if< (Index0 >= 2) && (Index1 <= 1), bool >::type = true>
-	FORCEINLINE VectorRegister2Double SelectVectorSwizzle2(const VectorRegister4Double& Vec)
-	{
-		return _mm_shuffle_pd(Vec.GetZW(), Vec.GetXY(), SHUFFLEMASK2(Index0 - 2, Index1));
-	}
-
-	// [2,3]:[2,3]
-	template<int Index0, int Index1, typename std::enable_if< (Index0 >= 2) && (Index1 >= 2), bool >::type = true>
-	FORCEINLINE VectorRegister2Double SelectVectorSwizzle2(const VectorRegister4Double& Vec)
-	{
-		return _mm_shuffle_pd(Vec.GetZW(), Vec.GetZW(), SHUFFLEMASK2(Index0 - 2, Index1 - 2));
+		if constexpr (Index0 <= 1)
+		{
+			if constexpr (Index1 <= 1)
+			{
+				// [0,1]:[0,1]
+				return _mm_shuffle_pd(Vec.GetXY(), Vec.GetXY(), SHUFFLEMASK2(Index0, Index1));
+			}
+			else
+			{
+				// [0,1]:[2,3]
+				return _mm_shuffle_pd(Vec.GetXY(), Vec.GetZW(), SHUFFLEMASK2(Index0, Index1 - 2));
+			}
+		}
+		else
+		{
+			if constexpr (Index1 <= 1)
+			{
+				// [2,3]:[0,1]
+				return _mm_shuffle_pd(Vec.GetZW(), Vec.GetXY(), SHUFFLEMASK2(Index0 - 2, Index1));
+			}
+			else
+			{
+				// [2,3]:[2,3]
+				return _mm_shuffle_pd(Vec.GetZW(), Vec.GetZW(), SHUFFLEMASK2(Index0 - 2, Index1 - 2));
+			}
+		}
 	}
 
 	template<> FORCEINLINE VectorRegister2Double SelectVectorSwizzle2<0, 1>(const VectorRegister4Double& Vec) { return Vec.GetXY(); }
@@ -922,49 +924,44 @@ namespace SSEPermuteHelpers
 
 	constexpr int PERMUTE_MASK(int A, int B, int C, int D) { return ((A == 1 ? (1 << 0) : 0) | (B == 1 ? (1 << 1) : 0) | (C == 3 ? (1 << 2) : 0) | (D == 3 ? (1 << 3) : 0)); }
 
-	// [0..1][0..1][2..3][2..3]
-	template<int Index0, int Index1, int Index2, int Index3, typename std::enable_if< InLane0(Index0, Index1) && InLane1(Index2, Index3), bool >::type = true>
+	template <int Index0, int Index1, int Index2, int Index3>
 	FORCEINLINE VectorRegister4Double SelectVectorSwizzle(const VectorRegister4Double& Vec)
 	{
-		return _mm256_permute_pd(Vec, PERMUTE_MASK(Index0, Index1, Index2, Index3));
-	}
-
-	// [2..3][2..3][0..1][0..1]
-	template <int Index0, int Index1, int Index2, int Index3, typename std::enable_if< InLane1(Index0, Index1) && InLane0(Index2, Index3), bool >::type = true>
-	FORCEINLINE VectorRegister4Double SelectVectorSwizzle(const VectorRegister4Double& Vec)
-	{
-		// Permute lanes then use [lane0][lane1] swizzle
-		return SelectVectorSwizzle<Index0 - 2, Index1 - 2, Index2 + 2, Index3 + 2>(PermuteLanes<1, 0>(Vec));
-	}
-
-	// [0..1][0..1][0..1][0..1]
-	template <int Index0, int Index1, int Index2, int Index3, typename std::enable_if< InLane0(Index0, Index1) && InLane0(Index2, Index3), bool >::type = true>
-	FORCEINLINE VectorRegister4Double SelectVectorSwizzle(const VectorRegister4Double& Vec)
-	{
-		// Permute lanes then use [lane0][lane1] swizzle
-		return SelectVectorSwizzle<Index0, Index1, Index2 + 2, Index3 + 2>(PermuteLanes<0, 0>(Vec));
-	}
-
-	// [2..3][2..3][2..3][2..3]
-	template <int Index0, int Index1, int Index2, int Index3, typename std::enable_if< InLane1(Index0, Index1) && InLane1(Index2, Index3), bool >::type = true>
-	FORCEINLINE VectorRegister4Double SelectVectorSwizzle(const VectorRegister4Double& Vec)
-	{
-		// Permute lanes then use [lane0][lane1] swizzle
-		return SelectVectorSwizzle<Index0 - 2, Index1 - 2, Index2, Index3>(PermuteLanes<1, 1>(Vec));
-	}
-
-	// Anything with out-of-lane pairs
-	template<int Index0, int Index1, int Index2, int Index3, typename std::enable_if< OutOfLane(Index0, Index1) || OutOfLane(Index2, Index3), bool >::type = true>
-	FORCEINLINE VectorRegister4Double SelectVectorSwizzle(const VectorRegister4Double& Vec)
-	{
+		if constexpr (InLane0(Index0, Index1) && InLane1(Index2, Index3))
+		{
+			// [0..1][0..1][2..3][2..3]
+			return _mm256_permute_pd(Vec, PERMUTE_MASK(Index0, Index1, Index2, Index3));
+		}
+		else if constexpr (InLane1(Index0, Index1) && InLane0(Index2, Index3))
+		{
+			// [2..3][2..3][0..1][0..1]
+			// Permute lanes then use [lane0][lane1] swizzle
+			return SelectVectorSwizzle<Index0 - 2, Index1 - 2, Index2 + 2, Index3 + 2>(PermuteLanes<1, 0>(Vec));
+		}
+		else if constexpr (InLane0(Index0, Index1) && InLane0(Index2, Index3))
+		{
+			// [0..1][0..1][0..1][0..1]
+			// Permute lanes then use [lane0][lane1] swizzle
+			return SelectVectorSwizzle<Index0, Index1, Index2 + 2, Index3 + 2>(PermuteLanes<0, 0>(Vec));
+		}
+		else if constexpr (InLane1(Index0, Index1) && InLane1(Index2, Index3))
+		{
+			// [2..3][2..3][2..3][2..3]
+			// Permute lanes then use [lane0][lane1] swizzle
+			return SelectVectorSwizzle<Index0 - 2, Index1 - 2, Index2, Index3>(PermuteLanes<1, 1>(Vec));
+		}
+		else
+		{
+			// Anything with out-of-lane pairs
 #if UE_PLATFORM_MATH_USE_AVX_2
-		return _mm256_permute4x64_pd(Vec, SHUFFLEMASK(Index0, Index1, Index2, Index3));
+			return _mm256_permute4x64_pd(Vec, SHUFFLEMASK(Index0, Index1, Index2, Index3));
 #else
-		return VectorRegister4Double(
-			SelectVectorSwizzle2<Index0, Index1>(Vec),
-			SelectVectorSwizzle2<Index2, Index3>(Vec)
-		);
+			return VectorRegister4Double(
+				SelectVectorSwizzle2<Index0, Index1>(Vec),
+				SelectVectorSwizzle2<Index2, Index3>(Vec)
+			);
 #endif
+		}
 	}
 
 	//
@@ -1009,18 +1006,19 @@ namespace SSEPermuteHelpers
 	}
 
 	// Double replicate (4 doubles)
-	template <int Index, typename std::enable_if< (Index <= 1), bool >::type = true >
+	template <int Index>
 	FORCEINLINE VectorRegister4Double VectorReplicateImpl4(const VectorRegister4Double& Vec)
 	{
-		VectorRegister2Double Temp = VectorReplicateImpl2<Index>(Vec.GetXY());
-		return VectorRegister4Double(Temp, Temp);
-	}
-
-	template <int Index, typename std::enable_if< (Index >= 2), bool >::type = true >
-	FORCEINLINE VectorRegister4Double VectorReplicateImpl4(const VectorRegister4Double& Vec)
-	{
-		VectorRegister2Double Temp = VectorReplicateImpl2<Index - 2>(Vec.GetZW());
-		return VectorRegister4Double(Temp, Temp);
+		if constexpr (Index <= 1)
+		{
+			VectorRegister2Double Temp = VectorReplicateImpl2<Index>(Vec.GetXY());
+			return VectorRegister4Double(Temp, Temp);
+		}
+		else
+		{
+			VectorRegister2Double Temp = VectorReplicateImpl2<Index - 2>(Vec.GetZW());
+			return VectorRegister4Double(Temp, Temp);
+		}
 	}
 
 	//
@@ -1071,65 +1069,52 @@ namespace SSEPermuteHelpers
 	// When index pairs are within the same lane, SelectVectorShuffle first efficiently blends elements from the two vectors,
 	// then efficiently swizzles within 128-bit lanes using specializations for indices [0..1][0..1][2..3][2..3]
 	// 
-	// [0..1][0..1][2..3][2..3]
-	template <int Index0, int Index1, int Index2, int Index3, typename std::enable_if< InLane0(Index0, Index1) && InLane1(Index2, Index3), bool >::type = true>
+	template <int Index0, int Index1, int Index2, int Index3>
 	FORCEINLINE VectorRegister4Double SelectVectorShuffle(const VectorRegister4Double& Vec1, const VectorRegister4Double& Vec2)
 	{
-		const VectorRegister4Double Blended = ShuffleLanes<0, 1>(Vec1, Vec2);
-		return VectorSwizzleTemplate<Index0, Index1, Index2, Index3>(Blended);
-	}
-
-	// [2..3][2..3][0..1][0..1]
-	template <int Index0, int Index1, int Index2, int Index3, typename std::enable_if< InLane1(Index0, Index1) && InLane0(Index2, Index3), bool >::type = true>
-	FORCEINLINE VectorRegister4Double SelectVectorShuffle(const VectorRegister4Double& Vec1, const VectorRegister4Double& Vec2)
-	{
-		const VectorRegister4Double Blended = ShuffleLanes<1, 0>(Vec1, Vec2);
-		return VectorSwizzleTemplate<Index0 - 2, Index1 - 2, Index2 + 2, Index3 + 2>(Blended);
-	}
-
-	// [0..1][0..1][0..1][0..1]
-	template <int Index0, int Index1, int Index2, int Index3, typename std::enable_if< InLane0(Index0, Index1) && InLane0(Index2, Index3), bool >::type = true>
-	FORCEINLINE VectorRegister4Double SelectVectorShuffle(const VectorRegister4Double& Vec1, const VectorRegister4Double& Vec2)
-	{
-		const VectorRegister4Double Blended = ShuffleLanes<0, 0>(Vec1, Vec2);
-		return VectorSwizzleTemplate<Index0, Index1, Index2 + 2, Index3 + 2>(Blended);
-	}
-
-	// [2..3][2..3][2..3][2..3]
-	template <int Index0, int Index1, int Index2, int Index3, typename std::enable_if< InLane1(Index0, Index1) && InLane1(Index2, Index3), bool >::type = true>
-	FORCEINLINE VectorRegister4Double SelectVectorShuffle(const VectorRegister4Double& Vec1, const VectorRegister4Double& Vec2)
-	{
-		const VectorRegister4Double Blended = ShuffleLanes<1, 1>(Vec1, Vec2);
-		return VectorSwizzleTemplate<Index0 - 2, Index1 - 2, Index2, Index3>(Blended);
-	}
-
-	//
-	// Remaining cases have at least one pair doing a cross-lane swizzle.
-	//
-
-	template <int Index0, int Index1, int Index2, int Index3, typename std::enable_if< InSameLane(Index0, Index1) && OutOfLane(Index2, Index3), bool >::type = true>
-	FORCEINLINE VectorRegister4Double SelectVectorShuffle(const VectorRegister4Double& Vec1, const VectorRegister4Double& Vec2)
-	{
-		const VectorRegister4Double Vec1_XY = VectorSwizzleTemplate<Index0, Index1, 2, 3>(Vec1);
-		const VectorRegister2Double Vec2_ZW = SelectVectorSwizzle2<Index2, Index3>(Vec2);
-		return _mm256_insertf128_pd(Vec1_XY, Vec2_ZW, 0x1);
-	}
-
-	template <int Index0, int Index1, int Index2, int Index3, typename std::enable_if< OutOfLane(Index0, Index1) && InSameLane(Index2, Index3), bool >::type = true>
-	FORCEINLINE VectorRegister4Double SelectVectorShuffle(const VectorRegister4Double& Vec1, const VectorRegister4Double& Vec2)
-	{
-		const VectorRegister2Double Vec1_XY = SelectVectorSwizzle2<Index0, Index1>(Vec1);
-		const VectorRegister4Double Vec2_ZW = VectorSwizzleTemplate<0, 1, Index2, Index3>(Vec2);
-		return _mm256_insertf128_pd(Vec2_ZW, Vec1_XY, 0x0);
-	}
-
-	template <int Index0, int Index1, int Index2, int Index3, typename std::enable_if< OutOfLane(Index0, Index1) && OutOfLane(Index2, Index3), bool >::type = true>
-	FORCEINLINE VectorRegister4Double SelectVectorShuffle(const VectorRegister4Double& Vec1, const VectorRegister4Double& Vec2)
-	{
-		return VectorRegister4Double(
-			SelectVectorSwizzle2<Index0, Index1>(Vec1),
-			SelectVectorSwizzle2<Index2, Index3>(Vec2)
-		);
+		if constexpr (InLane0(Index0, Index1) && InLane1(Index2, Index3))
+		{
+			// [0..1][0..1][2..3][2..3]
+			const VectorRegister4Double Blended = ShuffleLanes<0, 1>(Vec1, Vec2);
+			return VectorSwizzleTemplate<Index0, Index1, Index2, Index3>(Blended);
+		}
+		else if constexpr (InLane1(Index0, Index1) && InLane0(Index2, Index3))
+		{
+			// [2..3][2..3][0..1][0..1]
+			const VectorRegister4Double Blended = ShuffleLanes<1, 0>(Vec1, Vec2);
+			return VectorSwizzleTemplate<Index0 - 2, Index1 - 2, Index2 + 2, Index3 + 2>(Blended);
+		}
+		else if constexpr (InLane0(Index0, Index1) && InLane0(Index2, Index3))
+		{
+			// [0..1][0..1][0..1][0..1]
+			const VectorRegister4Double Blended = ShuffleLanes<0, 0>(Vec1, Vec2);
+			return VectorSwizzleTemplate<Index0, Index1, Index2 + 2, Index3 + 2>(Blended);
+		}
+		else if constexpr (InLane1(Index0, Index1) && InLane1(Index2, Index3))
+		{
+			// [2..3][2..3][2..3][2..3]
+			const VectorRegister4Double Blended = ShuffleLanes<1, 1>(Vec1, Vec2);
+			return VectorSwizzleTemplate<Index0 - 2, Index1 - 2, Index2, Index3>(Blended);
+		}
+		else if constexpr (InSameLane(Index0, Index1) && OutOfLane(Index2, Index3))
+		{
+			const VectorRegister4Double Vec1_XY = VectorSwizzleTemplate<Index0, Index1, 2, 3>(Vec1);
+			const VectorRegister2Double Vec2_ZW = SelectVectorSwizzle2<Index2, Index3>(Vec2);
+			return _mm256_insertf128_pd(Vec1_XY, Vec2_ZW, 0x1);
+		}
+		else if constexpr (OutOfLane(Index0, Index1) && InSameLane(Index2, Index3))
+		{
+			const VectorRegister2Double Vec1_XY = SelectVectorSwizzle2<Index0, Index1>(Vec1);
+			const VectorRegister4Double Vec2_ZW = VectorSwizzleTemplate<0, 1, Index2, Index3>(Vec2);
+			return _mm256_insertf128_pd(Vec2_ZW, Vec1_XY, 0x0);
+		}
+		else
+		{
+			return VectorRegister4Double(
+				SelectVectorSwizzle2<Index0, Index1>(Vec1),
+				SelectVectorSwizzle2<Index2, Index3>(Vec2)
+			);
+		}
 	}
 
 	// AVX Double Shuffle specializations 
@@ -1214,7 +1199,11 @@ namespace SSEPermuteHelpers
 	template<> FORCEINLINE VectorRegister4Float VectorShuffleTemplate<0, 1, 0, 1>(const VectorRegister4Float& Vec1, const VectorRegister4Float& Vec2) { return _mm_movelh_ps(Vec1, Vec2); }
 	template<> FORCEINLINE VectorRegister4Float VectorShuffleTemplate<2, 3, 2, 3>(const VectorRegister4Float& Vec1, const VectorRegister4Float& Vec2) { return _mm_movehl_ps(Vec2, Vec1); } // Note: movehl copies first from the 2nd argument
 
-}; // namespace SSEPermuteHelpers
+#undef OutOfLane
+#undef InSameLane
+#undef InLane1
+#undef InLane0
+} // namespace SSEPermuteHelpers
 
 /**
  * Replicates one element into all four elements and returns the new vector.

@@ -69,8 +69,8 @@ public:
 
 	/** Construct a TGuardedInt from a regular signed integer value. If it's out of range, it results in an invalid value. */
 	template<
-		typename ValueType,
-		std::enable_if_t<std::is_integral_v<ValueType>>* = nullptr
+		typename ValueType
+		UE_REQUIRES(std::is_integral_v<ValueType>)
 	>
 	explicit TGuardedInt(ValueType InValue)
 		: Value((IntType)InValue), bIsValid(false)
