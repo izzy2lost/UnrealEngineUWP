@@ -210,7 +210,20 @@ void URigHierarchy::Save(FArchive& Ar)
 	Ar << PreviousNameMap;
 	Ar << PreviousParentMap;
 
-	Ar << ElementMetadata;
+	{
+		TMap<FRigElementKey, FMetadataStorage> ElementMetadataToSave;
+		
+		for (const FRigBaseElement* Element: Elements)
+		{
+			if (ElementMetadata.IsValidIndex(Element->MetadataStorageIndex))
+			{
+				ElementMetadataToSave.Add(Element->Key, ElementMetadata[Element->MetadataStorageIndex]);
+			}
+		}
+		
+		Ar << ElementMetadataToSave;
+	}
+	
 }
 
 void URigHierarchy::Load(FArchive& Ar)
@@ -320,7 +333,17 @@ void URigHierarchy::Load(FArchive& Ar)
 
 	if (Ar.CustomVer(FControlRigObjectVersion::GUID) >= FControlRigObjectVersion::RigHierarchyStoresElementMetadata)
 	{
-		Ar << ElementMetadata;
+		ElementMetadata.Reset();
+		ElementMetadataFreeList.Reset();
+		TMap<FRigElementKey, FMetadataStorage> LoadedElementMetadata;
+		
+		Ar << LoadedElementMetadata;
+		for (TPair<FRigElementKey, FMetadataStorage>& Entry: LoadedElementMetadata)
+		{
+			FRigBaseElement* Element = Find(Entry.Key);
+			Element->MetadataStorageIndex = ElementMetadata.Num();
+			ElementMetadata.Add(MoveTemp(Entry.Value));
+		}
 	}
 }
 
@@ -376,14 +399,15 @@ void URigHierarchy::Reset_Impl(bool bResetElements)
 		}
 		IndexLookup.Reset();
 
-		for (TTuple<FRigElementKey, FMetaDataStorage>& Metadata: ElementMetadata)
+		for (FMetadataStorage& MetadataStorage: ElementMetadata)
 		{
-			for (TTuple<FName, FRigBaseMetadata*>& Item: Metadata.Value.MetadataMap)
+			for (TTuple<FName, FRigBaseMetadata*>& Item: MetadataStorage.MetadataMap)
 			{
 				FRigBaseMetadata::DestroyMetadata(&Item.Value);
 			} 
 		}
 		ElementMetadata.Reset();
+		ElementMetadataFreeList.Reset();
 	}
 
 	ResetPoseHash = INDEX_NONE;
@@ -583,7 +607,7 @@ void URigHierarchy::CopyHierarchy(URigHierarchy* InHierarchy)
 
 		Target->CopyFrom(Source);
 
-		CopyAllMetadataFromElement(Target->GetKey(), Source);
+		CopyAllMetadataFromElement(Target, Source);
 	}
 
 	PreviousNameMap.Append(InHierarchy->PreviousNameMap);
@@ -1029,33 +1053,40 @@ TArray<FRigElementKey> URigHierarchy::RestoreConnectorsFromInfos(TArray<FRigConn
 TArray<FName> URigHierarchy::GetMetadataNames(FRigElementKey InItem) const
 {
 	TArray<FName> Names;
-	if(const FMetaDataStorage* Storage = ElementMetadata.Find(InItem))
+	if (const FRigBaseElement* Element = Find(InItem))
 	{
-		Storage->MetadataMap.GetKeys(Names);
+		if (Element->MetadataStorageIndex != INDEX_NONE)
+		{
+			ElementMetadata[Element->MetadataStorageIndex].MetadataMap.GetKeys(Names);
+		}
 	}
 	return Names;
 }
 
 ERigMetadataType URigHierarchy::GetMetadataType(FRigElementKey InItem, FName InMetadataName) const
 {
-	if(const FMetaDataStorage* Storage = ElementMetadata.Find(InItem))
+	if (const FRigBaseElement* Element = Find(InItem))
 	{
-		if (const FRigBaseMetadata* const* MetadataPtrPtr = Storage->MetadataMap.Find(InMetadataName))
+		if (Element->MetadataStorageIndex != INDEX_NONE)
 		{
-			return (*MetadataPtrPtr)->GetType();
+			if (const FRigBaseMetadata* const* MetadataPtrPtr = ElementMetadata[Element->MetadataStorageIndex].MetadataMap.Find(InMetadataName))
+			{
+				return (*MetadataPtrPtr)->GetType();
+			}
 		}
 	}
+	
 	return ERigMetadataType::Invalid;
 }
 
 bool URigHierarchy::RemoveMetadata(FRigElementKey InItem, FName InMetadataName)
 {
-	return RemoveMetadataForElement(InItem, InMetadataName);
+	return RemoveMetadataForElement(Find(InItem), InMetadataName);
 }
 
 bool URigHierarchy::RemoveAllMetadata(FRigElementKey InItem)
 {
-	return RemoveAllMetadataForElement(InItem);
+	return RemoveAllMetadataForElement(Find(InItem));
 }
 
 TArray<const FRigBaseElement*> URigHierarchy::GetSelectedElements(ERigElementType InTypeFilter) const
@@ -5248,16 +5279,18 @@ void URigHierarchy::CleanupInvalidCaches()
 	EnsureCacheValidity();
 }
 
-void URigHierarchy::FMetaDataStorage::Reset()
+void URigHierarchy::FMetadataStorage::Reset()
 {
 	for (TTuple<FName, FRigBaseMetadata*>& Item: MetadataMap)
 	{
 		FRigBaseMetadata::DestroyMetadata(&Item.Value);
 	}
 	MetadataMap.Reset();
+	LastAccessName = NAME_None;
+	LastAccessMetadata = nullptr;
 }
 
-void URigHierarchy::FMetaDataStorage::Serialize(FArchive& Ar)
+void URigHierarchy::FMetadataStorage::Serialize(FArchive& Ar)
 {
 	static const UEnum* MetadataTypeEnum = StaticEnum<ERigMetadataType>();
 	
@@ -5316,160 +5349,185 @@ void URigHierarchy::OnMetadataTagChanged(const FRigElementKey& InKey, const FNam
 	}
 }
 
-FRigBaseMetadata* URigHierarchy::GetMetadataForElement(const FRigElementKey& InKey, const FName& InName, ERigMetadataType InType, bool bInNotify)
+FRigBaseMetadata* URigHierarchy::GetMetadataForElement(FRigBaseElement* InElement, const FName& InName, ERigMetadataType InType, bool bInNotify)
 {
-	FMetaDataStorage* Storage = ElementMetadata.Find(InKey);
-	if (!Storage)
+	if (!ElementMetadata.IsValidIndex(InElement->MetadataStorageIndex))
 	{
-		Storage = &ElementMetadata.Add(InKey);
+		// Do we have entries in the freelist we can recycle?
+		if (!ElementMetadataFreeList.IsEmpty())
+		{
+			constexpr bool bAllowShrinking = false;
+			InElement->MetadataStorageIndex = ElementMetadataFreeList.Pop(bAllowShrinking);
+		}
+		else
+		{
+			InElement->MetadataStorageIndex = ElementMetadata.Num();
+			ElementMetadata.AddDefaulted();
+		}
 	}
 	
-	if (FRigBaseMetadata** MetadataPtrPtr = Storage->MetadataMap.Find(InName))
+	FMetadataStorage& Storage = ElementMetadata[InElement->MetadataStorageIndex];
+
+	// If repeatedly accessing the same element, store it here for faster access to avoid map lookups.
+	if (Storage.LastAccessName == InName && Storage.LastAccessMetadata->GetType() == InType)
+	{
+		return Storage.LastAccessMetadata;
+	}
+
+	FRigBaseMetadata* Metadata;
+	if (FRigBaseMetadata** MetadataPtrPtr = Storage.MetadataMap.Find(InName))
 	{
 		if ((*MetadataPtrPtr)->GetType() == InType)
 		{
-			return (*MetadataPtrPtr);
+			Metadata = *MetadataPtrPtr;
 		}
-		
-		// The type changed, replace the existing metadata with a new one of the correct type.
-		FRigBaseMetadata::DestroyMetadata(MetadataPtrPtr);
-		*MetadataPtrPtr = FRigBaseMetadata::MakeMetadata(InName, InType);
-		if (bInNotify)
+		else
 		{
-			OnMetadataChanged(InKey, InName);
-		}
+			// The type changed, replace the existing metadata with a new one of the correct type.
+			FRigBaseMetadata::DestroyMetadata(MetadataPtrPtr);
+			Metadata = *MetadataPtrPtr = FRigBaseMetadata::MakeMetadata(InName, InType);
 			
-		return *MetadataPtrPtr;
+			if (bInNotify)
+			{
+				OnMetadataChanged(InElement->Key, InName);
+			}
+		}
+	}
+	else
+	{
+		// No metadata with that name existed on the element, create one from scratch.
+		Metadata = FRigBaseMetadata::MakeMetadata(InName, InType);
+		Storage.MetadataMap.Add(InName, Metadata);
 	}
 	
-	// No metadata with that name existed on the element, create one from scratch.
-	FRigBaseMetadata* Metadata = FRigBaseMetadata::MakeMetadata(InName, InType);
-	Storage->MetadataMap.Add(InName, Metadata);
-	if (bInNotify)
-	{
-		OnMetadataChanged(InKey, InName);
-	}
+	Storage.LastAccessName = InName;
+	Storage.LastAccessMetadata = Metadata;
 	return Metadata;
 }
 
 
-FRigBaseMetadata* URigHierarchy::FindMetadataForElement(const FRigElementKey& InKey, const FName& InName, ERigMetadataType InType)
+FRigBaseMetadata* URigHierarchy::FindMetadataForElement(const FRigBaseElement* InElement, const FName& InName, ERigMetadataType InType)
 {
-	FMetaDataStorage* Storage = ElementMetadata.Find(InKey);
-	if (!Storage)
+	if (!ElementMetadata.IsValidIndex(InElement->MetadataStorageIndex))
 	{
 		return nullptr;
 	}
+
+	FMetadataStorage& Storage = ElementMetadata[InElement->MetadataStorageIndex];
+	if (InName == Storage.LastAccessName && (InType == ERigMetadataType::Invalid || Storage.LastAccessMetadata->GetType() == InType))
+	{
+		return Storage.LastAccessMetadata;
+	}
 	
-	FRigBaseMetadata** MetadataPtrPtr = Storage->MetadataMap.Find(InName);
+	FRigBaseMetadata** MetadataPtrPtr = Storage.MetadataMap.Find(InName);
 	if (!MetadataPtrPtr)
 	{
+		Storage.LastAccessName = NAME_None;
+		Storage.LastAccessMetadata = nullptr;
 		return nullptr;
 	}
 
 	if (InType != ERigMetadataType::Invalid && (*MetadataPtrPtr)->GetType() != InType)
 	{
+		Storage.LastAccessName = NAME_None;
+		Storage.LastAccessMetadata = nullptr;
 		return nullptr;
 	}
+
+	Storage.LastAccessName = InName;
+	Storage.LastAccessMetadata = *MetadataPtrPtr;
 
 	return *MetadataPtrPtr;
 }
 
-const FRigBaseMetadata* URigHierarchy::FindMetadataForElement(const FRigElementKey& InKey, const FName& InName, ERigMetadataType InType) const
+const FRigBaseMetadata* URigHierarchy::FindMetadataForElement(const FRigBaseElement* InElement, const FName& InName, ERigMetadataType InType) const
 {
-	return const_cast<URigHierarchy*>(this)->FindMetadataForElement(InKey, InName, InType);
+	return const_cast<URigHierarchy*>(this)->FindMetadataForElement(InElement, InName, InType);
 }
 
 
-bool URigHierarchy::RemoveMetadataForElement(const FRigElementKey& InKey, const FName& InName)
+bool URigHierarchy::RemoveMetadataForElement(FRigBaseElement* InElement, const FName& InName)
 {
-	FMetaDataStorage* Storage = ElementMetadata.Find(InKey);
-	if (!Storage)
+	if (!ElementMetadata.IsValidIndex(InElement->MetadataStorageIndex))
 	{
 		return false;
 	}
-	
-	FRigBaseMetadata** MetadataPtrPtr = Storage->MetadataMap.Find(InName);
+
+	FMetadataStorage& Storage = ElementMetadata[InElement->MetadataStorageIndex];
+	FRigBaseMetadata** MetadataPtrPtr = Storage.MetadataMap.Find(InName);
 	if (!MetadataPtrPtr)
 	{
 		return false;
 	}
 	
 	FRigBaseMetadata::DestroyMetadata(MetadataPtrPtr);
-	Storage->MetadataMap.Remove(InName);
-	
+	Storage.MetadataMap.Remove(InName);
+
 	// If the storage is now empty, remove the element's storage, so we're not lugging it around
-	// unnecessarily. 
-	if (Storage->MetadataMap.IsEmpty())
+	// unnecessarily. Add the storage slot to the freelist so that the next element to add a new
+	// metadata storage can just recycle that.
+	if (Storage.MetadataMap.IsEmpty())
 	{
-		ElementMetadata.Remove(InKey);
+		ElementMetadataFreeList.Add(InElement->MetadataStorageIndex);
+		InElement->MetadataStorageIndex = INDEX_NONE;
+	}
+	else if (Storage.LastAccessName == InName)
+	{
+		Storage.LastAccessMetadata = nullptr;
 	}
 	
-	OnMetadataChanged(InKey, InName);
+	OnMetadataChanged(InElement->Key, InName);
 	return true;
 }
 
 
-bool URigHierarchy::RemoveAllMetadataForElement(const FRigElementKey& InKey)
+bool URigHierarchy::RemoveAllMetadataForElement(FRigBaseElement* InElement)
 {
-	FMetaDataStorage* Storage = ElementMetadata.Find(InKey);
-	if (!Storage || Storage->MetadataMap.IsEmpty())
+	if (!ElementMetadata.IsValidIndex(InElement->MetadataStorageIndex))
 	{
 		return false;
 	}
 
-	for (TTuple<FName, FRigBaseMetadata*>& Item: Storage->MetadataMap)
-	{
-		FRigBaseMetadata::DestroyMetadata(&Item.Value);
-	} 
 	
-	for (TTuple<FName, FRigBaseMetadata*>& Item: Storage->MetadataMap)
+	FMetadataStorage& Storage = ElementMetadata[InElement->MetadataStorageIndex];
+	TArray<FName> Names;
+	Storage.MetadataMap.GetKeys(Names);
+	
+	// Clear the storage for the next user.
+	Storage.Reset();
+	
+	ElementMetadataFreeList.Push(InElement->MetadataStorageIndex);
+	InElement->MetadataStorageIndex = INDEX_NONE;
+	
+	for (FName Name: Names)
 	{
-		OnMetadataChanged(InKey, Item.Key);
+		OnMetadataChanged(InElement->Key, Name);
 	}
-	
-	ElementMetadata.Remove(InKey);
 	
 	return true; 
 }
 
 
-void URigHierarchy::CopyAllMetadataFromElement(const FRigElementKey& InTargetKey, const FRigBaseElement* InSourceElement)
+void URigHierarchy::CopyAllMetadataFromElement(FRigBaseElement* InTargetElement, const FRigBaseElement* InSourceElement)
 {
 	if (!ensure(InSourceElement->Owner))
 	{
 		return;
 	}
-	
-	const FMetaDataStorage* SourceStorage = InSourceElement->Owner->ElementMetadata.Find(InSourceElement->GetKey());
-	if (!SourceStorage)
+
+	if (!InSourceElement->Owner->ElementMetadata.IsValidIndex(InSourceElement->MetadataStorageIndex))
 	{
 		return;
 	}
-
-	FMetaDataStorage* TargetStorage = ElementMetadata.Find(InTargetKey);
-	if (!TargetStorage)
-	{
-		TargetStorage = &ElementMetadata.Add(InTargetKey);
-	}
 	
-	for (const TTuple<FName, FRigBaseMetadata*>& SourceItem: SourceStorage->MetadataMap)
+	const FMetadataStorage& SourceStorage = InSourceElement->Owner->ElementMetadata[InSourceElement->MetadataStorageIndex];
+	
+	for (const TTuple<FName, FRigBaseMetadata*>& SourceItem: SourceStorage.MetadataMap)
 	{
-			
 		const FRigBaseMetadata* SourceMetadata = SourceItem.Value; 	
-		// Does the destination item already exist?
-		FRigBaseMetadata** TargetMetadataPtrPtr = TargetStorage->MetadataMap.Find(SourceItem.Key);
-		FRigBaseMetadata* TargetMetadata;
-		if (TargetMetadataPtrPtr)
-		{
-			FRigBaseMetadata::DestroyMetadata(TargetMetadataPtrPtr);
-			TargetMetadata = *TargetMetadataPtrPtr = FRigBaseMetadata::MakeMetadata(SourceItem.Key, SourceMetadata->GetType());
-		}
-		else
-		{
-			TargetMetadata = FRigBaseMetadata::MakeMetadata(SourceItem.Key, SourceMetadata->GetType());
-			TargetStorage->MetadataMap.Add(SourceItem.Key, TargetMetadata);
-		}
+
+		constexpr bool bNotify = false;
+		FRigBaseMetadata* TargetMetadata = GetMetadataForElement(InTargetElement, SourceItem.Key, SourceMetadata->GetType(), bNotify);
 		TargetMetadata->SetValueData(SourceMetadata->GetValueData(), SourceMetadata->GetValueSize());
 	}
 }
@@ -6916,3 +6974,4 @@ FRigHierarchyRedirectorGuard::FRigHierarchyRedirectorGuard(UControlRig* InContro
 : Guard(InControlRig->GetHierarchy()->ElementKeyRedirector, &InControlRig->GetElementKeyRedirector())
 {
 }
+;

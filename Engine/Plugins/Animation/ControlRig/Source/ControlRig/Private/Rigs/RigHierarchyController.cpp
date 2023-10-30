@@ -2332,14 +2332,6 @@ bool URigHierarchyController::RenameElement(FRigBaseElement* InElement, const FN
 		}
 	}
 
-	// Rename metadata
-	URigHierarchy::FMetaDataStorage MetadataStorage;
-	if (Hierarchy->ElementMetadata.RemoveAndCopyValue(OldKey, MetadataStorage))
-	{
-		Hierarchy->ElementMetadata.Add(NewKey, MoveTemp(MetadataStorage));
-	}
-	
-	
 	Hierarchy->PreviousNameMap.FindOrAdd(NewKey) = OldKey;
 	Hierarchy->IncrementTopologyVersion();
 	Notify(ERigHierarchyNotification::ElementRenamed, InElement);

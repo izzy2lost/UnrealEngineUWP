@@ -4109,14 +4109,16 @@ private:
 	mutable TArray<TArray<FRigBaseElement*>> ElementsPerType;
 
 	//
-	struct FMetaDataStorage
+	struct FMetadataStorage
 	{
 		TMap<FName, FRigBaseMetadata*> MetadataMap;
+		FName LastAccessName;
+		FRigBaseMetadata* LastAccessMetadata = nullptr;
 
 		void Reset();
 		void Serialize(FArchive& Ar);
 
-		friend FArchive& operator<<(FArchive& Ar, FMetaDataStorage& Storage)
+		friend FArchive& operator<<(FArchive& Ar, FMetadataStorage& Storage)
 		{
 			Storage.Serialize(Ar);
 			return Ar;
@@ -4132,7 +4134,10 @@ private:
 	// to reduce memory consumption. Only elements created by MakeElement point to
 	// the element storage. Copied elements via the copy constructor or copy operator
 	// do not have URigHierarchy as an owner and therefore do not carry metadata with them.
-	TMap<FRigElementKey, FMetaDataStorage> ElementMetadata;
+	TArray<FMetadataStorage> ElementMetadata;
+
+	// List of metadata storage entries that have been freed and can be recycled.
+	TArray<int32> ElementMetadataFreeList;
 
 	// A quick-lookup cache for elements' children. Each element that has a ChildCacheIndex
 	// not equal to INDEX_NONE is an index into the offset and count cache below, which in
@@ -4524,7 +4529,7 @@ private:
 	{
 		if(InElement)
 		{
-			if(const FRigBaseMetadata* Metadata = FindMetadataForElement(InElement->GetKey(), InMetadataName, InType))
+			if(const FRigBaseMetadata* Metadata = FindMetadataForElement(InElement, InMetadataName, InType))
 			{
 				return *static_cast<const T*>(Metadata->GetValueData());
 			}
@@ -4557,7 +4562,7 @@ private:
 		if(InElement)
 		{
 			constexpr bool bNotify = true;
-			if (FRigBaseMetadata* Metadata = GetMetadataForElement(InElement->GetKey(), InMetadataName, InType, bNotify))
+			if (FRigBaseMetadata* Metadata = GetMetadataForElement(InElement, InMetadataName, InType, bNotify))
 			{
 				return Metadata->SetValueData(&InValue, sizeof(T));
 			}
@@ -4584,21 +4589,21 @@ private:
 	    is created for that element. If the name matches but the type differs, the existing metadata is destroyed and a new one with the
 	    matching type is created instead.
 	    */
-	FRigBaseMetadata* GetMetadataForElement(const FRigElementKey& InKey, const FName& InName, ERigMetadataType InType, bool bInNotify);
+	FRigBaseMetadata* GetMetadataForElement(FRigBaseElement* InElement, const FName& InName, ERigMetadataType InType, bool bInNotify);
 	
 	/** Attempts to find element's metadata of the given name and type. If either the element doesnt exist, the name doesn't exist or the
 	    type doesn't match, then \c nullptr is returned.
 	    */ 
-	FRigBaseMetadata* FindMetadataForElement(const FRigElementKey& InKey, const FName& InName, ERigMetadataType InType);
-	const FRigBaseMetadata* FindMetadataForElement(const FRigElementKey& InKey, const FName& InName, ERigMetadataType InType) const;
+	FRigBaseMetadata* FindMetadataForElement(const FRigBaseElement* InElement, const FName& InName, ERigMetadataType InType);
+	const FRigBaseMetadata* FindMetadataForElement(const FRigBaseElement* InElement, const FName& InName, ERigMetadataType InType) const;
 	
 	/** Removes the named meta data for the given element, regardless of type. If the element doesn't exist, or it doesn't have any
 	    metadata of the given name, this function does nothing and returns \c false.
 		*/
-	bool RemoveMetadataForElement(const FRigElementKey& InKey, const FName& InName);
-	bool RemoveAllMetadataForElement(const FRigElementKey& InKey);
+	bool RemoveMetadataForElement(FRigBaseElement* InElement, const FName& InName);
+	bool RemoveAllMetadataForElement(FRigBaseElement* InElement);
 	
-	void CopyAllMetadataFromElement(const FRigElementKey& InTargetKey, const FRigBaseElement* InSourceElement);
+	void CopyAllMetadataFromElement(FRigBaseElement* InTargetElement, const FRigBaseElement* InSourceElement);
 	
 protected:
 	bool bEnableCacheValidityCheck;
@@ -4687,6 +4692,8 @@ private:
 	friend struct FRigHierarchyEnableControllerBracket;
 	friend struct FRigHierarchyExecuteContextBracket;
 	friend struct FRigHierarchyRedirectorGuard;
+	friend struct FRigDispatch_GetMetadata;
+	friend struct FRigDispatch_SetMetadata;
 };
 
 struct CONTROLRIG_API FRigHierarchyInteractionBracket

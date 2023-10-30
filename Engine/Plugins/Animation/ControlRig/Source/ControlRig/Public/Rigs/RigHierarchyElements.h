@@ -644,6 +644,9 @@ protected:
 
 	// Index into the child cache offset and count table in URigHierarchy. Set by URigHierarchy::UpdateCachedChildren
 	int32 ChildCacheIndex = INDEX_NONE;
+
+	// Index into the metadata storage for this element.
+	int32 MetadataStorageIndex = INDEX_NONE;
 	
 	mutable FString CachedNameString;
 

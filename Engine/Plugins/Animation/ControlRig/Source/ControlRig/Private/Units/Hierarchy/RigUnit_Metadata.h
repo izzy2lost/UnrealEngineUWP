@@ -93,13 +93,13 @@ protected:
 #endif
 
 		// unpack the memory
-		const FRigElementKey& Item = *(const FRigElementKey*)Handles[Factory->ItemArgIndex].GetData();
-		const FName& Name = *(const FName*)Handles[Factory->NameArgIndex].GetData();
-		const bool bUseNameSpace = *(const bool*)Handles[Factory->UseNameSpaceArgIndex].GetData();
-		FCachedRigElement& Cache = *(FCachedRigElement*)Handles[Factory->CacheArgIndex].GetData(false, InContext.GetSlice().GetIndex());
-		const ValueType& Default = *(const ValueType*)Handles[Factory->DefaultArgIndex].GetData();
-		ValueType& Value = *(ValueType*)Handles[Factory->ValueArgIndex].GetData();
-		bool& Found = *(bool*)Handles[Factory->FoundArgIndex].GetData();
+		const FRigElementKey& Item = *reinterpret_cast<const FRigElementKey*>(Handles[Factory->ItemArgIndex].GetData());
+		const FName& Name = *reinterpret_cast<const FName*>(Handles[Factory->NameArgIndex].GetData());
+		const bool bUseNameSpace = *reinterpret_cast<const bool*>(Handles[Factory->UseNameSpaceArgIndex].GetData());
+		FCachedRigElement& Cache = *reinterpret_cast<FCachedRigElement*>(Handles[Factory->CacheArgIndex].GetData(false, InContext.GetSlice().GetIndex()));
+		const ValueType& Default = *reinterpret_cast<const ValueType*>(Handles[Factory->DefaultArgIndex].GetData());
+		ValueType& Value = *reinterpret_cast<ValueType*>(Handles[Factory->ValueArgIndex].GetData());
+		bool& Found = *reinterpret_cast<bool*>(Handles[Factory->FoundArgIndex].GetData());
 
 		// extract the metadata
 		if (const MetadataType* Md = Cast<MetadataType>(FindMetadata(InContext, Item, Name, EnumValue, bUseNameSpace, Cache)))
@@ -129,7 +129,7 @@ struct CONTROLRIG_API FRigDispatch_SetMetadata : public FRigDispatch_MetadataBas
 
 protected:
 
-	static FRigBaseMetadata* FindOrAddMetadata(FControlRigExecuteContext& InContext, const FRigElementKey& InKey, const FName& InName, ERigMetadataType InType, bool bUseNameSpace, FCachedRigElement& Cache);
+	static FRigBaseMetadata* FindOrAddMetadata(const FControlRigExecuteContext& InContext, const FRigElementKey& InKey, const FName& InName, ERigMetadataType InType, bool bUseNameSpace, FCachedRigElement& Cache);
 	virtual FRigVMFunctionPtr GetDispatchFunctionImpl(const FRigVMTemplateTypeMap& InTypes) const override;
 
 #if WITH_EDITOR

@@ -19,7 +19,7 @@ FRigBaseElement::~FRigBaseElement()
 {
 	if (Owner)
 	{
-		Owner->RemoveAllMetadataForElement(Key);
+		Owner->RemoveAllMetadataForElement(this);
 	}
 }
 
@@ -122,7 +122,7 @@ void FRigBaseElement::Load(FArchive& Ar, ESerializationPhase SerializationPhase)
 
 				const ERigMetadataType MetadataType = static_cast<ERigMetadataType>(MetadataTypeEnum->GetValueByName(MetadataTypeName));
 
-				FRigBaseMetadata* Md = Owner->GetMetadataForElement(Key, MetadataName, MetadataType, false);
+				FRigBaseMetadata* Md = Owner->GetMetadataForElement(this, MetadataName, MetadataType, false);
 				Md->Serialize(Ar);
 			}
 		}
@@ -136,7 +136,7 @@ FRigBaseMetadata* FRigBaseElement::GetMetadata(const FName& InName, ERigMetadata
 	{
 		return nullptr;
 	}
-	return Owner->FindMetadataForElement(Key, InName, InType);
+	return Owner->FindMetadataForElement(this, InName, InType);
 }
 
 
@@ -146,7 +146,7 @@ const FRigBaseMetadata* FRigBaseElement::GetMetadata(const FName& InName, ERigMe
 	{
 		return nullptr;
 	}
-	return Owner->FindMetadataForElement(Key, InName, InType);
+	return Owner->FindMetadataForElement(this, InName, InType);
 }
 
 
@@ -155,7 +155,7 @@ bool FRigBaseElement::SetMetadata(const FName& InName, ERigMetadataType InType, 
 	if (Owner)
 	{
 		constexpr bool bNotify = true;
-		if (FRigBaseMetadata* Metadata = Owner->GetMetadataForElement(Key, InName, InType, bNotify))
+		if (FRigBaseMetadata* Metadata = Owner->GetMetadataForElement(this, InName, InType, bNotify))
 		{
 			Metadata->SetValueData(InData, InSize);
 			return true;
@@ -171,7 +171,7 @@ FRigBaseMetadata* FRigBaseElement::SetupValidMetadata(const FName& InName, ERigM
 		return nullptr;
 	}
 	constexpr bool bNotify = true;
-	return Owner->GetMetadataForElement(Key, InName, InType, bNotify);
+	return Owner->GetMetadataForElement(this, InName, InType, bNotify);
 }
 
 
@@ -181,7 +181,7 @@ bool FRigBaseElement::RemoveMetadata(const FName& InName)
 	{
 		return false;
 	}
-	return Owner->RemoveMetadataForElement(Key, InName);
+	return Owner->RemoveMetadataForElement(this, InName);
 }
 
 bool FRigBaseElement::RemoveAllMetadata()
@@ -190,7 +190,7 @@ bool FRigBaseElement::RemoveAllMetadata()
 	{
 		return false;
 	}
-	return Owner->RemoveAllMetadataForElement(Key);
+	return Owner->RemoveAllMetadataForElement(this);
 }
 
 void FRigBaseElement::NotifyMetadataTagChanged(const FName& InTag, bool bAdded)

@@ -194,12 +194,7 @@ FRigBaseMetadata* FRigDispatch_GetMetadata::FindMetadata(const FRigVMExtendedExe
 		{
 			// first try to find the metadata in the namespace
 			const FName Name = ExecuteContext.AdaptMetadataName(bUseNameSpace, InName);
-			if(FRigBaseMetadata* Metadata = Element->GetMetadata(Name, InType))
-			{
-				return Metadata;
-			}
-			
-			return Element->GetMetadata(InName, InType);
+			return ExecuteContext.Hierarchy->FindMetadataForElement(Element, Name, InType);
 		};
 	}
 	return nullptr;
@@ -315,7 +310,7 @@ const TArray<FRigVMExecuteArgument>& FRigDispatch_SetMetadata::GetExecuteArgumen
 	return ExecuteArguments;
 }
 
-FRigBaseMetadata* FRigDispatch_SetMetadata::FindOrAddMetadata(FControlRigExecuteContext& InContext,
+FRigBaseMetadata* FRigDispatch_SetMetadata::FindOrAddMetadata(const FControlRigExecuteContext& InContext,
                                                               const FRigElementKey& InKey, const FName& InName, ERigMetadataType InType,
                                                               bool bUseNameSpace, FCachedRigElement& Cache)
 {
@@ -324,7 +319,8 @@ FRigBaseMetadata* FRigDispatch_SetMetadata::FindOrAddMetadata(FControlRigExecute
 		if(FRigBaseElement* Element = InContext.Hierarchy->Get(Cache.GetIndex()))
 		{
 			const FName Name = InContext.AdaptMetadataName(bUseNameSpace, InName);
-			return Element->SetupValidMetadata(Name, InType);
+			constexpr bool bNotify = true;
+			return InContext.Hierarchy->GetMetadataForElement(Element, Name, InType, bNotify);
 		}
 	}
 	return nullptr;
