@@ -2628,12 +2628,13 @@ float4 SceneTextureLookup(float2 UV, int SceneTextureIndex, bool bFiltered)
 
 #if SHADING_PATH_DEFERRED
 
-/** Applies an offset to the scene texture lookup and decodes the HDR linear space color. */
-float3 DecodeSceneColorForMaterialNode(float2 ScreenUV)
+
+/** Applies an offset to the scene texture lookup and decodes the HDR linear space color and alpha. */
+float4 DecodeSceneColorAndAlpharForMaterialNode(float2 ScreenUV)
 {
 #if !defined(SceneColorCopyTexture)
 	// Hit proxies rendering pass doesn't have access to valid render buffers
-	return float3(0.0f, 0.0f, 0.0f);
+	return float4(0.0f, 0.0f, 0.0f, 0.0f);
 #else
 	float4 EncodedSceneColor = Texture2DSample(SceneColorCopyTexture, SceneColorCopySampler, ScreenUV);
 
@@ -2642,8 +2643,14 @@ float3 DecodeSceneColorForMaterialNode(float2 ScreenUV)
 
 	SampledColor *= View.OneOverPreExposure.xxx;
 
-	return SampledColor;
+	return float4(SampledColor, EncodedSceneColor.a);
 #endif
+}
+
+/** Applies an offset to the scene texture lookup and decodes the HDR linear space color. */
+float3 DecodeSceneColorForMaterialNode(float2 ScreenUV)
+{
+	return DecodeSceneColorAndAlpharForMaterialNode(ScreenUV).rgb;
 }
 
 #endif // SHADING_PATH_DEFERRED
