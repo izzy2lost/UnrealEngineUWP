@@ -7382,6 +7382,17 @@ namespace
 	}
 }
 
+static bool IsSubstrateSupportForShaderPipeline(const FShaderCompilerInput& Input)
+{
+	// Substrate requires HLSL2021 which must be cross-compiled for D3D11 to be consumed by FXC compiler.
+	// This cross-compilation toolchain does not support geometry shaders.
+	bool bPipelineContainsGeometryShader = false;
+	Input.Environment.GetCompileArgument(TEXT("PIPELINE_CONTAINS_GEOMETRYSHADER"), bPipelineContainsGeometryShader);
+	const bool bCanRHICompileHlsl2021GeometryShaders = !(GetMaxSupportedFeatureLevel((EShaderPlatform)Input.Target.Platform) == ERHIFeatureLevel::SM5);
+	const bool bIsSubstrateSupportedForPipeline = !bPipelineContainsGeometryShader || bCanRHICompileHlsl2021GeometryShaders;
+	return bIsSubstrateSupportedForPipeline;
+}
+
 void GlobalBeginCompileShader(
 	const FString& DebugGroupName,
 	const FVertexFactoryType* VFType,
@@ -8079,7 +8090,7 @@ void GlobalBeginCompileShader(
 		SET_SHADER_DEFINE(Input.Environment, SUPPORT_VSM_FOWARD_QUALITY, bHighQualityShadow ? 1 : 0);
 	}
 
-	const bool bSubstrate = Substrate::IsSubstrateEnabled();
+	const bool bSubstrate = Substrate::IsSubstrateEnabled() && IsSubstrateSupportForShaderPipeline(Input);
 	{
 		SET_SHADER_DEFINE(Input.Environment, SUBSTRATE_ENABLED, bSubstrate ? 1 : 0);
 

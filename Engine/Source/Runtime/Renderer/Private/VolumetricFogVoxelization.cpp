@@ -278,6 +278,7 @@ public:
 	{
 		FMeshMaterialShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
 		OutEnvironment.SetDefine(TEXT("MAX_SLICES_PER_VOXELIZATION_PASS"), GetVoxelizationSlicesPerPass(Parameters.Platform));
+		OutEnvironment.SetCompileArgument(TEXT("PIPELINE_CONTAINS_GEOMETRYSHADER"), true);
 	}
 
 	void GetShaderBindings(
