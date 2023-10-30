@@ -9,6 +9,7 @@
 #include "Animation/AnimMontage.h"
 #include "BlendStack/AnimNode_BlendStackInput.h"
 #include "Animation/AnimNode_Inertialization.h"
+#include "BlendStackAnimEventsFilterScope.h"
 #include "BlendStack/BlendStackDefines.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(AnimNode_BlendStack)
@@ -519,6 +520,12 @@ void FAnimNode_BlendStack_Standalone::Initialize_AnyThread(const FAnimationIniti
 {
 	Super::Initialize_AnyThread(Context);
 
+	if (bShouldFilterNotifies)
+	{
+		NotifiesFiredLastTick = MakeShared<TArray<FName>>();
+		NotifyRecencyMap = MakeShared<TMap<FName, float>>();
+	}
+	
 	Reset();
 
 	if (SampleGraphPoseLinks.IsEmpty() == false)
@@ -556,6 +563,32 @@ void FAnimNode_BlendStack_Standalone::UpdateAssetPlayer(const FAnimationUpdateCo
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_BlendStack_UpdateAssetPlayer);
 
 	Super::UpdateAssetPlayer(Context);
+
+	if (bShouldFilterNotifies)
+	{
+		if (const UWorld* World = Context.GetAnimInstanceObject()->GetWorld())
+		{
+			const double CurrentGameTime = World->GetTimeSeconds();
+		
+			// Set target time-outs for notifies fired last tick.
+			for (const FName & NotifyName : *NotifiesFiredLastTick)
+			{
+				NotifyRecencyMap->FindOrAdd(NotifyName) = CurrentGameTime + NotifyRecencyTimeOut;
+			}
+			NotifiesFiredLastTick->Reset();
+			
+			// Find notifies that have timed-out and should be allowed to fire this tick.
+			for (auto It = NotifyRecencyMap->CreateIterator(); It; ++It)
+			{
+				if (CurrentGameTime >= It->Value)
+				{
+					It.RemoveCurrent();
+				}
+			}
+		}
+	}
+	
+	UE::Anim::TOptionalScopedGraphMessage<UE::Anim::FBlendStackAnimEventsFilterScope> BlendStackInfoScope(bShouldFilterNotifies, Context, NotifiesFiredLastTick, NotifyRecencyMap);
 
 	// AnimPlayers[0] is the most newly inserted AnimPlayer, AnimPlayers[AnimPlayers.Num()-1] is the oldest, so to calculate the weights
 	// we ask AnimPlayers[0] its BlendInPercentage and then distribute the left over (CurrentWeightMultiplier) to the rest of the AnimPlayers
@@ -759,6 +792,12 @@ void FAnimNode_BlendStack_Standalone::Reset()
 	// reserving MaxActiveBlends + 2 AnimPlayers, to avoid any reallocation
 	AnimPlayers.Reserve(MaxActiveBlends + 2);
 	AnimPlayers.Reset();
+
+	if (bShouldFilterNotifies)
+	{
+		NotifiesFiredLastTick->Reset();
+		NotifyRecencyMap->Reset();
+	}
 }
 
 int32 FAnimNode_BlendStack_Standalone::GetNextPoseLinkIndex()

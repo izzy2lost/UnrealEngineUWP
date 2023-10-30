@@ -117,6 +117,10 @@ struct BLENDSTACK_API FAnimNode_BlendStack_Standalone : public FAnimNode_AssetPl
 	UPROPERTY(Transient)
 	TArray<FBlendStackAnimPlayer> AnimPlayers;
 
+	// Flag that determines if any notifies from originating from an anim player samples should be filtered or not.
+	UPROPERTY(EditAnywhere, Category = Settings)
+	bool bShouldFilterNotifies = false;
+	
 	// FAnimNode_Base interface
 	virtual void Evaluate_AnyThread(FPoseContext& Output) override;
 	virtual void Initialize_AnyThread(const FAnimationInitializeContext& Context) override;
@@ -156,6 +160,13 @@ protected:
 	// but once reached the MaxActiveBlends, blendstack will start discarding animations, potentially resulting in animation pops
 	UPROPERTY(EditAnywhere, Category = Settings)
 	bool bStoreBlendedPose = true;
+
+    TSharedPtr<TArray<FName>> NotifiesFiredLastTick;
+	TSharedPtr<TMap<FName,float>> NotifyRecencyMap;
+
+	// Window of time after firing a notify that any instance of the same notify will be filtered out.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta = (ClampMin = "0", PinHiddenByDefault))
+	float NotifyRecencyTimeOut = 0.2f;
 
 private:
 	void PopLastAnimPlayer();

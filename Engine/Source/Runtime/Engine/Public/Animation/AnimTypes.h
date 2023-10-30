@@ -341,6 +341,10 @@ struct FAnimNotifyEvent : public FAnimLinkableElement
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = AnimNotifyTriggerSettings, meta = (ClampMin = "0"))
 	int32 NotifyFilterLOD;
 
+	/** Allow notify event to be filtered if requested at runtime (e. g. via an Anim Graph Message) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = AnimNotifyTriggerSettings)
+	bool bCanBeFilteredViaRequest;
+	
 	/** If disabled this notify will be skipped on dedicated servers */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = AnimNotifyTriggerSettings)
 	bool bTriggerOnDedicatedServer;
@@ -387,6 +391,7 @@ public:
 		, NotifyTriggerChance(1.f)
 		, NotifyFilterType(ENotifyFilterType::NoFiltering)
 		, NotifyFilterLOD(0)
+		, bCanBeFilteredViaRequest(true)
 		, bTriggerOnDedicatedServer(true)
 		, bTriggerOnFollower(false)
 #if WITH_EDITORONLY_DATA
