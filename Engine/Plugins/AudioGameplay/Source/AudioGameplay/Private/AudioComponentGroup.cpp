@@ -140,8 +140,19 @@ UAudioComponent* UAudioComponentGroup::AddComponent()
 	{
 		NewComponent = NewObject<UAudioComponent>(Owner);
 		NewComponent->bAutoActivate = false;
+		NewComponent->bAutoManageAttachment = true;
 
-		NewComponent->AttachToComponent(Owner->GetRootComponent(), FAttachmentTransformRules::SnapToTargetNotIncludingScale);
+		USceneComponent* RootComponent = Owner->GetRootComponent();
+		NewComponent->AttachToComponent(RootComponent, FAttachmentTransformRules::SnapToTargetNotIncludingScale);
+
+		if (RootComponent)
+		{
+			NewComponent->AutoAttachParent = RootComponent->GetAttachParent();
+		}
+		
+		NewComponent->AutoAttachLocationRule = EAttachmentRule::KeepRelative;
+		NewComponent->AutoAttachRotationRule = EAttachmentRule::KeepRelative;
+		
 		NewComponent->RegisterComponent();
 
 		ApplyParams(NewComponent);
