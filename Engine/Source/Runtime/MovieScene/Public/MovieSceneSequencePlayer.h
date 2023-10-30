@@ -602,8 +602,10 @@ private:
 
 	/**
 	 * Update the replicated properties required for synchronizing to clients of this sequence player
+	 *
+	 * @param bServerOnly  Only update the properties if this player is on the server
 	 */
-	MOVIESCENE_API void UpdateNetworkSyncProperties();
+	MOVIESCENE_API void UpdateNetworkSyncProperties(bool bServerOnly = true);
 
 	/**
 	 * Analyse the set of samples we have estimating the server time if we have confidence over the data.
