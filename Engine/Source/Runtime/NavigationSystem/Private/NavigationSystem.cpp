@@ -5098,6 +5098,8 @@ void UNavigationSystemV1::UnregisterInvoker(AActor& Invoker)
 
 void UNavigationSystemV1::UpdateInvokers()
 {
+	QUICK_SCOPE_CYCLE_COUNTER(STAT_Navigation_UpdateInvokers);
+	
 	const UWorld* World = GetWorld();
 	const double CurrentTime = World->GetTimeSeconds();
 	if (CurrentTime >= NextInvokersUpdateTime)

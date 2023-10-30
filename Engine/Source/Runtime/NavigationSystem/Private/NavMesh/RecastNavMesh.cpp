@@ -3541,44 +3541,47 @@ void ARecastNavMesh::UpdateActiveTiles(const TArray<FNavigationInvokerRaw>& Invo
 	TileToAppend.Reserve(ActiveTiles.Num());
 	ActiveTiles.Reset();
 
-	for (const FNavigationInvokerRaw& Invoker : InvokerLocations)
 	{
-		if (!Invoker.SupportedAgents.Contains(Config.AgentIndex))
+		TRACE_CPUPROFILER_EVENT_SCOPE(ARecastNavMesh::MinMaxDistance);
+		for (const FNavigationInvokerRaw& Invoker : InvokerLocations)
 		{
-			continue;
-		}
-
-		const FVector InvokerRelativeLocation = (NavmeshOrigin - Invoker.Location);
-		const  FVector::FReal TileCenterDistanceToRemoveSq = FMath::Square(TileDim * UE_SQRT_2 / 2 + Invoker.RadiusMax);
-		const  FVector::FReal TileCenterDistanceToAddSq = FMath::Square(TileDim * UE_SQRT_2 / 2 + Invoker.RadiusMin);
-
-		const int32 MinTileX = IntCastChecked<int32>(FMath::FloorToInt((InvokerRelativeLocation.X - Invoker.RadiusMax) / TileDim));
-		const int32 MaxTileX = IntCastChecked<int32>(FMath::CeilToInt((InvokerRelativeLocation.X + Invoker.RadiusMax) / TileDim));
-		const int32 MinTileY = IntCastChecked<int32>(FMath::FloorToInt((InvokerRelativeLocation.Y - Invoker.RadiusMax) / TileDim));
-		const int32 MaxTileY = IntCastChecked<int32>(FMath::CeilToInt((InvokerRelativeLocation.Y + Invoker.RadiusMax) / TileDim));
-
-		for (int32 X = MinTileX; X <= MaxTileX; ++X)
-		{
-			for (int32 Y = MinTileY; Y <= MaxTileY; ++Y)
+			if (!Invoker.SupportedAgents.Contains(Config.AgentIndex))
 			{
-				const FVector::FReal DistanceSq = (InvokerRelativeLocation - FVector(X * TileDim + TileDim / 2, Y * TileDim + TileDim / 2, 0.f)).SizeSquared2D();
-				if (DistanceSq < TileCenterDistanceToRemoveSq)
-				{
-					TilesInMaxDistance.AddUnique(FIntPoint(X, Y));
+				continue;
+			}
 
-					if (DistanceSq < TileCenterDistanceToAddSq)
+			const FVector InvokerRelativeLocation = (NavmeshOrigin - Invoker.Location);
+			const  FVector::FReal TileCenterDistanceToRemoveSq = FMath::Square(TileDim * UE_SQRT_2 / 2 + Invoker.RadiusMax);
+			const  FVector::FReal TileCenterDistanceToAddSq = FMath::Square(TileDim * UE_SQRT_2 / 2 + Invoker.RadiusMin);
+
+			const int32 MinTileX = IntCastChecked<int32>(FMath::FloorToInt((InvokerRelativeLocation.X - Invoker.RadiusMax) / TileDim));
+			const int32 MaxTileX = IntCastChecked<int32>(FMath::CeilToInt((InvokerRelativeLocation.X + Invoker.RadiusMax) / TileDim));
+			const int32 MinTileY = IntCastChecked<int32>(FMath::FloorToInt((InvokerRelativeLocation.Y - Invoker.RadiusMax) / TileDim));
+			const int32 MaxTileY = IntCastChecked<int32>(FMath::CeilToInt((InvokerRelativeLocation.Y + Invoker.RadiusMax) / TileDim));
+
+			for (int32 X = MinTileX; X <= MaxTileX; ++X)
+			{
+				for (int32 Y = MinTileY; Y <= MaxTileY; ++Y)
+				{
+					const FVector::FReal DistanceSq = (InvokerRelativeLocation - FVector(X * TileDim + TileDim / 2, Y * TileDim + TileDim / 2, 0.f)).SizeSquared2D();
+					if (DistanceSq < TileCenterDistanceToRemoveSq)
 					{
-						// Add unique tile 
-						FNavMeshDirtyTileElement* FoundTile = TilesInMinDistance.FindByPredicate([X, Y](const FNavMeshDirtyTileElement& Tile){ return Tile.Coordinates == FIntPoint(X, Y);});
-						if (FoundTile)
+						TilesInMaxDistance.AddUnique(FIntPoint(X, Y));
+
+						if (DistanceSq < TileCenterDistanceToAddSq)
 						{
-							// Update the priority if already existing
-							FoundTile->InvokerPriority = FMath::Max(FoundTile->InvokerPriority, Invoker.Priority);
-						}
-						else
-						{
-							TilesInMinDistance.Add(FNavMeshDirtyTileElement{FIntPoint(X,Y), DistanceSq, Invoker.Priority});
-							TileToAppend.Add(FIntPoint(X,Y));
+							// Add unique tile 
+							FNavMeshDirtyTileElement* FoundTile = TilesInMinDistance.FindByPredicate([X, Y](const FNavMeshDirtyTileElement& Tile){ return Tile.Coordinates == FIntPoint(X, Y);});
+							if (FoundTile)
+							{
+								// Update the priority if already existing
+								FoundTile->InvokerPriority = FMath::Max(FoundTile->InvokerPriority, Invoker.Priority);
+							}
+							else
+							{
+								TilesInMinDistance.Add(FNavMeshDirtyTileElement{FIntPoint(X,Y), DistanceSq, Invoker.Priority});
+								TileToAppend.Add(FIntPoint(X,Y));
+							}
 						}
 					}
 				}
@@ -3589,18 +3592,22 @@ void ARecastNavMesh::UpdateActiveTiles(const TArray<FNavigationInvokerRaw>& Invo
 	ActiveTiles.Append(TileToAppend);
 
 	TArray<FIntPoint> TilesToRemove;
-	TilesToRemove.Reserve(OldActiveSet.Num());
-	for (int32 Index = OldActiveSet.Num() - 1; Index >= 0; --Index)
+
 	{
-		const FIntPoint& Tile = OldActiveSet[Index];
-		if (TilesInMaxDistance.Find(Tile) == INDEX_NONE)
+		TRACE_CPUPROFILER_EVENT_SCOPE(ARecastNavMesh::CategorizeTiles);
+		TilesToRemove.Reserve(OldActiveSet.Num());
+		for (int32 Index = OldActiveSet.Num() - 1; Index >= 0; --Index)
 		{
-			TilesToRemove.Add(Tile);
-			OldActiveSet.RemoveAtSwap(Index, 1, /*bAllowShrinking=*/false);
-		}
-		else
-		{
-			ActiveTiles.AddUnique(Tile);
+			const FIntPoint& Tile = OldActiveSet[Index];
+			if (TilesInMaxDistance.Find(Tile) == INDEX_NONE)
+			{
+				TilesToRemove.Add(Tile);
+				OldActiveSet.RemoveAtSwap(Index, 1, /*bAllowShrinking=*/false);
+			}
+			else
+			{
+				ActiveTiles.AddUnique(Tile);
+			}
 		}
 	}
 
@@ -3636,6 +3643,8 @@ void ARecastNavMesh::UpdateActiveTiles(const TArray<FNavigationInvokerRaw>& Invo
 
 void ARecastNavMesh::RemoveTiles(const TArray<FIntPoint>& Tiles)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(ARecastNavMesh::RemoveTiles);
+	
 	if (Tiles.Num() > 0)
 	{
 		FRecastNavMeshGenerator* MyGenerator = static_cast<FRecastNavMeshGenerator*>(GetGenerator());
@@ -3660,6 +3669,8 @@ void ARecastNavMesh::RebuildTile(const TArray<FIntPoint>& Tiles)
 
 void ARecastNavMesh::RebuildTile(const TArray<FNavMeshDirtyTileElement>& Tiles)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(ARecastNavMesh::RebuildTile);
+	
 	if (Tiles.Num() > 0)
 	{
 		FRecastNavMeshGenerator* MyGenerator = static_cast<FRecastNavMeshGenerator*>(GetGenerator());

@@ -5287,9 +5287,15 @@ void FRecastNavMeshGenerator::ResetTimeSlicedTileGeneratorSync()
 //@TODO Investigate removing from RunningDirtyTiles here too (or at least not using the results in any way)
 void FRecastNavMeshGenerator::RemoveTiles(const TArray<FIntPoint>& Tiles)
 {
+	dtNavMesh* DetourMesh = DestNavMesh->GetRecastNavMeshImpl()->GetRecastMesh();
+	const bool bIsDetourMeshValid = DetourMesh && !DetourMesh->isEmpty(); 
+	
 	for (const FIntPoint& TileXY : Tiles)
 	{
-		RemoveTileLayersAndGetUpdatedTiles(TileXY.X, TileXY.Y);
+		if (bIsDetourMeshValid)
+		{
+			RemoveTileLayers(DetourMesh, TileXY.X, TileXY.Y);
+		}
 
 		if (PendingDirtyTiles.Num() > 0)
 		{
@@ -5489,6 +5495,41 @@ TArray<FNavTileRef> FRecastNavMeshGenerator::RemoveTileLayersAndGetUpdatedTiles(
 	}
 
 	return UpdatedIndices;
+}
+
+void FRecastNavMeshGenerator::RemoveTileLayers(dtNavMesh* DetourMesh, const int32 TileX, const int32 TileY)
+{
+	check(DetourMesh && !DetourMesh->isEmpty())
+	
+	const int32 NumLayers = DetourMesh->getTileCountAt(TileX, TileY);
+
+	if (NumLayers > 0)
+	{
+		TArray<dtMeshTile*, TInlineAllocator<16>> Tiles;
+		Tiles.AddZeroed(NumLayers);
+		DetourMesh->getTilesAt(TileX, TileY, (const dtMeshTile**)Tiles.GetData(), NumLayers);
+
+		for (int32 i = 0; i < NumLayers; i++)
+		{
+			const dtPolyRef TileRef = DetourMesh->getTileRef(Tiles[i]);
+			NumActiveTiles--;
+
+			UE_SUPPRESS(LogNavigation, VeryVerbose,
+			{
+				const int32 LayerIndex = Tiles[i]->header->layer;
+				DestNavMesh->LogRecastTile(ANSI_TO_TCHAR(__FUNCTION__), FName(""), FName("removing"), *DetourMesh, TileX, TileY, LayerIndex, TileRef));
+			};			
+
+			DetourMesh->removeTile(TileRef, nullptr, nullptr);
+		}
+	}
+
+	// Remove compressed tile cache layers
+	DestNavMesh->RemoveTileCacheLayers(TileX, TileY);
+
+#if RECAST_INTERNAL_DEBUG_DATA
+	DestNavMesh->RemoveTileDebugData(TileX, TileY);
+#endif
 }
 
 FRecastNavMeshGenerator::FSyncTimeSlicedData::FSyncTimeSlicedData()
