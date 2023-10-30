@@ -114,7 +114,7 @@ private:
 
 UE_API bool IsLocalServiceRunning(const TCHAR* DataPath, uint16* OutPort = nullptr);
 UE_API FProcHandle StartLocalService(const FZenLocalServiceRunContext& Context, const TCHAR* TransientArgs = nullptr);
-UE_API bool StopLocalService(const TCHAR* DataPath, double MaximumWaitDurationSeconds = 15.0);
+UE_API bool StopLocalService(const TCHAR* DataPath, double MaximumWaitDurationSeconds = 25.0);
 
 UE_API FString GetLocalServiceInstallPath();
 UE_API FString GetLocalServiceInstallVersion(bool bDetailed = true);

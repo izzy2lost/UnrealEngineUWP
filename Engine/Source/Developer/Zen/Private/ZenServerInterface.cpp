@@ -1236,7 +1236,7 @@ static bool AttemptShutdownUsingExecutablePathOnly(const ZenServerState& ServerS
 }
 
 static bool
-ShutdownRunningServiceUsingExecutablePath(const TCHAR* ExecutablePath, double MaximumWaitDurationSeconds = 15.0)
+ShutdownRunningServiceUsingExecutablePath(const TCHAR* ExecutablePath, double MaximumWaitDurationSeconds = 25.0)
 {
 	uint32 ServicePid;
 	if (!IsZenProcessActive(ExecutablePath, &ServicePid))
@@ -1360,7 +1360,7 @@ static bool AttemptShutdownUsingPortOnly(const ZenServerState& ServerState, uint
 }
 
 static bool
-ShutdownRunningServiceUsingEffectivePort(uint16 EffectiveListenPort, double MaximumWaitDurationSeconds = 15.0)
+ShutdownRunningServiceUsingEffectivePort(uint16 EffectiveListenPort, double MaximumWaitDurationSeconds = 25.0)
 {
 	if (!IsZenProcessUsingEffectivePort(EffectiveListenPort))
 	{
