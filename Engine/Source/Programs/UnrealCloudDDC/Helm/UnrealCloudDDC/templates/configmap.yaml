@@ -99,6 +99,11 @@ PayloadBuffering:
 {{ $config.PayloadBuffering | toYaml | nindent 2 }}
 {{- end }}
 
+{{- if $config.ServiceAccounts }}
+ServiceAccounts: 
+{{ $config.ServiceAccounts | toYaml | nindent 2 }}
+{{- end }}
+
 {{- if $config.GC }}
 GC: 
 {{ $config.GC | toYaml | nindent 2 }}
