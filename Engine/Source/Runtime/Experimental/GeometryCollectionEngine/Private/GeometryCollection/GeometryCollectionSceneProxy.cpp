@@ -1040,7 +1040,7 @@ FNaniteGeometryCollectionSceneProxy::FNaniteGeometryCollectionSceneProxy(UGeomet
 	const TSharedPtr<FGeometryCollection, ESPMode::ThreadSafe> Collection = GeometryCollection->GetGeometryCollection();
 	const TManagedArray<int32>& TransformToGeometryIndices = Collection->TransformToGeometryIndex;
 	const TManagedArray<int32>& SimulationType = Collection->SimulationType;
-	const TManagedArray<FGeometryCollectionSection>& SectionsArray = Collection->Sections;
+	const TManagedArray<FGeometryCollectionSection>& SectionsArray = Component->GetSectionsArray();
 
 	MaterialSections.SetNumZeroed(SectionsArray.Num());
 
