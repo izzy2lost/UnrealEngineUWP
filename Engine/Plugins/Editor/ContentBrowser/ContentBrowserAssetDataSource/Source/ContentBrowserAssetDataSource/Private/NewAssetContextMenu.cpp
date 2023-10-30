@@ -389,13 +389,25 @@ void FNewAssetContextMenu::CreateNewAssetMenus(UToolMenu* Menu, FName SectionNam
 	{
 		TWeakObjectPtr<UClass> WeakFactoryClass = FactoryItem.Factory->GetClass();
 
+		FName AssetTypeName;
+
+		if (UFactory* Factory = FactoryItem.Factory)
+		{
+			if (UClass* SupportedClass = Factory->GetSupportedClass())
+			{
+				AssetTypeName = SupportedClass->GetFName();
+			}
+		}
+
 		Section.AddEntry(FToolMenuEntry::InitMenuEntry(
 			NAME_None,
 			FUIAction(
 				FExecuteAction::CreateStatic(&FNewAssetContextMenu::ExecuteNewAsset, InOnNewAssetRequested, InPath, WeakFactoryClass),
 				InCanExecuteAction
 			),
-			SNew(SFactoryMenuEntry, FactoryItem.Factory)));
+			SNew(SFactoryMenuEntry, FactoryItem.Factory)
+				.AddMetaData<FTagMetaData>(FTagMetaData(AssetTypeName))));
+
 	}
 
 	if (SubMenuData->Children.Num() == 0)
