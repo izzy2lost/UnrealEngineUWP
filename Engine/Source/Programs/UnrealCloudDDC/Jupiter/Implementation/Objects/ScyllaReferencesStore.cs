@@ -325,7 +325,9 @@ namespace Jupiter.Implementation
 					async (index, token) =>
 					{
 						(long, long) range = tableRanges[index];
-						RowSet rowSet = await _session.ExecuteAsync(getObjectStatement.Bind(range.Item1, range.Item2));
+						BoundStatement? statement = getObjectStatement.Bind(range.Item1, range.Item2);
+						statement.SetPageSize(5000); // increase page size as there seems to be issues fetching multiple pages when token scanning
+						RowSet rowSet = await _session.ExecuteAsync(statement);
 						foreach (Row row in rowSet)
 						{
 							if (token.IsCancellationRequested)
