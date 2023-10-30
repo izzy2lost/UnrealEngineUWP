@@ -1512,7 +1512,7 @@ FGraphAppearanceInfo FRigVMEditor::GetGraphAppearance(UEdGraph* InGraph) const
 {
 	FGraphAppearanceInfo AppearanceInfo = FBlueprintEditor::GetGraphAppearance(InGraph);
 
-	if (GetBlueprintObj()->IsA(URigVMBlueprint::StaticClass()))
+	if (const URigVMBlueprint* RigVMBlueprint = GetRigVMBlueprint())
 	{
 		AppearanceInfo.CornerText = LOCTEXT("AppearanceCornerText_RigVMEditor", "RigVM");
 
@@ -1524,6 +1524,12 @@ FGraphAppearanceInfo FRigVMEditor::GetGraphAppearance(UEdGraph* InGraph) const
 				AppearanceInfo.InstructionText = FText::FromString(
 					FString::Printf(TEXT("This graph runs a nativized VM (U%s)."), *RigVMHost->GetVM()->GetNativizedClass()->GetName())
 				);
+			}
+
+			if(RigVMHost->VMRuntimeSettings.bEnableProfiling)
+			{
+				static constexpr TCHAR Format[] = TEXT("Total %.02f µs");
+				AppearanceInfo.WarningText = FText::FromString(FString::Printf(Format, (float)RigVMBlueprint->RigGraphDisplaySettings.TotalMicroSeconds));
 			}
 		}
 	}
