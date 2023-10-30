@@ -534,7 +534,7 @@ UGeometryCollectionComponent::UGeometryCollectionComponent(const FObjectInitiali
 	, InitializationState(ESimulationInitializationState::Unintialized)
 	, ObjectType(EObjectStateTypeEnum::Chaos_Object_Dynamic)
 	, GravityGroupIndex(0)
-	, bIsOneWayInteraction(false)
+	, OneWayInteractionLevel(INDEX_NONE)
 	, bDensityFromPhysicsMaterial(false)
 	, bForceMotionBlur()
 	, EnableClustering(true)
@@ -957,12 +957,12 @@ void UGeometryCollectionComponent::SetGravityGroupIndex(int32 InGravityGroupInde
 	}
 }
 
-void UGeometryCollectionComponent::SetIsOneWayInteraction(bool bInIsOneWayInteraction)
+void UGeometryCollectionComponent::SetOneWayInteractionLevel(int32 InOneWayInteractionLevel)
 {
-	bIsOneWayInteraction = bInIsOneWayInteraction;
+	OneWayInteractionLevel = InOneWayInteractionLevel;
 	if (PhysicsProxy)
 	{
-		PhysicsProxy->SetIsOneWayInteraction_External(bInIsOneWayInteraction);
+		PhysicsProxy->SetOneWayInteractionLevel_External(InOneWayInteractionLevel);
 	}
 }
 
@@ -3763,7 +3763,7 @@ void UGeometryCollectionComponent::RegisterAndInitializePhysicsProxy()
 		SimulationParameters.bGenerateGlobalCrumblingChildrenData = bGlobalCrumblingEventIncludesChildren;
 		SimulationParameters.EnableGravity = BodyInstance.bEnableGravity;
 		SimulationParameters.GravityGroupIndex = GravityGroupIndex;
-		SimulationParameters.bIsOneWayInteraction = bIsOneWayInteraction;
+		SimulationParameters.OneWayInteractionLevel = OneWayInteractionLevel;
 		SimulationParameters.UseInertiaConditioning = BodyInstance.IsInertiaConditioningEnabled();
 		SimulationParameters.UseCCD = BodyInstance.bUseCCD;
 		SimulationParameters.LinearDamping = BodyInstance.LinearDamping;

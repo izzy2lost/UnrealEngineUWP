@@ -473,7 +473,7 @@ public:
 	CHAOS_API void SetUseMaterialDamageModifiers_External(bool bUseMaterialDamageModifiers);
 	CHAOS_API void SetMaterialOverrideMassScaleMultiplier_External(float InMultiplier);
 	CHAOS_API void SetGravityGroupIndex_External(int32 GravityGroupIndex);
-	CHAOS_API void SetIsOneWayInteraction_External(bool bInIsOneWayInteraction);
+	CHAOS_API void SetOneWayInteractionLevel_External(int32 OneWayInteractionLevel);
 	CHAOS_API void SetPhysicsMaterial_External(const Chaos::FMaterialHandle& MaterialHandle);
 	/** 
 	 * Traverses the parents of TransformGroupIdx counting number of levels,
@@ -564,7 +564,7 @@ protected:
 	CHAOS_API void SetUseMaterialDamageModifiers_Internal(bool bUseMaterialDamageModifiers);
 	CHAOS_API void SetMaterialOverrideMassScaleMultiplier_Internal(float InMultiplier);
 	CHAOS_API void SetGravityGroupIndex_Internal(int32 GravityGroupIndex);
-	CHAOS_API void SetIsOneWayInteraction_Internal(bool bInIsOneWayInteraction);
+	CHAOS_API void SetOneWayInteractionLevel_Internal(int32 InOneWayInteractionLevel);
 	CHAOS_API void SetPhysicsMaterial_Internal(const Chaos::FMaterialHandle& MaterialHandle);
 
 private:

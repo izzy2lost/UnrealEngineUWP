@@ -943,11 +943,13 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintInternalUseOnly)
 	GEOMETRYCOLLECTIONENGINE_API void SetGravityGroupIndex(int32 InGravityGroupIndex);
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, BlueprintSetter = SetIsOneWayInteraction, Category = "ChaosPhysics|General")
-	bool bIsOneWayInteraction;
+	// All bodies with a level greater than or equal to this will have One-Way Interaction enabled and act like debris (will not apply forces to non-debris bodies)
+	// Set to -1 to disable (no bodies will have One-Way Interaction enabled)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, BlueprintSetter = SetOneWayInteractionLevel, Category = "ChaosPhysics|General")
+	int32 OneWayInteractionLevel;
 
 	UFUNCTION(BlueprintCallable, BlueprintInternalUseOnly)
-	GEOMETRYCOLLECTIONENGINE_API void SetIsOneWayInteraction(bool bInOneWayInteraction);
+	GEOMETRYCOLLECTIONENGINE_API void SetOneWayInteractionLevel(int32 InOneWayInteractionLevel);
 
 	/** when true, density will be used to compute mass using the assigned physics material */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, BlueprintSetter = SetDensityFromPhysicsMaterial, Category = "ChaosPhysics|General")

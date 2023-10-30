@@ -63,6 +63,7 @@ namespace
 	const FName MassToLocalAttributeName = "MassToLocal";
 	const FName MassAttributeName = "Mass";
 	const FName InertiaTensorAttributeName = "InertiaTensor";
+	const FName LevelAttributeName = "Level";
 }
 
 namespace Chaos{
@@ -579,6 +580,7 @@ void FGeometryCollectionPhysicsProxy::Initialize(Chaos::FPBDRigidsEvolutionBase 
 	const FVector Scale = Parameters.WorldTransform.GetScale3D();
 	const TManagedArray<float>& Mass = Parameters.RestCollection->GetAttribute<float>(MassAttributeName, FTransformCollection::TransformGroup);
 	const TManagedArray<FTransform>& MassToLocal = Parameters.RestCollection->GetAttribute<FTransform>(MassToLocalAttributeName, FTransformCollection::TransformGroup);
+	const TManagedArray<int32>& Level = Parameters.RestCollection->GetAttribute<int32>(LevelAttributeName, FTransformCollection::TransformGroup);
 
 	TArray<int32> ChildrenToCheckForParentFix;
 	TManagedArray<Chaos::FImplicitObjectPtr>& Implicits = GameThreadCollection.ModifyAttribute<Chaos::FImplicitObjectPtr>(FGeometryDynamicCollection::ImplicitsAttribute, FTransformCollection::TransformGroup);
@@ -646,6 +648,9 @@ void FGeometryCollectionPhysicsProxy::Initialize(Chaos::FPBDRigidsEvolutionBase 
 				{
 					P->SetSpatialIdx(Chaos::FSpatialAccelerationIdx{ 0,0 });
 				}
+
+				const bool bIsOneWayInteraction = (Parameters.OneWayInteractionLevel >= 0) && (Level[Index] >= Parameters.OneWayInteractionLevel);
+				P->SetOneWayInteraction(bIsOneWayInteraction);
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 				P->SetDebugName(MakeShared<FString, ESPMode::ThreadSafe>(FString::Printf(TEXT("%s-%d"), *Parameters.Name, Index)));
@@ -1491,14 +1496,18 @@ void FGeometryCollectionPhysicsProxy::InitializeBodiesPT(Chaos::FPBDRigidsSolver
 
 		// apply various features on the handles 
 		const bool bEnableGravity = Parameters.EnableGravity && !DisableGeometryCollectionGravity;
-		for (Chaos::FPBDRigidParticleHandle* Handle: SolverParticleHandles)
+		const TManagedArray<int32>& Level = PhysicsThreadCollection.GetInitialLevels().Get();
+		for (int32 ParticleIndex = 0; ParticleIndex < SolverParticleHandles.Num(); ++ParticleIndex)
 		{
+			Chaos::FPBDRigidParticleHandle* Handle = SolverParticleHandles[ParticleIndex];
 			if (Handle)
 			{
+				const bool bIsOneWayInteraction = (Parameters.OneWayInteractionLevel >= 0) && (Level[ParticleIndex] >= Parameters.OneWayInteractionLevel);
+
 				Handle->SetGravityEnabled(bEnableGravity);
 				Handle->SetGravityGroupIndex(Parameters.GravityGroupIndex);
 				Handle->SetCCDEnabled(Parameters.UseCCD);
-				Handle->SetOneWayInteraction(Parameters.bIsOneWayInteraction);
+				Handle->SetOneWayInteraction(bIsOneWayInteraction);
 				Handle->SetInertiaConditioningEnabled(Parameters.UseInertiaConditioning);
 				Handle->SetLinearEtherDrag(Parameters.LinearDamping);
 				Handle->SetAngularEtherDrag(Parameters.AngularDamping);
@@ -3242,23 +3251,38 @@ void FGeometryCollectionPhysicsProxy::SetGravityGroupIndex_Internal(int32 Gravit
 	}
 }
 
-void FGeometryCollectionPhysicsProxy::SetIsOneWayInteraction_External(bool bIsOneWayInteraction)
+void FGeometryCollectionPhysicsProxy::SetOneWayInteractionLevel_External(int32 InOneWayInteractionLevel)
 {
-	ExecuteOnPhysicsThread(*this, [this, bIsOneWayInteraction]()
+	// @todo(chaos): not sure we need the OneWayInteraction flag on the GT side for geometry collection particles?
+	const TManagedArray<int32>& Level = Parameters.RestCollection->GetAttribute<int32>(LevelAttributeName, FTransformCollection::TransformGroup);
+	for (int32 ParticleIndex = 0; ParticleIndex < GTParticles.Num(); ++ParticleIndex)
+	{
+		TUniquePtr<FParticle>& Particle = GTParticles[ParticleIndex];
+		if (Particle.IsValid())
 		{
-			SetIsOneWayInteraction_Internal(bIsOneWayInteraction);
+			const bool bIsOneWayInteraction = (InOneWayInteractionLevel >= 0) && (Level[ParticleIndex] >= InOneWayInteractionLevel);
+			Particle->SetOneWayInteraction(bIsOneWayInteraction);
+		}
+	}
+
+	ExecuteOnPhysicsThread(*this, [this, InOneWayInteractionLevel]()
+		{
+			SetOneWayInteractionLevel_Internal(InOneWayInteractionLevel);
 		});
 }
 
-void FGeometryCollectionPhysicsProxy::SetIsOneWayInteraction_Internal(bool bInIsOneWayInteraction)
+void FGeometryCollectionPhysicsProxy::SetOneWayInteractionLevel_Internal(int32 InOneWayInteractionLevel)
 {
-	Parameters.bIsOneWayInteraction = bInIsOneWayInteraction;
+	Parameters.OneWayInteractionLevel = InOneWayInteractionLevel;
 
-	for (Chaos::FPBDRigidClusteredParticleHandle* Handle : SolverParticleHandles)
+	const TManagedArray<int32>& Level = PhysicsThreadCollection.GetInitialLevels().Get();
+	for (int32 ParticleIndex = 0; ParticleIndex < SolverParticleHandles.Num(); ++ParticleIndex)
 	{
+		Chaos::FPBDRigidClusteredParticleHandle* Handle = SolverParticleHandles[ParticleIndex];
 		if (Handle)
 		{
-			Handle->SetOneWayInteraction(Parameters.bIsOneWayInteraction);
+			const bool bIsOneWayInteraction = (Parameters.OneWayInteractionLevel >= 0) && (Level[ParticleIndex] >= Parameters.OneWayInteractionLevel);
+			Handle->SetOneWayInteraction(bIsOneWayInteraction);
 		}
 	}
 }

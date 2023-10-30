@@ -211,9 +211,9 @@ struct FSimulationParameters
 		, bGenerateGlobalCrumblingChildrenData(false)
 		, EnableGravity(true)
 		, GravityGroupIndex(0)
+		, OneWayInteractionLevel(INDEX_NONE)
 		, UseInertiaConditioning(true)
 		, UseCCD(false)
-		, bIsOneWayInteraction(false)
 		, LinearDamping(0.01f)
 		, AngularDamping(0)
 		, InitialOverlapDepenetrationVelocity(-1.0f)
@@ -272,9 +272,9 @@ struct FSimulationParameters
 		, Shared(Other.Shared)
 		, EnableGravity(Other.EnableGravity)
 		, GravityGroupIndex(Other.GravityGroupIndex)
+		, OneWayInteractionLevel(Other.OneWayInteractionLevel)
 		, UseInertiaConditioning(Other.UseInertiaConditioning)
 		, UseCCD(Other.UseCCD)
-		, bIsOneWayInteraction(Other.bIsOneWayInteraction)
 		, LinearDamping(Other.LinearDamping)
 		, AngularDamping(Other.AngularDamping)
 		, InitialOverlapDepenetrationVelocity(Other.InitialOverlapDepenetrationVelocity)
@@ -363,9 +363,9 @@ struct FSimulationParameters
 
 	bool EnableGravity;
 	int32 GravityGroupIndex;
+	int32 OneWayInteractionLevel;
 	bool UseInertiaConditioning;
 	bool UseCCD;
-	bool bIsOneWayInteraction;
 	float LinearDamping;
 	float AngularDamping;
 	float InitialOverlapDepenetrationVelocity;

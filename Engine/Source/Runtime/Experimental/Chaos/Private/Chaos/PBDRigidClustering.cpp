@@ -251,9 +251,11 @@ namespace Chaos
 		MEvolution.DisableParticles(reinterpret_cast<TSet<FGeometryParticleHandle*>&>(ChildrenSet));
 
 		bool bClusterIsAsleep = true;
+		bool bClusterIsOneWayInteraction = true;
 		for (FPBDRigidParticleHandle* Child : ChildrenSet)
 		{
 			bClusterIsAsleep &= Child->Sleeping();
+			bClusterIsOneWayInteraction &= Child->OneWayInteraction();
 
 			if (FPBDRigidClusteredParticleHandle* ClusteredChild = Child->CastToClustered())
 			{
@@ -301,6 +303,8 @@ namespace Chaos
 		//FRigidClustering::BuildConvexOptimizer(NewParticle);
 
 		NewParticle->SetSleeping(bClusterIsAsleep);
+
+		NewParticle->SetOneWayInteraction(bClusterIsOneWayInteraction);
 
 		auto AddToClusterUnion = [this](int32 ClusterID, FPBDRigidClusteredParticleHandle* Handle)
 		{
@@ -561,6 +565,7 @@ namespace Chaos
 			TSet<FGeometryParticleHandle*> ChildrenHandles(static_cast<TArray<FGeometryParticleHandle*>>(ChildrenArray));
 			MEvolution.DisableParticles(ChildrenHandles);
 		}
+		bool bClusterIsOneWayInteraction = true;
 		for (FPBDRigidParticleHandle* Child : ChildrenArray)
 		{
 			if (FPBDRigidClusteredParticleHandle* ClusteredChild = Child->CastToClustered())
@@ -578,6 +583,8 @@ namespace Chaos
 
 				ClusteredChild->SetCollisionImpulses(FMath::Max(NewParticle->CollisionImpulses(), ClusteredChild->CollisionImpulses()));
 				Child->SetCollisionGroup(FMath::Min(NewParticle->CollisionGroup(), Child->CollisionGroup()));
+
+				bClusterIsOneWayInteraction &= Child->OneWayInteraction();
 			}
 		}
 
@@ -593,6 +600,8 @@ namespace Chaos
 		UpdateKinematicProperties(NewParticle, MChildren, MEvolution);
 
 		UpdateGeometry(NewParticle, ChildrenSet, MChildren, FImplicitObjectPtr(nullptr), NoCleanParams);
+
+		NewParticle->SetOneWayInteraction(bClusterIsOneWayInteraction);
 
 		// Build the convex optimizer if required
 		FRigidClustering::BuildConvexOptimizer(NewParticle);

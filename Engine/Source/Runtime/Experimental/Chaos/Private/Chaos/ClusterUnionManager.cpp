@@ -653,12 +653,18 @@ namespace Chaos
 				MEvolution.SetParticleObjectState(Cluster->InternalCluster, Chaos::EObjectStateType::Sleeping);
 			}
 
-			if (!Cluster->IsGravityOverrideSet() && !FinalParticlesToAdd.IsEmpty())
+			if (!FinalParticlesToAdd.IsEmpty())
 			{
-				Cluster->InternalCluster->SetGravityGroupIndex(FinalParticlesToAdd[0]->GravityGroupIndex());
-			}
+				FPBDRigidParticleHandle* ParticlePropertySource = FinalParticlesToAdd[0];
 
-			Cluster->InternalCluster->SetInitialOverlapDepenetrationVelocity(FinalParticlesToAdd[0]->InitialOverlapDepenetrationVelocity());
+				if (!Cluster->IsGravityOverrideSet())
+				{
+					Cluster->InternalCluster->SetGravityGroupIndex(ParticlePropertySource->GravityGroupIndex());
+				}
+
+				Cluster->InternalCluster->SetInitialOverlapDepenetrationVelocity(ParticlePropertySource->InitialOverlapDepenetrationVelocity());
+				Cluster->InternalCluster->SetOneWayInteraction(ParticlePropertySource->OneWayInteraction());
+			}
 		}
 	}
 
