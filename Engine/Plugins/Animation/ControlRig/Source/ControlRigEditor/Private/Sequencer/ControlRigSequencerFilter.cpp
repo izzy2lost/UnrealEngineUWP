@@ -63,7 +63,7 @@ public:
 
 	virtual FString GetName() const override { return TEXT("ControlRigControlsFilter"); }
 	virtual FText GetDisplayName() const override { return LOCTEXT("SequenceTrackFilter_ControlRigControls", "Control Rig Controls"); }
-	virtual FSlateIcon GetIcon() const { return FSlateIconFinder::FindIconForClass(UBaseControlRig::StaticClass()); }
+	virtual FSlateIcon GetIcon() const { return FSlateIconFinder::FindIconForClass(UControlRig::StaticClass()); }
 
 	virtual bool PassesFilterWithDisplayName(FTrackFilterType InItem, const FText& InText) const
 	{
@@ -158,7 +158,7 @@ public:
 
 	virtual FString GetName() const override { return TEXT("ControlRigControlsSelectedFilter"); }
 	virtual FText GetDisplayName() const override { return LOCTEXT("SequenceTrackFilter_ControlRigSelectedControls", "Selected Control Rig Controls"); }
-	virtual FSlateIcon GetIcon() const { return FSlateIconFinder::FindIconForClass(UBaseControlRig::StaticClass()); }
+	virtual FSlateIcon GetIcon() const { return FSlateIconFinder::FindIconForClass(UControlRig::StaticClass()); }
 
 	virtual bool PassesFilter(FTrackFilterType InItem) const override
 	{
@@ -170,7 +170,7 @@ public:
 		const UMovieSceneControlRigParameterTrack* Track = Cast<UMovieSceneControlRigParameterTrack>(InItem);
 		if (Track)
 		{
-			UBaseControlRig *ControlRig = Track->GetControlRig();
+			UControlRig *ControlRig = Track->GetControlRig();
 			if (ControlRig && ControlRig->GetHierarchy())
 			{
 				FName Name(*InText.ToString());

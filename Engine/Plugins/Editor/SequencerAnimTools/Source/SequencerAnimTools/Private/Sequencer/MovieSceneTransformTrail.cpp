@@ -686,7 +686,7 @@ bool FMovieSceneControlRigTransformTrail::StartTracking()
 	{
 		return false;
 	}
-	UBaseControlRig* ControlRig = Section->GetControlRig();
+	UControlRig* ControlRig = Section->GetControlRig();
 	if (!ControlRig)
 	{
 		return false ;
@@ -720,7 +720,7 @@ bool FMovieSceneControlRigTransformTrail::ApplyDelta(const FVector& Pos, const F
 	{
 		return false;
 	}
-	UBaseControlRig* ControlRig = Section->GetControlRig();
+	UControlRig* ControlRig = Section->GetControlRig();
 	if (!ControlRig)
 	{
 		return false;
@@ -793,7 +793,7 @@ bool FMovieSceneControlRigTransformTrail::EndTracking()
 	{
 		return false;
 	}
-	UBaseControlRig* ControlRig = Section->GetControlRig();
+	UControlRig* ControlRig = Section->GetControlRig();
 	if (!ControlRig)
 	{
 		return false;
@@ -824,7 +824,7 @@ bool FMovieSceneControlRigTransformTrail::HandleAltClick(FEditorViewportClient* 
 	{
 		return false;
 	}
-	UBaseControlRig* ControlRig = Section->GetControlRig();
+	UControlRig* ControlRig = Section->GetControlRig();
 	if (!ControlRig)
 	{
 		return false;

@@ -19,7 +19,7 @@
 
 class FAssetThumbnail;
 class IDetailsView;
-class UBaseControlRig;
+class UControlRig;
 class SControlRigBaseListWidget;
 
 //Class to Hold Statics that are shared and externally callable
@@ -62,9 +62,9 @@ private:
 	FReply OnPastePose();
 	FReply OnSelectControls();
 	FReply OnCaptureThumbnail();
-	void HandleControlSelected(UBaseControlRig* Subject, FRigControlElement* InControl, bool bSelected);
-	void HandleControlAdded(UBaseControlRig* ControlRig, bool bIsAdded);
-	TArray<UBaseControlRig*> GetControlRigs();
+	void HandleControlSelected(UControlRig* Subject, FRigControlElement* InControl, bool bSelected);
+	void HandleControlAdded(UControlRig* ControlRig, bool bIsAdded);
+	TArray<UControlRig*> GetControlRigs();
 
 	static bool bIsKey;
 	static bool bIsMirror;
@@ -76,7 +76,7 @@ private:
 	TSharedRef<SWidget> GetThumbnailWidget();
 
 	TWeakObjectPtr<UControlRigPoseAsset> PoseAsset;
-	TArray<TWeakObjectPtr<UBaseControlRig>> CurrentControlRigs;
+	TArray<TWeakObjectPtr<UControlRig>> CurrentControlRigs;
 
 	TSharedPtr<STextBlock> TextStatusBlock1;
 	TSharedPtr<STextBlock> TextStatusBlock2;

@@ -820,7 +820,7 @@ void UControlRigBoolControlProxy::SetKey(const IPropertyHandle& KeyedPropertyHan
 
 //////UControlDetailPanelControlProxies////////
 
-UControlRigControlsProxy* UControlRigDetailPanelControlProxies::FindProxy(UBaseControlRig* ControlRig, const FName& Name) const
+UControlRigControlsProxy* UControlRigDetailPanelControlProxies::FindProxy(UControlRig* ControlRig, const FName& Name) const
 {
 	const FControlToProxyMap* ControlRigProxies = AllProxies.Find(ControlRig);
 	if (ControlRigProxies)
@@ -834,7 +834,7 @@ UControlRigControlsProxy* UControlRigDetailPanelControlProxies::FindProxy(UBaseC
 	return nullptr;
 }
 
-void UControlRigDetailPanelControlProxies::AddProxy(UBaseControlRig* ControlRig, const FName& Name,  FRigControlElement* ControlElement)
+void UControlRigDetailPanelControlProxies::AddProxy(UControlRig* ControlRig, const FName& Name,  FRigControlElement* ControlElement)
 {
 	UControlRigControlsProxy* Proxy = FindProxy(ControlRig,Name);
 	if (!Proxy && ControlElement != nullptr)
@@ -929,7 +929,7 @@ void UControlRigDetailPanelControlProxies::AddProxy(UBaseControlRig* ControlRig,
 	}
 }
 
-void UControlRigDetailPanelControlProxies::RemoveProxy(UBaseControlRig* ControlRig, const FName& Name)
+void UControlRigDetailPanelControlProxies::RemoveProxy(UControlRig* ControlRig, const FName& Name)
 {
 	UControlRigControlsProxy* ExistingProxy = FindProxy(ControlRig,Name);
 	if (ExistingProxy)
@@ -944,12 +944,12 @@ void UControlRigDetailPanelControlProxies::RemoveProxy(UBaseControlRig* ControlR
 	}
 }
 
-void UControlRigDetailPanelControlProxies::RemoveAllProxies(UBaseControlRig* ControlRig)
+void UControlRigDetailPanelControlProxies::RemoveAllProxies(UControlRig* ControlRig)
 {
 	//no control rig remove all
 	if (ControlRig == nullptr)
 	{
-		for (TPair<TObjectPtr<UBaseControlRig>, FControlToProxyMap>& ControlRigProxies : AllProxies)
+		for (TPair<TObjectPtr<UControlRig>, FControlToProxyMap>& ControlRigProxies : AllProxies)
 		{
 			for (TPair<FName, TObjectPtr<UControlRigControlsProxy> >& Pair : ControlRigProxies.Value.ControlToProxy)
 			{
@@ -985,7 +985,7 @@ void UControlRigDetailPanelControlProxies::RemoveAllProxies(UBaseControlRig* Con
 	}
 }
 
-void UControlRigDetailPanelControlProxies::RecreateAllProxies(UBaseControlRig* ControlRig)
+void UControlRigDetailPanelControlProxies::RecreateAllProxies(UControlRig* ControlRig)
 {
 	RemoveAllProxies(ControlRig);
 	TArray<FRigControlElement*> Controls = ControlRig->AvailableControls();
@@ -998,7 +998,7 @@ void UControlRigDetailPanelControlProxies::RecreateAllProxies(UBaseControlRig* C
 	}
 }
 
-void UControlRigDetailPanelControlProxies::ProxyChanged(UBaseControlRig* ControlRig, const FName& Name, bool bModify )
+void UControlRigDetailPanelControlProxies::ProxyChanged(UControlRig* ControlRig, const FName& Name, bool bModify )
 {
 	if (IsInGameThread())
 	{
@@ -1015,7 +1015,7 @@ void UControlRigDetailPanelControlProxies::ProxyChanged(UBaseControlRig* Control
 	}
 }
 
-void UControlRigDetailPanelControlProxies::SelectProxy(UBaseControlRig* ControlRig,const FName& Name, bool bSelected)
+void UControlRigDetailPanelControlProxies::SelectProxy(UControlRig* ControlRig,const FName& Name, bool bSelected)
 {
 	UControlRigControlsProxy* Proxy = FindProxy(ControlRig,Name);
 	if (Proxy)
@@ -1036,7 +1036,7 @@ void UControlRigDetailPanelControlProxies::SelectProxy(UBaseControlRig* ControlR
 	}
 }
 
-bool UControlRigDetailPanelControlProxies::IsSelected(UBaseControlRig* InControlRig, const FName& Name) const
+bool UControlRigDetailPanelControlProxies::IsSelected(UControlRig* InControlRig, const FName& Name) const
 {
 	if (UControlRigControlsProxy* Proxy = FindProxy(InControlRig, Name))
 	{

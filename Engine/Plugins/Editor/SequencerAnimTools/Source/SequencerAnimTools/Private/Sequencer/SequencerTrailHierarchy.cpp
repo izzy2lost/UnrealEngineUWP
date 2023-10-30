@@ -197,7 +197,7 @@ void FSequencerTrailHierarchy::RemoveTrail(const FGuid& Key)
 				return;
 			}
 		}
-		for (TPair<UBaseControlRig*, TMap<FName, FGuid>>& CompMapPair : ControlsTracked)
+		for (TPair<UControlRig*, TMap<FName, FGuid>>& CompMapPair : ControlsTracked)
 		{
 			if (const FName* FoundControl = CompMapPair.Value.FindKey(Key))
 			{
@@ -214,7 +214,7 @@ struct FTrailControlTransforms
 	TArray<FTransform> Transforms;
 };
 
-void FSequencerTrailHierarchy::UpdateControlRig(const TArray<FFrameNumber> &Frames,UBaseControlRig* ControlRig, TMap<FName, FGuid >& CompMapPair, bool bUseEditedTimes)
+void FSequencerTrailHierarchy::UpdateControlRig(const TArray<FFrameNumber> &Frames,UControlRig* ControlRig, TMap<FName, FGuid >& CompMapPair, bool bUseEditedTimes)
 {
 	if (TSharedPtr<IControlRigObjectBinding> ObjectBinding = ControlRig->GetObjectBinding())
 	{
@@ -299,7 +299,7 @@ void FSequencerTrailHierarchy::UpdateControlRig(const TArray<FFrameNumber> &Fram
 	}
 }
 
-void FSequencerTrailHierarchy::UpdateControlRig(const FTrailEvaluateTimes& EvaluateTimes,UBaseControlRig* ControlRig, TMap<FName, FGuid > &CompMapPair)
+void FSequencerTrailHierarchy::UpdateControlRig(const FTrailEvaluateTimes& EvaluateTimes,UControlRig* ControlRig, TMap<FName, FGuid > &CompMapPair)
 {
 	if (TSharedPtr<IControlRigObjectBinding> ObjectBinding = ControlRig->GetObjectBinding())
 	{
@@ -340,7 +340,7 @@ void FSequencerTrailHierarchy::Update()
 	FTrailHierarchy::Update();  //calculates EvalTimesArr
 	FTrailEvaluateTimes EvalTimes = FTrailEvaluateTimes(EvalTimesArr, SecondsPerSegment);
 
-	for (TPair<UBaseControlRig*, TMap<FName, FGuid>>& CompMapPair : ControlsTracked)
+	for (TPair<UControlRig*, TMap<FName, FGuid>>& CompMapPair : ControlsTracked)
 	{
 		bool bNeedToUpdateControlRig = false;
 		FTrail* ForceTrail = nullptr;
@@ -594,7 +594,7 @@ void FSequencerTrailHierarchy::UpdateSequencerBindings(const TArray<FGuid>& Sequ
 				if (!ControlRigDelegateHandles.Contains(CRParameterTrack))
 				{
 					RegisterControlRigDelegates(BoundComponent, CRParameterTrack);
-					UBaseControlRig* ControlRig = CRParameterTrack->GetControlRig();
+					UControlRig* ControlRig = CRParameterTrack->GetControlRig();
 					if (ControlRig)
 					{
 						TArray<FName> Selected = ControlRig->CurrentControlSelection();
@@ -702,7 +702,7 @@ void FSequencerTrailHierarchy::AddSkeletonToHierarchy(class USkeletalMeshCompone
 	TimingStats.Add("FSequencerTrailHierarchy::AddSkeletonToHierarchy", Timespan);
 }
 
-void FSequencerTrailHierarchy::AddControlRigTrail(USkeletalMeshComponent* Component, UBaseControlRig* ControlRig, UMovieSceneControlRigParameterTrack* CRParameterTrack,const FName& ControlName)
+void FSequencerTrailHierarchy::AddControlRigTrail(USkeletalMeshComponent* Component, UControlRig* ControlRig, UMovieSceneControlRigParameterTrack* CRParameterTrack,const FName& ControlName)
 {
 	if (ControlsTracked.Find(ControlRig) == nullptr)
 	{
@@ -737,10 +737,10 @@ void FSequencerTrailHierarchy::AddControlRigTrail(USkeletalMeshComponent* Compon
 
 void FSequencerTrailHierarchy::RegisterControlRigDelegates(USkeletalMeshComponent* Component, UMovieSceneControlRigParameterTrack* CRParameterTrack)
 {
-	UBaseControlRig* ControlRig = CRParameterTrack->GetControlRig();
+	UControlRig* ControlRig = CRParameterTrack->GetControlRig();
 	URigHierarchy* RigHierarchy = ControlRig->GetHierarchy();
 	FControlRigDelegateHandles& DelegateHandles = ControlRigDelegateHandles.Add(CRParameterTrack);
-	DelegateHandles.OnControlSelected = ControlRig->ControlSelected().AddLambda([this, Component,CRParameterTrack](UBaseControlRig* ControlRig, FRigControlElement* ControlElement, bool bSelected)
+	DelegateHandles.OnControlSelected = ControlRig->ControlSelected().AddLambda([this, Component,CRParameterTrack](UControlRig* ControlRig, FRigControlElement* ControlElement, bool bSelected)
 		{
 			if (ControlElement->Settings.ControlType != ERigControlType::Transform &&
 				ControlElement->Settings.ControlType != ERigControlType::TransformNoScale &&
@@ -769,9 +769,9 @@ void FSequencerTrailHierarchy::RegisterControlRigDelegates(USkeletalMeshComponen
 
 			//check to see if the seleced control rig is sill selected
 			TArray<FGuid> TrailsToRemove;
-			for (TPair<UBaseControlRig*, TMap<FName, FGuid>>& CompMapPair : ControlsTracked)
+			for (TPair<UControlRig*, TMap<FName, FGuid>>& CompMapPair : ControlsTracked)
 			{
-				UBaseControlRig* TrackedControlRig = CompMapPair.Key;
+				UControlRig* TrackedControlRig = CompMapPair.Key;
 				for (TPair<FName, FGuid> NameGuid : CompMapPair.Value)
 				{
 					if (TrackedControlRig->IsControlSelected(NameGuid.Key) == false)

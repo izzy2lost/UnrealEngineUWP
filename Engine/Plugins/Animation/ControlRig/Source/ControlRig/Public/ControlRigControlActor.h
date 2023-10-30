@@ -39,7 +39,7 @@ public:
 	TObjectPtr<class AActor> ActorToTrack;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Interp, Category = "Control Actor")
-	TSubclassOf<UBaseControlRig> ControlRigClass;
+	TSubclassOf<UControlRig> ControlRigClass;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Interp, Category = "Control Actor")
 	bool bRefreshOnTick;
@@ -71,7 +71,7 @@ private:
 	TObjectPtr<class USceneComponent> ActorRootComponent;
 
 	UPROPERTY(transient)
-	TSoftObjectPtr<UBaseControlRig>  ControlRig;
+	TSoftObjectPtr<UControlRig>  ControlRig;
 
 	UPROPERTY(transient)
 	TArray<FName> ControlNames;

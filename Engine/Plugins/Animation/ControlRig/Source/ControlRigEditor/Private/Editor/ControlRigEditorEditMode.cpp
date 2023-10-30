@@ -30,13 +30,13 @@ void FControlRigEditorEditMode::Render(const FSceneView* View, FViewport* Viewpo
 	}
 
 	// is there a control rig to edit?
-	TArray<UBaseControlRig*> ControlRigs = GetControlRigsArray(true );
+	TArray<UControlRig*> ControlRigs = GetControlRigsArray(true );
 	if (ControlRigs.IsEmpty())
 	{
 		return;
 	}
 
-	UBaseControlRig* ControlRig = ControlRigs[0]; //just one control rig in the CR asset editor
+	UControlRig* ControlRig = ControlRigs[0]; //just one control rig in the CR asset editor
 	if (!ControlRig) 
 	{
 		return;

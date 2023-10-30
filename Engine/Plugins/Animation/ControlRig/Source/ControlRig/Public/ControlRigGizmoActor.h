@@ -9,7 +9,7 @@
 #include "Rigs/RigControlHierarchy.h"
 #include "ControlRigGizmoActor.generated.h"
 
-class UBaseControlRig;
+class UControlRig;
 struct FActorSpawnParameters;
 
 USTRUCT()
@@ -36,7 +36,7 @@ struct FControlShapeActorCreationParam
 
 	UObject*	ManipObj;
 	int32		ControlRigIndex;
-	UBaseControlRig* ControlRig;
+	UControlRig* ControlRig;
 	FName		ControlName;
 	FName		ShapeName;
 	FTransform	SpawnTransform;
@@ -72,7 +72,7 @@ public:
 
 	//  control rig this actor is referencing we can have multiple control rig's visible
 	UPROPERTY()
-	TWeakObjectPtr<UBaseControlRig> ControlRig;
+	TWeakObjectPtr<UControlRig> ControlRig;
 
 	// the name of the control this actor is referencing
 	UPROPERTY()
@@ -161,7 +161,7 @@ public:
 	// try to update the actor with the latest settings
 	bool UpdateControlSettings(
 		ERigHierarchyNotification InNotif,
-		UBaseControlRig* InControlRig,
+		UControlRig* InControlRig,
 		const FRigControlElement* InControlElement,
 		bool bHideManipulators,
 		bool bIsInLevelEditor);

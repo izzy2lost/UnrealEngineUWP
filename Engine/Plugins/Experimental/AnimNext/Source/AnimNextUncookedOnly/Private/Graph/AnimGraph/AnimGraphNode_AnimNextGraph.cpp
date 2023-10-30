@@ -157,7 +157,7 @@ void UAnimGraphNode_AnimNextGraph::GetVariables(bool bInput, TMap<FName, FRigVME
 		if (UControlRigBlueprint* RigBlueprint = Cast<UControlRigBlueprint>(TargetClass->ClassGeneratedBy))
 		{
 			//RigBlueprint->CleanupVariables();
-			UBaseControlRig* ControlRig = TargetClass->GetDefaultObject<UBaseControlRig>();
+			UControlRig* ControlRig = TargetClass->GetDefaultObject<UControlRig>();
 			if (ControlRig)
 			{
 				const TArray<FRigVMExternalVariable>& PublicVariables = ControlRig->GetPublicVariables();

@@ -40,7 +40,7 @@ UControlRigBlueprint* FRigInfluenceMapPerEventDetails::GetBlueprintFromDetailBui
 
 			for (UObject* SubObject : SubObjects)
 			{
-				if (UBaseControlRig* Rig = Cast<UBaseControlRig>(SubObject))
+				if (UControlRig* Rig = Cast<UControlRig>(SubObject))
 				{
 					if(UControlRigBlueprint* Blueprint = Cast<UControlRigBlueprint>(Rig->GetClass()->ClassGeneratedBy))
 					{

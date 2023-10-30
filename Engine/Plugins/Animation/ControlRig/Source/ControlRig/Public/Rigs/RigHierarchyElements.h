@@ -589,7 +589,7 @@ public:
 		// We purposefully do not copy any non-UPROPERTY entries, including Owner. This is so that when the copied
 		// element is deleted, the metadata is not deleted with it. These copies are purely intended for interfacing
 		// with BP and details view wrappers. 
-		// These copies are solely intended for UBaseControlRig::OnControlSelected_BP
+		// These copies are solely intended for UControlRig::OnControlSelected_BP
 		Key = InOther.Key;
 		Index = InOther.Index;
 		SubIndex = InOther.SubIndex;

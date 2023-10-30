@@ -11,7 +11,7 @@ struct FSmartNameMapping;
 
 /** Rig that allows additive layer editing per joint */
 UCLASS(NotBlueprintable)
-class CONTROLRIG_API UAdditiveControlRig : public UBaseControlRig
+class CONTROLRIG_API UAdditiveControlRig : public UControlRig
 {
 	GENERATED_UCLASS_BODY()
 

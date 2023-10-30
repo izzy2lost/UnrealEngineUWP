@@ -52,7 +52,7 @@ void FAnimNode_ControlRigBase::OnInitializeAnimInstance(const FAnimInstanceProxy
 	WeakAnimInstanceObject = TWeakObjectPtr<const UAnimInstance>(InAnimInstance);
 
 	USkeletalMeshComponent* Component = InAnimInstance->GetOwningComponent();
-	UBaseControlRig* ControlRig = GetControlRig();
+	UControlRig* ControlRig = GetControlRig();
 	if (Component && Component->GetSkeletalMeshAsset() && ControlRig)
 	{
 #if WITH_EDITORONLY_DATA
@@ -66,7 +66,7 @@ void FAnimNode_ControlRigBase::OnInitializeAnimInstance(const FAnimInstanceProxy
 #endif
 
 		// register skeletalmesh component for now
-		ControlRig->GetDataSourceRegistry()->RegisterDataSource(UBaseControlRig::OwnerComponent, InAnimInstance->GetOwningComponent());
+		ControlRig->GetDataSourceRegistry()->RegisterDataSource(UControlRig::OwnerComponent, InAnimInstance->GetOwningComponent());
 		UpdateGetAssetUserDataDelegate(ControlRig);
 	}
 }
@@ -93,7 +93,7 @@ void FAnimNode_ControlRigBase::Update_AnyThread(const FAnimationUpdateContext& C
 
 	if (bExecute)
 	{
-		if (UBaseControlRig* ControlRig = GetControlRig())
+		if (UControlRig* ControlRig = GetControlRig())
 		{
 			// @TODO: fix this to be thread-safe
 			// Pre-update doesn't work for custom anim instances
@@ -110,7 +110,7 @@ bool FAnimNode_ControlRigBase::CanExecute()
 		return false;
 	}
 
-	if (UBaseControlRig* ControlRig = GetControlRig())
+	if (UControlRig* ControlRig = GetControlRig())
 	{
 		return ControlRig->CanExecute(); 
 	}
@@ -118,7 +118,7 @@ bool FAnimNode_ControlRigBase::CanExecute()
 	return false;
 }
 
-void FAnimNode_ControlRigBase::UpdateInput(UBaseControlRig* ControlRig, const FPoseContext& InOutput)
+void FAnimNode_ControlRigBase::UpdateInput(UControlRig* ControlRig, const FPoseContext& InOutput)
 {
 	SCOPE_CYCLE_COUNTER(STAT_ControlRig_UpdateInput);
 
@@ -161,7 +161,7 @@ void FAnimNode_ControlRigBase::UpdateInput(UBaseControlRig* ControlRig, const FP
 			{
 #if WITH_EDITOR
 				// make sure transient controls don't get reset
-				UBaseControlRig::FTransientControlPoseScope PoseScope(ControlRig);
+				UControlRig::FTransientControlPoseScope PoseScope(ControlRig);
 #endif 
 				Hierarchy->ResetPoseToInitial(ERigElementType::Bone);
 			}
@@ -259,7 +259,7 @@ void FAnimNode_ControlRigBase::UpdateInput(UBaseControlRig* ControlRig, const FP
 #endif
 }
 
-void FAnimNode_ControlRigBase::UpdateOutput(UBaseControlRig* ControlRig, FPoseContext& InOutput)
+void FAnimNode_ControlRigBase::UpdateOutput(UControlRig* ControlRig, FPoseContext& InOutput)
 {
 	SCOPE_CYCLE_COUNTER(STAT_ControlRig_UpdateOutput);
 
@@ -440,11 +440,11 @@ void FAnimNode_ControlRigBase::ExecuteControlRig(FPoseContext& InOutput)
 {
 	SCOPE_CYCLE_COUNTER(STAT_ControlRig_Evaluate);
 
-	if (UBaseControlRig* ControlRig = GetControlRig())
+	if (UControlRig* ControlRig = GetControlRig())
 	{
 		// temporarily give control rig access to the stack allocated attribute container
 		// control rig may have rig units that can add/get attributes to/from this container
-		UBaseControlRig::FAnimAttributeContainerPtrScope AttributeScope(ControlRig, InOutput.CustomAttributes);
+		UControlRig::FAnimAttributeContainerPtrScope AttributeScope(ControlRig, InOutput.CustomAttributes);
 		
 		// first update input to the system
 		UpdateInput(ControlRig, InOutput);
@@ -519,7 +519,7 @@ void FAnimNode_ControlRigBase::ExecuteControlRig(FPoseContext& InOutput)
 
 struct FControlRigControlScope
 {
-	FControlRigControlScope(UBaseControlRig* InControlRig)
+	FControlRigControlScope(UControlRig* InControlRig)
 		: ControlRig(InControlRig)
 	{
 		if (ControlRig.IsValid())
@@ -546,7 +546,7 @@ struct FControlRigControlScope
 	}
 
 	TMap<FRigElementKey, FRigControlValue> ControlValues;
-	TWeakObjectPtr<UBaseControlRig> ControlRig;
+	TWeakObjectPtr<UControlRig> ControlRig;
 };
 
 void FAnimNode_ControlRigBase::CacheBones_AnyThread(const FAnimationCacheBonesContext& Context)
@@ -556,7 +556,7 @@ void FAnimNode_ControlRigBase::CacheBones_AnyThread(const FAnimationCacheBonesCo
 	FAnimNode_CustomProperty::CacheBones_AnyThread(Context);
 	Source.CacheBones(Context);
 
-	if (UBaseControlRig* ControlRig = GetControlRig())
+	if (UControlRig* ControlRig = GetControlRig())
 	{
 		// fill up node names
 		FBoneContainer& RequiredBones = Context.AnimInstanceProxy->GetRequiredBones();
@@ -587,7 +587,7 @@ void FAnimNode_ControlRigBase::CacheBones_AnyThread(const FAnimationCacheBonesCo
 	}
 }
 
-void FAnimNode_ControlRigBase::UpdateInputOutputMappingIfRequired(UBaseControlRig* InControlRig, const FBoneContainer& InRequiredBones)
+void FAnimNode_ControlRigBase::UpdateInputOutputMappingIfRequired(UControlRig* InControlRig, const FBoneContainer& InRequiredBones)
 {
 	const URigHierarchy* Hierarchy = InControlRig->GetHierarchy();
 	if(Hierarchy == nullptr)
@@ -651,7 +651,7 @@ void FAnimNode_ControlRigBase::UpdateInputOutputMappingIfRequired(UBaseControlRi
 			const FBoneContainer& InRequiredBones,
 			const FReferenceSkeleton& InRefSkeleton,
 			const TArray<FBoneIndexType>& InRequiredBonesArray,
-			const UBaseControlRig* InControlRig,
+			const UControlRig* InControlRig,
 			TMap<FName, uint16>& OutMapping
 		) {
 			OutMapping.Reset();
@@ -766,7 +766,7 @@ void FAnimNode_ControlRigBase::UpdateInputOutputMappingIfRequired(UBaseControlRi
 
 UClass* FAnimNode_ControlRigBase::GetTargetClass() const
 {
-	if (UBaseControlRig* ControlRig = GetControlRig())
+	if (UControlRig* ControlRig = GetControlRig())
 	{
 		return ControlRig->GetClass();
 	}
@@ -774,7 +774,7 @@ UClass* FAnimNode_ControlRigBase::GetTargetClass() const
 	return nullptr;
 }
 
-void FAnimNode_ControlRigBase::QueueControlRigDrawInstructions(UBaseControlRig* ControlRig, FAnimInstanceProxy* Proxy) const
+void FAnimNode_ControlRigBase::QueueControlRigDrawInstructions(UControlRig* ControlRig, FAnimInstanceProxy* Proxy) const
 {
 	ensure(ControlRig);
 	ensure(Proxy);
@@ -830,7 +830,7 @@ void FAnimNode_ControlRigBase::QueueControlRigDrawInstructions(UBaseControlRig* 
 	}
 }
 
-void FAnimNode_ControlRigBase::UpdateGetAssetUserDataDelegate(UBaseControlRig* InControlRig) const
+void FAnimNode_ControlRigBase::UpdateGetAssetUserDataDelegate(UControlRig* InControlRig) const
 {
 	if(GetAssetUserData().IsEmpty() || !WeakAnimInstanceObject.IsValid())
 	{
@@ -842,7 +842,7 @@ void FAnimNode_ControlRigBase::UpdateGetAssetUserDataDelegate(UBaseControlRig* I
 	// since the delegate may go stale quickly. to guard against destroyed anim nodes
 	// we'll rely on the anim instance to provide an indication if the memory is still valid. 
 	TWeakObjectPtr<const UAnimInstance> LocalWeakAnimInstance = WeakAnimInstanceObject;
-	InControlRig->GetExternalAssetUserDataDelegate = UBaseControlRig::FGetExternalAssetUserData::CreateLambda([InControlRig, LocalWeakAnimInstance, this]
+	InControlRig->GetExternalAssetUserDataDelegate = UControlRig::FGetExternalAssetUserData::CreateLambda([InControlRig, LocalWeakAnimInstance, this]
 	{
 		if(LocalWeakAnimInstance.IsValid())
 		{

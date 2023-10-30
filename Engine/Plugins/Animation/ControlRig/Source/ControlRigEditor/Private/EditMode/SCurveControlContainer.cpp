@@ -134,7 +134,7 @@ float SCurveControlListRow::GetValue() const
 //////////////////////////////////////////////////////////////////////////
 // SCurveControlContainer
 
-void SCurveControlContainer::Construct(const FArguments& InArgs, UBaseControlRig* InControlRig)
+void SCurveControlContainer::Construct(const FArguments& InArgs, UControlRig* InControlRig)
 {
 	ChildSlot
 	[
@@ -183,7 +183,7 @@ void SCurveControlContainer::Construct(const FArguments& InArgs, UBaseControlRig
 }
 
 
-void SCurveControlContainer::SetControlRig(UBaseControlRig* InControlRig)
+void SCurveControlContainer::SetControlRig(UControlRig* InControlRig)
 {
 
 	if (ControlRig.IsValid())
@@ -350,7 +350,7 @@ void SCurveControlContainer::OnSelectionChanged(FDisplayedCurveControlInfoPtr Se
 		}
 	}
 }
-void SCurveControlContainer::OnRigElementSelected(UBaseControlRig* Subject, FRigControlElement* ControlElement, bool bSelected)
+void SCurveControlContainer::OnRigElementSelected(UControlRig* Subject, FRigControlElement* ControlElement, bool bSelected)
 {
 	for(const FDisplayedCurveControlInfoPtr& Item : CurveControlList)
 	{

@@ -90,10 +90,10 @@ public:
 	UClass* GetControlRigClass();
 
 	UFUNCTION(BlueprintCallable, Category = "Control Rig Blueprint")
-	UBaseControlRig* CreateControlRig() { return Cast<UBaseControlRig>(CreateRigVMHost()); }
+	UControlRig* CreateControlRig() { return Cast<UControlRig>(CreateRigVMHost()); }
 
 	UFUNCTION(BlueprintCallable, Category = "Control Rig Blueprint")
-	UBaseControlRig* GetDebuggedControlRig() { return Cast<UBaseControlRig>(GetDebuggedRigVMHost()); } 
+	UControlRig* GetDebuggedControlRig() { return Cast<UControlRig>(GetDebuggedRigVMHost()); } 
 
 	/** IInterface_PreviewMeshProvider interface */
 	UFUNCTION(BlueprintCallable, Category = "Control Rig Blueprint")
@@ -275,13 +275,13 @@ protected:
 	virtual void PatchVariableNodesOnLoad() override;
 
 public:
-	void UpdateElementKeyRedirector(UBaseControlRig* InControlRig) const;
-	void PropagatePoseFromInstanceToBP(UBaseControlRig* InControlRig) const;
+	void UpdateElementKeyRedirector(UControlRig* InControlRig) const;
+	void PropagatePoseFromInstanceToBP(UControlRig* InControlRig) const;
 	void PropagatePoseFromBPToInstances() const;
 	void PropagateHierarchyFromBPToInstances() const;
 	void PropagateDrawInstructionsFromBPToInstances() const;
 	void PropagatePropertyFromBPToInstances(FRigElementKey InRigElement, const FProperty* InProperty) const;
-	void PropagatePropertyFromInstanceToBP(FRigElementKey InRigElement, const FProperty* InProperty, UBaseControlRig* InInstance) const;
+	void PropagatePropertyFromInstanceToBP(FRigElementKey InRigElement, const FProperty* InProperty, UControlRig* InInstance) const;
 
 	/**
 	* Returns the modified event, which can be used to 

@@ -501,9 +501,9 @@ void SControlRigSnapper::SetStartEndFrames()
 FControlRigSnapperSelection SControlRigSnapper::GetSelection(bool bGetAll) 
 {
 	FControlRigSnapperSelection Selection;
-	TArray<UBaseControlRig*> ControlRigs;
+	TArray<UControlRig*> ControlRigs;
 	GetControlRigs(ControlRigs);
-	for (UBaseControlRig* ControlRig : ControlRigs)
+	for (UControlRig* ControlRig : ControlRigs)
 	{
 		if (ControlRig)
 		{
@@ -569,15 +569,15 @@ FControlRigSnapperSelection SControlRigSnapper::GetSelection(bool bGetAll)
 	return Selection;
 }
 
-void SControlRigSnapper::GetControlRigs(TArray<UBaseControlRig*>& OutControlRigs) const
+void SControlRigSnapper::GetControlRigs(TArray<UControlRig*>& OutControlRigs) const
 {
 	OutControlRigs.SetNum(0);
 	if (FControlRigEditMode* EditMode = static_cast<FControlRigEditMode*>(GLevelEditorModeTools().GetActiveMode(FControlRigEditMode::ModeName)))
 	{
-		TArrayView<TWeakObjectPtr<UBaseControlRig>> ControlRigPtrs = EditMode->GetControlRigs();
-		for (TWeakObjectPtr<UBaseControlRig>& ControlRigPtr : ControlRigPtrs)
+		TArrayView<TWeakObjectPtr<UControlRig>> ControlRigPtrs = EditMode->GetControlRigs();
+		for (TWeakObjectPtr<UControlRig>& ControlRigPtr : ControlRigPtrs)
 		{
-			if (UBaseControlRig* ControlRig = ControlRigPtr.Get())
+			if (UControlRig* ControlRig = ControlRigPtr.Get())
 			{
 				OutControlRigs.Add(ControlRig);
 			}

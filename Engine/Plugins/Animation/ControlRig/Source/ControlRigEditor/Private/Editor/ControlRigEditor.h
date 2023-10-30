@@ -111,7 +111,7 @@ public:
 	UControlRigBlueprint* GetControlRigBlueprint() const;
 
 	// returns the hierarchy being debugged
-	UBaseControlRig* GetControlRig() const;
+	UControlRig* GetControlRig() const;
 
 	// returns the hierarchy being debugged
 	URigHierarchy* GetHierarchyBeingDebugged() const;
@@ -133,7 +133,7 @@ public:
 	FControlRigEditorEditMode* GetEditMode() const;
 
 	// this changes everytime you compile, so don't cache it expecting it will last. 
-	UBaseControlRig* GetInstanceRig() const { return GetControlRig();  }
+	UControlRig* GetInstanceRig() const { return GetControlRig();  }
 
 	void OnCurveContainerChanged();
 
@@ -248,7 +248,7 @@ private:
 	void FilterDraggedKeys(TArray<FRigElementKey>& Keys, bool bRemoveNameSpace);
 	void HandleMakeElementGetterSetter(ERigElementGetterSetterType Type, bool bIsGetter, TArray<FRigElementKey> Keys, UEdGraph* Graph, FVector2D NodePosition);
 
-	void HandleOnControlModified(UBaseControlRig* Subject, FRigControlElement* ControlElement, const FRigControlModifiedContext& Context);
+	void HandleOnControlModified(UControlRig* Subject, FRigControlElement* ControlElement, const FRigControlModifiedContext& Context);
 
 	virtual void HandleRefreshEditorFromBlueprint(URigVMBlueprint* InBlueprint) override;
 
@@ -303,10 +303,10 @@ protected:
 	int32 RigHierarchyTabCount;
 	TWeakObjectPtr<AStaticMeshActor> WeakGroundActorPtr;
 
-	void OnPreForwardsSolve_AnyThread(UBaseControlRig* InRig, const FName& InEventName);
-	void OnPreConstructionForUI_AnyThread(UBaseControlRig* InRig, const FName& InEventName);
-	void OnPreConstruction_AnyThread(UBaseControlRig* InRig, const FName& InEventName);
-	void OnPostConstruction_AnyThread(UBaseControlRig* InRig, const FName& InEventName);
+	void OnPreForwardsSolve_AnyThread(UControlRig* InRig, const FName& InEventName);
+	void OnPreConstructionForUI_AnyThread(UControlRig* InRig, const FName& InEventName);
+	void OnPreConstruction_AnyThread(UControlRig* InRig, const FName& InEventName);
+	void OnPostConstruction_AnyThread(UControlRig* InRig, const FName& InEventName);
 	FRigPose PreConstructionPose;
 	TArray<FRigConnectorInfo> ConnectorInfos;
 

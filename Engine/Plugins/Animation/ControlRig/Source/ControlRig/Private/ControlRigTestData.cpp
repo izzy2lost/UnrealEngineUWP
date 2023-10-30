@@ -9,7 +9,7 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ControlRigTestData)
 
-bool FControlRigTestDataFrame::Store(UBaseControlRig* InControlRig, bool bInitial)
+bool FControlRigTestDataFrame::Store(UControlRig* InControlRig, bool bInitial)
 {
 	if(InControlRig == nullptr)
 	{
@@ -46,7 +46,7 @@ bool FControlRigTestDataFrame::Store(UBaseControlRig* InControlRig, bool bInitia
 	return true;
 }
 
-bool FControlRigTestDataFrame::Restore(UBaseControlRig* InControlRig, bool bInitial) const
+bool FControlRigTestDataFrame::Restore(UControlRig* InControlRig, bool bInitial) const
 {
 	if(InControlRig == nullptr)
 	{
@@ -71,7 +71,7 @@ bool FControlRigTestDataFrame::Restore(UBaseControlRig* InControlRig, bool bInit
 	return RestoreVariables(InControlRig);
 }
 
-bool FControlRigTestDataFrame::RestoreVariables(UBaseControlRig* InControlRig) const
+bool FControlRigTestDataFrame::RestoreVariables(UControlRig* InControlRig) const
 {
 	class FControlRigTestDataFrame_ErrorPipe : public FOutputDevice
 	{
@@ -214,7 +214,7 @@ int32 UControlRigTestData::GetFrameIndexForTime(double InSeconds, bool bInput) c
 	return LastFrameIndex;
 }
 
-bool UControlRigTestData::Record(UBaseControlRig* InControlRig, double InRecordingDuration)
+bool UControlRigTestData::Record(UControlRig* InControlRig, double InRecordingDuration)
 {
 	if(InControlRig == nullptr)
 	{
@@ -232,7 +232,7 @@ bool UControlRigTestData::Record(UBaseControlRig* InControlRig, double InRecordi
 	{
 		InControlRig->RequestInit();
 		PreConstructionHandle = InControlRig->OnPreConstruction_AnyThread().AddLambda(
-			[this](UBaseControlRig* InControlRig, const FName& InEventName)
+			[this](UControlRig* InControlRig, const FName& InEventName)
 			{
 				Initial.Store(InControlRig, true);
 			}
@@ -240,7 +240,7 @@ bool UControlRigTestData::Record(UBaseControlRig* InControlRig, double InRecordi
 	}
 
 	PreForwardHandle = InControlRig->OnPreForwardsSolve_AnyThread().AddLambda(
-		[this](UBaseControlRig* InControlRig, const FName& InEventName)
+		[this](UControlRig* InControlRig, const FName& InEventName)
 		{
 			FControlRigTestDataFrame Frame;
 			Frame.Store(InControlRig);
@@ -254,7 +254,7 @@ bool UControlRigTestData::Record(UBaseControlRig* InControlRig, double InRecordi
 	);
 
 	PostForwardHandle = InControlRig->OnPostForwardsSolve_AnyThread().AddLambda(
-		[this](UBaseControlRig* InControlRig, const FName& InEventName)
+		[this](UControlRig* InControlRig, const FName& InEventName)
 		{
 			FControlRigTestDataFrame Frame;
 			Frame.Store(InControlRig);
@@ -277,7 +277,7 @@ bool UControlRigTestData::Record(UBaseControlRig* InControlRig, double InRecordi
 	return true;
 }
 
-bool UControlRigTestData::SetupReplay(UBaseControlRig* InControlRig, bool bGroundTruth)
+bool UControlRigTestData::SetupReplay(UControlRig* InControlRig, bool bGroundTruth)
 {
 	ReleaseReplay();
 	ClearDelegates(InControlRig);
@@ -299,14 +299,14 @@ bool UControlRigTestData::SetupReplay(UBaseControlRig* InControlRig, bool bGroun
 	
 	InControlRig->RequestInit();
 	PreConstructionHandle = InControlRig->OnPreConstruction_AnyThread().AddLambda(
-		[this](UBaseControlRig* InControlRig, const FName& InEventName)
+		[this](UControlRig* InControlRig, const FName& InEventName)
 		{
 			Initial.Restore(InControlRig, true);
 		}
 	);
 
 	PreForwardHandle = InControlRig->OnPreForwardsSolve_AnyThread().AddLambda(
-		[this](UBaseControlRig* InControlRig, const FName& InEventName)
+		[this](UControlRig* InControlRig, const FName& InEventName)
 		{
 			// loop the animation data
 			if(InControlRig->GetAbsoluteTime() < GetTimeRange().X - SMALL_NUMBER ||
@@ -327,7 +327,7 @@ bool UControlRigTestData::SetupReplay(UBaseControlRig* InControlRig, bool bGroun
 	);
 
 	PostForwardHandle = InControlRig->OnPostForwardsSolve_AnyThread().AddLambda(
-		[this](UBaseControlRig* InControlRig, const FName& InEventName)
+		[this](UControlRig* InControlRig, const FName& InEventName)
 		{
 			const FRigPose CurrentPose = InControlRig->GetHierarchy()->GetPose();
 
@@ -369,7 +369,7 @@ bool UControlRigTestData::SetupReplay(UBaseControlRig* InControlRig, bool bGroun
 
 void UControlRigTestData::ReleaseReplay()
 {
-	if(UBaseControlRig* ControlRig = ReplayControlRig.Get())
+	if(UControlRig* ControlRig = ReplayControlRig.Get())
 	{
 		ClearDelegates(ControlRig);
 		ReplayControlRig.Reset();
@@ -394,7 +394,7 @@ bool UControlRigTestData::IsReplaying() const
 	return ReplayControlRig.IsValid();
 }
 
-void UControlRigTestData::ClearDelegates(UBaseControlRig* InControlRig)
+void UControlRigTestData::ClearDelegates(UControlRig* InControlRig)
 {
 	if(InControlRig)
 	{

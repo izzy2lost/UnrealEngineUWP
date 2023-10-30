@@ -8,7 +8,7 @@
 #include "EditorModeManager.h"
 
 
-class UBaseControlRig;
+class UControlRig;
 class ISequencer;
 class FControlRigEditMode;
 struct FRigControlElement;
@@ -19,15 +19,15 @@ class FControlRigBaseDockableView
 public:
 	FControlRigBaseDockableView();
 	virtual ~FControlRigBaseDockableView();
-	TArray<UBaseControlRig*> GetControlRigs() const;
+	TArray<UControlRig*> GetControlRigs() const;
 
 	virtual void SetEditMode(FControlRigEditMode& InEditMode);
 
 protected:
-	virtual void HandleControlSelected(UBaseControlRig* Subject, FRigControlElement* InControl, bool bSelected);
-	virtual void HandleControlAdded(UBaseControlRig* ControlRig, bool bIsAdded);
+	virtual void HandleControlSelected(UControlRig* Subject, FRigControlElement* InControl, bool bSelected);
+	virtual void HandleControlAdded(UControlRig* ControlRig, bool bIsAdded);
 
-	void HandlElementSelected(UBaseControlRig* Subject, const FRigElementKey& Key, bool bSelected);
+	void HandlElementSelected(UControlRig* Subject, const FRigElementKey& Key, bool bSelected);
 
 	ISequencer* GetSequencer() const;
 

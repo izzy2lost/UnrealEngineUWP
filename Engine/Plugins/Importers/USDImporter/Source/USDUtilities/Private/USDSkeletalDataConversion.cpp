@@ -3278,7 +3278,7 @@ bool UnrealToUsd::ConvertControlRigSection(
 		return false;
 	}
 
-	UBaseControlRig* ControlRig = InSection->GetControlRig();
+	UControlRig* ControlRig = InSection->GetControlRig();
 	if ( !ControlRig )
 	{
 		return false;

@@ -35,7 +35,7 @@ TSharedRef<SWidget> FRigValidationTabSummoner::CreateTabBody(const FWorkflowTabS
 	check(Validator);
 
 	TSharedRef<SControlRigValidationWidget> ValidationWidget = SNew(SControlRigValidationWidget, Validator);
-	Validator->SetControlRig(Cast<UBaseControlRig>(RigBlueprint->GetObjectBeingDebugged()));
+	Validator->SetControlRig(Cast<UControlRig>(RigBlueprint->GetObjectBeingDebugged()));
 	return ValidationWidget;
 }
 

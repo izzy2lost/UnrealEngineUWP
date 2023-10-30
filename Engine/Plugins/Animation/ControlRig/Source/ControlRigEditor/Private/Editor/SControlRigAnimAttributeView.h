@@ -7,7 +7,7 @@
 
 class FControlRigEditor;
 class UControlRigBlueprint;
-class UBaseControlRig;
+class UControlRig;
 
 class SAnimAttributeView;
 
@@ -25,13 +25,13 @@ class SControlRigAnimAttributeView : public SCompoundWidget
 
 	void HandleSetObjectBeingDebugged(UObject* InObject);
 	
-	void StartObservingNewControlRig(UBaseControlRig* InControlRig);
+	void StartObservingNewControlRig(UControlRig* InControlRig);
 	void StopObservingCurrentControlRig();
 
-	void HandleControlRigPostForwardSolve(UBaseControlRig* InControlRig, const FName& InEventName) const;
+	void HandleControlRigPostForwardSolve(UControlRig* InControlRig, const FName& InEventName) const;
 	
 	TWeakPtr<FControlRigEditor> ControlRigEditor;
 	TWeakObjectPtr<UControlRigBlueprint> ControlRigBlueprint;
-	TWeakObjectPtr<UBaseControlRig> ControlRigBeingDebuggedPtr;
+	TWeakObjectPtr<UControlRig> ControlRigBeingDebuggedPtr;
 	TSharedPtr<SAnimAttributeView> AttributeView;
 };

@@ -9,7 +9,7 @@
 #include "ControlRigSnapper.generated.h"
 
 class AActor;
-class UBaseControlRig;
+class UControlRig;
 class ISequencer;
 class UMovieScene;
 class ULevelSequence;
@@ -23,7 +23,7 @@ struct FControlRigForWorldTransforms
 
 	FControlRigForWorldTransforms() : ControlRig(nullptr) {};
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Control Rig")
-	TWeakObjectPtr<UBaseControlRig> ControlRig;
+	TWeakObjectPtr<UControlRig> ControlRig;
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Control Rig")
 	TArray<FName> ControlNames;
 };
@@ -75,7 +75,7 @@ struct FControlRigSnapper
 	* @param ParentTransforms List of Parent Transforms for each time that the resulting transforms will be concatenated to.
 	* @param OutTransforms  Results
 	*/
-	bool GetControlRigControlTransforms(ISequencer* Sequencer, UBaseControlRig* ControlRig, const FName& ControlName,
+	bool GetControlRigControlTransforms(ISequencer* Sequencer, UControlRig* ControlRig, const FName& ControlName,
 		const TArray<FFrameNumber>& Frames, const TArray<FTransform>& ParentTransforms, TArray<FTransform>& OutTransforms);
 
 
@@ -90,7 +90,7 @@ struct FControlRigSnapper
 	* @param OutTransforms  Results
 	*/
 	bool GetControlRigControlTransforms(UWorld* World, ULevelSequence* LevelSequence,
-		UBaseControlRig* ControlRig, const FName& ControlName,const TArray<FFrameNumber>& Frames, const TArray<FTransform>& ParentTransforms, TArray<FTransform>& OutTransforms);
+		UControlRig* ControlRig, const FName& ControlName,const TArray<FFrameNumber>& Frames, const TArray<FTransform>& ParentTransforms, TArray<FTransform>& OutTransforms);
 
 };
 

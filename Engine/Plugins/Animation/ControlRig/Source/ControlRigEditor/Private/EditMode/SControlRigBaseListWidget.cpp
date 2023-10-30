@@ -17,7 +17,7 @@
 
 #include "ScopedTransaction.h"
 
-#include "ControlRig.h"
+#include "BaseControlRig.h"
 #include "UnrealEdGlobals.h"
 #include "EditMode/ControlRigEditMode.h"
 #include "Tools/ControlRigPose.h"
@@ -423,7 +423,7 @@ void SControlRigPoseAnimSelectionToolbar::MakeControlRigAssetDialog(FControlRigA
 		return;
 	}
 
-	TMap<UBaseControlRig*, TArray<FRigElementKey>> AllSelectedControls;
+	TMap<UControlRig*, TArray<FRigElementKey>> AllSelectedControls;
 	ControlRigEditMode->GetAllSelectedControls(AllSelectedControls);
 	
 	if (AllSelectedControls.Num() > 1)
@@ -455,13 +455,13 @@ void SControlRigPoseAnimSelectionToolbar::MakeControlRigAssetDialog(FControlRigA
 			FControlRigEditMode* ControlRigEditMode =  OwningControlRigWidget->GetEditMode();
 			if (ControlRigEditMode )
 			{
-				TMap<UBaseControlRig*, TArray<FRigElementKey>> AllSelectedControls;
+				TMap<UControlRig*, TArray<FRigElementKey>> AllSelectedControls;
 				ControlRigEditMode->GetAllSelectedControls(AllSelectedControls);
 				if (AllSelectedControls.Num() == 1)
 				{
-					TArray<UBaseControlRig*> ControlRigs;
+					TArray<UControlRig*> ControlRigs;
 					AllSelectedControls.GenerateKeyArray(ControlRigs);
-					UBaseControlRig* ControlRig =ControlRigs[0];
+					UControlRig* ControlRig =ControlRigs[0];
 					UObject* NewAsset = nullptr;
 					switch (Type)
 					{
@@ -497,7 +497,7 @@ bool SControlRigPoseAnimSelectionToolbar::CanExecuteMakeControlRigAsset()
 		return false;
 	}
 	
-	TMap<UBaseControlRig*, TArray<FRigElementKey>> AllSelectedControls;
+	TMap<UControlRig*, TArray<FRigElementKey>> AllSelectedControls;
 	ControlRigEditMode->GetAllSelectedControls(AllSelectedControls);
 
 	if (AllSelectedControls.Num() != 1)
@@ -990,11 +990,11 @@ void SControlRigBaseListWidget::OnAssetsActivated(const TArray<FAssetData>& Sele
 					FControlRigEditMode* ControlRigEditMode = GetEditMode();
 					if (ControlRigEditMode)
 					{
-						TArray<UBaseControlRig*> ControlRigs = ControlRigEditMode->GetControlRigsArray(true /*bIsVisible*/);
+						TArray<UControlRig*> ControlRigs = ControlRigEditMode->GetControlRigsArray(true /*bIsVisible*/);
 						if (ControlRigs.Num() > 0)
 						{
 							const FScopedTransaction Transaction(LOCTEXT("SelectControls", "Select Controls"));
-							for (UBaseControlRig* ControlRig : ControlRigs)
+							for (UControlRig* ControlRig : ControlRigs)
 							{
 								ControlRig->Modify();
 								PoseAsset->SelectControls(ControlRig, SControlRigPoseView::IsMirror());
@@ -1368,11 +1368,11 @@ void SControlRigBaseListWidget::ExecutePastePose(UControlRigPoseAsset* PoseAsset
 		FControlRigEditMode* ControlRigEditMode = GetEditMode();
 		if (ControlRigEditMode)
 		{
-			TArray<UBaseControlRig*> ControlRigs = ControlRigEditMode->GetControlRigsArray(true /*bIsVisible*/);
+			TArray<UControlRig*> ControlRigs = ControlRigEditMode->GetControlRigsArray(true /*bIsVisible*/);
 			if (ControlRigs.Num() > 0)
 			{
 				const FScopedTransaction Transaction(LOCTEXT("PastePose", "Paste Pose"));
-				for (UBaseControlRig* ControlRig : ControlRigs)
+				for (UControlRig* ControlRig : ControlRigs)
 				{
 					ControlRig->Modify();
 					PoseAsset->PastePose(ControlRig);
@@ -1397,11 +1397,11 @@ void SControlRigBaseListWidget::ExecuteSelectControls(UControlRigPoseAsset* Pose
 	FControlRigEditMode* ControlRigEditMode = GetEditMode();
 	if (ControlRigEditMode)
 	{
-		TArray<UBaseControlRig*> ControlRigs = ControlRigEditMode->GetControlRigsArray(true /*bIsVisible*/);
+		TArray<UControlRig*> ControlRigs = ControlRigEditMode->GetControlRigsArray(true /*bIsVisible*/);
 		if (ControlRigs.Num() > 0)
 		{
 			const FScopedTransaction Transaction(LOCTEXT("SelectControls", "Select Controls"));
-			for (UBaseControlRig* ControlRig : ControlRigs)
+			for (UControlRig* ControlRig : ControlRigs)
 			{
 				ControlRig->Modify();
 				PoseAsset->SelectControls(ControlRig);
@@ -1434,11 +1434,11 @@ void SControlRigBaseListWidget::ExecutePasteMirrorPose(UControlRigPoseAsset* Pos
 		FControlRigEditMode* ControlRigEditMode = GetEditMode();
 		if (ControlRigEditMode)
 		{
-			TArray<UBaseControlRig*> ControlRigs = ControlRigEditMode->GetControlRigsArray(true /*bIsVisible*/);
+			TArray<UControlRig*> ControlRigs = ControlRigEditMode->GetControlRigsArray(true /*bIsVisible*/);
 			if (ControlRigs.Num() > 0)
 			{
 				const FScopedTransaction Transaction(LOCTEXT("PasteMirrorPose", "Paste Mirror Pose"));
-				for (UBaseControlRig* ControlRig : ControlRigs)
+				for (UControlRig* ControlRig : ControlRigs)
 				{
 					ControlRig->Modify();
 					PoseAsset->PastePose(ControlRig, false, true);

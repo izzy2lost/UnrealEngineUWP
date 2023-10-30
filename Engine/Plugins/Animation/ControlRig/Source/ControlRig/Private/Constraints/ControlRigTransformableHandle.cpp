@@ -177,7 +177,7 @@ FTickFunction* UTransformableControlHandle::GetTickFunction() const
 	return BoundComponent ? &BoundComponent->PrimaryComponentTick : nullptr;
 }
 
-uint32 UTransformableControlHandle::ComputeHash(const UBaseControlRig* InControlRig, const FName& InControlName)
+uint32 UTransformableControlHandle::ComputeHash(const UControlRig* InControlRig, const FName& InControlName)
 {
 	return HashCombine(GetTypeHash(InControlRig), GetTypeHash(InControlName));
 }
@@ -408,7 +408,7 @@ void UTransformableControlHandle::OnHierarchyModified(
 }
 
 void UTransformableControlHandle::OnControlModified(
-	UBaseControlRig* InControlRig,
+	UControlRig* InControlRig,
 	FRigControlElement* InControl,
 	const FRigControlModifiedContext& InContext)
 {
@@ -447,7 +447,7 @@ void UTransformableControlHandle::OnControlModified(
 	}
 }
 
-void UTransformableControlHandle::OnControlRigBound(UBaseControlRig* InControlRig)
+void UTransformableControlHandle::OnControlRigBound(UControlRig* InControlRig)
 {
 	if (!InControlRig)
 	{
@@ -512,7 +512,7 @@ bool UTransformableControlHandle::AddTransformKeys(const TArray<FFrameNumber>& I
 	}
 	auto KeyframeFunc = [this, bLocal](const FTransform& InTransform, const FRigControlModifiedContext& InKeyframeContext)
 	{
-		UBaseControlRig* InControlRig = ControlRig.Get();
+		UControlRig* InControlRig = ControlRig.Get();
 		static constexpr bool bNotify = true;
 		static constexpr bool bUndo = false;
 		static constexpr bool bFixEuler = true;
@@ -552,7 +552,7 @@ bool UTransformableControlHandle::AddTransformKeys(const TArray<FFrameNumber>& I
 //for control rig need to check to see if the control rig is different then we may need to update it based upon what we are now bound to
 void UTransformableControlHandle::ResolveBoundObjects(FMovieSceneSequenceID LocalSequenceID, IMovieScenePlayer& Player, UObject* SubObject)
 {
-	if (UBaseControlRig* InControlRig = Cast<UBaseControlRig>(SubObject))
+	if (UControlRig* InControlRig = Cast<UControlRig>(SubObject))
 	{
 		if (ControlRig != InControlRig)
 		{
@@ -610,7 +610,7 @@ void UTransformableControlHandle::OnObjectsReplaced(const TMap<UObject*, UObject
 {
 	if (UObject* NewObject = InOldToNewInstances.FindRef(ControlRig.Get()))
 	{
-		if (UBaseControlRig* NewControlRig = Cast<UBaseControlRig>(NewObject))
+		if (UControlRig* NewControlRig = Cast<UControlRig>(NewObject))
 		{
 			if (URigHierarchy* Hierarchy = ControlRig->GetHierarchy())
 			{

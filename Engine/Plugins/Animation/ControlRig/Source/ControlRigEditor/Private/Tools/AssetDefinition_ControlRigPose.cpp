@@ -32,14 +32,14 @@ namespace MenuExtension_AnimationAsset
 			return;
 		}
 		
-		TMap<UBaseControlRig*, TArray<FRigElementKey>> AllSelectedControls;
+		TMap<UControlRig*, TArray<FRigElementKey>> AllSelectedControls;
 		ControlRigEditMode->GetAllSelectedControls(AllSelectedControls);
-		TArray<UBaseControlRig*> ControlRigs;
+		TArray<UControlRig*> ControlRigs;
 		AllSelectedControls.GenerateKeyArray(ControlRigs);
 			
 		for (UControlRigPoseAsset* ControlRigPoseAsset : ControlRigPoseAssets)
 		{
-			for (UBaseControlRig* ControlRig : ControlRigs)
+			for (UControlRig* ControlRig : ControlRigs)
 			{
 				ControlRigPoseAsset->PastePose(ControlRig, false, false);
 			}
@@ -57,14 +57,14 @@ namespace MenuExtension_AnimationAsset
 			return;
 		}
 
-		TMap<UBaseControlRig*, TArray<FRigElementKey>> AllSelectedControls;
+		TMap<UControlRig*, TArray<FRigElementKey>> AllSelectedControls;
 		ControlRigEditMode->GetAllSelectedControls(AllSelectedControls);
-		TArray<UBaseControlRig*> ControlRigs;
+		TArray<UControlRig*> ControlRigs;
 		AllSelectedControls.GenerateKeyArray(ControlRigs);
 
 		for (UControlRigPoseAsset* ControlRigPoseAsset : ControlRigPoseAssets)
 		{
-			for (UBaseControlRig* ControlRig : ControlRigs)
+			for (UControlRig* ControlRig : ControlRigs)
 			{
 				ControlRigPoseAsset->SelectControls(ControlRig);
 			}
@@ -82,14 +82,14 @@ namespace MenuExtension_AnimationAsset
 			return;
 		}
 
-		TMap<UBaseControlRig*, TArray<FRigElementKey>> AllSelectedControls;
+		TMap<UControlRig*, TArray<FRigElementKey>> AllSelectedControls;
 		ControlRigEditMode->GetAllSelectedControls(AllSelectedControls);
-		TArray<UBaseControlRig*> ControlRigs;
+		TArray<UControlRig*> ControlRigs;
 		AllSelectedControls.GenerateKeyArray(ControlRigs);
 
 		for (UControlRigPoseAsset* ControlRigPoseAsset : ControlRigPoseAssets)
 		{
-			for (UBaseControlRig* ControlRig : ControlRigs)
+			for (UControlRig* ControlRig : ControlRigs)
 			{
 				ControlRigPoseAsset->SavePose(ControlRig, false);
 			}

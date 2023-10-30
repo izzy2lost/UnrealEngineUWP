@@ -198,7 +198,7 @@ using FControlRigAnimTypeIDsPtr = TSharedPtr<FControlRigAnimTypeIDs, ESPMode::Th
 struct FControlRigAnimTypeIDs
 {
 	/** Get the anim type IDs for the specified section */
-	static FControlRigAnimTypeIDsPtr Get(const UBaseControlRig* ControlRig)
+	static FControlRigAnimTypeIDsPtr Get(const UControlRig* ControlRig)
 	{
 		struct FControlRigAnimTypeIDsAnnotation
 		{
@@ -576,7 +576,7 @@ namespace MovieScene
 } // namespace UE
 
 //since initialization can blow up selection, may need to just reselect, used in a few places
-static void SelectControls(UBaseControlRig* ControlRig, TArray<FName>& SelectedNames)
+static void SelectControls(UControlRig* ControlRig, TArray<FName>& SelectedNames)
 {
 	if (ControlRig)
 	{
@@ -588,7 +588,7 @@ static void SelectControls(UBaseControlRig* ControlRig, TArray<FName>& SelectedN
 	}
 }
 
-void FControlRigBindingHelper::BindToSequencerInstance(UBaseControlRig* ControlRig)
+void FControlRigBindingHelper::BindToSequencerInstance(UControlRig* ControlRig)
 {
 	check(ControlRig);
 	if (USkeletalMeshComponent* SkeletalMeshComponent = Cast<USkeletalMeshComponent>(ControlRig->GetObjectBinding()->GetBoundObject()))
@@ -640,7 +640,7 @@ void FControlRigBindingHelper::BindToSequencerInstance(UBaseControlRig* ControlR
 	}
 }
 
-void FControlRigBindingHelper::UnBindFromSequencerInstance(UBaseControlRig* ControlRig)
+void FControlRigBindingHelper::UnBindFromSequencerInstance(UControlRig* ControlRig)
 {
 	check(ControlRig);
 
@@ -692,7 +692,7 @@ void FControlRigBindingHelper::UnBindFromSequencerInstance(UBaseControlRig* Cont
 
 struct FControlRigSkeletalMeshComponentBindingTokenProducer : IMovieScenePreAnimatedTokenProducer
 {
-	FControlRigSkeletalMeshComponentBindingTokenProducer(FMovieSceneSequenceIDRef InSequenceID, UBaseControlRig* InControlRig)
+	FControlRigSkeletalMeshComponentBindingTokenProducer(FMovieSceneSequenceIDRef InSequenceID, UControlRig* InControlRig)
 		: SequenceID(InSequenceID), ControlRigUniqueID(InControlRig->GetUniqueID())
 	{}
 
@@ -763,7 +763,7 @@ struct FControlRigParameterPreAnimatedTokenProducer : IMovieScenePreAnimatedToke
 			virtual void RestoreState(UObject& InObject, const UE::MovieScene::FRestoreStateParams& Params) override
 			{
 
-				if (UBaseControlRig* ControlRig = Cast<UBaseControlRig>(&InObject))
+				if (UControlRig* ControlRig = Cast<UControlRig>(&InObject))
 				{
 					if (ControlRig->GetObjectBinding())
 					{
@@ -938,7 +938,7 @@ struct FControlRigParameterPreAnimatedTokenProducer : IMovieScenePreAnimatedToke
 
 		FToken Token(SequenceID);
 
-		if (UBaseControlRig* ControlRig = Cast<UBaseControlRig>(&Object))
+		if (UControlRig* ControlRig = Cast<UControlRig>(&Object))
 		{
 			URigHierarchy* RigHierarchy = ControlRig->GetHierarchy();
 			TArray<FRigControlElement*> Controls = ControlRig->AvailableControls();
@@ -1088,9 +1088,9 @@ struct FControlRigParameterPreAnimatedTokenProducer : IMovieScenePreAnimatedToke
 
 };
 
-static UBaseControlRig* GetControlRig(const UMovieSceneControlRigParameterSection* Section,UObject* BoundObject)
+static UControlRig* GetControlRig(const UMovieSceneControlRigParameterSection* Section,UObject* BoundObject)
 {
-	UBaseControlRig* ControlRig = Section->GetControlRig();
+	UControlRig* ControlRig = Section->GetControlRig();
 	if (ControlRig->GetObjectBinding())
 	{
 		if (UControlRigComponent* ControlRigComponent = Cast<UControlRigComponent>(ControlRig->GetObjectBinding()->GetBoundObject()))
@@ -1214,7 +1214,7 @@ struct FControlRigParameterExecutionToken : IMovieSceneExecutionToken
 		MOVIESCENE_DETAILED_SCOPE_CYCLE_COUNTER(MovieSceneEval_ControlRigParameterTrack_TokenExecute)
 		
 		FMovieSceneSequenceID SequenceID = Operand.SequenceID;
-		UBaseControlRig* ControlRig = Section->GetControlRig();
+		UControlRig* ControlRig = Section->GetControlRig();
 
 		// Update the animation's state
 		TArrayView<TWeakObjectPtr<>> BoundObjects = Player.FindBoundObjects(Operand);
@@ -1467,7 +1467,7 @@ struct TControlRigParameterActuatorFloat : TMovieSceneBlendingActuator<FControlR
 	{
 		const UMovieSceneControlRigParameterSection* Section = SectionData.Get();
 
-		UBaseControlRig* ControlRig = Section ? GetControlRig(Section, InObject) : nullptr;
+		UControlRig* ControlRig = Section ? GetControlRig(Section, InObject) : nullptr;
 
 		if (ControlRig)
 		{
@@ -1495,7 +1495,7 @@ struct TControlRigParameterActuatorFloat : TMovieSceneBlendingActuator<FControlR
 			bWasDoNotKey = Section->GetDoNotKey();
 			Section->SetDoNotKey(true);
 
-			UBaseControlRig* ControlRig = GetControlRig(Section, InObject);
+			UControlRig* ControlRig = GetControlRig(Section, InObject);
 
 			if (ControlRig && (Section->ControlsToSet.Num() == 0 || Section->ControlsToSet.Contains(ParameterName)))
 			{
@@ -1541,7 +1541,7 @@ struct TControlRigParameterActuatorVector2D : TMovieSceneBlendingActuator<FContr
 	{
 		const UMovieSceneControlRigParameterSection* Section = SectionData.Get();
 
-		UBaseControlRig* ControlRig = Section ? GetControlRig(Section, InObject) : nullptr;
+		UControlRig* ControlRig = Section ? GetControlRig(Section, InObject) : nullptr;
 
 		if (ControlRig)
 		{
@@ -1568,7 +1568,7 @@ struct TControlRigParameterActuatorVector2D : TMovieSceneBlendingActuator<FContr
 			bWasDoNotKey = Section->GetDoNotKey();
 			Section->SetDoNotKey(true);
 
-			UBaseControlRig* ControlRig = GetControlRig(Section, InObject);
+			UControlRig* ControlRig = GetControlRig(Section, InObject);
 
 
 			if (ControlRig && (Section->ControlsToSet.Num() == 0 || Section->ControlsToSet.Contains(ParameterName)))
@@ -1614,7 +1614,7 @@ struct TControlRigParameterActuatorVector : TMovieSceneBlendingActuator<FControl
 	{
 		const UMovieSceneControlRigParameterSection* Section = SectionData.Get();
 
-		UBaseControlRig* ControlRig = Section ? GetControlRig(Section, InObject) : nullptr;
+		UControlRig* ControlRig = Section ? GetControlRig(Section, InObject) : nullptr;
 
 		if (ControlRig)
 		{
@@ -1646,7 +1646,7 @@ struct TControlRigParameterActuatorVector : TMovieSceneBlendingActuator<FControl
 			const bool bSetupUndo = false;
 			bWasDoNotKey = Section->GetDoNotKey();
 			Section->SetDoNotKey(true);
-			UBaseControlRig* ControlRig = GetControlRig(Section, InObject);
+			UControlRig* ControlRig = GetControlRig(Section, InObject);
 
 			if (ControlRig && (Section->ControlsToSet.Num() == 0 || Section->ControlsToSet.Contains(ParameterName)))
 			{
@@ -1694,7 +1694,7 @@ struct TControlRigParameterActuatorTransform : TMovieSceneBlendingActuator<FCont
 	{
 		const UMovieSceneControlRigParameterSection* Section = SectionData.Get();
 
-		UBaseControlRig* ControlRig = Section ? GetControlRig(Section, InObject) : nullptr;
+		UControlRig* ControlRig = Section ? GetControlRig(Section, InObject) : nullptr;
 		URigHierarchy* Hierarchy = ControlRig->GetHierarchy();
 
 		if (ControlRig && Section && (Section->ControlsToSet.Num() == 0 || Section->ControlsToSet.Contains(ParameterName)))
@@ -1750,7 +1750,7 @@ struct TControlRigParameterActuatorTransform : TMovieSceneBlendingActuator<FCont
 			bWasDoNotKey = Section->GetDoNotKey();
 			Section->SetDoNotKey(true);
 			const bool bSetupUndo = false;
-			UBaseControlRig* ControlRig = GetControlRig(Section, InObject);
+			UControlRig* ControlRig = GetControlRig(Section, InObject);
 
 			if (ControlRig && (Section->ControlsToSet.Num() == 0 || Section->ControlsToSet.Contains(ParameterName)))
 			{

@@ -17,7 +17,7 @@
 #include "MovieSceneToolHelpers.h"
 #include "Rigs/FKControlRig.h"
 #include "Units/Execution/RigUnit_InverseExecution.h"
-#include "ControlRig.h"
+#include "BaseControlRig.h"
 #include "EditMode/ControlRigEditMode.h"
 #include "EditorModeManager.h"
 #include "Engine/Selection.h"
@@ -57,18 +57,10 @@
 TArray<UControlRig*> UControlRigSequencerEditorLibrary::GetVisibleControlRigs()
 {
 	TArray<UControlRig*> ControlRigs;
-	TArray<UBaseControlRig*> BaseControlRigs;
 	FControlRigEditMode* ControlRigEditMode = static_cast<FControlRigEditMode*>(GLevelEditorModeTools().GetActiveMode(FControlRigEditMode::ModeName));
 	if (ControlRigEditMode)
 	{
-		BaseControlRigs = ControlRigEditMode->GetControlRigsArray(true /*bIsVisible*/);
-	}
-	for (UBaseControlRig* BaseRig : BaseControlRigs)
-	{
-		if (UControlRig* ControlRig = Cast<UControlRig>(BaseRig))
-		{
-			ControlRigs.Add(ControlRig);
-		}
+		ControlRigs = ControlRigEditMode->GetControlRigsArray(true /*bIsVisible*/);
 	}
 	return ControlRigs;
 }
@@ -250,7 +242,7 @@ static UMovieSceneControlRigParameterTrack* AddControlRig(ULevelSequence* LevelS
 		}
 
 		ControlRig->Modify();
-		if (UFKControlRig* FKControlRig = Cast<UFKControlRig>(Cast<UBaseControlRig>(ControlRig)))
+		if (UFKControlRig* FKControlRig = Cast<UFKControlRig>(Cast<UControlRig>(ControlRig)))
 		{
 			if (bIsAdditiveControlRig)
 			{
@@ -445,7 +437,7 @@ bool UControlRigSequencerEditorLibrary::TweenControlRig(ULevelSequence* LevelSeq
 	{
 		FControlsToTween ControlsToTween;
 		LevelSequence->GetMovieScene()->Modify();
-		TArray<UBaseControlRig*> SelectedControlRigs;
+		TArray<UControlRig*> SelectedControlRigs;
 		SelectedControlRigs.Add(ControlRig);
 		ControlsToTween.Setup(SelectedControlRigs, WeakSequencer);
 		ControlsToTween.Blend(WeakSequencer, TweenValue);
@@ -3086,7 +3078,7 @@ bool UControlRigSequencerEditorLibrary::IsAdditiveControlRig(UControlRig* InCont
 EControlRigFKRigExecuteMode UControlRigSequencerEditorLibrary::GetFKControlRigApplyMode(UControlRig* InControlRig)
 {
 	EControlRigFKRigExecuteMode ApplyMode = EControlRigFKRigExecuteMode::Direct;
-	if (UFKControlRig* FKRig = Cast<UFKControlRig>(Cast<UBaseControlRig>(InControlRig)))
+	if (UFKControlRig* FKRig = Cast<UFKControlRig>(Cast<UControlRig>(InControlRig)))
 	{
 		ApplyMode = FKRig->GetApplyMode();
 	}
@@ -3095,7 +3087,7 @@ EControlRigFKRigExecuteMode UControlRigSequencerEditorLibrary::GetFKControlRigAp
 
 bool UControlRigSequencerEditorLibrary::SetControlRigApplyMode(UControlRig* InControlRig, EControlRigFKRigExecuteMode InApplyMode)
 {
-	if (UFKControlRig* FKRig = Cast<UFKControlRig>(Cast<UBaseControlRig>(InControlRig)))
+	if (UFKControlRig* FKRig = Cast<UFKControlRig>(Cast<UControlRig>(InControlRig)))
 	{
 		FKRig->SetApplyMode(InApplyMode);
 		return true;

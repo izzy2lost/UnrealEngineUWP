@@ -34,7 +34,7 @@ void UControlRigLayerInstance::NativeUpdateAnimation(float DeltaSeconds)
 	
 	if (UAnimInstance* SourceAnimInstance = GetSourceAnimInstance())
 	{
-		if (UBaseControlRig* ControlRig = GetFirstAvailableControlRig())
+		if (UControlRig* ControlRig = GetFirstAvailableControlRig())
 		{
 			if (ControlRig->IsAdditive())
 			{
@@ -69,7 +69,7 @@ void UControlRigLayerInstance::ResetPose()
 	GetProxyOnGameThread<FControlRigLayerInstanceProxy>().ResetPose();
 }
 
-UBaseControlRig* UControlRigLayerInstance::GetFirstAvailableControlRig() const
+UControlRig* UControlRigLayerInstance::GetFirstAvailableControlRig() const
 {
 	return GetProxyOnGameThread<FControlRigLayerInstanceProxy>().GetFirstAvailableControlRig();
 }
@@ -100,7 +100,7 @@ void UControlRigLayerInstance::SetSourceAnimInstance(UAnimInstance* SourceAnimIn
 }
 
 /** ControlRig related support */
-void UControlRigLayerInstance::AddControlRigTrack(int32 ControlRigID, UBaseControlRig* InControlRig)
+void UControlRigLayerInstance::AddControlRigTrack(int32 ControlRigID, UControlRig* InControlRig)
 {
 	if (InControlRig->IsAdditive())
 	{
@@ -127,7 +127,7 @@ void UControlRigLayerInstance::RemoveControlRigTrack(int32 ControlRigID)
 	GetProxyOnGameThread<FControlRigLayerInstanceProxy>().RemoveControlRigTrack(ControlRigID);
 	if (UAnimInstance* SourceAnimInstance = GetSourceAnimInstance())
 	{
-		if (UBaseControlRig* ControlRig = GetFirstAvailableControlRig())
+		if (UControlRig* ControlRig = GetFirstAvailableControlRig())
 		{
 			SourceAnimInstance->bUseMultiThreadedAnimationUpdate = !ControlRig->IsAdditive();
 		}

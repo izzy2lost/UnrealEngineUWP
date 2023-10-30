@@ -107,7 +107,7 @@ bool FAnimSliderKeySelection::Setup(const TWeakPtr<ISequencer>& InSequencer)
 bool FAnimSliderObjectSelection::Setup(TWeakPtr<ISequencer>& InSequencer, TWeakPtr<FControlRigEditMode>& InEditMode)
 {
 	ChannelsArray.Reset();
-	const TArray<UBaseControlRig*> ControlRigs = GetControlRigs(InEditMode);
+	const TArray<UControlRig*> ControlRigs = GetControlRigs(InEditMode);
 	return Setup(ControlRigs, InSequencer);
 }
 
@@ -183,14 +183,14 @@ void FAnimSliderKeySelection::GetMapOfContiguousKeys()
 * FAnimSliderObjectSelection
 *
 */
-TArray<UBaseControlRig*> FAnimSliderObjectSelection::GetControlRigs(TWeakPtr<FControlRigEditMode>& InEditMode)
+TArray<UControlRig*> FAnimSliderObjectSelection::GetControlRigs(TWeakPtr<FControlRigEditMode>& InEditMode)
 {
-	TArray<UBaseControlRig*> ControlRigs;
+	TArray<UControlRig*> ControlRigs;
 	if (const FControlRigEditMode* EditMode = InEditMode.Pin().Get())
 	{
-		TMap<UBaseControlRig*, TArray<FRigElementKey>> SelectedControls;
+		TMap<UControlRig*, TArray<FRigElementKey>> SelectedControls;
 		EditMode->GetAllSelectedControls(SelectedControls);
-		for (TPair<UBaseControlRig*, TArray<FRigElementKey>>& Selected : SelectedControls)
+		for (TPair<UControlRig*, TArray<FRigElementKey>>& Selected : SelectedControls)
 		{
 			ControlRigs.Add(Selected.Key);
 		}
@@ -273,7 +273,7 @@ void FAnimSliderObjectSelection::SetupChannel(FFrameNumber CurrentFrame, TArray<
 		&& KeyBounds.PreviousIndex != KeyBounds.NextIndex) ? true : false;
 }
 
-bool FAnimSliderObjectSelection::Setup(const TArray<UBaseControlRig*>& SelectedControlRigs, TWeakPtr<ISequencer>& InSequencer)
+bool FAnimSliderObjectSelection::Setup(const TArray<UControlRig*>& SelectedControlRigs, TWeakPtr<ISequencer>& InSequencer)
 {
 	ChannelsArray.Reset();
 	if (InSequencer.IsValid() == false)
@@ -299,7 +299,7 @@ bool FAnimSliderObjectSelection::Setup(const TArray<UBaseControlRig*>& SelectedC
 			if (Section && Section->IsActive() && Section->GetRange().Contains(CurrentTime.Time.GetFrame()) && !HandledSections.Contains(Section))
 			{
 				HandledSections.Add(Section);				
-				UBaseControlRig* ControlRig = Track->GetControlRig();
+				UControlRig* ControlRig = Track->GetControlRig();
 				TArray<FRigControlElement*> CurrentControls;
 				ControlRig->GetControlsInOrder(CurrentControls);
 
@@ -613,7 +613,7 @@ FText FControlsToTween::GetTooltipText() const
 	return LOCTEXT("TweenControllerTooltip", "Tween between the next and previous keys");
 }
 
-bool FControlsToTween::Setup(const TArray<UBaseControlRig*>& SelectedControlRigs, TWeakPtr<ISequencer>& InSequencer)
+bool FControlsToTween::Setup(const TArray<UControlRig*>& SelectedControlRigs, TWeakPtr<ISequencer>& InSequencer)
 {
 	return ObjectSelection.Setup(SelectedControlRigs, InSequencer);
 }

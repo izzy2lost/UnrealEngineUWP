@@ -446,8 +446,8 @@ void SControlRigPoseView::Construct(const FArguments& InArgs)
 	if (FControlRigEditMode* EditMode = OwningWidget->GetEditMode())
 	{
 		EditMode->OnControlRigAddedOrRemoved().AddRaw(this, &SControlRigPoseView::HandleControlAdded);
-		TArray<UBaseControlRig*> ControlRigs = GetControlRigs();
-		for (UBaseControlRig* ControlRig : ControlRigs)
+		TArray<UControlRig*> ControlRigs = GetControlRigs();
+		for (UControlRig* ControlRig : ControlRigs)
 		{
 			HandleControlAdded(ControlRig, true);
 		}
@@ -459,8 +459,8 @@ SControlRigPoseView::~SControlRigPoseView()
 	if (FControlRigEditMode* EditMode = OwningWidget->GetEditMode())
 	{
 		EditMode->OnControlRigAddedOrRemoved().RemoveAll(this);
-		TArray<UBaseControlRig*> EditModeRigs = EditMode->GetControlRigsArray(false /*bIsVisible*/);
-		for (UBaseControlRig* ControlRig : EditModeRigs)
+		TArray<UControlRig*> EditModeRigs = EditMode->GetControlRigsArray(false /*bIsVisible*/);
+		for (UControlRig* ControlRig : EditModeRigs)
 		{
 			if (ControlRig)
 			{
@@ -470,7 +470,7 @@ SControlRigPoseView::~SControlRigPoseView()
 	}
 	else
 	{
-		for (TWeakObjectPtr<UBaseControlRig>& CurrentControlRig: CurrentControlRigs)
+		for (TWeakObjectPtr<UControlRig>& CurrentControlRig: CurrentControlRigs)
 		{
 			if (CurrentControlRig.IsValid())
 			{
@@ -538,8 +538,8 @@ FReply SControlRigPoseView::OnPastePose()
 {
 	if (PoseAsset.IsValid())
 	{
-		TArray<UBaseControlRig*> ControlRigs = GetControlRigs();
-		for (UBaseControlRig* ControlRig : ControlRigs)
+		TArray<UControlRig*> ControlRigs = GetControlRigs();
+		for (UControlRig* ControlRig : ControlRigs)
 		{
 			if (ControlRig)
 			{
@@ -554,8 +554,8 @@ FReply SControlRigPoseView::OnSelectControls()
 {	
 	if (PoseAsset.IsValid())
 	{
-		TArray<UBaseControlRig*> ControlRigs = GetControlRigs();
-		for (UBaseControlRig* ControlRig : ControlRigs)
+		TArray<UControlRig*> ControlRigs = GetControlRigs();
+		for (UControlRig* ControlRig : ControlRigs)
 		{
 			if (ControlRig)
 			{
@@ -570,8 +570,8 @@ void SControlRigPoseView::OnPoseBlendChanged(float ChangedVal)
 {
 	if (PoseAsset.IsValid())
 	{
-		TArray<UBaseControlRig*> ControlRigs = GetControlRigs();
-		for (UBaseControlRig* ControlRig : ControlRigs)
+		TArray<UControlRig*> ControlRigs = GetControlRigs();
+		for (UControlRig* ControlRig : ControlRigs)
 		{
 			if (ControlRig)
 			{
@@ -610,11 +610,11 @@ void SControlRigPoseView::OnPoseBlendCommited(float ChangedVal, ETextCommit::Typ
 {
 	if (PoseAsset.IsValid())
 	{
-		TArray<UBaseControlRig*> ControlRigs = GetControlRigs();
+		TArray<UControlRig*> ControlRigs = GetControlRigs();
 		if (ControlRigs.Num() > 0)
 		{
 			FScopedTransaction ScopedTransaction(LOCTEXT("PastePoseTransaction", "Paste Pose"));
-			for (UBaseControlRig* ControlRig : ControlRigs)
+			for (UControlRig* ControlRig : ControlRigs)
 			{
 				if (ControlRig)
 				{
@@ -662,15 +662,15 @@ TSharedRef<SWidget> SControlRigPoseView::GetThumbnailWidget()
 		];
 }
 
-TArray<UBaseControlRig*> SControlRigPoseView::GetControlRigs()
+TArray<UControlRig*> SControlRigPoseView::GetControlRigs()
 {
 	FControlRigEditMode* EditMode = OwningWidget->GetEditMode();
-	TArray<UBaseControlRig*> NewControlRigs;
+	TArray<UControlRig*> NewControlRigs;
 	if (EditMode)
 	{
 		NewControlRigs =  EditMode->GetControlRigsArray(false /*bIsVisible*/);
 	}
-	for (TWeakObjectPtr<UBaseControlRig> ControlRigPtr : CurrentControlRigs)
+	for (TWeakObjectPtr<UControlRig> ControlRigPtr : CurrentControlRigs)
 	{
 		if (ControlRigPtr.IsValid())
 		{
@@ -701,7 +701,7 @@ void SControlRigPoseView::CreateControlList()
 	}
 }
 */
-void SControlRigPoseView::HandleControlAdded(UBaseControlRig* ControlRig, bool bIsAdded)
+void SControlRigPoseView::HandleControlAdded(UControlRig* ControlRig, bool bIsAdded)
 {
 	if (ControlRig)
 	{
@@ -718,7 +718,7 @@ void SControlRigPoseView::HandleControlAdded(UBaseControlRig* ControlRig, bool b
 	UpdateStatusBlocks();
 }
 
-void SControlRigPoseView::HandleControlSelected(UBaseControlRig* Subject, FRigControlElement* InControl, bool bSelected)
+void SControlRigPoseView::HandleControlSelected(UControlRig* Subject, FRigControlElement* InControl, bool bSelected)
 {
 	UpdateStatusBlocks();
 }
@@ -727,7 +727,7 @@ void SControlRigPoseView::UpdateStatusBlocks()
 {
 	FText StatusText1;
 	FText StatusText2;
-	TArray<UBaseControlRig*> ControlRigs = GetControlRigs();
+	TArray<UControlRig*> ControlRigs = GetControlRigs();
 	if (PoseAsset.IsValid() && ControlRigs.Num() > 0)
 	{
 
@@ -737,7 +737,7 @@ void SControlRigPoseView::UpdateStatusBlocks()
 		int32 TotalSelected = 0;
 		uint32 Matching = 0;
 		uint32 MirrorMatching = 0;
-		for (UBaseControlRig* ControlRig : ControlRigs)
+		for (UControlRig* ControlRig : ControlRigs)
 		{
 
 			TArray<FName> SelectedNames = ControlRig->CurrentControlSelection();

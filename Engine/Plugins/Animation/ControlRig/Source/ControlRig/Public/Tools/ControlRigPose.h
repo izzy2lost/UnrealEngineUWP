@@ -13,7 +13,7 @@
 #include "Rigs/RigControlHierarchy.h"
 #include "ControlRigPose.generated.h"
 
-class UBaseControlRig;
+class UControlRig;
 /**
 * The Data Stored For Each Control in A Pose.
 */
@@ -84,18 +84,18 @@ struct CONTROLRIG_API FControlRigControlPose
 	GENERATED_USTRUCT_BODY()
 
 	FControlRigControlPose() {};
-	FControlRigControlPose(UBaseControlRig* InControlRig, bool bUseAll)
+	FControlRigControlPose(UControlRig* InControlRig, bool bUseAll)
 	{
 		SavePose(InControlRig, bUseAll);
 	}
 	~FControlRigControlPose() {};
 
-	void SavePose(UBaseControlRig* ControlRig, bool bUseAll);
-	void PastePose(UBaseControlRig* ControlRig, bool bDoKey, bool bDoMirror);
-	void SetControlMirrorTransform(bool bDoLocalSpace, UBaseControlRig* ControlRig, const FName& Name, bool bIsMatched,
+	void SavePose(UControlRig* ControlRig, bool bUseAll);
+	void PastePose(UControlRig* ControlRig, bool bDoKey, bool bDoMirror);
+	void SetControlMirrorTransform(bool bDoLocalSpace, UControlRig* ControlRig, const FName& Name, bool bIsMatched,
 		const FTransform& GlobalTrnnsform, const FTransform& LocalTransform, bool bNotify, const  FRigControlModifiedContext& Context, bool bSetupUndo);
-	void PastePoseInternal(UBaseControlRig* ControlRig, bool bDoKey, bool bDoMirror, const TArray<FRigControlCopy>& ControlsToPaste);
-	void BlendWithInitialPoses(FControlRigControlPose& InitialPose, UBaseControlRig* ControlRig, bool bDoKey, bool bDoMirror, float BlendValue);
+	void PastePoseInternal(UControlRig* ControlRig, bool bDoKey, bool bDoMirror, const TArray<FRigControlCopy>& ControlsToPaste);
+	void BlendWithInitialPoses(FControlRigControlPose& InitialPose, UControlRig* ControlRig, bool bDoKey, bool bDoMirror, float BlendValue);
 
 	bool ContainsName(const FName& Name) const;
 	void ReplaceControlName(const FName& Name, const FName& NewName);
@@ -127,18 +127,18 @@ public:
 	virtual void PostLoad() override;
 
 	UFUNCTION(BlueprintCallable, Category = "Pose")
-	void SavePose(UBaseControlRig* InControlRig, bool bUseAll);
+	void SavePose(UControlRig* InControlRig, bool bUseAll);
 
 	UFUNCTION(BlueprintCallable, Category = "Pose")
-	void PastePose(UBaseControlRig* InControlRig, bool bDoKey = false, bool bDoMirror = false);
+	void PastePose(UControlRig* InControlRig, bool bDoKey = false, bool bDoMirror = false);
 	
 	UFUNCTION(BlueprintCallable, Category = "Pose")
-	void SelectControls(UBaseControlRig* InControlRig, bool bDoMirror = false);
+	void SelectControls(UControlRig* InControlRig, bool bDoMirror = false);
 
-	TArray<FRigControlCopy> GetCurrentPose(UBaseControlRig* InControlRig);
+	TArray<FRigControlCopy> GetCurrentPose(UControlRig* InControlRig);
 
 	UFUNCTION(BlueprintCallable, Category = "Pose")
-	void GetCurrentPose(UBaseControlRig* InControlRig, FControlRigControlPose& OutPose);
+	void GetCurrentPose(UControlRig* InControlRig, FControlRigControlPose& OutPose);
 
 	UFUNCTION(BlueprintPure, Category = "Pose")
 	TArray<FName> GetControlNames() const;
@@ -147,9 +147,9 @@ public:
 	void ReplaceControlName(const FName& CurrentName, const FName& NewName);
 
 	UFUNCTION(BlueprintPure, Category = "Pose")
-	bool DoesMirrorMatch(UBaseControlRig* ControlRig, const FName& ControlName) const;
+	bool DoesMirrorMatch(UControlRig* ControlRig, const FName& ControlName) const;
 
-	void BlendWithInitialPoses(FControlRigControlPose& InitialPose, UBaseControlRig* ControlRig, bool bDoKey, bool bdoMirror, float BlendValue);
+	void BlendWithInitialPoses(FControlRigControlPose& InitialPose, UControlRig* ControlRig, bool bDoKey, bool bdoMirror, float BlendValue);
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Pose")
 	FControlRigControlPose Pose;

@@ -34,7 +34,7 @@ void UControlRigBlueprintGeneratedClass::Serialize(FArchive& Ar)
 	const FString VMDebugName = FString::Printf(Format, *GetName(), uint32(++NumVMs));
 	URigVM* VM = NewObject<URigVM>(GetTransientPackage(), *VMDebugName);
 
-	if (UBaseControlRig* CDO = Cast<UBaseControlRig>(GetDefaultObject(true)))
+	if (UControlRig* CDO = Cast<UControlRig>(GetDefaultObject(true)))
 	{
 		if (Ar.IsSaving() && CDO->VM)
 		{
@@ -44,7 +44,7 @@ void UControlRigBlueprintGeneratedClass::Serialize(FArchive& Ar)
 	
 	VM->Serialize(Ar);
 
-	if (UBaseControlRig* CDO = Cast<UBaseControlRig>(GetDefaultObject(false)))
+	if (UControlRig* CDO = Cast<UControlRig>(GetDefaultObject(false)))
 	{
 		if (Ar.IsLoading() && CDO->VM)
 		{

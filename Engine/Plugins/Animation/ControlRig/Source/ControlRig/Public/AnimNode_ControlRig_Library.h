@@ -40,5 +40,5 @@ public:
 
 	/** Set the control rig class on the node */
 	UFUNCTION(BlueprintCallable, Category = "Animation|ControlRig", meta = (BlueprintThreadSafe))
-	static CONTROLRIG_API FControlRigReference SetControlRigClass(const FControlRigReference& Node, TSubclassOf<UBaseControlRig> ControlRigClass);
+	static CONTROLRIG_API FControlRigReference SetControlRigClass(const FControlRigReference& Node, TSubclassOf<UControlRig> ControlRigClass);
 };

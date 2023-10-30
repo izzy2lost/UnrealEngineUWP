@@ -25,9 +25,9 @@ FControlRigBaseDockableView::~FControlRigBaseDockableView()
 	}
 }
 
-TArray<UBaseControlRig*> FControlRigBaseDockableView::GetControlRigs()  const
+TArray<UControlRig*> FControlRigBaseDockableView::GetControlRigs()  const
 {
-	TArray<UBaseControlRig*> ControlRigs;
+	TArray<UControlRig*> ControlRigs;
 	if (FControlRigEditMode* EditMode = static_cast<FControlRigEditMode*>(ModeTools->GetActiveMode(FControlRigEditMode::ModeName)))
 	{
 		ControlRigs = EditMode->GetControlRigsArray(false);
@@ -48,15 +48,15 @@ void FControlRigBaseDockableView::SetEditMode(FControlRigEditMode& InEditMode)
 	}
 }
 
-void FControlRigBaseDockableView::HandleControlAdded(UBaseControlRig* ControlRig, bool bIsAdded)
+void FControlRigBaseDockableView::HandleControlAdded(UControlRig* ControlRig, bool bIsAdded)
 {
 }
 
-void FControlRigBaseDockableView::HandleControlSelected(UBaseControlRig* ControlRig, FRigControlElement* InControl, bool bSelected)
+void FControlRigBaseDockableView::HandleControlSelected(UControlRig* ControlRig, FRigControlElement* InControl, bool bSelected)
 {
 }
 
-void FControlRigBaseDockableView::HandlElementSelected(UBaseControlRig* ControlRig, const FRigElementKey& Key, bool bSelected)
+void FControlRigBaseDockableView::HandlElementSelected(UControlRig* ControlRig, const FRigElementKey& Key, bool bSelected)
 {
 	if (ControlRig)
 	{

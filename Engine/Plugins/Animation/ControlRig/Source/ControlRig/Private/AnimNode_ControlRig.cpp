@@ -198,7 +198,7 @@ void FAnimNode_ControlRig::CacheBones_AnyThread(const FAnimationCacheBonesContex
 		};
 
 		URigHierarchy* Hierarchy = nullptr;
-		if(UBaseControlRig* CurrentControlRig = GetControlRig())
+		if(UControlRig* CurrentControlRig = GetControlRig())
 		{
 			Hierarchy = CurrentControlRig->GetHierarchy();
 		}
@@ -231,7 +231,7 @@ UClass* FAnimNode_ControlRig::GetTargetClass() const
 	return DefaultControlRigClass;
 }
 
-void FAnimNode_ControlRig::UpdateInput(UBaseControlRig* InControlRig, const FPoseContext& InOutput)
+void FAnimNode_ControlRig::UpdateInput(UControlRig* InControlRig, const FPoseContext& InOutput)
 {
 	DECLARE_SCOPE_HIERARCHICAL_COUNTER_FUNC()
 
@@ -256,7 +256,7 @@ void FAnimNode_ControlRig::UpdateInput(UBaseControlRig* InControlRig, const FPos
 	}
 }
 
-void FAnimNode_ControlRig::UpdateOutput(UBaseControlRig* InControlRig, FPoseContext& InOutput)
+void FAnimNode_ControlRig::UpdateOutput(UControlRig* InControlRig, FPoseContext& InOutput)
 {
 	DECLARE_SCOPE_HIERARCHICAL_COUNTER_FUNC()
 
@@ -282,7 +282,7 @@ void FAnimNode_ControlRig::UpdateOutput(UBaseControlRig* InControlRig, FPoseCont
 	}
 }
 
-void FAnimNode_ControlRig::SetControlRigClass(TSubclassOf<UBaseControlRig> InControlRigClass)
+void FAnimNode_ControlRig::SetControlRigClass(TSubclassOf<UControlRig> InControlRigClass)
 {
 	if(DefaultControlRigClass == nullptr)
 	{
@@ -302,7 +302,7 @@ bool FAnimNode_ControlRig::UpdateControlRigIfNeeded(const UAnimInstance* InAnimI
 		{
 			if(ControlRig->GetClass() != ExpectedClass)
 			{
-				UBaseControlRig* NewControlRig = nullptr;
+				UControlRig* NewControlRig = nullptr;
 
 				auto ReportErrorAndSwitchToDefaultRig = [this, InAnimInstance, ExpectedClass](const FString& InMessage) -> bool
 				{
@@ -325,7 +325,7 @@ bool FAnimNode_ControlRig::UpdateControlRigIfNeeded(const UAnimInstance* InAnimI
 					(ExpectedClass != DefaultControlRigClass))
 				{
 					// check if we already created this before
-					if(const TObjectPtr<UBaseControlRig>* ExistingControlRig = ControlRigPerClass.Find(ExpectedClass))
+					if(const TObjectPtr<UControlRig>* ExistingControlRig = ControlRigPerClass.Find(ExpectedClass))
 					{
 						NewControlRig = *ExistingControlRig;
 
@@ -374,7 +374,7 @@ bool FAnimNode_ControlRig::UpdateControlRigIfNeeded(const UAnimInstance* InAnimI
 						}
 						
 						// create a new control rig using the new class
-						NewControlRig = NewObject<UBaseControlRig>(InAnimInstance->GetOwningComponent(), ExpectedClass);
+						NewControlRig = NewObject<UControlRig>(InAnimInstance->GetOwningComponent(), ExpectedClass);
 						NewControlRig->Initialize(true);
 						NewControlRig->RequestInit();
 
@@ -461,7 +461,7 @@ bool FAnimNode_ControlRig::UpdateControlRigIfNeeded(const UAnimInstance* InAnimI
 
 		if(ControlRig == nullptr)
 		{
-			ControlRig = NewObject<UBaseControlRig>(InAnimInstance->GetOwningComponent(), ExpectedClass);
+			ControlRig = NewObject<UControlRig>(InAnimInstance->GetOwningComponent(), ExpectedClass);
 			ControlRig->Initialize(true);
 			ControlRig->RequestInit();
 		}
@@ -534,7 +534,7 @@ void FAnimNode_ControlRig::SetIOMapping(bool bInput, const FName& SourceProperty
 	UClass* TargetClass = GetTargetClass();
 	if (TargetClass)
 	{
-		UBaseControlRig* CDO = TargetClass->GetDefaultObject<UBaseControlRig>();
+		UControlRig* CDO = TargetClass->GetDefaultObject<UControlRig>();
 		if (CDO)
 		{
 			TMap<FName, FName>& MappingData = (bInput) ? InputMapping : OutputMapping;
@@ -592,7 +592,7 @@ void FAnimNode_ControlRig::PropagateInputProperties(const UObject* InSourceInsta
 {
 	if (TargetInstance)
 	{
-		UBaseControlRig* TargetControlRig = Cast<UBaseControlRig>((UObject*)TargetInstance);
+		UControlRig* TargetControlRig = Cast<UControlRig>((UObject*)TargetInstance);
 		if(TargetControlRig == nullptr)
 		{
 			return;

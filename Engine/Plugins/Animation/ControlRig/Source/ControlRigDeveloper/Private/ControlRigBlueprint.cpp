@@ -110,13 +110,13 @@ void UControlRigBlueprint::PostEditChangeProperty(FPropertyChangedEvent& Propert
 		return Variable.VarName == PropertyChangedEvent.GetMemberPropertyName();
 	}))
 	{
-		if(UBaseControlRig* DebuggedControlRig = Cast<UBaseControlRig>(GetObjectBeingDebugged()))
+		if(UControlRig* DebuggedControlRig = Cast<UControlRig>(GetObjectBeingDebugged()))
 		{
 			if(const FProperty* PropertyOnRig = DebuggedControlRig->GetClass()->FindPropertyByName(PropertyChangedEvent.MemberProperty->GetFName()))
 			{
 				if(PropertyOnRig->SameType(PropertyChangedEvent.MemberProperty))
 				{
-					UBaseControlRig* CDO = DebuggedControlRig->GetClass()->GetDefaultObject<UBaseControlRig>();
+					UControlRig* CDO = DebuggedControlRig->GetClass()->GetDefaultObject<UControlRig>();
 					const uint8* SourceMemory = PropertyOnRig->ContainerPtrToValuePtr<uint8>(CDO);
 					uint8* TargetMemory = PropertyOnRig->ContainerPtrToValuePtr<uint8>(DebuggedControlRig);
 					PropertyOnRig->CopyCompleteValue(TargetMemory, SourceMemory);
@@ -135,7 +135,7 @@ void UControlRigBlueprint::PostEditChangeChainProperty(FPropertyChangedChainEven
 	if (PropertyChangedEvent.Property && PropertyChangedEvent.Property->GetFName() == GET_MEMBER_NAME_CHECKED(UControlRigBlueprint, ShapeLibraries))
 	{
 		URigVMBlueprintGeneratedClass* RigClass = GetRigVMBlueprintGeneratedClass();
-		UBaseControlRig* CDO = Cast<UBaseControlRig>(RigClass->GetDefaultObject(false /* create if needed */));
+		UControlRig* CDO = Cast<UControlRig>(RigClass->GetDefaultObject(false /* create if needed */));
 
 		TArray<UObject*> ArchetypeInstances;
 		CDO->GetArchetypeInstances(ArchetypeInstances);
@@ -144,7 +144,7 @@ void UControlRigBlueprint::PostEditChangeChainProperty(FPropertyChangedChainEven
 		// Propagate libraries to archetypes
 		for (UObject* Instance : ArchetypeInstances)
 		{
-			if (UBaseControlRig* InstanceRig = Cast<UBaseControlRig>(Instance))
+			if (UControlRig* InstanceRig = Cast<UControlRig>(Instance))
 			{
 				InstanceRig->ShapeLibraries = ShapeLibraries;
 			}
@@ -975,7 +975,7 @@ bool UControlRigBlueprint::ResolveConnector(const FRigElementKey& DraggedKey, co
 
 	PropagateHierarchyFromBPToInstances();
 
-	if(UBaseControlRig* ControlRig = Cast<UBaseControlRig>(GetObjectBeingDebugged()))
+	if(UControlRig* ControlRig = Cast<UControlRig>(GetObjectBeingDebugged()))
 	{
 		for (UEdGraph* Graph : UbergraphPages)
 		{
@@ -1090,7 +1090,7 @@ void UControlRigBlueprint::PostLoad()
 		}
 
 		URigVMBlueprintGeneratedClass* RigClass = GetRigVMBlueprintGeneratedClass();
-		UBaseControlRig* CDO = Cast<UBaseControlRig>(RigClass->GetDefaultObject(false /* create if needed */));
+		UControlRig* CDO = Cast<UControlRig>(RigClass->GetDefaultObject(false /* create if needed */));
 
 		TArray<UObject*> ArchetypeInstances;
 		CDO->GetArchetypeInstances(ArchetypeInstances);
@@ -1098,7 +1098,7 @@ void UControlRigBlueprint::PostLoad()
 
 		for (UObject* Instance : ArchetypeInstances)
 		{
-			if (UBaseControlRig* InstanceRig = Cast<UBaseControlRig>(Instance))
+			if (UControlRig* InstanceRig = Cast<UControlRig>(Instance))
 			{
 				InstanceRig->ShapeLibraries.Reset();
 				InstanceRig->GizmoLibrary_DEPRECATED.Reset();
@@ -1119,7 +1119,7 @@ void UControlRigBlueprint::HandlePackageDone()
 		}
 
 		URigVMBlueprintGeneratedClass* RigClass = GetRigVMBlueprintGeneratedClass();
-		UBaseControlRig* CDO = Cast<UBaseControlRig>(RigClass->GetDefaultObject(false /* create if needed */));
+		UControlRig* CDO = Cast<UControlRig>(RigClass->GetDefaultObject(false /* create if needed */));
 
 		TArray<UObject*> ArchetypeInstances;
 		CDO->GetArchetypeInstances(ArchetypeInstances);
@@ -1127,7 +1127,7 @@ void UControlRigBlueprint::HandlePackageDone()
 
 		for (UObject* Instance : ArchetypeInstances)
 		{
-			if (UBaseControlRig* InstanceRig = Cast<UBaseControlRig>(Instance))
+			if (UControlRig* InstanceRig = Cast<UControlRig>(Instance))
 			{
 				InstanceRig->ShapeLibraries = ShapeLibraries;
 			}
@@ -1156,7 +1156,7 @@ void UControlRigBlueprint::HandleConfigureRigVMController(const FRigVMClient* In
 			
 			if(const URigVMBlueprint* StrongThis = WeakThis.Get())
 			{
-				if(UBaseControlRig* ControlRig = Cast<UBaseControlRig>(StrongThis->GetObjectBeingDebugged()))
+				if(UControlRig* ControlRig = Cast<UControlRig>(StrongThis->GetObjectBeingDebugged()))
 				{
 					ControlRigNodeWorkflowOptions->Hierarchy = ControlRig->GetHierarchy();
 					ControlRigNodeWorkflowOptions->Selection = ControlRig->GetHierarchy()->GetSelectedKeys();
@@ -1324,7 +1324,7 @@ TArray<UControlRigBlueprint*> UControlRigBlueprint::GetCurrentlyOpenRigBlueprint
 const FControlRigShapeDefinition* UControlRigBlueprint::GetControlShapeByName(const FName& InName) const
 {
 	TMap<FString, FString> LibraryNameMap;
-	if(UBaseControlRig* ControlRig = Cast<UBaseControlRig>(GetObjectBeingDebugged()))
+	if(UControlRig* ControlRig = Cast<UControlRig>(GetObjectBeingDebugged()))
 	{
 		LibraryNameMap = ControlRig->ShapeLibraryNameMap;
 	}
@@ -1343,14 +1343,14 @@ FName UControlRigBlueprint::AddTransientControl(const URigVMUnitNode* InNode, co
 	ClearTransientControls();
 
 	URigVMBlueprintGeneratedClass* RigClass = GetRigVMBlueprintGeneratedClass();
-	UBaseControlRig* CDO = Cast<UBaseControlRig>(RigClass->GetDefaultObject(true /* create if needed */));
+	UControlRig* CDO = Cast<UControlRig>(RigClass->GetDefaultObject(true /* create if needed */));
 
 	FName ReturnName = NAME_None;
 	TArray<UObject*> ArchetypeInstances;
 	CDO->GetArchetypeInstances(ArchetypeInstances);
 	for (UObject* ArchetypeInstance : ArchetypeInstances)
 	{
-		UBaseControlRig* InstancedControlRig = Cast<UBaseControlRig>(ArchetypeInstance);
+		UControlRig* InstancedControlRig = Cast<UControlRig>(ArchetypeInstance);
 		if (InstancedControlRig)
 		{
 			FName ControlName = InstancedControlRig->AddTransientControl(InNode, InTarget);
@@ -1373,14 +1373,14 @@ FName UControlRigBlueprint::RemoveTransientControl(const URigVMUnitNode* InNode,
 	}
 
 	URigVMBlueprintGeneratedClass* RigClass = GetRigVMBlueprintGeneratedClass();
-	UBaseControlRig* CDO = Cast<UBaseControlRig>(RigClass->GetDefaultObject(true /* create if needed */));
+	UControlRig* CDO = Cast<UControlRig>(RigClass->GetDefaultObject(true /* create if needed */));
 
 	FName RemovedName = NAME_None;
 	TArray<UObject*> ArchetypeInstances;
 	CDO->GetArchetypeInstances(ArchetypeInstances);
 	for (UObject* ArchetypeInstance : ArchetypeInstances)
 	{
-		UBaseControlRig* InstancedControlRig = Cast<UBaseControlRig>(ArchetypeInstance);
+		UControlRig* InstancedControlRig = Cast<UControlRig>(ArchetypeInstance);
 		if (InstancedControlRig)
 		{
 			FName Name = InstancedControlRig->RemoveTransientControl(InNode, InTarget);
@@ -1402,7 +1402,7 @@ FName UControlRigBlueprint::AddTransientControl(const FRigElementKey& InElement)
 		ValueScope = MakeUnique<FControlValueScope>(this);
 	}
 	URigVMBlueprintGeneratedClass* RigClass = GetRigVMBlueprintGeneratedClass();
-	UBaseControlRig* CDO = Cast<UBaseControlRig>(RigClass->GetDefaultObject(true /* create if needed */));
+	UControlRig* CDO = Cast<UControlRig>(RigClass->GetDefaultObject(true /* create if needed */));
 
 	FName ReturnName = NAME_None;
 	TArray<UObject*> ArchetypeInstances;
@@ -1413,7 +1413,7 @@ FName UControlRigBlueprint::AddTransientControl(const FRigElementKey& InElement)
 	TMap<UObject*, FTransform> SavedElementLocalTransforms;
 	for (UObject* ArchetypeInstance : ArchetypeInstances)
 	{
-		UBaseControlRig* InstancedControlRig = Cast<UBaseControlRig>(ArchetypeInstance);
+		UControlRig* InstancedControlRig = Cast<UControlRig>(ArchetypeInstance);
 		if (InstancedControlRig)
 		{
 			if (InstancedControlRig->DynamicHierarchy)
@@ -1428,7 +1428,7 @@ FName UControlRigBlueprint::AddTransientControl(const FRigElementKey& InElement)
 	
 	for (UObject* ArchetypeInstance : ArchetypeInstances)
 	{
-		UBaseControlRig* InstancedControlRig = Cast<UBaseControlRig>(ArchetypeInstance);
+		UControlRig* InstancedControlRig = Cast<UControlRig>(ArchetypeInstance);
 		if (InstancedControlRig)
 		{
 			// restore the element transforms so that transient controls are created at the right place
@@ -1461,14 +1461,14 @@ FName UControlRigBlueprint::RemoveTransientControl(const FRigElementKey& InEleme
 	}
 
 	URigVMBlueprintGeneratedClass* RigClass = GetRigVMBlueprintGeneratedClass();
-	UBaseControlRig* CDO = Cast<UBaseControlRig>(RigClass->GetDefaultObject(true /* create if needed */));
+	UControlRig* CDO = Cast<UControlRig>(RigClass->GetDefaultObject(true /* create if needed */));
 
 	FName RemovedName = NAME_None;
 	TArray<UObject*> ArchetypeInstances;
 	CDO->GetArchetypeInstances(ArchetypeInstances);
 	for (UObject* ArchetypeInstance : ArchetypeInstances)
 	{
-		UBaseControlRig* InstancedControlRig = Cast<UBaseControlRig>(ArchetypeInstance);
+		UControlRig* InstancedControlRig = Cast<UControlRig>(ArchetypeInstance);
 		if (InstancedControlRig)
 		{
 			FName Name = InstancedControlRig->RemoveTransientControl(InElement);
@@ -1492,13 +1492,13 @@ void UControlRigBlueprint::ClearTransientControls()
 
 	if (URigVMBlueprintGeneratedClass* RigClass = GetRigVMBlueprintGeneratedClass())
 	{
-		UBaseControlRig* CDO = Cast<UBaseControlRig>(RigClass->GetDefaultObject(true /* create if needed */));
+		UControlRig* CDO = Cast<UControlRig>(RigClass->GetDefaultObject(true /* create if needed */));
 
 		TArray<UObject*> ArchetypeInstances;
 		CDO->GetArchetypeInstances(ArchetypeInstances);
 		for (UObject* ArchetypeInstance : ArchetypeInstances)
 		{
-			UBaseControlRig* InstancedControlRig = Cast<UBaseControlRig>(ArchetypeInstance);
+			UControlRig* InstancedControlRig = Cast<UControlRig>(ArchetypeInstance);
 			if (InstancedControlRig)
 			{
 				InstancedControlRig->ClearTransientControls();
@@ -1576,7 +1576,7 @@ void UControlRigBlueprint::RecompileModularRig()
 void UControlRigBlueprint::SetupDefaultObjectDuringCompilation(URigVMHost* InCDO)
 {
 	Super::SetupDefaultObjectDuringCompilation(InCDO);
-	CastChecked<UBaseControlRig>(InCDO)->GetHierarchy()->CopyHierarchy(Hierarchy);
+	CastChecked<UControlRig>(InCDO)->GetHierarchy()->CopyHierarchy(Hierarchy);
 }
 
 void UControlRigBlueprint::SetupPinRedirectorsForBackwardsCompatibility()
@@ -2014,14 +2014,14 @@ void UControlRigBlueprint::PatchVariableNodesOnLoad()
 	Super::PatchVariableNodesOnLoad();
 }
 
-void UControlRigBlueprint::UpdateElementKeyRedirector(UBaseControlRig* InControlRig) const
+void UControlRigBlueprint::UpdateElementKeyRedirector(UControlRig* InControlRig) const
 {
 	InControlRig->HierarchySettings = HierarchySettings;
 	InControlRig->RigModuleSettings = RigModuleSettings;
 	InControlRig->ElementKeyRedirector = FRigElementKeyRedirector(ConnectionMap, InControlRig->GetHierarchy());
 }
 
-void UControlRigBlueprint::PropagatePoseFromInstanceToBP(UBaseControlRig* InControlRig) const
+void UControlRigBlueprint::PropagatePoseFromInstanceToBP(UControlRig* InControlRig) const
 {
 	check(InControlRig);
 	// current transforms in BP and CDO are meaningless, no need to copy them
@@ -2034,7 +2034,7 @@ void UControlRigBlueprint::PropagatePoseFromBPToInstances() const
 {
 	if (UClass* MyControlRigClass = GeneratedClass)
 	{
-		if (UBaseControlRig* DefaultObject = Cast<UBaseControlRig>(MyControlRigClass->GetDefaultObject(false)))
+		if (UControlRig* DefaultObject = Cast<UControlRig>(MyControlRigClass->GetDefaultObject(false)))
 		{
 			DefaultObject->PostInitInstanceIfRequired();
 			DefaultObject->GetHierarchy()->CopyPose(Hierarchy, true, true, true);
@@ -2043,7 +2043,7 @@ void UControlRigBlueprint::PropagatePoseFromBPToInstances() const
 			DefaultObject->GetArchetypeInstances(ArchetypeInstances);
 			for (UObject* ArchetypeInstance : ArchetypeInstances)
 			{
-				if (UBaseControlRig* InstanceRig = Cast<UBaseControlRig>(ArchetypeInstance))
+				if (UControlRig* InstanceRig = Cast<UControlRig>(ArchetypeInstance))
 				{
 					InstanceRig->PostInitInstanceIfRequired();
 					InstanceRig->GetHierarchy()->CopyPose(Hierarchy, true, true, true);
@@ -2057,7 +2057,7 @@ void UControlRigBlueprint::PropagateHierarchyFromBPToInstances() const
 {
 	if (UClass* MyControlRigClass = GeneratedClass)
 	{
-		if (UBaseControlRig* DefaultObject = Cast<UBaseControlRig>(MyControlRigClass->GetDefaultObject(false)))
+		if (UControlRig* DefaultObject = Cast<UControlRig>(MyControlRigClass->GetDefaultObject(false)))
 		{
 			DefaultObject->PostInitInstanceIfRequired();
 			DefaultObject->GetHierarchy()->CopyHierarchy(Hierarchy);
@@ -2073,7 +2073,7 @@ void UControlRigBlueprint::PropagateHierarchyFromBPToInstances() const
 			DefaultObject->GetArchetypeInstances(ArchetypeInstances);
 			for (UObject* ArchetypeInstance : ArchetypeInstances)
 			{
-				if (UBaseControlRig* InstanceRig = Cast<UBaseControlRig>(ArchetypeInstance))
+				if (UControlRig* InstanceRig = Cast<UControlRig>(ArchetypeInstance))
 				{
 					InstanceRig->PostInitInstanceIfRequired();
 					InstanceRig->GetHierarchy()->CopyHierarchy(Hierarchy);
@@ -2090,7 +2090,7 @@ void UControlRigBlueprint::PropagateDrawInstructionsFromBPToInstances() const
 {
 	if (UClass* MyControlRigClass = GeneratedClass)
 	{
-		if (UBaseControlRig* DefaultObject = Cast<UBaseControlRig>(MyControlRigClass->GetDefaultObject(false)))
+		if (UControlRig* DefaultObject = Cast<UControlRig>(MyControlRigClass->GetDefaultObject(false)))
 	{
 			DefaultObject->DrawContainer = DrawContainer;
 
@@ -2099,7 +2099,7 @@ void UControlRigBlueprint::PropagateDrawInstructionsFromBPToInstances() const
 
 			for (UObject* ArchetypeInstance : ArchetypeInstances)
 			{
-				if (UBaseControlRig* InstanceRig = Cast<UBaseControlRig>(ArchetypeInstance))
+				if (UControlRig* InstanceRig = Cast<UControlRig>(ArchetypeInstance))
 	{
 					InstanceRig->DrawContainer = DrawContainer;
 				}
@@ -2128,7 +2128,7 @@ void UControlRigBlueprint::PropagatePropertyFromBPToInstances(FRigElementKey InR
 
 	if (UClass* MyControlRigClass = GeneratedClass)
 	{
-		if (UBaseControlRig* DefaultObject = Cast<UBaseControlRig>(MyControlRigClass->GetDefaultObject(false)))
+		if (UControlRig* DefaultObject = Cast<UControlRig>(MyControlRigClass->GetDefaultObject(false)))
 		{
 			TArray<UObject*> ArchetypeInstances;
 			DefaultObject->GetArchetypeInstances(ArchetypeInstances);
@@ -2139,7 +2139,7 @@ void UControlRigBlueprint::PropagatePropertyFromBPToInstances(FRigElementKey InR
 			uint8* Source = ((uint8*)Hierarchy->Get(ElementIndex)) + PropertyOffset;
 			for (UObject* ArchetypeInstance : ArchetypeInstances)
 			{
-				if (UBaseControlRig* InstanceRig = Cast<UBaseControlRig>(ArchetypeInstance))
+				if (UControlRig* InstanceRig = Cast<UControlRig>(ArchetypeInstance))
 				{
 					InstanceRig->PostInitInstanceIfRequired();
 					uint8* Dest = ((uint8*)InstanceRig->GetHierarchy()->Get(ElementIndex)) + PropertyOffset;
@@ -2150,7 +2150,7 @@ void UControlRigBlueprint::PropagatePropertyFromBPToInstances(FRigElementKey InR
 	}
 }
 
-void UControlRigBlueprint::PropagatePropertyFromInstanceToBP(FRigElementKey InRigElement, const FProperty* InProperty, UBaseControlRig* InInstance) const
+void UControlRigBlueprint::PropagatePropertyFromInstanceToBP(FRigElementKey InRigElement, const FProperty* InProperty, UControlRig* InInstance) const
 {
 	const int32 ElementIndex = Hierarchy->GetIndex(InRigElement);
 	ensure(ElementIndex != INDEX_NONE);
@@ -2211,9 +2211,9 @@ void UControlRigBlueprint::HandleHierarchyModified(ERigHierarchyNotification InN
 
 			if(bClearTransientControls)
 			{
-				if(UBaseControlRig* RigBeingDebugged = Cast<UBaseControlRig>(GetObjectBeingDebugged()))
+				if(UControlRig* RigBeingDebugged = Cast<UControlRig>(GetObjectBeingDebugged()))
 				{
-					const FName TransientControlName = UBaseControlRig::GetNameForTransientControl(InElement->GetKey());
+					const FName TransientControlName = UControlRig::GetNameForTransientControl(InElement->GetKey());
 					const FRigElementKey TransientControlKey(TransientControlName, ERigElementType::Control);
 					if (const FRigControlElement* ControlElement = RigBeingDebugged->GetHierarchy()->Find<FRigControlElement>(TransientControlKey))
 					{
@@ -2264,7 +2264,7 @@ UControlRigBlueprint::FControlValueScope::FControlValueScope(UControlRigBlueprin
 #if WITH_EDITOR
 	check(Blueprint);
 
-	if (UBaseControlRig* CR = Cast<UBaseControlRig>(Blueprint->GetObjectBeingDebugged()))
+	if (UControlRig* CR = Cast<UControlRig>(Blueprint->GetObjectBeingDebugged()))
 	{
 		TArray<FRigControlElement*> Controls = CR->AvailableControls();
 		for (FRigControlElement* ControlElement : Controls)
@@ -2280,7 +2280,7 @@ UControlRigBlueprint::FControlValueScope::~FControlValueScope()
 #if WITH_EDITOR
 	check(Blueprint);
 
-	if (UBaseControlRig* CR = Cast<UBaseControlRig>(Blueprint->GetObjectBeingDebugged()))
+	if (UControlRig* CR = Cast<UControlRig>(Blueprint->GetObjectBeingDebugged()))
 	{
 		for (const TPair<FName, FRigControlValue>& Pair : ControlValues)
 		{

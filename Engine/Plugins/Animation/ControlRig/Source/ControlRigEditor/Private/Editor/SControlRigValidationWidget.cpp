@@ -236,7 +236,7 @@ void SControlRigValidationWidget::HandleMessageReported(EMessageSeverity::Type I
 
 void SControlRigValidationWidget::HandleMessageTokenClicked(const TSharedRef<class IMessageToken>& InToken)
 {
-	if (UBaseControlRig* ControlRig = Validator->GetControlRig())
+	if (UControlRig* ControlRig = Validator->GetControlRig())
 	{
 		if (InToken->GetType() == EMessageToken::AssetName)
 		{

@@ -47,7 +47,7 @@ DECLARE_STATS_GROUP(TEXT("ControlRig"), STATGROUP_ControlRig, STATCAT_Advanced);
 DECLARE_CYCLE_STAT_EXTERN(TEXT("Control Rig Execution"), STAT_RigExecution, STATGROUP_ControlRig, );
 DEFINE_STAT(STAT_RigExecution);
 
-const FName UBaseControlRig::OwnerComponent("OwnerComponent");
+const FName UControlRig::OwnerComponent("OwnerComponent");
 
 //CVar to specify if we should create a float control for each curve in the curve container
 //By default we don't but it may be useful to do so for debugging
@@ -66,7 +66,7 @@ static TAutoConsoleVariable<float> CVarControlRigEnableDrawInterfaceInGame(
 	ECVF_Default);
 
 
-UBaseControlRig::UBaseControlRig(const FObjectInitializer& ObjectInitializer)
+UControlRig::UControlRig(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 #if WITH_EDITOR
 	, bEnableAnimAttributeTrace(false)
@@ -96,7 +96,7 @@ UBaseControlRig::UBaseControlRig(const FObjectInitializer& ObjectInitializer)
 	SetRigVMExtendedExecuteContext(&RigVMExtendedExecuteContext);
 }
 
-void UBaseControlRig::BeginDestroy()
+void UControlRig::BeginDestroy()
 {
 	Super::BeginDestroy();
 	SetRigVMExtendedExecuteContext(nullptr);
@@ -110,7 +110,7 @@ void UBaseControlRig::BeginDestroy()
 #if WITH_EDITOR
 	if (!HasAnyFlags(RF_ClassDefaultObject))
 	{
-		if(UBaseControlRig* CDO = GetClass()->GetDefaultObject<UBaseControlRig>())
+		if(UControlRig* CDO = GetClass()->GetDefaultObject<UControlRig>())
 		{
 			if (!CDO->HasAnyFlags(RF_BeginDestroyed))
 			{
@@ -126,7 +126,7 @@ void UBaseControlRig::BeginDestroy()
 	TRACE_OBJECT_LIFETIME_END(this);
 }
 
-UWorld* UBaseControlRig::GetWorld() const
+UWorld* UControlRig::GetWorld() const
 {
 	if (ObjectBinding.IsValid())
 	{
@@ -145,7 +145,7 @@ UWorld* UBaseControlRig::GetWorld() const
 	return Super::GetWorld();
 }
 
-void UBaseControlRig::Initialize(bool bRequestInit)
+void UControlRig::Initialize(bool bRequestInit)
 {
 	TRACE_OBJECT_LIFETIME_BEGIN(this);
 
@@ -164,13 +164,13 @@ void UBaseControlRig::Initialize(bool bRequestInit)
 	RequestConstruction();
 	
 	GetHierarchy()->OnModified().RemoveAll(this);
-	GetHierarchy()->OnModified().AddUObject(this, &UBaseControlRig::HandleHierarchyModified);
+	GetHierarchy()->OnModified().AddUObject(this, &UControlRig::HandleHierarchyModified);
 	GetHierarchy()->OnEventReceived().RemoveAll(this);
-	GetHierarchy()->OnEventReceived().AddUObject(this, &UBaseControlRig::HandleHierarchyEvent);
+	GetHierarchy()->OnEventReceived().AddUObject(this, &UControlRig::HandleHierarchyEvent);
 	GetHierarchy()->UpdateVisibilityOnProxyControls();
 }
 
-void UBaseControlRig::OnAddShapeLibrary(const FControlRigExecuteContext* InContext, const FString& InLibraryName, UControlRigShapeLibrary* InShapeLibrary, bool bReplaceExisting, bool bLogResults)
+void UControlRig::OnAddShapeLibrary(const FControlRigExecuteContext* InContext, const FString& InLibraryName, UControlRigShapeLibrary* InShapeLibrary, bool bReplaceExisting, bool bLogResults)
 {
 	// don't ever change the CDO
 	if (HasAnyFlags(RF_ClassDefaultObject))
@@ -195,7 +195,7 @@ void UBaseControlRig::OnAddShapeLibrary(const FControlRigExecuteContext* InConte
 	// if we've removed all shape libraries - let's add the ones from the CDO back
 	if (ShapeLibraries.IsEmpty())
 	{
-		UBaseControlRig* CDO = GetClass()->GetDefaultObject<UBaseControlRig>();
+		UControlRig* CDO = GetClass()->GetDefaultObject<UControlRig>();
 		ShapeLibraries = CDO->ShapeLibraries;
 	}
 
@@ -285,7 +285,7 @@ void UBaseControlRig::OnAddShapeLibrary(const FControlRigExecuteContext* InConte
 #endif
 }
 
-bool UBaseControlRig::OnShapeExists(const FName& InShapeName) const
+bool UControlRig::OnShapeExists(const FName& InShapeName) const
 {
 	const TArray<TSoftObjectPtr<UControlRigShapeLibrary>>& Libraries = GetShapeLibraries();
 	if (UControlRigShapeLibrary::GetShapeByName(InShapeName, GetShapeLibraries(), ShapeLibraryNameMap))
@@ -296,7 +296,7 @@ bool UBaseControlRig::OnShapeExists(const FName& InShapeName) const
 	return false;
 }
 
-bool UBaseControlRig::InitializeVM(const FName& InEventName)
+bool UControlRig::InitializeVM(const FName& InEventName)
 {
 	if(!InitializeVMs(InEventName))
 	{
@@ -327,7 +327,7 @@ bool UBaseControlRig::InitializeVM(const FName& InEventName)
 	return true;
 }
 
-void UBaseControlRig::Evaluate_AnyThread()
+void UControlRig::Evaluate_AnyThread()
 {
 	if (bIsAdditive)
 	{
@@ -431,7 +431,7 @@ void UBaseControlRig::Evaluate_AnyThread()
 	}
 }
 
-bool UBaseControlRig::EvaluateSkeletalMeshComponent(double InDeltaTime)
+bool UControlRig::EvaluateSkeletalMeshComponent(double InDeltaTime)
 {
 	if (USkeletalMeshComponent* SkelMeshComp = Cast<USkeletalMeshComponent>(GetObjectBinding()->GetBoundObject()))
 	{
@@ -448,17 +448,17 @@ bool UBaseControlRig::EvaluateSkeletalMeshComponent(double InDeltaTime)
 	return false;
 }
 
-void UBaseControlRig::ResetControlValues()
+void UControlRig::ResetControlValues()
 {
 	ControlValues.Reset();
 }
 
-void UBaseControlRig::ClearPoseBeforeBackwardsSolve()
+void UControlRig::ClearPoseBeforeBackwardsSolve()
 {
 	PoseBeforeBackwardsSolve.Reset();
 }
 
-TArray<FRigControlElement*> UBaseControlRig::InvertInputPose(const TArray<FRigElementKey>& InElements, EControlRigSetKey InSetKey)
+TArray<FRigControlElement*> UControlRig::InvertInputPose(const TArray<FRigElementKey>& InElements, EControlRigSetKey InSetKey)
 {
 	TArray<FRigControlElement*> ModifiedElements;
 	ModifiedElements.Reserve(ControlsAfterBackwardsSolve.Num());
@@ -484,7 +484,7 @@ TArray<FRigControlElement*> UBaseControlRig::InvertInputPose(const TArray<FRigEl
 	return ModifiedElements;
 }
 
-void UBaseControlRig::InitializeFromCDO()
+void UControlRig::InitializeFromCDO()
 {
 	InitializeVMsFromCDO();
 	
@@ -498,7 +498,7 @@ void UBaseControlRig::InitializeFromCDO()
 			// similar to FControlRigBlueprintCompilerContext::CopyTermDefaultsToDefaultObject,
 			// where CDO is initialized from BP there,
 			// we initialize all other instances of Control Rig from the CDO here
-			UBaseControlRig* CDO = GetClass()->GetDefaultObject<UBaseControlRig>();
+			UControlRig* CDO = GetClass()->GetDefaultObject<UControlRig>();
 			URigHierarchy* Hierarchy = GetHierarchy();
 
 			// copy hierarchy
@@ -534,38 +534,38 @@ void UBaseControlRig::InitializeFromCDO()
 	}
 }
 
-UBaseControlRig::FAnimAttributeContainerPtrScope::FAnimAttributeContainerPtrScope(UBaseControlRig* InControlRig,
+UControlRig::FAnimAttributeContainerPtrScope::FAnimAttributeContainerPtrScope(UControlRig* InControlRig,
 	UE::Anim::FStackAttributeContainer& InExternalContainer)
 {
 	ControlRig = InControlRig;
 	ControlRig->ExternalAnimAttributeContainer = &InExternalContainer;
 }
 
-UBaseControlRig::FAnimAttributeContainerPtrScope::~FAnimAttributeContainerPtrScope()
+UControlRig::FAnimAttributeContainerPtrScope::~FAnimAttributeContainerPtrScope()
 {
 	// control rig should not hold on to this container since it is stack allocated
 	// and should not be used outside of stack, see FPoseContext
 	ControlRig->ExternalAnimAttributeContainer = nullptr;
 }
 
-AActor* UBaseControlRig::GetHostingActor() const
+AActor* UControlRig::GetHostingActor() const
 {
 	return ObjectBinding ? ObjectBinding->GetHostingActor() : nullptr;
 }
 
 #if WITH_EDITOR
-FText UBaseControlRig::GetCategory() const
+FText UControlRig::GetCategory() const
 {
 	return LOCTEXT("DefaultControlRigCategory", "Animation|ControlRigs");
 }
 
-FText UBaseControlRig::GetToolTipText() const
+FText UControlRig::GetToolTipText() const
 {
 	return LOCTEXT("DefaultControlRigTooltip", "ControlRig");
 }
 #endif
 
-bool UBaseControlRig::AllConnectorsAreResolved(FString* OutFailureReason, FRigElementKey* OutConnector) const
+bool UControlRig::AllConnectorsAreResolved(FString* OutFailureReason, FRigElementKey* OutConnector) const
 {
 	if(const URigHierarchy* Hierarchy = GetHierarchy())
 	{
@@ -624,7 +624,7 @@ bool UBaseControlRig::AllConnectorsAreResolved(FString* OutFailureReason, FRigEl
 	return true;
 }
 
-bool UBaseControlRig::Execute(const FName& InEventName)
+bool UControlRig::Execute(const FName& InEventName)
 {
 	if(!CanExecute())
 	{
@@ -690,7 +690,7 @@ bool UBaseControlRig::Execute(const FName& InEventName)
 #if WITH_EDITOR
 	if (IsInDebugMode())
 	{
-		if (UBaseControlRig* CDO = GetClass()->GetDefaultObject<UBaseControlRig>())
+		if (UControlRig* CDO = GetClass()->GetDefaultObject<UControlRig>())
 		{
 			// Copy the breakpoints. This will not override the state of the breakpoints
 			DebugInfo.SetBreakpoints(CDO->DebugInfo.GetBreakpoints());
@@ -753,7 +753,7 @@ bool UBaseControlRig::Execute(const FName& InEventName)
 	// draw container contains persistent draw instructions, 
 	// so we cannot call Reset(), which will clear them,
 	// instead, we re-initialize them from the CDO
-	if (UBaseControlRig* CDO = GetClass()->GetDefaultObject<UBaseControlRig>())
+	if (UControlRig* CDO = GetClass()->GetDefaultObject<UControlRig>())
 	{
 		DrawContainer = CDO->DrawContainer;
 	}
@@ -772,13 +772,13 @@ bool UBaseControlRig::Execute(const FName& InEventName)
 	check(PublicContext.Hierarchy);
 
 	// allow access to the shape libraries
-	PublicContext.OnAddShapeLibraryDelegate.BindUObject(this, &UBaseControlRig::OnAddShapeLibrary);
-	PublicContext.OnShapeExistsDelegate.BindUObject(this, &UBaseControlRig::OnShapeExists);
+	PublicContext.OnAddShapeLibraryDelegate.BindUObject(this, &UControlRig::OnAddShapeLibrary);
+	PublicContext.OnShapeExistsDelegate.BindUObject(this, &UControlRig::OnShapeExists);
 
 	// allow access to the default hierarchy to allow to reset
 	if(!HasAnyFlags(RF_ClassDefaultObject))
 	{
-		if (UBaseControlRig* CDO = Cast<UBaseControlRig>(GetClass()->GetDefaultObject()))
+		if (UControlRig* CDO = Cast<UControlRig>(GetClass()->GetDefaultObject()))
 		{
 			if(URigHierarchy* DefaultHierarchy = CDO->GetHierarchy())
 			{
@@ -928,7 +928,7 @@ bool UBaseControlRig::Execute(const FName& InEventName)
 					// clone the shape libraries again from the CDO 
 					if (!HasAnyFlags(RF_ClassDefaultObject) && ShapeLibraries.IsEmpty())
 					{
-						UBaseControlRig* CDO = GetClass()->GetDefaultObject<UBaseControlRig>();
+						UControlRig* CDO = GetClass()->GetDefaultObject<UControlRig>();
 						ShapeLibraries = CDO->ShapeLibraries;
 					}
 
@@ -1335,28 +1335,149 @@ bool UBaseControlRig::Execute(const FName& InEventName)
 	return bSuccess;
 }
 
-void UBaseControlRig::RequestInit()
+bool UControlRig::Execute_Internal(const FName& InEventName)
+{
+	if(IsRigModule())
+	{
+		FString ConnectorWarning;
+		if(!AllConnectorsAreResolved(&ConnectorWarning))
+		{
+#if WITH_EDITOR
+			LogOnce(EMessageSeverity::Warning, INDEX_NONE, ConnectorWarning);
+#endif
+			return false;
+		}
+	}
+	
+	if (VM)
+	{
+		FRigVMExtendedExecuteContext& Context = GetRigVMExtendedExecuteContext();
+
+		static constexpr TCHAR InvalidatedVMFormat[] = TEXT("%s: Invalidated VM - aborting execution.");
+		if(VM->IsNativized())
+		{
+			if(!IsValidLowLevel() ||
+				!VM->IsValidLowLevel())
+			{
+				UE_LOG(LogControlRig, Warning, InvalidatedVMFormat, *GetClass()->GetName());
+				return false;
+			}
+		}
+		else
+		{
+			// sanity check the validity of the VM to ensure stability.
+			if(!VM->IsContextValidForExecution(Context)
+				|| !IsValidLowLevel()
+				|| !VM->IsValidLowLevel()
+			)
+			{
+				UE_LOG(LogControlRig, Warning, InvalidatedVMFormat, *GetClass()->GetName());
+				return false;
+			}
+		}
+		
+#if UE_RIGVM_PROFILE_EXECUTE_UNITS_NUM
+		const uint64 StartCycles = FPlatformTime::Cycles64();
+		if(ProfilingRunsLeft <= 0)
+		{
+			ProfilingRunsLeft = UE_RIGVM_PROFILE_EXECUTE_UNITS_NUM;
+			AccumulatedCycles = 0;
+		}
+#endif
+		
+		const bool bUseDebuggingSnapshots = !VM->IsNativized();
+		
+#if WITH_EDITOR
+		if(bUseDebuggingSnapshots)
+		{
+			if(URigVM* SnapShotVM = GetSnapshotVM(false)) // don't create it for normal runs
+			{
+				const bool bIsEventFirstInQueue = !EventQueueToRun.IsEmpty() && EventQueueToRun[0] == InEventName; 
+				const bool bIsEventLastInQueue = !EventQueueToRun.IsEmpty() && EventQueueToRun.Last() == InEventName;
+
+				if (GetHaltedAtBreakpoint().IsValid())
+				{
+					if(bIsEventFirstInQueue)
+					{
+						CopyVMMemory(GetRigVMExtendedExecuteContext(), GetSnapshotContext());
+					}
+				}
+				else if(bIsEventLastInQueue)
+				{
+					CopyVMMemory(GetSnapshotContext(), GetRigVMExtendedExecuteContext());
+				}
+			}
+		}
+#endif
+
+		URigHierarchy* Hierarchy = GetHierarchy();
+#if WITH_EDITOR
+
+		bool bRecordTransformsAtRuntime = true;
+		if(const UObject* Outer = GetOuter())
+		{
+			if(Outer->IsA<UControlRigComponent>())
+			{
+				bRecordTransformsAtRuntime = false;
+			}
+		}
+		TGuardValue<bool> RecordTransformsPerInstructionGuard(Hierarchy->bRecordTransformsAtRuntime, bRecordTransformsAtRuntime);
+		
+		if(Hierarchy->bRecordTransformsAtRuntime)
+		{
+			Hierarchy->ReadTransformsAtRuntime.Reset();
+			Hierarchy->WrittenTransformsAtRuntime.Reset();
+		}
+		
+#endif
+		FRigHierarchyExecuteContextBracket HierarchyContextGuard(Hierarchy, &Context);
+
+		// setup the module information
+		FControlRigExecuteContext& PublicContext = Context.GetPublicDataSafe<FControlRigExecuteContext>();
+		FControlRigExecuteContextRigModuleGuard RigModuleGuard(PublicContext, this);
+		FRigHierarchyRedirectorGuard ElementRedirectorGuard(this);
+
+		const bool bSuccess = VM->ExecuteVM(Context, InEventName) != ERigVMExecuteResult::Failed;
+
+#if UE_RIGVM_PROFILE_EXECUTE_UNITS_NUM
+		const uint64 EndCycles = FPlatformTime::Cycles64();
+		const uint64 Cycles = EndCycles - StartCycles;
+		AccumulatedCycles += Cycles;
+		ProfilingRunsLeft--;
+		if(ProfilingRunsLeft == 0)
+		{
+			const double Milliseconds = FPlatformTime::ToMilliseconds64(AccumulatedCycles);
+			UE_LOG(LogControlRig, Display, TEXT("%s: %d runs took %.03lfms."), *GetClass()->GetName(), UE_RIGVM_PROFILE_EXECUTE_UNITS_NUM, Milliseconds);
+		}
+#endif
+
+		return bSuccess;
+	}
+	return false;
+}
+
+void UControlRig::RequestInit()
 {
 	RequestInitVMs();
 	RequestConstruction();
 }
 
-void UBaseControlRig::RequestConstruction()
+void UControlRig::RequestConstruction()
 {
 	RequestRunOnceEvent(FRigUnit_PrepareForExecution::EventName, 0);
 }
 
-bool UBaseControlRig::IsConstructionRequired() const
+bool UControlRig::IsConstructionRequired() const
 {
 	return IsRunOnceEvent(FRigUnit_PrepareForExecution::EventName);
 }
 
-bool UBaseControlRig::SupportsBackwardsSolve() const
+bool UControlRig::SupportsBackwardsSolve() const
 {
 	return SupportsEvent(FRigUnit_InverseExecution::EventName);
 }
 
-void UBaseControlRig::AdaptEventQueueForEvaluate(TArray<FName>& InOutEventQueueToRun)
+void UControlRig::AdaptEventQueueForEvaluate(TArray<FName>& InOutEventQueueToRun)
 {
 	Super::AdaptEventQueueForEvaluate(InOutEventQueueToRun);
 
@@ -1379,7 +1500,7 @@ void UBaseControlRig::AdaptEventQueueForEvaluate(TArray<FName>& InOutEventQueueT
 	}
 }
 
-void UBaseControlRig::GetMappableNodeData(TArray<FName>& OutNames, TArray<FNodeItem>& OutNodeItems) const
+void UControlRig::GetMappableNodeData(TArray<FName>& OutNames, TArray<FNodeItem>& OutNodeItems) const
 {
 	DECLARE_SCOPE_HIERARCHICAL_COUNTER_FUNC()
 
@@ -1404,7 +1525,7 @@ void UBaseControlRig::GetMappableNodeData(TArray<FName>& OutNames, TArray<FNodeI
 	});
 }
 
-UAnimationDataSourceRegistry* UBaseControlRig::GetDataSourceRegistry()
+UAnimationDataSourceRegistry* UControlRig::GetDataSourceRegistry()
 {
 	if (DataSourceRegistry)
 	{
@@ -1428,7 +1549,7 @@ UAnimationDataSourceRegistry* UBaseControlRig::GetDataSourceRegistry()
 
 #if WITH_EDITORONLY_DATA
 
-void UBaseControlRig::PostReinstanceCallback(const UBaseControlRig* Old)
+void UControlRig::PostReinstanceCallback(const UControlRig* Old)
 {
 	DECLARE_SCOPE_HIERARCHICAL_COUNTER_FUNC()
 
@@ -1438,9 +1559,9 @@ void UBaseControlRig::PostReinstanceCallback(const UBaseControlRig* Old)
 
 #endif // WITH_EDITORONLY_DATA
 
-TArray<UBaseControlRig*> UBaseControlRig::FindBaseControlRigs(UObject* Outer, TSubclassOf<UBaseControlRig> OptionalClass)
+TArray<UControlRig*> UControlRig::FindControlRigs(UObject* Outer, TSubclassOf<UControlRig> OptionalClass)
 {
-	TArray<UBaseControlRig*> Result;
+	TArray<UControlRig*> Result;
 	
 	if(Outer == nullptr)
 	{
@@ -1453,9 +1574,9 @@ TArray<UBaseControlRig*> UBaseControlRig::FindBaseControlRigs(UObject* Outer, TS
 		OuterActor = Outer->GetTypedOuter<AActor>();
 	}
 	
-	for (TObjectIterator<UBaseControlRig> Itr; Itr; ++Itr)
+	for (TObjectIterator<UControlRig> Itr; Itr; ++Itr)
 	{
-		UBaseControlRig* RigInstance = *Itr;
+		UControlRig* RigInstance = *Itr;
 		const UClass* RigInstanceClass = RigInstance ? RigInstance->GetClass() : nullptr;
 		if (OptionalClass == nullptr || (RigInstanceClass && RigInstanceClass->IsChildOf(OptionalClass)))
 		{
@@ -1491,7 +1612,7 @@ TArray<UBaseControlRig*> UBaseControlRig::FindBaseControlRigs(UObject* Outer, TS
 	return Result;
 }
 
-void UBaseControlRig::Serialize(FArchive& Ar)
+void UControlRig::Serialize(FArchive& Ar)
 {
 	DECLARE_SCOPE_HIERARCHICAL_COUNTER_FUNC()
 
@@ -1500,7 +1621,7 @@ void UBaseControlRig::Serialize(FArchive& Ar)
 	Ar.UsingCustomVersion(FControlRigObjectVersion::GUID);
 }
 
-void UBaseControlRig::PostLoad()
+void UControlRig::PostLoad()
 {
 	Super::PostLoad();
 
@@ -1534,25 +1655,25 @@ void UBaseControlRig::PostLoad()
 	Influences = NewInfluences;
 }
 
-const FRigModuleSettings& UBaseControlRig::GetRigModuleSettings() const
+const FRigModuleSettings& UControlRig::GetRigModuleSettings() const
 {
 	if(HasAnyFlags(RF_ClassDefaultObject))
 	{
 		return RigModuleSettings;
 	}
-	if (const UBaseControlRig* CDO = Cast<UBaseControlRig>(GetClass()->GetDefaultObject()))
+	if (const UControlRig* CDO = Cast<UControlRig>(GetClass()->GetDefaultObject()))
 	{
 		return CDO->GetRigModuleSettings();
 	}
 	return RigModuleSettings;
 }
 
-bool UBaseControlRig::IsRigModule() const
+bool UControlRig::IsRigModule() const
 {
 	return GetRigModuleSettings().IsValidModule(false);
 }
 
-bool UBaseControlRig::IsRigModuleInstance() const
+bool UControlRig::IsRigModuleInstance() const
 {
 	if(IsRigModule())
 	{
@@ -1561,16 +1682,16 @@ bool UBaseControlRig::IsRigModuleInstance() const
 	return false;
 }
 
-UBaseControlRig* UBaseControlRig::GetParentRig() const
+UControlRig* UControlRig::GetParentRig() const
 {
-	return GetTypedOuter<UBaseControlRig>();
+	return GetTypedOuter<UControlRig>();
 }
 
-const FString& UBaseControlRig::GetRigModuleNameSpace() const
+const FString& UControlRig::GetRigModuleNameSpace() const
 {
 	if(IsRigModule())
 	{
-		if(const UBaseControlRig* ParentRig = GetParentRig())
+		if(const UControlRig* ParentRig = GetParentRig())
 		{
 			const FString& ParentNameSpace = ParentRig->GetRigModuleNameSpace();
 			static constexpr TCHAR JoinFormat[] = TEXT("%s%s:");
@@ -1589,7 +1710,7 @@ const FString& UBaseControlRig::GetRigModuleNameSpace() const
 	return EmptyNameSpace;
 }
 
-FRigElementKeyRedirector& UBaseControlRig::GetElementKeyRedirector()
+FRigElementKeyRedirector& UControlRig::GetElementKeyRedirector()
 {
 	// if we are an instance on a modular rig, use our local info
 	if(IsRigModuleInstance())
@@ -1607,12 +1728,12 @@ FRigElementKeyRedirector& UBaseControlRig::GetElementKeyRedirector()
 	return EmptyRedirector;
 }
 
-void UBaseControlRig::SetElementKeyRedirector(const FRigElementKeyRedirector InElementRedirector)
+void UControlRig::SetElementKeyRedirector(const FRigElementKeyRedirector InElementRedirector)
 {
 	ElementKeyRedirector = InElementRedirector;
 }
 
-TArray<FRigControlElement*> UBaseControlRig::AvailableControls() const
+TArray<FRigControlElement*> UControlRig::AvailableControls() const
 {
 	if(DynamicHierarchy)
 	{
@@ -1621,7 +1742,7 @@ TArray<FRigControlElement*> UBaseControlRig::AvailableControls() const
 	return TArray<FRigControlElement*>();
 }
 
-FRigControlElement* UBaseControlRig::FindControl(const FName& InControlName) const
+FRigControlElement* UControlRig::FindControl(const FName& InControlName) const
 {
 	if(DynamicHierarchy == nullptr)
 	{
@@ -1630,12 +1751,12 @@ FRigControlElement* UBaseControlRig::FindControl(const FName& InControlName) con
 	return DynamicHierarchy->Find<FRigControlElement>(FRigElementKey(InControlName, ERigElementType::Control));
 }
 
-bool UBaseControlRig::IsConstructionModeEnabled() const
+bool UControlRig::IsConstructionModeEnabled() const
 {
 	return EventQueueToRun.Num() == 1 && EventQueueToRun.Contains(FRigUnit_PrepareForExecution::EventName);
 }
 
-FTransform UBaseControlRig::SetupControlFromGlobalTransform(const FName& InControlName, const FTransform& InGlobalTransform)
+FTransform UControlRig::SetupControlFromGlobalTransform(const FName& InControlName, const FTransform& InGlobalTransform)
 {
 	if (IsConstructionModeEnabled())
 	{
@@ -1660,7 +1781,7 @@ FTransform UBaseControlRig::SetupControlFromGlobalTransform(const FName& InContr
 	return InGlobalTransform;
 }
 
-void UBaseControlRig::CreateRigControlsForCurveContainer()
+void UControlRig::CreateRigControlsForCurveContainer()
 {
 	const bool bCreateFloatControls = CVarControlRigCreateFloatControlsForCurves->GetInt() == 0 ? false : true;
 	if(bCreateFloatControls && DynamicHierarchy)
@@ -1693,11 +1814,11 @@ void UBaseControlRig::CreateRigControlsForCurveContainer()
 			return true;
 		});
 
-		ControlModified().AddUObject(this, &UBaseControlRig::HandleOnControlModified);
+		ControlModified().AddUObject(this, &UControlRig::HandleOnControlModified);
 	}
 }
 
-void UBaseControlRig::HandleOnControlModified(UBaseControlRig* Subject, FRigControlElement* Control, const FRigControlModifiedContext& Context)
+void UControlRig::HandleOnControlModified(UControlRig* Subject, FRigControlElement* Control, const FRigControlModifiedContext& Context)
 {
 	if (Control->Settings.bIsCurve && DynamicHierarchy)
 	{
@@ -1706,12 +1827,12 @@ void UBaseControlRig::HandleOnControlModified(UBaseControlRig* Subject, FRigCont
 	}	
 }
 
-bool UBaseControlRig::IsCurveControl(const FRigControlElement* InControlElement) const
+bool UControlRig::IsCurveControl(const FRigControlElement* InControlElement) const
 {
 	return InControlElement->Settings.bIsCurve;
 }
 
-FTransform UBaseControlRig::GetControlGlobalTransform(const FName& InControlName) const
+FTransform UControlRig::GetControlGlobalTransform(const FName& InControlName) const
 {
 	if(DynamicHierarchy == nullptr)
 	{
@@ -1720,7 +1841,7 @@ FTransform UBaseControlRig::GetControlGlobalTransform(const FName& InControlName
 	return DynamicHierarchy->GetGlobalTransform(FRigElementKey(InControlName, ERigElementType::Control), false);
 }
 
-FRigControlValue UBaseControlRig::GetControlValue(FRigControlElement* InControl, const ERigControlValueType& InValueType)
+FRigControlValue UControlRig::GetControlValue(FRigControlElement* InControl, const ERigControlValueType& InValueType)
 {
 	if (bIsAdditive && InValueType == ERigControlValueType::Current)
 	{
@@ -1746,7 +1867,7 @@ FRigControlValue UBaseControlRig::GetControlValue(FRigControlElement* InControl,
 	return GetHierarchy()->GetControlValue(InControl, InValueType);
 }
 
-void UBaseControlRig::SetControlValueImpl(const FName& InControlName, const FRigControlValue& InValue, bool bNotify,
+void UControlRig::SetControlValueImpl(const FName& InControlName, const FRigControlValue& InValue, bool bNotify,
 	const FRigControlModifiedContext& Context, bool bSetupUndo, bool bPrintPythonCommnds, bool bFixEulerFlips)
 {
 	const FRigElementKey Key(InControlName, ERigElementType::Control);
@@ -1773,7 +1894,7 @@ void UBaseControlRig::SetControlValueImpl(const FName& InControlName, const FRig
 	}
 }
 
-bool UBaseControlRig::SetControlGlobalTransform(const FName& InControlName, const FTransform& InGlobalTransform, bool bNotify, const FRigControlModifiedContext& Context, bool bSetupUndo, bool bPrintPythonCommands, bool bFixEulerFlips)
+bool UControlRig::SetControlGlobalTransform(const FName& InControlName, const FTransform& InGlobalTransform, bool bNotify, const FRigControlModifiedContext& Context, bool bSetupUndo, bool bPrintPythonCommands, bool bFixEulerFlips)
 {
 	FTransform GlobalTransform = InGlobalTransform;
 	ERigTransformType::Type TransformType = ERigTransformType::CurrentGlobal;
@@ -1818,7 +1939,7 @@ bool UBaseControlRig::SetControlGlobalTransform(const FName& InControlName, cons
 	return true;
 }
 
-FRigControlValue UBaseControlRig::GetControlValueFromGlobalTransform(const FName& InControlName, const FTransform& InGlobalTransform, ERigTransformType::Type InTransformType)
+FRigControlValue UControlRig::GetControlValueFromGlobalTransform(const FName& InControlName, const FTransform& InGlobalTransform, ERigTransformType::Type InTransformType)
 {
 	FRigControlValue Value;
 
@@ -1861,7 +1982,7 @@ FRigControlValue UBaseControlRig::GetControlValueFromGlobalTransform(const FName
 	return Value;
 }
 
-void UBaseControlRig::SetControlLocalTransform(const FName& InControlName, const FTransform& InLocalTransform, bool bNotify, const FRigControlModifiedContext& Context, bool bSetupUndo, bool bFixEulerFlips)
+void UControlRig::SetControlLocalTransform(const FName& InControlName, const FTransform& InLocalTransform, bool bNotify, const FRigControlModifiedContext& Context, bool bSetupUndo, bool bFixEulerFlips)
 {
 	if (FRigControlElement* ControlElement = FindControl(InControlName))
 	{
@@ -1877,7 +1998,7 @@ void UBaseControlRig::SetControlLocalTransform(const FName& InControlName, const
 	}
 }
 
-FTransform UBaseControlRig::GetControlLocalTransform(const FName& InControlName)
+FTransform UControlRig::GetControlLocalTransform(const FName& InControlName)
 {
 	if(DynamicHierarchy == nullptr)
 	{
@@ -1897,13 +2018,13 @@ FTransform UBaseControlRig::GetControlLocalTransform(const FName& InControlName)
 	return DynamicHierarchy->GetLocalTransform(FRigElementKey(InControlName, ERigElementType::Control));
 }
 
-const TArray<TSoftObjectPtr<UControlRigShapeLibrary>>& UBaseControlRig::GetShapeLibraries() const
+const TArray<TSoftObjectPtr<UControlRigShapeLibrary>>& UControlRig::GetShapeLibraries() const
 {
 	const TArray<TSoftObjectPtr<UControlRigShapeLibrary>>* LibrariesPtr = &ShapeLibraries;
 
 	if(!GetClass()->IsNative() && ShapeLibraries.IsEmpty())
 	{
-		if (UBaseControlRig* CDO = Cast<UBaseControlRig>(GetClass()->GetDefaultObject()))
+		if (UControlRig* CDO = Cast<UControlRig>(GetClass()->GetDefaultObject()))
 		{
 			LibrariesPtr = &CDO->ShapeLibraries;
 		}
@@ -1921,7 +2042,7 @@ const TArray<TSoftObjectPtr<UControlRigShapeLibrary>>& UBaseControlRig::GetShape
 	return Libraries;
 }
 
-void UBaseControlRig::SelectControl(const FName& InControlName, bool bSelect)
+void UControlRig::SelectControl(const FName& InControlName, bool bSelect)
 {
 	if(DynamicHierarchy)
 	{
@@ -1932,7 +2053,7 @@ void UBaseControlRig::SelectControl(const FName& InControlName, bool bSelect)
 	}
 }
 
-bool UBaseControlRig::ClearControlSelection()
+bool UControlRig::ClearControlSelection()
 {
 	if(DynamicHierarchy)
 	{
@@ -1944,7 +2065,7 @@ bool UBaseControlRig::ClearControlSelection()
 	return false;
 }
 
-TArray<FName> UBaseControlRig::CurrentControlSelection() const
+TArray<FName> UControlRig::CurrentControlSelection() const
 {
 	TArray<FName> SelectedControlNames;
 
@@ -1965,7 +2086,7 @@ TArray<FName> UBaseControlRig::CurrentControlSelection() const
 	return SelectedControlNames;
 }
 
-bool UBaseControlRig::IsControlSelected(const FName& InControlName)const
+bool UControlRig::IsControlSelected(const FName& InControlName)const
 {
 	if(DynamicHierarchy)
 	{
@@ -1977,7 +2098,7 @@ bool UBaseControlRig::IsControlSelected(const FName& InControlName)const
 	return false;
 }
 
-void UBaseControlRig::HandleHierarchyModified(ERigHierarchyNotification InNotification, URigHierarchy* InHierarchy,
+void UControlRig::HandleHierarchyModified(ERigHierarchyNotification InNotification, URigHierarchy* InHierarchy,
     const FRigBaseElement* InElement)
 {
 	switch(InNotification)
@@ -2035,7 +2156,7 @@ void UBaseControlRig::HandleHierarchyModified(ERigHierarchyNotification InNotifi
 
 #if WITH_EDITOR
 
-bool UBaseControlRig::CanAddTransientControl(const URigVMUnitNode* InNode, const FRigDirectManipulationTarget& InTarget, FString* OutFailureReason)
+bool UControlRig::CanAddTransientControl(const URigVMUnitNode* InNode, const FRigDirectManipulationTarget& InTarget, FString* OutFailureReason)
 {
 	if (InNode == nullptr)
 	{
@@ -2089,7 +2210,7 @@ bool UBaseControlRig::CanAddTransientControl(const URigVMUnitNode* InNode, const
 	return false;
 }
 
-FName UBaseControlRig::AddTransientControl(const URigVMUnitNode* InNode, const FRigDirectManipulationTarget& InTarget)
+FName UControlRig::AddTransientControl(const URigVMUnitNode* InNode, const FRigDirectManipulationTarget& InTarget)
 {
 	if(!CanAddTransientControl(InNode, InTarget, nullptr))
 	{
@@ -2145,7 +2266,7 @@ FName UBaseControlRig::AddTransientControl(const URigVMUnitNode* InNode, const F
 	return Info->ControlKey.Name;
 }
 
-bool UBaseControlRig::SetTransientControlValue(const URigVMUnitNode* InNode, TSharedPtr<FRigDirectManipulationInfo> InInfo)
+bool UControlRig::SetTransientControlValue(const URigVMUnitNode* InNode, TSharedPtr<FRigDirectManipulationInfo> InInfo)
 {
 	check(InNode);
 	check(DynamicHierarchy);
@@ -2173,7 +2294,7 @@ bool UBaseControlRig::SetTransientControlValue(const URigVMUnitNode* InNode, TSh
 	return bResult;
 }
 
-FName UBaseControlRig::RemoveTransientControl(const URigVMUnitNode* InNode, const FRigDirectManipulationTarget& InTarget)
+FName UControlRig::RemoveTransientControl(const URigVMUnitNode* InNode, const FRigDirectManipulationTarget& InTarget)
 {
 	if ((InNode == nullptr) || (DynamicHierarchy == nullptr))
 	{
@@ -2207,7 +2328,7 @@ FName UBaseControlRig::RemoveTransientControl(const URigVMUnitNode* InNode, cons
 	return NAME_None;
 }
 
-FName UBaseControlRig::AddTransientControl(const FRigElementKey& InElement)
+FName UControlRig::AddTransientControl(const FRigElementKey& InElement)
 {
 	if (!InElement.IsValid())
 	{
@@ -2282,7 +2403,7 @@ FName UBaseControlRig::AddTransientControl(const FRigElementKey& InElement)
 			if(FRigBoneElement* BoneElement = DynamicHierarchy->Find<FRigBoneElement>(InElement))
 			{
 				// add a modify bone AnimNode internally that the transient control controls for imported bones only
-				// for user created bones, refer to UBaseControlRig::TransformOverrideForUserCreatedBones 
+				// for user created bones, refer to UControlRig::TransformOverrideForUserCreatedBones 
 				if (BoneElement->BoneType == ERigBoneType::Imported)
 				{ 
 					if (PreviewInstance)
@@ -2305,7 +2426,7 @@ FName UBaseControlRig::AddTransientControl(const FRigElementKey& InElement)
 	return ControlKey.Name;
 }
 
-bool UBaseControlRig::SetTransientControlValue(const FRigElementKey& InElement)
+bool UControlRig::SetTransientControlValue(const FRigElementKey& InElement)
 {
 	if (!InElement.IsValid())
 	{
@@ -2374,7 +2495,7 @@ bool UBaseControlRig::SetTransientControlValue(const FRigElementKey& InElement)
 	return false;
 }
 
-FName UBaseControlRig::RemoveTransientControl(const FRigElementKey& InElement)
+FName UControlRig::RemoveTransientControl(const FRigElementKey& InElement)
 {
 	if (!InElement.IsValid())
 	{
@@ -2408,7 +2529,7 @@ FName UBaseControlRig::RemoveTransientControl(const FRigElementKey& InElement)
 	return NAME_None;
 }
 
-FName UBaseControlRig::GetNameForTransientControl(const URigVMUnitNode* InNode, const FRigDirectManipulationTarget& InTarget) const
+FName UControlRig::GetNameForTransientControl(const URigVMUnitNode* InNode, const FRigDirectManipulationTarget& InTarget) const
 {
 	check(InNode);
 	check(DynamicHierarchy);
@@ -2417,7 +2538,7 @@ FName UBaseControlRig::GetNameForTransientControl(const URigVMUnitNode* InNode, 
 	return DynamicHierarchy->GetSanitizedName(FRigName(FString::Printf(TEXT("ControlForNode|%s|%s"), *NodeName, *InTarget.Name)));
 }
 
-FString UBaseControlRig::GetNodeNameFromTransientControl(const FRigElementKey& InKey)
+FString UControlRig::GetNodeNameFromTransientControl(const FRigElementKey& InKey)
 {
 	FString Name = InKey.Name.ToString();
 	if(Name.StartsWith(TEXT("ControlForNode|")))
@@ -2432,7 +2553,7 @@ FString UBaseControlRig::GetNodeNameFromTransientControl(const FRigElementKey& I
 	return Name;
 }
 
-FString UBaseControlRig::GetTargetFromTransientControl(const FRigElementKey& InKey)
+FString UControlRig::GetTargetFromTransientControl(const FRigElementKey& InKey)
 {
 	FString Name = InKey.Name.ToString();
 	if(Name.StartsWith(TEXT("ControlForNode|")))
@@ -2447,7 +2568,7 @@ FString UBaseControlRig::GetTargetFromTransientControl(const FRigElementKey& InK
 	return Name;
 }
 
-TSharedPtr<FRigDirectManipulationInfo> UBaseControlRig::GetRigUnitManipulationInfoForTransientControl(
+TSharedPtr<FRigDirectManipulationInfo> UControlRig::GetRigUnitManipulationInfoForTransientControl(
 	const FRigElementKey& InKey)
 {
 	const TSharedPtr<FRigDirectManipulationInfo>* InfoPtr = RigUnitManipulationInfos.FindByPredicate(
@@ -2464,7 +2585,7 @@ TSharedPtr<FRigDirectManipulationInfo> UBaseControlRig::GetRigUnitManipulationIn
 	return TSharedPtr<FRigDirectManipulationInfo>();
 }
 
-FName UBaseControlRig::GetNameForTransientControl(const FRigElementKey& InElement)
+FName UControlRig::GetNameForTransientControl(const FRigElementKey& InElement)
 {
 	if (InElement.Type == ERigElementType::Control)
 	{
@@ -2475,7 +2596,7 @@ FName UBaseControlRig::GetNameForTransientControl(const FRigElementKey& InElemen
 	return *FString::Printf(TEXT("ControlForRigElement_%s_%s"), *EnumName.ToString(), *InElement.Name.ToString());
 }
 
-FRigElementKey UBaseControlRig::GetElementKeyFromTransientControl(const FRigElementKey& InKey)
+FRigElementKey UControlRig::GetElementKeyFromTransientControl(const FRigElementKey& InKey)
 {
 	if(InKey.Type != ERigElementType::Control)
 	{
@@ -2508,7 +2629,7 @@ FRigElementKey UBaseControlRig::GetElementKeyFromTransientControl(const FRigElem
 	return FRigElementKey();;
 }
 
-void UBaseControlRig::ClearTransientControls()
+void UControlRig::ClearTransientControls()
 {
 	if(DynamicHierarchy == nullptr)
 	{
@@ -2540,7 +2661,7 @@ void UBaseControlRig::ClearTransientControls()
 	}
 }
 
-void UBaseControlRig::ApplyTransformOverrideForUserCreatedBones()
+void UControlRig::ApplyTransformOverrideForUserCreatedBones()
 {
 	if(DynamicHierarchy == nullptr)
 	{
@@ -2553,7 +2674,7 @@ void UBaseControlRig::ApplyTransformOverrideForUserCreatedBones()
 	}
 }
 
-void UBaseControlRig::ApplySelectionPoseForConstructionMode(const FName& InEventName)
+void UControlRig::ApplySelectionPoseForConstructionMode(const FName& InEventName)
 {
 	FRigControlModifiedContext ControlValueContext;
 	ControlValueContext.EventName = InEventName;
@@ -2569,7 +2690,7 @@ void UBaseControlRig::ApplySelectionPoseForConstructionMode(const FName& InEvent
 
 #endif
 
-void UBaseControlRig::HandleHierarchyEvent(URigHierarchy* InHierarchy, const FRigEventContext& InEvent)
+void UControlRig::HandleHierarchyEvent(URigHierarchy* InHierarchy, const FRigEventContext& InEvent)
 {
 	if (RigEventDelegate.IsBound())
 	{
@@ -2609,7 +2730,7 @@ void UBaseControlRig::HandleHierarchyEvent(URigHierarchy* InHierarchy, const FRi
 	}
 }
 
-void UBaseControlRig::GetControlsInOrder(TArray<FRigControlElement*>& SortedControls) const
+void UControlRig::GetControlsInOrder(TArray<FRigControlElement*>& SortedControls) const
 {
 	SortedControls.Reset();
 
@@ -2621,9 +2742,9 @@ void UBaseControlRig::GetControlsInOrder(TArray<FRigControlElement*>& SortedCont
 	SortedControls = DynamicHierarchy->GetControls(true);
 }
 
-const FRigInfluenceMap* UBaseControlRig::FindInfluenceMap(const FName& InEventName)
+const FRigInfluenceMap* UControlRig::FindInfluenceMap(const FName& InEventName)
 {
-	if (UBaseControlRig* CDO = GetClass()->GetDefaultObject<UBaseControlRig>())
+	if (UControlRig* CDO = GetClass()->GetDefaultObject<UControlRig>())
 	{
 		return CDO->Influences.Find(InEventName);
 	}
@@ -2632,7 +2753,7 @@ const FRigInfluenceMap* UBaseControlRig::FindInfluenceMap(const FName& InEventNa
 
 #if WITH_EDITOR
 
-void UBaseControlRig::PreEditChange(FProperty* PropertyAboutToChange)
+void UControlRig::PreEditChange(FProperty* PropertyAboutToChange)
 {
 	// for BP user authored properties let's ignore changes since they
 	// will be distributed from the BP anyway to all archetype instances.
@@ -2657,13 +2778,13 @@ void UBaseControlRig::PreEditChange(FProperty* PropertyAboutToChange)
 	Super::PreEditChange(PropertyAboutToChange);
 }
 
-void UBaseControlRig::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+void UControlRig::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 }
 #endif
 
-FRigUnit* UBaseControlRig::GetRigUnitInstanceFromScope(TSharedPtr<FStructOnScope> InScope)
+FRigUnit* UControlRig::GetRigUnitInstanceFromScope(TSharedPtr<FStructOnScope> InScope)
 {
 	if(InScope.IsValid())
 	{
@@ -2679,7 +2800,7 @@ FRigUnit* UBaseControlRig::GetRigUnitInstanceFromScope(TSharedPtr<FStructOnScope
 	return (FRigUnit*)DefaultRigUnitInstance.GetStructMemory();
 }
 
-const TArray<UAssetUserData*>* UBaseControlRig::GetAssetUserDataArray() const
+const TArray<UAssetUserData*>* UControlRig::GetAssetUserDataArray() const
 {
 	if(HasAnyFlags(RF_ClassDefaultObject))
 	{
@@ -2696,7 +2817,7 @@ const TArray<UAssetUserData*>* UBaseControlRig::GetAssetUserDataArray() const
 
 	CombinedAssetUserData.Reset();
 
-	if (UBaseControlRig* CDO = Cast<UBaseControlRig>(GetClass()->GetDefaultObject(false)))
+	if (UControlRig* CDO = Cast<UControlRig>(GetClass()->GetDefaultObject(false)))
 	{
 		CombinedAssetUserData.Append(*CDO->GetAssetUserDataArray());
 	}
@@ -2789,7 +2910,7 @@ const TArray<UAssetUserData*>* UBaseControlRig::GetAssetUserDataArray() const
 	return &ToRawPtrTArrayUnsafe(CombinedAssetUserData);
 }
 
-void UBaseControlRig::CopyPoseFromOtherRig(UBaseControlRig* Subject)
+void UControlRig::CopyPoseFromOtherRig(UControlRig* Subject)
 {
 	check(DynamicHierarchy);
 	check(Subject);
@@ -2824,7 +2945,7 @@ void UBaseControlRig::CopyPoseFromOtherRig(UBaseControlRig* Subject)
 	}
 }
 
-void UBaseControlRig::SetBoneInitialTransformsFromAnimInstance(UAnimInstance* InAnimInstance)
+void UControlRig::SetBoneInitialTransformsFromAnimInstance(UAnimInstance* InAnimInstance)
 {
 	FMemMark Mark(FMemStack::Get());
 	FCompactPose OutPose;
@@ -2832,7 +2953,7 @@ void UBaseControlRig::SetBoneInitialTransformsFromAnimInstance(UAnimInstance* In
 	SetBoneInitialTransformsFromCompactPose(&OutPose);
 }
 
-void UBaseControlRig::SetBoneInitialTransformsFromAnimInstanceProxy(const FAnimInstanceProxy* InAnimInstanceProxy)
+void UControlRig::SetBoneInitialTransformsFromAnimInstanceProxy(const FAnimInstanceProxy* InAnimInstanceProxy)
 {
 	FMemMark Mark(FMemStack::Get());
 	FCompactPose OutPose;
@@ -2840,7 +2961,7 @@ void UBaseControlRig::SetBoneInitialTransformsFromAnimInstanceProxy(const FAnimI
 	SetBoneInitialTransformsFromCompactPose(&OutPose);
 }
 
-void UBaseControlRig::SetBoneInitialTransformsFromSkeletalMeshComponent(USkeletalMeshComponent* InSkelMeshComp, bool bUseAnimInstance)
+void UControlRig::SetBoneInitialTransformsFromSkeletalMeshComponent(USkeletalMeshComponent* InSkelMeshComp, bool bUseAnimInstance)
 {
 	check(InSkelMeshComp);
 	check(DynamicHierarchy);
@@ -2856,7 +2977,7 @@ void UBaseControlRig::SetBoneInitialTransformsFromSkeletalMeshComponent(USkeleta
 }
 
 
-void UBaseControlRig::SetBoneInitialTransformsFromSkeletalMesh(USkeletalMesh* InSkeletalMesh)
+void UControlRig::SetBoneInitialTransformsFromSkeletalMesh(USkeletalMesh* InSkeletalMesh)
 {
 	if (ensure(InSkeletalMesh))
 	{ 
@@ -2864,7 +2985,7 @@ void UBaseControlRig::SetBoneInitialTransformsFromSkeletalMesh(USkeletalMesh* In
 	}
 }
 
-void UBaseControlRig::SetBoneInitialTransformsFromRefSkeleton(const FReferenceSkeleton& InReferenceSkeleton)
+void UControlRig::SetBoneInitialTransformsFromRefSkeleton(const FReferenceSkeleton& InReferenceSkeleton)
 {
 	check(DynamicHierarchy);
 
@@ -2886,7 +3007,7 @@ void UBaseControlRig::SetBoneInitialTransformsFromRefSkeleton(const FReferenceSk
 	RequestConstruction();
 }
 
-void UBaseControlRig::SetBoneInitialTransformsFromCompactPose(FCompactPose* InCompactPose)
+void UControlRig::SetBoneInitialTransformsFromCompactPose(FCompactPose* InCompactPose)
 {
 	check(InCompactPose);
 
@@ -2923,7 +3044,7 @@ void UBaseControlRig::SetBoneInitialTransformsFromCompactPose(FCompactPose* InCo
 	RequestConstruction();
 }
 
-const FRigControlElementCustomization* UBaseControlRig::GetControlCustomization(const FRigElementKey& InControl) const
+const FRigControlElementCustomization* UControlRig::GetControlCustomization(const FRigElementKey& InControl) const
 {
 	check(InControl.Type == ERigElementType::Control);
 
@@ -2943,14 +3064,14 @@ const FRigControlElementCustomization* UBaseControlRig::GetControlCustomization(
 	return nullptr;
 }
 
-void UBaseControlRig::SetControlCustomization(const FRigElementKey& InControl, const FRigControlElementCustomization& InCustomization)
+void UControlRig::SetControlCustomization(const FRigElementKey& InControl, const FRigControlElementCustomization& InCustomization)
 {
 	check(InControl.Type == ERigElementType::Control);
 	
 	ControlCustomizations.FindOrAdd(InControl) = InCustomization;
 }
 
-void UBaseControlRig::PostInitInstanceIfRequired()
+void UControlRig::PostInitInstanceIfRequired()
 {
 	if(GetHierarchy() == nullptr || VM == nullptr)
 	{
@@ -2960,7 +3081,7 @@ void UBaseControlRig::PostInitInstanceIfRequired()
 		}
 		else
 		{
-			UBaseControlRig* CDO = GetClass()->GetDefaultObject<UBaseControlRig>();
+			UControlRig* CDO = GetClass()->GetDefaultObject<UControlRig>();
 			ensure(VM == nullptr || VM == CDO->VM);
 			PostInitInstance(CDO);
 		}
@@ -2968,7 +3089,7 @@ void UBaseControlRig::PostInitInstanceIfRequired()
 }
 
 #if WITH_EDITORONLY_DATA
-void UBaseControlRig::DeclareConstructClasses(TArray<FTopLevelAssetPath>& OutConstructClasses, const UClass* SpecificSubclass)
+void UControlRig::DeclareConstructClasses(TArray<FTopLevelAssetPath>& OutConstructClasses, const UClass* SpecificSubclass)
 {
 	Super::DeclareConstructClasses(OutConstructClasses, SpecificSubclass);
 	OutConstructClasses.Add(FTopLevelAssetPath(URigHierarchy::StaticClass()));
@@ -2977,14 +3098,14 @@ void UBaseControlRig::DeclareConstructClasses(TArray<FTopLevelAssetPath>& OutCon
 
 #endif
 
-USceneComponent* UBaseControlRig::GetOwningSceneComponent()
+USceneComponent* UControlRig::GetOwningSceneComponent()
 {
 	if(OuterSceneComponent == nullptr)
 	{
 		const FControlRigExecuteContext& PublicContext = GetRigVMExtendedExecuteContext().GetPublicDataSafe<FControlRigExecuteContext>();
 		const FRigUnitContext& Context = PublicContext.UnitContext;
 
-		USceneComponent* SceneComponentFromRegistry = Context.DataSourceRegistry->RequestSource<USceneComponent>(UBaseControlRig::OwnerComponent);
+		USceneComponent* SceneComponentFromRegistry = Context.DataSourceRegistry->RequestSource<USceneComponent>(UControlRig::OwnerComponent);
 		if (SceneComponentFromRegistry)
 		{
 			OuterSceneComponent = SceneComponentFromRegistry;
@@ -2998,7 +3119,7 @@ USceneComponent* UBaseControlRig::GetOwningSceneComponent()
 	return OuterSceneComponent.Get();
 }
 
-void UBaseControlRig::PostInitInstance(URigVMHost* InCDO)
+void UControlRig::PostInitInstance(URigVMHost* InCDO)
 {
 	const EObjectFlags SubObjectFlags =
 	HasAnyFlags(RF_ClassDefaultObject) ?
@@ -3010,7 +3131,7 @@ void UBaseControlRig::PostInitInstance(URigVMHost* InCDO)
 	Context.SetContextPublicDataStruct(FControlRigExecuteContext::StaticStruct());
 
 	Context.ExecutionReachedExit().RemoveAll(this);
-	Context.ExecutionReachedExit().AddUObject(this, &UBaseControlRig::HandleExecutionReachedExit);
+	Context.ExecutionReachedExit().AddUObject(this, &UControlRig::HandleExecutionReachedExit);
 	UpdateVMSettings();
 
 	// set up the hierarchy
@@ -3032,8 +3153,8 @@ void UBaseControlRig::PostInitInstance(URigVMHost* InCDO)
 	}
 
 #if WITH_EDITOR
-		const TWeakObjectPtr<UBaseControlRig> WeakThis = this;
-		DynamicHierarchy->OnUndoRedo().AddStatic(&UBaseControlRig::OnHierarchyTransformUndoRedoWeak, WeakThis);
+		const TWeakObjectPtr<UControlRig> WeakThis = this;
+		DynamicHierarchy->OnUndoRedo().AddStatic(&UControlRig::OnHierarchyTransformUndoRedoWeak, WeakThis);
 #endif
 
 	if(!HasAnyFlags(RF_ClassDefaultObject))
@@ -3046,7 +3167,7 @@ void UBaseControlRig::PostInitInstance(URigVMHost* InCDO)
 				VM = InCDO->GetVM();
 			}
 
-			DynamicHierarchy->CopyHierarchy(CastChecked<UBaseControlRig>(InCDO)->GetHierarchy());
+			DynamicHierarchy->CopyHierarchy(CastChecked<UControlRig>(InCDO)->GetHierarchy());
 		}
 	}
 	else // we are the CDO
@@ -3073,7 +3194,7 @@ void UBaseControlRig::PostInitInstance(URigVMHost* InCDO)
 		}
 	}
 
-	if(UBaseControlRig* CDOControlRig = Cast<UBaseControlRig>(InCDO))
+	if(UControlRig* CDOControlRig = Cast<UControlRig>(InCDO))
 	{
 		ElementKeyRedirector = FRigElementKeyRedirector(CDOControlRig->ElementKeyRedirector, DynamicHierarchy);
 	}
@@ -3081,7 +3202,7 @@ void UBaseControlRig::PostInitInstance(URigVMHost* InCDO)
 	RequestInit();
 }
 
-void UBaseControlRig::SetDynamicHierarchy(TObjectPtr<URigHierarchy> InHierarchy)
+void UControlRig::SetDynamicHierarchy(TObjectPtr<URigHierarchy> InHierarchy)
 {
 	// Delete any existing hierarchy
 	if (DynamicHierarchy->GetOuter() == this)
@@ -3093,7 +3214,7 @@ void UBaseControlRig::SetDynamicHierarchy(TObjectPtr<URigHierarchy> InHierarchy)
 	DynamicHierarchy = InHierarchy;
 }
 
-UTransformableControlHandle* UBaseControlRig::CreateTransformableControlHandle(
+UTransformableControlHandle* UControlRig::CreateTransformableControlHandle(
 	const FName& InControlName) const
 {
 	auto IsConstrainable = [this](const FName& InControlName)
@@ -3129,7 +3250,7 @@ UTransformableControlHandle* UBaseControlRig::CreateTransformableControlHandle(
 	return CtrlHandle;
 }
 
-void UBaseControlRig::OnHierarchyTransformUndoRedo(URigHierarchy* InHierarchy, const FRigElementKey& InKey, ERigTransformType::Type InTransformType, const FTransform& InTransform, bool bIsUndo)
+void UControlRig::OnHierarchyTransformUndoRedo(URigHierarchy* InHierarchy, const FRigElementKey& InKey, ERigTransformType::Type InTransformType, const FTransform& InTransform, bool bIsUndo)
 {
 	if(InKey.Type == ERigElementType::Control)
 	{
@@ -3140,7 +3261,7 @@ void UBaseControlRig::OnHierarchyTransformUndoRedo(URigHierarchy* InHierarchy, c
 	}
 }
 
-UBaseControlRig::FPoseScope::FPoseScope(UBaseControlRig* InControlRig, ERigElementType InFilter, const TArray<FRigElementKey>& InElements, const ERigTransformType::Type InTransformType)
+UControlRig::FPoseScope::FPoseScope(UControlRig* InControlRig, ERigElementType InFilter, const TArray<FRigElementKey>& InElements, const ERigTransformType::Type InTransformType)
 : ControlRig(InControlRig)
 , Filter(InFilter)
 , TransformType(InTransformType)
@@ -3150,7 +3271,7 @@ UBaseControlRig::FPoseScope::FPoseScope(UBaseControlRig* InControlRig, ERigEleme
 	CachedPose = InControlRig->GetHierarchy()->GetPose(IsInitial(InTransformType), InFilter, ElementView);
 }
 
-UBaseControlRig::FPoseScope::~FPoseScope()
+UControlRig::FPoseScope::~FPoseScope()
 {
 	check(ControlRig);
 
@@ -3159,7 +3280,7 @@ UBaseControlRig::FPoseScope::~FPoseScope()
 
 #if WITH_EDITOR
 
-UBaseControlRig::FTransientControlScope::FTransientControlScope(TObjectPtr<URigHierarchy> InHierarchy)
+UControlRig::FTransientControlScope::FTransientControlScope(TObjectPtr<URigHierarchy> InHierarchy)
 	:Hierarchy(InHierarchy)
 {
 	for (FRigControlElement* Control : Hierarchy->GetTransientControls())
@@ -3177,7 +3298,7 @@ UBaseControlRig::FTransientControlScope::FTransientControlScope(TObjectPtr<URigH
 	}
 }
 
-UBaseControlRig::FTransientControlScope::~FTransientControlScope()
+UControlRig::FTransientControlScope::~FTransientControlScope()
 {
 	if (URigHierarchyController* Controller = Hierarchy->GetController())
 	{

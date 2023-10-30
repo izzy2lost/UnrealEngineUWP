@@ -137,7 +137,7 @@ private:
 			// If it appears on the allowed child-of classes list (or there is nothing on that list)
 			if (InClass)
 			{
-				if (InClass == UBaseControlRig::StaticClass())
+				if (InClass == UControlRig::StaticClass())
 				{
 					return false;
 				}
@@ -189,8 +189,8 @@ private:
 		TSharedPtr<FControlRigBlueprintParentFilter> Filter = MakeShareable(new FControlRigBlueprintParentFilter());
 		Options.ClassFilters.Add(Filter.ToSharedRef());
 
-		// All child child classes of UBaseControlRig are valid.
-		Filter->AllowedChildrenOfClasses.Add(UBaseControlRig::StaticClass());
+		// All child child classes of UControlRig are valid.
+		Filter->AllowedChildrenOfClasses.Add(UControlRig::StaticClass());
 
 		ParentClassContainer->ClearChildren();
 		ParentClassContainer->AddSlot()
@@ -292,7 +292,7 @@ UObject* UControlRigBlueprintFactory::FactoryCreateNew(UClass* Class, UObject* I
 	// Make sure we are trying to factory a Control Rig Blueprint, then create and init one
 	check(Class->IsChildOf(UControlRigBlueprint::StaticClass()));
 
-	if ((ParentClass == nullptr) || !FKismetEditorUtilities::CanCreateBlueprintOfClass(ParentClass) || !ParentClass->IsChildOf(UBaseControlRig::StaticClass()))
+	if ((ParentClass == nullptr) || !FKismetEditorUtilities::CanCreateBlueprintOfClass(ParentClass) || !ParentClass->IsChildOf(UControlRig::StaticClass()))
 	{
 		FFormatNamedArguments Args;
 		Args.Add( TEXT("ClassName"), (ParentClass != nullptr) ? FText::FromString( ParentClass->GetName() ) : LOCTEXT("Null", "(null)") );

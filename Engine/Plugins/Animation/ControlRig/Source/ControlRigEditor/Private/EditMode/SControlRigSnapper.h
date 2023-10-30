@@ -13,7 +13,7 @@
 #include "IDetailsView.h"
 #include "MovieSceneSequenceID.h"
 
-class UBaseControlRig;
+class UControlRig;
 class ISequencer;
 class AActor;
 
@@ -30,7 +30,7 @@ class SControlRigSnapper : public SCompoundWidget
 
 private:
 
-	void GetControlRigs(TArray<UBaseControlRig*>& OutControlRigs) const;
+	void GetControlRigs(TArray<UControlRig*>& OutControlRigs) const;
 
 	/*
 	* Delegates and Helpers

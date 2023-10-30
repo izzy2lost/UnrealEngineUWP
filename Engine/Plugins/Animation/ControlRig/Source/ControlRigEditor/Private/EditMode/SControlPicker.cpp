@@ -30,7 +30,7 @@ void SControlPicker::Construct(const FArguments& InArgs, UWorld* InWorld)
 	];
 }
 
-void SControlPicker::SetControlRig(UBaseControlRig* InRig)
+void SControlPicker::SetControlRig(UControlRig* InRig)
 {
 	if (InRig != RigPtr.Get())
 	{
@@ -38,7 +38,7 @@ void SControlPicker::SetControlRig(UBaseControlRig* InRig)
 	}
 }
 
-UBaseControlRig* SControlPicker::GetRig() const
+UControlRig* SControlPicker::GetRig() const
 {
 	return RigPtr.Get();
 }

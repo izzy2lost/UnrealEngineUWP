@@ -23,8 +23,8 @@ public:
 	FAnimNode_ControlRig();
 	~FAnimNode_ControlRig();
 
-	virtual UBaseControlRig* GetControlRig() const override { return ControlRig; }
-	virtual TSubclassOf<UBaseControlRig> GetControlRigClass() const override { return ControlRigClass; }
+	virtual UControlRig* GetControlRig() const override { return ControlRig; }
+	virtual TSubclassOf<UControlRig> GetControlRigClass() const override { return ControlRigClass; }
 
 	// FAnimNode_Base interface
 	virtual void OnInitializeAnimInstance(const FAnimInstanceProxy* InProxy, const UAnimInstance* InAnimInstance) override;
@@ -49,20 +49,20 @@ private:
 
 	// The class to use for the rig. 
 	UPROPERTY(EditAnywhere, Category = ControlRig)
-	TSubclassOf<UBaseControlRig> ControlRigClass;
+	TSubclassOf<UControlRig> ControlRigClass;
 
 	// The default class to use for the rig. This is needed
 	// only if the Control Rig Class is exposed as a pin.
 	UPROPERTY()
-	TSubclassOf<UBaseControlRig> DefaultControlRigClass;
+	TSubclassOf<UControlRig> DefaultControlRigClass;
 
 	/** Cached ControlRig */
 	UPROPERTY(transient)
-	TObjectPtr<UBaseControlRig> ControlRig;
+	TObjectPtr<UControlRig> ControlRig;
 
 	/** Cached ControlRigs per class */
 	UPROPERTY(transient)
-	TMap<UClass*, TObjectPtr<UBaseControlRig>> ControlRigPerClass;
+	TMap<UClass*, TObjectPtr<UControlRig>> ControlRigPerClass;
 
 	// alpha value handler
 	UPROPERTY(EditAnywhere, Category = Settings, meta = (PinShownByDefault))
@@ -134,10 +134,10 @@ private:
 
 protected:
 	virtual UClass* GetTargetClass() const override;
-	virtual void UpdateInput(UBaseControlRig* InControlRig, const FPoseContext& InOutput) override;
-	virtual void UpdateOutput(UBaseControlRig* InControlRig, FPoseContext& InOutput) override;
+	virtual void UpdateInput(UControlRig* InControlRig, const FPoseContext& InOutput) override;
+	virtual void UpdateOutput(UControlRig* InControlRig, FPoseContext& InOutput) override;
 
-	void SetControlRigClass(TSubclassOf<UBaseControlRig> InControlRigClass);
+	void SetControlRigClass(TSubclassOf<UControlRig> InControlRigClass);
 	bool UpdateControlRigIfNeeded(const UAnimInstance* InAnimInstance);
 
 	// Helper function to update the initial ref pose within the Control Rig if needed

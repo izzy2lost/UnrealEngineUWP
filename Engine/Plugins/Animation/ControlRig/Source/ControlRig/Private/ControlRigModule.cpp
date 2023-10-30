@@ -36,7 +36,7 @@ void FControlRigModule::RegisterTransformableCustomization() const
 	// register UControlRig and AControlRigShapeActor
 	auto CreateControlHandle = [](UObject* InObject, const FName& InControlName)->UTransformableHandle*
 	{
-		if (const UBaseControlRig* ControlRig = Cast<UBaseControlRig>(InObject))
+		if (const UControlRig* ControlRig = Cast<UControlRig>(InObject))
 		{
 			return ControlRig->CreateTransformableControlHandle(InControlName);
 		}
@@ -45,7 +45,7 @@ void FControlRigModule::RegisterTransformableCustomization() const
 
 	auto GetControlHash = [](const UObject* InObject, const FName& InControlName)->uint32
 	{
-		if (const UBaseControlRig* ControlRig = Cast<UBaseControlRig>(InObject))
+		if (const UControlRig* ControlRig = Cast<UControlRig>(InObject))
 		{
 			return UTransformableControlHandle::ComputeHash(ControlRig, InControlName);
 		}
@@ -74,7 +74,7 @@ void FControlRigModule::RegisterTransformableCustomization() const
 	// as AControlRigShapeActor is only available if the ControlRig plugin is loaded.
 	FTransformableRegistry& Registry = FTransformableRegistry::Get();
 	Registry.Register(AControlRigShapeActor::StaticClass(), CreateControlHandleFromActor, GetControlHashFromActor);
-	Registry.Register(UBaseControlRig::StaticClass(), CreateControlHandle, GetControlHash);
+	Registry.Register(UControlRig::StaticClass(), CreateControlHandle, GetControlHash);
 }
 
 IMPLEMENT_MODULE(FControlRigModule, ControlRig)

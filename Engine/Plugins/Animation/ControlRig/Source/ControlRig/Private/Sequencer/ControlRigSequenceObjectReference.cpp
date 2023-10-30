@@ -5,7 +5,7 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ControlRigSequenceObjectReference)
 
-FControlRigSequenceObjectReference FControlRigSequenceObjectReference::Create(UBaseControlRig* InControlRig)
+FControlRigSequenceObjectReference FControlRigSequenceObjectReference::Create(UControlRig* InControlRig)
 {
 	check(InControlRig);
 

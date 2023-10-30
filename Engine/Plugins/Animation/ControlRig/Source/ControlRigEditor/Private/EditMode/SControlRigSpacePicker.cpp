@@ -108,10 +108,10 @@ SControlRigSpacePicker::~SControlRigSpacePicker()
 	//base class handles control rig related cleanup
 }
 
-UBaseControlRig* SControlRigSpacePicker::GetControlRig()
+UControlRig* SControlRigSpacePicker::GetControlRig()
 {
-	TArray<UBaseControlRig*> ControlRigs = GetControlRigs();
-	for(UBaseControlRig* ControlRig: ControlRigs)
+	TArray<UControlRig*> ControlRigs = GetControlRigs();
+	for(UControlRig* ControlRig: ControlRigs)
 	{
 		if (ControlRig)
 		{
@@ -125,10 +125,10 @@ UBaseControlRig* SControlRigSpacePicker::GetControlRig()
 	return nullptr;
 }
 
-void SControlRigSpacePicker::HandleControlSelected(UBaseControlRig* Subject, FRigControlElement* ControlElement, bool bSelected)
+void SControlRigSpacePicker::HandleControlSelected(UControlRig* Subject, FRigControlElement* ControlElement, bool bSelected)
 {
 	FControlRigBaseDockableView::HandleControlSelected(Subject, ControlElement, bSelected);
-	if (UBaseControlRig* ControlRig = GetControlRig())
+	if (UControlRig* ControlRig = GetControlRig())
 	{
 		// get the selected controls
 		TArray<FRigElementKey> SelectedControls = ControlRig->GetHierarchy()->GetSelectedKeys(ERigElementType::Control);
@@ -143,7 +143,7 @@ void SControlRigSpacePicker::HandleControlSelected(UBaseControlRig* Subject, FRi
 
 const FRigControlElementCustomization* SControlRigSpacePicker::HandleGetControlElementCustomization(URigHierarchy* InHierarchy, const FRigElementKey& InControlKey)
 {
-	if (UBaseControlRig* ControlRig = GetControlRig())
+	if (UControlRig* ControlRig = GetControlRig())
 	{
 		return ControlRig->GetControlCustomization(InControlKey);
 	}
@@ -156,7 +156,7 @@ void SControlRigSpacePicker::HandleActiveSpaceChanged(URigHierarchy* InHierarchy
 
 	if (ISequencer* Sequencer = GetSequencer())
 	{
-		if (UBaseControlRig* ControlRig = GetControlRig())
+		if (UControlRig* ControlRig = GetControlRig())
 		{
 			FString FailureReason;
 			URigHierarchy::TElementDependencyMap DependencyMap = InHierarchy->GetDependenciesForVM(ControlRig->GetVM());
@@ -194,7 +194,7 @@ void SControlRigSpacePicker::HandleActiveSpaceChanged(URigHierarchy* InHierarchy
 void SControlRigSpacePicker::HandleSpaceListChanged(URigHierarchy* InHierarchy, const FRigElementKey& InControlKey,
 	const TArray<FRigElementKey>& InSpaceList)
 {
-	if (UBaseControlRig* ControlRig = GetControlRig())
+	if (UControlRig* ControlRig = GetControlRig())
 	{
 		if (const FRigControlElement* ControlElement = InHierarchy->Find<FRigControlElement>(InControlKey))
 		{
@@ -253,7 +253,7 @@ FReply SControlRigSpacePicker::OnBakeControlsToNewSpaceButtonClicked()
 	{
 		return FReply::Unhandled();
 	}
-	UBaseControlRig* ControlRig = GetControlRig();
+	UControlRig* ControlRig = GetControlRig();
 
 	FRigSpacePickerBakeSettings Settings;
 	//Find default target space, just use first control and find space at current sequencer time

@@ -81,7 +81,7 @@ private:
 		FControlRigEditMode* ControlRigEditMode = static_cast<FControlRigEditMode*>(GLevelEditorModeTools().GetActiveMode(FControlRigEditMode::ModeName));
 		if (PoseAsset.IsValid() && ControlRigEditMode)
 		{
-			TMap<UBaseControlRig*, TArray<FRigElementKey>> AllSelectedControls;
+			TMap<UControlRig*, TArray<FRigElementKey>> AllSelectedControls;
 			ControlRigEditMode->GetAllSelectedControls(AllSelectedControls);
 			return (AllSelectedControls.Num() > 0);
 		}
@@ -95,11 +95,11 @@ private:
 		FControlRigEditMode* ControlRigEditMode = static_cast<FControlRigEditMode*>(GLevelEditorModeTools().GetActiveMode(FControlRigEditMode::ModeName));
 		if (PoseAsset.IsValid() && ControlRigEditMode)
 		{
-			TMap<UBaseControlRig*, TArray<FRigElementKey>> AllSelectedControls;
+			TMap<UControlRig*, TArray<FRigElementKey>> AllSelectedControls;
 			ControlRigEditMode->GetAllSelectedControls(AllSelectedControls);
 			if (AllSelectedControls.Num() == 1)
 			{
-				TArray<UBaseControlRig*> ControlRigs;
+				TArray<UControlRig*> ControlRigs;
 				AllSelectedControls.GenerateKeyArray(ControlRigs);
 				const FScopedTransaction Transaction(NSLOCTEXT("ControlRig", "UpdatePose", "Update Pose"));
 				PoseAsset->Modify();

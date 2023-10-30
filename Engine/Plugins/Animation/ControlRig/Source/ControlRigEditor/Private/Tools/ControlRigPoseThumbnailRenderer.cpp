@@ -67,7 +67,7 @@ bool FControlRigPoseThumbnailScene::SetControlRigPoseAsset(UControlRigPoseAsset*
 	if (PoseAsset)
 	{
 		USkeletalMesh* SkeletalMesh = nullptr; // PoseAsset->GetSkeletalMeshAsset();
-		UBaseControlRig* ControlRig = nullptr; // PoseAsset->GetControlRig();
+		UControlRig* ControlRig = nullptr; // PoseAsset->GetControlRig();
 		PreviewActor->GetSkeletalMeshComponent()->OverrideMaterials.Empty();
 
 
@@ -80,10 +80,10 @@ bool FControlRigPoseThumbnailScene::SetControlRigPoseAsset(UControlRigPoseAsset*
 
 			bSetSucessfully = true;
 			//now set up the control rig and the anim instance fo rit
-			UBaseControlRig* TempControlRig = NewObject<UBaseControlRig>(GetTransientPackage(), ControlRig->GetClass(),NAME_None, RF_Transient);
+			UControlRig* TempControlRig = NewObject<UControlRig>(GetTransientPackage(), ControlRig->GetClass(),NAME_None, RF_Transient);
 			TempControlRig->SetObjectBinding(MakeShared<FControlRigObjectBinding>());
 			TempControlRig->GetObjectBinding()->BindToObject(SkeletalMesh);
-			TempControlRig->GetDataSourceRegistry()->RegisterDataSource(UBaseControlRig::OwnerComponent, TempControlRig->GetObjectBinding()->GetBoundObject());
+			TempControlRig->GetDataSourceRegistry()->RegisterDataSource(UControlRig::OwnerComponent, TempControlRig->GetObjectBinding()->GetBoundObject());
 
 
 			bool bWasCreated;

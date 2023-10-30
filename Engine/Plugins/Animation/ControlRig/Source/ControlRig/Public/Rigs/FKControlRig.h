@@ -36,7 +36,7 @@ enum class EControlRigFKRigExecuteMode: uint8
 
 /** Rig that allows override editing per joint */
 UCLASS(NotBlueprintable, Meta = (DisplayName = "FK Control Rig"))
-class CONTROLRIG_API UFKControlRig : public UBaseControlRig
+class CONTROLRIG_API UFKControlRig : public UControlRig
 {
 	GENERATED_UCLASS_BODY()
 

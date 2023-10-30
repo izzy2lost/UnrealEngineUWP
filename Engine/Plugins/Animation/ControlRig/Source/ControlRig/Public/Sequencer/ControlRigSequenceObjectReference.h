@@ -25,7 +25,7 @@ struct FControlRigSequenceObjectReference
 	 *
 	 * @param InControlRig The ControlRig to create a reference for
 	 */
-	CONTROLRIG_API static FControlRigSequenceObjectReference Create(UBaseControlRig* InControlRig);
+	CONTROLRIG_API static FControlRigSequenceObjectReference Create(UControlRig* InControlRig);
 
 	/**
 	 * Check whether this object reference is valid or not
@@ -47,7 +47,7 @@ private:
 
 	/** The type of this animation ControlRig */
 	UPROPERTY()
-	TSubclassOf<UBaseControlRig> ControlRigClass;
+	TSubclassOf<UControlRig> ControlRigClass;
 };
 
 USTRUCT()

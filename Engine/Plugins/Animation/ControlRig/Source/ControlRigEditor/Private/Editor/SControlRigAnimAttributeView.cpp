@@ -33,7 +33,7 @@ void SControlRigAnimAttributeView::Construct(const FArguments& InArgs, TSharedRe
 	ControlRigBlueprint = ControlRigEditor.Pin()->GetControlRigBlueprint();
 	ControlRigBlueprint->OnSetObjectBeingDebugged().AddRaw(this, &SControlRigAnimAttributeView::HandleSetObjectBeingDebugged);
 
-	if (UBaseControlRig* ControlRig = Cast<UBaseControlRig>(ControlRigBlueprint->GetObjectBeingDebugged()))
+	if (UControlRig* ControlRig = Cast<UControlRig>(ControlRigBlueprint->GetObjectBeingDebugged()))
 	{
 		StartObservingNewControlRig(ControlRig);
 	}
@@ -48,14 +48,14 @@ void SControlRigAnimAttributeView::HandleSetObjectBeingDebugged(UObject* InObjec
 
 	StopObservingCurrentControlRig();
 	
-	if(UBaseControlRig* ControlRig = Cast<UBaseControlRig>(InObject))
+	if(UControlRig* ControlRig = Cast<UControlRig>(InObject))
 	{
 		StartObservingNewControlRig(ControlRig);
 	}
 }
 
 
-void SControlRigAnimAttributeView::StartObservingNewControlRig(UBaseControlRig* InControlRig) 
+void SControlRigAnimAttributeView::StartObservingNewControlRig(UControlRig* InControlRig) 
 {
 	if (InControlRig)
 	{
@@ -71,7 +71,7 @@ void SControlRigAnimAttributeView::StopObservingCurrentControlRig()
 {
 	if(ControlRigBeingDebuggedPtr.IsValid())
 	{
-		if(UBaseControlRig* ControlRig = ControlRigBeingDebuggedPtr.Get())
+		if(UControlRig* ControlRig = ControlRigBeingDebuggedPtr.Get())
 		{
 			if(!ControlRig->HasAnyFlags(RF_BeginDestroyed))
 			{
@@ -85,7 +85,7 @@ void SControlRigAnimAttributeView::StopObservingCurrentControlRig()
 }
 
 void SControlRigAnimAttributeView::HandleControlRigPostForwardSolve(
-	UBaseControlRig* InControlRig,
+	UControlRig* InControlRig,
 	const FName& InEventName) const
 {
 	if (IsValid(InControlRig) && ensure(InControlRig == ControlRigBeingDebuggedPtr))

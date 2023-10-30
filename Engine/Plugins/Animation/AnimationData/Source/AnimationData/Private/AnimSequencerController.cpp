@@ -1305,7 +1305,7 @@ bool UAnimSequencerController::SetCurveAttributes(const FAnimationCurveIdentifie
 
 		if (UMovieSceneControlRigParameterSection* Section = Model->GetFKControlRigSection())
 		{
-			UBaseControlRig* ControlRig = Section->GetControlRig();
+			UControlRig* ControlRig = Section->GetControlRig();
 
 			if (UFKControlRig* FKRig = Cast<UFKControlRig>(ControlRig))
 			{
@@ -1543,7 +1543,7 @@ bool UAnimSequencerController::SetBoneTrackKeys(FName BoneName, const TArray<FVe
 		{
 			if (UMovieSceneControlRigParameterSection* Section = Model->GetFKControlRigSection())
 			{
-				if (UBaseControlRig* ControlRig = Model->GetControlRig())
+				if (UControlRig* ControlRig = Model->GetControlRig())
 				{
 					if (URigHierarchy* Hierarchy = ControlRig->GetHierarchy())
 					{
@@ -2150,7 +2150,7 @@ void UAnimSequencerController::RemoveUnusedControlsAndCurves() const
 {
 	if (UMovieSceneControlRigParameterSection* Section = Model->GetFKControlRigSection())
 	{
-		if (UBaseControlRig* ControlRig = Model->GetControlRig())
+		if (UControlRig* ControlRig = Model->GetControlRig())
 		{
 			if (URigHierarchy* Hierarchy = ControlRig->GetHierarchy())
 			{
@@ -2609,7 +2609,7 @@ bool UAnimSequencerController::SetBoneCurveKeys(const FName& BoneName, const TAr
 	check(UAnimationSequencerDataModel::UseDirectFKControlRigMode == 1);
 	if (UMovieSceneControlRigParameterSection* Section = Model->GetFKControlRigSection())
 	{
-		UBaseControlRig* ControlRig = Section->GetControlRig();
+		UControlRig* ControlRig = Section->GetControlRig();
 		if (UFKControlRig* FKRig = Cast<UFKControlRig>(ControlRig))
 		{
 			const URigHierarchy* Hierarchy = FKRig->GetHierarchy();
@@ -2801,7 +2801,7 @@ bool UAnimSequencerController::UpdateBoneCurveKeys(const FName& BoneName, const 
 {
 	if (UMovieSceneControlRigParameterSection* Section = Model->GetFKControlRigSection())
 	{		
-		UBaseControlRig* ControlRig = Section->GetControlRig();
+		UControlRig* ControlRig = Section->GetControlRig();
 		if (UFKControlRig* FKRig = Cast<UFKControlRig>(ControlRig))
 		{
 			if(URigHierarchy* Hierarchy = FKRig->GetHierarchy())
@@ -2896,7 +2896,7 @@ bool UAnimSequencerController::RemoveBoneCurveKey(const FName& BoneName, float T
     	const FAnimationCurveIdentifier CurveId = UAnimationCurveIdentifierExtensions::GetCurveIdentifier(Skeleton, BoneName, ERawCurveTrackTypes::RCT_Transform);
 		if (const UMovieSceneControlRigParameterSection* Section = Model->GetFKControlRigSection())
 		{
-			UBaseControlRig* ControlRig = Section->GetControlRig();
+			UControlRig* ControlRig = Section->GetControlRig();
 	
 			if (UFKControlRig* FKRig = Cast<UFKControlRig>(ControlRig))
 			{
@@ -2970,7 +2970,7 @@ bool UAnimSequencerController::AddCurveControl(const FName& CurveName) const
 {
 	if (UMovieSceneControlRigParameterSection* Section = Model->GetFKControlRigSection())
 	{
-		UBaseControlRig* ControlRig = Section->GetControlRig();
+		UControlRig* ControlRig = Section->GetControlRig();
 		if (UFKControlRig* FKRig = Cast<UFKControlRig>(ControlRig))
 		{
 			if(URigHierarchy* Hierarchy = FKRig->GetHierarchy())
@@ -3053,7 +3053,7 @@ bool UAnimSequencerController::RenameCurveControl(const FName& CurveName, const 
 	// Need to rename curve and control element and curve				
 	if (UMovieSceneControlRigParameterSection* Section = Model->GetFKControlRigSection())
 	{
-		if (UBaseControlRig* ControlRig = Section->GetControlRig())
+		if (UControlRig* ControlRig = Section->GetControlRig())
 		{
 			if (URigHierarchy* RigHierarchy = ControlRig->GetHierarchy())
 			{
@@ -3140,7 +3140,7 @@ bool UAnimSequencerController::RemoveCurveControl(const FName& CurveName) const
 {
 	if (UMovieSceneControlRigParameterSection* Section = Model->GetFKControlRigSection())
 	{
-		UBaseControlRig* ControlRig = Section->GetControlRig();
+		UControlRig* ControlRig = Section->GetControlRig();
 
 		if (UFKControlRig* FKRig = Cast<UFKControlRig>(ControlRig))
 		{
@@ -3204,7 +3204,7 @@ bool UAnimSequencerController::SetCurveControlKeys(const FName& CurveName, const
 {
 	if (UMovieSceneControlRigParameterSection* Section = Model->GetFKControlRigSection())
 	{
-		UBaseControlRig* ControlRig = Section->GetControlRig();
+		UControlRig* ControlRig = Section->GetControlRig();
 
 		if (UFKControlRig* FKRig = Cast<UFKControlRig>(ControlRig))
 		{
@@ -3292,7 +3292,7 @@ bool UAnimSequencerController::SetCurveControlKey(const FName& CurveName, const 
 {
 	if (UMovieSceneControlRigParameterSection* Section = Model->GetFKControlRigSection())
 	{
-		UBaseControlRig* ControlRig = Section->GetControlRig();
+		UControlRig* ControlRig = Section->GetControlRig();
 
 		if (UFKControlRig* FKRig = Cast<UFKControlRig>(ControlRig))
 		{
@@ -3381,7 +3381,7 @@ bool UAnimSequencerController::RemoveCurveControlKey(const FName& CurveName, flo
 {
 	if (UMovieSceneControlRigParameterSection* Section = Model->GetFKControlRigSection())
 	{
-		UBaseControlRig* ControlRig = Section->GetControlRig();
+		UControlRig* ControlRig = Section->GetControlRig();
 
 		if (UFKControlRig* FKRig = Cast<UFKControlRig>(ControlRig))
 		{

@@ -14,7 +14,7 @@
 
 class SInlineEditableTextBlock;
 struct FAssetData;
-class UBaseControlRig;
+class UControlRig;
 
 class FDisplayedCurveControlInfo
 {
@@ -129,7 +129,7 @@ public:
 	* @param InArgs - Arguments passed from Slate
 	*
 	*/
-	void Construct( const FArguments& InArgs, UBaseControlRig* InControlRig);
+	void Construct( const FArguments& InArgs, UControlRig* InControlRig);
 
 	/**
 	* Destructor - resets the animation curve
@@ -173,7 +173,7 @@ public:
 	FText& GetFilterText() { return FilterText; }
 
 	void RefreshCurveList();
-	void SetControlRig(UBaseControlRig* InControlRig);
+	void SetControlRig(UControlRig* InControlRig);
 private:
 
 	/**
@@ -190,7 +190,7 @@ private:
 
 	void OnSelectionChanged(FDisplayedCurveControlInfoPtr Selection, ESelectInfo::Type SelectInfo);
 
-	void OnRigElementSelected(UBaseControlRig* Subject, FRigControlElement* ControlElement, bool bSelected);
+	void OnRigElementSelected(UControlRig* Subject, FRigControlElement* ControlElement, bool bSelected);
 
 	/** Box to filter to a specific morph target name */
 	TSharedPtr<SSearchBox>	NameFilterBox;
@@ -202,7 +202,7 @@ private:
 	TSharedPtr<SCurveControlListType> CurveControlListView;
 
 	/** ControlRig */
-	TWeakObjectPtr<UBaseControlRig> ControlRig;
+	TWeakObjectPtr<UControlRig> ControlRig;
 
 	/** Current text typed into NameFilterBox */
 	FText FilterText;

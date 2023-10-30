@@ -10,20 +10,20 @@ FAnimNode_ControlRig_ExternalSource::FAnimNode_ControlRig_ExternalSource()
 	bControlRigRequiresInitialization = false;
 }
 
-void FAnimNode_ControlRig_ExternalSource::SetControlRig(UBaseControlRig* InControlRig)
+void FAnimNode_ControlRig_ExternalSource::SetControlRig(UControlRig* InControlRig)
 {
 	ControlRig = InControlRig;
 	// requires initializing animation system
 }
 
-UBaseControlRig* FAnimNode_ControlRig_ExternalSource::GetControlRig() const
+UControlRig* FAnimNode_ControlRig_ExternalSource::GetControlRig() const
 {
 	return (ControlRig.IsValid()? ControlRig.Get() : nullptr);
 }
 
-TSubclassOf<UBaseControlRig> FAnimNode_ControlRig_ExternalSource::GetControlRigClass() const
+TSubclassOf<UControlRig> FAnimNode_ControlRig_ExternalSource::GetControlRigClass() const
 {
-	if(UBaseControlRig* CR = GetControlRig())
+	if(UControlRig* CR = GetControlRig())
 	{
 		return CR->GetClass();
 	}

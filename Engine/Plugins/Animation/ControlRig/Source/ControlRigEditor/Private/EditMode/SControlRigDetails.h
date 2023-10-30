@@ -19,7 +19,7 @@
 #include "DetailWidgetRow.h"
 
 class ISequencer;
-class UBaseControlRig;
+class UControlRig;
 
 class FControlRigEditModeGenericDetails : public IDetailCustomization
 {
@@ -75,7 +75,7 @@ private:
 	void SetEnumDetailsObjects(const TArray<TWeakObjectPtr<>>& InObjects, bool bIsIndividual);
 
 	void UpdateProxies();
-	virtual void HandleControlSelected(UBaseControlRig* Subject, FRigControlElement* InControl, bool bSelected) override;
+	virtual void HandleControlSelected(UControlRig* Subject, FRigControlElement* InControl, bool bSelected) override;
 
 	//these views will hold more than one of the same tyhpe
 	TSharedPtr<IDetailsView> ControlEulerTransformDetailsView;

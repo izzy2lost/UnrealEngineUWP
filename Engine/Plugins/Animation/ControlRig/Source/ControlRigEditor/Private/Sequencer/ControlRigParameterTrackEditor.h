@@ -101,7 +101,7 @@ private:
 
 	/** Control Rig Picked */
 	void AddControlRig(UClass* InClass, UObject* BoundActor, FGuid ObjectBinding);
-	void AddControlRig(const UClass* InClass, UObject* BoundActor, FGuid ObjectBinding, UBaseControlRig* InExistingControlRig);
+	void AddControlRig(const UClass* InClass, UObject* BoundActor, FGuid ObjectBinding, UControlRig* InExistingControlRig);
 	void AddControlRigFromComponent(FGuid InGuid);
 	
 	/** Delegate for Selection Changed Event */
@@ -126,15 +126,15 @@ private:
 	void AddTrackForComponent(USceneComponent* Component, FGuid Binding);
 
 	/** Control Rig Delegates*/
-	void HandleControlModified(UBaseControlRig* Subject, FRigControlElement* ControlElement, const FRigControlModifiedContext& Context);
-	void HandleControlSelected(UBaseControlRig* Subject, FRigControlElement* ControlElement, bool bSelected);
-	void HandleControlUndoBracket(UBaseControlRig* Subject, bool bOpenUndoBracket);
-	void HandleOnPostConstructed(UBaseControlRig* Subject, const FName& InEventName);
-	void HandleOnControlRigBound(UBaseControlRig* InControlRig);
+	void HandleControlModified(UControlRig* Subject, FRigControlElement* ControlElement, const FRigControlModifiedContext& Context);
+	void HandleControlSelected(UControlRig* Subject, FRigControlElement* ControlElement, bool bSelected);
+	void HandleControlUndoBracket(UControlRig* Subject, bool bOpenUndoBracket);
+	void HandleOnPostConstructed(UControlRig* Subject, const FName& InEventName);
+	void HandleOnControlRigBound(UControlRig* InControlRig);
 	void HandleOnObjectBoundToControlRig(UObject* InObject);
 
 	//if rig not set then we clear delegates for everyone
-	void ClearOutAllSpaceAndConstraintDelegates(const UBaseControlRig* InOptionalControlRig = nullptr) const;
+	void ClearOutAllSpaceAndConstraintDelegates(const UControlRig* InOptionalControlRig = nullptr) const;
 
 	/** SpaceChannel Delegates*/
 	void HandleOnSpaceAdded(
@@ -166,13 +166,13 @@ private:
 	void HandleConstraintPropertyChanged(UTickableTransformConstraint* InConstraint, const FPropertyChangedEvent& InPropertyChangedEvent) const;
 
 	/** Select control rig if not selected, select controls from key areas */
-	void SelectRigsAndControls(UBaseControlRig* Subject, const TArray<const IKeyArea*>& KeyAreas);
+	void SelectRigsAndControls(UControlRig* Subject, const TArray<const IKeyArea*>& KeyAreas);
 
 	/** Handle Creation for Skeleton, SkelMeshComp or Actor Owner, they may or may not have a binding, use optional control rig to pick one */
-	FMovieSceneTrackEditor::FFindOrCreateHandleResult FindOrCreateHandleToObject(UObject* InObj, UBaseControlRig* InControlRig = nullptr);
+	FMovieSceneTrackEditor::FFindOrCreateHandleResult FindOrCreateHandleToObject(UObject* InObj, UControlRig* InControlRig = nullptr);
 
 	/** Handle Creation for control rig track given the object binding and the control rig */	
-	FMovieSceneTrackEditor::FFindOrCreateTrackResult FindOrCreateControlRigTrackForObject(FGuid ObjectBinding, UBaseControlRig* ControlRig, FName PropertyName = NAME_None, bool bCreateTrackIfMissing = true);
+	FMovieSceneTrackEditor::FFindOrCreateTrackResult FindOrCreateControlRigTrackForObject(FGuid ObjectBinding, UControlRig* ControlRig, FName PropertyName = NAME_None, bool bCreateTrackIfMissing = true);
 
 	/** Import FBX*/
 	void ImportFBX(UMovieSceneControlRigParameterTrack* InTrack, UMovieSceneControlRigParameterSection* InSection, 
@@ -182,7 +182,7 @@ private:
 	void ExportFBX(UMovieSceneControlRigParameterTrack* InTrack, UMovieSceneControlRigParameterSection* InSection);
 	
 	/** Find Track for given ControlRig*/
-	UMovieSceneControlRigParameterTrack* FindTrack(const UBaseControlRig* InControlRig) const;
+	UMovieSceneControlRigParameterTrack* FindTrack(const UControlRig* InControlRig) const;
 
 	/** Select Bones to Animate on FK Rig*/
 	void SelectFKBonesToAnimate(UFKControlRig* FKControlRig, UMovieSceneControlRigParameterTrack* Track);
@@ -197,10 +197,10 @@ private:
 	void BakeToControlRig(UClass* InClass, FGuid ObjectBinding,UObject* BoundObject, USkeletalMeshComponent* SkelMeshComp, USkeleton* Skeleton);
 
 	/** Bake Inersion of Additive Control Rig to Rest Pose*/
-	void BakeInvertedPose(UBaseControlRig* InControlRig, UMovieSceneControlRigParameterTrack* Track);
+	void BakeInvertedPose(UControlRig* InControlRig, UMovieSceneControlRigParameterTrack* Track);
 
 	/** Set Up EditMode for Specified Control Rig*/
-	void SetUpEditModeIfNeeded(UBaseControlRig* ControlRig);
+	void SetUpEditModeIfNeeded(UControlRig* ControlRig);
 
 	/** Helper functions to iterate over UMovieSceneControlRigParameterTracks in the currently focussed MovieScene*/
 	void IterateTracks(TFunctionRef<bool(UMovieSceneControlRigParameterTrack*)> Callback) const;
@@ -212,16 +212,16 @@ private:
 
 public:
 
-	void AddControlKeys(UObject* InObject, UBaseControlRig* InControlRig, FName PropertyName,
+	void AddControlKeys(UObject* InObject, UControlRig* InControlRig, FName PropertyName,
 		FName ParameterName, EControlRigContextChannelToKey ChannelsToKey, ESequencerKeyMode KeyMode,
 		float InLocalTime, const bool bInConstraintSpace = false);
-	void GetControlRigKeys(UBaseControlRig* InControlRig, FName ParameterName, EControlRigContextChannelToKey ChannelsToKey,
+	void GetControlRigKeys(UControlRig* InControlRig, FName ParameterName, EControlRigContextChannelToKey ChannelsToKey,
 		ESequencerKeyMode KeyMode, UMovieSceneControlRigParameterSection* SectionToKey,	FGeneratedTrackKeys& OutGeneratedKeys,
 		const bool bInConstraintSpace = false);
 	FKeyPropertyResult AddKeysToControlRig(
-		UObject* InObject, UBaseControlRig* InControlRig, FFrameNumber KeyTime, FFrameNumber EvaluateTime, FGeneratedTrackKeys& GeneratedKeys,
+		UObject* InObject, UControlRig* InControlRig, FFrameNumber KeyTime, FFrameNumber EvaluateTime, FGeneratedTrackKeys& GeneratedKeys,
 		ESequencerKeyMode KeyMode, TSubclassOf<UMovieSceneTrack> TrackClass, FName ControlRigName, FName RigControlName);
-	FKeyPropertyResult AddKeysToControlRigHandle(UObject* InObject, UBaseControlRig* InControlRig,
+	FKeyPropertyResult AddKeysToControlRigHandle(UObject* InObject, UControlRig* InControlRig,
 		FGuid ObjectHandle, FFrameNumber KeyTime, FFrameNumber EvaluateTime, FGeneratedTrackKeys& GeneratedKeys,
 		ESequencerKeyMode KeyMode, TSubclassOf<UMovieSceneTrack> TrackClass, FName ControlRigName, FName RigControlName);
 	/**
@@ -234,7 +234,7 @@ public:
 	 * @param InOutGeneratedTrackKeys The Keys we need to modify. We change these values.
 	 * @param Weight The weight we need to modify the values by.
 	 */
-	bool ModifyOurGeneratedKeysByCurrentAndWeight(UObject* Object, UBaseControlRig* InControlRig, FName RigControlName, UMovieSceneTrack *Track, UMovieSceneSection* SectionToKey, FFrameNumber EvaluateTime, FGeneratedTrackKeys& InOutGeneratedTotalKeys, float Weight) const;
+	bool ModifyOurGeneratedKeysByCurrentAndWeight(UObject* Object, UControlRig* InControlRig, FName RigControlName, UMovieSceneTrack *Track, UMovieSceneSection* SectionToKey, FFrameNumber EvaluateTime, FGeneratedTrackKeys& InOutGeneratedTotalKeys, float Weight) const;
 
 	//**Function to collapse all layers from this section onto the first absoluate layer.*/
 	static bool CollapseAllLayers(TSharedPtr<ISequencer>& SequencerPtr, UMovieSceneTrack* OwnerTrack, const FBakingAnimationKeySettings& InSettings);
@@ -254,10 +254,10 @@ private:
 	TSet<FName> DisplayedControls;
 	TSet<FName> UnDisplayedControls;
 	bool bCurveDisplayTickIsPending;
-	void BindControlRig(UBaseControlRig* ControlRig);
-	void UnbindControlRig(UBaseControlRig* ControlRig);
+	void BindControlRig(UControlRig* ControlRig);
+	void UnbindControlRig(UControlRig* ControlRig);
 	void UnbindAllControlRigs();
-	TArray<TWeakObjectPtr<UBaseControlRig>> BoundControlRigs;
+	TArray<TWeakObjectPtr<UControlRig>> BoundControlRigs;
 
 private:
 

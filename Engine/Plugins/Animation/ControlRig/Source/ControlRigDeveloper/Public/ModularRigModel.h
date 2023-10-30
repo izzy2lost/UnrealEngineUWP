@@ -17,7 +17,7 @@ struct CONTROLRIGDEVELOPER_API FRigModuleReference
 		, Class(nullptr)
 	{}
 	
-	FRigModuleReference(const FName& InName, TSubclassOf<UBaseControlRig> InClass, const FString& InParentPath)
+	FRigModuleReference(const FName& InName, TSubclassOf<UControlRig> InClass, const FString& InParentPath)
 		: Name(InName)
 		, ParentNamespace(InParentPath)
 		, Class(InClass)
@@ -30,7 +30,7 @@ struct CONTROLRIGDEVELOPER_API FRigModuleReference
 	FString ParentNamespace;
 
 	UPROPERTY()
-	TSoftClassPtr<UBaseControlRig> Class;
+	TSoftClassPtr<UControlRig> Class;
 
 	UPROPERTY()
 	TMap<FRigElementKey, FRigElementKey> Connections; // Connectors to Connection element

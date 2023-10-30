@@ -74,7 +74,7 @@ void UControlRigSkeletalMeshComponent::RebuildDebugDrawSkeleton()
 
 	if (ControlRigInstance)
 	{
-		UBaseControlRig* ControlRig = ControlRigInstance->GetFirstAvailableControlRig();
+		UControlRig* ControlRig = ControlRigInstance->GetFirstAvailableControlRig();
 		if (ControlRig)
 		{
 			// we are trying to poke into running instances of Control Rigs
@@ -151,7 +151,7 @@ FTransform UControlRigSkeletalMeshComponent::GetDrawTransform(int32 BoneIndex) c
 
 	if (ControlRigInstance)
 	{
-		UBaseControlRig* ControlRig = ControlRigInstance->GetFirstAvailableControlRig();
+		UControlRig* ControlRig = ControlRigInstance->GetFirstAvailableControlRig();
 		if (ControlRig && DebugDrawBoneIndexInHierarchy.IsValidIndex(BoneIndex))
 		{
 			// just copy it because this is not thread safe
@@ -172,7 +172,7 @@ void UControlRigSkeletalMeshComponent::EnablePreview(bool bEnable, UAnimationAss
 	}
 }
 
-void UControlRigSkeletalMeshComponent::SetControlRigBeingDebugged(UBaseControlRig* InControlRig)
+void UControlRigSkeletalMeshComponent::SetControlRigBeingDebugged(UControlRig* InControlRig)
 {
 	if(ControlRigBeingDebuggedPtr.Get() == InControlRig)
 	{
@@ -181,7 +181,7 @@ void UControlRigSkeletalMeshComponent::SetControlRigBeingDebugged(UBaseControlRi
 
 	if(ControlRigBeingDebuggedPtr.IsValid())
 	{
-		if(UBaseControlRig* ControlRigBeingDebugged = ControlRigBeingDebuggedPtr.Get())
+		if(UControlRig* ControlRigBeingDebugged = ControlRigBeingDebuggedPtr.Get())
 		{
 			if(!ControlRigBeingDebugged->HasAnyFlags(RF_BeginDestroyed))
 			{
@@ -298,12 +298,12 @@ void UControlRigSkeletalMeshComponent::OnHierarchyModified_AnyThread(ERigHierarc
 	}
 }
 
-void UControlRigSkeletalMeshComponent::OnPreConstruction_AnyThread(UBaseControlRig* InControlRig, const FName& InEventName)
+void UControlRigSkeletalMeshComponent::OnPreConstruction_AnyThread(UControlRig* InControlRig, const FName& InEventName)
 {
 	bIsConstructionEventRunning = true;
 }
 
-void UControlRigSkeletalMeshComponent::OnPostConstruction_AnyThread(UBaseControlRig* InControlRig, const FName& InEventName)
+void UControlRigSkeletalMeshComponent::OnPostConstruction_AnyThread(UControlRig* InControlRig, const FName& InEventName)
 {
 	bIsConstructionEventRunning = false;
 

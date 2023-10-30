@@ -66,7 +66,7 @@ FAutoConsoleCommandWithWorldAndArgs FCmdControlRigVisualGraphUtilsDumpHierarchy
 		{
 			if(UObject* Object = FindObject<UObject>(nullptr, *ObjectPathName, false))
 			{
-				if(UBaseControlRig* CR = Cast<UBaseControlRig>(Object))
+				if(UControlRig* CR = Cast<UControlRig>(Object))
 				{
 					Hierarchies.Add(CR->GetHierarchy());
 				}
@@ -227,7 +227,7 @@ FString FControlRigVisualGraphUtils::DumpRigHierarchyToDotGraph(URigHierarchy* I
 	
 	if(!InEventName.IsNone())
 	{
-		if(UBaseControlRig* CR = InHierarchy->GetTypedOuter<UBaseControlRig>())
+		if(UControlRig* CR = InHierarchy->GetTypedOuter<UControlRig>())
 		{
 			URigVM* VM = CR->GetVM();
 

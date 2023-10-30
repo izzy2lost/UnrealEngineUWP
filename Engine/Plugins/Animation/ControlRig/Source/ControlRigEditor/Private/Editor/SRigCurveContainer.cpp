@@ -709,7 +709,7 @@ URigHierarchy* SRigCurveContainer::GetInstanceHierarchy() const
 {
 	if (ControlRigEditor.IsValid())
 	{
-		UBaseControlRig* ControlRig = ControlRigEditor.Pin()->GetInstanceRig();
+		UControlRig* ControlRig = ControlRigEditor.Pin()->GetInstanceRig();
 		if (ControlRig)
 		{
 			return ControlRig->GetHierarchy();

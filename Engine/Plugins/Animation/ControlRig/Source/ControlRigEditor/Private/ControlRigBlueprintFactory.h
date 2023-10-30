@@ -8,7 +8,7 @@
 #include "Engine/Blueprint.h"
 #include "Factories/Factory.h"
 #include "ControlRigBlueprint.h"
-#include "ControlRig.h"
+#include "BaseControlRig.h"
 #include "ControlRigBlueprintFactory.generated.h"
 
 UCLASS(HideCategories=Object)
@@ -21,7 +21,7 @@ public:
 
 	// The parent class of the created blueprint
 	UPROPERTY(EditAnywhere, Category="Control Rig Factory", meta=(AllowAbstract = ""))
-	TSubclassOf<UBaseControlRig> ParentClass;
+	TSubclassOf<UControlRig> ParentClass;
 
 	// UFactory Interface
 	virtual bool ConfigureProperties() override;

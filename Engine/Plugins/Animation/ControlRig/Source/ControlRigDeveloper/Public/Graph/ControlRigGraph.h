@@ -14,7 +14,7 @@
 
 class UControlRigBlueprint;
 class UControlRigGraphSchema;
-class UBaseControlRig;
+class UControlRig;
 class URigVMController;
 struct FRigCurveContainer;
 
@@ -83,7 +83,7 @@ private:
 	}
 
 	template<class T>
-	void CacheNameListForHierarchy(UBaseControlRig* InControlRig, URigHierarchy* InHierarchy, TArray<TSharedPtr<FRigVMStringWithTag>>& OutNameList, bool bFilter = true)
+	void CacheNameListForHierarchy(UControlRig* InControlRig, URigHierarchy* InHierarchy, TArray<TSharedPtr<FRigVMStringWithTag>>& OutNameList, bool bFilter = true)
 	{
         TArray<FRigVMStringWithTag> Names;
 		for (auto Element : *InHierarchy)

@@ -12,7 +12,7 @@
 #include "AnimNode_ControlRigBase.h"
 #include "ControlRigLayerInstance.generated.h"
 
-class UBaseControlRig;
+class UControlRig;
 
 UCLASS(transient, NotBlueprintable)
 class CONTROLRIG_API UControlRigLayerInstance : public UAnimInstance, public ISequencerAnimationSupport
@@ -21,7 +21,7 @@ class CONTROLRIG_API UControlRigLayerInstance : public UAnimInstance, public ISe
 
 public:
 	/** ControlRig related support */
-	void AddControlRigTrack(int32 ControlRigID, UBaseControlRig* InControlRig);
+	void AddControlRigTrack(int32 ControlRigID, UControlRig* InControlRig);
 	void UpdateControlRigTrack(int32 ControlRigID, float Weight, const FControlRigIOSettings& InputSettings, bool bExecute);
 	void RemoveControlRigTrack(int32 ControlRigID);
 	bool HasControlRigTrack(int32 ControlRigID);
@@ -43,7 +43,7 @@ public:
 	virtual void SavePose() override;
 
 	/** Return the first available control rig */
-	UBaseControlRig* GetFirstAvailableControlRig() const;
+	UControlRig* GetFirstAvailableControlRig() const;
 
 	virtual UAnimInstance* GetSourceAnimInstance() override;
 	virtual void SetSourceAnimInstance(UAnimInstance* SourceAnimInstance) override;

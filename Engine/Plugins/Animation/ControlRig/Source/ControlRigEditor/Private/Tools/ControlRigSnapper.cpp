@@ -112,7 +112,7 @@ TWeakPtr<ISequencer> FControlRigSnapper::GetSequencer()
 }
 
 static bool LocalGetControlRigControlTransforms(IMovieScenePlayer* Player, const TOptional<FFrameNumber>& CurrentFrame, UMovieSceneSequence* MovieSceneSequence, FMovieSceneSequenceIDRef Template, FMovieSceneSequenceTransform& RootToLocalTransform,
-	UBaseControlRig* ControlRig, const FName& ControlName,
+	UControlRig* ControlRig, const FName& ControlName,
 	const TArray<FFrameNumber>& Frames, const TArray<FTransform>& ParentTransforms, TArray<FTransform>& OutTransforms)
 {
 	if (Frames.Num() > ParentTransforms.Num())
@@ -160,7 +160,7 @@ static bool LocalGetControlRigControlTransforms(IMovieScenePlayer* Player, const
 	return true;
 }
 
-bool FControlRigSnapper::GetControlRigControlTransforms(ISequencer* Sequencer,  UBaseControlRig* ControlRig, const FName& ControlName,
+bool FControlRigSnapper::GetControlRigControlTransforms(ISequencer* Sequencer,  UControlRig* ControlRig, const FName& ControlName,
 	const TArray<FFrameNumber> &Frames, const TArray<FTransform>& ParentTransforms,TArray<FTransform>& OutTransforms)
 {
 	if (Sequencer->GetFocusedMovieSceneSequence())
@@ -175,7 +175,7 @@ bool FControlRigSnapper::GetControlRigControlTransforms(ISequencer* Sequencer,  
 	return false;
 }
 
-bool FControlRigSnapper::GetControlRigControlTransforms(UWorld* World,ULevelSequence* LevelSequence, UBaseControlRig* ControlRig, const FName& ControlName,
+bool FControlRigSnapper::GetControlRigControlTransforms(UWorld* World,ULevelSequence* LevelSequence, UControlRig* ControlRig, const FName& ControlName,
 	const TArray<FFrameNumber>& Frames, const TArray<FTransform>& ParentTransforms, TArray<FTransform>& OutTransforms)
 {
 	if (LevelSequence)
@@ -297,7 +297,7 @@ static bool CalculateWorldTransformsFromParents(ISequencer* Sequencer, const FCo
 	for (const FControlRigForWorldTransforms& ControlRigAndSelection : ParentToSnap.ControlRigs)
 	{
 		//get actor transform...
-		UBaseControlRig* ControlRig = ControlRigAndSelection.ControlRig.Get();
+		UControlRig* ControlRig = ControlRigAndSelection.ControlRig.Get();
 
 		if (ControlRig)
 		{
@@ -341,7 +341,7 @@ static void GetControlRigParents(const FControlRigForWorldTransforms& ControlRig
 	TArray<FActorForWorldTransforms>& OutParentActors, TArray<FControlRigForWorldTransforms>& OutControlRigs)
 {
 
-	if (UBaseControlRig* ControlRig = ControlRigAndSelection.ControlRig.Get())
+	if (UControlRig* ControlRig = ControlRigAndSelection.ControlRig.Get())
 	{
 		URigHierarchy* Hierarchy = ControlRig->GetHierarchy();
 		for (const FName& ControlName : ControlRigAndSelection.ControlNames)
@@ -381,7 +381,7 @@ static void GetControlRigParents(const FControlRigForWorldTransforms& ControlRig
 	}
 }
 
-static UMovieSceneControlRigParameterSection* GetControlRigSection(ISequencer* Sequencer, const UBaseControlRig* ControlRig)
+static UMovieSceneControlRigParameterSection* GetControlRigSection(ISequencer* Sequencer, const UControlRig* ControlRig)
 {
 
 	if (ControlRig == nullptr || Sequencer == nullptr)
@@ -587,7 +587,7 @@ bool FControlRigSnapper::SnapIt(FFrameNumber StartFrame, FFrameNumber EndFrame,c
 		for (const FControlRigForWorldTransforms& ControlRigAndSelection : ActorToSnap.ControlRigs)
 		{
 			//get actor transform...
-			UBaseControlRig* ControlRig = ControlRigAndSelection.ControlRig.Get();
+			UControlRig* ControlRig = ControlRigAndSelection.ControlRig.Get();
 
 			if (ControlRig)
 			{

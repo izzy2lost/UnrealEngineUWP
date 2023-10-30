@@ -2,7 +2,7 @@
 
 #include "ModularRigController.h"
 
-#include "ControlRig.h"
+#include "BaseControlRig.h"
 #include "ModularRig.h"
 #include "ControlRigBlueprint.h"
 #include "ModularRigModel.h"
@@ -15,9 +15,9 @@ UModularRigController::UModularRigController(const FObjectInitializer& ObjectIni
 {
 }
 
-bool UModularRigController::AddModule(const FName& InModuleName, TSubclassOf<UBaseControlRig> InClass, const FString& InParentModulePath)
+bool UModularRigController::AddModule(const FName& InModuleName, TSubclassOf<UControlRig> InClass, const FString& InParentModulePath)
 {
-	if (!InClass->GetDefaultObject<UBaseControlRig>()->IsRigModule())
+	if (!InClass->GetDefaultObject<UControlRig>()->IsRigModule())
 	{
 		return false;
 	}
@@ -69,7 +69,7 @@ bool UModularRigController::AddModule(const FName& InModuleName, TSubclassOf<UBa
 	UControlRigBlueprint* Blueprint = Cast<UControlRigBlueprint>(GetOuter());
 	if (URigHierarchyController* Controller = Blueprint->GetHierarchyController())
 	{
-		if (UBaseControlRig* CDO = Blueprint->GetControlRigClass()->GetDefaultObject<UBaseControlRig>())
+		if (UControlRig* CDO = Blueprint->GetControlRigClass()->GetDefaultObject<UControlRig>())
 		{
 			FRigVMExtendedExecuteContext& Context = CDO->GetRigVMExtendedExecuteContext();
 			FRigHierarchyExecuteContextBracket HierarchyContextGuard(Controller->GetHierarchy(), &Context);

@@ -144,7 +144,7 @@ void FRigVMCompileSettingsDetails::CustomizeChildren(TSharedRef<IPropertyHandle>
 					.ContentPadding(FMargin(2))
 					.Visibility_Lambda([]()
 					{
-						return UBaseControlRig::AreNativizedVMsDisabled() ? EVisibility::Collapsed : EVisibility::Visible;
+						return UControlRig::AreNativizedVMsDisabled() ? EVisibility::Collapsed : EVisibility::Visible;
 					})
 					.Content()
 					[
@@ -190,7 +190,7 @@ FReply FRigVMCompileSettingsDetails::OnInspectMemory(ERigVMMemoryType InMemoryTy
 {
 	if (BlueprintBeingCustomized)
 	{
-		if(UBaseControlRig* DebuggedRig = Cast<UBaseControlRig>(BlueprintBeingCustomized->GetObjectBeingDebugged()))
+		if(UControlRig* DebuggedRig = Cast<UControlRig>(BlueprintBeingCustomized->GetObjectBeingDebugged()))
 		{
 			if(FRigVMMemoryStorageStruct* MemoryStorage = DebuggedRig->GetMemoryByType(InMemoryType))
 			{
@@ -221,7 +221,7 @@ FReply FRigVMCompileSettingsDetails::OnCopyByteCodeClicked()
 	{
 		if (BlueprintBeingCustomized->GetDefaultModel())
 		{
-			if(UBaseControlRig* ControlRig = Cast<UBaseControlRig>(BlueprintBeingCustomized->GetObjectBeingDebugged()))
+			if(UControlRig* ControlRig = Cast<UControlRig>(BlueprintBeingCustomized->GetObjectBeingDebugged()))
 			{
 				FString ByteCodeContent = ControlRig->GetVM()->DumpByteCodeAsText(ControlRig->GetRigVMExtendedExecuteContext());
 				FPlatformApplicationMisc::ClipboardCopy(*ByteCodeContent);
@@ -235,7 +235,7 @@ FReply FRigVMCompileSettingsDetails::OnCopyHierarchyGraphClicked()
 {
 	if (BlueprintBeingCustomized)
 	{
-		if(UBaseControlRig* ControlRig = Cast<UBaseControlRig>(BlueprintBeingCustomized->GetObjectBeingDebugged()))
+		if(UControlRig* ControlRig = Cast<UControlRig>(BlueprintBeingCustomized->GetObjectBeingDebugged()))
 		{
 			FName EventName = FRigUnit_BeginExecution::EventName;
 			if(!ControlRig->GetEventQueue().IsEmpty())
@@ -257,7 +257,7 @@ FReply FRigVMCompileSettingsDetails::OnCopyGeneratedCodeClicked()
 		const FString ClassName = FString::Printf(TEXT("%sVM"), *BlueprintBeingCustomized->GetName());
 		if (BlueprintBeingCustomized->GeneratedClass)
 		{
-			if (UBaseControlRig* CDO = Cast<UBaseControlRig>(BlueprintBeingCustomized->GeneratedClass->GetDefaultObject()))
+			if (UControlRig* CDO = Cast<UControlRig>(BlueprintBeingCustomized->GeneratedClass->GetDefaultObject()))
 			{
 				if(CDO->GetVM())
 				{
@@ -287,7 +287,7 @@ FReply FRigVMCompileSettingsDetails::OnCopyVMExecutionClicked()
 {
 	if (BlueprintBeingCustomized)
 	{
-		if (UBaseControlRig* ControlRig = Cast<UBaseControlRig>(BlueprintBeingCustomized->GetObjectBeingDebugged()))
+		if (UControlRig* ControlRig = Cast<UControlRig>(BlueprintBeingCustomized->GetObjectBeingDebugged()))
 		{
 			FString DebugString = ControlRig->GetDebugExecutionString();
 			FPlatformApplicationMisc::ClipboardCopy(*DebugString);

@@ -17,7 +17,7 @@ class FControlRigEditor;
 class SSearchBox;
 class FUICommandList;
 class URigVMBlueprint;
-class UBaseControlRig;
+class UControlRig;
 struct FAssetData;
 class FMenuBuilder;
 class UToolMenu;
@@ -180,7 +180,7 @@ private:
 	TSharedPtr<SRigHierarchyTreeView> TreeView;
 
 	TWeakObjectPtr<UControlRigBlueprint> ControlRigBlueprint;
-	TWeakObjectPtr<UBaseControlRig> ControlRigBeingDebuggedPtr;
+	TWeakObjectPtr<UControlRig> ControlRigBeingDebuggedPtr;
 	
 	/** Command list we bind to */
 	TSharedPtr<FUICommandList> CommandList;
@@ -233,8 +233,8 @@ private:
 	void OnHierarchyModified_AnyThread(ERigHierarchyNotification InNotif, URigHierarchy* InHierarchy, const FRigBaseElement* InElement);
 	void HandleRefreshEditorFromBlueprint(URigVMBlueprint* InBlueprint);
 	void HandleSetObjectBeingDebugged(UObject* InObject);
-	void OnPreConstruction_AnyThread(UBaseControlRig* InRig, const FName& InEventName);
-	void OnPostConstruction_AnyThread(UBaseControlRig* InRig, const FName& InEventName);
+	void OnPreConstruction_AnyThread(UControlRig* InRig, const FName& InEventName);
+	void OnPostConstruction_AnyThread(UControlRig* InRig, const FName& InEventName);
 	void OnNavigateToFirstConnectorWarning();
 
 	bool bIsConstructionEventRunning;

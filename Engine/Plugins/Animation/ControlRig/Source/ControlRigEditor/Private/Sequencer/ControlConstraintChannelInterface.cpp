@@ -62,7 +62,7 @@ UWorld* FControlConstraintChannelInterface::GetHandleWorld(UTransformableHandle*
 	}
 	
 	const UTransformableControlHandle* ControlHandle = static_cast<UTransformableControlHandle*>(InHandle);
-	const UBaseControlRig* ControlRig = ControlHandle->ControlRig.LoadSynchronous();
+	const UControlRig* ControlRig = ControlHandle->ControlRig.LoadSynchronous();
 
 	return ControlRig ? ControlRig->GetWorld() : nullptr;
 }
@@ -114,7 +114,7 @@ bool FControlConstraintChannelInterface::SmartConstraintKey(
 			TGuardValue<bool> CompensateGuard(FMovieSceneConstraintChannelHelper::bDoNotCompensate, true);
 			TGuardValue<bool> RemoveConstraintGuard(FConstraintsManagerController::bDoNotRemoveConstraint, true);
 
-			UBaseControlRig* ControlRig = ControlHandle->ControlRig.Get();
+			UControlRig* ControlRig = ControlHandle->ControlRig.Get();
 			const FName& ControlName = ControlHandle->ControlName;
 				
 			// store the frames to compensate
@@ -228,7 +228,7 @@ UMovieSceneControlRigParameterSection* FControlConstraintChannelInterface::GetCo
 		return nullptr;
 	}
 	
-	const UBaseControlRig* ControlRig = InHandle->ControlRig.LoadSynchronous();
+	const UControlRig* ControlRig = InHandle->ControlRig.LoadSynchronous();
 	if (!ControlRig)
 	{
 		return nullptr;
@@ -242,7 +242,7 @@ UMovieSceneControlRigParameterSection* FControlConstraintChannelInterface::GetCo
 
 	auto GetControlRigTrack = [InHandle, MovieScene]()->UMovieSceneControlRigParameterTrack*
 	{
-		const TWeakObjectPtr<UBaseControlRig> ControlRig = InHandle->ControlRig.LoadSynchronous();
+		const TWeakObjectPtr<UControlRig> ControlRig = InHandle->ControlRig.LoadSynchronous();
 		if (ControlRig.IsValid())
 		{	
 			const TArray<FMovieSceneBinding>& Bindings = MovieScene->GetBindings();

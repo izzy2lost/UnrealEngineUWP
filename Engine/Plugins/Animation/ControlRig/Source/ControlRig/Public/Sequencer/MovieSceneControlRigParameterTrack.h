@@ -75,9 +75,9 @@ public:
 	virtual bool GetFbxCurveDataFromChannelMetadata(const FMovieSceneChannelMetaData& MetaData, FControlRigFbxCurveData& OutCurveData) override;
 #endif // WITH_EDITOR
 
-	//UBaseControlRig Delegates
+	//UControlRig Delegates
 	void HandleOnPostConstructed_GameThread();
-	void HandleOnPostConstructed(UBaseControlRig* Subject, const FName& InEventName);
+	void HandleOnPostConstructed(UControlRig* Subject, const FName& InEventName);
 
 #if WITH_EDITOR
 	void HandlePackageDone(const FEndLoadPackageContext& Context);
@@ -87,14 +87,14 @@ public:
 
 public:
 	/** Add a section at that start time*/
-	CONTROLRIG_API UMovieSceneSection* CreateControlRigSection(FFrameNumber StartTime, UBaseControlRig* InControlRig, bool bInOwnsControlRig);
+	CONTROLRIG_API UMovieSceneSection* CreateControlRigSection(FFrameNumber StartTime, UControlRig* InControlRig, bool bInOwnsControlRig);
 
-	CONTROLRIG_API void ReplaceControlRig(UBaseControlRig* NewControlRig, bool RecreateChannels);
+	CONTROLRIG_API void ReplaceControlRig(UControlRig* NewControlRig, bool RecreateChannels);
 
 	CONTROLRIG_API void RenameParameterName(const FName& OldParameterName, const FName& NewParameterName);
 
 public:
-	CONTROLRIG_API UBaseControlRig* GetControlRig() const { return ControlRig; }
+	CONTROLRIG_API UControlRig* GetControlRig() const { return ControlRig; }
 
 	/**
 	* Find all sections at the current time.
@@ -182,7 +182,7 @@ private:
 
 	/** Control Rig we control*/
 	UPROPERTY()
-	TObjectPtr<UBaseControlRig> ControlRig;
+	TObjectPtr<UControlRig> ControlRig;
 
 	/** Section we should Key */
 	UPROPERTY()

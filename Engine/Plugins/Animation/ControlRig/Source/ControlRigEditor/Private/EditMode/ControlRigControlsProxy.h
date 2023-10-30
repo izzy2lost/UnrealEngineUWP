@@ -14,7 +14,6 @@
 #include "ControlRigControlsProxy.generated.h"
 
 struct FRigControlElement;
-class UBaseControlRig;
 class UControlRig;
 class IPropertyHandle;
 class FControlRigInteractionScope;
@@ -42,7 +41,7 @@ public:
 public:
 
 	FRigControlElement* GetControlElement() const;
-	TWeakObjectPtr<UBaseControlRig> ControlRig;
+	TWeakObjectPtr<UControlRig> ControlRig;
 
 	UPROPERTY()
 	bool bSelected;
@@ -320,21 +319,21 @@ class UControlRigDetailPanelControlProxies :public UObject
 protected:
 
 	UPROPERTY()
-	TMap<TObjectPtr<UBaseControlRig>, FControlToProxyMap> AllProxies; //proxies themselves contain weakobjectptr to the controlrig
+	TMap<TObjectPtr<UControlRig>, FControlToProxyMap> AllProxies; //proxies themselves contain weakobjectptr to the controlrig
 
 	UPROPERTY()
 	TArray< TObjectPtr<UControlRigControlsProxy>> SelectedProxies;
 
 
 public:
-	void SelectProxy(UBaseControlRig* InControlRig, const FName& Name, bool bSelected);
-	UControlRigControlsProxy* FindProxy(UBaseControlRig* InControlRig, const FName& Name) const;
-	void AddProxy(UBaseControlRig* InControlRig, const FName& Name,  FRigControlElement* ControlElement);
-	void RemoveProxy(UBaseControlRig* InControlRig, const FName& Name );
-	void ProxyChanged(UBaseControlRig* InControlRig, const FName& Name, bool bModify = true);
-	void RemoveAllProxies(UBaseControlRig* InControlRig);
-	void RecreateAllProxies(UBaseControlRig* InControlRig);
+	void SelectProxy(UControlRig* InControlRig, const FName& Name, bool bSelected);
+	UControlRigControlsProxy* FindProxy(UControlRig* InControlRig, const FName& Name) const;
+	void AddProxy(UControlRig* InControlRig, const FName& Name,  FRigControlElement* ControlElement);
+	void RemoveProxy(UControlRig* InControlRig, const FName& Name );
+	void ProxyChanged(UControlRig* InControlRig, const FName& Name, bool bModify = true);
+	void RemoveAllProxies(UControlRig* InControlRig);
+	void RecreateAllProxies(UControlRig* InControlRig);
 	const TArray<UControlRigControlsProxy*>& GetSelectedProxies() const { return SelectedProxies;}
-	bool IsSelected(UBaseControlRig* InControlRig, const FName& Name) const;
+	bool IsSelected(UControlRig* InControlRig, const FName& Name) const;
 
 };

@@ -23,7 +23,7 @@ struct CONTROLRIG_API FRigModuleInstance
 	FName Name;
 
 	UPROPERTY()
-	TSoftObjectPtr<UBaseControlRig> Rig;
+	TSoftObjectPtr<UControlRig> Rig;
 
 	UPROPERTY()
 	FString ParentPath;
@@ -33,7 +33,7 @@ struct CONTROLRIG_API FRigModuleInstance
 
 /** Runs logic for mapping input data to transforms (the "Rig") */
 UCLASS(Blueprintable, Abstract, editinlinenew)
-class CONTROLRIG_API UModularRig : public UBaseControlRig
+class CONTROLRIG_API UModularRig : public UControlRig
 {
 	GENERATED_UCLASS_BODY()
 
@@ -61,8 +61,8 @@ public:
 	void ResetModules();
 
 	/** Adds a module to the rig*/
-	bool AddModuleInstance(const FName& InModuleName, TSubclassOf<UBaseControlRig> InModuleClass, FString InParentPath, const TMap<FRigElementKey, FRigElementKey>& InConnectionMap);
-	FRigModuleInstance* AddModuleInstance(const FName& InModuleName, TSubclassOf<UBaseControlRig> InModuleClass, FRigModuleInstance* InParent, const TMap<FRigElementKey, FRigElementKey>& InConnectionMap);
+	bool AddModuleInstance(const FName& InModuleName, TSubclassOf<UControlRig> InModuleClass, FString InParentPath, const TMap<FRigElementKey, FRigElementKey>& InConnectionMap);
+	FRigModuleInstance* AddModuleInstance(const FName& InModuleName, TSubclassOf<UControlRig> InModuleClass, FRigModuleInstance* InParent, const TMap<FRigElementKey, FRigElementKey>& InConnectionMap);
 
 	FRigModuleInstance* FindModule(const FString& InPath);
 

@@ -28,8 +28,8 @@ struct FKeyDataOptimizationParams;
 
 struct CONTROLRIG_API FControlRigBindingHelper
 {
-	static void BindToSequencerInstance(UBaseControlRig* ControlRig);
-	static void UnBindFromSequencerInstance(UBaseControlRig* ControlRig);
+	static void BindToSequencerInstance(UControlRig* ControlRig);
+	static void UnBindFromSequencerInstance(UControlRig* ControlRig);
 };
 
 struct FEnumParameterNameAndValue //uses uint8
@@ -220,13 +220,13 @@ private:
 	FSpaceChannelAddedEvent OnSpaceChannelAdded;
 	/** Control Rig that controls us*/
 	UPROPERTY()
-	TObjectPtr<UBaseControlRig> ControlRig;
+	TObjectPtr<UControlRig> ControlRig;
 
 public:
 
 	/** The class of control rig to instantiate */
 	UPROPERTY(EditAnywhere, Category = "Animation")
-	TSubclassOf<UBaseControlRig> ControlRigClass;
+	TSubclassOf<UControlRig> ControlRigClass;
 
 	/** Mask for controls themselves*/
 	UPROPERTY()
@@ -384,12 +384,12 @@ public:
 public:
 
 	/** Recreate with this Control Rig*/
-	void RecreateWithThisControlRig(UBaseControlRig* InControlRig, bool bSetDefault);
+	void RecreateWithThisControlRig(UControlRig* InControlRig, bool bSetDefault);
 
 	/* Set the control rig for this section */
-	void SetControlRig(UBaseControlRig* InControlRig);
+	void SetControlRig(UControlRig* InControlRig);
 	/* Get the control rig for this section */
-	UBaseControlRig* GetControlRig() const { return ControlRig; }
+	UControlRig* GetControlRig() const { return ControlRig; }
 
 	/** Whether or not to key currently, maybe evaluating so don't*/
 	void  SetDoNotKey(bool bIn) const { bDoNotKey = bIn; }

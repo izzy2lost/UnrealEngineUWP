@@ -9,7 +9,7 @@ FControlRigReference UAnimNodeControlRigLibrary::ConvertToControlRig(const FAnim
 	return FAnimNodeReference::ConvertToType<FControlRigReference>(Node, Result);
 }
 
-FControlRigReference UAnimNodeControlRigLibrary::SetControlRigClass(const FControlRigReference& Node, TSubclassOf<UBaseControlRig> ControlRigClass)
+FControlRigReference UAnimNodeControlRigLibrary::SetControlRigClass(const FControlRigReference& Node, TSubclassOf<UControlRig> ControlRigClass)
 {
 	Node.CallAnimNodeFunction<FAnimNode_ControlRig>(
 	TEXT("SetSequence"),

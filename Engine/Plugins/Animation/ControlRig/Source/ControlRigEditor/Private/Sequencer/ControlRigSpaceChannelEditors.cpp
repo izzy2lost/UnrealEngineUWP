@@ -69,7 +69,7 @@
 //do not compensate via the FControlRigParameterTrackEditor setting a key.
 static bool bDoNotCompensate = false;
 
-static FKeyHandle SequencerOpenSpaceSwitchDialog(UBaseControlRig* ControlRig, TArray<FRigElementKey> SelectedControls,ISequencer* Sequencer, FMovieSceneControlRigSpaceChannel* Channel, UMovieSceneSection* SectionToKey, FFrameNumber Time)
+static FKeyHandle SequencerOpenSpaceSwitchDialog(UControlRig* ControlRig, TArray<FRigElementKey> SelectedControls,ISequencer* Sequencer, FMovieSceneControlRigSpaceChannel* Channel, UMovieSceneSection* SectionToKey, FFrameNumber Time)
 {
 	FKeyHandle Handle = FKeyHandle::Invalid();
 	if (ControlRig == nullptr || Sequencer == nullptr)
@@ -143,7 +143,7 @@ FKeyHandle AddOrUpdateKey(FMovieSceneControlRigSpaceChannel* Channel, UMovieScen
 	/**
 	if (UMovieSceneControlRigParameterSection* Section = Cast<UMovieSceneControlRigParameterSection>(SectionToKey))
 	{
-		if (UBaseControlRig* ControlRig = Section->GetControlRig())
+		if (UControlRig* ControlRig = Section->GetControlRig())
 		{
 			FName ControlName = Section->FindControlNameFromSpaceChannel(Channel);
 			if (ControlName != NAME_None)
@@ -185,7 +185,7 @@ TSharedRef<SWidget> CreateKeyEditor(const TMovieSceneChannelHandle<FMovieSceneCo
 **********************************************************************/
 
 
-FSpaceChannelAndSection FControlRigSpaceChannelHelpers::FindSpaceChannelAndSectionForControl(UBaseControlRig* ControlRig, FName ControlName, ISequencer* Sequencer, bool bCreateIfNeeded)
+FSpaceChannelAndSection FControlRigSpaceChannelHelpers::FindSpaceChannelAndSectionForControl(UControlRig* ControlRig, FName ControlName, ISequencer* Sequencer, bool bCreateIfNeeded)
 {
 	FSpaceChannelAndSection SpaceChannelAndSection;
 	SpaceChannelAndSection.SpaceChannel = nullptr;
@@ -201,7 +201,7 @@ FSpaceChannelAndSection FControlRigSpaceChannelHelpers::FindSpaceChannelAndSecti
 	}
 	const TArray<FMovieSceneBinding>& Bindings = MovieScene->GetBindings();
 	bool bRecreateCurves = false;
-	TArray<TPair<UBaseControlRig*, FName>> ControlRigPairsToReselect;
+	TArray<TPair<UControlRig*, FName>> ControlRigPairsToReselect;
 	for (const FMovieSceneBinding& Binding : Bindings)
 	{
 		UMovieSceneControlRigParameterTrack* ControlRigParameterTrack = Cast<UMovieSceneControlRigParameterTrack>(MovieScene->FindTrack(UMovieSceneControlRigParameterTrack::StaticClass(), Binding.GetObjectGuid(), NAME_None));
@@ -222,7 +222,7 @@ FSpaceChannelAndSection FControlRigSpaceChannelHelpers::FindSpaceChannelAndSecti
 				{
 					if (ControlRig->IsControlSelected(ControlName))
 					{
-						TPair<UBaseControlRig*, FName> Pair;
+						TPair<UControlRig*, FName> Pair;
 						Pair.Key = ControlRig;
 						Pair.Value = ControlName;
 						ControlRigPairsToReselect.Add(Pair);
@@ -242,7 +242,7 @@ FSpaceChannelAndSection FControlRigSpaceChannelHelpers::FindSpaceChannelAndSecti
 	if (bRecreateCurves)
 	{
 		Sequencer->RecreateCurveEditor(); //this will require the curve editor to get recreated so the ordering is correct
-		for (TPair<UBaseControlRig*, FName>& Pair : ControlRigPairsToReselect)
+		for (TPair<UControlRig*, FName>& Pair : ControlRigPairsToReselect)
 		{
 
 			GEditor->GetTimerManager()->SetTimerForNextTick([Pair]()
@@ -255,7 +255,7 @@ FSpaceChannelAndSection FControlRigSpaceChannelHelpers::FindSpaceChannelAndSecti
 	return SpaceChannelAndSection;
 }
 
-static TTuple<FRigControlElement*, FChannelMapInfo*, int32, int32> GetControlAndChannelInfos(UBaseControlRig* ControlRig, UMovieSceneControlRigParameterSection* ControlRigSection, FName ControlName)
+static TTuple<FRigControlElement*, FChannelMapInfo*, int32, int32> GetControlAndChannelInfos(UControlRig* ControlRig, UMovieSceneControlRigParameterSection* ControlRigSection, FName ControlName)
 {
 	FRigControlElement* ControlElement = nullptr;
 	FChannelMapInfo* pChannelIndex = nullptr;
@@ -285,7 +285,7 @@ static TTuple<FRigControlElement*, FChannelMapInfo*, int32, int32> GetControlAnd
 *  4) For 1-3 we always compensate any transform keys to the new space
 */
 
-FKeyHandle FControlRigSpaceChannelHelpers::SequencerKeyControlRigSpaceChannel(UBaseControlRig* ControlRig, ISequencer* Sequencer, FMovieSceneControlRigSpaceChannel* Channel, UMovieSceneSection* SectionToKey, FFrameNumber Time, URigHierarchy* RigHierarchy, const FRigElementKey& ControlKey, const FRigElementKey& SpaceKey)
+FKeyHandle FControlRigSpaceChannelHelpers::SequencerKeyControlRigSpaceChannel(UControlRig* ControlRig, ISequencer* Sequencer, FMovieSceneControlRigSpaceChannel* Channel, UMovieSceneSection* SectionToKey, FFrameNumber Time, URigHierarchy* RigHierarchy, const FRigElementKey& ControlKey, const FRigElementKey& SpaceKey)
 {
 	FKeyHandle Handle = FKeyHandle::Invalid();
 	if (bDoNotCompensate == true || ControlRig == nullptr || Sequencer == nullptr || Sequencer->GetFocusedMovieSceneSequence() == nullptr || Sequencer->GetFocusedMovieSceneSequence()->GetMovieScene() == nullptr)
@@ -515,7 +515,7 @@ FKeyHandle FControlRigSpaceChannelHelpers::SequencerKeyControlRigSpaceChannel(UB
 }
 
 //get the mask of the transform keys at the specified time
-static EControlRigContextChannelToKey GetCurrentTransformKeysAtThisTime(UBaseControlRig* ControlRig, FName ControlName, UMovieSceneSection* SectionToKey, FFrameNumber Time)
+static EControlRigContextChannelToKey GetCurrentTransformKeysAtThisTime(UControlRig* ControlRig, FName ControlName, UMovieSceneSection* SectionToKey, FFrameNumber Time)
 {
 	EControlRigContextChannelToKey ChannelToKey = EControlRigContextChannelToKey::None;
 	if (ControlRig && SectionToKey)
@@ -634,7 +634,7 @@ static EControlRigContextChannelToKey GetCurrentTransformKeysAtThisTime(UBaseCon
 	return ChannelToKey;
 }
 
-void  FControlRigSpaceChannelHelpers::SequencerSpaceChannelKeyDeleted(UBaseControlRig* ControlRig, ISequencer* Sequencer, FName ControlName, FMovieSceneControlRigSpaceChannel* Channel, UMovieSceneControlRigParameterSection* SectionToKey,
+void  FControlRigSpaceChannelHelpers::SequencerSpaceChannelKeyDeleted(UControlRig* ControlRig, ISequencer* Sequencer, FName ControlName, FMovieSceneControlRigSpaceChannel* Channel, UMovieSceneControlRigParameterSection* SectionToKey,
 	FFrameNumber TimeOfDeletion)
 {
 	if (bDoNotCompensate == true)
@@ -716,7 +716,7 @@ void  FControlRigSpaceChannelHelpers::SequencerSpaceChannelKeyDeleted(UBaseContr
 	}
 }
 
-void FControlRigSpaceChannelHelpers::DeleteTransformKeysAtThisTime(UBaseControlRig* ControlRig, UMovieSceneControlRigParameterSection* Section, FName ControlName, FFrameNumber Time)
+void FControlRigSpaceChannelHelpers::DeleteTransformKeysAtThisTime(UControlRig* ControlRig, UMovieSceneControlRigParameterSection* Section, FName ControlName, FFrameNumber Time)
 {
 	if (Section && ControlRig)
 	{
@@ -782,7 +782,7 @@ void FControlRigSpaceChannelHelpers::DeleteTransformKeysAtThisTime(UBaseControlR
 }
 
 void FControlRigSpaceChannelHelpers::GetFramesInThisSpaceAfterThisTime(
-	UBaseControlRig* ControlRig,
+	UControlRig* ControlRig,
 	FName ControlName,
 	FMovieSceneControlRigSpaceBaseKey CurrentValue,
 	FMovieSceneControlRigSpaceChannel* Channel,
@@ -859,7 +859,7 @@ void FControlRigSpaceChannelHelpers::GetFramesInThisSpaceAfterThisTime(
 	}
 }
 
-void FControlRigSpaceChannelHelpers::SequencerBakeControlInSpace(UBaseControlRig* ControlRig, ISequencer* Sequencer, FMovieSceneControlRigSpaceChannel* Channel, UMovieSceneSection* SectionToKey,
+void FControlRigSpaceChannelHelpers::SequencerBakeControlInSpace(UControlRig* ControlRig, ISequencer* Sequencer, FMovieSceneControlRigSpaceChannel* Channel, UMovieSceneSection* SectionToKey,
 	URigHierarchy* RigHierarchy, const FRigElementKey& ControlKey, FRigSpacePickerBakeSettings Settings)
 {
 	if (bDoNotCompensate == true)
@@ -1175,7 +1175,7 @@ void FControlRigSpaceChannelHelpers::SequencerBakeControlInSpace(UBaseControlRig
 	}
 }
 
-void FControlRigSpaceChannelHelpers::HandleSpaceKeyTimeChanged(UBaseControlRig* ControlRig, FName ControlName, FMovieSceneControlRigSpaceChannel* Channel, UMovieSceneSection* SectionToKey,
+void FControlRigSpaceChannelHelpers::HandleSpaceKeyTimeChanged(UControlRig* ControlRig, FName ControlName, FMovieSceneControlRigSpaceChannel* Channel, UMovieSceneSection* SectionToKey,
 	FFrameNumber CurrentFrame, FFrameNumber NextFrame)
 {
 	if (ControlRig && Channel && SectionToKey && (CurrentFrame != NextFrame))
@@ -1259,7 +1259,7 @@ void FControlRigSpaceChannelHelpers::HandleSpaceKeyTimeChanged(UBaseControlRig* 
 
 
 void FControlRigSpaceChannelHelpers::CompensateIfNeeded(
-	UBaseControlRig* ControlRig,
+	UControlRig* ControlRig,
 	ISequencer* Sequencer,
 	UMovieSceneControlRigParameterSection* Section,
 	FName ControlName,
@@ -1420,7 +1420,7 @@ FReply FControlRigSpaceChannelHelpers::OpenBakeDialog(ISequencer* Sequencer, FMo
 	}
 	if (UMovieSceneControlRigParameterSection* Section = Cast<UMovieSceneControlRigParameterSection>(SectionToKey))
 	{
-		if (UBaseControlRig* ControlRig = Section->GetControlRig())
+		if (UControlRig* ControlRig = Section->GetControlRig())
 		{
 			FName ControlName = Section->FindControlNameFromSpaceChannel(Channel);
 
@@ -1529,7 +1529,7 @@ TArray<FKeyBarCurveModel::FBarRange> FControlRigSpaceChannelHelpers::FindRanges(
 }
 
 // NOTE use this function in HandleSpaceKeyTimeChanged, DeleteTransformKeysAtThisTime, ...
-TPair<FRigControlElement*, FChannelMapInfo*> FControlRigSpaceChannelHelpers::GetControlAndChannelInfo(UBaseControlRig* ControlRig, UMovieSceneControlRigParameterSection* Section, FName ControlName)
+TPair<FRigControlElement*, FChannelMapInfo*> FControlRigSpaceChannelHelpers::GetControlAndChannelInfo(UControlRig* ControlRig, UMovieSceneControlRigParameterSection* Section, FName ControlName)
 {
 	FRigControlElement* ControlElement = ControlRig ? ControlRig->FindControl(ControlName) : nullptr;
 	FChannelMapInfo* pChannelIndex = Section ? Section->ControlChannelMap.Find(ControlName) : nullptr;

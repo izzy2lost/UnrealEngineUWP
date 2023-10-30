@@ -111,9 +111,9 @@ void UControlRigValidator::RemovePass(UClass* InClass)
 	}
 }
 
-void UControlRigValidator::SetControlRig(UBaseControlRig* InControlRig)
+void UControlRigValidator::SetControlRig(UControlRig* InControlRig)
 {
-	if (UBaseControlRig* ControlRig = WeakControlRig.Get())
+	if (UControlRig* ControlRig = WeakControlRig.Get())
 	{
 		ControlRig->OnInitialized_AnyThread().RemoveAll(this);
 		ControlRig->OnExecuted_AnyThread().RemoveAll(this);
@@ -122,7 +122,7 @@ void UControlRigValidator::SetControlRig(UBaseControlRig* InControlRig)
 	ValidationContext.DrawInterface = nullptr;
 	WeakControlRig = InControlRig;
 
-	if (UBaseControlRig* ControlRig = WeakControlRig.Get())
+	if (UControlRig* ControlRig = WeakControlRig.Get())
 	{
 		OnControlRigInitialized(ControlRig, FRigUnit_BeginExecution::EventName);
 		ControlRig->OnInitialized_AnyThread().AddUObject(this, &UControlRigValidator::OnControlRigInitialized);
@@ -133,7 +133,7 @@ void UControlRigValidator::SetControlRig(UBaseControlRig* InControlRig)
 
 void UControlRigValidator::OnControlRigInitialized(URigVMHost* Subject, const FName& EventName)
 {
-	if (UBaseControlRig* ControlRig = WeakControlRig.Get())
+	if (UControlRig* ControlRig = WeakControlRig.Get())
 	{
 		if (ControlRig != Subject)
 		{
@@ -151,7 +151,7 @@ void UControlRigValidator::OnControlRigInitialized(URigVMHost* Subject, const FN
 
 void UControlRigValidator::OnControlRigExecuted(URigVMHost* Subject, const FName& EventName)
 {
-	if (UBaseControlRig* ControlRig = WeakControlRig.Get())
+	if (UControlRig* ControlRig = WeakControlRig.Get())
 	{
 		if (ControlRig != Subject)
 		{

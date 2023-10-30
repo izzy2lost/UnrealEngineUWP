@@ -8,7 +8,7 @@
 #include "ControlRigTestData.generated.h"
 
 class UControlRigTestData;
-class UBaseControlRig;
+class UControlRig;
 
 USTRUCT(BlueprintType)
 struct CONTROLRIG_API FControlRigTestDataVariable
@@ -45,9 +45,9 @@ struct CONTROLRIG_API FControlRigTestDataFrame
 		Pose.Reset();
 	}
 
-	bool Store(UBaseControlRig* InControlRig, bool bInitial = false);
-	bool Restore(UBaseControlRig* InControlRig, bool bInitial = false) const;
-	bool RestoreVariables(UBaseControlRig* InControlRig) const;
+	bool Store(UControlRig* InControlRig, bool bInitial = false);
+	bool Restore(UControlRig* InControlRig, bool bInitial = false) const;
+	bool RestoreVariables(UControlRig* InControlRig) const;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "ControlRigTestDataFrame")
 	double AbsoluteTime;
@@ -98,10 +98,10 @@ public:
 	int32 GetFrameIndexForTime(double InSeconds, bool bInput = false) const;
 
 	UFUNCTION(BlueprintCallable, Category = "ControlRigTestData")
-	bool Record(UBaseControlRig* InControlRig, double InRecordingDuration = 0.0);
+	bool Record(UControlRig* InControlRig, double InRecordingDuration = 0.0);
 
 	UFUNCTION(BlueprintCallable, Category = "ControlRigTestData")
-	bool SetupReplay(UBaseControlRig* InControlRig, bool bGroundTruth = true);
+	bool SetupReplay(UControlRig* InControlRig, bool bGroundTruth = true);
 
 	UFUNCTION(BlueprintCallable, Category = "ControlRigTestData")
 	void ReleaseReplay();
@@ -135,12 +135,12 @@ public:
 
 private:
 
-	void ClearDelegates(UBaseControlRig* InControlRig);
+	void ClearDelegates(UControlRig* InControlRig);
 
 	mutable int32 LastFrameIndex;
 	double DesiredRecordingDuration;
 	double TimeAtStartOfRecording;
-	TWeakObjectPtr<UBaseControlRig> ReplayControlRig;
+	TWeakObjectPtr<UControlRig> ReplayControlRig;
 	bool bIsApplyingOutputs;
 	FDelegateHandle PreConstructionHandle;
 	FDelegateHandle PreForwardHandle;

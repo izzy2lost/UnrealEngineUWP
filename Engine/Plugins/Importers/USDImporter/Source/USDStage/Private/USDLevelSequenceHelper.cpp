@@ -306,7 +306,7 @@ namespace UsdLevelSequenceHelperImpl
 		{
 			FString ObjectName = InClass->GetName();
 			ObjectName.RemoveFromEnd(TEXT("_C"));
-			UBaseControlRig* ControlRig = NewObject<UBaseControlRig>(Track, InClass, FName(*ObjectName), RF_Transactional);
+			UControlRig* ControlRig = NewObject<UControlRig>(Track, InClass, FName(*ObjectName), RF_Transactional);
 			if (InClass != UFKControlRig::StaticClass() && !ControlRig->SupportsEvent(TEXT("Backwards Solve")))
 			{
 				MovieScene->RemoveTrack(*Track);
@@ -316,7 +316,7 @@ namespace UsdLevelSequenceHelperImpl
 			ControlRig->Modify();
 			ControlRig->SetObjectBinding(MakeShared<FControlRigObjectBinding>());
 			ControlRig->GetObjectBinding()->BindToObject(SkeletalMeshComp);
-			ControlRig->GetDataSourceRegistry()->RegisterDataSource(UBaseControlRig::OwnerComponent, ControlRig->GetObjectBinding()->GetBoundObject());
+			ControlRig->GetDataSourceRegistry()->RegisterDataSource(UControlRig::OwnerComponent, ControlRig->GetObjectBinding()->GetBoundObject());
 			ControlRig->Initialize();
 			ControlRig->RequestInit();
 			ControlRig->SetBoneInitialTransformsFromSkeletalMeshComponent(SkeletalMeshComp, true);

@@ -75,7 +75,7 @@ FAutoConsoleCommandWithWorldAndArgs FCmdControlRigHierarchyTraceFrames
 			
 			// we'll just trace all of them for now
 			//if(Instance->GetWorld() == InWorld)
-			if(Instance->GetTypedOuter<UBaseControlRig>() != nullptr)
+			if(Instance->GetTypedOuter<UControlRig>() != nullptr)
 			{
 				CastChecked<URigHierarchy>(Instance)->TraceFrames(NumFrames);
 			}
@@ -2686,7 +2686,7 @@ void URigHierarchy::SendAutoKeyEvent(FRigElementKey InElement, float InOffsetInS
 	Context.Event = ERigEvent::RequestAutoKey;
 	Context.Key = InElement;
 	Context.LocalTime = InOffsetInSeconds;
-	if(UBaseControlRig* Rig = Cast<UBaseControlRig>(GetOuter()))
+	if(UControlRig* Rig = Cast<UControlRig>(GetOuter()))
 	{
 		Context.LocalTime += Rig->AbsoluteTime;
 	}
@@ -3393,7 +3393,7 @@ void URigHierarchy::SetTransform(FRigTransformElement* InTransformElement, const
 		{
 			BlueprintName = Blueprint->GetFName().ToString();
 		}
-		else if (UBaseControlRig* Rig = Cast<UBaseControlRig>(GetOuter()))
+		else if (UControlRig* Rig = Cast<UControlRig>(GetOuter()))
 		{
 			if (UBlueprint* BlueprintCR = Cast<UBlueprint>(Rig->GetClass()->ClassGeneratedBy))
 			{
@@ -3617,7 +3617,7 @@ void URigHierarchy::SetControlOffsetTransform(FRigControlElement* InControlEleme
 		{
 			BlueprintName = Blueprint->GetFName().ToString();
 		}
-		else if (UBaseControlRig* Rig = Cast<UBaseControlRig>(GetOuter()))
+		else if (UControlRig* Rig = Cast<UControlRig>(GetOuter()))
 		{
 			if (UBlueprint* BlueprintCR = Cast<UBlueprint>(Rig->GetClass()->ClassGeneratedBy))
 			{
@@ -3749,7 +3749,7 @@ void URigHierarchy::SetControlShapeTransform(FRigControlElement* InControlElemen
 		{
 			BlueprintName = Blueprint->GetFName().ToString();
 		}
-		else if (UBaseControlRig* Rig = Cast<UBaseControlRig>(GetOuter()))
+		else if (UControlRig* Rig = Cast<UControlRig>(GetOuter()))
 		{
 			if (UBlueprint* BlueprintCR = Cast<UBlueprint>(Rig->GetClass()->ClassGeneratedBy))
 			{
@@ -3817,7 +3817,7 @@ void URigHierarchy::SetControlSettings(FRigControlElement* InControlElement, FRi
 		{
 			BlueprintName = Blueprint->GetFName().ToString();
 		}
-		else if (UBaseControlRig* Rig = Cast<UBaseControlRig>(GetOuter()))
+		else if (UControlRig* Rig = Cast<UControlRig>(GetOuter()))
 		{
 			if (UBlueprint* BlueprintCR = Cast<UBlueprint>(Rig->GetClass()->ClassGeneratedBy))
 			{
@@ -4095,7 +4095,7 @@ void URigHierarchy::SetControlValue(FRigControlElement* InControlElement, const 
 					{
 						BlueprintName = Blueprint->GetFName().ToString();
 					}
-					else if (UBaseControlRig* Rig = Cast<UBaseControlRig>(GetOuter()))
+					else if (UControlRig* Rig = Cast<UControlRig>(GetOuter()))
 					{
 						if (UBlueprint* BlueprintCR = Cast<UBlueprint>(Rig->GetClass()->ClassGeneratedBy))
 						{
@@ -4199,7 +4199,7 @@ void URigHierarchy::SetConnectorSettings(FRigConnectorElement* InConnectorElemen
 		{
 			BlueprintName = Blueprint->GetFName().ToString();
 		}
-		else if (UBaseControlRig* Rig = Cast<UBaseControlRig>(GetOuter()))
+		else if (UControlRig* Rig = Cast<UControlRig>(GetOuter()))
 		{
 			if (UBlueprint* BlueprintCR = Cast<UBlueprint>(Rig->GetClass()->ClassGeneratedBy))
 			{
@@ -6031,7 +6031,7 @@ bool URigHierarchy::ApplyTransformFromStack(const FRigTransformStackEntry& InEnt
 		// this might be a transient control which had been removed.
 		if(InEntry.Key.Type == ERigElementType::Control)
 		{
-			const FRigElementKey TargetKey = UBaseControlRig::GetElementKeyFromTransientControl(InEntry.Key);
+			const FRigElementKey TargetKey = UControlRig::GetElementKeyFromTransientControl(InEntry.Key);
 			Element = Find(TargetKey);
 			bApplyInitialForCurrent = Element != nullptr;
 		}
@@ -6912,7 +6912,7 @@ TArray<FString> URigHierarchy::ConnectorSettingsToPythonCommands(const FRigConne
 
 #endif
 
-FRigHierarchyRedirectorGuard::FRigHierarchyRedirectorGuard(UBaseControlRig* InControlRig)
+FRigHierarchyRedirectorGuard::FRigHierarchyRedirectorGuard(UControlRig* InControlRig)
 : Guard(InControlRig->GetHierarchy()->ElementKeyRedirector, &InControlRig->GetElementKeyRedirector())
 {
 }

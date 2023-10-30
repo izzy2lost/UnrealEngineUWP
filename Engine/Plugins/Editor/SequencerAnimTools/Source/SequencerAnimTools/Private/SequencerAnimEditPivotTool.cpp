@@ -17,7 +17,7 @@
 #include "EditorModeManager.h"
 #include "Misc/QualifiedFrameTime.h"
 #include "Modules/ModuleManager.h"
-#include "ControlRig.h"
+#include "BaseControlRig.h"
 #include "ControlRigSequencerEditorLibrary.h"
 #include "LevelSequence.h"
 #include "LevelSequenceEditorBlueprintLibrary.h"
@@ -49,7 +49,7 @@ FSavedMappings USequencerPivotTool::SavedPivotLocations;
 FLastSelectedObjects USequencerPivotTool::LastSelectedObjects;
 
 
-static void GetControlRigsAndSequencer(TArray<TWeakObjectPtr<UBaseControlRig>>& ControlRigs, TWeakPtr<ISequencer>& SequencerPtr, ULevelSequence** LevelSequence)
+static void GetControlRigsAndSequencer(TArray<TWeakObjectPtr<UControlRig>>& ControlRigs, TWeakPtr<ISequencer>& SequencerPtr, ULevelSequence** LevelSequence)
 {
 	*LevelSequence = ULevelSequenceEditorBlueprintLibrary::GetFocusedLevelSequence();
 	//if getting sequencer from level sequence need to use the current(master), not the focused
@@ -65,7 +65,7 @@ static void GetControlRigsAndSequencer(TArray<TWeakObjectPtr<UBaseControlRig>>& 
 			TempControlRigs = UControlRigSequencerEditorLibrary::GetVisibleControlRigs();
 			for (UControlRig* ControlRig : TempControlRigs)
 			{
-				UBaseControlRig* Base = ControlRig;
+				UControlRig* Base = ControlRig;
 				ControlRigs.Add(ControlRig);
 			}
 		}
@@ -80,11 +80,11 @@ bool USequencerPivotToolBuilder::CanBuildTool(const FToolBuilderState& SceneStat
 		return true;
 	}
 	ULevelSequence* LevelSequence;
-	TArray<TWeakObjectPtr<UBaseControlRig>> ControlRigs;
+	TArray<TWeakObjectPtr<UControlRig>> ControlRigs;
 	TWeakPtr<ISequencer> SequencerPtr;
 	GetControlRigsAndSequencer(ControlRigs, SequencerPtr, &LevelSequence);
 
-	for (TWeakObjectPtr<UBaseControlRig> ControlRig : ControlRigs)
+	for (TWeakObjectPtr<UControlRig> ControlRig : ControlRigs)
 	{
 		if (ControlRig.IsValid() && ControlRig->CurrentControlSelection().Num() > 0)
 		{
@@ -290,7 +290,7 @@ void USequencerPivotTool::Setup()
 	UpdateGizmoTransform();
 	UpdateGizmoVisibility();
 	//we get delegates last since we may select something above
-	for (TWeakObjectPtr<UBaseControlRig>& ControlRig : ControlRigs)
+	for (TWeakObjectPtr<UControlRig>& ControlRig : ControlRigs)
 	{
 		if (ControlRig.IsValid())
 		{
@@ -354,7 +354,7 @@ void USequencerPivotTool::SaveLastSelected()
 	LastSelectedObjects.LastSelectedControlRigs.SetNum(0);
 	LastSelectedObjects.LastSelectedActors.SetNum(0);
 
-	for (TWeakObjectPtr<UBaseControlRig>& ControlRig : ControlRigs)
+	for (TWeakObjectPtr<UControlRig>& ControlRig : ControlRigs)
 	{
 		if (ControlRig.IsValid())
 		{
@@ -429,7 +429,7 @@ bool USequencerPivotTool::SetGizmoBasedOnSelection(bool bUseSaved)
 	bool bHaveSomethingSelected = false;
 	FVector AverageLocation(0.0f);
 	int NumLocations = 0;
-	for (TWeakObjectPtr<UBaseControlRig>& ControlRig : ControlRigs)
+	for (TWeakObjectPtr<UControlRig>& ControlRig : ControlRigs)
 	{
 		if (ControlRig.IsValid() == false)
 		{
@@ -584,14 +584,14 @@ void USequencerPivotTool::OnEditorSelectionChanged(UObject* NewSelection)
 	*/
 }
 
-void USequencerPivotTool::HandleControlSelected(UBaseControlRig* Subject, FRigControlElement* InControl, bool bSelected)
+void USequencerPivotTool::HandleControlSelected(UControlRig* Subject, FRigControlElement* InControl, bool bSelected)
 {
 	DeactivateMe();
 }
 
 void USequencerPivotTool::RemoveDelegates()
 {
-	for (TWeakObjectPtr<UBaseControlRig>& ControlRig : ControlRigs)
+	for (TWeakObjectPtr<UControlRig>& ControlRig : ControlRigs)
 	{
 		if (ControlRig.IsValid())
 		{
@@ -616,7 +616,7 @@ void USequencerPivotTool::GizmoTransformStarted(UTransformProxy* Proxy)
 		const FFrameTime FrameTime = Sequencer->GetLocalTime().ConvertTo(TickResolution);
 		const FFrameNumber FrameNumber = FrameTime.RoundToFrame();
 
-		for (TWeakObjectPtr<UBaseControlRig>& ControlRig : ControlRigs)
+		for (TWeakObjectPtr<UControlRig>& ControlRig : ControlRigs)
 		{
 			if (ControlRig.IsValid() == false)
 			{
@@ -696,7 +696,7 @@ void USequencerPivotTool::GizmoTransformStarted(UTransformProxy* Proxy)
 	InteractionScopes.Reset();
 	if(bInPivotMode)
 	{
-		TMap<UBaseControlRig*, int32> RigToScopeIndex;
+		TMap<UControlRig*, int32> RigToScopeIndex;
 		for(int32 IndexA = 0; IndexA < ControlRigDrags.Num(); IndexA++)
 		{
 			const FControlRigSelectionDuringDrag& ControlRigDrag = ControlRigDrags[IndexA];

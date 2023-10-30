@@ -144,7 +144,7 @@ void UAnimationSequencerDataModel::InitializeFKControlRig(UFKControlRig* FKContr
 	}
 }
 
-UBaseControlRig* UAnimationSequencerDataModel::GetControlRig() const
+UControlRig* UAnimationSequencerDataModel::GetControlRig() const
 {
 	if(const UMovieSceneControlRigParameterTrack* Track = GetControlRigTrack())
 	{
@@ -196,7 +196,7 @@ void UAnimationSequencerDataModel::PostLoad()
 void UAnimationSequencerDataModel::DeclareConstructClasses(TArray<FTopLevelAssetPath>& OutConstructClasses, const UClass* SpecificSubclass)
 {
 	Super::DeclareConstructClasses(OutConstructClasses, SpecificSubclass);
-	OutConstructClasses.Add(FTopLevelAssetPath(UBaseControlRig::StaticClass()));
+	OutConstructClasses.Add(FTopLevelAssetPath(UControlRig::StaticClass()));
 }
 #endif
 
@@ -751,7 +751,7 @@ void UAnimationSequencerDataModel::Evaluate(FAnimationPoseData& InOutPoseData, c
 		EvaluateTrack(Track, EvaluationContext);
 
 		// Generate/populate the output animation pose data
-		UBaseControlRig* ControlRig = Track->GetControlRig();
+		UControlRig* ControlRig = Track->GetControlRig();
 		GeneratePoseData(ControlRig, InOutPoseData, EvaluationContext);
 	}
 }
@@ -848,7 +848,7 @@ UMovieSceneControlRigParameterSection* UAnimationSequencerDataModel::GetFKContro
 			{
 				if (UMovieSceneControlRigParameterSection* Section = Cast<UMovieSceneControlRigParameterSection>(TrackSection))
 				{
-					if (const UBaseControlRig* ControlRig = Section->GetControlRig())
+					if (const UControlRig* ControlRig = Section->GetControlRig())
 					{
 						if (ControlRig->IsA<UFKControlRig>())
 						{
@@ -874,7 +874,7 @@ void UAnimationSequencerDataModel::GenerateLegacyCurveData()
 		{
 			if (const UMovieSceneControlRigParameterSection* Section = Cast<UMovieSceneControlRigParameterSection>(TrackSection))
 			{
-				if (const UBaseControlRig* ControlRig = Section->GetControlRig())
+				if (const UControlRig* ControlRig = Section->GetControlRig())
 				{
 						if(URigHierarchy* Hierarchy = ControlRig->GetHierarchy())
 						{
@@ -974,7 +974,7 @@ void UAnimationSequencerDataModel::ValidateControlRigData() const
 	const UMovieSceneControlRigParameterSection* Section = GetFKControlRigSection();
 	checkf(Section, TEXT("Unable to find Control Rig Section"));
 
-	UBaseControlRig* ControlRig = Section->GetControlRig();
+	UControlRig* ControlRig = Section->GetControlRig();
 	checkf(ControlRig, TEXT("Unable to find Control Rig instance for Section"));
 
 	checkf(ControlRig->IsA<UFKControlRig>(), TEXT("Invalid class for Control Rig expected UFKControlRig"));
@@ -1018,7 +1018,7 @@ void UAnimationSequencerDataModel::ValidateLegacyAgainstControlRigData() const
 {
 	UMovieSceneControlRigParameterSection* Section = GetFKControlRigSection();
 
-	UBaseControlRig* ControlRig = Section->GetControlRig();
+	UControlRig* ControlRig = Section->GetControlRig();
 	URigHierarchy* Hierarchy = ControlRig->GetHierarchy();
 
 	// Validate bone tracks against controls
@@ -1083,7 +1083,7 @@ void UAnimationSequencerDataModel::IterateTransformControlCurve(const FName& Bon
 	ValidateControlRigData();
 
 	const UMovieSceneControlRigParameterSection* Section = GetFKControlRigSection();
-	UBaseControlRig* ControlRig = Section->GetControlRig();
+	UControlRig* ControlRig = Section->GetControlRig();
 	const URigHierarchy* Hierarchy = ControlRig->GetHierarchy();
 	
 	const FRigElementKey BoneControlKey(UFKControlRig::GetControlName(BoneName, ERigElementType::Bone), ERigElementType::Control);
@@ -1164,7 +1164,7 @@ UObject* UAnimationSequencerDataModel::GetParentObject(UObject* MovieSceneBlends
 	return GetOuter();
 }
 
-void UAnimationSequencerDataModel::GeneratePoseData(UBaseControlRig* ControlRig, FAnimationPoseData& InOutPoseData, const UE::Anim::DataModel::FEvaluationContext& EvaluationContext) const
+void UAnimationSequencerDataModel::GeneratePoseData(UControlRig* ControlRig, FAnimationPoseData& InOutPoseData, const UE::Anim::DataModel::FEvaluationContext& EvaluationContext) const
 {
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_GeneratePoseData);
 	
@@ -1315,7 +1315,7 @@ void UAnimationSequencerDataModel::EvaluateTrack(UMovieSceneControlRigParameterT
 		bWasDoNotKey = FKRigSection->GetDoNotKey();
 		FKRigSection->SetDoNotKey(true);
 
-		UBaseControlRig* ControlRig = FKRigSection->GetControlRig();
+		UControlRig* ControlRig = FKRigSection->GetControlRig();
 		check(ControlRig);
 
 		// Reset to ref-pose
@@ -1562,7 +1562,7 @@ void UAnimationSequencerDataModel::IterateBoneKeys(const FName& BoneName, TFunct
 	ValidateControlRigData();
 
 	const UMovieSceneControlRigParameterSection* Section = GetFKControlRigSection();
-	UBaseControlRig* ControlRig = Section->GetControlRig();
+	UControlRig* ControlRig = Section->GetControlRig();
 	const URigHierarchy* Hierarchy = ControlRig->GetHierarchy();
 	
 	const FRigElementKey BoneControlKey(UFKControlRig::GetControlName(BoneName, ERigElementType::Bone), ERigElementType::Control);

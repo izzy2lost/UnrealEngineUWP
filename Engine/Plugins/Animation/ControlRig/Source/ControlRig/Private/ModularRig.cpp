@@ -98,7 +98,7 @@ bool UModularRig::Execute_Internal(const FName& InEventName)
 		{
 			if (Module->Rig.IsValid())
 			{
-				UBaseControlRig* Rig = Module->Rig.Get();
+				UControlRig* Rig = Module->Rig.Get();
 				
 				// Make sure the hierarchy has the correct element redirector from this module rig
 				FRigHierarchyRedirectorGuard ElementRedirectorGuard(Rig);
@@ -122,7 +122,7 @@ void UModularRig::OnObjectsReplaced(const TMap<UObject*, UObject*>& OldToNewInst
 	{
 		if (UObject*const * NewObject = OldToNewInstanceMap.Find(ModuleInstance.Rig.Get()))
 		{
-			ModuleInstance.Rig = Cast<UBaseControlRig>(*NewObject);
+			ModuleInstance.Rig = Cast<UControlRig>(*NewObject);
 		}
 	}
 	InitializeVMs(true);
@@ -134,13 +134,13 @@ void UModularRig::ResetModules()
 	Modules.Reset();
 }
 
-bool UModularRig::AddModuleInstance(const FName& InModuleName, TSubclassOf<UBaseControlRig> InModuleClass, FString InParentPath, const TMap<FRigElementKey, FRigElementKey>& InConnectionMap)
+bool UModularRig::AddModuleInstance(const FName& InModuleName, TSubclassOf<UControlRig> InModuleClass, FString InParentPath, const TMap<FRigElementKey, FRigElementKey>& InConnectionMap)
 {
 	FRigModuleInstance* ParentModule = FindModule(InParentPath);
 	return AddModuleInstance(InModuleName, InModuleClass, ParentModule, InConnectionMap) != nullptr;
 }
 
-FRigModuleInstance* UModularRig::AddModuleInstance(const FName& InModuleName, TSubclassOf<UBaseControlRig> InModuleClass, FRigModuleInstance* InParent, const TMap<FRigElementKey, FRigElementKey>& InConnectionMap) 
+FRigModuleInstance* UModularRig::AddModuleInstance(const FName& InModuleName, TSubclassOf<UControlRig> InModuleClass, FRigModuleInstance* InParent, const TMap<FRigElementKey, FRigElementKey>& InConnectionMap) 
 {
 	// Make sure there are no name clashes
 	if (InParent)
@@ -165,14 +165,14 @@ FRigModuleInstance* UModularRig::AddModuleInstance(const FName& InModuleName, TS
 	}
 
 	// For now, lets only allow rig modules
-	if (!InModuleClass->GetDefaultObject<UBaseControlRig>()->IsRigModule())
+	if (!InModuleClass->GetDefaultObject<UControlRig>()->IsRigModule())
 	{
 		return nullptr;
 	}
 
 	FString Name = (InParent) ? InParent->Name.ToString() + NamespaceSeparator + InModuleName.ToString() : InModuleName.ToString();
 	FRigModuleInstance& NewModule = Modules.Add_GetRef(FRigModuleInstance());
-	NewModule.Rig = NewObject<UBaseControlRig>(this, InModuleClass, *Name, RF_Transient | RF_Transactional);
+	NewModule.Rig = NewObject<UControlRig>(this, InModuleClass, *Name, RF_Transient | RF_Transactional);
 	NewModule.Name = InModuleName;
 
 	if (InParent)

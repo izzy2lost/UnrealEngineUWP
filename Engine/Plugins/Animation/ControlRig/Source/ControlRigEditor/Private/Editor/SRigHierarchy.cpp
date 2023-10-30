@@ -882,7 +882,7 @@ void SRigHierarchy::HandleSetObjectBeingDebugged(UObject* InObject)
 
 	if(ControlRigBeingDebuggedPtr.IsValid())
 	{
-		if(UBaseControlRig* ControlRigBeingDebugged = ControlRigBeingDebuggedPtr.Get())
+		if(UControlRig* ControlRigBeingDebugged = ControlRigBeingDebuggedPtr.Get())
 		{
 			if(!ControlRigBeingDebugged->HasAnyFlags(RF_BeginDestroyed))
 			{
@@ -893,7 +893,7 @@ void SRigHierarchy::HandleSetObjectBeingDebugged(UObject* InObject)
 
 	ControlRigBeingDebuggedPtr.Reset();
 	
-	if(UBaseControlRig* ControlRig = Cast<UBaseControlRig>(InObject))
+	if(UControlRig* ControlRig = Cast<UControlRig>(InObject))
 	{
 		ControlRigBeingDebuggedPtr = ControlRig;
 		if(URigHierarchy* Hierarchy = ControlRig->GetHierarchy())
@@ -911,7 +911,7 @@ void SRigHierarchy::HandleSetObjectBeingDebugged(UObject* InObject)
 	RefreshTreeView();
 }
 
-void SRigHierarchy::OnPreConstruction_AnyThread(UBaseControlRig* InRig, const FName& InEventName)
+void SRigHierarchy::OnPreConstruction_AnyThread(UControlRig* InRig, const FName& InEventName)
 {
 	if(InRig != ControlRigBeingDebuggedPtr.Get())
 	{
@@ -921,7 +921,7 @@ void SRigHierarchy::OnPreConstruction_AnyThread(UBaseControlRig* InRig, const FN
 	SelectionBeforeConstruction = InRig->GetHierarchy()->GetSelectedKeys();
 }
 
-void SRigHierarchy::OnPostConstruction_AnyThread(UBaseControlRig* InRig, const FName& InEventName)
+void SRigHierarchy::OnPostConstruction_AnyThread(UControlRig* InRig, const FName& InEventName)
 {
 	if(InRig != ControlRigBeingDebuggedPtr.Get())
 	{
@@ -980,7 +980,7 @@ void SRigHierarchy::OnNavigateToFirstConnectorWarning()
 {
 	if(ControlRigEditor.IsValid())
 	{
-		if(UBaseControlRig* ControlRig = ControlRigEditor.Pin()->GetControlRig())
+		if(UControlRig* ControlRig = ControlRigEditor.Pin()->GetControlRig())
 		{
 			FRigElementKey ConnectorKey;
 			if(!ControlRig->AllConnectorsAreResolved(nullptr, &ConnectorKey))
@@ -1283,7 +1283,7 @@ void SRigHierarchy::CreateContextMenu()
 									if(Element->IsProcedural())
 									{
 										const int32 InstructionIndex = Element->GetCreatedAtInstructionIndex();
-										if(const UBaseControlRig* ControlRig = Cast<UBaseControlRig>(CurrentControlRigBlueprint->GetObjectBeingDebugged()))
+										if(const UControlRig* ControlRig = Cast<UControlRig>(CurrentControlRigBlueprint->GetObjectBeingDebugged()))
 										{
 											if(ControlRig->VM)
 											{
@@ -1530,7 +1530,7 @@ void SRigHierarchy::RefreshHierarchy(const FAssetData& InAssetData, bool bOnlyRe
 		// we do this to avoid the editmode / viewport shapes to refresh recursively,
 		// which can add an extreme slowdown depending on the number of bones (n^(n-1))
 		bool bSelectBones = true;
-		if (UBaseControlRig* CurrentRig = StrongEditor->GetControlRig())
+		if (UControlRig* CurrentRig = StrongEditor->GetControlRig())
 		{
 			bSelectBones = !CurrentRig->IsConstructionModeEnabled();
 		}
@@ -1665,7 +1665,7 @@ void SRigHierarchy::ImportHierarchy(const FAssetData& InAssetData)
 		// we do this to avoid the editmode / viewport shapes to refresh recursively,
 		// which can add an extreme slowdown depending on the number of bones (n^(n-1))
 		bool bSelectBones = true;
-		if (const UBaseControlRig* CurrentRig = EditorSharedPtr->GetControlRig())
+		if (const UControlRig* CurrentRig = EditorSharedPtr->GetControlRig())
 		{
 			bSelectBones = !CurrentRig->IsConstructionModeEnabled();
 		}
@@ -2345,14 +2345,14 @@ URigHierarchy* SRigHierarchy::GetHierarchy() const
 {
 	if (ControlRigBlueprint.IsValid())
 	{
-		if (UBaseControlRig* DebuggedRig = ControlRigBeingDebuggedPtr.Get())
+		if (UControlRig* DebuggedRig = ControlRigBeingDebuggedPtr.Get())
 		{
 			return DebuggedRig->GetHierarchy();
 		}
 	}
 	if (ControlRigEditor.IsValid())
 	{
-		if (UBaseControlRig* CurrentRig = ControlRigEditor.Pin()->GetControlRig())
+		if (UControlRig* CurrentRig = ControlRigEditor.Pin()->GetControlRig())
 		{
 			return CurrentRig->GetHierarchy();
 		}
@@ -2904,7 +2904,7 @@ void SRigHierarchy::HandleControlBoneOrSpaceTransform()
 		return;
 	}
 
-	UBaseControlRig* DebuggedControlRig = Cast<UBaseControlRig>(Blueprint->GetObjectBeingDebugged());
+	UControlRig* DebuggedControlRig = Cast<UControlRig>(Blueprint->GetObjectBeingDebugged());
 	if(DebuggedControlRig == nullptr)
 	{
 		return;

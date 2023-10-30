@@ -7,7 +7,7 @@
 #include "AnimNode_ControlRigBase.generated.h"
 
 class UNodeMappingContainer;
-class UBaseControlRig;
+class UControlRig;
 
 /** Struct defining the settings to override when driving a control rig */
 USTRUCT()
@@ -63,8 +63,8 @@ struct CONTROLRIG_API FAnimNode_ControlRigBase : public FAnimNode_CustomProperty
 	FAnimNode_ControlRigBase();
 
 	/* return Control Rig of current object */
-	virtual UBaseControlRig* GetControlRig() const PURE_VIRTUAL(FAnimNode_ControlRigBase::GetControlRig, return nullptr; );
-	virtual TSubclassOf<UBaseControlRig> GetControlRigClass() const PURE_VIRTUAL(FAnimNode_ControlRigBase::GetControlRigClass, return nullptr; );
+	virtual UControlRig* GetControlRig() const PURE_VIRTUAL(FAnimNode_ControlRigBase::GetControlRig, return nullptr; );
+	virtual TSubclassOf<UControlRig> GetControlRigClass() const PURE_VIRTUAL(FAnimNode_ControlRigBase::GetControlRigClass, return nullptr; );
 	
 	// FAnimNode_Base interface
 	virtual void OnInitializeAnimInstance(const FAnimInstanceProxy* InProxy, const UAnimInstance* InAnimInstance) override;
@@ -77,7 +77,7 @@ struct CONTROLRIG_API FAnimNode_ControlRigBase : public FAnimNode_CustomProperty
 
 protected:
 
-	void UpdateInputOutputMappingIfRequired(UBaseControlRig* InControlRig, const FBoneContainer& RequiredBones); 
+	void UpdateInputOutputMappingIfRequired(UControlRig* InControlRig, const FBoneContainer& RequiredBones); 
 
 	UPROPERTY(EditAnywhere, Category = Links)
 	FPoseLink Source;
@@ -172,17 +172,17 @@ protected:
 
 	virtual bool CanExecute();
 	// update input/output to control rig
-	virtual void UpdateInput(UBaseControlRig* ControlRig, const FPoseContext& InOutput);
-	virtual void UpdateOutput(UBaseControlRig* ControlRig, FPoseContext& InOutput);
+	virtual void UpdateInput(UControlRig* ControlRig, const FPoseContext& InOutput);
+	virtual void UpdateOutput(UControlRig* ControlRig, FPoseContext& InOutput);
 	virtual UClass* GetTargetClass() const override;
 	
 	// execute control rig on the input pose and outputs the result
 	void ExecuteControlRig(FPoseContext& InOutput);
 
-	void QueueControlRigDrawInstructions(UBaseControlRig* ControlRig, FAnimInstanceProxy* Proxy) const;
+	void QueueControlRigDrawInstructions(UControlRig* ControlRig, FAnimInstanceProxy* Proxy) const;
 
 	TArray<TObjectPtr<UAssetUserData>> GetAssetUserData() const { return AssetUserData; }
-	void UpdateGetAssetUserDataDelegate(UBaseControlRig* InControlRig) const;
+	void UpdateGetAssetUserDataDelegate(UControlRig* InControlRig) const;
 
 	bool bControlRigRequiresInitialization;
 	uint16 LastBonesSerialNumberForCacheBones;

@@ -17,7 +17,7 @@ class UMovieSceneSection;
 class UMovieScene3DTransformTrack;
 class UMovieSceneControlRigParameterTrack;
 class UMovieSceneControlRigParameterSection;
-class UBaseControlRig;
+class UControlRig;
 struct FRigHierarchyContainer;
 
 namespace UE
@@ -62,7 +62,7 @@ public:
 
 	const TMap<UObject*, FGuid>& GetObjectsTracked() const { return ObjectsTracked; }
 	const TMap<USkeletalMeshComponent*, TMap<FName, FGuid>>& GetBonesTracked() const { return BonesTracked; }
-	const TMap<UBaseControlRig*, TMap<FName, FGuid>>& GetControlsTracked() const { return ControlsTracked; }
+	const TMap<UControlRig*, TMap<FName, FGuid>>& GetControlsTracked() const { return ControlsTracked; }
 
 	void OnBoneVisibilityChanged(USkeleton* Skeleton, const FName& BoneName, const bool bIsVisible);
 	void OnBindingVisibilityStateChanged(UObject* BoundObject, const EBindingVisibilityState VisibilityState);
@@ -71,10 +71,10 @@ public:
 	void OnActorsChangedSomehow(TArray<AActor*>& InActors);	
 
 private:
-	void AddControlRigTrail(USkeletalMeshComponent* Component,UBaseControlRig* ControlRig, UMovieSceneControlRigParameterTrack* CRTrack, const FName& ControlName);
+	void AddControlRigTrail(USkeletalMeshComponent* Component,UControlRig* ControlRig, UMovieSceneControlRigParameterTrack* CRTrack, const FName& ControlName);
 
-	void UpdateControlRig(const TArray<FFrameNumber>& Frames, UBaseControlRig* ControlRig, TMap<FName, FGuid >& CompMapPair, bool bUseEditedTimes);
-	void UpdateControlRig(const FTrailEvaluateTimes& EvalTimes, UBaseControlRig* ControlRig, TMap<FName, FGuid >& CompMapPair);
+	void UpdateControlRig(const TArray<FFrameNumber>& Frames, UControlRig* ControlRig, TMap<FName, FGuid >& CompMapPair, bool bUseEditedTimes);
+	void UpdateControlRig(const FTrailEvaluateTimes& EvalTimes, UControlRig* ControlRig, TMap<FName, FGuid >& CompMapPair);
 
 	void UpdateSequencerBindings(const TArray<FGuid>& SequencerBindings, TFunctionRef<void(UObject*, FTrail*, FGuid)> OnUpdated);
 	void UpdateViewAndEvalRange();
@@ -87,7 +87,7 @@ private:
 	TWeakPtr<ISequencer> WeakSequencer;
 	TMap<UObject*, FGuid> ObjectsTracked;
 	TMap<USkeletalMeshComponent*, TMap<FName, FGuid>> BonesTracked; 
-	TMap<UBaseControlRig*, TMap<FName, FGuid>> ControlsTracked; 
+	TMap<UControlRig*, TMap<FName, FGuid>> ControlsTracked; 
 
 	// TODO: components can have multiple rigs so make this a map from sections to controls instead. However, this is only part of a larger problem of handling blending
 

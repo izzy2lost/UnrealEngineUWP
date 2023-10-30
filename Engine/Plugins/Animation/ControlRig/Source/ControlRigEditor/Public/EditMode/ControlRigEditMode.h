@@ -22,7 +22,7 @@ class FRigVMEditor;
 class FViewport;
 class UActorFactory;
 struct FViewportClick;
-class UBaseControlRig;
+class UControlRig;
 class FControlRigInteractionScope;
 class ISequencer;
 class UControlManipulator;
@@ -44,8 +44,8 @@ class UToolMenu;
 DECLARE_DELEGATE_RetVal_ThreeParams(FTransform, FOnGetRigElementTransform, const FRigElementKey& /*RigElementKey*/, bool /*bLocal*/, bool /*bOnDebugInstance*/);
 DECLARE_DELEGATE_ThreeParams(FOnSetRigElementTransform, const FRigElementKey& /*RigElementKey*/, const FTransform& /*Transform*/, bool /*bLocal*/);
 DECLARE_DELEGATE_RetVal(TSharedPtr<FUICommandList>, FNewMenuCommandsDelegate);
-DECLARE_MULTICAST_DELEGATE_TwoParams(FControlRigAddedOrRemoved, UBaseControlRig*, bool /*true if added, false if removed*/);
-DECLARE_MULTICAST_DELEGATE_ThreeParams(FControlRigSelected, UBaseControlRig*, const FRigElementKey& /*RigElementKey*/,const bool /*bIsSelected*/);
+DECLARE_MULTICAST_DELEGATE_TwoParams(FControlRigAddedOrRemoved, UControlRig*, bool /*true if added, false if removed*/);
+DECLARE_MULTICAST_DELEGATE_ThreeParams(FControlRigSelected, UControlRig*, const FRigElementKey& /*RigElementKey*/,const bool /*bIsSelected*/);
 DECLARE_DELEGATE_RetVal(UToolMenu*, FOnGetContextMenu);
 
 class FControlRigEditMode;
@@ -91,16 +91,16 @@ public:
 
 	/** Set the Control Rig Object to be active in the edit mode. You set both the Control Rig and a possible binding together with an optional Sequencer
 	 This will remove all other control rigs present and should be called for stand alone editors, like the Control Rig Editor*/
-	void SetObjects(UBaseControlRig* InControlRig, UObject* BindingObject, TWeakPtr<ISequencer> InSequencer);
+	void SetObjects(UControlRig* InControlRig, UObject* BindingObject, TWeakPtr<ISequencer> InSequencer);
 
 	/** Add a Control Rig object if it doesn't exist, will return true if it was added, false if it wasn't since it's already there. You can also set the Sequencer.*/
-	bool AddControlRigObject(UBaseControlRig* InControlRig, TWeakPtr<ISequencer> InSequencer);
+	bool AddControlRigObject(UControlRig* InControlRig, TWeakPtr<ISequencer> InSequencer);
 
 	/* Remove control rig */
-	void RemoveControlRig(UBaseControlRig* InControlRig);
+	void RemoveControlRig(UControlRig* InControlRig);
 
 	/*Replace old Control Rig with the New Control Rig, perhaps from a recompile in the level editor*/
-	void ReplaceControlRig(UBaseControlRig* OldControlRig, UBaseControlRig* NewControlRig);
+	void ReplaceControlRig(UControlRig* OldControlRig, UControlRig* NewControlRig);
 
 	/** This edit mode is re-used between the level editor and the asset editors (control rig editor etc.). Calling this indicates which context we are in */
 	virtual bool IsInLevelEditor() const;
@@ -166,9 +166,9 @@ public:
 	// callback that gets called when rig element is selected in other view
 	void OnHierarchyModified(ERigHierarchyNotification InNotif, URigHierarchy* InHierarchy, const FRigBaseElement* InElement);
 	void OnHierarchyModified_AnyThread(ERigHierarchyNotification InNotif, URigHierarchy* InHierarchy, const FRigBaseElement* InElement);
-	void OnControlModified(UBaseControlRig* Subject, FRigControlElement* InControlElement, const FRigControlModifiedContext& Context);
-	void OnPreConstruction_AnyThread(UBaseControlRig* InRig, const FName& InEventName);
-	void OnPostConstruction_AnyThread(UBaseControlRig* InRig, const FName& InEventName);
+	void OnControlModified(UControlRig* Subject, FRigControlElement* InControlElement, const FRigControlModifiedContext& Context);
+	void OnPreConstruction_AnyThread(UControlRig* InRig, const FName& InEventName);
+	void OnPostConstruction_AnyThread(UControlRig* InRig, const FName& InEventName);
 
 	/** return true if it can be removed from preview scene 
 	- this is to ensure preview scene doesn't remove shape actors */
@@ -178,7 +178,7 @@ public:
 
 	/** Requests to recreate the shape actors in the next tick. Will recreate only the ones for the specified
 	Control Rig, otherwise will recreate all of them*/
-	void RequestToRecreateControlShapeActors(UBaseControlRig* ControlRig = nullptr); 
+	void RequestToRecreateControlShapeActors(UControlRig* ControlRig = nullptr); 
 
 	static uint32 ValidControlTypeMask()
 	{
@@ -189,7 +189,7 @@ protected:
 
 	// shape related functions wrt enable/selection
 	/** Get the node name from the property path */
-	AControlRigShapeActor* GetControlShapeFromControlName(UBaseControlRig* InControlRig,const FName& InControlName) const;
+	AControlRigShapeActor* GetControlShapeFromControlName(UControlRig* InControlRig,const FName& InControlName) const;
 
 protected:
 	/** Helper function: set ControlRigs array to the details panel */
@@ -200,9 +200,9 @@ protected:
 
 	/** Updates cached pivot transforms */
 	void UpdatePivotTransforms();
-	void UpdatePivotFromEditedShape(UBaseControlRig* InControlRig);
-	void UpdatePivotFromShapeActors(UBaseControlRig* InControlRig, const bool bEachLocalSpace, const bool bIsParentSpace);
-	void UpdatePivotFromElements(UBaseControlRig* InControlRig);
+	void UpdatePivotFromEditedShape(UControlRig* InControlRig);
+	void UpdatePivotFromShapeActors(UControlRig* InControlRig, const bool bEachLocalSpace, const bool bIsParentSpace);
+	void UpdatePivotFromElements(UControlRig* InControlRig);
 	
 	/** Get the current coordinate system space */
 	ECoordSystem GetCoordSystemSpace() const;
@@ -296,7 +296,7 @@ protected:
 	FGuid LastMovieSceneSig;
 
 	/** The scope for the interaction, one per manipulated Control rig */
-	TMap<UBaseControlRig*,FControlRigInteractionScope*> InteractionScopes;
+	TMap<UControlRig*,FControlRigInteractionScope*> InteractionScopes;
 
 	/** True if there's tracking going on right now */
 	bool bIsTracking;
@@ -311,10 +311,10 @@ protected:
 	bool bSelectionChanged;
 
 	/** Cached transform of pivot point for selected objects for each Control Rig */
-	TMap<UBaseControlRig*,FTransform> PivotTransforms;
+	TMap<UControlRig*,FTransform> PivotTransforms;
 
 	/** Previous cached transforms, need this to check on tick if any transform changed, gizmo may have changed*/
-	TMap<UBaseControlRig*, FTransform> LastPivotTransforms;
+	TMap<UControlRig*, FTransform> LastPivotTransforms;
 
 	/** Command bindings for keyboard shortcuts */
 	TSharedPtr<FUICommandList> CommandBindings;
@@ -334,23 +334,23 @@ protected:
 	FControlRigSelected OnControlRigSelectedDelegate;
 
 	/** GetSelectedRigElements, if InControlRig is nullptr get the first one */
-	TArray<FRigElementKey> GetSelectedRigElements(UBaseControlRig* InControlRig = nullptr) const;
+	TArray<FRigElementKey> GetSelectedRigElements(UControlRig* InControlRig = nullptr) const;
 
 	/* Flag to recreate shapes during tick */
 	ERecreateControlRigShape RecreateControlShapesRequired;
 	/* List of Control Rigs we should recreate*/
-	TArray<UBaseControlRig*> ControlRigsToRecreate;
+	TArray<UControlRig*> ControlRigsToRecreate;
 
 	/* Flag to temporarily disable handling notifs from the hierarchy */
 	bool bSuspendHierarchyNotifs;
 
 	/** Shape actors */
-	TMap<UBaseControlRig*,TArray<TObjectPtr<AControlRigShapeActor>>> ControlRigShapeActors;
+	TMap<UControlRig*,TArray<TObjectPtr<AControlRigShapeActor>>> ControlRigShapeActors;
 	TObjectPtr<UControlRigDetailPanelControlProxies> ControlProxy;
 
 	/** Utility functions for UI/Some other viewport manipulation*/
 	bool IsControlSelected() const;
-	bool AreRigElementSelectedAndMovable(UBaseControlRig* InControlRig) const;
+	bool AreRigElementSelectedAndMovable(UControlRig* InControlRig) const;
 	
 	/** Set initial transform handlers */
 	void OpenContextMenu(FEditorViewportClient* InViewportClient);
@@ -368,26 +368,26 @@ public:
 	void ClearRigElementSelection(uint32 InTypes);
 
 	/** Set a RigElement's selection state */
-	void SetRigElementSelection(UBaseControlRig* ControlRig, ERigElementType Type, const FName& InRigElementName, bool bSelected);
+	void SetRigElementSelection(UControlRig* ControlRig, ERigElementType Type, const FName& InRigElementName, bool bSelected);
 
 	/** Set multiple RigElement's selection states */
-	void SetRigElementSelection(UBaseControlRig* ControlRig, ERigElementType Type, const TArray<FName>& InRigElementNames, bool bSelected);
+	void SetRigElementSelection(UControlRig* ControlRig, ERigElementType Type, const TArray<FName>& InRigElementNames, bool bSelected);
 
 	/** Check if any RigElements are selected */
-	bool AreRigElementsSelected(uint32 InTypes, UBaseControlRig* InControlRig) const;
+	bool AreRigElementsSelected(uint32 InTypes, UControlRig* InControlRig) const;
 
 	/** Get the number of selected RigElements */
-	int32 GetNumSelectedRigElements(uint32 InTypes, UBaseControlRig* InControlRig) const;
+	int32 GetNumSelectedRigElements(uint32 InTypes, UControlRig* InControlRig) const;
 
 	/** Get all of the selected Controls*/
-	void GetAllSelectedControls(TMap<UBaseControlRig*, TArray<FRigElementKey>>& OutSelectedControls) const;
+	void GetAllSelectedControls(TMap<UControlRig*, TArray<FRigElementKey>>& OutSelectedControls) const;
 
 	/** Get all of the ControlRigs, maybe not valid anymore */
-	TArrayView<const TWeakObjectPtr<UBaseControlRig>> GetControlRigs() const;
-	TArrayView<TWeakObjectPtr<UBaseControlRig>> GetControlRigs();
+	TArrayView<const TWeakObjectPtr<UControlRig>> GetControlRigs() const;
+	TArrayView<TWeakObjectPtr<UControlRig>> GetControlRigs();
 	/* Get valid  Control Rigs possibly just visible*/
-	TArray<UBaseControlRig*> GetControlRigsArray(bool bIsVisible);
-	TArray<const UBaseControlRig*> GetControlRigsArray(bool bIsVisible) const;
+	TArray<UControlRig*> GetControlRigsArray(bool bIsVisible);
+	TArray<const UControlRig*> GetControlRigsArray(bool bIsVisible) const;
 
 	/** Get the detail proxies control rig*/
 	UControlRigDetailPanelControlProxies* GetDetailProxies() { return ControlProxy; }
@@ -405,7 +405,7 @@ private:
 	/** Whether or not Pivot Transforms have changed, in which case we need to redraw viewport*/
 	bool HasPivotTransformsChanged() const;
 	/** Set a RigElement's selection state */
-	void SetRigElementSelectionInternal(UBaseControlRig* ControlRig, ERigElementType Type, const FName& InRigElementName, bool bSelected);
+	void SetRigElementSelectionInternal(UControlRig* ControlRig, ERigElementType Type, const FName& InRigElementName, bool bSelected);
 	
 	FEditorViewportClient* CurrentViewportClient;
 	TArray<UE::Widget::EWidgetMode> RequestedWidgetModes;
@@ -424,15 +424,15 @@ public:
 	bool GetOnlySelectRigControls()const;
 
 private:
-	TSet<FName> GetActiveControlsFromSequencer(UBaseControlRig* ControlRig);
+	TSet<FName> GetActiveControlsFromSequencer(UControlRig* ControlRig);
 	bool SetSequencer(TWeakPtr<ISequencer> InSequencer);
 
 	/** Create/Delete for the specified ControlRig*/
-	void CreateShapeActors(UBaseControlRig* InControlRig);
-	void DestroyShapesActors(UBaseControlRig* InControlRig);
+	void CreateShapeActors(UControlRig* InControlRig);
+	void DestroyShapesActors(UControlRig* InControlRig);
 
 	/*Internal function for adding ControlRig*/
-	void AddControlRigInternal(UBaseControlRig* InControlRig);
+	void AddControlRigInternal(UControlRig* InControlRig);
 	void TickManipulatableObjects(float DeltaTime);
 
 	/* Check on tick to see if movie scene has changed, returns true if it has*/
@@ -455,19 +455,19 @@ protected:
 	
 	/** Get bindings to a runtime object */
 	//If the passed in ControlRig is nullptr we use the first Control Rig(this can happen from the BP Editors).
-	USceneComponent* GetHostingSceneComponent(const UBaseControlRig* ControlRig = nullptr) const;
-	FTransform	GetHostingSceneComponentTransform(const UBaseControlRig* ControlRig =  nullptr) const;
+	USceneComponent* GetHostingSceneComponent(const UControlRig* ControlRig = nullptr) const;
+	FTransform	GetHostingSceneComponentTransform(const UControlRig* ControlRig =  nullptr) const;
 
 	//Get if the hosted component is visible
-	bool IsControlRigSkelMeshVisible(UBaseControlRig* ControlRig) const;
+	bool IsControlRigSkelMeshVisible(UControlRig* ControlRig) const;
 
 private:
 
 	// Post pose update handler
 	void OnPoseInitialized();
 	void PostPoseUpdate();
-	void NotifyDrivenControls(UBaseControlRig* InControlRig, const FRigElementKey& InKey);
-	void UpdateSelectabilityOnSkeletalMeshes(UBaseControlRig* InControlRig, bool bEnabled);
+	void NotifyDrivenControls(UControlRig* InControlRig, const FRigElementKey& InKey);
+	void UpdateSelectabilityOnSkeletalMeshes(UControlRig* InControlRig, bool bEnabled);
 
 	// world clean up handlers
 	FDelegateHandle OnWorldCleanupHandle;
@@ -476,8 +476,8 @@ private:
 
 	void OnEditorClosed();
 	
-	TArray<TWeakObjectPtr<UBaseControlRig>> RuntimeControlRigs;
-	TMap<UBaseControlRig*,TStrongObjectPtr<UControlRigEditModeDelegateHelper>> DelegateHelpers;
+	TArray<TWeakObjectPtr<UControlRig>> RuntimeControlRigs;
+	TMap<UControlRig*,TStrongObjectPtr<UControlRigEditModeDelegateHelper>> DelegateHelpers;
 
 	//hack since we can't get the viewport client from the viewport, so in the tick we set the gameview bool and then in render/tickcontrolshapes we use it.
 	TMap<FViewport*, bool>  ViewportToGameView;

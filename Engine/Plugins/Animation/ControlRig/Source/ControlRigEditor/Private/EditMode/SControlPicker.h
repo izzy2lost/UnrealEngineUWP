@@ -8,7 +8,7 @@
 #include "Delegates/Delegate.h"
 #include "UObject/WeakObjectPtr.h"
 
-class UBaseControlRig;
+class UControlRig;
 class SControlPicker;
 class SCanvas;
 class SScaleBox;
@@ -27,7 +27,7 @@ public:
 	void Construct(const FArguments& InArgs, UWorld* InWorld);
 
 	/** Set the rig to display manipulators for */
-	void SetControlRig(UBaseControlRig* InRig);
+	void SetControlRig(UControlRig* InRig);
 
 	/** Set the manipulators that are currently selected */
 	void SetSelectedManipulators(const TArray<FName>& Manipulators);
@@ -43,7 +43,7 @@ public:
 	bool IsManipulatorSelected(FName ManipulatorName);
 
 	/** Returns the rig we are displaying controls for */
-	UBaseControlRig* GetRig() const;
+	UControlRig* GetRig() const;
 
 	/** See if the limb/spine is in IK mode, or FK */
 	bool IsControlIK(FName ControlName) const;
@@ -59,5 +59,5 @@ protected:
 	TSharedPtr<SEditorUserWidgetHost> EditorUserWidgetHost;
 
 	/** Rig we are showing controls for */
-	TWeakObjectPtr<UBaseControlRig> RigPtr;
+	TWeakObjectPtr<UControlRig> RigPtr;
 };

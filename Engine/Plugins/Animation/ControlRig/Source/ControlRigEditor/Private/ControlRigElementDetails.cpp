@@ -91,7 +91,7 @@ void RigElementKeyDetails_GetCustomizedInfo(TSharedRef<IPropertyHandle> InStruct
 			break;
 		}
 
-		if(const UBaseControlRig* ControlRig = Object->GetTypedOuter<UBaseControlRig>())
+		if(const UControlRig* ControlRig = Object->GetTypedOuter<UControlRig>())
 		{
 			OutBlueprint = Cast<UControlRigBlueprint>(ControlRig->GetClass()->ClassGeneratedBy);
 			if(OutBlueprint)
@@ -116,7 +116,7 @@ void RigElementKeyDetails_GetCustomizedInfo(TSharedRef<IPropertyHandle> InStruct
 			Package->GetDefaultSubobjects(SubObjects);
 			for (UObject* SubObject : SubObjects)
 			{
-				if (UBaseControlRig* Rig = Cast<UBaseControlRig>(SubObject))
+				if (UControlRig* Rig = Cast<UControlRig>(SubObject))
 				{
 					UControlRigBlueprint* Blueprint = Cast<UControlRigBlueprint>(Rig->GetClass()->ClassGeneratedBy);
 					if (Blueprint)
@@ -148,7 +148,7 @@ UControlRigBlueprint* RigElementDetails_GetBlueprintFromHierarchy(URigHierarchy*
 	UControlRigBlueprint* Blueprint = InHierarchy->GetTypedOuter<UControlRigBlueprint>();
 	if(Blueprint == nullptr)
 	{
-		UBaseControlRig* Rig = InHierarchy->GetTypedOuter<UBaseControlRig>();
+		UControlRig* Rig = InHierarchy->GetTypedOuter<UControlRig>();
 		if(Rig)
 		{
 			Blueprint = Cast<UControlRigBlueprint>(Rig->GetClass()->ClassGeneratedBy);
@@ -965,7 +965,7 @@ bool FRigBaseElementDetails::IsConstructionModeEnabled() const
 	
 	if(const UControlRigBlueprint* Blueprint = PerElementInfos[0].GetBlueprint())
 	{
-		if (const UBaseControlRig* DebuggedRig = Cast<UBaseControlRig>(Blueprint ->GetObjectBeingDebugged()))
+		if (const UControlRig* DebuggedRig = Cast<UControlRig>(Blueprint ->GetObjectBeingDebugged()))
 		{
 			return DebuggedRig->IsConstructionModeEnabled();
 		}
@@ -2095,7 +2095,7 @@ FDetailWidgetRow& FRigTransformElementDetails::CreateEulerTransformValueWidgetRo
 		const bool bInitial = CurrentTransformType == ERigTransformElementDetailsTransform::Initial; 
 
 		bool bConstructionModeEnabled = false;
-		if (UBaseControlRig* DebuggedRig = Cast<UBaseControlRig>(PerElementInfos[0].GetBlueprint()->GetObjectBeingDebugged()))
+		if (UControlRig* DebuggedRig = Cast<UControlRig>(PerElementInfos[0].GetBlueprint()->GetObjectBeingDebugged()))
 		{
 			bConstructionModeEnabled = DebuggedRig->IsConstructionModeEnabled();
 		}
@@ -2334,7 +2334,7 @@ FDetailWidgetRow& FRigTransformElementDetails::CreateEulerTransformValueWidgetRo
 			ESlateRotationRepresentation::Type Representation,
 			ESlateTransformSubComponent::Type SubComponent)
 		{
-			if (UBaseControlRig* DebuggedRig = Cast<UBaseControlRig>(PerElementInfos[0].GetBlueprint()->GetObjectBeingDebugged()))
+			if (UControlRig* DebuggedRig = Cast<UControlRig>(PerElementInfos[0].GetBlueprint()->GetObjectBeingDebugged()))
 			{
 				EControlRigInteractionType Type = EControlRigInteractionType::None;
 				switch (Component)
@@ -2364,7 +2364,7 @@ FDetailWidgetRow& FRigTransformElementDetails::CreateEulerTransformValueWidgetRo
 			ESlateTransformSubComponent::Type SubComponent,
 			FVector::FReal InNumericValue)
 		{
-			if (UBaseControlRig* DebuggedRig = Cast<UBaseControlRig>(PerElementInfos[0].GetBlueprint()->GetObjectBeingDebugged()))
+			if (UControlRig* DebuggedRig = Cast<UControlRig>(PerElementInfos[0].GetBlueprint()->GetObjectBeingDebugged()))
 			{
 				DebuggedRig->InteractionType = (uint8)EControlRigInteractionType::None;
 				DebuggedRig->ElementsBeingInteracted.Reset();
@@ -3134,7 +3134,7 @@ void FRigControlElementDetails::CustomizeControl(IDetailLayoutBuilder& DetailBui
 						Info.GetDefaultHierarchy()->SetControlValue(ControlBeingCustomized, InitialValue, ERigControlValueType::Initial, false, false, true);
 						Info.GetDefaultHierarchy()->SetControlValue(ControlBeingCustomized, CurrentValue, ERigControlValueType::Current, false, false, true);
 
-						if (UBaseControlRig* DebuggedRig = Cast<UBaseControlRig>(Info.GetBlueprint()->GetObjectBeingDebugged()))
+						if (UControlRig* DebuggedRig = Cast<UControlRig>(Info.GetBlueprint()->GetObjectBeingDebugged()))
 						{
 							URigHierarchy* DebuggedHierarchy = DebuggedRig->GetHierarchy();
 							if(FRigControlElement* DebuggedControlElement = DebuggedHierarchy->Find<FRigControlElement>(ControlBeingCustomized->GetKey()))
