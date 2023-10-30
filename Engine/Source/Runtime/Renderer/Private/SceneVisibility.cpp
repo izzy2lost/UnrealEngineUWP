@@ -3758,6 +3758,7 @@ void FVisibilityTaskData::MergeSecondaryViewVisibility()
 void FVisibilityTaskData::FinishGatherDynamicMeshElements(FVirtualTextureUpdater* VirtualTextureUpdater)
 {
 	check(IsInRenderingThread());
+	Scene.WaitForGPUSkinCacheTask();
 
 	if (DynamicMeshElements.CommandPipe)
 	{
@@ -4053,7 +4054,6 @@ void FVisibilityTaskData::ProcessRenderThreadTasks(FExclusiveDepthStencil::Type 
 		SetupMeshPasses(BasePassDepthStencilAccess, InstanceCullingManager);
 	}
 
-	Scene.WaitForGPUSkinCacheTask();
 	Tasks.LightVisibility.Wait();
 
 	INC_DWORD_STAT_BY(STAT_ProcessedPrimitives, Scene.Primitives.Num() * Views.Num());
