@@ -3657,6 +3657,13 @@ FShaderCommonCompileJob::FInputHash FShaderCompileJob::GetInputHash()
 		{
 			Hasher << const_cast<FString&>(SecondaryPreprocessOutput->GetSource());
 		}
+
+		if (Input.RootParametersStructure)
+		{
+			uint32 LayoutHash = Input.RootParametersStructure->GetLayoutHash();
+			Hasher << LayoutHash;
+		}
+
 		InputHash = Hasher.Finalize();
 	}
 	else
