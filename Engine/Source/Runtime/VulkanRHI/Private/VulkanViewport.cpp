@@ -373,6 +373,7 @@ FVulkanFramebuffer::FVulkanFramebuffer(FVulkanDevice& Device, const FRHISetRende
 				, ArraySliceIndex
 				, NumArraySlices
 				, true
+				, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
 			);
 		}
 		else if (Texture->GetViewType() == VK_IMAGE_VIEW_TYPE_CUBE)
@@ -391,6 +392,7 @@ FVulkanFramebuffer::FVulkanFramebuffer(FVulkanDevice& Device, const FRHISetRende
 				, InRTInfo.ColorRenderTarget[Index].ArraySliceIndex
 				, 1
 				, true
+				, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
 			);
 		}
 		else if (Texture->GetViewType() == VK_IMAGE_VIEW_TYPE_3D)
