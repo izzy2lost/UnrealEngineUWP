@@ -200,7 +200,7 @@ function transitionDisplayStompResults() {
 // Create visualization of the changelist, with links to swarm, a display of the description and a list of relevant files to this request
 function visualizeChangelist(changelist, changelistData) {
     const changelistDiv = $(`<div id="${changelist}" class="stomp-visual">`)
-    if (changelistData.author.toLowerCase() === robomergeUser.userName.toLowerCase()) {
+    if (robomergeUser && changelistData.author.toLowerCase() === robomergeUser.userName.toLowerCase()) {
         changelistDiv.append($('<h3>').html(`${makeClLink(changelist)} by <strong>you</strong>`))
     } else {
         changelistDiv.append($('<h3>').html(`${makeClLink(changelist)} by ${changelistData.author}`))

@@ -200,7 +200,7 @@ function transitionDisplayUnlockResults() {
 // Create visualization of the file, with links to swarm
 function visualizeAuthor(author, files) {
     const authorDiv = $(`<div id="${author}" class="unlock-visual">`)
-    if (author.toLowerCase() === robomergeUser.userName.toLowerCase()) {
+    if (robomergeUser && author.toLowerCase() === robomergeUser.userName.toLowerCase()) {
         authorDiv.append($('<h3>').html("Locked by <strong>you</strong>"))
     } else {
         authorDiv.append($('<h3>').html(`Locked by ${author}`))
