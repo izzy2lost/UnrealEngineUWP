@@ -21,7 +21,7 @@ CSV_DECLARE_CATEGORY_EXTERN(VSM);
 static TAutoConsoleVariable<int32> CVarAccumulateStats(
 	TEXT("r.Shadow.Virtual.AccumulateStats"),
 	0,
-	TEXT("AccumulateStats"),
+	TEXT("When enabled, VSM stats will be collected over multiple frames and written to a CSV file"),
 	ECVF_RenderThreadSafe
 );
 
@@ -45,14 +45,14 @@ static TAutoConsoleVariable<int32> CVarDrawInvalidatingBounds(
 static TAutoConsoleVariable<int32> CVarCacheVsmUseHzb(
 	TEXT("r.Shadow.Virtual.Cache.InvalidateUseHZB"),
 	1,
-	TEXT("Enables testing HZB for Virtual Shadow Map invalidations."),
+	TEXT(" When enabled, instances invalidations are tested against the HZB. Instances that are fully occluded will not cause page invalidations."),
 	ECVF_RenderThreadSafe);
 
 int32 GClipmapPanning = 1;
 FAutoConsoleVariableRef CVarEnableClipmapPanning(
 	TEXT("r.Shadow.Virtual.Cache.ClipmapPanning"),
 	GClipmapPanning,
-	TEXT("Enable support for panning cached clipmap pages for directional lights."),
+	TEXT("Enable support for panning cached clipmap pages for directional lights, allowing re-use of cached data when the camera moves. Keep this enabled outside of debugging."),
 	ECVF_RenderThreadSafe
 );
 
@@ -60,7 +60,7 @@ static int32 GVSMCacheDeformableMeshesInvalidate = 1;
 FAutoConsoleVariableRef CVarCacheInvalidateOftenMoving(
 	TEXT("r.Shadow.Virtual.Cache.DeformableMeshesInvalidate"),
 	GVSMCacheDeformableMeshesInvalidate,
-	TEXT("If enabled, Primitive Proxies that are marked as having deformable meshes (HasDeformableMesh() == true) causes invalidations regardless of whether their transforms are updated."),
+	TEXT("If enabled, Primitive Proxies that are marked as having deformable meshes (HasDeformableMesh() == true) cause invalidations regardless of whether their transforms are updated."),
 	ECVF_RenderThreadSafe);
 
 int32 GForceInvalidateDirectionalVSM = 0;
@@ -89,7 +89,8 @@ static TAutoConsoleVariable<int32> CVarVSMReservedResource(
 static TAutoConsoleVariable<float> CVarVSMDynamicResolutionMaxLodBias(
 	TEXT("r.Shadow.Virtual.DynamicRes.MaxResolutionLodBias"),
 	2.0f,
-	TEXT("Maximum LOD bias to clamp to for global dynamic resolution reduction. 0 = disabled"),
+	TEXT("As page allocation approaches the pool capacity, VSM resolution ramps down by biasing the LOD up, similar to 'ResolutionLodBiasDirectional'.\n")
+	TEXT("This is the maximum LOD bias to clamp to for global dynamic shadow resolution reduction. 0 = disabled"),
 	ECVF_RenderThreadSafe
 );
 

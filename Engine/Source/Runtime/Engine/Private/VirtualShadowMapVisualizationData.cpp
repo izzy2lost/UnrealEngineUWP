@@ -65,7 +65,7 @@ void FVirtualShadowMapVisualizationData::Initialize()
 		AddVisualizationMode(
 			TEXT("invalid"),
 			LOCTEXT("InvalidPage", "GPU Invalidated Page"),
-			LOCTEXT("InvalidPageDebugDesc", "Show the pages marked for GPU-driven invalidaiton (World Position Offset)."),
+			LOCTEXT("InvalidPageDebugDesc", "Show the pages marked for GPU-driven invalidation (World Position Offset)."),
 			FModeType::Advanced,
 			VIRTUAL_SHADOW_MAP_VISUALIZE_GPU_INVALIDATED_PAGE);
 

@@ -684,7 +684,7 @@ void VirtualShadowMapProjection(
 #if DIRECTIONAL_LIGHT
 		// Increases light source radius for subsurface material as the opacity reduces to emulates light diffusion.
 		// TODO: Does something similar make sense for local lights?
-		// Substrate: this approximation has no concrete fundation so it is currently skipped for Substrate using PerPixel SSS, e.g. when bDataIsOpacity==false and data is MFP.
+		// Substrate: this approximation has no concrete foundation so it is currently skipped for Substrate using PerPixel SSS, e.g. when bDataIsOpacity==false and data is MFP.
 		if (SubsurfaceOpacityMFP.bDataIsOpacity && SubsurfaceOpacityMFP.Data < 1.0f)
 		{
 			const float SubsurfaceOpacity = SubsurfaceOpacityMFP.Data;

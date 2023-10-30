@@ -27,14 +27,15 @@ TAutoConsoleVariable<int32> CVarVSMMaterialVisibility(
 TAutoConsoleVariable<int32> CVarMaxDistantLightsPerFrame(
 	TEXT("r.Shadow.Virtual.MaxDistantUpdatePerFrame"),
 	1,
-	TEXT("Maximum number of distant lights to update each frame."),
+	TEXT("Maximum number of distant lights to update each frame. Invalidated lights that were missed may be updated in a later frame (round-robin)."),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
 static TAutoConsoleVariable<int32> CVarDistantLightMode(
 	TEXT("r.Shadow.Virtual.DistantLightMode"),
 	1,
-	TEXT("Control whether distant light mode is enabled for local lights.\n0 == Off, \n1 == On (default), \n2 == Force All."),
+	TEXT("Control whether distant light mode is enabled for local lights.\n0 == Off, \n1 == On (default), \n2 == Force All.\n")
+	TEXT("When on, lights with a pixel footprint below the threshold are marked as distant. Updates to distant lights are throttled (force-cached), they use simpler page-table logic and the memory cost is lower."),
 	ECVF_RenderThreadSafe
 );
 
@@ -42,6 +43,7 @@ static TAutoConsoleVariable<float> CVarDistantLightForceCacheFootprintFraction(
 	TEXT("r.Shadow.Virtual.DistantLightForceCacheFootprintFraction"),
 	0.0f,
 	TEXT("Fraction of footprint size below which start force-caching lights that are invalidated (i.e., are moving or re-added)\n")
+	TEXT("  Larger values may improve performance but may also produce more visible artifacts\n")
 	TEXT("  The base footprint is based on the page size.\n")
 	TEXT("  0.0 == Never force-cache (default), 1.0 == Always force-cache."),
 	ECVF_Scalability | ECVF_RenderThreadSafe
@@ -70,7 +72,8 @@ static TAutoConsoleVariable<float> CVarResolutionLodBiasLocal(
 static TAutoConsoleVariable<float> CVarResolutionLodBiasLocalMoving(
 	TEXT("r.Shadow.Virtual.ResolutionLodBiasLocalMoving"),
 	1.0f,
-	TEXT("Bias applied to LOD calculations for moving local lights. -1.0 doubles resolution, 1.0 halves it and so on."),
+	TEXT("Bias applied to LOD calculations for local lights that are moving. -1.0 doubles resolution, 1.0 halves it and so on.\n")
+	TEXT("The bias transitions smoothly back to ResolutionLodBiasLocal as the light transitions to non-moving, see 'r.Shadow.Scene.LightActiveFrameCount'."),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 

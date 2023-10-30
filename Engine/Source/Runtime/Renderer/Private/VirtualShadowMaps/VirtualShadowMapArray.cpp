@@ -51,7 +51,8 @@ FAutoConsoleVariableRef CVarVSMShowLightDrawEvents(
 TAutoConsoleVariable<int32> CVarEnableVirtualShadowMaps(
 	TEXT("r.Shadow.Virtual.Enable"),
 	0,
-	TEXT("Enable Virtual Shadow Maps."),
+	TEXT("Enable Virtual Shadow Maps. Renders geometry into virtualized shadow depth maps for shadowing.\n")
+	TEXT("Provides high - quality shadows for next - gen projects with simplified setup.High efficiency culling when used with Nanite."),
 	FConsoleVariableDelegate::CreateLambda([](IConsoleVariable* InVariable)
 	{
 		// Needed because the depth state changes with method (so cached draw commands must be re-created) see SetStateForShadowDepth
@@ -63,7 +64,11 @@ TAutoConsoleVariable<int32> CVarEnableVirtualShadowMaps(
 TAutoConsoleVariable<int32> CVarMaxPhysicalPages(
 	TEXT("r.Shadow.Virtual.MaxPhysicalPages"),
 	2048,
-	TEXT("Maximum number of physical pages in the pool."),
+	TEXT("Maximum number of physical pages in the pool.\n")
+	TEXT("More space for pages means more memory usage, but allows for higher resolution shadows.\n")
+	TEXT("Ideally this value is large enough to fit enough pages for all the lights in the scene, but not too large to waste memory.\n")
+	TEXT("Enable 'ShowStats' to see how many pages are allocated in the pool right now.\n")
+	TEXT("For more page pool control, see the 'ResolutionLodBias*', 'DynamicRes.*' and 'Cache.StaticSeparate' cvars."),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
@@ -78,7 +83,7 @@ TAutoConsoleVariable<int32> CVarCacheStaticSeparate(
 static TAutoConsoleVariable<int32> CVarShowStats(
 	TEXT("r.Shadow.Virtual.ShowStats"),
 	0,
-	TEXT("ShowStats, also toggle shaderprint one!"),
+	TEXT("Show VSM statistics."),
 	ECVF_RenderThreadSafe
 );
 
@@ -142,8 +147,11 @@ TAutoConsoleVariable<int32> CVarCoarsePagesIncludeNonNanite(
 TAutoConsoleVariable<float> CVarNonNaniteCulledInstanceAllocationFactor(
 	TEXT("r.Shadow.Virtual.NonNanite.CulledInstanceAllocationFactor"),
 	1.0f,
-	TEXT("Scale factor multiplied by the conservative size required if all instances are emitted into every clip or mip level, setting to 1.0 is fully conservative.")
-	TEXT("The actual number cannot be known on the CPU as the culling emits an instace for each clip/mip level that is overlapped."),
+	TEXT("Allocation size scale factor for the buffer used to store instances after culling.\n")
+	TEXT("The total size accounts for the worst-case scenario in which all instances are emitted into every clip or mip level.\n")
+	TEXT("This is far more than we'd expect in reasonable circumstances, so this scale factor is used to reduce memory pressure.\n")
+	TEXT("The actual number cannot be known on the CPU as the culling emits an instance for each clip/mip level that is overlapped.\n")
+	TEXT("Setting to 1.0 is fully conservative. Lowering this is likely to produce artifacts unless you're certain the buffer won't overflow."),
 	ECVF_RenderThreadSafe
 );
 
@@ -179,7 +187,10 @@ FAutoConsoleVariableRef CVarEnableNonNaniteVSM(
 static TAutoConsoleVariable<int32> CVarNonNaniteVsmUseHzb(
 	TEXT("r.Shadow.Virtual.NonNanite.UseHZB"),
 	2,
-	TEXT("Cull Non-Nanite instances using HZB. If set to 2, attempt to use Nanite-HZB from the current frame."),
+	TEXT("Cull Non-Nanite instances using HZB.\n")
+	TEXT("  Set to 0 to disable.\n")
+	TEXT("  Set to 1 to use HZB from previous frame. Can incorrectly cull in some cases due to outdated data.\n")
+	TEXT("  Set to 2 to use two-pass Nanite culling with HZB from the current frame."),
 	ECVF_RenderThreadSafe);
 
 TAutoConsoleVariable<int32> CVarVirtualShadowOnePassProjectionMaxLights(
@@ -200,28 +211,30 @@ TAutoConsoleVariable<int32> CVarDoNonNaniteBatching(
 static TAutoConsoleVariable<float> CVarCoarsePagePixelThresholdDynamic(
 	TEXT("r.Shadow.Virtual.CoarsePagePixelThresholdDynamic"),
 	16.0f,
-	TEXT("If a dynamic (non-nanite) instance has a smaller footprint, it should not be drawn into a coarse page."),
+	TEXT("If a dynamic (non-nanite) instance has a smaller estimated pixel footprint than this value, it should not be drawn into a coarse page. Higher values cull away more instances."),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
 static TAutoConsoleVariable<float> CVarCoarsePagePixelThresholdStatic(
 	TEXT("r.Shadow.Virtual.CoarsePagePixelThresholdStatic"),
 	1.0f,
-	TEXT("If a static (non-nanite) instance has a smaller footprint, it should not be drawn into a coarse page."),
+	TEXT("If a static (non-nanite) instance has a smaller estimated pixel footprint than this value, it should not be drawn into a coarse page. Higher values cull away more instances.\n")
+	TEXT("This value is typically lower than the non-static one because the static pages have better caching."),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
 static TAutoConsoleVariable<float> CVarCoarsePagePixelThresholdDynamicNanite(
 	TEXT("r.Shadow.Virtual.CoarsePagePixelThresholdDynamicNanite"),
 	4.0f,
-	TEXT("If a dynamic Nanite instance has a smaller footprint, it should not be drawn into a coarse page."),
+	TEXT("If a dynamic Nanite instance has a smaller estimated pixel footprint than this value, it should not be drawn into a coarse page. Higher values cull away more instances.\n")
+	TEXT("This value is typically lower than the non-Nanite one because Nanite has lower overhead for drawing small objects."),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
 static TAutoConsoleVariable<int32> CVarCacheAllocateViaLRU(
 	TEXT("r.Shadow.Virtual.Cache.AllocateViaLRU"),
 	0,
-	TEXT("Prioritizes keeping more recently requested cached physical pages when allocating for new requests.\n"),
+	TEXT("Prioritizes keeping more recently requested cached physical pages when allocating for new requests."),
 	ECVF_RenderThreadSafe
 );
 
@@ -239,7 +252,7 @@ void DumpVSMLightNames()
 
 FAutoConsoleCommand CmdDumpVSMLightNames(
 	TEXT("r.Shadow.Virtual.Visualize.DumpLightNames"),
-	TEXT("Dump light names with virtual shadow maps (for developer use in non-shiping builds)"),
+	TEXT("Dump light names with virtual shadow maps (for developer use in non-shipping builds)"),
 	FConsoleCommandDelegate::CreateStatic(DumpVSMLightNames)
 );
 
@@ -247,7 +260,7 @@ FString GVirtualShadowMapVisualizeLightName;
 FAutoConsoleVariableRef CVarVisualizeLightName(
 	TEXT("r.Shadow.Virtual.Visualize.LightName"),
 	GVirtualShadowMapVisualizeLightName,
-	TEXT("Sets the name of a specific light to visualize (for developer use in non-shiping builds)"),
+	TEXT("Sets the name of a specific light to visualize (for developer use in non-shipping builds)"),
 	ECVF_RenderThreadSafe
 );
 
@@ -264,28 +277,29 @@ static TAutoConsoleVariable<int32> CVarVisualizeLayout(
 TAutoConsoleVariable<int32> CVarDebugSkipMergePhysical(
 	TEXT("r.Shadow.Virtual.DebugSkipMergePhysical"),
 	0,
-	TEXT(""),
+	TEXT("Skip the merging of the static VSM cache into the dynamic one. This will create obvious visual artifacts when disabled."),
 	ECVF_RenderThreadSafe
 );
 
 TAutoConsoleVariable<int32> CVarDebugSkipDynamicPageInvalidation(
 	TEXT("r.Shadow.Virtual.Cache.DebugSkipDynamicPageInvalidation"),
 	0,
-	TEXT("Skip invalidation of cached pages when geometry moves for debugging purposes. This will create obvious visual artifacts when disabled.\n"),
+	TEXT("Skip invalidation of cached pages when geometry moves for debugging purposes. This will create obvious visual artifacts when disabled."),
 	ECVF_RenderThreadSafe
 );
 
 TAutoConsoleVariable<int32> CVarNumPageAreaDiagSlots(
 	TEXT("r.Shadow.Virtual.NonNanite.NumPageAreaDiagSlots"),
 	0,
-	TEXT("Feed back diagnostics to host to report page area coverage for the K first occurrences, < 0 uses the max number allowed, 0 disables."),
+	TEXT("Number of slots in diagnostics to report non-nanite instances with the largest page area coverage, < 0 uses the max number allowed, 0 disables."),
 	ECVF_RenderThreadSafe
 );
 
 TAutoConsoleVariable<int32> CVarLargeInstancePageAreaThreshold(
 	TEXT("r.Shadow.Virtual.NonNanite.LargeInstancePageAreaThreshold"),
 	-1,
-	TEXT("How large area is considered a 'large' footprint, summed over all overlapped levels, if set to -1 uses the physical page pool size / 8."),
+	TEXT("How large area is considered a 'large' footprint, summed over all overlapped levels, if set to -1 uses the physical page pool size / 8.\n")
+	TEXT("Used as a threshold when storing page area coverage stats for diagnostics."),
 	ECVF_RenderThreadSafe
 );
 #endif // !UE_BUILD_SHIPPING
@@ -315,13 +329,16 @@ static TAutoConsoleVariable<int32> CVarVirtualShadowSinglePassBatched(
 static TAutoConsoleVariable<int32> CVarVirtualShadowMapPageMarkingPixelStrideX(
 	TEXT("r.Shadow.Virtual.PageMarkingPixelStrideX"),
 	1,
-	TEXT("."),
+	TEXT("During page marking, instead of testing every screen pixel, test every Nth pixel.\n")
+	TEXT("Page marking from screen pixels is used to determine which VSM pages are seen from the camera and need to be rendered.\n")
+	TEXT("Increasing this value reduces page-marking costs, but could introduce artifacts due to missing pages.\n")
+	TEXT("With sufficiently low values, it is likely a neighbouring pixel will mark the required page anyway."),
 	ECVF_RenderThreadSafe);
 
 static TAutoConsoleVariable<int32> CVarVirtualShadowMapPageMarkingPixelStrideY(
 	TEXT("r.Shadow.Virtual.PageMarkingPixelStrideY"),
 	1,
-	TEXT("."),
+	TEXT("Same as PageMarkingPixelStrideX, but on the vertical axis of the screen."),
 	ECVF_RenderThreadSafe);
 
 namespace Nanite

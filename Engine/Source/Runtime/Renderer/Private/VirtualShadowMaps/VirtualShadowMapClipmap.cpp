@@ -28,20 +28,21 @@ static TAutoConsoleVariable<float> CVarVirtualShadowMapResolutionLodBiasDirectio
 static TAutoConsoleVariable<float> CVarVirtualShadowMapResolutionLodBiasDirectionalMoving(
 	TEXT( "r.Shadow.Virtual.ResolutionLodBiasDirectionalMoving" ),
 	0.5f,
-	TEXT( "Bias applied to LOD calculations for directional lights that are moving. -1.0 doubles resolution, 1.0 halves it and so on." ),
+	TEXT( "Bias applied to LOD calculations for directional lights that are moving. -1.0 doubles resolution, 1.0 halves it and so on.\n" )
+	TEXT( "The bias transitions smoothly back to ResolutionLodBiasDirectional as the light transitions to non-moving, see 'r.Shadow.Scene.LightActiveFrameCount'." ),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
 static TAutoConsoleVariable<int32> CVarVirtualShadowMapClipmapFirstLevel(
 	TEXT( "r.Shadow.Virtual.Clipmap.FirstLevel" ),
 	6,
-	TEXT( "First level of the virtual clipmap. Lower values allow higher resolution shadows closer to the camera." ),
+	TEXT( "First level of the virtual clipmap. Lower values allow higher resolution shadows closer to the camera, but may increase page count." ),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 static TAutoConsoleVariable<int32> CVarVirtualShadowMapClipmapLastLevel(
 	TEXT( "r.Shadow.Virtual.Clipmap.LastLevel" ),
 	22,
-	TEXT( "Last level of the virtual climap. Indirectly determines radius the clipmap can cover." ),
+	TEXT( "Last level of the virtual clipmap. Indirectly determines radius the clipmap can cover. Each extra level doubles the maximum range, but may increase page count." ),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
@@ -62,7 +63,7 @@ TAutoConsoleVariable<int32> CVarVirtualShadowMapClipmapLastCoarseLevel(
 TAutoConsoleVariable<float> CVarVirtualShadowMapClipmapZRangeScale(
 	TEXT("r.Shadow.Virtual.Clipmap.ZRangeScale"),
 	1000.0f,
-	TEXT("Scale of the clipmap level depth range relative to the radius. Should generally be at least 10 or it will result in excessive cache invalidations."),
+	TEXT("Scale of the clipmap level depth range relative to the radius. Affects z-near/z-far of the shadow map. Should generally be at least 10 or it will result in excessive cache invalidations. Values that are too large cause depth imprecisions and shadow flickering."),
 	ECVF_RenderThreadSafe
 );
 

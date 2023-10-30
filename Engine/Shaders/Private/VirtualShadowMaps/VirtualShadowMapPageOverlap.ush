@@ -233,7 +233,7 @@ uint GetDetailGeometryFlagMaskForCulling(bool bShouldCacheAsStatic, bool bIsNani
 		return bIsNaniteGeometry ? 0U : VSM_DETAIL_GEOMETRY_FLAG;
 	}
 
-	// We use a separate threshold for dynamically cached geometry, this is becase the overhead is lower when caching is enabled as cached page culling removes the instances anyway.
+	// We use a separate threshold for dynamically cached geometry, this is because the overhead is lower when caching is enabled as cached page culling removes the instances anyway.
 	// Nanite geometry has a separate smaller footprint as it has better LOD and lower overhead for replicated drawing.
 	if (bShouldCacheAsStatic)
 	{

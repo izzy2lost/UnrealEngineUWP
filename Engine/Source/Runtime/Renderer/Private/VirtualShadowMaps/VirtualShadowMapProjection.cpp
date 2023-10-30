@@ -33,7 +33,7 @@
 static TAutoConsoleVariable<float> CVarScreenRayLength(
 	TEXT( "r.Shadow.Virtual.ScreenRayLength" ),
 	0.015f,
-	TEXT( "Length of the screen space shadow trace (smart shadow bias) before the virtual shadow map lookup." ),
+	TEXT( "Length of the screen space shadow trace away from receiver surface (smart shadow bias) before the VSM / SMRT lookup." ),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
@@ -142,21 +142,24 @@ TAutoConsoleVariable<float> CVarSMRTMaxSlopeBiasLocal(
 static TAutoConsoleVariable<int32> CVarForcePerLightShadowMaskClear(
 	TEXT( "r.Shadow.Virtual.ForcePerLightShadowMaskClear" ),
 	0,
-	TEXT( "" ),
+	TEXT( "For debugging purposes. When enabled, the shadow mask texture is cleared before the projection pass writes to it. Projection pass writes all relevant pixels, so clearing should be unnecessary." ),
 	ECVF_RenderThreadSafe
 );
 
 static TAutoConsoleVariable<int32> CVarVSMTranslucentQuality(
 	TEXT("r.Shadow.Virtual.TranslucentQuality"),
 	0,
-	TEXT("Quality of shadow for lit translucent surfaces. This will be applied on all translucent surfaces, and has high-performance impact."),
+	TEXT("Quality of shadow for lit translucent surfaces. This will be applied on all translucent surfaces, and has high-performance impact.\n")
+	TEXT("Set to 1 to enable the high-quality mode."),
 	ECVF_ReadOnly | ECVF_RenderThreadSafe
 );
 
 static TAutoConsoleVariable<int32> CVarSubsurfaceShadowMinSourceAngle(
 	TEXT("r.Shadow.Virtual.SubsurfaceShadowMinSourceAngle"),
 	5,
-	TEXT("Minimum source angle (in degrees) used for shadow & transmittance of sub-surface materials with directional lights"),
+	TEXT("Minimum source angle (in degrees) used for shadow & transmittance of sub-surface materials with directional lights.\n")
+	TEXT("To emulate light diffusion with sub-surface materials, VSM can increase the light source radius depending on the material opacity.\n")
+	TEXT("The higher this value, the more diffuse the shadowing with these materials will appear."),
 	ECVF_RenderThreadSafe
 );
 
