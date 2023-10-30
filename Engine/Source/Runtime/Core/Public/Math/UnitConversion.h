@@ -135,6 +135,9 @@ struct FUnitConversion
 	/** Helper function to find a unit from a string (name or display string) */
 	static CORE_API TOptional<EUnit> UnitFromString(const TCHAR* UnitString);
 
+	/** Helper function to get all supported units */
+	static CORE_API TConstArrayView<const TCHAR*> GetSupportedUnits();
+
 public:
 
 	/** Convert the specified number from one unit to another. Does nothing if the units are incompatible. */

@@ -27,7 +27,7 @@ struct FParseCandidate
 };
 
 //TODO: Add note about updating
-FParseCandidate ParseCandidates[] = {
+constexpr FParseCandidate ParseCandidates[] = {
 	
 	{ TEXT("Micrometers"),			EUnit::Micrometers },			{ TEXT("um"),		EUnit::Micrometers }, 			{ TEXT("\u00B5m"),	EUnit::Micrometers },
 	{ TEXT("Millimeters"),			EUnit::Millimeters },			{ TEXT("mm"),		EUnit::Millimeters },
@@ -109,7 +109,7 @@ FParseCandidate ParseCandidates[] = {
 
 	{ TEXT("Percent"),				EUnit::Percentage },			{ TEXT("%"),	EUnit::Percentage },
 
-	{ TEXT("times"),				EUnit::Multiplier },			{ TEXT("x"),	EUnit::Multiplier },			{ TEXT("multiplier"),		EUnit::Multiplier },
+	{ TEXT("Times"),				EUnit::Multiplier },			{ TEXT("x"),	EUnit::Multiplier },			{ TEXT("Multiplier"),		EUnit::Multiplier },
 
 	{ TEXT("Pascals"),				EUnit::Pascals },				{ TEXT("Pa"),	EUnit::Pascals},
 	{ TEXT("KiloPascals"),			EUnit::KiloPascals},			{ TEXT("kPa"),	EUnit::KiloPascals},
@@ -118,7 +118,7 @@ FParseCandidate ParseCandidates[] = {
 };
 
 /** Static array of display strings that directly map to EUnit enumerations */
-const TCHAR* const DisplayStrings[] = {
+constexpr const TCHAR* const DisplayStrings[] = {
 	TEXT("\u00B5m"),			TEXT("mm"),					TEXT("cm"),					TEXT("m"),					TEXT("km"),
 	TEXT("in"),					TEXT("ft"),					TEXT("yd"),					TEXT("mi"),
 	TEXT("ly"),
@@ -157,7 +157,100 @@ const TCHAR* const DisplayStrings[] = {
 	TEXT("Pa"), TEXT("kPa"), TEXT("MPa"), TEXT("GPa"),
 };
 
-const EUnitType UnitTypes[] = {
+constexpr const TCHAR* const SupportedUnitsStrings[] = {
+	TEXT("Micrometers"),
+	TEXT("Millimeters"),		
+	TEXT("Centimeters"),		
+	TEXT("Meters"),				
+	TEXT("Kilometers"),			
+	TEXT("Inches"),				
+	TEXT("Feet"),				
+	TEXT("Yards"),				
+	TEXT("Miles"),				
+	TEXT("Lightyears"),			
+
+	TEXT("Degrees"),				
+	TEXT("Radians"),				
+		
+	TEXT("CentimetersPerSecond"),	
+	TEXT("MetersPerSecond"),		
+	TEXT("KilometersPerHour"),	
+	TEXT("MilesPerHour"),			
+
+	TEXT("DegreesPerSecond"),		
+	TEXT("RadiansPerSecond"),		
+		
+	TEXT("Celsius"),			
+	TEXT("Farenheit"),			
+	TEXT("Kelvin"),				
+					
+	TEXT("Micrograms"),			
+	TEXT("Milligrams"),			
+	TEXT("Grams"),				
+	TEXT("Kilograms"),			
+	TEXT("MetricTons"),			
+	TEXT("Ounces"),				
+	TEXT("Pounds"),				
+	TEXT("Stones"),				
+
+	TEXT("GramsPerCubicCentimeter"),	
+	TEXT("GramsPerCubicMeter"),			
+	TEXT("KilogramsPerCubicCentimeter"),
+	TEXT("KilogramsPerCubicMeter"),		
+
+	TEXT("Newtons"),			
+	TEXT("PoundsForce"),		
+	TEXT("KilogramsForce"),		
+	TEXT("KilogramsCentimetersPerSecondSquared"),	
+
+	TEXT("NewtonMeters"),			
+	TEXT("KilogramsCentimetersSquaredPerSecondSquared"),
+
+	TEXT("Hertz"),				
+	TEXT("Kilohertz"),			
+	TEXT("Megahertz"),			
+	TEXT("Gigahertz"),			
+	TEXT("RevolutionsPerMinute")
+
+	TEXT("Bytes"),				
+	TEXT("Kilobytes"),		
+	TEXT("Megabytes"),		
+	TEXT("Gigabytes"),		
+	TEXT("Terabytes"),		
+
+	TEXT("Lumens"),				
+	TEXT("Candela"),			
+	TEXT("Lux"),				
+	TEXT("CandelaPerMeterSquared"), 
+	TEXT("EV"),				
+
+	TEXT("Nanoseconds"),			
+	TEXT("Microseconds"),			
+	TEXT("Milliseconds"),			
+	TEXT("Seconds"),				
+	TEXT("Minutes"),		
+	TEXT("Hours"),			
+	TEXT("Days"),			
+	TEXT("Months"),			
+	TEXT("Years"),			
+
+	TEXT("ppi"),			
+
+	TEXT("Percent"),
+
+	TEXT("Times"),
+	TEXT("Multiplier"),	
+
+	TEXT("Pascals"),		
+	TEXT("KiloPascals"),	
+	TEXT("MegaPascals"),	
+	TEXT("GigaPascals")
+};
+
+static_assert(UE_ARRAY_COUNT(DisplayStrings) == UE_ARRAY_COUNT(SupportedUnitsStrings));
+static_assert(UE_ARRAY_COUNT(DisplayStrings) == (uint32)EUnit::Unspecified);
+
+constexpr EUnitType UnitTypes[] = {
 	EUnitType::Distance,	EUnitType::Distance,	EUnitType::Distance,	EUnitType::Distance,	EUnitType::Distance,
 	EUnitType::Distance,	EUnitType::Distance,	EUnitType::Distance,	EUnitType::Distance,
 	EUnitType::Distance,
@@ -193,8 +286,6 @@ const EUnitType UnitTypes[] = {
 
 	EUnitType::Stress, EUnitType::Stress, EUnitType::Stress, EUnitType::Stress,
 };
-
-
 
 DEFINE_EXPRESSION_NODE_TYPE(FNumericUnit<double>, 0x3C138BC9, 0x71314F0B, 0xBB469BF7, 0xED47D147)
 
@@ -578,6 +669,11 @@ TOptional<EUnit> FUnitConversion::UnitFromString(const TCHAR* UnitString)
 	}
 
 	return TOptional<EUnit>();
+}
+
+TConstArrayView<const TCHAR*> FUnitConversion::GetSupportedUnits()
+{
+	return TConstArrayView<const TCHAR*>(SupportedUnitsStrings,  UE_ARRAY_COUNT(SupportedUnitsStrings));
 }
 
 namespace UnitConversion

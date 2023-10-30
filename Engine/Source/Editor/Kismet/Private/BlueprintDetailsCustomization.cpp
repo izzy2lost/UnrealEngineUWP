@@ -84,6 +84,7 @@
 #include "Layout/WidgetPath.h"
 #include "Logging/LogCategory.h"
 #include "Logging/LogMacros.h"
+#include "Math/UnitConversion.h"
 #include "Math/Vector2D.h"
 #include "Math/Vector4.h"
 #include "Misc/Attribute.h"
@@ -485,7 +486,7 @@ void FBlueprintVarActionDetails::CustomizeDetails( IDetailLayoutBuilder& DetailL
 	TSharedPtr<SToolTip> EditableTooltip = IDocumentation::Get()->CreateToolTip(LOCTEXT("VarEditableTooltip", "Whether this variable is publicly editable on instances of this Blueprint."), NULL, DocLink, TEXT("Editable"));
 
 	Category.AddCustomRow( LOCTEXT("IsVariableEditableLabel", "Instance Editable") )
-	.Visibility(TAttribute<EVisibility>(this, &FBlueprintVarActionDetails::ShowEditableCheckboxVisibilty))
+	.Visibility(TAttribute<EVisibility>(this, &FBlueprintVarActionDetails::ShowEditableCheckboxVisibility))
 	.NameContent()
 	[
 		SNew(STextBlock)
@@ -505,7 +506,7 @@ void FBlueprintVarActionDetails::CustomizeDetails( IDetailLayoutBuilder& DetailL
 	TSharedPtr<SToolTip> ReadOnlyTooltip = IDocumentation::Get()->CreateToolTip(LOCTEXT("VarReadOnlyTooltip", "Whether this variable can be set by Blueprint nodes or if it is read-only."), NULL, DocLink, TEXT("ReadOnly"));
 
 	Category.AddCustomRow(LOCTEXT("IsVariableReadOnlyLabel", "Blueprint Read Only"))
-	.Visibility(TAttribute<EVisibility>(this, &FBlueprintVarActionDetails::ShowReadOnlyCheckboxVisibilty))
+	.Visibility(TAttribute<EVisibility>(this, &FBlueprintVarActionDetails::ShowReadOnlyCheckboxVisibility))
 	.NameContent()
 	[
 		SNew(STextBlock)
@@ -554,7 +555,7 @@ void FBlueprintVarActionDetails::CustomizeDetails( IDetailLayoutBuilder& DetailL
 					SNew(UE::FieldNotification::SFieldNotificationCheckList)
 					.FieldName(CachedVariableName)
 					.BlueprintPtr(BlueprintPtr)
-					.Visibility(this, &FBlueprintVarActionDetails::GetFieldNotifyCheckboxListVisiblity)
+					.Visibility(this, &FBlueprintVarActionDetails::GetFieldNotifyCheckboxListVisibility)
 				]
 
 			];
@@ -833,6 +834,34 @@ void FBlueprintVarActionDetails::CustomizeDetails( IDetailLayoutBuilder& DetailL
 			.IsEnabled(IsVariableInBlueprint())
 			.Font(DetailFontInfo)
 		]
+	];
+	
+	TSharedPtr<SToolTip> UnitsTooltip = IDocumentation::Get()->CreateToolTip(LOCTEXT("VarUnitsTooltip", "Units of this variable."), NULL, DocLink, TEXT("Units"));
+
+	UnitsOptions.Empty();
+	UnitsOptions.Add(MakeShareable(new FString("None")));
+	for (const TCHAR* UnitsName : FUnitConversion::GetSupportedUnits())
+	{
+		UnitsOptions.Add(MakeShareable(new FString(UnitsName)));
+	}
+	
+	Category.AddCustomRow(LOCTEXT("VariableUnitsLabel", "Units"))
+	.Visibility(TAttribute<EVisibility>(this, &FBlueprintVarActionDetails::GetVariableUnitsVisibility))
+	.NameContent()
+	[
+		SNew(STextBlock)
+		.Text(LOCTEXT("VariableUnitsLabel", "Units"))
+		.ToolTip(UnitsTooltip)
+		.Font(IDetailLayoutBuilder::GetDetailFont())
+	]
+	.ValueContent()
+	[
+		SNew(STextComboBox)
+			.OptionsSource( &UnitsOptions )
+			.InitiallySelectedItem(GetVariableUnits())
+			.OnSelectionChanged( this, &FBlueprintVarActionDetails::OnVariableUnitsChanged )
+			.ToolTip(UnitsTooltip)
+			.Font( DetailFontInfo )
 	];
 
 	TSharedPtr<SToolTip> BitmaskTooltip = IDocumentation::Get()->CreateToolTip(LOCTEXT("VarBitmaskTooltip", "Whether or not to treat this variable as a bitmask."), nullptr, DocLink, TEXT("Bitmask"));
@@ -1851,7 +1880,7 @@ void FBlueprintVarActionDetails::OnCategorySelectionChanged( TSharedPtr<FText> P
 	}
 }
 
-EVisibility FBlueprintVarActionDetails::ShowEditableCheckboxVisibilty() const
+EVisibility FBlueprintVarActionDetails::ShowEditableCheckboxVisibility() const
 {
 	FProperty* VariableProperty = CachedVariableProperty.Get();
 	if (VariableProperty && GetPropertyOwnerBlueprint())
@@ -1885,7 +1914,7 @@ void FBlueprintVarActionDetails::OnEditableChanged(ECheckBoxState InNewState)
 	FBlueprintEditorUtils::SetBlueprintOnlyEditableFlag(BlueprintObj, VarName, !bVariableIsExposed);
 }
 
-EVisibility FBlueprintVarActionDetails::ShowReadOnlyCheckboxVisibilty() const
+EVisibility FBlueprintVarActionDetails::ShowReadOnlyCheckboxVisibility() const
 {
 	FProperty* VariableProperty = CachedVariableProperty.Get();
 	if (VariableProperty && GetPropertyOwnerBlueprint())
@@ -1917,6 +1946,63 @@ void FBlueprintVarActionDetails::OnReadyOnlyChanged(ECheckBoxState InNewState)
 
 	UBlueprint* BlueprintObj = MyBlueprint.Pin()->GetBlueprintObj();
 	FBlueprintEditorUtils::SetBlueprintPropertyReadOnlyFlag(BlueprintObj, VarName, bVariableIsReadOnly);
+}
+
+EVisibility FBlueprintVarActionDetails::GetVariableUnitsVisibility() const
+{
+	FProperty* VariableProperty = CachedVariableProperty.Get();
+	if (VariableProperty)
+	{
+		const bool bIsInteger = VariableProperty->IsA(FIntProperty::StaticClass()) || VariableProperty->IsA(FInt64Property::StaticClass());
+		const bool bIsReal = VariableProperty->IsA(FFloatProperty::StaticClass()) || VariableProperty->IsA(FDoubleProperty::StaticClass());
+
+		if (IsABlueprintVariable(VariableProperty) && !IsALocalVariable(VariableProperty) && (bIsInteger || bIsReal))
+		{
+			return EVisibility::Visible;
+		}
+	}
+	return EVisibility::Hidden;
+}
+
+TSharedPtr<FString> FBlueprintVarActionDetails::GetVariableUnits() const
+{
+	if (CachedVariableName != NAME_None)
+	{
+		if (const UBlueprint* BlueprintObj = GetPropertyOwnerBlueprint() )
+		{
+			FString Result;
+			if (FBlueprintEditorUtils::GetBlueprintVariableMetaData(BlueprintObj, CachedVariableName, GetLocalVariableScope(CachedVariableProperty.Get()), "ForceUnits", /*out*/ Result))
+			{
+				for (const TSharedPtr<FString>& UnitOption : UnitsOptions)
+				{
+					if (*UnitOption == Result)
+					{
+						return UnitOption;
+					}
+				}
+			}
+		}
+	}
+	// Return none;
+	return UnitsOptions.IsEmpty() ? MakeShareable(new FString("None")) : UnitsOptions[0];
+}
+
+void FBlueprintVarActionDetails::OnVariableUnitsChanged(TSharedPtr<FString> UnitsSelected, ESelectInfo::Type SelectInfo)
+{
+	if (CachedVariableName != NAME_None)
+	{
+		if ( UBlueprint* BlueprintObj = GetPropertyOwnerBlueprint() )
+		{
+			if (UnitsSelected && !UnitsOptions.IsEmpty() && UnitsSelected != UnitsOptions[0] )
+			{
+				FBlueprintEditorUtils::SetBlueprintVariableMetaData(BlueprintObj, CachedVariableName, GetLocalVariableScope(CachedVariableProperty.Get()), "ForceUnits", *UnitsSelected);
+			}
+			else
+			{
+				FBlueprintEditorUtils::RemoveBlueprintVariableMetaData(BlueprintObj, CachedVariableName, GetLocalVariableScope(CachedVariableProperty.Get()), "ForceUnits");
+			}
+		}
+	}
 }
 
 ECheckBoxState FBlueprintVarActionDetails::OnFieldNotifyCheckboxState() const
@@ -1961,7 +2047,7 @@ void FBlueprintVarActionDetails::OnFieldNotifyChanged(ECheckBoxState InNewState)
 	}
 }
 
-EVisibility FBlueprintVarActionDetails::GetFieldNotifyCheckboxListVisiblity() const
+EVisibility FBlueprintVarActionDetails::GetFieldNotifyCheckboxListVisibility() const
 {
 	UBlueprint* const BlueprintObj = GetBlueprintObj();
 	const FName VarName = CachedVariableName;
