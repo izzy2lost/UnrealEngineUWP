@@ -1311,7 +1311,7 @@ FORCEINLINE VectorRegister2Double VectorSwizzleImpl2(VectorRegister4Double Vec)
 	}
 	else
 	{
-		else if constexpr (Y <= 1)
+		if constexpr (Y <= 1)
 		{
 			return __builtin_shufflevector(Vec.ZW, Vec.XY, X - 2, Y + 2);
 		}
