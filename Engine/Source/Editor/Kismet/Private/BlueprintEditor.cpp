@@ -2741,6 +2741,14 @@ FReply FBlueprintEditor::OnEditParentClassClicked()
 			if (ParentBlueprintGeneratedClass)
 			{
 				GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->OpenEditorForAsset(ParentBlueprintGeneratedClass->ClassGeneratedBy);
+				
+				if (UObject* DebugObject = Blueprint->GetObjectBeingDebugged())
+				{
+					if (UBlueprint* ParentBlueprint = Cast<UBlueprint>(ParentBlueprintGeneratedClass->ClassGeneratedBy))
+					{
+						ParentBlueprint->SetObjectBeingDebugged(DebugObject);
+					}
+				}
 			}
 		}
 	}

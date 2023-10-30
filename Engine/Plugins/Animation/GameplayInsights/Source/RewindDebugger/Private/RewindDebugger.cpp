@@ -1001,6 +1001,16 @@ void FRewindDebugger::Tick(float DeltaTime)
 											{
 												if(UAnimBlueprint* AnimBlueprint = Cast<UAnimBlueprint>(InstanceClass->ClassGeneratedBy))
 												{
+													// for child Animation Blueprints, we actually want to debug the root blueprint (since the child doesn't contain any anim graphs)
+													if (UAnimBlueprint* RootAnimBP = UAnimBlueprint::FindRootAnimBlueprint(AnimBlueprint))
+													{
+														if (UAnimBlueprintGeneratedClass* RootInstanceClass = Cast<UAnimBlueprintGeneratedClass>(RootAnimBP->GeneratedClass))
+														{
+															AnimBlueprint = RootAnimBP;
+															InstanceClass = RootInstanceClass;
+														}
+													}
+
 													if(AnimBlueprint->IsObjectBeingDebugged(AnimInstance))
 													{
 														TRACE_CPUPROFILER_EVENT_SCOPE(FRewindDebugger::Tick_UpdateBlueprintDebug);
