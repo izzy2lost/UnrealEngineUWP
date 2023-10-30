@@ -3,6 +3,7 @@
 
 #include "CoreTypes.h"
 #include "Logging/LogMacros.h"
+#include "UObject/Class.h"
 
 class UAnimSequence;
 class UGeometryCache;
