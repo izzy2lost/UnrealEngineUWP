@@ -84,9 +84,8 @@ struct VFields : VCell
 
 	using FieldsMap = TMap<TWriteBarrier<VUniqueString>, VEntry, FDefaultSetAllocator, FFieldsMapKeyFuncs>;
 
-	COREUOBJECT_API static VCppClassInfo StaticCppClassInfo;
+	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VCell);
 	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
-	DECLARE_VISIT_REFERENCES(COREUOBJECT_API);
 
 	static VFields& New(FAllocationContext Context, FieldsMap&& InFields);
 
@@ -94,11 +93,6 @@ struct VFields : VCell
 
 private:
 	VFields(FAllocationContext Context, FieldsMap&& InFields);
-	~VFields() = default;
-
-	/// Overridden because we want to ensure that the `TMap` of offsets above gets de-allocated
-	/// once the shape object lifetime ends. Otherwise it would not get its destructor called.
-	static void RunDestructorImpl(VCell* This);
 
 	template <typename TVisitor>
 	static void VisitFields(FieldsMap&, TVisitor&);
@@ -111,9 +105,8 @@ private:
 /// Maps fully qualified names to offsets/constants.
 struct VShape : VCell
 {
-	COREUOBJECT_API static VCppClassInfo StaticCppClassInfo;
+	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VCell);
 	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
-	DECLARE_VISIT_REFERENCES(COREUOBJECT_API);
 
 	/// Creates a new shape. Note that indices for offset-based fields will be discarded and the fields given re-ordered
 	/// indices as part of the new shape created.
@@ -130,8 +123,6 @@ struct VShape : VCell
 private:
 	VShape(FAllocationContext Context, VFields::FieldsMap&& InFields);
 
-	~VShape() = default;
-
 	const VFields::FieldsMap& GetFields() const;
 
 	/// Mapping of the field names to their data in the layout.
@@ -141,10 +132,6 @@ private:
 	VFields::FieldsMap Fields;
 
 	uint64 NumIndexedFields;
-
-	/// Overridden because we want to ensure that the `TMap` of offsets above gets de-allocated
-	/// once the shape object lifetime ends. Otherwise it would not get its destructor called.
-	static void RunDestructorImpl(VCell* This);
 
 	friend struct VClass;
 	friend struct VObject;

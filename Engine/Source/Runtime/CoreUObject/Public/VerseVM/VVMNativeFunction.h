@@ -19,7 +19,7 @@ using FNativeCallResult = FOpResult;
 // A function that is implemented in C++
 struct VNativeFunction : VHeapValue
 {
-	COREUOBJECT_API static VCppClassInfo StaticCppClassInfo;
+	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VHeapValue);
 	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
 
 	const uint32 NumParameters;

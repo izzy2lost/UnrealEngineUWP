@@ -14,11 +14,10 @@
 
 namespace Verse
 {
-struct VPackage : VHeapValue
+struct VPackage : VCell
 {
-	COREUOBJECT_API static VCppClassInfo StaticCppClassInfo;
+	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VCell);
 	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
-	DECLARE_VISIT_REFERENCES(COREUOBJECT_API);
 
 	// We keep names at 2*Index and definitions at 2*Index+1
 	TWriteBarrier<VArray> NameAndDefinitions;
@@ -89,7 +88,7 @@ struct VPackage : VHeapValue
 
 private:
 	VPackage(FAllocationContext Context, uint32 Capacity)
-		: VHeapValue(Context, &GlobalTrivialEmergentType.Get(Context))
+		: VCell(Context, &GlobalTrivialEmergentType.Get(Context))
 		, NameAndDefinitions(Context, &VArray::New(Context, Capacity))
 	{
 	}

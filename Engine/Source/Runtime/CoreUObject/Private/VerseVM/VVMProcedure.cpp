@@ -14,8 +14,7 @@
 namespace Verse
 {
 
-DEFINE_VISIT_REFERENCES(VProcedure);
-DEFINE_VCPPCLASSINFO(VProcedure, VHeapValue, TEXT("Procedure"));
+DEFINE_DERIVED_VCPPCLASSINFO(VProcedure);
 TGlobalTrivialEmergentTypePtr<&VProcedure::StaticCppClassInfo> VProcedure::GlobalTrivialEmergentType;
 
 VProcedure::~VProcedure()
@@ -45,16 +44,9 @@ VProcedure::~VProcedure()
 	}
 }
 
-void VProcedure::RunDestructorImpl(VCell* This)
-{
-	VProcedure& ThisProcedure = This->StaticCast<VProcedure>();
-	ThisProcedure.~VProcedure();
-}
-
 template <typename TVisitor>
 void VProcedure::VisitReferencesImpl(TVisitor& Visitor)
 {
-	VHeapValue::VisitReferences(this, Visitor);
 	Visitor.Visit(Constants, NumConstants);
 
 	// We also need to mark the immediate operands for each opcode to make sure that the GC doesn't sweep them.

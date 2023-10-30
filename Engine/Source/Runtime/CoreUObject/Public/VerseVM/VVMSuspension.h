@@ -19,8 +19,7 @@ struct VProcedure;
 
 struct VSuspension : VCell
 {
-	COREUOBJECT_API static VCppClassInfo StaticCppClassInfo;
-	DECLARE_VISIT_REFERENCES(COREUOBJECT_API);
+	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VCell);
 
 	TWriteBarrier<VFailureContext> FailureContext;
 	TWriteBarrier<VSuspension> Next;
@@ -45,9 +44,8 @@ protected:
 
 struct VBytecodeSuspension : public VSuspension
 {
-	COREUOBJECT_API static VCppClassInfo StaticCppClassInfo;
+	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VSuspension);
 	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
-	DECLARE_VISIT_REFERENCES(COREUOBJECT_API);
 
 	template <typename Captures>
 	static VBytecodeSuspension& New(FAllocationContext Context, VFailureContext& FailureContext, VProcedure& Procedure, FOp* PC, const Captures& TheCaptures)
@@ -92,9 +90,8 @@ private:
 // wants to use.
 struct VLambdaSuspension : public VSuspension
 {
-	COREUOBJECT_API static VCppClassInfo StaticCppClassInfo;
+	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VSuspension);
 	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
-	DECLARE_VISIT_REFERENCES(COREUOBJECT_API);
 
 	typedef void (*CallbackType)(FRunningContext, VLambdaSuspension& This, VSuspension*& ToFire);
 

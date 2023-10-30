@@ -13,14 +13,12 @@
 
 namespace Verse
 {
-DEFINE_VISIT_REFERENCES(VObject);
-DEFINE_VCPPCLASSINFO(VObject, VHeapValue, TEXT("Object"));
+DEFINE_DERIVED_VCPPCLASSINFO(VObject);
 TGlobalTrivialEmergentTypePtr<&VObject::StaticCppClassInfo> VObject::GlobalTrivialEmergentType;
 
 template <typename TVisitor>
 void VObject::VisitReferencesImpl(TVisitor& Visitor)
 {
-	VHeapValue::VisitReferences(this, Visitor);
 	for (uint64 Index = 0; Index < GetEmergentType()->Shape->NumIndexedFields; ++Index)
 	{
 		Visitor.Visit(Data[Index]);

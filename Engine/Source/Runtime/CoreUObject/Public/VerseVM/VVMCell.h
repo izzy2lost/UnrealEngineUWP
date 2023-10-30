@@ -11,6 +11,7 @@
 #include "VVMContext.h"
 #include "VVMCppClassInfo.h"
 #include "VVMHeap.h"
+#include "VVMUnreachable.h"
 
 #include <atomic>
 #include <type_traits>
@@ -24,7 +25,7 @@ struct VEmergentType;
 
 struct VCell
 {
-	COREUOBJECT_API static VCppClassInfo StaticCppClassInfo;
+	DECLARE_BASE_VCPPCLASSINFO(COREUOBJECT_API);
 
 	/// The header word of a VCell is the offset of an emergent type and 4 extra bytes
 	// (one reserved for GC)
@@ -60,8 +61,9 @@ struct VCell
 	void VisitReferences(TVisitor& Visitor);
 	COREUOBJECT_API void ConductCensus();
 	COREUOBJECT_API void RunDestructor();
-	COREUOBJECT_API bool Equal(FRunningContext Context, VCell* Other, TFunction<void(VValue, VValue)> HandlePlaceholder);
+	COREUOBJECT_API bool Equal(FRunningContext Context, VCell* Other, const TFunction<void(::Verse::VValue, ::Verse::VValue)>& HandlePlaceholder);
 
+private:
 	// Use this if your cell subtype has any outgoing strong references.  It is used by both the
 	// GC system and the abstract visitor to collect strong references.
 	//
@@ -71,10 +73,15 @@ struct VCell
 	// you're guaranteed that this function will only be called once per object per collection cycle;
 	// i.e. the GC will never call this function simultaneously for the same object.
 	//
-	// Use DEFINE_VISIT_REFERENCES in your implementation file and implement the template function
-	// defined in DECLARE_VISIT_REFERENCES
-	DECLARE_VISIT_REFERENCES(COREUOBJECT_API)
+	// It is defined implicitly by DECLARE_DERIVED_VCPPCLASSINFO, and so you must either implement it
+	// or use the DEFINE_TRIVIAL_VISIT_REFERENCES macro to explicitly define a trivial implementation.
+	//
+	// Visit outgoing references for self. Don't call visit on your super class, or visit references
+	// defined by your super class.
+	template <typename TVisitor>
+	void VisitReferencesImpl(TVisitor&);
 
+protected:
 	// Override this if your cell subtype has any outgoing weak references. Call ClearWeakDuringCensus
 	// on those pointers in this function.
 	//
@@ -92,8 +99,28 @@ struct VCell
 	//
 	// It's not meaningful to override this function unless the cell is allocated from the CensusSpace
 	// or the DestructorAndCensusSpace.
-	COREUOBJECT_API static void ConductCensusImpl(VCell* This);
+	COREUOBJECT_API void ConductCensusImpl();
 
+	// Override this if your cell requries deep comparison (simple comparisons should be inlined in VValue::Equal).
+	//
+	// Note: Using this override may invoke a TLS lookup to acquire the FRunningContext which is expensive.
+	// Deep comparisons typically will require a FRunningContext anyways but it is worth checking this is
+	// the case each time this is implemented.
+	COREUOBJECT_API bool EqualImpl(FRunningContext Context, VCell* Other, const TFunction<void(::Verse::VValue, ::Verse::VValue)>& HandlePlaceholder);
+
+	// Override this if your cell subtype requires a deep hash.
+	COREUOBJECT_API uint32 GetTypeHashImpl();
+
+	// VCell() and SetEmergentType(..) are used during setup when creating some cyclic dependencies.
+	VCell()
+		: EmergentTypeOffset(0)
+	{
+		checkSlow(FHeap::OwnsAddress(this));
+	}
+
+	void SetEmergentType(FAccessContext, VEmergentType* EmergentType);
+
+public:
 	// Override this if your cell subtype has a destructor.
 	//
 	// Note that this function may run concurrently to the mutator, in parallel, or from within the
@@ -113,29 +140,8 @@ struct VCell
 	//
 	// Note: You must override this if your cell has external memory to report swept external
 	// bytes during destruction.
-	COREUOBJECT_API static void RunDestructorImpl(VCell* This);
+	~VCell() = default;
 
-	// Override this if your cell requries deep comparison (simple comparisons should be inlined in VValue::Equal).
-	//
-	// Note: Using this override may invoke a TLS lookup to acquire the FRunningContext which is expensive.
-	// Deep comparisons typically will require a FRunningContext anyways but it is worth checking this is
-	// the case each time this is implemented.
-	COREUOBJECT_API static bool EqualImpl(FRunningContext Context, VCell* This, VCell* Other, TFunction<void(VValue, VValue)> HandlePlaceholder);
-
-	// Override this if your cell subtype requires a deep hash.
-	COREUOBJECT_API static uint32 GetTypeHashImpl(VCell* This);
-
-protected:
-	// VCell() and SetEmergentType(..) are used during setup when creating some cyclic dependencies.
-	VCell()
-		: EmergentTypeOffset(0)
-	{
-		checkSlow(FHeap::OwnsAddress(this));
-	}
-
-	void SetEmergentType(FAccessContext, VEmergentType* EmergentType);
-
-public:
 	template <typename CastType>
 	bool IsA() const;
 
@@ -160,7 +166,7 @@ static_assert(sizeof(VCell) <= 8);
 // Keep it here for now.
 struct VHeapValue : VCell
 {
-	COREUOBJECT_API static VCppClassInfo StaticCppClassInfo;
+	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VCell);
 
 	VHeapValue(FAccessContext Context, const VEmergentType* EmergentType)
 		: VCell(Context, EmergentType)

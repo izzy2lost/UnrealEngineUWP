@@ -21,7 +21,7 @@ struct TGlobalHeapPtr;
 // Represents Verse types, which may be independent of object shape, and independent of C++ type.
 struct VType : VCell
 {
-	COREUOBJECT_API static VCppClassInfo StaticCppClassInfo;
+	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VCell);
 
 	EVerseTypeTag Tag;
 
@@ -69,7 +69,7 @@ protected:
 
 struct VTrivialType : VType
 {
-	COREUOBJECT_API static VCppClassInfo StaticCppClassInfo;
+	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VType);
 
 	static constexpr EVerseTypeTag Tag = EVerseTypeTag::Trivial;
 

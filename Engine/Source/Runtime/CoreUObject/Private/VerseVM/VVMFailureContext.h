@@ -16,9 +16,8 @@ struct VFrame;
 
 struct VFailureContext : VCell
 {
-	COREUOBJECT_API static VCppClassInfo StaticCppClassInfo;
+	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VCell);
 	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
-	DECLARE_VISIT_REFERENCES(COREUOBJECT_API);
 
 	// TODO: We could organize this class to point to a "Rare Data" cell
 	// that has fields that are populated just when leniency is encountered.

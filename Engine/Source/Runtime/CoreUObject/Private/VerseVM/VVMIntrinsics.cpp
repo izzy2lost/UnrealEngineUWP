@@ -14,7 +14,7 @@
 namespace Verse
 {
 
-DEFINE_VCPPCLASSINFO(VIntrinsics, VHeapValue, TEXT("Intrinsics"));
+DEFINE_DERIVED_VCPPCLASSINFO(VIntrinsics);
 TGlobalTrivialEmergentTypePtr<&VIntrinsics::StaticCppClassInfo> VIntrinsics::GlobalTrivialEmergentType;
 
 FNativeCallResult VIntrinsics::AbsImpl(FRunningContext Context, VNativeFunction::Args Arguments)
@@ -40,6 +40,14 @@ FNativeCallResult VIntrinsics::FloorImpl(FRunningContext Context, VNativeFunctio
 	V_REQUIRE_CONCRETE(Arguments[0]);
 	VRational& Argument = Arguments[0].StaticCast<VRational>();
 	V_RETURN(Argument.Floor(Context));
+}
+
+template <typename TVisitor>
+void VIntrinsics::VisitReferencesImpl(TVisitor& Visitor)
+{
+	Visitor.Visit(Abs);
+	Visitor.Visit(Ceil);
+	Visitor.Visit(Floor);
 }
 
 } // namespace Verse

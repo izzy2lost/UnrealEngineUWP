@@ -10,14 +10,12 @@
 namespace Verse
 {
 
-DEFINE_VISIT_REFERENCES(VPackage);
-DEFINE_VCPPCLASSINFO(VPackage, VHeapValue, TEXT("Package"));
+DEFINE_DERIVED_VCPPCLASSINFO(VPackage);
 TGlobalTrivialEmergentTypePtr<&VPackage::StaticCppClassInfo> VPackage::GlobalTrivialEmergentType;
 
 template <typename TVisitor>
 void VPackage::VisitReferencesImpl(TVisitor& Visitor)
 {
-	VHeapValue::VisitReferences(this, Visitor);
 	Visitor.Visit(NameAndDefinitions);
 }
 

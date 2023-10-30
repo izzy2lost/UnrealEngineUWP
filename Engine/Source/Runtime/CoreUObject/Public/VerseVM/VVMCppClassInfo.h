@@ -8,14 +8,15 @@
 
 #include "HAL/Platform.h"
 #include "Templates/Function.h"
+#include <type_traits>
 
 class FString;
 
 namespace Verse
 {
 struct FMarkStack;
-struct VCell;
 struct FRunningContext;
+struct VCell;
 struct VValue;
 
 struct FAbstractVisitorDispatch;
@@ -25,40 +26,93 @@ struct TVisitorWrapper;
 using FAbstractVisitor = TVisitorWrapper<FAbstractVisitorDispatch>;
 using FMarkStackVisitor = TVisitorWrapper<FMarkStackVisitorDispatch>;
 
-#define DECLARE_VISIT_REFERENCES(Api)                                             \
-private:                                                                          \
-	template <typename TVisitor>                                                  \
-	FORCEINLINE void VisitReferencesImpl(TVisitor&);                              \
-                                                                                  \
-public:                                                                           \
-	Api static void VisitReferences(::Verse::VCell*, ::Verse::FAbstractVisitor&); \
-	Api static void VisitReferences(::Verse::VCell*, ::Verse::FMarkStackVisitor&);
+// MSVC and clang-cl have a non-portable __super that can be used to validate the user's super-class declaration.
+#if defined(_MSC_VER)
+#define VCPPCLASSINFO_PORTABLE_MSC_SUPER         \
+	/* disable non-standard extension warning */ \
+	__pragma(warning(push)) __pragma(warning(disable : 4495)) __super __pragma(warning(pop))
+#else
+#define VCPPCLASSINFO_PORTABLE_MSC_SUPER Super
+#endif
 
-// VVMAbstractVisitorInline.h and VVMMarkStackVisitor.h need to be included in a source to use DEFINE_VISIT_REFERENCES
-#define DEFINE_VISIT_REFERENCES(ClassName)                                                     \
-	void ClassName::VisitReferences(::Verse::VCell* This, ::Verse::FAbstractVisitor& Visitor)  \
-	{                                                                                          \
-		::Verse::FAbstractVisitorDispatch::FReferrerContext Context(Visitor, This);            \
-		static_cast<ClassName*>(This)->VisitReferencesImpl(Visitor);                           \
-	}                                                                                          \
-	void ClassName::VisitReferences(::Verse::VCell* This, ::Verse::FMarkStackVisitor& Visitor) \
-	{                                                                                          \
-		static_cast<ClassName*>(This)->VisitReferencesImpl(Visitor);                           \
+#define DECLARE_BASE_VCPPCLASSINFO(API)                             \
+protected:                                                          \
+	auto CheckSuperClass()                                          \
+	{                                                               \
+		return this;                                                \
+	}                                                               \
+                                                                    \
+	template <typename TVisitor>                                    \
+	void VisitInheritedAndNonInheritedReferences(TVisitor& Visitor) \
+	{                                                               \
+		VisitReferencesImpl(Visitor);                               \
+	}                                                               \
+                                                                    \
+public:                                                             \
+	API static ::Verse::VCppClassInfo StaticCppClassInfo;
+
+#define DECLARE_DERIVED_VCPPCLASSINFO(API, SuperClass)                                  \
+private:                                                                                \
+	template <typename TVisitor>                                                        \
+	API void VisitReferencesImpl(TVisitor&); /* to be implemented by the user. */       \
+                                                                                        \
+protected:                                                                              \
+	auto CheckSuperClass()                                                              \
+	{                                                                                   \
+		auto SuperThis = VCPPCLASSINFO_PORTABLE_MSC_SUPER::CheckSuperClass();           \
+		static_assert(std::is_same_v<decltype(SuperThis), SuperClass*>,                 \
+			"Declared super-class " #SuperClass " does not match actual super-class."); \
+		return this;                                                                    \
+	}                                                                                   \
+                                                                                        \
+	template <typename TVisitor>                                                        \
+	void VisitInheritedAndNonInheritedReferences(TVisitor& Visitor)                     \
+	{                                                                                   \
+		Super::VisitInheritedAndNonInheritedReferences(Visitor);                        \
+		VisitReferencesImpl(Visitor);                                                   \
+	}                                                                                   \
+                                                                                        \
+public:                                                                                 \
+	using Super = SuperClass;                                                           \
+	API static ::Verse::VCppClassInfo StaticCppClassInfo;
+
+#define DEFINE_BASE_OR_DERIVED_VCPPCLASSINFO(CellType, SuperClassInfoPtr)                                                                                                       \
+	::Verse::VCppClassInfo CellType::StaticCppClassInfo = {                                                                                                                     \
+		TEXT(#CellType),                                                                                                                                                        \
+		(SuperClassInfoPtr),                                                                                                                                                    \
+		[](::Verse::VCell* This, ::Verse::FMarkStackVisitor& Visitor) -> void {                                                                                                 \
+			This->StaticCast<CellType>().VisitInheritedAndNonInheritedReferences(Visitor);                                                                                      \
+		},                                                                                                                                                                      \
+		[](::Verse::VCell* This, ::Verse::FAbstractVisitor& Visitor) -> void {                                                                                                  \
+			This->StaticCast<CellType>().VisitInheritedAndNonInheritedReferences(Visitor);                                                                                      \
+		},                                                                                                                                                                      \
+		[](::Verse::VCell* This) -> void {                                                                                                                                      \
+			This->StaticCast<CellType>().ConductCensusImpl();                                                                                                                   \
+		},                                                                                                                                                                      \
+		std::is_trivially_destructible_v<CellType> ? nullptr : [](::Verse::VCell* This) -> void {                                                                               \
+			This->StaticCast<CellType>().~CellType();                                                                                                                           \
+		},                                                                                                                                                                      \
+		[](::Verse::FRunningContext Context, ::Verse::VCell* This, ::Verse::VCell* Other, const TFunction<void(::Verse::VValue, ::Verse::VValue)>& HandlePlaceholder) -> bool { \
+			return This->StaticCast<CellType>().EqualImpl(Context, Other, HandlePlaceholder);                                                                                   \
+		},                                                                                                                                                                      \
+		[](::Verse::VCell* This) -> uint32 {                                                                                                                                    \
+			return This->StaticCast<CellType>().GetTypeHashImpl();                                                                                                              \
+		}};
+
+#define DEFINE_BASE_VCPPCLASSINFO(CellType) DEFINE_BASE_OR_DERIVED_VCPPCLASSINFO(CellType, nullptr)
+
+#define DEFINE_DERIVED_VCPPCLASSINFO(CellType)                                                                                                                              \
+	static_assert(!std::is_same_v<CellType::Super, CellType>, #CellType " declares itself as its super-class in DECLARE_DERIVED_VCPPCLASSINFO.");                           \
+	static_assert(std::is_base_of_v<CellType::Super, CellType>, #CellType " doesn't derive from the super-class declared by DECLARE_DERIVED_VCPPCLASSINFO.");               \
+	static_assert(std::is_base_of_v<::Verse::VCell, CellType::Super>, #CellType "'s super-class as declared by DECLARE_DERIVED_VCPPCLASSINFO does not derive from VCell."); \
+	static_assert(!std::is_polymorphic_v<CellType>, "VCell-derived C++ classes must not have virtual methods.");                                                            \
+	DEFINE_BASE_OR_DERIVED_VCPPCLASSINFO(CellType, &CellType::Super::StaticCppClassInfo)
+
+#define DEFINE_TRIVIAL_VISIT_REFERENCES(CellType) \
+	template <typename TVisitor>                  \
+	void CellType::VisitReferencesImpl(TVisitor&) \
+	{                                             \
 	}
-
-#define DEFINE_VCPPCLASSINFO_IMPL(CellType, SuperClassInfoPtr, Name) \
-	::Verse::VCppClassInfo CellType::StaticCppClassInfo = {          \
-		(Name),                                                      \
-		(SuperClassInfoPtr),                                         \
-		CellType::VisitReferences,                                   \
-		CellType::VisitReferences,                                   \
-		CellType::ConductCensusImpl,                                 \
-		CellType::RunDestructorImpl,                                 \
-		CellType::EqualImpl,                                         \
-		CellType::GetTypeHashImpl}
-
-#define DEFINE_VCPPCLASSINFO(CellType, SuperCellType, Name) \
-	DEFINE_VCPPCLASSINFO_IMPL(CellType, &SuperCellType::StaticCppClassInfo, Name)
 
 // C++ information; this is where the "vtable" goes.
 struct VCppClassInfo
@@ -69,7 +123,7 @@ struct VCppClassInfo
 	void (*VisitReferencesImpl)(VCell* This, FAbstractVisitor&);
 	void (*ConductCensus)(VCell* This);
 	void (*RunDestructor)(VCell* This);
-	bool (*Equal)(FRunningContext Context, VCell* This, VCell* Other, TFunction<void(VValue, VValue)> HandlePlaceholder);
+	bool (*Equal)(FRunningContext Context, VCell* This, VCell* Other, const TFunction<void(::Verse::VValue, ::Verse::VValue)>& HandlePlaceholder);
 	uint32 (*GetTypeHash)(VCell* This);
 
 	bool IsA(const VCppClassInfo* Other) const

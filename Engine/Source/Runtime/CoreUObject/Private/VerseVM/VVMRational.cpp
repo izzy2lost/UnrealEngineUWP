@@ -14,8 +14,7 @@
 namespace Verse
 {
 
-DEFINE_VISIT_REFERENCES(VRational);
-DEFINE_VCPPCLASSINFO(VRational, VHeapValue, TEXT("Rational"));
+DEFINE_DERIVED_VCPPCLASSINFO(VRational);
 TGlobalTrivialEmergentTypePtr<&VRational::StaticCppClassInfo> VRational::GlobalTrivialEmergentType;
 
 VRational& VRational::Add(FRunningContext Context, VRational& Lhs, VRational& Rhs)
@@ -191,32 +190,30 @@ void VRational::NormalizeSigns(FRunningContext Context)
 template <typename TVisitor>
 void VRational::VisitReferencesImpl(TVisitor& Visitor)
 {
-	VHeapValue::VisitReferences(this, Visitor);
 	Visitor.Visit(Numerator);
 	Visitor.Visit(Denominator);
 }
 
-bool VRational::EqualImpl(FRunningContext Context, VCell* ThisCell, VCell* Other, TFunction<void(VValue, VValue)> HandlePlaceholder)
+bool VRational::EqualImpl(FRunningContext Context, VCell* Other, const TFunction<void(::Verse::VValue, ::Verse::VValue)>& HandlePlaceholder)
 {
 	if (!Other->IsA<VRational>())
 	{
 		return false;
 	}
-	return Eq(Context, ThisCell->StaticCast<VRational>(), Other->StaticCast<VRational>());
+	return Eq(Context, *this, Other->StaticCast<VRational>());
 }
 
-uint32 VRational::GetTypeHashImpl(VCell* This)
+uint32 VRational::GetTypeHashImpl()
 {
-	VRational& ThisRational = This->StaticCast<VRational>();
-	if (!ThisRational.bIsReduced)
+	if (!bIsReduced)
 	{
 		// TLS lookup to reduce rationals before hashing
 		// FRunningContextPromise PromiseContext;
 		FRunningContext Context((FRunningContextPromise()));
-		ThisRational.Reduce(Context);
-		ThisRational.NormalizeSigns(Context);
+		Reduce(Context);
+		NormalizeSigns(Context);
 	}
-	return ::HashCombineFast(GetTypeHash(ThisRational.Numerator.Get()), GetTypeHash(ThisRational.Denominator.Get()));
+	return ::HashCombineFast(GetTypeHash(Numerator.Get()), GetTypeHash(Denominator.Get()));
 }
 
 } // namespace Verse

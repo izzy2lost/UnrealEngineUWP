@@ -15,19 +15,15 @@
 namespace Verse
 {
 
-DEFINE_VISIT_REFERENCES(VSuspension);
-DEFINE_VISIT_REFERENCES(VBytecodeSuspension);
-DEFINE_VISIT_REFERENCES(VLambdaSuspension);
-DEFINE_VCPPCLASSINFO(VSuspension, VCell, TEXT("Suspension"));
-DEFINE_VCPPCLASSINFO(VBytecodeSuspension, VSuspension, TEXT("BytecodeSuspension"));
-DEFINE_VCPPCLASSINFO(VLambdaSuspension, VSuspension, TEXT("LambdaSuspension"));
+DEFINE_DERIVED_VCPPCLASSINFO(VSuspension);
+DEFINE_DERIVED_VCPPCLASSINFO(VBytecodeSuspension);
+DEFINE_DERIVED_VCPPCLASSINFO(VLambdaSuspension);
 TGlobalTrivialEmergentTypePtr<&VBytecodeSuspension::StaticCppClassInfo> VBytecodeSuspension::GlobalTrivialEmergentType;
 TGlobalTrivialEmergentTypePtr<&VLambdaSuspension::StaticCppClassInfo> VLambdaSuspension::GlobalTrivialEmergentType;
 
 template <typename TVisitor>
 void VSuspension::VisitReferencesImpl(TVisitor& Visitor)
 {
-	VCell::VisitReferences(this, Visitor);
 	Visitor.Visit(FailureContext);
 	Visitor.Visit(Next);
 }
@@ -35,7 +31,6 @@ void VSuspension::VisitReferencesImpl(TVisitor& Visitor)
 template <typename TVisitor>
 void VBytecodeSuspension::VisitReferencesImpl(TVisitor& Visitor)
 {
-	VSuspension::VisitReferences(this, Visitor);
 	Visitor.Visit(Procedure);
 	CaptureSwitch([&Visitor](auto& Captures) {
 		Captures.ForEachOperand([&Visitor](EOperandRole, auto Value) {
@@ -47,7 +42,6 @@ void VBytecodeSuspension::VisitReferencesImpl(TVisitor& Visitor)
 template <typename TVisitor>
 void VLambdaSuspension::VisitReferencesImpl(TVisitor& Visitor)
 {
-	VSuspension::VisitReferences(this, Visitor);
 	Visitor.Visit(Args(), NumValues);
 }
 

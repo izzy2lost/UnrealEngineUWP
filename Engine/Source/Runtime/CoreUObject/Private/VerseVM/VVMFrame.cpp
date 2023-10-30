@@ -12,14 +12,12 @@
 namespace Verse
 {
 
-DEFINE_VISIT_REFERENCES(VFrame);
-DEFINE_VCPPCLASSINFO(VFrame, VCell, TEXT("Frame"));
+DEFINE_DERIVED_VCPPCLASSINFO(VFrame);
 TGlobalTrivialEmergentTypePtr<&VFrame::StaticCppClassInfo> VFrame::GlobalTrivialEmergentType;
 
 template <typename TVisitor>
 void VFrame::VisitReferencesImpl(TVisitor& Visitor)
 {
-	VCell::VisitReferences(this, Visitor);
 	Visitor.Visit(ReturnEffectToken);
 	Visitor.Visit(Procedure);
 	Visitor.Visit(ReturnSlot);

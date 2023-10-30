@@ -17,9 +17,8 @@ namespace Verse
 
 struct VOption : VHeapValue
 {
-	COREUOBJECT_API static VCppClassInfo StaticCppClassInfo;
+	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VHeapValue);
 	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
-	DECLARE_VISIT_REFERENCES(COREUOBJECT_API);
 
 	static VOption& New(FAllocationContext Context, VValue InValue)
 	{
@@ -41,7 +40,7 @@ struct VOption : VHeapValue
 		return GetValue();
 	}
 
-	COREUOBJECT_API static uint32 GetTypeHashImpl(VCell* ThisCell);
+	COREUOBJECT_API uint32 GetTypeHashImpl();
 
 private:
 	VOption(FAllocationContext Context, VValue InValue)

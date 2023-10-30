@@ -48,6 +48,7 @@
 
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
 #include "VerseVM/VVMHeapInt.h"
+#include "VerseVM/Inline/VVMCellInline.h"
 #include "VerseVM/VVMCppClassInfo.h"
 
 namespace Verse
@@ -56,7 +57,8 @@ namespace Verse
 // We're assuming 32-bits for Digit and this needs to match that (but is signed unlike our Digit's).
 using SignedDigit = int32_t;
 
-DEFINE_VCPPCLASSINFO(VHeapInt, VHeapValue, TEXT("HeapInt"));
+DEFINE_DERIVED_VCPPCLASSINFO(VHeapInt);
+DEFINE_TRIVIAL_VISIT_REFERENCES(VHeapInt);
 TGlobalTrivialEmergentTypePtr<&VHeapInt::StaticCppClassInfo> VHeapInt::GlobalTrivialEmergentType;
 
 bool VHeapInt::IsInt32() const

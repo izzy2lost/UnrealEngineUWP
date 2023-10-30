@@ -13,21 +13,13 @@
 namespace Verse
 {
 
-DEFINE_VISIT_REFERENCES(VFields);
-DEFINE_VCPPCLASSINFO(VFields, VHeapValue, TEXT("Fields"));
+DEFINE_DERIVED_VCPPCLASSINFO(VFields);
 TGlobalTrivialEmergentTypePtr<&VFields::StaticCppClassInfo> VFields::GlobalTrivialEmergentType;
 
 template <typename TVisitor>
 void VFields::VisitReferencesImpl(TVisitor& Visitor)
 {
-	VHeapValue::VisitReferences(this, Visitor);
 	VisitFields(Fields, Visitor);
-}
-
-void VFields::RunDestructorImpl(VCell* This)
-{
-	VFields& ThisFields = *static_cast<VFields*>(This);
-	ThisFields.~VFields();
 }
 
 template <typename TVisitor>
@@ -50,8 +42,7 @@ void VFields::VisitFields(FieldsMap& Fields, TVisitor& Visitor)
 	}
 }
 
-DEFINE_VISIT_REFERENCES(VShape);
-DEFINE_VCPPCLASSINFO(VShape, VHeapValue, TEXT("Shape"));
+DEFINE_DERIVED_VCPPCLASSINFO(VShape);
 TGlobalTrivialEmergentTypePtr<&VShape::StaticCppClassInfo> VShape::GlobalTrivialEmergentType;
 
 VShape::VShape(FAllocationContext Context, VFields::FieldsMap&& InFields)
@@ -80,7 +71,6 @@ VShape::VShape(FAllocationContext Context, VFields::FieldsMap&& InFields)
 template <typename TVisitor>
 void VShape::VisitReferencesImpl(TVisitor& Visitor)
 {
-	VHeapValue::VisitReferences(this, Visitor);
 	VFields::VisitFields(Fields, Visitor);
 }
 
@@ -89,12 +79,6 @@ VShape* VShape::New(FAllocationContext Context, VFields::FieldsMap&& InFields)
 	// We allocate in the destructor space here since we're making `VShape` destructible so that it can
 	// destruct its `TMap` member of fields.
 	return new (Context.Allocate(FHeap::DestructorSpace, sizeof(VShape))) VShape(Context, MoveTemp(InFields));
-}
-
-void VShape::RunDestructorImpl(VCell* This)
-{
-	VShape& ThisShape = This->StaticCast<VShape>();
-	ThisShape.~VShape();
 }
 
 } // namespace Verse

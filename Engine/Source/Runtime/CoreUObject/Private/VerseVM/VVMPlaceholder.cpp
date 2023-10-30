@@ -11,14 +11,12 @@
 namespace Verse
 {
 
-DEFINE_VISIT_REFERENCES(VPlaceholder);
-DEFINE_VCPPCLASSINFO(VPlaceholder, VCell, TEXT("Placeholder"));
+DEFINE_DERIVED_VCPPCLASSINFO(VPlaceholder);
 TGlobalTrivialEmergentTypePtr<&VPlaceholder::StaticCppClassInfo> VPlaceholder::GlobalTrivialEmergentType;
 
 template <typename TVisitor>
 void VPlaceholder::VisitReferencesImpl(TVisitor& Visitor)
 {
-	VCell::VisitReferences(this, Visitor);
 	Visitor.Visit(Value);
 }
 

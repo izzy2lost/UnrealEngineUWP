@@ -16,7 +16,7 @@ namespace Verse
 // A special heap value to store all intrinsic VNativeFunction objects
 struct VIntrinsics : VHeapValue
 {
-	COREUOBJECT_API static VCppClassInfo StaticCppClassInfo;
+	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VHeapValue);
 	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
 
 	TWriteBarrier<VNativeFunction> Abs;

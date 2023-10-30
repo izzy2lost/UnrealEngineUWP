@@ -19,9 +19,8 @@ struct VClass;
 /// A "shape" is a dynamic memory layout of fields and their offsets.
 struct VObject : VHeapValue
 {
-	COREUOBJECT_API static VCppClassInfo StaticCppClassInfo;
+	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VHeapValue);
 	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
-	DECLARE_VISIT_REFERENCES(COREUOBJECT_API);
 
 	static VObject& New(FAllocationContext Context, VEmergentType& InEmergentType);
 

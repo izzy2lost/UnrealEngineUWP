@@ -46,16 +46,17 @@ void VStringInternPool::ConductCensus()
 	}
 }
 
-uint32 VUTF8String::GetTypeHashImpl(VCell* ThisCell)
+uint32 VUTF8String::GetTypeHashImpl()
 {
-	VUTF8String& ThisString = ThisCell->StaticCast<VUTF8String>();
-	return GetTypeHash(ThisString);
+	return GetTypeHash(*this);
 }
 
-DEFINE_VCPPCLASSINFO(VUTF8String, VHeapValue, TEXT("UTF8String"));
+DEFINE_DERIVED_VCPPCLASSINFO(VUTF8String);
+DEFINE_TRIVIAL_VISIT_REFERENCES(VUTF8String);
 TGlobalTrivialEmergentTypePtr<&VUTF8String::StaticCppClassInfo> VUTF8String::GlobalTrivialEmergentType;
 
-DEFINE_VCPPCLASSINFO(VUniqueString, VHeapValue, TEXT("UniqueString"));
+DEFINE_DERIVED_VCPPCLASSINFO(VUniqueString);
+DEFINE_TRIVIAL_VISIT_REFERENCES(VUniqueString);
 TGlobalTrivialEmergentTypePtr<&VUniqueString::StaticCppClassInfo> VUniqueString::GlobalTrivialEmergentType;
 
 TLazyInitialized<VStringInternPool> VUniqueString::StringPool;
@@ -110,23 +111,15 @@ void VUniqueStringSetInternPool::ConductCensus()
 
 UE::FMutex VUniqueStringSetInternPool::Mutex;
 
-DEFINE_VISIT_REFERENCES(VUniqueStringSet)
-DEFINE_VCPPCLASSINFO(VUniqueStringSet, VCell, TEXT("UniqueStringSet"));
+DEFINE_DERIVED_VCPPCLASSINFO(VUniqueStringSet);
 TGlobalTrivialEmergentTypePtr<&VUniqueStringSet::StaticCppClassInfo> VUniqueStringSet::GlobalTrivialEmergentType;
 
 TLazyInitialized<VUniqueStringSetInternPool> VUniqueStringSet::Pool;
-
-void VUniqueStringSet::RunDestructorImpl(VCell* This)
-{
-	VUniqueStringSet& ThisSet = This->StaticCast<VUniqueStringSet>();
-	ThisSet.~VUniqueStringSet();
-}
 
 template <typename TVisitor>
 void VUniqueStringSet::VisitReferencesImpl(TVisitor& Visitor)
 {
 	// We still have to mark each of the strings in the set as being used.
-	VCell::VisitReferences(this, Visitor);
 	Visitor.Visit(Strings.begin(), Strings.end());
 }
 

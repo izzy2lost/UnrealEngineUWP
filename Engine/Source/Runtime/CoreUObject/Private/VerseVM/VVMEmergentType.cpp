@@ -11,13 +11,11 @@
 
 namespace Verse
 {
-DEFINE_VISIT_REFERENCES(VEmergentType)
-DEFINE_VCPPCLASSINFO(VEmergentType, VCell, TEXT("EmergentType"));
+DEFINE_DERIVED_VCPPCLASSINFO(VEmergentType);
 
 template <typename TVisitor>
 void VEmergentType::VisitReferencesImpl(TVisitor& Visitor)
 {
-	VCell::VisitReferences(this, Visitor);
 	Visitor.Visit(Shape);
 	Visitor.Visit(Type);
 }

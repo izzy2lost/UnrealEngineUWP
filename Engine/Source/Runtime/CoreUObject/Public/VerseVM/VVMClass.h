@@ -51,8 +51,7 @@ public:
 /// for things that are internal data values to the VM itself.
 struct VClass : VHeapValue
 {
-	COREUOBJECT_API static VCppClassInfo StaticCppClassInfo;
-	DECLARE_VISIT_REFERENCES(COREUOBJECT_API);
+	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VHeapValue);
 
 	/**
 	 * Creates a new class.
@@ -71,13 +70,10 @@ struct VClass : VHeapValue
 
 private:
 	VClass(FAllocationContext Context, const TArray<VClass*>& InInherited, VFields::FieldsMap&& InFields, VProcedure* Blocks);
-	~VClass() = default;
 
 	/// Gets the combined fields (i.e. including inherited classes) and values. Can also specify additional fields
 	/// to override existing fields with; the result will have re-ordered indices for offset-based fields.
 	VFields::FieldsMap GetCombinedFields(FAllocationContext Context, const VUniqueStringSet& InFieldNames) const;
-
-	static void RunDestructorImpl(VCell* This);
 
 	static size_t DataOffset();
 	static size_t AllocationSize(const uint32 NumInherited);

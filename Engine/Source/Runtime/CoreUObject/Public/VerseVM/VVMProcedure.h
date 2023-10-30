@@ -13,11 +13,10 @@
 
 namespace Verse
 {
-struct VProcedure : VHeapValue
+struct VProcedure : VCell
 {
-	COREUOBJECT_API static VCppClassInfo StaticCppClassInfo;
+	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VCell);
 	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
-	DECLARE_VISIT_REFERENCES(COREUOBJECT_API);
 
 	const uint32 NumParameters;
 	const uint32 NumRegisters;
@@ -67,7 +66,7 @@ struct VProcedure : VHeapValue
 
 private:
 	VProcedure(FAllocationContext Context, uint32 InNumArguments, uint32 InNumRegisters, uint32 InNumConstants, uint32 InNumOpBytes)
-		: VHeapValue(Context, &GlobalTrivialEmergentType.Get(Context))
+		: VCell(Context, &GlobalTrivialEmergentType.Get(Context))
 		, NumParameters(InNumArguments)
 		, NumRegisters(InNumRegisters)
 		, NumOpBytes(InNumOpBytes)
@@ -79,10 +78,8 @@ private:
 		}
 	}
 
-	~VProcedure();
-
 	/// Overridden from `VCell` because we want to ensure that the variadic arguments allocated in the function get de-allocated
 	/// once the function object lifetime ends. Otherwise they would not get their destructors called normally.
-	static void RunDestructorImpl(VCell* This);
+	~VProcedure();
 };
 } // namespace Verse

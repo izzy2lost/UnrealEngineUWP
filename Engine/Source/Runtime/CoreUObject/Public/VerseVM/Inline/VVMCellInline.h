@@ -69,9 +69,16 @@ inline uint32 GetTypeHash(VCell& Cell)
 }
 
 template <typename TVisitor>
-inline void VCell::VisitReferences(TVisitor& Visitor)
+void VCell::VisitReferences(TVisitor& Visitor)
 {
 	GetEmergentType()->CppClassInfo->VisitReferences(this, Visitor);
 }
 
+template <typename TVisitor>
+void VCell::VisitReferencesImpl(TVisitor& Visitor)
+{
+	Visitor.VisitNonNull(GetEmergentType());
+}
+
+DEFINE_TRIVIAL_VISIT_REFERENCES(VHeapValue);
 } // namespace Verse

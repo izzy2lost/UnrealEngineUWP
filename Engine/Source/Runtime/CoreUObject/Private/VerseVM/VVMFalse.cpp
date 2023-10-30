@@ -11,7 +11,8 @@
 namespace Verse
 {
 
-DEFINE_VCPPCLASSINFO(VFalse, VCell, TEXT("False"));
+DEFINE_DERIVED_VCPPCLASSINFO(VFalse);
+DEFINE_TRIVIAL_VISIT_REFERENCES(VFalse);
 TGlobalTrivialEmergentTypePtr<&VFalse::StaticCppClassInfo> VFalse::GlobalTrivialEmergentType;
 
 TGlobalHeapPtr<VFalse> GlobalFalsePtr;

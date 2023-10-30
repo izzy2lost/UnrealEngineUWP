@@ -21,9 +21,8 @@ struct TGlobalTrivialEmergentTypePtr;
 
 struct VArray : VHeapValue
 {
-	COREUOBJECT_API static VCppClassInfo StaticCppClassInfo;
+	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VHeapValue);
 	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
-	DECLARE_VISIT_REFERENCES(COREUOBJECT_API);
 
 private:
 	uint32 NumValues;
@@ -73,9 +72,9 @@ public:
 
 	static VArray& Concat(FAllocationContext Context, VArray& Lhs, VArray& Rhs);
 
-	COREUOBJECT_API static bool EqualImpl(FRunningContext Context, VCell* This, VCell* Other, TFunction<void(VValue, VValue)> HandlePlaceholder);
+	COREUOBJECT_API bool EqualImpl(FRunningContext Context, VCell* Other, const TFunction<void(::Verse::VValue, ::Verse::VValue)>& HandlePlaceholder);
 
-	COREUOBJECT_API static uint32 GetTypeHashImpl(VCell* ThisCell);
+	COREUOBJECT_API uint32 GetTypeHashImpl();
 
 	// C++ ranged-based iteration
 	class FConstIterator

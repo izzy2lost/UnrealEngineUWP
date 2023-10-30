@@ -77,7 +77,7 @@ struct VUTF8String : VHeapValue
 {
 	using SizeType = uint32;
 
-	COREUOBJECT_API static VCppClassInfo StaticCppClassInfo;
+	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VHeapValue);
 	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
 
 	static VUTF8String& New(FAllocationContext Context, const SizeType NumUTF8CHARs)
@@ -136,7 +136,7 @@ struct VUTF8String : VHeapValue
 		return FUtf8StringView(Data(), IntCastChecked<int32>(NumUTF8CHARs));
 	}
 
-	COREUOBJECT_API static uint32 GetTypeHashImpl(VCell* ThisCell);
+	COREUOBJECT_API uint32 GetTypeHashImpl();
 
 private:
 	static size_t DataOffset()
@@ -179,7 +179,7 @@ private:
 /// A unique string that lives in the global string intern pool.
 struct VUniqueString final : VUTF8String
 {
-	COREUOBJECT_API static VCppClassInfo StaticCppClassInfo;
+	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VUTF8String);
 	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
 
 	/**
@@ -231,9 +231,8 @@ inline uint32 GetTypeHash(const VUTF8String& String)
 struct VUniqueStringSet : VCell
 {
 	using SetType = TSet<TWriteBarrier<VUniqueString>, FUniqueStringSetKeyFuncs<TWriteBarrier<VUniqueString>>>;
-	COREUOBJECT_API static VCppClassInfo StaticCppClassInfo;
+	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VCell);
 	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
-	DECLARE_VISIT_REFERENCES(COREUOBJECT_API);
 
 	// This allows for this type to be used in range-based loops.
 	class FConstIterator
@@ -269,10 +268,8 @@ struct VUniqueStringSet : VCell
 private:
 	static SetType FormSet(FAllocationContext Context, const TSet<VUniqueString*>& InSet);
 	VUniqueStringSet(FAllocationContext Context, const TSet<VUniqueString*>& InSet);
-	~VUniqueStringSet() = default;
 
 	static VUniqueStringSet& Make(FAllocationContext Context, const TSet<VUniqueString*>& InSet);
-	static void RunDestructorImpl(VCell* This);
 	static bool Equals(const TSet<VUniqueString*>& A, const TSet<VUniqueString*>& B);
 
 	/// Global unique string set pool. This has to be wrapped in a `TLazyInitialized` so that the Verse heap is first

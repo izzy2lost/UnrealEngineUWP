@@ -17,8 +17,7 @@ struct VShape;
 
 struct VEmergentType final : VCell
 {
-	COREUOBJECT_API static VCppClassInfo StaticCppClassInfo;
-	DECLARE_VISIT_REFERENCES(COREUOBJECT_API);
+	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VCell);
 
 	TWriteBarrier<VShape> Shape; // This is immutable. If you need to change an object's shape, transition to a new emergent type that points to your new shape instead.
 	TWriteBarrier<VType> Type;

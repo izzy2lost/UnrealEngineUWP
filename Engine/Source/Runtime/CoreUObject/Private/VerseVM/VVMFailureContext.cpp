@@ -12,14 +12,12 @@
 namespace Verse
 {
 
-DEFINE_VISIT_REFERENCES(VFailureContext)
-DEFINE_VCPPCLASSINFO(VFailureContext, VCell, TEXT("FailureContext"));
+DEFINE_DERIVED_VCPPCLASSINFO(VFailureContext);
 TGlobalTrivialEmergentTypePtr<&VFailureContext::StaticCppClassInfo> VFailureContext::GlobalTrivialEmergentType;
 
 template <typename TVisitor>
 void VFailureContext::VisitReferencesImpl(TVisitor& Visitor)
 {
-	VCell::VisitReferences(this, Visitor);
 	Visitor.Visit(FirstChild);
 	Visitor.Visit(Next);
 	Visitor.Visit(Prev);

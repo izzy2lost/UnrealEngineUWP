@@ -15,33 +15,28 @@
 
 namespace Verse
 {
-DEFINE_VISIT_REFERENCES(VArray);
-DEFINE_VCPPCLASSINFO(VArray, VHeapValue, TEXT("Array"));
+DEFINE_DERIVED_VCPPCLASSINFO(VArray);
 TGlobalTrivialEmergentTypePtr<&VArray::StaticCppClassInfo> VArray::GlobalTrivialEmergentType;
 
 template <typename TVisitor>
 void VArray::VisitReferencesImpl(TVisitor& Visitor)
 {
-	VHeapValue::VisitReferences(this, Visitor);
 	Visitor.Visit(Tuple);
 }
 
-bool VArray::EqualImpl(FRunningContext Context, VCell* ThisCell, VCell* Other, TFunction<void(VValue, VValue)> HandlePlaceholder)
+bool VArray::EqualImpl(FRunningContext Context, VCell* Other, const TFunction<void(::Verse::VValue, ::Verse::VValue)>& HandlePlaceholder)
 {
-	if (!Other->IsA<VArray>())
+	if (VArray* OtherArray = Other->DynamicCast<VArray>())
 	{
-		return false;
+		return GetTuple().Equal(Context, &OtherArray->GetTuple(), HandlePlaceholder);
 	}
-	ThisCell = &ThisCell->StaticCast<VArray>().GetTuple();
-	Other = &Other->StaticCast<VArray>().GetTuple();
-	return VTuple::EqualImpl(Context, ThisCell, Other, HandlePlaceholder);
+	return false;
 }
 
-uint32 VArray::GetTypeHashImpl(VCell* ThisCell)
+uint32 VArray::GetTypeHashImpl()
 {
-	const VTuple& Tuple = ThisCell->StaticCast<VArray>().GetTuple();
-	const TWriteBarrier<VValue>* Ptr = Tuple.Values;
-	const uint32 Size = Tuple.Num();
+	const TWriteBarrier<VValue>* Ptr = Tuple->Values;
+	const uint32 Size = Tuple->Num();
 	return ::GetArrayHash(Ptr, Size);
 }
 

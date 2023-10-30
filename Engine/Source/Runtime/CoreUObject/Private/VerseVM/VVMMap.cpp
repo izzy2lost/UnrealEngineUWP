@@ -25,8 +25,7 @@ uint32 VMapInternalKeyFuncs::GetKeyHash(VValue Key)
 	return GetTypeHash(Key);
 }
 
-DEFINE_VISIT_REFERENCES(VMap);
-DEFINE_VCPPCLASSINFO(VMap, VHeapValue, TEXT("Map"));
+DEFINE_DERIVED_VCPPCLASSINFO(VMap);
 TGlobalTrivialEmergentTypePtr<&VMap::StaticCppClassInfo> VMap::GlobalTrivialEmergentType;
 
 void VMap::Add(const TWriteBarrier<VValue>& Key, const TWriteBarrier<VValue>& Value)
@@ -67,8 +66,6 @@ VValue VMap::GetValue(const int32 Index)
 template <typename TVisitor>
 void VMap::VisitReferencesImpl(TVisitor& Visitor)
 {
-	VHeapValue::VisitReferences(this, Visitor);
-
 	UE::FExternalMutex ExternalMutex(Mutex);
 	UE::TUniqueLock Lock(ExternalMutex);
 
@@ -79,20 +76,19 @@ void VMap::VisitReferencesImpl(TVisitor& Visitor)
 	}
 }
 
-bool VMap::EqualImpl(FRunningContext Context, VCell* ThisCell, VCell* Other, TFunction<void(VValue, VValue)> HandlePlaceholder)
+bool VMap::EqualImpl(FRunningContext Context, VCell* Other, const TFunction<void(::Verse::VValue, ::Verse::VValue)>& HandlePlaceholder)
 {
 	if (!Other->IsA<VMap>())
 	{
 		return false;
 	}
 
-	VMap& ThisMap = ThisCell->StaticCast<VMap>();
 	VMap& OtherMap = Other->StaticCast<VMap>();
-	if (ThisMap.InternalMap.Num() != OtherMap.InternalMap.Num())
+	if (InternalMap.Num() != OtherMap.InternalMap.Num())
 	{
 		return false;
 	}
-	for (VMapInternal::TConstIterator LhsIt = ThisMap.InternalMap.CreateConstIterator(); LhsIt; ++LhsIt)
+	for (VMapInternal::TConstIterator LhsIt = InternalMap.CreateConstIterator(); LhsIt; ++LhsIt)
 	{
 		const VValue RhsValue = OtherMap.Find(LhsIt.Key().Get());
 		if (!RhsValue)
@@ -108,22 +104,19 @@ bool VMap::EqualImpl(FRunningContext Context, VCell* ThisCell, VCell* Other, TFu
 	return true;
 }
 
-uint32 VMap::GetTypeHashImpl(VCell* ThisCell)
+uint32 VMap::GetTypeHashImpl()
 {
-	VMap& This = ThisCell->StaticCast<VMap>();
 	uint32 Result = 0;
-	for (VMapInternal::TConstIterator MapIt = This.InternalMap.CreateConstIterator(); MapIt; ++MapIt)
+	for (VMapInternal::TConstIterator MapIt = InternalMap.CreateConstIterator(); MapIt; ++MapIt)
 	{
 		::HashCombineFast(Result, ::HashCombineFast(GetTypeHash(MapIt.Key()), GetTypeHash(MapIt.Value())));
 	}
 	return Result;
 }
 
-void VMap::RunDestructorImpl(VCell* ThisCell)
+VMap::~VMap()
 {
-	VMap& This = ThisCell->StaticCast<VMap>();
-	FHeap::ReportDeallocatedNativeBytes(This.GetAllocatedSize());
-	This.~VMap();
+	FHeap::ReportDeallocatedNativeBytes(GetAllocatedSize());
 }
 
 } // namespace Verse

@@ -14,8 +14,7 @@
 
 namespace Verse
 {
-DEFINE_VISIT_REFERENCES(VClass)
-DEFINE_VCPPCLASSINFO(VClass, VHeapValue, TEXT("Class"));
+DEFINE_DERIVED_VCPPCLASSINFO(VClass);
 
 VFields::FieldsMap VClass::GetCombinedFields(FAllocationContext Context, const VUniqueStringSet& InFieldNames) const
 {
@@ -68,8 +67,6 @@ VEmergentType& VClass::GetOrCreateEmergentTypeForArchetype(FAllocationContext Co
 template <typename TVisitor>
 void VClass::VisitReferencesImpl(TVisitor& Visitor)
 {
-	VHeapValue::VisitReferences(this, Visitor);
-
 	Visitor.Visit(Blocks);
 
 	// Mark the inherited classes to ensure that they don't get swept during GC since we want to keep their information
@@ -84,12 +81,6 @@ void VClass::VisitReferencesImpl(TVisitor& Visitor)
 		Visitor.Visit(Pair.Key);
 		Visitor.Visit(Pair.Value);
 	}
-}
-
-void VClass::RunDestructorImpl(VCell* ThisCell)
-{
-	VClass& This = ThisCell->StaticCast<VClass>();
-	This.~VClass();
 }
 
 } // namespace Verse

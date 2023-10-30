@@ -51,8 +51,7 @@ private:
 
 struct VTuple : VHeapValue
 {
-	COREUOBJECT_API static VCppClassInfo StaticCppClassInfo;
-	DECLARE_VISIT_REFERENCES(COREUOBJECT_API);
+	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VHeapValue);
 
 	const uint32 NumValues;
 	TWriteBarrier<VValue> Values[];
@@ -87,9 +86,9 @@ struct VTuple : VHeapValue
 		return Result;
 	}
 
-	COREUOBJECT_API static bool EqualImpl(FRunningContext Context, VCell* This, VCell* Other, TFunction<void(VValue, VValue)> HandlePlaceholder);
+	COREUOBJECT_API bool EqualImpl(FRunningContext Context, VCell* Other, const TFunction<void(VValue, VValue)>& HandlePlaceholder);
 
-	COREUOBJECT_API static uint32 GetTypeHashImpl(VCell* ThisCell);
+	COREUOBJECT_API uint32 GetTypeHashImpl();
 
 private:
 	VTuple(FAllocationContext Context, uint32 InNumValues)

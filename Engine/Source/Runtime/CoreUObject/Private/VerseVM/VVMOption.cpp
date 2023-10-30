@@ -12,22 +12,19 @@
 namespace Verse
 {
 
-DEFINE_VISIT_REFERENCES(VOption);
-DEFINE_VCPPCLASSINFO(VOption, VHeapValue, TEXT("Optional"));
+DEFINE_DERIVED_VCPPCLASSINFO(VOption);
 TGlobalTrivialEmergentTypePtr<&VOption::StaticCppClassInfo> VOption::GlobalTrivialEmergentType;
 
 template <typename TVisitor>
 void VOption::VisitReferencesImpl(TVisitor& Visitor)
 {
-	VHeapValue::VisitReferences(this, Visitor);
 	Visitor.Visit(Value);
 }
 
-uint32 VOption::GetTypeHashImpl(VCell* ThisCell)
+uint32 VOption::GetTypeHashImpl()
 {
-	VOption& ThisOption = ThisCell->StaticCast<VOption>();
 	static constexpr uint32 MagicNumber = 0x9e3779b9;
-	return ::HashCombineFast(static_cast<uint32>(MagicNumber), GetTypeHash(ThisOption.GetValue()));
+	return ::HashCombineFast(static_cast<uint32>(MagicNumber), GetTypeHash(GetValue()));
 }
 
 } // namespace Verse

@@ -44,8 +44,7 @@ namespace Verse
 {
 struct VHeapInt final : VHeapValue
 {
-public:
-	COREUOBJECT_API static VCppClassInfo StaticCppClassInfo;
+	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VHeapValue);
 	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
 
 	using Digit = uint32;
