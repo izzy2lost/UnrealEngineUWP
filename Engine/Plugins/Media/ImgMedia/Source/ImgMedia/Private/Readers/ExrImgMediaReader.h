@@ -97,7 +97,7 @@ protected:
 	 * @param Dim Dimensions of the largest mip.
 	 * @return Total size of all mip levels.
 	 */
-	SIZE_T GetMipBufferTotalSize(FIntPoint Dim);
+	SIZE_T GetMipBufferTotalSize(FIntPoint Dim, bool bInHasMips);
 
 protected:
 	TSet<int32> CanceledFrames;

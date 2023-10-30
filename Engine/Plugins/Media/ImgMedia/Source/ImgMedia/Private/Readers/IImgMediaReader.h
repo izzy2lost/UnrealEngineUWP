@@ -31,7 +31,7 @@ struct FImgMediaFrameInfo
 	/** Whether the frame is in sRGB color space. */
 	bool Srgb;
 
-	/** Uncompressed size (in bytes). */
+	/** Uncompressed size (in bytes). All mip levels included. */
 	SIZE_T UncompressedSize;
 
 	/** Number of channels (RGB - 3 or RGBA - 4). */

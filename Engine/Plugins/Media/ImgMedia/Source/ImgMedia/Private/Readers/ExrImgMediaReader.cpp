@@ -205,7 +205,10 @@ bool FExrImgMediaReader::ReadFrame(int32 FrameId, const TMap<int32, FImgMediaTil
 		}
 
 		// allocate frame buffer
-		SIZE_T BufferSize = GetMipBufferTotalSize(Dim);
+		// FRgbaInputFile loads any exr as rgba 16 bit per channel.
+		// UncompressedSize is used for cache, therefore it needs to be set to the actual size of the buffer.
+		FrameInfo.UncompressedSize = GetMipBufferTotalSize(Dim, FrameInfo.NumMipLevels > 1);
+		SIZE_T BufferSize = FrameInfo.UncompressedSize;
 		void* Buffer = FMemory::Malloc(BufferSize, PLATFORM_CACHE_LINE_SIZE);
 
 		auto BufferDeleter = [BufferSize](void* ObjectToDelete) {
@@ -274,7 +277,7 @@ bool FExrImgMediaReader::ReadFrame(int32 FrameId, const TMap<int32, FImgMediaTil
 					ConverterParams.FrameId = FrameId;
 
 					TArray<UE::Math::TIntPoint<int64>> OutBufferRegionsToCopy;
-					EReadResult ReadResult = ReadTiles((uint16*)MipDataPtr, GetMipBufferTotalSize(Dim / MipLevelDiv), Image, TileRegions, ConverterParams, CurrentMipLevel, OutBufferRegionsToCopy);
+					EReadResult ReadResult = ReadTiles((uint16*)MipDataPtr, FrameInfo.UncompressedSize / MipLevelDiv, Image, TileRegions, ConverterParams, CurrentMipLevel, OutBufferRegionsToCopy);
 					if (ReadResult != Fail)
 					{
 						OutFrame->MipTilesPresent.Emplace(CurrentMipLevel, CurrentTileSelection);
@@ -456,10 +459,18 @@ void FExrImgMediaReader::SetCustomFormatInfo(bool bInIsCustomFormat, const FIntP
 	bIsCustomFormatTiled = InTileSize.X != 0;
 }
 
-SIZE_T FExrImgMediaReader::GetMipBufferTotalSize(FIntPoint Dim)
+SIZE_T FExrImgMediaReader::GetMipBufferTotalSize(FIntPoint Dim, bool bInHasMips)
 {
-	SIZE_T Size = ((Dim.X * Dim.Y * 4) / 3) * sizeof(uint16) * 4;
-	
+	SIZE_T Size = 0;
+	if (bInHasMips)
+	{
+		Size = ((Dim.X * Dim.Y * 4) / 3) * sizeof(uint16) * 4;
+	}
+	else
+	{
+		Size = (Dim.X * Dim.Y ) * sizeof(uint16) * 4;
+	}
+
 	return Size;
 }
 

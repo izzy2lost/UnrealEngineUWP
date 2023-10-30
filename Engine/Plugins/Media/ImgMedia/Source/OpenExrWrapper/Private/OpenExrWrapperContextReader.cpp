@@ -123,11 +123,10 @@ FFrameRate FOpenExrHeaderReader::GetFrameRate(const FFrameRate& DefaultValue) co
 
 int32 FOpenExrHeaderReader::GetUncompressedSize() const
 {
-	const int32 NumChannels = GetNumChannels();
-	const int32 ChannelSize = sizeof(int16);
+	const int32 TexelSize = GetPixelSize();
 	const FIntPoint Window = GetDataWindow();
 
-	return (Window.X * Window.Y * NumChannels * ChannelSize);
+	return (Window.X * Window.Y * TexelSize);
 }
 
 int32 FOpenExrHeaderReader::GetNumChannels() const
@@ -135,6 +134,33 @@ int32 FOpenExrHeaderReader::GetNumChannels() const
 	const exr_attribute_t* Attribute = nullptr;
 	CheckExrResult(exr_get_attribute_by_name(*((exr_context_t*)FileContext.Get()), 0, EXR_ATTRIBUTE_CHANNELS, &Attribute));
 	return Attribute->chlist->num_channels;
+}
+
+int32 FOpenExrHeaderReader::GetPixelSize() const
+{
+	const exr_attribute_t* Attribute = nullptr;
+
+	CheckExrResult(exr_get_attribute_by_name(*((exr_context_t*)FileContext.Get()), 0, EXR_ATTRIBUTE_CHANNELS, &Attribute));
+
+	int32 PixelSizeInBytes = 0;
+	for (int ChannelId = 0; ChannelId < Attribute->chlist->num_channels; ChannelId++)
+	{
+		const exr_pixel_type_t ChannelType = Attribute->chlist->entries[ChannelId].pixel_type;
+		switch (ChannelType)
+		{
+		// 32 bit, 4 byte
+		case EXR_PIXEL_UINT:
+		case EXR_PIXEL_FLOAT:
+			PixelSizeInBytes += 4;
+			break;
+		// 16 bit, 2 byte
+		case EXR_PIXEL_HALF:
+		default:
+			PixelSizeInBytes += 2;
+			break;
+		}
+	}
+	return PixelSizeInBytes;
 }
 
 bool FOpenExrHeaderReader::ContainsMips() const

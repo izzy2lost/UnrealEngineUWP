@@ -72,6 +72,7 @@ public:
 	FFrameRate GetFrameRate(const FFrameRate& DefaultValue) const;
 	int32 GetUncompressedSize() const;
 	int32 GetNumChannels() const;
+	int32 GetPixelSize() const;
 	bool ContainsMips() const;
 	int32 CalculateNumMipLevels(const FIntPoint& NumTiles) const;
 
