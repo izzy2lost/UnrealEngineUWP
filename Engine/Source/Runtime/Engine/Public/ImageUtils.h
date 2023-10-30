@@ -161,6 +161,8 @@ public:
 	/**
 	 * Resizes the given image using a simple average filter and stores it in the destination array.  This version constrains aspect ratio.
 	 *
+	 * DEPRECATED do not use this, use FImageCore::ResizeImage instead
+	 *
 	 * @param SrcWidth				Source image width.
 	 * @param SrcHeight				Source image height.
 	 * @param SrcData				Source image data.
@@ -176,6 +178,8 @@ public:
 	 * Resizes the given image using a simple average filter and stores it in the destination array.  This version constrains aspect ratio.
 	 * Accepts TArrayViews but requires that DstData be pre-sized appropriately
 	 *
+	 * DEPRECATED do not use this, use FImageCore::ResizeImage instead
+	 *
 	 * @param SrcWidth				Source image width.
 	 * @param SrcHeight				Source image height.
 	 * @param SrcData				Source image data.
@@ -190,6 +194,8 @@ public:
 	/**
 	 * Resizes the given image using a simple average filter and stores it in the destination array.  This version constrains aspect ratio.
 	 *
+	 * DEPRECATED do not use this, use FImageCore::ResizeImage instead
+	 *
 	 * @param SrcWidth	Source image width.
 	 * @param SrcHeight	Source image height.
 	 * @param SrcData	Source image data.
@@ -202,6 +208,8 @@ public:
 	/**
 	 * Resizes the given image using a simple average filter and stores it in the destination array.  This version constrains aspect ratio.
 	 * Accepts TArrayViews but requires that DstData be pre-sized appropriately
+	 *
+	 * DEPRECATED do not use this, use FImageCore::ResizeImage instead
 	 *
 	 * @param SrcWidth	Source image width.
 	 * @param SrcHeight	Source image height.

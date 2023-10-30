@@ -1469,7 +1469,11 @@ static void DownscaleImage(const FImage& SrcImage, FImage& DstImage, const FText
 	float Downscale = GetDownscaleFinalSizeAndClampedDownscale(SrcImage.SizeX, SrcImage.SizeY, Settings, FinalSizeX, FinalSizeY);
 	
 	//@todo OodleImageResize : replace this whole function with better image resizer if NewFilters
-
+	//	use FImageCore::ResizeImage
+	// what this function does is 2X downsamples with the mip filter
+	//	and then a final bilinear resize to the desired final size
+	// instead just use ResizeImage to go directly from source size to final size in one step
+	
 	// recompute Downscale factor because it may have changed due to block alignment
 	// note: if aspect ratio was not exactly preserved, this could differ in X and Y
 	Downscale = (float)SrcImage.SizeX / (float)FinalSizeX;
@@ -1560,6 +1564,7 @@ static void DownscaleImage(const FImage& SrcImage, FImage& DstImage, const FText
 	FImageView2D DstImageData(*ImageChain[1], 0);
 				
 	// @todo OodleImageResize : not sure this is a correct image resize without shift; does it get pixel center offsets right?
+	//	use FImageCore::ResizeImage here instead
 	for (int32 Y = 0; Y < FinalSizeY; ++Y)
 	{
 		float SourceY = (float)Y * Downscale;
@@ -1568,12 +1573,12 @@ static void DownscaleImage(const FImage& SrcImage, FImage& DstImage, const FText
 		for (int32 X = 0; X < FinalSizeX; ++X)
 		{
 			float SourceX = (float)X * Downscale;
-			int32 IntSourceX = FMath::RoundToInt(SourceX);
 
 			FLinearColor FilteredColor(0,0,0,0);
 
 			if (bUnfiltered)
 			{
+				int32 IntSourceX = FMath::RoundToInt(SourceX);
 				FilteredColor = LookupSourceMip<MGTAM_Clamp>(SrcImageData, IntSourceX, IntSourceY);
 			}
 			else if(bBilinear)
@@ -3924,10 +3929,13 @@ private:
 				{
 					if (TargetImage.NumSlices != 1)
 					{
+						// @todo OodleImageResize ; use FImageCore::ResizeImage instead, supports slices if slice count is the same (eg. arrays yes, volumes no)
 						// FImageCore::ResizeTo currently only supports resizing textures with 1 slice
 						UE_LOG(LogTextureCompressor, Error, TEXT("Texture resizing is currently only supported on Texture2D."));
 						return false;
 					}
+					
+					// @todo OodleImageResize : use FImageCore::ResizeImage instead
 					SourceImage.ResizeTo(TargetImage, TargetTextureSizeX, TargetTextureSizeY, SourceImage.Format, SourceImage.GetGammaSpace());
 				}
 				else

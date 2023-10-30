@@ -408,6 +408,8 @@ bool FImageUtils::GetRenderTargetImage(UTextureRenderTarget2D* TexRT, FImage & I
  */
 void FImageUtils::ImageResize(int32 SrcWidth, int32 SrcHeight, const TArray<FColor> &SrcData, int32 DstWidth, int32 DstHeight, TArray<FColor> &DstData, bool bLinearSpace, bool bForceOpaqueOutput)
 {
+	// * DEPRECATED do not use this, use FImageCore::ResizeImage instead
+
 	DstData.Empty(DstWidth*DstHeight);
 	DstData.AddZeroed(DstWidth*DstHeight);
 
@@ -427,7 +429,8 @@ void FImageUtils::ImageResize(int32 SrcWidth, int32 SrcHeight, const TArray<FCol
  */
 void FImageUtils::ImageResize(int32 SrcWidth, int32 SrcHeight, const TArrayView<const FColor> &SrcData, int32 DstWidth, int32 DstHeight, const TArrayView<FColor> &DstData, bool bLinearSpace, bool bForceOpaqueOutput)
 {
-	//@todo OodleImageResize : deprecate ImageResize and direct users to new function
+	//@todo OodleImageResize : deprecate ImageResize
+	// * DEPRECATED do not use this, use FImageCore::ResizeImage instead
 
 	check(SrcData.Num() >= SrcWidth * SrcHeight);
 	check(DstData.Num() >= DstWidth * DstHeight);
@@ -532,6 +535,8 @@ void FImageUtils::ImageResize(int32 SrcWidth, int32 SrcHeight, const TArrayView<
  */
 void FImageUtils::ImageResize(int32 SrcWidth, int32 SrcHeight, const TArray64<FLinearColor>& SrcData, int32 DstWidth, int32 DstHeight, TArray64<FLinearColor>& DstData)
 {
+	// * DEPRECATED do not use this, use FImageCore::ResizeImage instead
+
 	DstData.Empty(DstWidth * DstHeight);
 	DstData.AddZeroed(DstWidth * DstHeight);
 
@@ -551,7 +556,8 @@ void FImageUtils::ImageResize(int32 SrcWidth, int32 SrcHeight, const TArray64<FL
  */
 void FImageUtils::ImageResize(int32 SrcWidth, int32 SrcHeight, const TArrayView64<const FLinearColor>& SrcData, int32 DstWidth, int32 DstHeight, const TArrayView64<FLinearColor>& DstData)
 {
-	//@todo OodleImageResize : deprecate ImageResize and direct users to new function
+	//@todo OodleImageResize : deprecate ImageResize
+	// * DEPRECATED do not use this, use FImageCore::ResizeImage instead
 
 	check(SrcData.Num() >= SrcWidth * SrcHeight);
 	check(DstData.Num() >= DstWidth * DstHeight);
