@@ -1,8 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 import { action, makeObservable, observable } from 'mobx';
-import { AgentData, GetAgentResponse, PoolData } from './Api';
 import backend from '.';
+import { AgentData, CategoryAgents, GetAgentResponse, PoolData } from './Api';
 
 export class AgentStore {
 
@@ -78,6 +78,41 @@ export class AgentStore {
         })
     }
 
+    categoryAgents = new Map<string, CategoryAgents>();
+
+    private forceUpdate() {
+        this._setAgents([...this._agents]);
+    }
+
+    getCategory(condition: string): CategoryAgents {
+
+        let agents = this.categoryAgents.get(condition);
+
+        if (agents && ( agents.polling || (Date.now() - agents.lastPoll.getTime()) / 1000 < 60)) {
+            return agents;
+        }
+        
+        agents = { ids: agents?.ids ?? [], lastPoll: new Date(), polling: !agents };
+        this.categoryAgents.set(condition, agents);
+
+        const filter = "id";
+        backend.getAgents({ condition: condition, filter: filter }).then((agents) => {
+
+            const oldAgents = new Set(this.categoryAgents.get(condition)?.ids ?? []);
+            const ids = agents.map(a => a.id);        
+            this.categoryAgents.set(condition, { ids: ids, lastPoll: new Date() })
+
+            const newAgents = new Set(ids);
+
+            if (oldAgents.size !== newAgents.size || ![...oldAgents].every(x => newAgents.has(x))) {
+                // force update
+                this.forceUpdate();    
+            }
+        });
+                
+        return agents;
+
+    }
 
     async update(slim = false): Promise<void> {
         return new Promise<void>((resolve, reject) => {

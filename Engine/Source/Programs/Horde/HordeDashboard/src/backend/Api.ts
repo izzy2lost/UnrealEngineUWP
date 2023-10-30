@@ -289,6 +289,7 @@ export type AgentQuery = {
 	modifiedAfter?: string;
 	poolId?: string;
 	includeDeleted?: boolean;
+	condition?: string;
 	filter?: string;
 }
 
@@ -378,6 +379,23 @@ export enum IssueSeverity {
 	Error = "Error"
 }
 
+export type CategoryAgents = {	
+    ids: string[];
+    lastPoll: Date;
+    polling?: boolean;
+}
+
+/** Describes a category for the agents page */
+export type GetDashboardAgentCategoryResponse = {
+
+	/** Title for the tab */
+	name: string;
+	
+	/* Condition for agents to be included in this category */
+	condition?: string;
+}
+
+
 /** Setting information required by dashboard */
 export type GetDashboardConfigResponse = {
 
@@ -399,6 +417,8 @@ export type GetDashboardConfigResponse = {
 	/** Device problem cooldown in minutes */
 	deviceProblemCooldownMinutes?: number
 
+	/** Categories to display on the agents page */
+	agentCategories: GetDashboardAgentCategoryResponse[];
 }
 
 /**Parameters to register a new agent */
@@ -4807,10 +4827,10 @@ export type GetBisectTaskResponse = {
 
 	/// Lower step id bounds
 	minStepId?: string;
-	
+
 	/// Lower change id bounds
 	minChange?: number;
-	
+
 	/// The steps that have been run on bisect
 	steps?: GetJobStepRefResponse[];
 
