@@ -212,6 +212,9 @@ struct FRHIGlobals
 	/** True if the RHI supports separate blend states per render target. */
 	bool SupportsSeparateRenderTargetBlendState = false;
 
+	/** True if the RHI supports dual src blending. */
+	bool SupportsDualSrcBlending = true;
+
 	/** True if the RHI has artifacts with atlased CSM depths. */
 	bool NeedsUnatlasedCSMDepthsWorkaround = false;
 
@@ -677,6 +680,7 @@ extern RHI_API FRHIGlobals GRHIGlobals;
 #define GRHISupportsExactOcclusionQueries                      GRHIGlobals.SupportsExactOcclusionQueries
 #define GSupportsVolumeTextureRendering                        GRHIGlobals.SupportsVolumeTextureRendering
 #define GSupportsSeparateRenderTargetBlendState                GRHIGlobals.SupportsSeparateRenderTargetBlendState
+#define GSupportsDualSrcBlending                               GRHIGlobals.SupportsDualSrcBlending
 #define GRHINeedsUnatlasedCSMDepthsWorkaround                  GRHIGlobals.NeedsUnatlasedCSMDepthsWorkaround
 #define GSupportsTexture3D                                     GRHIGlobals.SupportsTexture3D
 #define GUseTexture3DBulkDataRHI                               GRHIGlobals.UseTexture3DBulkData

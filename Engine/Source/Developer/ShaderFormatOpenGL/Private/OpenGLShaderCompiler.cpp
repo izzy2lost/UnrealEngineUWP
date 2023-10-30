@@ -2095,37 +2095,39 @@ static void ConvertToEmulatedUBs(std::string& GlslSource, const ReflectionData& 
 }
 
 const ANSICHAR* GlslFrameBufferExtensions =
-"\n\n#ifdef GL_ARM_shader_framebuffer_fetch_depth_stencil\n"
-"\t#extension GL_ARM_shader_framebuffer_fetch_depth_stencil : enable\n"
-"#elif defined(GL_EXT_shader_framebuffer_fetch)\n"
+"\n\n#ifdef UE_MRT_FRAMEBUFFER_FETCH\n"
 "\t#extension GL_EXT_shader_framebuffer_fetch : enable\n"
 "\t#define FBF_STORAGE_QUALIFIER inout\n"
+"#elif defined(GL_ARM_shader_framebuffer_fetch)\n"
+"\t#extension GL_ARM_shader_framebuffer_fetch : enable\n"
 "#endif\n"
-"#extension GL_EXT_texture_buffer : enable\n"
+"#ifdef GL_ARM_shader_framebuffer_fetch_depth_stencil\n"
+"\t#extension GL_ARM_shader_framebuffer_fetch_depth_stencil : enable\n"
+"#endif\n"
 "// end extensions";
 
 // GLSL framebuffer macro definitions. Used to patch GLSL output source.
 const ANSICHAR* GlslFrameBufferDefines =
-"\n\n#ifdef UE_EXT_shader_framebuffer_fetch\n"
-"#define _Globals_ARM_shader_framebuffer_fetch 0\n"
-"#define FRAME_BUFFERFETCH_STORAGE_QUALIFIER inout\n"
-"#define _Globals_gl_FragColor out_var_SV_Target0\n"
-"#define _Globals_gl_LastFragColorARM vec4(0.0, 0.0, 0.0, 0.0)\n"
-"#elif defined( GL_ARM_shader_framebuffer_fetch)\n"
-"#define _Globals_ARM_shader_framebuffer_fetch 1\n"
-"#define FRAME_BUFFERFETCH_STORAGE_QUALIFIER out\n"
-"#define _Globals_gl_FragColor vec4(0.0, 0.0, 0.0, 0.0)\n"
-"#define _Globals_gl_LastFragColorARM gl_LastFragDepthARM\n"
+"\n\n#ifdef UE_MRT_FRAMEBUFFER_FETCH\n"
+"\t#define _Globals_ARM_shader_framebuffer_fetch 0u\n"
+"\t#define FRAME_BUFFERFETCH_STORAGE_QUALIFIER inout\n"
+"\t#define _Globals_gl_FragColor out_var_SV_Target0\n"
+"\t#define _Globals_gl_LastFragColorARM vec4(0.0, 0.0, 0.0, 0.0)\n"
+"#elif defined(GL_ARM_shader_framebuffer_fetch)\n"
+"\t#define _Globals_ARM_shader_framebuffer_fetch 1u\n"
+"\t#define FRAME_BUFFERFETCH_STORAGE_QUALIFIER out\n"
+"\t#define _Globals_gl_FragColor vec4(0.0, 0.0, 0.0, 0.0)\n"
+"\t#define _Globals_gl_LastFragColorARM gl_LastFragColorARM\n"
 "#else\n"
-"#define FRAME_BUFFERFETCH_STORAGE_QUALIFIER out\n"
-"#define _Globals_ARM_shader_framebuffer_fetch 0\n"
-"#define _Globals_gl_FragColor vec4(0.0, 0.0, 0.0, 0.0)\n"
-"#define _Globals_gl_LastFragColorARM vec4(0.0, 0.0, 0.0, 0.0)\n"
+"\t#define FRAME_BUFFERFETCH_STORAGE_QUALIFIER out\n"
+"\t#define _Globals_ARM_shader_framebuffer_fetch 0u\n"
+"\t#define _Globals_gl_FragColor vec4(0.0, 0.0, 0.0, 0.0)\n"
+"\t#define _Globals_gl_LastFragColorARM vec4(0.0, 0.0, 0.0, 0.0)\n"
 "#endif\n"
 "#ifdef GL_ARM_shader_framebuffer_fetch_depth_stencil\n"
-"#define _Globals_ARM_shader_framebuffer_fetch_depth_stencil 1u\n"
+"\t#define _Globals_ARM_shader_framebuffer_fetch_depth_stencil 1u\n"
 "#else\n"
-"#define _Globals_ARM_shader_framebuffer_fetch_depth_stencil 0u\n"
+"\t#define _Globals_ARM_shader_framebuffer_fetch_depth_stencil 0u\n"
 "#endif\n";
 
 struct GLSLCompileParameters
@@ -2187,8 +2189,8 @@ bool GenerateGlslShader(std::string& OutString, GLSLCompileParameters& GLSLCompi
 	}
 
 	// Perform FBF replacements
+	if (GLSLCompileParams.Frequency == SF_Pixel)
 	{
-
 		size_t MainPos = OutString.find("#version 320 es");
 
 		// Fallback if the shader is 310 
@@ -2204,104 +2206,131 @@ bool GenerateGlslShader(std::string& OutString, GLSLCompileParameters& GLSLCompi
 
 		// Framebuffer Depth Fetch
 		{
-			std::string FBDFString = "_Globals.ARM_shader_framebuffer_fetch_depth_stencil";
-			std::string FBDFReplaceString = "1u";
-
 			std::string FBFString = "_Globals.ARM_shader_framebuffer_fetch";
 			std::string FBFReplaceString = "_Globals_ARM_shader_framebuffer_fetch";
 
-			bool UsesFramebufferDepthFetch = GLSLCompileParams.Frequency == SF_Pixel && OutString.find(FBDFString) != std::string::npos;
-			bool UsesFramebufferFetch = GLSLCompileParams.Frequency == SF_Pixel && OutString.find(FBFString) != std::string::npos;
+			bool UsesFramebufferFetch = OutString.find(FBFString) != std::string::npos;
 
-			if (UsesFramebufferDepthFetch || UsesFramebufferFetch)
+			if (UsesFramebufferFetch)
 			{
 				OutString.insert(MainPos, GlslFrameBufferDefines);
 				OutString.insert(MainPos, GlslFrameBufferExtensions);
 
-				size_t FramebufferDepthFetchPos = OutString.find(FBDFString);
+				std::string FBDFString = "_Globals.ARM_shader_framebuffer_fetch_depth_stencil";
+				std::string FBDFReplaceString = "1u";
 
-				OutString.erase(FramebufferDepthFetchPos, FBDFString.length());
-				OutString.insert(FramebufferDepthFetchPos, FBDFReplaceString);
-
-				std::string LastFragDepthARMString = "_Globals._RESERVED_IDENTIFIER_FIXUP_gl_LastFragDepthARM";
-				std::string LastFragDepthARMReplaceString = "GLFetchDepthBuffer()";
-
-				size_t LastFragDepthARMStringPos = OutString.find(LastFragDepthARMString);
-				
-				while (LastFragDepthARMStringPos != std::string::npos)
+				bool UsesFramebufferDepthFetch = OutString.find(FBDFString) != std::string::npos;
+				if (UsesFramebufferDepthFetch)
 				{
-					OutString.erase(LastFragDepthARMStringPos, LastFragDepthARMString.length());
-					OutString.insert(LastFragDepthARMStringPos, LastFragDepthARMReplaceString);
+					size_t FramebufferDepthFetchPos = OutString.find(FBDFString);
 
-					LastFragDepthARMStringPos = OutString.find(LastFragDepthARMString);
-				}
+					OutString.erase(FramebufferDepthFetchPos, FBDFString.length());
+					OutString.insert(FramebufferDepthFetchPos, FBDFReplaceString);
 
-				MainPos = OutString.find("void main()");
+					std::string LastFragDepthARMString = "_Globals._RESERVED_IDENTIFIER_FIXUP_gl_LastFragDepthARM";
+					std::string LastFragDepthARMReplaceString = "GLFetchDepthBuffer()";
 
-				// Add support for framebuffer fetch depth when ARM extension is not supported
-				if (MainPos != std::string::npos)
-				{
-					std::string DepthBufferIndex = bIsDeferred ? "4" : "1";
-					std::string DepthBufferOutVarString = "out_var_SV_Target" + DepthBufferIndex;
+					size_t LastFragDepthARMStringPos = OutString.find(LastFragDepthARMString);
 
-					// Insert function declaration to handle retrieving depth
-					OutString.insert(MainPos, "float GLFetchDepthBuffer()\n"
-						"{\n"
-						"\t#if defined(GL_ARM_shader_framebuffer_fetch_depth_stencil)\n"
-						"\treturn gl_LastFragDepthARM;\n"
-						"\t#elif defined(GL_EXT_shader_framebuffer_fetch)\n"
-						"\treturn " + DepthBufferOutVarString + ".x;\n"
-						"\t#else\n"
-						"\treturn 0.0f;\n"
-						"\t#endif\n"
-						"}\n");
-
-					
-					// If SceneDepthAux is not declared then declare it, otherwise modify so that we only enable it on devices that don't support
-					// GL_ARM_shader_framebuffer_fetch_depth_stencil and do support GL_EXT_shader_framebuffer_fetch
-					size_t DepthBufferOutVarPos = OutString.find(DepthBufferOutVarString + ";");
-
-					std::string DepthBufferDeclString = "layout(location = " + DepthBufferIndex + ") inout highp vec4 " + DepthBufferOutVarString + ";\n";
-					std::string DepthBufferOutString = "\n#if !defined(GL_ARM_shader_framebuffer_fetch_depth_stencil) && defined(GL_EXT_shader_framebuffer_fetch)\n" +
-														DepthBufferDeclString +
-														"#endif\n";
-
-					// If we cannot find a declararation of out_var_SV_Target(n) in the shader, insert one
-					if (DepthBufferOutVarPos == std::string::npos)
+					while (LastFragDepthARMStringPos != std::string::npos)
 					{
-						OutString.insert(MainPos, DepthBufferOutString);
-					}
-					else 
-					{
-						// If we have a declaration, replace with one that will be stripped if GL_ARM_shader_framebuffer_fetch_depth_stencil is enabled
-						size_t StringStartPos = OutString.rfind("layout", DepthBufferOutVarPos - 1);
-						size_t StringEndPos = OutString.find(";", StringStartPos);
+						OutString.erase(LastFragDepthARMStringPos, LastFragDepthARMString.length());
+						OutString.insert(LastFragDepthARMStringPos, LastFragDepthARMReplaceString);
 
-						OutString.erase(StringStartPos, (StringEndPos+1) - StringStartPos);
-						OutString.insert(StringStartPos, DepthBufferOutString);
+						LastFragDepthARMStringPos = OutString.find(LastFragDepthARMString);
 					}
 
-					// Make SceneDepthAux assignment conditional
-					// We only need to write the depth when we don't support GL_ARM_shader_framebuffer_fetch_depth_stencil
-					std::string DepthBufferAssignment = DepthBufferOutVarString + " =";
-					size_t DepthBufferAssignmentPos = OutString.find(DepthBufferAssignment);
+					MainPos = OutString.find("void main()");
 
-					if (DepthBufferAssignmentPos != std::string::npos)
+					// Add support for framebuffer fetch depth when ARM extension is not supported
+					if (MainPos != std::string::npos)
 					{
-						size_t LineEnd = OutString.find_first_of(";", DepthBufferAssignmentPos);
-						uint32_t AssignmentValueStart = DepthBufferAssignmentPos + DepthBufferAssignment.size();
-						std::string AssignmentValue = OutString.substr(AssignmentValueStart + 1, LineEnd - AssignmentValueStart);
+						std::string DepthBufferIndex = bIsDeferred ? "4" : "1";
+						std::string DepthBufferOutVarString = "out_var_SV_Target" + DepthBufferIndex;
 
-						if (LineEnd != std::string::npos)
+						// Insert function declaration to handle retrieving depth
+						OutString.insert(MainPos, "float GLFetchDepthBuffer()\n"
+							"{\n"
+							"\t#if defined(GL_ARM_shader_framebuffer_fetch_depth_stencil)\n"
+							"\treturn gl_LastFragDepthARM;\n"
+							"\t#elif defined(GL_EXT_shader_framebuffer_fetch)\n"
+							"\treturn " + DepthBufferOutVarString + ".x;\n"
+							"\t#else\n"
+							"\treturn 0.0f;\n"
+							"\t#endif\n"
+							"}\n");
+
+
+						// If SceneDepthAux is not declared then declare it, otherwise modify so that we only enable it on devices that don't support
+						// GL_ARM_shader_framebuffer_fetch_depth_stencil and do support GL_EXT_shader_framebuffer_fetch
+						size_t DepthBufferOutVarPos = OutString.find(DepthBufferOutVarString + ";");
+
+						std::string DepthBufferDeclString = "layout(location = " + DepthBufferIndex + ") inout highp vec4 " + DepthBufferOutVarString + ";\n";
+						std::string DepthBufferOutString = "\n#if !defined(GL_ARM_shader_framebuffer_fetch_depth_stencil) && defined(GL_EXT_shader_framebuffer_fetch)\n" +
+							DepthBufferDeclString +
+							"#endif\n";
+
+						// If we cannot find a declararation of out_var_SV_Target(n) in the shader, insert one
+						if (DepthBufferOutVarPos == std::string::npos)
 						{
-							OutString.erase(DepthBufferAssignmentPos, LineEnd + 1 - DepthBufferAssignmentPos);
-							OutString.insert(DepthBufferAssignmentPos, std::string("#if !defined(GL_ARM_shader_framebuffer_fetch_depth_stencil) && defined(GL_EXT_shader_framebuffer_fetch)\n") + DepthBufferAssignment + AssignmentValue + std::string("\n#endif\n"));
+							OutString.insert(MainPos, DepthBufferOutString);
+						}
+						else
+						{
+							// If we have a declaration, replace with one that will be stripped if GL_ARM_shader_framebuffer_fetch_depth_stencil is enabled
+							size_t StringStartPos = OutString.rfind("layout", DepthBufferOutVarPos - 1);
+							size_t StringEndPos = OutString.find(";", StringStartPos);
+
+							OutString.erase(StringStartPos, (StringEndPos + 1) - StringStartPos);
+							OutString.insert(StringStartPos, DepthBufferOutString);
+						}
+
+						// Make SceneDepthAux assignment conditional
+						// We only need to write the depth when we don't support GL_ARM_shader_framebuffer_fetch_depth_stencil
+						std::string DepthBufferAssignment = DepthBufferOutVarString + " =";
+						size_t DepthBufferAssignmentPos = OutString.find(DepthBufferAssignment);
+
+						if (DepthBufferAssignmentPos != std::string::npos)
+						{
+							size_t LineEnd = OutString.find_first_of(";", DepthBufferAssignmentPos);
+							uint32_t AssignmentValueStart = DepthBufferAssignmentPos + DepthBufferAssignment.size();
+							std::string AssignmentValue = OutString.substr(AssignmentValueStart + 1, LineEnd - AssignmentValueStart);
+
+							if (LineEnd != std::string::npos)
+							{
+								OutString.erase(DepthBufferAssignmentPos, LineEnd + 1 - DepthBufferAssignmentPos);
+								OutString.insert(DepthBufferAssignmentPos, std::string("#if !defined(GL_ARM_shader_framebuffer_fetch_depth_stencil) && defined(GL_EXT_shader_framebuffer_fetch)\n") + DepthBufferAssignment + AssignmentValue + std::string("\n#endif\n"));
+							}
 						}
 					}
+				} // UsesFramebufferDepthFetch
+			}
+
+			// check again, before it might have been a match for ARM_shader_framebuffer_fetch_depth_stencil
+			UsesFramebufferFetch = GLSLCompileParams.Frequency == SF_Pixel && OutString.find(FBFString) != std::string::npos;
+			if (UsesFramebufferFetch)
+			{
+				std::string ReservedIdentifierFixupString = "_RESERVED_IDENTIFIER_FIXUP_";
+				size_t ReservedIdentifierFixupStringPos = OutString.find(ReservedIdentifierFixupString);
+
+				while (ReservedIdentifierFixupStringPos != std::string::npos)
+				{
+					OutString.erase(ReservedIdentifierFixupStringPos, ReservedIdentifierFixupString.length());
+					ReservedIdentifierFixupStringPos = OutString.find(ReservedIdentifierFixupString);
+				}
+
+				std::string Target0String = "layout(location = 0) out ";
+				std::string Target0ReplaceString = "layout(location = 0) FRAME_BUFFERFETCH_STORAGE_QUALIFIER ";
+				size_t Target0StringPos = OutString.find(Target0String);
+				if (Target0StringPos != std::string::npos)
+				{
+					OutString.erase(Target0StringPos, Target0String.length());
+					OutString.insert(Target0StringPos, Target0ReplaceString);
 				}
 			}
 		}
 	}
+
 
 	// If we are rendering deferred, then we only need SceneDepthAux on devices that don't support framebuffer fetch depth
 	if (bIsDeferred)

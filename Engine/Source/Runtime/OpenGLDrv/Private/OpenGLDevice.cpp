@@ -1124,6 +1124,8 @@ static void InitRHICapabilitiesForGL()
 	GShaderPlatformForFeatureLevel[ERHIFeatureLevel::SM4_REMOVED] = SP_NumPlatforms;
 	GShaderPlatformForFeatureLevel[ERHIFeatureLevel::SM5] = SP_NumPlatforms;
 
+	// Not implemented in OpenGL RHI. Supported in GLcore 3.3, not in OpenGL ES, extension GL_EXT_blend_func_extended not widely supported.
+	GSupportsDualSrcBlending = false;
 
 	GRHISupportsTextureStreaming = true;
 

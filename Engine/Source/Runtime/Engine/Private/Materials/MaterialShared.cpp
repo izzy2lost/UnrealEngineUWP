@@ -1860,7 +1860,7 @@ bool FMaterialResource::IsDualBlendingEnabled(EShaderPlatform Platform) const
 	{
 		bMaterialRequestsDualSourceBlending = GetBlendMode() == EBlendMode::BLEND_TranslucentColoredTransmittance;
 	}
-	const bool bIsPlatformSupported = RHISupportsDualSourceBlending(Platform);
+	const bool bIsPlatformSupported = RHISupportsDualSourceBlending(Platform) || IsMobilePlatform(Platform); // Mobile renderer has runtime fallbacks
 	return bMaterialRequestsDualSourceBlending && bIsPlatformSupported;
 }
 
