@@ -3263,6 +3263,64 @@ void FGeometryCollectionPhysicsProxy::SetIsOneWayInteraction_Internal(bool bInIs
 	}
 }
 
+void FGeometryCollectionPhysicsProxy::SetPhysicsMaterial_External(const Chaos::FMaterialHandle& MaterialHandle)
+{
+	// update GT particles
+	for (const TUniquePtr<FParticle>& GTParticle : GTParticles)
+	{
+		if (GTParticle)
+		{
+			for (const TUniquePtr<Chaos::FPerShapeData>& Shape : GTParticle->ShapesArray())
+			{
+				Shape->SetMaterial(MaterialHandle);
+			}
+		}
+	}
+
+	// update physics thread
+	ExecuteOnPhysicsThread(*this, [this, MaterialHandle]()
+		{
+			SetPhysicsMaterial_Internal(MaterialHandle);
+		});
+}
+
+void FGeometryCollectionPhysicsProxy::SetPhysicsMaterial_Internal(const Chaos::FMaterialHandle& MaterialHandle)
+{
+	using namespace Chaos;
+	if (Parameters.PhysicalMaterialHandle != MaterialHandle)
+	{
+		Parameters.PhysicalMaterialHandle = MaterialHandle;
+
+		// set materials on the particles
+		FChaosPhysicsMaterial* SolverMaterial = nullptr;
+		if (Chaos::FPhysicsSolver* RigidSolver = GetSolver<Chaos::FPhysicsSolver>())
+		{
+			// #BGTODO - non-updating parameters - remove lin/ang drag arrays and always query material if this stays a material parameter
+			SolverMaterial = RigidSolver->GetSimMaterials().Get(Parameters.PhysicalMaterialHandle.InnerHandle);
+		}
+		if (SolverMaterial)
+		{
+			for (Chaos::FPBDRigidClusteredParticleHandle* Handle : SolverParticleHandles)
+			{
+				if (Handle)
+				{
+					Handle->SetLinearEtherDrag(SolverMaterial->LinearEtherDrag);
+					Handle->SetAngularEtherDrag(SolverMaterial->AngularEtherDrag);
+
+					const Chaos::FShapesArray& Shapes = Handle->ShapesArray();
+					for (const TUniquePtr<Chaos::FPerShapeData>& Shape : Shapes)
+					{
+						Shape->SetMaterial(Parameters.PhysicalMaterialHandle);
+					}
+				}
+			}
+		}
+
+		// adjust damage threshold as they depends on the material DamageThresholdMultiplier or strength
+		UpdateDamageThreshold_Internal();
+	}
+}
+
 void FGeometryCollectionPhysicsProxy::PushStateOnGameThread(Chaos::FPBDRigidsSolver* InSolver)
 {
 	// CONTEXT: ANYTHREAD but spawned form GAMETHREAD in a parallelFor

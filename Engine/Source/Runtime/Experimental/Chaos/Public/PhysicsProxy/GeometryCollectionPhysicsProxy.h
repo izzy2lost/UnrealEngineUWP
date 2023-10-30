@@ -474,6 +474,7 @@ public:
 	CHAOS_API void SetMaterialOverrideMassScaleMultiplier_External(float InMultiplier);
 	CHAOS_API void SetGravityGroupIndex_External(int32 GravityGroupIndex);
 	CHAOS_API void SetIsOneWayInteraction_External(bool bInIsOneWayInteraction);
+	CHAOS_API void SetPhysicsMaterial_External(const Chaos::FMaterialHandle& MaterialHandle);
 	/** 
 	 * Traverses the parents of TransformGroupIdx counting number of levels,
 	 * and sets levels array value for TransformGroupIdx and its parents if not yet initialized.
@@ -564,6 +565,7 @@ protected:
 	CHAOS_API void SetMaterialOverrideMassScaleMultiplier_Internal(float InMultiplier);
 	CHAOS_API void SetGravityGroupIndex_Internal(int32 GravityGroupIndex);
 	CHAOS_API void SetIsOneWayInteraction_Internal(bool bInIsOneWayInteraction);
+	CHAOS_API void SetPhysicsMaterial_Internal(const Chaos::FMaterialHandle& MaterialHandle);
 
 private:
 

@@ -6841,10 +6841,13 @@ void UGeometryCollectionComponent::SetPhysMaterialOverride(UPhysicalMaterial* Ne
 {
 	Super::SetPhysMaterialOverride(NewPhysMaterial);
 
-	UPhysicalMaterial* EnginePhysicalMaterial = GetPhysicalMaterial();
-	if (ensure(EnginePhysicalMaterial) && PhysicsProxy && !PhysicsProxy->IsInitializedOnPhysicsThread())
+	if (PhysicsProxy)
 	{
-		PhysicsProxy->GetSimParameters().PhysicalMaterialHandle = EnginePhysicalMaterial->GetPhysicsMaterial();
+		UPhysicalMaterial* EnginePhysicalMaterial = GetPhysicalMaterial();
+		if (ensure(EnginePhysicalMaterial))
+		{
+			PhysicsProxy->SetPhysicsMaterial_External(EnginePhysicalMaterial->GetPhysicsMaterial());
+		}
 	}
 }
 
