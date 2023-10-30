@@ -62,10 +62,6 @@ struct FChaosVDContactDebugDrawSettings
 	/** The scale value to be applied to the normal vector of a contact used to change its size to make it easier to see */
 	UPROPERTY(EditAnywhere, Category=DebugDraw)
 	float ContactNormalScale = 30.0f;
-
-	/** The radius of the debug draw circle used to represent the Phi value (penetration) of a contact point */
-	UPROPERTY(EditAnywhere, Category=DebugDraw)
-	float ContactPhiCircleRadius = 2.0f;
 };
 
 /** Structure holding the settings using to debug draw Particles shape based on their state on the Chaos Visual Debugger */

@@ -233,6 +233,7 @@ void FChaosVDSolverCollisionDataComponentVisualizer::DrawMidPhaseData(const UAct
 				FColor EdgeNormalColor = FColor(250, 150, 0);
 				FColor ImpulseColor = FColor(0, 0, 250);
 				FColor PushOutImpulseColor = FColor(0, 250, 250);
+				FColor InitialPhiColor = FColor(189, 195, 199);
 				float ContactLenScale = 1.0f;
 
 				// TODO: Make this a setting when all CVD debug draw options support changing the line thickness
@@ -293,7 +294,13 @@ void FChaosVDSolverCollisionDataComponentVisualizer::DrawMidPhaseData(const UAct
 
 				if (EnumHasAnyFlags(VisualizationFlags, EChaosVDCollisionVisualizationFlags::ContactPoints))
 				{
-					FChaosVDDebugDrawUtils::DrawCircle(PDI, WorldPlaneLocation, DebugDrawSettings.ContactCircleRadius, CircleSegments, DiscColor, LinesThickness, Axes.GetUnitAxis(EAxis::Y), Axes.GetUnitAxis(EAxis::Z), TEXT("Contact : WorldPlaneLocation"), DebugDrawSettings.DepthPriority);
+					FChaosVDDebugDrawUtils::DrawCircle(PDI, WorldPlaneLocation, DebugDrawSettings.ContactCircleRadius, CircleSegments, DiscColor, LinesThickness, Axes.GetUnitAxis(EAxis::Y), Axes.GetUnitAxis(EAxis::Z), TEXT("Contact : Manifold Plane"), DebugDrawSettings.DepthPriority);
+					FChaosVDDebugDrawUtils::DrawCircle(PDI, WorldPointLocation, 0.5f * DebugDrawSettings.ContactCircleRadius, CircleSegments, DiscColor, LinesThickness, Axes.GetUnitAxis(EAxis::Y), Axes.GetUnitAxis(EAxis::Z), TEXT("Contact : Manifold Point"), DebugDrawSettings.DepthPriority);
+					if (ManifoldPoint.InitialPhi != 0)
+					{
+						FChaosVDDebugDrawUtils::DrawCircle(PDI, WorldPlaneLocation + ManifoldPoint.InitialPhi * WorldPlaneNormal, 0.25f * DebugDrawSettings.ContactCircleRadius, CircleSegments, InitialPhiColor, LinesThickness, Axes.GetUnitAxis(EAxis::Y), Axes.GetUnitAxis(EAxis::Z), TEXT("Contact : Manifold Initial Phi"), DebugDrawSettings.DepthPriority);
+
+					}
 				}
 
 				if (EnumHasAnyFlags(VisualizationFlags, EChaosVDCollisionVisualizationFlags::ContactNormal))
@@ -301,17 +308,6 @@ void FChaosVDSolverCollisionDataComponentVisualizer::DrawMidPhaseData(const UAct
 					FColor NormalColor = ((ManifoldPoint.ContactPoint.ContactType != EChaosVDContactPointType::EdgeEdge) ? PlaneNormalColor : EdgeNormalColor);
 					const int32 Scale = DebugDrawSettings.ContactNormalScale * ContactLenScale;
 					FChaosVDDebugDrawUtils::DrawArrowVector(PDI, WorldPlaneLocation, WorldPlaneLocation + WorldPlaneNormal * Scale, TEXT("Contact Normal"), NormalColor, DebugDrawSettings.DepthPriority);
-				}
-
-				if (EnumHasAnyFlags(VisualizationFlags, EChaosVDCollisionVisualizationFlags::ContactPoints))
-				{
-					if (ManifoldPoint.ContactPoint.Phi < FLT_MAX)
-					{
-						FChaosVDDebugDrawUtils::DrawCircle(PDI, WorldPlaneLocation - ManifoldPoint.ContactPoint.Phi * WorldPlaneNormal, DebugDrawSettings.ContactPhiCircleRadius, CircleSegments, PhiDiscColor, LinesThickness, Axes.GetUnitAxis(EAxis::Y), Axes.GetUnitAxis(EAxis::Z), TEXT("Contact : WorldPlaneLocation - Phi"), DebugDrawSettings.DepthPriority);
-					}
-
-					// Manifold point
-					FChaosVDDebugDrawUtils::DrawCircle(PDI, WorldPointLocation, DebugDrawSettings.ContactCircleRadius, CircleSegments, DiscColor, LinesThickness, Axes.GetUnitAxis(EAxis::Y), Axes.GetUnitAxis(EAxis::Z), TEXT("Contact : Manifold Point"), DebugDrawSettings.DepthPriority);				
 				}
 
 				if (EnumHasAnyFlags(VisualizationFlags, EChaosVDCollisionVisualizationFlags::AccumulatedImpulse))

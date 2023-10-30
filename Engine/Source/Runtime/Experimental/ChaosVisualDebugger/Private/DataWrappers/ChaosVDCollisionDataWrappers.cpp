@@ -27,6 +27,7 @@ bool FChaosVDManifoldPoint::Serialize(FArchive& Ar)
 	Ar << NetImpulse;
 
 	Ar << TargetPhi;
+	Ar << InitialPhi;
 	Ar << ShapeAnchorPoints;
 	Ar << InitialShapeContactPoints;
 	Ar << ContactPoint;
@@ -82,6 +83,8 @@ bool FChaosVDConstraint::Serialize(FArchive& Ar)
 	Ar << LastShapeWorldPositionDelta;
 	Ar << LastShapeWorldRotationDelta;
 	Ar << Stiffness;
+	Ar << MinInitialPhi;
+	Ar << InitialOverlapDepenetrationVelocity;
 	Ar << CCDTimeOfImpact;
 	Ar << CCDEnablePenetration;
 	Ar << CCDTargetPenetration;

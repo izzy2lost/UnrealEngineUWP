@@ -18,6 +18,7 @@ void FChaosVDDataWrapperUtils::CopyManifoldPointsToDataWrapper(const Chaos::FMan
 	OutCopyTo.bWasReplaced = InCopyFrom.Flags.bWasReplaced;
 	OutCopyTo.bHasStaticFrictionAnchor = InCopyFrom.Flags.bHasStaticFrictionAnchor;
 	OutCopyTo.TargetPhi = InCopyFrom.TargetPhi;
+	OutCopyTo.InitialPhi = InCopyFrom.InitialPhi;
 
 	Algo::Transform(InCopyFrom.ShapeAnchorPoints, OutCopyTo.ShapeAnchorPoints, &FChaosVDDataWrapperUtils::ConvertToFVector);
 	Algo::Transform(InCopyFrom.InitialShapeContactPoints, OutCopyTo.InitialShapeContactPoints, &FChaosVDDataWrapperUtils::ConvertToFVector);
@@ -105,6 +106,8 @@ FChaosVDConstraint FChaosVDDataWrapperUtils::BuildConstraintDataWrapperFromConst
 	WrappedConstraintData.ClosestManifoldPointIndex = InConstraint.ClosestManifoldPointIndex;
 	WrappedConstraintData.ExpectedNumManifoldPoints = InConstraint.ExpectedNumManifoldPoints;
 	WrappedConstraintData.Stiffness = InConstraint.Stiffness;
+	WrappedConstraintData.MinInitialPhi = InConstraint.MinInitialPhi;
+	WrappedConstraintData.InitialOverlapDepenetrationVelocity = InConstraint.InitialOverlapDepenetrationVelocity;
 	WrappedConstraintData.CCDTimeOfImpact = InConstraint.CCDTimeOfImpact;
 	WrappedConstraintData.CCDEnablePenetration = InConstraint.CCDEnablePenetration;
 	WrappedConstraintData.CCDTargetPenetration = InConstraint.CCDTargetPenetration;

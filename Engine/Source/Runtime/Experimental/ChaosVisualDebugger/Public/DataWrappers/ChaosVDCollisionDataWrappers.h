@@ -120,6 +120,8 @@ struct CHAOSVDRUNTIME_API FChaosVDManifoldPoint
 
 	UPROPERTY(VisibleAnywhere, Category=ContactData)
 	float TargetPhi = 0.f;
+	UPROPERTY(VisibleAnywhere, Category=ContactData)
+	float InitialPhi = 0.f;
 	UPROPERTY()
 	TArray<FVector> ShapeAnchorPoints;
 	UPROPERTY()
@@ -282,6 +284,12 @@ struct CHAOSVDRUNTIME_API FChaosVDConstraint
 	
 	UPROPERTY(VisibleAnywhere, Category=ConstraintData)
 	float Stiffness = 0.f;
+
+	UPROPERTY(VisibleAnywhere, Category = ConstraintData)
+	float MinInitialPhi = 0.f;
+
+	UPROPERTY(VisibleAnywhere, Category = ConstraintData)
+	float InitialOverlapDepenetrationVelocity = 0.f;
 	
 	UPROPERTY(VisibleAnywhere, Category=ConstraintData)
 	float CCDTimeOfImpact = 0.f;
