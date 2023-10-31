@@ -22,11 +22,11 @@ struct FMovieGraphVersioningSettings
 	 * next version used.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Versioning")
-	bool bAutoVersioning;
+	bool bAutoVersioning = true;
 	
 	/** The value to use for the version token if versions are not automatically incremented (Auto Version is off). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Versioning", meta = (UIMin = 1, UIMax = 50, ClampMin = 1))
-	int32 VersionNumber;
+	int32 VersionNumber = 1;
 };
 
 UCLASS()
