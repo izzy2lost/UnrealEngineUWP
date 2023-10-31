@@ -37,6 +37,7 @@
 #include "DetailWidgetRow.h"
 #include "Subsystems/AssetEditorSubsystem.h"
 #include "PropertyEditorConstants.h"
+#include "PropertyEditorUtils.h"
 #include "Misc/EditorPathHelper.h"
 
 #define LOCTEXT_NAMESPACE "PropertyEditor"
@@ -195,14 +196,23 @@ void SPropertyEditorAsset::InitializeClassFilters(const FProperty* Property)
 
 	bExactClass = GetTagOrBoolMetadata(MetadataProperty, "ExactClass", false);
 	
-	AllowedClassFilters = PropertyCustomizationHelpers::GetClassesFromMetadataString(MetadataProperty->GetMetaData("AllowedClasses"));
+	TArray<UObject*> ObjectList;
+	if (PropertyEditor && PropertyEditor->GetPropertyHandle()->IsValidHandle())
+	{
+		PropertyEditor->GetPropertyHandle()->GetOuterObjects(ObjectList);
+	}
+	else if (PropertyHandle.IsValid())
+	{
+		PropertyHandle->GetOuterObjects(ObjectList);
+	}
+	
+	PropertyEditorUtils::GetAllowedAndDisallowedClasses(ObjectList, *MetadataProperty, AllowedClassFilters, DisallowedClassFilters, bExactClass, ObjectClass);
+	
 	if (AllowedClassFilters.Num() == 0)
 	{
 		// always add the object class to the filters
 		AllowedClassFilters.Add(ObjectClass);
 	}
-
-	DisallowedClassFilters = PropertyCustomizationHelpers::GetClassesFromMetadataString(MetadataProperty->GetMetaData("DisallowedClasses"));
 }
 
 void SPropertyEditorAsset::InitializeAssetDataTags(const FProperty* Property)

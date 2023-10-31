@@ -1483,6 +1483,18 @@ namespace UM
 		/// UFUNCTION()
 		/// bool FuncName(const FAssetData& AssetData) const;
 		GetAssetFilter,
+		
+		/// [PropertyMetadata] Get allowed classes through a UFunction, e.g. meta=(GetAllowedClasses="FuncName").
+		///
+		/// UFUNCTION()
+		/// TArray<UClass*> FuncName() const;
+		GetAllowedClasses,
+		
+		/// [PropertyMetadata] Get disallowed classes through a UFunction, e.g. meta=(GetDisallowedClasses="FuncName").
+		///
+		/// UFUNCTION()
+		/// TArray<UClass*> FuncName() const;
+		GetDisallowedClasses,
 
 	    /// [PropertyMetadata] Used for enum properties to define the subset of invalid values as a comma-separated string; values within this subset are not made available.
         InvalidEnumValues,

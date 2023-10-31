@@ -9,6 +9,7 @@
 #include "DragAndDrop/AssetDragDropOp.h"
 #include "ClassViewerModule.h"
 #include "ClassViewerFilter.h"
+#include "PropertyEditorUtils.h"
 #include "UObject/UObjectIterator.h"
 #include "PropertyNode.h"
 #include "PropertyRestriction.h"
@@ -161,8 +162,12 @@ void SPropertyEditorClass::Construct(const FArguments& InArgs, const TSharedPtr<
 		}
 
 		// Filter based on UPROPERTY meta data
-		AllowedClassFilters = PropertyCustomizationHelpers::GetClassesFromMetadataString(Property->GetOwnerProperty()->GetMetaData("AllowedClasses"));
-		DisallowedClassFilters = PropertyCustomizationHelpers::GetClassesFromMetadataString(Property->GetOwnerProperty()->GetMetaData("DisallowedClasses"));
+		TArray<UObject*> ObjectList;
+		if (PropertyEditor->GetPropertyHandle()->IsValidHandle())
+		{
+			PropertyEditor->GetPropertyHandle()->GetOuterObjects(ObjectList);
+		}
+		PropertyEditorUtils::GetAllowedAndDisallowedClasses(ObjectList, *Property, AllowedClassFilters, DisallowedClassFilters, false);
 
 		using namespace UE::PropertyEditor::Class::Private;
 
@@ -444,8 +449,6 @@ FReply SPropertyEditorClass::OnDrop(const FGeometry& MyGeometry, const FDragDrop
 	TSharedPtr<FAssetDragDropOp> UnloadedClassOp = DragDropEvent.GetOperationAs<FAssetDragDropOp>();
 	if (UnloadedClassOp.IsValid())
 	{
-		bool bAllAssetWereLoaded = true;
-
 		FString AssetPath;
 
 		// Find the class/blueprint path

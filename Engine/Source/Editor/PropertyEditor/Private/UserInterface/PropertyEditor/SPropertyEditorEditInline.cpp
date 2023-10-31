@@ -13,6 +13,7 @@
 #include "Styling/SlateIconFinder.h"
 #include "UObject/ConstructorHelpers.h"
 #include "Editor.h"
+#include "PropertyEditorUtils.h"
 
 class FPropertyEditorInlineClassFilter : public IClassViewerFilter
 {
@@ -266,12 +267,16 @@ TSharedRef<SWidget> SPropertyEditorEditInline::GenerateClassPicker()
 		}
 	}
 
-	static const FName NAME_AllowedClasses(ANSITEXTVIEW("AllowedClasses"));
-	TArray<const UClass*> AllowedClassFilters = PropertyCustomizationHelpers::GetClassesFromMetadataString(MetadataProperty->GetMetaData(NAME_AllowedClasses));
+	TArray<UObject*> ObjectList;
+	if (PropertyEditor && PropertyEditor->GetPropertyHandle()->IsValidHandle())
+	{
+		PropertyEditor->GetPropertyHandle()->GetOuterObjects(ObjectList);
+	}
 
-	static const FName NAME_DisallowedClasses(ANSITEXTVIEW("DisallowedClasses"));
-	TArray<const UClass*> DisallowedClassFilters = PropertyCustomizationHelpers::GetClassesFromMetadataString(MetadataProperty->GetMetaData(NAME_DisallowedClasses));
-
+	TArray<const UClass*> AllowedClassFilters;
+	TArray<const UClass*> DisallowedClassFilters;
+	PropertyEditorUtils::GetAllowedAndDisallowedClasses(ObjectList, *Property, AllowedClassFilters, DisallowedClassFilters, false);
+	
 	using namespace UE::PropertyEditor::EditInline::Private;
 
 	// Filter based on restrictions
