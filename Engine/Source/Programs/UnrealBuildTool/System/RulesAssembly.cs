@@ -44,6 +44,20 @@ namespace UnrealBuildTool
 		}
 
 		/// <summary>
+		/// Returns all the types contained in the compiled rules assembly
+		/// </summary>
+		/// <returns></returns>
+		public IEnumerable<Type> GetTypes()
+		{
+			if (CompiledAssembly != null)
+			{
+				return CompiledAssembly.GetTypes();
+			}
+			return Enumerable.Empty<Type>();
+		}
+
+
+		/// <summary>
 		/// The base directories for this assembly
 		/// </summary>
 		private readonly IReadOnlyList<DirectoryReference> BaseDirs;

@@ -1729,6 +1729,43 @@ namespace UnrealBuildTool
 		}
 
 		/// <summary>
+		/// Returns all the modules that are in the given module group
+		/// </summary>
+		/// <param name="ModuleGroup">The name of the module group, as defined by a [ModuleGroup("Name")] attribute</param>
+		/// <param name="bOnlyValid">Only include modules that are valid for the current Target</param>
+		/// <returns></returns>
+		public IEnumerable<string> GetModulesInGroup( string ModuleGroup, bool bOnlyValid = true )
+		{
+			// figure out what platforms/groups aren't allowed with this opted in list
+			List<string>? DisallowedPlatformsAndGroups = (bOnlyValid && Target.OptedInModulePlatforms != null) ? Utils.MakeListOfUnsupportedPlatforms(Target.OptedInModulePlatforms.ToList(), false, Logger) : null;
+
+			foreach (Type ModuleType in RulesAssembly.GetTypes()
+				.Where( T => T.IsSubclassOf(typeof(ModuleRules)) && T.IsDefined(typeof(ModuleGroupsAttribute), true ))
+				.Where( T => !bOnlyValid || IsValidForTarget(T, Target, out string? _))
+				)
+			{
+				// check if the module file is disallowed
+				if (DisallowedPlatformsAndGroups != null)
+				{
+					FileReference? ModuleFileName = RulesAssembly.GetModuleFileName(ModuleType.Name);
+					if (ModuleFileName != null)
+					{
+						if (ModuleFileName.ContainsAnyNames(DisallowedPlatformsAndGroups, Unreal.EngineDirectory) ||
+							(Target.ProjectFile != null && ModuleFileName.ContainsAnyNames(DisallowedPlatformsAndGroups, Target.ProjectFile.Directory)))
+						{
+							continue;
+						}
+					}
+				}
+
+				if (ModuleType.GetCustomAttributes<ModuleGroupsAttribute>().Any( X => X.ModuleGroups.Contains(ModuleGroup)))
+				{
+					yield return ModuleType.Name;
+				}
+			}
+		}
+
+		/// <summary>
 		/// Prepares a module for building a low level tests executable.
 		/// If we're building a module as part of a test module chain and there's a Tests folder with low level tests, then they require the LowLevelTestsRunner dependency.
 		/// We also keep track of any Editor, Engine and other conditionally compiled dependencies.
