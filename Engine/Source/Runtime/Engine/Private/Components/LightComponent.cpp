@@ -616,6 +616,15 @@ bool ULightComponent::CanEditChange(const FProperty* InProperty) const
 				return false;
 			}
 		}
+
+		if (!CastDynamicShadows &&
+			  (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(ULightComponent, ContactShadowLength)
+			|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(ULightComponent, ContactShadowLengthInWS)
+			|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(ULightComponent, ContactShadowCastingIntensity)
+			|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(ULightComponent, ContactShadowNonCastingIntensity)))
+		{
+			return false;
+		}
 		
 		const bool bIsRayStartOffset = PropertyName == GET_MEMBER_NAME_STRING_CHECKED(ULightComponent, RayStartOffsetDepthScale);
 
