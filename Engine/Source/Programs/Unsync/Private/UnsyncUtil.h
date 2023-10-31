@@ -85,8 +85,9 @@ struct FTimingLogger
 	bool		bEnabled  = false;
 	FTimePoint	TimeBegin = FTimePoint{};
 	std::string Name;
+	ELogLevel	LogLevel;
 
-	FTimingLogger(const char* InName, bool InEnabled = true);
+	FTimingLogger(const char* InName, ELogLevel InLogLevel, bool InEnabled = true);
 	~FTimingLogger();
 	void Finish();
 };

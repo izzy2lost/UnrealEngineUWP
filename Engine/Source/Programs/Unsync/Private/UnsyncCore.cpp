@@ -27,7 +27,7 @@ UNSYNC_THIRD_PARTY_INCLUDES_START
 #include <md5-sse2.h>
 UNSYNC_THIRD_PARTY_INCLUDES_END
 
-#define UNSYNC_VERSION_STR "1.0.61-dev3"
+#define UNSYNC_VERSION_STR "1.0.61-dev4"
 
 namespace unsync {
 
@@ -3331,7 +3331,7 @@ SyncDirectory(const FSyncDirectoryOptions& SyncOptions)
 
 	if (SyncOptions.bCleanup)
 	{
-		UNSYNC_VERBOSE(L"Unnecessary files will be deleted after sync (cleanup mode)");
+		UNSYNC_LOG(L"Unnecessary files will be deleted after sync (cleanup mode)");
 	}
 
 	FPath BaseManifestRoot = BasePath / ".unsync";
@@ -3379,7 +3379,7 @@ SyncDirectory(const FSyncDirectoryOptions& SyncOptions)
 
 	const bool bCaseSensitiveTargetFileSystem = IsCaseSensitiveFileSystem(TargetTempPath);
 
-	FTimingLogger ManifestLoadTimingLogger("Manifest load time");
+	FTimingLogger ManifestLoadTimingLogger("Manifest load time", ELogLevel::Info);
 
 	if (SyncOptions.SourceType == ESyncSourceType::ServerWithManifestHash)
 	{
@@ -3389,7 +3389,7 @@ SyncDirectory(const FSyncDirectoryOptions& SyncOptions)
 			return false;
 		}
 
-		UNSYNC_VERBOSE(L"Downloading manifest ...");
+		UNSYNC_LOG(L"Downloading manifest ...");
 
 		std::unique_ptr<FProxy> Proxy = ProxyPool.Alloc();
 
@@ -3447,8 +3447,8 @@ SyncDirectory(const FSyncDirectoryOptions& SyncOptions)
 
 	ManifestLoadTimingLogger.Finish();
 
-	FTimingLogger TargetManifestTimingLogger("Target directory manifest generation time");
-	UNSYNC_VERBOSE(L"Creating manifest for directory '%ls'", TargetPath.wstring().c_str());
+	FTimingLogger TargetManifestTimingLogger("Target directory manifest generation time", ELogLevel::Info);
+	UNSYNC_LOG(L"Creating manifest for directory '%ls'", TargetPath.wstring().c_str());
 
 
 	// Propagate algorithm selection from source
@@ -3490,15 +3490,15 @@ SyncDirectory(const FSyncDirectoryOptions& SyncOptions)
 	std::vector<FFileSyncTask> AllFileTasks;
 
 	LogGlobalStatus(L"Scanning base directory");
-	UNSYNC_VERBOSE(L"Scanning base directory");
+	UNSYNC_LOG(L"Scanning base directory");
 	FFileAttributeCache BaseAttribCache = CreateFileAttributeCache(BasePath, SyncFilter);
-	UNSYNC_VERBOSE(L"Base files: %d", (uint32)BaseAttribCache.Map.size());
+	UNSYNC_LOG(L"Base files: %d", (uint32)BaseAttribCache.Map.size());
 
 	FFileAttributeCache SourceAttribCache;
 	if (bFileSystemSource && SyncOptions.bValidateSourceFiles)
 	{
 		LogGlobalStatus(L"Scanning source directory");
-		UNSYNC_VERBOSE(L"Scanning source directory");
+		UNSYNC_LOG(L"Scanning source directory");
 		SourceAttribCache = CreateFileAttributeCache(SourcePath, SyncFilter);
 	}
 
@@ -3521,7 +3521,7 @@ SyncDirectory(const FSyncDirectoryOptions& SyncOptions)
 
 	if (bQuickDifferencePossible)
 	{
-		UNSYNC_VERBOSE(L"Quick file difference is allowed (use --full-diff option to override)");
+		UNSYNC_LOG(L"Quick file difference is allowed (use --full-diff option to override)");
 	}
 
 	uint64 TotalSourceSize = 0;
@@ -3668,7 +3668,7 @@ SyncDirectory(const FSyncDirectoryOptions& SyncOptions)
 	}
 
 	LogGlobalStatus(L"Computing difference");
-	UNSYNC_VERBOSE(L"Computing difference ...");
+	UNSYNC_LOG(L"Computing difference ...");
 
 	uint64 EstimatedNeedBytesFromSource = 0;
 	uint64 EstimatedNeedBytesFromBase	= 0;
@@ -3741,7 +3741,7 @@ SyncDirectory(const FSyncDirectoryOptions& SyncOptions)
 		auto TimeDiffEnd = TimePointNow();
 
 		double Duration = DurationSec(TimeDiffBegin, TimeDiffEnd);
-		UNSYNC_VERBOSE(L"Difference complete in %.3f sec", Duration);
+		UNSYNC_LOG(L"Difference complete in %.3f sec", Duration);
 
 		for (FFileSyncTask& Item : AllFileTasks)
 		{
@@ -3750,8 +3750,8 @@ SyncDirectory(const FSyncDirectoryOptions& SyncOptions)
 			TotalSyncSizeBytes += Item.TotalSizeBytes;
 		}
 
-		UNSYNC_VERBOSE(L"Total need from source: %.2f MB", SizeMb(EstimatedNeedBytesFromSource));
-		UNSYNC_VERBOSE(L"Total need from base: %.2f MB", SizeMb(EstimatedNeedBytesFromBase));
+		UNSYNC_LOG(L"Total need from source: %.2f MB", SizeMb(EstimatedNeedBytesFromSource));
+		UNSYNC_LOG(L"Total need from base: %.2f MB", SizeMb(EstimatedNeedBytesFromBase));
 
 		uint64 AvailableDiskBytes = SyncOptions.bCheckAvailableSpace ? GetAvailableDiskSpace(TargetPath) : ~0ull;
 		if (TotalSyncSizeBytes > AvailableDiskBytes)
@@ -3774,7 +3774,7 @@ SyncDirectory(const FSyncDirectoryOptions& SyncOptions)
 	std::unique_ptr<FScavengeDatabase> ScavengeDatabase;
 	if (!SyncOptions.ScavengeRoot.empty())
 	{
-		UNSYNC_VERBOSE(L"Scavenging blocks from existing data sets");
+		UNSYNC_LOG(L"Scavenging blocks from existing data sets");
 		UNSYNC_LOG_INDENT;
 
 		FTimePoint ScavengeDbTimeBegin = TimePointNow();
@@ -3784,7 +3784,7 @@ SyncDirectory(const FSyncDirectoryOptions& SyncOptions)
 
 		double Duration = DurationSec(ScavengeDbTimeBegin, TimePointNow());
 
-		UNSYNC_VERBOSE(L"Done in %.3f sec", Duration);
+		UNSYNC_LOG(L"Done in %.3f sec", Duration);
 	}
 
 	LogGlobalProgress();
@@ -3792,7 +3792,7 @@ SyncDirectory(const FSyncDirectoryOptions& SyncOptions)
 	if (ProxyPool.IsValid())
 	{
 		LogGlobalStatus(L"Connecting to server");
-		UNSYNC_VERBOSE(L"Connecting to %hs server '%hs:%d' ...",
+		UNSYNC_LOG(L"Connecting to %hs server '%hs:%d' ...",
 					   ToString(ProxyPool.RemoteDesc.Protocol),
 					   ProxyPool.RemoteDesc.HostAddress.c_str(),
 					   ProxyPool.RemoteDesc.HostPort);
@@ -3804,10 +3804,10 @@ SyncDirectory(const FSyncDirectoryOptions& SyncOptions)
 		{
 			// TODO: report TLS status
 			// ESocketSecurity security = proxy->get_socket_security();
-			// UNSYNC_VERBOSE(L"Connection established (security: %hs)", ToString(security));
+			// UNSYNC_LOG(L"Connection established (security: %hs)", ToString(security));
 
-			UNSYNC_VERBOSE(L"Connection established");
-			UNSYNC_VERBOSE(L"Building block request map");
+			UNSYNC_LOG(L"Connection established");
+			UNSYNC_LOG(L"Building block request map");
 
 			const bool bProxyHasData = Proxy->Contains(SourceDirectoryManifest);
 
@@ -3842,7 +3842,7 @@ SyncDirectory(const FSyncDirectoryOptions& SyncOptions)
 	}
 
 	LogGlobalStatus(L"Copying files");
-	UNSYNC_VERBOSE(L"Copying files");
+	UNSYNC_LOG(L"Copying files ...");
 
 	{
 		// Throttle background tasks by trying to keep them to some sensible memory budget. Best effort only, not a hard limit.
@@ -4104,7 +4104,7 @@ SyncDirectory(const FSyncDirectoryOptions& SyncOptions)
 
 		if (NumBackgroundTasks != 0)
 		{
-			UNSYNC_VERBOSE(L"Waiting for background tasks to complete");
+			UNSYNC_LOG(L"Waiting for background tasks to complete");
 		}
 		BackgroundTaskGroup.wait();
 
@@ -4155,7 +4155,7 @@ SyncDirectory(const FSyncDirectoryOptions& SyncOptions)
 
 	if (bSyncSucceeded && SyncOptions.bCleanup)
 	{
-		UNSYNC_VERBOSE(L"Deleting unnecessary files");
+		UNSYNC_LOG(L"Deleting unnecessary files");
 		UNSYNC_LOG_INDENT;
 		DeleteUnnecessaryFiles(TargetPath, TargetDirectoryManifest, SourceDirectoryManifest, SyncFilter);
 	}
@@ -4172,9 +4172,9 @@ SyncDirectory(const FSyncDirectoryOptions& SyncOptions)
 		}
 	}
 
-	UNSYNC_VERBOSE(L"Skipped files: %d, full copies: %d, partial copies: %d", StatSkipped, StatFullCopy, StatPartialCopy);
-	UNSYNC_VERBOSE(L"Copied from source: %.2f MB, copied from base: %.2f MB", SizeMb(StatSourceBytes), SizeMb(StatBaseBytes));
-	UNSYNC_VERBOSE(L"Sync completed %ls", bSyncSucceeded ? L"successfully" : L"with errors (see log for details)");
+	UNSYNC_LOG(L"Skipped files: %d, full copies: %d, partial copies: %d", StatSkipped, StatFullCopy, StatPartialCopy);
+	UNSYNC_LOG(L"Copied from source: %.2f MB, copied from base: %.2f MB", SizeMb(StatSourceBytes), SizeMb(StatBaseBytes));
+	UNSYNC_LOG(L"Sync completed %ls", bSyncSucceeded ? L"successfully" : L"with errors (see log for details)");
 
 	double ElapsedSeconds = DurationSec(TimeBegin, TimePointNow());
 	UNSYNC_VERBOSE2(L"Sync time: %.2f seconds", ElapsedSeconds);

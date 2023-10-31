@@ -98,7 +98,7 @@ int32 CmdPack(const FCmdPackOptions& Options)
 	const FPath InputRoot	 = Options.RootPath;
 	const FPath ManifestRoot = InputRoot / ".unsync";
 
-	UNSYNC_VERBOSE(L"Generating package for directory '%ls' ...", InputRoot.wstring().c_str());
+	UNSYNC_LOG(L"Generating package for directory '%ls' ...", InputRoot.wstring().c_str());
 	UNSYNC_LOG_INDENT;
 
 	if (!RootAttrib.bValid)
@@ -130,7 +130,7 @@ int32 CmdPack(const FCmdPackOptions& Options)
 
 	if (!Options.P4HavePath.empty())
 	{
-		UNSYNC_VERBOSE(L"Loading p4 manifest file '%ls'", Options.P4HavePath.wstring().c_str());
+		UNSYNC_LOG(L"Loading p4 manifest file '%ls'", Options.P4HavePath.wstring().c_str());
 
 		FNativeFile P4HaveFile(Options.P4HavePath, EFileMode::ReadOnly);
 		if (!P4HaveFile.IsValid())
@@ -151,9 +151,9 @@ int32 CmdPack(const FCmdPackOptions& Options)
 
 		BuildP4HaveSet(InputRoot, P4HaveBuffer, DirectoryManifest.Files);
 
-		UNSYNC_VERBOSE(L"Loaded entries from p4 manifest: %llu", llu(DirectoryManifest.Files.size()));
+		UNSYNC_LOG(L"Loaded entries from p4 manifest: %llu", llu(DirectoryManifest.Files.size()));
 
-		UNSYNC_VERBOSE(L"Reading file attributes ...");
+		UNSYNC_LOG(L"Reading file attributes ...");
 		auto UpdateFileMetadata = [](std::pair<const std::wstring, FFileManifest>& It)
 		{
 			FFileAttributes Attrib = GetFileAttrib(It.second.CurrentPath);
@@ -175,7 +175,7 @@ int32 CmdPack(const FCmdPackOptions& Options)
 		DirectoryManifest = CreateDirectoryManifest(InputRoot, LightweightManifestParams);
 	}
 
-	UNSYNC_VERBOSE(L"Found files: %llu", llu(DirectoryManifest.Files.size()));
+	UNSYNC_LOG(L"Found files: %llu", llu(DirectoryManifest.Files.size()));
 
 	FPath OutputPackFilename = ManifestRoot / "blocks.bin";
 	FNativeFile PackFile(OutputPackFilename, EFileMode::CreateWriteOnly);
@@ -183,7 +183,7 @@ int32 CmdPack(const FCmdPackOptions& Options)
 	FPath		OutputIndexFilename = ManifestRoot / "blocks.idx";
 	FNativeFile IndexFile(OutputIndexFilename, EFileMode::CreateWriteOnly);
 
-	UNSYNC_VERBOSE(L"Building file blocks ...");
+	UNSYNC_LOG(L"Building file blocks ...");
 
 	FComputeBlocksParams BlockParams;
 	BlockParams.Algorithm = Options.Algorithm;
@@ -235,7 +235,7 @@ int32 CmdPack(const FCmdPackOptions& Options)
 
 	if (!GDryRun)
 	{
-		UNSYNC_VERBOSE(L"Saving directory manifest '%ls'", DirectoryManifestPath.wstring().c_str());
+		UNSYNC_LOG(L"Saving directory manifest '%ls'", DirectoryManifestPath.wstring().c_str());
 		SaveDirectoryManifest(DirectoryManifest, DirectoryManifestPath);
 	}
 
@@ -246,9 +246,9 @@ int32 CmdPack(const FCmdPackOptions& Options)
 	}
 
 	const uint64 NumSourceFiles = DirectoryManifest.Files.size();
-	UNSYNC_VERBOSE(L"Source files: %llu", llu(NumSourceFiles));
-	UNSYNC_VERBOSE(L"Source size: %llu bytes (%.2f MB)", llu(SourceSize), SizeMb(SourceSize));
-	UNSYNC_VERBOSE(L"Compressed size: %llu bytes (%.2f MB), %.0f%%",
+	UNSYNC_LOG(L"Source files: %llu", llu(NumSourceFiles));
+	UNSYNC_LOG(L"Source size: %llu bytes (%.2f MB)", llu(SourceSize), SizeMb(SourceSize));
+	UNSYNC_LOG(L"Compressed size: %llu bytes (%.2f MB), %.0f%%",
 				   llu(CompressedSize),
 				   SizeMb(CompressedSize),
 				   100.0 * double(CompressedSize) / double(SourceSize));

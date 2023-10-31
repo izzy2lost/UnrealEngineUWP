@@ -38,7 +38,7 @@ static FPath GExePath;
 int
 InnerMain(int Argc, char** Argv)
 {
-	FTimingLogger TimingLogger("Total time");
+	LogSaveCommandLineUtf8(Argc, Argv);
 
 	std::string AppDescription = "UNSYNC v";
 	AppDescription += GetVersionString();
@@ -265,7 +265,6 @@ InnerMain(int Argc, char** Argv)
 
 	SubSync->add_flag("--no-output-validation", bNoOutputValidation, "Skip final patched file block hash validation (DANGEROUS)");
 	SubSync->add_flag("--no-space-validation", bNoSpaceValidation, "Skip checking available disk space before sync (DANGEROUS)");
-	SubSync->add_option("-b, --block", HashOrSyncBlockSize, "Block size in bytes (default=64KB)");
 	SubSync->add_option("--scavenge", ScavengeRootUtf8, "Search for unsync manifests and reusable blocks in this directory (EXPERIMENTAL)");
 	SubSync->add_flag("--login", bShouldLogin, "Use user authentication when accessing unsync server");
 	SubSync->add_flag("--no-timeout", bNoSocketTimeout, "Disable the default 60 second timeout on network socket operations");
@@ -320,12 +319,17 @@ InnerMain(int Argc, char** Argv)
 	for (CLI::App* Subcommand : SubCommands)
 	{
 		Subcommand->add_flag("-d, --dry, --dry-run", GDryRun, "Don't write any outputs to disk");
-		Subcommand->add_flag("-v, --verbose", GLogVerbose, "Verbose logging");
-		Subcommand->add_flag("--very-verbose", GLogVeryVerbose, "Very verbose logging");
+		auto VerboseFlag	 = Subcommand->add_flag("-v, --verbose", GLogVerbose, "Verbose logging");
+		auto VeryVerboseFlag = Subcommand->add_flag("--very-verbose", GLogVeryVerbose, "Very verbose logging");
+		auto SilentFlag		 = Subcommand->add_flag("--silent", GLogSilent, "Skip all console logging except errors and warnings");
 		Subcommand->add_flag("--progress", GLogProgress, "Output @progress and @status markers");
 		Subcommand->add_option("--threads", GMaxThreads, "Limit worker threads to specified number");
 		Subcommand->add_flag("--buffered-files", GForceBufferedFiles, "Always use buffered file IO");
 		Subcommand->add_flag("--debug", bUseDebugMode, "Enable extra debugging features, such as extra memory safety validation");
+
+		SilentFlag->excludes(VerboseFlag);
+		SilentFlag->excludes(VeryVerboseFlag);
+		VeryVerboseFlag->excludes(VerboseFlag);
 	}
 
 	// Run the command
@@ -348,6 +352,8 @@ InnerMain(int Argc, char** Argv)
 		wprintf(L"%hs", Cli.help().c_str());
 	}
 
+	FTimingLogger TimingLogger("Total time", ELogLevel::Info);
+
 	// Configure default output mehtod based on subcommand.
 	// In machine-readable mode, all verbose logging is directed to stderr.
 
@@ -369,7 +375,7 @@ InnerMain(int Argc, char** Argv)
 
 	if (const char* EnvCleanupExclude = getenv("UNSYNC_CLEANUP_EXCLUDE"))
 	{
-		UNSYNC_VERBOSE(L"Using UNSYNC_CLEANUP_EXCLUDE environment: '%hs'", EnvCleanupExclude);
+		UNSYNC_LOG(L"Using UNSYNC_CLEANUP_EXCLUDE environment: '%hs'", EnvCleanupExclude);
 		CleanupExcludeFilterArrayUtf8.push_back(EnvCleanupExclude);
 	}
 
@@ -378,7 +384,7 @@ InnerMain(int Argc, char** Argv)
 		const char* EnvDfs = getenv("UNSYNC_DFS");
 		if (EnvDfs)
 		{
-			UNSYNC_VERBOSE(L"Using UNSYNC_DFS environment: '%hs'", EnvDfs);
+			UNSYNC_LOG(L"Using UNSYNC_DFS environment: '%hs'", EnvDfs);
 			PreferredDfsUtf8 = std::string(EnvDfs);
 		}
 	}
@@ -388,7 +394,7 @@ InnerMain(int Argc, char** Argv)
 		const char* EnvProxy = getenv("UNSYNC_PROXY");
 		if (EnvProxy)
 		{
-			UNSYNC_VERBOSE(L"Using UNSYNC_PROXY environment: '%hs'", EnvProxy);
+			UNSYNC_LOG(L"Using UNSYNC_PROXY environment: '%hs'", EnvProxy);
 			RemoteAddressUtf8 = std::string(EnvProxy);
 		}
 	}
@@ -398,7 +404,7 @@ InnerMain(int Argc, char** Argv)
 		const char* EnvCacert = getenv("UNSYNC_CACERT");
 		if (EnvCacert)
 		{
-			UNSYNC_VERBOSE(L"Using UNSYNC_CACERT environment: '%hs'", EnvCacert);
+			UNSYNC_LOG(L"Using UNSYNC_CACERT environment: '%hs'", EnvCacert);
 			CacertFilenameUtf8 = std::string(EnvCacert);
 		}
 	}
@@ -408,7 +414,7 @@ InnerMain(int Argc, char** Argv)
 		const char* EnvHttpHeaderFile = getenv("UNSYNC_HTTP_HEADER_FILE");
 		if (EnvHttpHeaderFile)
 		{
-			UNSYNC_VERBOSE(L"Using UNSYNC_HTTP_HEADER_FILE environment: '%hs'", EnvHttpHeaderFile);
+			UNSYNC_LOG(L"Using UNSYNC_HTTP_HEADER_FILE environment: '%hs'", EnvHttpHeaderFile);
 			HttpHeaderFilenameUtf8 = std::string(EnvHttpHeaderFile);
 		}
 	}
@@ -540,16 +546,16 @@ InnerMain(int Argc, char** Argv)
 
 	if (GLogVeryVerbose)
 	{
-		UNSYNC_VERBOSE(L"Very verbose logging is enabled");
+		UNSYNC_LOG(L"Very verbose logging is enabled");
 	}
 	else if (GLogVerbose)
 	{
-		UNSYNC_VERBOSE(L"Verbose logging is enabled");
+		UNSYNC_LOG(L"Verbose logging is enabled");
 	}
 
 	if (GDryRun)
 	{
-		UNSYNC_VERBOSE(L">>> DRY RUN <<<");
+		UNSYNC_LOG(L">>> DRY RUN <<<");
 	}
 
 	if (GForceBufferedFiles)
@@ -561,14 +567,14 @@ InnerMain(int Argc, char** Argv)
 	UNSYNC_VERBOSE2(L"Using threads: %d", GMaxThreads);
 	FConcurrencyPolicyScope ConcurrencyLimitScope(GMaxThreads);
 
-	if (Cli.got_subcommand(SubHash) || Cli.got_subcommand(SubSync) || Cli.got_subcommand(SubPack))
+	if (Cli.got_subcommand(SubHash) || Cli.got_subcommand(SubPack))
 	{
-		UNSYNC_VERBOSE(L"Using block size: %d KB", HashOrSyncBlockSize / 1024);
+		UNSYNC_LOG(L"Using block size: %d KB", HashOrSyncBlockSize / 1024);
 	}
 
 	if (Cli.got_subcommand(SubDiff))
 	{
-		UNSYNC_VERBOSE(L"Using block size: %d KB", DiffBlockSize / 1024);
+		UNSYNC_LOG(L"Using block size: %d KB", DiffBlockSize / 1024);
 	}
 
 	if (Cli.got_subcommand(SubDiff))
@@ -611,7 +617,7 @@ InnerMain(int Argc, char** Argv)
 	if (!PreferredDfsUtf8.empty() && !SourceFilenameUtf8.empty())
 	{
 		LogGlobalStatus(L"Enumerating DFS");
-		UNSYNC_VERBOSE(L"Enumerating DFS");
+		UNSYNC_LOG(L"Enumerating DFS");
 		std::wstring PreferredDfs = ConvertUtf8ToWide(PreferredDfsUtf8);
 		auto		 DfsEntries	  = DfsEnumerate(SourceFilename);
 
@@ -629,7 +635,7 @@ InnerMain(int Argc, char** Argv)
 
 		if (FoundDfsStorage)
 		{
-			UNSYNC_VERBOSE(L"Found preferred DFS storage server '%ls' with share '%ls'",
+			UNSYNC_LOG(L"Found preferred DFS storage server '%ls' with share '%ls'",
 						   FoundDfsStorage->Server.c_str(),
 						   FoundDfsStorage->Share.c_str());
 
@@ -637,7 +643,7 @@ InnerMain(int Argc, char** Argv)
 			DfsAlias.Source = DfsEntries.Root;
 			DfsAlias.Target = FPath(L"\\\\") / FoundDfsStorage->Server / FoundDfsStorage->Share;
 
-			UNSYNC_VERBOSE(L"Using DFS alias '%ls' -> '%ls'", DfsAlias.Source.wstring().c_str(), DfsAlias.Target.wstring().c_str());
+			UNSYNC_LOG(L"Using DFS alias '%ls' -> '%ls'", DfsAlias.Source.wstring().c_str(), DfsAlias.Target.wstring().c_str());
 
 			if (!DfsAlias.Source.empty())
 			{
@@ -788,12 +794,12 @@ InnerMain(int Argc, char** Argv)
 
 		if (bShouldLogin)
 		{
-			UNSYNC_VERBOSE(L"Attempting to authenticate");
+			UNSYNC_LOG(L"Attempting to authenticate");
 			UNSYNC_LOG_INDENT;
 			bool bUsingAuthentication = TryAddAuthentication(RemoteDesc);
 			if (bUsingAuthentication)
 			{
-				UNSYNC_VERBOSE(L"Authentication enabled");
+				UNSYNC_LOG(L"Authentication enabled");
 			}
 		}
 
@@ -816,7 +822,6 @@ InnerMain(int Argc, char** Argv)
 		SyncOptions.bFullDifference		   = bFullDifference;
 		SyncOptions.bFullSourceScan		   = bFullSourceScan;
 		SyncOptions.bCleanup			   = !bNoCleanupAfterSync;
-		SyncOptions.BlockSize			   = HashOrSyncBlockSize;
 		SyncOptions.Filter				   = &SyncFilter;
 		SyncOptions.bValidateTargetFiles   = !bNoOutputValidation;
 		SyncOptions.bCheckAvailableSpace   = !bNoSpaceValidation;

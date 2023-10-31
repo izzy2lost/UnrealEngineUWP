@@ -63,12 +63,12 @@ BytesToHexString(const uint8* Data, uint64 Size)
 	return Result;
 }
 
-FTimingLogger::FTimingLogger(const char* InName, bool bInEnabled) : bEnabled(bInEnabled), Name(InName)
+FTimingLogger::FTimingLogger(const char* InName, ELogLevel InLogLevel, bool bInEnabled)
+: bEnabled(bInEnabled)
+, Name(InName)
+, LogLevel(InLogLevel)
 {
-	if (bEnabled)
-	{
-		TimeBegin = TimePointNow();
-	}
+	TimeBegin = TimePointNow();
 }
 
 FTimingLogger::~FTimingLogger()
@@ -90,12 +90,19 @@ void FTimingLogger::Finish()
 
 		if (Name.empty())
 		{
-			UNSYNC_VERBOSE(L"%.2f sec (%02d:%02d:%02d)", TotalSeconds, H, M, S);
+			LogPrintf(LogLevel, L"%.3f sec", TotalSeconds);
 		}
 		else
 		{
-			UNSYNC_VERBOSE(L"%hs: %.2f sec (%02d:%02d:%02d)", Name.c_str(), TotalSeconds, H, M, S);
+			LogPrintf(LogLevel, L"%hs: %.3f sec", Name.c_str(), TotalSeconds);
 		}
+
+		if (TotalSeconds >= 60.0)
+		{
+			LogPrintf(LogLevel, L" (%02d:%02d:%02d)", H, M, S);
+		}
+
+		LogPrintf(LogLevel, L"\n");
 
 		LogFlush();
 

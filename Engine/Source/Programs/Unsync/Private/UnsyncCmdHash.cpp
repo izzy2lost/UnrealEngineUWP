@@ -12,7 +12,7 @@ CmdHash(const FCmdHashOptions& Options)
 {
 	if (unsync::IsDirectory(Options.Input))
 	{
-		UNSYNC_VERBOSE(L"Generating manifest for directory '%ls'", Options.Input.wstring().c_str());
+		UNSYNC_LOG(L"Generating manifest for directory '%ls'", Options.Input.wstring().c_str());
 
 		FPath InputRoot	   = Options.Input;
 		FPath ManifestRoot = InputRoot / ".unsync";
@@ -49,7 +49,7 @@ CmdHash(const FCmdHashOptions& Options)
 		}
 		else if (Options.bIncremental)
 		{
-			UNSYNC_VERBOSE(L"Performing incremental directory manifest generation");
+			UNSYNC_LOG(L"Performing incremental directory manifest generation");
 			DirectoryManifest = CreateDirectoryManifestIncremental(Options.Input, ComputeBlocksParams);
 		}
 		else
@@ -59,19 +59,19 @@ CmdHash(const FCmdHashOptions& Options)
 
 		if (!GDryRun)
 		{
-			UNSYNC_VERBOSE(L"Saving directory manifest '%ls'", DirectoryManifestPath.wstring().c_str());
+			UNSYNC_LOG(L"Saving directory manifest '%ls'", DirectoryManifestPath.wstring().c_str());
 
 			SaveDirectoryManifest(DirectoryManifest, DirectoryManifestPath);
 		}
 	}
 	else
 	{
-		UNSYNC_VERBOSE(L"Generating manfiest for file '%ls'", Options.Input.wstring().c_str());
+		UNSYNC_LOG(L"Generating manfiest for file '%ls'", Options.Input.wstring().c_str());
 
 		FNativeFile OverlappedFile(Options.Input);
 		if (OverlappedFile.IsValid())
 		{
-			UNSYNC_VERBOSE(L"Computing blocks for '%ls' (%.2f MB)", Options.Input.wstring().c_str(), SizeMb(OverlappedFile.GetSize()));
+			UNSYNC_LOG(L"Computing blocks for '%ls' (%.2f MB)", Options.Input.wstring().c_str(), SizeMb(OverlappedFile.GetSize()));
 			FComputeBlocksParams ComputeBlocksParams;
 			ComputeBlocksParams.Algorithm	 = Options.Algorithm;
 			ComputeBlocksParams.BlockSize	 = Options.BlockSize;
@@ -88,7 +88,7 @@ CmdHash(const FCmdHashOptions& Options)
 
 			if (!GDryRun)
 			{
-				UNSYNC_VERBOSE(L"Saving blocks to '%ls'", OutputFilename.wstring().c_str());
+				UNSYNC_LOG(L"Saving blocks to '%ls'", OutputFilename.wstring().c_str());
 				std::vector<FBlock128> Blocks128;
 				Blocks128.reserve(GenericBlocks.size());  // #wip-widehash
 				for (const auto& It : GenericBlocks)

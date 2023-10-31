@@ -41,6 +41,7 @@ IsDebuggerPresent()
 
 thread_local bool	GLogVerbose			= false;
 bool				GLogVeryVerbose		= false;
+bool				GLogSilent			= false;
 bool				GBreakOnError		= IsDebuggerPresent();
 bool				GBreakOnWarning		= false;
 thread_local uint32 GLogIndent			= 0;
@@ -53,6 +54,18 @@ std::atomic<uint32> GLogThreadIndexCounter;
 thread_local uint32 GLogThreadIndex = ~0u;
 
 FTimePoint GNextFlushTime = TimePointNow();
+
+std::vector<std::wstring> GCommandLine;
+
+void
+LogSaveCommandLineUtf8(int Argc, char** Argv)
+{
+	std::lock_guard<std::mutex> LockGuard(GLogMutex);
+	for (int i = 0; i < Argc; ++i)
+	{
+		GCommandLine.push_back(ConvertUtf8ToWide(Argv[i]));
+	}
+}
 
 static FILE*
 GetLogStream(ELogLevel LogLevel)
@@ -142,13 +155,29 @@ std::vector<std::unique_ptr<FLogFile>> GLogFileStack;
 
 FLogFileScope::FLogFileScope(const wchar_t* Filename)
 {
+	std::wstring CommandLine;
+
 	{
 		std::lock_guard<std::mutex> LockGuard(GLogMutex);
 		GLogFileStack.push_back(std::move(GLogFile));
 		LogSetFileInternal(Filename);
+
+		for (const std::wstring& Arg : GCommandLine)
+		{
+			if (!CommandLine.empty())
+			{
+				CommandLine += ' ';
+			}
+			CommandLine += Arg;
+		}
 	}
 
 	UNSYNC_VERBOSE2(L"UNSYNC v%hs started logging to file '%ls'", GetVersionString().c_str(), Filename);
+	
+	if (!CommandLine.empty())
+	{
+		UNSYNC_VERBOSE2(L"Command line: %ls", CommandLine.c_str());
+	}
 }
 
 FLogFileScope::~FLogFileScope()
@@ -267,7 +296,11 @@ LogPrintf(ELogLevel Level, const wchar_t* Str, ...)
 
 	ELogLevel MaxDisplayLevel = ELogLevel::Info;
 
-	if (GLogVerbose)
+	if (GLogSilent)
+	{
+		MaxDisplayLevel = ELogLevel::Warning;
+	}
+	else if (GLogVerbose)
 	{
 		if (GLogVeryVerbose)
 		{
@@ -290,7 +323,7 @@ LogPrintf(ELogLevel Level, const wchar_t* Str, ...)
 
 		if (bShouldOutputThreadIndex)
 		{
-			fwprintf(LogStream, L"[Thread %d] ", ThreadIndex);
+			fwprintf(LogStream, L"[Thread %u] ", ThreadIndex);
 		}
 
 		if (bShouldIndent)
@@ -314,7 +347,7 @@ LogPrintf(ELogLevel Level, const wchar_t* Str, ...)
 
 		fwprintf(LogFileStream, L"[%hs] ", TimestampString.data());
 
-		fwprintf(LogFileStream, L"[%3d] ", ThreadIndex);
+		fwprintf(LogFileStream, L"[%3u] ", ThreadIndex);
 
 		switch (Level)
 		{

@@ -212,15 +212,15 @@ CmdQuerySearch(const FCmdQueryOptions& Options)
 	const std::string& RootPath = Options.Args[0];
 	std::vector<std::regex> SubdirPatterns;
 
-	UNSYNC_VERBOSE("Searching '%hs'", RootPath.c_str());
+	UNSYNC_LOG("Searching '%hs'", RootPath.c_str());
 	if (Options.Args.size() > 1)
 	{
 		UNSYNC_LOG_INDENT;
-		UNSYNC_VERBOSE("Subdirectory patterns:", RootPath.c_str());
+		UNSYNC_LOG("Subdirectory patterns:", RootPath.c_str());
 		UNSYNC_LOG_INDENT;
 		for (size_t i = 1; i < Options.Args.size(); ++i)
 		{
-			UNSYNC_VERBOSE("%hs", Options.Args[i].c_str());
+			UNSYNC_LOG("%hs", Options.Args[i].c_str());
 			std::regex Pattern = std::regex(Options.Args[i], std::regex_constants::icase);
 			SubdirPatterns.push_back(Pattern);
 		}

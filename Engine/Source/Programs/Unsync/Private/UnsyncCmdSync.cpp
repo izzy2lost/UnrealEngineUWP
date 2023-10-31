@@ -28,29 +28,29 @@ CmdSync(const FCmdSyncOptions& Options)
 
 	if (Options.Source == ResolvedSource)
 	{
-		UNSYNC_VERBOSE(L"Sync source: '%ls'", Options.Source.wstring().c_str());
+		UNSYNC_LOG(L"Sync source: '%ls'", Options.Source.wstring().c_str());
 	}
 	else
 	{
-		UNSYNC_VERBOSE(L"Sync source: '%ls' ('%ls')", Options.Source.wstring().c_str(), ResolvedSource.wstring().c_str());
+		UNSYNC_LOG(L"Sync source: '%ls' ('%ls')", Options.Source.wstring().c_str(), ResolvedSource.wstring().c_str());
 	}
 
 	if (!Options.Filter->SyncIncludedWords.empty())
 	{
-		UNSYNC_VERBOSE(L"Include filter: ");
+		UNSYNC_LOG(L"Include filter: ");
 		UNSYNC_LOG_INDENT;
 		for( const std::wstring& include : Options.Filter->SyncIncludedWords)
 		{ 
-			UNSYNC_VERBOSE(L" %ls", include.c_str());
+			UNSYNC_LOG(L" %ls", include.c_str());
 		}
 	}
 	if(!Options.Filter->SyncExcludedWords.empty())
 	{
-		UNSYNC_VERBOSE(L"Exclude filter: ");
+		UNSYNC_LOG(L"Exclude filter: ");
 		UNSYNC_LOG_INDENT;
 		for( const std::wstring& exclude : Options.Filter->SyncExcludedWords)
 		{ 
-			UNSYNC_VERBOSE(L"%ls", exclude.c_str());
+			UNSYNC_LOG(L"%ls", exclude.c_str());
 		}
 	}
 
@@ -64,12 +64,12 @@ CmdSync(const FCmdSyncOptions& Options)
 		const FRemoteProtocolFeatures& Features = ProxyPool.GetFeatures();
 		if (Features.bFileDownload && Features.bDirectoryListing)
 		{
-			UNSYNC_VERBOSE(L"Server supports direct file access");
+			UNSYNC_LOG(L"Server supports direct file access");
 			bSourceFileSystemRequired = false;
 		}
 		else if (Features.bDownloadByHash && bSourceIsManifestHash)
 		{
-			UNSYNC_VERBOSE(L"Server supports access by manifest hash");
+			UNSYNC_LOG(L"Server supports access by manifest hash");
 			bSourceFileSystemRequired = false;
 		}
 		else
@@ -93,11 +93,11 @@ CmdSync(const FCmdSyncOptions& Options)
 			FPath ResolvedEntry = ResolvePath(Entry);
 			if (ResolvedEntry == Entry)
 			{
-				UNSYNC_VERBOSE(L"Sync overlay: '%ls'", ResolvedEntry.wstring().c_str());
+				UNSYNC_LOG(L"Sync overlay: '%ls'", ResolvedEntry.wstring().c_str());
 			}
 			else
 			{
-				UNSYNC_VERBOSE(L"Sync overlay: '%ls' ('%ls')", Entry.wstring().c_str(), ResolvedEntry.wstring().c_str());
+				UNSYNC_LOG(L"Sync overlay: '%ls' ('%ls')", Entry.wstring().c_str(), ResolvedEntry.wstring().c_str());
 			}
 			ResolvedOverlays.push_back(ResolvedEntry);
 		}
@@ -124,11 +124,11 @@ CmdSync(const FCmdSyncOptions& Options)
 		}
 	}
 
-	UNSYNC_VERBOSE(L"Sync target: '%ls'", Options.Target.wstring().c_str());
+	UNSYNC_LOG(L"Sync target: '%ls'", Options.Target.wstring().c_str());
 
 	if (!Options.SourceManifestOverride.empty())
 	{
-		UNSYNC_VERBOSE(L"Manifest override: %ls", Options.SourceManifestOverride.wstring().c_str());
+		UNSYNC_LOG(L"Manifest override: %ls", Options.SourceManifestOverride.wstring().c_str());
 
 		if (Options.Remote.IsValid() && !Options.bFullSourceScan)
 		{
@@ -144,11 +144,11 @@ CmdSync(const FCmdSyncOptions& Options)
 		{
 			if (bSourceIsDirectory)
 			{
-				UNSYNC_VERBOSE(L"'%ls' is a directory", Options.Source.wstring().c_str());
+				UNSYNC_LOG(L"'%ls' is a directory", Options.Source.wstring().c_str());
 			}
 			else
 			{
-				UNSYNC_VERBOSE(L"Assuming '%ls' is a directory", Options.Source.wstring().c_str());
+				UNSYNC_LOG(L"Assuming '%ls' is a directory", Options.Source.wstring().c_str());
 			}
 
 			FSyncDirectoryOptions SyncOptions;
@@ -185,11 +185,11 @@ CmdSync(const FCmdSyncOptions& Options)
 		}
 		else
 		{
-			UNSYNC_VERBOSE(L"'%ls' is a file", Options.Source.wstring().c_str());
+			UNSYNC_LOG(L"'%ls' is a file", Options.Source.wstring().c_str());
 
 			FSyncFileOptions SyncFileOptions;
 			SyncFileOptions.Algorithm			 = Options.Algorithm;
-			SyncFileOptions.BlockSize			 = Options.BlockSize;
+			SyncFileOptions.BlockSize			 = 64_KB;
 			SyncFileOptions.bValidateTargetFiles = Options.bValidateTargetFiles;
 
 			return SyncFile(Options.Source, Options.Target, Options.Target, SyncFileOptions).Succeeded() ? 0 : 1;

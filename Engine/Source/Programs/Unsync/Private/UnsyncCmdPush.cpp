@@ -119,7 +119,7 @@ CmdPush(const FCmdPushOptions& Options)
 
 		if (bPushComplete)
 		{
-			UNSYNC_VERBOSE(L"Push completed successfully", MaxAttempts);
+			UNSYNC_LOG(L"Push completed successfully", MaxAttempts);
 		}
 		else
 		{
