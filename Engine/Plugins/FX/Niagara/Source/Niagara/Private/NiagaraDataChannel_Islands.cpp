@@ -401,7 +401,17 @@ void FNDCIsland::EndFrame()
 
 void FNDCIsland::Tick()
 {
-	Data->ConsumePublishRequests(Owner);
+	int32 AddedData = Data->ConsumePublishRequests(Owner);
+	if (IsBeingUsed() && AddedData > 0)
+	{
+		for (UNiagaraComponent* Comp : NiagaraSystems)
+		{
+			if (Comp->IsComplete())
+			{
+				Comp->Activate();
+			}
+		}
+	}
 }
 
 bool FNDCIsland::Contains(FVector Point)

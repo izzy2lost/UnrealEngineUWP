@@ -71,8 +71,7 @@ struct FNiagaraDataChannelData final
 
 	NIAGARA_API void BeginFrame(UNiagaraDataChannelHandler* Owner);
 	NIAGARA_API void EndFrame(UNiagaraDataChannelHandler* Owner);
-	NIAGARA_API void Tick(UNiagaraDataChannelHandler* Owner);
-	NIAGARA_API void ConsumePublishRequests(UNiagaraDataChannelHandler* Owner);
+	NIAGARA_API int32 ConsumePublishRequests(UNiagaraDataChannelHandler* Owner);
 
 	NIAGARA_API FNiagaraDataChannelGameData* GetGameData();
 	NIAGARA_API FNiagaraDataBufferRef GetCPUData(bool bPreviousFrame);
