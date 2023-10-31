@@ -274,6 +274,8 @@ public:
 	/** Called after the sim cache has been read. */
 	void SimCachePostTick_Concurrent(float DeltaSeconds, const FGraphEventRef& MyCompletionGraphEvent);
 
+	bool IsConcurrentRunning() const;
+
 	/** Wait for system simulation concurrent tick to complete.  If bEnsureComplete is true we will trigger an ensure if it is not complete. */
 	void WaitForConcurrentTickComplete(bool bEnsureComplete = false);
 	/** Wait for system instances concurrent tick to complete.  If bEnsureComplete is true we will trigger an ensure if it is not complete. */
