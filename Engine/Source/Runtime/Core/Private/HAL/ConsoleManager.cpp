@@ -1967,6 +1967,8 @@ void FConsoleManager::UnregisterConsoleObject(const TCHAR* Name, bool bKeepState
 
 	if(Object)
 	{
+		ConsoleObjectUnregisteredDelegate.Broadcast(Name, Object);
+
 		IConsoleVariable* CVar = Object->AsVariable();
 
 		if (CVar)
@@ -2828,6 +2830,11 @@ void FConsoleManager::OnCVarChanged()
 FConsoleVariableMulticastDelegate& FConsoleManager::OnCVarUnregistered()
 {
 	return ConsoleVariableUnregisteredDelegate;
+}
+
+FConsoleObjectWithNameMulticastDelegate& FConsoleManager::OnConsoleObjectUnregistered()
+{
+	return ConsoleObjectUnregisteredDelegate;
 }
 
 void FConsoleManager::UnsetAllConsoleVariablesWithTag(FName Tag)

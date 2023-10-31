@@ -70,11 +70,6 @@ IConsoleObject* FConsoleVariablesEditorCommandInfo::GetConsoleObjectPtr()
 		ConsoleObjectPtr = IConsoleManager::Get().FindConsoleObject(*CommandKey);
 		TimeOfLastConsoleObjectRefresh = FDateTime::UtcNow();
 	}
-	// If the console object turns out to be unregistered, let interested parties know
-	if (ConsoleObjectPtr && ConsoleObjectPtr->TestFlags(ECVF_Unregistered))
-	{
-		OnDetectConsoleObjectUnregistered.Broadcast(Command);
-	}
 	return ConsoleObjectPtr;
 }
 

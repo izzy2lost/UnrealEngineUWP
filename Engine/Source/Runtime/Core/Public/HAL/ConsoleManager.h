@@ -48,6 +48,7 @@ public:
 	CORE_API void OnCVarChanged();
 
 	CORE_API virtual FConsoleVariableMulticastDelegate& OnCVarUnregistered()override;
+	CORE_API virtual FConsoleObjectWithNameMulticastDelegate& OnConsoleObjectUnregistered() override;
 
 	// interface IConsoleManager -----------------------------------
 
@@ -99,6 +100,7 @@ private: // ----------------------------------------------------
 	TArray<FConsoleCommandDelegate>	ConsoleVariableChangeSinks;
 
 	FConsoleVariableMulticastDelegate ConsoleVariableUnregisteredDelegate;
+	FConsoleObjectWithNameMulticastDelegate ConsoleObjectUnregisteredDelegate;
 
 	IConsoleThreadPropagation* ThreadPropagationCallback;
 

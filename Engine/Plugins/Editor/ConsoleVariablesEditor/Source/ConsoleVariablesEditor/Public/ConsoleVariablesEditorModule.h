@@ -135,8 +135,7 @@ private:
 	void RegisterProjectSettings() const;
 
 	void OnConsoleVariableChanged(IConsoleVariable* ChangedVariable);
-	/** In the event a console object is unregistered, this failsafe callback will clean up the associated list item and command info object. */
-	void OnDetectConsoleObjectUnregistered(FString CommandName);
+	void OnConsoleObjectUnregistered(const TCHAR* InName, IConsoleObject* InConsoleObject);
 
 	TObjectPtr<UConsoleVariablesAsset> AllocateTransientPreset(const FName DesiredName) const;
 	void CreateEditingPresets();
@@ -164,4 +163,6 @@ private:
 	 * a remote cvar change creating a ping/pong cvar updates effect between nodes.
 	 */
 	TMap<FString, int32> CommandsReceivedFromMultiUser;
+
+	FDelegateHandle OnConsoleObjectUnregisteredHandle;
 };

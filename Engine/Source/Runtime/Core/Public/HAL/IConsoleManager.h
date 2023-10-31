@@ -199,6 +199,9 @@ DECLARE_DELEGATE_OneParam( FConsoleVariableDelegate, IConsoleVariable* );
 /** Console variable multicast delegate type. */
 DECLARE_MULTICAST_DELEGATE_OneParam(FConsoleVariableMulticastDelegate, IConsoleVariable*);
 
+/** Console object with name multicast delegate type. */
+DECLARE_MULTICAST_DELEGATE_TwoParams(FConsoleObjectWithNameMulticastDelegate, const TCHAR*, IConsoleObject*);
+
 /** Console command delegate type (takes no arguments.)  This is a void callback function. */
 DECLARE_DELEGATE( FConsoleCommandDelegate );
 
@@ -1087,6 +1090,7 @@ struct IConsoleManager
 	virtual void UnsetAllConsoleVariablesWithTag(FName Tag) = 0;
 	
 	virtual FConsoleVariableMulticastDelegate& OnCVarUnregistered() = 0;
+	virtual FConsoleObjectWithNameMulticastDelegate& OnConsoleObjectUnregistered() = 0;
 
 protected:
 	virtual ~IConsoleManager() { }

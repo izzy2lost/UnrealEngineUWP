@@ -68,6 +68,12 @@ void FConsoleVariablesEditorModule::ShutdownModule()
 
 	FCoreDelegates::OnFEngineLoopInitComplete.RemoveAll(this);
 
+	if (OnConsoleObjectUnregisteredHandle.IsValid())
+	{
+		IConsoleManager::Get().OnConsoleObjectUnregistered().Remove(OnConsoleObjectUnregisteredHandle);
+		OnConsoleObjectUnregisteredHandle.Reset();
+	}
+
 	FConsoleVariablesEditorStyle::Shutdown();
 	
 	MainPanel.Reset();
@@ -153,8 +159,6 @@ void FConsoleVariablesEditorModule::QueryAndBeginTrackingConsoleVariables()
 				MakeShared<FConsoleVariablesEditorCommandInfo>(Key);
 			
 			Info->StartupSource = Info->GetSource();
-			Info->OnDetectConsoleObjectUnregisteredHandle = Info->OnDetectConsoleObjectUnregistered.AddRaw(
-				this, &FConsoleVariablesEditorModule::OnDetectConsoleObjectUnregistered);
 
 			if (IConsoleVariable* AsVariable = ConsoleObject->AsVariable())
 			{
@@ -165,6 +169,8 @@ void FConsoleVariablesEditorModule::QueryAndBeginTrackingConsoleVariables()
 			AddConsoleObjectCommandInfoToMainReference(Info);
 		}),
 		TEXT(""));
+
+	OnConsoleObjectUnregisteredHandle = IConsoleManager::Get().OnConsoleObjectUnregistered().AddRaw(this, &FConsoleVariablesEditorModule::OnConsoleObjectUnregistered);
 }
 
 TWeakPtr<FConsoleVariablesEditorCommandInfo> FConsoleVariablesEditorModule::FindCommandInfoByName(const FString& NameToSearch, ESearchCase::Type InSearchCase)
@@ -431,21 +437,47 @@ void FConsoleVariablesEditorModule::OnConsoleVariableChanged(IConsoleVariable* C
 	}
 }
 
-void FConsoleVariablesEditorModule::OnDetectConsoleObjectUnregistered(FString CommandName)
+void FConsoleVariablesEditorModule::OnConsoleObjectUnregistered(const TCHAR* InName, IConsoleObject* InConsoleObject)
 {
-	check(EditingPresetAsset);
-
-	EditingPresetAsset->RemoveConsoleVariable(CommandName);
-
-	if (MainPanel.IsValid())
+	if (ensure(InName))
 	{
-		MainPanel->RefreshList();
+		if (ensure(EditingPresetAsset))
+		{
+			EditingPresetAsset->RemoveConsoleVariable(InName);
+		}
 	}
 
-	if (const TWeakPtr<FConsoleVariablesEditorCommandInfo> CommandInfo =
-		FindCommandInfoByName(CommandName); CommandInfo.IsValid())
+	int32 FoundIndex = INDEX_NONE;
+	for (int32 i = 0; i < ConsoleObjectsMainReference.Num(); ++i)
 	{
-		ConsoleObjectsMainReference.Remove(CommandInfo.Pin());
+		if (ConsoleObjectsMainReference[i])
+		{
+			if (ConsoleObjectsMainReference[i]->ConsoleObjectPtr == InConsoleObject)
+			{
+				FoundIndex = i;
+				break;
+			}
+			// GetConsoleObjectPtr() is overwriting ConsoleObjectPtr so we need to search by command name as well
+			else if (InName && ConsoleObjectsMainReference[i]->Command == InName)
+			{
+				FoundIndex = i;
+				break;
+			}
+		}
+	}
+
+	if (FoundIndex != -1)
+	{
+		// Null out deleted ConsoleObjectPtr for anything still holding reference to TSharedPtr
+		ConsoleObjectsMainReference[FoundIndex]->ConsoleObjectPtr = nullptr;
+
+		ConsoleObjectsMainReference.RemoveAt(FoundIndex, 1, /*shrink*/false);
+	}
+
+	if (!IsEngineExitRequested() && MainPanel.IsValid())
+	{
+		// TODO: Request list refresh, don't force it now as many objects could be unregistered in one frame during reloadconfig
+		MainPanel->RefreshList();
 	}
 }
 
