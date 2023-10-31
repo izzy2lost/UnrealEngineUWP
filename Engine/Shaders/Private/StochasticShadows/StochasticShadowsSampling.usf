@@ -415,7 +415,8 @@ void GenerateSamplesCS(
 
 						uint LightSceneId = MaskIndex * 32 + NextBitIndex;
 						FLightSceneData LightSceneData = GetLightSceneData(LightSceneId);
-						FDeferredLightData LightData = ConvertToDeferredLight(LightSceneData);
+						FDeferredLightData LightData = ConvertToDeferredLight(LightSceneData);\
+						LightData.bRectLight = false;
 					
 						float SampleWeight = GetLocalLightTargetPDF(LightData, TranslatedWorldPosition, GBuffer, ScreenCoord);
 

@@ -1,12 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "StochasticShadows.h"
+#include "StochasticShadowsInternal.h"
 #include "RendererPrivate.h"
 #include "PixelShaderUtils.h"
-#include "BlueNoise.h"
 #include "BasePassRendering.h"
-#include "RayTracing/RayTracingMaterialHitShaders.h"
-#include "Lumen/LumenTracingUtils.h"
 
 static TAutoConsoleVariable<int32> CVarStochasticShadows(
 	TEXT("r.StochasticShadows"),
@@ -32,55 +30,6 @@ static TAutoConsoleVariable<float> CVarStochasticShadowsMinSampleWeight(
 	0.002f,
 	TEXT("Determines minimal sample influence on final pixels. Used to skip samples which would have minimal impact to the final image even if light is fully visible."),
 	ECVF_Scalability | ECVF_RenderThreadSafe
-);
-
-static TAutoConsoleVariable<int32> CVarStochasticShadowsScreenTraces(
-	TEXT("r.StochasticShadows.ScreenTraces"),
-	1,
-	TEXT("Whether to use screen space tracing for shadow rays."),
-	ECVF_Scalability | ECVF_RenderThreadSafe
-);
-
-static TAutoConsoleVariable<int32> CVarStochasticShadowsScreenTracesMaxIterations(
-	TEXT("r.StochasticShadows.ScreenTraces.MaxIterations"),
-	50,
-	TEXT("Max iterations for HZB tracing."),
-	ECVF_Scalability | ECVF_RenderThreadSafe
-);
-
-static TAutoConsoleVariable<int32> CVarStochasticShadowsScreenTracesMinimumOccupancy(
-	TEXT("r.StochasticShadows.ScreenTraces.MinimumOccupancy"),
-	0,
-	TEXT("Minimum number of threads still tracing before aborting the trace. Can be used for scalability to abandon traces that have a disproportionate cost."),
-	ECVF_Scalability | ECVF_RenderThreadSafe
-);
-
-static TAutoConsoleVariable<float> CVarStochasticShadowsScreenTraceRelativeDepthThreshold(
-	TEXT("r.StochasticShadows.ScreenTraces.RelativeDepthThickness"),
-	0.005f,
-	TEXT("Determines depth thickness of objects hit by HZB tracing, as a relative depth threshold."),
-	ECVF_Scalability | ECVF_RenderThreadSafe
-);
-
-static TAutoConsoleVariable<int32> CVarStochasticShadowsWorldSpaceTraces(
-	TEXT("r.StochasticShadows.WorldSpaceTraces"),
-	1,
-	TEXT("Whether to trace world space shadow rays for samples. Useful for debugging."),
-	ECVF_Scalability | ECVF_RenderThreadSafe
-);
-
-static TAutoConsoleVariable<int32> CVarStochasticShadowsHardwareRayTracing(
-	TEXT("r.StochasticShadows.HardwareRayTracing"),
-	1,
-	TEXT("Whether to use hardware ray tracing for shadow rays."),
-	ECVF_Scalability | ECVF_RenderThreadSafe
-);
-
-static TAutoConsoleVariable<int32> CVarStochasticShadowsHardwareRayTracingInline(
-	TEXT("r.StochasticShadows.HardwareRayTracing.Inline"),
-	1,
-	TEXT("Uses hardware inline ray tracing for ray traced lighting, when available.\n"),
-	ECVF_RenderThreadSafe | ECVF_Scalability
 );
 
 static TAutoConsoleVariable<int32> CVarStochasticShadowsTemporal(
@@ -173,11 +122,6 @@ namespace StochasticShadows
 		return CVarStochasticShadows.GetValueOnRenderThread() != 0;
 	}
 
-	bool IsUsingClosestHZB()
-	{
-		return IsEnabled() && CVarStochasticShadowsScreenTraces.GetValueOnRenderThread() != 0;
-	}
-
 	bool IsLightSupported(uint8 LightType, ECastRayTracedShadow::Type CastRayTracedShadow)
 	{
 		if (StochasticShadows::IsEnabled() && LightType != LightType_Directional)
@@ -198,35 +142,6 @@ namespace StochasticShadows
 
 		// SM6 because it uses typed loads to accumulate lights
 		return IsFeatureLevelSupported(Parameters.Platform, ERHIFeatureLevel::SM6);
-	}
-
-	bool UseHardwareRayTracing()
-	{
-		#if RHI_RAYTRACING
-		{
-			return IsRayTracingEnabled() 
-				&& CVarStochasticShadowsHardwareRayTracing.GetValueOnRenderThread() != 0;
-		}
-		#else
-		{
-			return false;
-		}
-		#endif
-	}
-
-	bool UseInlineHardwareRayTracing()
-	{
-		#if RHI_RAYTRACING
-		{
-			return UseHardwareRayTracing()
-				&& GRHISupportsInlineRayTracing
-				&& CVarStochasticShadowsHardwareRayTracingInline.GetValueOnRenderThread() != 0;
-		}
-		#else
-		{
-			return false;
-		}
-		#endif
 	}
 
 	uint32 GetStateFrameIndex(FSceneViewState* ViewState)
@@ -252,13 +167,17 @@ namespace StochasticShadows
 		return NumSamplesPerPixel1d == 4 ? FIntPoint(2, 2) : (NumSamplesPerPixel1d == 2 ? FIntPoint(2, 1) : FIntPoint(1, 1));
 	}
 
-	enum class ECompactedTraceIndirectArgs
+	int32 GetDebugMode()
 	{
-		NumTracesDiv64 = 0 * sizeof(FRHIDispatchIndirectParameters),
-		NumTracesDiv32 = 1 * sizeof(FRHIDispatchIndirectParameters),
-		NumTraces      = 2 * sizeof(FRHIDispatchIndirectParameters),
-		MAX = 3
-	};
+		return CVarStochasticShadowsDebug.GetValueOnRenderThread();
+	}
+
+	bool UseWaveOps(EShaderPlatform ShaderPlatform)
+	{
+		return CVarStochasticShadowsWaveOps.GetValueOnRenderThread() != 0 
+			&& GRHISupportsWaveOperations
+			&& RHISupportsWaveOperations(ShaderPlatform);
+	}
 
 	// Keep in sync with TILE_TYPE_* in shaders
 	enum class ETileType : uint8
@@ -268,32 +187,6 @@ namespace StochasticShadows
 		MAX = 2
 	};
 }
-
-BEGIN_SHADER_PARAMETER_STRUCT(FStochasticShadowsParameters, )
-	SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, ViewUniformBuffer)
-	SHADER_PARAMETER_STRUCT_INCLUDE(ShaderPrint::FShaderParameters, ShaderPrintUniformBuffer)
-	SHADER_PARAMETER_STRUCT_INCLUDE(FSceneTextureParameters, SceneTextures)
-	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSceneUniformParameters, Scene)
-	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSceneTextureUniformParameters, SceneTexturesStruct)
-	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSubstrateGlobalUniformParameters, Substrate)
-	SHADER_PARAMETER_STRUCT_REF(FBlueNoise, BlueNoise)
-	SHADER_PARAMETER(FIntPoint, SampleViewSize)
-	SHADER_PARAMETER(FIntPoint, DownsampledViewSize)
-	SHADER_PARAMETER(FIntPoint, ShadowMaskViewSize)
-	SHADER_PARAMETER(uint32, StochasticShadowsStateFrameIndex)
-	SHADER_PARAMETER(uint32, MaxShadowMaskTiles)
-	SHADER_PARAMETER(uint32, MaxShadingTiles)
-	SHADER_PARAMETER(uint32, MaxShadingTilesPerGridCell)
-	SHADER_PARAMETER(uint32, ShadowMaskHashTableIndexWrapMask)
-	SHADER_PARAMETER(FIntPoint, ShadowMaskPageTablePerLightSize)
-	SHADER_PARAMETER(FIntPoint, ShadingTileGridSize)
-	SHADER_PARAMETER(FVector2f, DownsampledBufferInvSize)
-	SHADER_PARAMETER(float, MinLightSampleWeight)
-	SHADER_PARAMETER(int32, TileDataStride)
-	SHADER_PARAMETER(int32, DownsampledTileDataStride)
-	SHADER_PARAMETER(int32, DebugMode)
-	SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float>, DownsampledSceneDepth)
-END_SHADER_PARAMETER_STRUCT()
 
 class FTileClassificationCS : public FGlobalShader
 {
@@ -359,76 +252,6 @@ class FInitTileIndirectArgsCS : public FGlobalShader
 };
 
 IMPLEMENT_GLOBAL_SHADER(FInitTileIndirectArgsCS, "/Engine/Private/StochasticShadows/StochasticShadows.usf", "InitTileIndirectArgsCS", SF_Compute);
-
-class FCompactLightSampleTracesCS : public FGlobalShader
-{
-	DECLARE_GLOBAL_SHADER(FCompactLightSampleTracesCS)
-	SHADER_USE_PARAMETER_STRUCT(FCompactLightSampleTracesCS, FGlobalShader);
-
-	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-		SHADER_PARAMETER_STRUCT_INCLUDE(FStochasticShadowsParameters, StochasticShadowsParameters)
-		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<uint>, RWCompactedTraceTexelData)
-		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<uint>, RWCompactedTraceTexelAllocator)
-		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<uint>, LightSamples)
-	END_SHADER_PARAMETER_STRUCT()
-
-	static int32 GetGroupSize()
-	{
-		return 16;
-	}
-
-	class FWaveOps : SHADER_PERMUTATION_BOOL("WAVE_OPS");
-	using FPermutationDomain = TShaderPermutationDomain<FWaveOps>;
-
-	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
-	{
-		return StochasticShadows::ShouldCompileShaders(Parameters);
-	}
-
-	FORCENOINLINE static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
-	{
-		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
-		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZE"), GetGroupSize());
-
-		FPermutationDomain PermutationVector(Parameters.PermutationId);
-		if (PermutationVector.Get<FWaveOps>())
-		{
-			OutEnvironment.CompilerFlags.Add(CFLAG_WaveOperations);
-		}
-	}
-};
-
-IMPLEMENT_GLOBAL_SHADER(FCompactLightSampleTracesCS, "/Engine/Private/StochasticShadows/StochasticShadowsTracing.usf", "CompactLightSampleTracesCS", SF_Compute);
-
-class FInitCompactedTraceTexelIndirectArgsCS : public FGlobalShader
-{
-	DECLARE_GLOBAL_SHADER(FInitCompactedTraceTexelIndirectArgsCS)
-	SHADER_USE_PARAMETER_STRUCT(FInitCompactedTraceTexelIndirectArgsCS, FGlobalShader);
-
-	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-		SHADER_PARAMETER_STRUCT_INCLUDE(FStochasticShadowsParameters, StochasticShadowsParameters)
-		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, RWIndirectArgs)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, CompactedTraceTexelAllocator)
-	END_SHADER_PARAMETER_STRUCT()
-
-	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
-	{
-		return StochasticShadows::ShouldCompileShaders(Parameters);
-	}
-
-	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
-	{
-		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
-		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZE"), GetGroupSize());
-	}
-
-	static int32 GetGroupSize()
-	{
-		return 64;
-	}
-};
-
-IMPLEMENT_GLOBAL_SHADER(FInitCompactedTraceTexelIndirectArgsCS, "/Engine/Private/StochasticShadows/StochasticShadowsTracing.usf", "InitCompactedTraceTexelIndirectArgsCS", SF_Compute);
 
 class FInitShadowMaskUpdateIndirectArgsCS : public FGlobalShader
 {
@@ -538,197 +361,6 @@ class FGenerateSamplesCS : public FGlobalShader
 };
 
 IMPLEMENT_GLOBAL_SHADER(FGenerateSamplesCS, "/Engine/Private/StochasticShadows/StochasticShadowsSampling.usf", "GenerateSamplesCS", SF_Compute);
-
-BEGIN_SHADER_PARAMETER_STRUCT(FCompactedStochasticShadowsTraceParameters, )
-	RDG_BUFFER_ACCESS(IndirectArgs, ERHIAccess::IndirectArgs)
-	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, CompactedTraceTexelData)
-	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, CompactedTraceTexelAllocator)
-END_SHADER_PARAMETER_STRUCT()
-
-#if RHI_RAYTRACING
-
-class FHardwareRayTraceLightSamplesCS : public FGlobalShader
-{
-	DECLARE_GLOBAL_SHADER(FHardwareRayTraceLightSamplesCS)
-	SHADER_USE_PARAMETER_STRUCT(FHardwareRayTraceLightSamplesCS, FGlobalShader)
-
-	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-		SHADER_PARAMETER_STRUCT_INCLUDE(FCompactedStochasticShadowsTraceParameters, CompactedTraceParameters)
-		SHADER_PARAMETER_STRUCT_INCLUDE(FStochasticShadowsParameters, StochasticShadowsParameters)
-		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<uint>, RWLightSamples)
-		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float>, LightSampleRayDistance)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(RaytracingAccelerationStructure, TLAS)
-	END_SHADER_PARAMETER_STRUCT()
-
-	class FNumSamplesPerPixel : SHADER_PERMUTATION_SPARSE_INT("NUM_SAMPLES_PER_PIXEL", 1, 2, 4);
-	class FDebugMode : SHADER_PERMUTATION_BOOL("DEBUG_MODE");
-	using FPermutationDomain = TShaderPermutationDomain<FNumSamplesPerPixel, FDebugMode>;
-
-	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
-	{
-		return StochasticShadows::ShouldCompileShaders(Parameters)
-			&& ShouldCompileRayTracingShadersForProject(Parameters.Platform)
-			&& FDataDrivenShaderPlatformInfo::GetSupportsInlineRayTracing(Parameters.Platform);
-	}
-
-	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
-	{
-		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
-
-		OutEnvironment.CompilerFlags.Add(CFLAG_Wave32);	
-		OutEnvironment.CompilerFlags.Add(CFLAG_InlineRayTracing);
-
-		OutEnvironment.SetDefine(TEXT("INLINE_RAY_TRACING_THREAD_GROUP_SIZE_X"), GetGroupSize().X);
-		OutEnvironment.SetDefine(TEXT("INLINE_RAY_TRACING_THREAD_GROUP_SIZE_Y"), GetGroupSize().Y);
-
-		FPermutationDomain PermutationVector(Parameters.PermutationId);
-		const uint32 NumSamplesPerPixel = PermutationVector.Get<FNumSamplesPerPixel>();
-		OutEnvironment.SetDefine(TEXT("NUM_SAMPLES_PER_PIXEL_X"), StochasticShadows::GetNumSamplesPerPixel2d(NumSamplesPerPixel).X);
-		OutEnvironment.SetDefine(TEXT("NUM_SAMPLES_PER_PIXEL_Y"), StochasticShadows::GetNumSamplesPerPixel2d(NumSamplesPerPixel).Y);
-	}
-
-	static FIntPoint GetGroupSize()
-	{
-		// Current inline ray tracing implementation requires 1:1 mapping between thread groups and waves and only supports wave32 mode.
-		return FIntPoint(32, 1);
-	}
-};
-
-IMPLEMENT_GLOBAL_SHADER(FHardwareRayTraceLightSamplesCS, "/Engine/Private/StochasticShadows/StochasticShadowsHardwareRayTracing.usf", "HardwareRayTraceLightSamplesCS", SF_Compute);
-
-class FHardwareRayTraceLightSamplesRGS : public FGlobalShader
-{
-	DECLARE_GLOBAL_SHADER(FHardwareRayTraceLightSamplesRGS)
-	SHADER_USE_ROOT_PARAMETER_STRUCT(FHardwareRayTraceLightSamplesRGS, FGlobalShader)
-
-	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-		SHADER_PARAMETER_STRUCT_INCLUDE(FCompactedStochasticShadowsTraceParameters, CompactedTraceParameters)
-		SHADER_PARAMETER_STRUCT_INCLUDE(FStochasticShadowsParameters, StochasticShadowsParameters)
-		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<uint>, RWLightSamples)
-		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float>, LightSampleRayDistance)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(RaytracingAccelerationStructure, TLAS)
-	END_SHADER_PARAMETER_STRUCT()
-
-	static ERayTracingPayloadType GetRayTracingPayloadType(const int32 PermutationId)
-	{
-		return ERayTracingPayloadType::RayTracingMaterial;
-	}
-
-	class FNumSamplesPerPixel : SHADER_PERMUTATION_SPARSE_INT("NUM_SAMPLES_PER_PIXEL", 1, 2, 4);
-	class FDebugMode : SHADER_PERMUTATION_BOOL("DEBUG_MODE");
-	using FPermutationDomain = TShaderPermutationDomain<FNumSamplesPerPixel, FDebugMode>;
-
-	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
-	{
-		return StochasticShadows::ShouldCompileShaders(Parameters)
-			&& ShouldCompileRayTracingShadersForProject(Parameters.Platform);
-	}
-
-	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
-	{
-		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
-		OutEnvironment.SetDefine(TEXT("UE_RAY_TRACING_DYNAMIC_CLOSEST_HIT_SHADER"), 0);
-		OutEnvironment.SetDefine(TEXT("UE_RAY_TRACING_DYNAMIC_ANY_HIT_SHADER"), 1);
-		OutEnvironment.SetDefine(TEXT("UE_RAY_TRACING_DYNAMIC_MISS_SHADER"), 0);
-		OutEnvironment.SetDefine(TEXT("UE_RAY_TRACING_DISPATCH_1D"), 1);
-
-		FPermutationDomain PermutationVector(Parameters.PermutationId);
-		const uint32 NumSamplesPerPixel = PermutationVector.Get<FNumSamplesPerPixel>();
-		OutEnvironment.SetDefine(TEXT("NUM_SAMPLES_PER_PIXEL_X"), StochasticShadows::GetNumSamplesPerPixel2d(NumSamplesPerPixel).X);
-		OutEnvironment.SetDefine(TEXT("NUM_SAMPLES_PER_PIXEL_Y"), StochasticShadows::GetNumSamplesPerPixel2d(NumSamplesPerPixel).Y);
-	}
-};
-
-IMPLEMENT_GLOBAL_SHADER(FHardwareRayTraceLightSamplesRGS, "/Engine/Private/StochasticShadows/StochasticShadowsHardwareRayTracing.usf", "HardwareRayTraceLightSamplesRGS", SF_RayGen);
-
-#endif // RHI_RAYTRACING
-
-class FSoftwareRayTraceLightSamplesCS : public FGlobalShader
-{
-	DECLARE_GLOBAL_SHADER(FSoftwareRayTraceLightSamplesCS)
-	SHADER_USE_PARAMETER_STRUCT(FSoftwareRayTraceLightSamplesCS, FGlobalShader);
-
-	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-		SHADER_PARAMETER_STRUCT_INCLUDE(FCompactedStochasticShadowsTraceParameters, CompactedTraceParameters)
-		SHADER_PARAMETER_STRUCT_INCLUDE(FStochasticShadowsParameters, StochasticShadowsParameters)
-		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<uint>, RWLightSamples)
-		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float>, LightSampleRayDistance)
-	END_SHADER_PARAMETER_STRUCT()
-
-	static int32 GetGroupSize()
-	{
-		return 64;
-	}
-
-	class FNumSamplesPerPixel : SHADER_PERMUTATION_SPARSE_INT("NUM_SAMPLES_PER_PIXEL", 1, 2, 4);
-	class FDebugMode : SHADER_PERMUTATION_BOOL("DEBUG_MODE");
-	using FPermutationDomain = TShaderPermutationDomain<FNumSamplesPerPixel, FDebugMode>;
-
-	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
-	{
-		return StochasticShadows::ShouldCompileShaders(Parameters);
-	}
-
-	FORCENOINLINE static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
-	{
-		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
-		OutEnvironment.CompilerFlags.Add(CFLAG_Wave32);
-		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZE"), GetGroupSize());
-
-		FPermutationDomain PermutationVector(Parameters.PermutationId);
-		const uint32 NumSamplesPerPixel = PermutationVector.Get<FNumSamplesPerPixel>();
-		OutEnvironment.SetDefine(TEXT("NUM_SAMPLES_PER_PIXEL_X"), StochasticShadows::GetNumSamplesPerPixel2d(NumSamplesPerPixel).X);
-		OutEnvironment.SetDefine(TEXT("NUM_SAMPLES_PER_PIXEL_Y"), StochasticShadows::GetNumSamplesPerPixel2d(NumSamplesPerPixel).Y);
-	}
-};
-
-IMPLEMENT_GLOBAL_SHADER(FSoftwareRayTraceLightSamplesCS, "/Engine/Private/StochasticShadows/StochasticShadowsTracing.usf", "SoftwareRayTraceLightSamplesCS", SF_Compute);
-
-class FScreenSpaceRayTraceLightSamplesCS : public FGlobalShader
-{
-	DECLARE_GLOBAL_SHADER(FScreenSpaceRayTraceLightSamplesCS)
-	SHADER_USE_PARAMETER_STRUCT(FScreenSpaceRayTraceLightSamplesCS, FGlobalShader);
-
-	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-		SHADER_PARAMETER_STRUCT_INCLUDE(FCompactedStochasticShadowsTraceParameters, CompactedTraceParameters)
-		SHADER_PARAMETER_STRUCT_INCLUDE(FStochasticShadowsParameters, StochasticShadowsParameters)
-		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<uint>, RWLightSamples)
-		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float>, RWLightSampleRayDistance)
-		SHADER_PARAMETER_STRUCT_INCLUDE(FLumenHZBScreenTraceParameters, HZBScreenTraceParameters)
-		SHADER_PARAMETER(float, MaxHierarchicalScreenTraceIterations)
-		SHADER_PARAMETER(float, RelativeDepthThickness)
-		SHADER_PARAMETER(float, HistoryDepthTestRelativeThickness)
-		SHADER_PARAMETER(uint32, MinimumTracingThreadOccupancy)
-	END_SHADER_PARAMETER_STRUCT()
-
-	static int32 GetGroupSize()
-	{
-		return 64;
-	}
-
-	class FNumSamplesPerPixel : SHADER_PERMUTATION_SPARSE_INT("NUM_SAMPLES_PER_PIXEL", 1, 2, 4);
-	class FDebugMode : SHADER_PERMUTATION_BOOL("DEBUG_MODE");
-	using FPermutationDomain = TShaderPermutationDomain<FNumSamplesPerPixel, FDebugMode>;
-
-	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
-	{
-		return StochasticShadows::ShouldCompileShaders(Parameters);
-	}
-
-	FORCENOINLINE static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
-	{
-		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
-		OutEnvironment.CompilerFlags.Add(CFLAG_Wave32);
-		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZE"), GetGroupSize());
-
-		FPermutationDomain PermutationVector(Parameters.PermutationId);
-		const uint32 NumSamplesPerPixel = PermutationVector.Get<FNumSamplesPerPixel>();
-		OutEnvironment.SetDefine(TEXT("NUM_SAMPLES_PER_PIXEL_X"), StochasticShadows::GetNumSamplesPerPixel2d(NumSamplesPerPixel).X);
-		OutEnvironment.SetDefine(TEXT("NUM_SAMPLES_PER_PIXEL_Y"), StochasticShadows::GetNumSamplesPerPixel2d(NumSamplesPerPixel).Y);
-	}
-};
-
-IMPLEMENT_GLOBAL_SHADER(FScreenSpaceRayTraceLightSamplesCS, "/Engine/Private/StochasticShadows/StochasticShadowsTracing.usf", "ScreenSpaceRayTraceLightSamplesCS", SF_Compute);
 
 class FInitShadowMaskUpsampleWeightsCS : public FGlobalShader
 {
@@ -897,92 +529,6 @@ class FShadeLightSamplesCS : public FGlobalShader
 
 IMPLEMENT_GLOBAL_SHADER(FShadeLightSamplesCS, "/Engine/Private/StochasticShadows/StochasticShadowsShading.usf", "ShadeLightSamplesCS", SF_Compute);
 
-#if RHI_RAYTRACING
-void FDeferredShadingSceneRenderer::PrepareStochasticShadows(const FViewInfo& View, const FScene& Scene, TArray<FRHIRayTracingShader*>& OutRayGenShaders)
-{
-
-	if (StochasticShadows::IsEnabled())
-	{
-		FHardwareRayTraceLightSamplesRGS::FPermutationDomain PermutationVector;
-		PermutationVector.Set<FHardwareRayTraceLightSamplesRGS::FNumSamplesPerPixel>(StochasticShadows::GetNumSamplesPerPixel());
-		PermutationVector.Set<FHardwareRayTraceLightSamplesRGS::FDebugMode>(CVarStochasticShadowsDebug.GetValueOnRenderThread() != 0);
-		TShaderRef<FHardwareRayTraceLightSamplesRGS> RayGenerationShader = View.ShaderMap->GetShader<FHardwareRayTraceLightSamplesRGS>(PermutationVector);
-		OutRayGenShaders.Add(RayGenerationShader.GetRayTracingShader());
-	}
-}
-#endif
-
-FCompactedStochasticShadowsTraceParameters CompactStochasticShadowsTraces(
-	const FViewInfo& View,
-	FRDGBuilder& GraphBuilder,
-	const FIntPoint SampleBufferSize,
-	FRDGTextureRef LightSamples,
-	FStochasticShadowsParameters StochasticShadowsParameters)
-{
-	FRDGBufferRef CompactedTraceTexelData = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), SampleBufferSize.X * SampleBufferSize.Y),
-		TEXT("StochasticShadowsParameters.CompactedTraceTexelData"));
-
-	FRDGBufferRef CompactedTraceTexelAllocator = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), 1),
-		TEXT("StochasticShadowsParameters.CompactedTraceTexelAllocator"));
-
-	FRDGBufferRef CompactedTraceTexelIndirectArgs = GraphBuilder.CreateBuffer(
-		FRDGBufferDesc::CreateIndirectDesc<FRHIDispatchIndirectParameters>((int32)StochasticShadows::ECompactedTraceIndirectArgs::MAX),
-		TEXT("StochasticShadows.CompactedTraceTexelIndirectArgs"));
-
-	AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(CompactedTraceTexelAllocator), 0);
-
-	// Compact light sample traces before tracing
-	{
-		FCompactLightSampleTracesCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FCompactLightSampleTracesCS::FParameters>();
-		PassParameters->RWCompactedTraceTexelData = GraphBuilder.CreateUAV(CompactedTraceTexelData);
-		PassParameters->RWCompactedTraceTexelAllocator = GraphBuilder.CreateUAV(CompactedTraceTexelAllocator);
-		PassParameters->StochasticShadowsParameters = StochasticShadowsParameters;
-		PassParameters->LightSamples = LightSamples;
-
-		const bool bWaveOps = CVarStochasticShadowsWaveOps.GetValueOnRenderThread() != 0
-			&& GRHISupportsWaveOperations
-			&& GRHIMinimumWaveSize <= 32
-			&& GRHIMaximumWaveSize >= 32
-			&& RHISupportsWaveOperations(View.GetShaderPlatform());
-
-		FCompactLightSampleTracesCS::FPermutationDomain PermutationVector;
-		PermutationVector.Set<FCompactLightSampleTracesCS::FWaveOps>(bWaveOps);
-		auto ComputeShader = View.ShaderMap->GetShader<FCompactLightSampleTracesCS>(PermutationVector);
-
-		const FIntVector GroupCount = FComputeShaderUtils::GetGroupCount(StochasticShadowsParameters.SampleViewSize, FCompactLightSampleTracesCS::GetGroupSize());
-
-		FComputeShaderUtils::AddPass(
-			GraphBuilder,
-			RDG_EVENT_NAME("CompactLightSampleTraces"),
-			ComputeShader,
-			PassParameters,
-			GroupCount);
-	}
-
-	// Setup indirect args for tracing
-	{
-		FInitCompactedTraceTexelIndirectArgsCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FInitCompactedTraceTexelIndirectArgsCS::FParameters>();
-		PassParameters->StochasticShadowsParameters = StochasticShadowsParameters;
-		PassParameters->RWIndirectArgs = GraphBuilder.CreateUAV(CompactedTraceTexelIndirectArgs);
-		PassParameters->CompactedTraceTexelAllocator = GraphBuilder.CreateSRV(CompactedTraceTexelAllocator);
-
-		auto ComputeShader = View.ShaderMap->GetShader<FInitCompactedTraceTexelIndirectArgsCS>();
-
-		FComputeShaderUtils::AddPass(
-			GraphBuilder,
-			RDG_EVENT_NAME("InitCompactedTraceTexelIndirectArgs"),
-			ComputeShader,
-			PassParameters,
-			FIntVector(1, 1, 1));
-	}
-
-	FCompactedStochasticShadowsTraceParameters Parameters;
-	Parameters.CompactedTraceTexelAllocator = GraphBuilder.CreateSRV(CompactedTraceTexelAllocator);
-	Parameters.CompactedTraceTexelData = GraphBuilder.CreateSRV(CompactedTraceTexelData);
-	Parameters.IndirectArgs = CompactedTraceTexelIndirectArgs;
-	return Parameters;
-}
-
 /**
  * Single pass batched light rendering using ray tracing (distance field or triangle) for shadowing.
  */
@@ -999,12 +545,10 @@ void FDeferredShadingSceneRenderer::RenderStochasticShadows(FRDGBuilder& GraphBu
 	FBlueNoise BlueNoise = GetBlueNoiseGlobalParameters();
 	TUniformBufferRef<FBlueNoise> BlueNoiseUniformBuffer = CreateUniformBufferImmediate(BlueNoise, EUniformBufferUsage::UniformBuffer_SingleDraw);
 
-	const bool bDebug = CVarStochasticShadowsDebug.GetValueOnRenderThread() != 0;
-	const bool bWaveOps = CVarStochasticShadowsWaveOps.GetValueOnRenderThread() != 0
-		&& GRHISupportsWaveOperations
+	const bool bDebug = StochasticShadows::GetDebugMode() != 0;
+	const bool bWaveOps = StochasticShadows::UseWaveOps(View.GetShaderPlatform())
 		&& GRHIMinimumWaveSize <= 32
-		&& GRHIMaximumWaveSize >= 32
-		&& RHISupportsWaveOperations(View.GetShaderPlatform());
+		&& GRHIMaximumWaveSize >= 32;
 
 	// History reset for debugging purposes
 	bool bResetHistory = false;
@@ -1334,154 +878,15 @@ void FDeferredShadingSceneRenderer::RenderStochasticShadows(FRDGBuilder& GraphBu
 			FIntVector(1, 1, 1));
 	}
 
-	// Ray trace light samples
-	if (CVarStochasticShadowsScreenTraces.GetValueOnRenderThread() != 0)
-	{
-		FCompactedStochasticShadowsTraceParameters CompactedTraceParameters = CompactStochasticShadowsTraces(
-			View,
-			GraphBuilder,
-			SampleBufferSize,
-			LightSamples,
-			StochasticShadowsParameters);
-
-		FScreenSpaceRayTraceLightSamplesCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FScreenSpaceRayTraceLightSamplesCS::FParameters>();
-		PassParameters->CompactedTraceParameters = CompactedTraceParameters;
-		PassParameters->StochasticShadowsParameters = StochasticShadowsParameters;
-		PassParameters->RWLightSamples = GraphBuilder.CreateUAV(LightSamples);
-		PassParameters->RWLightSampleRayDistance = GraphBuilder.CreateUAV(LightSampleRayDistance);
-		PassParameters->HZBScreenTraceParameters = SetupHZBScreenTraceParameters(GraphBuilder, View, SceneTextures, /*bBindLumenHistory*/ false);
-		PassParameters->MaxHierarchicalScreenTraceIterations = CVarStochasticShadowsScreenTracesMaxIterations.GetValueOnRenderThread();
-		PassParameters->RelativeDepthThickness = CVarStochasticShadowsScreenTraceRelativeDepthThreshold.GetValueOnRenderThread() * View.ViewMatrices.GetPerProjectionDepthThicknessScale();
-		PassParameters->HistoryDepthTestRelativeThickness = 0.0f;
-		PassParameters->MinimumTracingThreadOccupancy = CVarStochasticShadowsScreenTracesMinimumOccupancy.GetValueOnRenderThread();
-
-		FScreenSpaceRayTraceLightSamplesCS::FPermutationDomain PermutationVector;
-		PermutationVector.Set<FScreenSpaceRayTraceLightSamplesCS::FNumSamplesPerPixel>(NumSamplesPerPixel1d);
-		PermutationVector.Set<FScreenSpaceRayTraceLightSamplesCS::FDebugMode>(bDebug);
-		auto ComputeShader = View.ShaderMap->GetShader<FScreenSpaceRayTraceLightSamplesCS>(PermutationVector);
-
-		FComputeShaderUtils::AddPass(
-			GraphBuilder,
-			RDG_EVENT_NAME("ScreenSpaceRayTraceLightSamples"),
-			ComputeShader,
-			PassParameters,
-			CompactedTraceParameters.IndirectArgs,
-			(int32)StochasticShadows::ECompactedTraceIndirectArgs::NumTracesDiv64);
-	}
-	else
-	{
-		AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(LightSampleRayDistance), 0.0f);
-	}
-
-	if (CVarStochasticShadowsWorldSpaceTraces.GetValueOnRenderThread() != 0)
-	{
-		FCompactedStochasticShadowsTraceParameters CompactedTraceParameters = CompactStochasticShadowsTraces(
-			View,
-			GraphBuilder,
-			SampleBufferSize,
-			LightSamples,
-			StochasticShadowsParameters);
-
-		if (StochasticShadows::UseHardwareRayTracing())
-		{
-#if RHI_RAYTRACING
-			if (StochasticShadows::UseInlineHardwareRayTracing())
-			{
-				FHardwareRayTraceLightSamplesCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FHardwareRayTraceLightSamplesCS::FParameters>();
-				PassParameters->CompactedTraceParameters = CompactedTraceParameters;
-				PassParameters->StochasticShadowsParameters = StochasticShadowsParameters;
-				PassParameters->RWLightSamples = GraphBuilder.CreateUAV(LightSamples);
-				PassParameters->LightSampleRayDistance = LightSampleRayDistance;
-				PassParameters->TLAS = View.GetRayTracingSceneLayerViewChecked(ERayTracingSceneLayer::Base);
-
-				FHardwareRayTraceLightSamplesCS::FPermutationDomain PermutationVector;
-				PermutationVector.Set<FHardwareRayTraceLightSamplesCS::FNumSamplesPerPixel>(NumSamplesPerPixel1d);
-				PermutationVector.Set<FHardwareRayTraceLightSamplesCS::FDebugMode>(bDebug);
-				auto ComputeShader = View.ShaderMap->GetShader<FHardwareRayTraceLightSamplesCS>(PermutationVector);
-
-				FComputeShaderUtils::AddPass(
-					GraphBuilder,
-					RDG_EVENT_NAME("HardwareRayTraceLightSamples Inline"),
-					ERDGPassFlags::Compute,
-					ComputeShader,
-					PassParameters,
-					CompactedTraceParameters.IndirectArgs,
-					(int32)StochasticShadows::ECompactedTraceIndirectArgs::NumTracesDiv32);
-			}
-			else
-			{
-				FHardwareRayTraceLightSamplesRGS::FParameters* PassParameters = GraphBuilder.AllocParameters<FHardwareRayTraceLightSamplesRGS::FParameters>();
-				PassParameters->CompactedTraceParameters = CompactedTraceParameters;
-				PassParameters->StochasticShadowsParameters = StochasticShadowsParameters;
-				PassParameters->RWLightSamples = GraphBuilder.CreateUAV(LightSamples);
-				PassParameters->LightSampleRayDistance = LightSampleRayDistance;
-				PassParameters->TLAS = View.GetRayTracingSceneLayerViewChecked(ERayTracingSceneLayer::Base);
-
-				FHardwareRayTraceLightSamplesRGS::FPermutationDomain PermutationVector;
-				PermutationVector.Set<FHardwareRayTraceLightSamplesRGS::FNumSamplesPerPixel>(NumSamplesPerPixel1d);
-				PermutationVector.Set<FHardwareRayTraceLightSamplesRGS::FDebugMode>(bDebug);
-				auto RayGenShader = View.ShaderMap->GetShader<FHardwareRayTraceLightSamplesRGS>(PermutationVector);
-
-				ClearUnusedGraphResources(RayGenShader, PassParameters, { CompactedTraceParameters.IndirectArgs });
-
-				GraphBuilder.AddPass(
-					RDG_EVENT_NAME("HardwareRayTraceLightSamples RayGen"),
-					PassParameters,
-					ERDGPassFlags::Compute,
-					[PassParameters, &View, RayGenShader, CompactedTraceTexelIndirectArgs = CompactedTraceParameters.IndirectArgs](FRHIRayTracingCommandList& RHICmdList)
-					{
-						CompactedTraceTexelIndirectArgs->MarkResourceAsUsed();
-
-						FRayTracingShaderBindingsWriter GlobalResources;
-						SetShaderParameters(GlobalResources, RayGenShader, *PassParameters);
-
-						FRHIRayTracingScene* RayTracingSceneRHI = View.GetRayTracingSceneChecked();
-
-						FRayTracingPipelineStateInitializer Initializer;
-
-						Initializer.MaxPayloadSizeInBytes = GetRayTracingPayloadTypeMaxSize(ERayTracingPayloadType::RayTracingMaterial);
-
-						FRHIRayTracingShader* RayGenShaderTable[] = { RayGenShader.GetRayTracingShader() };
-						Initializer.SetRayGenShaderTable(RayGenShaderTable);
-
-						FRHIRayTracingShader* HitGroupTable[] = { GetRayTracingDefaultOpaqueShader(View.ShaderMap) };
-						Initializer.SetHitGroupTable(HitGroupTable);
-						Initializer.bAllowHitGroupIndexing = false; // Use the same hit shader for all geometry in the scene by disabling SBT indexing.
-
-						FRHIRayTracingShader* MissGroupTable[] = { GetRayTracingDefaultMissShader(View.ShaderMap) };
-						Initializer.SetMissShaderTable(MissGroupTable);
-
-						FRayTracingPipelineState* Pipeline = PipelineStateCache::GetAndOrCreateRayTracingPipelineState(RHICmdList, Initializer);
-						RHICmdList.SetRayTracingMissShader(RayTracingSceneRHI, 0, Pipeline, 0 /* ShaderIndexInPipeline */, 0, nullptr, 0);
-						RHICmdList.RayTraceDispatchIndirect(Pipeline, RayGenShader.GetRayTracingShader(), RayTracingSceneRHI, GlobalResources,
-							CompactedTraceTexelIndirectArgs->GetIndirectRHICallBuffer(), (int32)StochasticShadows::ECompactedTraceIndirectArgs::NumTraces);
-					}
-				);
-			}
-#endif // RHI_RAYTRACING
-		}
-		else
-		{
-			FSoftwareRayTraceLightSamplesCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FSoftwareRayTraceLightSamplesCS::FParameters>();
-			PassParameters->CompactedTraceParameters = CompactedTraceParameters;
-			PassParameters->StochasticShadowsParameters = StochasticShadowsParameters;
-			PassParameters->RWLightSamples = GraphBuilder.CreateUAV(LightSamples);
-			PassParameters->LightSampleRayDistance = LightSampleRayDistance;
-
-			FSoftwareRayTraceLightSamplesCS::FPermutationDomain PermutationVector;
-			PermutationVector.Set<FSoftwareRayTraceLightSamplesCS::FNumSamplesPerPixel>(NumSamplesPerPixel1d);
-			PermutationVector.Set<FSoftwareRayTraceLightSamplesCS::FDebugMode>(bDebug);
-			auto ComputeShader = View.ShaderMap->GetShader<FSoftwareRayTraceLightSamplesCS>(PermutationVector);
-
-			FComputeShaderUtils::AddPass(
-				GraphBuilder,
-				RDG_EVENT_NAME("SoftwareRayTraceLightSamples"),
-				ComputeShader,
-				PassParameters,
-				CompactedTraceParameters.IndirectArgs,
-				0);
-		}
-	}
+	StochasticShadows::RayTraceLightSamples(
+		View,
+		GraphBuilder, 
+		SceneTextures,
+		SampleBufferSize,
+		LightSamples,
+		LightSampleRayDistance,
+		StochasticShadowsParameters
+	);
 
 	FRDGTextureRef ShadowMaskUpsampleWeights = GraphBuilder.CreateTexture(
 		FRDGTextureDesc::Create2D(SceneTextures.Config.Extent, PF_FloatRGBA, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),

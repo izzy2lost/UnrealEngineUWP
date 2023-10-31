@@ -924,17 +924,15 @@ FScreenPassTexture AddVisualizeLumenScenePass(FRDGBuilder& GraphBuilder, const F
 
 				LumenReflections::FCompositeParameters ReflectionCompositeParameters;
 				LumenReflections::SetupCompositeParameters(View, ReflectionCompositeParameters);
-				extern float GLumenReflectionRoughnessFadeLength;
 
 				FVisualizeTile VisualizeTiles[1];
 				VisualizeTiles[0].Mode = VISUALIZE_MODE_DEDICATED_REFLECTION_RAYS;
 				VisualizeTiles[0].Name = FString::Printf(
 					TEXT("Pixels tracing dedicated reflection rays.")
 					TEXT("\nGreen - foliage(Subsurface or Two Sided Foliage shading model). Red - other.")
-					TEXT("\nMaxRoughness: %.2f MaxFoliageRoughness: %.2f FadeLength: %.2f"),
+					TEXT("\nMaxRoughness: %.2f MaxFoliageRoughness: %.2f"),
 					ReflectionCompositeParameters.MaxRoughnessToTrace,
-					ReflectionCompositeParameters.MaxRoughnessToTraceForFoliage,
-					GLumenReflectionRoughnessFadeLength);
+					ReflectionCompositeParameters.MaxRoughnessToTraceForFoliage);
 
 				for (int32 TileIndex = 0; TileIndex < UE_ARRAY_COUNT(VisualizeTiles); ++TileIndex)
 				{

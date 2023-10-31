@@ -6,6 +6,7 @@
 #include "../SceneTexturesCommon.ush"
 #include "StochasticShadows.ush"
 #include "StochasticShadowsTracing.ush"
+#include "../Lumen/LumenHardwareRayTracingPayloadCommon.ush"
 #if DEBUG_MODE
 	#include "../ShaderPrint.ush"
 #endif
@@ -13,13 +14,36 @@
 uint StochasticShadowsStateFrameIndes;
 uint2 SampleViewSize;
 uint DebugMode;
+uint MaxTraversalIterations;
 RaytracingAccelerationStructure TLAS;
+
+#if LUMEN_HARDWARE_INLINE_RAYTRACING
+	struct FHitGroupRootConstants
+	{
+		uint BaseInstanceIndex;
+		uint UserData;
+	};
+
+	StructuredBuffer<FHitGroupRootConstants> HitGroupData;
+	StructuredBuffer<FRayTracingSceneMetadataRecord> RayTracingSceneMetadata;
+#endif
 
 RWTexture2D<uint> RWLightSamples;
 Texture2D<float> LightSampleRayDistance;
 StructuredBuffer<uint> CompactedTraceTexelData;
 StructuredBuffer<uint> CompactedTraceTexelAllocator;
 Texture2D<float> DownsampledSceneDepth;
+
+//#sdl_todo: Shared with Lumen?
+float3 CalcPrevTranslatedWorldPositionFromGPUSceneInstanceIndex(float3 TranslatedWorldPosition, uint GPUSceneInstanceIndex)
+{
+	FInstanceSceneData InstanceSceneData = GetInstanceSceneData(GPUSceneInstanceIndex, Scene.GPUScene.InstanceDataSOAStride);
+
+	FLWCVector3 WorldPosition = LWCSubtract(LWCPromote(TranslatedWorldPosition), PrimaryView.PreViewTranslation);
+	float3 LocalPosition = LWCMultiply(WorldPosition, InstanceSceneData.WorldToLocal);
+	FLWCVector3 PrevWorldPosition = LWCMultiply(LocalPosition, InstanceSceneData.PrevLocalToWorld);
+	return LWCToFloat(LWCAdd(PrevWorldPosition, PrimaryView.PreViewTranslation));
+}
 
 RAY_TRACING_ENTRY_RAYGEN_OR_INLINE(HardwareRayTraceLightSamples)
 {
@@ -64,18 +88,67 @@ RAY_TRACING_ENTRY_RAYGEN_OR_INLINE(HardwareRayTraceLightSamples)
 		Ray.TMin = max(LightSampleRayMinT, 1.0f);
 		Ray.TMax = LightSampleTrace.Distance;
 
-		uint RayTracingFlags = RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH;
-		uint RayTracingMask = RAY_TRACING_MASK_SHADOW;
+		uint RayFlags = RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH;
+		uint RayMask = RAY_TRACING_MASK_OPAQUE;
 
-		FMinimalPayload MinimalPayload = TraceVisibilityRay(
-			TLAS,
-			RayTracingFlags,
-			RayTracingMask,
-			Ray);
+		FLumenMinimalPayload Payload = (FLumenMinimalPayload)0;
 
-		if (MinimalPayload.IsHit())
+		// #sdl_todo: Share it with LumenHardwareRayTracingCommon.ush
+		#if LUMEN_HARDWARE_INLINE_RAYTRACING
 		{
+			FTraceRayInlineContext TraceRayInlineContext = CreateTraceRayInlineContext();
+			TraceRayInlineContext.MaxIterations = MaxTraversalIterations;
+
+			FTraceRayInlineResult TraceResult = TraceRayInline(TLAS, RayFlags, RayMask, Ray.GetNativeDesc(), TraceRayInlineContext);
+
+			if (TraceResult.IsHit())
+			{
+				Payload.HitT = TraceResult.HitT;
+
+				// Our SBTs always have 2 slots per material. Therefore InstanceContributionToHitGroupIndex has a RAY_TRACING_NUM_SHADER_SLOTS multiplier.
+				// But because we only encode 1 material into LumenHardwareRayTracingHitDataBuffer we want to get actual material index.
+				uint InstanceContributionIndex = TraceResult.InstanceContributionToHitGroupIndex / RAY_TRACING_NUM_SHADER_SLOTS;
+				uint HitGroupIndex = TraceResult.GeometryIndex + InstanceContributionIndex;
+
+				FHitGroupRootConstants HitData = HitGroupData[HitGroupIndex];
+
+				const int Primitive = TraceResult.InstanceID;
+				const int PrimitiveInstanceIndex = TraceResult.InstanceIndex - HitData.BaseInstanceIndex;
+				const uint GPUSceneInstanceIndex = GetGPUSceneInstanceIndex(Primitive, PrimitiveInstanceIndex);
+				Payload.SetGPUSceneInstanceIndex(GPUSceneInstanceIndex);
+
+				uint MaterialShaderIndex = HitData.UserData & 0x3FFFFFFF;
+				Payload.SetMaterialShaderIndex(MaterialShaderIndex);
+
+				uint bIsTranslucent = (HitData.UserData >> 31) & 0x1;
+				Payload.SetIsTranslucent(bIsTranslucent);
+
+				uint bIsTwoSided = (HitData.UserData >> 30) & 0x1;
+				Payload.SetIsTwoSided(bIsTwoSided);
+			}
+			else
+			{
+				Payload.SetMiss();
+			}
+		}
+		#else
+		{
+			TraceRay(TLAS, RayFlags, RayMask, /*ShaderSlotIndex*/ 0, RAY_TRACING_NUM_SHADER_SLOTS, 0, Ray.GetNativeDesc(), Payload);
+		}
+		#endif
+
+		if (Payload.IsHit())
+		{
+			uint SceneInstanceIndex = Payload.GetGPUSceneInstanceIndex();
+			float3 TranslatedWorldPosition = Ray.Origin + Ray.Direction * Payload.HitT;
+			float3 WorldVelocity = TranslatedWorldPosition - CalcPrevTranslatedWorldPositionFromGPUSceneInstanceIndex(TranslatedWorldPosition, SceneInstanceIndex);
+
 			LightSample.bVisible = false;
+			RWLightSamples[SampleCoord] = PackLightSample(LightSample);
+		}
+		else
+		{
+			LightSample.bVisible = true;
 			RWLightSamples[SampleCoord] = PackLightSample(LightSample);
 		}
 
@@ -83,7 +156,7 @@ RAY_TRACING_ENTRY_RAYGEN_OR_INLINE(HardwareRayTraceLightSamples)
 		if (bDebug && DebugMode == DEBUG_MODE_VISUALIZE_TRACING)
 		{
 			FLightSceneData LightSceneData = GetLightSceneData(LightSample.LightSceneId);
-			AddLineTWS(Context, TranslatedWorldPosition + LightSampleTrace.Direction * Ray.TMin, TranslatedWorldPosition + LightSampleTrace.Direction * min(Ray.TMax, MinimalPayload.IsHit() ? MinimalPayload.HitT : 1e6), float4(LightSceneData.Color.xyz / Luminance(LightSceneData.Color.xyz), 1.0f));
+			AddLineTWS(Context, TranslatedWorldPosition + LightSampleTrace.Direction * Ray.TMin, TranslatedWorldPosition + LightSampleTrace.Direction * (Payload.IsHit() ? Payload.HitT : Ray.TMax), float4(LightSceneData.Color.xyz / Luminance(LightSceneData.Color.xyz), 1.0f));
 		}
 		#endif
 	}

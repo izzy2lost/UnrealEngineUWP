@@ -108,6 +108,7 @@ void CompositeShadowMaskTracesCS(
 						ShadowMask.Factor = HistoryShadowFactor;
 						ShadowMask.FactorSq = HistoryShadowFactorSq;
 						ShadowMask.Age = Accumulator.MinAge;
+						ShadowMask.HistoryLength = 0;
 					}
 				}
 			}

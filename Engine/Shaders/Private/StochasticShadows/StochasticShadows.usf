@@ -62,42 +62,42 @@ void TileClassificationCS(
 	// GroupShared reduction
 	if (LinearThreadIndex < 32)
 	{
-		SharedTileMode[LinearThreadIndex] = SharedTileMode[LinearThreadIndex] || SharedTileMode[LinearThreadIndex + 32];
+		SharedTileMode[LinearThreadIndex] = SharedTileMode[LinearThreadIndex] | SharedTileMode[LinearThreadIndex + 32];
 	}
 
 	GroupMemoryBarrierWithGroupSync();
 
 	if (LinearThreadIndex < 16)
 	{
-		SharedTileMode[LinearThreadIndex] = SharedTileMode[LinearThreadIndex] || SharedTileMode[LinearThreadIndex + 16];
+		SharedTileMode[LinearThreadIndex] = SharedTileMode[LinearThreadIndex] | SharedTileMode[LinearThreadIndex + 16];
 	}
 
 	GroupMemoryBarrierWithGroupSync();
 
 	if (LinearThreadIndex < 8)
 	{
-		SharedTileMode[LinearThreadIndex] = SharedTileMode[LinearThreadIndex] || SharedTileMode[LinearThreadIndex + 8];
+		SharedTileMode[LinearThreadIndex] = SharedTileMode[LinearThreadIndex] | SharedTileMode[LinearThreadIndex + 8];
 	}
 
 	GroupMemoryBarrierWithGroupSync();
 
 	if (LinearThreadIndex < 4)
 	{
-		SharedTileMode[LinearThreadIndex] = SharedTileMode[LinearThreadIndex] || SharedTileMode[LinearThreadIndex + 4];
+		SharedTileMode[LinearThreadIndex] = SharedTileMode[LinearThreadIndex] | SharedTileMode[LinearThreadIndex + 4];
 	}
 
 	GroupMemoryBarrierWithGroupSync();
 
 	if (LinearThreadIndex < 2)
 	{
-		SharedTileMode[LinearThreadIndex] = SharedTileMode[LinearThreadIndex] || SharedTileMode[LinearThreadIndex + 2];
+		SharedTileMode[LinearThreadIndex] = SharedTileMode[LinearThreadIndex] | SharedTileMode[LinearThreadIndex + 2];
 	}
 
 	GroupMemoryBarrierWithGroupSync();
 
 	if (LinearThreadIndex < 1)
 	{
-		SharedTileMode[LinearThreadIndex] = SharedTileMode[LinearThreadIndex] || SharedTileMode[LinearThreadIndex + 1];
+		SharedTileMode[LinearThreadIndex] = SharedTileMode[LinearThreadIndex] | SharedTileMode[LinearThreadIndex + 1];
 	}
 
 	if (LinearThreadIndex == 0)

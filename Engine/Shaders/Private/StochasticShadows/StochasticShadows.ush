@@ -3,7 +3,7 @@
 #pragma once
 
 // Change this to force recompilation of all Stochastic Shadows shaders
-#pragma message("UESHADERMETADATA_VERSION F06AC34F-0C35-4FDF-9EA6-82395F79FB2B")
+#pragma message("UESHADERMETADATA_VERSION A16ACC4F-1C35-1CD1-1AAF-82395A79FB2B")
 
 #define SUPPORT_CONTACT_SHADOWS 0
 #define USE_IES_PROFILE 0

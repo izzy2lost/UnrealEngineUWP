@@ -1927,6 +1927,7 @@ bool FDeferredShadingSceneRenderer::SetupRayTracingPipelineStates(FRDGBuilder& G
 	if (GRHISupportsRayTracingShaders)
 	{
 		TArray<FRHIRayTracingShader*> LumenHardwareRayTracingRayGenShaders;
+
 		if (DoesPlatformSupportLumenGI(ShaderPlatform))
 		{
 			for (const FViewInfo& View : Views)
@@ -1941,6 +1942,12 @@ bool FDeferredShadingSceneRenderer::SetupRayTracingPipelineStates(FRDGBuilder& G
 				PrepareLumenHardwareRayTracingDirectLightingLumenMaterial(View, LumenHardwareRayTracingRayGenShaders);
 			}
 		}
+
+		for (const FViewInfo& View : Views)
+		{
+			PrepareStochasticShadowsLumenMaterial(View, LumenHardwareRayTracingRayGenShaders);
+		}
+
 		DeduplicateRayGenerationShaders(LumenHardwareRayTracingRayGenShaders);
 
 		if (LumenHardwareRayTracingRayGenShaders.Num())
@@ -1954,7 +1961,7 @@ bool FDeferredShadingSceneRenderer::SetupRayTracingPipelineStates(FRDGBuilder& G
 	{
 		// TODO:  It would make more sense for common ray tracing resources to be in a shared structure, rather than copied into each FViewInfo.
 		//        A goal is to have the FViewInfo structure only be visible to the scene renderer that owns it, to avoid dependencies being created
-		//        that could lead to maintenance issues or interfere with paralellism goals.  For now, this works though...
+		//        that could lead to maintenance issues or interfere with parallelism goals.  For now, this works though...
 		FViewInfo* View = const_cast<FViewInfo*>(static_cast<const FViewInfo*>(AllFamilyViews[ViewIndex]));
 
 		// Send common ray tracing resources from reference view to all others.
@@ -2217,7 +2224,11 @@ void FDeferredShadingSceneRenderer::WaitForRayTracingScene(FRDGBuilder& GraphBui
 	bool bAnyLumenHardwareInlineRayTracingPassEnabled = false;
 	for (const FViewInfo& View : Views)
 	{
-		bAnyLumenHardwareInlineRayTracingPassEnabled |= Lumen::AnyLumenHardwareInlineRayTracingPassEnabled(Scene, View);
+		if (Lumen::AnyLumenHardwareInlineRayTracingPassEnabled(Scene, View) 
+			|| StochasticShadows::UseInlineHardwareRayTracing())
+		{
+			bAnyLumenHardwareInlineRayTracingPassEnabled = true;
+		}
 	}
 
 	if (bAnyLumenHardwareInlineRayTracingPassEnabled)
@@ -2225,7 +2236,7 @@ void FDeferredShadingSceneRenderer::WaitForRayTracingScene(FRDGBuilder& GraphBui
 		SetupLumenHardwareRayTracingHitGroupBuffer(GraphBuilder, ReferenceView);
 	}
 
-	if (Lumen::UseHardwareRayTracing(ViewFamily))
+	if (Lumen::UseHardwareRayTracing(ViewFamily) || StochasticShadows::UseHardwareRayTracing())
 	{
 		SetupLumenHardwareRayTracingUniformBuffer(GraphBuilder, ReferenceView);
 	}

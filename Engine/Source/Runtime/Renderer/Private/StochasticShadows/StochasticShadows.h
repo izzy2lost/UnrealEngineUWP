@@ -9,10 +9,12 @@ namespace ECastRayTracedShadow
 	enum Type : int;
 };
 
+// Public StochasticShadows interface
 namespace StochasticShadows
 {
 	bool IsEnabled();
 	bool IsUsingClosestHZB();
 	bool IsLightSupported(uint8 LightType, ECastRayTracedShadow::Type CastRayTracedShadow);
 	bool UseHardwareRayTracing();
+	bool UseInlineHardwareRayTracing();
 };
