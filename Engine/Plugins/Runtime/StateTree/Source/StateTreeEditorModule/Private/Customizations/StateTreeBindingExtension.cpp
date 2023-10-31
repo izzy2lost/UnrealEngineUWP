@@ -553,8 +553,6 @@ struct FCachedBindingData : public TSharedFromThis<FCachedBindingData>
 
 	static bool ArePropertyAndContextStructCompatible(const UStruct* SourceStruct, const FProperty* TargetProperty)
 	{
-		check(SourceStruct);
-		
 		if (const FStructProperty* TargetStructProperty = CastField<FStructProperty>(TargetProperty))
 		{
 			return TargetStructProperty->Struct == SourceStruct;
