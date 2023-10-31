@@ -219,6 +219,11 @@ namespace UnrealBuildTool
 
 		protected abstract ClangToolChainInfo GetToolChainInfo();
 
+		public override FileReference? GetCppCompilerPath()
+		{
+			return LazyInfo.Value.Clang;
+		}
+
 		public override void SetUpGlobalEnvironment(ReadOnlyTargetRules Target)
 		{
 			base.SetUpGlobalEnvironment(Target);
@@ -1012,6 +1017,20 @@ namespace UnrealBuildTool
 		{
 			List<string> Arguments = new();
 			GetCompileArguments_Global(new CppCompileEnvironment(CompileEnvironment), Arguments);
+			return Arguments;
+		}
+
+		public override IEnumerable<string> GetCPPCommandLineArgs(CppCompileEnvironment CompileEnvironment)
+		{
+			List<string> Arguments = new();
+			GetCompileArguments_CPP(CompileEnvironment, Arguments);
+			return Arguments;
+		}
+
+		public override IEnumerable<string> GetCCommandLineArgs(CppCompileEnvironment CompileEnvironment)
+		{
+			List<string> Arguments = new();
+			GetCompileArguments_C(CompileEnvironment, Arguments);
 			return Arguments;
 		}
 

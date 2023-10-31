@@ -7,10 +7,8 @@ using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
-using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.Extensions.Logging;
 using OpenTracing.Util;
 using UnrealBuildBase;
@@ -34,6 +32,7 @@ namespace UnrealBuildTool
 			public List<string> ForcedIncludes { get; set; } = new();
 			public string? CompilerPath { get; set; }
 			public List<string> CompilerArgs { get; set; } = new();
+			public Dictionary<string, List<string>> CompilerAdditionalArgs { get; set; } = new();
 			public string? WindowsSdkVersion { get; set; }
 		}
 
@@ -375,6 +374,12 @@ namespace UnrealBuildTool
 
 						CppCompileEnvironment ModuleCompileEnvironment = Module.CreateModuleCompileEnvironment(CurrentTarget.Rules, BinaryCompileEnvironment, Logger);
 
+						// Remove include paths and defintiions from an environment used to get the command line args
+						CppCompileEnvironment ModuleCompileEnvironmentForArgs = new CppCompileEnvironment(ModuleCompileEnvironment);
+						ModuleCompileEnvironmentForArgs.SystemIncludePaths.Clear();
+						ModuleCompileEnvironmentForArgs.UserIncludePaths.Clear();
+						ModuleCompileEnvironmentForArgs.Definitions.Clear();
+
 						TargetIntellisenseInfo.CompileSettings Settings = new TargetIntellisenseInfo.CompileSettings();
 						if (TargetToolChain is VCToolChain TargetVCToolChain)
 						{
@@ -386,7 +391,9 @@ namespace UnrealBuildTool
 						Settings.Standard = ModuleCompileEnvironment.CppStandard.ToString();
 						Settings.ForcedIncludes = ModuleCompileEnvironment.ForceIncludeFiles.Select(x => x.ToString()).ToList();
 						Settings.CompilerPath = TargetToolChain.GetCppCompilerPath()?.ToString();
-						Settings.CompilerArgs = TargetToolChain.GetGlobalCommandLineArgs(ModuleCompileEnvironment).ToList();
+						Settings.CompilerArgs = TargetToolChain.GetGlobalCommandLineArgs(ModuleCompileEnvironmentForArgs).ToList();
+						Settings.CompilerAdditionalArgs.Add("c", TargetToolChain.GetCCommandLineArgs(ModuleCompileEnvironmentForArgs).ToList());
+						Settings.CompilerAdditionalArgs.Add("cpp", TargetToolChain.GetCPPCommandLineArgs(ModuleCompileEnvironmentForArgs).ToList());
 						Settings.WindowsSdkVersion = CurrentTarget.Rules.WindowsPlatform.WindowsSdkVersion;
 						CurrentTargetIntellisenseInfo.ModuleToCompileSettings.TryAdd(Module, Settings);
 
