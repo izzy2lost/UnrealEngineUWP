@@ -727,9 +727,10 @@
 				CODE_SIGN_ENTITLEMENTS = vcam/VCAM.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development: Brian Smith (H95H5LFFKT)";
 				CODE_SIGN_STYLE = Manual;
-				CURRENT_PROJECT_VERSION = 6;
+				CURRENT_PROJECT_VERSION = 7;
 				DEFINES_MODULE = NO;
 				DEVELOPMENT_TEAM = 96DBZ92D3Y;
+				"DEVELOPMENT_TEAM[sdk=iphoneos*]" = 96DBZ92D3Y;
 				ENABLE_BITCODE = NO;
 				FRAMEWORK_SEARCH_PATHS = "$(PROJECT_DIR)";
 				GCC_PREFIX_HEADER = "";
@@ -754,6 +755,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.epicgames.livelinkvcam;
 				PRODUCT_NAME = VCAM;
 				PROVISIONING_PROFILE_SPECIFIER = "Live Link VCam Development";
+				"PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]" = "Live Link VCam Development";
 				SWIFT_OBJC_BRIDGING_HEADER = "vcam/VCAM-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -768,7 +770,7 @@
 				CODE_SIGN_ENTITLEMENTS = vcam/VCAM.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Distribution: Epic Games International, S.a.r.l. (96DBZ92D3Y)";
 				CODE_SIGN_STYLE = Manual;
-				CURRENT_PROJECT_VERSION = 6;
+				CURRENT_PROJECT_VERSION = 7;
 				DEFINES_MODULE = NO;
 				DEVELOPMENT_TEAM = 96DBZ92D3Y;
 				ENABLE_BITCODE = NO;
