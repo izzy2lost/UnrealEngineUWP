@@ -251,6 +251,7 @@ void FMovieGraphDeferredPass::Render(const FMovieGraphTraversalContext& InFrameT
 			SampleState.OverlappedOffset = OverlappedOffset;
 			SampleState.OverlappedSubpixelShift = OverlappedSubpixelShift;
 			SampleState.OverscanFraction = OverscanFraction;
+			SampleState.bAllowOCIO = ParentNodeThisFrame->GetAllowOCIO();
 		}
 
 		// If this was just to contribute to the history buffer, no need to go any further.

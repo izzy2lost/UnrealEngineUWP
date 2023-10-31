@@ -63,7 +63,7 @@ protected:
 };
 
 /**
- * Image sequence output node that can write EXR files, which are optionally multi-layer.
+ * Image sequence output node that can write single-layer EXR files.
  */
 UCLASS()
 class UMovieGraphImageSequenceOutputNode_EXR : public UMovieGraphImageSequenceOutputNode
@@ -76,10 +76,7 @@ public:
 		OutputFormat = EImageFormat::EXR;
 		bQuantizeTo8Bit = false;
 		Compression = EEXRCompressionFormat::PIZ;
-		bMultilayer = true;
 	}
-
-	virtual void OnReceiveImageDataImpl(UMovieGraphPipeline* InPipeline, UE::MovieGraph::FMovieGraphOutputMergerFrame* InRawFrameData, const TSet<FMovieGraphRenderDataIdentifier>& InMask) override;
 
 #if WITH_EDITOR
 	virtual FText GetNodeTitle(const bool bGetDescriptive = false) const override 
@@ -111,22 +108,63 @@ public:
 public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
 	uint8 bOverride_Compression : 1;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
-	uint8 bOverride_bMultilayer : 1;
 	
 	/**
 	 * Which compression method should the resulting EXR file be compressed with.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(EditCondition="bOverride_Compression"), Category = "EXR")
 	EEXRCompressionFormat Compression;
+};
 
-	/**
-	 * Whether all renders should be written to the same EXR file via multi-layer support. Not all software
-	 * supports reading multi-layer EXR files.
-	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(EditCondition="bOverride_bMultilayer"), Category = "EXR")
-	bool bMultilayer;
+
+/**
+ * Image sequence output node that can write multi-layer EXR files.
+ */
+UCLASS()
+class UMovieGraphImageSequenceOutputNode_MultiLayerEXR : public UMovieGraphImageSequenceOutputNode_EXR
+{
+	GENERATED_BODY()
+
+public:
+
+	virtual EMovieGraphBranchRestriction GetBranchRestriction() const override
+	{
+		return EMovieGraphBranchRestriction::Globals;
+	}
+
+	virtual void OnReceiveImageDataImpl(UMovieGraphPipeline* InPipeline, UE::MovieGraph::FMovieGraphOutputMergerFrame* InRawFrameData, const TSet<FMovieGraphRenderDataIdentifier>& InMask) override;
+
+#if WITH_EDITOR
+	virtual FText GetNodeTitle(const bool bGetDescriptive = false) const override
+	{
+		static const FText EXRSequenceNodeName = NSLOCTEXT("MovieGraph", "NodeName_EXRSequenceMultilayer", ".exr Sequence (Multilayer)");
+		return EXRSequenceNodeName;
+	}
+
+	virtual FText GetKeywords() const override
+	{
+		static const FText Keywords = NSLOCTEXT("MovieGraph", "ImageSequenceOutputNode_EXRMultilayer_Keywords", ".exr image (Multilayer)");
+		return Keywords;
+	}
+		
+	virtual FLinearColor GetNodeTitleColor() const override
+	{
+		return FLinearColor(0.047f, 0.654f, 0.537f);
+	}
+
+	virtual FSlateIcon GetIconAndTint(FLinearColor& OutColor) const override
+	{
+		static const FSlateIcon ImageSequenceIcon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "ClassIcon.Texture2D");
+
+		OutColor = FLinearColor::White;
+		return ImageSequenceIcon;
+	}
+
+	virtual FText GetMenuCategory() const override
+	{
+		return NSLOCTEXT("MovieGraphNodes", "FileOutputGraphNode_Category", "Output Type");
+	}
+#endif
 
 private:
 	/**

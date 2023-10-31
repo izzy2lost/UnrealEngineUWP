@@ -28,6 +28,7 @@ public:
 	virtual bool GetWriteAllSamples() const override;
 	virtual int32 GetNumSpatialSamples() const override;
 	virtual bool GetDisableToneCurve() const override;
+	virtual bool GetAllowOCIO() const override;
 	virtual TUniquePtr<UE::MovieGraph::Rendering::FMovieGraphImagePassBase> CreateInstance() const;
 	// ~UMovieGraphImagePassBaseNode Interface
 
@@ -50,6 +51,9 @@ public:
 	uint8 bOverride_bDisableToneCurve : 1;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
+	uint8 bOverride_bAllowOCIO : 1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
 	uint8 bOverride_bWriteAllSamples : 1;
 
 	/**
@@ -68,6 +72,12 @@ public:
 	*/
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings", meta = (EditCondition = "bOverride_bDisableToneCurve"))
 	bool bDisableToneCurve;
+
+	/**
+	* Allow the output file OpenColorIO transform to be used on this render.
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings", meta = (EditCondition = "bOverride_bAllowOCIO"))
+	bool bAllowOCIO;
 
 	/**
 	* Debug Feature. Can use this to write out each individual Temporal and Spatial sample rendered by this render pass,

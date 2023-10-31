@@ -122,6 +122,8 @@ bool FEXRImageWriteTask::WriteToDisk()
 
 	if (bSuccess)
 	{
+		PreProcess();
+
 		Imf::Compression FileCompression = Imf::Compression::NO_COMPRESSION;
 		switch(Compression)
 		{
@@ -403,6 +405,28 @@ void FEXRImageWriteTask::AddFileMetadata(Imf::Header& InHeader)
 	if (OpenExrModule)
 	{
 		OpenExrModule->AddFileMetadata(FileMetadata, InHeader);
+	}
+}
+
+void FEXRImageWriteTask::PreProcess()
+{
+	if (PixelPreprocessors.IsEmpty())
+	{
+		return;
+	}
+
+	for (int32 LayerIdx = 0; LayerIdx < Layers.Num(); ++LayerIdx)
+	{
+		if (const TArray<FPixelPreProcessor>* LayerPixelPreprocessorsPtr = PixelPreprocessors.Find(LayerIdx))
+		{
+			for (const FPixelPreProcessor& PreProcessor : *LayerPixelPreprocessorsPtr)
+			{
+				// PreProcessors are assumed to be valid. Fetch the Data pointer each time
+				// in case a pre-processor changes our pixel data.
+				FImagePixelData* Data = Layers[LayerIdx].Get();
+				PreProcessor(Data);
+			}
+		}
 	}
 }
 

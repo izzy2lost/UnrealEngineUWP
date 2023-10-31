@@ -46,6 +46,9 @@ public:
 	/** Should the tone curve be disabled while rendering? Allows for linear values in exrs but changes the look of the final image. */
 	virtual bool GetDisableToneCurve() const { return false; }
 
+	/** Should the output file be allowed to apply an OCIO transform on this render? */
+	virtual bool GetAllowOCIO() const { return true; }
+
 	/** Which AA Method should be used? */
 	virtual EAntiAliasingMethod GetAntiAliasingMethod() const { return EAntiAliasingMethod::AAM_None; }
 

@@ -345,6 +345,7 @@ namespace UE::MovieGraph
 			, bCompositeOnOtherRenders(false)
 			, OverscanFraction(0.f)
 			, CompositingSortOrder(0)
+			, bAllowOCIO(true)
 		{}
 
 		/** The traversal context used to read graph values at the time of submission. */
@@ -388,6 +389,9 @@ namespace UE::MovieGraph
 		* Passes with a low sort order will composite on top of passes with a higher sort order.
 		*/
 		int32 CompositingSortOrder;
+
+		/** Allow OpenColorIO transform to be used on this render. */
+		bool bAllowOCIO;
 	};
 
 	/**

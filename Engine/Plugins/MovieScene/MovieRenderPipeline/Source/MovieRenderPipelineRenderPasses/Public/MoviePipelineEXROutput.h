@@ -70,6 +70,9 @@ public:
 	/** The image data to write. Supports multiple layers of different bitdepths. */
 	TArray<TUniquePtr<FImagePixelData>> Layers;
 
+	/** Per-layer array of preprocessors to apply serially to the pixel data when this task is executed. */
+	TSortedMap<int32, TArray<FPixelPreProcessor>> PixelPreprocessors;
+
 	/** Optional. A mapping between the FImagePixelData and a name. The standard is that the default layer is nameless (at which point it would be omitted) and other layers are prefixed. */
 	TMap<FImagePixelData*, FString> LayerNames;
 
@@ -111,6 +114,11 @@ private:
 	* Adds arbitrary key/value pair metadata to the header of the file.
 	*/
 	void AddFileMetadata(Imf::Header& InHeader);
+
+	/**
+	 * Run over all the processors for the pixel data
+	 */
+	void PreProcess();
 
 	template <Imf::PixelType OutputFormat>
 	int64 CompressRaw(Imf::Header& InHeader, Imf::FrameBuffer& InFrameBuffer, FImagePixelData* InLayer);

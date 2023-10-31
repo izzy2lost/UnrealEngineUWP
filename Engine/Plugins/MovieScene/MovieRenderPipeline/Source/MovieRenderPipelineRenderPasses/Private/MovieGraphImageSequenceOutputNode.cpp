@@ -163,6 +163,10 @@ void UMovieGraphImageSequenceOutputNode::OnReceiveImageDataImpl(UMovieGraphPipel
 			continue;
 		}
 
+		const UMovieGraphImageSequenceOutputNode* ParentNode = Cast<UMovieGraphImageSequenceOutputNode>(
+			InRawFrameData->EvaluatedConfig->GetSettingForBranch(GetClass(), RenderData.Key.RootBranchName, false, true));
+		checkf(ParentNode, TEXT("Image sequence output should not exist without a parent node in the graph."));
+
 		UE::MovieGraph::FMovieGraphSampleState* Payload = RenderData.Value->GetPayload<UE::MovieGraph::FMovieGraphSampleState>();
 		const TObjectPtr<UMoviePipelineExecutorShot>& Shot = InPipeline->GetActiveShotList()[Payload->TraversalContext.ShotIndex];
 
@@ -235,6 +239,7 @@ void UMovieGraphImageSequenceOutputNode::OnReceiveImageDataImpl(UMovieGraphPipel
 		FMovieGraphResolveArgs FinalResolvedKVPs;
 		const FString FileName = UMovieGraphBlueprintLibrary::ResolveFilenameFormatArguments(FileNameFormatString, Params, FinalResolvedKVPs);
 
+		//TODO: Support for single-layer EXR image write task (compression)...
 		TUniquePtr<FImageWriteTask> TileImageTask = MakeUnique<FImageWriteTask>();
 		TileImageTask->Format = OutputFormat;
 		TileImageTask->CompressionQuality = 100;
@@ -243,9 +248,9 @@ void UMovieGraphImageSequenceOutputNode::OnReceiveImageDataImpl(UMovieGraphPipel
 
 		bool bQuantizationEncodeSRGB = true;
 #if WITH_EDITOR
-		if (OCIOConfiguration.bIsEnabled)
+		if (ParentNode->OCIOConfiguration.bIsEnabled && Payload->bAllowOCIO)
 		{
-			FPixelPreProcessor OCIOPixelPreProcessor = UE::MovieGraph::Private::CreateOpenColorIOPixelPreProcessor(OCIOConfiguration.ColorConfiguration);
+			FPixelPreProcessor OCIOPixelPreProcessor = UE::MovieGraph::Private::CreateOpenColorIOPixelPreProcessor(ParentNode->OCIOConfiguration.ColorConfiguration);
 			if (OCIOPixelPreProcessor)
 			{
 				TileImageTask->PixelPreProcessors.Emplace(MoveTemp(OCIOPixelPreProcessor));
@@ -301,17 +306,13 @@ void UMovieGraphImageSequenceOutputNode::OnReceiveImageDataImpl(UMovieGraphPipel
 
 }
 
-void UMovieGraphImageSequenceOutputNode_EXR::OnReceiveImageDataImpl(UMovieGraphPipeline* InPipeline, UE::MovieGraph::FMovieGraphOutputMergerFrame* InRawFrameData, const TSet<FMovieGraphRenderDataIdentifier>& InMask)
+void UMovieGraphImageSequenceOutputNode_MultiLayerEXR::OnReceiveImageDataImpl(UMovieGraphPipeline* InPipeline, UE::MovieGraph::FMovieGraphOutputMergerFrame* InRawFrameData, const TSet<FMovieGraphRenderDataIdentifier>& InMask)
 {
-	if (!bMultilayer)
-	{
-		// Some software doesn't support multi-layer, so in that case we fall back to the single-layer-multiple-file
-		// codepath of our parent.
-		Super::OnReceiveImageDataImpl(InPipeline, InRawFrameData, InMask);
-		return;
-	}
-	
 	check(InRawFrameData);
+
+	const UMovieGraphImageSequenceOutputNode_MultiLayerEXR* ParentNode = Cast<UMovieGraphImageSequenceOutputNode_MultiLayerEXR>(
+		InRawFrameData->EvaluatedConfig->GetSettingForBranch(GetClass(), UMovieGraphNode::GlobalsPinName, false, true));
+	checkf(ParentNode, TEXT("Multi-Layer EXR should not exist without a parent node in the graph."));
 
 	// Ensure our OpenExrRTTI module gets loaded. This needs to happen from the main thread, if it's not loaded then metadata silently fails when writing.
 	static const FName RTTIExtensionModuleName("UEOpenExrRTTI");
@@ -333,7 +334,7 @@ void UMovieGraphImageSequenceOutputNode_EXR::OnReceiveImageDataImpl(UMovieGraphP
 		TUniquePtr<FEXRImageWriteTask> MultiLayerImageTask = MakeUnique<FEXRImageWriteTask>();
 		
 		MultiLayerImageTask->Filename = Filename;
-		MultiLayerImageTask->Compression = Compression;
+		MultiLayerImageTask->Compression = ParentNode->Compression;
 		// MultiLayerImageTask->CompressionLevel is intentionally skipped because it doesn't seem to make any practical difference
 		// so we don't expose it to the user because that will just cause confusion where the setting doesn't seem to do anything.
 
@@ -358,7 +359,6 @@ void UMovieGraphImageSequenceOutputNode_EXR::OnReceiveImageDataImpl(UMovieGraphP
 
 		// Add color space metadata to the output: xy chromaticity coordinates and/or the color space source/dest names.
 		// TODO: Support is also needed for regular exrs via the image wrapper module.
-		// TODO: No OCIO node yet
 		// {
 		// 	UMoviePipelineColorSetting* ColorSetting = InPipeline->GetPipelinePrimaryConfig()->FindSetting<UMoviePipelineColorSetting>();
 		//
@@ -421,6 +421,17 @@ void UMovieGraphImageSequenceOutputNode_EXR::OnReceiveImageDataImpl(UMovieGraphP
 				MultiLayerImageTask->LayerNames.FindOrAdd(PixelData.Get(), CombinedName);
 			}
 
+#if WITH_EDITOR
+			if (ParentNode->OCIOConfiguration.bIsEnabled && Payload->bAllowOCIO)
+			{
+				FPixelPreProcessor OCIOPixelPreProcessor = UE::MovieGraph::Private::CreateOpenColorIOPixelPreProcessor(ParentNode->OCIOConfiguration.ColorConfiguration);
+				if (OCIOPixelPreProcessor)
+				{
+					MultiLayerImageTask->PixelPreprocessors.FindOrAdd(LayerIndex).Emplace(MoveTemp(OCIOPixelPreProcessor));
+				}
+			}
+#endif
+
 			MultiLayerImageTask->Layers.Add(MoveTemp(PixelData));
 			LayerIndex++;
 		}
@@ -434,7 +445,7 @@ void UMovieGraphImageSequenceOutputNode_EXR::OnReceiveImageDataImpl(UMovieGraphP
 	}
 }
 
-void UMovieGraphImageSequenceOutputNode_EXR::GetFilenameToRenderIDMappings(
+void UMovieGraphImageSequenceOutputNode_MultiLayerEXR::GetFilenameToRenderIDMappings(
 	UMovieGraphPipeline* InPipeline, UE::MovieGraph::FMovieGraphOutputMergerFrame* InRawFrameData,
 	TMap<FString, TArray<FMovieGraphRenderDataIdentifier>>& OutFilenameToRenderIDs,
 	TMap<FString, FMovieGraphResolveArgs>& OutFilenameToResolveArgs) const
@@ -501,7 +512,7 @@ void UMovieGraphImageSequenceOutputNode_EXR::GetFilenameToRenderIDMappings(
 	}
 }
 
-FString UMovieGraphImageSequenceOutputNode_EXR::ResolveOutputFilename(
+FString UMovieGraphImageSequenceOutputNode_MultiLayerEXR::ResolveOutputFilename(
 	const UMovieGraphPipeline* InPipeline,
 	const int32 ResolutionIndex, const UE::MovieGraph::FMovieGraphOutputMergerFrame* InRawFrameData,
 	const FName& InBranchName, FMovieGraphResolveArgs& OutResolveArgs) const

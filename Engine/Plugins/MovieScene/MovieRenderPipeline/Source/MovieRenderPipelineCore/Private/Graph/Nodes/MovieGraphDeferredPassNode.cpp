@@ -11,6 +11,9 @@ TUniquePtr<UE::MovieGraph::Rendering::FMovieGraphImagePassBase> UMovieGraphDefer
 UMovieGraphDeferredRenderPassNode::UMovieGraphDeferredRenderPassNode()
 	: SpatialSampleCount(1)
 	, AntiAliasingMethod(EAntiAliasingMethod::AAM_TSR)
+	, bDisableToneCurve(false)
+	, bAllowOCIO(true)
+	, bWriteAllSamples(false)
 	, ViewModeIndex(VMI_Lit)
 {
 }
@@ -52,6 +55,11 @@ int32 UMovieGraphDeferredRenderPassNode::GetNumSpatialSamples() const
 bool UMovieGraphDeferredRenderPassNode::GetDisableToneCurve() const
 {
 	return bDisableToneCurve;
+}
+
+bool UMovieGraphDeferredRenderPassNode::GetAllowOCIO() const
+{
+	return bAllowOCIO;
 }
 
 EAntiAliasingMethod UMovieGraphDeferredRenderPassNode::GetAntiAliasingMethod() const
