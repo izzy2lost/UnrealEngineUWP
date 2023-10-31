@@ -29,6 +29,9 @@ namespace MassLOD
 }
 }
 
+//-----------------------------------------------------------------------------
+// UMassLODSubsystem
+//-----------------------------------------------------------------------------
 void UMassLODSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Collection.InitializeDependency(UMassSimulationSubsystem::StaticClass());
@@ -105,9 +108,9 @@ const TArray<FViewerInfo>& UMassLODSubsystem::GetSynchronizedViewers()
 	return Viewers;
 }
 
-FMassViewerHandle UMassLODSubsystem::GetViewerHandleFromPlayerController(const APlayerController* PlayerController) const
+FMassViewerHandle UMassLODSubsystem::GetViewerHandleFromActor(const AActor& Actor) const
 {
-	const FMassViewerHandle* Handle = ViewerMap.Find(GetTypeHash(PlayerController->GetFName()));
+	const FMassViewerHandle* Handle = ViewerMap.Find(GetTypeHash(Actor.GetFName()));
 	return Handle ? *Handle : FMassViewerHandle();
 }
 
@@ -121,7 +124,7 @@ FMassViewerHandle UMassLODSubsystem::GetViewerHandleFromStreamingSource(const FN
 APlayerController* UMassLODSubsystem::GetPlayerControllerFromViewerHandle(const FMassViewerHandle& ViewerHandle) const
 {
 	const int32 ViewerIdx = GetValidViewerIdx(ViewerHandle);
-	return ViewerIdx != INDEX_NONE ? Viewers[ViewerIdx].PlayerController : nullptr;
+	return ViewerIdx != INDEX_NONE ? Viewers[ViewerIdx].GetPlayerController() : nullptr;
 }
 
 void UMassLODSubsystem::SynchronizeViewers()
@@ -149,13 +152,14 @@ void UMassLODSubsystem::SynchronizeViewers()
 			continue;
 		}
 
-		if (ViewerInfo.PlayerController != nullptr
+		APlayerController* ViewerAsPlayerController = ViewerInfo.GetPlayerController();
+		if (ViewerAsPlayerController != nullptr
 #if WITH_EDITOR
 			&& bIgnorePlayerControllersDueToSimulation == false
 #endif // WITH_EDITOR
 			)
 		{
-			LocalViewerMap.Add(GetTypeHash(ViewerInfo.PlayerController->GetFName()), ViewerInfo.Handle);
+			LocalViewerMap.Add(GetTypeHash(ViewerAsPlayerController->GetFName()), ViewerInfo.Handle);
 		}
 		else if (!ViewerInfo.StreamingSourceName.IsNone() && StreamingSources.FindByPredicate([&ViewerInfo](const FWorldPartitionStreamingSource& Source){ return Source.Name == ViewerInfo.StreamingSourceName; }) != nullptr)
 		{
@@ -209,6 +213,21 @@ void UMassLODSubsystem::SynchronizeViewers()
 				}
 			}
 		}
+
+		if (bAllowNonPlayerViwerActors)
+		{
+			for (int32 ActorViewerIndex = RegisteredActorViewers.Num() - 1; ActorViewerIndex >= 0; --ActorViewerIndex)
+			{
+				if (RegisteredActorViewers[ActorViewerIndex])
+				{
+					AddActorViewer(*RegisteredActorViewers[ActorViewerIndex]);
+				}
+				else
+				{
+					RegisteredActorViewers.RemoveAtSwap(ActorViewerIndex, 1, /*bAllowShrinking=*/false);
+				}
+			}
+		}
 	}
 #if WITH_EDITOR
 	if (bUseEditorLevelViewports)
@@ -255,24 +274,29 @@ void UMassLODSubsystem::SynchronizeViewers()
 			continue;
 		}
 
-		if (ViewerInfo.PlayerController)
+		if (APlayerController* ViewerAsPlayerController = ViewerInfo.GetPlayerController())
 		{
-			ViewerInfo.bEnabled = !WorldPartition || ViewerInfo.PlayerController->bEnableStreamingSource;
+			ViewerInfo.bEnabled = !WorldPartition || ViewerAsPlayerController->bEnableStreamingSource;
 
 			FVector PlayerCameraLocation(ForceInitToZero);
 			FRotator PlayerCameraRotation(FRotator::ZeroRotator);
-			ViewerInfo.PlayerController->GetPlayerViewPoint(PlayerCameraLocation, PlayerCameraRotation);
+			ViewerAsPlayerController->GetPlayerViewPoint(PlayerCameraLocation, PlayerCameraRotation);
 			ViewerInfo.Location = PlayerCameraLocation;
 			ViewerInfo.Rotation = PlayerCameraRotation;
 
 			// Try to fetch a more precise FOV
-			if(ViewerInfo.PlayerController->PlayerCameraManager)
+			if(ViewerAsPlayerController->PlayerCameraManager)
 			{
-				ViewerInfo.FOV = ViewerInfo.PlayerController->PlayerCameraManager->GetFOVAngle();
+				ViewerInfo.FOV = ViewerAsPlayerController->PlayerCameraManager->GetFOVAngle();
 
 				// @todo need to find a way to retrieve aspect ratio, this does not seems to work
 				//ViewerInfo.AspectRatio = MinViewInfo.AspectRatio;
 			}
+		}
+		else if (AActor* Actor = ViewerInfo.ActorViewer.Get())
+		{
+			ViewerInfo.Location = Actor->GetActorLocation();
+			ViewerInfo.Rotation = Actor->GetActorRotation();
 		}
 #if WITH_EDITOR
 		else if (bUseEditorLevelViewports && ViewerInfo.EditorViewportClientIndex != INDEX_NONE)
@@ -340,8 +364,8 @@ void UMassLODSubsystem::AddPlayerViewer(APlayerController& PlayerController)
 		check(ViewerHandleIdx != INDEX_NONE);
 
 		FViewerInfo& ViewerInfo = Viewers[ViewerHandleIdx];
-		check(ViewerInfo.PlayerController == nullptr);
-		ViewerInfo.PlayerController = &PlayerController;
+		check(ViewerInfo.ActorViewer == nullptr);
+		ViewerInfo.ActorViewer = &PlayerController;
 	}
 	else
 	{
@@ -355,7 +379,7 @@ void UMassLODSubsystem::AddPlayerViewer(APlayerController& PlayerController)
 			const bool bAddNew = ViewerFreeIndices.Num() == 0;
 			const int NewIdx = bAddNew ? Viewers.Num() : ViewerFreeIndices.Pop();
 			FViewerInfo& NewViewerInfo = bAddNew ? Viewers.AddDefaulted_GetRef() : Viewers[NewIdx];
-			NewViewerInfo.PlayerController = &PlayerController;
+			NewViewerInfo.ActorViewer = &PlayerController;
 			NewViewerInfo.Handle.Index = NewIdx;
 			NewViewerInfo.Handle.SerialNumber = GetNextViewerSerialNumber();
 			NewViewerInfo.HashValue = HashValue;
@@ -385,6 +409,38 @@ void UMassLODSubsystem::AddStreamingSourceViewer(const FName StreamingSourceName
 		NewViewerInfo.Handle.SerialNumber = GetNextViewerSerialNumber();
 		NewViewerInfo.HashValue = HashValue;
 
+		ViewerHandle = NewViewerInfo.Handle;
+
+		OnViewerAddedDelegate.Broadcast(NewViewerInfo);
+	}
+}
+
+void UMassLODSubsystem::AddActorViewer(AActor& ActorViewer)
+{
+	// @todo we might need to use PathName instead 
+	const int32 HashValue = GetTypeHash(ActorViewer.GetFName());
+
+	FMassViewerHandle& ViewerHandle = ViewerMap.FindOrAdd(HashValue, FMassViewerHandle());
+	if (ViewerHandle.IsValid())
+	{
+		// We are only interested to set the player controller if it was not already set.
+		const int32 ViewerHandleIdx = GetValidViewerIdx(ViewerHandle);
+		check(ViewerHandleIdx != INDEX_NONE);
+
+		FViewerInfo& ViewerInfo = Viewers[ViewerHandleIdx];
+		ViewerInfo.ActorViewer = &ActorViewer;
+	}
+	else
+	{
+		// Add new viewer
+		const bool bAddNew = ViewerFreeIndices.Num() == 0;
+		const int NewIdx = bAddNew ? Viewers.Num() : ViewerFreeIndices.Pop();
+
+		FViewerInfo& NewViewerInfo = bAddNew ? Viewers.AddDefaulted_GetRef() : Viewers[NewIdx];
+		NewViewerInfo.ActorViewer = &ActorViewer;
+		NewViewerInfo.Handle.Index = NewIdx;
+		NewViewerInfo.Handle.SerialNumber = GetNextViewerSerialNumber();
+		NewViewerInfo.HashValue = HashValue;
 		ViewerHandle = NewViewerInfo.Handle;
 
 		OnViewerAddedDelegate.Broadcast(NewViewerInfo);
@@ -449,9 +505,9 @@ void UMassLODSubsystem::RemoveViewerInternal(const FMassViewerHandle& ViewerHand
 
 	OnViewerRemovedDelegate.Broadcast(ViewerInfo);
 
-	if (ViewerInfo.PlayerController)
+	if (APlayerController* ViewerAsPlayerController = ViewerInfo.GetPlayerController())
 	{
-		ViewerInfo.PlayerController->OnEndPlay.RemoveDynamic(this, &UMassLODSubsystem::OnPlayerControllerEndPlay);
+		ViewerAsPlayerController->OnEndPlay.RemoveDynamic(this, &UMassLODSubsystem::OnPlayerControllerEndPlay);
 	}
 
 	ViewerMap.Remove(ViewerInfo.HashValue);
@@ -465,7 +521,7 @@ void UMassLODSubsystem::OnPlayerControllerEndPlay(AActor* Actor, EEndPlayReason:
 	APlayerController* PlayerController = Cast<APlayerController>(Actor);
 	if (ensure(PlayerController))
 	{
-		const FMassViewerHandle ViewerHandle = GetViewerHandleFromPlayerController(PlayerController);
+		const FMassViewerHandle ViewerHandle = GetViewerHandleFromActor(*PlayerController);
 		if (ensure(ViewerHandle.IsValid()))
 		{
 			RemoveViewer(ViewerHandle);
@@ -473,10 +529,37 @@ void UMassLODSubsystem::OnPlayerControllerEndPlay(AActor* Actor, EEndPlayReason:
 	}
 }
 
+void UMassLODSubsystem::RegisterActorViewer(AActor& ActorViewer)
+{
+	RegisteredActorViewers.AddUnique(&ActorViewer);
+}
+
+void UMassLODSubsystem::UnregisterActorViewer(AActor& ActorViewer)
+{
+	if (RegisteredActorViewers.RemoveSingleSwap(&ActorViewer, /*bAllowShrinking=*/false))
+	{
+		const FMassViewerHandle ViewerHandle = GetViewerHandleFromActor(ActorViewer);
+		if (ensure(ViewerHandle.IsValid()))
+		{
+			RemoveViewer(ViewerHandle);
+		}
+	}
+}
+
+FMassViewerHandle UMassLODSubsystem::GetViewerHandleFromPlayerController(const APlayerController* PlayerController) const
+{
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	return PlayerController ? GetViewerHandleFromActor(*PlayerController) : FMassViewerHandle();
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+}
+
+//-----------------------------------------------------------------------------
+// FViewerInfo
+//-----------------------------------------------------------------------------
 void FViewerInfo::Reset()
 {
 	Handle.Invalidate();
-	PlayerController = nullptr;
+	ActorViewer = nullptr;
 #if WITH_EDITOR
 	EditorViewportClientIndex = INDEX_NONE;
 #endif // WITH_EDITOR
@@ -485,9 +568,15 @@ void FViewerInfo::Reset()
 
 bool FViewerInfo::IsLocal() const
 {
-	return (PlayerController && PlayerController->IsLocalController()) || !StreamingSourceName.IsNone()
+	APlayerController* ViewerAsPlayerController = GetPlayerController();
+	return (ViewerAsPlayerController && ViewerAsPlayerController->IsLocalController()) || !StreamingSourceName.IsNone()
 #if WITH_EDITOR
 		|| EditorViewportClientIndex != INDEX_NONE
 #endif // WITH_EDITOR
 		;
+}
+
+APlayerController* FViewerInfo::GetPlayerController() const
+{
+	return Cast<APlayerController>(ActorViewer.Get());
 }

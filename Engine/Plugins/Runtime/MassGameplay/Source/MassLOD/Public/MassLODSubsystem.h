@@ -11,6 +11,8 @@
 #include "MassLODSubsystem.generated.h"
 
 class UMassLODSubsystem;
+class AActor;
+class APlayerController;
 
 /*
  * Handle that lets you reference the concept of a viewer
@@ -28,8 +30,13 @@ struct FViewerInfo
 {
 	GENERATED_BODY()
 
+	FViewerInfo() = default;
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	FViewerInfo(const FViewerInfo& Other) = default;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 	UPROPERTY(transient)
-	TObjectPtr<APlayerController> PlayerController = nullptr;
+	TObjectPtr<AActor> ActorViewer = nullptr;
 	
 	FName StreamingSourceName;
 
@@ -50,6 +57,11 @@ struct FViewerInfo
 	void Reset();
 
 	bool IsLocal() const;
+
+	MASSLOD_API APlayerController* GetPlayerController() const;
+private:
+	UE_DEPRECATED_FORGAME(5.4, "PlayerController member variable has been deprecated in favor of more generic ActorViewer. Use that instead.")
+	TObjectPtr<APlayerController> PlayerController = nullptr;
 };
 
 UE_DEPRECATED(5.3, "FOnViewerAdded is deprecated. Use UMassLODSubsystem::FOnViewerAdded instead.")
@@ -82,7 +94,7 @@ public:
 	const TArray<FViewerInfo>& GetSynchronizedViewers();
 
 	/** Returns viewer handle from the PlayerController pointer */
-	FMassViewerHandle GetViewerHandleFromPlayerController(const APlayerController* PlayerController) const;
+	FMassViewerHandle GetViewerHandleFromActor(const AActor& Actor) const;
 
 	/** Returns viewer handle from the streaming source name */
 	FMassViewerHandle GetViewerHandleFromStreamingSource(const FName StreamingSourceName) const;
@@ -95,6 +107,9 @@ public:
 
 	/** Returns the delegate called when viewer are removed from the list */
 	FOnViewerRemoved& GetOnViewerRemovedDelegate() { return OnViewerRemovedDelegate; }
+
+	void RegisterActorViewer(AActor& ActorViewer);
+	void UnregisterActorViewer(AActor& ActorViewer);
 
 protected:
 	// USubsystem BEGIN
@@ -118,6 +133,8 @@ protected:
 
 	/** Adds the given streaming source as a viewer to the list and sends notification about addition */
 	void AddStreamingSourceViewer(const FName StreamingSourceName);
+
+	void AddActorViewer(AActor& ActorViewer);
 
 #if WITH_EDITOR
 	/** Adds the editor viewport client (identified via an index) as a viewer to the list and sends notification about addition */
@@ -143,6 +160,9 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Mass|LOD", config)
 	uint8 bGatherStreamingSources : 1 = true;
 
+	UPROPERTY(EditDefaultsOnly, Category = "Mass|LOD", config)
+	uint8 bAllowNonPlayerViwerActors : 1 = true;
+
 private:
 	/** Removes a viewer to the list and send notification about removal */
 	void RemoveViewerInternal(const FMassViewerHandle& ViewerHandle);
@@ -154,6 +174,9 @@ private:
 	/** The map that do reverse look up to get ViewerHandle */
 	UPROPERTY(Transient)
 	TMap<uint32, FMassViewerHandle> ViewerMap;
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<AActor>> RegisteredActorViewers;
 
 	uint64 LastSynchronizedFrame = 0;
 
@@ -172,6 +195,9 @@ private:
 	FOnViewerAdded OnViewerAddedDelegate;
 	FOnViewerRemoved OnViewerRemovedDelegate;
 
+public:
+	UE_DEPRECATED(5.4, "GetViewerHandleFromPlayerController is deprecated. Use more teneric GetViewerHandleFromActor")
+	FMassViewerHandle GetViewerHandleFromPlayerController(const APlayerController* PlayerController) const;
 };
 
 template<>
