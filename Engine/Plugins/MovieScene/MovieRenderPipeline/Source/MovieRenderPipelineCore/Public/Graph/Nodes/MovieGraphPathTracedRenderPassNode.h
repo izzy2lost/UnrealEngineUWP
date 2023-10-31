@@ -24,14 +24,58 @@ public:
 	virtual void TeardownImpl() override;
 	// ~UMovieGraphRenderPassNode Interface
 
+	// UMovieGraphImagePassBaseNode Interface
+	virtual bool GetWriteAllSamples() const override;
+	virtual int32 GetNumSpatialSamples() const override;
+	virtual bool GetDisableToneCurve() const override;
+	virtual TUniquePtr<UE::MovieGraph::Rendering::FMovieGraphImagePassBase> CreateInstance() const;
+	// ~UMovieGraphImagePassBaseNode Interface
+
 protected:
 	// UMovieGraphRenderPassNode Interface
 	virtual FString GetRendererNameImpl() const override;
+
 	// ~UMovieGraphRenderPassNode Interface
 
 	// UMovieGraphCoreRenderPassNode Interface
 	virtual EViewModeIndex GetViewModeIndex() const override;
 	// ~UMovieGraphCoreRenderPassNode Interface
+
+public:
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
+	uint8 bOverride_SpatialSampleCount : 1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
+	uint8 bOverride_bDisableToneCurve : 1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
+	uint8 bOverride_bWriteAllSamples : 1;
+
+	/**
+	* How many sub-pixel jitter renders should we do per temporal sample? This can be used to achieve high
+	* sample counts without Temporal Sub-Sampling (allowing high sample counts without motion blur being enabled),
+	* but we generally recommend using Temporal Sub-Samples when possible. It can also be combined with
+	* temporal samples and you will get SpatialSampleCount many renders per temporal sample.
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (UIMin = 1, ClampMin = 1), Category = "Settings", meta = (EditCondition = "bOverride_SpatialSampleCount"))
+	int32 SpatialSampleCount;
+
+	/**
+	* If true, the tone curve will be disabled for this render pass. This will result in values greater than 1.0 in final renders
+	* and can optionally be combined with OCIO profiles on the file output nodes to convert from Linear Values in Working Color Space
+	* (which is sRGB  (Rec. 709) by default, unless changed in the project settings).
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings", meta = (EditCondition = "bOverride_bDisableToneCurve"))
+	bool bDisableToneCurve;
+
+	/**
+	* Debug Feature. Can use this to write out each individual Temporal and Spatial sample rendered by this render pass,
+	* which allows you to see which images are being accumulated together. Can be useful for debugging incorrect looking
+	* frames to see which sub-frame evaluations were incorrect.
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Debug", meta = (EditCondition = "bOverride_bWriteAllsamples"))
+	bool bWriteAllSamples;
 
 private:
 	/**

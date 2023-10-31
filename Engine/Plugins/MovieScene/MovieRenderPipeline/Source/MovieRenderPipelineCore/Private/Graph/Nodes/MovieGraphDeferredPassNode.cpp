@@ -38,3 +38,23 @@ EViewModeIndex UMovieGraphDeferredRenderPassNode::GetViewModeIndex() const
 {
 	return ViewModeIndex;
 }
+
+bool UMovieGraphDeferredRenderPassNode::GetWriteAllSamples() const
+{
+	return bWriteAllSamples;
+}
+
+int32 UMovieGraphDeferredRenderPassNode::GetNumSpatialSamples() const
+{
+	return SpatialSampleCount;
+}
+
+bool UMovieGraphDeferredRenderPassNode::GetDisableToneCurve() const
+{
+	return bDisableToneCurve;
+}
+
+EAntiAliasingMethod UMovieGraphDeferredRenderPassNode::GetAntiAliasingMethod() const
+{
+	return AntiAliasingMethod;
+}

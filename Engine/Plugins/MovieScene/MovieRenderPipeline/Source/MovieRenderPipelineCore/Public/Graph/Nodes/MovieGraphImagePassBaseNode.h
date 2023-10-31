@@ -37,6 +37,18 @@ public:
 	/** Gets any show flags that should be applied as defaults, before user changes are applied. */
 	virtual TArray<uint32> GetDefaultShowFlags() const;
 
+	/** Should each individual sample rendered be written out for debugging? */
+	virtual bool GetWriteAllSamples() const { return false; }
+
+	/** How many spatial samples should be rendered each frame? */
+	virtual int32 GetNumSpatialSamples() const { return 1; }
+
+	/** Should the tone curve be disabled while rendering? Allows for linear values in exrs but changes the look of the final image. */
+	virtual bool GetDisableToneCurve() const { return false; }
+
+	/** Which AA Method should be used? */
+	virtual EAntiAliasingMethod GetAntiAliasingMethod() const { return EAntiAliasingMethod::AAM_None; }
+
 protected:
 	// Note: Since *individual* show flags are overridden instead of the entire ShowFlags property, manually set to
 	// overridden so the traversal picks the changes up (otherwise they will be ignored).

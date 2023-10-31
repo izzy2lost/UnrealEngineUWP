@@ -35,6 +35,14 @@ namespace UE::MovieGraph::DefaultRenderer
 		FIntPoint TileCount;
 	};
 
+	struct FMovieGraphSamplingParams
+	{
+		int32 TemporalSampleIndex;
+		int32 TemporalSampleCount;
+		int32 SpatialSampleIndex;
+		int32 SpatialSampleCount;
+	};
+
 	struct FCameraInfo
 	{
 		FCameraInfo()
@@ -62,7 +70,9 @@ namespace UE::MovieGraph::DefaultRenderer
 		// questionable if these are fcamerainfo
 		/** When using tiling, we scale the sensor to counteract the view changes. This value comes from modifying the ProjectionMatrix. */
 		float DoFSensorScale;
+
 		FMovieGraphTilingParams TilingParams;
+		FMovieGraphSamplingParams SamplingParams;
 
 		// Sub-pixel jitter this camera should use. Only applied when using no AA.
 		FVector2D ProjectionMatrixJitterAmount;

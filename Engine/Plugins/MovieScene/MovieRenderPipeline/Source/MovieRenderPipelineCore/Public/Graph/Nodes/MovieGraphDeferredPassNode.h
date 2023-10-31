@@ -25,6 +25,10 @@ protected:
 	// UMovieGraphRenderPassNode Interface
 	virtual FString GetRendererNameImpl() const override;
 	virtual TUniquePtr<UE::MovieGraph::Rendering::FMovieGraphImagePassBase> CreateInstance() const override;
+	virtual bool GetWriteAllSamples() const override;
+	virtual int32 GetNumSpatialSamples() const override;
+	virtual bool GetDisableToneCurve() const override;
+	virtual EAntiAliasingMethod GetAntiAliasingMethod() const override;
 	// ~UMovieGraphRenderPassNode Interface
 
 	// UMovieGraphImagePassBaseNode Interface

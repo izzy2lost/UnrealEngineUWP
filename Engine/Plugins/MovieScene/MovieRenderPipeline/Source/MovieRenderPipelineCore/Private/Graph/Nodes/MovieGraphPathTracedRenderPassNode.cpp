@@ -1,9 +1,14 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Graph/Nodes/MovieGraphPathTracedRenderPassNode.h"
-
+#include "Graph/Renderers/MovieGraphPathTracerPass.h"
 #include "Engine/EngineBaseTypes.h"
 #include "ShowFlags.h"
+
+TUniquePtr<UE::MovieGraph::Rendering::FMovieGraphImagePassBase> UMovieGraphPathTracedRenderPassNode::CreateInstance() const
+{
+	return MakeUnique<UE::MovieGraph::Rendering::FMovieGraphPathTracerPass>();
+}
 
 UMovieGraphPathTracedRenderPassNode::UMovieGraphPathTracedRenderPassNode()
 {
@@ -50,4 +55,19 @@ FString UMovieGraphPathTracedRenderPassNode::GetRendererNameImpl() const
 EViewModeIndex UMovieGraphPathTracedRenderPassNode::GetViewModeIndex() const
 {
 	return VMI_PathTracing;
+}
+
+bool UMovieGraphPathTracedRenderPassNode::GetWriteAllSamples() const
+{
+	return bWriteAllSamples;
+}
+
+int32 UMovieGraphPathTracedRenderPassNode::GetNumSpatialSamples() const
+{
+	return SpatialSampleCount;
+}
+
+bool UMovieGraphPathTracedRenderPassNode::GetDisableToneCurve() const
+{
+	return bDisableToneCurve;
 }

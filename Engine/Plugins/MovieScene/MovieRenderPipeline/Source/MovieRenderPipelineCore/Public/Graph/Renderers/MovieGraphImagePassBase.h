@@ -34,6 +34,8 @@ namespace UE::MovieGraph::Rendering
 			, bWorldIsPaused(false)
 			, FrameIndex(-1)
 			, AntiAliasingMethod(EAntiAliasingMethod::AAM_None)
+			, ShowFlags(ESFIM_Game)
+			, ViewModeIndex(VMI_Lit)
 		{
 		}
 
@@ -44,6 +46,8 @@ namespace UE::MovieGraph::Rendering
 		bool bWorldIsPaused;
 		int32 FrameIndex;
 		EAntiAliasingMethod AntiAliasingMethod;
+		FEngineShowFlags ShowFlags;
+		EViewModeIndex ViewModeIndex;
 	};
 	
 
@@ -78,6 +82,9 @@ namespace UE::MovieGraph::Rendering
 		virtual void ApplyMovieGraphOverridesToSceneView(TSharedRef<FSceneViewFamilyContext> InOutFamily, const FViewFamilyInitData& InInitData, const UE::MovieGraph::DefaultRenderer::FCameraInfo& InCameraInfo) const;
 		virtual void ApplyMovieGraphOverridesToViewFamily(TSharedRef<FSceneViewFamilyContext> InOutFamily, const FViewFamilyInitData& InInitData) const;
 		virtual void PostRendererSubmission(const UE::MovieGraph::FMovieGraphSampleState& InSampleState, const UE::MovieGraph::DefaultRenderer::FRenderTargetInitParams& InRenderTargetInitParams, FCanvas& InCanvas, const UE::MovieGraph::DefaultRenderer::FCameraInfo& InCameraInfo);
+		virtual bool ShouldDiscardOutput(const TSharedRef<FSceneViewFamilyContext>& InFamily, const UE::MovieGraph::DefaultRenderer::FCameraInfo& InCameraInfo) const { return false; }
+		/** For this image pass, look up the associated node by type for the given config. */
+		virtual UMovieGraphImagePassBaseNode* GetParentNode(UMovieGraphEvaluatedConfig* InConfig) const { return nullptr; }
 
 	protected:
 		TWeakObjectPtr<UMovieGraphDefaultRenderer> WeakGraphRenderer;

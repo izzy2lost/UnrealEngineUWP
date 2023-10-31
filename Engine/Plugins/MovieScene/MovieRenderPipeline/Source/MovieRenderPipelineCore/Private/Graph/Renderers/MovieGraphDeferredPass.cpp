@@ -79,6 +79,21 @@ FName FMovieGraphDeferredPass::GetBranchName() const
 	return LayerData.BranchName;
 }
 
+UMovieGraphImagePassBaseNode* FMovieGraphDeferredPass::GetParentNode(UMovieGraphEvaluatedConfig* InConfig) const
+{
+	// This is a bit of a workaround for the fact that the pass doesn't have a strong pointer to the node it's supposed to be associated with,
+	// since that instance changes every frame. So instead we have a virtual function here so the node can look it up by type, and then we can
+	// call a bunch of virtual functions on the right instance to fetch values.
+	const bool bIncludeCDOs = true;
+	UMovieGraphDeferredRenderPassNode* ParentNode = InConfig->GetSettingForBranch<UMovieGraphDeferredRenderPassNode>(GetBranchName(), bIncludeCDOs);
+	if (!ensureMsgf(ParentNode, TEXT("DeferredPass should not exist without parent node in graph.")))
+	{
+		return nullptr;
+	}
+
+	return ParentNode;
+}
+
 void FMovieGraphDeferredPass::Render(const FMovieGraphTraversalContext& InFrameTraversalContext, const FMovieGraphTimeStepData& InTimeData)
 {
 	// ToDo: InFrameTraversalContext includes a copy of TimeData, but may be the one cached at the first temporal sample,
@@ -89,24 +104,16 @@ void FMovieGraphDeferredPass::Render(const FMovieGraphTraversalContext& InFrameT
 		return;
 	}
 
-	// ToDo: This means you have to use FMovieGraphDeferredPass with a DeferredNode (ie: implying that the Path Tracer node has to inherit from the Defered Node,
-	// which incorrectly picks up settings not supported by the path tracer. Perhaps these should be spun off to virtual functions that can be overwritten on 
-	// FMovieGraphPathTracerPass to cast the other way?
-	const bool bIncludeCDOs = false;
-	const UMovieGraphDeferredRenderPassNode* ParentNode = InTimeData.EvaluatedConfig->GetSettingForBranch<UMovieGraphDeferredRenderPassNode>(LayerData.BranchName, bIncludeCDOs);
-	if (!ensureMsgf(ParentNode, TEXT("DeferredPass should not exist without parent node in graph.")))
-	{
-		return;
-	}
-
-	const bool bWriteAllSamples = ParentNode->bWriteAllSamples;
-	int32 NumSpatialSamples = FMath::Max(1, ParentNode->SpatialSampleCount);
-	const bool bDisableToneCurve = ParentNode->bDisableToneCurve;
-	const EAntiAliasingMethod AntiAliasingMethod = ParentNode->AntiAliasingMethod;
+	UMovieGraphImagePassBaseNode* ParentNodeThisFrame = GetParentNode(InTimeData.EvaluatedConfig);
+	const bool bWriteAllSamples = ParentNodeThisFrame->GetWriteAllSamples();
+	int32 NumSpatialSamples = FMath::Max(1, ParentNodeThisFrame->GetNumSpatialSamples());
+	const bool bDisableToneCurve = ParentNodeThisFrame->GetDisableToneCurve();
+	const EAntiAliasingMethod AntiAliasingMethod = ParentNodeThisFrame->GetAntiAliasingMethod();
 	float OverscanFraction = 0.f;
 	const float TileOverlapPadRatio = 0.0f; // No tiling support right now
 
 	// Camera nodes are optional
+	const bool bIncludeCDOs = false;
 	const UMovieGraphCameraSettingNode* CameraNode = InTimeData.EvaluatedConfig->GetSettingForBranch<UMovieGraphCameraSettingNode>(LayerData.BranchName, bIncludeCDOs);
 	if (CameraNode)
 	{
@@ -170,6 +177,10 @@ void FMovieGraphDeferredPass::Render(const FMovieGraphTraversalContext& InFrameT
 		CameraInfo.TilingParams.OverlapPad = FVector2f(0.f, 0.f); // No tile support
 		CameraInfo.TilingParams.TileCount = FIntPoint(1, 1); // No tile support
 		CameraInfo.TilingParams.TileIndexes = FIntPoint(0, 0); // No tile support
+		CameraInfo.SamplingParams.TemporalSampleIndex = InTimeData.TemporalSampleIndex;
+		CameraInfo.SamplingParams.TemporalSampleCount = InTimeData.TemporalSampleCount;
+		CameraInfo.SamplingParams.SpatialSampleIndex = SpatialIndex;
+		CameraInfo.SamplingParams.SpatialSampleCount = NumSpatialSamples;
 		CameraInfo.OverscanFraction = OverscanFraction;
 		CameraInfo.ProjectionMatrixJitterAmount = FVector2D((SpatialShiftAmount.X) * 2.0f / (float)BackbufferResolution.X, SpatialShiftAmount.Y * -2.0f / (float)BackbufferResolution.Y);
 
@@ -199,6 +210,8 @@ void FMovieGraphDeferredPass::Render(const FMovieGraphTraversalContext& InFrameT
 		ViewFamilyInitData.bWorldIsPaused = bWorldIsPaused;
 		ViewFamilyInitData.FrameIndex = FrameIndex;
 		ViewFamilyInitData.AntiAliasingMethod = AntiAliasingMethod;
+		ViewFamilyInitData.ShowFlags = ParentNodeThisFrame->GetShowFlags();
+		ViewFamilyInitData.ViewModeIndex = ParentNodeThisFrame->GetViewModeIndex();
 		
 		TSharedRef<FSceneViewFamilyContext> ViewFamily = CreateSceneViewFamily(ViewFamilyInitData, CameraInfo);
 		 
@@ -241,9 +254,10 @@ void FMovieGraphDeferredPass::Render(const FMovieGraphTraversalContext& InFrameT
 		}
 
 		// If this was just to contribute to the history buffer, no need to go any further.
-		if (InTimeData.bDiscardOutput)
+		bool bDiscardOutput = InTimeData.bDiscardOutput || ShouldDiscardOutput(ViewFamily, CameraInfo);
+		if (bDiscardOutput)
 		{
-			return;
+			continue;
 		}
 
 		// Readback + Accumulate.
@@ -324,4 +338,3 @@ void FMovieGraphDeferredPass::PostRendererSubmission(
 	FMovieGraphImagePassBase::PostRendererSubmission(InSampleState, InRenderTargetInitParams, InCanvas, InCameraInfo);
 }
 } // namespace UE::MovieGraph::Rendering
-
