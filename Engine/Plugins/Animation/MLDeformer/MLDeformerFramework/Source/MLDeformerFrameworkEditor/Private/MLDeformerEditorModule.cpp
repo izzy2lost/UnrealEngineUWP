@@ -36,7 +36,7 @@ namespace UE::MLDeformer
 	void FMLDeformerEditorModule::ShutdownModule()
 	{
 		FEditorModeRegistry::Get().UnregisterMode(FMLDeformerEditorMode::ModeName);
-
+		
 		// Unregister object detail customizations.
 		if (FModuleManager::Get().IsModuleLoaded(TEXT("PropertyEditor")))
 		{

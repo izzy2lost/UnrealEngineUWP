@@ -13,6 +13,8 @@
 #include "MLDeformerEditorStyle.h"
 #include "MLDeformerVizSettings.h"
 #include "MLDeformerSampler.h"
+#include "SMLDeformerTimeline.h"
+#include "SMLDeformerDebugSelectionWidget.h"
 #include "AnimationEditorViewportClient.h"
 #include "EditorModeManager.h"
 #include "EditorViewportClient.h"
@@ -24,7 +26,6 @@
 #include "Preferences/PersonaOptions.h"
 #include "UObject/Object.h"
 #include "SSimpleTimeSlider.h"
-#include "SMLDeformerTimeline.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Framework/Notifications/NotificationManager.h"
 #include "Misc/MessageDialog.h"
@@ -97,6 +98,10 @@ namespace UE::MLDeformer
 		FMLDeformerEditorMode* EditorMode = static_cast<FMLDeformerEditorMode*>(GetEditorModeManager().GetActiveMode(FMLDeformerEditorMode::ModeName));
 		EditorMode->SetEditorToolkit(this);
 
+		SAssignNew(DebugWidget, SMLDeformerDebugSelectionWidget)
+			.MLDeformerEditor(this)
+			.Visibility(this, &FMLDeformerEditorToolkit::GetDebuggingVisibility);
+
 		ExtendToolbar();
 		RegenerateMenusAndToolbars();
 
@@ -113,6 +118,11 @@ namespace UE::MLDeformer
 		{
 			GetModelDetailsView()->SetObject(DeformerModel);
 			GetVizSettingsDetailsView()->SetObject(DeformerModel->GetVizSettings());
+		}
+
+		if (DebugWidget.IsValid())
+		{
+			DebugWidget->Refresh();
 		}
 
 		GetModelDetailsView()->ForceRefresh();
@@ -391,6 +401,11 @@ namespace UE::MLDeformer
 		return bIsTraining;
 	}
 
+	AActor* FMLDeformerEditorToolkit::GetDebugActor() const
+	{
+		return DebugWidget.IsValid() ? DebugWidget->GetDebugActor() : nullptr;
+	}
+
 	bool FMLDeformerEditorToolkit::Train(bool bSuppressDialogs)
 	{
 		check(ActiveModel);
@@ -456,12 +471,12 @@ namespace UE::MLDeformer
 
 	void FMLDeformerEditorToolkit::FillToolbar(FToolBarBuilder& ToolbarBuilder)
 	{
+		// Training button and model selection.
 		ToolbarBuilder.BeginSection("Training");
 		{
 			ToolbarBuilder.AddToolBarButton(
 				FUIAction
 				(
-					//FExecuteAction::CreateRaw(this, &FMLDeformerEditorToolkit::Train, false),
 					FExecuteAction::CreateLambda
 					(
 						[this]()
@@ -497,6 +512,7 @@ namespace UE::MLDeformer
 		}
 		ToolbarBuilder.EndSection();
 
+		// Tools.
 		if (!ToolsMenuExtenders.IsEmpty())
 		{
 			ToolbarBuilder.BeginSection("Tools");
@@ -517,6 +533,44 @@ namespace UE::MLDeformer
 			}
 			ToolbarBuilder.EndSection();
 		}
+
+		// Debugging.
+		ToolbarBuilder.BeginSection("Debugging");
+		{
+			ToolbarBuilder.AddWidget(DebugWidget.ToSharedRef());
+			ToolbarBuilder.AddToolBarButton
+			(
+				FUIAction
+				(
+					FExecuteAction::CreateLambda([this]() { if (DebugWidget.IsValid()) { DebugWidget->Refresh(); } }),
+					FCanExecuteAction::CreateLambda([](){ return true; }),
+					FGetActionCheckState::CreateLambda([](){ return ECheckBoxState::Checked; }),
+					FIsActionButtonVisible::CreateLambda([this](){ return GetDebuggingVisibility() == EVisibility::Visible; })
+				),
+				NAME_None,
+				FText(),
+				LOCTEXT("RefreshDebugTooltip", "Refresh the list of debuggable actors."),
+				FSlateIcon(FMLDeformerEditorStyle::Get().GetStyleSetName(), "MLDeformer.Debug.RefreshIcon"),
+				EUserInterfaceActionType::Button
+			);
+		}
+		ToolbarBuilder.EndSection();
+	}
+
+	EVisibility FMLDeformerEditorToolkit::GetDebuggingVisibility() const
+	{
+		if (ActiveModel && ActiveModel->GetModel() && ActiveModel->GetModel()->GetVizSettings())
+		{
+			if (ActiveModel->GetModel()->GetVizSettings()->GetVisualizationMode() == EMLDeformerVizMode::TestData)
+			{
+				return EVisibility::Visible;
+			}
+			else
+			{
+				return EVisibility::Hidden;
+			}
+		}
+		return EVisibility::Visible;
 	}
 
 	bool FMLDeformerEditorToolkit::HandleTrainingResult(ETrainingResult TrainingResult, double TrainingDuration, bool& bOutUsePartiallyTrained, bool bSuppressDialogs, bool& bOutSuccess)
@@ -791,6 +845,68 @@ namespace UE::MLDeformer
 			}
 		}
 		ZoomOnActors();
+	}
+
+	TArray<FTransform> FMLDeformerEditorToolkit::GetDebugActorComponentSpaceTransforms() const
+	{
+		const FMLDeformerEditorModel* EditorModel = GetActiveModel();
+		if (EditorModel)
+		{
+			const AActor* DebugActor = GetDebugActor();
+			if (DebugActor && EditorModel->GetModel())
+			{				
+				const USkeletalMesh* ModelSkelMesh = EditorModel->GetModel()->GetSkeletalMesh();
+				if (ModelSkelMesh)
+				{
+					for (const UActorComponent* Component : DebugActor->GetComponents())
+					{
+						const USkeletalMeshComponent* DebugActorSkelMeshComponent = Cast<USkeletalMeshComponent>(Component);
+						if (DebugActorSkelMeshComponent)
+						{
+							if (DebugActorSkelMeshComponent->GetSkeletalMeshAsset() != ModelSkelMesh)
+							{
+								continue;
+							}
+
+							const USkinnedMeshComponent* LeaderPoseComponent = DebugActorSkelMeshComponent->LeaderPoseComponent.Get();
+							if (LeaderPoseComponent && !LeaderPoseComponent->GetComponentSpaceTransforms().IsEmpty())
+							{
+								const FReferenceSkeleton& RefSkel = ModelSkelMesh->GetRefSkeleton();
+								const int32 NumBones = RefSkel.GetNum();
+
+								TArray<FTransform> OutTransforms;	// TODO: Create some cached reusable buffer?
+								OutTransforms.SetNumUninitialized(NumBones);
+
+								const TArray<FTransform>& FollowerComponentTransforms = DebugActorSkelMeshComponent->GetComponentSpaceTransforms();
+								const TArray<FTransform>& LeaderComponentTransforms = LeaderPoseComponent->GetComponentSpaceTransforms();
+
+								const TArray<int32>& BoneMap = DebugActorSkelMeshComponent->GetLeaderBoneMap();
+								for (int32 Index = 0; Index < NumBones; ++Index)
+								{									
+									const int32 LeaderTransformIndex = BoneMap[Index];
+									if (LeaderTransformIndex != INDEX_NONE)
+									{
+										OutTransforms[Index] = LeaderComponentTransforms[LeaderTransformIndex];
+									}
+									else
+									{
+										OutTransforms[Index] = FollowerComponentTransforms[Index];
+									}
+								}
+
+								return MoveTemp(OutTransforms);
+							}
+							else
+							{
+								return DebugActorSkelMeshComponent->GetComponentSpaceTransforms();
+							}
+						}
+					}
+				}
+			}
+		}
+
+		return TArray<FTransform>();
 	}
 
 	void FMLDeformerEditorToolkit::ZoomOnActors()

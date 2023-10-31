@@ -9,6 +9,11 @@
 #include "NearestNeighborModel.h"
 #include "NearestNeighborModelInputInfo.h"
 #include "NearestNeighborOptimizedNetwork.h"
+#include "MLDeformerAsset.h"
+#include "MLDeformerComponent.h"
+#include "Components/ExternalMorphSet.h"
+#include "Engine/SkeletalMesh.h"
+#include "Components/SkeletalMeshComponent.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(NearestNeighborModelInstance)
 CSV_DECLARE_CATEGORY_MODULE_EXTERN(MLDEFORMERFRAMEWORK_API, MLDeformer);
@@ -92,6 +97,7 @@ void UNearestNeighborModelInstance::Tick(float DeltaTime, float ModelWeight)
 		PostMLDeformerComponentInit();
 	}
 
+	bool bCalledExecute = false;
 	if (ModelWeight > 0.0001f && HasValidTransforms() && SetupInputs())
 	{
 		// Execute the model instance.
@@ -99,11 +105,15 @@ void UNearestNeighborModelInstance::Tick(float DeltaTime, float ModelWeight)
 		// calculate the network outputs and possibly use them, depending on how the model works.
 		Execute(ModelWeight);
 		RunNearestNeighborModel(DeltaTime, ModelWeight);
+		bCalledExecute = true;
 	}
 	else
 	{
 		HandleZeroModelWeight();
 	}
+
+	// Do some things afterards, such as copying over debug actor data.
+	PostTick(bCalledExecute);
 }
 
 int64 UNearestNeighborModelInstance::SetBoneTransforms(float* OutputBuffer, int64 OutputBufferSize, int64 StartIndex)

@@ -628,6 +628,31 @@ namespace UE::MLDeformer
 		UE_DEPRECATED(5.3, "Please call FMLDeformerMorphModelEditorModel::CalcMorphTargetNormals instead.")
 		virtual void GenerateNormalsForMorphTarget(int32 LOD, USkeletalMesh* SkelMesh, int32 MorphTargetIndex, TArrayView<const FVector3f> Deltas, TArrayView<const FVector3f> BaseVertexPositions, TArrayView<FVector3f> BaseNormals, TArray<FVector3f>& OutDeltaNormals);
 
+		/**
+		 * Called whenever the actor to debug has been changed.
+		 * This can be changed throughout the UI, in testing mode.
+		 * When debugging gets disabled, this will contain a nullptr.
+		 * @param DebugActor The new actor we want to debug.
+		 */
+		virtual void OnDebugActorChanged(TObjectPtr<AActor> DebugActor);
+
+		/** 
+		 * Apply the transforms of the actor we debug to the editor actors in our world.
+		 * @param DebugActorComponentSpaceTransforms The component space transforms from the actor we are debugging.
+		 */
+		virtual void ApplyDebugActorTransforms(const TArray<FTransform>& DebugActorComponentSpaceTransforms);
+
+		/**
+		 * Debug draw helpers inside the PIE viewport that highlight debuggable actors.
+		 * On default this will draw a bounding box around the actors that can be debugged by this model.
+		 * Also it will render the actor names.
+		 * NOTE: This renders inside the PIE viewport, not our own MLD asset editor viewport.
+		 */
+		virtual void DrawPIEDebugActors();
+
+		/** Apply the transforms of the debug actor to the actors in the asset editor world. This will internally call ApplyDebugActorTransforms(DebugActorComponentSpaceTransforms). */
+		void ApplyDebugActorTransforms();
+
 		/** Invalidate the memory usage, so it gets updated in the UI again. */
 		void UpdateMemoryUsage();
 

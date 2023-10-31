@@ -11,6 +11,7 @@
 #include "MLDeformerComponent.h"
 #include "MLDeformerPerfCounter.h"
 #include "MLDeformerEditorStyle.h"
+#include "MLDeformerEditorToolkit.h"
 #include "DetailLayoutBuilder.h"
 #include "DetailCategoryBuilder.h"
 #include "DetailWidgetRow.h"
@@ -186,6 +187,40 @@ namespace UE::MLDeformer
 
 		AddAdditionalSettings();
 
+		// Debugging group.
+		IDetailGroup& DebuggingGroup = LiveSettingsCategory->AddGroup("Debugging", LOCTEXT("DebuggingLabel", "Debugging"), false, true);
+		FDetailWidgetRow& DebuggingRow = DebuggingGroup.HeaderRow();
+		DebuggingRow.NameContent().Widget = 
+			SNew(STextBlock)
+			.Font(IDetailLayoutBuilder::GetDetailFont())
+			.Text(FText::FromName(DebuggingGroup.GetGroupName()));	
+		DebuggingRow.ValueContent().Widget =
+			SNew(STextBlock)
+			.Font(IDetailLayoutBuilder::GetDetailFont())
+			.Text_Lambda
+			(
+				[this]()
+				{
+					FMLDeformerEditorToolkit* Editor = EditorModel->GetEditor();
+					if (Editor && IsValid(Editor->GetDebugActor()))
+					{
+						return LOCTEXT("DebuggingActiveText", "Debugging Active");
+					}
+
+					return GEditor->GetPIEViewport() ? LOCTEXT("DebuggingPIEActiveText", "PIE Active") : FText();
+				}
+			)
+			.ColorAndOpacity_Lambda			
+			(
+				[this]()
+				{
+					return GEditor->GetPIEViewport() ? FSlateColor(FColor::Green) : FSlateColor::UseForeground();
+				}
+			);
+		DebuggingGroup.AddPropertyRow(DetailBuilder.GetProperty(UMLDeformerVizSettings::GetDrawDebugActorBoundsPropertyName(), UMLDeformerVizSettings::StaticClass()));
+		DebuggingGroup.AddPropertyRow(DetailBuilder.GetProperty(UMLDeformerVizSettings::GetDebugBoundsColorPropertyName(), UMLDeformerVizSettings::StaticClass()));
+
+		// Visibility group.
 		IDetailGroup& VisGroup = LiveSettingsCategory->AddGroup("Visibility", LOCTEXT("VisibilityLabel", "Visibility"), false, true);
 		VisGroup.AddPropertyRow(DetailBuilder.GetProperty(UMLDeformerVizSettings::GetDrawLinearSkinnedActorPropertyName(), UMLDeformerVizSettings::StaticClass()));
 		VisGroup.AddPropertyRow(DetailBuilder.GetProperty(UMLDeformerVizSettings::GetDrawMLDeformedActorPropertyName(), UMLDeformerVizSettings::StaticClass()));

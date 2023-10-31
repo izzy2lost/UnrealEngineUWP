@@ -43,6 +43,10 @@
 #include "Engine/SkinnedAssetCommon.h"
 #include "SMLDeformerInputWidget.h"
 #include "SMLDeformerTimeline.h"
+#include "SMLDeformerDebugSelectionWidget.h"
+#include "EditorViewportClient.h"
+#include "DrawDebugHelpers.h"
+#include "Slate/SceneViewport.h"
 
 #define LOCTEXT_NAMESPACE "MLDeformerEditorModel"
 
@@ -391,6 +395,8 @@ namespace UE::MLDeformer
 
 	void FMLDeformerEditorModel::UpdateMeshOffsetFactors()
 	{
+		const bool bIsDebugging = (GetEditor()->GetDebugActor() != nullptr);
+
 		// Set the default mesh translation offsets for our ground truth actors.
 		for (FMLDeformerEditorActor* EditorActor : EditorActors)
 		{
@@ -412,7 +418,7 @@ namespace UE::MLDeformer
 				{
 					MeshOffsetFactor = 2.0f;
 
-					if (Model->GetVizSettings()->GetDrawMLCompareActors())
+					if (Model->GetVizSettings()->GetDrawMLCompareActors() && !bIsDebugging)
 					{
 						const TArray<FMLDeformerCompareActor>& CompareActors = Model->GetVizSettings()->GetCompareActors();
 						const int32 NumValidCompareActors = static_cast<float>(CalcNumValidCompareActorsPriorTo(CompareActors.Num()));
@@ -541,7 +547,7 @@ namespace UE::MLDeformer
 	}
 
 	void FMLDeformerEditorModel::Tick(FEditorViewportClient* ViewportClient, float DeltaTime)
-	{		
+	{
 		if (bNeedsAssetReinit)
 		{
 			TriggerInputAssetChanged();
@@ -567,6 +573,20 @@ namespace UE::MLDeformer
 		UpdateActorTransforms();
 		UpdateLabels();
 		CheckTrainingDataFrameChanged();
+		ApplyDebugActorTransforms();
+
+		// Debug draw elements inside the PIE viewport when PIE is active.
+		DrawPIEDebugActors();
+
+		// We need to tell the viewport that it needs to redraw, because otherwise while PIE is active
+		// it won't redraw the asset editor unless you interact with the viewport using the mouse.
+		if (GEditor->GetPIEViewport() && GetEditor()->GetViewport().IsValid())
+		{
+			if (Model->GetVizSettings()->GetDrawDebugActorBounds() || IsValid(GetEditor()->GetDebugActor()))
+			{
+				GetEditor()->GetViewport()->GetViewportClient().bNeedsRedraw = true;
+			}
+		}
 
 		// Update the ML Deformer components.
 		for (FMLDeformerEditorActor* EditorActor : EditorActors)
@@ -646,6 +666,7 @@ namespace UE::MLDeformer
 		const UMLDeformerVizSettings* VizSettings = Model->GetVizSettings();
 		const bool bShowTrainingData = (VizSettings->GetVisualizationMode() == EMLDeformerVizMode::TrainingData);
 		const bool bShowTestData = (VizSettings->GetVisualizationMode() == EMLDeformerVizMode::TestData);
+		const bool bIsDebugging = (GetEditor()->GetDebugActor() != nullptr);
 		for (FMLDeformerEditorActor* EditorActor : EditorActors)
 		{
 			if (EditorActor)
@@ -661,11 +682,11 @@ namespace UE::MLDeformer
 				}
 				else if (EditorActor->GetTypeID() == ActorID_Test_GroundTruth)
 				{
-					bIsVisible &= VizSettings->GetDrawGroundTruthActor();
+					bIsVisible &= VizSettings->GetDrawGroundTruthActor() && !bIsDebugging;
 				}
 				else if (EditorActor->GetTypeID() == ActorID_Test_Compare)
 				{
-					bIsVisible &= VizSettings->GetDrawMLCompareActors();
+					bIsVisible &= VizSettings->GetDrawMLCompareActors() && !bIsDebugging;
 				}
 
 				bIsVisible &= EditorActor->HasVisualMesh();
@@ -1644,6 +1665,53 @@ namespace UE::MLDeformer
 					const FVector VertexPos = (FVector)LinearSkinnedPositions[Index];
 					PDI->DrawLine(VertexPos, VertexPos + Delta, DeltasColor, DepthGroup);
 				}
+			}
+		}
+
+	}
+
+	void FMLDeformerEditorModel::DrawPIEDebugActors()
+	{
+		// Draw all debuggable actor bounds and names.
+		UMLDeformerVizSettings* VizSettings = Model->GetVizSettings();
+		if (Editor && VizSettings->GetDrawDebugActorBounds() && Editor->GetDebugWidget().IsValid())
+		{
+			const AActor* ActiveDebugActor = Editor->GetDebugActor();
+
+			FString Name;
+			TSharedPtr<SMLDeformerDebugSelectionWidget> DebugWidget = Editor->GetDebugWidget();
+			for (TSharedPtr<FMLDeformerDebugActor> DebuggableActor : DebugWidget->GetActors())
+			{
+				if (!DebuggableActor.IsValid() || 
+					!IsValid(DebuggableActor->Actor) || 
+					!DebuggableActor->Actor->GetOuter())
+				{
+					continue;
+				}
+
+				// Get the actor's bounding box.
+				const UWorld* World = DebuggableActor->Actor->GetWorld();
+				FVector Center;
+				FVector Extents;
+				DebuggableActor->Actor->GetActorBounds(true, Center, Extents, false);
+
+				const FVector TextStart = DebuggableActor->Actor->GetTransform().GetTranslation();
+				Name = DebuggableActor->Actor->GetName();
+				FColor TextColor;
+				FColor BoxColor;
+				if (DebuggableActor->Actor == ActiveDebugActor)
+				{
+					TextColor = FColor::Yellow;
+					BoxColor = FColor::Green;
+				}
+				else
+				{
+					TextColor = FColor::White;
+					BoxColor = VizSettings->GetDebugBoundsColor();
+				}
+
+				DrawDebugBox(World, Center, Extents, BoxColor, false);
+				DrawDebugString(World, TextStart, Name, nullptr, TextColor, 0.0f, false, 1.0f);
 			}
 		}
 	}
@@ -2827,6 +2895,70 @@ namespace UE::MLDeformer
 	{
 		// Set the current training frame to -1, which will cause the deltas to get updated next frame.
 		CurrentTrainingFrame = -1;
+	}
+
+	void FMLDeformerEditorModel::ApplyDebugActorTransforms()
+	{
+		AActor* DebugActor = GetEditor()->GetDebugActor();
+		if (DebugActor && IsValid(DebugActor))
+		{
+			const TArray<FTransform> DebugActorComponentSpaceTransforms = GetEditor()->GetDebugActorComponentSpaceTransforms();
+			if (!DebugActorComponentSpaceTransforms.IsEmpty())
+			{
+				ApplyDebugActorTransforms(DebugActorComponentSpaceTransforms);
+			}
+		}
+	}
+
+	void FMLDeformerEditorModel::OnDebugActorChanged(TObjectPtr<AActor> DebugActor)
+	{
+		// Mark the test ML Deformed character as having debugging enabled.
+		FMLDeformerEditorActor* TestMLDeformedActor = FindEditorActor(ActorID_Test_MLDeformed);
+		if (TestMLDeformedActor)
+		{
+			UMLDeformerComponent* MLDComponent = TestMLDeformedActor->GetMLDeformerComponent();
+			if (MLDComponent)
+			{
+				MLDComponent->SetDebugActor(DebugActor);
+			}
+		}
+
+		// Update visibility, mesh offsets and transforms.
+		// This is needed as when we enable or disable debugging we can show/hide compare actors, ground truth actors, etc.
+		UpdateActorVisibility();
+		UpdateMeshOffsetFactors();
+		UpdateActorTransforms();
+
+		// Trigger a redraw of the MLD asset editor viewport.
+		if (GetEditor()->GetViewport().IsValid())
+		{
+			GetEditor()->GetViewport()->GetViewportClient().bNeedsRedraw = true;
+		}
+	}
+
+	void FMLDeformerEditorModel::ApplyDebugActorTransforms(const TArray<FTransform>& DebugActorComponentSpaceTransforms)
+	{
+		for (FMLDeformerEditorActor* EditorActor : EditorActors)
+		{
+			// Only overwrite the transforms for the test ML Deformed character and the linear skinned character, leave the rest as-is.
+			// It doesn't make sense to overwrite transforms for the training actors for example.
+			// We also shouldn't apply to the compare actors, as the morph weights aren't copied over, as they might have a different number of morphs etc.
+			if (EditorActor == nullptr || 
+				(EditorActor->GetTypeID() != ActorID_Test_MLDeformed && EditorActor->GetTypeID() != ActorID_Test_Base))
+			{
+				continue;
+			}
+
+			// Copy the transforms to all editor actors that have a skeletal mesh component with valid skeletal mesh setup.
+			UDebugSkelMeshComponent* SkelMeshComponent = EditorActor->GetSkeletalMeshComponent();
+			if (SkelMeshComponent && SkelMeshComponent->GetSkeletalMeshAsset())
+			{
+				TArray<FTransform>& EditableTransforms = SkelMeshComponent->GetEditableComponentSpaceTransforms();
+				check(EditableTransforms.Num() == DebugActorComponentSpaceTransforms.Num());
+				EditableTransforms = DebugActorComponentSpaceTransforms;
+				SkelMeshComponent->ApplyEditedComponentSpaceTransforms();
+			}
+		}
 	}
 }	// namespace UE::MLDeformer
 

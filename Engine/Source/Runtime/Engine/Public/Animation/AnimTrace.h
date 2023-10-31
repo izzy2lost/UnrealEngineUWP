@@ -36,6 +36,13 @@ struct FAnimSyncMarker;
 struct FAnimMontageInstance;
 class UPoseWatchPoseElement;
 
+static FAutoConsoleVariable CVarRecordExternalMorphTargets(
+	TEXT("RecordExternalMorphTargets"),
+	false,
+	TEXT("Record the external morph target weights inside animation insights. On default this is disabled, because it can slow down recording."),
+	ECVF_Default
+);
+
 struct FAnimTrace
 {
 	/** The various phases of anim graph processing */
@@ -114,7 +121,7 @@ struct FAnimTrace
 		float Thickness;
 		bool bPersistentLines;
 	};
-	
+
 	/** Reset Caches so a new trace can be started*/
 	ENGINE_API static void Reset();
 
