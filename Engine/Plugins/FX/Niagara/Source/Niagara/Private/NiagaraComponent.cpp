@@ -790,6 +790,17 @@ FName UNiagaraComponent::GetFNameForStatID() const
 	return Asset ? Asset->GetFNameForStatID() : Super::GetFNameForStatID();
 }
 
+bool UNiagaraComponent::RequiresGameThreadEndOfFrameRecreate() const
+{
+#if WITH_EDITORONLY_DATA
+	// Niagara is capable of running async but in the editor.  However various UObjects we might use during a create are not.
+	// For example, resolving a UStaticMesh will query the mesh compiler which will propagate changes and mark render state dirty which is not allowed during EOF updates.
+	return true;
+#else
+	return false;
+#endif
+}
+
 void UNiagaraComponent::TickComponent(float DeltaSeconds, enum ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	LLM_SCOPE(ELLMTag::Niagara);
