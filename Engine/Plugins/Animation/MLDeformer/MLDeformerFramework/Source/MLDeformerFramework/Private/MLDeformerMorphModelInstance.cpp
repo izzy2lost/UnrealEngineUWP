@@ -23,6 +23,13 @@ bool UMLDeformerMorphModelInstance::IsValidForDataProvider() const
 	return true;
 }
 
+void UMLDeformerMorphModelInstance::PostTick(bool bExecuteCalled)
+{
+#if WITH_EDITOR
+	CopyDataFromCurrentDebugActor();
+#endif
+}
+
 int32 UMLDeformerMorphModelInstance::GetExternalMorphSetID() const
 { 
 	return ExternalMorphSetID;
@@ -31,7 +38,7 @@ int32 UMLDeformerMorphModelInstance::GetExternalMorphSetID() const
 void UMLDeformerMorphModelInstance::BeginDestroy()
 {
 	// Try to unregister the morph target and morph target set.
-	if (SkeletalMeshComponent)
+	if (IsValid(SkeletalMeshComponent))
 	{
 		const UMLDeformerMorphModel* MorphModel = Cast<UMLDeformerMorphModel>(Model);
 		if (MorphModel)
@@ -67,6 +74,7 @@ void UMLDeformerMorphModelInstance::PostMLDeformerComponentInit()
 
 		// Register the morph set. This overwrites the existing one for this model, if it already exists.
 		// Only add to LOD 0 for now.
+		check(IsInGameThread());	// We don't want to call this multithreaded, as the AddExternalMorphSets etc isn't thread safe.
 		const int32 LOD = 0;
 		SkelMeshComponent->AddExternalMorphSet(LOD, ExternalMorphSetID, MorphTargetSet);
 
@@ -104,6 +112,9 @@ void UMLDeformerMorphModelInstance::PostMLDeformerComponentInit()
 
 void UMLDeformerMorphModelInstance::Tick(float DeltaTime, float ModelWeight)
 {
+	// We don't want to call this multithreaded, as the AddExternalMorphSets etc isn't thread safe.
+	check(IsInGameThread());
+
 	// Detect changes in quality level.
 	const int32 CurrentQualityLevel = GetMLDeformerComponent()->GetQualityLevel();
 	if (CurrentQualityLevel != LastQualityLevel)
