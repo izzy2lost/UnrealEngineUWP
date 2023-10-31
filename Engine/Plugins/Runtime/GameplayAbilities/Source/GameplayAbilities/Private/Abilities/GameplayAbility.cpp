@@ -87,7 +87,9 @@ UGameplayAbility::UGameplayAbility(const FObjectInitializer& ObjectInitializer)
 
 	ScopeLockCount = 0;
 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	bMarkPendingKillOnAbilityEnd = false;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 UWorld* UGameplayAbility::GetWorld() const

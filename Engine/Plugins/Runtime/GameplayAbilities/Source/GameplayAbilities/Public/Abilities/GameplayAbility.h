@@ -900,15 +900,16 @@ protected:
 	void DecrementListLock() const;
 
 public:
-	/** Setter for the bMarkPendingKillOnAbilityEnd */
-	void SetMarkPendingKillOnAbilityEnd(bool bInMarkPendingKillOnAbilityEnd) { bMarkPendingKillOnAbilityEnd = bInMarkPendingKillOnAbilityEnd; }
+	UE_DEPRECATED(5.4, "This is unsafe and unnecessary.  It is ignored.")
+	void SetMarkPendingKillOnAbilityEnd(bool bInMarkPendingKillOnAbilityEnd) {}
 
-	/** Is bMarkPendingKillOnAbilityEnd set */
-	bool IsMarkPendingKillOnAbilityEnd() const { return bMarkPendingKillOnAbilityEnd; }
+	UE_DEPRECATED(5.4, "This is unsafe and unnecessary.  It will always return false.")
+	bool IsMarkPendingKillOnAbilityEnd() const { return false; }
 
 protected:
 
 	/** Flag that is set by AbilitySystemComponent::OnRemoveAbility to indicate the ability needs to be cleaned up in AbilitySystemComponent::NotifyAbilityEnded */
-	UPROPERTY(BlueprintReadOnly, Category = Ability)
+	UE_DEPRECATED(5.4, "This is unsafe. Do not use.")
+	UPROPERTY(BlueprintReadOnly, Category = Ability, meta=(DeprecatedProperty, DeprecationMessage="This is unsafe. Do not use."))
 	bool bMarkPendingKillOnAbilityEnd;
 };

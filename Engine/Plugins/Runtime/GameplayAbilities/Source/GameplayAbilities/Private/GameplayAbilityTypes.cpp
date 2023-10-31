@@ -232,6 +232,7 @@ void FGameplayAbilitySpec::PreReplicatedRemove(const struct FGameplayAbilitySpec
 {
 	if (InArraySerializer.Owner)
 	{
+		FScopedAbilityListLock AblityListLock(*InArraySerializer.Owner);
 		InArraySerializer.Owner->OnRemoveAbility(*this);
 	}
 }
