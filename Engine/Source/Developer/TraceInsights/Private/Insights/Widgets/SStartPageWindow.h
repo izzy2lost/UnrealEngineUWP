@@ -365,7 +365,7 @@ private:
 
 	//////////////////////////////////////////////////
 	// Auto Connect
-	
+
 	ECheckBoxState AutoConnect_IsChecked() const;
 	void AutoConnect_OnCheckStateChanged(ECheckBoxState NewState);
 
@@ -518,10 +518,10 @@ private:
 	TSharedPtr<SNotificationList> NotificationList;
 
 	/** Overlay slot which contains the profiler settings widget. */
-	SOverlay::FOverlaySlot* OverlaySettingsSlot;
+	SOverlay::FOverlaySlot* OverlaySettingsSlot = nullptr;
 
 	/** The number of seconds the profiler has been active */
-	float DurationActive;
+	float DurationActive = 0.0f;
 
 	/** The handle to the active update duration tick */
 	TWeakPtr<FActiveTimerHandle> ActiveTimerHandle;
@@ -531,8 +531,8 @@ private:
 	//////////////////////////////////////////////////
 
 	TUniquePtr<Insights::FStoreBrowser> StoreBrowser;
-	uint64 TracesChangeSerial;
-	uint32 SettingsChangeSerial;
+	uint32 SettingsChangeSerial = 0;
+	uint32 TracesChangeSerial = 0;
 
 	TArray<TSharedPtr<FTraceViewModel>> TraceViewModels; // all available trace view models
 	TArray<TSharedPtr<FTraceViewModel>> FilteredTraceViewModels; // the filtered list of trace view models
@@ -544,15 +544,16 @@ private:
 	TSharedPtr<SScrollBox> StoreSettingsArea;
 	TSharedPtr<STableViewBase> WatchDirsListView;
 	TSharedPtr<SListView<TSharedPtr<FTraceViewModel>>> TraceListView;
+
 	TSharedPtr<FTraceViewModel> SelectedTrace;
-	bool bIsUserSelectedTrace;
+	bool bIsUserSelectedTrace = false;
 
 	//////////////////////////////////////////////////
 	// Filtering
 
 	TSharedPtr<FTraceViewModelFilterCollection> Filters;
 
-	bool bSearchByCommandLine;
+	bool bSearchByCommandLine = false;
 	TSharedPtr<SSearchBox> FilterByNameSearchBox;
 	TSharedPtr<FTraceTextFilter> FilterByName;
 
@@ -562,14 +563,14 @@ private:
 	TSharedPtr<FTraceFilterByBuildTarget> FilterByBuildTarget;
 	TSharedPtr<FTraceFilterByBranch> FilterByBranch;
 
-	bool bFilterStatsTextIsDirty;
+	bool bFilterStatsTextIsDirty = true;
 	FText FilterStatsText;
 
 	//////////////////////////////////////////////////
 	// Sorting
 
 	FName SortColumn;
-	EColumnSortMode::Type SortMode;
+	EColumnSortMode::Type SortMode = EColumnSortMode::None;
 
 	//////////////////////////////////////////////////
 	// Auto-start functionality
@@ -578,13 +579,13 @@ private:
 
 	TSharedPtr<SSearchBox> AutoStartPlatformFilter;
 	TSharedPtr<SSearchBox> AutoStartAppNameFilter;
-	EBuildConfiguration AutoStartConfigurationTypeFilter;
-	EBuildTargetType AutoStartTargetTypeFilter;
+	EBuildConfiguration AutoStartConfigurationTypeFilter = EBuildConfiguration::Unknown;
+	EBuildTargetType AutoStartTargetTypeFilter = EBuildTargetType::Unknown;
 
 	//////////////////////////////////////////////////
 
 	FString SplashScreenOverlayTraceFile;
-	float SplashScreenOverlayFadeTime;
+	float SplashScreenOverlayFadeTime = 0.0f;
 
 	bool bEnableAutomaticTesting = false;
 	bool bEnableDebugTools = false;

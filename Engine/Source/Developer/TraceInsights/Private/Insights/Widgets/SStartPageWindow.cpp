@@ -132,7 +132,7 @@ public:
 					.HighlightColor(FLinearColor(0.75f, 0.75f, 0.75f, 1.0f))
 					.HighlightShape(FInsightsStyle::Get().GetBrush("DarkGreenBrush"))
 					.ToolTip(STraceListRow::GetTraceTooltip())
-			     	.AddMetaData(FDriverMetaData::Id("TraceList"))
+					.AddMetaData(FDriverMetaData::Id("TraceList"))
 				]
 
 				+ SOverlay::Slot()
@@ -897,39 +897,11 @@ private:
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 STraceStoreWindow::STraceStoreWindow()
-	: NotificationList()
-	, OverlaySettingsSlot(nullptr)
-	, DurationActive(0.0f)
-	, ActiveTimerHandle()
-	, MainContentPanel()
-	, StoreBrowser(new Insights::FStoreBrowser())
-	, TracesChangeSerial(0)
-	, TraceViewModels()
-	, FilteredTraceViewModels()
-	, TraceViewModelMap()
-	, TraceListView()
-	, SelectedTrace()
-	, bIsUserSelectedTrace(false)
-	, Filters()
-	, bSearchByCommandLine(false)
-	, FilterByNameSearchBox()
-	, FilterByName()
-	, FilterByPlatform()
-	, FilterByAppName()
-	, FilterByBuildConfig()
-	, FilterByBuildTarget()
-	, FilterByBranch()
-	, bFilterStatsTextIsDirty(true)
-	, FilterStatsText()
-	, SortColumn(TraceStoreColumns::Date)
-	, SortMode(EColumnSortMode::Ascending)
-	, AutoStartedSessions()
-	, AutoStartPlatformFilter()
-	, AutoStartAppNameFilter()
-	, AutoStartConfigurationTypeFilter(EBuildConfiguration::Unknown)
-	, AutoStartTargetTypeFilter(EBuildTargetType::Unknown)
-	, SplashScreenOverlayFadeTime(0.0f)
 {
+	StoreBrowser.Reset(new Insights::FStoreBrowser());
+
+	SortColumn = TraceStoreColumns::Date;
+	SortMode = EColumnSortMode::Ascending;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1079,6 +1051,11 @@ void STraceStoreWindow::Construct(const FArguments& InArgs)
 	OnTickHandle = FTSTicker::GetCoreTicker().AddTicker(OnTick, 0.0f);
 
 	CreateFilters();
+
+	if (StoreHostTextBox)
+	{
+		StoreHostTextBox->SetText(FText::FromString(FInsightsManager::Get()->GetLastStoreHost()));
+	}
 
 	RefreshTraceList();
 
@@ -1863,7 +1840,7 @@ TSharedRef<SWidget> STraceStoreWindow::ConstructAutoStartPanel()
 		.OnCheckStateChanged(this, &STraceStoreWindow::AutoStart_OnCheckStateChanged)
 		[
 			SNew(STextBlock)
-			.Text(LOCTEXT("AutoStart_Text", "Auto-start analysis for LIVE trace sessions"))
+			.Text(LOCTEXT("AutoStart_Text", "Auto-start (LIVE)"))
 		]
 	]
 
@@ -1919,7 +1896,7 @@ TSharedRef<SWidget> STraceStoreWindow::ConstructAutoStartPanel()
 		.VAlign(VAlign_Center)
 		[
 			SNew(SCheckBox)
-			.ToolTipText(LOCTEXT("AutoConnect_Tooltip", "Signal to an UE application to auto-connect and start tracing if Insights is running."))
+			.ToolTipText(LOCTEXT("AutoConnect_Tooltip", "Signal to UE applications to auto-connect with local trace server and start tracing if Insights is running."))
 			.IsChecked(this, &STraceStoreWindow::AutoConnect_IsChecked)
 			.OnCheckStateChanged(this, &STraceStoreWindow::AutoConnect_OnCheckStateChanged)
 			[
@@ -1953,11 +1930,16 @@ FText STraceStoreWindow::GetConnectionStatusTooltip() const
 	static FText Disconnected = LOCTEXT("Disconnected", "Connection to trace server has been lost. Attempting to reconnect in {0} seconds.");
 
 	const FStoreBrowser::EConnectionStatus Status = StoreBrowser->GetConnectionStatus();
-	const FString& Version = StoreBrowser->GetVersion();
+
 	switch (Status)
 	{
 		case FStoreBrowser::EConnectionStatus::Connected:
-			return FText::Format(Connected, FText::FromString(Version));
+		{
+			StoreBrowser->LockSettings();
+			FText Version = FText::FromString(StoreBrowser->GetVersion());
+			StoreBrowser->UnlockSettings();
+			return FText::Format(Connected, Version);
+		}
 
 		case FStoreBrowser::EConnectionStatus::NoConnection:
 			return NotConnected;
@@ -2222,29 +2204,29 @@ void STraceStoreWindow::RefreshTraceList()
 	bool bSettingsChanged = false;
 
 	{
-		StoreBrowser->Lock();
+		StoreBrowser->LockSettings();
 
-		const uint32 NewSettingsSerial = StoreBrowser->GetLockedSettingsSerial();
-		if (NewSettingsSerial != SettingsChangeSerial)
+		const uint32 NewSettingsChangeSerial = StoreBrowser->GetSettingsChangeSerial();
+		if (NewSettingsChangeSerial != SettingsChangeSerial)
 		{
-			SettingsChangeSerial = NewSettingsSerial;
+			SettingsChangeSerial = NewSettingsChangeSerial;
 
 			// Update the host text
 			if (StoreHostTextBox)
 			{
-				StoreHostTextBox->SetText(FText::FromString(StoreBrowser->GetLockedHost()));
+				StoreHostTextBox->SetText(FText::FromString(StoreBrowser->GetHost()));
 			}
 
 			// Update the store text box
 			if (StoreDirTextBox)
 			{
-				StoreDirTextBox->SetText(FText::FromString(StoreBrowser->GetLockedStoreDirectory()));
+				StoreDirTextBox->SetText(FText::FromString(StoreBrowser->GetStoreDirectory()));
 			}
 
 			// Update store directory model
 			StoreDirectoryModel.Empty(1);
 			StoreDirectoryModel.Push(MakeShared<FTraceDirectoryModel>(
-				FString(StoreBrowser->GetLockedStoreDirectory()),
+				FString(StoreBrowser->GetStoreDirectory()),
 				NAME_None,
 				ETraceDirOperations::ModifyStore|ETraceDirOperations::Explore
 			));
@@ -2254,7 +2236,8 @@ void STraceStoreWindow::RefreshTraceList()
 			}
 
 			// Update additional watch directory models
-			static const FName DirColor[] = {
+			static const FName DirColor[] =
+			{
 				FName("Colors.AccentBlue"),
 				FName("Colors.AccentGreen"),
 				FName("Colors.AccentYellow"),
@@ -2264,7 +2247,7 @@ void STraceStoreWindow::RefreshTraceList()
 			};
 			int32 ColorIdx = 0;
 			WatchDirectoriesModel.Empty();
-			for (const auto& Dir : StoreBrowser->GetLockedWatchDirectories())
+			for (const auto& Dir : StoreBrowser->GetWatchDirectories())
 			{
 				WatchDirectoriesModel.Emplace(MakeShared<FTraceDirectoryModel>(
 					FString(Dir),
@@ -2281,14 +2264,17 @@ void STraceStoreWindow::RefreshTraceList()
 			bSettingsChanged = true;
 		}
 
-		const uint64 NewChangeSerial = StoreBrowser->GetLockedTracesChangeSerial();
-		if (NewChangeSerial != TracesChangeSerial || bSettingsChanged)
+		StoreBrowser->UnlockSettings();
+		StoreBrowser->LockTraces();
+
+		const uint32 NewTracesChangeSerial = StoreBrowser->GetTracesChangeSerial();
+		if (NewTracesChangeSerial != TracesChangeSerial || bSettingsChanged)
 		{
-			TracesChangeSerial = NewChangeSerial;
+			TracesChangeSerial = NewTracesChangeSerial;
 			//UE_LOG(TraceInsights, Log, TEXT("[TraceStore] Synching the trace list with StoreBrowser..."));
 
-			const TArray<TSharedPtr<Insights::FStoreBrowserTraceInfo>>& InTraces = StoreBrowser->GetLockedTraces();
-			const TMap<uint32, TSharedPtr<Insights::FStoreBrowserTraceInfo>>& InTraceMap = StoreBrowser->GetLockedTraceMap();
+			const TArray<TSharedPtr<Insights::FStoreBrowserTraceInfo>>& InTraces = StoreBrowser->GetTraces();
+			const TMap<uint32, TSharedPtr<Insights::FStoreBrowserTraceInfo>>& InTraceMap = StoreBrowser->GetTraceMap();
 
 			// Check for removed traces.
 			{
@@ -2336,7 +2322,7 @@ void STraceStoreWindow::RefreshTraceList()
 			}
 		}
 
-		StoreBrowser->Unlock();
+		StoreBrowser->UnlockTraces();
 	}
 
 	if (AddedTraces > 0 || RemovedTraces > 0)
@@ -2687,7 +2673,7 @@ FReply STraceStoreWindow::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent
 	if (InKeyEvent.GetKey() == EKeys::F5) // refresh metadata for all trace sessions
 	{
 		StoreBrowser->Refresh();
-
+		SettingsChangeSerial = 0;
 		TracesChangeSerial = 0;
 		TraceViewModels.Reset();
 		TraceViewModelMap.Reset();
