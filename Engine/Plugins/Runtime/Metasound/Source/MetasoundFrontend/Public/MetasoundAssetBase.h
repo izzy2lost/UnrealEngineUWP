@@ -196,6 +196,8 @@ public:
 
 	FString GetOwningAssetName() const;
 
+	void WaitForAsyncGraphRegistration();
+
 protected:
 #if WITH_EDITOR
 	virtual void SetReferencedAssetClasses(TSet<Metasound::Frontend::IMetaSoundAssetManager::FAssetInfo>&& InAssetClasses) = 0;
@@ -220,7 +222,6 @@ protected:
 	// When a graph is registered, the underlying IMetaSoundDocumentInterface may be accessed on an
 	// async tasks. If modifications need to be made to the IMetaSoundDocumentInterface, callers should
 	// wait for the inflight graph registration to complete by calling this method.
-	void WaitForAsyncGraphRegistration();
 
 protected:
 	
