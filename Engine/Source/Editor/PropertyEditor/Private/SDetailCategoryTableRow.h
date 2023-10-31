@@ -19,6 +19,7 @@ class SDetailCategoryTableRow : public SDetailTableRowBase
 public:
 	SLATE_BEGIN_ARGS(SDetailCategoryTableRow)
 		: _InnerCategory(false)
+		, _WholeRowHeaderContent(false)
 		, _ShowBorder(true)
 		, _IsEmpty(false)
 		, _ObjectName(NAME_Name)
