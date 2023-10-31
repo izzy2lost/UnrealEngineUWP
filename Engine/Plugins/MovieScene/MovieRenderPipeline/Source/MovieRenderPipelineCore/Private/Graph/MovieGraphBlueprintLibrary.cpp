@@ -228,9 +228,9 @@ int32 UMovieGraphBlueprintLibrary::ResolveVersionNumber(FMovieGraphFilenameResol
 	constexpr bool bIncludeCDOs = true;
 	constexpr bool bExactMatch = true;
 	const UMovieGraphOutputSettingNode* OutputSettingNode = InParams.EvaluatedConfig->GetSettingForBranch<UMovieGraphOutputSettingNode>(UMovieGraphNode::GlobalsPinName, bIncludeCDOs, bExactMatch);
-	if (!OutputSettingNode->bAutoVersion)
+	if (!OutputSettingNode->VersioningSettings.bAutoVersioning)
 	{
-		return OutputSettingNode->VersionNumber;
+		return OutputSettingNode->VersioningSettings.VersionNumber;
 	}
 
 	// Calculate a version number by looking at the output path and then scanning for a version token.

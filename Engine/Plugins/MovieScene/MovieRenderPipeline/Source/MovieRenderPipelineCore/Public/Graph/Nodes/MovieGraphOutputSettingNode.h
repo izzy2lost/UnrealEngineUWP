@@ -9,6 +9,26 @@
 
 #include "MovieGraphOutputSettingNode.generated.h"
 
+USTRUCT(BlueprintType)
+struct FMovieGraphVersioningSettings
+{
+	GENERATED_BODY()
+
+	/**
+	 * If true, {version} tokens specified in the Output Directory and File Name Format properties will automatically
+	 * be incremented with each local render. If false, the version specified in Version Number will be used instead.
+	 *
+	 * Auto-versioning will search across all render branches and use the highest version found as the basis for the
+	 * next version used.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Versioning")
+	bool bAutoVersioning;
+	
+	/** The value to use for the version token if versions are not automatically incremented (Auto Version is off). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Versioning", meta = (UIMin = 1, UIMax = 50, ClampMin = 1))
+	int32 VersionNumber;
+};
+
 UCLASS()
 class MOVIERENDERPIPELINECORE_API UMovieGraphOutputSettingNode : public UMovieGraphSettingNode
 {
@@ -55,10 +75,7 @@ public:
 	uint8 bOverride_HandleFrameCount : 1;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
-	uint8 bOverride_bAutoVersion : 1;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
-	uint8 bOverride_VersionNumber : 1;
+	uint8 bOverride_VersioningSettings : 1;
 
 	/** What directory should all of our output files be relative to. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "File Output", meta=(EditCondition="bOverride_OutputDirectory"))
@@ -100,19 +117,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Frames", meta = (UIMin = 0, ClampMin = 0, EditCondition = "bOverride_HandleFrameCount"))
 	int32 HandleFrameCount;
 
-	// TODO: This versioning property should be on the "global" node
 	/**
-	 * If true, {version} tokens specified in the Output Directory and File Name Format properties will automatically
-	 * be incremented with each local render. If false, the version specified in Version Number will be used instead.
-	 *
-	 * Auto-versioning will search across all render branches and use the highest version found as the basis for the
-	 * next version used.
+	 * Determines how versioning should be handled (Auto Version, Version Number, etc.).
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Versioning", meta = (EditCondition = "bOverride_bAutoVersion"))
-	bool bAutoVersion;
-	
-	// TODO: This versioning property should be on the "global" node
-	/** The value to use for the version token if versions are not automatically incremented (Auto Version is off). */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Versioning", meta = (EditCondition = "bOverride_VersionNumber", UIMin = 1, UIMax = 50, ClampMin = 1))
-	int32 VersionNumber;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Versioning", meta = (EditCondition = "bOverride_VersioningSettings"))
+	FMovieGraphVersioningSettings VersioningSettings;
 };
