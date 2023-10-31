@@ -23,6 +23,8 @@ struct FShadeBinning
 	FRDGBufferRef ShadingBinArgs  = nullptr;
 	FRDGBufferRef ShadingBinStats = nullptr;
 
+	FRDGTextureRef FastClearVisualize = nullptr;
+
 	uint32 DataByteOffset = 0u;
 };
 

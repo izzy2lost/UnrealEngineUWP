@@ -391,7 +391,18 @@ void ExtractShadingDebug(
 			ShadingBinData = GSystemTextures.GetDefaultByteAddressBuffer(GraphBuilder, 4u);
 		}
 
+		FRDGTextureRef FastTileVis = nullptr;
+		if (ShadeBinning.FastClearVisualize)
+		{
+			FastTileVis = ShadeBinning.FastClearVisualize;
+		}
+		else
+		{
+			FastTileVis = GSystemTextures.GetBlackAlphaOneDummy(GraphBuilder);
+		}
+
 		Nanite::GGlobalResources.GetShadingBinDataBufferRef() = GraphBuilder.ConvertToExternalBuffer(ShadingBinData);
+		Nanite::GGlobalResources.GetFastClearTileVisRef() = GraphBuilder.ConvertToExternalTexture(FastTileVis);
 	}
 
 	if (GNaniteShowStats != 0 && Nanite::GGlobalResources.GetStatsBufferRef())

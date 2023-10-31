@@ -257,8 +257,9 @@ public:
 	inline PassBuffers& GetMainPassBuffers() { return MainPassBuffers; }
 	inline PassBuffers& GetPostPassBuffers() { return PostPassBuffers; }
 
-	TRefCountPtr<FRDGPooledBuffer>& GetStatsBufferRef() { return StatsBuffer; }
-	TRefCountPtr<FRDGPooledBuffer>& GetShadingBinDataBufferRef() { return ShadingBinDataBuffer; }
+	TRefCountPtr<FRDGPooledBuffer>&  GetStatsBufferRef() { return StatsBuffer; }
+	TRefCountPtr<FRDGPooledBuffer>&  GetShadingBinDataBufferRef() { return ShadingBinDataBuffer; }
+	TRefCountPtr<IPooledRenderTarget>& GetFastClearTileVisRef() { return FastClearTileVis; }
 
 #if !UE_BUILD_SHIPPING
 	FFeedbackManager* GetFeedbackManager() { return FeedbackManager; }
@@ -272,6 +273,7 @@ private:
 
 	// Used for visualizations
 	TRefCountPtr<FRDGPooledBuffer> ShadingBinDataBuffer;
+	TRefCountPtr<IPooledRenderTarget> FastClearTileVis;
 
 #if !UE_BUILD_SHIPPING
 	FFeedbackManager* FeedbackManager = nullptr;

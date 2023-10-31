@@ -285,6 +285,7 @@ void FGlobalResources::ReleaseRHI()
 
 		StatsBuffer.SafeRelease();
 		ShadingBinDataBuffer.SafeRelease();
+		FastClearTileVis.SafeRelease();
 
 #if !UE_BUILD_SHIPPING
 		delete FeedbackManager;

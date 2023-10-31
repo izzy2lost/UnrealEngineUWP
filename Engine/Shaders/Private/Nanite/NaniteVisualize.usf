@@ -24,6 +24,7 @@ Texture2D<uint4>		SceneZLayout;
 Texture2D<float>		MaterialZDecoded;
 Texture2D<uint4>		MaterialZLayout;
 Texture2D<uint>			ShadingMask;
+Texture2D<uint>			FastClearTileVis;
 
 StructuredBuffer<FNaniteRasterBinMeta> RasterBinMeta;
 ByteAddressBuffer		ShadingBinData;
@@ -113,6 +114,11 @@ float GetOverdrawScale()
 float GetComplexityScale()
 {
 	return clamp(float(VisualizeScales.y), 0.0f, 100.0f) / 100.0f;
+}
+
+uint GetShadingExportCount()
+{
+	return uint(VisualizeScales.z);
 }
 
 bool GetCompositeWithSceneDepth()
@@ -387,6 +393,14 @@ void VisualizeCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 
 			const uint ModeValue = select(MaterialFlags.bNoDerivativeOps, 2, 1);
 			Result = (IntToColor(ModeValue) * 0.75 + 0.25) * (IntToColor(TriIndex).x * 0.5 + 0.5);
+		}
+		else if (VisualizeMode == NANITE_VISUALIZE_FAST_CLEAR_TILES)
+		{
+			const uint TileData = FastClearTileVis[PixelPos];
+			// Tile data has a counter for each MRT that is still marked as "clear" in
+			// the meta data, indicating that the next fast clear eliminate will fully
+			// write through this memory (slow tile).
+			Result = ColorMapInferno(float(TileData) / float(GetShadingExportCount()));
 		}
 		else if (VisualizeMode == NANITE_VISUALIZE_NANITE_MASK)
 		{

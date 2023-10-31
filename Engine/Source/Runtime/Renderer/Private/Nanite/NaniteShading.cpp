@@ -3,6 +3,7 @@
 #include "NaniteShading.h"
 #include "NaniteVertexFactory.h"
 #include "NaniteRayTracing.h"
+#include "NaniteVisualizationData.h"
 #include "Rendering/NaniteResources.h"
 #include "Rendering/NaniteStreamingManager.h"
 #include "ComponentRecreateRenderStateContext.h"
@@ -56,6 +57,14 @@ static FAutoConsoleVariableRef CVarNaniteFastTileClear(
 	TEXT("r.Nanite.FastTileClear"),
 	GNaniteFastTileClear,
 	TEXT("Whether to enable Nanite fast tile clearing"),
+	ECVF_RenderThreadSafe
+);
+
+static int32 GNaniteFastTileVis = INDEX_NONE;
+static FAutoConsoleVariableRef CVarNaniteFastTileVis(
+	TEXT("r.Nanite.FastTileVis"),
+	GNaniteFastTileVis,
+	TEXT("Allows for just showing a single target in the visualization, or -1 to show all accumulated"),
 	ECVF_RenderThreadSafe
 );
 
@@ -171,25 +180,20 @@ static FRDGTextureRef GetShadingRateImage(FRDGBuilder& GraphBuilder, const FView
 	return ShadingRateImage;
 }
 
-class FClearTilesCS : public FNaniteGlobalShader
+class FVisualizeClearTilesCS : public FNaniteGlobalShader
 {
 public:
-	DECLARE_GLOBAL_SHADER(FClearTilesCS);
-
-	class FNumExports : SHADER_PERMUTATION_RANGE_INT("NUM_EXPORTS", 1, MaxSimultaneousRenderTargets);
-	using FPermutationDomain = TShaderPermutationDomain<FNumExports>;
+	DECLARE_GLOBAL_SHADER(FVisualizeClearTilesCS);
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER(FUint32Vector4, ViewRect)
-		SHADER_PARAMETER(uint32, ValidWriteMask)
-		SHADER_PARAMETER_RDG_TEXTURE_UAV_ARRAY(RWTextureMetadata, OutCMaskBuffer, [MaxSimultaneousRenderTargets])
-		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D<uint>, ShadingMask)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, ShadingBinData)
+		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTextureMetadata, OutCMaskBuffer)
+		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<uint>, OutVisualized)
 	END_SHADER_PARAMETER_STRUCT()
 
-	FClearTilesCS() = default;
-	FClearTilesCS(const ShaderMetaType::CompiledShaderInitializerType& Initializer)
-		: FNaniteGlobalShader(Initializer)
+	FVisualizeClearTilesCS() = default;
+	FVisualizeClearTilesCS(const ShaderMetaType::CompiledShaderInitializerType& Initializer)
+	: FNaniteGlobalShader(Initializer)
 	{
 		PlatformDataParam.Bind(Initializer.ParameterMap, TEXT("PlatformData"), SPF_Mandatory);
 		BindForLegacyShaderParameters<FParameters>(this, Initializer.PermutationId, Initializer.ParameterMap);
@@ -209,7 +213,7 @@ public:
 private:
 	LAYOUT_FIELD(FShaderParameter, PlatformDataParam);
 };
-IMPLEMENT_GLOBAL_SHADER(FClearTilesCS, "/Engine/Private/Nanite/NaniteFastClear.usf", "ClearTiles", SF_Compute);
+IMPLEMENT_GLOBAL_SHADER(FVisualizeClearTilesCS, "/Engine/Private/Nanite/NaniteFastClear.usf", "VisualizeClearTilesCS", SF_Compute);
 
 class FShadingBinBuildCS : public FNaniteGlobalShader
 {
@@ -398,6 +402,8 @@ void BuildShadingCommands(FScene& Scene, TArrayView<FViewInfo> Views, ENaniteMes
 		const auto& Pipelines = ShadingPipelines.GetShadingPipelineMap();
 
 		FNaniteShadingCommands& ShadingCommands = Scene.NaniteShadingCommands[MeshPass];
+
+		ShadingCommands.BoundTargetMask = 0x0u;
 		
 		ShadingCommands.Commands.Reset();
 		ShadingCommands.Commands.Reserve(Pipelines.Num());
@@ -416,6 +422,8 @@ void BuildShadingCommands(FScene& Scene, TArrayView<FViewInfo> Views, ENaniteMes
 			}
 
 			ShadingCommands.MaxShadingBin = FMath::Max<uint32>(ShadingCommands.MaxShadingBin, uint32(ShadingCommand.ShadingBin));
+
+			ShadingCommands.BoundTargetMask |= ShadingCommand.Pipeline->BoundTargetMask;
 		}
 
 		if (GNaniteComputeMaterialsSort != 0)
@@ -857,6 +865,7 @@ FNaniteShadingPassParameters CreateNaniteShadingPassParams(
 	FRDGBufferRef MultiViewRectScaleOffsets,
 	FRDGBufferRef ViewsBuffer,
 	const FRenderTargetBindingSlots& BasePassRenderTargets,
+	const uint32 BoundTargetMask,
 	const FShadeBinning& ShadeBinning
 )
 {
@@ -942,7 +951,19 @@ FNaniteShadingPassParameters CreateNaniteShadingPassParams(
 	{
 		if (FRDGTexture* TargetTexture = BasePassRenderTargets.Output[TargetIndex].GetTexture())
 		{
-			if (bMaintainCompression)
+			if ((BoundTargetMask & (1u << TargetIndex)) == 0u)
+			{
+				// Change any target over to a dummy if not written by at least one shading command
+				FRDGTextureDesc DummyDesc = FRDGTextureDesc::Create2D(
+					FIntPoint(1u, 1u),
+					PF_R32_UINT,
+					FClearValueBinding::Transparent,
+					TexCreate_ShaderResource | TexCreate_UAV
+				);
+
+				*OutTargets[TargetIndex] = GraphBuilder.CreateUAV(GraphBuilder.CreateTexture(DummyDesc, TEXT("Nanite.TargetDummy")), OutTargetFlags);
+			}
+			else if (bMaintainCompression)
 			{
 				*OutTargets[TargetIndex] = GraphBuilder.CreateUAV(FRDGTextureUAVDesc::CreateForMetaData(TargetTexture, ERDGTextureMetaDataAccess::PrimaryCompressed), OutTargetFlags);
 			}
@@ -1058,6 +1079,13 @@ void DispatchBasePass(
 					continue;
 				}
 
+				if ((ShadingCommands.BoundTargetMask & (1u << TargetIndex)) == 0u)
+				{
+					// Skip any targets that are not written by at least one shading command
+					ClearTargetList.Add(nullptr);
+					continue;
+				}
+
 				ClearTargetList.Add(TargetTexture);
 			}
 		}
@@ -1083,6 +1111,7 @@ void DispatchBasePass(
 		MultiViewRectScaleOffsets,
 		ViewsBuffer,
 		BasePassBindings,
+		ShadingCommands.BoundTargetMask,
 		Binning
 	);
 
@@ -1661,6 +1690,68 @@ FShadeBinning ShadeBinning(
 
 		auto ComputeShader = View.ShaderMap->GetShader<FShadingBinValidateCS>();
 		FComputeShaderUtils::AddPass(GraphBuilder, RDG_EVENT_NAME("ShadingValidate"), ERDGPassFlags::Compute | ERDGPassFlags::NeverCull, ComputeShader, PassParameters, BinDispatchDim);
+	}
+
+	const FNaniteVisualizationData& VisualizationData = GetNaniteVisualizationData();
+	if (bOptimizeWriteMask && VisualizationData.IsActive())
+	{
+		auto ComputeShader = View.ShaderMap->GetShader<FVisualizeClearTilesCS>();
+
+		FRDGTextureDesc VisClearMaskDesc = FRDGTextureDesc::Create2D(
+			FIntPoint(InViewRect.Width(), InViewRect.Height()),
+			PF_R32_UINT,
+			FClearValueBinding::Transparent,
+			TexCreate_ShaderResource | TexCreate_UAV
+		);
+
+		Binning.FastClearVisualize = GraphBuilder.CreateTexture(VisClearMaskDesc, TEXT("Nanite.VisClearMask"));
+		AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(Binning.FastClearVisualize), FUintVector4(ForceInitToZero));
+
+		for (int32 TargetIndex = 0; TargetIndex < ValidClearTargets.Num(); ++TargetIndex)
+		{
+			if (TargetIndex != GNaniteFastTileVis && GNaniteFastTileVis != INDEX_NONE)
+			{
+				continue;
+			}
+
+			FVisualizeClearTilesCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FVisualizeClearTilesCS::FParameters>();
+			PassParameters->ViewRect		= ViewRect;
+			PassParameters->OutCMaskBuffer	= GraphBuilder.CreateUAV(FRDGTextureUAVDesc::CreateForMetaData(ValidClearTargets[TargetIndex], ERDGTextureMetaDataAccess::CMask));
+			PassParameters->OutVisualized	= GraphBuilder.CreateUAV(Binning.FastClearVisualize);
+
+			GraphBuilder.AddPass(
+				RDG_EVENT_NAME("VisualizeFastClear"),
+				PassParameters,
+				ERDGPassFlags::Compute,
+				[InViewRect, ComputeShader, PassParameters](FRHIComputeCommandList& RHICmdList)
+				{
+					void* PlatformDataPtr = nullptr;
+					uint32 PlatformDataSize = 0;
+
+					if (PassParameters->OutCMaskBuffer != nullptr)
+					{
+						FRHITexture* TargetTextureRHI = PassParameters->OutCMaskBuffer->GetParentRHI();
+
+						// Retrieve the platform specific data that the decode shader needs.
+						TargetTextureRHI->GetWriteMaskProperties(PlatformDataPtr, PlatformDataSize);
+						check(PlatformDataSize > 0);
+
+						if (PlatformDataPtr == nullptr)
+						{
+							// If the returned pointer was null, the platform RHI wants us to allocate the memory instead.
+							PlatformDataPtr = alloca(PlatformDataSize);
+							TargetTextureRHI->GetWriteMaskProperties(PlatformDataPtr, PlatformDataSize);
+						}
+					}
+
+					SetComputePipelineState(RHICmdList, ComputeShader.GetComputeShader());
+					SetShaderParametersMixedCS(RHICmdList, ComputeShader, *PassParameters, PlatformDataPtr, PlatformDataSize);
+
+					const FIntVector DispatchDim = FComputeShaderUtils::GetGroupCount(FIntPoint(InViewRect.Width(), InViewRect.Height()), FIntPoint(8u, 8u));
+					RHICmdList.DispatchComputeShader(DispatchDim.X, DispatchDim.Y, DispatchDim.Z);
+				}
+			);
+		}
 	}
 
 	return Binning;

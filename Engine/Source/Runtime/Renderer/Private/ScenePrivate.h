@@ -2769,6 +2769,7 @@ struct FNaniteShadingCommands
 	using FMetaBufferArray = TArray<FUintVector4, SceneRenderingAllocator>;
 
 	uint32 MaxShadingBin = 0u;
+	uint32 BoundTargetMask = 0x0u;
 	FShaderBundleRHIRef ShaderBundle;
 	TArray<FNaniteShadingCommand> Commands;
 	FMetaBufferArray MetaBufferData;

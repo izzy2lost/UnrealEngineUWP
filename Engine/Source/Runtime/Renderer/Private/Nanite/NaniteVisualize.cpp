@@ -108,11 +108,11 @@ static FIntVector4 GetVisualizeConfig(int32 ModeID, bool bCompositeScene, bool b
 	return FIntVector4(INDEX_NONE, 0, 0, 0);
 }
 
-static FIntVector4 GetVisualizeScales(int32 ModeID)
+static FIntVector4 GetVisualizeScales(int32 ModeID, uint32 ShadingExportCount)
 {
 	if (ModeID != INDEX_NONE)
 	{
-		return FIntVector4(GNaniteVisualizeOverdrawScale, GNaniteVisualizeComplexityScale, 0 /* Unused */, 0 /* Unused */);
+		return FIntVector4(GNaniteVisualizeOverdrawScale, GNaniteVisualizeComplexityScale, int32(ShadingExportCount), 0 /* Unused */);
 	}
 
 	return FIntVector4(INDEX_NONE, 0, 0, 0);
@@ -177,6 +177,7 @@ class FNaniteVisualizeCS : public FNaniteGlobalShader
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<FUint32Vector4>, SceneZLayout)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float>, MaterialZDecoded)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<FUint32Vector4>, MaterialZLayout)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<uint>, FastClearTileVis)
 		SHADER_PARAMETER_SRV(ByteAddressBuffer, MaterialSlotTable)
 		SHADER_PARAMETER_SRV(ByteAddressBuffer, MaterialDepthTable)
 		SHADER_PARAMETER_SRV(ByteAddressBuffer, MaterialHitProxyTable)
@@ -322,7 +323,23 @@ static FRDGBufferSRVRef GetShadingBinDataSRV(FRDGBuilder& GraphBuilder)
 	{
 		ShadingBinData = GSystemTextures.GetDefaultByteAddressBuffer(GraphBuilder, 4u);
 	}
+
 	return GraphBuilder.CreateSRV(ShadingBinData);
+}
+
+static FRDGTextureRef GetFastClearTileVis(FRDGBuilder& GraphBuilder)
+{
+	FRDGTextureRef FastClearTileVis = nullptr;
+	if (Nanite::GGlobalResources.GetFastClearTileVisRef().IsValid())
+	{
+		FastClearTileVis = GraphBuilder.RegisterExternalTexture(Nanite::GGlobalResources.GetFastClearTileVisRef());
+	}
+	else
+	{
+		FastClearTileVis = GSystemTextures.GetBlackAlphaOneDummy(GraphBuilder);
+	}
+
+	return FastClearTileVis;
 }
 
 static FRDGBufferRef PerformPicking(
@@ -736,23 +753,16 @@ void AddVisualizationPasses(
 
 						Visualization.ModeOutput = GraphBuilder.CreateTexture(VisualizationOutputDesc, TEXT("Nanite.Visualization"));
 
-						FRDGBufferRef ShadingBinData = nullptr;
-						if (Nanite::GGlobalResources.GetShadingBinDataBufferRef().IsValid())
-						{
-							ShadingBinData = GraphBuilder.RegisterExternalBuffer(Nanite::GGlobalResources.GetShadingBinDataBufferRef());
-						}
-						else
-						{
-							ShadingBinData = GSystemTextures.GetDefaultByteAddressBuffer(GraphBuilder, 4u);
-						}
-
 						FNaniteVisualizeCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FNaniteVisualizeCS::FParameters>();
+
+						FGraphicsPipelineRenderTargetsInfo RenderTargetsInfo;
+						const uint32 ShadingExportCount = SceneTextures.Config.GetGBufferRenderTargetsInfo(RenderTargetsInfo);
 
 						PassParameters->View = View.GetShaderParameters();
 						PassParameters->Scene = View.GetSceneUniforms().GetBuffer(GraphBuilder);
 						PassParameters->ClusterPageData = Nanite::GStreamingManager.GetClusterPageDataSRV(GraphBuilder);
 						PassParameters->VisualizeConfig = GetVisualizeConfig(Visualization.ModeID, Visualization.bCompositeScene, GNaniteVisualizeEdgeDetect != 0);
-						PassParameters->VisualizeScales = GetVisualizeScales(Visualization.ModeID);
+						PassParameters->VisualizeScales = GetVisualizeScales(Visualization.ModeID, ShadingExportCount);
 						PassParameters->PageConstants = Data.PageConstants;
 						PassParameters->MaxVisibleClusters = Data.MaxVisibleClusters;
 						PassParameters->RenderFlags = Data.RenderFlags;
@@ -769,6 +779,7 @@ void AddVisualizationPasses(
 						PassParameters->SceneZLayout = SceneZLayout;
 						PassParameters->MaterialZDecoded = MaterialZDecoded;
 						PassParameters->MaterialZLayout = MaterialZLayout;
+						PassParameters->FastClearTileVis = GetFastClearTileVis(GraphBuilder);
 						PassParameters->MaterialSlotTable = MaterialCommands.GetMaterialSlotSRV();
 						PassParameters->MaterialDepthTable = MaterialCommands.GetMaterialDepthSRV();
 					#if WITH_EDITOR
