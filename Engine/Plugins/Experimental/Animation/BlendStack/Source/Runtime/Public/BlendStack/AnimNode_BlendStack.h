@@ -14,7 +14,7 @@ struct BLENDSTACK_API FBlendStackAnimPlayer
 	GENERATED_BODY()
 	
 	void Initialize(const FAnimationInitializeContext& Context, UAnimationAsset* AnimationAsset, float AccumulatedTime, bool bLoop,
-		bool bMirrored, UMirrorDataTable* MirrorDataTable, float BlendTime, float RootBoneBlendTime, float MaxTimeBeforeFreezingInnerBlends,
+		bool bMirrored, UMirrorDataTable* MirrorDataTable, float BlendTime, float RootBoneBlendTime,
 		const UBlendProfile* BlendProfile, EAlphaBlendOption InBlendOption, const FVector& BlendParameters, float PlayRate, int32 InPoseLinkIdx,
 		FName GroupName, EAnimGroupRole::Type GroupRole, EAnimSyncMethod Method);
 	
@@ -35,8 +35,8 @@ struct BLENDSTACK_API FBlendStackAnimPlayer
 	void MovePoseContextTo(FBlendStackAnimPlayer& Other);
 
 	float GetTotalBlendInTime() const { return TotalBlendInTime; }
-	float GetCurrentBlendInTime() const { return CurrentBlendInTimeAsMainPlayer + CurrentBlendInTimeAsSecondaryPlayer; }
-	void AdvanceBlendInTime(const float DeltaTime, bool bIsMainPlayer);
+	float GetCurrentBlendInTime() const { return CurrentBlendInTime; }
+	void AdvanceBlendInTime(const float DeltaTime, int32 PlayerDepth, float PlayerDepthBlendInTimeMultiplier);
 	bool GetMirror() const { return MirrorNode.GetMirror(); }
 	FVector GetBlendParameters() const;
 	void SetBlendParameters(const FVector& BlendParameters);
@@ -81,9 +81,7 @@ private:
 	TCustomBoneIndexArray<float, FSkeletonPoseBoneIndex> TotalBlendInTimePerBone;
 
 	float TotalBlendInTime = 0.f;
-	float MaxBlendInTimeAsSecondaryPlayer = UE_BIG_NUMBER;
-	float CurrentBlendInTimeAsMainPlayer = 0.f;
-	float CurrentBlendInTimeAsSecondaryPlayer = 0.f;
+	float CurrentBlendInTime = 0.f;
 };
 
 USTRUCT(BlueprintInternalUseOnly)
@@ -129,8 +127,7 @@ struct BLENDSTACK_API FAnimNode_BlendStack_Standalone : public FAnimNode_AssetPl
 	// End of FAnimNode_Base interface
 
 	void BlendTo(const FAnimationUpdateContext& Context, UAnimationAsset* AnimationAsset, float AccumulatedTime = 0.f, bool bLoop = false, 
-		bool bMirrored = false, UMirrorDataTable* MirrorDataTable = nullptr,
-		float BlendTime = 0.2f, float RootBoneBlendTime = -1.f, float MaxTimeBeforeFreezingInnerBlends = -1.f,
+		bool bMirrored = false, UMirrorDataTable* MirrorDataTable = nullptr, float BlendTime = 0.2f, float RootBoneBlendTime = -1.f,
 		const UBlendProfile* BlendProfile = nullptr, EAlphaBlendOption BlendOption = EAlphaBlendOption::Linear, 
 		bool bUseInertialBlend = false, const FVector& BlendParameters = FVector::Zero(), float PlayRate = 1.f,
 		FName GroupName = NAME_None, EAnimGroupRole::Type GroupRole = EAnimGroupRole::CanBeLeader, EAnimSyncMethod Method = EAnimSyncMethod::DoNotSync);
@@ -167,6 +164,15 @@ protected:
 	// Window of time after firing a notify that any instance of the same notify will be filtered out.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta = (ClampMin = "0", PinHiddenByDefault))
 	float NotifyRecencyTimeOut = 0.2f;
+
+	// if the most relevant (recently added) animation is within MaxBlendInTimeToOverrideAnimation, the new requested blend will take its spot
+	// otherwise a new blended will be added to the stack
+	UPROPERTY(EditAnywhere, Category = Settings)
+	float MaxBlendInTimeToOverrideAnimation = 0.f;
+
+	// AnimPlayers blend in timer will be incremented PlayerDepthBlendInTimeMultiplier times faster on a deeper blend
+	UPROPERTY(EditAnywhere, Category = Settings)
+	float PlayerDepthBlendInTimeMultiplier = 1.f;
 
 private:
 	void PopLastAnimPlayer();
@@ -212,10 +218,6 @@ struct BLENDSTACK_API FAnimNode_BlendStack : public FAnimNode_BlendStack_Standal
 	// Time in seconds to blend out to the new pose root bone. Negative values would imply RootBoneBlendTime is equal to BlendTime
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta = (PinHiddenByDefault))
 	float RootBoneBlendTime = -1.f;
-
-	// Max time in seconds before freezing the blend ratio of all blends, but the most recently requested one. Negative values would imply MaxTimeBeforeFreezingInnerBlends is equal to BlendTime
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta = (PinHiddenByDefault))
-	float MaxTimeBeforeFreezingInnerBlends = -1.f;
 
 	// if AnimationTime and MaxAnimationDeltaTime are positive and the currently playing animation total time differs more than MaxAnimationDeltaTime from AnimationTime
 	// (animation desynchronized from the requested time) the blend stack will force a blend into the same animation

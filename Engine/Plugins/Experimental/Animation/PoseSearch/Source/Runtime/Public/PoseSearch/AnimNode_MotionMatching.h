@@ -64,10 +64,6 @@ private:
 	UPROPERTY(EditAnywhere, Category = Settings, meta = (PinHiddenByDefault, ClampMin="0"))
 	float BlendTime = 0.2f;
 
-	// Max time in seconds before freezing the blend ratio of all blends, but the most recently requested one. Negative values would imply MaxTimeBeforeFreezingInnerBlends is equal to BlendTime
-	UPROPERTY(EditAnywhere, Category = Settings, meta = (PinHiddenByDefault))
-	float MaxTimeBeforeFreezingInnerBlends = -1.f;
-
 	// Set Blend Profiles (editable in the skeleton) to determine how the blending is distributed among your character's bones. It could be used to differentiate between upper body and lower body to blend timing.
 	UPROPERTY(EditAnywhere, Category = Settings, meta = (PinHiddenByDefault, UseAsBlendProfile = true))
 	TObjectPtr<UBlendProfile> BlendProfile;

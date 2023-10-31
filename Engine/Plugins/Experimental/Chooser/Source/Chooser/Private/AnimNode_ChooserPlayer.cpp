@@ -137,8 +137,7 @@ void FAnimNode_ChooserPlayer::UpdateAssetPlayer(const FAnimationUpdateContext& C
 		}
 		
 		FAnimNode_BlendStack_Standalone::BlendTo(Context, NewAsset, Settings.StartTime,
-			bLoop, Settings.bMirror, MirrorDataTable,
-			Settings.BlendTime, Settings.BlendTime, Settings.BlendTime,
+			bLoop, Settings.bMirror, MirrorDataTable, Settings.BlendTime, Settings.BlendTime,
 			Settings.BlendProfile, Settings.BlendOption, Settings.bUseInertialBlend, FVector::Zero(), Settings.PlaybackRate,
 			GetGroupName(), GetGroupRole(), GetGroupMethod());
 
