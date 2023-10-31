@@ -423,6 +423,9 @@ struct FGeometryCollectionRepData
 	bool Identical(const FGeometryCollectionRepData* Other, uint32 PortFlags) const;
 	bool NetSerialize(FArchive& Ar, class UPackageMap* Map, bool& bOutSuccess);
 
+	// Check if the data has changed
+	bool HasChanged(const FGeometryCollectionRepData& BaseData) const;
+
 	void Reset()
 	{
 		OneOffActivated.Reset();
@@ -485,6 +488,9 @@ struct FGeometryCollectionRepStateData
 	bool Identical(const FGeometryCollectionRepStateData* Other, uint32 PortFlags) const;
 	bool NetSerialize(FArchive& Ar, class UPackageMap* Map, bool& bOutSuccess);
 
+	// Check if the data has changed
+	bool HasChanged(const FGeometryCollectionRepStateData& BaseData) const;
+
 	void Reset()
 	{
 		BrokenState.Reset();
@@ -545,6 +551,9 @@ struct FGeometryCollectionRepDynamicData
 	// Just test version to skip having to traverse the whole pose array for replication
 	bool Identical(const FGeometryCollectionRepDynamicData* Other, uint32 PortFlags) const;
 	bool NetSerialize(FArchive& Ar, class UPackageMap* Map, bool& bOutSuccess);
+
+	// Check if the data has changed
+	bool HasChanged(const FGeometryCollectionRepDynamicData& BaseData) const;
 
 	void Reset()
 	{

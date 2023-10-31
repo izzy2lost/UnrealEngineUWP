@@ -62,34 +62,41 @@ void UClusterUnionReplicatedProxyComponent::EndPlay(const EEndPlayReason::Type E
 
 void UClusterUnionReplicatedProxyComponent::SetParentClusterUnion(UClusterUnionComponent* InComponent)
 {
-	FlushNetDormancyIfNeeded();
+	if (ParentClusterUnion != InComponent)
+	{
+		FlushNetDormancyIfNeeded();
 
-	ParentClusterUnion = InComponent;
-	MARK_PROPERTY_DIRTY_FROM_NAME(UClusterUnionReplicatedProxyComponent, ParentClusterUnion, this);
+		ParentClusterUnion = InComponent;
+		MARK_PROPERTY_DIRTY_FROM_NAME(UClusterUnionReplicatedProxyComponent, ParentClusterUnion, this);
+	}
 }
 
 void UClusterUnionReplicatedProxyComponent::SetChildClusteredComponent(UPrimitiveComponent* InComponent)
 {
-	FlushNetDormancyIfNeeded();
+	if (ChildClusteredComponent != InComponent)
+	{
+		FlushNetDormancyIfNeeded();
 
-	ChildClusteredComponent = InComponent;
-	MARK_PROPERTY_DIRTY_FROM_NAME(UClusterUnionReplicatedProxyComponent, ChildClusteredComponent, this);
+		ChildClusteredComponent = InComponent;
+		MARK_PROPERTY_DIRTY_FROM_NAME(UClusterUnionReplicatedProxyComponent, ChildClusteredComponent, this);
+	}
 }
 
 void UClusterUnionReplicatedProxyComponent::SetParticleBoneIds(const TArray<int32>& InIds)
 {
-	FlushNetDormancyIfNeeded();
+	if(ParticleBoneIds != InIds)
+	{ 
+		FlushNetDormancyIfNeeded();
 
-	ParticleBoneIds = InIds;
+		ParticleBoneIds = InIds;
 
-	ParticleChildToParents.Empty();
-	ParticleChildToParents.Reserve(InIds.Num());
-	for (int32 Index = 0; Index < InIds.Num(); ++Index)
-	{
-		ParticleChildToParents.Add(FTransform::Identity);
+		ParticleChildToParents.Reset(InIds.Num());
+		for (int32 Index = 0; Index < InIds.Num(); ++Index)
+		{
+			ParticleChildToParents.Add(FTransform::Identity);
+		}
+		MARK_PROPERTY_DIRTY_FROM_NAME(UClusterUnionReplicatedProxyComponent, ParticleBoneIds, this);
 	}
-
-	MARK_PROPERTY_DIRTY_FROM_NAME(UClusterUnionReplicatedProxyComponent, ParticleBoneIds, this);
 }
 
 void UClusterUnionReplicatedProxyComponent::SetParticleChildToParent(int32 BoneId, const FTransform& ChildToParent)
@@ -97,10 +104,13 @@ void UClusterUnionReplicatedProxyComponent::SetParticleChildToParent(int32 BoneI
 	int32 Index = INDEX_NONE;
 	if (ParticleBoneIds.Find(BoneId, Index))
 	{
-		FlushNetDormancyIfNeeded();
+		if(!ParticleChildToParents[Index].Equals(ChildToParent))
+		{ 
+			FlushNetDormancyIfNeeded();
 
-		ParticleChildToParents[Index] = ChildToParent;
-		MARK_PROPERTY_DIRTY_FROM_NAME(UClusterUnionReplicatedProxyComponent, ParticleChildToParents, this);
+			ParticleChildToParents[Index] = ChildToParent;
+			MARK_PROPERTY_DIRTY_FROM_NAME(UClusterUnionReplicatedProxyComponent, ParticleChildToParents, this);
+		}
 	}
 }
 
