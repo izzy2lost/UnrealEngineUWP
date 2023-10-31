@@ -28,6 +28,8 @@ namespace UE::AnimNext::Editor
 {
 	class FParametersEditor;
 	struct FUtils;
+	class SParameterBlockViewRow;
+	class FParameterBlockParameterCustomization;
 }
 
 // Library entry used to export to asset registry
@@ -77,6 +79,8 @@ class UAnimNextParameterBlock : public URigVMHost, public IAnimNextParameterSour
 	friend struct FAnimNode_AnimNextParameters;
 	friend struct FAnimNextScheduleGraphTask;
 	friend struct FAnimNextScheduleParamScopeEntryTask;
+	friend class UE::AnimNext::Editor::SParameterBlockViewRow;
+	friend class UE::AnimNext::Editor::FParameterBlockParameterCustomization;
 
 	// IAnimNextParameterSourceInterface interface
 	virtual void UpdateLayer(UE::AnimNext::FParamStackLayerHandle& InHandle) const override;
@@ -86,7 +90,10 @@ class UAnimNextParameterBlock : public URigVMHost, public IAnimNextParameterSour
 	// UObject interface
 	virtual void PostLoad() override;
 	virtual void GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const override;
-	
+
+	FInstancedPropertyBag& GetPropertyBag() { return PropertyBag; }
+
+
 	FRigVMExtendedExecuteContext BaseRigVMContext;
 
 	UPROPERTY()

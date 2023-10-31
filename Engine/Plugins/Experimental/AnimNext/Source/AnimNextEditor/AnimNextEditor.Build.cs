@@ -33,6 +33,7 @@ namespace UnrealBuildTool.Rules
 					"AssetDefinition",
 					"SourceControl", 
 					"KismetWidgets",
+					"StructUtils",
 					"StructUtilsEditor",
 					"BlueprintGraph",	// For K2 Schema
 					"DesktopWidgets",

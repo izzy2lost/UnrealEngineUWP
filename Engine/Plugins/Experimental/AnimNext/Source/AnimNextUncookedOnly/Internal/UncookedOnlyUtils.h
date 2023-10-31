@@ -49,6 +49,8 @@ struct ANIMNEXTUNCOOKEDONLY_API FUtils
 
 	static UAnimNextParameterBlock* GetBlock(const UAnimNextParameterBlock_EditorData* InEditorData);
 
+	static FInstancedPropertyBag* GetPropertyBag(UAnimNextParameterBlock* ReferencedBlock);
+
 	static void RecreateVM(UAnimNextParameterBlock* InParameterBlock);
 
 	/**

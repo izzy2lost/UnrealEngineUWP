@@ -31,6 +31,8 @@ namespace UE::AnimNext::Editor
 	class SParameterBlockView;
 	class SParameterPicker;
 	class FParameterBlockTabSummoner;
+	class SParameterBlockViewRow;
+	class FParameterBlockParameterCustomization;
 }
 
 namespace UE::AnimNext::UncookedOnly
@@ -107,6 +109,8 @@ class UAnimNextParameterBlock_EditorData : public UObject, public IRigVMClientHo
 	friend class UE::AnimNext::Editor::SParameterPicker;
 	friend class UE::AnimNext::Editor::FParameterBlockTabSummoner;
 	friend class FAnimationAnimNextParametersEditorTest_Block;
+	friend class UE::AnimNext::Editor::SParameterBlockViewRow;
+	friend class UE::AnimNext::Editor::FParameterBlockParameterCustomization;
 
 	ANIMNEXTUNCOOKEDONLY_API UAnimNextParameterBlockParameter* AddParameter(FName InName, UAnimNextParameterLibrary* InLibrary, bool bSetupUndoRedo = true, bool bPrintPythonCommand = true);
 
@@ -178,7 +182,7 @@ class UAnimNextParameterBlock_EditorData : public UObject, public IRigVMClientHo
 
 	void CreateEdGraphForCollapseNode(URigVMCollapseNode* InNode);
 
-	void BroadcastModified();
+	ANIMNEXTUNCOOKEDONLY_API void BroadcastModified();
 
 	void ReportError(const TCHAR* InMessage) const;
 

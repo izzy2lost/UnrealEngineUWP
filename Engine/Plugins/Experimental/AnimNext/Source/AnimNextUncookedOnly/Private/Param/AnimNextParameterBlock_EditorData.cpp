@@ -157,7 +157,7 @@ UAnimNextParameterBlockGraph* UAnimNextParameterBlock_EditorData::AddGraph(FName
 	int32 NameNumber = InName.GetNumber() + 1;
 	while(bAlreadyExists)
 	{
-		NewGraphName = FName(InName, NameNumber);
+		NewGraphName = FName(InName, NameNumber++);
 		bAlreadyExists =  Entries.ContainsByPredicate(DuplicateNamePredicate);
 	}
 

@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -10,12 +10,18 @@
 class UAnimNextParameterLibrary;
 class UAnimNextParameterBlock_EditorData;
 
-UCLASS()
+namespace UE::AnimNext::Editor
+{
+	class FParameterBlockParameterCustomization;
+}
+
+UCLASS(MinimalAPI)
 class UAnimNextParameterBlockParameter : public UAnimNextParameterBlockEntry, public IAnimNextParameterBlockParameterInterface
 {
 	GENERATED_BODY()
 
 	friend class UAnimNextParameterBlock_EditorData;
+	friend class UE::AnimNext::Editor::FParameterBlockParameterCustomization;
 	
 	// UAnimNextParameterBlockEntry interface
 	virtual FText GetDisplayName() const override;

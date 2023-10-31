@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Param/AnimNextParameterBlockParameter.h"
 #include "Param/AnimNextParameter.h"
@@ -40,7 +40,17 @@ void UAnimNextParameterBlockParameter::SetParameterName(FName InName, bool bSetu
 		Modify();
 	}
 
-	ParameterName = InName;
+	if (Library)
+	{
+		UAnimNextParameter* Parameter = Library->FindParameter(ParameterName);
+		if (Parameter)
+		{
+			if (Parameter->Rename(*InName.ToString(), Parameter->GetOuter()))
+			{
+				ParameterName = InName;
+			}
+		}
+	}
 
 	BroadcastModified();
 }

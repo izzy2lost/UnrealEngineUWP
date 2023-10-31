@@ -21,7 +21,8 @@
 #include "Graph/SAnimNextGraphView.h"
 #include "Scheduler/AnimNextSchedule.h"
 #include "Workspace/AnimNextWorkspaceEditor.h"
-
+#include "Param/ParameterBlockParameterCustomization.h"
+#include "Param/AnimNextParameterBlockParameter.h"
 
 #define LOCTEXT_NAMESPACE "AnimNextEditorModule"
 
@@ -51,6 +52,9 @@ class FModule : public IModule
 			FNameProperty::StaticClass()->GetFName(),
 			FOnGetPropertyTypeCustomizationInstance::CreateLambda([] { return MakeShared<FParamNamePropertyTypeCustomization>(); }),
 			Identifier);
+
+		PropertyModule.RegisterCustomClassLayout(UAnimNextParameterBlockParameter::StaticClass()->GetFName(), 
+			FOnGetDetailCustomizationInstance::CreateLambda([] { return MakeShared<FParameterBlockParameterCustomization>(); }));
 
 		AnimNextGraphPanelNodeFactory = MakeShared<FAnimNextGraphPanelNodeFactory>();
 		FEdGraphUtilities::RegisterVisualNodeFactory(AnimNextGraphPanelNodeFactory);

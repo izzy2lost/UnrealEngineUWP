@@ -788,6 +788,13 @@ UAnimNextParameterBlock* FUtils::GetBlock(const UAnimNextParameterBlock_EditorDa
 	return CastChecked<UAnimNextParameterBlock>(InEditorData->GetOuter());
 }
 
+FInstancedPropertyBag* FUtils::GetPropertyBag(UAnimNextParameterBlock* ReferencedBlock)
+{
+	FInstancedPropertyBag* InstancedPropertyBag =&ReferencedBlock->PropertyBag;
+
+	return InstancedPropertyBag;
+}
+
 FParamTypeHandle FUtils::GetParamTypeHandleFromPinType(const FEdGraphPinType& InPinType)
 {
 	return GetParamTypeFromPinType(InPinType).GetHandle();

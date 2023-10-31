@@ -22,6 +22,7 @@
 #include "Widgets/Input/SButton.h"
 #include "Framework/Application/SlateApplication.h"
 #include "ScopedTransaction.h"
+#include "SSimpleButton.h"
 
 #define LOCTEXT_NAMESPACE "SParameterPicker"
 
@@ -135,6 +136,41 @@ void SParameterPicker::Construct(const FArguments& InArgs)
 	}
 
 	TSharedPtr<SHeaderRow> HeaderRow;
+	TSharedRef<SWidget> AddNewParameterWidget = SNullWidget::NullWidget;
+
+	if(Args.bAllowNew)
+	{
+		SAssignNew(AddNewParameterWidget, SSimpleButton)
+		.Text(LOCTEXT("AddNewParameterButton", "New Parameter"))
+		.ToolTipText(LOCTEXT("AddColumnHeaderTooltip", "Add a new parameter at global scope"))
+		.Icon(FAppStyle::Get().GetBrush("Icons.Plus"))
+		.OnClicked_Lambda([this]()
+		{
+			FSlateApplication::Get().DismissAllMenus();
+			TSharedRef<SAddParametersDialog> AddParametersDialog =
+				SNew(SAddParametersDialog)
+				.AllowMultiple(false);
+			TArray<FParameterToAdd> ParametersToAdd;
+			if(AddParametersDialog->ShowModal(ParametersToAdd))
+			{
+				if(ParametersToAdd.Num() > 0)
+				{
+					FScopedTransaction Transaction(LOCTEXT("AddParameter", "Add parameter"));
+
+					// Create a new parameter in the supplied library
+					UAnimNextParameterLibrary* Library = Cast<UAnimNextParameterLibrary>(ParametersToAdd[0].Library.GetAsset());
+					UAnimNextParameter* NewParameter = Library->AddParameter(ParametersToAdd[0].Name, ParametersToAdd[0].Type);
+							
+					FParameterBindingReference Reference;
+					Reference.Parameter = ParametersToAdd[0].Name;
+					Reference.Library = ParametersToAdd[0].Library;
+					Args.OnParameterPicked.ExecuteIfBound(Reference);
+				}
+			}
+			return FReply::Handled();
+		});
+	}
+
 
 	ChildSlot
 	[
@@ -143,12 +179,23 @@ void SParameterPicker::Construct(const FArguments& InArgs)
 		.AutoHeight()
 		.Padding(2.0f)
 		[
-			SAssignNew(SearchBox, SSearchBox)
-			.OnTextChanged_Lambda([this](FText InText)
-			{
-				FilterText = InText;
-				RefreshFilter();
-			})
+			SNew(SHorizontalBox)
+			+ SHorizontalBox::Slot()
+			.MaxWidth(250.0f)
+			[
+				SAssignNew(SearchBox, SSearchBox)
+				.OnTextChanged_Lambda([this](FText InText)
+				{
+					FilterText = InText;
+					RefreshFilter();
+				})
+			]
+			+ SHorizontalBox::Slot()
+			.HAlign(HAlign_Center)
+			.AutoWidth()
+			[
+				AddNewParameterWidget
+			]
 		]
 		+SVerticalBox::Slot()
 		.FillHeight(1.0f)
@@ -208,57 +255,6 @@ void SParameterPicker::Construct(const FArguments& InArgs)
 			.FillWidth(0.33f));
 	}
 
-	if(Args.bAllowNew)
-	{
-		HeaderRow->AddColumn(
-			SHeaderRow::Column(Column_New)
-			.DefaultLabel(FText::GetEmpty())
-			.HeaderContentPadding(FMargin(0.0f))
-			.FixedWidth(24.0f)
-			.HeaderContent()
-			[
-				SNew(SButton)
-				.ToolTipText(LOCTEXT("AddColumnHeaderTooltip", "Add a new parameter at global scope"))
-				.ButtonStyle(FAppStyle::Get(), "HoverHintOnly")
-				.OnClicked_Lambda([this]()
-				{
-					FSlateApplication::Get().DismissAllMenus();
-					TSharedRef<SAddParametersDialog> AddParametersDialog =
-						SNew(SAddParametersDialog)
-						.AllowMultiple(false);
-					TArray<FParameterToAdd> ParametersToAdd;
-					if(AddParametersDialog->ShowModal(ParametersToAdd))
-					{
-						if(ParametersToAdd.Num() > 0)
-						{
-							FScopedTransaction Transaction(LOCTEXT("AddParameter", "Add parameter"));
-
-							// Create a new parameter in the supplied library
-							UAnimNextParameterLibrary* Library = Cast<UAnimNextParameterLibrary>(ParametersToAdd[0].Library.GetAsset());
-							UAnimNextParameter* NewParameter = Library->AddParameter(ParametersToAdd[0].Name, ParametersToAdd[0].Type);
-							
-							FParameterBindingReference Reference;
-							Reference.Parameter = ParametersToAdd[0].Name;
-							Reference.Library = ParametersToAdd[0].Library;
-							Args.OnParameterPicked.ExecuteIfBound(Reference);
-						}
-					}
-					return FReply::Handled();
-				})
-				[
-					SNew(SBox)
-					.WidthOverride(16.0f)
-					.HeightOverride(16.0f)
-					.VAlign(VAlign_Center)
-					.HAlign(HAlign_Center)
-					[
-						SNew(SImage)
-						.ColorAndOpacity(FSlateColor::UseForeground())
-						.Image(FAppStyle::GetBrush("Icons.Plus"))
-					]
-				]
-			]);
-	}
 	
 	RefreshEntries();
 }
@@ -288,7 +284,6 @@ void SParameterPicker::RefreshEntries()
 	};
 	
 	// Find all blocks and their bound parameters
-	if(Args.bShowBoundParameters)
 	{
 		ARFilter.ClassPaths = { UAnimNextParameterBlock::StaticClass()->GetClassPathName() };
 		
@@ -315,8 +310,11 @@ void SParameterPicker::RefreshEntries()
 							FAnimNextParamType ParamType = FUtils::GetParameterTypeFromLibraryExports(Export.Name, LibraryExports);
 							if(!Args.OnFilterParameterType.IsBound() || Args.OnFilterParameterType.Execute(ParamType) == EFilterParameterResult::Include)
 							{
-								TSharedRef<FParameterPickerEntry> NewEntry = MakeShared<FParameterPickerEntry>(NewReference, ParamType);
-								Entries.Add(NewEntry);
+								if (Args.bShowBoundParameters)
+								{
+									TSharedRef<FParameterPickerEntry> NewEntry = MakeShared<FParameterPickerEntry>(NewReference, ParamType);
+									Entries.Add(NewEntry);
+								}
 							}
 						}
 					}

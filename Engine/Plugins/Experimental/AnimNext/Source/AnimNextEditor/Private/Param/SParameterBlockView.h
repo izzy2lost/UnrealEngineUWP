@@ -3,8 +3,9 @@
 #pragma once
 
 #include "Widgets/SCompoundWidget.h"
-#include "Widgets/Views/SListView.h"
+#include "Widgets/Views/STreeView.h"
 #include "AssetRegistry/AssetData.h"
+#include "Templates/SharedPointer.h"
 
 class UAnimNextParameterBlockBinding;
 class UAnimNextParameter;
@@ -20,6 +21,15 @@ enum class EFilterParameterResult : int32;
 struct FParameterBindingReference;
 
 struct FParameterBlockViewEntry; 
+
+enum class EParameterBlockCategoryType : uint8
+{
+	Parameter,
+	BuiltIn,
+	Graph,
+	// --- ---
+	Invalid
+};
 
 class SParameterBlockView : public SCompoundWidget
 {
@@ -80,11 +90,15 @@ private:
 	void HandleSelectionChanged(TSharedPtr<FParameterBlockViewEntry> InEntry, ESelectInfo::Type InSelectionType);
 
 	EFilterParameterResult HandleFilterLinkedParameter(const FParameterBindingReference& InParameterBinding);
+
+	TSharedRef<FParameterBlockViewEntry> GetCategory(EParameterBlockCategoryType CategoryType);
 	
 private:
 	friend class SParameterBlockViewRow;
 	
-	TSharedPtr<SListView<TSharedRef<FParameterBlockViewEntry>>> EntriesList;
+	TArray<TSharedRef<FParameterBlockViewEntry>> Categories;
+
+	TSharedPtr<STreeView<TSharedRef<FParameterBlockViewEntry>>> EntriesList;
 
 	TArray<TSharedRef<FParameterBlockViewEntry>> Entries;
 
