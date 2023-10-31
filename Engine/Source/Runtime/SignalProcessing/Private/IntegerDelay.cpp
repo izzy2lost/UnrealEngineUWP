@@ -67,20 +67,12 @@ namespace Audio
 
 	void FIntegerDelay::ProcessAudio(const Audio::FAlignedFloatBuffer& InSamples, Audio::FAlignedFloatBuffer& OutSamples)
 	{
-		// Prepare output buffer
-		const int32 Num = InSamples.Num();
-		OutSamples.Reset(Num);
-		OutSamples.AddUninitialized(Num);
-
-		ProcessAudio(TArrayView<const float>(InSamples.GetData(), InSamples.Num()), TArrayView<float>(OutSamples.GetData(), OutSamples.Num()));
-	}
-
-	void FIntegerDelay::ProcessAudio(TArrayView<const float> InSamples, TArrayView<float> OutSamples)
-	{
-		check(InSamples.Num() == OutSamples.Num());
-
-		const int32 InNum = InSamples.Num();
 		const float* InSampleData = InSamples.GetData();
+		const int32 InNum = InSamples.Num();
+
+		// Prepare output buffer
+		OutSamples.Reset(InNum);
+		OutSamples.AddUninitialized(InNum);
 		float* OutSampleData = OutSamples.GetData();
 
 		// Process audio one block at a time.
@@ -97,6 +89,7 @@ namespace Audio
 
 	void FIntegerDelay::ProcessAudioBlock(const float* InSamples, const int32 InNum, float* OutSamples)
 	{
+		
 		// Update delay line.	
 		DelayLine->AddSamples(InSamples, InNum);
 

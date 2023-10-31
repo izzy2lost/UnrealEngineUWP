@@ -393,7 +393,7 @@ namespace Metasound
 			}
 
 			// Apply lookahead delay to dry signal
-			InputDelay.ProcessAudio(*AudioInput, TArrayView<float>(DelayedInputSignal));
+			InputDelay.ProcessAudio(*AudioInput, DelayedInputSignal);
 
 			const float* InSamples = AudioInput->GetData();
 			float* OutSamples      = AudioOutput->GetData();

@@ -7,7 +7,6 @@
 #include "AudioMixerDevice.h"
 #include "AudioMixerSubmix.h"
 #include "ProfilingDebugging/CsvProfiler.h"
-#include "ProfilingDebugging/CpuProfilerTrace.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(AudioMixerSubmixEffectDynamicsProcessor)
 
@@ -47,6 +46,12 @@ void FSubmixEffectDynamicsProcessor::Init(const FSoundEffectSubmixInitData& Init
 	static const int32 ProcessorScratchNumChannels = 8;
 
 	DynamicsProcessor.Init(InitData.SampleRate, ProcessorScratchNumChannels);
+
+	AudioKeyFrame.Reset();
+	AudioKeyFrame.AddZeroed(ProcessorScratchNumChannels);
+
+	AudioInputFrame.Reset();
+	AudioInputFrame.AddZeroed(ProcessorScratchNumChannels);
 
 	DeviceId = InitData.DeviceID;
 
@@ -249,14 +254,14 @@ void FSubmixEffectDynamicsProcessor::OnProcessAudio(const FSoundEffectSubmixInpu
 {
 	CSV_SCOPED_TIMING_STAT(Audio, SubmixDynamics);
 	SCOPE_CYCLE_COUNTER(STAT_AudioMixerSubmixDynamics);
-	TRACE_CPUPROFILER_EVENT_SCOPE(FSubmixEffectDynamicsProcessor::OnProcessAudio);
 
 	ensure(InData.NumChannels == OutData.NumChannels);
 
 	const Audio::FAlignedFloatBuffer& InBuffer = *InData.AudioBuffer;
 	Audio::FAlignedFloatBuffer& OutBuffer = *OutData.AudioBuffer;
 
-	if (bBypassSubmixDynamicsProcessor || bBypass)
+	const bool bBypassDueToInvalidChannelCount = !ensure(InData.NumChannels <= AudioInputFrame.Num());
+	if (bBypassDueToInvalidChannelCount || bBypassSubmixDynamicsProcessor || bBypass)
 	{
 		FMemory::Memcpy(OutBuffer.GetData(), InBuffer.GetData(), sizeof(float) * InBuffer.Num());
 		return;
@@ -297,12 +302,27 @@ void FSubmixEffectDynamicsProcessor::OnProcessAudio(const FSoundEffectSubmixInpu
 	// No key assigned (Uses input buffer as key)
 	if (KeySource.GetType() == ESubmixEffectDynamicsKeySource::Default)
 	{
-		DynamicsProcessor.ProcessAudio(InBuffer.GetData(), InData.NumChannels * InData.NumFrames, OutBuffer.GetData());
+		for (int32 Frame = 0; Frame < InData.NumFrames; ++Frame)
+		{
+			const int32 SampleIndex = Frame * InData.NumChannels;
+			DynamicsProcessor.ProcessAudio(&InBuffer[SampleIndex], InData.NumChannels, &OutBuffer[SampleIndex]);
+		}
 	}
 	// Key assigned
 	else
 	{
-		DynamicsProcessor.ProcessAudio(InBuffer.GetData(), InData.NumChannels * InData.NumFrames, OutBuffer.GetData(), AudioExternal.GetData());
+		for (int32 Frame = 0; Frame < InData.NumFrames; ++Frame)
+		{
+			// Copy the data to the input frame
+			const int32 SampleIndexOfInputFrame = Frame * InData.NumChannels;
+			FMemory::Memcpy(AudioInputFrame.GetData(), &InBuffer[SampleIndexOfInputFrame], sizeof(float) * InData.NumChannels);
+
+			// Copy the data to the key frame
+			const int32 SampleIndexOfKeyFrame = Frame * NumKeyChannels;
+			FMemory::Memcpy(AudioKeyFrame.GetData(), &AudioExternal[SampleIndexOfKeyFrame], sizeof(float) * NumKeyChannels);
+
+			DynamicsProcessor.ProcessAudio(AudioInputFrame.GetData(), InData.NumChannels, &OutBuffer[SampleIndexOfInputFrame], AudioKeyFrame.GetData());
+		}
 	}
 }
 
