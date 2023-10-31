@@ -384,18 +384,12 @@ FNiagaraRenderer::~FNiagaraRenderer()
 FPrimitiveViewRelevance FNiagaraRenderer::GetViewRelevance(const FSceneView* View, const FNiagaraSceneProxy *SceneProxy)const
 {
 	FPrimitiveViewRelevance Result;
-	bool bHasDynamicData = HasDynamicData();
-
-	//Always draw so our LastRenderTime is updated. We may not have dynamic data if we're disabled from visibility culling.
-	Result.bDrawRelevance =/* bHasDynamicData && */SceneProxy->IsShown(View) && View->Family->EngineShowFlags.Particles && View->Family->EngineShowFlags.Niagara;
-	Result.bShadowRelevance = bHasDynamicData && SceneProxy->IsShadowCast(View);
-	Result.bDynamicRelevance = bHasDynamicData;
-	if (bHasDynamicData)
+	if (HasDynamicData())
 	{
 		Result.bOpaque = View->Family->EngineShowFlags.Bounds;
+		Result.bRenderInSecondStageDepthPass = bRendersInSecondaryDepthPass;
 		DynamicDataRender->GetMaterialRelevance().SetPrimitiveViewRelevance(Result);
 	}
-	Result.bRenderInSecondStageDepthPass = bRendersInSecondaryDepthPass;
 
 	return Result;
 }

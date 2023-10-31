@@ -271,23 +271,21 @@ void FNiagaraSceneProxy::OnTransformChanged(FRHICommandListBase& RHICmdList)
 FPrimitiveViewRelevance FNiagaraSceneProxy::GetViewRelevance(const FSceneView* View) const
 {
 	FPrimitiveViewRelevance Relevance;
-
 	if (!GetRenderingEnabled() || !FNiagaraUtilities::SupportsNiagaraRendering(View->GetFeatureLevel()))
 	{
 		return Relevance;
 	}
-	Relevance.bDynamicRelevance = true;
 
-	Relevance.bRenderCustomDepth = ShouldRenderCustomDepth();
-	Relevance.bDrawRelevance = IsShown(View) && View->Family->EngineShowFlags.Particles && View->Family->EngineShowFlags.Niagara;
-	Relevance.bShadowRelevance = IsShadowCast(View);
-	Relevance.bRenderInMainPass = ShouldRenderInMainPass();
-	Relevance.bUsesLightingChannels = GetLightingChannelMask() != GetDefaultLightingChannelMask();
-	Relevance.bTranslucentSelfShadow = bCastVolumetricTranslucentShadow;
-
-	Relevance |= RenderData->GetViewRelevance(*View, *this);
-
-	Relevance.bVelocityRelevance = DrawsVelocity() && Relevance.bOpaque && Relevance.bRenderInMainPass;
+	// Read Relevance from the material / renderer first as FPrimitiveViewRelevance() will turn on certain flags which we want to control (i.e. bRenderInMainPass)
+	Relevance							= RenderData->GetViewRelevance(*View, *this);
+	Relevance.bDynamicRelevance			= true;
+	Relevance.bDrawRelevance			= IsShown(View) && View->Family->EngineShowFlags.Particles && View->Family->EngineShowFlags.Niagara;
+	Relevance.bRenderCustomDepth		= ShouldRenderCustomDepth();
+	Relevance.bShadowRelevance			= IsShadowCast(View);
+	Relevance.bRenderInMainPass			= ShouldRenderInMainPass();
+	Relevance.bUsesLightingChannels		= GetLightingChannelMask() != GetDefaultLightingChannelMask();
+	Relevance.bTranslucentSelfShadow	= bCastVolumetricTranslucentShadow;
+	Relevance.bVelocityRelevance		= DrawsVelocity() && Relevance.bOpaque && Relevance.bRenderInMainPass;
 
 	return Relevance;
 }
