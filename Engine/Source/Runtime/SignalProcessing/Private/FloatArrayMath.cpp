@@ -2341,16 +2341,18 @@ namespace Audio
 		ArrayInterleave(InBufferPtr, OutBuffer.GetData(), NumFrames, NumChannels);
 	}
 
-	void ArrayInterleave(const float** RESTRICT InBuffers, float* RESTRICT OutBuffer, const int32 InFrames, const int32 InChannels)
+	void ArrayInterleave(const float* const* RESTRICT InBuffers, float* RESTRICT OutBuffer, const int32 InFrames, const int32 InChannels)
 	{
 		CSV_SCOPED_TIMING_STAT(Audio_Dsp, ArrayInterleave);
 		for(int32 ChannelIdx = 0; ChannelIdx < InChannels; ChannelIdx++)
 		{
-			const float* InBuffer = InBuffers[ChannelIdx];
+			const float* InPtr = InBuffers[ChannelIdx];
+			float* OutPtr = &OutBuffer[ChannelIdx];
 			
 			for(int32 SampleIdx = 0; SampleIdx < InFrames; SampleIdx++)
 			{
-				OutBuffer[ChannelIdx + (SampleIdx * InChannels)] = InBuffer[SampleIdx];
+				*OutPtr = *InPtr++;
+				OutPtr += InChannels;
 			}
 		}
 	}
@@ -2379,17 +2381,19 @@ namespace Audio
 		ArrayDeinterleave(InBuffer.GetData(), OutBufferPtr, NumFrames, InChannels);
 	}
 
-	void ArrayDeinterleave(const float* RESTRICT InBuffer, float** RESTRICT OutBuffers, const int32 InFrames, const int32 InChannels)
+	void ArrayDeinterleave(const float* RESTRICT InBuffer, float* const* RESTRICT OutBuffers, const int32 InFrames, const int32 InChannels)
 	{
 		CSV_SCOPED_TIMING_STAT(Audio_Dsp, ArrayDeinterleave);
 
 		for(int32 ChannelIdx = 0; ChannelIdx < InChannels; ChannelIdx++)
 		{
-			float* OutBuffer = OutBuffers[ChannelIdx];
+			const float* InPtr = &InBuffer[ChannelIdx];
+			float* OutPtr = OutBuffers[ChannelIdx];
 			
 			for(int32 SampleIdx = 0; SampleIdx < InFrames; SampleIdx++)
 			{
-				OutBuffer[SampleIdx] = InBuffer[ChannelIdx + (SampleIdx * InChannels)];
+				*OutPtr++ = *InPtr;
+				InPtr += InChannels;
 			}
 		}
 	}
