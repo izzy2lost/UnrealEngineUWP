@@ -2,9 +2,11 @@
 
 #include "TypedElementMementoSystem.h"
 
+#include "Elements/Common/TypedElementDataStorageLog.h"
 #include "Elements/Framework/TypedElementQueryBuilder.h"
 #include "Memento/TypedElementMementoInterface.h"
 #include "Memento/TypedElementMementoTranslators.h"
+#include "StructArrayView.h"
 #include "TypedElementMementoRowTypes.h"
 #include "TypedElementDatabase.h"
 
@@ -71,14 +73,31 @@ void UTypedElementMementoSystem::RegisterQueries(UTypedElementDatabase& DataStor
 			Select(
 				TranslationProcessorName,
 				FObserver::OnRemove<FTypedElementMementoOnDelete>(),
-				[MementoTranslator, Memento, MementoizedColumn](TypedElementDataStorage::IQueryContext& Context, TypedElementRowHandle Row, const FTypedElementMementoOnDelete& MementoRow)
+				[MementoTranslator](TypedElementDataStorage::IQueryContext& Context, const TypedElementRowHandle* Rows, const FTypedElementMementoOnDelete* MementoTargets)
 				{
-					void* StagedMementoColumn = Context.AddColumnUninitialized(MementoRow.Memento, Memento);
-					// StagedMementoColumn will be uninitialized memory, ensure constructor called
-					Memento->InitializeStruct(StagedMementoColumn);
+					const int32 RowCount = static_cast<int32>(Context.GetRowCount());					
+					const UScriptStruct* MementoType = MementoTranslator->GetMementoType();
+					const UScriptStruct* MementoizedColumn = MementoTranslator->GetColumnType();
+
+					TArrayView<const TypedElementRowHandle> RowsView = MakeArrayView(Rows, RowCount);
+					TArrayView<const FTypedElementMementoOnDelete> MementoTargetsView = MakeArrayView(MementoTargets, RowCount);
+					FConstStructArrayView SourceColumnArrayView(*MementoizedColumn, Context.GetColumn(MementoizedColumn), RowCount);
+
+					for (int32 Index = 0; Index < RowCount; ++Index)
+					{
+						TypedElementRowHandle SourceRow = RowsView[Index];
+						TypedElementRowHandle TargetMementoRow = MementoTargetsView[Index].Memento;
+						
+						void* TargetMementoStagedColumn = Context.AddColumnUninitialized(TargetMementoRow, MementoType);
+						// StagedMementoColumn will be uninitialized memory, ensure constructor called
+						MementoType->InitializeStruct(TargetMementoStagedColumn);
 		
-					const void* SourceColumn = Context.GetColumn(MementoizedColumn);
-					MementoTranslator->TranslateColumnToMemento(SourceColumn, StagedMementoColumn);
+						const void* SourceColumn = SourceColumnArrayView[Index].GetMemory();
+
+						UE_LOG(LogTypedElementDataStorage, VeryVerbose, TEXT("Column->Memento: %llu -> %llu   0x%p -> 0x%p"), SourceRow, TargetMementoRow, SourceColumn, TargetMementoStagedColumn);
+
+						MementoTranslator->TranslateColumnToMemento(SourceColumn, TargetMementoStagedColumn);
+					}
 				})
 				.ReadOnly(MementoizedColumn)
 				.Compile());
@@ -115,16 +134,33 @@ void UTypedElementMementoSystem::RegisterQueries(UTypedElementDatabase& DataStor
 			Select(
 				TranslationProcessorName,
 				FProcessor(DSI::EQueryTickPhase::PostPhysics, DataStorage.GetQueryTickGroupName(DSI::EQueryTickGroups::Default)),
-				[MementoTranslator](TEDS::IQueryContext& Context, TypedElementRowHandle Row, const FTypedElementMementoReinstanceTarget& ReinstanceTarget)
+				[MementoTranslator](TEDS::IQueryContext& Context, const TypedElementRowHandle* Rows, const FTypedElementMementoReinstanceTarget* ReinstanceTargets)
 				{
-					// Add the column, note the column may already exist.
-					void* StagedColumn = Context.AddColumnUninitialized(ReinstanceTarget.Target, MementoTranslator->GetColumnType());
+					const int32 RowCount = static_cast<int32>(Context.GetRowCount());					
+					const UScriptStruct* MementoType = MementoTranslator->GetMementoType();
+					const UScriptStruct* ColumnType = MementoTranslator->GetColumnType();
 
-					// StagedColumn will be uninitialized memory, ensure constructor called
-					MementoTranslator->GetColumnType()->InitializeStruct(StagedColumn);
+					TArrayView<const TypedElementRowHandle> RowsView = MakeArrayView(Rows, RowCount);
+					TArrayView<const FTypedElementMementoReinstanceTarget> ReinstanceTargetsView = MakeArrayView(ReinstanceTargets, RowCount);
+					FConstStructArrayView MementoArrayView(*MementoType, Context.GetColumn(MementoType), RowCount);
 
-					const void* Memento = Context.GetColumn(MementoTranslator->GetMementoType());
-					MementoTranslator->TranslateMementoToColumn(Memento, StagedColumn);
+					for (int32 Index = 0; Index < RowCount; ++Index)
+					{
+						const TypedElementRowHandle Row = RowsView[Index];
+						const TypedElementRowHandle Target = ReinstanceTargetsView[Index].Target;
+						
+						// Add the column, note the column may already exist.
+						void* TargetStagedColumn = Context.AddColumnUninitialized(Target, ColumnType);
+
+						// StagedColumn will be uninitialized memory, ensure constructor called
+						MementoTranslator->GetColumnType()->InitializeStruct(TargetStagedColumn);
+						
+						const void* SourceMementoOfColumn = MementoArrayView[Index].GetMemory();
+
+						UE_LOG(LogTypedElementDataStorage, VeryVerbose, TEXT("Memento->Column: %llu -> %llu   0x%p -> 0x%p"), Row, Target, SourceMementoOfColumn, TargetStagedColumn);
+						
+						MementoTranslator->TranslateMementoToColumn(SourceMementoOfColumn, TargetStagedColumn);
+					}
 				})
 				.ReadOnly(MementoType)
 				.Where()
