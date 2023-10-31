@@ -1043,6 +1043,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig")
 	static void HideAllControls(UMovieSceneSection* InSection);
 
+	/** Set Control Rig priority order */
+	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig")
+	static void SetControlRigPriorityOrder(UMovieSceneTrack* InSection,int32 PriorityOrder);
+
+	/** Get Control Rig prirority order */
+	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig")
+	static int32 GetControlRigPriorityOrder(UMovieSceneTrack* InSection);
+
 	/**	Whether or not the control rig is an FK Control Rig.
 	@param InControlRig Rig to test to see if FK Control Rig
 	**/
@@ -1069,4 +1077,5 @@ public:
 	**/
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig")
 	static bool SetControlRigApplyMode(UControlRig* InControlRig, EControlRigFKRigExecuteMode InApplyMode);
+
 };

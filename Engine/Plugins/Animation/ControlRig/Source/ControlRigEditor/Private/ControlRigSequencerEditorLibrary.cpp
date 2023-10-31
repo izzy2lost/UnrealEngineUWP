@@ -351,11 +351,8 @@ UMovieSceneTrack* UControlRigSequencerEditorLibrary::FindOrCreateControlRigTrack
 				}
 			}
 
-			if (OutPlayer)
-			{
-				OutPlayer->Stop();
-			}
-
+			//no need to stop player was never running, and stop will cause things to get unbound, messing 
+			//with how priorities are set
 			if (OutActor)
 			{
 				World->DestroyActor(OutActor);
@@ -414,11 +411,6 @@ TArray<UMovieSceneTrack*> UControlRigSequencerEditorLibrary::FindOrCreateControl
 				}
 			}
 		}
-	}
-
-	if (OutPlayer)
-	{
-		OutPlayer->Stop();
 	}
 
 	if (OutActor)
@@ -529,12 +521,15 @@ UTickableConstraint* UControlRigSequencerEditorLibrary::AddConstraint(UWorld* Wo
 		Constraint->MarkAsGarbage();
 		return nullptr;
 	}
-	
-	//add key
-	const TWeakPtr<ISequencer> WeakSequencer = GetSequencerFromAsset();
-	if (WeakSequencer.IsValid())
+
+	if (ULevelSequence* LevelSequence = ULevelSequenceEditorBlueprintLibrary::GetCurrentLevelSequence())
 	{
-		FMovieSceneConstraintChannelHelper::SmartConstraintKey(WeakSequencer.Pin(), Constraint, TOptional<bool>(), TOptional<FFrameNumber>());
+		//add key
+		const TWeakPtr<ISequencer> WeakSequencer = GetSequencerFromAsset();
+		if (WeakSequencer.IsValid())
+		{
+			FMovieSceneConstraintChannelHelper::SmartConstraintKey(WeakSequencer.Pin(), Constraint, TOptional<bool>(), TOptional<FFrameNumber>());
+		}
 	}
 	else
 	{
@@ -2974,6 +2969,30 @@ FRigElementKey UControlRigSequencerEditorLibrary::GetDefaultParentKey()
 FRigElementKey UControlRigSequencerEditorLibrary::GetWorldSpaceReferenceKey()
 {
 	return URigHierarchy::GetWorldSpaceReferenceKey();
+}
+
+void UControlRigSequencerEditorLibrary::SetControlRigPriorityOrder(UMovieSceneTrack* InTrack, int32 PriorityOrder)
+{
+	UMovieSceneControlRigParameterTrack* ParameterTrack = Cast<UMovieSceneControlRigParameterTrack>(InTrack);
+	if (!ParameterTrack)
+	{
+		FFrame::KismetExecutionMessage(TEXT("Cannot call SetControlRigPriorityOrder without a UMovieSceneControlRigParameterTrack"), ELogVerbosity::Error);
+		return;
+	}
+
+	ParameterTrack->SetPriorityOrder(PriorityOrder);
+}
+
+int32 UControlRigSequencerEditorLibrary::GetControlRigPriorityOrder(UMovieSceneTrack* InTrack)
+{
+	UMovieSceneControlRigParameterTrack* ParameterTrack = Cast<UMovieSceneControlRigParameterTrack>(InTrack);
+	if (!ParameterTrack)
+	{
+		FFrame::KismetExecutionMessage(TEXT("Cannot call SetControlRigPriorityOrder without a UMovieSceneControlRigParameterTrack"), ELogVerbosity::Error);
+		return INDEX_NONE;
+	}
+	return 	ParameterTrack->GetPriorityOrder();
+
 }
 
 bool UControlRigSequencerEditorLibrary::GetControlsMask(UMovieSceneSection* InSection, FName ControlName)

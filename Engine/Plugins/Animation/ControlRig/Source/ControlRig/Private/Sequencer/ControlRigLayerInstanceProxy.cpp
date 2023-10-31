@@ -176,7 +176,7 @@ void FControlRigLayerInstanceProxy::SetSourceAnimInstance(UAnimInstance* SourceA
 void FControlRigLayerInstanceProxy::AddControlRigTrack(int32 ControlRigID, UControlRig* InControlRig)
 {
 	FAnimNode_ControlRig_ExternalSource* Node = FindControlRigNode(ControlRigID);
-
+	const int32 DefaultPriorityOrder = 100;
 	if(!Node)
 	{
 		UMovieSceneControlRigParameterTrack* Track = InControlRig->GetTypedOuter<UMovieSceneControlRigParameterTrack>();
@@ -197,7 +197,7 @@ void FControlRigLayerInstanceProxy::AddControlRigTrack(int32 ControlRigID, UCont
 						}
 						else
 						{
-							Track->SetPriorityOrder(ControlRigNodes.Num() -1);
+							Track->SetPriorityOrder(DefaultPriorityOrder + ControlRigNodes.Num() -1);
 						}
 					}
 					Node = ControlRigNodes.Add_GetRef(MakeShared<FAnimNode_ControlRig_ExternalSource>()).Get();
@@ -221,7 +221,7 @@ void FControlRigLayerInstanceProxy::AddControlRigTrack(int32 ControlRigID, UCont
 							}
 							else
 							{
-								Track->SetPriorityOrder(Index);
+								Track->SetPriorityOrder(DefaultPriorityOrder + Index);
 							}
 						}
 						Node = ControlRigNodes.Insert_GetRef(MakeShared<FAnimNode_ControlRig_ExternalSource>(), Index).Get();
@@ -290,7 +290,7 @@ void FControlRigLayerInstanceProxy::AddControlRigTrack(int32 ControlRigID, UCont
 				}
 			}
 		}
-		else
+		else //no nodes add first one
 		{
 			Node = ControlRigNodes.Add_GetRef(MakeShared<FAnimNode_ControlRig_ExternalSource>()).Get();
 			if (Track)
@@ -298,7 +298,7 @@ void FControlRigLayerInstanceProxy::AddControlRigTrack(int32 ControlRigID, UCont
 				int32 PriorityOrder = Track->GetPriorityOrder();
 				if (PriorityOrder == INDEX_NONE) //track has no order so just add to end, will happen on creation
 				{
-					Track->SetPriorityOrder(ControlRigNodes.Num() - 1);
+					Track->SetPriorityOrder(DefaultPriorityOrder);
 				}
 			}
 		}
