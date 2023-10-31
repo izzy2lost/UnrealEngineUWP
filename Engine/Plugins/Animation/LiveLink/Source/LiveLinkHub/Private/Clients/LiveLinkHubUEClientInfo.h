@@ -36,7 +36,7 @@ struct FLiveLinkHubUEClientInfo
 	
 	/** Status of the client, ie. is it actively doing a take record at the moment? */
 	UPROPERTY(VisibleAnywhere, Category = "LiveLink Client")
-	ELiveLinkClientStatus Status;
+	ELiveLinkClientStatus Status = ELiveLinkClientStatus::Disconnected;
 	
 	UPROPERTY(VisibleAnywhere, Category = "LiveLink Client", DisplayName = "IP Address")
 	FString IPAddress;

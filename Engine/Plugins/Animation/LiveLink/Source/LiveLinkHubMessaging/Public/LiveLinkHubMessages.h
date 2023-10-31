@@ -25,6 +25,7 @@ UENUM()
 enum class ELiveLinkClientStatus
 {
 	Connected, /** Default state of a UE client. */
+	Disconnected, /** Client is not connected to the hub. */
 	Recording  /** UE is currently doing a take record. */
 };
 
