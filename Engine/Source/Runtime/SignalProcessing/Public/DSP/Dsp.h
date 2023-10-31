@@ -787,6 +787,52 @@ namespace Audio
 		mutable FCriticalSection CritSect;
 	};
 
+	template <typename SampleType>
+	struct DisjointedArrayView
+	{
+		DisjointedArrayView(TArrayView<SampleType> && InFirstBuffer, TArrayView<SampleType> && InSecondBuffer)
+		: FirstBuffer(MoveTemp(InFirstBuffer))
+		, SecondBuffer(MoveTemp(InSecondBuffer))
+		{}
+
+		template <typename OtherSampleType>
+		DisjointedArrayView<OtherSampleType> SplitOtherToMatch(OtherSampleType* Other, int32 InNum) const
+		{
+			ensure(InNum == Num());
+			const int32 FirstChunkNum = FirstNum();
+
+			return DisjointedArrayView<OtherSampleType>(
+				TArrayView<OtherSampleType>(Other, FirstChunkNum)
+				, TArrayView<OtherSampleType>(Other + FirstChunkNum, InNum - FirstChunkNum)
+			);
+		}
+
+		int32 CopyIntoBuffer(SampleType* InDestination, int32 InNumSamples)
+		{
+			check(InNumSamples >= Num());
+			const int32 FirstCopySize = FirstNum() * sizeof(SampleType);
+			const int32 SecondCopySize = SecondNum() * sizeof(SampleType);
+
+			FMemory::Memcpy(InDestination, FirstBuffer.GetData(), FirstCopySize);
+
+			if (SecondCopySize)
+			{
+				FMemory::Memcpy(InDestination + FirstNum(), SecondBuffer.GetData(), SecondCopySize);
+			}
+
+			return Num();
+		}
+
+		int32 FirstNum() const { return FirstBuffer.Num(); }
+		int32 SecondNum() const { return SecondBuffer.Num(); }
+		int32 Num() const { return FirstBuffer.Num() + SecondBuffer.Num(); }
+
+		// data:
+		TArrayView<SampleType> FirstBuffer;
+		TArrayView<SampleType> SecondBuffer;
+
+	}; // struct DisjointedArrayView
+
 	/**
 	 * Basic implementation of a circular buffer built for pushing and popping arbitrary amounts of data at once.
 	 * Designed to be thread safe for SPSC; However, if Push() and Pop() are both trying to access an overlapping area of the buffer,
@@ -935,7 +981,7 @@ namespace Audio
 			}
 		}
 
-		bool Push(SampleType&& InElement)
+		bool Push(SampleType && InElement)
 		{
 			if (Remainder() == 0)
 			{
@@ -973,6 +1019,24 @@ namespace Audio
 			return NumToCopy;
 		}
 
+		// same Peek(), but provides a (possibly) disjointed view of the memory in-place
+		// Push calls while the returned view is being accessed is undefined behavior
+		DisjointedArrayView <const SampleType> PeekInPlace(uint32 NumSamples) const
+		{
+			const SampleType* SrcBuffer = InternalBuffer.GetData();
+			const uint32 ReadIndex = ReadCounter.GetValue();
+			const uint32 WriteIndex = WriteCounter.GetValue();
+
+			int32 NumToView = FMath::Min<int32>(NumSamples, Num());
+			const int32 NumRead = FMath::Min<int32>(NumToView, Capacity - ReadIndex);
+			check(NumSamples < ((uint32)TNumericLimits<int32>::Max()));
+
+			return DisjointedArrayView < const SampleType > (
+				TArrayView<const SampleType>(SrcBuffer + ReadIndex, NumRead)
+				, TArrayView<const SampleType>(SrcBuffer, (NumToView - NumRead))
+			);
+		}
+
 		// Peeks a single element.
 		// returns false if the element is empty.
 		bool Peek(SampleType& OutElement) const
@@ -1002,6 +1066,19 @@ namespace Audio
 			ReadCounter.Set((ReadCounter.GetValue() + NumSamplesRead) % Capacity);
 
 			return NumSamplesRead;
+		}
+
+		// Same as Pop(), but provides a (possibly) disjinted view of memory in-place
+		// Push calls while the returned view is being accessed is undefined behavior
+		DisjointedArrayView<const SampleType> PopInPlace(uint32 NumSamples)
+		{
+			check(NumSamples < ((uint32)TNumericLimits<int32>::Max()));
+
+			DisjointedArrayView<const SampleType> View = PeekInPlace(NumSamples);
+			const int32 NumSamplesRead = View.Num();
+			ReadCounter.Set((ReadCounter.GetValue() + NumSamplesRead) % Capacity);
+
+			return View;
 		}
 
 		// Pops some amount of samples into this circular buffer.

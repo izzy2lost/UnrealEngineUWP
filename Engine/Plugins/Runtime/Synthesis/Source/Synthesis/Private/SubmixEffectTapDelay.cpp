@@ -212,7 +212,6 @@ void FSubmixEffectTapDelay::UpdateParameters()
 		// If we have a new max delay line length, reallocate the delay line
 		if (MaxDelayLineLength != NewSettings.MaximumDelayLength)
 		{
-			DelayLine.Reset();
 			DelayLine.Init(SampleRate, NewSettings.MaximumDelayLength / 1000.0f);
 			MaxDelayLineLength = NewSettings.MaximumDelayLength;
 		}
