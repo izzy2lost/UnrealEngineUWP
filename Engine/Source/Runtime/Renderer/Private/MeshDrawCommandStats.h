@@ -143,7 +143,9 @@ private:
 		 */
 		struct FCategoryStats
 		{
-			FCategoryStats(FName InCategoryName, uint64 InPrimitiveCount) : CategoryName(InCategoryName), PrimitiveCount(InPrimitiveCount) {}
+			FCategoryStats(FName InPassName, FName InCategoryName, uint64 InPrimitiveCount)
+				: PassName(InPassName), CategoryName(InCategoryName), PrimitiveCount(InPrimitiveCount) {}
+			FName PassName;
 			FName CategoryName;
 			uint64 PrimitiveCount;
 		};
@@ -164,9 +166,38 @@ private:
 		return Frames.Last();
 	}
 
-	using StatCollection = TMap<FName, FName>;
-	using StatCollectionMap = TMap<int32, StatCollection>;
+	struct FCollectionCategory
+	{
+		FName Name;					// User supplied name for this category
+		TSet<FName> Passes;			// Passes this category cares about
+		TSet<FName> LinkedNames;	// LinkedStats this collection cares about
+	};
 
+	struct FStatCollection
+	{
+		TArray<int>* CategoriesThatLinkStat(FName Stat)
+		{
+			return StatToCategoryIndices.Find(Stat);
+		}
+
+		void Finish()
+		{
+			for (int i = 0; i < Categories.Num(); i++)
+			{
+				for (FName& LinkedName : Categories[i].LinkedNames)
+				{
+					StatToCategoryIndices.FindOrAdd(LinkedName).Add(i);
+				}
+			}
+		}
+
+		TArray<FCollectionCategory> Categories;
+		TMap<FName, TArray<int>> StatToCategoryIndices;
+		TMap<FName, FString> CategoryPassFriendlyNames; //< Pipe delimited passes tracked by this category, used for on screen display
+	};
+
+	using FStatCollectionMap = TMap<int32, FStatCollection>;
+	 
 	/** Dump given frame data stats to csv file on disc in profiling folder */
 	void DumpStats(FFrameData* FrameData);
 
@@ -175,11 +206,11 @@ private:
 	bool bCollectStats = false;				//< Collect stats during next frame?
 	
 	FCriticalSection FrameDataCS;			
-	TArray<FFrameData*> Frames;				//< All active frames (contains the frame for which we are collecting stats now and all frames waiting for GPU readback)
-	FStats Stats;							//< Last updated frame stats
-	StatCollectionMap StatCollections; 		//< Per Collection LinkedStatName to Budget CategoryName
-	TMap<FName, uint64> BudgetedPrimitives;	//< Budget CategoryName to Total Primitive Count
-	TMap<FName, uint64> UntrackedPrimitives;//< Primitives which aren't tracked by any Budgets
+	TArray<FFrameData*> Frames;						//< All active frames (contains the frame for which we are collecting stats now and all frames waiting for GPU readback)
+	FStats Stats;									//< Last updated frame stats
+	FStatCollectionMap StatCollections; 			//< Per Collection LinkedStatName to Budget CategoryName
+	TMap<FName, uint64> BudgetedPrimitives;			//< Budget CategoryName to Total Primitive Count
+	TMap<FName, uint64> UntrackedPrimitives;		//< Primitives which aren't tracked by any Budgets
 
 	FDelegateHandle ScreenMessageDelegate;	//< Delegate used to render optional screen stats
 

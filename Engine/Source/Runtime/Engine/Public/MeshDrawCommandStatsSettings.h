@@ -25,6 +25,9 @@ struct FMeshDrawCommandStatsBudget
 	/** The collection which contains this budget. */
 	UPROPERTY(config, EditAnywhere, Category = Engine)
 	int32 Collection = 0;
+	/** Which passes contribute to this budget. */
+	UPROPERTY(config, EditAnywhere, Category = Engine)
+	TArray<FName> Passes;
 };
 
 /** User settings used by the MeshDrawCommandStats system. */

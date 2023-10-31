@@ -161,8 +161,15 @@ FMeshDrawCommandStatsManager::FMeshDrawCommandStatsManager()
 						uint64* PrimitiveCount = BudgetedPrimitives.Find(CategoryBudget.CategoryName);
 						if (PrimitiveCount && *PrimitiveCount > 0)
 						{
+							FString& PassFriendlyNames = StatCollections[CategoryBudget.Collection].CategoryPassFriendlyNames[CategoryBudget.CategoryName];
+
 							FCoreDelegates::EOnScreenMessageSeverity Severity = CategoryBudget.PrimitiveBudget < *PrimitiveCount ? FCoreDelegates::EOnScreenMessageSeverity::Warning : FCoreDelegates::EOnScreenMessageSeverity::Info;
-							OutMessages.Add(Severity, FText::FromString(FString::Printf(TEXT("%5dK / %5dK - %s"), *PrimitiveCount / 1000, CategoryBudget.PrimitiveBudget / 1000, *(CategoryBudget.CategoryName.ToString()))));
+							OutMessages.Add(Severity, FText::FromString(FString::Printf(TEXT("%5dK / %5dK - %s (%s)"), 
+									*PrimitiveCount / 1000, 
+									CategoryBudget.PrimitiveBudget / 1000, 
+									*(CategoryBudget.CategoryName.ToString()),
+									*PassFriendlyNames
+							)));
 						}
 					}
 				}
@@ -184,7 +191,7 @@ FMeshDrawCommandStatsManager::FMeshDrawCommandStatsManager()
 				if (TotalBudget > 0)
 				{
 					FCoreDelegates::EOnScreenMessageSeverity Severity = TotalBudget < Stats.TotalPrimitives ? FCoreDelegates::EOnScreenMessageSeverity::Warning : FCoreDelegates::EOnScreenMessageSeverity::Info;
-					OutMessages.Add(Severity, FText::FromString(FString::Printf(TEXT("%5dK / %5dK - TOTAL"), Stats.TotalPrimitives / 1000, TotalBudget / 1000)));
+					OutMessages.Add(Severity, FText::FromString(FString::Printf(TEXT("%5dK / %5dK - TOTAL (All Passes)"), Stats.TotalPrimitives / 1000, TotalBudget / 1000)));
 				}
 				else
 				{
@@ -292,7 +299,9 @@ void FMeshDrawCommandStatsManager::Update()
 					CustomArgsBufferResult.DrawIndexedIndirectParameters = reinterpret_cast<const FRHIDrawIndexedIndirectParameters*>(CustomArgsBufferResult.GPUBufferReadback->Lock(CustomArgsBufferResult.GPUBufferReadback->GetGPUSizeBytes()));
 				}
 
-				TMap<FName, uint64> CategoryStats;
+				using PassCategoryStats = TMap<FName, uint64>;
+				TMap<FName, PassCategoryStats> Passes;
+
 				for (FMeshDrawCommandPassStats* PassStats : FrameData->PassData)
 				{
 					// make sure the pass was kicked
@@ -300,6 +309,8 @@ void FMeshDrawCommandStatsManager::Update()
 					{
 						continue;
 					}
+
+					PassCategoryStats& CategoryStats = Passes.FindOrAdd(PassStats->PassName);
 
 					const uint8* InstanceCullingReadBackData = PassStats->InstanceCullingGPUBufferReadback ? reinterpret_cast<const uint8*>(PassStats->InstanceCullingGPUBufferReadback->Lock(PassStats->DrawData.Num())) : nullptr;
 					const FRHIDrawIndexedIndirectParameters* IndirectArgsPtr = reinterpret_cast<const FRHIDrawIndexedIndirectParameters*>(InstanceCullingReadBackData);
@@ -355,9 +366,14 @@ void FMeshDrawCommandStatsManager::Update()
 					CustomArgsBufferResult.DrawIndexedIndirectParameters = nullptr;
 				}
 
-				for (auto Iter = CategoryStats.CreateConstIterator(); Iter; ++Iter)
+				for (auto PassIter = Passes.CreateConstIterator(); PassIter; ++PassIter)
 				{
-					Stats.CategoryStats.Add(FStats::FCategoryStats(Iter.Key(), Iter.Value()));
+					PassCategoryStats CatMap = PassIter.Value();
+
+					for (auto CatIter = CatMap.CreateConstIterator(); CatIter; ++CatIter)
+					{
+						Stats.CategoryStats.Add(FStats::FCategoryStats(PassIter.Key(), CatIter.Key(), CatIter.Value()));
+					}
 				}
 				Algo::Sort(Stats.CategoryStats, [this](FStats::FCategoryStats& LHS, FStats::FCategoryStats& RHS) { return LHS.CategoryName.ToString() < RHS.CategoryName.ToString(); });
 
@@ -406,13 +422,40 @@ void FMeshDrawCommandStatsManager::Update()
 			const UMeshDrawCommandStatsSettings* Settings = GetDefault<UMeshDrawCommandStatsSettings>();	
 			for (const FMeshDrawCommandStatsBudget& CategoryBudget : Settings->Budgets)
 			{
-				StatCollection& Collection = StatCollections.FindOrAdd(CategoryBudget.Collection);
-				Collection.Add(CategoryBudget.CategoryName, CategoryBudget.CategoryName);
+				FStatCollection& Collection = StatCollections.FindOrAdd(CategoryBudget.Collection);
+
+				FCollectionCategory& Category = Collection.Categories.AddDefaulted_GetRef();
+				Category.Name = CategoryBudget.CategoryName;
+
+				FString& FriendlyNames = Collection.CategoryPassFriendlyNames.FindOrAdd(CategoryBudget.CategoryName);
+
+				if (CategoryBudget.Passes.Num())
+				{
+					for (int i = 0; i < CategoryBudget.Passes.Num(); i++)
+					{
+						const FName& Pass = CategoryBudget.Passes[i];
+						Category.Passes.Add(Pass);
+
+						FriendlyNames += i ? " | " : "";
+						FriendlyNames += Pass.ToString();
+					}
+				}
+				else
+				{
+					FriendlyNames = "All Passes";
+				}
+
+				Category.LinkedNames.Add(CategoryBudget.CategoryName);
 
 				for (FName Name : CategoryBudget.LinkedStatNames)
 				{
-					Collection.Add(Name, CategoryBudget.CategoryName);
+					Category.LinkedNames.Add(Name);
 				}
+			}
+			
+			for (TPair<int32, FStatCollection>& Pair : StatCollections)
+			{
+				Pair.Value.Finish();
 			}
 		}
 
@@ -429,17 +472,38 @@ void FMeshDrawCommandStatsManager::Update()
 		}
 	#endif
 
-		StatCollection* Collection = StatCollections.Find(CollectionIdx);
+		FStatCollection* Collection = StatCollections.Find(CollectionIdx);
 
 		if (Collection || CollectionIdx == (int)MeshDrawStatsCollection::Pass)
 		{
 			for (const FStats::FCategoryStats& CategoryStat : Stats.CategoryStats)
 			{ 
-				FName* BudgetName = Collection ? Collection->Find(CategoryStat.CategoryName) : nullptr;
-				TMap<FName, uint64>* Map = BudgetName ? &BudgetedPrimitives : &UntrackedPrimitives;
+				TArray<int>* CategoryIndices = nullptr;
 
-				uint64& Count = Map->FindOrAdd(BudgetName ? *BudgetName : CategoryStat.CategoryName);
-				Count += CategoryStat.PrimitiveCount;
+				if (Collection)
+				{
+					CategoryIndices = Collection->CategoriesThatLinkStat(CategoryStat.CategoryName);
+				}
+				
+				if (CategoryIndices)
+				{
+					for (int CategoryIndex : *CategoryIndices)
+					{ 
+						FCollectionCategory& Category = Collection->Categories[CategoryIndex];
+
+						if (!Category.Passes.Num() || Category.Passes.Contains(CategoryStat.PassName))
+						{
+							uint64& Count = BudgetedPrimitives.FindOrAdd(Category.Name);
+							Count += CategoryStat.PrimitiveCount;
+						}
+					}
+				}
+				else
+				{
+					// No collection categories care about this stat, so it was probably missed
+					uint64& Count = UntrackedPrimitives.FindOrAdd(CategoryStat.CategoryName);
+					Count += CategoryStat.PrimitiveCount;
+				}
 			}
 		}
 	}
