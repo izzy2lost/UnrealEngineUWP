@@ -106,10 +106,30 @@ void FAnimationSequenceAsyncCacheTask::BeginCache(const FIoHash& KeyHash)
 			return AnimSequence->GetApproxRawSize();
 		}();
 		
-		const int64 RequiredMemory = AnimSequence->GetApproxRawSize() + AdditiveAnimSize;
+		int64 RequiredMemory = AnimSequence->GetApproxRawSize() + AdditiveAnimSize;
 		if (Compression::FAnimationCompressionMemorySummaryScope::ShouldStoreCompressionResults())
 		{
 			Compression::FAnimationCompressionMemorySummaryScope::CompressionResultSummary().GatherPreCompressionStats(AnimSequence->GetApproxRawSize(), AnimSequence->GetApproxCompressedSize());
+		}
+
+		if (const UAnimBoneCompressionSettings* BoneCompressionSettings = AnimSequence->BoneCompressionSettings.Get())
+		{
+			// We try out all compression codecs in parallel to find the best one, so we need to sum up the cost for every codec.
+			for (TObjectPtr<UAnimBoneCompressionCodec> Codec : BoneCompressionSettings->Codecs)
+			{
+				if (Codec)
+				{
+					const int64 PeakMemoryEstimate = Codec->EstimateCompressionMemoryUsage(*AnimSequence);
+					if (PeakMemoryEstimate < 0)
+					{
+						// Assume the worst and default to the default behavior when no estimate is given.
+						UE_LOG(LogAnimationCompression, Warning, TEXT("Got invalid memory usage estimate from codec %s for %s. This can negatively affect the time compression takes."), *Codec->GetFullName(), *AnimSequence->GetFullName());
+						RequiredMemory = -1;
+						break;
+					}
+					RequiredMemory += PeakMemoryEstimate;
+				}
+			}
 		}
 		
 		CompressionStartTime = FPlatformTime::Seconds();
