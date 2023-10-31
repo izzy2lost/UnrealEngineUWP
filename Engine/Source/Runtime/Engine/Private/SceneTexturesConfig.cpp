@@ -298,6 +298,10 @@ void FSceneTexturesConfig::Init(const FSceneTexturesConfigInitSettings& InitSett
 				BindingCache.Bindings[Layout].GBufferD = FindGBufferBindingByName(GBufferInfo, TEXT("GBufferD"));
 				BindingCache.Bindings[Layout].GBufferE = FindGBufferBindingByName(GBufferInfo, TEXT("GBufferE"));
 				BindingCache.Bindings[Layout].GBufferVelocity = FindGBufferBindingByName(GBufferInfo, TEXT("Velocity"));
+
+				// Remove DisableDCC flag for velocity. Only Nanite fast tile clear sets this flag currently
+				// but we want to exclude velocity because it usually doesn't have many written pixels
+				EnumRemoveFlags(BindingCache.Bindings[Layout].GBufferVelocity.Flags, TexCreate_DisableDCC);
 			}
 
 			BindingCache.GBufferParams = DefaultParams;
