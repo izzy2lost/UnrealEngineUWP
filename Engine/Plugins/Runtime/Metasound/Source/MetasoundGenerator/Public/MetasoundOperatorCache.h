@@ -68,6 +68,7 @@ namespace Metasound
 		FMetasoundGeneratorInitParams InitParams;
 		Frontend::FNodeRegistryKey RegistryKey;
 		FSoftObjectPath AssetPath;
+		FGuid AssetClassID;
 		int32 NumInstances;
 
 		FOperatorBuildData() = delete;
@@ -75,6 +76,7 @@ namespace Metasound
 			  FMetasoundGeneratorInitParams&& InInitParams
 			, Frontend::FNodeRegistryKey InRegistryKey
 			, FSoftObjectPath InAssetPath
+			, FGuid InAssetID
 			, int32 InNumInstances = 1
 		);
 
@@ -86,11 +88,24 @@ namespace Metasound
 	{
 	public:
 		FOperatorPool(const FOperatorPoolSettings& InSettings);
+
 		FOperatorAndInputs ClaimOperator(const FGuid& InOperatorID);
+
 		void AddOperator(const FGuid& InOperatorID, TUniquePtr<IOperator>&& InOperator, FInputVertexInterfaceData&& InputData);
 		void AddOperator(const FGuid& InOperatorID, FOperatorAndInputs && OperatorAndInputs);
 		void BuildAndAddOperator(TUniquePtr<FOperatorBuildData> InBuildData);
+
+		void TouchOperators(const FGuid& InOpeoratorID, const int32& NumToTouch = 1);
+		void TouchOperatorsViaAssetClassID(const FGuid& InAssetClassID, const int32& NumToTouch = 1);
+
 		void RemoveOperatorsWithID(const FGuid& InOperatorID);
+		void RemoveOperatorsWithAssetClassID(const FGuid& InAssetClassID);
+
+		int32 GetNumCachedOperatorsWithID(const FGuid& InOperatorID) const;
+		int32 GetNumCachedOperatorsWithAssetClassID(const FGuid& InAssetClassID) const;
+
+		void AddAssetIdToGraphIdLookUp(const FGuid& InAssetClassID, const FGuid& InOperatorID);
+
 		void SetMaxNumOperators(uint32 InMaxNumOperators);
 #if METASOUND_OPERATORCACHEPROFILER_ENABLED
 		void UpdateHitRateTracker();
@@ -100,13 +115,14 @@ namespace Metasound
 		void Trim();
 
 		FOperatorPoolSettings Settings;
-		FCriticalSection CriticalSection;
+		mutable FCriticalSection CriticalSection;
 
 #if METASOUND_OPERATORCACHEPROFILER_ENABLED
 		OperatorPoolPrivate::FWindowedHitRate HitRateTracker;
 #endif // #if METASOUND_OPERATORCACHEPROFILER_ENABLED
 
 		TMap<FGuid, TArray<FOperatorAndInputs>> Operators;
+		TMap<FGuid, FGuid> AssetIdToGraphIdLookUp;
 		TArray<FGuid> Stack;
 	};
 

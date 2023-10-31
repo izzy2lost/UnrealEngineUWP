@@ -15,14 +15,15 @@ static TOptional<Metasound::FMetasoundGeneratorInitParams> CreateInitParams(UMet
 	using namespace Metasound::Engine;
 	using namespace Metasound::SourcePrivate;
 
+	// InMetaSound was null
 	if (!ensure(InMetaSound))
 	{
-		return {}; // InMetaSound was null
+		return {};
 	}
-
-	if (ensure(!InMetaSound->IsDynamic()))
+	// we cannot precache dynamic metasounds
+	if (!ensure(!InMetaSound->IsDynamic()))
 	{
-		return {}; // we cannot precache dynamic metasounds
+		return {};
 	}
 
 	FOperatorSettings InSettings = InMetaSound->GetOperatorSettings(static_cast<FSampleRate>(InParams.SampleRate));
@@ -87,11 +88,12 @@ void UMetaSoundCacheSubsystem::PrecacheMetaSound(UMetaSoundSource* InMetaSound, 
 
 	TSharedPtr<FOperatorPool> OperatorPool;
 	IMetasoundGeneratorModule* Module = FModuleManager::GetModulePtr<IMetasoundGeneratorModule>("MetasoundGenerator");
-	if (ensure(Module))
+	if (!ensure(Module))
 	{
-		OperatorPool = Module->GetOperatorPool();
+		return;
 	}
 
+	OperatorPool = Module->GetOperatorPool();
 	const FMixerDevice* MixerDevice = GetMixerDevice();
 
 	if (!ensure(MixerDevice && InMetaSound && OperatorPool))
@@ -123,8 +125,56 @@ void UMetaSoundCacheSubsystem::PrecacheMetaSound(UMetaSoundSource* InMetaSound, 
 		  MoveTemp(InitParams.GetValue())
 		, InMetaSound->GetRegistryKey()
 		, FSoftObjectPath(InMetaSound->GetOwningAsset())
+		, InMetaSound->AssetClassID
 		, InNumInstances
 	);
 
 	OperatorPool->BuildAndAddOperator(MoveTemp(Data));
+}
+
+void UMetaSoundCacheSubsystem::TouchOrPrecacheMetaSound(UMetaSoundSource* InMetaSound, int32 InNumInstances)
+{
+	using namespace Metasound;
+
+	TSharedPtr<FOperatorPool> OperatorPool;
+	IMetasoundGeneratorModule* Module = FModuleManager::GetModulePtr<IMetasoundGeneratorModule>("MetasoundGenerator");
+	if (!ensure(Module))
+	{
+		return;
+	}
+
+	OperatorPool = Module->GetOperatorPool();
+	if (!ensure(OperatorPool))
+	{
+		return;
+	}
+
+	// get the number of instances already in the cache
+	const int32 NumInCache = OperatorPool->GetNumCachedOperatorsWithAssetClassID(InMetaSound->AssetClassID);
+
+	// move pre-existing to the top of the cache
+	OperatorPool->TouchOperatorsViaAssetClassID(InMetaSound->AssetClassID, FMath::Min(NumInCache, InNumInstances));
+
+	// build the difference (InNumInstances - existing)
+	const int32 NumToBuild = InNumInstances - NumInCache;
+	if (NumToBuild > 0)
+	{
+		PrecacheMetaSound(InMetaSound, NumToBuild);
+	}
+}
+
+void UMetaSoundCacheSubsystem::RemoveCachedOperatorsForMetaSound(UMetaSoundSource* InMetaSound)
+{
+	using namespace Metasound;
+
+	IMetasoundGeneratorModule* Module = FModuleManager::GetModulePtr<IMetasoundGeneratorModule>("MetasoundGenerator");
+	if (!ensure(Module))
+	{
+		return;
+	}
+
+	if (TSharedPtr<FOperatorPool> OperatorPool = Module->GetOperatorPool())
+	{
+		OperatorPool->RemoveOperatorsWithAssetClassID(InMetaSound->AssetClassID);
+	}
 }

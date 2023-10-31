@@ -816,12 +816,11 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		if (bIsOperatorPoolEnabled)
 		{
 			bUseOperatorPool = ConsoleVariables::bEnableExperimentalOperatorPool || MetasoundGeneratorPrivate::HasOneShotInterface(InParams.Graph->GetVertexInterface());
-
-			if (bUseOperatorPool)
-			{
-				bDidUseCachedOperator = TryUseCachedOperator(InParams, true /* bTriggerGenerator */);
-			}
 		}
+
+		// check the cache for manually pre-cached operators
+		// even if the cvars disable automatic cache population.
+		bDidUseCachedOperator = TryUseCachedOperator(InParams, true /* bTriggerGenerator */);
 
 		if (!bDidUseCachedOperator)
 		{
@@ -857,7 +856,8 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			FOperatorAndInputs GraphOperatorAndInputs = OperatorPool->ClaimOperator(OperatorID);
 			if (GraphOperatorAndInputs.Operator.IsValid())
 			{
-				UE_LOG(LogMetasoundGenerator, VeryVerbose, TEXT("Using cached operator %s for MetaSound %s"), *LexToString(OperatorID), *InInitParams.MetaSoundName); 
+				UE_LOG(LogMetasoundGenerator, VeryVerbose, TEXT("Using cached operator %s for MetaSound %s"), *LexToString(OperatorID), *InInitParams.MetaSoundName);
+				bUseOperatorPool = true; // raise this flag to make sure we put the operator back in the pool (regardless of CVAR state)
 
 				// Apply and default inputs to the operator.
 				GeneratorBuilder::ApplyAudioParameters(OperatorSettings, MoveTemp(InInitParams.DefaultParameters), GraphOperatorAndInputs.Inputs);
@@ -890,16 +890,14 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		{
 			FMetasoundGeneratorModule& Module = FModuleManager::GetModuleChecked<FMetasoundGeneratorModule>("MetasoundGenerator");
 			TSharedPtr<FOperatorPool> OperatorPool = Module.GetOperatorPool();
-			if (OperatorPool.IsValid())
-			{
-				TUniquePtr<IOperator> GraphOperator = ReleaseGraphOperator();
+			TUniquePtr<IOperator> GraphOperator = ReleaseGraphOperator();
 
-				if (GraphOperator.IsValid())
-				{
-					// Release graph operator and input data to the cache
-					UE_LOG(LogMetasoundGenerator, VeryVerbose, TEXT("Caching operator %s"), *LexToString(OperatorID));
-					OperatorPool->AddOperator(OperatorID, MoveTemp(GraphOperator), ReleaseInputVertexData());
-				}
+			if (OperatorPool.IsValid() && GraphOperator.IsValid())
+			{
+				// Release graph operator and input data to the cache
+				UE_LOG(LogMetasoundGenerator, VeryVerbose, TEXT("Caching operator %s"), *LexToString(OperatorID));
+				OperatorPool->AddOperator(OperatorID, MoveTemp(GraphOperator), ReleaseInputVertexData());
+
 			}
 		}
 

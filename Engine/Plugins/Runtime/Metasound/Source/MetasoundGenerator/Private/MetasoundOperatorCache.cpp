@@ -154,11 +154,13 @@ namespace Metasound
 		  FMetasoundGeneratorInitParams&& InInitParams
 		, Frontend::FNodeRegistryKey InRegistryKey
 		, FSoftObjectPath InAssetPath
+		, FGuid InAssetClassID
 		, int32 InNumInstances
 	)
 	: InitParams(InInitParams)
 	, RegistryKey(InRegistryKey)
 	, AssetPath(InAssetPath)
+	, AssetClassID(InAssetClassID)
 	, NumInstances(InNumInstances)
 	{}
 
@@ -234,7 +236,6 @@ namespace Metasound
 			return;
 		}
 
-
 		FMetasoundGeneratorModule& Module = FModuleManager::GetModuleChecked<FMetasoundGeneratorModule>("MetasoundGenerator");
 		AsyncTask(ENamedThreads::AnyThread, [PreCacheData = MoveTemp(InBuildData), OperatorPool = Module.GetOperatorPool()] ()
 		{
@@ -257,9 +258,45 @@ namespace Metasound
 				FOperatorAndInputs OperatorAndInputs = GeneratorBuilder::BuildGraphOperator(PreCacheData->InitParams.OperatorSettings, PreCacheData->InitParams, BuildResults);
 				GeneratorBuilder::LogBuildErrors(PreCacheData->InitParams.MetaSoundName, BuildResults);
 	
-				OperatorPool->AddOperator(PreCacheData->InitParams.Graph->GetInstanceID(), MoveTemp(OperatorAndInputs));	
+				const FGuid& GraphID = PreCacheData->InitParams.Graph->GetInstanceID();
+				OperatorPool->AddOperator(GraphID, MoveTemp(OperatorAndInputs));
+				OperatorPool->AddAssetIdToGraphIdLookUp(PreCacheData->AssetClassID, GraphID);
 			}
 		});
+	}
+
+	void FOperatorPool::TouchOperators(const FGuid& InOpeoratorID, const int32& NumToTouch)
+	{
+		const int32 NumToMove = FMath::Min(NumToTouch, GetNumCachedOperatorsWithID(InOpeoratorID));
+		if (!NumToMove)
+		{
+			return;
+		}
+
+		FScopeLock Lock(&CriticalSection);
+
+		// add to the "top" (end)
+		for (int32 i = 0; i < NumToMove; ++i)
+		{
+			Stack.Add(InOpeoratorID);
+		}
+
+		// remove from the "bottom" (begining)
+		for (int32 i = 0; i < NumToMove; ++i)
+		{
+			Stack.RemoveSingle(InOpeoratorID);
+		}
+
+	}
+
+	void FOperatorPool::TouchOperatorsViaAssetClassID(const FGuid& InAssetClassID, const int32& NumToTouch)
+	{
+		FScopeLock Lock(&CriticalSection);
+		FGuid* GraphIdPtr = AssetIdToGraphIdLookUp.Find(InAssetClassID);
+		if (GraphIdPtr)
+		{
+			TouchOperators(*GraphIdPtr, NumToTouch);
+		}
 	}
 
 	void FOperatorPool::RemoveOperatorsWithID(const FGuid& InOperatorID)
@@ -269,11 +306,50 @@ namespace Metasound
 		Stack.Remove(InOperatorID);
 	}
 
+	void FOperatorPool::RemoveOperatorsWithAssetClassID(const FGuid& InAssetClassID)
+	{
+		FScopeLock Lock(&CriticalSection);
+		FGuid* GraphIdPtr = AssetIdToGraphIdLookUp.Find(InAssetClassID);
+		if (GraphIdPtr)
+		{
+			RemoveOperatorsWithID(*GraphIdPtr);
+			AssetIdToGraphIdLookUp.Remove(InAssetClassID);
+		}
+	}
+		
 	void FOperatorPool::SetMaxNumOperators(uint32 InMaxNumOperators)
 	{
 		FScopeLock Lock(&CriticalSection);
 		Settings.MaxNumOperators = InMaxNumOperators;
 		Trim();
+	}
+
+	int32 FOperatorPool::GetNumCachedOperatorsWithID(const FGuid& InOperatorID) const
+	{
+		FScopeLock Lock(&CriticalSection);
+		if (TArray<FOperatorAndInputs> const* OperatorsWithID = Operators.Find(InOperatorID))
+		{
+			return OperatorsWithID->Num();
+		}
+
+		return 0;
+	}
+
+	int32 FOperatorPool::GetNumCachedOperatorsWithAssetClassID(const FGuid& InAssetClassID) const
+	{
+		FScopeLock Lock(&CriticalSection);
+		if (const FGuid* GraphIdPtr = AssetIdToGraphIdLookUp.Find(InAssetClassID))
+		{
+			return GetNumCachedOperatorsWithID(*GraphIdPtr);
+		}
+
+		return 0;
+	}
+
+	void FOperatorPool::AddAssetIdToGraphIdLookUp(const FGuid& InAssetClassID, const FGuid& InOperatorID)
+	{
+		FScopeLock Lock(&CriticalSection);
+		AssetIdToGraphIdLookUp.Add(InAssetClassID, InOperatorID);
 	}
 
 #if METASOUND_OPERATORCACHEPROFILER_ENABLED
@@ -285,6 +361,7 @@ namespace Metasound
 
 	void FOperatorPool::Trim()
 	{
+		FScopeLock Lock(&CriticalSection);
 		int32 NumToTrim = Stack.Num() - Settings.MaxNumOperators;
 		if (NumToTrim > 0)
 		{
@@ -308,5 +385,7 @@ namespace Metasound
 			}
 			Stack.RemoveAt(0, NumToTrim);
 		}
+
+		// todo: prune AssetIdToGraphIdLookUp?
 	}
 } // namespace Metasound
