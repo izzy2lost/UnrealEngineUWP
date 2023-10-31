@@ -213,7 +213,7 @@ static FAutoConsoleVariableRef CVar_IasAsyncTocGeneration(
 	ECVF_ReadOnly
 );
 
-static int32 GIasHttpRangeRequestMinSizeKiB = 0;
+static int32 GIasHttpRangeRequestMinSizeKiB = 128;
 static FAutoConsoleVariableRef CVar_IasHttpRangeRequestMinSizeKiB(
 	TEXT("ias.HttpRangeRequestMinSizeKiB"),
 	GIasHttpRangeRequestMinSizeKiB,
