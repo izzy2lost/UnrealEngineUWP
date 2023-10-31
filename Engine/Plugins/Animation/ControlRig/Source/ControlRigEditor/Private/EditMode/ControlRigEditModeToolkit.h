@@ -82,9 +82,13 @@ protected:
 	virtual void RequestModeUITabs() override;
 	virtual void InvokeUI() override;
 
+	//this also saves the layout
 	void UnregisterAndRemoveFloatingTabs();
 
-private:
+	static bool bMotionTrailsTabOpen;
+	static bool bPoseTabOpen;
+	static bool bSnapperTabOpen;
+	static bool bTweenOpen;
 
 
 private:

@@ -96,6 +96,9 @@
 
 #define LOCTEXT_NAMESPACE "FControlRigParameterTrackEditor"
 
+bool FControlRigParameterTrackEditor::bControlRigEditModeWasOpen = false;
+TArray <TPair<UClass*, TArray<FName>>> FControlRigParameterTrackEditor::PreviousSelectedControlRigs;
+
 TAutoConsoleVariable<bool> CVarAutoGenerateControlRigTrack(TEXT("ControlRig.Sequencer.AutoGenerateTrack"), true, TEXT("When true automatically create control rig tracks in Sequencer when a control rig is added to a level."));
 
 TAutoConsoleVariable<bool> CVarSelectedKeysSelectControls(TEXT("ControlRig.Sequencer.SelectedKeysSelectControls"), false, TEXT("When true when we select a key in Sequencer it will select the Control, by default false."));
@@ -539,6 +542,33 @@ void FControlRigParameterTrackEditor::OnRelease()
 	}
 	ConstraintHandlesToClear.Reset();
 
+	FControlRigEditMode* ControlRigEditMode = GetEditMode();
+	PreviousSelectedControlRigs.Reset();
+	if (ControlRigEditMode)
+	{
+		bControlRigEditModeWasOpen = true;
+		for (TWeakObjectPtr<UControlRig>& ControlRig : BoundControlRigs)
+		{
+			if (ControlRig.IsValid())
+			{
+				TPair<UClass*, TArray<FName>> ClassAndName;
+				ClassAndName.Key = ControlRig->GetClass();
+				ClassAndName.Value = ControlRig->CurrentControlSelection();
+				PreviousSelectedControlRigs.Add(ClassAndName);
+			}
+		}
+		ControlRigEditMode->Exit(); //deactive mode below doesn't exit for some reason so need to make sure things are cleaned up
+		if (FEditorModeTools* Tools = GetEditorModeTools())
+		{
+			Tools->DeactivateMode(FControlRigEditMode::ModeName);
+		}
+
+		ControlRigEditMode->SetObjects(nullptr, nullptr, GetSequencer());
+	}
+	else
+	{
+		bControlRigEditModeWasOpen = false;
+	}
 	UnbindAllControlRigs();
 	if (GetSequencer().IsValid())
 	{
@@ -576,18 +606,6 @@ void FControlRigParameterTrackEditor::OnRelease()
 			}
 		}
 	}
-	FControlRigEditMode* ControlRigEditMode = GetEditMode();
-	if (ControlRigEditMode)
-	{
-		ControlRigEditMode->Exit(); //deactive mode below doesn't exit for some reason so need to make sure things are cleaned up
-		if (FEditorModeTools* Tools = GetEditorModeTools())
-		{
-			Tools->DeactivateMode(FControlRigEditMode::ModeName);
-		}
-
-		ControlRigEditMode->SetObjects(nullptr, nullptr, GetSequencer());
-	}
-
 	AcquiredResources.Release();
 
 }
@@ -1904,6 +1922,40 @@ void FControlRigParameterTrackEditor::OnActivateSequenceChanged(FMovieSceneSeque
 		
 		return false;
 	});
+	if (bControlRigEditModeWasOpen)
+	{
+		GEditor->GetTimerManager()->SetTimerForNextTick([this]()
+		{
+			//true here will turn it on
+			FControlRigEditMode* ControlRigEditMode = GetEditMode(true);
+			if (ControlRigEditMode)
+			{
+				GEditor->GetTimerManager()->SetTimerForNextTick([this, ControlRigEditMode]()
+				{
+					for(TWeakObjectPtr<UControlRig> &ControlRig: BoundControlRigs)
+					{ 
+						if (ControlRig.IsValid())
+						{
+							ControlRigEditMode->AddControlRigObject(ControlRig.Get(), GetSequencer());
+							for (int32 Index = 0; Index < PreviousSelectedControlRigs.Num(); ++Index)
+							{
+								if (ControlRig.Get()->GetClass() == PreviousSelectedControlRigs[Index].Key)
+								{
+									for (const FName& ControlName : PreviousSelectedControlRigs[Index].Value)
+									{
+										ControlRig.Get()->SelectControl(ControlName, true);
+									}
+									PreviousSelectedControlRigs.RemoveAt(Index);
+									break;
+								}
+							}	
+						}
+					}
+					PreviousSelectedControlRigs.Reset();
+				});
+			}
+		});
+	}
 }
 
 

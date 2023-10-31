@@ -33,6 +33,11 @@ namespace
 	const TArray<FName> AnimationPaletteNames = { AnimationName };
 }
 
+bool FControlRigEditModeToolkit::bMotionTrailsTabOpen = false;
+bool FControlRigEditModeToolkit::bPoseTabOpen = false;
+bool FControlRigEditModeToolkit::bSnapperTabOpen = false;
+bool FControlRigEditModeToolkit::bTweenOpen = false;
+
 const FName FControlRigEditModeToolkit::PoseTabName = FName(TEXT("PoseTab"));
 const FName FControlRigEditModeToolkit::MotionTrailTabName = FName(TEXT("MotionTrailTab"));
 const FName FControlRigEditModeToolkit::SnapperTabName = FName(TEXT("SnapperTab"));
@@ -97,17 +102,17 @@ void FControlRigEditModeToolkit::TryInvokeToolkitUI(const FName InName)
 	if (InName == MotionTrailTabName)
 	{
 		FTabId TabID(MotionTrailTabName);
-		ModeUILayerPtr->GetTabManager()->TryInvokeTab(TabID);
+		ModeUILayerPtr->GetTabManager()->TryInvokeTab(TabID, false /*bIsActive*/);
 	}
 	else if (InName == PoseTabName)
 	{
 		FTabId TabID(PoseTabName);
-		ModeUILayerPtr->GetTabManager()->TryInvokeTab(TabID);
+		ModeUILayerPtr->GetTabManager()->TryInvokeTab(TabID, false /*bIsActive*/);
 	}
 	else if (InName == SnapperTabName)
 	{
 		FTabId TabID(SnapperTabName);
-		ModeUILayerPtr->GetTabManager()->TryInvokeTab(TabID);
+		ModeUILayerPtr->GetTabManager()->TryInvokeTab(TabID, false /*bIsActive*/);
 	}
 	else if (InName == OutlinerTabName)
 	{
@@ -410,6 +415,22 @@ void FControlRigEditModeToolkit::InvokeUI()
 		ModeUILayerPtr->GetTabManager()->TryInvokeTab(UAssetEditorUISubsystem::TopRightTabID);
 		// doesn't work as expected todo ModeUILayerPtr->GetTabManager()->TryInvokeTab(UAssetEditorUISubsystem::TopLeftTabID);
 		ModeUILayerPtr->GetTabManager()->TryInvokeTab(UAssetEditorUISubsystem::BottomRightTabID);
+		if (bTweenOpen)
+		{
+			CreateAndShowTweenOverlay();
+		}
+		if (bMotionTrailsTabOpen)
+		{
+			TryInvokeToolkitUI(MotionTrailTabName);
+		}
+		if (bSnapperTabOpen)
+		{
+			TryInvokeToolkitUI(SnapperTabName);
+		}
+		if (bPoseTabOpen)
+		{
+			TryInvokeToolkitUI(PoseTabName);
+		}
 	}	
 }
 
@@ -417,6 +438,14 @@ void FControlRigEditModeToolkit::UnregisterAndRemoveFloatingTabs()
 {
 	if (FSlateApplication::IsInitialized())
 	{
+		if (TweenWidgetParent)
+		{
+			bTweenOpen = true;
+		}
+		else
+		{
+			bTweenOpen = false;
+		}
 		RemoveAndDestroyTweenOverlay();
 		if (ModeUILayer.IsValid())
 		{
@@ -425,21 +454,36 @@ void FControlRigEditModeToolkit::UnregisterAndRemoveFloatingTabs()
 			TSharedPtr<SDockTab> MotionTrailTab = ModeUILayerPtr->GetTabManager()->FindExistingLiveTab(FTabId(MotionTrailTabName));
 			if (MotionTrailTab)
 			{
+				bMotionTrailsTabOpen = true;
 				MotionTrailTab->RequestCloseTab();
+			}
+			else
+			{
+				bMotionTrailsTabOpen = false;
 			}
 			ModeUILayerPtr->GetTabManager()->UnregisterTabSpawner(MotionTrailTabName);
 
 			TSharedPtr<SDockTab> SnapperTab = ModeUILayerPtr->GetTabManager()->FindExistingLiveTab(FTabId(SnapperTabName));
 			if (SnapperTab)
 			{
+				bSnapperTabOpen = true;
 				SnapperTab->RequestCloseTab();
+			}
+			else
+			{
+				bSnapperTabOpen = false;
 			}
 			ModeUILayerPtr->GetTabManager()->UnregisterTabSpawner(SnapperTabName);
 		
 			TSharedPtr<SDockTab> PoseTab = ModeUILayerPtr->GetTabManager()->FindExistingLiveTab(FTabId(PoseTabName));
 			if (PoseTab)
 			{
+				bPoseTabOpen = true;
 				PoseTab->RequestCloseTab();
+			}
+			else
+			{
+				bPoseTabOpen = false;
 			}
 			ModeUILayerPtr->GetTabManager()->UnregisterTabSpawner(PoseTabName);
 		}

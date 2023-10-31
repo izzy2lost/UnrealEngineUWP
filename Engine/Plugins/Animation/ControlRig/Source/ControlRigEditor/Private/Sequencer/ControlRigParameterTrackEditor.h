@@ -301,6 +301,11 @@ private:
 	TSet<FDelegateHandle> ConstraintHandlesToClear;
 
 	friend class FControlRigBlueprintActions;
+
+	/** Whether or not animation/control rig edit mode was open when we closed*/
+	static bool bControlRigEditModeWasOpen;
+	/** Previous selection if open*/
+	static TArray <TPair<UClass*, TArray<FName>>> PreviousSelectedControlRigs;
 };
 
 
