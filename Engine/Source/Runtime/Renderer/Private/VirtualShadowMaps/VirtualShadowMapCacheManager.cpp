@@ -796,10 +796,12 @@ bool FVirtualShadowMapArrayCacheManager::IsCacheEnabled()
 bool FVirtualShadowMapArrayCacheManager::IsCacheDataAvailable()
 {
 	return IsCacheEnabled() &&
+		PhysicalPagePool &&
+		PhysicalPageMetaData &&
 		PrevBuffers.PageTable &&
 		PrevBuffers.PageFlags &&
 		PrevBuffers.PageRectBounds &&
-		PrevBuffers.ProjectionData && 
+		PrevBuffers.ProjectionData &&
 		PrevBuffers.PhysicalPageLists;
 }
 
