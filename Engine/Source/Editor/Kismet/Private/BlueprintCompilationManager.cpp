@@ -106,14 +106,6 @@ struct FBPCompileRequestInternal
 	FBPCompileRequest UserData;
 };
 
-enum class EReparentClassOptions
-{
-	None = 0x0,
-
-	ReplaceReferencesToOldClasses = 0x1,
-};
-ENUM_CLASS_FLAGS(EReparentClassOptions)
-
 struct FBlueprintCompilationManagerImpl : public FGCObject
 {
 	FBlueprintCompilationManagerImpl();
@@ -186,9 +178,9 @@ struct FBlueprintCompilationManagerImpl : public FGCObject
 // free function that we use to cross a module boundary (from CoreUObject to here)
 void FlushReinstancingQueueImplWrapper();
 void MoveSkelCDOAside(UClass* Class, TMap<UClass*, UClass*>& OldToNewMap);
-void ReparentHierarchiesWrapper(const TMap<UClass*, UClass*>& OldToNewMap)
+void ReparentHierarchiesWrapper(const TMap<UClass*, UClass*>& OldToNewMap, EReparentClassOptions Flags)
 {
-	FBlueprintCompilationManagerImpl::ReparentHierarchies(OldToNewMap, EReparentClassOptions::ReplaceReferencesToOldClasses);
+	FBlueprintCompilationManagerImpl::ReparentHierarchies(OldToNewMap, Flags);
 }
 
 FBlueprintCompilationManagerImpl::FBlueprintCompilationManagerImpl()
@@ -2068,6 +2060,7 @@ void FBlueprintCompilationManagerImpl::VerifyNoQueuedRequests(const TArray<FComp
 void FBlueprintCompilationManagerImpl::ReparentHierarchies(const TMap<UClass*, UClass*>& OldToNewClasses, EReparentClassOptions Options)
 {
 	const bool bReplaceReferencesToOldClasses = (Options & EReparentClassOptions::ReplaceReferencesToOldClasses) != EReparentClassOptions::None;
+	const bool bReplaceReferencesToOldCDOs = (Options & EReparentClassOptions::ReplaceCDOReferences) != EReparentClassOptions::None;
 
 	// something has decided to replace instances of a class. We need to update all the children of those types:
 	TArray< UClass* > ClassesOrdered;
@@ -2193,6 +2186,7 @@ void FBlueprintCompilationManagerImpl::ReparentHierarchies(const TMap<UClass*, U
 	FReplaceInstancesOfClassParameters BatchOptions;
 	BatchOptions.bArchetypesAreUpToDate = true;
 	BatchOptions.bReplaceReferencesToOldClasses = bReplaceReferencesToOldClasses;
+	BatchOptions.bReplaceReferencesToOldCDOs = bReplaceReferencesToOldCDOs;
 
 	// Make sure we don't replace old instances that are in the *callers* old to new TMap!
 	TSet<UObject*> OldObjects;

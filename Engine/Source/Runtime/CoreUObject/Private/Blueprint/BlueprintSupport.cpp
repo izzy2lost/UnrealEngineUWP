@@ -140,9 +140,14 @@ void FBlueprintSupport::FlushReinstancingQueue()
 
 void FBlueprintSupport::ReparentHierarchies(const TMap<UClass*, UClass*>& OldClassToNewClass)
 {
+	ReparentHierarchies(OldClassToNewClass, EReparentClassOptions::ReplaceReferencesToOldClasses);
+}
+
+void FBlueprintSupport::ReparentHierarchies(const TMap<UClass*, UClass*>& OldClassToNewClass, EReparentClassOptions Flags)
+{
 	if (ClassReparentingFPtr)
 	{
-		(*ClassReparentingFPtr)(OldClassToNewClass);
+		(*ClassReparentingFPtr)(OldClassToNewClass, Flags);
 	}
 }
 
