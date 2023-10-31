@@ -25,6 +25,9 @@ namespace
 	bool bUseClusterUnionAccelerationStructure = true;
 	FAutoConsoleVariableRef CVarUseClusterUnionAccelerationStructure(TEXT("ClusterUnion.UseAccelerationStructure"), bUseClusterUnionAccelerationStructure, TEXT("Whether component level sweeps and overlaps against cluster unions should use an acceleration structure instead."));
 
+	bool bUseLocalRoleForAuthorityCheck = true;
+	FAutoConsoleVariableRef CVarUseLocalRoleForAuthorityCheck(TEXT("ClusterUnion.UseLocalRoleForAuthorityCheck"), bUseLocalRoleForAuthorityCheck, TEXT("If true, we will only check this component's owner local role to determine authority"));
+
 	template<typename PayloadType>
 	struct TClusterUnionAABBTreeStorageTraits
 	{
@@ -618,6 +621,16 @@ ENGINE_API bool UClusterUnionComponent::IsAnchored() const
 
 bool UClusterUnionComponent::IsAuthority() const
 {
+	if (bUseLocalRoleForAuthorityCheck)
+	{
+		if (AActor* Owner = GetOwner())
+        {
+        	return Owner->GetLocalRole() == ROLE_Authority;
+        }
+
+		return false;
+	}
+
 	ENetMode Mode = GetNetMode();
 	if (Mode == ENetMode::NM_Standalone)
 	{
