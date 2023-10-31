@@ -10,6 +10,7 @@
 #include "Misc/AssertionMacros.h"
 #include "Templates/TypeHash.h"
 #include "UObject/NameTypes.h"
+#include "UObject/Object.h"
 #include "UObject/ObjectHandleTracking.h"
 #include "UObject/ObjectMacros.h"
 #include "UObject/ObjectRef.h"
@@ -234,7 +235,7 @@ namespace UE::CoreUObject::Private
 		if (IsObjectHandleResolved(Handle))
 		{
 			UObject* Obj = ReadObjectHandlePointerNoCheck(Handle);
-			return Obj != nullptr ? UE::CoreUObject::Private::GetClass(Obj) : nullptr;
+			return Obj != nullptr ? Obj->GetClass() : nullptr;
 		}
 		else
 		{
@@ -245,7 +246,7 @@ namespace UE::CoreUObject::Private
 		}
 #else
 		UObject* Obj = ReadObjectHandlePointerNoCheck(Handle);
-		return Obj != nullptr ? UE::CoreUObject::Private::GetClass(Obj) : nullptr;
+		return Obj != nullptr ? Obj->GetClass() : nullptr;
 #endif
 	}
 
@@ -350,6 +351,3 @@ namespace UE::CoreUObject::Private
 #endif
 }
 
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
-#include "UObject/Object.h"
-#endif

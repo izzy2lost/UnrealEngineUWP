@@ -1390,8 +1390,8 @@ UObject* StaticLoadObjectInternal(UClass* ObjectClass, UObject* InOuter, const T
 				{
 					if (UE::GC::Private::GIsIncrementalReachabilityPending)
 					{
-						UE::GC::MarkAsReachable(Redirector);
-						UE::GC::MarkAsReachable(Redirector->DestinationObject);
+						Redirector->MarkAsReachable();
+						Redirector->DestinationObject->MarkAsReachable();
 					}
 					return Redirector->DestinationObject;
 				}
@@ -1417,7 +1417,7 @@ UObject* StaticLoadObjectInternal(UClass* ObjectClass, UObject* InOuter, const T
 
 	if (Result && UE::GC::Private::GIsIncrementalReachabilityPending)
 	{
-		UE::GC::MarkAsReachable(Result);
+		Result->MarkAsReachable();
 	}
 	return Result;
 }
