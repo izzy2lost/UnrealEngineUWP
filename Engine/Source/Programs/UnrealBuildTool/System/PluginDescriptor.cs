@@ -149,6 +149,12 @@ namespace UnrealBuildTool
 		public VerseScope VerseScope = VerseScope.User;
 
 		/// <summary>
+		/// The version of the Verse language that this plugin targets.
+		/// If no value is specified, the latest stable version is used.
+		/// </summary>
+		public uint? VerseVersion;
+
+		/// <summary>
 		/// Whether this plugin should be enabled by default for all projects
 		/// </summary>
 		public Nullable<bool> bEnabledByDefault;
@@ -319,6 +325,12 @@ namespace UnrealBuildTool
 				VerseScope = PluginVerseScope;
 			}
 
+			uint PluginVerseVersion;
+			if (RawObject.TryGetUnsignedIntegerField("VerseVersion", out PluginVerseVersion))
+			{
+				VerseVersion = PluginVerseVersion;
+			}
+
 			bool bEnabledByDefaultValue;
 			if (RawObject.TryGetBoolField("EnabledByDefault", out bEnabledByDefaultValue))
 			{
@@ -430,6 +442,10 @@ namespace UnrealBuildTool
 			if (VerseScope != VerseScope.User)
 			{
 				Writer.WriteValue("VerseScope", VerseScope.ToString());
+			}
+			if (VerseVersion.HasValue)
+			{
+				Writer.WriteValue("VerseVersion", VerseVersion.Value);
 			}
 			if (bEnabledByDefault.HasValue)
 			{

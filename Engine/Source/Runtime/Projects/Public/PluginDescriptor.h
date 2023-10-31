@@ -9,6 +9,7 @@
 #include "CustomBuildSteps.h"
 #include "HAL/Platform.h"
 #include "LocalizationDescriptor.h"
+#include "Misc/Optional.h"
 #include "ModuleDescriptor.h"
 #include "PluginDisallowedDescriptor.h"
 #include "PluginReferenceDescriptor.h"
@@ -95,6 +96,10 @@ struct FPluginDescriptor
 
 	/** Origin/visibility of Verse code in this plugin's Content/Verse folder */
 	EVerseScope::Type VerseScope = EVerseScope::User;
+
+	/** The version of the Verse language that this plugin targets.
+		If no value is specified, the latest stable version is used. */
+	TOptional<uint32> VerseVersion;
 
 	/** If to generate Verse source code definitions from assets contained in this plugin */
 	bool bEnableVerseAssetReflection = false;

@@ -233,6 +233,25 @@ bool FPluginDescriptor::Read(const FJsonObject& Object, FText* OutFailReason /*=
 		}
 	}
 
+	// Read the Verse version.
+	TSharedPtr<FJsonValue> VerseVersionValue = Object.TryGetField(TEXT("VerseVersion"));
+	if (VerseVersionValue.IsValid())
+	{
+		uint32 PluginVerseVersion;
+		if (VerseVersionValue->TryGetNumber(PluginVerseVersion))
+		{
+			VerseVersion = PluginVerseVersion;
+		}
+		else
+		{
+			if (OutFailReason)
+			{
+				*OutFailReason = FText::Format(LOCTEXT("PluginWithInvalidVerseVersion", "Plugin entry 'VerseVersion' specified an unrecognized value '{1}'"), FText::FromString(VerseVersionValue->AsString()));
+			}
+			return false;
+		}
+	}
+
 	Object.TryGetBoolField(TEXT("EnableVerseAssetReflection"), bEnableVerseAssetReflection);
 
 	bool bEnabledByDefault;

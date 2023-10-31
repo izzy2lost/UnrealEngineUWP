@@ -282,6 +282,16 @@ namespace EpicGames.Core
 		}
 
 		/// <summary>
+		/// Write a field name and unsigned integer value
+		/// </summary>
+		/// <param name="name">Name of the field</param>
+		/// <param name="value">Value for the field</param>
+		public void WriteValue(string name, uint value)
+		{
+			WriteValueInternal(name, value.ToString());
+		}
+
+		/// <summary>
 		/// Write a field name and double value
 		/// </summary>
 		/// <param name="name">Name of the field</param>
