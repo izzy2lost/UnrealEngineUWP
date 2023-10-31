@@ -3,7 +3,6 @@
 #pragma once
 
 #include "Trace/Analyzer.h"
-#include "HAL/IConsoleManager.h"
 
 class FAnimationProvider;
 namespace TraceServices { class IAnalysisSession; }
@@ -27,7 +26,6 @@ private:
 		RouteId_SkeletalMeshComponent,
 		RouteId_SkeletalMeshComponent2,
 		RouteId_SkeletalMeshComponent3,
-		RouteId_SkeletalMeshComponent4,
 		RouteId_SkeletalMeshFrame,
 		RouteId_AnimGraph,
 		RouteId_AnimNodeStart,

@@ -24,7 +24,6 @@
 #include "NotifiesTrack.h"
 #include "PoseWatchTrack.h"
 #include "PropertiesTrack.h"
-#include "ExternalMorphTrack.h"
 #include "PropertyWatchManager.h"
 
 #if WITH_EDITOR
@@ -93,8 +92,6 @@ void FGameplayInsightsModule::StartupModule()
 	IModularFeatures::Get().RegisterModularFeature(RewindDebugger::IRewindDebuggerTrackCreator::ModularFeatureName, &PoseWatchesTrackCreator);
 	static RewindDebugger::FPropertiesTrackCreator PropertyTrackCreator;
 	IModularFeatures::Get().RegisterModularFeature(RewindDebugger::IRewindDebuggerTrackCreator::ModularFeatureName, &PropertyTrackCreator);
-	static RewindDebugger::FExternalMorphSetGroupTrackCreator ExternalMorphSetGroupTrackCreator;
-	IModularFeatures::Get().RegisterModularFeature(RewindDebugger::IRewindDebuggerTrackCreator::ModularFeatureName, &ExternalMorphSetGroupTrackCreator);
 
 	FPropertyWatchManager::Initialize();
 	

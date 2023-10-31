@@ -31,7 +31,6 @@ public:
 	virtual void Tick(float DeltaTime, float ModelWeight) override;
 	virtual void HandleZeroModelWeight() override;
 	virtual bool IsValidForDataProvider() const override;
-	virtual void PostTick(bool bExecuteCalled) override;
 	// ~END UMLDeformerModelInstance overrides.
 
 	int32 GetExternalMorphSetID() const;
@@ -42,16 +41,6 @@ public:
 	 * @return A pointer to the weight data, or a nullptr in case it cannot be found.
 	 */
 	FExternalMorphSetWeights* FindWeightData(int32 LOD) const;
-
-protected:
-#if WITH_EDITOR
-	/**
-	 * Copy the morph weights from a given morph model instance.
-	 * We assume that the other instance is compatible with this one.
-	 * @param SourceModelInstance The instance to copy the weights from.
-	 */
-	void CopyMorphWeightsFromMorphInstance(const UMLDeformerMorphModelInstance* SourceModelInstance);
-#endif
 
 protected:
 	/** The next free morph target set ID. This is used to generate unique ID's for each morph model. */

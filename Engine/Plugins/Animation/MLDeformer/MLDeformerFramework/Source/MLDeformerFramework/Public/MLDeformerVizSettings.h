@@ -90,7 +90,6 @@ public:
 	bool GetDrawMLDeformedActor() const						{ return bDrawMLDeformedActor; }
 	bool GetDrawGroundTruthActor() const					{ return bDrawGroundTruthActor; }
 	bool GetDrawMLCompareActors() const						{ return bDrawMLCompareActors; }
-	bool GetDrawDebugActorBounds() const					{ return bDrawDebugActorBounds; }
 	bool GetShowHeatMap() const								{ return bShowHeatMap; }
 	EMLDeformerHeatMapMode GetHeatMapMode() const			{ return HeatMapMode; }
 	float GetHeatMapMax() const								{ return HeatMapMax; }
@@ -102,7 +101,6 @@ public:
 	int32 GetQualityLevel() const							{ return QualityLevel; }
 	const TArray<FMLDeformerCompareActor>& GetCompareActors() const { return CompareActors; }
 	TArray<FMLDeformerCompareActor>& GetCompareActors()		{ return CompareActors; }
-	FColor GetDebugBoundsColor() const						{ return DebugBoundsColor; }
 
 	// Get property names.
 	static FName GetVisualizationModePropertyName()			{ return GET_MEMBER_NAME_CHECKED(UMLDeformerVizSettings, VisualizationMode); }
@@ -118,7 +116,6 @@ public:
 	static FName GetDrawMLDeformedActorPropertyName()		{ return GET_MEMBER_NAME_CHECKED(UMLDeformerVizSettings, bDrawMLDeformedActor); }
 	static FName GetDrawGroundTruthActorPropertyName()		{ return GET_MEMBER_NAME_CHECKED(UMLDeformerVizSettings, bDrawGroundTruthActor); }
 	static FName GetDrawMLCompareActorsPropertyName()		{ return GET_MEMBER_NAME_CHECKED(UMLDeformerVizSettings, bDrawMLCompareActors); }
-	static FName GetDrawDebugActorBoundsPropertyName()		{ return GET_MEMBER_NAME_CHECKED(UMLDeformerVizSettings, bDrawDebugActorBounds); }
 	static FName GetShowHeatMapPropertyName()				{ return GET_MEMBER_NAME_CHECKED(UMLDeformerVizSettings, bShowHeatMap); }
 	static FName GetHeatMapModePropertyName()				{ return GET_MEMBER_NAME_CHECKED(UMLDeformerVizSettings, HeatMapMode); }
 	static FName GetHeatMapMaxPropertyName()				{ return GET_MEMBER_NAME_CHECKED(UMLDeformerVizSettings, HeatMapMax); }
@@ -129,7 +126,6 @@ public:
 	static FName GetDrawVertexDeltasPropertyName()			{ return GET_MEMBER_NAME_CHECKED(UMLDeformerVizSettings, bDrawDeltas); }
 	static FName GetQualityLevelPropertyName()				{ return GET_MEMBER_NAME_CHECKED(UMLDeformerVizSettings, QualityLevel); }
 	static FName GetCompareActorsPropertyName()				{ return GET_MEMBER_NAME_CHECKED(UMLDeformerVizSettings, CompareActors); }
-	static FName GetDebugBoundsColorPropertyName()			{ return GET_MEMBER_NAME_CHECKED(UMLDeformerVizSettings, DebugBoundsColor); }
 #endif
 
 protected:
@@ -230,17 +226,6 @@ protected:
 	/** Specifies whether we draw the comparison actors or not. */
 	UPROPERTY(EditAnywhere, Category = "Live Settings", DisplayName = "Draw ML Compare Actors")
 	bool bDrawMLCompareActors = true;
-
-	/** Draw the debug actor's bounds in the PIE viewport? This only renders when PIE is active. */
-	UPROPERTY(EditAnywhere, Category = "Live Settings", DisplayName = "Highlight Debug Actors in PIE")
-	bool bDrawDebugActorBounds = true;
-
-	/** 
-	 * The color of the bounding box rendered inside the PIE viewport.
-	 * Keep in mind that the actor you are currently debugging is always rendered in green.
-	 */
-	UPROPERTY(EditAnywhere, Category = "Live Settings")
-	FColor DebugBoundsColor = FColor::Purple;
 
 	/** The scale factor of the ML deformer deltas being applied on top of the linear skinned results. */
 	UPROPERTY(EditAnywhere, Transient, Category = "Live Settings", meta = (ClampMin = "0.0", ClampMax = "1.0"))

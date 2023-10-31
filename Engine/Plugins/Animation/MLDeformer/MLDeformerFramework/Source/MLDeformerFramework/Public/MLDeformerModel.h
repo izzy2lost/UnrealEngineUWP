@@ -205,16 +205,6 @@ public:
 	 */
 	void SetSkeletalMesh(USkeletalMesh* SkelMesh)			{ SkeletalMesh = SkelMesh; }
 
-	/**
-	 * Check if a given actor would be a compatible debugging actor.
-	 * We check this by checking if it uses the same skeletal mesh and whether it uses the same ML Deformer asset.
-	 * Debugging allows us to copy over the morph weights and pose of a character. But for that to be possible we need to 
-	 * make sure the other actor uses the same skeletal mesh and ML Deformer asset. This method helps us check that easily.
-	 * @param Actor The actor to check compatibility with.
-	 * @param OutDebugComponent A pointer to the ML Deformer component that we would be debugging. Can be set to nullptr to get it ignored.
-	 * @return Returns true when the provided actor is compatible for debugging, otherwise false is returned.
-	 */
-	virtual bool IsCompatibleDebugActor(const AActor* Actor, UMLDeformerComponent** OutDebugComponent = nullptr) const;
 
 #if WITH_EDITORONLY_DATA
 	/**

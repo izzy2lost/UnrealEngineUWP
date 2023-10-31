@@ -15,7 +15,6 @@
 #include "UObject/UObjectGlobals.h"
 #include "RHICommandList.h"
 #include "AssetRegistry/AssetData.h"
-#include "Components/SkeletalMeshComponent.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MLDeformerModel)
 
@@ -195,64 +194,6 @@ void UMLDeformerModel::FloatArrayToVector3Array(const TArray<float>& FloatArray,
 		const int32 FloatBufferOffset = VertexIndex * 3;
 		OutVectorArray[VertexIndex] = FVector3f(FloatArray[FloatBufferOffset + 0], FloatArray[FloatBufferOffset + 1], FloatArray[FloatBufferOffset + 2]);
 	}
-}
-
-bool UMLDeformerModel::IsCompatibleDebugActor(const AActor* Actor, UMLDeformerComponent** OutDebugComponent) const
-{
-	// Set it to nullptr first, in case we exit this method early.
-	if (OutDebugComponent)
-	{
-		*OutDebugComponent = nullptr;
-	}
-
-	if (Actor == nullptr || !IsValid(Actor))
-	{
-		return false;
-	}
-
-	// Iterate over all skeletal mesh components, see if one matches our currently loaded character.
-	USkeletalMesh* SkelMesh = nullptr;
-	for (const UActorComponent* Component : Actor->GetComponents())
-	{
-		const USkeletalMeshComponent* SkelMeshComponent = Cast<USkeletalMeshComponent>(Component);
-		if (!SkelMeshComponent)
-		{
-			continue;
-		}
-
-		if (SkelMeshComponent->GetSkeletalMeshAsset() == SkeletalMesh)
-		{
-			SkelMesh = SkeletalMesh;
-			break;
-		}
-	}
-
-	// If we haven't found a matching skeletal mesh, we can ignore this actor.
-	if (!SkelMesh)
-	{
-		return false;
-	}
-
-	// Now check if we have an ML Deformer component on the actor uses the same ML Deformer asset.
-	for (UActorComponent* Component : Actor->GetComponents())
-	{
-		UMLDeformerComponent* MLDeformerComponent = Cast<UMLDeformerComponent>(Component);
-		if (!MLDeformerComponent)
-		{
-			continue;
-		}
-
-		if (MLDeformerComponent->GetDeformerAsset() == GetDeformerAsset())
-		{
-			if (OutDebugComponent)
-			{
-				*OutDebugComponent = MLDeformerComponent;
-			}
-			return true;
-		}
-	}
-
-	return false;
 }
 
 #if WITH_EDITOR

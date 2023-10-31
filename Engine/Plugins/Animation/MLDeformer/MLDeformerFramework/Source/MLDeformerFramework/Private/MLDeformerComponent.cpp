@@ -53,7 +53,7 @@ void UMLDeformerComponent::Init()
 	}
 	else
 	{
-		ReleaseModelInstance();
+		ModelInstance = nullptr;
 		UE_LOG(LogMLDeformer, Warning, TEXT("ML Deformer component on '%s' has a deformer asset that has no ML model setup."), *GetOuter()->GetName());
 	}
 }
@@ -136,13 +136,12 @@ void UMLDeformerComponent::UnbindDelegates()
 void UMLDeformerComponent::BeginDestroy()
 {
 	UnbindDelegates();
-	ReleaseModelInstance();
 	Super::BeginDestroy();
 }
 
 void UMLDeformerComponent::ReleaseModelInstance()
 {
-	if (ModelInstance && IsValid(ModelInstance))
+	if (ModelInstance)
 	{
 		ModelInstance->ConditionalBeginDestroy(); // Force destruction immediately instead of waiting for the next GC.
 		ModelInstance = nullptr;
@@ -156,7 +155,7 @@ USkeletalMeshComponent* UMLDeformerComponent::FindSkeletalMeshComponent(const UM
 	{
 		// First search for a skeletal mesh component that uses the same skeletal mesh as the ML Deformer asset was trained on.
 		const UMLDeformerModel* Model = Asset ? Asset->GetModel() : nullptr;
-		if (Model && Model->GetInputInfo() && Model->GetInputInfo()->GetSkeletalMesh().IsValid())
+		if (Model && Model->GetSkeletalMesh())
 		{
 			const FSoftObjectPath& ModelSkeletalMesh = Model->GetInputInfo()->GetSkeletalMesh();
 
@@ -186,8 +185,8 @@ USkeletalMeshComponent* UMLDeformerComponent::FindSkeletalMeshComponent(const UM
 
 void UMLDeformerComponent::UpdateSkeletalMeshComponent()
 {
-	USkeletalMeshComponent* Component = FindSkeletalMeshComponent(DeformerAsset.Get());
-	SetupComponent(DeformerAsset, Component);
+	SkelMeshComponent = FindSkeletalMeshComponent(DeformerAsset.Get());
+	SetupComponent(DeformerAsset, SkelMeshComponent);
 }
 
 void UMLDeformerComponent::Activate(bool bReset)
@@ -211,17 +210,6 @@ void UMLDeformerComponent::Deactivate()
 	Super::Deactivate();
 }
 
-
-float UMLDeformerComponent::GetFinalMLDeformerWeight() const
-{
-	float FinalWeight = Weight;
-	if (GMLDeformerOverrideWeight >= 0.0f)
-	{
-		FinalWeight = FMath::Min(GMLDeformerOverrideWeight, 1.0f);
-	}
-	return FinalWeight;
-}
-
 void UMLDeformerComponent::TickComponent(float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	#if WITH_EDITOR
@@ -236,8 +224,11 @@ void UMLDeformerComponent::TickComponent(float DeltaTime, enum ELevelTick TickTy
 			SkelMeshComponent->GetPredictedLODLevel() == 0)
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(UMLDeformerComponent::TickComponent)
-			
-			const float ApplyWeight = GetFinalMLDeformerWeight();
+			float ApplyWeight = Weight;
+			if (GMLDeformerOverrideWeight >= 0.0f)
+			{
+				ApplyWeight = FMath::Min(GMLDeformerOverrideWeight, 1.0f);
+			}
 			ModelInstance->Tick(DeltaTime, ApplyWeight);
 
 			#if WITH_EDITOR
@@ -264,8 +255,8 @@ void UMLDeformerComponent::SetWeightInternal(const float NormalizedWeightValue)
 
 void UMLDeformerComponent::SetDeformerAssetInternal(UMLDeformerAsset* const InDeformerAsset)
 { 
-	USkeletalMeshComponent* SkelMeshComp = FindSkeletalMeshComponent(InDeformerAsset);
-	SetupComponent(InDeformerAsset, SkelMeshComp);
+	DeformerAsset = InDeformerAsset;
+	UpdateSkeletalMeshComponent();
 }
 
 #if WITH_EDITOR

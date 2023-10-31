@@ -435,8 +435,6 @@ namespace UE::NearestNeighborModel
 
 	void FNearestNeighborEditorModel::UpdateNearestNeighborActor(FNearestNeighborEditorModelActor& Actor) const
 	{
-		using namespace UE::MLDeformer;
-
 		const UNearestNeighborModel* const NearestNeighborModel = GetCastModel();
 		if (!NearestNeighborModel)
 		{
@@ -454,18 +452,8 @@ namespace UE::NearestNeighborModel
 			return;
 		}
 
-		float MaxOffset = 0.0f;
-		for (FMLDeformerEditorActor* EditorActor : EditorActors)
-		{
-			if (EditorActor && 
-				EditorActor->GetTypeID() != ActorID_NearestNeighborActors &&
-				EditorActor->IsVisible()) 
-			{
-				MaxOffset = FMath::Max(EditorActor->GetMeshOffsetFactor(), MaxOffset);
-			}
-		}
-
-		Actor.SetMeshOffsetFactor(MaxOffset + 1.0f);
+		const float Offset = NNViz->NearestNeighborActorsOffset;
+		Actor.SetMeshOffsetFactor(Offset * 2.0f);
 
 		UGeometryCache* const GeomCache = NearestNeighborModel->GetSection(SectionIndex).GetMutableNeighborMeshes();
 		if (!GeomCache)

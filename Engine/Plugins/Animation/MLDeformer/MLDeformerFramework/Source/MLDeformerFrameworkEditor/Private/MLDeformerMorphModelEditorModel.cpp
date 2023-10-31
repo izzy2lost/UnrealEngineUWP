@@ -136,33 +136,30 @@ namespace UE::MLDeformer
 		FMLDeformerGeomCacheEditorModel::OnPostTraining(TrainingResult, bUsePartiallyTrainedWhenAborted);
 	}
 
-	namespace
+	float CalcStandardDeviation(TArrayView<const float> Values)
 	{
-		float CalcStandardDeviation(TArrayView<const float> Values)
+		if (Values.IsEmpty())
 		{
-			if (Values.IsEmpty())
-			{
-				return 0.0f;
-			}
-
-			// First calculate the mean.
-			float Mean = 0.0f;
-			for (float Value : Values)
-			{
-				Mean += Value;
-			}
-			Mean /= static_cast<float>(Values.Num());
-
-			// Now calculate the standard deviation.
-			float Sum = 0.0f;
-			for (float Value : Values)
-			{
-				Sum += FMath::Square(Value - Mean);
-			}
-			Sum /= static_cast<float>(Values.Num());
-
-			return FMath::Sqrt(Sum);
+			return 0.0f;
 		}
+
+		// First calculate the mean.
+		float Mean = 0.0f;
+		for (float Value : Values)
+		{
+			Mean += Value;
+		}
+		Mean /= static_cast<float>(Values.Num());
+
+		// Now calculate the standard deviation.
+		float Sum = 0.0f;
+		for (float Value : Values)
+		{
+			Sum += FMath::Square(Value - Mean);
+		}
+		Sum /= static_cast<float>(Values.Num());
+
+		return FMath::Sqrt(Sum);
 	}
 
 	void FMLDeformerMorphModelEditorModel::UpdateMorphErrorValues(TArrayView<UMorphTarget*> MorphTargets)

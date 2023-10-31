@@ -70,6 +70,7 @@ namespace UE::NearestNeighborModel
 	{
 		IDetailGroup& NNGroup = LiveSettingsCategory->AddGroup("Nearest Neighbor", LOCTEXT("NearestNeighborLabel", "Nearest Neighbor"), false, true);
 		NNGroup.AddPropertyRow(DetailLayoutBuilder->GetProperty(GET_MEMBER_NAME_STRING_CHECKED(UNearestNeighborModelVizSettings, NearestNeighborActorSectionIndex), UNearestNeighborModelVizSettings::StaticClass()));
+		NNGroup.AddPropertyRow(DetailLayoutBuilder->GetProperty(UNearestNeighborModelVizSettings::GetNearestNeighborActorsOffsetPropertyName(), UNearestNeighborModelVizSettings::StaticClass()));
 		NNGroup.AddPropertyRow(DetailLayoutBuilder->GetProperty(UNearestNeighborModelVizSettings::GetNearestNeighborIdsPropertyName(), UNearestNeighborModelVizSettings::StaticClass()));	
 	}
 

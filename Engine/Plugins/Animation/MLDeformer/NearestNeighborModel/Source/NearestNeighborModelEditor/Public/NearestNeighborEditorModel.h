@@ -45,13 +45,13 @@ namespace UE::NearestNeighborModel
 		virtual void InitInputInfo(UMLDeformerInputInfo* InputInfo) override;
 		virtual ETrainingResult Train() override;
 		virtual bool LoadTrainedNetwork() const override;
+		virtual void OnPostTraining(ETrainingResult TrainingResult, bool bUsePartiallyTrainedWhenAborted) override;
 		virtual FMLDeformerTrainingInputAnim* GetTrainingInputAnim(int32 Index) const override;
 		virtual void UpdateTimelineTrainingAnimList() override;
 		virtual void OnPropertyChanged(FPropertyChangedEvent& PropertyChangedEvent) override;
-		virtual void OnPostTraining(ETrainingResult TrainingResult, bool bUsePartiallyTrainedWhenAborted) override;
 		virtual void Render(const FSceneView* View, FViewport* Viewport, FPrimitiveDrawInterface* PDI) override;
 		// ~END FMLDeformerEditorModel overrides.
-		
+
 		// UMLDeformerMorphModelEditorModel overrides.
 		virtual bool IsMorphWeightClampingSupported() const override	{ return false; }	// We already do input clamping, so output clamping really isn't needed.
 		// ~END UMLDeformerMorphModelEditorModel overrides.
@@ -84,8 +84,12 @@ namespace UE::NearestNeighborModel
 
 		TUniquePtr<FNearestNeighborEditorModelActor> CreateNearestNeighborActor(UWorld* World) const;
 		void UpdateNearestNeighborActor(FNearestNeighborEditorModelActor& Actor) const;
-	
-		TUniquePtr<FNearestNeighborEditorModelActor> NearestNeighborActor;	// This should be only set in CreateActors().
+
+		void GetNeighborStats();
+
+		/** This should be only set in CreateActors(). */ 
+		TUniquePtr<FNearestNeighborEditorModelActor> NearestNeighborActor;
+
 		TUniquePtr<FVertexMapSelector> VertexMapSelector;
 		TUniquePtr<FVertVizSelector> VertVizSelector;
 	};
@@ -99,7 +103,6 @@ namespace UE::NearestNeighborModel
 		TSharedPtr<FString> GetSelectedItem(const UNearestNeighborModelSection& Section) const;
 		FString GetVertexMapString(const UNearestNeighborModelSection& Section) const;
 		bool IsValid() const;
-
 	private:
 		void Reset();
 		TArray<TSharedPtr<FString>> Options;
@@ -117,7 +120,6 @@ namespace UE::NearestNeighborModel
 		TSharedPtr<FString> GetSelectedItem() const;
 		int32 GetSectionIndex(TSharedPtr<FString> Item) const;
 		void SelectSection(int32 SectionIndex);
-
 	private:
 		TObjectPtr<UNearestNeighborModelVizSettings> Settings;
 		TArray<TSharedPtr<FString>> Options;
