@@ -355,7 +355,9 @@ FOpenGLTexture::FOpenGLTexture(FRHICommandListBase& RHICmdList, FOpenGLTextureCr
 
 	if (CreateDesc.BulkData)
 	{
-		if (RHICmdList.IsTopOfPipe())
+// FORT-672412: speculative and temporary fix for create texture/lock happening out of order.
+		if (!ShouldRunGLRenderContextOpOnThisThread(RHICmdList)) 
+// 		if (RHICmdList.IsTopOfPipe())
 		{
 			// If bulk data is provided, and texture initialization is done by the RHI thread, it needs to be copied out of the FResourceBulkDataInterface.
 			// It is not safe to pass this pointer to the RHI thread, as the interface may have been stack allocated in the renderer.
@@ -374,8 +376,9 @@ FOpenGLTexture::FOpenGLTexture(FRHICommandListBase& RHICmdList, FOpenGLTextureCr
 			BulkDataPtr = const_cast<void*>(CreateDesc.BulkData->GetResourceBulkData());
 		}
 	}
-
-	RHICmdList.EnqueueLambda([this, BulkDataPtr, BulkDataSize, bFreeBulkData](FRHICommandListBase&)
+// 	FORT-672412: speculative and temporary fix for create texture/lock happening out of order.
+	RunOnGLRenderContextThread(RHICmdList, [this, BulkDataPtr, BulkDataSize, bFreeBulkData]()
+// 	RHICmdList.EnqueueLambda([this, BulkDataPtr, BulkDataSize, bFreeBulkData](FRHICommandListBase&)
 	{
 		FOpenGLDynamicRHI::Get().InitializeGLTexture(this, BulkDataPtr, BulkDataSize);
 		if (bFreeBulkData)
