@@ -394,83 +394,99 @@ bool HasNoDerivativeOps(FRHIComputeShader* ComputeShaderRHI)
 	}
 }
 
-void BuildShadingCommands(FScene& Scene, TArrayView<FViewInfo> Views, ENaniteMeshPass::Type MeshPass)
+void BuildShadingCommands(FRDGBuilder& GraphBuilder, FScene& Scene, TArrayView<FViewInfo> Views, ENaniteMeshPass::Type MeshPass)
 {
 	FNaniteShadingPipelines& ShadingPipelines = Scene.NaniteShadingPipelines[MeshPass];
 	if (ShadingPipelines.bBuildCommands)
 	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(Nanite::BuildShadingCommands);
 		const auto& Pipelines = ShadingPipelines.GetShadingPipelineMap();
 
 		FNaniteShadingCommands& ShadingCommands = Scene.NaniteShadingCommands[MeshPass];
 
-		ShadingCommands.BoundTargetMask = 0x0u;
-		
-		ShadingCommands.Commands.Reset();
-		ShadingCommands.Commands.Reserve(Pipelines.Num());
-		ShadingCommands.MaxShadingBin = 0u;
-
-		for (const auto& Iter : Pipelines)
+		ShadingCommands.SetupTask = GraphBuilder.AddSetupTask([&ShadingCommands, &Pipelines]
 		{
-			FNaniteShadingCommand& ShadingCommand = ShadingCommands.Commands.AddDefaulted_GetRef();
-			const FNaniteShadingEntry& Entry = Iter.Value;
-			ShadingCommand.Pipeline = Entry.ShadingPipeline;
-			ShadingCommand.ShadingBin = Entry.BinIndex;
-			ShadingCommand.BatchedParameters.SetNum(Views.Num());
-			for (FRHIBatchedShaderParameters& Parameters : ShadingCommand.BatchedParameters)
+			TRACE_CPUPROFILER_EVENT_SCOPE(Nanite::BuildShadingCommandsMetadata);
+			ShadingCommands.MaxShadingBin = 0u;
+			ShadingCommands.BoundTargetMask = 0x0u;
+			ShadingCommands.NumCommands = Pipelines.Num();
+
+			for (const auto& Iter : Pipelines)
 			{
-				Parameters.Reset();
+				const FNaniteShadingEntry& Entry = Iter.Value;
+				ShadingCommands.MaxShadingBin = FMath::Max<uint32>(ShadingCommands.MaxShadingBin, uint32(Entry.BinIndex));
+				ShadingCommands.BoundTargetMask |= Entry.ShadingPipeline->BoundTargetMask;
 			}
 
-			ShadingCommands.MaxShadingBin = FMath::Max<uint32>(ShadingCommands.MaxShadingBin, uint32(ShadingCommand.ShadingBin));
+			ShadingCommands.MetaBufferData.SetNumZeroed(ShadingCommands.MaxShadingBin + 1u);
 
-			ShadingCommands.BoundTargetMask |= ShadingCommand.Pipeline->BoundTargetMask;
-		}
-
-		if (GNaniteComputeMaterialsSort != 0)
-		{
-			ShadingCommands.Commands.Sort([&ShadingCommands](auto& A, auto& B)
+			for (const auto& Iter : Pipelines)
 			{
-				const FNaniteShadingPipeline& PipelineA = *A.Pipeline.Get();
-				const FNaniteShadingPipeline& PipelineB = *B.Pipeline.Get();
+				const FNaniteShadingEntry& Entry = Iter.Value;
+				FUintVector4& MetaEntry = ShadingCommands.MetaBufferData[Entry.BinIndex];
+				// Note: .XYZ are populated by the GPU during shade binning
+				MetaEntry.W = Entry.ShadingPipeline->MaterialBitFlags;
+			}
 
-				if (PipelineA.ComputeShader != PipelineB.ComputeShader)
-				{
-					return PipelineA.ComputeShader < PipelineB.ComputeShader;
-				}
+			// Create Shader Bundle
+			if (!!GRHISupportsShaderBundleDispatch && ShadingCommands.MaxShadingBin > 0)
+			{
+				const uint32 NumRecords = ShadingCommands.MaxShadingBin + 1u;
+				ShadingCommands.ShaderBundle = RHICreateShaderBundle(NumRecords);
+				check(ShadingCommands.ShaderBundle != nullptr);
+			}
+			else
+			{
+				ShadingCommands.ShaderBundle = nullptr;
+			}
+		});
 
-				if (PipelineA.BoundTargetMask != PipelineB.BoundTargetMask)
-				{
-					return PipelineA.BoundTargetMask < PipelineB.BoundTargetMask;
-				}
-
-				if (PipelineA.Material != PipelineB.Material)
-				{
-					return PipelineA.Material < PipelineB.Material;
-				}
-
-				return A.Pipeline.Get() < B.Pipeline.Get();
-			});
-		}
-
-		ShadingCommands.MetaBufferData.SetNumZeroed(ShadingCommands.MaxShadingBin + 1u);
-		for (const FNaniteShadingCommand& ShadingCommand : ShadingCommands.Commands)
+		ShadingCommands.BuildCommandsTask = GraphBuilder.AddSetupTask([&Pipelines, &Commands = ShadingCommands.Commands, NumViews = Views.Num()]
 		{
-			FUintVector4& MetaEntry = ShadingCommands.MetaBufferData[ShadingCommand.ShadingBin];
-			// Note: .XYZ are populated by the GPU during shade binning
-			MetaEntry.W = ShadingCommand.Pipeline->MaterialBitFlags;
-		}
+			TRACE_CPUPROFILER_EVENT_SCOPE(Nanite::BuildShadingCommandsTask);
+			Commands.Reset();
+			Commands.Reserve(Pipelines.Num());
 
-		// Create Shader Bundle
-		if (!!GRHISupportsShaderBundleDispatch && ShadingCommands.Commands.Num() > 0)
-		{
-			const uint32 NumRecords = ShadingCommands.MaxShadingBin + 1u;
-			ShadingCommands.ShaderBundle = RHICreateShaderBundle(NumRecords);
-			check(ShadingCommands.ShaderBundle != nullptr);
-		}
-		else
-		{
-			ShadingCommands.ShaderBundle = nullptr;
-		}
+			for (const auto& Iter : Pipelines)
+			{
+				FNaniteShadingCommand& ShadingCommand = Commands.AddDefaulted_GetRef();
+				const FNaniteShadingEntry& Entry = Iter.Value;
+				ShadingCommand.Pipeline = Entry.ShadingPipeline;
+				ShadingCommand.ShadingBin = Entry.BinIndex;
+				ShadingCommand.BatchedParameters.SetNum(NumViews);
+				for (FRHIBatchedShaderParameters& Parameters : ShadingCommand.BatchedParameters)
+				{
+					Parameters.Reset();
+				}
+			}
+
+			if (GNaniteComputeMaterialsSort != 0)
+			{
+				Commands.Sort([](auto& A, auto& B)
+				{
+					const FNaniteShadingPipeline& PipelineA = *A.Pipeline.Get();
+					const FNaniteShadingPipeline& PipelineB = *B.Pipeline.Get();
+
+					if (PipelineA.ComputeShader != PipelineB.ComputeShader)
+					{
+						return PipelineA.ComputeShader < PipelineB.ComputeShader;
+					}
+
+					if (PipelineA.BoundTargetMask != PipelineB.BoundTargetMask)
+					{
+						return PipelineA.BoundTargetMask < PipelineB.BoundTargetMask;
+					}
+
+					if (PipelineA.Material != PipelineB.Material)
+					{
+						return PipelineA.Material < PipelineB.Material;
+					}
+
+					return A.Pipeline.Get() < B.Pipeline.Get();
+				});
+			}
+
+		}, ShadingCommands.SetupTask);
 
 		ShadingPipelines.bBuildCommands = false;
 	}
@@ -998,7 +1014,9 @@ void DispatchBasePass(
 	RDG_EVENT_SCOPE(GraphBuilder, "Nanite::BasePass");
 	SCOPED_NAMED_EVENT(DispatchBasePass, FColor::Emerald);
 
-	const uint32 ShadingBinCount = uint32(ShadingCommands.Commands.Num());
+	ShadingCommands.SetupTask.Wait();
+
+	const uint32 ShadingBinCount = ShadingCommands.NumCommands;
 	if (ShadingBinCount == 0u)
 	{
 		return;
@@ -1136,6 +1154,9 @@ void DispatchBasePass(
 		bool bBundleEmulation
 	)
 	{
+		// This is processed within the RDG pass lambda, so the setup task should be complete by now.
+		check(ShadingCommands.BuildCommandsTask.IsCompleted());
+
 		if (!bBundleShading || bBundleEmulation)
 		{
 			ShadingPassParameters->MaterialIndirectArgs->MarkResourceAsUsed();
@@ -1472,9 +1493,7 @@ FShadeBinning ShadeBinning(
 	const FSceneTexturesConfig& Config = View.GetSceneTexturesConfig();
 	const EShaderPlatform ShaderPlatform = View.GetShaderPlatform();
 
-	const uint32 ShadingCommandCount = uint32(ShadingCommands.Commands.Num());
-
-	if (ShadingCommandCount == 0u)
+	if (!ShadingCommands.NumCommands)
 	{
 		return Binning;
 	}

@@ -39,6 +39,7 @@ FShadeBinning ShadeBinning(
 );
 
 void BuildShadingCommands(
+	FRDGBuilder& GraphBuilder,
 	FScene& Scene,
 	TArrayView<FViewInfo> Views,
 	ENaniteMeshPass::Type MeshPass

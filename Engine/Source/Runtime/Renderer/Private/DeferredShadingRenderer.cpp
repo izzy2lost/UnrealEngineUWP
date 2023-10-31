@@ -77,6 +77,7 @@
 #include "Nanite/NaniteRayTracing.h"
 #include "Nanite/NaniteComposition.h"
 #include "Nanite/Voxel.h"
+#include "Nanite/NaniteShading.h"
 #include "RayTracing/RayTracingInstanceCulling.h"
 #include "GPUMessaging.h"
 #include "RectLightTextureManager.h"
@@ -3358,6 +3359,12 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 	TArray<Nanite::FRasterResults, TInlineAllocator<2>> NaniteRasterResults;
 	TArray<Nanite::FPackedView, SceneRenderingAllocator> PrimaryNaniteViews;
 	RenderPrepassAndVelocity(Views, NaniteBasePassVisibility, NaniteRasterResults, PrimaryNaniteViews);
+
+	// Run Nanite compute commands early in the frame to allow some task overlap on the CPU until the base pass runs.
+	if (bNaniteEnabled && RendererOutput == ERendererOutput::FinalSceneColor && !bHasRayTracedOverlay && UseNaniteComputeMaterials())
+	{
+		Nanite::BuildShadingCommands(GraphBuilder, *Scene, Views, ENaniteMeshPass::BasePass);
+	}
 
 	FComputeLightGridOutput ComputeLightGridOutput = {};
 

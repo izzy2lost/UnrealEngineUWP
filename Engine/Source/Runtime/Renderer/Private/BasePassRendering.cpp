@@ -1393,11 +1393,6 @@ void FDeferredShadingSceneRenderer::RenderBasePassInternal(
 		}
 	};
 
-	if (bNaniteEnabled && UseNaniteComputeMaterials())
-	{
-		Nanite::BuildShadingCommands(*Scene, Views, ENaniteMeshPass::BasePass);
-	}
-
 	if (bRenderLightmapDensity || ViewFamily.UseDebugViewPS())
 	{
 		// Debug view support for Nanite
