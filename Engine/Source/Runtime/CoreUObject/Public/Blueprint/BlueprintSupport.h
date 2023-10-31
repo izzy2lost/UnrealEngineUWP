@@ -8,7 +8,6 @@
 #include "CoreTypes.h"
 #include "HAL/ThreadSingleton.h"
 #include "Internationalization/Text.h"
-#include "Misc/EnumRange.h"
 #include "UObject/NameTypes.h"
 #include "UObject/UObjectGlobals.h"
 
@@ -79,17 +78,8 @@ struct FBlueprintWarningDeclaration
 	FText WarningDescription;
 };
 
-enum class EReparentClassOptions
-{
-	None = 0x0,
-
-	ReplaceReferencesToOldClasses = 0x1,
-	ReplaceCDOReferences = 0x2,
-};
-ENUM_CLASS_FLAGS(EReparentClassOptions)
-
 typedef void (*FFlushReinstancingQueueFPtr)();
-typedef void (*FClassReparentingFPtr)(const TMap<UClass*, UClass*>& /*OldClassToNewClass*/, EReparentClassOptions);
+typedef void (*FClassReparentingFPtr)(const TMap<UClass*, UClass*>&);
 
 /** 
  * This set of functions contains blueprint related UObject functionality.
@@ -119,9 +109,7 @@ struct FBlueprintSupport
 	static void FlushReinstancingQueue();
 	COREUOBJECT_API static void SetFlushReinstancingQueueFPtr(FFlushReinstancingQueueFPtr Ptr);	
 
-	UE_DEPRECATED(5.4, "Use ReparentHierarchies(const TMap<UClass*, UClass*>&, EReparentClassOptions). Previous behaviour preserved with Flags=EReparentClassOptions::ReplaceReferencesToOldClasses")
 	COREUOBJECT_API static void ReparentHierarchies(const TMap<UClass*, UClass*>& OldClassToNewClass);
-	COREUOBJECT_API static void ReparentHierarchies(const TMap<UClass*, UClass*>& OldClassToNewClass, EReparentClassOptions Flags);
 	COREUOBJECT_API static void SetClassReparentingFPtr(FClassReparentingFPtr Ptr);
 
 	/** Tells if the specified object is one of the many flavors of FLinkerPlaceholderBase that we have. */
