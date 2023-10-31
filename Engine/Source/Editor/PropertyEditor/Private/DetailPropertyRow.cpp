@@ -539,7 +539,7 @@ void FDetailPropertyRow::MakeExternalPropertyRowCustomization(TSharedPtr<FStruct
 	InitParams.ArrayOffset = 0;
 	InitParams.ArrayIndex = INDEX_NONE;
 	InitParams.bForceHiddenPropertyVisibility = Parameters.ShouldForcePropertyVisible() || FPropertySettings::Get().ShowHiddenProperties();
-	InitParams.bCreateCategoryNodes = false;
+	InitParams.bCreateCategoryNodes = PropertyName == NAME_None;
 	InitParams.bAllowChildren = false;
 
 	Parameters.OverrideAllowChildren(InitParams.bAllowChildren);
@@ -551,20 +551,13 @@ void FDetailPropertyRow::MakeExternalPropertyRowCustomization(TSharedPtr<FStruct
 
 	if (PropertyName != NAME_None)
 	{
-		RootPropertyNode->RebuildChildren();
-
-		for (int32 ChildIdx = 0; ChildIdx < RootPropertyNode->GetNumChildNodes(); ++ChildIdx)
+		TSharedPtr<FPropertyNode> PropertyNode = RootPropertyNode->GenerateSingleChild(PropertyName);
+		if (PropertyNode.IsValid())
 		{
-			TSharedPtr< FPropertyNode > PropertyNode = RootPropertyNode->GetChildNode(ChildIdx);
-			if (FProperty* Property = PropertyNode->GetProperty())
-			{
-				if (Property->GetFName() == PropertyName)
-				{
-					OutCustomization.PropertyRow = MakeShareable(new FDetailPropertyRow(PropertyNode, ParentCategory, RootPropertyNode));
-					OutCustomization.PropertyRow->SetCustomExpansionId(Parameters.GetUniqueId());
-					break;
-				}
-			}
+			PropertyNode->RebuildChildren();
+
+			OutCustomization.PropertyRow = MakeShared<FDetailPropertyRow>(PropertyNode, ParentCategory, RootPropertyNode);
+			OutCustomization.PropertyRow->SetCustomExpansionId(Parameters.GetUniqueId());
 		}
 	}
 	else

@@ -355,7 +355,7 @@ public:
 	virtual TSharedRef<SWindow> CreateFloatingDetailsView( const TArray< UObject* >& InObjects, bool bIsLockable );
 
 	/**
-	 * Creates a standalone widget for a single property
+	 * Creates a standalone widget for a single object property
 	 *
 	 * @param InObject			The object to view
 	 * @param InPropertyName	The name of the property to display
@@ -363,6 +363,16 @@ public:
 	 * @return The new property if valid or null
 	 */
 	virtual TSharedPtr<class ISinglePropertyView> CreateSingleProperty( UObject* InObject, FName InPropertyName, const struct FSinglePropertyParams& InitParams );
+
+	/**
+	 * Creates a standalone widget for a single struct property
+	 *
+	 * @param InStruct			The struct containing the property to view
+	 * @param InPropertyName	The name of the property to display
+	 * @param InitParams		Optional init params for a single property
+	 * @return The new property if valid or null
+	 */
+	virtual TSharedPtr<class ISinglePropertyView> CreateSingleProperty(const TSharedPtr<class IStructureDataProvider>& InStruct, FName InPropertyName, const struct FSinglePropertyParams& InitParams);
 
 	virtual TSharedRef<class IStructureDetailsView> CreateStructureDetailView(const struct FDetailsViewArgs& DetailsViewArgs, const FStructureDetailsViewArgs& StructureDetailsViewArgs, TSharedPtr<class FStructOnScope> StructData, const FText& CustomName = FText::GetEmpty());
 
@@ -440,6 +450,9 @@ private:
 
 	void GetAllSectionsHelper(const UStruct* Struct, TArray<TSharedPtr<FPropertySection>>& OutSections, TSet<const UStruct*>& ProcessedStructs) const;
 	void FindSectionsForCategoryHelper(const UStruct* Struct, FName CategoryName, TArray<TSharedPtr<FPropertySection>>& OutSections, TSet<const UStruct*>& SearchedStructs) const;
+
+	TSharedPtr<class ISinglePropertyView> CreateSinglePropertyImpl(UObject* InObject, const TSharedPtr<IStructureDataProvider>& InStruct, FName InPropertyName, const struct FSinglePropertyParams& InitParams);
+	void CompactSinglePropertyViewArray();
 
 private:
 	/** All created detail views */

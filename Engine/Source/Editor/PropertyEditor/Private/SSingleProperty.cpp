@@ -18,6 +18,7 @@
 #include "UObject/UnrealType.h"
 #include "Widgets/Colors/SColorPicker.h"
 #include "Widgets/Text/STextBlock.h"
+#include "StructurePropertyNode.h"
 
 
 class FSinglePropertyUtilities : public IPropertyUtilities
@@ -117,26 +118,67 @@ void SSingleProperty::Construct( const FArguments& InArgs )
 
 	PropertyUtilities = MakeShareable( new FSinglePropertyUtilities( SharedThis( this ), InArgs._bShouldHideAssetThumbnail ) );
 
-	SetObject( InArgs._Object );
+	if (InArgs._Object != nullptr)
+	{
+		SetObject( InArgs._Object );
+	}
+	else if(InArgs._StructData.IsValid())
+	{
+		SetStruct(InArgs._StructData);
+	}
 }
 
 void SSingleProperty::SetObject( UObject* InObject )
 {
-	DestroyColorPicker();
-
-	if( !RootPropertyNode.IsValid() )
+	if( !RootPropertyNode.IsValid() || RootPropertyNode->GetPropertyType() != FComplexPropertyNode::EPT_Object)
 	{
 		RootPropertyNode = MakeShareable( new FObjectPropertyNode );
 	}
 
-	RootPropertyNode->RemoveAllObjects();
+	FObjectPropertyNode* RootObjectPropertyNode = static_cast<FObjectPropertyNode*>(RootPropertyNode.Get());
+
+	RootObjectPropertyNode->RemoveAllObjects();
 	ValueNode.Reset();
 
 	if( InObject )
 	{
-		RootPropertyNode->AddObject( InObject );
+		RootObjectPropertyNode->AddObject( InObject );
 	}
 
+	if( !GeneratePropertyCustomization() )
+	{
+		// invalid or missing property
+		RootObjectPropertyNode->RemoveAllObjects();
+	}
+}
+
+void SSingleProperty::SetStruct(const TSharedPtr<IStructureDataProvider>& InStruct)
+{
+	if (!RootPropertyNode.IsValid() || RootPropertyNode->GetPropertyType() != FComplexPropertyNode::EPT_StandaloneStructure)
+	{
+		RootPropertyNode = MakeShareable(new FStructurePropertyNode);
+	}
+
+	FStructurePropertyNode* RootStructPropertyNode = (FStructurePropertyNode*)RootPropertyNode.Get();
+
+	RootStructPropertyNode->RemoveStructure();
+	ValueNode.Reset();
+
+	if (InStruct)
+	{
+		RootStructPropertyNode->SetStructure(InStruct);
+	}
+
+	if( !GeneratePropertyCustomization() )
+	{
+		// invalid or missing property
+		RootStructPropertyNode->RemoveStructure();
+	}
+}
+
+bool SSingleProperty::GeneratePropertyCustomization()
+{
+	DestroyColorPicker();
 
 	FPropertyNodeInitParams InitParams;
 	InitParams.ParentNode = NULL;
@@ -244,12 +286,13 @@ void SSingleProperty::SetObject( UObject* InObject )
 			.ToolTipText(NSLOCTEXT("PropertyEditor", "SinglePropertyInvalidType_Tooltip", "Properties of this type cannot be edited inline; edit it elsewhere"))
 		];
 
-		// invalid or missing property
-		RootPropertyNode->RemoveAllObjects();
 		ValueNode.Reset();
 		RootPropertyNode.Reset();
 	}
+
+	return bIsAcceptableProperty;
 }
+
 
 void SSingleProperty::SetOnPropertyValueChanged( FSimpleDelegate& InOnPropertyValueChanged )
 {
@@ -261,13 +304,15 @@ void SSingleProperty::SetOnPropertyValueChanged( FSimpleDelegate& InOnPropertyVa
 
 void SSingleProperty::ReplaceObjects( const TMap<UObject*, UObject*>& OldToNewObjectMap )
 {
-	if( HasValidProperty() )
+	if( HasValidProperty() && RootPropertyNode->GetPropertyType() == FComplexPropertyNode::EPT_Object )
 	{
 		TArray<UObject*> NewObjectList;
 		bool bObjectsReplaced = false;
 
+		FObjectPropertyNode* RootObjectPropertyNode = static_cast<FObjectPropertyNode*>(RootPropertyNode.Get());
+
 		// Scan all objects and look for objects which need to be replaced
-		for ( TPropObjectIterator Itor( RootPropertyNode->ObjectIterator() ); Itor; ++Itor )
+		for ( TPropObjectIterator Itor(RootObjectPropertyNode->ObjectIterator() ); Itor; ++Itor )
 		{
 			UObject* Replacement = OldToNewObjectMap.FindRef( Itor->Get(true) );
 			if( Replacement )
@@ -292,10 +337,12 @@ void SSingleProperty::ReplaceObjects( const TMap<UObject*, UObject*>& OldToNewOb
 void SSingleProperty::RemoveDeletedObjects( const TArray<UObject*>& DeletedObjects )
 {
 
-	if( HasValidProperty() )
+	if( HasValidProperty() && RootPropertyNode->GetPropertyType() == FComplexPropertyNode::EPT_Object )
 	{
+		FObjectPropertyNode* RootObjectPropertyNode = static_cast<FObjectPropertyNode*>(RootPropertyNode.Get());
+
 		// Scan all objects and look for objects which need to be replaced
-		for ( TPropObjectIterator Itor( RootPropertyNode->ObjectIterator() ); Itor; ++Itor )
+		for ( TPropObjectIterator Itor(RootObjectPropertyNode->ObjectIterator() ); Itor; ++Itor )
 		{
 			if( DeletedObjects.Contains( Itor->Get() ) )
 			{

@@ -1334,4 +1334,7 @@ public:
 	virtual EPropertyType GetPropertyType() const = 0;
 
 	virtual void Disconnect() = 0;
+
+	/** Generates a single child from the provided property name.  Any existing children are destroyed */
+	virtual TSharedPtr<FPropertyNode> GenerateSingleChild(FName ChildPropertyName) = 0;
 };

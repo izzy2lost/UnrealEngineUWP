@@ -353,12 +353,17 @@ public:
 		StructProvider = nullptr;
 	}
 
+	/** Generates a single child from the provided property name.  Any existing children are destroyed */
+	virtual TSharedPtr<FPropertyNode> GenerateSingleChild(FName ChildPropertyName) override;
+
 protected:
 
 	virtual EPropertyDataValidationResult EnsureDataIsValid() override;
 
 	/** FPropertyNode interface */
 	virtual void InitChildNodes() override;
+
+	void InternalInitChildNodes(FName SinglePropertyName);
 
 	virtual uint8* GetValueBaseAddress(uint8* Base, bool bIsSparseData, bool bIsStruct) const override;
 

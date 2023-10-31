@@ -297,34 +297,50 @@ TSharedPtr<IDetailsView> FPropertyEditorModule::FindDetailView( const FName View
 
 TSharedPtr<ISinglePropertyView> FPropertyEditorModule::CreateSingleProperty( UObject* InObject, FName InPropertyName, const FSinglePropertyParams& InitParams )
 {
+	return CreateSinglePropertyImpl(InObject, TSharedPtr<IStructureDataProvider>(), InPropertyName, InitParams);
+}
+
+TSharedPtr<class ISinglePropertyView> FPropertyEditorModule::CreateSingleProperty( const TSharedPtr<IStructureDataProvider>& InStruct, FName InPropertyName, const struct FSinglePropertyParams& InitParams )
+{
+	return CreateSinglePropertyImpl(nullptr, InStruct, InPropertyName, InitParams);
+}
+
+TSharedPtr<class ISinglePropertyView> FPropertyEditorModule::CreateSinglePropertyImpl(UObject* InObject, const TSharedPtr<IStructureDataProvider>& InStruct, FName InPropertyName, const struct FSinglePropertyParams& InitParams)
+{
 	// Compact the list of detail view instances
-	for( int32 ViewIndex = 0; ViewIndex < AllSinglePropertyViews.Num(); ++ViewIndex )
-	{
-		if ( !AllSinglePropertyViews[ViewIndex].IsValid() )
-		{
-			AllSinglePropertyViews.RemoveAtSwap( ViewIndex );
-			--ViewIndex;
-		}
-	}
+	CompactSinglePropertyViewArray();
 
-	TSharedRef<SSingleProperty> Property = 
-		SNew( SSingleProperty )
-		.Object( InObject )
-		.PropertyName( InPropertyName )
-		.NamePlacement( InitParams.NamePlacement )
-		.NameOverride( InitParams.NameOverride )
-		.NotifyHook( InitParams.NotifyHook )
-		.PropertyFont( InitParams.Font )
-		.bShouldHideAssetThumbnail( InitParams.bHideAssetThumbnail);
+	TSharedRef<SSingleProperty> Property =
+		SNew(SSingleProperty)
+		.Object(InObject)
+		.StructData(InStruct)
+		.PropertyName(InPropertyName)
+		.NamePlacement(InitParams.NamePlacement)
+		.NameOverride(InitParams.NameOverride)
+		.NotifyHook(InitParams.NotifyHook)
+		.PropertyFont(InitParams.Font)
+		.bShouldHideAssetThumbnail(InitParams.bHideAssetThumbnail);
 
-	if( Property->HasValidProperty() )
+	if (Property->HasValidProperty())
 	{
-		AllSinglePropertyViews.Add( Property );
+		AllSinglePropertyViews.Add(Property);
 
 		return Property;
 	}
 
-	return NULL;
+	return nullptr;
+}
+
+void FPropertyEditorModule::CompactSinglePropertyViewArray()
+{
+	for( int32 ViewIndex = 0; ViewIndex < AllSinglePropertyViews.Num(); ++ViewIndex )
+	{
+		if (!AllSinglePropertyViews[ViewIndex].IsValid())
+		{
+			AllSinglePropertyViews.RemoveAtSwap(ViewIndex);
+			--ViewIndex;
+		}
+	}
 }
 
 TSharedRef< IPropertyTable > FPropertyEditorModule::CreatePropertyTable()

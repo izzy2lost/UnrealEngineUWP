@@ -7,6 +7,11 @@
 
 void FStructurePropertyNode::InitChildNodes()
 {
+	InternalInitChildNodes(FName());
+}
+
+void FStructurePropertyNode::InternalInitChildNodes(FName SinglePropertyName)
+{
 	const bool bShouldShowHiddenProperties = !!HasNodeFlags(EPropertyNodeFlags::ShouldShowHiddenProperties);
 	const bool bShouldShowDisableEditOnInstance = !!HasNodeFlags(EPropertyNodeFlags::ShouldShowDisableEditOnInstance);
 
@@ -19,7 +24,14 @@ void FStructurePropertyNode::InitChildNodes()
 		FProperty* StructMember = *It;
 		if (PropertyEditorHelpers::ShouldBeVisible(*this, StructMember))
 		{
-			StructMembers.Add(StructMember);
+			if (SinglePropertyName == NAME_None || StructMember->GetFName() == SinglePropertyName)
+			{
+				StructMembers.Add(StructMember);
+				if (SinglePropertyName != NAME_None)
+				{
+					break;
+				}
+			}
 		}
 	}
 
@@ -34,7 +46,7 @@ void FStructurePropertyNode::InitChildNodes()
 		InitParams.Property = StructMember;
 		InitParams.ArrayOffset = 0;
 		InitParams.ArrayIndex = INDEX_NONE;
-		InitParams.bAllowChildren = true;
+		InitParams.bAllowChildren = SinglePropertyName == NAME_None;
 		InitParams.bForceHiddenPropertyVisibility = bShouldShowHiddenProperties;
 		InitParams.bCreateDisableEditOnInstanceNodes = bShouldShowDisableEditOnInstance;
 		InitParams.bCreateCategoryNodes = false;
@@ -91,6 +103,27 @@ uint8* FStructurePropertyNode::GetValueBaseAddress(uint8* StartAddress, bool bIs
 		}
 	}
 	
+	return nullptr;
+}
+
+TSharedPtr<FPropertyNode> FStructurePropertyNode::GenerateSingleChild(FName ChildPropertyName)
+{
+	constexpr bool bDestroySelf = false;
+	DestroyTree(bDestroySelf);
+
+	// No category nodes should be created in single property mode
+	SetNodeFlags(EPropertyNodeFlags::ShowCategories, false);
+
+	InternalInitChildNodes(ChildPropertyName);
+
+	if (ChildNodes.Num() > 0)
+	{
+		// only one node should be been created
+		check(ChildNodes.Num() == 1);
+
+		return ChildNodes[0];
+	}
+
 	return nullptr;
 }
 
