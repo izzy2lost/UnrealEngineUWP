@@ -34,8 +34,14 @@ class IVisibilityTaskData
 public:
 	virtual ~IVisibilityTaskData() {}
 
+	/** [Optional] Call to allow early processing of async GDME tasks when it is safe to do so. Otherwise, this is automatically called from ProcessRenderThreadTasks. */
+	virtual void StartGatherDynamicMeshElements() = 0;
+
 	/** Processes all visibility tasks that must be performed on the render thread. */
-	virtual void ProcessRenderThreadTasks(FExclusiveDepthStencil::Type BasePassDepthStencilAccess, FInstanceCullingManager& InstanceCullingManager, FVirtualTextureUpdater* VirtualTextureUpdater) = 0;
+	virtual void ProcessRenderThreadTasks() = 0;
+
+	/** Called to finish processing of the GDME tasks. */
+	virtual void FinishGatherDynamicMeshElements(FExclusiveDepthStencil::Type BasePassDepthStencilAccess, FInstanceCullingManager& InstanceCullingManager, FVirtualTextureUpdater* VirtualTextureUpdater) = 0;
 
 	/** Waits for the task graph and cleans up. */
 	virtual void Finish() = 0;

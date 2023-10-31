@@ -550,7 +550,7 @@ private:
 
 	void PreVisibilityFrameSetup(FRDGBuilder& GraphBuilder);
 
-	void BeginInitDynamicShadows(FInitViewTaskDatas& TaskDatas);
+	void BeginInitDynamicShadows(FRDGBuilder& GraphBuilder, FInitViewTaskDatas& TaskDatas, FInstanceCullingManager& InstanceCullingManager);
 	void FinishInitDynamicShadows(FRDGBuilder& GraphBuilder, FDynamicShadowsTaskData*& TaskData, FInstanceCullingManager& InstanceCullingManager);
 
 	void ComputeLightVisibility();
@@ -559,9 +559,7 @@ private:
 	void BeginInitViews(
 		FRDGBuilder& GraphBuilder,
 		const FSceneTexturesConfig& SceneTexturesConfig,
-		FExclusiveDepthStencil::Type BasePassDepthStencilAccess,
 		FInstanceCullingManager& InstanceCullingManager,
-		FVirtualTextureUpdater* VirtualTextureUpdater,
 		FRDGExternalAccessQueue& ExternalAccessQueue,
 		FInitViewTaskDatas& TaskDatas);
 

@@ -29,7 +29,7 @@ UMeshComponent::UMeshComponent(const FObjectInitializer& ObjectInitializer)
 	bUseAsOccluder = true;
 	bCanEverAffectNavigation = true;
 	bCachedMaterialParameterIndicesAreDirty = true;
-	bEnableMaterialParameterCaching = false;
+	bEnableMaterialParameterCaching = true;
 }
 
 UMaterialInterface* UMeshComponent::GetMaterial(int32 ElementIndex) const

@@ -693,8 +693,20 @@ public:
 	 */
 	void AddReceiverPrimitive(FPrimitiveSceneInfo* PrimitiveSceneInfo);
 
+	enum class EGatherDynamicMeshElementsPass : uint8
+	{
+		// Processes all operations in a single pass.
+		All,
+
+		// Parallel pass runs first and processes elements in parallel with other shadows.
+		Parallel,
+
+		// Serial pass runs second and processes elements serially other shadows.
+		Serial,
+	};
+
 	/** Gathers dynamic mesh elements for all the shadow's primitives arrays. */
-	void GatherDynamicMeshElements(FMeshElementCollector& MeshCollector, FSceneRenderer& Renderer, class FVisibleLightInfo& VisibleLightInfo, TArray<const FSceneView*>& ReusedViewsArray, FInstanceCullingManager& InstanceCullingManager);
+	bool GatherDynamicMeshElements(FMeshElementCollector& MeshCollector, FSceneRenderer& Renderer, class FVisibleLightInfo& VisibleLightInfo, TArray<const FSceneView*>& ReusedViewsArray, EGatherDynamicMeshElementsPass Pass);
 
 	void SetupMeshDrawCommandsForShadowDepth(FSceneRenderer& Renderer, FInstanceCullingManager& InstanceCullingManager);
 
@@ -931,13 +943,14 @@ private:
 	int32 UpdateShadowCastingObjectBuffers() const;
 
 	/** Gathers dynamic mesh elements for the given primitive array. */
-	void GatherDynamicMeshElementsArray(
+	bool GatherDynamicMeshElementsArray(
 		FMeshElementCollector& Collector,
 		const PrimitiveArrayType& PrimitiveArray, 
 		const TArray<const FSceneView*>& Views,
 		const FSceneViewFamily& ViewFamily,
 		TArray<FMeshBatchAndRelevance,SceneRenderingAllocator>& OutDynamicMeshElements,
-		int32& OutNumDynamicSubjectMeshElements);
+		int32& OutNumDynamicSubjectMeshElements,
+		EGatherDynamicMeshElementsPass Pass);
 
 	void SetupFrustumForProjection(const FViewInfo* View, TArray<FVector4f, TInlineAllocator<8>>& OutFrustumVertices, bool& bOutCameraInsideShadowFrustum, FPlane* OutPlanes) const;
 

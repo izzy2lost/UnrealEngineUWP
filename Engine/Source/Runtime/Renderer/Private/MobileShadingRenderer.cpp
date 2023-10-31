@@ -436,6 +436,7 @@ void FMobileSceneRenderer::InitViews(
 	}
 
 	// Create GPU-side representation of the view for instance culling.
+	InstanceCullingManager.AllocateViews(Views.Num());
 	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ++ViewIndex)
 	{
 		Views[ViewIndex].GPUSceneViewId = InstanceCullingManager.RegisterView(Views[ViewIndex]);
@@ -453,7 +454,8 @@ void FMobileSceneRenderer::InitViews(
 		FXSystem->PostInitViews(GraphBuilder, GetSceneViews(), !ViewFamily.EngineShowFlags.HitProxies);
 	}
 
-	TaskDatas.VisibilityTaskData->ProcessRenderThreadTasks(BasePassDepthStencilAccess, InstanceCullingManager, VirtualTextureUpdater);
+	TaskDatas.VisibilityTaskData->ProcessRenderThreadTasks();
+	TaskDatas.VisibilityTaskData->FinishGatherDynamicMeshElements(BasePassDepthStencilAccess, InstanceCullingManager, VirtualTextureUpdater);
 
 	if (ShouldRenderVolumetricFog() && bRendererOutputFinalSceneColor)
 	{
@@ -938,9 +940,6 @@ void FMobileSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 
 	GEngine->GetPreRenderDelegateEx().Broadcast(GraphBuilder);
 
-	// Global dynamic buffers need to be committed before rendering.
-	DynamicReadBufferForInitViews.Commit(GraphBuilder.RHICmdList);
-	DynamicReadBufferForShadows.Commit(GraphBuilder.RHICmdList);
 	
 	GraphBuilder.SetCommandListStat(GET_STATID(STAT_CLMM_SceneSim));
 
@@ -1006,7 +1005,7 @@ void FMobileSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 		}
 
 		GraphBuilder.SetCommandListStat(GET_STATID(STAT_CLMM_Shadows));
-		RenderShadowDepthMaps(GraphBuilder, InstanceCullingManager, ExternalAccessQueue);
+		RenderShadowDepthMaps(GraphBuilder, nullptr, InstanceCullingManager, ExternalAccessQueue);
 
 		// Run local fog volume initialization before base pass and volumetric fog for all the culled instance instance data to be ready.
 		InitLocalFogVolumesForViews(Scene, Views, ViewFamily, GraphBuilder, ShouldRenderVolumetricFog());

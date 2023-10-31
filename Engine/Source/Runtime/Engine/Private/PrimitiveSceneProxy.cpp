@@ -106,6 +106,19 @@ static TAutoConsoleVariable<int32> CVarApproximateOcclusionQueries(
 	ECVF_RenderThreadSafe
 );
 
+bool GParallelGatherDynamicMeshElements = true;
+static FAutoConsoleVariableRef CVarParallelGatherDynamicMeshElements(
+	TEXT("r.Visibility.DynamicMeshElements.Parallel"),
+	GParallelGatherDynamicMeshElements,
+	TEXT("Enables parallel processing of the gather dynamic mesh elements visibility phase."),
+	ECVF_RenderThreadSafe
+);
+
+bool IsParallelGatherDynamicMeshElementsEnabled()
+{
+	return GParallelGatherDynamicMeshElements;
+}
+
 bool FPrimitiveSceneProxy::ShouldRenderCustomDepth() const
 {
 	return IsCustomDepthPassEnabled() && bRenderCustomDepth;

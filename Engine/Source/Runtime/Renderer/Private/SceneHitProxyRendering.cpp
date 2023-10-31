@@ -578,10 +578,6 @@ void FMobileSceneRenderer::RenderHitProxies(FRDGBuilder& GraphBuilder)
 
 	GEngine->GetPreRenderDelegateEx().Broadcast(GraphBuilder);
 
-	// Global dynamic buffers need to be committed before rendering.
-	DynamicReadBufferForInitViews.Commit(GraphBuilder.RHICmdList);
-	DynamicReadBufferForShadows.Commit(GraphBuilder.RHICmdList);
-
 	InstanceCullingManager.FlushRegisteredViews(GraphBuilder);
 
 	TArray<Nanite::FRasterResults, TInlineAllocator<2>> NaniteRasterResults;
@@ -621,7 +617,7 @@ void FDeferredShadingSceneRenderer::RenderHitProxies(FRDGBuilder& GraphBuilder)
 	FLumenSceneFrameTemporaries LumenFrameTemporaries;
 	FInitViewTaskDatas InitViewTaskDatas(VisibilityTaskData);
 	FRDGExternalAccessQueue ExternalAccessQueue;
-	BeginInitViews(GraphBuilder, SceneTexturesConfig, FExclusiveDepthStencil::DepthWrite_StencilWrite, InstanceCullingManager, nullptr, ExternalAccessQueue, InitViewTaskDatas);
+	BeginInitViews(GraphBuilder, SceneTexturesConfig, InstanceCullingManager, ExternalAccessQueue, InitViewTaskDatas);
 
 	extern TSet<IPersistentViewUniformBufferExtension*> PersistentViewUniformBufferExtensions;
 
@@ -637,6 +633,8 @@ void FDeferredShadingSceneRenderer::RenderHitProxies(FRDGBuilder& GraphBuilder)
 	}
 
 	ShaderPrint::BeginViews(GraphBuilder, Views);
+
+	InitViewTaskDatas.VisibilityTaskData->FinishGatherDynamicMeshElements(FExclusiveDepthStencil::DepthWrite_StencilWrite, InstanceCullingManager, nullptr);
 
 	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
 	{
@@ -662,10 +660,6 @@ void FDeferredShadingSceneRenderer::RenderHitProxies(FRDGBuilder& GraphBuilder)
 	{
 		Scene->SplineMeshSceneResources->Update(GraphBuilder, GetSceneUniforms());
 	}
-
-	// Global dynamic buffers need to be committed before rendering.
-	DynamicReadBufferForInitViews.Commit(GraphBuilder.RHICmdList);
-	DynamicReadBufferForShadows.Commit(GraphBuilder.RHICmdList);
 
 	// Notify the FX system that the scene is about to be rendered.
 	if (FXSystem && Views.IsValidIndex(0))

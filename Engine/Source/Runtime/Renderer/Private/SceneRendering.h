@@ -2036,13 +2036,11 @@ public:
 	DynamicRenderScaling::TMap<float> DynamicResolutionFractions;
 	DynamicRenderScaling::TMap<float> DynamicResolutionUpperBounds;
 
-	FMeshElementCollector MeshCollector;
-	FMeshElementCollector EditorMeshCollector;
-
 	/** Information about the visible lights. */
 	TArray<FVisibleLightInfo, SceneRenderingAllocator> VisibleLightInfos;
 
 	/** Array of dispatched parallel shadow depth passes. */
+	UE::FMutex DispatchedShadowDepthPassesMutex;
 	TArray<FParallelMeshDrawCommandPass*, SceneRenderingAllocator> DispatchedShadowDepthPasses;
 
 	FSortedShadowMaps SortedShadowsForShadowDepthPass;
@@ -2304,8 +2302,9 @@ protected:
 
 	ERendererOutput GetRendererOutput() const;
 
-	FDynamicShadowsTaskData* BeginInitDynamicShadows( bool bRunningEarly, IVisibilityTaskData* VisibilityTaskData);
-	void FinishInitDynamicShadows(FRDGBuilder& GraphBuilder, FDynamicShadowsTaskData* TaskData, FInstanceCullingManager& InstanceCullingManager);
+	FDynamicShadowsTaskData* BeginInitDynamicShadows(FRDGBuilder& GraphBuilder, bool bRunningEarly, IVisibilityTaskData* VisibilityTaskData, FInstanceCullingManager& InstanceCullingManager);
+	void FinishInitDynamicShadows(FRDGBuilder& GraphBuilder, FDynamicShadowsTaskData* TaskData);
+	void FinishDynamicShadowMeshPassSetup(FRDGBuilder& GraphBuilder, FDynamicShadowsTaskData* TaskData);
 	FDynamicShadowsTaskData* InitDynamicShadows(FRDGBuilder& GraphBuilder, FInstanceCullingManager& InstanceCullingManager);
 
 	void CreateDynamicShadows(FDynamicShadowsTaskData& TaskData);
@@ -2371,7 +2370,7 @@ protected:
 		int64 CachedShadowMapsSize,
 		uint32& NumCSMCachesUpdatedThisFrame);
 
-	void AllocateShadowDepthTargets(FRHICommandListImmediate& RHICmdList, const FDynamicShadowsTaskData& TaskData);
+	void AllocateShadowDepthTargets(FDynamicShadowsTaskData& TaskData);
 	
 	void AllocateAtlasedShadowDepthTargets(FRHICommandListBase& RHICmdList, TConstArrayView<FProjectedShadowInfo*> Shadows, TArray<FSortedShadowMapAtlas,SceneRenderingAllocator>& OutAtlases);
 
@@ -2397,7 +2396,7 @@ protected:
 	void BeginGatherShadowPrimitives(FDynamicShadowsTaskData* TaskData, IVisibilityTaskData* VisibilityTaskData);
 	void FinishGatherShadowPrimitives(FDynamicShadowsTaskData* TaskData);
 
-	void RenderShadowDepthMaps(FRDGBuilder& GraphBuilder, FInstanceCullingManager& InstanceCullingManager, FRDGExternalAccessQueue& ExternalAccessQueue);
+	void RenderShadowDepthMaps(FRDGBuilder& GraphBuilder, FDynamicShadowsTaskData* DynamicShadowsTaskData, FInstanceCullingManager& InstanceCullingManager, FRDGExternalAccessQueue& ExternalAccessQueue);
 	void RenderVirtualShadowMaps(FRDGBuilder& GraphBuilder, bool bNaniteEnabled);
 
 	void RenderShadowDepthMapAtlases(FRDGBuilder& GraphBuilder);
@@ -2421,7 +2420,7 @@ protected:
 	void DrawDebugShadowFrustum(FViewInfo& View, FProjectedShadowInfo& ProjectedShadowInfo);
 
 	/** Gathers dynamic mesh elements for all shadows. */
-	void GatherShadowDynamicMeshElements(FRHICommandList& RHICmdList, FInstanceCullingManager& InstanceCullingManager);
+	void GatherShadowDynamicMeshElements(FDynamicShadowsTaskData& TaskData);
 
 	/** Performs once per frame setup prior to visibility determination. */
 	void PreVisibilityFrameSetup(FRDGBuilder& GraphBuilder);
@@ -2827,6 +2826,9 @@ extern FFastVramConfig GFastVRamConfig;
 
 /** Returns the array of shadows with distance fields. Call only after finishing shadow initialization. */
 extern TConstArrayView<FProjectedShadowInfo*> GetProjectedDistanceFieldShadows(const FDynamicShadowsTaskData* TaskData);
+
+/** Triggers shadow gather dynamic mesh elements task graph to start processing. */
+extern void BeginShadowGatherDynamicMeshElements(FDynamicShadowsTaskData* TaskData);
 
 extern bool UseCachedMeshDrawCommands();
 extern bool UseCachedMeshDrawCommands_AnyThread();

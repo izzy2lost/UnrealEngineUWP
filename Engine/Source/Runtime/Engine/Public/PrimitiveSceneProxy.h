@@ -1592,3 +1592,6 @@ ENGINE_API extern bool SupportsNaniteRendering(const FVertexFactory* RESTRICT Ve
 ENGINE_API extern bool SupportsNaniteRendering(const FVertexFactory* RESTRICT VertexFactory, const FPrimitiveSceneProxy* RESTRICT PrimitiveSceneProxy, const class FMaterialRenderProxy* MaterialRenderProxy, ERHIFeatureLevel::Type FeatureLevel);
 
 ENGINE_API extern bool SupportsNaniteRendering(const class FVertexFactoryType* RESTRICT VertexFactoryType, const class FMaterial& Material, ERHIFeatureLevel::Type FeatureLevel);
+
+// Whether scene proxies will have GetDynamicMeshElements called in parallel.
+ENGINE_API bool IsParallelGatherDynamicMeshElementsEnabled();

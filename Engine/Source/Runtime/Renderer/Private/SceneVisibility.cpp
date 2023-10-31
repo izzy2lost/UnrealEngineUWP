@@ -299,6 +299,24 @@ static FAutoConsoleVariableRef CVarOcclusionCullMaxQueriesPerTask(
 	ECVF_RenderThreadSafe
 );
 
+static int32 GNumDynamicMeshElementTasks = 4;
+static FAutoConsoleVariableRef CVarNumDynamicMeshElementTasks(
+	TEXT("r.Visibility.DynamicMeshElements.NumMainViewTasks"),
+	GNumDynamicMeshElementTasks,
+	TEXT("Controls the number of gather dynamic mesh elements tasks to run asynchronously during view visibility."),
+	ECVF_RenderThreadSafe
+);
+
+inline uint32 GetNumDynamicMeshElementTasks()
+{
+	if (!IsParallelGatherDynamicMeshElementsEnabled())
+	{
+		return 0;
+	}
+
+	return FMath::Clamp<int32>(GNumDynamicMeshElementTasks, 0, LowLevelTasks::FScheduler::Get().GetNumWorkers());
+}
+
 static bool GOcclusionCullEnabled = true;
 static FAutoConsoleVariableRef CVarOcclusionCullEnable(
 	// TODO: Move to r.Visibility.OcclusionCull.Enable. Still several explicit references.
@@ -1262,7 +1280,7 @@ void FRelevancePacket::ComputeRelevance(FDynamicPrimitiveIndexList& DynamicPrimi
 			}
 			else
 			{
-				DynamicPrimitiveIndexList.EditorPrimitives.Add(PrimitiveIndex);
+				DynamicPrimitiveIndexList.EditorPrimitives.Emplace(PrimitiveIndex, ViewBit);
 			}
 		}
 #endif
@@ -1278,7 +1296,7 @@ void FRelevancePacket::ComputeRelevance(FDynamicPrimitiveIndexList& DynamicPrimi
 		}
 		else
 		{
-			DynamicPrimitiveIndexList.Primitives.Add(PrimitiveIndex);
+			DynamicPrimitiveIndexList.Primitives.Emplace(PrimitiveIndex, ViewBit);
 		}
 	};
 
@@ -3512,6 +3530,347 @@ void FVisibilityViewPacket::BeginInitVisibility()
 
 ///////////////////////////////////////////////////////////////////////////////
 
+FDynamicMeshElementContext::FDynamicMeshElementContext(FSceneRenderer& SceneRenderer)
+	: ViewFamily(SceneRenderer.ViewFamily)
+	, Views(SceneRenderer.AllViews)
+	, Primitives(SceneRenderer.Scene->Primitives)
+	// Defer committing GPU scene and Material updates until the mesh collectors are finished. Deferring materials allows VT updates to
+	// overlap with GDME (uniform expression updates can't happen at the same time as the async VT system update), and since we are going
+	// wide across a single view we would otherwise have to lock for GPU scene updates.
+	, MeshCollector(SceneRenderer.FeatureLevel, SceneRenderer.Allocator, FMeshElementCollector::ECommitFlags::DeferAll)
+#if WITH_EDITOR
+	, EditorMeshCollector(SceneRenderer.FeatureLevel, SceneRenderer.Allocator, FMeshElementCollector::ECommitFlags::DeferAll)
+#endif
+	, RHICmdList(new FRHICommandList(FRHIGPUMask::All()))
+	, DynamicVertexBuffer(*RHICmdList)
+	, DynamicIndexBuffer(*RHICmdList)
+{
+	RHICmdList->SwitchPipeline(ERHIPipeline::Graphics);
+
+	ViewMeshArraysPerView.SetNum(Views.Num());
+
+	MeshCollector.Start(
+		*RHICmdList,
+		DynamicVertexBuffer,
+		DynamicIndexBuffer,
+		SceneRenderer.DynamicReadBufferForInitViews
+	);
+
+	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
+	{
+		FViewInfo& View = *Views[ViewIndex];
+		FViewMeshArrays& ViewMeshArrays = ViewMeshArraysPerView[ViewIndex];
+
+		MeshCollector.AddViewMeshArrays(
+			&View,
+			&ViewMeshArrays.DynamicMeshElements,
+			&ViewMeshArrays.SimpleElementCollector,
+			&View.DynamicPrimitiveCollector
+#if UE_ENABLE_DEBUG_DRAWING
+			, &ViewMeshArrays.DebugSimpleElementCollector
+#endif
+		);
+	}
+
+#if WITH_EDITOR
+	if (GIsEditor)
+	{
+		EditorMeshCollector.Start(
+			*RHICmdList,
+			DynamicVertexBuffer,
+			DynamicIndexBuffer,
+			SceneRenderer.DynamicReadBufferForInitViews
+		);
+
+		for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
+		{
+			FViewInfo& View = *Views[ViewIndex];
+			FViewMeshArrays& ViewMeshArrays = ViewMeshArraysPerView[ViewIndex];
+
+			EditorMeshCollector.AddViewMeshArrays(
+				&View,
+				&ViewMeshArrays.DynamicEditorMeshElements,
+				&ViewMeshArrays.EditorSimpleElementCollector,
+				&View.DynamicPrimitiveCollector
+#if UE_ENABLE_DEBUG_DRAWING
+				, &ViewMeshArrays.DebugSimpleElementCollector
+#endif
+			);
+		}
+	}
+#endif
+}
+
+FGraphEventRef FDynamicMeshElementContext::LaunchRenderThreadTask(FDynamicPrimitiveIndexList&& PrimitiveIndexList)
+{
+	return FFunctionGraphTask::CreateAndDispatchWhenReady([this, PrimitiveIndexList = MoveTemp(PrimitiveIndexList)]
+	{
+		for (FDynamicPrimitiveIndex PrimitiveIndex : PrimitiveIndexList.Primitives)
+		{
+			GatherDynamicMeshElementsForPrimitive(Primitives[PrimitiveIndex.Index], PrimitiveIndex.ViewMask);
+		}
+
+#if WITH_EDITOR
+		for (FDynamicPrimitiveIndex PrimitiveIndex : PrimitiveIndexList.EditorPrimitives)
+		{
+			GatherDynamicMeshElementsForEditorPrimitive(Primitives[PrimitiveIndex.Index], PrimitiveIndex.ViewMask);
+		}
+#endif
+	}, TStatId{}, nullptr, ENamedThreads::GetRenderThread_Local());
+}
+
+UE::Tasks::FTask FDynamicMeshElementContext::LaunchAsyncTask(FDynamicPrimitiveIndexQueue* PrimitiveIndexQueue, UE::Tasks::ETaskPriority TaskPriority)
+{
+	return Pipe.Launch(UE_SOURCE_LOCATION, [this, PrimitiveIndexQueue]
+	{
+		FOptionalTaskTagScope Scope(ETaskTag::EParallelRenderingThread);
+		FDynamicPrimitiveIndex PrimitiveIndex;
+
+		while (PrimitiveIndexQueue->Pop(PrimitiveIndex))
+		{
+			GatherDynamicMeshElementsForPrimitive(Primitives[PrimitiveIndex.Index], PrimitiveIndex.ViewMask);
+		}
+
+#if WITH_EDITOR
+		while (PrimitiveIndexQueue->PopEditor(PrimitiveIndex))
+		{
+			GatherDynamicMeshElementsForEditorPrimitive(Primitives[PrimitiveIndex.Index], PrimitiveIndex.ViewMask);
+		}
+#endif
+	}, TaskPriority);
+}
+
+void FDynamicMeshElementContext::GatherDynamicMeshElementsForPrimitive(FPrimitiveSceneInfo* Primitive, uint8 ViewMask)
+{
+	SCOPED_NAMED_EVENT(DynamicPrimitive, FColor::Magenta);
+
+	TArray<int32, TInlineAllocator<4>> MeshBatchCountBefore;
+	MeshBatchCountBefore.SetNumUninitialized(Views.Num());
+	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
+	{
+		MeshBatchCountBefore[ViewIndex] = MeshCollector.GetMeshBatchCount(ViewIndex);
+	}
+
+	MeshCollector.SetPrimitive(Primitive->Proxy, Primitive->DefaultDynamicHitProxyId);
+	Primitive->Proxy->GetDynamicMeshElements(ViewFamily.AllViews, ViewFamily, ViewMask, MeshCollector);
+
+	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
+	{
+		FViewInfo& View = *Views[ViewIndex];
+
+		if (ViewMask & (1 << ViewIndex))
+		{
+			FDynamicPrimitive& DynamicPrimitive = DynamicPrimitives.Emplace_GetRef();
+			DynamicPrimitive.PrimitiveIndex = Primitive->GetIndex();
+			DynamicPrimitive.ViewIndex = ViewIndex;
+			DynamicPrimitive.StartElementIndex = MeshBatchCountBefore[ViewIndex];
+			DynamicPrimitive.EndElementIndex = MeshCollector.GetMeshBatchCount(ViewIndex);
+		}
+	}
+}
+
+void FDynamicMeshElementContext::GatherDynamicMeshElementsForEditorPrimitive(FPrimitiveSceneInfo* Primitive, uint8 ViewMask)
+{
+#if WITH_EDITOR
+	EditorMeshCollector.SetPrimitive(Primitive->Proxy, Primitive->DefaultDynamicHitProxyId);
+	Primitive->Proxy->GetDynamicMeshElements(ViewFamily.AllViews, ViewFamily, ViewMask, EditorMeshCollector);
+#endif
+}
+
+void FDynamicMeshElementContext::Finish()
+{
+	MeshCollector.Finish();
+
+#if WITH_EDITOR
+	if (GIsEditor)
+	{
+		EditorMeshCollector.Finish();
+	}
+#endif
+
+	DynamicVertexBuffer.Commit();
+	DynamicIndexBuffer.Commit();
+	RHICmdList->FinishRecording();
+}
+
+FDynamicMeshElementContextContainer::~FDynamicMeshElementContextContainer()
+{
+	check(CommandLists.IsEmpty());
+}
+
+UE::Tasks::FTask FDynamicMeshElementContextContainer::LaunchAsyncTask(FDynamicPrimitiveIndexQueue* PrimitiveIndexQueue, int32 Index, UE::Tasks::ETaskPriority TaskPriority)
+{
+	return Contexts[Index]->LaunchAsyncTask(PrimitiveIndexQueue, TaskPriority);
+}
+
+FGraphEventRef FDynamicMeshElementContextContainer::LaunchRenderThreadTask(FDynamicPrimitiveIndexList&& PrimitiveIndexList)
+{
+	return Contexts.Last()->LaunchRenderThreadTask(MoveTemp(PrimitiveIndexList));
+}
+
+void FDynamicMeshElementContextContainer::Init(FSceneRenderer& SceneRenderer, int32 NumAsyncContexts)
+{
+	const int32 NumRenderThreadContexts = 1;
+	const int32 NumContexts = NumAsyncContexts + NumRenderThreadContexts;
+	Views = SceneRenderer.AllViews;
+	Contexts.Reserve(NumContexts);
+	CommandLists.Reserve(Contexts.Num());
+
+	for (int32 Index = 0; Index < NumContexts; ++Index)
+	{
+		FDynamicMeshElementContext* Context = SceneRenderer.Allocator.Create<FDynamicMeshElementContext>(SceneRenderer);
+		Contexts.Emplace(Context);
+		CommandLists.Emplace(Context->RHICmdList);
+	}
+}
+
+void FDynamicMeshElementContextContainer::MergeContexts(TArray<FDynamicPrimitive, SceneRenderingAllocator>& OutDynamicPrimitives)
+{
+	SCOPED_NAMED_EVENT(MergeGatherDynamicMeshElementContexts, FColor::Magenta);
+
+	check(!Views.IsEmpty());
+
+	// Fast path for one context; just move the memory instead of copying.
+	if (Contexts.Num() == 1)
+	{
+		FDynamicMeshElementContext* Context = Contexts[0];
+		OutDynamicPrimitives = MoveTemp(Context->DynamicPrimitives);
+
+		for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ++ViewIndex)
+		{
+			FViewInfo& View = *Views[ViewIndex];
+			FDynamicMeshElementContext::FViewMeshArrays& ViewMeshArrays = Context->ViewMeshArraysPerView[ViewIndex];
+
+			View.SimpleElementCollector = MoveTemp(ViewMeshArrays.SimpleElementCollector);
+			View.DynamicMeshElements    = MoveTemp(ViewMeshArrays.DynamicMeshElements);
+
+#if WITH_EDITOR
+			View.EditorSimpleElementCollector = MoveTemp(ViewMeshArrays.EditorSimpleElementCollector);
+			View.DynamicEditorMeshElements    = MoveTemp(ViewMeshArrays.DynamicEditorMeshElements);
+#endif
+
+#if UE_ENABLE_DEBUG_DRAWING
+			View.DebugSimpleElementCollector = MoveTemp(ViewMeshArrays.DebugSimpleElementCollector);
+#endif
+		}
+	}
+	// >1 context means we have to merge the containers.
+	else
+	{
+		struct FViewAllocationInfo
+		{
+			FSimpleElementCollector::FAllocationInfo SimpleElementCollector;
+			uint32 NumDynamicMeshElements = 0;
+#if WITH_EDITOR
+			FSimpleElementCollector::FAllocationInfo EditorSimpleElementCollector;
+			uint32 NumDynamicEditorMeshElements = 0;
+#endif
+#if UE_ENABLE_DEBUG_DRAWING
+			FSimpleElementCollector::FAllocationInfo DebugSimpleElementCollector;
+#endif
+		};
+
+		TArray<FViewAllocationInfo, TInlineAllocator<2>> AllocationInfosPerView;
+		AllocationInfosPerView.AddDefaulted(Views.Num());
+		uint32 NumDynamicPrimitives = 0;
+
+		for (FDynamicMeshElementContext* Context : Contexts)
+		{
+			NumDynamicPrimitives += Context->DynamicPrimitives.Num();
+			check(AllocationInfosPerView.Num() == Context->ViewMeshArraysPerView.Num());
+
+			// Accumulate allocation info for each context in order to reserve container memory once.
+			for (int32 ViewIndex = 0; ViewIndex < AllocationInfosPerView.Num(); ++ViewIndex)
+			{
+				const FDynamicMeshElementContext::FViewMeshArrays& ViewMeshArrays = Context->ViewMeshArraysPerView[ViewIndex];
+				FViewAllocationInfo& AllocationInfo = AllocationInfosPerView[ViewIndex];
+
+				ViewMeshArrays.SimpleElementCollector.AddAllocationInfo(AllocationInfo.SimpleElementCollector);
+				AllocationInfo.NumDynamicMeshElements += ViewMeshArrays.DynamicMeshElements.Num();
+#if WITH_EDITOR
+				ViewMeshArrays.EditorSimpleElementCollector.AddAllocationInfo(AllocationInfo.EditorSimpleElementCollector);
+				AllocationInfo.NumDynamicEditorMeshElements += ViewMeshArrays.DynamicEditorMeshElements.Num();
+#endif
+#if UE_ENABLE_DEBUG_DRAWING
+				ViewMeshArrays.DebugSimpleElementCollector.AddAllocationInfo(AllocationInfo.DebugSimpleElementCollector);
+#endif
+			}
+		}
+
+		OutDynamicPrimitives.Reserve(NumDynamicPrimitives);
+
+		// Reserve memory for merged containers.
+		for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ++ViewIndex)
+		{
+			FViewAllocationInfo& AllocationInfo = AllocationInfosPerView[ViewIndex];
+			FViewInfo& View = *Views[ViewIndex];
+
+			View.SimpleElementCollector.Reserve(AllocationInfo.SimpleElementCollector);
+			View.DynamicMeshElements.Reserve(AllocationInfo.NumDynamicMeshElements);
+#if WITH_EDITOR
+			View.EditorSimpleElementCollector.Reserve(AllocationInfo.EditorSimpleElementCollector);
+			View.DynamicEditorMeshElements.Reserve(AllocationInfo.NumDynamicEditorMeshElements);
+#endif
+#if UE_ENABLE_DEBUG_DRAWING
+			View.DebugSimpleElementCollector.Reserve(AllocationInfo.DebugSimpleElementCollector);
+#endif
+
+			// Reset dynamic element count to use as offset for copying ranges in the next loop.
+			AllocationInfo.NumDynamicMeshElements = 0;
+		}
+
+		for (FDynamicMeshElementContext* Context : Contexts)
+		{
+			for (FDynamicPrimitive DynamicPrimitive : Context->DynamicPrimitives)
+			{
+				const uint32 NumDynamicMeshElements = AllocationInfosPerView[DynamicPrimitive.ViewIndex].NumDynamicMeshElements;
+
+				// Offset the dynamic element range by the current number of meshes in the final container.
+				DynamicPrimitive.StartElementIndex += NumDynamicMeshElements;
+				DynamicPrimitive.EndElementIndex   += NumDynamicMeshElements;
+
+				OutDynamicPrimitives.Emplace(DynamicPrimitive);
+
+				Views[DynamicPrimitive.ViewIndex]->DynamicMeshElementRanges[DynamicPrimitive.PrimitiveIndex] = FInt32Vector2(DynamicPrimitive.StartElementIndex, DynamicPrimitive.EndElementIndex);
+			}
+
+			for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ++ViewIndex)
+			{
+				FViewInfo& View = *Views[ViewIndex];
+				FDynamicMeshElementContext::FViewMeshArrays& ViewMeshArrays = Context->ViewMeshArraysPerView[ViewIndex];
+
+				AllocationInfosPerView[ViewIndex].NumDynamicMeshElements += ViewMeshArrays.DynamicMeshElements.Num();
+
+				View.SimpleElementCollector.Append(ViewMeshArrays.SimpleElementCollector);
+				View.DynamicMeshElements.Append(ViewMeshArrays.DynamicMeshElements);
+#if WITH_EDITOR
+				View.EditorSimpleElementCollector.Append(ViewMeshArrays.EditorSimpleElementCollector);
+				View.DynamicEditorMeshElements.Append(ViewMeshArrays.DynamicEditorMeshElements);
+#endif
+#if UE_ENABLE_DEBUG_DRAWING
+				View.DebugSimpleElementCollector.Append(ViewMeshArrays.DebugSimpleElementCollector);
+#endif
+			}
+
+			Context->DynamicPrimitives.Empty();
+			Context->ViewMeshArraysPerView.Empty();
+		}
+	}
+}
+
+void FDynamicMeshElementContextContainer::Submit(FRHICommandListImmediate& RHICmdList)
+{
+	for (FDynamicMeshElementContext* Context : Contexts)
+	{
+		Context->Finish();
+	}
+
+	RHICmdList.QueueAsyncCommandListSubmit(CommandLists);
+	CommandLists.Empty();
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
 FVisibilityTaskData::FVisibilityTaskData(FRHICommandListImmediate& InRHICmdList, FSceneRenderer& InSceneRenderer)
 	: RHICmdList(InRHICmdList)
 	, SceneRenderer(InSceneRenderer)
@@ -3519,8 +3878,6 @@ FVisibilityTaskData::FVisibilityTaskData(FRHICommandListImmediate& InRHICmdList,
 	, Views(SceneRenderer.AllViews)
 	, ViewFamily(SceneRenderer.ViewFamily)
 	, ShadingPath(Scene.GetShadingPath())
-	, MeshCollector(SceneRenderer.MeshCollector)
-	, EditorMeshCollector(SceneRenderer.EditorMeshCollector)
 	, TaskConfig(Scene, Views)
 	, bAddLightmapDensityCommands(ViewFamily.EngineShowFlags.LightMapDensity&& AllowDebugViewmodes())
 {
@@ -3544,6 +3901,12 @@ void FVisibilityTaskData::LaunchVisibilityTasks()
 		Tasks.ComputeRelevance.AddPrerequisites(ViewPacket.Tasks.ComputeRelevance);
 	}
 
+	// Each relevance task should have this as a prerequisite, but in case there aren't any tasks we make it explicit.
+	Tasks.ComputeRelevance.AddPrerequisites(Scene.GetCacheMeshDrawCommandsTask());
+
+	// Wait on the GPU skin cache task prior to GDME.
+	Tasks.DynamicMeshElementsPrerequisites.AddPrerequisites(Scene.GetGPUSkinCacheTask());
+
 	bool bAllocatePrimitiveViewMasks = true;
 
 	if (TaskConfig.Schedule == EVisibilityTaskSchedule::Parallel)
@@ -3564,14 +3927,11 @@ void FVisibilityTaskData::LaunchVisibilityTasks()
 				PreSyncCullingTasks.Emplace(ViewPacket.Tasks.OcclusionCull);
 			}
 
-			FGraphEventRef MergeSecondaryViewsTask = FGraphEvent::CreateGraphEvent();
+			UE::Tasks::FTask MergeSecondaryViewsTask = UE::Tasks::Launch(UE_SOURCE_LOCATION, [this]
+			{
+				MergeSecondaryViewVisibility();
 
-			UE::Tasks::Launch(UE_SOURCE_LOCATION, [this, MergeSecondaryViewsTask]
-				{
-					MergeSecondaryViewVisibility();
-					MergeSecondaryViewsTask->DispatchSubsequents();
-
-				}, PreSyncCullingTasks, TaskConfig.OcclusionCull.TaskPriority);
+			}, PreSyncCullingTasks, TaskConfig.OcclusionCull.TaskPriority);
 
 			for (FVisibilityViewPacket& ViewPacket : ViewPackets)
 			{
@@ -3586,16 +3946,22 @@ void FVisibilityTaskData::LaunchVisibilityTasks()
 		else if (Views.Num() == 1)
 		{
 			// When using a single view, dynamic mesh elements are pushed into a pipe that is executed on the render thread which allows for some overlap with compute relevance work.
-			DynamicMeshElements.CommandPipe = Allocator.Create<TCommandPipe<FDynamicPrimitiveIndexList>>(TEXT("GatherDynamicMeshElements"), ENamedThreads::GetRenderThread_Local());
+			DynamicMeshElements.CommandPipe = Allocator.Create<TCommandPipe<FDynamicPrimitiveIndexList>>(TEXT("GatherDynamicMeshElements"));
 
-			DynamicMeshElements.CommandPipe->SetCommandFunction([this](const FDynamicPrimitiveIndexList& DynamicPrimitiveIndexList)
-				{
-					GatherDynamicMeshElements(DynamicPrimitiveIndexList);
-				});
+			DynamicMeshElements.CommandPipe->SetCommandFunction([this](FDynamicPrimitiveIndexList&& DynamicPrimitiveIndexList)
+			{
+				GatherDynamicMeshElements(MoveTemp(DynamicPrimitiveIndexList));
+			});
 
-			// Fire an event when the pipe has completed all work.
-			DynamicMeshElements.CommandPipeCompleteEvent = FGraphEvent::CreateGraphEvent();
-			DynamicMeshElements.CommandPipe->SetEmptyTaskEvent(DynamicMeshElements.CommandPipeCompleteEvent);
+			DynamicMeshElements.CommandPipe->SetPrerequisiteTask(Tasks.DynamicMeshElementsPrerequisites);
+
+			Tasks.DynamicMeshElementsPipe = FGraphEvent::CreateGraphEvent();
+
+			DynamicMeshElements.CommandPipe->SetEmptyFunction([this]
+			{
+				Tasks.DynamicMeshElementsPipe->DispatchSubsequents();
+				Tasks.DynamicMeshElements.Trigger();
+			});
 
 			// Take a reference that is released when the relevance pipe has completed. We only need to take one since there can only be one view.
 			DynamicMeshElements.CommandPipe->AddNumCommands(1);
@@ -3618,56 +3984,10 @@ void FVisibilityTaskData::LaunchVisibilityTasks()
 	#endif
 	}
 
-	// Reserve a full page for dynamic primitive indices as a starting point.
-	DynamicMeshElements.DynamicPrimitives.Reserve(FSceneRenderingBlockAllocationTag::BlockSize / sizeof(FDynamicPrimitive));
+	const int32 NumAsyncDynamicMeshElementContexts = TaskConfig.Schedule == EVisibilityTaskSchedule::Parallel ? GetNumDynamicMeshElementTasks() : 0;
+
+	DynamicMeshElements.ContextContainer.Init(SceneRenderer, NumAsyncDynamicMeshElementContexts);
 	DynamicMeshElements.ViewCommandsPerView.SetNum(Views.Num());
-	DynamicMeshElements.LastElementPerView.SetNum(Views.Num());
-
-	DynamicMeshElements.DynamicVertexBuffer.Init(RHICmdList);
-	DynamicMeshElements.DynamicIndexBuffer.Init(RHICmdList);
-
-	MeshCollector.Start(
-		RHICmdList,
-		DynamicMeshElements.DynamicVertexBuffer,
-		DynamicMeshElements.DynamicIndexBuffer,
-		SceneRenderer.DynamicReadBufferForInitViews
-	);
-
-	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
-	{
-		MeshCollector.AddViewMeshArrays(
-			Views[ViewIndex],
-			&Views[ViewIndex]->DynamicMeshElements,
-			&Views[ViewIndex]->SimpleElementCollector,
-			&Views[ViewIndex]->DynamicPrimitiveCollector
-#if UE_ENABLE_DEBUG_DRAWING
-			, &Views[ViewIndex]->DebugSimpleElementCollector
-#endif
-		);
-	}
-
-	if (GIsEditor)
-	{
-		EditorMeshCollector.Start(
-			RHICmdList,
-			DynamicMeshElements.DynamicVertexBuffer,
-			DynamicMeshElements.DynamicIndexBuffer,
-			SceneRenderer.DynamicReadBufferForInitViews
-		);
-
-		for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
-		{
-			EditorMeshCollector.AddViewMeshArrays(
-				Views[ViewIndex],
-				&Views[ViewIndex]->DynamicEditorMeshElements,
-				&Views[ViewIndex]->EditorSimpleElementCollector,
-				&Views[ViewIndex]->DynamicPrimitiveCollector
-#if UE_ENABLE_DEBUG_DRAWING
-				, &Views[ViewIndex]->DebugSimpleElementCollector
-#endif
-			);
-		}
-	}
 
 	Tasks.LightVisibility.AddPrerequisites(UE::Tasks::Launch(UE_SOURCE_LOCATION, [this]
 	{
@@ -3755,103 +4075,64 @@ void FVisibilityTaskData::MergeSecondaryViewVisibility()
 	}
 }
 
-void FVisibilityTaskData::FinishGatherDynamicMeshElements(FVirtualTextureUpdater* VirtualTextureUpdater)
+void FVisibilityTaskData::GatherDynamicMeshElements(FDynamicPrimitiveIndexList&& DynamicPrimitiveIndexList)
 {
-	check(IsInRenderingThread());
-	Scene.WaitForGPUSkinCacheTask();
+	FDynamicPrimitiveIndexList RenderThreadDynamicPrimitiveIndexList;
 
-	if (DynamicMeshElements.CommandPipe)
+	const int32 NumAsyncContexts = DynamicMeshElements.ContextContainer.GetNumAsyncContexts();
+
+	if (NumAsyncContexts > 0)
 	{
-		SCOPED_NAMED_EVENT(WaitForGatherDynamicMeshElements, FColor::Magenta);
-		DynamicMeshElements.CommandPipeCompleteEvent->Wait(ENamedThreads::GetRenderThread_Local());
+		const auto FilterDynamicPrimitives = [] (TArrayView<FPrimitiveSceneProxy*> PrimitiveSceneProxies, FDynamicPrimitiveIndexList::FList& Primitives, FDynamicPrimitiveIndexList::FList& RenderThreadPrimitives)
+		{
+			for (int32 Index = 0; Index < Primitives.Num(); )
+			{
+				const FDynamicPrimitiveIndex PrimitiveIndex = Primitives[Index];
+
+				if (!PrimitiveSceneProxies[PrimitiveIndex.Index]->SupportsParallelGDME())
+				{
+					RenderThreadPrimitives.Emplace(PrimitiveIndex);
+					Primitives.RemoveAtSwap(Index, 1, false);
+				}
+				else
+				{
+					Index++;
+				}
+			}
+		};
+
+		FilterDynamicPrimitives(Scene.PrimitiveSceneProxies, DynamicPrimitiveIndexList.Primitives, RenderThreadDynamicPrimitiveIndexList.Primitives);
+#if WITH_EDITOR
+		FilterDynamicPrimitives(Scene.PrimitiveSceneProxies, DynamicPrimitiveIndexList.EditorPrimitives, RenderThreadDynamicPrimitiveIndexList.EditorPrimitives);
+#endif
 	}
 	else
 	{
-		Tasks.ComputeRelevance.Wait();
-
-		check(DynamicMeshElements.PrimitiveViewMasks);
-		GatherDynamicMeshElements(*DynamicMeshElements.PrimitiveViewMasks);
+		RenderThreadDynamicPrimitiveIndexList = MoveTemp(DynamicPrimitiveIndexList);
+		DynamicPrimitiveIndexList = {};
 	}
 
-	// Sync the virtual texture update task before finishing the mesh collectors. Render proxies can register new
-	// materials which require evaluating uniform expression caches, which can contain virtual textures. Newly allocated
-	// virtual textures are processed later.
-	FVirtualTextureSystem::Get().WaitForTasks(VirtualTextureUpdater);
-
-	MeshCollector.Finish();
-
-	if (GIsEditor)
+	if (!RenderThreadDynamicPrimitiveIndexList.IsEmpty())
 	{
-		EditorMeshCollector.Finish();
+		Tasks.DynamicMeshElementsRenderThread = DynamicMeshElements.ContextContainer.LaunchRenderThreadTask(MoveTemp(RenderThreadDynamicPrimitiveIndexList));
 	}
 
-	DynamicMeshElements.DynamicVertexBuffer.Commit();
-	DynamicMeshElements.DynamicIndexBuffer.Commit();
-	SceneRenderer.DynamicReadBufferForInitViews.Commit(RHICmdList);
-}
-
-void FVisibilityTaskData::GatherDynamicMeshElementsForPrimitive(int32 PrimitiveIndex, uint8 ViewMask)
-{
-	SCOPED_NAMED_EVENT(DynamicPrimitive, FColor::Magenta);
-
-	TArray<int32, TInlineAllocator<4>> MeshBatchCountBefore;
-	MeshBatchCountBefore.SetNumUninitialized(Views.Num());
-	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
+	if (!DynamicPrimitiveIndexList.IsEmpty())
 	{
-		MeshBatchCountBefore[ViewIndex] = MeshCollector.GetMeshBatchCount(ViewIndex);
-	}
+		FDynamicPrimitiveIndexQueue* Queue = Allocator.Create<FDynamicPrimitiveIndexQueue>(MoveTemp(DynamicPrimitiveIndexList));
 
-	FPrimitiveSceneInfo* PrimitiveSceneInfo = Scene.Primitives[PrimitiveIndex];
-	MeshCollector.SetPrimitive(PrimitiveSceneInfo->Proxy, PrimitiveSceneInfo->DefaultDynamicHitProxyId);
-
-	PrimitiveSceneInfo->Proxy->GetDynamicMeshElements(ViewFamily.AllViews, ViewFamily, ViewMask, MeshCollector);
-
-	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
-	{
-		FViewInfo& View = *Views[ViewIndex];
-		if (ViewMask & (1 << ViewIndex))
+		for (int32 Index = 0; Index < DynamicMeshElements.ContextContainer.GetNumAsyncContexts(); ++Index)
 		{
-			FDynamicPrimitive& DynamicPrimitive = DynamicMeshElements.DynamicPrimitives.Emplace_GetRef();
-			DynamicPrimitive.PrimitiveIndex = PrimitiveIndex;
-			DynamicPrimitive.ViewIndex = ViewIndex;
-			DynamicPrimitive.StartElementIndex = DynamicMeshElements.LastElementPerView[ViewIndex];
-			DynamicPrimitive.EndElementIndex = View.DynamicMeshElements.Num();
-
-			DynamicMeshElements.LastElementPerView[ViewIndex] = View.DynamicMeshElements.Num();
+			Tasks.DynamicMeshElements.AddPrerequisites(DynamicMeshElements.ContextContainer.LaunchAsyncTask(Queue, Index, TaskConfig.TaskPriority));
 		}
-
-		View.DynamicMeshElementRanges[PrimitiveIndex] = FInt32Vector2(MeshBatchCountBefore[ViewIndex], MeshCollector.GetMeshBatchCount(ViewIndex));
 	}
-};
-
-void FVisibilityTaskData::GatherDynamicMeshElementsForEditorPrimitive(int32 PrimitiveIndex, uint8 ViewMask)
-{
-	FPrimitiveSceneInfo* PrimitiveSceneInfo = Scene.Primitives[PrimitiveIndex];
-	EditorMeshCollector.SetPrimitive(PrimitiveSceneInfo->Proxy, PrimitiveSceneInfo->DefaultDynamicHitProxyId);
-
-	PrimitiveSceneInfo->Proxy->GetDynamicMeshElements(ViewFamily.AllViews, ViewFamily, ViewMask, EditorMeshCollector);
-}
-
-void FVisibilityTaskData::GatherDynamicMeshElements(const FDynamicPrimitiveIndexList& DynamicPrimitiveIndexList)
-{
-	constexpr uint8 ViewMask = 1;
-
-	for (int32 PrimitiveIndex : DynamicPrimitiveIndexList.Primitives)
-	{
-		GatherDynamicMeshElementsForPrimitive(PrimitiveIndex, ViewMask);
-	}
-
-#if WITH_EDITOR
-	for (int32 PrimitiveIndex : DynamicPrimitiveIndexList.EditorPrimitives)
-	{
-		GatherDynamicMeshElementsForEditorPrimitive(PrimitiveIndex, ViewMask);
-	}
-#endif
 }
 
 void FVisibilityTaskData::GatherDynamicMeshElements(const FDynamicPrimitiveViewMasks& DynamicPrimitiveViewMasks)
 {
 	SCOPED_NAMED_EVENT(GatherDynamicMeshElements, FColor::Magenta);
+
+	Tasks.DynamicMeshElementsPrerequisites.Wait();
 
 	const auto GetPrimaryViewMask = [this] (uint8 ViewMask) -> uint8
 	{
@@ -3871,6 +4152,9 @@ void FVisibilityTaskData::GatherDynamicMeshElements(const FDynamicPrimitiveViewM
 		return ViewMaskFinal;
 	};
 
+	FDynamicPrimitiveIndexList DynamicPrimitiveIndexList;
+	DynamicPrimitiveIndexList.Primitives.Reserve(128);
+
 	const int32 NumPrimitives = DynamicPrimitiveViewMasks.Primitives.Num();
 
 	for (int32 PrimitiveIndex = 0; PrimitiveIndex < NumPrimitives; ++PrimitiveIndex)
@@ -3879,28 +4163,35 @@ void FVisibilityTaskData::GatherDynamicMeshElements(const FDynamicPrimitiveViewM
 
 		if (ViewMask != 0)
 		{
-			GatherDynamicMeshElementsForPrimitive(PrimitiveIndex, GetPrimaryViewMask(ViewMask));
+			DynamicPrimitiveIndexList.Primitives.Emplace(PrimitiveIndex, GetPrimaryViewMask(ViewMask));
 		}
 	}
 
 #if WITH_EDITOR
 	if (GIsEditor)
 	{
+		DynamicPrimitiveIndexList.EditorPrimitives.Reserve(128);
+
 		for (int32 PrimitiveIndex = 0; PrimitiveIndex < NumPrimitives; ++PrimitiveIndex)
 		{
 			const uint8 ViewMask = DynamicPrimitiveViewMasks.EditorPrimitives[PrimitiveIndex];
 
 			if (ViewMask != 0)
 			{
-				GatherDynamicMeshElementsForEditorPrimitive(PrimitiveIndex, GetPrimaryViewMask(ViewMask));
+				DynamicPrimitiveIndexList.EditorPrimitives.Emplace(PrimitiveIndex, GetPrimaryViewMask(ViewMask));
 			}
 		}
 	}
 #endif
+
+	GatherDynamicMeshElements(MoveTemp(DynamicPrimitiveIndexList));
+	Tasks.DynamicMeshElements.Trigger();
 }
 
 void FVisibilityTaskData::SetupMeshPasses(FExclusiveDepthStencil::Type BasePassDepthStencilAccess, FInstanceCullingManager& InstanceCullingManager)
 {
+	DynamicMeshElements.ContextContainer.MergeContexts(DynamicMeshElements.DynamicPrimitives);
+
 	{
 		SCOPED_NAMED_EVENT(DynamicRelevance, FColor::Magenta);
 
@@ -3968,10 +4259,14 @@ void FVisibilityTaskData::SetupMeshPasses(FExclusiveDepthStencil::Type BasePassD
 	}
 }
 
-void FVisibilityTaskData::ProcessRenderThreadTasks(FExclusiveDepthStencil::Type BasePassDepthStencilAccess, FInstanceCullingManager& InstanceCullingManager, FVirtualTextureUpdater* VirtualTextureUpdater)
+void FVisibilityTaskData::ProcessRenderThreadTasks()
 {
 	SCOPE_CYCLE_COUNTER(STAT_ViewVisibilityTime);
 	SCOPED_NAMED_EVENT(ProcessVisibilityTasks, FColor::Magenta);
+
+	UE::Tasks::FTask VirtualTextureTask;
+
+	StartGatherDynamicMeshElements();
 
 	if (TaskConfig.Schedule == EVisibilityTaskSchedule::RenderThread)
 	{
@@ -4023,23 +4318,25 @@ void FVisibilityTaskData::ProcessRenderThreadTasks(FExclusiveDepthStencil::Type 
 		}
 
 		Tasks.bWaitingAllowed = true;
+
+		check(DynamicMeshElements.PrimitiveViewMasks);
+		GatherDynamicMeshElements(*DynamicMeshElements.PrimitiveViewMasks);
 	}
-
-	FinishGatherDynamicMeshElements(VirtualTextureUpdater);
-
-	if (TaskConfig.Schedule == EVisibilityTaskSchedule::Parallel)
+	else
 	{
-		// We sync cached mesh draw commands here to make things simple, as there are several places where cached mesh commands
-		// are referenced later on in the frame and it becomes difficult to reason about it and it's easy to miss. In practice
-		// mesh command caching for most use cases should be complete by now.
-		Scene.WaitForCacheMeshDrawCommandsTask();
-
-		Tasks.MeshPassSetup = UE::Tasks::Launch(UE_SOURCE_LOCATION, [this, BasePassDepthStencilAccess, &InstanceCullingManager]
+		if (DynamicMeshElements.CommandPipe)
 		{
-			FOptionalTaskTagScope Scope(ETaskTag::EParallelRenderingThread);
-			SetupMeshPasses(BasePassDepthStencilAccess, InstanceCullingManager);
+			SCOPED_NAMED_EVENT(WaitForGatherDynamicMeshElements, FColor::Magenta);
 
-		}, Tasks.FinalizeRelevance, TaskConfig.TaskPriority);
+			// Wait on the command pipe first as it will be continually updating the render thread event (and process tasks while we wait).
+			Tasks.DynamicMeshElementsPipe->Wait(ENamedThreads::GetRenderThread_Local());
+		}
+		else
+		{
+			Tasks.ComputeRelevance.Wait();
+			check(DynamicMeshElements.PrimitiveViewMasks);
+			GatherDynamicMeshElements(*DynamicMeshElements.PrimitiveViewMasks);
+		}
 
 		for (FVisibilityViewPacket& ViewPacket : ViewPackets)
 		{
@@ -4049,12 +4346,15 @@ void FVisibilityTaskData::ProcessRenderThreadTasks(FExclusiveDepthStencil::Type 
 			}
 		}
 	}
-	else
+
+	// Now process all gather dynamic mesh element tasks that were queued up to run on the render thread.
+	if (Tasks.DynamicMeshElementsRenderThread)
 	{
-		SetupMeshPasses(BasePassDepthStencilAccess, InstanceCullingManager);
+		Tasks.DynamicMeshElementsRenderThread->Wait(ENamedThreads::GetRenderThread_Local());
 	}
 
 	Tasks.LightVisibility.Wait();
+	Tasks.FinalizeRelevance.Wait();
 
 	INC_DWORD_STAT_BY(STAT_ProcessedPrimitives, Scene.Primitives.Num() * Views.Num());
 	INC_DWORD_STAT_BY(STAT_CulledPrimitives, TaskConfig.FrustumCull.NumCulledPrimitives);
@@ -4068,6 +4368,25 @@ void FVisibilityTaskData::ProcessRenderThreadTasks(FExclusiveDepthStencil::Type 
 	TRACE_COUNTER_SET(Scene_Visibility_Relevance_NumPrimitivesPerPacket, TaskConfig.Relevance.NumPrimitivesPerPacket);
 }
 
+void FVisibilityTaskData::FinishGatherDynamicMeshElements(FExclusiveDepthStencil::Type BasePassDepthStencilAccess, FInstanceCullingManager& InstanceCullingManager, FVirtualTextureUpdater* VirtualTextureUpdater)
+{
+	check(IsInRenderingThread());
+	SCOPED_NAMED_EVENT(FinishDynamicMeshElements, FColor::Magenta);
+
+	FVirtualTextureSystem::Get().WaitForTasks(VirtualTextureUpdater);
+	Tasks.DynamicMeshElements.Wait();
+	DynamicMeshElements.ContextContainer.Submit(RHICmdList);
+
+	Tasks.MeshPassSetup = UE::Tasks::Launch(UE_SOURCE_LOCATION, [this, BasePassDepthStencilAccess, &InstanceCullingManager]
+	{
+		FOptionalTaskTagScope Scope(ETaskTag::EParallelRenderingThread);
+		SetupMeshPasses(BasePassDepthStencilAccess, InstanceCullingManager);
+
+	}, TaskConfig.TaskPriority);
+
+	FSceneRenderer::DynamicReadBufferForInitViews.Commit(RHICmdList);
+}
+
 void FVisibilityTaskData::Finish()
 {
 	SCOPED_NAMED_EVENT(FinishVisibility, FColor::Magenta);
@@ -4076,15 +4395,10 @@ void FVisibilityTaskData::Finish()
 
 	check(Tasks.ComputeRelevance.IsCompleted());
 	check(Tasks.FinalizeRelevance.IsCompleted());
+	check(Tasks.DynamicMeshElements.IsCompleted());
 	check(Tasks.MeshPassSetup.IsCompleted());
 
-	if (DynamicMeshElements.CommandPipe)
-	{
-		DynamicMeshElements.CommandPipe->Wait();
-	}
-
 	ViewPackets.Empty();
-	DynamicMeshElements.LastElementPerView.Empty();
 	DynamicMeshElements.DynamicPrimitives.Empty();
 	Allocator.BulkDelete();
 	bFinished = true;
@@ -4934,9 +5248,7 @@ void FDeferredShadingSceneRenderer::PreVisibilityFrameSetup(FRDGBuilder& GraphBu
 void FDeferredShadingSceneRenderer::BeginInitViews(
 	FRDGBuilder& GraphBuilder,
 	const FSceneTexturesConfig& SceneTexturesConfig,
-	FExclusiveDepthStencil::Type BasePassDepthStencilAccess,
 	FInstanceCullingManager& InstanceCullingManager,
-	FVirtualTextureUpdater* VirtualTextureUpdater,
 	FRDGExternalAccessQueue& ExternalAccessQueue,
 	FInitViewTaskDatas& TaskDatas)
 {
@@ -4948,10 +5260,13 @@ void FDeferredShadingSceneRenderer::BeginInitViews(
 
 	PreVisibilityFrameSetup(GraphBuilder);
 
+	// Start processing dynamic mesh elements tasks early enough to overlap with shadows and GPU scene update.
+	TaskDatas.VisibilityTaskData->StartGatherDynamicMeshElements();
+
 	// Attempt to launch dynamic shadow tasks early before finalizing visibility.
 	if (bRendererOutputFinalSceneColor)
 	{
-		BeginInitDynamicShadows(TaskDatas);
+		BeginInitDynamicShadows(GraphBuilder, TaskDatas, InstanceCullingManager);
 	}
 
 	FRHICommandListImmediate& RHICmdList = GraphBuilder.RHICmdList;
@@ -4965,6 +5280,7 @@ void FDeferredShadingSceneRenderer::BeginInitViews(
 	}
 
 	// Create GPU-side representation of the view for instance culling.
+	InstanceCullingManager.AllocateViews(Views.Num());
 	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ++ViewIndex)
 	{
 		Views[ViewIndex].GPUSceneViewId = InstanceCullingManager.RegisterView(Views[ViewIndex]);
@@ -4995,14 +5311,6 @@ void FDeferredShadingSceneRenderer::BeginInitViews(
 		Scene->GPUScene.Update(GraphBuilder, GetSceneUniforms(), *Scene, ExternalAccessQueue, TaskDatas.VisibilityTaskData);
 	}
 
-	TaskDatas.VisibilityTaskData->ProcessRenderThreadTasks(BasePassDepthStencilAccess, InstanceCullingManager, VirtualTextureUpdater);
-
-	// Make a second attempt to launch shadow tasks it wasn't able to the first time due to visibility being deferred.
-	if (bRendererOutputFinalSceneColor)
-	{
-		BeginInitDynamicShadows(TaskDatas);
-	}
-
 	// This must happen before we start initialising and using views.
 	if (Scene)
 	{
@@ -5014,8 +5322,6 @@ void FDeferredShadingSceneRenderer::BeginInitViews(
 	{
 		InitSkyAtmosphereForViews(RHICmdList);
 	}
-
-	PostVisibilityFrameSetup(TaskDatas.ILCUpdatePrim);
 
 	{
 		QUICK_SCOPE_CYCLE_COUNTER(STAT_InitViews_InitRHIResources);
@@ -5040,10 +5346,15 @@ void FDeferredShadingSceneRenderer::BeginInitViews(
 		}
 	}
 
-	if (GDynamicRHI->RHIIncludeOptionalFlushes())
+	TaskDatas.VisibilityTaskData->ProcessRenderThreadTasks();
+
+	// Make a second attempt to launch shadow tasks it wasn't able to the first time due to visibility being deferred.
+	if (bRendererOutputFinalSceneColor)
 	{
-		RHICmdList.ImmediateFlush(EImmediateFlushType::DispatchToRHIThread);
+		BeginInitDynamicShadows(GraphBuilder, TaskDatas, InstanceCullingManager);
 	}
+
+	PostVisibilityFrameSetup(TaskDatas.ILCUpdatePrim);
 }
 
 template<class T>
@@ -5125,6 +5436,8 @@ void FDeferredShadingSceneRenderer::EndInitViews(
 {
 	SCOPED_NAMED_EVENT(FDeferredShadingSceneRenderer_InitViewsAfterPrepass, FColor::Emerald);
 	SCOPE_CYCLE_COUNTER(STAT_InitViewsPossiblyAfterPrepass);
+
+	BeginShadowGatherDynamicMeshElements(TaskDatas.DynamicShadows);
 
 	TaskDatas.VisibilityTaskData->Finish();
 

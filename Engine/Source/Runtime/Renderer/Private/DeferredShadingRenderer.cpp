@@ -2337,7 +2337,7 @@ void FDeferredShadingSceneRenderer::WaitForRayTracingScene(FRDGBuilder& GraphBui
 
 #endif // RHI_RAYTRACING
 
-void FDeferredShadingSceneRenderer::BeginInitDynamicShadows(FInitViewTaskDatas& TaskDatas)
+void FDeferredShadingSceneRenderer::BeginInitDynamicShadows(FRDGBuilder& GraphBuilder, FInitViewTaskDatas& TaskDatas, FInstanceCullingManager& InstanceCullingManager)
 {
 	extern int32 GEarlyInitDynamicShadows;
 
@@ -2349,7 +2349,7 @@ void FDeferredShadingSceneRenderer::BeginInitDynamicShadows(FInitViewTaskDatas& 
 		&& !HasRayTracedOverlay(ViewFamily)
 		&& TaskDatas.VisibilityTaskData->IsTaskWaitingAllowed())
 	{
-		TaskDatas.DynamicShadows = FSceneRenderer::BeginInitDynamicShadows(true, TaskDatas.VisibilityTaskData);
+		TaskDatas.DynamicShadows = FSceneRenderer::BeginInitDynamicShadows(GraphBuilder, true, TaskDatas.VisibilityTaskData, InstanceCullingManager);
 	}
 }
 
@@ -2360,14 +2360,12 @@ void FDeferredShadingSceneRenderer::FinishInitDynamicShadows(FRDGBuilder& GraphB
 		// Setup dynamic shadows.
 		if (TaskData)
 		{
-			FSceneRenderer::FinishInitDynamicShadows(GraphBuilder, TaskData, InstanceCullingManager);
+			FSceneRenderer::FinishInitDynamicShadows(GraphBuilder, TaskData);
 		}
 		else
 		{
 			TaskData = InitDynamicShadows(GraphBuilder, InstanceCullingManager);
 		}
-
-		DynamicReadBufferForShadows.Commit(GraphBuilder.RHICmdList);
 	}
 }
 
@@ -2981,7 +2979,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 
 	{
 		RDG_GPU_STAT_SCOPE(GraphBuilder, VisibilityCommands);
-		BeginInitViews(GraphBuilder, SceneTexturesConfig, BasePassDepthStencilAccess, InstanceCullingManager, VirtualTextureUpdater.Get(), ExternalAccessQueue, InitViewTaskDatas);
+		BeginInitViews(GraphBuilder, SceneTexturesConfig, InstanceCullingManager, ExternalAccessQueue, InitViewTaskDatas);
 	}
 
 #if !UE_BUILD_SHIPPING
@@ -3076,6 +3074,15 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 		}
 #endif // RHI_RAYTRACING
 
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+		Scene->DebugRender(Views);
+#endif
+	}
+
+	InitViewTaskDatas.VisibilityTaskData->FinishGatherDynamicMeshElements(BasePassDepthStencilAccess, InstanceCullingManager, VirtualTextureUpdater.Get());
+
+	if (RendererOutput == ERendererOutput::FinalSceneColor)
+	{
 		// Notify the FX system that the scene is about to be rendered.
 		if (FXSystem && Views.IsValidIndex(0))
 		{
@@ -3087,10 +3094,6 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 				GPUSortManager->OnPreRender(GraphBuilder);
 			}
 		}
-
-#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-		Scene->DebugRender(Views);
-#endif
 	}
 
 	{
@@ -3541,7 +3544,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 		{
 			// With forward shading we need to render shadow maps early
 			ensureMsgf(!VirtualShadowMapArray.IsEnabled(), TEXT("Virtual shadow maps are not supported in the forward shading path"));
-			RenderShadowDepthMaps(GraphBuilder, InstanceCullingManager, ExternalAccessQueue);
+			RenderShadowDepthMaps(GraphBuilder, InitViewTaskDatas.DynamicShadows, InstanceCullingManager, ExternalAccessQueue);
 			bShadowMapsRenderedEarly = true;
 
 			if (bHairStrandsEnable)
@@ -3565,7 +3568,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 			ensureMsgf(!VirtualShadowMapArray.IsEnabled(), TEXT("Virtual shadow maps are not supported with r.shadow.ShadowMapsRenderEarly. Early shadows will be disabled"));
 			if (!VirtualShadowMapArray.IsEnabled())
 			{
-				RenderShadowDepthMaps(GraphBuilder, InstanceCullingManager, ExternalAccessQueue);
+				RenderShadowDepthMaps(GraphBuilder, InitViewTaskDatas.DynamicShadows, InstanceCullingManager, ExternalAccessQueue);
 				bShadowMapsRenderedEarly = true;
 			}
 		}
@@ -3797,7 +3800,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 					VirtualShadowMapArray.BuildPageAllocations(GraphBuilder, GetActiveSceneTextures(), Views, SortedLightSet, VisibleLightInfos, SingleLayerWaterPrePassResult, FrontLayerTranslucencyData);
 				}
 
-				RenderShadowDepthMaps(GraphBuilder, InstanceCullingManager, ExternalAccessQueue);
+				RenderShadowDepthMaps(GraphBuilder, InitViewTaskDatas.DynamicShadows, InstanceCullingManager, ExternalAccessQueue);
 			}
 			CheckShadowDepthRenderCompleted();
 
