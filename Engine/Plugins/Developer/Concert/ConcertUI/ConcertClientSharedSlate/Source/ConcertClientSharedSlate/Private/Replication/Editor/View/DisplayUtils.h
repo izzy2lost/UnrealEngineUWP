@@ -19,7 +19,10 @@ namespace UE::ConcertClientSharedSlate::DisplayUtils
 {
 	/** @return The text to use for displaying this object's name */
 	FText GetObjectDisplayText(const FSoftObjectPath& Object);
-	/** @return More lightweight version of GetReplicatedObjectDisplayName which does not construct any FText. */
+	
+	/** @return More lightweight version of GetObjectDisplayText which does not construct any FText. */
+	FString GetObjectDisplayString(const FSoftObjectPath& Object);
+	/** @return More lightweight version of GetObjectDisplayText which does not construct any FText. */
 	FString GetObjectDisplayString(const UObject& Object);
 	
 	/** @return The text to use for displaying this object's type */

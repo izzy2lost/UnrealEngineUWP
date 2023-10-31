@@ -36,6 +36,12 @@ namespace UE::ConcertSyncClient::Replication
 		false,
 		TEXT("Whether the client should pretend that stream change requests timed out instead of sending to the server.")
 		);
+
+	TAutoConsoleVariable<bool> CVarSimulateAuthorityRejection(
+		TEXT("Concert.Replication.SimulateAuthorityRejection"),
+		false,
+		TEXT("Whether the client should pretend that authority change requests were rejected.")
+		);
 	
 	FReplicationManagerState_Connected::FReplicationManagerState_Connected(
 		TSharedRef<IConcertClientSession> LiveSession,
@@ -101,6 +107,10 @@ namespace UE::ConcertSyncClient::Replication
 		if (CVarSimulateAuthorityTimeouts.GetValueOnGameThread())
 		{
 			return MakeFulfilledPromise<FAuthorityChangeResponse>(FAuthorityChangeResponse{ EReplicationResponseErrorCode::Timeout }).GetFuture();
+		}
+		if (CVarSimulateAuthorityRejection.GetValueOnGameThread())
+		{
+			return RejectAll(MoveTemp(Args));
 		}
 		
 		// Stop replicating removed objects right now: the server will remove authority after processing this request.

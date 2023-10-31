@@ -25,6 +25,7 @@ namespace UE::MultiUserClient
 			UMultiUserReplicationClientPreset* ClientPreset = SessionContent->AddClient();
 			return FLocalReplicationClient(*ClientPreset, MakeUnique<FStreamSynchronizer_LocalClient>(InClient, ClientPreset->Stream->StreamId), InClient);
 		}())
+		, SubmissionNotifier(*this)
 	{
 		InSession->OnSessionClientChanged().AddRaw(this, &FReplicationClientManager::OnSessionClientChanged);
 
@@ -92,6 +93,7 @@ namespace UE::MultiUserClient
 
 				{
 					const TUniquePtr<FRemoteReplicationClient> Client = MoveTemp(RemoteClients[Index]);
+					OnPreRemoteClientRemovedDelegate.Broadcast(*Client.Get());
 					SessionContent->RemoveClient(*Client->GetClientContent());
 					RemoteClients.RemoveAtSwap(Index);
 				}
@@ -108,12 +110,15 @@ namespace UE::MultiUserClient
 	
 	void FReplicationClientManager::CreateRemoteClient(const FGuid& ClientEndpointId, bool bBroadcastDelegate)
 	{
+		TUniquePtr<FRemoteReplicationClient> RemoteClientPtr = MakeUnique<FRemoteReplicationClient>(*SessionContent->AddClient(), ClientEndpointId, QueryService);
+		FRemoteReplicationClient& RemoteClient = *RemoteClientPtr;
 		RemoteClients.Emplace(
-			MakeUnique<FRemoteReplicationClient>(*SessionContent->AddClient(), ClientEndpointId, QueryService)
+			MoveTemp(RemoteClientPtr)
 			);
 
 		if (bBroadcastDelegate)
 		{
+			OnPostRemoteClientAddedDelegate.Broadcast(RemoteClient);
 			OnRemoteClientsChangedDelegate.Broadcast();
 		}
 	}

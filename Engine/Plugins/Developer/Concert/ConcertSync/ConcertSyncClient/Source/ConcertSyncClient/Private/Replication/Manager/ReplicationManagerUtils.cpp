@@ -12,7 +12,7 @@ namespace UE::ConcertSyncClient::Replication
 	TFuture<FAuthorityChangeResponse> RejectAll(FAuthorityChangeRequest&& Args)
 	{
 		return MakeFulfilledPromise<FAuthorityChangeResponse>(
-			FAuthorityChangeResponse{{ .RejectedObjects = MoveTemp(Args.TakeAuthority) }}
+			FAuthorityChangeResponse{{ EReplicationResponseErrorCode::Handled, MoveTemp(Args.TakeAuthority) }}
 			).GetFuture();
 	}
 }

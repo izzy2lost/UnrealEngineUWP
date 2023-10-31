@@ -14,7 +14,7 @@ namespace UE::MultiUserClient
 		UMultiUserReplicationClientPreset& InSessionContent,
 		TUniquePtr<IClientStreamSynchronizer> InStreamSynchronizer,
 		TUniquePtr<IClientAuthoritySynchronizer> InAuthoritySynchronizer,
-		TFunctionRef<TUniquePtr<ISubmissionWorkflow>()> MakeSubmissionWorkflowFunc
+		TFunctionRef<FMakeSubmissionWorkflow> MakeSubmissionWorkflowFunc
 		)
 		: ClientContentStorage(&InSessionContent)
 		, StreamSynchronizer(MoveTemp(InStreamSynchronizer))
@@ -30,9 +30,9 @@ namespace UE::MultiUserClient
 			FStreamChangeTracker::FOnModifyReplicationMap::CreateLambda([this](){ ClientContentStorage->Stream->Modify(); })
 			)
 		, LocalAuthorityDiffer(*AuthoritySynchronizer)
+		, SubmissionWorkflow(MakeSubmissionWorkflowFunc(LocalClientStreamDiffer, LocalAuthorityDiffer, *StreamSynchronizer.Get()))
+		, AutoSubmissionPolicy(*SubmissionWorkflow.Get(), LocalClientEditModel.Get(), LocalAuthorityDiffer)
 	{
-		SubmissionWorkflow = MakeSubmissionWorkflowFunc();
-		
 		LocalClientEditModel->OnObjectsChanged().AddRaw(this, &FReplicationClient::OnObjectsChanged);
 		LocalClientEditModel->OnPropertiesChanged().AddRaw(this, &FReplicationClient::OnPropertiesChanged);
 		
@@ -52,11 +52,10 @@ namespace UE::MultiUserClient
 		// This must be done before SetAuthorityIfAllowed because it uses the cache for checking whether the object has properties assigned
 		LocalClientStreamDiffer.RefreshChangesCache();
 		
-		// Util for clients: automatically take authority for newly added objects
-		for (const UObject* Object : AddedObjects)
-		{
-			LocalAuthorityDiffer.SetAuthorityIfAllowed(Object, true);
-		}
+		// Better UX for user: automatically take authority for newly added objects
+		TArray<FSoftObjectPath> ObjectPaths;
+		Algo::Transform(AddedObjects, ObjectPaths, [](const UObject* Object){ return FSoftObjectPath(Object); });
+		LocalAuthorityDiffer.SetAuthorityIfAllowed(ObjectPaths, true);
 
 		// Refresh because authority changes may no longer be valid after modifying the stream
 		LocalAuthorityDiffer.RefreshChanges();

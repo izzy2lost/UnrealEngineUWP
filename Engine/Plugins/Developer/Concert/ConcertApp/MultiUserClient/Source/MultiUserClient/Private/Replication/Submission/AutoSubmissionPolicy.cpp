@@ -1,0 +1,51 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#include "AutoSubmissionPolicy.h"
+
+#include "ISubmissionWorkflow.h"
+#include "Replication/Editor/Model/IEditableObjectToPropertiesModel.h"
+
+#include "Misc/CoreDelegates.h"
+#include "Replication/Authority/AuthorityChangeTracker.h"
+
+namespace UE::MultiUserClient
+{
+	FAutoSubmissionPolicy::FAutoSubmissionPolicy(
+		ISubmissionWorkflow& InSubmissionWorkflow,
+		ConcertClientSharedSlate::IEditableObjectToPropertiesModel& InStreamEditorModel,
+		FAuthorityChangeTracker& InAuthorityChangeTracker
+		)
+		: SubmissionWorkflow(InSubmissionWorkflow)
+		, StreamEditorModel(InStreamEditorModel)
+		, AuthorityChangeTracker(InAuthorityChangeTracker)
+	{
+		StreamEditorModel.OnObjectsChanged().AddRaw(this, &FAutoSubmissionPolicy::OnObjectsChanged);
+		StreamEditorModel.OnPropertiesChanged().AddRaw(this, &FAutoSubmissionPolicy::OnChangesDetected);
+		AuthorityChangeTracker.OnAuthorityChangeMade().AddRaw(this, &FAutoSubmissionPolicy::OnChangesDetected);
+	}
+
+	FAutoSubmissionPolicy::~FAutoSubmissionPolicy()
+	{
+		FCoreDelegates::OnEndFrame.RemoveAll(this);
+		StreamEditorModel.OnObjectsChanged().RemoveAll(this);
+		StreamEditorModel.OnPropertiesChanged().RemoveAll(this);
+		AuthorityChangeTracker.OnAuthorityChangeMade().RemoveAll(this);
+	}
+
+	void FAutoSubmissionPolicy::OnChangesDetected()
+	{
+		if (!FCoreDelegates::OnEndFrame.IsBoundToObject(this))
+		{
+			FCoreDelegates::OnEndFrame.AddRaw(this, &FAutoSubmissionPolicy::OnEndFrame);
+		}
+	}
+
+	void FAutoSubmissionPolicy::OnEndFrame()
+	{
+		if (SubmissionWorkflow.CanSubmit())
+		{
+			FCoreDelegates::OnEndFrame.RemoveAll(this);
+			SubmissionWorkflow.SubmitChanges();
+		}
+	}
+}

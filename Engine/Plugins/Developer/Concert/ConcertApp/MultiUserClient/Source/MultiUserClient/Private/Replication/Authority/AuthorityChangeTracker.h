@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Containers/Map.h"
+#include "Containers/ContainersFwd.h"
 #include "Replication/IConcertClientReplicationManager.h"
 
 struct FSoftObjectPath;
@@ -20,8 +21,10 @@ namespace UE::MultiUserClient
 		FAuthorityChangeTracker(IClientAuthoritySynchronizer& InAuthoritySynchronizer);
 		~FAuthorityChangeTracker();
 		
-		/** Marks that the authority should be changed to bNewAuthorityState. */
-		void SetAuthorityIfAllowed(const FSoftObjectPath& ObjectPath, bool bNewAuthorityState);
+		/**
+		 * Marks that the authority should be changed to bNewAuthorityState.
+		 */
+		void SetAuthorityIfAllowed(TConstArrayView<FSoftObjectPath> ObjectPaths, bool bNewAuthorityState);
 
 		/** Diffs NewAuthorityStates to the current authority states and removes entries. */
 		void RefreshChanges();
@@ -39,6 +42,10 @@ namespace UE::MultiUserClient
 
 		/** Builds a change request from the local changes. */
 		ConcertSyncClient::Replication::FAuthorityChangeRequest BuildChangeRequest(const FGuid& StreamId) const;
+
+		/** Called when NewAuthorityStates is updated. */
+		DECLARE_MULTICAST_DELEGATE(FOnAuthorityChangeMade);
+		FOnAuthorityChangeMade& OnAuthorityChangeMade() { return FOnAuthorityChangeMadeDelegate; }
 		
 	private:
 
@@ -47,6 +54,9 @@ namespace UE::MultiUserClient
 
 		/** Object to the authority state it should have. */
 		TMap<FSoftObjectPath, bool> NewAuthorityStates;
+
+		/** Called when NewAuthorityStates is updated. */
+		FOnAuthorityChangeMade FOnAuthorityChangeMadeDelegate;
 	};
 }
 

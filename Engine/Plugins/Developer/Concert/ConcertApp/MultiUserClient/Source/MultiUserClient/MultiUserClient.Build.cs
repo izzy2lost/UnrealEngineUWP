@@ -20,6 +20,7 @@ namespace UnrealBuildTool.Rules
 					// Engine
 					"ApplicationCore",
 					"ContentBrowser",
+					"Core",
 					"DesktopPlatform",
 					"EditorStyle",
 					"InputCore",

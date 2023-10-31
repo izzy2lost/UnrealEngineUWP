@@ -20,11 +20,19 @@ namespace UE::MultiUserClient
 		AuthoritySynchronizer.OnServerStateChanged().RemoveAll(this);
 	}
 
-	void FAuthorityChangeTracker::SetAuthorityIfAllowed(const FSoftObjectPath& ObjectPath, bool bNewAuthorityState)
+	void FAuthorityChangeTracker::SetAuthorityIfAllowed(TConstArrayView<FSoftObjectPath> ObjectPaths, bool bNewAuthorityState)
 	{
-		if (CanSetAuthorityFor(ObjectPath))
+		for (const FSoftObjectPath& ObjectPath : ObjectPaths)
 		{
-			NewAuthorityStates.Add(ObjectPath, bNewAuthorityState);
+			if (CanSetAuthorityFor(ObjectPath))
+			{
+				NewAuthorityStates.Add(ObjectPath, bNewAuthorityState);
+			}
+		}
+
+		if (HasChanges())
+		{
+			FOnAuthorityChangeMadeDelegate.Broadcast();
 		}
 	}
 

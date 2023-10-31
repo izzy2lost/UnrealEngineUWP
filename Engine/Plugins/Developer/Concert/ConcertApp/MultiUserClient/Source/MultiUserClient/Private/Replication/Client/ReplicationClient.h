@@ -6,7 +6,9 @@
 #include "Replication/Authority/IClientAuthoritySynchronizer.h"
 #include "Replication/Stream/IClientStreamSynchronizer.h"
 #include "Replication/Stream/StreamChangeTracker.h"
+#include "Replication/Submission/AutoSubmissionPolicy.h"
 #include "Replication/Submission/ISubmissionWorkflow.h"
+
 #include "Templates/SharedPointer.h"
 #include "Templates/UnrealTemplate.h"
 
@@ -26,14 +28,15 @@ namespace UE::MultiUserClient
 	class FReplicationClient : public FNoncopyable
 	{
 	public:
-
-		DECLARE_DELEGATE_RetVal(TUniquePtr<ISubmissionWorkflow>, FMakeSubmissionWorkflow);
+		
+		/** Indirection for creating ISubmissionWorkflow because some ISubmissionWorkflow implementations needs members constructed in FReplicationClient. */
+		using FMakeSubmissionWorkflow = TUniquePtr<ISubmissionWorkflow>(FStreamChangeTracker&, FAuthorityChangeTracker&, IClientStreamSynchronizer&);
 
 		FReplicationClient(
 			UMultiUserReplicationClientPreset& InSessionContent,
 			TUniquePtr<IClientStreamSynchronizer> InStreamSynchronizer,
 			TUniquePtr<IClientAuthoritySynchronizer> InAuthoritySynchronizer,
-			TFunctionRef<TUniquePtr<ISubmissionWorkflow>()> MakeSubmissionWorkflowFunc
+			TFunctionRef<FMakeSubmissionWorkflow> MakeSubmissionWorkflowFunc
 			);
 
 		UMultiUserReplicationClientPreset* GetClientContent() const { return ClientContentStorage; }
@@ -69,8 +72,6 @@ namespace UE::MultiUserClient
 		TUniquePtr<IClientStreamSynchronizer> StreamSynchronizer;
 		/** Keeps the client's authority state on the server in sync.*/
 		TUniquePtr<IClientAuthoritySynchronizer> AuthoritySynchronizer;
-		/** Handles the logic of submitting and reverting for this client. */
-		TUniquePtr<ISubmissionWorkflow> SubmissionWorkflow;
 		
 		/**
 		 * Used to detect changes made to the client's config by the local editor.
@@ -87,6 +88,11 @@ namespace UE::MultiUserClient
 		FStreamChangeTracker LocalClientStreamDiffer;
 		/** Tracks changes made to the client's authority state. */
 		FAuthorityChangeTracker LocalAuthorityDiffer;
+		
+		/** Handles the logic of submitting and reverting for this client. */
+		TUniquePtr<ISubmissionWorkflow> SubmissionWorkflow;
+		/** Automatically submits changes as they are made by the user. */
+		FAutoSubmissionPolicy AutoSubmissionPolicy;
 
 		/** Called when the data underlying the model has changed (and the UI needs to be refreshed). */
 		FOnModelExternallyChanged OnModelExternallyChangedDelegate;

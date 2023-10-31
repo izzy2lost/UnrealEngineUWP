@@ -21,9 +21,9 @@ namespace UE::MultiUserClient
 				{
 					return GetStreamDiffer().DoesObjectHavePropertiesAfterSubmit(ObjectPath);
 				})),
-			[this, InClient]()
+			[this, InClient](FStreamChangeTracker& InStreamChangeTracker, FAuthorityChangeTracker& InAuthorityChangeTracker, IClientStreamSynchronizer& InStreamSynchronizer)
 			{
-				return MakeUnique<FSubmissionWorkflow_LocalClient>(InClient, GetStreamDiffer(), GetAuthorityDiffer(), GetStreamSynchronizer());
+				return MakeUnique<FSubmissionWorkflow_LocalClient>(InClient, InStreamChangeTracker, InAuthorityChangeTracker, InStreamSynchronizer);
 			})
 	{}
 }

@@ -1,0 +1,193 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#include "SubmissionNotifier.h"
+
+#include "SAuthorityRejectedNotification.h"
+#include "SStreamRejectedNotification.h"
+#include "Replication/Client/RemoteReplicationClient.h"
+#include "Replication/Client/ReplicationClientManager.h"
+#include "Replication/Submission/Data/AuthoritySubmission.h"
+#include "Replication/Submission/Data/StreamSubmission.h"
+
+#include "Framework/Notifications/NotificationManager.h"
+#include "Input/Reply.h"
+#include "Widgets/Notifications/SNotificationList.h"
+
+namespace UE::MultiUserClient
+{
+	FSubmissionNotifier::FSubmissionNotifier(FReplicationClientManager& InReplicationClientManager)
+		: ReplicationClientManager(InReplicationClientManager)
+	{
+		ReplicationClientManager.OnPostRemoteClientAdded().AddRaw(this, &FSubmissionNotifier::OnPostRemoteClientAdded);
+		RegisterClient(ReplicationClientManager.GetLocalClient());
+	}
+
+	FSubmissionNotifier::~FSubmissionNotifier()
+	{
+		CloseStreamNotification();
+		CloseAuthorityNotification();
+		
+		// FSubmissionNotifier is usually owned by ReplicationClientManager so this clean-up is not really needed.
+		// But we'll follow RAII here in case the ownership changes the future. 
+		ReplicationClientManager.OnPostRemoteClientAdded().RemoveAll(this);
+		ReplicationClientManager.OnPreRemoteClientRemoved().RemoveAll(this);
+		
+		UnregisterClient(ReplicationClientManager.GetLocalClient());
+		for (const TNonNullPtr<FRemoteReplicationClient>& RemoteClient : ReplicationClientManager.GetRemoteClients())
+		{
+			UnregisterClient(*RemoteClient);
+		}
+	}
+
+	void FSubmissionNotifier::OnPostRemoteClientAdded(FRemoteReplicationClient& RemoteReplicationClient)
+	{
+		RegisterClient(RemoteReplicationClient);
+	}
+
+	void FSubmissionNotifier::RegisterClient(FReplicationClient& Client)
+	{
+		Client.GetSubmissionWorkflow().OnStreamRequestCompleted().AddRaw(this, &FSubmissionNotifier::OnStreamRequestCompleted);
+		Client.GetSubmissionWorkflow().OnAuthorityRequestCompleted().AddRaw(this, &FSubmissionNotifier::OnAuthorityRequestCompleted);
+	}
+
+	void FSubmissionNotifier::UnregisterClient(FReplicationClient& Client)
+	{
+		Client.GetSubmissionWorkflow().OnStreamRequestCompleted().RemoveAll(this);
+		Client.GetSubmissionWorkflow().OnAuthorityRequestCompleted().RemoveAll(this);
+	}
+
+	void FSubmissionNotifier::OnStreamRequestCompleted(const FSubmitStreamChangesResponse& Request)
+	{
+		AccumulateStreamRejections(Request);
+		CreateOrUpdateStreamNotification();
+	}
+
+	void FSubmissionNotifier::OnAuthorityRequestCompleted(const FSubmitAuthorityChangesRequest& Request, const FSubmitAuthorityChangesResponse& Response)
+	{
+		AccumulateAuthorityRejections(Request, Response);
+		CreateOrUpdateAuthorityNotification();
+		
+	}
+
+	void FSubmissionNotifier::AccumulateStreamRejections(const FSubmitStreamChangesResponse& CompletedOp)
+	{
+		switch(CompletedOp.ErrorCode)
+		{
+		case EStreamSubmissionErrorCode::Success:
+			Algo::Transform(
+				CompletedOp.SubmissionInfo->Response.AuthorityConflicts, StreamErrors.AuthorityConflicts,
+				[](const TPair<FObjectInStreamID, FReplicatedObjectId>& Pair) { return Pair.Key.Object; }
+				);
+			Algo::Transform(
+				CompletedOp.SubmissionInfo->Response.ObjectsToPutSemanticErrors, StreamErrors.SemanticErrors,
+				[](const TPair<FObjectInStreamID, EConcertPutObjectErrorCode>& Pair) { return Pair.Key.Object; }
+				);
+			StreamErrors.bFailedStreamCreation |= !CompletedOp.SubmissionInfo->Response.FailedStreamCreation.IsEmpty();
+			break;
+			
+		case EStreamSubmissionErrorCode::Timeout:
+			++StreamErrors.NumTimeouts;
+			break;
+			
+		case EStreamSubmissionErrorCode::NoChange: break;
+		case EStreamSubmissionErrorCode::Cancelled: break;
+		default: ;
+		}
+	}
+
+	void FSubmissionNotifier::AccumulateAuthorityRejections(const FSubmitAuthorityChangesRequest& RequestOp, const FSubmitAuthorityChangesResponse& ResponseOp)
+	{
+		switch (ResponseOp.ErrorCode)
+		{
+		case EAuthoritySubmissionResponseErrorCode::Success:
+			Algo::Transform(
+				ResponseOp.Response->RejectedObjects, AuthorityErrors.Rejected,
+				[](const TPair<FSoftObjectPath, FConcertStreamArray>& Pair) { return Pair.Key; }
+				);
+			break;
+			
+		case EAuthoritySubmissionResponseErrorCode::Timeout:
+			++AuthorityErrors.NumTimeouts;
+			break;
+			
+		case EAuthoritySubmissionResponseErrorCode::NoChange: break;
+		case EAuthoritySubmissionResponseErrorCode::CancelledDueToStreamUpdate: break;
+		case EAuthoritySubmissionResponseErrorCode::Cancelled: break;
+		default: ;
+		}
+	}
+
+	void FSubmissionNotifier::CreateOrUpdateStreamNotification()
+	{
+		if (!HasStreamRejections())
+		{
+			return;
+		}
+
+		if (StreamRejectedNotification)
+		{
+			StreamRejectedNotification->Refresh();
+		}
+		else
+		{
+			StreamRejectedNotification = SNew(SStreamRejectedNotification)
+				.Errors_Lambda([this](){ return &StreamErrors; })
+				.OnCloseClicked_Raw(this, &FSubmissionNotifier::CloseStreamNotification);
+			FNotificationInfo Info(StreamRejectedNotification.ToSharedRef());
+			Info.bFireAndForget = false;
+			Info.ExpireDuration = 1.f;
+			StreamNotificationItem = FSlateNotificationManager::Get().AddNotification(Info);
+		}
+	}
+
+	void FSubmissionNotifier::CreateOrUpdateAuthorityNotification()
+	{
+		if (!HasAuthorityRejections())
+		{
+			return;
+		}
+
+		if (AuthorityRejectedNotification)
+		{
+			AuthorityRejectedNotification->Refresh();
+		}
+		else
+		{
+			AuthorityRejectedNotification = SNew(SAuthorityRejectedNotification)
+				.Errors_Lambda([this](){ return &AuthorityErrors; })
+				.OnCloseClicked_Raw(this, &FSubmissionNotifier::CloseAuthorityNotification);
+			FNotificationInfo Info(AuthorityRejectedNotification.ToSharedRef());
+			Info.bFireAndForget = false;
+			Info.ExpireDuration = 1.f;
+			AuthorityNotificationItem = FSlateNotificationManager::Get().AddNotification(Info);
+		}
+	}
+
+	FReply FSubmissionNotifier::CloseStreamNotification()
+	{
+		if (StreamNotificationItem)
+		{
+			StreamRejectedNotification.Reset();
+			StreamNotificationItem->ExpireAndFadeout();
+			StreamNotificationItem.Reset();
+
+			StreamErrors = {};
+		}
+		
+		return FReply::Handled();
+	}
+
+	FReply FSubmissionNotifier::CloseAuthorityNotification()
+	{
+		if (AuthorityNotificationItem)
+		{
+			AuthorityRejectedNotification.Reset();
+			AuthorityNotificationItem->ExpireAndFadeout();
+			AuthorityNotificationItem.Reset();
+
+			AuthorityErrors = {};
+		}
+
+		return FReply::Handled();
+	}
+}

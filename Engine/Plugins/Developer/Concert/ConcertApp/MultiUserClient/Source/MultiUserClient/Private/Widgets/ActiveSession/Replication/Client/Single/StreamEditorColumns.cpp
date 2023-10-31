@@ -76,12 +76,14 @@ namespace UE::MultiUserClient::StreamEditorColumns
 			)
 		{
 			const FSoftObjectPath& ObjectPath = ObjectData.GetObjectPath();
-			ChangeTracker->SetAuthorityIfAllowed(ObjectPath, bIsChecked);
-			ClientStreamModel->ForEachSubobject(ObjectPath, [&ChangeTracker, bIsChecked](const FSoftObjectPath& Child)
+			TArray<FSoftObjectPath> Paths { ObjectPath };
+			ClientStreamModel->ForEachSubobject(ObjectPath, [&Paths](const FSoftObjectPath& Child)
 			{
-				ChangeTracker->SetAuthorityIfAllowed(Child, bIsChecked);
+				Paths.Add(Child);
 				return EBreakBehavior::Continue;
 			});
+			
+			ChangeTracker->SetAuthorityIfAllowed(Paths, bIsChecked);
 		}
 
 		static bool IsEnabled(
@@ -175,7 +177,7 @@ namespace UE::MultiUserClient::StreamEditorColumns
 					FSubobjectColumnDelegates::FOnColumnCheckboxChanged::CreateLambda(
 					[&ChangeTracker](bool bIsChecked, const FReplicatedObjectData& ObjectData)
 					{
-						ChangeTracker.SetAuthorityIfAllowed(ObjectData.GetObjectPath(), bIsChecked);
+						ChangeTracker.SetAuthorityIfAllowed({ ObjectData.GetObjectPath() }, bIsChecked);
 					}),
 					FSubobjectColumnDelegates::FGetToolTipText::CreateLambda([&ChangeTracker, &SubmissionWorkflow](const FReplicatedObjectData& ObjectData)
 					{

@@ -1,0 +1,53 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#pragma once
+
+#include "Replication/Editor/Model/IEditableObjectToPropertiesModel.h"
+#include "Templates/UnrealTemplate.h"
+
+namespace UE::ConcertClientSharedSlate
+{
+	class IEditableObjectToPropertiesModel;
+}
+
+namespace UE::MultiUserClient
+{
+	class FAuthorityChangeTracker;
+	class ISubmissionWorkflow;
+	
+	/**
+	 * Automatically submits stream and authority changes as the user makes them.
+	 * If a change is in progress when the change is made, the changes are queued and sent once the pending submission is done.
+	 *
+	 * This policy accumulates all changes until the end of frame and then sends them. This means multiple changes are made in the same frame,
+	 * only one request will be sent containing all changes.
+	 */
+	class FAutoSubmissionPolicy : public FNoncopyable
+	{
+	public:
+		
+		FAutoSubmissionPolicy(
+			ISubmissionWorkflow& InSubmissionWorkflow,
+			ConcertClientSharedSlate::IEditableObjectToPropertiesModel& InStreamEditorModel,
+			FAuthorityChangeTracker& InAuthorityChangeTracker
+			);
+		~FAutoSubmissionPolicy();
+		
+	private:
+
+		/** Handles performing the submission */
+		ISubmissionWorkflow& SubmissionWorkflow;
+
+		/** Informs us when the stream is structurally changed by the user. */
+		ConcertClientSharedSlate::IEditableObjectToPropertiesModel& StreamEditorModel;
+		/** Informs us when authority is changed by the user. */
+		FAuthorityChangeTracker& AuthorityChangeTracker;
+		
+		void OnObjectsChanged(TArrayView<UObject* const>, TArrayView<const FSoftObjectPath>, ConcertClientSharedSlate::EReplicatedObjectChangeReason) { OnChangesDetected(); }
+		void OnChangesDetected();
+
+		/** Checks whether any changes were made last frame and submits a change request if so. */
+		void OnEndFrame();
+	};
+}
+

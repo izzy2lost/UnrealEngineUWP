@@ -56,7 +56,6 @@ namespace UE::MultiUserClient
 			.Padding(2.f)
 			[
 				SNew(SSingleClientToolbar)
-				.SubmissionWorkflow(&ReplicationClient->GetSubmissionWorkflow())
 				.ViewSelectionArea() [ InArgs._ViewSelectionArea.Widget ]
 			]
 

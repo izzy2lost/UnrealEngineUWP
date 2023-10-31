@@ -21,12 +21,6 @@ namespace UE::MultiUserClient
 		, StreamSynchronizer(InStreamSynchronizer)
 	{}
 
-	void FSubmissionWorkflow_LocalClient::RevertChanges()
-	{
-		StreamChangeTracker.RevertCachedChanges();
-		AuthorityChangeTracker.ClearChanges();
-	}
-
 	EChangeUploadability FSubmissionWorkflow_LocalClient::GetUploadability() const
 	{
 		const bool bOperationInProgress = InProgressOperation.IsSet(); 
@@ -74,7 +68,10 @@ namespace UE::MultiUserClient
 		
 		if (bIsChangelistEmpty)
 		{
-			Operation->EmplaceStreamPromise(FSubmitStreamChangesResponse{ EStreamSubmissionErrorCode::NoChange });
+			const FSubmitStreamChangesResponse CompletedChange { EStreamSubmissionErrorCode::NoChange };
+			Operation->EmplaceStreamPromise(CompletedChange);
+			StreamRequestCompletedDelegate.Broadcast(CompletedChange);
+			
 			SendAuthorityChangeRequest(MoveTemp(AuthorityChangeRequest));
 		}
 		else
@@ -103,7 +100,7 @@ namespace UE::MultiUserClient
 	}
 
 	void FSubmissionWorkflow_LocalClient::OnStreamChangeCompleted(
-		const ConcertSyncClient::Replication::FChangeStreamRequest& Request,
+		const ConcertSyncClient::Replication::FChangeStreamRequest& StreamChangeRequest,
 		const ConcertSyncClient::Replication::FChangeStreamResponse& ChangeStreamResponse,
 		ConcertSyncClient::Replication::FAuthorityChangeRequest AuthorityChangeRequest
 		)
@@ -113,10 +110,9 @@ namespace UE::MultiUserClient
 		const EStreamSubmissionErrorCode ErrorCode = ChangeStreamResponse.ErrorCode == EReplicationResponseErrorCode::Handled
 			? EStreamSubmissionErrorCode::Success
 			: EStreamSubmissionErrorCode::Timeout;
-		Operation->EmplaceStreamPromise(FSubmitStreamChangesResponse{
-			ErrorCode,
-			{ FCompletedChangeSubmission{ Request, ChangeStreamResponse } }
-		});
+		const FSubmitStreamChangesResponse CompletedChange{ ErrorCode, { FCompletedChangeSubmission{ StreamChangeRequest, ChangeStreamResponse }} };
+		Operation->EmplaceStreamPromise(CompletedChange);
+		StreamRequestCompletedDelegate.Broadcast(CompletedChange);
 		
 		if (ChangeStreamResponse.IsSuccess())
 		{
@@ -124,9 +120,14 @@ namespace UE::MultiUserClient
 		}
 		else
 		{
-			Operation->EmplaceAuthorityRequestPromise(FSubmitAuthorityChangesRequest{ EAuthoritySubmissionRequestErrorCode::CancelledDueToStreamUpdate });
-			Operation->EmplaceAuthorityResponsePromise(FSubmitAuthorityChangesResponse{ EAuthoritySubmissionResponseErrorCode::CancelledDueToStreamUpdate });
+			const FSubmitAuthorityChangesRequest Request{ EAuthoritySubmissionRequestErrorCode::CancelledDueToStreamUpdate };
+			const FSubmitAuthorityChangesResponse Response{ EAuthoritySubmissionResponseErrorCode::CancelledDueToStreamUpdate };
+			
+			Operation->EmplaceAuthorityRequestPromise(Request);
+			Operation->EmplaceAuthorityResponsePromise(Response);
 			InProgressOperation.Reset();
+			
+			AuthorityRequestCompletedDelegate.Broadcast(Request, Response);
 		}
 	}
 
@@ -137,6 +138,7 @@ namespace UE::MultiUserClient
 		if (!ensure(ReplicationManager))
 		{
 			InProgressOperation.Reset(); // Automatically cancels the pending promises
+			AuthorityRequestCompletedDelegate.Broadcast({ EAuthoritySubmissionRequestErrorCode::Cancelled }, { EAuthoritySubmissionResponseErrorCode::Cancelled });
 			return;
 		}
 
@@ -144,23 +146,33 @@ namespace UE::MultiUserClient
 		const bool bHasNoChanges = AuthorityChangeRequest.ReleaseAuthority.IsEmpty() && AuthorityChangeRequest.TakeAuthority.IsEmpty();
 		if (bHasNoChanges)
 		{
-			Operation->EmplaceAuthorityRequestPromise(FSubmitAuthorityChangesRequest{ EAuthoritySubmissionRequestErrorCode::NoChange });
-			Operation->EmplaceAuthorityResponsePromise(FSubmitAuthorityChangesResponse{ EAuthoritySubmissionResponseErrorCode::NoChange });
+			const FSubmitAuthorityChangesRequest Request{ EAuthoritySubmissionRequestErrorCode::NoChange };
+			const FSubmitAuthorityChangesResponse Response{ EAuthoritySubmissionResponseErrorCode::NoChange };
+			
+			Operation->EmplaceAuthorityRequestPromise(Request);
+			Operation->EmplaceAuthorityResponsePromise(Response);
 			InProgressOperation.Reset();
+			
+			AuthorityRequestCompletedDelegate.Broadcast(Request, Response);
 			return;
 		}
-		
-		Operation->EmplaceAuthorityRequestPromise(FSubmitAuthorityChangesRequest{ EAuthoritySubmissionRequestErrorCode::Success, AuthorityChangeRequest });
+
+		FSubmitAuthorityChangesRequest Request{ EAuthoritySubmissionRequestErrorCode::Success, AuthorityChangeRequest };
+		Operation->EmplaceAuthorityRequestPromise(Request);
 		ReplicationManager->RequestAuthorityChange(MoveTemp(AuthorityChangeRequest))
-			.Next([this, DestructionDetection = LifetimeToken->AsWeak()](FAuthorityChangeResponse&& Response)
+			.Next([this, Request = MoveTemp(Request), DestructionDetection = LifetimeToken->AsWeak()](FAuthorityChangeResponse&& Response)
 			{
 				if (DestructionDetection.IsValid())
 				{
 					const EAuthoritySubmissionResponseErrorCode ErrorCode = Response.ErrorCode == EReplicationResponseErrorCode::Handled
 						? EAuthoritySubmissionResponseErrorCode::Success
 						: EAuthoritySubmissionResponseErrorCode::Timeout;
-					InProgressOperation->Get().EmplaceAuthorityResponsePromise(FSubmitAuthorityChangesResponse{ ErrorCode, MoveTemp(Response) });
+					const FSubmitAuthorityChangesResponse Result { ErrorCode, MoveTemp(Response) };
+					
+					InProgressOperation->Get().EmplaceAuthorityResponsePromise(Result);
 					InProgressOperation.Reset();
+					
+					AuthorityRequestCompletedDelegate.Broadcast(Request, Result);
 				}
 			});
 	}

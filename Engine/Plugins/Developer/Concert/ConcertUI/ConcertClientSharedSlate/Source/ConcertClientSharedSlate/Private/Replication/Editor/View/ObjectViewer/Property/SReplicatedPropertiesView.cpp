@@ -5,8 +5,8 @@
 #include "Filters/SBasicFilterBar.h"
 #include "PropertyFilter_ByPropertyType.h"
 #include "PropertyFrontendFilter.h"
-#include "Replication/Editor/Model/DisplayUtils.h"
 #include "Replication/Editor/Model/ReplicatedPropertyData.h"
+#include "Replication/Editor/View/DisplayUtils.h"
 
 #include "UObject/UnrealType.h"
 

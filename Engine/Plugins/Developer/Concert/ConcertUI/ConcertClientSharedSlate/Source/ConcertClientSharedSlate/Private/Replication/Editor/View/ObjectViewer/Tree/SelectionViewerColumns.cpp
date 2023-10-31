@@ -3,11 +3,11 @@
 #include "SelectionViewerColumns.h"
 
 #include "ClassIconFinder.h"
-#include "Replication/Editor/Model/DisplayUtils.h"
 #include "Replication/Editor/Model/IEditableObjectToPropertiesModel.h"
 #include "Replication/Editor/Model/ReplicatedPropertyData.h"
 #include "Replication/Editor/Model/ReplicatedObjectData.h"
 #include "Replication/Editor/Model/Subobject/ISubobjectModel.h"
+#include "Replication/Editor/View/DisplayUtils.h"
 #include "Replication/Editor/View/ObjectEditor/SBaseReplicationStreamEditor.h"
 #include "Replication/Editor/View/ReplicationColumnsUtils.h"
 #include "Replication/PropertyChainUtils.h"

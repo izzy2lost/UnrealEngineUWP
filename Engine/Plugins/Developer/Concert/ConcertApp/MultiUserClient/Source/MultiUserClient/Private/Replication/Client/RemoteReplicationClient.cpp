@@ -24,8 +24,10 @@ namespace UE::MultiUserClient
 				{
 					return GetStreamDiffer().DoesObjectHavePropertiesAfterSubmit(ObjectPath);
 				})),
-			[]() { return MakeUnique<FSubmissionWorkflow_RemoteClient>(); }
-			)
+			[](FStreamChangeTracker& InStreamChangeTracker, FAuthorityChangeTracker& InAuthorityChangeTracker, IClientStreamSynchronizer& InStreamSynchronizer)
+			{
+				return MakeUnique<FSubmissionWorkflow_RemoteClient>();
+			})
 		, RemoteEndpointId(InConcertClientId)
 	{
 		// When the remote client's state has changed, refresh the UI.

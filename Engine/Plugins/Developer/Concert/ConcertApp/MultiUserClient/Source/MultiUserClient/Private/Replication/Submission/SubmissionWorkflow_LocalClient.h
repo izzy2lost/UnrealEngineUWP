@@ -3,9 +3,12 @@
 #pragma once
 
 #include "ISubmissionWorkflow.h"
+
 #include "Replication/Stream/IClientStreamSynchronizer.h"
 #include "Replication/IToken.h"
 #include "SingleClientSubmissionOperation.h"
+
+#include "Templates/UnrealTemplate.h"
 
 class IConcertSyncClient;
 
@@ -17,7 +20,7 @@ namespace UE::MultiUserClient
 	class FStreamChangeTracker;
 	
 	/** Handles the submission workflow for a single client. */
-	class FSubmissionWorkflow_LocalClient : public ISubmissionWorkflow
+	class FSubmissionWorkflow_LocalClient : public FSubmissionWorkflowBase, public FNoncopyable
 	{
 	public:
 		
@@ -30,7 +33,6 @@ namespace UE::MultiUserClient
 		
 		//~ Begin ISubmissionWorkflow Interface
 		virtual TSharedPtr<ISubmissionOperation> SubmitChanges() override;
-		virtual void RevertChanges() override;
 		virtual EChangeUploadability GetUploadability() const override;
 		virtual EChangeRevertability GetRevertability() const override;
 		//~ End ISubmissionWorkflow Interface
@@ -61,7 +63,7 @@ namespace UE::MultiUserClient
 
 		/** Advances the request by requesting authority. */
 		void OnStreamChangeCompleted(
-			const ConcertSyncClient::Replication::FChangeStreamRequest& Request,
+			const ConcertSyncClient::Replication::FChangeStreamRequest& StreamChangeRequest,
 			const ConcertSyncClient::Replication::FChangeStreamResponse& ChangeStreamResponse,
 			ConcertSyncClient::Replication::FAuthorityChangeRequest AuthorityChangeRequest
 			);

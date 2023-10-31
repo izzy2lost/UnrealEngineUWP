@@ -6,6 +6,7 @@
 #include "ConcertMessageData.h"
 #include "LocalReplicationClient.h"
 #include "ReplicationClient.h"
+#include "Replication/Submission/Notification/SubmissionNotifier.h"
 #include "Replication/Util/RegularQueryService.h"
 
 #include "UObject/GCObject.h"
@@ -60,8 +61,14 @@ namespace UE::MultiUserClient
 		}
 		
 		DECLARE_MULTICAST_DELEGATE(FRemoteClientsChanged);
-		/** Called when RemoteClients changes. */
+		/** Called when RemoteClients changes. Called after OnPostRemoteClientAdded. */
 		FRemoteClientsChanged& OnRemoteClientsChanged() { return OnRemoteClientsChangedDelegate; }
+		
+		DECLARE_MULTICAST_DELEGATE_OneParam(FRemoteClientDelegate, FRemoteReplicationClient&);
+		/** Called just after a remote client is has been added to RemoteClients. Called before OnRemoteClientsChanged. */
+		FRemoteClientDelegate& OnPostRemoteClientAdded() { return OnPostRemoteClientAddedDelegate; }
+		/** Called just before a remote client is about to be removed from RemoteClients. */
+		FRemoteClientDelegate& OnPreRemoteClientRemoved() { return OnPreRemoteClientRemovedDelegate; }
 		
 		//~ Begin FGCObject Interface
 		virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
@@ -94,10 +101,17 @@ namespace UE::MultiUserClient
 		 * UI keeps references to systems inside the client so it is TSharedRef in case TArray is reallocated.
 		 */
 		TArray<TUniquePtr<FRemoteReplicationClient>> RemoteClients;
-
+		
 		/** Called when RemoteClients changes. */
 		FRemoteClientsChanged OnRemoteClientsChangedDelegate;
-
+		/** Called when RemoteClients changes. Called after OnPostRemoteClientAdded. */
+		FRemoteClientDelegate OnPostRemoteClientAddedDelegate;
+		/** Called just before a remote client is about to be removed from RemoteClients. */
+		FRemoteClientDelegate OnPreRemoteClientRemovedDelegate; 
+		
+		/** Manages SNotificationItems when submission to the server fails. */
+		FSubmissionNotifier SubmissionNotifier;
+		
 		/** Updates RemoteClients depending on the change. */
 		void OnSessionClientChanged(IConcertClientSession&, EConcertClientStatus NewStatus, const FConcertSessionClientInfo& ClientInfo);
 		

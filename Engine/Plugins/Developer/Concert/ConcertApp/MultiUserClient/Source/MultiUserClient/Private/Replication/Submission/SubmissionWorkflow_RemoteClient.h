@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ISubmissionWorkflow.h"
+
 #include "Templates/UnrealTemplate.h"
 
 class IConcertSyncClient;
@@ -10,14 +11,13 @@ class IConcertSyncClient;
 namespace UE::MultiUserClient
 {
 	class FSubmissionWorkflow_RemoteClient
-		: public ISubmissionWorkflow
+		: public FSubmissionWorkflowBase
 		, public FNoncopyable
 	{
 	public:
 
 		//~ Begin ISubmissionWorkflow Interface
 		virtual TSharedPtr<ISubmissionOperation> SubmitChanges() override;
-		virtual void RevertChanges() override;
 		virtual EChangeUploadability GetUploadability() const override;
 		virtual EChangeRevertability GetRevertability() const override;
 		//~ End ISubmissionWorkflow Interface

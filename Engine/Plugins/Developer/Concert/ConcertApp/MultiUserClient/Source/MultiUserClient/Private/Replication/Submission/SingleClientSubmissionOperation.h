@@ -36,17 +36,17 @@ namespace UE::MultiUserClient
 			}
 		}
 
-		void EmplaceStreamPromise(FSubmitStreamChangesResponse&& Result)
+		void EmplaceStreamPromise(FSubmitStreamChangesResponse Result)
 		{
 			bStreamPromiseWasSet = true;
 			StreamChangesPromise.EmplaceValue(MoveTemp(Result));
 		}
-		void EmplaceAuthorityRequestPromise(FSubmitAuthorityChangesRequest&& Result)
+		void EmplaceAuthorityRequestPromise(FSubmitAuthorityChangesRequest Result)
 		{
 			bAuthorityRequestPromiseWasSet = true;
 			AuthorityChangeRequestPromise.EmplaceValue(MoveTemp(Result));
 		}
-		void EmplaceAuthorityResponsePromise(FSubmitAuthorityChangesResponse&& Result)
+		void EmplaceAuthorityResponsePromise(FSubmitAuthorityChangesResponse Result)
 		{
 			bAuthorityResponsePromiseWasSet = true;
 			AuthorityChangeResponsePromise.EmplaceValue(MoveTemp(Result));

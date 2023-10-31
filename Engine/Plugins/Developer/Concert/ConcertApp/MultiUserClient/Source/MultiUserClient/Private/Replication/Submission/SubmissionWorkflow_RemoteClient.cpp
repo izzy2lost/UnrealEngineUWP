@@ -11,9 +11,6 @@ namespace UE::MultiUserClient
 		return nullptr;
 	}
 
-	void FSubmissionWorkflow_RemoteClient::RevertChanges()
-	{}
-
 	EChangeUploadability FSubmissionWorkflow_RemoteClient::GetUploadability() const
 	{
 		// TODO DP UE-180657: Changing remote client's stream is not implemented for now

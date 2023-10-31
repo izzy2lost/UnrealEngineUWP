@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "DisplayUtils.h"
+#include "Replication/Editor/View/DisplayUtils.h"
 
 #include "Replication/Editor/Model/IObjectToPropertiesModel.h"
 
@@ -15,10 +15,15 @@ namespace UE::ConcertClientSharedSlate::DisplayUtils
 {
 	FText GetObjectDisplayText(const FSoftObjectPath& Object)
 	{
+		return FText::FromString(GetObjectDisplayString(Object));
+	}
+
+	FString GetObjectDisplayString(const FSoftObjectPath& Object)
+	{
 		// Important! The object may not be loaded, yet. This could be if the asset is using a level that was not opened. 
 		if (const UObject* LoadedObject = Object.ResolveObject())
 		{
-			return FText::FromString(GetObjectDisplayString(*LoadedObject));
+			return GetObjectDisplayString(*LoadedObject);
 		}
 
 		// Subpath looks like this PersistentLevel.Actor.Component
@@ -26,9 +31,9 @@ namespace UE::ConcertClientSharedSlate::DisplayUtils
 		const int32 LastDotIndex = Subpath.Find(TEXT("."), ESearchCase::CaseSensitive, ESearchDir::FromEnd);
 		if (LastDotIndex == INDEX_NONE)
 		{
-			return FText::GetEmpty();
+			return {};
 		}
-		return FText::FromString(Subpath.RightChop(LastDotIndex + 1));
+		return Subpath.RightChop(LastDotIndex + 1);
 	}
 
 	FString GetObjectDisplayString(const UObject& Object)
