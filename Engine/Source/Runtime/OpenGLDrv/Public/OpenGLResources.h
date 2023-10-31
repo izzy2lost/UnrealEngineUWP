@@ -494,11 +494,6 @@ public:
 
 		if (Resource != 0)
 		{
-			if (BaseType::OnDelete(Resource, BaseType::GetSize(), false, 0))
-			{
-				FOpenGL::DeleteBuffers(1, &Resource);
-			}
-
 			if (LockBuffer != NULL)
 			{
 				if (bLockBufferWasAllocated)
@@ -509,6 +504,12 @@ public:
 				{
 					UE_LOG(LogRHI, Warning, TEXT("Destroying TOpenGLBuffer without returning memory to the driver; possibly called RHIMapStagingSurface() but didn't call RHIUnmapStagingSurface()? Resource %u"), Resource);
 				}
+			}
+
+			if (BaseType::OnDelete(Resource, BaseType::GetSize(), false, 0))
+			{
+				FOpenGL::DeleteBuffers(1, &Resource);
+				Resource = 0;
 			}
 
 			LockBuffer = nullptr;
