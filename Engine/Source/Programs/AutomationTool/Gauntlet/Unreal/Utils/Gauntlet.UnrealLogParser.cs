@@ -129,6 +129,7 @@ namespace Gauntlet
 		/// </summary>
 		public class BuildInfo
 		{
+			public string BuildVersion;
 			public string BranchName;
 			public int Changelist;
 		}
@@ -405,6 +406,13 @@ namespace Gauntlet
 			if (M.Success)
 			{
 				Info.Changelist = Convert.ToInt32(M.Groups[1].ToString());
+			}
+
+			M = Regex.Match(Content, @"LogInit.+Build:\s*(\+.*)", RegexOptions.IgnoreCase);
+
+			if (M.Success)
+			{
+				Info.BuildVersion = M.Groups[1].ToString();
 			}
 
 			return Info;
