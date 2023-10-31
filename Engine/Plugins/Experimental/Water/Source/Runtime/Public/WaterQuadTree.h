@@ -99,6 +99,8 @@ struct FWaterQuadTree
 	/** Output of the quadtree when asking to traverse it for visible water tiles */
 	struct FTraversalDesc
 	{
+		const TArray<bool>* OcclusionCullingResults = nullptr;
+		int32 OcclusionCullingFarMeshOffset = 0;
 		int32 LowestLOD = 0;
 		int32 LODCount = 0;
 		int32 DensityCount = 0;
@@ -115,6 +117,7 @@ struct FWaterQuadTree
 		// Debug
 		int32 DebugShowTile = 0;
 		class FPrimitiveDrawInterface* DebugPDI = nullptr;
+		bool bDebugDrawIntoForeground = false;
 #endif
 	};
 
@@ -181,12 +184,14 @@ struct FWaterQuadTree
 	static float GetLODDistance(int32 InLODLevel, float InLODScale) { return FMath::Pow(2.0f, (float)(InLODLevel + 1)) * InLODScale; }
 
 	/** Total memory dynamically allocated by this object */
-	uint32 GetAllocatedSize() const { return NodeData.GetAllocatedSize() + WaterMaterials.GetAllocatedSize() + FarMeshData.GetAllocatedSize(); }
+	uint32 GetAllocatedSize() const { return NodeData.GetAllocatedSize() + WaterMaterials.GetAllocatedSize() + BreadthFirstOrder.GetAllocatedSize() + FarMeshData.GetAllocatedSize(); }
 
 #if WITH_WATER_SELECTION_SUPPORT
 	/** Obtain all possible hit proxies (proxies of all the water bodies) */
 	void GatherHitProxies(TArray<TRefCountPtr<HHitProxy> >& OutHitProxies) const;
 #endif // WITH_WATER_SELECTION_SUPPORT
+
+	TArray<FBoxSphereBounds> ComputeNodeBounds(int32 MaxNumBounds, bool bIncludeFarMeshTiles, int32* OutFarMeshOffset) const;
 
 private:
 	struct FNodeData;
@@ -254,6 +259,7 @@ private:
 
 		/** Children, 0 means invalid */
 		uint32 Children[4] = { 0, 0, 0, 0 };
+		uint32 BreadthFirstIndex = INDEX_NONE;
 	};
 
 	int32 TreeDepth = 0;
@@ -282,6 +288,9 @@ private:
 	} NodeData;
 
 	TArray<FMaterialRenderProxy*> WaterMaterials;
+
+	/** Node indices ordered by breadth first ordering */
+	TArray<int32> BreadthFirstOrder;
 
 	/** Contains everything needed to render the far mesh. This data lives outside the quadtree structure itself */
 	struct FFarMeshData

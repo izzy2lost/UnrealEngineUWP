@@ -18,15 +18,27 @@
 DECLARE_STATS_GROUP(TEXT("Water Mesh"), STATGROUP_WaterMesh, STATCAT_Advanced);
 
 DECLARE_DWORD_COUNTER_STAT(TEXT("Tiles Drawn"), STAT_WaterTilesDrawn, STATGROUP_WaterMesh);
+DECLARE_DWORD_COUNTER_STAT(TEXT("Tiles Occlusion Culled"), STAT_WaterTilesOcclusionCulled, STATGROUP_WaterMesh);
 DECLARE_DWORD_COUNTER_STAT(TEXT("Draw Calls"), STAT_WaterDrawCalls, STATGROUP_WaterMesh);
 DECLARE_DWORD_COUNTER_STAT(TEXT("Vertices Drawn"), STAT_WaterVerticesDrawn, STATGROUP_WaterMesh);
 DECLARE_DWORD_COUNTER_STAT(TEXT("Number Drawn Materials"), STAT_WaterDrawnMats, STATGROUP_WaterMesh);
+DECLARE_DWORD_COUNTER_STAT(TEXT("Number Occlusion Queries"), STAT_WaterOcclusionQueries, STATGROUP_WaterMesh);
 
 /** Scalability CVars */
 static TAutoConsoleVariable<int32> CVarWaterMeshLODMorphEnabled(
 	TEXT("r.Water.WaterMesh.LODMorphEnabled"), 1,
 	TEXT("If the smooth LOD morph is enabled. Turning this off may cause slight popping between LOD levels but will skip the calculations in the vertex shader, making it cheaper"),
 	ECVF_Scalability | ECVF_RenderThreadSafe);
+
+static TAutoConsoleVariable<int32> CVarWaterMeshOcclusionCullingMaxQueries(
+	TEXT("r.Water.WaterMesh.OcclusionCulling.MaxQueries"), 256,
+	TEXT("Maximum number of occlusion queries for the CPU water quadtree nodes. Using fewer queries than nodes will result in coarser culling."),
+	ECVF_Scalability);
+
+static TAutoConsoleVariable<int32> CVarWaterMeshOcclusionCullingIncludeFarMesh(
+	TEXT("r.Water.WaterMesh.OcclusionCulling.IncludeFarMesh"), 1,
+	TEXT("When occlusion culling is enabled, always do occlusion queries for the water far mesh, independent of r.Water.WaterMesh.OcclusionCulling.MaxQueries."),
+	ECVF_Scalability);
 
 /** Debug CVars */
 static TAutoConsoleVariable<int32> CVarWaterMeshShowWireframe(
@@ -64,6 +76,13 @@ static TAutoConsoleVariable<int32> CVarWaterMeshShowTileBounds(
 	ECVF_RenderThreadSafe
 );
 
+static TAutoConsoleVariable<int32> CVarWaterMeshShowTileBoundsForeground(
+	TEXT("r.Water.WaterMesh.ShowTileBounds.DrawForeground"),
+	0,
+	TEXT("Shows all tile bounds, even occluded ones by drawing into the foreground"),
+	ECVF_RenderThreadSafe
+);
+
 static TAutoConsoleVariable<int32> CVarWaterMeshPreAllocStagingInstanceMemory(
 	TEXT("r.Water.WaterMesh.PreAllocStagingInstanceMemory"),
 	0,
@@ -76,6 +95,13 @@ static TAutoConsoleVariable<int32> CVarRayTracingGeometryWater(
 	0,
 	TEXT("Include water in ray tracing effects (default = 0 (water disabled in ray tracing))"));
 #endif
+
+static TAutoConsoleVariable<int32> CVarWaterMeshOcclusionCulling(
+	TEXT("r.Water.WaterMesh.OcclusionCulling"),
+	1,
+	TEXT("Enables occlusion culling for the CPU water quadtree."),
+	ECVF_RenderThreadSafe
+);
 
 // ----------------------------------------------------------------------------------
 
@@ -130,6 +156,14 @@ FWaterMeshSceneProxy::FWaterMeshSceneProxy(UWaterMeshComponent* Component)
 #if RHI_RAYTRACING
 	RayTracingWaterData.SetNum(DensityCount);
 #endif
+
+	const int32 MaxQueries = CVarWaterMeshOcclusionCullingMaxQueries.GetValueOnGameThread();
+	const bool bIncludeFarMeshOcclusionQueries = CVarWaterMeshOcclusionCullingIncludeFarMesh.GetValueOnGameThread() != 0;
+	OcclusionCullingBounds = WaterQuadTree.ComputeNodeBounds(MaxQueries, bIncludeFarMeshOcclusionQueries, &OcclusionResultsFarMeshOffset);
+	if (!OcclusionCullingBounds.IsEmpty())
+	{
+		EmptyOcclusionCullingBounds.Add(OcclusionCullingBounds[0]);
+	}
 }
 
 FWaterMeshSceneProxy::~FWaterMeshSceneProxy()
@@ -154,6 +188,11 @@ FWaterMeshSceneProxy::~FWaterMeshSceneProxy()
 		}
 	}	
 #endif
+}
+
+void FWaterMeshSceneProxy::CreateRenderThreadResources(FRHICommandListBase& RHICmdList)
+{
+	SceneProxyCreatedFrameNumberRenderThread = GFrameNumberRenderThread;
 }
 
 FWaterMeshSceneProxy::FWaterLODParams FWaterMeshSceneProxy::GetWaterLODParams(const FVector& Position) const
@@ -276,11 +315,22 @@ void FWaterMeshSceneProxy::GetDynamicMeshElements(const TArray<const FSceneView*
 			TraversalDesc.LODScale = LODScale;
 			TraversalDesc.bLODMorphingEnabled = !!CVarWaterMeshLODMorphEnabled.GetValueOnRenderThread();
 			TraversalDesc.WaterInfoBounds = WaterInfoBounds;
+			TraversalDesc.OcclusionCullingResults = nullptr;
+			TraversalDesc.OcclusionCullingFarMeshOffset = OcclusionResultsFarMeshOffset;
+			if (CVarWaterMeshOcclusionCulling.GetValueOnRenderThread() != 0)
+			{
+				const FOcclusionCullingResults* CullingResults = OcclusionResults.Find(View->GetViewKey());
+				if (CullingResults && !CullingResults->Results.IsEmpty())
+				{
+					TraversalDesc.OcclusionCullingResults = &CullingResults->Results;
+				}
+			}
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 			//Debug
 			TraversalDesc.DebugPDI = Collector.GetPDI(ViewIndex);
 			TraversalDesc.DebugShowTile = CVarWaterMeshShowTileBounds.GetValueOnRenderThread();
+			TraversalDesc.bDebugDrawIntoForeground = CVarWaterMeshShowTileBoundsForeground.GetValueOnRenderThread() != 0;
 #endif
 			WaterQuadTree.BuildWaterTileInstanceData(TraversalDesc, WaterInstanceData);
 
@@ -436,6 +486,61 @@ void FWaterMeshSceneProxy::GetDynamicMeshElements(const TArray<const FSceneView*
 	}
 
 	WaterInstanceDataBuffers->Unlock(RHICmdList);
+}
+
+const TArray<FBoxSphereBounds>* FWaterMeshSceneProxy::GetOcclusionQueries(const FSceneView* View) const
+{
+	if (CVarWaterMeshOcclusionCulling.GetValueOnRenderThread() != 0)
+	{
+		return &OcclusionCullingBounds;
+	}
+	return &EmptyOcclusionCullingBounds;
+}
+
+void FWaterMeshSceneProxy::AcceptOcclusionResults(const FSceneView* View, TArray<bool>* Results, int32 ResultsStart, int32 NumResults)
+{
+	// Don't accept subprimitive occlusion results from a previously-created sceneproxy - the tree may have been different
+	if (OcclusionCullingBounds.Num() == NumResults && SceneProxyCreatedFrameNumberRenderThread < GFrameNumberRenderThread)
+	{
+		// This lock is necessary to guard against access from multiple views.
+		OcclusionResultsMutex.Lock();
+
+		uint32 ViewId = View->GetViewKey();
+		FOcclusionCullingResults* OldResults = OcclusionResults.Find(ViewId);
+		if (OldResults)
+		{
+			OldResults->FrameNumber = GFrameNumberRenderThread;
+			OldResults->Results.Reset();
+			OldResults->Results.Append(Results->GetData() + ResultsStart, NumResults);
+		}
+		else
+		{
+			// now is a good time to clean up any stale entries
+			for (auto Iter = OcclusionResults.CreateIterator(); Iter; ++Iter)
+			{
+				if (Iter.Value().FrameNumber != GFrameNumberRenderThread)
+				{
+					Iter.RemoveCurrent();
+				}
+			}
+
+			FOcclusionCullingResults NewResults;
+			NewResults.FrameNumber = GFrameNumberRenderThread;
+			NewResults.Results.Append(Results->GetData() + ResultsStart, NumResults);
+
+			OcclusionResults.Add(ViewId, MoveTemp(NewResults));
+		}
+
+		OcclusionResultsMutex.Unlock();
+
+		int32 NumCulled = 0;
+		for (int32 ResultIndex = 0; ResultIndex < NumResults; ++ResultIndex)
+		{
+			NumCulled += (*Results)[ResultsStart + ResultIndex] ? 1 : 0;
+		}
+		INC_DWORD_STAT_BY(STAT_WaterTilesOcclusionCulled, NumCulled);
+		INC_DWORD_STAT_BY(STAT_WaterOcclusionQueries, NumResults);
+	}
 }
 
 #if RHI_RAYTRACING
@@ -658,6 +763,11 @@ FPrimitiveViewRelevance FWaterMeshSceneProxy::GetViewRelevance(const FSceneView*
 	MaterialRelevance.SetPrimitiveViewRelevance(Result);
 	Result.bVelocityRelevance = DrawsVelocity() && Result.bOpaque && Result.bRenderInMainPass;
 	return Result;
+}
+
+bool FWaterMeshSceneProxy::HasSubprimitiveOcclusionQueries() const
+{
+	return true;
 }
 
 #if WITH_WATER_SELECTION_SUPPORT

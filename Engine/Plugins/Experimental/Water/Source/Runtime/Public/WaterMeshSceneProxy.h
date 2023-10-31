@@ -29,16 +29,24 @@ public:
 
 	virtual ~FWaterMeshSceneProxy();
 
+	virtual void CreateRenderThreadResources(FRHICommandListBase& RHICmdList) override;
+
 	virtual void GetDynamicMeshElements(const TArray<const FSceneView*>& Views, const FSceneViewFamily& ViewFamily, uint32 VisibilityMap, FMeshElementCollector& Collector) const override;
 
+	virtual const TArray<FBoxSphereBounds>* GetOcclusionQueries(const FSceneView* View) const override;
+
+	virtual void AcceptOcclusionResults(const FSceneView* View, TArray<bool>* Results, int32 ResultsStart, int32 NumResults) override;
+
 	virtual FPrimitiveViewRelevance GetViewRelevance(const FSceneView* View) const override;
+
+	virtual bool HasSubprimitiveOcclusionQueries() const override;
 
 	virtual bool CanBeOccluded() const override
 	{
 		return !MaterialRelevance.bDisableDepthTest;
 	}
 
-	virtual uint32 GetMemoryFootprint() const
+	virtual uint32 GetMemoryFootprint() const override
 	{
 		return(sizeof(*this) + GetAllocatedSize());
 	}
@@ -121,6 +129,19 @@ private:
 	// Per density array of ray tracing geometries.
 	TArray<TArray<FRayTracingWaterData>> RayTracingWaterData;	
 #endif
+
+	struct FOcclusionCullingResults
+	{
+		uint32 FrameNumber;
+		TArray<bool> Results;
+	};
+
+	TArray<FBoxSphereBounds> OcclusionCullingBounds;
+	TArray<FBoxSphereBounds> EmptyOcclusionCullingBounds;
+	TMap<uint32, FOcclusionCullingResults> OcclusionResults;
+	UE::FMutex OcclusionResultsMutex;
+	int32 OcclusionResultsFarMeshOffset = INT32_MAX;
+	uint32 SceneProxyCreatedFrameNumberRenderThread = INDEX_NONE;
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
