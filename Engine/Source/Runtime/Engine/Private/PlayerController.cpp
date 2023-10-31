@@ -4825,7 +4825,7 @@ void APlayerController::SetPawn(APawn* InPawn)
 
 				if (IsValid(InPawn))
 				{
-					UE::Net::FReplicationSystemUtil::AddDependentActor(this, InPawn);
+					UE::Net::FReplicationSystemUtil::AddDependentActor(this, InPawn, UE::Net::EDependentObjectSchedulingHint::ScheduleBeforeParent);
 				}
 			}
 		}
