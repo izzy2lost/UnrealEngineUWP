@@ -36,8 +36,8 @@ public:
 
 public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
-	uint8 bOverride_Collection : 1;
+	uint8 bOverride_Collection : 1 = 1;	// The collection is customized in the details panel, so the override should always be enabled
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Instanced, Category = "General", meta=(EditCondition="bOverride_Collection", EditInline))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "General", meta=(EditCondition="bOverride_Collection"))
 	TObjectPtr<UMovieGraphCollection> Collection;
 };

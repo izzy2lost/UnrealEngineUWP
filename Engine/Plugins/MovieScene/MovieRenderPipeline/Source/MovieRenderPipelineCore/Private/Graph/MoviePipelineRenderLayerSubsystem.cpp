@@ -7,10 +7,181 @@
 #include "Components/SkyLightComponent.h"
 #include "Components/SphereReflectionCaptureComponent.h"
 #include "EngineUtils.h"
+#include "Framework/Application/SlateApplication.h"
 #include "Materials/MaterialInterface.h"
+#include "Modules/ModuleManager.h"
 #include "MovieRenderPipelineCoreModule.h"
 #include "Styling/AppStyle.h"
+#include "Styling/SlateIconFinder.h"
 #include "UObject/Package.h"
+#include "Widgets/Input/SMultiLineEditableTextBox.h"
+
+#if WITH_EDITOR
+#include "ActorTreeItem.h"
+#include "ClassViewerFilter.h"
+#include "ClassViewerModule.h"
+#include "ISceneOutliner.h"
+#include "SceneOutlinerModule.h"
+#include "SceneOutlinerPublicTypes.h"
+#include "SClassViewer.h"
+#include "Widgets/SCompoundWidget.h"
+#endif
+
+#define LOCTEXT_NAMESPACE "MovieGraph"
+
+namespace UE::MovieGraph::Private
+{
+#if WITH_EDITOR
+	/**
+	 * A widget which lists items in rows w/ an alternating row color, where each item has an icon and text. A summary row appears at the end of the
+	 * list indicating how many items are in the list.
+	 */
+	template<typename ListType>
+	class SQueryContentsList final : public SCompoundWidget
+	{
+	public:
+		DECLARE_DELEGATE_RetVal_OneParam(const FSlateBrush*, FGetRowIcon, ListType);
+		DECLARE_DELEGATE_RetVal_OneParam(FText, FGetRowText, ListType);
+		
+		SLATE_BEGIN_ARGS(SQueryContentsList<ListType>)
+		{}
+			SLATE_ATTRIBUTE(TArray<ListType>*, DataSource)
+			SLATE_ATTRIBUTE(FText, DataType)
+			SLATE_ATTRIBUTE(FText, DataTypePlural)
+			SLATE_EVENT(FGetRowIcon, OnGetRowIcon);
+			SLATE_EVENT(FGetRowText, OnGetRowText);
+		SLATE_END_ARGS()
+
+		const FSlateBrush* GetRowIcon(const ListType& InListData) const
+		{
+			if (OnGetRowIcon.IsBound())
+			{
+				return OnGetRowIcon.Execute(InListData);
+			}
+			
+			return nullptr;
+		}
+
+		FText GetRowText(const ListType& InListData) const
+		{
+			if (OnGetRowText.IsBound())
+			{
+				return OnGetRowText.Execute(InListData);
+			}
+			
+			return FText();
+		}
+
+		void Construct(const FArguments& InArgs)
+		{
+			DataSource = InArgs._DataSource.Get();
+			DataType = InArgs._DataType.Get();
+			DataTypePlural = InArgs._DataTypePlural.Get();
+			OnGetRowIcon = InArgs._OnGetRowIcon;
+			OnGetRowText = InArgs._OnGetRowText;
+			
+			ChildSlot
+			.HAlign(HAlign_Fill)
+			.VAlign(VAlign_Top)
+			[
+				SNew(SVerticalBox)
+				+ SVerticalBox::Slot()
+				.AutoHeight()
+				[
+					SNew(SListView<ListType>)
+					.ListItemsSource(DataSource)
+					.OnGenerateRow_Lambda([this](const ListType& InListData, const TSharedRef<STableViewBase>& InOwnerTable)
+					{
+						return SNew(STableRow<ListType>, InOwnerTable)
+							.Style(FAppStyle::Get(), "TableView.AlternatingRow")
+							.ShowWires(false)
+							[
+								SNew(SHorizontalBox)
+								+ SHorizontalBox::Slot()
+								.VAlign(VAlign_Center)
+								.Padding(7.f, 5.f, 7.f, 5.f)
+								.AutoWidth()
+								[
+									SNew(SImage)
+									.Image(GetRowIcon(InListData))
+								]
+									
+								+ SHorizontalBox::Slot()
+								.VAlign(VAlign_Center)
+								.HAlign(HAlign_Fill)
+								[
+									SNew(STextBlock)
+									.Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
+									.Text(GetRowText(InListData))
+								]
+							];
+					})
+				]
+
+				+ SVerticalBox::Slot()
+				.AutoHeight()
+				[
+					SNew(SBorder)
+					.BorderImage(FAppStyle::Get().GetBrush("Brushes.Header"))
+					.VAlign(VAlign_Center)
+					.HAlign(HAlign_Fill)
+					.Padding(FMargin(14, 4))
+					[
+						SNew(STextBlock)
+						.Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
+						.Text_Lambda([this]()
+						{
+							return FText::FromString(FString::Printf(TEXT("%i %s"), DataSource->Num(), DataSource->Num() == 1 ? *DataType.ToString() : *DataTypePlural.ToString()));
+						})
+					]
+				]
+			];
+		}
+
+	private:
+		FGetRowIcon OnGetRowIcon;
+		FGetRowText OnGetRowText;
+		FText DataType;
+		FText DataTypePlural;
+		TArray<ListType>* DataSource = nullptr;
+	};
+
+	/**
+	 * A filter that can be used in the class viewer that appears in the Add menu. Filters out specified classes, and optionally filters out classes
+	 * that do not have a specific base class.
+	 */
+	class FClassViewerTypeFilter final : public IClassViewerFilter
+	{
+	public:
+		explicit FClassViewerTypeFilter(TArray<UClass*>* InClassesToDisallow, UClass* InRequiredBaseClass = nullptr)
+			: ClassesToDisallow(InClassesToDisallow)
+			, RequiredBaseClass(InRequiredBaseClass)
+		{
+			
+		}
+
+		virtual bool IsClassAllowed(const FClassViewerInitializationOptions& InInitOptions, const UClass* InClass, TSharedRef<FClassViewerFilterFuncs> InFilterFuncs) override
+		{
+			return
+				InClass &&
+				!ClassesToDisallow->Contains(InClass) &&
+				(RequiredBaseClass ? InClass->IsChildOf(RequiredBaseClass) : true);
+		}
+		
+		virtual bool IsUnloadedClassAllowed(const FClassViewerInitializationOptions& InInitOptions, const TSharedRef<const IUnloadedBlueprintData> InUnloadedClassData, TSharedRef<FClassViewerFilterFuncs> InFilterFuncs) override
+		{
+			return false;
+		}
+
+	private:
+		/** Classes which should be prevented from showing up in the class viewer. */
+		TArray<UClass*>* ClassesToDisallow;
+
+		/** Classes must have this base class to pass the filter. */
+		UClass* RequiredBaseClass = nullptr;
+	};
+#endif
+}
 
 void UMoviePipelineMaterialModifier::ApplyModifier(const UWorld* World)
 {
@@ -323,7 +494,7 @@ void UMoviePipelineCollection::AddQuery(UMoviePipelineCollectionQuery* Query)
 }
 
 UMovieGraphConditionGroupQueryBase::UMovieGraphConditionGroupQueryBase()
-	: OpType(EMovieGraphConditionGroupQueryOpType::Union)
+	: OpType(EMovieGraphConditionGroupQueryOpType::Add)
 	, bIsEnabled(true)
 {
 }
@@ -332,9 +503,9 @@ void UMovieGraphConditionGroupQueryBase::SetOperationType(const EMovieGraphCondi
 {
 	// Always allow setting the operation type to Union. If not setting to Union, only allow setting the operation type if this is not the first
 	// query in the condition group. The first query is always a Union.
-	if (OperationType == EMovieGraphConditionGroupQueryOpType::Union)
+	if (OperationType == EMovieGraphConditionGroupQueryOpType::Add)
 	{
-		OpType = EMovieGraphConditionGroupQueryOpType::Union;
+		OpType = EMovieGraphConditionGroupQueryOpType::Add;
 		return;
 	}
 
@@ -370,6 +541,18 @@ const FSlateIcon& UMovieGraphConditionGroupQueryBase::GetIcon() const
 	return EmptyIcon;
 }
 
+#if WITH_EDITOR
+TArray<TSharedRef<SWidget>> UMovieGraphConditionGroupQueryBase::GetWidgets()
+{
+	return TArray<TSharedRef<SWidget>>();
+}
+
+TSharedRef<SWidget> UMovieGraphConditionGroupQueryBase::GetAddMenuContents(const FMovieGraphConditionGroupQueryContentsChanged& OnAddFinished)
+{
+	return SNullWidget::NullWidget;
+}
+#endif
+
 bool UMovieGraphConditionGroupQueryBase::IsEditorOnlyQuery() const
 {
 	return false;
@@ -385,42 +568,222 @@ bool UMovieGraphConditionGroupQueryBase::IsEnabled() const
 	return bIsEnabled;
 }
 
-void UMovieGraphConditionGroupQuery_ActorTag::Evaluate(const TArray<AActor*>& InActorsToQuery, TSet<AActor*>& OutMatchingActors) const
+bool UMovieGraphConditionGroupQueryBase::IsFirstConditionGroupQuery() const
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(UMovieGraphConditionGroupQuery_ActorTag::Evaluate);
+	const UMovieGraphConditionGroup* ParentConditionGroup = GetTypedOuter<UMovieGraphConditionGroup>();
+	if (ensureMsgf(ParentConditionGroup, TEXT("Cannot determine if this is the first condition group query when no parent condition group is present")))
+	{
+		// GetQueries() returns an array of non-const pointers, so Find() doesn't like having a const pointer passed to it.
+		// Find() won't mutate the condition group query though, so the const_cast here is OK.
+		return ParentConditionGroup->GetQueries().Find(const_cast<UMovieGraphConditionGroupQueryBase*>(this)) == 0;
+	}
 	
+	return false;
+}
+
+void UMovieGraphConditionGroupQuery_Actor::Evaluate(const TArray<AActor*>& InActorsToQuery, TSet<AActor*>& OutMatchingActors) const
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(UMovieGraphConditionGroupQuery_Actor::Evaluate);
+
 	for (AActor* Actor : InActorsToQuery)
 	{
-		if (Actor->Tags.Contains(TagToMatch))
+		if (ActorsToMatch.Contains(Actor))
 		{
 			OutMatchingActors.Add(Actor);
 		}
 	}
 }
 
-const FSlateIcon& UMovieGraphConditionGroupQuery_ActorTag::GetIcon() const
+const FSlateIcon& UMovieGraphConditionGroupQuery_Actor::GetIcon() const
+{
+	static const FSlateIcon ActorIcon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "ClassIcon.Actor");
+	return ActorIcon;
+}
+
+#if WITH_EDITOR
+TArray<TSharedRef<SWidget>> UMovieGraphConditionGroupQuery_Actor::GetWidgets()
+{
+	TArray<TSharedRef<SWidget>> Widgets;
+
+	// Create the data source for the list view
+	ListDataSource.Empty();
+	for (TSoftObjectPtr<AActor>& Actor : ActorsToMatch)
+	{
+		ListDataSource.Add(MakeShared<TSoftObjectPtr<AActor>>(Actor));
+	}
+
+	Widgets.Add(
+		SNew(UE::MovieGraph::Private::SQueryContentsList<TSharedPtr<TSoftObjectPtr<AActor>>>)
+			.DataSource(&ListDataSource)
+			.DataType(FText::FromString("Actor"))
+			.DataTypePlural(FText::FromString("Actors"))
+			.OnGetRowText_Static(&GetRowText)
+			.OnGetRowIcon_Static(&GetRowIcon)
+	);
+
+	return Widgets;
+}
+
+TSharedRef<SWidget> UMovieGraphConditionGroupQuery_Actor::GetAddMenuContents(const FMovieGraphConditionGroupQueryContentsChanged& OnAddFinished)
+{	
+	FSceneOutlinerInitializationOptions SceneOutlinerInitOptions;
+	SceneOutlinerInitOptions.bShowHeaderRow = true;
+	SceneOutlinerInitOptions.bShowSearchBox = true;
+	SceneOutlinerInitOptions.bShowCreateNewFolder = false;
+	SceneOutlinerInitOptions.bFocusSearchBoxWhenOpened = true;
+
+	// Show the name/label column and the type column
+	SceneOutlinerInitOptions.ColumnMap.Add(
+		FSceneOutlinerBuiltInColumnTypes::Label(),
+		FSceneOutlinerColumnInfo(ESceneOutlinerColumnVisibility::Visible, 0, FCreateSceneOutlinerColumn(), false, TOptional<float>(), FSceneOutlinerBuiltInColumnTypes::Label_Localized()));
+	SceneOutlinerInitOptions.ColumnMap.Add(
+		FSceneOutlinerBuiltInColumnTypes::ActorInfo(),
+		FSceneOutlinerColumnInfo(ESceneOutlinerColumnVisibility::Visible, 10,  FCreateSceneOutlinerColumn(), false, TOptional<float>(), FSceneOutlinerBuiltInColumnTypes::ActorInfo_Localized()));
+
+	// Don't show actors which have already been picked
+	SceneOutlinerInitOptions.Filters->AddFilterPredicate<FActorTreeItem>(
+		FActorTreeItem::FFilterPredicate::CreateLambda([this](const AActor* InActor)
+		{
+			return !ActorsToMatch.Contains(InActor);
+		}));
+	
+	const FSceneOutlinerModule& SceneOutlinerModule = FModuleManager::LoadModuleChecked<FSceneOutlinerModule>("SceneOutliner");
+
+	ActorPickerWidget = SceneOutlinerModule.CreateActorPicker(
+		SceneOutlinerInitOptions,
+		FOnActorPicked::CreateLambda([this, OnAddFinished](AActor* InActor)
+		{
+			ActorsToMatch.Add(InActor);
+			ListDataSource.Add(MakeShared<TSoftObjectPtr<AActor>>(ActorsToMatch.Last()));
+			OnAddFinished.ExecuteIfBound();
+
+			// Ensure that the filter runs again so duplicate actors cannot be selected
+			if (ActorPickerWidget.IsValid())
+			{
+				ActorPickerWidget->FullRefresh();
+			}
+		}));
+	
+	return
+		SNew(SBox)
+		.WidthOverride(400.f)
+		.HeightOverride(300.f)
+		[
+			ActorPickerWidget.ToSharedRef()
+		];
+}
+
+const FSlateBrush* UMovieGraphConditionGroupQuery_Actor::GetRowIcon(TSharedPtr<TSoftObjectPtr<AActor>> InActor)
+{
+	if (InActor.IsValid())
+	{
+		if (InActor.Get()->IsValid())
+		{
+			// The first Get() returns the TSoftObjectPtr, the second Get() dereferences the TSoftObjectPtr
+			return FSlateIconFinder::FindIconForClass(InActor.Get()->Get()->GetClass()).GetIcon();
+		}
+	}
+
+	return FSlateIconFinder::FindIconForClass(AActor::StaticClass()).GetIcon();
+}
+
+FText UMovieGraphConditionGroupQuery_Actor::GetRowText(TSharedPtr<TSoftObjectPtr<AActor>> InActor)
+{
+	if (InActor.IsValid())
+	{
+		if (InActor.Get()->IsValid())
+		{
+			// The first Get() returns the TSoftObjectPtr, the second Get() dereferences the TSoftObjectPtr
+			return FText::FromString(InActor.Get()->Get()->GetActorLabel());
+		}
+	}
+
+	return LOCTEXT("MovieGraphActorConditionGroupQuery_InvalidActor", "(invalid)");
+}
+#endif	// WITH_EDITOR
+
+void UMovieGraphConditionGroupQuery_ActorTagName::Evaluate(const TArray<AActor*>& InActorsToQuery, TSet<AActor*>& OutMatchingActors) const
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(UMovieGraphConditionGroupQuery_ActorTag::Evaluate);
+	
+	// Quick early-out if "*" is used as the wildcard. Faster than doing the wildcard matching.
+	if (TagsToMatch == TEXT("*"))
+	{
+		OutMatchingActors.Append(InActorsToQuery);
+		return;
+	}
+
+	// Actor tags can be specified on multiple lines
+	TArray<FString> AllTagNameStrings;
+	TagsToMatch.ParseIntoArrayLines(AllTagNameStrings);
+
+	for (AActor* Actor : InActorsToQuery)
+	{
+		for (const FString& TagToMatch : AllTagNameStrings)
+		{
+			bool bMatchedTag = false;
+			
+			for (const FName& ActorTag : Actor->Tags)
+			{
+				if (ActorTag.ToString().MatchesWildcard(TagToMatch))
+				{
+					OutMatchingActors.Add(Actor);
+					bMatchedTag = true;
+					break;
+				}
+			}
+
+			// Skip comparing the rest of the tags if one tag already matched 
+			if (bMatchedTag)
+			{
+				break;
+			}
+		}
+	}
+}
+
+const FSlateIcon& UMovieGraphConditionGroupQuery_ActorTagName::GetIcon() const
 {
 	// TODO: This icon is wrong
-	static const FSlateIcon ActorTagIcon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "TODO");
+	static const FSlateIcon ActorTagIcon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.Debug");
 	return ActorTagIcon;
 }
+
+#if WITH_EDITOR
+TArray<TSharedRef<SWidget>> UMovieGraphConditionGroupQuery_ActorTagName::GetWidgets()
+{
+	TArray<TSharedRef<SWidget>> Widgets;
+
+	Widgets.Add(
+		SNew(SBox)
+		.HAlign(HAlign_Fill)
+		.Padding(7.f, 2.f)
+		[
+			SNew(SMultiLineEditableTextBox)
+			.Text_Lambda([this]() { return FText::FromString(TagsToMatch); })
+			.OnTextChanged_Lambda([this](const FText& InText) { TagsToMatch = InText.ToString(); })
+			.HintText(LOCTEXT("MovieGraphActorTagNameQueryHintText", "The actor must match one or more tags. Wildcards allowed.\nEnter each tag on a separate line."))
+		]
+	);
+
+	return Widgets;
+}
+#endif
 
 void UMovieGraphConditionGroupQuery_ActorName::Evaluate(const TArray<AActor*>& InActorsToQuery, TSet<AActor*>& OutMatchingActors) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UMovieGraphConditionGroupQuery_ActorName::Evaluate);
 	
-	const bool bIsMatchAll = (WildcardSearch == TEXT("*"));
-
-	// Actor names can be specified on multiple lines
-	TArray<FString> AllActorNames;
-	WildcardSearch.ParseIntoArrayLines(AllActorNames);
-
 	// Quick early-out if "*" is used as the wildcard. Faster than doing the wildcard matching.
-	if (bIsMatchAll)
+	if (WildcardSearch == TEXT("*"))
 	{
 		OutMatchingActors.Append(InActorsToQuery);
 		return;
 	}
+
+	// Actor names can be specified on multiple lines
+	TArray<FString> AllActorNames;
+	WildcardSearch.ParseIntoArrayLines(AllActorNames);
 
 	for (AActor* Actor : InActorsToQuery)
 	{
@@ -442,6 +805,27 @@ const FSlateIcon& UMovieGraphConditionGroupQuery_ActorName::GetIcon() const
 	return ActorTagIcon;
 }
 
+#if WITH_EDITOR
+TArray<TSharedRef<SWidget>> UMovieGraphConditionGroupQuery_ActorName::GetWidgets()
+{
+	TArray<TSharedRef<SWidget>> Widgets;
+
+	Widgets.Add(
+		SNew(SBox)
+		.HAlign(HAlign_Fill)
+		.Padding(7.f, 2.f)
+		[
+			SNew(SMultiLineEditableTextBox)
+			.Text_Lambda([this]() { return FText::FromString(WildcardSearch); })
+			.OnTextChanged_Lambda([this](const FText& InText) { WildcardSearch = InText.ToString(); })
+			.HintText(LOCTEXT("MovieGraphActorNameQueryHintText", "Actor names to query. Wildcards allowed.\nEnter each actor name on a separate line."))
+		]
+	);
+
+	return Widgets;
+}
+#endif
+
 bool UMovieGraphConditionGroupQuery_ActorName::IsEditorOnly() const
 {
 	// GetActorLabel() is editor-only
@@ -454,7 +838,7 @@ void UMovieGraphConditionGroupQuery_ActorType::Evaluate(const TArray<AActor*>& I
 	
 	for (AActor* Actor : InActorsToQuery)
 	{
-		if (Actor->GetClass() == ActorType)
+		if (ActorTypes.Contains(Actor->GetClass()))
 		{
 			OutMatchingActors.Add(Actor);
 		}
@@ -467,9 +851,88 @@ const FSlateIcon& UMovieGraphConditionGroupQuery_ActorType::GetIcon() const
 	return ActorTagIcon;
 }
 
-void UMovieGraphConditionGroupQuery_ComponentTag::Evaluate(const TArray<AActor*>& InActorsToQuery, TSet<AActor*>& OutMatchingActors) const
+#if WITH_EDITOR
+TArray<TSharedRef<SWidget>> UMovieGraphConditionGroupQuery_ActorType::GetWidgets()
+{
+	TArray<TSharedRef<SWidget>> Widgets;
+
+	Widgets.Add(
+		SNew(UE::MovieGraph::Private::SQueryContentsList<UClass*>)
+			.DataSource(&ActorTypes)
+			.DataType(FText::FromString("Actor Type"))
+			.DataTypePlural(FText::FromString("Actor Types"))
+			.OnGetRowText_Static(&GetRowText)
+			.OnGetRowIcon_Static(&GetRowIcon)
+	);
+
+	return Widgets;
+}
+
+TSharedRef<SWidget> UMovieGraphConditionGroupQuery_ActorType::GetAddMenuContents(const FMovieGraphConditionGroupQueryContentsChanged& OnAddFinished)
+{
+	FClassViewerModule& ClassViewerModule = FModuleManager::LoadModuleChecked<FClassViewerModule>("ClassViewer");
+
+	FClassViewerInitializationOptions Options;
+	Options.Mode = EClassViewerMode::ClassPicker;
+	Options.NameTypeToDisplay = EClassViewerNameTypeToDisplay::DisplayName;
+	Options.bShowNoneOption = false;
+	Options.bIsActorsOnly = true;
+	Options.bShowUnloadedBlueprints = false;
+
+	// Add a class filter to disallow adding duplicates of actor types that were already picked
+	Options.ClassFilters.Add(MakeShared<UE::MovieGraph::Private::FClassViewerTypeFilter>(&ActorTypes));
+
+	const TSharedRef<SWidget> ClassViewer = ClassViewerModule.CreateClassViewer(
+		Options,
+		FOnClassPicked::CreateLambda([this, OnAddFinished](UClass* InNewClass)
+		{
+			FSlateApplication::Get().DismissAllMenus();
+			
+			ActorTypes.Add(InNewClass);
+			OnAddFinished.ExecuteIfBound();
+
+			// Ensure that the class filters run again so duplicate actor types cannot be selected
+			if (ClassViewerWidget.IsValid())
+			{
+				ClassViewerWidget->Refresh();
+			}
+		}));
+
+	ClassViewerWidget = StaticCastSharedPtr<SClassViewer>(ClassViewer.ToSharedPtr()); 
+	
+	return SNew(SBox)
+		.WidthOverride(300.f)
+		.HeightOverride(300.f)
+		[
+			ClassViewerWidget.ToSharedRef()
+		];
+}
+
+const FSlateBrush* UMovieGraphConditionGroupQuery_ActorType::GetRowIcon(UClass* InActorType)
+{
+	return FSlateIconFinder::FindIconForClass(InActorType).GetIcon();
+}
+
+FText UMovieGraphConditionGroupQuery_ActorType::GetRowText(UClass* InActorType)
+{
+	return InActorType->GetDisplayNameText();
+}
+#endif
+
+void UMovieGraphConditionGroupQuery_ComponentTagName::Evaluate(const TArray<AActor*>& InActorsToQuery, TSet<AActor*>& OutMatchingActors) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UMovieGraphConditionGroupQuery_ComponentTag::Evaluate);
+	
+	// Quick early-out if "*" is used as the wildcard. Faster than doing the wildcard matching.
+	if (TagsToMatch == TEXT("*"))
+	{
+		OutMatchingActors.Append(InActorsToQuery);
+		return;
+	}
+
+	// Component tags can be specified on multiple lines
+	TArray<FString> AllTagNameStrings;
+	TagsToMatch.ParseIntoArrayLines(AllTagNameStrings);
 	
 	TInlineComponentArray<UActorComponent*> ActorComponents;
 
@@ -479,9 +942,31 @@ void UMovieGraphConditionGroupQuery_ComponentTag::Evaluate(const TArray<AActor*>
 		
 		for (const UActorComponent* Component : ActorComponents)
 		{
-			if (Component && Component->ComponentTags.Contains(TagToMatch))
+			bool bMatchedTag = false;
+			
+			for (const FString& TagToMatch : AllTagNameStrings)
+			{			
+				for (const FName& ComponentTag : Component->ComponentTags)
+				{
+					if (ComponentTag.ToString().MatchesWildcard(TagToMatch))
+					{
+						OutMatchingActors.Add(Actor);
+						bMatchedTag = true;
+						break;
+					}
+				}
+
+				// Skip comparing the rest of the tags if one tag already matched 
+				if (bMatchedTag)
+				{
+					break;
+				}
+			}
+
+			// Skip comparing the rest of the components if one component already matched
+			if (bMatchedTag)
 			{
-				OutMatchingActors.Add(Actor);
+				break;
 			}
 		}
 
@@ -489,12 +974,33 @@ void UMovieGraphConditionGroupQuery_ComponentTag::Evaluate(const TArray<AActor*>
 	}
 }
 
-const FSlateIcon& UMovieGraphConditionGroupQuery_ComponentTag::GetIcon() const
+const FSlateIcon& UMovieGraphConditionGroupQuery_ComponentTagName::GetIcon() const
 {
 	// TODO: This icon is wrong
 	static const FSlateIcon ActorTagIcon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "ClassIcon.DataAsset");
 	return ActorTagIcon;
 }
+
+#if WITH_EDITOR
+TArray<TSharedRef<SWidget>> UMovieGraphConditionGroupQuery_ComponentTagName::GetWidgets()
+{
+	TArray<TSharedRef<SWidget>> Widgets;
+
+	Widgets.Add(
+		SNew(SBox)
+		.HAlign(HAlign_Fill)
+		.Padding(7.f, 2.f)
+		[
+			SNew(SMultiLineEditableTextBox)
+			.Text_Lambda([this]() { return FText::FromString(TagsToMatch); })
+			.OnTextChanged_Lambda([this](const FText& InText) { TagsToMatch = InText.ToString(); })
+			.HintText(LOCTEXT("MovieGraphComponentTagNameQueryHintText", "A component on the actor must match one or more component tags.\nWildcards allowed. Enter each tag on a separate line."))
+		]
+	);
+
+	return Widgets;
+}
+#endif
 
 void UMovieGraphConditionGroupQuery_ComponentType::Evaluate(const TArray<AActor*>& InActorsToQuery, TSet<AActor*>& OutMatchingActors) const
 {
@@ -508,7 +1014,7 @@ void UMovieGraphConditionGroupQuery_ComponentType::Evaluate(const TArray<AActor*
 		
 		for (const UActorComponent* Component : ActorComponents)
 		{
-			if (Component->GetClass() == ComponentType)
+			if (ComponentTypes.Contains(Component->GetClass()))
 			{
 				OutMatchingActors.Add(Actor);
 			}
@@ -524,9 +1030,77 @@ const FSlateIcon& UMovieGraphConditionGroupQuery_ComponentType::GetIcon() const
 	return ActorTagIcon;
 }
 
+#if WITH_EDITOR
+TArray<TSharedRef<SWidget>> UMovieGraphConditionGroupQuery_ComponentType::GetWidgets()
+{
+	TArray<TSharedRef<SWidget>> Widgets;
+
+	Widgets.Add(
+		SNew(UE::MovieGraph::Private::SQueryContentsList<UClass*>)
+			.DataSource(&ComponentTypes)
+			.DataType(FText::FromString("Component Type"))
+			.DataTypePlural(FText::FromString("Component Types"))
+			.OnGetRowText_Static(&GetRowText)
+			.OnGetRowIcon_Static(&GetRowIcon)
+	);
+
+	return Widgets;
+}
+
+TSharedRef<SWidget> UMovieGraphConditionGroupQuery_ComponentType::GetAddMenuContents(const FMovieGraphConditionGroupQueryContentsChanged& OnAddFinished)
+{
+	FClassViewerModule& ClassViewerModule = FModuleManager::LoadModuleChecked<FClassViewerModule>("ClassViewer");
+
+	FClassViewerInitializationOptions Options;
+	Options.Mode = EClassViewerMode::ClassPicker;
+	Options.NameTypeToDisplay = EClassViewerNameTypeToDisplay::DisplayName;
+	Options.bShowNoneOption = false;
+	Options.bIsActorsOnly = false;
+	Options.bShowUnloadedBlueprints = false;
+
+	// Add a class filter to disallow adding duplicates of component types that were already picked, as well as restrict the types of classes displayed
+	// to only show component classes
+	Options.ClassFilters.Add(MakeShared<UE::MovieGraph::Private::FClassViewerTypeFilter>(&ComponentTypes, UActorComponent::StaticClass()));
+
+	const TSharedRef<SWidget> ClassViewer = ClassViewerModule.CreateClassViewer(
+		Options,
+		FOnClassPicked::CreateLambda([this, OnAddFinished](UClass* InNewClass)
+		{
+			FSlateApplication::Get().DismissAllMenus();
+			
+			ComponentTypes.Add(InNewClass);
+			OnAddFinished.ExecuteIfBound();
+
+			// Ensure that the class filters run again so duplicate actor types cannot be selected
+			if (ClassViewerWidget.IsValid())
+			{
+				ClassViewerWidget->Refresh();
+			}
+		}));
+
+	ClassViewerWidget = StaticCastSharedPtr<SClassViewer>(ClassViewer.ToSharedPtr()); 
+	
+	return SNew(SBox)
+		.WidthOverride(300.f)
+		.HeightOverride(300.f)
+		[
+			ClassViewerWidget.ToSharedRef()
+		];
+}
+
+const FSlateBrush* UMovieGraphConditionGroupQuery_ComponentType::GetRowIcon(UClass* InComponentType)
+{
+	return FSlateIconFinder::FindIconForClass(InComponentType).GetIcon();
+}
+
+FText UMovieGraphConditionGroupQuery_ComponentType::GetRowText(UClass* InComponentType)
+{
+	return InComponentType->GetDisplayNameText();
+}
+#endif	// WITH_EDITOR
+
 UMovieGraphConditionGroup::UMovieGraphConditionGroup()
-	: OpType(EMovieGraphConditionGroupOpType::Union)
-	, bIsEnabled(true)
+	: OpType(EMovieGraphConditionGroupOpType::Add)
 {
 }
 
@@ -534,9 +1108,9 @@ void UMovieGraphConditionGroup::SetOperationType(const EMovieGraphConditionGroup
 {
 	// Always allow setting the operation type to Union. If not setting to Union, only allow setting the operation type if this is not the first
 	// condition group in the collection. The first condition group is always a Union.
-	if (OperationType == EMovieGraphConditionGroupOpType::Union)
+	if (OperationType == EMovieGraphConditionGroupOpType::Add)
 	{
-		OpType = EMovieGraphConditionGroupOpType::Union;
+		OpType = EMovieGraphConditionGroupOpType::Add;
 		return;
 	}
 
@@ -583,7 +1157,7 @@ TSet<AActor*> UMovieGraphConditionGroup::Evaluate(const UWorld* InWorld) const
 		if (QueryIndex == 0)
 		{
 			// The first query should always be a Union
-			ensure(Query->GetOperationType() == EMovieGraphConditionGroupQueryOpType::Union);
+			ensure(Query->GetOperationType() == EMovieGraphConditionGroupQueryOpType::Add);
 		}
 
 		// Similar to EvaluationResult, QueryResult is persisted+reset to prevent constantly re-allocating it
@@ -593,12 +1167,12 @@ TSet<AActor*> UMovieGraphConditionGroup::Evaluate(const UWorld* InWorld) const
 		
 		switch (Query->GetOperationType())
 		{
-		case EMovieGraphConditionGroupQueryOpType::Union:
+		case EMovieGraphConditionGroupQueryOpType::Add:
 			// Append() is faster than Union() because we don't need to allocate a new set
 			EvaluationResult.Append(QueryResult);
 			break;
 
-		case EMovieGraphConditionGroupQueryOpType::Intersect:
+		case EMovieGraphConditionGroupQueryOpType::And:
 			EvaluationResult = EvaluationResult.Intersect(QueryResult);
 			break;
 
@@ -611,10 +1185,20 @@ TSet<AActor*> UMovieGraphConditionGroup::Evaluate(const UWorld* InWorld) const
 	return EvaluationResult;
 }
 
-UMovieGraphConditionGroupQueryBase* UMovieGraphConditionGroup::AddQuery(const TSubclassOf<UMovieGraphConditionGroupQueryBase>& InQueryType)
+UMovieGraphConditionGroupQueryBase* UMovieGraphConditionGroup::AddQuery(const TSubclassOf<UMovieGraphConditionGroupQueryBase>& InQueryType, const int32 InsertIndex)
 {
 	UMovieGraphConditionGroupQueryBase* NewQueryObj = NewObject<UMovieGraphConditionGroupQueryBase>(this, InQueryType.Get());
-	Queries.Add(NewQueryObj);
+
+	if (InsertIndex < 0)
+	{
+		Queries.Add(NewQueryObj);
+	}
+	else
+	{
+		// Clamp the insert index to a valid range in case an invalid one is provided
+		Queries.Insert(NewQueryObj, FMath::Clamp(InsertIndex, 0, Queries.Num()));
+	}
+	
 	return NewQueryObj;
 }
 
@@ -628,19 +1212,50 @@ bool UMovieGraphConditionGroup::RemoveQuery(UMovieGraphConditionGroupQueryBase* 
 	return Queries.RemoveSingle(InQuery) == 1;
 }
 
-void UMovieGraphConditionGroup::SetQueryOrder(TArray<UMovieGraphConditionGroupQueryBase*>& InQueryOrder)
+bool UMovieGraphConditionGroup::IsFirstConditionGroup() const
 {
-	// TODO
+	const UMovieGraphCollection* ParentCollection = GetTypedOuter<UMovieGraphCollection>();
+	if (ensureMsgf(ParentCollection, TEXT("Cannot determine if this is the first condition group when no parent collection is present")))
+	{
+		// GetConditionGroups() returns an array of non-const pointers, so Find() doesn't like having a const pointer passed to it.
+		// Find() won't mutate the condition group though, so the const_cast here is OK.
+		return ParentCollection->GetConditionGroups().Find(const_cast<UMovieGraphConditionGroup*>(this)) == 0;
+	}
+	
+	return false;
 }
 
-void UMovieGraphConditionGroup::SetEnabled(const bool bEnabled)
+bool UMovieGraphConditionGroup::MoveQueryToIndex(UMovieGraphConditionGroupQueryBase* InQuery, const int32 NewIndex)
 {
-	bIsEnabled = bEnabled;
-}
+#if WITH_EDITOR
+	Modify();
+#endif
 
-bool UMovieGraphConditionGroup::IsEnabled() const
-{
-	return bIsEnabled;
+	if (!InQuery)
+	{
+		return false;
+	}
+
+	const int32 ExistingIndex = Queries.Find(InQuery);
+	if (ExistingIndex == INDEX_NONE)
+	{
+		return false;
+	}
+
+	// If the new index is greater than the current index, then decrement the destination index so it remains valid after the removal below
+	int32 DestinationIndex = NewIndex;
+	if (DestinationIndex > ExistingIndex)
+	{
+		--DestinationIndex;
+	}
+
+	Queries.Remove(InQuery);
+	Queries.Insert(InQuery, DestinationIndex);
+
+	// Enforce that the first query is set to Union
+	InQuery->SetOperationType(EMovieGraphConditionGroupQueryOpType::Add);
+
+	return true;
 }
 
 TSet<AActor*> UMovieGraphCollection::Evaluate(const UWorld* InWorld) const
@@ -652,7 +1267,7 @@ TSet<AActor*> UMovieGraphCollection::Evaluate(const UWorld* InWorld) const
 	for (int32 ConditionGroupIndex = 0; ConditionGroupIndex < ConditionGroups.Num(); ++ConditionGroupIndex)
 	{
 		const TObjectPtr<UMovieGraphConditionGroup>& ConditionGroup = ConditionGroups[ConditionGroupIndex];
-		if (!ConditionGroup || !ConditionGroup->IsEnabled())
+		if (!ConditionGroup)
 		{
 			continue;
 		}
@@ -660,18 +1275,18 @@ TSet<AActor*> UMovieGraphCollection::Evaluate(const UWorld* InWorld) const
 		if (ConditionGroupIndex == 0)
 		{
 			// The first condition group should always be a Union
-			ensure(ConditionGroup->GetOperationType() == EMovieGraphConditionGroupOpType::Union);
+			ensure(ConditionGroup->GetOperationType() == EMovieGraphConditionGroupOpType::Add);
 		}
 
 		const TSet<AActor*> QueryResult = ConditionGroup->Evaluate(InWorld);
 		
 		switch (ConditionGroup->GetOperationType())
 		{
-		case EMovieGraphConditionGroupOpType::Union:
+		case EMovieGraphConditionGroupOpType::Add:
 			ResultSet = ResultSet.Union(QueryResult);
 			break;
 
-		case EMovieGraphConditionGroupOpType::Intersect:
+		case EMovieGraphConditionGroupOpType::And:
 			ResultSet = ResultSet.Intersect(QueryResult);
 			break;
 
@@ -701,6 +1316,39 @@ bool UMovieGraphCollection::RemoveConditionGroup(UMovieGraphConditionGroup* InCo
 	return ConditionGroups.RemoveSingle(InConditionGroup) == 1;
 }
 
+bool UMovieGraphCollection::MoveConditionGroupToIndex(UMovieGraphConditionGroup* InConditionGroup, const int32 NewIndex)
+{
+#if WITH_EDITOR
+	Modify();
+#endif
+
+	if (!InConditionGroup)
+	{
+		return false;
+	}
+
+	const int32 ExistingIndex = ConditionGroups.Find(InConditionGroup);
+	if (ExistingIndex == INDEX_NONE)
+	{
+		return false;
+	}
+
+	// If the new index is greater than the current index, then decrement the destination index so it remains valid after the removal below
+	int32 DestinationIndex = NewIndex;
+	if (DestinationIndex > ExistingIndex)
+	{
+		--DestinationIndex;
+	}
+
+	ConditionGroups.Remove(InConditionGroup);
+	ConditionGroups.Insert(InConditionGroup, DestinationIndex);
+
+	// Enforce that the first condition group is set to Union
+	InConditionGroup->SetOperationType(EMovieGraphConditionGroupOpType::Add);
+
+	return true;
+}
+
 void UMovieGraphCollection::SetCollectionName(const FString& InName)
 {
 	CollectionName = InName;
@@ -709,11 +1357,6 @@ void UMovieGraphCollection::SetCollectionName(const FString& InName)
 const FString& UMovieGraphCollection::GetCollectionName() const
 {
 	return CollectionName;
-}
-
-void UMovieGraphCollection::SetConditionGroupOrder(TArray<UMovieGraphConditionGroup*>& InConditionGroupOrder)
-{
-	// TODO
 }
 
 UMovieGraphCollection* UMoviePipelineRenderLayer::GetCollectionByName(const FString& Name) const
@@ -967,3 +1610,5 @@ void UMoviePipelineRenderLayerSubsystem::ClearModifierPreview()
 {
 	ClearAllPreviews();
 }
+
+#undef LOCTEXT_NAMESPACE
