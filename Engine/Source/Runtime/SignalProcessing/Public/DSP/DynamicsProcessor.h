@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "DSP/EnvelopeFollower.h"
-#include "DSP/Delay.h"
+#include "DSP/IntegerDelay.h"
 #include "Filter.h"
 
 namespace Audio
@@ -70,11 +70,10 @@ namespace Audio
 
 		SIGNALPROCESSING_API void ProcessAudioFrame(const float* InFrame, float* OutFrame, const float* InKeyFrame);
 		SIGNALPROCESSING_API void ProcessAudioFrame(const float* InFrame, float* OutFrame, const float* InKeyFrame, float* OutGain);
-		SIGNALPROCESSING_API void ProcessAudio(const float* InBuffer, const int32 InNumSamples, float* OutBuffer, const float* InKeyBuffer = nullptr);
-		SIGNALPROCESSING_API void ProcessAudio(const float* InBuffer, const int32 InNumSamples, float* OutBuffer, const float* InKeyBuffer, float* OutEnvelope);
+		SIGNALPROCESSING_API void ProcessAudio(const float* InBuffer, const int32 InNumSamples, float* OutBuffer, const float* InKeyBuffer = nullptr, float* OutEnvelope = nullptr);
 		 
 		// For single channels of audio OR non-interleaved blocks of multichannel audio.
-		SIGNALPROCESSING_API void ProcessAudio(const float* const* const InBuffers, const int32 InNumSamples, float* const* OutBuffers, const float* const* const InKeyBuffers, float* const* OutEnvelopes);
+		SIGNALPROCESSING_API void ProcessAudio(const float* const* const InBuffers, const int32 InNumFrames, float* const* OutBuffers, const float* const* const InKeyBuffers, float* const* OutEnvelopes);
 
 	protected:
 		SIGNALPROCESSING_API float ComputeGain(const float InEnvFollowerDb);
@@ -100,7 +99,7 @@ namespace Audio
 		EPeakMode::Type EnvelopeFollowerPeakMode;
 
 		// Lookahead delay lines
-		TArray<FDelay> LookaheadDelay;
+		TArray<FIntegerDelay> LookaheadDelay;
 
 		// Envelope followers
 		TArray<FInlineEnvelopeFollower> EnvFollower;
@@ -112,7 +111,7 @@ namespace Audio
 		TArray<float> Gain;
 
 		// How far ahead to look in the audio
-		float LookaheedDelayMsec;
+		float LookaheadDelayMsec;
 
 		// The period of which the compressor decreases gain to the level determined by the compression ratio
 		float AttackTimeMsec;
@@ -161,6 +160,15 @@ namespace Audio
 		static constexpr float MaxLookaheadMsec = 100.0f;
 
 	private:
+
+		// OutBuffers is also used a temporary buffer for processing the Key. 
+		// Thus, OutBuffers must supply enough valid memory to support it's use as a 
+		// temporary buffer and needs to have Max(NumInputChannels, NumKeyChannels) 
+		// buffers available.  
+		void ProcessAudioDeinterleaveInternal(const float* const* const InBuffers, const int32 InNumFrames, float* const* OutBuffers, const float* const* const InKeyBuffers, float* const* OutEnvelopes);
+
+		int32 GetNumDelayFrames() const;
+
 		void CalculateSlope();
 
 		void CalculateKnee();
