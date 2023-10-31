@@ -193,13 +193,12 @@ void UWorldPartitionLevelStreamingDynamic::CreateRuntimeLevel()
  */
 bool UWorldPartitionLevelStreamingDynamic::RequestLevel(UWorld* InPersistentWorld, bool bInAllowLevelLoadRequests, EReqLevelBlock InBlockPolicy)
 {
-	const FName WorldAssetPackageFName = GetWorldAssetPackageFName();
-	const FString WorldAssetPackageName = GetWorldAssetPackageName();
-
 	if (bShouldPerformStandardLevelLoading)
 	{
 		return Super::RequestLevel(InPersistentWorld, bInAllowLevelLoadRequests, InBlockPolicy);
 	}
+
+	QUICK_SCOPE_CYCLE_COUNTER(STAT_ULevelStreaming_RequestLevel);
 
 	// Quit early in case load request already issued
 	if (GetLevelStreamingState() == ELevelStreamingState::Loading)
@@ -219,6 +218,9 @@ bool UWorldPartitionLevelStreamingDynamic::RequestLevel(UWorld* InPersistentWorl
 		return false;
 	}
 
+	const FName WorldAssetPackageFName = GetWorldAssetPackageFName();
+	const FString WorldAssetPackageName = GetWorldAssetPackageName();
+
 	// Can not load new level now either, we're still processing visibility for this one
 	ULevel* PendingLevelVisOrInvis = (InPersistentWorld->GetCurrentLevelPendingVisibility() ? InPersistentWorld->GetCurrentLevelPendingVisibility() : InPersistentWorld->GetCurrentLevelPendingInvisibility());
 	if (PendingLevelVisOrInvis && PendingLevelVisOrInvis == LoadedLevel)
@@ -227,7 +229,12 @@ bool UWorldPartitionLevelStreamingDynamic::RequestLevel(UWorld* InPersistentWorl
 		return false;
 	}
 
-	QUICK_SCOPE_CYCLE_COUNTER(STAT_ULevelStreaming_RequestLevel);
+	// Validate that our new streaming level is unique, check for clash with currently loaded streaming levels
+	if (!ValidateUniqueWorldAsset(InPersistentWorld))
+	{
+		return false;
+	}
+
 	FScopeCycleCounterUObject Context(InPersistentWorld);
 
 	// Try to find the package to load
