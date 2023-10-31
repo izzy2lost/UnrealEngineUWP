@@ -9,6 +9,7 @@
 #include "SceneTextureParameters.h"
 #include "ScreenSpaceDenoise.h"
 #include "ScreenSpaceRayTracing.h"
+#include "ScreenSpaceReflectionTiles.h"
 #include "DeferredShadingRenderer.h"
 #include "PostProcess/PostProcessSubsurface.h"
 #include "PostProcess/SceneFilterRendering.h"
@@ -122,8 +123,9 @@ class FDiffuseIndirectCompositePS : public FGlobalShader
 	class FScreenBentNormal : SHADER_PERMUTATION_BOOL("DIM_SCREEN_BENT_NORMAL");
 	class FSubstrateTileType : SHADER_PERMUTATION_INT("SUBSTRATE_TILETYPE", 4);
 	class FEnableDualSrcBlending : SHADER_PERMUTATION_BOOL("ENABLE_DUAL_SRC_BLENDING");
+	class FScreenSpaceReflectionTiledComposition : SHADER_PERMUTATION_BOOL("SSR_TILED_COMPOSITION");
 
-	using FPermutationDomain = TShaderPermutationDomain<FApplyDiffuseIndirectDim, FUpscaleDiffuseIndirectDim, FScreenBentNormal, FSubstrateTileType, FEnableDualSrcBlending>;
+	using FPermutationDomain = TShaderPermutationDomain<FApplyDiffuseIndirectDim, FUpscaleDiffuseIndirectDim, FScreenBentNormal, FSubstrateTileType, FEnableDualSrcBlending, FScreenSpaceReflectionTiledComposition>;
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
@@ -195,6 +197,9 @@ class FDiffuseIndirectCompositePS : public FGlobalShader
 
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float3>, OutOpaqueRoughRefractionSceneColor)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float3>, OutSubSurfaceSceneColor)
+
+		SHADER_PARAMETER(FIntPoint, SSRTiledViewRes)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, SSRTileMaskBuffer)
 
 		SHADER_PARAMETER(FVector2f, BufferUVToOutputPixelPosition)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<float4>, EyeAdaptation)
@@ -281,13 +286,21 @@ class FReflectionEnvironmentSkyLightingPS : public FGlobalShader
 	DECLARE_GLOBAL_SHADER(FReflectionEnvironmentSkyLightingPS);
 	SHADER_USE_PARAMETER_STRUCT(FReflectionEnvironmentSkyLightingPS, FGlobalShader)
 
+	enum class EReflectionSourceType : uint32
+	{
+		ScreenSpaceReflection,
+		TiledScreenSpaceReflection,
+		LumenStandalone,
+		MAX
+	};
+
 	class FHasBoxCaptures : SHADER_PERMUTATION_BOOL("REFLECTION_COMPOSITE_HAS_BOX_CAPTURES");
 	class FHasSphereCaptures : SHADER_PERMUTATION_BOOL("REFLECTION_COMPOSITE_HAS_SPHERE_CAPTURES");
 	class FDFAOIndirectOcclusion : SHADER_PERMUTATION_BOOL("SUPPORT_DFAO_INDIRECT_OCCLUSION");
 	class FSkyLight : SHADER_PERMUTATION_BOOL("ENABLE_SKY_LIGHT");
 	class FDynamicSkyLight : SHADER_PERMUTATION_BOOL("ENABLE_DYNAMIC_SKY_LIGHT");
 	class FSkyShadowing : SHADER_PERMUTATION_BOOL("APPLY_SKY_SHADOWING");
-	class FLumenStandaloneReflections : SHADER_PERMUTATION_BOOL("LUMEN_STANDALONE_REFLECTIONS");
+	class FReflectionSourceType : SHADER_PERMUTATION_ENUM_CLASS("REFLECTION_SOURCE_TYPE", EReflectionSourceType);
 	class FSubstrateTileType : SHADER_PERMUTATION_INT("SUBSTRATE_TILETYPE", 4);
 
 	using FPermutationDomain = TShaderPermutationDomain<
@@ -297,8 +310,22 @@ class FReflectionEnvironmentSkyLightingPS : public FGlobalShader
 		FSkyLight,
 		FDynamicSkyLight,
 		FSkyShadowing,
-		FLumenStandaloneReflections,
+		FReflectionSourceType,
 		FSubstrateTileType>;
+
+	static EReflectionSourceType GetReflectionSourceType(bool bIsLumenStandalone, bool bIsTiledSSR)
+	{
+		if (bIsLumenStandalone)
+		{
+			return EReflectionSourceType::LumenStandalone;
+		}
+		else if (bIsTiledSSR)
+		{
+			return EReflectionSourceType::TiledScreenSpaceReflection;
+		}
+
+		return EReflectionSourceType::ScreenSpaceReflection;
+	}
 
 	static FPermutationDomain RemapPermutation(FPermutationDomain PermutationVector)
 	{
@@ -322,7 +349,7 @@ class FReflectionEnvironmentSkyLightingPS : public FGlobalShader
 		return PermutationVector;
 	}
 
-	static FPermutationDomain BuildPermutationVector(const FViewInfo& View, bool bBoxCapturesOnly, bool bSphereCapturesOnly, bool bSupportDFAOIndirectOcclusion, bool bEnableSkyLight, bool bEnableDynamicSkyLight, bool bApplySkyShadowing, bool bLumenStandaloneReflections, ESubstrateTileType TileType)
+	static FPermutationDomain BuildPermutationVector(const FViewInfo& View, bool bBoxCapturesOnly, bool bSphereCapturesOnly, bool bSupportDFAOIndirectOcclusion, bool bEnableSkyLight, bool bEnableDynamicSkyLight, bool bApplySkyShadowing, bool bLumenStandaloneReflections, bool bIsTiledSSR, ESubstrateTileType TileType)
 	{
 		FPermutationDomain PermutationVector;
 
@@ -332,7 +359,7 @@ class FReflectionEnvironmentSkyLightingPS : public FGlobalShader
 		PermutationVector.Set<FSkyLight>(bEnableSkyLight);
 		PermutationVector.Set<FDynamicSkyLight>(bEnableDynamicSkyLight);
 		PermutationVector.Set<FSkyShadowing>(bApplySkyShadowing);
-		PermutationVector.Set<FLumenStandaloneReflections>(bLumenStandaloneReflections);
+		PermutationVector.Set<FReflectionSourceType>(GetReflectionSourceType(bLumenStandaloneReflections,bIsTiledSSR));
 		PermutationVector.Set<FSubstrateTileType>(0);
 		if (Substrate::IsSubstrateEnabled())
 		{
@@ -391,6 +418,10 @@ class FReflectionEnvironmentSkyLightingPS : public FGlobalShader
 		SHADER_PARAMETER(FMatrix44f, CloudSkyAOWorldToLightClipMatrix)
 		SHADER_PARAMETER(float, CloudSkyAOFarDepthKm)
 		SHADER_PARAMETER(int32, CloudSkyAOEnabled)
+
+		// Tiling info to combine SSR
+		SHADER_PARAMETER(FIntPoint, SSRTiledViewRes)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, SSRTileMaskBuffer)
 
 		SHADER_PARAMETER_STRUCT_INCLUDE(FSkyDiffuseLightingParameters, SkyDiffuseLighting)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FSceneTextureParameters, SceneTextures)
@@ -976,6 +1007,10 @@ void FDeferredShadingSceneRenderer::RenderDiffuseIndirectAndAmbientOcclusion(
 		IScreenSpaceDenoiser::FDiffuseIndirectHarmonic DenoiserSphericalHarmonicInputs;
 		FLumenScreenSpaceBentNormalParameters ScreenBentNormalParameters;
 
+		//Tiled screen space reflection context
+		FScreenSpaceReflectionTileClassification ScreenSpaceReflectionTileClassification;
+		bool bRunSSRTiledComposite = false;
+
 		if (ViewPipelineState.DiffuseIndirectMethod == EDiffuseIndirectMethod::SSGI)
 		{
 			RDG_EVENT_SCOPE(GraphBuilder, "SSGI %dx%d", CommonDiffuseParameters.TracingViewportSize.X, CommonDiffuseParameters.TracingViewportSize.Y);
@@ -1037,8 +1072,14 @@ void FDeferredShadingSceneRenderer::RenderDiffuseIndirectAndAmbientOcclusion(
 				ScreenSpaceRayTracing::GetSSRQualityForView(View, &SSRQuality, &DenoiserConfig);
 
 				RDG_EVENT_SCOPE(GraphBuilder, "ScreenSpaceReflections(Quality=%d)", int32(SSRQuality));
+
+				ScreenSpaceReflectionTileClassification = ClassifySSRTiles(GraphBuilder, View, SceneTextures, nullptr);
+				bRunSSRTiledComposite = IsDefaultSSRTileEnabled(View);
+
 				IScreenSpaceDenoiser::FReflectionsInputs SSRDenoiserInputs;
-				ScreenSpaceRayTracing::RenderScreenSpaceReflections(GraphBuilder, SceneTextureParameters, SceneColorTexture, View, SSRQuality, /*bDenoise*/ false, &SSRDenoiserInputs);
+				ScreenSpaceRayTracing::RenderScreenSpaceReflections(
+					GraphBuilder, SceneTextureParameters, SceneColorTexture, View, SSRQuality, /*bDenoise*/ false, &SSRDenoiserInputs,/*bSingleLayerWater*/ false, 
+					bRunSSRTiledComposite ? &ScreenSpaceReflectionTileClassification.TiledReflection : nullptr);
 				OutTextures.Textures[3] = SSRDenoiserInputs.Color;
 			}
 			else
@@ -1266,6 +1307,12 @@ void FDeferredShadingSceneRenderer::RenderDiffuseIndirectAndAmbientOcclusion(
 			PassParameters->AmbientOcclusionTexture = AmbientOcclusionMask;
 			PassParameters->AmbientOcclusionSampler = TStaticSamplerState<SF_Point>::GetRHI();
 
+			if (bRunSSRTiledComposite)
+			{
+				PassParameters->SSRTiledViewRes = ScreenSpaceReflectionTileClassification.TiledViewRes;
+				PassParameters->SSRTileMaskBuffer = GraphBuilder.CreateSRV(ScreenSpaceReflectionTileClassification.TileMaskBuffer);
+			}
+
 			if (bEnableCopyPass)
 			{
 				PassParameters->SceneColorTexture = SceneColorCopyTexture;
@@ -1330,6 +1377,7 @@ void FDeferredShadingSceneRenderer::RenderDiffuseIndirectAndAmbientOcclusion(
 			}
 
 			PermutationVector.Set<FDiffuseIndirectCompositePS::FEnableDualSrcBlending>(!bEnableCopyPass);
+			PermutationVector.Set<FDiffuseIndirectCompositePS::FScreenSpaceReflectionTiledComposition>(bRunSSRTiledComposite);
 			
 			TShaderMapRef<FDiffuseIndirectCompositePS> PixelShader(View.ShaderMap, PermutationVector);
 
@@ -1626,6 +1674,7 @@ static void AddSkyReflectionPass(
 	FRDGTextureRef DynamicBentNormalAOTexture,
 	FRDGTextureRef ReflectionsColor,
 	FSceneTextureParameters& SceneTextureParameters,
+	const FScreenSpaceReflectionTileClassification& ScreenSpaceReflectionTileClassification,
 	bool bSkyLight, 
 	bool bDynamicSkyLight, 
 	bool bApplySkyShadowing,
@@ -1635,6 +1684,7 @@ static void AddSkyReflectionPass(
 	// Render the reflection environment with tiled deferred culling
 	bool bHasBoxCaptures = (View.NumBoxReflectionCaptures > 0);
 	bool bHasSphereCaptures = (View.NumSphereReflectionCaptures > 0);
+	bool bIsTiledSSR = ScreenSpaceReflectionTileClassification.TileMaskBuffer != nullptr;
 
 	float DynamicBentNormalAO = DynamicBentNormalAOTexture ? 1.0f : 0.0f;
 	const FRDGSystemTextures& SystemTextures = FRDGSystemTextures::Get(GraphBuilder);
@@ -1679,6 +1729,12 @@ static void AddSkyReflectionPass(
 		{
 			PassParameters->PS.ReflectionTexture = ReflectionsColor ? ReflectionsColor : SystemTextures.Black;
 			PassParameters->PS.ReflectionTextureSampler = TStaticSamplerState<SF_Point>::GetRHI();
+		}
+
+		if (bIsTiledSSR)
+		{
+			PassParameters->PS.SSRTiledViewRes = ScreenSpaceReflectionTileClassification.TiledViewRes;
+			PassParameters->PS.SSRTileMaskBuffer = GraphBuilder.CreateSRV(ScreenSpaceReflectionTileClassification.TileMaskBuffer);
 		}
 
 		if (Scene->HasVolumetricCloud())
@@ -1730,7 +1786,7 @@ static void AddSkyReflectionPass(
 	auto PermutationVector = FReflectionEnvironmentSkyLightingPS::BuildPermutationVector(
 		View, bHasBoxCaptures, bHasSphereCaptures, DynamicBentNormalAO != 0.0f,
 		bSkyLight, bDynamicSkyLight, bApplySkyShadowing,
-		bLumenStandaloneReflections,
+		bLumenStandaloneReflections, bIsTiledSSR,
 		SubstrateTileMaterialType);
 
 	TShaderMapRef<FReflectionEnvironmentSkyLightingPS> PixelShader(View.ShaderMap, PermutationVector);
@@ -1896,6 +1952,9 @@ void FDeferredShadingSceneRenderer::RenderDeferredReflectionsAndSkyLighting(
 		const bool bScreenSpaceReflections = ViewPipelineState.ReflectionsMethod == EReflectionsMethod::SSR;
 		const bool bComposePlanarReflections = HasDeferredPlanarReflections(View);
 
+		FScreenSpaceReflectionTileClassification ScreenSpaceReflectionTileClassification;
+		bool bRunSSRTiledComposite = false;
+
 		FRDGTextureRef ReflectionsColor = nullptr;
 		if ((ViewPipelineState.ReflectionsMethod == EReflectionsMethod::Lumen && ViewPipelineState.DiffuseIndirectMethod == EDiffuseIndirectMethod::Lumen)
 			|| (ViewPipelineState.DiffuseIndirectMethod == EDiffuseIndirectMethod::Lumen && ViewPipelineState.ReflectionsMethod == EReflectionsMethod::SSR))
@@ -1940,8 +1999,12 @@ void FDeferredShadingSceneRenderer::RenderDeferredReflectionsAndSkyLighting(
 
 				RDG_EVENT_SCOPE(GraphBuilder, "ScreenSpaceReflections(Quality=%d)", int32(SSRQuality));
 
+				ScreenSpaceReflectionTileClassification = ClassifySSRTiles(GraphBuilder, View, SceneTextures, nullptr);
+				bRunSSRTiledComposite = IsDefaultSSRTileEnabled(View);
+
 				ScreenSpaceRayTracing::RenderScreenSpaceReflections(
-					GraphBuilder, SceneTextureParameters, SceneColorTexture.Resolve, View, SSRQuality, bDenoise, &DenoiserInputs);
+					GraphBuilder, SceneTextureParameters, SceneColorTexture.Resolve, View, SSRQuality, bDenoise, &DenoiserInputs,/*bSingleLayerWater*/false, 
+					bRunSSRTiledComposite ? &ScreenSpaceReflectionTileClassification.TiledReflection : nullptr);
 			}
 			if (bDenoise)
 			{
@@ -2015,6 +2078,7 @@ void FDeferredShadingSceneRenderer::RenderDeferredReflectionsAndSkyLighting(
 					DynamicBentNormalAOTexture,
 					ReflectionsColor,
 					SceneTextureParameters,
+					ScreenSpaceReflectionTileClassification,
 					bSkyLight,
 					bDynamicSkyLight,
 					bApplySkyShadowing,
@@ -2029,6 +2093,7 @@ void FDeferredShadingSceneRenderer::RenderDeferredReflectionsAndSkyLighting(
 					DynamicBentNormalAOTexture,
 					ReflectionsColor,
 					SceneTextureParameters,
+					ScreenSpaceReflectionTileClassification,
 					bSkyLight,
 					bDynamicSkyLight,
 					bApplySkyShadowing,
@@ -2043,6 +2108,7 @@ void FDeferredShadingSceneRenderer::RenderDeferredReflectionsAndSkyLighting(
 					DynamicBentNormalAOTexture,
 					ReflectionsColor,
 					SceneTextureParameters,
+					ScreenSpaceReflectionTileClassification,
 					bSkyLight,
 					bDynamicSkyLight,
 					bApplySkyShadowing,
@@ -2057,6 +2123,7 @@ void FDeferredShadingSceneRenderer::RenderDeferredReflectionsAndSkyLighting(
 					DynamicBentNormalAOTexture,
 					ReflectionsColor,
 					SceneTextureParameters,
+					ScreenSpaceReflectionTileClassification,
 					bSkyLight,
 					bDynamicSkyLight,
 					bApplySkyShadowing,
@@ -2074,6 +2141,7 @@ void FDeferredShadingSceneRenderer::RenderDeferredReflectionsAndSkyLighting(
 					DynamicBentNormalAOTexture,
 					ReflectionsColor,
 					SceneTextureParameters,
+					ScreenSpaceReflectionTileClassification,
 					bSkyLight,
 					bDynamicSkyLight,
 					bApplySkyShadowing,

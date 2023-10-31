@@ -433,4 +433,27 @@ void ScreenSpaceReflectionsPS(
 	);
 }
 
+void VisualizeTiledScreenSpaceReflectionsPS(
+	float4 SvPosition : SV_POSITION
+	, out float4 OutColor : SV_Target0
+#if SSR_OUTPUT_FOR_DENOISER
+	, out float4 OutClosestHitDistance : SV_Target1
+#endif
+)
+{
+	ScreenSpaceReflections(SvPosition, OutColor
+#if SSR_OUTPUT_FOR_DENOISER
+		, OutClosestHitDistance
+#endif
+	);
+
+	bool bVisualizeSSRTile = (View.FrameNumber / 30u) % 2u;
+	if (bVisualizeSSRTile)
+	{
+		OutColor = float4(8.0f * View.PreExposure, OutColor.y, OutColor.z, 1.0f);
+#if SSR_OUTPUT_FOR_DENOISER
+		OutClosestHitDistance = 2.0f;
+#endif
+	}
+}
 

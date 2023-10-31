@@ -10,6 +10,10 @@
 #define DIM_APPLY_DIFFUSE_INDIRECT_SSGI					1
 #define DIM_APPLY_DIFFUSE_INDIRECT_SCREEN_PROBE_GATHER	2
 
+#ifndef SSR_TILED_COMPOSITION
+#define SSR_TILED_COMPOSITION	0
+#endif
+
 #if DIM_APPLY_DIFFUSE_INDIRECT == DIM_APPLY_DIFFUSE_INDIRECT_SSGI
 	#define CONFIG_SIGNAL_PROCESSING SIGNAL_PROCESSING_SSGI
 	#define COMPILE_SIGNAL_COLOR 1
@@ -78,6 +82,9 @@ RWTexture2D<float3> OutSubSurfaceSceneColor;
 
 #endif
 
+#if SSR_TILED_COMPOSITION
+#include "ScreenSpaceReflectionTileCommons.ush"
+#endif
 //------------------------------------------------------- PARAMETERS
 
 float AmbientOcclusionStaticFraction;
@@ -128,6 +135,11 @@ float LumenFoliageOcclusionStrength;
 float LumenMaxAOMultibounceAlbedo;
 float LumenReflectionContrast;
 float LumenReflectionSpecularScale;
+
+#if SSR_TILED_COMPOSITION
+StructuredBuffer<uint> SSRTileMaskBuffer;
+uint2 SSRTiledViewRes;
+#endif
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Helper functions
@@ -373,7 +385,17 @@ void MainPS(
 			#if DIM_APPLY_DIFFUSE_INDIRECT == DIM_APPLY_DIFFUSE_INDIRECT_SCREEN_PROBE_GATHER
 				DiffuseIndirectLighting 		= DiffuseIndirect_Lumen_0.SampleLevel(GlobalPointClampedSampler, float3(SceneBufferUV, 0), 0).rgb;
 				RoughSpecularIndirectLighting 	= DiffuseIndirect_Lumen_2.SampleLevel(GlobalPointClampedSampler, float3(SceneBufferUV, 0), 0).rgb;
+				
+				#if SSR_TILED_COMPOSITION
+				bool bSSRTileUsed = IsSSRTileUsed(PixelPos, SSRTiledViewRes, SSRTileMaskBuffer);
+
+				if (bSSRTileUsed && bLumenReflectionInputIsSSR)
+				{
+					SpecularIndirectLighting	= DiffuseIndirect_Lumen_3.SampleLevel(GlobalPointClampedSampler, float3(SceneBufferUV, 0), 0).rgba;
+				}
+				#else
 				SpecularIndirectLighting 		= DiffuseIndirect_Lumen_3.SampleLevel(GlobalPointClampedSampler, float3(SceneBufferUV, 0), 0).rgba;
+				#endif
 			#else
 			{
 				// Sample the output of the denoiser.

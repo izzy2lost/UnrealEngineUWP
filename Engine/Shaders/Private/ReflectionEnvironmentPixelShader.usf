@@ -39,7 +39,19 @@
 #include "/Engine/Private/Substrate/SubstrateLightingCommon.ush"
 #include "Lumen/LumenReflectionsCombine.ush"
 
-#if LUMEN_STANDALONE_REFLECTIONS
+#define REFLECTION_SOURCE_SSR				0
+#define REFLECTION_SOURCE_TILED_SSR			1
+#define REFLECTION_SOURCE_LUMEN_STANDALONE	2
+
+#ifndef REFLECTION_SOURCE_TYPE
+#define REFLECTION_SOURCE_TYPE REFLECTION_SOURCE_SSR
+#endif
+
+#if REFLECTION_SOURCE_TYPE != REFLECTION_SOURCE_LUMEN_STANDALONE
+#include "ScreenSpaceReflectionTileCommons.ush"
+#endif
+
+#if REFLECTION_SOURCE_TYPE == REFLECTION_SOURCE_LUMEN_STANDALONE
 Texture2DArray LumenReflectionTexture;
 SamplerState LumenReflectionTextureSampler;
 #else
@@ -59,6 +71,12 @@ int CloudSkyAOEnabled;
 Texture2D AmbientOcclusionTexture;
 SamplerState AmbientOcclusionSampler;
 
+
+
+#if REFLECTION_SOURCE_TYPE == REFLECTION_SOURCE_TILED_SSR
+uint2 SSRTiledViewRes;
+StructuredBuffer<uint> SSRTileMaskBuffer;
+#endif
 
 float3 GatherRadiance(float CompositeAlpha, float3 TranslatedWorldPosition, float3 RayDirection, float Roughness, float3 BentNormal, float IndirectIrradiance, uint ShadingModelID, uint NumCulledReflectionCaptures, uint CaptureDataStartIndex)
 {
@@ -92,7 +110,7 @@ float4 CompositeReflections(float4 ReflectionInput, float2 BufferUV, float InRou
 {
 	float4 Lighting = float4(0, 0, 0, 1);
 
-#if LUMEN_STANDALONE_REFLECTIONS
+#if REFLECTION_SOURCE_TYPE == REFLECTION_SOURCE_LUMEN_STANDALONE
 	const bool bHasBackfaceDiffuse = ShadingModelID == SHADINGMODELID_TWOSIDED_FOLIAGE || ShadingModelID == SHADINGMODELID_SUBSURFACE;
 	const float FadeAlpha = ShadingModelID == SHADINGMODELID_CLEAR_COAT ? 1.0f : LumenCombineReflectionsAlpha(InRoughness, bHasBackfaceDiffuse);
 
@@ -145,10 +163,20 @@ float3 ReflectionEnvironment(FGBufferData GBuffer, float AmbientOcclusion, float
 	R = GetOffSpecularPeakReflectionDir(N, R, GBuffer.Roughness);
 
 	// Sample input reflection texture that may contain SSR, planar reflections, RT reflections or Lumen Reflections
-#if LUMEN_STANDALONE_REFLECTIONS
+
+#if REFLECTION_SOURCE_TYPE == REFLECTION_SOURCE_LUMEN_STANDALONE
 	float4 ReflectionInput = Texture2DArraySample(LumenReflectionTexture, LumenReflectionTextureSampler, float3(BufferUV, 0));
-#else
+#elif REFLECTION_SOURCE_TYPE == REFLECTION_SOURCE_SSR
 	float4 ReflectionInput = Texture2DSample(ReflectionTexture, ReflectionTextureSampler, BufferUV);
+#else // REFLECTION_SOURCE_TILED_SSR
+	const uint2 PixelPos = uint2(SvPosition.xy);
+	bool bSSRTileUsed = IsSSRTileUsed(PixelPos, SSRTiledViewRes, SSRTileMaskBuffer);
+	float4 ReflectionInput = 0;
+
+	if (bSSRTileUsed)
+	{
+		ReflectionInput = Texture2DSample(ReflectionTexture, ReflectionTextureSampler, BufferUV);
+	}
 #endif
 
 	Color = CompositeReflections(ReflectionInput, BufferUV, GBuffer.Roughness, ShadingModelID);
@@ -313,7 +341,7 @@ float4 GetLumenReflectionOnly(
 	in float4 InReflectionInput)
 {
 	float4 OutLighting = float4(0, 0, 0, 1);
-#if LUMEN_STANDALONE_REFLECTIONS
+#if REFLECTION_SOURCE_TYPE == REFLECTION_SOURCE_LUMEN_STANDALONE
 	const float Roughness = SubstrateGetBSDFRoughness(BSDF);
 	const bool  bHasBackfaceDiffuse = SubstrateGetBSDFType(BSDF) == SUBSTRATE_BSDF_TYPE_SLAB && BSDF.HasBackScattering();
 	const float FadeAlpha = LumenCombineReflectionsAlpha(Roughness, bHasBackfaceDiffuse);
@@ -369,7 +397,7 @@ void ReflectionEnvironmentSkyLighting(
 		// Sample the ambient occlusion that is dynamically generated every frame.
 		float AmbientOcclusion = AmbientOcclusionTexture.SampleLevel(AmbientOcclusionSampler, BufferUV, 0).r;
 
-	#if LUMEN_STANDALONE_REFLECTIONS
+	#if REFLECTION_SOURCE_TYPE == REFLECTION_SOURCE_LUMEN_STANDALONE
 		const float TopLayerSpecularContributionFactor = 1.0f;
 	#else
 		const float4 SSRReflection = Texture2DSample(ReflectionTexture, ReflectionTextureSampler, BufferUV);
@@ -441,7 +469,7 @@ void ReflectionEnvironmentSkyLighting(
 				DiffuseLighting,
 				SpecularLighting);
 	
-		#if LUMEN_STANDALONE_REFLECTIONS
+		#if REFLECTION_SOURCE_TYPE == REFLECTION_SOURCE_LUMEN_STANDALONE
 			{
 				const float4 LumenReflections = GetLumenReflectionOnly(SubstrateEnvLight, BSDF, BSDFThroughput, Texture2DArraySample(LumenReflectionTexture, LumenReflectionTextureSampler, float3(BufferUV, ClosureIndex)));
 				SpecularLighting *= LumenReflections.a;
@@ -460,7 +488,7 @@ void ReflectionEnvironmentSkyLighting(
 		}
 
 		OutColor = SubstrateLighting.SceneColor;
-		#if LUMEN_STANDALONE_REFLECTIONS == 0
+		#if REFLECTION_SOURCE_TYPE != REFLECTION_SOURCE_LUMEN_STANDALONE
 		OutColor += ApplySSRContribution(SSRContribution, SSRReflection);
 		#endif
 
