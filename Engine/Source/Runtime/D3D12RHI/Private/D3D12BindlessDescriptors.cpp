@@ -65,6 +65,12 @@ FRHIDescriptorHandle FD3D12BindlessDescriptorHeapManager::Allocate()
 	while ((AllocatedIndex = Allocations.FindAndSetFirstZeroBit()) == INDEX_NONE)
 	{
 		const int32 NewNumDescriptorsPerHeap = NumDescriptorsPerHeap * 1.5;
+
+		if (Type == ERHIDescriptorHeapType::Sampler && NewNumDescriptorsPerHeap > D3D12_MAX_SHADER_VISIBLE_SAMPLER_HEAP_SIZE)
+		{
+			return FRHIDescriptorHandle();
+		}
+
 		ResizeHeaps(NewNumDescriptorsPerHeap);
 	}
 
