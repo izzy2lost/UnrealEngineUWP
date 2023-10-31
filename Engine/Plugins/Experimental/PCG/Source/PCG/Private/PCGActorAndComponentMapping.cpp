@@ -1773,7 +1773,14 @@ void FPCGActorAndComponentMapping::OnActorChanged(AActor* InActor, bool bInHasMo
 	// And refresh all dirtied components
 	for (UPCGComponent* Component : DirtyComponents)
 	{
-		if (Component && (!bNoRefreshOwner || Component->GetOwner() != InActor))
+		if (!ensure(Component))
+		{
+			continue;
+		}
+
+		const bool bOwnerHasChanged = Component->GetOwner() == InActor;
+
+		if ((!bNoRefreshOwner || !bOwnerHasChanged) && (!Component->bOnlyTrackItself || bOwnerHasChanged))
 		{
 			// When an object changes, we need to make sure that we don't trigger a refresh on PCG components that are "higher" in the
 			// level hierarchy, otherwise we will end up generating in the Level Instance level, which is wrong.

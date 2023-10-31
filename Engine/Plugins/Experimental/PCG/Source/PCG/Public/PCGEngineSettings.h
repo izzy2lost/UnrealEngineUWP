@@ -25,16 +25,20 @@ public:
 	// Console variables defined in PCGActorAndComponentMapping.cpp
 	// Use the variables to get the values, not GetDefault<UPCGEngineSettings>
 
+	/** Globally disable refresh. */
+	UPROPERTY(EditAnywhere, Config, Category = Tracking, meta = (ConsoleVariable = "pcg.GlobalDisableRefresh"))
+	bool bGlobalDisableRefresh = false;
+
 	/** Completely disable landscape refresh when it changes. */
-	UPROPERTY(EditAnywhere, Config, Category = LandscapeTracking, meta = (ConsoleVariable = "pcg.LandscapeDisableRefreshTracking"))
+	UPROPERTY(EditAnywhere, Config, Category = Tracking, meta = (ConsoleVariable = "pcg.LandscapeDisableRefreshTracking"))
 	bool bLandscapeDisableRefreshTracking = false;
 
 	/** Completely disable landscape refresh when it changes in edit mode. Will force a refresh when landscape edit mode is exited. */
-	UPROPERTY(EditAnywhere, Config, Category = LandscapeTracking, meta = (ConsoleVariable = "pcg.LandscapeDisableRefreshTrackingInLandscapeEditingMode"))
+	UPROPERTY(EditAnywhere, Config, Category = Tracking, meta = (ConsoleVariable = "pcg.LandscapeDisableRefreshTrackingInLandscapeEditingMode"))
 	bool bLandscapeDisableRefreshTrackingInLandscapeEditingMode = false;
 
 	/** Time in MS between a landscape change and PCG refresh. Set it to 0 or negative value to disable the delay. */
-	UPROPERTY(EditAnywhere, Config, Category = "LandscapeTracking|Advanced", meta = (ConsoleVariable = "pcg.LandscapeRefreshTimeDelayMS"))
+	UPROPERTY(EditAnywhere, Config, Category = "Tracking|Advanced", meta = (ConsoleVariable = "pcg.LandscapeRefreshTimeDelayMS"))
 	int32 LandscapeRefreshTimeDelayMS = 1000;
 
 	/** Strips empty point data from being passed along as output. */

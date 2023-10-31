@@ -61,6 +61,11 @@
 namespace PCGComponent
 {
 	const bool bSaveOnCleanupAndGenerate = false;
+
+	static TAutoConsoleVariable<bool> CVarGlobalDisableRefresh(
+		TEXT("pcg.GlobalDisableRefresh"),
+		false,
+		TEXT("Disable refresh for all PCG Components."));
 }
 
 UPCGComponent::UPCGComponent(const FObjectInitializer& InObjectInitializer)
@@ -1888,6 +1893,12 @@ void UPCGComponent::Refresh(bool bStructural)
 			Subsystem->RegisterOrUpdatePCGComponent(this, bGenerated);
 		}
 
+		return;
+	}
+
+	// If the refresh is globally disabled, just exit
+	if (PCGComponent::CVarGlobalDisableRefresh.GetValueOnAnyThread())
+	{
 		return;
 	}
 
