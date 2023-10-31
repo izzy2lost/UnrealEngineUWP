@@ -149,6 +149,9 @@ void UCustomizableObjectInstanceUsage::AttachTo(USkeletalMeshComponent* Skeletal
 	else
 	{
 		UsedSkeletalMeshComponent = SkeletalMeshComponent;
+
+		// To mimic the behavior of UCustomizableSkeletalComponent::OnAttachmentChanged()
+		SetPendingSetSkeletalMesh(true);
 	}
 }
 
