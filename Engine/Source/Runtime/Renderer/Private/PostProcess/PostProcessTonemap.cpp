@@ -185,12 +185,10 @@ FDesktopDomain RemapPermutation(FDesktopDomain PermutationVector, ERHIFeatureLev
 		PermutationVector.Set<FTonemapperColorFringeDim>(true);
 	}
 
-	// If we're going down a slow path, don't bother with VRS either to keep shader permutations down
-	if (!FVariableRateShadingImageManager::IsVRSCompatibleWithOutputType(PermutationVector.Get<FTonemapperOutputDeviceDim>()) || bFallbackToSlowest)
+	if (!FVariableRateShadingImageManager::IsVRSCompatibleWithOutputType(PermutationVector.Get<FTonemapperOutputDeviceDim>()))
 	{
 		PermutationVector.Set<FTonemapperOutputLuminance>(false);
 	}
-
 
 	// You most likely need Bloom anyway.
 	CommonPermutationVector.Set<FTonemapperBloomDim>(true);
