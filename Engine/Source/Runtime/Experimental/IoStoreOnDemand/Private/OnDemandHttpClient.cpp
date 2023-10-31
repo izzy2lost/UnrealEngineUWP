@@ -6,7 +6,6 @@
 #include "Containers/StringConv.h"
 #include "HAL/IConsoleManager.h"
 #include "HAL/PlatformTime.h"
-#include "IO/IoBuffer.h"
 #include "IO/IoStoreOnDemand.h"
 
 namespace UE::IO::IAS
