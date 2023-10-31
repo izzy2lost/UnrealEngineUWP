@@ -2599,6 +2599,17 @@ void FPropertyHandleBase::GetOuterObjects( TArray<UObject*>& OuterObjects ) cons
 	}
 }
 
+void FPropertyHandleBase::GetOuterStructs( TArray<TSharedPtr<FStructOnScope>>& OutStructs ) const
+{
+	if (Implementation->GetPropertyNode().IsValid())
+	{
+		if (const FStructurePropertyNode* StructNode = Implementation->GetPropertyNode()->FindStructureItemParent())
+		{
+			StructNode->GetAllStructureData(OutStructs);
+		}
+	}
+}
+
 const UClass* FPropertyHandleBase::GetOuterBaseClass() const
 {
 	if (Implementation->GetPropertyNode().IsValid())

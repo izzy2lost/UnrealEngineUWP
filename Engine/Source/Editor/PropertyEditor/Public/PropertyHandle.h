@@ -466,6 +466,13 @@ public:
 	virtual void GetOuterObjects( TArray<UObject*>& OuterObjects ) const = 0;
 
 	/**
+	 * Get the structures that contain this property 
+	 *
+	 * @param OutStructs	An array that will be populated with the outer structures 
+	 */
+	virtual void GetOuterStructs( TArray<TSharedPtr<FStructOnScope>>& OutStructs ) const = 0;
+
+	/**
 	 * Get the shared base class of the objects that contain this property.
 	 *
 	 * @return The shared base class of the outer objects, or null if none are selected.

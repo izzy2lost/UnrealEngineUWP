@@ -1595,7 +1595,7 @@ void FRigVMWrappedNodeDetailCustomization::OnNameListComboBox(FNameProperty* InP
 
 void FRigVMWrappedNodeDetailCustomization::CustomizeLiveValues(IDetailLayoutBuilder& DetailLayout)
 {
-	if(ObjectsBeingCustomized.Num() != 1)
+	if(ObjectsBeingCustomized.Num() > 1)
 	{
 		return;
 	}
@@ -1636,6 +1636,11 @@ void FRigVMWrappedNodeDetailCustomization::CustomizeLiveValues(IDetailLayoutBuil
 
 	for(URigVMPin* Pin : FirstNode->GetPins())
 	{
+		if (Pin->IsExecuteContext())
+		{
+			continue;
+		}
+		
 		// only show hidden pins in debug mode
 		if(Pin->GetDirection() == ERigVMPinDirection::Hidden)
 		{
@@ -1710,7 +1715,19 @@ void FRigVMWrappedNodeDetailCustomization::CustomizeLiveValues(IDetailLayoutBuil
 		int32 SuffixIndex = 1;
 		FString NameSuffix;
 
-		TArray<FRigVMOperand> KnownOperands; 
+		auto UpdateRow = [&](IDetailPropertyRow* PropertyRow)
+		{
+			PropertyRow->DisplayName(FText::FromString(FString::Printf(TEXT("%s%s"), *Pin->GetName(), *NameSuffix)));
+			PropertyRow->IsEnabled(false);
+
+			SuffixIndex++;
+			bAddedProperty = true;
+			NameSuffix = FString::Printf(TEXT("_%d"), SuffixIndex);
+		};
+
+		static const FAddPropertyParams AddPropertyParams = FAddPropertyParams().ForceShowProperty();
+
+		TArray<FRigVMOperand> KnownOperands;
 		for(const FRigVMExprAST* Expression : FilteredExpressions)
 		{
 			const FRigVMVarExprAST* VarExpr = Expression->To<FRigVMVarExprAST>();
@@ -1767,27 +1784,20 @@ void FRigVMWrappedNodeDetailCustomization::CustomizeLiveValues(IDetailLayoutBuil
 				check(ExternalObjects.Num() > 0 || ExternalStructs.Num() > 0);
 				check(Property);
 
-				if(IDetailPropertyRow* PropertyRow = DebugCategory.AddExternalObjectProperty(ExternalObjects, Property->GetFName(), EPropertyLocation::Default, FAddPropertyParams().ForceShowProperty()))
+				if (!ExternalObjects.IsEmpty())
 				{
-					PropertyRow->DisplayName(FText::FromString(FString::Printf(TEXT("%s%s"), *Pin->GetName(), *NameSuffix)));
-					PropertyRow->IsEnabled(false);
-
-					SuffixIndex++;
-					bAddedProperty = true;
-					NameSuffix = FString::Printf(TEXT("_%d"), SuffixIndex);
+					if(IDetailPropertyRow* PropertyRow = DebugCategory.AddExternalObjectProperty(ExternalObjects, Property->GetFName(), EPropertyLocation::Default, AddPropertyParams))
+					{
+						UpdateRow(PropertyRow);
+					}
 				}
 
-				for (FRigVMMemoryStorageStruct* Memory : ExternalStructs)
+				for (const FRigVMMemoryStorageStruct* Memory : ExternalStructs)
 				{
-					TSharedPtr<FStructOnScope> StructOnScope = MakeShareable(new FStructOnScope(Memory->GetPropertyBagStruct(), (uint8*)Memory->GetContainerPtr()));
-					if (IDetailPropertyRow* PropertyRow = DebugCategory.AddExternalStructureProperty(StructOnScope, Property->GetFName(), EPropertyLocation::Default, FAddPropertyParams().ForceShowProperty()))
+					const TSharedPtr<FStructOnScope> StructOnScope = MakeShareable(new FStructOnScope(Memory->GetPropertyBagStruct(), (uint8*)Memory->GetContainerPtr()));
+					if (IDetailPropertyRow* PropertyRow = DebugCategory.AddExternalStructureProperty(StructOnScope, Property->GetFName(), EPropertyLocation::Default, AddPropertyParams))
 					{
-						PropertyRow->DisplayName(FText::FromString(FString::Printf(TEXT("%s%s"), *Pin->GetName(), *NameSuffix)));
-						PropertyRow->IsEnabled(false);
-
-						SuffixIndex++;
-						bAddedProperty = true;
-						NameSuffix = FString::Printf(TEXT("_%d"), SuffixIndex);
+						UpdateRow(PropertyRow);
 					}
 				}
 
@@ -1811,7 +1821,8 @@ void FRigVMWrappedNodeDetailCustomization::CustomizeLiveValues(IDetailLayoutBuil
 				.ValueContent()
 				[
 					PinHandle->CreatePropertyValueWidget()
-				];
+				]
+				.IsEnabled(false);
 			}
 		}
 	}
@@ -1829,6 +1840,9 @@ void FRigVMGraphMathTypeDetailCustomization::CustomizeHeader(TSharedRef<IPropert
 {
 	TArray<UObject*> Objects;
 	InPropertyHandle->GetOuterObjects(Objects);
+
+	StructsBeingCustomized.Reset();
+	InPropertyHandle->GetOuterStructs(StructsBeingCustomized);
 
 	for (UObject* Object : Objects)
 	{
