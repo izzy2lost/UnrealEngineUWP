@@ -66,7 +66,8 @@ public:
 		bool InWasAssetLoadedForValidation,
 		EDataValidationUsecase InUsecase,
 		TConstArrayView<FAssetData> InAssociatedObjects)
-		: ValidationUsecase(InUsecase)
+		: AssociatedExternalObjects(InAssociatedObjects)
+		, ValidationUsecase(InUsecase)
 		, bWasAssetLoadedForValidation(InWasAssetLoadedForValidation)
 	{}
 
