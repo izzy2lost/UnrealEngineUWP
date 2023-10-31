@@ -1331,9 +1331,20 @@ bool AffectsCurrentComponent(const UEdGraphPin* Pin, FMutableGraphGenerationCont
 	}
 	else if (const UCustomizableObjectNodeModifierBase* TypedNodeModifier = Cast<UCustomizableObjectNodeModifierBase>(Node))
 	{
-		// Modifiers affect all compoenents at lod level. This branch should never be reached.
-		check(false);
-		return false;
+		// Because of the current implementation, modifiers affect all componeents at lod level. If there is only one component it is ok, but otherwise rise an error.
+		if (GenerationContext.NumMeshComponentsInRoot == 1)
+		{
+			ComponentIndex = 0;
+			return true;
+		}
+		else
+		{
+			// This case is not supported yet
+			FString Msg = FString::Printf(TEXT("Error! Node has modifiers when using multiple components in root object. This is currently not supported."));
+			GenerationContext.Compiler->CompilerLog(FText::FromString(Msg), Node, EMessageSeverity::Error);
+			ComponentIndex = 0;
+			return false;
+		}
 	}
 	else
 	{

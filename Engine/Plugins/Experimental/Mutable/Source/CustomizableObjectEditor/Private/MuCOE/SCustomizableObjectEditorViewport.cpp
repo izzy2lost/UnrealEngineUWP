@@ -806,8 +806,18 @@ void SCustomizableObjectEditorViewportTabBody::GenerateUVMaterialOptions()
 						continue;
 					}
 
+					if (!Materials[Section.MaterialIndex])
+					{
+						continue;
+					}
+
+					FString BaseMaterialName;
+
 					const UMaterial* BaseMaterial = Materials[Section.MaterialIndex]->GetBaseMaterial();
-					FString BaseMaterialName = BaseMaterial->GetName();
+					if (BaseMaterial)
+					{
+						BaseMaterialName = BaseMaterial->GetName();
+					}
 
 					BaseMaterialName += FString::Printf(TEXT(" LOD_%d_Component_%d"), LODIndex, ComponentIndex);
 

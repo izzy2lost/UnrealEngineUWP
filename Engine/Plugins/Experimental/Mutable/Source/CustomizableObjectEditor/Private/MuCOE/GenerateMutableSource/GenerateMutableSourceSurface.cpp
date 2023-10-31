@@ -386,13 +386,19 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 		FString TableColumnName;
 
 		// Checking if we should not use the material of the table node even if it is linked to the material node
-		if (const UEdGraphPin* ConnectedPin = FollowInputPin(*TypedNodeMat->GetMaterialAssetPin()))
+		const UEdGraphPin* TempConnectedPin = nullptr;
+		if (TypedNodeMat->GetMaterialAssetPin())
 		{
-			if (const UCustomizableObjectNodeTable* TypedNodeTable = Cast< UCustomizableObjectNodeTable >(ConnectedPin->GetOwningNode()))
-			{
-				TableColumnName = ConnectedPin->PinFriendlyName.ToString();
+			TempConnectedPin = FollowInputPin(*TypedNodeMat->GetMaterialAssetPin());
+		}
 
-				if (UMaterialInstance * TableMaterial = TypedNodeTable->GetColumnDefaultAssetByType<UMaterialInstance>(ConnectedPin))
+		if (TempConnectedPin)
+		{
+			if (const UCustomizableObjectNodeTable* TypedNodeTable = Cast< UCustomizableObjectNodeTable >(TempConnectedPin->GetOwningNode()))
+			{
+				TableColumnName = TempConnectedPin->PinFriendlyName.ToString();
+
+				if (UMaterialInstance * TableMaterial = TypedNodeTable->GetColumnDefaultAssetByType<UMaterialInstance>(TempConnectedPin))
 				{
 					// Checking if the reference material of the Table Node has the same parent as the material of the Material Node 
 					if (!TypedNodeMat->Material || TableMaterial->GetMaterial() != TypedNodeMat->Material->GetMaterial())
