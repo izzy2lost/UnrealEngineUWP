@@ -82,15 +82,18 @@ export const darkTheme = createTheme({
         },
         "Checkbox": {
             styles: {
-                root: {
-                    selectors: {
-                        '.ms-Checkbox-checkmark': {
-                            color: "#FFFFFF"
-                        }
-                    }
+                checkmark: {
+                    color: "#FFFFFF"
+                },
+                checkbox: {
+                    borderBottomColor: "#959595",
+                    borderTopColor: "#959595",
+                    borderLeftColor: "#959595",
+                    borderRightColor: "#959595"
                 }
             }
-        },    
+        }
+        ,
         "Toggle": {
             styles: {
                 root: {
@@ -101,7 +104,7 @@ export const darkTheme = createTheme({
                     }
                 }
             }
-        },        
+        },
         "DatePicker": {
             styles: {
                 callout: {
@@ -157,7 +160,12 @@ export const darkTheme = createTheme({
         listText: textColor,
         primaryButtonText: "#FFFFFF",
         primaryButtonTextHovered: "#FFFFFF",
-        primaryButtonTextDisabled: "#949898"
+        primaryButtonTextDisabled: "#949898",
+        inputText: textColor,
+        inputPlaceholderText: "#888888",
+        inputBorder: "#959595",
+        inputBorderHovered: "#B5B5B5",
+        smallInputBorder: "#959595"
 
     },
     defaultFontStyle: {

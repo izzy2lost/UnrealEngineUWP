@@ -1363,7 +1363,7 @@ export const AgentMenuBar: React.FC<{ agentView?: boolean }> = observer(({ agent
                      autoComplete="off"
                      placeholder="Search Agents"
                      defaultValue={localState.agentFilter}
-                     styles={{ root: { marginLeft: -10, width: 200 } }}
+                     styles={{ root: { width: 200 } }}
                      onGetErrorMessage={(value) => { localState.setAgentFilter(value ?? ""); return undefined; }}
                   />
                </Stack>
@@ -2675,7 +2675,7 @@ export const AgentViewInner: React.FC<{ agentId?: string, poolId?: string, searc
                   <ProgressIndicator
                      barHeight={15}
                      styles={{
-                        progressBar: { height: 13, marginLeft: 1, marginTop: 2 },
+                        progressBar: { height: dashboard.darktheme ? 13 : 16, marginLeft: dashboard.darktheme ? 1 : 0, marginTop: dashboard.darktheme ? 2 : 0 },
                         progressTrack: { width: '98%', border: '1px solid !important' },
                         root: { width: 110 }
                      }}
