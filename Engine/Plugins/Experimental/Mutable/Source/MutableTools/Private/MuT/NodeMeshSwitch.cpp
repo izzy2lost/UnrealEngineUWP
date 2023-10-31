@@ -119,17 +119,17 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	NodeLayoutPtr NodeMeshSwitch::Private::GetLayout( int index ) const
 	{
-		NodeLayoutPtr pResult;
-
-		if (m_options.Num()>0 && m_options[0] )
+		for (int32 i=0; i<m_options.Num(); ++i)
 		{
-			NodeMesh::Private* pPrivate =
-					dynamic_cast<NodeMesh::Private*>( m_options[0]->GetBasePrivate() );
-
-			pResult = pPrivate->GetLayout( index );
+			if (m_options[i])
+			{
+				NodeMesh::Private* pPrivate = dynamic_cast<NodeMesh::Private*>(m_options[i]->GetBasePrivate());
+				NodeLayoutPtr pResult = pPrivate->GetLayout(index);
+				return pResult;
+			}
 		}
 
-		return pResult;
+		return nullptr;
 	}
 
 

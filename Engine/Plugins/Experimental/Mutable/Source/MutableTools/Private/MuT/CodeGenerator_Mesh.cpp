@@ -1082,29 +1082,38 @@ namespace mu
         }
 
         // Options
+		bool bFirstValidConnectionFound = false;
         for ( int32 t=0; t< node.m_options.Num(); ++t )
         {
 			FMeshGenerationOptions TargetOptions = InOptions;
 
-            if (t!=0)
-            {
-				TargetOptions.OverrideLayouts = OutResult.GeneratedLayouts;
-            }
-
             if ( node.m_options[t] )
             {
-                FMeshGenerationResult BranchResults;
+				// Take the layouts from the first non-null connection.
+				// \TODO: Take them from the first connection that actually returns layouts?
+				if (!bFirstValidConnectionFound)
+				{
+					TargetOptions.OverrideLayouts = OutResult.GeneratedLayouts;
+				}
+				
+				FMeshGenerationResult BranchResults;
                 GenerateMesh(TargetOptions, BranchResults, node.m_options[t] );
 
-                auto branch = BranchResults.meshOp;
+                Ptr<ASTOp> branch = BranchResults.meshOp;
                 op->cases.Emplace((int16)t,op,branch);
 
-                if (t==0)
-                {
+				if (!bFirstValidConnectionFound)
+				{
+					bFirstValidConnectionFound = true;
                     OutResult = BranchResults;
                 }
             }
         }
+
+		if (!bFirstValidConnectionFound)
+		{
+			ensure(false);
+		}
 
         OutResult.meshOp = op;
     }
@@ -1116,9 +1125,10 @@ namespace mu
 		//
 		FMeshGenerationResult NewResult = OutResult;
 		int t = 0;
+		bool bFirstRowGenerated = false;
 
 		Ptr<ASTOp> Op = GenerateTableSwitch<NodeMeshTable::Private, ETableColumnType::Mesh, OP_TYPE::ME_SWITCH>(*TableNode->GetPrivate(),
-			[this, &NewResult, &t, &InOptions] (const NodeMeshTable::Private& node, int colIndex, int row, ErrorLog* pErrorLog)
+			[this, &NewResult, &bFirstRowGenerated, &InOptions] (const NodeMeshTable::Private& node, int colIndex, int row, ErrorLog* pErrorLog)
 			{
 				mu::Ptr<mu::Mesh> pMesh = node.m_pTable->GetPrivate()->Rows[row].Values[colIndex].Mesh;
 				FMeshGenerationResult BranchResults;
@@ -1138,7 +1148,7 @@ namespace mu
 
 					FMeshGenerationOptions TargetOptions = InOptions;
 
-					if (t != 0)
+					if (bFirstRowGenerated)
 					{
 						TargetOptions.OverrideLayouts = NewResult.GeneratedLayouts;
 					}
@@ -1147,12 +1157,11 @@ namespace mu
 
 					GenerateMesh(TargetOptions, BranchResults, pCell);
 
-					if (t == 0)
+					if (!bFirstRowGenerated)
 					{
 						NewResult = BranchResults;
+						bFirstRowGenerated = true;
 					}
-
-					++t;
 				}
 
 				return BranchResults.meshOp;
