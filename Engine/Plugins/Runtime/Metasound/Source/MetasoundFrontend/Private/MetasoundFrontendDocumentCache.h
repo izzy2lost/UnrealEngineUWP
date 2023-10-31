@@ -16,15 +16,25 @@ namespace Metasound::Frontend
 	// Forward Declarations
 	class FDocumentCache;
 
+	struct FDocumentCacheTransaction
+	{
+		int32 DocumentTransactionID = INDEX_NONE;
+		int32 InterfaceTransactionID = INDEX_NONE;
+		int32 NodeTransactionID = INDEX_NONE;
+		int32 EdgeTransactionID = INDEX_NONE;
+	};
+
 	class FDocumentGraphEdgeCache : public IDocumentGraphEdgeCache
 	{
 		template <typename ObjectType, ESPMode Mode>
 		friend class SharedPointerInternals::TIntrusiveReferenceController;
 
-		FDocumentGraphEdgeCache(TSharedRef<const IDocumentCache> ParentCache);
+		// Only exists to make TSharedFromThis happy, but should never be called
+		FDocumentGraphEdgeCache();
+		FDocumentGraphEdgeCache(TSharedRef<const FDocumentCache> ParentCache);
 
 	public:
-		static TSharedRef<FDocumentGraphEdgeCache> Create(TSharedRef<const IDocumentCache> ParentCache, FEdgeModifyDelegates& OutDelegates);
+		static TSharedRef<FDocumentGraphEdgeCache> Create(TSharedRef<const FDocumentCache> ParentCache, FEdgeModifyDelegates& OutDelegates);
 		virtual ~FDocumentGraphEdgeCache() = default;
 
 		// IDocumentGraphEdgeCache implementation
@@ -37,6 +47,7 @@ namespace Metasound::Frontend
 		virtual const int32* FindEdgeIndexToNodeInput(const FGuid& InNodeID, const FGuid& InVertexID) const override;
 		virtual const TArrayView<const int32> FindEdgeIndicesFromNodeOutput(const FGuid& InNodeID, const FGuid& InVertexID) const override;
 
+		int32 GetTransactionCount() const;
 
 	private:
 		void Init(FEdgeModifyDelegates& OutDelegates);
@@ -49,7 +60,9 @@ namespace Metasound::Frontend
 		// Cache of Input NodeId/VertexId pairs to associated edge indices
 		TMap<FMetasoundFrontendVertexHandle, int32> InputToEdgeIndex;
 
-		TSharedPtr<const IDocumentCache> Parent;
+		TSharedRef<const FDocumentCache> Parent;
+
+		int32 TransactionCount = 0;
 	};
 
 
@@ -58,10 +71,12 @@ namespace Metasound::Frontend
 		template <typename ObjectType, ESPMode Mode>
 		friend class SharedPointerInternals::TIntrusiveReferenceController;
 
-		FDocumentGraphNodeCache(TSharedRef<const IDocumentCache> ParentCache);
+		// Only exists to make TSharedFromThis happy, but should never be called
+		FDocumentGraphNodeCache();
+		FDocumentGraphNodeCache(TSharedRef<const FDocumentCache> ParentCache);
 
 	public:
-		static TSharedRef<FDocumentGraphNodeCache> Create(TSharedRef<const IDocumentCache> ParentCache, FNodeModifyDelegates& OutDelegates);
+		static TSharedRef<FDocumentGraphNodeCache> Create(TSharedRef<const FDocumentCache> ParentCache, FNodeModifyDelegates& OutDelegates);
 		virtual ~FDocumentGraphNodeCache() = default;
 
 		// IDocumentGraphNodeCache implementation
@@ -85,10 +100,14 @@ namespace Metasound::Frontend
 		virtual const FMetasoundFrontendVertex* FindReroutedOutputVertex(const FGuid& InNodeID, const FGuid& InVertexID, const FMetasoundFrontendNode** ConnectedNodes = nullptr, bool* bOutIsRerouted = nullptr) const override;
 		virtual const FMetasoundFrontendVertex* FindReroutedOutputVertex(const FGuid& InNodeID, FName InVertexName, const FMetasoundFrontendNode** ConnectedNodes = nullptr, bool* bOutIsRerouted = nullptr) const override;
 
+		int32 GetTransactionCount() const;
+
 	private:
 		void Init(FNodeModifyDelegates& OutDelegates);
 		void OnNodeAdded(int32 NewIndex);
+		void OnNodeInputLiteralSet(int32 NodeIndex, int32 VertexIndex, int32 LiteralIndex);
 		void OnRemoveSwappingNode(int32 IndexBeingRemoved, int32 LastIndex);
+		void OnRemovingNodeInputLiteral(int32 NodeIndex, int32 VertexIndex, int32 LiteralIndex);
 
 		// Cache of NodeId to array index of node
 		TSortedMap<FGuid, int32> IDToIndex;
@@ -96,7 +115,9 @@ namespace Metasound::Frontend
 		// Cache of ClassID to referencing node indices
 		TSortedMap<FGuid, TArray<int32>> ClassIDToNodeIndices;
 
-		TSharedPtr<const IDocumentCache> Parent;
+		TSharedRef<const FDocumentCache> Parent;
+
+		int32 TransactionCount = 0;
 	};
 
 
@@ -105,19 +126,22 @@ namespace Metasound::Frontend
 		template <typename ObjectType, ESPMode Mode>
 		friend class SharedPointerInternals::TIntrusiveReferenceController;
 
-		FDocumentGraphInterfaceCache(TSharedRef<const IDocumentCache> ParentCache);
+		FDocumentGraphInterfaceCache(TSharedRef<const FDocumentCache> ParentCache);
 
 	public:
-		static TSharedRef<FDocumentGraphInterfaceCache> Create(TSharedRef<const IDocumentCache> ParentCache, FInterfaceModifyDelegates& OutDelegates);
+		static TSharedRef<FDocumentGraphInterfaceCache> Create(TSharedRef<const FDocumentCache> ParentCache, FInterfaceModifyDelegates& OutDelegates);
 		virtual ~FDocumentGraphInterfaceCache() = default;
 
 		// IDocumentGraphInterfaceCache implementation
 		virtual const FMetasoundFrontendClassInput* FindInput(FName InputName) const override;
 		virtual const FMetasoundFrontendClassOutput* FindOutput(FName OutputName) const override;
 
+		int32 GetTransactionCount() const;
+
 	private:
 		void Init(FInterfaceModifyDelegates& OutDelegates);
 		void OnInputAdded(int32 NewIndex);
+		void OnInputDefaultChanged(int32 NewIndex);
 		void OnOutputAdded(int32 NewIndex);
 		void OnRemovingInput(int32 IndexBeingRemoved);
 		void OnRemovingOutput(int32 IndexBeingRemoved);
@@ -128,7 +152,9 @@ namespace Metasound::Frontend
 		// Cache of Output name to array index of output
 		TMap<FName, int32> OutputNameToIndex;
 
-		TSharedPtr<const IDocumentCache> Parent;
+		TSharedRef<const FDocumentCache> Parent;
+
+		int32 TransactionCount = 0;
 	};
 
 
@@ -137,6 +163,8 @@ namespace Metasound::Frontend
 		template <typename ObjectType, ESPMode Mode>
 		friend class SharedPointerInternals::TIntrusiveReferenceController;
 
+		// Only exists to make TSharedFromThis happy, but should never be called
+		FDocumentCache();
 		FDocumentCache(const FMetasoundFrontendDocument& InDocument, TSharedRef<FDocumentModifyDelegates> Delegates);
 
 	public:
@@ -155,6 +183,8 @@ namespace Metasound::Frontend
 		virtual const IDocumentGraphEdgeCache& GetEdgeCache() const override;
 		virtual const IDocumentGraphNodeCache& GetNodeCache() const override;
 		virtual const IDocumentGraphInterfaceCache& GetInterfaceCache() const override;
+
+		int32 GetTransactionCount() const;
 
 	private:
 		void Init(bool bPrimeCache);
@@ -189,5 +219,8 @@ namespace Metasound::Frontend
 
 		const FMetasoundFrontendDocument* Document = nullptr;
 		TSharedRef<FDocumentModifyDelegates> ModifyDelegates;
+
+		// Number of transactions processed since builder was instantiated
+		int32 TransactionCount = 0;
 	};
 } // namespace Metasound::Frontend

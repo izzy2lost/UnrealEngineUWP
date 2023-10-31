@@ -1843,6 +1843,18 @@ EMetasoundFrontendVertexAccessType FMetaSoundFrontendDocumentBuilder::GetNodeOut
 	return EMetasoundFrontendVertexAccessType::Unset;
 }
 
+int32 FMetaSoundFrontendDocumentBuilder::GetTransactionCount() const
+{
+	using namespace Metasound::Frontend;
+
+	if (DocumentCache.IsValid())
+	{
+		return StaticCastSharedPtr<FDocumentCache>(DocumentCache)->GetTransactionCount();
+	}
+
+	return 0;
+}
+
 void FMetaSoundFrontendDocumentBuilder::InitGraphClassMetadata(FMetasoundFrontendClassMetadata& InOutMetadata, bool bResetVersion, const FMetasoundFrontendClassName* NewClassName)
 {
 	if (NewClassName)
@@ -2579,20 +2591,26 @@ bool FMetaSoundFrontendDocumentBuilder::SetGraphInputDefault(FName InputName, co
 
 	auto NameMatchesInput = [&InputName](const FMetasoundFrontendClassInput& Input) { return Input.Name == InputName; };
 	TArray<FMetasoundFrontendClassInput>& Inputs = GetDocument().RootGraph.Interface.Inputs;
-	if (FMetasoundFrontendClassInput* Input = Inputs.FindByPredicate(NameMatchesInput))
+
+	const int32 Index = Inputs.IndexOfByPredicate(NameMatchesInput);
+	if (Index != INDEX_NONE)
 	{
-		if (IDataTypeRegistry::Get().IsLiteralTypeSupported(Input->TypeName, InDefaultLiteral.GetType()))
+		FMetasoundFrontendClassInput& Input = Inputs[Index];
+		if (IDataTypeRegistry::Get().IsLiteralTypeSupported(Input.TypeName, InDefaultLiteral.GetType()))
 		{
-			Input->DefaultLiteral = InDefaultLiteral;
+			Input.DefaultLiteral = InDefaultLiteral;
+			DocumentDelegates->InterfaceDelegates.OnInputDefaultChanged.Broadcast(Index);
 
 			// Set the input as no longer inheriting default for presets
 			if (IsPreset())
 			{
-				return SetGraphInputInheritsDefault(InputName, /*bInputInheritsDefault=*/false);
+				constexpr bool bInputInheritsDefault = false;
+				return SetGraphInputInheritsDefault(InputName, bInputInheritsDefault);
 			}
+
 			return true;
 		}
-		UE_LOG(LogMetaSound, Error, TEXT("Attempting to set graph input of type '%s' with unsupported literal type"), *Input->TypeName.ToString());
+		UE_LOG(LogMetaSound, Error, TEXT("Attempting to set graph input of type '%s' with unsupported literal type"), *Input.TypeName.ToString());
 	}
 
 	return false;

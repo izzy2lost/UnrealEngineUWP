@@ -474,6 +474,11 @@ protected:
 	UE_DEPRECATED(5.4, "Use UMetaSoundBuilderDocument::Create instead")
 	UMetaSoundBuilderDocument* CreateTransientDocumentObject() const;
 
+	// Only registers provided MetaSound's graph class and referenced graphs recursively if
+	// it has yet to be registered or if it has an attached builder reporting outstanding
+	// transactions that have yet to be registered.
+	static void RegisterGraphIfOutstandingTransactions(UObject& InMetaSound);
+
 	UPROPERTY()
 	FMetaSoundFrontendDocumentBuilder Builder;
 
@@ -481,6 +486,9 @@ protected:
 	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "5.4 - All source builders now operate on an underlying document source document that is also used to audition."))
 	bool bIsAttached = false;
 #endif // WITH_EDITORONLY_DATA
+
+private:
+	int32 LastTransactionRegistered = 0;
 
 	// Friending allows for swapping the builder in certain circumstances where desired (eg. attaching a builder to an existing asset)
 	friend class UMetaSoundBuilderSubsystem;
@@ -569,7 +577,10 @@ private:
 	TMap<FName, TObjectPtr<UMetaSoundBuilderBase>> NamedBuilders;
 
 	UPROPERTY()
-	mutable TMap<FName, TWeakObjectPtr<UMetaSoundBuilderBase>> AssetBuilders;
+	mutable TMap<FMetasoundFrontendClassName, TWeakObjectPtr<UMetaSoundBuilderBase>> AssetBuilders;
+
+	UPROPERTY()
+	mutable TMap<FMetasoundFrontendClassName, TWeakObjectPtr<UMetaSoundBuilderBase>> TransientBuilders;
 
 public:
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
@@ -644,12 +655,19 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Audio|MetaSound|Builder", meta = (DisplayName = "Create MetaSound Literal From AudioParameter"))
 	UPARAM(DisplayName = "Param Literal") FMetasoundFrontendLiteral CreateMetaSoundLiteralFromParam(const FAudioParameter& Param);
 
-	UFUNCTION(BlueprintCallable, Category = "Audio|MetaSound|Builder")
+	// Returns the builder manually registered with the MetaSound Builder Subsystem with the provided custom name (if previously registered)
+	UFUNCTION(BlueprintCallable, Category = "Audio|MetaSound|Builder", meta = (DisplayName = "Find Builder By Name"))
 	UPARAM(DisplayName = "Builder") UMetaSoundBuilderBase* FindBuilder(FName BuilderName);
 
+	// Returns the builder associated with the given MetaSound (if one exists, transient or asset).
+	UFUNCTION(BlueprintCallable, Category = "Audio|MetaSound|Builder", meta = (DisplayName = "Find Builder By MetaSound"))
+	UPARAM(DisplayName = "Builder") UMetaSoundBuilderBase* FindBuilderOfDocument(TScriptInterface<const IMetaSoundDocumentInterface> InMetaSound) const;
+
+	// Returns the patch builder manually registered with the MetaSound Builder Subsystem with the provided custom name (if previously registered)
 	UFUNCTION(BlueprintCallable, Category = "Audio|MetaSound|Builder")
 	UPARAM(DisplayName = "Patch Builder") UMetaSoundPatchBuilder* FindPatchBuilder(FName BuilderName);
 
+	// Returns the source builder manually registered with the MetaSound Builder Subsystem with the provided custom name (if previously registered)
 	UFUNCTION(BlueprintCallable, Category = "Audio|MetaSound|Builder")
 	UPARAM(DisplayName = "Source Builder") UMetaSoundSourceBuilder* FindSourceBuilder(FName BuilderName);
 
@@ -692,6 +710,10 @@ private:
 		TObjectPtr<BuilderClass> NewBuilder = NewObject<BuilderClass>(TransientPackage, ObjectName, NewObjectFlags);
 		check(NewBuilder);
 		NewBuilder->CreateTransientBuilder();
+
+		const FMetasoundFrontendDocument& Document = NewBuilder->GetConstBuilder().GetDocument();
+		const FMetasoundFrontendClassName& ClassName = Document.RootGraph.Metadata.GetClassName();
+		TransientBuilders.Add(ClassName, NewBuilder);
 		return *NewBuilder.Get();
 	}
 
@@ -703,8 +725,8 @@ private:
 
 		TScriptInterface<IMetaSoundDocumentInterface> DocInterface = InMetaSoundObject;
 		const FMetasoundFrontendDocument& Document = DocInterface->GetConstDocument();
-		const FName FullClassName = Document.RootGraph.Metadata.GetClassName().GetFullName();
-		TWeakObjectPtr<UMetaSoundBuilderBase> Builder = AssetBuilders.FindRef(FullClassName);
+		const FMetasoundFrontendClassName& ClassName = Document.RootGraph.Metadata.GetClassName();
+		TWeakObjectPtr<UMetaSoundBuilderBase> Builder = AssetBuilders.FindRef(ClassName);
 		if (Builder.IsValid())
 		{
 			return *CastChecked<BuilderClass>(Builder.Get());
@@ -714,7 +736,9 @@ private:
 		check(NewBuilder);
 		NewBuilder->Builder = FMetaSoundFrontendDocumentBuilder(DocInterface);
 		TObjectPtr<UMetaSoundBuilderBase> NewBuilderBase = CastChecked<UMetaSoundBuilderBase>(NewBuilder);
-		AssetBuilders.Add(FullClassName, NewBuilderBase);
+		AssetBuilders.Add(ClassName, NewBuilderBase);
 		return *NewBuilder;
 	}
+
+	friend class UMetaSoundBuilderBase;
 };

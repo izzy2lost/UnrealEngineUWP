@@ -33,6 +33,8 @@ namespace Metasound::Engine
 {
 	namespace BuilderSubsystemPrivate
 	{
+		int32 TransactionBasedRegistrationEnabled = 0;
+
 		template <typename TLiteralType>
 		FMetasoundFrontendLiteral CreatePODMetaSoundLiteral(const TLiteralType& Value, FName& OutDataType)
 		{
@@ -53,16 +55,31 @@ namespace Metasound::Engine
 			return IDataTypeRegistry::Get().CreateLiteralNode(DataType, MoveTemp(Params));
 		}
 	} // namespace BuilderSubsystemPrivate
+
+	FAutoConsoleVariableRef CVarMetaSoundBuilderForceAllFrontendRegistration(
+		TEXT("au.MetaSound.Builder.TransactionBasedRegistrationEnabled"),
+		BuilderSubsystemPrivate::TransactionBasedRegistrationEnabled,
+		TEXT("Forces all builder calls to register MetaSound objects with the Frontend.\n")
+		TEXT("Enabled (Default): !0, Disabled: 0"),
+		ECVF_Default);
 } // namespace Metasound::Engine
+
 
 void UMetaSoundBuilderBase::BeginDestroy()
 {
-	Super::BeginDestroy();
+	if (UMetaSoundBuilderSubsystem* Subsystem = UMetaSoundBuilderSubsystem::Get())
+	{
+		const FMetasoundFrontendDocument& Document = static_cast<const FMetaSoundFrontendDocumentBuilder&>(Builder).GetDocument();
+		const FMetasoundFrontendClassName& ClassName = Document.RootGraph.Metadata.GetClassName();
+		Subsystem->TransientBuilders.Remove(ClassName);
+	}
 
 	// Need to detach before destroying UPROPERTYs as the Builder 
 	// often holds a TScriptInterface<IMetaSoundDocumentInterface> of
 	// a UPROPERTY that lives on this or derived objects. 
 	Builder.FinishBuilding();
+
+	Super::BeginDestroy();
 }
 
 FMetaSoundBuilderNodeOutputHandle UMetaSoundBuilderBase::AddGraphInputNode(FName Name, FName DataType, FMetasoundFrontendLiteral DefaultValue, EMetaSoundBuilderResult& OutResult, bool bIsConstructorInput)
@@ -169,18 +186,37 @@ void UMetaSoundBuilderBase::AddInterface(FName InterfaceName, EMetaSoundBuilderR
 FMetaSoundNodeHandle UMetaSoundBuilderBase::AddNode(const TScriptInterface<IMetaSoundDocumentInterface>& NodeClass, EMetaSoundBuilderResult& OutResult)
 {
 	using namespace Metasound;
+	using namespace Metasound::Frontend;
 
 	FMetaSoundNodeHandle NewHandle;
 
 	if (NodeClass)
 	{
-		if (FMetasoundAssetBase* MetaSoundAsset = IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(NodeClass.GetObject()))
+		UObject* NodeClassObject = NodeClass.GetObject();
+		check(NodeClassObject);
+
+#if WITH_EDITOR
+		// Assets that may undergo serialization cannot reference transient objects
+		const bool bIsInvalidReference = !NodeClassObject->IsAsset() && Builder.CastDocumentObjectChecked<UObject>().IsAsset();
+#else
+		constexpr bool bIsInvalidReference = false;
+#endif // WITH_EDITOR
+
+		if (bIsInvalidReference)
 		{
-			MetaSoundAsset->RegisterGraphWithFrontend();
+			UObject& ThisBuildersObject = Builder.CastDocumentObjectChecked<UObject>();
+			UE_LOG(LogMetaSound, Warning,
+				TEXT("Failed to add node of transient asset '%s' to serialized asset '%s': "
+				"Transient object node class cannot be referenced from asset node class."),
+				*NodeClassObject->GetPathName(),
+				*ThisBuildersObject.GetPathName());
+		}
+		else
+		{
+			RegisterGraphIfOutstandingTransactions(*NodeClassObject);
 
 			const FMetasoundFrontendDocument& NodeClassDoc = NodeClass->GetConstDocument();
 			const FMetasoundFrontendGraphClass& NodeClassGraph = NodeClassDoc.RootGraph;
-
 			if (const FMetasoundFrontendNode* NewNode = Builder.AddGraphNode(NodeClassGraph))
 			{
 				NewHandle.NodeID = NewNode->GetID();
@@ -720,6 +756,45 @@ bool UMetaSoundBuilderBase::NodeOutputIsConnected(const FMetaSoundBuilderNodeOut
 	return Builder.IsNodeOutputConnected(OutputHandle.NodeID, OutputHandle.VertexID);
 }
 
+void UMetaSoundBuilderBase::RegisterGraphIfOutstandingTransactions(UObject& InMetaSound)
+{
+	using namespace Metasound;
+	using namespace Metasound::Engine;
+	using namespace Metasound::Frontend;
+	using namespace Metasound::Engine::BuilderSubsystemPrivate;
+
+	IMetaSoundAssetManager& AssetManager = IMetaSoundAssetManager::GetChecked();
+	FMetasoundAssetBase* MetaSoundAsset = IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(&InMetaSound);
+	check(MetaSoundAsset);
+
+	FMetaSoundAssetRegistrationOptions Options;
+	if (TransactionBasedRegistrationEnabled)
+	{
+		Options.bForceReregister = false;
+		Options.bRegisterDependencies = false; // Function handles registration via own recursive functionality below
+
+		TArray<FMetasoundAssetBase*> References = MetaSoundAsset->GetReferencedAssets();
+		for (FMetasoundAssetBase* Reference : References)
+		{
+			UObject* RefMetaSound = Reference->GetOwningAsset();
+			check(RefMetaSound);
+			AssetManager.AddOrUpdateAsset(*RefMetaSound);
+			RegisterGraphIfOutstandingTransactions(*RefMetaSound);
+		}
+
+		if (UMetaSoundBuilderBase* Builder = UMetaSoundBuilderSubsystem::GetChecked().FindBuilderOfDocument(&InMetaSound))
+		{
+			const int32 TransactionCount = Builder->Builder.GetTransactionCount();
+
+			// Force registration if transactions occurred since now and the last time the builder registered the asset.
+			Options.bForceReregister = Builder->LastTransactionRegistered != TransactionCount;
+			Builder->LastTransactionRegistered = TransactionCount;
+		}
+	}
+
+	MetaSoundAsset->RegisterGraphWithFrontend(Options);
+}
+
 void UMetaSoundBuilderBase::ReloadCache(bool bPrimeCache)
 {
 	Builder.ReloadCache();
@@ -982,10 +1057,7 @@ void UMetaSoundSourceBuilder::Audition(UObject* Parent, UAudioComponent* AudioCo
 	}
 
 	UMetaSoundSource& MetaSoundSource = GetMetaSoundSource();
-
-	FMetasoundAssetBase* MetaSoundAsset = IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(&MetaSoundSource);
-	check(MetaSoundAsset);
-	MetaSoundAsset->RegisterGraphWithFrontend();
+	RegisterGraphIfOutstandingTransactions(MetaSoundSource);
 
 	// Must be called post register as register ensures cached runtime data passed to transactor is up-to-date
 	MetaSoundSource.SetDynamicGeneratorEnabled(bLiveUpdatesEnabled);
@@ -1485,7 +1557,6 @@ UMetaSoundSourceBuilder* UMetaSoundBuilderSubsystem::CreateSourceBuilder(
 	AudioOutNodeInputs.Reset();
 
 	UMetaSoundSourceBuilder& NewBuilder = CreateTransientBuilder<UMetaSoundSourceBuilder>(BuilderName);
-
 	OutResult = EMetaSoundBuilderResult::Succeeded;
 	if (OutputFormat != EMetaSoundOutputAudioFormat::Mono)
 	{
@@ -1723,14 +1794,37 @@ FMetasoundFrontendLiteral UMetaSoundBuilderSubsystem::CreateMetaSoundLiteralFrom
 
 bool UMetaSoundBuilderSubsystem::DetachBuilderFromAsset(const FMetasoundFrontendClassName& InClassName) const
 {
-	return AssetBuilders.Remove(InClassName.GetFullName()) > 0;
+	using namespace Metasound;
+	using namespace Metasound::Frontend;
+
+	TWeakObjectPtr<UMetaSoundBuilderBase> Builder = AssetBuilders.FindRef(InClassName);
+	if (Builder.IsValid())
+	{
+		// If the builder has applied transactions to its document object that are not mirrored in the frontend registry,
+		// unregister version in registry. This will ensure that future requests for the builder's associated asset will
+		// register a fresh version from the object as the transaction history is intrinsically lost once this builder
+		// is destroyed.
+		if (Builder->LastTransactionRegistered != Builder->Builder.GetTransactionCount())
+		{
+			UObject& MetaSound = Builder->Builder.CastDocumentObjectChecked<UObject>();
+			if (FMetasoundAssetBase* MetaSoundAsset = IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(&MetaSound))
+			{
+				MetaSoundAsset->UnregisterGraphWithFrontend();
+			}
+		}
+
+		ensureAlways(AssetBuilders.Remove(InClassName));
+		return true;
+	}
+
+	return false;
 }
 
 void UMetaSoundBuilderSubsystem::InvalidateDocumentCache(const FMetasoundFrontendClassName& InClassName) const
 {
 	using namespace Metasound::Frontend;
 
-	TWeakObjectPtr<UMetaSoundBuilderBase> BuilderPtr = AssetBuilders.FindRef(InClassName.GetFullName());
+	TWeakObjectPtr<UMetaSoundBuilderBase> BuilderPtr = AssetBuilders.FindRef(InClassName);
 	if (BuilderPtr.IsValid())
 	{
 		BuilderPtr->InvalidateCache();
@@ -1740,6 +1834,33 @@ void UMetaSoundBuilderSubsystem::InvalidateDocumentCache(const FMetasoundFronten
 UMetaSoundBuilderBase* UMetaSoundBuilderSubsystem::FindBuilder(FName BuilderName)
 {
 	return NamedBuilders.FindRef(BuilderName);
+}
+
+UMetaSoundBuilderBase* UMetaSoundBuilderSubsystem::FindBuilderOfDocument(TScriptInterface<const IMetaSoundDocumentInterface> InMetaSound) const
+{
+	TWeakObjectPtr<UMetaSoundBuilderBase> Builder;
+	if (const UObject* MetaSoundObject = InMetaSound.GetObject())
+	{
+		const FMetasoundFrontendDocument& Document = InMetaSound->GetConstDocument();
+		const FMetasoundFrontendClassName& ClassName = Document.RootGraph.Metadata.GetClassName();
+
+		Builder = AssetBuilders.FindRef(ClassName);
+		if (Builder.IsValid())
+		{
+			ensureAlwaysMsgf(MetaSoundObject->IsAsset(), TEXT("MetaSound is asset but Builder was registered with Subsystem as transient"));
+		}
+		else
+		{
+			Builder = TransientBuilders.FindRef(ClassName);
+			if (Builder.IsValid())
+			{
+				ensureAlwaysMsgf(!MetaSoundObject->IsAsset(), TEXT("MetaSound is transient object but Builder was registered with Subsystem as asset"));
+			}
+		}
+
+	}
+
+	return Builder.Get();
 }
 
 UMetaSoundPatchBuilder* UMetaSoundBuilderSubsystem::FindPatchBuilder(FName BuilderName)
@@ -1786,7 +1907,7 @@ bool UMetaSoundBuilderSubsystem::IsInterfaceRegistered(FName InInterfaceName) co
 #if WITH_EDITOR
 void UMetaSoundBuilderSubsystem::PostBuilderAssetTransaction(const FMetasoundFrontendClassName& InClassName)
 {
-	TWeakObjectPtr<UMetaSoundBuilderBase> BuilderPtr = AssetBuilders.FindRef(InClassName.GetFullName());
+	TWeakObjectPtr<UMetaSoundBuilderBase> BuilderPtr = AssetBuilders.FindRef(InClassName);
 	if (UMetaSoundBuilderBase* Builder = BuilderPtr.Get())
 	{
 		Builder->ReloadCache();
