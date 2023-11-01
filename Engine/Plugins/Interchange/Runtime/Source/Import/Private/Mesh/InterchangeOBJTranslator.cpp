@@ -1563,6 +1563,13 @@ TFuture<TOptional<UE::Interchange::FMeshPayloadData>> UInterchangeOBJTranslator:
 			FMeshPayloadData Payload;
 			Payload.MeshDescription = ObjDataPtr->MakeMeshDescriptionForGroup(PayLoadKey.UniqueId, MeshGlobalTransform);
 
+			if (!FStaticMeshOperations::ValidateAndFixData(Payload.MeshDescription, PayLoadKey.UniqueId))
+			{
+				UInterchangeResultError_Generic* ErrorResult = AddMessage<UInterchangeResultError_Generic>();
+				ErrorResult->SourceAssetName = SourceData ? SourceData->GetFilename() : FString();
+				ErrorResult->Text = NSLOCTEXT("UInterchangeOBJTranslator", "GetMeshPayloadData_ValidateMeshDescriptionFail", "Invalid mesh data (NAN) was found and fix to zero. Mesh render can be bad.");
+			}
+
 			return TOptional<FMeshPayloadData>(Payload);
 		}
 	);

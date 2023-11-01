@@ -1111,6 +1111,13 @@ TFuture< TOptional< UE::Interchange::FMeshPayloadData > > UInterchangeGLTFTransl
 			TOptional<UE::Interchange::FMeshPayloadData> Result;
 			if (bSuccessfullAcquisition)
 			{
+				if (!FStaticMeshOperations::ValidateAndFixData(MeshPayLoadData.MeshDescription, PayLoadKey.UniqueId))
+				{
+					UInterchangeResultError_Generic* ErrorResult = AddMessage<UInterchangeResultError_Generic>();
+					ErrorResult->SourceAssetName = SourceData ? SourceData->GetFilename() : FString();
+					ErrorResult->Text = NSLOCTEXT("UInterchangeGLTFTranslator", "GetMeshPayloadData_ValidateMeshDescriptionFail", "Invalid mesh data (NAN) was found and fix to zero. Mesh render can be bad.");
+				}
+
 				Result.Emplace(MeshPayLoadData);
 			}
 

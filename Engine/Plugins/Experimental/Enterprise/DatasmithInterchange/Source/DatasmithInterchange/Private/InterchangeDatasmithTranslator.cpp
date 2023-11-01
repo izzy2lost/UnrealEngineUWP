@@ -625,6 +625,12 @@ TFuture<TOptional<UE::Interchange::FMeshPayloadData>> UInterchangeDatasmithTrans
 				{
 					UE::Interchange::FMeshPayloadData StaticMeshPayloadData;
 					StaticMeshPayloadData.MeshDescription = MoveTemp(DatasmithMeshPayload.LodMeshes[0]);
+					if (!FStaticMeshOperations::ValidateAndFixData(StaticMeshPayloadData.MeshDescription, MeshElement->GetName()))
+					{
+						UInterchangeResultError_Generic* ErrorResult = AddMessage<UInterchangeResultError_Generic>();
+						ErrorResult->SourceAssetName = SourceData ? SourceData->GetFilename() : FString();
+						ErrorResult->Text = LOCTEXT("GetMeshPayloadData_ValidateMeshDescriptionFail", "Invalid mesh data (NAN) was found and fix to zero. Mesh render can be bad.");
+					}
 					// Bake the payload mesh, with the provided transform
 					if (!MeshGlobalTransform.Equals(FTransform::Identity))
 					{

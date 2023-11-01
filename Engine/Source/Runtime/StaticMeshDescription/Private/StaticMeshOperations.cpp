@@ -2945,4 +2945,76 @@ void FStaticMeshOperations::ReorderMeshDescriptionPolygonGroups(const FMeshDescr
 	}
 }
 
+bool FStaticMeshOperations::ValidateAndFixData(FMeshDescription& MeshDescription, const FString& DebugName)
+{
+	bool bHasInvalidPositions = false;
+	bool bHasInvalidTangentSpaces = false;
+	bool bHasInvalidUVs = false;
+	bool bHasInvalidVertexColors = false;
+
+	FStaticMeshAttributes Attributes(MeshDescription);
+
+	TVertexAttributesRef<FVector3f> VertexPositions = Attributes.GetVertexPositions();
+	for (const FVertexID VertexID : MeshDescription.Vertices().GetElementIDs())
+	{
+		if (VertexPositions[VertexID].ContainsNaN())
+		{
+			bHasInvalidPositions = true;
+			VertexPositions[VertexID] = FVector3f::ZeroVector;
+		}
+	}
+	TVertexInstanceAttributesRef<FVector3f> VertexInstanceNormals = Attributes.GetVertexInstanceNormals();
+	TVertexInstanceAttributesRef<FVector3f> VertexInstanceTangents = Attributes.GetVertexInstanceTangents();
+	TVertexInstanceAttributesRef<float> VertexInstanceBinormalSigns = Attributes.GetVertexInstanceBinormalSigns();
+	TVertexInstanceAttributesRef<FVector2f> VertexInstanceUVs = Attributes.GetVertexInstanceUVs();
+	TVertexInstanceAttributesRef<FVector4f> VertexInstanceColors = Attributes.GetVertexInstanceColors();
+	for (const FVertexInstanceID VertexInstanceID : MeshDescription.VertexInstances().GetElementIDs())
+	{
+		if (VertexInstanceNormals[VertexInstanceID].ContainsNaN())
+		{
+			bHasInvalidTangentSpaces = true;
+			VertexInstanceNormals[VertexInstanceID] = FVector3f::Zero();
+		}
+		if (VertexInstanceTangents[VertexInstanceID].ContainsNaN())
+		{
+			bHasInvalidTangentSpaces = true;
+			VertexInstanceTangents[VertexInstanceID] = FVector3f::Zero();
+		}
+		if (FMath::IsNaN(VertexInstanceBinormalSigns[VertexInstanceID]))
+		{
+			bHasInvalidTangentSpaces = true;
+			VertexInstanceBinormalSigns[VertexInstanceID] = 0.0f;
+		}
+		if (VertexInstanceUVs[VertexInstanceID].ContainsNaN())
+		{
+			bHasInvalidUVs = true;
+			VertexInstanceUVs[VertexInstanceID] = FVector2f::Zero();
+		}
+		if (VertexInstanceColors[VertexInstanceID].ContainsNaN())
+		{
+			bHasInvalidVertexColors = true;
+			VertexInstanceColors[VertexInstanceID] = FVector4f::One();
+		}
+	}
+
+	if (bHasInvalidPositions)
+	{
+		UE_LOG(LogStaticMeshOperations, Error, TEXT("Mesh %s has NaNs in it's vertex positions! Offending positions are set to zero."), *DebugName);
+	}
+	if (bHasInvalidTangentSpaces)
+	{
+		UE_LOG(LogStaticMeshOperations, Error, TEXT("Mesh %s has NaNs in it's vertex instance tangent space! Offending tangents are set to zero."), *DebugName);
+	}
+	if (bHasInvalidUVs)
+	{
+		UE_LOG(LogStaticMeshOperations, Error, TEXT("Mesh %s has NaNs in it's vertex instance uvs! Offending uvs are set to zero."), *DebugName);
+	}
+	if (bHasInvalidVertexColors)
+	{
+		UE_LOG(LogStaticMeshOperations, Error, TEXT("Mesh %s has NaNs in it's vertex instance colors! Offending colors are set to white."), *DebugName);
+	}
+
+	return !bHasInvalidPositions && !bHasInvalidTangentSpaces && !bHasInvalidUVs && !bHasInvalidVertexColors;
+}
+
 #undef LOCTEXT_NAMESPACE

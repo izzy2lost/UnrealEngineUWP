@@ -201,4 +201,7 @@ public:
 		, FMeshDescription& DestinationMeshDescription
 		, TOptional<const FString> UnmatchMaterialNameWarning
 		, TOptional<const FString> DestinationPolygonGroupCountDifferFromSource_Msg);
+
+	/** Verify the mesh data does not contain any NAN or INF float value, if such a case happen the value are set to zero or identity for matrix or quat. */
+	static STATICMESHDESCRIPTION_API bool ValidateAndFixData(FMeshDescription& MeshDescription, const FString& DebugName);
 };
