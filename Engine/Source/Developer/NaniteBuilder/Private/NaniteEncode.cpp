@@ -1089,7 +1089,6 @@ static void CalculateEncodingInfo(FEncodingInfo& Info, const Nanite::FCluster& C
 	Info.ColorMode = NANITE_VERTEX_COLOR_MODE_VARIABLE;
 	Info.NormalPrecision = 0;
 	Info.TangentPrecision = 0;
-	Info.UVPrec = 0;
 
 	GpuSizes.Position = NumClusterVerts * 3 * sizeof(float);
 	GpuSizes.Attribute = NumClusterVerts * AttribBytesPerVertex;
@@ -1373,7 +1372,7 @@ static void EncodeGeometryData(	const uint32 LocalClusterIndex, const FCluster& 
 		}
 
 		// Color
-		uint32 ColorDW = Cluster.bHasColors ? Cluster.GetColor(VertexIndex).ToFColor(false).DWColor() : 0xFFFFFFFFu;
+		uint32 ColorDW = Cluster.Settings.bHasColors ? Cluster.GetColor(VertexIndex).ToFColor(false).DWColor() : 0xFFFFFFFFu;
 		BitWriter_Attribute.PutBits(ColorDW, 32);
 
 		// UVs
