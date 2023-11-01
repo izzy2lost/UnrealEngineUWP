@@ -520,6 +520,7 @@ protected:
 
 	friend class URigVMBlueprint;
 	friend class URigVMBlueprintGeneratedClass;
+	friend class FRigVMCompileSettingsDetails;
 };
 
 class RIGVM_API FRigVMBracketScope

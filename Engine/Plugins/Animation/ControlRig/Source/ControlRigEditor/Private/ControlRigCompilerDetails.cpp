@@ -262,7 +262,7 @@ FReply FRigVMCompileSettingsDetails::OnCopyGeneratedCodeClicked()
 				if(CDO->GetVM())
 				{
 					CDO->GetVM()->ClearExternalVariables(CDO->GetRigVMExtendedExecuteContext());
-					TArray<FRigVMExternalVariable> ExternalVariables = CDO->GetExternalVariables();
+					TArray<FRigVMExternalVariable> ExternalVariables = CDO->GetExternalVariablesImpl(false);
 					for(const FRigVMExternalVariable& ExternalVariable : ExternalVariables)
 					{
 						CDO->GetVM()->AddExternalVariable(CDO->GetRigVMExtendedExecuteContext(), ExternalVariable);
