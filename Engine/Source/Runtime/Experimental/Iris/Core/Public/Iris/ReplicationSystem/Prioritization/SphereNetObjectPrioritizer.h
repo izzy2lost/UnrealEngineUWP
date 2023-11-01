@@ -32,7 +32,7 @@ public:
 
 	UPROPERTY(Config)
 	/** Priority outside the sphere */
-	float OutsidePriority = 0.1;
+	float OutsidePriority = 0.1f;
 };
 
 UCLASS(Transient, MinimalAPI)

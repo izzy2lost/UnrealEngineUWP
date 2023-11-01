@@ -65,7 +65,7 @@ bool FReplicationConditionals::SetConditionConnectionFilter(FInternalNetRefIndex
 	if (ObjectInfo->AutonomousConnectionId != AutonomousConnectionId)
 	{
 		const uint32 ConnIdForBaselineInvalidation = (bEnable ? ConnectionId : ObjectInfo->AutonomousConnectionId);
-		ObjectInfo->AutonomousConnectionId = AutonomousConnectionId;
+		ObjectInfo->AutonomousConnectionId = uint16(AutonomousConnectionId);
 
 		BaselineInvalidationTracker->InvalidateBaselines(ObjectIndex, ConnIdForBaselineInvalidation);
 	}
