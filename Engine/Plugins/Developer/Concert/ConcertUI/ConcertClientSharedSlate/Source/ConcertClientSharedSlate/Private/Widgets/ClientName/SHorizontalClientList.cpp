@@ -80,7 +80,7 @@ namespace UE::ConcertClientSharedSlate
 			}
 			else if (Client == ClientSession->GetSessionClientEndpointId())
 			{
-				ClientsToDisplay.Emplace(Client, ClientSession->GetLocalClientInfo());
+				ClientsToDisplay.Add({Client, ClientSession->GetLocalClientInfo()});
 			}
 		}
 
