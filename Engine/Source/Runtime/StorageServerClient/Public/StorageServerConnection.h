@@ -82,7 +82,7 @@ protected:
 		FAnsiStringView Hostname,
 		EStorageServerContentType Accept = EStorageServerContentType::Binary);
 
-	FSocket* Send(FStorageServerConnection& Owner);
+	FSocket* Send(FStorageServerConnection& Owner, bool bLogOnError = true);
 	virtual void Serialize(void* V, int64 Length) override;
 
 	EStorageServerContentType AcceptType;
