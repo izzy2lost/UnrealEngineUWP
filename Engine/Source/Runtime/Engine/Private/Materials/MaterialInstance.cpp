@@ -2909,7 +2909,8 @@ void UMaterialInstance::Serialize(FArchive& Ar)
 			SerializeInlineShaderMaps(
 				NULL,
 				Ar,
-				LoadedMaterialResources
+				LoadedMaterialResources,
+				GetFName()
 #if STORE_ONLY_ACTIVE_SHADERMAPS
 				, &OffsetToFirstResource
 #endif

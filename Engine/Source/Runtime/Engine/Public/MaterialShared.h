@@ -1338,7 +1338,7 @@ public:
 	ENGINE_API void Release();
 
 	/** Serializes the shader map. */
-	bool Serialize(FArchive& Ar, bool bInlineShaderResources=true, bool bLoadedByCookedMaterial=false, bool bInlineShaderCode=false);
+	bool Serialize(FArchive& Ar, bool bInlineShaderResources=true, bool bLoadedByCookedMaterial=false, bool bInlineShaderCode=false, const FName& SerializingAsset = NAME_None);
 
 #if WITH_EDITOR
 	/** Saves this shader map to the derived data cache. */
@@ -1857,7 +1857,7 @@ public:
 	ENGINE_API virtual void LegacySerialize(FArchive& Ar);
 
 	/** Serializes the shader map inline in this material, including any shader dependencies. */
-	void SerializeInlineShaderMap(FArchive& Ar);
+	void SerializeInlineShaderMap(FArchive& Ar, const FName& SerializingAsset = NAME_None);
 
 	/** Serializes the shader map inline in this material, including any shader dependencies. */
 	void RegisterInlineShaderMap(bool bLoadedByCookedMaterial);

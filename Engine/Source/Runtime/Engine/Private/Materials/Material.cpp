@@ -720,6 +720,7 @@ void SerializeInlineShaderMaps(
 	const TMap<const ITargetPlatform*, TArray<FMaterialResource*>>* PlatformMaterialResourcesToSavePtr,
 	FArchive& Ar,
 	TArray<FMaterialResource>& OutLoadedResources,
+	const FName& SerializingAsset,
 	uint32* OutOffsetToFirstResource)
 {
 	LLM_SCOPE(ELLMTag::Shaders);
@@ -788,7 +789,7 @@ void SerializeInlineShaderMaps(
 			for (int32 ResourceIndex = 0; ResourceIndex < NumLoadedResources; ++ResourceIndex)
 			{
 				FMaterialResource& LoadedResource = OutLoadedResources[OutLoadedResources.AddDefaulted()];
-				LoadedResource.SerializeInlineShaderMap(ResourceAr);
+				LoadedResource.SerializeInlineShaderMap(ResourceAr, SerializingAsset);
 			}
 #endif
 		}
@@ -2754,7 +2755,8 @@ void UMaterial::Serialize(FArchive& Ar)
 		SerializeInlineShaderMaps(
 			NULL,
 			Ar,
-			LoadedMaterialResources
+			LoadedMaterialResources,
+			GetFName()
 #if STORE_ONLY_ACTIVE_SHADERMAPS
 			, &OffsetToFirstResource
 #endif
