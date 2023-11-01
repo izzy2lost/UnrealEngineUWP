@@ -39,7 +39,7 @@ struct FHitProxyVSToPS
 #if USE_WORLD_POSITION_EXCLUDING_SHADER_OFFSETS
 	float3 PixelPositionExcludingWPO : TEXCOORD7;
 #endif
-	float4 Position : SV_POSITION;
+	INVARIANT_OUTPUT float4 Position : SV_POSITION;
 };
 
 #define FHitProxyVSOutput FHitProxyVSToPS

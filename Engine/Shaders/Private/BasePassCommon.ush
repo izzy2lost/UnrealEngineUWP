@@ -107,7 +107,7 @@ struct FSharedBasePassInterpolants
 
 #if WRITES_VELOCITY_TO_GBUFFER && !IS_NANITE_PASS
 	// .xy is clip position, pre divide by w; .w is clip W; .z is 0 or 1 to mask out the velocity output
-	float4 VelocityPrevScreenPosition : VELOCITY_PREV_POS;
+	INVARIANT_OUTPUT float4 VelocityPrevScreenPosition : VELOCITY_PREV_POS;
 #endif
 };
 

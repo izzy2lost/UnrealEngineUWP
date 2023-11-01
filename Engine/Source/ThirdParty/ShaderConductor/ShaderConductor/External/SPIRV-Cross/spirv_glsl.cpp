@@ -3680,6 +3680,14 @@ void CompilerGLSL::emit_resources()
 		statement("");
 	}
 
+	// UE Change Begin: Allow precise semantic outputs  
+	for (auto& precise_output_builtin : get_precise_outputs())
+	{	
+		statement("precise ", builtin_to_glsl(precise_output_builtin, StorageClassOutput),";");
+		statement("");
+	}
+	// UE Change End: Allow precise semantic outputs  
+
 	bool emitted = false;
 
 	// If emitted Vulkan GLSL,

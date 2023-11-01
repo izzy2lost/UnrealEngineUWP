@@ -28,7 +28,7 @@ struct FMobileShadingBasePassVSToPS
 {
 	FVertexFactoryInterpolantsVSToPS FactoryInterpolants;
 	FMobileBasePassInterpolantsVSToPS BasePassInterpolants;
-	float4 Position : SV_POSITION;
+	INVARIANT_OUTPUT float4 Position : SV_POSITION;
 };
 
 #define FMobileShadingBasePassVSOutput FMobileShadingBasePassVSToPS

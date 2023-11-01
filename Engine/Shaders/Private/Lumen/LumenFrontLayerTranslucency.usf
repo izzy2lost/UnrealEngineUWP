@@ -22,7 +22,7 @@ struct FLumenFrontLayerTranslucencyGBufferVSToPS
 {
 	FVertexFactoryInterpolantsVSToPS FactoryInterpolants;
 	FLumenFrontLayerTranslucencyGBufferInterpolantsVSToPS PassInterpolants;
-	float4 Position : SV_POSITION;
+	INVARIANT_OUTPUT float4 Position : SV_POSITION;
 };
 
 void MainVS(

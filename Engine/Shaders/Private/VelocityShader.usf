@@ -27,7 +27,7 @@ struct FVelocityInterpsVSToPS
 
 struct FVelocityVSToPS
 {
-	float4 Position : SV_POSITION;
+	INVARIANT_OUTPUT float4 Position : SV_POSITION;
 	FVelocityInterpsVSToPS Interps;
 };
 

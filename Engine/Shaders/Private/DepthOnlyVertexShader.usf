@@ -12,7 +12,7 @@
 
 struct FDepthOnlyVSToPS
 {
-	float4 Position : SV_POSITION;
+	INVARIANT_OUTPUT float4 Position : SV_POSITION;
 
 	#if !MATERIALBLENDING_SOLID || OUTPUT_PIXEL_DEPTH_OFFSET
 		FVertexFactoryInterpolantsVSToPS FactoryInterpolants;

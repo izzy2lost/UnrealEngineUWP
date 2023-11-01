@@ -92,6 +92,9 @@ namespace CrossCompiler
 		/** Decorate SV_Position implicitly as invariant. This can drastically reduce Z-fighting but also prevent certain optimizations. */
 		bool bSvPositionImplicitInvariant = true;
 
+		/** Decorate output semantics as precise. */
+		bool bSupportPreciseOutputs = false;
+
 		/** Preserve storage inputs used for OpenGL */
 		bool bPreserveStorageInput = false;
         bool bForceStorageImageFormat = false;

@@ -460,6 +460,11 @@ namespace CrossCompiler
 		{
 			DxcArgRefs.Add("-fspv-svposition-implicit-invariant");
 		}
+		if (InOptions.bSupportPreciseOutputs)
+		{
+			DxcArgRefs.Add("-fspv-support-precise-outputs");
+		}
+
 
 		using ETargetEnvironment = CrossCompiler::FShaderConductorOptions::ETargetEnvironment;
 		if (OutOptions.enable16bitTypes)
