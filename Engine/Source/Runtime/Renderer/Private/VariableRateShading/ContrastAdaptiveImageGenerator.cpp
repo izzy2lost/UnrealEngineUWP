@@ -82,29 +82,39 @@ class FCalculateShadingRateImageCS : public FGlobalShader
 	DECLARE_GLOBAL_SHADER(FCalculateShadingRateImageCS);
 	SHADER_USE_PARAMETER_STRUCT(FCalculateShadingRateImageCS, FGlobalShader);
 
-	class FThreadGroupX : SHADER_PERMUTATION_SPARSE_INT("THREADGROUP_SIZEX", 8, 16);
-	class FThreadGroupY : SHADER_PERMUTATION_SPARSE_INT("THREADGROUP_SIZEY", 8, 16);
-
-	using FPermutationDomain = TShaderPermutationDomain<FThreadGroupX, FThreadGroupY>;
+	class FThreadGroupSizeXY : SHADER_PERMUTATION_SPARSE_INT("THREADGROUP_SIZE_XY", 8, 16);
+	class FOutputHardwareImage : SHADER_PERMUTATION_BOOL("OUTPUT_HARDWARE_IMAGE");
+	class FOutputSoftwareImage : SHADER_PERMUTATION_BOOL("OUTPUT_SOFTWARE_IMAGE");
+	using FPermutationDomain = TShaderPermutationDomain<FThreadGroupSizeXY, FOutputHardwareImage, FOutputSoftwareImage>;
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float>, LuminanceTexture)
 		SHADER_PARAMETER(FVector4f, ViewRect)
 		SHADER_PARAMETER(float, EdgeThreshold)
 		SHADER_PARAMETER(float, ConservativeEdgeThreshold)
-		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<uint>, VariableRateShadingTexture)
+		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<uint>, HardwareShadingRateImage)
+		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<uint>, SoftwareShadingRateImage)
 	END_SHADER_PARAMETER_STRUCT()
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
-		return IsFeatureLevelSupported(Parameters.Platform, ERHIFeatureLevel::SM5)
-			&& FDataDrivenShaderPlatformInfo::GetSupportsVariableRateShading(Parameters.Platform);
+		FPermutationDomain PermutationDomain(Parameters.PermutationId);
+
+		const bool bHardwareVRS = FDataDrivenShaderPlatformInfo::GetSupportsVariableRateShading(Parameters.Platform) && PermutationDomain.Get<FOutputHardwareImage>();
+		const bool bSoftwareVRS = PermutationDomain.Get<FOutputSoftwareImage>();
+
+		if (bSoftwareVRS && !IsFeatureLevelSupported(Parameters.Platform, ERHIFeatureLevel::SM6))
+		{
+			// SM6 is required for the quad operations used to create 2x2 tile software shading rate images
+			return false;
+		}
+
+		return IsFeatureLevelSupported(Parameters.Platform, ERHIFeatureLevel::SM5) && (bHardwareVRS || bSoftwareVRS);
 	}
 
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
-		OutEnvironment.SetDefine(TEXT("COMPUTE_SHADER"), 1);
 	}
 
 	static void InitParameters(
@@ -112,14 +122,16 @@ class FCalculateShadingRateImageCS : public FGlobalShader
 		FRDGTextureRef Luminance,
 		const FIntRect& ViewRect,
 		bool bIsHDR10,
-		FRDGTextureUAV* ShadingRateImage)
+		FRDGTextureUAV* HardwareShadingRateImage,
+		FRDGTextureUAV* SoftwareShadingRateImage)
 	{
 		Parameters.LuminanceTexture = Luminance;
 		Parameters.ViewRect = FVector4f(ViewRect.Min.X, ViewRect.Min.Y, ViewRect.Max.X, ViewRect.Max.Y);
 		const float cEdgeThresholdCorrectionValue = bIsHDR10 ? CVarCAS_HDR10CorrectionMultiplier.GetValueOnRenderThread() : 1.0;
 		Parameters.EdgeThreshold = cEdgeThresholdCorrectionValue * CVarCASEdgeThreshold.GetValueOnRenderThread();
 		Parameters.ConservativeEdgeThreshold = cEdgeThresholdCorrectionValue * CVarCASConservativeEdgeThreshold.GetValueOnRenderThread();
-		Parameters.VariableRateShadingTexture = ShadingRateImage;
+		Parameters.HardwareShadingRateImage = HardwareShadingRateImage;
+		Parameters.SoftwareShadingRateImage = SoftwareShadingRateImage;
 	}
 };
 IMPLEMENT_GLOBAL_SHADER(FCalculateShadingRateImageCS, "/Engine/Private/VariableRateShading/VRSShadingRateCalculate.usf", "CalculateShadingRateImage", SF_Compute);
@@ -278,47 +290,70 @@ static FIntRect GetFullPostProcessOutputRect(const FSceneViewFamily& ViewFamily)
 static const TCHAR* ShadingRateTextureName = TEXT("ShadingRateTexture");
 static const TCHAR* ScaledShadingRateTextureName = TEXT("ScaledShadingRateTexture");
 static const TCHAR* ScaledConservativeShadingRateTextureName = TEXT("ConservativeScaledShadingRateTexture");
+static const TCHAR* SoftwareShadingRateTextureName = TEXT("SoftwareShadingRateTexture");
+static const TCHAR* SoftwareScaledShadingRateTextureName = TEXT("SoftwareScaledShadingRateTexture");
+static const TCHAR* SoftwareScaledConservativeShadingRateTextureName = TEXT("SoftwareConservativeScaledShadingRateTexture");
 
-struct RENDERER_API FVRSTextures
+struct RENDERER_API FCASImageData
 {
-	// Returns an FVRSTextures created immutable instance from the builder blackboard. Asserts if none was created.
-	static const FVRSTextures& Get(FRDGBuilder& GraphBuilder)
+	// Returns an FCASImageData created immutable instance from the builder blackboard. Asserts if none was created.
+	static const FCASImageData& Get(FRDGBuilder& GraphBuilder)
 	{
-		const FVRSTextures* VRSTextures = GraphBuilder.Blackboard.Get<FVRSTextures>();
-			checkf(VRSTextures, TEXT("FVRSTextures was unexpectedly not initialized."));
-		return *VRSTextures;
+		const FCASImageData* CASImageData = GraphBuilder.Blackboard.Get<FCASImageData>();
+		checkf(CASImageData, TEXT("FCASImageData was unexpectedly not initialized."));
+		return *CASImageData;
 	}
 	static const bool IsInitialized(FRDGBuilder& GraphBuilder)
 	{
-		const FVRSTextures* VRSTextures = GraphBuilder.Blackboard.Get<FVRSTextures>();
-		return VRSTextures != nullptr;
+		const FCASImageData* CASImageData = GraphBuilder.Blackboard.Get<FCASImageData>();
+		return CASImageData != nullptr;
 	}
-	void Create(FRDGBuilder& GraphBuilder, const FSceneViewFamily& ViewFamily, FIntRect PostProcessViewRect)
+	void Create(FRDGBuilder& GraphBuilder, const FSceneViewFamily& ViewFamily, FIntRect PostProcessViewRect, bool bCreateHardwareImages, bool bCreateSoftwareImages)
 	{
-		FRDGTextureDesc ConstructedSRIDesc = CreateSRIDesc(ViewFamily, false, PostProcessViewRect);
-		ConstructedSRI = GraphBuilder.CreateTexture(ConstructedSRIDesc, ShadingRateTextureName);
-		FRDGTextureDesc ScaledSRIDesc = CreateSRIDesc(ViewFamily, true, PostProcessViewRect);
-		ScaledSRI = GraphBuilder.CreateTexture(ScaledSRIDesc, ScaledShadingRateTextureName);
-		ScaledConservativeSRI = GraphBuilder.CreateTexture(ScaledSRIDesc, ScaledConservativeShadingRateTextureName);
+		if (bCreateHardwareImages)
+		{
+			FRDGTextureDesc ConstructedSRIDesc = CreateSRIDesc(ViewFamily, false, PostProcessViewRect, false);
+			HardwareImages.ConstructedSRI = GraphBuilder.CreateTexture(ConstructedSRIDesc, ShadingRateTextureName);
+			FRDGTextureDesc ScaledSRIDesc = CreateSRIDesc(ViewFamily, true, PostProcessViewRect, false);
+			HardwareImages.ScaledSRI = GraphBuilder.CreateTexture(ScaledSRIDesc, ScaledShadingRateTextureName);
+			HardwareImages.ScaledConservativeSRI = GraphBuilder.CreateTexture(ScaledSRIDesc, ScaledConservativeShadingRateTextureName);
+		}
+		
+		if (bCreateSoftwareImages)
+		{
+			FRDGTextureDesc ConstructedSRIDesc = CreateSRIDesc(ViewFamily, false, PostProcessViewRect, true);
+			SoftwareImages.ConstructedSRI = GraphBuilder.CreateTexture(ConstructedSRIDesc, SoftwareShadingRateTextureName);
+			FRDGTextureDesc ScaledSRIDesc = CreateSRIDesc(ViewFamily, true, PostProcessViewRect, true);
+			SoftwareImages.ScaledSRI = GraphBuilder.CreateTexture(ScaledSRIDesc, SoftwareScaledShadingRateTextureName);
+			SoftwareImages.ScaledConservativeSRI = GraphBuilder.CreateTexture(ScaledSRIDesc, SoftwareScaledConservativeShadingRateTextureName);
+		}
 	}
-	FRDGTextureRef ConstructedSRI;
-	FRDGTextureRef ScaledSRI;
-	FRDGTextureRef ScaledConservativeSRI;
+
+	struct FCASImageSet
+	{
+		FRDGTextureRef ConstructedSRI;
+		FRDGTextureRef ScaledSRI;
+		FRDGTextureRef ScaledConservativeSRI;
+	};
+
+	FCASImageSet HardwareImages;
+	FCASImageSet SoftwareImages;
+
 private:
-	static FRDGTextureDesc CreateSRIDesc(const FSceneViewFamily& ViewFamily, bool bIsForDynResScaled, FIntRect PostProcessViewRect)
+	static FRDGTextureDesc CreateSRIDesc(const FSceneViewFamily& ViewFamily, bool bIsForDynResScaled, FIntRect PostProcessViewRect, bool bSoftwareVRS)
 	{
 		if (bIsForDynResScaled)
 		{
 			// Use final ViewRect for final scaled SRI
-			return FVariableRateShadingImageManager::GetSRIDesc(ViewFamily);
+			return FVariableRateShadingImageManager::GetSRIDesc(ViewFamily, bSoftwareVRS);
 		}
 		else
 		{
 			// Use luminance ViewRect to create initial unscaled image
-			const FIntPoint SRIDimensions = FMath::DivideAndRoundUp(PostProcessViewRect.Size(), FVariableRateShadingImageManager::GetSRITileSize());
+			const FIntPoint SRIDimensions = FMath::DivideAndRoundUp(PostProcessViewRect.Size(), FVariableRateShadingImageManager::GetSRITileSize(bSoftwareVRS));
 			return FRDGTextureDesc::Create2D(
 				SRIDimensions,
-				GRHIVariableRateShadingImageFormat,
+				bSoftwareVRS ? PF_R8_UINT : GRHIVariableRateShadingImageFormat,
 				EClearBinding::ENoneBound,
 				ETextureCreateFlags::DisableDCC |
 				ETextureCreateFlags::ShaderResource |
@@ -326,7 +361,7 @@ private:
 		}
 	}
 };
-RDG_REGISTER_BLACKBOARD_STRUCT(FVRSTextures);
+RDG_REGISTER_BLACKBOARD_STRUCT(FCASImageData);
 
 static EDisplayOutputFormat GetDisplayOutputFormat(const FSceneView& View)
 {
@@ -343,7 +378,8 @@ static bool IsHDR10(const EDisplayOutputFormat& OutputFormat)
 bool AddCreateShadingRateImagePass(
 	FRDGBuilder& GraphBuilder,
 	const FSceneViewFamily& ViewFamily,
-	FIntRect PostProcessViewRect)
+	FIntRect PostProcessViewRect,
+	bool bCreateHardwareImage, bool bCreateSoftwareImage)
 {
 	const FViewInfo& ViewInfo = *static_cast<const FViewInfo*>(ViewFamily.Views[0]);
 
@@ -353,14 +389,17 @@ bool AddCreateShadingRateImagePass(
 		return false;
 	}
 	FRDGTextureRef Luminance = GraphBuilder.RegisterExternalTexture(ViewInfo.PrevViewInfo.LuminanceHistory);
-	const FVRSTextures& VRSTextures = FVRSTextures::Get(GraphBuilder);
+	const FCASImageData& ImageData = FCASImageData::Get(GraphBuilder);
 
 	{
-		FCalculateShadingRateImageCS::FPermutationDomain PermutationVector;
+		// If not using HW VRS, use (8,8) groups. Otherwise, match HW tile size.
+		const FIntPoint TileSize = bCreateHardwareImage ? FVariableRateShadingImageManager::GetSRITileSize(/*bSoftwareVRS=*/false) : FIntPoint(8, 8);
+		check(TileSize.X == TileSize.Y);
 
-		const FIntPoint TileSize = FVariableRateShadingImageManager::GetSRITileSize();
-		PermutationVector.Set<FCalculateShadingRateImageCS::FThreadGroupX>(TileSize.X);
-		PermutationVector.Set<FCalculateShadingRateImageCS::FThreadGroupY>(TileSize.Y);
+		FCalculateShadingRateImageCS::FPermutationDomain PermutationVector;
+		PermutationVector.Set<FCalculateShadingRateImageCS::FThreadGroupSizeXY>(TileSize.X);
+		PermutationVector.Set<FCalculateShadingRateImageCS::FOutputHardwareImage>(bCreateHardwareImage);
+		PermutationVector.Set<FCalculateShadingRateImageCS::FOutputSoftwareImage>(bCreateSoftwareImage);
 
 		TShaderMapRef<FCalculateShadingRateImageCS> ComputeShader(ViewInfo.ShaderMap, PermutationVector);
 		auto* PassParameters = GraphBuilder.AllocParameters<FCalculateShadingRateImageCS::FParameters>();
@@ -370,7 +409,8 @@ bool AddCreateShadingRateImagePass(
 			Luminance,
 			PostProcessViewRect,
 			IsHDR10(OutputDisplayFormat),
-			GraphBuilder.CreateUAV(VRSTextures.ConstructedSRI));
+			bCreateHardwareImage ? GraphBuilder.CreateUAV(ImageData.HardwareImages.ConstructedSRI) : nullptr,
+			bCreateSoftwareImage ? GraphBuilder.CreateUAV(ImageData.SoftwareImages.ConstructedSRI) : nullptr);
 		FComputeShaderUtils::AddPass(
 			GraphBuilder,
 			RDG_EVENT_NAME("CreateShadingRateImage"),
@@ -386,16 +426,19 @@ bool AddCreateShadingRateImagePass(
 void AddReprojectImageBasedVRSPass(
 	FRDGBuilder& GraphBuilder,
 	const FMinimalSceneTextures& SceneTextures,
-	const FSceneViewFamily& ViewFamily)
+	const FSceneViewFamily& ViewFamily,
+	bool bReprojectSoftwareImages)
 {
 	SCOPED_DRAW_EVENT(GraphBuilder.RHICmdList, ScaleVariableRateShadingTexture);
 
-	const FVRSTextures& VRSTextures = FVRSTextures::Get(GraphBuilder);
-	FRDGTextureRef VariableRateShadingImage = VRSTextures.ConstructedSRI;
+	const FCASImageData& CASImageData = FCASImageData::Get(GraphBuilder);
+	const FCASImageData::FCASImageSet& ImageSet = bReprojectSoftwareImages ? CASImageData.SoftwareImages : CASImageData.HardwareImages;
 
-	FIntPoint TileSize = FVariableRateShadingImageManager::GetSRITileSize();
+	FRDGTextureRef VariableRateShadingImage = ImageSet.ConstructedSRI;
 
-	FIntPoint TextureSize = VRSTextures.ScaledSRI->Desc.Extent;
+	FIntPoint TileSize = FVariableRateShadingImageManager::GetSRITileSize(bReprojectSoftwareImages);
+
+	FIntPoint TextureSize = ImageSet.ScaledSRI->Desc.Extent;
 	FVector2f TextureDimensions(TextureSize.X, TextureSize.Y);
 
 	for (int32 ViewIndex = 0; ViewIndex < ViewFamily.Views.Num(); ViewIndex++)
@@ -444,8 +487,8 @@ void AddReprojectImageBasedVRSPass(
 			TextureDimensions,
 			UVOffset,
 			DynamicResolutionScale,
-			GraphBuilder.CreateUAV(VRSTextures.ScaledSRI),
-			GraphBuilder.CreateUAV(VRSTextures.ScaledConservativeSRI));
+			GraphBuilder.CreateUAV(ImageSet.ScaledSRI),
+			GraphBuilder.CreateUAV(ImageSet.ScaledConservativeSRI));
 
 		FComputeShaderUtils::AddPass(
 			GraphBuilder,
@@ -462,27 +505,29 @@ void AddReprojectImageBasedVRSPass(
  * Interface Functions
  */
 
-FRDGTextureRef FContrastAdaptiveImageGenerator::GetImage(FRDGBuilder& GraphBuilder, const FViewInfo& ViewInfo, FVariableRateShadingImageManager::EVRSImageType ImageType)
+FRDGTextureRef FContrastAdaptiveImageGenerator::GetImage(FRDGBuilder& GraphBuilder, const FViewInfo& ViewInfo, FVariableRateShadingImageManager::EVRSImageType ImageType, bool bGetSoftwareImage)
 {
-	if (FVRSTextures::IsInitialized(GraphBuilder))
+	if (FCASImageData::IsInitialized(GraphBuilder))
 	{
 		ESRITextureType::Type TextureType = ESRITextureType::GetTextureType(ImageType);
 		if (TextureType != ESRITextureType::None)
 		{
-			const FVRSTextures& VRSTextures = FVRSTextures::Get(GraphBuilder);
-			return (TextureType == ESRITextureType::ScaledSRIForRender) ? VRSTextures.ScaledSRI : VRSTextures.ScaledConservativeSRI;
+			const FCASImageData& ImageData = FCASImageData::Get(GraphBuilder);
+			const FCASImageData::FCASImageSet& ImageSet = bGetSoftwareImage ? ImageData.SoftwareImages : ImageData.HardwareImages;
+			return (TextureType == ESRITextureType::ScaledSRIForRender) ? ImageSet.ScaledSRI : ImageSet.ScaledConservativeSRI;
 		}
 	}
 
 	return nullptr;
 }
 
-void FContrastAdaptiveImageGenerator::PrepareImages(FRDGBuilder& GraphBuilder, const FSceneViewFamily& ViewFamily, const FMinimalSceneTextures& SceneTextures)
+void FContrastAdaptiveImageGenerator::PrepareImages(FRDGBuilder& GraphBuilder, const FSceneViewFamily& ViewFamily, const FMinimalSceneTextures& SceneTextures, bool bPrepareHardwareImages, bool bPrepareSoftwareImages)
 {
 	RDG_EVENT_SCOPE(GraphBuilder, "ContrastAdaptiveShading");
 
 	check(!ViewFamily.Views.IsEmpty());
 	check(ViewFamily.Views[0]->bIsViewInfo);
+	check(bPrepareHardwareImages || bPrepareSoftwareImages);
 
 	for (const FSceneView* View : ViewFamily.Views)
 	{
@@ -490,23 +535,31 @@ void FContrastAdaptiveImageGenerator::PrepareImages(FRDGBuilder& GraphBuilder, c
 		const FViewInfo* ViewInfo = static_cast<const FViewInfo*>(View);
 		if (View->bCameraCut || !FVariableRateShadingImageManager::IsVRSCompatibleWithView(*ViewInfo) || !ViewInfo->PrevViewInfo.LuminanceHistory)
 		{
-			// CAS is not supported unless all views are set up to support it
-			return;
+			return; // CAS is not supported unless all views are set up to support it
 		}
 	}
 
-	FVRSTextures& VRSTextures = GraphBuilder.Blackboard.Create<FVRSTextures>();
+	FCASImageData& ImageData = GraphBuilder.Blackboard.Create<FCASImageData>();
 
 	FIntRect PostProcessViewRect = GetFullPostProcessOutputRect(ViewFamily);
 
-	VRSTextures.Create(GraphBuilder, ViewFamily, PostProcessViewRect);
-	AddCreateShadingRateImagePass(GraphBuilder, ViewFamily, PostProcessViewRect);
-	AddReprojectImageBasedVRSPass(GraphBuilder, SceneTextures, ViewFamily);
+	ImageData.Create(GraphBuilder, ViewFamily, PostProcessViewRect, bPrepareHardwareImages, bPrepareSoftwareImages);
+	AddCreateShadingRateImagePass(GraphBuilder, ViewFamily, PostProcessViewRect, bPrepareHardwareImages, bPrepareSoftwareImages);
+
+	if (bPrepareHardwareImages)
+	{
+		AddReprojectImageBasedVRSPass(GraphBuilder, SceneTextures, ViewFamily, false);
+	}
+	if (bPrepareSoftwareImages)
+	{
+		AddReprojectImageBasedVRSPass(GraphBuilder, SceneTextures, ViewFamily, true);
+	}
+	
 }
 
 bool FContrastAdaptiveImageGenerator::IsEnabled() const
 {
-	return GRHISupportsAttachmentVariableRateShading && GRHIAttachmentVariableRateShadingEnabled && (CVarCASContrastAdaptiveShading.GetValueOnRenderThread() != 0);
+	return CVarCASContrastAdaptiveShading.GetValueOnRenderThread() > 0;
 }
 
 bool FContrastAdaptiveImageGenerator::IsSupportedByView(const FSceneView& View) const
@@ -516,9 +569,9 @@ bool FContrastAdaptiveImageGenerator::IsSupportedByView(const FSceneView& View) 
 	return !View.bIsSceneCapture && bCompatibleWithOutputType;
 }
 
-FRDGTextureRef FContrastAdaptiveImageGenerator::GetDebugImage(FRDGBuilder& GraphBuilder, const FViewInfo& ViewInfo, FVariableRateShadingImageManager::EVRSImageType ImageType)
+FRDGTextureRef FContrastAdaptiveImageGenerator::GetDebugImage(FRDGBuilder& GraphBuilder, const FViewInfo& ViewInfo, FVariableRateShadingImageManager::EVRSImageType ImageType, bool bGetSoftwareImage)
 {
-	if (!CVarCASPreview.GetValueOnRenderThread() || !FVRSTextures::IsInitialized(GraphBuilder))
+	if (!CVarCASPreview.GetValueOnRenderThread() || !FCASImageData::IsInitialized(GraphBuilder))
 	{
 		return nullptr;
 	}
@@ -529,17 +582,18 @@ FRDGTextureRef FContrastAdaptiveImageGenerator::GetDebugImage(FRDGBuilder& Graph
 		PreviewType = ESRIPreviewType::BeforeReprojection;
 	}
 
-	const FVRSTextures& VRSTextures = FVRSTextures::Get(GraphBuilder);
+	const FCASImageData& ImageData = FCASImageData::Get(GraphBuilder);
+	const FCASImageData::FCASImageSet& ImageSet = bGetSoftwareImage ? ImageData.SoftwareImages : ImageData.HardwareImages;
 	switch (PreviewType)
 	{
 	case ESRIPreviewType::Projected:
-		return VRSTextures.ScaledSRI;
+		return ImageSet.ScaledSRI;
 		break;
 	case ESRIPreviewType::ProjectedConservative:
-		return VRSTextures.ScaledConservativeSRI;
+		return ImageSet.ScaledConservativeSRI;
 		break;
 	case ESRIPreviewType::BeforeReprojection:
-		return VRSTextures.ConstructedSRI;
+		return ImageSet.ConstructedSRI;
 		break;
 	}
 

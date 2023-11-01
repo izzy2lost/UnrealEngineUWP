@@ -55,9 +55,9 @@ FFBFoveationImageGenerator::FFBFoveationImageGenerator(bool bIsFoveationExtensio
 	OpenXRHMD = HMD;
 }
 
-FRDGTextureRef FFBFoveationImageGenerator::GetImage(FRDGBuilder& GraphBuilder, const FViewInfo& ViewInfo, FVariableRateShadingImageManager::EVRSImageType ImageType)
+FRDGTextureRef FFBFoveationImageGenerator::GetImage(FRDGBuilder& GraphBuilder, const FViewInfo& ViewInfo, FVariableRateShadingImageManager::EVRSImageType ImageType, bool bGetSoftwareImage)
 {
-	if (!bFoveationExtensionSupported || !OpenXRHMD || FoveationImages.IsEmpty())
+	if (!bFoveationExtensionSupported || !OpenXRHMD || FoveationImages.IsEmpty() || bGetSoftwareImage)
 	{
 		return nullptr;
 	}
@@ -75,7 +75,7 @@ FRDGTextureRef FFBFoveationImageGenerator::GetImage(FRDGBuilder& GraphBuilder, c
 	}
 }
 
-void FFBFoveationImageGenerator::PrepareImages(FRDGBuilder& GraphBuilder, const FSceneViewFamily& ViewFamily, const FMinimalSceneTextures& SceneTextures)
+void FFBFoveationImageGenerator::PrepareImages(FRDGBuilder& GraphBuilder, const FSceneViewFamily& ViewFamily, const FMinimalSceneTextures& SceneTextures, bool bPrepareHardwareImages, bool bPrepareSoftwareImages)
 {
 	//Not implemented as images are updated in UpdateFoveationImages only
 	//when foveation parameters change or when the color swapchain is reallocated.
@@ -98,7 +98,7 @@ bool FFBFoveationImageGenerator::IsSupportedByView(const FSceneView& View) const
 }
 
 // This is currently not implemented.
-FRDGTextureRef FFBFoveationImageGenerator::GetDebugImage(FRDGBuilder& GraphBuilder, const FViewInfo& ViewInfo, FVariableRateShadingImageManager::EVRSImageType ImageType)
+FRDGTextureRef FFBFoveationImageGenerator::GetDebugImage(FRDGBuilder& GraphBuilder, const FViewInfo& ViewInfo, FVariableRateShadingImageManager::EVRSImageType ImageType, bool bGetSoftwareImage)
 {
 	return nullptr;
 }

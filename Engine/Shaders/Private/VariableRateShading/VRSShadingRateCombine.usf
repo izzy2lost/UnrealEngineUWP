@@ -27,7 +27,7 @@ uint ShadingRateMax(uint InputRate0, uint InputRate1)
 	return EncodeShadingRate(DecodedMaxRate);
 }
 
-[numthreads(THREADGROUP_SIZEX, THREADGROUP_SIZEY, 1)]
+[numthreads(THREADGROUP_SIZE_XY, THREADGROUP_SIZE_XY, 1)]
 void CombineShadingRateTextures(uint3 DispatchThreadId : SV_DispatchThreadID)
 {
 	const uint2 TexelCoord = DispatchThreadId.xy;

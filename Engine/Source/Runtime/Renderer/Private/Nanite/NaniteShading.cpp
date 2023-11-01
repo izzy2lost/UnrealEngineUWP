@@ -144,19 +144,24 @@ static uint32 GetShadingRateTileSizeBits()
 {
 	uint32 TileSizeBits = 0;
 
-	if (GNaniteSoftwareVRS != 0 && GRHISupportsAttachmentVariableRateShading)
+	if (GNaniteSoftwareVRS != 0)
 	{
-		// Technically these could be different, but currently never in practice
-		// 8x8, 16x16, or 32x32 for DX12 Tier2 HW VRS
-		ensure
-		(
-			GRHIVariableRateShadingImageTileMinWidth == GRHIVariableRateShadingImageTileMinHeight &&
-			GRHIVariableRateShadingImageTileMinWidth == GRHIVariableRateShadingImageTileMaxWidth &&
-			GRHIVariableRateShadingImageTileMinWidth == GRHIVariableRateShadingImageTileMaxHeight &&
-			FMath::IsPowerOfTwo(GRHIVariableRateShadingImageTileMinWidth)
-		);
+		bool bUseSoftwareImage = GVRSImageManager.IsSoftwareVRSEnabledForFrame();
+		if (!bUseSoftwareImage)
+		{
+			// Technically these could be different, but currently never in practice
+			// 8x8, 16x16, or 32x32 for DX12 Tier2 HW VRS
+			ensure
+			(
+				GRHIVariableRateShadingImageTileMinWidth == GRHIVariableRateShadingImageTileMinHeight &&
+				GRHIVariableRateShadingImageTileMinWidth == GRHIVariableRateShadingImageTileMaxWidth &&
+				GRHIVariableRateShadingImageTileMinWidth == GRHIVariableRateShadingImageTileMaxHeight &&
+				FMath::IsPowerOfTwo(GRHIVariableRateShadingImageTileMinWidth)
+			);
+		}
 
-		TileSizeBits = FMath::FloorLog2(GRHIVariableRateShadingImageTileMinWidth);
+		uint32 TileSize = GVRSImageManager.GetSRITileSize(bUseSoftwareImage).X;
+		TileSizeBits = FMath::FloorLog2(TileSize);
 	}
 
 	return TileSizeBits;
@@ -168,7 +173,8 @@ static FRDGTextureRef GetShadingRateImage(FRDGBuilder& GraphBuilder, const FView
 
 	if (GetShadingRateTileSizeBits() != 0)
 	{
-		ShadingRateImage = GVRSImageManager.GetVariableRateShadingImage(GraphBuilder, ViewInfo, FVariableRateShadingImageManager::EVRSPassType::NaniteEmitGBufferPass);
+		bool bUseSoftwareImage = GVRSImageManager.IsSoftwareVRSEnabledForFrame();
+		ShadingRateImage = GVRSImageManager.GetVariableRateShadingImage(GraphBuilder, ViewInfo, FVariableRateShadingImageManager::EVRSPassType::NaniteEmitGBufferPass, bUseSoftwareImage);
 	}
 
 	if (ShadingRateImage == nullptr)

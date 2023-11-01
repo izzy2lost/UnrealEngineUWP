@@ -120,10 +120,10 @@ public:
 
 IMPLEMENT_GLOBAL_SHADER(FComputeVariableRateShadingImageGeneration, "/Engine/Private/VariableRateShading/VRSShadingRateFoveated.usf", "GenerateShadingRateTexture", SF_Compute);
 
-FRDGTextureRef FFoveatedImageGenerator::GetImage(FRDGBuilder& GraphBuilder, const FViewInfo& ViewInfo, FVariableRateShadingImageManager::EVRSImageType ImageType)
+FRDGTextureRef FFoveatedImageGenerator::GetImage(FRDGBuilder& GraphBuilder, const FViewInfo& ViewInfo, FVariableRateShadingImageManager::EVRSImageType ImageType, bool bGetSoftwareImage)
 {
 	// Generator only supports up to two side-by-side views
-	if (ImageType == FVariableRateShadingImageManager::EVRSImageType::Disabled || ViewInfo.StereoViewIndex > 1)
+	if (ImageType == FVariableRateShadingImageManager::EVRSImageType::Disabled || ViewInfo.StereoViewIndex > 1 || bGetSoftwareImage)
 	{
 		return nullptr;
 	}
@@ -133,8 +133,13 @@ FRDGTextureRef FFoveatedImageGenerator::GetImage(FRDGBuilder& GraphBuilder, cons
 	}
 }
 
-void FFoveatedImageGenerator::PrepareImages(FRDGBuilder& GraphBuilder, const FSceneViewFamily& ViewFamily, const FMinimalSceneTextures& SceneTextures)
+void FFoveatedImageGenerator::PrepareImages(FRDGBuilder& GraphBuilder, const FSceneViewFamily& ViewFamily, const FMinimalSceneTextures& SceneTextures, bool bPrepareHardwareImages, bool bPrepareSoftwareImages)
 {
+	if (!bPrepareHardwareImages)
+	{
+		// Software images unsupported for now
+		return;
+	}
 
 	// VRS level parameters - pretty arbitrary right now, later should depend on device characteristics
 	static const TArray<float> kFoveationFullRateCutoffs = { 1.0f, 0.7f, 0.50f, 0.35f, 0.35f };
@@ -257,7 +262,7 @@ FVariableRateShadingImageManager::EVRSSourceType FFoveatedImageGenerator::GetTyp
 	return IsGazeTrackingEnabled() ? FVariableRateShadingImageManager::EVRSSourceType::FixedFoveation : FVariableRateShadingImageManager::EVRSSourceType::EyeTrackedFoveation;
 }
 
-FRDGTextureRef FFoveatedImageGenerator::GetDebugImage(FRDGBuilder& GraphBuilder, const FViewInfo& ViewInfo, FVariableRateShadingImageManager::EVRSImageType ImageType)
+FRDGTextureRef FFoveatedImageGenerator::GetDebugImage(FRDGBuilder& GraphBuilder, const FViewInfo& ViewInfo, FVariableRateShadingImageManager::EVRSImageType ImageType, bool bGetSoftwareImage)
 {
 	if (CVarFoveationPreview.GetValueOnRenderThread() && ImageType != FVariableRateShadingImageManager::EVRSImageType::Disabled)
 	{
