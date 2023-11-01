@@ -43,6 +43,13 @@ namespace AudioGameplayVolumeConsoleVariables
 		TEXT("A random delta to add to update rate to avoid performance heartbeats."),
 		ECVF_Default);
 
+	int32 bAudioThreadCmdRollback = 0;
+	FAutoConsoleVariableRef CVarAudioThreadCmdRollback(
+		TEXT("au.AudioGameplayVolumes.AudioThreadCmdRollback"),
+		bAudioThreadCmdRollback,
+		TEXT("When non-zero, uses old code to rollback late thread command change."),
+		ECVF_Default);
+
 } // namespace AudioGameplayVolumeConsoleVariables
 
 void FAudioGameplayActiveSoundInfo::Update(double ListenerInteriorStartTime)
@@ -372,14 +379,35 @@ void UAudioGameplayVolumeSubsystem::RemoveVolumeComponent(const UAudioGameplayVo
 	}
 
 	// Remove representation of volume from audio thread
-	TWeakObjectPtr<UAudioGameplayVolumeSubsystem> WeakThis(this);
-	FAudioThread::RunCommandOnAudioThread([WeakThis, ComponentID]()
+	if (AudioGameplayVolumeConsoleVariables::bAudioThreadCmdRollback)
 	{
-		if (WeakThis.IsValid())
+		TWeakObjectPtr<UAudioGameplayVolumeSubsystem> WeakThis(this);
+		FAudioThread::RunCommandOnAudioThread([WeakThis, ComponentID]()
 		{
-			WeakThis->RemoveProxy(ComponentID);
-		}
-	});
+			if (WeakThis.IsValid())
+			{
+				WeakThis->RemoveProxy(ComponentID);
+			}
+		});
+	}
+	else
+	{
+		Audio::FDeviceId CurrentDeviceId = GetAudioDeviceId();
+		FAudioThread::RunCommandOnAudioThread([CurrentDeviceId, ComponentID]()
+		{
+			if (FAudioDeviceManager* AudioDeviceManager = FAudioDeviceManager::Get())
+			{
+				FAudioDeviceHandle DeviceHandle = AudioDeviceManager->GetAudioDevice(CurrentDeviceId);
+				if (DeviceHandle.IsValid())
+				{
+					if (UAudioGameplayVolumeSubsystem* AGVSubsystem = DeviceHandle->GetSubsystem<UAudioGameplayVolumeSubsystem>())
+					{
+						AGVSubsystem->RemoveProxy(ComponentID);
+					}
+				}
+			}
+		});
+	}
 }
 
 bool UAudioGameplayVolumeSubsystem::DoesSupportWorld(UWorld* World) const
