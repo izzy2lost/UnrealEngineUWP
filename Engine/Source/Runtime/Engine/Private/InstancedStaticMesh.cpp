@@ -3724,18 +3724,10 @@ bool UInstancedStaticMeshComponent::UpdateInstanceTransform(const int32 Instance
 
 	FInstancedStaticMeshInstanceData& InstanceData = PerInstanceSMData[InstanceIndex];
 
+	const FTransform PreviousTransform(InstanceData.Transform);
+
 	// TODO: Computing LocalTransform is useless when we're updating the world location for the entire mesh.
 	// Should find some way around this for performance.
-
-	if (IsNavigationRelevant() && SupportsPartialNavigationUpdate())
-	{
-		// Append instance's previous and new transforms to dirty both areas
-		PartialNavigationUpdates(
-			{
-				FTransform(InstanceData.Transform) * GetComponentTransform(),
-				(bWorldSpace ? NewInstanceTransform : NewInstanceTransform * GetComponentTransform())
-			});
-	}
 
 	// Render data uses local transform of the instance
 	const FTransform LocalTransform = bWorldSpace ? NewInstanceTransform.GetRelativeTransform(GetComponentTransform()) : NewInstanceTransform;
@@ -3747,6 +3739,17 @@ bool UInstancedStaticMeshComponent::UpdateInstanceTransform(const int32 Instance
 		// Physics uses world transform of the instance
 		const FTransform WorldTransform = bWorldSpace ? NewInstanceTransform : (LocalTransform * GetComponentTransform());
 		UpdateInstanceBodyTransform(InstanceIndex, WorldTransform, bTeleport);
+	}
+
+	if (IsNavigationRelevant() && SupportsPartialNavigationUpdate())
+	{
+		// Perform partial update after instance gets updated since we need NavigationBounds using up to date instances.
+		// Append instance's previous and new transforms to dirty both areas
+		PartialNavigationUpdates(
+			{
+				PreviousTransform * GetComponentTransform(),
+				(bWorldSpace ? NewInstanceTransform : NewInstanceTransform * GetComponentTransform())
+			});
 	}
 
 	if (bMarkRenderStateDirty)

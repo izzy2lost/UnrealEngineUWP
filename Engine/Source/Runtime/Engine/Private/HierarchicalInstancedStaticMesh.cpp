@@ -2286,10 +2286,25 @@ bool UHierarchicalInstancedStaticMeshComponent::UpdateInstanceTransform(int32 In
 	const FTransform NewLocalTransform = bWorldSpace ? NewInstanceTransform.GetRelativeTransform(GetComponentTransform()) : NewInstanceTransform;
 	const FVector NewLocalLocation = NewLocalTransform.GetTranslation();
 
-	// if we are only updating rotation/scale we update the instance directly in the cluster tree
 	const bool bIsOmittedInstance = (RenderIndex == INDEX_NONE);
 	const bool bIsBuiltInstance = !bIsOmittedInstance && RenderIndex < NumBuiltRenderInstances;
-	const bool bDoInPlaceUpdate = bIsBuiltInstance && NewLocalLocation.Equals(OldTransform.GetOrigin());
+
+	bool bAllowInPlaceUpdateForRotationOrScaleChange = true;
+
+	// Code path using 'bDoInPlaceUpdate' indicates that it updates the cluster tree but
+	// bounds are not updated until next tree rebuild and some overlapping queries rely on those bounds.
+	// We want to make sure a manipulation in an Editor world will fully update the information so queries
+	// will return proper information to callers (e.g. navigation rebuild and preview)
+#if WITH_EDITOR
+	if (const UWorld* World = GetWorld())
+	{
+		const bool bIsGameWorld = World->IsGameWorld();
+		bAllowInPlaceUpdateForRotationOrScaleChange = bIsGameWorld;
+	}
+#endif // WITH_EDITOR
+
+	// if we are only updating rotation/scale then we update the instance directly in the cluster tree
+	const bool bDoInPlaceUpdate = bAllowInPlaceUpdateForRotationOrScaleChange && bIsBuiltInstance && NewLocalLocation.Equals(OldTransform.GetOrigin());
 
 	bool Result = Super::UpdateInstanceTransform(InstanceIndex, NewInstanceTransform, bWorldSpace, bMarkRenderStateDirty, bTeleport);
 	
@@ -3142,7 +3157,7 @@ int32 UHierarchicalInstancedStaticMeshComponent::GetOverlappingSphereCount(const
 	for (const FTransform& TM : Transforms)
 	{
 		const FVector Center = TM.GetLocation();
-		const FSphere InstanceSphere(Center, MeshBounds.SphereRadius);
+		const FSphere InstanceSphere(Center, MeshBounds.SphereRadius * TM.GetScale3D().GetMax());
 		
 		if (Sphere.Intersects(InstanceSphere))
 		{
@@ -3162,9 +3177,7 @@ int32 UHierarchicalInstancedStaticMeshComponent::GetOverlappingBoxCount(const FB
 	const FBoxSphereBounds MeshBounds = GetStaticMesh()->GetBounds();
 	for(FTransform& T : Transforms)
 	{
-		const FVector Center = T.GetLocation();
-		const FBox OtherBox(FVector(Center - MeshBounds.BoxExtent), FVector(Center + MeshBounds.BoxExtent));
-
+		const FBox OtherBox(MeshBounds.TransformBy(T).GetBox());
 		if(Box.Intersect(OtherBox))
 		{
 			Count++;
@@ -3183,8 +3196,7 @@ void UHierarchicalInstancedStaticMeshComponent::GetOverlappingBoxTransforms(cons
 	const FBoxSphereBounds MeshBounds = GetStaticMesh()->GetBounds();
 	OutTransforms.RemoveAllSwap([&MeshBounds, &Box](const FTransform& Transform) -> bool
 	{
-		const FVector Center = Transform.GetLocation();
-		const FBox OtherBox(FVector(Center - MeshBounds.BoxExtent), FVector(Center + MeshBounds.BoxExtent));
+		const FBox OtherBox(MeshBounds.TransformBy(Transform).GetBox());
 		return !Box.Intersect(OtherBox); 
 	});
 }
