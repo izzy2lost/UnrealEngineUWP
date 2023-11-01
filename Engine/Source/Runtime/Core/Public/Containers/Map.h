@@ -917,7 +917,10 @@ public:
 			}
 		}
 
-		/** Removes the current pair from the map. */
+		/** Removes the current pair from the map without losing the iteration
+		 * position. Increment before using the iterator again, but after that
+		 * it will point at the element that was after the removed element.
+		 */
 		FORCEINLINE void RemoveCurrent()
 		{
 			TBaseIterator<false>::PairIt.RemoveCurrent();
