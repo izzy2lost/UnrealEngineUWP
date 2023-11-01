@@ -48,7 +48,7 @@ public:
 	/** Settings for a FSoundWaveProxyReader. */
 	struct FSettings
 	{
-		uint32 MaxDecodeSizeInFrames = 8192;
+		uint32 MaxDecodeSizeInFrames = 1024;
 		float StartTimeInSeconds = 0.f;
 		bool bIsLooping = false;
 		float LoopStartTimeInSeconds = 0.f;
