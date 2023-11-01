@@ -199,6 +199,9 @@ private:
 	/** Bake Inersion of Additive Control Rig to Rest Pose*/
 	void BakeInvertedPose(UControlRig* InControlRig, UMovieSceneControlRigParameterTrack* Track);
 
+	/** Convert an absolute control rit to a layered control rig */
+	void ConvertIsLayered(UMovieSceneControlRigParameterTrack* Track);
+
 	/** Set Up EditMode for Specified Control Rig*/
 	void SetUpEditModeIfNeeded(UControlRig* ControlRig);
 

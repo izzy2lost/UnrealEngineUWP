@@ -248,16 +248,16 @@ public:
 	/** Opens up the space picker widget */
 	void OpenSpacePickerWidget();
 
-private:
-	
-	/** Whether or not we should Frame Selection or not*/
-	bool CanFrameSelection();
-
 	/** Reset Transforms */
 	void ZeroTransforms(bool bSelectionOnly);
 
 	/** Invert Input Pose */
 	void InvertInputPose(bool bSelectionOnly);
+
+private:
+	
+	/** Whether or not we should Frame Selection or not*/
+	bool CanFrameSelection();
 
 	/** Increase Shape Size */
 	void IncreaseShapeSize();
