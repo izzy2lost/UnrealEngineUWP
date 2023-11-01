@@ -220,6 +220,16 @@ void UAudioComponentGroup::AddExternalComponent(UAudioComponent* ComponentToAdd)
 	}
 }
 
+void UAudioComponentGroup::RemoveExternalComponent(UAudioComponent* ComponentToRemove)
+{
+	if (ComponentToRemove == nullptr)
+	{
+		return;
+	}
+
+	ExternalComponents.Remove(ComponentToRemove);
+}
+
 void UAudioComponentGroup::EnableVirtualization()
 {
 	if (!bIsVirtualized)
