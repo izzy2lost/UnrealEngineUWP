@@ -1565,10 +1565,14 @@ namespace Audio
 			bool bIsNowSilent = true;
 			int i = 0;
 #if PLATFORM_ENABLE_VECTORINTRINSICS
-			for (; i < OutAudioBuffer.Num(); i += 4)
+			int SimdNum = OutAudioBuffer.Num() & 0xFFFFFFF0;
+			for (; i < SimdNum; i += 16)
 			{
-				VectorRegister4Float Samples = VectorLoad(&OutAudioBuffer[i]);
-				if (VectorAnyGreaterThan(Samples, GlobalVectorConstants::SmallNumber))
+				VectorRegister4x4Float Samples = VectorLoad16(&OutAudioBuffer[i]);
+				if (   VectorAnyGreaterThan(VectorAbs(Samples.val[0]), GlobalVectorConstants::SmallNumber)
+					|| VectorAnyGreaterThan(VectorAbs(Samples.val[1]), GlobalVectorConstants::SmallNumber)
+					|| VectorAnyGreaterThan(VectorAbs(Samples.val[2]), GlobalVectorConstants::SmallNumber)
+					|| VectorAnyGreaterThan(VectorAbs(Samples.val[3]), GlobalVectorConstants::SmallNumber))
 				{
 					bIsNowSilent = false;
 					i = INT_MAX;
@@ -1581,7 +1585,7 @@ namespace Audio
 			for (; i < OutAudioBuffer.Num(); ++i)
 			{
 				// As soon as we hit a non-silent sample, we're not silent
-				if (OutAudioBuffer[i] > SMALL_NUMBER)
+				if (FMath::Abs(OutAudioBuffer[i]) > SMALL_NUMBER)
 				{
 					bIsNowSilent = false;
 					break;

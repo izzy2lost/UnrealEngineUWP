@@ -35,6 +35,12 @@ namespace Audio
 		const float Loge10 = FMath::Loge(10.f);
 		const int32 SimdMask = 0xFFFFFFFC;
 		const int32 NotSimdMask = 0x00000003;
+
+		const int32 Simd8Mask = 0xFFFFFFF8;
+		const int32 NotSimd8Mask = 0x00000007;
+
+		const int32 Simd16Mask = 0xFFFFFFF0;
+		const int32 NotSimd16Mask = 0x0000000F;
 	}
 
 	void ArraySum(TArrayView<const float> InValues, float& OutSum)
@@ -2032,27 +2038,18 @@ namespace Audio
 		{
 			VectorRegister4Float GainVector = VectorLoadFloat1(&Gain);
 			int32 i = 0;
-#if PLATFORM_ENABLE_VECTORINTRINSICS_NEON
-			// this approach is ~10% faster than the other one on NEON
-			for (; i < Num; i += 16)
+			const int32 SimdNum = Num & MathIntrinsics::Simd16Mask;
+			for (; i < SimdNum; i += 16)
 			{
-				float32x4x4_t Input = vld1q_f32_x4(&InData[i]);
-				float32x4x4_t Output = vld1q_f32_x4(&InOutData[i]);
+				// manually unrolling the loop produces a bit faster code
+				VectorRegister4x4Float Input = VectorLoad16(&InData[i]);
+				VectorRegister4x4Float Output = VectorLoad16(&InOutData[i]);
 				Output.val[0] = VectorMultiplyAdd(Input.val[0], GainVector, Output.val[0]);
 				Output.val[1] = VectorMultiplyAdd(Input.val[1], GainVector, Output.val[1]);
 				Output.val[2] = VectorMultiplyAdd(Input.val[2], GainVector, Output.val[2]);
 				Output.val[3] = VectorMultiplyAdd(Input.val[3], GainVector, Output.val[3]);
-				vst1q_f32_x4(&InOutData[i], Output);
+				VectorStore16(Output, &InOutData[i]);
 			}
-#else
-			for (; i < Num; i += AUDIO_NUM_FLOATS_PER_VECTOR_REGISTER)
-			{
-				VectorRegister4Float Input = VectorLoad(&InData[i]);
-				VectorRegister4Float Output = VectorLoad(&InOutData[i]);
-				Output = VectorMultiplyAdd(Input, GainVector, Output);
-				VectorStore(Output, &InOutData[i]);
-			}
-#endif //~PLATFORM_ENABLE_VECTORINTRINSICS_NEON
 
 			for (; i < Num; ++i)
 			{
@@ -2080,26 +2077,18 @@ namespace Audio
 		else
 		{
 			int32 i = 0;
-#if PLATFORM_ENABLE_VECTORINTRINSICS_NEON
-			for (; i < Num; i += 16)
+			const int32 SimdNum = Num & MathIntrinsics::Simd16Mask;
+			for (; i < SimdNum; i += 16)
 			{
-				float32x4x4_t Input = vld1q_f32_x4(&InData[i]);
-				float32x4x4_t Output = vld1q_f32_x4(&InOutData[i]);
+				// manually unrolling the loop produces a bit faster code
+				VectorRegister4x4Float Input = VectorLoad16(&InData[i]);
+				VectorRegister4x4Float Output = VectorLoad16(&InOutData[i]);
 				Output.val[0] = VectorAdd(Input.val[0], Output.val[0]);
 				Output.val[1] = VectorAdd(Input.val[1], Output.val[1]);
 				Output.val[2] = VectorAdd(Input.val[2], Output.val[2]);
 				Output.val[3] = VectorAdd(Input.val[3], Output.val[3]);
-				vst1q_f32_x4(&InOutData[i], Output);
+				VectorStore16(Output, &InOutData[i]);
 			}
-#else
-			for (; i < Num; i += AUDIO_NUM_FLOATS_PER_VECTOR_REGISTER)
-			{
-				VectorRegister4Float Output = VectorLoad(&InOutData[i]);
-				VectorRegister4Float Input = VectorLoad(&InData[i]);
-				Output = VectorAdd(Input, Output);
-				VectorStore(Output, &InOutData[i]);
-			}
-#endif
 
 			for (; i < Num; ++i)
 			{
@@ -2235,19 +2224,20 @@ namespace Audio
 		const VectorRegister4Float Multiplier = VectorSetFloat1(ConversionValue);
 		int32 i = 0;
 #if PLATFORM_ENABLE_VECTORINTRINSICS_NEON
-		for (; i < Num; i += 8)
+		const int32 SimdNum = Num & MathIntrinsics::Simd8Mask;
+		for (; i < SimdNum; i += 8)
 		{
-			const VectorRegister4Float InVector1 = VectorLoad(&InputPtr[i]);
-			const VectorRegister4Float InVector2 = VectorLoad(&InputPtr[i + 4]);
-			const VectorRegister4Float ScaledVector1 = VectorMultiply(InVector1, Multiplier);
-			const VectorRegister4Float ScaledVector2 = VectorMultiply(InVector2, Multiplier);
+			const float32x4x2_t InVector = vld1q_f32_x2(&InputPtr[i]);
+			const VectorRegister4Float ScaledVector1 = VectorMultiply(InVector.val[0], Multiplier);
+			const VectorRegister4Float ScaledVector2 = VectorMultiply(InVector.val[1], Multiplier);
 			const VectorRegister4Int IntVector1 = VectorFloatToInt(ScaledVector1);
 			const VectorRegister4Int IntVector2 = VectorFloatToInt(ScaledVector2);
 			const int16x8_t Result = vmovn_high_s32(vmovn_u32(IntVector1), IntVector2);
 			vst1q_s16(&OutPtr[i], Result);
 		}
 #else
-		for (; i < Num; i += AUDIO_NUM_FLOATS_PER_VECTOR_REGISTER)
+		const int32 SimdNum = Num & MathIntrinsics::SimdMask;
+		for (; i < SimdNum; i += AUDIO_NUM_FLOATS_PER_VECTOR_REGISTER)
 		{
 			const VectorRegister4Float InVector = VectorLoad(&InputPtr[i]);
 			const VectorRegister4Float ScaledVector = VectorMultiply(InVector, Multiplier);
@@ -2255,10 +2245,10 @@ namespace Audio
 
 			const AlignedFloat4 ScaledFloatArray(ScaledVector);
 
-			OutPtr[i] =		(int16)ScaledFloatArray[0];
-			OutPtr[i + 1] =	(int16)ScaledFloatArray[1];
-			OutPtr[i + 2] =	(int16)ScaledFloatArray[2];
-			OutPtr[i + 3] =	(int16)ScaledFloatArray[3];
+			OutPtr[i + 0] = (int16)ScaledFloatArray[0];
+			OutPtr[i + 1] = (int16)ScaledFloatArray[1];
+			OutPtr[i + 2] = (int16)ScaledFloatArray[2];
+			OutPtr[i + 3] = (int16)ScaledFloatArray[3];
 		}
 #endif //~PLATFORM_ENABLE_VECTORINTRINSICS_NEON
 
@@ -2284,19 +2274,21 @@ namespace Audio
 
 		int32 i = 0;
 #if PLATFORM_ENABLE_VECTORINTRINSICS_NEON
-		for (; i < Num; i += 8)
+		const int32 SimdNum = Num & MathIntrinsics::Simd8Mask;
+		for (; i < SimdNum; i += 8)
 		{
 			int16x8_t Data = vld1q_s16(&InputPtr[i]);
 			int32x4_t VecA = vmovl_s16(vget_low_s16(Data));
 			int32x4_t VecB = vmovl_high_s16(Data);
-			VectorRegister4Float FloatVecA = VectorMultiply(vcvtq_f32_s32(VecA), Multiplier);
-			VectorRegister4Float FloatVecB = VectorMultiply(vcvtq_f32_s32(VecB), Multiplier);
-			VectorStore(FloatVecA, &OutPtr[i]);
-			VectorStore(FloatVecB, &OutPtr[i + 4]);
+			float32x4x2_t FloatVec;
+			FloatVec.val[0] = VectorMultiply(vcvtq_f32_s32(VecA), Multiplier);
+			FloatVec.val[1] = VectorMultiply(vcvtq_f32_s32(VecB), Multiplier);
+			vst1q_f32_x2(&OutPtr[i], FloatVec);
 		}
 #else
 		AlignedFloat4 FloatArray(GlobalVectorConstants::FloatZero);
-		for (; i < Num; i += AUDIO_NUM_FLOATS_PER_VECTOR_REGISTER)
+		const int32 SimdNum = Num & MathIntrinsics::SimdMask;
+		for (; i < SimdNum; i += AUDIO_NUM_FLOATS_PER_VECTOR_REGISTER)
 		{
 			FloatArray[0] = (float)InputPtr[i];
 			FloatArray[1] = (float)InputPtr[i + 1];

@@ -109,6 +109,7 @@ typedef float32x4_t GCC_ALIGN(16) VectorRegister4Float;
 typedef float64x2_t GCC_ALIGN(16) VectorRegister2Double;
 typedef int32x4_t  GCC_ALIGN(16) VectorRegister4Int;
 typedef int64x2_t GCC_ALIGN(16) VectorRegister2Int64;
+typedef float32x4x4_t GCC_ALIGN(16) VectorRegister4x4Float;
 
 FORCEINLINE constexpr VectorRegister4Int MakeVectorRegisterIntConstant(int32 X, int32 Y, int32 Z, int32 W)
 {
@@ -473,6 +474,17 @@ FORCEINLINE VectorRegister4Double VectorLoad(const double* Ptr)
 }
 
 /**
+ * Loads 16 floats from unaligned memory into 4 vector registers.
+ *
+ * @param Ptr	Unaligned memory pointer to the 4 floats
+ * @return		VectorRegister4x4Float containing 16 floats
+ */
+FORCEINLINE VectorRegister4x4Float VectorLoad16(const float* Ptr)
+{
+	return vld1q_f32_x4(Ptr);
+}
+
+/**
  * Loads 2 floats from unaligned memory into X and Y and duplicates them in Z and W.
  *
  * @param Ptr	Unaligned memory pointer to the floats
@@ -679,6 +691,17 @@ FORCEINLINE void VectorStore(const VectorRegister4Float& Vec, float* Ptr)
 FORCEINLINE void VectorStore(const VectorRegister4Double& Vec, double* Ptr)
 {
 	vst1q_f64_x2(Ptr, *(float64x2x2_t*)&Vec);
+}
+
+/**
+ * Stores 4 vectors to memory (aligned or unaligned).
+ *
+ * @param Vec	Vector to store
+ * @param Ptr	Memory pointer
+ */
+FORCEINLINE void VectorStore16(const VectorRegister4x4Float& Vec, float* Ptr)
+{
+	vst1q_f32_x4(Ptr, Vec);
 }
 
 /**
