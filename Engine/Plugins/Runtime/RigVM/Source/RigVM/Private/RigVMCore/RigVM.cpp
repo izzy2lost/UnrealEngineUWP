@@ -1505,11 +1505,15 @@ ERigVMExecuteResult URigVM::ExecuteVM(FRigVMExtendedExecuteContext& Context, con
 
 	if(bIsRootEntry)
 	{
-		if (FRigVMProfilingInfo* RigVMProfilingInfo = Context.GetRigVMProfilingInfo())
+		if (FRigVMInstructionVisitInfo* RigVMInstructionVisitInfo = Context.GetRigVMInstructionVisitInfo())
 		{
-			if (RigVMProfilingInfo->GetFirstEntryEventInEventQueue() == NAME_None || RigVMProfilingInfo->GetFirstEntryEventInEventQueue() == InEntryName)
+			if (RigVMInstructionVisitInfo->GetFirstEntryEventInEventQueue() == NAME_None || RigVMInstructionVisitInfo->GetFirstEntryEventInEventQueue() == InEntryName)
 			{
-				RigVMProfilingInfo->SetupInstructionTracking(Instructions.Num(), true);
+				RigVMInstructionVisitInfo->SetupInstructionTracking(Instructions.Num());
+				if (FRigVMProfilingInfo* RigVMProfilingInfo = Context.GetRigVMProfilingInfo())
+				{
+					RigVMProfilingInfo->SetupInstructionTracking(Instructions.Num(), true);
+				}
 			}
 		}
 	}
@@ -1645,6 +1649,7 @@ ERigVMExecuteResult URigVM::ExecuteInstructions(FRigVMExtendedExecuteContext& Co
 
 #if WITH_EDITOR
 	TArray<FName>& FunctionNames = GetFunctionNames();
+	FRigVMInstructionVisitInfo* RigVMInstructionVisitInfo = Context.GetRigVMInstructionVisitInfo();
 	FRigVMDebugInfo* RigVMDebugInfo = Context.GetRigVMDebugInfo();
 	FRigVMProfilingInfo* RigVMProfilingInfo = Context.GetRigVMProfilingInfo();
 #endif
@@ -1681,10 +1686,10 @@ ERigVMExecuteResult URigVM::ExecuteInstructions(FRigVMExtendedExecuteContext& Co
 
 		const int32 CurrentInstructionIndex = ContextPublicData.InstructionIndex;
 
-		if (RigVMProfilingInfo != nullptr)
+		if (RigVMInstructionVisitInfo != nullptr)
 		{
-			RigVMProfilingInfo->SetInstructionVisitedDuringLastRun(ContextPublicData.InstructionIndex);
-			RigVMProfilingInfo->AddInstructionIndexToVisitOrder(ContextPublicData.InstructionIndex);
+			RigVMInstructionVisitInfo->SetInstructionVisitedDuringLastRun(ContextPublicData.InstructionIndex);
+			RigVMInstructionVisitInfo->AddInstructionIndexToVisitOrder(ContextPublicData.InstructionIndex);
 		}
 	
 #endif
@@ -2049,9 +2054,9 @@ ERigVMExecuteResult URigVM::ExecuteInstructions(FRigVMExtendedExecuteContext& Co
 		}
 
 #if WITH_EDITOR
-		if (RigVMProfilingInfo != nullptr)
+		if ((RigVMInstructionVisitInfo != nullptr) && (RigVMProfilingInfo != nullptr))
 		{
-			if (!RigVMProfilingInfo->GetInstructionVisitOrder().IsEmpty())
+			if (!RigVMInstructionVisitInfo->GetInstructionVisitOrder().IsEmpty())
 			{
 				const uint64 EndCycles = FPlatformTime::Cycles64();
 				const uint64 Cycles = EndCycles - RigVMProfilingInfo->GetStartCycles();

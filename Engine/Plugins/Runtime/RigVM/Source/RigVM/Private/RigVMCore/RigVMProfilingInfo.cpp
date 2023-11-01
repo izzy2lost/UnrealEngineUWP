@@ -4,15 +4,19 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RigVMProfilingInfo)
 
-void FRigVMProfilingInfo::SetupInstructionTracking(int32 InInstructionCount, bool bEnableProfiling)
+void FRigVMInstructionVisitInfo::SetupInstructionTracking(int32 InInstructionCount)
 {
 #if WITH_EDITOR
-
 	ResetInstructionVisitedDuringLastRun(InInstructionCount);
 	SetNumInstructionVisitedDuringLastRunZeroed(InInstructionCount);
 	ResetInstructionVisitOrder(InInstructionCount);
-	ResetInstructionCyclesDuringLastRun(InInstructionCount);
+#endif
+}
 
+void FRigVMProfilingInfo::SetupInstructionTracking(int32 InInstructionCount, bool bEnableProfiling)
+{
+#if WITH_EDITOR
+	ResetInstructionCyclesDuringLastRun(InInstructionCount);
 	if (bEnableProfiling)
 	{
 		InitInstructionCyclesDuringLastRunValues(InInstructionCount, UINT64_MAX);

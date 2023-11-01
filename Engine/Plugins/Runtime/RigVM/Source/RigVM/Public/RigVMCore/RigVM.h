@@ -445,9 +445,9 @@ public:
 	// Returns the number of times an instruction has been hit
 	int32 GetInstructionVisitedCount(const FRigVMExtendedExecuteContext& Context, int32 InIndex) const
 	{
-		if (const FRigVMProfilingInfo* RigVMProfilingInfo = Context.GetRigVMProfilingInfo())
+		if (const FRigVMInstructionVisitInfo* InstructionVisitInfo = Context.GetRigVMInstructionVisitInfo())
 		{
-			return RigVMProfilingInfo->GetInstructionVisitedCountDuringLastRun(InIndex);
+			return InstructionVisitInfo->GetInstructionVisitedCountDuringLastRun(InIndex);
 		}
 		return 0;
 	}
@@ -489,9 +489,9 @@ public:
 	// Returns the order of all instructions during the last run
 	const TArray<int32> GetInstructionVisitOrder(const FRigVMExtendedExecuteContext& Context) const
 	{
-		if (const FRigVMProfilingInfo* RigVMProfilingInfo = Context.GetRigVMProfilingInfo())
+		if (const FRigVMInstructionVisitInfo* InstructionVisitInfo = Context.GetRigVMInstructionVisitInfo())
 		{
-			return RigVMProfilingInfo->GetInstructionVisitOrder();
+			return InstructionVisitInfo->GetInstructionVisitOrder();
 		}
 
 		return TArray<int32>();
@@ -502,9 +502,9 @@ public:
 
 	const void SetFirstEntryEventInEventQueue(FRigVMExtendedExecuteContext& Context, const FName& InFirstEventName) 
 	{ 
-		if (FRigVMProfilingInfo* RigVMProfilingInfo = Context.GetRigVMProfilingInfo())
+		if (FRigVMInstructionVisitInfo* InstructionVisitInfo = Context.GetRigVMInstructionVisitInfo())
 		{
-			RigVMProfilingInfo->SetFirstEntryEventInEventQueue(InFirstEventName);
+			InstructionVisitInfo->SetFirstEntryEventInEventQueue(InFirstEventName);
 		}
 	}
 

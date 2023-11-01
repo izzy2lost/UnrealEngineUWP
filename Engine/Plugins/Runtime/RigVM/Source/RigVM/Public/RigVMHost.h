@@ -464,6 +464,7 @@ private:
 
 protected:
 	
+	FRigVMInstructionVisitInfo InstructionVisitInfo;
 	FRigVMDebugInfo DebugInfo;
 	FRigVMProfilingInfo ProfilingInfo;
 	TMap<FString, bool> LoggedMessages;

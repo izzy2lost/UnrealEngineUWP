@@ -501,6 +501,8 @@ bool URigVMHost::Execute(const FName& InEventName)
 #endif
 
 #if WITH_EDITOR
+	ExtendedExecuteContext.SetInstructionVisitInfo(&InstructionVisitInfo);
+
 	if (IsInDebugMode())
 	{
 		if (CDO)

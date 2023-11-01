@@ -776,6 +776,18 @@ struct RIGVM_API FRigVMExtendedExecuteContext
 
 	FRigVMDebugInfo* DebugInfo = nullptr;
 
+	FRigVMInstructionVisitInfo* InstructionVisitInfo = nullptr;
+
+	void SetInstructionVisitInfo(FRigVMInstructionVisitInfo* InInstructionVisitInfo)
+	{
+		InstructionVisitInfo = InInstructionVisitInfo;
+	}
+
+	FRigVMInstructionVisitInfo* GetRigVMInstructionVisitInfo() const
+	{
+		return InstructionVisitInfo;
+	}
+
 	void SetDebugInfo(FRigVMDebugInfo* InDebugInfo)
 	{
 		DebugInfo = InDebugInfo;

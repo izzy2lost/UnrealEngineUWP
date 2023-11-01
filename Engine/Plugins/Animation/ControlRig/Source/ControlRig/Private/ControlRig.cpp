@@ -688,6 +688,8 @@ bool UControlRig::Execute(const FName& InEventName)
 	}
 
 #if WITH_EDITOR
+	ExtendedExecuteContext.SetInstructionVisitInfo(&InstructionVisitInfo);
+
 	if (IsInDebugMode())
 	{
 		if (UControlRig* CDO = GetClass()->GetDefaultObject<UControlRig>())
