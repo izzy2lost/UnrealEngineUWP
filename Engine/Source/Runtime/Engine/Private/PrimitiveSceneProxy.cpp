@@ -106,7 +106,7 @@ static TAutoConsoleVariable<int32> CVarApproximateOcclusionQueries(
 	ECVF_RenderThreadSafe
 );
 
-bool GParallelGatherDynamicMeshElements = true;
+bool GParallelGatherDynamicMeshElements = false;
 static FAutoConsoleVariableRef CVarParallelGatherDynamicMeshElements(
 	TEXT("r.Visibility.DynamicMeshElements.Parallel"),
 	GParallelGatherDynamicMeshElements,
