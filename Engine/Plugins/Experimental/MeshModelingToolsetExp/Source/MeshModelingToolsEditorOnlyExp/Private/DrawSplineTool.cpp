@@ -519,6 +519,8 @@ void UDrawSplineTool::TransitionOutputMode()
 
 void UDrawSplineTool::Shutdown(EToolShutdownType ShutdownType)
 {
+	LongTransactions.CloseAll(GetToolManager());
+
 	Settings->SaveProperties(this);
 
 	if (PreviousTargetActor)
@@ -830,6 +832,8 @@ void UDrawSplineTool::OnClickPress(const FInputDeviceRay& PressPos)
 	FVector3d HitLocation, HitNormal;
 	double HitT;
 
+	LongTransactions.Open(DrawSplineToolLocals::AddPointTransactionName, GetToolManager());
+
 	// Regardless of DrawMode, start by placing a point, though don't emit a transaction until mouse up
 	if (ensure(Raycast(PressPos.WorldRay, HitLocation, HitNormal, HitT)))
 	{
@@ -968,6 +972,8 @@ void UDrawSplineTool::OnTerminateDragSequence()
 		break;
 	}
 	}
+
+	LongTransactions.Close(GetToolManager());
 }
 
 

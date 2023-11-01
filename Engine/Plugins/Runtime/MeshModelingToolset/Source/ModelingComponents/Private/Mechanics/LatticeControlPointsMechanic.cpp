@@ -193,6 +193,8 @@ void ULatticeControlPointsMechanic::SetWorld(UWorld* World)
 
 void ULatticeControlPointsMechanic::Shutdown()
 {
+	LongTransactions.CloseAll(GetParentTool()->GetToolManager());
+
 	if (PreviewGeometryActor)
 	{
 		PreviewGeometryActor->Destroy();
@@ -626,6 +628,7 @@ void ULatticeControlPointsMechanic::OnDragRectangleStarted()
 {
 	PreDragSelection = SelectedPointIDs;
 	bIsDraggingRectangle = true;
+	LongTransactions.Open(LatticePointSelectionTransactionText, GetParentTool()->GetToolManager());
 	UpdateGizmoVisibility();
 }
 
@@ -674,7 +677,6 @@ void ULatticeControlPointsMechanic::OnDragRectangleFinished(const FCameraRectang
 
 	bIsDraggingRectangle = false;
 
-	ParentTool->GetToolManager()->BeginUndoTransaction(LatticePointSelectionTransactionText);
 
 	if (!IsEqual(PreDragSelection, SelectedPointIDs))
 	{
@@ -689,7 +691,7 @@ void ULatticeControlPointsMechanic::OnDragRectangleFinished(const FCameraRectang
 	// We hid the gizmo at rectangle start, so it needs updating now.
 	UpdateGizmoLocation();
 
-	ParentTool->GetToolManager()->EndUndoTransaction();
+	LongTransactions.Close(GetParentTool()->GetToolManager());
 
 	UpdateDrawables();
 }

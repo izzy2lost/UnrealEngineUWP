@@ -9,6 +9,7 @@
 #include "InteractiveToolBuilder.h"
 #include "InteractiveToolChange.h"
 #include "ToolContextInterfaces.h" // FViewCameraState
+#include "TransactionUtil.h"
 
 #include "DrawSplineTool.generated.h"
 
@@ -268,6 +269,9 @@ protected:
 	bool bNeedToRerunConstructionScript = false;
 
 	FViewCameraState CameraState;
+
+private:
+	UE::TransactionUtil::FLongTransactionTracker LongTransactions;
 
 public:
 	// Helper class for making undo/redo transactions, to avoid friending all the variations.
