@@ -135,7 +135,7 @@ bool FPCGWorldRayHitQueryElement::ExecuteInternal(FPCGContext* Context) const
 
 	if (Data->QueryParams.bGetReferenceToActorHit && Data->Metadata)
 	{
-		Data->Metadata->FindOrCreateAttribute(PCGPointDataConstants::ActorReferenceAttribute, FString(), /*bAllowInterpolation=*/false, /*bOverrideParent=*/false);
+		Data->Metadata->FindOrCreateAttribute(PCGPointDataConstants::ActorReferenceAttribute, FSoftObjectPath(), /*bAllowInterpolation=*/false, /*bOverrideParent=*/false);
 	}
 	else
 	{
@@ -144,7 +144,7 @@ bool FPCGWorldRayHitQueryElement::ExecuteInternal(FPCGContext* Context) const
 
 	if (Data->QueryParams.bGetReferenceToPhysicalMaterial && Data->Metadata)
 	{
-		Data->Metadata->FindOrCreateAttribute(PCGWorldRayHitConstants::PhysicalMaterialReferenceAttribute, FString(), /*bAllowInterpolation=*/false, /*bOverrideParent=*/false);
+		Data->Metadata->FindOrCreateAttribute(PCGWorldRayHitConstants::PhysicalMaterialReferenceAttribute, FSoftObjectPath(), /*bAllowInterpolation=*/false, /*bOverrideParent=*/false);
 	}
 	else
 	{

@@ -803,13 +803,13 @@ void FPCGSpawnActorElement::SpawnActors(FPCGSubgraphContext* Context, AActor* Ta
 	}
 
 	int32 OutPointOffset = 0;
-	FPCGMetadataAttribute<FString>* ActorReferenceAttribute = nullptr;
+	FPCGMetadataAttribute<FSoftObjectPath>* ActorReferenceAttribute = nullptr;
 
 	if (OutPointData)
 	{
 		OutPointOffset = OutPointData->GetMutablePoints().Num();
 		OutPointData->GetMutablePoints().Append(Points);
-		ActorReferenceAttribute = OutPointData->MutableMetadata()->FindOrCreateAttribute<FString>(PCGPointDataConstants::ActorReferenceAttribute, FString(), /*bAllowsInterpolation=*/false, /*bOverrideParent=*/false, /*bOverwriteIfTypeMismatch=*/false);
+		ActorReferenceAttribute = OutPointData->MutableMetadata()->FindOrCreateAttribute<FSoftObjectPath>(PCGPointDataConstants::ActorReferenceAttribute, FSoftObjectPath(), /*bAllowsInterpolation=*/false, /*bOverrideParent=*/false, /*bOverwriteIfTypeMismatch=*/false);
 	}
 
 	const UPCGSpawnActorSettings* Settings = Context->GetInputSettings<UPCGSpawnActorSettings>();
@@ -967,7 +967,7 @@ void FPCGSpawnActorElement::SpawnActors(FPCGSubgraphContext* Context, AActor* Ta
 			{
 				FPCGPoint& OutPoint = OutPointData->GetMutablePoints()[i + OutPointOffset];
 				OutPointData->Metadata->InitializeOnSet(OutPoint.MetadataEntry);
-				ActorReferenceAttribute->SetValue(OutPoint.MetadataEntry, FSoftObjectPath(GeneratedActor).ToString());
+				ActorReferenceAttribute->SetValue(OutPoint.MetadataEntry, FSoftObjectPath(GeneratedActor));
 			}
 		}
 
