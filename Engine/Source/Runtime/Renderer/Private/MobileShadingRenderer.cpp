@@ -1001,7 +1001,9 @@ void FMobileSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 		const bool bShouldRenderSkyAtmosphere = ShouldRenderSkyAtmosphere(Scene, ViewFamily.EngineShowFlags);
 		if (bShouldRenderSkyAtmosphere)
 		{
-			RenderSkyAtmosphereLookUpTables(GraphBuilder, ExternalAccessQueue);
+			FSkyAtmospherePendingRDGResources PendingRDGResources;
+			RenderSkyAtmosphereLookUpTables(GraphBuilder, /* out */ PendingRDGResources);
+			PendingRDGResources.CommitToSceneAndViewUniformBuffers(GraphBuilder, /* out */ ExternalAccessQueue);
 		}
 
 		GraphBuilder.SetCommandListStat(GET_STATID(STAT_CLMM_Shadows));
