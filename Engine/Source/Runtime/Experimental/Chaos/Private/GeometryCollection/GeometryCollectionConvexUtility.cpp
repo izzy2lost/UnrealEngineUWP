@@ -2308,7 +2308,7 @@ void FGeometryCollectionConvexUtility::MergeHullsOnTransforms(FManagedArrayColle
 			}
 			UE::Geometry::FDynamicMeshAABBTree3 HullsTree(&HullsMesh, true);
 			UE::Geometry::TFastWindingTree<UE::Geometry::FDynamicMesh3> HullsWinding(&HullsTree, true);
-			LocalCovering.AddNegativeSpace(HullsWinding, *Settings.ComputeEmptySpacePerBoneSettings);
+			LocalCovering.AddNegativeSpace(HullsWinding, *Settings.ComputeEmptySpacePerBoneSettings, true);
 
 			if (Settings.EmptySpace)
 			{

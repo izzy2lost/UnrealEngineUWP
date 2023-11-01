@@ -428,7 +428,7 @@ namespace UE::FractureEngine::Convex
 
 		UE::Geometry::FDynamicMeshAABBTree3 Tree(&CombinedMesh, true);
 		UE::Geometry::TFastWindingTree<UE::Geometry::FDynamicMesh3> Winding(&Tree, true);
-		OutNegativeSpace.AddNegativeSpace(Winding, Settings);
+		OutNegativeSpace.AddNegativeSpace(Winding, Settings, true);
 
 		return bNoFailures;
 	}

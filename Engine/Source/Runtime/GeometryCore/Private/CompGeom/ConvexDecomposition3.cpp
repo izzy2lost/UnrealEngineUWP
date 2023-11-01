@@ -24,7 +24,7 @@ namespace UE
 namespace Geometry
 {
 
-bool FSphereCovering::AddNegativeSpace(const TFastWindingTree<FDynamicMesh3>& Spatial, const FNegativeSpaceSampleSettings& SampleSettings)
+bool FSphereCovering::AddNegativeSpace(const TFastWindingTree<FDynamicMesh3>& Spatial, const FNegativeSpaceSampleSettings& SampleSettings, bool bHasFlippedTriangles)
 {
 	bool bAddedPoints = false;
 
@@ -32,7 +32,7 @@ bool FSphereCovering::AddNegativeSpace(const TFastWindingTree<FDynamicMesh3>& Sp
 
 	FAxisAlignedBox3d Bounds = Spatial.GetTree()->GetBoundingBox();
 
-	double WindingSign = SampleSettings.bReferenceMeshHasNegativeWinding ? -1 : 1;
+	double WindingSign = bHasFlippedTriangles ? -1 : 1;
 
 	if (SampleSettings.SampleMethod == FNegativeSpaceSampleSettings::ESampleMethod::Uniform)
 	{

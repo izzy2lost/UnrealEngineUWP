@@ -252,7 +252,6 @@ static FNegativeSpaceSampleSettings ConvertNegativeSpaceOptions(const FComputeNe
 	NegativeSpaceSettings.bRequireSearchSampleCoverage = NegativeSpaceOptions.bRequireSearchSampleCoverage;
 	NegativeSpaceSettings.bOnlyConnectedToHull = NegativeSpaceOptions.bOnlyConnectedToHull;
 	NegativeSpaceSettings.MaxVoxelsPerDim = NegativeSpaceOptions.MaxVoxelsPerDim;
-	NegativeSpaceSettings.bReferenceMeshHasNegativeWinding = false;
 	NegativeSpaceSettings.Sanitize();
 	return NegativeSpaceSettings;
 }
@@ -1187,7 +1186,7 @@ FGeometryScriptSimpleCollision UGeometryScriptLibrary_CollisionFunctions::MergeS
 		MinProximityOverlapTolerance = FMath::Max(SampleSettings.ReduceRadiusMargin * .5, MinProximityOverlapTolerance);
 		FDynamicMeshAABBTree3 CollisionAABBTree(CollisionMesh.Get(), true);
 		TFastWindingTree<FDynamicMesh3> CollisionFastWinding(&CollisionAABBTree, true);
-		NegativeSpace.AddNegativeSpace(CollisionFastWinding, SampleSettings);
+		NegativeSpace.AddNegativeSpace(CollisionFastWinding, SampleSettings, false);
 	}
 	// Add any precomputed negative space, if valid/non-empty
 	if (MergeOptions.PrecomputedNegativeSpace.Spheres.IsValid() && MergeOptions.PrecomputedNegativeSpace.Spheres->Num() > 0)
@@ -1288,7 +1287,7 @@ FGeometryScriptSphereCovering UGeometryScriptLibrary_CollisionFunctions::Compute
 	
 	FNegativeSpaceSampleSettings UseSettings = UELocal::ConvertNegativeSpaceOptions(NegativeSpaceOptions);
 	ToRet.Reset();
-	ToRet.Spheres->AddNegativeSpace(*MeshBVH.FWNTree, UseSettings);
+	ToRet.Spheres->AddNegativeSpace(*MeshBVH.FWNTree, UseSettings, false);
 	return ToRet;
 }
 

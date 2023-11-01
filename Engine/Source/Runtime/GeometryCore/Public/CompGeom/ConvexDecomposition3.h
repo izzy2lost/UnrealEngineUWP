@@ -63,9 +63,6 @@ struct FNegativeSpaceSampleSettings
 	// Ignore spheres with smaller radius than this
 	double MinRadius = 10.0;
 
-	// Whether the reference mesh used has flipped orientation, so winding < -.5 is 'inside'
-	bool bReferenceMeshHasNegativeWinding = true;
-
 	// Below options currently only apply to VoxelSearch.
 	
 	// Whether to require that all candidate sample locations identified by Voxel Search are covered by negative space samples, up to the specified Min Sample Spacing.
@@ -108,8 +105,18 @@ public:
 	}
 
 	// Add spheres covering the negative space of the given fast winding tree
+	// @param Spatial	Fast winding tree of the reference mesh, used to compute negative space
+	// @param Settings	Settings controlling how negative space is computed
+	// @param bHasFlippedTriangles	Whether the mesh referenced by Spatial has reversed triangle windings
 	// @return true if any spheres were added
-	GEOMETRYCORE_API bool AddNegativeSpace(const TFastWindingTree<FDynamicMesh3>& Spatial, const FNegativeSpaceSampleSettings& Settings);
+	GEOMETRYCORE_API bool AddNegativeSpace(const TFastWindingTree<FDynamicMesh3>& Spatial, const FNegativeSpaceSampleSettings& Settings, bool bHasFlippedTriangles);
+	
+	// Note: This version of AddNegativeSpace assumed the input had flipped triangle orientations
+	UE_DEPRECATED(5.4, "Use the version of this function with a bHasFlippedTriangles parameter")
+	bool AddNegativeSpace(const TFastWindingTree<FDynamicMesh3>& Spatial, const FNegativeSpaceSampleSettings& Settings)
+	{
+		return AddNegativeSpace(Spatial, Settings, true);
+	}
 
 	void Reset()
 	{
