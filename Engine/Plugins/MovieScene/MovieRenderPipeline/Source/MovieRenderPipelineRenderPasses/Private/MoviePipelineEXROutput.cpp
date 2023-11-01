@@ -124,22 +124,8 @@ bool FEXRImageWriteTask::WriteToDisk()
 	{
 		PreProcess();
 
-		Imf::Compression FileCompression = Imf::Compression::NO_COMPRESSION;
-		switch(Compression)
-		{
-			case EEXRCompressionFormat::None:
-				FileCompression = Imf::Compression::NO_COMPRESSION; break;
-			case EEXRCompressionFormat::ZIP:
-				FileCompression = Imf::Compression::ZIP_COMPRESSION; break;
-			case EEXRCompressionFormat::PIZ:
-				FileCompression = Imf::Compression::PIZ_COMPRESSION; break;
-			case EEXRCompressionFormat::DWAA:
-				FileCompression = Imf::Compression::DWAA_COMPRESSION; break;
-			case EEXRCompressionFormat::DWAB:
-				FileCompression = Imf::Compression::DWAB_COMPRESSION; break;
-			default: 
-				checkNoEntry();
-		}
+		static_assert(static_cast<uint8>(EEXRCompressionFormat::Max) == Imf::Compression::NUM_COMPRESSION_METHODS);
+		Imf::Compression FileCompression = static_cast<Imf::Compression>(Compression);
 		
 		// Data Window specifies how much data is in the actual file, ie: 1920x1080
 		IMATH_NAMESPACE::Box2i DataWindow = IMATH_NAMESPACE::Box2i(IMATH_NAMESPACE::V2i(0,0), IMATH_NAMESPACE::V2i(Width - 1, Height - 1));
