@@ -140,7 +140,7 @@ bool ShouldRenderSingleLayerWater(TArrayView<const FViewInfo> Views)
 	{
 		for (const FViewInfo& View : Views)
 		{
-			if (View.bHasSingleLayerWaterMaterial)
+			if (View.bHasSingleLayerWaterMaterial && View.ParallelMeshDrawCommandPasses[EMeshPass::SingleLayerWaterPass].HasAnyDraw())
 			{
 				return true;
 			}
