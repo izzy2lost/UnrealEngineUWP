@@ -36,12 +36,7 @@ struct FAnimSyncMarker;
 struct FAnimMontageInstance;
 class UPoseWatchPoseElement;
 
-static FAutoConsoleVariable CVarRecordExternalMorphTargets(
-	TEXT("RecordExternalMorphTargets"),
-	false,
-	TEXT("Record the external morph target weights inside animation insights. On default this is disabled, because it can slow down recording."),
-	ECVF_Default
-);
+extern ENGINE_API FAutoConsoleVariable CVarRecordExternalMorphTargets;
 
 struct FAnimTrace
 {

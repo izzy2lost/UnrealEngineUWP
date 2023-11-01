@@ -285,6 +285,13 @@ UE_TRACE_EVENT_BEGIN(Animation, PoseWatch2)
 	UE_TRACE_EVENT_FIELD(bool, bIsEnabled)
 UE_TRACE_EVENT_END()
 
+FAutoConsoleVariable CVarRecordExternalMorphTargets(
+	TEXT("RecordExternalMorphTargets"),
+	false,
+	TEXT("Record the external morph target weights inside animation insights. On default this is disabled, because it can slow down recording."),
+	ECVF_Default
+);
+
 // Object annotations used for tracing
 FUObjectAnnotationSparseBool GSkeletalMeshTraceAnnotations;
 
