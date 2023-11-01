@@ -8,7 +8,7 @@
 
 using namespace UE::Geometry;
 
-bool UE::Geometry::IsSphereMesh(const FDynamicMesh3& Mesh, FSphere3d& SphereOut, double RelativeDeviationTol)
+bool UE::Geometry::IsSphereMesh(const FDynamicMesh3& Mesh, FSphere3d& SphereOut, double RelativeDeviationTol, double MaxAngleRangeDegrees)
 {
 	// assume that we aren't going to count it as a sphere unless it has 4 slices/sections, which means at least 10 vertices
 	if (Mesh.VertexCount() < 10)
@@ -74,10 +74,19 @@ bool UE::Geometry::IsSphereMesh(const FDynamicMesh3& Mesh, FSphere3d& SphereOut,
 	// computed with formula sagitta = r - sqrt(r*r - l*l), where l = chordlen/2
 	double UseRadius = SphereOut.Radius;
 	double DeviationTol = 2.0 * UseRadius * RelativeDeviationTol;
+	double CosAngleTolerance = FMathd::Cos(FMathd::DegToRad * MaxAngleRangeDegrees);
 	for (int32 EdgeID : Mesh.EdgeIndicesItr())
 	{
 		FVector3d A, B;
 		Mesh.GetEdgeV(EdgeID, A, B);
+
+		// if a single edge spans too wide an angular range, the shape is too coarsely tesselated to be considered a sphere
+		FVector3d ToA = A - SphereOut.Center;
+		FVector3d ToB = B - SphereOut.Center;
+		if (ToA.Dot(ToB) <= CosAngleTolerance)
+		{
+			return false;
+		}
 
 		double HalfChordLen = Distance(A, B) * 0.5;
 		double MaxChordHeight = UseRadius - FMathd::Sqrt(UseRadius*UseRadius - HalfChordLen*HalfChordLen);   // "sagitta" height

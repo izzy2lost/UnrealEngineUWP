@@ -17,10 +17,11 @@ namespace UE
 		/**
 		 * Detect if input Mesh is a meshed approximation of an analytic Sphere, and if so return best guess in SphereOut.
 		 * Fits a sphere to input points with several rounds of incremental improvement, then measures chordal deviation of edge midpoints.
-		 * @param RelativeDeviationTol distances from edge midpoints to sphere surface are allowed to deviate by 2*Radius*RelativeDeviationTol
+		 * @param RelativeDeviationTol Scaled by sphere diameter. The allowed difference in the distance from edge midpoints to the surface of the sphere vs the ideal distance for an edge of the same length.
+		 * @param MaxAngleRangeDegrees Maximum angle difference in vectors from center of sphere to the endpoints of any surface edge. Controls how coarsely tessellated a shpere can be before it is not considered a sphere.
 		 * @return true if mesh is a Sphere and SphereOut is initialized
 		 */
-		bool DYNAMICMESH_API IsSphereMesh(const FDynamicMesh3& Mesh, FSphere3d& SphereOut, double RelativeDeviationTol = 0.025);
+		bool DYNAMICMESH_API IsSphereMesh(const FDynamicMesh3& Mesh, FSphere3d& SphereOut, double RelativeDeviationTol = 0.025, double MaxAngleRangeDegrees = 72);
 
 
 		/**
