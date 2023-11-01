@@ -516,6 +516,11 @@ namespace UE::GC
 		LogClassCountInfo(TEXT("objects of"), ClassToPurgeCountMap, 10, Total);
 #endif
 	}
+
+	void MarkAsReachable(const UObject* Obj)
+	{
+		Obj->MarkAsReachable();
+	}
 }
 
 namespace UE::GC::Private

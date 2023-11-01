@@ -275,7 +275,7 @@ class FFieldVariant
 	{
 		if (IsUObject() && ToUObjectUnsafe() && UE::GC::Private::GIsIncrementalReachabilityPending)
 		{
-			ToUObjectUnsafe()->MarkAsReachable();
+			UE::GC::MarkAsReachable(ToUObjectUnsafe());
 		}
 	}
 	

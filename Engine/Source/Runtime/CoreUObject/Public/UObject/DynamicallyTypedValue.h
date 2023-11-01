@@ -129,7 +129,7 @@ namespace UE
 				{
 					if (InObject)
 					{
-						InObject->MarkAsReachable();
+						UE::GC::MarkAsReachable(InObject);
 					}
 				}
 			};

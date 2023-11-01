@@ -5,8 +5,8 @@
 #include "HAL/Platform.h"
 #include "Serialization/StructuredArchive.h"
 #include "Templates/IsTObjectPtr.h"
-#include "UObject/Object.h"
 #include "UObject/ObjectHandle.h"
+#include "UObject/UObjectGlobals.h"
 #include "Templates/NonNullPointer.h"
 
 #include <type_traits>
@@ -218,13 +218,13 @@ public:
 	FString GetPathName() const
 	{
 		const UObject* ResolvedObject = Get();
-		return ResolvedObject ? ResolvedObject->GetPathName() : TEXT("None");
+		return ResolvedObject ? UE::CoreUObject::Private::GetPathName(ResolvedObject) : TEXT("None");
 	}
 
 	FName GetFName() const
 	{
 		const UObject* ResolvedObject = Get();
-		return ResolvedObject ? ResolvedObject->GetFName() : NAME_None;
+		return ResolvedObject ? UE::CoreUObject::Private::GetFName(ResolvedObject) : NAME_None;
 	}
 
 	FString GetName() const
@@ -235,13 +235,13 @@ public:
 	FObjectPtr GetOuter() const
 	{
 		const UObject* ResolvedObject = Get();
-		return ResolvedObject ? FObjectPtr(ResolvedObject->GetOuter()) : FObjectPtr(nullptr);
+		return ResolvedObject ? FObjectPtr(UE::CoreUObject::Private::GetOuter(ResolvedObject)) : FObjectPtr(nullptr);
 	}
 
 	FObjectPtr GetPackage() const
 	{
 		const UObject* ResolvedObject = Get();
-		return ResolvedObject ? FObjectPtr(ResolvedObject->GetPackage()) : FObjectPtr(nullptr);
+		return ResolvedObject ? FObjectPtr(UE::CoreUObject::Private::GetPackage(ResolvedObject)) : FObjectPtr(nullptr);
 	}
 	/**
 	 * Returns the fully qualified pathname for this object as well as the name of the class, in the format:
@@ -250,7 +250,7 @@ public:
 	FString GetFullName(EObjectFullNameFlags Flags = EObjectFullNameFlags::None) const
 	{
 		// UObjectBaseUtility::GetFullName is safe to call on null objects.
-		return Get()->GetFullName(nullptr, Flags);
+		return UE::CoreUObject::Private::GetFullName(Get(), nullptr, Flags);
 	}
 #endif
 
@@ -286,7 +286,7 @@ private:
 		{
 			if (UObject* Obj = UE::CoreUObject::Private::ReadObjectHandlePointerNoCheck(InPtr.GetHandleRef()))
 			{
-				Obj->MarkAsReachable();
+				UE::GC::MarkAsReachable(Obj);
 			}
 		}
 	}
@@ -294,7 +294,7 @@ private:
 	{
 		if (UE::GC::Private::GIsIncrementalReachabilityPending && InObj)
 		{
-			InObj->MarkAsReachable();
+			UE::GC::MarkAsReachable(InObj);
 		}
 	}
 #endif // UE_OBJECT_PTR_GC_BARRIER
@@ -731,16 +731,31 @@ namespace ObjectPtr_Private
 	{
 	public:
 		TNonAccessTrackedObjectPtr() = default;
-		explicit TNonAccessTrackedObjectPtr(T* Ptr) : ObjectPtr{Ptr} {}
 
-		void Set(T* Value)
+		explicit TNonAccessTrackedObjectPtr(ENoInit)
+			: ObjectPtr{NoInit}
+		{
+		}
+
+		explicit TNonAccessTrackedObjectPtr(T* Ptr)
+			: ObjectPtr{Ptr}
+		{
+		}
+
+		TNonAccessTrackedObjectPtr& operator=(T* Value)
 		{
 			ObjectPtr = Value;
+			return *this;
 		}
 	
 		T* Get() const
 		{
 			return ObjectPtr_Private::Friend::NoAccessTrackingGet(ObjectPtr);
+		}
+
+		explicit operator UPTRINT() const
+		{
+			return BitCast<UPTRINT>(Get());
 		}
 
 		TObjectPtr<T>& GetAccessTrackedObjectPtr() 
@@ -759,7 +774,7 @@ namespace ObjectPtr_Private
 		}		
 	
 	private:
-		TObjectPtr<T> ObjectPtr{};
+		TObjectPtr<T> ObjectPtr;
 	};
 }
 
@@ -1315,7 +1330,7 @@ namespace UE::Core::Private // private facilities; not for direct use
 #if UE_OBJECT_PTR_GC_BARRIER
 			if (UE::GC::Private::GIsIncrementalReachabilityPending && View)
 			{
-				View->MarkAsReachable();
+				UE::GC::MarkAsReachable(View);
 			}
 #endif // UE_OBJECT_PTR_GC_BARRIER
 		}
@@ -1334,7 +1349,7 @@ namespace UE::Core::Private // private facilities; not for direct use
 				{
 					if (Data[Index])
 					{
-						Data[Index]->MarkAsReachable();
+						UE::GC::MarkAsReachable(Data[Index]);
 					}
 				}
 			}
@@ -1354,7 +1369,7 @@ namespace UE::Core::Private // private facilities; not for direct use
 				{
 					if (Element)
 					{
-						Element->MarkAsReachable();
+						UE::GC::MarkAsReachable(Element);
 					}
 				}
 			}
@@ -1379,14 +1394,14 @@ namespace UE::Core::Private // private facilities; not for direct use
 					{
 						if (Pair.Key)
 						{
-							Pair.Key->MarkAsReachable();
+							UE::GC::MarkAsReachable(Pair.Key);
 						}
 					}
 					if constexpr (bValueReference)
 					{
 						if (Pair.Value)
 						{
-							Pair.Value->MarkAsReachable();
+							UE::GC::MarkAsReachable(Pair.Value);
 						}
 					}
 				}
@@ -1494,7 +1509,7 @@ namespace UE::Core::Private // private facilities; not for direct use
 		{
 			if (const UObject* Obj = Cast<UObject>(Ptr); Obj && UE::GC::Private::GIsIncrementalReachabilityPending)
 			{
-				Obj->MarkAsReachable();
+				UE::GC::MarkAsReachable(Obj);
 			}
 		}
 
@@ -1723,8 +1738,3 @@ private:
 	/** The object we're holding a reference to. */
 	TObjectPtr<ObjectType> Object;
 };
-
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_3
-#include "UObject/Class.h"
-#endif

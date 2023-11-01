@@ -10,7 +10,6 @@
 #include "Misc/AssertionMacros.h"
 #include "Templates/TypeHash.h"
 #include "UObject/NameTypes.h"
-#include "UObject/Object.h"
 #include "UObject/ObjectHandleTracking.h"
 #include "UObject/ObjectMacros.h"
 #include "UObject/ObjectRef.h"
@@ -235,7 +234,7 @@ namespace UE::CoreUObject::Private
 		if (IsObjectHandleResolved(Handle))
 		{
 			UObject* Obj = ReadObjectHandlePointerNoCheck(Handle);
-			return Obj != nullptr ? Obj->GetClass() : nullptr;
+			return Obj != nullptr ? UE::CoreUObject::Private::GetClass(Obj) : nullptr;
 		}
 		else
 		{
@@ -246,7 +245,7 @@ namespace UE::CoreUObject::Private
 		}
 #else
 		UObject* Obj = ReadObjectHandlePointerNoCheck(Handle);
-		return Obj != nullptr ? Obj->GetClass() : nullptr;
+		return Obj != nullptr ? UE::CoreUObject::Private::GetClass(Obj) : nullptr;
 #endif
 	}
 
@@ -350,4 +349,3 @@ namespace UE::CoreUObject::Private
 	UE::CoreUObject::Private::FPackedObjectRef MakePackedObjectRef(const UObject* Object);
 #endif
 }
-

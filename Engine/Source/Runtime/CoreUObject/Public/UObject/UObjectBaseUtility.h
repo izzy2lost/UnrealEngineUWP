@@ -25,6 +25,7 @@
 #include "UObject/UObjectArray.h"
 #include "UObject/UObjectBase.h"
 #include "UObject/UObjectMarks.h"
+#include "UObject/ObjectFwd.h"
 
 class UClass;
 class UObject;
@@ -36,20 +37,6 @@ struct FGuid;
 		PRAGMA_DISABLE_SHADOW_VARIABLE_WARNINGS
 	#endif
 #endif
-
-/**
-* Enum which specifies the mode in which full object names are constructed
-*/
-enum class EObjectFullNameFlags
-{
-	// Standard object full name (i.e. "Type PackageName.ObjectName:SubobjectName")
-	None = 0,
-
-	// Adds package to the type portion (i.e. "TypePackage.TypeName PackageName.ObjectName:SubobjectName")
-	IncludeClassPackage = 1,
-};
-
-ENUM_CLASS_FLAGS(EObjectFullNameFlags);
 
 /**
  * Provides utility functions for UObject, this class should not be used directly
