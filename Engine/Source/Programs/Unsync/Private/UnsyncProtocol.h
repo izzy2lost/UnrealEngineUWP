@@ -57,6 +57,11 @@ struct TBlock
 	uint32		Size	   = 0;
 	uint32		HashWeak   = 0;
 	StrongHashT HashStrong = {};
+
+	struct FCompareByOffset
+	{
+		bool operator()(const TBlock<StrongHashT>& A, const TBlock<StrongHashT>& B) const { return A.Offset < B.Offset; }
+	};
 };
 
 using FBlock128 = TBlock<FHash128>;

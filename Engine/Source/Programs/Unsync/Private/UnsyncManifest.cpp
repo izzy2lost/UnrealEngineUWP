@@ -245,7 +245,14 @@ UpdateDirectoryManifestBlocks(FDirectoryManifest& Result, const FPath& Root, con
 			Semaphore.Release();
 		};
 
-		TaskGroup.run(BlockTask);
+		if (Params.bAllowThreading)
+		{
+			TaskGroup.run(BlockTask);
+		}
+		else
+		{
+			BlockTask();
+		}
 	}
 
 	TaskGroup.wait();

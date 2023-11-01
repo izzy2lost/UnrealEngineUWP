@@ -124,6 +124,8 @@ struct FComputeBlocksParams
 	// Callbacks may be called from worker threads
 	FOnBlockGenerated OnBlockGenerated;
 	FOnBlockGenerated OnMacroBlockGenerated;
+
+	bool bAllowThreading = true;
 };
 
 struct FComputeBlocksResult

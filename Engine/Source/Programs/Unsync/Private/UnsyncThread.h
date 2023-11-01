@@ -3,6 +3,7 @@
 #pragma once
 
 #include "UnsyncUtil.h"
+#include "UnsyncLog.h"
 
 UNSYNC_THIRD_PARTY_INCLUDES_START
 #include <atomic>
@@ -65,6 +66,29 @@ struct FThreadElectScope
 	}
 
 	operator bool() const { return bValue; }
+};
+
+struct FThreadLogConfig
+{
+	FThreadLogConfig() : ParentThreadIndent(GLogIndent), bParentThreadVerbose(GLogVerbose) {}
+
+
+	uint32				ParentThreadIndent;
+	bool				bParentThreadVerbose;
+	std::atomic<uint64> NumActiveVerboseLogThreads = {};
+
+	struct FScope
+	{
+		FScope(FThreadLogConfig& Parent)
+		: AllowVerbose(Parent.NumActiveVerboseLogThreads, Parent.bParentThreadVerbose)
+		, VerboseScope(AllowVerbose.bValue)
+		, IndentScope(Parent.ParentThreadIndent, true)
+		{
+		}
+		FThreadElectScope  AllowVerbose;
+		FLogVerbosityScope VerboseScope;
+		FLogIndentScope	   IndentScope;
+	};
 };
 
 void SchedulerSleep(uint32 Milliseconds);
