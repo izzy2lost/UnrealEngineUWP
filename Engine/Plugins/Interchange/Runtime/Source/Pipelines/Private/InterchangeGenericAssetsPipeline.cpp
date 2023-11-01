@@ -230,11 +230,6 @@ void UInterchangeGenericAssetsPipeline::FilterPropertiesFromTranslatedData(UInte
 		{
 			bHideStaticMeshes = true;
 		}
-		else
-		{
-			constexpr bool bFilterCodeLogicError = false;
-			ensure(bFilterCodeLogicError);
-		}
 
 		if (SkeletalMeshes.Num() > 0)
 		{
