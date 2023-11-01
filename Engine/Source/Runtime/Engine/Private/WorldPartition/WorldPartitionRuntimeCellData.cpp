@@ -9,6 +9,7 @@ UWorldPartitionRuntimeCellData::UWorldPartitionRuntimeCellData(const FObjectInit
 	, CachedMinSourcePriority(MAX_uint8)
 	, CachedSourceInfoEpoch(MIN_int32)
 	, ContentBounds(ForceInit)
+	, Priority(0)
 {}
 
 void UWorldPartitionRuntimeCellData::Serialize(FArchive& Ar)

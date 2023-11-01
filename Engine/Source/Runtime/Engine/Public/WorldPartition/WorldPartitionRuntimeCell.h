@@ -199,7 +199,6 @@ class UWorldPartitionRuntimeCell : public UObject, public IWorldPartitionCell
 	virtual FLinearColor GetDebugColor(EWorldPartitionRuntimeCellVisualizeMode VisualizeMode) const { static const FLinearColor DefaultColor = FLinearColor::Black.CopyWithNewOpacity(0.25f); return DefaultColor; }
 	virtual bool IsAlwaysLoaded() const { return bIsAlwaysLoaded; }
 	virtual void SetIsAlwaysLoaded(bool bInIsAlwaysLoaded) { bIsAlwaysLoaded = bInIsAlwaysLoaded; }
-	virtual void SetPriority(int32 InPriority) { Priority = InPriority; }
 	ENGINE_API virtual void SetStreamingPriority(int32 InStreamingPriority) const PURE_VIRTUAL(UWorldPartitionRuntimeCell::SetStreamingPriority,);
 	virtual EStreamingStatus GetStreamingStatus() const { return LEVEL_Unloaded; }
 	UE_DEPRECATED(5.3, "IsLoading is deprecated.")
@@ -287,10 +286,6 @@ protected:
 private:
 	UPROPERTY()
 	TArray<FName> DataLayers;
-
-	// Custom Priority
-	UPROPERTY()
-	int32 Priority;
 
 	UPROPERTY()
 	bool bClientOnlyVisible;

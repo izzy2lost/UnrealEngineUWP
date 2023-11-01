@@ -48,5 +48,8 @@ class UWorldPartitionRuntimeCellData : public UObject
 	UPROPERTY()
 	FBox ContentBounds;
 
+	UPROPERTY()
+	int32 Priority;
+
 	FStringTest DebugName;
 };

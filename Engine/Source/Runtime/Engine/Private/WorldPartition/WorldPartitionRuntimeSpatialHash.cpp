@@ -1524,7 +1524,6 @@ bool UWorldPartitionRuntimeSpatialHash::CreateStreamingGrid(const FSpatialHashRu
 					StreamingCell->SetIsAlwaysLoaded(bIsCellAlwaysLoaded);
 					StreamingCell->SetDataLayers(GridCellDataChunk.GetDataLayers());
 					StreamingCell->SetContentBundleUID(GridCellDataChunk.GetContentBundleID());
-					StreamingCell->SetPriority(RuntimeGrid.Priority);
 					StreamingCell->SetClientOnlyVisible(CurrentStreamingGrid.bClientOnlyVisible);
 					StreamingCell->SetBlockOnSlowLoading(CurrentStreamingGrid.bBlockOnSlowStreaming);
 					StreamingCell->SetIsHLOD(RuntimeGrid.HLODLayer ? true : false);
@@ -1538,8 +1537,9 @@ bool UWorldPartitionRuntimeSpatialHash::CreateStreamingGrid(const FSpatialHashRu
 					CellDataSpatialHash->Level = Level;
 					CellDataSpatialHash->Position = FVector(Bounds.GetCenter(), 0.f);
 					CellDataSpatialHash->Extent = (float)CellExtent;
-					CellDataSpatialHash->GridName = RuntimeGrid.GridName;			
+					CellDataSpatialHash->GridName = RuntimeGrid.GridName;
 					CellDataSpatialHash->DebugName = CellName + WorldInstanceSuffix;
+					CellDataSpatialHash->Priority = RuntimeGrid.Priority;
 
 					PopulateRuntimeCell(StreamingCell, FilteredActors, OutPackagesToGenerate);
 

@@ -184,7 +184,6 @@ bool UWorldPartitionRuntimeHashSet::GenerateStreaming(UWorldPartitionStreamingPo
 		RuntimeCell->SetIsAlwaysLoaded(!CellDescInstance.bIsSpatiallyLoaded);
 		RuntimeCell->SetDataLayers(CellDescInstance.DataLayerInstances);
 		RuntimeCell->SetContentBundleUID(CellDescInstance.ContentBundleID);
-		RuntimeCell->SetPriority(CellDescInstance.Priority);
 		RuntimeCell->SetClientOnlyVisible(CellDescInstance.bClientOnlyVisible);
 		RuntimeCell->SetBlockOnSlowLoading(CellDescInstance.bBlockOnSlowStreaming);
 		RuntimeCell->SetIsHLOD(CellDescInstance.SourcePartition->HLODIndex != INDEX_NONE);
@@ -193,6 +192,7 @@ bool UWorldPartitionRuntimeHashSet::GenerateStreaming(UWorldPartitionStreamingPo
 		UWorldPartitionRuntimeCellDataSpatialHashSet* RuntimeCellDataHashSet = CastChecked<UWorldPartitionRuntimeCellDataSpatialHashSet>(RuntimeCell->RuntimeCellData);
 		RuntimeCellDataHashSet->DebugName = CellUniqueId.Name;
 		RuntimeCellDataHashSet->Level = CellDescInstance.Level;
+		RuntimeCellDataHashSet->Priority = CellDescInstance.Priority;
 
 		return RuntimeCell;
 	};

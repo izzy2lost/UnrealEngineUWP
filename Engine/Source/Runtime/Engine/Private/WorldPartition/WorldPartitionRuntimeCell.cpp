@@ -17,7 +17,6 @@
 UWorldPartitionRuntimeCell::UWorldPartitionRuntimeCell(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 	, bIsAlwaysLoaded(false)
-	, Priority(0)
 #if !UE_BUILD_SHIPPING
 	, DebugStreamingPriority(-1.f)
 #endif
@@ -98,10 +97,7 @@ void UWorldPartitionRuntimeCell::DumpStateLog(FHierarchicalLogArchive& Ar) const
 
 int32 UWorldPartitionRuntimeCell::SortCompare(const UWorldPartitionRuntimeCell* Other, bool bCanUseSortingCache) const
 {
-	const int32 Comparison = RuntimeCellData->SortCompare(Other->RuntimeCellData, bCanUseSortingCache);
-
-	// Cell priority (lower value is higher prio)
-	return (Comparison != 0) ? Comparison : (Priority - Other->Priority);
+	return RuntimeCellData->SortCompare(Other->RuntimeCellData, bCanUseSortingCache);
 }
 
 bool UWorldPartitionRuntimeCell::IsDebugShown() const

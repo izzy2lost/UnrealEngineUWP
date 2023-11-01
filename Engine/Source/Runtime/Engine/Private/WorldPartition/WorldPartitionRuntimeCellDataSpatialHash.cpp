@@ -18,6 +18,12 @@ static FAutoConsoleVariableRef CVarRuntimeSpatialHashSortUsingCellExtent(
 	GRuntimeSpatialHashSortUsingCellExtent,
 	TEXT("Set to 1 to use cell extent instead of cell grid level when sorting cells by importance."));
 
+static bool GRuntimeSpatialHashSortUsingCellPriority = true;
+static FAutoConsoleVariableRef CVarRuntimeSpatialHashSortUsingCellPriority(
+	TEXT("wp.Runtime.RuntimeSpatialHashSortUsingCellPriority"),
+	GRuntimeSpatialHashSortUsingCellPriority,
+	TEXT("Set to 1 to use cell priority as part of the sorting criterias when sorting cells by importance."));
+
 UWorldPartitionRuntimeCellDataSpatialHash::UWorldPartitionRuntimeCellDataSpatialHash(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 	, Extent(0)
@@ -146,19 +152,35 @@ int32 UWorldPartitionRuntimeCellDataSpatialHash::SortCompare(const UWorldPartiti
 		Result = GRuntimeSpatialHashSortUsingCellExtent ? int32(Other->Extent - Extent) : (Other->Level - Level);
 		if (bCanUseSortingCache && (Result == 0))
 		{
-			// Closest distance (lower value is higher prio)
-			const double Diff = CachedSourceSortingDistance - Other->CachedSourceSortingDistance;
-			if (FMath::IsNearlyZero(Diff))
+			if (GRuntimeSpatialHashSortUsingCellPriority)
 			{
-				const double RawDistanceDiff = CachedMinSquareDistanceToSource - Other->CachedMinSquareDistanceToSource;
-				Result = RawDistanceDiff < 0 ? -1 : (RawDistanceDiff > 0.f ? 1 : 0);
+				// Cell priority (lower value is higher prio)
+				Result = Priority - Other->Priority;
 			}
-			else
+
+			if (Result == 0)
 			{
-				Result = Diff < 0.f ? -1 : (Diff > 0.f ? 1 : 0);
+				// Closest distance (lower value is higher prio)
+				const double Diff = CachedSourceSortingDistance - Other->CachedSourceSortingDistance;
+				if (FMath::IsNearlyZero(Diff))
+				{
+					const double RawDistanceDiff = CachedMinSquareDistanceToSource - Other->CachedMinSquareDistanceToSource;
+					Result = RawDistanceDiff < 0 ? -1 : (RawDistanceDiff > 0.f ? 1 : 0);
+				}
+				else
+				{
+					Result = Diff < 0.f ? -1 : (Diff > 0.f ? 1 : 0);
+				}
 			}
 		}
 	}
+
+	if (!GRuntimeSpatialHashSortUsingCellPriority && Result == 0)
+	{
+		// Cell priority (lower value is higher prio)
+		Result = Priority - InOther->Priority;
+	}
+
 	return Result;
 }
 
