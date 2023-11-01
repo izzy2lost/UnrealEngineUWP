@@ -219,6 +219,9 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	{
 		AbilityActorInfo = TSharedPtr<FGameplayAbilityActorInfo>(UAbilitySystemGlobals::Get().AllocAbilityActorInfo());
 	}
+
+	// Ensure bDestroyActiveStateInitiated is clear in case component is re-entering play 
+	bDestroyActiveStateInitiated = false;
 }
 
 void UAbilitySystemComponent::OnUnregister()
