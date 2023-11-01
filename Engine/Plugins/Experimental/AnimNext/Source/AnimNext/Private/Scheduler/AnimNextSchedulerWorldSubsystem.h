@@ -64,7 +64,7 @@ class UAnimNextSchedulerWorldSubsystem : public UWorldSubsystem
 	void FlushPendingActions();
 
 	// Acquire a handle that binds a schedule with the supplied parameters
-	UE::AnimNext::FScheduleHandle AcquireHandle(UObject* InObject, UAnimNextSchedule* InSchedule, const TMap<FName, FAnimNextParameterCollection>& InUserScopes, EAnimNextScheduleInitMethod InInitMethod);
+	UE::AnimNext::FScheduleHandle AcquireHandle(UObject* InObject, UAnimNextSchedule* InSchedule, EAnimNextScheduleInitMethod InInitMethod, TUniqueFunction<void(const UE::AnimNext::FScheduleContext&)>&& InInitializeCallback);
 
 	// Release an already acquired handle
 	// The full release of the binding referenced by the handle will be deferred after this call is made

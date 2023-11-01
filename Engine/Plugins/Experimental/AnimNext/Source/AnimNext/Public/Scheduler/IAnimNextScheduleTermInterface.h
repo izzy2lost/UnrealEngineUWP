@@ -14,15 +14,15 @@ namespace UE::AnimNext
 	struct FScheduleInstanceData;
 }
 
-namespace UE::AnimNext
-{
-
-enum class EScheduleTermDirection
+UENUM()
+enum class EScheduleTermDirection : uint8
 {
 	Input,
 	Output,
-	IO,
 };
+
+namespace UE::AnimNext
+{
 
 struct FScheduleTerm : FParamDefinition
 {
@@ -54,6 +54,7 @@ class IAnimNextScheduleTermInterface
 private:
 	friend class UAnimNextSchedule;
 	friend struct UE::AnimNext::FScheduleInstanceData;
+	friend struct FAnimNextSchedulePortTask;
 
 	// Get the terms that define the data dependencies of a schedule element
 	virtual TConstArrayView<UE::AnimNext::FScheduleTerm> GetTerms() const PURE_VIRTUAL(IAnimNextScheduleTermInterface::GetTerms, return {};)

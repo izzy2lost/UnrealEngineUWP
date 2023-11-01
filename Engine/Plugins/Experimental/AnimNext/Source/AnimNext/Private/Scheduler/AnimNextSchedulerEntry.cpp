@@ -9,9 +9,8 @@
 
 DEFINE_STAT(STAT_AnimNext_InitializeEntry);
 
-FAnimNextSchedulerEntry::FAnimNextSchedulerEntry(const UAnimNextSchedule* InSchedule, UObject* InObject, UE::AnimNext::FScheduleHandle InHandle, const TMap<FName, FAnimNextParameterCollection>& InUserScopes, EAnimNextScheduleInitMethod InInitMethod)
+FAnimNextSchedulerEntry::FAnimNextSchedulerEntry(const UAnimNextSchedule* InSchedule, UObject* InObject, UE::AnimNext::FScheduleHandle InHandle, EAnimNextScheduleInitMethod InInitMethod)
 	: Schedule(InSchedule)
-	, UserScopes(InUserScopes)
 	, WeakObject(InObject)
 	, Handle(InHandle)
 	, Context(InSchedule, this)
@@ -25,7 +24,7 @@ FAnimNextSchedulerEntry::~FAnimNextSchedulerEntry()
 	Invalidate();
 }
 
-void FAnimNextSchedulerEntry::Initialize()
+void FAnimNextSchedulerEntry::Initialize(TUniqueFunction<void(const UE::AnimNext::FScheduleContext&)>&& InInitializeCallback)
 {
 	SCOPE_CYCLE_COUNTER(STAT_AnimNext_InitializeEntry);
 	
@@ -181,7 +180,14 @@ void FAnimNextSchedulerEntry::Initialize()
 			TickFunction->RegisterTickFunction(Level);
 		}
 
+		LazyAllocateInstanceData();
+
 		RunState = ERunState::RunningInitialUpdate;
+
+		if(InInitializeCallback)
+		{
+			InInitializeCallback(Context);
+		}
 
 		// Just pause now if we arent needing an initial update
 		if(InitMethod == EAnimNextScheduleInitMethod::None)
@@ -194,7 +200,6 @@ void FAnimNextSchedulerEntry::Initialize()
 			// generate an output pose, as these worlds never tick
 			if(World->WorldType == EWorldType::EditorPreview)
 			{
-				LazyAllocateInstanceData();
 				FScheduleContext::AttachToCurrentThread(Context);
 				FScheduleTickFunction::RunSchedule(Schedule->Instructions);
 				FScheduleContext::DetachFromCurrentThread();
@@ -241,7 +246,6 @@ void FAnimNextSchedulerEntry::Invalidate()
 	Schedule = nullptr;
 	WeakObject = nullptr;
 	TargetObjects.Reset();
-	UserScopes.Empty();
 	Handle.Invalidate();
 	Context.InstanceData.Reset();
 }
@@ -283,6 +287,6 @@ void FAnimNextSchedulerEntry::LazyAllocateInstanceData()
 	// Allocate instance data if required
 	if (!Context.InstanceData.IsValid())
 	{
-		Context.InstanceData = MakeUnique<FScheduleInstanceData>(Context, Schedule, Handle, this, MoveTemp(UserScopes));
+		Context.InstanceData = MakeUnique<FScheduleInstanceData>(Context, Schedule, Handle, this);
 	}
 }

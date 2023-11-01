@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Param/AnimNextParameterSourceRef.h"
-#include "Component/AnimNextComponent.h"
+#include "Components/ActorComponent.h"
 #include "GameFramework/Actor.h"
 
 const IAnimNextParameterSourceInterface* FAnimNextParameterSourceRef::Get(const UObject* InContextObject) const
@@ -9,14 +9,14 @@ const IAnimNextParameterSourceInterface* FAnimNextParameterSourceRef::Get(const 
 	switch (Type)
 	{
 	case EAnimNextParameterSourceRefType::Self:
-		return Cast<UAnimNextComponent>(InContextObject);
-	case EAnimNextParameterSourceRefType::Asset:
+		return Cast<IAnimNextParameterSourceInterface>(InContextObject);
+	case EAnimNextParameterSourceRefType::Asset: 
 		return Asset.GetInterface();
 	case EAnimNextParameterSourceRefType::Component:
 	case EAnimNextParameterSourceRefType::Actor:
-		if (const UAnimNextComponent* AnimNextComponent = Cast<UAnimNextComponent>(InContextObject))
+		if (const UActorComponent* ActorComponent = Cast<UActorComponent>(InContextObject))
 		{
-			if (AActor* Actor = AnimNextComponent->GetOwner())
+			if (AActor* Actor = ActorComponent->GetOwner())
 			{
 				if (Type == EAnimNextParameterSourceRefType::Actor)
 				{

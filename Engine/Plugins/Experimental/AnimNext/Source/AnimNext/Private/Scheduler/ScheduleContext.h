@@ -57,6 +57,9 @@ public:
 		return *InstanceData.Get(); 
 	}
 
+	// Get the current delta time - only valid if we are within a running schedule
+	float GetDeltaTime() const;
+
 	// Get the current object context that the schedule is running in 
 	UObject* GetContextObject() const;
 

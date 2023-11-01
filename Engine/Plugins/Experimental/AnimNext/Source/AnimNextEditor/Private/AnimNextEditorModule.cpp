@@ -143,18 +143,6 @@ class FModule : public IModule
 			UAnimNextGraph* Graph = CastChecked<UAnimNextGraph>(InAsset);
 			UAnimNextGraph_EditorData* EditorData = UncookedOnly::FUtils::GetEditorData(Graph);
 
-			// Open default model for this graph asset as well as the graph-list tab (deferred so we dont modify opened document records during iteration)
-			ExecuteOnGameThread(UE_SOURCE_LOCATION, [WeakEditor = TWeakPtr<FWorkspaceEditor>(InEditor), WeakEditorData = TWeakObjectPtr<UAnimNextGraph_EditorData>(EditorData)]()
-			{
-				if(WeakEditorData.Get() && WeakEditor.IsValid())
-				{
-					if(UObject* EditorObject = WeakEditorData->GetEditorObjectForRigVMGraph(WeakEditorData->GetRigVMClient()->GetDefaultModel()))
-					{
-						WeakEditor.Pin()->OpenDocument(EditorObject, FDocumentTracker::EOpenDocumentCause::OpenNewDocument);
-					}
-				}
-			});
-
 			return SNew(SAnimNextGraphView, EditorData)
 				.OnOpenGraph_Lambda([WeakEditor = TWeakPtr<FWorkspaceEditor>(InEditor)](URigVMGraph* InGraph)
 				{

@@ -24,7 +24,7 @@ namespace UE::AnimNext
 // Host for all data needed to run a schedule instance
 struct FScheduleInstanceData : public FGCObject
 {
-	FScheduleInstanceData(const FScheduleContext& InScheduleContext, const UAnimNextSchedule* InSchedule, FScheduleHandle InHandle, FAnimNextSchedulerEntry* InCurrentEntry, TMap<FName, FAnimNextParameterCollection>&& InDynamicScopes);
+	FScheduleInstanceData(const FScheduleContext& InScheduleContext, const UAnimNextSchedule* InSchedule, FScheduleHandle InHandle, FAnimNextSchedulerEntry* InCurrentEntry);
 
 	// FGCObject interface
 	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
@@ -63,6 +63,9 @@ struct FScheduleInstanceData : public FGCObject
 
 	// Param stacks required to run the schedule (one per task that requires a stack)
 	TArray<TSharedPtr<FParamStack>> ParamStacks;
+
+	// User handles initialized at startup, always pushed
+	TArray<FParamStackLayerHandle> StaticUserHandles;
 
 	// Graph instance data for each graph task
 	TArray<FAnimNextGraphInstance> GraphInstanceData;

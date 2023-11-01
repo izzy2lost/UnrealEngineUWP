@@ -128,6 +128,31 @@ void FParamId::RegisterBuiltInAdapters()
 	FRWScopeLock Lock(GParamIdLock, SLT_Write);
 	FParamIdGlobalData& ParamIdGlobalData = GetParamIdData();
 
+	// Register world delta time
+	{
+		FObjectAdapterFunction DeltaTimeFunction = [](UObject* InContextObject, FParamId InId) -> uint8*
+		{
+			if (UWorld* World = InContextObject->GetWorld())
+			{
+				float* ReturnValue = GetAdapterReturnValue<float>(InId);
+				*ReturnValue = World->GetDeltaSeconds();
+				return reinterpret_cast<uint8*>(ReturnValue);
+			}
+			return nullptr;
+		};
+
+		FName DeltaTimeName("UE_Frame_DeltaTime");
+		const uint32 DeltaTimeNameFunctionIndex = MakeParamId_NoLock(DeltaTimeName);
+		ParamIdGlobalData.ParamData[DeltaTimeNameFunctionIndex].AdapterIndex = ParamIdGlobalData.ParamAdapters.Num();
+		FText TooltipText = LOCTEXT("DeltaTimeTooltip", "The current delta time");
+		FParamAdapter& NewAdapter = ParamIdGlobalData.ParamAdapters.Emplace_GetRef(FParamDefinition(DeltaTimeNameFunctionIndex, DeltaTimeName, FAnimNextParamType::GetType<float>(), TooltipText), MoveTemp(DeltaTimeFunction));
+		FParams::RegisterBuiltInParameter(NewAdapter.Definition);
+
+		// Calc buffer size for the result
+		ParamIdGlobalData.ParamData[DeltaTimeNameFunctionIndex].BufferOffset = Align(ParamIdGlobalData.ResultBufferSize, alignof(float));
+		ParamIdGlobalData.ResultBufferSize += sizeof(float);
+	}
+	
 	// Register physics tick function
 	{
 		FObjectAdapterFunction PhysicsTickFunctionFunction = [](UObject* InContextObject, FParamId InId) -> uint8*

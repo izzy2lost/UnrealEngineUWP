@@ -17,45 +17,73 @@ void FAnimNextScheduleGraphTask::RunGraph(const UE::AnimNext::FScheduleContext& 
 
 	using namespace UE::AnimNext;
 
-	if (Graph == nullptr)
+	FParamStack& ParamStack = FParamStack::Get();
+
+	UAnimNextGraph* GraphToRun = Graph;
+	if (GraphToRun == nullptr && DynamicGraph != NAME_None)
+	{
+		if(const TObjectPtr<UAnimNextGraph>* FoundGraph = ParamStack.GetParamPtr<TObjectPtr<UAnimNextGraph>>(DynamicGraph))
+		{
+			GraphToRun = *FoundGraph;
+		}
+	}
+
+	if(GraphToRun == nullptr)
 	{
 		return;
 	}
 
 	FScheduleInstanceData& InstanceData = InContext.GetInstanceData();
 
+	// Check if we are running the correct graph and release (and any term mapping layers) it if not
+	if(InstanceData.GraphInstanceData[TaskIndex].IsValid() && !InstanceData.GraphInstanceData[TaskIndex].UsesGraph(GraphToRun))
+	{
+		InstanceData.GraphInstanceData[TaskIndex].Release();
+		InstanceData.GraphTermLayers[TaskIndex].Invalidate();
+	}
+
 	// Allocate our graph instance data
 	if (!InstanceData.GraphInstanceData[TaskIndex].IsValid())
 	{
-		Graph->AllocateInstance(InstanceData.GraphInstanceData[TaskIndex]);
+		GraphToRun->AllocateInstance(InstanceData.GraphInstanceData[TaskIndex]);
 	}
 
-	FParamStack& ParamStack = FParamStack::Get();
-	const FAnimNextGraphReferencePose* GraphReferencePose = ParamStack.GetParamPtr<FAnimNextGraphReferencePose>(Graph->GetReferencePoseParam());
+	const FAnimNextGraphReferencePose* GraphReferencePose = ParamStack.GetParamPtr<FAnimNextGraphReferencePose>(GraphToRun->GetReferencePoseParam());
 	if(GraphReferencePose == nullptr)
 	{
 		return;
 	}
 
-	const int32* GraphLODLevel = ParamStack.GetParamPtr<int32>(Graph->GetCurrentLODParam());
+	const int32* GraphLODLevel = ParamStack.GetParamPtr<int32>(GraphToRun->GetCurrentLODParam());
 	if(GraphLODLevel == nullptr)
 	{
 		return;
 	}
 
+	// Check and allocate remapped term layer
+	FParamStackLayerHandle& TermLayerHandle = InstanceData.GraphTermLayers[TaskIndex];
+	if(!TermLayerHandle.IsValid())
+	{
+		TConstArrayView<FScheduleTerm> GraphTerms = GraphToRun->GetTerms();
+		check(Terms.Num() == GraphTerms.Num());
+
+		TMap<FName, FName> Mapping;
+		Mapping.Reserve(GraphTerms.Num());
+		for(int32 TermIndex = 0; TermIndex < Terms.Num(); ++TermIndex)
+		{
+			uint32 IntermediateTermIndex = Terms[TermIndex];
+			const FPropertyBagPropertyDesc& PropertyDesc = InstanceData.IntermediatesData.GetPropertyBagStruct()->GetPropertyDescs()[IntermediateTermIndex];
+			Mapping.Add(PropertyDesc.Name, GraphTerms[TermIndex].GetName());
+		}
+
+		TermLayerHandle = FParamStack::MakeRemappedLayer(InstanceData.IntermediatesLayer, Mapping);
+	}
+
 	// TODO: This should not be fixed at arg 0, we should define this in the graph asset
-	const FParamStackLayerHandle& TermLayerHandle = InstanceData.GraphTermLayers[TaskIndex];
-	FAnimNextGraphLODPose* OutputPose = TermLayerHandle.GetMutableParamPtr<FAnimNextGraphLODPose>(Graph->GetTerms()[0].GetId());
+	FAnimNextGraphLODPose* OutputPose = TermLayerHandle.GetMutableParamPtr<FAnimNextGraphLODPose>(GraphToRun->GetTerms()[0].GetId());
 	if(OutputPose == nullptr)
 	{
 		return;
-	}
-
-	float DeltaTime = 1/60.0f;
-	const float* ExternalDeltaTime = ParamStack.GetParamPtr<float>(Graph->GetDeltaTimeParam());
-	if(ExternalDeltaTime != nullptr)
-	{
-		DeltaTime = *ExternalDeltaTime;
 	}
 
 	// Create or update our result pose
@@ -95,8 +123,9 @@ void FAnimNextScheduleGraphTask::RunGraph(const UE::AnimNext::FScheduleContext& 
 	// This reduces churn internally by avoiding a chunk to be repeatedly allocated and freed as we push/pop marks
 	MemStack.Alloc(size_t(FPageAllocator::SmallPageSize) + 1, 16);
 
+	const float DeltaTime = InContext.GetDeltaTime();
 	const FContext Context(DeltaTime);
-	Graph->Run(Context, InstanceData.GraphInstanceData[TaskIndex], EAnimNextGraphSimulationSteps::All);
+	GraphToRun->Run(Context, InstanceData.GraphInstanceData[TaskIndex], EAnimNextGraphSimulationSteps::All);
 
 	ParamStack.PopLayer(LayerHandle);
 }

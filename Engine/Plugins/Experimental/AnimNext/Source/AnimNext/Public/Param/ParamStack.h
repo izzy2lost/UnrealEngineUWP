@@ -71,6 +71,7 @@ struct FParamStack
 	friend struct ::FAnimNextSchedulerEntry;
 	friend class ::FAnimationAnimNextRuntimeTest_GraphExecute;
 	friend class ::FAnimationAnimNextRuntimeTest_GraphExecuteLatent;
+	friend class ::UAnimNextComponent;
 
 	template<typename AllocatorType> 
 	friend struct TLayerBuilder;

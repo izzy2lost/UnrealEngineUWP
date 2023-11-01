@@ -154,6 +154,11 @@ bool FAnimNextGraphInstance::IsValid() const
 	return GraphInstancePtr.IsValid();
 }
 
+bool FAnimNextGraphInstance::UsesGraph(const UAnimNextGraph* InGraph) const
+{
+	return Graph == InGraph;
+}
+
 UAnimNextGraph::UAnimNextGraph(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
@@ -232,7 +237,6 @@ void UAnimNextGraph::PostLoad()
 
 	ReferencePoseId = FParamId(ReferencePose);
 	CurrentLODId = FParamId(CurrentLOD);
-	DeltaTimeId = FParamId(DeltaTime);
 }
 
 void UAnimNextGraph::Serialize(FArchive& Ar)

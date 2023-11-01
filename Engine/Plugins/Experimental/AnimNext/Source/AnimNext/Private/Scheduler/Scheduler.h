@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "ScheduleContext.h"
 #include "ScheduleHandle.h"
 
 enum class EAnimNextScheduleInitMethod : uint8;
@@ -32,8 +33,10 @@ struct FScheduler
 	// Shut down the scheduler system
 	static void Destroy();
 
-	// Acquire a handle that binds a schedule with the supplied parameters
-	static FScheduleHandle AcquireHandle(UObject* InObject, UAnimNextSchedule* InSchedule, const TMap<FName, FAnimNextParameterCollection>& InUserScopes, EAnimNextScheduleInitMethod InInitMethod);
+	// Acquire a handle that binds a schedule
+	// Initial parameter binding can be achieved via InitializeCallback, which is called once the schedule's data
+	// structures have been set up, but before it is first run.
+	static FScheduleHandle AcquireHandle(UObject* InObject, UAnimNextSchedule* InSchedule, EAnimNextScheduleInitMethod InInitMethod, TUniqueFunction<void(const FScheduleContext&)>&& InitializeCallback = nullptr);
 
 	// Release an already acquired handle
 	// The full release of the binding referenced by the handle map be deferred after this call is made

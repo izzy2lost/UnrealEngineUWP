@@ -47,6 +47,9 @@ private:
 	UPROPERTY()
 	TObjectPtr<UAnimNextGraph> Graph = nullptr;
 
+	UPROPERTY()
+	FName DynamicGraph;
+
 	// Index of each term in the schedule intermediates
 	UPROPERTY()
 	TArray<uint32> Terms;

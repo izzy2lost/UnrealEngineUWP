@@ -74,6 +74,9 @@ struct ANIMNEXT_API FAnimNextGraphInstance
 	// Returns true if we have a live graph instance, false otherwise
 	bool IsValid() const;
 
+	// Check to see if this instance data matches the provided graph
+	bool UsesGraph(const UAnimNextGraph* InGraph) const;
+
 private:
 	// Hard reference to the graph used to create this instance to ensure we can release it safely
 	UPROPERTY()
@@ -118,9 +121,6 @@ public:
 	// Get the parameter to use to access the current LOD
 	UE::AnimNext::FParamId GetCurrentLODParam() const { return CurrentLODId; }
 
-	// Get the parameter to use to access the delta time
-	UE::AnimNext::FParamId GetDeltaTimeParam() const { return DeltaTimeId; }
-	
 protected:
 	// Support rig VM execution
 	TArray<FRigVMExternalVariable> GetRigVMExternalVariables();
@@ -188,13 +188,8 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Graph", meta=(CustomWidget = "ParamName", AllowedParamType = "int32"))
 	FName CurrentLOD = TEXT("UE_AnimNextMeshComponent_PredictedLODLevel");
 
-	// The parameter to use to access the current delta time
-	UPROPERTY(EditAnywhere, Category = "Graph", meta=(CustomWidget = "ParamName", AllowedParamType = "float"))
-	FName DeltaTime = TEXT("UE_AnimNextSchedulerWorldSubsystem_DeltaTime");
-
 	UE::AnimNext::FParamId ReferencePoseId = UE::AnimNext::FParamId(ReferencePose);
 	UE::AnimNext::FParamId CurrentLODId = UE::AnimNext::FParamId(CurrentLOD);
-	UE::AnimNext::FParamId DeltaTimeId = UE::AnimNext::FParamId(DeltaTime);
 
 #if WITH_EDITORONLY_DATA
 	UPROPERTY(VisibleAnywhere, Instanced, Category = "Graph", meta = (ShowInnerProperties))

@@ -8,6 +8,7 @@
 #include "Scheduler/AnimNextScheduleExternalTask.h"
 #include "Scheduler/AnimNextScheduleParamScopeTask.h"
 #include "Tasks/Task.h"
+#include "Scheduler/IAnimNextScheduleTermInterface.h"
 #include "AnimNextSchedule.generated.h"
 
 class UAnimNextGraph;
@@ -27,6 +28,29 @@ namespace UE::AnimNext
 	struct FScheduleTickFunction;
 }
 
+USTRUCT()
+struct FAnimNextScheduleEntryTerm
+{
+	GENERATED_BODY()
+
+	FAnimNextScheduleEntryTerm() = default;
+	
+	FAnimNextScheduleEntryTerm(FName InName, const FAnimNextParamType& InType, EScheduleTermDirection InDirection)
+		: Name(InName)
+		, Type(InType)
+		, Direction(InDirection)
+	{}
+
+	UPROPERTY(EditAnywhere, Category = "Term")
+	FName Name;
+
+	UPROPERTY(EditAnywhere, Category = "Term")
+	FAnimNextParamType Type;
+
+	UPROPERTY(EditAnywhere, Category = "Term")
+	EScheduleTermDirection Direction = EScheduleTermDirection::Input;
+};
+
 UCLASS(EditInlineNew, Abstract)
 class UAnimNextScheduleEntry : public UObject
 {
@@ -36,7 +60,7 @@ private:
 	friend class UAnimNextSchedule;
 };
 
-UCLASS()
+UCLASS(DisplayName="Graph")
 class UAnimNextScheduleEntry_AnimNextGraph : public UAnimNextScheduleEntry
 {
 	GENERATED_BODY()
@@ -44,20 +68,24 @@ class UAnimNextScheduleEntry_AnimNextGraph : public UAnimNextScheduleEntry
 private:
 	friend class UAnimNextSchedule;
 
-	// The graph to run
+	// The graph to run by default
 	UPROPERTY(EditAnywhere, Category = "Graph")
 	TObjectPtr<UAnimNextGraph> Graph = nullptr;
+
+	// Parameter to get the graph from dynamically
+	UPROPERTY(EditAnywhere, Category = "Graph", meta = (CustomWidget = "ParamName", AllowedParamType = "TObjectPtr<UAnimNextGraph>"))
+	FName DynamicGraph;
 
 	// An optional entry point to use when running the supplied graph
 	UPROPERTY(EditAnywhere, Category = "Graph", meta = (CustomWidget = "ParamName", AllowedParamType = "FName"))
 	FName EntryPoint;
 
-	// The output intermediate terms used by the graph
+	// The intermediate terms used by the graph
 	UPROPERTY(EditAnywhere, Category = "Graph")
-	TArray<FName> Terms;
+	TArray<FAnimNextScheduleEntryTerm> Terms;
 };
 
-UCLASS()
+UCLASS(DisplayName="Port")
 class UAnimNextScheduleEntry_Port : public UAnimNextScheduleEntry
 {
 	GENERATED_BODY()
@@ -65,16 +93,16 @@ class UAnimNextScheduleEntry_Port : public UAnimNextScheduleEntry
 private:
 	friend class UAnimNextSchedule;
 
-	// The input intermediate terms used by this port
-	UPROPERTY(EditAnywhere, Category = "Port")
-	TArray<FName> Terms;
-
 	// The type of the port to use
-	UPROPERTY(EditAnywhere, Category = "Port")
+	UPROPERTY(EditAnywhere, Category = "Port", meta = (ShowDisplayNames))
 	TSubclassOf<UAnimNextSchedulePort> Port;
+
+	// The intermediate terms used by this port
+	UPROPERTY(EditAnywhere, Category = "Port")
+	TArray<FAnimNextScheduleEntryTerm> Terms;
 };
 
-UCLASS()
+UCLASS(DisplayName="External")
 class UAnimNextScheduleEntry_ExternalTask : public UAnimNextScheduleEntry
 {
 	GENERATED_BODY()
@@ -91,7 +119,7 @@ private:
 	FName Object;
 };
 
-UCLASS()
+UCLASS(DisplayName="Scope")
 class UAnimNextScheduleEntry_ParamScope : public UAnimNextScheduleEntry
 {
 	GENERATED_BODY()

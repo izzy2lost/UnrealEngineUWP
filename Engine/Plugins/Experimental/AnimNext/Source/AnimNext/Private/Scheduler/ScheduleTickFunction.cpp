@@ -18,6 +18,7 @@ void FScheduleBeginTickFunction::ExecuteTick(float DeltaTime, ELevelTick TickTyp
 	Entry.LazyAllocateInstanceData();
 
 	Entry.ResolvedObject = Entry.WeakObject.Get();
+	Entry.DeltaTime = DeltaTime;
 }
 
 FString FScheduleBeginTickFunction::DiagnosticMessage()

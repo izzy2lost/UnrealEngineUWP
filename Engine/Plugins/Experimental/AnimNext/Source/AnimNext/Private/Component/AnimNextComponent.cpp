@@ -14,8 +14,70 @@ void UAnimNextComponent::OnRegister()
 
 	if (Schedule)
 	{
+		// Initialization callback to set up any persistent external parameters
+		auto Initialize = [this](const FScheduleContext& InContext)
+		{
+			FScheduleInstanceData& InstanceData = InContext.GetInstanceData();
+
+			// First group params into scopes
+			TMap<FName, TArray<UAnimNextComponentParameter*, TInlineAllocator<4>>, TInlineSetAllocator<4>> ParamsByScope;
+			for(UAnimNextComponentParameter* Parameter : Parameters)
+			{
+				if(Parameter && Parameter->IsValid())
+				{
+					ParamsByScope.FindOrAdd(Parameter->Scope).Add(Parameter);
+				}
+			}
+
+			for(const TPair<FName, TArray<UAnimNextComponentParameter*, TInlineAllocator<4>>>& ParamPair : ParamsByScope)
+			{
+				FName Scope = ParamPair.Key;
+				TSharedPtr<FParamStack> StackToUse;
+
+				if(Scope == NAME_None)
+				{
+					StackToUse = InstanceData.RootParamStack;
+				}
+				else
+				{
+					const FAnimNextScheduleParamScopeEntryTask* FoundTask = InContext.Schedule->ParamScopeEntryTasks.FindByPredicate([Scope](const FAnimNextScheduleParamScopeEntryTask& InTask)
+					{
+						return InTask.Scope == Scope;
+					});
+
+					if(FoundTask)
+					{
+						StackToUse = InstanceData.ParamStacks[FoundTask->ParamScopeIndex];
+					}
+				}
+
+				if(StackToUse.IsValid())
+				{
+					TArray<TPair<FParamId, Private::FParamEntry>, TInlineAllocator<4>> Params;
+					for(UAnimNextComponentParameter* Parameter : ParamPair.Value)
+					{
+						FParamId ParamId;
+						FAnimNextParamType Type;
+						uint8* Value = nullptr;
+						Parameter->GetParamInfo(ParamId, Type, Value);
+						check(Type.IsValid() && Value != nullptr);
+
+						constexpr bool bIsReference = true;
+						constexpr bool bIsMutable = false;
+						Params.Emplace(ParamId, Private::FParamEntry(Type.GetHandle(), TArrayView<uint8>(Value, 1), bIsReference, bIsMutable));
+					}
+
+					FParamStackLayerHandle NewLayer = FParamStack::MakeLayer(Params);
+					InstanceData.StaticUserHandles.Add(MoveTemp(NewLayer));
+
+					// Layer is never popped as this is happening at the very start of execution
+					StackToUse->PushLayer(InstanceData.StaticUserHandles.Last());
+				}
+			}
+		};
+
 		check(!SchedulerHandle.IsValid());
-		SchedulerHandle = FScheduler::AcquireHandle(this, Schedule, Parameters, InitMethod);
+		SchedulerHandle = FScheduler::AcquireHandle(this, Schedule, InitMethod, MoveTemp(Initialize));
 	}
 }
 
@@ -27,29 +89,6 @@ void UAnimNextComponent::OnUnregister()
 
 	FScheduler::ReleaseHandle(this, SchedulerHandle);
 	SchedulerHandle.Invalidate();
-}
-
-void UAnimNextComponent::UpdateLayer(UE::AnimNext::FParamStackLayerHandle& InHandle) const
-{
-	if (UAnimNextComponent* This = InHandle.As<UAnimNextComponent>())
-	{
-		This->Update();
-	}
-}
-
-UE::AnimNext::FParamStackLayerHandle UAnimNextComponent::CacheLayer() const
-{
-	return UE::AnimNext::FParamStack::MakeReferenceLayer(const_cast<UAnimNextComponent*>(this));
-}
-
-TStructOnScope<FActorComponentInstanceData> UAnimNextComponent::GetComponentInstanceData() const
-{
-	TStructOnScope<FActorComponentInstanceData> InstanceData = MakeStructOnScope<FActorComponentInstanceData, FAnimNextComponentInstanceData>(this);
-	FAnimNextComponentInstanceData* AnimNextComponentInstanceData = InstanceData.Cast<FAnimNextComponentInstanceData>();
-	AnimNextComponentInstanceData->Schedule = Schedule;
-	AnimNextComponentInstanceData->Parameters = Parameters;
-
-	return InstanceData;
 }
 
 void UAnimNextComponent::SetParameterInScope(FName Scope, FName Name, int32 Value)
@@ -116,13 +155,4 @@ DEFINE_FUNCTION(UAnimNextComponent::execSetParameterInScope)
 void UAnimNextComponent::Enable(bool bEnabled)
 {
 	UE::AnimNext::FScheduler::EnableHandle(this, SchedulerHandle, bEnabled);
-}
-
-void FAnimNextComponentInstanceData::ApplyToComponent(UActorComponent* Component, const ECacheApplyPhase CacheApplyPhase) 
-{
-	Super::ApplyToComponent(Component, CacheApplyPhase);
-
-	UAnimNextComponent* AnimNextComponent = CastChecked<UAnimNextComponent>(Component);
-	AnimNextComponent->Schedule = Schedule;
-	AnimNextComponent->Parameters = Parameters;
 }

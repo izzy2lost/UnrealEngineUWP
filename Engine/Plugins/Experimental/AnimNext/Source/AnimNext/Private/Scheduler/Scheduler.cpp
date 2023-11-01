@@ -50,7 +50,7 @@ void FScheduler::Destroy()
 	FWorldDelegates::OnWorldPreActorTick.Remove(Impl.OnWorldPreActorTickHandle);
 }
 
-FScheduleHandle FScheduler::AcquireHandle(UObject* InObject, UAnimNextSchedule* InSchedule, const TMap<FName, FAnimNextParameterCollection>& InUserScopes, EAnimNextScheduleInitMethod InInitMethod)
+FScheduleHandle FScheduler::AcquireHandle(UObject* InObject, UAnimNextSchedule* InSchedule, EAnimNextScheduleInitMethod InInitMethod, TUniqueFunction<void(const FScheduleContext&)>&& InInitializeCallback)
 {
 	FScheduleHandle Handle;
 
@@ -79,7 +79,7 @@ FScheduleHandle FScheduler::AcquireHandle(UObject* InObject, UAnimNextSchedule* 
 		return FScheduleHandle();
 	}
 
-	return Subsystem->AcquireHandle(InObject, InSchedule, InUserScopes, InInitMethod);
+	return Subsystem->AcquireHandle(InObject, InSchedule, InInitMethod, MoveTemp(InInitializeCallback));
 }
 
 void FScheduler::ReleaseHandle(UObject* InObject, FScheduleHandle& InHandle)

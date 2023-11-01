@@ -23,11 +23,11 @@ struct FAnimNextSchedulerEntry
 	GENERATED_BODY()
 
 	FAnimNextSchedulerEntry() = default;
-	FAnimNextSchedulerEntry(const UAnimNextSchedule* InSchedule, UObject* InObject, UE::AnimNext::FScheduleHandle InHandle, const TMap<FName, FAnimNextParameterCollection>& InUserScopes, EAnimNextScheduleInitMethod InInitMethod);
+	FAnimNextSchedulerEntry(const UAnimNextSchedule* InSchedule, UObject* InObject, UE::AnimNext::FScheduleHandle InHandle, EAnimNextScheduleInitMethod InInitMethod);
 	~FAnimNextSchedulerEntry();
 
 	// Setup the entry
-	void Initialize();
+	void Initialize(TUniqueFunction<void(const UE::AnimNext::FScheduleContext&)>&& InInitializeCallback);
 
 	// Used for pooling
 	void Invalidate();
@@ -43,11 +43,6 @@ struct FAnimNextSchedulerEntry
 
 	UPROPERTY(Transient)
 	TObjectPtr<const UAnimNextSchedule> Schedule = nullptr;
-
-	// User scopes are copied into this entry on construction, but moved out later into instance data
-	// So will be invalid here after first run
-	UPROPERTY(Transient)
-	TMap<FName, FAnimNextParameterCollection> UserScopes;
 
 	// Object this entry is bound to, valid only during schedule execution
 	UPROPERTY(Transient)
@@ -74,6 +69,9 @@ struct FAnimNextSchedulerEntry
 
 	// Pre-allocated graph of tick functions
 	TArray<TUniquePtr<UE::AnimNext::FScheduleTickFunction>> TickFunctions;
+
+	// Current delta time, updated each time the schedule runs
+	float DeltaTime = 0.0f;
 
 	enum class ERunState
 	{

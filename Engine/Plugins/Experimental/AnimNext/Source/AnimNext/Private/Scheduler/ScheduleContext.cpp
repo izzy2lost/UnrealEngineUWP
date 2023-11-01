@@ -40,4 +40,10 @@ UObject* FScheduleContext::GetContextObject() const
 	}
 }
 
+float FScheduleContext::GetDeltaTime() const 
+{ 
+	check(Entry != nullptr);
+	return Entry->DeltaTime; 
+}
+
 }

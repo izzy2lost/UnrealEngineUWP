@@ -13,10 +13,9 @@ DEFINE_STAT(STAT_AnimNext_CreateInstanceData);
 namespace UE::AnimNext
 {
 
-FScheduleInstanceData::FScheduleInstanceData(const FScheduleContext& InScheduleContext, const UAnimNextSchedule* InSchedule, FScheduleHandle InHandle, FAnimNextSchedulerEntry* InCurrentEntry, TMap<FName, FAnimNextParameterCollection>&& InUserScopes)
+FScheduleInstanceData::FScheduleInstanceData(const FScheduleContext& InScheduleContext, const UAnimNextSchedule* InSchedule, FScheduleHandle InHandle, FAnimNextSchedulerEntry* InCurrentEntry)
 	: Handle(InHandle)
 	, Entry(InCurrentEntry) 
-	, UserScopes(MoveTemp(InUserScopes))
 {
 	SCOPE_CYCLE_COUNTER(STAT_AnimNext_CreateInstanceData);
 
@@ -57,43 +56,9 @@ FScheduleInstanceData::FScheduleInstanceData(const FScheduleContext& InScheduleC
 	// Make a hosting layer for the intermediates
 	IntermediatesLayer = FParamStack::MakeReferenceLayer(IntermediatesData);
 
-	// Setup remapped intermediate data layers for graph and port tasks
-	GraphTermLayers.Reserve(InSchedule->Tasks.Num());
-	for (const FAnimNextScheduleGraphTask& Task : InSchedule->Tasks)
-	{
-		TConstArrayView<FScheduleTerm> Terms = Task.Graph->GetTerms();
-		check(Task.Terms.Num() == Terms.Num());
-
-		TMap<FName, FName> Mapping;
-		Mapping.Reserve(Task.Terms.Num());
-		for(int32 TermIndex = 0; TermIndex < Task.Terms.Num(); ++TermIndex)
-		{
-			uint32 IntermediateTermIndex = Task.Terms[TermIndex];
-			const FPropertyBagPropertyDesc& PropertyDesc = IntermediatesData.GetPropertyBagStruct()->GetPropertyDescs()[IntermediateTermIndex];
-			Mapping.Add(PropertyDesc.Name, Terms[TermIndex].GetName());
-		}
-
-		GraphTermLayers.Add(FParamStack::MakeRemappedLayer(IntermediatesLayer, Mapping));
-	}
-
-	PortTermLayers.Reserve(InSchedule->Ports.Num());
-	for (const FAnimNextSchedulePortTask& PortTask : InSchedule->Ports)
-	{
-		UAnimNextSchedulePort* CDO = PortTask.Port->GetDefaultObject<UAnimNextSchedulePort>();
-		TConstArrayView<FScheduleTerm> Terms = CDO->GetTerms();
-		check(PortTask.Terms.Num() == Terms.Num());
-
-		TMap<FName, FName> Mapping;
-		Mapping.Reserve(PortTask.Terms.Num());
-		for(int32 TermIndex = 0; TermIndex < PortTask.Terms.Num(); ++TermIndex)
-		{
-			uint32 IntermediateTermIndex = PortTask.Terms[TermIndex];
-			const FPropertyBagPropertyDesc& PropertyDesc = IntermediatesData.GetPropertyBagStruct()->GetPropertyDescs()[IntermediateTermIndex];
-			Mapping.Add(PropertyDesc.Name, Terms[TermIndex].GetName());
-		}
-
-		PortTermLayers.Add(FParamStack::MakeRemappedLayer(IntermediatesLayer, Mapping));
-	}
+	// Resize remapped intermediate data layers for graph and port tasks, they will be allocated lazily later
+	GraphTermLayers.SetNum(InSchedule->Tasks.Num());
+	PortTermLayers.SetNum(InSchedule->Ports.Num());
 }
 
 void FScheduleInstanceData::AddReferencedObjects(FReferenceCollector& Collector)

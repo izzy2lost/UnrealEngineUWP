@@ -8,6 +8,7 @@
 class UAnimNextSchedule;
 class UAnimNextParameterBlock;
 class UAnimNextSchedulerWorldSubsystem;
+class UAnimNextComponent;
 
 namespace UE::AnimNext
 {
@@ -31,6 +32,7 @@ private:
 	friend class UAnimNextSchedulerWorldSubsystem;
 	friend struct UE::AnimNext::FScheduleInstanceData;
 	friend struct UE::AnimNext::FScheduleTickFunction;
+	friend class UAnimNextComponent;
 
 	UPROPERTY()
 	uint32 TaskIndex = MAX_uint32;

@@ -85,17 +85,32 @@ void UAnimNextSchedule::CompileSchedule()
 	// MAX_uint32 means 'global scope' in this context
 	uint32 ParentScopeIndex = MAX_uint32;
 
-	TArray<FAnimNextParamType> IntermediateTypes;
+	TArray<FAnimNextScheduleEntryTerm> IntermediateTerms;
 	TMap<FName, uint32> IntermediateMap;
 
 	TFunction<void(const TArray<TObjectPtr<UAnimNextScheduleEntry>>&)> EmitEntries;
 
 	// Iterate over all entries, recursing into scopes
-	EmitEntries = [this, &EmitEntries, &Emit, &EmitPrerequisite, &ParentScopeIndex, &IntermediateTypes, &IntermediateMap](const TArray<TObjectPtr<UAnimNextScheduleEntry>>& InEntries)
+	EmitEntries = [this, &EmitEntries, &Emit, &EmitPrerequisite, &ParentScopeIndex, &IntermediateTerms, &IntermediateMap](const TArray<TObjectPtr<UAnimNextScheduleEntry>>& InEntries)
 	{
 		for (int32 EntryIndex = 0; EntryIndex < InEntries.Num(); ++EntryIndex)
 		{
 			UAnimNextScheduleEntry* Entry = InEntries[EntryIndex];
+
+			auto CheckTermDirectionCompatibility = [](FName InName, EScheduleTermDirection InExistingDirection, EScheduleTermDirection InNewDirection)
+			{
+				switch(InExistingDirection)
+				{
+				case EScheduleTermDirection::Input:
+					// Input before output: error
+					UE_LOG(LogAnimation, Error, TEXT("Term '%s' was used as an input before it was output"), *InName.ToString());
+					return false;
+				case EScheduleTermDirection::Output:
+					return true;
+				}
+
+				return false;
+			};
 
 			if (UAnimNextScheduleEntry_Port* PortEntry = Cast<UAnimNextScheduleEntry_Port>(Entry))
 			{
@@ -120,20 +135,33 @@ void UAnimNextSchedule::CompileSchedule()
 
 					for(int32 TermIndex = 0; TermIndex < PortEntry->Terms.Num(); ++TermIndex)
 					{
-						FName Term = PortEntry->Terms[TermIndex];
-						const uint32* ExistingIntermediateIndexPtr = IntermediateMap.Find(Term);
-						if(ExistingIntermediateIndexPtr != nullptr)
+						FName TermName = PortEntry->Terms[TermIndex].Name;
+						if(!PortEntry->Terms[TermIndex].Type.IsValid())
 						{
-							const FAnimNextParamType& IntermediateType = IntermediateTypes[*ExistingIntermediateIndexPtr];
-							if(IntermediateType != Terms[TermIndex].GetType())
+							UE_LOG(LogAnimation, Error, TEXT("AnimNext: Invalid type when processing port term, ignored: '%s'"), *TermName.ToString());
+							bValid = false;
+						}
+						else
+						{
+							const uint32* ExistingIntermediateIndexPtr = IntermediateMap.Find(TermName);
+							if(ExistingIntermediateIndexPtr != nullptr)
 							{
-								UE_LOG(LogAnimation, Error, TEXT("AnimNext: Mismatched types when processing port term, ignored: '%s'"), *Term.ToString());
-								bValid = false;
+								const FAnimNextScheduleEntryTerm& IntermediateTerm = IntermediateTerms[*ExistingIntermediateIndexPtr];
+								if(IntermediateTerm.Type != Terms[TermIndex].GetType())
+								{
+									UE_LOG(LogAnimation, Error, TEXT("AnimNext: Mismatched types when processing port term, ignored: '%s'"), *TermName.ToString());
+									bValid = false;
+								}
+
+								if(!CheckTermDirectionCompatibility(TermName, IntermediateTerm.Direction, Terms[TermIndex].Direction))
+								{
+									bValid = false;
+								}
 							}
 						}
 					}
 				}
-				
+
 				if(bValid)
 				{
 					EmitPrerequisite();
@@ -143,18 +171,14 @@ void UAnimNextSchedule::CompileSchedule()
 					PortTask.ParamScopeIndex = ParentScopeIndex;
 					PortTask.Port = PortEntry->Port;
 
-					UAnimNextSchedulePort* CDO = PortEntry->Port->GetDefaultObject<UAnimNextSchedulePort>();
-					check(CDO);
-					TConstArrayView<FScheduleTerm> Terms = CDO->GetTerms();
-
 					for(int32 TermIndex = 0; TermIndex < PortEntry->Terms.Num(); ++TermIndex)
 					{
-						FName Term = PortEntry->Terms[TermIndex];
-						const uint32* ExistingIntermediateIndexPtr = IntermediateMap.Find(Term);
+						FName TermName = PortEntry->Terms[TermIndex].Name;
+						const uint32* ExistingIntermediateIndexPtr = IntermediateMap.Find(TermName);
 						if(ExistingIntermediateIndexPtr == nullptr)
 						{
-							uint32 IntermediateIndex = IntermediateTypes.Add(Terms[TermIndex].GetType());
-							IntermediateMap.Add(Term, IntermediateIndex);
+							uint32 IntermediateIndex = IntermediateTerms.Emplace(TermName, PortEntry->Terms[TermIndex].Type, PortEntry->Terms[TermIndex].Direction);
+							IntermediateMap.Add(TermName, IntermediateIndex);
 							PortTask.Terms.Add(IntermediateIndex);
 						}
 						else
@@ -174,12 +198,12 @@ void UAnimNextSchedule::CompileSchedule()
 			{
 				bool bValid = true;
 
-				if(GraphEntry->Graph == nullptr)
+				if(GraphEntry->Graph == nullptr && GraphEntry->DynamicGraph == NAME_None)
 				{
-					UE_LOG(LogAnimation, Warning, TEXT("AnimNext: Invalid graph supplied"));
+					UE_LOG(LogAnimation, Error, TEXT("AnimNext: Invalid graph or no parameter supplied"));
 					bValid = false;
 				}
-				else
+				else if(GraphEntry->Graph != nullptr)
 				{
 					TConstArrayView<FScheduleTerm> Terms = GraphEntry->Graph->GetTerms();
 					if(GraphEntry->Terms.Num() != Terms.Num())
@@ -187,17 +211,50 @@ void UAnimNextSchedule::CompileSchedule()
 						UE_LOG(LogAnimation, Error, TEXT("AnimNext: Incorrect term count for graph: %d"), GraphEntry->Terms.Num());
 						bValid = false;
 					}
-
-					for(int32 TermIndex = 0; TermIndex < GraphEntry->Terms.Num(); ++TermIndex)
+					else
 					{
-						FName Term = GraphEntry->Terms[TermIndex];
-						const uint32* ExistingIntermediateIndexPtr = IntermediateMap.Find(Term);
+						// Validate graph terms match schedule-expected terms
+						for(int32 TermIndex = 0; TermIndex < GraphEntry->Terms.Num(); ++TermIndex)
+						{
+							FName TermName = GraphEntry->Terms[TermIndex].Name;
+							if(Terms[TermIndex].Direction != GraphEntry->Terms[TermIndex].Direction)
+							{
+								UE_LOG(LogAnimation, Error, TEXT("AnimNext: Mismatched direction when processing graph term, ignored: '%s'"), *TermName.ToString());
+								bValid = false;
+							}
+							
+							if(Terms[TermIndex].GetType() != GraphEntry->Terms[TermIndex].Type)
+							{
+								UE_LOG(LogAnimation, Error, TEXT("AnimNext: Mismatched types when processing graph term, ignored: '%s'"), *TermName.ToString());
+								bValid = false;
+							}
+						}
+					}
+				}
+
+				// Validate terms and check against priors
+				for(int32 TermIndex = 0; TermIndex < GraphEntry->Terms.Num(); ++TermIndex)
+				{
+					FName TermName = GraphEntry->Terms[TermIndex].Name;
+					if(!GraphEntry->Terms[TermIndex].Type.IsValid())
+					{
+						UE_LOG(LogAnimation, Error, TEXT("AnimNext: Invalid type when processing graph term, ignored: '%s'"), *TermName.ToString());
+						bValid = false;
+					}
+					else
+					{
+						const uint32* ExistingIntermediateIndexPtr = IntermediateMap.Find(TermName);
 						if(ExistingIntermediateIndexPtr != nullptr)
 						{
-							const FAnimNextParamType& IntermediateType = IntermediateTypes[*ExistingIntermediateIndexPtr];
-							if(IntermediateType != Terms[TermIndex].GetType())
+							const FAnimNextScheduleEntryTerm& IntermediateTerm = IntermediateTerms[*ExistingIntermediateIndexPtr];
+							if(IntermediateTerm.Type != GraphEntry->Terms[TermIndex].Type)
 							{
-								UE_LOG(LogAnimation, Error, TEXT("AnimNext: Mismatched types when processing graph term, ignored: '%s'"), *Term.ToString());
+								UE_LOG(LogAnimation, Error, TEXT("AnimNext: Mismatched types when processing graph term, ignored: '%s'"), *TermName.ToString());
+								bValid = false;
+							}
+								
+							if(!CheckTermDirectionCompatibility(TermName, IntermediateTerm.Direction, GraphEntry->Terms[TermIndex].Direction))
+							{
 								bValid = false;
 							}
 						}
@@ -214,16 +271,16 @@ void UAnimNextSchedule::CompileSchedule()
 					Task.ParamParentScopeIndex = ParentScopeIndex;
 					Task.EntryPoint = GraphEntry->EntryPoint;
 					Task.Graph = GraphEntry->Graph;
+					Task.DynamicGraph = GraphEntry->DynamicGraph;
 
-					TConstArrayView<FScheduleTerm> Terms = GraphEntry->Graph->GetTerms();
 					for(int32 TermIndex = 0; TermIndex < GraphEntry->Terms.Num(); ++TermIndex)
 					{
-						FName Term = GraphEntry->Terms[TermIndex];
-						const uint32* ExistingIntermediateIndexPtr = IntermediateMap.Find(Term);
+						FName TermName = GraphEntry->Terms[TermIndex].Name;
+						const uint32* ExistingIntermediateIndexPtr = IntermediateMap.Find(TermName);
 						if(ExistingIntermediateIndexPtr == nullptr)
 						{
-							uint32 IntermediateIndex = IntermediateTypes.Add(Terms[TermIndex].GetType());
-							IntermediateMap.Add(Term, IntermediateIndex);
+							uint32 IntermediateIndex = IntermediateTerms.Emplace(TermName, GraphEntry->Terms[TermIndex].Type, GraphEntry->Terms[TermIndex].Direction);
+							IntermediateMap.Add(TermName, IntermediateIndex);
 							Task.Terms.Add(IntermediateIndex);
 						}
 						else
@@ -308,14 +365,14 @@ void UAnimNextSchedule::CompileSchedule()
 	// Process intermediates
 	if(IntermediateMap.Num() > 0)
 	{
-		check(IntermediateMap.Num() == IntermediateTypes.Num());
+		check(IntermediateMap.Num() == IntermediateTerms.Num());
 		
 		TArray<FPropertyBagPropertyDesc> PropertyDescs;
-		PropertyDescs.Reserve(IntermediateTypes.Num());
+		PropertyDescs.Reserve(IntermediateTerms.Num());
 		 
 		for(const TPair<FName, uint32>& IntermediatePair : IntermediateMap)
 		{
-			const FAnimNextParamType& IntermediateType = IntermediateTypes[IntermediatePair.Value];
+			const FAnimNextParamType& IntermediateType = IntermediateTerms[IntermediatePair.Value].Type;
 			check(IntermediateType.IsValid());
 			PropertyDescs.Emplace(IntermediatePair.Key, IntermediateType.GetContainerType(), IntermediateType.GetValueType(), IntermediateType.GetValueTypeObject());
 		}

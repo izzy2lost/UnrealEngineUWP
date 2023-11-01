@@ -5,6 +5,8 @@
 #include "CoreMinimal.h"
 #include "Param/ParamTypeHandle.h"
 
+class UAnimNextComponent;
+
 namespace UE::AnimNext
 {
 	struct FParamStack;
@@ -49,6 +51,7 @@ private:
 	friend struct UE::AnimNext::FInstancedPropertyBagLayer;
 	friend struct UE::AnimNext::FParamStackLayerHandle;
 	friend struct UE::AnimNext::FRemappedLayer;
+	friend class ::UAnimNextComponent;
 
 	ANIMNEXT_API FParamEntry(const FParamTypeHandle& InTypeHandle, TArrayView<uint8> InData, bool bInIsReference, bool bInIsMutable);
 
