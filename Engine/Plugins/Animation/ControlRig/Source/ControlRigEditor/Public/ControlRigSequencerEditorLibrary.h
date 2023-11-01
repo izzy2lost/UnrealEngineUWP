@@ -1063,6 +1063,15 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig")
 	static bool IsLayeredControlRig(UControlRig* InControlRig);
 
+	/*
+	 * Convert the control rig track into absolute or layered rig
+	 *
+	 * @param InTrack Control rig track to convert 
+	 * @param bSetIsLayered Convert to layered rig if true, or absolute if false
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig")
+	static bool SetControlRigLayeredMode(UMovieSceneControlRigParameterTrack* InTrack, bool bSetIsLayered);
+
 	/**	Get FKControlRig Apply Mode.
 	@param InControlRig Rig to test
 	@return The EControlRigFKRigExecuteMode mode it is in, either Replace,Additive or Direct

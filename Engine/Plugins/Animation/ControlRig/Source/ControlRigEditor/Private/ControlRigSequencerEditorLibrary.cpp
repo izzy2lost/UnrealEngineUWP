@@ -3097,6 +3097,90 @@ bool UControlRigSequencerEditorLibrary::IsLayeredControlRig(UControlRig* InContr
 	return (InControlRig && InControlRig->IsAdditive());
 }
 
+bool UControlRigSequencerEditorLibrary::SetControlRigLayeredMode(UMovieSceneControlRigParameterTrack* InTrack, bool bSetIsLayered)
+{
+	if (!InTrack)
+	{
+		FFrame::KismetExecutionMessage(TEXT("Invalid track"), ELogVerbosity::Error);
+		return false;
+	}
+
+	UControlRig* ControlRig = InTrack->GetControlRig();
+	if (!ControlRig)
+	{
+		FFrame::KismetExecutionMessage(TEXT("Track does not have a control rig"), ELogVerbosity::Error);
+		return false;
+	}
+
+	if (ControlRig->IsAdditive() == bSetIsLayered)
+	{
+		if(bSetIsLayered)
+		{
+			FFrame::KismetExecutionMessage(TEXT("Control rig is already in layered mode"), ELogVerbosity::Error);
+		}
+		else
+		{
+			FFrame::KismetExecutionMessage(TEXT("Control rig is already in absolute mode"), ELogVerbosity::Error);
+		}
+		return false;
+	}
+
+	const FScopedTransaction Transaction(LOCTEXT("ConvertToLayeredControlRig_Transaction", "Convert to Layered Control Rig"));
+	InTrack->Modify();
+	ControlRig->Modify();
+
+	ControlRig->ClearPoseBeforeBackwardsSolve();
+	ControlRig->ResetControlValues();
+	ControlRig->SetIsAdditive(bSetIsLayered);
+
+	ControlRig->Evaluate_AnyThread();
+
+	FString ObjectName = ControlRig->GetClass()->GetName(); //GetDisplayNameText().ToString();
+	ObjectName.RemoveFromEnd(TEXT("_C"));
+	
+	if (bSetIsLayered)
+	{
+		const FString AdditiveObjectName = ObjectName + TEXT(" (Layered)");
+		InTrack->SetTrackName(FName(*ObjectName));
+		InTrack->SetDisplayName(FText::FromString(AdditiveObjectName));
+		InTrack->SetColorTint(UMovieSceneControlRigParameterTrack::LayeredRigTrackColor);
+	}
+	else
+	{
+		InTrack->SetTrackName(FName(*ObjectName));
+		InTrack->SetDisplayName(FText::FromString(ObjectName));
+		InTrack->SetColorTint(UMovieSceneControlRigParameterTrack::AbsoluteRigTrackColor);
+	}
+
+	FControlRigEditMode* ControlRigEditMode = static_cast<FControlRigEditMode*>(GLevelEditorModeTools().GetActiveMode(FControlRigEditMode::ModeName));
+	if (ControlRigEditMode)
+	{
+		ControlRigEditMode->ZeroTransforms(false);
+	}
+
+	for (UMovieSceneSection* Section : InTrack->GetAllSections())
+	{
+		if (Section)
+		{
+			UMovieSceneControlRigParameterSection* CRSection = Cast<UMovieSceneControlRigParameterSection>(Section);
+			if (CRSection)
+			{
+				Section->Modify();
+				CRSection->ClearAllParameters();
+				CRSection->RecreateWithThisControlRig(CRSection->GetControlRig(), true);
+			}
+		}
+	}
+
+	TWeakPtr<ISequencer> WeakSequencer = GetSequencerFromAsset();
+	if (WeakSequencer.IsValid())
+	{
+		WeakSequencer.Pin()->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::MovieSceneStructureItemsChanged);
+	}
+
+	return true;
+}
+
 EControlRigFKRigExecuteMode UControlRigSequencerEditorLibrary::GetFKControlRigApplyMode(UControlRig* InControlRig)
 {
 	EControlRigFKRigExecuteMode ApplyMode = EControlRigFKRigExecuteMode::Direct;
