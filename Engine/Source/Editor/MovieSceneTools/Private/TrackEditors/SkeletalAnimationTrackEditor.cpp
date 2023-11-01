@@ -69,6 +69,7 @@
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Layout/SUniformGridPanel.h"
 #include "Widgets/Input/SButton.h"
+#include "Widgets/Input/SComboBox.h"
 #include "Exporters/AnimSeqExportOption.h"
 
 #include "EditModes/SkeletalAnimationTrackEditMode.h"
@@ -80,6 +81,7 @@
 #include "UObject/SavePackage.h"
 #include "AnimSequencerInstanceProxy.h"
 #include "TimeToPixel.h"
+#include "SequencerAnimationOverride.h"
 
 int32 FSkeletalAnimationTrackEditor::NumberActive = 0;
 
@@ -440,17 +442,33 @@ public:
 	FMovieSceneSkeletalAnimationParamsDetailCustomization(const FSequencerSectionPropertyDetailsViewCustomizationParams& InParams)
 		: Params(InParams)
 	{
+		if (Params.ParentObjectBindingGuid.IsValid())
+		{
+			if (USkeletalMeshComponent* SkelMeshComp = AcquireSkeletalMeshFromObjectGuid(Params.ParentObjectBindingGuid, Params.Sequencer))
+			{
+				TScriptInterface<ISequencerAnimationOverride> SequencerAnimOverride = ISequencerAnimationOverride::GetSequencerAnimOverride(SkelMeshComp);
+				if (SequencerAnimOverride.GetObject())
+				{
+					bAllowsCinematicOverride = ISequencerAnimationOverride::Execute_AllowsCinematicOverride(SequencerAnimOverride.GetObject());
+					SlotNameOptions = ISequencerAnimationOverride::Execute_GetSequencerAnimSlotNames(SequencerAnimOverride.GetObject());
+					bShowSlotNameOptions = SlotNameOptions.Num() > 0 && !bAllowsCinematicOverride;
+				}
+			}
+		}
 	}
 
 	// IDetailCustomization interface
 	virtual void CustomizeHeader(TSharedRef<IPropertyHandle> PropertyHandle, FDetailWidgetRow& HeaderRow, IPropertyTypeCustomizationUtils& CustomizationUtils) override
 	{
+		SlotNameProperty = PropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FMovieSceneSkeletalAnimationParams, SlotName));
 	}
 
 	virtual void CustomizeChildren(TSharedRef<IPropertyHandle> PropertyHandle, IDetailChildrenBuilder& ChildBuilder, IPropertyTypeCustomizationUtils& CustomizationUtils) override
 	{
 		const FName AnimationPropertyName = GET_MEMBER_NAME_CHECKED(FMovieSceneSkeletalAnimationParams, Animation);
 		const FName MirrorDataTableName = GET_MEMBER_NAME_CHECKED(FMovieSceneSkeletalAnimationParams, MirrorDataTable);
+		const FName SlotNamePropertyName = GET_MEMBER_NAME_CHECKED(FMovieSceneSkeletalAnimationParams, SlotName);
+
 
 		uint32 NumChildren;
 		PropertyHandle->GetNumChildren(NumChildren);
@@ -495,6 +513,28 @@ public:
 					ChildPropertyHandle->SetInstanceMetaData(TEXT("NoResetToDefault"), TEXT("true"));
 				}
 			}
+			else if (ChildPropertyName == SlotNamePropertyName)
+			{
+				if (bShowSlotNameOptions)
+				{
+					ChildPropertyRow.IsEnabled(TAttribute<bool>::CreateSP(this, &FMovieSceneSkeletalAnimationParamsDetailCustomization::GetCanEditSlotName));
+					FDetailWidgetRow& Row = ChildPropertyRow.CustomWidget();
+					Row.NameContent()[ChildPropertyHandle->CreatePropertyNameWidget()];
+
+					Row.ValueContent()
+						[
+							SNew(SComboBox<FName>)
+							.OptionsSource(&SlotNameOptions)
+						.OnSelectionChanged(this, &FMovieSceneSkeletalAnimationParamsDetailCustomization::OnSlotNameChanged)
+						.OnGenerateWidget_Lambda([](FName InSlotName) { return SNew(STextBlock).Text(FText::FromName(InSlotName)); })
+						[
+							SNew(STextBlock)
+							.Font(IPropertyTypeCustomizationUtils::GetRegularFont())
+						.Text(this, &FMovieSceneSkeletalAnimationParamsDetailCustomization::GetSlotNameDesc)
+						]
+						];
+				}
+			}
 		}
 	}
 
@@ -512,10 +552,46 @@ public:
 		return !(Skeleton && Skeleton->IsCompatibleForEditor(AssetData));
 	}
 
+
+	FText GetSlotNameDesc() const
+	{
+		FName NameValue;
+		SlotNameProperty->GetValue(NameValue);
+
+		return FText::FromString(NameValue.ToString());
+	}
+
+	bool GetCanEditSlotName() const
+	{
+		if (bShowSlotNameOptions)
+		{
+			FName NameValue;
+			SlotNameProperty->GetValue(NameValue);
+			// If we're allowing cinematic override, then the slot names are irrelevant, don't allow edit.
+			// If we have less than 2 slot name options, then changing them is irrelevant, don't allow edit.
+			// Always allow an edit if the current slot name isn't currently set to one of the provided ones.
+			if (bAllowsCinematicOverride || (SlotNameOptions.Num() < 2 && SlotNameOptions.Contains(NameValue)))
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
+	void OnSlotNameChanged(FName InSlotName, ESelectInfo::Type InInfo)
+	{
+		SlotNameProperty->SetValue(InSlotName);
+	}
+
 private:
 	FSequencerSectionPropertyDetailsViewCustomizationParams Params;
 	FString SkeletonName;
 	USkeleton* Skeleton = nullptr;
+	TSharedPtr<IPropertyHandle> SlotNameProperty;
+	TArray<FName> SlotNameOptions;
+	bool bShowSlotName = true;
+	bool bShowSlotNameOptions = false;
+	bool bAllowsCinematicOverride = false;
 };
 
 
@@ -1842,9 +1918,32 @@ FKeyPropertyResult FSkeletalAnimationTrackEditor::AddKeyInternal( FFrameNumber K
 		{
 			SkelAnimTrack->Modify();
 
-			UMovieSceneSection* NewSection = SkelAnimTrack->AddNewAnimationOnRow(KeyTime, AnimSequence, RowIndex);
+			UMovieSceneSkeletalAnimationSection* NewSection = Cast<UMovieSceneSkeletalAnimationSection>(SkelAnimTrack->AddNewAnimationOnRow(KeyTime, AnimSequence, RowIndex));
 			KeyPropertyResult.bTrackModified = true;
 			KeyPropertyResult.SectionsCreated.Add(NewSection);
+
+			// Init the slot name on the new section if necessary
+			if (USkeletalMeshComponent* SkeletalMeshComponent = AcquireSkeletalMeshFromObjectGuid(ObjectHandle, GetSequencer()))
+			{
+				if (TSubclassOf<UAnimInstance> AnimInstanceClass = SkeletalMeshComponent->GetAnimClass())
+				{
+					if (UAnimInstance* AnimInstance = AnimInstanceClass->GetDefaultObject<UAnimInstance>())
+					{
+						if (AnimInstance->Implements<USequencerAnimationOverride>())
+						{
+							TScriptInterface<ISequencerAnimationOverride> SequencerAnimOverride = AnimInstance;
+							if (SequencerAnimOverride.GetObject())
+							{
+								TArray<FName> SlotNameOptions = ISequencerAnimationOverride::Execute_GetSequencerAnimSlotNames(SequencerAnimOverride.GetObject());
+								if (SlotNameOptions.Num() > 0)
+								{
+									NewSection->Params.SlotName = SlotNameOptions[0];
+								}
+							}
+						}
+					}
+				}
+			}
 
 			GetSequencer()->EmptySelection();
 			GetSequencer()->SelectSection(NewSection);

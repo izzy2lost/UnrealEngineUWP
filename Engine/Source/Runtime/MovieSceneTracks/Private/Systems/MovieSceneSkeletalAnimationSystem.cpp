@@ -40,6 +40,8 @@
 #include "BonePose.h"
 #include "Animation/BuiltInAttributeTypes.h"
 
+#include "SequencerAnimationOverride.h"
+
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MovieSceneSkeletalAnimationSystem)
 
 DECLARE_CYCLE_STAT(TEXT("Gather skeletal animations"), MovieSceneEval_GatherSkeletalAnimations, STATGROUP_MovieSceneECS);
@@ -776,7 +778,8 @@ private:
 		{
 			return;
 		}
-		if (AnimParams.bForceCustomMode)
+		TScriptInterface<ISequencerAnimationOverride> SequencerAnimOverride = ISequencerAnimationOverride::GetSequencerAnimOverride(Params.SkeletalMeshComponent);
+		if (AnimParams.bForceCustomMode || (SequencerAnimOverride.GetObject() && ISequencerAnimationOverride::Execute_AllowsCinematicOverride(SequencerAnimOverride.GetObject())))
 		{
 			Params.SkeletalMeshComponent->SetAnimationMode(EAnimationMode::AnimationCustomMode);
 		}
@@ -828,7 +831,7 @@ private:
 
 			const float AssetPlayRate = FMath::IsNearlyZero(AnimParams.Animation->RateScale) ? 1.0f : AnimParams.Animation->RateScale;
 			TWeakObjectPtr<UAnimMontage> WeakMontage = FAnimMontageInstance::SetSequencerMontagePosition(
-					AnimParams.SlotName, 
+					AnimParams.SlotName,
 					AnimInst, 
 					InstanceId, 
 					AnimParams.Animation, 
@@ -871,7 +874,8 @@ private:
 		{
 			return;
 		}
-		if (AnimParams.bForceCustomMode)
+		TScriptInterface<ISequencerAnimationOverride> SequencerAnimOverride = ISequencerAnimationOverride::GetSequencerAnimOverride(Params.SkeletalMeshComponent);
+		if (AnimParams.bForceCustomMode || (SequencerAnimOverride.GetObject() && ISequencerAnimationOverride::Execute_AllowsCinematicOverride(SequencerAnimOverride.GetObject())))
 		{
 			Params.SkeletalMeshComponent->SetAnimationMode(EAnimationMode::AnimationCustomMode);
 		}

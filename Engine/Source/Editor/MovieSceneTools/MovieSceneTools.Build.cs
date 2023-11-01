@@ -67,6 +67,7 @@ public class MovieSceneTools : ModuleRules
 				"TimeManagement",
                 "XmlParser",
 				"ToolMenus",
+				"AnimGraphRuntime"
 			}
 		);
 
