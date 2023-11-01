@@ -189,26 +189,35 @@ struct FBuildTargetResult
 	uint64 BaseBytes   = 0;
 };
 
-FBuildTargetResult BuildTarget(FIOWriter&			  Result,
-				 FIOReader&				Source,
-				 FIOReader&				Base,
-				 const FNeedList&		NeedList,
-				 EStrongHashAlgorithmID StrongHasher,
-				 FProxyPool*			ProxyPool = nullptr,
-				 FBlockCache*			BlockCache = nullptr,
-				 FScavengeDatabase*		ScavengeDatabase = nullptr);
+struct FBuildTargetParams
+{
+	EStrongHashAlgorithmID StrongHasher;
+	FProxyPool*			   ProxyPool		= nullptr;
+	FBlockCache*		   BlockCache		= nullptr;
+	FScavengeDatabase*	   ScavengeDatabase = nullptr;
 
-FBuffer BuildTargetBuffer(FIOReader&			 SourceProvider,
-						  FIOReader&			 BaseProvider,
-						  const FNeedList&		 NeedList,
-						  EStrongHashAlgorithmID StrongHasher);
+	enum class ESourceType {
+		File,
+		Patch
+	};
 
-FBuffer BuildTargetBuffer(const uint8*			 SourceData,
-						  uint64				 SourceSize,
-						  const uint8*			 BaseData,
-						  uint64				 BaseSize,
-						  const FNeedList&		 NeedList,
-						  EStrongHashAlgorithmID StrongHasher);
+	ESourceType SourceType = ESourceType::File;
+};
+
+FBuildTargetResult BuildTarget(FIOWriter&				 Result,
+							   FIOReader&				 Source,
+							   FIOReader&				 Base,
+							   const FNeedList&			 NeedList,
+							   const FBuildTargetParams& Params);
+
+FBuffer BuildTargetBuffer(FIOReader& SourceProvider, FIOReader& BaseProvider, const FNeedList& NeedList, const FBuildTargetParams& Params);
+
+FBuffer BuildTargetBuffer(const uint8*				SourceData,
+						  uint64					SourceSize,
+						  const uint8*				BaseData,
+						  uint64					BaseSize,
+						  const FNeedList&			NeedList,
+						  const FBuildTargetParams& Params);
 
 FBuffer BuildTargetWithPatch(const uint8* PatchData, uint64 PatchSize, const uint8* BaseData, uint64 BaseSize);
 

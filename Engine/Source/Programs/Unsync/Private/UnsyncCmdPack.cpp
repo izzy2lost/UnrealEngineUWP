@@ -81,14 +81,6 @@ BuildP4HaveSet(const FPath& Root, std::string_view P4HaveDataUtf8, FDirectoryMan
 	ForLines(P4HaveDataUtf8, Callback);
 }
 
-static void DropBlocksFromManifest(FDirectoryManifest& DirectoryManifest)
-{
-	for (auto& FileEntry : DirectoryManifest.Files)
-	{
-		FileEntry.second.Blocks.clear();
-	}
-}
-
 struct FPackIndexEntry
 {
 	FHash160 Hash	 = {};
@@ -284,7 +276,7 @@ int32 CmdPack(const FCmdPackOptions& Options)
 	{
 		UNSYNC_LOG(L"Loading previous manifest ... ")
 		FDirectoryManifest OldManifest;
-		if (LoadDirectoryManifest(OldManifest, InputRoot, DirectoryManifestPath))
+		if (PathExists(DirectoryManifestPath) && LoadDirectoryManifest(OldManifest, InputRoot, DirectoryManifestPath))
 		{
 			UNSYNC_LOG(L"Previous manifest loaded")
 
@@ -323,7 +315,6 @@ int32 CmdPack(const FCmdPackOptions& Options)
 	if (!GDryRun)
 	{
 		UNSYNC_LOG(L"Saving directory manifest '%ls'", DirectoryManifestPath.wstring().c_str());
-		DropBlocksFromManifest(DirectoryManifest); // only need to keep macro blocks
 		SaveDirectoryManifest(DirectoryManifest, DirectoryManifestPath);
 	}
 
@@ -364,6 +355,8 @@ int32 CmdPack(const FCmdPackOptions& Options)
 
 		FPath FinalPackFilename	 = ManifestRoot / (OutputId + ".bin");
 		FPath FinalIndexFilename = ManifestRoot / (OutputId + ".idx");
+
+		UNSYNC_LOG(L"Saving new pack: %hs", OutputId.c_str());
 
 		if (!FileRename(TempOutputPackFilename, FinalPackFilename, ErrorCode))
 		{

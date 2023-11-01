@@ -271,6 +271,9 @@ TestSync(EWeakHashAlgorithmID WeakHasher, EStrongHashAlgorithmID StrongHasher)
 	Algorithm.ChunkingAlgorithmId	= ChunkingMode;
 	Algorithm.WeakHashAlgorithmId	= WeakHasher;
 	Algorithm.StrongHashAlgorithmId = StrongHasher;
+	
+	FBuildTargetParams BuildParams;
+	BuildParams.StrongHasher = StrongHasher;
 
 	UNSYNC_LOG(L"TestSync(%hs, %hs)", ToString(WeakHasher), ToString(StrongHasher));
 
@@ -314,7 +317,7 @@ TestSync(EWeakHashAlgorithmID WeakHasher, EStrongHashAlgorithmID StrongHasher)
 
 		FMemReader SourceReader(Source);
 		FMemReader BaseReader(Base);
-		auto	   Target = BuildTargetBuffer(SourceReader, BaseReader, NeedBlocks, StrongHasher);
+		auto	   Target = BuildTargetBuffer(SourceReader, BaseReader, NeedBlocks, BuildParams);
 
 		UNSYNC_ASSERT(Target.Size() == Source.Size());
 		UNSYNC_ASSERT(!memcmp(Target.Data(), Source.Data(), Source.Size()));
@@ -329,7 +332,7 @@ TestSync(EWeakHashAlgorithmID WeakHasher, EStrongHashAlgorithmID StrongHasher)
 
 		UNSYNC_ASSERT(!IsSynchronized(NeedBlocks, SourceBlocks));
 
-		auto Target = BuildTargetBuffer(Source.Data(), Source.Size(), Base.Data(), Base.Size(), NeedBlocks, StrongHasher);
+		auto Target = BuildTargetBuffer(Source.Data(), Source.Size(), Base.Data(), Base.Size(), NeedBlocks, BuildParams);
 
 		UNSYNC_ASSERT(Target.Size() == Source.Size());
 		UNSYNC_ASSERT(!memcmp(Target.Data(), Source.Data(), Source.Size()));
@@ -344,7 +347,7 @@ TestSync(EWeakHashAlgorithmID WeakHasher, EStrongHashAlgorithmID StrongHasher)
 
 		UNSYNC_ASSERT(!IsSynchronized(NeedBlocks, SourceBlocks));
 
-		auto Target = BuildTargetBuffer(Source.Data(), Source.Size(), Base.Data(), Base.Size(), NeedBlocks, StrongHasher);
+		auto Target = BuildTargetBuffer(Source.Data(), Source.Size(), Base.Data(), Base.Size(), NeedBlocks, BuildParams);
 
 		UNSYNC_ASSERT(Target.Size() == Source.Size());
 		UNSYNC_ASSERT(!memcmp(Target.Data(), Source.Data(), Source.Size()));
@@ -359,7 +362,7 @@ TestSync(EWeakHashAlgorithmID WeakHasher, EStrongHashAlgorithmID StrongHasher)
 
 		UNSYNC_ASSERT(!IsSynchronized(NeedBlocks, SourceBlocks));
 
-		auto Target = BuildTargetBuffer(Source.Data(), Source.Size(), Base.Data(), Base.Size(), NeedBlocks, StrongHasher);
+		auto Target = BuildTargetBuffer(Source.Data(), Source.Size(), Base.Data(), Base.Size(), NeedBlocks, BuildParams);
 
 		UNSYNC_ASSERT(Target.Size() == Source.Size());
 		UNSYNC_ASSERT(!memcmp(Target.Data(), Source.Data(), Source.Size()));
@@ -374,7 +377,7 @@ TestSync(EWeakHashAlgorithmID WeakHasher, EStrongHashAlgorithmID StrongHasher)
 
 		UNSYNC_ASSERT(!IsSynchronized(NeedBlocks, SourceBlocks));
 
-		auto Target = BuildTargetBuffer(Source.Data(), Source.Size(), Base.Data(), Base.Size(), NeedBlocks, StrongHasher);
+		auto Target = BuildTargetBuffer(Source.Data(), Source.Size(), Base.Data(), Base.Size(), NeedBlocks, BuildParams);
 
 		UNSYNC_ASSERT(Target.Size() == Source.Size());
 		UNSYNC_ASSERT(!memcmp(Target.Data(), Source.Data(), Source.Size()));
@@ -389,7 +392,7 @@ TestSync(EWeakHashAlgorithmID WeakHasher, EStrongHashAlgorithmID StrongHasher)
 
 		UNSYNC_ASSERT(!IsSynchronized(NeedBlocks, SourceBlocks));
 
-		auto Target = BuildTargetBuffer(Source.Data(), Source.Size(), Base.Data(), Base.Size(), NeedBlocks, StrongHasher);
+		auto Target = BuildTargetBuffer(Source.Data(), Source.Size(), Base.Data(), Base.Size(), NeedBlocks, BuildParams);
 
 		UNSYNC_ASSERT(Target.Size() == Source.Size());
 		UNSYNC_ASSERT(!memcmp(Target.Data(), Source.Data(), Source.Size()));
@@ -404,7 +407,7 @@ TestSync(EWeakHashAlgorithmID WeakHasher, EStrongHashAlgorithmID StrongHasher)
 
 		UNSYNC_ASSERT(IsSynchronized(NeedBlocks, SourceBlocks));
 
-		auto Target = BuildTargetBuffer(Source.Data(), Source.Size(), Base.Data(), Base.Size(), NeedBlocks, StrongHasher);
+		auto Target = BuildTargetBuffer(Source.Data(), Source.Size(), Base.Data(), Base.Size(), NeedBlocks, BuildParams);
 
 		UNSYNC_ASSERT(Target.Size() == Source.Size());
 		UNSYNC_ASSERT(!memcmp(Target.Data(), Source.Data(), Source.Size()));
@@ -417,7 +420,7 @@ TestSync(EWeakHashAlgorithmID WeakHasher, EStrongHashAlgorithmID StrongHasher)
 		auto	SourceBlocks = ComputeBlocks(Source.Data(), Source.Size(), BlockSize, Algorithm);
 		auto	NeedBlocks	 = DiffBlocks(Base.Data(), Base.Size(), BlockSize, WeakHasher, StrongHasher, SourceBlocks);
 
-		auto Target = BuildTargetBuffer(Source.Data(), Source.Size(), Base.Data(), Base.Size(), NeedBlocks, StrongHasher);
+		auto Target = BuildTargetBuffer(Source.Data(), Source.Size(), Base.Data(), Base.Size(), NeedBlocks, BuildParams);
 
 		UNSYNC_ASSERT(Target.Size() == Source.Size());
 		UNSYNC_ASSERT(!memcmp(Target.Data(), Source.Data(), Source.Size()));
@@ -444,8 +447,11 @@ TestBuildTarget(EWeakHashAlgorithmID WeakHasher, EStrongHashAlgorithmID StrongHa
 	auto NeedBlocks	  = DiffBlocks(Base.Data(), Base.Size(), BlockSize, WeakHasher, StrongHasher, SourceBlocks);
 
 	UNSYNC_ASSERT(!IsSynchronized(NeedBlocks, SourceBlocks));
+	
+	FBuildTargetParams BuildParams;
+	BuildParams.StrongHasher = StrongHasher;
 
-	auto Target = BuildTargetBuffer(Source.Data(), Source.Size(), Base.Data(), Base.Size(), NeedBlocks, StrongHasher);
+	auto Target = BuildTargetBuffer(Source.Data(), Source.Size(), Base.Data(), Base.Size(), NeedBlocks, BuildParams);
 
 	UNSYNC_ASSERT(Target.Size() == Source.Size());
 	UNSYNC_ASSERT(!memcmp(Target.Data(), Source.Data(), Source.Size()));

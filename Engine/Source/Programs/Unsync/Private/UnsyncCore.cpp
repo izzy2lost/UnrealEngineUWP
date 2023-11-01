@@ -1058,16 +1058,16 @@ OptimizeNeedList(const std::vector<FNeedBlock>& Input, uint64 MaxMergedBlockSize
 }
 
 FBuffer
-BuildTargetBuffer(const uint8*			 SourceData,
-				  uint64				 SourceSize,
-				  const uint8*			 BaseData,
-				  uint64				 BaseSize,
-				  const FNeedList&		 NeedList,
-				  EStrongHashAlgorithmID StrongHasher)
+BuildTargetBuffer(const uint8*				SourceData,
+				  uint64					SourceSize,
+				  const uint8*				BaseData,
+				  uint64					BaseSize,
+				  const FNeedList&			NeedList,
+				  const FBuildTargetParams& Params)
 {
 	FMemReader SourceReader(SourceData, SourceSize);
 	FMemReader BaseReader(BaseData, BaseSize);
-	return BuildTargetBuffer(SourceReader, BaseReader, NeedList, StrongHasher);
+	return BuildTargetBuffer(SourceReader, BaseReader, NeedList, Params);
 }
 
 struct FReadSchedule
@@ -1108,13 +1108,13 @@ public:
 };
 
 FBuffer
-BuildTargetBuffer(FIOReader& SourceProvider, FIOReader& BaseProvider, const FNeedList& NeedList, EStrongHashAlgorithmID StrongHasher)
+BuildTargetBuffer(FIOReader& SourceProvider, FIOReader& BaseProvider, const FNeedList& NeedList, const FBuildTargetParams& Params)
 {
 	FBuffer				Result;
 	const FNeedListSize SizeInfo = ComputeNeedListSize(NeedList);
 	Result.Resize(SizeInfo.TotalBytes);
 	FMemReaderWriter ResultWriter(Result.Data(), Result.Size());
-	BuildTarget(ResultWriter, SourceProvider, BaseProvider, NeedList, StrongHasher);
+	BuildTarget(ResultWriter, SourceProvider, BaseProvider, NeedList, Params);
 	return Result;
 }
 
@@ -1263,14 +1263,7 @@ DownloadBlocks(FProxyPool&					  ProxyPool,
 }
 
 FBuildTargetResult
-BuildTarget(FIOWriter&			   Output,
-			FIOReader&			   Source,
-			FIOReader&			   Base,
-			const FNeedList&	   NeedList,
-			EStrongHashAlgorithmID StrongHasher,
-			FProxyPool*			   ProxyPool,
-			FBlockCache*		   BlockCache,
-			FScavengeDatabase*	   ScavengeDatabase)
+BuildTarget(FIOWriter& Output, FIOReader& Source, FIOReader& Base, const FNeedList& NeedList, const FBuildTargetParams& Params)
 {
 	UNSYNC_LOG_INDENT;
 
@@ -1278,7 +1271,11 @@ BuildTarget(FIOWriter&			   Output,
 
 	auto TimeBegin = TimePointNow();
 
-	const FNeedListSize SizeInfo = ComputeNeedListSize(NeedList);
+	const FNeedListSize			 SizeInfo		  = ComputeNeedListSize(NeedList);
+	const EStrongHashAlgorithmID StrongHasher	  = Params.StrongHasher;
+	FProxyPool*					 ProxyPool		  = Params.ProxyPool;
+	FScavengeDatabase*			 ScavengeDatabase = Params.ScavengeDatabase;
+	FBlockCache*				 BlockCache		  = Params.BlockCache;
 
 	if (SizeInfo.TotalBytes != Output.GetSize())
 	{
@@ -1339,7 +1336,7 @@ BuildTarget(FIOWriter&			   Output,
 	}
 
 	auto ProcessNeedList =
-		[bAllowVerboseLog, LogIndent, &Output, &Error, &WriteSemaphore, &WriteTasks, &bWaitingForBaseData, &Stats, SizeInfo](
+		[bAllowVerboseLog, LogIndent, &Output, &Error, &WriteSemaphore, &WriteTasks, &bWaitingForBaseData, &Stats, &Params, SizeInfo](
 							   FIOReader&					  DataProvider,
 							   const std::vector<FNeedBlock>& NeedBlocks,
 							   uint64						  TotalCopySize,
@@ -1357,7 +1354,8 @@ BuildTarget(FIOWriter&			   Output,
 			return;
 		}
 
-		if (ListType == EBlockListType::Source && DataProvider.GetSize() != SizeInfo.TotalBytes)
+		if (ListType == EBlockListType::Source && Params.SourceType == FBuildTargetParams::ESourceType::File &&
+			DataProvider.GetSize() != SizeInfo.TotalBytes)
 		{
 			UNSYNC_ERROR(L"File size is %llu, but expected to be %llu. File may have changed after manifest was generated.",
 						 llu(DataProvider.GetSize()),
@@ -2068,14 +2066,13 @@ SyncFile(const FNeedList&		   NeedList,
 			return std::unique_ptr<FNativeFile>(new FNativeFile(SourceFilePath, EFileMode::ReadOnlyUnbuffered));
 		});
 
-		FBuildTargetResult BuildResult = BuildTarget(*TargetFile,
-													 SourceFile,
-													 BaseDataReader,
-													 NeedList,
-													 Options.Algorithm.StrongHashAlgorithmId,
-													 Options.ProxyPool,
-													 Options.BlockCache,
-													 Options.ScavengeDatabase);
+		FBuildTargetParams BuildParams;
+		BuildParams.StrongHasher	 = Options.Algorithm.StrongHashAlgorithmId;
+		BuildParams.ProxyPool		 = Options.ProxyPool;
+		BuildParams.BlockCache		 = Options.BlockCache;
+		BuildParams.ScavengeDatabase = Options.ScavengeDatabase;
+
+		FBuildTargetResult BuildResult = BuildTarget(*TargetFile, SourceFile, BaseDataReader, NeedList, BuildParams);
 
 		Result.SourceBytes = BuildResult.SourceBytes;
 		Result.BaseBytes   = BuildResult.BaseBytes;
@@ -4080,7 +4077,11 @@ BuildTargetWithPatch(const uint8* PatchData, uint64 PatchSize, const uint8* Base
 		NeedList.Sequence.push_back(Hash);
 	}
 
-	Result = BuildTargetBuffer(SourceData, SourceDataSize, BaseData, BaseDataSize, NeedList, Header.StrongHashAlgorithmId);
+	FBuildTargetParams BuildParams;
+	BuildParams.StrongHasher = Header.StrongHashAlgorithmId;
+	BuildParams.SourceType	 = FBuildTargetParams::ESourceType::Patch;
+
+	Result = BuildTargetBuffer(SourceData, SourceDataSize, BaseData, BaseDataSize, NeedList, BuildParams);
 
 	FGenericBlockArray SourceValidation;
 
