@@ -1062,7 +1062,7 @@ namespace Chaos
 		bool bUseDamagePropagation = false;
 		float BreakDamagePropagationFactor = 0.0f;
 		float ShockDamagePropagationFactor = 0.0f;
-		const FGeometryCollectionPhysicsProxy* ConcreteGCProxy = GetConcreteProxy<FGeometryCollectionPhysicsProxy>(ClusteredParticle);
+		FGeometryCollectionPhysicsProxy* ConcreteGCProxy = GetConcreteProxy<FGeometryCollectionPhysicsProxy>(ClusteredParticle);
 		if (ConcreteGCProxy)
 		{
 			const FSimulationParameters& SimParams = ConcreteGCProxy->GetSimParameters();
@@ -1215,6 +1215,10 @@ namespace Chaos
 
 		if (ActivatedChildren.Num() > 0)
 		{
+			if (ConcreteGCProxy)
+			{
+				ConcreteGCProxy->CreateChildrenGeometry_Internal();
+			}
 			const bool bIsClusterUnion = ClusterUnionManager.IsClusterUnionParticle(ClusteredParticle);
 			if (Children.Num() == 0)
 			{
