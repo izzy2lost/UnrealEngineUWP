@@ -194,7 +194,7 @@ using FOnBlockGenerated = std::function<void(const FGenericBlock& Block, FBuffer
 struct FComputeBlocksParams
 {
 	bool			  bNeedBlocks = true;
-	uint32			  BlockSize	  = 64_KB;
+	uint32			  BlockSize	  = uint32(64_KB);
 	FAlgorithmOptions Algorithm;
 
 	bool   bNeedMacroBlocks		= false;

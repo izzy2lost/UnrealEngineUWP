@@ -2019,7 +2019,9 @@ UpdateDirectoryManifestBlocks(FDirectoryManifest& Result, const FPath& Root, con
 	for (auto& It : Result.Files)
 	{
 		FFileManifest& FileManifest = It.second;
-		if (FileManifest.BlockSize == Params.BlockSize)
+		const bool	   bBlockSizeOk	  = FileManifest.BlockSize == Params.BlockSize;
+		const bool	   bMacroBlocksOk = Params.bNeedMacroBlocks ? !FileManifest.MacroBlocks.empty() : true;
+		if (bBlockSizeOk && bMacroBlocksOk)
 		{
 			NumSkippedBlocks += FileManifest.Blocks.size();
 			NumSkippedBytes += FileManifest.Size;
@@ -2226,7 +2228,7 @@ ComputeManifestStableSignature(const FDirectoryManifest& Manifest)
 	UpdateHashT(Hasher, Manifest.Algorithm.WeakHashAlgorithmId);
 	UpdateHashT(Hasher, Manifest.Algorithm.StrongHashAlgorithmId);
 
-	std::vector<std::wstring> SortedFiles;
+	std::vector<std::wstring_view> SortedFiles;
 	SortedFiles.reserve(Manifest.Files.size());
 
 	for (const auto& It : Manifest.Files)
@@ -2238,13 +2240,17 @@ ComputeManifestStableSignature(const FDirectoryManifest& Manifest)
 	std::sort(SortedFiles.begin(), SortedFiles.end());
 
 	std::string FileNameUtf8;
-	for (const std::wstring& FileName : SortedFiles)
+	std::wstring FileName;
+	for (const std::wstring_view& FileNameView : SortedFiles)
 	{
+		FileName.clear();
+		FileName.append(FileNameView);
+
 		// Canonical unsync file paths are utf8 with unix-style separator `/`
 		ConvertWideToUtf8(FileName, FileNameUtf8);
 		std::replace(FileNameUtf8.begin(), FileNameUtf8.end(), '\\', '/');
 
-		const FFileManifest& FileManifest = Manifest.Files.at(FileName);
+		const FFileManifest& FileManifest = Manifest.Files.at(FileName);  // TODO: heterogeneous map
 
 		blake3_hasher_update(&Hasher, FileNameUtf8.c_str(), FileNameUtf8.length());
 
