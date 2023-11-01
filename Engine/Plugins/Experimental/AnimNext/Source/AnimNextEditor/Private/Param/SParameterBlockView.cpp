@@ -13,6 +13,7 @@
 #include "ISourceControlModule.h"
 #include "ISourceControlProvider.h"
 #include "EditorUtils.h"
+#include "InstancedPropertyBagStructureDataProvider.h"
 #include "UncookedOnlyUtils.h"
 #include "ParameterBlockViewMenuContext.h"
 #include "PropertyBagDetails.h"
@@ -792,6 +793,7 @@ class SParameterBlockViewRow : public SMultiColumnTableRow<TSharedRef<FParameter
 				.AutoWidth()
 				[
 					SNew(SExpanderArrow, SharedThis(this))
+					.Visibility_Lambda([this]() { return DoesItemHaveChildren() ? EVisibility::Visible : EVisibility::Collapsed; })
 				]
 				+SHorizontalBox::Slot()
 				.HAlign(HAlign_Left)
@@ -894,13 +896,12 @@ class SParameterBlockViewRow : public SMultiColumnTableRow<TSharedRef<FParameter
 
 						if (PropertyBag.FindPropertyDescByName(ParameterName))
 						{
-							TSharedPtr<FStructOnScope> StructOnScope = MakeShareable(new FStructOnScope(PropertyBag.GetPropertyBagStruct(), (uint8*)PropertyBag.GetValue().GetMemory()));
 							FSinglePropertyParams SinglePropertyArgs;
 							SinglePropertyArgs.NamePlacement = EPropertyNamePlacement::Hidden;
 							SinglePropertyArgs.NotifyHook = this;
 
 							FPropertyEditorModule& PropertyEditorModule = FModuleManager::Get().LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
-							const TSharedPtr<ISinglePropertyView> SingleStructPropertyView = PropertyEditorModule.CreateSingleProperty(MakeShared<FStructOnScopeStructureDataProvider>(StructOnScope), ParameterName, SinglePropertyArgs);
+							const TSharedPtr<ISinglePropertyView> SingleStructPropertyView = PropertyEditorModule.CreateSingleProperty(MakeShared<FInstancePropertyBagStructureDataProvider>(PropertyBag), ParameterName, SinglePropertyArgs);
 							if (SingleStructPropertyView.IsValid())
 							{
 								ColumnWidget = SingleStructPropertyView.ToSharedRef();

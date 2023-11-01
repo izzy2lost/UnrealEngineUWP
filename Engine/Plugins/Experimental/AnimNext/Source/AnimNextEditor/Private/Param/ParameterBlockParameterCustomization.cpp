@@ -7,6 +7,7 @@
 #include "PropertyBagDetails.h"
 #include "EdGraphSchema_K2.h"
 #include "EditorUtils.h"
+#include "InstancedPropertyBagStructureDataProvider.h"
 #include "UncookedOnlyUtils.h"
 #include "Param/ParamType.h"
 #include "PropertyHandle.h"
@@ -44,19 +45,27 @@ void FParameterBlockParameterCustomization::CustomizeDetails(IDetailLayoutBuilde
 		{
 			if (UAnimNextParameterBlock* ReferencedBlock = UE::AnimNext::UncookedOnly::FUtils::GetBlock(EditorData))
 			{
-				TSharedPtr<FStructOnScope> StructOnScope = MakeShareable(new FStructOnScope(ReferencedBlock->GetPropertyBag().GetPropertyBagStruct(), (uint8*)ReferencedBlock->GetPropertyBag().GetValue().GetMemory()));
 				FSinglePropertyParams SinglePropertyArgs;
 				const FName ParameterName = BlockParam->GetParameterName();
-				IDetailPropertyRow* DetailPropertyRow = DefaultValueCategory.AddExternalStructureProperty(StructOnScope, ParameterName);
-				if (DetailPropertyRow)
+				TArray<IDetailPropertyRow*> DetailPropertyRows;
+
+				// FIXME: As AddExternalStructureProperty does not support IStructureDataProvider, we add all properties and only show the one we need. Icky.
+				DefaultValueCategory.AddAllExternalStructureProperties(MakeShared<FInstancePropertyBagStructureDataProvider>(ReferencedBlock->GetPropertyBag()), EPropertyLocation::Default, &DetailPropertyRows);
+				for (IDetailPropertyRow* DetailPropertyRow : DetailPropertyRows)
 				{
-					if (TSharedPtr<IPropertyHandle> Handle = DetailPropertyRow->GetPropertyHandle(); Handle.IsValid())
+					if(DetailPropertyRow->GetPropertyHandle()->GetProperty()->GetFName() != ParameterName)
 					{
-						Handle->SetOnChildPropertyValuePreChange(FSimpleDelegate::CreateLambda([this, ReferencedBlock]()
+						DetailPropertyRow->Visibility(EVisibility::Collapsed);
+					}
+					else
+					{
+						if (TSharedPtr<IPropertyHandle> Handle = DetailPropertyRow->GetPropertyHandle(); Handle.IsValid())
+						{
+							Handle->SetOnChildPropertyValuePreChange(FSimpleDelegate::CreateLambda([this, ReferencedBlock]()
 							{
 								ReferencedBlock->Modify(); // needed to enable the transaction when we modify the PropertyBag
 							}));
-						Handle->SetOnPropertyValueChanged(FSimpleDelegate::CreateLambda([this, ReferencedBlock, ParameterName]()
+							Handle->SetOnPropertyValueChanged(FSimpleDelegate::CreateLambda([this, ReferencedBlock, ParameterName]()
 							{
 								if (UAnimNextParameterBlock_EditorData* EditorData = Cast<UAnimNextParameterBlock_EditorData>(ReferencedBlock->EditorData))
 								{
@@ -67,6 +76,7 @@ void FParameterBlockParameterCustomization::CustomizeDetails(IDetailLayoutBuilde
 									}
 								}
 							}));
+						}
 					}
 				}
 			}

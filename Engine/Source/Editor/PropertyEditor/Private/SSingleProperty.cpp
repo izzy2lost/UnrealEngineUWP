@@ -157,6 +157,7 @@ void SSingleProperty::SetStruct(const TSharedPtr<IStructureDataProvider>& InStru
 	if (!RootPropertyNode.IsValid() || RootPropertyNode->GetPropertyType() != FComplexPropertyNode::EPT_StandaloneStructure)
 	{
 		RootPropertyNode = MakeShareable(new FStructurePropertyNode);
+		RootPropertyNode->SetNodeFlags(EPropertyNodeFlags::RequiresValidation, true);
 	}
 
 	FStructurePropertyNode* RootStructPropertyNode = (FStructurePropertyNode*)RootPropertyNode.Get();
