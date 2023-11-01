@@ -2148,7 +2148,7 @@ bool UActorComponent::IsNameStableForNetworking() const
 	 * Components are net addressable if:
 	 *	-They are Default Subobjects (created in C++ constructor)
 	 *	-They were loaded directly from a package (placed in map actors)
-	 *	-They were explicitly set to bNetAddressable (blueprint components created by SCS or UCS executed in the ConstructionScript only)
+	 *	-They were explicitly set to bNetAddressable (blueprint components created by SCS)
 	 */
 
 	return bNetAddressable || (Super::IsNameStableForNetworking() && (CreationMethod != EComponentCreationMethod::UserConstructionScript));
@@ -2286,15 +2286,6 @@ bool UActorComponent::CanEditChange(const FProperty* InProperty) const
 #if UE_WITH_IRIS
 void UActorComponent::RegisterReplicationFragments(UE::Net::FFragmentRegistrationContext& Context, UE::Net::EFragmentRegistrationFlags RegistrationFlags)
 {
-	if (CreationMethod == EComponentCreationMethod::UserConstructionScript)
-	{
-		if (!IsNameStableForNetworking() && GetArchetype() != GetClass()->GetDefaultObject())
-		{
-			RegistrationFlags |= UE::Net::EFragmentRegistrationFlags::InitializeDefaultStateFromClassDefaults;
-			UE_LOG(LogIris, Warning, TEXT("The default state of replicated dynamic component %s::%s will be built using the class CDO instead of the archetype. The non-replicated properties of the component on clients may be initialized wrong."), *GetNameSafe(GetOwner()), *GetName());
-		}
-	}
-	
 	// Build descriptors and allocate PropertyReplicationFragments for this object
 	UE::Net::FReplicationFragmentUtil::CreateAndRegisterFragmentsForObject(this, Context, RegistrationFlags);
 }
