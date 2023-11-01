@@ -893,6 +893,20 @@ FScreenPassTexture AddPostProcessMaterialPass(
 	return MoveTemp(Output);
 }
 
+FScreenPassTexture AddPostProcessMaterialPass(
+	FRDGBuilder& GraphBuilder,
+	const FSceneView& View,
+	const FPostProcessMaterialInputs& Inputs,
+	const UMaterialInterface* MaterialInterface)
+{
+	if (!ensureMsgf(View.bIsViewInfo, TEXT("AddPostProcessMaterialPass requires that its View parameter is an FViewInfo.")))
+	{
+		return Inputs.GetInput(EPostProcessMaterialInput::SceneColor);
+	}
+
+	return AddPostProcessMaterialPass(GraphBuilder, static_cast<const FViewInfo&>(View), Inputs, MaterialInterface);
+}
+
 static bool IsPostProcessMaterialsEnabledForView(const FViewInfo& View)
 {
 	if (!View.Family->EngineShowFlags.PostProcessing ||

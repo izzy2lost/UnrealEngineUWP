@@ -124,3 +124,11 @@ struct FPostProcessMaterialInputs
 
 	bool bMetalMSAAHDRDecode = false;
 };
+
+class UMaterialInterface;
+
+FScreenPassTexture RENDERER_API AddPostProcessMaterialPass(
+	FRDGBuilder& GraphBuilder,
+	const FSceneView& View,
+	const FPostProcessMaterialInputs& Inputs,
+	const UMaterialInterface* MaterialInterface);
