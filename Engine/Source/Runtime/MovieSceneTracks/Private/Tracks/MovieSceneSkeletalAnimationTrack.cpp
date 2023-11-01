@@ -1196,7 +1196,7 @@ void UMovieSceneSkeletalAnimationTrack::MatchSectionByBoneTransform(bool bMatchW
 			{
 				SecondTransformRotation.Roll = FirstTransformRotation.Roll;
 			}
-			SecondTransformQuat = QuatFromEuler(FirstTransformRotation.Euler(), RotationOrder);
+			SecondTransformQuat = QuatFromEuler(SecondTransformRotation.Euler(), RotationOrder);
 			SecondTransform.SetRotation(SecondTransformQuat);
 
 			//GetRelativeTransformReverse returns this(-1)* Other, and parameter is Other.
