@@ -60,6 +60,7 @@ struct GLTFEXPORTER_API FGLTFCoreUtilities
 	static EGLTFJsonInterpolation ConvertInterpolation(const EAnimInterpolationType Type);
 
 	static EGLTFJsonShadingModel ConvertShadingModel(EMaterialShadingModel ShadingModel);
+	static FString GetShadingModelString(EGLTFJsonShadingModel ShadingModel);
 
 	static EGLTFJsonAlphaMode ConvertAlphaMode(EBlendMode Mode);
 

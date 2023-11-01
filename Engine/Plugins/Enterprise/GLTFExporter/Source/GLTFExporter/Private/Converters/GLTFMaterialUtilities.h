@@ -47,6 +47,8 @@ struct FGLTFMaterialUtilities
 	static bool NeedsMeshData(const UMaterialInterface* Material);
 	static bool NeedsMeshData(const TArray<const UMaterialInterface*>& Materials);
 
+	static EMaterialShadingModel GetShadingModel(const UMaterialInterface* Material, FString& OutMessage);
+
 #if WITH_EDITOR
 	static bool IsNormalMap(const FMaterialPropertyEx& Property);
 	static bool IsSRGB(const FMaterialPropertyEx& Property);
@@ -86,7 +88,6 @@ struct FGLTFMaterialUtilities
 	static void AnalyzeMaterialProperty(const UMaterialInterface* Material, const FMaterialPropertyEx& InProperty, FMaterialAnalysisResult& OutAnalysis);
 
 	static FMaterialShadingModelField EvaluateShadingModelExpression(const UMaterialInterface* Material);
-
 private:
 
 	template<typename ExpressionType>

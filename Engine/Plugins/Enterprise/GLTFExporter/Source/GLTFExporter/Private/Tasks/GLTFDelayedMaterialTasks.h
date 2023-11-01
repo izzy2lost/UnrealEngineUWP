@@ -64,7 +64,6 @@ private:
 		return ParameterInfo.Get(Material, Value, true);
 	}
 
-	EMaterialShadingModel GetShadingModel() const;
 	void ConvertShadingModel(EGLTFJsonShadingModel& OutShadingModel) const;
 	void ConvertAlphaMode(EGLTFJsonAlphaMode& OutAlphaMode) const;
 

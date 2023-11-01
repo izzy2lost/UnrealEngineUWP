@@ -406,80 +406,15 @@ void FGLTFDelayedMaterialTask::GetProxyParameter(const FGLTFProxyMaterialTexture
 	}
 }
 
-EMaterialShadingModel FGLTFDelayedMaterialTask::GetShadingModel() const
-{
-	const FMaterialShadingModelField Possibilities = Material->GetShadingModels();
-	const int32 PossibilitiesCount = Possibilities.CountShadingModels();
-
-	if (PossibilitiesCount == 0)
-	{
-		const EMaterialShadingModel ShadingModel = MSM_DefaultLit;
-		Builder.LogWarning(FString::Printf(
-			TEXT("No shading model defined for material %s, will export as %s"),
-			*Material->GetName(),
-			*FGLTFNameUtilities::GetName(ShadingModel)));
-		return ShadingModel;
-	}
-
-	if (PossibilitiesCount > 1)
-	{
-#if WITH_EDITOR
-		if (!FApp::CanEverRender())
-		{
-			const EMaterialShadingModel ShadingModel = FGLTFMaterialUtilities::GetRichestShadingModel(Possibilities);
-			Builder.LogWarning(FString::Printf(
-				TEXT("Can't evaluate shading model expression in material %s because renderer missing, will export as %s"),
-				*Material->GetName(),
-				*FGLTFNameUtilities::GetName(ShadingModel)));
-			return ShadingModel;
-		}
-
-		if (Material->IsShadingModelFromMaterialExpression())
-		{
-			const FMaterialShadingModelField Evaluation = FGLTFMaterialUtilities::EvaluateShadingModelExpression(Material);
-			const int32 EvaluationCount = Evaluation.CountShadingModels();
-
-			if (EvaluationCount == 0)
-			{
-				const EMaterialShadingModel ShadingModel = FGLTFMaterialUtilities::GetRichestShadingModel(Possibilities);
-				Builder.LogWarning(FString::Printf(
-					TEXT("Evaluation of shading model expression in material %s returned none, will export as %s"),
-					*Material->GetName(),
-					*FGLTFNameUtilities::GetName(ShadingModel)));
-				return ShadingModel;
-			}
-
-			if (EvaluationCount > 1)
-			{
-				const EMaterialShadingModel ShadingModel = FGLTFMaterialUtilities::GetRichestShadingModel(Evaluation);
-				Builder.LogWarning(FString::Printf(
-					TEXT("Evaluation of shading model expression in material %s is inconclusive (%s), will export as %s"),
-					*Material->GetName(),
-					*FGLTFMaterialUtilities::ShadingModelsToString(Evaluation),
-					*FGLTFNameUtilities::GetName(ShadingModel)));
-				return ShadingModel;
-			}
-
-			return Evaluation.GetFirstShadingModel();
-		}
-
-		// we should never end up here
-#else
-		const EMaterialShadingModel ShadingModel = FGLTFMaterialUtilities::GetRichestShadingModel(Possibilities);
-		Builder.LogWarning(FString::Printf(
-			TEXT("Can't evaluate shading model expression in material %s without editor, will export as %s"),
-			*Material->GetName(),
-			*FGLTFNameUtilities::GetName(ShadingModel)));
-		return ShadingModel;
-#endif
-	}
-
-	return Possibilities.GetFirstShadingModel();
-}
-
 void FGLTFDelayedMaterialTask::ConvertShadingModel(EGLTFJsonShadingModel& OutShadingModel) const
 {
-	EMaterialShadingModel ShadingModel = GetShadingModel();
+	FString WarningMessage;
+	EMaterialShadingModel ShadingModel = FGLTFMaterialUtilities::GetShadingModel(Material, WarningMessage);
+
+	if (!WarningMessage.IsEmpty())
+	{
+		Builder.LogWarning(WarningMessage);
+	}
 
 	const EBlendMode BlendMode = Material->GetBlendMode();
 	if (ShadingModel == MSM_ClearCoat && BlendMode != BLEND_Opaque && BlendMode != BLEND_Masked)

@@ -5,6 +5,9 @@
 #include "StaticMeshResources.h"
 #include "Rendering/SkeletalMeshLODRenderData.h"
 #include "Converters/GLTFMeshUtilities.h"
+#include "Converters/GLTFMaterialUtilities.h"
+#include "Utilities/GLTFCoreUtilities.h"
+#include "MaterialShaderType.h"
 
 FGLTFAnalyticsBuilder::FGLTFAnalyticsBuilder(const FString& FileName, const UGLTFExportOptions* ExportOptions)
 	: FGLTFBufferBuilder(FileName, ExportOptions)
@@ -56,6 +59,34 @@ TArray<FAnalyticsEventAttribute> FGLTFAnalyticsBuilder::GenerateAnalytics() cons
 		}
 	}
 	EventAttributes.Emplace(TEXT("NumberOfVertices"), LexToString(NumberOfVertices));
+
+	//Material related Analytics:
+	{
+		TMap<EMaterialShadingModel, int32> NumberOfShadingModels;
+		for (const UMaterialInterface* MaterialInterface : MaterialsRecorded)
+		{
+			FString WarningMessage;
+			EMaterialShadingModel ShadingModel = FGLTFMaterialUtilities::GetShadingModel(MaterialInterface, WarningMessage);
+
+			int32& NumberOfShadingModel = NumberOfShadingModels.FindOrAdd(ShadingModel);
+			NumberOfShadingModel++;
+		}
+		TMap<FString, int32> NumberOfShadingModelsMap;
+		for (const TPair<EMaterialShadingModel, int32> NumberOfShadingModel : NumberOfShadingModels)
+		{
+			FString ShadingModelString = GetShadingModelString(NumberOfShadingModel.Key);
+			NumberOfShadingModelsMap.Add(ShadingModelString, NumberOfShadingModel.Value);
+		}
+		EventAttributes.Emplace(TEXT("NumberOfShadingModels"), NumberOfShadingModelsMap);
+
+		TArray<FString> ExporterSupportedShadingModels;
+		constexpr int32 NumMaterials = static_cast<int32>(EGLTFJsonShadingModel::NumShadingModels);
+		for (size_t MaterialIndex = 1; MaterialIndex < NumMaterials; MaterialIndex++)//skipping None
+		{
+			ExporterSupportedShadingModels.Add(FGLTFCoreUtilities::GetShadingModelString(EGLTFJsonShadingModel(MaterialIndex)));
+		}
+		EventAttributes.Emplace(TEXT("ExporterSupportedShadingModels"), ExporterSupportedShadingModels);
+	}
 
 	return EventAttributes;
 }

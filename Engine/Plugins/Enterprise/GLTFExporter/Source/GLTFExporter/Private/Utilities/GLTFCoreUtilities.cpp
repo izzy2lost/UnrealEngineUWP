@@ -228,6 +228,21 @@ EGLTFJsonShadingModel FGLTFCoreUtilities::ConvertShadingModel(EMaterialShadingMo
 	}
 }
 
+FString FGLTFCoreUtilities::GetShadingModelString(EGLTFJsonShadingModel ShadingModel)
+{
+	switch (ShadingModel)
+	{
+		case EGLTFJsonShadingModel::None:               return TEXT("Unknown");
+		case EGLTFJsonShadingModel::Default:            return TEXT("Default");
+		case EGLTFJsonShadingModel::Unlit:              return TEXT("Unlit");
+		case EGLTFJsonShadingModel::ClearCoat:          return TEXT("ClearCoat");
+		case EGLTFJsonShadingModel::Sheen:              return TEXT("Cloth");
+		case EGLTFJsonShadingModel::Transmission:       return TEXT("ThinTranslucent");
+		case EGLTFJsonShadingModel::NumShadingModels:   return TEXT("Unknown");
+		default:                                        return TEXT("Unknown");
+	}
+}
+
 EGLTFJsonAlphaMode FGLTFCoreUtilities::ConvertAlphaMode(EBlendMode Mode)
 {
 	switch (Mode)
