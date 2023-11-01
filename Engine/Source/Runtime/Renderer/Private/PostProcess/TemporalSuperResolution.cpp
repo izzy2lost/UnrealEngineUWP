@@ -403,6 +403,12 @@ public:
 
 	static bool ShouldCompile32or16BitPermutation(EShaderPlatform Platform, bool bIs16BitVALUPermutation)
 	{
+		// Always compile 32bit ops on preview platform 
+		if (FDataDrivenShaderPlatformInfo::GetIsPreviewPlatform(Platform) && !bIs16BitVALUPermutation)
+		{
+			return true;
+		}
+
 		const ERHIFeatureSupport Support = FTSRShader::Supports16BitVALU(Platform);
 
 		if (Support == ERHIFeatureSupport::RuntimeGuaranteed)
@@ -428,6 +434,12 @@ public:
 
 	static bool SupportsLDS(EShaderPlatform Platform)
 	{
+		// Always support LDS on preview platform 
+		if (FDataDrivenShaderPlatformInfo::GetIsPreviewPlatform(Platform))
+		{
+			return true;
+		}
+
 		// Always support LDS if wave ops are not guarenteed
 		if (SupportsWaveOps(Platform) != ERHIFeatureSupport::RuntimeGuaranteed)
 		{

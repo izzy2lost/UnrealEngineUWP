@@ -1186,12 +1186,12 @@ FCatmullRomSamples GetBicubic2DCatmullRomSamples_Stubbe(float2 UV, float2 Size, 
 	Samples.UV[2] = cuv + uv;
 	Samples.UV[3] = cuv + tsr_half2(                     uv.x,                -InvSize.y);
 	Samples.UV[4] = cuv + tsr_half2(                     uv.x, tsr_half(2.0) * InvSize.y);
-
-	Samples.Weight[0] = w0.x;
-	Samples.Weight[1] = w3.x;
-	Samples.Weight[2] = tsr_half(1.0) - w0.x - w3.x - w0.y - w3.y;
-	Samples.Weight[3] = w0.y;
-	Samples.Weight[4] = w3.y;
+	
+	Samples.Weight[0] = half(w0.x);
+	Samples.Weight[1] = half(w3.x);
+	Samples.Weight[2] = half(tsr_half(1.0) - w0.x - w3.x - w0.y - w3.y);
+	Samples.Weight[3] = half(w0.y);
+	Samples.Weight[4] = half(w3.y);
 
 	Samples.UVDir[0] = int2(-1,  0);
 	Samples.UVDir[1] = int2( 1,  0);

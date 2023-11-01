@@ -525,23 +525,23 @@ void UnpackDwordsToVector(uint DW[1], out uint16_t V)
 
 void UnpackDwordsToVector(uint DW[1], out uint16_t2 V)
 {
-	V.x = tsr_ushort((DW[0] >>  0u) & 0xFFFFu);
-	V.y = tsr_ushort((DW[0] >> 16u) & 0xFFFFu);
+	V.x = uint16_t((DW[0] >>  0u) & 0xFFFFu);
+	V.y = uint16_t((DW[0] >> 16u) & 0xFFFFu);
 }
 
 void UnpackDwordsToVector(uint DW[2], out uint16_t3 V)
 {
-	V.x = tsr_ushort((DW[0] >>  0u) & 0xFFFFu);
-	V.y = tsr_ushort((DW[0] >> 16u) & 0xFFFFu);
-	V.z = tsr_ushort((DW[1] >>  0u) & 0xFFFFu);
+	V.x = uint16_t((DW[0] >>  0u) & 0xFFFFu);
+	V.y = uint16_t((DW[0] >> 16u) & 0xFFFFu);
+	V.z = uint16_t((DW[1] >>  0u) & 0xFFFFu);
 }
 
 void UnpackDwordsToVector(uint DW[2], out uint16_t4 V)
 {
-	V.x = tsr_ushort((DW[0] >>  0u) & 0xFFFFu);
-	V.y = tsr_ushort((DW[0] >> 16u) & 0xFFFFu);
-	V.z = tsr_ushort((DW[1] >>  0u) & 0xFFFFu);
-	V.w = tsr_ushort((DW[1] >> 16u) & 0xFFFFu);
+	V.x = uint16_t((DW[0] >>  0u) & 0xFFFFu);
+	V.y = uint16_t((DW[0] >> 16u) & 0xFFFFu);
+	V.z = uint16_t((DW[1] >>  0u) & 0xFFFFu);
+	V.w = uint16_t((DW[1] >> 16u) & 0xFFFFu);
 }
 
 #endif // !COMPILER_SUPPORT_UINT16_BITCAST

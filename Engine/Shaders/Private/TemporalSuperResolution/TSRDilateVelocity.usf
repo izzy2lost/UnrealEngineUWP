@@ -288,7 +288,9 @@ void MainCS(
 		float3 ScreenVelocity1 = ComputeStaticVelocity(ScreenPos, ClosestDeviceZ1);
 		float3 ScreenVelocity2 = ComputeStaticVelocity(ScreenPos, ClosestDeviceZ2);
 		
-		HasPixelAnimation = DecodeHasPixelAnimationFromVelocityTexture(EncodedVelocity1);
+		#if VELOCITY_ENCODE_HAS_PIXEL_ANIMATION
+			HasPixelAnimation = DecodeHasPixelAnimationFromVelocityTexture(EncodedVelocity1);
+		#endif
 
 		#if CONFIG_USE_SCENE_VELOCITY
 		{
@@ -315,7 +317,9 @@ void MainCS(
 		
 		float4 EncodedVelocity = SceneVelocityTexture[uint2(InputBufferUV * InputInfo_Extent) + VelocityPixelOffset];
 
-		HasPixelAnimation = DecodeHasPixelAnimationFromVelocityTexture(EncodedVelocity);
+		#if VELOCITY_ENCODE_HAS_PIXEL_ANIMATION
+			HasPixelAnimation = DecodeHasPixelAnimationFromVelocityTexture(EncodedVelocity);
+		#endif
 
 		#if CONFIG_USE_SCENE_VELOCITY
 		{
