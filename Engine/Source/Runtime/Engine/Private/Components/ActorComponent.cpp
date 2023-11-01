@@ -2148,7 +2148,7 @@ bool UActorComponent::IsNameStableForNetworking() const
 	 * Components are net addressable if:
 	 *	-They are Default Subobjects (created in C++ constructor)
 	 *	-They were loaded directly from a package (placed in map actors)
-	 *	-They were explicitly set to bNetAddressable (blueprint components created by SCS)
+	 *	-They were explicitly set to bNetAddressable (blueprint components created by SCS or UCS executed in the ConstructionScript only)
 	 */
 
 	return bNetAddressable || (Super::IsNameStableForNetworking() && (CreationMethod != EComponentCreationMethod::UserConstructionScript));
@@ -2288,13 +2288,10 @@ void UActorComponent::RegisterReplicationFragments(UE::Net::FFragmentRegistratio
 {
 	if (CreationMethod == EComponentCreationMethod::UserConstructionScript)
 	{
-		//$IRIS TODO: UCS subobjects without a stable name need to replicate their true archetype. Currently they are instantiated on the client from the class CDO.
-		//            Prevent protocol mismatches by forcing their default state to use the CDO. But the replicated object state is probably wrong if it changed any non-replicated properties.
 		if (!IsNameStableForNetworking() && GetArchetype() != GetClass()->GetDefaultObject())
 		{
 			RegistrationFlags |= UE::Net::EFragmentRegistrationFlags::InitializeDefaultStateFromClassDefaults;
-
-			UE_LOG(LogIris, Warning, TEXT("The default state of UCS created subobject %s::%s was initialized using the wrong archetype. The object's state on client might be initialied wrong."), *GetNameSafe(GetOwner()), *GetName());
+			UE_LOG(LogIris, Warning, TEXT("The default state of replicated dynamic component %s::%s will be built using the class CDO instead of the archetype. The non-replicated properties of the component on clients may be initialized wrong."), *GetNameSafe(GetOwner()), *GetName());
 		}
 	}
 	

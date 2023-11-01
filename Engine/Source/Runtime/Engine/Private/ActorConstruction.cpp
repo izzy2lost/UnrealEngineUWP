@@ -1400,6 +1400,8 @@ void AActor::PostCreateBlueprintComponent(UActorComponent* NewActorComp)
 			int32& Count = ComponentArchetypeCounts.FindOrAdd(NewActorComp->GetArchetype());
 			FSetUCSSerializationIndex::Set(NewActorComp, Count);
 			++Count;
+
+			NewActorComp->SetNetAddressable();
 		}
 
 		// The component may not have been added to ReplicatedComponents if it was duplicated from

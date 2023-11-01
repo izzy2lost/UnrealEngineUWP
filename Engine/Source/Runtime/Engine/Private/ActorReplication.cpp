@@ -598,6 +598,12 @@ void AActor::AddComponentForReplication(UActorComponent* Component)
 		return;
 	}
 
+	if (Component->CreationMethod == EComponentCreationMethod::UserConstructionScript && !Component->IsNameStableForNetworking())
+	{
+		ensureMsgf(Component->GetArchetype() == Component->GetClass()->GetDefaultObject(), TEXT("Replicated component %s::%s was added dynamically outside the construction script. This is not well supported and the component on the client will be initialized using the wrong archetype."),
+			*GetName(), *Component->GetName());
+	}
+
 	const ELifetimeCondition NetCondition = AllowActorComponentToReplicate(Component);
 
 	FReplicatedComponentInfo* ComponentInfo = ReplicatedComponentsInfo.FindByKey(Component);
