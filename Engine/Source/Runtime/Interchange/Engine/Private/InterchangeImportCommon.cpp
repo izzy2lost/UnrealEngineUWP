@@ -303,7 +303,7 @@ namespace UE::Interchange
 										, UInterchangeFactoryBaseNode* PipelineAssetNode)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(UE::Interchange::FFactoryCommon::ApplyReimportStrategyToAsset)
-		if (!ensure(PreviousAssetNode) || !ensure(PipelineAssetNode) || !ensure(CurrentAssetNode))
+		if (!ensure(PipelineAssetNode) || !ensure(CurrentAssetNode))
 		{
 			return;
 		}
@@ -325,6 +325,11 @@ namespace UE::Interchange
 				
 			case EReimportStrategyFlags::ApplyEditorChangedProperties:
 			{
+				if (!PreviousAssetNode)
+				{
+					UE_LOG(LogInterchangeEngine, Error, TEXT("Cannot apply the re-import strategy for asset [%s], because there is no previous asset node in the import data."), *Asset->GetName());
+					return;
+				}
 				TArray<FAttributeKey> RemovedAttributes;
 				TArray<FAttributeKey> AddedAttributes;
 				TArray<FAttributeKey> ModifiedAttributes;

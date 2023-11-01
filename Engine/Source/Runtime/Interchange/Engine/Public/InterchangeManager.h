@@ -12,6 +12,7 @@
 #include "HAL/CriticalSection.h"
 #include "HAL/Thread.h"
 #include "HAL/ThreadSafeBool.h"
+#include "InterchangeAssetImportData.h"
 #include "InterchangePipelineConfigurationBase.h"
 #include "InterchangeResultsContainer.h"
 #include "InterchangeSourceData.h"
@@ -468,6 +469,23 @@ public:
 	INTERCHANGEENGINE_API bool RegisterWriter(const UClass* Writer);
 
 	/**
+	 * Any converter must register to the manager
+	 * @Param Converter - The UClass of the converter you want to register
+	 * @return true if the converter class can be register false otherwise.
+	 *
+	 * @Note if you register multiple time the same class it will return true for every call
+	 */
+	INTERCHANGEENGINE_API bool RegisterImportDataConverter(const UClass* Converter);
+
+	/**
+	 * Call all the registered converter, if one converter want 
+	 * @Param Object - The Object to convert the import data
+	 * @Param Extension - The file extension we want to import
+	 * @return true if one of the converter has convert the data. False otherwise.
+	 */
+	INTERCHANGEENGINE_API bool ConvertImportData(UObject* Object, const FString& Extension);
+
+	/**
 	 * Returns the list of supported formats for a given translator type.
 	 */
 	INTERCHANGEENGINE_API TArray<FString> GetSupportedFormats(const EInterchangeTranslatorType ForTranslatorType) const;
@@ -690,6 +708,10 @@ private:
 	//The manager will create only one writer per type
 	UPROPERTY()
 	TMap<TObjectPtr<const UClass>, TObjectPtr<UInterchangeWriterBase> > RegisteredWriters;
+
+	//The manager will create only one converter per type
+	UPROPERTY()
+	TMap<TObjectPtr<const UClass>, TObjectPtr<UInterchangeAssetImportDataConverterBase> > RegisteredConverters;
 
 	//If interchange is currently importing we have a timer to watch the cancel and we block GC 
 	FThreadSafeBool bIsActive = false;

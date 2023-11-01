@@ -71,6 +71,7 @@
 #include "AutoReimport/AutoReimportUtilities.h"
 #include "AssetToolsModule.h"
 
+#include "InterchangeAssetImportData.h"
 #include "InterchangeManager.h"
 #include "InterchangeResultsContainer.h"
 
@@ -294,7 +295,9 @@ UE::Interchange::FAssetImportResultRef FReimportManager::ReimportAsync(UObject* 
 
 	bool bUseInterchangeFramework = UInterchangeManager::IsInterchangeImportEnabled();;
 	UInterchangeManager& InterchangeManager = UInterchangeManager::GetInterchangeManager();
-
+	
+	const int32 RealSourceFileIndex = SourceFileIndex == INDEX_NONE ? 0 : SourceFileIndex;
+	
 	bool bSuccess = false;
 	if ( Obj )
 	{
@@ -344,7 +347,6 @@ UE::Interchange::FAssetImportResultRef FReimportManager::ReimportAsync(UObject* 
 			}
 			else
 			{
-				int32 RealSourceFileIndex = SourceFileIndex == INDEX_NONE ? 0 : SourceFileIndex;
 				if (bForceNewFile)
 				{
 					if (SourceFilenames.IsValidIndex(RealSourceFileIndex))
@@ -409,10 +411,41 @@ UE::Interchange::FAssetImportResultRef FReimportManager::ReimportAsync(UObject* 
 			{
 				// Reimporting the asset from a new file
 				CanReimportHandler->SetReimportPaths(Obj, PreferredReimportFile, SourceFileIndex);
+				//Update the local source file
+				if (SourceFilenames.IsValidIndex(RealSourceFileIndex))
+				{
+					SourceFilenames[RealSourceFileIndex] = PreferredReimportFile;
+				}
 			}
 
 			if ( bValidSourceFilename )
 			{
+				//Convert the import data if it's needed and choose a new valid reimport handler after the conversion is done.
+				//This allow us to re-import:
+				// Interchange -> Legacy Fbx    ---> Asset was imported with Interchange (gltf, fbx, obj, ...), Interchange is turn off for fbx and the provided source file is fbx
+				// Legacy Fbx -> Interchange    ---> Asset was imported with Legacy Fbx, the file use for re-import is supported by Interchange (fbx, gltf, obj, ...)
+				{
+					const FString ReimportFilename = SourceFilenames.IsValidIndex(RealSourceFileIndex) ? SourceFilenames[RealSourceFileIndex] : FString();
+					const FString ReimportFilenameExtension = FPaths::GetExtension(ReimportFilename).ToLower();
+					//Convertion will return false if there is no conversion to do.
+					if (InterchangeManager.ConvertImportData(Obj, ReimportFilenameExtension))
+					{
+						for (int32 NewFileHandlerIndex = 0; NewFileHandlerIndex < Handlers.Num(); ++NewFileHandlerIndex)
+						{
+							SourceFilenames.Empty();
+							if (!PreferredReimportFile.IsEmpty())
+							{
+								Handlers[NewFileHandlerIndex]->SetPreferredReimportPath(PreferredReimportFile);
+							}
+							if (Handlers[NewFileHandlerIndex]->CanReimport(Obj, SourceFilenames))
+							{
+								CanReimportHandler = Handlers[NewFileHandlerIndex];
+								break;
+							}
+						}
+					}
+				}
+
 				if (bUseInterchangeFramework && CanReimportHandler->IsInterchangeFactory())
 				{
 					// Make sure SourceFilenames reflects the source filenames in Obj
@@ -421,7 +454,6 @@ UE::Interchange::FAssetImportResultRef FReimportManager::ReimportAsync(UObject* 
 					{
 						check( SourceFilenames.Num() > 0 );
 
-						int32 RealSourceFileIndex = SourceFileIndex == INDEX_NONE ? 0 : SourceFileIndex;
 						int32 RealValidSourceFileIndex = SourceFilenames.IsValidIndex(RealSourceFileIndex) ? RealSourceFileIndex : 0;
 						UE::Interchange::FScopedSourceData ScopedSourceData(SourceFilenames[RealValidSourceFileIndex]);
 						CanReimportHandler->SetReimportSourceIndex(Obj, SourceFileIndex);

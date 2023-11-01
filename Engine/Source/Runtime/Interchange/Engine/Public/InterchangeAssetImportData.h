@@ -160,3 +160,24 @@ private:
 	mutable TArray64<uint8> CachedNodeContainer;
 	mutable TArray<TPair<FString, FString>> CachedPipelines; //Class, Data(serialized JSON) pair
 };
+
+/**
+ * Base class to create an asset import data converter
+ */
+UCLASS(Abstract, MinimalAPI)
+class UInterchangeAssetImportDataConverterBase : public UObject
+{
+	GENERATED_BODY()
+public:
+	/**
+	 * Convert the asset import data from the one that is in the Object to
+	 * one supporting the target extension (i.e. legacy Fbx to Interchange or vice versa)
+	 * The function should return true only if it has convert the asset import data, false otherwise.
+	 * 
+	 * The system will call all object deriving from this class until one convert the data.
+	 */
+	virtual bool ConvertImportData(UObject* Object, const FString& TargetExtension) const
+	{
+		return false;
+	}
+};

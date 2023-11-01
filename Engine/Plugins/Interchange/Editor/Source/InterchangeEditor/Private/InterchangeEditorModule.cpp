@@ -4,6 +4,7 @@
 #include "InterchangeEditorLog.h"
 
 #include "InterchangeManager.h"
+#include "InterchangeFbxAssetImportDataConverter.h"
 
 #include "Engine/Engine.h"
 #include "IMessageLogListing.h"
@@ -86,6 +87,7 @@ void FInterchangeEditorModule::StartupModule()
 
 		UInterchangeManager& InterchangeManager = UInterchangeManager::GetInterchangeManager();
 		InterchangeEditorModuleDelegate = InterchangeManager.OnBatchImportComplete.AddStatic(&InterchangeEditorModule::LogErrors);
+		InterchangeManager.RegisterImportDataConverter(UInterchangeFbxAssetImportDataConverter::StaticClass());
 
 		auto UnregisterItems = [InterchangeEditorModuleDelegate]()
 		{

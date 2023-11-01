@@ -1000,6 +1000,40 @@ bool UInterchangeManager::RegisterWriter(const UClass* WriterClass)
 	return true;
 }
 
+bool UInterchangeManager::RegisterImportDataConverter(const UClass* Converter)
+{
+#if WITH_EDITOR
+	if (!Converter)
+	{
+		return false;
+	}
+
+	if (RegisteredConverters.Contains(Converter))
+	{
+		return true;
+	}
+	UInterchangeAssetImportDataConverterBase* ConverterToRegister = NewObject<UInterchangeAssetImportDataConverterBase>(GetTransientPackage(), Converter, NAME_None);
+	if (!ConverterToRegister)
+	{
+		return false;
+	}
+	RegisteredConverters.Add(Converter, ConverterToRegister);
+#endif
+	return true;
+}
+
+bool UInterchangeManager::ConvertImportData(UObject* Object, const FString& Extension)
+{
+	for (TPair<TObjectPtr<const UClass>, TObjectPtr<UInterchangeAssetImportDataConverterBase>> RegisteredConverter : RegisteredConverters)
+	{
+		if (RegisteredConverter.Value->ConvertImportData(Object, Extension))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
 TArray<FString> UInterchangeManager::GetSupportedFormats(const EInterchangeTranslatorType ForTranslatorType) const
 {
 	TArray<FString> FileExtensions;
@@ -1083,6 +1117,12 @@ TArray<FString> UInterchangeManager::GetSupportedFormatsForObject(const UObject*
 	case EInterchangeFactoryAssetType::None: //Actor factories return None
 		FileExtensions = GetSupportedFormats(EInterchangeTranslatorType::Actors);
 		break;
+	}
+
+	//Make sure we return lower case extensions
+	for (FString& Extension : FileExtensions)
+	{
+		Extension.ToLowerInline();
 	}
 
 	return FileExtensions;
