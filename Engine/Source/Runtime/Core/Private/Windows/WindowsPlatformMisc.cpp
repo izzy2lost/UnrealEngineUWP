@@ -998,13 +998,6 @@ void FWindowsPlatformMisc::LocalPrint( const TCHAR *Message )
 #endif
 }
 
-bool FWindowsPlatformMisc::IsLowLevelOutputDebugStringStructured()
-{
-	HANDLE Mutex = OpenMutexW(SYNCHRONIZE, /*bInheritHandle*/ false, L"UE_LOG_JSON");
-	ON_SCOPE_EXIT { CloseHandle(Mutex); };
-	return !!Mutex || FGenericPlatformMisc::IsLowLevelOutputDebugStringStructured();
-}
-
 void FWindowsPlatformMisc::RequestExit( bool Force, const TCHAR* CallSite )
 {
 	UE_LOG(LogWindows, Log,  TEXT("FPlatformMisc::RequestExit(%i, %s)"),

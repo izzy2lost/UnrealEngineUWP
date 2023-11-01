@@ -90,8 +90,6 @@ struct FWindowsPlatformMisc
 	static CORE_API void SetUTF8Output();
 	static CORE_API void LocalPrint(const TCHAR *Message);
 
-	static CORE_API bool IsLowLevelOutputDebugStringStructured();
-
 	static bool IsLocalPrintThreadSafe()
 	{ 
 		//returning true when the debugger is attached is to allow
