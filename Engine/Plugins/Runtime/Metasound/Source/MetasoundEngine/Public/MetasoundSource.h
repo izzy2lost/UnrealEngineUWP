@@ -77,6 +77,8 @@ class METASOUNDENGINE_API UMetaSoundSource : public USoundWaveProcedural, public
 		FMetasoundFrontendLiteral DefaultLiteral;
 		// True if the data type is transmittable. False otherwise.
 		bool bIsTransmittable;
+
+		FAudioParameter ToAudioParameter() const;
 	};
 
 	struct FRuntimeInputData
@@ -292,6 +294,9 @@ public:
 	Metasound::FMetasoundEnvironment CreateEnvironment(const FSoundGeneratorInitParams& InParams) const;
 	const TArray<Metasound::FVertexName>& GetOutputAudioChannelOrder() const;
 private:
+
+	TSharedPtr<const Metasound::IGraph> TryGetMetaSoundPresetBaseGraph() const;
+	void MergePresetOverridesAndSuppliedDefaults(const TArray<FAudioParameter>& InSuppliedDefaults, TArray<FAudioParameter>& OutMerged);
 	
 	Metasound::FMetasoundEnvironment CreateEnvironment() const;
 	Metasound::FMetasoundEnvironment CreateEnvironment(const Audio::FParameterTransmitterInitParams& InParams) const;
