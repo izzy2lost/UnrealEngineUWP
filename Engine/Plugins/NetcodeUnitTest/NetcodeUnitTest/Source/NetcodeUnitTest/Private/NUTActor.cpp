@@ -460,8 +460,8 @@ void ANUTActor::HookNetDriver(UNetDriver* TargetNetDriver)
 			UE_LOG(LogUnitTest, Log, TEXT("Setting %s InitialConnectTimeout/ConnectionTimeout to '%i'"), *TargetNetDriver->GetFullName(),
 					CustomTimeout);
 
-			TargetNetDriver->InitialConnectTimeout = CustomTimeout;
-			TargetNetDriver->ConnectionTimeout = CustomTimeout;
+			TargetNetDriver->InitialConnectTimeout = static_cast<float>(CustomTimeout);
+			TargetNetDriver->ConnectionTimeout = static_cast<float>(CustomTimeout);
 		}
 	}
 }
