@@ -908,6 +908,8 @@ DECLARE_MULTICAST_DELEGATE_TwoParams(FOnPerformanceDataRetrieved, bool /*bSucces
 
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnTestEvent, FAutomationTestBase*);
 
+DECLARE_MULTICAST_DELEGATE_OneParam(FOnTestSectionEvent, const FString& /*Section*/);
+
 /** Class representing the main framework for running automation tests */
 class FAutomationTestFramework
 {
@@ -944,6 +946,16 @@ public:
 
 	/** Called after all chosen tests run have finished. */
 	FSimpleMulticastDelegate OnAfterAllTestsEvent;
+
+	/** Called entering test section. */
+	CORE_API FOnTestSectionEvent& GetOnEnteringTestSection(const FString& Section);
+	CORE_API void TriggerOnEnteringTestSection(const FString& Section) const;
+	CORE_API bool IsAnyOnEnteringTestSectionBound() const;
+
+	/** Called leaving test section. */
+	CORE_API FOnTestSectionEvent& GetOnLeavingTestSection(const FString& Section);
+	CORE_API void TriggerOnLeavingTestSection(const FString& Section) const;
+	CORE_API bool IsAnyOnLeavingTestSectionBound() const;
 
 	/**
 	 * Return the singleton instance of the framework.
@@ -1376,6 +1388,9 @@ private:
 	bool bForceSmokeTests;
 
 	bool bCaptureStack;
+
+	TMap<FString, FOnTestSectionEvent> OnEnteringTestSectionEvent;
+	TMap<FString, FOnTestSectionEvent> OnLeavingTestSectionEvent;
 };
 
 /** Simple abstract base class for all automation tests */

@@ -785,6 +785,74 @@ FOnTestScreenshotAndTraceCaptured& FAutomationTestFramework::OnScreenshotAndTrac
 	return TestScreenshotAndTraceCapturedDelegate;
 }
 
+FOnTestSectionEvent& FAutomationTestFramework::GetOnEnteringTestSection(const FString& Section)
+{
+	if (!OnEnteringTestSectionEvent.Contains(Section))
+	{
+		OnEnteringTestSectionEvent.Emplace(Section);
+	}
+
+	return *OnEnteringTestSectionEvent.Find(Section);
+}
+
+void FAutomationTestFramework::TriggerOnEnteringTestSection(const FString& Section) const
+{
+	if (const FOnTestSectionEvent* Delegate = OnEnteringTestSectionEvent.Find(Section))
+	{
+		Delegate->Broadcast(Section);
+	}
+}
+
+bool FAutomationTestFramework::IsAnyOnEnteringTestSectionBound() const
+{
+	if (!OnEnteringTestSectionEvent.IsEmpty())
+	{
+		for (auto& SectionPair : OnEnteringTestSectionEvent)
+		{
+			if (SectionPair.Value.IsBound())
+			{
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
+FOnTestSectionEvent& FAutomationTestFramework::GetOnLeavingTestSection(const FString& Section)
+{
+	if (!OnLeavingTestSectionEvent.Contains(Section))
+	{
+		OnLeavingTestSectionEvent.Emplace(Section);
+	}
+
+	return *OnLeavingTestSectionEvent.Find(Section);
+}
+
+void FAutomationTestFramework::TriggerOnLeavingTestSection(const FString& Section) const
+{
+	if (const FOnTestSectionEvent* Delegate = OnLeavingTestSectionEvent.Find(Section))
+	{
+		Delegate->Broadcast(Section);
+	}
+}
+
+bool FAutomationTestFramework::IsAnyOnLeavingTestSectionBound() const
+{
+	if (!OnLeavingTestSectionEvent.IsEmpty())
+	{
+		for (auto& SectionPair : OnLeavingTestSectionEvent)
+		{
+			if (SectionPair.Value.IsBound())
+			{
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
 void FAutomationTestFramework::PrepForAutomationTests()
 {
 	check(!GIsAutomationTesting);

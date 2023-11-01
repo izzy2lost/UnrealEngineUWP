@@ -139,6 +139,9 @@ private:
 	/** Checks whether the test is in exclusion list. */
 	bool IsTestExcluded(const FString& InTestToRun, FString* OutReason, bool* OutWarn) const;
 
+	/** Trigger Notifications when entering and leaving section */
+	void TriggerSectionNotifications();
+
 private:
 
 	/** The collection of test data we are to send to a controller. */
@@ -178,4 +181,7 @@ private:
 
 	/** Tag for the device on which the worker is running */
 	FString DeviceTag;
+
+	/** Tracking of active section */
+	FString ActiveSection;
 };

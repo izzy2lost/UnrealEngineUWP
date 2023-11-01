@@ -20,4 +20,7 @@ private:
 
 	void OnTestStart(FAutomationTestBase* Test);
 	void OnTestEnd(FAutomationTestBase* Test);
+
+	void OnEnteringTestSection(const FString& Section);
+	void OnLeavingTestSection(const FString& Section);
 };

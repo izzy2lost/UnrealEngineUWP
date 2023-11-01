@@ -2,6 +2,7 @@
 
 #include "AutomationWorkerModule.h"
 
+#include "Algo/Reverse.h"
 #include "AutomationAnalytics.h"
 #include "AutomationWorkerMessages.h"
 #include "AutomationTestExcludelist.h"
@@ -345,12 +346,16 @@ void FAutomationWorkerModule::HandleStartTestSession( const FAutomationWorkerSta
 	UE_LOG(LogAutomationWorker, Log, TEXT("Received StartTestSession from %s"), *Context->GetSender().ToString());
 
 	FAutomationTestFramework::Get().ResetTests();
+	ActiveSection.Empty();
 	FAutomationTestFramework::Get().OnBeforeAllTestsEvent.Broadcast();
 }
 
 void FAutomationWorkerModule::HandleStopTestSession(const FAutomationWorkerStopTestSession& Message, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& Context)
 {
 	UE_LOG(LogAutomationWorker, Log, TEXT("Received StopTestSession from %s"), *Context->GetSender().ToString());
+
+	// Unwind Active Section
+	TriggerSectionNotifications();
 
 	FAutomationTestFramework::Get().OnAfterAllTestsEvent.Broadcast();
 }
@@ -655,9 +660,85 @@ void FAutomationWorkerModule::HandleRunTestsMessage( const FAutomationWorkerRunT
 	// We are not executing network command sub-commands right now
 	bExecutingNetworkCommandResults = false;
 
+	// Track active section
+	TriggerSectionNotifications();
+
 	FAutomationTestFramework::Get().StartTestByName(Message.TestName, Message.RoleIndex, Message.FullTestPath);
 }
 
+void FAutomationWorkerModule::TriggerSectionNotifications()
+{
+	if (FullTestPath.IsEmpty())
+	{
+		// Unwind
+		if (!ActiveSection.IsEmpty())
+		{
+			if (FAutomationTestFramework::Get().IsAnyOnLeavingTestSectionBound())
+			{
+				FAutomationTestFramework::Get().TriggerOnLeavingTestSection(ActiveSection);
+				int32 Pos;
+				while (ActiveSection.FindLastChar('.', Pos))
+				{
+					ActiveSection.LeftInline(Pos);
+					FAutomationTestFramework::Get().TriggerOnLeavingTestSection(ActiveSection);
+				}
+			}
+			ActiveSection.Empty();
+		}
+		return;
+	}
+
+	if (!FAutomationTestFramework::Get().IsAnyOnEnteringTestSectionBound()
+		&& !FAutomationTestFramework::Get().IsAnyOnLeavingTestSectionBound())
+	{
+		return;
+	}
+
+	// Gather nesting sections
+	TArray<FString> NestingSections;
+	{
+		int32 Pos;
+		FString Section = FullTestPath;
+		while (Section.FindLastChar('.', Pos))
+		{
+			Section.LeftInline(Pos);
+			if (ActiveSection.IsEmpty() || !ActiveSection.StartsWith(Section))
+			{
+				NestingSections.Add(Section);
+			}
+			else
+			{
+				break;
+			}
+		}
+	}
+
+	if (NestingSections.Num() > 0)
+	{
+		// Notify leaving sections
+		if (!ActiveSection.IsEmpty() && FAutomationTestFramework::Get().IsAnyOnLeavingTestSectionBound())
+		{
+			const FString TargetSection = NestingSections[0];
+			int32 Pos;
+			while (!TargetSection.StartsWith(ActiveSection) && ActiveSection.FindLastChar('.', Pos))
+			{
+				FAutomationTestFramework::Get().TriggerOnLeavingTestSection(ActiveSection);
+				ActiveSection.LeftInline(Pos);
+			}
+		}
+
+		// Notify entering sections
+		ActiveSection = NestingSections[0];
+		if (FAutomationTestFramework::Get().IsAnyOnEnteringTestSectionBound())
+		{
+			Algo::Reverse(NestingSections);
+			for (const FString& Section : NestingSections)
+			{
+				FAutomationTestFramework::Get().TriggerOnEnteringTestSection(Section);
+			}
+		}
+	}
+}
 
 void FAutomationWorkerModule::HandleStopTestsMessage(const FAutomationWorkerStopTests& Message, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& Context)
 {
