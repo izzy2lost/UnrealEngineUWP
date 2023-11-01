@@ -82,7 +82,8 @@ namespace Jupiter.Implementation
 			MongoReferencesModelV0 model = new MongoReferencesModelV0(ns, bucket, key, blobHash, blob, isFinalized, DateTime.Now);
 			
 			NamespacePolicy policy = _namespacePolicyResolver.GetPoliciesForNs(ns);
-			if (policy.GcMethod == NamespacePolicy.StoragePoolGCMethod.TTL)
+			NamespacePolicy.StoragePoolGCMethod gcMethod = policy.GcMethod ?? NamespacePolicy.StoragePoolGCMethod.LastAccess;
+			if (gcMethod == NamespacePolicy.StoragePoolGCMethod.TTL)
 			{
 				model.ExpireAt = DateTime.UtcNow.Add(policy.DefaultTTL);
 			}

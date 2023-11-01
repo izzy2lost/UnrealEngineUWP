@@ -101,7 +101,8 @@ namespace Jupiter.Implementation
 				return false;
 			}
 
-			return _namespacePolicyResolver.GetPoliciesForNs(ns).GcMethod == NamespacePolicy.StoragePoolGCMethod.LastAccess;
+			NamespacePolicy.StoragePoolGCMethod gcMethod = _namespacePolicyResolver.GetPoliciesForNs(ns).GcMethod ?? NamespacePolicy.StoragePoolGCMethod.LastAccess;
+			return gcMethod == NamespacePolicy.StoragePoolGCMethod.LastAccess;
 		}
 
 		public void Dispose()

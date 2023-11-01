@@ -155,12 +155,13 @@ namespace Jupiter.Implementation
 
 			int? ttl = null;
 			NamespacePolicy policy = _namespacePolicyResolver.GetPoliciesForNs(ns);
-			if (policy.GcMethod == NamespacePolicy.StoragePoolGCMethod.TTL)
+			NamespacePolicy.StoragePoolGCMethod gcMethod = policy.GcMethod ?? NamespacePolicy.StoragePoolGCMethod.LastAccess;
+			if (gcMethod == NamespacePolicy.StoragePoolGCMethod.TTL)
 			{
 				ttl = (int)policy.DefaultTTL.TotalSeconds;
 			}
 
-			Task? insertLastAccess = policy.GcMethod == NamespacePolicy.StoragePoolGCMethod.LastAccess ? _mapper.InsertAsync<ScyllaObjectLastAccess>(new ScyllaObjectLastAccess(ns, bucket, name, DateTime.Now)) : null;
+			Task? insertLastAccess = gcMethod == NamespacePolicy.StoragePoolGCMethod.LastAccess ? _mapper.InsertAsync<ScyllaObjectLastAccess>(new ScyllaObjectLastAccess(ns, bucket, name, DateTime.Now)) : null;
 
 			await _mapper.InsertAsync<ScyllaObject>(new ScyllaObject(ns, bucket, name, blob, blobHash, isFinalized), ttl: ttl, insertNulls: false);
 

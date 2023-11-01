@@ -86,7 +86,8 @@ namespace Jupiter.Implementation
 
 			if (doLastAccessTracking)
 			{
-				if (_namespacePolicyResolver.GetPoliciesForNs(ns).GcMethod == NamespacePolicy.StoragePoolGCMethod.LastAccess)
+				NamespacePolicy.StoragePoolGCMethod gcPolicy = _namespacePolicyResolver.GetPoliciesForNs(ns).GcMethod ?? NamespacePolicy.StoragePoolGCMethod.LastAccess;
+				if (gcPolicy == NamespacePolicy.StoragePoolGCMethod.LastAccess)
 				{
 					// we do not wait for the last access tracking as it does not matter when it completes
 					Task lastAccessTask = _lastAccessTracker.TrackUsed(new LastAccessRecord(ns, bucket, key)).ContinueWith((task, _) =>
