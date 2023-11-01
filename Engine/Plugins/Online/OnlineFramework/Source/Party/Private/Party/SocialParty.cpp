@@ -1631,7 +1631,7 @@ FPartyJoinDenialReason ReservationResponseToJoinDenialReason(const EPartyReserva
 	switch (ReservationResponse)
 	{
 	case EPartyReservationResult::PartyLimitReached:
-		return EPartyJoinDenialReason::GameFull;
+		return EPartyJoinDenialReason::PartyFull;
 	case EPartyReservationResult::ReservationDenied:
 		return EPartyJoinDenialReason::GameFull; // Not really a more specific reason available
 	case EPartyReservationResult::ReservationDenied_CrossPlayRestriction:
