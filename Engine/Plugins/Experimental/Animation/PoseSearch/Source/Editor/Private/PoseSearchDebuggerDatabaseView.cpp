@@ -206,10 +206,13 @@ static void AddUnfilteredDatabaseRow(const UPoseSearchDatabase* Database,
 		if (!SharedData->PCAQueryVector.IsEmpty())
 		{
 			const int32 PCAValuesVectorIdx = PoseToPCAValuesVectorIndexes.IsEmpty() ? DbPoseIdx : PoseToPCAValuesVectorIndexes[DbPoseIdx];
-			TConstArrayView<float> PCAPoseValues = SearchIndex.GetPCAPoseValues(PCAValuesVectorIdx);
-			if (SharedData->PCAQueryVector.Num() == PCAPoseValues.Num())
+			if (PCAValuesVectorIdx >= 0)
 			{
-				Row->PosePCACost = CompareFeatureVectors(SharedData->PCAQueryVector, PCAPoseValues);
+				TConstArrayView<float> PCAPoseValues = SearchIndex.GetPCAPoseValues(PCAValuesVectorIdx);
+				if (SharedData->PCAQueryVector.Num() == PCAPoseValues.Num())
+				{
+					Row->PosePCACost = CompareFeatureVectors(SharedData->PCAQueryVector, PCAPoseValues);
+				}
 			}
 		}
 

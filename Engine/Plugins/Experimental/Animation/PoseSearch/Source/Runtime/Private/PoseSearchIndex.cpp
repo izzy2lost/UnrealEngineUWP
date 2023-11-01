@@ -615,6 +615,65 @@ TConstArrayView<float> FSearchIndex::PCAProject(TConstArrayView<float> PoseValue
 	return BufferUsedForProjection;
 }
 
+void FSearchIndex::PrunePCAValuesFromBlockTransitionPoses(int32 NumberOfPrincipalComponents)
+{
+	if (!bAnyBlockTransition)
+	{
+		return;
+	}
+
+	check(PCAValues.Num() % NumberOfPrincipalComponents == 0);
+	const int32 NumPCAValuesVectors = PCAValues.Num() / NumberOfPrincipalComponents;
+
+	TArray<TPair<int32, TArray<int32>>> PrunedPCAValuesVectorToPoseIndexes;
+	TAlignedArray<float> PrunedPCAValues;
+	PrunedPCAValues.Reserve(PCAValues.Num());
+
+	if (PCAValuesVectorToPoseIndexes.Num() > 0)
+	{
+		TArray<int32> PCAValuesVectorIdxPoseIndexes;
+		for (int32 PCAValuesVectorIdx = 0; PCAValuesVectorIdx < NumPCAValuesVectors; ++PCAValuesVectorIdx)
+		{
+			PCAValuesVectorIdxPoseIndexes.Reset();
+			for (int32 PoseIdx : PCAValuesVectorToPoseIndexes[PCAValuesVectorIdx])
+			{
+				if (!PoseMetadata[PoseIdx].IsBlockTransition())
+				{
+					PCAValuesVectorIdxPoseIndexes.Add(PoseIdx);
+				}
+			}
+
+			if (!PCAValuesVectorIdxPoseIndexes.IsEmpty())
+			{
+				PrunedPCAValuesVectorToPoseIndexes.Emplace(PrunedPCAValuesVectorToPoseIndexes.Num(), PCAValuesVectorIdxPoseIndexes);
+				PrunedPCAValues.Append(GetPCAPoseValues(PCAValuesVectorIdx));
+			}
+		}
+	}
+	else
+	{
+		for (int32 PCAValuesVectorIdx = 0; PCAValuesVectorIdx < NumPCAValuesVectors; ++PCAValuesVectorIdx)
+		{
+			// here there's a 1:1 mapping between PCAValuesVectorIdx and PoseIdx
+			
+			const int32 PoseIdx = PCAValuesVectorIdx;
+			if (!PoseMetadata[PoseIdx].IsBlockTransition())
+			{
+				TConstArrayView<int32> PCAValuesVectorIdxPoseIndexes = MakeArrayView(&PoseIdx, 1);
+				PrunedPCAValuesVectorToPoseIndexes.Emplace(PrunedPCAValuesVectorToPoseIndexes.Num(), PCAValuesVectorIdxPoseIndexes);
+				PrunedPCAValues.Append(GetPCAPoseValues(PCAValuesVectorIdx));
+			}
+		}
+	}
+
+	PCAValues = PrunedPCAValues;
+	PCAValuesVectorToPoseIndexes = FSparsePoseMultiMap<int32>(PrunedPCAValuesVectorToPoseIndexes.Num(), GetNumPoses() - 1);
+	for (const TPair<int32, TArray<int32>>& Pair : PrunedPCAValuesVectorToPoseIndexes)
+	{
+		PCAValuesVectorToPoseIndexes.Insert(Pair.Key, Pair.Value);
+	}
+}
+
 void FSearchIndex::PruneDuplicatePCAValues(float SimilarityThreshold, int32 NumberOfPrincipalComponents)
 {
 	PCAValuesVectorToPoseIndexes = FSparsePoseMultiMap<int32>();
@@ -757,7 +816,8 @@ void FSearchIndex::GetPoseToPCAValuesVectorIndexes(TArray<uint32>& PoseToPCAValu
 			}
 		}
 
-		check(!PoseToPCAValuesVectorIndexes.Contains(INDEX_NONE));
+		// if block transition pruning is enabled we could have poses without their PCAValuesVectorIdx counterpart
+		// check(!PoseToPCAValuesVectorIndexes.Contains(INDEX_NONE));
 	}
 	else
 	{

@@ -1641,6 +1641,11 @@ void FPoseSearchDatabaseAsyncCacheTask::OnGetComplete(UE::DerivedData::FCacheGet
 					return;
 				}
 
+				if (IndexBaseDatabases[0]->bPCAValuesPruningFromBlockTransitionPoses)
+				{
+					SearchIndex.PrunePCAValuesFromBlockTransitionPoses(IndexBaseDatabases[0]->GetNumberOfPrincipalComponents());
+				}
+
 				PreprocessSearchIndexKDTree(SearchIndex, IndexBaseDatabases[0]);
 				if (Owner.IsCanceled())
 				{

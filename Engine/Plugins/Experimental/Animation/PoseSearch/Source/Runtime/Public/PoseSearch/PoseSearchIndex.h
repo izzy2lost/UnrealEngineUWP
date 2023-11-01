@@ -232,13 +232,12 @@ struct FSearchStats
 template <typename Type = int32>
 struct FSparsePoseMultiMap
 {
-	FSparsePoseMultiMap(Type InMaxKey = Type(0), Type InMaxValue = Type(0))
+	FSparsePoseMultiMap(Type InMaxKey = Type(0), Type InMaxValue = Type(0), TArray<Type>::SizeType InitialAllocationSize = 0)
 	: MaxKey(InMaxKey)
 	, MaxValue(InMaxValue)
 	, DeltaKeyValue(InMaxValue >= InMaxKey ? InMaxValue - InMaxKey + 1 : 0)
 	{
-		// @todo: maybe expose this initial allocation budget
-		DataValues.Reserve(InMaxKey * 2);
+		DataValues.Reserve(InitialAllocationSize > 0 ? InitialAllocationSize : InMaxKey * 2);
 		for (Type Index = 0; Index < InMaxKey; ++Index)
 		{
 			DataValues.Add(Type(INDEX_NONE));
@@ -458,6 +457,7 @@ struct FSearchIndex : public FSearchIndexBase
 	POSESEARCH_API FPoseSearchCost CompareAlignedPoses(int32 PoseIdx, float ContinuingPoseCostBias, TConstArrayView<float> PoseValues, TConstArrayView<float> QueryValues) const;
 
 	void PruneDuplicatePCAValues(float SimilarityThreshold, int32 NumberOfPrincipalComponents);
+	void PrunePCAValuesFromBlockTransitionPoses(int32 NumberOfPrincipalComponents);
 
 	// returns the inverse mapping of PCAValuesVectorToPoseIndexes
 	POSESEARCH_API void GetPoseToPCAValuesVectorIndexes(TArray<uint32>& PoseToPCAValuesVectorIndexes) const;
