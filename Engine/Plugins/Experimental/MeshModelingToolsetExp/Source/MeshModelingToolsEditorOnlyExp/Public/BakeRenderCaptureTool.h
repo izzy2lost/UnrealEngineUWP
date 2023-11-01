@@ -180,16 +180,8 @@ class MESHMODELINGTOOLSEDITORONLYEXP_API UBakeRenderCaptureToolProperties : publ
 public:
 	
 	/** The map type to preview */
-	UPROPERTY(EditAnywhere, Category = BakeOutput, meta = (DisplayName="Preview Output Type", TransientToolProperty, GetOptions = GetMapPreviewNamesFunc))
-	FString MapPreview;
-	
-	UFUNCTION()
-	const TArray<FString>& GetMapPreviewNamesFunc()
-	{
-		return MapPreviewNamesList;
-	}
-	UPROPERTY(meta = (TransientToolProperty))
-	TArray<FString> MapPreviewNamesList;
+	UPROPERTY(EditAnywhere, Category = BakeOutput, meta = (DisplayName="Preview Output Type", EditCondition = "bEnableMapPreview", HideEditConditionToggle, TransientToolProperty, GetOptions = GetMapPreviewNamesFunc, NoResetToDefault))
+	FString MapPreview = TEXT("");
 
 	/** Number of samples per pixel */
 	UPROPERTY(EditAnywhere, Category = BakeOutput)
@@ -213,6 +205,20 @@ public:
 	 */
 	UPROPERTY(EditAnywhere, Category = BakeOutput, meta = (ClampMin="0", UIMin="0"), DisplayName="Cleanup Threshold")
 	float ValidSampleDepthThreshold = 0.f;
+
+	//~ Hidden properties
+
+	UPROPERTY(Transient, meta = (TransientToolProperty))
+	bool bEnableMapPreview = false;
+
+	UFUNCTION()
+	const TArray<FString>& GetMapPreviewNamesFunc()
+	{
+		return MapPreviewNamesList;
+	}
+
+	UPROPERTY(meta = (TransientToolProperty))
+	TArray<FString> MapPreviewNamesList;
 };
 
 
@@ -310,6 +316,7 @@ protected:
 
 	UPROPERTY()
 	TObjectPtr<UBakeRenderCaptureToolProperties> Settings;
+	int32 MapPreviewWatcherIndex = -1;
 
 	UPROPERTY()
 	TObjectPtr<URenderCaptureProperties> RenderCaptureProperties;

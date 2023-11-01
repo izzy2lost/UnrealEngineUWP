@@ -314,7 +314,7 @@ void UBakeRenderCaptureTool::Setup()
 	AddToolPropertySource(Settings);
 
 	Settings->MapPreview = BaseColorTexParamName;
-	Settings->WatchProperty(Settings->MapPreview, [this](FString) { UpdateVisualization(); });
+	MapPreviewWatcherIndex = Settings->WatchProperty(Settings->MapPreview, [this](FString) { UpdateVisualization(); });
 	Settings->WatchProperty(Settings->SamplesPerPixel, [this](EBakeTextureSamplesPerPixel) { OpState |= EBakeOpState::Evaluate; });
 	Settings->WatchProperty(Settings->TextureSize, [this](EBakeTextureResolution) { OpState |= EBakeOpState::Evaluate; });
 	Settings->WatchProperty(Settings->ValidSampleDepthThreshold, [this](float ValidSampleDepthThreshold)
@@ -357,18 +357,6 @@ void UBakeRenderCaptureTool::Setup()
 	UpdateUVLayerNames(InputMeshSettings->TargetUVLayer, InputMeshSettings->TargetUVLayerNamesList, *TargetMesh);
 	InputMeshSettings->WatchProperty(InputMeshSettings->TargetUVLayer, [this](FString) { OpState |= EBakeOpState::Evaluate; });
 	
-	{
-		Settings->MapPreviewNamesList.Add(BaseColorTexParamName);
-		Settings->MapPreviewNamesList.Add(NormalTexParamName);
-		Settings->MapPreviewNamesList.Add(PackedMRSTexParamName);
-		Settings->MapPreviewNamesList.Add(MetallicTexParamName);
-		Settings->MapPreviewNamesList.Add(RoughnessTexParamName);
-		Settings->MapPreviewNamesList.Add(SpecularTexParamName);
-		Settings->MapPreviewNamesList.Add(EmissiveTexParamName);
-		Settings->MapPreviewNamesList.Add(OpacityTexParamName);
-		Settings->MapPreviewNamesList.Add(SubsurfaceColorTexParamName);
-	}
-
 	ResultSettings = NewObject<UBakeRenderCaptureResults>(this);
 	ResultSettings->RestoreProperties(this);
 	AddToolPropertySource(ResultSettings);
@@ -1054,6 +1042,68 @@ void UBakeRenderCaptureTool::UpdateResult()
 	if (OpState == EBakeOpState::Clean)
 	{
 		return;
+	}
+
+	{
+		Settings->MapPreviewNamesList.Reset();
+
+		if (RenderCaptureProperties->bBaseColorMap)
+		{
+			Settings->MapPreviewNamesList.Add(BaseColorTexParamName);
+		}
+		if (RenderCaptureProperties->bNormalMap)
+		{
+			Settings->MapPreviewNamesList.Add(NormalTexParamName);
+		}
+		if (RenderCaptureProperties->bPackedMRSMap)
+		{
+			Settings->MapPreviewNamesList.Add(PackedMRSTexParamName);
+		}
+		if (RenderCaptureProperties->bMetallicMap)
+		{
+			Settings->MapPreviewNamesList.Add(MetallicTexParamName);
+		}
+		if (RenderCaptureProperties->bRoughnessMap)
+		{
+			Settings->MapPreviewNamesList.Add(RoughnessTexParamName);
+		}
+		if (RenderCaptureProperties->bSpecularMap)
+		{
+			Settings->MapPreviewNamesList.Add(SpecularTexParamName);
+		}
+		if (RenderCaptureProperties->bEmissiveMap)
+		{
+			Settings->MapPreviewNamesList.Add(EmissiveTexParamName);
+		}
+		if (RenderCaptureProperties->bOpacityMap)
+		{
+			Settings->MapPreviewNamesList.Add(OpacityTexParamName);
+		}
+		if (RenderCaptureProperties->bSubsurfaceColorMap)
+		{
+			Settings->MapPreviewNamesList.Add(SubsurfaceColorTexParamName);
+		}
+
+		if (Settings->MapPreviewNamesList.IsEmpty())
+		{
+			// Display an empty string when MapPreview is disabled
+			Settings->MapPreview = TEXT("");
+			Settings->SilentUpdateWatcherAtIndex(MapPreviewWatcherIndex);
+
+			Settings->bEnableMapPreview = false;
+		}
+		else
+		{
+			// If the current MapPreview channel is disabled, switch to the first enabled channel in the list
+			if (Settings->MapPreviewNamesList.Find(Settings->MapPreview) == INDEX_NONE)
+			{
+				Settings->MapPreview = Settings->MapPreviewNamesList[0];
+				Settings->SilentUpdateWatcherAtIndex(MapPreviewWatcherIndex);
+			}
+
+			Settings->bEnableMapPreview = true;
+		}
+		NotifyOfPropertyChangeByTool(Settings);
 	}
 
 	// The bake operation, Compute, stores a pointer to the SceneCapture so that must not be modified while baking
