@@ -96,7 +96,7 @@ static FAutoConsoleVariableRef CVarAllowVisibilityCullingForDynamicBounds(
 	ECVF_Default
 );
 
-static int GNiagaraWorldManagerAvoidAddingToExecutingSims = 1;
+static int GNiagaraWorldManagerAvoidAddingToExecutingSims = 0;
 static FAutoConsoleVariableRef CVarNiagaraWorldManagerAvoidAddingToExecutingSims(
 	TEXT("fx.Niagara.WorldManager.AvoidAddingToExecutingSims"),
 	GNiagaraWorldManagerAvoidAddingToExecutingSims,
