@@ -309,7 +309,7 @@ static UMovieSceneControlRigParameterTrack* AddControlRig(ULevelSequence* LevelS
 	return nullptr;
 }
 
-UMovieSceneTrack* UControlRigSequencerEditorLibrary::FindOrCreateControlRigTrack(UWorld* World, ULevelSequence* LevelSequence, const UClass* ControlRigClass, const FMovieSceneBindingProxy& InBinding, bool bIsAdditiveControlRig)
+UMovieSceneTrack* UControlRigSequencerEditorLibrary::FindOrCreateControlRigTrack(UWorld* World, ULevelSequence* LevelSequence, const UClass* ControlRigClass, const FMovieSceneBindingProxy& InBinding, bool bIsLayeredControlRig)
 {
 	UMovieScene* MovieScene = InBinding.Sequence ? InBinding.Sequence->GetMovieScene() : nullptr;
 	UMovieSceneTrack* BaseTrack = nullptr;
@@ -342,7 +342,7 @@ UMovieSceneTrack* UControlRigSequencerEditorLibrary::FindOrCreateControlRigTrack
 				UControlRig* ControlRig = nullptr;
 				if (SkeletalMeshComponent && SkeletalMeshComponent->GetSkeletalMeshAsset() && SkeletalMeshComponent->GetSkeletalMeshAsset()->GetSkeleton())
 				{
-					UMovieSceneControlRigParameterTrack* Track = AddControlRig(LevelSequence, ControlRigClass, SkeletalMeshComponent, InBinding.BindingID, nullptr, bIsAdditiveControlRig);
+					UMovieSceneControlRigParameterTrack* Track = AddControlRig(LevelSequence, ControlRigClass, SkeletalMeshComponent, InBinding.BindingID, nullptr, bIsLayeredControlRig);
 
 					if (Track)
 					{
@@ -3089,7 +3089,7 @@ bool UControlRigSequencerEditorLibrary::IsFKControlRig(UControlRig* InControlRig
 	return (InControlRig && InControlRig->IsA<UFKControlRig>());
 }
 
-bool UControlRigSequencerEditorLibrary::IsAdditiveControlRig(UControlRig* InControlRig)
+bool UControlRigSequencerEditorLibrary::IsLayeredControlRig(UControlRig* InControlRig)
 {
 	return (InControlRig && InControlRig->IsAdditive());
 }
