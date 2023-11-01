@@ -92,8 +92,7 @@ export const darkTheme = createTheme({
                     borderRightColor: "#959595"
                 }
             }
-        }
-        ,
+        },
         "Toggle": {
             styles: {
                 root: {
@@ -139,7 +138,7 @@ export const darkTheme = createTheme({
         neutralTertiary: '#c8c8c8',
         neutralSecondary: '#d0d0d0',
         neutralPrimaryAlt: '#dadada',
-        neutralPrimary: '#ffffff',
+        neutralPrimary: '#B5B5B5',
         neutralDark: '#f4f4f4',
         black: '#f8f8f8',
         white: '#181A1B',
