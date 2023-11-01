@@ -38,6 +38,8 @@ namespace NiagaraDataInterfaceRenderTargetCommon
 		{
 			if (FNiagaraWorldManager* WorldManager = SystemInstance->GetWorldManager())
 			{
+				InstanceData->TargetTexture->OverrideFormat = PF_Unknown;
+
 				WorldManager->ObjectPoolReturn(InstanceData->TargetTexture);
 				WorldManager->RemoveReferencedObject(InstanceData->TargetTexture);
 				InstanceData->TargetTexture = nullptr;
