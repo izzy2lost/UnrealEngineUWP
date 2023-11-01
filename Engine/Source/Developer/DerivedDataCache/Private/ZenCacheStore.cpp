@@ -1357,7 +1357,9 @@ private:
 				// Launch a task for the completion function since it can execute arbitrary code.
 				Self->Owner->LaunchTask(TEXT("ZenHttpComplete"), [Self = TRefCountPtr(Self)]
 				{
-					Self->OnRpcComplete(Self->Response, Self->Package);
+					// Ensuring that the OnRpcComplete method is destroyed by the time we exit this method by moving it to a local scope variable
+					FOnRpcComplete LocalOnComplete = MoveTemp(Self->OnRpcComplete);
+					LocalOnComplete(Self->Response, Self->Package);
 				});
 			}
 		});
