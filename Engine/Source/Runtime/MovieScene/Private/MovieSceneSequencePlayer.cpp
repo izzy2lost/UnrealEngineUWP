@@ -1282,6 +1282,7 @@ void UMovieSceneSequencePlayer::TearDown()
 
 	if (TickManager)
 	{
+		RegisteredTickInterval.Reset();
 		TickManager->UnregisterTickClient(this);
 		TickManager = nullptr;
 	}
