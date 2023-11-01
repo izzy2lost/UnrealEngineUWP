@@ -1121,6 +1121,10 @@ namespace UnrealBuildTool
 		/// Static code analysis
 		/// </summary>
 		Analyze,
+		/// <summary>
+		/// Query
+		/// </summary>
+		Query,
 	}
 
 	/// <summary>
@@ -1799,6 +1803,9 @@ namespace UnrealBuildTool
 				case UnrealIntermediateEnvironment.Analyze:
 					TargetFolderName += "SA";
 					break;
+				case UnrealIntermediateEnvironment.Query:
+					TargetFolderName += "QRY";
+					break;
 			}
 			return TargetFolderName;
 		}
@@ -2344,7 +2351,7 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// Builds the target, appending list of output files and returns building result.
 		/// </summary>
-		public async Task<TargetMakefile> BuildAsync(BuildConfiguration BuildConfiguration, ISourceFileWorkingSet WorkingSet, TargetDescriptor TargetDescriptor, ILogger Logger, bool bInitOnly = false, bool bGenUHTOnly = false)
+		public async Task<TargetMakefile> BuildAsync(BuildConfiguration BuildConfiguration, ISourceFileWorkingSet WorkingSet, TargetDescriptor TargetDescriptor, ILogger Logger, bool bInitOnly = false)
 		{
 			CppConfiguration CppConfiguration = GetCppConfiguration(Configuration);
 
@@ -2613,11 +2620,6 @@ namespace UnrealBuildTool
 #if __VPROJECT_AVAILABLE__
 			await VNITask;
 #endif
-
-			if (bGenUHTOnly)
-			{
-				return Makefile;
-			}
 
 			foreach (UEBuildModuleCPP Module in Modules.Values.OfType<UEBuildModuleCPP>())
 			{
@@ -3645,7 +3647,7 @@ namespace UnrealBuildTool
 		/// <param name="OriginalBinaries">The list of binaries</param>
 		/// <param name="GlobalCompileEnvironment">The compile environment. The shared PCHs will be added to the SharedPCHs list in this.</param>
 		/// <param name="Logger">Logger for output</param>
-		void FindSharedPCHs(List<UEBuildBinary> OriginalBinaries, CppCompileEnvironment GlobalCompileEnvironment, ILogger Logger)
+		public void FindSharedPCHs(List<UEBuildBinary> OriginalBinaries, CppCompileEnvironment GlobalCompileEnvironment, ILogger Logger)
 		{
 			// Find how many other shared PCH modules each module depends on, and use that to sort the shared PCHs by reverse order of size.
 			HashSet<UEBuildModuleCPP> SharedPCHModules = new HashSet<UEBuildModuleCPP>();
@@ -3695,7 +3697,7 @@ namespace UnrealBuildTool
 		/// <param name="GlobalCompileEnvironment">The compile environment. The shared PCHs will be added to the SharedPCHs list in this.</param>
 		/// <param name="Logger">Logger for output</param>
 		/// <param name="Graph">List of build actions</param>
-		void CreateSharedPCHInstances(ReadOnlyTargetRules Target, UEToolChain ToolChain, List<UEBuildBinary> OriginalBinaries, CppCompileEnvironment GlobalCompileEnvironment, IActionGraphBuilder Graph, ILogger Logger)
+		public void CreateSharedPCHInstances(ReadOnlyTargetRules Target, UEToolChain ToolChain, List<UEBuildBinary> OriginalBinaries, CppCompileEnvironment GlobalCompileEnvironment, IActionGraphBuilder Graph, ILogger Logger)
 		{
 			int NumSharedPCHs = GlobalCompileEnvironment.SharedPCHs.Count;
 			if (!Target.bUsePCHFiles || NumSharedPCHs == 0)

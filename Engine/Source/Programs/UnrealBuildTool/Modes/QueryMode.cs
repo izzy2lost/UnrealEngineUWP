@@ -108,9 +108,6 @@ namespace UnrealBuildTool
 		[CommandLine("-Indented")]
 		public bool bIndented;
 
-		[CommandLine("-GenFiles")]
-		public bool bGenFiles = false;
-
 		private BuildConfiguration BuildConfiguration = new();
 
 		public override Task<int> ExecuteAsync(CommandLineArguments Arguments, ILogger Logger)
@@ -290,6 +287,7 @@ namespace UnrealBuildTool
 				RawArgs.Add(ProjectFileArg.ToString());
 			}
 			RawArgs.AddRange(Arguments.GetUnusedArguments());
+			RawArgs.Add("-NoPCHChain"); // Currently unsupported
 			CommandLineArguments Args = new CommandLineArguments(RawArgs.ToArray());
 			List<TargetDescriptor> TargetDescriptors = new();
 
@@ -311,15 +309,28 @@ namespace UnrealBuildTool
 					string MutexName = SingleInstanceMutex.GetUniqueMutexForPath("UnrealBuildTool_QueryMode_UEBuildTarget-Create", Unreal.RootDirectory.FullName);
 					using (new SingleInstanceMutex(MutexName, true))
 					{
-						CurrentTarget = UEBuildTarget.Create(TargetDescriptors[0], false, false, bUsePrecompiled, Logger);
+						CurrentTarget = UEBuildTarget.Create(TargetDescriptors[0], false, false, bUsePrecompiled, UnrealIntermediateEnvironment.Query, Logger);
 					}
 				}
 
-				if (bGenFiles)
+				UEBuildBinary? LaunchBinary = CurrentTarget.Binaries.FirstOrDefault(Binary => Binary.Modules.Any(Module => Module.Name == CurrentTarget.Rules.LaunchModuleName));
+				if (LaunchBinary == null)
 				{
-					// Create the makefile for the target and export the module information
+					throw new BuildException("Unable to find launch binary for target");
+				}
+
+				// Create the makefile for the target and export the module information
+				{
 					using ISourceFileWorkingSet WorkingSet = new EmptySourceFileWorkingSet();
-					TargetMakefile Makefile = await CurrentTarget.BuildAsync(BuildConfiguration, WorkingSet, TargetDescriptors[0], Logger, bGenUHTOnly: true);
+					TargetMakefile Makefile;
+					try
+					{
+						Makefile = await BuildMode.CreateMakefileAsync(BuildConfiguration, TargetDescriptors[0], WorkingSet, Logger);
+					}
+					finally
+					{
+						SourceFileMetadataCache.SaveAll();
+					}
 				}
 
 				TargetIntellisenseInfo CurrentTargetIntellisenseInfo = new TargetIntellisenseInfo();
@@ -335,11 +346,13 @@ namespace UnrealBuildTool
 				TargetToolChain.SetEnvironmentVariables();
 				CurrentTarget.SetupGlobalEnvironment(TargetToolChain, GlobalCompileEnvironment, GlobalLinkEnvironment);
 
-				UEBuildBinary? LaunchBinary = CurrentTarget.Binaries.FirstOrDefault(Binary => Binary.Modules.Any(Module => Module.Name == CurrentTarget.Rules.LaunchModuleName));
-
-				if (LaunchBinary == null)
+				if (CurrentTarget.Rules.bUseSharedPCHs)
 				{
-					throw new BuildException("Unable to find launch binary for target");
+					// Find all the shared PCHs.
+					CurrentTarget.FindSharedPCHs(CurrentTarget.Binaries, GlobalCompileEnvironment, Logger);
+
+					// Create all the shared PCH instances before processing the modules
+					CurrentTarget.CreateSharedPCHInstances(CurrentTarget.Rules, TargetToolChain, CurrentTarget.Binaries, GlobalCompileEnvironment, new NullActionGraphBuilder(Logger), Logger);
 				}
 
 				LaunchSettings CurrentLaunchSettings = new LaunchSettings();
@@ -372,7 +385,12 @@ namespace UnrealBuildTool
 							CurrentTargetIntellisenseInfo.DirToModule.TryAdd(Module.GeneratedCodeDirectory, Module);
 						}
 
-						CppCompileEnvironment ModuleCompileEnvironment = Module.CreateModuleCompileEnvironment(CurrentTarget.Rules, BinaryCompileEnvironment, Logger);
+						CppCompileEnvironment ModuleCompileEnvironment = Module.CreateCompileEnvironmentForIntellisense(CurrentTarget.Rules, BinaryCompileEnvironment, Logger);
+						if (ModuleCompileEnvironment.PrecompiledHeaderAction == PrecompiledHeaderAction.Include)
+						{
+							FileItem IncludeHeader = FileItem.GetItemByFileReference(ModuleCompileEnvironment.PrecompiledHeaderIncludeFilename!);
+							ModuleCompileEnvironment.ForceIncludeFiles.Insert(0, IncludeHeader);
+						}
 
 						// Remove include paths and defintiions from an environment used to get the command line args
 						CppCompileEnvironment ModuleCompileEnvironmentForArgs = new CppCompileEnvironment(ModuleCompileEnvironment);
@@ -381,12 +399,12 @@ namespace UnrealBuildTool
 						ModuleCompileEnvironmentForArgs.Definitions.Clear();
 
 						TargetIntellisenseInfo.CompileSettings Settings = new TargetIntellisenseInfo.CompileSettings();
+						Settings.IncludePaths.AddRange(ModuleCompileEnvironment.UserIncludePaths.Select(x => x.ToString()));
+						Settings.IncludePaths.AddRange(ModuleCompileEnvironment.SystemIncludePaths.Select(x => x.ToString()));
 						if (TargetToolChain is VCToolChain TargetVCToolChain)
 						{
 							Settings.IncludePaths.AddRange(TargetVCToolChain.GetVCIncludePaths().Select(x => x.ToString()));
 						}
-						Settings.IncludePaths.AddRange(ModuleCompileEnvironment.SystemIncludePaths.Select(x => x.ToString()));
-						Settings.IncludePaths.AddRange(ModuleCompileEnvironment.UserIncludePaths.Select(x => x.ToString()));
 						Settings.Defines = ModuleCompileEnvironment.Definitions;
 						Settings.Standard = ModuleCompileEnvironment.CppStandard.ToString();
 						Settings.ForcedIncludes = ModuleCompileEnvironment.ForceIncludeFiles.Select(x => x.ToString()).ToList();
@@ -407,8 +425,6 @@ namespace UnrealBuildTool
 					ModuleToCompileSettings = CurrentTargetIntellisenseInfo.ModuleToCompileSettings.ToImmutableSortedDictionary(x => x.Key.Name, x => x.Value),
 					LaunchSettings = CurrentLaunchSettings,
 				};
-				
-			
 
 				await WriteResultsAsync(Result, JsonOptions, Logger);
 				return 0;
