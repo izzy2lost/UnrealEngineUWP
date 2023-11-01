@@ -42,6 +42,8 @@ set(src
 	Private/UnsyncCmdLogin.h
 	Private/UnsyncCmdMount.cpp
 	Private/UnsyncCmdMount.h
+	Private/UnsyncCmdPack.cpp
+	Private/UnsyncCmdPack.h
 	Private/UnsyncCmdPatch.cpp
 	Private/UnsyncCmdPatch.h
 	Private/UnsyncCmdPush.cpp
@@ -50,8 +52,6 @@ set(src
 	Private/UnsyncCmdQuery.h
 	Private/UnsyncCmdSync.cpp
 	Private/UnsyncCmdSync.h
-	Private/UnsyncCmdPack.cpp
-	Private/UnsyncCmdPack.h
 	Private/UnsyncCommon.h
 	Private/UnsyncCompression.cpp
 	Private/UnsyncCompression.h
@@ -70,6 +70,8 @@ set(src
 	Private/UnsyncLog.cpp
 	Private/UnsyncLog.h
 	Private/UnsyncMain.cpp
+	Private/UnsyncManifest.cpp
+	Private/UnsyncManifest.h
 	Private/UnsyncMemory.cpp
 	Private/UnsyncMemory.h
 	Private/UnsyncMiniCb.cpp

@@ -64,6 +64,7 @@ using FBlock160 = TBlock<FHash160>;
 using FBlock256 = TBlock<FHash256>;
 
 using FGenericBlock = TBlock<FGenericHash>;
+using FGenericBlockArray = std::vector<FGenericBlock>;
 
 static constexpr uint64 SERIALIZED_SECTION_ID_TERMINATOR		  = 0;
 static constexpr uint64 SERIALIZED_SECTION_ID_METADATA_STRING	  = 0xC6BD6CDCEEF79533ull;
