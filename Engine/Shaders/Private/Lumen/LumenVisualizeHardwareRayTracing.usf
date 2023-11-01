@@ -435,6 +435,7 @@ float NearFieldMaxTraceDistanceDitherScale;
 float NearFieldSceneRadius;
 uint ApplySkylightStage;
 uint MaxReflectionBounces;
+uint MaxRefractionBounces;
 
 LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenVisualizeHardwareRayTracing)
 {
@@ -504,6 +505,11 @@ LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenVisualizeHardwareRayTracing)
 		Context.MaxReflectionBounces = MaxReflectionBounces;
 		Context.FarFieldMaxTraceDistance = FarFieldMaxTraceDistance;
 		Context.FarFieldReferencePos = FarFieldReferencePos;
+
+	#if RECURSIVE_REFRACTION_TRACES
+		Context.MaxRefractionBounces = MaxRefractionBounces;
+		Context.InstanceMask |= RAY_TRACING_MASK_TRANSLUCENT;  
+	#endif
 
 		FRayTracedLightingResult Result = CreateRayTracedLightingResult();
 		#if DIM_HIT_LIGHTING

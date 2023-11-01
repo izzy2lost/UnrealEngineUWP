@@ -624,6 +624,7 @@ void SetupVisualizeParameters(
 	float MaxMeshSDFTraceDistance = GVisualizeLumenSceneMaxMeshSDFTraceDistance >= 0.0f ? GVisualizeLumenSceneMaxMeshSDFTraceDistance : FLT_MAX;
 	float MaxTraceDistance = GVisualizeLumenSceneMaxTraceDistance;
 	uint32 MaxReflectionBounces = 1;
+	uint32 MaxRefractionBounces = LumenReflections::UseTranslucentRayTracing(View) ? 1 : 0;
 
 	// Reflection scene view uses reflection setup
 	if (VisualizeMode == VISUALIZE_MODE_REFLECTION_VIEW)
@@ -632,6 +633,7 @@ void SetupVisualizeParameters(
 		MaxMeshSDFTraceDistance = GLumenGatherCvars.MeshSDFTraceDistance;
 		MaxTraceDistance = Lumen::GetMaxTraceDistance(View);
 		MaxReflectionBounces = LumenReflections::GetMaxReflectionBounces(View);
+		MaxRefractionBounces = LumenReflections::GetMaxRefractionBounces(View);
 	}
 
 	// FLumenVisualizeSceneParameters
@@ -642,6 +644,7 @@ void SetupVisualizeParameters(
 		CommonParameters.VisualizeHiResSurface = GVisualizeLumenSceneHiResSurface ? 1 : 0;
 		CommonParameters.VisualizeMode = VisualizeMode;
 		CommonParameters.MaxReflectionBounces = MaxReflectionBounces;
+		CommonParameters.MaxRefractionBounces = MaxRefractionBounces;
 
 		LumenReflections::SetupCompositeParameters(View, CommonParameters.ReflectionsCompositeParameters);
 		CommonParameters.PreIntegratedGF = GSystemTextures.PreintegratedGF->GetRHI();

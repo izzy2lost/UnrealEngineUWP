@@ -48,6 +48,7 @@ namespace LumenVisualize
 		SHADER_PARAMETER_TEXTURE(Texture2D, PreIntegratedGF)
 		SHADER_PARAMETER_SAMPLER(SamplerState, PreIntegratedGFSampler)
 		SHADER_PARAMETER(uint32, MaxReflectionBounces)
+		SHADER_PARAMETER(uint32, MaxRefractionBounces)
 	END_SHADER_PARAMETER_STRUCT()
 
 	constexpr int32 NumOverviewTilesPerRow = 3;
