@@ -2954,6 +2954,7 @@ void FGPUOcclusionParallel::AddPrimitives(FPrimitiveRange PrimitiveRange)
 			{
 				ViewPacket.Relevance.CommandPipe.AddNumCommands(1);
 				ViewPacket.Relevance.CommandPipe.EnqueueCommand(MoveTemp(NonOccludedPrimitives));
+				NonOccludedPrimitives.Reset();
 				NonOccludedPrimitives.Reserve(MaxNonOccludedPrimitives);
 			}
 		}
@@ -2971,6 +2972,7 @@ void FGPUOcclusionParallel::Finish(UE::Tasks::FTaskEvent& OcclusionCullTasks)
 	{
 		ViewPacket.Relevance.CommandPipe.AddNumCommands(1);
 		ViewPacket.Relevance.CommandPipe.EnqueueCommand(MoveTemp(NonOccludedPrimitives));
+		NonOccludedPrimitives.Reset();
 	}
 
 	for (FGPUOcclusionParallelPacket* Packet : Packets)
@@ -3984,9 +3986,7 @@ void FVisibilityTaskData::LaunchVisibilityTasks()
 	#endif
 	}
 
-	const int32 NumAsyncDynamicMeshElementContexts = TaskConfig.Schedule == EVisibilityTaskSchedule::Parallel ? GetNumDynamicMeshElementTasks() : 0;
-
-	DynamicMeshElements.ContextContainer.Init(SceneRenderer, NumAsyncDynamicMeshElementContexts);
+	DynamicMeshElements.ContextContainer.Init(SceneRenderer, GetNumDynamicMeshElementTasks());
 	DynamicMeshElements.ViewCommandsPerView.SetNum(Views.Num());
 
 	Tasks.LightVisibility.AddPrerequisites(UE::Tasks::Launch(UE_SOURCE_LOCATION, [this]

@@ -99,13 +99,18 @@ void FGeometryCacheVertexVertexFactory::ModifyCompilationEnvironment(const FVert
 
 void FGeometryCacheVertexVertexFactory::SetData(const FDataType& InData)
 {
+	SetData(FRHICommandListImmediate::Get(), InData);
+}
+
+void FGeometryCacheVertexVertexFactory::SetData(FRHICommandListBase& RHICmdList, const FDataType& InData)
+{
 	// The shader code makes assumptions that the color component is a FColor, performing swizzles on ES3 and Metal platforms as necessary
 	// If the color is sent down as anything other than VET_Color then you'll get an undesired swizzle on those platforms
 	check((InData.ColorComponent.Type == VET_None) || (InData.ColorComponent.Type == VET_Color));
 
 	Data = InData;
 	// This will call InitRHI below where the real action happens
-	UpdateRHI(FRHICommandListImmediate::Get());
+	UpdateRHI(RHICmdList);
 }
 
 class FDefaultGeometryCacheVertexBuffer : public FVertexBuffer

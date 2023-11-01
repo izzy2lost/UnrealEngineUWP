@@ -35,6 +35,7 @@
 #include "RenderCore.h"
 #include "DataDrivenShaderPlatformInfo.h"
 #include "PrimitiveUniformShaderParametersBuilder.h"
+#include "Experimental/ConcurrentLinearAllocator.h"
 
 DECLARE_CYCLE_STAT(TEXT("ParticleSystemSceneProxy Create GT"), STAT_FParticleSystemSceneProxy_Create, STATGROUP_Particles);
 DECLARE_CYCLE_STAT(TEXT("ParticleSystemSceneProxy GetMeshElements RT"), STAT_FParticleSystemSceneProxy_GetMeshElements, STATGROUP_Particles);
@@ -99,9 +100,6 @@ float GMinParticleDrawTimeToTrack = .0001f;
 
 /** Whether to do LOD calculation on GameThread in game */
 extern bool GbEnableGameThreadLODCalculation;
-
-///////////////////////////////////////////////////////////////////////////////
-FParticleOrderPool GParticleOrderPool;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -927,11 +925,11 @@ void FDynamicSpriteEmitterData::GetDynamicMeshElementsEmitter(const FParticleSys
 				{
 					SCOPE_CYCLE_COUNTER(STAT_FDynamicSpriteEmitterData_PerParticleWorkOrTasks);
 					{
-						FParticleOrder* ParticleOrder = NULL;
+						FParticleOrder* ParticleOrder = nullptr;
 
 						if (bSort)
 						{
-							ParticleOrder = GParticleOrderPool.GetParticleOrderData(ParticleCount);
+							ParticleOrder = (FParticleOrder*)FConcurrentLinearAllocator::Malloc(ParticleCount, 16);
 							SortSpriteParticles(SourceData->SortMode, SourceData->bUseLocalSpace, SourceData->ActiveParticleCount, 
 								SourceData->DataContainer.ParticleData, SourceData->ParticleStride, SourceData->DataContainer.ParticleIndices,
 								View, Proxy->GetLocalToWorld(), ParticleOrder);
@@ -939,6 +937,7 @@ void FDynamicSpriteEmitterData::GetDynamicMeshElementsEmitter(const FParticleSys
 
 						// Fill vertex buffers.
 						GetVertexAndIndexData(Allocation.Buffer, DynamicParameterAllocation.Buffer, NULL, ParticleOrder, View->ViewMatrices.GetViewOrigin(), Proxy->GetLocalToWorld(), InstanceFactor);
+						FConcurrentLinearAllocator::Free(ParticleOrder);
 					}
 				}
 

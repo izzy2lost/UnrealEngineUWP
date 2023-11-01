@@ -139,7 +139,7 @@ void UGeometryCacheComponent::TickComponent(float DeltaTime, enum ELevelTick Tic
 			ENQUEUE_RENDER_COMMAND(FGeometryCacheUpdateAnimation)(
 				[InSceneProxy, AnimationTime, bInLooping, bIsPlayingBackwards, InPlaybackSpeed, ActualPlaybackSpeed, InMotionVectorScale](FRHICommandList& RHICmdList)
 				{
-					InSceneProxy->UpdateAnimation(AnimationTime, bInLooping, bIsPlayingBackwards, InPlaybackSpeed, InMotionVectorScale);
+					InSceneProxy->UpdateAnimation(RHICmdList, AnimationTime, bInLooping, bIsPlayingBackwards, InPlaybackSpeed, InMotionVectorScale);
 				});
 		}
 	}
@@ -196,7 +196,7 @@ void UGeometryCacheComponent::TickAtThisTime(const float Time, bool bInIsRunning
 			ENQUEUE_RENDER_COMMAND(FGeometryCacheUpdateAnimation)(
 				[InSceneProxy, AnimationTime, bInIsLooping, bInBackwards, InPlaybackSpeed, InMotionVectorScale](FRHICommandList& RHICmdList)
 				{
-					InSceneProxy->UpdateAnimation(AnimationTime, bInIsLooping, bInBackwards, InPlaybackSpeed, InMotionVectorScale);
+					InSceneProxy->UpdateAnimation(RHICmdList, AnimationTime, bInIsLooping, bInBackwards, InPlaybackSpeed, InMotionVectorScale);
 				});
 		}
 	}

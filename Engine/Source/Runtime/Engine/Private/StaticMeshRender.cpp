@@ -1473,7 +1473,6 @@ void FStaticMeshSceneProxy::GetMeshDescription(int32 LODIndex, TArray<FMeshBatch
 void FStaticMeshSceneProxy::GetDynamicMeshElements(const TArray<const FSceneView*>& Views, const FSceneViewFamily& ViewFamily, uint32 VisibilityMap, FMeshElementCollector& Collector) const
 {
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_StaticMeshSceneProxy_GetMeshElements);
-	checkSlow(IsInRenderingThread());
 
 	const bool bIsLightmapSettingError = HasStaticLighting() && !HasValidSettingsForStaticLighting();
 	const bool bProxyIsSelected = IsSelected();
