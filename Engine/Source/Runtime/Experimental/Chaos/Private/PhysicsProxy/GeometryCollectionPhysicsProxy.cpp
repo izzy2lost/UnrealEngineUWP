@@ -2334,11 +2334,8 @@ void FGeometryCollectionPhysicsProxy::BreakClusters_External(TArray<FGeometryCol
 
 	if (Chaos::FPhysicsSolver* RBDSolver = GetSolver<Chaos::FPhysicsSolver>())
 	{
-		// todo(chaos) to explain that this is likely temporary and that we need to find a better way
-		CreateChildrenGeometry_External();
 		RBDSolver->EnqueueCommandImmediate([this, RBDSolver, IndicesToBreakParent = MoveTemp(ItemIndices)]()
 		{
-			CreateChildrenGeometry_Internal();
 			Chaos::FRigidClustering& Clustering = RBDSolver->GetEvolution()->GetRigidClustering();
 			for (const FGeometryCollectionItemIndex& ItemIndex : IndicesToBreakParent)
 			{
@@ -2358,11 +2355,8 @@ void FGeometryCollectionPhysicsProxy::BreakActiveClusters_External()
 
 	if (Chaos::FPhysicsSolver* RBDSolver = GetSolver<Chaos::FPhysicsSolver>())
 	{
-		// todo(chaos) to explain that this is likely temporary and that we need to find a better way
-		CreateChildrenGeometry_External();
 		RBDSolver->EnqueueCommandImmediate([this, RBDSolver]()
 		{
-			CreateChildrenGeometry_Internal();
 			Chaos::FRigidClustering& Clustering = RBDSolver->GetEvolution()->GetRigidClustering();
 			Clustering.BreakClustersByProxy(this);
 		});
@@ -2485,11 +2479,8 @@ void FGeometryCollectionPhysicsProxy::RemoveAllAnchors_External()
 	check(IsInGameThread());
 	if (Chaos::FPhysicsSolver* RBDSolver = GetSolver<Chaos::FPhysicsSolver>())
 	{
-		// todo(chaos) to explain that this is likely temporary and that we need to find a better way
-		CreateChildrenGeometry_External();
 		RBDSolver->EnqueueCommandImmediate([this, RBDSolver]()
 			{
-				CreateChildrenGeometry_Internal();
 				Chaos::FPBDRigidsEvolution* Evolution = RBDSolver->GetEvolution();
 				for (FClusterHandle* ParticleHandle : GetSolverParticleHandles())
 				{

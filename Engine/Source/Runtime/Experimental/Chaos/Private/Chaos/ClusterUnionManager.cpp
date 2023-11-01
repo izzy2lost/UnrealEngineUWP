@@ -9,6 +9,7 @@
 #include "Chaos/PBDRigidClusteringAlgo.h"
 #include "Chaos/PBDRigidsEvolution.h"
 #include "Chaos/PBDRigidsEvolutionGBF.h"
+#include "PhysicsProxy/GeometryCollectionPhysicsProxy.h"
 #include "ChaosStats.h"
 #include "RewindData.h"
 
@@ -238,6 +239,18 @@ namespace Chaos
 			}
 
 			return GetParentParticleInClusterUnion(ClusterUnion, Particle->Parent());
+		}
+
+		FGeometryCollectionPhysicsProxy* GetGCProxy(FPBDRigidParticleHandle* Particle)
+		{
+			if (IPhysicsProxyBase* Proxy = Particle->PhysicsProxy())
+			{
+				if (Proxy->GetType() == FGeometryCollectionPhysicsProxy::ConcreteType())
+				{
+					return static_cast<FGeometryCollectionPhysicsProxy*>(Proxy);
+				}
+			}
+			return nullptr;
 		}
 	}
 
@@ -592,6 +605,15 @@ namespace Chaos
 
 		for (FPBDRigidParticleHandle* Particle : FinalParticlesToAdd)
 		{
+			if (Particle->GetGeometry() == nullptr)
+			{
+				FGeometryCollectionPhysicsProxy* GCPhysicsProxy = GetGCProxy(Particle);
+				if (GCPhysicsProxy)
+				{
+					GCPhysicsProxy->CreateChildrenGeometry_Internal();
+				}
+			}
+
 			if (!bIsNewCluster)
 			{
 				Cluster->PendingConnectivityOperations.Add({ Particle, EClusterUnionConnectivityOperation::Add });
