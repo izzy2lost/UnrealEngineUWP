@@ -5,6 +5,8 @@
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SCompoundWidget.h"
 
+class IConcertClient;
+
 namespace UE::ConcertClientSharedSlate
 {
 	class IReplicationStreamEditor;
@@ -13,6 +15,7 @@ namespace UE::ConcertClientSharedSlate
 namespace UE::MultiUserClient
 {
 	class FReplicationClient;
+	class FReplicationClientManager;
 	
 	/** Displays the contents of a client. */
 	class SReplicationClientView : public SCompoundWidget
@@ -21,13 +24,13 @@ namespace UE::MultiUserClient
 
 		SLATE_BEGIN_ARGS(SReplicationClientView)
 		{}
-			/** The client to depict. Should always return true. If the client is destroyed, so should this widget be. */
+			/** The client to depict. Should always return something valid. If the client is destroyed, so should this widget be. */
 			SLATE_ATTRIBUTE(FReplicationClient*, GetReplicationClient)
 			/** Dedicated space for a widget with which to change the view. */
 			SLATE_NAMED_SLOT(FArguments, ViewSelectionArea)
 		SLATE_END_ARGS()
 
-		void Construct(const FArguments& InArgs);
+		void Construct(const FArguments& InArgs, const TSharedRef<IConcertClient>& InClient, FReplicationClientManager& InClientManager);
 
 	private:
 		

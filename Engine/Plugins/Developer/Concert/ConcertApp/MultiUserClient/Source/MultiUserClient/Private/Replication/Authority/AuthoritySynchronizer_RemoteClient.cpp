@@ -34,11 +34,16 @@ namespace UE::MultiUserClient
 
 	void FAuthoritySynchronizer_RemoteClient::HandleAuthorityQuery(const TArray<FReplicationAuthorityInfo>& PerStreamAuthority)
 	{
-		LastServerState.Empty();
-
+		TSet<FSoftObjectPath> OldServerState = MoveTemp(LastServerState);
 		for (const FReplicationAuthorityInfo& Info : PerStreamAuthority)
 		{
 			LastServerState.Append(Info.AuthoredObjects);
+		}
+		
+		const bool bAreEqual = OldServerState.Num() == LastServerState.Num() && LastServerState.Includes(OldServerState);
+		if (!bAreEqual)
+		{
+			OnServerStateChangedDelegate.Broadcast();
 		}
 	}
 }

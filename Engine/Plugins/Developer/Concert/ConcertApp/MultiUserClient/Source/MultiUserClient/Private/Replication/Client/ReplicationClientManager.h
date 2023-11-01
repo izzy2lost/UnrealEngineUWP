@@ -7,6 +7,7 @@
 #include "LocalReplicationClient.h"
 #include "ReplicationClient.h"
 #include "Replication/Submission/Notification/SubmissionNotifier.h"
+#include "Replication/Util/GlobalAuthorityCache.h"
 #include "Replication/Util/RegularQueryService.h"
 
 #include "UObject/GCObject.h"
@@ -51,6 +52,9 @@ namespace UE::MultiUserClient
 		const FLocalReplicationClient& GetLocalClient() const { return LocalClient; }
 		FLocalReplicationClient& GetLocalClient() { return LocalClient; }
 		TArray<TNonNullPtr<FRemoteReplicationClient>> GetRemoteClients() const;
+		
+		const FGlobalAuthorityCache& GetAuthorityCache() const { return AuthorityCache; }
+		FGlobalAuthorityCache& GetAuthorityCache() { return AuthorityCache; }
 
 		/** Util for finding a remote client by its EndpointId. */
 		const FRemoteReplicationClient* FindRemoteClient(const FGuid& EndpointId) const;
@@ -59,6 +63,20 @@ namespace UE::MultiUserClient
 			const FReplicationClientManager* ConstThis = this;
 			return const_cast<FRemoteReplicationClient*>(ConstThis->FindRemoteClient(EndpointId));
 		}
+
+		/** Util for finding a local or remote client by its EndpointId. */
+		const FReplicationClient* FindClient(const FGuid& EndpointId) const
+		{
+			return GetLocalClient().GetEndpointId() == EndpointId
+				? &GetLocalClient()
+				: static_cast<const FReplicationClient*>(FindRemoteClient(EndpointId));
+		}
+		FReplicationClient* FindClient(const FGuid& EndpointId)
+		{
+			const FReplicationClientManager* ConstThis = this;
+			return const_cast<FReplicationClient*>(ConstThis->FindClient(EndpointId));
+		}
+
 		
 		DECLARE_MULTICAST_DELEGATE(FRemoteClientsChanged);
 		/** Called when RemoteClients changes. Called after OnPostRemoteClientAdded. */
@@ -88,14 +106,9 @@ namespace UE::MultiUserClient
 		 */
 		const TWeakPtr<IConcertClientSession> Session;
 
-		/**
-		 * Sends FConcertReplication_QueryReplicationInfo_Request in regular intervals.
-		 * Shared by all remote clients so all requests are bundled reducing the number of network requests. 
-		 */
-		FRegularQueryService QueryService;
-		
 		/** Manages the local client */
 		FLocalReplicationClient LocalClient;
+		
 		/**
 		 * Manages remote clients. Updated when client connects or disconnects to the active session.
 		 * UI keeps references to systems inside the client so it is TSharedRef in case TArray is reallocated.
@@ -108,6 +121,14 @@ namespace UE::MultiUserClient
 		FRemoteClientDelegate OnPostRemoteClientAddedDelegate;
 		/** Called just before a remote client is about to be removed from RemoteClients. */
 		FRemoteClientDelegate OnPreRemoteClientRemovedDelegate; 
+		
+		/**
+		 * Sends FConcertReplication_QueryReplicationInfo_Request in regular intervals.
+		 * Shared by all remote clients so all requests are bundled reducing the number of network requests. 
+		 */
+		FRegularQueryService QueryService;
+		/** Keeps a cache of object to owning clients. */
+		FGlobalAuthorityCache AuthorityCache;
 		
 		/** Manages SNotificationItems when submission to the server fails. */
 		FSubmissionNotifier SubmissionNotifier;

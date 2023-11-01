@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ConcertMessageData.h"
+#include "Styling/AppStyle.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SCompoundWidget.h"
 
@@ -24,8 +25,13 @@ namespace UE::ConcertClientSharedSlate
 	public:
 
 		SLATE_BEGIN_ARGS(SRemoteClientName)
+			: _Font(FAppStyle::Get().GetFontStyle("BoldFont"))
 		{}
 			SLATE_ATTRIBUTE(FGuid, ClientEndpointId)
+			/** Used for highlighting in the text */
+			SLATE_ATTRIBUTE(FText, HighlightText)
+			/** The font to use for the name */
+			SLATE_ARGUMENT(FSlateFontInfo, Font)
 		SLATE_END_ARGS()
 
 		void Construct(const FArguments& InArgs, TSharedRef<IConcertClient> InClient);

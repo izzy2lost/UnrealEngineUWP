@@ -90,7 +90,10 @@ namespace UE::ConcertClientSharedSlate
 					})
 					.PopulateSearchItems_Lambda([TransformOperation, PopulateSearchString](const TOtherColumnType& InOtherRowData, TArray<FString>& InOutSearchStrings)
 					{
-						PopulateSearchString.Execute(TransformOperation(InOtherRowData), InOutSearchStrings);
+						if (ensure(PopulateSearchString.IsBound()))
+						{
+							PopulateSearchString.Execute(TransformOperation(InOtherRowData), InOutSearchStrings);
+						}
 					})
 					.ColumnSortOrder(ColumnSortOrderValue),
 				*this

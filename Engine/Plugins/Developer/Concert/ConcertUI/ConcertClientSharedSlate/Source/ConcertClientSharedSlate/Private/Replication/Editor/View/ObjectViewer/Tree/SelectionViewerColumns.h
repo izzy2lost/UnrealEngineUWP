@@ -22,16 +22,13 @@ namespace UE::ConcertClientSharedSlate::ReplicationColumns::TopLevel
 
 	enum class ETopLevelColumnOrder : int32
 	{
-		/** Displays the class icon */
-		Icon = 10,
 		/** Label of the object */
 		Label = 20,
 		/** Class of the object */
 		Type = 30,
 	};
 
-	FReplicationTopLevelObjectColumn IconColumn(TSharedRef<IObjectToPropertiesModel> Model, const float ColumnWidth = 20.f);
-	FReplicationTopLevelObjectColumn LabelColumn();
+	FReplicationTopLevelObjectColumn LabelColumn(TSharedRef<IObjectToPropertiesModel> Model);
 	FReplicationTopLevelObjectColumn TypeColumn(TSharedRef<IObjectToPropertiesModel> Model);
 }
 

@@ -33,6 +33,7 @@ namespace UE::MultiUserClient
 		using FMakeSubmissionWorkflow = TUniquePtr<ISubmissionWorkflow>(FStreamChangeTracker&, FAuthorityChangeTracker&, IClientStreamSynchronizer&);
 
 		FReplicationClient(
+			const FGuid& EndpointId,
 			UMultiUserReplicationClientPreset& InSessionContent,
 			TUniquePtr<IClientStreamSynchronizer> InStreamSynchronizer,
 			TUniquePtr<IClientAuthoritySynchronizer> InAuthoritySynchronizer,
@@ -46,10 +47,14 @@ namespace UE::MultiUserClient
 		
 		const FStreamChangeTracker& GetStreamDiffer() const { return LocalClientStreamDiffer; }
 		FStreamChangeTracker& GetStreamDiffer() { return LocalClientStreamDiffer; }
+		
 		const FAuthorityChangeTracker& GetAuthorityDiffer() const { return LocalAuthorityDiffer; }
 		FAuthorityChangeTracker& GetAuthorityDiffer() { return LocalAuthorityDiffer; }
+		
 		const ISubmissionWorkflow& GetSubmissionWorkflow() const { return *SubmissionWorkflow; }
 		ISubmissionWorkflow& GetSubmissionWorkflow() { return *SubmissionWorkflow; }
+
+		const FGuid& GetEndpointId() const { return EndpointId; }
 
 		/**
 		 * Called when the data underlying the model has changed externally. Since the change was not caused by the model,
@@ -64,6 +69,9 @@ namespace UE::MultiUserClient
 		FOnModelExternallyChanged& OnModelExternallyChanged() { return OnModelExternallyChangedDelegate; }
 		
 	private:
+
+		/** This client's Concert Endpoint ID. */
+		const FGuid EndpointId;
 		
 		/** The state of the server is synched up with this object and displayed in the UI. */
 		TObjectPtr<UMultiUserReplicationClientPreset> ClientContentStorage;

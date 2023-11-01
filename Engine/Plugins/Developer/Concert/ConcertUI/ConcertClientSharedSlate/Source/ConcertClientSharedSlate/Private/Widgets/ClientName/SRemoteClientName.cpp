@@ -20,6 +20,8 @@ namespace UE::ConcertClientSharedSlate
 		[
 			SNew(SClientName)
 			.ClientInfo(this, &SRemoteClientName::GetClientInfo)
+			.HighlightText(InArgs._HighlightText)
+			.Font(InArgs._Font)
 		];
 	}
 

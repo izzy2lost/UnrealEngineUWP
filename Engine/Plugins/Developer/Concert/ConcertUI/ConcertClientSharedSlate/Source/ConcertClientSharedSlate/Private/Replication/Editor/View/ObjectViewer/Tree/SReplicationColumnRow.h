@@ -86,7 +86,12 @@ namespace UE::ConcertClientSharedSlate
 			const bool bNeedsExpanderArrow = ColumnName == ExpandableColumnLabel;
 			if (!bNeedsExpanderArrow)
 			{
-				return ColumnWidget;
+				return SNew(SBox)
+					.MinDesiredHeight(RowHeight)
+					.VAlign(VAlign_Center)
+					[
+						ColumnWidget
+					];
 			}
 			
 			return SNew(SBox)
@@ -104,6 +109,7 @@ namespace UE::ConcertClientSharedSlate
 
 					+SHorizontalBox::Slot()
 					.FillWidth(1.0f)
+					.VAlign(VAlign_Center)
 					[
 						ColumnWidget
 					]

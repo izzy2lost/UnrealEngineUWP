@@ -2,13 +2,14 @@
 
 #include "SReplicationClientView.h"
 
-#include "StreamEditorColumns.h"
+#include "SingleClientColumns.h"
 #include "Replication/Client/ReplicationClient.h"
 #include "Replication/Editor/Model/IEditableObjectToPropertiesModel.h"
 #include "Replication/Editor/Model/Object/EditorObjectSelectionSourceModel.h"
 #include "Replication/Editor/Model/Property/SelectPropertyFromUClassModel.h"
 #include "Replication/Editor/View/IReplicationStreamEditor.h"
 #include "Replication/ReplicationWidgetFactories.h"
+#include "Replication/Client/ReplicationClientManager.h"
 #include "Replication/Submission/ISubmissionWorkflow.h"
 #include "Widgets/ActiveSession/Replication/Client/Single/SSingleClientToolbar.h"
 
@@ -18,7 +19,7 @@
 
 namespace UE::MultiUserClient
 {
-	void SReplicationClientView::Construct(const FArguments& InArgs)
+	void SReplicationClientView::Construct(const FArguments& InArgs, const TSharedRef<IConcertClient>& InClient, FReplicationClientManager& InClientManager)
 	{
 		GetReplicationClientAttribute = InArgs._GetReplicationClient;
 		FReplicationClient* ReplicationClient = GetReplicationClientAttribute.Get();
@@ -27,12 +28,19 @@ namespace UE::MultiUserClient
 		ConcertClientSharedSlate::IObjectToPropertiesModel& PropertyModel = *ReplicationClient->GetClientEditModel();
 		FAuthorityChangeTracker& AuthorityTracker = ReplicationClient->GetAuthorityDiffer();
 		ISubmissionWorkflow& SubmissionWorkflow = ReplicationClient->GetSubmissionWorkflow();
+		FGlobalAuthorityCache& AuthorityCache = InClientManager.GetAuthorityCache();
+		TAttribute<const ConcertClientSharedSlate::IReplicationStreamViewer*> GetReplicationViewerAttribute =
+			TAttribute<const ConcertClientSharedSlate::IReplicationStreamViewer*>::CreateLambda([this](){ return EditorView.Get(); });
 
 		// Add checkboxes in front of top level and subobject rows for changing authority
 		using namespace ConcertClientSharedSlate;
 		const FCreateSubobjectViewParams SubobjectViewParams
 		{
-			.AdditionalColumns = { StreamEditorColumns::ToggleSubobjectAuthority(AuthorityTracker, SubmissionWorkflow) }
+			.AdditionalColumns =
+			{
+				SingleClientColumns::ToggleSubobjectAuthority(AuthorityTracker, SubmissionWorkflow),
+				SingleClientColumns::OwnerOfSubobject(InClient, AuthorityCache)
+			}
 		};
 		const FCreateEditorParams ReplicationEditorCreationParams
 		{
@@ -40,7 +48,15 @@ namespace UE::MultiUserClient
 			.ObjectSource = MakeShared<FEditorObjectSelectionSourceModel>(),
 			.PropertySource = MakeShared<FSelectPropertyFromUClassModel>(),
 			.SubobjectView = CreateUnrealEditorSubobjectView(SubobjectViewParams),
-			.AdditionalObjectColumns = { StreamEditorColumns::ToggleTopLevelAuthority(PropertyModel, AuthorityTracker, SubmissionWorkflow) },
+			.AdditionalObjectColumns =
+			{
+				SingleClientColumns::ToggleTopLevelAuthority(PropertyModel, AuthorityTracker, SubmissionWorkflow),
+				SingleClientColumns::OwnerOfTopLevelObject(InClient, AuthorityCache, PropertyModel)
+			},
+			.AdditionalPropertyColumns =
+			{
+				SingleClientColumns::OwnerOfProperty(InClient, AuthorityCache, GetReplicationViewerAttribute)
+			},
 			.IsEditingEnabled = TAttribute<bool>::CreateLambda([&SubmissionWorkflow](){ return SubmissionWorkflow.GetUploadability() != EChangeUploadability::NotImplemented; }),
 			.EditingDisabledToolTipText = LOCTEXT("Editing.NotImplemented", "Editing remote clients is not implemented. You can only edit the local client.")
 		};

@@ -152,8 +152,7 @@ namespace UE::ConcertClientSharedSlate
 	{
 		TArray Columns
 		{
-			ReplicationColumns::TopLevel::IconColumn(PropertiesModel.ToSharedRef()),
-			ReplicationColumns::TopLevel::LabelColumn(),
+			ReplicationColumns::TopLevel::LabelColumn(PropertiesModel.ToSharedRef()),
 			ReplicationColumns::TopLevel::TypeColumn(PropertiesModel.ToSharedRef())
 		};
 		Columns.Append(InArgs._AdditionalObjectColumns);

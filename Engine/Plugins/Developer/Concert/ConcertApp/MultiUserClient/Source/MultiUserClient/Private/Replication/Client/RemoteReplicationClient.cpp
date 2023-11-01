@@ -10,11 +10,12 @@
 namespace UE::MultiUserClient
 {
 	FRemoteReplicationClient::FRemoteReplicationClient(
-		UMultiUserReplicationClientPreset& InSessionContent,
 		const FGuid& InConcertClientId,
+		UMultiUserReplicationClientPreset& InSessionContent,
 		FRegularQueryService& QueryService
 		)
 		: FReplicationClient(
+			InConcertClientId,
 			InSessionContent,
 			MakeUnique<FStreamSynchronizer_RemoteClient>(InConcertClientId, QueryService),
 			MakeUnique<FAuthoritySynchronizer_RemoteClient>(
@@ -28,7 +29,6 @@ namespace UE::MultiUserClient
 			{
 				return MakeUnique<FSubmissionWorkflow_RemoteClient>();
 			})
-		, RemoteEndpointId(InConcertClientId)
 	{
 		// When the remote client's state has changed, refresh the UI.
 		GetStreamSynchronizer().OnServerStateChanged().AddLambda([this]()

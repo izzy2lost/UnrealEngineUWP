@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "IConcertSessionHandler.h"
 #include "Replication/Messages/ClientQuery.h"
 #include "Containers/Ticker.h"
 #include "Replication/IToken.h"

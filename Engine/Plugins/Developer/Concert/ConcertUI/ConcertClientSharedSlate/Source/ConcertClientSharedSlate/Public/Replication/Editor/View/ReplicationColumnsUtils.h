@@ -72,6 +72,7 @@ namespace UE::ConcertClientSharedSlate
 		check(Delegates.GetCheckboxStateDelegate.IsBound() && Delegates.OnCheckboxChangedDelegate.IsBound());
 		return TReplicationColumn<TListItemType>(
 			typename TReplicationColumn<TListItemType>::FArguments()
+				.PopulateSearchItems_Lambda([](const auto&, auto&){})
 				.GenerateWidgetColumn_Lambda(
 					[Delegates](const typename TReplicationColumn<TListItemType>::FBuildArgs& Args)
 					{

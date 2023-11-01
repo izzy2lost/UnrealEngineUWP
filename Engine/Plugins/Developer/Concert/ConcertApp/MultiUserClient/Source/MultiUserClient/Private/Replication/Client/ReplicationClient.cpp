@@ -11,12 +11,14 @@
 namespace UE::MultiUserClient
 {
 	FReplicationClient::FReplicationClient(
+		const FGuid& EndpointId,
 		UMultiUserReplicationClientPreset& InSessionContent,
 		TUniquePtr<IClientStreamSynchronizer> InStreamSynchronizer,
 		TUniquePtr<IClientAuthoritySynchronizer> InAuthoritySynchronizer,
 		TFunctionRef<FMakeSubmissionWorkflow> MakeSubmissionWorkflowFunc
 		)
-		: ClientContentStorage(&InSessionContent)
+		: EndpointId(EndpointId)
+		, ClientContentStorage(&InSessionContent)
 		, StreamSynchronizer(MoveTemp(InStreamSynchronizer))
 		, AuthoritySynchronizer(MoveTemp(InAuthoritySynchronizer))
 		, LocalClientEditModel(ConcertClientSharedSlate::CreatePropertySelectionModel(

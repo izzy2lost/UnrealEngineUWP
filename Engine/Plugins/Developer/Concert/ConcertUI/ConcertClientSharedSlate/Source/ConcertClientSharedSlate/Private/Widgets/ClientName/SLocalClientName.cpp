@@ -18,6 +18,8 @@ namespace UE::ConcertClientSharedSlate
 			SNew(SClientName)
 			.ClientInfo_Lambda([InClient](){ return &InClient->GetClientInfo(); })
 			.DisplayAsLocalClient(true)
+			.HighlightText(InArgs._HighlightText)
+			.Font(InArgs._Font)
 		];
 	}
 }

@@ -1,0 +1,78 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#pragma once
+
+#include "Replication/Client/RemoteReplicationClient.h"
+
+#include "Delegates/Delegate.h"
+#include "Templates/Function.h"
+
+struct FConcertPropertyChain;
+
+namespace UE::MultiUserClient
+{
+	class FRemoteReplicationClient;
+	class FReplicationClient;
+	class FReplicationClientManager;
+}
+
+namespace UE::MultiUserClient
+{
+	/**
+	 * Allows efficient look-up of which objects and properties are owned by which clients.
+	 * This class efficiently answers the question: "Which clients own this object?"
+	 */
+	class FGlobalAuthorityCache : public FNoncopyable
+	{
+	public:
+		
+		FGlobalAuthorityCache(FReplicationClientManager& InClientManager);
+		~FGlobalAuthorityCache();
+
+		/** Iterates every client that has authority over Object. */
+		void ForEachClientWithAuthorityOverObject(const FSoftObjectPath& Object, TFunctionRef<EBreakBehavior(const FGuid& ClientId)> Callback) const;
+		/** Util that uses ForEachClientWithAuthorityOverObject to make an array. */
+		TArray<FGuid> GetClientsWithAuthorityOverObject(const FSoftObjectPath& Object) const;
+
+		/** Gets the client that has authority over the given property, if there is any. */
+		TOptional<FGuid> GetClientWithAuthorityOverProperty(const FSoftObjectPath& Object, const FConcertPropertyChain& Property) const;
+
+		DECLARE_MULTICAST_DELEGATE_OneParam(FOnCacheChanged, const FGuid& ClientId);
+		/** Called when the cache changes for a specific client. */
+		FOnCacheChanged& OnCacheChanged() { return OnCacheChangedDelegate; }
+		
+	private:
+
+		/** Used to obtain the clients and their states */
+		FReplicationClientManager& ClientManager;
+		
+		/** Maps objects that are owned to the clients that own them */
+		TMap<FSoftObjectPath, TSet<FGuid>> OwnedObjectsToClients;
+		
+		/** Called when the cache changes for a specific client. */
+		FOnCacheChanged OnCacheChangedDelegate;
+
+		/** Registers for authority and stream changes */
+		void RegisterForClientEvents(const FReplicationClient& Client);
+		void UnregisterFromClientEvents(const FReplicationClient& Client) const;
+
+		/** Adds the client to OwnedObjectsToClients */
+		void AddClient(const FGuid& ClientId);
+		void RemoveClient(const FGuid& ClientId);
+
+		// Respond to remote client registration
+		void OnPostRemoteClientAdded(FRemoteReplicationClient& RemoteClient) { RegisterForClientEvents(RemoteClient); }
+		void OnPreRemoteClientRemoved(FRemoteReplicationClient& RemoteClient) const { UnregisterFromClientEvents(RemoteClient); }
+
+		// Rebuild client when their authority changes
+		void OnPostAuthorityChanged(const FGuid ClientId) { RebuildClient(ClientId); }
+		void OnStreamChanged(const FGuid ClientId){ RebuildClient(ClientId); }
+		void RebuildClient(const FGuid ClientId)
+		{
+			RemoveClient(ClientId);
+			AddClient(ClientId);
+			OnCacheChangedDelegate.Broadcast(ClientId);
+		}
+	};
+}
+

@@ -2,6 +2,7 @@
 
 #include "LocalReplicationClient.h"
 
+#include "IConcertSyncClient.h"
 #include "Replication/Authority/AuthoritySynchronizer_LocalClient.h"
 #include "Replication/Submission/SubmissionWorkflow_LocalClient.h"
 
@@ -13,6 +14,7 @@ namespace UE::MultiUserClient
 		TSharedRef<IConcertSyncClient> InClient
 		)
 		: FReplicationClient(
+			InClient->GetConcertClient()->GetCurrentSession()->GetSessionClientEndpointId(),
 			InSessionContent,
 			MoveTemp(InStreamSynchronizer),
 			MakeUnique<FAuthoritySynchronizer_LocalClient>(

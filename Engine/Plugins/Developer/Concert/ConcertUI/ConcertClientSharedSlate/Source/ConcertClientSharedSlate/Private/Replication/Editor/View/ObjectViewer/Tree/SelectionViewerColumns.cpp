@@ -27,38 +27,32 @@ namespace UE::ConcertClientSharedSlate::ReplicationColumns::TopLevel
 	const FName IconColumnId = TEXT("IconColumn");
 	const FName LabelColumnId = TEXT("LabelColumn");
 	const FName TypeColumnId = TEXT("TypeColumn");
-
-	FReplicationTopLevelObjectColumn IconColumn(TSharedRef<IObjectToPropertiesModel> Model, const float ColumnWidth)
+	
+	FReplicationTopLevelObjectColumn LabelColumn(TSharedRef<IObjectToPropertiesModel> Model)
 	{
 		return FReplicationTopLevelObjectColumn(
 			FReplicationTopLevelObjectColumn::FArguments()
-				.GenerateWidgetColumn_Lambda([Model](const FReplicationTopLevelObjectColumn::FBuildArgs& Args)
+				.GenerateWidgetColumn_Lambda([Model = MoveTemp(Model)](const FReplicationTopLevelObjectColumn::FBuildArgs& Args)
 				{
 					return SNew(SHorizontalBox)
 						+SHorizontalBox::Slot()
+						.AutoWidth()
 						.HAlign(HAlign_Center)
 						.VAlign(VAlign_Center)
 						[
 							SNew(SImage)
 							.Image(DisplayUtils::GetObjectIcon(*Model, Args.RowData.GetObjectPath()).GetOptionalIcon())
+						]
+					
+						+SHorizontalBox::Slot()
+						.HAlign(HAlign_Left)
+						.VAlign(VAlign_Center)
+						.Padding(6.f, 0.f, 0.f, 0.f)
+						[
+							SNew(STextBlock)
+							.HighlightText(TAttribute<FText>::CreateLambda([HighlightText = Args.HighlightText](){ return *HighlightText; }))
+							.Text(DisplayUtils::GetObjectDisplayText(Args.RowData.GetObjectPath()))
 						];
-				})
-				.ColumnSortOrder(static_cast<int32>(ETopLevelColumnOrder::Icon)),
-			SHeaderRow::Column(IconColumnId)
-				.DefaultLabel(FText::GetEmpty())
-				.FixedWidth(ColumnWidth)
-			);
-	}
-	
-	FReplicationTopLevelObjectColumn LabelColumn()
-	{
-		return FReplicationTopLevelObjectColumn(
-			FReplicationTopLevelObjectColumn::FArguments()
-				.GenerateWidgetColumn_Lambda([](const FReplicationTopLevelObjectColumn::FBuildArgs& Args)
-				{
-					return SNew(STextBlock)
-						.HighlightText(TAttribute<FText>::CreateLambda([HighlightText = Args.HighlightText](){ return *HighlightText; }))
-						.Text(DisplayUtils::GetObjectDisplayText(Args.RowData.GetObjectPath()));
 				})
 				.PopulateSearchItems_Lambda([](const FReplicatedObjectData& ObjectData, TArray<FString>& InOutSearchStrings)
 				{
@@ -170,7 +164,7 @@ namespace UE::ConcertClientSharedSlate::ReplicationColumns::Property
 				.ColumnSortOrder(static_cast<int32>(EReplicationPropertyColumnOrder::Label)),
 			SHeaderRow::Column(LabelColumnId)
 				.DefaultLabel(LOCTEXT("LabelColumnLabel", "Label"))
-				.FillSized(500.f)
+				.FillWidth(1.f)
 			);
 	}
 	
@@ -198,7 +192,7 @@ namespace UE::ConcertClientSharedSlate::ReplicationColumns::Property
 				.ColumnSortOrder(static_cast<int32>(EReplicationPropertyColumnOrder::Type)),
 			SHeaderRow::Column(TypeColumnId)
 				.DefaultLabel(LOCTEXT("TypeColumnLabel", "Type"))
-				.FillWidth(1.f)
+				.FillWidth(0.5f)
 			);
 	}
 

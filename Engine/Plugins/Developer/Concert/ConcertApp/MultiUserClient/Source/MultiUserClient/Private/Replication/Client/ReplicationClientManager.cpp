@@ -19,21 +19,20 @@ namespace UE::MultiUserClient
 		)
 		: SessionContent(NewObject<UMultiUserReplicationSessionPreset>(GetTransientPackage(), NAME_None, RF_Transient))
 		, Session(InSession)
-		, QueryService(InClient)
 		, LocalClient([this, InClient]()
 		{
 			UMultiUserReplicationClientPreset* ClientPreset = SessionContent->AddClient();
 			return FLocalReplicationClient(*ClientPreset, MakeUnique<FStreamSynchronizer_LocalClient>(InClient, ClientPreset->Stream->StreamId), InClient);
 		}())
+		, QueryService(InClient)
+		, AuthorityCache(*this)
 		, SubmissionNotifier(*this)
 	{
 		InSession->OnSessionClientChanged().AddRaw(this, &FReplicationClientManager::OnSessionClientChanged);
 
 		for (const FGuid& ClientEndpointId : InSession->GetSessionClientEndpointIds())
 		{
-			// Nobody is subscribed at this point, so no need to broadcast
-			constexpr bool bBroadcast = false;
-			CreateRemoteClient(ClientEndpointId, bBroadcast);
+			CreateRemoteClient(ClientEndpointId);
 		}
 	}
 
@@ -59,7 +58,7 @@ namespace UE::MultiUserClient
 	{
 		const TUniquePtr<FRemoteReplicationClient>* Client = RemoteClients.FindByPredicate([&EndpointId](const TUniquePtr<FRemoteReplicationClient>& Client)
 		{
-			return Client->GetRemoteEndpointId() == EndpointId;
+			return Client->GetEndpointId() == EndpointId;
 		});
 		return Client ? Client->Get() : nullptr;
 	}
@@ -84,7 +83,7 @@ namespace UE::MultiUserClient
 				const int32 Index = RemoteClients.IndexOfByPredicate(
 					[&ClientEndpointId](const TUniquePtr<FRemoteReplicationClient>& Client)
 					{
-						return Client->GetRemoteEndpointId() == ClientEndpointId;
+						return Client->GetEndpointId() == ClientEndpointId;
 					});
 				if (!ensure(RemoteClients.IsValidIndex(Index)))
 				{
@@ -110,7 +109,7 @@ namespace UE::MultiUserClient
 	
 	void FReplicationClientManager::CreateRemoteClient(const FGuid& ClientEndpointId, bool bBroadcastDelegate)
 	{
-		TUniquePtr<FRemoteReplicationClient> RemoteClientPtr = MakeUnique<FRemoteReplicationClient>(*SessionContent->AddClient(), ClientEndpointId, QueryService);
+		TUniquePtr<FRemoteReplicationClient> RemoteClientPtr = MakeUnique<FRemoteReplicationClient>(ClientEndpointId, *SessionContent->AddClient(), QueryService);
 		FRemoteReplicationClient& RemoteClient = *RemoteClientPtr;
 		RemoteClients.Emplace(
 			MoveTemp(RemoteClientPtr)

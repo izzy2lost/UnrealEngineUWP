@@ -14,22 +14,10 @@ namespace UE::MultiUserClient
 	public:
 
 		FRemoteReplicationClient(
-			UMultiUserReplicationClientPreset& InSessionContent,
 			const FGuid& InConcertClientId,
+			UMultiUserReplicationClientPreset& InSessionContent,
 			FRegularQueryService& QueryService
 			);
-		
-		const FGuid& GetRemoteEndpointId() const { return RemoteEndpointId; }
-		
-	private:
-
-		/**
-		 * Endpoint of the Concert client.
-		 *
-		 * Can be used to look up client info.
-		 * @see IConcertSession::FindSessionClient
-		 */
-		const FGuid RemoteEndpointId;
 	};
 }
 

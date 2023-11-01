@@ -2,17 +2,14 @@
 
 #include "SReplicationJoinedView.h"
 
-#include "ConcertLogGlobal.h"
 #include "IConcertSyncClient.h"
 #include "Replication/MultiUserReplicationManager.h"
 #include "SSelectClientViewComboButton.h"
 #include "Widgets/ActiveSession/Replication/Client/Single/SReplicationClientView.h"
 
-#include "Framework/Notifications/NotificationManager.h"
 #include "Replication/Client/RemoteReplicationClient.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Layout/SWidgetSwitcher.h"
-#include "Widgets/Notifications/SNotificationList.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Text/STextBlock.h"
 
@@ -34,7 +31,7 @@ namespace UE::MultiUserClient
 			SAssignNew(ClientViewSwitcher, SWidgetSwitcher)
 			+SWidgetSwitcher::Slot()
 			[
-				SNew(SReplicationClientView)
+				SNew(SReplicationClientView, InClient->GetConcertClient(), *ReplicationManager->GetClientManager())
 				.GetReplicationClient_Lambda([this](){ return &ReplicationManager->GetClientManager()->GetLocalClient(); })
 				.ViewSelectionArea()
 				[
@@ -97,7 +94,7 @@ namespace UE::MultiUserClient
 		TMap<FGuid, int32> OldRemoteClientToWidgetSwitcherIndex = MoveTemp(RemoteClientToWidgetSwitcherIndex);
         for (const TNonNullPtr<FRemoteReplicationClient>& RemoteClient : ReplicationManager->GetClientManager()->GetRemoteClients())
         {
-        	const FGuid& EndpointId = RemoteClient->GetRemoteEndpointId();
+        	const FGuid& EndpointId = RemoteClient->GetEndpointId();
         	
         	const int32* ExistingClientWidgetIndex = OldRemoteClientToWidgetSwitcherIndex.Find(EndpointId);
         	if (ExistingClientWidgetIndex)
@@ -111,8 +108,8 @@ namespace UE::MultiUserClient
         	{
         		ClientViewSwitcher->AddSlot()
         		[
-        			SNew(SReplicationClientView)
-        			.GetReplicationClient_Lambda([this, EndpointId = RemoteClient->GetRemoteEndpointId()]()
+        			SNew(SReplicationClientView, Client->GetConcertClient(), *ReplicationManager->GetClientManager())
+        			.GetReplicationClient_Lambda([this, EndpointId = RemoteClient->GetEndpointId()]()
         			{
         				// It is unsafe to simply capture RemoteClient because the containing TArray may reallocate its location
         				return ReplicationManager->GetClientManager()->FindRemoteClient(EndpointId);
@@ -164,7 +161,7 @@ namespace UE::MultiUserClient
 			{
 				const TArray<TNonNullPtr<FRemoteReplicationClient>> RemoteClients = ReplicationManager->GetClientManager()->GetRemoteClients();
 				TArray<FGuid> Result;
-				Algo::Transform(RemoteClients, Result, [](const TNonNullPtr<FRemoteReplicationClient>& InClient){ return InClient->GetRemoteEndpointId(); });
+				Algo::Transform(RemoteClients, Result, [](const TNonNullPtr<FRemoteReplicationClient>& InClient){ return InClient->GetEndpointId(); });
 
 				const TSharedPtr<IConcertClientSession> CurrentSession = Client->GetConcertClient()->GetCurrentSession();
 				Result.Sort([&CurrentSession](const FGuid& Left, const FGuid& Right)

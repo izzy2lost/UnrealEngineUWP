@@ -1,17 +1,22 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "StreamEditorColumns.h"
+#include "SingleClientColumns.h"
 
+#include "IConcertClient.h"
+#include "SOwnerClientList.h"
 #include "Replication/Authority/AuthorityChangeTracker.h"
 #include "Replication/Authority/EAuthorityMutability.h"
 #include "Replication/Authority/IClientAuthoritySynchronizer.h"
 #include "Replication/Editor/Model/IObjectToPropertiesModel.h"
+#include "Replication/Editor/View/IReplicationStreamViewer.h"
 #include "Replication/Editor/View/ReplicationColumnsUtils.h"
 #include "Replication/Submission/ISubmissionWorkflow.h"
+#include "Replication/Util/GlobalAuthorityCache.h"
+#include "Widgets/ClientName/SClientName.h"
 
-#define LOCTEXT_NAMESPACE "StreamEditorColumns"
+#define LOCTEXT_NAMESPACE "SingleClientColumns.ToggleAuthority"
 
-namespace UE::MultiUserClient::StreamEditorColumns
+namespace UE::MultiUserClient::SingleClientColumns
 {
 	const FName ToggleTopLevelAuthorityColumnId = TEXT("ToggleTopLevelAuthorityColumn");
 	const FName ToggleSubobjectAuthorityColumnId = TEXT("ToggleSubobjectAuthorityColumn");
@@ -154,7 +159,7 @@ namespace UE::MultiUserClient::StreamEditorColumns
 					FTopLevelColumnDelegates::FIsEnabled::CreateStatic(&IsEnabled, &ClientStreamModel, &ChangeTracker)
 				),
 			FText::GetEmpty(),
-			0
+			static_cast<int32>(ETopLevelObjectColumnOrder::ToggleAuthority)
 		);
 	}
 
@@ -195,7 +200,7 @@ namespace UE::MultiUserClient::StreamEditorColumns
 						{
 						case EAuthorityMutability::Allowed: return LOCTEXT("Subobject.ChangeAuthority.ToolTip.Allowed", "Toggles whether this object should be replicated.");
 						case EAuthorityMutability::NoProperties: return LOCTEXT("Subobject.ChangeAuthority.ToolTip.NoProperties", "Toggles whether this object should be replicated.\nAssign properties to this object first.\n");
-						// TODO DP UE-198356: Make the tooltip info about the conflicting client
+						// TODO DP UE-198356: Make the tooltip display info about the conflicting client
 						case EAuthorityMutability::ClientConflict: return LOCTEXT("Subobject.ChangeAuthority.ToolTip.ClientConflict", "Toggles whether this object should be replicated.\nAnother client already is already replicating some of the assigned properties.");
 						case EAuthorityMutability::NotSupported: return NotSupportedText;
 						default: checkNoEntry(); return FText::GetEmpty();
@@ -207,7 +212,7 @@ namespace UE::MultiUserClient::StreamEditorColumns
 					})
 				),
 			FText::GetEmpty(),
-			0
+			static_cast<int32>(ESubobjectColumnOrder::ToggleAuthority)
 		);
 	}
 }

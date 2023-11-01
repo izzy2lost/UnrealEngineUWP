@@ -21,7 +21,7 @@ namespace UE::ConcertClientSharedSlate
 		/** @return The objects selected in the top of the viewer; these are the objects that IReplicationSubobjectView bases its view of. */
 		virtual TArray<FSoftObjectPath> GetSelectedTopLevelObjects() const = 0;
 		/**
-		 * @return The objects for which the properties are being edited.
+		 * @return The objects for which the properties are being edited / displayed.
 		 * If there is an IReplicationSubobjectView, this is IReplicationSubobjectView::GetSelectedObjects.
 		 * Otherwise it is IReplicationStreamViewer::GetSelectedTopLevelObjects.
 		 */
