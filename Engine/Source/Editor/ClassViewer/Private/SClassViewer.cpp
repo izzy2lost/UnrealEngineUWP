@@ -2564,8 +2564,20 @@ void SClassViewer::Populate()
 		// Get the class list, passing in certain filter options.
 		ClassViewer::Helpers::GetClassList(RootTreeItems, ClassFilter, InitOptions);
 
-		// Sort the list alphabetically.
-		RootTreeItems.Sort(FClassViewerNodeNameLess(InitOptions.NameTypeToDisplay));
+		if (InitOptions.ClassViewerSortPredicate)
+		{
+			RootTreeItems.Sort([this](const TSharedPtr<FClassViewerNode>& A, const TSharedPtr<FClassViewerNode>& B)
+			{
+				FClassViewerSortElementInfo InfoA (A->Class, A->GetClassName(false), A->GetClassName(true));
+				FClassViewerSortElementInfo InfoB (B->Class, B->GetClassName(false), B->GetClassName(true));
+				return InitOptions.ClassViewerSortPredicate(InfoA, InfoB);
+			});
+		}
+		else
+		{
+			// Sort the list alphabetically.
+			RootTreeItems.Sort(FClassViewerNodeNameLess(InitOptions.NameTypeToDisplay));
+		}
 
 		// Only display this option if the user wants it and in Picker Mode.
 		if(InitOptions.bShowNoneOption && InitOptions.Mode == EClassViewerMode::ClassPicker)

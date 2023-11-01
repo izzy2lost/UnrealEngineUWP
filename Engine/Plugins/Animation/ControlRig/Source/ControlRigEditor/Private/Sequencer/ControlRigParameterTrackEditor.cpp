@@ -672,6 +672,19 @@ void FControlRigParameterTrackEditor::BuildObjectBindingContextMenu(FMenuBuilder
 	}
 }
 
+static bool ClassViewerSortPredicate(const FClassViewerSortElementInfo& A, const  FClassViewerSortElementInfo& B)
+{
+	if ((A.Class == UFKControlRig::StaticClass() && B.Class == UFKControlRig::StaticClass()) ||
+				(A.Class != UFKControlRig::StaticClass() && B.Class != UFKControlRig::StaticClass()))
+	{
+		return  (*A.DisplayName).Compare(*B.DisplayName, ESearchCase::IgnoreCase) < 0;
+	}
+	else
+	{
+		return A.Class == UFKControlRig::StaticClass();
+	}
+}
+
 void FControlRigParameterTrackEditor::BakeToControlRigSubMenu(FMenuBuilder& MenuBuilder, FGuid ObjectBinding, UObject* BoundObject, USkeletalMeshComponent* SkelMeshComp, USkeleton* Skeleton)
 {
 	const TSharedPtr<ISequencer> ParentSequencer = GetSequencer();
@@ -685,6 +698,7 @@ void FControlRigParameterTrackEditor::BakeToControlRigSubMenu(FMenuBuilder& Menu
 		Options.ClassFilters.Add(ClassFilter.ToSharedRef());
 		Options.bShowNoneOption = false;
 		Options.ExtraPickerCommonClasses.Add(UFKControlRig::StaticClass());
+		Options.ClassViewerSortPredicate = ClassViewerSortPredicate;
 
 		FClassViewerModule& ClassViewerModule = FModuleManager::LoadModuleChecked<FClassViewerModule>("ClassViewer");
 
@@ -1372,6 +1386,7 @@ void FControlRigParameterTrackEditor::HandleAddControlRigSubMenu(FMenuBuilder& M
 		Options.ClassFilters.Add(ClassFilter.ToSharedRef());
 		Options.bShowNoneOption = false;
 		Options.ExtraPickerCommonClasses.Add(UFKControlRig::StaticClass());
+		Options.ClassViewerSortPredicate = ClassViewerSortPredicate;
 
 		UMovieSceneSequence* Sequence = GetSequencer() ? GetSequencer()->GetFocusedMovieSceneSequence() : nullptr;
 		Options.AdditionalReferencingAssets.Add(FAssetData(Sequence));
