@@ -6,12 +6,6 @@ namespace UnrealBuildTool.Rules
     {
         public ControlRigEditor(ReadOnlyTargetRules Target) : base(Target)
         {
-			PrivateIncludePaths.AddRange(
-                new string[] {
-					System.IO.Path.Combine(GetModuleDirectory("ControlRig"), "Private"),
-				}
-			);
-
             PublicDependencyModuleNames.AddRange(
 				new string[]
 				{
