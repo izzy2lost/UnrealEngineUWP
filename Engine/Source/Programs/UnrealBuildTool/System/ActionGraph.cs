@@ -363,12 +363,12 @@ namespace UnrealBuildTool
 		{
 			if (ActionCount > ParallelExecutor.GetDefaultNumParallelProcesses(BuildConfiguration.MaxParallelActions, BuildConfiguration.bAllCores, Logger))
 			{
-#if __BOXEXECUTOR_AVAILABLE__
-				if (BuildConfiguration.bAllowBoxExecutor && BoxExecutor.IsAvailable(Logger))
+#if __UBAEXECUTOR_AVAILABLE__
+				if (BuildConfiguration.bAllowBoxExecutor && UBAExecutor.IsAvailable(Logger))
 				{
-					return new BoxExecutor(BuildConfiguration.MaxParallelActions, BuildConfiguration.bAllCores, BuildConfiguration.bCompactOutput, Logger, TargetDescriptors.FirstOrDefault()?.AdditionalArguments);
+					return new UBAExecutor(BuildConfiguration.MaxParallelActions, BuildConfiguration.bAllCores, BuildConfiguration.bCompactOutput, Logger, TargetDescriptors.FirstOrDefault()?.AdditionalArguments);
 				}
-#endif // #if __BOXEXECUTOR_AVAILABLE__
+#endif // #if __UBAEXECUTOR_AVAILABLE__
 
 				if (BuildConfiguration.bAllowXGE && XGE.IsAvailable(Logger) && ActionCount >= XGE.MinActions)
 				{
@@ -384,12 +384,12 @@ namespace UnrealBuildTool
 				}
 			}
 
-#if __BOXEXECUTOR_AVAILABLE__
-			if (BuildConfiguration.bAllowBoxLocalExecutor && BoxLocalExecutor.IsAvailable(Logger))
+#if __UBAEXECUTOR_AVAILABLE__
+			if (BuildConfiguration.bAllowBoxLocalExecutor && UBALocalExecutor.IsAvailable(Logger))
 			{
-				return new BoxLocalExecutor(BuildConfiguration.MaxParallelActions, BuildConfiguration.bAllCores, BuildConfiguration.bCompactOutput, Logger, TargetDescriptors.FirstOrDefault()?.AdditionalArguments);
+				return new UBALocalExecutor(BuildConfiguration.MaxParallelActions, BuildConfiguration.bAllCores, BuildConfiguration.bCompactOutput, Logger, TargetDescriptors.FirstOrDefault()?.AdditionalArguments);
 			}
-#endif // #if __BOXEXECUTOR_AVAILABLE__
+#endif // #if __UBAEXECUTOR_AVAILABLE__
 
 			return new ParallelExecutor(BuildConfiguration.MaxParallelActions, BuildConfiguration.bAllCores, BuildConfiguration.bCompactOutput, Logger);
 		}

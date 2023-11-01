@@ -24,8 +24,6 @@ rem find ".cs" files to only lines that match those names - excludes lines that 
 md ..\Intermediate\Build >nul 2>nul
 
 dir /s ^
- Programs\Shared\EpicGames.Box\*.cs ^
- Programs\Shared\EpicGames.Box\*.csproj ^
  Programs\Shared\EpicGames.Build\*.cs ^
  Programs\Shared\EpicGames.Build\*.csproj ^
  Programs\Shared\EpicGames.Core\*.cs ^
@@ -40,6 +38,8 @@ dir /s ^
  Programs\Shared\EpicGames.OIDC\*.csproj ^
  Programs\Shared\EpicGames.Serialization\*.cs ^
  Programs\Shared\EpicGames.Serialization\*.csproj ^
+ Programs\Shared\EpicGames.UBA\*.cs ^
+ Programs\Shared\EpicGames.UBA\*.csproj ^
  Programs\Shared\EpicGames.UHT\*.cs ^
  Programs\Shared\EpicGames.UHT\*.csproj ^
  Programs\UnrealBuildTool\*.cs ^

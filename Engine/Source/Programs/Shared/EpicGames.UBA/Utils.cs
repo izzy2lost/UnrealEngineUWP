@@ -2,7 +2,7 @@
 
 using System;
 
-namespace EpicGames.Box
+namespace EpicGames.UBA
 {
 	/// <summary>
 	/// Utils

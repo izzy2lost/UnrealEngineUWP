@@ -101,7 +101,7 @@ namespace UnrealBuildTool
 	/// For example:
 	/// 
 	///		ParallelExecutor uses an automatic runner exclusively.
-	///		BoxExecutor uses an automatic runner to run jobs locally and a manual runner to run jobs remotely as processes 
+	///		UBAExecutor uses an automatic runner to run jobs locally and a manual runner to run jobs remotely as processes 
 	///			become available.
 	/// </summary>
 	class ImmediateActionQueue : IDisposable

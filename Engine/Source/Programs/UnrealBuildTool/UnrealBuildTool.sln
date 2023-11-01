@@ -35,7 +35,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "EpicGames.Horde.Tests", "..
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "EpicGames.Serialization.Tests", "..\Shared\EpicGames.Serialization.Tests\EpicGames.Serialization.Tests.csproj", "{9A7A1328-0954-4F42-85FA-B0AA1EEC9CEA}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "EpicGames.Box", "..\Shared\EpicGames.Box\EpicGames.Box.csproj", "{F9749A4F-0BD1-4718-90FF-49285C686488}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "EpicGames.UBA", "..\Shared\EpicGames.UBA\EpicGames.UBA.csproj", "{F9749A4F-0BD1-4718-90FF-49285C686488}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "EpicGames.Oodle", "..\Shared\EpicGames.Oodle\EpicGames.Oodle.csproj", "{60E180CC-9BB3-4437-909F-9D9C262EC988}"
 EndProject

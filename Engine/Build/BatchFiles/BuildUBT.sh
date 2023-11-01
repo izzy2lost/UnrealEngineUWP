@@ -37,7 +37,6 @@ elif [ ! -f ../Binaries/DotNET/UnrealBuildTool/UnrealBuildTool.dll ]; then
 
 elif [ -f ../Intermediate/Build/UnrealBuildToolLastBuildTime ]; then
   UPDATED_DEP_FILES="$(find \
-    Programs/Shared/EpicGames.Box \
     Programs/Shared/EpicGames.Build \
     Programs/Shared/EpicGames.Core \
     Programs/Shared/EpicGames.Horde \
@@ -45,6 +44,7 @@ elif [ -f ../Intermediate/Build/UnrealBuildToolLastBuildTime ]; then
     Programs/Shared/EpicGames.MsBuild \
     Programs/Shared/EpicGames.OIDC \
     Programs/Shared/EpicGames.Serialization \
+    Programs/Shared/EpicGames.UBA \
     Programs/Shared/EpicGames.UHT \
     Programs/UnrealBuildTool \
     ../Restricted/**/Source/Programs/UnrealBuildTool \
