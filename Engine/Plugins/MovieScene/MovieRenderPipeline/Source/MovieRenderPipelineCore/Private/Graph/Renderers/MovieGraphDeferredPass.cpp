@@ -107,7 +107,7 @@ void FMovieGraphDeferredPass::Render(const FMovieGraphTraversalContext& InFrameT
 	UMovieGraphImagePassBaseNode* ParentNodeThisFrame = GetParentNode(InTimeData.EvaluatedConfig);
 	const bool bWriteAllSamples = ParentNodeThisFrame->GetWriteAllSamples();
 	int32 NumSpatialSamples = FMath::Max(1, ParentNodeThisFrame->GetNumSpatialSamples());
-	const bool bDisableToneCurve = ParentNodeThisFrame->GetDisableToneCurve();
+	const ESceneCaptureSource SceneCaptureSource = ParentNodeThisFrame->GetDisableToneCurve() ? ESceneCaptureSource::SCS_FinalColorHDR : ESceneCaptureSource::SCS_FinalToneCurveHDR;
 	const EAntiAliasingMethod AntiAliasingMethod = ParentNodeThisFrame->GetAntiAliasingMethod();
 	float OverscanFraction = 0.f;
 	const float TileOverlapPadRatio = 0.0f; // No tiling support right now
@@ -206,7 +206,7 @@ void FMovieGraphDeferredPass::Render(const FMovieGraphTraversalContext& InFrameT
 		ViewFamilyInitData.RenderTarget = RenderTargetResource;
 		ViewFamilyInitData.World = GraphRenderer->GetWorld();
 		ViewFamilyInitData.TimeData = InTimeData;
-		ViewFamilyInitData.SceneCaptureSource = bDisableToneCurve ? ESceneCaptureSource::SCS_FinalColorHDR : ESceneCaptureSource::SCS_FinalToneCurveHDR;
+		ViewFamilyInitData.SceneCaptureSource = SceneCaptureSource;
 		ViewFamilyInitData.bWorldIsPaused = bWorldIsPaused;
 		ViewFamilyInitData.FrameIndex = FrameIndex;
 		ViewFamilyInitData.AntiAliasingMethod = AntiAliasingMethod;
@@ -252,6 +252,7 @@ void FMovieGraphDeferredPass::Render(const FMovieGraphTraversalContext& InFrameT
 			SampleState.OverlappedSubpixelShift = OverlappedSubpixelShift;
 			SampleState.OverscanFraction = OverscanFraction;
 			SampleState.bAllowOCIO = ParentNodeThisFrame->GetAllowOCIO();
+			SampleState.SceneCaptureSource = SceneCaptureSource;
 		}
 
 		// If this was just to contribute to the history buffer, no need to go any further.

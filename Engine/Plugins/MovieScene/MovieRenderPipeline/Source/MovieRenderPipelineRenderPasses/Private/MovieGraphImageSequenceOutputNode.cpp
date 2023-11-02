@@ -357,25 +357,6 @@ void UMovieGraphImageSequenceOutputNode_MultiLayerEXR::OnReceiveImageDataImpl(UM
 			MultiLayerImageTask->FileMetadata.Add(Metadata.Key, Metadata.Value);
 		}
 
-		// Add color space metadata to the output: xy chromaticity coordinates and/or the color space source/dest names.
-		// TODO: Support is also needed for regular exrs via the image wrapper module.
-		// {
-		// 	UMoviePipelineColorSetting* ColorSetting = InPipeline->GetPipelinePrimaryConfig()->FindSetting<UMoviePipelineColorSetting>();
-		//
-		// 	FColorSpaceMetadata ColorSpaceMetadata = GetColorSpaceMetadata(ColorSetting);
-		//
-		// 	if (!ColorSpaceMetadata.SourceName.IsEmpty())
-		// 	{
-		// 		MultiLayerImageTask->FileMetadata.Add("unreal/colorSpace/source", ColorSpaceMetadata.SourceName);
-		// 	}
-		// 	if (!ColorSpaceMetadata.DestinationName.IsEmpty())
-		// 	{
-		// 		MultiLayerImageTask->FileMetadata.Add("unreal/colorSpace/destination", ColorSpaceMetadata.DestinationName);
-		// 	}
-		//
-		// 	MultiLayerImageTask->ColorSpaceChromaticities = ColorSpaceMetadata.Chromaticities;
-		// }
-
 		// Add each render pass as a layer to the EXR
 		int32 LayerIndex = 0;
 		int32 ShotIndex = 0;
@@ -387,6 +368,19 @@ void UMovieGraphImageSequenceOutputNode_MultiLayerEXR::OnReceiveImageDataImpl(UM
 			TUniquePtr<FImagePixelData> PixelData = ImageData->CopyImageData();
 			const UE::MovieGraph::FMovieGraphSampleState* Payload = ImageData->GetPayload<UE::MovieGraph::FMovieGraphSampleState>();
 			ShotIndex = Payload->TraversalContext.ShotIndex;
+
+			bool bEnabledOCIO = false;
+#if WITH_EDITOR
+			if (ParentNode->OCIOConfiguration.bIsEnabled && Payload->bAllowOCIO)
+			{
+				FPixelPreProcessor OCIOPixelPreProcessor = UE::MovieGraph::Private::CreateOpenColorIOPixelPreProcessor(ParentNode->OCIOConfiguration.ColorConfiguration);
+				if (OCIOPixelPreProcessor)
+				{
+					MultiLayerImageTask->PixelPreprocessors.FindOrAdd(LayerIndex).Emplace(MoveTemp(OCIOPixelPreProcessor));
+					bEnabledOCIO = true;
+				}
+			}
+#endif
 
 			// If there is more than one layer, then we will prefix the layer. The first layer is not prefixed (and gets inserted as RGBA)
 			// as most programs that handle EXRs expect the main image data to be in an unnamed layer.
@@ -402,6 +396,16 @@ void UMovieGraphImageSequenceOutputNode_MultiLayerEXR::OnReceiveImageDataImpl(UM
 				MultiLayerImageTask->Height = Resolution.Y;
 				
 				MultiLayerImageTask->OverscanPercentage = Payload->OverscanFraction;
+#if WITH_EDITOR
+				if (bEnabledOCIO)
+				{
+					UE::MoviePipeline::UpdateColorSpaceMetadata(ParentNode->OCIOConfiguration.ColorConfiguration, *MultiLayerImageTask);
+				}
+				else
+#endif
+				{
+					UE::MoviePipeline::UpdateColorSpaceMetadata(Payload->SceneCaptureSource, *MultiLayerImageTask);
+				}
 			}
 			else
 			{
@@ -420,17 +424,6 @@ void UMovieGraphImageSequenceOutputNode_MultiLayerEXR::OnReceiveImageDataImpl(UM
 				
 				MultiLayerImageTask->LayerNames.FindOrAdd(PixelData.Get(), CombinedName);
 			}
-
-#if WITH_EDITOR
-			if (ParentNode->OCIOConfiguration.bIsEnabled && Payload->bAllowOCIO)
-			{
-				FPixelPreProcessor OCIOPixelPreProcessor = UE::MovieGraph::Private::CreateOpenColorIOPixelPreProcessor(ParentNode->OCIOConfiguration.ColorConfiguration);
-				if (OCIOPixelPreProcessor)
-				{
-					MultiLayerImageTask->PixelPreprocessors.FindOrAdd(LayerIndex).Emplace(MoveTemp(OCIOPixelPreProcessor));
-				}
-			}
-#endif
 
 			MultiLayerImageTask->Layers.Add(MoveTemp(PixelData));
 			LayerIndex++;

@@ -392,6 +392,9 @@ namespace UE::MovieGraph
 
 		/** Allow OpenColorIO transform to be used on this render. */
 		bool bAllowOCIO;
+
+		/** Render scene capture source used for tracking the output color space (without OpenColorIO). */
+		ESceneCaptureSource SceneCaptureSource;
 	};
 
 	/**

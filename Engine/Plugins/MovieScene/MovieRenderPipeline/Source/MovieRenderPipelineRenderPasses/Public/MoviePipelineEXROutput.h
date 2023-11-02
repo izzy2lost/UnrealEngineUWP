@@ -23,6 +23,27 @@ THIRD_PARTY_INCLUDES_END
 #include "MoviePipelineEXROutput.generated.h"
 
 class UMoviePipelineColorSetting;
+class FEXRImageWriteTask;
+
+namespace UE
+{
+	namespace MoviePipeline
+	{
+		/** Collection of color space metadata for EXR. */
+		struct FEXRColorSpaceMetadata
+		{
+			FString SourceName;
+			FString DestinationName;
+			TArray<FVector2d> Chromaticities;
+		};
+
+		/** Update the image write task with color space metadata from the OpenColorIO transform. */
+		void UpdateColorSpaceMetadata(const FOpenColorIOColorConversionSettings& InConversionSettings, FEXRImageWriteTask& InOutImageTask);
+
+		/** Update the image write task with color space metadata from the render capture source mode. */
+		void UpdateColorSpaceMetadata(ESceneCaptureSource InSceneCaptureSource, FEXRImageWriteTask& InOutImageTask);
+	}
+}
 
 // Exr compression format options. Exactly matches the exr library Imf::Compression enum.
 UENUM(BlueprintType)
@@ -170,16 +191,4 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "EXR")
 	bool bMultilayer;
 
-protected:
-	struct FColorSpaceMetadata
-	{
-		FString SourceName;
-		FString DestinationName;
-		TArray<FVector2d> Chromaticities;
-	};
-
-	/**
-	* Get color space chromaticities, source and destination names from the color settings or working color space.
-	*/
-	static FColorSpaceMetadata GetColorSpaceMetadata(UMoviePipelineColorSetting* InColorSettings);
 };
