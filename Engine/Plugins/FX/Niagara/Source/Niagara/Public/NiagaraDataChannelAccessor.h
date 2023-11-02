@@ -127,6 +127,11 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = NiagaraDataChannel, meta = (Keywords = "niagara DataChannel"))
 	NIAGARA_API void WritePosition(FName VarName, int32 Index, FVector InData);
+
+	UFUNCTION(BlueprintCallable, Category = NiagaraDataChannel, meta = (Keywords = "niagara DataChannel"))
+	NIAGARA_API void WriteID(FName VarName, int32 Index, FNiagaraID InData);
+
+
 };
 
 

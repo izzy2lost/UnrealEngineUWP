@@ -221,6 +221,11 @@ void UNiagaraDataChannelWriter::WritePosition(FName VarName, int32 Index, FVecto
 	WriteData(FNiagaraVariableBase(FNiagaraTypeDefinition::GetPositionDef(), VarName), Index, InData);
 }
 
+void UNiagaraDataChannelWriter::WriteID(FName VarName, int32 Index, FNiagaraID InData)
+{
+	WriteData(FNiagaraVariableBase(FNiagaraTypeDefinition::GetIDDef(), VarName), Index, InData);
+}
+
 
 //////////////////////////////////////////////////////////////////////////
 
