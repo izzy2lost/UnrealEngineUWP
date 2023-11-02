@@ -247,6 +247,13 @@ void UGameFeatureData::InitializeHierarchicalPluginIniFiles(const FString& Plugi
 
 					if (ParentProfileName && ProfileSuffix && (FragmentIncludes.Num() > 0 || PluginCVars.Num() > 0))
 					{
+						// We need to load all candidate device profiles here or else we won't be able to create a child for them
+						TArray<FString> LoadableProfileNames = DeviceProfileManager.GetLoadableProfileNames(*PlatformName);
+						for (const FString& ProfileName : LoadableProfileNames)
+						{
+							DeviceProfileManager.FindProfile(ProfileName, true);
+						}
+
 						for (const UDeviceProfile* Profile : DeviceProfileManager.Profiles)
 						{
 							// Check if one of the parents for this profile is the one this rule applies to

@@ -85,6 +85,15 @@ public:
 	ENGINE_API bool HasLoadableProfileName(const FString& ProfileName, FName OptionalPlatformName = FName());
 
 	/**
+	 * Get a list of all a named device profiles that are available to call CreateProfile with.
+	 *
+	 * @param OptionalPlatformName - The platform name to use for loading.
+	 *
+	 * @return matching profiles.
+	 */
+	ENGINE_API TArray<FString> GetLoadableProfileNames(FName OptionalPlatformName = FName()) const;
+
+	/**
 	 * Delete a profile.
 	 *
 	 * @param Profile - The profile to delete.
