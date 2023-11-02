@@ -480,6 +480,9 @@ private:
 		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
+	/** Used internally by ProcessQueuedBunches to check time limits */
+	bool ShouldProcessAllQueuedBunches(float CurrentTimeSeconds);
+
 private:
 
 	// TODO: It would be nice to merge the tracking of these with PendingGuidResolves, to not duplicate memory,

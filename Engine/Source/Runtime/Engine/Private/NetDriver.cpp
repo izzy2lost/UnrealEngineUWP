@@ -144,6 +144,7 @@ DECLARE_CYCLE_STAT(TEXT("NetDriver TickFlush"), STAT_NetTickFlush, STATGROUP_Gam
 DECLARE_CYCLE_STAT(TEXT("NetDriver TickFlush GatherStats"), STAT_NetTickFlushGatherStats, STATGROUP_Game);
 DECLARE_CYCLE_STAT(TEXT("NetDriver TickFlush GatherStatsPerfCounters"), STAT_NetTickFlushGatherStatsPerfCounters, STATGROUP_Game);
 DECLARE_CYCLE_STAT(TEXT("ReceiveRPC_ProcessRemoteFunction"), STAT_NetReceiveRPC_ProcessRemoteFunction, STATGROUP_Game);
+DECLARE_DWORD_ACCUMULATOR_STAT(TEXT("Net bunch time % overshoot frames"), STAT_NetInBunchTimeOvershootPercent, STATGROUP_Net);
 
 DEFINE_LOG_CATEGORY_STATIC(LogNetSyncLoads, Log, All);
 
@@ -325,6 +326,15 @@ namespace UE::Net::Private
 
 		return false;
 	}
+
+	static float ClientIncomingBunchFrameTimeLimitMS = 0.0f;
+
+	static FAutoConsoleVariableRef CVarClientIncomingBunchFrameTimeLimitMS(
+		TEXT("net.ClientIncomingBunchFrameTimeLimitMS"),
+		ClientIncomingBunchFrameTimeLimitMS,
+		TEXT("Time in milliseconds to limit client incoming bunch processing to. If 0, no limit. As long as we're below the limit, will start processing another bunch. A single bunch that takes a while to process can overshoot the limit. ")
+		TEXT("After the limit is hit, remaining bunches in a packet are queued, and the IpNetDriver will not process any more packets in the current frame."));
+
 
 } //namespace UE::Net::Private
 
@@ -1243,6 +1253,12 @@ void UNetDriver::TickFlush(float DeltaSeconds)
 		LastCleanupTime = CurrentRealtimeSeconds;
 	}
 
+	if (QueuedBunchFailsafeNumChannels > 0)
+	{
+		UE_LOG(LogNet, Log, TEXT("UNetDriver::TickFlush: %u channel(s) exceeded net.QueuedBunchTimeFailsafeSeconds and flushed their entire queue(s) this frame."), QueuedBunchFailsafeNumChannels);
+		QueuedBunchFailsafeNumChannels = 0;
+	}
+
 	UpdateNetworkStats();
 
 	// Update the lag state
@@ -1905,6 +1921,8 @@ void UNetDriver::TickDispatch( float DeltaTime )
 
 	// Get new time.
 	ElapsedTime += DeltaTime;
+
+	IncomingBunchProcessingElapsedFrameTimeMS = 0.0f;
 
 	// Checks for standby cheats if enabled	
 	UpdateStandbyCheatStatus();
@@ -7335,6 +7353,24 @@ bool UNetDriver::IsEncryptionRequired() const
 			!bPIEDisableEncryptionCheck;
 }
 
+float UNetDriver::GetIncomingBunchFrameProcessingTimeLimit() const
+{
+	using namespace UE::Net::Private;
+
+	if (!IsServer())
+	{
+		return ClientIncomingBunchFrameTimeLimitMS;
+	}
+
+	return 0.0f;
+}
+
+bool UNetDriver::HasExceededIncomingBunchFrameProcessingTime() const
+{
+	const float TimeLimit = GetIncomingBunchFrameProcessingTimeLimit();
+	return (TimeLimit > 0.0f) && (IncomingBunchProcessingElapsedFrameTimeMS > TimeLimit);
+}
+
 void UNetDriver::UpdateNetworkStats()
 {
 	using namespace UE::Net::Private;
@@ -7347,6 +7383,10 @@ void UNetDriver::UpdateNetworkStats()
 	if (bCollectNetStats || bCollectServerStats)
 	{
 		SCOPE_CYCLE_COUNTER(STAT_NetTickFlushGatherStats);
+
+		++StatUpdateFrames;
+
+		NumFramesOverIncomingBunchTimeLimit += HasExceededIncomingBunchFrameProcessingTime() ? 1 : 0;
 
 		const double CurrentRealtimeSeconds = FPlatformTime::Seconds();
 		// Update network stats (only main game net driver for now) if stats or perf counters are used
@@ -7371,6 +7411,7 @@ void UNetDriver::UpdateNetworkStats()
 			int32 ClientsOutPacketsThisFrameMax = 0;
 			int NumClients = 0;
 			int32 MaxPacketOverhead = 0;
+			int32 InBunchTimeOvershootPercent = 0;
 
 			// these need to be updated even if we are not collecting stats, since they get reported to analytics/QoS
 			for (UNetConnection* Client : ClientConnections)
@@ -7478,6 +7519,9 @@ void UNetDriver::UpdateNetworkStats()
 				VoiceInPercent = (InBytes > 0) ? FMath::TruncToInt(100.f * (float)VoiceBytesRecv / (float)InBytes) : 0;
 				VoiceOutPercent = (OutBytes > 0) ? FMath::TruncToInt(100.f * (float)VoiceBytesSent / (float)OutBytes) : 0;
 
+				// Percent of frames this stat period that the incoming bunch processing time limit was exceeded (0-100)
+				InBunchTimeOvershootPercent = (StatUpdateFrames > 0) ? FMath::TruncToInt(100.0f * (float)NumFramesOverIncomingBunchTimeLimit / (float)StatUpdateFrames) : 0;
+
 				if (World)
 				{
 					NumActors = World->GetActorCount();
@@ -7566,6 +7610,8 @@ void UNetDriver::UpdateNetworkStats()
 				SET_DWORD_STAT(STAT_NumNetGUIDsPending, UnAckCount);
 				SET_DWORD_STAT(STAT_NumNetGUIDsUnAckd, PendingCount);
 				SET_DWORD_STAT(STAT_NetSaturated, NetSaturated);
+
+				SET_DWORD_STAT(STAT_NetInBunchTimeOvershootPercent, InBunchTimeOvershootPercent);
 			}
 
 			// If we are to replicate server stats out to an observer, then set those values
@@ -7745,7 +7791,9 @@ void UNetDriver::UpdateNetworkStats()
 			VoiceBytesRecv = 0;
 			VoiceInPercent = 0;
 			VoiceOutPercent = 0;
+			NumFramesOverIncomingBunchTimeLimit = 0;
 			StatUpdateTime = CurrentRealtimeSeconds;
+			StatUpdateFrames = 0;
 		}
 		else
 		{

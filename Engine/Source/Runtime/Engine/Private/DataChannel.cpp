@@ -169,6 +169,12 @@ namespace UE::Net
 		bSkipDestroyNetStartupActorsOnChannelCloseDueToLevelUnloaded,
 		TEXT("Controls if Actor that is a NetStartUpActor assosciated with the channel is destroyed or not when we receive a channel close with ECloseReason::LevelUnloaded."), ECVF_Default);
 
+	static float QueuedBunchTimeFailsafeSeconds = 2.0f;
+	static FAutoConsoleVariableRef CVarNetQueuedBunchTimeFailsafeSeconds(
+		TEXT("net.QueuedBunchTimeFailsafeSeconds"),
+		QueuedBunchTimeFailsafeSeconds,
+		TEXT("Amount of time in seconds to wait with queued bunches before forcibly processing them all, ignoring the NetDriver's HasExceededIncomingBunchFrameProcessingTime."));
+
 	// bTearOff is private but we still might need to adjust the flag on clients based on the channel close reason
 	class FTearOffSetter final
 	{
@@ -2742,6 +2748,27 @@ bool UActorChannel::CanStopTicking() const
 	return Super::CanStopTicking() && PendingGuidResolves.Num() == 0 && QueuedBunches.Num() == 0;
 }
 
+bool UActorChannel::ShouldProcessAllQueuedBunches(float CurrentTimeSeconds)
+{
+	using namespace UE::Net;
+
+	if (Connection->Driver->GetIncomingBunchFrameProcessingTimeLimit() <= 0.0f)
+	{
+		return true;
+	}
+
+	const float SecondsWithQueuedBunches = static_cast<float>(CurrentTimeSeconds - QueuedBunchStartTime);
+	const bool bExceededFailsafeTime = SecondsWithQueuedBunches > QueuedBunchTimeFailsafeSeconds;
+	
+	if (bExceededFailsafeTime)
+	{
+		Connection->Driver->AddQueuedBunchFailsafeChannel();
+		UE_LOG(LogNet, Verbose, TEXT("UActorChannel::ProcessQueuedBunches hit frame time failsafe after %.3f seconds. Processing entire queue of %d bunches for channel: %s"), SecondsWithQueuedBunches, QueuedBunches.Num(), *Describe());
+	}
+
+	return bExceededFailsafeTime;
+};
+
 bool UActorChannel::ProcessQueuedBunches()
 {
 	if (PendingGuidResolves.Num() == 0 && QueuedBunches.Num() == 0)
@@ -2749,7 +2776,7 @@ bool UActorChannel::ProcessQueuedBunches()
 		return true;
 	}
 
-	const uint32 QueueBunchStartCycles = FPlatformTime::Cycles();
+	const uint64 QueueBunchStartCycles = FPlatformTime::Cycles64();
 
 	// Try to resolve any guids that are holding up the network stream on this channel
 	// TODO: This could take a non-trivial amount of time since both GetObjectFromNetGUID
@@ -2789,7 +2816,7 @@ bool UActorChannel::ProcessQueuedBunches()
 	// If we don't have any time, then don't bother doing anything (including warning) as that may make things worse.
 	if (bHasTimeToProcess)
 	{
-		// We can process all of the queued up bunches if ALL of these are true:
+		// We can process at least some of the queued up bunches if ALL of these are true:
 		//	1. We no longer have any pending guids to load
 		//	2. We aren't still processing bunches on another channel that this actor was previously on
 		//	3. We haven't spent too much time yet this frame processing queued bunches
@@ -2799,15 +2826,26 @@ bool UActorChannel::ProcessQueuedBunches()
 			&& !Connection->Driver->ShouldQueueBunchesForActorGUID(ActorNetGUID))
 		{
 			DECLARE_SCOPE_CYCLE_COUNTER(TEXT("ProcessQueuedBunches time"), STAT_ProcessQueuedBunchesTime, STATGROUP_Net);
-			for (FInBunch* QueuedInBunch : QueuedBunches)
+
+			// Check failsafe timer so we don't end up starving the queue indefinitely due to frame time limits
+			const bool bProcessAllBunches = ShouldProcessAllQueuedBunches(FPlatformTime::ToSeconds64(QueueBunchStartCycles));
+			
+			int32 BunchIndex = 0;
+			while ((BunchIndex < QueuedBunches.Num()) && (bProcessAllBunches || !Connection->Driver->HasExceededIncomingBunchFrameProcessingTime()))
 			{
+				FInBunch* QueuedInBunch = QueuedBunches[BunchIndex];
+
 				ProcessBunch(*QueuedInBunch);
 				delete QueuedInBunch;
+				QueuedBunches[BunchIndex] = nullptr;
+
+				++BunchIndex;
 			}
 
-			UE_LOG(LogNet, VeryVerbose, TEXT("UActorChannel::ProcessQueuedBunches: Flushing queued bunches. ChIndex: %i, Actor: %s, Queued: %i"), ChIndex, Actor != NULL ? *Actor->GetPathName() : TEXT("NULL"), QueuedBunches.Num());
+			UE_LOG(LogNet, VeryVerbose, TEXT("UActorChannel::ProcessQueuedBunches: Flushing %i of %i queued bunches. ChIndex: %i, Actor: %s"), BunchIndex, QueuedBunches.Num(), ChIndex, Actor != NULL ? *Actor->GetPathName() : TEXT("NULL"));
 
-			QueuedBunches.Empty();
+			// Remove processed bunches from the queue
+			QueuedBunches.RemoveAt(0, BunchIndex);
 
 			// Call any onreps that were delayed because we were queuing bunches
 			for (auto& ReplicatorPair : ReplicationMap)
@@ -2821,10 +2859,14 @@ bool UActorChannel::ProcessQueuedBunches()
 				FNetGUIDCache::FIsOwnerOrPawnHelper Helper(Connection->Driver->GuidCache.Get(), Connection->OwningActor, Actor);
 #endif
 
-				PackageMapClient->SetHasQueuedBunches(ActorNetGUID, false);
+				PackageMapClient->SetHasQueuedBunches(ActorNetGUID, !QueuedBunches.IsEmpty());
 			}
 
-			QueuedBunchObjectReferences.Empty();
+			// We don't know exactly which bunches were referring to which objects, so we have to conservatively keep them all around.
+			if (QueuedBunches.IsEmpty())
+			{
+				QueuedBunchObjectReferences.Empty();
+			}
 		}
 		else
 		{
@@ -2851,9 +2893,9 @@ bool UActorChannel::ProcessQueuedBunches()
 		}
 
 		// Update the driver with our time spent
-		const uint32 QueueBunchEndCycles = FPlatformTime::Cycles();
-		const uint32 QueueBunchDeltaCycles = QueueBunchEndCycles - QueueBunchStartCycles;
-		const float QueueBunchDeltaMilliseconds = FPlatformTime::ToMilliseconds(QueueBunchDeltaCycles);
+		const uint64 QueueBunchEndCycles = FPlatformTime::Cycles64();
+		const uint64 QueueBunchDeltaCycles = QueueBunchEndCycles - QueueBunchStartCycles;
+		const float QueueBunchDeltaMilliseconds = static_cast<float>(FPlatformTime::ToMilliseconds64(QueueBunchDeltaCycles));
 
 		Connection->Driver->ProcessQueuedBunchesCurrentFrameMilliseconds += QueueBunchDeltaMilliseconds;
 	}
@@ -2975,8 +3017,10 @@ void UActorChannel::ReceivedBunch( FInBunch & Bunch )
 		//	2. We already have queued up bunches
 		//	3. If this actor was previously on a channel that is now still processing bunches after a close
 		//	4. The driver is requesting queuing for this GUID
+		//	5. We are time-boxing incoming bunch processing and have run out of time this frame
 		if (PendingGuidResolves.Num() > 0 || QueuedBunches.Num() > 0 || Connection->KeepProcessingActorChannelBunchesMap.Contains(ActorNetGUID) ||
-			 (Connection->Driver->ShouldQueueBunchesForActorGUID(ActorNetGUID)))
+			Connection->Driver->ShouldQueueBunchesForActorGUID(ActorNetGUID) ||
+			Connection->Driver->HasExceededIncomingBunchFrameProcessingTime())
 		{
 			if (Connection->KeepProcessingActorChannelBunchesMap.Contains(ActorNetGUID))
 			{
@@ -3025,6 +3069,17 @@ void UActorChannel::ProcessBunch( FInBunch & Bunch )
 	{
 		return;
 	}
+
+	uint64 StartTimeCycles = FPlatformTime::Cycles64();
+	ON_SCOPE_EXIT
+	{
+		if (Connection->Driver->GetIncomingBunchFrameProcessingTimeLimit() > 0.0f)
+		{
+			const uint64 DeltaCycles = FPlatformTime::Cycles64() - StartTimeCycles;
+			const double DeltaMS = FPlatformTime::ToMilliseconds64(DeltaCycles);
+			Connection->Driver->AddBunchProcessingFrameTimeMS(static_cast<float>(DeltaMS));
+		}
+	};
 
 	FReplicationFlags RepFlags;
 

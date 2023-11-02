@@ -2086,6 +2086,18 @@ public:
 	 */
 	ENGINE_API virtual bool IsEncryptionRequired() const;
 
+	/** Returns the value of cvar net.ClientIncomingBunchFrameTimeLimitMS on clients, or 0 otherwise. 0 = no limit. */
+	ENGINE_API float GetIncomingBunchFrameProcessingTimeLimit() const;
+
+	/** Returns true if the cvar net.ClientIncomingBunchFrameTimeLimitMS is set and the limit was exceeded */
+	ENGINE_API bool HasExceededIncomingBunchFrameProcessingTime() const;
+
+	/** Called internally by channels to track processing time for net.ClientIncomingBunchFrameTimeLimitMS and HasExceededIncomingBunchFrameProcessingTime() */
+	void AddBunchProcessingFrameTimeMS(float Milliseconds) { IncomingBunchProcessingElapsedFrameTimeMS += Milliseconds; }
+
+	/** Called internally by channels to track how many hit net.QueuedBunchTimeFailsafeSeconds */
+	void AddQueuedBunchFailsafeChannel() { ++QueuedBunchFailsafeNumChannels; }
+
 protected:
 	
 	/** Stream of random numbers to be used by this instance of UNetDriver */
@@ -2186,4 +2198,17 @@ private:
 
 	/** Cached value for UEngine.GlobalNetTravelCount, at the time of NetDriver initialization */
 	uint32 CachedGlobalNetTravelCount = 0;
+	
+	/** Accumulated number of frames in the current stat gathering period */
+	uint32 StatUpdateFrames = 0;
+
+	/** Milliseconds spent processing incoming bunches in the current frame, directly from the network and queued on channels. */
+	float IncomingBunchProcessingElapsedFrameTimeMS = 0.0f;
+	
+	/** Accumulated number of frames in the current stat period for which HasExceededIncomingBunchFrameProcessingTime would return true */
+	uint32 NumFramesOverIncomingBunchTimeLimit = 0;
+
+	/** Accumulated number of channels that hit the net.QueuedBunchTimeFailsafeSeconds this frame */
+	uint32 QueuedBunchFailsafeNumChannels = 0;
+
 };
