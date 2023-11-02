@@ -133,6 +133,7 @@ struct FSearchIndexAsset
 		check(SchemaSampleRate > 0);
 	}
 	
+	FFloatInterval GetExtrapolationTimeInterval(int32 SchemaSampleRate, const FFloatInterval& AdditionalExtrapolationTime) const;
 	int32 GetSourceAssetIdx() const { return SourceAssetIdx; }
 	bool IsMirrored() const { return bMirrored; }
 	bool IsLooping() const { return bLooping; }

@@ -348,6 +348,9 @@ void FPoseHistory::DebugDraw(FAnimInstanceProxy& AnimInstanceProxy, FColor Color
 			for (int32 i = 0; i < Entry.Num(); ++i)
 			{
 				const FTransform RootTransform = bValidTrajectory ? Trajectory->GetSampleAtTime(-Entry.Time).GetTransform() : AnimInstanceProxy.GetComponentTransform();
+
+				AnimInstanceProxy.AnimDrawDebugPoint(RootTransform.GetTranslation(), 6.f, FColor::Blue, false, 0.f, ESceneDepthPriorityGroup::SDPG_Foreground);
+
 				PrevGlobalTransforms[i] = Entry.GetComponentSpaceTransform(i) * RootTransform;
 			}
 		}
@@ -356,6 +359,9 @@ void FPoseHistory::DebugDraw(FAnimInstanceProxy& AnimInstanceProxy, FColor Color
 			for (int32 i = 0; i < Entry.Num(); ++i)
 			{
 				const FTransform RootTransform = bValidTrajectory ? Trajectory->GetSampleAtTime(-Entry.Time).GetTransform() : AnimInstanceProxy.GetComponentTransform();
+
+				AnimInstanceProxy.AnimDrawDebugPoint(RootTransform.GetTranslation(), 6.f, FColor::Blue, false, 0.f, ESceneDepthPriorityGroup::SDPG_Foreground);
+
 				const FTransform GlobalTransforms = Entry.GetComponentSpaceTransform(i) * RootTransform;
 
 				AnimInstanceProxy.AnimDrawDebugLine(PrevGlobalTransforms[i].GetTranslation(), GlobalTransforms.GetTranslation(), Color, false, 0.f, ESceneDepthPriorityGroup::SDPG_Foreground);

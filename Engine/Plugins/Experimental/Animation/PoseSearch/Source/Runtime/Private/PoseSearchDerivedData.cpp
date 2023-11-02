@@ -277,7 +277,7 @@ static inline FFloatInterval GetEffectiveSamplingRange(const UAnimSequenceBase* 
 }
 
 static void FindValidSequenceIntervals(const UAnimSequenceBase* SequenceBase, FFloatInterval SamplingRange, bool bIsLooping,
-	const FPoseSearchExcludeFromDatabaseParameters& ExcludeFromDatabaseParameters, TArray<FFloatRange>& ValidRanges)
+	const FFloatInterval& ExcludeFromDatabaseParameters, TArray<FFloatRange>& ValidRanges)
 {
 	check(SequenceBase);
 
@@ -287,7 +287,7 @@ static void FindValidSequenceIntervals(const UAnimSequenceBase* SequenceBase, FF
 	FFloatRange EffectiveSamplingRange = FFloatRange::Inclusive(EffectiveSamplingInterval.Min, EffectiveSamplingInterval.Max);
 	if (!bIsLooping)
 	{
-		const FFloatRange ExcludeFromDatabaseRange(ExcludeFromDatabaseParameters.SequenceStartInterval, SequenceLength - ExcludeFromDatabaseParameters.SequenceEndInterval);
+		const FFloatRange ExcludeFromDatabaseRange(ExcludeFromDatabaseParameters.Min, SequenceLength + ExcludeFromDatabaseParameters.Max);
 		EffectiveSamplingRange = FFloatRange::Intersection(EffectiveSamplingRange, ExcludeFromDatabaseRange);
 	}
 
@@ -861,7 +861,8 @@ static bool IndexDatabase(FSearchIndexBase& SearchIndexBase, const UPoseSearchDa
 		check(DatabaseAnimationAssetBase && DatabaseAnimationAssetBase->GetAnimationAsset());
 		const FAnimationAssetSampler& AssetSampler = Samplers[SamplerMap[{ DatabaseAnimationAssetBase->GetAnimationAsset(), SearchIndexAsset.GetBlendParameters() }]];
 
-		Indexers.Emplace(BoneContainer, SearchIndexAsset, SamplingContext, *Schema, AssetSampler);
+		const FFloatInterval ExtrapolationTimeInterval = SearchIndexAsset.GetExtrapolationTimeInterval(Schema->SampleRate, Database.AdditionalExtrapolationTime);
+		Indexers.Emplace(BoneContainer, SearchIndexAsset, SamplingContext, *Schema, AssetSampler, ExtrapolationTimeInterval);
 		TotalPoses += SearchIndexAsset.GetNumPoses();
 	}
 
@@ -1253,6 +1254,9 @@ void FPoseSearchDatabaseAsyncCacheTask::PreCancelIfDependsOn(const UObject* Obje
 void FPoseSearchDatabaseAsyncCacheTask::Cancel()
 {
 	check(IsInGameThread());
+
+	FString DatabaseName = IsValid() ? *Database->GetName() : TEXT("Garbage Collected Database");
+	UE_LOG(LogPoseSearch, Log, TEXT("%s - %s Cancelled"), *LexToString(DerivedDataKey), *DatabaseName);
 
 	// Owner.Cancel must be performed before SearchIndex.Reset() in case any task is flying (launched by Owner.LaunchTask)
 	Owner.Cancel();
@@ -1872,8 +1876,7 @@ void FAsyncPoseSearchDatabasesManagement::ClearPreCancelled()
 	{
 		if (Tasks[TaskIndex]->GetState() == FPoseSearchDatabaseAsyncCacheTask::EState::PreCancelled)
 		{
-			UE_LOG(LogPoseSearch, Log, TEXT("%s - %s Removed because it was PreCancelled"), *LexToString(Tasks[TaskIndex]->GetDerivedDataKey()), *Tasks[TaskIndex]->GetDatabase()->GetName());
-			Tasks.RemoveAtSwap(TaskIndex, 1, false);
+			Tasks[TaskIndex]->Cancel();
 		}
 	}
 }
@@ -2004,7 +2007,7 @@ void FAsyncPoseSearchDatabasesManagement::Tick(float DeltaTime)
 	// iterating backwards because of the possible RemoveAtSwap 
 	for (int32 TaskIndex = Tasks.Num() - 1; TaskIndex >= 0; --TaskIndex)
 	{
-		if (!Tasks[TaskIndex]->IsValid())
+		if (!Tasks[TaskIndex]->IsValid() || Tasks[TaskIndex]->GetState() == FPoseSearchDatabaseAsyncCacheTask::EState::Cancelled)
 		{
 			Tasks.RemoveAtSwap(TaskIndex, 1, false);
 		}

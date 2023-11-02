@@ -314,6 +314,12 @@ FArchive& operator<<(FArchive& Ar, FPoseMetadata& Metadata)
 
 //////////////////////////////////////////////////////////////////////////
 // FSearchIndexAsset
+FFloatInterval FSearchIndexAsset::GetExtrapolationTimeInterval(int32 SchemaSampleRate, const FFloatInterval& AdditionalExtrapolationTime) const
+{
+	return FFloatInterval(FirstSampleIdx / float(SchemaSampleRate) + AdditionalExtrapolationTime.Min,
+		LastSampleIdx / float(SchemaSampleRate) + AdditionalExtrapolationTime.Max);
+}
+
 bool FSearchIndexAsset::operator==(const FSearchIndexAsset& Other) const
 {
 	return

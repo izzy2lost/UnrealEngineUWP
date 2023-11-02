@@ -39,8 +39,8 @@ public:
 		float MaxAcceleration = 0.f;
 	};
 
-	FAssetIndexer(const FBoneContainer& InBoneContainer, const FSearchIndexAsset& InSearchIndexAsset, 
-		const FAssetSamplingContext& InSamplingContext, const UPoseSearchSchema& InSchema, const FAnimationAssetSampler& InAssetSampler);
+	FAssetIndexer(const FBoneContainer& InBoneContainer, const FSearchIndexAsset& InSearchIndexAsset, const FAssetSamplingContext& InSamplingContext,
+		const UPoseSearchSchema& InSchema, const FAnimationAssetSampler& InAssetSampler, const FFloatInterval& InExtrapolationTimeInterval);
 	void AssignWorkingData(int32 InStartPoseIdx, TArrayView<float> InOutFeatureVectorTable, TArrayView<FPoseMetadata> InOutPoseMetadata);
 	void Process(int32 AssetIdx);
 	const FStats& GetStats() const { return Stats; }
@@ -125,6 +125,8 @@ private:
 	const FAssetSamplingContext& SamplingContext;
 	const UPoseSearchSchema& Schema;
 	const FAnimationAssetSampler& AssetSampler;
+	FFloatInterval ExtrapolationTimeInterval = FFloatInterval(-UE_BIG_NUMBER, UE_BIG_NUMBER);
+	
 	int32 StartPoseIdx = 0;
 	
 	TArrayView<float> FeatureVectorTable;

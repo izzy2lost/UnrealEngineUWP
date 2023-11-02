@@ -91,14 +91,15 @@ FAssetSamplingContext::FAssetSamplingContext(const UPoseSearchDatabase& Database
 
 //////////////////////////////////////////////////////////////////////////
 // FAssetIndexer
-FAssetIndexer::FAssetIndexer(const FBoneContainer& InBoneContainer, const FSearchIndexAsset& InSearchIndexAsset, 
-	const FAssetSamplingContext& InSamplingContext, const UPoseSearchSchema& InSchema, const FAnimationAssetSampler& InAssetSampler)
+FAssetIndexer::FAssetIndexer(const FBoneContainer& InBoneContainer, const FSearchIndexAsset& InSearchIndexAsset, const FAssetSamplingContext& InSamplingContext,
+	const UPoseSearchSchema& InSchema, const FAnimationAssetSampler& InAssetSampler, const FFloatInterval& InExtrapolationTimeInterval)
 : BoneContainer(InBoneContainer)
 , CachedEntries()
 , SearchIndexAsset(InSearchIndexAsset)
 , SamplingContext(InSamplingContext)
 , Schema(InSchema)
 , AssetSampler(InAssetSampler)
+, ExtrapolationTimeInterval(InExtrapolationTimeInterval)
 {
 }
 
@@ -286,6 +287,8 @@ FAssetIndexer::CachedEntry& FAssetIndexer::GetEntry(float SampleTime)
 #if ENABLE_ANIM_DEBUG
 	bDisableCaching = CVarMotionMatchTestDisableIndexerCaching.GetValueOnAnyThread();
 #endif // ENABLE_ANIM_DEBUG
+
+	SampleTime = FMath::Clamp(SampleTime, ExtrapolationTimeInterval.Min, ExtrapolationTimeInterval.Max);
 
 	CachedEntry* Entry = bDisableCaching ? nullptr : CachedEntries.Find(SampleTime);
 	if (!Entry)

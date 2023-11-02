@@ -52,25 +52,6 @@ enum class EPoseSearchMirrorOption : int32
 };
 
 USTRUCT()
-struct FPoseSearchExcludeFromDatabaseParameters
-{
-	GENERATED_BODY()
-
-#if WITH_EDITORONLY_DATA
-	// Determines how much of the start of an animation segment is preserved for blending in seconds.
-	// Excluding the beginning of animation segments can help ensure an exact past trajectory is used when building the channels.
-	UPROPERTY(EditAnywhere, Category = "Settings", meta = (DisplayName = "Anim Start Interval"))
-	float SequenceStartInterval = 0.0f;
-
-	// Determines how much of the end of an animation segment is preserved for blending in seconds.
-	// Excluding the end of animation segments helps ensure an exact future trajectory,
-	// and also prevents the selection of a anim segment which will end too soon to be worth selecting.
-	UPROPERTY(EditAnywhere, Category = "Settings", meta = (DisplayName = "Anim End Interval"))
-	float SequenceEndInterval = 0.3f;
-#endif // WITH_EDITORONLY_DATA
-};
-
-USTRUCT()
 struct POSESEARCH_API FPoseSearchDatabaseAnimationAssetBase
 {
 	GENERATED_BODY()
@@ -273,11 +254,16 @@ public:
 
 #if WITH_EDITORONLY_DATA
 	// These settings allow users to trim the start and end of animations in the database to preserve start/end frames for blending, and prevent the system from selecting the very last frames before it blends out.
+	// valid animation frames will be AnimationAssetTimeStart + ExcludeFromDatabaseParameters.Min, AnimationAssetTimeEnd + ExcludeFromDatabaseParameters.Max
 	UPROPERTY(EditAnywhere, Category = "Database")
-	FPoseSearchExcludeFromDatabaseParameters ExcludeFromDatabaseParameters;
+	FFloatInterval ExcludeFromDatabaseParameters = FFloatInterval(0.f, -0.3f);
+
+	// extrapolation of animation assets will be clamped by AnimationAssetTimeStart + AdditionalExtrapolationTime.Min, AnimationAssetTimeEnd + AdditionalExtrapolationTime.Max
+	UPROPERTY(EditAnywhere, Category = "Database")
+	FFloatInterval AdditionalExtrapolationTime = FFloatInterval(-100.f, 100.f);
 #endif // WITH_EDITORONLY_DATA
 
-	UPROPERTY(EditAnywhere, Category="Database")
+	UPROPERTY(EditAnywhere, Category = "Database")
 	TArray<FInstancedStruct> AnimationAssets;
 
 	/** Array of tags that can be used as metadata. */
