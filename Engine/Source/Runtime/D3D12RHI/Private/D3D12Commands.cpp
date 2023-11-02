@@ -287,6 +287,25 @@ struct FD3D12DiscardResource
 #endif // #if PLATFORM_REQUIRES_TYPELESS_RESOURCE_DISCARD_WORKAROUND
 };
 
+void FD3D12CommandContext::HandleReservedResourceCommits(const struct FD3D12TransitionData* TransitionData)
+{
+	for (const FRHITransitionInfo& Info : TransitionData->TransitionInfos)
+	{
+		if (const FRHICommitResourceInfo* CommitInfo = Info.CommitInfo.GetPtrOrNull())
+		{
+			if (Info.Type == FRHITransitionInfo::EType::Buffer)
+			{
+				FD3D12Buffer* Buffer = RetrieveObject<FD3D12Buffer>(Info.Buffer);
+				SetReservedBufferCommitSize(Buffer, CommitInfo->SizeInBytes);
+			}
+			else
+			{
+				checkNoEntry();
+			}
+		}
+	}
+}
+
 void FD3D12CommandContext::HandleResourceDiscardTransitions(
 	const FD3D12TransitionData* TransitionData,
 	TArray<FD3D12DiscardResource>& ResourcesToDiscard)
@@ -624,6 +643,13 @@ void FD3D12CommandContext::RHIEndTransitions(TArrayView<const FRHITransition*> T
 	static IConsoleVariable* CVarShowTransitions = IConsoleManager::Get().FindConsoleVariable(TEXT("r.ProfileGPU.ShowTransitions"));
 	const bool bShowTransitionEvents = CVarShowTransitions->GetInt() != 0;
 	SCOPED_RHI_CONDITIONAL_DRAW_EVENTF(*this, RHIEndTransitions, bShowTransitionEvents, TEXT("RHIEndTransitions"));
+
+	// Update reserved resource memory mapping
+	for (const FRHITransition* Transition : Transitions)
+	{
+		const FD3D12TransitionData* Data = Transition->GetPrivateData<FD3D12TransitionData>();
+		HandleReservedResourceCommits(Data);
+	}
 
 	for (const FRHITransition* Transition : Transitions)
 	{

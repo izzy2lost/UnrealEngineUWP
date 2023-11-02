@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "RHIReservedResourceTests.h"
+#include "RHIBufferTests.h" // for VerifyBufferContents
 #include "CommonRenderResources.h"
 #include "RenderCaptureInterface.h"
 #include "RHIStaticStates.h"
@@ -115,5 +116,87 @@ bool FRHIReservedResourceTests::Test_ReservedResource_CreateBuffer(FRHICommandLi
 	}
 
 	return true;
+}
+
+static void CommitBuffer(FRHICommandListImmediate& RHICmdList, FRHIBuffer* Buffer, uint64 CommitSize, ERHIAccess StateBefore, ERHIAccess StateAfter)
+{
+	FRHITransitionInfo TransitionInfo(Buffer, StateBefore, StateAfter, FRHICommitResourceInfo(CommitSize));
+
+	TArrayView<const FRHITransitionInfo> TransitionInfos = MakeArrayView(&TransitionInfo, 1);
+
+	FRHITransitionCreateInfo CreateInfo(
+		ERHIPipeline::Graphics, ERHIPipeline::Graphics,
+		ERHITransitionCreateFlags::None, TransitionInfos);
+
+	const FRHITransition* Transition = RHICreateTransition(CreateInfo);
+
+	RHICmdList.BeginTransition(Transition);
+	RHICmdList.EndTransition(Transition);
+}
+
+bool FRHIReservedResourceTests::Test_ReservedResource_CommitBuffer(FRHICommandListImmediate& RHICmdList)
+{
+	if (!GRHIGlobals.ReservedResources.Supported)
+	{
+		return true;
+	}
+
+	const int32 TileSizeInBytes = GRHIGlobals.ReservedResources.TileSizeInBytes;
+	const int32 BufferSizeInBytes = TileSizeInBytes * 128;
+
+	FRHIResourceCreateInfo CreateInfo(TEXT("TestReservedBufferExplicitCommit"));
+
+	FBufferRHIRef Buffer = RHICmdList.CreateBuffer(BufferSizeInBytes,
+		BUF_ReservedResource | BUF_UnorderedAccess | BUF_ShaderResource | BUF_SourceCopy,
+		4, ERHIAccess::UAVCompute, CreateInfo);
+
+	FUnorderedAccessViewRHIRef BufferUAV = RHICmdList.CreateUnorderedAccessView(Buffer,
+		FRHIViewDesc::CreateBufferUAV()
+		.SetType(FRHIViewDesc::EBufferType::Typed)
+		.SetFormat(PF_R32_UINT));
+
+	// Commit half of the resource, leaving the tail unmapped. 
+	// The RHI follows D3D12 Tier 2 Reserved Resource semantics:
+	// - Unmapped page writes are discarded
+	// - Unmapped page reads return 0
+
+	const int32 CommitSizeInBytes = BufferSizeInBytes / 2;
+	CommitBuffer(RHICmdList, Buffer, CommitSizeInBytes, ERHIAccess::UAVCompute, ERHIAccess::UAVCompute);
+
+	RHICmdList.ClearUAVUint(BufferUAV, FUintVector4(~0u));
+
+	RHICmdList.Transition(FRHITransitionInfo(Buffer, ERHIAccess::UAVCompute, ERHIAccess::CopySrc));
+	
+	FRHIBuffer* Buffers[] = { Buffer.GetReference() };
+	bool bSucceeded = FRHIBufferTests::VerifyBufferContents(TEXT("Test_ReservedResource_CommitBuffer"), RHICmdList, Buffers, 
+		[BufferSizeInBytes, CommitSizeInBytes](int32 BufferIndex, void* Ptr, uint32 NumBytes)
+		{
+			uint64 ExpectedCommittedValue = ~0ull;
+
+			uint32 CommittedSizeInElements = CommitSizeInBytes / sizeof(ExpectedCommittedValue);
+			uint32 TotalSizeInElements = BufferSizeInBytes / sizeof(ExpectedCommittedValue);
+			const uint64* BufferData = reinterpret_cast<const uint64*>(Ptr);
+
+			for (uint32 i = 0; i < CommittedSizeInElements; ++i)
+			{
+				if (BufferData[i] != ExpectedCommittedValue)
+				{
+					return false;
+				}
+			}
+
+			uint64 ExpectedTailValue = 0;
+			for (uint32 i = CommittedSizeInElements; i < TotalSizeInElements; ++i)
+			{
+				if (BufferData[i] != ExpectedTailValue)
+				{
+					return false;
+				}
+			}
+
+			return true;
+		});
+
+	return bSucceeded;
 }
 

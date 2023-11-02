@@ -557,10 +557,13 @@ FD3D12Buffer* FD3D12DynamicRHI::CreateD3D12Buffer(class FRHICommandListBase* RHI
 		? ED3D12ResourceStateMode::SingleState 
 		: ED3D12ResourceStateMode::Default;
 
+	const bool bHasInitialData = CreateInfo.ResourceArray != nullptr;
+
 	const bool bIsDynamic = EnumHasAnyFlags(BufferDesc.Usage, BUF_AnyDynamic);
 
 	if (EnumHasAnyFlags(BufferDesc.Usage, BUF_ReservedResource))
 	{
+		checkf(!bHasInitialData || EnumHasAllFlags(BufferDesc.Usage, BUF_ImmediateCommit), TEXT("Reserved resources with initial data must be committed at creation"));
 		checkf(!bIsDynamic, TEXT("Reserved resources may not be dynamic"));
 		checkf(!ResourceAllocator, TEXT("Reserved resources may not use a custom resource allocator"));
 	}
@@ -577,7 +580,6 @@ FD3D12Buffer* FD3D12DynamicRHI::CreateD3D12Buffer(class FRHICommandListBase* RHI
 
 	// Setup the state at which the resource needs to be created - copy dest only supported for placed resources
 	D3D12_RESOURCE_STATES CreateState = (CreateInfo.ResourceArray && bSupportResourceStateTracking) ? D3D12_RESOURCE_STATE_COPY_DEST : DesiredState;
-	bool bHasInitialData = CreateInfo.ResourceArray != nullptr;
 
 	FD3D12Buffer* Buffer = GetAdapter().CreateRHIBuffer(Desc, Alignment, BufferDesc, StateMode, CreateState, bHasInitialData, CreateInfo.GPUMask, ResourceAllocator, CreateInfo.DebugName, CreateInfo.OwnerName, TraceClassName);
 	check(Buffer->ResourceLocation.IsValid());

@@ -179,6 +179,11 @@ public:
 	// Allocates a query of the specified type, returning its location.
 	FD3D12QueryLocation AllocateQuery(ED3D12QueryType Type, void* Target);
 
+	// Resizes physical memory allocation for a buffer. Allocates new backing heaps as necessary.
+	// Causes the command list to be split, as reserved resource update operations are performed on the D3D12 queue.
+	// The actual work is deferred via FD3D12Payload.
+	void SetReservedBufferCommitSize(FD3D12Buffer* Buffer, uint64 CommitSizeInBytes);
+
 	// Complete recording of the current command list set, and appends the resulting
 	// payloads to the given array. Resets the context so new commands can be recorded.
 	void Finalize(TArray<FD3D12Payload*>& OutPayloads);
@@ -269,6 +274,7 @@ protected:
 	enum class EPhase
 	{
 		Wait,
+		UpdateReservedResources,
 		Execute,
 		Signal
 	} CurrentPhase = EPhase::Wait;
@@ -750,6 +756,7 @@ private:
 	void HandleResourceTransitions       (const struct FD3D12TransitionData* TransitionData, bool& bUAVBarrier);
 	void HandleTransientAliasing         (const struct FD3D12TransitionData* TransitionData);
 	void HandleResourceDiscardTransitions(const struct FD3D12TransitionData* TransitionData, TArray<struct FD3D12DiscardResource>& ResourcesToDiscard);
+	void HandleReservedResourceCommits   (const struct FD3D12TransitionData* TransitionData);
 
 	TArray<FRHIUniformBuffer*> StaticUniformBuffers;
 };

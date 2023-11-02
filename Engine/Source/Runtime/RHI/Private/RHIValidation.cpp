@@ -622,6 +622,25 @@ void FValidationRHI::RHICreateTransition(FRHITransition* Transition, const FRHIT
 		checkf(Info.AccessAfter != ERHIAccess::Unknown, TEXT("FRHITransitionInfo::AccessAfter cannot be Unknown when creating a resource transition."));
 		checkf(Info.Type != FRHITransitionInfo::EType::Unknown, TEXT("FRHITransitionInfo::Type cannot be Unknown when creating a resource transition."));
 
+		if (const FRHICommitResourceInfo* CommitInfo = Info.CommitInfo.GetPtrOrNull())
+		{
+			RHI_VALIDATION_CHECK((SrcPipelines == ERHIPipeline::Graphics && DstPipelines == ERHIPipeline::Graphics),
+				TEXT("Reserved resource commit operations are only supported on the graphics pipeline and must not cross pipeline boundary."));
+
+			if (Info.Type == FRHITransitionInfo::EType::Buffer)
+			{
+				const FRHIBuffer* Buffer = Info.Buffer;
+				const EBufferUsageFlags BufferUsage = Buffer->GetUsage();
+				const uint32 BufferSize = Buffer->GetSize();
+				RHI_VALIDATION_CHECK(EnumHasAllFlags(BufferUsage, BUF_ReservedResource), TEXT("Commit transitions can only be used with reserved resources."));
+				RHI_VALIDATION_CHECK(CommitInfo->SizeInBytes <= BufferSize, TEXT("Buffer commit size request must not be larger than the size of the buffer itself, as virtual memory allocation cannot be resized."));
+			}
+			else
+			{
+				RHI_VALIDATION_CHECK(false, TEXT("Reserved resource commit is only supported for buffers"));
+			}
+		}
+
 		FResourceIdentity Identity;
 
 		switch (Info.Type)

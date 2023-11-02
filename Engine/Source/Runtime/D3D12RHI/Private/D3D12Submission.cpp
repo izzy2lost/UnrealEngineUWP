@@ -271,6 +271,7 @@ void FD3D12DynamicRHI::SubmitCommands(TConstArrayView<FD3D12FinalizedCommands*> 
 					}
 					FD3D12Payload* MergedPayload = MergedPayloadPerGPU[GPUIndex];
 
+					MergedPayload->ReservedResourcesToCommit.Append(Payload->ReservedResourcesToCommit);
 					MergedPayload->CommandListsToExecute.Append(Payload->CommandListsToExecute);
 					MergedPayload->SyncPointsToSignal.Append(Payload->SyncPointsToSignal);
 					MergedPayload->AllocatorsToRelease.Append(Payload->AllocatorsToRelease);
@@ -778,6 +779,11 @@ uint64 FD3D12Queue::ExecutePayload()
 	}
 
 	PayloadToSubmit->PreExecute();
+
+	for (const FD3D12CommitReservedResourceDesc& CommitDesc : PayloadToSubmit->ReservedResourcesToCommit)
+	{
+		CommitDesc.Resource->CommitReservedResource(D3DCommandQueue, CommitDesc.CommitSizeInBytes);
+	}
 
 	if (const int32 NumCommandLists = PayloadToSubmit->CommandListsToExecute.Num())
 	{

@@ -771,7 +771,9 @@ void SafeCreateTexture2D(FD3D12Device* pDevice,
 
 				if (EnumHasAllFlags(Flags, TexCreate_ImmediateCommit))
 				{
-					Resource->CommitReservedResource();
+					// NOTE: Accessing the queue from this thread is OK, as D3D12 runtime acquires a lock around all command queue APIs.
+					// https://microsoft.github.io/DirectX-Specs/d3d/CPUEfficiency.html#threading
+					Resource->CommitReservedResource(pDevice->GetQueue(ED3D12QueueType::Direct).D3DCommandQueue, UINT64_MAX /*commit entire resource*/);
 				}
 			}
 			else

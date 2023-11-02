@@ -186,6 +186,7 @@ private:
 	struct FD3D12ReservedResourceData
 	{
 		TArray<TRefCountPtr<ID3D12Heap>> BackingHeaps;
+		uint64 CommittedSizeInBytes = 0;
 	};
 	TUniquePtr<FD3D12ReservedResourceData> ReservedResourceData;
 
@@ -382,7 +383,9 @@ public:
 		const uint32 bReadBackResource : 1;
 	};
 
-	void CommitReservedResource();
+	// Note: RequiredCommitSizeInBytes is clamped to the maximum size of the resource.
+	// Use UINT64_MAX to commit the entire resource.
+	void CommitReservedResource(ID3D12CommandQueue* D3DCommandQueue, uint64 RequiredCommitSizeInBytes);
 
 private:
 	void InitalizeResourceState(D3D12_RESOURCE_STATES InInitialState, ED3D12ResourceStateMode InResourceStateMode, D3D12_RESOURCE_STATES InDefaultState)

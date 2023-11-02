@@ -284,6 +284,20 @@ FD3D12QueryLocation FD3D12ContextCommon::InsertTimestamp(ED3D12Units Units, uint
 	return Location;
 }
 
+void FD3D12ContextCommon::SetReservedBufferCommitSize(FD3D12Buffer* Buffer, uint64 CommitSizeInBytes)
+{
+	if (IsOpen())
+	{
+		CloseCommandList();
+	}
+
+	FD3D12CommitReservedResourceDesc CommitDesc;
+	CommitDesc.Resource = Buffer->GetResource();
+	CommitDesc.CommitSizeInBytes = CommitSizeInBytes;
+
+	GetPayload(EPhase::UpdateReservedResources)->ReservedResourcesToCommit.Add(CommitDesc);
+}
+
 void FD3D12ContextCommon::OpenCommandList()
 {
 	LLM_SCOPE_BYNAME(TEXT("RHIMisc/OpenCommandList"));

@@ -154,13 +154,15 @@ FD3D12Resource::~FD3D12Resource()
 	}
 }
 
-void FD3D12Resource::CommitReservedResource()
+void FD3D12Resource::CommitReservedResource(ID3D12CommandQueue* D3DCommandQueue, uint64 RequiredCommitSizeInBytes)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(CommitReservedResource);
 
+	static constexpr uint64 TileSizeInBytes = GRHIGlobals.ReservedResources.TileSizeInBytes;
+	static_assert(TileSizeInBytes == 65536, "Reserved resource tiles are expected to always be 64KB");
+
 	check(Desc.bReservedResource);
 	check(ReservedResourceData.IsValid());
-	checkf(ReservedResourceData->BackingHeaps.IsEmpty(), TEXT("Reserved resource is already committed"));
 	checkf(Desc.Dimension == D3D12_RESOURCE_DIMENSION_BUFFER
 		|| Desc.Dimension == D3D12_RESOURCE_DIMENSION_TEXTURE2D, 
 		TEXT("CommitReservedResource is currently only implemented for 2D textures and buffers"));
@@ -184,10 +186,11 @@ void FD3D12Resource::CommitReservedResource()
 
 	D3DDevice->GetResourceTiling(GetResource(), &D3DResourceNumTiles, &PackedMipDesc, &TileShape, &NumSubresourceTilings, FirstSubresource, &SubresourceTiling);
 
-	static constexpr uint64 TileSizeInBytes = GRHIGlobals.ReservedResources.TileSizeInBytes;
-	static_assert(TileSizeInBytes == 65536, "Reserved resource tiles are expected to always be 64KB");
-
 	const uint64 TotalSize = D3DResourceNumTiles * TileSizeInBytes;
+
+	RequiredCommitSizeInBytes = FMath::Min<uint64>(RequiredCommitSizeInBytes, TotalSize);
+	RequiredCommitSizeInBytes = AlignArbitrary(RequiredCommitSizeInBytes, TileSizeInBytes);
+
 	const uint64 MaxHeapSize = uint64(CVarD3D12ReservedResourceHeapSizeMB.GetValueOnAnyThread()) * 1024 * 1024;
 	const uint64 NumHeaps = FMath::DivideAndRoundUp(TotalSize, MaxHeapSize);
 
@@ -195,11 +198,6 @@ void FD3D12Resource::CommitReservedResource()
 	Heaps.Reserve(NumHeaps);
 
 	const uint32 MaxTilesPerHeap = uint32(MaxHeapSize / TileSizeInBytes);
-
-	// NOTE: Accessing the queue from this thread is OK, as D3D12 runtime acquires a lock around all command queue APIs.
-	// https://microsoft.github.io/DirectX-Specs/d3d/CPUEfficiency.html#threading
-	FD3D12Queue& Queue = GetParentDevice()->GetQueue(ED3D12QueueType::Direct);
-	ID3D12CommandQueue* D3DCommandQueue = Queue.D3DCommandQueue.GetReference();
 
 	const D3D12_TILE_MAPPING_FLAGS MappingFlags = D3D12_TILE_MAPPING_FLAG_NONE;
 
@@ -240,21 +238,34 @@ void FD3D12Resource::CommitReservedResource()
 		TEXT("D3D resource size in tiles: %d, computed size in tiles: %d"),
 		D3DResourceNumTiles, NumTotalTiles);
 
-	uint32 NumMappedTiles = 0;
+	checkf(RequiredCommitSizeInBytes % TileSizeInBytes == 0,
+		TEXT("Reserved resources memory is expected to be committed at tile granularity"));
 
-	const D3D12_HEAP_FLAGS HeapFlags = Desc.Dimension == D3D12_RESOURCE_DIMENSION_BUFFER
-		? D3D12_HEAP_FLAG_ALLOW_ONLY_BUFFERS
-		: D3D12_HEAP_FLAG_ALLOW_ONLY_NON_RT_DS_TEXTURES;
+	checkf(ReservedResourceData->CommittedSizeInBytes % TileSizeInBytes == 0,
+		TEXT("Reserved resources memory is expected to be committed at tile granularity"));
 
-	static_assert((D3D12_HEAP_FLAG_DENY_BUFFERS | D3D12_HEAP_FLAG_DENY_RT_DS_TEXTURES) == D3D12_HEAP_FLAG_ALLOW_ONLY_NON_RT_DS_TEXTURES);
+	checkf(RequiredCommitSizeInBytes >= ReservedResourceData->CommittedSizeInBytes,
+		TEXT("Shrinking committed resources is not yet implemented")); // #yuriy_todo
 
-	while (NumMappedTiles < NumTotalTiles)
+	const uint32 NumRequiredCommitTiles = RequiredCommitSizeInBytes / TileSizeInBytes;
+	checkf(NumRequiredCommitTiles <= NumTotalTiles,
+		TEXT("Shrinking committed resources is not yet implemented")); // #yuriy_todo
+
+	uint32 NumMappedTiles = ReservedResourceData->CommittedSizeInBytes / TileSizeInBytes;
+
+	while (NumMappedTiles < NumRequiredCommitTiles)
 	{
-		const uint32 NumRemainingTiles = NumTotalTiles - NumMappedTiles;
+		const uint32 NumRemainingTiles = NumRequiredCommitTiles - NumMappedTiles;
 
 		D3D12_TILE_REGION_SIZE RegionSize = {};
 		RegionSize.UseBox = false;
 		RegionSize.NumTiles = FMath::Min(MaxTilesPerHeap, NumRemainingTiles);
+
+		const D3D12_HEAP_FLAGS HeapFlags = Desc.Dimension == D3D12_RESOURCE_DIMENSION_BUFFER
+			? D3D12_HEAP_FLAG_ALLOW_ONLY_BUFFERS
+			: D3D12_HEAP_FLAG_ALLOW_ONLY_NON_RT_DS_TEXTURES;
+
+		static_assert((D3D12_HEAP_FLAG_DENY_BUFFERS | D3D12_HEAP_FLAG_DENY_RT_DS_TEXTURES) == D3D12_HEAP_FLAG_ALLOW_ONLY_NON_RT_DS_TEXTURES);
 
 		const uint32 ThisHeapSize = RegionSize.NumTiles * TileSizeInBytes;
 		D3D12_HEAP_DESC NewHeapDesc = {};
@@ -322,7 +333,9 @@ void FD3D12Resource::CommitReservedResource()
 		Heaps.Add(MoveTemp(NewHeap));
 	}
 
-	checkf(NumMappedTiles == D3DResourceNumTiles,
+	ReservedResourceData->CommittedSizeInBytes = NumMappedTiles * TileSizeInBytes;
+
+	checkf(NumMappedTiles == NumRequiredCommitTiles,
 		TEXT("Reserved resource was not fully processed while committing physical memory. Expected to process tiles: %d, actually processed: %d"),
 		D3DResourceNumTiles, NumMappedTiles);
 }

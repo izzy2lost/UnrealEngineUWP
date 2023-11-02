@@ -132,5 +132,11 @@ void FAutomationRHITest::Define()
 			bool bResult = RunOnRenderThreadSynchronous(FRHIReservedResourceTests::Test_ReservedResource_CreateBuffer);
 			TestEqual("Create Reserved Buffer failed", bResult, 1);
 		});
+
+		It("Commit Reserved Buffer", [this]()
+		{
+			bool bResult = RunOnRenderThreadSynchronous(FRHIReservedResourceTests::Test_ReservedResource_CommitBuffer);
+			TestEqual("Commit Reserved Buffer failed", bResult, 1);
+		});
 	});
 }
