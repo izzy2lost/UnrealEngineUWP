@@ -769,7 +769,7 @@ TSharedPtr<SDockTab> FDocumentTracker::OpenNewTab(TSharedPtr<FGenericTabHistory>
 			NewTabInfo->AddTabHistory(InTabHistory);
 		}
 
-		const FName DocumentId = DefaultDocumentId != NAME_None ? DefaultDocumentId : Factory->GetIdentifier();
+		const FName DocumentId = (DefaultDocumentId != NAME_None) ? DefaultDocumentId : Factory->GetIdentifier();
 
 		if (InOpenCause == ForceOpenNewDocument  || InOpenCause == OpenNewDocument)
 		{

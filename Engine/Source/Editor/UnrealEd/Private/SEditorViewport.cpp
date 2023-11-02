@@ -881,7 +881,7 @@ EVisibility SEditorViewport::GetCurrentFeatureLevelPreviewTextVisibility() const
 	{
 		UMaterialShaderQualitySettings* MaterialShaderQualitySettings = UMaterialShaderQualitySettings::Get();
 		const FName& PreviewPlatform = MaterialShaderQualitySettings->GetPreviewPlatform();
-		return PreviewPlatform != NAME_None ? EVisibility::SelfHitTestInvisible : EVisibility::Collapsed;
+		return (PreviewPlatform != NAME_None) ? EVisibility::SelfHitTestInvisible : EVisibility::Collapsed;
 	}
 	else
 	{

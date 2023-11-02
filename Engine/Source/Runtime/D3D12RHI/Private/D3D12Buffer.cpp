@@ -11,7 +11,7 @@ D3D12Buffer.cpp: D3D Common code for buffers.
 FName GetRHIBufferClassName(const FName& ClassName)
 {
 	const static FLazyName RHIBufferName(TEXT("FRHIBuffer"));
-	return ClassName == NAME_None ? RHIBufferName : ClassName;
+	return (ClassName == NAME_None) ? RHIBufferName : ClassName;
 }
 
 extern int32 GD3D12BindResourceLabels;

@@ -86,11 +86,11 @@ namespace UE::AnimNext
 
 		if (ChildIndex == TRUE_CHILD_INDEX)
 		{
-			return DestinationChildIndex == TRUE_CHILD_INDEX ? 1.0f : 0.0f;
+			return (DestinationChildIndex == TRUE_CHILD_INDEX) ? 1.0f : 0.0f;
 		}
 		else if (ChildIndex == FALSE_CHILD_INDEX)
 		{
-			return DestinationChildIndex == FALSE_CHILD_INDEX ? 1.0f : 0.0f;
+			return (DestinationChildIndex == FALSE_CHILD_INDEX) ? 1.0f : 0.0f;
 		}
 		else
 		{
