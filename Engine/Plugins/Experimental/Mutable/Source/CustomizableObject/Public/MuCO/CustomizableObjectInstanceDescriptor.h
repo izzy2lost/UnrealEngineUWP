@@ -4,6 +4,7 @@
 
 #include "MuCO/MultilayerProjector.h"
 #include "MuCO/CustomizableObjectParameterTypeDefinitions.h"
+#include "Math/RandomStream.h"
 
 #include "CustomizableObjectInstanceDescriptor.generated.h"
 
@@ -293,6 +294,8 @@ struct CUSTOMIZABLEOBJECT_API FCustomizableObjectInstanceDescriptor
 	// ------------------------------------------------------------
 	
 	void SetRandomValues(const int32& InRandomizationSeed);
+
+	void SetRandomValuesFromStream(const FRandomStream& Stream);
 
 	// ------------------------------------------------------------
 	// Multilayer Projectors

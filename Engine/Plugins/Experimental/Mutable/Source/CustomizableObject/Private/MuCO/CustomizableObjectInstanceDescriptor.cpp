@@ -2302,6 +2302,41 @@ void FCustomizableObjectInstanceDescriptor::SetRandomValues(const int32& InRando
 }
 
 
+void FCustomizableObjectInstanceDescriptor::SetRandomValuesFromStream(const FRandomStream& Stream)
+{
+	check(CustomizableObject);
+	RETURN_ON_UNCOMPILED_CO(CustomizableObject, TEXT("Error: Cannot set random values"))
+		
+	if (!CustomizableObject) return;
+
+	for (int32 i = 0; i < FloatParameters.Num(); ++i)
+	{
+		FloatParameters[i].ParameterValue = Stream.FRand();
+	}
+
+	for (int32 i = 0; i < BoolParameters.Num(); ++i)
+	{
+		BoolParameters[i].ParameterValue = Stream.GetUnsignedInt() % 2 == 0;
+	}
+
+	for (int32 i = 0; i < IntParameters.Num(); ++i)
+	{
+		int32 ParameterIndexInCO = CustomizableObject->FindParameter(IntParameters[i].ParameterName);
+
+		if (ParameterIndexInCO >= 0)
+		{
+			int32 NumValues = CustomizableObject->GetIntParameterNumOptions(ParameterIndexInCO);
+			if (NumValues > 0)
+			{
+				int32 Index = Stream.GetUnsignedInt() % NumValues;
+				FString Option = CustomizableObject->GetIntParameterAvailableOption(ParameterIndexInCO, Index);
+				SetIntParameterSelectedOption(i, Option);
+			}
+		}
+	}
+}
+
+
 bool FCustomizableObjectInstanceDescriptor::CreateMultiLayerProjector(const FName& ProjectorParamName)
 {
 	if (!FMultilayerProjector::AreDescriptorParametersValid(*this, ProjectorParamName.ToString()))

@@ -2446,6 +2446,11 @@ void UCustomizableObjectInstance::SetRandomValues()
 	Descriptor.SetRandomValues(FMath::Rand());
 }
 
+void UCustomizableObjectInstance::SetRandomValuesFromStream(const FRandomStream& Stream)
+{
+	Descriptor.SetRandomValuesFromStream(Stream);
+}
+
 void UCustomizableObjectInstance::SetRandomValues(const int32 InRandomizationSeed)
 {
 	Descriptor.SetRandomValues(InRandomizationSeed);

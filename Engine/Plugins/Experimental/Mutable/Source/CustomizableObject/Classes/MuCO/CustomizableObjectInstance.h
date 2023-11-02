@@ -5,6 +5,7 @@
 #include "Async/TaskGraphFwd.h"
 #include "MuCO/CustomizableObjectInstanceDescriptor.h"
 #include "Templates/SubclassOf.h"
+#include "Math/RandomStream.h"
 
 #include "CustomizableObjectInstance.generated.h"
 
@@ -229,6 +230,10 @@ public:
 	/** Set random values to the parameters. Useful for testing only. */
 	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstance)
 	void SetRandomValues();
+
+	/**  Set random values to the parameters using a stream. */
+	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstance)
+	void SetRandomValuesFromStream(const FRandomStream& Stream);
 
 	/**  Set random values to the parameters using a seed. Useful for testing only. */
 	void SetRandomValues(const int32 InRandomizationSeed);
