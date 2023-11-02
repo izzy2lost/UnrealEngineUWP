@@ -157,7 +157,9 @@ namespace Jupiter
 
 					switch (scheme.Implementation)
 					{
-						case SchemeImplementations.NotUsed:
+						case SchemeImplementations.ServiceAccount:
+							availableSchemes.Add(name);
+							authenticationBuilder.AddScheme<ServiceAccountAuthOptions, ServiceAccountAuthHandler>(name, options => { });
 							break;
 						case SchemeImplementations.JWTBearer:
 							availableSchemes.Add(name);
@@ -221,9 +223,6 @@ namespace Jupiter
 				availableSchemes.Add(DisabledAuthenticationHandler.AuthenticateScheme);
 				authenticationBuilder.AddTestAuth(options => { });
 			}
-
-			availableSchemes.Add(ServiceAccountAuthHandler.AuthenticationScheme);
-			authenticationBuilder.AddScheme<ServiceAccountAuthOptions, ServiceAccountAuthHandler>(ServiceAccountAuthHandler.AuthenticationScheme, options => { });
 
 			services.AddAuthorization(options =>
 			{
@@ -553,7 +552,7 @@ namespace Jupiter
 	{
 		JWTBearer,
 		Okta,
-		NotUsed
+		ServiceAccount
 	};
 
 	public class AuthSchemeEntry: IValidatableObject
