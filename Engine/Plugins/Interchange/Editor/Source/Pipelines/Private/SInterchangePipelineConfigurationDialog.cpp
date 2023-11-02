@@ -419,7 +419,7 @@ void SInterchangePipelineConfigurationDialog::Construct(const FArguments& InArgs
 				.Padding(4.f, 0.f)
 				.AutoWidth()
 				[
-					IDocumentation::Get()->CreateAnchor(FString("Engine/Content/Interchange/PipelineConfiguration"))
+					IDocumentation::Get()->CreateAnchor(FString("interchange-framework-in-unreal-engine"))
 				]
 				+ SHorizontalBox::Slot()
 				.Padding(4.f, 0.f)
