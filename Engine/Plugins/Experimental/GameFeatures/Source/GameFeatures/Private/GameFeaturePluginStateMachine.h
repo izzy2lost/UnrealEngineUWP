@@ -12,8 +12,8 @@ class UGameFeatureData;
 class UGameFrameworkComponentManager;
 class UGameFeaturePluginStateMachine;
 struct FComponentRequestHandle;
-enum class EInstallBundleResult : int;
-enum class EInstallBundleReleaseResult;
+enum class EInstallBundleResult : uint32;
+enum class EInstallBundleReleaseResult : uint32;
 
 /*
 *************** GameFeaturePlugin state machine graph ***************
@@ -234,7 +234,7 @@ struct FInstallBundlePluginProtocolMetaData
 
 	/** Functions to convert to/from the URL FString representation of this metadata **/
 	FString ToString() const;
-	static bool FromString(const FString& URLString, FInstallBundlePluginProtocolMetaData& OutMetadata);
+	static bool FromString(FStringView URLString, FInstallBundlePluginProtocolMetaData& OutMetadata);
 };
 
 struct FGameFeatureProtocolMetadata : public TUnion<FInstallBundlePluginProtocolMetaData, FNull>

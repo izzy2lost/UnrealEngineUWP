@@ -5,6 +5,9 @@
 #include "Internationalization/Text.h"
 #include "Templates/ValueOrError.h"
 
+enum class EInstallBundleResult : uint32;
+enum class EInstallBundleReleaseResult : uint32;
+
 namespace UE::GameFeatures
 {
 	//Type used to determine if our FResult is actually an error or success (and hold the error code)
@@ -57,6 +60,17 @@ namespace UE::GameFeatures
 	};
 
 	GAMEFEATURES_API FString ToString(const FResult& Result);
+
+	namespace CommonErrorCodes
+	{
+		const FText& GetErrorTextForBundleResult(EInstallBundleResult ErrorResult);
+		const FText& GetErrorTextForReleaseResult(EInstallBundleReleaseResult ErrorResult);
+
+		const FText& GetGenericFatalError();
+		const FText& GetGenericConnectionError();
+		const FText& GetGenericMountError();
+		const FText& GetGenericReleaseResult();
+	}
 }
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2

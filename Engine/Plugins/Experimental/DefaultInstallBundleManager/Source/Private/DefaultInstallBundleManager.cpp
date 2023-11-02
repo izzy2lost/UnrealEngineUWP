@@ -1292,6 +1292,12 @@ void FDefaultInstallBundleManager::UpdateBundleSources(FContentReleaseRequestRef
 		return;
 	}
 
+	// Release from any caches that were reserved
+	for (const TPair<FName, TSharedRef<FInstallBundleCache>>& Pair : BundleCaches)
+	{
+		Pair.Value->Release(Request->BundleName);
+	}
+
 	for (const TPair<EInstallBundleSourceType, TSharedPtr<IInstallBundleSource>>& Pair : BundleSources)
 	{
 		if (const FName* CacheName = BundleSourceCaches.Find(Pair.Key))
@@ -1581,12 +1587,6 @@ void FDefaultInstallBundleManager::UnmountPaks(FContentReleaseRequestRef Request
 	OnPaksUnmountedInternal(Request, BundleInfo);
 
 	SetBundleStatus(BundleInfo, EBundleState::NeedsMount);
-
-	// Release from any caches that were reserved
-	for (const TPair<FName, TSharedRef<FInstallBundleCache>>& Pair : BundleCaches)
-	{
-		Pair.Value->Release(Request->BundleName);
-	}
 
 	Request->StepResult = EContentRequestStepResult::Done;
 }
@@ -3078,9 +3078,27 @@ TValueOrError<FInstallBundleRequestInfo, EInstallBundleResult> FDefaultInstallBu
 			// canceled release has finished.
 			if (!bCanceledRelease && EnumHasAnyFlags(Flags, EInstallBundleRequestFlags::SkipMount) && GetBundleStatus(*BundleInfo) == EBundleState::NeedsMount)
 			{
-				RetInfo.InfoFlags |= EInstallBundleRequestInfoFlags::SkippedAlreadyUpdatedBundles;
-				LOG_INSTALL_BUNDLE_MAN_OVERRIDE(LogVerbosityOverride, Verbose, TEXT("RequestUpdateContent Bundle %s  - Already Updated"), *BundleInfo->BundleNameString);
-				bIsFinished = true;
+				// If this bundle is not reserved in a cache, an  install request cannot be skipped
+				bool bNeedsCacheReserve = false;
+				for (const FBundleSourceRelevance& SourceRelevance : BundleInfo->ContributingSources)
+				{
+					if (FName* CacheName = BundleSourceCaches.Find(SourceRelevance.SourceType))
+					{
+						const TSharedRef<FInstallBundleCache>& BundleCache = BundleCaches.FindChecked(*CacheName);
+						if (BundleCache->Contains(BundleName) && !BundleCache->IsReserved(BundleName))
+						{
+							bNeedsCacheReserve = true;
+							break;
+						}
+					}
+				}
+
+				if (!bNeedsCacheReserve)
+				{
+					RetInfo.InfoFlags |= EInstallBundleRequestInfoFlags::SkippedAlreadyUpdatedBundles;
+					LOG_INSTALL_BUNDLE_MAN_OVERRIDE(LogVerbosityOverride, Verbose, TEXT("RequestUpdateContent Bundle %s  - Already Updated"), *BundleInfo->BundleNameString);
+					bIsFinished = true;
+				}
 			}
 			// No need to check bCanceledRelease here.  Unmounting is not Async so if we canceled it early enough we will remain mounted
 			else if (!GetMustWaitForPSOCache(*BundleInfo) && GetBundleStatus(*BundleInfo) == EBundleState::Mounted)
@@ -3433,14 +3451,29 @@ TValueOrError<FInstallBundleReleaseRequestInfo, EInstallBundleResult> FDefaultIn
 		// canceled update has finished.
 		if (ActiveQueuedRequest == nullptr && !bCanceledUpdate)
 		{
-			if (!EnumHasAnyFlags(Flags, EInstallBundleReleaseRequestFlags::RemoveFilesIfPossible) && GetBundleStatus(*BundleInfo) != EBundleState::Mounted)
+			// If this bundle is reserved in a cache, a release request cannot be skipped
+			bool bIsReserved = false;
+			for (const FBundleSourceRelevance& SourceRelevance : BundleInfo->ContributingSources)
+			{
+				if (FName* CacheName = BundleSourceCaches.Find(SourceRelevance.SourceType))
+				{
+					const TSharedRef<FInstallBundleCache>& BundleCache = BundleCaches.FindChecked(*CacheName);
+					if (BundleCache->IsReserved(BundleName))
+					{
+						bIsReserved = true;
+						break;
+					}
+				}
+			}
+
+			if (!bIsReserved && !EnumHasAnyFlags(Flags, EInstallBundleReleaseRequestFlags::RemoveFilesIfPossible) && GetBundleStatus(*BundleInfo) != EBundleState::Mounted)
 			{
 				RetInfo.InfoFlags |= EInstallBundleRequestInfoFlags::SkippedAlreadyReleasedBundles;
 				LOG_INSTALL_BUNDLE_MAN_OVERRIDE(LogVerbosityOverride, Verbose, TEXT("BundlesToRelease Bundle %s  - Already Released"), *BundleInfo->BundleNameString);
 				continue;
 			}
 
-			if (GetBundleStatus(*BundleInfo) == EBundleState::NotInstalled)
+			if (!bIsReserved && GetBundleStatus(*BundleInfo) == EBundleState::NotInstalled)
 			{
 				RetInfo.InfoFlags |= EInstallBundleRequestInfoFlags::SkippedAlreadyRemovedBundles;
 				LOG_INSTALL_BUNDLE_MAN_OVERRIDE(LogVerbosityOverride, Verbose, TEXT("BundlesToRelease Bundle %s  - Already Removed"), *BundleInfo->BundleNameString);

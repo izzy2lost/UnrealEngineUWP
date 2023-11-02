@@ -141,97 +141,6 @@ namespace UE::GameFeatures
 	}
 #undef GAME_FEATURE_PLUGIN_PROTOCOL_PREFIX
 
-	namespace CommonErrorCodes
-	{
-		const FText Generic_FatalError = NSLOCTEXT("GameFeatures", "ErrorCodes.GenericFatalError", "A fatal error has occurred installing the game feature. An update to the application may be needed. Please check for updates and restart the application.");
-		const FText Generic_ConnectionError = NSLOCTEXT("GameFeatures", "ErrorCodes.ConnectionGenericError", "An internet connection error has occurred. Please try again later.");
-		const FText Generic_MountError = NSLOCTEXT("GameFeatures", "ErrorCodes.MountGenericError", "An error has occurred loading data for this game feature. Please try again later.");
-
-		const FText BundleResult_NeedsUpdate = NSLOCTEXT("GameFeatures", "ErrorCodes.BundleResult.NeedsUpdate", "An application update is required to install this game feature. Please restart the application after downloading any required updates.");
-		const FText BundleResult_NeedsCacheSpace = NSLOCTEXT("GameFeatures", "ErrorCodes.BundleResult.NeedsCacheSpace", "Unable to allocate enough space in the cache to install this game feature.");
-		const FText BundleResult_NeedsDiskSpace = NSLOCTEXT("GameFeatures", "ErrorCodes.BundleResult.NeedsDiskSpace", "You do not have enough disk space to install this game feature. Please try again after clearing up disk space.");
-		const FText BundleResult_DownloadCancelled = NSLOCTEXT("GameFeatures", "ErrorCodes.BundleResult.DownloadCancelled", "This game feature download was canceled.");
-
-		const FText ReleaseResult_Generic = NSLOCTEXT("GameFeatures", "ErrorCodes.ReleaseResult.Generic", "There was an error uninstalling the content for this game feature. Please restart the application and try again.");
-		const FText ReleaseResult_Cancelled = NSLOCTEXT("GameFeatures", "ErrorCodes.ReleaseResult.Cancelled", "This game feature uninstall was canceled.");
-
-		static const FText& GetErrorTextForBundleResult(EInstallBundleResult ErrorResult)
-		{
-			switch (ErrorResult)
-			{
-				//These errors mean an app update is available that we either don't have or failed to get.
-				case EInstallBundleResult::FailedPrereqRequiresLatestClient:
-				case EInstallBundleResult::FailedPrereqRequiresLatestContent:
-				{
-					return BundleResult_NeedsUpdate;
-				}
-
-
-				//These are generally unrecoverable and mean something is seriously wrong with the data for this build
-				case EInstallBundleResult::InitializationError:
-				{
-					return Generic_FatalError;
-				}
-
-				//Not enough space in cache to install the files
-				case EInstallBundleResult::FailedCacheReserve:
-				{
-					return BundleResult_NeedsCacheSpace;
-				}
-
-				//All of these are indicative of not having enough disk space to install the required files
-				case EInstallBundleResult::InstallerOutOfDiskSpaceError:
-				case EInstallBundleResult::ManifestArchiveError:
-				{
-					return BundleResult_NeedsDiskSpace;
-				}
-
-				case EInstallBundleResult::UserCancelledError:
-				{
-					return BundleResult_DownloadCancelled;
-				}
-
-				//Intentionally just show generic error for all these cases
-				case EInstallBundleResult::InstallError:
-				case EInstallBundleResult::ConnectivityError:
-				case EInstallBundleResult::InitializationPending:
-				{
-					return Generic_ConnectionError;
-				}
-
-				//Show generic error for anything missing but log an error
-				default:
-				{
-					UE_LOG(LogGameFeatures, Error, TEXT("Missing error text for EInstallBundleResult %s"), LexToString(ErrorResult));
-					return Generic_ConnectionError;
-				}
-			}
-		}
-
-		static const FText& GetErrorTextForReleaseResult(EInstallBundleReleaseResult ErrorResult)
-		{
-			switch (ErrorResult)
-			{
-				case (EInstallBundleReleaseResult::UserCancelledError):
-				{
-					return ReleaseResult_Cancelled;
-				}
-			
-				case (EInstallBundleReleaseResult::ManifestArchiveError):
-				{
-					return ReleaseResult_Generic;
-				}
-
-				default:
-				{
-					//Show generic error for anything missing but log an error
-					UE_LOG(LogGameFeatures, Error, TEXT("Missing error text for EInstallBundleReleaseResult %s"), LexToString(ErrorResult));
-					return ReleaseResult_Generic;
-				}
-			}
-		}
-	};
-
 	static bool bRealtimeMode = false;
 
 	class FRealtimeMode : public TSharedFromThis<FRealtimeMode>
@@ -1119,7 +1028,7 @@ struct FBaseDataReleaseGameFeaturePluginState : public FGameFeaturePluginState
 		{
 			const FStringView ShortUrl = StateProperties.PluginIdentifier.GetIdentifyingString();
 			ensureMsgf(false, TEXT("Unable to enqueue uninstall for the PluginURL(%.*s) because failed to resolve install bundles!"), ShortUrl.Len(), ShortUrl.GetData());
-			Result = GetErrorResult(TEXT("BundleManager.Begin."), TEXT("Resolve_Failed"), UE::GameFeatures::CommonErrorCodes::ReleaseResult_Generic);
+			Result = GetErrorResult(TEXT("BundleManager.Begin."), TEXT("Resolve_Failed"), UE::GameFeatures::CommonErrorCodes::GetGenericReleaseResult());
 
 			return;
 		}
@@ -1386,7 +1295,7 @@ struct FGameFeaturePluginState_Downloading : public FGameFeaturePluginState
 		{
 			const FStringView ShortUrl = StateProperties.PluginIdentifier.GetIdentifyingString();
 			ensureMsgf(false, TEXT("Unable to enqueue download for the PluginURL(%.*s) because failed to resolve install bundles!"), ShortUrl.Len(), ShortUrl.GetData());
-			Result = GetErrorResult(TEXT("BundleManager.GotState."), TEXT("Resolve_Failed"), UE::GameFeatures::CommonErrorCodes::Generic_ConnectionError);
+			Result = GetErrorResult(TEXT("BundleManager.GotState."), TEXT("Resolve_Failed"), UE::GameFeatures::CommonErrorCodes::GetGenericConnectionError());
 			
 			UpdateStateMachineImmediate();
 			return;
@@ -1766,7 +1675,7 @@ struct FGameFeaturePluginState_Unmounting : public FGameFeaturePluginState
 		{
 			const FStringView ShortUrl = StateProperties.PluginIdentifier.GetIdentifyingString();
 			ensureMsgf(false, TEXT("Unable to enqueue unmount for the PluginURL(%.*s) because failed to resolve install bundles!"), ShortUrl.Len(), ShortUrl.GetData());
-			Result = GetErrorResult(TEXT("BundleManager.Begin."), TEXT("Cannot_Resolve"), UE::GameFeatures::CommonErrorCodes::Generic_ConnectionError);
+			Result = GetErrorResult(TEXT("BundleManager.Begin."), TEXT("Cannot_Resolve"), UE::GameFeatures::CommonErrorCodes::GetGenericConnectionError());
 			return;
 		}
 
@@ -3593,7 +3502,7 @@ FString FInstallBundlePluginProtocolMetaData::ToString() const
 	return ReturnedString;
 }
 
-bool FInstallBundlePluginProtocolMetaData::FromString(const FString& URLString, FInstallBundlePluginProtocolMetaData& Metadata)
+bool FInstallBundlePluginProtocolMetaData::FromString(FStringView URLString, FInstallBundlePluginProtocolMetaData& Metadata)
 {
 	bool bParseSuccess = true;
 
@@ -3604,7 +3513,7 @@ bool FInstallBundlePluginProtocolMetaData::FromString(const FString& URLString, 
 
 	if (URLOptions.Num() > 0)
 	{
-		ensureAlwaysMsgf(URLOptions[0].StartsWith(UE::GameFeatures::GameFeaturePluginProtocolPrefix(EGameFeaturePluginProtocol::InstallBundle)), TEXT("Unexpected URL Format! Expected Protocol and uplugin information at the beginning of the URL %s"), *URLString);
+		ensureAlwaysMsgf(URLOptions[0].StartsWith(UE::GameFeatures::GameFeaturePluginProtocolPrefix(EGameFeaturePluginProtocol::InstallBundle)), TEXT("Unexpected URL Format! Expected Protocol and uplugin information at the beginning of the URL %.*s"), URLString.Len(), URLString.GetData());
 
 		//Parse through our URLOptions. Start at ParsingIndex 1 as option 0 should always be the .uplugin path that doesn't contain metadata
 		for (int ParsingIndex = 1; ParsingIndex < URLOptions.Num(); ++ParsingIndex)
@@ -3626,7 +3535,7 @@ bool FInstallBundlePluginProtocolMetaData::FromString(const FString& URLString, 
 						if (OptionStrings.Num() != 2)
 						{
 							bParseSuccess = false;
-							UE_LOG(LogGameFeatures, Error, TEXT("Error parsing InstallBundle protocol options URL %s . No Valid Bundle List Found!"), *URLString);
+							UE_LOG(LogGameFeatures, Error, TEXT("Error parsing InstallBundle protocol options URL %.*s. No Valid Bundle List Found!"), URLString.Len(), URLString.GetData());
 						}
 						else
 						{
@@ -3652,7 +3561,7 @@ bool FInstallBundlePluginProtocolMetaData::FromString(const FString& URLString, 
 					default:
 					{
 						bParseSuccess = false;
-						UE_LOG(LogGameFeatures, Error, TEXT("Error parsing InstallBundle protocol options for URL %s . Unknown Option %.*s"), *URLString, URLOption.Len(), URLOption.GetData());
+						UE_LOG(LogGameFeatures, Error, TEXT("Error parsing InstallBundle protocol options for URL %.*s. Unknown Option %.*s"), URLString.Len(), URLString.GetData(), URLOption.Len(), URLOption.GetData());
 
 						break;
 					}
@@ -3664,7 +3573,7 @@ bool FInstallBundlePluginProtocolMetaData::FromString(const FString& URLString, 
 	if (Metadata.InstallBundles.Num() == 0)
 	{
 		bParseSuccess = false;
-		UE_LOG(LogGameFeatures, Error, TEXT("Error parsing InstallBundle protocol options URL %s . No Bundle List Found!"), *URLString);
+		UE_LOG(LogGameFeatures, Error, TEXT("Error parsing InstallBundle protocol options URL %.*s. No Bundle List Found!"), URLString.Len(), URLString.GetData());
 	}
 
 	static_assert(static_cast<uint8>(EGameFeatureInstallBundleProtocolOptions::Count) == 1, "Update this function to handle the newly added EGameFeatureInstallBundleProtocolOptions value!");

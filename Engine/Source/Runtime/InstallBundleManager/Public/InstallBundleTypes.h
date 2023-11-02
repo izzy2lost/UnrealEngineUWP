@@ -124,7 +124,7 @@ enum class EInstallBundleRequestInfoFlags : int32
 };
 ENUM_CLASS_FLAGS(EInstallBundleRequestInfoFlags);
 
-enum class EInstallBundleResult : int
+enum class EInstallBundleResult : uint32
 {
 	OK,
 	FailedPrereqRequiresLatestClient,
@@ -156,7 +156,7 @@ enum class EInstallBundleRequestFlags : uint32
 };
 ENUM_CLASS_FLAGS(EInstallBundleRequestFlags)
 
-enum class EInstallBundleReleaseResult
+enum class EInstallBundleReleaseResult : uint32
 {
 	OK,
 	ManifestArchiveError,

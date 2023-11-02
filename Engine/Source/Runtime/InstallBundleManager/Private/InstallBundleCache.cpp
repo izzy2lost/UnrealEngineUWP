@@ -266,6 +266,17 @@ bool FInstallBundleCache::Contains(EInstallBundleSourceType Source, FName Bundle
 	return false;
 }
 
+bool FInstallBundleCache::IsReserved(FName BundleName) const
+{
+	const FBundleCacheInfo* BundleInfo = CacheInfo.Find(BundleName);
+	if (BundleInfo)
+	{
+		return BundleInfo->State == ECacheState::Reserved;
+	}
+
+	return false;
+}
+
 bool FInstallBundleCache::Release(FName BundleName)
 {
 	CSV_SCOPED_TIMING_STAT(InstallBundleManager, FInstallBundleCache_Release);

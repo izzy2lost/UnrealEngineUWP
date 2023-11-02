@@ -4,6 +4,7 @@
 #include "Algo/TopologicalSort.h"
 #include "AssetRegistry/AssetData.h"
 #include "AssetRegistry/IAssetRegistry.h"
+#include "BundlePrereqCombinedStatusHelper.h"
 #include "Dom/JsonValue.h"
 #include "GameFeaturesSubsystemSettings.h"
 #include "GameFeaturesProjectPolicies.h"
@@ -12,6 +13,7 @@
 #include "GameFeatureStateChangeObserver.h"
 #include "GameplayTagsManager.h"
 #include "Interfaces/IPluginManager.h"
+#include "Logging/StructuredLog.h"
 #include "Misc/App.h"
 #include "Misc/PackageName.h"
 #include "Misc/Paths.h"
@@ -1956,6 +1958,317 @@ void UGameFeaturesSubsystem::PruneCachedGameFeaturePluginDetails(const FString& 
 	CachedPluginDetailsByFilename.Remove(PluginDescriptorFilename);
 }
 
+struct FGameFeaturePluginPredownloadContext : public FGameFeaturePluginPredownloadHandle
+{
+	const FStringView PredownloadErrorNamespace = TEXTVIEW("GameFeaturePlugin.Predownload.");
+	TMap<FGameFeaturePluginIdentifier, FInstallBundlePluginProtocolMetaData> GFPs;
+	TArray<FName> PendingBundleDownloads;
+	TOptional<FInstallBundleCombinedProgressTracker> ProgressTracker;
+	TUniqueFunction<void(const UE::GameFeatures::FResult&)> OnComplete;
+	TUniqueFunction<void(float)> OnProgress;
+	UE::GameFeatures::FResult Result = MakeValue();
+	float Progress = 0.0f;
+	bool bIsComplete = false;
+	bool bCanceled = false;
+
+	virtual ~FGameFeaturePluginPredownloadContext() override
+	{
+		Cleanup();
+	}
+
+	virtual bool IsComplete() const override
+	{
+		return bIsComplete;
+	}
+
+	virtual const UE::GameFeatures::FResult& GetResult() const override
+	{
+		return Result;
+	}
+
+	virtual float GetProgress() const override
+	{
+		return Progress;
+	}
+
+	virtual void Cancel() override
+	{
+		bCanceled = true;
+
+		if (PendingBundleDownloads.Num() > 0)
+		{
+			TSharedPtr<IInstallBundleManager> BundleManager = IInstallBundleManager::GetPlatformInstallBundleManager();
+			if (BundleManager)
+			{
+				BundleManager->CancelUpdateContent(PendingBundleDownloads);
+			}
+		}
+	}
+
+	void Cleanup()
+	{
+		ProgressTracker.Reset();
+		IInstallBundleManager::InstallBundleCompleteDelegate.RemoveAll(this);
+		IInstallBundleManager::PausedBundleDelegate.RemoveAll(this);
+	}
+
+	void SetComplete()
+	{
+		bIsComplete = true;
+		if (OnComplete)
+		{
+			OnComplete(Result);
+		}
+	}
+
+	void SetComplete(UE::GameFeatures::FResult&& InResult)
+	{
+		Result = MoveTemp(InResult);
+		bIsComplete = true;
+		if (OnComplete)
+		{
+			OnComplete(Result);
+		}
+	}
+
+	void SetCompleteCanceled()
+	{
+		Result = MakeError(FString::Printf(TEXT("%.*s%s"),
+			PredownloadErrorNamespace.Len(), PredownloadErrorNamespace.GetData(),
+			TEXT("Canceled")));
+		bIsComplete = true;
+		if (OnComplete)
+		{
+			OnComplete(Result);
+		}
+	}
+
+	void Start(TConstArrayView<FString> PluginURLs)
+	{
+		if (bCanceled)
+		{
+			SetCompleteCanceled();
+			return;
+		}
+
+		for (const FString& URL : PluginURLs)
+		{
+			if (UGameFeaturesSubsystem::GetPluginURLProtocol(URL) != EGameFeaturePluginProtocol::InstallBundle)
+			{
+				// Only support install bundle protocol for downloading right now
+				continue;
+			}
+
+			FInstallBundlePluginProtocolMetaData InstallBundleOptions;
+			const bool bParsedBundles = FInstallBundlePluginProtocolMetaData::FromString(URL, InstallBundleOptions);
+			if (!bParsedBundles)
+			{
+				UE_LOGFMT(LogGameFeatures, Error, "GFP Predownload failed to parse URL {URL}", ("URL", URL));
+				UE::GameFeatures::FResult ErrorResult = MakeError(FString::Printf(TEXT("%.*s%s"),
+					PredownloadErrorNamespace.Len(), PredownloadErrorNamespace.GetData(),
+					TEXT("BadUrl")));
+				SetComplete(MoveTemp(ErrorResult));
+				return;
+			}
+
+			GFPs.Emplace(URL, MoveTemp(InstallBundleOptions));
+		}
+
+		if (GFPs.Num() == 0)
+		{
+			SetComplete(MakeValue());
+			return;
+		}
+
+		UGameFeaturesSubsystem& GFPSubSys = UGameFeaturesSubsystem::Get();
+
+		TArray<FName> BundlesToInstall;
+		for (const TPair<FGameFeaturePluginIdentifier, FInstallBundlePluginProtocolMetaData>& Pair : GFPs)
+		{
+			UGameFeaturePluginStateMachine* Machine = GFPSubSys.FindGameFeaturePluginStateMachine(Pair.Key);
+			if (Machine && Machine->GetDestination() < EGameFeaturePluginState::Installed)
+			{
+				// Existing machine exists and wants to be uninstalled, can't precache
+				UE_LOGFMT(LogGameFeatures, Error, "GFP Predownload failed because a GFP is unloading, GFP: {GFP}", ("GFP", Machine->GetPluginName()));
+				UE::GameFeatures::FResult ErrorResult = MakeError(FString::Printf(TEXT("%.*s%s"),
+					PredownloadErrorNamespace.Len(), PredownloadErrorNamespace.GetData(),
+					TEXT("GFPUnloading")));
+				SetComplete(MoveTemp(ErrorResult));
+				return;
+			}
+
+			BundlesToInstall.Append(Pair.Value.InstallBundles);
+		}
+
+		TSharedPtr<IInstallBundleManager> BundleManager = IInstallBundleManager::GetPlatformInstallBundleManager();
+		if (!BundleManager)
+		{
+			UE_LOGFMT(LogGameFeatures, Error, "GFP Predownload failed, no Install Bundle Manager found.");
+			UE::GameFeatures::FResult ErrorResult = MakeError(FString::Printf(TEXT("%.*s%s"),
+				PredownloadErrorNamespace.Len(), PredownloadErrorNamespace.GetData(),
+				TEXT("BundleManager_Null")));
+			SetComplete(MoveTemp(ErrorResult));
+			return;
+		}
+
+		BundleManager->GetContentState(BundlesToInstall, EInstallBundleGetContentStateFlags::None, false,
+			FInstallBundleGetContentStateDelegate::CreateLambda([Context = SharedThis(this)](FInstallBundleCombinedContentState BundleContentState)
+			{ Context->OnGotContentState(MoveTemp(BundleContentState)); }));
+	}
+
+	void OnGotContentState(FInstallBundleCombinedContentState BundleContentState)
+	{
+		TSharedPtr<IInstallBundleManager> BundleManager = IInstallBundleManager::GetPlatformInstallBundleManager();
+
+		if (BundleContentState.GetAllBundlesHaveState(EInstallBundleInstallState::UpToDate))
+		{
+			SetComplete(MakeValue());
+			return;
+		}
+
+		if (bCanceled)
+		{
+			SetCompleteCanceled();
+			return;
+		}
+
+		TArray<FName> BundlesToInstall;
+		for (const TPair<FGameFeaturePluginIdentifier, FInstallBundlePluginProtocolMetaData>& Pair : GFPs)
+		{
+			BundlesToInstall.Append(Pair.Value.InstallBundles);
+		}
+
+		EInstallBundleRequestFlags InstallFlags = EInstallBundleRequestFlags::Defaults | EInstallBundleRequestFlags::SkipMount;
+		TValueOrError<FInstallBundleRequestInfo, EInstallBundleResult> MaybeRequestInfo = BundleManager->RequestUpdateContent(BundlesToInstall, InstallFlags);
+
+		if (MaybeRequestInfo.HasError())
+		{
+			UE_LOGFMT(LogGameFeatures, Error, "GFP Predownload failed to request content, Error: {Error}", ("Error", LexToString(MaybeRequestInfo.GetError())));
+			UE::GameFeatures::FResult ErrorResult = MakeError(FString::Printf(TEXT("%.*s%s"),
+				PredownloadErrorNamespace.Len(), PredownloadErrorNamespace.GetData(),
+				LexToString(MaybeRequestInfo.GetError())));
+			SetComplete(MoveTemp(ErrorResult));
+			return;
+		}
+
+		FInstallBundleRequestInfo RequestInfo = MaybeRequestInfo.StealValue();
+		if (RequestInfo.BundlesEnqueued.Num() == 0)
+		{
+			SetComplete(MakeValue());
+			return;
+		}
+
+		PendingBundleDownloads = MoveTemp(RequestInfo.BundlesEnqueued);
+
+		ProgressTracker.Emplace(true, [this](const FInstallBundleCombinedProgressTracker::FCombinedProgress& InProgress)
+		{
+			Progress = InProgress.ProgressPercent;
+			if (OnProgress)
+			{
+				OnProgress(InProgress.ProgressPercent);
+			}
+		});
+		ProgressTracker->SetBundlesToTrackFromContentState(BundleContentState, PendingBundleDownloads);
+
+		IInstallBundleManager::InstallBundleCompleteDelegate.AddLambda(
+			[Context = SharedThis(this)](FInstallBundleRequestResultInfo BundleResult)
+			{ Context->OnInstallBundleCompleted(MoveTemp(BundleResult)); });
+		// TODO: handle pause?  Just cancel? This should only be relevent for cell connections
+		// IInstallBundleManager::PausedBundleDelegate.AddRaw(this, &FGameFeaturePluginState_Downloading::OnInstallBundlePaused);
+	}
+
+	void OnInstallBundleCompleted(FInstallBundleRequestResultInfo BundleResult)
+	{
+		if (!PendingBundleDownloads.Contains(BundleResult.BundleName))
+		{
+			return;
+		}
+
+		PendingBundleDownloads.Remove(BundleResult.BundleName);
+
+		if (Result.HasValue() && BundleResult.Result != EInstallBundleResult::OK)
+		{
+			if (BundleResult.OptionalErrorCode.IsEmpty())
+			{
+				UE_LOGFMT(LogGameFeatures, Error, "GFP Predownload failed to install {Bundle}, Error: {Error}",
+					("Bundle", BundleResult.BundleName), ("Error", LexToString(BundleResult.Result)));
+			}
+			else
+			{
+				UE_LOGFMT(LogGameFeatures, Error, "GFP Predownload failed to install {Bundle}, Error: {Error}",
+					("Bundle", BundleResult.BundleName), ("Error", BundleResult.OptionalErrorCode));
+			}
+
+			//Use OptionalErrorCode and/or OptionalErrorText if available
+			const FString ErrorCodeEnding = (BundleResult.OptionalErrorCode.IsEmpty()) ? LexToString(BundleResult.Result) : BundleResult.OptionalErrorCode;
+			FText ErrorText = BundleResult.OptionalErrorCode.IsEmpty() ? UE::GameFeatures::CommonErrorCodes::GetErrorTextForBundleResult(BundleResult.Result) : BundleResult.OptionalErrorText;
+			Result = UE::GameFeatures::FResult(
+				MakeError(FString::Printf(TEXT("%.*s%s"), PredownloadErrorNamespace.Len(), PredownloadErrorNamespace.GetData(), *ErrorCodeEnding)),
+				MoveTemp(ErrorText)
+			);
+
+			// Cancel remaining downloads
+			TSharedPtr<IInstallBundleManager> BundleManager = IInstallBundleManager::GetPlatformInstallBundleManager();
+			BundleManager->CancelUpdateContent(PendingBundleDownloads);
+		}
+
+		if (PendingBundleDownloads.Num() > 0)
+		{
+			return;
+		}
+
+		// Delay call to ReleaseBundlesIfPossible. We don't want to release them from within the complete callback.
+		FTSTicker::GetCoreTicker().AddTicker(
+			FTickerDelegate::CreateLambda([Context = SharedThis(this)](float)
+			{
+				Context->ReleaseBundlesIfPossible();
+
+				// Done
+				Context->SetComplete();
+
+				Context->Cleanup();
+				return false;
+			})
+		);
+	}
+
+	// Predownload shouldn't pin any cached bundles so release them now
+	void ReleaseBundlesIfPossible()
+	{
+		UGameFeaturesSubsystem& GFPSubSys = UGameFeaturesSubsystem::Get();
+		TSharedPtr<IInstallBundleManager> BundleManager = IInstallBundleManager::GetPlatformInstallBundleManager();
+
+		TArray<FName> ReleaseList;
+		TArray<FName> KeepList;
+		for (const TPair<FGameFeaturePluginIdentifier, FInstallBundlePluginProtocolMetaData>& Pair : GFPs)
+		{
+			UGameFeaturePluginStateMachine* Machine = GFPSubSys.FindGameFeaturePluginStateMachine(Pair.Key);
+			if (Machine &&
+				Machine->GetCurrentState() > EGameFeaturePluginState::StatusKnown &&
+				Machine->GetCurrentState() != EGameFeaturePluginState::Releasing)
+			{
+				// A machine is using the bundles, don't release
+				KeepList.Append(Pair.Value.InstallBundles);
+				continue;
+			}
+
+			ReleaseList.Append(Pair.Value.InstallBundles);
+		}
+
+		BundleManager->RequestReleaseContent(ReleaseList, EInstallBundleReleaseRequestFlags::None, KeepList);
+	}
+};
+
+TSharedRef<FGameFeaturePluginPredownloadHandle> UGameFeaturesSubsystem::PredownloadGameFeaturePlugins(TConstArrayView<FString> PluginURLs, TUniqueFunction<void(const UE::GameFeatures::FResult&)> OnComplete /*= nullptr*/, TUniqueFunction<void(float)> OnProgress /*= nullptr*/)
+{
+	TSharedRef<FGameFeaturePluginPredownloadContext> Context = MakeShared<FGameFeaturePluginPredownloadContext>();
+	Context->OnComplete = MoveTemp(OnComplete);
+	Context->OnProgress = MoveTemp(OnProgress);
+	Context->Start(PluginURLs);
+
+	return Context;
+}
+
 UGameFeaturePluginStateMachine* UGameFeaturesSubsystem::FindGameFeaturePluginStateMachineByPluginName(const FString& PluginName) const
 {
 	for (auto StateMachineIt = GameFeaturePluginStateMachines.CreateConstIterator(); StateMachineIt; ++StateMachineIt)
@@ -2492,6 +2805,7 @@ void UGameFeaturesSubsystem::FilterInactivePluginAssets(TArray<FAssetData>& Asse
 		return !GameFeaturesSubsystem::IsContentWithinActivePlugin(Asset.GetObjectPathString(), ActivePluginNames);
 	});
 }
+
 EBuiltInAutoState UGameFeaturesSubsystem::DetermineBuiltInInitialFeatureState(TSharedPtr<FJsonObject> Descriptor, const FString& ErrorContext)
 {
 	EBuiltInAutoState InitialState = EBuiltInAutoState::Invalid;

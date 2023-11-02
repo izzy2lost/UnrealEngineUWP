@@ -83,6 +83,8 @@ public:
 	INSTALLBUNDLEMANAGER_API bool Contains(FName BundleName) const;
 	INSTALLBUNDLEMANAGER_API bool Contains(EInstallBundleSourceType Source, FName BundleName) const;
 
+	INSTALLBUNDLEMANAGER_API bool IsReserved(FName BundleName) const;
+
 	// Called from bundle manager to make the files for this bundle eligible for eviction
 	INSTALLBUNDLEMANAGER_API bool Release(FName BundleName);
 

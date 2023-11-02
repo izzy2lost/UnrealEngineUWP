@@ -260,6 +260,15 @@ struct FBuiltInGameFeaturePluginBehaviorOptions
 	bool bForceSyncLoading = false;
 };
 
+struct FGameFeaturePluginPredownloadHandle : public TSharedFromThis<FGameFeaturePluginPredownloadHandle>
+{
+	virtual ~FGameFeaturePluginPredownloadHandle() {}
+	virtual bool IsComplete() const = 0;
+	virtual const UE::GameFeatures::FResult& GetResult() const = 0;
+	virtual float GetProgress() const = 0;
+	virtual void Cancel() = 0;
+};
+
 /** Struct used to transform a GameFeaturePlugin URL into something that can uniquely identify the GameFeaturePlugin
     without including any transient data being passed in through the URL */
 USTRUCT()
@@ -572,6 +581,13 @@ public:
 
 	/** Gets relevant properties out of a uplugin file if it's installed */
 	bool GetGameFeaturePluginDetails(FString PluginURL, struct FGameFeaturePluginDetails& OutPluginDetails) const;
+
+	/** 
+	 * Pre-install any required game feature data, which can be useful for larger payloads. 
+	 * This does not instantiate any GFP although it is safe to do so before this finishes. 
+	*/
+	TSharedRef<FGameFeaturePluginPredownloadHandle> PredownloadGameFeaturePlugins(TConstArrayView<FString> PluginURLs, TUniqueFunction<void(const UE::GameFeatures::FResult&)> OnComplete = nullptr, TUniqueFunction<void(float)> OnProgress = nullptr);
+	friend struct FGameFeaturePluginPredownloadContext;
 
 	/** Determine the initial feature state for a built-in plugin */
 	static EBuiltInAutoState DetermineBuiltInInitialFeatureState(TSharedPtr<FJsonObject> Descriptor, const FString& ErrorContext);
