@@ -11,7 +11,7 @@ FString FRigModuleReference::GetNamespace() const
 	{
 		return Name.ToString() + UModularRig::NamespaceSeparator;
 	}
-	return ParentNamespace + UModularRig::NamespaceSeparator + Name.ToString() + UModularRig::NamespaceSeparator;
+	return ParentNamespace + Name.ToString() + UModularRig::NamespaceSeparator;
 }
 
 UModularRigController* FModularRigModel::GetController(bool bCreateIfNeeded)
