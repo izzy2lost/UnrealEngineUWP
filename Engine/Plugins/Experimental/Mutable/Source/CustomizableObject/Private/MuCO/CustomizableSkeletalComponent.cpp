@@ -19,7 +19,12 @@ void UCustomizableSkeletalComponent::CreateCustomizableObjectInstanceUsage()
 		}
 	}
 
-	if (!CustomizableObjectInstanceUsage && !HasAnyFlags(RF_ClassDefaultObject))
+	AActor* RootActor = GetAttachmentRootActor();
+	bool bIsDefaultActor = RootActor ?
+		RootActor->HasAnyFlags(RF_ClassDefaultObject) :
+		false;
+
+	if (!CustomizableObjectInstanceUsage && !HasAnyFlags(RF_ClassDefaultObject) && !bIsDefaultActor)
 	{
 		CustomizableObjectInstanceUsage = NewObject<UCustomizableObjectInstanceUsage>(this, TEXT("InstanceUsage"), RF_Transient);
 		CustomizableObjectInstanceUsage->CustomizableSkeletalComponent = this;

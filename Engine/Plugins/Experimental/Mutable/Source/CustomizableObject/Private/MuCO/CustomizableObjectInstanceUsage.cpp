@@ -18,6 +18,14 @@
 #include "Stats/Stats.h"
 
 
+ETickableTickType UCustomizableObjectInstanceUsage::GetTickableTickType() const
+{ 
+	return (HasAnyFlags(RF_ClassDefaultObject))
+		? ETickableTickType::Never
+		: ETickableTickType::Always;
+}
+
+
 void UCustomizableObjectInstanceUsage::Callbacks() const
 {
 	if (CustomizableSkeletalComponent)
