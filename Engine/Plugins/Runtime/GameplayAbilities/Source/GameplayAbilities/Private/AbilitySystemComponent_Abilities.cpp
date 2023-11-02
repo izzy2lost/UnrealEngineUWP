@@ -3291,7 +3291,7 @@ void UAbilitySystemComponent::ServerCurrentMontageSetNextSectionName_Implementat
 	if (AnimInstance)
 	{
 		UAnimMontage* CurrentAnimMontage = LocalAnimMontageInfo.AnimMontage;
-		if (ClientAnimMontage == CurrentAnimMontage)
+		if (CurrentAnimMontage && ClientAnimMontage == CurrentAnimMontage)
 		{
 			// Set NextSectionName
 			AnimInstance->Montage_SetNextSection(SectionName, NextSectionName, CurrentAnimMontage);
