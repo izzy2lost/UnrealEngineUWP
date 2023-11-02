@@ -353,7 +353,8 @@ bool FWorldConditionQuerySharedDefinition::Link(const UObject* Outer)
 				*GetNameSafe(Outer));
 			return false;
 		}
-		
+		Condition->ConditionIndex = Index;
+
 		if (auto* StateStruct = Condition->GetRuntimeStateType(); StateStruct && *StateStruct)
 		{
 			int32 StructMinAlignment = 0;
