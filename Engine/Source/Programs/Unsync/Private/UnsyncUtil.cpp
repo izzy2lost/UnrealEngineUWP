@@ -136,10 +136,12 @@ ConvertUtf8ToWide(std::string_view StringUtf8)
 
 	if (IsTrivialAsciiString(StringUtf8))
 	{
-		Result.reserve(StringUtf8.length());
+		Result.resize(StringUtf8.length());
+		wchar_t* ResultChars = Result.data();
 		for (char c : StringUtf8)
 		{
-			Result.push_back((wchar_t)c);
+			*ResultChars = (wchar_t)c;
+			++ResultChars;
 		}
 	}
 	else
@@ -159,10 +161,12 @@ ConvertWideToUtf8(std::wstring_view StringWide, std::string& Result)
 
 	if (IsTrivialAsciiString(StringWide))
 	{
-		Result.reserve(StringWide.length());
+		Result.resize(StringWide.length());
+		char* ResultChars = Result.data();
 		for (wchar_t wc : StringWide)
 		{
-			Result.push_back((char)wc);
+			*ResultChars = (char)wc;
+			++ResultChars;
 		}
 	}
 	else

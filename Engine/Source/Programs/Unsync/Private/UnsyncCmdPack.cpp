@@ -70,12 +70,11 @@ BuildP4HaveSet(const FPath& Root, std::string_view P4HaveDataUtf8, FDirectoryMan
 		}
 
 		FFileManifest FileManifest;
-		FileManifest.CurrentPath = std::move(LocalPath);
+		FileManifest.CurrentPath			 = std::move(LocalPath);
+		FileManifest.RevisionControlIdentity = std::move(DepotPathUtf8);
 
 		std::wstring RelativePathStr = RelativePath.wstring();
 		Result.insert(std::make_pair(std::move(RelativePathStr), FileManifest));
-
-		UNSYNC_UNUSED(DepotPathUtf8);  // perhaps we should store this too?
 	};
 
 	ForLines(P4HaveDataUtf8, Callback);
@@ -295,7 +294,7 @@ CmdPack(const FCmdPackOptions& Options)
 
 		UNSYNC_LOG(L"Loaded entries from p4 manifest: %llu", llu(DirectoryManifest.Files.size()));
 
-		UNSYNC_LOG(L"Reading file attributes");
+		UNSYNC_LOG(L"Updating file attributes");
 		auto UpdateFileMetadata = [](std::pair<const std::wstring, FFileManifest>& It)
 		{
 			FFileAttributes Attrib = GetFileAttrib(It.second.CurrentPath);
@@ -370,35 +369,20 @@ CmdPack(const FCmdPackOptions& Options)
 	BlockParams.OnBlockGenerated = OnBlockGenerated;
 
 	{
-		UNSYNC_LOG(L"Loading previous manifest ")
+		UNSYNC_LOG(L"Loading previous manifest ");
 		FDirectoryManifest OldManifest;
 		if (PathExists(DirectoryManifestPath) && LoadDirectoryManifest(OldManifest, InputRoot, DirectoryManifestPath))
 		{
-			UNSYNC_LOG(L"Previous manifest loaded")
-
-			BlockParams.Algorithm = OldManifest.Algorithm;
-
-			FDirectoryManifest& NewManifest = DirectoryManifest;
+			UNSYNC_LOG(L"Previous manifest loaded");
 
 			// Copy file blocks from old manifest, if possible
-			for (auto& NewManifestFileEntry : NewManifest.Files)
+			if (AlgorithmOptionsCompatible(DirectoryManifest.Algorithm, OldManifest.Algorithm))
 			{
-				const std::wstring& FileName			 = NewManifestFileEntry.first;
-				auto				OldManifestFileEntry = OldManifest.Files.find(FileName);
-				if (OldManifestFileEntry == OldManifest.Files.end())
-				{
-					continue;
-				}
-
-				FFileManifest& NewEntry = NewManifestFileEntry.second;
-				FFileManifest& OldEntry = OldManifestFileEntry->second;
-
-				if (NewEntry.Mtime == OldEntry.Mtime && NewEntry.Size == OldEntry.Size)
-				{
-					NewEntry.Blocks		 = std::move(OldEntry.Blocks);
-					NewEntry.MacroBlocks = std::move(OldEntry.MacroBlocks);
-					NewEntry.BlockSize	 = OldEntry.BlockSize;
-				}
+				MoveCompatibleManifestBlocks(DirectoryManifest, std::move(OldManifest));
+			}
+			else
+			{
+				UNSYNC_LOG(L"Incremental file block generation is not possible due to algorithm options mismatch");
 			}
 		}
 	}

@@ -360,6 +360,42 @@ SaveFileReadOnlyMask(const FDirectoryManifest& Manifest)
 	return Result;
 }
 
+static FBuffer
+SaveFileRevisionControl(const FDirectoryManifest& Manifest)
+{
+	FBuffer			 Result;
+	FVectorStreamOut Writer(Result);
+
+	const uint64 NumFiles = Manifest.Files.size();
+	Writer.WriteT(NumFiles);
+	for (const auto& FileIt : Manifest.Files)
+	{
+		Writer.WriteString(FileIt.second.RevisionControlIdentity);
+	}
+
+	return Result;
+}
+
+
+std::vector<std::string>
+LoadFileRevisionControl(FIOReaderStream& Reader, FSerializedSectionHeader Header)
+{
+	std::vector<std::string> Result;
+
+	uint64 NumFiles = 0;
+	Serialize(Reader, NumFiles);
+
+	Result.resize(NumFiles);
+
+	for (uint64 FileIndex = 0; FileIndex < NumFiles; ++FileIndex)
+	{
+		Serialize(Reader, Result[FileIndex]);
+	}
+
+	return Result;
+}
+
+
 bool  // TODO: return a TResult
 LoadDirectoryManifest(FDirectoryManifest& OutManifest, const FPath& Root, FIOReaderStream& Stream)
 {
@@ -410,6 +446,7 @@ LoadDirectoryManifest(FDirectoryManifest& OutManifest, const FPath& Root, FIORea
 	std::unordered_map<FHash256, FGenericBlockArray> MacroBlocks;
 
 	FBuffer FileReadOnlyMask;
+	std::vector<std::string> FileRevisions; // TODO: use linear arena to store all strings for a manifest
 
 	if (Version >= FDirectoryManifest::EVersions::V7_OptionalSections)
 	{
@@ -448,6 +485,12 @@ LoadDirectoryManifest(FDirectoryManifest& OutManifest, const FPath& Root, FIORea
 					case SERIALIZED_SECTION_ID_FILE_READ_ONLY_MASK:
 						{
 							FileReadOnlyMask = LoadFileReadOnlyMask(Stream, SectionHeader);
+							break;
+						}
+					case SERIALIZED_SECTION_ID_FILE_REVISION_CONTROL:
+						{
+							FileRevisions = LoadFileRevisionControl(Stream, SectionHeader);
+							OutManifest.bHasFileRevisionControl = true;
 							break;
 						}
 					case SERIALIZED_SECTION_ID_TERMINATOR:
@@ -537,6 +580,11 @@ LoadDirectoryManifest(FDirectoryManifest& OutManifest, const FPath& Root, FIORea
 			if (bReadOnlyMaskValid)
 			{
 				FileManifest.bReadOnly = BitArrayGet(FileReadOnlyMask.Data(), FileIndex);
+			}
+
+			if (OutManifest.bHasFileRevisionControl)
+			{
+				FileManifest.RevisionControlIdentity = std::move(FileRevisions[FileIndex]);
 			}
 
 			// Store output
@@ -681,6 +729,12 @@ SaveDirectoryManifest(const FDirectoryManifest& Manifest, FVectorStreamOut& Stre
 	{
 		FBuffer SectionBuffer = SaveFileReadOnlyMask(Manifest);
 		WriteSection<FFileReadOnlyMaskSection>(Stream, SectionBuffer.View());
+	}
+
+	if (Manifest.bHasFileRevisionControl)
+	{
+		FBuffer SectionBuffer = SaveFileRevisionControl(Manifest);
+		WriteSection<FFileRevisionControlSection>(Stream, SectionBuffer.View());
 	}
 
 	// End with the terminator section (default-constructed);

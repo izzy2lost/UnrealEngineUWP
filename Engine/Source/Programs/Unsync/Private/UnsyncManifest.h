@@ -22,6 +22,7 @@ struct FFileManifest
 	FGenericBlockArray Blocks;
 	FGenericBlockArray MacroBlocks;
 	FPath			   CurrentPath;
+	std::string		   RevisionControlIdentity;
 	bool			   bReadOnly = false;
 
 	bool IsValid() const { return Mtime != 0 && Size != 0; }
@@ -68,6 +69,8 @@ struct FDirectoryManifest
 	FAlgorithmOptions Algorithm = {};
 	uint64			  Version	= 0;
 
+	bool bHasFileRevisionControl = false;
+
 	bool IsValid() const { return Version != EVersions::Invalid; }
 };
 
@@ -101,6 +104,8 @@ void			   UpdateDirectoryManifestBlocks(FDirectoryManifest& Result, const FPath&
 FDirectoryManifest CreateDirectoryManifest(const FPath& Root, const FComputeBlocksParams& Params);
 FDirectoryManifest CreateDirectoryManifestIncremental(const FPath& Root, const FComputeBlocksParams& Params);
 bool			   LoadOrCreateDirectoryManifest(FDirectoryManifest& Result, const FPath& Root, const FComputeBlocksParams& Params);
+
+void MoveCompatibleManifestBlocks(FDirectoryManifest& Manifest, FDirectoryManifest&& DonorManifest);
 
 bool AlgorithmOptionsCompatible(const FAlgorithmOptions& A, const FAlgorithmOptions& B);
 

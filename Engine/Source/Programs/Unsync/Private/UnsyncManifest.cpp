@@ -388,6 +388,35 @@ CreateDirectoryManifest(const FPath& Root, const FComputeBlocksParams& Params)
 	return Result;
 }
 
+void
+MoveCompatibleManifestBlocks(FDirectoryManifest& Manifest, FDirectoryManifest&& DonorManifest)
+{
+	if (!AlgorithmOptionsCompatible(Manifest.Algorithm, Manifest.Algorithm))
+	{
+		UNSYNC_ERROR(L"MoveCompatibleManifestBlocks() requires that manifests use compatible block generation settings");
+		return;
+	}
+
+	for (auto& ManifestFileEntry : Manifest.Files)
+	{
+		auto DonorManifestFileEntry = DonorManifest.Files.find(ManifestFileEntry.first);
+		if (DonorManifestFileEntry == DonorManifest.Files.end())
+		{
+			continue;
+		}
+
+		FFileManifest& ResultEntry = ManifestFileEntry.second;
+		FFileManifest& DonorEntry  = DonorManifestFileEntry->second;
+
+		if (ResultEntry.Mtime == DonorEntry.Mtime && ResultEntry.Size == DonorEntry.Size)
+		{
+			ResultEntry.Blocks		= std::move(DonorEntry.Blocks);
+			ResultEntry.MacroBlocks = std::move(DonorEntry.MacroBlocks);
+			ResultEntry.BlockSize	= DonorEntry.BlockSize;
+		}
+	}
+}
+
 FDirectoryManifest
 CreateDirectoryManifestIncremental(const FPath& Root, const FComputeBlocksParams& InParams)
 {
@@ -413,25 +442,7 @@ CreateDirectoryManifestIncremental(const FPath& Root, const FComputeBlocksParams
 	FDirectoryManifest NewManifest = CreateDirectoryManifest(Root, LightweightManifestParams);
 
 	// Copy file blocks from old manifest, if possible
-	for (auto& NewManifestFileEntry : NewManifest.Files)
-	{
-		const std::wstring& FileName			 = NewManifestFileEntry.first;
-		auto				OldManifestFileEntry = OldManifest.Files.find(FileName);
-		if (OldManifestFileEntry == OldManifest.Files.end())
-		{
-			continue;
-		}
-
-		FFileManifest& NewEntry = NewManifestFileEntry.second;
-		FFileManifest& OldEntry = OldManifestFileEntry->second;
-
-		if (NewEntry.Mtime == OldEntry.Mtime && NewEntry.Size == OldEntry.Size)
-		{
-			NewEntry.Blocks		 = std::move(OldEntry.Blocks);
-			NewEntry.MacroBlocks = std::move(OldEntry.MacroBlocks);
-			NewEntry.BlockSize	 = OldEntry.BlockSize;
-		}
-	}
+	MoveCompatibleManifestBlocks(NewManifest, std::move(OldManifest));
 
 	// Generate blocks for changed or new files
 	UpdateDirectoryManifestBlocks(NewManifest, Root, Params);

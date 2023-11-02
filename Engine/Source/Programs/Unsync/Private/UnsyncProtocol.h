@@ -71,10 +71,11 @@ using FBlock256 = TBlock<FHash256>;
 using FGenericBlock = TBlock<FGenericHash>;
 using FGenericBlockArray = std::vector<FGenericBlock>;
 
-static constexpr uint64 SERIALIZED_SECTION_ID_TERMINATOR		  = 0;
-static constexpr uint64 SERIALIZED_SECTION_ID_METADATA_STRING	  = 0xC6BD6CDCEEF79533ull;
-static constexpr uint64 SERIALIZED_SECTION_ID_MACRO_BLOCK		  = 0x8390AEBB745E08BCull;
-static constexpr uint64 SERIALIZED_SECTION_ID_FILE_READ_ONLY_MASK = 0x851F32ED3615F0ADull;
+static constexpr uint64 SERIALIZED_SECTION_ID_TERMINATOR			= 0;
+static constexpr uint64 SERIALIZED_SECTION_ID_METADATA_STRING		= 0xC6BD6CDCEEF79533ull;
+static constexpr uint64 SERIALIZED_SECTION_ID_MACRO_BLOCK			= 0x8390AEBB745E08BCull;
+static constexpr uint64 SERIALIZED_SECTION_ID_FILE_READ_ONLY_MASK	= 0x851F32ED3615F0ADull;
+static constexpr uint64 SERIALIZED_SECTION_ID_FILE_REVISION_CONTROL = 0X2C1C72E6B78B1B50ull;
 
 struct FSerializedSectionHeader
 {
@@ -102,6 +103,12 @@ struct FMacroBlockSection
 struct FFileReadOnlyMaskSection
 {
 	static constexpr uint64 MAGIC	= SERIALIZED_SECTION_ID_FILE_READ_ONLY_MASK;
+	static constexpr uint64 VERSION = 1;
+};
+
+struct FFileRevisionControlSection
+{
+	static constexpr uint64 MAGIC	= SERIALIZED_SECTION_ID_FILE_REVISION_CONTROL;
 	static constexpr uint64 VERSION = 1;
 };
 
