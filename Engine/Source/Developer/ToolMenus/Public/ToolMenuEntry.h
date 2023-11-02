@@ -99,6 +99,11 @@ struct FToolMenuCustomWidgetContext
 	FName StyleName;
 };
 
+/**
+ * Represents entries in menus such as buttons, checkboxes, and sub-menus.
+ *
+ * Many entries are created for you via the methods of FToolMenuSection, such as FToolMenuSection::AddMenuEntry.
+ */
 USTRUCT(BlueprintType)
 struct TOOLMENUS_API FToolMenuEntry
 {

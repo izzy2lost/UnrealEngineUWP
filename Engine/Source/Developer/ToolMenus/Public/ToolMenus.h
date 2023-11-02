@@ -416,6 +416,10 @@ private:
 	static TOptional<FDelegateHandle> InternalStartupCallbackHandle;
 };
 
+/**
+ * Sets the owner for all menus created until the end of the current scope (with support for nested scopes).
+ * Combines well with UToolMenus::UnregisterOwnerByName.
+ */
 struct FToolMenuOwnerScoped
 {
 	FToolMenuOwnerScoped(const FToolMenuOwner InOwner) : Owner(InOwner)
