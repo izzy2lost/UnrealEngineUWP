@@ -106,6 +106,26 @@ namespace GameFeaturePluginStatePrivate
 }
 #undef GAME_FEATURE_PLUGIN_STATE_LEX_TO_STRING
 
+const FString LexToString(const EBuiltInAutoState BuiltInAutoState)
+{
+	switch (BuiltInAutoState)
+	{
+		case EBuiltInAutoState::Invalid:
+			return TEXT("Invalid");
+		case EBuiltInAutoState::Installed:
+			return TEXT("Installed");
+		case EBuiltInAutoState::Registered:
+			return TEXT("Registered");
+		case EBuiltInAutoState::Loaded:
+			return TEXT("Loaded");
+		case EBuiltInAutoState::Active:
+			return TEXT("Active");
+		default:
+			check(false);
+			return TEXT("Unknown");
+	}
+}
+
 const FString LexToString(const EGameFeatureTargetState GameFeatureTargetState)
 {
 	switch (GameFeatureTargetState)

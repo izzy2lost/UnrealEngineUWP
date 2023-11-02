@@ -215,6 +215,7 @@ enum class EBuiltInAutoState : uint8
 	Loaded,
 	Active
 };
+const FString GAMEFEATURES_API LexToString(const EBuiltInAutoState BuiltInAutoState);
 
 UENUM(BlueprintType)
 enum class EGameFeatureTargetState : uint8
