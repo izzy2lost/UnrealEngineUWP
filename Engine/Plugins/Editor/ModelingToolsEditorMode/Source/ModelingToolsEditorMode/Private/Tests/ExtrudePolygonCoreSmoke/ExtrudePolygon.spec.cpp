@@ -22,8 +22,9 @@ BEGIN_DEFINE_SPEC(
 	UWorld* World;
 	AStaticMeshActor* PolygonMesh;
 	// Test helper functions
-	bool MeshExists(const FString&);
 	void CreateMesh() const;
+	bool MeshExists(const FString&);
+	bool ModelingSettingsExist(const FString&) const;
 
 END_DEFINE_SPEC(FExtrudePolygonSpec)
 void FExtrudePolygonSpec::Define()
@@ -77,6 +78,25 @@ void FExtrudePolygonSpec::Define()
 				const bool bMeshRedoState = MeshExists(PolygonName);
 				TestTrue(TEXT("Polygon Mesh restored after Redo"), bMeshRedoState);
 			}
+		});
+
+		It("Should dismiss Extrude Polygon Settings after creating a vertex and completing", [this]()
+		{
+			const FString ExtrudePolygonToolName = TEXT("BeginDrawPolygonTool");
+			// Checking that during setup we entered Extrude Polygon Tool
+			if (!TestTrue(TEXT("Entered Extrude Polygon Tool successfully"), ModelingSettingsExist(ExtrudePolygonToolName)))
+			{
+				return;
+			}
+
+			if (InteractiveToolManager && DrawPolygonTool)
+			{
+				DrawPolygonTool->AppendVertex(FVector3d::ZeroVector);
+				// Clicking "Complete" will invoke InteractiveToolManager->DeactivateTool
+				InteractiveToolManager->DeactivateTool(EToolSide::Left, EToolShutdownType::Completed);
+			}
+
+			TestTrue(TEXT("Extrude Polygon Settings dismissed after completing"), !ModelingSettingsExist(ExtrudePolygonToolName));
 		});
 
 		AfterEach([this]()
@@ -140,4 +160,14 @@ bool FExtrudePolygonSpec::MeshExists(const FString& PolygonName)
 	}
 
 	return bMeshExists;
+}
+
+bool FExtrudePolygonSpec::ModelingSettingsExist(const FString& ToolName) const
+{
+	const FString ActiveToolName = InteractiveToolManager->GetActiveToolName(EToolSide::Left);
+	if (ActiveToolName == ToolName)
+	{
+		return true;
+	}
+	return false;
 }
