@@ -70,6 +70,7 @@ struct FPCGGraphScheduleTask
 
 struct FPCGGraphActiveTask
 {
+	TArray<FPCGGraphTaskInput> Inputs;
 	FPCGElementPtr Element;
 	TUniquePtr<FPCGContext> Context;
 	FPCGTaskId NodeId = InvalidPCGTaskId;
@@ -150,6 +151,7 @@ private:
 	void ClearAllTasks();
 	void QueueNextTasks(FPCGTaskId FinishedTask);
 	bool CancelNextTasks(FPCGTaskId CancelledTask, TSet<UPCGComponent*>& OutCancelledComponents);
+	void RemoveTaskFromInputSuccessors(FPCGTaskId CancelledTask, const TArray<FPCGGraphTaskInput>& CancelledTaskInputs);
 	void BuildTaskInput(const FPCGGraphTask& Task, FPCGDataCollection& TaskInput);
 	/** Combine all param data into one on the Params pin, if any.*/
 	void CombineParams(FPCGTaskId InTaskId, FPCGDataCollection& InTaskInput);

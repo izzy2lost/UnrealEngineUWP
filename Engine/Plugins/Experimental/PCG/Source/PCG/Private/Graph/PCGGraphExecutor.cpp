@@ -327,6 +327,8 @@ TSet<UPCGComponent*> FPCGGraphExecutor::Cancel(TFunctionRef<bool(TWeakObjectPtr<
 			if (CancelledComponents.Contains(Task.SourceComponent.Get()))
 			{
 				FPCGTaskId CancelledTaskId = Task.NodeId;
+				RemoveTaskFromInputSuccessors(CancelledTaskId, Task.Inputs);
+
 				delete Task.Context;
 				ReadyTasks.RemoveAtSwap(ReadyTaskIndex);
 				bStableCancellationSet &= !CancelNextTasks(CancelledTaskId, CancelledComponents);
@@ -341,6 +343,8 @@ TSet<UPCGComponent*> FPCGGraphExecutor::Cancel(TFunctionRef<bool(TWeakObjectPtr<
 			{
 				FPCGTaskId CancelledTaskId = Task.NodeId;
 				Task.bWasCancelled = true;
+				RemoveTaskFromInputSuccessors(CancelledTaskId, Task.Inputs);
+
 				bStableCancellationSet &= !CancelNextTasks(CancelledTaskId, CancelledComponents);
 			}
 		}
@@ -352,6 +356,8 @@ TSet<UPCGComponent*> FPCGGraphExecutor::Cancel(TFunctionRef<bool(TWeakObjectPtr<
 			if (Task.Context && CancelledComponents.Contains(Task.Context->SourceComponent.Get()))
 			{
 				FPCGTaskId CancelledTaskId = Task.NodeId;
+				RemoveTaskFromInputSuccessors(CancelledTaskId, Task.Inputs);
+
 				SleepingTasks.RemoveAtSwap(SleepingTaskIndex);
 				bStableCancellationSet &= !CancelNextTasks(CancelledTaskId, CancelledComponents);
 			}
@@ -693,6 +699,7 @@ void FPCGGraphExecutor::Execute()
 				if (!bIsMainThreadTask || bMainThreadAvailable)
 				{
 					FPCGGraphActiveTask& ActiveTask = ActiveTasks.Emplace_GetRef();
+					ActiveTask.Inputs = MoveTemp(Task.Inputs);
 					ActiveTask.Element = Task.Element;
 					ActiveTask.NodeId = Task.NodeId;
 					ActiveTask.Context = TUniquePtr<FPCGContext>(Task.Context);
@@ -1019,9 +1026,8 @@ void FPCGGraphExecutor::QueueNextTasks(FPCGTaskId FinishedTask)
 			bool bAllPrerequisitesMet = true;
 			FPCGGraphTask* SuccessorTaskPtr = Tasks.Find(Successor);
 
-			// This should rarely be null, but can happen when we have a task waiting on the execution of multiple other components, and one/many get cancelled.
-			// Example: R gets data from C0 and C1. C0 is cancelled due to a change in params, which will cancel R, but not C1. C1 finishes executing and has a null successor here, but that's fine.
-			if (SuccessorTaskPtr)
+			// This should never be null, but later recovery should be able to cleanup this properly
+			if (ensure(SuccessorTaskPtr))
 			{
 				FPCGGraphTask& SuccessorTask = *SuccessorTaskPtr;
 
@@ -1048,7 +1054,10 @@ bool FPCGGraphExecutor::CancelNextTasks(FPCGTaskId CancelledTask, TSet<UPCGCompo
 
 	if (TSet<FPCGTaskId>* Successors = TaskSuccessors.Find(CancelledTask))
 	{
-		for (FPCGTaskId Successor : *Successors)
+		TSet<FPCGTaskId> LocalSuccessors = MoveTemp(*Successors);
+		TaskSuccessors.Remove(CancelledTask);
+
+		for (FPCGTaskId Successor : LocalSuccessors)
 		{
 			if (FPCGGraphTask* Task = Tasks.Find(Successor))
 			{
@@ -1058,13 +1067,12 @@ bool FPCGGraphExecutor::CancelNextTasks(FPCGTaskId CancelledTask, TSet<UPCGCompo
 					bAddedComponents = true;
 				}
 
+				RemoveTaskFromInputSuccessors(Task->NodeId, Task->Inputs);
 				Tasks.Remove(Successor);
 			}
 
 			bAddedComponents |= CancelNextTasks(Successor, OutCancelledComponents);
 		}
-
-		TaskSuccessors.Remove(CancelledTask);
 	}
 
 	// Tasks cancelled might have an impact on scheduled-but-not-processed tasks
@@ -1081,6 +1089,17 @@ bool FPCGGraphExecutor::CancelNextTasks(FPCGTaskId CancelledTask, TSet<UPCGCompo
 	ScheduleLock.Unlock();
 
 	return bAddedComponents;
+}
+
+void FPCGGraphExecutor::RemoveTaskFromInputSuccessors(FPCGTaskId CancelledTask, const TArray<FPCGGraphTaskInput>& CancelledTaskInputs)
+{
+	for (const FPCGGraphTaskInput& Input : CancelledTaskInputs)
+	{
+		if (TSet<FPCGTaskId>* Successors = TaskSuccessors.Find(Input.TaskId))
+		{
+			Successors->Remove(CancelledTask);
+		}
+	}
 }
 
 void FPCGGraphExecutor::BuildTaskInput(const FPCGGraphTask& Task, FPCGDataCollection& TaskInput)

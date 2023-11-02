@@ -161,9 +161,11 @@ bool FPCGLoopElement::ExecuteInternal(FPCGContext* InContext) const
 			for (FPCGTaskId SubgraphTaskId : Context->SubgraphTaskIds)
 			{
 				FPCGDataCollection SubgraphOutput;
-				ensure(Subsystem->GetOutputData(SubgraphTaskId, SubgraphOutput));
-
-				Context->OutputData.TaggedData.Append(SubgraphOutput.TaggedData);
+				// While this should be always return true, if a scheduled task was cancelled, this can still happen because the dependency has been removed but this code isn't aware of this
+				if (Subsystem->GetOutputData(SubgraphTaskId, SubgraphOutput))
+				{
+					Context->OutputData.TaggedData.Append(SubgraphOutput.TaggedData);
+				}
 			}
 		}
 		else
