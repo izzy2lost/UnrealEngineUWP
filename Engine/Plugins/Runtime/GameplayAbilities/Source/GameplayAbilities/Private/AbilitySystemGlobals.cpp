@@ -1067,8 +1067,8 @@ FAutoConsoleCommand DebugAbilitySystemEffectApply(TEXT("AbilitySystem.Effect.App
 		UAbilitySystemGlobals& AbilitySystemGlobals = UAbilitySystemGlobals::Get();
 
 		APlayerController* PC = World->GetFirstPlayerController();
-		APawn* Pawn = PC->GetPawn();
-		UAbilitySystemComponent* ASC = PC ? AbilitySystemGlobals.GetAbilitySystemComponentFromActor(Pawn) : nullptr;
+		APawn* Pawn = PC ? PC->GetPawn() : nullptr;
+		UAbilitySystemComponent* ASC = Pawn ? AbilitySystemGlobals.GetAbilitySystemComponentFromActor(Pawn) : nullptr;
 		if (!ASC)
 		{
 			OutputDevice.Logf(TEXT("Could not find Player (%s) with AbilitySystemComponent in World (%s)"), *GetNameSafe(PC), *GetNameSafe(World));
