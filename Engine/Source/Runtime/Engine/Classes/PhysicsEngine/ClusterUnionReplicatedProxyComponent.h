@@ -52,6 +52,9 @@ public:
 	UFUNCTION()
 	bool IsPendingDeletion() { return bIsPendingDeletion; }
 
+	/* reinitialize the internal transient state of the replicated proxy */
+	ENGINE_API void ResetTransientState();
+
 protected:
 
 	UFUNCTION()

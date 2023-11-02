@@ -199,6 +199,16 @@ void UClusterUnionReplicatedProxyComponent::FlushNetDormancyIfNeeded()
 	}
 }
 
+void UClusterUnionReplicatedProxyComponent::ResetTransientState()
+{
+	LastSyncedBoneIds.Reset();
+
+	if (AActor* Owner = GetOwner(); Owner && DeferSetChildToParentHandle.IsValid())
+	{
+		Owner->GetWorldTimerManager().ClearTimer(DeferSetChildToParentHandle);
+	}
+}
+
 void UClusterUnionReplicatedProxyComponent::AddComponentToCluster()
 {
 	if (!ParentClusterUnion.IsValid() || !ChildClusteredComponent.IsValid() || IsPendingDeletion())

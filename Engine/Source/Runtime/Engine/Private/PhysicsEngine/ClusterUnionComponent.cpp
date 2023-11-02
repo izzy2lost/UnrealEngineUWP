@@ -1125,6 +1125,25 @@ void UClusterUnionComponent::HandleAddOrModifiedClusteredComponent(const FMapped
 	}
 }
 
+static UClusterUnionReplicatedProxyComponent* GetReplicatedProxyFromComponent(const UClusterUnionComponent* ClusterUnionComponent, const UPrimitiveComponent* Component)
+{
+	if (Component)
+	{
+		if (AActor* ComponentOwner = Component->GetOwner())
+		{
+			TInlineComponentArray<UClusterUnionReplicatedProxyComponent*> ReplicatedProxyComponents(ComponentOwner);
+			for (UClusterUnionReplicatedProxyComponent* ReplicatedProxyComponent : ReplicatedProxyComponents)
+			{
+				if (ReplicatedProxyComponent->GetParentClusterUnionComponent() == ClusterUnionComponent && ReplicatedProxyComponent->GetChildClusteredComponent() == Component)
+				{
+					return ReplicatedProxyComponent;
+				}
+			}
+		}
+	}
+	return nullptr;
+}
+
 void UClusterUnionComponent::HandleRemovedClusteredComponent(TObjectKey<UPrimitiveComponent> RemovedComponent)
 {
 	if (FClusteredComponentData* Data = PerComponentData.Find(RemovedComponent))
@@ -1148,6 +1167,16 @@ void UClusterUnionComponent::HandleRemovedClusteredComponent(TObjectKey<UPrimiti
 			if (UClusterUnionReplicatedProxyComponent* ProxyComponent = Data->ReplicatedProxyComponent.Get())
 			{
 				ProxyComponent->DestroyComponent();
+			}
+		}
+		else
+		{
+			// On the client, we need to reset the state of the replicated proxy has it may outlive the cluster union
+			// and may still be in existence when the cluster union is created again 
+			// Note: we need to get the replciated component from the actor on the client because the PerComponentData do not set the replciated proxy pointer (unlike the server )
+			if (UClusterUnionReplicatedProxyComponent* ProxyComponent = GetReplicatedProxyFromComponent(this, RemovedComponent.ResolveObjectPtr()))
+			{
+				ProxyComponent->ResetTransientState();
 			}
 		}
 
