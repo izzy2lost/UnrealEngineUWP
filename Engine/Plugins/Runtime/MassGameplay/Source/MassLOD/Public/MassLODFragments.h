@@ -105,6 +105,15 @@ struct FMassCollectLODViewerInfoTag : public FMassTag
 	GENERATED_BODY();
 };
 
+/*
+ * Tag to use to trigger the collector processor that uses the LODCollector without Visibility Logic, so strictly based of distance
+ */
+USTRUCT()
+struct FMassCollectDistanceLODViewerInfoTag : public FMassTag
+{
+	GENERATED_BODY();
+};
+
 USTRUCT()
 struct MASSLOD_API FMassVisibilityCanBeSeenTag : public FMassTag
 {

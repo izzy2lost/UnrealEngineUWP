@@ -61,6 +61,20 @@ struct FMassCombinedLODLogic : public FLODDefaultLogic
 	};
 };
 
+/** Simplest version of RepresentationLODLogic strictly based on Distance to Viewer
+ *	Compared to FMassRepresentationLODLogic, we:
+ *	* Do not care about doing the Visibility Logic
+ *	* For now we will keep the Significance computation as it could allow for finer grained control later on
+*/
+struct FMassDistanceLODLogic : public FLODDefaultLogic
+{
+	enum
+	{
+		bCalculateLODSignificance = true,
+		bLocalViewersOnly = true,
+	};
+};
+
 /**
  * TMassLODCollector outputs
  *

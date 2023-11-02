@@ -238,3 +238,45 @@ struct FMassVisualizationLODSharedFragment : public FMassSharedFragment
 	UPROPERTY(Transient)
 	TObjectPtr<const UScriptStruct> FilterTag = nullptr;
 };
+
+/** Simplest version of LOD Calculation based strictly on Distance parameters 
+ *	Compared to FMassVisualizationLODParameters, we:
+ *	* Only include a single set of LOD Distances (radial distance from viewer)
+ *	* we do not care about distance to Frustum
+ *	* we do not care about Max Count
+ */
+USTRUCT()
+struct FMassDistanceLODParameters : public FMassSharedFragment
+{
+	GENERATED_BODY()
+
+	/** Distances where each LOD becomes relevant */
+	UPROPERTY(EditAnywhere, Category = "Mass|LOD", config)
+	float LODDistance[EMassLOD::Max] = { 0.f, 1000.f, 2500.f, 10000.f };
+
+	UPROPERTY(EditAnywhere, Category = "Mass|LOD", meta = (ClampMin = "0.0", UIMin = "0.0"), config)
+	float BufferHysteresisOnDistancePercentage = 10.0f;
+
+	/** Filter these settings with specified tag */
+	UPROPERTY(EditAnywhere, Category = "Mass|LOD", meta = (BaseStruct = "/Script/MassEntity.MassTag"))
+	TObjectPtr<UScriptStruct> FilterTag = nullptr;
+};
+
+/** Simplest version of LOD Calculation based strictly on Distance parameters 
+ *	Compared to FMassVisualizationLODSharedFragment, we:
+ *	* Cannot Adjust the Distance from count
+ *	* We care about a MassLODCalculator with a new LOD logic that excludes Visibility computation
+ */
+USTRUCT()
+struct FMassDistanceLODSharedFragment : public FMassSharedFragment
+{
+	GENERATED_BODY()
+
+	FMassDistanceLODSharedFragment() = default;
+	FMassDistanceLODSharedFragment(const FMassDistanceLODParameters& LODParams);
+
+	TMassLODCalculator<FMassDistanceLODLogic> LODCalculator;
+
+	UPROPERTY(Transient)
+	TObjectPtr<const UScriptStruct> FilterTag = nullptr;
+};
