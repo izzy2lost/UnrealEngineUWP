@@ -524,7 +524,7 @@ bool FPCGMetadataElementBase::ExecuteInternal(FPCGContext* Context) const
 			// But if we have extra selectors, we need to handle it the same way as properties.
 			// There is no point of failure before duplicating. So duplicate, create the attribute and then the accessor.
 			PCGMetadataElementCommon::DuplicateTaggedData(InputTaggedData[InputPinToForward], OutputData, OutMetadata);
-			FPCGMetadataAttributeBase* OutputAttribute = PCGMetadataElementCommon::ClearOrCreateAttribute(OutMetadata, OutputName, AttributeType{});
+			FPCGMetadataAttributeBase* OutputAttribute = PCGMetadataElementCommon::ClearOrCreateAttribute<AttributeType>(OutMetadata, OutputName);
 			if (!OutputAttribute)
 			{
 				return false;

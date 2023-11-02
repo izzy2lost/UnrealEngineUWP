@@ -126,7 +126,7 @@ protected:
 
 		UPCGParamData* ParamData = NewObject<UPCGParamData>();
 		FPCGMetadataAttribute<int32>* IntAttribute = ParamData->Metadata->CreateAttribute<int32>(IntName, 0, /*bAllowsInterpolation=*/ true, /*bOverrideParent=*/false);
-		FPCGMetadataAttribute<FVector2D>* Vec2Attribute = ParamData->Metadata->CreateAttribute<FVector2D>(Vec2Name, FVector2D{}, /*bAllowsInterpolation=*/ true, /*bOverrideParent=*/false);
+		FPCGMetadataAttribute<FVector2D>* Vec2Attribute = ParamData->Metadata->CreateAttribute<FVector2D>(Vec2Name, FVector2D::ZeroVector, /*bAllowsInterpolation=*/ true, /*bOverrideParent=*/false);
 
 		constexpr int32 EntryCount = 5;
 		for (int32 i = 0; i < EntryCount; ++i)
@@ -335,7 +335,7 @@ bool FPCGAttributeReduceIncompatibleType::RunTest(const FString& Parameters)
 	// String are always invalid
 	FPCGMetadataAttribute<FString>* StringAttribute = ParamData->Metadata->CreateAttribute<FString>(StringName, FString{}, /*bAllowsInterpolation=*/ false, /*bOverrideParent=*/false);
 	// Quat are invalid for min/max
-	FPCGMetadataAttribute<FQuat>* QuatAttribute = ParamData->Metadata->CreateAttribute<FQuat>(QuatName, FQuat{}, /*bAllowsInterpolation=*/ true, /*bOverrideParent=*/false);
+	FPCGMetadataAttribute<FQuat>* QuatAttribute = ParamData->Metadata->CreateAttribute<FQuat>(QuatName, FQuat{ForceInitToZero}, /*bAllowsInterpolation=*/ true, /*bOverrideParent=*/false);
 
 	constexpr int32 EntryCount = 5;
 	for (int32 i = 0; i < EntryCount; ++i)

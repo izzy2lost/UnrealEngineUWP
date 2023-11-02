@@ -258,7 +258,7 @@ bool FPCGAttributeTransferElement::ExecuteInternal(FPCGContext* Context) const
 		auto CreateAttribute = [OutputData, TargetAttributeName](auto Dummy)
 		{
 			using AttributeType = decltype(Dummy);
-			return PCGMetadataElementCommon::ClearOrCreateAttribute(OutputData->Metadata, TargetAttributeName, AttributeType{}) != nullptr;
+			return PCGMetadataElementCommon::ClearOrCreateAttribute<AttributeType>(OutputData->Metadata, TargetAttributeName) != nullptr;
 		};
 		
 		if (!PCGMetadataAttribute::CallbackWithRightType(InputAccessor->GetUnderlyingType(), CreateAttribute))

@@ -59,7 +59,7 @@ bool UPCGMatchAndSetBase::CreateAttributeIfNeeded(FPCGContext& Context, const FP
 			auto CreateAttribute = [OutPointData, &DestinationAttribute](auto&& Value)
 			{
 				using ConstantType = std::decay_t<decltype(Value)>;
-				return PCGMetadataElementCommon::ClearOrCreateAttribute(OutPointData->Metadata, DestinationAttribute, ConstantType{}) != nullptr;
+				return PCGMetadataElementCommon::ClearOrCreateAttribute<ConstantType>(OutPointData->Metadata, DestinationAttribute) != nullptr;
 			};
 
 			if (!ConstantValue.Dispatcher(CreateAttribute))

@@ -4,6 +4,7 @@
 
 #include "PCGSettings.h"
 #include "Metadata/PCGMetadata.h"
+#include "Metadata/PCGMetadataAttributeTraits.h"
 #include "Metadata/Accessors/IPCGAttributeAccessor.h" // IWYU pragma: keep
 #include "Metadata/Accessors/PCGAttributeAccessorKeys.h"
 
@@ -19,9 +20,9 @@ namespace PCGMetadataElementCommon
 	/** Copies the entry to value key relationship stored in the given Metadata, including its parents */
 	PCG_API void CopyEntryToValueKeyMap(const UPCGMetadata* MetadataToCopy, const FPCGMetadataAttributeBase* AttributeToCopy, FPCGMetadataAttributeBase* OutAttribute);
 
-	/** Creates a new attribute, or clears the attribute if it already exists and is a 'T' type */
+	/** Creates a new attribute, or clears the attribute if it already exists and is a 'T' type. If default value not provided, will take the zero value for that type. */
 	template<typename T>
-	FPCGMetadataAttribute<T>* ClearOrCreateAttribute(UPCGMetadata* Metadata, const FName& DestinationAttribute, T DefaultValue)
+	FPCGMetadataAttribute<T>* ClearOrCreateAttribute(UPCGMetadata* Metadata, const FName& DestinationAttribute, T DefaultValue = PCG::Private::MetadataTraits<T>::ZeroValue())
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(PCGMetadataElementCommon::ClearOrCreateAttribute);
 

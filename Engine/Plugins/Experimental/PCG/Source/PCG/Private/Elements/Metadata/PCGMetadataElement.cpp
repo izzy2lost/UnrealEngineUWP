@@ -223,7 +223,7 @@ bool FPCGMetadataOperationElement::ExecuteInternal(FPCGContext* Context) const
 			auto CreateAttribute = [SampledData, LocalDestinationAttribute](auto Dummy)
 			{
 				using AttributeType = decltype(Dummy);
-				return PCGMetadataElementCommon::ClearOrCreateAttribute(SampledData->Metadata, LocalDestinationAttribute, AttributeType{}) != nullptr;
+				return PCGMetadataElementCommon::ClearOrCreateAttribute<AttributeType>(SampledData->Metadata, LocalDestinationAttribute) != nullptr;
 			};
 			
 			if (!PCGMetadataAttribute::CallbackWithRightType(InputAccessor->GetUnderlyingType(), CreateAttribute))

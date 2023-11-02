@@ -194,7 +194,7 @@ bool CreatePointAccessorAndValidate(FPCGContext* Context, UPCGPointData* PointDa
 		auto CreateAttribute = [PointMetadata, &PropName](auto Dummy)
 		{
 			using AttributeType = decltype(Dummy);
-			return PCGMetadataElementCommon::ClearOrCreateAttribute(PointMetadata, FName(PropName), AttributeType{}) != nullptr;
+			return PCGMetadataElementCommon::ClearOrCreateAttribute<AttributeType>(PointMetadata, FName(PropName)) != nullptr;
 		};
 
 		if (!PCGMetadataAttribute::CallbackWithRightType(AlembicPropAccessor->GetUnderlyingType(), CreateAttribute))
