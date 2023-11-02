@@ -1730,6 +1730,11 @@ bool FMaterialResource::HasPixelDepthOffsetConnected() const { return Material->
 bool FMaterialResource::HasMaterialAttributesConnected() const { return (Material->bUseMaterialAttributes && Material->GetEditorOnlyData()->MaterialAttributes.IsConnected()); }
 #endif
 EMaterialShadingRate FMaterialResource::GetShadingRate() const { return Material->ShadingRate; }
+bool FMaterialResource::IsVariableRateShadingAllowed() const {
+	// Automatically disable VRS on anything using pixel discard as coarse shading causes the whole block to get 
+	// discarded resulting in noticeable artifacts
+	return Material->bAllowVariableRateShading && !IsMasked();
+}
 FString FMaterialResource::GetBaseMaterialPathName() const { return Material->GetPathName(); }
 FString FMaterialResource::GetDebugName() const
 {
@@ -2773,7 +2778,8 @@ void FMaterial::SetupMaterialEnvironment(
 	}
 
 	if (FDataDrivenShaderPlatformInfo::GetSupportsVariableRateShading(Platform) && 
-		(GRHIAttachmentVariableRateShadingEnabled || GetShadingRate() != MSR_1x1))
+		(GRHIAttachmentVariableRateShadingEnabled || GetShadingRate() != MSR_1x1) &&
+		IsVariableRateShadingAllowed())
 	{
 		OutEnvironment.SetCompileArgument(TEXT("USING_VARIABLE_RATE_SHADING"), true);
 	}

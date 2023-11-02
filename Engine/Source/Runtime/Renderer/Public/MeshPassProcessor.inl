@@ -102,6 +102,7 @@ void FMeshPassProcessor::BuildMeshDrawCommands(
 	PipelineState.BlendState = DrawRenderState.GetBlendState();
 	PipelineState.DepthStencilState = DrawRenderState.GetDepthStencilState();
 	PipelineState.DrawShadingRate = GetShadingRateFromMaterial(MaterialResource.GetShadingRate());
+	PipelineState.bAllowVariableRateShading = MaterialResource.IsVariableRateShadingAllowed();
 
 	// PSO Precache hash only needed when PSO precaching is enabled
 	if (PipelineStateCache::IsPSOPrecachingEnabled())

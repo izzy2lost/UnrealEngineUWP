@@ -1018,6 +1018,8 @@ UMaterial::UMaterial(const FObjectInitializer& ObjectInitializer)
 	RefractionMethod = RM_None;
 	RefractionCoverageMode = RCM_CoverageAccountedFor;
 
+	bAllowVariableRateShading = true;
+
 #if WITH_EDITORONLY_DATA
 	MaterialGraph = NULL;
 #endif //WITH_EDITORONLY_DATA

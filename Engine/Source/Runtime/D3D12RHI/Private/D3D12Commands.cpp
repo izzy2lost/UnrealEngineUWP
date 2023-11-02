@@ -829,7 +829,14 @@ void FD3D12CommandContext::RHISetGraphicsPipelineState(FRHIGraphicsPipelineState
 
 	if (GRHISupportsPipelineVariableRateShading && GRHIVariableRateShadingEnabled)
 	{
-		StateCache.SetShadingRate(GraphicsPipelineState->PipelineStateInitializer.ShadingRate, VRSRB_Passthrough);
+		if (GraphicsPipelineState->PipelineStateInitializer.bAllowVariableRateShading)
+		{
+			StateCache.SetShadingRate(GraphicsPipelineState->PipelineStateInitializer.ShadingRate, VRSRB_Passthrough, VRSRB_Max);
+		}
+		else
+		{
+			StateCache.SetShadingRate(EVRSShadingRate::VRSSR_1x1, VRSRB_Passthrough, VRSRB_Passthrough);
+		}
 	}
 
 	StateCache.SetGraphicsPipelineState(GraphicsPipelineState);
@@ -1378,17 +1385,16 @@ void FD3D12CommandContext::SetRenderTargetsAndClear(const FRHISetRenderTargetsIn
 					D3D12_RESOURCE_STATE_SHADING_RATE_SOURCE,
 					D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES);
 
-				StateCache.SetShadingRateImage(Resource, RenderTargetsInfo.ShadingRateTextureCombiner);
+				StateCache.SetShadingRateImage(Resource);
 			}
 			else
 			{
-				StateCache.SetShadingRateImage(nullptr, EVRSRateCombiner::VRSRB_Passthrough);
+				StateCache.SetShadingRateImage(nullptr);
 			}
 		}
 		else
 		{
-			// Ensure this is set appropriate if image-based VRS not supported or not enabled.
-			StateCache.SetShadingRateImage(nullptr, EVRSRateCombiner::VRSRB_Passthrough);
+			StateCache.SetShadingRateImage(nullptr);
 		}
 	}
 #endif
@@ -1981,7 +1987,8 @@ void FD3D12CommandContext::SetDepthBounds(float MinDepth, float MaxDepth)
 void FD3D12CommandContext::RHISetShadingRate(EVRSShadingRate ShadingRate, EVRSRateCombiner Combiner)
 {
 #if PLATFORM_SUPPORTS_VARIABLE_RATE_SHADING
-	StateCache.SetShadingRate(ShadingRate, Combiner);
+	// Note - this will override per-material VRS opt-out, but FRHICommandSetShadingRate isn't called from anywhere
+	StateCache.SetShadingRate(ShadingRate, Combiner, VRSRB_Max);
 #endif
 }
 

@@ -2006,6 +2006,7 @@ public:
 	virtual bool HasRenderTracePhysicalMaterialOutputs() const { return false; }
 	virtual EMaterialShadingRate GetShadingRate() const { return MSR_1x1; }
 	virtual int32 GetNeuralProfileId() const { return INDEX_NONE; }
+	virtual bool IsVariableRateShadingAllowed() const { return true; }
 	/**
 	 * Should shaders compiled for this material be saved to disk?
 	 */
@@ -2642,6 +2643,7 @@ public:
 	ENGINE_API virtual bool IsDeferredDecal() const override;
 	ENGINE_API virtual bool IsVolumetricPrimitive() const override;
 	ENGINE_API virtual bool IsWireframe() const override;
+	ENGINE_API virtual bool IsVariableRateShadingAllowed() const override;
 	ENGINE_API virtual EMaterialShadingRate  GetShadingRate() const override;
 	ENGINE_API virtual bool IsUIMaterial() const override;
 	ENGINE_API virtual bool IsPostProcessMaterial() const override;

@@ -892,6 +892,10 @@ public:
 	UPROPERTY(EditAnywhere, Category = Material, AdvancedDisplay)
 	TEnumAsByte<EMaterialShadingRate> ShadingRate;
 
+	/** Allows the use of variable rate shading when evaluating this material. This will only apply to the base/translucency pass. */
+	UPROPERTY(EditAnywhere, Category = Material, AdvancedDisplay)
+	uint8 bAllowVariableRateShading : 1;
+
 #if WITH_EDITORONLY_DATA
 	UPROPERTY()
 	int32 EditorX;

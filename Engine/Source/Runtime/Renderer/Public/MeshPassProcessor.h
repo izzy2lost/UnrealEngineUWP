@@ -319,6 +319,7 @@ public:
 		, DepthStencilState(InMinimalState.DepthStencilState)
 		, ImmutableSamplerState(InMinimalState.ImmutableSamplerState)
 		, bDepthBounds(InMinimalState.bDepthBounds)
+		, bAllowVariableRateShading(InMinimalState.bAllowVariableRateShading)
 		, DrawShadingRate(InMinimalState.DrawShadingRate)
 		, PrimitiveType(InMinimalState.PrimitiveType)
 		, StatePrecachePSOHash(InMinimalState.StatePrecachePSOHash)
@@ -357,6 +358,7 @@ public:
 			, bDepthBounds
 			, MultiViewCount
 			, bHasFragmentDensityAttachment
+			, bAllowVariableRateShading
 			, DrawShadingRate
 		);
 
@@ -387,6 +389,7 @@ public:
 			bDepthBounds != rhs.bDepthBounds ||
 			MultiViewCount != rhs.MultiViewCount ||
 			bHasFragmentDensityAttachment != rhs.bHasFragmentDensityAttachment ||
+			bAllowVariableRateShading != rhs.bAllowVariableRateShading ||
 			DrawShadingRate != rhs.DrawShadingRate ||
 			PrimitiveType != rhs.PrimitiveType)
 		{
@@ -449,6 +452,7 @@ public:
 			COMPARE_FIELD(bDepthBounds)
 			COMPARE_FIELD(MultiViewCount)
 			COMPARE_FIELD(bHasFragmentDensityAttachment)
+			COMPARE_FIELD(bAllowVariableRateShading)
 			COMPARE_FIELD(DrawShadingRate)
 			COMPARE_FIELD(PrimitiveType)
 		COMPARE_FIELD_END;
@@ -475,6 +479,7 @@ public:
 			COMPARE_FIELD(bDepthBounds)
 			COMPARE_FIELD(MultiViewCount)
 			COMPARE_FIELD(bHasFragmentDensityAttachment)
+			COMPARE_FIELD(bAllowVariableRateShading)
 			COMPARE_FIELD(DrawShadingRate)
 			COMPARE_FIELD(PrimitiveType)
 			COMPARE_FIELD_END;
@@ -500,6 +505,7 @@ public:
 	bool							bDepthBounds = false;
 	uint8							MultiViewCount = 0;
 	bool							bHasFragmentDensityAttachment = false;
+	bool							bAllowVariableRateShading = false;
 	EVRSShadingRate					DrawShadingRate  = EVRSShadingRate::VRSSR_1x1;
 
 	EPrimitiveType					PrimitiveType;

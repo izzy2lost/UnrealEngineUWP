@@ -3729,6 +3729,7 @@ public:
 		, bDepthBounds(false)
 		, MultiViewCount(0)
 		, bHasFragmentDensityAttachment(false)
+		, bAllowVariableRateShading(false)
 		, ShadingRate(EVRSShadingRate::VRSSR_1x1)
 		, Flags(0)
 		, StatePrecachePSOHash(0)
@@ -3764,6 +3765,7 @@ public:
 		bool						bInDepthBounds,
 		uint8						InMultiViewCount,
 		bool						bInHasFragmentDensityAttachment,
+		bool						bInAllowVariableRateShading,
 		EVRSShadingRate				InShadingRate)
 		: BoundShaderState(InBoundShaderState)
 		, BlendState(InBlendState)
@@ -3788,6 +3790,7 @@ public:
 		, bDepthBounds(bInDepthBounds)
 		, MultiViewCount(InMultiViewCount)
 		, bHasFragmentDensityAttachment(bInHasFragmentDensityAttachment)
+		, bAllowVariableRateShading(bInAllowVariableRateShading)
 		, ShadingRate(InShadingRate)
 		, Flags(InFlags)
 		, StatePrecachePSOHash(0)
@@ -3810,6 +3813,7 @@ public:
 			bDepthBounds != rhs.bDepthBounds ||
 			MultiViewCount != rhs.MultiViewCount ||
 			ShadingRate != rhs.ShadingRate ||
+			bAllowVariableRateShading != rhs.bAllowVariableRateShading ||
 			bHasFragmentDensityAttachment != rhs.bHasFragmentDensityAttachment ||
 			RenderTargetsEnabled != rhs.RenderTargetsEnabled ||
 			RenderTargetFormats != rhs.RenderTargetFormats || 
@@ -3904,6 +3908,7 @@ public:
 	bool							bDepthBounds;
 	uint8							MultiViewCount;
 	bool							bHasFragmentDensityAttachment;
+	bool							bAllowVariableRateShading;
 	EVRSShadingRate					ShadingRate;
 	
 	// Note: these flags do NOT affect compilation of this PSO.
