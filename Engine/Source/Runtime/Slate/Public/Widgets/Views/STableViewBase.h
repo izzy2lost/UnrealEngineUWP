@@ -170,6 +170,9 @@ public:
 	/** Sets whether the list should lerp between scroll offsets or jump instantly between them. */
 	SLATE_API void SetIsScrollAnimationEnabled(bool bInEnableScrollAnimation);
 
+	/** Sets whether the list should lerp between scroll offsets or jump instantly between them with touch. */
+	SLATE_API void SetEnableTouchAnimatedScrolling(bool bInEnableTouchAnimatedScrolling);
+
 	/** Sets whether to permit overscroll on this list view */
 	SLATE_API void SetAllowOverscroll(EAllowOverscroll InAllowOverscroll);
 
@@ -410,6 +413,9 @@ protected:
 
 	/** True to lerp smoothly between offsets when the desired scroll offset changes. */
 	bool bEnableAnimatedScrolling = false;
+
+	/** True to lerp smoothly between offsets when the desired scroll offset changes with touch. */
+	bool bEnableTouchAnimatedScrolling = false;
 
 	/** True to allow right click drag scrolling. */
 	bool bEnableRightClickScrolling = true;

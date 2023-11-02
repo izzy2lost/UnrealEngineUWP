@@ -136,6 +136,7 @@ TSharedRef<SWidget> UListViewBase::RebuildWidget()
 
 	MyTableViewBase = RebuildListWidget();
 	MyTableViewBase->SetIsScrollAnimationEnabled(bEnableScrollAnimation);
+	MyTableViewBase->SetEnableTouchAnimatedScrolling(bInEnableTouchAnimatedScrolling);
 	MyTableViewBase->SetIsRightClickScrollingEnabled(bEnableRightClickScrolling);
 	MyTableViewBase->SetIsTouchScrollingEnabled(bEnableTouchScrolling);
 	MyTableViewBase->SetFixedLineScrollOffset(bEnableFixedLineOffset ? TOptional<double>(FixedLineScrollOffset) : TOptional<double>());
@@ -160,6 +161,7 @@ void UListViewBase::SynchronizeProperties()
 	if (MyTableViewBase)
 	{
 		MyTableViewBase->SetIsScrollAnimationEnabled(bEnableScrollAnimation);
+		MyTableViewBase->SetEnableTouchAnimatedScrolling(bInEnableTouchAnimatedScrolling);
 		MyTableViewBase->SetIsRightClickScrollingEnabled(bEnableRightClickScrolling);
 		MyTableViewBase->SetIsTouchScrollingEnabled(bEnableTouchScrolling);
 		MyTableViewBase->SetAllowOverscroll(AllowOverscroll ? EAllowOverscroll::Yes : EAllowOverscroll::No);

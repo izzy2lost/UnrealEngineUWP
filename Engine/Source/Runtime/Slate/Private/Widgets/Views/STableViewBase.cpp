@@ -290,8 +290,7 @@ void STableViewBase::Tick( const FGeometry& AllottedGeometry, const double InCur
 			const EScrollIntoViewResult ScrollIntoViewResult = ScrollIntoView(PanelGeometry);
 
 			double TargetScrollOffset = GetTargetScrollOffset();
-
-			if (bEnableAnimatedScrolling)
+			if((bStartedTouchInteraction && bEnableTouchAnimatedScrolling) || (!bStartedTouchInteraction && bEnableAnimatedScrolling))
 			{
 				CurrentScrollOffset = FMath::FInterpTo(CurrentScrollOffset, TargetScrollOffset, (double)InDeltaTime, 12.0);
 				if (FMath::IsNearlyEqual(CurrentScrollOffset, TargetScrollOffset, 0.01))
@@ -373,7 +372,6 @@ void STableViewBase::Tick( const FGeometry& AllottedGeometry, const double InCur
 				// Notify as soon as we've made a widget for the item, even if we still have scrolling to do
 				NotifyItemScrolledIntoView();
 			}
-
 			if (ScrollIntoViewResult == EScrollIntoViewResult::Deferred || CurrentScrollOffset != TargetScrollOffset)
 			{
 				// Either we haven't made the item yet or we still have scrolling to do, so we'll need another refresh next frame
@@ -905,6 +903,11 @@ void STableViewBase::SetFixedLineScrollOffset(TOptional<double> InFixedLineScrol
 void STableViewBase::SetIsScrollAnimationEnabled(bool bInEnableScrollAnimation)
 {
 	bEnableAnimatedScrolling = bInEnableScrollAnimation;
+}
+
+void STableViewBase::SetEnableTouchAnimatedScrolling(bool bInEnableTouchAnimatedScrolling)
+{
+	bEnableTouchAnimatedScrolling = bInEnableTouchAnimatedScrolling;
 }
 
 void STableViewBase::SetAllowOverscroll(EAllowOverscroll InAllowOverscroll)

@@ -668,6 +668,10 @@ protected:
 	/** True to enable lerped animation when scrolling through the list */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Scrolling)
 	bool bEnableScrollAnimation = false;
+	
+	/** True to enable lerped animation when scrolling through the list with touch*/
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Scrolling)
+	bool bInEnableTouchAnimatedScrolling = false;
 
 	/**  Disable to stop scrollbars from activating inertial overscrolling */
 	UPROPERTY(EditAnywhere, Category = Scrolling)
