@@ -2535,6 +2535,27 @@ void UPrimitiveComponent::SetMoveIgnoreMask(FMaskFilter InMoveIgnoreMask)
 	}
 }
 
+bool UPrimitiveComponent::ShouldComponentIgnoreHitResult(FHitResult const& TestHit, EMoveComponentFlags MoveFlags)
+{
+	// Check if the hit actors root actor is in the ignore array
+	if (MoveFlags & MOVECOMP_CheckBlockingRootActorInIgnoreList)
+	{
+		AActor const* const HitActor = TestHit.HitObjectHandle.FetchActor();
+		if (HitActor)
+		{
+			if (USceneComponent* RootSceneComp = HitActor->GetRootComponent())
+			{
+				if (AActor* RootActor = RootSceneComp->GetAttachmentRootActor())
+				{
+					return MoveIgnoreActors.Contains(RootActor);
+				}
+			}
+		}
+	}
+
+	return false;
+}
+
 FCollisionShape UPrimitiveComponent::GetCollisionShape(float Inflation) const
 {
 	// This is intended to be overridden by shape classes, so this is a simple, large bounding shape.
@@ -2652,6 +2673,7 @@ bool UPrimitiveComponent::MoveComponentImpl( const FVector& Delta, const FQuat& 
 			InitSweepCollisionParams(Params, ResponseParam);
 			Params.bIgnoreTouches |= !(GetGenerateOverlapEvents() || bForceGatherOverlaps);
 			Params.TraceTag = TraceTagName;
+
 			bool const bHadBlockingHit = MyWorld->ComponentSweepMulti(Hits, this, TraceStart, TraceEnd, InitialRotationQuat, Params);
 
 			if (Hits.Num() > 0)
@@ -2676,7 +2698,7 @@ bool UPrimitiveComponent::MoveComponentImpl( const FVector& Delta, const FQuat& 
 
 					if (TestHit.bBlockingHit)
 					{
-						if (!ShouldIgnoreHitResult(MyWorld, TestHit, Delta, Actor, MoveFlags))
+						if (!ShouldIgnoreHitResult(MyWorld, TestHit, Delta, Actor, MoveFlags) && !ShouldComponentIgnoreHitResult(TestHit, MoveFlags))
 						{
 							if (TestHit.bStartPenetrating)
 							{

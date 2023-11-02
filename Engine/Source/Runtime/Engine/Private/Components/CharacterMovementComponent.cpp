@@ -2359,23 +2359,6 @@ void UCharacterMovementComponent::UpdateBasedMovement(float DeltaSeconds)
 		return;
 	}
 
-	// Check if falling above current base
-	if (IsFalling() && bStayBasedInAir)
-	{
-		const FVector PawnLocation = UpdatedComponent->GetComponentLocation();
-		FFindFloorResult OutFloorResult;
-		ComputeFloorDist(PawnLocation, StayBasedInAirHeight, StayBasedInAirHeight, OutFloorResult, CharacterOwner->GetCapsuleComponent()->GetScaledCapsuleRadius(), NULL);
-
-		UPrimitiveComponent* HitComponent = OutFloorResult.HitResult.Component.Get();
-		if (HitComponent && HitComponent->GetAttachmentRoot() != MovementBase->GetAttachmentRoot())
-		{
-			// New or no base under the character
-			ApplyImpartedMovementBaseVelocity();
-			SetBase(NULL);
-			return;
-		}
-	}
-
 	// Ignore collision with bases during these movements.
 	TGuardValue<EMoveComponentFlags> ScopedFlagRestore(MoveComponentFlags, MoveComponentFlags | MOVECOMP_IgnoreBases);
 
@@ -2454,6 +2437,17 @@ void UCharacterMovementComponent::UpdateBasedMovement(float DeltaSeconds)
 		}
 		else
 		{
+			// Set MovementBase's root actor as ignored when moving the character primitive component, 
+			// only perform if bDeferUpdateBasedMovement is true since this means the MovementBase is simulating physics
+			const bool bIgnoreBaseActor = bDeferUpdateBasedMovement && bBasedMovementIgnorePhysicsBase;
+			AActor* MovementBaseRootActor = nullptr;
+			if (bIgnoreBaseActor)
+			{
+				MovementBaseRootActor = MovementBase->GetAttachmentRootActor();
+				UpdatedPrimitive->IgnoreActorWhenMoving(MovementBaseRootActor, true);
+				MoveComponentFlags |= MOVECOMP_CheckBlockingRootActorInIgnoreList; // Hit actors during MoveUpdatedComponent will have their root actor compared with the ignored actors array 
+			}
+
 			// hack - transforms between local and world space introducing slight error FIXMESTEVE - discuss with engine team: just skip the transforms if no rotation?
 			FVector BaseMoveDelta = NewBaseLocation - OldBaseLocation;
 			if (!bRotationChanged && (BaseMoveDelta.X == 0.f) && (BaseMoveDelta.Y == 0.f))
@@ -2465,15 +2459,40 @@ void UCharacterMovementComponent::UpdateBasedMovement(float DeltaSeconds)
 			FHitResult MoveOnBaseHit(1.f);
 			const FVector OldLocation = UpdatedComponent->GetComponentLocation();
 			MoveUpdatedComponent(DeltaPosition, FinalQuat, true, &MoveOnBaseHit);
+
 			if ((UpdatedComponent->GetComponentLocation() - (OldLocation + DeltaPosition)).IsNearlyZero() == false)
 			{
 				OnUnableToFollowBaseMove(DeltaPosition, OldLocation, MoveOnBaseHit);
+			}
+
+			// Reset base actor ignore state
+			if (bIgnoreBaseActor)
+			{
+				MoveComponentFlags &= ~MOVECOMP_CheckBlockingRootActorInIgnoreList;
+				UpdatedPrimitive->IgnoreActorWhenMoving(MovementBaseRootActor, false);
 			}
 		}
 
 		if (MovementBase->IsSimulatingPhysics() && CharacterOwner->GetMesh())
 		{
 			CharacterOwner->GetMesh()->ApplyDeltaToAllPhysicsTransforms(DeltaPosition, DeltaQuat);
+		}
+	}
+
+	// Check if falling above current base
+	if (IsFalling() && bStayBasedInAir)
+	{
+		const FVector PawnLocation = UpdatedComponent->GetComponentLocation();
+		FFindFloorResult OutFloorResult;
+		ComputeFloorDist(PawnLocation, StayBasedInAirHeight, StayBasedInAirHeight, OutFloorResult, CharacterOwner->GetCapsuleComponent()->GetScaledCapsuleRadius(), NULL);
+
+		UPrimitiveComponent* HitComponent = OutFloorResult.HitResult.Component.Get();
+		if (HitComponent && HitComponent->GetAttachmentRoot() != MovementBase->GetAttachmentRoot())
+		{
+			// New or no base under the character
+			ApplyImpartedMovementBaseVelocity();
+			SetBase(NULL);
+			return;
 		}
 	}
 }

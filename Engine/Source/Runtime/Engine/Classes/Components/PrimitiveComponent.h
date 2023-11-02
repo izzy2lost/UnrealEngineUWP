@@ -1018,6 +1018,9 @@ public:
 	/** Get the mask filter we use when moving. */
 	FMaskFilter GetMoveIgnoreMask() const { return MoveIgnoreMask; }
 
+	/** Should the hit result be ignored based on this component */
+	ENGINE_API bool ShouldComponentIgnoreHitResult(FHitResult const& TestHit, EMoveComponentFlags MoveFlags);
+
 	/** Set the mask filter checked when others move into us. */
 	void SetMaskFilterOnBodyInstance(FMaskFilter InMaskFilter) { BodyInstance.SetMaskFilter(InMaskFilter); }
 

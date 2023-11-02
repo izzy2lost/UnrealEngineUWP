@@ -55,26 +55,25 @@ enum ERelativeTransformSpace : int
 enum EMoveComponentFlags
 {
 	/** Default options */
-	MOVECOMP_NoFlags						= 0x0000,	
+	MOVECOMP_NoFlags							= 0x0000,	
 	/** Ignore collisions with things the Actor is based on */
-	MOVECOMP_IgnoreBases					= 0x0001,	
+	MOVECOMP_IgnoreBases						= 0x0001,	
 	/** When moving this component, do not move the physics representation. Used internally to avoid looping updates when syncing with physics. */
-	MOVECOMP_SkipPhysicsMove				= 0x0002,	
+	MOVECOMP_SkipPhysicsMove					= 0x0002,	
 	/** Never ignore initial blocking overlaps during movement, which are usually ignored when moving out of an object. MOVECOMP_IgnoreBases is still respected. */
-	MOVECOMP_NeverIgnoreBlockingOverlaps	= 0x0004,	
+	MOVECOMP_NeverIgnoreBlockingOverlaps		= 0x0004,	
 	/** avoid dispatching blocking hit events when the hit started in penetration (and is not ignored, see MOVECOMP_NeverIgnoreBlockingOverlaps). */
-	MOVECOMP_DisableBlockingOverlapDispatch	= 0x0008,	
+	MOVECOMP_DisableBlockingOverlapDispatch		= 0x0008,	
+	/** Compare the root actor of a blocking hit with the ignore UPrimitiveComponent::MoveIgnoreActors array */
+	MOVECOMP_CheckBlockingRootActorInIgnoreList	= 0x0016,	
 };
+// Declare bitwise operators to allow EMoveComponentFlags to be combined but still retain type safety
+ENUM_CLASS_FLAGS(EMoveComponentFlags);
 
 /** Comparison tolerance for checking if two FQuats are the same when moving SceneComponents. */
 #define SCENECOMPONENT_QUAT_TOLERANCE		(1.e-8f) 
 /** Comparison tolerance for checking if two FRotators are the same when moving SceneComponents. */
 #define SCENECOMPONENT_ROTATOR_TOLERANCE	(1.e-4f) 
-
-FORCEINLINE EMoveComponentFlags operator|(EMoveComponentFlags Arg1,EMoveComponentFlags Arg2)	{ return EMoveComponentFlags(uint32(Arg1) | uint32(Arg2)); }
-FORCEINLINE EMoveComponentFlags operator&(EMoveComponentFlags Arg1,EMoveComponentFlags Arg2)	{ return EMoveComponentFlags(uint32(Arg1) & uint32(Arg2)); }
-FORCEINLINE void operator&=(EMoveComponentFlags& Dest,EMoveComponentFlags Arg)					{ Dest = EMoveComponentFlags(Dest & Arg); }
-FORCEINLINE void operator|=(EMoveComponentFlags& Dest,EMoveComponentFlags Arg)					{ Dest = EMoveComponentFlags(Dest | Arg); }
 
 DECLARE_DYNAMIC_MULTICAST_SPARSE_DELEGATE_OneParam(FPhysicsVolumeChanged, USceneComponent, PhysicsVolumeChangedDelegate, class APhysicsVolume*, NewVolume);
 DECLARE_DYNAMIC_MULTICAST_SPARSE_DELEGATE_TwoParams(FIsRootComponentChanged, USceneComponent, IsRootComponentChanged, USceneComponent*, UpdatedComponent, bool, bIsRootComponent);

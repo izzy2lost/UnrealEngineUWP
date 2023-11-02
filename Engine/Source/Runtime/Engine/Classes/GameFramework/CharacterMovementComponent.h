@@ -1378,11 +1378,15 @@ public:
 
 	/** Apply inherited velocity when leaving base, for example from jumping off it */
 	ENGINE_API virtual void ApplyImpartedMovementBaseVelocity();
-	
-	/** Property used to set if characters should stay based on objects while jumping */
+
+	/** Property to set if UpdateBasedMovement should ignore collision with actors part of the current MovementBase, if the base is simulated by physics */
+	UPROPERTY(Category = "Character Movement (General Settings)", EditAnywhere, BlueprintReadWrite)
+	bool bBasedMovementIgnorePhysicsBase = false;
+
+	/** Property to set if characters should stay based on objects while jumping */
 	UPROPERTY(Category = "Character Movement: Jumping / Falling", EditAnywhere, BlueprintReadWrite)
 	bool bStayBasedInAir = false;
-	
+
 	/** Property used to set how high above base characters should stay based on objects while jumping if bStayBasedInAir is set */
 	UPROPERTY(Category = "Character Movement: Jumping / Falling", EditAnywhere, BlueprintReadWrite, meta = (editcondition = "bStayBasedInAir"))
 	float StayBasedInAirHeight = 1000.0f;
