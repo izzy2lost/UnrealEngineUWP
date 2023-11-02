@@ -513,28 +513,32 @@ struct FNaniteTraversalClusterCullCallback
 
 		bool bInvalidateFromSteamingLODDelta = false;
 		BRANCH
-		if( CULLING_PASS != CULLING_PASS_OCCLUSION_POST || (VisibleCluster.Flags & NANITE_CULLING_FLAG_TEST_LOD) != 0 )
+		if( Cull.bIsVisible )
 		{
-			const bool bSmallEnoughToDraw = SmallEnoughToDraw(NaniteView, InstanceData, DynamicData, ClusterBounds, Cluster.LODError, Cluster.EdgeLength, bUseHWRaster);
-
-			// If there was a large delta between bSmallEnoughToDraw 
-			bInvalidateFromSteamingLODDelta = (RenderFlags & NANITE_RENDER_FLAG_INVALIDATE_VSM_ON_LOD_DELTA) != 0 && !bSmallEnoughToDraw && (Cluster.Flags & NANITE_CLUSTER_FLAG_FULL_LEAF) == 0;
-
-
-		#if DEBUG_FLAGS
-			if ((DebugFlags & NANITE_DEBUG_FLAG_DRAW_ONLY_ROOT_DATA) != 0u)
+			BRANCH
+			if( CULLING_PASS != CULLING_PASS_OCCLUSION_POST || (VisibleCluster.Flags & NANITE_CULLING_FLAG_TEST_LOD) != 0 )
 			{
-				Cull.bIsVisible = (Cluster.Flags & NANITE_CLUSTER_FLAG_ROOT_GROUP) && (bSmallEnoughToDraw || (Cluster.Flags & NANITE_CLUSTER_FLAG_ROOT_LEAF));
+				const bool bSmallEnoughToDraw = SmallEnoughToDraw(NaniteView, InstanceData, DynamicData, ClusterBounds, Cluster.LODError, Cluster.EdgeLength, bUseHWRaster);
+
+				// If there was a large delta between bSmallEnoughToDraw 
+				bInvalidateFromSteamingLODDelta = (RenderFlags & NANITE_RENDER_FLAG_INVALIDATE_VSM_ON_LOD_DELTA) != 0 && !bSmallEnoughToDraw && (Cluster.Flags & NANITE_CLUSTER_FLAG_FULL_LEAF) == 0;
+
+
+			#if DEBUG_FLAGS
+				if ((DebugFlags & NANITE_DEBUG_FLAG_DRAW_ONLY_ROOT_DATA) != 0u)
+				{
+					Cull.bIsVisible = (Cluster.Flags & NANITE_CLUSTER_FLAG_ROOT_GROUP) && (bSmallEnoughToDraw || (Cluster.Flags & NANITE_CLUSTER_FLAG_ROOT_LEAF));
+				}
+				else
+			#endif
+				{
+					Cull.bIsVisible = bSmallEnoughToDraw || (Cluster.Flags & NANITE_CLUSTER_FLAG_STREAMING_LEAF);
+				}
 			}
 			else
-		#endif
 			{
-				Cull.bIsVisible = bSmallEnoughToDraw || (Cluster.Flags & NANITE_CLUSTER_FLAG_STREAMING_LEAF);
+				bUseHWRaster |= (VisibleCluster.Flags & NANITE_CULLING_FLAG_USE_HW) != 0;
 			}
-		}
-		else
-		{
-			bUseHWRaster |= (VisibleCluster.Flags & NANITE_CULLING_FLAG_USE_HW) != 0;
 		}
 
 #if VIRTUAL_TEXTURE_TARGET
