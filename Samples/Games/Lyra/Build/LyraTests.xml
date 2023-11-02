@@ -25,7 +25,9 @@
 	<Option Name="SkipUpdateAuditCollections" DefaultValue="false" Description="Whether to skip updating the audit collections (showing which files got cooked)" />
 
 	<Option Name="SymbolServerPath" DefaultValue="" Description="A shared symbols server for your office, debugging shipped builds."/>
-
+	
+	<Option Name="RunCookOnTheFlyTest" DefaultValue="false" Description="To run cook on the fly test"/>	
+	
 	<!-- Turn off defaults so we can set out own -->
 	<Property Name="WithBATDefaults" Value="false" />
 
@@ -38,6 +40,7 @@
 	<Property Name="NetworkTempRootOverride" Value="" />
 	<Property Name="NetworkPublishRootOverride" Value="" />
 	<Property Name="NetworkReportRootOverride" Value="" />
+	<Property Name="WithInterchangeWorker" Value="true" />
 
 	<!-- If a build machine, turn off all defaults. Settings should be specified via the website UI -->
 	<Do If="$(IsBuildMachine)">
@@ -47,7 +50,9 @@
 		<Property Name="DefaultEditorTestList" Value="" />
 		<Property Name="DefaultTargetTestList" Value="" />
 	</Do>
-	
+
+	<Property Name="DefaultTargetTestList" Value="$(DefaultTargetTestList)+UE.CookOnTheFly" If="$(RunCookOnTheFlyTest)" />
+
 	<Property Name="ExtraStageAndPackageArguments" Value="-target=&quot;$(TargetName)&quot; -compressed -CrashReporter" />
 
 

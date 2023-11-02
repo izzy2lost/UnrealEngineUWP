@@ -979,7 +979,7 @@ namespace Gauntlet
 				}
 			}
 
-			AppConfig.CommandLine += " -stdout -AllowStdOutLogVerbosity";
+			AppConfig.CommandLine += " -stdout -FullStdOutLogOutput";
 
 			float HeartbeatPeriod = Globals.Params.ParseValue("HeartbeatPeriod", HeartbeatOptions.HeartbeatPeriod);
 			if (HeartbeatPeriod > 0)
