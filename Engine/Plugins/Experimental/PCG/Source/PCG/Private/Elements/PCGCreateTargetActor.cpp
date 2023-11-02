@@ -30,6 +30,12 @@ FText UPCGCreateTargetActor::GetDefaultNodeTitle() const
 
 #endif // WITH_EDITOR
 
+namespace PCGCreateTargetActorConstants
+{
+	const FName ActorPropertyOverridesLabel = TEXT("Property Overrides");
+	const FText ActorPropertyOverridesTooltip = LOCTEXT("ActorOverrideToolTip", "Provide property overrides for the created target actor. The attribute name must match the InputSource name in the actor property override description.");
+}
+
 FPCGElementPtr UPCGCreateTargetActor::CreateElement() const
 {
 	return MakeShared<FPCGCreateTargetActorElement>();
@@ -37,7 +43,9 @@ FPCGElementPtr UPCGCreateTargetActor::CreateElement() const
 
 TArray<FPCGPinProperties> UPCGCreateTargetActor::InputPinProperties() const
 {
-	return TArray<FPCGPinProperties>();
+	TArray<FPCGPinProperties> PinProperties;
+	PinProperties.Add(PCGActorPropertyOverrideHelpers::CreateActorPropertiesOverridePin(PCGCreateTargetActorConstants::ActorPropertyOverridesLabel, PCGCreateTargetActorConstants::ActorPropertyOverridesTooltip));
+	return PinProperties;
 }
 
 TArray<FPCGPinProperties> UPCGCreateTargetActor::OutputPinProperties() const
@@ -282,6 +290,9 @@ bool FPCGCreateTargetActorElement::ExecuteInternal(FPCGContext* Context) const
 #endif
 
 	GeneratedActor->Tags.Add(PCGHelpers::DefaultPCGActorTag);
+
+	// Apply property overrides to the GeneratedActor
+	PCGActorPropertyOverrideHelpers::ApplyOverridesFromParams(Settings->PropertyOverrideDescriptions, GeneratedActor, PCGCreateTargetActorConstants::ActorPropertyOverridesLabel, Context);
 
 	for (UFunction* Function : PCGHelpers::FindUserFunctions(GeneratedActor->GetClass(), Settings->PostProcessFunctionNames, Context))
 	{
