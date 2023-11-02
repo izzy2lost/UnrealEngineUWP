@@ -23,6 +23,7 @@ namespace UnrealBuildTool.Rules
 					"Core",
 					"DesktopPlatform",
 					"EditorStyle",
+					"Engine",
 					"InputCore",
 					"MessageLog",
 					"Projects",

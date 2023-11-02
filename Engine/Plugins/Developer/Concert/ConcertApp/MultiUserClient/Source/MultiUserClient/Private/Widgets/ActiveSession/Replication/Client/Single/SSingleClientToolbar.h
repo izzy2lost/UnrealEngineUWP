@@ -5,8 +5,14 @@
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SCompoundWidget.h"
 
+namespace UE::ConcertClientSharedSlate
+{
+	class IObjectToPropertiesModel;
+}
+
 namespace UE::MultiUserClient
 {
+	class FGlobalAuthorityCache;
 	class FStreamChangeTracker;
 	class ISubmissionWorkflow;
 
@@ -21,9 +27,12 @@ namespace UE::MultiUserClient
 		{}
 			/** Dedicated space for a widget with which to change the view. */
 			SLATE_NAMED_SLOT(FArguments, ViewSelectionArea)
+		
+			/** The clients to show statistics for */
+			SLATE_ATTRIBUTE(TSet<FGuid>, DisplayedClients)
 		SLATE_END_ARGS()
 
-		void Construct(const FArguments& InArgs);
+		void Construct(const FArguments& InArgs, const ConcertClientSharedSlate::IObjectToPropertiesModel& InObjectModel, FGlobalAuthorityCache& InAuthorityCache);
 	};
 }
 

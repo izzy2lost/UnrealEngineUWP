@@ -76,8 +76,9 @@ namespace UE::MultiUserClient
 			.AutoHeight()
 			.Padding(2.f)
 			[
-				SNew(SSingleClientToolbar)
+				SNew(SSingleClientToolbar, PropertyModel, AuthorityCache)
 				.ViewSelectionArea() [ InArgs._ViewSelectionArea.Widget ]
+				.DisplayedClients(TSet{ ReplicationClient->GetEndpointId() })
 			]
 
 			// Editor
