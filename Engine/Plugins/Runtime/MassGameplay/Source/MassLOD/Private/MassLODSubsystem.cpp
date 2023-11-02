@@ -39,8 +39,8 @@ namespace UE::MassLOD
 						return;
 					}
 
-					UMassLODSubsystem* MassCrowdSubsystem = World->GetSubsystem<UMassLODSubsystem>();
-					if (MassCrowdSubsystem == nullptr)
+					UMassLODSubsystem* MassLODSubsystem = World->GetSubsystem<UMassLODSubsystem>();
+					if (MassLODSubsystem == nullptr)
 					{
 						UE_LOG(LogConsoleResponse, Display, TEXT("Error: Unable to fetch MassLODSubsystem instance"));
 						return;
@@ -59,7 +59,7 @@ namespace UE::MassLOD
 						return;
 					}
 
-					MassCrowdSubsystem->DebugSetUsePlayerPawnLocationInsteadOfCamera(bNewValue);
+					MassLODSubsystem->DebugSetUsePlayerPawnLocationInsteadOfCamera(bNewValue);
 				}));
 	}
 #endif // WITH_MASSGAMEPLAY_DEBUG
