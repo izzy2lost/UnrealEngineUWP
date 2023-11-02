@@ -10,6 +10,8 @@
 
 #include "ScreenshotFunctionalTestBase.generated.h"
 
+DEFINE_LOG_CATEGORY_STATIC(LogScreenshotFunctionalTest, Log, Log)
+
 class FAutomationTestScreenshotEnvSetup;
 
 /**
@@ -52,7 +54,7 @@ protected:
 	// Pass screenshot pixels and meta data to FAutomationTestFramework. Register
 	// OnComparisonComplete which will be called the automation test system when
 	// screenshot comparison is complete
-	void OnScreenShotCaptured(int32 InSizeX, int32 InSizeY, const TArray<FColor>& InImageData);
+	virtual void OnScreenShotCaptured(int32 InSizeX, int32 InSizeY, const TArray<FColor>& InImageData);
 
 	// Do some logging and trigger OnScreenshotTakenAndCompared
 	void OnComparisonComplete(const FAutomationScreenshotCompareResults& CompareResults);

@@ -19,9 +19,16 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ScreenshotFunctionalTest)
 
+static TAutoConsoleVariable<int32> CVarEnableStereoTestVariants(
+	TEXT("r.EnableStereoScreenshotTestVariants"), 0,
+	TEXT("Allows screenshot comparison tests with \"Support Stereo Test Variants\" checked to also test stereo rendering."),
+	ECVF_Default);
+
 AScreenshotFunctionalTest::AScreenshotFunctionalTest( const FObjectInitializer& ObjectInitializer )
 	: AScreenshotFunctionalTestBase(ObjectInitializer)
 	, bCameraCutOnScreenshotPrep(true)
+	, bNeedsVariantRestore(false)
+	, bShouldDoViewRectOffsetVariant(false)
 {
 }
 
@@ -39,6 +46,8 @@ void AScreenshotFunctionalTest::Serialize(FArchive& Ar)
 
 void AScreenshotFunctionalTest::PrepareTest()
 {
+	bShouldDoViewRectOffsetVariant = bSupportStereoTestVariants && CVarEnableStereoTestVariants.GetValueOnAnyThread() > 0;
+
 	// Pre-prep flush to allow rendering to temporary targets and other test resources
 	UAutomationBlueprintFunctionLibrary::FinishLoadingBeforeScreenshot();
 
@@ -97,3 +106,101 @@ void AScreenshotFunctionalTest::RequestScreenshot()
 	}
 }
 
+void AScreenshotFunctionalTest::OnScreenShotCaptured(int32 InSizeX, int32 InSizeY, const TArray<FColor>& InImageData)
+{
+	UGameViewportClient* GameViewportClient = AutomationCommon::GetAnyGameViewportClient();
+	check(GameViewportClient);
+
+	GameViewportClient->OnScreenshotCaptured().RemoveAll(this);
+
+#if WITH_AUTOMATION_TESTS
+	const FString Context = AutomationCommon::GetWorldContext(GetWorld());
+
+	TArray<uint8> CapturedFrameTrace = AutomationCommon::CaptureFrameTrace(Context, TestLabel);
+
+	FAutomationScreenshotData Data = UAutomationBlueprintFunctionLibrary::BuildScreenshotData(Context, TestLabel, InSizeX, InSizeY);
+
+	// Copy the relevant data into the metadata for the screenshot.
+	Data.bHasComparisonRules = true;
+	Data.ToleranceRed = ScreenshotOptions.ToleranceAmount.Red;
+	Data.ToleranceGreen = ScreenshotOptions.ToleranceAmount.Green;
+	Data.ToleranceBlue = ScreenshotOptions.ToleranceAmount.Blue;
+	Data.ToleranceAlpha = ScreenshotOptions.ToleranceAmount.Alpha;
+	Data.ToleranceMinBrightness = ScreenshotOptions.ToleranceAmount.MinBrightness;
+	Data.ToleranceMaxBrightness = ScreenshotOptions.ToleranceAmount.MaxBrightness;
+	Data.bIgnoreAntiAliasing = ScreenshotOptions.bIgnoreAntiAliasing;
+	Data.bIgnoreColors = ScreenshotOptions.bIgnoreColors;
+	Data.MaximumLocalError = ScreenshotOptions.MaximumLocalError;
+	Data.MaximumGlobalError = ScreenshotOptions.MaximumGlobalError;
+
+	// Add the notes
+	Data.Notes = Notes;
+
+	// If variant in use, pass on the name, then restore settings since capture is done
+	Data.VariantName = CurrentVariantName;
+	CurrentVariantName = "";
+
+	if (bNeedsVariantRestore)
+	{
+		GEngine->Exec(nullptr, *VariantRestoreCommand);
+		bNeedsVariantRestore = false;
+	}
+
+	if (GIsAutomationTesting)
+	{
+		FAutomationTestFramework::Get().OnScreenshotCompared.AddUObject(this, &AScreenshotFunctionalTest::OnComparisonComplete);
+	}
+
+	FAutomationTestFramework::Get().OnScreenshotAndTraceCaptured().ExecuteIfBound(InImageData, CapturedFrameTrace, Data);
+
+	UE_LOG(LogScreenshotFunctionalTest, Log, TEXT("Screenshot captured as %s"), *Data.ScreenshotName);
+#endif
+}
+
+void AScreenshotFunctionalTest::OnScreenshotTakenAndCompared()
+{
+	if (bShouldDoViewRectOffsetVariant)
+	{
+		bShouldDoViewRectOffsetVariant = false;
+
+		// 0: Off, 1: Center, 2: Top Left, 3: Top Right, 4: Bottom Left, 5: Bottom Right
+		// We use bottom right to test both horizontal and vertical offsets (typically used for XR and split-screen, respectively).
+		PerformVariant("ViewRectOffset", "r.Test.ViewRectOffset 5", "r.Test.ViewRectOffset 0");
+	}
+	else
+	{
+		// This ends the test and reports results
+		Super::OnScreenshotTakenAndCompared();
+	}
+}
+
+void AScreenshotFunctionalTest::PerformVariant(FString VariantName, FString SetupCommand, FString RestoreCommand)
+{
+	// Set up variant
+	GEngine->Exec(nullptr, *SetupCommand);
+
+	// Save variant name and command needed to restore in OnScreenShotCaptured
+	CurrentVariantName = VariantName;
+	if (!RestoreCommand.IsEmpty())
+	{
+		VariantRestoreCommand = RestoreCommand;
+		bNeedsVariantRestore = true;
+	}
+
+	// Re-prepare test and request screenshot comparison
+	if (bCameraCutOnScreenshotPrep)
+	{
+		APlayerController* PlayerController = UGameplayStatics::GetPlayerController(GetWorld(), 0);
+
+		if (PlayerController && PlayerController->PlayerCameraManager)
+		{
+			PlayerController->PlayerCameraManager->SetGameCameraCutThisFrame();
+			if (ScreenshotCamera)
+			{
+				ScreenshotCamera->NotifyCameraCut();
+			}
+		}
+	}
+
+	RequestScreenshot(); 
+}

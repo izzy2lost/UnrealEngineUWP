@@ -80,9 +80,16 @@ FString FScreenShotManager::GetPathComponentForPlatformAndRHI(const FAutomationS
 /**
  * Images are now preferred to be under MapOrContext/ImageName/Plat/RHI etc
  */
-FString FScreenShotManager::GetPathComponentForTestImages(const FAutomationScreenshotMetadata& MetaData) const
+FString FScreenShotManager::GetPathComponentForTestImages(const FAutomationScreenshotMetadata& MetaData, bool bIncludeVariantName) const
 {
-	return FPaths::Combine(MetaData.Context, *MetaData.ScreenShotName);
+	if (bIncludeVariantName)
+	{
+		return FPaths::Combine(MetaData.Context, *MetaData.ScreenShotName, *MetaData.VariantName);
+	}
+	else
+	{
+		return FPaths::Combine(MetaData.Context, *MetaData.ScreenShotName);
+	}
 }
 
 FString FScreenShotManager::GetApprovedFolderForImageWithOptions(const FAutomationScreenshotMetadata& MetaData, EApprovedFolderOptions InOptions) const
@@ -92,7 +99,7 @@ FString FScreenShotManager::GetApprovedFolderForImageWithOptions(const FAutomati
 	bool bUsePlatformPath = PlatInfo.bIsConfidential && (InOptions & EApprovedFolderOptions::UsePlatformFolders) == 0;
 
 	// Test folder will be MapOrContext/ImageName
-	FString TestFolder = GetPathComponentForTestImages(MetaData);
+	FString TestFolder = GetPathComponentForTestImages(MetaData, false);
 
 	FString OutPath = FPaths::ProjectDir();
 
@@ -280,7 +287,7 @@ FImageComparisonResult FScreenShotManager::CompareScreenshot(const FString& InUn
 	// get the ideal path for our approved image. This is the path that a file would be at if it matches our platform and RHI
 	FString IdealApprovedFolderPath = GetIdealApprovedFolderForImage(IncomingMetaData);
 
-	FString ResultsSubFolder = GetPathComponentForTestImages(IncomingMetaData);
+	FString ResultsSubFolder = GetPathComponentForTestImages(IncomingMetaData, true);
 
 	// If the metadata for the screenshot does not provide tolerance rules, use these instead.
 	FImageTolerance DefaultTolerance = FImageTolerance::DefaultIgnoreLess;
@@ -658,8 +665,8 @@ TSharedPtr<FImageComparisonResult> FScreenShotManager::CompareImageSequence(cons
 			ComparisonResult.SourcePlatform = Metadata.Platform;
 			ComparisonResult.SourceRHI = Metadata.Rhi;
 			ComparisonResult.IdealApprovedFolderPath = GetIdealApprovedFolderForImage(Metadata);;
-			ComparisonResult.ScreenshotName = GetPathComponentForTestImages(Metadata);
-			FString ReportPathOnDisk = FPaths::Combine(ScreenshotResultsFolder, GetPathComponentForTestImages(Metadata), Metadata.Platform, GetPathComponentForRHI(Metadata), TEXT("/"));
+			ComparisonResult.ScreenshotName = GetPathComponentForTestImages(Metadata, true);
+			FString ReportPathOnDisk = FPaths::Combine(ScreenshotResultsFolder, GetPathComponentForTestImages(Metadata, true), Metadata.Platform, GetPathComponentForRHI(Metadata), TEXT("/"));
 
 			ComparisonResult.ReportApprovedFilePath = FPaths::Combine(ReportPathOnDisk, TEXT("Approved.png"));
 			ComparisonResult.ReportIncomingFilePath = FPaths::Combine(ReportPathOnDisk, TEXT("Incoming.png"));

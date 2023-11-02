@@ -85,11 +85,12 @@ FString FScreenComparisonModel::GetName()
 		auto LoadedMetadata = GetMetadata();
 		if (LoadedMetadata.IsSet())
 		{
-			FString NameString = FString::Printf(TEXT("%s.%s"), *LoadedMetadata->Context, *LoadedMetadata->ScreenShotName);
+			FString VariantSuffix = LoadedMetadata->VariantName.Len() > 0 ? FString::Printf(TEXT(".%s"), *LoadedMetadata->VariantName) : TEXT("");
+			FString NameString = FString::Printf(TEXT("%s.%s%s"), *LoadedMetadata->Context, *LoadedMetadata->ScreenShotName, *VariantSuffix);
 			if ((LoadedMetadata->Context.Len() && LoadedMetadata->TestName.Len())
 				|| !LoadedMetadata->ScreenShotName.Len())
 			{
-				NameString = FString::Printf(TEXT("%s.%s"), *LoadedMetadata->Context, *LoadedMetadata->TestName);
+				NameString = FString::Printf(TEXT("%s.%s%s"), *LoadedMetadata->Context, *LoadedMetadata->TestName, *VariantSuffix);
 			}
 
 			Name = NameString;

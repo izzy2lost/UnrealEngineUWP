@@ -64,7 +64,7 @@ private:
 
 	FString	GetPathComponentForRHI(const FAutomationScreenshotMetadata& MetaData) const;
 	FString	GetPathComponentForPlatformAndRHI(const FAutomationScreenshotMetadata& MetaData) const;
-	FString GetPathComponentForTestImages(const FAutomationScreenshotMetadata& MetaData) const;
+	FString GetPathComponentForTestImages(const FAutomationScreenshotMetadata& MetaData, bool bIncludeVariantName) const;
 		
 
 	FString GetApprovedFolderForImageWithOptions(const FAutomationScreenshotMetadata& MetaData, EApprovedFolderOptions InOptions) const;

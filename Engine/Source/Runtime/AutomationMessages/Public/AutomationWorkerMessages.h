@@ -402,6 +402,9 @@ public:
 	UPROPERTY(EditAnywhere, Category="Message")
 	FString ScreenShotName;
 
+	UPROPERTY(EditAnywhere, Category = "Message")
+	FString VariantName;
+
 	UPROPERTY(EditAnywhere, Category="Message")
 	FString Context;
 
@@ -528,6 +531,7 @@ public:
 
 		// Human readable name and associated context the screenshot was taken in.
 		ScreenShotName = Data.ScreenShotName;
+		VariantName = Data.VariantName;
 		Context = Data.Context;
 		TestName = Data.TestName;
 		Notes = Data.Notes;

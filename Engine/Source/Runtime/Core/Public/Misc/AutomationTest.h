@@ -698,6 +698,7 @@ FORCEINLINE uint32 GetTypeHash(const FAutomationExpectedMessage& Object)
 struct FAutomationScreenshotData
 {
 	FString ScreenShotName;
+	FString VariantName;
 	FString Context;
 	FString TestName;
 	FString Notes;

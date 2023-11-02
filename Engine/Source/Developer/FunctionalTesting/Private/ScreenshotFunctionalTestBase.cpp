@@ -24,8 +24,6 @@
 
 #define	WITH_EDITOR_AUTOMATION_TESTS	(WITH_EDITOR && WITH_AUTOMATION_TESTS)
 
-DEFINE_LOG_CATEGORY_STATIC(LogScreenshotFunctionalTest, Log, Log)
-
 static TAutoConsoleVariable<int32> GDumpGPUDumpOnScreenshotTest(
 	TEXT("r.DumpGPU.DumpOnScreenshotTest"), 0,
 	TEXT("Allows to filter the tree when using r.DumpGPU command, the pattern match is case sensitive."),
