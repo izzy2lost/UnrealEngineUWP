@@ -13,8 +13,8 @@ extern "C" {
 // scratch_buffer should be the same size as samples.
 // num_samples is the number of samples in the buffer
 // num_channels is the number of channels in the buffer.
-void oowav_encode16(short *samples, short *scratch_buffer, long long num_samples, long long num_channels);
-void oowav_decode16(short *samples, short *scratch_buffer, long long num_samples, long long num_channels);
+void uewav_encode16(short *samples, short *scratch_buffer, long long num_samples, long long num_channels);
+void uewav_decode16(short *samples, short *scratch_buffer, long long num_samples, long long num_channels);
 
 #ifdef __cplusplus
 }

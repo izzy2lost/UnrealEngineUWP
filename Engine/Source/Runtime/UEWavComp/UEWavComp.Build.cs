@@ -2,9 +2,9 @@
 using UnrealBuildTool;
 using System.IO;
 
-public class OodleWAV : ModuleRules
+public class UEWavComp : ModuleRules
 {
-	public OodleWAV(ReadOnlyTargetRules Target) : base(Target)
+	public UEWavComp(ReadOnlyTargetRules Target) : base(Target)
 	{
 		Type = ModuleType.External;
 
@@ -12,19 +12,19 @@ public class OodleWAV : ModuleRules
 		if (Target.Platform == UnrealTargetPlatform.Win64 && Target.WindowsPlatform.Architecture != UnrealArch.Arm64)
 		{
 			string LibPath = Path.Combine(ModuleDirectory, "Lib");
-			PublicAdditionalLibraries.Add(Path.Combine(LibPath, "oowav_w64.lib"));
+			PublicAdditionalLibraries.Add(Path.Combine(LibPath, "uewav_w64.lib"));
 			bWithLib = true;
 		}
 		else if (Target.Platform == UnrealTargetPlatform.Mac)
 		{
 			string LibPath = Path.Combine(ModuleDirectory, "Lib");
-			PublicAdditionalLibraries.Add(Path.Combine(LibPath, "oowav_mac.a"));
+			PublicAdditionalLibraries.Add(Path.Combine(LibPath, "uewav_mac.a"));
 			bWithLib = true;
 		}
 		else if (Target.IsInPlatformGroup(UnrealPlatformGroup.Unix))
 		{
 			string LibPath = Path.Combine(ModuleDirectory, "Lib/Unix", Target.Architecture.LinuxName);
-			PublicAdditionalLibraries.Add(Path.Combine(LibPath, "oowav_linux.a"));
+			PublicAdditionalLibraries.Add(Path.Combine(LibPath, "uewav_linux.a"));
 			bWithLib = true;
 		}
 

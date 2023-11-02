@@ -166,7 +166,7 @@ public class Engine : ModuleRules
 			// The SparseVolumeTexture module containing the importer is only loaded and used in the editor.
 			DynamicallyLoadedModuleNames.Add("SparseVolumeTexture");
 			AddEngineThirdPartyPrivateStaticDependencies(Target,
-				"OodleWAV"
+				"UEWavComp"
 				);
 		}
 

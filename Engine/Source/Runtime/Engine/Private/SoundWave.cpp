@@ -34,7 +34,7 @@
 #include "UObject/ObjectSaveContext.h"
 #include "ISoundWaveCloudStreaming.h"
 #if WITH_EDITORONLY_DATA
-#include "oowav.h"
+#include "uewav.h"
 #endif
 
 static int32 SoundWaveDefaultLoadingBehaviorCVar = static_cast<int32>(ESoundWaveLoadingBehavior::LoadOnDemand);
@@ -4857,14 +4857,14 @@ TFuture<FSharedBuffer> USoundWave::FEditorAudioBulkData::GetPayload() const
 	}
 	if (*WaveInfo.pFormatTag == FWaveModInfo::WAVE_INFO_FORMAT_OODLE_WAVE)
 	{
-		// Convert OodleWave data back to a WAV file
+		// Convert UEWavComp data back to a WAV file
 		*WaveInfo.pFormatTag = FWaveModInfo::WAVE_INFO_FORMAT_PCM;
 		int16* samples = (int16*)WaveInfo.SampleDataStart;
 		int64 num_samples = WaveInfo.GetNumSamples();
 		int64 num_channels = *WaveInfo.pChannels;
 		TArray<int16> scratch_buffer;
 		scratch_buffer.AddUninitialized(num_samples);
-		oowav_decode16(samples, scratch_buffer.GetData(), num_samples, num_channels);
+		uewav_decode16(samples, scratch_buffer.GetData(), num_samples, num_channels);
 	}
 	TPromise<FSharedBuffer> promise;
 	promise.EmplaceValue(Buffer);
@@ -4885,16 +4885,16 @@ void USoundWave::FEditorAudioBulkData::UpdatePayload(FSharedBuffer InPayload, UO
 	}
 	if (*WaveInfo.pFormatTag == FWaveModInfo::WAVE_INFO_FORMAT_PCM)
 	{
-		bool bEnableOodleWAV = false;
-		GConfig->GetBool(TEXT("AudioImporter"), TEXT("EnableOodleWAV"), bEnableOodleWAV, GEditorIni);
-		if (bEnableOodleWAV)
+		bool bEnableUEWavComp = false;
+		GConfig->GetBool(TEXT("AudioImporter"), TEXT("EnableUEWavComp"), bEnableUEWavComp, GEditorIni);
+		if (bEnableUEWavComp)
 		{
 			int16* samples = (int16*)WaveInfo.SampleDataStart;
 			int64 num_samples = WaveInfo.GetNumSamples();
 			int64 num_channels = *WaveInfo.pChannels;
 			TArray<int16> scratch_buffer;
 			scratch_buffer.AddUninitialized(num_samples);
-			oowav_encode16(samples, scratch_buffer.GetData(), num_samples, num_channels);
+			uewav_encode16(samples, scratch_buffer.GetData(), num_samples, num_channels);
 			*WaveInfo.pFormatTag = FWaveModInfo::WAVE_INFO_FORMAT_OODLE_WAVE;
 		}
 	}
