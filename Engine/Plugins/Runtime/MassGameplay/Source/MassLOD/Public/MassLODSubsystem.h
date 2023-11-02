@@ -111,6 +111,10 @@ public:
 	void RegisterActorViewer(AActor& ActorViewer);
 	void UnregisterActorViewer(AActor& ActorViewer);
 
+#if WITH_MASSGAMEPLAY_DEBUG
+	void DebugSetUsePlayerPawnLocationInsteadOfCamera(const bool bInValue) { bUsePlayerPawnLocationInsteadOfCamera = bInValue; }
+#endif
+
 protected:
 	// USubsystem BEGIN
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
@@ -152,16 +156,25 @@ protected:
 	void OnPlayerControllerEndPlay(AActor* Actor, EEndPlayReason::Type EndPlayReason);
 
 protected:
-	/** If true, all PlayerControllers will be gathered as viewers for LOD calcuations. */
+	/** If true, all PlayerControllers will be gathered as viewers for LOD calculations. */
 	UPROPERTY(EditDefaultsOnly, Category = "Mass|LOD", config)
 	uint8 bGatherPlayerControllers : 1 = true;
 
-	/** If true, all streaming sources will be gathered as viewers for LOD calcuations. */
+	/** If true, all streaming sources will be gathered as viewers for LOD calculations. */
 	UPROPERTY(EditDefaultsOnly, Category = "Mass|LOD", config)
 	uint8 bGatherStreamingSources : 1 = true;
 
+	/** Whether using non-player actors as LOD Viewers is supported. */
 	UPROPERTY(EditDefaultsOnly, Category = "Mass|LOD", config)
 	uint8 bAllowNonPlayerViwerActors : 1 = true;
+
+	/** 
+	 * If set to true will prefer to use Player-owned Pawn's location and rotation over Player's camera as the viewer's 
+	 * location and rotation.
+	 * Note that this works best with distance-only LOD and can introduce subtle inaccuracies if Frustum-based LOD is being used. 
+	 */
+	UPROPERTY(EditDefaultsOnly, Category = "Mass|LOD", config)
+	uint8 bUsePlayerPawnLocationInsteadOfCamera : 1 = false;
 
 private:
 	/** Removes a viewer to the list and send notification about removal */

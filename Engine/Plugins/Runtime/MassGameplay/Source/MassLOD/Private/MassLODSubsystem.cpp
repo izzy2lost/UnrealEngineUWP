@@ -15,9 +15,7 @@
 #include "Editor/EditorEngine.h"
 #endif // WITH_EDITOR
 
-namespace UE
-{
-namespace MassLOD
+namespace UE::MassLOD
 {
 	FColor LODColors[] =
 	{
@@ -26,7 +24,45 @@ namespace MassLOD
 		FColor::Emerald,
 		FColor::White,
 	};
-}
+	
+#if WITH_MASSGAMEPLAY_DEBUG
+	namespace Debug
+	{
+		FAutoConsoleCommandWithWorldArgsAndOutputDevice ToggleUsePlayerLocationCmd(
+			TEXT("mass.debug.LODSubsystem.UsePlayerLocation"),
+			TEXT("Sets UMassSubsystem::bUsePlayerPawnLocationInsteadOfCamera. Note that this is a command that doesn't retain state and usually needs running both for the client and the server"),
+			FConsoleCommandWithWorldArgsAndOutputDeviceDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World, FOutputDevice& Ar)
+				{
+					if (!World)
+					{
+						UE_LOG(LogConsoleResponse, Display, TEXT("Error: invalid world"));
+						return;
+					}
+
+					UMassLODSubsystem* MassCrowdSubsystem = World->GetSubsystem<UMassLODSubsystem>();
+					if (MassCrowdSubsystem == nullptr)
+					{
+						UE_LOG(LogConsoleResponse, Display, TEXT("Error: Unable to fetch MassLODSubsystem instance"));
+						return;
+					}
+					
+					if (Args.Num() < 1)
+					{
+						UE_LOG(LogConsoleResponse, Display, TEXT("Error: Expecting 1 parameter"));
+						return;
+					}
+
+					bool bNewValue = false;
+					if (!LexTryParseString<bool>(bNewValue, *Args[0]))
+					{
+						UE_LOG(LogConsoleResponse, Display, TEXT("Error: parameter must be an integer or a boolean"));
+						return;
+					}
+
+					MassCrowdSubsystem->DebugSetUsePlayerPawnLocationInsteadOfCamera(bNewValue);
+				}));
+	}
+#endif // WITH_MASSGAMEPLAY_DEBUG
 }
 
 //-----------------------------------------------------------------------------
@@ -278,14 +314,26 @@ void UMassLODSubsystem::SynchronizeViewers()
 		{
 			ViewerInfo.bEnabled = !WorldPartition || ViewerAsPlayerController->bEnableStreamingSource;
 
-			FVector PlayerCameraLocation(ForceInitToZero);
-			FRotator PlayerCameraRotation(FRotator::ZeroRotator);
-			ViewerAsPlayerController->GetPlayerViewPoint(PlayerCameraLocation, PlayerCameraRotation);
-			ViewerInfo.Location = PlayerCameraLocation;
-			ViewerInfo.Rotation = PlayerCameraRotation;
+			// Note: Using bUsePlayerPawnLocationInsteadOfCamera will not work correctly with FOV based LOD, since the
+			// camera will be at wrong location.  
+			// @todo: separate "player location" and "view location", and use the player location on distance based LOD 
+			// calculations for stability, and view location in FOV based LOD for view precision.
+			if (bUsePlayerPawnLocationInsteadOfCamera && ViewerAsPlayerController->GetPawn())
+			{
+				ViewerInfo.Location = ViewerAsPlayerController->GetPawn()->GetActorLocation();
+				ViewerInfo.Rotation = ViewerAsPlayerController->GetPawn()->GetActorRotation();
+			}
+			else
+			{
+				FVector PlayerCameraLocation(ForceInitToZero);
+				FRotator PlayerCameraRotation(FRotator::ZeroRotator);
+				ViewerAsPlayerController->GetPlayerViewPoint(PlayerCameraLocation, PlayerCameraRotation);
+				ViewerInfo.Location = PlayerCameraLocation;
+				ViewerInfo.Rotation = PlayerCameraRotation;
+			}
 
 			// Try to fetch a more precise FOV
-			if(ViewerAsPlayerController->PlayerCameraManager)
+			if (ViewerAsPlayerController->PlayerCameraManager)
 			{
 				ViewerInfo.FOV = ViewerAsPlayerController->PlayerCameraManager->GetFOVAngle();
 
