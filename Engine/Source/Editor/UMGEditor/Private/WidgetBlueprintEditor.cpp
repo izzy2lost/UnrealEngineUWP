@@ -102,7 +102,7 @@ FWidgetBlueprintEditor::FWidgetBlueprintEditor()
 	, bUpdatingSequencerSelection(false)
 	, bUpdatingExternalSelection(false)
 {
-	PreviewScene.GetWorld()->bBegunPlay = false;
+	PreviewScene.GetWorld()->SetBegunPlay(false);
 
 	// Register sequencer menu extenders.
 	ISequencerModule& SequencerModule = FModuleManager::Get().LoadModuleChecked<ISequencerModule>( "Sequencer" );

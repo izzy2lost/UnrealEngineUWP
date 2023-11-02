@@ -202,7 +202,7 @@ FSCSEditorViewportClient::FSCSEditorViewportClient(TWeakPtr<FBlueprintEditor>& I
 	PreviewScene->AddComponent(EditorFloorComp, FTransform::Identity);
 
 	// Turn off so that actors added to the world do not have a lifespan (so they will not auto-destroy themselves).
-	PreviewScene->GetWorld()->bBegunPlay = false;
+	PreviewScene->GetWorld()->SetBegunPlay(false);
 
 	PreviewScene->SetSkyCubemap(GUnrealEd->GetThumbnailManager()->AmbientCubemap);
 }
@@ -1017,7 +1017,7 @@ void FSCSEditorViewportClient::ToggleIsSimulateEnabled()
 	BlueprintEditorPtr.Pin()->DestroyPreview();
 
 	bIsSimulateEnabled = !bIsSimulateEnabled;
-	PreviewScene->GetWorld()->bBegunPlay = bIsSimulateEnabled;
+	PreviewScene->GetWorld()->SetBegunPlay(bIsSimulateEnabled);
 	PreviewScene->GetWorld()->bShouldSimulatePhysics = bIsSimulateEnabled;
 
 	TSharedPtr<SWidget> SubobjectEditor = BlueprintEditorPtr.Pin()->GetSubobjectEditor();

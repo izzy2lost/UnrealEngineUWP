@@ -4253,6 +4253,28 @@ bool UWorld::CanAddLoadedLevelToWorld(ULevel* Level) const
 	return true;
 }
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+void UWorld::SetBegunPlay(bool bHasBegunPlay)
+{
+	if(bBegunPlay == bHasBegunPlay)
+	{
+		return;
+	}
+	
+	bBegunPlay = bHasBegunPlay;
+	if(OnBeginPlay.IsBound())
+	{
+		OnBeginPlay.Broadcast(bBegunPlay);
+	}
+}
+
+bool UWorld::GetBegunPlay() const
+{
+	return bBegunPlay;
+}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+
 extern ENGINE_API bool GIsLowMemory;
 
 void UWorld::UpdateLevelStreaming()
@@ -5811,7 +5833,7 @@ ABrush* UWorld::GetDefaultBrush() const
 
 bool UWorld::HasBegunPlay() const
 {
-	return bBegunPlay && PersistentLevel && PersistentLevel->Actors.Num();
+	return GetBegunPlay() && PersistentLevel && PersistentLevel->Actors.Num();
 }
 
 bool UWorld::AreActorsInitialized() const

@@ -296,7 +296,7 @@ float AWorldSettings::SetTimeDilation(float NewTimeDilation)
 void AWorldSettings::NotifyBeginPlay()
 {
 	UWorld* World = GetWorld();
-	if (!World->bBegunPlay)
+	if (!World->GetBegunPlay())
 	{
 		for (FActorIterator It(World); It; ++It)
 		{
@@ -305,7 +305,7 @@ void AWorldSettings::NotifyBeginPlay()
 			It->DispatchBeginPlay(bFromLevelLoad);
 		}
 
-		World->bBegunPlay = true;
+		World->SetBegunPlay(true);
 	}
 }
 

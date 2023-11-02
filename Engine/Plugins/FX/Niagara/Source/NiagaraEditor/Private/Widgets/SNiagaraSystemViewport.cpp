@@ -1181,7 +1181,7 @@ void FNiagaraBaselineViewportClient::Tick(float DeltaSeconds)
 
 	if (UWorld* World = PreviewScene->GetWorld())
 	{
-		if (!World->bBegunPlay)
+		if (!World->GetBegunPlay())
 		{
 			for (FActorIterator It(World); It; ++It)
 			{
@@ -1190,7 +1190,7 @@ void FNiagaraBaselineViewportClient::Tick(float DeltaSeconds)
 					It->DispatchBeginPlay();
 				}
 			}
-			World->bBegunPlay = true;
+			World->SetBegunPlay(true);
 
 			// Simulate behavior from GameEngine.cpp
 			World->bWorldWasLoadedThisTick = false;

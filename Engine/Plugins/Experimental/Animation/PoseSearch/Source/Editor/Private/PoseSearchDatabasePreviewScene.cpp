@@ -45,14 +45,14 @@ namespace UE::PoseSearch
 		// Trigger Begin Play in this preview world.
 		// This is needed for the CharacterMovementComponent to be able to switch to falling mode. 
 		// See: UCharacterMovementComponent::StartFalling
-		if (PreviewWorld && !PreviewWorld->bBegunPlay)
+		if (PreviewWorld && !PreviewWorld->GetBegunPlay())
 		{
 			for (FActorIterator It(PreviewWorld); It; ++It)
 			{
 				It->DispatchBeginPlay();
 			}
 
-			PreviewWorld->bBegunPlay = true;
+			PreviewWorld->SetBegunPlay(true);
 		}
 
 		GetWorld()->Tick(LEVELTICK_All, InDeltaTime);

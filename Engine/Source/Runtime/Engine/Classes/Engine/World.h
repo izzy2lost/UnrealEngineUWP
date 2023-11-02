@@ -1251,7 +1251,18 @@ public:
 	uint8 bActorsInitialized:1;
 
 	/** Whether BeginPlay has been called on actors */
+	UE_DEPRECATED(5.4, "Public access to bBegunPlay is deprecated. Please update your code to use the public accessors GetBegunPlay() & SetBegunPlay().")
 	uint8 bBegunPlay:1;
+
+	/** Set whether BeginPlay has been called on actors */
+	void SetBegunPlay(bool bHasBegunPlay);
+
+	/** Get whether BeginPlay has been called on actors */
+	bool GetBegunPlay() const;
+
+	DECLARE_EVENT_OneParam(UWorld, FOnBeginPlay, bool);
+	/** Return the event that is broadcast when bBegunPlay is changed */
+	FOnBeginPlay& GetOnBeginPlayEvent() { return OnBeginPlay; }
 
 	/** Whether the match has been started */
 	uint8 bMatchStarted:1;
@@ -1362,8 +1373,8 @@ private:
 
 	/** Creates the dynamic source and static level collections if they don't already exist. */
 	void ConditionallyCreateDefaultLevelCollections();
-
-
+	
+	FOnBeginPlay OnBeginPlay;
 public:
 
 	/** Handle to the active audio device for this world. */

@@ -233,7 +233,7 @@ bool AGameStateBase::HasBegunPlay() const
 	UWorld* World = GetWorld();
 	if (World)
 	{
-		return World->bBegunPlay;
+		return World->GetBegunPlay();
 	}
 
 	return false;
