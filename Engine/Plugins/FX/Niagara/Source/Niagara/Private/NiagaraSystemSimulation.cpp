@@ -1086,14 +1086,12 @@ void FNiagaraSystemSimulation::Tick_GameThread_Internal(float DeltaSeconds, cons
 	}
 
 	check(IsInGameThread());
+	check(bInSpawnPhase == false);
 
 	FNiagaraCrashReporterScope CRScope(this);
 
 	// Work may not be complete if we back to back tick the GameThread without sending EOF updates
 	WaitForInstancesTickComplete();
-
-	// Ensure we waited correctly, this needs to be below the wait because back to back frames might not be flushed
-	check(bInSpawnPhase == false);
 
 	SCOPE_CYCLE_COUNTER(STAT_NiagaraOverview_GT);
 	SCOPE_CYCLE_COUNTER(STAT_NiagaraSystemSim_TickGT);
@@ -1154,7 +1152,7 @@ void FNiagaraSystemSimulation::Tick_GameThread_Internal(float DeltaSeconds, cons
 				// Tick demotion we need to do this now to ensure we complete in the correct group
 				if (DesiredTickGroup > SystemTickGroup)
 				{
-					TSharedPtr<FNiagaraSystemSimulation, ESPMode::ThreadSafe> NewSim = WorldManager->GetSystemSimulation(DesiredTickGroup, System, false);
+					TSharedPtr<FNiagaraSystemSimulation, ESPMode::ThreadSafe> NewSim = WorldManager->GetSystemSimulation(DesiredTickGroup, System);
 					NewSim->TransferInstance(Instance);
 					continue;
 				}
@@ -1188,7 +1186,7 @@ void FNiagaraSystemSimulation::Tick_GameThread_Internal(float DeltaSeconds, cons
 						if (UFXSystemComponent::RequiresLWCTileRecache(Instance->GetLWCTile(), SceneComponent->GetComponentLocation()))
 						{
 							//-OPT: For safety we reset everything, but if everything is local space we may not need to, or we could rebase.
-							if (Instance->GetTickCount() > 1 && FNiagaraUtilities::LogVerboseWarnings())
+							if (Instance->GetTickCount() > 1)
 							{
 								UE_LOG(LogNiagara, Warning, TEXT("NiagaraComponent(%s - %s) required LWC tile recache and was reset."), *GetFullNameSafe(SceneComponent), *GetFullNameSafe(System));
 							}
@@ -1225,7 +1223,7 @@ void FNiagaraSystemSimulation::Tick_GameThread_Internal(float DeltaSeconds, cons
 				const ETickingGroup DesiredTickGroup = Instance->CalculateTickGroup();
 				if (DesiredTickGroup != SystemTickGroup)
 				{
-					TSharedPtr<FNiagaraSystemSimulation, ESPMode::ThreadSafe> DestSim = WorldManager->GetSystemSimulation(DesiredTickGroup, System, false);
+					TSharedPtr<FNiagaraSystemSimulation, ESPMode::ThreadSafe> DestSim = WorldManager->GetSystemSimulation(DesiredTickGroup, System);
 					DestSim->TransferInstance(Instance);
 					continue;
 				}
@@ -1330,7 +1328,7 @@ void FNiagaraSystemSimulation::UpdateTickGroups_GameThread()
 		const ETickingGroup TickGroup = Instance->CalculateTickGroup();
 		if (TickGroup != SystemTickGroup)
 		{
-			TSharedPtr<FNiagaraSystemSimulation, ESPMode::ThreadSafe> NewSim = WorldManager->GetSystemSimulation(TickGroup, System, false);
+			TSharedPtr<FNiagaraSystemSimulation, ESPMode::ThreadSafe> NewSim = WorldManager->GetSystemSimulation(TickGroup, System);
 			NewSim->TransferInstance(Instance);
 		}
 	}
@@ -1345,7 +1343,7 @@ void FNiagaraSystemSimulation::UpdateTickGroups_GameThread()
 		const ETickingGroup DesiredTickGroup = Instance->CalculateTickGroup();
 		if (DesiredTickGroup != SystemTickGroup)
 		{
-			TSharedPtr<FNiagaraSystemSimulation, ESPMode::ThreadSafe> DestSim = WorldManager->GetSystemSimulation(DesiredTickGroup, System, false);
+			TSharedPtr<FNiagaraSystemSimulation, ESPMode::ThreadSafe> DestSim = WorldManager->GetSystemSimulation(DesiredTickGroup, System);
 			DestSim->TransferInstance(Instance);
 			continue;
 		}
@@ -1420,7 +1418,7 @@ void FNiagaraSystemSimulation::Spawn_GameThread(float DeltaSeconds, bool bPostAc
 		const ETickingGroup DesiredTickGroup = Instance->CalculateTickGroup();
 		if (DesiredTickGroup != SystemTickGroup)
 		{
-			TSharedPtr<FNiagaraSystemSimulation, ESPMode::ThreadSafe> DestSim = WorldManager->GetSystemSimulation(DesiredTickGroup, System, false);
+			TSharedPtr<FNiagaraSystemSimulation, ESPMode::ThreadSafe> DestSim = WorldManager->GetSystemSimulation(DesiredTickGroup, System);
 			DestSim->TransferInstance(Instance);
 			continue;
 		}
@@ -1581,11 +1579,6 @@ void FNiagaraSystemSimulation::DumpStalledInfo()
 	Builder.Appendf(TEXT("InstancesPaused (%d)\n"), GetSystemInstances(ENiagaraSystemInstanceState::Paused).Num());
 
 	UE_LOG(LogNiagara, Fatal, TEXT("NiagaraSystemSimulation(%s) is stalled.\n%s"), *GetNameSafe(GetSystem()), Builder.ToString());
-}
-
-bool FNiagaraSystemSimulation::IsConcurrentRunning() const
-{
-	return ConcurrentTickGraphEvent.IsValid() && !ConcurrentTickGraphEvent->IsComplete();
 }
 
 void FNiagaraSystemSimulation::WaitForConcurrentTickComplete(bool bEnsureComplete)

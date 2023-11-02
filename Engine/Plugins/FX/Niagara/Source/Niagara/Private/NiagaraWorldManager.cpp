@@ -96,14 +96,6 @@ static FAutoConsoleVariableRef CVarAllowVisibilityCullingForDynamicBounds(
 	ECVF_Default
 );
 
-static int GNiagaraWorldManagerAvoidAddingToExecutingSims = 0;
-static FAutoConsoleVariableRef CVarNiagaraWorldManagerAvoidAddingToExecutingSims(
-	TEXT("fx.Niagara.WorldManager.AvoidAddingToExecutingSims"),
-	GNiagaraWorldManagerAvoidAddingToExecutingSims,
-	TEXT("If system simulation is running concurrently already we will add new instances into a different sim to avoid blocking the GT."),
-	ECVF_Default
-);
-
 FAutoConsoleCommandWithWorld DumpNiagaraWorldManagerCommand(
 	TEXT("DumpNiagaraWorldManager"),
 	TEXT("Dump Information About the Niagara World Manager Contents"),
@@ -591,56 +583,23 @@ void FNiagaraWorldManager::CleanupParameterCollections()
 	ParameterCollections.Empty();
 }
 
-FNiagaraSystemSimulationRef FNiagaraWorldManager::GetSystemSimulation(ETickingGroup TickGroup, UNiagaraSystem* System, bool bAllowTickGroupChanges)
+FNiagaraSystemSimulationRef FNiagaraWorldManager::GetSystemSimulation(ETickingGroup TickGroup, UNiagaraSystem* System)
 {
 	LLM_SCOPE(ELLMTag::Niagara);
 
 	int32 ActualTickGroup = NiagaraWorldManagerInternal::GetNiagaraTickGroup(TickGroup);
-
-	FNiagaraSystemSimulationRef* SimPtr = nullptr;
-	if (bAllowTickGroupChanges)
+	if (ActiveNiagaraTickGroup == ActualTickGroup)
 	{
-		// Should we avoid adding a system simulation that might be in flights?
-		// This can occur in situations where something spawns a new instance after we have ticked the simulation.
-		// In which case we are better to add to an existing simulation that is not running concurrently or adding a new one
-		if ( GNiagaraWorldManagerAvoidAddingToExecutingSims )
-		{
-			SimPtr = SystemSimulations[ActualTickGroup].Find(System);
-			if ( SimPtr && (*SimPtr)->IsConcurrentRunning() )
-			{
-				for (int32 i=1; i < NiagaraNumTickGroups; ++i)
-				{
-					const int32 TestTickGroup = (ActualTickGroup + i) % NiagaraNumTickGroups;
-					SimPtr = SystemSimulations[TestTickGroup].Find(System);
-					if (SimPtr && (*SimPtr)->IsConcurrentRunning() == false)
-					{
-						return *SimPtr;
-					}
-				}
-
-				// We need to make a new system simulation
-				// Note we could probably find 'first free' slot but the likelyhood of it being last TG is low so not worth the complexity
-				const int32 DemotedTickGroup = NiagaraWorldManagerInternal::GetNiagaraTickGroup((ETickingGroup)(ActiveNiagaraTickGroup + 1));
-				ActualTickGroup = DemotedTickGroup == ActualTickGroup ? 0 : DemotedTickGroup;
-			}
-		}
-		else
-		{
-			if (ActiveNiagaraTickGroup == ActualTickGroup)
-			{
-				int32 DemotedTickGroup = NiagaraWorldManagerInternal::GetNiagaraTickGroup((ETickingGroup)(TickGroup + 1));
-				ActualTickGroup = DemotedTickGroup == ActualTickGroup ? 0 : DemotedTickGroup;
-			}
-		}
+		int32 DemotedTickGroup = NiagaraWorldManagerInternal::GetNiagaraTickGroup((ETickingGroup)(TickGroup + 1));
+		ActualTickGroup = DemotedTickGroup == ActualTickGroup ? 0 : DemotedTickGroup;
 	}
 
-	SimPtr = SystemSimulations[ActualTickGroup].Find(System);
+	FNiagaraSystemSimulationRef* SimPtr = SystemSimulations[ActualTickGroup].Find(System);
 	if (SimPtr != nullptr)
 	{
 		return *SimPtr;
 	}
-
-	// Make a new simulation in the tick group
+	
 	FNiagaraSystemSimulationRef Sim = MakeShared<FNiagaraSystemSimulation, ESPMode::ThreadSafe>();
 	SystemSimulations[ActualTickGroup].Add(System, Sim);
 	Sim->Init(System, World, false, TickGroup);
@@ -1039,7 +998,6 @@ void FNiagaraWorldManager::PostActorTick(float DeltaSeconds)
 	NiagaraWorldManagerInternal::ExecuteGlobalDeferredCallbacks();
 
 	DeltaSeconds *= DebugPlaybackRate;
-	ActiveNiagaraTickGroup = -1;
 
 	// Update any systems with post actor work
 	// - Instances that need to move to a higher tick group
@@ -1421,10 +1379,7 @@ void FNiagaraWorldManager::Tick(ETickingGroup TickGroup, float DeltaSeconds, ELe
 		TickFunctions[ActualTickGroup].EndTickGroup = TG_LastDemotable;
 	}
 
-	if (TickGroup == NiagaraLastTickGroup)
-	{
-		ActiveNiagaraTickGroup = -1;
-	}
+	ActiveNiagaraTickGroup = -1;
 
 	//We update scalability managers here so that any new systems can be culled or setup with other scalability based parameters correctly for their spawn.
 	UpdateScalabilityManagers(DeltaSeconds, true);

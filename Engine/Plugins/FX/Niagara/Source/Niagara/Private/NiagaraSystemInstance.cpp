@@ -460,7 +460,7 @@ void FNiagaraSystemInstance::SetSolo(bool bInSolo)
 		else
 		{
 			const ETickingGroup TickGroup = CalculateTickGroup();
-			TSharedPtr<FNiagaraSystemSimulation, ESPMode::ThreadSafe> NewSim = GetWorldManager()->GetSystemSimulation(TickGroup, System, true);
+			TSharedPtr<FNiagaraSystemSimulation, ESPMode::ThreadSafe> NewSim = GetWorldManager()->GetSystemSimulation(TickGroup, System);
 
 			NewSim->TransferInstance(this);
 		}
@@ -1044,7 +1044,7 @@ void FNiagaraSystemInstance::ReInitInternal()
 	else
 	{
 		const ETickingGroup TickGroup = CalculateTickGroup();
-		SystemSimulation = GetWorldManager()->GetSystemSimulation(TickGroup, System, true);
+		SystemSimulation = GetWorldManager()->GetSystemSimulation(TickGroup, System);
 	}
 
 	// Make sure that we've gotten propagated instance parameters before calling InitEmitters, as they might bind to them.

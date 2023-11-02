@@ -111,9 +111,9 @@ public:
 	UNiagaraParameterCollectionInstance* GetParameterCollection(UNiagaraParameterCollection* Collection);
 	void CleanupParameterCollections();
 
-	FNiagaraSystemSimulationRef GetSystemSimulation(ETickingGroup TickGroup, UNiagaraSystem* System, bool bAllowTickGroupChanges);
+	FNiagaraSystemSimulationRef GetSystemSimulation(ETickingGroup TickGroup, UNiagaraSystem* System);
 	void DestroySystemSimulation(UNiagaraSystem* System);
-	void DestroySystemInstance(FNiagaraSystemInstancePtr& InPtr);
+	void DestroySystemInstance(FNiagaraSystemInstancePtr& InPtr);	
 
 #if WITH_EDITOR
 	void OnSystemPostChange(UNiagaraSystem* System);
