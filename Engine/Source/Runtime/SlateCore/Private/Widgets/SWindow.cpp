@@ -1109,12 +1109,12 @@ bool SWindow::Advanced_IsInvalidationRoot() const
 
 const FSlateInvalidationRoot* SWindow::Advanced_AsInvalidationRoot() const
 {
-	return (bAllowFastUpdate && GSlateEnableGlobalInvalidation) ? this : nullptr;
+	return Advanced_IsInvalidationRoot() ? this : nullptr;
 }
 
 void SWindow::ProcessWindowInvalidation()
 {
-	if (bAllowFastUpdate && GSlateEnableGlobalInvalidation)
+	if (Advanced_IsInvalidationRoot())
 	{
 		ProcessInvalidation();
 	}
@@ -1122,7 +1122,7 @@ void SWindow::ProcessWindowInvalidation()
 
 bool SWindow::CustomPrepass(float LayoutScaleMultiplier)
 {
-	if (bAllowFastUpdate && GSlateEnableGlobalInvalidation)
+	if (Advanced_IsInvalidationRoot())
 	{
 		return NeedsPrepass();
 	}
@@ -1797,7 +1797,7 @@ FVector2D SWindow::ComputeDesiredSize(float LayoutScaleMultiplier) const
 bool SWindow::ComputeVolatility() const
 {
 	// If the entire window is volatile in fast path that defeats the whole purpose.
-	return bAllowFastUpdate ? false : SWidget::ComputeVolatility();
+	return Advanced_IsInvalidationRoot() ? false : SWidget::ComputeVolatility();
 }
 
 void SWindow::OnGlobalInvalidationToggled(bool bGlobalInvalidationEnabled)
@@ -2088,7 +2088,7 @@ int32 SWindow::PaintWindow( double CurrentTime, float DeltaTime, FSlateWindowEle
 	FSlateInvalidationContext Context(OutDrawElements, InWidgetStyle);
 	Context.bParentEnabled = bParentEnabled;
 	// Fast path at the window level should only be enabled if global invalidation is allowed
-	Context.bAllowFastPathUpdate = bAllowFastUpdate && GSlateEnableGlobalInvalidation;
+	Context.bAllowFastPathUpdate = Advanced_IsInvalidationRoot();
 	Context.LayoutScaleMultiplier = FSlateApplicationBase::Get().GetApplicationScale() * GetDPIScaleFactor();
 	Context.PaintArgs = &PaintArgs;
 	Context.IncomingLayerId = 0;
