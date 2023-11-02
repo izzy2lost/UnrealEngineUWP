@@ -73,12 +73,10 @@ class METASOUNDENGINE_API UMetaSoundSource : public USoundWaveProcedural, public
 		FName TypeName;
 		// Access type of input vertex.
 		EMetasoundFrontendVertexAccessType AccessType;
-		// Default literal of input vertex.
-		FMetasoundFrontendLiteral DefaultLiteral;
+		// Default parameter of input vertex.
+		FAudioParameter DefaultParameter;
 		// True if the data type is transmittable. False otherwise.
 		bool bIsTransmittable;
-
-		FAudioParameter ToAudioParameter() const;
 	};
 
 	struct FRuntimeInputData
@@ -306,7 +304,7 @@ private:
 	void TrackGenerator(uint64 Id, TSharedPtr<Metasound::FMetasoundGenerator> Generator);
 	void ForgetGenerator(ISoundGeneratorPtr Generator);
 
-	Metasound::TSortedVertexNameMap<FRuntimeInput> CreateRuntimeInputMap() const;
+	Metasound::TSortedVertexNameMap<FRuntimeInput> CreateRuntimeInputMap(bool bCreateUObjectProxies) const;
 	void CacheRuntimeInputData();
 	void InvalidateCachedRuntimeInputData();
 

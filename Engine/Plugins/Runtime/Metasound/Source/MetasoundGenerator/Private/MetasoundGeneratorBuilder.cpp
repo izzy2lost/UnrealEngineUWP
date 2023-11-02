@@ -339,22 +339,35 @@ namespace Metasound
 			};
 		}
 
-		void ApplyAudioParameters(const FOperatorSettings& InOperatorSettings, TArray<FAudioParameter>&& InParameters, FInputVertexInterfaceData& InInterface)
+		void ResetGraphOperatorInputs(const FOperatorSettings& InOperatorSettings, TArray<FAudioParameter> InParameterOverrides, FInputVertexInterfaceData& InOutInterface)
 		{
-			METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(GeneratorBuilder::ApplyAudioParameters);
+			METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(GeneratorBuilder::ResetGraphOperatorInputs);
+
 			Frontend::IDataTypeRegistry& DataTypeRegistry = Frontend::IDataTypeRegistry::Get();
-			for (FAudioParameter& Parameter : InParameters)
+
+			for (MetasoundVertexDataPrivate::FInputBinding& Binding : InOutInterface)
 			{
-				if (const FAnyDataReference* Ref = InInterface.FindDataReference(Parameter.ParamName))
+				if (const FAnyDataReference* Ref = Binding.GetDataReference())
 				{
 					if (EDataReferenceAccessType::Write == Ref->GetAccessType())
 					{
 						Frontend::FLiteralAssignmentFunction LiteralSetter = DataTypeRegistry.GetLiteralAssignmentFunction(Ref->GetDataTypeName());
-
 						if (LiteralSetter)
 						{
-							FLiteral Literal = Frontend::ConvertParameterToLiteral(MoveTemp(Parameter)); 
-							LiteralSetter(InOperatorSettings, Literal, *Ref);
+							auto IsParameterNameEqualToVertexName = [&Name=Binding.GetVertex().VertexName](const FAudioParameter& InParam) -> bool
+							{
+								return Name == InParam.ParamName;
+							};
+
+							if (FAudioParameter* Parameter = InParameterOverrides.FindByPredicate(IsParameterNameEqualToVertexName))
+							{
+								FLiteral Literal = Frontend::ConvertParameterToLiteral(MoveTemp(*Parameter)); 
+								LiteralSetter(InOperatorSettings, Literal, *Ref);
+							}
+							else
+							{
+								LiteralSetter(InOperatorSettings, Binding.GetVertex().GetDefaultLiteral(), *Ref);
+							}
 						}
 					}
 				}

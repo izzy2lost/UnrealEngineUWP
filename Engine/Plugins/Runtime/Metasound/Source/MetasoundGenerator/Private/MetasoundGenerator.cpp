@@ -860,7 +860,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 				bUseOperatorPool = true; // raise this flag to make sure we put the operator back in the pool (regardless of CVAR state)
 
 				// Apply and default inputs to the operator.
-				GeneratorBuilder::ApplyAudioParameters(OperatorSettings, MoveTemp(InInitParams.DefaultParameters), GraphOperatorAndInputs.Inputs);
+				GeneratorBuilder::ResetGraphOperatorInputs(OperatorSettings, MoveTemp(InInitParams.DefaultParameters), GraphOperatorAndInputs.Inputs);
 
 				// Reset operator internal state before playing it.
 				if (IOperator::FResetFunction Reset = GraphOperatorAndInputs.Operator->GetResetFunction())
