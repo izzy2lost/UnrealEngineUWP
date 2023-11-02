@@ -1384,7 +1384,27 @@ public:
 	
 	mutable TMap<FName, ISoundWaveLoadingBehaviorUtil::FClassData> OwnerLoadingBehaviorCache;
 	mutable FCriticalSection OwnerLoadingBehaviorCacheCS;
-			
+
+	/*
+	* Returns this SoundWave's CuePoints array with the frame values scaled by
+	* InSampleRate / ImportedSampleRate to account for resampling of the sound wave source data.
+	* If no resampling is necessary, returns the CuePoints as-is.
+	*
+	* @param InSampleRate	The sample rate the SoundWave 
+	* @return CuePoints array scaled if resampling occurred
+	*/
+	ENGINE_API TArray<FSoundWaveCuePoint> GetCuePointsScaledForSampleRate(const float InSampleRate) const;
+
+	/*
+	* Modifies the InOutCuePoints array with the frame values scaled by
+	* InSampleRate / ImportedSampleRate to account for resampling of the sound wave source data.
+	* Does not modify InOutCuePoints if no resampling is necessary
+	*
+	* @param InSampleRate	The sample rate the SoundWave
+	* @param InOutCuePoints	The CuePoints array to re-scale
+	*/
+	ENGINE_API void ScaleCuePointsForSampleRate(const float InSampleRate, TArray<FSoundWaveCuePoint>& InOutCuePoints) const;
+
 	/*
 	* Returns a sample rate if there is a specific sample rate override for this platform, -1.0 otherwise.
 	*/

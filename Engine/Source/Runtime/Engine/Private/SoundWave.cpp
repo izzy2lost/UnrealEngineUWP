@@ -201,6 +201,12 @@ void FSoundWaveData::InitializeDataFromSoundWave(USoundWave& InWave)
 
 #if WITH_EDITOR
 	bLoadedFromCookedData = InWave.IsLoadedFromCookedData();
+
+	// only necessary to set cue points here in editor 
+	// when the sample rate can change due to platform settings changing
+	// or during first import of the asset.
+	// otherwise, CuePoints are always updated during serialization
+	SetAllCuePoints(InWave.GetCuePointsScaledForSampleRate(SampleRate));
 #endif //WITH_EDITOR
 }
 
@@ -1917,6 +1923,21 @@ void USoundWave::PostLoad()
 	{
 		UE_LOG(LogAudio, Warning, TEXT("Sound Wave '%s' has defined an effect chain but is not mono or stereo."), *GetName());
 	}
+
+
+	if (ImportedSampleRate == 0)
+	{
+		// update ImportedSampleRate ASAP so that it reflects the 
+		// will only be valid if this sound wave was from an imported .wav file. 
+		// otherwise we can safely ignore it
+		TArray<uint8> ImportedRawPCMData;
+		uint32 OriginalSampleRate = 0;
+		uint16 ImportedNumChannels = 0;
+		if (GetImportedSoundWaveData(ImportedRawPCMData, OriginalSampleRate, ImportedNumChannels))
+		{
+			ImportedSampleRate = OriginalSampleRate;
+		}
+	}
 #endif
 
 	// Don't need to do anything in post load if this is a source bus or procedural audio
@@ -2314,6 +2335,45 @@ ISoundWaveLoadingBehaviorUtil::FClassData USoundWave::GetOwnerLoadingBehavior(co
 	// Not set.
 	return {};
 }
+
+TArray<FSoundWaveCuePoint> USoundWave::GetCuePointsScaledForSampleRate(const float InSampleRate) const
+{
+	TArray<FSoundWaveCuePoint> CuePointsScaled = CuePoints;
+	ScaleCuePointsForSampleRate(InSampleRate, CuePointsScaled);
+	return CuePointsScaled;
+}
+
+void USoundWave::ScaleCuePointsForSampleRate(const float InSampleRate, TArray<FSoundWaveCuePoint>& InOutCuePoints) const
+{
+	if (InOutCuePoints.IsEmpty() || InSampleRate <= 0.0f)
+	{
+		return;
+	}
+
+	// if ImportedSampleRate is 0, then it probably wasn't set properly yet in editor, 
+	// this will be okay since SoundWave will update ImportedSampleRate on PostLoad
+	// and re-initialize its internals so it will be valid.
+	// ensuring or throwing an error/warning here isn't necessary
+	if (ImportedSampleRate <= 0)
+	{
+		return;
+	}
+
+	float ResampleRatio = -1.0f;
+	if (!FMath::IsNearlyEqual(InSampleRate, ImportedSampleRate))
+	{
+		ResampleRatio = InSampleRate / (float)ImportedSampleRate;
+	}
+
+	if (ResampleRatio > 0.0f)
+	{
+		for (FSoundWaveCuePoint& CuePoint : InOutCuePoints)
+		{
+			CuePoint.ScaleFrameValues(ResampleRatio);
+		}
+	}
+}
+
 
 float USoundWave::GetSampleRateForTargetPlatform(const ITargetPlatform* TargetPlatform)
 {
@@ -4404,11 +4464,11 @@ void USoundWave::CacheInheritedLoadingBehavior() const
 
 void USoundWave::SerializeCuePoints(FArchive& Ar, const bool bIsLoadingFromCookedArchive)
 {
-	TArray<FSoundWaveCuePoint> CuePointsCopy;
+	TArray<FSoundWaveCuePoint> PlatformCuePoints;
 #if WITH_EDITORONLY_DATA
 	if (Ar.IsCooking())
 	{
-		CuePointsCopy = CuePoints;
+		PlatformCuePoints = CuePoints;
 		float ResampleRatio = -1.0f;
 		const ITargetPlatform* CookingTarget = Ar.CookingTarget();
 		if (ensure(CookingTarget))
@@ -4417,45 +4477,29 @@ void USoundWave::SerializeCuePoints(FArchive& Ar, const bool bIsLoadingFromCooke
 			{
 				if (Overrides->bResampleForDevice)
 				{
+					// at this point, the ImportedSampleRate should be ready to use!
+					ensureMsgf(ImportedSampleRate > 0, TEXT("SerializeCuePoints: %s ImportedSampleRate not set: ImportedSampleRate = %d"), *GetName(), ImportedSampleRate);
 					const float TargetSampleRate = GetSampleRateForTargetPlatform(CookingTarget);
-
-					// annoyingly, read the entire imported sound wave data to successfully get the ImportedSampleRate at this point
-					TArray<uint8> RawWaveData;
-					uint32 OriginalSampleRate = 0;
-					uint16 OriginalNumChannels = 0;
-					ensureMsgf(GetImportedSoundWaveData(RawWaveData, OriginalSampleRate, OriginalNumChannels), TEXT("SerializeCuePoints: %s Failed to retrieve imported sound wave data: OriginalSampleRate = %d"), *GetName(), OriginalSampleRate);
-					
-					if (OriginalSampleRate > 0 && !FMath::IsNearlyEqual(TargetSampleRate, OriginalSampleRate))
-					{
-						ResampleRatio = TargetSampleRate / (float)OriginalSampleRate;
-					}
-
-					if (ResampleRatio > 0.0f)
-					{
-						for (FSoundWaveCuePoint& CuePoint : CuePointsCopy)
-						{
-							CuePoint.ScaleFrameValues(ResampleRatio);
-						}
-					}
+					ScaleCuePointsForSampleRate(TargetSampleRate, PlatformCuePoints);
 				}
 			}
 		}
 	}
 	else if (Ar.IsLoading() && !bIsLoadingFromCookedArchive)
 	{
-		SoundWaveDataPtr->SetAllCuePoints(CuePoints);
+		SoundWaveDataPtr->SetAllCuePoints(GetCuePointsScaledForSampleRate(GetSampleRateForCurrentPlatform()));
 		return;
 	}
 #endif
 
 	if (Ar.IsCooking() || bIsLoadingFromCookedArchive)
 	{
-		Ar << CuePointsCopy;
+		Ar << PlatformCuePoints;
 	}
 
 	if (bIsLoadingFromCookedArchive)
 	{
-		SoundWaveDataPtr->SetAllCuePoints(CuePointsCopy);
+		SoundWaveDataPtr->SetAllCuePoints(PlatformCuePoints);
 	}
 }
 
