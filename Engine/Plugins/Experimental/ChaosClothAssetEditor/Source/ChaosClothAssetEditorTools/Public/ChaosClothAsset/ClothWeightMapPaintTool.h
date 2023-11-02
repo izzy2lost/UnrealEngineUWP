@@ -330,6 +330,8 @@ protected:
 	virtual void OnEndStroke() override;
 
 	virtual TUniquePtr<FMeshSculptBrushOp>& GetActiveBrushOp();
+
+	virtual bool SharesBrushPropertiesChanges() const override { return false; }
 	// end UMeshSculptToolBase API
 
 

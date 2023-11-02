@@ -296,6 +296,9 @@ protected:
 	virtual FDynamicMesh3* GetBaseMesh() { check(false); return nullptr; }
 	virtual const FDynamicMesh3* GetBaseMesh() const { check(false); return nullptr; }
 
+	// For any subclass where this returns false, BrushProperties will not be automatically saved/restored, so the class won't use BrushProperties changes made in other tools.
+	virtual bool SharesBrushPropertiesChanges() const { return true; }
+
 
 	/**
 	 * Subclass calls this to set up editing component
