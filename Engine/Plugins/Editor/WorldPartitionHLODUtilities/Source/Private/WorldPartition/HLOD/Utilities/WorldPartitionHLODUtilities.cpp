@@ -6,35 +6,36 @@
 
 #if WITH_EDITOR
 
-#include "BodySetupEnums.h"
 #include "WorldPartition/WorldPartition.h"
-#include "Components/InstancedStaticMeshComponent.h"
+#include "WorldPartition/ContentBundle/ContentBundleActivationScope.h"
 #include "WorldPartition/DataLayer/DataLayerInstance.h"
-#include "Engine/CollisionProfile.h"
 #include "WorldPartition/HLOD/HLODActor.h"
-#include "Engine/Texture.h"
-#include "WorldPartition/HLOD/HLODSubActor.h"
-#include "StaticMeshResources.h"
 #include "WorldPartition/HLOD/HLODLayer.h"
 #include "WorldPartition/HLOD/HLODModifier.h"
-#include "WorldPartition/HLOD/HLODStats.h"
 #include "WorldPartition/HLOD/HLODSourceActorsFromCell.h"
-#include "WorldPartition/ContentBundle/ContentBundleActivationScope.h"
-
+#include "WorldPartition/HLOD/HLODStats.h"
+#include "WorldPartition/HLOD/HLODSubActor.h"
+#include "WorldPartition/HLOD/HLODInstancedStaticMeshComponent.h"
 #include "WorldPartition/HLOD/Builders/HLODBuilderInstancing.h"
 #include "WorldPartition/HLOD/Builders/HLODBuilderMeshMerge.h"
 #include "WorldPartition/HLOD/Builders/HLODBuilderMeshSimplify.h"
 #include "WorldPartition/HLOD/Builders/HLODBuilderMeshApproximate.h"
 
+#include "BodySetupEnums.h"
+#include "Components/InstancedStaticMeshComponent.h"
+#include "Engine/CollisionProfile.h"
 #include "Engine/Level.h"
 #include "Engine/LevelStreaming.h"
 #include "Engine/StaticMesh.h"
+#include "Engine/Texture.h"
 #include "Engine/World.h"
 #include "Materials/MaterialInstance.h"
 #include "PhysicsEngine/BodySetup.h"
 #include "ProfilingDebugging/ScopedTimers.h"
+#include "Rendering/NaniteResources.h"
 #include "Serialization/ArchiveCrc32.h"
 #include "StaticMeshCompiler.h"
+#include "StaticMeshResources.h"
 #include "TextureCompiler.h"
 #include "UObject/MetaData.h"
 #include "UObject/GCObjectScopeGuard.h"
@@ -62,8 +63,8 @@ static uint32 ComputeHLODHash(AWorldPartitionHLOD* InHLODActor, const TArray<UAc
 	Ar << HLODMinVisibleDistanceHash;
 
 	// ISM Component Class
-	TSubclassOf<UInstancedStaticMeshComponent> HLODISMComponentClass = UHLODBuilder::GetInstancedStaticMeshComponentClass();
-	if (HLODISMComponentClass != UInstancedStaticMeshComponent::StaticClass())
+	TSubclassOf<UHLODInstancedStaticMeshComponent> HLODISMComponentClass = UHLODBuilder::GetInstancedStaticMeshComponentClass();
+	if (HLODISMComponentClass != UHLODInstancedStaticMeshComponent::StaticClass())
 	{
 		uint32 HLODISMComponentClassHash = GetTypeHash(HLODISMComponentClass);
 		UE_LOG(LogHLODHash, VeryVerbose, TEXT(" - HLOD ISM Component Class (%s) = %x"), *HLODISMComponentClass->GetName(), HLODISMComponentClassHash);

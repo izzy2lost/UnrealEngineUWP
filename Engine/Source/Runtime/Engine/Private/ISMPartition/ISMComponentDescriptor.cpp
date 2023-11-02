@@ -258,7 +258,7 @@ bool FSoftISMComponentDescriptor::operator==(const FSoftISMComponentDescriptor& 
 		Super::operator==(Other);
 }
 
-uint32 FISMComponentDescriptor::ComputeHash() const
+uint32 FISMComponentDescriptorBase::ComputeHash() const
 {
 	FArchiveCrc32 CrcArchive;
 
@@ -269,30 +269,10 @@ uint32 FISMComponentDescriptor::ComputeHash() const
 	return Hash;
 }
 
-uint32 FSoftISMComponentDescriptor::ComputeHash() const
-{
-	FArchiveCrc32 CrcArchive;
-
-	Hash = 0; // we don't want the hash to impact the calculation
-	CrcArchive << *this;
-	Hash = CrcArchive.GetCrc();
-
-	return Hash;
-}
-
-UInstancedStaticMeshComponent* FISMComponentDescriptor::CreateComponent(UObject* Outer, FName Name, EObjectFlags ObjectFlags) const
+UInstancedStaticMeshComponent* FISMComponentDescriptorBase::CreateComponent(UObject* Outer, FName Name, EObjectFlags ObjectFlags) const
 {
 	UInstancedStaticMeshComponent* ISMComponent = NewObject<UInstancedStaticMeshComponent>(Outer, ComponentClass, Name, ObjectFlags);
 	
-	InitComponent(ISMComponent);
-
-	return ISMComponent;
-}
-
-UInstancedStaticMeshComponent* FSoftISMComponentDescriptor::CreateComponent(UObject* Outer, FName Name, EObjectFlags ObjectFlags) const
-{
-	UInstancedStaticMeshComponent* ISMComponent = NewObject<UInstancedStaticMeshComponent>(Outer, ComponentClass, Name, ObjectFlags);
-
 	InitComponent(ISMComponent);
 
 	return ISMComponent;
