@@ -45,6 +45,7 @@ class FDispatchShaderBundle
 public:
 	static RENDERCORE_API void Dispatch(
 		FRHIShaderBundle* ShaderBundle,
+		uint32 RecordCount,
 		FRHIComputeCommandList& RHICmdList,
 		FRHIShaderResourceView* RecordArgBufferSRV,
 		FRHIShaderResourceView* RecordDataBufferSRV,

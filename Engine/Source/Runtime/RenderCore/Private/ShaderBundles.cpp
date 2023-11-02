@@ -23,6 +23,7 @@ void FDispatchShaderBundleCS::ModifyCompilationEnvironment(const FGlobalShaderPe
 
 void FDispatchShaderBundle::Dispatch(
 	FRHIShaderBundle* ShaderBundle,
+	uint32 RecordCount,
 	FRHIComputeCommandList& RHICmdList,
 	FRHIShaderResourceView* RecordArgBufferSRV,
 	FRHIShaderResourceView* RecordDataBufferSRV,
@@ -30,7 +31,7 @@ void FDispatchShaderBundle::Dispatch(
 )
 {
 	check(RHISupportsShaderBundleDispatch(GMaxRHIShaderPlatform) && GRHISupportsShaderBundleDispatch);
-	check(ShaderBundle && ShaderBundle->NumRecords > 0);
+	check(ShaderBundle && ShaderBundle->NumRecords > 0 && RecordCount <= ShaderBundle->NumRecords);
 
 	RHICmdList.ClearUAVUint(ExecutionBufferUAV, FUintVector4(0, 0, 0, 0));
 
@@ -38,13 +39,13 @@ void FDispatchShaderBundle::Dispatch(
 
 	FDispatchShaderBundleCS::FParameters Parameters;
 
-	Parameters.RecordCount = ShaderBundle->NumRecords;
+	Parameters.RecordCount = RecordCount;
 	Parameters.PlatformData = ShaderBundle->GetPlatformData();
 	Parameters.RecordArgBuffer = RecordArgBufferSRV;
 	Parameters.RecordDataBuffer = RecordDataBufferSRV;
 	Parameters.RWExecutionBuffer = ExecutionBufferUAV;
 
-	const FIntVector GroupCount = FComputeShaderUtils::GetGroupCount(ShaderBundle->NumRecords, FDispatchShaderBundleCS::ThreadGroupSizeX);
+	const FIntVector GroupCount = FComputeShaderUtils::GetGroupCount(RecordCount, FDispatchShaderBundleCS::ThreadGroupSizeX);
 
 	FRHIComputeShader* ComputeShaderRHI = ComputeShader.GetComputeShader();
 	SetComputePipelineState(RHICmdList, ComputeShaderRHI);
