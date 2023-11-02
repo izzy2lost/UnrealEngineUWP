@@ -85,11 +85,11 @@ public:
 	UAsyncLoadingTests_Shared* Object1 = nullptr;
 	UAsyncLoadingTests_Shared* Object2 = nullptr;
 
-	virtual void CreateObjects();
-	virtual void MutateObjects();
-	virtual void SaveObjects();
-	virtual void LoadObjects();
-	virtual void CleanupObjects();
+	void CreateObjects();
+	void MutateObjects();
+	void SaveObjects();
+	void LoadObjects();
+	void CleanupObjects();
 
 	FLoadingTestsScope(FAutomationTestBase* InAutomationTest)
 		: AutomationTest(*InAutomationTest)
