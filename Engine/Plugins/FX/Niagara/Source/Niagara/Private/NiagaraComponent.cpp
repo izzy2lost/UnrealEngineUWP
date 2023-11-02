@@ -761,8 +761,12 @@ void UNiagaraComponent::ReleaseToPool()
 
 uint32 UNiagaraComponent::GetApproxMemoryUsage() const
 {
-	// TODO: implement memory usage for the component pool statistics
-	return 1;
+	uint32 MemoryBytes = 0;
+	if (SystemInstanceController)
+	{
+		MemoryBytes += uint32(SystemInstanceController->GetTotalBytesUsed());
+	}
+	return MemoryBytes;
 }
 
 void UNiagaraComponent::ActivateSystem(bool bFlagAsJustAttached)

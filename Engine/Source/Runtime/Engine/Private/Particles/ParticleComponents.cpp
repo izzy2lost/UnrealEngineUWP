@@ -142,6 +142,7 @@ void UFXSystemAsset::PostInitProperties()
 	CSVStat_Activation = *FString::Printf(TEXT("Activation/%s"), *GetFName().ToString());
 	CSVStat_Waits = *FString::Printf(TEXT("Waits/%s"), *GetFName().ToString());
 	CSVStat_Culled = *FString::Printf(TEXT("Culled/%s"), *GetFName().ToString());
+	CSVStat_MemoryKB = *FString::Printf(TEXT("MemoryKB/%s"), *GetFName().ToString());
 #endif
 }
 
@@ -8434,6 +8435,7 @@ uint32 UParticleSystemComponent::GetApproxMemoryUsage()const
 		if (FParticleDynamicData* DynamicData = PSysSceneProxy->GetDynamicData())
 		{
 			MemUsage += DynamicData->GetMemoryFootprint();
+		#if 0
 			for (FDynamicEmitterDataBase* DynEmitterData : DynamicData->DynamicEmitterDataArray)
 			{
 				if (DynEmitterData)
@@ -8447,6 +8449,7 @@ uint32 UParticleSystemComponent::GetApproxMemoryUsage()const
 					MemUsage += MemCounter.Max;
 				}
 			}
+		#endif
 		}
 	}
 

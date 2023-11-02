@@ -1116,7 +1116,7 @@ void FNiagaraDebugHud::GatherSystemInfo()
 		}
 
 		// Track rough memory usage
-		const int64 BytesUsed = SystemInstanceController.IsValid() ? SystemInstanceController->GetTotalBytesUsed() : 0;
+		const int64 BytesUsed = FXComponent->GetApproxMemoryUsage();
 		SystemDebugInfo.TotalBytes += BytesUsed;
 		GlobalTotalBytes += BytesUsed;
 

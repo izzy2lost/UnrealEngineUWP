@@ -151,6 +151,7 @@ public:
 	FName CSVStat_Activation = NAME_None;
 	FName CSVStat_Waits = NAME_None;
 	FName CSVStat_Culled = NAME_None;
+	FName CSVStat_MemoryKB = NAME_None;
 #endif
 #endif
 
