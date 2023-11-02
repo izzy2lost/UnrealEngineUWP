@@ -306,21 +306,21 @@ FString FNiagaraTypeHelper::ToString(const uint8* ValueData, const UObject* Stru
 	FString Ret;
 	if (const UEnum* Enum = Cast<const UEnum>(StructOrEnum))
 	{
-		Ret = Enum->GetNameStringByValue(*(int32*)ValueData);
+		Ret = Enum->GetNameStringByValue(*reinterpret_cast<const int32*>(ValueData));
 	}
 	else if (const UScriptStruct* Struct = Cast<const UScriptStruct>(StructOrEnum))
 	{
 		if (Struct == FNiagaraTypeDefinition::GetFloatStruct())
 		{
-			Ret += FString::Printf(TEXT("%g "), *(float*)ValueData);
+			Ret += FString::Printf(TEXT("%g "), *reinterpret_cast<const float*>(ValueData));
 		}
 		else if (Struct == FNiagaraTypeDefinition::GetIntStruct())
 		{
-			Ret += FString::Printf(TEXT("%d "), *(int32*)ValueData);
+			Ret += FString::Printf(TEXT("%d "), *reinterpret_cast<const int32*>(ValueData));
 		}
 		else if (Struct == FNiagaraTypeDefinition::GetBoolStruct())
 		{
-			int32 Val = *(int32*)ValueData;
+			int32 Val = *reinterpret_cast<const int32*>(ValueData);
 			Ret += Val == 0xFFFFFFFF ? (TEXT("True")) : (Val == 0x0 ? TEXT("False") : TEXT("Invalid"));
 		}
 		else
@@ -331,26 +331,26 @@ FString FNiagaraTypeHelper::ToString(const uint8* ValueData, const UObject* Stru
 				const uint8* PropPtr = ValueData + PropertyIt->GetOffset_ForInternal();
 				if (Property->IsA(FFloatProperty::StaticClass()))
 				{
-					Ret += FString::Printf(TEXT("%s: %g "), *Property->GetNameCPP(), *(float*)PropPtr);
+					Ret += FString::Printf(TEXT("%s: %g "), *Property->GetNameCPP(), *reinterpret_cast<const float*>(PropPtr));
 				}
 				else if (Property->IsA(FDoubleProperty::StaticClass()))
 				{
-					Ret += FString::Printf(TEXT("%s: %g "), *Property->GetNameCPP(), *(double*)PropPtr);
+					Ret += FString::Printf(TEXT("%s: %g "), *Property->GetNameCPP(), *reinterpret_cast<const double*>(PropPtr));
 				}
 				else if (Property->IsA(FUInt16Property::StaticClass()))
 				{
-					FFloat16 Val = *(FFloat16*)PropPtr;
+					FFloat16 Val = *reinterpret_cast<const FFloat16*>(PropPtr);
 					Ret += FString::Printf(TEXT("%s: %f "), *Property->GetNameCPP(), Val.GetFloat());
 				}
 				else if (Property->IsA(FIntProperty::StaticClass()))
 				{
-					Ret += FString::Printf(TEXT("%s: %d "), *Property->GetNameCPP(), *(int32*)PropPtr);
+					Ret += FString::Printf(TEXT("%s: %d "), *Property->GetNameCPP(), *reinterpret_cast<const int32*>(PropPtr));
 				}
 				else if (Property->IsA(FBoolProperty::StaticClass()))
 				{
-					int32 Val = *(int32*)ValueData;
+					int32 Val = *reinterpret_cast<const int32*>(ValueData);
 					FString BoolStr = Val == 0xFFFFFFFF ? (TEXT("True")) : (Val == 0x0 ? TEXT("False") : TEXT("Invalid"));
-					Ret += FString::Printf(TEXT("%s: %d "), *Property->GetNameCPP(), *BoolStr);
+					Ret += FString::Printf(TEXT("%s: %s "), *Property->GetNameCPP(), *BoolStr);
 				}
 				else if (const FStructProperty* StructProp = CastFieldChecked<const FStructProperty>(Property))
 				{

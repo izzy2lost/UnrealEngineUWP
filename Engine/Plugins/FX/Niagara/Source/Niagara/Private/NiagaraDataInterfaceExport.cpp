@@ -263,7 +263,7 @@ bool UNiagaraDataInterfaceExport::PerInstanceTick(void* PerInstanceData, FNiagar
 
 bool UNiagaraDataInterfaceExport::PerInstanceTickPostSimulate(void* PerInstanceData, FNiagaraSystemInstance* SystemInstance, float DeltaSeconds)
 {
-	FNDIExportInstanceData_GameThread* PIData = (FNDIExportInstanceData_GameThread*) PerInstanceData;
+	FNDIExportInstanceData_GameThread* PIData = static_cast<FNDIExportInstanceData_GameThread*>(PerInstanceData);
 	if ( !PIData->GatheredData.IsEmpty() )
 	{
 		UObject* CallbackHandler = PIData->CallbackHandler.Get();

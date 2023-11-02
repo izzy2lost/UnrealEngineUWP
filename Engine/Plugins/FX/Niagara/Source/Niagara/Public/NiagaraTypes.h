@@ -292,8 +292,8 @@ struct FNiagaraStructConversionStep
 	{
 		for (int32 i = 0; i < Count; ++i)
 		{
-			DstType* Dst = (DstType*)((DestinationData + i * DestStride) + DestOffset);
-			const SrcType* Src = (const SrcType*)((SourceData + i * SourceStride) + SourceOffset);			
+			DstType* Dst = reinterpret_cast<DstType*>((DestinationData + i * DestStride) + DestOffset);
+			const SrcType* Src = reinterpret_cast<const SrcType*>((SourceData + i * SourceStride) + SourceOffset);			
 			*Dst = DstType(*Src);
 		}
 	}
@@ -1431,7 +1431,7 @@ public:
 
 	/** FGCObject interface */
 	NIAGARA_API virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
-	NIAGARA_API virtual FString GetReferencerName() const;
+	NIAGARA_API virtual FString GetReferencerName() const override;
 
 private:
 	struct FQueuedRegistryEntry
@@ -1854,9 +1854,9 @@ struct FNiagaraVariableMatch
 	{
 	}
 
-	bool operator()(const FNiagaraVariable& Other) const
+	bool operator()(const FNiagaraVariableBase& Other) const
 	{
-		return static_cast<const FNiagaraVariableBase&>(Other) == VariableBase;
+		return Other == VariableBase;
 	}
 
 private:
