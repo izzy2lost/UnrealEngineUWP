@@ -59,18 +59,6 @@ static FAutoConsoleVariableRef CVarShowRuntimeSpatialHashGridLevelCount(
 	GShowRuntimeSpatialHashGridLevelCount,
 	TEXT("Used to choose how many grid levels to display when showing world partition runtime hash."));
 
-static float GBlockOnSlowStreamingRatio = 0.25f;
-static FAutoConsoleVariableRef CVarBlockOnSlowStreamingRatio(
-	TEXT("wp.Runtime.BlockOnSlowStreamingRatio"),
-	GBlockOnSlowStreamingRatio,
-	TEXT("Ratio of DistanceToCell / LoadingRange to use to determine if World Partition streaming needs to block"));
-
-static float GBlockOnSlowStreamingWarningFactor = 2.f;
-static FAutoConsoleVariableRef CVarBlockOnSlowStreamingWarningFactor(
-	TEXT("wp.Runtime.BlockOnSlowStreamingWarningFactor"),
-	GBlockOnSlowStreamingWarningFactor,
-	TEXT("Factor of wp.Runtime.BlockOnSlowStreamingRatio we want to start notifying the user"));
-
 #if !UE_BUILD_SHIPPING
 static int32 GFilterRuntimeSpatialHashGridLevel = INDEX_NONE;
 static FAutoConsoleVariableRef CVarFilterRuntimeSpatialHashGridLevel(
@@ -1534,7 +1522,7 @@ bool UWorldPartitionRuntimeSpatialHash::CreateStreamingGrid(const FSpatialHashRu
 					const double CellExtent = Bounds.GetExtent().X;
 					check(CellExtent < MAX_flt);
 
-					CellDataSpatialHash->Level = Level;
+					CellDataSpatialHash->HierarchicalLevel = Level;
 					CellDataSpatialHash->Position = FVector(Bounds.GetCenter(), 0.f);
 					CellDataSpatialHash->Extent = (float)CellExtent;
 					CellDataSpatialHash->GridName = RuntimeGrid.GridName;
@@ -1793,12 +1781,6 @@ const FSpatialHashStreamingGrid* UWorldPartitionRuntimeSpatialHash::GetStreaming
 
 EWorldPartitionStreamingPerformance UWorldPartitionRuntimeSpatialHash::GetStreamingPerformanceForCell(const UWorldPartitionRuntimeCell* Cell) const
 {
-	// If base class already returning critical. Early out.
-	if (Super::GetStreamingPerformanceForCell(Cell) == EWorldPartitionStreamingPerformance::Critical)
-	{
-		return EWorldPartitionStreamingPerformance::Critical;
-	}
-
 	check(Cell->GetBlockOnSlowLoading());
 	const double BlockOnSlowStreamingWarningRatio = GBlockOnSlowStreamingRatio * GBlockOnSlowStreamingWarningFactor;
 	
@@ -1809,9 +1791,9 @@ EWorldPartitionStreamingPerformance UWorldPartitionRuntimeSpatialHash::GetStream
 	{
 		const float LoadingRange = StreamingGrid->LoadingRange;
 
-		if (CellDataSpatialHash->IsBlockingSource())
+		if (CellDataSpatialHash->bCachedWasRequestedByBlockingSource)
 		{
-			const double Distance = FMath::Sqrt(CellDataSpatialHash->GetMinSquareDistanceToBlockingSource()) - ((double)StreamingGrid->GetCellSize(CellDataSpatialHash->Level) / 2);
+			const double Distance = FMath::Sqrt(CellDataSpatialHash->CachedMinSquareDistanceToBlockingSource) - ((double)StreamingGrid->GetCellSize(CellDataSpatialHash->HierarchicalLevel) / 2);
 
 			const double Ratio = Distance / LoadingRange;
 

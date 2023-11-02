@@ -20,12 +20,10 @@ class UWorldPartitionRuntimeCellData : public UObject
 	ENGINE_API void Serialize(FArchive& Ar);
 	//~End UObject Interface
 
-	inline bool ShouldResetStreamingSourceInfo() const { return CachedSourceInfoEpoch != StreamingSourceCacheEpoch; }
-
 	ENGINE_API virtual void ResetStreamingSourceInfo() const;
 	ENGINE_API virtual void AppendStreamingSourceInfo(const FWorldPartitionStreamingSource& Source, const FSphericalSector& SourceShape) const;
-	ENGINE_API virtual void MergeStreamingSourceInfo() const;
-	ENGINE_API virtual int32 SortCompare(const UWorldPartitionRuntimeCellData* InOther, bool bCanUseSortingCache = true) const;
+	ENGINE_API virtual void MergeStreamingSourceInfo() const {}
+	ENGINE_API virtual int32 SortCompare(const UWorldPartitionRuntimeCellData* InOther) const;
 
 	ENGINE_API virtual const FBox& GetContentBounds() const;
 	ENGINE_API virtual FBox GetCellBounds() const;
@@ -36,11 +34,20 @@ class UWorldPartitionRuntimeCellData : public UObject
 	static ENGINE_API int32 StreamingSourceCacheEpoch;
 	static inline void DirtyStreamingSourceCacheEpoch() { ++StreamingSourceCacheEpoch; }
 
-	// Source Priority
+	// Minimum affecting source priority
 	mutable uint8 CachedMinSourcePriority;
 
-	// Source Priorities
-	mutable TArray<float> CachedSourcePriorityWeights;
+	// Determine if the cell was requested by a blocking source
+	mutable bool bCachedWasRequestedByBlockingSource;
+
+	// Square distance from the cell to the closest blocking streaming source
+	mutable double CachedMinSquareDistanceToBlockingSource;
+
+	// Ratio used to determine the cell streaming performance status
+	mutable float CachedMinBlockOnSlowStreamingRatio;
+
+	// Spatial priority based on distance and angle from source
+	mutable double CachedMinSpatialSortingPriority;
 
 	// Epoch used to dirty cache
 	mutable int32 CachedSourceInfoEpoch;
@@ -50,6 +57,9 @@ class UWorldPartitionRuntimeCellData : public UObject
 
 	UPROPERTY()
 	int32 Priority;
+
+	UPROPERTY()
+	int32 HierarchicalLevel;
 
 	FStringTest DebugName;
 };

@@ -1444,6 +1444,7 @@ bool UWorldPartition::GenerateContainerStreaming(const FGenerateStreamingParams&
 
 		StreamingPolicy->SetContainerResolver(StreamingGenerator.GetContainerResolver());
 		StreamingPolicy->PrepareActorToCellRemapping();
+		StreamingPolicy->SetShouldMergeStreamingSourceInfo(RuntimeHash->GetShouldMergeStreamingSourceInfo());
 		return true;
 	}
 

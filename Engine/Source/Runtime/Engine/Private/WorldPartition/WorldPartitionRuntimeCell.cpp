@@ -95,9 +95,9 @@ void UWorldPartitionRuntimeCell::DumpStateLog(FHierarchicalLogArchive& Ar) const
 }
 #endif
 
-int32 UWorldPartitionRuntimeCell::SortCompare(const UWorldPartitionRuntimeCell* Other, bool bCanUseSortingCache) const
+int32 UWorldPartitionRuntimeCell::SortCompare(const UWorldPartitionRuntimeCell* Other) const
 {
-	return RuntimeCellData->SortCompare(Other->RuntimeCellData, bCanUseSortingCache);
+	return RuntimeCellData->SortCompare(Other->RuntimeCellData);
 }
 
 bool UWorldPartitionRuntimeCell::IsDebugShown() const

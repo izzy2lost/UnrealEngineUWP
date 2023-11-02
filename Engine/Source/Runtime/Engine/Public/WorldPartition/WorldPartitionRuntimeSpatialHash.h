@@ -369,6 +369,7 @@ private:
 	ENGINE_API virtual void Draw3D(const TArray<FWorldPartitionStreamingSource>& Sources) const override;
 	ENGINE_API virtual bool ContainsRuntimeHash(const FString& Name) const override;
 	ENGINE_API virtual bool IsStreaming3D() const override;
+	ENGINE_API virtual bool GetShouldMergeStreamingSourceInfo() const override { return true; }
 
 	ENGINE_API void GetAlwaysLoadedStreamingCells(const FSpatialHashStreamingGrid& StreamingGrid, TSet<const UWorldPartitionRuntimeCell*>& Cells) const;
 	ENGINE_API const TMap<FName, const FSpatialHashStreamingGrid*>& GetNameToGridMapping() const;

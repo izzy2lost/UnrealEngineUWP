@@ -189,10 +189,10 @@ bool UWorldPartitionRuntimeHashSet::GenerateStreaming(UWorldPartitionStreamingPo
 		RuntimeCell->SetIsHLOD(CellDescInstance.SourcePartition->HLODIndex != INDEX_NONE);
 		RuntimeCell->SetGuid(CellUniqueId.Guid);
 
-		UWorldPartitionRuntimeCellDataSpatialHashSet* RuntimeCellDataHashSet = CastChecked<UWorldPartitionRuntimeCellDataSpatialHashSet>(RuntimeCell->RuntimeCellData);
-		RuntimeCellDataHashSet->DebugName = CellUniqueId.Name;
-		RuntimeCellDataHashSet->Level = CellDescInstance.Level;
-		RuntimeCellDataHashSet->Priority = CellDescInstance.Priority;
+		UWorldPartitionRuntimeCellData* RuntimeCellData = RuntimeCell->RuntimeCellData;
+		RuntimeCellData->DebugName = CellUniqueId.Name;
+		RuntimeCellData->HierarchicalLevel = CellDescInstance.Level;
+		RuntimeCellData->Priority = CellDescInstance.Priority;
 
 		return RuntimeCell;
 	};
@@ -208,7 +208,7 @@ bool UWorldPartitionRuntimeHashSet::GenerateStreaming(UWorldPartitionStreamingPo
 			TArray<IStreamingGenerationContext::FActorInstance> CellActorInstances;
 			if (PopulateCellActorInstances(CellDescInstance.ActorSetInstances, bIsMainWorldPartition, bIsCellAlwaysLoaded, CellActorInstances))
 			{
-				UWorldPartitionRuntimeCell* RuntimeCell = RuntimeCells.Emplace_GetRef(CreateRuntimeCellFromCellDesc(CellDescInstance,StreamingPolicy->GetRuntimeCellClass(), UWorldPartitionRuntimeCellDataSpatialHashSet::StaticClass()));
+				UWorldPartitionRuntimeCell* RuntimeCell = RuntimeCells.Emplace_GetRef(CreateRuntimeCellFromCellDesc(CellDescInstance, StreamingPolicy->GetRuntimeCellClass(), UWorldPartitionRuntimeCellData::StaticClass()));
 				PopulateRuntimeCell(RuntimeCell, CellActorInstances, OutPackagesToGenerate);
 
 				// Override the cell bounds if the runtime partition provided one

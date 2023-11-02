@@ -18,6 +18,18 @@
 
 #define LOCTEXT_NAMESPACE "WorldPartition"
 
+ENGINE_API float GBlockOnSlowStreamingRatio = 0.25f;
+static FAutoConsoleVariableRef CVarBlockOnSlowStreamingRatio(
+	TEXT("wp.Runtime.BlockOnSlowStreamingRatio"),
+	GBlockOnSlowStreamingRatio,
+	TEXT("Ratio of DistanceToCell / LoadingRange to use to determine if World Partition streaming needs to block"));
+
+ENGINE_API float GBlockOnSlowStreamingWarningFactor = 2.f;
+static FAutoConsoleVariableRef CVarBlockOnSlowStreamingWarningFactor(
+	TEXT("wp.Runtime.BlockOnSlowStreamingWarningFactor"),
+	GBlockOnSlowStreamingWarningFactor,
+	TEXT("Factor of wp.Runtime.BlockOnSlowStreamingRatio we want to start notifying the user"));
+
 #if DO_CHECK
 void URuntimeHashExternalStreamingObjectBase::BeginDestroy()
 {
@@ -99,6 +111,25 @@ UWorldPartitionRuntimeCell* UWorldPartitionRuntimeHash::CreateRuntimeCell(UClass
 	UWorldPartitionRuntimeCell* RuntimeCell = NewObject<UWorldPartitionRuntimeCell>(Outer, CellClass, *CellObjectName);
 	RuntimeCell->RuntimeCellData = NewObject<UWorldPartitionRuntimeCellData>(RuntimeCell, CellDataClass);
 	return RuntimeCell;
+}
+
+EWorldPartitionStreamingPerformance UWorldPartitionRuntimeHash::GetStreamingPerformanceForCell(const UWorldPartitionRuntimeCell* Cell) const
+{
+	check(Cell->GetBlockOnSlowLoading());
+
+	if (Cell->RuntimeCellData->bCachedWasRequestedByBlockingSource)
+	{
+		if (Cell->RuntimeCellData->CachedMinBlockOnSlowStreamingRatio < GBlockOnSlowStreamingRatio)
+		{
+			return EWorldPartitionStreamingPerformance::Critical;
+		}
+		else if (Cell->RuntimeCellData->CachedMinBlockOnSlowStreamingRatio < (GBlockOnSlowStreamingRatio * GBlockOnSlowStreamingWarningFactor))
+		{
+			return EWorldPartitionStreamingPerformance::Slow;
+		}
+	}
+
+	return EWorldPartitionStreamingPerformance::Good;
 }
 
 URuntimeHashExternalStreamingObjectBase* UWorldPartitionRuntimeHash::CreateExternalStreamingObject(TSubclassOf<URuntimeHashExternalStreamingObjectBase> InClass, UObject* InOuter, FName InName, UWorld* InOwningWorld, UWorld* InOuterWorld)
@@ -467,11 +498,6 @@ bool UWorldPartitionRuntimeHash::RemoveExternalStreamingObject(URuntimeHashExter
 
 void UWorldPartitionRuntimeHash::FStreamingSourceCells::AddCell(const UWorldPartitionRuntimeCell* Cell, const FWorldPartitionStreamingSource& Source, const FSphericalSector& SourceShape)
 {
-	if (Cell->ShouldResetStreamingSourceInfo())
-	{
-		Cell->ResetStreamingSourceInfo();
-	}
-
 	Cell->AppendStreamingSourceInfo(Source, SourceShape);
 	Cells.Add(Cell);
 }

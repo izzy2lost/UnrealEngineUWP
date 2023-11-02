@@ -111,16 +111,6 @@ public:
 	TArray<FRuntimePartitionStreamingData> RuntimeStreamingData;
 };
 
-UCLASS(Within = WorldPartitionRuntimeCell, MinimalAPI)
-class UWorldPartitionRuntimeCellDataSpatialHashSet : public UWorldPartitionRuntimeCellData
-{
-	GENERATED_BODY()
-
-public:
-	UPROPERTY()
-	int32 Level;
-};
-
 UCLASS(HideDropdown, MinimalAPI)
 class UWorldPartitionRuntimeHashSet : public UWorldPartitionRuntimeHash
 {

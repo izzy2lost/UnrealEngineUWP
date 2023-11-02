@@ -321,11 +321,9 @@ protected:
 
 public:
 	//~Begin UWorldPartitionRuntimeCellData Proxy
-	inline bool ShouldResetStreamingSourceInfo() const { return RuntimeCellData->ShouldResetStreamingSourceInfo(); }
-	inline void ResetStreamingSourceInfo() const { RuntimeCellData->ResetStreamingSourceInfo(); }
 	inline void AppendStreamingSourceInfo(const FWorldPartitionStreamingSource& Source, const FSphericalSector& SourceShape) const { RuntimeCellData->AppendStreamingSourceInfo(Source, SourceShape); }
 	inline void MergeStreamingSourceInfo() const { RuntimeCellData->MergeStreamingSourceInfo(); }
-	ENGINE_API int32 SortCompare(const UWorldPartitionRuntimeCell* Other, bool bCanUseSortingCache = true) const;
+	ENGINE_API int32 SortCompare(const UWorldPartitionRuntimeCell* Other) const;
 	inline const FBox& GetContentBounds() const { return RuntimeCellData->GetContentBounds(); }
 	inline FBox GetCellBounds() const { return RuntimeCellData->GetCellBounds(); }
 	ENGINE_API virtual bool IsDebugShown() const;

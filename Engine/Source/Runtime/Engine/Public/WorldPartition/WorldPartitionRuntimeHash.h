@@ -22,6 +22,9 @@
 struct FHierarchicalLogArchive;
 class FWorldPartitionDraw2DContext;
 
+extern ENGINE_API float GBlockOnSlowStreamingRatio;
+extern ENGINE_API float GBlockOnSlowStreamingWarningFactor;
+
 UENUM()
 enum class EWorldPartitionStreamingPerformance : uint8
 {
@@ -156,11 +159,12 @@ public:
 	virtual void Draw3D(const TArray<FWorldPartitionStreamingSource>& Sources) const {}
 	virtual bool ContainsRuntimeHash(const FString& Name) const { return false; }
 	virtual bool IsStreaming3D() const { return true; }
+	virtual bool GetShouldMergeStreamingSourceInfo() const { return false; }
 
 protected:
 	static ENGINE_API URuntimeHashExternalStreamingObjectBase* CreateExternalStreamingObject(TSubclassOf<URuntimeHashExternalStreamingObjectBase> InClass, UObject* InOuter, FName InName, UWorld* InOwningWorld, UWorld* InOuterWorld);
 	ENGINE_API UWorldPartitionRuntimeCell* CreateRuntimeCell(UClass* CellClass, UClass* CellDataClass, const FString& CellName, const FString& CellInstanceSuffix, UObject* InOuter = nullptr);
-	virtual EWorldPartitionStreamingPerformance GetStreamingPerformanceForCell(const UWorldPartitionRuntimeCell* Cell) const { return EWorldPartitionStreamingPerformance::Good; }
+	virtual EWorldPartitionStreamingPerformance GetStreamingPerformanceForCell(const UWorldPartitionRuntimeCell* Cell) const;
 
 #if WITH_EDITOR
 	template <class T>

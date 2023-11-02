@@ -93,6 +93,8 @@ public:
 	virtual bool InjectExternalStreamingObject(URuntimeHashExternalStreamingObjectBase* ExternalStreamingObject) { return true; }
 	virtual bool RemoveExternalStreamingObject(URuntimeHashExternalStreamingObjectBase* ExternalStreamingObject) { return true; }
 
+	virtual void SetShouldMergeStreamingSourceInfo(bool bInShouldMergeStreamingSourceInfo) { bShouldMergeStreamingSourceInfo = bInShouldMergeStreamingSourceInfo; }
+
 protected:
 	virtual void SetCellStateToLoaded(const UWorldPartitionRuntimeCell* InCell, int32& InOutMaxCellsToLoad);
 	virtual void SetCellStateToActivated(const UWorldPartitionRuntimeCell* InCell, int32& InOutMaxCellsToLoad);
@@ -120,8 +122,10 @@ protected:
 	// Used by UWorldPartitionSubsystem
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<const UWorldPartitionRuntimeCell>> ToActivateCells;
+	
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<const UWorldPartitionRuntimeCell>> ToLoadCells;
+	
 	int32 ProcessedToActivateCells;
 	int32 ProcessedToLoadCells;
 
@@ -139,6 +143,10 @@ private:
 	static FAutoConsoleVariableRef CVarForceUpdateFrameCount;
 
 	bool bCriticalPerformanceRequestedBlockTillOnWorld;
+	
+	UPROPERTY()
+	bool bShouldMergeStreamingSourceInfo;
+
 	int32 CriticalPerformanceBlockTillLevelStreamingCompletedEpoch;
 	int32 ServerStreamingStateEpoch;
 	int32 ServerStreamingEnabledEpoch;

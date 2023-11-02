@@ -68,6 +68,7 @@ UWorldPartitionStreamingPolicy::UWorldPartitionStreamingPolicy(const FObjectInit
 	, ProcessedToActivateCells(0)
 	, ProcessedToLoadCells(0)
 	, bCriticalPerformanceRequestedBlockTillOnWorld(false)
+	, bShouldMergeStreamingSourceInfo(false)
 	, CriticalPerformanceBlockTillLevelStreamingCompletedEpoch(0)
 	, ServerStreamingStateEpoch(INT_MIN)
 	, ServerStreamingEnabledEpoch(INT_MIN)
@@ -185,8 +186,7 @@ bool UWorldPartitionStreamingPolicy::GetIntersectingCells(const TArray<FWorldPar
 	TArray<const UWorldPartitionRuntimeCell*> SortedCells = Cells.Array();
 	Algo::Sort(SortedCells, [&QueryCache](const UWorldPartitionRuntimeCell* CellA, const UWorldPartitionRuntimeCell* CellB)
 	{
-		const bool bCanUseSortingCache = false;
-		int32 SortCompare = CellA->SortCompare(CellB, bCanUseSortingCache);
+		int32 SortCompare = CellA->SortCompare(CellB);
 		if (SortCompare == 0)
 		{
 			// Closest distance (lower value is higher prio)
@@ -195,10 +195,8 @@ bool UWorldPartitionStreamingPolicy::GetIntersectingCells(const TArray<FWorldPar
 			{
 				return CellA->GetLevelPackageName().LexicalLess(CellB->GetLevelPackageName());
 			}
-			else
-			{
-				return Diff < 0;
-			}
+
+			return Diff < 0;
 		}
 		return SortCompare < 0;
 	});
@@ -468,14 +466,17 @@ void UWorldPartitionStreamingPolicy::UpdateStreamingState()
 			if (ActivatedCells.Contains(Cell))
 			{
 				// Update streaming source info for pending add to world cells
-				if (ActivatedCells.GetPendingAddToWorldCells().Contains(Cell))
+				if (bShouldMergeStreamingSourceInfo && ActivatedCells.GetPendingAddToWorldCells().Contains(Cell))
 				{
 					Cell->MergeStreamingSourceInfo();
 				}
 			}
 			else if (!ShouldSkipCellForPerformance(Cell) && !ShouldSkipDisabledHLODCell(Cell))
 			{
-				Cell->MergeStreamingSourceInfo();
+				if (bShouldMergeStreamingSourceInfo)
+				{
+					Cell->MergeStreamingSourceInfo();
+				}
 				ToActivateCells.Add(Cell);
 			}
 		}
@@ -491,7 +492,7 @@ void UWorldPartitionStreamingPolicy::UpdateStreamingState()
 			if (LoadedCells.Contains(Cell))
 			{
 				// Update streaming source info for pending load cells
-				if (!Cell->GetLevel())
+				if (bShouldMergeStreamingSourceInfo && !Cell->GetLevel())
 				{
 					Cell->MergeStreamingSourceInfo();
 				}
@@ -511,7 +512,10 @@ void UWorldPartitionStreamingPolicy::UpdateStreamingState()
 					}
 					else
 					{
-						Cell->MergeStreamingSourceInfo();
+						if (bShouldMergeStreamingSourceInfo)
+						{
+							Cell->MergeStreamingSourceInfo();
+						}
 						ToLoadCells.Add(Cell);
 					}
 				}
@@ -605,9 +609,12 @@ void UWorldPartitionStreamingPolicy::UpdateDebugCellsStreamingPriority(const TSe
 		TArray<const UWorldPartitionRuntimeCell*> Cells = ActivateStreamingCells.Array();
 		Cells.Append(LoadStreamingCells.Array());
 
-		for (const UWorldPartitionRuntimeCell* Cell : Cells)
+		if (bShouldMergeStreamingSourceInfo)
 		{
-			Cell->MergeStreamingSourceInfo();
+			for (const UWorldPartitionRuntimeCell* Cell : Cells)
+			{
+				Cell->MergeStreamingSourceInfo();
+			}
 		}
 
 		SortStreamingCellsByImportance(Cells);
