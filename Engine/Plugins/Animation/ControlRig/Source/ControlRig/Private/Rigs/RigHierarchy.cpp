@@ -107,6 +107,7 @@ URigHierarchy::URigHierarchy()
 , bIsInteracting(false)
 , LastInteractedKey()
 , bSuspendNotifications(false)
+, bSuspendMetadataNotifications(false)
 , HierarchyController(nullptr)
 , bIsControllerAvailable(true)
 , ResetPoseHash(INDEX_NONE)
@@ -498,124 +499,132 @@ void URigHierarchy::CopyHierarchy(URigHierarchy* InHierarchy)
 		}
 	}
 
-	Reset_Impl(bReallocateElements);
-
-	static const TArray<int32> StructureSizePerType = {
-		sizeof(FRigBoneElement),
-		sizeof(FRigNullElement),
-		sizeof(FRigControlElement),
-		sizeof(FRigCurveElement),
-		sizeof(FRigRigidBodyElement),
-		sizeof(FRigReferenceElement),
-		sizeof(FRigConnectorElement),
-		sizeof(FRigSocketElement),
-	}; 
-
-	if(bReallocateElements)
 	{
-		// Allocate the elements in batches to improve performance
-		TArray<uint8*> NewElementsPerType;
-		for(int32 ElementTypeIndex = 0; ElementTypeIndex < InHierarchy->ElementsPerType.Num(); ElementTypeIndex++)
-		{
-			const ERigElementType ElementType = FlatIndexToRigElementType(ElementTypeIndex);
-			int32 StructureSize = 0;
+		TGuardValue<bool> SuspendMetadataNotifications(bSuspendMetadataNotifications, true);
+		Reset_Impl(bReallocateElements);
 
-			const int32 Count = InHierarchy->ElementsPerType[ElementTypeIndex].Num();
-			if(Count)
+		static const TArray<int32> StructureSizePerType = {
+			sizeof(FRigBoneElement),
+			sizeof(FRigNullElement),
+			sizeof(FRigControlElement),
+			sizeof(FRigCurveElement),
+			sizeof(FRigRigidBodyElement),
+			sizeof(FRigReferenceElement),
+			sizeof(FRigConnectorElement),
+			sizeof(FRigSocketElement),
+		}; 
+
+		if(bReallocateElements)
+		{
+			// Allocate the elements in batches to improve performance
+			TArray<uint8*> NewElementsPerType;
+			for(int32 ElementTypeIndex = 0; ElementTypeIndex < InHierarchy->ElementsPerType.Num(); ElementTypeIndex++)
 			{
-				FRigBaseElement* ElementMemory = MakeElement(ElementType, Count, &StructureSize);
-				verify(StructureSize == StructureSizePerType[ElementTypeIndex]);
-				NewElementsPerType.Add(reinterpret_cast<uint8*>(ElementMemory));
-			}
-			else
-			{
-				NewElementsPerType.Add(nullptr);
-			}
+				const ERigElementType ElementType = FlatIndexToRigElementType(ElementTypeIndex);
+				int32 StructureSize = 0;
+
+				const int32 Count = InHierarchy->ElementsPerType[ElementTypeIndex].Num();
+				if(Count)
+				{
+					FRigBaseElement* ElementMemory = MakeElement(ElementType, Count, &StructureSize);
+					verify(StructureSize == StructureSizePerType[ElementTypeIndex]);
+					NewElementsPerType.Add(reinterpret_cast<uint8*>(ElementMemory));
+				}
+				else
+				{
+					NewElementsPerType.Add(nullptr);
+				}
 			
-			ElementsPerType[ElementTypeIndex].Reserve(Count);
-		}
+				ElementsPerType[ElementTypeIndex].Reserve(Count);
+			}
 
-		Elements.Reserve(InHierarchy->Elements.Num());
-		IndexLookup.Reserve(InHierarchy->IndexLookup.Num());
+			Elements.Reserve(InHierarchy->Elements.Num());
+			IndexLookup.Reserve(InHierarchy->IndexLookup.Num());
 
-		for(int32 Index = 0; Index < InHierarchy->Num(); Index++)
-		{
-			const FRigBaseElement* Source = InHierarchy->Get(Index);
-			const FRigElementKey& Key = Source->Key;
+			for(int32 Index = 0; Index < InHierarchy->Num(); Index++)
+			{
+				const FRigBaseElement* Source = InHierarchy->Get(Index);
+				const FRigElementKey& Key = Source->Key;
 
-			const int32 ElementTypeIndex = RigElementTypeToFlatIndex(Key.Type);
+				const int32 ElementTypeIndex = RigElementTypeToFlatIndex(Key.Type);
 		
-			const int32 SubIndex = Num(Key.Type);
+				const int32 SubIndex = Num(Key.Type);
 
-			const int32 StructureSize = StructureSizePerType[ElementTypeIndex];
-			check(NewElementsPerType[ElementTypeIndex] != nullptr);
-			FRigBaseElement* Target = reinterpret_cast<FRigBaseElement*>(&NewElementsPerType[ElementTypeIndex][StructureSize * SubIndex]);
+				const int32 StructureSize = StructureSizePerType[ElementTypeIndex];
+				check(NewElementsPerType[ElementTypeIndex] != nullptr);
+				FRigBaseElement* Target = reinterpret_cast<FRigBaseElement*>(&NewElementsPerType[ElementTypeIndex][StructureSize * SubIndex]);
 
-			Target->InitializeFrom(Source);
+				Target->InitializeFrom(Source);
 			
-			Target->SubIndex = SubIndex;
-			Target->Index = Elements.Add(Target);
+				Target->SubIndex = SubIndex;
+				Target->Index = Elements.Add(Target);
 
-			ElementsPerType[ElementTypeIndex].Add(Target);
-			IndexLookup.Add(Key, Target->Index);
+				ElementsPerType[ElementTypeIndex].Add(Target);
+				IndexLookup.Add(Key, Target->Index);
 			
-			IncrementPoseVersion(Index);
+				IncrementPoseVersion(Index);
 
-			check(Source->Index == Index);
-			check(Target->Index == Index);
-		}
-	}
-	else
-	{
-		// remove the superfluous elements
-		for(int32 ElementIndex = Elements.Num() - 1; ElementIndex >= InHierarchy->Elements.Num(); ElementIndex--)
-		{
-			DestroyElement(Elements[ElementIndex]);
-		}
-
-		// shrink the containers accordingly
-		Elements.SetNum(InHierarchy->Elements.Num());
-		const UEnum* ElementTypeEnum = StaticEnum<ERigElementType>();
-		for(int32 ElementTypeIndex = 0; ; ElementTypeIndex++)
-		{
-			if ((ERigElementType)ElementTypeEnum->GetValueByIndex(ElementTypeIndex) == ERigElementType::All)
-			{
-				break;
+				check(Source->Index == Index);
+				check(Target->Index == Index);
 			}
-			ElementsPerType[ElementTypeIndex].SetNum(InHierarchy->ElementsPerType[ElementTypeIndex].Num());
+		}
+		else
+		{
+			// remove the superfluous elements
+			for(int32 ElementIndex = Elements.Num() - 1; ElementIndex >= InHierarchy->Elements.Num(); ElementIndex--)
+			{
+				DestroyElement(Elements[ElementIndex]);
+			}
+
+			// shrink the containers accordingly
+			Elements.SetNum(InHierarchy->Elements.Num());
+			const UEnum* ElementTypeEnum = StaticEnum<ERigElementType>();
+			for(int32 ElementTypeIndex = 0; ; ElementTypeIndex++)
+			{
+				if ((ERigElementType)ElementTypeEnum->GetValueByIndex(ElementTypeIndex) == ERigElementType::All)
+				{
+					break;
+				}
+				ElementsPerType[ElementTypeIndex].SetNum(InHierarchy->ElementsPerType[ElementTypeIndex].Num());
+			}
+
+			for(int32 Index = 0; Index < InHierarchy->Num(); Index++)
+			{
+				const FRigBaseElement* Source = InHierarchy->Get(Index);
+				FRigBaseElement* Target = Elements[Index];
+
+				check(Target->Key.Type == Source->Key.Type);
+				Target->InitializeFrom(Source);
+
+				IncrementPoseVersion(Index);
+			}
+
+			IndexLookup = InHierarchy->IndexLookup;
 		}
 
+		// Copy all the element subclass data and all elements' metadata over.
 		for(int32 Index = 0; Index < InHierarchy->Num(); Index++)
 		{
 			const FRigBaseElement* Source = InHierarchy->Get(Index);
 			FRigBaseElement* Target = Elements[Index];
 
-			check(Target->Key.Type == Source->Key.Type);
-			Target->InitializeFrom(Source);
+			Target->CopyFrom(Source);
 
-			IncrementPoseVersion(Index);
+			CopyAllMetadataFromElement(Target, Source);
 		}
 
-		IndexLookup = InHierarchy->IndexLookup;
-	}
+		PreviousNameMap.Append(InHierarchy->PreviousNameMap);
 
-	// Copy all the element subclass data and all elements' metadata over.
-	for(int32 Index = 0; Index < InHierarchy->Num(); Index++)
-	{
-		const FRigBaseElement* Source = InHierarchy->Get(Index);
-		FRigBaseElement* Target = Elements[Index];
-
-		Target->CopyFrom(Source);
-
-		CopyAllMetadataFromElement(Target, Source);
-	}
-
-	PreviousNameMap.Append(InHierarchy->PreviousNameMap);
-
-	// Increment the topology version to invalidate our cached children.
-	IncrementTopologyVersion();
+		// Increment the topology version to invalidate our cached children.
+		IncrementTopologyVersion();
 	
-	MetadataVersion = InHierarchy->GetMetadataVersion();
+		MetadataVersion = InHierarchy->GetMetadataVersion();
+	}
+
+	if (MetadataChangedDelegate.IsBound())
+	{
+		MetadataChangedDelegate.Broadcast(FRigElementKey(ERigElementType::All), NAME_None);
+	}
 
 	EnsureCacheValidity();
 }
@@ -5332,20 +5341,26 @@ void URigHierarchy::FMetadataStorage::Serialize(FArchive& Ar)
 void URigHierarchy::OnMetadataChanged(const FRigElementKey& InKey, const FName& InName)
 {
 	MetadataVersion++;
-	
-	if(MetadataChangedDelegate.IsBound())
+
+	if (!bSuspendMetadataNotifications)
 	{
-		MetadataChangedDelegate.Broadcast(InKey, InName);
+		if(MetadataChangedDelegate.IsBound())
+		{
+			MetadataChangedDelegate.Broadcast(InKey, InName);
+		}
 	}
 }
 
 void URigHierarchy::OnMetadataTagChanged(const FRigElementKey& InKey, const FName& InTag, bool bAdded)
 {
 	MetadataTagVersion++;
-	
-	if(MetadataTagChangedDelegate.IsBound())
+
+	if (!bSuspendMetadataNotifications)
 	{
-		MetadataTagChangedDelegate.Broadcast(InKey, InTag, bAdded);
+		if(MetadataTagChangedDelegate.IsBound())
+		{
+			MetadataTagChangedDelegate.Broadcast(InKey, InTag, bAdded);
+		}
 	}
 }
 

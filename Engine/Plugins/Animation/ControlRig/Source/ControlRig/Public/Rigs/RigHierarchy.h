@@ -4237,6 +4237,11 @@ private:
 	 */
 	bool bSuspendNotifications;
 
+	/** 
+	 * If set to true all metadata changes notifs coming from this hierarchy will be suspended
+	 */
+	bool bSuspendMetadataNotifications = false;
+
 	/**
 	 * The event fired during undo / redo
 	 */

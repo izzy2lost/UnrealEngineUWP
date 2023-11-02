@@ -1236,7 +1236,7 @@ void FRigBaseElementDetails::CustomizeMetadata(IDetailLayoutBuilder& DetailBuild
 		MetadataHandle = Hierarchy->OnMetadataChanged().AddLambda([this, PropertyUtilities](const FRigElementKey& InKey, const FName&)
 		{
 			const FRigBaseElement* Element = PerElementInfos.Num() == 1 ? PerElementInfos[0].GetElement() : nullptr;
-			if (Element && Element->GetKey() == InKey)
+			if (InKey.Type == ERigElementType::All || (Element && Element->GetKey() == InKey))
 			{
 				PropertyUtilities->ForceRefresh();
 			}
