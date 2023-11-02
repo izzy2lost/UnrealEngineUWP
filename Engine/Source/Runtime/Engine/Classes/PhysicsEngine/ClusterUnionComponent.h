@@ -252,6 +252,11 @@ public:
 			ComponentKey = InComponent;
 			ComponentPtr = InComponent;
 		}
+		
+		bool operator<(const FMappedComponentKey& Other) const
+		{
+			return ComponentKey < Other.ComponentKey;
+		}
 
 		bool operator==(const FMappedComponentKey& Other) const
 		{
@@ -284,6 +289,9 @@ public:
 		Chaos::FUniqueIdx ParticleID;
 		FTransform ChildToParentTransform;
 	};
+
+	// There are several instances where we have 1 single elements. The inline allocator should help in these cases without a huge impact when we go over
+	using FLocalBonesToTransformMap = TSortedMap<int32, FMappedBoneData, TInlineAllocator<1>>;
 
 	// SyncClusterUnionFromProxy will examine the make up of the cluster union (particles, child to parent, etc.) and do whatever is needed on the GT in terms of bookkeeping.
 	ENGINE_API void SyncClusterUnionFromProxy();
@@ -436,8 +444,8 @@ private:
 
 	// These functions only get called when the physics thread syncs to the game thread thereby enforcing a physics thread authoritative view of
 	// what particles are currently contained within the cluster union.
-	ENGINE_API void HandleAddOrModifiedClusteredComponent(const FMappedComponentKey& ChangedComponentData, const TMap<int32, FMappedBoneData>& PerBoneChildToParent);
-	ENGINE_API void HandleRemovedClusteredComponent(TObjectKey<UPrimitiveComponent> ChangedComponent);
+	ENGINE_API void HandleAddOrModifiedClusteredComponent(const FMappedComponentKey& ChangedComponentData, const FLocalBonesToTransformMap& PerBoneChildToParent);
+	ENGINE_API void HandleRemovedClusteredComponent(TObjectKey<UPrimitiveComponent> RemovedComponent, const FClusteredComponentData& ComponentData);
 
 	ENGINE_API TArray<UPrimitiveComponent*> GetAllCurrentChildComponents() const;
 	ENGINE_API TArray<AActor*> GetAllCurrentActors() const;
