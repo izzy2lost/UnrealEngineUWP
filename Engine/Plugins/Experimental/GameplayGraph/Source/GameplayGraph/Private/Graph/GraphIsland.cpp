@@ -109,3 +109,15 @@ void UGraphIsland::HandleOnConnectivityChanged()
 {
 	OnConnectivityChanged.Broadcast(Handle());
 }
+
+void UGraphIsland::SetOperationAllowed(EGraphIslandOperations Op, bool bAllowed)
+{
+	if (bAllowed)
+	{
+		EnumAddFlags(AllowedOperations, Op);
+	}
+	else
+	{
+		EnumRemoveFlags(AllowedOperations, Op);
+	}
+}

@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
+#include "Misc/EnumClassFlags.h"
 #include "Graph/GraphElement.h"
 #include "GraphIsland.generated.h"
 
@@ -12,6 +13,24 @@ struct FSerializedIslandData
 	UPROPERTY(SaveGame)
 	TArray<FGraphVertexHandle> Vertices;
 };
+
+/**
+ * These are the possible operations that can be done to an island. The graph
+ * will attempt to check that the island is allowing these operations before
+ * successfully performing any of these operations. By default all operations are allowed.
+ */
+UENUM()
+enum class EGraphIslandOperations : int32
+{
+	None = 0,
+	Add = 1 << 0,
+	Remove = 1 << 1,
+	Split = 1 << 2,
+	Merge = 1 << 3,
+	Destroy = 1 << 4,
+	All = Add | Remove | Split | Merge | Destroy
+};
+ENUM_CLASS_FLAGS(EGraphIslandOperations);
 
 /** Delegate to track when some sort of batch change has occurred on this island that probably changes its connectivity.
  *  This is different from FOnGraphIslandNodeRemoved since FOnGraphIslandDestructiveChangeFinish will only be called
@@ -46,6 +65,9 @@ public:
 	const TSet<FGraphVertexHandle>& GetVertices() const { return Vertices; }
 	int32 Num() const { return Vertices.Num(); }
 	FSerializedIslandData GetSerializedData() const;
+
+	bool IsOperationAllowed(EGraphIslandOperations Op) const { return EnumHasAnyFlags(AllowedOperations, Op); }
+	void SetOperationAllowed(EGraphIslandOperations Op, bool bAllowed);
 
 	template<typename TLambda>
 	void ForEachVertex(TLambda&& Lambda)
@@ -84,4 +106,7 @@ private:
 
 	UPROPERTY(Transient)
 	bool bPendingDestroy;
+
+	UPROPERTY(Transient)
+	EGraphIslandOperations AllowedOperations = EGraphIslandOperations::All;
 };

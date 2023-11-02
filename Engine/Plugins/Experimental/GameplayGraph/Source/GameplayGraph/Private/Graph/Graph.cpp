@@ -171,7 +171,34 @@ FGraphEdgeHandle UGraph::CreateEdge(FGraphVertexHandle Node1, FGraphVertexHandle
 
 	if (!ensure(InUniqueIndex.IsValid()))
 	{
-		return{};
+		return {};
+	}
+
+	if (Properties.bGenerateIslands)
+	{
+		const FGraphIslandHandle& Island1 = Node1Ptr->GetParentIsland();
+		const FGraphIslandHandle& Island2 = Node2Ptr->GetParentIsland();
+
+		const TObjectPtr<UGraphIsland> Island1Ptr = Island1.GetIsland();
+		const TObjectPtr<UGraphIsland> Island2Ptr = Island2.GetIsland();
+
+		if (Island1Ptr && Island2Ptr)
+		{
+			// Possible merge scenario.
+			const bool bIsMerge = Island1 != Island2;
+			if (bIsMerge && !Island1Ptr->IsOperationAllowed(EGraphIslandOperations::Merge) && !Island2Ptr->IsOperationAllowed(EGraphIslandOperations::Merge))
+			{
+				return {};
+			}
+		}
+		else if (TObjectPtr<UGraphIsland> RelevantIsland = Island1Ptr ? Island1Ptr : Island2Ptr)
+		{
+			// Regular add scenario.
+			if (!RelevantIsland->IsOperationAllowed(EGraphIslandOperations::Add))
+			{
+				return {};
+			}
+		}
 	}
 
 	Edge->OnCreate();
@@ -278,6 +305,10 @@ void UGraph::RemoveIsland(const FGraphIslandHandle& IslandHandle)
 
 	if (TObjectPtr<UGraphIsland> Island = IslandHandle.GetIsland())
 	{
+		if (!Island->IsOperationAllowed(EGraphIslandOperations::Destroy))
+		{
+			return;
+		}
 		Island->Destroy();
 	}
 	Islands.Remove(IslandHandle);
@@ -513,20 +544,25 @@ void UGraph::RemoveBulkVertices(const TArray<FGraphVertexHandle>& InHandles)
 	{
 		if (NodeHandle.IsValid())
 		{
+			if (TObjectPtr<UGraphVertex> Node = NodeHandle.GetVertex())
+			{
+				if (TObjectPtr<UGraphIsland> Island = Node->GetParentIsland().GetIsland())
+				{
+					if (!Island->IsOperationAllowed(EGraphIslandOperations::Remove))
+					{
+						continue;
+					}
+
+					AffectedIslands.Add(Node->GetParentIsland());
+					Island->RemoveVertex(NodeHandle);
+				}
+			}
+
 			// We must remove every edge this node is a part of.
 			for (const FGraphEdgeHandle& EdgeHandle : VertexEdges.FindOrAdd(NodeHandle))
 			{
 				// Don't immediately handle islands. We'll do it later.
 				RemoveEdge(EdgeHandle, false);
-			}
-
-			if (TObjectPtr<UGraphVertex> Node = NodeHandle.GetVertex())
-			{
-				if (TObjectPtr<UGraphIsland> Island = Node->GetParentIsland().GetIsland())
-				{
-					AffectedIslands.Add(Node->GetParentIsland());
-					Island->RemoveVertex(NodeHandle);
-				}
 			}
 		}
 	}
@@ -608,7 +644,7 @@ void UGraph::RemoveEdge(const FGraphEdgeHandle& EdgeHandle, bool bHandleIslands)
 void UGraph::RemoveOrSplitIsland(TObjectPtr<UGraphIsland> Island)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UGraph::RemoveOrSplitIsland);
-	if (!Island)
+	if (!Island || !Island->IsOperationAllowed(EGraphIslandOperations::Split))
 	{
 		return;
 	}
@@ -723,4 +759,10 @@ void UGraph::FinalizeVertex(const FGraphVertexHandle& InHandle)
 	{
 		Island->HandleOnConnectivityChanged();
 	}
+}
+
+void UGraph::RefreshIslandConnectivity(const FGraphIslandHandle& IslandHandle)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(UGraph::RefreshIslandConnectivity);
+	RemoveOrSplitIsland(IslandHandle.GetIsland());
 }
