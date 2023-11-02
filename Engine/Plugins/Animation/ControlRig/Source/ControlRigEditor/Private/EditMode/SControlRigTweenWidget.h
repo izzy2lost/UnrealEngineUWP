@@ -25,7 +25,6 @@ class SControlRigTweenSlider : public SCompoundWidget
 {
 	SLATE_BEGIN_ARGS(SControlRigTweenSlider) {}
 	SLATE_ARGUMENT(TSharedPtr<FBaseAnimSlider>, InAnimSlider)
-	SLATE_ARGUMENT(TSharedPtr<ISequencer>, InSequencer)
 	SLATE_ARGUMENT(TWeakPtr<FControlRigEditMode>, InWeakEditMode)
 	SLATE_END_ARGS()
 	~SControlRigTweenSlider()

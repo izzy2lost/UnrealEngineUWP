@@ -29,8 +29,12 @@ void SControlRigTweenSlider::Construct(const FArguments& InArgs)
 	bIsBlending = false;
 	bSliderStartedTransaction = false;
 	AnimSlider = InArgs._InAnimSlider;
-	WeakSequencer = InArgs._InSequencer;
 	WeakEditMode = InArgs._InWeakEditMode;
+	
+	ULevelSequence* LevelSequence = ULevelSequenceEditorBlueprintLibrary::GetCurrentLevelSequence();
+	IAssetEditorInstance* AssetEditor = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->FindEditorForAsset(LevelSequence, false);
+	ILevelSequenceEditorToolkit* LevelSequenceEditor = static_cast<ILevelSequenceEditorToolkit*>(AssetEditor);
+	WeakSequencer = LevelSequenceEditor ? LevelSequenceEditor->GetSequencer() : nullptr;
 	
 	ChildSlot
 	[
@@ -330,7 +334,6 @@ void SControlRigTweenWidget::Construct(const FArguments& InArgs)
 		[
 			SAssignNew(SliderWidget,SControlRigTweenSlider)
 			.InAnimSlider(SliderPtr)
-			.InSequencer(OwningEditMode.Pin()->GetWeakSequencer().Pin())
 			.InWeakEditMode(OwningEditMode)
 		];
 	
