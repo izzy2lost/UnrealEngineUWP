@@ -961,7 +961,9 @@ void FAnimNode_RigidBodyWithControl::ApplyCurrentConstraintProfile()
 }
 
 //======================================================================================================================
-void FAnimNode_RigidBodyWithControl::TransformConstraintsToMatchSkeletalMesh(const USkeletalMesh* const SkeletalMeshAsset, TArray<FConstraintInstance*>& ConstraintInstances)
+void FAnimNode_RigidBodyWithControl::TransformConstraintsToMatchSkeletalMesh(
+	const USkeletalMesh*          const SkeletalMeshAsset, 
+	TArray<FConstraintInstance*>& ConstraintInstances)
 {
 	// Bone1 = Child
 	// Bone2 = Parent 
@@ -970,7 +972,9 @@ void FAnimNode_RigidBodyWithControl::TransformConstraintsToMatchSkeletalMesh(con
 	{
 		if (SkeletalMeshAsset != PhysicsAssetAuthoredSkeletalMesh)
 		{
-			UE_LOGFMT(LogRigidBodyWithControl, Log, "Modify Constraint parent transforms to correct for the difference between the Skeleton used to create the Physics asset \"{0}\" and the current skeleton \"{1}\".", PhysicsAssetAuthoredSkeletalMesh->GetName(), SkeletalMeshAsset->GetName());
+			UE_LOGFMT(LogRigidBodyWithControl, Log, 
+				"Modify Constraint parent transforms to correct for the difference between the Skeleton used to create the Physics asset \"{0}\" and the current skeleton \"{1}\".", 
+				PhysicsAssetAuthoredSkeletalMesh->GetName(), SkeletalMeshAsset->GetName());
 
 			const FReferenceSkeleton& OriginalReferenceSkeleton = PhysicsAssetAuthoredSkeletalMesh->GetRefSkeleton();
 			const FReferenceSkeleton& CurrentReferenceSkeleton = SkeletalMeshAsset->GetRefSkeleton();
@@ -980,11 +984,17 @@ void FAnimNode_RigidBodyWithControl::TransformConstraintsToMatchSkeletalMesh(con
 #if !NO_LOGGING
 				const FVector LogPreviousConstraintPositionRelParent = ConstraintInstance->Pos2;
 #endif
-				const FTransform CurrentParentRelChildTM = CalculateRelativeBoneTransform(ConstraintInstance->ConstraintBone1, ConstraintInstance->ConstraintBone2, CurrentReferenceSkeleton);
-				const FTransform OriginalParentRelChildTM = CalculateRelativeBoneTransform(ConstraintInstance->ConstraintBone1, ConstraintInstance->ConstraintBone2, OriginalReferenceSkeleton);
+				const FTransform CurrentParentRelChildTM = CalculateRelativeBoneTransform(
+					ConstraintInstance->ConstraintBone1, ConstraintInstance->ConstraintBone2, CurrentReferenceSkeleton);
+				const FTransform OriginalParentRelChildTM = CalculateRelativeBoneTransform(
+					ConstraintInstance->ConstraintBone1, ConstraintInstance->ConstraintBone2, OriginalReferenceSkeleton);
 
-				// Find the transform that maps the parent-bone-relative-to-the-child-bone transform in the original skeleton to the parent-bone-relative-to-the-child-bone transform in the current skeleton.
-				const FTransform OriginalToCurrentParentRelChildTM = CurrentParentRelChildTM.GetRelativeTransform(OriginalParentRelChildTM); // Should be equivalent to CurrentParentRelChildTM * OriginalParentRelChildTM.Inverse()
+				// Find the transform that maps the parent-bone-relative-to-the-child-bone transform
+				// in the original skeleton to the parent-bone-relative-to-the-child-bone transform
+				// in the current skeleton.
+				// Should be equivalent to CurrentParentRelChildTM * OriginalParentRelChildTM.Inverse()
+				const FTransform OriginalToCurrentParentRelChildTM = 
+					CurrentParentRelChildTM.GetRelativeTransform(OriginalParentRelChildTM); 
 
 				// Update the constraints transform relative to the parent bone.
 				const FTransform OriginalRefFrame = ConstraintInstance->GetRefFrame(EConstraintFrame::Frame2);
@@ -992,20 +1002,29 @@ void FAnimNode_RigidBodyWithControl::TransformConstraintsToMatchSkeletalMesh(con
 				ConstraintInstance->SetRefFrame(EConstraintFrame::Frame2, CurrentRefFrame);
 
 #if !NO_LOGGING
-				UE_LOGFMT(LogRigidBodyWithControl, Log, "Matched Constraint {0} - {1} Parent Transform - position was {2} now {3}.", ConstraintInstance->ConstraintBone1.ToString(), ConstraintInstance->ConstraintBone2.ToString(), LogPreviousConstraintPositionRelParent.ToCompactString(), ConstraintInstance->Pos2.ToCompactString());
+				UE_LOGFMT(LogRigidBodyWithControl, Log, 
+					"Matched Constraint {0} - {1} Parent Transform - position was {2} now {3}.", 
+					ConstraintInstance->ConstraintBone1.ToString(), 
+					ConstraintInstance->ConstraintBone2.ToString(), 
+					LogPreviousConstraintPositionRelParent.ToCompactString(), 
+					ConstraintInstance->Pos2.ToCompactString());
 #endif
 			}
 		}
 #if !NO_LOGGING
 		else
 		{
-			UE_LOGFMT(LogRigidBodyWithControl, Log, "Do not modify constraint parent transforms as the Skeleton used to create the Physics asset \"{0}\" matches the current skeleton \"{1}\".", PhysicsAssetAuthoredSkeletalMesh->GetName(), SkeletalMeshAsset->GetName());
+			UE_LOGFMT(LogRigidBodyWithControl, Log, 
+				"Do not modify constraint parent transforms as the Skeleton used to create the Physics asset \"{0}\" matches the current skeleton \"{1}\".", 
+				PhysicsAssetAuthoredSkeletalMesh->GetName(), SkeletalMeshAsset->GetName());
 		}
 #endif
 	}
 	else if (SkeletalMeshAsset)
 	{
-		UE_LOGFMT(LogRigidBodyWithControl, Log, "Snap Constraint parent transforms to the current skeleton \"{0}\" (Authored Skeleton is undefined in node details).", SkeletalMeshAsset->GetName());
+		UE_LOGFMT(LogRigidBodyWithControl, Log, 
+			"Snap Constraint parent transforms to the current skeleton \"{0}\" (Authored Skeleton is undefined in node details).", 
+			SkeletalMeshAsset->GetName());
 
 		const FReferenceSkeleton& CurrentReferenceSkeleton = SkeletalMeshAsset->GetRefSkeleton();
 
@@ -1016,11 +1035,17 @@ void FAnimNode_RigidBodyWithControl::TransformConstraintsToMatchSkeletalMesh(con
 			const FVector LogPreviousConstraintPositionRelParent = ConstraintInstance->Pos2;
 #endif
 
-			const FTransform ParentRelChildTM = CalculateRelativeBoneTransform(ConstraintInstance->ConstraintBone1, ConstraintInstance->ConstraintBone2, CurrentReferenceSkeleton);			
+			const FTransform ParentRelChildTM = CalculateRelativeBoneTransform(
+				ConstraintInstance->ConstraintBone1, ConstraintInstance->ConstraintBone2, CurrentReferenceSkeleton);			
 			ConstraintInstance->SetRefFrame(EConstraintFrame::Frame2, ParentRelChildTM);
 
 #if !NO_LOGGING
-			UE_LOGFMT(LogRigidBodyWithControl, Log, "Snapped Constraint {0} - {1} Parent Transform - position was {2} now {3}.", ConstraintInstance->ConstraintBone1.ToString(), ConstraintInstance->ConstraintBone2.ToString(), LogPreviousConstraintPositionRelParent.ToCompactString(), ConstraintInstance->Pos2.ToCompactString());
+			UE_LOGFMT(LogRigidBodyWithControl, Log, 
+				"Snapped Constraint {0} - {1} Parent Transform - position was {2} now {3}.", 
+				ConstraintInstance->ConstraintBone1.ToString(), 
+				ConstraintInstance->ConstraintBone2.ToString(), 
+				LogPreviousConstraintPositionRelParent.ToCompactString(), 
+				ConstraintInstance->Pos2.ToCompactString());
 #endif
 		}
 	}

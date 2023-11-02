@@ -185,20 +185,23 @@ public:
 	uint8 bClampLinearTranslationLimitToRefPose : 1;
 
 	/**
-		Change the parent space transforms of constraints read from the physics asset to match the relative bone transforms in the in-coming skeleton.
+		Change the parent space transforms of constraints read from the physics asset to match the relative 
+		bone transforms in the in-coming skeleton.
 	*/
 	UPROPERTY(EditAnywhere, Category = PhysicsAssetConditioning, meta = (InlineEditConditionToggle))
 	uint8 bModifyConstraintTransformsToMatchSkeleton : 1;
 
 	/**
-		For world-space simulations, if the magnitude of the component's 3D scale is less than WorldSpaceMinimumScale, do not update the node.
+		For world-space simulations, if the magnitude of the component's 3D scale is less than 
+		WorldSpaceMinimumScale, do not update the node.
 	*/
 	UPROPERTY(EditAnywhere, Category = Settings)
 	float WorldSpaceMinimumScale;
 
 	/**
-		If the node is not evaluated for this amount of time (seconds), either because a lower LOD was in use for a while or the component was
-		not visible, reset the simulation to the default pose on the next evaluation. Set to 0 to disable time-based reset.
+		If the node is not evaluated for this amount of time (seconds), either because a lower LOD was in use 
+		for a while or the component was not visible, reset the simulation to the default pose on the next 
+		evaluation. Set to 0 to disable time-based reset.
 	*/
 	UPROPERTY(EditAnywhere, Category = Settings)
 	float EvaluationResetTime;
@@ -273,10 +276,14 @@ public:
 	FRigidBodyKinematicTargets KinematicTargets;
 
 	/**
-	 * When enabled, each Constraint's transform relative to its parent bone will be updated to account for any difference 
-	 * in the transform of its child bone relative to its parent bone between the skeleton used to author the physics asset
-	 * and the current skeleton (if the authored skeleton is defined) or snapped to the default transform relative to the
-	 * parent bone (if the authored skeleton is not defined).
+	 * If this option is enabled, each Constraint's parent transform will be updated to adjust its position and 
+	 * orientation to account for the difference in the constraints child transform between the skeleton used 
+	 * to author the physics asset and the current skeleton (if the authored skeleton is defined). If the authored
+	 * skeleton is not defined/unavailable then the parent bone's transform is set to the default transform that
+	 * would have been used in the physics asset.
+	 * This can be used to created a simulated character that has somewhat different bone length/orientations compared
+	 * to the one used to create the physics asset, in order to avoid the need to customize the physics asset
+	 * for every skeleton you use.
 	 */
 	UPROPERTY(EditAnywhere, Category = PhysicsAssetConditioning, meta = (DisplayName = "Map constraints to Skeleton", editcondition = "bModifyConstraintTransformsToMatchSkeleton"))
 	USkeletalMesh* PhysicsAssetAuthoredSkeletalMesh;
@@ -390,10 +397,13 @@ private:
 		FVector& SpaceLinearAcc,
 		FVector& SpaceAngularAcc);
 
-	// Modify Constraint transforms relative to the parent bone to correct for the difference between the Skeleton used to create the Physics asset and the current skeleton.
-	void TransformConstraintsToMatchSkeletalMesh(const USkeletalMesh* const SkeletalMeshAsset, TArray<FConstraintInstance*>& ConstraintInstances);
+	// Modify Constraint transforms relative to the parent bone to correct for the difference
+	// between the Skeleton used to create the Physics asset and the current skeleton.
+	void TransformConstraintsToMatchSkeletalMesh(
+		const USkeletalMesh* const SkeletalMeshAsset, TArray<FConstraintInstance*>& ConstraintInstances);
 
-	// Gather cloth collision sources from the supplied Skeltal Mesh and add a kinematic actor representing each one of them to the sim.
+	// Gather cloth collision sources from the supplied Skeltal Mesh and add a kinematic actor
+	// representing each one of them to the sim.
 	void CollectClothColliderObjects(const USkeletalMeshComponent* SkeletalMeshComp);
 	
 	// Remove all cloth collider objects from the sim.
@@ -425,7 +435,10 @@ private:
 
 public:
 
-	/* Whether the physics simulation runs synchronously with the node's evaluation or is run in the background until the next frame. */
+	/* 
+	 * Whether the physics simulation runs synchronously with the node's evaluation or is run in the 
+	 * background until the next frame. 
+	 */
 	UPROPERTY(EditAnywhere, Category=Settings, AdvancedDisplay)
 	ESimulationTiming SimulationTiming;
 
@@ -481,7 +494,8 @@ private:
 	struct FWorldObject
 	{
 		FWorldObject() : ActorHandle(nullptr), LastSeenTick(0), bExpired(false) {}
-		FWorldObject(ImmediatePhysics::FActorHandle* InActorHandle, int32 InLastSeenTick) : ActorHandle(InActorHandle), LastSeenTick(InLastSeenTick), bExpired(false) {}
+		FWorldObject(ImmediatePhysics::FActorHandle* InActorHandle, int32 InLastSeenTick) 
+			: ActorHandle(InActorHandle), LastSeenTick(InLastSeenTick), bExpired(false) {}
 
 		ImmediatePhysics::FActorHandle* ActorHandle;
 		int32 LastSeenTick;
@@ -520,7 +534,10 @@ private:
 	// Information required to identify and update a kinematic object representing a cloth collision source in the sim.
 	struct FClothCollider
 	{
-		FClothCollider(ImmediatePhysics::FActorHandle* const InActorHandle, const USkeletalMeshComponent* const InSkeletalMeshComponent, const uint32 InBoneIndex)
+		FClothCollider(
+			ImmediatePhysics::FActorHandle* const InActorHandle, 
+			const USkeletalMeshComponent* const   InSkeletalMeshComponent, 
+			const uint32                          InBoneIndex)
 			: ActorHandle(InActorHandle)
 			, SkeletalMeshComponent(InSkeletalMeshComponent)
 			, BoneIndex(InBoneIndex)
@@ -549,13 +566,12 @@ private:
 
 	FPhysScene* PhysScene;
 
-	// Used by CollectWorldObjects and UpdateWorldGeometry in Task Thread
-	// Typically, World should never be accessed off the Game Thread.
-	// However, since we're just doing overlaps this should be OK.
+	// Used by CollectWorldObjects and UpdateWorldGeometry in the Task Thread. Typically, World
+	// should never be accessed off the Game Thread. However, since we're just doing overlaps this
+	// should be OK.
 	const UWorld* UnsafeWorld;
 
-	// Used by CollectWorldObjects and UpdateWorldGeometry in Task Thread
-	// Only used for a pointer comparison.
+	// Used by CollectWorldObjects and UpdateWorldGeometry in Task Thread. Only used for a pointer comparison.
 	const AActor* UnsafeOwner;
 
 	FBoneContainer CapturedBoneVelocityBoneContainer;
