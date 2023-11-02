@@ -14,6 +14,7 @@ class ALandscapeProxy;
 class FLandscapeProxyComponentDataChangedParams;
 class ULandscapeComponent;
 class ULandscapeInfo;
+class UPCGLandscapeCache;
 class UPCGPointData;
 class UPCGMetadata;
 struct FPCGPoint;
@@ -112,6 +113,7 @@ private:
 	mutable FCriticalSection DataLock;
 	mutable int32 Touch = 0;
 	mutable bool bDataLoaded = false;
+	TWeakObjectPtr<UPCGLandscapeCache> OwningCache = nullptr;
 };
 
 UCLASS()
@@ -225,10 +227,6 @@ private:
 #if WITH_EDITOR
 	TSet<TWeakObjectPtr<ALandscapeProxy>> Landscapes;
 #endif
-
-	// Keep "merged" landscape caches alive so that the bulk data is reachable
-	UPROPERTY(Transient)
-	TArray<TObjectPtr<UPCGLandscapeCache>> EmbeddedCaches;
 
 #if WITH_EDITOR
 	FRWLock CacheLock;

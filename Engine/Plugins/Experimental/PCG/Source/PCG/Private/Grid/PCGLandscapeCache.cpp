@@ -400,6 +400,13 @@ void FPCGLandscapeCacheEntry::SerializeToBulkData(EPCGLandscapeCacheSerializatio
 bool FPCGLandscapeCacheEntry::SerializeFromBulkData() const
 {
 	check(!bDataLoaded);
+
+	// If owner object has been unloaded, we can't serialize the bulk data.
+	if (!OwningCache.IsValid())
+	{
+		return false;
+	}
+
 	LLM_SCOPE_BYNAME(TEXT("PCGLandscape"));
 
 	// Note: this call is not threadsafe by itself, it is meant to be called from a locked region
@@ -502,6 +509,7 @@ void UPCGLandscapeCache::Serialize(FArchive& Archive)
 			Archive << Key;
 
 			FPCGLandscapeCacheEntry* Entry = new FPCGLandscapeCacheEntry();
+			Entry->OwningCache = this;
 			Entry->Serialize(Archive, this, EntryIndex, SerializedContents);
 
 			CacheMapKey MapKey(Key.Key, Key.Value, nullptr);
@@ -670,10 +678,11 @@ void UPCGLandscapeCache::PrimeCache()
 	TArray<FPCGLandscapeCacheEntry*> NewEntries;
 	NewEntries.SetNum(CacheEntriesToBuild.Num());
 
-	ParallelFor(CacheEntriesToBuild.Num(), [&CacheEntriesToBuild, &NewEntries](int32 EntryIndex)
+	ParallelFor(CacheEntriesToBuild.Num(), [this, &CacheEntriesToBuild, &NewEntries](int32 EntryIndex)
 	{
 		const TTuple<ULandscapeInfo*, ULandscapeComponent*, CacheMapKey>& CacheEntryInfo = CacheEntriesToBuild[EntryIndex];
 		NewEntries[EntryIndex] = FPCGLandscapeCacheEntry::CreateCacheEntry(CacheEntryInfo.Get<0>(), CacheEntryInfo.Get<1>());
+		NewEntries[EntryIndex]->OwningCache = this;
 	});
 
 	if (SerializationMode != EPCGLandscapeCacheSerializationMode::NeverSerialize)
@@ -748,11 +757,6 @@ void UPCGLandscapeCache::TakeOwnership(UPCGLandscapeCache* InLandscapeCache)
 	CacheEntryCount = CachedData.Num();
 #endif
 
-	if (bShouldDirty)
-	{
-		EmbeddedCaches.AddUnique(InLandscapeCache);
-	}
-
 	if (bShouldDirty && SerializationMode != EPCGLandscapeCacheSerializationMode::NeverSerialize)
 	{
 		MarkPackageDirty();
@@ -783,6 +787,7 @@ const FPCGLandscapeCacheEntry* UPCGLandscapeCache::GetCacheEntry(ULandscapeCompo
 			check(LandscapeComponent->SectionBaseX / LandscapeComponent->ComponentSizeQuads == ComponentKey.Coordinate.X && LandscapeComponent->SectionBaseY / LandscapeComponent->ComponentSizeQuads == ComponentKey.Coordinate.Y);
 			if (FPCGLandscapeCacheEntry* NewEntry = FPCGLandscapeCacheEntry::CreateCacheEntry(LandscapeComponent->GetLandscapeInfo(), LandscapeComponent))
 			{
+				NewEntry->OwningCache = this;
 				CacheEntry = NewEntry;
 				CachedData.Add(ComponentKey, NewEntry);
 				++CacheEntryCount;
