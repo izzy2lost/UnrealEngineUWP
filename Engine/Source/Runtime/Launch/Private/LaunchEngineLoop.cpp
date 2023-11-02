@@ -132,6 +132,7 @@
 		#include "Windows/AllowWindowsPlatformTypes.h"
 			#include <objbase.h>
 		#include "Windows/HideWindowsPlatformTypes.h"
+		#include "Windows/WindowsPlatformPerfCounters.h"
 	#endif
 #endif //WITH_EDITOR
 
@@ -2659,6 +2660,10 @@ int32 FEngineLoop::PreInitPreStartupScreen(const TCHAR* CmdLine)
 		FTaskGraphInterface::Startup(FPlatformMisc::NumberOfWorkerThreadsToSpawn());
 		FTaskGraphInterface::Get().AttachToThread(ENamedThreads::GameThread);
 	}
+
+#if WITH_EDITOR && PLATFORM_WINDOWS
+	FWindowsPlatformPerfCounters::Init();
+#endif
 
 	if (FPlatformProcess::SupportsMultithreading() && bCreateTaskGraphAndThreadPools)
 	{
@@ -5188,6 +5193,10 @@ void FEngineLoop::Exit()
 	FTaskGraphInterface::Shutdown();
 
 	FPlatformMisc::ShutdownTaggedStorage();
+
+#if WITH_EDITOR && PLATFORM_WINDOWS
+	FWindowsPlatformPerfCounters::Shutdown();
+#endif
 
 #if WITH_ENGINE && FRAMEPRO_ENABLED
 	FFrameProProfiler::TearDown();
