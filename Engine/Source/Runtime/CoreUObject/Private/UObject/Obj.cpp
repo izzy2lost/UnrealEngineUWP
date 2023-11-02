@@ -67,6 +67,7 @@
 #include "ProfilingDebugging/AssetMetadataTrace.h"
 #include "Containers/VersePath.h"
 #include "Serialization/LoadTimeTracePrivate.h"
+#include "UObject/PropertyBagRepository.h"
 
 DEFINE_LOG_CATEGORY(LogObj);
 
@@ -984,6 +985,9 @@ void UObject::BeginDestroy()
 	// Remove any associated external package, at this point
 	SetExternalPackage(nullptr);
 
+	// Destroy any associated property bag.
+	UE::FPropertyBagRepository::Get().DestroyOuterBag(this);
+	
 	// ensure BeginDestroy has been routed back to UObject::BeginDestroy.
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 	DebugBeginDestroyed.RemoveSingle(this);

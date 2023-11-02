@@ -41,6 +41,7 @@
 #include "Engine/ScopedMovementUpdate.h"
 #include "InstancedReferenceSubobjectHelper.h"
 #include "UObject/PropertyOptional.h"
+#include "UObject/PropertyBagRepository.h"
 
 DECLARE_CYCLE_STAT(TEXT("Replace Instances"), EKismetReinstancerStats_ReplaceInstancesOfClass, STATGROUP_KismetReinstancer );
 DECLARE_CYCLE_STAT(TEXT("Find Referencers"), EKismetReinstancerStats_FindReferencers, STATGROUP_KismetReinstancer );
@@ -2851,6 +2852,9 @@ void FBlueprintCompileReinstancer::ReplaceInstancesOfClass_Inner(const TMap<UCla
 			}
 		}
 	}
+
+	// Reassociate relevant property bags 
+	UE::FPropertyBagRepository::Get().ReassociateObjects(OldToNewInstanceMap);
 
 	// Inform listeners of object reinstancing
 	FCoreUObjectDelegates::OnObjectsReinstanced.Broadcast(OldToNewInstanceMap);

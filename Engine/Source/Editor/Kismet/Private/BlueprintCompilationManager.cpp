@@ -44,6 +44,7 @@
 #include "BlueprintEditorModule.h"
 #include "Animation/AnimBlueprint.h"
 #include "Stats/StatsHierarchical.h"
+#include "UObject/PropertyBagRepository.h"
 
 extern UNREALED_API UUnrealEdEngine* GUnrealEd;
 
@@ -2663,6 +2664,9 @@ void FBlueprintCompilationManagerImpl::ReinstanceBatch(TArray<FReinstancingJob>&
 		}
 	}
 
+	// Reassociate relevant property bags
+	UE::FPropertyBagRepository::Get().ReassociateObjects(OldArchetypeToNewArchetype);
+	
 	// 4. update known references to archetypes (e.g. component templates, WidgetTree). We don't want to run the normal 
 	// reference finder to update these because searching the entire object graph is time consuming. Instead we just replace
 	// all references in our UBlueprint and its generated class:
