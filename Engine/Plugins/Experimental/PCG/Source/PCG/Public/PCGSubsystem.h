@@ -84,6 +84,7 @@ public:
 	void RegisterPCGWorldActor(APCGWorldActor* InActor);
 	void UnregisterPCGWorldActor(APCGWorldActor* InActor);
 
+	void OnOriginalComponentRegistered(UPCGComponent* InComponent);
 	void OnOriginalComponentUnregistered(UPCGComponent* InComponent);
 
 	UPCGLandscapeCache* GetLandscapeCache();

@@ -237,6 +237,8 @@ bool FPCGActorAndComponentMapping::RegisterOrUpdatePCGComponent(UPCGComponent* I
 		UnregisterPartitionedPCGComponent(InComponent);
 	}
 
+	PCGSubsystem->OnOriginalComponentRegistered(InComponent);
+
 	// Then register/update accordingly
 	bool bHasChanged = false;
 	if (bIsPartitioned)
@@ -416,6 +418,11 @@ void FPCGActorAndComponentMapping::UnregisterPCGComponent(UPCGComponent* InCompo
 #endif // WITH_EDITOR
 	}
 
+	if (InComponent->GetOwner() && !InComponent->GetOwner()->IsA<APCGPartitionActor>())
+	{
+		PCGSubsystem->OnOriginalComponentUnregistered(InComponent);
+	}
+
 	UnregisterPartitionedPCGComponent(InComponent);
 	UnregisterNonPartitionedPCGComponent(InComponent);
 
@@ -428,13 +435,6 @@ void FPCGActorAndComponentMapping::UnregisterPCGComponent(UPCGComponent* InCompo
 
 void FPCGActorAndComponentMapping::UnregisterPartitionedPCGComponent(UPCGComponent* InComponent)
 {
-	check(InComponent);
-
-	if (InComponent->GetOwner() && !InComponent->GetOwner()->IsA<APCGPartitionActor>())
-	{
-		PCGSubsystem->OnOriginalComponentUnregistered(InComponent);
-	}
-
 	if (!PartitionedOctree.RemoveComponent(InComponent) || InComponent->GenerationTrigger == EPCGComponentGenerationTrigger::GenerateAtRuntime)
 	{
 		return;
@@ -462,13 +462,6 @@ void FPCGActorAndComponentMapping::UnregisterPartitionedPCGComponent(UPCGCompone
 
 void FPCGActorAndComponentMapping::UnregisterNonPartitionedPCGComponent(UPCGComponent* InComponent)
 {
-	check(InComponent);
-
-	if (InComponent->GetOwner() && !InComponent->GetOwner()->IsA<APCGPartitionActor>())
-	{
-		PCGSubsystem->OnOriginalComponentUnregistered(InComponent);
-	}
-
 	NonPartitionedOctree.RemoveComponent(InComponent);
 }
 
@@ -714,6 +707,27 @@ void FPCGActorAndComponentMapping::DeleteMappingPCGComponentPartitionActor(UPCGC
 bool FPCGActorAndComponentMapping::IsComponentRegistered(const UPCGComponent* InComponent) const
 {
 	return PartitionedOctree.Contains(InComponent) || NonPartitionedOctree.Contains(InComponent);
+}
+
+bool FPCGActorAndComponentMapping::AnyRuntimeGenComponentsExist() const
+{
+	for (UPCGComponent* Component : PartitionedOctree.GetAllComponents())
+	{
+		if (Component && Component->GenerationTrigger == EPCGComponentGenerationTrigger::GenerateAtRuntime)
+		{
+			return true;
+		}
+	}
+
+	for (UPCGComponent* Component : NonPartitionedOctree.GetAllComponents())
+	{
+		if (Component && Component->GenerationTrigger == EPCGComponentGenerationTrigger::GenerateAtRuntime)
+		{
+			return true;
+		}
+	}
+
+	return false;
 }
 
 TSet<UPCGComponent*> FPCGActorAndComponentMapping::GetAllRegisteredPartitionedComponents() const

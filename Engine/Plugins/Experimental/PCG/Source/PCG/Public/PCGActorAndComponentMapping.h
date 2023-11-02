@@ -124,6 +124,9 @@ private:
 	/** Returns true if a component is registered */
 	bool IsComponentRegistered(const UPCGComponent* InComponent) const;
 
+	/** Return true if there are any Original or Non-Partitioned components set to GenerateAtRuntime. */
+	bool AnyRuntimeGenComponentsExist() const;
+
 #if WITH_EDITOR
 	/* Return true if something is still tracked or was just untracked. */
 	bool AddOrUpdateTrackedActor(AActor* InActor);

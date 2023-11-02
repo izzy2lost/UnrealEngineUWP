@@ -328,6 +328,14 @@ void UPCGSubsystem::UnregisterPCGWorldActor(APCGWorldActor* InActor)
 	}
 }
 
+void UPCGSubsystem::OnOriginalComponentRegistered(UPCGComponent* InComponent)
+{
+	if (RuntimeGenScheduler)
+	{
+		RuntimeGenScheduler->OnOriginalComponentRegistered(InComponent);
+	}
+}
+
 void UPCGSubsystem::OnOriginalComponentUnregistered(UPCGComponent* InComponent)
 {
 	if (RuntimeGenScheduler)

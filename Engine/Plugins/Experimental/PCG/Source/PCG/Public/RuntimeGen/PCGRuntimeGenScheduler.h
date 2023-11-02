@@ -38,7 +38,8 @@ public:
 
 	void Tick(const APCGWorldActor* InPCGWorldActor);
 
-	void OnOriginalComponentUnregistered(UPCGComponent* InComponent);
+	void OnOriginalComponentRegistered(UPCGComponent* InOriginalComponent);
+	void OnOriginalComponentUnregistered(UPCGComponent* InOriginalComponent);
 
 protected:
 	struct FGridGenerationKey : TTuple<uint32, FIntVector, UPCGComponent*>
@@ -113,4 +114,8 @@ private:
 
 	bool bPoolingWasEnabledLastFrame = true;
 	uint32 BasePoolSizeLastFrame = 0;
+
+	/** Track the existence of runtime gen components to avoid unnecessary computation when there is no work to do. */
+	bool bAnyRuntimeGenComponentsExist = false;
+	bool bAnyRuntimeGenComponentsExistDirty = false;
 };

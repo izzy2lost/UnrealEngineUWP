@@ -87,7 +87,7 @@ void FPCGRuntimeGenScheduler::Tick(const APCGWorldActor* InPCGWorldActor)
 
 	TickCVars(InPCGWorldActor);
 
-	const TSet<IPCGGenSourceBase*> GenSources = GenSourceManager->GetGenSources(InPCGWorldActor);
+	const TSet<IPCGGenSourceBase*> GenSources = bAnyRuntimeGenComponentsExist ? GenSourceManager->GetGenSources(InPCGWorldActor) : TSet<IPCGGenSourceBase*>();
 
 	// Initialize RuntimeGen PA pool if necessary. If PoolSize is 0, then we have not initialized the pool yet.
 	if (!GenSources.IsEmpty() || !GeneratedComponents.IsEmpty())
@@ -102,11 +102,17 @@ void FPCGRuntimeGenScheduler::Tick(const APCGWorldActor* InPCGWorldActor)
 	
 	// Mapping of component + coordinates to priorities - needed to compute max priority over all gen sources.
 	TMap<FGridGenerationKey, double> ComponentsToGenerate;
-	TickQueueComponentsForGeneration(GenSources, InPCGWorldActor, ComponentsToGenerate);
+	if (!GenSources.IsEmpty())
+	{
+		TickQueueComponentsForGeneration(GenSources, InPCGWorldActor, ComponentsToGenerate);
+	}
 
 	// 2. Schedule cleanup on components that become out of range.
 
-	TickCleanup(GenSources, InPCGWorldActor);
+	if (!GeneratedComponents.IsEmpty())
+	{
+		TickCleanup(GenSources, InPCGWorldActor);
+	}
 
 	// 3. Schedule generation on components in priority order.
 
@@ -128,7 +134,7 @@ void FPCGRuntimeGenScheduler::Tick(const APCGWorldActor* InPCGWorldActor)
 
 bool FPCGRuntimeGenScheduler::ShouldTick()
 {
-	check(World);
+	check(World && ActorAndComponentMapping);
 
 	if (!PCGRuntimeGenSchedulerHelpers::CVarRuntimeGenerationEnable.GetValueOnAnyThread())
 	{
@@ -158,6 +164,34 @@ bool FPCGRuntimeGenScheduler::ShouldTick()
 		}
 	}
 #endif
+
+	if (bAnyRuntimeGenComponentsExistDirty)
+	{
+		const bool bDidAnyRuntimeGenComponentsExist = bAnyRuntimeGenComponentsExist;
+		bAnyRuntimeGenComponentsExist = ActorAndComponentMapping->AnyRuntimeGenComponentsExist();
+		bAnyRuntimeGenComponentsExistDirty = false;
+
+		if (PCGRuntimeGenSchedulerHelpers::CVarRuntimeGenerationEnableDebugging.GetValueOnAnyThread())
+		{
+			if (bDidAnyRuntimeGenComponentsExist != bAnyRuntimeGenComponentsExist)
+			{
+				if (bAnyRuntimeGenComponentsExist)
+				{
+					UE_LOG(LogPCG, Warning, TEXT("[RUNTIMEGEN] THERE ARE NOW RUNTIME COMPONENTS IN THE LEVEL. SCHEDULER WILL BEGIN TICKING."));
+				}
+				else
+				{
+					UE_LOG(LogPCG, Warning, TEXT("[RUNTIMEGEN] THERE ARE NO MORE RUNTIME COMPONENTS. SCHEDULER WILL ONLY TICK TO CLEANUP."));
+				}
+			}
+		}
+	}
+
+	// We can stop ticking if there are no runtime gen components alive and there are no generated components that need cleaning up.
+	if (!bAnyRuntimeGenComponentsExist && GeneratedComponents.IsEmpty())
+	{
+		return false;
+	}
 
 	return true;
 }
@@ -650,6 +684,19 @@ void FPCGRuntimeGenScheduler::TickCVars(const APCGWorldActor* InPCGWorldActor)
 	}
 }
 
+void FPCGRuntimeGenScheduler::OnOriginalComponentRegistered(UPCGComponent* InOriginalComponent)
+{
+	// Ensure we are not a local component.
+	if (!InOriginalComponent || Cast<APCGPartitionActor>(InOriginalComponent->GetOwner()))
+	{
+		ensure(false);
+		return;
+	}
+
+	// When an original/non-partitioned component is registered, we need to dirty the state.
+	bAnyRuntimeGenComponentsExistDirty = true;
+}
+
 void FPCGRuntimeGenScheduler::OnOriginalComponentUnregistered(UPCGComponent* InOriginalComponent)
 {
 	check(ActorAndComponentMapping);
@@ -660,6 +707,9 @@ void FPCGRuntimeGenScheduler::OnOriginalComponentUnregistered(UPCGComponent* InO
 		ensure(false);
 		return;
 	}
+
+	// When an original/non-partitioned component is unregistered, we need to dirty the state.
+	bAnyRuntimeGenComponentsExistDirty = true;
 
 	// Gather all generated components which originated from this original component.
 	TSet<FGridGenerationKey> KeysToCleanup;
@@ -929,6 +979,9 @@ void FPCGRuntimeGenScheduler::RefreshComponent(UPCGComponent* InComponent, bool 
 				RefreshLocalComponent(LocalComponent);
 			}
 		}
+
+		// When an original/non-partitioned component is refreshed, we need to dirty the state.
+		bAnyRuntimeGenComponentsExistDirty = true;
 	}
 }
 
