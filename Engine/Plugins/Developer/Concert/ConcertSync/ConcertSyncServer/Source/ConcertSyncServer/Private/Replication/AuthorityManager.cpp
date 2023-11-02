@@ -4,6 +4,7 @@
 
 #include "ConcertLogGlobal.h"
 #include "IConcertSession.h"
+#include "Replication/AuthorityConflictSharedUtils.h"
 #include "Replication/Data/ObjectIds.h"
 #include "Replication/Data/ReplicationStreamDescription.h"
 #include "Replication/Messages/ChangeAuthority.h"
@@ -12,6 +13,33 @@ namespace UE::ConcertSyncServer::Replication
 {
 	namespace Private
 	{
+		class FServerGroundTruth : public ConcertSyncCore::Replication::AuthorityConflictUtils::IReplicationGroundTruth
+		{
+			const FAuthorityManager& Owner;
+			const IAuthorityManagerGetters& Getters;
+		public:
+			
+			FServerGroundTruth(const FAuthorityManager& Owner, const IAuthorityManagerGetters& Getters)
+				: Owner(Owner)
+				, Getters(Getters)
+			{}
+
+			virtual void ForEachStream(const FGuid& ClientEndpointId, TFunctionRef<EBreakBehavior(const FSharedReplicationStreamDescription& Stream)> Callback) const override
+			{
+				Getters.ForEachStream(ClientEndpointId, [&Callback](const FReplicationStreamDescription& Stream){ return Callback(Stream.BaseDescription); });
+			}
+			
+			virtual void ForEachSendingClient(TFunctionRef<EBreakBehavior(const FGuid& ClientEndpointId)> Callback) const override
+			{
+				Getters.ForEachSendingClient(Callback);
+			}
+			
+			virtual bool HasAuthority(const FGuid& ClientId, const FGuid& StreamId, const FSoftObjectPath& ObjectPath) const override
+			{
+				return Owner.HasAuthorityToChange({ { StreamId, ObjectPath }, ClientId });
+			}
+		};
+		
 		static void ForEachReplicatedObject(
 			const TMap<FSoftObjectPath, FConcertStreamArray>& Map,
 			TFunctionRef<void(const FGuid& StreamId, const FSoftObjectPath& ObjectPath)> Callback
@@ -84,22 +112,19 @@ namespace UE::ConcertSyncServer::Replication
 			return EAuthorityResult::NoRegisteredProperties;
 		}
 
-		bool bFreeOfPropertyOverlaps = true;
-		const FClientId IgnoredClients[] = { ClientId };
-		ForEachClientWithPotentialConflict(
+		using namespace ConcertSyncCore::Replication;
+		using namespace ConcertSyncCore::Replication::AuthorityConflictUtils;
+		Private::FServerGroundTruth GroundTruth(*this, Getters);
+		const EAuthorityConflict Conflict = AuthorityConflictUtils::EnumerateAuthorityConflicts(
+			Object.SenderEndpointId,
 			Object.Object,
-			[this, &ProcessConflict, PropertiesToCheck, &bFreeOfPropertyOverlaps](const FClientId& ClientId, const FStreamId& StreamId, const FConcertPropertySelection& WrittenProperties) mutable
+			PropertiesToCheck->ReplicatedProperties,
+			GroundTruth,
+			[&ProcessConflict](const FClientId& ClientId, const FStreamId& StreamId, const FConcertPropertyChain& Property)
 			{
-				// At this point we know that WritingClientId is sending WrittenProperties - if the properties overlap, the authority request is not possible
-				const bool bHasNoConflict = !WrittenProperties.OverlapsWith(*PropertiesToCheck);
-				bFreeOfPropertyOverlaps &= bHasNoConflict;
-				return bHasNoConflict
-					? EBreakBehavior::Continue
-					: ProcessConflict(ClientId, StreamId, WrittenProperties);
-			},
-			IgnoredClients
-			);
-		return bFreeOfPropertyOverlaps ? EAuthorityResult::Allowed : EAuthorityResult::Conflict;
+				return ProcessConflict(ClientId, StreamId, Property);
+			});
+		return Conflict == EAuthorityConflict::Allowed ? EAuthorityResult::Allowed : EAuthorityResult::Conflict;
 	}
 
 	bool FAuthorityManager::CanTakeAuthority(const FReplicatedObjectId& Object) const
@@ -202,53 +227,5 @@ namespace UE::ConcertSyncServer::Replication
 			return EBreakBehavior::Continue;
 		});
 		return StreamDescription;
-	}
-
-	void FAuthorityManager::ForEachClientWithPotentialConflict(
-		const FSoftObjectPath& Object,
-		FProcessAuthorityConflict Callback,
-		TArrayView<const FClientId> IgnoredClients
-		) const
-	{
-		Getters.ForEachSendingClient([this, &Object, &Callback, &IgnoredClients](const FGuid& ClientEndpointId)
-		{
-			if (IgnoredClients.Contains(ClientEndpointId))
-			{
-				return EBreakBehavior::Continue;
-			}
-
-			// If client has no authority at all, skip.
-			const FClientAuthorityData* OtherClientData = ClientAuthorityData.Find(ClientEndpointId);
-			if (!OtherClientData)
-			{
-				return EBreakBehavior::Continue;
-			}
-			
-			EBreakBehavior Result = EBreakBehavior::Continue;
-			Getters.ForEachStream(ClientEndpointId, [&Object, &Callback, &ClientEndpointId, OtherClientData, &Result](const FReplicationStreamDescription& Stream) mutable
-			{
-				// If client has not claimed authority over this object in this stream, skip
-				const FStreamId& StreamId = Stream.BaseDescription.Identifier;
-				const TSet<FSoftObjectPath>* ClientControlledObjects = OtherClientData->OwnedObjects.Find(StreamId);
-				const bool bClientHasSomeAuthorityOverObject = ClientControlledObjects && ClientControlledObjects->Contains(Object);
-				if (!bClientHasSomeAuthorityOverObject)
-				{
-					return EBreakBehavior::Continue;
-				}
-
-				// This client is using the request object: report the potential conflict ...
-				const FObjectReplicationMap& ObjectReplicationMap = Stream.BaseDescription.ReplicationMap;
-				const FReplicatedObjectInfo* ReplicationObjectInfo = ObjectReplicationMap.ReplicatedObjects.Find(Object);
-				if (ReplicationObjectInfo && Callback(ClientEndpointId, StreamId, ReplicationObjectInfo->PropertySelection) == EBreakBehavior::Break)
-				{
-					// ... conflict ends iteration
-					Result = EBreakBehavior::Break;
-					return EBreakBehavior::Break;
-				}
-				// ... conflict resolved
-				return EBreakBehavior::Continue;
-			});
-			return Result;
-		});
 	}
 }

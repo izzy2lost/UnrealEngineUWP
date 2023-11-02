@@ -11,6 +11,7 @@ class IConcertSession;
 
 struct FConcertReplication_ChangeAuthority_Response;
 struct FConcertReplication_ChangeAuthority_Request;
+struct FConcertPropertyChain;
 struct FConcertPropertySelection;
 struct FConcertSessionContext;
 struct FObjectInStreamID;
@@ -28,10 +29,10 @@ namespace UE::ConcertSyncServer::Replication
 	public:
 
 		/** Provides a way to extract all streams registered to a given client. */
-		virtual void ForEachStream(const FGuid& ClientEndpointId, TFunctionRef<EBreakBehavior(const FReplicationStreamDescription& Stream)> Callback) = 0;
+		virtual void ForEachStream(const FGuid& ClientEndpointId, TFunctionRef<EBreakBehavior(const FReplicationStreamDescription& Stream)> Callback) const = 0;
 
 		/** Iterates through all clients have registered to send any data. */
-		virtual void ForEachSendingClient(TFunctionRef<EBreakBehavior(const FGuid& ClientEndpointId)> Callback) = 0;
+		virtual void ForEachSendingClient(TFunctionRef<EBreakBehavior(const FGuid& ClientEndpointId)> Callback) const = 0;
 
 		virtual ~IAuthorityManagerGetters() = default;
 	};
@@ -43,7 +44,7 @@ namespace UE::ConcertSyncServer::Replication
 		
 		using FStreamId = FGuid;
 		using FClientId = FGuid;
-		using FProcessAuthorityConflict = TFunctionRef<EBreakBehavior(const FClientId& ClientId, const FStreamId& StreamId, const FConcertPropertySelection& WrittenProperties)>;
+		using FProcessAuthorityConflict = TFunctionRef<EBreakBehavior(const FClientId& ClientId, const FStreamId& StreamId, const FConcertPropertyChain& WrittenProperties)>;
 
 		FAuthorityManager(IAuthorityManagerGetters& Getters, TSharedRef<IConcertSession> InSession);
 		~FAuthorityManager();
@@ -106,13 +107,6 @@ namespace UE::ConcertSyncServer::Replication
 
 		/** Finds a stream registered with the client by its ID. */
 		const FReplicationStreamDescription* FindClientStreamById(const FClientId& ClientId, const FStreamId& StreamId) const;
-
-		/** Iterates through all clients that are already writing to Object. */
-		void ForEachClientWithPotentialConflict(
-			const FSoftObjectPath& Object,
-			FProcessAuthorityConflict Callback,
-			TArrayView<const FClientId> IgnoredClients = {}
-			) const;
 	};
 }
 

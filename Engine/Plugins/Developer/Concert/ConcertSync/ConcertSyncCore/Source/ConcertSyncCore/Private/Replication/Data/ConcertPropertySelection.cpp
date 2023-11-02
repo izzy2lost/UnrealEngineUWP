@@ -199,26 +199,33 @@ FString FConcertPropertyChain::ToString(EToStringMethod Method) const
 		checkNoEntry();
 		return FName(NAME_None).ToString();
 	}
-	
 }
 
-bool FConcertPropertySelection::OverlapsWith(const FConcertPropertySelection& Other) const
+bool FConcertPropertySelection::EnumeratePropertyOverlaps(
+	TConstArrayView<FConcertPropertyChain> First,
+	TConstArrayView<FConcertPropertyChain> Second,
+	TFunctionRef<EBreakBehavior(const FConcertPropertyChain&)> Callback
+	)
 {
 	/* 
 	 * Performance could be improved: Two chains can only overlap if their root properties overlap.
 	 * Example: [Foo.Vector.X] and [Foo.FloatProperty] both share Foo struct (but do not overlap in this case).
 	 */
-	for (const FConcertPropertyChain& ThisChain : ReplicatedProperties)
+	bool bHasOverlap = false;
+	for (const FConcertPropertyChain& ThisChain : First)
 	{
-		for (const FConcertPropertyChain& OtherChain : Other.ReplicatedProperties)
+		for (const FConcertPropertyChain& OtherChain : Second)
 		{
-			if (ThisChain == OtherChain) 
+			const bool bIsOverlap = ThisChain == OtherChain;
+			bHasOverlap |= bIsOverlap;
+			if (bIsOverlap && Callback(ThisChain) == EBreakBehavior::Break) 
 			{
 				return true;
 			}
 		}
 	}
-	return false;
+
+	return bHasOverlap;
 }
 
 uint32 GetTypeHash(const FConcertPropertyChain& Chain)

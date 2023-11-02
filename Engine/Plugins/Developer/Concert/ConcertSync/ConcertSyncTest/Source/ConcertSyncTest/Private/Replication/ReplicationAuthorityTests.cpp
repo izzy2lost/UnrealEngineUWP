@@ -13,6 +13,7 @@
 #include "Misc/AutomationTest.h"
 #include "Misc/Paths.h"
 #include "HAL/FileManager.h"
+#include "Replication/AuthorityConflictSharedUtils.h"
 
 namespace UE::ConcertSyncTests::Replication::Authority
 {
@@ -363,6 +364,153 @@ namespace UE::ConcertSyncTests::Replication::Authority
 		ClientReplicationManager_Sender->ReleaseAuthorityOf({ TestObject });
 
 		TestTrue(TEXT("Timed out ReleaseAuthorityOf reverted local server prediction"), ClientReplicationManager_Sender->GetClientOwnedObjects().Contains(TestObject));
+		return true;
+	}
+
+	namespace ConflictEnumerationComponent
+	{
+		constexpr FGuid RequestingClientId { 0, 0, 0, 0};
+		constexpr FGuid ExistingClientId { 1, 0, 0, 0};
+		
+		class FTestGroundTruth : public ConcertSyncCore::Replication::AuthorityConflictUtils::IReplicationGroundTruth
+		{
+		public:
+			
+			FSharedReplicationStreamDescription RequestingClientStream;
+			FSharedReplicationStreamDescription ExistingClientStream;
+			bool bRequestingClientHasAuthority;
+			bool bExistingClientHasAuthority;
+
+			FTestGroundTruth(const FSharedReplicationStreamDescription& RequestingClientStream, const FSharedReplicationStreamDescription& ExistingClientStream, bool bRequestingClientHasAuthority, bool bExistingClientHasAuthority)
+				: RequestingClientStream(RequestingClientStream)
+				, ExistingClientStream(ExistingClientStream)
+				, bRequestingClientHasAuthority(bRequestingClientHasAuthority)
+				, bExistingClientHasAuthority(bExistingClientHasAuthority)
+			{}
+
+			virtual void ForEachStream(const FGuid& ClientEndpointId, TFunctionRef<EBreakBehavior(const FSharedReplicationStreamDescription& Stream)> Callback) const override
+			{
+				if (ClientEndpointId == RequestingClientId)
+				{
+					Callback(RequestingClientStream);
+				}
+				if (ClientEndpointId == ExistingClientId)
+				{
+					Callback(ExistingClientStream);
+				}
+			}
+			
+			virtual void ForEachSendingClient(TFunctionRef<EBreakBehavior(const FGuid& ClientEndpointId)> Callback) const override
+			{
+				if (bRequestingClientHasAuthority && Callback(RequestingClientId) == EBreakBehavior::Break)
+				{
+					return;
+				}
+				if (bExistingClientHasAuthority)
+				{
+					Callback(ExistingClientId);
+				}
+			}
+			
+			virtual bool HasAuthority(const FGuid& ClientId, const FGuid& StreamId, const FSoftObjectPath& ObjectPath) const override
+			{
+				const bool bRequestor = ClientId == RequestingClientId && RequestingClientStream.Identifier == StreamId && bRequestingClientHasAuthority;
+				const bool bExisting = ClientId == ExistingClientId && ExistingClientStream.Identifier == StreamId && bExistingClientHasAuthority;
+				return bRequestor || bExisting;
+			}
+		};
+		
+		FSharedReplicationStreamDescription MakeStream(const FGuid& StreamId, const FSoftObjectPath ObjectPath, TArray<FConcertPropertyChain> Properties)
+		{
+			FObjectReplicationMap ExistingReplicationMap;
+			const FConcertPropertySelection Selection{ Properties};
+			ExistingReplicationMap.ReplicatedObjects.Add(ObjectPath, { {}, Selection });
+			const FSharedReplicationStreamDescription ExistingClientStream { StreamId, ExistingReplicationMap };
+			return ExistingClientStream;
+		};
+	}
+
+	/** Tests UE::ConcertSyncCore::Replication::AuthorityConflictUtils::EnumerateAuthorityConflicts. */
+	IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FConflictEnumerationComponenTests, FSendReceiveObjectTestBase, "Concert.Replication.Authority.ConflictEnumerationComponenTests", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter);
+	bool FConflictEnumerationComponenTests::RunTest(const FString& Parameters)
+	{
+		using namespace ConflictEnumerationComponent;
+		using namespace ConcertSyncCore::Replication::AuthorityConflictUtils;
+		constexpr FGuid TestStreamId { 0, 0, 0, 1};
+		const FSoftObjectPath ObjectPath(TEXT("/Game/World.World:PersistentLevel.StaticMeshActor0"));
+		
+		FConcertPropertyChain Float = *FConcertPropertyChain::CreateFromPath(*UTestReflectionObject::StaticClass(), { TEXT("Float") });
+		FConcertPropertyChain Vector = *FConcertPropertyChain::CreateFromPath(*UTestReflectionObject::StaticClass(), { TEXT("Vector") });
+		FConcertPropertyChain VectorX = *FConcertPropertyChain::CreateFromPath(*UTestReflectionObject::StaticClass(), { TEXT("Vector"), TEXT("X") });
+		const FSharedReplicationStreamDescription ClientStream_Empty = MakeStream(TestStreamId, ObjectPath, {});
+		const FSharedReplicationStreamDescription ClientStream_FloatOnly = MakeStream(TestStreamId, ObjectPath, { Float });
+		const FSharedReplicationStreamDescription ClientStream_VectorOnly = MakeStream(TestStreamId, ObjectPath, { Vector, VectorX });
+
+		// Requestor tries to stream Float, then Vector
+		// Existing is replicating Float
+		{
+			const FTestGroundTruth GroundTruth { ClientStream_Empty, ClientStream_FloatOnly, false, true };
+
+			int32 NumCalls = 0;
+			const EAuthorityConflict FloatConflict = EnumerateAuthorityConflicts(RequestingClientId, ObjectPath, { Float }, GroundTruth,
+				[this, &TestStreamId, &Float, &NumCalls](const FGuid& ClientId, const FGuid& StreamId, const FConcertPropertyChain& ConflictingProperty)
+				{
+					++NumCalls;
+					TestEqual(TEXT("Float conflict > Client"), ClientId, ExistingClientId);
+					TestEqual(TEXT("Float conflict > Stream"), StreamId, TestStreamId);
+					TestEqual(TEXT("Float conflict > Property"), Float, ConflictingProperty);
+					return EBreakBehavior::Continue;
+				});
+			TestTrue(TEXT("1 Float overlaps"), FloatConflict == EAuthorityConflict::Conflict);
+			TestEqual(TEXT("1 Float > Exactly 1 conflicting property"), NumCalls, 1);
+			
+			const EAuthorityConflict VectorConflict = EnumerateAuthorityConflicts(RequestingClientId, ObjectPath, { Vector, VectorX }, GroundTruth,
+				[this](const FGuid& ClientId, const FGuid& StreamId, const FConcertPropertyChain& ConflictingProperty)
+				{
+					AddError(TEXT("No conflict expected"));
+					return EBreakBehavior::Continue;
+				});
+			TestTrue(TEXT("1 Vector does not overlap"), VectorConflict == EAuthorityConflict::Allowed);
+		}
+
+		// Requestor tries to stream Float, then Vector
+		// Existing is not replicating but has Float registered
+		{
+			const FTestGroundTruth GroundTruth { ClientStream_Empty, ClientStream_FloatOnly, false, false };
+			const EAuthorityConflict FloatConflict = EnumerateAuthorityConflicts(RequestingClientId, ObjectPath, { Float }, GroundTruth,
+				[this](const FGuid& ClientId, const FGuid& StreamId, const FConcertPropertyChain& ConflictingProperty)
+				{
+					AddError(TEXT("No conflict expected"));
+					return EBreakBehavior::Continue;
+				});
+			TestTrue(TEXT("2 Float does not overlap"), FloatConflict == EAuthorityConflict::Allowed);
+			const EAuthorityConflict VectorConflict = EnumerateAuthorityConflicts(RequestingClientId, ObjectPath, { Vector, VectorX }, GroundTruth,
+				[this](const FGuid& ClientId, const FGuid& StreamId, const FConcertPropertyChain& ConflictingProperty)
+				{
+					AddError(TEXT("No conflict expected"));
+					return EBreakBehavior::Continue;
+				});
+			TestTrue(TEXT("2 Vector overlaps"), VectorConflict == EAuthorityConflict::Allowed);
+		}
+
+		// Requestor replicating Float and requests Vector
+		// Existing replicating Vector
+		{
+			const FTestGroundTruth GroundTruth { ClientStream_FloatOnly, ClientStream_VectorOnly, true, true };
+			int32 NumCalls = 0;
+			const EAuthorityConflict FloatConflict = EnumerateAuthorityConflicts(RequestingClientId, ObjectPath, { Float, Vector, VectorX }, GroundTruth,
+				[this, &TestStreamId, &Vector, &VectorX, &NumCalls](const FGuid& ClientId, const FGuid& StreamId, const FConcertPropertyChain& ConflictingProperty)
+				{
+					++NumCalls;
+					TestEqual(TEXT("Float conflict > Client"), ClientId, ExistingClientId);
+					TestEqual(TEXT("Float conflict > Stream"), StreamId, TestStreamId);
+					TestTrue(TEXT("Correct roperty"), Vector == ConflictingProperty || VectorX == ConflictingProperty);
+					return EBreakBehavior::Continue;
+				});
+			TestTrue(TEXT("3 Float overlaps"), FloatConflict == EAuthorityConflict::Conflict);
+			TestEqual(TEXT("3 Float > Exactly 2 conflicting properties"), NumCalls, 2);
+		}
+		
 		return true;
 	}
 }

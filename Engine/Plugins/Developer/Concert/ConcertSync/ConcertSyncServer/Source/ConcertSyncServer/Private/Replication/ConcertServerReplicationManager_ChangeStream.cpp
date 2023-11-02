@@ -106,7 +106,7 @@ namespace UE::ConcertSyncServer::Replication
 
 				// Simply check whether any other client is already sending any of the requested properties.
 				AuthorityManager.EnumerateAuthorityConflicts(ReplicatedObjectInfo, &PropertySelection,
-					[&OutResponse, &ReplicatedObjectInfo](const FGuid& ClientId, const FGuid& StreamId, const FConcertPropertySelection& WrittenProperties)
+					[&OutResponse, &ReplicatedObjectInfo](const FGuid& ClientId, const FGuid& StreamId, const FConcertPropertyChain&)
 					{
 						const FReplicatedObjectId ConflictingObject = { { StreamId, ReplicatedObjectInfo.Object }, ClientId };
 						OutResponse.AuthorityConflicts.Add(ReplicatedObjectInfo, ConflictingObject);

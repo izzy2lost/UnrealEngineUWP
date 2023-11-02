@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "Misc/EBreakBehavior.h"
 #include "ConcertPropertySelection.generated.h"
 
 class UStruct;
@@ -181,8 +182,20 @@ struct CONCERTSYNCCORE_API FConcertPropertySelection
 	UPROPERTY()
 	TArray<FConcertPropertyChain> ReplicatedProperties;
 
-	/** @return Whether this and Other contain at least one property that is the same. This algorithm is strictly O(n^2) but runs O(n) on average. */
-	bool OverlapsWith(const FConcertPropertySelection& Other) const;
+	/** @return Whether this and Other contain at least one property that is the same. */
+	bool OverlapsWith(const FConcertPropertySelection& Other) const { return EnumeratePropertyOverlaps(ReplicatedProperties, Other.ReplicatedProperties); }
+
+	/**
+	 * Determines all properties that overlap.
+	 * This algorithm is strictly O(n^2) but runs O(n) on average.
+	 * 
+	 * @return Whether there were any property overlaps.
+	 */
+	static bool EnumeratePropertyOverlaps(
+		TConstArrayView<FConcertPropertyChain> First,
+		TConstArrayView<FConcertPropertyChain> Second,
+		TFunctionRef<EBreakBehavior(const FConcertPropertyChain&)> Callback = [](const FConcertPropertyChain&){ return EBreakBehavior::Break; }
+		);
 
 	friend bool operator==(const FConcertPropertySelection& Left, const FConcertPropertySelection& Right)
 	{

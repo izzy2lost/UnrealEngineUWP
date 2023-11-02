@@ -41,7 +41,7 @@ namespace UE::ConcertSyncServer::Replication
 		Session->OnTick().RemoveAll(this);
 	}
 
-	void FConcertServerReplicationManager::ForEachStream(const FGuid& ClientEndpointId, TFunctionRef<EBreakBehavior(const FReplicationStreamDescription& Stream)> Callback)
+	void FConcertServerReplicationManager::ForEachStream(const FGuid& ClientEndpointId, TFunctionRef<EBreakBehavior(const FReplicationStreamDescription& Stream)> Callback) const
 	{
 		const TSharedRef<FConcertReplicationClient>* Client = Clients.Find(ClientEndpointId);
 		if (!ensure(Client))
@@ -58,7 +58,7 @@ namespace UE::ConcertSyncServer::Replication
 		}
 	}
 
-	void FConcertServerReplicationManager::ForEachSendingClient(TFunctionRef<EBreakBehavior(const FGuid& ClientEndpointId)> Callback)
+	void FConcertServerReplicationManager::ForEachSendingClient(TFunctionRef<EBreakBehavior(const FGuid& ClientEndpointId)> Callback) const
 	{
 		for (const TPair<FGuid, TSharedRef<FConcertReplicationClient>>& ClientPair : Clients)
 		{

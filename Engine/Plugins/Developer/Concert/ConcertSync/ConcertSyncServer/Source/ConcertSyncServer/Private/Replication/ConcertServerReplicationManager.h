@@ -50,8 +50,8 @@ namespace UE::ConcertSyncServer::Replication
 		const FAuthorityManager& GetAuthorityManager() const { return AuthorityManager.Get(); }
 
 		//~ Begin IAuthorityManagerGetters Interface
-		virtual void ForEachStream(const FGuid& ClientEndpointId, TFunctionRef<EBreakBehavior(const FReplicationStreamDescription& Stream)> Callback) override;
-		virtual void ForEachSendingClient(TFunctionRef<EBreakBehavior(const FGuid& ClientEndpointId)> Callback) override;
+		virtual void ForEachStream(const FGuid& ClientEndpointId, TFunctionRef<EBreakBehavior(const FReplicationStreamDescription& Stream)> Callback) const override;
+		virtual void ForEachSendingClient(TFunctionRef<EBreakBehavior(const FGuid& ClientEndpointId)> Callback) const override;
 		//~ End IAuthorityManagerGetters Interface
 
 	private:
