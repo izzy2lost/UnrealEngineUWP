@@ -2261,14 +2261,14 @@ void FScene::UpdatePrimitiveInstances(FUpdateInstanceCommand& UpdateParams)
 
 void FScene::UpdatePrimitiveSelectedState_RenderThread(const FPrimitiveSceneInfo* PrimitiveSceneInfo, bool bIsSelected)
 {
-	check(IsInRenderingThread());
+	check(IsInParallelRenderingThread());
 
 #if WITH_EDITOR
 	if (PrimitiveSceneInfo)
 	{
 		if (PrimitiveSceneInfo->GetIndex() != INDEX_NONE)
 		{
-			PrimitivesSelected[PrimitiveSceneInfo->GetIndex()] = bIsSelected;
+			PrimitivesSelected[PrimitiveSceneInfo->GetIndex()].AtomicSet(bIsSelected);
 		}
 	}
 #endif // WITH_EDITOR

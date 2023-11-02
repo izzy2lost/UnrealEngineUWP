@@ -1002,7 +1002,7 @@ void FPrimitiveSceneProxy::SetDebugMassData(const TArray<FDebugMassData>& InDebu
  */
 void FPrimitiveSceneProxy::SetSelection_RenderThread(const bool bInParentSelected, const bool bInIndividuallySelected)
 {
-	check(IsInRenderingThread());
+	check(IsInParallelRenderingThread());
 
 	const bool bWasSelected = IsSelected();
 	bParentSelected = bInParentSelected;
