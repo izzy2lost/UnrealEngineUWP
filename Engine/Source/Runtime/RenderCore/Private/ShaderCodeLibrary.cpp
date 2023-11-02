@@ -58,7 +58,7 @@ ShaderCodeLibrary.cpp: Bound shader state cache implementation.
 #define UE_SHADERLIB_WITH_INTROSPECTION			!UE_BUILD_SHIPPING
 
 // In some development-only scenario (e.g. LaunchOn), the library is chunked, but the build isn't pak'd. We need to find the chunk files manually then.
-#define UE_SHADERLIB_SUPPORT_CHUNK_DISCOVERY	!UE_BUILD_SHIPPING
+#define UE_SHADERLIB_SUPPORT_CHUNK_DISCOVERY	(!UE_BUILD_SHIPPING && !UE_BUILD_TEST)
 
 DEFINE_LOG_CATEGORY(LogShaderLibrary);
 
@@ -2605,11 +2605,14 @@ public:
 #if UE_SHADERLIB_SUPPORT_CHUNK_DISCOVERY
 				if (!bResult)
 				{
+					static const bool bRunningWithPakFile = (FPlatformFileManager::Get().FindPlatformFile(TEXT("PakFile")) != nullptr);
+					static const bool bRunningWithIoStore = FIoDispatcher::IsInitialized() && FIoDispatcher::Get().DoesChunkExist(CreateIoChunkId(0, 0, EIoChunkType::ScriptObjects));
+
 					// Some deployment flows (e.g. Launch on) avoid pak files despite project packaging settings. 
 					// In case we run under such circumstances, we need to discover the components ourselves
-					if (FPlatformFileManager::Get().FindPlatformFile(TEXT("PakFile")) == nullptr)
+					if (!bRunningWithPakFile && !bRunningWithIoStore)
 					{
-						UE_LOG(LogShaderLibrary, Display, TEXT("Running without a pakfile and did not find a monolithic library '%s' - attempting disk search for its chunks"), *Name);
+						UE_LOG(LogShaderLibrary, Display, TEXT("Running without a pakfile/IoStore and did not find a monolithic library '%s' - attempting disk search for its chunks"), *Name);
 
 						TArray<FString> UshaderbytecodeFiles;
 						FString SearchMask = Directory / FString::Printf(TEXT("ShaderArchive-*%s*.ushaderbytecode"), *Name);
@@ -2693,7 +2696,8 @@ public:
 			{
 				if (bAddNewNamedLibrary)
 				{
-					UE_LOG(LogShaderLibrary, Display, TEXT("Tried to open shader library '%s', but could not find it neither as a monolithic library nor as a chunked one."), *Name);
+					UE_LOG(LogShaderLibrary, Display, TEXT("Tried to open shader library '%s', but could not find it%s"), *Name, 
+						bMonolithicOnly ? TEXT(" (only tried to open it as a monolithic library).") : TEXT(" neither as a monolithic library nor as a chunked one."));
 
 					check(Library->GetNumComponents() == 0);
 					delete Library;
@@ -3475,7 +3479,7 @@ void FShaderCodeLibrary::InitForRuntime(EShaderPlatform ShaderPlatform)
 			UE::ShaderLibrary::Private::OnPluginMountedDelegateHandle = IPluginManager::Get().OnNewPluginMounted().AddStatic(&FShaderCodeLibraryPluginMountedCallback);
 			UE::ShaderLibrary::Private::OnPluginUnmountedDelegateHandle = IPluginManager::Get().OnPluginUnmounted().AddStatic(&FShaderCodeLibraryPluginUnmountedCallback);
 		
-#if !UE_BUILD_SHIPPING
+#if (!UE_BUILD_SHIPPING && !UE_BUILD_TEST)	// test builds are supposed to be closer to Shipping than to Development, and as such not have development features
 			// support shared cooked builds by also opening the shared cooked build shader code file
 			FShaderLibrariesCollection::Impl->OpenLibrary(TEXT("Global_SC"), FPaths::ProjectContentDir());
 #endif
@@ -4085,6 +4089,14 @@ void FShaderCodeLibrary::OpenPluginShaderLibrary(IPlugin& Plugin, bool bMonolith
 	if (Plugin.CanContainContent() && Plugin.IsEnabled())
 	{
 		// load any shader libraries that may exist in this plugin
+		if (!bMonolithicOnly)
+		{
+			// Chunked libraries in plugins that are not built in (i.e. ones that were cooked separately as DLC) are not supported atm. This is because the main game can be cooked without chunks (-fastcook), but still needs
+			// to load the same plugins, so it would not know which ChunkIDs to try.
+			// Plugins that are built-in can be chunked, but their shaders don't go into a separate library (cooker doesn't separate that atm), everything goes into main project's library.
+			UE_LOG(LogShaderLibrary, Warning, TEXT("Opening a chunked shader library for plugin '%s' is ignored. Chunked libraries for plugins are not supported."), *Plugin.GetName());
+		}
+		bMonolithicOnly = true;
 		FShaderCodeLibrary::OpenLibrary(Plugin.GetName(), Plugin.GetContentDir(), bMonolithicOnly);
 	}
 }

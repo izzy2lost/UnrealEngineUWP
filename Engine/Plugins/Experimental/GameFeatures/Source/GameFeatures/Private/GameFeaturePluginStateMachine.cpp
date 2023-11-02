@@ -1878,7 +1878,7 @@ struct FGameFeaturePluginState_Mounting : public FGameFeaturePluginState
 	ESubState StartedSubStates = ESubState::None;
 	ESubState CompletedSubStates = ESubState::None;
 	bool bCheckedRealtimeMode = false;
-	bool bForceMonolithicShaderLibrary = false;
+	bool bForceMonolithicShaderLibrary = true;	// use monolithic unless a DLC plugin is chunked
 
 	void OnInstallBundleCompleted(FInstallBundleRequestResultInfo BundleResult)
 	{
@@ -2038,11 +2038,12 @@ struct FGameFeaturePluginState_Mounting : public FGameFeaturePluginState
 		}
 
 		// Pre-mount
-		bool bOpenPluginShaderLibrary = true;
+		// Normally the shader library itself listens to a "New Plugin mounted" (and "New Pakfile mounted") callback and the library is opened automatically. This switch governs whether the manual behavior is wanted.
+		bool bManuallyOpenPluginShaderLibrary = true;
 		{
 			FGameFeaturePreMountingContext Context;
 			UGameFeaturesSubsystem::Get().OnGameFeaturePreMounting(StateProperties.PluginName, StateProperties.PluginIdentifier, Context);
-			bOpenPluginShaderLibrary = Context.bOpenPluginShaderLibrary;
+			bManuallyOpenPluginShaderLibrary = Context.bOpenPluginShaderLibrary;
 		}
 
 		checkf(!StateProperties.PluginInstalledFilename.IsEmpty(), TEXT("PluginInstalledFilename must be set by the Mounting. PluginURL: %s"), *StateProperties.PluginIdentifier.GetFullPluginURL());
@@ -2078,7 +2079,7 @@ struct FGameFeaturePluginState_Mounting : public FGameFeaturePluginState
 			return;
 		}
 
-		if (bOpenPluginShaderLibrary)
+		if (bManuallyOpenPluginShaderLibrary)
 		{
 			// We want to control opening the shader lib
 			FShaderCodeLibrary::DontOpenPluginShaderLibraryOnMount(StateProperties.PluginName);
@@ -2087,7 +2088,7 @@ struct FGameFeaturePluginState_Mounting : public FGameFeaturePluginState
 		if (!UseAsyncLoading())
 		{
 			verify(IPluginManager::Get().MountExplicitlyLoadedPlugin(StateProperties.PluginName));
-			if (bOpenPluginShaderLibrary)
+			if (bManuallyOpenPluginShaderLibrary)
 			{
 				TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(StateProperties.PluginName);
 				FShaderCodeLibrary::OpenPluginShaderLibrary(*Plugin, bForceMonolithicShaderLibrary);
@@ -2100,11 +2101,11 @@ struct FGameFeaturePluginState_Mounting : public FGameFeaturePluginState
 
 		// Now load the shader lib in the background
 		TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(StateProperties.PluginName);
-		if (bOpenPluginShaderLibrary && Plugin->CanContainContent() && Plugin->IsEnabled())
+		if (bManuallyOpenPluginShaderLibrary && Plugin->CanContainContent() && Plugin->IsEnabled())
 		{
-			UE::Tasks::Launch(UE_SOURCE_LOCATION, [this, PluginName=Plugin->GetName(), PluginDir=Plugin->GetContentDir()]
+			UE::Tasks::Launch(UE_SOURCE_LOCATION, [this, Plugin]
 			{
-				FShaderCodeLibrary::OpenLibrary(PluginName, PluginDir, bForceMonolithicShaderLibrary);
+				FShaderCodeLibrary::OpenPluginShaderLibrary(*Plugin, bForceMonolithicShaderLibrary);
 
 				ExecuteOnGameThread(UE_SOURCE_LOCATION, [this]
 				{

@@ -256,8 +256,8 @@ struct FShaderCodeLibrary
 	static RENDERCORE_API void DontOpenPluginShaderLibraryOnMount(const FString& PluginName);
 	
 	// Open the plugin's shader library
-	// @param bMonolithicOnly If true, only attempt to open a monolithic library (no chunks)
-	static RENDERCORE_API void OpenPluginShaderLibrary(IPlugin& Plugin, bool bMonolithicOnly = false);
+	// @param bMonolithicOnly If true, only attempt to open a monolithic library (no chunks) - which is a default behavior for DLC plugins, see FShaderLibraryChunkDataGenerator.
+	static RENDERCORE_API void OpenPluginShaderLibrary(IPlugin& Plugin, bool bMonolithicOnly = true);
 };
 
 #if WITH_EDITOR
