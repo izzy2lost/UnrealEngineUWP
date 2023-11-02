@@ -751,6 +751,10 @@ public:
 			{
 				NameText = FText::FromString("Quat");
 			}
+			else if (*this == FNiagaraTypeHelper::GetDoubleDef())
+			{
+				NameText = FText::FromString("float");
+			}
 			else
 			{
 				NameText = GetStruct()->GetDisplayNameText();
