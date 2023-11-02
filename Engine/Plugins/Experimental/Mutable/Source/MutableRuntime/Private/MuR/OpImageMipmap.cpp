@@ -382,7 +382,7 @@ namespace mu
 
 							// Average of 2 unsigned integers without overflow extended to work on multiple bytes.
 							constexpr uint64 ShiftMask = 0xFEFEFEFEFEFEFEFE;
-							const uint64 ErrorCorrection = XorRow0Row1Bits & XorRow0Row1Bits & 0x0101010101010101;
+							const uint64 ErrorCorrection = XorRow0Row1Bits & 0x0101010101010101;
 							const uint64 AvgLowBits = (Row0Bits & Row1Bits) + ((XorRow0Row1Bits & ShiftMask) >> 1) + ErrorCorrection;
 							const uint64 AvgHighBits = AvgLowBits >> 32;
 							const uint32 Result = (AvgLowBits & AvgHighBits) + (((AvgLowBits ^ AvgHighBits) & ShiftMask) >> 1);

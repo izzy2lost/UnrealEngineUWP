@@ -49,7 +49,7 @@ struct FComponentMaterialInfo
 	}
 	friend bool operator==(const FComponentMaterialInfo& A, const FComponentMaterialInfo& B)
 	{
-		return A.MaterialSlotName == B.MaterialSlotName && A.MaterialSlotIndex == B.MaterialSlotIndex && A.MaterialSlotName == B.MaterialSlotName && A.MaterialType == B.MaterialType;
+		return A.MaterialSlotIndex == B.MaterialSlotIndex && A.MaterialSlotName == B.MaterialSlotName && A.MaterialType == B.MaterialType;
 	}
 
 	FString ToString() const 

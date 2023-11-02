@@ -77,7 +77,7 @@ static thread_local TMap<FRigVMRuntimeDataID, FRigVMRuntimeData> RuntimeDataStor
 
 	if (RigVMRuntimeData = FindRuntimeData(RigVMRuntimeDataID); RigVMRuntimeData != nullptr)
 	{
-		if (RigVMRuntimeData->Context.VMHash != RigVMRuntimeData->Context.VMHash)
+		if (RigVMRuntimeData->Context.VMHash != ReferenceContext.VMHash)
 		{
 			RigVMRuntimeData->Context = ReferenceContext;
 		}

@@ -777,7 +777,7 @@ static void VVMBuildMapTableCaches(FVectorVMExecContext *ExecCtx)
 
 static const uint8 *VVM_Output32_from_16(const bool CT_MultipleLoops, const uint8 *InsPtr, FVectorVMBatchState *BatchState, FVectorVMExecContext *ExecCtx)
 {
-	VVM_OUTPUT_FUNCTION_HEADER(EVectorVMOp::outputdata_float);
+	VVM_OUTPUT_FUNCTION_HEADER(EVectorVMOp::outputdata_float); //-V501
 	VVM_OUTPUT_FUNCTION_FOOTER;
 }
 
