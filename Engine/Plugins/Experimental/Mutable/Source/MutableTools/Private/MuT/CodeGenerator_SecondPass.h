@@ -28,12 +28,10 @@ namespace mu
 	{
 	public:
 
-		SecondPassGenerator( FirstPassGenerator* firstPass,
-            const CompilerOptions::Private* options  );
+		SecondPassGenerator( FirstPassGenerator* firstPass, const CompilerOptions::Private* options  );
 
 		// Return true on success.
-        bool Generate( ErrorLogPtr pErrorLog,
-                       const Node::Private* root );
+        bool Generate( ErrorLogPtr pErrorLog, const Node::Private* root );
 
 	private:
 

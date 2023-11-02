@@ -22,6 +22,7 @@
 #include "MuT/NodeSurfaceEdit.h"
 #include "MuT/NodeSurfaceNew.h"
 #include "MuT/NodeSurfaceVariation.h"
+#include "MuT/NodeSurfaceSwitch.h"
 #include "MuT/Visitor.h"
 
 #include <stdint.h>
@@ -44,8 +45,9 @@ namespace mu
 
         public Visitor<NodeSurfaceNew::Private, Ptr<ASTOp>, true>,
         public Visitor<NodeSurfaceEdit::Private, Ptr<ASTOp>, true>,
-        public Visitor<NodeSurfaceVariation::Private, Ptr<ASTOp>, true>,
-        public Visitor<NodeComponentNew::Private, Ptr<ASTOp>, true>,
+		public Visitor<NodeSurfaceVariation::Private, Ptr<ASTOp>, true>,
+		public Visitor<NodeSurfaceSwitch::Private, Ptr<ASTOp>, true>,
+		public Visitor<NodeComponentNew::Private, Ptr<ASTOp>, true>,
         public Visitor<NodeComponentEdit::Private, Ptr<ASTOp>, true>,
         public Visitor<NodeLOD::Private, Ptr<ASTOp>, true>,
         public Visitor<NodeObjectNew::Private, Ptr<ASTOp>, true>,
@@ -61,9 +63,7 @@ namespace mu
 
 		FirstPassGenerator();
 
-        void Generate(ErrorLogPtr pErrorLog,
-                      const Node::Private* root,
-                      bool ignoreStates);
+        void Generate(ErrorLogPtr pErrorLog, const Node::Private* root, bool ignoreStates, class CodeGenerator*);
 
 	public:
 
@@ -188,8 +188,9 @@ namespace mu
 
         Ptr<ASTOp> Visit(const NodeSurfaceNew::Private&) override;
         Ptr<ASTOp> Visit(const NodeSurfaceEdit::Private&) override;
-        Ptr<ASTOp> Visit(const NodeSurfaceVariation::Private&) override;
-        Ptr<ASTOp> Visit(const NodeComponentNew::Private&) override;
+		Ptr<ASTOp> Visit(const NodeSurfaceVariation::Private&) override;
+		Ptr<ASTOp> Visit(const NodeSurfaceSwitch::Private&) override;
+		Ptr<ASTOp> Visit(const NodeComponentNew::Private&) override;
         Ptr<ASTOp> Visit(const NodeComponentEdit::Private&) override;
         Ptr<ASTOp> Visit(const NodeLOD::Private&) override;
         Ptr<ASTOp> Visit(const NodeObjectNew::Private& node) override;
@@ -220,6 +221,9 @@ namespace mu
 
 		//! Index of the LOD we are processing
         int m_currentLOD = -1;
+
+		/** Non-owned reference to main code generator. */
+		CodeGenerator* Generator = nullptr;
 
         //!
         ErrorLogPtr m_pErrorLog;

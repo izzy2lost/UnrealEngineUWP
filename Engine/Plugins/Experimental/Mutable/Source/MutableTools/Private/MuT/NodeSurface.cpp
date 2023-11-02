@@ -9,6 +9,7 @@
 #include "MuT/NodeSurfaceEdit.h"
 #include "MuT/NodeSurfaceNew.h"
 #include "MuT/NodeSurfaceVariation.h"
+#include "MuT/NodeSurfaceSwitch.h"
 
 #include <stdint.h>
 
@@ -67,6 +68,7 @@ namespace mu
         case 1: return NodeSurfaceEdit::StaticUnserialise( arch ); break;
 		//case 2: return NodeSelectSurface::StaticUnserialise(arch); break;
 		case 3: return NodeSurfaceVariation::StaticUnserialise(arch); break;
+		case 4: return NodeSurfaceSwitch::StaticUnserialise(arch); break;
 		default : check(false);
 		}
 

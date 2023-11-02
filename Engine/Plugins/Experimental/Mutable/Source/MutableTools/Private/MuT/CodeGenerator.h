@@ -122,6 +122,9 @@ namespace mu
                           public Visitor<NodeObjectGroup::Private, Ptr<ASTOp>, true>,
                           public Visitor<NodePatchImage::Private, Ptr<ASTOp>, true>
     {
+		
+		friend class FirstPassGenerator;
+
     public:
 
         CodeGenerator( CompilerOptions::Private* options );
@@ -666,7 +669,7 @@ namespace mu
 		typedef TMap<FVisitedKeyMap, FScalarGenerationResult> GeneratedScalarsMap;
 		GeneratedScalarsMap m_generatedScalars;
 
-		void GenerateScalar(FScalarGenerationResult&, const NodeScalarPtrConst&);
+		void GenerateScalar(FScalarGenerationResult&, const Ptr<const NodeScalar>&);
 		void GenerateScalar_Constant(FScalarGenerationResult&, const Ptr<const NodeScalarConstant>&);
 		void GenerateScalar_Parameter(FScalarGenerationResult&, const Ptr<const NodeScalarParameter>&);
 		void GenerateScalar_Switch(FScalarGenerationResult&, const Ptr<const NodeScalarSwitch>&);

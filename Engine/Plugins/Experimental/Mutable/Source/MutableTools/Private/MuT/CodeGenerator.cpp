@@ -82,11 +82,10 @@
 #include "MuT/NodeScalar.h"
 #include "MuT/NodeScalarConstant.h"
 #include "MuT/NodeSurface.h"
-#include "MuT/NodeSurfaceEdit.h"
 #include "MuT/NodeSurfaceEditPrivate.h"
 #include "MuT/NodeSurfaceNewPrivate.h"
-#include "MuT/NodeSurfaceVariation.h"
 #include "MuT/NodeSurfaceVariationPrivate.h"
+#include "MuT/NodeSurfaceSwitchPrivate.h"
 #include "MuT/TablePrivate.h"
 #include "Trace/Detail/Channel.h"
 
@@ -114,7 +113,7 @@ namespace mu
 		MUTABLE_CPUPROFILER_SCOPE(Generate);
 
 		// First pass
-		m_firstPass.Generate(m_pErrorLog, pNode->GetBasePrivate(), m_compilerOptions->bIgnoreStates);
+		m_firstPass.Generate(m_pErrorLog, pNode->GetBasePrivate(), m_compilerOptions->bIgnoreStates, this);
 
 		// Second pass
 		SecondPassGenerator SecondPass(&m_firstPass, m_compilerOptions);
@@ -212,6 +211,12 @@ namespace mu
 		}
 
 		else if (dynamic_cast<const NodeSurfaceVariation*>(pNode.get()))
+		{
+			// This happens only if we generate a node graph that has a NodeSurfaceVariation at the root.
+			return nullptr;
+		}
+
+		else if (dynamic_cast<const NodeSurfaceSwitch*>(pNode.get()))
 		{
 			// This happens only if we generate a node graph that has a NodeSurfaceVariation at the root.
 			return nullptr;
@@ -505,6 +510,20 @@ namespace mu
 			if (pTypedSV->GetPrivate()->m_defaultSurfaces.Num())
 			{
 				pResult = FindSourceMesh(pTypedSV->GetPrivate()->m_defaultSurfaces[0].get());
+			}
+		}
+		else if (const NodeSurfaceSwitch* pTypedSS = dynamic_cast<const NodeSurfaceSwitch*>(pNode))
+		{
+			for (int32 i=0; i<pTypedSS->GetPrivate()->Options.Num(); ++i)
+			{
+				if (pTypedSS->GetPrivate()->Options[i])
+				{
+					pResult = FindSourceMesh(pTypedSS->GetPrivate()->Options[i].get());
+					if (pResult)
+					{
+						break;
+					}
+				}
 			}
 		}
 		else if (const NodeMeshInterpolate* pTypedMI = dynamic_cast<const NodeMeshInterpolate*>(pNode))
@@ -1875,7 +1894,7 @@ namespace mu
         MUTABLE_CPUPROFILER_SCOPE(NodeComponentEdit);
 
         // Nothing to do. Surface information will be already collected in the suitable
-        // parent components furing the first and second passes.
+        // parent components during the first and second passes.
 
         return nullptr;
     }

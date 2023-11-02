@@ -19,6 +19,7 @@
 #include "MuCOE/Nodes/CustomizableObjectNodeExtendMaterial.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeMaterial.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeMaterialVariation.h"
+#include "MuCOE/Nodes/CustomizableObjectNodeMaterialSwitch.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeMesh.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeMeshClipWithMesh.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeObjectGroup.h"
@@ -1315,6 +1316,37 @@ bool AffectsCurrentComponent(const UEdGraphPin* Pin, FMutableGraphGenerationCont
 
 		return bAffectsCurrentComponent;
 	}
+
+	else if (const UCustomizableObjectNodeMaterialSwitch* TypedNodeSwitch = Cast<UCustomizableObjectNodeMaterialSwitch>(Node))
+	{
+		bool bAffectsCurrentComponent = false;
+
+		int32 OptionCount = TypedNodeSwitch->GetNumElements();
+		for (int32 OptionIndex=0; OptionIndex<OptionCount; ++OptionIndex)
+		{
+			if (UEdGraphPin* OptionPin = TypedNodeSwitch->GetElementPin(OptionIndex))
+			{
+				for (const UEdGraphPin* ConnectedPin : FollowInputPinArray(*OptionPin))
+				{
+					if (!AffectsCurrentComponent(ConnectedPin, GenerationContext))
+					{
+						if (bAffectsCurrentComponent)
+						{
+							FString Msg = FString::Printf(TEXT("Error! One or more materials nodes linked to a material switch node have different component index"));
+							GenerationContext.Compiler->CompilerLog(FText::FromString(Msg), Node, EMessageSeverity::Error);
+						}
+
+						return false;
+					}
+
+					bAffectsCurrentComponent = true;
+				}
+			}
+		}
+
+		return bAffectsCurrentComponent;
+	}
+
 	else if (const UCustomizableObjectNodeMaterial* TypedNodeMat = Cast<UCustomizableObjectNodeMaterial>(Node))
 	{
 		ComponentIndex = TypedNodeMat->MeshComponentIndex;

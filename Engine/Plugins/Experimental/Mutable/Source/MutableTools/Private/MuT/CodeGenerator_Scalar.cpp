@@ -54,7 +54,7 @@ namespace mu
 
 
 	//-------------------------------------------------------------------------------------------------
-	void CodeGenerator::GenerateScalar(FScalarGenerationResult& result, const NodeScalarPtrConst& untyped)
+	void CodeGenerator::GenerateScalar(FScalarGenerationResult& result, const Ptr<const NodeScalar>& untyped)
 	{
 		if (!untyped)
 		{

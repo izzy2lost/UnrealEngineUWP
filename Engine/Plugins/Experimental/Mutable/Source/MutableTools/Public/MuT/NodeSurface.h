@@ -30,6 +30,7 @@ namespace mu
 			New = 0,
 			Edit = 1,
 			Variation = 3,
+			Switch = 4,
 
 			None
 		};

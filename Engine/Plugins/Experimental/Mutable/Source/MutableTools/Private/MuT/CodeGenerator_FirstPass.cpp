@@ -2,6 +2,7 @@
 
 #include "MuT/CodeGenerator_FirstPass.h"
 
+#include "MuT/CodeGenerator.h"
 #include "HAL/PlatformMath.h"
 #include "Misc/AssertionMacros.h"
 #include "MuR/MutableTrace.h"
@@ -31,6 +32,8 @@
 #include "MuT/NodeSurfaceEditPrivate.h"
 #include "MuT/NodeSurfaceNewPrivate.h"
 #include "MuT/NodeSurfaceVariationPrivate.h"
+#include "MuT/NodeSurfaceSwitchPrivate.h"
+#include "MuT/NodeScalarEnumParameterPrivate.h"
 
 namespace mu
 {
@@ -48,10 +51,12 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
     void FirstPassGenerator::Generate( ErrorLogPtr pErrorLog,
                                        const Node::Private* root,
-                                       bool ignoreStates )
+                                       bool ignoreStates,
+									   CodeGenerator* InGenerator )
 	{
 		MUTABLE_CPUPROFILER_SCOPE(FirstPassGenerate);
 
+		Generator = InGenerator;
 		m_pErrorLog = pErrorLog;
         m_ignoreStates = ignoreStates;
 
@@ -421,6 +426,66 @@ namespace mu
         }
 
         return nullptr;
+	}
+
+
+	//---------------------------------------------------------------------------------------------
+	Ptr<ASTOp> FirstPassGenerator::Visit(const NodeSurfaceSwitch::Private& node)
+	{
+		if (node.Options.Num() == 0)
+		{
+			// No options in the switch!
+			return nullptr;
+		}
+
+		// Prepare the enumeration parameter
+		CodeGenerator::FScalarGenerationResult ScalarResult;
+		if (node.Parameter)
+		{
+			Generator->GenerateScalar( ScalarResult, node.Parameter );
+
+			// Not really necessary but it currently should always be this type.
+			Ptr<ASTOpParameter> EnumOp = dynamic_cast<ASTOpParameter*>(ScalarResult.op.get());
+			check(EnumOp);
+		}
+		else
+		{
+			// This argument is required
+			ScalarResult.op = Generator->GenerateMissingScalarCode(TEXT("Switch variable"), 0.0f, node.m_errorContext);
+		}
+
+		// Parse the options
+		for (int32 t = 0; t < node.Options.Num(); ++t)
+		{
+			// Create a comparison operation as the boolean parameter for the child
+			Ptr<ASTOpFixed> ParamOp = new ASTOpFixed();
+			ParamOp->op.type = OP_TYPE::BO_EQUAL_INT_CONST;
+			ParamOp->SetChild(ParamOp->op.args.BoolEqualScalarConst.value, ScalarResult.op);
+			ParamOp->op.args.BoolEqualScalarConst.constant = (int16)t;
+
+			// Combine the new condition with previous conditions coming from parent objects
+			if (m_currentCondition.Last().objectCondition)
+			{
+				Ptr<ASTOpFixed> op = new ASTOpFixed();
+				op->op.type = OP_TYPE::BO_AND;
+				op->SetChild(op->op.args.BoolBinary.a, m_currentCondition.Last().objectCondition);
+				op->SetChild(op->op.args.BoolBinary.b, ParamOp);
+				ParamOp = op;
+			}
+
+			FConditionContext data;
+			data.objectCondition = ParamOp;
+			m_currentCondition.Push(data);
+
+			if (node.Options[t])
+			{
+				node.Options[t]->GetBasePrivate()->Accept(*this);
+			}
+
+			m_currentCondition.Pop();
+		}
+
+		return nullptr;
 	}
 
 
