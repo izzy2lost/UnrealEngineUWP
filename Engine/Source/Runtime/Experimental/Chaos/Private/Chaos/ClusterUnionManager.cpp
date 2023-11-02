@@ -889,7 +889,8 @@ namespace Chaos
 				}
 				else
 				{
-					MEvolution.SetParticleObjectState(ClusterUnion.InternalCluster, EObjectStateType::Dynamic);
+					const EObjectStateType TransferedState = ClusterUnion.InternalCluster->IsSleeping() ? EObjectStateType::Sleeping : EObjectStateType::Dynamic;
+					MEvolution.SetParticleObjectState(ClusterUnion.InternalCluster, TransferedState);
 					MEvolution.SetParticleKinematicTarget(ClusterUnion.InternalCluster, FKinematicTarget());
 				}
 			}
