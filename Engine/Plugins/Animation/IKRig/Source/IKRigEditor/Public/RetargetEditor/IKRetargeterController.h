@@ -4,6 +4,8 @@
 #include "CoreMinimal.h"
 #include "UObject/Object.h"
 
+#include "RetargetEditor/IKRetargeterPoseGenerator.h"
+
 #include "IKRetargeterController.generated.h"
 
 struct FRetargetGlobalSettings;
@@ -11,6 +13,7 @@ struct FTargetRootSettings;
 struct FTargetChainSettings;
 struct FIKRetargetPose;
 enum class ERetargetSourceOrTarget : uint8;
+enum class ERetargetAutoAlignMethod : uint8;
 class FIKRetargetEditorController;
 class URetargetChainSettings;
 class UIKRigDefinition;
@@ -33,6 +36,9 @@ class IKRIGEDITOR_API UIKRetargeterController : public UObject
 	GENERATED_BODY()
 
 public:
+
+	// UObject
+	virtual void PostInitProperties() override;
 	
 	// Get access to the retargeter asset.
 	// Warning: Do not make modifications to the asset directly. Use this API instead. 
@@ -275,6 +281,18 @@ public:
 	UFUNCTION(BlueprintCallable, Category=IKRetargeter, meta = (BlueprintThreadSafe))
 	FVector GetRootOffsetInRetargetPose(const ERetargetSourceOrTarget SourceOrTarget) const;
 
+	// Automatically align all bones in mapped chains and store in the current retarget pose.
+	UFUNCTION(BlueprintCallable, Category=RetargetOps)
+	void AutoAlignAllBones(ERetargetSourceOrTarget SourceOrTarget) const;
+
+	// Automatically align an array of bones and store in the current retarget pose. Bones not in a mapped chain will be ignored.
+	UFUNCTION(BlueprintCallable, Category=RetargetOps)
+	void AutoAlignBones(const TArray<FName>& BonesToAlign, const ERetargetAutoAlignMethod Method, ERetargetSourceOrTarget SourceOrTarget) const;
+
+	// Moves the entire skeleton vertically until the specified bone is the same height off the ground as in the reference pose.
+	UFUNCTION(BlueprintCallable, Category=RetargetOps)
+	void SnapBoneToGround(FName ReferenceBone, ERetargetSourceOrTarget SourceOrTarget);
+
 	//
 	// RETARGET POSE C++ ONLY API
 	//
@@ -319,6 +337,9 @@ private:
 	{
 		RetargeterNeedsInitialized.Broadcast();
 	}
+
+	// auto pose generator
+	TUniquePtr<FRetargetAutoPoseGenerator> AutoPoseGenerator;
 
 	// only allow modifications to data model from one thread at a time
 	mutable FCriticalSection ControllerLock;

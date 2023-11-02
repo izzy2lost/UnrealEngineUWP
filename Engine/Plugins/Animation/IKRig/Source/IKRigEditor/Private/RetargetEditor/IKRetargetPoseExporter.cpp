@@ -29,7 +29,7 @@ void FIKRetargetPoseExporter::HandleImportFromPoseAsset()
 {
 	FIKRetargetEditorController* ControllerPtr = Controller.Pin().Get();
 	
-	ControllerPtr->SetRetargeterMode(ERetargeterOutputMode::ShowRetargetPose);
+	ControllerPtr->SetRetargeterMode(ERetargeterOutputMode::EditRetargetPose);
 	
 	RetargetPoseToImport = nullptr;
 	PosesInSelectedAsset.Empty();
@@ -286,7 +286,7 @@ void FIKRetargetPoseExporter::HandleImportFromSequenceAsset()
 {
 	FIKRetargetEditorController* ControllerPtr = Controller.Pin().Get();
 	
-	ControllerPtr->SetRetargeterMode(ERetargeterOutputMode::ShowRetargetPose);
+	ControllerPtr->SetRetargeterMode(ERetargeterOutputMode::EditRetargetPose);
 	
 	SequenceToImportAsPose = nullptr;
 

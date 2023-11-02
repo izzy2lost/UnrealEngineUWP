@@ -17,10 +17,32 @@
 
 #define LOCTEXT_NAMESPACE "RetargetPoseGenerator"
 
-FRetargetAutoPoseGenerator::FRetargetAutoPoseGenerator(const TWeakPtr<FIKRetargetEditorController>& InEditorController)
+FRetargetAutoPoseGenerator::FRetargetAutoPoseGenerator(const TWeakObjectPtr<UIKRetargeterController> InController)
 {
-	check(InEditorController.Pin())
-	EditorController = InEditorController;
+	Controller = InController;
+
+	// we maintain our own processor separate from the editor, this allows the auto-pose generator
+	// to run "headless" and be accessed by BP/Python API in the asset controller
+	Processor = NewObject<UIKRetargetProcessor>();
+}
+
+void FRetargetAutoPoseGenerator::AddReferencedObjects(FReferenceCollector& Collector)
+{
+	Collector.AddReferencedObject(Processor);
+}
+
+void FRetargetAutoPoseGenerator::AlignAllBones(
+	const ERetargetSourceOrTarget SourceOrTarget,
+	const bool bSuppressWarnings) const
+{
+	// cannot get all bones until we have an initialized processor
+	if (!CheckReadyToAlignBones())
+	{
+		return;
+	}
+	
+	const TArray<FName>& AllBones = Processor->GetSkeleton(SourceOrTarget).BoneNames;
+	AlignBones(AllBones, ERetargetAutoAlignMethod::ChainToChain, SourceOrTarget, bSuppressWarnings);
 }
 
 void FRetargetAutoPoseGenerator::AlignBones(
@@ -74,6 +96,12 @@ void FRetargetAutoPoseGenerator::AlignBone(
 	const ERetargetAutoAlignMethod Method,
 	const ERetargetSourceOrTarget SourceOrTarget) const
 {
+	// cannot align bones until we have an initialized processor
+	if (!CheckReadyToAlignBones())
+	{
+		return;
+	}
+	
 	// can't auto-align if the bone is not retargeted  (warning is elsewhere)
 	if (!Processor->IsBoneRetargeted(BoneToAlign, SourceOrTarget))
 	{
@@ -81,7 +109,7 @@ void FRetargetAutoPoseGenerator::AlignBone(
 	}
 
 	// force regenerate the retarget pose to guarantee Skeleton.RetargetGlobalPose reflects any modifications made in the viewport
-	const FName CurrentPoseName = EditorController.Pin()->AssetController->GetCurrentRetargetPoseName(SourceOrTarget);
+	const FName CurrentPoseName = Controller->GetCurrentRetargetPoseName(SourceOrTarget);
 	Processor->UpdateRetargetPoseAtRuntime(CurrentPoseName, SourceOrTarget);
 
 	// use a custom procedure to auto-align retarget root
@@ -202,11 +230,10 @@ void FRetargetAutoPoseGenerator::SnapToGround(const FName BoneToPutOnGround, con
 		return;
 	}
 
-	const TObjectPtr<UIKRetargeterController> AssetController = EditorController.Pin()->AssetController;
 	const FRetargetSkeleton& Skeleton = Processor->GetSkeleton(SourceOrTarget);
 	
 	// force regenerate the retarget pose to guarantee Skeleton.RetargetGlobalPose reflects any modifications made thus far
-	const FName CurrentPoseName = AssetController->GetCurrentRetargetPoseName(SourceOrTarget);
+	const FName CurrentPoseName = Controller->GetCurrentRetargetPoseName(SourceOrTarget);
 	Processor->UpdateRetargetPoseAtRuntime(CurrentPoseName, SourceOrTarget);
 
 	// if no bone specified, we search the current retarget pose to find the lowest one and use that
@@ -250,7 +277,7 @@ void FRetargetAutoPoseGenerator::SnapToGround(const FName BoneToPutOnGround, con
 
 	// snap it back to original height off the ground
 	const float DeltaHeight = HeightInRefPose - HeightOfBoneInRetargetPose;
-	AssetController->SetRootOffsetInRetargetPose(FVector(0.f,0.f,DeltaHeight), SourceOrTarget);
+	Controller->SetRootOffsetInRetargetPose(FVector(0.f,0.f,DeltaHeight), SourceOrTarget);
 }
 
 bool FRetargetAutoPoseGenerator::GetSpineChain(const ERetargetSourceOrTarget SourceOrTarget, FName& OutChainName) const
@@ -521,16 +548,26 @@ bool FRetargetAutoPoseGenerator::IsARetargetLeaf(
 bool FRetargetAutoPoseGenerator::CheckReadyToAlignBones() const
 {
 	// this should never happen
-	if (!EditorController.IsValid())
+	if (!Controller.IsValid())
 	{
 		return false;
 	}
+
+	if (!Processor)
+	{
+		return false;
+	}
+
+	// we have to initialize a processor to "resolve" the retarget asset setup onto actual skeletons to do the alignment
+	USkeletalMesh* SourceSkeletalMesh = Controller->GetPreviewMesh(ERetargetSourceOrTarget::Source);
+	USkeletalMesh* TargetSkeletalMesh = Controller->GetPreviewMesh(ERetargetSourceOrTarget::Target);
+	UIKRetargeter* RetargeterAsset = Controller->GetAssetPtr();
+	constexpr bool bSuppressWarnings = true;
+	Processor->Initialize(SourceSkeletalMesh, TargetSkeletalMesh, RetargeterAsset, bSuppressWarnings);
 	
 	// can't auto align until processor is initialized because we need a fully resolved chain mapping on source/target
 	// this could happen if the user attempts to edit the retarget pose on an incompatible IK Rig
-	const FIKRetargetEditorController* Controller = EditorController.Pin().Get();
-	Processor = Controller->GetRetargetProcessor();
-	if (!(Processor && Processor->IsInitialized()))
+	if (!Processor->IsInitialized())
 	{
 		return false;
 	}
@@ -543,7 +580,6 @@ void FRetargetAutoPoseGenerator::ApplyWorldRotationToRetargetPose(
 	const FName BoneToAffect,
 	const ERetargetSourceOrTarget SourceOrTarget) const
 {
-	const TObjectPtr<UIKRetargeterController> AssetController = EditorController.Pin()->AssetController;
 	const FRetargetSkeleton& Skeleton =  Processor->GetSkeleton(SourceOrTarget);
 	const FReferenceSkeleton& RefSkeleton = Skeleton.SkeletalMesh->GetRefSkeleton();
 	const int32 BoneIndex = Skeleton.FindBoneIndexByName(BoneToAffect);
@@ -561,7 +597,7 @@ void FRetargetAutoPoseGenerator::ApplyWorldRotationToRetargetPose(
 	FTransform CurrentGlobalTransformNoDelta = LocalRefTransform * ParentGlobalTransform;
 				
 	// get the stored local rotation offset from the retarget pose
-	const FQuat LocalRotationDeltaFromPose = AssetController->GetRotationOffsetForRetargetPoseBone(BoneToAffect, SourceOrTarget);
+	const FQuat LocalRotationDeltaFromPose = Controller->GetRotationOffsetForRetargetPoseBone(BoneToAffect, SourceOrTarget);
 	// apply the retarget pose to get the global rotation w/ retarget pose
 	// TODO get this from retarget pose??
 	FQuat GlobalRetargetPoseRotation = CurrentGlobalTransformNoDelta.GetRotation() * LocalRotationDeltaFromPose;
@@ -576,10 +612,10 @@ void FRetargetAutoPoseGenerator::ApplyWorldRotationToRetargetPose(
 	FQuat FinalLocalDeltaRotation = FQuat(UnRotatedAxis, NewGlobalDeltaRotation.GetAngle());
 
 	// store the new rotation in the retarget pose
-	AssetController->SetRotationOffsetForRetargetPoseBone(BoneToAffect, FinalLocalDeltaRotation, SourceOrTarget);
+	Controller->SetRotationOffsetForRetargetPoseBone(BoneToAffect, FinalLocalDeltaRotation, SourceOrTarget);
 
 	// regenerate the retarget pose in the currently running processor so it reflects the latest change
-	const FName CurrentPoseName = AssetController->GetCurrentRetargetPoseName(SourceOrTarget);
+	const FName CurrentPoseName = Controller->GetCurrentRetargetPoseName(SourceOrTarget);
 	Processor->UpdateRetargetPoseAtRuntime(CurrentPoseName, SourceOrTarget);
 }
 

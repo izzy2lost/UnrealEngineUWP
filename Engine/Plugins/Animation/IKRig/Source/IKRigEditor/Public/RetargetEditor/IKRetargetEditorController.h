@@ -31,7 +31,6 @@ struct FRetargetSkeleton;
 enum class ERetargeterOutputMode : uint8
 {
 	RunRetarget,		// output the retargeted target pose
-	ShowRetargetPose,	// output the retarget pose for viewing purposes
 	EditRetargetPose,	// allow editing the retarget pose
 };
 
@@ -121,8 +120,6 @@ public:
 
 	// import / export retarget poses
 	TSharedPtr<FIKRetargetPoseExporter> PoseExporter;
-	// auto pose generator
-	TUniquePtr<FRetargetAutoPoseGenerator> AutoPoseGenerator;
 
 	// manage playback of animation in the editor
 	TUniquePtr<FRetargetPlaybackManager> PlaybackManager;
@@ -257,7 +254,7 @@ public:
 	bool GetCameraTargetForSelection(FSphere& OutTarget) const;
 
 	// check if any bone is selected
-	bool IsAnyBoneSelected() const;
+	bool IsEditingPoseWithAnyBoneSelected() const;
 
 	// ------------------------- END SELECTION -----------------------------
 

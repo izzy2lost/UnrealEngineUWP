@@ -150,14 +150,12 @@ void FIKRetargetEditorController::Initialize(TSharedPtr<FIKRetargetEditor> InEdi
 	Editor = InEditor;
 	AssetController = UIKRetargeterController::GetController(InAsset);
 	CurrentlyEditingSourceOrTarget = ERetargetSourceOrTarget::Target;
-	OutputMode = ERetargeterOutputMode::ShowRetargetPose;
+	OutputMode = ERetargeterOutputMode::RunRetarget;
 	PreviousMode = OutputMode;
 	PoseExporter = MakeShared<FIKRetargetPoseExporter>();
 	PoseExporter->Initialize(SharedThis(this));
 
 	PlaybackManager = MakeUnique<FRetargetPlaybackManager>(SharedThis(this));
-
-	AutoPoseGenerator = MakeUnique<FRetargetAutoPoseGenerator>(SharedThis(this));
 
 	SelectedBoneNames.Add(ERetargetSourceOrTarget::Source);
 	SelectedBoneNames.Add(ERetargetSourceOrTarget::Target);
@@ -465,9 +463,9 @@ bool FIKRetargetEditorController::GetCameraTargetForSelection(FSphere& OutTarget
 	return false;
 }
 
-bool FIKRetargetEditorController::IsAnyBoneSelected() const
+bool FIKRetargetEditorController::IsEditingPoseWithAnyBoneSelected() const
 {
-	return !GetSelectedBones().IsEmpty();
+	return IsEditingPose() && !GetSelectedBones().IsEmpty();
 }
 
 bool FIKRetargetEditorController::IsBoneRetargeted(const FName& BoneName, ERetargetSourceOrTarget SourceOrTarget) const
@@ -738,7 +736,7 @@ void FIKRetargetEditorController::SetRetargetPoseAmount(float InValue)
 {
 	if (OutputMode==ERetargeterOutputMode::RunRetarget)
 	{
-		SetRetargeterMode(ERetargeterOutputMode::ShowRetargetPose);
+		SetRetargeterMode(ERetargeterOutputMode::EditRetargetPose);
 	}
 	
 	RetargetPosePreviewBlend = InValue;
@@ -1042,18 +1040,7 @@ void FIKRetargetEditorController::SetRetargeterMode(ERetargeterOutputMode Mode)
 			TargetAnimInstance->SetRetargetMode(ERetargeterOutputMode::RunRetarget);
 			PlaybackManager->ResumePlayback();
 			break;
-
-		case ERetargeterOutputMode::ShowRetargetPose:
-			EditorModeManager.DeactivateMode(FIKRetargetEditPoseMode::ModeName);
-			EditorModeManager.ActivateMode(FIKRetargetDefaultMode::ModeName);
-			OutputMode = ERetargeterOutputMode::ShowRetargetPose;
-			// show retarget pose
-			SourceAnimInstance->SetRetargetMode(ERetargeterOutputMode::ShowRetargetPose);
-			TargetAnimInstance->SetRetargetMode(ERetargeterOutputMode::ShowRetargetPose);
-			PlaybackManager->PausePlayback();
-			SetRetargetPoseAmount(1.0f);
-			break;
-
+		
 		default:
 			checkNoEntry();
 	}
@@ -1070,8 +1057,6 @@ FText FIKRetargetEditorController::GetRetargeterModeLabel()
 		return FText::FromString("Running Retarget");
 	case ERetargeterOutputMode::EditRetargetPose:
 		return FText::FromString("Editing Retarget Pose");
-	case ERetargeterOutputMode::ShowRetargetPose:
-		return FText::FromString("Showing Retarget Pose");
 	default:
 		checkNoEntry();
 		return FText::FromString("Unknown Mode.");
@@ -1091,8 +1076,6 @@ FSlateIcon FIKRetargetEditorController::GetRetargeterModeIcon(ERetargeterOutputM
 		return FSlateIcon(FIKRetargetEditorStyle::Get().GetStyleSetName(), "IKRetarget.RunRetargeter");
 	case ERetargeterOutputMode::EditRetargetPose:
 		return FSlateIcon(FIKRetargetEditorStyle::Get().GetStyleSetName(), "IKRetarget.EditRetargetPose");
-	case ERetargeterOutputMode::ShowRetargetPose:
-		return FSlateIcon(FIKRetargetEditorStyle::Get().GetStyleSetName(), "IKRetarget.ShowRetargetPose");
 	default:
 		checkNoEntry();
 		return FSlateIcon(FIKRetargetEditorStyle::Get().GetStyleSetName(), "IKRetarget.ShowRetargetPose");
@@ -1121,7 +1104,7 @@ FRetargetGlobalSettings& FIKRetargetEditorController::GetGlobalSettings() const
 
 void FIKRetargetEditorController::HandleNewPose()
 {
-	SetRetargeterMode(ERetargeterOutputMode::ShowRetargetPose);
+	SetRetargeterMode(ERetargeterOutputMode::EditRetargetPose);
 	
 	// get a unique pose name to use as suggestion
 	const FString DefaultNewPoseName = LOCTEXT("NewRetargetPoseName", "CustomRetargetPose").ToString();
@@ -1203,7 +1186,7 @@ FReply FIKRetargetEditorController::CreateNewPose() const
 
 void FIKRetargetEditorController::HandleDuplicatePose()
 {
-	SetRetargeterMode(ERetargeterOutputMode::ShowRetargetPose);
+	SetRetargeterMode(ERetargeterOutputMode::EditRetargetPose);
 	
 	// get a unique pose name to use as suggestion for duplicate
 	const FString DuplicateSuffix = LOCTEXT("DuplicateSuffix", "_Copy").ToString();
@@ -1284,7 +1267,7 @@ FReply FIKRetargetEditorController::CreateDuplicatePose() const
 
 void FIKRetargetEditorController::HandleDeletePose()
 {
-	SetRetargeterMode(ERetargeterOutputMode::ShowRetargetPose);
+	SetRetargeterMode(ERetargeterOutputMode::EditRetargetPose);
 	
 	const ERetargetSourceOrTarget SourceOrTarget = GetSourceOrTarget();
 	const FName CurrentPose = AssetController->GetCurrentRetargetPoseName(SourceOrTarget);
@@ -1323,59 +1306,20 @@ void FIKRetargetEditorController::HandleResetSelectedAndChildrenBones() const
 
 void FIKRetargetEditorController::HandleAlignAllBones() const
 {
-	// get all the bones in the current skeleton
-	const UIKRetargetProcessor* Processor = GetRetargetProcessor();
-	if (!(Processor && Processor->IsInitialized()))
-	{
-		return;
-	}
-
-	// undo transaction
-	constexpr bool bShouldTransact = true;
-	FScopedTransaction Transaction(LOCTEXT("AutoAlignAllBones", "Auto Align All Bones"), bShouldTransact);
-	AssetController->GetAsset()->Modify();
-	
-	// suppress warnings about bones that cannot be aligned when aligning ALL bones
-	const TArray<FName>& AllBones = Processor->GetSkeleton(GetSourceOrTarget()).BoneNames;
-	constexpr bool bSuppressWarnings = true;
-	AutoPoseGenerator.Get()->AlignBones(
-		AllBones,
-		ERetargetAutoAlignMethod::ChainToChain,
-		GetSourceOrTarget(),
-		bSuppressWarnings);
-
-	// if the retarget root was aligned
-	AutoPoseGenerator.Get()->SnapToGround(NAME_None, GetSourceOrTarget());
+	AssetController->AutoAlignAllBones(GetSourceOrTarget());
 }
 
 void FIKRetargetEditorController::HandleAlignSelectedBones(const ERetargetAutoAlignMethod Method, const bool bIncludeChildren) const
 {
-	// undo transaction
-	constexpr bool bShouldTransact = true;
-	FScopedTransaction Transaction(LOCTEXT("AutoAlignSelectedBones", "Auto Align Selected Bones"), bShouldTransact);
-	AssetController->GetAsset()->Modify();
-
 	const TArray<FName> BonesToAlign = bIncludeChildren ? GetSelectedBonesAndChildren() : GetSelectedBones();
-	
-	// allow warnings about bones that cannot be aligned when bones are explicitly specified by user
-	constexpr bool bSuppressWarnings = false;
-	AutoPoseGenerator.Get()->AlignBones(
-		BonesToAlign,
-		Method,
-		GetSourceOrTarget(),
-		bSuppressWarnings);
+	AssetController->AutoAlignBones(BonesToAlign, Method, GetSourceOrTarget());
 }
 
 void FIKRetargetEditorController::HandleSnapToGround() const
 {
-	// undo transaction
-	constexpr bool bShouldTransact = true;
-	FScopedTransaction Transaction(LOCTEXT("AutoSnapToGround", "Snap Retarget Pose to Ground"), bShouldTransact);
-	AssetController->GetAsset()->Modify();
-	
 	const TArray<FName> SelectedBones = GetSelectedBones();
 	const FName FirstSelectedBone = SelectedBones.IsEmpty() ? NAME_None : SelectedBones[0];
-	AutoPoseGenerator.Get()->SnapToGround(FirstSelectedBone, GetSourceOrTarget());
+	AssetController->SnapBoneToGround(FirstSelectedBone, GetSourceOrTarget());
 }
 
 void FIKRetargetEditorController::HandleRenamePose()

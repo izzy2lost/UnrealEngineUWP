@@ -14,7 +14,7 @@ FIKRetargetAnimInstanceProxy::FIKRetargetAnimInstanceProxy(
 	: FAnimPreviewInstanceProxy(InAnimInstance),
 	PreviewPoseNode(InPreviewPoseNode),
 	RetargetNode(InRetargetNode),
-	OutputMode(ERetargeterOutputMode::ShowRetargetPose)
+	OutputMode(ERetargeterOutputMode::EditRetargetPose)
 {
 }
 
@@ -62,7 +62,6 @@ bool FIKRetargetAnimInstanceProxy::Evaluate(FPoseContext& Output)
 			break;
 		}
 	case ERetargeterOutputMode::EditRetargetPose:
-	case ERetargeterOutputMode::ShowRetargetPose:
 		{
 			PreviewPoseNode->Evaluate_AnyThread(Output);
 			break;

@@ -2,7 +2,12 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "UObject/GCObject.h"
+#include "UObject/WeakObjectPtr.h"
 
+#include "IKRetargeterPoseGenerator.generated.h"
+
+class UIKRetargeterController;
 class FIKRetargetEditorController;
 class UIKRetargetProcessor;
 enum class ERetargetSourceOrTarget : uint8;
@@ -20,6 +25,7 @@ enum class ERetargetSourceOrTarget : uint8;
 // Since the skeleton cannot be relied upon to provide robust directional information for individual and/or leaf bones, we must instead fallback
 // on looking at the mesh that is skinned to it and try to discern a direction vector from that. If there is no skinning data, then we simply
 // do NOT auto-align that bone.
+UENUM()
 enum class ERetargetAutoAlignMethod : uint8
 {
 	// use the chain to determine the source and target directions to align
@@ -29,10 +35,18 @@ enum class ERetargetAutoAlignMethod : uint8
 };
 
 // a sub-system used by the IKRetargetEditorController for automatically generating a retarget pose
-struct FRetargetAutoPoseGenerator
+struct FRetargetAutoPoseGenerator : public FGCObject
 {
 	// created and owned by the retarget editor controller
-	FRetargetAutoPoseGenerator(const TWeakPtr<FIKRetargetEditorController>& InEditorController);
+	FRetargetAutoPoseGenerator(const TWeakObjectPtr<UIKRetargeterController> InController);
+
+	// FGCObject interface
+	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
+	virtual FString GetReferencerName() const override { return TEXT("FRetargetAutoPoseGenerator"); }
+	// End FGCObject interface
+
+	// align all bones bones on the specified skeleton to the OTHER skeleton
+	void AlignAllBones(const ERetargetSourceOrTarget SourceOrTarget, const bool bSuppressWarnings) const;
 	
 	// align the specified bones on the current skeleton to the OTHER skeleton, using the specified method
 	void AlignBones(
@@ -119,7 +133,7 @@ private:
 	// get the processor from the editor and return true if it's initialized
 	bool CheckReadyToAlignBones() const;
 
-	TWeakPtr<FIKRetargetEditorController> EditorController;
-	mutable UIKRetargetProcessor* Processor;
+	TWeakObjectPtr<UIKRetargeterController> Controller;
+	TObjectPtr<UIKRetargetProcessor> Processor;
 	static constexpr float ParamStepSize = 0.1f;
 };

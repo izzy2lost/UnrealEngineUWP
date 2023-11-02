@@ -9,11 +9,13 @@
 #include "Retargeter/IKRetargeter.h"
 #include "RigEditor/IKRigController.h"
 #include "IKRigEditor.h"
+#include "RetargetEditor/IKRetargeterPoseGenerator.h"
 #include "Retargeter/IKRetargetOps.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(IKRetargeterController)
 
 #define LOCTEXT_NAMESPACE "IKRetargeterController"
+
 
 UIKRetargeterController* UIKRetargeterController::GetController(const UIKRetargeter* InRetargeterAsset)
 {
@@ -30,6 +32,12 @@ UIKRetargeterController* UIKRetargeterController::GetController(const UIKRetarge
 	}
 
 	return Cast<UIKRetargeterController>(InRetargeterAsset->Controller);
+}
+
+void UIKRetargeterController::PostInitProperties()
+{
+	Super::PostInitProperties();
+	AutoPoseGenerator = MakeUnique<FRetargetAutoPoseGenerator>(this);
 }
 
 UIKRetargeter* UIKRetargeterController::GetAsset() const
@@ -902,6 +910,54 @@ FVector UIKRetargeterController::GetRootOffsetInRetargetPose(
 {
 	FScopeLock Lock(&ControllerLock);
 	return GetCurrentRetargetPose(SourceOrTarget).GetRootTranslationDelta();
+}
+
+void UIKRetargeterController::AutoAlignAllBones(ERetargetSourceOrTarget SourceOrTarget) const
+{
+	// undo transaction
+	constexpr bool bShouldTransact = true;
+	FScopedTransaction Transaction(LOCTEXT("AutoAlignAllBones", "Auto Align All Bones"), bShouldTransact);
+	Asset->Modify();
+	
+	FScopedReinitializeIKRetargeter Reinitialize(this);
+
+	// first reset the entire retarget pose
+	ResetRetargetPose(GetCurrentRetargetPoseName(SourceOrTarget), TArray<FName>(), SourceOrTarget);
+	
+	// suppress warnings about bones that cannot be aligned when aligning ALL bones
+	constexpr bool bSuppressWarnings = true;
+	AutoPoseGenerator.Get()->AlignAllBones(SourceOrTarget, bSuppressWarnings);
+}
+
+void UIKRetargeterController::AutoAlignBones(
+	const TArray<FName>& BonesToAlign,
+	const ERetargetAutoAlignMethod Method,
+	ERetargetSourceOrTarget SourceOrTarget) const
+{
+	// undo transaction
+	constexpr bool bShouldTransact = true;
+	FScopedTransaction Transaction(LOCTEXT("AutoAlignSelectedBones", "Auto Align Selected Bones"), bShouldTransact);
+	Asset->Modify();
+
+	FScopedReinitializeIKRetargeter Reinitialize(this);
+	
+	// allow warnings about bones that cannot be aligned when bones are explicitly specified by user
+	constexpr bool bSuppressWarnings = false;
+	AutoPoseGenerator.Get()->AlignBones(
+		BonesToAlign,
+		Method,
+		SourceOrTarget,
+		bSuppressWarnings);
+}
+
+void UIKRetargeterController::SnapBoneToGround(FName ReferenceBone, ERetargetSourceOrTarget SourceOrTarget)
+{
+	// undo transaction
+	constexpr bool bShouldTransact = true;
+	FScopedTransaction Transaction(LOCTEXT("SnapBoneToGround", "Snap Bone to Ground"), bShouldTransact);
+	Asset->Modify();
+
+	AutoPoseGenerator.Get()->SnapToGround(ReferenceBone, SourceOrTarget);
 }
 
 FName UIKRetargeterController::MakePoseNameUnique(const FString& PoseName, const ERetargetSourceOrTarget SourceOrTarget) const
