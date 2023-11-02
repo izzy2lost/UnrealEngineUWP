@@ -83,11 +83,6 @@ void FNiagaraSystemCompilingManager::ProcessAsyncTasks(bool bLimitExecutionTime)
 
 	{
 		FReadScopeLock ReadScope(QueueLock);
-		if (ActiveTasks.IsEmpty())
-		{
-			return;
-		}
-
 		for (FNiagaraCompilationTaskHandle TaskHandle : ActiveTasks)
 		{
 			FTaskPtr TaskPtr = SystemRequestMap.FindRef(TaskHandle);
