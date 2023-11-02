@@ -17,6 +17,7 @@
 #include "Widgets/Notifications/SNotificationList.h"
 #endif
 
+DEFINE_LOG_CATEGORY_STATIC(LogCameraShakeSourceComponent, Log, All);
 
 UCameraShakeSourceComponent::UCameraShakeSourceComponent(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -74,9 +75,13 @@ void UCameraShakeSourceComponent::EndPlay(const EEndPlayReason::Type EndPlayReas
 
 void UCameraShakeSourceComponent::Start()
 {
-	if (ensureMsgf(CameraShake.Get() != nullptr, TEXT("No camera shake was specified on this source!")))
+	if (CameraShake.Get() != nullptr)
 	{
 		StartCameraShake(CameraShake);
+	}
+	else
+	{
+		UE_LOG(LogCameraShakeSourceComponent, Error, TEXT("%s: No camera shake was specified on this source. Me = %s, Owner = %s"), ANSI_TO_TCHAR(__FUNCTION__), *this->GetFullName(), *GetOwner()->GetFullName());
 	}
 }
 
