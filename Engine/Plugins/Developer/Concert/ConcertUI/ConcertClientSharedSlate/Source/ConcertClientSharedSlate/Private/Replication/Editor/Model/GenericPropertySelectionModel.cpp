@@ -10,12 +10,8 @@
 
 namespace UE::ConcertClientSharedSlate
 {
-	FGenericPropertySelectionModel::FGenericPropertySelectionModel(
-		TAttribute<FObjectReplicationMap*> ReplicationMapAttribute,
-		TAttribute<const FConcertReplicationEditorSettings*> OptionalReplicationSettingsAttribute
-		)
+	FGenericPropertySelectionModel::FGenericPropertySelectionModel(TAttribute<FObjectReplicationMap*> ReplicationMapAttribute)
 		: ReplicationMapAttribute(MoveTemp(ReplicationMapAttribute))
-		, OptionalReplicationSettingsAttribute(MoveTemp(OptionalReplicationSettingsAttribute))
 	{}
 	
 	uint32 FGenericPropertySelectionModel::GetNumReplicatedObjects() const
@@ -126,7 +122,6 @@ namespace UE::ConcertClientSharedSlate
 		}
 		
 		TSet<UObject*> ObjectsNotAdded;
-		TArray<UObject*> AdditionalObjectsToAdd;
 		for (UObject* Object : Objects)
 		{
 			const FSoftObjectPath ObjectPath = Object;
@@ -134,20 +129,6 @@ namespace UE::ConcertClientSharedSlate
 			{
 				FReplicatedObjectInfo& ObjectInfo = ReplicationMap->ReplicatedObjects.Add(ObjectPath);
 				ObjectInfo.ClassPath = Object->GetClass();
-
-				const FConcertReplicationEditorSettings* AutoPopulateSettings = OptionalReplicationSettingsAttribute.IsBound()
-					? OptionalReplicationSettingsAttribute.Get()
-					: nullptr;
-				if (!AutoPopulateSettings)
-				{
-					continue;
-				}
-				
-				AutoPopulateSettings->AddDefaultPropertiesFromSettings(ObjectInfo, *Object->GetClass());
-				AutoPopulateSettings->AddAdditionalObjectsFromSettings(*Object, [&AdditionalObjectsToAdd](UObject& FurtherObject)
-				{
-					AdditionalObjectsToAdd.Add(&FurtherObject);
-				});
 			}
 			else
 			{
@@ -172,8 +153,6 @@ namespace UE::ConcertClientSharedSlate
 			}
 			OnObjectsChangedDelegate.Broadcast(Added, {}, EReplicatedObjectChangeReason::ChangedDirectly);
 		}
-
-		AddObjects(AdditionalObjectsToAdd);
 	}
 
 	void FGenericPropertySelectionModel::RemoveObjects(TConstArrayView<FSoftObjectPath> Objects)

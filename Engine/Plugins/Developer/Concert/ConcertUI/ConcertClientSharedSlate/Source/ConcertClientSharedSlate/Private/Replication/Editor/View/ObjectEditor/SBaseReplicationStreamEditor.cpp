@@ -10,9 +10,9 @@
 #include "Replication/Editor/Model/ReplicatedObjectData.h"
 #include "Replication/Editor/View/DisplayUtils.h"
 #include "Replication/Editor/View/ObjectViewer/SReplicationStreamViewer.h"
+#include "Replication/Settings/ConcertReplicationEditorSettings.h"
 
 #include "Algo/AnyOf.h"
-#include "GameFramework/Actor.h"
 #include "UObject/Class.h"
 #include "Widgets/SBoxPanel.h"
 
@@ -36,6 +36,7 @@ namespace UE::ConcertClientSharedSlate
 
 		IsEditingEnabledAttribute = InArgs._IsEditingEnabled;
 		EditingDisabledToolTipTextAttribute = InArgs._EditingDisabledToolTipText;
+		ReplicationSettingsAttribute = InArgs._ReplicationSettings;
 		OnExtendObjectsContextMenuDelegate = InArgs._OnExtendObjectsContextMenu;
 		
 		ChildSlot
@@ -67,6 +68,12 @@ namespace UE::ConcertClientSharedSlate
 				]
 				.NoOutlinerObjects(LOCTEXT("NoObjects", "Add objects to replicate"))
 		];
+	}
+
+	SBaseReplicationStreamEditor::~SBaseReplicationStreamEditor()
+	{
+		EditablePropertiesModel->OnObjectsChanged().RemoveAll(this);
+		EditablePropertiesModel->OnPropertiesChanged().RemoveAll(this);
 	}
 
 	void SBaseReplicationStreamEditor::Refresh()
@@ -106,6 +113,8 @@ namespace UE::ConcertClientSharedSlate
 		// Newly added objects should be automatically selected
 		if (!AddedObjects.IsEmpty())
 		{
+			AutoAddObjectsAndPropertiesFromSettings(AddedObjects);
+			
 			TArray<FSoftObjectPath> TopLevelObjects;
 			Algo::TransformIf(AddedObjects, TopLevelObjects, [this](const UObject* Object)
 			{
@@ -115,12 +124,45 @@ namespace UE::ConcertClientSharedSlate
 		}
 	}
 
+	void SBaseReplicationStreamEditor::AutoAddObjectsAndPropertiesFromSettings(TConstArrayView<UObject*> AddedObjects)
+	{
+		if (!bIsAddingFromSelection)
+		{
+			return;
+		}
+		
+		const FConcertReplicationEditorSettings* AutoPopulateSettings = ReplicationSettingsAttribute.IsBound()
+		  ? ReplicationSettingsAttribute.Get()
+		  : nullptr;
+		if (!AutoPopulateSettings)
+		{
+			return;
+		}
+
+		for (const UObject* AddedObject : AddedObjects)
+		{
+			TArray<FConcertPropertyChain> AdditionalProperties;
+			AutoPopulateSettings->AddDefaultPropertiesFromSettings(*AddedObject->GetClass(), [&AdditionalProperties](FConcertPropertyChain&& Chain)
+			{
+				AdditionalProperties.Emplace(MoveTemp(Chain));
+			});
+			EditablePropertiesModel->AddProperties({ AddedObject }, AdditionalProperties);
+
+			TArray<UObject*> AdditionalObjectsToAdd;
+			AutoPopulateSettings->AddAdditionalObjectsFromSettings(*AddedObject, [&AdditionalObjectsToAdd](UObject& FurtherObject)
+			{
+				AdditionalObjectsToAdd.Add(&FurtherObject);
+			});
+			EditablePropertiesModel->AddObjects(AdditionalObjectsToAdd);
+		}
+	}
+
 	void SBaseReplicationStreamEditor::OnPropertiesChanged()
 	{
 		ReplicationViewer->RefreshPropertyData();
 	}
 
-	TSharedRef<SWidget> SBaseReplicationStreamEditor::BuildRootAddObjectWidgets() const
+	TSharedRef<SWidget> SBaseReplicationStreamEditor::BuildRootAddObjectWidgets()
 	{
 		using namespace ConcertSharedSlate;
 		
@@ -137,7 +179,7 @@ namespace UE::ConcertClientSharedSlate
 		return Root;
 	}
 
-	void SBaseReplicationStreamEditor::OnObjectsSelectedForAdding(TArray<FSelectableObjectInfo> ObjectsToAdd) const
+	void SBaseReplicationStreamEditor::OnObjectsSelectedForAdding(TArray<FSelectableObjectInfo> ObjectsToAdd)
 	{
 		TArray<UObject*> Objects;
 		Algo::TransformIf(
@@ -146,7 +188,8 @@ namespace UE::ConcertClientSharedSlate
 			[](const FSelectableObjectInfo& SelectableObject) { return SelectableObject.Object.IsValid(); },
 			[](const FSelectableObjectInfo& SelectableObject){ return SelectableObject.Object.Get(); }
 			);
-		
+
+		TGuardValue<bool> GuardObjectSelection(bIsAddingFromSelection, true);
 		EditablePropertiesModel->AddObjects(Objects);
 	}
 
@@ -184,7 +227,7 @@ namespace UE::ConcertClientSharedSlate
 		ReplicationViewer->ClearSubobjectSelection();
 	}
 
-	TSharedPtr<SWidget> SBaseReplicationStreamEditor::OnObjectsContextMenuOpening() const
+	TSharedPtr<SWidget> SBaseReplicationStreamEditor::OnObjectsContextMenuOpening()
 	{
 		FMenuBuilder MenuBuilder(true, nullptr);
 		AddObjectSourceContextMenuOptions(MenuBuilder);
@@ -204,7 +247,7 @@ namespace UE::ConcertClientSharedSlate
 		return MenuBuilder.MakeWidget();
 	}
 
-	void SBaseReplicationStreamEditor::AddObjectSourceContextMenuOptions(FMenuBuilder& MenuBuilder) const
+	void SBaseReplicationStreamEditor::AddObjectSourceContextMenuOptions(FMenuBuilder& MenuBuilder)
 	{
 		using namespace ConcertSharedSlate;
 		
@@ -241,7 +284,7 @@ namespace UE::ConcertClientSharedSlate
 		MenuBuilder.AddSeparator();
 	}
 
-	ConcertSharedSlate::FSourceModelBuilders<FSelectableObjectInfo>::FItemPickerArgs SBaseReplicationStreamEditor::MakeObjectSourceBuilderArgs() const
+	ConcertSharedSlate::FSourceModelBuilders<FSelectableObjectInfo>::FItemPickerArgs SBaseReplicationStreamEditor::MakeObjectSourceBuilderArgs()
 	{
 		using namespace ConcertSharedSlate;
 		using FBuilderDelegates = FSourceModelBuilders<FSelectableObjectInfo>;

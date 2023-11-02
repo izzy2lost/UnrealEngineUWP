@@ -11,6 +11,7 @@
 
 class SHorizontalBox;
 struct FConcertPropertyChain;
+struct FConcertReplicationEditorSettings;
 
 namespace UE::ConcertClientSharedSlate
 {
@@ -72,6 +73,9 @@ namespace UE::ConcertClientSharedSlate
 			SLATE_ATTRIBUTE(bool, IsEditingEnabled)
 			/** Optional. Whenever IsEditingEnabled returns true, this tooltip is displayed for relevant, disabled UI. */
 			SLATE_ATTRIBUTE(FText, EditingDisabledToolTipText)
+
+			/** Optional settings for auto adding common properties and objects. */
+			SLATE_ATTRIBUTE(const FConcertReplicationEditorSettings*, ReplicationSettings)
 		SLATE_END_ARGS()
 
 		void Construct(const FArguments& InArgs,
@@ -79,6 +83,7 @@ namespace UE::ConcertClientSharedSlate
            TSharedRef<IObjectSelectionSourceModel> InObjectSelectionSource,
            TSharedRef<IPropertySelectionSourceModel> InPropertySelectionSource
 		);
+		virtual ~SBaseReplicationStreamEditor() override;
 
 		//~ Begin IReplicationStreamEditor Interface
 		virtual void Refresh() override;
@@ -108,27 +113,37 @@ namespace UE::ConcertClientSharedSlate
 		TAttribute<bool> IsEditingEnabledAttribute;
 		/** Optional. Whenever IsEditingEnabled returns true, this tooltip is displayed for relevant, disabled UI. */
 		TAttribute<FText> EditingDisabledToolTipTextAttribute;
+		/** Optional settings for auto adding common properties and objects. */
+		TAttribute<const FConcertReplicationEditorSettings*> ReplicationSettingsAttribute;
 		
 		/** Generates additional entries */
 		FExtendMenu OnExtendObjectsContextMenuDelegate;
+
+		/**
+		 * Set when the combo button is adding an object.
+		 * This is so AutoAddObjectsAndPropertiesFromSettings only adds when an object is added via the combo button.
+		 * Note that AutoAddObjectsAndPropertiesFromSettings must be called in OnObjectsChanged so it becomes part of the transaction.
+		 */
+		bool bIsAddingFromSelection = false;
 
 		bool IsEditingDisabled() const;
 		FText GetEditingDisabledText() const;
 		
 		void OnObjectsChanged(TConstArrayView<UObject*> AddedObjects, TConstArrayView<FSoftObjectPath> RemovedObjects, EReplicatedObjectChangeReason ChangeReason);
+		void AutoAddObjectsAndPropertiesFromSettings(TConstArrayView<UObject*> AddedObjects);
 		void OnPropertiesChanged();
 
 		// Customizing left objects search bar
-		TSharedRef<SWidget> BuildRootAddObjectWidgets() const;
-		void OnObjectsSelectedForAdding(TArray<FSelectableObjectInfo> ObjectsToAdd) const;
+		TSharedRef<SWidget> BuildRootAddObjectWidgets();
+		void OnObjectsSelectedForAdding(TArray<FSelectableObjectInfo> ObjectsToAdd);
 
 		// Respond to object editing events
 		void OnDeleteObjects_PassByValue(TArray<TSharedPtr<FReplicatedObjectData>> CopiedObjectsToDelete) const { OnDeleteObjects(CopiedObjectsToDelete); }
 		void OnDeleteObjects(const TArray<TSharedPtr<FReplicatedObjectData>>& ObjectsToDelete) const;
-		TSharedPtr<SWidget> OnObjectsContextMenuOpening() const;
-		void AddObjectSourceContextMenuOptions(FMenuBuilder& MenuBuilder) const;
+		TSharedPtr<SWidget> OnObjectsContextMenuOpening();
+		void AddObjectSourceContextMenuOptions(FMenuBuilder& MenuBuilder);
 		
 		// Utils for building item source widgets
-		ConcertSharedSlate::FSourceModelBuilders<FSelectableObjectInfo>::FItemPickerArgs MakeObjectSourceBuilderArgs() const;
+		ConcertSharedSlate::FSourceModelBuilders<FSelectableObjectInfo>::FItemPickerArgs MakeObjectSourceBuilderArgs();
 	};
 }

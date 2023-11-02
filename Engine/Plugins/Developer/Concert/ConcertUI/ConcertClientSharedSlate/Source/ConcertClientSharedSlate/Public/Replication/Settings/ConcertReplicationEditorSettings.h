@@ -4,8 +4,11 @@
 
 #include "ConcertDefaultPropertySelection.h"
 #include "ConcertDefaultSubobjectSelection.h"
+#include "Templates/Function.h"
 #include "ConcertReplicationEditorSettings.generated.h"
 
+class UObject;
+struct FConcertPropertyChain;
 struct FReplicatedObjectInfo;
 
 USTRUCT()
@@ -26,9 +29,9 @@ struct CONCERTCLIENTSHAREDSLATE_API FConcertReplicationEditorSettings
 	UPROPERTY(EditAnywhere, Config, Category = "Replication|Editor")
 	TMap<FSoftClassPath, FConcertDefaultSubobjectSelection> DefaultSubobjectSelection;
 
-	/** Reads DefaultPropertySelection and applies any default property selections to Info based on the Class just added. */
-	void AddDefaultPropertiesFromSettings(FReplicatedObjectInfo& Info, UClass& Class) const;
+	/** Reads DefaultPropertySelection and calls Callback for any default property selections based on the Class just added. */
+	void AddDefaultPropertiesFromSettings(UClass& Class, TFunctionRef<void(FConcertPropertyChain&& Chain)> Callback) const;
 
 	/** Reads DefaultComponentSelection and calls FurtherObjectsCallback on any further objects that should also be added. */
-	void AddAdditionalObjectsFromSettings(UObject& AddedObject, TFunctionRef<void(UObject&)> FurtherObjectsCallback) const;
+	void AddAdditionalObjectsFromSettings(const UObject& AddedObject, TFunctionRef<void(UObject&)> FurtherObjectsCallback) const;
 };

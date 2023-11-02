@@ -27,7 +27,8 @@ namespace UE::ConcertClientSharedSlate
 			.LeftOfObjectSearchBar() [ Params.LeftOfObjectSearchBar.Widget ]
 			.LeftOfPropertySearchBar() [ Params.LeftOfPropertySearchBar.Widget ]
 			.IsEditingEnabled(Params.IsEditingEnabled)
-			.EditingDisabledToolTipText(Params.EditingDisabledToolTipText);
+			.EditingDisabledToolTipText(Params.EditingDisabledToolTipText)
+			.ReplicationSettings(Params.ReplicationSettingsAttribute);
 	}
 
 	TSharedRef<IReplicationStreamEditor> CreateDefaultStreamEditor(FCreateEditorParams Params)
@@ -44,19 +45,18 @@ namespace UE::ConcertClientSharedSlate
 			.LeftOfObjectSearchBar() [ Params.LeftOfObjectSearchBar.Widget ]
 			.LeftOfPropertySearchBar() [ Params.LeftOfPropertySearchBar.Widget ]
 			.IsEditingEnabled(Params.IsEditingEnabled)
-			.EditingDisabledToolTipText(Params.EditingDisabledToolTipText);
+			.EditingDisabledToolTipText(Params.EditingDisabledToolTipText)
+			.ReplicationSettings(Params.ReplicationSettingsAttribute);
 	}
 
 	TSharedRef<IEditableObjectToPropertiesModel> CreatePropertySelectionModel(
 		UObject& OwnerObject,
-		TAttribute<FObjectReplicationMap*> ReplicationMapAttribute,
-		TAttribute<const FConcertReplicationEditorSettings*> OptionalReplicationSettingsAttribute
+		TAttribute<FObjectReplicationMap*> ReplicationMapAttribute
 		)
 	{
 		return MakeShared<FTransactionalPropertySelectionModel>(
 			OwnerObject,
-			MoveTemp(ReplicationMapAttribute),
-			MoveTemp(OptionalReplicationSettingsAttribute)
+			MoveTemp(ReplicationMapAttribute)
 			);
 	}
 }

@@ -74,14 +74,10 @@ namespace UE::MultiUserReplicationEditor
 	{
 		using namespace ConcertClientSharedSlate;
 		
-		// TODO DP: Create a new model that combines several clients.
 		const TSharedRef<IEditableObjectToPropertiesModel> AssetReadWriteModel = CreatePropertySelectionModel(
 			*GetEditedStreamAsset(),
-			GetEditedStreamAsset()->GetUnassignedClient()->Stream->MakeReplicationMapGetterAttribute(),
-			TAttribute<const FConcertReplicationEditorSettings*>::CreateLambda([]()
-			{
-				return nullptr;
-			}));
+			GetEditedStreamAsset()->GetUnassignedClient()->Stream->MakeReplicationMapGetterAttribute()
+			);
 		const TSharedRef<FEditorObjectSelectionSourceModel> ObjectSourceModel = MakeShared<FEditorObjectSelectionSourceModel>();
 		const TSharedRef<FSelectPropertyFromUClassModel> PropertySourceModel = MakeShared<FSelectPropertyFromUClassModel>();
 		const TSharedRef<IReplicationStreamEditor> EditorView = CreateDefaultStreamEditor(FCreateEditorParams{ AssetReadWriteModel, ObjectSourceModel, PropertySourceModel });

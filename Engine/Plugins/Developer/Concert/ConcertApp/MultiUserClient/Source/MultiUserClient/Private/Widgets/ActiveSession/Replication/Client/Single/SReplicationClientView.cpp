@@ -2,6 +2,7 @@
 
 #include "SReplicationClientView.h"
 
+#include "MultiUserReplicationSettings.h"
 #include "SingleClientColumns.h"
 #include "Replication/Client/ReplicationClient.h"
 #include "Replication/Editor/Model/IEditableObjectToPropertiesModel.h"
@@ -29,8 +30,11 @@ namespace UE::MultiUserClient
 		FAuthorityChangeTracker& AuthorityTracker = ReplicationClient->GetAuthorityDiffer();
 		ISubmissionWorkflow& SubmissionWorkflow = ReplicationClient->GetSubmissionWorkflow();
 		FGlobalAuthorityCache& AuthorityCache = InClientManager.GetAuthorityCache();
+		
 		TAttribute<const ConcertClientSharedSlate::IReplicationStreamViewer*> GetReplicationViewerAttribute =
 			TAttribute<const ConcertClientSharedSlate::IReplicationStreamViewer*>::CreateLambda([this](){ return EditorView.Get(); });
+		TAttribute<const FConcertReplicationEditorSettings*> ReplicationSettingsAttribute =
+			TAttribute<const FConcertReplicationEditorSettings*>::CreateLambda([](){ return &UMultiUserReplicationSettings::Get()->ReplicationEditorSettings; });
 
 		// Add checkboxes in front of top level and subobject rows for changing authority
 		using namespace ConcertClientSharedSlate;
@@ -55,10 +59,11 @@ namespace UE::MultiUserClient
 			},
 			.AdditionalPropertyColumns =
 			{
-				SingleClientColumns::OwnerOfProperty(InClient, AuthorityCache, GetReplicationViewerAttribute)
+				SingleClientColumns::OwnerOfProperty(InClient, AuthorityCache, MoveTemp(GetReplicationViewerAttribute))
 			},
 			.IsEditingEnabled = TAttribute<bool>::CreateLambda([&SubmissionWorkflow](){ return SubmissionWorkflow.GetUploadability() != EChangeUploadability::NotImplemented; }),
-			.EditingDisabledToolTipText = LOCTEXT("Editing.NotImplemented", "Editing remote clients is not implemented. You can only edit the local client.")
+			.EditingDisabledToolTipText = LOCTEXT("Editing.NotImplemented", "Editing remote clients is not implemented. You can only edit the local client."),
+			.ReplicationSettingsAttribute = MoveTemp(ReplicationSettingsAttribute)
 		};
 
 		EditorView = CreateDefaultStreamEditor(ReplicationEditorCreationParams);

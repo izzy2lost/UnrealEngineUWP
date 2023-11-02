@@ -10,10 +10,9 @@ namespace UE::ConcertClientSharedSlate
 {
 	FTransactionalPropertySelectionModel::FTransactionalPropertySelectionModel(
 		UObject& OwningObject,
-		TAttribute<FObjectReplicationMap*> ReplicationMapAttribute,
-		TAttribute<const FConcertReplicationEditorSettings*> OptionalReplicationSettingsAttribute
+		TAttribute<FObjectReplicationMap*> ReplicationMapAttribute
 		)
-		: FGenericPropertySelectionModel(MoveTemp(ReplicationMapAttribute), MoveTemp(OptionalReplicationSettingsAttribute))
+		: FGenericPropertySelectionModel(MoveTemp(ReplicationMapAttribute))
 		, OwningObject(&OwningObject)
 	{}
 

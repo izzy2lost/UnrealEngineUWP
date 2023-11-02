@@ -16,8 +16,7 @@ namespace UE::ConcertClientSharedSlate
 
 		FTransactionalPropertySelectionModel(
 			UObject& OwningObject,
-			TAttribute<FObjectReplicationMap*> ReplicationMapAttribute,
-			TAttribute<const FConcertReplicationEditorSettings*> OptionalReplicationSettingsAttribute = {}
+			TAttribute<FObjectReplicationMap*> ReplicationMapAttribute
 			);
 		
 		//~ Begin IEditableObjectToPropertiesModel Interface

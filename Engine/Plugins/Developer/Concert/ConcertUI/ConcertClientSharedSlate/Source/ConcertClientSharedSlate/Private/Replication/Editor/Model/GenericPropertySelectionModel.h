@@ -19,10 +19,7 @@ namespace UE::ConcertClientSharedSlate
 	{
 	public:
 		
-		FGenericPropertySelectionModel(
-			TAttribute<FObjectReplicationMap*> ReplicationMapAttribute,
-			TAttribute<const FConcertReplicationEditorSettings*> OptionalReplicationSettingsAttribute = {}
-			);
+		FGenericPropertySelectionModel(TAttribute<FObjectReplicationMap*> ReplicationMapAttribute);
 		
 		//~ Begin IObjectToPropertiesModel Interface
 		virtual uint32 GetNumReplicatedObjects() const override;
@@ -47,9 +44,6 @@ namespace UE::ConcertClientSharedSlate
 
 		/** Returns the replication map that is supposed to be edited. */
 		TAttribute<FObjectReplicationMap*> ReplicationMapAttribute;
-
-		/** Optional. Contains settings for auto populating objects. */
-		TAttribute<const FConcertReplicationEditorSettings*> OptionalReplicationSettingsAttribute;
 
 		FOnObjectsChanged OnObjectsChangedDelegate;
 		FOnPropertiesChanged OnPropertiesChangedDelegate;

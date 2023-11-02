@@ -14,7 +14,7 @@
 
 namespace UE::ConcertClientSharedSlate::DefaultProperties
 {
-	static void ApplyDefaultPropertySelection(FReplicatedObjectInfo& Info, const FConcertDefaultPropertySelection& Selection, UStruct& Class)
+	static void ApplyDefaultPropertySelection(TFunctionRef<void(FConcertPropertyChain&& Chain)> Callback, const FConcertDefaultPropertySelection& Selection, UStruct& Class)
 	{
 		// Preparse the the FStrings into paths
 		TArray<TArray<FName>> Paths;
@@ -30,13 +30,13 @@ namespace UE::ConcertClientSharedSlate::DefaultProperties
 
 		// This walks through the entire property hierarchy once
 		using namespace ConcertSyncCore::PropertyChain;
-		BulkConstructConcertChainsFromPaths(Class, Paths.Num(), [&Info, &Paths](const FArchiveSerializedPropertyChain& Chain, const FProperty& LeafProperty)
+		BulkConstructConcertChainsFromPaths(Class, Paths.Num(), [&Callback, &Paths](const FArchiveSerializedPropertyChain& Chain, const FProperty& LeafProperty)
 		{
 			const int32 IndexOfMatches = Algo::IndexOfByPredicate(Paths, [&Chain, &LeafProperty](const TArray<FName>& Path){ return DoPathAndChainsMatch(Path, Chain, LeafProperty); });
 			const bool bMatches = IndexOfMatches != INDEX_NONE;
 			if (bMatches)
 			{
-				Info.PropertySelection.ReplicatedProperties.Emplace(&Chain, LeafProperty);
+				Callback(FConcertPropertyChain(&Chain, LeafProperty));
 				Paths.RemoveAtSwap(IndexOfMatches);
 			}
 			return true;
@@ -54,7 +54,7 @@ namespace UE::ConcertClientSharedSlate::DefaultProperties
 	}
 }
 
-void FConcertReplicationEditorSettings::AddDefaultPropertiesFromSettings(FReplicatedObjectInfo& Info, UClass& Class) const
+void FConcertReplicationEditorSettings::AddDefaultPropertiesFromSettings(UClass& Class, TFunctionRef<void(FConcertPropertyChain&& Chain)> Callback) const
 {
 	// Find the most specialized class properties
 	UClass* Current = &Class;
@@ -67,12 +67,12 @@ void FConcertReplicationEditorSettings::AddDefaultPropertiesFromSettings(FReplic
 			continue;
 		}
 			
-		UE::ConcertClientSharedSlate::DefaultProperties::ApplyDefaultPropertySelection(Info, *DefaultProperties, *Current);
+		UE::ConcertClientSharedSlate::DefaultProperties::ApplyDefaultPropertySelection(Callback, *DefaultProperties, *Current);
 		// Recurse super structs
 		if (UClass* Parent = Current->GetSuperClass()
 			; Parent && DefaultProperties->bInheritFromBase)
 		{
-			AddDefaultPropertiesFromSettings(Info, *Parent);
+			AddDefaultPropertiesFromSettings(*Parent, Callback);
 		}
 	}
 }
@@ -94,7 +94,7 @@ namespace UE::ConcertClientSharedSlate::DefaultSubobjects
 		return false;
 	}
 	
-	static void ApplyDefaultSubobjectSelection(UObject& AddedObject, const FConcertDefaultSubobjectSelection& Selection, TFunctionRef<void(UObject&)> FurtherObjectsCallback)
+	static void ApplyDefaultSubobjectSelection(const UObject& AddedObject, const FConcertDefaultSubobjectSelection& Selection, TFunctionRef<void(UObject&)> FurtherObjectsCallback)
 	{
 		// Do not search recursively so FurtherObjectsCallback can decide to call AddAdditionalObjectsFromSettings again on the newly added objects.
 		constexpr bool bIncludeNested = false;
@@ -137,7 +137,7 @@ namespace UE::ConcertClientSharedSlate::DefaultSubobjects
 		}, bIncludeNested);
 	}
 
-	static void InternalAddAdditionalObjectsFromSettings(UClass& StartClass, const FConcertReplicationEditorSettings& Settings, UObject& AddedObject, TFunctionRef<void(UObject&)> FurtherObjectsCallback)
+	static void InternalAddAdditionalObjectsFromSettings(UClass& StartClass, const FConcertReplicationEditorSettings& Settings, const UObject& AddedObject, TFunctionRef<void(UObject&)> FurtherObjectsCallback)
 	{
 		// Find the most specialized class properties
 		UClass* Current = &StartClass;
@@ -161,7 +161,7 @@ namespace UE::ConcertClientSharedSlate::DefaultSubobjects
 	}
 }
 
-void FConcertReplicationEditorSettings::AddAdditionalObjectsFromSettings(UObject& AddedObject, TFunctionRef<void(UObject&)> FurtherObjectsCallback) const
+void FConcertReplicationEditorSettings::AddAdditionalObjectsFromSettings(const UObject& AddedObject, TFunctionRef<void(UObject&)> FurtherObjectsCallback) const
 {
 	UE::ConcertClientSharedSlate::DefaultSubobjects::InternalAddAdditionalObjectsFromSettings(*AddedObject.GetClass(), *this, AddedObject, FurtherObjectsCallback);
 }

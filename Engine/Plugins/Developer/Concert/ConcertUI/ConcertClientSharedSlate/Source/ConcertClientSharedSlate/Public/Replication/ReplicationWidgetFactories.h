@@ -37,8 +37,7 @@ namespace UE::ConcertClientSharedSlate
 	 */
 	CONCERTCLIENTSHAREDSLATE_API TSharedRef<IEditableObjectToPropertiesModel> CreatePropertySelectionModel(
 		UObject& OwnerObject,
-		TAttribute<FObjectReplicationMap*> ReplicationMapAttribute,
-		TAttribute<const FConcertReplicationEditorSettings*> OptionalReplicationSettingsAttribute = {}
+		TAttribute<FObjectReplicationMap*> ReplicationMapAttribute
 		);
 	
 	struct FCreateSubobjectViewParams
@@ -98,6 +97,9 @@ namespace UE::ConcertClientSharedSlate
 		TAttribute<bool> IsEditingEnabled;
 		/** Optional. Whenever IsEditingEnabled returns true, this tooltip is displayed for relevant, disabled UI. */
 		TAttribute<FText> EditingDisabledToolTipText;
+
+		/** Optional settings for auto adding common properties and objects. */
+		TAttribute<const FConcertReplicationEditorSettings*> ReplicationSettingsAttribute;
 	};
 
 	/**
