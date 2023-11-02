@@ -4755,7 +4755,7 @@ void UnFbx::FFbxImporter::ImportMorphTargetsInternal( TArray<FbxNode*>& SkelMesh
 // Import Morph target
 void UnFbx::FFbxImporter::ImportFbxMorphTarget(TArray<FbxNode*> &SkelMeshNodeArray, USkeletalMesh* BaseSkelMesh, int32 LODIndex, FSkeletalMeshImportData &BaseSkeletalMeshImportData)
 {
-	if (!GetDefault<UPersonaOptions>()->IsAllowedClass(UMorphTarget::StaticClass()))
+	if (!CanImportClass(UMorphTarget::StaticClass()))
 	{
 		return;
 	}
