@@ -87,6 +87,9 @@ struct ANIMATIONWARPINGRUNTIME_API FAnimNode_OrientationWarping : public FAnimNo
 	bool bCounterCompenstateInterpolationByRootMotion = true;
 
 	UPROPERTY(EditAnywhere, Category=Experimental, meta=(PinHiddenByDefault))
+	bool bScaleByGlobalBlendWeight = false;
+
+	UPROPERTY(EditAnywhere, Category=Experimental, meta=(PinHiddenByDefault))
 	bool bUseManualRootMotionVelocity = false;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Experimental, meta=(PinHiddenByDefault))
@@ -169,6 +172,7 @@ private:
 
 	// Internal orientation warping angle
 	float ActualOrientationAngleRad = 0.f;
+	float BlendWeight = 0.0f;
 
 	FGraphTraversalCounter UpdateCounter;
 	bool bIsFirstUpdate = false;

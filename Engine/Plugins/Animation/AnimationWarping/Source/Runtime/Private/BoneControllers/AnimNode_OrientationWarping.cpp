@@ -103,6 +103,7 @@ void FAnimNode_OrientationWarping::UpdateInternal(const FAnimationUpdateContext&
 		Reset(Context);
 	}
 	UpdateCounter.SynchronizeWith(Context.AnimInstanceProxy->GetUpdateCounter());
+	BlendWeight = Context.GetFinalBlendWeight();
 }
 
 void FAnimNode_OrientationWarping::EvaluateSkeletalControl_AnyThread(FComponentSpacePoseContext& Output, TArray<FBoneTransform>& OutBoneTransforms)
@@ -277,6 +278,11 @@ void FAnimNode_OrientationWarping::EvaluateSkeletalControl_AnyThread(FComponentS
 
 	// Allow the alpha value of the node to affect the final rotation
 	ActualOrientationAngleRad *= ActualAlpha;
+
+	if (bScaleByGlobalBlendWeight)
+	{
+		ActualOrientationAngleRad *= BlendWeight;
+	}
 
 #if ENABLE_ANIM_DEBUG
 	bool bDebugging = false;
