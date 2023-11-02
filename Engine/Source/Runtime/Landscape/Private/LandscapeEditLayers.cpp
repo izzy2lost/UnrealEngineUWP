@@ -3538,6 +3538,28 @@ bool ALandscape::PrepareTextureResources(bool bInWaitForStreaming)
 	return bIsReady;
 }
 
+void ALandscape::DeleteUnusedLayers()
+{
+	ULandscapeInfo* LandscapeInfo = GetLandscapeInfo();
+
+	if (LandscapeInfo == nullptr)
+	{
+		return;
+	}
+
+	for (const TWeakObjectPtr<ALandscapeStreamingProxy>& Proxy : LandscapeInfo->StreamingProxies)
+	{
+		if (!Proxy.IsValid())
+		{
+			continue;
+		}
+
+		Proxy->DeleteUnusedLayers();
+	}
+
+	ALandscapeProxy::DeleteUnusedLayers();
+}
+
 // Note: this approach is generic, because FObjectCacheContextScope is a fast texture->material interface->primitive component lookup. 
 // If FObjectCacheContextScope was available at runtime, it could become an efficient way to automatically invalidate RVT areas corresponding to primitive components that use textures that are being streamed in:
 void ALandscape::InvalidateRVTForTextures(const TSet<UTexture2D*>& InTextures)
@@ -8762,6 +8784,66 @@ void ALandscapeProxy::UpdateCachedHasLayersContent(bool InCheckComponentDataInte
 		{
 			check((Component == nullptr) || (bHasLayersContent == Component->HasLayersData()));
 		}
+	}
+}
+
+namespace
+{
+	void DeleteUnusedLayersImpl(ULandscapeComponent* InComponent, const FGuid& InLayerGuid)
+	{
+		TArray<FWeightmapLayerAllocationInfo>& ComponentWeightmapLayerAllocations = InComponent->GetWeightmapLayerAllocations(InLayerGuid);
+
+		for (int32 LayerIdx = 0; LayerIdx < ComponentWeightmapLayerAllocations.Num();)
+		{
+			const FWeightmapLayerAllocationInfo& Allocation = ComponentWeightmapLayerAllocations[LayerIdx];
+			const TArray<TObjectPtr<UTexture2D>>& WeightmapTextures = InComponent->GetWeightmapTextures(InLayerGuid);
+			UTexture2D* Texture = WeightmapTextures[Allocation.WeightmapTextureIndex];
+
+			if (Texture == nullptr)
+			{
+				++LayerIdx;
+				continue;
+			}
+
+			const uint8* MipDataPtr = Texture->Source.LockMipReadOnly(0);
+
+			if (MipDataPtr == nullptr)
+			{
+				++LayerIdx;
+				continue;
+			}
+				
+			const uint8* const TextDataPtr = MipDataPtr + ChannelOffsets[Allocation.WeightmapTextureChannel];
+
+			constexpr bool bShouldDirtyPackage = true;
+
+			// If DeleteLayerIfAllZero returns true, We just removed the current layer allocation, so we need to iterate on the new current index.
+			if (!InComponent->DeleteLayerIfAllZero(InLayerGuid, TextDataPtr, Texture->GetSizeX(), LayerIdx, bShouldDirtyPackage))
+			{
+				++LayerIdx;
+			}
+
+			Texture->Source.UnlockMip(0);
+		}
+	}
+}
+
+void ALandscapeProxy::DeleteUnusedLayers()
+{
+	for (ULandscapeComponent* Component : LandscapeComponents)
+	{
+		if (Component == nullptr)
+		{
+			continue;
+		}
+
+		Component->ForEachLayer([Component](const FGuid& LayerGuid, FLandscapeLayerComponentData& LayerData)
+		{
+			DeleteUnusedLayersImpl(Component, LayerGuid);
+		});
+
+		// Execute ClearUnusedLayersImpl on the final Layer.
+		DeleteUnusedLayersImpl(Component, FGuid());
 	}
 }
 

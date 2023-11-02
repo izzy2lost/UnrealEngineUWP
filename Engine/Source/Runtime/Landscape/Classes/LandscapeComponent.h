@@ -830,6 +830,9 @@ public:
 	/** Recomputes the maximum discard distance across all grass types in the GrassTypes array. */
 	void UpdateGrassTypesMaxDiscardDistance();
 
+	/** Deletes a layer from this component if it does not contain data, calling DeleteLayerAllocation. */
+	bool DeleteLayerIfAllZero(const FGuid& InEditLayerGuid, const uint8* const TexDataPtr, int32 TexSize, int32 LayerIdx, bool bShouldDirtyPackage);
+
 	/** Deletes a material layer from the current edit layer on this component, removing all its data, adjusting other layer's weightmaps if necessary, etc. */
 	LANDSCAPE_API void DeleteLayer(ULandscapeLayerInfoObject* LayerInfo, FLandscapeEditDataInterface& LandscapeEdit);
 	

@@ -1390,6 +1390,13 @@ public:
 	LANDSCAPE_API virtual void UpdateCachedHasLayersContent(bool InCheckComponentDataIntegrity = false);
 
 	FAsyncWorkMonitor& GetAsyncWorkMonitor() { return AsyncWorkMonitor; }
+
+	/**
+	 * Delete all unused layers in components. Warning: any update of the component could re-introduce them.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Landscape")
+	LANDSCAPE_API virtual void DeleteUnusedLayers();
+
 protected:
 	friend class ALandscape;
 

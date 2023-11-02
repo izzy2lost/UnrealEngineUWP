@@ -403,6 +403,8 @@ public:
 	LANDSCAPE_API bool PrepareTextureResources(bool bInWaitForStreaming);
 
 	bool GetVisibilityLayerAllocationIndex() const { return 0; }
+	
+	LANDSCAPE_API virtual void DeleteUnusedLayers() override;
 
 protected:
 	FName GenerateUniqueLayerName(FName InName = NAME_None) const;
