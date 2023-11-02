@@ -18,6 +18,7 @@
 #include "Properties/MeshMaterialProperties.h"
 #include "Properties/RemeshProperties.h"
 #include "TransformTypes.h"
+#include "TransactionUtil.h"
 #include "Sculpting/MeshSculptToolBase.h"
 #include "Async/Async.h"
 #include "Util/UniqueIndexSet.h"
@@ -497,9 +498,8 @@ private:
 
 	FMeshVertexChangeBuilder* ActiveVertexChange = nullptr;
 	UE::Geometry::FDynamicMeshChangeTracker* ActiveMeshChange = nullptr;
-	bool bHasActivePlaceholderTransaction = false;
-	void OpenPlaceholderTransaction(FText Name);
-	void ClosePlaceholderTransaction();
+	UE::TransactionUtil::FLongTransactionTracker LongTransactions;
+	
 	void BeginChange(bool bIsVertexChange);
 	void EndChange();
 	void CancelChange();

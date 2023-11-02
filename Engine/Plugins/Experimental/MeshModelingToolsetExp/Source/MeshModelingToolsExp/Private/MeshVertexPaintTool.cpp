@@ -1842,6 +1842,7 @@ void UMeshVertexPaintTool::BeginChange()
 
 	ActiveChangeBuilder = MakeUnique<TIndexedValuesChangeBuilder<FVector4f, FMeshVertexColorPaintChange>>();
 	ActiveChangeBuilder->BeginNewChange();
+	LongTransactions.Open(LOCTEXT("VertexPaintChange", "Paint Stroke"), GetToolManager());
 }
 
 
@@ -1871,6 +1872,7 @@ void UMeshVertexPaintTool::EndChange()
 	};
 
 	GetToolManager()->EmitObjectChange(this, MoveTemp(NewChange), LOCTEXT("VertexPaintChange", "Paint Stroke"));
+	LongTransactions.Close(GetToolManager());
 }
 
 

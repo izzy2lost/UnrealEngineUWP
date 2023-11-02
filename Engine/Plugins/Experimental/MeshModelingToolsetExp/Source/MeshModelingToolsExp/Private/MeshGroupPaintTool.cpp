@@ -1350,6 +1350,7 @@ void UMeshGroupPaintTool::BeginChange()
 {
 	check(ActiveGroupEditBuilder == nullptr);
 	ActiveGroupEditBuilder = MakeUnique<FDynamicMeshGroupEditBuilder>(ActiveGroupSet.Get());
+	LongTransactions.Open(LOCTEXT("GroupPaintChange", "Group Stroke"), GetToolManager());
 }
 
 void UMeshGroupPaintTool::EndChange()
@@ -1367,6 +1368,7 @@ void UMeshGroupPaintTool::EndChange()
 	};
 
 	GetToolManager()->EmitObjectChange(DynamicMeshComponent, MoveTemp(NewChange), LOCTEXT("GroupPaintChange", "Group Stroke"));
+	LongTransactions.Close(GetToolManager());
 
 	// debug groups are invalid now
 	bDrawGroupsDataValid = false;

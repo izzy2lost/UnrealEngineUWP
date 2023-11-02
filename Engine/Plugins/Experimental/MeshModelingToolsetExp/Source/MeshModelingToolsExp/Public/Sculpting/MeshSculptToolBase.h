@@ -10,6 +10,7 @@
 #include "Properties/MeshMaterialProperties.h"
 #include "Changes/ValueWatcher.h"
 #include "Components/BaseDynamicMeshComponent.h"
+#include "TransactionUtil.h"
 #include "MeshSculptToolBase.generated.h"
 
 
@@ -599,5 +600,8 @@ protected:
 	virtual void UpdateFixedSculptPlanePosition(const FVector& Position);
 	virtual void UpdateFixedSculptPlaneRotation(const FQuat& Rotation);
 	virtual void UpdateFixedPlaneGizmoVisibility(bool bVisible);
+
+protected:
+	UE::TransactionUtil::FLongTransactionTracker LongTransactions;
 
 };

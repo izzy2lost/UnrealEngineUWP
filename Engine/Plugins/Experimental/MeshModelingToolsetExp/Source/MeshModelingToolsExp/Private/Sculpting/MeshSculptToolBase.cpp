@@ -211,6 +211,7 @@ void UMeshSculptToolBase::Shutdown(EToolShutdownType ShutdownType)
 		DynamicMeshComponent = nullptr;
 	}
 
+	LongTransactions.CloseAll(GetToolManager());
 }
 
 

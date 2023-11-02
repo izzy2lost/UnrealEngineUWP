@@ -1722,6 +1722,7 @@ void UClothEditorWeightMapPaintTool::BeginChange()
 	
 	ActiveWeightEditChangeTracker = MakeUnique<FDynamicMeshChangeTracker>(GetSculptMesh());
 	ActiveWeightEditChangeTracker->BeginChange();
+	LongTransactions.Open(LOCTEXT("WeightPaintChange", "Weight Stroke"), GetToolManager());
 }
 
 void UClothEditorWeightMapPaintTool::EndChange()
@@ -1744,6 +1745,7 @@ void UClothEditorWeightMapPaintTool::EndChange()
 	};
 
 	GetToolManager()->EmitObjectChange(DynamicMeshComponent, MoveTemp(NewChange), LOCTEXT("WeightPaintChange", "Weight Stroke"));
+	LongTransactions.Close(GetToolManager());
 }
 
 

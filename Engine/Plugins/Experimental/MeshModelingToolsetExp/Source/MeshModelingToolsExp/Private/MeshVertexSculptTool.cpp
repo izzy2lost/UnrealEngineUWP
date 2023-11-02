@@ -1361,6 +1361,7 @@ void UMeshVertexSculptTool::BeginChange()
 {
 	check(ActiveVertexChange == nullptr);
 	ActiveVertexChange = new FMeshVertexChangeBuilder();
+	LongTransactions.Open(LOCTEXT("VertexSculptChange", "Brush Stroke"), GetToolManager());
 }
 
 void UMeshVertexSculptTool::EndChange()
@@ -1374,7 +1375,6 @@ void UMeshVertexSculptTool::EndChange()
 		this->WaitForPendingUndoRedo();
 	};
 
-	GetToolManager()->BeginUndoTransaction(LOCTEXT("VertexSculptChange", "Brush Stroke"));
 	GetToolManager()->EmitObjectChange(DynamicMeshComponent, MoveTemp(NewChange), LOCTEXT("VertexSculptChange", "Brush Stroke"));
 	if (bMeshSymmetryIsValid && bApplySymmetry == false)
 	{
@@ -1383,7 +1383,7 @@ void UMeshVertexSculptTool::EndChange()
 		bMeshSymmetryIsValid = false;
 		SymmetryProperties->bSymmetryCanBeEnabled = bMeshSymmetryIsValid;
 	}
-	GetToolManager()->EndUndoTransaction();
+	LongTransactions.Close(GetToolManager());
 
 	delete ActiveVertexChange;
 	ActiveVertexChange = nullptr;

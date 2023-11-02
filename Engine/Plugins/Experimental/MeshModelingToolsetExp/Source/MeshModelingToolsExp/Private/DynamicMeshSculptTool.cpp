@@ -293,7 +293,7 @@ void UDynamicMeshSculptTool::Setup()
 
 void UDynamicMeshSculptTool::Shutdown(EToolShutdownType ShutdownType)
 {
-	ClosePlaceholderTransaction(); // End any placeholder transaction, which could arise from brush stroke actions
+	LongTransactions.CloseAll(GetToolManager());
 
 	if (ShutdownType == EToolShutdownType::Accept && AreAllTargetsValid() == false)
 	{
@@ -2421,7 +2421,7 @@ void UDynamicMeshSculptTool::BeginChange(bool bIsVertexChange)
 {
 	check(ActiveVertexChange == nullptr);
 	check(ActiveMeshChange == nullptr);
-	OpenPlaceholderTransaction(LOCTEXT("MeshSculptChange", "Brush Stroke")); // Create a placeholder change to prevent undo during the operation
+	LongTransactions.Open(LOCTEXT("MeshSculptChange", "Brush Stroke"), GetToolManager()); // Open brush stroke transaction to prevent undo during the operation
 	if (bIsVertexChange)
 	{
 		ActiveVertexChange = new FMeshVertexChangeBuilder();
@@ -2454,34 +2454,17 @@ void UDynamicMeshSculptTool::EndChange()
 		ActiveMeshChange = nullptr;
 	}
 
-	ClosePlaceholderTransaction();
+	LongTransactions.Close(GetToolManager());
 }
 
 void UDynamicMeshSculptTool::CancelChange()
 {
-	ClosePlaceholderTransaction();
+	LongTransactions.Close(GetToolManager());
 	delete ActiveVertexChange;
 	ActiveVertexChange = nullptr;
 	
 	delete ActiveMeshChange;
 	ActiveMeshChange = nullptr;
-}
-
-void UDynamicMeshSculptTool::OpenPlaceholderTransaction(FText Name)
-{
-	if (!bHasActivePlaceholderTransaction)
-	{
-		GetToolManager()->BeginUndoTransaction(Name);
-		bHasActivePlaceholderTransaction = true;
-	}
-}
-void UDynamicMeshSculptTool::ClosePlaceholderTransaction()
-{
-	if (bHasActivePlaceholderTransaction)
-	{
-		GetToolManager()->EndUndoTransaction();
-		bHasActivePlaceholderTransaction = false;
-	}
 }
 
 void UDynamicMeshSculptTool::SaveActiveROI()
