@@ -435,7 +435,7 @@ void BuildShadingCommands(FRDGBuilder& GraphBuilder, FScene& Scene, TArrayView<F
 			}
 
 			// Create Shader Bundle
-			if (!!GRHISupportsShaderBundleDispatch && ShadingCommands.MaxShadingBin > 0)
+			if (!!GRHISupportsShaderBundleDispatch && ShadingCommands.NumCommands > 0)
 			{
 				const uint32 NumRecords = ShadingCommands.MaxShadingBin + 1u;
 				ShadingCommands.ShaderBundle = RHICreateShaderBundle(NumRecords);
@@ -1140,7 +1140,7 @@ void DispatchBasePass(
 	);
 
 	const bool bSkipBarriers = GNaniteBarrierTest != 0;
-	const bool bBundleShading = !!GRHISupportsShaderBundleDispatch && GNaniteBundleShading != 0;
+	const bool bBundleShading = !!GRHISupportsShaderBundleDispatch && GNaniteBundleShading != 0 && ShaderBundle != nullptr;
 	const bool bBundleEmulation = bBundleShading && GNaniteBundleEmulation != 0;
 
 	auto ShadePassWork = []
@@ -1244,7 +1244,7 @@ void DispatchBasePass(
 			FRHIBatchedShaderParameters& BatchedParameters = RHICmdList.GetScratchShaderParameters();
 			check(!BatchedParameters.HasParameters());
 
-			if (bBundleShading && ShaderBundle.IsValid())
+			if (bBundleShading)
 			{
 				auto RecordDispatches = [&](FRHICommandDispatchShaderBundle& Command)
 				{
@@ -1423,7 +1423,7 @@ void DispatchBasePass(
 	}
 	else
 	{
-		if (bBundleShading && ShaderBundle.IsValid())
+		if (bBundleShading)
 		{
 			uint32 RecordDataBufferSize = 0u;
 			uint32 ExecutionBufferSize = 0u;
@@ -1454,7 +1454,7 @@ void DispatchBasePass(
 					ShadingPassParameters->ExecutionBuffer->MarkResourceAsUsed();
 				}
 
-			ShadePassWork(
+				ShadePassWork(
 					nullptr,
 					FUint32Vector4(
 						(uint32)ViewRect.Min.X,
