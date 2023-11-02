@@ -218,6 +218,24 @@ public:
 	/** Sets all viewports of the first found level editor to have the VisualizeBuffer ViewMode and also display a given buffer (BaseColor/Metallic/Roughness/etc.) **/
 	UFUNCTION(BlueprintCallable, Category = "Automation")
 	static void SetEditorViewportVisualizeBuffer(FName BufferName);
+
+	/**
+	 * Add info to currently running automated test.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Automation")
+	static void AddTestInfo(const FString& InLogItem);
+
+	/**
+	 * Add warning to currently running automated test.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Automation")
+	static void AddTestWarning(const FString& InLogItem);
+
+	/**
+	 * Add error to currently running automated test.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Automation")
+	static void AddTestError(const FString& InLogItem);
 };
 
 #if WITH_AUTOMATION_TESTS

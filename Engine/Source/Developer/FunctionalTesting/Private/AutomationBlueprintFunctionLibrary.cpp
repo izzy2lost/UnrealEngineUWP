@@ -1502,5 +1502,29 @@ void UAutomationBlueprintFunctionLibrary::SetEditorViewportVisualizeBuffer( FNam
 #endif
 }
 
+void UAutomationBlueprintFunctionLibrary::AddTestInfo(const FString& InLogItem)
+{
+	if (FAutomationTestBase* CurrentTest = FAutomationTestFramework::Get().GetCurrentTest())
+	{
+		CurrentTest->AddInfo(InLogItem);
+	}
+}
+
+void UAutomationBlueprintFunctionLibrary::AddTestWarning(const FString& InLogItem)
+{
+	if (FAutomationTestBase* CurrentTest = FAutomationTestFramework::Get().GetCurrentTest())
+	{
+		CurrentTest->AddWarning(InLogItem);
+	}
+}
+
+void UAutomationBlueprintFunctionLibrary::AddTestError(const FString& InLogItem)
+{
+	if (FAutomationTestBase* CurrentTest = FAutomationTestFramework::Get().GetCurrentTest())
+	{
+		CurrentTest->AddError(InLogItem);
+	}
+}
+
 #undef LOCTEXT_NAMESPACE
 
