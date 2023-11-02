@@ -3433,6 +3433,33 @@ bool ALandscape::GetUseGeneratedLandscapeSplineMeshesActors() const
 	return bUseGeneratedLandscapeSplineMeshesActors;
 }
 
+void ALandscape::EnableNaniteSkirts(bool bInEnable, float InSkirtDepth, bool bInShouldDirtyPackage)
+{
+	bNaniteSkirtEnabled = bInEnable;
+	NaniteSkirtDepth = InSkirtDepth;
+
+	InvalidateOrUpdateNaniteRepresentation(/*bInCheckContentId*/true, /*InTargetPlatform*/nullptr);
+	UpdateRenderingMethod();
+	MarkComponentsRenderStateDirty();
+	Modify(bInShouldDirtyPackage);
+	
+	if (ULandscapeInfo* LandscapeInfo = GetLandscapeInfo())
+	{
+		LandscapeInfo->ForEachLandscapeProxy([&](ALandscapeProxy* Proxy)
+		{
+			if (Proxy != nullptr)
+			{
+				Proxy->SynchronizeSharedProperties(this);
+				Proxy->InvalidateOrUpdateNaniteRepresentation(/*bInCheckContentId*/true, /*InTargetPlatform*/nullptr);
+				Proxy->UpdateRenderingMethod();
+				Proxy->MarkComponentsRenderStateDirty();
+				Proxy->Modify(bInShouldDirtyPackage);
+			}
+			return true;
+		});
+	}
+}
+
 void ALandscapeProxy::OnFeatureLevelChanged(ERHIFeatureLevel::Type NewFeatureLevel)
 {
 	FlushGrassComponents();

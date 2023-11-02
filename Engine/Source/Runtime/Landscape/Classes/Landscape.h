@@ -406,6 +406,8 @@ public:
 	
 	LANDSCAPE_API virtual void DeleteUnusedLayers() override;
 
+	LANDSCAPE_API void EnableNaniteSkirts(bool bInEnable, float InSkirtDepth, bool bInShouldDirtyPackage);
+
 protected:
 	FName GenerateUniqueLayerName(FName InName = NAME_None) const;
 
