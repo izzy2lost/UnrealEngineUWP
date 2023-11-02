@@ -846,7 +846,7 @@ void UDeviceProfileManager::DeleteProfile( UDeviceProfile* Profile )
 }
 
 
-UDeviceProfile* UDeviceProfileManager::FindProfile( const FString& ProfileName, bool bCreateProfileOnFail )
+UDeviceProfile* UDeviceProfileManager::FindProfile(const FString& ProfileName, bool bCreateProfileOnFail, FName OptionalPlatformName)
 {
 	UDeviceProfile* FoundProfile = nullptr;
 
@@ -862,7 +862,8 @@ UDeviceProfile* UDeviceProfileManager::FindProfile( const FString& ProfileName, 
 
 	if ( bCreateProfileOnFail && FoundProfile == nullptr )
 	{
-		FoundProfile = CreateProfile(ProfileName, FPlatformProperties::IniPlatformName());
+		FString PlatformName = OptionalPlatformName != NAME_None ? OptionalPlatformName.ToString() : FString(FPlatformProperties::IniPlatformName());
+		FoundProfile = CreateProfile(ProfileName, PlatformName);
 	}
 	return FoundProfile;
 }

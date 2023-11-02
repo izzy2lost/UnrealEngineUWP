@@ -104,9 +104,11 @@ public:
 	 * Find a profile based on the name.
 	 *
 	 * @param ProfileName - The profile name to find.
+	 * @param bCreateProfileOnFail - Whether to create the profile from config if the object doesn't exist yet.
+	 * @param OptionalPlatformName - The platform name to use for loading.
 	 * @return The found profile.
 	 */
-	ENGINE_API UDeviceProfile* FindProfile( const FString& ProfileName, bool bCreateProfileOnFail = true );
+	ENGINE_API UDeviceProfile* FindProfile(const FString& ProfileName, bool bCreateProfileOnFail = true, FName OptionalPlatformName = FName());
 
 	/**
 	* Overrides the device profile. The original profile can be restored with RestoreDefaultDeviceProfile

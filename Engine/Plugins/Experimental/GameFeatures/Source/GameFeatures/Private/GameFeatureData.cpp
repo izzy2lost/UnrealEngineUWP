@@ -182,6 +182,8 @@ void UGameFeatureData::InitializeHierarchicalPluginIniFiles(const FString& Plugi
 	{
 		TMap<FString, FConfigSection> ConfigSectionsToAdd;
 
+		TArray<FString> ResultingProfiles;
+
 		for (auto& Section : AsConst(PluginConfig))
 		{
 			FString RuleName, ParentClass;
@@ -251,7 +253,7 @@ void UGameFeatureData::InitializeHierarchicalPluginIniFiles(const FString& Plugi
 						TArray<FString> LoadableProfileNames = DeviceProfileManager.GetLoadableProfileNames(*PlatformName);
 						for (const FString& ProfileName : LoadableProfileNames)
 						{
-							DeviceProfileManager.FindProfile(ProfileName, true);
+							DeviceProfileManager.FindProfile(ProfileName, true, *PlatformName);
 						}
 
 						for (const UDeviceProfile* Profile : DeviceProfileManager.Profiles)
@@ -268,9 +270,19 @@ void UGameFeatureData::InitializeHierarchicalPluginIniFiles(const FString& Plugi
 							// Create the config for a runtime profile
 							if (bProfileHasCompatibleParent && !Profile->GetName().EndsWith(ProfileSuffix->GetValue()))
 							{
+								// Ignore duplicates: only the first match in a given config file will be accepted
+								const FString FinalProfileName = Profile->GetName() + ProfileSuffix->GetValue();
+								if (ResultingProfiles.Contains(FinalProfileName))
+								{
+									UE_LOG(LogGameFeatures, Display, TEXT("Ignoring profile %s that has already been overriden as %s"), *Profile->GetName(), *FinalProfileName);
+									continue;
+								}
+
 								FConfigSection RuntimeProfile;
 								RuntimeProfile.Add("DeviceType", PlatformName);
 								RuntimeProfile.Add("BaseProfileName", FConfigValue(Profile->GetName()));
+
+								UE_LOG(LogGameFeatures, Display, TEXT("Creating override for base profile %s"), *Profile->GetName());
 
 								// Inject the parent's matched fragments into the config, if any
 								if (Profile->GetName().Contains("MatchedFragments"))
@@ -322,7 +334,8 @@ void UGameFeatureData::InitializeHierarchicalPluginIniFiles(const FString& Plugi
 									}
 								}
 
-								ConfigSectionsToAdd.Add(Profile->GetName() + ProfileSuffix->GetValue() + TEXT(" ") + UDeviceProfile::StaticClass()->GetName(), RuntimeProfile);
+								ConfigSectionsToAdd.Add(FinalProfileName + TEXT(" ") + UDeviceProfile::StaticClass()->GetName(), RuntimeProfile);
+								ResultingProfiles.Add(FinalProfileName);
 							}
 						}
 					}
@@ -384,7 +397,7 @@ void UGameFeatureData::InitializeHierarchicalPluginIniFiles(const FString& Plugi
 				if (DeviceType)
 				{
 					UE_LOG(LogGameFeatures, Display, TEXT("Game feature '%s' adding new device profile %s"), *PluginName, *ProfileName);
-					DeviceProfileManager.CreateProfile(ProfileName, DeviceType->GetValue());
+					DeviceProfileManager.CreateProfile(ProfileName, DeviceType->GetValue(), FString(), *PlatformName);
 				}
 			}
 		}
