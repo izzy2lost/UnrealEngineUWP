@@ -28,6 +28,10 @@
 // CVars
 //
 
+// Jira to remove: PLAY-21231
+bool bBuoyancyCallbackDataEnabled = true;
+FAutoConsoleVariableRef CVarBuoyancyCallbackDataEnabled(TEXT("p.Buoyancy.CallbackData.Enabled"), bBuoyancyCallbackDataEnabled, TEXT(""));
+
 #if ENABLE_DRAW_DEBUG
 bool bBuoyancyDebugDraw = false;
 FAutoConsoleVariableRef CVarBuoyancyDebugDraw(TEXT("p.Buoyancy.DebugDraw"), bBuoyancyDebugDraw, TEXT(""));
@@ -90,32 +94,55 @@ bool UBuoyancySubsystem::SetEnabledWithUpdatedNetModeCallback(const bool bEnable
 
 void UBuoyancySubsystem::CreateSimCallback()
 {
+	// Sometimes in PIE, sim callbacks have not been freed at this point.
+	// I think it is an issue with world ticking subsystem Deinitialize().
+	DestroySimCallback();
+
 	// Create sim callback
 	if (Chaos::FPhysicsSolver* Solver = GetSolver())
 	{
 		// Create the callback for keeping spline data in sync
+		ensureAlwaysMsgf(SplineData == nullptr, TEXT("UBuoyancySubsystem::CreateSimCallback: Creating new FBuoyancyWaterSplineDataManager before releasing previous SplineData"));
 		SplineData = Solver->CreateAndRegisterSimCallbackObject_External<FBuoyancyWaterSplineDataManager>();
 
 		// Create the main buoyancy sim callback
+		ensureAlwaysMsgf(SimCallback == nullptr, TEXT("UBuoyancySubsystem::CreateSimCallback: Creating new FBuoyancySubsystemSimCallback before releasing previous SimCallback"));
 		SimCallback = Solver->CreateAndRegisterSimCallbackObject_External<FBuoyancySubsystemSimCallback>();
 
 		// Give the buoyancy sim callback a reference to the spline data callback,
 		// so that it'll have access to per-particle spline data
-		if (FBuoyancySubsystemSimCallbackInput* AsyncInput = SimCallback->GetProducerInputData_External())
+		if (ensureAlwaysMsgf(SimCallback != nullptr && SplineData != nullptr, TEXT("Either SimCallback or SplineData were not properly initialized in UBuoyancySubsystem::CreateSimCallback!")))
 		{
-			AsyncInput->SplineData = SplineData;
+			if (FBuoyancySubsystemSimCallbackInput* AsyncInput = SimCallback->GetProducerInputData_External())
+			{
+				AsyncInput->SplineData = SplineData;
+			}
 		}
+
+		// Populate an initial async input so that the sim callbacks have the most up-to-date info
+		UpdateAllAsyncInputs();
 	}
 }
 
 void UBuoyancySubsystem::DestroySimCallback()
 {
+	// Destroy the main sim callback for buoyancy
 	if (SimCallback)
 	{
 		if (Chaos::FPhysicsSolverBase* Solver = SimCallback->GetSolver())
 		{
 			Solver->UnregisterAndFreeSimCallbackObject_External(SimCallback);
 			SimCallback = nullptr;
+		}
+	}
+
+	// Destroy the sim callback for keeping spline data in sync
+	if (SplineData)
+	{
+		if (Chaos::FPhysicsSolverBase* Solver = SplineData->GetSolver())
+		{
+			Solver->UnregisterAndFreeSimCallbackObject_External(SplineData);
+			SplineData = nullptr;
 		}
 	}
 }
@@ -127,8 +154,6 @@ void UBuoyancySubsystem::PostInitialize()
 	// Apply initial runtime settings
 	ApplyRuntimeSettings(GetDefault<UBuoyancyRuntimeSettings>(), EPropertyChangeType::ValueSet);
 
-	// Set initial net mode based on current world state
-	UpdateNetMode();
 
 	// Setup callback for when waterbodies are added/removed
 	if (FWaterBodyManager* WaterBodyManager = UWaterSubsystem::GetWaterBodyManager(GetWorld()))
@@ -198,6 +223,12 @@ void UBuoyancySubsystem::Tick(float DeltaTime)
 
 	Super::Tick(DeltaTime);
 
+	UWorld* World = GetWorld();
+	if (World == nullptr)
+	{
+		return;
+	}
+
 	if (SimCallback == nullptr)
 	{
 		return;
@@ -215,6 +246,12 @@ void UBuoyancySubsystem::Tick(float DeltaTime)
 		UpdateBuoyancySettings();
 	}
 
+	if (NetMode != World->GetNetMode())
+	{
+		NetMode = World->GetNetMode();
+		UpdateNetMode();
+	}
+
 	// Process surface-touched callbacks
 	if (BuoyancySettings.SurfaceTouchCallbackFlags != 0)
 	{
@@ -222,20 +259,21 @@ void UBuoyancySubsystem::Tick(float DeltaTime)
 	}
 }
 
+void UBuoyancySubsystem::UpdateAllAsyncInputs()
+{
+	UpdateNetMode();
+	UpdateSplineData();
+	UpdateBuoyancySettings();
+}
+
 void UBuoyancySubsystem::UpdateNetMode()
 {
-	// Get the netmode from the world. If it's different
-	// than the one we previously stored, send it to PT
-	const ENetMode PrevNetMode = NetMode;
-	NetMode = GetWorld()->GetNetMode();
-	if (NetMode != PrevNetMode)
+	// Send net mode to PT
+	if (SimCallback)
 	{
-		if (SimCallback)
+		if (FBuoyancySubsystemSimCallbackInput* AsyncInput = SimCallback->GetProducerInputData_External())
 		{
-			if (FBuoyancySubsystemSimCallbackInput* AsyncInput = SimCallback->GetProducerInputData_External())
-			{
-				AsyncInput->NetMode = NetMode;
-			}
+			AsyncInput->NetMode = NetMode;
 		}
 	}
 }
@@ -299,10 +337,13 @@ void UBuoyancySubsystem::UpdateBuoyancySettings()
 {
 	SCOPE_CYCLE_COUNTER(STAT_BuoyancySubsystem_UpdateBuoyancySettings)
 
-	if (FBuoyancySubsystemSimCallbackInput* AsyncInput = SimCallback->GetProducerInputData_External())
+	if (SimCallback)
 	{
-		bBuoyancySettingsChanged = false;
-		AsyncInput->BuoyancySettings = MakeUnique<FBuoyancySettings>(BuoyancySettings);
+		if (FBuoyancySubsystemSimCallbackInput* AsyncInput = SimCallback->GetProducerInputData_External())
+		{
+			bBuoyancySettingsChanged = false;
+			AsyncInput->BuoyancySettings = MakeUnique<FBuoyancySettings>(BuoyancySettings);
+		}
 	}
 }
 
@@ -447,6 +488,19 @@ void FBuoyancySubsystemSimCallback::OnPreSimulate_Internal()
 
 			// New spline data means we need to reset our spline key cache
 			SplineKeyCache.Reset();
+
+			// New spline data also means that any internal storage of water particles
+			// might be out of date. Clear all data that potentially contains references
+			// to old water particles.
+			//
+			// NOTE: This may cause new-submersion events to trigger on already submerged
+			// objects when water splines are added/removed, depending on velocity-
+			// filtering options. It might be desirable to instead add a mechanism to
+			// suppress events for one frame instead, or to remove only the data which
+			// relate to water particles which have been removed.
+			Interactions.Reset();
+			SubmersionMetaData.Reset();
+			PrevSubmersionMetaData.Reset();
 		}
 
 		if (Input->BuoyancySettings.IsValid())
@@ -922,6 +976,11 @@ void FBuoyancySubsystemSimCallback::ApplyBuoyantForces(Chaos::FPBDRigidsEvolutio
 
 void FBuoyancySubsystemSimCallback::GenerateCallbackData()
 {
+	if (bBuoyancyCallbackDataEnabled == false)
+	{
+		return;
+	}
+
 	// Generate callback data if we're into that sort of thing
 	const uint8 CallbackFlags = BuoyancySettings->SurfaceTouchCallbackFlags;
 	if (CallbackFlags != 0)

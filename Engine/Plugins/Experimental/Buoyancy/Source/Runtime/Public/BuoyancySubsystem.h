@@ -122,11 +122,11 @@ private:
 	void CreateSimCallback();
 	void DestroySimCallback();
 
+	// Self explanatory function name :D
+	void UpdateAllAsyncInputs();
+
 	// Get netmode from world and send it to PT
 	void UpdateNetMode();
-
-	// Get the waterbodymanager pointer from the water subsystem
-	void UpdateWaterBodyManager();
 
 	// Update PT spline data structs for each waterbody in the map
 	void UpdateSplineData();
@@ -255,7 +255,7 @@ private:
 
 	// Reference to UserDataPT sim callback which manages synchronization of
 	// water spline data
-	FBuoyancyWaterSplineDataManager* SplineData;
+	FBuoyancyWaterSplineDataManager* SplineData = nullptr;
 
 	// Initially we won't have any settings - they have to get passed down
 	// via async input. I used TUniquePtr to control access to the same
