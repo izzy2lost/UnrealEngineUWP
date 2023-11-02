@@ -6,6 +6,8 @@
 #include "UnsyncHash.h"
 #include "UnsyncProtocol.h"
 
+#include <map>
+
 namespace unsync {
 
 struct FComputeBlocksParams;
@@ -59,7 +61,7 @@ struct FDirectoryManifest
 
 	// wide string at runtime, utf8 serialized
 	// TODO: keep paths in canonical form (utf-8, unix-style separators)
-	using FFileMap = std::unordered_map<std::wstring, FFileManifest>;
+	using FFileMap = std::map<std::wstring, FFileManifest>; // regular map to keep files in a deterministic order
 	FFileMap Files;
 
 	// runtime data
@@ -91,11 +93,9 @@ void				   LogManifestFiles(ELogLevel LogLevel, const FDirectoryManifestInfo& In
 // Files are processed in sorted order, with file names treated as utf-8.
 // This produces a relatively stable manifest key that does not depend on the serialization differences between versions.
 FHash256 ComputeManifestStableSignature(const FDirectoryManifest& Manifest);
-FHash160 ComputeManifestStableSignature160(const FDirectoryManifest& Manifest);
 
 // Computes a Blake3 hash of the serialized manifest data
 FHash256 ComputeSerializedManifestHash(const FDirectoryManifest& Manifest);
-FHash160 ComputeSerializedManifestHash160(const FDirectoryManifest& Manifest);
 
 void			   UpdateDirectoryManifestBlocks(FDirectoryManifest& Result, const FPath& Root, const FComputeBlocksParams& Params);
 FDirectoryManifest CreateDirectoryManifest(const FPath& Root, const FComputeBlocksParams& Params);

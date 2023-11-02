@@ -78,6 +78,7 @@ InnerMain(int Argc, char** Argv)
 	std::vector<std::string> QueryArgsUtf8;
 	std::string				 ScavengeRootUtf8;
 	std::string				 P4HavePathUtf8;
+	std::string				 StorePathUtf8;
 	bool					 bForceOperation	 = false;
 	bool					 bAllowInsecureTls	 = false;
 	bool					 bUseTls			 = false;
@@ -157,6 +158,9 @@ InnerMain(int Argc, char** Argv)
 	CLI::App* SubPack = Cli.add_subcommand("pack", "EXPERIMENTAL: Generate manifest for a directory and store all referenced data in a compressed pack file");
 	SubPack->add_option("Input", InputFilenameUtf8, "Input directory path")->required();
 	SubPack->add_option("--p4havefile", P4HavePathUtf8, "Use `p4 have` output from a given file to explicitly specify files included in the manifest");
+	SubPack->add_option("--store",
+						StorePathUtf8,
+						"Use this location to store pack data (default: <Input>/.unsync/pack)");
 	SubCommands.push_back(SubPack);
 
 	// Configure push
@@ -765,6 +769,7 @@ InnerMain(int Argc, char** Argv)
 
 		PackOptions.RootPath	 = InputFilename;
 		PackOptions.P4HavePath	 = NormalizeFilenameUtf8(P4HavePathUtf8);
+		PackOptions.StorePath	 = NormalizeFilenameUtf8(StorePathUtf8);
 		PackOptions.BlockSize	 = HashOrSyncBlockSize;
 		PackOptions.Algorithm	 = Algorithm;
 

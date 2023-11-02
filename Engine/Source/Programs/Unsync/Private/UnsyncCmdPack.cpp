@@ -203,7 +203,8 @@ CmdPack(const FCmdPackOptions& Options)
 
 	const FPath InputRoot	 = Options.RootPath;
 	const FPath ManifestRoot = InputRoot / ".unsync";
-	const FPath PackRoot	 = ManifestRoot / "pack";  // TODO: override this via command line
+	const FPath StoreRoot	 = Options.StorePath.empty() ? ManifestRoot : Options.StorePath;
+	const FPath PackRoot	 = StoreRoot / "pack";
 
 	UNSYNC_LOG(L"Generating package for directory '%ls'", InputRoot.wstring().c_str());
 	UNSYNC_LOG_INDENT;
@@ -458,7 +459,7 @@ CmdPack(const FCmdPackOptions& Options)
 		FHash128 ManifestBlocksBufferHash = HashBlake3Bytes<FHash128>(ManifestBlocksBuffer.Data, ManifestBlocksBuffer.Size);
 
 		std::string SnapshotId	 = HashToHexString(ManifestBlocksBufferHash);  // TODO: allow overriding this from command line
-		FPath		SnapshotPath = ManifestRoot / (SnapshotId + ".unsync_snapshot");
+		FPath		SnapshotPath = StoreRoot / (SnapshotId + ".unsync_snapshot");
 
 		UNSYNC_LOG(L"Writing snapshot: %hs", SnapshotId.c_str());
 

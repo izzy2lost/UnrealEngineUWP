@@ -624,6 +624,20 @@ WriteSection(FVectorStreamOut& Stream, FBufferView SectionData)
 }
 
 bool
+ManifestHasMacroBlocks(const FDirectoryManifest& Manifest)
+{
+	// TODO: store the macro block count in the manifest runtime data
+	for (const auto& FileIt : Manifest.Files)
+	{
+		if (!FileIt.second.MacroBlocks.empty())
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+bool
 SaveDirectoryManifest(const FDirectoryManifest& Manifest, FVectorStreamOut& Stream)
 {
 	// TODO: use compact binary to store the manifest
@@ -658,8 +672,8 @@ SaveDirectoryManifest(const FDirectoryManifest& Manifest, FVectorStreamOut& Stre
 		WriteSection(Stream, Section);
 	}
 
+	if (ManifestHasMacroBlocks(Manifest))
 	{
-		// TODO: only save macro block section if it's valid
 		FBuffer SectionBuffer = SaveMacroBlocks(Manifest);
 		WriteSection<FMacroBlockSection>(Stream, SectionBuffer.View());
 	}

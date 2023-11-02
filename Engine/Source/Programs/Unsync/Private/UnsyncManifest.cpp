@@ -139,29 +139,15 @@ ComputeManifestStableSignature(const FDirectoryManifest& Manifest)
 	UpdateHashT(Hasher, Manifest.Algorithm.WeakHashAlgorithmId);
 	UpdateHashT(Hasher, Manifest.Algorithm.StrongHashAlgorithmId);
 
-	std::vector<std::wstring_view> SortedFiles;
-	SortedFiles.reserve(Manifest.Files.size());
-
-	for (const auto& It : Manifest.Files)
-	{
-		const std::wstring& FileName = It.first;
-		SortedFiles.push_back(FileName);
-	}
-
-	std::sort(SortedFiles.begin(), SortedFiles.end());
-
 	std::string	 FileNameUtf8;
-	std::wstring FileName;
-	for (const std::wstring_view& FileNameView : SortedFiles)
+	for (const auto& FileIt : Manifest.Files)
 	{
-		FileName.clear();
-		FileName.append(FileNameView);
+		const std::wstring& FileName = FileIt.first;
+		const FFileManifest& FileManifest = FileIt.second;
 
 		// Canonical unsync file paths are utf8 with unix-style separator `/`
 		ConvertWideToUtf8(FileName, FileNameUtf8);
 		std::replace(FileNameUtf8.begin(), FileNameUtf8.end(), '\\', '/');
-
-		const FFileManifest& FileManifest = Manifest.Files.at(FileName);  // TODO: heterogeneous map
 
 		blake3_hasher_update(&Hasher, FileNameUtf8.c_str(), FileNameUtf8.length());
 
@@ -177,12 +163,6 @@ ComputeManifestStableSignature(const FDirectoryManifest& Manifest)
 	blake3_hasher_finalize(&Hasher, Result.Data, sizeof(Result.Data));
 
 	return Result;
-}
-
-FHash160
-ComputeManifestStableSignature160(const FDirectoryManifest& Manifest)
-{
-	return ToHash160(ComputeManifestStableSignature(Manifest));
 }
 
 void

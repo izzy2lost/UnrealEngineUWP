@@ -9,8 +9,9 @@ namespace unsync {
 
 struct FCmdPackOptions
 {
-	FPath RootPath;
-	FPath P4HavePath; // optional
+	FPath			  RootPath;
+	FPath			  P4HavePath;  // optional
+	FPath			  StorePath;   // optional
 	uint32			  BlockSize = uint32(64_KB);
 	FAlgorithmOptions Algorithm;
 };
