@@ -25,6 +25,12 @@ static TAutoConsoleVariable<int32> CVarVTStreamingMips(
 	}),
 	ECVF_Default);
 
+static TAutoConsoleVariable<int32> CVarDirtyPagesKeptMappedFrames(
+	TEXT("r.VT.RVT.DirtyPagesKeptMappedFrames"),
+	8,
+	TEXT("When invalidating RVT pages, we keep them mapped if they gave feedback in the last N frames."),
+	ECVF_RenderThreadSafe);
+
 int32 FRuntimeVirtualTextureSceneProxy::ProducerIdGenerator = 1;
 
 FRuntimeVirtualTextureSceneProxy::FRuntimeVirtualTextureSceneProxy(URuntimeVirtualTextureComponent* InComponent)
@@ -186,6 +192,10 @@ void FRuntimeVirtualTextureSceneProxy::FlushDirtyPages()
 		// Don't do any work if we won't mark anything dirty.
 		if (MaxDirtyLevel >= 0 && CombinedDirtyRect.Width() != 0 && CombinedDirtyRect.Height() != 0)
 		{
+			// Keeping visible pages mapped reduces update flicker due to the latency in the unmap/feedback/map sequence.
+			// But it potentially creates more page update work since more pages may get updated.
+			const uint32 MaxAgeToKeepMapped = CVarDirtyPagesKeptMappedFrames.GetValueOnRenderThread();
+
 			//todo[vt]: 
 			// Profile to work out best heuristic for when we should use the CombinedDirtyRect
 			// Also consider using some other structure to represent dirty area such as a course 2D bitfield
@@ -193,13 +203,13 @@ void FRuntimeVirtualTextureSceneProxy::FlushDirtyPages()
 
 			if (bCombinedFlush)
 			{
-				FVirtualTextureSystem::Get().FlushCache(ProducerHandle, SpaceID, CombinedDirtyRect, MaxDirtyLevel);
+				FVirtualTextureSystem::Get().FlushCache(ProducerHandle, SpaceID, CombinedDirtyRect, MaxDirtyLevel, MaxAgeToKeepMapped);
 			}
 			else
 			{
 				for (FIntRect Rect : DirtyRects)
 				{
-					FVirtualTextureSystem::Get().FlushCache(ProducerHandle, SpaceID, Rect, MaxDirtyLevel);
+					FVirtualTextureSystem::Get().FlushCache(ProducerHandle, SpaceID, Rect, MaxDirtyLevel, MaxAgeToKeepMapped);
 				}
 			}
 		}

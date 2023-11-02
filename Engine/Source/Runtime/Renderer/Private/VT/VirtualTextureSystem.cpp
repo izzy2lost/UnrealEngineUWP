@@ -396,7 +396,7 @@ void FVirtualTextureSystem::FlushCache()
 	bFlushCaches = true;
 }
 
-void FVirtualTextureSystem::FlushCache(FVirtualTextureProducerHandle const& ProducerHandle, int32 SpaceID, FIntRect const& TextureRegion, uint32 MaxLevel)
+void FVirtualTextureSystem::FlushCache(FVirtualTextureProducerHandle const& ProducerHandle, int32 SpaceID, FIntRect const& TextureRegion, uint32 MaxLevelToEvict, uint32 MaxAgeToKeepMapped)
 {
 	check(!bUpdating);
 	UE::TScopeLock Lock(Mutex);
@@ -417,11 +417,13 @@ void FVirtualTextureSystem::FlushCache(FVirtualTextureProducerHandle const& Prod
 
 		check(TransientCollectedPages.Num() == 0);
 
+		const uint32 MinFrameToKeepMapped = Frame > MaxAgeToKeepMapped ? Frame - MaxAgeToKeepMapped : 0;
+
 		// If this is an Adaptive VT we need to collect all of the associated Producers to flush.
 		TArray<FAdaptiveVirtualTexture::FProducerInfo> ProducerInfos;
 		if (AdaptiveVTs[SpaceID] != nullptr)
 		{
-			AdaptiveVTs[SpaceID]->GetProducers(TextureRegion, MaxLevel, ProducerInfos);
+			AdaptiveVTs[SpaceID]->GetProducers(TextureRegion, MaxLevelToEvict, ProducerInfos);
 		}
 
 		for (int32 i = 0; i < PhysicalSpacesForProducer.Num(); ++i)
@@ -433,13 +435,13 @@ void FVirtualTextureSystem::FlushCache(FVirtualTextureProducerHandle const& Prod
 				// Adaptive VT flushes.
 				for (FAdaptiveVirtualTexture::FProducerInfo& Info : ProducerInfos)
 				{
-					Pool.EvictPages(this, Info.ProducerHandle, ProducerDescription, Info.RemappedTextureRegion, Info.RemappedMaxLevel, TransientCollectedPages);
+					Pool.EvictPages(this, Info.ProducerHandle, ProducerDescription, Info.RemappedTextureRegion, Info.RemappedMaxLevel, MinFrameToKeepMapped, TransientCollectedPages);
 				}
 			}
 			else
 			{
 				// Regular flush.
-				Pool.EvictPages(this, ProducerHandle, ProducerDescription, TextureRegion, MaxLevel, TransientCollectedPages);
+				Pool.EvictPages(this, ProducerHandle, ProducerDescription, TextureRegion, MaxLevelToEvict, MinFrameToKeepMapped, TransientCollectedPages);
 			}
 		}
 
@@ -1932,10 +1934,11 @@ void FVirtualTextureSystem::UpdateResidencyTracking() const
 	}
 }
 
-void FVirtualTextureSystem::SubmitRequestsFromLocalTileList(FRHICommandList& RHICmdList, TArray<FVirtualTextureLocalTile>& OutDeferredTiles, const TSet<FVirtualTextureLocalTile>& LocalTileList, EVTProducePageFlags Flags, ERHIFeatureLevel::Type FeatureLevel)
+void FVirtualTextureSystem::SubmitRequestsFromLocalTileList(FRHICommandList& RHICmdList, TArray<FVirtualTextureLocalTile>& OutDeferredTiles, const TSet<FVirtualTextureLocalTile>& LocalTileList, EVTProducePageFlags Flags, ERHIFeatureLevel::Type FeatureLevel, uint32 MaxRequestsToProduce)
 {
 	LLM_SCOPE(ELLMTag::VirtualTextureSystem);
 
+	uint32 NumPagesProduced = 0;
 	for (const FVirtualTextureLocalTile& Tile : LocalTileList)
 	{
 		const FVirtualTextureProducerHandle ProducerHandle = Tile.GetProducerHandle();
@@ -1980,6 +1983,13 @@ void FVirtualTextureSystem::SubmitRequestsFromLocalTileList(FRHICommandList& RHI
 			continue;
 		}
 
+		if (MaxRequestsToProduce > 0 && NumPagesProduced >= MaxRequestsToProduce)
+		{
+			// Keep the request for the next frame?
+			OutDeferredTiles.Add(Tile);
+			continue;
+		}
+
 		FVTRequestPageResult RequestPageResult = Producer->GetVirtualTexture()->RequestPageData(
 			RHICmdList, ProducerHandle, LayerMask, Tile.Local_vLevel, Tile.Local_vAddress, EVTRequestPagePriority::High);
 
@@ -2002,16 +2012,18 @@ void FVirtualTextureSystem::SubmitRequestsFromLocalTileList(FRHICommandList& RHI
 			// Add the finalizer here but note that we don't call Finalize until SubmitRequests()
 			Finalizers.AddUnique(VTFinalizer);
 		}
+
+		NumPagesProduced++;
 	}
 }
 
-void FVirtualTextureSystem::SubmitPreMappedRequests(FRHICommandList& RHICmdList, ERHIFeatureLevel::Type FeatureLevel)
+void FVirtualTextureSystem::SubmitPreMappedRequests(FRHICommandList& RHICmdList, ERHIFeatureLevel::Type FeatureLevel, uint32 MaxMappedTilesToProduce)
 {
 	check(TransientCollectedPages.Num() == 0);
 
 	{
 		INC_DWORD_STAT_BY(STAT_NumMappedPageUpdate, MappedTilesToProduce.Num());
-		SubmitRequestsFromLocalTileList(RHICmdList, TransientCollectedPages, MappedTilesToProduce, EVTProducePageFlags::None, FeatureLevel);
+		SubmitRequestsFromLocalTileList(RHICmdList, TransientCollectedPages, MappedTilesToProduce, EVTProducePageFlags::None, FeatureLevel, MaxMappedTilesToProduce);
 		MappedTilesToProduce.Reset();
 		MappedTilesToProduce.Append(TransientCollectedPages);
 		TransientCollectedPages.Reset();
@@ -2019,7 +2031,7 @@ void FVirtualTextureSystem::SubmitPreMappedRequests(FRHICommandList& RHICmdList,
 
 	{
 		INC_DWORD_STAT_BY(STAT_NumContinuousPageUpdate, ContinuousUpdateTilesToProduce.Num());
-		SubmitRequestsFromLocalTileList(RHICmdList, TransientCollectedPages, ContinuousUpdateTilesToProduce, EVTProducePageFlags::ContinuousUpdate, FeatureLevel);
+		SubmitRequestsFromLocalTileList(RHICmdList, TransientCollectedPages, ContinuousUpdateTilesToProduce, EVTProducePageFlags::ContinuousUpdate, FeatureLevel, 0);
 		ContinuousUpdateTilesToProduce.Reset();
 		TransientCollectedPages.Reset();
 	}
@@ -2076,7 +2088,7 @@ void FVirtualTextureSystem::SubmitThrottledRequests(FRHICommandList& RHICmdList,
 	Updater->NumProcessedLoadRequests += MergedRequestList->GetNumLoadRequests();
 
 	// Submit the requests to produce pages that are already mapped
-	SubmitPreMappedRequests(RHICmdList, FeatureLevel);
+	SubmitPreMappedRequests(RHICmdList, FeatureLevel, Settings.MaxRVTPageUploads);
 
 	// Submit the merged requests
 	SubmitRequests(RHICmdList, FeatureLevel, Allocator, Settings, MergedRequestList, true);
