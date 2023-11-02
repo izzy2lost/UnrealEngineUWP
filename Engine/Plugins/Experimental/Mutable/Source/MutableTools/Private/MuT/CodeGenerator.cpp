@@ -2076,50 +2076,77 @@ namespace mu
 
 	//---------------------------------------------------------------------------------------------
 	void CodeGenerator::GetModifiersFor(
-		const TArray<FString>& tags,
-		int LOD, bool bModifiersForBeforeOperations,
-		TArray<FirstPassGenerator::FModifier>& modifiers)
+		const TArray<FString>& SurfaceTags,
+		int32 LOD, bool bModifiersForBeforeOperations,
+		TArray<FirstPassGenerator::FModifier>& OutModifiers)
 	{
         MUTABLE_CPUPROFILER_SCOPE(GetModifiersFor);
 
-		if (tags.Num())
+		if (SurfaceTags.IsEmpty())
 		{
-			for (const FirstPassGenerator::FModifier& m: m_firstPass.modifiers)
+			return;
+		}
+
+		for (const FirstPassGenerator::FModifier& m: m_firstPass.modifiers)
+		{
+			// Correct LOD?
+			if (m.lod != LOD)
 			{
-				// Correct LOD?
-				if (m.lod != LOD)
-				{
-					continue;
-				}
+				continue;
+			}
 
-				// Correct stage
-				if (m.node->m_applyBeforeNormalOperations != bModifiersForBeforeOperations)
-				{
-					continue;
-				}
+			// Correct stage?
+			if (m.node->bApplyBeforeNormalOperations != bModifiersForBeforeOperations)
+			{
+				continue;
+			}
 
-				// Already there?
-				bool alreadyAdded = 
-					modifiers.FindByPredicate( [&m](const FirstPassGenerator::FModifier& c) {return c.node == m.node; })
-					!= 
-					nullptr;
+			// Already there?
+			bool bAlreadyAdded = 
+				OutModifiers.FindByPredicate( [&m](const FirstPassGenerator::FModifier& c) {return c.node == m.node; })
+				!= 
+				nullptr;
 
-				if (alreadyAdded)
-				{
-					continue;
-				}
+			if (bAlreadyAdded)
+			{
+				continue;
+			}
 
-				// Matching tags?
-				bool found = false;
-				for (auto it = m.node->m_tags.begin(); !found && it != m.node->m_tags.end(); ++it)
-				{
-					found = tags.Contains(*it);
-				}
+			// Matching tags?
+			bool bApply = false;
 
-				if (found)
+			switch (m.node->MultipleTagsPolicy)
+			{
+			case EMutableMultipleTagPolicy::OnlyOneRequired:
+			{
+				for (const FString& Tag: m.node->RequiredTags)
 				{
-					modifiers.Add(m);
+					if (SurfaceTags.Contains(Tag))
+					{
+						bApply = true;
+						break;
+					}
 				}
+				break;
+			}
+
+			case EMutableMultipleTagPolicy::AllRequired:
+			{
+				bApply = true;
+				for (const FString& Tag : m.node->RequiredTags)
+				{
+					if (!SurfaceTags.Contains(Tag))
+					{
+						bApply = false;
+						break;
+					}
+				}
+			}
+			}
+
+			if (bApply)
+			{
+				OutModifiers.Add(m);
 			}
 		}
 	}
@@ -2127,7 +2154,7 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	Ptr<ASTOp> CodeGenerator::ApplyMeshModifiers(
 		const Ptr<ASTOp>& sourceOp,
-		const TArray<FString>& tags,
+		const TArray<FString>& SurfaceTags,
 		bool bModifiersForBeforeOperations,
 		const void* errorContext )
 	{
@@ -2137,7 +2164,7 @@ namespace mu
 		TArray<FirstPassGenerator::FModifier> modifiers;
 
 		int currentLOD = m_currentParents.Last().m_lod;
-		GetModifiersFor(tags, currentLOD, bModifiersForBeforeOperations, modifiers);
+		GetModifiersFor(SurfaceTags, currentLOD, bModifiersForBeforeOperations, modifiers);
 
 		Ptr<ASTOp> preModifiersMesh = lastMeshOp;
 

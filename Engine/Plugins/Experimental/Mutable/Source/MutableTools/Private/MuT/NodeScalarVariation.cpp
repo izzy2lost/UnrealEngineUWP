@@ -75,41 +75,30 @@ namespace mu
     //---------------------------------------------------------------------------------------------
     // Own Interface
     //---------------------------------------------------------------------------------------------
-    void NodeScalarVariation::SetDefaultScalar( NodeScalar* p ) { m_pD->m_defaultScalar = p; }
+    void NodeScalarVariation::SetDefaultScalar( NodeScalar* p ) 
+	{ 
+		m_pD->m_defaultScalar = p; 
+	}
 
 
-    //---------------------------------------------------------------------------------------------
-    int NodeScalarVariation::GetVariationCount() const { return int( m_pD->m_variations.Num() ); }
-
-
-    //---------------------------------------------------------------------------------------------
-    void NodeScalarVariation::SetVariationCount( int num )
+	void NodeScalarVariation::SetVariationCount( int32 num )
     {
         check( num >= 0 );
         m_pD->m_variations.SetNum( num );
     }
 
-    //---------------------------------------------------------------------------------------------
-    void NodeScalarVariation::SetVariationTag( int index, const char* strTag )
-    {
-        check( index >= 0 && index < (int)m_pD->m_variations.Num() );
-        check( strTag );
 
-        if ( strTag )
-        {
-            m_pD->m_variations[index].m_tag = strTag;
-        }
-        else
-        {
-            m_pD->m_variations[index].m_tag = "";
-        }
+	void NodeScalarVariation::SetVariationTag( int32 index, const FString& Tag )
+    {
+        check( index >= 0 && index < m_pD->m_variations.Num() );
+
+		m_pD->m_variations[index].m_tag = Tag;
     }
 
 
-    //---------------------------------------------------------------------------------------------
-    void NodeScalarVariation::SetVariationScalar( int index, NodeScalar* pNode )
+    void NodeScalarVariation::SetVariationScalar( int32 index, NodeScalar* pNode )
     {
-        check( index >= 0 && index < (int)m_pD->m_variations.Num() );
+        check( index >= 0 && index < m_pD->m_variations.Num() );
 
         m_pD->m_variations[index].m_scalar = pNode;
     }

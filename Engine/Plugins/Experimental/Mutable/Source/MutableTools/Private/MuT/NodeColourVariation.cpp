@@ -83,31 +83,22 @@ namespace mu
 
 
     //---------------------------------------------------------------------------------------------
-    void NodeColourVariation::SetVariationCount( int num )
+    void NodeColourVariation::SetVariationCount( int32 num )
     {
         check( num >= 0 );
         m_pD->m_variations.SetNum( num );
     }
 
     //---------------------------------------------------------------------------------------------
-    void NodeColourVariation::SetVariationTag( int index, const char* strTag )
+    void NodeColourVariation::SetVariationTag( int32 index, const FString& Tag )
     {
         check( index >= 0 && index < m_pD->m_variations.Num() );
-        check( strTag );
-
-        if ( strTag )
-        {
-            m_pD->m_variations[index].m_tag = strTag;
-        }
-        else
-        {
-            m_pD->m_variations[index].m_tag = "";
-        }
+        m_pD->m_variations[index].m_tag = Tag;
     }
 
 
     //---------------------------------------------------------------------------------------------
-    void NodeColourVariation::SetVariationColour( int index, NodeColour* pNode )
+    void NodeColourVariation::SetVariationColour( int32 index, NodeColour* pNode )
     {
         check( index >= 0 && index < m_pD->m_variations.Num() );
 

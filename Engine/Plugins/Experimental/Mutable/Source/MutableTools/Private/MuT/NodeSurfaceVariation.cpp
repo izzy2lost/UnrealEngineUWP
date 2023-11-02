@@ -159,19 +159,11 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	void NodeSurfaceVariation::SetVariationTag(int index, const char* strTag)
+	void NodeSurfaceVariation::SetVariationTag(int index, const FString& Tag)
 	{
 		check(index >= 0 && index < m_pD->m_variations.Num());
-		check(strTag);
 
-        if (strTag)
-        {
-            m_pD->m_variations[index].m_tag = strTag;
-        }
-        else
-        {
-            m_pD->m_variations[index].m_tag = "";
-        }
+		m_pD->m_variations[index].m_tag = Tag;
 	}
 
 

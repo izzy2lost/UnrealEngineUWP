@@ -204,7 +204,7 @@ void FMutableGraphGenerationContext::GenerateClippingCOInternalTags()
 
 		for (j = 0; j < It->Value.Num(); ++j)
 		{
-			It->Value[j]->AddTag(StringCast<ANSICHAR>(*TagName).Get());
+			It->Value[j]->AddTag(TagName);
 		}
 
 		UCustomizableObjectNodeMeshClipWithMesh* CustomizableObjectNodeMeshClipWithMesh = It->Key;
@@ -231,7 +231,7 @@ void FMutableGraphGenerationContext::GenerateClippingCOInternalTags()
 
 					for (int32 k = 0; k < It2->Value.Num(); ++k)
 					{
-						It2->Value[k]->AddTag(StringCast<ANSICHAR>(*TagName).Get());
+						It2->Value[k]->AddTag(TagName);
 					}
 				}
 			}
@@ -698,8 +698,8 @@ mu::NodeObjectPtr GenerateMutableSource(const UEdGraphPin * Pin, FMutableGraphGe
 		mu::Ptr<mu::NodeObjectNew> ObjectNode = new mu::NodeObjectNew();
 		Result = ObjectNode;
 
-		ObjectNode->SetName(StringCast<ANSICHAR>(*TypedNodeObj->ObjectName).Get());
-		ObjectNode->SetUid(StringCast<ANSICHAR>(*GenerationContext.GetNodeIdUnique(TypedNodeObj).ToString()).Get());
+		ObjectNode->SetName(TypedNodeObj->ObjectName);
+		ObjectNode->SetUid(GenerationContext.GetNodeIdUnique(TypedNodeObj).ToString());
 
 		// LOD
 		const int32 NumLODs = TypedNodeObj->GetNumLODPins();
@@ -795,10 +795,10 @@ mu::NodeObjectPtr GenerateMutableSource(const UEdGraphPin * Pin, FMutableGraphGe
 		for (int StateIndex = 0; StateIndex < NumStates && bFilterStates; ++StateIndex)
 		{
 			const FCustomizableObjectState& State = TypedNodeObj->States[StateIndex];
-			ObjectNode->SetStateName(StateIndex, StringCast<ANSICHAR>(*State.Name).Get());
+			ObjectNode->SetStateName(StateIndex, State.Name);
 			for (int ParamIndex = 0; ParamIndex < State.RuntimeParameters.Num(); ++ParamIndex)
 			{
-				ObjectNode->AddStateParam(StateIndex, StringCast<ANSICHAR>(*State.RuntimeParameters[ParamIndex]).Get());
+				ObjectNode->AddStateParam(StateIndex, State.RuntimeParameters[ParamIndex]);
 			}
 
 			const ITargetPlatform* TargetPlatform = GenerationContext.Options.TargetPlatform;
@@ -1035,8 +1035,8 @@ mu::NodeObjectPtr GenerateMutableSource(const UEdGraphPin * Pin, FMutableGraphGe
 		GenerationContext.SocketPriorityStack.Push(TypedNodeGroup->SocketPriority);
 
 		GenerationContext.AddParameterNameUnique(TypedNodeGroup, TypedNodeGroup->GroupName);
-		GroupNode->SetName(StringCast<ANSICHAR>(*TypedNodeGroup->GroupName).Get());
-		GroupNode->SetUid(StringCast<ANSICHAR>(*TypedNodeGroup->NodeGuid.ToString()).Get());
+		GroupNode->SetName(TypedNodeGroup->GroupName);
+		GroupNode->SetUid(TypedNodeGroup->NodeGuid.ToString());
 
 		// Get all group projectors and put them in the generation context so that they are available to the child material nodes of this group node
 		uint32 NumProjectorCountBeforeNode = GenerationContext.ProjectorGroupMap.Num();
@@ -1122,7 +1122,7 @@ mu::NodeObjectPtr GenerateMutableSource(const UEdGraphPin * Pin, FMutableGraphGe
 			else
 			{
 				mu::NodeObjectPtr ChildNode = new mu::NodeObjectNew;
-				ChildNode->SetName(StringCast<ANSICHAR>(*CustomizableObjectNodeObject->ObjectName).Get());
+				ChildNode->SetName(CustomizableObjectNodeObject->ObjectName);
 				GroupNode->SetChild(ChildIndex, ChildNode.get());
 			}
 		}
@@ -1210,7 +1210,7 @@ mu::NodeObjectPtr GenerateMutableSource(const UEdGraphPin * Pin, FMutableGraphGe
 			else
 			{
 				mu::NodeObjectPtr ChildNode = new mu::NodeObjectNew;
-				ChildNode->SetName(StringCast<ANSICHAR>(*CustomizableObjectNodeObject->ObjectName).Get());
+				ChildNode->SetName(CustomizableObjectNodeObject->ObjectName);
 				GroupNode->SetChild(ChildIndex, ChildNode.get());
 			}
 
@@ -1368,7 +1368,7 @@ int32 AddTagToMutableMeshUnique(mu::Mesh& MutableMesh, const FString& Tag)
 	}
 
 	MutableMesh.SetTagCount(TagCount + 1);
-	MutableMesh.SetTag(TagCount, StringCast<ANSICHAR>(*Tag).Get());
+	MutableMesh.SetTag(TagCount, Tag);
 
 	return TagCount;
 }

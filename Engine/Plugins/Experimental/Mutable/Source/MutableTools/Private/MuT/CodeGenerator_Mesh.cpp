@@ -1110,11 +1110,6 @@ namespace mu
             }
         }
 
-		if (!bFirstValidConnectionFound)
-		{
-			ensure(false);
-		}
-
         OutResult.meshOp = op;
     }
 

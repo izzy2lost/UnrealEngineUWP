@@ -137,18 +137,17 @@ namespace mu
 		{
             const NodeModifier::Private* node = nullptr;
 
-            // List of tags that are required for the presence of this surface
+            // List of tags that are required to apply this modifier
 			TArray<FString> positiveTags;
 
-            // List of tags that block the presence of this surface
+            // List of tags that block the activation of this modifier
 			TArray<FString> negativeTags;
 
             // This conditions is the condition of the object defining this modifier which may not
             // be the parent object where this surface will be added.
             Ptr<ASTOp> objectCondition;
 
-            // This conditions is the condition for this modifier to be enabled when all the object
-            // conditions are met.
+            // This conditions is the condition for this modifier to be enabled when all the object conditions are met.
             // This is filled in CodeGenerator_SecondPass.
             Ptr<ASTOp> surfaceCondition;
 

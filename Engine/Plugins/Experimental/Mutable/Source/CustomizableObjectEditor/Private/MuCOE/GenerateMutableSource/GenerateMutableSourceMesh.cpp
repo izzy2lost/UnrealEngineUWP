@@ -2654,11 +2654,11 @@ mu::NodeMeshPtr GenerateMorphMesh(const UEdGraphPin* Pin,
 		{
 			const FName RowName = TypedNodeTable->GetRowNames()[RowIndex];
 
-			ColumnIndex = Table->FindColumn(StringCast<ANSICHAR>(*ColumnName).Get());
+			ColumnIndex = Table->FindColumn(ColumnName);
 
 			if (ColumnIndex == INDEX_NONE)
 			{
-				ColumnIndex = Table->AddColumn(StringCast<ANSICHAR>(*ColumnName).Get(), mu::ETableColumnType::Mesh);
+				ColumnIndex = Table->AddColumn(ColumnName, mu::ETableColumnType::Mesh);
 			}
 
 			mu::MeshPtr MorphedSourceTableMesh = BuildMorphedMutableMesh(Pin, TypedNodeMorphs[MorphIndex].MorphTargetName, GenerationContext, bOnlyConnectedLOD, RowName);
@@ -2671,8 +2671,8 @@ mu::NodeMeshPtr GenerateMorphMesh(const UEdGraphPin* Pin,
 
 			mu::NodeMeshTablePtr MorphedSourceMeshNodeTable = new mu::NodeMeshTable;
 			MorphedSourceMeshNodeTable->SetTable(Table);
-			MorphedSourceMeshNodeTable->SetColumn(StringCast<ANSICHAR>(*ColumnName).Get());
-			MorphedSourceMeshNodeTable->SetParameterName(StringCast<ANSICHAR>(*TypedNodeTable->ParameterName).Get());
+			MorphedSourceMeshNodeTable->SetColumn(ColumnName);
+			MorphedSourceMeshNodeTable->SetParameterName(TypedNodeTable->ParameterName);
 			MorphedSourceMeshNodeTable->SetMessageContext(MorphNode);
 
 			mu::NodeMeshMakeMorphPtr Morph = new mu::NodeMeshMakeMorph;
@@ -3648,7 +3648,7 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 					FString MutableColumnName = TypedNodeTable->GetMutableColumnName(Pin, LODIndex);
 
 					// Generating a new Mesh column if not exists
-					if (Table->FindColumn(StringCast<ANSICHAR>(*MutableColumnName).Get()) == INDEX_NONE)
+					if (Table->FindColumn(MutableColumnName) == INDEX_NONE)
 					{
 						bSuccess = GenerateTableColumn(TypedNodeTable, Pin, Table, DataTableColumnName, Property, LODIndexConnected, SectionIndexConnected, LODIndex, SectionIndex, bOnlyConnectedLOD, GenerationContext);
 
@@ -3664,8 +3664,8 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 						Result = MeshTableNode;
 
 						MeshTableNode->SetTable(Table);
-						MeshTableNode->SetColumn(StringCast<ANSICHAR>(*MutableColumnName).Get());
-						MeshTableNode->SetParameterName(StringCast<ANSICHAR>(*TypedNodeTable->ParameterName).Get());
+						MeshTableNode->SetColumn(MutableColumnName);
+						MeshTableNode->SetParameterName(TypedNodeTable->ParameterName);
 
 						GenerationContext.AddParameterNameUnique(Node, TypedNodeTable->ParameterName);
 

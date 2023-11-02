@@ -61,13 +61,13 @@ namespace mu
 		//-----------------------------------------------------------------------------------------
 
 		//! Set the name of the parameter. It will be exposed in the final compiled data.
-		void SetName( const char* );
+		void SetName( const FString& );
 
 		//! Set the uid of the parameter. It will be exposed in the final compiled data.
-		void SetUid( const char* );
+		void SetUid( const FString& );
 
 		//! Set the default value of the parameter.
-		void SetDefaultValue( const char* v );
+		void SetDefaultValue( const FString& );
 
         //! Set the number of ranges (dimensions) for this parameter.
         //! By default a parameter has 0 ranges, meaning it only has one value.

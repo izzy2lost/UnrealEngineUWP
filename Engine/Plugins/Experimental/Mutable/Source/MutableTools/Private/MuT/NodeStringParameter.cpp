@@ -75,37 +75,23 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	void NodeStringParameter::SetName( const char* strName )
+	void NodeStringParameter::SetName( const FString& Name )
 	{
-		if ( strName )
-		{
-			m_pD->m_name = strName;
-		}
-		else
-		{
-			m_pD->m_name = "";
-		}
+		m_pD->m_name = Name;
 	}
 
 
 	//---------------------------------------------------------------------------------------------
-	void NodeStringParameter::SetUid( const char* strUid )
+	void NodeStringParameter::SetUid( const FString& Uid )
 	{
-		if ( strUid )
-		{
-			m_pD->m_uid = strUid;
-		}
-		else
-		{
-			m_pD->m_uid = "";
-		}
+		m_pD->m_uid = Uid;
 	}
 
 
 	//---------------------------------------------------------------------------------------------
-	void NodeStringParameter::SetDefaultValue( const char* v )
+	void NodeStringParameter::SetDefaultValue( const FString& v )
 	{
-		m_pD->m_defaultValue = v?v:"";
+		m_pD->m_defaultValue = v;
 	}
 
 

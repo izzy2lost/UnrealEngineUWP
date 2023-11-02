@@ -85,7 +85,7 @@ mu::NodeExtensionDataPtr UCustomizableObjectNodeExtensionDataVariation::Generate
 	{
 		if (const UEdGraphPin* VariationPin = GetVariationPin(VariationIndex))
 		{
-			VariationNode->SetVariationTag(VariationIndex, StringCast<ANSICHAR>(*Variations[VariationIndex].Tag).Get());
+			VariationNode->SetVariationTag(VariationIndex, Variations[VariationIndex].Tag);
 			if (const UEdGraphPin* ConnectedPin = FollowInputPin(*VariationPin))
 			{
 				if (const ICustomizableObjectExtensionNode* ExtensionNode = Cast<ICustomizableObjectExtensionNode>(ConnectedPin->GetOwningNode()))

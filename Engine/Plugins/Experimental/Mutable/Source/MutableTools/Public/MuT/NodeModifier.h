@@ -8,6 +8,19 @@
 #include "MuT/Node.h"
 #include "Containers/UnrealString.h"
 
+#include "NodeModifier.generated.h"
+
+
+/** Despite being an UEnum, this is not always version-serialized (in MutableTools).
+* Beware of changing the enum options or order.
+*/
+UENUM()
+enum class EMutableMultipleTagPolicy : uint8
+{
+	OnlyOneRequired,
+	AllRequired
+};
+
 
 namespace mu
 {
@@ -16,7 +29,6 @@ namespace mu
 	class NodeModifier;
 	typedef Ptr<NodeModifier> NodeModifierPtr;
 	typedef Ptr<const NodeModifier> NodeModifierConst;
-
 
 	//! This class is the parent of all nodes that output a component.
 	//! \ingroup model
@@ -52,15 +64,13 @@ namespace mu
         // Own interface
         //-----------------------------------------------------------------------------------------
 
-        //! \name Tags
-        //! \{
+        /** Add a tag to the surface, which will be affected by modifier nodes with the same tag. */
+        void AddTag(const FString& TagName);
 
-        //! Add a tag to the surface, which will be affected by modifier nodes with the same tag
-        void AddTag(const FString& tagName);
+		/** Set the policy to interprete the tags when there is more than one. */
+		void SetMultipleTagPolicy(EMutableMultipleTagPolicy);
 
-        //! \}
-
-		//! Set the stage to apply this modifier in. Default is before normal operations.
+		/** Set the stage to apply this modifier in.Default is before normal operations. */
 		void SetStage( bool bBeforeNormalOperation );
 
 		//-----------------------------------------------------------------------------------------

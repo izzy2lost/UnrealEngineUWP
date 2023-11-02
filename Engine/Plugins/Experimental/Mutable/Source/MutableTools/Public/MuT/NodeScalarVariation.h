@@ -53,16 +53,13 @@ namespace mu
         void SetDefaultScalar( NodeScalar* Scalar );
 
         //! Set the number of tags to consider in this variation
-        void SetVariationCount( int count );
-
-        //!
-        int GetVariationCount() const;
+        void SetVariationCount( int32 count );
 
         //! Set the tag or state name that will enable a specific vartiation
-        void SetVariationTag( int index, const char* strTag );
+        void SetVariationTag( int32 index, const FString& strTag );
 
         //!
-        void SetVariationScalar( int index, NodeScalar* Scalar );
+        void SetVariationScalar( int32 index, NodeScalar* Scalar );
 
         //!}
 

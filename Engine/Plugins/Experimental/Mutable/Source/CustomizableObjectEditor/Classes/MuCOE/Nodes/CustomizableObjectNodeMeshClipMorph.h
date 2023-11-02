@@ -3,6 +3,7 @@
 #pragma once
 
 #include "MuCOE/Nodes/CustomizableObjectNodeModifierBase.h"
+#include "MuT/NodeModifier.h"
 
 #include "CustomizableObjectNodeMeshClipMorph.generated.h"
 
@@ -25,6 +26,10 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = MeshToClipAndMorph)
 	TArray<FString> Tags;
+
+	/** Policy to use tags in case more than one is added. */
+	UPROPERTY(EditAnywhere, Category = MeshToClipAndMorph)
+	EMutableMultipleTagPolicy MultipleTagPolicy = EMutableMultipleTagPolicy::OnlyOneRequired;
 
 	UPROPERTY(EditAnywhere, Category = MeshToClipAndMorph)
 	uint32 ReferenceSkeletonIndex = 0;

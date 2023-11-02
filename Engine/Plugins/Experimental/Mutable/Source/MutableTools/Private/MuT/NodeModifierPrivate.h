@@ -5,28 +5,36 @@
 #include "MuT/NodePrivate.h"
 #include "MuT/NodeModifier.h"
 
+#include <string>
+
 
 namespace mu
 {
+
+	MUTABLE_DEFINE_ENUM_SERIALISABLE(EMutableMultipleTagPolicy);
 
 	class NodeModifier::Private : public Node::Private
 	{
 	public:
 
-		// Tags that target surface need to have enabled to receive this modifier.
-		TArray<FString> m_tags;
+		/** Tags that target surface need to have enabled to receive this modifier. */
+		TArray<FString> RequiredTags;
+
+		/** In case of multiple tags in RequiredTags: are they all required, or one is enough? */
+		EMutableMultipleTagPolicy MultipleTagsPolicy = EMutableMultipleTagPolicy::OnlyOneRequired;
 
 		// Wether the modifier has to be applied after the normal node operations or before
-		bool m_applyBeforeNormalOperations = true;
+		bool bApplyBeforeNormalOperations = true;
 
 		//!
 		void Serialise(OutputArchive& arch) const
 		{
-            uint32_t ver = 3;
+            uint32_t ver = 4;
 			arch << ver;
 
-			arch << m_tags;
-			arch << m_applyBeforeNormalOperations;
+			arch << RequiredTags;
+			arch << MultipleTagsPolicy;
+			arch << bApplyBeforeNormalOperations;
 		}
 
 		//!
@@ -40,17 +48,23 @@ namespace mu
 			{
 				TArray<std::string> Temp;
 				arch >> Temp;
-				m_tags.SetNum(Temp.Num());
+				RequiredTags.SetNum(Temp.Num());
 				for( int32 i=0; i<Temp.Num(); ++i)
 				{
-					m_tags[i] = Temp[i].c_str();
+					RequiredTags[i] = Temp[i].c_str();
 				}
 			}
 			else
 			{
-				arch >> m_tags;
+				arch >> RequiredTags;
 			}
-			arch >> m_applyBeforeNormalOperations;
+
+			if (ver >= 4)
+			{
+				arch >> MultipleTagsPolicy;
+			}
+
+			arch >> bApplyBeforeNormalOperations;
 		}
 
 	};

@@ -92,12 +92,11 @@ namespace mu
 	}
 
 	//---------------------------------------------------------------------------------------------
-	void NodeExtensionDataVariation::SetVariationTag(int InIndex, const char* InStrTag)
+	void NodeExtensionDataVariation::SetVariationTag(int InIndex, const FString& Tag)
 	{
 		check(m_pD->Variations.IsValidIndex(InIndex));
-		check(InStrTag);
 
-		m_pD->Variations[InIndex].Tag = InStrTag;
+		m_pD->Variations[InIndex].Tag = Tag;
 	}
 
 	//---------------------------------------------------------------------------------------------

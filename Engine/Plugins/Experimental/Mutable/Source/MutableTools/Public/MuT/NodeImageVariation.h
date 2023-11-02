@@ -62,7 +62,7 @@ namespace mu
         int GetVariationCount() const;
 
         //! Set the tag or state name that will enable a specific vartiation
-        void SetVariationTag( int index, const char* strTag );
+        void SetVariationTag( int index, const FString& Tag );
 
         //!
         void SetVariationImage( int index, NodeImage* Image );

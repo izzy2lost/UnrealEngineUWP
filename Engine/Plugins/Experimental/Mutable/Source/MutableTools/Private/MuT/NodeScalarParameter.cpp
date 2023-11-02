@@ -61,30 +61,16 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	void NodeScalarParameter::SetName( const char* strName )
+	void NodeScalarParameter::SetName( const FString& Name )
 	{
-		if ( strName )
-		{
-			m_pD->m_name = strName;
-		}
-		else
-		{
-			m_pD->m_name = "";
-		}
+		m_pD->m_name = Name;
 	}
 
 
 	//---------------------------------------------------------------------------------------------
-	void NodeScalarParameter::SetUid( const char* strUid )
+	void NodeScalarParameter::SetUid( const FString& Uid )
 	{
-		if ( strUid )
-		{
-			m_pD->m_uid = strUid;
-		}
-		else
-		{
-			m_pD->m_uid = "";
-		}
+		m_pD->m_uid = Uid;
 	}
 
 

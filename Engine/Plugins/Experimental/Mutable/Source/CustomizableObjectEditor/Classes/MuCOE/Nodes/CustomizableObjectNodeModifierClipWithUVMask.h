@@ -3,6 +3,7 @@
 #pragma once
 
 #include "MuCOE/Nodes/CustomizableObjectNodeModifierBase.h"
+#include "MuT/NodeModifier.h"
 
 #include "CustomizableObjectNodeModifierClipWithUVMask.generated.h"
 
@@ -21,6 +22,10 @@ public:
 	/** Materials in all other objects that activate this tags will be clipped with this UV mask. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = MeshToClip)
 	TArray<FString> Tags;
+
+	/** Policy to use tags in case more than one is added. */
+	UPROPERTY(EditAnywhere, Category = MeshToClip)
+	EMutableMultipleTagPolicy MultipleTagPolicy = EMutableMultipleTagPolicy::OnlyOneRequired;
 
 	/** UV channel index that will be used to get the UVs to apply the clipping mask to. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = MeshToClip)

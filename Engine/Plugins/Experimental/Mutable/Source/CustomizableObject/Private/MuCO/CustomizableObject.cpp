@@ -1158,7 +1158,7 @@ int32 UCustomizableObject::FindState( const FString& Name ) const
 	int32 Result = -1;
 	if (PrivateData->GetModel())
 	{
-		Result = PrivateData->GetModel()->FindState( StringCast<ANSICHAR>(*Name).Get() );
+		Result = PrivateData->GetModel()->FindState(Name);
 	}
 
 	return Result;

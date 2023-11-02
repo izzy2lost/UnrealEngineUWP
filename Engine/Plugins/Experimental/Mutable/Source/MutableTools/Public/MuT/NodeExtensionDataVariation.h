@@ -45,7 +45,7 @@ namespace mu
 		void SetVariationCount(int InCount);
 		int GetVariationCount() const;
 
-		void SetVariationTag(int InIndex, const char* InStrTag);
+		void SetVariationTag(int InIndex, const FString& InTag);
 
 		void SetVariationValue(int InIndex, NodeExtensionDataPtr InValue);
 

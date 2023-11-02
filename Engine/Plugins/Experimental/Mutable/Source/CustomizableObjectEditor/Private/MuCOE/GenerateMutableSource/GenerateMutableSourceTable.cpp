@@ -40,11 +40,11 @@ bool FillTableColumn(const UCustomizableObjectNodeTable* TableNode,	mu::TablePtr
 				// Generating an Empty cell
 				FString MutableColumnName = TableNode->GenerateSkeletalMeshMutableColumName(ColumnName, LODIndex, SectionIndex);
 
-				CurrentColumn = MutableTable.get()->FindColumn(StringCast<ANSICHAR>(*MutableColumnName).Get());
+				CurrentColumn = MutableTable.get()->FindColumn(MutableColumnName);
 
 				if (CurrentColumn == -1)
 				{
-					CurrentColumn = MutableTable->AddColumn(StringCast<ANSICHAR>(*MutableColumnName).Get(), mu::ETableColumnType::Mesh);
+					CurrentColumn = MutableTable->AddColumn(MutableColumnName, mu::ETableColumnType::Mesh);
 				}
 
 				mu::MeshPtr EmptySkeletalMesh = nullptr;
@@ -216,11 +216,11 @@ bool FillTableColumn(const UCustomizableObjectNodeTable* TableNode,	mu::TablePtr
 
 			FString MutableColumnName = TableNode->GenerateSkeletalMeshMutableColumName(ColumnName, LODIndex, SectionIndex);
 
-			CurrentColumn = MutableTable.get()->FindColumn(StringCast<ANSICHAR>(*MutableColumnName).Get());
+			CurrentColumn = MutableTable.get()->FindColumn(MutableColumnName);
 
 			if (CurrentColumn == -1)
 			{
-				CurrentColumn = MutableTable->AddColumn(StringCast<ANSICHAR>(*MutableColumnName).Get(), mu::ETableColumnType::Mesh);
+				CurrentColumn = MutableTable->AddColumn(MutableColumnName, mu::ETableColumnType::Mesh);
 			}
 
 			// First process the mesh tags that are going to make the mesh unique and affect whether it's repeated in 
@@ -351,11 +351,11 @@ bool FillTableColumn(const UCustomizableObjectNodeTable* TableNode,	mu::TablePtr
 
 			FString MutableColumnName = TableNode->GenerateStaticMeshMutableColumName(ColumnName, SectionIndex);
 
-			CurrentColumn = MutableTable.get()->FindColumn(StringCast<ANSICHAR>(*MutableColumnName).Get());
+			CurrentColumn = MutableTable.get()->FindColumn(MutableColumnName);
 
 			if (CurrentColumn == -1)
 			{
-				CurrentColumn = MutableTable->AddColumn(StringCast<ANSICHAR>(*MutableColumnName).Get(), mu::ETableColumnType::Mesh);
+				CurrentColumn = MutableTable->AddColumn(MutableColumnName, mu::ETableColumnType::Mesh);
 			}
 
 			mu::MeshPtr MutableMesh = GenerateMutableMesh(StaticMesh, TSoftClassPtr<UAnimInstance>(), CurrentLOD, SectionIndex, CurrentLOD, SectionIndex, FString(), GenerationContext, TableNode);
@@ -394,11 +394,11 @@ bool FillTableColumn(const UCustomizableObjectNodeTable* TableNode,	mu::TablePtr
 			UTexture* Texture = Texture2D ? Cast<UTexture>(Texture2D) : Cast<UTexture>(TextureArray);
 
 			// Getting column index from column name
-			CurrentColumn = MutableTable->FindColumn(StringCast<ANSICHAR>(*ColumnName).Get());
+			CurrentColumn = MutableTable->FindColumn(ColumnName);
 
 			if (CurrentColumn == INDEX_NONE)
 			{
-				CurrentColumn = MutableTable->AddColumn(StringCast<ANSICHAR>(*ColumnName).Get(), mu::ETableColumnType::Image);
+				CurrentColumn = MutableTable->AddColumn(ColumnName, mu::ETableColumnType::Image);
 			}
 
 			// Removing encoding part
@@ -502,11 +502,11 @@ bool FillTableColumn(const UCustomizableObjectNodeTable* TableNode,	mu::TablePtr
 			FString EncodedSwitchParameterName = "__MutableMaterialId";
 			if (ColumnName.Contains(EncodedSwitchParameterName))
 			{
-				CurrentColumn = MutableTable.get()->FindColumn(StringCast<ANSICHAR>(*ColumnName).Get());
+				CurrentColumn = MutableTable.get()->FindColumn(ColumnName);
 
 				if (CurrentColumn == -1)
 				{
-					CurrentColumn = MutableTable->AddColumn(StringCast<ANSICHAR>(*ColumnName).Get(), mu::ETableColumnType::Scalar);
+					CurrentColumn = MutableTable->AddColumn(ColumnName, mu::ETableColumnType::Scalar);
 				}
 
 				const int32 lastMaterialAmount = GenerationContext.ReferencedMaterials.Num();
@@ -540,12 +540,12 @@ bool FillTableColumn(const UCustomizableObjectNodeTable* TableNode,	mu::TablePtr
 			if (ParameterIndex != INDEX_NONE && ParameterInfos[ParameterIndex].Name == GenerationContext.CurrentMaterialTableParameter)
 			{
 				// Getting column index from parameter name
-				ColumnIndex = MutableTable->FindColumn(StringCast<ANSICHAR>(*ColumnName).Get());
+				ColumnIndex = MutableTable->FindColumn(ColumnName);
 
 				if (ColumnIndex == INDEX_NONE)
 				{
 					// If there is no column with the parameters name, we generate a new one
-					ColumnIndex = MutableTable->AddColumn(StringCast<ANSICHAR>(*ColumnName).Get(), mu::ETableColumnType::Image);
+					ColumnIndex = MutableTable->AddColumn(ColumnName, mu::ETableColumnType::Image);
 				}
 
 				UTexture* ParentTextureValue = nullptr;
@@ -596,11 +596,11 @@ bool FillTableColumn(const UCustomizableObjectNodeTable* TableNode,	mu::TablePtr
 	{
 		if (StructProperty->Struct == TBaseStructure<FLinearColor>::Get())
 		{
-			CurrentColumn = MutableTable->FindColumn(StringCast<ANSICHAR>(*ColumnName).Get());
+			CurrentColumn = MutableTable->FindColumn(ColumnName);
 
 			if (CurrentColumn == INDEX_NONE)
 			{
-				CurrentColumn = MutableTable->AddColumn(StringCast<ANSICHAR>(*ColumnName).Get(), mu::ETableColumnType::Color);
+				CurrentColumn = MutableTable->AddColumn(ColumnName, mu::ETableColumnType::Color);
 			}
 
 			// Setting cell value
@@ -617,11 +617,11 @@ bool FillTableColumn(const UCustomizableObjectNodeTable* TableNode,	mu::TablePtr
 
 	else if (const FNumericProperty* FloatNumProperty = CastField<FFloatProperty>(ColumnProperty))
 	{
-		CurrentColumn = MutableTable->FindColumn(StringCast<ANSICHAR>(*ColumnName).Get());
+		CurrentColumn = MutableTable->FindColumn(ColumnName);
 
 		if (CurrentColumn == INDEX_NONE)
 		{
-			CurrentColumn = MutableTable->AddColumn(StringCast<ANSICHAR>(*ColumnName).Get(), mu::ETableColumnType::Scalar);
+			CurrentColumn = MutableTable->AddColumn(ColumnName, mu::ETableColumnType::Scalar);
 		}
 
 		// Setting cell value
@@ -631,11 +631,11 @@ bool FillTableColumn(const UCustomizableObjectNodeTable* TableNode,	mu::TablePtr
 
 	else if (const FNumericProperty* DoubleNumProperty = CastField<FDoubleProperty>(ColumnProperty))
 	{
-		CurrentColumn = MutableTable->FindColumn(StringCast<ANSICHAR>(*ColumnName).Get());
+		CurrentColumn = MutableTable->FindColumn(ColumnName);
 	
 		if (CurrentColumn == INDEX_NONE)
 		{
-			CurrentColumn = MutableTable->AddColumn(StringCast<ANSICHAR>(*ColumnName).Get(), mu::ETableColumnType::Scalar);
+			CurrentColumn = MutableTable->AddColumn(ColumnName, mu::ETableColumnType::Scalar);
 		}
 	
 		// Setting cell value
@@ -747,7 +747,7 @@ mu::TablePtr GenerateMutableSourceTable(const FString& TableName, const UEdGraph
 			{
 				MutableTable->AddRow(i);
 				FString RowName= RowNames[i].ToString();
-				MutableTable->SetCell(0, i, StringCast<ANSICHAR>(*RowName).Get());
+				MutableTable->SetCell(0, i, RowName);
 				ParameterUIData.ArrayIntegerParameterOption.Add(FIntegerParameterUIData(
 					RowName,
 					FMutableParamUIMetadata()));

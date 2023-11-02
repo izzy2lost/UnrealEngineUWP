@@ -474,7 +474,7 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 				continue;
 			}
 
-			TextureNode->SetVariationTag(VariationIndex, StringCast<ANSICHAR>(*TypedNodeImageVar->Variations[VariationIndex].Tag).Get());
+			TextureNode->SetVariationTag(VariationIndex, TypedNodeImageVar->Variations[VariationIndex].Tag);
 			if (const UEdGraphPin* ConnectedPin = FollowInputPin(*VariationPin))
 			{
 				mu::NodeImagePtr ChildNode = GenerateMutableSourceImage(ConnectedPin, GenerationContext, MaxTextureSize);
@@ -1093,7 +1093,7 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 						}
 
 						// Generating a new Texture column if not exists
-						if (Table->FindColumn(StringCast<ANSICHAR>(*ColumnName).Get()) == INDEX_NONE)
+						if (Table->FindColumn(ColumnName) == INDEX_NONE)
 						{
 							int32 Dummy = -1; // TODO MTBL-1512
 							bool Dummy2 = false;
@@ -1111,8 +1111,8 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 							Result = ImageTableNode;
 
 							ImageTableNode->SetTable(Table);
-							ImageTableNode->SetColumn(StringCast<ANSICHAR>(*ColumnName).Get());
-							ImageTableNode->SetParameterName(StringCast<ANSICHAR>(*TypedNodeTable->ParameterName).Get());
+							ImageTableNode->SetColumn(ColumnName);
+							ImageTableNode->SetParameterName(TypedNodeTable->ParameterName);
 							ImageTableNode->SetMaxTextureSize(MaxTextureSize);
 
 							GenerationContext.AddParameterNameUnique(Node, TypedNodeTable->ParameterName);

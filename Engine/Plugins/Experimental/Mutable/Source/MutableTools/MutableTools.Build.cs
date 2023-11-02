@@ -24,8 +24,9 @@ namespace UnrealBuildTool.Rules
 
 			PublicDependencyModuleNames.AddRange(
                 new string[] {
-					"MutableRuntime", 
+					"MutableRuntime",
 					"Core",
+					"CoreUObject",
 					"GeometryCore",
 					"ImageCore",
 					"TextureCompressor",

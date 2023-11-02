@@ -16,32 +16,24 @@
 
 namespace mu
 {
-
-
-	//---------------------------------------------------------------------------------------------
 	// Static initialisation
-	//---------------------------------------------------------------------------------------------
 	static NODE_TYPE s_nodeModifierType =
 			NODE_TYPE( "NodeModifier", Node::GetStaticType() );
 
+	MUTABLE_IMPLEMENT_ENUM_SERIALISABLE(EMutableMultipleTagPolicy);
 
-	//---------------------------------------------------------------------------------------------
-	//---------------------------------------------------------------------------------------------
-	//---------------------------------------------------------------------------------------------
 	const NODE_TYPE* NodeModifier::GetType() const
 	{
 		return GetStaticType();
 	}
 
 
-	//---------------------------------------------------------------------------------------------
 	const NODE_TYPE* NodeModifier::GetStaticType()
 	{
           return &s_nodeModifierType;
         }
 
 
-	//---------------------------------------------------------------------------------------------
 	void NodeModifier::Serialise( const NodeModifier* p, OutputArchive& arch )
 	{
         uint32 ver = 0;
@@ -64,7 +56,6 @@ namespace mu
     }
 
         
-	//---------------------------------------------------------------------------------------------
 	NodeModifierPtr NodeModifier::StaticUnserialise( InputArchive& arch )
 	{
         uint32 ver;
@@ -86,23 +77,30 @@ namespace mu
 		return 0;
 	}
 
-	//---------------------------------------------------------------------------------------------
-	void NodeModifier::AddTag(const FString& tagName)
+	void NodeModifier::AddTag(const FString& Value)
 	{
 		NodeModifier::Private* pD = dynamic_cast<NodeModifier::Private*>(GetBasePrivate());
 		check(pD);
 
-		pD->m_tags.Add(tagName);
+		pD->RequiredTags.Add(Value);
 	}
 
 
-	//---------------------------------------------------------------------------------------------
+	void NodeModifier::SetMultipleTagPolicy(EMutableMultipleTagPolicy Value)
+	{
+		NodeModifier::Private* pD = dynamic_cast<NodeModifier::Private*>(GetBasePrivate());
+		check(pD);
+
+		pD->MultipleTagsPolicy = Value;
+	}
+
+
 	void NodeModifier::SetStage(bool bBeforeNormalOperation)
 	{
 		NodeModifier::Private* pD = dynamic_cast<NodeModifier::Private*>(GetBasePrivate());
 		check(pD);
 
-		pD->m_applyBeforeNormalOperations = bBeforeNormalOperation; 
+		pD->bApplyBeforeNormalOperations = bBeforeNormalOperation; 
 	}
 
 }

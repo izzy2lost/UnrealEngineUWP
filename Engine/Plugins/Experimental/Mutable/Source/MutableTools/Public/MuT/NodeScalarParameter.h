@@ -59,10 +59,10 @@ namespace mu
 		//-----------------------------------------------------------------------------------------
 
 		//! Get the name of the parameter. It will be exposed in the final compiled data.
-		void SetName( const char* );
+		void SetName( const FString& );
 
 		//! Get the uid of the parameter. It will be exposed in the final compiled data.
-		void SetUid( const char* );
+		void SetUid( const FString&);
 
 		//! Get the default value of the parameter.
 		void SetDefaultValue( float v );

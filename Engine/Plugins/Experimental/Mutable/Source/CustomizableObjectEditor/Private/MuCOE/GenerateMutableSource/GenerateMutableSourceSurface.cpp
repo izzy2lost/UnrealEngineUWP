@@ -443,10 +443,10 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 
 					const FString ImageName = TypedNodeMat->GetParameterName(EMaterialParameterType::Texture, ImageIndex).ToString();
 					FString SurfNodeImageName = FString::Printf(TEXT("%d"), GenerationContext.ImageProperties.Num());
-					SurfNode->SetImageName(ImageIndex, StringCast<ANSICHAR>(*SurfNodeImageName).Get());
+					SurfNode->SetImageName(ImageIndex, SurfNodeImageName);
 
 					SurfNode->SetImageLayoutIndex(ImageIndex, -1);
-					SurfNode->SetImageAdditionalNames(ImageIndex, StringCast<ANSICHAR>(*TypedNodeMat->Material->GetName()).Get(), StringCast<ANSICHAR>(*ImageName).Get());
+					SurfNode->SetImageAdditionalNames(ImageIndex, TypedNodeMat->Material->GetName(), ImageName);
 
 					// We don't need a reference texture or props here, but we do need the parameter name.
 					FGeneratedImageProperties Props;
@@ -752,10 +752,10 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 							SurfNodeImageName += "-MutableLayerParam:" + FString::FromInt(LayerIndex);
 						}
 
-						SurfNode->SetImageName(ImageIndex, StringCast<ANSICHAR>(*SurfNodeImageName).Get());
+						SurfNode->SetImageName(ImageIndex, SurfNodeImageName);
 						int32 UVLayout = TypedNodeMat->GetImageUVLayout(ImageIndex);
 						SurfNode->SetImageLayoutIndex(ImageIndex, UVLayout);
-						SurfNode->SetImageAdditionalNames(ImageIndex, StringCast<ANSICHAR>(*TypedNodeMat->Material->GetName()).Get(), StringCast<ANSICHAR>(*ImageName).Get());
+						SurfNode->SetImageAdditionalNames(ImageIndex, TypedNodeMat->Material->GetName(), ImageName);
 
 						if (bShareProjectionTexturesBetweenLODs && bIsGroupProjectorImage)
 						{
@@ -773,7 +773,7 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 					ensure(LOD > GenerationContext.FirstLODAvailable);
 					check(ProjectorInfo->SurfNode->GetImage(ImageIndex) == ProjectorInfo->ImageNode);
 					SurfNode->SetImage(ImageIndex, ProjectorInfo->ImageNode);
-					SurfNode->SetImageName(ImageIndex, StringCast<ANSICHAR>(*ProjectorInfo->TextureName).Get());
+					SurfNode->SetImageName(ImageIndex, ProjectorInfo->TextureName);
 					SurfNode->SetImageLayoutIndex(ImageIndex, ProjectorInfo->UVLayout);
 
 					TextureNameToProjectionResFactor.Add(ProjectorInfo->RealTextureName, ProjectorInfo->AlternateProjectionResolutionFactor);
@@ -805,7 +805,7 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 					}
 
 					SurfNode->SetVector(VectorIndex, ColorNode);
-					SurfNode->SetVectorName(VectorIndex, StringCast<ANSICHAR>(*VectorName).Get());
+					SurfNode->SetVectorName(VectorIndex, VectorName);
 				}
 			}
 		}
@@ -833,7 +833,7 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 					}
 
 					SurfNode->SetScalar(ScalarIndex, ScalarNode);
-					SurfNode->SetScalarName(ScalarIndex, StringCast<ANSICHAR>(*ScalarName).Get());
+					SurfNode->SetScalarName(ScalarIndex, ScalarName);
 				}
 			}
 		}
@@ -856,7 +856,7 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 					mu::NodeScalarPtr ScalarNode = GenerateMutableSourceFloat(ConnectedPin, GenerationContext);
 
 					SurfNode->SetScalar(MaterialIndex, ScalarNode);
-					SurfNode->SetScalarName(MaterialIndex, StringCast<ANSICHAR>(*MaterialName).Get());
+					SurfNode->SetScalarName(MaterialIndex, MaterialName);
 				}
 			}
 			else
@@ -865,14 +865,14 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 				ScalarNode->SetValue(ReferencedMaterialsIndex);
 
 				SurfNode->SetScalar(MaterialIndex, ScalarNode);
-				SurfNode->SetScalarName(MaterialIndex, StringCast<ANSICHAR>(*MaterialName).Get());
+				SurfNode->SetScalarName(MaterialIndex, MaterialName);
 			}
 		}
 		
 
 		for (const FString& Tag : TypedNodeMat->Tags)
 		{
-			SurfNode->AddTag(StringCast<ANSICHAR>(*Tag).Get());
+			SurfNode->AddTag(Tag);
 		}
 
 		TArray<mu::NodeSurfaceNewPtr>* ArraySurfaceNodePtr = GenerationContext.MapMaterialNodeToMutableSurfaceNodeArray.Find(TypedNodeMat);
@@ -915,7 +915,7 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 
 			for (const FString& Tag : TypedNodeMat->Tags)
 			{
-				SurfNode2->AddTag(StringCast<ANSICHAR>(*Tag).Get());
+				SurfNode2->AddTag(Tag);
 			}
 
 			SurfNode2->SetImageCount(SurfNode->GetImageCount());
@@ -965,7 +965,7 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 			mu::NodeSurfaceVariationPtr SurfaceVariation = new mu::NodeSurfaceVariation;
 			SurfaceVariation->SetVariationType(mu::NodeSurfaceVariation::VariationType::State);
 			SurfaceVariation->SetVariationCount(1);
-			SurfaceVariation->SetVariationTag(0, StringCast<ANSICHAR>(*AlternateResStateName).Get());
+			SurfaceVariation->SetVariationTag(0, AlternateResStateName);
 
 			SurfaceVariation->AddDefaultSurface(&*SurfNode);
 			SurfaceVariation->AddVariationSurface(0, &*SurfNode2);
@@ -1148,7 +1148,7 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 		
 			for (const FString& Tag : TypedNodeExt->Tags)
 			{
-				SurfNode->AddTag(StringCast<ANSICHAR>(*Tag).Get());
+				SurfNode->AddTag(Tag);
 			}
 		}();
 	}
@@ -1510,7 +1510,7 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 
 			if (UEdGraphPin* VariationPin = TypedNodeVar->VariationPin(VariationIndex))
 			{
-				SurfNode->SetVariationTag(VariationIndex, StringCast<ANSICHAR>(*TypedNodeVar->GetVariation(VariationIndex).Tag).Get());
+				SurfNode->SetVariationTag(VariationIndex, TypedNodeVar->GetVariation(VariationIndex).Tag);
 				for (const UEdGraphPin* ConnectedPin : FollowInputPinArray(*VariationPin))
 				{
 					// Is it a modifier?

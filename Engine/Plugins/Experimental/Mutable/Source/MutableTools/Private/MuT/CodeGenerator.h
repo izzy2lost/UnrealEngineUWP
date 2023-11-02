@@ -292,11 +292,11 @@ namespace mu
 		//-----------------------------------------------------------------------------------------
 
 		// Get the modifiers that have to be applied to elements with a specific tag.
-		void GetModifiersFor(const TArray<FString>& tags, int LOD,
-			bool bModifiersForBeforeOperations, TArray<FirstPassGenerator::FModifier>& modifiers);
+		void GetModifiersFor(const TArray<FString>& SurfaceTags, int32 LOD,
+			bool bModifiersForBeforeOperations, TArray<FirstPassGenerator::FModifier>& OutModifiers);
 
 		// Apply the required mesh modifiers to the given operation.
-		Ptr<ASTOp> ApplyMeshModifiers( const Ptr<ASTOp>& sourceOp, const TArray<FString>& tags,
+		Ptr<ASTOp> ApplyMeshModifiers( const Ptr<ASTOp>& sourceOp, const TArray<FString>& SurfaceTags,
 			bool bModifiersForBeforeOperations, const void* errorContext);
 
 		// Get the modifiers that have to be applied to elements with a specific tag.

@@ -64,8 +64,8 @@ mu::NodeColourPtr GenerateMutableSourceColor(const UEdGraphPin* Pin, FMutableGra
 
 		GenerationContext.AddParameterNameUnique(Node, TypedNodeColorParam->ParameterName);
 
-		ColorNode->SetName(StringCast<ANSICHAR>(*TypedNodeColorParam->ParameterName).Get());
-		ColorNode->SetUid(StringCast<ANSICHAR>(*GenerationContext.GetNodeIdUnique(Node).ToString()).Get());
+		ColorNode->SetName(TypedNodeColorParam->ParameterName);
+		ColorNode->SetUid(GenerationContext.GetNodeIdUnique(Node).ToString());
 		ColorNode->SetDefaultValue(TypedNodeColorParam->DefaultValue.R, TypedNodeColorParam->DefaultValue.G, TypedNodeColorParam->DefaultValue.B);
 
 		GenerationContext.ParameterUIDataMap.Add(TypedNodeColorParam->ParameterName, FParameterUIData(
@@ -259,7 +259,7 @@ mu::NodeColourPtr GenerateMutableSourceColor(const UEdGraphPin* Pin, FMutableGra
 			const UEdGraphPin* VariationPin = TypedNodeColorVar->VariationPin(VariationIndex);
 			if (!VariationPin) continue;
 
-			ColorNode->SetVariationTag(VariationIndex, StringCast<ANSICHAR>(*TypedNodeColorVar->GetVariation(VariationIndex).Tag).Get());
+			ColorNode->SetVariationTag(VariationIndex, TypedNodeColorVar->GetVariation(VariationIndex).Tag);
 			if (const UEdGraphPin* ConnectedPin = FollowInputPin(*VariationPin))
 			{
 				mu::NodeColourPtr ChildNode = GenerateMutableSourceColor(ConnectedPin, GenerationContext);
@@ -302,7 +302,7 @@ mu::NodeColourPtr GenerateMutableSourceColor(const UEdGraphPin* Pin, FMutableGra
 					mu::NodeColourTablePtr ColorTableNode = new mu::NodeColourTable();
 
 					// Generating a new Color column if not exists
-					if (Table->FindColumn(StringCast<ANSICHAR>(*ColumnName).Get()) == INDEX_NONE)
+					if (Table->FindColumn(ColumnName) == INDEX_NONE)
 					{
 						int32 Dummy = -1; // TODO MTBL-1512
 						bool Dummy2 = false;
@@ -320,8 +320,8 @@ mu::NodeColourPtr GenerateMutableSourceColor(const UEdGraphPin* Pin, FMutableGra
 						Result = ColorTableNode;
 
 						ColorTableNode->SetTable(Table);
-						ColorTableNode->SetColumn(StringCast<ANSICHAR>(*ColumnName).Get());
-						ColorTableNode->SetParameterName(StringCast<ANSICHAR>(*TypedNodeTable->ParameterName).Get());
+						ColorTableNode->SetColumn(ColumnName);
+						ColorTableNode->SetParameterName(TypedNodeTable->ParameterName);
 
 						GenerationContext.AddParameterNameUnique(Node, TypedNodeTable->ParameterName);
 					}

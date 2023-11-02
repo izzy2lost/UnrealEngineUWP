@@ -53,16 +53,16 @@ namespace mu
         void SetDefaultColour( NodeColour* Colour );
 
         //! Set the number of tags to consider in this variation
-        void SetVariationCount( int count );
+        void SetVariationCount( int32 count );
 
         //!
         int GetVariationCount() const;
 
         //! Set the tag or state name that will enable a specific vartiation
-        void SetVariationTag( int index, const char* strTag );
+        void SetVariationTag( int32 index, const FString& Tag );
 
         //!
-        void SetVariationColour( int index, NodeColour* Colour );
+        void SetVariationColour( int32 index, NodeColour* Colour );
 
         //!}
 
