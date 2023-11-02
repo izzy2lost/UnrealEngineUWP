@@ -215,6 +215,14 @@ static void SerializeForKey(FArchive& Ar, const FTextureBuildSettings& Settings)
 	TempColor = Settings.ChromaKeyColor; Ar << TempColor;
 	TempFloat = Settings.ChromaKeyThreshold; Ar << TempFloat;
 	
+	if ( Settings.PowerOfTwoMode >= ETexturePowerOfTwoSetting::Type::StretchToPowerOfTwo )
+	{
+		// @todo SerializeForKey these can go away whenever we bump the overall ddc key
+		// Stretch power of two modes ResizeImage changed 10-31-2023
+		TempGuid = FGuid(0xb88aa846, 0xadec4199, 0x9a3cf2f2, 0x1413abc6);
+		Ar << TempGuid;
+	}
+
 	// Avoid changing key for non-VT enabled textures
 	if (Settings.bVirtualStreamable)
 	{
