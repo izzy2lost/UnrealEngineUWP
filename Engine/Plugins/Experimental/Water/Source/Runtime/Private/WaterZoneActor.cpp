@@ -572,7 +572,9 @@ bool AWaterZone::UpdateWaterInfoTexture()
 		// The water info texture is different, we need to bind the newly created texture to all registered water bodies
 		if (WaterInfoTexture != OldTexture)
 		{
-			ForEachWaterBodyComponent([WaterInfoTexture = WaterInfoTexture](UWaterBodyComponent* WaterBodyComponent)
+			OnWaterInfoTextureCreated.Broadcast(WaterInfoTexture);
+
+			ForEachWaterBodyComponent([](UWaterBodyComponent* WaterBodyComponent)
 			{
 				WaterBodyComponent->UpdateMaterialInstances();
 				return true;

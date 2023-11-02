@@ -24,6 +24,9 @@ enum class EWaterZoneRebuildFlags
 };
 ENUM_CLASS_FLAGS(EWaterZoneRebuildFlags);
 
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnWaterInfoTextureCreated, const UTextureRenderTarget2D*, WaterInfoTexture);
+
 UCLASS(Blueprintable, HideCategories=(Physics, Replication, Input, Collision))
 class WATER_API AWaterZone : public AActor
 {
@@ -74,11 +77,14 @@ public:
 
 	int32 GetOverlapPriority() const { return OverlapPriority; }
 
+	UFUNCTION(BlueprintCallable, Category=Water)
 	int32 GetWaterZoneIndex() const { return WaterZoneIndex; }
 
 	UPROPERTY(Transient, DuplicateTransient, VisibleAnywhere, BlueprintReadOnly, Category = Water)
 	TObjectPtr<UTextureRenderTarget2D> WaterInfoTexture;
 
+	FOnWaterInfoTextureCreated& GetOnWaterInfoTextureCreated() { return OnWaterInfoTextureCreated; }
+	
 #if WITH_EDITOR
 	virtual TUniquePtr<class FWorldPartitionActorDesc> CreateClassActorDesc() const override;
 	virtual FBox GetStreamingBounds() const override;
@@ -199,6 +205,9 @@ private:
 	/** Unique Id for accessing zone data (Location, extent, ,...) in GPU buffers */
 	UPROPERTY(Transient, DuplicateTransient, NonTransactional, VisibleAnywhere, Category = Water)
 	int32 WaterZoneIndex = INDEX_NONE;
+
+	UPROPERTY(BlueprintAssignable, Category=Water)
+	FOnWaterInfoTextureCreated OnWaterInfoTextureCreated;
 
 #if WITH_EDITORONLY_DATA
 	/** A manipulatable box for visualizing/editing the water zone bounds */
