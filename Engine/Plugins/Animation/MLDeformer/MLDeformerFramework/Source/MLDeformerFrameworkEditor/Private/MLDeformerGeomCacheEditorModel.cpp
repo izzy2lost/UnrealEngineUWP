@@ -266,6 +266,10 @@ namespace UE::MLDeformer
 					const int32 ArrayIndex = PropertyChangedEvent.GetArrayIndex(PropertyChangedEvent.GetMemberPropertyName().ToString());
 					GetEditor()->GetTimeSlider()->OnDeletedTrainingInputAnim(ArrayIndex);
 				}
+				else if (PropertyChangedEvent.ChangeType == EPropertyChangeType::ArrayClear)
+				{
+					ActiveTrainingInputAnimIndex = INDEX_NONE;
+				}
 			}
 			SetResamplingInputOutputsNeeded(true);
 			TriggerInputAssetChanged(true);

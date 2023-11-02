@@ -34,7 +34,7 @@ UMLDeformerComponent::UMLDeformerComponent(const FObjectInitializer& ObjectIniti
 void UMLDeformerComponent::Init()
 {
 	// If there is no deformer asset linked, release what we currently have.
-	if (DeformerAsset == nullptr)
+	if (!DeformerAsset)
 	{
 		ReleaseModelInstance();
 		return;
@@ -152,7 +152,7 @@ void UMLDeformerComponent::ReleaseModelInstance()
 USkeletalMeshComponent* UMLDeformerComponent::FindSkeletalMeshComponent(const UMLDeformerAsset* const Asset) const
 {
 	USkeletalMeshComponent* ResultingComponent = nullptr;
-	if (Asset != nullptr)
+	if (Asset)
 	{
 		// First search for a skeletal mesh component that uses the same skeletal mesh as the ML Deformer asset was trained on.
 		const UMLDeformerModel* Model = Asset ? Asset->GetModel() : nullptr;
@@ -162,7 +162,7 @@ USkeletalMeshComponent* UMLDeformerComponent::FindSkeletalMeshComponent(const UM
 
 			// Get a list of all skeletal mesh components on the actor.
 			TArray<USkeletalMeshComponent*> Components;
-			AActor* Actor = Cast<AActor>(GetOuter());
+			const AActor* Actor = Cast<AActor>(GetOuter());
 			if (Actor)
 			{
 				Actor->GetComponents<USkeletalMeshComponent>(Components);
@@ -203,11 +203,7 @@ void UMLDeformerComponent::Deactivate()
 	#endif
 
 	UnbindDelegates();
-	if (ModelInstance)
-	{
-		ModelInstance->ConditionalBeginDestroy();
-		ModelInstance = nullptr;
-	}
+	ReleaseModelInstance();
 	Super::Deactivate();
 }
 

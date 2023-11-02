@@ -218,16 +218,19 @@ void UMLDeformerModelInstance::UpdateBoneTransforms()
 			for (int32 Index = 0; Index < NumTrainingBones; ++Index)
 			{
 				const int32 ComponentBoneIndex = AssetBonesToSkelMeshMappings[Index];
-				const FTransform& ComponentSpaceTransform = LeaderTransforms[ComponentBoneIndex];
-				const int32 ParentIndex = RefSkel.GetParentIndex(ComponentBoneIndex);
-				if (LeaderTransforms.IsValidIndex(ParentIndex))
+				if (LeaderTransforms.IsValidIndex(ComponentBoneIndex))
 				{
-					TrainingBoneTransforms[Index] = ComponentSpaceTransform.GetRelativeTransform(LeaderTransforms[ParentIndex]);
-					TrainingBoneTransforms[Index].NormalizeRotation();
-				}
-				else
-				{
-					TrainingBoneTransforms[Index] = ComponentSpaceTransform;
+					const FTransform& ComponentSpaceTransform = LeaderTransforms[ComponentBoneIndex];
+					const int32 ParentIndex = RefSkel.GetParentIndex(ComponentBoneIndex);
+					if (LeaderTransforms.IsValidIndex(ParentIndex))
+					{
+						TrainingBoneTransforms[Index] = ComponentSpaceTransform.GetRelativeTransform(LeaderTransforms[ParentIndex]);
+						TrainingBoneTransforms[Index].NormalizeRotation();
+					}
+					else
+					{
+						TrainingBoneTransforms[Index] = ComponentSpaceTransform;
+					}
 				}
 			}
 		}
@@ -245,7 +248,10 @@ void UMLDeformerModelInstance::UpdateBoneTransforms()
 				for (int32 Index = 0; Index < NumTrainingBones; ++Index)
 				{
 					const int32 ComponentBoneIndex = AssetBonesToSkelMeshMappings[Index];
-					TrainingBoneTransforms[Index] = Transforms[ComponentBoneIndex];
+					if (Transforms.IsValidIndex(ComponentBoneIndex))
+					{
+						TrainingBoneTransforms[Index] = Transforms[ComponentBoneIndex];
+					}
 				}
 			}
 		}
@@ -266,7 +272,10 @@ void UMLDeformerModelInstance::UpdateBoneTransforms()
 			for (int32 Index = 0; Index < NumTrainingBones; ++Index)
 			{
 				const int32 ComponentBoneIndex = AssetBonesToSkelMeshMappings[Index];
-				TrainingBoneTransforms[Index] = DebugBoneSpaceTransforms[ComponentBoneIndex];
+				if (DebugBoneSpaceTransforms.IsValidIndex(ComponentBoneIndex))
+				{					
+					TrainingBoneTransforms[Index] = DebugBoneSpaceTransforms[ComponentBoneIndex];
+				}
 			}
 		}
 	}
