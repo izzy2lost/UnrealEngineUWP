@@ -278,6 +278,9 @@ namespace Chaos
 		// Flush the cluster union's incremental connectivity operations
 		CHAOS_API void FlushIncrementalConnectivityGraphOperations(FClusterUnion& ClusterUnion);
 
+		// Forcefully regenerate the cluster union's geometry.
+		void ForceRegenerateGeometry(FClusterUnion& ClusterUnion, const TSet<FPBDRigidParticleHandle*>& FullChildrenSet);
+
 		// Flush the cluster union's incremental geometry operations.
 		void FlushIncrementalGeometryOperations(FClusterUnion& ClusterUnion);
 	};
@@ -408,5 +411,11 @@ namespace Chaos
 		RemoveArrayItemsAtSortedIndices(AllChildParticles, ShapeIndicesToRemove);
 
 		check(AllChildParticles.Num() == ClusterParticle->ShapesArray().Num());
+
+		// If we remove particles from the cluster union geometry then we need to switch the geometry back to a FImplicitObjectUnionClustered to avoid errors with empty unions.
+		if (ClusterParticle->ShapesArray().IsEmpty())
+		{
+			ClusterParticle->SetGeometry(MakeImplicitObjectPtr<FImplicitObjectUnionClustered>());
+		}
 	}
 }

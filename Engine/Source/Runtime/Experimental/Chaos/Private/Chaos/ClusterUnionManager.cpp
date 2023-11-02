@@ -908,22 +908,7 @@ namespace Chaos
 		// parent transform is not set properly for a new empty cluster until UpdateClusterMassProperties is called for the first time.
 		if (EnumHasAnyFlags(Flags, EUpdateClusterUnionPropertiesFlags::ForceGenerateGeometry))
 		{
-			ClusterUnion.InternalCluster->SetGeometry(MakeImplicitObjectPtr<FImplicitObjectUnionClustered>());
-
-			ModifyAdditionOfChildrenToClusterUnionGeometry(
-				ClusterUnion.InternalCluster,
-				ClusterUnion.ChildParticles,
-				ClusterUnion.ClusterUnionParameters.ActorId,
-				ClusterUnion.ClusterUnionParameters.ComponentId,
-				[this, &ClusterUnion, &FullChildrenSet]()
-				{
-					ClusterUnion.Geometry = ForceRecreateClusterUnionGeometry(ClusterUnion);
-					UpdateGeometry(ClusterUnion.InternalCluster, FullChildrenSet, MClustering.GetChildrenMap(), ClusterUnion.Geometry, ClusterUnion.Parameters);
-				}
-			);
-
-			ClusterUnion.GeometryChildParticles = ClusterUnion.ChildParticles;
-			ClusterUnion.ClearAllPendingGeometryOperations();
+			ForceRegenerateGeometry(ClusterUnion, FullChildrenSet);
 		}
 		else if (EnumHasAnyFlags(Flags, EUpdateClusterUnionPropertiesFlags::IncrementalGenerateGeometry))
 		{
@@ -982,11 +967,39 @@ namespace Chaos
 		ClusterUnion.PendingConnectivityOperations.Empty();
 	}
 
+	DECLARE_CYCLE_STAT(TEXT("FClusterUnionManager::ForceRegenerateGeometry"), STAT_ForceRegenerateGeometry, STATGROUP_Chaos);
+	void FClusterUnionManager::ForceRegenerateGeometry(FClusterUnion& ClusterUnion, const TSet<FPBDRigidParticleHandle*>& FullChildrenSet)
+	{
+		SCOPE_CYCLE_COUNTER(STAT_ForceRegenerateGeometry);
+		ClusterUnion.InternalCluster->SetGeometry(MakeImplicitObjectPtr<FImplicitObjectUnionClustered>());
+
+		ModifyAdditionOfChildrenToClusterUnionGeometry(
+			ClusterUnion.InternalCluster,
+			ClusterUnion.ChildParticles,
+			ClusterUnion.ClusterUnionParameters.ActorId,
+			ClusterUnion.ClusterUnionParameters.ComponentId,
+			[this, &ClusterUnion, &FullChildrenSet]()
+			{
+				ClusterUnion.Geometry = ForceRecreateClusterUnionGeometry(ClusterUnion);
+				UpdateGeometry(ClusterUnion.InternalCluster, FullChildrenSet, MClustering.GetChildrenMap(), ClusterUnion.Geometry, ClusterUnion.Parameters);
+			}
+		);
+
+		ClusterUnion.GeometryChildParticles = ClusterUnion.ChildParticles;
+		ClusterUnion.ClearAllPendingGeometryOperations();
+	}
+
 	DECLARE_CYCLE_STAT(TEXT("FClusterUnionManager::FlushIncrementalGeometryOperations"), STAT_FlushIncrementalGeometryOperations, STATGROUP_Chaos);
 	void FClusterUnionManager::FlushIncrementalGeometryOperations(FClusterUnion& ClusterUnion)
 	{
 		SCOPE_CYCLE_COUNTER(STAT_FlushIncrementalGeometryOperations);
 		check(ClusterUnion.Geometry != nullptr);
+
+		if (ClusterUnion.Geometry->template IsA<FImplicitObjectUnionClustered>())
+		{
+			ForceRegenerateGeometry(ClusterUnion, TSet<FPBDRigidParticleHandle*>{ClusterUnion.ChildParticles});
+			return;
+		}
 
 		FImplicitObjectUnion* ImplicitUnion = ClusterUnion.Geometry->template AsA<FImplicitObjectUnion>();
 		check(ImplicitUnion != nullptr);
@@ -1042,10 +1055,16 @@ namespace Chaos
 		if (!PendingGeometryRemovals.IsEmpty())
 		{
 			RemoveParticlesFromClusterUnionGeometry(ClusterUnion.InternalCluster, PendingGeometryRemovals, ClusterUnion.GeometryChildParticles);
+			ClusterUnion.Geometry = ClusterUnion.InternalCluster->GetGeometry();
 			ClusterUnion.ClearPendingGeometryOperations(EClusterUnionGeometryOperation::Remove);
 		}
 
-		if (!PendingGeometryRefresh.IsEmpty())
+		check(ClusterUnion.Geometry != nullptr);
+		// Need to double check the geometry here. Did we get switched to a FImplicitObjectUnionClustered?
+		// In that case we need to skip the refresh.
+		const bool bIsUnionClustered = ClusterUnion.Geometry->template IsA<FImplicitObjectUnionClustered>();
+
+		if (!PendingGeometryRefresh.IsEmpty() && !bIsUnionClustered)
 		{
 			// For each particle we need to find the corresponding shape.
 			// Note that by the time we get to handling PendimgGeometryRefresh, we can once again
