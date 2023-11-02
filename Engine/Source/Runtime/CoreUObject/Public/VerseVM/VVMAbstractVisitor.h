@@ -65,8 +65,8 @@ struct FAbstractVisitorDispatch
 	}
 
 	// Override the following methods to constomize how different values will be processed
-	virtual void VisitNonNull(const VCell* InCell) = 0;
-	virtual void VisitNonNull(const UObject* InObject) = 0;
+	virtual void VisitNonNull(const VCell* InCell) {}
+	virtual void VisitNonNull(const UObject* InObject) {}
 
 protected:
 	FAbstractVisitorDispatch() = default;

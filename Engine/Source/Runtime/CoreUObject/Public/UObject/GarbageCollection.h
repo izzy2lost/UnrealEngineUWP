@@ -12,6 +12,7 @@
 #include "Misc/AssertionMacros.h"
 #include "Stats/Stats.h"
 #include "Stats/Stats2.h"
+#include "UObject/ReferenceToken.h"
 #include "UObject/UObjectGlobals.h"
 #include "UObject/UnrealNames.h"
 
@@ -138,11 +139,12 @@ struct FGarbageReferenceInfo
 
 struct FGCDirectReference
 {
-	FGCDirectReference() = default;
-	explicit FGCDirectReference(UObject* Obj) : ReferencedObject(Obj) {}
+	explicit FGCDirectReference(FReferenceToken InReference, FName Name = NAME_None) : ReferencerName(Name), Reference(InReference) {}
+	explicit FGCDirectReference(const UObject* Obj, FName Name = NAME_None) : ReferencerName(Name), Reference(Obj) {}
+	explicit FGCDirectReference(const Verse::VCell* Cell, FName Name = NAME_None) : ReferencerName(Name), Reference(Cell) {}
 	/** Property or FGCObject name referencing this object */
 	FName ReferencerName;
-	UObject* ReferencedObject = nullptr;
+	FReferenceToken Reference;
 };
 
 /** True if Garbage Collection is running. Use IsGarbageCollecting() functio n instead of using this variable directly */

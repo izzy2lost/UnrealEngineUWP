@@ -46,11 +46,15 @@
 #include <atomic>
 
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
+#include "VerseVM/Inline/VVMAbstractVisitorInline.h"
+#include "VerseVM/Inline/VVMCellInline.h"
+#include "VerseVM/VVMAbstractVisitor.h"
 #include "VerseVM/VVMCollectionCycleRequest.h"
 #include "VerseVM/VVMContext.h"
 #include "VerseVM/VVMHeap.h"
 #include "VerseVM/VVMMarkStack.h"
 #include "VerseVM/VVMValue.h"
+#include "VerseVM/VVMVisitorWrapper.h"
 #include "VerseVM/VVMWriteBarrier.h"
 #endif
 
@@ -1139,7 +1143,7 @@ struct FResolvedMutableReference : FImmutableReference
 	UObject** Mutable;
 };
 
-FORCEINLINE_DEBUGGABLE static bool ValidateReference(UObject* Object, FPermanentObjectPoolExtents PermanentPool, const UObject* ReferencingObject, FMemberId MemberId)
+FORCEINLINE_DEBUGGABLE static bool ValidateReference(UObject* Object, FPermanentObjectPoolExtents PermanentPool, FReferenceToken Referencer, FMemberId MemberId)
 {
 	bool bOk = (!PermanentPool.Contains(Object)) & (!!Object) & IsObjectHandleResolved(reinterpret_cast<FObjectHandle&>(Object)); //-V792
 
@@ -1152,13 +1156,10 @@ FORCEINLINE_DEBUGGABLE static bool ValidateReference(UObject* Object, FPermanent
 #endif
 			!Object->IsValidLowLevelFast())
 		{
-			UClass* ReferencingClass = ReferencingObject ? ReferencingObject->GetClass() : nullptr;
-			FString MemberName = ReferencingClass ? GetMemberDebugInfo(ReferencingClass->ReferenceSchema.Get(), MemberId).Name.ToString() : TEXT("N/A");
-
-			UE_LOG(LogGarbage, Fatal, TEXT("Invalid object in GC: 0x%016llx, ReferencingObject: %s, MemberId %s (%d)"),
+			UE_LOG(LogGarbage, Fatal, TEXT("Invalid object in GC: 0x%016llx, Referencer: %s, MemberId %s (%d)"),
 				(int64)(PTRINT)Object,
-				ReferencingObject ? *ReferencingObject->GetFullName() : TEXT("N/A"),
-				*MemberName, MemberId.AsPrintableIndex());
+				*Referencer.GetDescription(),
+				*Referencer.GetMemberName(MemberId), MemberId.AsPrintableIndex());
 		}
 	}
 #endif // ENABLE_GC_OBJECT_CHECKS
@@ -2908,7 +2909,7 @@ public:
 	static FORCEINLINE_DEBUGGABLE void ProcessReferenceDirectly(FWorkerContext& Context, FPermanentObjectPoolExtents PermanentPool, const UObject* ReferencingObject, UObject*& Object, FMemberId MemberId)
 	{
 		UE::GC::GStats.IncreaseObjectRefStats(Object);
-		if (ValidateReference(Object, PermanentPool, ReferencingObject, MemberId))
+		if (ValidateReference(Object, PermanentPool, FReferenceToken(ReferencingObject), MemberId))
 		{
 			const int32 ObjectIndex = GUObjectArray.ObjectToIndex(Object);
 			FImmutableReference Reference = {Object};	
@@ -3207,6 +3208,104 @@ struct TBatchDispatcher
 
 //////////////////////////////////////////////////////////////////////////
 
+#if !UE_BUILD_SHIPPING
+FORCEINLINE static TArray<FGCDirectReference>& GetContextHistoryReferences(FWorkerContext& Context, FReferenceToken Referencer, uint32 Reserve)
+{
+	TArray<FGCDirectReference>*& DirectReferences = Context.History.FindOrAdd(Referencer);
+	if (!DirectReferences)
+	{
+		DirectReferences = new TArray<FGCDirectReference>();
+		if (Reserve > 0)
+		{
+			DirectReferences->Reserve(Reserve);
+		}
+	}
+	return *DirectReferences;
+}
+
+FORCEINLINE static FName GetReferencerName(const UObject* Referencer, FMemberId MemberId)
+{
+	if (Referencer != FGCObject::GGCObjectReferencer)
+	{
+		return GetMemberDebugInfo(Referencer->GetClass()->ReferenceSchema.Get(), MemberId).Name;
+	}
+	else if (FGCObject::GGCObjectReferencer == Referencer)
+	{
+		FGCObject* SerializingObj = FGCObject::GGCObjectReferencer->GetCurrentlySerializingObject();
+		if (SerializingObj)
+		{
+			return FName(*SerializingObj->GetReferencerName());
+		}
+		else
+		{
+			static const FName NAME_Unknown = FName(TEXT("Unknown"));
+			return NAME_Unknown;
+		}
+	}
+	return NAME_None;
+}
+#endif
+
+//////////////////////////////////////////////////////////////////////////
+
+#if !UE_BUILD_SHIPPING && (WITH_VERSE_VM || defined(__INTELLISENSE__))
+template <EGCOptions Options>
+struct TVerseDebugReachabilityVisitor : public Verse::FAbstractVisitor
+{
+	UE_NONCOPYABLE(TVerseDebugReachabilityVisitor);
+
+	TVerseDebugReachabilityVisitor(FWorkerContext& InContext, bool bInTrackHistory, const FPermanentObjectPoolExtents& InPermanentPool, Verse::FMarkStack& InMarkStack)
+		: Context(InContext)
+		, PermanentPool(InPermanentPool)
+		, MarkStack(InMarkStack)
+		, bTrackHistory(bInTrackHistory)
+	{
+	}
+
+	virtual void VisitNonNull(const Verse::VCell* InCell) override
+	{
+		Context.Stats.AddVerseCells(1);
+		if (MarkStack.TryMarkNonNull(InCell) && bTrackHistory)
+		{
+			Verse::FAbstractVisitor::FReferrerContext* VisitorContext = GetContext();
+			if (VisitorContext != nullptr && VisitorContext->GetReferrer().IsCell())
+			{
+				const Verse::VCell* Referencer = VisitorContext->GetReferrer().AsCell();
+				GetContextHistoryReferences(Context, FReferenceToken(Referencer), 0).Add(FGCDirectReference(InCell));
+			}
+		}
+	}
+
+	virtual void VisitNonNull(const UObject* InObject) override
+	{
+		UObject* Object = const_cast<UObject*>(InObject);
+		UE::GC::GStats.IncreaseObjectRefStats(Object);
+		Verse::FAbstractVisitor::FReferrerContext* VisitorContext = GetContext();
+		const Verse::VCell* Referencer = VisitorContext != nullptr && VisitorContext->GetReferrer().IsCell() ? VisitorContext->GetReferrer().AsCell() : nullptr;
+		if (ValidateReference(Object, PermanentPool, FReferenceToken(Referencer), FMemberId(0)))
+		{
+			FReferenceMetadata Metadata(GUObjectArray.ObjectToIndex(Object));
+			bool bReachedFirst = TReachabilityProcessor<Options>::HandleValidReference(Context, FImmutableReference{ Object }, Metadata);
+			if (bReachedFirst && bTrackHistory)
+			{
+				if (Referencer != nullptr)
+				{
+					GetContextHistoryReferences(Context, FReferenceToken(Referencer), 0).Add(FGCDirectReference(Object));
+				}
+			}
+		}
+	}
+
+private:
+	FWorkerContext& Context;
+	const FPermanentObjectPoolExtents& PermanentPool;
+	Verse::FMarkStack& MarkStack;
+	bool bTrackHistory;
+};
+#endif
+
+//////////////////////////////////////////////////////////////////////////
+
 template <EGCOptions Options>
 class TReachabilityCollectorBase : public FReferenceCollector
 {
@@ -3337,7 +3436,7 @@ public:
 	FORCENOINLINE void HandleTokenStreamObjectReference(FWorkerContext& Context, const UObject* ReferencingObject, UObject*& Object, FMemberId MemberId, EOrigin Origin, bool bAllowReferenceElimination)
 	{
 		UE::GC::GStats.IncreaseObjectRefStats(Object);
-		if (ValidateReference(Object, PermanentPool, ReferencingObject, MemberId))
+		if (ValidateReference(Object, PermanentPool, FReferenceToken(ReferencingObject), MemberId))
 		{
 			FReferenceMetadata Metadata(GUObjectArray.ObjectToIndex(Object));
 			if (bAllowReferenceElimination & Metadata.Has(TReachabilityProcessor<Options>::KillFlag)) //-V792
@@ -3365,6 +3464,31 @@ public:
 		}
 	}
 
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
+	FORCEINLINE void HandleTokenStreamVerseCellReference(FWorkerContext& Context, UObject* ReferencingObject, Verse::VCell* Cell, FMemberId MemberId, EOrigin Origin)
+	{
+		if (GIsFrankenGCCollecting)
+		{
+			if (bTrackHistory)
+			{
+				HandleHistoryReference(Context, ReferencingObject, Cell, MemberId);
+			}
+			Verse::FMarkStack MarkStack;
+			MarkStack.Mark(Cell);
+			if (MarkStack.Num() > 0)
+			{
+				using VisitorType = TVerseDebugReachabilityVisitor<Options>;
+				VisitorType Visitor(Context, bTrackHistory, PermanentPool, MarkStack);
+				typename VisitorType::FReferrerContext VisitorContext(Visitor, typename VisitorType::FReferrerToken(ReferencingObject));
+				while (Verse::VCell* LocalCell = MarkStack.Pop())
+				{
+					LocalCell->VisitReferences(Visitor);
+				}
+			}
+		}
+	}
+#endif
+
 private:
 	const FPermanentObjectPoolExtents PermanentPool;
 	const bool bTrackGarbage;
@@ -3391,131 +3515,16 @@ private:
 
 	FORCENOINLINE static void HandleHistoryReference(FWorkerContext& Context, const UObject* ReferencingObject, UObject*& Object, FMemberId MemberId)
 	{
-		FGCDirectReference Ref(Object);
-		const UObject* Referencer = ReferencingObject ? ReferencingObject : Context.GetReferencingObject();	
-		if (Referencer != FGCObject::GGCObjectReferencer)
-		{
-			Ref.ReferencerName = GetMemberDebugInfo(Referencer->GetClass()->ReferenceSchema.Get(), MemberId).Name;
-		}
-		else if (FGCObject::GGCObjectReferencer == Referencer)
-		{
-			FGCObject* SerializingObj = FGCObject::GGCObjectReferencer->GetCurrentlySerializingObject();
-			if(SerializingObj)
-			{
-				Ref.ReferencerName = *SerializingObj->GetReferencerName();
-			}			
-			else
-			{
-				Ref.ReferencerName = TEXT("Unknown");
-			}
-		}
-
-		TArray<FGCDirectReference>*& DirectReferences = Context.History.FindOrAdd(Referencer);
-		if (!DirectReferences)
-		{
-			DirectReferences = new TArray<FGCDirectReference>();
-		}
-		DirectReferences->Add(Ref);
-	}
-};
-
-/** Batches up references before dispatching them to the processor, unlike TDirectDispatcher */
-template <class ProcessorType>
-struct TDebugDispatcher
-{
-	static constexpr bool bBatching = false;
-	static constexpr bool bParallel = IsParallel(ProcessorType::Options);
-
-	ProcessorType& Processor;
-	FWorkerContext& Context;
-	FReferenceCollector& Collector;
-#if WITH_VERSE_VM || defined(__INTELLISENSE__)
-	Verse::FMarkStack VerseGCMarkStack;
-#endif
-
-	UE_NONCOPYABLE(TDebugDispatcher);
-	explicit TDebugDispatcher(ProcessorType& InProcessor, FWorkerContext& InContext, FReferenceCollector& InCollector)
-		: Processor(InProcessor)
-		, Context(InContext)
-		, Collector(InCollector)
-	{}
-
-	FORCEINLINE void HandleReferenceDirectly(UObject* ReferencingObject, UObject*& Object, FMemberId MemberId, EOrigin Origin, bool bAllowReferenceElimination) const
-	{
-		if (IsObjectHandleResolved(*reinterpret_cast<FObjectHandle*>(&Object)))
-		{
-			Processor.HandleTokenStreamObjectReference(Context, ReferencingObject, Object, MemberId, Origin, bAllowReferenceElimination);
-		}
-		Context.Stats.AddReferences(1);
+		const UObject* Referencer = ReferencingObject ? ReferencingObject : Context.GetReferencingObject();
+		FGCDirectReference Ref(Object, GetReferencerName(Referencer, MemberId));
+		GetContextHistoryReferences(Context, FReferenceToken(Referencer), 0).Add(Ref);
 	}
 
-	FORCEINLINE void HandleKillableReference(UObject*& Object, FMemberId MemberId, EOrigin Origin) const
+	FORCENOINLINE static void HandleHistoryReference(FWorkerContext& Context, const UObject* ReferencingObject, Verse::VCell* Cell, FMemberId MemberId)
 	{
-		HandleReferenceDirectly(Context.GetReferencingObject(), Object, MemberId, Origin, true);
-	}
-
-	FORCEINLINE void HandleImmutableReference(UObject* Object, FMemberId MemberId, EOrigin Origin) const
-	{
-		HandleReferenceDirectly(Context.GetReferencingObject(), Object, MemberId, Origin, false);
-	}
-
-	template<class ArrayType>
-	FORCEINLINE void HandleKillableReferences(ArrayType&& Objects, FMemberId MemberId, EOrigin Origin) const
-	{
-		for (UObject*& Object : Objects)
-		{
-			HandleReferenceDirectly(Context.GetReferencingObject(), Object, MemberId, Origin, true);
-		}
-	}
-
-	FORCEINLINE void HandleKillableArray(TArray<UObject*>& Array, FMemberId MemberId, EOrigin Origin) const
-	{
-		HandleKillableReferences(Array, MemberId, Origin);
-	}
-
-	FORCEINLINE void HandleKillableArray(Private::FStridedReferenceArray Array, FMemberId MemberId, EOrigin Origin) const
-	{
-		HandleKillableReferences(ToView(Array), MemberId, Origin);
-	}
-
-#if WITH_VERSE_VM || defined(__INTELLISENSE__)
-	FORCEINLINE_DEBUGGABLE void HandleVerseValueDirectly(UObject* ReferencingObject, Verse::VValue& Value, FMemberId MemberId, EOrigin Origin)
-	{
-		if (Verse::VCell* Cell = Value.ExtractCell())
-		{
-			VerseGCMarkStack.Mark(Cell);
-			Context.Stats.AddVerseCells(1);
-		}
-		else if (Value.IsUObject())
-		{
-			HandleImmutableReference(Value.AsUObject(), MemberId, Origin);
-		}
-	}
-
-	FORCEINLINE_DEBUGGABLE void HandleVerseValue(Verse::TWriteBarrier<Verse::VValue>& BarrierValue, FMemberId MemberId, EOrigin Origin)
-	{
-		HandleVerseValueDirectly(Context.GetReferencingObject(), reinterpret_cast<Verse::VValue&>(BarrierValue), MemberId, Origin);
-	}
-
-	FORCEINLINE void HandleVerseValueArray(TArrayView<Verse::TWriteBarrier<Verse::VValue>> BarrierValues, FMemberId MemberId, EOrigin Origin)
-	{
-		for (Verse::TWriteBarrier<Verse::VValue>& BarrierValue : BarrierValues)
-		{
-			HandleVerseValueDirectly(Context.GetReferencingObject(), reinterpret_cast<Verse::VValue&>(BarrierValue), MemberId, Origin);
-		}
-	}
-
-	FORCENOINLINE void FlushWork()
-	{
-		if (GIsFrankenGCCollecting)
-		{
-			Verse::FHeap::AddExternalMarkStack(MoveTemp(VerseGCMarkStack));
-		}
-	}
-#endif
-
-	void Suspend()
-	{
+		const UObject* Referencer = ReferencingObject ? ReferencingObject : Context.GetReferencingObject();
+		FGCDirectReference Ref(Cell, GetReferencerName(Referencer, MemberId));
+		GetContextHistoryReferences(Context, FReferenceToken(Referencer), 0).Add(Ref);
 	}
 };
 
@@ -3526,16 +3535,11 @@ class TDebugReachabilityCollector final : public TReachabilityCollectorBase<Opti
 	using Super::bAllowEliminatingReferences;
 	using Super::CurrentOrigin;
 	using ProcessorType = TDebugReachabilityProcessor<Options>;
-	using DispatcherType = TDebugDispatcher<ProcessorType>;
 	ProcessorType& Processor;
 	FWorkerContext& Context;
 
-	DispatcherType Dispatcher;
-
-	friend DispatcherType& GetDispatcher(TDebugReachabilityCollector<Options>& Collector, ProcessorType&, FWorkerContext&) { return Collector.Dispatcher; }
-
 public:
-	TDebugReachabilityCollector(ProcessorType& InProcessor, FWorkerContext& InContext) : Processor(InProcessor), Context(InContext), Dispatcher(Processor, Context, *this) {}
+	TDebugReachabilityCollector(ProcessorType& InProcessor, FWorkerContext& InContext) : Processor(InProcessor), Context(InContext) {}
 
 	virtual void HandleObjectReference(UObject*& Object, const UObject* ReferencingObject, const FProperty* ReferencingProperty) override
 	{
@@ -4092,18 +4096,12 @@ private:
 #if !UE_BUILD_SHIPPING && ENABLE_GC_HISTORY
 		if (FGCHistory::Get().IsActive())
 		{
-			FGCDirectReference BarrierReference;
-			BarrierReference.ReferencerName = TEXT("Barrier");
-			TArray<FGCDirectReference>*& DirectReferences = Context.History.FindOrAdd(FGCHistory::Get().GetBarrierObject());
-			if (DirectReferences == nullptr)
-			{
-				DirectReferences = new TArray<FGCDirectReference>();
-				DirectReferences->Reserve(InitialObjects.Num());
-			}
+			static const FName NAME_Barrier = FName(TEXT("Barrier"));
+
+			TArray<FGCDirectReference>& DirectReferences = GetContextHistoryReferences(Context, FReferenceToken(FGCHistory::Get().GetBarrierObject()), InitialObjects.Num());
 			for (UObject* BarrierObject : InitialObjects)
 			{
-				BarrierReference.ReferencedObject = BarrierObject;
-				DirectReferences->Add(BarrierReference);
+				DirectReferences.Add(FGCDirectReference(BarrierObject, NAME_Barrier));
 			}
 		}
 #endif // !UE_BUILD_SHIPPING && ENABLE_GC_HISTORY
@@ -4990,7 +4988,7 @@ static void UpdateGCHistory(TConstArrayView<TUniquePtr<FWorkerContext>> Contexts
 
 	for (const TUniquePtr<FWorkerContext>& Context : Contexts)
 	{
-		for (TPair<const UObject*, TArray<FGCDirectReference>*>& DirectReferenceInfos : Context->History)
+		for (TPair<FReferenceToken, TArray<FGCDirectReference>*>& DirectReferenceInfos : Context->History)
 		{
 			delete DirectReferenceInfos.Value;
 		}

@@ -700,10 +700,13 @@ namespace UE::ReferenceChainSearch
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(UE::ReferenceChainSearch::PerformInitialGatherFromGCHistory);
 		int64 TotalEdges = 0;
-		for (const TPair<FGCObjectInfo*, TArray<FGCDirectReferenceInfo>*>& Pair : Policy.Snapshot.DirectReferences)
+		for (const TPair<FReferenceToken, TArray<FGCDirectReference>*>& Pair : Policy.Snapshot.DirectReferences)
 		{
-			FVertex FromVertex = Policy.ObjectToVertex(Pair.Key);
-			TotalEdges += Pair.Value->Num();
+			if (Pair.Key.IsGCObjectInfo())
+			{
+				FVertex FromVertex = Policy.ObjectToVertex(Pair.Key.AsGCObjectInfo());
+				TotalEdges += Pair.Value->Num();
+			}
 		}
 
 		FGraph TempGraph;
@@ -711,18 +714,24 @@ namespace UE::ReferenceChainSearch
 		TempGraph.EdgeLists.Reserve(Policy.GetNumVertices());
 		TempGraph.EdgeLists.SetNumZeroed(Policy.GetNumVertices());
 
-		for (const TPair<FGCObjectInfo*, TArray<FGCDirectReferenceInfo>*>& Pair : Policy.Snapshot.DirectReferences)
+		for (const TPair<FReferenceToken, TArray<FGCDirectReference>*>& Pair : Policy.Snapshot.DirectReferences)
 		{
-			int64 StartOffset = TempGraph.Buffer.Num();
-			FVertex FromVertex = Policy.ObjectToVertex(Pair.Key);
-			for (FGCDirectReferenceInfo& ReferenceInfo : *Pair.Value)
+			if (Pair.Key.IsGCObjectInfo())
 			{
-				FVertex ToVertex = Policy.ObjectToVertex(ReferenceInfo.ReferencedObjectInfo);
-				check(TempGraph.EdgeLists.IsValidIndex(ToVertex));
-				TempGraph.Buffer.Add(ToVertex);
+				int64 StartOffset = TempGraph.Buffer.Num();
+				FVertex FromVertex = Policy.ObjectToVertex(Pair.Key.AsGCObjectInfo());
+				for (FGCDirectReference& ReferenceInfo : *Pair.Value)
+				{
+					if (ReferenceInfo.Reference.IsGCObjectInfo())
+					{
+						FVertex ToVertex = Policy.ObjectToVertex(ReferenceInfo.Reference.AsGCObjectInfo());
+						check(TempGraph.EdgeLists.IsValidIndex(ToVertex));
+						TempGraph.Buffer.Add(ToVertex);
+					}
+				}
+				TempGraph.EdgeLists[FromVertex] =
+					TConstArrayView<int32>(TempGraph.Buffer.GetData() + StartOffset, static_cast<int32>(TempGraph.Buffer.Num() - StartOffset));
 			}
-			TempGraph.EdgeLists[FromVertex] =
-				TConstArrayView<int32>(TempGraph.Buffer.GetData() + StartOffset, static_cast<int32>(TempGraph.Buffer.Num() - StartOffset));
 		}
 
 		OutGraph = UE::Graph::ConstructTransposeGraph(TempGraph.EdgeLists);
@@ -1143,7 +1152,7 @@ namespace UE::ReferenceChainSearch
 		for (TPair<FVertex, TMap<FVertex, FReferenceChainSearch::FObjectReferenceInfo>>& SourcePair : InOutReferenceInfo)
 		{
 			FVertex SourceVertex = SourcePair.Key;
-			TArray<FGCDirectReferenceInfo>* DirectReferences = Snapshot.DirectReferences.FindRef(VertexToObject(SourceVertex));
+			TArray<FGCDirectReference>* DirectReferences = Snapshot.DirectReferences.FindRef(FReferenceToken(VertexToObject(SourceVertex)));
 			if (DirectReferences)
 			{
 				for (TPair<FVertex, FReferenceChainSearch::FObjectReferenceInfo>& TargetPair : SourcePair.Value)
@@ -1151,8 +1160,8 @@ namespace UE::ReferenceChainSearch
 					FVertex TargetVertex = TargetPair.Key;
 					FGCObjectInfo* TargetInfo = VertexToObject(TargetVertex);
 					// Linear search is not ideal, maybe build a map if we're looking for many references
-					FGCDirectReferenceInfo* RefInfo = DirectReferences->FindByPredicate(
-						[TargetInfo](const FGCDirectReferenceInfo& RefInfo) { return RefInfo.ReferencedObjectInfo == TargetInfo; });
+					FGCDirectReference* RefInfo = DirectReferences->FindByPredicate(
+						[TargetInfo](const FGCDirectReference& RefInfo) { return RefInfo.Reference == FReferenceToken(TargetInfo); });
 					if (RefInfo)
 					{
 						FReferenceChainSearch::EReferenceType ReferenceType = FReferenceChainSearch::EReferenceType::Unknown;
@@ -1576,7 +1585,6 @@ FReferenceChainSearch::~FReferenceChainSearch()
 int64 FReferenceChainSearch::GetAllocatedSize() const
 {
 	int64 Size = 0;
-	// Size += ObjectsToFindReferencesTo.GetAllocatedSize();
 	// Size += ObjectInfosToFindReferencesTo.GetAllocatedSize();
 	Size += ReferenceChains.GetAllocatedSize();
 	for (const FReferenceChain* Chain : ReferenceChains)
@@ -1621,17 +1629,17 @@ void FReferenceChainSearch::PerformSearchFromGCSnapshot(TConstArrayView<UObject*
 		}
 	}
 
-	for (TPair<FGCObjectInfo*, TArray<FGCDirectReferenceInfo>*>& Pair : InSnapshot.DirectReferences)
+	for (TPair<FReferenceToken, TArray<FGCDirectReference>*>& Pair : InSnapshot.DirectReferences)
 	{
-		for (const FGCDirectReferenceInfo& RefInfo : *Pair.Value)
+		for (const FGCDirectReference& RefInfo : *Pair.Value)
 		{
-			if (ObjectInfosToFindReferencesTo.Contains(RefInfo.ReferencedObjectInfo))
+			if (RefInfo.Reference.IsGCObjectInfo() && ObjectInfosToFindReferencesTo.Contains(RefInfo.Reference.AsGCObjectInfo()))
 			{
 				UE_LOG(LogReferenceChain,
 					Display,
 					TEXT("Direct ref in GC history from %s to %s"),
-					*Pair.Key->GetPathName(),
-					*RefInfo.ReferencedObjectInfo->GetPathName());
+					*Pair.Key.GetDescription(),
+					*RefInfo.Reference.GetDescription());
 			}
 		}
 	}

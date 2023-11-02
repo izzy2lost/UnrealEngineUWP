@@ -49,6 +49,16 @@ struct FMarkStack
 		}
 	}
 
+	bool TryMarkNonNull(const VCell* Cell)
+	{
+		if (!FHeap::IsMarked(Cell))
+		{
+			MarkSlow(Cell);
+			return true;
+		}
+		return false;
+	}
+
 	void MarkNonNull(const VCell* Cell)
 	{
 		if (!FHeap::IsMarked(Cell))

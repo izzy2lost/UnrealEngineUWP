@@ -309,7 +309,7 @@ public:
 	TArray<FGarbageReferenceInfo> GarbageReferences;
 #endif
 #if ENABLE_GC_HISTORY
-	TMap<const UObject*, TArray<FGCDirectReference>*> History;
+	TMap<FReferenceToken, TArray<FGCDirectReference>*> History;
 #endif
 
 	FSuspendedStructBatch IncrementalStructs;
