@@ -11,5 +11,5 @@ public:
 	/**
 	Attempts to convert the existing Niagara type to a matching type for BP pins
 	*/
-	static FEdGraphPinType TypeDefinitionToBlueprintType(const FNiagaraTypeDefinition& TypeDef);
+	static NIAGARABLUEPRINTNODES_API FEdGraphPinType TypeDefinitionToBlueprintType(const FNiagaraTypeDefinition& TypeDef);
 };

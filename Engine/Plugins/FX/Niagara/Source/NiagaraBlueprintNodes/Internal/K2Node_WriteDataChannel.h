@@ -8,11 +8,12 @@
 #include "K2Node_WriteDataChannel.generated.h"
 
 
-UCLASS()
+UCLASS(MinimalAPI)
 class UK2Node_WriteDataChannel : public UK2Node_CallFunction
 {
 	GENERATED_BODY()
 
+public:
 	UK2Node_WriteDataChannel();
 
 	virtual void PostLoad() override;
@@ -32,6 +33,11 @@ class UK2Node_WriteDataChannel : public UK2Node_CallFunction
 	virtual bool ShouldShowNodeProperties() const override;
 	//~ End K2Node Interface
 
+	NIAGARABLUEPRINTNODES_API UNiagaraDataChannel* GetDataChannel() const;
+
+	UPROPERTY()
+	TSet<FGuid> IgnoredVariables;
+	
 private:
 	UEdGraphPin* GetChannelSelectorPin() const;
 	UFunction* GetWriteFunctionForType(const FNiagaraTypeDefinition& TypeDef);

@@ -36,6 +36,10 @@ void UK2Node_WriteDataChannel::AllocateDefaultPins()
 	{
 		for (const FNiagaraDataChannelVariable& InVar : DataChannel->Get()->GetVariables())
 		{
+			if (IgnoredVariables.Contains(InVar.Version))
+			{
+				continue;
+			}
 			UEdGraphPin* NewPin = CreatePin(EGPD_Input, FNiagaraBlueprintUtil::TypeDefinitionToBlueprintType(InVar.GetType()), InVar.GetName());
 
 #if WITH_EDITORONLY_DATA
@@ -129,8 +133,12 @@ void UK2Node_WriteDataChannel::ExpandNode(FKismetCompilerContext& CompilerContex
 	// create the write function nodes
 	UEdGraphPin* LastExecPin = CreateWriterNode->FindPinChecked(UEdGraphSchema_K2::PN_Then, EGPD_Output);
 	UEdGraphPin* WriterResultPin = CreateWriterNode->FindPinChecked(UEdGraphSchema_K2::PN_ReturnValue, EGPD_Output);
-	for (const FNiagaraVariableBase& InVar : DataChannel->Get()->GetVariables())
+	for (const FNiagaraDataChannelVariable& InVar : DataChannel->Get()->GetVariables())
 	{
+		if (IgnoredVariables.Contains(InVar.Version))
+		{
+			continue;
+		}
 		UEdGraphPin* VarInputPin = FindPinChecked(InVar.GetName(), EGPD_Input);
 		if (VarInputPin == nullptr)
 		{
@@ -195,7 +203,12 @@ void UK2Node_WriteDataChannel::PreloadRequiredAssets()
 
 bool UK2Node_WriteDataChannel::ShouldShowNodeProperties() const
 {
-	return Super::ShouldShowNodeProperties();
+	return true;
+}
+
+UNiagaraDataChannel* UK2Node_WriteDataChannel::GetDataChannel() const
+{
+	return DataChannel ? DataChannel->Get() : nullptr;
 }
 
 UEdGraphPin* UK2Node_WriteDataChannel::GetChannelSelectorPin() const
@@ -244,6 +257,10 @@ UFunction* UK2Node_WriteDataChannel::GetWriteFunctionForType(const FNiagaraTypeD
 	if (TypeDef.GetStruct() == FNiagaraSpawnInfo::StaticStruct())
 	{
 		return UNiagaraDataChannelWriter::StaticClass()->FindFunctionByName(GET_FUNCTION_NAME_CHECKED(UNiagaraDataChannelWriter, WriteSpawnInfo));
+	}
+	if (TypeDef.GetStruct() == FNiagaraID::StaticStruct())
+	{
+		return UNiagaraDataChannelWriter::StaticClass()->FindFunctionByName(GET_FUNCTION_NAME_CHECKED(UNiagaraDataChannelWriter, WriteID));
 	}
 	if (TypeDef.GetEnum())
 	{

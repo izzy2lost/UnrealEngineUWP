@@ -14,6 +14,7 @@ public class NiagaraEditorWidgets : ModuleRules
             "NiagaraCore",
 			"Niagara",
 			"NiagaraEditor",
+			"NiagaraBlueprintNodes",
 			"Engine",
 			"Core",
 			"CoreUObject",

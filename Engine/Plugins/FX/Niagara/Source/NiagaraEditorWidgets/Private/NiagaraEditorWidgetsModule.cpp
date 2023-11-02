@@ -144,6 +144,7 @@ void FNiagaraEditorWidgetsModule::StartupModule()
 	PropertyModule.RegisterCustomClassLayout("NiagaraDecalRendererProperties", FOnGetDetailCustomizationInstance::CreateStatic(&FNiagaraDecalRendererDetails::MakeInstance));
 
 	PropertyModule.RegisterCustomClassLayout("NiagaraDataInterfaceDataChannelRead", FOnGetDetailCustomizationInstance::CreateStatic(&FNiagaraDataInterfaceDataChannelReadDetails::MakeInstance));
+	PropertyModule.RegisterCustomClassLayout("K2Node_WriteDataChannel", FOnGetDetailCustomizationInstance::CreateStatic(&FNiagaraDataChannelBPNodeDetails::MakeInstance));
 
 	PropertyModule.RegisterCustomClassLayout(
 		UNiagaraDataChannel_Islands::StaticClass()->GetFName(),
