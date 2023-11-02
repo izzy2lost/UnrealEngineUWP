@@ -4186,9 +4186,9 @@ private:
 		if (!GReachabilityState.CheckIfAnyContextIsSuspended())
 		{
 			GReachabilityState.ResetWorkers();
-			Stats = Context->Stats;
+			Stats.AddStats(Context->Stats);
+			GReachabilityState.UpdateStats(Context->Stats);
 			Pool.ReturnToPool(Context);
-			GReachabilityState.UpdateStats(Stats);
 		}
 		else if (bIsSingleThreaded)
 		{
