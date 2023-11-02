@@ -23,6 +23,10 @@
 #include "VerseVM/VVMWriteBarrier.h"
 #endif
 
+#if ENABLE_GC_HISTORY
+#include "UObject/ReferenceToken.h"
+#endif
+
 /*=============================================================================
 	FastReferenceCollector.h: Unreal realtime garbage collection helpers
 =============================================================================*/

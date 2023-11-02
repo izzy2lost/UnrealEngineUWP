@@ -13,6 +13,7 @@
 #include "UObject/GCObjectInfo.h"
 #include "UObject/GarbageCollection.h"
 #include "UObject/NameTypes.h"
+#include "UObject/ReferenceToken.h"
 
 class FGCObjectInfo;
 class UObject;
