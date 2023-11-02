@@ -821,7 +821,6 @@ public:
 			check(ExternalVariableDef.Property == InExternalVariable.Property);
 			check(bAllowNullMemory || InExternalVariable.Memory != nullptr);
 			
-			ExternalVariableDef.Property = ExternalVariableDef.Property;
 			Context.ExternalVariableRuntimeData.Add(FRigVMExternalVariableRuntimeData(InExternalVariable.Memory));
 		}
 	}
