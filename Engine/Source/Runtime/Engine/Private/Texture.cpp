@@ -2695,9 +2695,15 @@ ETextureClass FTextureSource::GetTextureClass() const
 	}
 }
 
+// Texture->GetGammaSpace is the desired gamma space of the Platform texture we make
+// TextureSource->GetGammaSpace is the way the source image pixels should be interpretted
 EGammaSpace FTextureSource::GetGammaSpace(int LayerIndex) const
 {
-	// Texture->GetGammaSpace does not validate against format, but I do? a bit weird, fix that
+	// note: does not respect ETextureSourceEncoding EncodingOverride (but should)
+	//	in most cases it is not possible to map EncodingOverride into our FImage GammaSpace
+	//	even when EncodingOverride is Linear or sRGB it's often not possible, eg. if format is F32 we don't allow that to be SRGB
+	//	in some cases it is possible; so we could return an EGammaSpace from EncodingOverride in those cases
+
 	if ( ! ERawImageFormat::GetFormatNeedsGammaSpace( FImageCoreUtils::ConvertToRawImageFormat(GetFormat(LayerIndex)) ) )
 	{
 		return EGammaSpace::Linear;

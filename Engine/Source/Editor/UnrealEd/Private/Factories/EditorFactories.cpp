@@ -3049,6 +3049,9 @@ bool UTextureFactory::ImportImage(const uint8* Buffer, int64 Length, FFeedbackCo
 				if ( OutImage.CompressionSettings == TC_Grayscale && TGA->ImageTypeCode == 3)
 				{
 					// default grayscales to linear as they wont get compression otherwise and are commonly used as masks
+					// -> this is wrong way to do this
+					//	Image.SRGB should be the setting of the import image data
+					//	not contain information about how we want the texture platform data to be set up
 					OutImage.SRGB = false;
 				}
 			}
@@ -3343,7 +3346,7 @@ UTexture* UTextureFactory::ImportTextureUDIM(UClass* Class, UObject* InParent, F
 
 	if (ColorSpaceMode == ETextureSourceColorSpace::Auto)
 	{
-		Texture->SRGB = bSRGB;
+		Texture->SRGB = UE::TextureUtilitiesCommon::GetDefaultSRGB(TCSettings,Format,bSRGB);
 	}
 	else if (ColorSpaceMode == ETextureSourceColorSpace::Linear)
 	{
@@ -3541,7 +3544,7 @@ UTexture * UTextureFactory::ImportDDS(const uint8* Buffer,int64 Length,UObject* 
 		check( bSRGB == false );
 	}
 
-	Texture->SRGB = bSRGB;
+	Texture->SRGB = UE::TextureUtilitiesCommon::GetDefaultSRGB(Texture->CompressionSettings,TSFormat,bSRGB);
 	
 	if ( MipCount > 1)
 	{
@@ -3764,29 +3767,21 @@ UTexture* UTextureFactory::ImportTexture(UClass* Class, UObject* InParent, FName
 
 			Texture->CompressionSettings = Image.CompressionSettings;
 
-			// check Texture Format before setting SRGB
-			if ( ERawImageFormat::GetFormatNeedsGammaSpace( FImageCoreUtils::ConvertToRawImageFormat(Image.Format) ) )
+			if (ColorSpaceMode == ETextureSourceColorSpace::Auto)
 			{
-				if (ColorSpaceMode == ETextureSourceColorSpace::Auto)
-				{
-					Texture->SRGB = Image.SRGB;
-				}
-				else if (ColorSpaceMode == ETextureSourceColorSpace::Linear)
-				{
-					Texture->SRGB = false;
-				}
-				else if (ColorSpaceMode == ETextureSourceColorSpace::SRGB)
-				{
-					Texture->SRGB = true;
-				}
-				else
-				{
-					check(0);
-				}
+				Texture->SRGB = UE::TextureUtilitiesCommon::GetDefaultSRGB(Image.CompressionSettings,Image.Format,Image.SRGB);
+			}
+			else if (ColorSpaceMode == ETextureSourceColorSpace::Linear)
+			{
+				Texture->SRGB = false;
+			}
+			else if (ColorSpaceMode == ETextureSourceColorSpace::SRGB)
+			{
+				Texture->SRGB = true;
 			}
 			else
 			{
-				Texture->SRGB = false;
+				check(0);
 			}
 		}
 		return Texture;

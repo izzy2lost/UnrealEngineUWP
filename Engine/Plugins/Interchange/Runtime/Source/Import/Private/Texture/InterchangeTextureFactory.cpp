@@ -577,7 +577,7 @@ namespace UE::Interchange::Private::InterchangeTextureFactory
 
 			if (bMismatchedGammaSpace || bMismatchedFormats)
 			{
-				UE_LOG(LogInterchangeImport, Warning, TEXT("Mismatched UDIM image %s, converting all to %s/%s ..."), bMismatchedGammaSpace ? TEXT("gamma spaces") : TEXT("pixel formats"),
+				UE_LOG(LogInterchangeImport, Display, TEXT("Mismatched UDIM image %s, converting all to %s/%s ..."), bMismatchedGammaSpace ? TEXT("gamma spaces") : TEXT("pixel formats"),
 					ERawImageFormat::GetName(FImageCoreUtils::ConvertToRawImageFormat(BlockedImage.Format)), BlockedImage.bSRGB ? TEXT("sRGB") : TEXT("Linear"));
 
 				for (UE::Interchange::FImportImage& Image : Images)
@@ -749,7 +749,8 @@ namespace UE::Interchange::Private::InterchangeTextureFactory
 		if (!bIsReimport)
 		{
 			Texture->CompressionSettings = Image.CompressionSettings;
-			Texture->SRGB = Image.bSRGB;
+			
+			Texture->SRGB = UE::TextureUtilitiesCommon::GetDefaultSRGB(Image.CompressionSettings,Image.Format,Image.bSRGB);
 
 			//If the MipGenSettings was set by the translator, we must apply it before the build
 			if (Image.MipGenSettings.IsSet())
@@ -775,7 +776,9 @@ namespace UE::Interchange::Private::InterchangeTextureFactory
 			if (!bIsReimport)
 			{
 				Texture2D->CompressionSettings = BlockedImage.CompressionSettings;
-				Texture2D->SRGB = BlockedImage.bSRGB;
+				
+				Texture2D->SRGB = UE::TextureUtilitiesCommon::GetDefaultSRGB(BlockedImage.CompressionSettings,BlockedImage.Format,BlockedImage.bSRGB);
+
 				Texture2D->VirtualTextureStreaming = true;
 
 				if (BlockedImage.MipGenSettings.IsSet())
@@ -818,7 +821,8 @@ namespace UE::Interchange::Private::InterchangeTextureFactory
 		if (!bIsReimport)
 		{
 			Texture->CompressionSettings = SlicedImage.CompressionSettings;
-			Texture->SRGB = SlicedImage.bSRGB;
+			
+			Texture->SRGB = UE::TextureUtilitiesCommon::GetDefaultSRGB(SlicedImage.CompressionSettings,SlicedImage.Format,SlicedImage.bSRGB);
 
 			if (SlicedImage.MipGenSettings.IsSet())
 			{
@@ -1191,10 +1195,11 @@ namespace UE::Interchange::Private::InterchangeTextureFactory
 
 		return TasksToDo;
 	}
-#else // WITH_EDITOR
+#else // !WITH_EDITOR
 	void SetupTexture2DSourceDataFromBulkData_Runtime(UTexture2D* Texture2D, const FImportImage& ImportImage, UE::Serialization::FEditorBulkData::FSharedBufferWithID&& BufferAndId)
 	{
-		Texture2D->SRGB = ImportImage.bSRGB;
+		Texture2D->SRGB = UE::TextureUtilitiesCommon::GetDefaultSRGB(Texture2D->CompressionSettings,ImportImage.Format,ImportImage.bSRGB);
+		
 		ERawImageFormat::Type PixelFormatRawFormat;
 		const EPixelFormat PixelFormat = FImageCoreUtils::GetPixelFormatForRawImageFormat(FImageCoreUtils::ConvertToRawImageFormat(ImportImage.Format), &PixelFormatRawFormat);
 
@@ -1202,9 +1207,9 @@ namespace UE::Interchange::Private::InterchangeTextureFactory
 		BulkData.UpdatePayload(MoveTemp(BufferAndId));
 		TFuture<FSharedBuffer> Payload = BulkData.GetPayload();
 
-		const EGammaSpace GammaSpace = ImportImage.bSRGB ? EGammaSpace::sRGB : EGammaSpace::Linear;
+		const EGammaSpace SourceGammaSpace = ImportImage.bSRGB ? EGammaSpace::sRGB : EGammaSpace::Linear;
 		constexpr int32 NumSlices = 1;
-		FImageView SourceImageView(const_cast<void*>(Payload.Get().GetData()), ImportImage.SizeX, ImportImage.SizeY, NumSlices, PixelFormatRawFormat, GammaSpace);
+		FImageView SourceImageView(const_cast<void*>(Payload.Get().GetData()), ImportImage.SizeX, ImportImage.SizeY, NumSlices, PixelFormatRawFormat, SourceGammaSpace);
 
 		FImage DecompressedSourceImage;
 		if (ImportImage.RawDataCompressionFormat != TSCF_None)
@@ -1235,11 +1240,21 @@ namespace UE::Interchange::Private::InterchangeTextureFactory
 
 			Texture2D->bNotOfflineProcessed = true;
 
+			EGammaSpace MipGammaSpace;
+			if ( Texture2D->SRGB && ERawImageFormat::GetFormatNeedsGammaSpace(PixelFormatRawFormat) )
+			{
+				MipGammaSpace = EGammaSpace::sRGB;
+			}
+			else
+			{
+				MipGammaSpace = EGammaSpace::Linear;
+			}
+
 			uint8* MipData = static_cast<uint8*>(Texture2D->GetPlatformData()->Mips[0].BulkData.Lock(LOCK_READ_WRITE));
 			check(MipData != nullptr);
 			int64 MipDataSize = Texture2D->GetPlatformData()->Mips[0].BulkData.GetBulkDataSize();
 
-			FImageView MipImageView(MipData, ImportImage.SizeX, ImportImage.SizeY, NumSlices, PixelFormatRawFormat, GammaSpace);
+			FImageView MipImageView(MipData, ImportImage.SizeX, ImportImage.SizeY, NumSlices, PixelFormatRawFormat, MipGammaSpace);
 
 			// copy into texture and convert if necessary :
 			FImageCore::CopyImage(SourceImageView, MipImageView);
