@@ -176,6 +176,9 @@ protected:
 	/** Called to generate a row in the list */
 	virtual TSharedRef<ITableRow> OnGenerateRow(TSharedPtr<FDMXReadOnlyFixturePatchListItem> InItem, const TSharedRef<STableViewBase>& OwnerTable);
 
+	/** Toggles show state of the column with the given ID */
+	virtual void ToggleColumnShowState(const FName ColumnID);
+
 private:
 	/** Generates a filter menu fot the Header Row of the List */
 	TSharedRef<SWidget> GenerateHeaderRowFilterMenu();
@@ -200,9 +203,6 @@ private:
 
 	/** Called when a Fixture Type changed */
 	void OnFixtureTypeChanged(const UDMXEntityFixtureType* FixtureType);
-
-	/** Toggles show state of the column with the given ID */
-	void ToggleColumnShowState(const FName ColumnID);
 
 	/** Gets show state of the column with the given ID */
 	bool IsColumnShown(const FName ColumnID) const;

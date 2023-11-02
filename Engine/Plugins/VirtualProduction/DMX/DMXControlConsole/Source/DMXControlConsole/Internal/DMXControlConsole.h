@@ -7,6 +7,7 @@
 #include "DMXControlConsole.generated.h"
 
 class UDMXControlConsoleData;
+class UDMXControlConsoleEditorDataBase;
 class UDMXControlConsoleEditorLayoutsBase;
 
 
@@ -34,9 +35,13 @@ public:
 #endif // WITH_EDITOR
 
 #if WITH_EDITORONLY_DATA
-	/** Control Console Layouts data reference */
+	/** Control Console Editor Layouts reference */
 	UPROPERTY()
 	TObjectPtr<UDMXControlConsoleEditorLayoutsBase> ControlConsoleEditorLayouts;
+
+	/** Control Console Editor Data reference */
+	UPROPERTY()
+	TObjectPtr<UDMXControlConsoleEditorDataBase> ControlConsoleEditorData;
 #endif // WITH_EDITORONLY_DATA
 
 protected:

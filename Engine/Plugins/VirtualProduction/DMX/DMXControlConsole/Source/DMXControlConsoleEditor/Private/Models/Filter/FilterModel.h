@@ -10,11 +10,12 @@
 
 class IDMXControlConsoleFaderGroupElement;
 class UDMXControlConsoleData;
+class UDMXControlConsoleEditorModel;
 class UDMXControlConsoleFaderGroup;
 class UDMXEntityFixturePatch;
 
 
-namespace UE::DMXControlConsoleEditor::FilterModel::Private
+namespace UE::DMX::ControlConsoleEditor::Private
 { 
 	class FFilterModelFader;
 	class FFilterModelFaderGroup;
@@ -59,11 +60,11 @@ namespace UE::DMXControlConsoleEditor::FilterModel::Private
 		friend FFilterModelFader;
 
 	public:
+		/** Constructor */
+		FFilterModel(UDMXControlConsoleEditorModel* InEditorModel);
+
 		/** Initializes the model */
 		void Initialize();
-
-		/** Returns the model. Should not be called before the model is initialized. */
-		static FFilterModel& Get();
 
 		/** Sets a filter that is applied to the model */
 		void SetGlobalFilter(const FString& FilterString);
@@ -91,19 +92,19 @@ namespace UE::DMXControlConsoleEditor::FilterModel::Private
 		/** Updates the array of fader group models */
 		void UpdateFaderGroupModels();
 
-		/** Updates DMX Control Console Data reference */
+		/** Updates the Control Console Data reference */
 		void UpdateControlConsoleData();
 
 		/** Applies filter */
 		void ApplyFilter();
 
-		/** Called when Control Console Data have been changed by adding/removing Fader Groups */
+		/** Called when the Control Console Data have been changed by adding/removing Fader Groups */
 		void OnEditorConsoleDataChanged(const UDMXControlConsoleFaderGroup* FaderGroup);
 
-		/** Called when Fader Group has been changed by adding/removing Elements */
+		/** Called when a Fader Group has been changed by adding/removing Elements */
 		void OnFaderGroupElementsChanged(IDMXControlConsoleFaderGroupElement* Element);
 
-		/** Called when Fader Group Fixture Patch has changed */
+		/** Called when a Fader Group fixture patch has changed */
 		void OnFaderGroupFixturePatchChanged(UDMXControlConsoleFaderGroup* FaderGroup, UDMXEntityFixturePatch* FixturePatch);
 
 		/** The global filter used in this model */
@@ -117,5 +118,8 @@ namespace UE::DMXControlConsoleEditor::FilterModel::Private
 
 		/** Control console data used in this model */
 		TWeakObjectPtr<UDMXControlConsoleData> WeakControlConsoleData;
+
+		/** Weak reference to the Control Console editor model */
+		TWeakObjectPtr<UDMXControlConsoleEditorModel> EditorModel;
 	};
 }

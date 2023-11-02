@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "Widgets/SCompoundWidget.h"
 
 enum class ECheckBoxState : uint8;
@@ -10,7 +9,7 @@ struct FOptionalSize;
 struct FSlateColor;
 class SButton;
 template<typename NumericType> class SDMXControlConsoleEditorSpinBoxVertical;
-class SInlineEditableTextBlock;
+class UDMXControlConsoleEditorModel;
 class UDMXControlConsoleFaderBase;
 
 
@@ -27,7 +26,7 @@ public:
 	SLATE_END_ARGS()
 
 	/** Constructs the widget */
-	void Construct(const FArguments& InArgs, const TObjectPtr<UDMXControlConsoleFaderBase>& InFader);
+	void Construct(const FArguments& InArgs, UDMXControlConsoleFaderBase* InFader, UDMXControlConsoleEditorModel* InEditorModel);
 
 	/** Gets the Fader this Fader widget is based on */
 	UDMXControlConsoleFaderBase* GetFader() const { return Fader.Get(); }
@@ -41,7 +40,7 @@ protected:
 	//~ End of SWidget interface
 
 private:
-	/** Generates Lock button widget  */
+	/** Generates the Lock button widget  */
 	TSharedRef<SWidget> GenerateLockButtonWidget();
 
 	/** Generates a menu widget for Fader options  */
@@ -59,10 +58,10 @@ private:
 	/** Gets the Fader Name */
 	FString GetFaderName() const;
 
-	/**  Gets current FaderName */
+	/**  Gets the current FaderName */
 	FText GetFaderNameText() const;
 
-	/** Gets Fader's value */
+	/** Gets the Fader's value */
 	uint32 GetValue() const;
 
 	/** Returns the value as text */
@@ -92,26 +91,23 @@ private:
 	/** Handles when the user changes the Fader value */
 	void HandleValueChanged(uint32 NewValue);
 
-	/** Called before Fader Value starts to change */
+	/** Called before the Fader Value starts to change */
 	void OnBeginValueChange();
 
-	/** Called when new Fader Value is committed */
+	/** Called when a new Fader Value is committed */
 	void OnValueCommitted(uint32 NewValue, ETextCommit::Type CommitType);
 
-	/** Called when mute option is selected */
+	/** Called when the mute option is selected */
 	void OnMuteFader(bool bMute) const;
 
-	/** Called when remove option is selected */
+	/** Called when the remove option is selected */
 	void OnRemoveFader() const;
 
-	/** Called when reset option is selected */
+	/** Called when the reset option is selected */
 	void OnResetFader() const;
 
-	/** Called when lock option is selected */
+	/** Called when the lock option is selected */
 	void OnLockFader(bool bLock) const;
-
-	/** Called when the delete button was clicked */
-	FReply OnDeleteClicked();
 
 	/** Called to lock/unlock this Fader */
 	FReply OnLockClicked();
@@ -131,22 +127,22 @@ private:
 	/** Returns Fader's parameters as tooltip text */
 	FText GetToolTipText() const;
 
-	/** Gets correct text for lock button */
+	/** Gets the correct text for lock button */
 	FSlateColor GetLockButtonColor() const;
 
-	/** Gets visibility for expanded view only toolbar sections  */
+	/** Gets visibility for the toolbar sections only visible in expanded view mode */
 	EVisibility GetExpandedViewModeVisibility() const;
 
 	/** Gets visibility for lock button  */
 	EVisibility GetLockButtonVisibility() const;
 
-	/** Change fader background color on hover */
+	/** Change the fader background color on hover */
 	const FSlateBrush* GetBorderImage() const;
 
-	/** Change spin box background color on hover */
+	/** Change the spin box background color on hover */
 	const FSlateBrush* GetSpinBoxBorderImage() const;
 
-	/** Reference to Lock button widget */
+	/** Reference to the Lock button widget */
 	TSharedPtr<SButton> LockButton;
 
 	/** The actual editable fader */
@@ -154,6 +150,9 @@ private:
 
 	/** Reference to the Fader being displayed */
 	TWeakObjectPtr<UDMXControlConsoleFaderBase> Fader;
+
+	/** Weak reference to the Control Console editor model */
+	TWeakObjectPtr<UDMXControlConsoleEditorModel> EditorModel;
 
 	/** Fader Value before committing */
 	uint32 PreCommittedValue;

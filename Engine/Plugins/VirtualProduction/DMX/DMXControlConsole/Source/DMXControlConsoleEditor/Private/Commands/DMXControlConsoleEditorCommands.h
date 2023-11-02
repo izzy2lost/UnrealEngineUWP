@@ -18,9 +18,6 @@ public:
 
 	TSharedPtr<FUICommandInfo> OpenControlConsole;
 
-	TSharedPtr<FUICommandInfo> CreateNewConsole;
-	TSharedPtr<FUICommandInfo> SaveConsole;
-	TSharedPtr<FUICommandInfo> SaveConsoleAs;
 	TSharedPtr<FUICommandInfo> ToggleSendDMX;
 	TSharedPtr<FUICommandInfo> RemoveElements;
 	TSharedPtr<FUICommandInfo> SelectAll;

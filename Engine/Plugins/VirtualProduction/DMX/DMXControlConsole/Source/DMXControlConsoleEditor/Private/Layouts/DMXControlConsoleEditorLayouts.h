@@ -6,7 +6,6 @@
 
 #include "DMXControlConsoleEditorLayouts.generated.h"
 
-class UDMXControlConsoleData;
 class UDMXControlConsoleEditorGlobalLayoutBase;
 
 

@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "Containers/UnrealString.h"
 #include "Engine/DeveloperSettings.h"
 #include "Widgets/Views/SHeaderRow.h"
@@ -189,9 +188,15 @@ public:
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 #endif // WITH_EDITORONLY_DATA
 
+	// Control Console
+public:
+	/** Path to the last control console opened in the editor */
+	UPROPERTY(Config)
+	FString LastOpenedControlConsolePath;
+
 	// Channels Monitor
 public:
-	/** The Universe ID to be monitored in the Channels Monitor  */
+	/** The Universe ID to be monitored in the Channels Monitor */
 	UPROPERTY(Config)
 	int32 ChannelsMonitorUniverseID = 1;
 

@@ -3,23 +3,21 @@
 #include "SDMXControlConsoleEditorMatrixCell.h"
 
 #include "Algo/Find.h"
+#include "DMXControlConsoleEditorData.h"
 #include "DMXControlConsoleEditorSelection.h"
 #include "DMXControlConsoleFaderGroup.h"
 #include "DMXControlConsoleFaderBase.h"
-#include "DMXControlConsoleFixturePatchCellAttributeFader.h"
 #include "DMXControlConsoleFixturePatchMatrixCell.h"
 #include "Misc/Optional.h"
 #include "Models/DMXControlConsoleEditorModel.h"
-#include "ScopedTransaction.h"
 #include "Style/DMXControlConsoleEditorStyle.h"
-#include "Widgets/Input/SButton.h"
-#include "Widgets/Layout/SScaleBox.h"
-#include "Widgets/Layout/SSeparator.h"
+#include "Widgets/Images/SImage.h"
+#include "Widgets/Layout/SBorder.h"
+#include "Widgets/Layout/SBox.h"
+#include "Widgets/SBoxPanel.h"
 #include "Widgets/SDMXControlConsoleEditorFader.h"
-#include "Widgets/SDMXControlConsoleEditorSpinBoxVertical.h"
 #include "Widgets/SDMXControlConsoleEditorExpandArrowButton.h"
-#include "Widgets/Text/SInlineEditableTextBlock.h"
-
+#include "Widgets/Text/STextBlock.h"
 
 #define LOCTEXT_NAMESPACE "SDMXControlConsoleEditorMatrixCell"
 
@@ -29,8 +27,19 @@ namespace UE::DMXControlConsoleEditor::DMXControlConsoleEditorMatrixCell::Privat
 	static float ExpandedViewModeHeight = 280.f;
 };
 
-void SDMXControlConsoleEditorMatrixCell::Construct(const FArguments& InArgs, const TObjectPtr<UDMXControlConsoleFixturePatchMatrixCell>& InMatrixCell)
+void SDMXControlConsoleEditorMatrixCell::Construct(const FArguments& InArgs, UDMXControlConsoleFixturePatchMatrixCell* InMatrixCell, UDMXControlConsoleEditorModel* InEditorModel)
 {
+	if (!ensureMsgf(InEditorModel, TEXT("Invalid control console editor model, can't constuct matrix cell widget correctly.")))
+	{
+		return;
+	}
+
+	if (!ensureMsgf(InMatrixCell, TEXT("Invalid fader, cannot create matrix cell widget correctly.")))
+	{
+		return;
+	}
+
+	EditorModel = InEditorModel;
 	MatrixCell = InMatrixCell;
 
 	ChildSlot
@@ -163,6 +172,11 @@ void SDMXControlConsoleEditorMatrixCell::OnCellAttributeFaderAdded()
 
 void SDMXControlConsoleEditorMatrixCell::AddCellAttributeFader(UDMXControlConsoleFaderBase* CellAttributeFader)
 {
+	if (!ensureMsgf(EditorModel.IsValid(), TEXT("Invalid control console editor model, cannot add new matrix cell fader correctly.")))
+	{
+		return;
+	}
+
 	if (!ensureMsgf(CellAttributeFader, TEXT("Invalid cell attribute faders, cannot add new matrix cell fader correctly.")))
 	{
 		return;
@@ -176,7 +190,7 @@ void SDMXControlConsoleEditorMatrixCell::AddCellAttributeFader(UDMXControlConsol
 	const int32 Index = CellAttributeFader->GetIndex();
 
 	TSharedRef<SDMXControlConsoleEditorFader> CellAttributeFaderWidget =
-		SNew(SDMXControlConsoleEditorFader, CellAttributeFader)
+		SNew(SDMXControlConsoleEditorFader, CellAttributeFader, EditorModel.Get())
 		.Padding(FMargin(2.f, 0.f))
 		.Visibility(TAttribute<EVisibility>::CreateSP(this, &SDMXControlConsoleEditorMatrixCell::GetFaderWidgetVisibility, CellAttributeFader));
 
@@ -244,13 +258,12 @@ bool SDMXControlConsoleEditorMatrixCell::IsSelected() const
 
 bool SDMXControlConsoleEditorMatrixCell::IsAnyCellAttributeFaderSelected() const
 {
-	if (!MatrixCell.IsValid())
+	if (EditorModel.IsValid() || !MatrixCell.IsValid())
 	{
 		return false;
 	}
 
-	UDMXControlConsoleEditorModel* EditorConsoleModel = GetMutableDefault<UDMXControlConsoleEditorModel>();
-	const TSharedRef<FDMXControlConsoleEditorSelection> SelectionHandler = EditorConsoleModel->GetSelectionHandler();
+	const TSharedRef<FDMXControlConsoleEditorSelection> SelectionHandler = EditorModel->GetSelectionHandler();
 	const TArray<UDMXControlConsoleFaderBase*>& Faders = MatrixCell->GetFaders();
 
 	auto IsCellAttributeFaderSelectedLambda = [SelectionHandler](UDMXControlConsoleFaderBase* Fader)
@@ -265,9 +278,14 @@ FOptionalSize SDMXControlConsoleEditorMatrixCell::GetMatrixCellHeightByFadersVie
 {
 	using namespace UE::DMXControlConsoleEditor::DMXControlConsoleEditorMatrixCell::Private;
 
-	const UDMXControlConsoleEditorModel* EditorConsoleModel = GetDefault<UDMXControlConsoleEditorModel>();
-	const EDMXControlConsoleEditorViewMode ViewMode = EditorConsoleModel->GetFadersViewMode();
-	return ViewMode == EDMXControlConsoleEditorViewMode::Collapsed ? CollapsedViewModeHeight : ExpandedViewModeHeight;
+	const UDMXControlConsoleEditorData* EditorData = EditorModel.IsValid() ? EditorModel->GetControlConsoleEditorData() : nullptr;
+	if (EditorData)
+	{
+		const EDMXControlConsoleEditorViewMode ViewMode = EditorData->GetFadersViewMode();
+		return ViewMode == EDMXControlConsoleEditorViewMode::Collapsed ? CollapsedViewModeHeight : ExpandedViewModeHeight;
+	}
+
+	return CollapsedViewModeHeight;
 }
 
 FText SDMXControlConsoleEditorMatrixCell::GetMatrixCellLabelText() const

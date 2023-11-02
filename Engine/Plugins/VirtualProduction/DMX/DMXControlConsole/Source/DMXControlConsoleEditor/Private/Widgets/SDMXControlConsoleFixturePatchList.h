@@ -8,8 +8,8 @@
 enum class ECheckBoxState : uint8;
 class FDMXReadOnlyFixturePatchListItem;
 class FUICommandList;
-class UDMXControlConsoleEditorGlobalLayoutBase;
 class UDMXControlConsoleEditorGlobalLayoutRow;
+class UDMXControlConsoleEditorModel;
 class UDMXControlConsoleFaderGroup;
 class UToolMenu;
 
@@ -34,10 +34,11 @@ public:
 
 	SLATE_END_ARGS()
 
+	/** Destructor */
 	~SDMXControlConsoleFixturePatchList();
 
 	/** Constructs this widget */
-	void Construct(const FArguments& InArgs);
+	void Construct(const FArguments& InArgs, UDMXControlConsoleEditorModel* InEditorModel);
 
 protected:
 	//~ Begin SDMXReadOnlyFixturePatchList interface
@@ -45,6 +46,7 @@ protected:
 	virtual void ForceRefresh() override;
 	virtual TSharedRef<SHeaderRow> GenerateHeaderRow() override;
 	virtual TSharedRef<ITableRow> OnGenerateRow(TSharedPtr<FDMXReadOnlyFixturePatchListItem> InItem, const TSharedRef<STableViewBase>& OwnerTable) override;
+	virtual void ToggleColumnShowState(const FName ColumnID) override;
 	//~ End of SDMXReadOnlyFixturePatchList interface
 
 private:
@@ -98,4 +100,10 @@ private:
 
 	/** Command list for this widget */
 	TSharedPtr<FUICommandList> CommandList;
+
+	/** Weak reference to the Control Console editor model */
+	TWeakObjectPtr<UDMXControlConsoleEditorModel> EditorModel;
+
+	/** Editor Model's unique identifier */
+	int32 EditorModelUniqueID;
 };

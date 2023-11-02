@@ -5,6 +5,7 @@
 #include "Commands/DMXControlConsoleEditorCommands.h"
 #include "DMXControlConsoleEditorSelection.h"
 #include "DMXControlConsoleFaderGroup.h"
+#include "Framework/Commands/UICommandList.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Layouts/DMXControlConsoleEditorGlobalLayoutBase.h"
 #include "Layouts/DMXControlConsoleEditorGlobalLayoutRow.h"
@@ -16,8 +17,9 @@
 
 #define LOCTEXT_NAMESPACE "SDMXControlConsoleAddFixturePatchMenu"
 
-void SDMXControlConsoleAddFixturePatchMenu::Construct(const FArguments& InArgs, TArray<TWeakObjectPtr<UDMXEntityFixturePatch>> InFixturePatches)
+void SDMXControlConsoleAddFixturePatchMenu::Construct(const FArguments& InArgs, TArray<TWeakObjectPtr<UDMXEntityFixturePatch>> InFixturePatches, UDMXControlConsoleEditorModel* InEditorModel)
 {
+	EditorModel = InEditorModel;
 	FixturePatches = InFixturePatches;
 
 	RegisterCommands();
@@ -89,18 +91,17 @@ bool SDMXControlConsoleAddFixturePatchMenu::CanAddPatchesToTheRight() const
 {
 	bool bCanExecute = !FixturePatches.IsEmpty();
 
-	const UDMXControlConsoleEditorModel* EditorConsoleModel = GetDefault<UDMXControlConsoleEditorModel>();
-	const UDMXControlConsoleData* EditorConsoleData = EditorConsoleModel->GetEditorConsoleData();
-	const UDMXControlConsoleEditorLayouts* EditorConsoleLayouts = EditorConsoleModel->GetEditorConsoleLayouts();
-	if (EditorConsoleData && EditorConsoleLayouts)
+	const UDMXControlConsoleData* ControlConsoleData = EditorModel.IsValid() ? EditorModel->GetControlConsoleData() : nullptr;
+	const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = EditorModel.IsValid() ? EditorModel->GetControlConsoleLayouts() : nullptr;
+	if (ControlConsoleData && ControlConsoleLayouts)
 	{
 		// True if there's no global filter and no vertical sorting
-		const UDMXControlConsoleEditorGlobalLayoutBase* CurrentLayout = EditorConsoleLayouts->GetActiveLayout();
+		const UDMXControlConsoleEditorGlobalLayoutBase* CurrentLayout = ControlConsoleLayouts->GetActiveLayout();
 		bCanExecute &=
 			IsValid(CurrentLayout) &&
 			CurrentLayout->GetLayoutMode() != EDMXControlConsoleLayoutMode::Vertical &&
 			!CurrentLayout->GetAllFaderGroups().IsEmpty() &&
-			EditorConsoleData->FilterString.IsEmpty();
+			ControlConsoleData->FilterString.IsEmpty();
 	}
 
 	return bCanExecute;
@@ -108,15 +109,19 @@ bool SDMXControlConsoleAddFixturePatchMenu::CanAddPatchesToTheRight() const
 
 void SDMXControlConsoleAddFixturePatchMenu::AddPatchesToTheRight()
 {
-	UDMXControlConsoleEditorModel* EditorConsoleModel = GetMutableDefault<UDMXControlConsoleEditorModel>();
-	const UDMXControlConsoleData* EditorConsoleData = EditorConsoleModel->GetEditorConsoleData();
-	const UDMXControlConsoleEditorLayouts* EditorConsoleLayouts = EditorConsoleModel->GetEditorConsoleLayouts();
-	if (!EditorConsoleData || !EditorConsoleLayouts)
+	if (!EditorModel.IsValid())
 	{
 		return;
 	}
 
-	UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = EditorConsoleLayouts->GetActiveLayout();
+	const UDMXControlConsoleData* ControlConsoleData = EditorModel->GetControlConsoleData();
+	const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = EditorModel->GetControlConsoleLayouts();
+	if (!ControlConsoleData || !ControlConsoleLayouts)
+	{
+		return;
+	}
+
+	UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = ControlConsoleLayouts->GetActiveLayout();
 	if (!ActiveLayout)
 	{
 		return;
@@ -125,7 +130,7 @@ void SDMXControlConsoleAddFixturePatchMenu::AddPatchesToTheRight()
 	int32 RowIndex = ActiveLayout->GetLayoutRows().Num() - 1;
 	int32 ColumnIndex = INDEX_NONE;
 
-	const TSharedRef<FDMXControlConsoleEditorSelection> SelectionHandler = EditorConsoleModel->GetSelectionHandler();
+	const TSharedRef<FDMXControlConsoleEditorSelection> SelectionHandler = EditorModel->GetSelectionHandler();
 	const TArray<TWeakObjectPtr<UObject>> SelectedFaderGroupsObjects = SelectionHandler->GetSelectedFaderGroups();
 	if (!SelectedFaderGroupsObjects.IsEmpty())
 	{
@@ -143,7 +148,7 @@ void SDMXControlConsoleAddFixturePatchMenu::AddPatchesToTheRight()
 			continue;
 		}
 
-		UDMXControlConsoleFaderGroup* FaderGroup = EditorConsoleData->FindFaderGroupByFixturePatch(FixturePatch);
+		UDMXControlConsoleFaderGroup* FaderGroup = ControlConsoleData->FindFaderGroupByFixturePatch(FixturePatch);
 		if (!FaderGroup)
 		{
 			continue;
@@ -178,17 +183,16 @@ bool SDMXControlConsoleAddFixturePatchMenu::CanAddPatchesOnNewRow() const
 {
 	bool bCanExecute = !FixturePatches.IsEmpty();
 
-	const UDMXControlConsoleEditorModel* EditorConsoleModel = GetDefault<UDMXControlConsoleEditorModel>();
-	const UDMXControlConsoleData* EditorConsoleData = EditorConsoleModel->GetEditorConsoleData();
-	const UDMXControlConsoleEditorLayouts* EditorConsoleLayouts = EditorConsoleModel->GetEditorConsoleLayouts();
-	if (EditorConsoleData && EditorConsoleLayouts)
+	const UDMXControlConsoleData* ControlConsoleData = EditorModel.IsValid() ? EditorModel->GetControlConsoleData() : nullptr;
+	const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = EditorModel.IsValid() ? EditorModel->GetControlConsoleLayouts() : nullptr;
+	if (ControlConsoleData && ControlConsoleLayouts)
 	{
 		// True if there's no global filter and no horizontal sorting
-		const UDMXControlConsoleEditorGlobalLayoutBase* CurrentLayout = EditorConsoleLayouts->GetActiveLayout();
+		const UDMXControlConsoleEditorGlobalLayoutBase* CurrentLayout = ControlConsoleLayouts->GetActiveLayout();
 		bCanExecute &=
 			IsValid(CurrentLayout) &&
 			CurrentLayout->GetLayoutMode() != EDMXControlConsoleLayoutMode::Horizontal &&
-			EditorConsoleData->FilterString.IsEmpty();
+			ControlConsoleData->FilterString.IsEmpty();
 	}
 
 	return bCanExecute;
@@ -196,15 +200,19 @@ bool SDMXControlConsoleAddFixturePatchMenu::CanAddPatchesOnNewRow() const
 
 void SDMXControlConsoleAddFixturePatchMenu::AddPatchesOnNewRow()
 {
-	UDMXControlConsoleEditorModel* EditorConsoleModel = GetMutableDefault<UDMXControlConsoleEditorModel>();
-	const UDMXControlConsoleData* EditorConsoleData = EditorConsoleModel->GetEditorConsoleData();
-	const UDMXControlConsoleEditorLayouts* EditorConsoleLayouts = EditorConsoleModel->GetEditorConsoleLayouts();
-	if (!EditorConsoleData || !EditorConsoleLayouts)
+	if (!EditorModel.IsValid())
 	{
 		return;
 	}
 
-	UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = EditorConsoleLayouts->GetActiveLayout();
+	const UDMXControlConsoleData* ControlConsoleData = EditorModel->GetControlConsoleData();
+	const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = EditorModel->GetControlConsoleLayouts();
+	if (!ControlConsoleData || !ControlConsoleLayouts)
+	{
+		return;
+	}
+
+	UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = ControlConsoleLayouts->GetActiveLayout();
 	if (!ActiveLayout)
 	{
 		return;
@@ -219,7 +227,7 @@ void SDMXControlConsoleAddFixturePatchMenu::AddPatchesOnNewRow()
 
 	int32 NewRowIndex = INDEX_NONE;
 
-	const TSharedRef<FDMXControlConsoleEditorSelection> SelectionHandler = EditorConsoleModel->GetSelectionHandler();
+	const TSharedRef<FDMXControlConsoleEditorSelection> SelectionHandler = EditorModel->GetSelectionHandler();
 	const TArray<TWeakObjectPtr<UObject>> SelectedFaderGroupsObjects = SelectionHandler->GetSelectedFaderGroups();
 	if (SelectedFaderGroupsObjects.IsEmpty())
 	{
@@ -251,7 +259,7 @@ void SDMXControlConsoleAddFixturePatchMenu::AddPatchesOnNewRow()
 				continue;
 			}
 
-			UDMXControlConsoleFaderGroup* FaderGroup = EditorConsoleData->FindFaderGroupByFixturePatch(FixturePatch);
+			UDMXControlConsoleFaderGroup* FaderGroup = ControlConsoleData->FindFaderGroupByFixturePatch(FixturePatch);
 			if (!FaderGroup)
 			{
 				continue;
@@ -277,39 +285,44 @@ void SDMXControlConsoleAddFixturePatchMenu::AddPatchesOnNewRow()
 
 bool SDMXControlConsoleAddFixturePatchMenu::CanSetPatchOnFaderGroup() const
 {
-	bool bCanExecute = !FixturePatches.IsEmpty();
-
-	UDMXControlConsoleEditorModel* EditorConsoleModel = GetMutableDefault<UDMXControlConsoleEditorModel>();
-	if (const UDMXControlConsoleData* EditorConsoleData = EditorConsoleModel->GetEditorConsoleData())
+	if (!EditorModel.IsValid() || FixturePatches.IsEmpty())
 	{
-		// True if there's if there's no global filter and at least one selected Fader Group
-		const TSharedRef<FDMXControlConsoleEditorSelection> SelectionHandler = EditorConsoleModel->GetSelectionHandler();
-		bCanExecute &=
-			EditorConsoleData->FilterString.IsEmpty() &&
-			!SelectionHandler->GetSelectedFaderGroups().IsEmpty();
+		return false;
 	}
 
-	return bCanExecute;
+	const UDMXControlConsoleData* ControlConsoleData = EditorModel->GetControlConsoleData();
+	if (!ControlConsoleData)
+	{
+		return false;
+	}
+		
+	// True if there's if there's no global filter and at least one selected Fader Group
+	const TSharedRef<FDMXControlConsoleEditorSelection> SelectionHandler = EditorModel->GetSelectionHandler();
+	return ControlConsoleData->FilterString.IsEmpty() && !SelectionHandler->GetSelectedFaderGroups().IsEmpty();
 }
 
 void SDMXControlConsoleAddFixturePatchMenu::SetPatchOnFaderGroup()
 {
-	UDMXControlConsoleEditorModel* EditorConsoleModel = GetMutableDefault<UDMXControlConsoleEditorModel>();
-	const UDMXControlConsoleData* EditorConsoleData = EditorConsoleModel->GetEditorConsoleData();
-	const UDMXControlConsoleEditorLayouts* EditorConsoleLayouts = EditorConsoleModel->GetEditorConsoleLayouts();
-	if (!EditorConsoleData || !EditorConsoleLayouts)
+	if (!EditorModel.IsValid())
 	{
 		return;
 	}
 
-	const TSharedRef<FDMXControlConsoleEditorSelection> SelectionHandler = EditorConsoleModel->GetSelectionHandler();
+	const UDMXControlConsoleData* ControlConsoleData = EditorModel->GetControlConsoleData();
+	const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = EditorModel->GetControlConsoleLayouts();
+	if (!ControlConsoleData || !ControlConsoleLayouts)
+	{
+		return;
+	}
+
+	const TSharedRef<FDMXControlConsoleEditorSelection> SelectionHandler = EditorModel->GetSelectionHandler();
 	const UDMXControlConsoleFaderGroup* FirstSelectedFaderGroup = SelectionHandler->GetFirstSelectedFaderGroup();
 	if (!FirstSelectedFaderGroup)
 	{
 		return;
 	}
 
-	UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = EditorConsoleLayouts->GetActiveLayout();
+	UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = ControlConsoleLayouts->GetActiveLayout();
 	if (!ActiveLayout)
 	{
 		return;
@@ -332,7 +345,7 @@ void SDMXControlConsoleAddFixturePatchMenu::SetPatchOnFaderGroup()
 			continue;
 		}
 
-		UDMXControlConsoleFaderGroup* FaderGroupToAdd = EditorConsoleData->FindFaderGroupByFixturePatch(FixturePatch);
+		UDMXControlConsoleFaderGroup* FaderGroupToAdd = ControlConsoleData->FindFaderGroupByFixturePatch(FixturePatch);
 		ActiveLayout->AddToLayout(FaderGroupToAdd, RowIndex, ColumnIndex);
 		ActiveLayout->AddToActiveFaderGroups(FaderGroupToAdd);
 
@@ -373,7 +386,7 @@ void SDMXControlConsoleAddFixturePatchMenu::SetPatchOnFaderGroup()
 	SelectionHandler->AddToSelection(FaderGroupsToSelect, bNotifySelectionChange);
 	SelectionHandler->RemoveFromSelection(FaderGroupsToUnselect);
 
-	EditorConsoleModel->RequestUpdateEditorModel();
+	EditorModel->RequestUpdateEditorModel();
 }
 
 #undef LOCTEXT_NAMESPACE

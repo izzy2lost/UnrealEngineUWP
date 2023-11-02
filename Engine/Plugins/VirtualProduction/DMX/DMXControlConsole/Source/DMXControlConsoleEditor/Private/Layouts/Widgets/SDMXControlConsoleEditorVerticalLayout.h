@@ -12,7 +12,7 @@ class SVerticalBox;
 class UDMXControlConsoleFaderGroup;
 
 
-namespace UE::DMXControlConsoleEditor::Layout::Private
+namespace UE::DMX::ControlConsoleEditor::Private
 { 
 	/** Model for control console grid layout */
 	class SDMXControlConsoleEditorVerticalLayout
@@ -25,7 +25,7 @@ namespace UE::DMXControlConsoleEditor::Layout::Private
 		SLATE_END_ARGS()
 
 		/** Constructs the widget */
-		void Construct(const FArguments& InArgs, UDMXControlConsoleEditorGlobalLayoutBase* InLayout);
+		void Construct(const FArguments& InArgs, UDMXControlConsoleEditorGlobalLayoutBase* InLayout, UDMXControlConsoleEditorModel* InEditorModel);
 
 	protected:
 		//~ Begin SDMXControlConsoleEditorLayout interface
@@ -47,7 +47,7 @@ namespace UE::DMXControlConsoleEditor::Layout::Private
 		/** Gets the visibility for each FaderGroupView widget in this row */
 		EVisibility GetFaderGroupViewVisibility(TWeakObjectPtr<UDMXControlConsoleFaderGroup> FaderGroup) const;
 
-		/** Gets the add button visibility */
+		/** Gets visibility for the add button */
 		EVisibility GetAddButtonVisibility() const;
 
 		/** The widget containing the FaderGroupViews */

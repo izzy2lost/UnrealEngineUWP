@@ -4,6 +4,7 @@
 
 #include "Algo/AnyOf.h"
 #include "DMXControlConsoleData.h"
+#include "DMXControlConsoleEditorData.h"
 #include "DMXControlConsoleEditorSelection.h"
 #include "DMXControlConsoleFaderBase.h"
 #include "DMXControlConsoleFaderGroup.h"
@@ -13,7 +14,6 @@
 #include "Layouts/DMXControlConsoleEditorGlobalLayoutBase.h"
 #include "Layouts/DMXControlConsoleEditorLayouts.h"
 #include "Library/DMXEntityFixturePatch.h"
-#include "Library/DMXEntityReference.h"
 #include "Library/DMXLibrary.h"
 #include "Models/DMXControlConsoleEditorModel.h"
 #include "Models/Filter/FilterModel.h"
@@ -23,23 +23,27 @@
 #include "Styling/StyleColors.h"
 #include "Views/SDMXControlConsoleEditorFaderGroupView.h"
 #include "Widgets/SBoxPanel.h"
-#include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SComboBox.h"
 #include "Widgets/Input/SSearchBox.h"
-#include "Widgets/Layout/SBorder.h"
 #include "Widgets/SDMXControlConsoleEditorFaderGroupPanel.h"
 
 
 #define LOCTEXT_NAMESPACE "SDMXControlConsoleEditorFaderGroup"
 
-void SDMXControlConsoleEditorFaderGroupToolbar::Construct(const FArguments& InArgs, const TWeakPtr<SDMXControlConsoleEditorFaderGroupView>& InFaderGroupView)
+void SDMXControlConsoleEditorFaderGroupToolbar::Construct(const FArguments& InArgs, const TWeakPtr<SDMXControlConsoleEditorFaderGroupView>& InFaderGroupView, UDMXControlConsoleEditorModel* InEditorModel)
 {
-	FaderGroupView = InFaderGroupView;
-
-	if (!ensureMsgf(FaderGroupView.IsValid(), TEXT("Invalid fader group view, cannot create fader group widget correctly.")))
+	if (!ensureMsgf(InEditorModel, TEXT("Invalid control console editor model, cannot create fader group toolbar widget correctly.")))
 	{
 		return;
 	}
+
+	if (!ensureMsgf(InFaderGroupView.IsValid(), TEXT("Invalid fader group view, cannot create fader group toolbar widget correctly.")))
+	{
+		return;
+	}
+
+	EditorModel = InEditorModel;
+	FaderGroupView = InFaderGroupView;
 
 	OnAddFaderGroupDelegate = InArgs._OnAddFaderGroup;
 	OnAddFaderGroupRowDelegate = InArgs._OnAddFaderGroupRow;
@@ -482,42 +486,43 @@ void SDMXControlConsoleEditorFaderGroupToolbar::RestoreFaderGroupFilter()
 
 bool SDMXControlConsoleEditorFaderGroupToolbar::IsFixturePatchStillAvailable(const UDMXEntityFixturePatch* InFixturePatch) const
 {
-	if (InFixturePatch)
+	if (!InFixturePatch)
 	{
-		const UDMXControlConsoleEditorModel* EditorConsoleModel = GetDefault<UDMXControlConsoleEditorModel>();
-		if (const UDMXControlConsoleEditorLayouts* EditorConsoleLayouts = EditorConsoleModel->GetEditorConsoleLayouts())
-		{
-			const UDMXControlConsoleEditorGlobalLayoutBase* CurrentLayout = EditorConsoleLayouts->GetActiveLayout();
-			const TArray<TWeakObjectPtr<UDMXControlConsoleFaderGroup>> AllFaderGroups = CurrentLayout->GetAllFaderGroups();
-
-			auto IsFixturePatchInUseLambda = [InFixturePatch](const TWeakObjectPtr<UDMXControlConsoleFaderGroup>& FaderGroup)
-				{
-					if (!FaderGroup.IsValid() || !FaderGroup->IsActive() || !FaderGroup->HasFixturePatch())
-					{
-						return false;
-					}
-
-					const UDMXEntityFixturePatch* FixturePatch = FaderGroup->GetFixturePatch();
-					if (FixturePatch != InFixturePatch)
-					{
-						return false;
-					}
-
-					return true;
-				};
-
-			return !Algo::AnyOf(AllFaderGroups, IsFixturePatchInUseLambda);
-		}
+		return false;
 	}
 
-	return false;
+	const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = EditorModel.IsValid() ? EditorModel->GetControlConsoleLayouts() : nullptr;
+	if (!ControlConsoleLayouts)
+	{
+		return false;
+	}
+
+	const UDMXControlConsoleEditorGlobalLayoutBase* CurrentLayout = ControlConsoleLayouts->GetActiveLayout();
+	const TArray<TWeakObjectPtr<UDMXControlConsoleFaderGroup>> AllFaderGroups = CurrentLayout->GetAllFaderGroups();
+
+	auto IsFixturePatchInUseLambda = [InFixturePatch](const TWeakObjectPtr<UDMXControlConsoleFaderGroup>& FaderGroup)
+		{
+			if (!FaderGroup.IsValid() || !FaderGroup->IsActive() || !FaderGroup->HasFixturePatch())
+			{
+				return false;
+			}
+
+			const UDMXEntityFixturePatch* FixturePatch = FaderGroup->GetFixturePatch();
+			if (FixturePatch != InFixturePatch)
+			{
+				return false;
+			}
+
+			return true;
+		};
+
+	return !Algo::AnyOf(AllFaderGroups, IsFixturePatchInUseLambda);
 }
 
 void SDMXControlConsoleEditorFaderGroupToolbar::UpdateComboBoxSource()
 {
-	const UDMXControlConsoleEditorModel* EditorConsoleModel = GetDefault<UDMXControlConsoleEditorModel>();
-	const UDMXControlConsoleData* EditorConsoleData = EditorConsoleModel->GetEditorConsoleData();
-	DMXLibrary = EditorConsoleData->GetDMXLibrary();
+	const UDMXControlConsoleData* ControlConsoleData = EditorModel.IsValid() ? EditorModel->GetControlConsoleData() : nullptr;
+	DMXLibrary = ControlConsoleData ? ControlConsoleData->GetDMXLibrary() : nullptr;
 
 	ComboBoxSource.Reset(ComboBoxSource.Num());
 	ComboBoxSource.Add(MakeShared<FDMXEntityFixturePatchRef>());
@@ -544,24 +549,28 @@ void SDMXControlConsoleEditorFaderGroupToolbar::UpdateComboBoxSource()
 
 void SDMXControlConsoleEditorFaderGroupToolbar::OnComboBoxSelectionChanged(const TSharedPtr<FDMXEntityFixturePatchRef> FixturePatchRef, ESelectInfo::Type SelectInfo)
 {
+	if (!EditorModel.IsValid())
+	{
+		return;
+	}
+
 	UDMXControlConsoleFaderGroup* FaderGroup = GetFaderGroup();
 	if (!FaderGroup)
 	{
 		return;
 	}
 
-	UDMXControlConsoleEditorModel* EditorConsoleModel = GetMutableDefault<UDMXControlConsoleEditorModel>();
-	const TSharedRef<FDMXControlConsoleEditorSelection> SelectionHandler = EditorConsoleModel->GetSelectionHandler();
+	const TSharedRef<FDMXControlConsoleEditorSelection> SelectionHandler = EditorModel->GetSelectionHandler();
 	SelectionHandler->ClearFadersSelection(FaderGroup);
 		
-	const UDMXControlConsoleData* EditorConsoleData = EditorConsoleModel->GetEditorConsoleData();
-	const UDMXControlConsoleEditorLayouts* EditorConsoleLayouts = EditorConsoleModel->GetEditorConsoleLayouts();
-	if (!EditorConsoleData || !EditorConsoleLayouts)
+	const UDMXControlConsoleData* ControlConsoleData = EditorModel->GetControlConsoleData();
+	const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = EditorModel->GetControlConsoleLayouts();
+	if (!ControlConsoleData || !ControlConsoleLayouts)
 	{
 		return;
 	}
 
-	UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = EditorConsoleLayouts->GetActiveLayout();
+	UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = ControlConsoleLayouts->GetActiveLayout();
 	if (!ActiveLayout)
 	{
 		return;
@@ -574,9 +583,9 @@ void SDMXControlConsoleEditorFaderGroupToolbar::OnComboBoxSelectionChanged(const
 	if (FixturePatch)
 	{
 		// Find Fader Group to Add in Control Console Data
-		FaderGroupToAdd = EditorConsoleData->FindFaderGroupByFixturePatch(FixturePatch);
+		FaderGroupToAdd = ControlConsoleData->FindFaderGroupByFixturePatch(FixturePatch);
 	}
-	else if (ActiveLayout != &EditorConsoleLayouts->GetDefaultLayoutChecked())
+	else if (ActiveLayout != &ControlConsoleLayouts->GetDefaultLayoutChecked())
 	{
 		// Fader Group to Add is a new Fader Group
 		UDMXControlConsoleFaderGroupRow& OwnerRow = FaderGroup->GetOwnerFaderGroupRowChecked();
@@ -592,7 +601,7 @@ void SDMXControlConsoleEditorFaderGroupToolbar::OnComboBoxSelectionChanged(const
 
 		// Emplace Fader Group with FaderGroupToAdd
 		ActiveLayout->PreEditChange(nullptr);
-		if (ActiveLayout == &EditorConsoleLayouts->GetDefaultLayoutChecked())
+		if (ActiveLayout == &ControlConsoleLayouts->GetDefaultLayoutChecked())
 		{
 			ActiveLayout->RemoveFromLayout(FaderGroupToAdd);
 			ActiveLayout->RemoveFromActiveFaderGroups(FaderGroupToAdd);
@@ -626,44 +635,53 @@ void SDMXControlConsoleEditorFaderGroupToolbar::OnComboBoxSelectionChanged(const
 		}
 	}
 
-	EditorConsoleModel->RequestUpdateEditorModel();
+	EditorModel->RequestUpdateEditorModel();
 }
 
 void SDMXControlConsoleEditorFaderGroupToolbar::OnSearchTextChanged(const FText& SearchText)
 {
-	if (UDMXControlConsoleFaderGroup* FaderGroup = GetFaderGroup())
+	const UDMXControlConsoleEditorData* EditorData = EditorModel.IsValid() ? EditorModel->GetControlConsoleEditorData() : nullptr;
+	if (!EditorData)
 	{
-		using namespace UE::DMXControlConsoleEditor::FilterModel::Private;
-		FFilterModel::Get().SetFaderGroupFilter(FaderGroup, SearchText.ToString());
+		return;
+	}
 
-		UDMXControlConsoleEditorModel* EditorConsoleModel = GetMutableDefault<UDMXControlConsoleEditorModel>();
-		if (!SearchText.IsEmpty() && EditorConsoleModel->GetAutoSelectFilteredElements())
+	UDMXControlConsoleFaderGroup* FaderGroup = GetFaderGroup();
+	if (!FaderGroup)
+	{
+		return;
+	}
+
+	using namespace UE::DMX::ControlConsoleEditor::Private;
+	const TSharedRef<FFilterModel> FilterModel = EditorModel->GetFilterModel();
+	FilterModel->SetFaderGroupFilter(FaderGroup, SearchText.ToString());
+
+	if (!SearchText.IsEmpty() && EditorData->GetAutoSelectFilteredElements())
+	{
+		TArray<UObject*> FadersToSelect;
+		TArray<UObject*> FadersToUnselect;
+		const TArray<UDMXControlConsoleFaderBase*> AllFaders = FaderGroup->GetAllFaders();
+		for (UDMXControlConsoleFaderBase* Fader : AllFaders)
 		{
-			TArray<UObject*> FadersToSelect;
-			TArray<UObject*> FadersToUnselect;
-			const TArray<UDMXControlConsoleFaderBase*> AllFaders = FaderGroup->GetAllFaders();
-			for (UDMXControlConsoleFaderBase* Fader : AllFaders)
+			if (!Fader)
 			{
-				if (!Fader)
-				{
-					continue;
-				}
-
-				if (Fader->IsMatchingFilter())
-				{
-					FadersToSelect.Add(Fader);
-				}
-				else
-				{
-					FadersToUnselect.Add(Fader);
-				}
+				continue;
 			}
 
-			const TSharedRef<FDMXControlConsoleEditorSelection> SelectionHandler = EditorConsoleModel->GetSelectionHandler();
-			constexpr bool bNotifySelection = false;
-			SelectionHandler->AddToSelection(FadersToSelect, bNotifySelection);
-			SelectionHandler->RemoveFromSelection(FadersToUnselect);
+			if (Fader->IsMatchingFilter())
+			{
+				FadersToSelect.Add(Fader);
+			}
+			else
+			{
+				FadersToUnselect.Add(Fader);
+			}
 		}
+
+		const TSharedRef<FDMXControlConsoleEditorSelection> SelectionHandler = EditorModel->GetSelectionHandler();
+		constexpr bool bNotifySelection = false;
+		SelectionHandler->AddToSelection(FadersToSelect, bNotifySelection);
+		SelectionHandler->RemoveFromSelection(FadersToUnselect);
 	}
 }
 
@@ -702,10 +720,10 @@ void SDMXControlConsoleEditorFaderGroupToolbar::OnGetInfoPanel()
 
 void SDMXControlConsoleEditorFaderGroupToolbar::OnSelectAllFaders() const
 {
-	if (UDMXControlConsoleFaderGroup* FaderGroup = GetFaderGroup())
+	UDMXControlConsoleFaderGroup* FaderGroup = GetFaderGroup();
+	if (EditorModel.IsValid() && FaderGroup)
 	{
-		UDMXControlConsoleEditorModel* EditorConsoleModel = GetMutableDefault<UDMXControlConsoleEditorModel>();
-		const TSharedRef<FDMXControlConsoleEditorSelection> SelectionHandler = EditorConsoleModel->GetSelectionHandler();
+		const TSharedRef<FDMXControlConsoleEditorSelection> SelectionHandler = EditorModel->GetSelectionHandler();
 		SelectionHandler->AddAllFadersFromFaderGroupToSelection(FaderGroup, true);
 	}
 }
@@ -729,20 +747,24 @@ bool SDMXControlConsoleEditorFaderGroupToolbar::CanDuplicateFaderGroup() const
 
 void SDMXControlConsoleEditorFaderGroupToolbar::OnRemoveFaderGroup() const
 {
+	if (!EditorModel.IsValid())
+	{
+		return;
+	}
+
 	UDMXControlConsoleFaderGroup* FaderGroup = GetFaderGroup();
 	if (!FaderGroup)
 	{
 		return;
 	}
 
-	UDMXControlConsoleEditorModel* EditorConsoleModel = GetMutableDefault<UDMXControlConsoleEditorModel>();
-	const UDMXControlConsoleEditorLayouts* EditorConsoleLayouts = EditorConsoleModel->GetEditorConsoleLayouts();
-	if (!EditorConsoleLayouts)
+	const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = EditorModel->GetControlConsoleLayouts();
+	if (!ControlConsoleLayouts)
 	{
 		return;
 	}
 
-	UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = EditorConsoleLayouts->GetActiveLayout();
+	UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = ControlConsoleLayouts->GetActiveLayout();
 	if (!ActiveLayout)
 	{
 		return;
@@ -755,7 +777,7 @@ void SDMXControlConsoleEditorFaderGroupToolbar::OnRemoveFaderGroup() const
 	ActiveLayout->ClearEmptyLayoutRows();
 	ActiveLayout->PostEditChange();
 
-	const TSharedRef<FDMXControlConsoleEditorSelection> SelectionHandler = EditorConsoleModel->GetSelectionHandler();
+	const TSharedRef<FDMXControlConsoleEditorSelection> SelectionHandler = EditorModel->GetSelectionHandler();
 	SelectionHandler->RemoveFromSelection(FaderGroup);
 
 	if (!FaderGroup->HasFixturePatch())
@@ -767,16 +789,19 @@ void SDMXControlConsoleEditorFaderGroupToolbar::OnRemoveFaderGroup() const
 bool SDMXControlConsoleEditorFaderGroupToolbar::CanRemoveFaderGroup() const
 {
 	const UDMXControlConsoleFaderGroup* FaderGroup = GetFaderGroup();
-	bool bCanRemove = IsValid(FaderGroup);
-
-	const UDMXControlConsoleEditorModel* EditorConsoleModel = GetDefault<UDMXControlConsoleEditorModel>();
-	if (const UDMXControlConsoleEditorLayouts* EditorConsoleLayouts = EditorConsoleModel->GetEditorConsoleLayouts())
+	if (!EditorModel.IsValid() || !IsValid(FaderGroup))
 	{
-		const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = EditorConsoleLayouts->GetActiveLayout();
-		bCanRemove &= IsValid(ActiveLayout) && ActiveLayout != &EditorConsoleLayouts->GetDefaultLayoutChecked();
+		return false;
 	}
 
-	return bCanRemove;
+	const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = EditorModel->GetControlConsoleLayouts();
+	if (!ControlConsoleLayouts)
+	{
+		return false;
+	}
+
+	const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = ControlConsoleLayouts->GetActiveLayout();
+	return IsValid(ActiveLayout) && ActiveLayout != &ControlConsoleLayouts->GetDefaultLayoutChecked();
 }
 
 void SDMXControlConsoleEditorFaderGroupToolbar::OnResetFaderGroup() const

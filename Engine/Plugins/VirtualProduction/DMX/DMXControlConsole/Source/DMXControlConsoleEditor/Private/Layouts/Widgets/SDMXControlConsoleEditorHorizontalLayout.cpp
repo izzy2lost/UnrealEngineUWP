@@ -22,21 +22,20 @@
 
 #define LOCTEXT_NAMESPACE "SDMXControlConsoleEditorHorizontalLayout"
 
-namespace UE::DMXControlConsoleEditor::Layout::Private
+namespace UE::DMX::ControlConsoleEditor::Private
 {
-	void SDMXControlConsoleEditorHorizontalLayout::Construct(const FArguments& InArgs, UDMXControlConsoleEditorGlobalLayoutBase* InLayout)
+	void SDMXControlConsoleEditorHorizontalLayout::Construct(const FArguments& InArgs, UDMXControlConsoleEditorGlobalLayoutBase* InLayout, UDMXControlConsoleEditorModel* InEditorModel)
 	{
-		if (!ensureMsgf(InLayout, TEXT("Invalid layout, cannot create layout view correctly.")))
+		if (!ensureMsgf(InEditorModel && InLayout, TEXT("Invalid control console editor model, can't create layout view correctly.")))
 		{
 			return;
 		}
 
+		EditorModel = InEditorModel;
 		EditorLayout = InLayout;
 
-		UDMXControlConsoleEditorModel* EditorConsoleModel = GetMutableDefault<UDMXControlConsoleEditorModel>();
-		EditorConsoleModel->GetOnConsoleLoaded().AddSP(this, &SDMXControlConsoleEditorHorizontalLayout::Refresh);
-		EditorConsoleModel->GetOnEditorModelUpdated().AddSP(this, &SDMXControlConsoleEditorHorizontalLayout::Refresh);
-		EditorConsoleModel->GetOnScrollFaderGroupIntoView().AddSP(this, &SDMXControlConsoleEditorHorizontalLayout::OnScrollIntoView);
+		EditorModel->GetOnEditorModelUpdated().AddSP(this, &SDMXControlConsoleEditorHorizontalLayout::Refresh);
+		EditorModel->GetOnScrollFaderGroupIntoView().AddSP(this, &SDMXControlConsoleEditorHorizontalLayout::OnScrollIntoView);
 
 		ChildSlot
 			[
@@ -86,19 +85,18 @@ namespace UE::DMXControlConsoleEditor::Layout::Private
 
 	bool SDMXControlConsoleEditorHorizontalLayout::CanRefresh() const
 	{
-		if (!EditorLayout.IsValid())
+		if (!EditorModel.IsValid() || !EditorLayout.IsValid())
 		{
 			return false;
 		}
 
-		const UDMXControlConsoleEditorModel* EditorConsoleModel = GetDefault<UDMXControlConsoleEditorModel>();
-		const UDMXControlConsoleEditorLayouts* EditorConsoleLayouts = EditorConsoleModel->GetEditorConsoleLayouts();
-		if (!EditorConsoleLayouts)
+		const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = EditorModel->GetControlConsoleLayouts();
+		if (!ControlConsoleLayouts)
 		{
 			return false;
 		}
 
-		const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = EditorConsoleLayouts->GetActiveLayout();
+		const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = ControlConsoleLayouts->GetActiveLayout();
 		if (!ActiveLayout)
 		{
 			return false;
@@ -115,14 +113,18 @@ namespace UE::DMXControlConsoleEditor::Layout::Private
 
 	void SDMXControlConsoleEditorHorizontalLayout::OnLayoutElementAdded()
 	{
-		const UDMXControlConsoleEditorModel* EditorConsoleModel = GetDefault<UDMXControlConsoleEditorModel>();
-		const UDMXControlConsoleEditorLayouts* EditorConsoleLayouts = EditorConsoleModel->GetEditorConsoleLayouts();
-		if (!ensureMsgf(EditorConsoleLayouts, TEXT("Invalid Control Console Layouts, can't add new element to layout correctly.")))
+		if (!ensureMsgf(EditorModel.IsValid(), TEXT("Invalid control console toolkit, can't add new element to layout correctly.")))
 		{
 			return;
 		}
 
-		const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = EditorConsoleLayouts->GetActiveLayout();
+		const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = EditorModel->GetControlConsoleLayouts();
+		if (!ensureMsgf(ControlConsoleLayouts, TEXT("Invalid control console layouts, can't add new element to layout correctly.")))
+		{
+			return;
+		}
+
+		const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = ControlConsoleLayouts->GetActiveLayout();
 		if (!ActiveLayout)
 		{
 			return;
@@ -144,7 +146,7 @@ namespace UE::DMXControlConsoleEditor::Layout::Private
 			const int32 Index = AllFaderGroups.IndexOfByKey(FaderGroup);
 
 			const TSharedRef<SDMXControlConsoleEditorFaderGroupView> FaderGroupWidget =
-				SNew(SDMXControlConsoleEditorFaderGroupView, FaderGroup.Get())
+				SNew(SDMXControlConsoleEditorFaderGroupView, FaderGroup.Get(), EditorModel.Get())
 				.Visibility(TAttribute<EVisibility>::CreateSP(this, &SDMXControlConsoleEditorHorizontalLayout::GetFaderGroupViewVisibility, FaderGroup.Get()));
 
 			FaderGroupViews.Insert(FaderGroupWidget, Index);
@@ -161,14 +163,13 @@ namespace UE::DMXControlConsoleEditor::Layout::Private
 
 	void SDMXControlConsoleEditorHorizontalLayout::OnLayoutElementRemoved()
 	{
-		const UDMXControlConsoleEditorModel* EditorConsoleModel = GetDefault<UDMXControlConsoleEditorModel>();
-		const UDMXControlConsoleEditorLayouts* EditorConsoleLayouts = EditorConsoleModel->GetEditorConsoleLayouts();
-		if (!ensureMsgf(EditorConsoleLayouts, TEXT("Invalid DMX Control Console, can't delete fader group row correctly.")))
+		const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = EditorModel.IsValid() ? EditorModel->GetControlConsoleLayouts() : nullptr;
+		if (!ensureMsgf(ControlConsoleLayouts, TEXT("Invalid control console layouts, can't remove element from the layout correctly.")))
 		{
 			return;
 		}
 
-		const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = EditorConsoleLayouts->GetActiveLayout();
+		const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = ControlConsoleLayouts->GetActiveLayout();
 		if (!ActiveLayout)
 		{
 			return;
@@ -222,9 +223,8 @@ namespace UE::DMXControlConsoleEditor::Layout::Private
 
 	FReply SDMXControlConsoleEditorHorizontalLayout::OnAddFirstFaderGroup()
 	{
-		const UDMXControlConsoleEditorModel* EditorConsoleModel = GetDefault<UDMXControlConsoleEditorModel>();
-		UDMXControlConsoleData* ControlConsoleData = EditorConsoleModel->GetEditorConsoleData();
-		if (!ensureMsgf(ControlConsoleData, TEXT("Invalid DMX Control Console Data, can't add fader group correctly.")))
+		UDMXControlConsoleData* ControlConsoleData = EditorModel.IsValid() ? EditorModel->GetControlConsoleData() : nullptr;
+		if (!ensureMsgf(ControlConsoleData, TEXT("Invalid control console data, can't add fader group correctly.")))
 		{
 			return FReply::Unhandled();
 		}
@@ -234,13 +234,13 @@ namespace UE::DMXControlConsoleEditor::Layout::Private
 		const UDMXControlConsoleFaderGroupRow* NewRow = ControlConsoleData->AddFaderGroupRow(0);
 		ControlConsoleData->PostEditChange();
 
-		const UDMXControlConsoleEditorLayouts* EditorConsoleLayouts = EditorConsoleModel->GetEditorConsoleLayouts();
-		if (!ensureMsgf(EditorConsoleLayouts, TEXT("Invalid Control Console Layouts, can't add fader group correctly.")))
+		const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = EditorModel.IsValid() ? EditorModel->GetControlConsoleLayouts() : nullptr;
+		if (!ensureMsgf(ControlConsoleLayouts, TEXT("Invalid control console layouts, can't add fader group correctly.")))
 		{
 			return FReply::Unhandled();
 		}
 
-		UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = EditorConsoleLayouts->GetActiveLayout();
+		UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = ControlConsoleLayouts->GetActiveLayout();
 		if (!ActiveLayout)
 		{
 			return FReply::Unhandled();
@@ -298,16 +298,15 @@ namespace UE::DMXControlConsoleEditor::Layout::Private
 		bool bIsVisible = false;
 
 		// Visible if there are no layout rows and there's no global filter
-		const UDMXControlConsoleEditorModel* EditorConsoleModel = GetDefault<UDMXControlConsoleEditorModel>();
-		const UDMXControlConsoleData* EditorConsoleData = EditorConsoleModel->GetEditorConsoleData();
-		const UDMXControlConsoleEditorLayouts* EditorConsoleLayouts = EditorConsoleModel->GetEditorConsoleLayouts();
-		if (EditorConsoleData && EditorConsoleLayouts)
+		const UDMXControlConsoleData* ControlConsoleData = EditorModel.IsValid() ? EditorModel->GetControlConsoleData() : nullptr;
+		const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = EditorModel.IsValid() ? EditorModel->GetControlConsoleLayouts() : nullptr;
+		if (ControlConsoleData && ControlConsoleLayouts)
 		{
-			const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = EditorConsoleLayouts->GetActiveLayout();
+			const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = ControlConsoleLayouts->GetActiveLayout();
 			bIsVisible =
 				IsValid(ActiveLayout) &&
-				ActiveLayout != &EditorConsoleLayouts->GetDefaultLayoutChecked() &&
-				EditorConsoleData->FilterString.IsEmpty() &&
+				ActiveLayout != &ControlConsoleLayouts->GetDefaultLayoutChecked() &&
+				ControlConsoleData->FilterString.IsEmpty() &&
 				(ActiveLayout->GetLayoutRows().IsEmpty() ||
 				ActiveLayout->GetAllActiveFaderGroups().IsEmpty());
 		}

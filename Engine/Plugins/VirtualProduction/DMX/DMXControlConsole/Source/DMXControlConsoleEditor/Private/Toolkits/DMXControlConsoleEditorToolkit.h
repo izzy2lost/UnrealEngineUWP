@@ -1,0 +1,147 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#pragma once
+
+#include "Toolkits/AssetEditorToolkit.h"
+#include "UObject/GCObject.h"
+
+class FSpawnTabArgs;
+class FTabManager;
+class SDockableTab;
+class UDMXControlConsole;
+class UDMXControlConsoleData;
+class UDMXControlConsoleEditorData;
+class UDMXControlConsoleEditorLayouts;
+class UDMXControlConsoleEditorModel;
+
+
+namespace UE::DMX::ControlConsoleEditor::Private
+{
+	class SDMXControlConsoleEditorDetailsView;
+	class SDMXControlConsoleEditorDMXLibraryView;
+	class SDMXControlConsoleEditorLayoutView;
+	class FDMXControlConsoleEditorToolbar;
+
+	/** Implements an Editor toolkit for Control Console. */
+	class FDMXControlConsoleEditorToolkit
+		: public FAssetEditorToolkit
+		, public FGCObject
+	{
+	public:
+		/** Constructor */
+		FDMXControlConsoleEditorToolkit();
+
+		/**
+		 * Edits the specified control console object.
+		 *
+		 * @param Mode The tool kit mode.
+		 * @param InitToolkitHost
+		 * @param ObjectToEdit The control console object to edit.
+		 */
+		void InitControlConsoleEditor(const EToolkitMode::Type Mode, const TSharedPtr<class IToolkitHost>& InitToolkitHost, UDMXControlConsole* InControlConsole);
+
+		/** Returns the edited Control Console */
+		UDMXControlConsole* GetControlConsole() const { return ControlConsole; }
+
+		/** Returns the edited Control Console Data */
+		UDMXControlConsoleData* GetControlConsoleData() const;
+
+		/** Returns the edited Control Console Editor Data */
+		UDMXControlConsoleEditorData* GetControlConsoleEditorData() const;
+
+		/** Returns the edited Control Console Layouts */
+		UDMXControlConsoleEditorLayouts* GetControlConsoleLayouts() const;
+
+		/** Returns the Control Console Editor Model, if valid */
+		UDMXControlConsoleEditorModel* GetControlConsoleEditorModel() const { return EditorModel; }
+
+		/** Toggles sending DMX state in the Control Console */
+		void ToggleSendDMX();
+
+		/** Gets wheter the Control Console is sending DMX data or not */
+		bool IsSendingDMX() const;
+
+		/** Removes all selected elements from DMX Control Console */
+		void RemoveAllSelectedElements();
+
+		/** Clears the DMX Control Console */
+		void ClearAll();
+
+		/** Name of the DMX Library View Tab */
+		static const FName DMXLibraryViewTabID;
+
+		/** Name of the Layout View Tab */
+		static const FName LayoutViewTabID;
+
+		/** Name of the Details View Tab */
+		static const FName DetailsViewTabID;
+
+	protected:
+		//~ Begin FAssetEditorToolkit Interface
+		virtual void RegisterTabSpawners(const TSharedRef<FTabManager>& TabManager) override;
+		virtual void UnregisterTabSpawners(const TSharedRef<FTabManager>& TabManager) override;
+		virtual const FSlateBrush* GetDefaultTabIcon() const override;
+		//~ End FAssetEditorToolkit Interface
+
+		//~ Begin IToolkit Interface
+		virtual FText GetBaseToolkitName() const override;
+		virtual FName GetToolkitFName() const override;
+		virtual FLinearColor GetWorldCentricTabColorScale() const override { return FLinearColor(0.0f, 0.0f, 0.2f, 0.5f); }
+		virtual FString GetWorldCentricTabPrefix() const override;
+		//~ End IToolkit Interface
+
+		// FGCObject interface
+		virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
+		virtual FString GetReferencerName() const override;
+		// End of FGCObject interface
+
+	private:
+		/** Internally initializes the toolkit */
+		void InitializeInternal(const EToolkitMode::Type Mode, const TSharedPtr<class IToolkitHost>& InitToolkitHost, const FGuid& MessageLogGuid);
+
+		/** Generates all the views of the asset toolkit */
+		void GenerateInternalViews();
+
+		/** Generates the DMX Library View for this Control Console instance */
+		TSharedRef<SDMXControlConsoleEditorDMXLibraryView> GenerateDMXLibraryView();
+
+		/** Generates the Layout View for this Control Console instance */
+		TSharedRef<SDMXControlConsoleEditorLayoutView> GenerateLayoutView();
+
+		/** Generates the Details View for this Control Console instance */
+		TSharedRef<SDMXControlConsoleEditorDetailsView> GenerateDetailsView();
+
+		/** Spawns the DMX Library View */
+		TSharedRef<SDockTab> SpawnTab_DMXLibraryView(const FSpawnTabArgs& Args);
+
+		/** Spawns the Layout View */
+		TSharedRef<SDockTab> SpawnTab_LayoutView(const FSpawnTabArgs& Args);
+
+		/** Spawns the Details View */
+		TSharedRef<SDockTab> SpawnTab_DetailsView(const FSpawnTabArgs& Args);
+
+		/** Setups the asset toolkit's commands */
+		void SetupCommands();
+
+		/** Extends the asset toolkit's toolbar */
+		void ExtendToolbar();
+
+		/** Reference to this asset toolkit's toolbar */
+		TSharedPtr<FDMXControlConsoleEditorToolbar> Toolbar;
+
+		/** The DMX Library View instance */
+		TSharedPtr<SDMXControlConsoleEditorDMXLibraryView> DMXLibraryView;
+
+		/** The Layout View instance */
+		TSharedPtr<SDMXControlConsoleEditorLayoutView> LayoutView;
+
+		/** The Details View instance */
+		TSharedPtr<SDMXControlConsoleEditorDetailsView> DetailsView;
+
+		/** The Editor Model for the Control Console this toolkit is based on */
+		TObjectPtr<UDMXControlConsoleEditorModel> EditorModel;
+
+		/** The Control Console object this toolkit is based on */
+		TObjectPtr<UDMXControlConsole> ControlConsole;
+	};
+}

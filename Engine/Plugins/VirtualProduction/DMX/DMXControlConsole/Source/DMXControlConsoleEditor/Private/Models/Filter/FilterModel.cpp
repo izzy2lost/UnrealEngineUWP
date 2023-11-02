@@ -17,7 +17,7 @@
 #include "Models/DMXControlConsoleEditorModel.h"
 
 
-namespace UE::DMXControlConsoleEditor::FilterModel::Private
+namespace UE::DMX::ControlConsoleEditor::Private
 {
 	TArray<FString> ParseStringIntoArray(const FString& InString)
 	{
@@ -119,21 +119,14 @@ namespace UE::DMXControlConsoleEditor::FilterModel::Private
 		return TOptional<int32>();
 	}
 
+	FFilterModel::FFilterModel(UDMXControlConsoleEditorModel* InEditorModel)
+		: EditorModel(InEditorModel)
+	{
+	}
 
 	void FFilterModel::Initialize()
 	{
 		InitializeInternal();
-
-		// Listen to loading control consoles in editor 
-		UDMXControlConsoleEditorModel* EditorModel = GetMutableDefault<UDMXControlConsoleEditorModel>();
-		EditorModel->GetOnConsoleLoaded().AddSP(AsShared(), &FFilterModel::InitializeInternal);
-	}
-
-	FFilterModel& FFilterModel::Get()
-	{
-		UDMXControlConsoleEditorModel* EditorModel = GetMutableDefault<UDMXControlConsoleEditorModel>();
-		check(EditorModel->FilterModel.IsValid());
-		return *EditorModel->FilterModel;
 	}
 
 	void FFilterModel::SetGlobalFilter(const FString& NewFilter)
@@ -292,9 +285,7 @@ namespace UE::DMXControlConsoleEditor::FilterModel::Private
 			WeakControlConsoleData->GetOnFaderGroupRemoved().RemoveAll(this);
 		}
 
-		const UDMXControlConsoleEditorModel* EditorModel = GetDefault<UDMXControlConsoleEditorModel>();
-		const UDMXControlConsole* EditorConsole = EditorModel->GetEditorConsole();
-		WeakControlConsoleData = EditorConsole ? EditorConsole->GetControlConsoleData() : nullptr;
+		WeakControlConsoleData = EditorModel.IsValid() ? EditorModel->GetControlConsoleData() : nullptr;
 		if (WeakControlConsoleData.IsValid())
 		{
 			WeakControlConsoleData->GetOnFaderGroupAdded().AddSP(AsShared(), &FFilterModel::OnEditorConsoleDataChanged);

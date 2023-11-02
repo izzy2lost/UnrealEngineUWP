@@ -9,10 +9,13 @@
 #include "Layouts/DMXControlConsoleEditorGlobalLayoutBase.h"
 #include "Layouts/DMXControlConsoleEditorLayouts.h"
 #include "Models/DMXControlConsoleEditorModel.h"
-#include "Models/Filter/FilterModel.h"
 
 
 #define LOCTEXT_NAMESPACE "DMXControlConsoleEditorSelection"
+
+FDMXControlConsoleEditorSelection::FDMXControlConsoleEditorSelection(UDMXControlConsoleEditorModel* InEditorModel)
+	: EditorModel(InEditorModel)
+{}
 
 void FDMXControlConsoleEditorSelection::AddToSelection(UDMXControlConsoleFaderGroup* FaderGroup, bool bNotifySelectionChange)
 {
@@ -193,14 +196,13 @@ void FDMXControlConsoleEditorSelection::Multiselect(UObject* FaderOrFaderGroupOb
 	}
 
 	TArray<UObject*> FadersAndFaderGroups;
-	const UDMXControlConsoleEditorModel* EditorConsoleModel = GetDefault<UDMXControlConsoleEditorModel>();
-	const UDMXControlConsoleEditorLayouts* EditorConsoleLayouts = EditorConsoleModel->GetEditorConsoleLayouts();
-	if (!EditorConsoleLayouts)
+	const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = EditorModel.IsValid() ? EditorModel->GetControlConsoleLayouts() : nullptr;
+	if (!ControlConsoleLayouts)
 	{
 		return;
 	}
 
-	const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = EditorConsoleLayouts->GetActiveLayout();
+	const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = ControlConsoleLayouts->GetActiveLayout();
 	if (!ActiveLayout)
 	{
 		return;
@@ -283,14 +285,13 @@ void FDMXControlConsoleEditorSelection::ReplaceInSelection(UDMXControlConsoleFad
 
 	RemoveFromSelection(FaderGroup);
 
-	const UDMXControlConsoleEditorModel* EditorConsoleModel = GetDefault<UDMXControlConsoleEditorModel>();
-	const UDMXControlConsoleEditorLayouts* EditorConsoleLayouts = EditorConsoleModel->GetEditorConsoleLayouts();
-	if (!EditorConsoleLayouts)
+	const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = EditorModel.IsValid() ? EditorModel->GetControlConsoleLayouts() : nullptr;
+	if (!ControlConsoleLayouts)
 	{
 		return;
 	}
 
-	const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = EditorConsoleLayouts->GetActiveLayout();
+	const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = ControlConsoleLayouts->GetActiveLayout();
 	if (!ActiveLayout)
 	{
 		return;
@@ -358,14 +359,13 @@ bool FDMXControlConsoleEditorSelection::IsSelected(UDMXControlConsoleFaderBase* 
 
 void FDMXControlConsoleEditorSelection::SelectAll(bool bOnlyMatchingFilter)
 {
-	const UDMXControlConsoleEditorModel* EditorConsoleModel = GetDefault<UDMXControlConsoleEditorModel>();
-	const UDMXControlConsoleEditorLayouts* EditorConsoleLayouts = EditorConsoleModel->GetEditorConsoleLayouts();
-	if (!EditorConsoleLayouts)
+	const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = EditorModel.IsValid() ? EditorModel->GetControlConsoleLayouts() : nullptr;
+	if (!ControlConsoleLayouts)
 	{
 		return;
 	}
 
-	const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = EditorConsoleLayouts->GetActiveLayout();
+	const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = ControlConsoleLayouts->GetActiveLayout();
 	if (!ActiveLayout)
 	{
 		return;
@@ -485,14 +485,13 @@ UDMXControlConsoleFaderGroup* FDMXControlConsoleEditorSelection::GetFirstSelecte
 
 UDMXControlConsoleFaderBase* FDMXControlConsoleEditorSelection::GetFirstSelectedFader(bool bReverse) const
 {
-	const UDMXControlConsoleEditorModel* EditorConsoleModel = GetDefault<UDMXControlConsoleEditorModel>();
-	const UDMXControlConsoleEditorLayouts* EditorConsoleLayouts = EditorConsoleModel->GetEditorConsoleLayouts();
-	if (!EditorConsoleLayouts)
+	const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = EditorModel.IsValid() ? EditorModel->GetControlConsoleLayouts() : nullptr;
+	if (!ControlConsoleLayouts)
 	{
 		return nullptr;
 	}
 
-	const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = EditorConsoleLayouts->GetActiveLayout();
+	const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = ControlConsoleLayouts->GetActiveLayout();
 	if (!ActiveLayout)
 	{
 		return nullptr;

@@ -3,6 +3,7 @@
 #include "SDMXControlConsoleEditorFaderGroupView.h"
 
 #include "DMXControlConsoleData.h"
+#include "DMXControlConsoleEditorData.h"
 #include "DMXControlConsoleEditorSelection.h"
 #include "DMXControlConsoleFaderBase.h"
 #include "DMXControlConsoleFaderGroup.h"
@@ -17,10 +18,9 @@
 #include "Style/DMXControlConsoleEditorStyle.h"
 #include "Styling/SlateBrush.h"
 #include "Styling/SlateColor.h"
-#include "Widgets/Input/SButton.h"
 #include "Widgets/Layout/SBorder.h"
-#include "Widgets/SBoxPanel.h"
 #include "Widgets/Layout/SBox.h"
+#include "Widgets/SBoxPanel.h"
 #include "Widgets/SDMXControlConsoleEditorAddButton.h"
 #include "Widgets/SDMXControlConsoleEditorExpandArrowButton.h"
 #include "Widgets/SDMXControlConsoleEditorFader.h"
@@ -41,21 +41,31 @@ SDMXControlConsoleEditorFaderGroupView::SDMXControlConsoleEditorFaderGroupView()
 	: ViewMode(EDMXControlConsoleEditorViewMode::Expanded)
 {}
 
-void SDMXControlConsoleEditorFaderGroupView::Construct(const FArguments& InArgs, const TObjectPtr<UDMXControlConsoleFaderGroup>& InFaderGroup)
+void SDMXControlConsoleEditorFaderGroupView::Construct(const FArguments& InArgs, UDMXControlConsoleFaderGroup* InFaderGroup, UDMXControlConsoleEditorModel* InEditorModel)
 {
-	FaderGroup = InFaderGroup;
-
-	if (!ensureMsgf(FaderGroup.IsValid(), TEXT("Invalid fader group, cannot create fader group view correctly.")))
+	if (!ensureMsgf(InEditorModel, TEXT("Invalid control console editor model, can't constuct fader group view correctly.")))
 	{
 		return;
 	}
 
-	UDMXControlConsoleEditorModel* EditorConsoleModel = GetMutableDefault<UDMXControlConsoleEditorModel>();
-	EditorConsoleModel->GetOnFaderGroupsViewModeChanged().AddSP(this, &SDMXControlConsoleEditorFaderGroupView::OnViewModeChanged);
-	EditorConsoleModel->GetOnEditorModelUpdated().AddSP(this, &SDMXControlConsoleEditorFaderGroupView::OnElementAdded);
-	EditorConsoleModel->GetOnEditorModelUpdated().AddSP(this, &SDMXControlConsoleEditorFaderGroupView::OnElementRemoved);
+	if (!ensureMsgf(InFaderGroup, TEXT("Invalid fader group, cannot create fader group view correctly.")))
+	{
+		return;
+	}
+
+	EditorModel = InEditorModel;
+	FaderGroup = InFaderGroup;
+
+	EditorModel->GetOnEditorModelUpdated().AddSP(this, &SDMXControlConsoleEditorFaderGroupView::OnElementAdded);
+	EditorModel->GetOnEditorModelUpdated().AddSP(this, &SDMXControlConsoleEditorFaderGroupView::OnElementRemoved);
 	FaderGroup->GetOnFixturePatchChanged().AddSP(this, &SDMXControlConsoleEditorFaderGroupView::OnFaderGroupFixturePatchChanged);
 	FaderGroup->GetOnFaderGroupExpanded().AddSP(this, &SDMXControlConsoleEditorFaderGroupView::UpdateExpansionState);
+
+	UDMXControlConsoleEditorData* EditorData = EditorModel->GetControlConsoleEditorData();
+	if (EditorData)
+	{
+		EditorData->GetOnFaderGroupsViewModeChanged().AddSP(this, &SDMXControlConsoleEditorFaderGroupView::OnViewModeChanged);
+	}
 
 	ChildSlot
 		[
@@ -81,7 +91,7 @@ void SDMXControlConsoleEditorFaderGroupView::Construct(const FArguments& InArgs,
 							.VAlign(VAlign_Top)
 							.AutoHeight()
 							[
-								SAssignNew(FaderGroupToolbar, SDMXControlConsoleEditorFaderGroupToolbar, SharedThis(this))
+								SAssignNew(FaderGroupToolbar, SDMXControlConsoleEditorFaderGroupToolbar, SharedThis(this), EditorModel.Get())
 								.OnAddFaderGroup(this, &SDMXControlConsoleEditorFaderGroupView::OnAddFaderGroup)
 								.OnAddFaderGroupRow(this, &SDMXControlConsoleEditorFaderGroupView::OnAddFaderGroupRow)
 								.OnExpanded(this, &SDMXControlConsoleEditorFaderGroupView::OnExpandArrowClicked)
@@ -166,9 +176,8 @@ FString SDMXControlConsoleEditorFaderGroupView::GetFaderGroupName() const
 
 bool SDMXControlConsoleEditorFaderGroupView::CanAddFaderGroup() const
 {
-	const UDMXControlConsoleEditorModel* EditorConsoleModel = GetDefault<UDMXControlConsoleEditorModel>();
-	const UDMXControlConsoleData* ControlConsoleData = EditorConsoleModel->GetEditorConsoleData();
-	const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = EditorConsoleModel->GetEditorConsoleLayouts();
+	const UDMXControlConsoleData* ControlConsoleData = EditorModel.IsValid() ? EditorModel->GetControlConsoleData() : nullptr;
+	const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = EditorModel.IsValid() ? EditorModel->GetControlConsoleLayouts() : nullptr;
 	if (!ControlConsoleData || !ControlConsoleLayouts)
 	{
 		return false;
@@ -190,9 +199,8 @@ bool SDMXControlConsoleEditorFaderGroupView::CanAddFaderGroupRow() const
 		return false;
 	}
 
-	const UDMXControlConsoleEditorModel* EditorConsoleModel = GetDefault<UDMXControlConsoleEditorModel>();
-	const UDMXControlConsoleData* ControlConsoleData = EditorConsoleModel->GetEditorConsoleData();
-	const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = EditorConsoleModel->GetEditorConsoleLayouts();
+	const UDMXControlConsoleData* ControlConsoleData = EditorModel.IsValid() ? EditorModel->GetControlConsoleData() : nullptr;
+	const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = EditorModel.IsValid() ? EditorModel->GetControlConsoleLayouts() : nullptr;
 	if (!ControlConsoleData || !ControlConsoleLayouts)
 	{
 		return false;
@@ -226,8 +234,8 @@ bool SDMXControlConsoleEditorFaderGroupView::CanAddFader() const
 	// True if fader group has no Fixture Patch and there's no global filter
 	bool bCanAdd = FaderGroup.IsValid() && !FaderGroup->HasFixturePatch();
 
-	const UDMXControlConsoleEditorModel* EditorConsoleModel = GetDefault<UDMXControlConsoleEditorModel>();
-	if (const UDMXControlConsoleData* ControlConsoleData = EditorConsoleModel->GetEditorConsoleData())
+	const UDMXControlConsoleData* ControlConsoleData = EditorModel.IsValid() ? EditorModel->GetControlConsoleData() : nullptr;
+	if (ControlConsoleData)
 	{
 		bCanAdd &= ControlConsoleData->FilterString.IsEmpty();
 	}
@@ -239,10 +247,9 @@ FReply SDMXControlConsoleEditorFaderGroupView::OnMouseButtonDown(const FGeometry
 {
 	if (MouseEvent.GetEffectingButton() == EKeys::LeftMouseButton)
 	{
-		if (FaderGroup.IsValid())
+		if (EditorModel.IsValid() && FaderGroup.IsValid())
 		{
-			UDMXControlConsoleEditorModel* EditorConsoleModel = GetMutableDefault<UDMXControlConsoleEditorModel>();
-			const TSharedRef<FDMXControlConsoleEditorSelection> SelectionHandler = EditorConsoleModel->GetSelectionHandler();
+			const TSharedRef<FDMXControlConsoleEditorSelection> SelectionHandler = EditorModel->GetSelectionHandler();
 
 			if (MouseEvent.IsLeftShiftDown())
 			{
@@ -352,8 +359,12 @@ TSharedRef<SWidget> SDMXControlConsoleEditorFaderGroupView::GenerateElementsWidg
 
 bool SDMXControlConsoleEditorFaderGroupView::IsSelected() const
 {
-	UDMXControlConsoleEditorModel* EditorConsoleModel = GetMutableDefault<UDMXControlConsoleEditorModel>();
-	const TSharedRef<FDMXControlConsoleEditorSelection> SelectionHandler = EditorConsoleModel->GetSelectionHandler();
+	if (!EditorModel.IsValid())
+	{
+		return false;
+	}
+
+	const TSharedRef<FDMXControlConsoleEditorSelection> SelectionHandler = EditorModel->GetSelectionHandler();
 	return SelectionHandler->IsSelected(FaderGroup.Get());
 }
 
@@ -389,6 +400,11 @@ void SDMXControlConsoleEditorFaderGroupView::OnElementAdded()
 
 void SDMXControlConsoleEditorFaderGroupView::AddElement(const TScriptInterface<IDMXControlConsoleFaderGroupElement>& Element)
 {
+	if (!ensureMsgf(EditorModel.IsValid(), TEXT("Invalid control console editor model, cannot add new fader correctly.")))
+	{
+		return;
+	}
+
 	if (!ensureMsgf(Element, TEXT("Invalid fader, cannot add new fader correctly.")))
 	{
 		return;
@@ -403,13 +419,13 @@ void SDMXControlConsoleEditorFaderGroupView::AddElement(const TScriptInterface<I
 	UDMXControlConsoleFixturePatchMatrixCell* MatrixCell = Cast<UDMXControlConsoleFixturePatchMatrixCell>(Element.GetObject());
 	if (MatrixCell)
 	{
-		SAssignNew(ElementWidget, SDMXControlConsoleEditorMatrixCell, MatrixCell)
+		SAssignNew(ElementWidget, SDMXControlConsoleEditorMatrixCell, MatrixCell, EditorModel.Get())
 			.Visibility(TAttribute<EVisibility>::CreateSP(this, &SDMXControlConsoleEditorFaderGroupView::GetElementWidgetVisibility, MatrixCell));
 	}
 	else
 	{
 		UDMXControlConsoleFaderBase* Fader = Cast<UDMXControlConsoleFaderBase>(Element.GetObject());
-		SAssignNew(ElementWidget, SDMXControlConsoleEditorFader, Fader)
+		SAssignNew(ElementWidget, SDMXControlConsoleEditorFader, Fader, EditorModel.Get())
 			.Padding(FMargin(4.f, 0.f))
 			.Visibility(TAttribute<EVisibility>::CreateSP(this, &SDMXControlConsoleEditorFaderGroupView::GetElementWidgetVisibility, Fader));
 	}
@@ -547,8 +563,7 @@ void SDMXControlConsoleEditorFaderGroupView::OnAddFaderGroup() const
 	UDMXControlConsoleFaderGroup* NewFaderGroup = FaderGroupRow.AddFaderGroup(GetIndex() + 1);
 	FaderGroupRow.PostEditChange();
 
-	const UDMXControlConsoleEditorModel* EditorConsoleModel = GetDefault<UDMXControlConsoleEditorModel>();
-	const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = EditorConsoleModel->GetEditorConsoleLayouts();
+	const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = EditorModel.IsValid() ? EditorModel->GetControlConsoleLayouts() : nullptr;
 	if (!ControlConsoleLayouts || !NewFaderGroup)
 	{
 		return;
@@ -583,8 +598,7 @@ void SDMXControlConsoleEditorFaderGroupView::OnAddFaderGroupRow() const
 		return;
 	}
 
-	const UDMXControlConsoleEditorModel* EditorConsoleModel = GetDefault<UDMXControlConsoleEditorModel>();
-	const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = EditorConsoleModel->GetEditorConsoleLayouts();
+	const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = EditorModel.IsValid() ? EditorModel->GetControlConsoleLayouts() : nullptr;
 	if (!ControlConsoleLayouts)
 	{
 		return;
@@ -666,8 +680,13 @@ FReply SDMXControlConsoleEditorFaderGroupView::OnAddFaderClicked()
 
 void SDMXControlConsoleEditorFaderGroupView::OnViewModeChanged()
 {
-	const UDMXControlConsoleEditorModel* EditorConsoleModel = GetDefault<UDMXControlConsoleEditorModel>();
-	ViewMode = EditorConsoleModel->GetFaderGroupsViewMode();
+	const UDMXControlConsoleEditorData* EditorData = EditorModel.IsValid() ? EditorModel->GetControlConsoleEditorData() : nullptr;
+	if (!EditorData)
+	{
+		return;
+	}
+
+	ViewMode = EditorData->GetFaderGroupsViewMode();
 
 	if (!FaderGroup.IsValid())
 	{
@@ -696,9 +715,14 @@ FOptionalSize SDMXControlConsoleEditorFaderGroupView::GetFaderGroupViewHeightByF
 {
 	using namespace UE::DMXControlConsoleEditor::DMXControlConsoleEditorFaderGroupView::Private;
 
-	const UDMXControlConsoleEditorModel* EditorConsoleModel = GetDefault<UDMXControlConsoleEditorModel>();
-	const EDMXControlConsoleEditorViewMode FadersViewMode = EditorConsoleModel->GetFadersViewMode();
-	return FadersViewMode == EDMXControlConsoleEditorViewMode::Collapsed ? CollapsedViewModeHeight : ExpandedViewModeHeight;
+	const UDMXControlConsoleEditorData* EditorData = EditorModel.IsValid() ? EditorModel->GetControlConsoleEditorData() : nullptr;
+	if (EditorData)
+	{
+		const EDMXControlConsoleEditorViewMode FadersViewMode = EditorData->GetFadersViewMode();
+		return FadersViewMode == EDMXControlConsoleEditorViewMode::Collapsed ? CollapsedViewModeHeight : ExpandedViewModeHeight;
+	}
+
+	return CollapsedViewModeHeight;
 }
 
 FSlateColor SDMXControlConsoleEditorFaderGroupView::GetFaderGroupViewBorderColor() const

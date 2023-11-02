@@ -193,7 +193,11 @@ TArray<UDMXEntityFixturePatch*> SDMXReadOnlyFixturePatchList::GetSelectedFixture
 
 void SDMXReadOnlyFixturePatchList::SetDMXLibrary(UDMXLibrary* InDMXLibrary)
 {
-	WeakDMXLibrary = InDMXLibrary;
+	if (WeakDMXLibrary.Get() != InDMXLibrary)
+	{
+		WeakDMXLibrary = InDMXLibrary;
+		RequestRefresh();
+	}
 }
 
 void SDMXReadOnlyFixturePatchList::SetExcludedFixturePatches(const TArray<UDMXEntityFixturePatch*>& NewExcludedFixturePatches)
@@ -394,12 +398,14 @@ TSharedRef<SWidget> SDMXReadOnlyFixturePatchList::GenerateHeaderRowFilterMenu()
 		
 		auto AddMenuEntryLambda = [this, &Section](const FName& Name, const FText& Label, const FText& ToolTip, const FName& ColumnID)
 		{
-			Section.AddMenuEntry(
+			Section.AddMenuEntry
+			(
 				Name,
 				Label,
 				ToolTip,
 				FSlateIcon(),
-				FUIAction(
+				FUIAction
+				(
 					FExecuteAction::CreateSP(this, &SDMXReadOnlyFixturePatchList::ToggleColumnShowState, ColumnID),
 					FCanExecuteAction(),
 					FIsActionChecked::CreateSP(this, &SDMXReadOnlyFixturePatchList::IsColumnShown, ColumnID)

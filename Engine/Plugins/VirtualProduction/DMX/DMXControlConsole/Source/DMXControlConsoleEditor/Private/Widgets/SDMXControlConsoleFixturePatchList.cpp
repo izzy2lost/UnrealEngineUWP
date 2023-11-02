@@ -8,6 +8,7 @@
 #include "Algo/Find.h"
 #include "Commands/DMXControlConsoleEditorCommands.h"
 #include "DMXControlConsoleData.h"
+#include "DMXControlConsoleEditorData.h"
 #include "DMXControlConsoleEditorSelection.h"
 #include "DMXControlConsoleFaderBase.h"
 #include "DMXControlConsoleFaderGroup.h"
@@ -18,7 +19,6 @@
 #include "Library/DMXEntityFixturePatch.h"
 #include "Library/DMXLibrary.h"
 #include "Models/DMXControlConsoleEditorModel.h"
-#include "Models/DMXControlConsoleFixturePatchListRowModel.h"
 #include "Style/DMXControlConsoleEditorStyle.h"
 #include "ToolMenus.h"
 #include "Widgets/DMXReadOnlyFixturePatchListItem.h"
@@ -28,24 +28,23 @@
 
 #define LOCTEXT_NAMESPACE "SDMXControlConsoleFixturePatchList"
 
-namespace UE::DMXControlConsole::Private
+namespace UE::DMXControlConsoleEditor::Private
 {
 	namespace Internal
 	{
 		/** Internal helper to find patches excluded from the list when in default layout mode */
-		bool IsFixturePatchExcludedInDefaultLayout(const UDMXEntityFixturePatch* FixturePatch, EDMXReadOnlyFixturePatchListShowMode ShowMode)
+		bool IsFixturePatchExcludedInDefaultLayout(const UDMXEntityFixturePatch* FixturePatch, EDMXReadOnlyFixturePatchListShowMode ShowMode, const UDMXControlConsoleEditorModel* InEditorModel)
 		{
-			const UDMXControlConsoleEditorModel* EditorConsoleModel = GetDefault<UDMXControlConsoleEditorModel>();
-			const UDMXControlConsoleData* EditorConsoleData = EditorConsoleModel->GetEditorConsoleData();
-			if (!EditorConsoleData)
+			const UDMXControlConsoleData* ControlConsoleData = InEditorModel ? InEditorModel->GetControlConsoleData() : nullptr;
+			if (!ControlConsoleData)
 			{
-				return true;
+				return false;
 			}
 
-			const UDMXControlConsoleFaderGroup* FaderGroup = EditorConsoleData->FindFaderGroupByFixturePatch(FixturePatch);
+			const UDMXControlConsoleFaderGroup* FaderGroup = ControlConsoleData->FindFaderGroupByFixturePatch(FixturePatch);
 			if (!FaderGroup)
 			{
-				return true;
+				return false;
 			}
 
 			const bool bIsMuted = FaderGroup->IsMuted();
@@ -63,16 +62,15 @@ namespace UE::DMXControlConsole::Private
 		}
 
 		/** Internal helper to find patches excluded from the list when in user layout mode */
-		bool IsFixturePatchExludedInUserLayout(const UDMXEntityFixturePatch* FixturePatch, EDMXReadOnlyFixturePatchListShowMode ShowMode)
+		bool IsFixturePatchExcludedInUserLayout(const UDMXEntityFixturePatch* FixturePatch, EDMXReadOnlyFixturePatchListShowMode ShowMode, const UDMXControlConsoleEditorModel* InEditorModel)
 		{
-			const UDMXControlConsoleEditorModel* EditorConsoleModel = GetDefault<UDMXControlConsoleEditorModel>();
-			const UDMXControlConsoleEditorLayouts* EditorConsoleLayouts = EditorConsoleModel->GetEditorConsoleLayouts();
-			if (!EditorConsoleLayouts)
+			const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = InEditorModel ? InEditorModel->GetControlConsoleLayouts() : nullptr;
+			if (!ControlConsoleLayouts)
 			{
 				return false;
 			}
 
-			const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = EditorConsoleLayouts->GetActiveLayout();
+			const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = ControlConsoleLayouts->GetActiveLayout();
 			if (!ActiveLayout)
 			{
 				return false;
@@ -96,40 +94,43 @@ namespace UE::DMXControlConsole::Private
 	}
 
 	/** Helper that returns true if the default layout is the active layout */
-	bool IsDefaultLayoutActive()
+	bool IsDefaultLayoutActive(const UDMXControlConsoleEditorModel* InEditorModel)
 	{
-		const UDMXControlConsoleEditorModel* EditorConsoleModel = GetDefault<UDMXControlConsoleEditorModel>();
-		const UDMXControlConsoleEditorLayouts* EditorConsoleLayouts = EditorConsoleModel->GetEditorConsoleLayouts();
-		if (EditorConsoleLayouts)
+		const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = InEditorModel ? InEditorModel->GetControlConsoleLayouts() : nullptr;
+		if (ControlConsoleLayouts)
 		{
-			const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = EditorConsoleLayouts->GetActiveLayout();
-			return ActiveLayout && ActiveLayout == &EditorConsoleLayouts->GetDefaultLayoutChecked();
+			const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = ControlConsoleLayouts->GetActiveLayout();
+			return ActiveLayout && ActiveLayout == &ControlConsoleLayouts->GetDefaultLayoutChecked();
 		}
 
 		return false;
 	}
 
 	/** Helper that returns fixture patches that should be excluded from the list, given the active layout class and the current show mode. */
-	TArray<UDMXEntityFixturePatch*> FindFixturePatchesToExclude(const TArray<UDMXEntityFixturePatch*> AllFixturePatches, EDMXReadOnlyFixturePatchListShowMode ShowMode)
+	TArray<UDMXEntityFixturePatch*> FindFixturePatchesToExclude(const TArray<UDMXEntityFixturePatch*> AllFixturePatches, EDMXReadOnlyFixturePatchListShowMode ShowMode, const TWeakObjectPtr<UDMXControlConsoleEditorModel> InWeakEditorModel)
 	{
 		TArray<UDMXEntityFixturePatch*> Result;
 
-		Algo::CopyIf(AllFixturePatches, Result, [ShowMode](const UDMXEntityFixturePatch* FixturePatch)
-			{
-				if (!FixturePatch)
+		const UDMXControlConsoleEditorModel* EditorModel = InWeakEditorModel.Get();
+		if (EditorModel)
+		{
+			Algo::CopyIf(AllFixturePatches, Result, [ShowMode, EditorModel](const UDMXEntityFixturePatch* FixturePatch)
 				{
-					return false;
-				}
+					if (!FixturePatch)
+					{
+						return false;
+					}
 
-				if (IsDefaultLayoutActive())
-				{
-					return Internal::IsFixturePatchExcludedInDefaultLayout(FixturePatch, ShowMode);
-				}
-				else
-				{
-					return Internal::IsFixturePatchExludedInUserLayout(FixturePatch, ShowMode);
-				}
-			});
+					if (IsDefaultLayoutActive(EditorModel))
+					{
+						return Internal::IsFixturePatchExcludedInDefaultLayout(FixturePatch, ShowMode, EditorModel);
+					}
+					else
+					{
+						return Internal::IsFixturePatchExcludedInUserLayout(FixturePatch, ShowMode, EditorModel);
+					}
+				});
+		}
 
 		return Result;
 	}	
@@ -139,28 +140,45 @@ const FName FDMXControlConsoleReadOnlyFixturePatchListCollumnIDs::FaderGroupEnab
 
 SDMXControlConsoleFixturePatchList::~SDMXControlConsoleFixturePatchList()
 {
-	const FDMXReadOnlyFixturePatchListDescriptor ListDescriptor = MakeListDescriptor();
+	const FName MenuName = GetHeaderRowFilterMenuName();
 
-	UDMXControlConsoleEditorModel* EditorConsoleModel = GetMutableDefault<UDMXControlConsoleEditorModel>();
-	EditorConsoleModel->SaveFixturePatchListDescriptorToConfig(ListDescriptor);
+	UToolMenus* ToolMenus = UToolMenus::Get();
+	if (ToolMenus->IsMenuRegistered(MenuName))
+	{
+		ToolMenus->RemoveMenu(MenuName);
+	}
 }
 
-void SDMXControlConsoleFixturePatchList::Construct(const FArguments& InArgs)
+void SDMXControlConsoleFixturePatchList::Construct(const FArguments& InArgs, UDMXControlConsoleEditorModel* InEditorModel)
 {	
+	if (!ensureMsgf(InEditorModel, TEXT("Invalid control console editor model, can't constuct fixture patch list correctly.")))
+	{
+		return;
+	}
+
+	EditorModel = InEditorModel;
+	EditorModelUniqueID = EditorModel->GetUniqueID();
+
 	// Register the header row filter menu extender
-	if (UToolMenu* Menu = UToolMenus::Get()->ExtendMenu("DMXEditor.ControlConsoleFixturePatchList.HeaderRowFilterMenu"))
+	const FName MenuName = GetHeaderRowFilterMenuName();
+	if (UToolMenu* Menu = UToolMenus::Get()->ExtendMenu(MenuName))
 	{
 		const FToolMenuInsert SectionInsertLocation("ShowColumnSection", EToolMenuInsertType::Before);
 
-		Menu->AddDynamicSection(
+		Menu->AddDynamicSection
+		(
 			"FilterActiveAndInactivePatches",
 			FNewToolMenuDelegate::CreateSP(this, &SDMXControlConsoleFixturePatchList::ExtendHeaderRowFilterMenu),
 			SectionInsertLocation
 		);
 	}
 
-	UDMXControlConsoleEditorModel* EditorConsoleModel = GetMutableDefault<UDMXControlConsoleEditorModel>();
-	const FDMXReadOnlyFixturePatchListDescriptor ListDescriptor = EditorConsoleModel->GetFixturePatchListDescriptor();
+	FDMXReadOnlyFixturePatchListDescriptor ListDescriptor;
+	UDMXControlConsoleEditorData* EditorData = EditorModel.IsValid() ? EditorModel->GetControlConsoleEditorData() : nullptr;
+	if (EditorData)
+	{
+		ListDescriptor = EditorData->FixturePatchListDescriptor;
+	}
 
 	SDMXReadOnlyFixturePatchList::Construct(SDMXReadOnlyFixturePatchList::FArguments()
 		.ListDescriptor(ListDescriptor)
@@ -170,24 +188,32 @@ void SDMXControlConsoleFixturePatchList::Construct(const FArguments& InArgs)
 		.OnRowDoubleClicked(this, &SDMXControlConsoleFixturePatchList::OnRowDoubleClicked)
 		.OnRowSelectionChanged(this, &SDMXControlConsoleFixturePatchList::OnSelectionChanged));
 
-	EditorConsoleModel->GetOnConsoleLoaded().AddSP(this, &SDMXControlConsoleFixturePatchList::RequestRefresh);
-	EditorConsoleModel->GetOnEditorModelUpdated().AddSP(this, &SDMXControlConsoleFixturePatchList::RequestRefresh);
+	EditorModel->GetOnEditorModelUpdated().AddSP(this, &SDMXControlConsoleFixturePatchList::RequestRefresh);
 	UDMXControlConsoleEditorGlobalLayoutRow::GetOnGlobalLayoutRowChanged().AddSP(this, &SDMXControlConsoleFixturePatchList::OnGlobalLayoutRowChanged);
 
 	RegisterCommands();
 	ForceRefresh();
 }
 
-FName SDMXControlConsoleFixturePatchList::GetHeaderRowFilterMenuName() const 
+FName SDMXControlConsoleFixturePatchList::GetHeaderRowFilterMenuName() const
 {
 	// Override the default menu, so it can be customized only for this list class here
-	return "DMXEditor.ControlConsoleFixturePatchList.HeaderRowFilterMenu";
+	const FString DefaultFilterMenuNameAsString = TEXT("DMXEditor.ControlConsoleFixturePatchList.HeaderRowFilterMenu");
+	const FString EditorModelUniqueIDAsString = FString::FromInt(EditorModelUniqueID);
+
+	const FName FilterMenuName = *(DefaultFilterMenuNameAsString + EditorModelUniqueIDAsString);
+	return FilterMenuName;
 }
 
 void SDMXControlConsoleFixturePatchList::ForceRefresh()
 {
-	using namespace UE::DMXControlConsole::Private;
-	const TArray<UDMXEntityFixturePatch*> FixturePatchesToExclude = FindFixturePatchesToExclude(GetFixturePatchesInDMXLibrary(), ShowMode);
+	if (!EditorModel.IsValid())
+	{
+		return;
+	}
+
+	using namespace UE::DMXControlConsoleEditor::Private;
+	const TArray<UDMXEntityFixturePatch*> FixturePatchesToExclude = FindFixturePatchesToExclude(GetFixturePatchesInDMXLibrary(), ShowMode, EditorModel);
 
 	SetExcludedFixturePatches(FixturePatchesToExclude);
 	SDMXReadOnlyFixturePatchList::ForceRefresh();
@@ -195,27 +221,26 @@ void SDMXControlConsoleFixturePatchList::ForceRefresh()
 	AdoptSelectionFromData();
 
 	// Listen to data changes
-	const UDMXControlConsoleEditorModel* EditorConsoleModel = GetDefault<UDMXControlConsoleEditorModel>();
-	UDMXControlConsoleData* EditorConsoleData = EditorConsoleModel->GetEditorConsoleData();
-	UDMXControlConsoleEditorLayouts* EditorConsoleLayouts = EditorConsoleModel->GetEditorConsoleLayouts();
-	if (!EditorConsoleData || !EditorConsoleLayouts)
+	UDMXControlConsoleData* ControlConsoleData = EditorModel->GetControlConsoleData();
+	UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = EditorModel->GetControlConsoleLayouts();
+	if (!ControlConsoleData || !ControlConsoleLayouts)
 	{
 		return;
 	}
 
-	if (!EditorConsoleData->GetOnFaderGroupAdded().IsBoundToObject(this))
+	if (!ControlConsoleData->GetOnFaderGroupAdded().IsBoundToObject(this))
 	{
-		EditorConsoleData->GetOnFaderGroupAdded().AddSP(this, &SDMXControlConsoleFixturePatchList::OnFaderGroupAddedOrRemoved);
+		ControlConsoleData->GetOnFaderGroupAdded().AddSP(this, &SDMXControlConsoleFixturePatchList::OnFaderGroupAddedOrRemoved);
 	}
 
-	if (!EditorConsoleData->GetOnFaderGroupRemoved().IsBoundToObject(this))
+	if (!ControlConsoleData->GetOnFaderGroupRemoved().IsBoundToObject(this))
 	{
-		EditorConsoleData->GetOnFaderGroupRemoved().AddSP(this, &SDMXControlConsoleFixturePatchList::OnFaderGroupAddedOrRemoved);
+		ControlConsoleData->GetOnFaderGroupRemoved().AddSP(this, &SDMXControlConsoleFixturePatchList::OnFaderGroupAddedOrRemoved);
 	}
 
-	if (!EditorConsoleLayouts->GetOnActiveLayoutChanged().IsBoundToObject(this))
+	if (!ControlConsoleLayouts->GetOnActiveLayoutChanged().IsBoundToObject(this))
 	{
-		EditorConsoleLayouts->GetOnActiveLayoutChanged().AddSP(this, &SDMXControlConsoleFixturePatchList::RequestRefresh);
+		ControlConsoleLayouts->GetOnActiveLayoutChanged().AddSP(this, &SDMXControlConsoleFixturePatchList::RequestRefresh);
 	}
 }
 
@@ -255,8 +280,21 @@ TSharedRef<SHeaderRow> SDMXControlConsoleFixturePatchList::GenerateHeaderRow()
 TSharedRef<ITableRow> SDMXControlConsoleFixturePatchList::OnGenerateRow(TSharedPtr<FDMXReadOnlyFixturePatchListItem> InItem, const TSharedRef<STableViewBase>& OwnerTable)
 {
 	return 
-		SNew(SDMXControlConsoleFixturePatchListRow, OwnerTable, InItem.ToSharedRef())
+		SNew(SDMXControlConsoleFixturePatchListRow, OwnerTable, InItem.ToSharedRef(), EditorModel)
 		.OnFaderGroupMutedChanged(this, &SDMXControlConsoleFixturePatchList::RequestRefresh);
+}
+
+void SDMXControlConsoleFixturePatchList::ToggleColumnShowState(const FName ColumnID)
+{
+	SDMXReadOnlyFixturePatchList::ToggleColumnShowState(ColumnID);
+
+	UDMXControlConsoleEditorData* EditorData = EditorModel.IsValid() ? EditorModel->GetControlConsoleEditorData() : nullptr;
+	if (EditorData)
+	{
+		const FDMXReadOnlyFixturePatchListDescriptor ListDescriptor = MakeListDescriptor();
+		EditorData->Modify();
+		EditorData->FixturePatchListDescriptor = ListDescriptor;
+	}
 }
 
 void SDMXControlConsoleFixturePatchList::ExtendHeaderRowFilterMenu(UToolMenu* InMenu)
@@ -270,7 +308,8 @@ void SDMXControlConsoleFixturePatchList::ExtendHeaderRowFilterMenu(UToolMenu* In
 			Label,
 			ToolTip,
 			FSlateIcon(),
-			FUIAction(
+			FUIAction
+			(
 				FExecuteAction::CreateSP(this, &SDMXControlConsoleFixturePatchList::SetShowMode, InShowMode),
 				FCanExecuteAction(),
 				FIsActionChecked::CreateSP(this, &SDMXControlConsoleFixturePatchList::IsUsingShowMode, InShowMode)
@@ -325,22 +364,26 @@ void SDMXControlConsoleFixturePatchList::RegisterCommands()
 
 void SDMXControlConsoleFixturePatchList::AdoptSelectionFromData()
 {
-	const UDMXControlConsoleEditorModel* EditorConsoleModel = GetDefault<UDMXControlConsoleEditorModel>();
-	const UDMXControlConsoleData* EditorConsoleData = EditorConsoleModel->GetEditorConsoleData();
-	const UDMXControlConsoleEditorLayouts* EditorConsoleLayouts = EditorConsoleModel->GetEditorConsoleLayouts();
-	if (!EditorConsoleData || !EditorConsoleLayouts)
+	if (!EditorModel.IsValid())
+	{
+		return;
+	}
+
+	const UDMXControlConsoleData* ControlConsoleData = EditorModel->GetControlConsoleData();
+	const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = EditorModel->GetControlConsoleLayouts();
+	if (!ControlConsoleData || !ControlConsoleLayouts)
 	{
 		return;
 	}
 
 	// Do only if the active layout is the default layout
-	const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = EditorConsoleLayouts->GetActiveLayout();
-	if (!ActiveLayout || ActiveLayout != &EditorConsoleLayouts->GetDefaultLayoutChecked())
+	const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = ControlConsoleLayouts->GetActiveLayout();
+	if (!ActiveLayout || ActiveLayout != &ControlConsoleLayouts->GetDefaultLayoutChecked())
 	{
 		return;
 	}
 
-	const TArray<UDMXControlConsoleFaderGroup*> AllFaderGroups = EditorConsoleData->GetAllFaderGroups();
+	const TArray<UDMXControlConsoleFaderGroup*> AllFaderGroups = ControlConsoleData->GetAllFaderGroups();
 	for (const UDMXControlConsoleFaderGroup* FaderGroup : AllFaderGroups)
 	{
 		if (!FaderGroup || !FaderGroup->HasFixturePatch())
@@ -422,12 +465,11 @@ TSharedPtr<SWidget> SDMXControlConsoleFixturePatchList::OnContextMenuOpening()
 	MenuBuilder.EndSection();
 
 	// Show Add Patch buttons only if the current layout is the user layout
-	const UDMXControlConsoleEditorModel* EditorConsoleModel = GetDefault<UDMXControlConsoleEditorModel>();
-	const UDMXControlConsoleEditorLayouts* EditorConsoleLayouts = EditorConsoleModel->GetEditorConsoleLayouts();
-	if (EditorConsoleLayouts)
+	const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = EditorModel.IsValid() ? EditorModel->GetControlConsoleLayouts() : nullptr;
+	if (EditorModel.IsValid() && ControlConsoleLayouts)
 	{
-		const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = EditorConsoleLayouts->GetActiveLayout();
-		if (ActiveLayout && ActiveLayout != &EditorConsoleLayouts->GetDefaultLayoutChecked())
+		const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = ControlConsoleLayouts->GetActiveLayout();
+		if (ActiveLayout && ActiveLayout != &ControlConsoleLayouts->GetDefaultLayoutChecked())
 		{
 			TArray<TWeakObjectPtr<UDMXEntityFixturePatch>> WeakFixturePatches;
 			const TArray<UDMXEntityFixturePatch*> SelectedFixturePatches = GetSelectedFixturePatches();
@@ -436,7 +478,7 @@ TSharedPtr<SWidget> SDMXControlConsoleFixturePatchList::OnContextMenuOpening()
 					return FixturePatch;
 				});
 
-			MenuBuilder.AddWidget(SNew(SDMXControlConsoleAddFixturePatchMenu, WeakFixturePatches), FText::GetEmpty());
+			MenuBuilder.AddWidget(SNew(SDMXControlConsoleAddFixturePatchMenu, WeakFixturePatches, EditorModel.Get()), FText::GetEmpty());
 		}
 	}
 
@@ -445,28 +487,27 @@ TSharedPtr<SWidget> SDMXControlConsoleFixturePatchList::OnContextMenuOpening()
 
 void SDMXControlConsoleFixturePatchList::OnSelectionChanged(const TSharedPtr<FDMXReadOnlyFixturePatchListItem> NewSelection, ESelectInfo::Type SelectInfo)
 {
-	if (SelectInfo == ESelectInfo::Direct)
+	if (!EditorModel.IsValid() || SelectInfo == ESelectInfo::Direct)
 	{
 		return;
 	}
 
-	UDMXControlConsoleEditorModel* EditorConsoleModel = GetMutableDefault<UDMXControlConsoleEditorModel>();
-	const UDMXControlConsoleData* EditorConsoleData = EditorConsoleModel->GetEditorConsoleData();
-	const UDMXControlConsoleEditorLayouts* EditorConsoleLayouts = EditorConsoleModel->GetEditorConsoleLayouts();
-	if (!EditorConsoleData || !EditorConsoleLayouts)
+	const UDMXControlConsoleData* ControlConsoleData = EditorModel->GetControlConsoleData();
+	const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = EditorModel->GetControlConsoleLayouts();
+	if (!ControlConsoleData || !ControlConsoleLayouts)
 	{
 		return;
 	}
 
 	// Continue only if the current layout is the default layout
-	UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = EditorConsoleLayouts->GetActiveLayout();
-	if (!ActiveLayout || ActiveLayout != &EditorConsoleLayouts->GetDefaultLayoutChecked())
+	UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = ControlConsoleLayouts->GetActiveLayout();
+	if (!ActiveLayout || ActiveLayout != &ControlConsoleLayouts->GetDefaultLayoutChecked())
 	{
 		return;
 	}
 
 	const TArray<TSharedPtr<FDMXReadOnlyFixturePatchListItem>> SelectedFixturePatches = GetSelectedItems();
-	const TArray<UDMXControlConsoleFaderGroup*> AllFaderGroups = EditorConsoleData->GetAllFaderGroups();
+	const TArray<UDMXControlConsoleFaderGroup*> AllFaderGroups = ControlConsoleData->GetAllFaderGroups();
 	TArray<UObject*> FaderGroupsToAddToSelection;
 	TArray<UObject*> FaderGroupsToRemoveFromSelection;
 	for (UDMXControlConsoleFaderGroup* FaderGroup : AllFaderGroups)
@@ -489,7 +530,9 @@ void SDMXControlConsoleFixturePatchList::OnSelectionChanged(const TSharedPtr<FDM
 		if (bIsSelected)
 		{
 			ActiveLayout->AddToActiveFaderGroups(FaderGroup);
-			const bool bAutoSelect = EditorConsoleModel->GetAutoSelectActivePatches();
+
+			const UDMXControlConsoleEditorData* EditorData = EditorModel->GetControlConsoleEditorData();
+			const bool bAutoSelect = EditorData && EditorData->GetAutoSelectActivePatches();
 			if (bAutoSelect)
 			{
 				const TArray<UDMXControlConsoleFaderBase*> AllFaders = FaderGroup->GetAllFaders();
@@ -508,21 +551,20 @@ void SDMXControlConsoleFixturePatchList::OnSelectionChanged(const TSharedPtr<FDM
 		}
 	}
 
-	const TSharedRef<FDMXControlConsoleEditorSelection> SelectionHandler = EditorConsoleModel->GetSelectionHandler();
+	const TSharedRef<FDMXControlConsoleEditorSelection> SelectionHandler = EditorModel->GetSelectionHandler();
 	SelectionHandler->AddToSelection(FaderGroupsToAddToSelection);
 	SelectionHandler->RemoveFromSelection(FaderGroupsToRemoveFromSelection);
 }
 
 void SDMXControlConsoleFixturePatchList::OnRowClicked(const TSharedPtr<FDMXReadOnlyFixturePatchListItem> ClickedItem)
 {
-	if (!ClickedItem.IsValid())
+	if (!EditorModel.IsValid() || !ClickedItem.IsValid())
 	{
 		return;
 	}
 
-	const UDMXControlConsoleEditorModel* EditorConsoleModel = GetDefault<UDMXControlConsoleEditorModel>();
-	const UDMXControlConsoleData* EditorConsoleData = EditorConsoleModel->GetEditorConsoleData();
-	if (!EditorConsoleData)
+	const UDMXControlConsoleData* ControlConsoleData = EditorModel->GetControlConsoleData();
+	if (!ControlConsoleData)
 	{
 		return;
 	}
@@ -533,23 +575,22 @@ void SDMXControlConsoleFixturePatchList::OnRowClicked(const TSharedPtr<FDMXReadO
 		return;
 	}
 
-	UDMXControlConsoleFaderGroup* FaderGroup = EditorConsoleData->FindFaderGroupByFixturePatch(FixturePatch);
+	UDMXControlConsoleFaderGroup* FaderGroup = ControlConsoleData->FindFaderGroupByFixturePatch(FixturePatch);
 	if (FaderGroup && FaderGroup->IsActive())
 	{
-		EditorConsoleModel->ScrollIntoView(FaderGroup);
+		EditorModel->ScrollIntoView(FaderGroup);
 	}
 }
 
 void SDMXControlConsoleFixturePatchList::OnRowDoubleClicked(const TSharedPtr<FDMXReadOnlyFixturePatchListItem> ClickedItem)
 {
-	if (!ClickedItem.IsValid())
+	if (!EditorModel.IsValid() || !ClickedItem.IsValid())
 	{
 		return;
 	}
 
-	UDMXControlConsoleEditorModel* EditorConsoleModel = GetMutableDefault<UDMXControlConsoleEditorModel>();
-	const UDMXControlConsoleData* EditorConsoleData = EditorConsoleModel->GetEditorConsoleData();
-	if (!EditorConsoleData)
+	const UDMXControlConsoleData* ControlConsoleData = EditorModel->GetControlConsoleData();
+	if (!ControlConsoleData)
 	{
 		return;
 	}
@@ -560,7 +601,7 @@ void SDMXControlConsoleFixturePatchList::OnRowDoubleClicked(const TSharedPtr<FDM
 		return;
 	}
 
-	UDMXControlConsoleFaderGroup* FaderGroup = EditorConsoleData->FindFaderGroupByFixturePatch(FixturePatch);
+	UDMXControlConsoleFaderGroup* FaderGroup = ControlConsoleData->FindFaderGroupByFixturePatch(FixturePatch);
 	if (FaderGroup && FaderGroup->IsActive())
 	{
 		FaderGroup->SetIsExpanded(true);
@@ -569,10 +610,10 @@ void SDMXControlConsoleFixturePatchList::OnRowDoubleClicked(const TSharedPtr<FDM
 
 void SDMXControlConsoleFixturePatchList::OnMuteAllFaderGroups(bool bMute, bool bOnlyActive) const
 {
-	const UDMXControlConsoleEditorModel* EditorConsoleModel = GetDefault<UDMXControlConsoleEditorModel>();
-	if (const UDMXControlConsoleData* EditorConsoleData = EditorConsoleModel->GetEditorConsoleData())
+	const UDMXControlConsoleData* ControlConsoleData = EditorModel.IsValid() ? EditorModel->GetControlConsoleData() : nullptr;
+	if (ControlConsoleData)
 	{
-		const TArray<UDMXControlConsoleFaderGroup*> AllFaderGroups = bOnlyActive ? EditorConsoleData->GetAllActiveFaderGroups() : EditorConsoleData->GetAllFaderGroups();
+		const TArray<UDMXControlConsoleFaderGroup*> AllFaderGroups = bOnlyActive ? ControlConsoleData->GetAllActiveFaderGroups() : ControlConsoleData->GetAllFaderGroups();
 		for (UDMXControlConsoleFaderGroup* FaderGroup : AllFaderGroups)
 		{
 			if (FaderGroup)
@@ -585,10 +626,10 @@ void SDMXControlConsoleFixturePatchList::OnMuteAllFaderGroups(bool bMute, bool b
 
 bool SDMXControlConsoleFixturePatchList::IsAnyFaderGroupMuted(bool bMute, bool bOnlyActive) const
 {
-	const UDMXControlConsoleEditorModel* EditorConsoleModel = GetDefault<UDMXControlConsoleEditorModel>();
-	if (const UDMXControlConsoleData* EditorConsoleData = EditorConsoleModel->GetEditorConsoleData())
+	const UDMXControlConsoleData* ControlConsoleData = EditorModel.IsValid() ? EditorModel->GetControlConsoleData() : nullptr;
+	if (ControlConsoleData)
 	{
-		const TArray<UDMXControlConsoleFaderGroup*> AllFaderGroups = bOnlyActive ? EditorConsoleData->GetAllActiveFaderGroups() : EditorConsoleData->GetAllFaderGroups();
+		const TArray<UDMXControlConsoleFaderGroup*> AllFaderGroups = bOnlyActive ? ControlConsoleData->GetAllActiveFaderGroups() : ControlConsoleData->GetAllFaderGroups();
 		return Algo::AnyOf(AllFaderGroups, [bMute](UDMXControlConsoleFaderGroup* FaderGroup)
 			{
 				return FaderGroup && FaderGroup->IsMuted() == bMute;
@@ -600,11 +641,11 @@ bool SDMXControlConsoleFixturePatchList::IsAnyFaderGroupMuted(bool bMute, bool b
 
 ECheckBoxState SDMXControlConsoleFixturePatchList::GetGlobalFixtureGroupsMutedCheckBoxState() const
 {
-	const UDMXControlConsoleEditorModel* EditorConsoleModel = GetDefault<UDMXControlConsoleEditorModel>();
-	if (const UDMXControlConsoleData* EditorConsoleData = EditorConsoleModel->GetEditorConsoleData())
+	const UDMXControlConsoleData* ControlConsoleData = EditorModel.IsValid() ? EditorModel->GetControlConsoleData() : nullptr;
+	if (ControlConsoleData)
 	{
 		// Get all patched Fader Groups
-		TArray<UDMXControlConsoleFaderGroup*> AllPatchedFaderGroups = EditorConsoleData->GetAllFaderGroups();
+		TArray<UDMXControlConsoleFaderGroup*> AllPatchedFaderGroups = ControlConsoleData->GetAllFaderGroups();
 		AllPatchedFaderGroups.RemoveAll([](const UDMXControlConsoleFaderGroup* FaderGroup)
 			{
 				return FaderGroup && !FaderGroup->HasFixturePatch();
@@ -633,10 +674,10 @@ ECheckBoxState SDMXControlConsoleFixturePatchList::GetGlobalFixtureGroupsMutedCh
 
 void SDMXControlConsoleFixturePatchList::OnGlobalFixtureGroupsMutedCheckBoxStateChanged(ECheckBoxState CheckBoxState)
 {
-	const UDMXControlConsoleEditorModel* EditorConsoleModel = GetDefault<UDMXControlConsoleEditorModel>();
-	if (const UDMXControlConsoleData* EditorConsoleData = EditorConsoleModel->GetEditorConsoleData())
+	const UDMXControlConsoleData* ControlConsoleData = EditorModel.IsValid() ? EditorModel->GetControlConsoleData() : nullptr;
+	if (ControlConsoleData)
 	{
-		const TArray<UDMXControlConsoleFaderGroup*> AllFaderGroups = EditorConsoleData->GetAllFaderGroups();
+		const TArray<UDMXControlConsoleFaderGroup*> AllFaderGroups = ControlConsoleData->GetAllFaderGroups();
 		for (UDMXControlConsoleFaderGroup* FaderGroup : AllFaderGroups)
 		{
 			if (FaderGroup && FaderGroup->HasFixturePatch())

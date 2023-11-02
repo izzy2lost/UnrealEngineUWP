@@ -3,11 +3,10 @@
 #pragma once
 
 #include "Widgets/Input/SCheckBox.h"
-#include "Widgets/SDMXControlConsoleFixturePatchList.h"
 #include "Widgets/SDMXReadOnlyFixturePatchListRow.h"
 
 class FDMXControlConsoleFixturePatchListRowModel;
-class UDMXControlConsoleFaderGroup;
+class UDMXControlConsoleEditorModel;
 
 
 /** Entity Fixture Patch as a row in a list in DMX Control Console */
@@ -23,7 +22,7 @@ public:
 	SLATE_END_ARGS()
 
 	/** Constructs this widget */
-	void Construct(const FArguments& InArgs, const TSharedRef<STableViewBase>& InOwnerTable, const TSharedRef<FDMXReadOnlyFixturePatchListItem>& InItem);
+	void Construct(const FArguments& InArgs, const TSharedRef<STableViewBase>& InOwnerTable, const TSharedRef<FDMXReadOnlyFixturePatchListItem>& InItem, const TWeakObjectPtr<UDMXControlConsoleEditorModel> InWeakEditorModel);
 
 protected:
 	//~ Begin SMultiColumnTableRow interface
@@ -36,6 +35,9 @@ private:
 
 	/** Model for this row */
 	TSharedPtr<FDMXControlConsoleFixturePatchListRowModel> RowModel;
+
+	/** Weak reference to the Control Console editor model */
+	TWeakObjectPtr<UDMXControlConsoleEditorModel> WeakEditorModel;
 
 	// Slate arguments
 	FSimpleDelegate OnFaderGroupMutedChanged;

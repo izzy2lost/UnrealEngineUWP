@@ -8,6 +8,8 @@
 #include "Layouts/DMXControlConsoleEditorGlobalLayoutBase.h"
 
 
+#define LOCTEXT_NAMESPACE "DMXControlConsoleEditorLayouts"
+
 UDMXControlConsoleEditorLayouts::UDMXControlConsoleEditorLayouts()
 {
 	DefaultLayout = CreateDefaultSubobject<UDMXControlConsoleEditorGlobalLayoutBase>(TEXT("DefaultLayout"));
@@ -99,9 +101,20 @@ void UDMXControlConsoleEditorLayouts::BeginDestroy()
 {
 	Super::BeginDestroy();
 
-	if (DefaultLayout && DefaultLayout->IsRegistered())
+	if (!DefaultLayout || !DefaultLayout->IsRegistered())
+	{  
+		return;
+	}
+
+	const UDMXControlConsole* OwnerConsole = Cast<UDMXControlConsole>(GetOuter());
+	if (!ensureMsgf(OwnerConsole, TEXT("Invalid outer for '%s', cannot destroy layouts correctly."), *GetName()))
 	{
-		DefaultLayout->Unregister();
+		return;
+	}
+
+	if (UDMXControlConsoleData* ControlConsoleData = OwnerConsole->GetControlConsoleData())
+	{
+		DefaultLayout->Unregister(ControlConsoleData);
 	}
 }
 
@@ -121,3 +134,5 @@ void UDMXControlConsoleEditorLayouts::PostLoad()
 		SetActiveLayout(DefaultLayout);
 	}
 }
+
+#undef LOCTEXT_NAMESPACE

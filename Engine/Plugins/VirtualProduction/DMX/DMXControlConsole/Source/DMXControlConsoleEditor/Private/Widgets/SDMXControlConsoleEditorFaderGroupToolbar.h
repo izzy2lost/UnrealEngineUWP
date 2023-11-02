@@ -10,12 +10,13 @@ struct FSlateColor;
 template <typename OptionType> class SComboBox;
 class SDMXControlConsoleEditorFaderGroupView;
 class SSearchBox;
+class UDMXControlConsoleEditorModel;
 class UDMXControlConsoleFaderGroup;
 class UDMXEntityFixturePatch;
 class UDMXLibrary;
 
 
-/** Base Fader Group UI widget */
+/** Toolbar widget for the Fader Group view */
 class SDMXControlConsoleEditorFaderGroupToolbar
 	: public SCompoundWidget
 {
@@ -28,15 +29,15 @@ public:
 		/** Executed when a new Fader Group Row widget is added */
 		SLATE_EVENT(FSimpleDelegate, OnAddFaderGroupRow)
 	
-		/** Executed when Fader Group View is expanded */
+		/** Executed when the Fader Group View is expanded */
 		SLATE_EVENT(FDMXControleConsolEditorExpandArrowButtonDelegate, OnExpanded)
 
 	SLATE_END_ARGS()
 
 	/** Constructs the widget */
-	void Construct(const FArguments& InArgs, const TWeakPtr<SDMXControlConsoleEditorFaderGroupView>& InFaderGroupView);
+	void Construct(const FArguments& InArgs, const TWeakPtr<SDMXControlConsoleEditorFaderGroupView>& InFaderGroupView, UDMXControlConsoleEditorModel* InEditorModel);
 
-	/** Generates Fader Group settings menu widget content */
+	/** Generates the Fader Group settings menu widget content */
 	TSharedRef<SWidget> GenerateSettingsMenuWidget();
 
 	/** Gets a reference to this widget's ExpandArrow button */
@@ -46,25 +47,25 @@ private:
 	/** Gets reference to the Fader Group */
 	UDMXControlConsoleFaderGroup* GetFaderGroup() const;
 
-	/** Generates a widget for each element in Fixture Patches Combo Box */
+	/** Generates a widget for each element in the Fixture Patches Combo Box */
 	TSharedRef<SWidget> GenerateFixturePatchesComboBoxWidget(const TSharedPtr<FDMXEntityFixturePatchRef> FixturePatchRef);
 
-	/** Generates a menu widget for Fader Group info panel */
+	/** Generates a menu widget for the Fader Group info panel */
 	TSharedRef<SWidget> GenerateFaderGroupInfoMenuWidget();
 
 	/** Generates a menu widget for adding a new Fader Group to the Control Console */
 	TSharedRef<SWidget> GenerateAddNewFaderGroupMenuWidget();
 
-	/** Restores search filter text from Fader Group */
+	/** Restores the search filter text from the Fader Group */
 	void RestoreFaderGroupFilter();
 
 	/** True if the given Fixture Patch is not used by any other Fader Group */
 	bool IsFixturePatchStillAvailable(const UDMXEntityFixturePatch* InFixturePatch) const;
 
-	/** Updates ComboBoxSource array according to the current DMX Library */
+	/** Updates the ComboBoxSource array according to the current DMX Library */
 	void UpdateComboBoxSource();
 
-	/** Called when an FixturePatchesComboBox element is selected */
+	/** Called when a FixturePatchesComboBox element is selected */
 	void OnComboBoxSelectionChanged(const TSharedPtr<FDMXEntityFixturePatchRef> FixturePatchRef, ESelectInfo::Type SelectInfo);
 
 	/** Called when the search text changed */
@@ -79,59 +80,62 @@ private:
 	/** True if a new Fader Group can be added next to this */
 	bool CanAddFaderGroup() const;
 
-	/** True if a new Fader Group can be added on next row */
+	/** True if a new Fader Group can be added on the next row */
 	bool CanAddFaderGroupRow() const;
 
-	/** Called to generate Fader Group Info Panel */
+	/** Called to generate the Fader Group Info Panel */
 	void OnGetInfoPanel();
 
 	/** Called to select all Faders in the Fader Group */
 	void OnSelectAllFaders() const;
 
-	/** Called when duplicate option is selected */
+	/** Called when the duplicate option is selected */
 	void OnDuplicateFaderGroup() const;
 
-	/** Gets wheter duplicate option is allowed or not */
+	/** Gets wheter the duplicate option is allowed or not */
 	bool CanDuplicateFaderGroup() const;
 
-	/** Called when remove option is selected */
+	/** Called when the remove option is selected */
 	void OnRemoveFaderGroup() const;
 
-	/** Gets wheter remove option is allowed or not */
+	/** Gets wheter the remove option is allowed or not */
 	bool CanRemoveFaderGroup() const;
 
-	/** Called when reset option is selected */
+	/** Called when the reset option is selected */
 	void OnResetFaderGroup() const;
 
-	/** Called when lock option is selected */
+	/** Called when the lock option is selected */
 	void OnLockFaderGroup(bool bLock) const;
 
-	/** Gets fader group editor color */
+	/** Gets the fader group's editor color */
 	FSlateColor GetFaderGroupEditorColor() const;
 
-	/** Gets fader group fixture patch name, if valid */
+	/** Gets the fader group's fixture patch name, if valid */
 	FText GetFaderGroupFixturePatchNameText() const;
 
-	/** Gets visibility for expanded view only toolbar sections  */
+	/** Gets visibility for the toolbar sections visible only in expanded view mode */
 	EVisibility GetExpandedViewModeVisibility() const;
 
-	/** Faders Widget's expander arrow button */
+	/** Expander arrow button for showing/hiding the Faders widgets */
 	TSharedPtr<SDMXControlConsoleEditorExpandArrowButton> ExpandArrowButton;
 
-	/** Reference to Fader Group toolbar searchbox used for filtering */
+	/** Reference to the Fader Group toolbar searchbox used for filtering */
 	TSharedPtr<SSearchBox> ToolbarSearchBox;
 
-	/** Reference to current DMX Library */
+	/** Reference to the current DMX Library */
 	TWeakObjectPtr<UDMXLibrary> DMXLibrary;
 
-	/** Source items for FixturePatchesComboBox */
+	/** Source items for the FixturePatchesComboBox */
 	TArray<TSharedPtr<FDMXEntityFixturePatchRef>> ComboBoxSource;
 
 	/** A ComboBox for showing all active Fixture Patches in the current DMX Library */
 	TSharedPtr<SComboBox<TSharedPtr<FDMXEntityFixturePatchRef>>> FixturePatchesComboBox;
 
-	/** Weak Reference to this Fader Group Row */
+	/** Weak Reference to the Fader Group view */
 	TWeakPtr<SDMXControlConsoleEditorFaderGroupView> FaderGroupView;
+
+	/** Weak reference to the Control Console editor model */
+	TWeakObjectPtr<UDMXControlConsoleEditorModel> EditorModel;
 
 	// Slate Arguments
 	FSimpleDelegate OnAddFaderGroupDelegate;

@@ -45,15 +45,15 @@ public:
 	/** Gets index of the given Fader Group, if valid */
 	int32 GetIndex(const UDMXControlConsoleFaderGroup* FaderGroup) const;
 
-	/** Returns a delegate broadcast if a layout row changed */
+	/** Returns a delegate broadcast if a layout row has changed */
 	static FOnGlobalLayoutRowChangedDelegate& GetOnGlobalLayoutRowChanged() { return OnGlobalLayoutRowChanged; };
 
 private:
-	/** Reference to Fader Groups array */
+	/** Reference to the Fader Groups array */
 	UPROPERTY()
 	TArray<TWeakObjectPtr<UDMXControlConsoleFaderGroup>> FaderGroups;
 
-	/** Delegate raised when */
+	/** Delegate raised when the layout row has changed */
 	static FOnGlobalLayoutRowChangedDelegate OnGlobalLayoutRowChanged;
 };
 

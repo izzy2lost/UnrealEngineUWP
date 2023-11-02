@@ -11,7 +11,6 @@
 #include "Library/DMXEntity.h"
 #include "Library/DMXEntityFixturePatch.h"
 #include "Library/DMXLibrary.h"
-#include "Models/DMXControlConsoleEditorModel.h"
 
 
 #define LOCTEXT_NAMESPACE "DMXControlConsoleEditorGlobalLayoutBase"
@@ -288,8 +287,13 @@ void UDMXControlConsoleEditorGlobalLayoutBase::ClearEmptyLayoutRows()
 		});
 }
 
-void UDMXControlConsoleEditorGlobalLayoutBase::Register()
+void UDMXControlConsoleEditorGlobalLayoutBase::Register(UDMXControlConsoleData* ControlConsoleData)
 {
+	if (!ensureMsgf(ControlConsoleData, TEXT("Invalid control console data, cannot register layout correctly.")))
+	{
+		return;
+	}
+
 	if (!ensureMsgf(!bIsRegistered, TEXT("Layout already registered to dmx library delegates.")))
 	{
 		return;
@@ -300,18 +304,21 @@ void UDMXControlConsoleEditorGlobalLayoutBase::Register()
 		UDMXLibrary::GetOnEntitiesRemoved().AddUObject(this, &UDMXControlConsoleEditorGlobalLayoutBase::OnFixturePatchRemovedFromLibrary);
 	}
 
-	const UDMXControlConsoleEditorModel* EditorModel = GetDefault<UDMXControlConsoleEditorModel>();
-	UDMXControlConsoleData* EditorConsoleData = EditorModel->GetEditorConsoleData();
-	if (EditorConsoleData && !EditorConsoleData->GetOnFaderGroupAdded().IsBoundToObject(this))
+	if (!ControlConsoleData->GetOnFaderGroupAdded().IsBoundToObject(this))
 	{
-		EditorConsoleData->GetOnFaderGroupAdded().AddUObject(this, &UDMXControlConsoleEditorGlobalLayoutBase::OnFaderGroupAddedToData, EditorConsoleData);
+		ControlConsoleData->GetOnFaderGroupAdded().AddUObject(this, &UDMXControlConsoleEditorGlobalLayoutBase::OnFaderGroupAddedToData, ControlConsoleData);
 	}
 
 	bIsRegistered = true;
 }
 
-void UDMXControlConsoleEditorGlobalLayoutBase::Unregister()
+void UDMXControlConsoleEditorGlobalLayoutBase::Unregister(UDMXControlConsoleData* ControlConsoleData)
 {
+	if (!ensureMsgf(ControlConsoleData, TEXT("Invalid control console data, cannot register layout correctly.")))
+	{
+		return;
+	}
+
 	if (!ensureMsgf(bIsRegistered, TEXT("Layout already unregistered from dmx library delegates.")))
 	{
 		return;
@@ -319,11 +326,9 @@ void UDMXControlConsoleEditorGlobalLayoutBase::Unregister()
 
 	UDMXLibrary::GetOnEntitiesRemoved().RemoveAll(this);
 
-	const UDMXControlConsoleEditorModel* EditorModel = GetDefault<UDMXControlConsoleEditorModel>();
-	UDMXControlConsoleData* EditorConsoleData = EditorModel->GetEditorConsoleData();
-	if (EditorConsoleData)
+	if (ControlConsoleData->GetOnFaderGroupAdded().IsBoundToObject(this))
 	{
-		EditorConsoleData->GetOnFaderGroupAdded().RemoveAll(this);
+		ControlConsoleData->GetOnFaderGroupAdded().RemoveAll(this);
 	}
 
 	bIsRegistered = false;

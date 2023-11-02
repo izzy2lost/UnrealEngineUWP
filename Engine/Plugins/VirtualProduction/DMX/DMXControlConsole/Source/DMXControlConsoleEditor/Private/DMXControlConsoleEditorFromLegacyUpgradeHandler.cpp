@@ -2,20 +2,14 @@
 
 #include "DMXControlConsoleEditorFromLegacyUpgradeHandler.h"
 
-#include "DMXControlConsole.h"
 #include "DMXControlConsoleData.h"
 #include "DMXControlConsoleFaderGroup.h"
 #include "DMXControlConsoleFaderGroupRow.h"
 #include "DMXControlConsoleRawFader.h"
 #include "DMXEditorSettings.h"
-#include "Models/DMXControlConsoleEditorModel.h"
-
-#include "AssetToolsModule.h"
-#include "AssetRegistry/AssetRegistryModule.h"
-#include "Misc/CoreDelegates.h"
-#include "Misc/Paths.h"
+#include "Factories/DMXControlConsoleFactory.h"
+#include "Misc/CoreDelegates.h"	
 #include "UObject/Package.h"
-#include "UObject/UObjectGlobals.h"
 
 
 #define LOCTEXT_NAMESPACE "DMXControlConsoleEditorFromLegacyUpgradeHandler"
@@ -49,12 +43,11 @@ bool FDMXControlConsoleEditorFromLegacyUpgradeHandler::TryUpgradePathFromLegacy(
 	const FString AssetPath = TEXT("/Game");
 	const FString AssetName = TEXT("DefaultControlConsole");
 
-	UDMXControlConsoleEditorModel* EditorConsoleModel = GetMutableDefault<UDMXControlConsoleEditorModel>();
-	UpgradePathControlConsole = EditorConsoleModel->CreateNewConsoleAsset(AssetPath, AssetName, ControlConsoleData);
+	const UDMXControlConsoleFactory* ControlConsoleFactory = NewObject<UDMXControlConsoleFactory>();
+	UpgradePathControlConsole = ControlConsoleFactory->CreateConsoleAssetFromData(AssetPath, AssetName, ControlConsoleData);
 	if (UpgradePathControlConsole.IsValid())
 	{
 		UpgradePathControlConsole->GetOnControlConsoleSaved().AddStatic(&FDMXControlConsoleEditorFromLegacyUpgradeHandler::OnUpgradePathControlConsoleSaved);
-
 		return true;
 	}
 

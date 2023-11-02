@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "UObject/GCObject.h"
 
 #include "Widgets/SCompoundWidget.h"
@@ -15,9 +14,8 @@ class IDMXControlConsoleFaderGroupElement;
 class SDMXControlConsoleEditorExpandArrowButton;
 class SDMXControlConsoleEditorFaderGroupToolbar;
 class SHorizontalBox;
-class UDMXControlConsoleFaderBase;
+class UDMXControlConsoleEditorModel;
 class UDMXControlConsoleFaderGroup;
-class UDMXControlConsoleFixturePatchMatrixCellFader;
 class UDMXEntityFixturePatch;
 
 
@@ -35,7 +33,7 @@ public:
 	SDMXControlConsoleEditorFaderGroupView();
 
 	/** Constructs the widget */
-	void Construct(const FArguments& InArgs, const TObjectPtr<UDMXControlConsoleFaderGroup>& InFaderGroup);
+	void Construct(const FArguments& InArgs, UDMXControlConsoleFaderGroup* InFaderGroup, UDMXControlConsoleEditorModel* InEditorModel);
 
 	/** Gets the Fader Group this Fader Group View is based on */
 	UDMXControlConsoleFaderGroup* GetFaderGroup() const { return FaderGroup.Get(); }
@@ -150,9 +148,6 @@ private:
 	/** Current view mode */
 	EDMXControlConsoleEditorViewMode ViewMode;
 
-	/** Weak Reference to this Fader Group Row */
-	TWeakObjectPtr<UDMXControlConsoleFaderGroup> FaderGroup;
-
 	/** Horizontal Box containing the Elements in this Fader Group */
 	TSharedPtr<SDMXControlConsoleEditorFaderGroupToolbar> FaderGroupToolbar;
 
@@ -161,4 +156,10 @@ private:
 
 	/** Array of weak references to Element widgets */
 	TArray<TWeakPtr<SWidget>> ElementWidgets;
+
+	/** Weak Reference to this Fader Group */
+	TWeakObjectPtr<UDMXControlConsoleFaderGroup> FaderGroup;
+
+	/** Weak reference to the Control Console editor model */
+	TWeakObjectPtr<UDMXControlConsoleEditorModel> EditorModel;
 };

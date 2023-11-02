@@ -2,19 +2,16 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "Widgets/SCompoundWidget.h"
 
-enum class ECheckBoxState : uint8;
-struct FDMXEntityFixturePatchRef;
 class FReply;
-class FUICommandList;
 class SDMXControlConsoleFixturePatchList;
+class UDMXControlConsoleEditorModel;
 class UDMXControlConsoleFaderGroup;
 class UDMXEntityFixturePatch;
 
 
-/** A container for FixturePatchRow widgets */
+/** A container for the Fixture Patch List widget */
 class SDMXControlConsoleEditorFixturePatchVerticalBox
 	: public SCompoundWidget
 {
@@ -25,7 +22,7 @@ public:
 	SLATE_END_ARGS()
 
 	/** Constructs the widget */
-	void Construct(const FArguments& InArgs);
+	void Construct(const FArguments& InArgs, UDMXControlConsoleEditorModel* InEditorModel);
 
 	/** Refreshes the widget */
 	void ForceRefresh();
@@ -36,7 +33,7 @@ protected:
 	//~ End SWidget interface
 
 private:
-	/** Generates a toolbar for FixturePatchList widget */
+	/** Generates a toolbar for the FixturePatchList widget */
 	TSharedRef<SWidget> GenerateFixturePatchListToolbar();
 
 	/** Creates a menu for the Add Patch combo button */
@@ -45,18 +42,18 @@ private:
 	/** Edits the given Fader Group according to the given Fixture Patch */
 	void GenerateFaderGroupFromFixturePatch(UDMXControlConsoleFaderGroup* FaderGroup, UDMXEntityFixturePatch* FixturePatch);
 
-	/** Called on Add All Patches button click to generate Fader Groups form a Library */
+	/** Called on Add All Patches button clicked to generate Fader Groups form a Library */
 	FReply OnAddAllPatchesClicked();
 
-	/** Gets enable state for Add All Patches button when a DMX Library is selected */
+	/** Gets the enable state for the Add All Patches button when a DMX Library is selected */
 	bool IsAddAllPatchesButtonEnabled() const;
 
-	/** Gets visibility for FixturePatchList toolbar  */
+	/** Gets the visibility for the FixturePatchList toolbar  */
 	EVisibility GetFixturePatchListToolbarVisibility() const;
 
-	/** Reference to FixturePatchList widget */
+	/** Reference to the FixturePatchList widget */
 	TSharedPtr<SDMXControlConsoleFixturePatchList> FixturePatchList;
 
-	/** Command list for this widget */
-	TSharedPtr<FUICommandList> CommandList;
+	/** Weak reference to the Control Console editor model */
+	TWeakObjectPtr<UDMXControlConsoleEditorModel> EditorModel;
 };

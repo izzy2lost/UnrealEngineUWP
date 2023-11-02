@@ -13,7 +13,7 @@ class UDMXControlConsoleFaderGroup;
 class UDMXControlConsoleEditorGlobalLayoutRow;
 
 
-namespace UE::DMXControlConsoleEditor::Layout::Private
+namespace UE::DMX::ControlConsoleEditor::Private
 { 
 	/** A widget to describe control console grid layout sorting */
 	class SDMXControlConsoleEditorGridLayout
@@ -25,7 +25,7 @@ namespace UE::DMXControlConsoleEditor::Layout::Private
 
 		SLATE_END_ARGS()
 
-		void Construct(const FArguments& InArgs, UDMXControlConsoleEditorGlobalLayoutBase* InLayout);
+		void Construct(const FArguments& InArgs, UDMXControlConsoleEditorGlobalLayoutBase* InLayout, UDMXControlConsoleEditorModel* InEditorModel);
 
 	protected:
 		//~ Begin SDMXControlConsoleEditorLayout interface
@@ -50,19 +50,19 @@ namespace UE::DMXControlConsoleEditor::Layout::Private
 		/** Gets visibility for each LayoutRowView widget */
 		EVisibility GetLayoutRowViewVisibility(TWeakObjectPtr<UDMXControlConsoleEditorGlobalLayoutRow> LayoutRow) const;
 
-		/** Gets add button visibility */
+		/** Gets visibility for the add button */
 		EVisibility GetAddButtonVisibility() const;
 
 		/** Reference to the container widget of this DMX Control Console's Layout Rows slots */
 		TSharedPtr<SVerticalBox> LayoutRowsVerticalBox;
 
-		/** Reference to horizontal ScrollBox widget */
+		/** Reference to the horizontal ScrollBox widget */
 		TSharedPtr<SScrollBox> HorizontalScrollBox;
 
-		/** Reference to vertical ScrollBox widget */
+		/** Reference to the vertical ScrollBox widget */
 		TSharedPtr<SScrollBox> VerticalScrollBox;
 
-		/** Array of weak references to Layout Row widgets */
+		/** Array of weak references to the Layout Row widgets */
 		TArray<TWeakPtr<SDMXControlConsoleEditorLayoutRowView>> LayoutRowViews;
 	};
 }

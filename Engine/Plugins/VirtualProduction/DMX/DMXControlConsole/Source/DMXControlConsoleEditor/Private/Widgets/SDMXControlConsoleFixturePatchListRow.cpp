@@ -6,16 +6,24 @@
 #include "Models/DMXControlConsoleEditorModel.h"
 #include "Models/DMXControlConsoleFixturePatchListRowModel.h"
 #include "Widgets/DMXReadOnlyFixturePatchListItem.h"
+#include "Widgets/Layout/SBorder.h"
 #include "Widgets/SBoxPanel.h"
+#include "Widgets/SDMXControlConsoleFixturePatchList.h"
 
 
 #define LOCTEXT_NAMESPACE "SDMXControlConsoleFixturePatchListRow"
 
-void SDMXControlConsoleFixturePatchListRow::Construct(const FArguments& InArgs, const TSharedRef<STableViewBase>& InOwnerTable, const TSharedRef<FDMXReadOnlyFixturePatchListItem>& InItem)
+void SDMXControlConsoleFixturePatchListRow::Construct(const FArguments& InArgs, const TSharedRef<STableViewBase>& InOwnerTable, const TSharedRef<FDMXReadOnlyFixturePatchListItem>& InItem, const TWeakObjectPtr<UDMXControlConsoleEditorModel> InWeakEditorModel)
 {
+	if (!InWeakEditorModel.IsValid())
+	{
+		return;
+	}
+
+	WeakEditorModel = InWeakEditorModel;
 	OnFaderGroupMutedChanged = InArgs._OnFaderGroupMutedChanged;
 
-	RowModel = MakeShared<FDMXControlConsoleFixturePatchListRowModel>(InItem->GetFixturePatch());
+	RowModel = MakeShared<FDMXControlConsoleFixturePatchListRowModel>(InItem->GetFixturePatch(), WeakEditorModel);
 	
 	SetEnabled(TAttribute<bool>::CreateSP(RowModel.Get(), &FDMXControlConsoleFixturePatchListRowModel::IsRowEnabled));
 

@@ -7,6 +7,8 @@
 
 class SDMXControlConsoleEditorFaderGroupView;
 class SHorizontalBox;
+class UDMXControlConsoleEditorModel;
+class UDMXControlConsoleFaderGroup;
 
 
 /** A widget which gathers a collection of Fader Groups */
@@ -20,7 +22,7 @@ public:
 	SLATE_END_ARGS()
 
 	/** Constructs the widget */
-	void Construct(const FArguments& InArgs, const TObjectPtr<UDMXControlConsoleEditorGlobalLayoutRow>& InLayoutRow);
+	void Construct(const FArguments& InArgs, UDMXControlConsoleEditorGlobalLayoutRow* InLayoutRow, UDMXControlConsoleEditorModel* InEditorModel);
 
 	/** Gets the Layout Row this row is based on */
 	UDMXControlConsoleEditorGlobalLayoutRow* GetLayoutRow() const { return LayoutRow.Get(); }
@@ -52,12 +54,15 @@ private:
 	/** Gets visibility for each FaderGroupView widget in this row */
 	EVisibility GetFaderGroupViewVisibility(UDMXControlConsoleFaderGroup* FaderGroup) const;
 
-	/** Weak Reference to this Layout Row */
-	TWeakObjectPtr<UDMXControlConsoleEditorGlobalLayoutRow> LayoutRow;
-
 	/** Reference to the container widget of this Layout Row's Fader Group slots  */
 	TSharedPtr<SHorizontalBox> FaderGroupsHorizontalBox;
 
 	/** Array of weak references to Fader Group widgets */
 	TArray<TWeakPtr<SDMXControlConsoleEditorFaderGroupView>> FaderGroupViews;
+
+	/** Weak Reference to this Layout Row */
+	TWeakObjectPtr<UDMXControlConsoleEditorGlobalLayoutRow> LayoutRow;
+
+	/** Weak reference to the Control Console editor model */
+	TWeakObjectPtr<UDMXControlConsoleEditorModel> EditorModel;
 };

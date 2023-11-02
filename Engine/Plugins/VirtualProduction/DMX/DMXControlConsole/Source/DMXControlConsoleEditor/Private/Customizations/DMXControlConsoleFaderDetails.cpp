@@ -17,34 +17,43 @@
 
 #define LOCTEXT_NAMESPACE "DMXControlConsoleFaderDetails"
 
-namespace UE::DMXControlConsole
+namespace UE::DMX::ControlConsoleEditor::Private
 {
+	FDMXControlConsoleFaderDetails::FDMXControlConsoleFaderDetails(const TWeakObjectPtr<UDMXControlConsoleEditorModel> InWeakEditorModel)
+		: WeakEditorModel(InWeakEditorModel)
+	{}
+
+	TSharedRef<IDetailCustomization> FDMXControlConsoleFaderDetails::MakeInstance(const TWeakObjectPtr<UDMXControlConsoleEditorModel> InWeakEditorModel)
+	{
+		return MakeShared<FDMXControlConsoleFaderDetails>(InWeakEditorModel);
+	}
+
 	void FDMXControlConsoleFaderDetails::CustomizeDetails(IDetailLayoutBuilder& InDetailLayout)
 	{
 		PropertyUtilities = InDetailLayout.GetPropertyUtilities();
 
 		// Value property handle
-		const TSharedPtr<IPropertyHandle> ValueHandle = InDetailLayout.GetProperty(UDMXControlConsoleFaderBase::GetValuePropertyName());
+		const TSharedRef<IPropertyHandle> ValueHandle = InDetailLayout.GetProperty(UDMXControlConsoleFaderBase::GetValuePropertyName());
 		ValueHandle->SetOnPropertyValueChanged(FSimpleDelegate::CreateSP(this, &FDMXControlConsoleFaderDetails::OnSelectedFadersValueChanged));
 
 		// MinValue property handle
-		const TSharedPtr<IPropertyHandle> MinValueHandle = InDetailLayout.GetProperty(UDMXControlConsoleFaderBase::GetMinValuePropertyName(), UDMXControlConsoleFaderBase::StaticClass());
+		const TSharedRef<IPropertyHandle> MinValueHandle = InDetailLayout.GetProperty(UDMXControlConsoleFaderBase::GetMinValuePropertyName(), UDMXControlConsoleFaderBase::StaticClass());
 		MinValueHandle->SetOnPropertyValueChanged(FSimpleDelegate::CreateSP(this, &FDMXControlConsoleFaderDetails::OnSelectedFadersMinValueChanged));
 
 		// MaxValue property handle
-		const TSharedPtr<IPropertyHandle> MaxValueHandle = InDetailLayout.GetProperty(UDMXControlConsoleFaderBase::GetMaxValuePropertyName(), UDMXControlConsoleFaderBase::StaticClass());
+		const TSharedRef<IPropertyHandle> MaxValueHandle = InDetailLayout.GetProperty(UDMXControlConsoleFaderBase::GetMaxValuePropertyName(), UDMXControlConsoleFaderBase::StaticClass());
 		MaxValueHandle->SetOnPropertyValueChanged(FSimpleDelegate::CreateSP(this, &FDMXControlConsoleFaderDetails::OnSelectedFadersMaxValueChanged));
 
 		// UniverseID property handle
-		const TSharedPtr<IPropertyHandle> UniverseIDHandle = InDetailLayout.GetProperty(UDMXControlConsoleFaderBase::GetUniverseIDPropertyName(), UDMXControlConsoleFaderBase::StaticClass());
+		const TSharedRef<IPropertyHandle> UniverseIDHandle = InDetailLayout.GetProperty(UDMXControlConsoleFaderBase::GetUniverseIDPropertyName(), UDMXControlConsoleFaderBase::StaticClass());
 		UniverseIDHandle->SetOnPropertyValueChanged(FSimpleDelegate::CreateSP(this, &FDMXControlConsoleFaderDetails::OnSelectedFadersUniverseIDChanged));
 
 		// StartingAddress property handle
-		const TSharedPtr<IPropertyHandle> StartingAddressHandle = InDetailLayout.GetProperty(UDMXControlConsoleFaderBase::GetStartingAddressPropertyName(), UDMXControlConsoleFaderBase::StaticClass());
+		const TSharedRef<IPropertyHandle> StartingAddressHandle = InDetailLayout.GetProperty(UDMXControlConsoleFaderBase::GetStartingAddressPropertyName(), UDMXControlConsoleFaderBase::StaticClass());
 		StartingAddressHandle->SetOnPropertyValueChanged(FSimpleDelegate::CreateSP(this, &FDMXControlConsoleFaderDetails::OnSelectedFadersDataTypeChanged));
 
 		// DataType property handle
-		const TSharedPtr<IPropertyHandle> DataTypeHandle = InDetailLayout.GetProperty(UDMXControlConsoleFaderBase::GetDataTypePropertyName(), UDMXControlConsoleFaderBase::StaticClass());
+		const TSharedRef<IPropertyHandle> DataTypeHandle = InDetailLayout.GetProperty(UDMXControlConsoleFaderBase::GetDataTypePropertyName(), UDMXControlConsoleFaderBase::StaticClass());
 		DataTypeHandle->SetOnPropertyValueChanged(FSimpleDelegate::CreateSP(this, &FDMXControlConsoleFaderDetails::OnSelectedFadersDataTypeChanged));
 		if (!HasOnlyRawFadersSelected())
 		{
@@ -74,20 +83,14 @@ namespace UE::DMXControlConsole
 		}
 	}
 
-	void FDMXControlConsoleFaderDetails::ForceRefresh() const
-	{
-		if (!PropertyUtilities.IsValid())
-		{
-			return;
-		}
-
-		PropertyUtilities->ForceRefresh();
-	}
-
 	bool FDMXControlConsoleFaderDetails::HasOnlyRawFadersSelected() const
 	{
-		UDMXControlConsoleEditorModel* EditorConsoleModel = GetMutableDefault<UDMXControlConsoleEditorModel>();
-		const TSharedRef<FDMXControlConsoleEditorSelection> SelectionHandler = EditorConsoleModel->GetSelectionHandler();
+		if (!WeakEditorModel.IsValid())
+		{
+			return false;
+		}
+
+		const TSharedRef<FDMXControlConsoleEditorSelection> SelectionHandler = WeakEditorModel->GetSelectionHandler();
 		TArray<TWeakObjectPtr<UObject>> SelectedFaderObjects = SelectionHandler->GetSelectedFaders();
 		// Remove Faders which don't match filtering
 		SelectedFaderObjects.RemoveAll([](const TWeakObjectPtr<UObject>& SelectedFaderObject)

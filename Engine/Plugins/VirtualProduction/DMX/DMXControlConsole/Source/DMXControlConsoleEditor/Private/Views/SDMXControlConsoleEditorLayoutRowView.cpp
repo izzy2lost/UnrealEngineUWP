@@ -11,17 +11,22 @@
 
 #define LOCTEXT_NAMESPACE "SDMXControlConsoleEditorLayoutRowView"
 
-void SDMXControlConsoleEditorLayoutRowView::Construct(const FArguments& InArgs, const TObjectPtr<UDMXControlConsoleEditorGlobalLayoutRow>& InLayoutRow)
+void SDMXControlConsoleEditorLayoutRowView::Construct(const FArguments& InArgs, UDMXControlConsoleEditorGlobalLayoutRow* InLayoutRow, UDMXControlConsoleEditorModel* InEditorModel)
 {
-	LayoutRow = InLayoutRow;
-
-	if (!ensureMsgf(LayoutRow.IsValid(), TEXT("Invalid layout row, cannot create fader group row view correctly.")))
+	if (!ensureMsgf(InEditorModel, TEXT("Invalid control console editor model, cannot create layout row view correctly.")))
 	{
 		return;
 	}
 
-	UDMXControlConsoleEditorModel* EditorConsoleModel = GetMutableDefault<UDMXControlConsoleEditorModel>();
-	EditorConsoleModel->GetOnEditorModelUpdated().AddSP(this, &SDMXControlConsoleEditorLayoutRowView::Refresh);
+	if (!ensureMsgf(InLayoutRow, TEXT("Invalid layout row, cannot create layout row view correctly.")))
+	{
+		return;
+	}
+
+	EditorModel = InEditorModel;
+	LayoutRow = InLayoutRow;
+
+	EditorModel->GetOnEditorModelUpdated().AddSP(this, &SDMXControlConsoleEditorLayoutRowView::Refresh);
 
 	ChildSlot
 		[
@@ -101,6 +106,11 @@ void SDMXControlConsoleEditorLayoutRowView::OnFaderGroupAdded()
 
 void SDMXControlConsoleEditorLayoutRowView::AddFaderGroup(UDMXControlConsoleFaderGroup* FaderGroup)
 {
+	if (!ensureMsgf(EditorModel.IsValid(), TEXT("Invalid control console editor model, cannot add new fader group view correctly.")))
+	{
+		return;
+	}
+
 	if (!ensureMsgf(FaderGroup, TEXT("Invalid fader group, cannot add new fader group view correctly.")))
 	{
 		return;
@@ -114,7 +124,7 @@ void SDMXControlConsoleEditorLayoutRowView::AddFaderGroup(UDMXControlConsoleFade
 	const int32 Index = LayoutRow->GetIndex(FaderGroup);
 
 	const TSharedRef<SDMXControlConsoleEditorFaderGroupView> FaderGroupWidget =
-		SNew(SDMXControlConsoleEditorFaderGroupView, FaderGroup)
+		SNew(SDMXControlConsoleEditorFaderGroupView, FaderGroup, EditorModel.Get())
 		.Visibility(TAttribute<EVisibility>::CreateSP(this, &SDMXControlConsoleEditorLayoutRowView::GetFaderGroupViewVisibility, FaderGroup));
 
 	if (FaderGroupViews.IsValidIndex(Index))

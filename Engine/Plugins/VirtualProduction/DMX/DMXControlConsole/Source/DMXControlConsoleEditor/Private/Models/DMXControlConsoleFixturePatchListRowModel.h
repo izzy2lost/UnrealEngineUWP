@@ -6,7 +6,7 @@
 #include "UObject/WeakObjectPtr.h"
 
 enum class ECheckBoxState : uint8;
-class SDMXControlConsoleFixturePatchList;
+class UDMXControlConsoleEditorModel;
 class UDMXEntityFixturePatch;
 
 
@@ -15,7 +15,7 @@ class FDMXControlConsoleFixturePatchListRowModel
 	: public TSharedFromThis<FDMXControlConsoleFixturePatchListRowModel>
 {
 public:
-	FDMXControlConsoleFixturePatchListRowModel(TWeakObjectPtr<UDMXEntityFixturePatch> InFixturePatch);
+	FDMXControlConsoleFixturePatchListRowModel(const TWeakObjectPtr<UDMXEntityFixturePatch> InWeakFixturePatch, const TWeakObjectPtr<UDMXControlConsoleEditorModel> InWeakEditorModel);
 
 	/** Returns true if the row widget is enabled */
 	bool IsRowEnabled() const;
@@ -29,4 +29,7 @@ public:
 private:
 	/** The fixture patch of this row */
 	TWeakObjectPtr<UDMXEntityFixturePatch> WeakFixturePatch;
+
+	/** Weak reference to the Control Console edior model */
+	TWeakObjectPtr<UDMXControlConsoleEditorModel> WeakEditorModel;
 };

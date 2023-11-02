@@ -15,8 +15,8 @@ class UDMXEntityFixturePatch;
 class UDMXLibrary;
 
 
-UENUM()
 /** Enum for DMX Control Console layout modes */
+UENUM()
 enum class EDMXControlConsoleLayoutMode : uint8
 {
 	Horizontal,
@@ -25,7 +25,7 @@ enum class EDMXControlConsoleLayoutMode : uint8
 	None
 };
 
-/** Base class for Control Console layout */
+/** Base class for the Control Console layout */
 UCLASS()
 class UDMXControlConsoleEditorGlobalLayoutBase
 	: public UObject
@@ -91,10 +91,10 @@ public:
 	void ClearEmptyLayoutRows();
 
 	/** Registers this layout */
-	void Register();
+	void Register(UDMXControlConsoleData* ControlConsoleData);
 
 	/** Unregisters this layout */
-	void Unregister();
+	void Unregister(UDMXControlConsoleData* ControlConsoleData);
 
 	/** True if this layout is registered to the DMX Library delegates */
 	bool IsRegistered() const { return bIsRegistered; }

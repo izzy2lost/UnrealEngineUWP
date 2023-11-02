@@ -2,11 +2,10 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
-#include "Widgets/Input/SButton.h"
 #include "Widgets/SCompoundWidget.h"
 
 class FUICommandList;
+class UDMXControlConsoleEditorModel;
 class UDMXEntityFixturePatch;
 
 
@@ -24,7 +23,7 @@ public:
 	SLATE_END_ARGS()
 
 	/** Constructs the widget */
-	void Construct(const FArguments& InArgs, TArray<TWeakObjectPtr<UDMXEntityFixturePatch>> InFixturePatches);
+	void Construct(const FArguments& InArgs, TArray<TWeakObjectPtr<UDMXEntityFixturePatch>> InFixturePatches, UDMXControlConsoleEditorModel* InEditorModel);
 
 	/** Sets the fixture patches which can be added from this widget */
 	void SetFixturePatches(TArray<TWeakObjectPtr<UDMXEntityFixturePatch>> FixturePatches);
@@ -56,4 +55,7 @@ private:
 
 	/** Command list for this widget */
 	TSharedPtr<FUICommandList> CommandList;
+
+	/** Weak reference to the Control Console editor model */
+	TWeakObjectPtr<UDMXControlConsoleEditorModel> EditorModel;
 };

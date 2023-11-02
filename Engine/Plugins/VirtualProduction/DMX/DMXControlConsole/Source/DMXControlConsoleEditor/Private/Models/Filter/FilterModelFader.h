@@ -9,7 +9,7 @@
 class UDMXControlConsoleFaderBase;
 
 
-namespace UE::DMXControlConsoleEditor::FilterModel::Private
+namespace UE::DMX::ControlConsoleEditor::Private
 {
 	enum class ENameFilterMode : uint8;
 	struct FFaderGroupFilter;
