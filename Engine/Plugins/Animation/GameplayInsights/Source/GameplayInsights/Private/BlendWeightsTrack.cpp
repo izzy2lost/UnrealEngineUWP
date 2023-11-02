@@ -38,6 +38,7 @@ void FBlendWeightsTrack::IterateSubTracksInternal(TFunction<void(TSharedPtr<FRew
 
 bool FBlendWeightsTrack::UpdateInternal()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(FBlendWeights::UpdateInternal);
 	IRewindDebugger* RewindDebugger = IRewindDebugger::Instance();
 
 	struct TrackId
@@ -166,6 +167,7 @@ bool FBlendWeightTrack::UpdateInternal()
 
 	if(CurvesUpdateRequested > 10 && GameplayProvider && AnimationProvider)
 	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(FBlendWeightTrack::UpdateCurvePointsInternal);
 		auto& CurvePoints = CurveData->Points;
 		CurvePoints.SetNum(0,false);
 		
@@ -342,6 +344,7 @@ TSharedPtr<SWidget> FBlendWeightTrack::GetDetailsViewInternal()
 
 bool FBlendWeightTrack::HandleDoubleClickInternal()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(FBlendWeightsTrack::UpdateInternal);
 #if WITH_EDITOR
 	IRewindDebugger* RewindDebugger = IRewindDebugger::Instance();
 	if (const TraceServices::IAnalysisSession* AnalysisSession = RewindDebugger->GetAnalysisSession())
@@ -379,6 +382,7 @@ TSharedPtr<RewindDebugger::FRewindDebuggerTrack> FBlendWeightsTrackCreator::Crea
 
 bool FBlendWeightsTrackCreator::HasDebugInfoInternal(uint64 ObjectId) const
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(FBlendWeightsTrack::HasDebugInfoInternal);
 	const TraceServices::IAnalysisSession* AnalysisSession = IRewindDebugger::Instance()->GetAnalysisSession();
 	TraceServices::FAnalysisSessionReadScope SessionReadScope(*AnalysisSession);
 	bool bHasData = false;

@@ -593,6 +593,7 @@ TRange<double> FGameplayProvider::GetObjectTraceLifetime(uint64 ObjectId) const
 
 TRange<double> FGameplayProvider::GetObjectRecordingLifetime(uint64 ObjectId) const
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(FGameplayProvider::GetObjectRecordingLifetime);
 	Session.ReadAccessCheck();
 
 	if (const uint64 *FoundIndex = ActiveObjectRecordingLifetimes.Find(ObjectId))

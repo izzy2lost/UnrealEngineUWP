@@ -386,6 +386,7 @@ FSlateIcon FDebuggerTrack::GetIconInternal()
 
 bool FDebuggerTrack::UpdateInternal()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(PoseSearchDebuggerTrack::UpdateInternal);
 	CostTimelineView->UpdateInternal(ObjectId);
 
 	if (TSharedPtr<IRewindDebuggerView> PinnedView = View.Pin())
@@ -441,6 +442,7 @@ TSharedPtr<RewindDebugger::FRewindDebuggerTrack> FDebuggerTrackCreator::CreateTr
 
 bool FDebuggerTrackCreator::HasDebugInfoInternal(uint64 ObjectId) const
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(PoseSearchDebugger::HasDebugInfoInternal);
 	// Get provider and validate
 	const TraceServices::IAnalysisSession* Session = IRewindDebugger::Instance()->GetAnalysisSession();
 	TraceServices::FAnalysisSessionReadScope SessionReadScope(*Session);

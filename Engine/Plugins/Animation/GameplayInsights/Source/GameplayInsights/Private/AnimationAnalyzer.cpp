@@ -52,6 +52,7 @@ void FAnimationAnalyzer::OnAnalysisBegin(const FOnAnalysisContext& Context)
 	Builder.RouteEvent(RouteId_Sync, "Animation", "Sync");
 	Builder.RouteEvent(RouteId_PoseWatch, "Animation", "PoseWatch");
 	Builder.RouteEvent(RouteId_PoseWatch2, "Animation", "PoseWatch2");
+	Builder.RouteEvent(RouteId_Inertialization, "Animation", "Inertialization");
 }
 
 bool FAnimationAnalyzer::OnEvent(uint16 RouteId, EStyle Style, const FOnEventContext& Context)
@@ -492,6 +493,18 @@ bool FAnimationAnalyzer::OnEvent(uint16 RouteId, EStyle Style, const FOnEventCon
 		check(CurveIds.Num() == CurveValues.Num());
 
 		AnimationProvider.AppendPoseWatch(ComponentId, AnimInstanceId, Context.EventTime.AsSeconds(Cycle), RecordingTime, PoseWatchId, NameId, FColor(Color), BoneTransformsFloatArray, CurveIds, CurveValues, RequiredBonesIntArray, WorldTransformFloatArray, bIsEnabled);
+		break;
+	}
+	case RouteId_Inertialization:
+	{
+		uint64 Cycle = EventData.GetValue<uint64>("Cycle");
+		double RecordingTime = EventData.GetValue<double>("RecordingTime");
+		uint64 AnimInstanceId = EventData.GetValue<uint64>("AnimInstanceId");
+		int32 NodeId = EventData.GetValue<int32>("NodeId");
+		float Weight = EventData.GetValue<float>("Weight");
+		EInertializationType Type = static_cast<EInertializationType>(EventData.GetValue<uint8>("Type"));	
+			
+		AnimationProvider.AppendInertialization(AnimInstanceId, Context.EventTime.AsSeconds(Cycle), RecordingTime, NodeId, Weight, Type);
 		break;
 	}
 	}

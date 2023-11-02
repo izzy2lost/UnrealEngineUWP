@@ -16,6 +16,7 @@ class FInertializationTrack : public FRewindDebuggerTrack
 public:
 	
 	FInertializationTrack(uint64 InObjectId, int32 NodeId, const FText& Name);
+	int32 GetNodeId() const { return NodeId; }
 
 private:
 	virtual bool UpdateInternal() override;

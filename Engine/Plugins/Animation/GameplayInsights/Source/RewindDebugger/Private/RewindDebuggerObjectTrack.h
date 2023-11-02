@@ -4,22 +4,23 @@
 #include "RewindDebuggerTrack.h"
 #include "SSegmentedTimelineView.h"
 
+
 namespace RewindDebugger
 {
+	
+class IRewindDebuggerTrackCreator;
+
+struct FTrackCreatorAndTrack
+{
+	const IRewindDebuggerTrackCreator* Creator;
+	TSharedPtr<FRewindDebuggerTrack> Track;
+};
 
 class FRewindDebuggerObjectTrack : public FRewindDebuggerTrack
 {
 public:
 
-	FRewindDebuggerObjectTrack(uint64 InObjectId, const FString& InObjectName, bool bInAddController = false)
-		: ObjectName(InObjectName)
-		, ObjectId(InObjectId)
-		, bAddController(bInAddController)
-		, bDisplayNameValid(false)
-	{
-		ExistenceRange = MakeShared<SSegmentedTimelineView::FSegmentData>();
-		ExistenceRange->Segments.SetNumUninitialized(1);
-	}
+	FRewindDebuggerObjectTrack(uint64 InObjectId, const FString& InObjectName, bool bInAddController = false);
 
 	TSharedPtr<SSegmentedTimelineView::FSegmentData> GetExistenceRange() const { return ExistenceRange; }
 
@@ -41,10 +42,12 @@ private:
 	FSlateIcon Icon;
 	TSharedPtr<SSegmentedTimelineView::FSegmentData> ExistenceRange;
 	uint64 ObjectId;
+	TArray<FTrackCreatorAndTrack> TrackChildren;
 	TArray<TSharedPtr<FRewindDebuggerTrack>> Children;
 
 	bool bAddController;
 	mutable bool bDisplayNameValid;
+	
 };
 
 }

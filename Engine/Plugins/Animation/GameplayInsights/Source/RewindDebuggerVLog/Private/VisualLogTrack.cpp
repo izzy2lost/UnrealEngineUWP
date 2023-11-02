@@ -85,6 +85,7 @@ bool FVisualLogCategoryTrack::UpdateInternal()
 	{
 		if(EventUpdateRequested > 10)
 		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(FVisualLogTrack::UpdateEventPointsInternal);
 			EventUpdateRequested = 0;
 			
 			EventData->Points.SetNum(0,false);
@@ -191,6 +192,7 @@ FVisualLogTrack::FVisualLogTrack(uint64 InObjectId) :
 
 bool FVisualLogTrack::UpdateInternal()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(FVisualLogTrack::UpdateInternal);
 	IRewindDebugger* RewindDebugger = IRewindDebugger::Instance();
 	
 	TRange<double> TraceTimeRange = RewindDebugger->GetCurrentTraceRange();
@@ -255,6 +257,7 @@ void FVisualLogTrack::IterateSubTracksInternal(TFunction<void(TSharedPtr<FRewind
 
 bool FVisualLogTrackCreator::HasDebugInfoInternal(uint64 ObjectId) const
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(FVisualLogTrack::HasDebugInfoInternal);
 	const TraceServices::IAnalysisSession* AnalysisSession = IRewindDebugger::Instance()->GetAnalysisSession();
 	
 	TraceServices::FAnalysisSessionReadScope SessionReadScope(*AnalysisSession);

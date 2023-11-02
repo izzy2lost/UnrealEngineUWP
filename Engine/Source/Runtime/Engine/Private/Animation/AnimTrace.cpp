@@ -285,6 +285,16 @@ UE_TRACE_EVENT_BEGIN(Animation, PoseWatch2)
 	UE_TRACE_EVENT_FIELD(bool, bIsEnabled)
 UE_TRACE_EVENT_END()
 
+UE_TRACE_EVENT_BEGIN(Animation, Inertialization)
+	UE_TRACE_EVENT_FIELD(uint64, Cycle)
+	UE_TRACE_EVENT_FIELD(double, RecordingTime)
+	UE_TRACE_EVENT_FIELD(uint64, ComponentId)
+	UE_TRACE_EVENT_FIELD(uint64, AnimInstanceId)
+	UE_TRACE_EVENT_FIELD(uint32, NodeId)
+	UE_TRACE_EVENT_FIELD(float, Weight)
+	UE_TRACE_EVENT_FIELD(uint8, Type)
+UE_TRACE_EVENT_END()
+
 FAutoConsoleVariable CVarRecordExternalMorphTargets(
 	TEXT("RecordExternalMorphTargets"),
 	false,
@@ -1359,6 +1369,20 @@ void FAnimTrace::OutputPoseWatch(const FAnimInstanceProxy& InSourceProxy, UPoseW
 		<< PoseWatch2.CurveIds(CurveIds.GetData(), CurveIds.Num())
 		<< PoseWatch2.RequiredBones(RequiredBones.GetData(), RequiredBones.Num())
 		<< PoseWatch2.bIsEnabled(bIsEnabled);
+}
+
+void FAnimTrace::OutputInertialization(const FAnimInstanceProxy& InSourceProxy, int32 NodeId, float Weight, EInertializationType Type)
+{
+	const UAnimInstance* AnimInstance = CastChecked<UAnimInstance>(InSourceProxy.GetAnimInstanceObject());
+	TRACE_OBJECT(AnimInstance);
+	
+	UE_TRACE_LOG(Animation, Inertialization, AnimationChannel)
+	<< Inertialization.Cycle(FPlatformTime::Cycles64())
+	<< Inertialization.RecordingTime(FObjectTrace::GetWorldElapsedTime(AnimInstance->GetWorld()))
+	<< Inertialization.AnimInstanceId(FObjectTrace::GetObjectId(InSourceProxy.GetAnimInstanceObject()))
+	<< Inertialization.NodeId(NodeId)
+	<< Inertialization.Weight(Weight)
+	<< Inertialization.Type(static_cast<uint8>(Type));
 }
 
 #endif

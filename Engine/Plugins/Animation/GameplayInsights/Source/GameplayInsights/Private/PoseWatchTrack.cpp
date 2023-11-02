@@ -346,6 +346,7 @@ void FPoseWatchesTrack::IterateSubTracksInternal(TFunction<void(TSharedPtr<FRewi
 
 bool FPoseWatchesTrackCreator::HasDebugInfoInternal(uint64 ObjectId) const
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(FPoseWatchesTrack::HasDebugInfoInternal);
 	const TraceServices::IAnalysisSession* AnalysisSession = IRewindDebugger::Instance()->GetAnalysisSession();
 	
 	TraceServices::FAnalysisSessionReadScope SessionReadScope(*AnalysisSession);

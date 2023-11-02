@@ -204,6 +204,40 @@ bool FAnimationProvider::ReadTickRecordTimeline(uint64 InObjectId, TFunctionRef<
 	return false;
 }
 
+bool FAnimationProvider::ReadInertializationTimeline(uint64 InObjectId, TFunctionRef<void(const InertializationTimeline&)> Callback) const
+{
+	Session.ReadAccessCheck();
+
+	const uint32* IndexPtr = ObjectIdToInertializationTimelines.Find(InObjectId);
+	if (IndexPtr != nullptr)
+	{
+		if (*IndexPtr < uint32(InertializationTimelineStorage.Num()))
+		{
+			Callback(*InertializationTimelineStorage[*IndexPtr]->Timeline.Get());
+			return true;
+		}
+	}
+
+	return false;
+}
+
+void FAnimationProvider::EnumerateInertializationNodes(uint64 InObjectId, TFunctionRef<void(int32 NodeId, EInertializationType Type)> Callback) const
+{
+	Session.ReadAccessCheck();
+
+	const uint32* IndexPtr = ObjectIdToInertializationTimelines.Find(InObjectId);
+	if (IndexPtr != nullptr)
+	{
+		if (*IndexPtr < uint32(InertializationTimelineStorage.Num()))
+		{
+			for(auto& Entry : InertializationTimelineStorage[*IndexPtr]->NodeTypes)
+			{
+				Callback(Entry.Key, Entry.Value);
+			}
+		}
+	}
+}
+
 void FAnimationProvider::EnumerateAnimGraphTimelines(TFunctionRef<void(uint64 ObjectId, const AnimGraphTimeline&)> Callback) const
 {
 	Session.ReadAccessCheck();
@@ -1691,6 +1725,36 @@ void FAnimationProvider::AppendPoseWatch(uint64 InComponentId, uint64 InAnimInst
 	}
 
 	Session.UpdateDurationSeconds(InTime);
+}
+
+void FAnimationProvider::AppendInertialization(uint64 InAnimInstanceId, double InProfileTime, double InRecordingTime, int32 InNodeId, float InWeight, EInertializationType InType)
+{
+	Session.WriteAccessCheck();
+	
+	TSharedPtr<FInertializationTimelineStorage> TimelineStorage;
+	uint32* IndexPtr = ObjectIdToInertializationTimelines.Find(InAnimInstanceId);
+	if(IndexPtr != nullptr)
+	{
+		TimelineStorage = InertializationTimelineStorage[*IndexPtr];
+	}
+	else
+	{
+		TimelineStorage = MakeShared<FInertializationTimelineStorage>();
+		TimelineStorage->Timeline = MakeShared<TraceServices::TPointTimeline<FInertializationMessage>>(Session.GetLinearAllocator());
+		TimelineStorage->Timeline->SetEnumerateOutsideRange(true);
+		ObjectIdToInertializationTimelines.Add(InAnimInstanceId, InertializationTimelineStorage.Num());
+		InertializationTimelineStorage.Add(TimelineStorage.ToSharedRef());
+	}
+	
+	
+	FInertializationMessage Message;
+	Message.AnimInstanceId = InAnimInstanceId;
+	Message.RecordingTime = InRecordingTime;
+	Message.NodeId = InNodeId;
+	Message.Weight = InWeight;
+	Message.Type = InType;
+	TimelineStorage->Timeline->AppendEvent(InProfileTime, Message);
+	TimelineStorage->NodeTypes.Add(InNodeId, InType);
 }
 
 #undef LOCTEXT_NAMESPACE

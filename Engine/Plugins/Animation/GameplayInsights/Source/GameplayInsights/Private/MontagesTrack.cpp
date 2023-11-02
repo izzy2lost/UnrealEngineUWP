@@ -35,6 +35,7 @@ void FMontagesTrack::IterateSubTracksInternal(TFunction<void(TSharedPtr<FRewindD
 
 bool FMontagesTrack::UpdateInternal()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(FMontagesTrack::UpdateInternal);
 	TArray<uint64> UniqueTrackIds;
 
 	IRewindDebugger* RewindDebugger = IRewindDebugger::Instance();
@@ -334,6 +335,7 @@ TSharedPtr<RewindDebugger::FRewindDebuggerTrack> FMontagesTrackCreator::CreateTr
 
 bool FMontagesTrackCreator::HasDebugInfoInternal(uint64 ObjectId) const
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(FMontagesTrack::HasDebugInfoInternal);
 	const TraceServices::IAnalysisSession* AnalysisSession = IRewindDebugger::Instance()->GetAnalysisSession();
 	TraceServices::FAnalysisSessionReadScope SessionReadScope(*AnalysisSession);
 	bool bHasData = false;

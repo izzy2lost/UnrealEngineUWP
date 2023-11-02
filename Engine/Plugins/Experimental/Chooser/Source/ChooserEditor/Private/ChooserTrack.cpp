@@ -71,6 +71,7 @@ bool FChooserTrack::UpdateInternal()
 	
 	if(EventUpdateRequested > 10 && ChooserProvider)
 	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(FChooserTrack::UpdateEventPointsInternal);
 		EventUpdateRequested = 0;
 		
 		EventData->Points.SetNum(0,false);
@@ -165,6 +166,7 @@ FChoosersTrack::FChoosersTrack(uint64 InObjectId) :
 
 bool FChoosersTrack::UpdateInternal()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(FChoosersTrack::UpdateInternal);
 	IRewindDebugger* RewindDebugger = IRewindDebugger::Instance();
 	
 	TRange<double> RecordingTimeRange = RewindDebugger->GetCurrentViewRange();
@@ -226,6 +228,7 @@ void FChoosersTrack::IterateSubTracksInternal(TFunction<void(TSharedPtr<FRewindD
 
 bool FChoosersTrackCreator::HasDebugInfoInternal(uint64 ObjectId) const
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(FChoosersTrack::HasDebugInfoInternal);
 	const TraceServices::IAnalysisSession* AnalysisSession = IRewindDebugger::Instance()->GetAnalysisSession();
 	
 	TraceServices::FAnalysisSessionReadScope SessionReadScope(*AnalysisSession);

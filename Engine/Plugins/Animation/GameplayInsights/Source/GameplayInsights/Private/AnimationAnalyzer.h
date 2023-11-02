@@ -54,6 +54,7 @@ private:
 		RouteId_Sync,
 		RouteId_PoseWatch,
 		RouteId_PoseWatch2,
+		RouteId_Inertialization,
 	};
 
 	TraceServices::IAnalysisSession& Session;

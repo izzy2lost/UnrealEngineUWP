@@ -42,6 +42,7 @@ void FAnimCurvesTrack::IterateSubTracksInternal(TFunction<void(TSharedPtr<FRewin
 
 bool FAnimCurvesTrack::UpdateInternal()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(FAnimCurvesTrack::UpdateInternal);
 	if (!GetIsExpanded())
 	{
 		return false;
@@ -154,6 +155,8 @@ bool FAnimCurveTrack::UpdateInternal()
 
 void FAnimCurveTrack::UpdateCurvePointsInternal()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(FAnimCurveTrack::UpdateCurvePointsInternal);
+	
 	IRewindDebugger* RewindDebugger = IRewindDebugger::Instance();
 	const TraceServices::IAnalysisSession* AnalysisSession = RewindDebugger->GetAnalysisSession();
 	const FAnimationProvider* AnimationProvider = AnalysisSession->ReadProvider<FAnimationProvider>(FAnimationProvider::ProviderName);

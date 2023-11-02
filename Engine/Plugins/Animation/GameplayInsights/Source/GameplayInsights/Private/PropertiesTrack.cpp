@@ -307,6 +307,7 @@ namespace RewindDebugger
 
 	bool FPropertiesTrackCreator::HasDebugInfoInternal(uint64 ObjectId) const
 	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(FPropertiesTrack::HasDebugInfoInternal);
 		bool bHasData = false;
 
 		if (const TraceServices::IAnalysisSession* AnalysisSession = IRewindDebugger::Instance()->GetAnalysisSession())
