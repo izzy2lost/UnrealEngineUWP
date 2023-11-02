@@ -19,6 +19,8 @@ namespace UnrealBuildTool.Rules
 					"CoreUObject",
 					"TargetDeviceServices",
 				});
+
+			ShortName = "TDSScripting";
 		}
 	}
 }
