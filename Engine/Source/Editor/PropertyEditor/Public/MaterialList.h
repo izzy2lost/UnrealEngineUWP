@@ -134,7 +134,7 @@ struct FMaterialListItem
 
 	bool operator==( const FMaterialListItem& Other ) const
 	{
-		return Material == Other.Material && SlotIndex == Other.SlotIndex && SlotName == SlotName;
+		return Material == Other.Material && SlotIndex == Other.SlotIndex && SlotName == Other.SlotName;
 	}
 
 	bool operator!=( const FMaterialListItem& Other ) const
