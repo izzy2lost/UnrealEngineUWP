@@ -36,6 +36,8 @@ private:
 	void HandleModularFeatureRegistered(const FName& InFeatureName, IModularFeature* InFeature);
 	void HandleModularFeatureUnregistered(const FName& InFeatureName, IModularFeature* InFeature);
 	
+	void HandleAssistantInitializationEvent();
+
 	/** Must be called on the game thread */
 	static void NotifySystemConfigIssues();
 

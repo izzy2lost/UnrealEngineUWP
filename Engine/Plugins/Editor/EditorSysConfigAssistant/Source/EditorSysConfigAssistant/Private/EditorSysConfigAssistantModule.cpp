@@ -4,6 +4,7 @@
 
 #include "Features/IModularFeatures.h"
 #include "Framework/Docking/TabManager.h"
+#include "Misc/NamePermissionList.h"
 #include "Styling/AppStyle.h"
 #include "Textures/SlateIcon.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
@@ -29,6 +30,7 @@ public:
 	virtual void ShutdownModule() override;
 	// ~End IModuleInterface
 
+	virtual bool CanShowSystemConfigAssistant() override;
 	virtual void ShowSystemConfigAssistant() override;
 private:
 #if PLATFORM_WINDOWS
@@ -64,6 +66,11 @@ void FEditorSysConfigAssistantModule::ShutdownModule()
 #if PLATFORM_WINDOWS
 	IModularFeatures::Get().UnregisterModularFeature(LastAccessTimeFeature.GetModularFeatureName(), &LastAccessTimeFeature);
 #endif // PLATFORM_WINDOWS
+}
+
+bool FEditorSysConfigAssistantModule::CanShowSystemConfigAssistant()
+{
+	return FGlobalTabmanager::Get()->GetTabPermissionList()->PassesFilter(EditorSysConfigAssistantTabName);
 }
 
 void FEditorSysConfigAssistantModule::ShowSystemConfigAssistant()

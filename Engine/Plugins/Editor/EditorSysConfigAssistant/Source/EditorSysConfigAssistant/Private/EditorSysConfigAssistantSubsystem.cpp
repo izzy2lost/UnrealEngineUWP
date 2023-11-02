@@ -11,6 +11,7 @@
 #include "Internationalization/Internationalization.h"
 #include "Internationalization/Text.h"
 #include "Misc/App.h"
+#include "Misc/CoreDelegates.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "UnrealEdMisc.h"
@@ -54,20 +55,12 @@ void UEditorSysConfigAssistantSubsystem::Initialize(FSubsystemCollectionBase& Co
 {
 	Super::Initialize(Collection);
 
-	IModularFeatures& ModularFeatures = IModularFeatures::Get();
-	IModularFeatures::FScopedLockModularFeatureList LockModularFeatureList;
-	TArray<IEditorSysConfigFeature*> SysConfigFeatures = IModularFeatures::Get().GetModularFeatureImplementations<IEditorSysConfigFeature>(IEditorSysConfigFeature::GetModularFeatureName());
-	for (IEditorSysConfigFeature* SysConfigFeature : SysConfigFeatures)
-	{
-		SysConfigFeature->StartSystemCheck();
-	}
-
-	ModularFeatures.OnModularFeatureRegistered().AddUObject(this, &UEditorSysConfigAssistantSubsystem::HandleModularFeatureRegistered);
-	ModularFeatures.OnModularFeatureUnregistered().AddUObject(this, &UEditorSysConfigAssistantSubsystem::HandleModularFeatureUnregistered);
+	FCoreDelegates::OnAllModuleLoadingPhasesComplete.AddUObject(this,&UEditorSysConfigAssistantSubsystem::HandleAssistantInitializationEvent);
 }
 
 void UEditorSysConfigAssistantSubsystem::Deinitialize()
 {
+	FCoreDelegates::OnAllModuleLoadingPhasesComplete.RemoveAll(this);
 	Super::Deinitialize();
 
 	IModularFeatures& ModularFeatures = IModularFeatures::Get();
@@ -94,6 +87,23 @@ void UEditorSysConfigAssistantSubsystem::HandleModularFeatureUnregistered(const 
 			{
 				return Issue->Feature == RemovedSysConfigFeature;
 			});
+	}
+}
+
+void UEditorSysConfigAssistantSubsystem::HandleAssistantInitializationEvent()
+{
+	if (IEditorSysConfigAssistantModule::Get().CanShowSystemConfigAssistant())
+	{
+		IModularFeatures& ModularFeatures = IModularFeatures::Get();
+		IModularFeatures::FScopedLockModularFeatureList LockModularFeatureList;
+		TArray<IEditorSysConfigFeature*> SysConfigFeatures = IModularFeatures::Get().GetModularFeatureImplementations<IEditorSysConfigFeature>(IEditorSysConfigFeature::GetModularFeatureName());
+		for (IEditorSysConfigFeature* SysConfigFeature : SysConfigFeatures)
+		{
+			SysConfigFeature->StartSystemCheck();
+		}
+
+		ModularFeatures.OnModularFeatureRegistered().AddUObject(this, &UEditorSysConfigAssistantSubsystem::HandleModularFeatureRegistered);
+		ModularFeatures.OnModularFeatureUnregistered().AddUObject(this, &UEditorSysConfigAssistantSubsystem::HandleModularFeatureUnregistered);
 	}
 }
 

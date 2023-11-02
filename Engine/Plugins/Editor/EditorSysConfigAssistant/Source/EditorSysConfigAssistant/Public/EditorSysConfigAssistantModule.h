@@ -12,8 +12,11 @@ public:
 	{
 		return FModuleManager::LoadModuleChecked<IEditorSysConfigAssistantModule>("EditorSysConfigAssistant");
 	}
-	
-	/** Ensures the system configuration assistant UI is presented to the user */
+
+	/** Checks if it is possible to show the system configuration assistant UI to the user */
+	virtual bool CanShowSystemConfigAssistant() = 0;
+
+	/** Attempts to present the system configuration assistant UI to the user */
 	virtual void ShowSystemConfigAssistant() = 0;
 };
 
