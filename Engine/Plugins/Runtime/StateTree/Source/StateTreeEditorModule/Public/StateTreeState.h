@@ -20,8 +20,6 @@ struct STATETREEEDITORMODULE_API FStateTreeTransition
 	FStateTreeTransition(const EStateTreeTransitionTrigger InTrigger, const EStateTreeTransitionType InType, const UStateTreeState* InState = nullptr);
 	FStateTreeTransition(const EStateTreeTransitionTrigger InTrigger, const FGameplayTag InEventTag, const EStateTreeTransitionType InType, const UStateTreeState* InState = nullptr);
 
-	void PostSerialize(const FArchive& Ar);
-	
 	template<typename T, typename... TArgs>
 	TStateTreeEditorNode<T>& AddCondition(TArgs&&... InArgs)
 	{
@@ -80,14 +78,6 @@ struct STATETREEEDITORMODULE_API FStateTreeTransition
 	bool bTransitionEnabled = true;
 };
 
-template<>
-struct TStructOpsTypeTraits<FStateTreeTransition> : TStructOpsTypeTraitsBase2<FStateTreeTransition>
-{
-	enum
-	{
-		WithPostSerialize = true,
-	};
-};
 
 USTRUCT()
 struct STATETREEEDITORMODULE_API FStateTreeStateParameters

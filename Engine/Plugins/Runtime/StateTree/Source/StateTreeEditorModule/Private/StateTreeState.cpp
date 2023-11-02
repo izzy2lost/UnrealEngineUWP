@@ -26,18 +26,6 @@ FStateTreeTransition::FStateTreeTransition(const EStateTreeTransitionTrigger InT
 	State = InState ? InState->GetLinkToState() : FStateTreeStateLink(InType);
 }
 
-void FStateTreeTransition::PostSerialize(const FArchive& Ar)
-{
-#if WITH_EDITORONLY_DATA
-	const int32 CurrentVersion = Ar.CustomVer(FStateTreeCustomVersion::GUID);
-	if (CurrentVersion < FStateTreeCustomVersion::AddedTransitionIds)
-	{
-		ID = FGuid::NewGuid();
-	}
-#endif // WITH_EDITORONLY_DAT
-}
-
-
 //////////////////////////////////////////////////////////////////////////
 // UStateTreeState
 
@@ -311,7 +299,19 @@ void UStateTreeState::PostLoad()
 		}		
 	}
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
-#endif
+
+	const int32 CurrentVersion = GetLinkerCustomVersion(FStateTreeCustomVersion::GUID);
+	if (CurrentVersion < FStateTreeCustomVersion::AddedTransitionIds)
+	{
+		// Make guids for transitions. These need to be deterministic when upgrading because of cooking.
+		for (int32 Index = 0; Index < Transitions.Num(); Index++)
+		{
+			FStateTreeTransition& Transition = Transitions[Index];
+			Transition.ID = FGuid::NewDeterministicGuid(GetPathName(), Index);
+		}
+	}
+#endif // WITH_EDITORONLY_DATA
+
 }
 
 void UStateTreeState::UpdateParametersFromLinkedSubtree()
