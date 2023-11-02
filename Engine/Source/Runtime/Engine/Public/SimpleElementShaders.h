@@ -117,6 +117,8 @@ public:
 
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
+		// SRGB_INPUT_TEXTURE is now ignored, this has no effect
+		// input texture gamma correction is done automatically by the sampler, controlled by TexCreate_SRGB
 		OutEnvironment.SetDefine(TEXT("SRGB_INPUT_TEXTURE"), bSRGBTexture);
 	}
 };
