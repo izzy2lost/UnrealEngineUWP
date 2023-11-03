@@ -113,6 +113,7 @@ public:
 
 #if WITH_MASSGAMEPLAY_DEBUG
 	void DebugSetUsePlayerPawnLocationInsteadOfCamera(const bool bInValue) { bUsePlayerPawnLocationInsteadOfCamera = bInValue; }
+	void DebugUnregisterActorViewer();
 #endif
 
 protected:

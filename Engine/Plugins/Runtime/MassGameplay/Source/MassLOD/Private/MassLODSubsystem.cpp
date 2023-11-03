@@ -601,6 +601,24 @@ FMassViewerHandle UMassLODSubsystem::GetViewerHandleFromPlayerController(const A
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
+#if WITH_MASSGAMEPLAY_DEBUG
+void UMassLODSubsystem::DebugUnregisterActorViewer()
+{
+	for (const TObjectPtr<AActor>& RegisteredActorViewer : RegisteredActorViewers)
+	{
+		if (const AActor* ActorViewer = RegisteredActorViewer)
+		{
+			const FMassViewerHandle ViewerHandle = GetViewerHandleFromActor(*ActorViewer);
+			if (ensure(ViewerHandle.IsValid()))
+			{
+				RemoveViewer(ViewerHandle);
+			}
+		}
+	}
+	RegisteredActorViewers.Reset();
+}
+#endif // WITH_MASSGAMEPLAY_DEBUG
+
 //-----------------------------------------------------------------------------
 // FViewerInfo
 //-----------------------------------------------------------------------------

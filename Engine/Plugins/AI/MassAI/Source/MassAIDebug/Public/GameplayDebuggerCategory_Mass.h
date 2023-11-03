@@ -41,6 +41,9 @@ protected:
 	void OnToggleDebugLocalEntityManager();
 	void OnIncreaseSearchRange();
 	void OnDecreaseSearchRange();
+	void OnTogglePickedActorAsViewer();
+	void OnToggleDrawViewers() { bShowViewers = !bShowViewers; }
+	void OnClearActorViewers();
 	
 	void PickEntity(const FVector& ViewLocation, const FVector& ViewDirection, const UWorld& World, FMassEntityManager& EntityManager, const bool bLimitAngle = true);
 
@@ -51,7 +54,7 @@ protected:
 	void ClearCachedEntity();
 
 protected:
-	AActor* CachedDebugActor;
+	TWeakObjectPtr<AActor> CachedDebugActor;
 	FMassEntityHandle CachedEntity;
 	bool bShowArchetypes;
 	bool bShowShapes;
@@ -63,7 +66,11 @@ protected:
 	bool bShowNearEntityPath;
 	bool bMarkEntityBeingDebugged;
 	bool bDebugLocalEntityManager;
+	bool bShowViewers;
 	int32 ToggleDebugLocalEntityManagerInputIndex = INDEX_NONE;
+	int32 TogglePickedActorAsViewerInputIndex = INDEX_NONE;
+	int32 ToggleDrawViewersInputIndex = INDEX_NONE;
+	int32 ClearViewersInputIndex = INDEX_NONE;
 	float SearchRange = 25000.f;
 
 	struct FEntityDescription
@@ -88,6 +95,9 @@ protected:
 	static FOnConsoleCommandBroadcastDelegate OnToggleNearEntityAvoidanceBroadcast;
 	static FOnConsoleCommandBroadcastDelegate OnToggleNearEntityPathBroadcast; 	
 	static FOnConsoleCommandBroadcastDelegate OnToggleDebugLocalEntityManagerBroadcast; 	
+	static FOnConsoleCommandBroadcastDelegate OnTogglePickedActorAsViewerBroadcast;
+	static FOnConsoleCommandBroadcastDelegate OnToggleDrawViewersBroadcast;
+	static FOnConsoleCommandBroadcastDelegate OnClearActorViewersBroadcast;
 
 	using FDelegateHandlePair = TPair<FOnConsoleCommandBroadcastDelegate*, FDelegateHandle>;
 	TArray<FDelegateHandlePair> ConsoleCommandHandles;
