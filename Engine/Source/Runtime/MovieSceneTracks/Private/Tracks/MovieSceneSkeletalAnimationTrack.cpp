@@ -611,8 +611,7 @@ void UMovieSceneSkeletalAnimationTrack::SetUpRootMotions(bool bForce)
 				{
 					if (UAnimSequenceBase* PrevAnimSequence = PrevAnimSection->Params.Animation)
 					{	
-						if (AnimSection->StartLocationOffset.IsNearlyZero() == false || AnimSection->StartRotationOffset.IsNearlyZero() == false ||
-							AnimSection->MatchedLocationOffset.IsNearlyZero() == false || AnimSection->MatchedRotationOffset.IsNearlyZero() == false)
+						if (bAnySectionsHaveOffset)
 						{ 
 							RootMotionParams.RootMotionStartOffset = AnimSection->GetRootMotionStartOffset();
 							FMemMark Mark(FMemStack::Get());
