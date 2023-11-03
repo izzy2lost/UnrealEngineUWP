@@ -822,113 +822,33 @@ void UMovieSceneControlRigParameterSection::PreSave(FObjectPreSaveContext SaveCo
 bool UMovieSceneControlRigParameterSection::RenameParameterName(const FName& OldParameterName, const FName& NewParameterName)
 {
 	bool bWasReplaced = false;
-	for (FScalarParameterNameAndCurve& ScalarParameterNameAndCurve : ScalarParameterNamesAndCurves)
-	{
-		if (ScalarParameterNameAndCurve.ParameterName == OldParameterName)
-		{
-			if (bWasReplaced == false)
-			{
-				Modify();
-				bWasReplaced = true;
-			}
-			ScalarParameterNameAndCurve.ParameterName = NewParameterName;
-			break;
-		}
-	}
 
-	for (FBoolParameterNameAndCurve& BoolParameterNameAndCurve : BoolParameterNamesAndCurves)
+	auto RenameParameterNameInner = [this, &bWasReplaced, OldParameterName, NewParameterName](auto& ParameterNamesAndCurves)
 	{
-		if (BoolParameterNameAndCurve.ParameterName == OldParameterName)
+		for (auto& ParameterNameAndCurve : ParameterNamesAndCurves)
 		{
-			BoolParameterNameAndCurve.ParameterName = NewParameterName;
-			break;
-		}
-	}
-
-	for (FEnumParameterNameAndCurve& EnumParameterNameAndCurve : EnumParameterNamesAndCurves)
-	{
-		if (EnumParameterNameAndCurve.ParameterName == OldParameterName)
-		{
-			if (bWasReplaced == false)
+			if (ParameterNameAndCurve.ParameterName == OldParameterName)
 			{
-				Modify();
-				bWasReplaced = true;
+				if (!bWasReplaced)
+				{
+					Modify();
+					bWasReplaced = true;
+				}
+				ParameterNameAndCurve.ParameterName = NewParameterName;
+				break;
 			}
-			EnumParameterNameAndCurve.ParameterName = NewParameterName;
-			break;
 		}
-	}
+	};
 
-	for (FIntegerParameterNameAndCurve& IntegerParameterNameAndCurve : IntegerParameterNamesAndCurves)
-	{
-		if (IntegerParameterNameAndCurve.ParameterName == OldParameterName)
-		{
-			if (bWasReplaced == false)
-			{
-				Modify();
-				bWasReplaced = true;
-			}
-			IntegerParameterNameAndCurve.ParameterName = NewParameterName;
-			break;
-		}
-	}
+	RenameParameterNameInner(ScalarParameterNamesAndCurves);
+	RenameParameterNameInner(BoolParameterNamesAndCurves);
+	RenameParameterNameInner(EnumParameterNamesAndCurves);
+	RenameParameterNameInner(IntegerParameterNamesAndCurves);
+	RenameParameterNameInner(Vector2DParameterNamesAndCurves);
+	RenameParameterNameInner(VectorParameterNamesAndCurves);
+	RenameParameterNameInner(ColorParameterNamesAndCurves);
+	RenameParameterNameInner(TransformParameterNamesAndCurves);
 
-	for (FVector2DParameterNameAndCurves& Vector2DParameterNameAndCurve : Vector2DParameterNamesAndCurves)
-	{
-		if (Vector2DParameterNameAndCurve.ParameterName == OldParameterName)
-		{
-			if (bWasReplaced == false)
-			{
-				Modify();
-				bWasReplaced = true;
-			}
-			Vector2DParameterNameAndCurve.ParameterName = NewParameterName;
-			break;
-		}
-	}
-
-	for (FVectorParameterNameAndCurves& VectorParameterNameAndCurve : VectorParameterNamesAndCurves)
-	{
-		if (VectorParameterNameAndCurve.ParameterName == OldParameterName)
-		{
-			if (bWasReplaced == false)
-			{
-				Modify();
-				bWasReplaced = true;
-			}
-			VectorParameterNameAndCurve.ParameterName = NewParameterName;
-			break;
-		}
-	}
-
-	for (FColorParameterNameAndCurves& ColorParameterNameAndCurve : ColorParameterNamesAndCurves)
-	{
-		if (ColorParameterNameAndCurve.ParameterName == OldParameterName)
-		{
-			if (bWasReplaced == false)
-			{
-				Modify();
-				bWasReplaced = true;
-			}
-			ColorParameterNameAndCurve.ParameterName = NewParameterName;
-			break;
-		}
-				
-	}
-
-	for (FTransformParameterNameAndCurves& TransformParameterNamesAndCurve : TransformParameterNamesAndCurves)
-	{
-		if (TransformParameterNamesAndCurve.ParameterName == OldParameterName)
-		{
-			if (bWasReplaced == false)
-			{
-				Modify();
-				bWasReplaced = true;
-			}
-			TransformParameterNamesAndCurve.ParameterName = NewParameterName;
-			break;
-		}
-	}
 	if (bWasReplaced)
 	{
 		ReconstructChannelProxy();
