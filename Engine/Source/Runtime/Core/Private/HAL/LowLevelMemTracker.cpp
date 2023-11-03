@@ -7,7 +7,6 @@
 #include "HAL/LowLevelMemStats.h"
 #include "HAL/FileManager.h"
 #include "HAL/IConsoleManager.h"
-#include "HAL/ThreadHeartBeat.h"
 #include "LowLevelMemTrackerPrivate.h"
 #include "MemPro/MemProProfiler.h"
 #include "Misc/CString.h"
@@ -1263,13 +1262,6 @@ void FLowLevelMemTracker::ProcessCommandLine(const TCHAR* CmdLine)
 	bIsDisabled = false;
 	bCsvWriterEnabled = bLocalCsvWriterEnabled;
 	bTraceWriterEnabled = bLocalTraceWriterEnabled;
-	if (!FParse::Param(CmdLine, TEXT("unsuspend_hitchdetector")))
-	{
-		// Disable hang heatbeat when LLM is enabled
-		FThreadHeartBeat::Get().SuspendHeartBeat(true);
-		// Disable hitchdetector when LLM is enabled
-		FGameThreadHitchHeartBeat::Get().SuspendHeartBeat();
-	}
 	BootstrapInitialise();
 	FinishInitialise();
 
