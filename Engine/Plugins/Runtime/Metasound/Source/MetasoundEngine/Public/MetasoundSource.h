@@ -337,4 +337,9 @@ private:
 	mutable Metasound::FSampleRate CachedAudioDeviceSampleRate = 0;
 	
 	bool bIsBuilderActive = false;
+
+	// Preset graph inflation is a performance optimization intended for use with the MetaSoundOperatorPool. If multiple presets 
+	// utilize the same base MetaSound, they may be able to share their operators in the operator pool. This makes for a more
+	// efficient use of the operator pool.
+	bool bIsPresetGraphInflationSupported = false;
 };
