@@ -158,86 +158,89 @@ void MaterialSetupCS(
 	float3 AdditionalEmissive = 0.0f;
 
 #if USE_LOCAL_FOG_VOLUMES
-	float3 CamRayTranslatedWorldOrigin = PrimaryView.TranslatedWorldCameraOrigin;
-	float3 PreViewTranslation = LWCHackToFloat(PrimaryView.PreViewTranslation);
-	//float3 TranslatedWorldPosition = WorldPosition + PreViewTranslation;
-
 	float CellOffset = .5f;
 	float SceneDepth;
 	float3 TranslatedWorldPosition = ComputeCellTranslatedWorldPosition(GridCoordinate, CellOffset, SceneDepth);
-
-	float4 VertexClipSpacePosition = mul(float4(TranslatedWorldPosition.xyz, 1), PrimaryView.TranslatedWorldToClip);
-	float2 SvPosition = (VertexClipSpacePosition.xy / VertexClipSpacePosition.w * float2(.5f, -.5f) + .5f) * PrimaryView.ViewSizeAndInvSize.xy;
-	uint2 TilePos = clamp(uint2(SvPosition.xy / float(LFVTilePixelSize)), uint2(0, 0), LFVTileDataResolution - 1);
-
-	uint LFVCount = LFVTileDataTex[uint3(TilePos, 0)];
-
-	for (int LFVIndex = 0; LFVIndex < LFVCount; ++LFVIndex)
+	if(length(TranslatedWorldPosition - PrimaryView.TranslatedWorldCameraOrigin) > LFVGlobalStartDistance)
 	{
-		uint InstanceIndex = LFVTileDataTex[uint3(TilePos, 1 + LFVIndex)];
+		float3 CamRayTranslatedWorldOrigin = PrimaryView.TranslatedWorldCameraOrigin;
+		float3 PreViewTranslation = LWCHackToFloat(PrimaryView.PreViewTranslation);
+		//float3 TranslatedWorldPosition = WorldPosition + PreViewTranslation;
 
-		float3 CamRayWorldOrigin = CamRayTranslatedWorldOrigin - PreViewTranslation;
-		float3 CamRayTranslatedWorldDir = normalize(TranslatedWorldPosition - CamRayTranslatedWorldOrigin);
-		float3 CamRayWorldDir = CamRayTranslatedWorldDir;
 
-		// LFV_TODO skip if out of sphere of influence
-		FLocalFogVolumeGPUInstanceData FogInstance = GetLocalFogVolumeGPUInstanceData(InstanceIndex);
+		float4 VertexClipSpacePosition = mul(float4(TranslatedWorldPosition.xyz, 1), PrimaryView.TranslatedWorldToClip);
+		float2 SvPosition = (VertexClipSpacePosition.xy / VertexClipSpacePosition.w * float2(.5f, -.5f) + .5f) * PrimaryView.ViewSizeAndInvSize.xy;
+		uint2 TilePos = clamp(uint2(SvPosition.xy / float(LFVTilePixelSize)), uint2(0, 0), LFVTileDataResolution - 1);
 
-		float3 UnitSpacePos = mul(float4(WorldPosition, 1.0), FogInstance.InvTransform).xyz;
+		uint LFVCount = LFVTileDataTex[uint3(TilePos, 0)];
 
-		float DistToCenter = length(UnitSpacePos - float3(0.0f, 0.0f, 0.0f));
-		float SphereFade = saturate(1.0f - DistToCenter * DistToCenter);
+		for (int LFVIndex = 0; LFVIndex < LFVCount; ++LFVIndex)
+		{
+			uint InstanceIndex = LFVTileDataTex[uint3(TilePos, 1 + LFVIndex)];
 
-		// Evaluate both radial and height local fog contribution
-		float LFVExtinctionRadial = SphereFade <= 0.0f ? 0.0f : FogInstance.HeightFogExtinction * exp(-FogInstance.HeightFogFalloff * (UnitSpacePos.z - FogInstance.HeightFogOffset));
-		float LFVExtinctionHeight = FogInstance.RadialFogExtinction * SphereFade;
+			float3 CamRayWorldOrigin = CamRayTranslatedWorldOrigin - PreViewTranslation;
+			float3 CamRayTranslatedWorldDir = normalize(TranslatedWorldPosition - CamRayTranslatedWorldOrigin);
+			float3 CamRayWorldDir = CamRayTranslatedWorldDir;
 
-		// As for the local fog volume analitical evaluation, we want to combine both two optical depth for the "opacity"=1-transmittance to be combined together.
-		// This helps to have soft edges when using height fog. 
-		/*
-		In this case, we have to find math so that the combined extinction resulting in a transmittance representing the multiplication of coverage = 1 - transmittance factors.
+			// LFV_TODO skip if out of sphere of influence
+			FLocalFogVolumeGPUInstanceData FogInstance = GetLocalFogVolumeGPUInstanceData(InstanceIndex);
 
-		Reminder
-			Transmittance as T
-			Optical Depth as Tau
-			T   =  exp(-Tau)
-			Tau = -log(T)		(*)
+			float3 UnitSpacePos = mul(float4(WorldPosition, 1.0), FogInstance.InvTransform).xyz;
 
-		We want to combine the both mode transmittance Tr (radial) and Th (height) as done in LocalFogVolumeEvaluateAnalyticalIntegral to have
-			 T		= 1 - (1-Tr)(1-Th)											// Where (1-Tr) is virtual coverage of the medium expressed from transmittance for the radial fog.
-			 T		= 1 - (1 - exp(-Tau_r)) (1 - exp(-Tau_h)))					// Where Tr = exp(-Tau_r)
-			-Tau	= log(1 - (1 - exp(-Tau_r)) (1 - exp(-Tau_h)))				// Using (*)
-			 Tau	=-log(exp(-Tau_r) - exp((-Tau_r-Tau_h) + exp(-Tau_h)))
+			float DistToCenter = length(UnitSpacePos - float3(0.0f, 0.0f, 0.0f));
+			float SphereFade = saturate(1.0f - DistToCenter * DistToCenter);
 
-		Optical Depth Tau = Sigma_t * dt so it is linear with respect to dt and extinction Sigma_t. So we can also write
-			Sigma_T = -log(exp(-Sigma_T_r) - exp((-Sigma_T_r-Sigma_T_h) + exp(-Sigma_T_h)))
+			// Evaluate both radial and height local fog contribution
+			float LFVExtinctionRadial = SphereFade <= 0.0f ? 0.0f : FogInstance.HeightFogExtinction * exp(-FogInstance.HeightFogFalloff * (UnitSpacePos.z - FogInstance.HeightFogOffset));
+			float LFVExtinctionHeight = FogInstance.RadialFogExtinction * SphereFade;
 
-		Factoring some values a bit we can get
-			A		= exp(-Sigma_T_r)
-			B		= exp(-Sigma_T_h)
-			Sigma_T	= -log(A - A*B + B)
-		*/
+			// As for the local fog volume analitical evaluation, we want to combine both two optical depth for the "opacity"=1-transmittance to be combined together.
+			// This helps to have soft edges when using height fog. 
+			/*
+			In this case, we have to find math so that the combined extinction resulting in a transmittance representing the multiplication of coverage = 1 - transmittance factors.
 
-		// Optical Depth is linear with Extinction so there is no need to account for the step length.
-		float FactorA = exp(-LFVExtinctionHeight);
-		float FactorB = exp(-LFVExtinctionRadial);
-		float LFVExtinction = -log(FactorA - FactorA* FactorB + FactorB);
-		LFVExtinction = max(0.0f, LFVExtinction);
+			Reminder
+				Transmittance as T
+				Optical Depth as Tau
+				T   =  exp(-Tau)
+				Tau = -log(T)		(*)
 
-		// Convert extinction from unit volume 1/m into extinction for volumetric fog as 1/cm
-		LFVExtinction *= (1.0f / METER_TO_CENTIMETER);
+			We want to combine the both mode transmittance Tr (radial) and Th (height) as done in LocalFogVolumeEvaluateAnalyticalIntegral to have
+				 T		= 1 - (1-Tr)(1-Th)											// Where (1-Tr) is virtual coverage of the medium expressed from transmittance for the radial fog.
+				 T		= 1 - (1 - exp(-Tau_r)) (1 - exp(-Tau_h)))					// Where Tr = exp(-Tau_r)
+				-Tau	= log(1 - (1 - exp(-Tau_r)) (1 - exp(-Tau_h)))				// Using (*)
+				 Tau	=-log(exp(-Tau_r) - exp((-Tau_r-Tau_h) + exp(-Tau_h)))
 
-		LFVExtinction = min(LFVMaxDensityIntoVolumetricFog, LFVExtinction);
+			Optical Depth Tau = Sigma_t * dt so it is linear with respect to dt and extinction Sigma_t. So we can also write
+				Sigma_T = -log(exp(-Sigma_T_r) - exp((-Sigma_T_r-Sigma_T_h) + exp(-Sigma_T_h)))
 
-		float3 LFVScattering = LFVExtinction * FogInstance.Albedo;
+			Factoring some values a bit we can get
+				A		= exp(-Sigma_T_r)
+				B		= exp(-Sigma_T_h)
+				Sigma_T	= -log(A - A*B + B)
+			*/
 
-		Scattering += LFVScattering;
-		Absorption += max(LFVExtinction - Luminance(LFVScattering), 0.0f);
+			// Optical Depth is linear with Extinction so there is no need to account for the step length.
+			float FactorA = exp(-LFVExtinctionHeight);
+			float FactorB = exp(-LFVExtinctionRadial);
+			float LFVExtinction = -log(FactorA - FactorA * FactorB + FactorB);
+			LFVExtinction = max(0.0f, LFVExtinction);
 
-#if USE_EMISSIVE
-		// Emissive follow the density of the medium
-		AdditionalEmissive += LFVExtinction * FogInstance.Emissive;
-#endif
+			// Convert extinction from unit volume 1/m into extinction for volumetric fog as 1/cm
+			LFVExtinction *= (1.0f / METER_TO_CENTIMETER);
+
+			LFVExtinction = min(LFVMaxDensityIntoVolumetricFog, LFVExtinction);
+
+			float3 LFVScattering = LFVExtinction * FogInstance.Albedo;
+
+			Scattering += LFVScattering;
+			Absorption += max(LFVExtinction - Luminance(LFVScattering), 0.0f);
+
+	#if USE_EMISSIVE
+			// Emissive follow the density of the medium
+			AdditionalEmissive += LFVExtinction * FogInstance.Emissive;
+	#endif
+		}
 	}
 #endif // USE_LOCAL_FOG_VOLUMES
 

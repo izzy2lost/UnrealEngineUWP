@@ -26,6 +26,7 @@ BEGIN_SHADER_PARAMETER_STRUCT(FLocalFogVolumeCommonParameters, )
 	SHADER_PARAMETER(uint32, LocalFogVolumeTilePixelSize)
 	SHADER_PARAMETER(float,  LocalFogVolumeMaxDensityIntoVolumetricFog)
 	SHADER_PARAMETER(uint32, ShouldRenderLocalFogVolumeInVolumetricFog)
+	SHADER_PARAMETER(float,  GlobalStartDistance)
 	SHADER_PARAMETER(FVector3f, DirectionalLightColor)
 	SHADER_PARAMETER(FVector3f, DirectionalLightDirection)
 END_SHADER_PARAMETER_STRUCT()
@@ -120,6 +121,7 @@ bool ProjectSupportsLocalFogVolumes();
 bool ShouldRenderLocalFogVolume(const FScene* Scene, const FSceneViewFamily& SceneViewFamily);
 bool ShouldRenderLocalFogVolumeDuringHeightFogPass(const FScene* Scene, const FSceneViewFamily& SceneViewFamily);
 bool ShouldRenderLocalFogVolumeInVolumetricFog(const FScene* Scene, const FSceneViewFamily& SceneViewFamily, bool bShouldRenderVolumetricFog);
+float GetLocalFogVolumeGlobalStartDistance();
 
 void GetLocalFogVolumeSortingData(const FScene* Scene, FRDGBuilder& GraphBuilder, FLocalFogVolumeSortingData& Out);
 

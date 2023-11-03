@@ -43,6 +43,7 @@ struct FLocalFogVolumeGPUInstanceData
 #define LFVTilePixelSize				LFVStruct.LFV.LocalFogVolumeTilePixelSize
 #define LFVMaxDensityIntoVolumetricFog	LFVStruct.LFV.LocalFogVolumeMaxDensityIntoVolumetricFog
 #define LFVRenderInVolumetricFog		LFVStruct.LFV.ShouldRenderLocalFogVolumeInVolumetricFog
+#define LFVGlobalStartDistance			LFVStruct.LFV.GlobalStartDistance
 
 #define LFVDirectionalLightColor		LFVStruct.LFV.DirectionalLightColor
 #define LFVDirectionalLightDirection	LFVStruct.LFV.DirectionalLightDirection
@@ -54,6 +55,7 @@ uint									LFV_LocalFogVolumeInstanceCount;
 uint									LFV_LocalFogVolumeTilePixelSize;
 float									LFV_LocalFogVolumeMaxDensityIntoVolumetricFog;
 uint									LFV_ShouldRenderLocalFogVolumeInVolumetricFog;
+float									LFV_GlobalStartDistance;
 
 float3									LFV_DirectionalLightColor;
 float3									LFV_DirectionalLightDirection;
@@ -69,6 +71,7 @@ Texture2DArray<uint>					LFV_LocalFogVolumeTileDataTexture;
 #define LFVTilePixelSize				LFV_LocalFogVolumeTilePixelSize
 #define LFVMaxDensityIntoVolumetricFog	LFV_LocalFogVolumeMaxDensityIntoVolumetricFog
 #define LFVRenderInVolumetricFog		LFV_ShouldRenderLocalFogVolumeInVolumetricFog
+#define LFVGlobalStartDistance			LFV_GlobalStartDistance
 
 #define LFVDirectionalLightColor		LFV_DirectionalLightColor
 #define LFVDirectionalLightDirection	LFV_DirectionalLightDirection
@@ -312,7 +315,7 @@ float4 GetLFVInstanceContribution(
 	float2 TsU = RayIntersectSphere(RayPosU, RayDirU, float4(0.0, 0.0, 0.0, 1.0));
 
 	//Clamp to make sure we only consider intersection in front of the camera
-	TsU = max(0.0f.xx, TsU);
+	TsU = max(LFVGlobalStartDistance.xx / FogInstance.UniformScale, TsU);
 
 	// Clamp the traced distance to the depth buffer and compute world length.
 	float LengthDepthBufferU = length(DepthBufferPosU - RayPosU);

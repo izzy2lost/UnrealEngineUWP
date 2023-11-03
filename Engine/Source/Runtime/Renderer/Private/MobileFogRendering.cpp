@@ -212,11 +212,10 @@ void FMobileSceneRenderer::RenderFog(FRHICommandList& RHICmdList, const FViewInf
 	
 	// Use height fog start distance by default and fallback to AP distance
 	float FogStartDistance = GetFogDefaultStartDistance();
-	if (!bFogHasComposedLocalFogVolumes) // Local fog volume do not have any start distance at the moment.
 	{
 		if (bUseHeightFog)
 		{
-			FogStartDistance = GetViewFogCommonStartDistance(View, bShouldRenderVolumetricFog);
+			FogStartDistance = GetViewFogCommonStartDistance(View, bShouldRenderVolumetricFog, bFogHasComposedLocalFogVolumes);
 		}
 		if (bUseAerialPerspective)
 		{

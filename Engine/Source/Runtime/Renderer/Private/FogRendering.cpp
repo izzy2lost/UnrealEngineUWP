@@ -288,8 +288,7 @@ static void RenderViewFog(
 	FIntRect ViewRect, 
 	FFogPassParameters* PassParameters, 
 	bool bShouldRenderVolumetricFog,
-	bool bFogComposeLocalFogVolumes,
-	bool bSkipDepthBound = false)
+	bool bFogComposeLocalFogVolumes)
 {
 	FGraphicsPipelineStateInitializer GraphicsPSOInit;
 	RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);
@@ -316,10 +315,10 @@ static void RenderViewFog(
 	GraphicsPSOInit.BoundShaderState.PixelShaderRHI = PixelShader.GetPixelShader();
 
 	// Setup the depth bound optimization if possible on that platform.
-	GraphicsPSOInit.bDepthBounds = GSupportsDepthBoundsTest && CVarFogUseDepthBounds.GetValueOnAnyThread() && !bSkipDepthBound;
+	GraphicsPSOInit.bDepthBounds = GSupportsDepthBoundsTest && CVarFogUseDepthBounds.GetValueOnAnyThread();
 	if (GraphicsPSOInit.bDepthBounds)
 	{
-		float FogStartDistance = GetViewFogCommonStartDistance(View, bShouldRenderVolumetricFog);
+		float FogStartDistance = GetViewFogCommonStartDistance(View, bShouldRenderVolumetricFog, bFogComposeLocalFogVolumes);
 
 		// Here we compute the nearest z value the fog can start
 		// to skip shader execution on pixels that are closer.
@@ -376,9 +375,6 @@ void FDeferredShadingSceneRenderer::RenderFog(
 
 		const bool bShouldRenderVolumetricFog = ShouldRenderVolumetricFog();
 
-		// Without volumetric fog, LFVs would not be rendered correctly according to depth and height fog start distance. Since LFVs do not have any start distance as of today.
-		const bool bSkipDepthBound = !bShouldRenderVolumetricFog && bFogComposeLocalFogVolumes && ShouldRenderLocalFogVolumeDuringHeightFogPass(Scene, ViewFamily);
-
 		for(int32 ViewIndex = 0;ViewIndex < Views.Num();ViewIndex++)
 		{
 			const FViewInfo& View = Views[ViewIndex];
@@ -398,9 +394,9 @@ void FDeferredShadingSceneRenderer::RenderFog(
 				PassParameters->RenderTargets.DepthStencil = FDepthStencilBinding(SceneTextures.Depth.Target, ERenderTargetLoadAction::ELoad, ERenderTargetLoadAction::ELoad, FExclusiveDepthStencil::DepthRead_StencilWrite);
 
 				GraphBuilder.AddPass(RDG_EVENT_NAME("Fog"), PassParameters, ERDGPassFlags::Raster, 
-					[this, &View, PassParameters, bShouldRenderVolumetricFog, bFogComposeLocalFogVolumes, bSkipDepthBound](FRHICommandList& RHICmdList)
+					[this, &View, PassParameters, bShouldRenderVolumetricFog, bFogComposeLocalFogVolumes](FRHICommandList& RHICmdList)
 				{
-					RenderViewFog(RHICmdList, View, View.ViewRect, PassParameters, bShouldRenderVolumetricFog, bFogComposeLocalFogVolumes, bSkipDepthBound);
+					RenderViewFog(RHICmdList, View, View.ViewRect, PassParameters, bShouldRenderVolumetricFog, bFogComposeLocalFogVolumes);
 				});
 			}
 		}
@@ -473,13 +469,21 @@ float GetFogDefaultStartDistance()
 	return 30.0f;
 }
 
-float GetViewFogCommonStartDistance(const FViewInfo& View, bool bShouldRenderVolumetricFog)
+float GetViewFogCommonStartDistance(const FViewInfo& View, bool bShouldRenderVolumetricFog, bool bShouldRenderLocalFogVolumes)
 {
 	float ExpFogStartDistance = View.ExponentialFogParameters.W;
 	float VolFogStartDistance = bShouldRenderVolumetricFog ? View.VolumetricFogStartDistance : ExpFogStartDistance;
 
 	// The fog can be set to start at a certain euclidean distance.
 	// clamp the value to be behind the near plane z, according to the smallest distance between volumetric fog and height fog (if they are enabled). 
-	float FogCommonStartDistance = FMath::Max(GetFogDefaultStartDistance(), FMath::Min(ExpFogStartDistance, VolFogStartDistance));
+	float FogCommonStartDistance = FMath::Min(ExpFogStartDistance, VolFogStartDistance);
+
+	if (bShouldRenderLocalFogVolumes)
+	{
+		FogCommonStartDistance = FMath::Min(GetLocalFogVolumeGlobalStartDistance(), FogCommonStartDistance);
+	}
+
+	FogCommonStartDistance = FMath::Max(GetFogDefaultStartDistance(), FogCommonStartDistance);
+
 	return FogCommonStartDistance;
 }
