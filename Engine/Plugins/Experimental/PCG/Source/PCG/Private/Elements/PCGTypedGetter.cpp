@@ -45,10 +45,10 @@ void UPCGGetLandscapeSettings::PostLoad()
 		bGetHeightOnly_DEPRECATED = false;
 	}
 
-	if (bGetLayerWeights_DEPRECATED)
+	if (!bGetLayerWeights_DEPRECATED)
 	{
 		SamplingProperties.bGetLayerWeights = bGetLayerWeights_DEPRECATED;
-		bGetLayerWeights_DEPRECATED = false;
+		bGetLayerWeights_DEPRECATED = true;
 	}
 #endif
 }
