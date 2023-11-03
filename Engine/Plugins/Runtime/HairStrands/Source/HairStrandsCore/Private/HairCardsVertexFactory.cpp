@@ -35,7 +35,8 @@ enum class EHairCardsFactoryFlags : uint32
 	TextureAttribute  = 0x20,
 	TextureCoverage   = 0x40,
 	TextureDepth      = 0x80,
-	TextureTangent    = 0x100
+	TextureTangent    = 0x100,
+	TextureAuxilary   = 0x200
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -56,16 +57,19 @@ FHairCardsUniformBuffer CreateHairCardsVFUniformBuffer(
 
 		// Cards atlas UV are inverted so fetching needs to be inverted on the y-axis
 		UniformParameters.Flags = 0;
-		UniformParameters.Flags |= LOD.RestResource->bInvertUV 					? uint32(EHairCardsFactoryFlags::InvertedUV) : 0u;
-		UniformParameters.Flags |= LOD.RestResource->CoverageTexture != nullptr ? uint32(EHairCardsFactoryFlags::TextureCoverage) : 0;
-		UniformParameters.Flags |= LOD.RestResource->DepthTexture != nullptr 	? uint32(EHairCardsFactoryFlags::TextureDepth) : 0;
-		UniformParameters.Flags |= LOD.RestResource->TangentTexture != nullptr 	? uint32(EHairCardsFactoryFlags::TextureTangent) : 0;
+		UniformParameters.Flags |= LOD.RestResource->bInvertUV 						? uint32(EHairCardsFactoryFlags::InvertedUV) : 0u;
+		UniformParameters.Flags |= LOD.RestResource->CoverageTexture != nullptr 	? uint32(EHairCardsFactoryFlags::TextureCoverage) : 0;
+		UniformParameters.Flags |= LOD.RestResource->DepthTexture != nullptr 		? uint32(EHairCardsFactoryFlags::TextureDepth) : 0;
+		UniformParameters.Flags |= LOD.RestResource->TangentTexture != nullptr 		? uint32(EHairCardsFactoryFlags::TextureTangent) : 0;
+		UniformParameters.Flags |= LOD.RestResource->AuxilaryDataTexture != nullptr ? uint32(EHairCardsFactoryFlags::TextureAuxilary) : 0;
 		// These attributes are stored on vertex data rather than on textures
 		// EHairCardsFactoryFlags::TextureRootUV
 		// EHairCardsFactoryFlags::TextureGroupIndex
 		// EHairCardsFactoryFlags::TextureBaseColor
 		// EHairCardsFactoryFlags::TextureRoughness
 
+		UniformParameters.AttributeTextureIndex = 0; // TODO pack attribute texture/channel description. Currently use hardcoded layout in shader attribute code.
+		UniformParameters.AttributeChannelIndex = 0; // TODO pack attribute texture/channel description. Currently use hardcoded layout in shader attribute code.
 		UniformParameters.MaxVertexCount = LOD.RestResource->GetVertexCount();
 		UniformParameters.CoverageBias = FMath::Clamp(GHairCardCoverageBias, -16.f, 16.f);
 
@@ -88,18 +92,19 @@ FHairCardsUniformBuffer CreateHairCardsVFUniformBuffer(
 		UniformParameters.UVsBuffer = LOD.RestResource->UVsBuffer.ShaderResourceViewRHI.GetReference();
 		UniformParameters.MaterialsBuffer = LOD.RestResource->MaterialsBuffer.ShaderResourceViewRHI.GetReference();
 
-		UniformParameters.DepthTexture = LOD.RestResource->DepthTexture;
-		UniformParameters.DepthSampler = LOD.RestResource->DepthSampler;
-		UniformParameters.TangentTexture = LOD.RestResource->TangentTexture;
-		UniformParameters.TangentSampler = LOD.RestResource->TangentSampler;
-		UniformParameters.CoverageTexture = LOD.RestResource->CoverageTexture;
-		UniformParameters.CoverageSampler = LOD.RestResource->CoverageSampler;
-		UniformParameters.AttributeTexture = LOD.RestResource->AttributeTexture;
-		UniformParameters.AttributeSampler = LOD.RestResource->AttributeSampler;
-		UniformParameters.AuxilaryDataTexture = LOD.RestResource->AuxilaryDataTexture;
-		UniformParameters.AuxilaryDataSampler = LOD.RestResource->AuxilaryDataSampler;
-		UniformParameters.MaterialTexture = nullptr; // Material properties & Group index are stored on vertices for cards
-		UniformParameters.MaterialSampler = nullptr; // Material properties & Group index are stored on vertices for cards
+
+		UniformParameters.Texture0Texture = LOD.RestResource->DepthTexture;
+		UniformParameters.Texture0Sampler = LOD.RestResource->DepthSampler;
+		UniformParameters.Texture1Texture = LOD.RestResource->TangentTexture;
+		UniformParameters.Texture1Sampler = LOD.RestResource->TangentSampler;
+		UniformParameters.Texture2Texture = LOD.RestResource->CoverageTexture;
+		UniformParameters.Texture2Sampler = LOD.RestResource->CoverageSampler;
+		UniformParameters.Texture3Texture = LOD.RestResource->AttributeTexture;
+		UniformParameters.Texture3Sampler = LOD.RestResource->AttributeSampler;
+		UniformParameters.Texture4Texture = nullptr; // Material properties & Group index are stored on vertices for cards
+		UniformParameters.Texture4Sampler = nullptr; // Material properties & Group index are stored on vertices for cards
+		UniformParameters.Texture5Texture = LOD.RestResource->AuxilaryDataTexture;
+		UniformParameters.Texture5Sampler = LOD.RestResource->AuxilaryDataSampler;
 	}
 	else if (GeometryType == EHairGeometryType::Meshes)
 	{
@@ -129,52 +134,56 @@ FHairCardsUniformBuffer CreateHairCardsVFUniformBuffer(
 		UniformParameters.Flags |= LOD.RestResource->CoverageTexture != nullptr ? uint32(EHairCardsFactoryFlags::TextureCoverage) : 0;
 		UniformParameters.Flags |= LOD.RestResource->DepthTexture != nullptr ? uint32(EHairCardsFactoryFlags::TextureDepth) : 0;
 		UniformParameters.Flags |= LOD.RestResource->TangentTexture != nullptr ? uint32(EHairCardsFactoryFlags::TextureTangent) : 0;
+		UniformParameters.Flags |= LOD.RestResource->AuxilaryDataTexture != nullptr ? uint32(EHairCardsFactoryFlags::TextureAuxilary) : 0;
 
-		UniformParameters.CoverageBias = 0;
+		UniformParameters.AttributeTextureIndex = 0; // TODO pack attribute texture/channel description. Currently use hardcoded layout in shader attribute code.
+		UniformParameters.AttributeChannelIndex = 0; // TODO pack attribute texture/channel description. Currently use hardcoded layout in shader attribute code.
 		UniformParameters.MaxVertexCount = LOD.RestResource->GetVertexCount();
+		UniformParameters.CoverageBias = 0;
+
 		UniformParameters.NormalsBuffer = LOD.RestResource->NormalsBuffer.ShaderResourceViewRHI.GetReference();
 		UniformParameters.UVsBuffer = LOD.RestResource->UVsBuffer.ShaderResourceViewRHI.GetReference();
 		UniformParameters.MaterialsBuffer = UniformParameters.NormalsBuffer; // Reuse normal buffer as a dummy input for material buffer, since it not used for meshes (material data is fetch through textures)
 
-		UniformParameters.DepthTexture = LOD.RestResource->DepthTexture;
-		UniformParameters.DepthSampler = LOD.RestResource->DepthSampler;
-		UniformParameters.TangentTexture = LOD.RestResource->TangentTexture;
-		UniformParameters.TangentSampler = LOD.RestResource->TangentSampler;
-		UniformParameters.CoverageTexture = LOD.RestResource->CoverageTexture;
-		UniformParameters.CoverageSampler = LOD.RestResource->CoverageSampler;
-		UniformParameters.AttributeTexture = LOD.RestResource->AttributeTexture;
-		UniformParameters.AttributeSampler = LOD.RestResource->AttributeSampler;
-		UniformParameters.AuxilaryDataTexture = LOD.RestResource->AuxilaryDataTexture;
-		UniformParameters.AuxilaryDataSampler = LOD.RestResource->AuxilaryDataSampler;
-		UniformParameters.MaterialTexture = LOD.RestResource->MaterialTexture;
-		UniformParameters.MaterialSampler = LOD.RestResource->MaterialSampler;
+		UniformParameters.Texture0Texture = LOD.RestResource->DepthTexture;
+		UniformParameters.Texture0Sampler = LOD.RestResource->DepthSampler;
+		UniformParameters.Texture1Texture = LOD.RestResource->TangentTexture;
+		UniformParameters.Texture1Sampler = LOD.RestResource->TangentSampler;
+		UniformParameters.Texture2Texture = LOD.RestResource->CoverageTexture;
+		UniformParameters.Texture2Sampler = LOD.RestResource->CoverageSampler;
+		UniformParameters.Texture3Texture = LOD.RestResource->AttributeTexture;
+		UniformParameters.Texture3Sampler = LOD.RestResource->AttributeSampler;
+		UniformParameters.Texture5Texture = LOD.RestResource->AuxilaryDataTexture;
+		UniformParameters.Texture4Texture = LOD.RestResource->MaterialTexture;
+		UniformParameters.Texture4Sampler = LOD.RestResource->MaterialSampler;
+		UniformParameters.Texture5Sampler = LOD.RestResource->AuxilaryDataSampler;
 	}
 
 	if (!bSupportsManualVertexFetch)
 	{
-		UniformParameters.PositionBuffer = GNullVertexBuffer.VertexBufferSRV;
+		UniformParameters.PositionBuffer         = GNullVertexBuffer.VertexBufferSRV;
 		UniformParameters.PreviousPositionBuffer = GNullVertexBuffer.VertexBufferSRV;
-		UniformParameters.NormalsBuffer = GNullVertexBuffer.VertexBufferSRV;
-		UniformParameters.UVsBuffer = GNullVertexBuffer.VertexBufferSRV;
-		UniformParameters.MaterialsBuffer = GNullVertexBuffer.VertexBufferSRV;
+		UniformParameters.NormalsBuffer          = GNullVertexBuffer.VertexBufferSRV;
+		UniformParameters.UVsBuffer              = GNullVertexBuffer.VertexBufferSRV;
+		UniformParameters.MaterialsBuffer        = GNullVertexBuffer.VertexBufferSRV;
 	}
 
 	FRHITexture* DefaultTexture = GBlackTexture->TextureRHI;
 	FSamplerStateRHIRef DefaultSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
 
-	if (!UniformParameters.DepthTexture)		{ UniformParameters.DepthTexture = DefaultTexture;	  }
-	if (!UniformParameters.TangentTexture)		{ UniformParameters.TangentTexture = DefaultTexture;  }
-	if (!UniformParameters.CoverageTexture)		{ UniformParameters.CoverageTexture = DefaultTexture; }
-	if (!UniformParameters.AttributeTexture)	{ UniformParameters.AttributeTexture = DefaultTexture;}
-	if (!UniformParameters.AuxilaryDataTexture)	{ UniformParameters.AuxilaryDataTexture = DefaultTexture; }
-	if (!UniformParameters.MaterialTexture)		{ UniformParameters.MaterialTexture = DefaultTexture; }
+	if (!UniformParameters.Texture0Texture)	{ UniformParameters.Texture0Texture = DefaultTexture; }
+	if (!UniformParameters.Texture1Texture)	{ UniformParameters.Texture1Texture = DefaultTexture; }
+	if (!UniformParameters.Texture2Texture)	{ UniformParameters.Texture2Texture = DefaultTexture; }
+	if (!UniformParameters.Texture3Texture)	{ UniformParameters.Texture3Texture = DefaultTexture; }
+	if (!UniformParameters.Texture4Texture)	{ UniformParameters.Texture4Texture = DefaultTexture; }
+	if (!UniformParameters.Texture5Texture)	{ UniformParameters.Texture5Texture = DefaultTexture; }
 
-	if (!UniformParameters.DepthSampler)		{ UniformParameters.DepthSampler = DefaultSampler;	  }
-	if (!UniformParameters.TangentSampler)		{ UniformParameters.TangentSampler = DefaultSampler;  }
-	if (!UniformParameters.CoverageSampler)		{ UniformParameters.CoverageSampler = DefaultSampler; }
-	if (!UniformParameters.AttributeSampler)	{ UniformParameters.AttributeSampler = DefaultSampler;}
-	if (!UniformParameters.AuxilaryDataSampler) { UniformParameters.AuxilaryDataSampler = DefaultSampler; }
-	if (!UniformParameters.MaterialSampler)		{ UniformParameters.MaterialSampler = DefaultSampler;}
+	if (!UniformParameters.Texture0Sampler) { UniformParameters.Texture0Sampler = DefaultSampler; }
+	if (!UniformParameters.Texture1Sampler) { UniformParameters.Texture1Sampler = DefaultSampler; }
+	if (!UniformParameters.Texture2Sampler) { UniformParameters.Texture2Sampler = DefaultSampler; }
+	if (!UniformParameters.Texture3Sampler) { UniformParameters.Texture3Sampler = DefaultSampler; }
+	if (!UniformParameters.Texture4Sampler) { UniformParameters.Texture4Sampler = DefaultSampler; }
+	if (!UniformParameters.Texture5Sampler) { UniformParameters.Texture5Sampler = DefaultSampler; }
 
 	return TUniformBufferRef<FHairCardsVertexFactoryUniformShaderParameters>::CreateUniformBufferImmediate(UniformParameters, UniformBuffer_MultiFrame);
 }

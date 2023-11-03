@@ -1613,7 +1613,7 @@ float3 MaterialExpressionGetHairBaseColor(FMaterialPixelParameters Parameters)
 #if HAIR_STRAND_MESH_FACTORY
 	return GetHairStrandsColor(Parameters.HairControlPointId, Parameters.HairPrimitiveUV.x);
 #elif HAIR_CARD_MESH_FACTORY
-	return GetHairStrandsBaseColor(Parameters.HairPrimitiveUV, Parameters.HairPrimitiveMaterial.xyz);
+	return GetHairStrandsColor(Parameters.HairPrimitiveUV, Parameters.HairPrimitiveMaterial.xyz);
 #else
 	return float3(0,0,0);
 #endif
