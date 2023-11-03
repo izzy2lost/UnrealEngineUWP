@@ -39,9 +39,9 @@ template<> TValueOrError<FString, EPropertyBagResult> FPCGGraphParameterExtensio
 {
 	return PropertyBag.GetValueString(PropertyName);
 }
-template<> TValueOrError<FSoftObjectPath, EPropertyBagResult> FPCGGraphParameterExtension::GetGraphParameter(const FInstancedPropertyBag& PropertyBag, const FName PropertyName)
+template<> TValueOrError<FSoftObjectPath*, EPropertyBagResult> FPCGGraphParameterExtension::GetGraphParameter(const FInstancedPropertyBag& PropertyBag, const FName PropertyName)
 {
-	return PropertyBag.GetValueSoftPath(PropertyName);
+	return PropertyBag.GetValueStruct<FSoftObjectPath>(PropertyName);
 }
 template<> TValueOrError<TSoftObjectPtr<UObject>, EPropertyBagResult> FPCGGraphParameterExtension::GetGraphParameter(const FInstancedPropertyBag& PropertyBag, const FName PropertyName)
 {
@@ -137,7 +137,7 @@ template<> EPropertyBagResult FPCGGraphParameterExtension::SetGraphParameter(FIn
 }
 template<> EPropertyBagResult FPCGGraphParameterExtension::SetGraphParameter(FInstancedPropertyBag& PropertyBag, const FName PropertyName, const FSoftObjectPath& Value)
 {
-	return PropertyBag.SetValueSoftPath(PropertyName, Value);
+	return PropertyBag.SetValueStruct(PropertyName, Value);
 }
 template<> EPropertyBagResult FPCGGraphParameterExtension::SetGraphParameter(FInstancedPropertyBag& PropertyBag, const FName PropertyName, const TSoftObjectPtr<UObject>& Value)
 {

@@ -174,7 +174,7 @@ uint8 UPCGGraphParametersHelpers::GetEnumParameter(const UPCGGraphInterface* Gra
 
 FSoftObjectPath UPCGGraphParametersHelpers::GetSoftObjectPathParameter(const UPCGGraphInterface* GraphInterface, const FName Name)
 {
-	return PCGGraphParametersHelpersPrivate::ValidateAndReturnResult<FSoftObjectPath>(GraphInterface, Name);
+	return PCGGraphParametersHelpersPrivate::ValidateAndReturnResult<FSoftObjectPath, FSoftObjectPath*>(GraphInterface, Name);
 }
 
 TSoftObjectPtr<UObject> UPCGGraphParametersHelpers::GetSoftObjectParameter(const UPCGGraphInterface* GraphInterface, const FName Name)
