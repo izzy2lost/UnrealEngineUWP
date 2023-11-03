@@ -168,7 +168,6 @@ export interface ChangeInfo extends TargetInfo {
 		address: string
 	}
 	targetWorkspaceOverride?: string
-	analyzeAllIntegrationErrors?: boolean
 	overriddenCommand: string
 	macros: string[]
 }
