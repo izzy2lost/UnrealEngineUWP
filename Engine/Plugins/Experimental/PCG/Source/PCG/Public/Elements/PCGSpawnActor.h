@@ -3,7 +3,7 @@
 #pragma once
 
 #include "PCGSubgraph.h"
-#include "Metadata/PCGActorPropertyOverride.h"
+#include "Metadata/PCGAttributePropertySelector.h"
 
 #include "PCGSpawnActor.generated.h"
 
@@ -26,6 +26,18 @@ enum class EPCGSpawnActorGenerationTrigger : uint8
 	ForceGenerate, // Generate in all cases
 	DoNotGenerateInEditor, // Does not call generate in editor, but decays to Default otherwise
 	DoNotGenerate // Does not call generate
+};
+
+USTRUCT(BlueprintType)
+struct FPCGActorPropertyOverride
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, Category = Settings, meta = (PCG_Overridable))
+	FPCGAttributePropertyInputSelector InputSource;
+
+	UPROPERTY(EditAnywhere, Category = Settings)
+	FString PropertyTarget;
 };
 
 /*
@@ -71,7 +83,7 @@ public:
 	TObjectPtr<AActor> TemplateActor;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta = (EditCondition = "Option != EPCGSpawnActorOption::CollapseActors", EditConditionHides))
-	TArray<FPCGActorPropertyOverrideDescription> SpawnedActorPropertyOverrideDescriptions;
+	TArray<FPCGActorPropertyOverride> ActorOverrides;
 
 	UPROPERTY(meta = (PCG_Overridable))
 	TSoftObjectPtr<AActor> RootActor;
@@ -89,9 +101,6 @@ protected:
 #if WITH_EDITORONLY_DATA
 	UPROPERTY()
 	EPCGSpawnActorGenerationTrigger bGenerationTrigger_DEPRECATED = EPCGSpawnActorGenerationTrigger::Default;
-
-	UPROPERTY()
-	TArray<FPCGActorPropertyOverride> ActorOverrides_DEPRECATED;
 #endif
 
 public:

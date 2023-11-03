@@ -3,7 +3,7 @@
 #pragma once
 
 #include "PCGSettings.h"
-#include "Metadata/PCGActorPropertyOverride.h"
+#include "Metadata/PCGAttributePropertySelector.h"
 
 #include "PCGCreateTargetActor.generated.h"
 
@@ -71,10 +71,6 @@ public:
 
 	UPROPERTY(meta = (PCG_Overridable))
 	FTransform ActorPivot;
-
-	/** Override the default property values on the created target actor. Applied before post-process functions. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings)
-	TArray<FPCGActorPropertyOverrideDescription> PropertyOverrideDescriptions;
 
 	/** Specify a list of functions to be called on the target actor after creation. Functions need to be parameter-less and with "CallInEditor" flag enabled. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
