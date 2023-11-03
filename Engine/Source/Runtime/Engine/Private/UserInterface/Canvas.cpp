@@ -436,6 +436,8 @@ bool FCanvasBatchedElementRenderItem::Render_RenderThread(FCanvasRenderContext& 
 			// current render target set for the canvas
 			const FRenderTarget* CanvasRenderTarget = Canvas->GetRenderTarget();
 			float Gamma = 1.0f / CanvasRenderTarget->GetDisplayGamma();
+
+			// bIgnoreGammaConversions is deprecated; remove this
 			if (LocalData->Texture && LocalData->Texture->bIgnoreGammaConversions)
 			{
 				Gamma = 1.0f;
@@ -474,6 +476,8 @@ bool FCanvasBatchedElementRenderItem::Render_GameThread(const FCanvas* Canvas, F
 		// current render target set for the canvas
 		const FRenderTarget* CanvasRenderTarget = Canvas->GetRenderTarget();
 		float Gamma = 1.0f / CanvasRenderTarget->GetDisplayGamma();
+		
+		// bIgnoreGammaConversions is deprecated; remove this
 		if ( Data->Texture && Data->Texture->bIgnoreGammaConversions )
 		{
 			Gamma = 1.0f;

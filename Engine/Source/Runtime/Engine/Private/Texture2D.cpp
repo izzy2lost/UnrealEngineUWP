@@ -1696,8 +1696,6 @@ void FVirtualTexture2DResource::InitializeEditorResources(IVirtualTexture* InVir
 		TextureRHI->SetName(TextureName);
 		RHIBindDebugLabelName(TextureRHI, *Name);
 		RHIUpdateTextureReference(TextureReferenceRHI, TextureRHI);
-
-		bIgnoreGammaConversions = !bSRGB && !IsHDR(PixelFormat);
 	}
 }
 #endif // WITH_EDITOR

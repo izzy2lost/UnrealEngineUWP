@@ -25,6 +25,9 @@ FTextureShareResource::FTextureShareResource(const TSharedRef<ITextureShareCoreO
 	bSRGB = InResourceSettings.bShouldUseSRGB;
 
 	bGreyScaleFormat = false;
+	
+	// I believe this setting of bIgnoreGammaConversions was probably a bad copy-paste and is probably not intentional
+	//	bIgnoreGammaConversions is deprecated.
 	bIgnoreGammaConversions = true;
 }
 
