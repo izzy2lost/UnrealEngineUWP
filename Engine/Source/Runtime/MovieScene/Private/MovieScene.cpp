@@ -1522,6 +1522,9 @@ void UMovieScene::ReplaceBinding(const FGuid& OldGuid, const FGuid& NewGuid, con
 		// Replace directly changes the guid, so force a sort here
 		ObjectBindings.Sort();
 
+		// Reget the binding after sorting
+		Binding = FindBinding(NewGuid);
+
 		// Changing a binding guid invalidates any tracks contained within the binding
 		// Make sure they are written into the transaction buffer by calling modify
 		for (UMovieSceneTrack* Track : Binding->GetTracks())
