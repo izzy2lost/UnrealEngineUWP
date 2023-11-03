@@ -95,7 +95,7 @@ public:
 	/**
 	 * The premade entitlement file used for development Mac builds
 	 */
-	UPROPERTY(EditAnywhere, config, Category="Entitlements", meta = (EditCondition="bUseModernXcode", DisplayName = "Nac: Development Entitlements"))
+	UPROPERTY(EditAnywhere, config, Category="Entitlements", meta = (EditCondition="bUseModernXcode", DisplayName = "Mac: Development Entitlements"))
 	FFilePath PremadeMacEntitlements;
 	
 	/**
