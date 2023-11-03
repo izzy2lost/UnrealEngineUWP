@@ -1001,6 +1001,7 @@ void USkinWeightsPaintTool::OnBeginDrag(const FRay& WorldRay)
 		StartStamp = UBaseBrushTool::LastBrushStamp;
 		LastStamp = StartStamp;
 		bStampPending = true;
+		LongTransactions.Open(LOCTEXT("PaintWeightChange", "Paint skin weights."), GetToolManager());
 	}
 }
 
@@ -1025,6 +1026,7 @@ void USkinWeightsPaintTool::OnEndDrag(const FRay& Ray)
 	// close change, record transaction
 	const FText TransactionLabel = LOCTEXT("PaintWeightChange", "Paint skin weights.");
 	EndChange(TransactionLabel);
+	LongTransactions.Close(GetToolManager());
 }
 
 bool USkinWeightsPaintTool::OnUpdateHover(const FInputDeviceRay& DevicePos)

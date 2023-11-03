@@ -17,6 +17,8 @@
 #include "Selection/GroupTopologySelector.h"
 #include "Operations/GroupTopologyDeformer.h"
 #include "Solvers/MeshLaplacian.h"
+#include "TransactionUtil.h"
+
 #include "DeformMeshPolygonsTool.generated.h"
 
 class FMeshVertexChangeBuilder;
@@ -267,5 +269,7 @@ protected:
 	void EndChange();
 	void UpdateChangeFromROI(bool bFinal);
 
+private:
+	UE::TransactionUtil::FLongTransactionTracker LongTransactions;
 };
 

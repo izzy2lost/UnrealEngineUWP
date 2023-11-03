@@ -455,6 +455,7 @@ void UMeshSelectionTool::OnBeginDrag(const FRay& WorldRay)
 		StartStamp = UBaseBrushTool::LastBrushStamp;
 		LastStamp = StartStamp;
 		bStampPending = true;
+		LongTransactions.Open(LOCTEXT("MeshSelectionChange", "Mesh Selection"), GetToolManager());
 	}
 }
 
@@ -759,6 +760,7 @@ void UMeshSelectionTool::OnEndDrag(const FRay& Ray)
 	// close change record
 	TUniquePtr<FToolCommandChange> Change = EndChange();
 	GetToolManager()->EmitObjectChange(Selection, MoveTemp(Change), LOCTEXT("MeshSelectionChange", "Mesh Selection"));
+	LongTransactions.Close(GetToolManager());
 }
 
 
@@ -828,7 +830,12 @@ bool UMeshSelectionTool::ExecuteNestedCancelCommand()
 {
 	if (CanCurrentlyNestedCancel())
 	{
-		ClearSelection();
+		// Only actually clear if there's no in-progress change; this just means escape does nothing in the middle of a mouse drag
+		// (We could make esc undo the active change and cancel the drag in this case; not clear if that is worthwhile. In most similar situations, escape just exits the tool.)
+		if (!ActiveSelectionChange)
+		{
+			ClearSelection();
+		}
 		return true;
 	}
 	return false;

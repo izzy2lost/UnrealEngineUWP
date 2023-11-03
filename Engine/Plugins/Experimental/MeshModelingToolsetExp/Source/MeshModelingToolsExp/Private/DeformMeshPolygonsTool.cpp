@@ -939,6 +939,8 @@ void UDeformMeshPolygonsTool::Setup()
 
 void UDeformMeshPolygonsTool::Shutdown(EToolShutdownType ShutdownType)
 {
+	LongTransactions.CloseAll(GetToolManager());
+
 	//Tell the background thread to cancel the rest of its jobs before we close;
 	LaplacianDeformer.Reset();
 
@@ -1302,8 +1304,12 @@ void UDeformMeshPolygonsTool::OnCancelDrag()
 	QuickAxisRotator.Reset();
 	QuickAxisTranslater.Reset();
 
-	delete ActiveVertexChange;
-	ActiveVertexChange = nullptr;
+	if (ActiveVertexChange)
+	{
+		LongTransactions.Close(GetToolManager());
+		delete ActiveVertexChange;
+		ActiveVertexChange = nullptr;
+	}
 }
 
 
@@ -1673,6 +1679,7 @@ void UDeformMeshPolygonsTool::BeginChange()
 			ActiveVertexChange = new FMeshVertexChangeBuilder(EMeshVertexChangeComponents::VertexPositions |
 			                                                  EMeshVertexChangeComponents::OverlayNormals);
 			UpdateChangeFromROI(false);
+			LongTransactions.Open(LOCTEXT("PolyMeshDeformationChange", "PolyMesh Edit"), GetToolManager());
 		}
 	}
 }
@@ -1685,6 +1692,7 @@ void UDeformMeshPolygonsTool::EndChange()
 		UpdateChangeFromROI(true);
 		GetToolManager()->EmitObjectChange(DynamicMeshComponent, MoveTemp(ActiveVertexChange->Change),
 		                                   LOCTEXT("PolyMeshDeformationChange", "PolyMesh Edit"));
+		LongTransactions.Close(GetToolManager());
 	}
 
 	delete ActiveVertexChange;

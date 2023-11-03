@@ -336,6 +336,7 @@ void UMeshAttributePaintTool::OnBeginDrag(const FRay& WorldRay)
 		StartStamp = UBaseBrushTool::LastBrushStamp;
 		LastStamp = StartStamp;
 		bStampPending = true;
+		LongTransactions.Open(LOCTEXT("AttributeValuesChange", "Paint"), GetToolManager());
 	}
 }
 
@@ -364,9 +365,8 @@ void UMeshAttributePaintTool::OnEndDrag(const FRay& Ray)
 	TUniquePtr<FMeshAttributePaintChange> Change = EndChange();
 	if (Change)
 	{
-		GetToolManager()->BeginUndoTransaction(LOCTEXT("AttributeValuesChange", "Paint"));
 		GetToolManager()->EmitObjectChange(this, MoveTemp(Change), LOCTEXT("AttributeValuesChange", "Paint"));
-		GetToolManager()->EndUndoTransaction();
+		LongTransactions.Close(GetToolManager());
 	}
 }
 
