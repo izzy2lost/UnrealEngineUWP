@@ -12,6 +12,9 @@ FSerializableGraph UGraph::GetSerializableGraph() const
 {
 	FSerializableGraph Out;
 	Out.Properties = Properties;
+	Out.Vertices.Reserve(Vertices.Num());
+	Out.Edges.Reserve(Edges.Num());
+	Out.Islands.Reserve(Islands.Num());
 
 	for (const TPair<FGraphVertexHandle, TObjectPtr<UGraphVertex>>& Kvp : Vertices)
 	{
