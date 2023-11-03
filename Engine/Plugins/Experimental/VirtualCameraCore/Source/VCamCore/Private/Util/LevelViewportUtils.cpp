@@ -215,7 +215,32 @@ namespace UE::VCamCore::LevelViewportUtils::Private
 	
 	FString GetConfigKeyFor(EVCamTargetViewportID TargetViewport)
 	{
-		return FString::Printf(TEXT("Viewport %d.Viewport"), static_cast<int32>(TargetViewport) + 1);
+		/*
+		 * TL;DR:
+		 * - "Viewport %d" selects he viewport from Window > Viewport x
+		 * - ".Viewport1" SEEMS to be the viewport that is rendered always 
+		 *
+		 * The GEditor->GetLevelViewportClients() up above usually returns viewports with the following keys:
+		 * - FourPanes2x2.Viewport 1.Viewport1
+		 * - FourPanes2x2.Viewport 2.Viewport1
+		 * - FourPanes2x2.Viewport 3.Viewport1
+		 * - FourPanes2x2.Viewport 4.Viewport1
+		 *
+		 * More viewports may be returned. Notable example is when Camera Cuts are enabled (i.e. ISequencer::SetPerspectiveViewportCameraCutEnabled(true))
+		 * In that case, it may look like this:
+		 * - FourPanes2x2.Viewport 1.Viewport0
+		 * - FourPanes2x2.Viewport 1.Viewport1
+		 * - FourPanes2x2.Viewport 1.Viewport2
+		 * - FourPanes2x2.Viewport 1.Viewport3
+		 * - FourPanes2x2.Viewport 2.Viewport0
+		 * - [...]
+		 * - FourPanes2x2.Viewport 2.Viewport3
+		 * - [...]
+		 * - FourPanes2x2.Viewport 4.Viewport3
+		 *
+		 * It seems like the viewport that is rendered however is always the one that ends in Viewport1.
+		 */
+		return FString::Printf(TEXT("Viewport %d.Viewport1"), static_cast<int32>(TargetViewport) + 1);
 	}
 #endif
 }
