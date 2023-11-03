@@ -134,13 +134,15 @@ void UModularRig::ResetModules()
 	Modules.Reset();
 }
 
-bool UModularRig::AddModuleInstance(const FName& InModuleName, TSubclassOf<UControlRig> InModuleClass, FString InParentPath, const TMap<FRigElementKey, FRigElementKey>& InConnectionMap)
+bool UModularRig::AddModuleInstance(const FName& InModuleName, TSubclassOf<UControlRig> InModuleClass, FString InParentPath,
+	const TMap<FRigElementKey, FRigElementKey>& InConnectionMap, const TMap<FName, FString>& InVariableDefaultValues )
 {
 	FRigModuleInstance* ParentModule = FindModule(InParentPath);
-	return AddModuleInstance(InModuleName, InModuleClass, ParentModule, InConnectionMap) != nullptr;
+	return AddModuleInstance(InModuleName, InModuleClass, ParentModule, InConnectionMap, InVariableDefaultValues ) != nullptr;
 }
 
-FRigModuleInstance* UModularRig::AddModuleInstance(const FName& InModuleName, TSubclassOf<UControlRig> InModuleClass, FRigModuleInstance* InParent, const TMap<FRigElementKey, FRigElementKey>& InConnectionMap) 
+FRigModuleInstance* UModularRig::AddModuleInstance(const FName& InModuleName, TSubclassOf<UControlRig> InModuleClass, FRigModuleInstance* InParent,
+	const TMap<FRigElementKey, FRigElementKey>& InConnectionMap, const TMap<FName, FString>& InVariableDefaultValues ) 
 {
 	// Make sure there are no name clashes
 	if (InParent)
@@ -196,6 +198,11 @@ FRigModuleInstance* UModularRig::AddModuleInstance(const FName& InModuleName, TS
 		ModulePublicContext.RigModuleNameSpace = NewModule.Rig->GetRigModuleNameSpace();
 		ModulePublicContext.RigModuleNameSpaceHash = GetTypeHash(ModulePublicContext.RigModuleNameSpace);
 		NewModule.Rig->SetElementKeyRedirector(FRigElementKeyRedirector(InConnectionMap, Hierarchy));
+
+		for (TPair<FName, FString> Variable : InVariableDefaultValues )
+		{
+			NewModule.Rig->SetVariableFromString(Variable.Key, Variable.Value);
+		}
 	}
 	
 	return &NewModule;

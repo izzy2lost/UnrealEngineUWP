@@ -18,6 +18,8 @@ enum class EModularRigNotification : uint8
 
 	ConnectionChanged,
 
+	ModuleConfigValueChanged,
+
 	/** MAX - invalid */
 	Max UMETA(Hidden),
 };
@@ -45,6 +47,9 @@ class CONTROLRIGDEVELOPER_API UModularRigController : public UObject
 
 	UFUNCTION(BlueprintCallable, Category = "Control Rig | Modules")
 	bool ConnectModuleToElement(const FRigElementKey& InConnectorKey, const FRigElementKey& InTargetKey, bool bSetupUndo = true);
+
+	UFUNCTION(BlueprintCallable, Category = "Control Rig | Modules")
+	bool SetConfigValueInModule(const FString& InModulePath, const FName& InVariableName, const FString& InValue, bool bSetupUndo = true);
 
 	UFUNCTION(BlueprintCallable, Category = "ControlRig | Modules")
 	bool RemoveModule(const FString& InModulesPath, bool bSetupUndo = true);

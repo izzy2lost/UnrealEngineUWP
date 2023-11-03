@@ -35,6 +35,9 @@ struct CONTROLRIGDEVELOPER_API FRigModuleReference
 	UPROPERTY()
 	TMap<FRigElementKey, FRigElementKey> Connections; // Connectors to Connection element
 
+	UPROPERTY()
+	TMap<FName, FString> ConfigValues;
+
 	TArray<FRigModuleReference*> CachedChildren;
 
 	FString GetNamespace() const;

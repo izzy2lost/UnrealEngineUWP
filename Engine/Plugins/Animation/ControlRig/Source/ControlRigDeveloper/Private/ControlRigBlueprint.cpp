@@ -1549,7 +1549,7 @@ static void AddModulesRecursively(UModularRig* Rig, const FRigModuleReference* I
 		}
 	}
 	
-	FRigModuleInstance* NewModule = Rig->AddModuleInstance(InModule->Name, InModule->Class.Get(), InParent, InModule->Connections);
+	FRigModuleInstance* NewModule = Rig->AddModuleInstance(InModule->Name, InModule->Class.Get(), InParent, InModule->Connections, InModule->ConfigValues);
 	
 	for (const FRigModuleReference* ChildModule : InModule->CachedChildren)
 	{
@@ -2273,6 +2273,19 @@ void UControlRigBlueprint::HandleHierarchyModified(ERigHierarchyNotification InN
 
 void UControlRigBlueprint::HandleRigModulesModified(EModularRigNotification InNotification, const FRigModuleReference* InModule)
 {
+	switch (InNotification)
+	{
+		case EModularRigNotification::ConnectionChanged:
+		{
+			const FString Namespace = InModule->GetNamespace();
+			for (TPair<FRigElementKey, FRigElementKey> Connection : InModule->Connections)
+			{
+				ConnectionMap.FindOrAdd(Connection.Key) = Connection.Value;
+			}
+			HierarchyModifiedEvent.Broadcast(ERigHierarchyNotification::HierarchyReset, Hierarchy, nullptr);
+			break;
+		}
+	}
 	RecompileModularRig();
 }
 

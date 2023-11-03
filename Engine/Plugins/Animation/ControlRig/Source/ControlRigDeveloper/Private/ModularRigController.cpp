@@ -6,6 +6,7 @@
 #include "ModularRig.h"
 #include "ControlRigBlueprint.h"
 #include "ModularRigModel.h"
+#include "Kismet2/BlueprintEditorUtils.h"
 #include "Rigs/RigHierarchyController.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ModularRigController)
@@ -21,8 +22,16 @@ UModularRigController::UModularRigController(const FObjectInitializer& ObjectIni
 
 bool UModularRigController::AddModule(const FName& InModuleName, TSubclassOf<UControlRig> InClass, const FString& InParentModulePath, bool bSetupUndo)
 {
-	if (!InClass->GetDefaultObject<UControlRig>()->IsRigModule())
+	if (!InClass)
 	{
+		UE_LOG(LogControlRig, Error, TEXT("Invalid InClass"));
+		return false;
+	}
+
+	UControlRig* ClassDefaultObject = InClass->GetDefaultObject<UControlRig>();
+	if (!ClassDefaultObject->IsRigModule())
+	{
+		UE_LOG(LogControlRig, Error, TEXT("Class %s is not a rig module"), *InClass->GetClassPathName().ToString());
 		return false;
 	}
 
@@ -71,12 +80,7 @@ bool UModularRigController::AddModule(const FName& InModuleName, TSubclassOf<UCo
 
 	if (!NewModule)
 	{
-		return false;
-	}
-
-	UControlRig* DefaultModule = InClass->GetDefaultObject<UControlRig>();
-	if (!DefaultModule)
-	{
+		UE_LOG(LogControlRig, Error, TEXT("Error while creating module %s"), *InModuleName.ToString());
 		return false;
 	}
 
@@ -96,7 +100,7 @@ bool UModularRigController::AddModule(const FName& InModuleName, TSubclassOf<UCo
 			FControlRigExecuteContextRigModuleGuard RigModuleGuard(PublicContext, NewNamespace);
 
 			
-			const TArray<FRigModuleConnector>& Connectors = DefaultModule->GetRigModuleSettings().ExposedConnectors;
+			const TArray<FRigModuleConnector>& Connectors = ClassDefaultObject->GetRigModuleSettings().ExposedConnectors;
 			for (const FRigModuleConnector& Connector : Connectors)
 			{
 				Controller->AddConnector(*Connector.Name, Connector.Settings);
@@ -154,12 +158,14 @@ bool UModularRigController::ConnectModuleToElement(const FRigElementKey& InConne
 	FString ConnectorNameSpace, ConnectorName;
 	if (!InConnectorKey.Name.ToString().Split(UModularRig::NamespaceSeparator, &ConnectorNameSpace, &ConnectorName, ESearchCase::CaseSensitive, ESearchDir::FromEnd))
 	{
+		UE_LOG(LogControlRig, Error, TEXT("Connector %s does not contain a namespace"), *InConnectorKey.ToString());
 		return false;
 	}
 	
 	FRigModuleReference* Module = FindModule(ConnectorNameSpace);
 	if (!Module)
 	{
+		UE_LOG(LogControlRig, Error, TEXT("Could not find module %s"), *ConnectorNameSpace);
 		return false;
 	}
 
@@ -167,11 +173,13 @@ bool UModularRigController::ConnectModuleToElement(const FRigElementKey& InConne
 	FRigConnectorElement* Connector = Cast<FRigConnectorElement>(Blueprint->Hierarchy->Find(InConnectorKey));
 	if (!Connector)
 	{
+		UE_LOG(LogControlRig, Error, TEXT("Could not find connector %s"), *InConnectorKey.ToString());
 		return false;
 	}
 
 	if (!Blueprint->Hierarchy->Contains(InTargetKey))
 	{
+		UE_LOG(LogControlRig, Error, TEXT("Could not find target %s"), *InTargetKey.ToString());
 		return false;
 	}
 
@@ -195,6 +203,59 @@ bool UModularRigController::ConnectModuleToElement(const FRigElementKey& InConne
 	TransactionPtr.Reset();
 #endif
 	
+	return true;
+}
+
+bool UModularRigController::SetConfigValueInModule(const FString& InModulePath, const FName& InVariableName, const FString& InValue, bool bSetupUndo)
+{
+	FRigModuleReference* Module = FindModule(InModulePath);
+	if (!Module)
+	{
+		UE_LOG(LogControlRig, Error, TEXT("Could not find module %s"), *InModulePath);
+		return false;
+	}
+
+	if (!Module->Class.IsValid())
+	{
+		UE_LOG(LogControlRig, Error, TEXT("Class defined in module %s is not valid"), *InModulePath);
+		return false;
+	}
+
+	const FProperty* Property = Module->Class->FindPropertyByName(InVariableName);
+	if (!Property)
+	{
+		UE_LOG(LogControlRig, Error, TEXT("Could not find variable %s in module %s"), *InVariableName.ToString(), *InModulePath);
+		return false;
+	}
+
+	TArray<uint8, TAlignedHeapAllocator<16>> TempStorage;
+	TempStorage.AddZeroed(Property->GetSize());
+	if (!FBlueprintEditorUtils::PropertyValueFromString(Property, InValue, TempStorage.GetData()))
+	{
+		UE_LOG(LogControlRig, Error, TEXT("Value %s for variable %s in module %s is not valid"), *InValue, *InVariableName.ToString(), *InModulePath);
+		return false;
+	}
+
+#if WITH_EDITOR
+	TSharedPtr<FScopedTransaction> TransactionPtr;
+	if (bSetupUndo)
+	{
+		TransactionPtr = MakeShared<FScopedTransaction>(NSLOCTEXT("ModularRigController", "ConfigureModuleValueTransaction", "Configure Module Value"));
+		if(UControlRigBlueprint* Blueprint = Cast<UControlRigBlueprint>(GetOuter()))
+		{
+			Blueprint->Modify();
+		}
+	}
+#endif 
+
+	Module->ConfigValues.FindOrAdd(InVariableName) = InValue;
+
+	Notify(EModularRigNotification::ModuleConfigValueChanged, Module);
+
+#if WITH_EDITOR
+	TransactionPtr.Reset();
+#endif
+
 	return true;
 }
 
