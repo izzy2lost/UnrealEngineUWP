@@ -41,19 +41,19 @@ class CONTROLRIGDEVELOPER_API UModularRigController : public UObject
 
 
 	UFUNCTION(BlueprintCallable, Category = "Control Rig | Modules")
-	bool AddModule(const FName& InModuleName, TSubclassOf<UControlRig> InClass, const FString& InParentModulePath);
+	bool AddModule(const FName& InModuleName, TSubclassOf<UControlRig> InClass, const FString& InParentModulePath, bool bSetupUndo = true);
 
 	UFUNCTION(BlueprintCallable, Category = "Control Rig | Modules")
-	bool ConnectModuleToElement(const FRigElementKey& InConnectorKey, const FRigElementKey& InTargetKey);
+	bool ConnectModuleToElement(const FRigElementKey& InConnectorKey, const FRigElementKey& InTargetKey, bool bSetupUndo = true);
 
 	UFUNCTION(BlueprintCallable, Category = "ControlRig | Modules")
-	bool RemoveModule(const FString& InModulesPath);
+	bool RemoveModule(const FString& InModulesPath, bool bSetupUndo = true);
 
 	UFUNCTION(BlueprintCallable, Category = "ControlRig | Modules")
-	bool RenameModule(const FString& InModulesPath, const FName& InNewName);
+	bool RenameModule(const FString& InModulesPath, const FName& InNewName, bool bSetupUndo = true);
 
 	UFUNCTION(BlueprintCallable, Category = "ControlRig | Modules")
-	bool ReparentModule(const FString& InModulesPath, const FString& InNewParentModulePath);
+	bool ReparentModule(const FString& InModulesPath, const FString& InNewParentModulePath, bool bSetupUndo = true);
 
 
 	void SetModel(FModularRigModel* InModel) { Model = InModel; }

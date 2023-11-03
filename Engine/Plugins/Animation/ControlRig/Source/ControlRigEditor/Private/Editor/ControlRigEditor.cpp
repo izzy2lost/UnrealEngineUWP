@@ -3104,7 +3104,7 @@ void FControlRigEditor::OnHierarchyModified(ERigHierarchyNotification InNotif, U
 	{
 		case ERigHierarchyNotification::ElementAdded:
 		{
-			if (GetControlRig()->IsA<UControlRig>())
+			if (!RigBlueprint->IsModularRig())
 			{
 				if(InElement->GetType() == ERigElementType::Connector)
 				{

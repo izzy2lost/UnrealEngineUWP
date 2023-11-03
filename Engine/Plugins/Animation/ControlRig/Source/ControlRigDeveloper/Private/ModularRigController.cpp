@@ -10,17 +10,34 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ModularRigController)
 
+#if WITH_EDITOR
+#include "ScopedTransaction.h"
+#endif
+
 UModularRigController::UModularRigController(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
 }
 
-bool UModularRigController::AddModule(const FName& InModuleName, TSubclassOf<UControlRig> InClass, const FString& InParentModulePath)
+bool UModularRigController::AddModule(const FName& InModuleName, TSubclassOf<UControlRig> InClass, const FString& InParentModulePath, bool bSetupUndo)
 {
 	if (!InClass->GetDefaultObject<UControlRig>()->IsRigModule())
 	{
 		return false;
 	}
+
+#if WITH_EDITOR
+	TSharedPtr<FScopedTransaction> TransactionPtr;
+	if (bSetupUndo)
+	{
+		TransactionPtr = MakeShared<FScopedTransaction>(NSLOCTEXT("ModularRigController", "AddModuleTransaction", "Add Module"));
+		if(UControlRigBlueprint* Blueprint = Cast<UControlRigBlueprint>(GetOuter()))
+		{
+			Blueprint->Modify();
+			Blueprint->Hierarchy->Modify();
+		}
+	}
+#endif 
 
 	FRigModuleReference* NewModule = nullptr;
 	if (InParentModulePath.IsEmpty())
@@ -95,6 +112,10 @@ bool UModularRigController::AddModule(const FName& InModuleName, TSubclassOf<UCo
 	}
 
 	Notify(EModularRigNotification::ModuleAdded, NewModule);
+
+#if WITH_EDITOR
+	TransactionPtr.Reset();
+#endif
 	
 	return true;
 }
@@ -128,7 +149,7 @@ FRigModuleReference* UModularRigController::FindModule(const FString& InPath)
 	return *Cur;
 }
 
-bool UModularRigController::ConnectModuleToElement(const FRigElementKey& InConnectorKey, const FRigElementKey& InTargetKey)
+bool UModularRigController::ConnectModuleToElement(const FRigElementKey& InConnectorKey, const FRigElementKey& InTargetKey, bool bSetupUndo)
 {
 	FString ConnectorNameSpace, ConnectorName;
 	if (!InConnectorKey.Name.ToString().Split(UModularRig::NamespaceSeparator, &ConnectorNameSpace, &ConnectorName, ESearchCase::CaseSensitive, ESearchDir::FromEnd))
@@ -154,28 +175,42 @@ bool UModularRigController::ConnectModuleToElement(const FRigElementKey& InConne
 		return false;
 	}
 
+#if WITH_EDITOR
+	TSharedPtr<FScopedTransaction> TransactionPtr;
+	if (bSetupUndo)
+	{
+		TransactionPtr = MakeShared<FScopedTransaction>(NSLOCTEXT("ModularRigController", "ConnectModuleToElementTransaction", "Connect to Element"));
+		Blueprint->Modify();
+		Blueprint->Hierarchy->Modify();
+	}
+#endif 
+
 	const FRigElementKey ConnectorKey(*ConnectorName, ERigElementType::Connector);
 	FRigElementKey& TargetKey = Module->Connections.FindOrAdd(ConnectorKey);
 	TargetKey = InTargetKey;
 
 	Notify(EModularRigNotification::ConnectionChanged, Module);
+
+#if WITH_EDITOR
+	TransactionPtr.Reset();
+#endif
 	
 	return true;
 }
 
-bool UModularRigController::RemoveModule(const FString& InModulesPath)
+bool UModularRigController::RemoveModule(const FString& InModulesPath, bool bSetupUndo)
 {
 	// todo: UE-199050
 	return false;
 }
 
-bool UModularRigController::RenameModule(const FString& InModulesPath, const FName& InNewName)
+bool UModularRigController::RenameModule(const FString& InModulesPath, const FName& InNewName, bool bSetupUndo)
 {
 	// todo: UE-199050
 	return false;
 }
 
-bool UModularRigController::ReparentModule(const FString& InModulesPath, const FString& InNewParentModulePath)
+bool UModularRigController::ReparentModule(const FString& InModulesPath, const FString& InNewParentModulePath, bool bSetupUndo)
 {
 	// todo: UE-199050
 	return false;

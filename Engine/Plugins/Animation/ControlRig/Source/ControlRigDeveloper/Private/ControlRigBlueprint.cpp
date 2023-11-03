@@ -972,7 +972,7 @@ bool UControlRigBlueprint::ResolveConnector(const FRigElementKey& DraggedKey, co
 		// Add connection to the model
 		if (UModularRigController* Controller = GetModularRigController())
 		{
-			Controller->ConnectModuleToElement(DraggedKey, TargetKey);
+			Controller->ConnectModuleToElement(DraggedKey, TargetKey, bSetupUndoRedo);
 		}
 	}
 	else
@@ -1292,6 +1292,15 @@ void UControlRigBlueprint::PostTransacted(const FTransactionObjectEvent& Transac
 			(void)MarkPackageDirty();
 		}
 
+		if (PropertiesChanged.Contains(GET_MEMBER_NAME_CHECKED(UControlRigBlueprint, ModularRigModel)))
+		{
+			if (IsModularRig())
+			{
+				ModularRigModel.UpdateCachedChildren();
+				RecompileModularRig();
+			}
+		}
+		
 		if (PropertiesChanged.Contains(GET_MEMBER_NAME_CHECKED(UControlRigBlueprint, DrawContainer)))
 		{
 			PropagateDrawInstructionsFromBPToInstances();

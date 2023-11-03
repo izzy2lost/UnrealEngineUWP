@@ -43,6 +43,8 @@ void FModularRigModel::UpdateCachedChildren()
 		Module.CachedChildren.Reset();
 		PathToModule.Add(Module.GetNamespace(), &Module);
 	}
+	
+	RootModules.Reset();
 	for (FRigModuleReference& Module : Modules)
 	{
 		if (Module.ParentNamespace.IsEmpty())
