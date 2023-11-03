@@ -252,6 +252,14 @@ static void SerializeForKey(FArchive& Ar, const FTextureBuildSettings& Settings)
 	{
 		TempFloat = Settings.Downscale; Ar << TempFloat;
 		TempByte = Settings.DownscaleOptions; Ar << TempByte;
+
+		if ( Settings.bUseNewMipFilter )
+		{
+			// downscale behavior changed
+			// @todo SerializeForKey these can go away whenever we bump the overall ddc key
+			TempGuid = FGuid(0xBC9D413B, 0x2C9DF1E3, 0xBF963C7A, 0xABADF00D);
+			Ar << TempGuid;
+		}
 	}
 
 	// this is done in a funny way to add the bool that wasn't being serialized before
