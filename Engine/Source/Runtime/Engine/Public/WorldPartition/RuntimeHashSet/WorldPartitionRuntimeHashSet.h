@@ -27,7 +27,11 @@ struct FRuntimePartitionHLODSetup
 	UPROPERTY(EditAnywhere, Category = RuntimeSettings)
 	TArray<TObjectPtr<const UHLODLayer>> HLODLayers;
 
-	UPROPERTY(VisibleAnywhere, Category = RuntimeSettings, Instanced, Meta = (NoResetToDefault, TitleProperty = "Name"))
+	/** whether this HLOD setup is spatially loaded or not */
+	UPROPERTY(EditAnywhere, Category = RuntimeSettings)
+	bool bIsSpatiallyLoaded;
+
+	UPROPERTY(VisibleAnywhere, Category = RuntimeSettings, Instanced, Meta = (EditCondition = "bIsSpatiallyLoaded", HideEditConditionToggle, NoResetToDefault, TitleProperty = "Name"))
 	TObjectPtr<URuntimePartition> PartitionLayer;
 };
 
@@ -141,6 +145,9 @@ public:
 
 	// Helpers
 	static ENGINE_API bool ParseGridName(FName GridName, TArray<FName>& MainPartitionTokens, TArray<FName>& HLODPartitionTokens);
+
+	// Conversions
+	static ENGINE_API UWorldPartitionRuntimeHashSet* CreateFrom(const UWorldPartitionRuntimeHash* SrcHash);
 #endif
 
 	// External streaming object interface

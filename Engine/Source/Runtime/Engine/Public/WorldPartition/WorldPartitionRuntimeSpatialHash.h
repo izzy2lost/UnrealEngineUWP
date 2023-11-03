@@ -379,4 +379,5 @@ private:
 	ENGINE_API TArray<const FSpatialHashStreamingGrid*> GetFilteredStreamingGrids() const;
 
 	friend class UWorldPartitionSubsystem;
+	friend class UWorldPartitionRuntimeHashSet;
 };

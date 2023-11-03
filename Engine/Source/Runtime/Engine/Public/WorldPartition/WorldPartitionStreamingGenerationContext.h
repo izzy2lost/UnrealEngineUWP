@@ -133,7 +133,7 @@ public:
 		SourceContext->ForEachActorSetContainer(Func);
 	}
 
-private:
+protected:
 	const IStreamingGenerationContext* SourceContext;
 };
 #endif

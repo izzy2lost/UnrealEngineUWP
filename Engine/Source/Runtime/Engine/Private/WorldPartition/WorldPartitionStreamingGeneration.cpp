@@ -1451,6 +1451,47 @@ bool UWorldPartition::GenerateContainerStreaming(const FGenerateStreamingParams&
 	return false;
 }
 
+class FStreamingGenerationContextCopy : public FStreamingGenerationContextProxy
+{
+public:
+	FStreamingGenerationContextCopy(const FWorldPartitionStreamingGenerator::FWorldPartitionStreamingGeneratorParams& InParams)
+		: FStreamingGenerationContextProxy(nullptr)
+		, StreamingGenerator(InParams)
+	{}
+
+	void SetSourceContext(const IStreamingGenerationContext* InStreamingGenerationContext)
+	{
+		SourceContext = InStreamingGenerationContext;
+	}
+
+	FWorldPartitionStreamingGenerator StreamingGenerator;
+};
+
+TUniquePtr<IStreamingGenerationContext> UWorldPartition::GenerateStreamingGenerationContext(const FGenerateStreamingParams& InParams, FGenerateStreamingContext& InContext)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(UWorldPartition::GenerateStreamingGenerationContext);
+
+	FStreamingGenerationLogErrorHandler LogErrorHandler;
+	FWorldPartitionStreamingGenerator::FWorldPartitionStreamingGeneratorParams StreamingGeneratorParams = FWorldPartitionStreamingGenerator::FWorldPartitionStreamingGeneratorParams()
+		.SetWorldPartitionContext(this)
+		.SetIsValidGrid([this](FName GridName) { return RuntimeHash->IsValidGrid(GridName); })
+		.SetIsValidHLODLayer([this](FName GridName, const FSoftObjectPath& HLODLayerPath) { return RuntimeHash->IsValidHLODLayer(GridName, HLODLayerPath); })
+		.SetErrorHandler(&LogErrorHandler)
+		.SetEnableStreaming(IsStreamingEnabled())
+		.SetCreateContainerResolver(FEditorPathHelper::IsEnabled());
+
+	TUniquePtr<FStreamingGenerationContextCopy> StreamingGenerationContextCopy = MakeUnique<FStreamingGenerationContextCopy>(StreamingGeneratorParams);
+	
+	StreamingGenerationContextCopy->StreamingGenerator.PreparationPhase(InParams.ActorDescCollection);
+	
+	const IStreamingGenerationContext* StreamingGenerationContext = StreamingGenerationContextCopy->StreamingGenerator.GetStreamingGenerationContext(InParams.ActorDescCollection);	
+	check(StreamingGenerationContext);
+
+	StreamingGenerationContextCopy->SetSourceContext(StreamingGenerationContext);
+	
+	return MoveTemp(StreamingGenerationContextCopy);
+}
+
 void UWorldPartition::FlushStreaming()
 {
 	RuntimeHash->FlushStreaming();

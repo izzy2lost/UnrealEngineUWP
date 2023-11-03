@@ -82,6 +82,8 @@ void URuntimeHashExternalStreamingObjectBase::PopulateGeneratorPackageForCook()
 		LevelStreamingDynamic->SetFlags(RF_Transient);
 	});
 }
+
+TMap<TPair<const UClass*, const UClass*>, UWorldPartitionRuntimeHash::FRuntimeHashConvertFunc> UWorldPartitionRuntimeHash::WorldPartitionRuntimeHashConverters;
 #endif
 
 UWorldPartitionRuntimeHash::UWorldPartitionRuntimeHash(const FObjectInitializer& ObjectInitializer)
@@ -495,6 +497,37 @@ bool UWorldPartitionRuntimeHash::RemoveExternalStreamingObject(URuntimeHashExter
 	}
 	return true;
 }
+
+#if WITH_EDITOR
+void UWorldPartitionRuntimeHash::RegisterWorldPartitionRuntimeHashConverter(const UClass* InSrcClass, const UClass* InDstClass, FRuntimeHashConvertFunc&& InConverter)
+{
+	check(InSrcClass->IsChildOf<UWorldPartitionRuntimeHash>());
+	check(InDstClass->IsChildOf<UWorldPartitionRuntimeHash>());
+	WorldPartitionRuntimeHashConverters.Add({ InSrcClass, InDstClass }, MoveTemp(InConverter));
+}
+
+UWorldPartitionRuntimeHash* UWorldPartitionRuntimeHash::ConvertWorldPartitionHash(const UWorldPartitionRuntimeHash* InSrcHash, const UClass* InDstClass)
+{
+	check(InSrcHash);
+	check(InDstClass);
+	check(InDstClass->IsChildOf<UWorldPartitionRuntimeHash>());
+	check(!InDstClass->HasAnyClassFlags(CLASS_Abstract));
+
+	const UClass* CurrentSrcClass = InSrcHash->GetClass();
+	while(CurrentSrcClass != UWorldPartitionRuntimeHash::StaticClass())
+	{
+		if (FRuntimeHashConvertFunc* Converter = WorldPartitionRuntimeHashConverters.Find({ CurrentSrcClass, InDstClass }))
+		{
+			return (*Converter)(InSrcHash);
+		}
+		CurrentSrcClass = CurrentSrcClass->GetSuperClass();
+	}
+
+	UWorldPartitionRuntimeHash* RuntimeHash = NewObject<UWorldPartitionRuntimeHash>(InSrcHash->GetOuter(), InDstClass, NAME_None, RF_Transactional);
+	RuntimeHash->SetDefaultValues();
+	return RuntimeHash;
+}
+#endif
 
 void UWorldPartitionRuntimeHash::FStreamingSourceCells::AddCell(const UWorldPartitionRuntimeCell* Cell, const FWorldPartitionStreamingSource& Source, const FSphericalSector& SourceShape)
 {

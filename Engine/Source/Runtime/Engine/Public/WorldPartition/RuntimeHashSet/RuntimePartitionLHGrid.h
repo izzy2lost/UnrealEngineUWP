@@ -10,6 +10,8 @@ class URuntimePartitionLHGrid : public URuntimePartition
 {
 	GENERATED_BODY()
 
+	friend class UWorldPartitionRuntimeHashSet;
+
 public:
 #if WITH_EDITOR
 	//~ Begin UObject Interface.

@@ -74,13 +74,13 @@ public:
 	UPROPERTY()
 	FName Name;
 
-	UPROPERTY(EditAnywhere, Category = RuntimeSettings, Meta = (EditCondition = "HLODSetup != INDEX_NONE", EditConditionHides, HideEditConditionToggle))
+	UPROPERTY(EditAnywhere, Category = RuntimeSettings, Meta = (EditCondition = "HLODIndex != INDEX_NONE", EditConditionHides, HideEditConditionToggle))
 	bool bBlockOnSlowStreaming;
 
-	UPROPERTY(EditAnywhere, Category = RuntimeSettings, Meta = (EditCondition = "HLODSetup != INDEX_NONE", EditConditionHides, HideEditConditionToggle))
+	UPROPERTY(EditAnywhere, Category = RuntimeSettings, Meta = (EditCondition = "HLODIndex != INDEX_NONE", EditConditionHides, HideEditConditionToggle))
 	bool bClientOnlyVisible;
 
-	UPROPERTY(EditAnywhere, Category = RuntimeSettings, Meta = (EditCondition = "HLODSetup != INDEX_NONE", EditConditionHides, HideEditConditionToggle))
+	UPROPERTY(EditAnywhere, Category = RuntimeSettings, Meta = (EditCondition = "HLODIndex != INDEX_NONE", EditConditionHides, HideEditConditionToggle))
 	int32 Priority;
 
 	UPROPERTY(EditAnywhere, Category = RuntimeSettings)
