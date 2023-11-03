@@ -302,11 +302,13 @@ bool FSequencerEdMode::StartTracking(FEditorViewportClient* InViewportClient, FV
 	}
 	else if (IsMovingCamera(InViewport))
 	{
+		bUpdatePivot = true;
 		InViewportClient->SetCurrentWidgetAxis(EAxisList::None);
 		return true;
 	}
 	else if (IsDoingDrag(InViewport))
 	{
+		bUpdatePivot = true;
 		DragToolHandler.MakeDragTool(InViewportClient);
 		return DragToolHandler.StartTracking(InViewportClient, InViewport);
 	}
@@ -320,13 +322,24 @@ bool FSequencerEdMode::EndTracking(FEditorViewportClient* InViewportClient, FVie
 	}
 	else if (IsMovingCamera(InViewport))
 	{
+		bUpdatePivot = false;
 		return true;
 	}
 	else if (DragToolHandler.EndTracking(InViewportClient, InViewport))
 	{
+		bUpdatePivot = false;
 		return true;
 	}
 	return FEdMode::EndTracking(InViewportClient, InViewport);
+}
+
+void FSequencerEdMode::Tick(FEditorViewportClient* ViewportClient,float DeltaTime)
+{
+	if (bUpdatePivot)
+	{
+		GUnrealEd->UpdatePivotLocationForSelection();
+	}
+	return FEdMode::Tick(ViewportClient,DeltaTime);
 }
 
 bool FSequencerEdMode::InputDelta(FEditorViewportClient* InViewportClient, FViewport* InViewport, FVector& InDrag, FRotator& InRot, FVector& InScale)
@@ -350,8 +363,6 @@ bool FSequencerEdMode::InputDelta(FEditorViewportClient* InViewportClient, FView
 	else if (IsDoingDrag(InViewport))
 	{
 		return DragToolHandler.InputDelta(InViewportClient, InViewport, InDrag, InRot, InScale);
-		GUnrealEd->UpdatePivotLocationForSelection();
-		GUnrealEd->RedrawLevelEditingViewports();
 
 	}
 	return FEdMode::InputDelta(InViewportClient, InViewport, InDrag, InRot, InScale);
