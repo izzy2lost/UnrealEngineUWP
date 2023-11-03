@@ -1209,7 +1209,6 @@ public:
 
 private:
 	/** Use the SkeletalMesh of reference as a placeholder until the custom mesh is ready to use.
-	  * 
 	  * Note: If disabled, a null mesh will be used to replace the discarded mesh due to 'ReplaceDiscardedWithReferenceMesh' being enabled. */
 	UPROPERTY(EditAnywhere, Category = CustomizableObject)
 	bool bEnableUseRefSkeletalMeshAsPlaceholder = true;
@@ -1217,6 +1216,11 @@ private:
 	/** Use the Instance MinLOD, MaxLOD and RequestedLODs in the descriptor when performing the initial generation (ignore LOD Management). */
 	UPROPERTY(Category = "CustomizableObject", EditAnywhere, DisplayName = "Preserve User LODs On First Generation")
 	bool bPreserveUserLODsOnFirstGeneration = false;
+
+	/** If true, reuse previously generated USkeletalMesh (if still valid and the the number of LOD have not changed)
+	 * USkeletalMeshes are only reused between the same CO. */
+	UPROPERTY(EditAnywhere, Category = CustomizableObject)
+	bool bEnableMeshCache = false;
 	
 public:
 #if WITH_EDITORONLY_DATA
@@ -1720,6 +1724,9 @@ public:
 
 	/** See bEnableUseRefSkeletalMeshAsPlaceholder. */
 	bool IsEnableUseRefSkeletalMeshAsPlaceholder() const;
+
+	/** See bEnableUseMeshCache. */
+	bool IsMeshCacheEnabled() const;
 
 private:
 	

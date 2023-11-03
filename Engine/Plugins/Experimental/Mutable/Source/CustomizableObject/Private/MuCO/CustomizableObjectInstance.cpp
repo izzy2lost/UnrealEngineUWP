@@ -1614,6 +1614,16 @@ bool UCustomizableInstancePrivateData::DoComponentsNeedUpdate(UCustomizableObjec
 
 		for (int32 ComponentIndex = 0; ComponentIndex < NumComponents; ++ComponentIndex)
 		{
+			if (OperationData->bUseMeshCache)
+			{
+				if (CustomizableObject->GetPrivate()->MeshCache.Get(OperationData->MeshDescriptors[ComponentIndex]))
+				{
+					OutComponentNeedsUpdate[ComponentIndex] = true;
+					ComponentWithMesh[ComponentIndex] = true;
+					continue;					
+				}
+			}
+			
 			// Components with mesh must have valid geometry at CurrentMaxLOD
 			if (ComponentWithMesh[ComponentIndex] && MeshIDs[ComponentIndex * MAX_MESH_LOD_COUNT + OperationData->CurrentMaxLOD] == MAX_uint64)
 			{
@@ -1808,6 +1818,21 @@ bool UCustomizableInstancePrivateData::UpdateSkeletalMesh_PostBeginUpdate0(UCust
 			continue;
 		}
 
+		// Check if we have initialized the component
+		if (Public->SkeletalMeshes[Component.Id])
+		{
+			continue;
+		}
+
+		if (OperationData->bUseMeshCache)
+		{
+			if (USkeletalMesh* CachedMesh = CustomizableObject->GetPrivate()->MeshCache.Get(OperationData->MeshDescriptors[Component.Id]))
+			{
+				Public->SkeletalMeshes[Component.Id] = CachedMesh;
+				continue;
+			}
+		}
+
 		if (!Component.bGenerated || !Component.Mesh || Component.SurfaceCount == 0)
 		{
 			continue;
@@ -1818,12 +1843,6 @@ bool UCustomizableInstancePrivateData::UpdateSkeletalMesh_PostBeginUpdate0(UCust
 		{
 			bSuccess = false;
 			break;
-		}
-
-		// Check if we have initialized the component
-		if (Public->SkeletalMeshes[Component.Id])
-		{
-			continue;
 		}
 
 		// Create and initialize the SkeletalMesh for this component
@@ -2011,6 +2030,15 @@ bool UCustomizableInstancePrivateData::UpdateSkeletalMesh_PostBeginUpdate0(UCust
 		const int32 NumComponents = Public->SkeletalMeshes.Num();
 		for (int32 ComponentIndex = 0; bSuccess && ComponentIndex < NumComponents; ++ComponentIndex)
 		{
+			if (OperationData->bUseMeshCache)
+			{
+				const TArray<mu::FResourceID>& MeshId = OperationData->MeshDescriptors[ComponentIndex];
+				if (CustomizableObject->GetPrivate()->MeshCache.Get(MeshId))
+				{
+					continue;
+				}
+			}
+			
 			if (!ComponentNeedsUpdate[ComponentIndex])
 			{
 				continue;
@@ -2038,6 +2066,12 @@ bool UCustomizableInstancePrivateData::UpdateSkeletalMesh_PostBeginUpdate0(UCust
 
 				ensure(SkeletalMesh->GetResourceForRendering()->LODRenderData.Num() > 0);
 				ensure(SkeletalMesh->GetLODInfoArray().Num() > 0);
+			}
+
+			if (OperationData->bUseMeshCache)
+			{
+				const TArray<mu::FResourceID>& MeshId = OperationData->MeshDescriptors[ComponentIndex];
+				CustomizableObject->GetPrivate()->MeshCache.Add(MeshId, SkeletalMesh);
 			}
 		}
 	}
@@ -5025,6 +5059,13 @@ void UCustomizableObjectInstance::AdditionalAssetsAsyncLoaded( FGraphEventRef Co
 }
 
 
+const TArray<TObjectPtr<UMaterialInterface>>* UCustomizableObjectInstance::GetOverrideMaterials(int32 ComponentIndex) const
+{
+	FCustomizableInstanceComponentData* ComponentData = PrivateData->GetComponentData(ComponentIndex);
+	return ComponentData ? &ComponentData->OverrideMaterials : nullptr;
+}
+
+
 void UCustomizableInstancePrivateData::AdditionalAssetsAsyncLoaded(UCustomizableObjectInstance* Public)
 {
 	MUTABLE_CPUPROFILER_SCOPE(UCustomizableInstancePrivateData::AdditionalAssetsAsyncLoaded);
@@ -5325,6 +5366,8 @@ void UCustomizableInstancePrivateData::BuildMaterials(const TSharedRef<FUpdateCo
 		{
 			continue;
 		}
+
+		ComponentsData[ComponentIndex].OverrideMaterials.Reset();
 
 		{
 			// TEMP: Keep a reference to the previous materials for n frames to avoid GC of materials in use in the render thread.
@@ -5856,6 +5899,7 @@ void UCustomizableInstancePrivateData::BuildMaterials(const TSharedRef<FUpdateCo
 					}
 
 					GeneratedMaterials.Add(Material);
+					ComponentsData[ComponentIndex].OverrideMaterials.Add(Material.MaterialInterface);
 				}
 
 				int32 LODMaterialIndex = SkeletalMesh->GetLODInfoArray()[LODIndex].LODMaterialMap.Add(MatIndex);

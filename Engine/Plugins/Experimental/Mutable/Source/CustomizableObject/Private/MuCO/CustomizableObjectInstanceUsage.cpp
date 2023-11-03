@@ -235,10 +235,26 @@ void UCustomizableObjectInstanceUsage::SetSkeletalMesh(USkeletalMesh* SkeletalMe
 #endif
 		}
 
-		if (Parent->GetNumOverrideMaterials() > 0)
+		const UCustomizableObjectInstance* Instance = GetCustomizableObjectInstance();
+		const UCustomizableObject* CustomizableObject = Instance ? Instance->GetCustomizableObject() : nullptr;
+
+		if (Parent->HasOverrideMaterials())
 		{
 			// For some reason the reference skeletal mesh materials are added as override materials, clear them if necessary
 			Parent->EmptyOverrideMaterials();
+		}
+		
+		if (CustomizableObject &&
+			CustomizableObject->IsMeshCacheEnabled() &&
+			CVarEnableMeshCache.GetValueOnAnyThread())
+		{
+			if (FCustomizableInstanceComponentData* ComponentData = Instance->GetPrivate()->GetComponentData(GetComponentIndex()))
+			{
+				for (int32 Index = 0; Index < ComponentData->OverrideMaterials.Num(); ++Index)
+				{
+					Parent->SetMaterial(Index, ComponentData->OverrideMaterials[Index]);
+				}	
+			}
 		}	
 	}
 }
@@ -520,7 +536,7 @@ void UCustomizableObjectInstanceUsage::Tick(float DeltaTime)
 		{
 			Parent->SetSkeletalMesh(SkeletalMesh);
 
-			if (Parent->OverrideMaterials.Num() > 0)
+			if (Parent->HasOverrideMaterials())
 			{
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 				if (Parent->GetClass()->GetFName() != FName(TEXT("SkeletalMeshComponentBudgeted"))) // Reduce unnecessary logging
@@ -530,6 +546,20 @@ void UCustomizableObjectInstanceUsage::Tick(float DeltaTime)
 #endif
 
 				Parent->EmptyOverrideMaterials();
+			}
+
+			if (CustomizableObject &&
+				bInstanceGenerated &&
+				CustomizableObject->IsMeshCacheEnabled() &&
+				CVarEnableMeshCache.GetValueOnAnyThread())
+			{
+				if (FCustomizableInstanceComponentData* ComponentData = CustomizableObjectInstance->GetPrivate()->GetComponentData(GetComponentIndex()))
+				{
+					for (int32 Index = 0; Index < ComponentData->OverrideMaterials.Num(); ++Index)
+					{
+						Parent->SetMaterial(Index, ComponentData->OverrideMaterials[Index]);
+					}
+				}
 			}
 
 			SetPendingSetSkeletalMesh(false);

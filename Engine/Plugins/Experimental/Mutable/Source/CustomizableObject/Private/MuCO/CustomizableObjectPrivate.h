@@ -3,6 +3,8 @@
 #pragma once
 
 #include "Templates/SharedPointer.h"
+#include "UObject/WeakObjectPtr.h"
+#include "MuR/Types.h"
 
 #if WITH_EDITOR
 #include "Misc/Guid.h"
@@ -10,6 +12,19 @@
 
 namespace mu { class Model; }
 class UCustomizableObject;
+class USkeletalMesh;
+
+
+class FMeshCache
+{
+public:
+	USkeletalMesh* Get(const TArray<mu::FResourceID>& Key);
+
+	void Add(const TArray<mu::FResourceID>& Key, USkeletalMesh* Value);
+
+private:
+	TMap<TArray<mu::FResourceID>, TWeakObjectPtr<USkeletalMesh>> GeneratedMeshes;
+};
 
 
 class FCustomizableObjectPrivateData
@@ -35,5 +50,8 @@ public:
 	bool bModelCompiledForCook = false;
 	TArray<FString> CachedPlatformNames;
 #endif
+
+	/** Cache of generated SkeletalMeshes */
+	FMeshCache MeshCache;
 };
 

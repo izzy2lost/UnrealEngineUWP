@@ -400,12 +400,15 @@ struct FPendingTextureCoverageQuery
 /** Update Context.
  *
  * Alive from the start to the end of the update (both API and LOD update). */
-class FUpdateContextPrivate
+class FUpdateContextPrivate : public FGCObject
 {
 public:
 	FUpdateContextPrivate(UCustomizableObjectInstance& InInstance);
-	~FUpdateContextPrivate();
+	virtual ~FUpdateContextPrivate() override;
 
+	virtual FString GetReferencerName() const override;
+	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
+	
 	EQueuePriorityType PriorityType = EQueuePriorityType::Low;
 	
 	FInstanceUpdateDelegate UpdateCallback;
@@ -442,11 +445,14 @@ public:
 	/** When this option is enabled it will reuse the Mutable core instance and its temp data between updates.  */
 	bool bLiveUpdateMode = false;
 	bool bReuseInstanceTextures = false;
+	bool bUseMeshCache = false;
 	
 	/** This option comes from the operation request. It is used to reduce the number of mipmaps that mutable must generate for images.  */
 	int32 MipsToSkip = 0;
 
-	mu::Instance::ID InstanceID = 0;
+	mu::Instance::ID InstanceID = 0; // Redundant
+	const mu::Instance* MutableInstance = nullptr;
+
 	int32 CurrentMinLOD = 0;
 	int32 CurrentMaxLOD = 0;
 	int32 NumLODsAvailable = 0;
@@ -465,6 +471,9 @@ public:
 
 	mu::FImageOperator::FImagePixelFormatFunc PixelFormatOverride;
 
+	/** Mutable Meshes required for each component. Outermost index is the component, inner index is the LOD. */
+	TArray<TArray<mu::FResourceID>> MeshDescriptors;
+	
 	bool UpdateStarted = false;
 
 	// Update stats
@@ -481,6 +490,9 @@ public:
 	/** Used for profiling in the editor. */
 	uint32 MutableRuntimeCycles = 0;
 #endif
+
+	/** Hard references to objects. Avoids GC to collect them. */
+	TArray<TObjectPtr<const UObject>> Objects;
 };
 
 
@@ -525,7 +537,7 @@ public:
 	// The pending instance updates, discards or releases
 	FMutablePendingInstanceWork MutablePendingInstanceWork;
 
-	// Queue of game-thread tasks that need to be executed for the current operation
+	// Queue of game-thread tasks that need to be executed for the current operation. TQueue is thread safe
 	TQueue<FMutableTask> PendingTasks;
 
 	static int32 EnableMutableProgressiveMipStreaming;

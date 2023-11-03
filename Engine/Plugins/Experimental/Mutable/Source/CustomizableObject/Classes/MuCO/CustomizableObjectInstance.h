@@ -19,6 +19,7 @@ class UCustomizableObject;
 class UTexture2D;
 class FUpdateContextPrivate;
 class UCustomizableObjectInstanceUsage;
+class UMaterialInterface;
 struct FFrame;
 struct FGameplayTagContainer;
 struct FPropertyChangedEvent;
@@ -593,6 +594,8 @@ public:
 
 	void AdditionalAssetsAsyncLoaded( FGraphEventRef CompletionEvent );
 
+	const TArray<TObjectPtr<UMaterialInterface>>* GetOverrideMaterials(int32 ComponentIndex) const;
+	
 	// The following methods should only be used in an LOD management class
 	void SetIsBeingUsedByComponentInPlay(bool bIsUsedByComponent );
 	bool GetIsBeingUsedByComponentInPlay() const;

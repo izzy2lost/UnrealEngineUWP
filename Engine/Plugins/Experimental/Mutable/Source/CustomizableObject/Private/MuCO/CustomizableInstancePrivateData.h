@@ -159,6 +159,9 @@ struct FCustomizableInstanceComponentData
 	 *  Size == NumLODsAvailable
 	 *  LODs without mesh will be set to the maximum value of FResourceID (Max_uint64). */
 	TArray<mu::FResourceID> LastMeshIdPerLOD;
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UMaterialInterface>> OverrideMaterials;
 };
 
 USTRUCT()

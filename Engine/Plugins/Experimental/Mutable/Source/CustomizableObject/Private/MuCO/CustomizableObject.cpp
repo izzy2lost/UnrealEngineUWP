@@ -1866,6 +1866,12 @@ bool UCustomizableObject::IsEnableUseRefSkeletalMeshAsPlaceholder() const
 }
 
 
+bool UCustomizableObject::IsMeshCacheEnabled() const
+{
+	return bEnableMeshCache;
+}
+
+
 FGuid UCustomizableObject::GetCompilationGuid() const
 {
 	return CompilationGuid;
@@ -1875,6 +1881,33 @@ FGuid UCustomizableObject::GetCompilationGuid() const
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
+
+USkeletalMesh* FMeshCache::Get(const TArray<mu::FResourceID>& Key)
+{
+	const TWeakObjectPtr<USkeletalMesh>* Result = GeneratedMeshes.Find(Key);
+	return Result ? Result->Get() : nullptr;
+}
+
+
+void FMeshCache::Add(const TArray<mu::FResourceID>& Key, USkeletalMesh* Value)
+{
+	if (!Value)
+	{
+		return;
+	}
+	
+	GeneratedMeshes.Add(Key, Value);
+
+	// Remove invalid SkeletalMeshes from the cache.
+	for (auto MeshIterator = GeneratedMeshes.CreateIterator(); MeshIterator; ++MeshIterator)
+	{
+		if (MeshIterator.Value().IsStale())
+		{
+			MeshIterator.RemoveCurrent();
+		}
+	}	
+}
+
 
 void FCustomizableObjectPrivateData::SetModel(const TSharedPtr<mu::Model, ESPMode::ThreadSafe>& Model, const FGuid Id)
 {

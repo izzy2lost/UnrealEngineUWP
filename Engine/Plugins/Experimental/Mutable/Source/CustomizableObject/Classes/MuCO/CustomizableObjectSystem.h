@@ -45,6 +45,8 @@ extern TAutoConsoleVariable<bool> CVarReuseImagesBetweenInstances;
 
 extern TAutoConsoleVariable<bool> CVarPreserveUserLODsOnFirstGeneration;
 
+extern TAutoConsoleVariable<bool> CVarEnableMeshCache;
+
 #if WITH_EDITOR
 
 // Struct used to keep a copy of the EditorSettings needed to compile Customizable Objects.

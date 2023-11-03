@@ -96,6 +96,13 @@ TAutoConsoleVariable<bool> CVarPreserveUserLODsOnFirstGeneration(
 	ECVF_Scalability);
 
 
+TAutoConsoleVariable<bool> CVarEnableMeshCache(
+	TEXT("mutable.EnableMeshCache"),
+	true,
+	TEXT("Enables or disables the reuse of meshes."),
+	ECVF_Scalability);
+
+
 int32 FCustomizableObjectSystemPrivate::SkeletalMeshMinLodQualityLevel = -1;
 
 static void CVarMutableSinkFunction()
@@ -137,6 +144,18 @@ FUpdateContextPrivate::FUpdateContextPrivate(UCustomizableObjectInstance& InInst
 FUpdateContextPrivate::~FUpdateContextPrivate()
 {
 	UnCacheTexturesParameters(TextureParameters);
+}
+
+
+FString FUpdateContextPrivate::GetReferencerName() const
+{
+	return TEXT("FUpdateContextPrivate");
+}
+
+
+void FUpdateContextPrivate::AddReferencedObjects(FReferenceCollector& Collector)
+{
+	Collector.AddReferencedObjects(Objects);
 }
 
 
@@ -589,7 +608,6 @@ static FAutoConsoleVariableRef CVarEnableMutableAnimInfoDebugging(
 
 void FCustomizableObjectSystemPrivate::AddGameThreadTask(const FMutableTask& Task)
 {
-	check(IsInGameThread())
 	PendingTasks.Enqueue(Task);
 }
 
@@ -1569,6 +1587,58 @@ namespace impl
 	}
 
 
+	void CreateMutableInstance(const TSharedRef<FUpdateContextPrivate>& Operation)
+	{
+		UCustomizableObjectSystem* System = UCustomizableObjectSystem::GetInstanceChecked(); // Save since UCustomizableObjectSystem::BeginDestroy always waits for all tasks to finish
+		const FCustomizableObjectSystemPrivate* SystemPrivate = System->GetPrivateChecked();
+		
+		const mu::Ptr<mu::System> MutableSystem = SystemPrivate->MutableSystem;
+
+		const TSharedPtr<mu::Model> Model = Operation->Instance->GetCustomizableObject()->GetPrivate()->GetModel();
+
+		if (Operation->bLiveUpdateMode)
+		{
+			if (Operation->InstanceID == 0)
+			{
+				// It's the first update since the instance was put in LiveUpdate Mode, this ID will be reused from now on
+				Operation->InstanceID = MutableSystem->NewInstance(Model);
+				UE_LOG(LogMutable, Verbose, TEXT("Creating Mutable instance with id [%d] for reuse "), Operation->InstanceID);
+			}
+			else
+			{
+				// The instance was already in LiveUpdate Mode, the ID is reused
+				check(Operation->InstanceID);
+				UE_LOG(LogMutable, Verbose, TEXT("Reusing Mutable instance with id [%d] "), Operation->InstanceID);
+			}
+		}
+		else
+		{
+			// In non-LiveUpdate mode, we are forcing the recreation of mutable-side instances with every update.
+			check(Operation->InstanceID == 0);
+			Operation->InstanceID = MutableSystem->NewInstance(Model);
+			UE_LOG(LogMutable, Verbose, TEXT("Creating Mutable instance with id [%d] "), Operation->InstanceID);
+		}
+
+		Operation->MutableInstance = MutableSystem->BeginUpdate(Operation->InstanceID, Operation->Parameters, Operation->State, mu::System::AllLODs); // TODO GMT possible data race between GameThread and MutableThread
+	}
+
+	
+	void FixLODs(const TSharedRef<FUpdateContextPrivate>& Operation)
+	{
+		Operation->NumLODsAvailable = Operation->MutableInstance->GetLODCount();
+
+		if (Operation->CurrentMinLOD >= Operation->NumLODsAvailable)
+		{
+			Operation->CurrentMinLOD = Operation->NumLODsAvailable - 1;
+			Operation->CurrentMaxLOD = Operation->CurrentMinLOD;
+		}
+		else if (Operation->CurrentMaxLOD >= Operation->NumLODsAvailable)
+		{
+			Operation->CurrentMaxLOD = Operation->NumLODsAvailable - 1;
+		}
+	}
+	
+	
 	// This runs in the mutable thread.
 	void Subtask_Mutable_BeginUpdate_GetMesh(const TSharedRef<FUpdateContextPrivate>& OperationData, TSharedPtr<mu::Model> Model)
 	{
@@ -1587,55 +1657,24 @@ namespace impl
 
 		CustomizableObjectInstancePrivateData->PassThroughTexturesToLoad.Empty();
 
-		if (OperationData->bLiveUpdateMode)
-		{
-			if (OperationData->InstanceID == 0)
-			{
-				// It's the first update since the instance was put in LiveUpdate Mode, this ID will be reused from now on
-				OperationData->InstanceID = System->NewInstance(Model);
-				UE_LOG(LogMutable, Verbose, TEXT("Creating Mutable instance with id [%d] for reuse "), OperationData->InstanceID);
-			}
-			else
-			{
-				// The instance was already in LiveUpdate Mode, the ID is reused
-				check(OperationData->InstanceID);
-				UE_LOG(LogMutable, Verbose, TEXT("Reusing Mutable instance with id [%d] "), OperationData->InstanceID);
-			}
-		}
-		else
-		{
-			// In non-LiveUpdate mode, we are forcing the recreation of mutable-side instances with every update.
-			check(OperationData->InstanceID == 0);
-			OperationData->InstanceID = System->NewInstance(Model);
-			UE_LOG(LogMutable, Verbose, TEXT("Creating Mutable instance with id [%d] "), OperationData->InstanceID);
-		}
-
-		check(OperationData->InstanceID != 0);
-
 		if (OperationData->PixelFormatOverride)
 		{
 			System->SetImagePixelConversionOverride( OperationData->PixelFormatOverride );
 		}
 
+		if (!OperationData->bUseMeshCache)
+		{
+			CreateMutableInstance(OperationData);
+			FixLODs(OperationData);
+		}
+
 		// Main instance generation step
 		// LOD mask, set to all ones to build  all LODs
-		const mu::Instance* Instance = System->BeginUpdate(OperationData->InstanceID, OperationData->Parameters, OperationData->State, mu::System::AllLODs);
+		const mu::Instance* Instance = OperationData->MutableInstance; // TODO GMTFuture remove
 		if (!Instance)
 		{
 			UE_LOG(LogMutable, Warning, TEXT("An Instace update has failed."));
 			return;
-		}
-
-		OperationData->NumLODsAvailable = Instance->GetLODCount();
-
-		if (OperationData->CurrentMinLOD >= OperationData->NumLODsAvailable)
-		{
-			OperationData->CurrentMinLOD = OperationData->NumLODsAvailable - 1;
-			OperationData->CurrentMaxLOD = OperationData->CurrentMinLOD;
-		}
-		else if (OperationData->CurrentMaxLOD >= OperationData->NumLODsAvailable)
-		{
-			OperationData->CurrentMaxLOD = OperationData->NumLODsAvailable - 1;
 		}
 
 		if (!OperationData->RequestedLODs.IsEmpty())
@@ -2225,6 +2264,7 @@ namespace impl
 			{
 				MutableSystem->ReleaseInstance(OperationData->InstanceID);
 				OperationData->InstanceID = 0;
+				OperationData->MutableInstance = nullptr;
 			}
 		}
 
@@ -2632,6 +2672,83 @@ namespace impl
 	}
 
 
+	void Task_Game_LockMeshCache(const TSharedRef<FUpdateContextPrivate>& Operation)
+	{
+		MUTABLE_CPUPROFILER_SCOPE(Task_Game_LockMeshCache);
+
+		UCustomizableObjectSystem* System = UCustomizableObjectSystem::GetInstanceChecked();
+		FCustomizableObjectSystemPrivate* SystemPrivate = System->GetPrivateChecked();
+
+		const UCustomizableObject* CustomizableObject = Operation->Instance->GetCustomizableObject();
+		FCustomizableObjectPrivateData* CustomizableObjectPrivate = CustomizableObject->GetPrivate();
+		
+		for (const TArray<mu::FResourceID>& MeshId : Operation->MeshDescriptors)
+		{
+			if (USkeletalMesh* CachedMesh = CustomizableObject->GetPrivate()->MeshCache.Get(MeshId))
+			{
+				Operation->Objects.Add(CachedMesh);
+			}
+		}
+
+		// Task inputs
+		TSharedPtr<mu::Model> Model = CustomizableObject->GetPrivate()->GetModel();
+
+#ifdef MUTABLE_USE_NEW_TASKGRAPH
+		UE::Tasks::FTask Dependency;
+#else
+		FGraphEventRef Dependency;
+#endif
+		
+		Dependency = SystemPrivate->MutableTaskGraph.AddMutableThreadTask(
+			TEXT("Task_Mutable_Update_GetMesh"),
+			[Operation, Model]()
+			{
+				impl::Task_Mutable_Update_GetMesh(Operation, Model);
+			});
+
+		SystemPrivate->AddGameThreadTask(
+			{
+			FMutableTaskDelegate::CreateLambda(
+				[Operation]()
+				{
+					impl::Task_Game_LockCache(Operation);
+				}),
+				Dependency,
+			});
+	}
+	
+
+	void Task_Mutable_GetMeshID(const TSharedRef<FUpdateContextPrivate>& Operation)
+	{
+		MUTABLE_CPUPROFILER_SCOPE(Task_Mutable_GetMeshID);
+
+
+		UCustomizableObjectSystem* System = UCustomizableObjectSystem::GetInstanceChecked(); // Save since UCustomizableObjectSystem::BeginDestroy always waits for all tasks to finish
+		FCustomizableObjectSystemPrivate* SystemPrivate = System->GetPrivateChecked();
+		
+		CreateMutableInstance(Operation);
+		FixLODs(Operation);
+
+		const int32 NumComponents = Operation->Instance->GetCustomizableObject()->GetComponentCount();
+
+		Operation->MeshDescriptors.SetNum(NumComponents);
+
+		for (int32 ComponentIndex = 0; ComponentIndex < NumComponents; ++ComponentIndex)
+		{
+			TArray<mu::FResourceID>& MeshId = Operation->MeshDescriptors[ComponentIndex];
+			MeshId.Init(MAX_uint64, MAX_MESH_LOD_COUNT);
+			
+			for (int32 LODIndex = Operation->CurrentMinLOD; LODIndex <= Operation->CurrentMaxLOD; ++LODIndex)
+			{
+				const bool bGenerateLOD = Operation->RequestedLODs.IsValidIndex(ComponentIndex) ? (Operation->RequestedLODs[ComponentIndex] & (1 << LODIndex)) != 0 : true;
+				if (bGenerateLOD)
+				{
+					MeshId[LODIndex] = Operation->MutableInstance->GetMeshId(LODIndex, ComponentIndex, 0);
+				}
+			}
+		}
+	}
+	
 	/** "Start Update" */
 	void Task_Game_StartUpdate(const TSharedRef<FUpdateContextPrivate>& Operation)
 	{
@@ -2788,6 +2905,7 @@ namespace impl
 		Operation->CurrentMinLOD = Operation->InstanceDescriptorRuntimeHash.GetMinLOD();
 		Operation->CurrentMaxLOD = Operation->InstanceDescriptorRuntimeHash.GetMaxLOD();
 		Operation->InstanceID = Operation->bLiveUpdateMode ? CandidateInstancePrivateData->LiveUpdateModeInstanceID : 0;
+		Operation->bUseMeshCache = CustomizableObject->IsMeshCacheEnabled() && !Operation->bLiveUpdateMode && CVarEnableMeshCache.GetValueOnGameThread();
 #if WITH_EDITOR
 		Operation->PixelFormatOverride = SystemPrivateData->ImageFormatOverrideFunc;
 #endif
@@ -2844,6 +2962,27 @@ namespace impl
 #else
 		FGraphEventRef Mutable_GetMeshTask;
 #endif
+		
+		if (Operation->bUseMeshCache)
+		{
+			Mutable_GetMeshTask = SystemPrivateData->MutableTaskGraph.AddMutableThreadTask(
+				TEXT("Task_Mutable_GetMeshID"),
+				[Operation]()
+				{
+					impl::Task_Mutable_GetMeshID(Operation);
+				});
+
+			SystemPrivateData->AddGameThreadTask( // TODO GMTFuture GameThread task instead of a tick task
+				{
+				FMutableTaskDelegate::CreateLambda(
+					[Operation]()
+					{
+						impl::Task_Game_LockMeshCache(Operation);
+					}),
+					Mutable_GetMeshTask
+				});
+		}
+		else
 		{
 			// Task inputs
 			TSharedPtr<mu::Model> Model = CustomizableObject->GetPrivate()->GetModel();
@@ -2854,22 +2993,21 @@ namespace impl
 				{
 					impl::Task_Mutable_Update_GetMesh(Operation, Model);
 				});
-		}
 
-
-		// Task: Lock cache
-		//-------------------------------------------------------------
-		{
-			// Task inputs
-			SystemPrivateData->AddGameThreadTask(
-				{
-				FMutableTaskDelegate::CreateLambda(
-					[Operation]()
+			// Task: Lock cache
+			//-------------------------------------------------------------
+			{
+				// Task inputs
+				SystemPrivateData->AddGameThreadTask(
 					{
-						impl::Task_Game_LockCache(Operation);
-					}),
-				Mutable_GetMeshTask
-				});
+					FMutableTaskDelegate::CreateLambda(
+						[Operation]()
+						{
+							impl::Task_Game_LockCache(Operation);
+						}),
+					Mutable_GetMeshTask
+					});
+			}
 		}
 	}
 } // namespace impl
