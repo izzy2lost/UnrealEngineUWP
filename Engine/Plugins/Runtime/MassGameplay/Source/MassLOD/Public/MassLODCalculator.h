@@ -14,7 +14,9 @@
 template <typename FLODLogic = FLODDefaultLogic >
 struct TMassLODCalculator : public FMassLODBaseLogic
 {
-public:
+	TMassLODCalculator()
+		: FMassLODBaseLogic(/*bShouldBuildFrustumData=*/FLODLogic::bDoVisibilityLogic)
+	{}
 
 	/**
 	 * Initializes the LOD calculator, needed to be called once at initialization time

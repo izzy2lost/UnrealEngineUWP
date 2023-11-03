@@ -64,21 +64,30 @@ void UMassLODDistanceCollectorProcessor::CollectLODForChunk(FMassExecutionContex
 	TConstArrayView<FTransformFragment> LocationList = Context.GetFragmentView<FTransformFragment>();
 	TArrayView<FMassViewerInfoFragment> ViewerInfoList = Context.GetMutableFragmentView<FMassViewerInfoFragment>();
 
-	Collector.CollectLODInfo<FTransformFragment, FMassViewerInfoFragment, bLocalViewersOnly, true/*bCollectDistanceToViewer*/>(Context, LocationList, ViewerInfoList);
+	Collector.CollectLODInfo<FTransformFragment, FMassViewerInfoFragment, bLocalViewersOnly, false/*bCollectDistanceToFrustum*/>(Context, LocationList, ViewerInfoList);
 }
 
 template <bool bLocalViewersOnly>
 void UMassLODDistanceCollectorProcessor::ExecuteInternal(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
 {
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(Close);
-		EntityQuery_RelevantRangeAndOnLOD.ForEachEntityChunk(EntityManager, Context, [this](FMassExecutionContext& Context) { CollectLODForChunk<bLocalViewersOnly>(Context); });
-		EntityQuery_RelevantRangeOnly.ForEachEntityChunk(EntityManager, Context, [this](FMassExecutionContext& Context) { CollectLODForChunk<bLocalViewersOnly>(Context); });
-		EntityQuery_OnLODOnly.ForEachEntityChunk(EntityManager, Context, [this](FMassExecutionContext& Context) { CollectLODForChunk<bLocalViewersOnly>(Context); });
+		TRACE_CPUPROFILER_EVENT_SCOPE(LODDistanceCollector_Close);
+		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(LODDistanceCollector_Close_RelevantRangeAndOnLOD);
+			EntityQuery_RelevantRangeAndOnLOD.ForEachEntityChunk(EntityManager, Context, [this](FMassExecutionContext& Context) { CollectLODForChunk<bLocalViewersOnly>(Context); });
+		}
+		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(LODDistanceCollector_Close_OnLODOnly);
+			EntityQuery_RelevantRangeOnly.ForEachEntityChunk(EntityManager, Context, [this](FMassExecutionContext& Context) { CollectLODForChunk<bLocalViewersOnly>(Context); });
+		}
+		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(LODDistanceCollector_Close_OnLODOnly);
+			EntityQuery_OnLODOnly.ForEachEntityChunk(EntityManager, Context, [this](FMassExecutionContext& Context) { CollectLODForChunk<bLocalViewersOnly>(Context); });
+		}
 	}
 
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(Far);
+		TRACE_CPUPROFILER_EVENT_SCOPE(LODDistanceCollector_Far);
 		EntityQuery_NotRelevantRangeAndOffLOD.ForEachEntityChunk(EntityManager, Context, [this](FMassExecutionContext& Context) { CollectLODForChunk<bLocalViewersOnly>(Context); });
 	}
 }

@@ -60,7 +60,7 @@ void UMassLODCollectorProcessor::CollectLODForChunk(FMassExecutionContext& Conte
 	TConstArrayView<FTransformFragment> LocationList = Context.GetFragmentView<FTransformFragment>();
 	TArrayView<FMassViewerInfoFragment> ViewerInfoList = Context.GetMutableFragmentView<FMassViewerInfoFragment>();
 
-	Collector.CollectLODInfo<FTransformFragment, FMassViewerInfoFragment, bLocalViewersOnly, true/*bCollectDistanceToViewer*/>(Context, LocationList, ViewerInfoList);
+	Collector.CollectLODInfo<FTransformFragment, FMassViewerInfoFragment, bLocalViewersOnly, true/*bCollectDistanceToFrustum*/>(Context, LocationList, ViewerInfoList);
 }
 
 template <bool bLocalViewersOnly>

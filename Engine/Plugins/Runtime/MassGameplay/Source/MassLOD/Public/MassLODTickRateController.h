@@ -14,6 +14,9 @@ template <typename TVariableTickChunkFragment, typename FLODLogic = FLODDefaultL
 struct TMassLODTickRateController : public FMassLODBaseLogic
 {
 public:
+	TMassLODTickRateController()
+		: FMassLODBaseLogic(/*bShouldBuildFrustumData=*/false)
+	{}
 
 	/**
 	 * Initializes the LOD trick rate controller, needed to be called once at initialization time (Only when FLODLogic::bDoVariableTickRate is enabled)

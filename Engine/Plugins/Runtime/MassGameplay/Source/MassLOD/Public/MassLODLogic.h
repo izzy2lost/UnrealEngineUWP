@@ -160,6 +160,10 @@ struct FViewerLODInfo
  */
 struct MASSLOD_API FMassLODBaseLogic
 {
+	FMassLODBaseLogic(bool bShouldBuildFrustumData)
+		: bBuildFrustumData(bShouldBuildFrustumData)
+	{}
+
 protected:
 	void CacheViewerInformation(TConstArrayView<FViewerInfo> ViewerInfos);
 
@@ -184,4 +188,11 @@ protected:
 	DECLARE_CONDITIONAL_MEMBER_ARRAY_ACCESSORS(Condition, EMassVisibility, PrevVisibilityPerViewer);
 
 	TArray<FViewerLODInfo> Viewers;
+
+private:
+	/** 
+	 * Setting to false will prevent costly FViewerLODInfo.Frustum creation. Makes sense only if that data is not required.
+	 * Note that this property is not expected to be changed at runtime.
+	 */
+	bool bBuildFrustumData = true;
 };
