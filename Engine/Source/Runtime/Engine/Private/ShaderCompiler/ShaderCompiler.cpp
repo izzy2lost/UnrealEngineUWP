@@ -10361,11 +10361,18 @@ FShaderJobCacheRef FShaderJobCache::FindOrAdd(const FJobInputHash& Hash, EShader
 			static const bool PerShaderDDCAsync = CVarShaderCompilerPerShaderDDCAsync.GetValueOnAnyThread();
 			if (PerShaderDDCAsync && FGenericPlatformProcess::SupportsMultithreading())
 			{
-				switch (JobPriority)
+				if (IsRunningCookCommandlet())
 				{
-				case EShaderCompileJobPriority::Low:		DerivedDataPriority = UE::DerivedData::EPriority::Low;		break;
-				case EShaderCompileJobPriority::Normal:		DerivedDataPriority = UE::DerivedData::EPriority::Normal;	break;
-				default:									DerivedDataPriority = UE::DerivedData::EPriority::Highest;	break;
+					DerivedDataPriority = UE::DerivedData::EPriority::Highest;
+				}
+				else
+				{
+					switch (JobPriority)
+					{
+					case EShaderCompileJobPriority::Low:		DerivedDataPriority = UE::DerivedData::EPriority::Low;		break;
+					case EShaderCompileJobPriority::Normal:		DerivedDataPriority = UE::DerivedData::EPriority::Normal;	break;
+					default:									DerivedDataPriority = UE::DerivedData::EPriority::Highest;	break;
+					}
 				}
 				InoutRequestOwner = MakePimpl<UE::DerivedData::FRequestOwner>(DerivedDataPriority);
 				RequestOwner = InoutRequestOwner.Get();
