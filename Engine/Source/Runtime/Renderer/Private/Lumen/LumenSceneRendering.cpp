@@ -1124,6 +1124,14 @@ void UpdateSurfaceCacheMeshCards(
 		},
 		!bExecuteInParallel);
 
+	uint32 TotalSurfaceCacheRequests = 0;
+	for (int32 TaskIndex = 0; TaskIndex < Tasks.Num(); ++TaskIndex)
+	{
+		const FLumenSurfaceCacheUpdateMeshCardsTask& Task = Tasks[TaskIndex];
+		TotalSurfaceCacheRequests += Task.SurfaceCacheRequests.Num();
+	}
+	SurfaceCacheRequests.Reserve(TotalSurfaceCacheRequests);
+
 	for (int32 TaskIndex = 0; TaskIndex < Tasks.Num(); ++TaskIndex)
 	{
 		const FLumenSurfaceCacheUpdateMeshCardsTask& Task = Tasks[TaskIndex];
@@ -1131,8 +1139,6 @@ void UpdateSurfaceCacheMeshCards(
 
 		// Append requests to the global array
 		{
-			SurfaceCacheRequests.Reserve(SurfaceCacheRequests.Num() + Task.SurfaceCacheRequests.Num());
-
 			for (int32 RequestIndex = 0; RequestIndex < Task.SurfaceCacheRequests.Num(); ++RequestIndex)
 			{
 				SurfaceCacheRequests.Add(Task.SurfaceCacheRequests[RequestIndex]);
