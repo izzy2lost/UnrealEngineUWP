@@ -197,7 +197,7 @@ struct
 	}
 	FORCEINLINE bool IsMaybeUnreachable() const
 	{
-		return !!(Flags & int32(EInternalObjectFlags::MaybeUnreachable));
+		return !!(GetFlagsInternal() & int32(EInternalObjectFlags::MaybeUnreachable));
 	}
 	FORCEINLINE bool ThisThreadAtomicallyClearedRFUnreachable()
 	{
