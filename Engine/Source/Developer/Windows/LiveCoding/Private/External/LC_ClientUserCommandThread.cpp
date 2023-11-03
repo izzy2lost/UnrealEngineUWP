@@ -18,7 +18,7 @@
 #include "LC_MemoryStream.h"
 // BEGIN EPIC MOD
 #include "LC_Platform.h"
-#include LC_PLATFORM_INCLUDE(LC_Foundation)
+#include "LC_Foundation_Windows.h"
 #include "LC_Thread.h"
 #include "LC_Logging.h"
 #include <deque>
