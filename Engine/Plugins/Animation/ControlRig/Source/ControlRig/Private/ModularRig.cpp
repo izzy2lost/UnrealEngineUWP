@@ -18,8 +18,14 @@ FRigModuleInstance::~FRigModuleInstance()
 	CachedChildren.Reset();
 	if (Rig && Rig.IsValid())
 	{
-		Rig->Rename(nullptr, GetTransientPackage(), REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
-		Rig->MarkAsGarbage();
+		static int32 ObjectIndexToBeDestroyed = 0;
+		static constexpr TCHAR ObjectNameFormat[] = TEXT("FRigModuleInstance_ObjectToBeDestroyed_%d");
+		const FString NewObjectName = FString::Printf(ObjectNameFormat, ObjectIndexToBeDestroyed++);
+		Rig->Rename(*NewObjectName, GetTransientPackage(), REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
+		if(!Rig->IsRooted())
+		{
+			Rig->MarkAsGarbage();
+		}
 		Rig = nullptr;
 	}
 }
@@ -174,7 +180,7 @@ FRigModuleInstance* UModularRig::AddModuleInstance(const FName& InModuleName, TS
 
 	FString Name = (InParent) ? InParent->Name.ToString() + NamespaceSeparator + InModuleName.ToString() : InModuleName.ToString();
 	FRigModuleInstance& NewModule = Modules.Add_GetRef(FRigModuleInstance());
-	NewModule.Rig = NewObject<UControlRig>(this, InModuleClass, *Name, RF_Transient | RF_Transactional);
+	NewModule.Rig = NewObject<UControlRig>(this, InModuleClass, *Name);
 	NewModule.Name = InModuleName;
 
 	if (InParent)

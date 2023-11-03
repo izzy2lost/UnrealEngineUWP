@@ -2280,7 +2280,8 @@ void UControlRigBlueprint::HandleRigModulesModified(EModularRigNotification InNo
 			const FString Namespace = InModule->GetNamespace();
 			for (TPair<FRigElementKey, FRigElementKey> Connection : InModule->Connections)
 			{
-				ConnectionMap.FindOrAdd(Connection.Key) = Connection.Value;
+				const FString NamespacedName = FString::Printf(TEXT("%s%s"), *Namespace, *Connection.Key.Name.ToString());
+				ConnectionMap.FindOrAdd(FRigElementKey(*NamespacedName, ERigElementType::Connector)) = Connection.Value;
 			}
 			HierarchyModifiedEvent.Broadcast(ERigHierarchyNotification::HierarchyReset, Hierarchy, nullptr);
 			break;
