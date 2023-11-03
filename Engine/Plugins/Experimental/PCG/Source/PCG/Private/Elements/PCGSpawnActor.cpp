@@ -33,121 +33,6 @@ static TAutoConsoleVariable<bool> CVarAllowActorReuse(
 	true,
 	TEXT("Controls whether PCG spawned actors can be reused and skipped when re-executing"));
 
-namespace PCGSpawnActorHelpers
-{
-	struct FActorSingleOverride
-	{
-		using ApplyOverrideFunction = TFunction<void(int32, const IPCGAttributeAccessorKeys&, IPCGAttributeAccessorKeys&)>;
-
-		FActorSingleOverride(const FPCGAttributePropertySelector& InputSelector, const FString& OutputProperty, AActor* TemplateActor, const UPCGPointData* PointData)
-		{
-			ActorOverrideInputAccessor = PCGAttributeAccessorHelpers::CreateConstAccessor(PointData, InputSelector);
-			FPCGAttributePropertySelector OutputSelector = FPCGAttributePropertySelector::CreateSelectorFromString(OutputProperty);
-			const TArray<FString>& ExtraNames = OutputSelector.GetExtraNames();
-			if (ExtraNames.IsEmpty())
-			{
-				ActorOverrideOutputAccessor = PCGAttributeAccessorHelpers::CreatePropertyAccessor(FName(OutputProperty), TemplateActor->GetClass());
-			}
-			else
-			{
-				TArray<FName> PropertyNames;
-				PropertyNames.Reserve(ExtraNames.Num() + 1);
-				PropertyNames.Add(OutputSelector.GetAttributeName());
-				for (const FString& Name : ExtraNames)
-				{
-					PropertyNames.Add(FName(Name));
-				}
-
-				ActorOverrideOutputAccessor = PCGAttributeAccessorHelpers::CreatePropertyChainAccessor(PropertyNames, TemplateActor->GetClass());
-			}
-
-			if (!ActorOverrideInputAccessor.IsValid() || !ActorOverrideOutputAccessor.IsValid())
-			{
-				UE_LOG(LogPCG, Warning, TEXT("ActorOverride from input %s or output %s is invalid or unsupported. Will be skipped."), *InputSelector.GetName().ToString(), *OutputSelector.GetDisplayText().ToString());
-				return;
-			}
-
-			if (!PCG::Private::IsBroadcastable(ActorOverrideInputAccessor->GetUnderlyingType(), ActorOverrideOutputAccessor->GetUnderlyingType()))
-			{
-				UE_LOG(LogPCG, Warning, TEXT("ActorOverride cannot set input %s to output %s. Types are incompatibles. Will be skipped."), *InputSelector.GetName().ToString(), *OutputSelector.GetDisplayText().ToString());
-				ActorOverrideInputAccessor.Reset();
-				ActorOverrideOutputAccessor.Reset();
-				return;
-			}
-
-			auto CreateGetterSetter = [this](auto Dummy)
-			{
-				using Type = decltype(Dummy);
-
-				ActorOverrideFunction = [this](int32 Index, const IPCGAttributeAccessorKeys& InputKeys, IPCGAttributeAccessorKeys& OutputKey)
-				{
-					if (!IsValid())
-					{
-						return;
-					}
-
-					Type Value{};
-					if (ActorOverrideInputAccessor->Get<Type>(Value, Index, InputKeys, EPCGAttributeAccessorFlags::AllowBroadcast))
-					{
-						ActorOverrideOutputAccessor->Set<Type>(Value, OutputKey);
-					}
-				};
-			};
-
-			PCGMetadataAttribute::CallbackWithRightType(ActorOverrideOutputAccessor->GetUnderlyingType(), CreateGetterSetter);
-		}
-
-		bool IsValid() const
-		{
-			return ActorOverrideInputAccessor.IsValid() && ActorOverrideOutputAccessor.IsValid() && ActorOverrideFunction;
-		}
-
-		void Apply(int32 Index, const IPCGAttributeAccessorKeys& InputKeys, IPCGAttributeAccessorKeys& OutputKey)
-		{
-			ActorOverrideFunction(Index, InputKeys, OutputKey);
-		}
-
-	private:
-		TUniquePtr<const IPCGAttributeAccessor> ActorOverrideInputAccessor;
-		TUniquePtr<IPCGAttributeAccessor> ActorOverrideOutputAccessor;
-		ApplyOverrideFunction ActorOverrideFunction;
-	};
-
-	struct FActorOverrides
-	{
-		FActorOverrides(const TArray<FPCGActorPropertyOverride>& Overrides, AActor* TemplateActor, const UPCGPointData* PointData)
-			: InputKeys(PointData->GetPoints())
-			, OutputKey(TemplateActor)
-		{
-			ActorSingleOverrides.Reserve(Overrides.Num());
-
-			for (int32 i = 0; i < Overrides.Num(); ++i)
-			{
-				FPCGAttributePropertyInputSelector InputSelector = Overrides[i].InputSource.CopyAndFixLast(PointData);
-				const FString& OutputProperty = Overrides[i].PropertyTarget;
-
-				ActorSingleOverrides.Emplace(InputSelector, OutputProperty, TemplateActor, PointData);
-			}
-		}
-
-		void Apply(int32 Index)
-		{
-			for (FActorSingleOverride& ActorSingleOverride : ActorSingleOverrides)
-			{
-				if (ActorSingleOverride.IsValid())
-				{
-					ActorSingleOverride.Apply(Index, InputKeys, OutputKey);
-				}
-			}
-		}
-
-	private:
-		FPCGAttributeAccessorKeysPoints InputKeys;
-		FPCGAttributeAccessorKeysSingleObjectPtr<AActor> OutputKey;
-		TArray<FActorSingleOverride> ActorSingleOverrides;
-	};
-}
-
 class FPCGSpawnActorPartitionByAttribute : public FPCGPointDataPartitionBase<FPCGSpawnActorPartitionByAttribute, TSubclassOf<AActor>>
 {
 public:
@@ -320,6 +205,16 @@ void UPCGSpawnActorSettings::PostLoad()
 	{
 		GenerationTrigger = bGenerationTrigger_DEPRECATED;
 		bGenerationTrigger_DEPRECATED = EPCGSpawnActorGenerationTrigger::Default;
+	}
+
+	if (!ActorOverrides_DEPRECATED.IsEmpty())
+	{
+		for (const FPCGActorPropertyOverride& Override : ActorOverrides_DEPRECATED)
+		{
+			SpawnedActorPropertyOverrideDescriptions.Emplace(Override.InputSource, Override.PropertyTarget);
+		}
+
+		ActorOverrides_DEPRECATED.Empty();
 	}
 
 	// Since the template actor editing is set to false by default, this needs to be corrected on post-load for proper deprecation
@@ -820,7 +715,7 @@ void FPCGSpawnActorElement::SpawnActors(FPCGSubgraphContext* Context, AActor* Ta
 	AActor* TemplateActor = nullptr;
 	if (InTemplateActor)
 	{
-		if (Settings->ActorOverrides.IsEmpty())
+		if (Settings->SpawnedActorPropertyOverrideDescriptions.IsEmpty())
 		{
 			TemplateActor = InTemplateActor;
 		}
@@ -831,7 +726,7 @@ void FPCGSpawnActorElement::SpawnActors(FPCGSubgraphContext* Context, AActor* Ta
 	}
 	else
 	{
-		if (Settings->ActorOverrides.IsEmpty())
+		if (Settings->SpawnedActorPropertyOverrideDescriptions.IsEmpty())
 		{
 			TemplateActor = Cast<AActor>(InTemplateActorClass->GetDefaultObject());
 		}
@@ -843,7 +738,8 @@ void FPCGSpawnActorElement::SpawnActors(FPCGSubgraphContext* Context, AActor* Ta
 
 	check(TemplateActor);
 
-	PCGSpawnActorHelpers::FActorOverrides ActorOverrides(Settings->ActorOverrides, TemplateActor, PointData);
+	FPCGActorOverrides ActorOverrides(TemplateActor);
+	ActorOverrides.Initialize(Settings->SpawnedActorPropertyOverrideDescriptions, TemplateActor, PointData, Context);
 
 	FActorSpawnParameters SpawnParams;
 	SpawnParams.Template = TemplateActor;
@@ -931,11 +827,13 @@ void FPCGSpawnActorElement::SpawnActors(FPCGSubgraphContext* Context, AActor* Ta
 
 		const TArray<UFunction*> PostSpawnFunctions = PCGHelpers::FindUserFunctions(InTemplateActorClass, Settings->PostSpawnFunctionNames, Context);
 
+		bool bAllActorOverridesSucceeded = true;
+
 		for (int32 i = 0; i < Points.Num(); ++i)
 		{
 			const FPCGPoint& Point = Points[i];
 
-			ActorOverrides.Apply(i);
+			bAllActorOverridesSucceeded &= ActorOverrides.Apply(i);
 
 			AActor* GeneratedActor = TargetActor->GetWorld()->SpawnActor(InTemplateActorClass, &Point.Transform, SpawnParams);
 
@@ -969,6 +867,11 @@ void FPCGSpawnActorElement::SpawnActors(FPCGSubgraphContext* Context, AActor* Ta
 				OutPointData->Metadata->InitializeOnSet(OutPoint.MetadataEntry);
 				ActorReferenceAttribute->SetValue(OutPoint.MetadataEntry, FSoftObjectPath(GeneratedActor));
 			}
+		}
+
+		if (!bAllActorOverridesSucceeded)
+		{
+			PCGE_LOG(Error, GraphAndLog, LOCTEXT("ActorOverridesFailed", "At least one actor property override failed."));
 		}
 
 		Context->SourceComponent->AddToManagedResources(ManagedActors);
