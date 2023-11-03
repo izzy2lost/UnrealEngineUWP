@@ -1,5 +1,4 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
-#pragma once
 
 #include "MuCOE/CustomizableObjectEditorFunctionLibrary.h"
 #include "MuCOE/CustomizableObjectCompiler.h"
