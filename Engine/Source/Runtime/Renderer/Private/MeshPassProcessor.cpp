@@ -1708,7 +1708,7 @@ void SubmitMeshDrawCommandsRange(
 	//               we don't support dynamic instancing for this path since we require one primitive per draw command
 	//               This is because the stride on the instance data buffer is set to 0 so only the first will ever be fetched.
 	checkSlow(!bDynamicInstancing);
-	bDynamicInstancing = false;
+	bDynamicInstancing = false; //-V763
 
 	FMeshDrawCommandStateCache StateCache;
 	FMeshDrawCommandSceneArgs LocalSceneArgs = InSceneArgs;

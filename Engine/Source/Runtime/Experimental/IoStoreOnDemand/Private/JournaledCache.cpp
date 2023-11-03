@@ -605,8 +605,7 @@ FDiskCache::FDiskCache(FString&& Path, uint64 InMaxDataSize, uint32 InJournalSiz
 , Journal(BinPath, InJournalSize)
 {
 	// Align down to keep to some assumptions
-	InJournalSize = Journal.GetMaxSize();
-	MaxDataSize = (MaxDataSize - InJournalSize) & ~((1ull << 20) - 1);
+	MaxDataSize = (MaxDataSize - Journal.GetMaxSize()) & ~((1ull << 20) - 1);
 
 	OpenDataFile();
 	
