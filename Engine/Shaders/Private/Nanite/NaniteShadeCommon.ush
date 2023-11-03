@@ -9,6 +9,12 @@
 
 #include "NaniteAttributeDecode.ush"
 
+#if COMPILER_SUPPORTS_WAVE_32_64_MODE
+#define COMPUTE_MATERIAL_GROUP_SIZE 32
+#else
+#define COMPUTE_MATERIAL_GROUP_SIZE 64
+#endif
+
 uint PackQuadMask(bool4 Quad)
 {
 	// [X][Y]

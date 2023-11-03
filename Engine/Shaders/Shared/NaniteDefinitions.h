@@ -435,6 +435,13 @@ struct FNaniteShadingBinMeta
 	UINT_TYPE MaterialFlags;
 };
 
+struct FNaniteShadingBinScatterMeta
+{
+	UINT_TYPE RangeEnd;
+	UINT_TYPE FullTileElementCount;
+	UINT_TYPE LooseElementCount;
+};
+
 #if defined(__cplusplus)
 #define NANITE_SHADING_BIN_META_BYTES sizeof(FNaniteShadingBinMeta)
 #else

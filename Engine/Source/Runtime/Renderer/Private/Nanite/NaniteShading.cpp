@@ -296,6 +296,7 @@ class FShadingBinBuildCS : public FNaniteGlobalShader
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<FNaniteShadingBinStats>, OutShadingBinStats)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWByteAddressBuffer, OutShadingBinData)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWByteAddressBuffer, OutShadingBinArgs)
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<FNaniteShadingBinScatterMeta>, OutShadingBinScatterMeta)
 	END_SHADER_PARAMETER_STRUCT()
 
 private:
@@ -329,6 +330,7 @@ class FShadingBinReserveCS : public FNaniteGlobalShader
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWByteAddressBuffer, OutShadingBinData)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<uint>, OutShadingBinAllocator)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWByteAddressBuffer, OutShadingBinArgs)
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<FNaniteShadingBinScatterMeta>, OutShadingBinScatterMeta)
 	END_SHADER_PARAMETER_STRUCT()
 };
 IMPLEMENT_GLOBAL_SHADER(FShadingBinReserveCS, "/Engine/Private/Nanite/NaniteShadeBinning.usf", "ShadingBinReserveCS", SF_Compute);
@@ -1564,6 +1566,10 @@ FShadeBinning ShadeBinning(
 	FRDGBufferUAVRef ShadingBinDataUAV  = GraphBuilder.CreateUAV(Binning.ShadingBinData);
 	FRDGBufferUAVRef ShadingBinStatsUAV = bGatherStats ? GraphBuilder.CreateUAV(Binning.ShadingBinStats) : nullptr;
 
+	FRDGBufferRef ShadingBinScatterMetaBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(FNaniteShadingBinScatterMeta), ShadingBinCountPow2), TEXT("Nanite.ShadingBinScatterMeta"));
+	FRDGBufferUAVRef ShadingBinScatterMetaUAV = GraphBuilder.CreateUAV(ShadingBinScatterMetaBuffer);
+
+
 	if (bGatherStats)
 	{
 		AddClearUAVPass(GraphBuilder, ShadingBinStatsUAV, 0);
@@ -1670,6 +1676,7 @@ FShadeBinning ShadeBinning(
 		PassParameters->OutShadingBinAllocator = ShadingBinAllocatorUAV;
 		PassParameters->OutShadingBinArgs = ShadingBinArgsUAV;
 		PassParameters->OutShadingBinStats = ShadingBinStatsUAV;
+		PassParameters->OutShadingBinScatterMeta = ShadingBinScatterMetaUAV;
 
 		FShadingBinReserveCS::FPermutationDomain PermutationVector;
 		PermutationVector.Set<FShadingBinReserveCS::FGatherStatsDim>(bGatherStats);
@@ -1693,6 +1700,7 @@ FShadeBinning ShadeBinning(
 		PassParameters->OutShadingBinStats = ShadingBinStatsUAV;
 		PassParameters->OutShadingBinData = ShadingBinDataUAV;
 		PassParameters->OutShadingBinArgs = nullptr;
+		PassParameters->OutShadingBinScatterMeta = ShadingBinScatterMetaUAV;
 
 		FShadingBinBuildCS::FPermutationDomain PermutationVector;
 		PermutationVector.Set<FShadingBinBuildCS::FBuildPassDim>(NANITE_SHADING_BIN_SCATTER);

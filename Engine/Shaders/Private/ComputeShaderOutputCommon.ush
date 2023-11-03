@@ -8,6 +8,10 @@ through a single struct, allowing for a more readable code
 
 COMPILER_ALLOW_CS_DERIVATIVES
 
+#if IS_NANITE_PASS
+MAX_OCCUPANCY
+#endif
+
 #include "ShaderOutputCommon.ush"
 #include "GammaCorrectionCommon.ush"
 #include "VariableRateShading/VRSShadingRateCommon.ush"
@@ -294,7 +298,7 @@ void ProcessPixel(uint ShadingBin, const uint2 PixelPos, const float2 SVPosition
 	}
 }
 
-[numthreads(64, 1, 1)]
+[numthreads(COMPUTE_MATERIAL_GROUP_SIZE, 1, 1)]
 void MainCS(uint ThreadIndex : SV_GroupIndex, uint GroupID : SV_GroupID)
 {
 #if PLATFORM_SUPPORTS_SHADER_ROOT_CONSTANTS
@@ -307,7 +311,7 @@ void MainCS(uint ThreadIndex : SV_GroupIndex, uint GroupID : SV_GroupID)
 	const uint DataByteOffset	= PassData.z;
 #endif
 
-	const uint PixelIndex = (GroupID * 64u) + ThreadIndex;
+	const uint PixelIndex = (GroupID * COMPUTE_MATERIAL_GROUP_SIZE) + ThreadIndex;
 
 	const uint3 ShadingBinMeta = Nanite.ShadingBinData.Load3(ShadingBin * NANITE_SHADING_BIN_META_BYTES);
 	const uint ElementCount = ShadingBinMeta.x;
