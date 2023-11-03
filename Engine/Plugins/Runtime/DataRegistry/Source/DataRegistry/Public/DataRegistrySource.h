@@ -69,6 +69,9 @@ public:
 	/** Returns true if this is a runtime-only source */
 	virtual bool IsTransientSource() const;
 
+	/** Resets transient source so it can be correctly garbage collected */
+	virtual bool ResetTransientSource();
+
 	/** Returns the editor-defined source, which is either this or the parent source */
 	virtual UDataRegistrySource* GetOriginalSource();
 

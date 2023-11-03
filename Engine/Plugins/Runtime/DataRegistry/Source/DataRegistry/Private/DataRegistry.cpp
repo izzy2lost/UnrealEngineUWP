@@ -923,10 +923,6 @@ void UDataRegistry::RefreshRuntimeSources()
 		{
 			if (IsInitialized() && !Source->IsInitialized())
 			{
-				if (GUObjectArray.IsDisregardForGC(this))
-				{
-					Source->AddToRoot();
-				}
 				Source->Initialize();
 			}
 
@@ -935,16 +931,18 @@ void UDataRegistry::RefreshRuntimeSources()
 		}
 	}
 
-	// Uninitialize any orphaned sources
+	// Deinitialize any orphaned sources
 	for (int32 i = 0; i < OldRuntimeSources.Num(); i++)
 	{
 		UDataRegistrySource* OldSource = OldRuntimeSources[i];
 		if (OldSource && OldSource->IsInitialized() && !RuntimeSources.Contains(OldSource))
 		{
 			OldSource->Deinitialize();
-			if (GUObjectArray.IsDisregardForGC(this))
+
+			if (OldSource->IsTransientSource())
 			{
-				OldSource->RemoveFromRoot();
+				// Transient sources should have already been removed during RefreshRuntimeSources
+				UE_LOG(LogDataRegistry, Warning, TEXT("RefreshRuntimeSources found orphaned transient source %s for registry %s!"), *OldSource->GetPathName(), *RegistryType.ToString());
 			}
 		}
 	}
