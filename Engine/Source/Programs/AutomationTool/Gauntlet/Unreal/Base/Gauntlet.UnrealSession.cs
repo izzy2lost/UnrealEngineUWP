@@ -1195,6 +1195,19 @@ namespace Gauntlet
 					// By default we delete the source artifacts, but we keep them if requested
 					if (!bRetainArtifacts)
 					{
+						// Account for any read-only files.
+						void SetAttributesNormal(DirectoryInfo Directory)
+						{
+							foreach(FileInfo File in Directory.GetFiles())
+							{
+								File.Attributes = FileAttributes.Normal;
+							}
+							foreach(DirectoryInfo SubDirectory in Directory.GetDirectories())
+							{
+								SetAttributesNormal(SubDirectory);
+							}
+						};
+						SetAttributesNormal(SourceDirectory);
 						try
 						{
 							SourceDirectory.Delete(true);
