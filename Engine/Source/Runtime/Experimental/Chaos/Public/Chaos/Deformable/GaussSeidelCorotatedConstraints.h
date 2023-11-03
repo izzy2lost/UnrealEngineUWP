@@ -72,7 +72,7 @@ namespace Chaos::Softs
 				X_k.Init(TVector<T, 3>(T(0.)), ParticleEndIndex - ParticleStartIndex);
 			}
 			InitColor(InParticles);
-			InitializeLambdas();
+			InitializeCorotatedLambdas();
 		}
 
 		virtual ~FGaussSeidelCorotatedConstraints() {}
@@ -282,7 +282,7 @@ namespace Chaos::Softs
 			ParticlesPerColor = ComputeNodalColoring(MeshConstraints, Particles, ParticleStartIndex, ParticleEndIndex, IncidentElements, IncidentElementsLocal);
 		}
 
-		 virtual void InitializeLambdas()
+		 void InitializeCorotatedLambdas()
 		 {
 			 ComputeStress = [](const Chaos::PMatrix<T, 3, 3>& Fe, const T mu, const T lambda, Chaos::PMatrix<T, 3, 3>& P)
 			 {
