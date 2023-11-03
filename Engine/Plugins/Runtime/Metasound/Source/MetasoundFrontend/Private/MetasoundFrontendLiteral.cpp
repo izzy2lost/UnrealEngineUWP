@@ -598,7 +598,7 @@ bool FMetasoundFrontendLiteral::TryGet(int32& OutValue) const
 
 bool FMetasoundFrontendLiteral::TryGet(TArray<int32>& OutValue) const
 {
-	if (Type == EMetasoundFrontendLiteralType::Integer)
+	if (Type == EMetasoundFrontendLiteralType::IntegerArray)
 	{
 		OutValue = AsInteger;
 		return true;
