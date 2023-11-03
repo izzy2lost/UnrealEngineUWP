@@ -79,6 +79,7 @@ InnerMain(int Argc, char** Argv)
 	std::string				 ScavengeRootUtf8;
 	std::string				 P4HavePathUtf8;
 	std::string				 StorePathUtf8;
+	bool					 bRunP4Have			 = false;
 	bool					 bForceOperation	 = false;
 	bool					 bAllowInsecureTls	 = false;
 	bool					 bUseTls			 = false;
@@ -155,13 +156,27 @@ InnerMain(int Argc, char** Argv)
 
 	// Configure pack
 
-	CLI::App* SubPack = Cli.add_subcommand("pack", "EXPERIMENTAL: Generate manifest for a directory and store all referenced data in a compressed pack file");
-	SubPack->add_option("Input", InputFilenameUtf8, "Input directory path")->required();
-	SubPack->add_option("--p4havefile", P4HavePathUtf8, "Use `p4 have` output from a given file to explicitly specify files included in the manifest");
-	SubPack->add_option("--store",
-						StorePathUtf8,
-						"Use this location to store pack data (default: <Input>/.unsync/pack)");
-	SubCommands.push_back(SubPack);
+	CLI::App* SubPack = nullptr;
+	{
+		SubPack =
+			Cli.add_subcommand("pack",
+							   "EXPERIMENTAL: Generate manifest for a directory and store all referenced data in a compressed pack file");
+
+		SubPack->add_option("Input", InputFilenameUtf8, "Input directory path")->required();
+
+		auto P4HaveFileOpt =
+			SubPack->add_option("--p4havefile",
+								P4HavePathUtf8,
+								"Use `p4 have` output from a given file to explicitly specify files included in the manifest");
+
+		auto RunP4HaveOpt = SubPack->add_flag("--p4have", bRunP4Have, "Run `p4 have` when generating the dirctory pack");
+
+		SubPack->add_option("--store", StorePathUtf8, "Use this location to store pack data (default: <Input>/.unsync/pack)");
+
+		RunP4HaveOpt->excludes(P4HaveFileOpt);
+
+		SubCommands.push_back(SubPack);
+	}
 
 	// Configure push
 
@@ -573,12 +588,12 @@ InnerMain(int Argc, char** Argv)
 
 	if (Cli.got_subcommand(SubHash) || Cli.got_subcommand(SubPack))
 	{
-		UNSYNC_LOG(L"Using block size: %d KB", HashOrSyncBlockSize / 1024);
+		UNSYNC_VERBOSE(L"Using block size: %d KB", HashOrSyncBlockSize / 1024);
 	}
 
 	if (Cli.got_subcommand(SubDiff))
 	{
-		UNSYNC_LOG(L"Using block size: %d KB", DiffBlockSize / 1024);
+		UNSYNC_VERBOSE(L"Using block size: %d KB", DiffBlockSize / 1024);
 	}
 
 	if (Cli.got_subcommand(SubDiff))
@@ -770,6 +785,7 @@ InnerMain(int Argc, char** Argv)
 		PackOptions.RootPath	 = InputFilename;
 		PackOptions.P4HavePath	 = NormalizeFilenameUtf8(P4HavePathUtf8);
 		PackOptions.StorePath	 = NormalizeFilenameUtf8(StorePathUtf8);
+		PackOptions.bRunP4Have	 = bRunP4Have;
 		PackOptions.BlockSize	 = HashOrSyncBlockSize;
 		PackOptions.Algorithm	 = Algorithm;
 

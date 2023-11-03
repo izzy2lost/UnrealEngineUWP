@@ -11,6 +11,7 @@ struct FCmdPackOptions
 {
 	FPath			  RootPath;
 	FPath			  P4HavePath;  // optional
+	bool			  bRunP4Have = false; // mutually exclusive with P4HavePath
 	FPath			  StorePath;   // optional
 	uint32			  BlockSize = uint32(64_KB);
 	FAlgorithmOptions Algorithm;
