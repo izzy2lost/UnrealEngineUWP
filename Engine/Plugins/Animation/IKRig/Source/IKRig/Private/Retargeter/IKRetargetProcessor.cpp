@@ -2167,11 +2167,20 @@ bool UIKRetargetProcessor::WasInitializedWithTheseAssets(
 		return false;
 	}
 
-	const bool bSourceMatches = InSourceMesh == GetSkeleton(ERetargetSourceOrTarget::Source).SkeletalMesh;
-	const bool bTargetMatches = InTargetMesh == GetSkeleton(ERetargetSourceOrTarget::Target).SkeletalMesh;
+	// check that both the source and target skeletal meshes are the same as what we initialized with
+	const FRetargetSkeleton& SourceRetargetSkeleton = GetSkeleton(ERetargetSourceOrTarget::Source);
+	const FRetargetSkeleton& TargetRetargetSkeleton = GetSkeleton(ERetargetSourceOrTarget::Target);
+	const bool bSourceMatches = InSourceMesh == SourceRetargetSkeleton.SkeletalMesh;
+	const bool bTargetMatches = InTargetMesh == TargetRetargetSkeleton.SkeletalMesh;
+
+	// check that the retarget asset is the same as what we initialized with
 	const bool bAssetMatches = InRetargetAsset == RetargeterAsset;
+
+	// check that the number of bones are the same as what we initialized with
+	const bool bSourceHasSameNumberOfBones = InSourceMesh->GetRefSkeleton().GetNum() == SourceRetargetSkeleton.BoneNames.Num();
+	const bool bTargetHasSameNumberOfBones = InTargetMesh->GetRefSkeleton().GetNum() == TargetRetargetSkeleton.BoneNames.Num();
 	
-	return bSourceMatches && bTargetMatches && bAssetMatches;
+	return bSourceMatches && bTargetMatches && bAssetMatches && bSourceHasSameNumberOfBones && bTargetHasSameNumberOfBones;
 }
 
 void UIKRetargetProcessor::SetNeedsInitialized()

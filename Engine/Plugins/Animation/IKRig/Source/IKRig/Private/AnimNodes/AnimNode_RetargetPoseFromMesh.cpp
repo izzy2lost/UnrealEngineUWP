@@ -61,12 +61,6 @@ void FAnimNode_RetargetPoseFromMesh::CacheBones_AnyThread(const FAnimationCacheB
 			}
 		}
 	}
-
-	// any time required bones are modified, retargeter needs reinitialized
-	if (Processor)
-	{
-		Processor->SetNeedsInitialized();
-	}
 }
 
 void FAnimNode_RetargetPoseFromMesh::Update_AnyThread(const FAnimationUpdateContext& Context)
@@ -313,13 +307,6 @@ bool FAnimNode_RetargetPoseFromMesh::EnsureProcessorIsInitialized(const TObjectP
 	{
 		return false; // cannot initialize if components are missing skeletal mesh references
 	}
-	// check that both have skeleton assets (shouldn't get this far without a skeleton)
-	const TObjectPtr<USkeleton> SourceSkeleton = SourceMesh->GetSkeleton();
-	const TObjectPtr<USkeleton> TargetSkeleton = TargetMesh->GetSkeleton();
-	if (!SourceSkeleton || !TargetSkeleton)
-	{
-		return false;
-	}
 	
 	// try initializing the processor
 	if (!Processor->WasInitializedWithTheseAssets(SourceMesh, TargetMesh, IKRetargeterAsset))
@@ -368,7 +355,7 @@ void FAnimNode_RetargetPoseFromMesh::CopyBoneTransformsFromSource(USkeletalMeshC
 	{
 		SourceMeshComponentSpaceBoneTransforms.Append(ComponentToCopyFrom->GetComponentSpaceTransforms()); // copy directly
 	}
-
+	
 	// strip all scale out of the pose values, the translation of a component-space pose has incorporated scale values
 	for (FTransform& Transform : SourceMeshComponentSpaceBoneTransforms)
 	{
