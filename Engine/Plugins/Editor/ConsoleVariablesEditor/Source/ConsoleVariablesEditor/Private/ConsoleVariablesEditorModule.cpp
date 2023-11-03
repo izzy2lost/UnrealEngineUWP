@@ -435,7 +435,7 @@ void FConsoleVariablesEditorModule::OnConsoleObjectUnregistered(const TCHAR* InN
 	}
 
 	TSharedPtr<FConsoleVariablesEditorCommandInfo> Found;
-	if (ConsoleObjectsMainReference.RemoveAndCopyValueByHash(GetTypeHash(FStringView(InName)), InName, Found))
+	if (ConsoleObjectsMainReference.RemoveAndCopyValueByHash(FCrc::Strihash_DEPRECATED(InName), InName, Found))
 	{
 		if (Found.IsValid())
 		{
