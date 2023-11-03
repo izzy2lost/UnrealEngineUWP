@@ -67,7 +67,7 @@ protected:
 		int32 MaxRetries;
 
 		//How many bytes we had last time we sent progress updates
-		int32 LastProgressUpdateBytes;
+		uint64 LastProgressUpdateBytes;
 	};
 
 	TUniquePtr<FGenericPlatformBackgroundHttpWrapper> RequestWrapper;
