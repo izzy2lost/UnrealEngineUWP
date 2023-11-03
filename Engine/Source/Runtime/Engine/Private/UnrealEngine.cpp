@@ -2023,6 +2023,10 @@ void UEngine::Init(IEngineLoop* InEngineLoop)
 	SelectedMaterialColor = DefaultSelectedMaterialColor;
 	SelectionOutlineColor = DefaultSelectedMaterialColor;
 
+#if WITH_EDITOR
+	FModuleManager::Get().LoadModule("WorldPartitionEditor");
+#endif
+
 	InitializeObjectReferences();
 
 	if (GConfig)

@@ -4672,6 +4672,8 @@ bool FEngineLoop::LoadStartupCoreModules()
 	// Required during construction of UAnimBlueprint which could happen from async loading thread.
 	// See UAnimBlueprint::UAnimBlueprint().
 	FModuleManager::Get().LoadModule(TEXT("AnimGraph"));
+
+	FModuleManager::Get().LoadModule(TEXT("WorldPartitionEditor"));
 #endif
 
 	FModuleManager::Get().LoadModule(TEXT("PacketHandler"));
