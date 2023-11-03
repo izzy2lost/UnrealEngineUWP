@@ -340,7 +340,6 @@ class FGameThreadHitchHeartBeatThreaded : public FRunnable
 	double FirstStartTime;
 	double FrameStartTime;
 	int32 SuspendedCount;
-	bool bStartSuspended = false;
 
 #if WALK_STACK_ON_HITCH_DETECTED
 #if LOOKUP_SYMBOLS_IN_HITCH_STACK_WALK
@@ -389,11 +388,6 @@ public:
 	* Resume heartbeat hitch detection. Call only after first calling SuspendHeartBeat.
 	*/
 	CORE_API void ResumeHeartBeat();
-	
-	/**
-	* Check if started suspended.
-	*/
-	CORE_API bool IsStartedSuspended();
 
 	// No-op, used in FUnixSignalGameHitchHeartBeat
 	void Restart() {}
