@@ -9,6 +9,7 @@ import WebRTC
   var peerConnectionApi: FlutterRtcPeerConnectionApi?
   var dataChannelApi: FlutterRtcDataChannelApi?
   var videoViewControllerApi: FlutterRtcVideoViewControllerApi?
+  var arSessionApi: FlutterArSessionApi?
   
   override func application(
     _ application: UIApplication,
@@ -37,6 +38,7 @@ import WebRTC
     peerConnectionApi = FlutterRtcPeerConnectionApi(binaryMessenger: binaryMessenger)
     dataChannelApi = FlutterRtcDataChannelApi(binaryMessenger: binaryMessenger)
     videoViewControllerApi = FlutterRtcVideoViewControllerApi(binaryMessenger: binaryMessenger)
+    arSessionApi = FlutterArSessionApi(binaryMessenger: binaryMessenger)
   
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
