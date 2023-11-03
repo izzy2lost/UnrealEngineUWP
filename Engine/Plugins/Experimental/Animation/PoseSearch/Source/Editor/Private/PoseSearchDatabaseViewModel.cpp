@@ -56,7 +56,15 @@ bool FDatabasePreviewActor::SpawnPreviewActor(UWorld* World, const UPoseSearchDa
 
 	IndexAssetIndex = IndexAssetIdx;
 	CurrentPoseIndex = INDEX_NONE;
-	PlayTimeOffset = PoseIdxForTimeOffset < 0 ? 0.f : PoseSearchDatabase->GetRealAssetTime(PoseIdxForTimeOffset);
+
+	if (PoseIdxForTimeOffset < 0)
+	{
+		PlayTimeOffset = 0.f;
+	}
+	else
+	{
+		PlayTimeOffset = PoseSearchDatabase->GetRealAssetTime(PoseIdxForTimeOffset) - IndexAsset.GetFirstSampleTime(PoseSearchDatabase->Schema->SampleRate);
+	}
 
 	// @todo: should we always use the PlayTimeOffset to extract the root transform?
 	if (PlayTimeOffset != 0.f)
