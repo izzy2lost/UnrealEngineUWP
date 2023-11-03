@@ -851,6 +851,7 @@ protected:
 	static const float ExpectedFloatValueOutOfTolerance;
 	static const FString ActualFStringValue;
 	static const FString ExpectedFStringValueLowerCase;
+	static const FString UnexpectedFStringValueLowerCase;
 };
 
 const float FAutomationUTestMacrosExpr::PositiveToleranceFloat(1.e-4f);
@@ -860,6 +861,7 @@ const float FAutomationUTestMacrosExpr::WrongFloatValue(ActualFloatValue + 1.f);
 const float FAutomationUTestMacrosExpr::ExpectedFloatValueOutOfTolerance(ActualFloatValue + PositiveToleranceFloat);
 const FString FAutomationUTestMacrosExpr::ActualFStringValue(TEXT("EQUALS"));
 const FString FAutomationUTestMacrosExpr::ExpectedFStringValueLowerCase(TEXT("equals"));
+const FString FAutomationUTestMacrosExpr::UnexpectedFStringValueLowerCase(TEXT("not-equals"));
 
 IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FAutomationEqualEXPR, FAutomationUTestMacrosExpr, "TestFramework.Validation.UTestEqual", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter);
 bool FAutomationEqualEXPR::RunTest(const FString& Parameters)
@@ -870,6 +872,7 @@ bool FAutomationEqualEXPR::RunTest(const FString& Parameters)
 	UTEST_EQUAL_TOLERANCE_EXPR(ActualFloatValue, ExpectedFloatValueOutOfTolerance, PositiveToleranceFloat);
 	UTEST_NOT_EQUAL_EXPR(ActualFloatValue, WrongFloatValue);
 	UTEST_EQUAL_INSENSITIVE_EXPR(*ActualFStringValue, *ExpectedFStringValueLowerCase);
+	UTEST_NOT_EQUAL_INSENSITIVE_EXPR(*ActualFStringValue, *UnexpectedFStringValueLowerCase);
 
 	return true;
 }

@@ -1756,6 +1756,16 @@ bool FAutomationTestBase::TestEqualInsensitive(const TCHAR* What, const TCHAR* A
 	return true;
 }
 
+bool FAutomationTestBase::TestNotEqualInsensitive(const TCHAR* What, const TCHAR* Actual, const TCHAR* Expected)
+{
+	if (FCString::Stricmp(Actual, Expected) == 0)
+	{
+		AddError(FString::Printf(TEXT("Expected '%s' to differ from \"%s\", but it was \"%s\"."), What, Expected, Actual), 1);
+		return false;
+	}
+	return true;
+}
+
 bool FAutomationTestBase::TestNearlyEqual(const TCHAR* What, const float Actual, const float Expected, float Tolerance)
 {
 	return TestEqual(What, Actual, Expected, Tolerance);

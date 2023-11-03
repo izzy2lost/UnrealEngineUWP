@@ -1817,6 +1817,7 @@ public:
 	CORE_API bool TestEqual(const TCHAR* What, const FLinearColor Actual, const FLinearColor Expected);
 	CORE_API bool TestEqual(const TCHAR* What, const TCHAR* Actual, const TCHAR* Expected);
 	CORE_API bool TestEqualInsensitive(const TCHAR* What, const TCHAR* Actual, const TCHAR* Expected);
+	CORE_API bool TestNotEqualInsensitive(const TCHAR* What, const TCHAR* Actual, const TCHAR* Expected);
 
 	bool TestEqual(const FString& What, const int32 Actual, const int32 Expected)
 	{
@@ -3906,6 +3907,18 @@ public: \
 
 #define UTEST_EQUAL_INSENSITIVE_EXPR(Actual, Expected)\
 	if (!TestEqualInsensitive(TEXT(#Actual), Actual, Expected))\
+	{\
+		return false;\
+	}
+
+#define UTEST_NOT_EQUAL_INSENSITIVE(What, Actual, Expected)\
+	if (!TestNotEqualInsensitive(What, Actual, Expected))\
+	{\
+		return false;\
+	}
+
+#define UTEST_NOT_EQUAL_INSENSITIVE_EXPR(Actual, Expected)\
+	if (!TestNotEqualInsensitive(TEXT(#Actual), Actual, Expected))\
 	{\
 		return false;\
 	}
