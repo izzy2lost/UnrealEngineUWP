@@ -49,7 +49,7 @@ public:
 		SetIsTextFormat(InArchive.IsTextFormat());
 		SetWantBinaryPropertySerialization(InArchive.WantBinaryPropertySerialization());
 		SetIsPersistent(true);
-		SetFilterEditorOnly(true);
+		FArchiveProxy::SetFilterEditorOnly(true);
 		ArShouldSkipBulkData = true;
 
 		if (WantBinaryPropertySerialization())
