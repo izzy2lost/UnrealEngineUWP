@@ -77,7 +77,6 @@ private:
 	virtual FName GetNameInternal() const override;
 	virtual FText GetDisplayNameInternal() const override;
 	virtual uint64 GetObjectIdInternal() const override { return ObjectId; }
-	virtual int32 GetSortOrderPriorityInternal() const override { return 10; };
 	virtual bool UpdateInternal() override;
 
 	TSharedPtr<SCostTimelineView> CostTimelineView;
@@ -94,6 +93,7 @@ private:
 	virtual FName GetNameInternal() const override;
 	virtual TSharedPtr<RewindDebugger::FRewindDebuggerTrack> CreateTrackInternal(uint64 ObjectId) const override;
 	virtual bool HasDebugInfoInternal(uint64 ObjectId) const override;
+	virtual int32 GetSortOrderPriorityInternal() const override { return 10; };
 };
 
 } // namespace UE::PoseSearch

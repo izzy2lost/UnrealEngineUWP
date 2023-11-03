@@ -38,6 +38,12 @@ class REWINDDEBUGGERINTERFACE_API IRewindDebuggerTrackCreator : public IModularF
 		return GetNameInternal();
 	}
 
+	// returns an integer.  Higher values will show higher in the track list (default is 0)
+	int32 GetSortOrderPriority() const
+	{
+		return GetSortOrderPriorityInternal();
+	}
+
 	// optional additional filter, to prevent debug views from being listed if they have no data
 	bool HasDebugInfo(uint64 ObjectId) const
 	{
@@ -55,6 +61,8 @@ class REWINDDEBUGGERINTERFACE_API IRewindDebuggerTrackCreator : public IModularF
 	virtual FName GetTargetTypeNameInternal() const { return "Object"; }
 	
 	virtual FName GetNameInternal() const { return FName(); }
+	
+	virtual int32 GetSortOrderPriorityInternal() const { return 0; }
 	
 	virtual bool HasDebugInfoInternal(uint64 ObjectId) const
 	{

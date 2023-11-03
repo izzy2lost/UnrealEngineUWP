@@ -939,23 +939,33 @@ void SAnimGraphSchematicView::RefreshDetails(const TArray<TSharedRef<FAnimGraphS
 	}
 }
 
-FName FAnimGraphSchematicViewCreator::GetTargetTypeName() const
+FName FAnimGraphSchematicTrackCreator::GetTargetTypeNameInternal() const
 {
 	static FName TargetTypeName = "AnimInstance";
 	return TargetTypeName;
 }
 
-FName FAnimGraphSchematicViewCreator::GetName() const
+FName FAnimGraphSchematicTrackCreator::GetNameInternal() const
 {
 	return AnimGraphSchematicName;
 }
 
-FText FAnimGraphSchematicViewCreator::GetTitle() const
+TSharedPtr<RewindDebugger::FRewindDebuggerTrack> FAnimGraphSchematicTrackCreator::CreateTrackInternal(uint64 ObjectId) const
+{
+	return MakeShared<FAnimGraphSchematicTrack>(ObjectId);
+}
+
+FText FAnimGraphSchematicTrack::GetDisplayNameInternal() const
 {
 	return LOCTEXT("Anim Graph Update", "Anim Graph");
 }
 
-FSlateIcon FAnimGraphSchematicViewCreator::GetIcon() const
+FName FAnimGraphSchematicTrack::GetNameInternal() const
+{
+	return AnimGraphSchematicName;
+}
+
+FSlateIcon FAnimGraphSchematicTrack::GetIconInternal()
 {
 #if WITH_EDITOR
 	return FSlateIconFinder::FindIconForClass(UAnimInstance::StaticClass());
@@ -964,12 +974,38 @@ FSlateIcon FAnimGraphSchematicViewCreator::GetIcon() const
 #endif
 }
 
-TSharedPtr<IRewindDebuggerView> FAnimGraphSchematicViewCreator::CreateDebugView(uint64 ObjectId, double CurrentTime, const TraceServices::IAnalysisSession& AnalysisSession) const
+TSharedPtr<SWidget> FAnimGraphSchematicTrack::GetDetailsViewInternal()
 {
-	return SNew(SAnimGraphSchematicView, ObjectId, CurrentTime, AnalysisSession);
+	TSharedPtr<SAnimGraphSchematicView> NewView;
+	
+	if (IRewindDebugger* RewindDebugger = IRewindDebugger::Instance())
+	{
+		if (const TraceServices::IAnalysisSession* AnalysisSession = RewindDebugger->GetAnalysisSession())
+		{
+			if (!View.IsValid())
+			{
+				NewView = SNew(SAnimGraphSchematicView, AnimInstanceId, RewindDebugger->CurrentTraceTime(), *AnalysisSession);
+				View = NewView.ToWeakPtr();
+			}
+		}
+	}
+
+	return NewView;
 }
 
-bool FAnimGraphSchematicViewCreator::HasDebugInfo(uint64 ObjectId) const
+bool FAnimGraphSchematicTrack::UpdateInternal()
+{
+	IRewindDebugger* RewindDebugger = IRewindDebugger::Instance();
+	TSharedPtr<IRewindDebuggerView> PinnedView = View.Pin();
+	if (PinnedView.IsValid())
+	{
+		PinnedView->SetTimeMarker(RewindDebugger->CurrentTraceTime());
+	}
+
+	return false;
+}
+
+bool FAnimGraphSchematicTrackCreator::HasDebugInfoInternal(uint64 ObjectId) const
 {
 	const TraceServices::IAnalysisSession* AnalysisSession = IRewindDebugger::Instance()->GetAnalysisSession();
 	

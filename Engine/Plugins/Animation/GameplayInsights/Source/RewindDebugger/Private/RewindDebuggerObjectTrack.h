@@ -35,7 +35,6 @@ private:
 	virtual uint64 GetObjectIdInternal() const override { return ObjectId; }
 	virtual bool HasDebugDataInternal() const override { return false; }
 	virtual bool HandleDoubleClickInternal() override;
-	virtual int GetSortOrderPriorityInternal() const override { return -10; };
 	
 	mutable FText DisplayName;
 	FString ObjectName;

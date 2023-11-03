@@ -57,7 +57,19 @@ FRewindDebuggerObjectTrack::FRewindDebuggerObjectTrack(uint64 InObjectId, const 
 		}
 	});
 
-	// sort by creator priority + name
+	// sort by creators by priority + name
+	TrackChildren.Sort([](const FTrackCreatorAndTrack& A, const FTrackCreatorAndTrack& B)
+		{
+			const int32 SortOrderPriorityA = A.Creator->GetSortOrderPriority();
+			const int32 SortOrderPriorityB = B.Creator->GetSortOrderPriority();
+			
+			if (SortOrderPriorityA != SortOrderPriorityB)
+			{
+				return SortOrderPriorityA > SortOrderPriorityB;
+			}
+			
+			return A.Creator->GetName().ToString() < B.Creator->GetName().ToString();
+		});
 }
 	
 TSharedPtr<SWidget> FRewindDebuggerObjectTrack::GetTimelineViewInternal()
@@ -313,17 +325,9 @@ bool FRewindDebuggerObjectTrack::UpdateInternal()
 
 	if (bChanged)
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(FRewindDebuggerObjectTrack::Sort);
+		// sort child object tracks by name
 		Children.Sort([](const TSharedPtr<FRewindDebuggerTrack>& A, const TSharedPtr<FRewindDebuggerTrack>& B)
 		{
-			const int SortOrderPriorityA = A->GetSortOrderPriority();
-			const int SortOrderPriorityB = B->GetSortOrderPriority();
-			
-			if (SortOrderPriorityA != SortOrderPriorityB)
-			{
-				return SortOrderPriorityA > SortOrderPriorityB;
-			}
-			
 			return A->GetDisplayName().ToString() < B->GetDisplayName().ToString();
 		});
 	}

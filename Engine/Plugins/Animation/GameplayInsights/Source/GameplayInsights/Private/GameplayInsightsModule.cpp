@@ -75,10 +75,9 @@ void FGameplayInsightsModule::StartupModule()
 	});
 
 #if WITH_EDITOR
-	// register rewind debugger view creators
-	static FAnimGraphSchematicViewCreator AnimGraphSchematicViewCreator;
-	IModularFeatures::Get().RegisterModularFeature(IRewindDebuggerViewCreator::ModularFeatureName, &AnimGraphSchematicViewCreator);
-	
+	// register rewind debugger track creators
+	static FAnimGraphSchematicTrackCreator AnimGraphSchematicTrackCreator;
+	IModularFeatures::Get().RegisterModularFeature(RewindDebugger::IRewindDebuggerTrackCreator::ModularFeatureName, &AnimGraphSchematicTrackCreator);
 	static RewindDebugger::FAnimationCurvesTrackCreator AnimationCurvesTrackCreator;
 	IModularFeatures::Get().RegisterModularFeature(RewindDebugger::IRewindDebuggerTrackCreator::ModularFeatureName, &AnimationCurvesTrackCreator);
 	static RewindDebugger::FInertializationsTrackCreator InertializationsTrackCreator;
