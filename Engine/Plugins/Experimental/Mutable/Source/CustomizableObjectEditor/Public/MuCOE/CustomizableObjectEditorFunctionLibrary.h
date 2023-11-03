@@ -2,8 +2,18 @@
 #pragma once
 
 #include "Kismet/BlueprintFunctionLibrary.h"
+#include "MuCO/CustomizableObject.h"
 
 #include "CustomizableObjectEditorFunctionLibrary.generated.h"
+
+// This mirrors the logic in CustomizableObjectEditor.cpp
+UENUM(BlueprintType)
+enum class ECustomizableObjectOptimizationLevel : uint8
+{
+	None,
+	Minimal,
+	Maximum
+};
 
 /**
  * Functions we want to be able to call on CustomizableObjects at edit time - could
@@ -24,5 +34,8 @@ public:
 	 * @return	The final ECustomizableObjectCompilationState - typically Completed or Failed
 	 */
 	UFUNCTION(BlueprintCallable, Category = "CustomizableObject")
-	static ECustomizableObjectCompilationState CompileCustomizableObjectSynchronously(UCustomizableObject* CustomizableObject);
+	static ECustomizableObjectCompilationState CompileCustomizableObjectSynchronously(
+		UCustomizableObject* CustomizableObject, 
+		ECustomizableObjectOptimizationLevel OptimizationLevel = ECustomizableObjectOptimizationLevel::Minimal, 
+		ECustomizableObjectTextureCompression TextureCompression = ECustomizableObjectTextureCompression::Fast);
 };

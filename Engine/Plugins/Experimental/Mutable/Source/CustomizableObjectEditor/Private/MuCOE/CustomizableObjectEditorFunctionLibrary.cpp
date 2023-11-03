@@ -6,7 +6,10 @@
 #include "MuCO/CustomizableObjectSystem.h"
 #include "MuCO/CustomizableObject.h"
 
-ECustomizableObjectCompilationState UCustomizableObjectEditorFunctionLibrary::CompileCustomizableObjectSynchronously(UCustomizableObject* CustomizableObject)
+ECustomizableObjectCompilationState UCustomizableObjectEditorFunctionLibrary::CompileCustomizableObjectSynchronously(
+	UCustomizableObject* CustomizableObject,
+	ECustomizableObjectOptimizationLevel InOptimizationLevel,
+	ECustomizableObjectTextureCompression InTextureCompression)
 {
 	if (!CustomizableObject)
 	{
@@ -31,6 +34,8 @@ ECustomizableObjectCompilationState UCustomizableObjectEditorFunctionLibrary::Co
 
 	FCustomizableObjectCompiler Compiler;
 	FCompilationOptions Options = CustomizableObject->CompileOptions;
+	Options.OptimizationLevel = static_cast<int32>(InOptimizationLevel);
+	Options.TextureCompression = InTextureCompression;
 	Options.bSilentCompilation = false;
 	Compiler.Compile(*CustomizableObject, Options, true);
 
