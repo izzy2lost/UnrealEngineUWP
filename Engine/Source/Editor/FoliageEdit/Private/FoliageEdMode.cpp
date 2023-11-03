@@ -2993,6 +2993,8 @@ void FEdModeFoliage::ApplyPaintBucket_Add(AActor* Actor)
 		//
 		OnInstanceCountUpdated(Settings);
 	}
+
+	CurrentFoliageTraceBrushAffectedIFAs.Empty();
 }
 
 bool FEdModeFoliage::GetStaticMeshVertexColorForHit(const UStaticMeshComponent* InStaticMeshComponent, int32 InTriangleIndex, const FVector& InHitLocation, FColor& OutVertexColor)
