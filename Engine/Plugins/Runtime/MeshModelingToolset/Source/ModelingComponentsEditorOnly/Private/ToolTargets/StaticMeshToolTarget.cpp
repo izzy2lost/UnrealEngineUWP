@@ -394,6 +394,11 @@ FDynamicMesh3 UStaticMeshToolTarget::GetDynamicMesh()
 	return GetDynamicMeshViaMeshDescription(*this);
 }
 
+FDynamicMesh3 UStaticMeshToolTarget::GetDynamicMesh(bool bRequestTangents)
+{
+	return GetDynamicMeshViaMeshDescription(*this, bRequestTangents);
+}
+
 void UStaticMeshToolTarget::CommitDynamicMesh(const FDynamicMesh3& Mesh, const FDynamicMeshCommitInfo& CommitInfo)
 {
 	FMeshDescription CurrentMeshDescription = *GetMeshDescription();

@@ -139,6 +139,11 @@ FDynamicMesh3 USkeletalMeshComponentReadOnlyToolTarget::GetDynamicMesh()
 	return GetDynamicMeshViaMeshDescription(*this);
 }
 
+FDynamicMesh3 USkeletalMeshComponentReadOnlyToolTarget::GetDynamicMesh(bool bRequestTangents)
+{
+	return GetDynamicMeshViaMeshDescription(*this, bRequestTangents);
+}
+
 
 USkeletalMesh* USkeletalMeshComponentReadOnlyToolTarget::GetSkeletalMesh() const
 {

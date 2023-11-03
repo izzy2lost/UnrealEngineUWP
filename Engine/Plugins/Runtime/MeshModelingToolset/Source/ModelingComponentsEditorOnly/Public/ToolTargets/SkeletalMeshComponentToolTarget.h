@@ -49,6 +49,7 @@ public:
 
 	// IDynamicMeshProvider
 	virtual UE::Geometry::FDynamicMesh3 GetDynamicMesh() override;
+	virtual UE::Geometry::FDynamicMesh3 GetDynamicMesh(bool bRequestTangents) override;
 
 	// ISkeletalMeshBackedTarget implementation
 	virtual USkeletalMesh* GetSkeletalMesh() const override;

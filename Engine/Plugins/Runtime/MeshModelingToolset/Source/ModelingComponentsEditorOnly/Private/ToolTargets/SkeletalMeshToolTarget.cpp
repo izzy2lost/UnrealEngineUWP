@@ -160,6 +160,11 @@ FDynamicMesh3 USkeletalMeshReadOnlyToolTarget::GetDynamicMesh()
 	return GetDynamicMeshViaMeshDescription(*this);
 }
 
+FDynamicMesh3 USkeletalMeshReadOnlyToolTarget::GetDynamicMesh(bool bRequestTangents)
+{
+	return GetDynamicMeshViaMeshDescription(*this, bRequestTangents);
+}
+
 USkeletalMesh* USkeletalMeshReadOnlyToolTarget::GetSkeletalMesh() const
 {
 	return IsValid() ? SkeletalMesh.Get() : nullptr;
