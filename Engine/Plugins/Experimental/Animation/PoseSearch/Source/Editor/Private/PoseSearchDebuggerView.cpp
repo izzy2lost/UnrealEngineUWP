@@ -212,14 +212,14 @@ void SDebuggerView::Tick(const FGeometry& AllottedGeometry, const double InCurre
 		// Haven't updated since passing through frame gate, update once
 		else if (!bUpdated)
 		{
-		Model->OnUpdate();
-		if (UpdateNodeSelection())
-		{
-			Model->OnUpdateNodeSelection(SelectedNodeId);
-			UpdateViews();
+			Model->OnUpdate();
+			if (UpdateNodeSelection())
+			{
+				Model->OnUpdateNodeSelection(SelectedNodeId);
+				UpdateViews();
+			}
+			bUpdated = true;
 		}
-		bUpdated = true;
-	}
 	}
 
 	// Draw visualization every tick
@@ -290,8 +290,7 @@ bool SDebuggerView::UpdateNodeSelection()
 
 void SDebuggerView::UpdateViews() const
 {
-	const FTraceMotionMatchingStateMessage* State = ViewModel.Get()->GetMotionMatchingState();
-	if (State)
+	if (const FTraceMotionMatchingStateMessage* State = ViewModel.Get()->GetMotionMatchingState())
 	{
 		DatabaseView->Update(*State);
 		DetailsView->Update(*State);
@@ -438,9 +437,7 @@ int32 SDebuggerView::SelectView() const
 void SDebuggerView::OnPoseSelectionChanged(const UPoseSearchDatabase* Database, int32 DbPoseIdx, float Time)
 {
 	const TSharedPtr<FDebuggerViewModel> Model = ViewModel.Get();
-	const FTraceMotionMatchingStateMessage* State = Model->GetMotionMatchingState();
-
-	if (State)
+	if (const FTraceMotionMatchingStateMessage* State = Model->GetMotionMatchingState())
 	{
 		DetailsView->Update(*State);
 	}

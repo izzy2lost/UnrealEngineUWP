@@ -38,12 +38,20 @@ FDebuggerViewModel::~FDebuggerViewModel()
 
 const FTraceMotionMatchingStateMessage* FDebuggerViewModel::GetMotionMatchingState() const
 {
-	return ActiveMotionMatchingState;
+	if (MotionMatchingStates.IsValidIndex(ActiveMotionMatchingStateIdx))
+	{
+		return &MotionMatchingStates[ActiveMotionMatchingStateIdx];
+	}
+	return nullptr;
 }
 
 const UPoseSearchDatabase* FDebuggerViewModel::GetCurrentDatabase() const
 {
-	return ActiveMotionMatchingState ? ActiveMotionMatchingState->GetCurrentDatabase() : nullptr;
+	if (const FTraceMotionMatchingStateMessage* State = GetMotionMatchingState())
+	{
+		return State->GetCurrentDatabase();
+	}
+	return nullptr;
 }
 
 void FDebuggerViewModel::ShowSelectedSkeleton(const UPoseSearchDatabase* Database, int32 DbPoseIdx, float Time)
@@ -123,32 +131,33 @@ void FDebuggerViewModel::OnUpdateNodeSelection(int32 InNodeId)
 		return;
 	}
 
-	ActiveMotionMatchingState = nullptr;
-
 	// Find node in all motion matching states this frame
+	ActiveMotionMatchingStateIdx = INDEX_NONE;
 	const int32 NodesNum = NodeIds.Num();
 	for (int32 i = 0; i < NodesNum; ++i)
 	{
 		if (NodeIds[i] == InNodeId)
 		{
-			ActiveMotionMatchingState = MotionMatchingStates[i];
+			ActiveMotionMatchingStateIdx = i;
 			break;
 		}
 	}
 
-	if (ActiveMotionMatchingState)
+	if (const FTraceMotionMatchingStateMessage* State = GetMotionMatchingState())
 	{
-		const UPoseSearchDatabase* CurrentDatabase = ActiveMotionMatchingState->GetCurrentDatabase();
-		if (FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndex(CurrentDatabase, ERequestAsyncBuildFlag::ContinueRequest))
+		if (const UPoseSearchDatabase* CurrentDatabase = State->GetCurrentDatabase())
 		{
-			const FSearchIndex& CurrentSearchIndex = CurrentDatabase->GetSearchIndex();
-			int32 CurrentPoseIdx = ActiveMotionMatchingState->GetCurrentDatabasePoseIndex();
-			if (const FSearchIndexAsset* IndexAsset = CurrentSearchIndex.GetAssetForPoseSafe(CurrentPoseIdx))
+			if (FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndex(CurrentDatabase, ERequestAsyncBuildFlag::ContinueRequest))
 			{
-				Skeletons[Asset].bMirrored = IndexAsset->IsMirrored();
-				Skeletons[Asset].SourceDatabase = CurrentDatabase;
-				Skeletons[Asset].AssetIdx = IndexAsset->GetSourceAssetIdx();
-				Skeletons[Asset].BlendParameters = IndexAsset->GetBlendParameters();
+				const FSearchIndex& CurrentSearchIndex = CurrentDatabase->GetSearchIndex();
+				int32 CurrentPoseIdx = State->GetCurrentDatabasePoseIndex();
+				if (const FSearchIndexAsset* IndexAsset = CurrentSearchIndex.GetAssetForPoseSafe(CurrentPoseIdx))
+				{
+					Skeletons[Asset].bMirrored = IndexAsset->IsMirrored();
+					Skeletons[Asset].SourceDatabase = CurrentDatabase;
+					Skeletons[Asset].AssetIdx = IndexAsset->GetSourceAssetIdx();
+					Skeletons[Asset].BlendParameters = IndexAsset->GetBlendParameters();
+				}
 			}
 		}
 	}
@@ -220,7 +229,9 @@ void FDebuggerViewModel::UpdateFromTimeline()
 		if (Message)
 		{
 			NodeIds.Add(Message->NodeId);
-			MotionMatchingStates.Add(Message);
+
+			// @todo: figure out if we can avoid this copy
+			MotionMatchingStates.Add(*Message);
 			SkeletalMeshComponentId = Message->SkeletalMeshComponentId;
 		}
 	});

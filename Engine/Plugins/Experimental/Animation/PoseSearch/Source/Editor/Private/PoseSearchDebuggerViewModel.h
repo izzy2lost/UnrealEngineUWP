@@ -98,10 +98,10 @@ private:
 	TArray<int32> NodeIds;
 	
 	/** List of all updated motion matching states per node */
-	TArray<const FTraceMotionMatchingStateMessage*> MotionMatchingStates;
+	TArray<FTraceMotionMatchingStateMessage> MotionMatchingStates;
 	
-	/** Currently active motion matching state based on node selection in the view */
-	const FTraceMotionMatchingStateMessage* ActiveMotionMatchingState = nullptr;
+	/** Currently active motion matching state index based on node selection in the view */
+	int32 ActiveMotionMatchingStateIdx = INDEX_NONE;
 
 	/** Current Skeletal Mesh Component Id for the AnimInstance */
 	uint64 SkeletalMeshComponentId = 0;

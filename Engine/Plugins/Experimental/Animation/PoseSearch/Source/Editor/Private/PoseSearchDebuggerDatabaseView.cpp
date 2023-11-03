@@ -543,8 +543,7 @@ void SDebuggerDatabaseView::OnShowAllPosesCheckboxChanged(ECheckBoxState State)
 	{
 		if (TSharedPtr<FDebuggerViewModel> ViewModel = DebuggerView->GetViewModel())
 		{
-			const FTraceMotionMatchingStateMessage* MotionMatchingState = ViewModel.Get()->GetMotionMatchingState();
-			if (MotionMatchingState)
+			if (const FTraceMotionMatchingStateMessage* MotionMatchingState = ViewModel.Get()->GetMotionMatchingState())
 			{
 				Update(*MotionMatchingState);
 			}

@@ -113,31 +113,34 @@ void FTraceMotionMatchingState::Output(const UObject* AnimInstance, int32 NodeId
 
 const UPoseSearchDatabase* FTraceMotionMatchingState::GetCurrentDatabase() const
 {
-	if (CurrentDbEntryIdx == INDEX_NONE)
+	const UPoseSearchDatabase* Database = nullptr;
+	if (DatabaseEntries.IsValidIndex(CurrentDbEntryIdx))
 	{
-		return nullptr;
+		Database = GetObjectFromId<UPoseSearchDatabase>(DatabaseEntries[CurrentDbEntryIdx].DatabaseId);
 	}
-
-	const FTraceMotionMatchingStateDatabaseEntry& DbEntry = DatabaseEntries[CurrentDbEntryIdx];
-	const UPoseSearchDatabase* Database = GetObjectFromId<UPoseSearchDatabase>(DbEntry.DatabaseId);
 	return Database;
 }
 
 int32 FTraceMotionMatchingState::GetCurrentDatabasePoseIndex() const
 {
-	const FTraceMotionMatchingStatePoseEntry* PoseEntry = GetCurrentPoseEntry();
-	return PoseEntry ? PoseEntry->DbPoseIdx : INDEX_NONE;
+	if (const FTraceMotionMatchingStatePoseEntry* PoseEntry = GetCurrentPoseEntry())
+	{
+		return PoseEntry->DbPoseIdx;
+	}
+	return INDEX_NONE;
 }
 
 const FTraceMotionMatchingStatePoseEntry* FTraceMotionMatchingState::GetCurrentPoseEntry() const
 {
-	if ((CurrentDbEntryIdx == INDEX_NONE) || (CurrentPoseEntryIdx == INDEX_NONE))
+	if (DatabaseEntries.IsValidIndex(CurrentDbEntryIdx))
 	{
-		return nullptr;
+		const FTraceMotionMatchingStateDatabaseEntry& DbEntry = DatabaseEntries[CurrentDbEntryIdx];
+		if (DbEntry.PoseEntries.IsValidIndex(CurrentPoseEntryIdx))
+		{
+			return &DbEntry.PoseEntries[CurrentPoseEntryIdx];
+		}
 	}
-
-	const FTraceMotionMatchingStateDatabaseEntry& DbEntry = DatabaseEntries[CurrentDbEntryIdx];
-	return &DbEntry.PoseEntries[CurrentPoseEntryIdx];
+	return nullptr;
 }
 
 } // namespace UE::PoseSearch
