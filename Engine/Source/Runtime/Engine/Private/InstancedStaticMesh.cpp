@@ -3628,9 +3628,13 @@ bool UInstancedStaticMeshComponent::GetInstancePrevTransform(int32 InstanceIndex
 
 void UInstancedStaticMeshComponent::OnUpdateTransform(EUpdateTransformFlags UpdateTransformFlags, ETeleportType Teleport)
 {
-	// We are handling the physics move below, so don't handle it at higher levels
+	// We are handling the physics move in UpdateComponentTransform below, so don't handle it at higher levels
 	Super::OnUpdateTransform(UpdateTransformFlags | EUpdateTransformFlags::SkipPhysicsUpdate, Teleport);
+	UpdateComponentTransform(UpdateTransformFlags, Teleport);
+}
 
+void UInstancedStaticMeshComponent::UpdateComponentTransform(EUpdateTransformFlags UpdateTransformFlags, ETeleportType Teleport)
+{
 	const bool bTeleport = TeleportEnumToFlag(Teleport);
 	const bool bDoPartialNavigationUpdate = IsNavigationRelevant() && SupportsPartialNavigationUpdate();
 	const bool bUpdateBodies = bPhysicsStateCreated && !(EUpdateTransformFlags::SkipPhysicsUpdate & UpdateTransformFlags);

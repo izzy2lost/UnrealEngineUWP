@@ -252,7 +252,7 @@ struct FGeometryCollectionISM
 	/** Create the ISMComponent according to settings on the mesh instance. */
 	void CreateISM(AActor* InOwningActor);
 	/** Initialize the ISMComponent according to settings on the mesh instance. */
-	void InitISM(const FGeometryCollectionStaticMeshInstance& InMeshInstance, bool bKeepAlive);
+	void InitISM(const FGeometryCollectionStaticMeshInstance& InMeshInstance, bool bKeepAlive, bool bOverrideTransformUpdates = false);
 	/** Add a group to the ISM. Returns the group index. */
 	FInstanceGroups::FInstanceGroupId AddInstanceGroup(int32 InstanceCount, TArrayView<const float> CustomDataFloats);
 
@@ -296,6 +296,8 @@ struct FGeometryCollectionISMPool
 	/** Process the preallocation queue. Processing is timesliced so that only some of the queue will be processed in every call. */
 	void ProcessPreallocationRequests(UGeometryCollectionISMPoolComponent* OwningComponent, int32 MaxPreallocations);
 
+	void UpdateAbsoluteTransforms(const FTransform& BaseTransform, EUpdateTransformFlags UpdateTransformFlags, ETeleportType Teleport);
+
 	/** Array of ISM objects. */
 	TArray<FGeometryCollectionISM> ISMs;
 	/** Mapping from mesh description to ISMs array slot. */
@@ -312,6 +314,9 @@ struct FGeometryCollectionISMPool
 	// Cached state of lifecycle cvars from the last Tick()
 	bool bCachedKeepAlive = false;
 	bool bCachedRecycle = false;
+
+	// Whether we force ISMs to use parent bounds and disable transform updates
+	bool bDisableBoundsAndTransformUpdate = false;
 };
 
 
@@ -360,6 +365,10 @@ public:
 	 * Doing this early for known mesh instance descriptions can reduce the component registration cost of AddMeshToGroup() for newly discovered mesh descriptions.
 	 */
 	GEOMETRYCOLLECTIONENGINE_API void PreallocateMeshInstance(const FGeometryCollectionStaticMeshInstance& MeshInstance);
+
+	GEOMETRYCOLLECTIONENGINE_API void SetOverrideTransformUpdates(bool bOverrideUpdates);
+
+	GEOMETRYCOLLECTIONENGINE_API void UpdateAbsoluteTransforms(const FTransform& BaseTransform, EUpdateTransformFlags UpdateTransformFlags, ETeleportType Teleport);
 
 private:
 	uint32 NextMeshGroupId = 0;

@@ -247,6 +247,7 @@ class UInstancedStaticMeshComponent : public UStaticMeshComponent, public ISMIns
 	ENGINE_API bool GetInstancePrevTransform(int32 InstanceIndex, FTransform& OutInstanceTransform, bool bWorldSpace = false) const;
 
 	ENGINE_API virtual void OnUpdateTransform(EUpdateTransformFlags UpdateTransformFlags, ETeleportType Teleport) override;
+	ENGINE_API void UpdateComponentTransform(EUpdateTransformFlags UpdateTransformFlags, ETeleportType Teleport);
 
 	/** Get the scale comming form the component, when computing StreamingTexture data. Used to support instanced meshes. */
 	ENGINE_API virtual float GetTextureStreamingTransformScale() const override;

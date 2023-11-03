@@ -81,12 +81,12 @@ void FGeometryCollectionISM::CreateISM(AActor* InOwningActor)
 	ISMComponent->SetCanEverAffectNavigation(false);
 	ISMComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	ISMComponent->SetupAttachment(InOwningActor->GetRootComponent());
-
+	
 	InOwningActor->AddInstanceComponent(ISMComponent);
 	ISMComponent->RegisterComponent();
 }
 
-void FGeometryCollectionISM::InitISM(const FGeometryCollectionStaticMeshInstance& InMeshInstance, bool bKeepAlive)
+void FGeometryCollectionISM::InitISM(const FGeometryCollectionStaticMeshInstance& InMeshInstance, bool bKeepAlive, bool bOverrideTransformUpdates)
 {
 	MeshInstance = InMeshInstance;
 	check(MeshInstance.StaticMesh);
@@ -97,6 +97,9 @@ void FGeometryCollectionISM::InitISM(const FGeometryCollectionStaticMeshInstance
 	const FString ISMNameString = ISMName.ToString();
 	ISMComponent->Rename(*ISMNameString);
 #endif
+
+	ISMComponent->bUseAttachParentBound = bOverrideTransformUpdates;
+	ISMComponent->SetAbsolute(bOverrideTransformUpdates, bOverrideTransformUpdates, bOverrideTransformUpdates);
 
 	ISMComponent->EmptyOverrideMaterials();
 	for (int32 MaterialIndex = 0; MaterialIndex < MeshInstance.MaterialsOverrides.Num(); MaterialIndex++)
@@ -117,15 +120,35 @@ void FGeometryCollectionISM::InitISM(const FGeometryCollectionStaticMeshInstance
 	// Instead of reverse culling we put the mirror in the component transform so that PRIMITIVE_SCENE_DATA_FLAG_DETERMINANT_SIGN will be set for use by materials.
 	//ISMComponent->SetReverseCulling(bReverseCulling);
 	const FVector Scale = bReverseCulling ? FVector(-1, 1, 1) : FVector(1, 1, 1);
-	const FTransform NewRelativeTransform(FQuat::Identity, MeshInstance.Desc.Position, Scale);
-	if (!ISMComponent->GetRelativeTransform().Equals(NewRelativeTransform))
+
+	if(bOverrideTransformUpdates)
 	{
-		ISMComponent->SetRelativeTransform(FTransform(FQuat::Identity, MeshInstance.Desc.Position, Scale));
+		FTransform TempTm = ISMComponent->GetAttachParent() ?
+			ISMComponent->GetAttachParent()->GetComponentToWorld() :
+			FTransform::Identity;
+
+		// Apply above identified scale to the transform directly
+		TempTm.SetScale3D(TempTm.GetScale3D() * Scale);
+
+		ISMComponent->SetComponentToWorld(TempTm);
+		ISMComponent->UpdateComponentTransform(EUpdateTransformFlags::None, ETeleportType::None);
 	}
+	else
+	{
+		const FTransform NewRelativeTransform(FQuat::Identity, MeshInstance.Desc.Position, Scale);
+
+		if(!ISMComponent->GetRelativeTransform().Equals(NewRelativeTransform))
+		{
+			// If we're not overriding the transform and need a relative offset, apply that here
+			ISMComponent->SetRelativeTransform(FTransform(FQuat::Identity, MeshInstance.Desc.Position, Scale));
+		}
+	}
+
 	if ((MeshInstance.Desc.Flags & FISMComponentDescription::DistanceCullPrimitive) != 0)
 	{
 		ISMComponent->SetCachedMaxDrawDistance(MeshInstance.Desc.EndCullDistance);
 	}
+
 	ISMComponent->SetCullDistances(MeshInstance.Desc.StartCullDistance, MeshInstance.Desc.EndCullDistance);
 	ISMComponent->SetCastShadow((MeshInstance.Desc.Flags & FISMComponentDescription::AffectShadow) != 0);
 	ISMComponent->bAffectDynamicIndirectLighting = (MeshInstance.Desc.Flags & FISMComponentDescription::AffectDynamicIndirectLighting) != 0;
@@ -214,7 +237,7 @@ FGeometryCollectionISMPool::FISMIndex FGeometryCollectionISMPool::GetOrAddISM(UG
 		ISMs[ISMIndex].CreateISM(OwningComponent->GetOwner());
 	}
 	
-	ISMs[ISMIndex].InitISM(MeshInstance, bCachedKeepAlive);
+	ISMs[ISMIndex].InitISM(MeshInstance, bCachedKeepAlive, bDisableBoundsAndTransformUpdate);
 	
 	bOutISMCreated = true;
 	MeshToISMIndex.Add(MeshInstance, ISMIndex);
@@ -433,6 +456,33 @@ void FGeometryCollectionISMPool::ProcessPreallocationRequests(UGeometryCollectio
 	}
 }
 
+void FGeometryCollectionISMPool::UpdateAbsoluteTransforms(const FTransform& BaseTransform, EUpdateTransformFlags UpdateTransformFlags, ETeleportType Teleport)
+{
+	for(const FGeometryCollectionISM& GcIsm : ISMs)
+	{
+		const bool bReverseCulling = (GcIsm.MeshInstance.Desc.Flags & FISMComponentDescription::ReverseCulling) != 0;
+		check(GcIsm.MeshInstance.Desc.Position == FVector::ZeroVector);
+		
+		if(bReverseCulling)
+		{
+			// As in InitISM we need to apply the inverted X scale for reverse culling.
+			// Just copy the transform and set an inverted scale to apply to the ISM
+			FVector BaseScale = BaseTransform.GetScale3D();
+			BaseScale.X = -BaseScale.X;
+			FTransform Flipped = BaseTransform;
+			Flipped.SetScale3D(BaseScale);
+			
+			GcIsm.ISMComponent->SetComponentToWorld(Flipped);
+		}
+		else
+		{
+			GcIsm.ISMComponent->SetComponentToWorld(BaseTransform);
+		}
+
+		GcIsm.ISMComponent->UpdateComponentTransform(UpdateTransformFlags | EUpdateTransformFlags::SkipPhysicsUpdate, Teleport);
+	}
+}
+
 void FGeometryCollectionISMPool::Tick(UGeometryCollectionISMPoolComponent* OwningComponent)
 {
 	// Recache component lifecycle state from cvar.
@@ -554,6 +604,16 @@ bool UGeometryCollectionISMPoolComponent::BatchUpdateInstanceCustomData(FMeshGro
 void UGeometryCollectionISMPoolComponent::PreallocateMeshInstance(const FGeometryCollectionStaticMeshInstance& MeshInstance)
 {
 	Pool.RequestPreallocateMeshInstance(MeshInstance);
+}
+
+void UGeometryCollectionISMPoolComponent::SetOverrideTransformUpdates(bool bOverrideUpdates)
+{
+	Pool.bDisableBoundsAndTransformUpdate = bOverrideUpdates;
+}
+
+void UGeometryCollectionISMPoolComponent::UpdateAbsoluteTransforms(const FTransform& BaseTransform, EUpdateTransformFlags UpdateTransformFlags, ETeleportType Teleport)
+{
+	Pool.UpdateAbsoluteTransforms(BaseTransform, UpdateTransformFlags, Teleport);
 }
 
 void UGeometryCollectionISMPoolComponent::GetResourceSizeEx(FResourceSizeEx& CumulativeResourceSize)
