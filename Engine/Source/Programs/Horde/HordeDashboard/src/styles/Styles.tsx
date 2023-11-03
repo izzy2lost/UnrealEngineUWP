@@ -243,12 +243,6 @@ export const getHordeStyling = () => {
             },
             "a:hover": {
                color: theme.semanticColors.linkHovered
-            },
-            "*::-webkit-scrollbar-track": {
-               background: theme.horde.scrollbarTrackColor
-            },
-            "*::-webkit-scrollbar-thumb": {
-               background: theme.horde.scrollbarThumbColor
             }
          }
       },

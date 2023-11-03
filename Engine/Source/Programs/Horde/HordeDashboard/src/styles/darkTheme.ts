@@ -75,7 +75,14 @@ export const darkTheme = createTheme({
                         },
                         'a:hover': {
                             color: linkColorHovered
-                        }
+                        },
+                        "*::-webkit-scrollbar-track": {
+                            background: hordeDarkTheme.scrollbarTrackColor
+                         },
+                         "*::-webkit-scrollbar-thumb": {
+                            background: hordeDarkTheme.scrollbarThumbColor
+                         }
+
                     }
                 }
             }

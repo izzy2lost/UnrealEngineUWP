@@ -18,11 +18,11 @@ const hordeLightTheme = {
     scrollbarThumbColor: "#C1C1C1",
     scrollbarTrackColor: "#F1F1F1",
     dividerColor: "#E9E8E7"
-}    
+}
 
 
 export const lightTheme = createTheme({
-    components: {        
+    components: {
         "CommandBarButton": {
             styles: {
                 label: {
@@ -39,7 +39,13 @@ export const lightTheme = createTheme({
                         },
                         'a:hover': {
                             color: linkColorHovered
-                        }
+                        },
+                        "*::-webkit-scrollbar-track": {
+                            background: hordeLightTheme.scrollbarTrackColor
+                         },
+                         "*::-webkit-scrollbar-thumb": {
+                            background: hordeLightTheme.scrollbarThumbColor
+                         }
                     }
                 }
             }
@@ -83,7 +89,7 @@ export const lightTheme = createTheme({
         listItemBackgroundHovered: "#f3f2f1",
         primaryButtonText: "#FFFFFF",
         primaryButtonTextDisabled: "#949898"
-        
+
 
     },
     defaultFontStyle: {
