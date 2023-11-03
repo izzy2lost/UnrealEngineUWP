@@ -91,7 +91,7 @@ static FAutoConsoleVariableRef CVarNiagaraGPUDataWarningSize(
 	ECVF_Scalability
 );
 
-static bool GNiagaraReleaseBuffersOnReset = false;
+static bool GNiagaraReleaseBuffersOnReset = true;
 static FAutoConsoleVariableRef CVarNiagaraReleaseBuffersOnReset(
 	TEXT("fx.NiagaraReleaseBuffersOnReset"),
 	GNiagaraReleaseBuffersOnReset,
