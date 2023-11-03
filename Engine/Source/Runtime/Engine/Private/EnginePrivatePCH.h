@@ -518,7 +518,6 @@
 #include "CanvasTypes.h"
 #include "Components/StaticMeshComponent.h"
 #include "ContentStreaming.h"
-#include "PhysXIncludes.h"
 #include "GameFramework/MovementComponent.h"
 #include "CanvasItem.h"
 #include "Model.h"

@@ -7,7 +7,6 @@
 #include "CoreMinimal.h"
 #include "EngineDefines.h"
 #include "PhysicsPublic.h"
-#include "PhysXIncludes.h"
 
 struct FHitResult;
 

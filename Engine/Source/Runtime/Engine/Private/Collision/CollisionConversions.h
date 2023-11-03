@@ -8,7 +8,6 @@
 #include "EngineDefines.h"
 #include "PhysicsEngine/BodyInstance.h"
 #include "PhysicsPublic.h"
-#include "PhysXIncludes.h"
 
 enum class EConvertQueryResult
 {
