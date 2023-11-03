@@ -665,6 +665,7 @@ BEGIN_SHADER_PARAMETER_STRUCT(FAmbientOcclusionParameters, )
 	SHADER_PARAMETER_STRUCT_INCLUDE(FSSAOShaderParameters, SSAOParameters)
 
 	SHADER_PARAMETER(FVector2f, SSAO_DownsampledAOInverseSize)
+	SHADER_PARAMETER(FVector2f, SSAO_SvPositionScaleBias)
 
 	SHADER_PARAMETER_RDG_TEXTURE(Texture2D, SSAO_SetupTexture)
 	SHADER_PARAMETER_RDG_TEXTURE(Texture2D, SSAO_NormalsTexture)
@@ -827,6 +828,8 @@ void AddAmbientOcclusionPass(
 		SharedParameters.SSAO_DownsampledAOInverseSize = FVector2f(1.0f, 1.0f);
 	}
 
+	SharedParameters.SSAO_SvPositionScaleBias = FVector2f(1, 0);
+	
 	SharedParameters.SSAO_Sampler = TStaticSamplerState<SF_Point, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
 
 	SharedParameters.RandomNormalTexture = GSystemTextures.SSAORandomization->GetRHI();

@@ -47,6 +47,7 @@ Texture2D SSAO_DownsampledAO;
 SamplerState SSAO_Sampler;
 
 float2 SSAO_DownsampledAOInverseSize;
+float2 SSAO_SvPositionScaleBias;
 
 // could be moved to a more central spot
 // @param ScreenPos -1 .. 1
