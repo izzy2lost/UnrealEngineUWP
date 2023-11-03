@@ -77,7 +77,7 @@ const FString& FPluginDescriptor::GetFileExtension()
 
 FPluginDescriptor::FPluginDescriptor()
 	: Version(0)
-	, VerseScope(EVerseScope::PublicUser)
+	, VerseScope(EVerseScope::User)
 	, EnabledByDefault(EPluginEnabledByDefault::Unspecified)
 	, bCanContainContent(false)
 	, bCanContainVerse(false)
@@ -219,7 +219,7 @@ bool FPluginDescriptor::Read(const FJsonObject& Object, FText* OutFailReason /*=
 	TSharedPtr<FJsonValue> VerseScopeValue = Object.TryGetField(TEXT("VerseScope"));
 	if (VerseScopeValue.IsValid() && VerseScopeValue->Type == EJson::String)
 	{
-		if (TOptional<EVerseScope::Type> MaybeVerseScope = EVerseScope::FromString(*VerseScopeValue->AsString()))
+		if(TOptional<EVerseScope::Type> MaybeVerseScope = EVerseScope::FromString(*VerseScopeValue->AsString()))
 		{
 			VerseScope = *MaybeVerseScope;
 		}
@@ -387,7 +387,7 @@ void FPluginDescriptor::UpdateJson(FJsonObject& JsonObject) const
 		JsonObject.SetStringField(TEXT("VersePath"), VersePath);
 	}
 
-	if (VerseScope != EVerseScope::PublicUser)
+	if (VerseScope != EVerseScope::User)
 	{
 		JsonObject.SetStringField(TEXT("VerseScope"), EVerseScope::ToString(VerseScope));
 	}

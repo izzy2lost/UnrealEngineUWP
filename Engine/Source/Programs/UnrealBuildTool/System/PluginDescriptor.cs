@@ -146,7 +146,7 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// Origin/visibility of Verse code in this plugin's Content/Verse folder
 		/// </summary>
-		public VerseScope VerseScope = VerseScope.PublicUser;
+		public VerseScope VerseScope = VerseScope.User;
 
 		/// <summary>
 		/// The version of the Verse language that this plugin targets.
@@ -439,7 +439,7 @@ namespace UnrealBuildTool
 			{
 				Writer.WriteValue("VersePath", VersePath);
 			}
-			if (VerseScope != VerseScope.PublicUser)
+			if (VerseScope != VerseScope.User)
 			{
 				Writer.WriteValue("VerseScope", VerseScope.ToString());
 			}
@@ -557,7 +557,7 @@ namespace UnrealBuildTool
 			{
 				CachedJson.AddOrSetFieldValue("VersePath", VersePath);
 			}
-			if (VerseScope != VerseScope.PublicUser)
+			if (VerseScope != VerseScope.User)
 			{
 				CachedJson.AddOrSetFieldValue("VerseScope", VerseScope.ToString());
 			}
