@@ -9,7 +9,8 @@
 
 void FModelViewViewModelModule::StartupModule()
 {
-	if (IConsoleVariable* CVarDefaultExecutionMode = IConsoleManager::Get().FindConsoleVariable(TEXT("MVVM.DefaultExecutionMode")))
+	static IConsoleVariable* CVarDefaultExecutionMode = IConsoleManager::Get().FindConsoleVariable(TEXT("MVVM.DefaultExecutionMode"));
+	if (CVarDefaultExecutionMode)
 	{
 		CVarDefaultExecutionMode->OnChangedDelegate().AddRaw(this, &FModelViewViewModelModule::HandleDefaultExecutionModeChanged);
 	}
@@ -19,7 +20,8 @@ void FModelViewViewModelModule::ShutdownModule()
 {
 	if (!IsEngineExitRequested())
 	{
-		if (IConsoleVariable* CVarDefaultExecutionMode = IConsoleManager::Get().FindConsoleVariable(TEXT("MVVM.DefaultExecutionMode")))
+		static IConsoleVariable* CVarDefaultExecutionMode = IConsoleManager::Get().FindConsoleVariable(TEXT("MVVM.DefaultExecutionMode"));
+		if (CVarDefaultExecutionMode)
 		{
 			CVarDefaultExecutionMode->OnChangedDelegate().RemoveAll(this);
 		}

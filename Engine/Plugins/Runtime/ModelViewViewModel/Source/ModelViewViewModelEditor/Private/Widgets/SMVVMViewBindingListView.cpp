@@ -559,7 +559,8 @@ public:
 		Entry = InEntry;
 		WidgetBlueprintWeak = InWidgetBlueprint;
 
-		CVarDefaultExecutionMode = IConsoleManager::Get().FindConsoleVariable(TEXT("MVVM.DefaultExecutionMode"));
+		static IConsoleVariable* StaticCVarDefaultExecutionMode = IConsoleManager::Get().FindConsoleVariable(TEXT("MVVM.DefaultExecutionMode"));
+		CVarDefaultExecutionMode = StaticCVarDefaultExecutionMode;
 		
 		FMVVMBlueprintViewBinding* ViewBinding = GetThisViewBinding();
 
