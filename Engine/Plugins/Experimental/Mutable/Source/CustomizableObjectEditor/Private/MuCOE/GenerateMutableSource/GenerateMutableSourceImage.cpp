@@ -1027,10 +1027,12 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 				bDoNotAddToGeneratedCache = true;
 			}
 
-			if (TypedNodeTable->Table)
+			UDataTable* DataTable = GetDataTable(TypedNodeTable, GenerationContext);
+
+			if (DataTable)
 			{
 				FString ColumnName = Pin->PinFriendlyName.ToString();
-				FProperty* Property = TypedNodeTable->Table->FindTableProperty(FName(*ColumnName));
+				FProperty* Property = DataTable->FindTableProperty(FName(*ColumnName));
 
 				if (!Property)
 				{
@@ -1052,7 +1054,7 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 				{
 					// Generating a new data table if not exists
 					mu::TablePtr Table = nullptr;
-					Table = GenerateMutableSourceTable(TypedNodeTable->Table->GetName(), Pin, GenerationContext);
+					Table = GenerateMutableSourceTable(DataTable->GetName(), Pin, GenerationContext);
 
 					if (Table)
 					{

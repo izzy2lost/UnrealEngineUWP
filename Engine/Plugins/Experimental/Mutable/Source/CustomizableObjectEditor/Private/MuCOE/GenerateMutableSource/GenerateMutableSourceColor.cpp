@@ -277,11 +277,12 @@ mu::NodeColourPtr GenerateMutableSourceColor(const UEdGraphPin* Pin, FMutableGra
 		Result = WhiteColorNode;
 
 		bool bSuccess = true;
+		UDataTable* DataTable = GetDataTable(TypedNodeTable, GenerationContext);
 
-		if (TypedNodeTable->Table)
+		if (DataTable)
 		{
 			FString ColumnName = Pin->PinFriendlyName.ToString();
-			FProperty* Property = TypedNodeTable->Table->FindTableProperty(FName(*ColumnName));
+			FProperty* Property = DataTable->FindTableProperty(FName(*ColumnName));
 
 			if (!Property)
 			{
@@ -295,7 +296,7 @@ mu::NodeColourPtr GenerateMutableSourceColor(const UEdGraphPin* Pin, FMutableGra
 			{
 				// Generating a new data table if not exists
 				mu::TablePtr Table;
-				Table = GenerateMutableSourceTable(TypedNodeTable->Table->GetName(), Pin, GenerationContext);
+				Table = GenerateMutableSourceTable(DataTable->GetName(), Pin, GenerationContext);
 
 				if (Table)
 				{

@@ -2040,8 +2040,13 @@ mu::MeshPtr BuildMorphedMutableMesh(const UEdGraphPin* BaseSourcePin, const FStr
 
 	else if (const UCustomizableObjectNodeTable* TypedNodeTable = Cast<UCustomizableObjectNodeTable>(Node))
 	{
-		TypedNodeTable->GetPinLODAndSection(BaseSourcePin, LODIndexConnected, SectionIndexConnected);
-		SkeletalMesh = TypedNodeTable->GetSkeletalMeshAt(BaseSourcePin, RowName);
+		UDataTable* DataTable = GetDataTable(TypedNodeTable, GenerationContext);
+
+		if (DataTable)
+		{
+			TypedNodeTable->GetPinLODAndSection(BaseSourcePin, LODIndexConnected, SectionIndexConnected);
+			SkeletalMesh = TypedNodeTable->GetSkeletalMeshAt(BaseSourcePin, DataTable, RowName);
+		}
 	}
 
 	if (SkeletalMesh)
@@ -2161,7 +2166,7 @@ void GenerateMorphFactor(const UCustomizableObjectNode* Node, const UEdGraphPin&
 }
 
 TArray<TTuple<USkeletalMesh*, TSoftClassPtr<UAnimInstance>>> GetSkeletalMeshesInfoForReshapeSelection(
-		const UEdGraphNode* SkeletalMeshOrTableNode, const UEdGraphPin* SourceMeshPin)
+		const UEdGraphNode* SkeletalMeshOrTableNode, const UEdGraphPin* SourceMeshPin, FMutableGraphGenerationContext& GenerationContext)
 {
 	TArray<TTuple<USkeletalMesh*, TSoftClassPtr<UAnimInstance>>> SkeletalMeshesInfo;
 
@@ -2179,12 +2184,14 @@ TArray<TTuple<USkeletalMesh*, TSoftClassPtr<UAnimInstance>>> GetSkeletalMeshesIn
 	}
 	else if (const UCustomizableObjectNodeTable* TableNode = Cast<UCustomizableObjectNodeTable>(SkeletalMeshOrTableNode))
 	{
-		if (TableNode->Table)
+		UDataTable* DataTable = GetDataTable(TableNode, GenerationContext);
+
+		if (DataTable)
 		{
-			for (const FName& RowName : TableNode->GetRowNames())
+			for (const FName& RowName : TableNode->GetRowNames(DataTable))
 			{
-				USkeletalMesh* SkeletalMesh = TableNode->GetSkeletalMeshAt(SourceMeshPin, RowName);
-				TSoftClassPtr<UAnimInstance> MeshAnimInstance = TableNode->GetAnimInstanceAt(SourceMeshPin, RowName);
+				USkeletalMesh* SkeletalMesh = TableNode->GetSkeletalMeshAt(SourceMeshPin, DataTable, RowName);
+				TSoftClassPtr<UAnimInstance> MeshAnimInstance = TableNode->GetAnimInstanceAt(SourceMeshPin, DataTable, RowName);
 
 				if (SkeletalMesh)
 				{
@@ -2641,18 +2648,21 @@ mu::NodeMeshPtr GenerateMorphMesh(const UEdGraphPin* Pin,
 	
 	if (const UCustomizableObjectNodeTable* TypedNodeTable = Cast<UCustomizableObjectNodeTable>(Pin->GetOwningNode()))
 	{
+		UDataTable* DataTable = GetDataTable(TypedNodeTable, GenerationContext);
+
 		// Generate a new Column for each morph
-		int32 NumRows = TypedNodeTable->GetRowNames().Num();
+		const TArray<FName>& RowNames = TypedNodeTable->GetRowNames(DataTable);
+		int32 NumRows = RowNames.Num();
 
 		// Should exist
-		mu::TablePtr Table = GenerationContext.GeneratedTables[TypedNodeTable->Table->GetName()];
+		mu::TablePtr Table = GenerationContext.GeneratedTables[DataTable->GetName()];
 
 		FString ColumnName = TableColumnName + TypedNodeMorphs[MorphIndex].MorphTargetName;
 		int32 ColumnIndex = INDEX_NONE;
 
 		for (int32 RowIndex = 0; RowIndex < NumRows; ++RowIndex)
 		{
-			const FName RowName = TypedNodeTable->GetRowNames()[RowIndex];
+			const FName RowName = RowNames[RowIndex];
 
 			ColumnIndex = Table->FindColumn(ColumnName);
 
@@ -2714,7 +2724,7 @@ mu::NodeMeshPtr GenerateMorphMesh(const UEdGraphPin* Pin,
 					const UEdGraphNode* SkeletalMeshNode = SourceMeshPin ? SourceMeshPin->GetOwningNode() : nullptr;
 
 					TArray<TTuple<USkeletalMesh*, TSoftClassPtr<UAnimInstance>>> SkeletalMeshesToDeform = 
-							GetSkeletalMeshesInfoForReshapeSelection(SkeletalMeshNode, SourceMeshPin);
+							GetSkeletalMeshesInfoForReshapeSelection(SkeletalMeshNode, SourceMeshPin, GenerationContext);
 
 					bool bWarningFound = false;
 					if (TypedMorphNode->bReshapeSkeleton)
@@ -3457,7 +3467,7 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 			const UEdGraphNode* SkeletalMeshNode = SourceMeshPin ? SourceMeshPin->GetOwningNode() : nullptr;
 
 			TArray<TTuple<USkeletalMesh*, TSoftClassPtr<UAnimInstance>>> SkeletalMeshesToDeform = 
-					GetSkeletalMeshesInfoForReshapeSelection(SkeletalMeshNode, SourceMeshPin);
+					GetSkeletalMeshesInfoForReshapeSelection(SkeletalMeshNode, SourceMeshPin, GenerationContext);
 
 			bool bWarningFound = false;
 			if (TypedNodeReshape->bReshapeSkeleton)
@@ -3596,11 +3606,13 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 		Result = EmptyNode;
 		bool bSuccess = true;
 
-		if (TypedNodeTable->Table)
+		UDataTable* DataTable = GetDataTable(TypedNodeTable, GenerationContext);
+
+		if (DataTable)
 		{
 			// Getting the real name of the data table column
 			FString DataTableColumnName = TypedNodeTable->GetColumnNameByPin(Pin);
-			FProperty* Property = TypedNodeTable->Table->FindTableProperty(FName(*DataTableColumnName));
+			FProperty* Property = DataTable->FindTableProperty(FName(*DataTableColumnName));
 
 			if (!Property)
 			{
@@ -3625,7 +3637,7 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 			{
 				// Generating a new data table if not exists
 				mu::TablePtr Table = nullptr;
-				Table = GenerateMutableSourceTable(TypedNodeTable->Table->GetName(), Pin, GenerationContext);
+				Table = GenerateMutableSourceTable(DataTable->GetName(), Pin, GenerationContext);
 
 				if (Table)
 				{

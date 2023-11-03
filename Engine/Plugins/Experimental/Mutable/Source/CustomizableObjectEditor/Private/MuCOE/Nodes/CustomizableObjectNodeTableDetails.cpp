@@ -272,51 +272,53 @@ void FCustomizableObjectNodeTableDetails::GenerateMeshColumnComboBoxOptions()
 	AnimMeshColumnOptionNames.Empty();
 	LayoutMeshColumnOptionNames.Empty();
 
-	if (Node->Table)
+	const UScriptStruct* TableStruct = Node->GetTableNodeStruct();
+
+	if (!TableStruct)
 	{
-		const UScriptStruct* TableStruct = Node->Table->GetRowStruct();
+		return;
+	}
 
-		// we just need the mesh columns
-		for (TFieldIterator<FProperty> It(TableStruct); It; ++It)
+	// we just need the mesh columns
+	for (TFieldIterator<FProperty> It(TableStruct); It; ++It)
+	{
+		FProperty* ColumnProperty = *It;
+
+		if (!ColumnProperty)
 		{
-			FProperty* ColumnProperty = *It;
+			continue;
+		}
 
-			if (!ColumnProperty)
+		if (const FSoftObjectProperty* SoftObjectProperty = CastField<FSoftObjectProperty>(ColumnProperty))
+		{
+			if (SoftObjectProperty->PropertyClass->IsChildOf(USkeletalMesh::StaticClass())
+				|| SoftObjectProperty->PropertyClass->IsChildOf(UStaticMesh::StaticClass()))
 			{
-				continue;
-			}
+				FString MeshColumnName = DataTableUtils::GetPropertyExportName(ColumnProperty);
+				AnimMeshColumnOptionNames.Add(MakeShareable(new FString(MeshColumnName)));
 
-			if (const FSoftObjectProperty* SoftObjectProperty = CastField<FSoftObjectProperty>(ColumnProperty))
-			{
-				if (SoftObjectProperty->PropertyClass->IsChildOf(USkeletalMesh::StaticClass())
-					|| SoftObjectProperty->PropertyClass->IsChildOf(UStaticMesh::StaticClass()))
+				for (const UEdGraphPin* Pin : Node->GetAllNonOrphanPins())
 				{
-					FString MeshColumnName = DataTableUtils::GetPropertyExportName(ColumnProperty);
-					AnimMeshColumnOptionNames.Add(MakeShareable(new FString(MeshColumnName)));
+					const UCustomizableObjectNodeTableMeshPinData* PinData = Cast<UCustomizableObjectNodeTableMeshPinData >(Node->GetPinData(*Pin));
 
-					for (const UEdGraphPin* Pin : Node->GetAllNonOrphanPins())
+					if (!PinData || PinData->ColumnName != MeshColumnName || Node->GetPinMeshType(Pin) != ETableMeshPinType::SKELETAL_MESH)
 					{
-						const UCustomizableObjectNodeTableMeshPinData* PinData = Cast<UCustomizableObjectNodeTableMeshPinData >(Node->GetPinData(*Pin));
+						continue;
+					}
 
-						if (!PinData || PinData->ColumnName != MeshColumnName || Node->GetPinMeshType(Pin) != ETableMeshPinType::SKELETAL_MESH)
+					if (PinData && PinData->ColumnName == MeshColumnName)
+					{
+						if (PinData->Layouts.Num() > 1)
 						{
-							continue;
+							for (int32 LayoutIndex = 0; LayoutIndex < PinData->Layouts.Num(); ++LayoutIndex)
+							{
+								FString LayoutName = Pin->PinFriendlyName.ToString() + FString::Printf(TEXT(" UV_%d"), LayoutIndex);
+								LayoutMeshColumnOptionNames.Add(MakeShareable(new FString(LayoutName)));
+							}
 						}
-
-						if (PinData && PinData->ColumnName == MeshColumnName)
+						else
 						{
-							if (PinData->Layouts.Num() > 1)
-							{
-								for (int32 LayoutIndex = 0; LayoutIndex < PinData->Layouts.Num(); ++LayoutIndex)
-								{
-									FString LayoutName = Pin->PinFriendlyName.ToString() + FString::Printf(TEXT(" UV_%d"), LayoutIndex);
-									LayoutMeshColumnOptionNames.Add(MakeShareable(new FString(LayoutName)));
-								}
-							}
-							else
-							{
-								LayoutMeshColumnOptionNames.Add(MakeShareable(new FString(Pin->PinFriendlyName.ToString())));
-							}
+							LayoutMeshColumnOptionNames.Add(MakeShareable(new FString(Pin->PinFriendlyName.ToString())));
 						}
 					}
 				}
@@ -345,7 +347,12 @@ void FCustomizableObjectNodeTableDetails::GenerateAnimInstanceComboBoxOptions()
 		ColumnName = *AnimMeshColumnComboBox->GetSelectedItem();
 	}
 
-	const UScriptStruct* TableStruct = Node->Table->GetRowStruct();
+	const UScriptStruct* TableStruct = Node->GetTableNodeStruct();
+
+	if(!TableStruct)
+	{
+		return;
+	}
 
 	// Fill in name option arrays and set the selected item if any
 	for (TFieldIterator<FProperty> It(TableStruct); It; ++It)

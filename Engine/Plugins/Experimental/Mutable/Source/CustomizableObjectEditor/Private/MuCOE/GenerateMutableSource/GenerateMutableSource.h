@@ -4,6 +4,7 @@
 
 #include "Animation/Skeleton.h"
 #include "Animation/AnimInstance.h"
+#include "Engine/DataTable.h"
 #include "Engine/SkeletalMesh.h"
 #include "MuCO/CustomizableObject.h"
 #include "MuCOE/ExtensionDataCompilerInterface.h"
@@ -29,6 +30,7 @@ struct FCustomizableObjectClothingAssetData;
 
 class FCustomizableObjectCompiler;
 class UAnimInstance;
+class UCompositeDataTable;
 class UCustomizableObjectNodeMaterial;
 class UCustomizableObjectNodeMeshMorph;
 class UCustomizableObjectNodeObjectGroup;
@@ -538,6 +540,21 @@ struct FMutableGraphGenerationContext
 	// Cache of generated Node Tables
 	TMap<FString, mu::TablePtr> GeneratedTables;
 
+	struct FGeneratedDataTablesData
+	{
+		UScriptStruct* ParentStruct = nullptr;
+		TArray<FName> FilterPaths;
+		UCompositeDataTable* GeneratedDataTable = nullptr;
+
+		bool operator==(const FGeneratedDataTablesData& Other) const
+		{
+			return ParentStruct == Other.ParentStruct && FilterPaths == Other.FilterPaths;
+		}
+	};
+
+	// Cache of generated Composited Data Tables
+	TArray<FGeneratedDataTablesData> GeneratedCompositeDataTables;
+
 	// Cache of generated images, because sometimes they are reused by LOD, we use this as a second
 	// level cache
 	TMap<FGeneratedImageKey, mu::NodeImagePtr> GeneratedImages;
@@ -795,6 +812,9 @@ struct FMutableGraphGenerationContext
 
 	/** See UCustomizableObject::ParticipatingObjects. */
 	TMap<TObjectPtr<const UObject>, FGuid> ParticipatingObjects;
+
+	/** Map to relate a Composite Data Table Row and its original DataTable */
+	TMap<UDataTable*,TMap<FName, TArray<UDataTable*>>> CompositeDataTableRowToOriginalDataTableMap;
 };
 
 /** Pin Data scope wrapper. Pops the pin data on scope exit. */

@@ -6,8 +6,8 @@
 
 class FProperty;
 class FString;
-
 class UCustomizableObjectNodeTable;
+class UDataTable;
 class UEdGraphPin;
 struct FMutableGraphGenerationContext;
 
@@ -58,3 +58,12 @@ bool FillTableColumn(const UCustomizableObjectNodeTable* TableNode, mu::TablePtr
 
 
 mu::TablePtr GenerateMutableSourceTable(const FString& TableName, const UEdGraphPin* Pin, FMutableGraphGenerationContext& GenerationContext);
+
+/** Gets the data table needed during the compilation process */
+UDataTable* GetDataTable(const UCustomizableObjectNodeTable* TableNode, FMutableGraphGenerationContext& GenerationContext);
+
+/** Generates a Data Table from the Data Tables referenced in a Script Struct */
+UDataTable* GenerateDataTableFromStruct(const UCustomizableObjectNodeTable* TableNode, FMutableGraphGenerationContext& GenerationContext);
+
+/** This method adds the original Data Table(s) of the processed row at the end of the log message when the data table is a Composite Data table. */
+void LogRowGenerationMessage(const UCustomizableObjectNodeTable* TableNode, const UDataTable* DataTable, FMutableGraphGenerationContext& GenerationContext, const FString& Message, const FString& RowName);

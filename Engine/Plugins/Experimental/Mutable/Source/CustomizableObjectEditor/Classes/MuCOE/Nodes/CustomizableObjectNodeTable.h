@@ -40,6 +40,18 @@ enum class ETableMeshPinType : uint8
 };
 
 
+/** Enum to decide where the data comes from: Struct or Data Table*/
+UENUM()
+enum class ETableDataGatheringSource : uint8
+{
+	/** Gathers the information from a data table */
+	ETDGM_DataTable = 0 UMETA(DisplayName = "Data Table"),
+
+	/** When compiling the CO, it uses the asset registry to gather and generate a data table. It uses all the data tables found in the specified paths that are references of the selected structure.*/
+	ETDGM_AssetRegistry = 1 UMETA(DisplayName = " Struct + Asset Registry")
+};
+
+
 /** Base class for all Table Pins. */
 UCLASS()
 class CUSTOMIZABLEOBJECTEDITOR_API UCustomizableObjectNodeTableObjectPinData : public UCustomizableObjectNodePinData
@@ -150,13 +162,24 @@ public:
 	UPROPERTY(EditAnywhere, Category = TableProperties)
 	bool bAddNoneOption;
 
-	// Pointer to the Data Table Asset represented in this node
-	UPROPERTY(EditAnywhere, Category = TableProperties, meta = (DontUpdateWhileEditing))
-	TObjectPtr<UDataTable> Table = nullptr;
-	
 	/** If there is a bool column in the table, checked rows will not be compiled */
 	UPROPERTY(EditAnywhere, Category = TableProperties)
 	bool bDisableCheckedRows = true;
+
+	/** Source where table gathers the data */
+	UPROPERTY(EditAnywhere, Category = TableProperties)
+	ETableDataGatheringSource TableDataGatheringMode = ETableDataGatheringSource::ETDGM_DataTable;
+
+	// Pointer to the Data Table Asset represented in this node
+	UPROPERTY(EditAnywhere, Category = TableProperties, meta = (DontUpdateWhileEditing, EditCondition = "TableDataGatheringMode == ETableDataGatheringSource::ETDGM_DataTable", EditConditionHides))
+	TObjectPtr<UDataTable> Table = nullptr;
+
+	// Pointer to the Struct Asset represented in this node
+	UPROPERTY(EditAnywhere, Category = TableProperties, meta = (DontUpdateWhileEditing, EditCondition = "TableDataGatheringMode == ETableDataGatheringSource::ETDGM_AssetRegistry", EditConditionHides))
+	TObjectPtr<UScriptStruct> Structure = nullptr;
+
+	UPROPERTY(EditAnywhere, Category = TableProperties, meta = (EditCondition = "TableDataGatheringMode == ETableDataGatheringSource::ETDGM_AssetRegistry", EditConditionHides))
+	TArray<FName> FilterPaths;
 
 	/** Decides the default type of the texture pins (passtrhough or mutable)
 	*   Right click on a non-linked image pin to customize its image mode
@@ -222,51 +245,56 @@ public:
 	T* GetColumnDefaultAssetByType(FString ColumnName) const
 	{
 		T* ObjectToReturn = nullptr;
+		const UScriptStruct* TableStruct = nullptr;
 
-		if (Table)
+		if (TableDataGatheringMode == ETableDataGatheringSource::ETDGM_AssetRegistry)
 		{
-			// Getting Struct Pointer
-			const UScriptStruct* TableStruct = Table->GetRowStruct();
-
-			if (TableStruct)
+			TableStruct = Structure;
+		}
+		else
+		{
+			if (Table)
 			{
-				// Getting Default Struct Values
-				uint8* DefaultRowData = (uint8*)FMemory::Malloc(TableStruct->GetStructureSize());
-				TableStruct->InitializeStruct(DefaultRowData);
+				TableStruct = Table->GetRowStruct();
+			}
+		}
 
-				if (DefaultRowData)
+		if (TableStruct)
+		{
+			// Getting Default Struct Values
+			// A Script Struct always has at leaset one property
+			TArray<int8> DeafaultDataArray;
+			DeafaultDataArray.SetNumZeroed(TableStruct->GetStructureSize());
+			TableStruct->InitializeStruct(DeafaultDataArray.GetData());
+
+			FProperty* Property = FindTableProperty(TableStruct, FName(*ColumnName));
+
+			if (Property)
+			{
+				if (const FSoftObjectProperty* SoftObjectProperty = CastField<FSoftObjectProperty>(Property))
 				{
-					FProperty* Property = Table->FindTableProperty(FName(*ColumnName));
+					UObject* Object = nullptr;
+					
+					// Getting default UObject
+					uint8* CellData = SoftObjectProperty->ContainerPtrToValuePtr<uint8>(DeafaultDataArray.GetData());
 
-					if (Property)
+					if (CellData)
 					{
-						if (const FSoftObjectProperty* SoftObjectProperty = CastField<FSoftObjectProperty>(Property))
-						{
-							UObject* Object = nullptr;
-							
-							// Getting default UObject
-							uint8* CellData = SoftObjectProperty->ContainerPtrToValuePtr<uint8>(DefaultRowData);
-
-							if (CellData)
-							{
-								Object = SoftObjectProperty->GetPropertyValue(CellData).LoadSynchronous();
-							}
-
-							if (Object)
-							{
-								if (Object->IsA(T::StaticClass()))
-								{
-									ObjectToReturn = Cast <T>(Object);
-								}
-							}
-						}
+						Object = SoftObjectProperty->GetPropertyValue(CellData).LoadSynchronous();
 					}
 
-					// Cleaning Default Structure Pointer
-					TableStruct->DestroyStruct(DefaultRowData);
-					FMemory::Free(DefaultRowData);
+					if (Object)
+					{
+						if (Object->IsA(T::StaticClass()))
+						{
+							ObjectToReturn = Cast <T>(Object);
+						}
+					}
 				}
 			}
+
+			// Cleaning Default Structure Pointer
+			TableStruct->DestroyStruct(DeafaultDataArray.GetData());
 		}
 
 		return ObjectToReturn;
@@ -288,15 +316,15 @@ public:
 		return nullptr;
 	}
 
-
+	// Generation Mutable Source Methods
 	// We should do this in a template!
-	USkeletalMesh* GetSkeletalMeshAt(const UEdGraphPin* Pin, const FName& RowName) const;
-	TSoftClassPtr<UAnimInstance> GetAnimInstanceAt(const UEdGraphPin* Pin, const FName& RowName) const;
+	USkeletalMesh* GetSkeletalMeshAt(const UEdGraphPin* Pin, const UDataTable* DataTable, const FName& RowName) const;
+	TSoftClassPtr<UAnimInstance> GetAnimInstanceAt(const UEdGraphPin* Pin, const UDataTable* DataTable, const FName& RowName) const;
 
 
 	// Return the name of the enabled rows in the data table.
 	// Returns the name if the row has a bool column set as false (true == disabled)
-	TArray<FName> GetRowNames() const;
+	TArray<FName> GetRowNames(const UDataTable* DataTable) const;
 
 	// Changes the image mode of a pin
 	// bSetDefault param: if true sets the pin to be equal to the default mode (same as node)
@@ -317,6 +345,16 @@ public:
 	// Functions to generate the names of a mutable table's column
 	FString GenerateSkeletalMeshMutableColumName(const FString& PinName, int32 LODIndex, int32 MaterialIndex) const;
 	FString GenerateStaticMeshMutableColumName(const FString& PinName, int32 MaterialIndex) const;
+
+	/** Returns the struct pointer used to gather data */
+	const UScriptStruct* GetTableNodeStruct() const;
+
+	// Methods from UDataTable but modified to support ScriptStructs
+	/** Get an array of all the column titles, using the friendly display name from the property */
+	TArray<FString> GetColumnTitles(const UScriptStruct* ScriptStruct) const;
+	
+	/** Returns the column property where PropertyName matches the name of the column property. Returns nullptr if no match is found or the match is not a supported table property */
+	FProperty* FindTableProperty(const UScriptStruct* ScriptStruct, const FName& PropertyName) const;
 
 private:
 
