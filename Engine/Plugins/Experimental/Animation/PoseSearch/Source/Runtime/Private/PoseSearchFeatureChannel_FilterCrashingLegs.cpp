@@ -121,7 +121,7 @@ void UPoseSearchFeatureChannel_FilterCrashingLegs::DebugDraw(const UE::PoseSearc
 // IPoseSearchFilter interface
 bool UPoseSearchFeatureChannel_FilterCrashingLegs::IsFilterActive() const
 {
-	return true;
+	return AllowedTolerance > 0.f;
 }
 
 bool UPoseSearchFeatureChannel_FilterCrashingLegs::IsFilterValid(TConstArrayView<float> PoseValues, TConstArrayView<float> QueryValues, int32 PoseIdx, const UE::PoseSearch::FPoseMetadata& Metadata) const

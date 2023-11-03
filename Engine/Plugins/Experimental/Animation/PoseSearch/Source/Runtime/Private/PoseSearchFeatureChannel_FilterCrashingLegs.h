@@ -49,7 +49,8 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Settings")
 	EInputQueryPose InputQueryPose = EInputQueryPose::UseContinuingPose;
 
-	UPROPERTY(EditAnywhere, Category = "Settings")
+	// if AllowedTolerance is zero the filter is disabled
+	UPROPERTY(EditAnywhere, Category = "Settings", meta = (ClampMin = "0", UIMin = "0"))
 	float AllowedTolerance = 0.3f;
 
 	// UPoseSearchFeatureChannel interface
