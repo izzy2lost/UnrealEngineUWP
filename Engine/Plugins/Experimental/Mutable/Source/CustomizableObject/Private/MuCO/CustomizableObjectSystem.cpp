@@ -89,7 +89,15 @@ static TAutoConsoleVariable<int32> CVarGeneratedResourcesCacheSize(
 	TEXT("Limit the number of resources (images and meshes) that will be tracked for reusal. Each tracked resource uses a small amout of memory for its key."),
 	ECVF_Scalability);
 
+TAutoConsoleVariable<bool> CVarPreserveUserLODsOnFirstGeneration(
+	TEXT("mutable.PreserveUserLODsOnFirstGeneration"),
+	true,
+	TEXT("If false, force disable UCustomizableObject::bPreserveUserLODsOnFirstGeneration."),
+	ECVF_Scalability);
+
+
 int32 FCustomizableObjectSystemPrivate::SkeletalMeshMinLodQualityLevel = -1;
+
 static void CVarMutableSinkFunction()
 {
 	if (UCustomizableObjectSystem::IsCreated())
@@ -116,6 +124,9 @@ FUpdateContextPrivate::FUpdateContextPrivate(UCustomizableObjectInstance& InInst
 	bBuildParameterRelevancy = InInstance.GetBuildParameterRelevancy();
 	Parameters = InInstance.GetDescriptor().GetParameters();
 	TextureParameters = InInstance.GetPrivate()->UpdateTextureParameters;
+	CurrentMinLOD = InInstance.GetCurrentMinLOD();
+	CurrentMaxLOD = InInstance.GetCurrentMinLOD();
+	RequestedLODs = InInstance.GetRequestedLODsPerComponent();
 	
 	InInstance.GetCustomizableObject()->ApplyStateForcedValuesToParameters(State, Parameters.get());
 
@@ -1627,7 +1638,7 @@ namespace impl
 			OperationData->CurrentMaxLOD = OperationData->NumLODsAvailable - 1;
 		}
 
-		if(!OperationData->RequestedLODs.IsEmpty())
+		if (!OperationData->RequestedLODs.IsEmpty())
 		{
 			// Initialize RequestedLODs to zero if not set
 			const int32 ComponentCount = Instance->GetComponentCount(OperationData->CurrentMinLOD);
@@ -1652,6 +1663,8 @@ namespace impl
 				}
 			}
 		}
+		
+		OperationData->InstanceDescriptorRuntimeHash.UpdateRequestedLODs(OperationData->RequestedLODs);
 
 		// Map SharedSurfaceId to surface index
 		TArray<int32> SurfacesSharedId;
@@ -2818,10 +2831,12 @@ namespace impl
 		}
 #endif // WITH_EDITOR
 		
-		if (System->IsOnlyGenerateRequestedLODsEnabled() && System->CurrentInstanceLODManagement->IsOnlyGenerateRequestedLODLevelsEnabled() && 
-			!bIsInEditorViewport)
+		if (!System->IsOnlyGenerateRequestedLODsEnabled() ||
+			!System->CurrentInstanceLODManagement->IsOnlyGenerateRequestedLODLevelsEnabled() ||
+			bIsInEditorViewport)
 		{
-			Operation->RequestedLODs = Operation->InstanceDescriptorRuntimeHash.GetRequestedLODs();
+			Operation->RequestedLODs = {};
+			Operation->InstanceDescriptorRuntimeHash.UpdateRequestedLODs({});
 		}
 
 #ifdef MUTABLE_USE_NEW_TASKGRAPH

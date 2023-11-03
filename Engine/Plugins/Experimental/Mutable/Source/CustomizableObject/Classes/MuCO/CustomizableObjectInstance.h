@@ -732,7 +732,13 @@ public:
 	/** Array of RequestedLODs per component to generate if this candidate is chosen */
 	TArray<uint16> RequestedLODLevels;
 
-	FMutableUpdateCandidate(UCustomizableObjectInstance* InCustomizableObjectInstance) : CustomizableObjectInstance(InCustomizableObjectInstance) {}
+	FMutableUpdateCandidate(UCustomizableObjectInstance* InCustomizableObjectInstance) : CustomizableObjectInstance(InCustomizableObjectInstance)
+	{
+		const FCustomizableObjectInstanceDescriptor& Descriptor = InCustomizableObjectInstance->GetDescriptor();
+		MinLOD = Descriptor.GetMinLod();
+		MaxLOD = Descriptor.GetMaxLod();
+		RequestedLODLevels = Descriptor.GetRequestedLODLevels();
+	}
 
 	FMutableUpdateCandidate(const UCustomizableObjectInstance* InCustomizableObjectInstance, const int32 InMinLOD, const int32 InMaxLOD,
 		const TArray<uint16>& InRequestedLODLevels) :

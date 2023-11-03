@@ -1214,6 +1214,10 @@ private:
 	UPROPERTY(EditAnywhere, Category = CustomizableObject)
 	bool bEnableUseRefSkeletalMeshAsPlaceholder = true;
 
+	/** Use the Instance MinLOD, MaxLOD and RequestedLODs in the descriptor when performing the initial generation (ignore LOD Management). */
+	UPROPERTY(Category = "CustomizableObject", EditAnywhere, DisplayName = "Preserve User LODs On First Generation")
+	bool bPreserveUserLODsOnFirstGeneration = false;
+	
 public:
 #if WITH_EDITORONLY_DATA
 	// Hide this property because it is not used yet.
@@ -1599,6 +1603,9 @@ public:
 	FParameterUIData GetParameterUIMetadataFromIndex(int32 ParamIndex) const;
 
 	TSoftObjectPtr<USkeleton> GetReferencedSkeletonAssetPtr( uint32 Index );
+
+	/** See bPreserveUserLODsOnFirstGeneration. */
+	bool IsPreserveUserLODsOnFirstGeneration() const;
 
 	/** Stores all the parameter UI metadata information for all the dependencies of this Customizable Object */
 	UPROPERTY()

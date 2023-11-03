@@ -2835,6 +2835,9 @@ void FMutableUpdateCandidate::ApplyLODUpdateParamsToInstance(FUpdateContextPriva
 	if (Context)
 	{
 		Context->InstanceDescriptorRuntimeHash = CustomizableObjectInstance->GetPrivate()->UpdateDescriptorRuntimeHash;
+		Context->CurrentMinLOD = MinLOD;
+		Context->CurrentMaxLOD = MaxLOD;
+		Context->RequestedLODs = RequestedLODLevels;
 	}
 }
 
@@ -6152,6 +6155,13 @@ void UCustomizableObjectInstance::SetRequestedLODs(int32 InMinLOD, int32 InMaxLO
 	}
 
 	if (!GetCustomizableObject()->LODSettings.bLODStreamingEnabled)
+	{
+		return;
+	}
+
+	if (CVarPreserveUserLODsOnFirstGeneration.GetValueOnGameThread() &&
+		GetCustomizableObject()->IsPreserveUserLODsOnFirstGeneration() &&
+		GetPrivate()->GetSkeletalMeshStatus() != ESkeletalMeshStatus::Success)
 	{
 		return;
 	}

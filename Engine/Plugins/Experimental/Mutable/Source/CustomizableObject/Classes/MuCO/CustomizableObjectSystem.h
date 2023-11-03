@@ -43,6 +43,7 @@ extern TAutoConsoleVariable<bool> CVarClearWorkingMemoryOnUpdateEnd;
 
 extern TAutoConsoleVariable<bool> CVarReuseImagesBetweenInstances;
 
+extern TAutoConsoleVariable<bool> CVarPreserveUserLODsOnFirstGeneration;
 
 #if WITH_EDITOR
 

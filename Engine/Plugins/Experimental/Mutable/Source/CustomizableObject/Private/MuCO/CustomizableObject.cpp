@@ -1971,6 +1971,12 @@ TArray<TSharedPtr<IAsyncReadFileHandle>> UCustomizableObjectBulk::GetAsyncReadFi
 }
 
 
+bool UCustomizableObject::IsPreserveUserLODsOnFirstGeneration() const
+{
+	return bPreserveUserLODsOnFirstGeneration;
+}
+
+
 #if WITH_EDITOR
 
 void UCustomizableObjectBulk::CookAdditionalFilesOverride(const TCHAR* PackageFilename,
