@@ -1896,8 +1896,8 @@ void UPCGComponent::Refresh(bool bStructural)
 		return;
 	}
 
-	// If the refresh is globally disabled, just exit
-	if (PCGComponent::CVarGlobalDisableRefresh.GetValueOnAnyThread())
+	// If refresh is disabled, just exit
+	if (PCGComponent::CVarGlobalDisableRefresh.GetValueOnAnyThread() || IsRunningCommandlet())
 	{
 		return;
 	}
