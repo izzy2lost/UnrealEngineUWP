@@ -1184,16 +1184,21 @@ float ConvertFromDeviceZ(float DeviceZ)
 }
 
 // Returns whether or not the given projection matrix is orthographic
-// Utilises asuint call to reduce compare to 1ALU cost
 bool IsOrthoProjection(float4x4 ViewToClip)
 {
-	return asuint(ViewToClip._44);
+	return ViewToClip._44 >= 1.0f;
 }
 
 // Returns whether or not the default view is orthographic
 bool IsOrthoProjection()
 {
 	return IsOrthoProjection(View.ViewToClip);
+}
+
+// Returns whether or not the given projection matrix is orthographic via float
+float IsOrthoProjectionFloat()
+{
+	return select(IsOrthoProjection(), 1.0f, 0.0f);
 }
 
 // inverse operation of ConvertFromDeviceZ()
