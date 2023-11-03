@@ -73,7 +73,7 @@ private:
 	FString ThreadMarker;
 
 	/** Barrier sync client. */
-	TUniquePtr<IDisplayClusterGenericBarriersClient> EthernetBarrierClient;
+	TUniquePtr<IDisplayClusterGenericBarriersClient, FDisplayClusterGenericBarriersClientDeleter> EthernetBarrierClient;
 };
 
 /*
