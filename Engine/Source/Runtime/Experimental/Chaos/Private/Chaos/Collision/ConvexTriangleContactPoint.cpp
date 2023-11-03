@@ -478,7 +478,7 @@ namespace Chaos
 
 			ClipAxis = ConvexPlaneN;
 		}
-		else if (ContactType == EContactPointType::EdgeEdge)
+		else if (ContactType == EContactPointType::EdgeEdge) //-V547
 		{
 			// Edge-edge contact - clip triangle vs convex or vice-versa based on most opposing normals
 

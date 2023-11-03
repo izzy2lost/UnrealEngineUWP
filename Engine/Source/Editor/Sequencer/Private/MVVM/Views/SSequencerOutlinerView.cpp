@@ -63,14 +63,14 @@ public:
 
 		if (Outliner->GetHoveredItem() == OutlinerItem)
 		{
-			return ItemStyle == EOutlinerItemViewBaseStyle::ContainerHeader
+			return /*ItemStyle == EOutlinerItemViewBaseStyle::ContainerHeader
 				? FLinearColor(FColor(52, 52, 52, 255))
-				: FLinearColor(FColor(72, 72, 72, 255));
+				: */FLinearColor(FColor(72, 72, 72, 255));
 		}
 
-		return ItemStyle == EOutlinerItemViewBaseStyle::ContainerHeader
+		return /*ItemStyle == EOutlinerItemViewBaseStyle::ContainerHeader
 			? FLinearColor(FColor(48, 48, 48, 255))
-			: FLinearColor(FColor(62, 62, 62, 255));
+			: */FLinearColor(FColor(62, 62, 62, 255));
 	}
 
 private:
