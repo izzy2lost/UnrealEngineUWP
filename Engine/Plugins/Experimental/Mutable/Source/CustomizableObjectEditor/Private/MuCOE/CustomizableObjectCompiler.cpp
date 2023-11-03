@@ -1171,7 +1171,25 @@ void FCustomizableObjectCompiler::CompileInternal(UCustomizableObject* Object, c
 
 		Object->GroupNodeMap = GenerationContext.GroupNodeMap;
 		Object->ParameterUIDataMap = GenerationContext.ParameterUIDataMap;
+
 		Object->StateUIDataMap = GenerationContext.StateUIDataMap;
+		if (GenerationContext.Options.OptimizationLevel == 0 )
+		{
+			// If the optimization level is "none" disable texture streaming, because textures are all referenced
+			// unreal assets and progressive generation is not supported.
+			for (TPair<FString, FParameterUIData>& StateData : Object->StateUIDataMap)
+			{
+				StateData.Value.bDisableTextureStreamingOverride = true;
+			}
+
+			// If there is no state data, we need to add the default one to be able to disable streaming.
+			if (Object->StateUIDataMap.IsEmpty())
+			{
+				FParameterUIData& Data = Object->StateUIDataMap.Add(TEXT("Default"));
+				Data.bDisableTextureStreamingOverride = true;
+			}
+		}
+
 		Object->AlwaysLoadedExtensionData = MoveTemp(GenerationContext.AlwaysLoadedExtensionData);
 
 		Object->StreamedExtensionData.Empty(GenerationContext.StreamedExtensionData.Num());

@@ -179,6 +179,17 @@ void UCustomizableObject::PostLoad()
 			: ECustomizableObjectTextureCompression::None
 			;
 	}
+
+	// Update state never-stream flag from deprecated enum
+	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::CustomizableObjectStateHasSeparateNeverStreamFlag)
+	{
+		for (TPair<FString, FParameterUIData>& s : StateUIDataMap)
+		{
+			s.Value.bDisableTextureStreaming = s.Value.TextureCompressionStrategy != ETextureCompressionStrategy::None;
+		}
+	}
+
+
 #endif
 
 #if WITH_EDITORONLY_DATA

@@ -42,7 +42,6 @@
 #endif
 
 
-
 #include UE_INLINE_GENERATED_CPP_BY_NAME(CustomizableObjectSystem)
 
 class AActor;
@@ -889,14 +888,26 @@ void UpdateSkeletalMesh(const TSharedRef<FUpdateContextPrivate>& Context)
 
 void FCustomizableObjectSystemPrivate::GetMipStreamingConfig(const UCustomizableObjectInstance& Instance, bool& bOutNeverStream, int32& OutMipsToSkip) const
 {
+	bOutNeverStream = false;
+
+	// From user-controlled per-state flag?
 	const FString CurrentState = Instance.GetCurrentState();
-	const FParameterUIData* State = Instance.GetCustomizableObject()->StateUIDataMap.Find(CurrentState);
+	const FParameterUIData* State = Instance.GetCustomizableObject()->StateUIDataMap.Find(CurrentState);	
+	if (State)
+	{
+		bOutNeverStream = State->bDisableTextureStreaming;
 
-	// \TODO: This should be controllable independently
-	bOutNeverStream = State ? State->TextureCompressionStrategy != ETextureCompressionStrategy::None : false;
+		// Was streaming disabled at object-compilation time? 
+		if (State->bDisableTextureStreamingOverride)
+		{
+			bOutNeverStream = true;
+		}
+	}
+
 	bool bUseMipmapStreaming = !bOutNeverStream;
-	OutMipsToSkip = 0; // 0 means all mips
+	OutMipsToSkip = 0; // 0 means generate all mips
 
+	// Streaming disabled from platform settings?
 #if PLATFORM_SUPPORTS_TEXTURE_STREAMING
 	if (!IStreamingManager::Get().IsTextureStreamingEnabled())
 	{
@@ -906,6 +917,7 @@ void FCustomizableObjectSystemPrivate::GetMipStreamingConfig(const UCustomizable
 	bUseMipmapStreaming = false;
 #endif
 
+	// Streaming disabled from platform CustomizableObjectSystem properties?
 	if (bUseMipmapStreaming && EnableMutableProgressiveMipStreaming)
 	{
 		OutMipsToSkip = 255; // This means skip all possible mips until only UTexture::GetStaticMinTextureResidentMipCount() are left
@@ -1753,7 +1765,7 @@ namespace impl
 
 								if (Props.IsPassThrough)
 								{
-									// Since it's known it's a pass-through texture, the GetImage will be inexpensive enough to be run in the game thread
+									// Since it's known it's a pass-through texture there is no need to cache or convert it so we can generate it here already.
 									Image.Image = System->GetImage(OperationData->InstanceID, Image.ImageID, 0, 0);
 									check(Image.Image->IsReference());
 
