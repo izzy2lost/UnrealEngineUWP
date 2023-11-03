@@ -177,6 +177,7 @@ private:
 
 	void RollbackRedeploy();
 
+	_Function_class_(QUIC_LISTENER_CALLBACK)
 	static QUIC_STATUS QUIC_API QuicListenerThunk(HQUIC Listener, void* Context, QUIC_LISTENER_EVENT* Event);
 	static QUIC_STATUS QUIC_API QuicConnectionThunk(HQUIC Connection, void* Context, QUIC_CONNECTION_EVENT* Event);
 	static QUIC_STATUS QUIC_API QuicStreamThunk(HQUIC Stream, void* Context, QUIC_STREAM_EVENT* Event);
