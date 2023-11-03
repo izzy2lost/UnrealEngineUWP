@@ -27,7 +27,7 @@ public:
 	SHADER_USE_PARAMETER_STRUCT(FLocalLightBufferCS, FGlobalShader);
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<int32>, RWTileInfo)
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, RWTileInfo)
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FForwardLightData, ForwardLightData)
 		SHADER_PARAMETER(FIntPoint, GroupSize)
 	END_SHADER_PARAMETER_STRUCT()
@@ -55,7 +55,7 @@ class FLocalLightBufferVS : public FGlobalShader
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<int32>, TileInfo)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, TileInfo)
 		SHADER_PARAMETER(int32, LightGridPixelSize)
 	END_SHADER_PARAMETER_STRUCT()
 
@@ -247,9 +247,9 @@ void FMobileSceneRenderer::RenderMobileLocalLightsBuffer(FRDGBuilder& GraphBuild
 			FMath::DivideAndRoundUp(View.ViewRect.Size().X, LightGridPixelSize),
 			FMath::DivideAndRoundUp(View.ViewRect.Size().Y, LightGridPixelSize));
 
-		FRDGBufferRef TileInfoBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateBufferDesc(sizeof(int32), 2 * GroupSize.X * GroupSize.Y), TEXT("TileInfoBuffer"));
-		FRDGBufferUAVRef TileInfoBufferUAV = GraphBuilder.CreateUAV(TileInfoBuffer, PF_R32_SINT);
-		FRDGBufferSRVRef TileInfoBufferSRV = GraphBuilder.CreateSRV(TileInfoBuffer, PF_R32_SINT);
+		FRDGBufferRef TileInfoBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateBufferDesc(sizeof(uint32), 2 * GroupSize.X * GroupSize.Y), TEXT("TileInfoBuffer"));
+		FRDGBufferUAVRef TileInfoBufferUAV = GraphBuilder.CreateUAV(TileInfoBuffer, PF_R32_UINT);
+		FRDGBufferSRVRef TileInfoBufferSRV = GraphBuilder.CreateSRV(TileInfoBuffer, PF_R32_UINT);
 
 		{
 			auto* PassParameters = GraphBuilder.AllocParameters<FLocalLightBufferCS::FParameters>();

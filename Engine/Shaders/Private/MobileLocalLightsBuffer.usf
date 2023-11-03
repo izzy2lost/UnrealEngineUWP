@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #define SUPPORT_CONTACT_SHADOWS 0
+#define MAX_UINT 4294967295
 
 #if !COMPUTE_SHADER
 #include "Common.ush"
@@ -19,7 +20,7 @@
 #if COMPUTE_SHADER
 
 uint2 GroupSize;
-RWBuffer<int> RWTileInfo;
+RWBuffer<uint> RWTileInfo;
 [numthreads(THREADGROUP_SIZEX, 1, 1)]
 void MainCS(
 	uint3 GroupId : SV_GroupID,
@@ -57,8 +58,8 @@ void MainCS(
 	}
 	else
 	{
-		RWTileInfo[2 * DispatchThreadId.x] = -1;
-		RWTileInfo[2 * DispatchThreadId.x + 1] = -1;
+		RWTileInfo[2 * DispatchThreadId.x] = MAX_UINT;
+		RWTileInfo[2 * DispatchThreadId.x + 1] = MAX_UINT;
 	}
 }
 
@@ -67,7 +68,7 @@ void MainCS(
 #if !LIGHT_FUNCTION
 
 int LightGridPixelSize;
-Buffer<int> TileInfo;
+Buffer<uint> TileInfo;
 void MainVS(
 	float2 TexCoord : ATTRIBUTE0,
 	uint VertexId : SV_VertexID,
@@ -81,7 +82,7 @@ void MainVS(
 	float2 ScreenPosition = (ScreenUV.xy - View.ScreenPositionScaleBias.wz) / View.ScreenPositionScaleBias.xy;
 	OutPosition = float4(ScreenPosition, 0, 1);
 
-	if(TileInfo[2 * InstanceId] < 0)
+	if(TileInfo[2 * InstanceId] == MAX_UINT)
 	{
 		OutPosition.xy = 0;
 	}
