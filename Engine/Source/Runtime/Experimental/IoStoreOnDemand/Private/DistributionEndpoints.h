@@ -14,41 +14,35 @@ namespace UE::IO::IAS
 class FDistributionEndpoints
 {
 public:
-	using FOnEndpointResolved = TFunction<void(const FString&, TConstArrayView<FString>)>;
+	enum class EResult : uint8
+	{
+		Success = 0,
+		Failure
+	};
 
 	FDistributionEndpoints() = default;
-	~FDistributionEndpoints();
+	~FDistributionEndpoints() = default;
 
-#if IS_PROGRAM || WITH_EDITOR
-	bool Flush(double TimeOut);
-#endif //IS_PROGRAM || WITH_EDITOR
+	/**
+	 * Queries the distributed endpoint in order to get a list of service urls from which we can download data.
+	 * 
+	 * @param DistributionUrl	The url of the distributed endpoint to resolve
+	 * @param OutServiceUrls	An array into which the resolved urls will be placed
+	 */
+	FDistributionEndpoints::EResult ResolveEndpoints(const FString& DistributionUrl, TArray<FString>& OutServiceUrls);
 
-	void ResolveEndpoints(const FString& DistributionUrl, FOnEndpointResolved&& OnResolved);
-	void ResolveDeferredEndpoints();
+	/**
+	 * Queries the distributed endpoint in order to get a list of service urls from which we can download data.
+	 * 
+	 * @param DistributionUrl	The url of the distributed endpoint to resolve
+	 * @param OutServiceUrls	An array into which the resolved urls will be placed
+	 * @param Event				An event which can be triggered to cancel the request
+	 */
+	FDistributionEndpoints::EResult ResolveEndpoints(const FString& DistributionUrl, TArray<FString>& OutServiceUrls, FEvent& Event);
 
 private:
-	struct FResolvedEndpoint
-	{
-		TArray<FString> ServiceUrls;
-	};
 
-	struct FResolveRequest
-	{
-		FString DistributionUrl;
-		FHttpRequestPtr HttpRequest;
-		TArray<FOnEndpointResolved> Callbacks;
-		int32 RetryCount = 0;
-	};
-
-	void IssueEndpointRequests();
-	void CancelEndpointRequests();
-	void CompleteEndpointRequest(FResolveRequest& ResolveRequest, FHttpResponsePtr HttpResponse);
-
-	TMap<FString, TUniquePtr<FResolvedEndpoint>> ResolvedEndpoints;
-	TMap<FString, TUniquePtr<FResolveRequest>> PendingRequests;
-
-	FRWLock Lock;
-	bool bInitialized = false;
+	FDistributionEndpoints::EResult ParseResponse(FHttpResponsePtr HttpResponse, TArray<FString>& OutUrls);
 };
 
 } // namespace UE::IO::IAS

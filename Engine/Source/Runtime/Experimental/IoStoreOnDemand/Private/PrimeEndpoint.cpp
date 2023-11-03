@@ -34,17 +34,14 @@ static TIoStatusOr<TArray<FString>> FindCDNUrls(const FString& DistributionUrl)
 	TArray<FString> CDNUrls;
 
 	FDistributionEndpoints DistributionInfo;
-	DistributionInfo.ResolveEndpoints(DistributionUrl, [&CDNUrls](const FString& DistributionUrl, TConstArrayView<FString> Urls)
-		{
-			CDNUrls = Urls;
-		});
-
-	if (!DistributionInfo.Flush(30.0))
+	if (DistributionInfo.ResolveEndpoints(DistributionUrl, CDNUrls) == FDistributionEndpoints::FDistributionEndpoints::EResult::Success)
 	{
-		return FIoStatus(EIoErrorCode::Unknown, TEXT("Unable to connect to endpoint, timed out..."));
+		return CDNUrls;
 	}
-
-	return CDNUrls;
+	else
+	{
+		return FIoStatus(EIoErrorCode::Unknown, TEXT("Unable to connect to distributed endpoint"));
+	}
 }
 
 /** Utility to format time in seconds to a more human readable form */

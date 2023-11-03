@@ -29,9 +29,11 @@
 #include "IasCache.h"
 #include "Math/NumericLimits.h"
 #include "Misc/CommandLine.h"
+#include "Misc/ConfigCacheIni.h"
 #include "Misc/EnumClassFlags.h"
 #include "Misc/PathViews.h"
 #include "Misc/Paths.h"
+#include "Misc/ScopeExit.h"
 #include "Misc/ScopeLock.h"
 #include "Misc/ScopeRWLock.h"
 #include "OnDemandHttpClient.h"
@@ -218,6 +220,13 @@ static FAutoConsoleVariableRef CVar_IasHttpRangeRequestMinSizeKiB(
 	TEXT("ias.HttpRangeRequestMinSizeKiB"),
 	GIasHttpRangeRequestMinSizeKiB,
 	TEXT("Minimum chunk size for partial chunk request(s)")
+);
+
+static int32 GDistributedEndpointRetryWaitTime = 15;
+static FAutoConsoleVariableRef CVar_DistributedEndpointRetryWaitTime(
+	TEXT("ias.DistributedEndpointRetryWaitTime"),
+	GDistributedEndpointRetryWaitTime,
+	TEXT("How long to wait (in seconds) after failing to resolve a distributed endpoint before retrying")
 );
 
 #if !UE_BUILD_SHIPPING
@@ -1535,10 +1544,12 @@ public:
 
 	// Runnable
 	virtual bool Init() override { return true; }
-	virtual void Stop() override { bStopRequested = true; }
 	virtual uint32 Run() override;
+	virtual void Stop() override;
 
 private:
+
+	void CancelAllPendingRequests();
 
 	FString GetEndpointTestPath() const;
 	void ConditionallyStartBackendThread();
@@ -1548,6 +1559,7 @@ private:
 	FIoStatus ApplyGeneratedOnDemandToc(const FString& CdnUrl, const FString& TocPath);
 	FIoStatus DownloadoadOnDemandToc(const FString& CdnUrl, const FString& TocPath);
 
+	bool ResolveDistributedEndpoint(const FString& Url);
 	void InitializePrimaryEndpoint();
 
 	/** Mode to control which types of .iochunktoc are flush */
@@ -1563,6 +1575,8 @@ private:
 	};
 
 	void FlushDeferredTocs(EFlushMode FlushMode);
+
+	bool SetupHttpThread();
 	void ProcessHttpRequests(FHttpClient& HttpClient, FBitWindow& HttpErrors, int32 MaxConcurrentRequests);
 	int32 WaitForPendingRequests(float WaitTimeSeconds, float PollTimeSeconds);
 
@@ -1586,6 +1600,8 @@ private:
 	FBackendStatus BackendStatus;
 	FAvailableEps AvailableEps;
 	FString DistributionUrl;
+	FEventRef DistributedEndpointEvent;
+
 	mutable FRWLock Lock;
 	std::atomic_uint32_t InflightCacheRequestCount{0};
 	std::atomic_bool bStopRequested{false};
@@ -1642,35 +1658,7 @@ void FOnDemandIoBackend::Initialize(TSharedRef<const FIoDispatcherBackendContext
 	UE_LOG(LogIas, Log, TEXT("Initializing on demand I/O dispatcher backend"));
 	BackendContext = Context;
 
-	// We need to resolve the end point in this method which occurs after the config system has initialized
-	// rather than in ::Mount which can occur before that.
-	// Without the config system initialized the http module will not work properly and we will always fail
-	// to resolve and the OnDemand system will not recover.
-	if (DistributionUrl.IsEmpty() == false)
-	{
-		TSharedPtr<FDistributionEndpoints> Resolver = MakeShared<FDistributionEndpoints>();
-		Resolver->ResolveEndpoints(DistributionUrl,
-			[this, Resolver](const FString& DistributionEp, TConstArrayView<FString> Eps)
-			{
-				UE_CLOG(Eps.IsEmpty(), LogIas, Error, TEXT("Failed to resolve available endpoint(s) from '%s'"), *DistributionEp);
-				{
-					FWriteScopeLock _(Lock);
-					for (const FString& Ep : Eps)
-					{
-						AvailableEps.Urls.Add(Ep.Replace(TEXT("https"), TEXT("http")));
-					}
-				}
-
-				// A disk only flush should be fairly quick at this point, especially if 's.IasEnableThreadedTocGeneration' is true
-				// and this will help mount .iochunktoc as soon as possible rather than waiting for the primary endpoint to be
-				// chosen.
-				FlushDeferredTocs(EFlushMode::Disk);
-
-				ConditionallyStartBackendThread();
-			});
-		Resolver->ResolveDeferredEndpoints();
-		DistributionUrl.Reset();
-	}
+	ConditionallyStartBackendThread();
 }
 
 void FOnDemandIoBackend::Shutdown()
@@ -1680,16 +1668,41 @@ void FOnDemandIoBackend::Shutdown()
 		return;
 	}
 
+	TRACE_CPUPROFILER_EVENT_SCOPE(IasBackend::Shutdown);
+
 	UE_LOG(LogIas, Log, TEXT("Shutting down on demand I/O dispatcher backend"));
 
-	bStopRequested = true;
-	TickBackendEvent->Trigger();
-	BackendThread.Reset();
+	Stop();
+
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(IasBackend::Shutdown::StoppingIasHttpThread);
+		BackendThread.Reset();
+	}
+
+	CancelAllPendingRequests();	
 
 	const int32 NumPending = WaitForPendingRequests(5.0f, 0.1f);
 	UE_CLOG(NumPending > 0, LogIas, Warning, TEXT("%d request(s) still pending after shutdown"), NumPending);
 
 	BackendContext.Reset();
+}
+
+void FOnDemandIoBackend::CancelAllPendingRequests()
+{
+	FChunkRequest* Iterator = HttpRequests.Dequeue();
+	while (Iterator != nullptr)
+	{
+		FChunkRequest* Request = Iterator;
+		Iterator = Iterator->NextRequest;
+
+		// We need to call this to increment the number of requests in flight or the subsequent call to Stats.OnHttpCancel will start to mismatch that counter.
+		Stats.OnHttpDequeue();
+
+		Request->bCancelled = true;
+		CompleteRequest(Request);
+		
+		Stats.OnHttpCancel();
+	}
 }
 
 FString FOnDemandIoBackend::GetEndpointTestPath() const
@@ -2062,6 +2075,45 @@ FIoStatus FOnDemandIoBackend::DownloadoadOnDemandToc(const FString& CdnUrl, cons
 	}
 }
 
+bool FOnDemandIoBackend::ResolveDistributedEndpoint(const FString& DistributedEndpointUrl)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(IasBackend::ResolveDistributedEndpoint);
+
+	check(!DistributedEndpointUrl.IsEmpty());
+
+	// We need to resolve the end point in this method which occurs after the config system has initialized
+	// rather than in ::Mount which can occur before that.
+	// Without the config system initialized the http module will not work properly and we will always fail
+	// to resolve and the OnDemand system will not recover.
+	check(GConfig->IsReadyForUse());
+
+	while (!bStopRequested)
+	{
+		TArray<FString> ServiceUrls;
+
+		FDistributionEndpoints Resolver;
+		FDistributionEndpoints::EResult Result = Resolver.ResolveEndpoints(DistributedEndpointUrl, ServiceUrls, *DistributedEndpointEvent.Get());
+		if (Result == FDistributionEndpoints::EResult::Success)
+		{
+			FWriteScopeLock _(Lock);
+			for (const FString& Url : ServiceUrls)
+			{
+				AvailableEps.Urls.Add(Url.Replace(TEXT("https"), TEXT("http")));
+			}
+
+			return true;
+		}
+
+		if (!bStopRequested)
+		{
+			const uint32 WaitTime = GDistributedEndpointRetryWaitTime >= 0 ? (static_cast<uint32>(GDistributedEndpointRetryWaitTime) * 1000) : MAX_uint32;
+			DistributedEndpointEvent->Wait(WaitTime);
+		}
+	}
+
+	return false;
+}
+
 void FOnDemandIoBackend::InitializePrimaryEndpoint()
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(IasBackend::InitializePrimaryEndpoint);
@@ -2219,8 +2271,6 @@ void FOnDemandIoBackend::Mount(const FOnDemandEndpoint& Endpoint)
 					DeferredTocs.Add(FTocParams{Endpoint.TocPath, Endpoint.bForceTocDownload});
 			}
 		}
-
-		ConditionallyStartBackendThread();
 	}
 	else
 	{
@@ -2397,11 +2447,38 @@ void FOnDemandIoBackend::ProcessHttpRequests(FHttpClient& HttpClient, FBitWindow
 	} 
 }
 
+bool FOnDemandIoBackend::SetupHttpThread()
+{
+	// A disk only flush should be fairly quick at this point, especially if 's.IasEnableThreadedTocGeneration' is true
+	// and this will help mount .iochunktoc as soon as possible rather than waiting for the primary endpoint to be
+	// chosen.
+	FlushDeferredTocs(EFlushMode::Disk);
+
+	// Note that the following method will block until the distributed endpoint (if we have one) has
+	// been resolved as the thread cannot function without it.
+	if (!DistributionUrl.IsEmpty())
+	{
+		if (!ResolveDistributedEndpoint(DistributionUrl))
+		{
+			return false;
+		}
+		DistributionUrl.Reset();
+	}
+
+	InitializePrimaryEndpoint();
+
+	return true;
+}
+
 uint32 FOnDemandIoBackend::Run()
 {
 	LLM_SCOPE_BYTAG(Ias);
 
-	InitializePrimaryEndpoint();
+	// This call can take some time depending on the IAS setup and the network conditions
+	if (!SetupHttpThread())
+	{
+		return 0;
+	}
 
 	FBitWindow HttpErrors;
 	HttpErrors.Reset(GIasHttpErrorSampleCount);
@@ -2483,6 +2560,13 @@ uint32 FOnDemandIoBackend::Run()
 	}
 
 	return 0;
+}
+
+void FOnDemandIoBackend::Stop()
+{
+	bStopRequested = true;
+	TickBackendEvent->Trigger();
+	DistributedEndpointEvent->Trigger();
 }
 
 int32 FOnDemandIoBackend::WaitForPendingRequests(float WaitTimeSeconds, float PollTimeSeconds)

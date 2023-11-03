@@ -17,199 +17,86 @@
 namespace UE::IO::IAS
 {
 
-static int32 GIasHttpDistributionRetryCount = 2;
-static FAutoConsoleVariableRef CVar_IasHttpDistributionRetryCount(
-	TEXT("ias.HttpDistributionRetryCount"),
-	GIasHttpDistributionRetryCount,
-	TEXT("Number of HTTP distribution request retries.")
+static int32 GDistributedEndpointTimeout = 30;
+static FAutoConsoleVariableRef CVar_DistributedEndpointTimeout(
+	TEXT("ias.DistributedEndpointTimeout"),
+	GDistributedEndpointTimeout,
+	TEXT("How long to wait (in seconds) for a distributed endoint resolve request before timing out")
 );
 
-
-FDistributionEndpoints::~FDistributionEndpoints()
+FDistributionEndpoints::EResult FDistributionEndpoints::ResolveEndpoints(const FString& DistributionUrl, TArray<FString>& OutServiceUrls)
 {
-	CancelEndpointRequests();
+	FEventRef Event;
+	return ResolveEndpoints(DistributionUrl, OutServiceUrls, *Event.Get());
 }
 
-#if IS_PROGRAM || WITH_EDITOR
-
-bool FDistributionEndpoints::Flush(double TimeOut)
+FDistributionEndpoints::EResult FDistributionEndpoints::ResolveEndpoints(const FString& DistributionUrl, TArray<FString>& OutServiceUrls, FEvent& Event)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(FDistributionEndpoints::Flush);
+	TRACE_CPUPROFILER_EVENT_SCOPE(FDistributionEndpoints::ResolveEndpoints);
 
-	if (!bInitialized)
-	{
-		ResolveDeferredEndpoints();
-	}
+	std::atomic_bool bHasResponse = false;
+	EResult Result = EResult::Failure;
 
-	FHttpManager& HttpManager = FHttpModule::Get().GetHttpManager();
+	// The timeout is a cvar but should not be less than 10 seconds.
+	const float HttpTimeout = FMath::Max(static_cast<float>(GDistributedEndpointTimeout), 10.0f);
 
-	const double StartTime = FPlatformTime::Seconds();
+	UE_LOG(LogIas, Log, TEXT("Resolving distributed endpoint '%s'"), *DistributionUrl);
 
-	while (!PendingRequests.IsEmpty())
-	{
-		HttpManager.Tick(0.0);
-
-		FPlatformProcess::SleepNoStats(0.0f);
-
-		if (TimeOut > 0.0 && (FPlatformTime::Seconds() - StartTime) > TimeOut)
+	FHttpRequestPtr HttpRequest = FHttpModule::Get().CreateRequest();
+	HttpRequest->SetTimeout(HttpTimeout);
+	HttpRequest->SetURL(DistributionUrl);
+	HttpRequest->SetVerb(TEXT("GET"));
+	HttpRequest->SetHeader(TEXT("Accept"), TEXT("application/json"));
+	HttpRequest->OnProcessRequestComplete().BindLambda(
+		[this, &bHasResponse, &Event, &Result, &OutServiceUrls](FHttpRequestPtr, FHttpResponsePtr Response, bool bOk)
 		{
-			return false;
-		}
+			LLM_SCOPE_BYTAG(Ias);
+			
+			bHasResponse = true;
+			Result = ParseResponse(Response, OutServiceUrls);
+
+			Event.Trigger();
+		});
+
+	HttpRequest->ProcessRequest();
+
+	const uint32 WaitTime = GDistributedEndpointTimeout >= 0 ? (static_cast<uint32>(GDistributedEndpointTimeout) * 1000) : MAX_uint32;
+
+	if (!Event.Wait(FTimespan::FromSeconds(WaitTime)) || bHasResponse == false)
+	{
+		HttpRequest->CancelRequest();
+		HttpRequest->OnProcessRequestComplete().Unbind();
 	}
 
-	return true;
+	UE_CLOG(Result == EResult::Success, LogIas, Log, TEXT("Successfully resolved distributed endpoint '%s' %d urls found"), *DistributionUrl, OutServiceUrls.Num());
+	UE_CLOG(Result != EResult::Success, LogIas, Log, TEXT("Failed to resolve distributed endpoint '%s'"), *DistributionUrl);
+
+	return Result;
 }
 
-#endif // IS_PROGRAM || WITH_EDITOR
-
-void FDistributionEndpoints::ResolveEndpoints(const FString& DistributionUrl, FOnEndpointResolved&& OnResolved)
+FDistributionEndpoints::EResult FDistributionEndpoints::ParseResponse(FHttpResponsePtr HttpResponse, TArray<FString>& OutUrls)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(FOnDemandIoBackend::ResolveEndpoints);
-	const FResolvedEndpoint* Ep = nullptr;
-	{
-		FReadScopeLock _(Lock);
-		if (TUniquePtr<FResolvedEndpoint>* Entry = ResolvedEndpoints.Find(DistributionUrl))
-		{
-			Ep = Entry->Get();
-		}
-	}
-
-	if (Ep != nullptr)
-	{
-		return OnResolved(DistributionUrl, Ep->ServiceUrls);
-	}
-
-	bool bIssueRequest = false;
-	{
-		FWriteScopeLock _(Lock);
-		TUniquePtr<FResolveRequest>& Request = PendingRequests.FindOrAdd(DistributionUrl);
-		if (!Request.IsValid())
-		{
-			Request.Reset(new FResolveRequest{ DistributionUrl });
-			bIssueRequest = bInitialized;
-		}
-		Request->Callbacks.Add(MoveTemp(OnResolved));
-	}
-
-	if (bIssueRequest)
-	{
-		IssueEndpointRequests();
-	}
-}
-
-void FDistributionEndpoints::ResolveDeferredEndpoints()
-{
-	TRACE_CPUPROFILER_EVENT_SCOPE(FOnDemandIoBackend::ResolveDeferredEndpoints);
-	{
-		FWriteScopeLock _(Lock);
-		bInitialized = true;
-	}
-
-	IssueEndpointRequests();
-}
-
-void FDistributionEndpoints::IssueEndpointRequests()
-{
-	TRACE_CPUPROFILER_EVENT_SCOPE(FOnDemandIoBackend::IssueEndpointRequests);
-	// Currently we need to use the HTTP module in order to resolve service endpoints due to HTTPS
-	FHttpModule& HttpModule = FHttpModule::Get();
-	const int32 MaxAttempts = GIasHttpDistributionRetryCount;
-
-	TArray<FHttpRequestPtr, TInlineAllocator<2>> HttpRequests;
-	{
-		FWriteScopeLock _(Lock);
-		check(bInitialized);
-
-		for (const TPair<FString, TUniquePtr<FResolveRequest>>& Kv : PendingRequests)
-		{
-			if (Kv.Value->HttpRequest.IsValid())
-			{
-				continue;
-			}
-
-			FResolveRequest& ResolveRequest = *Kv.Value.Get();
-			UE_LOG(LogIas, Log, TEXT("Resolving '%s' (#%d/%d)"), *ResolveRequest.DistributionUrl, ResolveRequest.RetryCount + 1, MaxAttempts);
-
-			FHttpRequestPtr HttpRequest = HttpModule.CreateRequest();
-			HttpRequest->SetTimeout(3.0f);
-			HttpRequest->SetURL(Kv.Key);
-			HttpRequest->SetVerb(TEXT("GET"));
-			HttpRequest->SetHeader(TEXT("Accept"), TEXT("application/json"));
-			HttpRequest->OnProcessRequestComplete().BindLambda(
-				[this, &ResolveRequest, MaxAttempts](FHttpRequestPtr, FHttpResponsePtr Response, bool bOk)
-				{
-					LLM_SCOPE_BYTAG(Ias);
-					FHttpRequestPtr Request = MoveTemp(ResolveRequest.HttpRequest);
-
-					// Response will be null if the connection timed out
-					if (Response == nullptr || Response->GetResponseCode() != 200)
-					{
-						if (++ResolveRequest.RetryCount <= MaxAttempts)
-						{
-							FDistributionEndpoints* CachedPtr = this;
-							Request->OnProcessRequestComplete().Unbind(); // <- Invalidates the lambdas captures
-
-							return CachedPtr->IssueEndpointRequests();
-						}
-					}
-
-					this->CompleteEndpointRequest(ResolveRequest, Response);
-				});
-
-			ResolveRequest.HttpRequest = HttpRequest;
-			HttpRequests.Add(HttpRequest);
-		}
-	}
-
-	for (FHttpRequestPtr& Request : HttpRequests)
-	{
-		Request->ProcessRequest();
-	}
-}
-
-void FDistributionEndpoints::CancelEndpointRequests()
-{
-	TArray<FHttpRequestPtr, TInlineAllocator<2>> HttpRequests;
-	{
-		FWriteScopeLock _(Lock);
-		for (const TPair<FString, TUniquePtr<FResolveRequest>>& Kv : PendingRequests)
-		{
-			if (Kv.Value->HttpRequest.IsValid())
-			{
-				HttpRequests.Add(Kv.Value->HttpRequest);
-			}
-		}
-	}
-
-	if (!HttpRequests.IsEmpty())
-	{
-		FHttpModule& HttpModule = FHttpModule::Get();
-		for (FHttpRequestPtr& Request : HttpRequests)
-		{
-			HttpModule.GetHttpManager().RemoveRequest(Request.ToSharedRef());
-			//TODO: Flush?
-		}
-	}
-}
-
-void FDistributionEndpoints::CompleteEndpointRequest(FResolveRequest& ResolveRequest, FHttpResponsePtr HttpResponse)
-{
-	TRACE_CPUPROFILER_EVENT_SCOPE(FOnDemandIoBackend::CompleteEndpointRequest);
+	TRACE_CPUPROFILER_EVENT_SCOPE(FDistributionEndpoints::ParseResponse);
 
 	using FJsonValuePtr = TSharedPtr<FJsonValue>;
 	using FJsonObjPtr = TSharedPtr<FJsonObject>;
 	using FJsonReader = TJsonReader<TCHAR>;
 	using FJsonReaderPtr = TSharedRef<FJsonReader>;
 
-	TArray<FString> ServiceUrls;
 	if (HttpResponse != nullptr && HttpResponse->GetResponseCode() == 200)
 	{
 		FString Json = HttpResponse->GetContentAsString();
+		
 		FJsonReaderPtr JsonReader = TJsonReaderFactory<TCHAR>::Create(Json);
 
 		FJsonObjPtr JsonObj;
 		if (FJsonSerializer::Deserialize(JsonReader, JsonObj))
 		{
+			if (!JsonObj->HasTypedField< EJson::Array>(TEXT("distributions")))
+			{
+				return EResult::Failure;
+			}
+
 			TArray<FJsonValuePtr> JsonValues = JsonObj->GetArrayField(TEXT("distributions"));
 			for (const FJsonValuePtr& JsonValue : JsonValues)
 			{
@@ -218,35 +105,14 @@ void FDistributionEndpoints::CompleteEndpointRequest(FResolveRequest& ResolveReq
 				{
 					ServiceUrl.LeftInline(ServiceUrl.Len() - 1);
 				}
-				ServiceUrls.Add(MoveTemp(ServiceUrl));
+				OutUrls.Add(MoveTemp(ServiceUrl));
 			}
+
+			return !OutUrls.IsEmpty() ? EResult::Success : EResult::Failure;
 		}
 	}
 
-	const FResolvedEndpoint* ResolvedEndpoint = nullptr;
-	FString DistributionUrl;
-	TArray<FOnEndpointResolved> Callbacks;
-
-	{
-		FWriteScopeLock _(Lock);
-		if (!ServiceUrls.IsEmpty())
-		{
-			ResolvedEndpoint = ResolvedEndpoints.Emplace(
-				ResolveRequest.DistributionUrl,
-				new FResolvedEndpoint{ MoveTemp(ServiceUrls) })
-				.Get();
-		}
-
-		Callbacks = MoveTemp(ResolveRequest.Callbacks);
-		DistributionUrl = MoveTemp(ResolveRequest.DistributionUrl);
-		PendingRequests.Remove(DistributionUrl);
-	}
-
-	TConstArrayView<FString> Urls = ResolvedEndpoint ? ResolvedEndpoint->ServiceUrls : TConstArrayView<FString>();
-	for (FOnEndpointResolved& Callback : Callbacks)
-	{
-		Callback(DistributionUrl, Urls);
-	}
+	return EResult::Failure;
 }
 
 } // namespace UE::IO::IAS
