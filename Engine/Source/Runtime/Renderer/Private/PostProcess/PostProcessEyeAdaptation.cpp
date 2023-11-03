@@ -364,7 +364,7 @@ float CalculateManualAutoExposure(const FViewInfo& View, bool bForceDisablePhysi
 	return FoundLuminance;
 }
 
-FEyeAdaptationParameters GetEyeAdaptationParameters(const FViewInfo& View, ERHIFeatureLevel::Type MinFeatureLevel)
+FEyeAdaptationParameters GetEyeAdaptationParameters(const FViewInfo& View)
 {
 	const bool bExtendedLuminanceRange = IsExtendLuminanceRangeEnabled();
 
@@ -418,7 +418,7 @@ FEyeAdaptationParameters GetEyeAdaptationParameters(const FViewInfo& View, ERHIF
 		MinWhitePointLuminance = MaxWhitePointLuminance = CalculateFixedAutoExposure(View);
 	}
 	// The feature level check should always pass unless on mobile with MobileHDR is false
-	else if (EngineShowFlags.EyeAdaptation && View.GetFeatureLevel() >= MinFeatureLevel)
+	else if (EngineShowFlags.EyeAdaptation && View.GetFeatureLevel() >= GetBasicEyeAdaptationMinFeatureLevel())
 	{
 		if (AutoExposureMethod == EAutoExposureMethod::AEM_Manual)
 		{
@@ -538,7 +538,7 @@ FEyeAdaptationParameters GetEyeAdaptationParameters(const FViewInfo& View, ERHIF
 
 float GetEyeAdaptationFixedExposure(const FViewInfo& View)
 {
-	const FEyeAdaptationParameters Parameters = GetEyeAdaptationParameters(View, GetBasicEyeAdaptationMinFeatureLevel());
+	const FEyeAdaptationParameters Parameters = GetEyeAdaptationParameters(View);
 
 	const float Exposure = (Parameters.MinAverageLuminance + Parameters.MaxAverageLuminance) * 0.5f;
 
@@ -742,7 +742,7 @@ FRDGTextureRef AddCalculateExposureIlluminancePass(
 			PassParameters->RWIlluminanceTexture = GraphBuilder.CreateUAV(ExposureIlluminanceSetup);
 			PassParameters->Illuminance = GetScreenPassTextureViewportParameters(OutputViewport);
 			PassParameters->IllumiananceDownscaleFactor = GetAutoExposureIlluminanceDownscaleFactor();
-			PassParameters->EyeAdaptation = GetEyeAdaptationParameters(View, ERHIFeatureLevel::SM5);
+			PassParameters->EyeAdaptation = GetEyeAdaptationParameters(View);
 
 			PassParameters->PreIntegratedGF = GSystemTextures.PreintegratedGF->GetRHI();
 			PassParameters->PreIntegratedGFSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
