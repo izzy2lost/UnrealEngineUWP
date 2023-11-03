@@ -214,6 +214,8 @@ private:
 	static void InvalidateCachedSystemScalabilityDataForAllWorlds();
 	void InvalidateCachedSystemScalabilityData();
 
+	bool HasActiveWorld() const;
+
 public:
 	void SetDebugPlaybackMode(ENiagaraDebugPlaybackMode Mode) { RequestedDebugPlaybackMode = Mode; }
 	ENiagaraDebugPlaybackMode GetDebugPlaybackMode() const { return DebugPlaybackMode; }
@@ -389,6 +391,9 @@ private:
 	bool bAppHasFocus;
 
 	bool bIsTearingDown = false;
+
+	/** True if OnWorldCleanup has been called, will get reset with Init() */
+	bool bIsCleaningUp = false;
 
 	float WorldLoopTime = 0.0f;
 	

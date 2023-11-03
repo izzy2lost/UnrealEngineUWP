@@ -342,6 +342,7 @@ void FNiagaraWorldManager::Init(UWorld* InWorld)
 	ActiveNiagaraTickGroup = -1;
 	bAppHasFocus = true;
 	bIsTearingDown = false;
+	bIsCleaningUp = false;
 	WorldLoopTime = 0.0f;
 	RequestedDebugPlaybackMode = ENiagaraDebugPlaybackMode::Play;
 	DebugPlaybackMode = ENiagaraDebugPlaybackMode::Play;
@@ -545,7 +546,7 @@ void FNiagaraWorldManager::TickParameterCollections()
 
 UNiagaraParameterCollectionInstance* FNiagaraWorldManager::GetParameterCollection(UNiagaraParameterCollection* Collection)
 {
-	if (!Collection || bIsTearingDown)
+	if (!Collection || !HasActiveWorld())
 	{
 		return nullptr;
 	}
@@ -680,6 +681,8 @@ void FNiagaraWorldManager::OnWorldBeginTearDown()
 
 void FNiagaraWorldManager::OnWorldCleanup(bool bSessionEnded, bool bCleanupResources)
 {
+	bIsCleaningUp = true;
+
 	DeferredMethods.ExecuteAndClear();
 	ComponentPool->Cleanup(World);
 
@@ -2020,6 +2023,11 @@ void FNiagaraWorldManager::InvalidateCachedSystemScalabilityData()
 	}
 }
 
+bool FNiagaraWorldManager::HasActiveWorld() const
+{
+	return World && World->IsInitialized() && !World->bIsTearingDown && !bIsTearingDown && !bIsCleaningUp;
+}
+
 void FNiagaraWorldManager::PrimePoolForAllWorlds(UNiagaraSystem* System)
 {
 	if (GNigaraAllowPrimedPools)
@@ -2036,7 +2044,7 @@ void FNiagaraWorldManager::PrimePoolForAllWorlds(UNiagaraSystem* System)
 
 void FNiagaraWorldManager::PrimePoolForAllSystems()
 {
-	if (GNigaraAllowPrimedPools && World && World->IsGameWorld() && !World->bIsTearingDown)
+	if (GNigaraAllowPrimedPools && HasActiveWorld() && World->IsGameWorld())
 	{
 		//Prime the pool for all currently loaded systems.
 		for (TObjectIterator<UNiagaraSystem> It; It; ++It)
@@ -2052,7 +2060,7 @@ void FNiagaraWorldManager::PrimePoolForAllSystems()
 
 void FNiagaraWorldManager::PrimePool(UNiagaraSystem* System)
 {
-	if (GNigaraAllowPrimedPools && World && World->IsGameWorld() && !World->bIsTearingDown)
+	if (GNigaraAllowPrimedPools && HasActiveWorld() && World->IsGameWorld())
 	{
 		ComponentPool->PrimePool(System, World);
 	}
