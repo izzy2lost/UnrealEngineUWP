@@ -99,6 +99,13 @@ void FExtrudePolygonSpec::Define()
 			TestTrue(TEXT("Extrude Polygon Settings dismissed after completing"), !ModelingSettingsExist(ExtrudePolygonToolName));
 		});
 
+		It("Should populate Modeling tab with Extrude Polygon settings after tool entry", [this]()
+		{
+			const FString ExtrudePolygonToolName = TEXT("BeginDrawPolygonTool");
+			TestTrue(TEXT("The Modeling tab is populated with Extrude Polygon settings"),
+					 ModelingSettingsExist(ExtrudePolygonToolName));
+		});
+
 		AfterEach([this]()
 		{
 			// Grabbing Static Mesh of PolygonMesh before we remove the actor
