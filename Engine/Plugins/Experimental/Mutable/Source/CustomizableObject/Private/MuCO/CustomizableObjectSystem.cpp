@@ -2799,9 +2799,11 @@ namespace impl
 			{
 				EWorldType::Type WorldType = EWorldType::Type::None;
 
-				if (CustomizableObjectInstanceUsage->GetWorld())
+				USkeletalMeshComponent* Parent = Cast<USkeletalMeshComponent>(CustomizableObjectInstanceUsage->GetAttachParent());
+
+				if (Parent && Parent->GetWorld())
 				{
-					WorldType = CustomizableObjectInstanceUsage->GetWorld()->WorldType;
+					WorldType = Parent->GetWorld()->WorldType;
 				}
 
 				switch (WorldType)

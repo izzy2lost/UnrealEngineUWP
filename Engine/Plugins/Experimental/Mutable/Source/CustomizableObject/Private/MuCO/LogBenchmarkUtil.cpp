@@ -205,13 +205,16 @@ void FLogBenchmarkUtil::UpdateStats()
 			continue;
 		}
 
-		AActor* ParentActor = CustomizableObjectInstanceUsage->GetAttachParent() ? 
-			CustomizableObjectInstanceUsage->GetAttachParent()->GetAttachmentRootActor()
+		USkeletalMeshComponent* Parent = Cast<USkeletalMeshComponent>(CustomizableObjectInstanceUsage->GetAttachParent());
+		AActor* ParentActor = Parent ? 
+			Parent->GetAttachmentRootActor()
 			:  nullptr;
 		UCustomizableObjectInstance* Instance = CustomizableObjectInstanceUsage->GetCustomizableObjectInstance();
 
 		APawn* PlayerPawn = nullptr;
-		if (UWorld* World = CustomizableObjectInstanceUsage->GetWorld())
+		UWorld* World = Parent ? Parent->GetWorld() : nullptr;
+
+		if (World)
 		{
 			PlayerPawn = UGameplayStatics::GetPlayerPawn(World, 0);
 		}
