@@ -92,13 +92,7 @@ UExternalRpcRegistry* UExternalRpcRegistry::GetInstance()
 		}
 		FParse::Value(FCommandLine::Get(), TEXT("rpcport="), ObjectInstance->PortToUse);
 		
-		TWeakObjectPtr<UExternalRpcRegistry> WeakThis(ObjectInstance);
-
-		const FHttpRequestHandler& ListRoutesRequestHandler = [WeakThis](const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete)
-		{
-			if (!WeakThis.IsValid()) { return false; }
-			return WeakThis->HttpListOpenRoutes(Request, OnComplete);
-		};
+		FHttpRequestHandler ListRoutesRequestHandler = FHttpRequestHandler::CreateUObject(ObjectInstance, &ThisClass::HttpListOpenRoutes);
 		TArray<FExternalRpcArgumentDesc*> ArgumentArray;
 		// We always want the ListRegisteredRpcs route bound, no matter what.
 		UExternalRpcRegistry::GetInstance()->RegisterNewRouteWithArguments(TEXT("ListRegisteredRpcs"), FHttpPath("/listrpcs"), EHttpServerRequestVerbs::VERB_GET,
