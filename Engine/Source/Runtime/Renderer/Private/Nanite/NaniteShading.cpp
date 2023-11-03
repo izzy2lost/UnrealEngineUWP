@@ -1293,7 +1293,7 @@ void DispatchBasePass(
 							}
 							else
 							{
-								// TODO: Allow for sending partial dispatch lists, but for now we'll leave the record index invalid so bundle dispatch skips it
+								// TODO: Optimization: Send partial dispatch lists, but for now we'll leave the record index invalid so bundle dispatch skips it
 								Command.Dispatches[ShadingCommand.ShadingBin].RecordIndex = ~uint32(0u);
 							}
 						});
