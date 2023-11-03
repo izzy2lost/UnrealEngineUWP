@@ -190,7 +190,7 @@ EUnit FUnitConversion::CalculateDisplayUnit(T Value, EUnit InUnits)
 	{
 		return QuantizeUnitsToBestFit(Value, InUnits).Units;
 	}
-	else if (DisplayUnits.Num() == 1)
+	if (DisplayUnits.Num() == 1)
 	{
 		return DisplayUnits[0];
 	}
@@ -204,16 +204,25 @@ EUnit FUnitConversion::CalculateDisplayUnit(T Value, EUnit InUnits)
 	int32 BestIndex = 0;
 	for (int32 Index = 0; Index < DisplayUnits.Num() - 1; ++Index)
 	{
-		double This = Convert(Value, InUnits, DisplayUnits[Index]);
-		double Next = Convert(Value, InUnits, DisplayUnits[Index + 1]);
-
-		if (FMath::Abs(FMath::LogX(10.0f, (float)This)) < FMath::Abs(FMath::LogX(10.0f, (float)Next)))
-		{
-			BestIndex = Index;
-		}
-		else
+		const T Best = FMath::Abs(Convert(Value, InUnits, DisplayUnits[BestIndex]));
+		const T Next = FMath::Abs(Convert(Value, InUnits, DisplayUnits[Index + 1]));
+		if (Best < 1.0 && Next >= 1.0)
 		{
 			BestIndex = Index + 1;
+		}
+		else if (Best < 1.0 && Next < 1.0)
+		{
+			if (Next > Best)
+			{
+				BestIndex = Index + 1;
+			}
+		}
+		else if (Best >= 1.0 && Next >= 1.0)
+		{
+			if (FMath::LogX(10.0f, Next) < FMath::LogX(10.0f, Best))
+			{
+				BestIndex = Index + 1;
+			}
 		}
 	}
 

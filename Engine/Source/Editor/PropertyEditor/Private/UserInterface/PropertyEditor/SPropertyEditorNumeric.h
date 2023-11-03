@@ -506,7 +506,7 @@ private:
 			EPropertyValueSetFlags::Type Flags = (EPropertyValueSetFlags::InteractiveChange | EPropertyValueSetFlags::NotTransactable);
 			PropertyHandle->SetValue( NewValue, Flags );
 
-			if (TypeInterface.IsValid() && !TypeInterface->FixedDisplayUnits.IsSet())
+			if (TypeInterface.IsValid())
 			{
 				TypeInterface->SetupFixedDisplay(NewValue);
 			}
@@ -528,7 +528,7 @@ private:
 				LastSliderCommittedValue = NewValue;
 			}
 
-			if (TypeInterface.IsValid() && !TypeInterface->FixedDisplayUnits.IsSet())
+			if (TypeInterface.IsValid())
 			{
 				TypeInterface->SetupFixedDisplay(NewValue);
 			}
