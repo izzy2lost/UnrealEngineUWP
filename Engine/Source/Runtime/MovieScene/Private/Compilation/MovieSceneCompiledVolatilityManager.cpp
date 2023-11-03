@@ -2,6 +2,7 @@
 
 #include "Compilation/MovieSceneCompiledVolatilityManager.h"
 #include "Compilation/MovieSceneCompiledDataManager.h"
+#include "EntitySystem/MovieSceneSharedPlaybackState.h"
 #include "MovieSceneFwd.h"
 
 namespace UE
@@ -32,8 +33,11 @@ FORCEINLINE EMovieSceneSequenceFlags GetEditorVolatilityFlags()
 }
 
 
-TUniquePtr<FCompiledDataVolatilityManager> FCompiledDataVolatilityManager::Construct(IMovieScenePlayer& Player, FMovieSceneCompiledDataID RootDataID, UMovieSceneCompiledDataManager* CompiledDataManager)
+TUniquePtr<FCompiledDataVolatilityManager> FCompiledDataVolatilityManager::Construct(TSharedRef<const FSharedPlaybackState> SharedPlaybackState)
 {
+	FMovieSceneCompiledDataID RootDataID = SharedPlaybackState->GetRootCompiledDataID();
+	UMovieSceneCompiledDataManager* CompiledDataManager = SharedPlaybackState->GetCompiledDataManager();
+
 	const FMovieSceneCompiledDataEntry& Entry = CompiledDataManager->GetEntryRef(RootDataID);
 	EMovieSceneSequenceFlags SequenceFlags = Entry.AccumulatedFlags | GetEditorVolatilityFlags();
 	if (!EnumHasAnyFlags(SequenceFlags, EMovieSceneSequenceFlags::Volatile))
@@ -47,14 +51,23 @@ TUniquePtr<FCompiledDataVolatilityManager> FCompiledDataVolatilityManager::Const
 		}
 	}
 
-	TUniquePtr<FCompiledDataVolatilityManager> VolatilityManager = MakeUnique<FCompiledDataVolatilityManager>();
-	VolatilityManager->ConditionalRecompile(Player, RootDataID, CompiledDataManager);
+	TUniquePtr<FCompiledDataVolatilityManager> VolatilityManager = MakeUnique<FCompiledDataVolatilityManager>(SharedPlaybackState);
+	VolatilityManager->ConditionalRecompile();
 	return VolatilityManager;
 }
 
-bool FCompiledDataVolatilityManager::HasBeenRecompiled(FMovieSceneCompiledDataID RootDataID, UMovieSceneCompiledDataManager* CompiledDataManager) const
+FCompiledDataVolatilityManager::FCompiledDataVolatilityManager(TSharedRef<const FSharedPlaybackState> SharedPlaybackState)
+	: WeakSharedPlaybackState(SharedPlaybackState)
 {
-	if (HasSequenceBeenRecompiled(RootDataID, MovieSceneSequenceID::Root, CompiledDataManager))
+}
+
+bool FCompiledDataVolatilityManager::HasBeenRecompiled() const
+{
+	TSharedPtr<const FSharedPlaybackState> SharedPlaybackState = WeakSharedPlaybackState.Pin();
+	FMovieSceneCompiledDataID RootDataID = SharedPlaybackState->GetRootCompiledDataID();
+	UMovieSceneCompiledDataManager* CompiledDataManager = SharedPlaybackState->GetCompiledDataManager();
+
+	if (HasSequenceBeenRecompiled(RootDataID, MovieSceneSequenceID::Root))
 	{
 		return true;
 	}
@@ -64,7 +77,7 @@ bool FCompiledDataVolatilityManager::HasBeenRecompiled(FMovieSceneCompiledDataID
 		for (const TTuple<FMovieSceneSequenceID, FMovieSceneSubSequenceData>& Pair : Hierarchy->AllSubSequenceData())
 		{
 			FMovieSceneCompiledDataID SubDataID = CompiledDataManager->GetSubDataID(RootDataID, Pair.Key);
-			if (SubDataID.IsValid() && HasSequenceBeenRecompiled(SubDataID, Pair.Key, CompiledDataManager))
+			if (SubDataID.IsValid() && HasSequenceBeenRecompiled(SubDataID, Pair.Key))
 			{
 				return true;
 			}
@@ -74,18 +87,23 @@ bool FCompiledDataVolatilityManager::HasBeenRecompiled(FMovieSceneCompiledDataID
 	return false;
 }
 
-bool FCompiledDataVolatilityManager::HasSequenceBeenRecompiled(FMovieSceneCompiledDataID DataID, FMovieSceneSequenceID SequenceID, UMovieSceneCompiledDataManager* CompiledDataManager) const
+bool FCompiledDataVolatilityManager::HasSequenceBeenRecompiled(FMovieSceneCompiledDataID DataID, FMovieSceneSequenceID SequenceID) const
 {
 	const FGuid* CachedSignature = CachedCompilationSignatures.Find(SequenceID);
 
+	TSharedPtr<const FSharedPlaybackState> SharedPlaybackState = WeakSharedPlaybackState.Pin();
+	UMovieSceneCompiledDataManager* CompiledDataManager = SharedPlaybackState->GetCompiledDataManager();
 	const FMovieSceneCompiledDataEntry& CompiledEntry = CompiledDataManager->GetEntryRef(DataID);
 	return CachedSignature == nullptr || *CachedSignature != CompiledEntry.CompiledSignature;
 }
 
-bool FCompiledDataVolatilityManager::ConditionalRecompile(IMovieScenePlayer& Player, FMovieSceneCompiledDataID RootDataID, UMovieSceneCompiledDataManager* CompiledDataManager)
+bool FCompiledDataVolatilityManager::ConditionalRecompile()
 {
 	bool bRecompiled = false;
 
+	TSharedPtr<const FSharedPlaybackState> SharedPlaybackState = WeakSharedPlaybackState.Pin();
+	FMovieSceneCompiledDataID RootDataID = SharedPlaybackState->GetRootCompiledDataID();
+	UMovieSceneCompiledDataManager* CompiledDataManager = SharedPlaybackState->GetCompiledDataManager();
 	if (CompiledDataManager->IsDirty(RootDataID))
 	{
 		// We override the network mask from the compiled data manager here simply because it may not be correct.
@@ -96,7 +114,7 @@ bool FCompiledDataVolatilityManager::ConditionalRecompile(IMovieScenePlayer& Pla
 		// and so these Sequences are marked as volatile on compile time. Therefore, it's here, upon conditional recompile, when we need to know the correct
 		// network mask to use, which we override and apply here.
 		EMovieSceneServerClientMask NetworkMask = CompiledDataManager->GetNetworkMask();
-		UObject* PlaybackContext = Player.GetPlaybackContext();
+		UObject* PlaybackContext = SharedPlaybackState->GetPlaybackContext();
 		UWorld* World = PlaybackContext ? PlaybackContext->GetWorld() : nullptr;
 
 		if (World)
@@ -116,29 +134,34 @@ bool FCompiledDataVolatilityManager::ConditionalRecompile(IMovieScenePlayer& Pla
 	}
 	else
 	{
-		bRecompiled = HasBeenRecompiled(RootDataID, CompiledDataManager);
+		bRecompiled = HasBeenRecompiled();
 	}
 
 	if (bRecompiled)
 	{
-		UpdateCachedSignatures(Player, RootDataID, CompiledDataManager);
+		UpdateCachedSignatures();
 	}
 
 	return bRecompiled;
 }
 
-void FCompiledDataVolatilityManager::UpdateCachedSignatures(IMovieScenePlayer& Player, FMovieSceneCompiledDataID RootDataID, UMovieSceneCompiledDataManager* CompiledDataManager)
+void FCompiledDataVolatilityManager::UpdateCachedSignatures()
 {
 	CachedCompilationSignatures.Reset();
+
+	TSharedPtr<const FSharedPlaybackState> SharedPlaybackState = WeakSharedPlaybackState.Pin();
+	FMovieSceneCompiledDataID RootDataID = SharedPlaybackState->GetRootCompiledDataID();
+	UMovieSceneCompiledDataManager* CompiledDataManager = SharedPlaybackState->GetCompiledDataManager();
+	IMovieScenePlayer* Player = FPlayerIndexPlaybackCapability::GetPlayer(SharedPlaybackState.ToSharedRef());
 
 	{
 		const FMovieSceneCompiledDataEntry& RootEntry = CompiledDataManager->GetEntryRef(RootDataID);
 		CachedCompilationSignatures.Add(MovieSceneSequenceID::Root, RootEntry.CompiledSignature);
 
 		UMovieSceneSequence* RootSequence = RootEntry.GetSequence();
-		if (RootSequence)
+		if (RootSequence && Player)
 		{
-			Player.State.AssignSequence(MovieSceneSequenceID::Root, *RootSequence, Player);
+			Player->State.AssignSequence(MovieSceneSequenceID::Root, *RootSequence, *Player);
 		}
 	}
 
@@ -158,9 +181,9 @@ void FCompiledDataVolatilityManager::UpdateCachedSignatures(IMovieScenePlayer& P
 			CachedCompilationSignatures.Add(SubData.Key, SubEntry.CompiledSignature);
 
 			UMovieSceneSequence* Sequence = SubData.Value.GetSequence();
-			if (Sequence)
+			if (Sequence && Player)
 			{
-				Player.State.AssignSequence(SubData.Key, *Sequence, Player);
+				Player->State.AssignSequence(SubData.Key, *Sequence, *Player);
 			}
 		}
 	}

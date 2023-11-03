@@ -260,7 +260,7 @@ void FSequencerTrailHierarchy::UpdateControlRig(const TArray<FFrameNumber> &Fram
 
 					FMovieSceneContext Context = FMovieSceneContext(FMovieSceneEvaluationRange(GlobalTime, TickResolution), Player->GetPlaybackStatus()).SetHasJumped(true);
 
-					Player->GetEvaluationTemplate().EvaluateSynchronousBlocking(Context, *Player);
+					Player->GetEvaluationTemplate().EvaluateSynchronousBlocking(Context);
 					ControlRig->Evaluate_AnyThread();
 					for (FTrailControlTransforms& TrailControlTransform : TrailControlTransforms)
 					{
@@ -293,7 +293,7 @@ void FSequencerTrailHierarchy::UpdateControlRig(const TArray<FFrameNumber> &Fram
 			FFrameTime StartTime = Sequencer->GetLocalTime().Time;
 			StartTime = StartTime * RootToLocalTransform.InverseNoLooping(); //player evals in root time so need to go back to it.
 			FMovieSceneContext Context = FMovieSceneContext(FMovieSceneEvaluationRange(StartTime, TickResolution), Player->GetPlaybackStatus()).SetHasJumped(true);
-			Player->GetEvaluationTemplate().EvaluateSynchronousBlocking(Context, *Player);
+			Player->GetEvaluationTemplate().EvaluateSynchronousBlocking(Context);
 			ControlRig->Evaluate_AnyThread();
 		}
 	}

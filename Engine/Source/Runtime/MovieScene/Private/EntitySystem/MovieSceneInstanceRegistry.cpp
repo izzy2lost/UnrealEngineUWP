@@ -5,6 +5,7 @@
 #include "EntitySystem/MovieSceneEntityMutations.h"
 #include "EntitySystem/MovieSceneEntitySystemLinker.h"
 #include "EntitySystem/MovieSceneEntityInstantiatorSystem.h"
+#include "EntitySystem/MovieSceneEntitySystemRunner.h"
 #include "EntitySystem/MovieSceneEntitySystemTask.h"
 #include "EntitySystem/MovieSceneSharedPlaybackState.h"
 #include "EntitySystem/EntityAllocationIterator.h"
@@ -56,7 +57,7 @@ FInstanceHandle FInstanceRegistry::FindRelatedInstanceHandle(FInstanceHandle Ins
 	return RootInstance->FindSubInstance(SequenceID);
 }
 
-FRootInstanceHandle FInstanceRegistry::AllocateRootInstance(IMovieScenePlayer* Player)
+FRootInstanceHandle FInstanceRegistry::AllocateRootInstance(IMovieScenePlayer* Player, UMovieSceneSequence& RootSequence, TSharedPtr<FMovieSceneEntitySystemRunner> Runner, UMovieSceneCompiledDataManager* CompiledDataManager)
 {
 	check(Instances.Num() < 65535);
 
@@ -65,9 +66,16 @@ FRootInstanceHandle FInstanceRegistry::AllocateRootInstance(IMovieScenePlayer* P
 	FSparseArrayAllocationInfo NewAllocation = Instances.AddUninitialized();
 	FRootInstanceHandle InstanceHandle { (uint16)NewAllocation.Index, InstanceSerial };
 
-	TSharedRef<FSharedPlaybackState> NewPlaybackState = MakeShared<FSharedPlaybackState>();
+	FSharedPlaybackStateCreateParams PlaybackStateCreateParams;
+	PlaybackStateCreateParams.PlaybackContext = Player->GetPlaybackContext();
+	PlaybackStateCreateParams.RootInstanceHandle = InstanceHandle;
+	PlaybackStateCreateParams.Runner = Runner;
+	PlaybackStateCreateParams.CompiledDataManager = CompiledDataManager;
+	TSharedRef<FSharedPlaybackState> NewPlaybackState = MakeShared<FSharedPlaybackState>(RootSequence, PlaybackStateCreateParams);
 
-	new (NewAllocation) FSequenceInstance(Linker, Player, NewPlaybackState, InstanceHandle);
+	FSequenceInstance* NewInstance = new (NewAllocation) FSequenceInstance(NewPlaybackState, InstanceHandle);
+
+	NewInstance->Initialize(Player);
 
 	return InstanceHandle;
 }
@@ -82,7 +90,9 @@ FInstanceHandle FInstanceRegistry::AllocateSubInstance(IMovieScenePlayer* Player
 	
 	TSharedRef<FSharedPlaybackState> PlaybackState = GetInstance(RootInstanceHandle).GetSharedPlaybackState();
 
-	new (NewAllocation) FSequenceInstance(Linker, Player, PlaybackState, InstanceHandle, ParentInstanceHandle, RootInstanceHandle, SequenceID);
+	FSequenceInstance* NewInstance = new (NewAllocation) FSequenceInstance(PlaybackState, InstanceHandle, ParentInstanceHandle, RootInstanceHandle, SequenceID);
+
+	NewInstance->Initialize(Player);
 
 	return InstanceHandle;
 }
@@ -92,13 +102,12 @@ void FInstanceRegistry::DestroyInstance(FInstanceHandle InstanceHandle)
 	if (ensureMsgf(Instances.IsValidIndex(InstanceHandle.InstanceID) && Instances[InstanceHandle.InstanceID].GetSerialNumber() == InstanceHandle.InstanceSerial, TEXT("Attempting to destroy an instance an invalid instance handle.")))
 	{
 		FSequenceInstance& Instance = Instances[InstanceHandle.InstanceID];
-		const bool bIsRootInstance = Instance.IsRootSequence();
 		const bool bHasFinished = (GExitPurge || Instance.HasFinished());
 		if (!bHasFinished)
 		{
 			UE_LOG(LogMovieSceneECS, Verbose, TEXT("Instance being destroyed without finishing evaluation."));
 		}
-		Instance.DestroyImmediately(Linker);
+		Instance.DestroyImmediately();
 		Instances.RemoveAt(InstanceHandle.InstanceID);
 	}
 }
@@ -140,7 +149,7 @@ FScopedVolatilityManagerSuppression::~FScopedVolatilityManagerSuppression()
 {
 	FSequenceInstance& Instance = InstanceRegistry->MutateInstance(RootInstanceHandle);
 	Instance.VolatilityManager = MoveTemp(PreviousVolatilityManager);
-	Instance.ConditionalRecompile(InstanceRegistry->GetLinker());
+	Instance.ConditionalRecompile();
 }
 
 } // namespace MovieScene

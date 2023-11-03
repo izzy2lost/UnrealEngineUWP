@@ -390,7 +390,7 @@ void FPreAnimatedStateExtension::RestoreGlobalState(const FRestoreStateParams& P
 	// Invalidate cached data for any sequence instance that belongs to the terminal instance
 	if (Params.TerminalInstanceHandle.IsValid())
 	{
-		Linker->GetInstanceRegistry()->MutateInstance(Params.TerminalInstanceHandle).InvalidateCachedData(Linker);
+		Linker->GetInstanceRegistry()->MutateInstance(Params.TerminalInstanceHandle).InvalidateCachedData();
 	}
 
 	bEntriesInvalidated = true;
@@ -507,7 +507,7 @@ void FPreAnimatedStateExtension::DiscardGlobalState(const FRestoreStateParams& P
 	// Invalidate cached data for any sequence instance that belongs to the terminal instance
 	if (Params.TerminalInstanceHandle.IsValid())
 	{
-		Linker->GetInstanceRegistry()->MutateInstance(Params.TerminalInstanceHandle).InvalidateCachedData(Linker);
+		Linker->GetInstanceRegistry()->MutateInstance(Params.TerminalInstanceHandle).InvalidateCachedData();
 	}
 
 	bEntriesInvalidated = true;

@@ -266,13 +266,13 @@ bool FMovieSceneEntitySystemRunner::QueueFinalUpdateImpl(FInstanceHandle InInsta
 	// 2. we're not in the middle of an update loop 
 	// 3. the instance has no current updates
 	//
-	const bool bCanFinishImmediately = Instance.CanFinishImmediately(Linker);
+	const bool bCanFinishImmediately = Instance.CanFinishImmediately();
 	const ERunnerFlushState UnsafeDestroyMask = FlushState::Everything & ~(ERunnerFlushState::PostEvaluation | ERunnerFlushState::End);
 	const bool bSafeToDestroyNow = !EnumHasAnyFlags(FlushState, UnsafeDestroyMask);
 	if (bCanFinishImmediately && bSafeToDestroyNow && !HasQueuedUpdates(InInstanceHandle))
 	{
-		Instance.Finish(Linker);
-		Instance.PostEvaluation(Linker);
+		Instance.Finish();
+		Instance.PostEvaluation();
 
 		InOnLastFlushDelegate.ExecuteIfBound();
 
@@ -637,7 +637,7 @@ UE::MovieScene::ERunnerFlushResult FMovieSceneEntitySystemRunner::GameThread_Con
 			if (InstanceRegistry->IsHandleValid(UpdatedInstance.InstanceHandle) && !EnumHasAnyFlags(UpdatedInstance.UpdateFlags, ERunnerUpdateFlags::Finish | ERunnerUpdateFlags::Destroy))
 			{
 				FSequenceInstance& Instance = InstanceRegistry->MutateInstance(UpdatedInstance.InstanceHandle);
-				if (Instance.IsRootSequence() && Instance.ConditionalRecompile(Linker))
+				if (Instance.IsRootSequence() && Instance.ConditionalRecompile())
 				{
 					bAnyRecompile = true;
 				}
@@ -651,7 +651,7 @@ UE::MovieScene::ERunnerFlushResult FMovieSceneEntitySystemRunner::GameThread_Con
 		if (InstanceRegistry->IsHandleValid(Request.Params.InstanceHandle) && !EnumHasAnyFlags(Request.Params.UpdateFlags, ERunnerUpdateFlags::Finish | ERunnerUpdateFlags::Destroy))
 		{
 			FSequenceInstance& Instance = InstanceRegistry->MutateInstance(Request.Params.InstanceHandle);
-			if (Instance.IsRootSequence() && Instance.ConditionalRecompile(Linker))
+			if (Instance.IsRootSequence() && Instance.ConditionalRecompile())
 			{
 				bAnyRecompile = true;
 			}
@@ -751,7 +751,7 @@ UE::MovieScene::ERunnerFlushResult FMovieSceneEntitySystemRunner::GameThread_Upd
 				continue;
 			}
 
-			Instance.DissectContext(Linker, Request.Context, Dissections);
+			Instance.DissectContext(Request.Context, Dissections);
 
 			if (Dissections.Num() != 0)
 			{
@@ -839,7 +839,7 @@ UE::MovieScene::ERunnerFlushResult FMovieSceneEntitySystemRunner::GameThread_Upd
 
 			if (EnumHasAnyFlags(SequenceInstance.GetUpdateFlags(), ESequenceInstanceUpdateFlags::NeedsPreEvaluation))
 			{
-				SequenceInstance.PreEvaluation(Linker);
+				SequenceInstance.PreEvaluation();
 			}
 		}
 	}
@@ -875,7 +875,7 @@ UE::MovieScene::ERunnerFlushResult FMovieSceneEntitySystemRunner::GameThread_Upd
 				if (EnumHasAnyFlags(Update.UpdateFlags, ERunnerUpdateFlags::Finish))
 				{
 					// Context is irrelevant for Finishing sequences
-					Instance.Finish(Linker);
+					Instance.Finish();
 				}
 				else if (EnumHasAnyFlags(Update.UpdateFlags, ERunnerUpdateFlags::Destroy))
 				{
@@ -883,7 +883,7 @@ UE::MovieScene::ERunnerFlushResult FMovieSceneEntitySystemRunner::GameThread_Upd
 				}
 				else
 				{
-					Instance.Update(Linker, Update.Context);
+					Instance.Update(Update.Context);
 				}
 			}
 		}
@@ -942,7 +942,7 @@ UE::MovieScene::ERunnerFlushResult FMovieSceneEntitySystemRunner::GameThread_Rei
 			// Need to check whether this has actually finished yet or not
 			if (!SequenceInstance.HasFinished())
 			{
-				SequenceInstance.Finish(Linker);
+				SequenceInstance.Finish();
 			}
 
 			// If it is being finished or destroyed, just re-add this update back.
@@ -956,7 +956,7 @@ UE::MovieScene::ERunnerFlushResult FMovieSceneEntitySystemRunner::GameThread_Rei
 			{
 				// Add root sequences back to the CurrentInstances array. When we call Update any active sub-sequences will be re-added via MarkForUpdate
 				CurrentInstances.Add(UpdatedInstance);
-				SequenceInstance.Update(Linker, SequenceInstance.GetContext());
+				SequenceInstance.Update(SequenceInstance.GetContext());
 			}
 		}
 	}
@@ -1247,7 +1247,7 @@ void FMovieSceneEntitySystemRunner::GameThread_PostEvaluationPhase(UMovieSceneEn
 
 				if (EnumHasAnyFlags(Instance.GetUpdateFlags(), ESequenceInstanceUpdateFlags::NeedsPostEvaluation))
 				{
-					Instance.PostEvaluation(Linker);
+					Instance.PostEvaluation();
 				}
 
 				if (EnumHasAnyFlags(UpdateParams.UpdateFlags, ERunnerUpdateFlags::Destroy))
@@ -1314,7 +1314,7 @@ void FMovieSceneEntitySystemRunner::MarkForUpdate(FInstanceHandle InInstanceHand
 		// Need to check whether this has actually finished yet or not
 		if (!SequenceInstance.HasFinished())
 		{
-			SequenceInstance.Finish(Linker);
+			SequenceInstance.Finish();
 		}
 	}
 

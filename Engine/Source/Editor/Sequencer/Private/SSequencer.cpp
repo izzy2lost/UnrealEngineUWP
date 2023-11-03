@@ -2041,7 +2041,7 @@ void SSequencer::FillAdvancedMenu(FMenuBuilder& MenuBuilder)
 				UMovieSceneSequence* RootSequence = Template.GetRootSequence();
 
 				// Set the new emulation mode
-				Template.SetEmulatedNetworkMask(InMode, *SequencerPin);
+				Template.SetEmulatedNetworkMask(InMode);
 				// Since sequencer owns its own compiled data manager, it's ok to override the mask here and reset everything
 				Template.GetCompiledDataManager()->SetEmulatedNetworkMask(InMode);
 				// Reinitialize the template again

@@ -7,11 +7,13 @@
 #include "Containers/ArrayView.h"
 #include "Misc/InlineValue.h"
 
-#include "MovieSceneSpawnRegister.h"
+#include "EntitySystem/MovieSceneSharedPlaybackState.h"
+#include "Evaluation/IMovieScenePlaybackCapability.h"
 #include "Evaluation/MovieSceneAnimTypeID.h"
-#include "Evaluation/MovieScenePreAnimatedState.h"
-#include "Evaluation/MovieSceneEvaluationState.h"
 #include "Evaluation/MovieSceneEvaluationOperand.h"
+#include "Evaluation/MovieSceneEvaluationState.h"
+#include "Evaluation/MovieScenePreAnimatedState.h"
+#include "MovieSceneSpawnRegister.h"
 
 enum class EMovieSceneBuiltInEasing : uint8;
 
@@ -28,6 +30,20 @@ class IMovieSceneSequencePlayerObserver;
 namespace UE::MovieScene
 {
 	enum class ESequenceInstanceUpdateFlags : uint8;
+	struct FSharedPlaybackState;
+
+	/**
+	 * Playback capability for storing an IMovieScenePlayer unique index.
+	 */
+	struct FPlayerIndexPlaybackCapability
+	{
+		static TPlaybackCapabilityID<FPlayerIndexPlaybackCapability> ID;
+
+		static IMovieScenePlayer* GetPlayer(TSharedRef<const FSharedPlaybackState> Owner);
+		static uint16 GetPlayerIndex(TSharedRef<const FSharedPlaybackState> Owner);
+
+		uint16 PlayerIndex = (uint16)-1;
+	};
 }
 
 struct EMovieSceneViewportParams

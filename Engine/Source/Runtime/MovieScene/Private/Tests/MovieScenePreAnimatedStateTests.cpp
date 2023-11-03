@@ -394,13 +394,13 @@ bool FMovieScenePreAnimatedStateTrackTypesTest::RunTest(const FString& Parameter
 		for (int32 i = 0; i < NumEvaluations; ++i)
 		{
 			FMovieSceneEvaluationRange EvaluatedRange(TRange<FFrameTime>(i*(SectionLength/NumEvaluations), (i+1)*(SectionLength/NumEvaluations)), TickResolution, EPlayDirection::Forwards);
-			TestPlayer.Template.EvaluateSynchronousBlocking(EvaluatedRange, TestPlayer);
+			TestPlayer.Template.EvaluateSynchronousBlocking(EvaluatedRange);
 
 			Assert(this, TestValue1, StartValue + i, TEXT("Keep-State EvaluationHook did not Begin or Update correctly."));
 		}
 
 		FMovieSceneEvaluationRange EvaluatedRange(TRange<FFrameTime>(SectionLength, SectionLength+100), TickResolution, EPlayDirection::Forwards);
-		TestPlayer.Template.EvaluateSynchronousBlocking(EvaluatedRange, TestPlayer);
+		TestPlayer.Template.EvaluateSynchronousBlocking(EvaluatedRange);
 		Assert(this, TestValue1, EndValue, TEXT("Keep-State EvaluationHook did not End correctly."));
 
 		TestPlayer.RestorePreAnimatedState();
@@ -413,13 +413,13 @@ bool FMovieScenePreAnimatedStateTrackTypesTest::RunTest(const FString& Parameter
 		for (int32 i = 0; i < NumEvaluations; ++i)
 		{
 			FMovieSceneEvaluationRange EvaluatedRange(TRange<FFrameTime>(2000 + i*(SectionLength/NumEvaluations), 2000 + (i+1)*(SectionLength/NumEvaluations)), TickResolution, EPlayDirection::Forwards);
-			TestPlayer.Template.EvaluateSynchronousBlocking(EvaluatedRange, TestPlayer);
+			TestPlayer.Template.EvaluateSynchronousBlocking(EvaluatedRange);
 
 			Assert(this, TestValue1, StartValue + i, TEXT("Restore-State EvaluationHook did not Begin or Update correctly."));
 		}
 
 		FMovieSceneEvaluationRange FinalRange(TRange<FFrameTime>(2000 + SectionLength, 2000 + SectionLength + 100), TickResolution, EPlayDirection::Forwards);
-		TestPlayer.Template.EvaluateSynchronousBlocking(FinalRange, TestPlayer);
+		TestPlayer.Template.EvaluateSynchronousBlocking(FinalRange);
 		Assert(this, TestValue1, TestMagicNumber, TEXT("Restore-State EvaluationHook did not End correctly."));
 
 		TestPlayer.RestorePreAnimatedState();
@@ -477,7 +477,7 @@ bool FMovieScenePreAnimatedStateContextChangedTest::RunTest(const FString& Param
 		for (int32 i = 0; i < NumEvaluations; ++i)
 		{
 			FMovieSceneEvaluationRange EvaluatedRange(TRange<FFrameTime>(i*(SectionLength/NumEvaluations), (i+1)*(SectionLength/NumEvaluations)), TickResolution, EPlayDirection::Forwards);
-			TestPlayer.Template.EvaluateSynchronousBlocking(EvaluatedRange, TestPlayer);
+			TestPlayer.Template.EvaluateSynchronousBlocking(EvaluatedRange);
 
 			Assert(this, TestValue1, StartValue + i, TEXT("In-Editor 1: EvaluationHook did not Begin or Update correctly."));
 		}
@@ -494,7 +494,7 @@ bool FMovieScenePreAnimatedStateContextChangedTest::RunTest(const FString& Param
 		for (int32 i = 0; i < NumEvaluations; ++i)
 		{
 			FMovieSceneEvaluationRange EvaluatedRange(TRange<FFrameTime>(i*(SectionLength/NumEvaluations), (i+1)*(SectionLength/NumEvaluations)), TickResolution, EPlayDirection::Forwards);
-			TestPlayer.Template.EvaluateSynchronousBlocking(EvaluatedRange, TestPlayer);
+			TestPlayer.Template.EvaluateSynchronousBlocking(EvaluatedRange);
 
 			Assert(this, TestValue1, StartValue + i, TEXT("PIE: EvaluationHook did not Begin or Update correctly."));
 		}

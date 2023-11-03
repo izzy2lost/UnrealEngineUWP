@@ -720,6 +720,8 @@ FSequencer::~FSequencer()
 	SequencerWidget.Reset();
 
 	TrackEditors.Empty();
+
+	RootTemplateInstance.TearDown();
 }
 
 
@@ -1213,7 +1215,7 @@ void FSequencer::FocusSequenceInstance(UMovieSceneSubSection& InSubSection)
 		RestorePreAnimatedState();
 
 		UMovieSceneEntitySystemLinker* Linker = RootTemplateInstance.GetEntitySystemLinker();
-		RootTemplateInstance.FindInstance(MovieSceneSequenceID::Root)->OverrideRootSequence(Linker, ActiveTemplateIDs.Top());
+		RootTemplateInstance.FindInstance(MovieSceneSequenceID::Root)->OverrideRootSequence(ActiveTemplateIDs.Top());
 	}
 
 	UpdateSubSequenceData();
@@ -1379,7 +1381,7 @@ void FSequencer::PopToSequenceInstance(FMovieSceneSequenceIDRef SequenceID)
 		if (Settings->ShouldEvaluateSubSequencesInIsolation())
 		{
 			UMovieSceneEntitySystemLinker* Linker = RootTemplateInstance.GetEntitySystemLinker();
-			RootTemplateInstance.FindInstance(MovieSceneSequenceID::Root)->OverrideRootSequence(Linker, ActiveTemplateIDs.Top());
+			RootTemplateInstance.FindInstance(MovieSceneSequenceID::Root)->OverrideRootSequence(ActiveTemplateIDs.Top());
 		}
 
 		UpdateSequencerCustomizations(PreviousFocusedSequence);
@@ -3231,7 +3233,7 @@ void FSequencer::EvaluateInternal(FMovieSceneEvaluationRange InRange, bool bHasJ
 	Context.SetHasJumped(bHasJumped);
 
 	
-	RootTemplateInstance.EvaluateSynchronousBlocking(Context, *this);
+	RootTemplateInstance.EvaluateSynchronousBlocking(Context);
 	SuppressAutoEvalSignature.Reset();
 
 	if (Settings->ShouldRerunConstructionScripts())
@@ -10843,7 +10845,7 @@ void FSequencer::BindCommands()
 
 			FMovieSceneSequenceID NewOverrideRoot = bNewValue ? ActiveTemplateIDs.Top() : MovieSceneSequenceID::Root;
 			UMovieSceneEntitySystemLinker* Linker = RootTemplateInstance.GetEntitySystemLinker();
-			RootTemplateInstance.FindInstance(MovieSceneSequenceID::Root)->OverrideRootSequence(Linker, NewOverrideRoot);
+			RootTemplateInstance.FindInstance(MovieSceneSequenceID::Root)->OverrideRootSequence(NewOverrideRoot);
 
 			ForceEvaluate();
 		} ),

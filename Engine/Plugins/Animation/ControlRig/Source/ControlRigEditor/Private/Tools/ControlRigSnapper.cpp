@@ -144,7 +144,7 @@ static bool LocalGetControlRigControlTransforms(IMovieScenePlayer* Player, const
 				FMovieSceneContext Context = FMovieSceneContext(FMovieSceneEvaluationRange(GlobalTime, TickResolution), Player->GetPlaybackStatus()).SetHasJumped(true);
 
 				DeltaTime = 1.0/Context.GetFrameRate().AsDecimal();
-				Player->GetEvaluationTemplate().EvaluateSynchronousBlocking(Context, *Player);
+				Player->GetEvaluationTemplate().EvaluateSynchronousBlocking(Context);
 			}
 			if (ControlRig->IsAdditive())
 			{

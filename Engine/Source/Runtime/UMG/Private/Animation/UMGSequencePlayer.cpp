@@ -568,7 +568,7 @@ void UUMGSequencePlayer::RemoveEvaluationData()
 		}
 
 		SequenceInstance->Ledger.UnlinkEverything(Linker);
-		SequenceInstance->InvalidateCachedData(Linker);
+		SequenceInstance->InvalidateCachedData();
 	}
 }
 

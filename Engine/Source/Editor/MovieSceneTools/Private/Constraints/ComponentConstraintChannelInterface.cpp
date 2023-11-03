@@ -390,7 +390,7 @@ void FComponentConstraintChannelInterface::RecomposeTransforms(
 			const FMovieSceneEvaluationRange EvaluationRange = FMovieSceneEvaluationRange(FFrameTime(FrameNumber), TickResolution);
 			const FMovieSceneContext Context = FMovieSceneContext(EvaluationRange, PlaybackStatus).SetHasJumped(true);
 
-			EvaluationTemplate.EvaluateSynchronousBlocking(Context, *InSequencer);
+			EvaluationTemplate.EvaluateSynchronousBlocking(Context);
 
 			if (EntityIDs.IsEmpty())
 			{

@@ -18,6 +18,26 @@ static FRWLock                          GGlobalPlayerRegistryLock;
 static TSparseArray<IMovieScenePlayer*> GGlobalPlayerRegistry;
 static TBitArray<> GGlobalPlayerUpdateFlags;
 
+TPlaybackCapabilityID<FPlayerIndexPlaybackCapability> FPlayerIndexPlaybackCapability::ID = TPlaybackCapabilityID<FPlayerIndexPlaybackCapability>::Register();
+
+IMovieScenePlayer* FPlayerIndexPlaybackCapability::GetPlayer(TSharedRef<const FSharedPlaybackState> Owner)
+{
+	if (FPlayerIndexPlaybackCapability* Cap = Owner->FindCapability<FPlayerIndexPlaybackCapability>())
+	{
+		return IMovieScenePlayer::Get(Cap->PlayerIndex);
+	}
+	return nullptr;
+}
+
+uint16 FPlayerIndexPlaybackCapability::GetPlayerIndex(TSharedRef<const FSharedPlaybackState> Owner)
+{
+	if (FPlayerIndexPlaybackCapability* Cap = Owner->FindCapability<FPlayerIndexPlaybackCapability>())
+	{
+		return Cap->PlayerIndex;
+	}
+	return (uint16)-1;
+}
+
 } // namespace MovieScene
 } // namespace UE
 
@@ -92,6 +112,6 @@ void IMovieScenePlayer::InvalidateCachedData()
 	UE::MovieScene::FSequenceInstance* RootInstance = Template.FindInstance(MovieSceneSequenceID::Root);
 	if (RootInstance)
 	{
-		RootInstance->InvalidateCachedData(Template.GetEntitySystemLinker());
+		RootInstance->InvalidateCachedData();
 	}
 }

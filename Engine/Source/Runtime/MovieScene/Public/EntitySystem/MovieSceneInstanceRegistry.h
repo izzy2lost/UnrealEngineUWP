@@ -12,7 +12,9 @@
 #include "MovieSceneSequenceID.h"
 
 
+class FMovieSceneEntitySystemRunner;
 class UMovieSceneEntitySystemLinker;
+class UMovieSceneCompiledDataManager;
 
 namespace UE
 {
@@ -81,7 +83,7 @@ struct FInstanceRegistry
 		return GetInstance(InstanceHandle).GetContext();
 	}
 
-	MOVIESCENE_API FRootInstanceHandle AllocateRootInstance(IMovieScenePlayer* Player);
+	MOVIESCENE_API FRootInstanceHandle AllocateRootInstance(IMovieScenePlayer* Player, UMovieSceneSequence& RootSequence, TSharedPtr<FMovieSceneEntitySystemRunner> Runner, UMovieSceneCompiledDataManager* CompiledDataManager);
 
 	MOVIESCENE_API FInstanceHandle AllocateSubInstance(IMovieScenePlayer* Player, FMovieSceneSequenceID SequenceID, FRootInstanceHandle RootInstance, FInstanceHandle ParentInstanceHandle);
 

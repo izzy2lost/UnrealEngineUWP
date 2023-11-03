@@ -105,7 +105,7 @@ void FCompensationEvaluator::ComputeLocalTransforms(
 				BakeHelper->PreEvaluation(MovieScene, FrameNumber);
 			}
 		}
-		InSequencer->GetEvaluationTemplate().EvaluateSynchronousBlocking(Context, *InSequencer);
+		InSequencer->GetEvaluationTemplate().EvaluateSynchronousBlocking(Context);
 
 		// evaluate constraints
 		for (const TWeakObjectPtr<UTickableConstraint>& InConstraint : AllConstraints)
@@ -265,7 +265,7 @@ void FCompensationEvaluator::ComputeLocalTransformsForBaking(UWorld* InWorld, co
 				BakeHelper->PreEvaluation(MovieScene, FrameNumber);
 			}
 		}
-		InSequencer->GetEvaluationTemplate().EvaluateSynchronousBlocking(Context, *InSequencer);
+		InSequencer->GetEvaluationTemplate().EvaluateSynchronousBlocking(Context);
 
 		// evaluate constraints
 		for (const TWeakObjectPtr<UTickableConstraint>& InConstraint : AllConstraints)
@@ -383,7 +383,7 @@ void FCompensationEvaluator::ComputeLocalTransformsBeforeDeletion(
 				BakeHelper->PreEvaluation(MovieScene, FrameNumber);
 			}
 		}
-		InSequencer->GetEvaluationTemplate().EvaluateSynchronousBlocking(Context, *InSequencer);
+		InSequencer->GetEvaluationTemplate().EvaluateSynchronousBlocking(Context);
 
 		// evaluate constraints
 		for (const TWeakObjectPtr<UTickableConstraint>& InConstraint : AllConstraints)
@@ -486,7 +486,7 @@ void FCompensationEvaluator::ComputeCompensation(UWorld* InWorld, const TSharedP
 				BakeHelper->PreEvaluation(MovieScene, InFrame);
 			}
 		}
-		InSequencer->GetEvaluationTemplate().EvaluateSynchronousBlocking(Context0, *InSequencer);
+		InSequencer->GetEvaluationTemplate().EvaluateSynchronousBlocking(Context0);
 
 		for (const TWeakObjectPtr<UTickableConstraint>& InConstraint : AllConstraints)
 		{
@@ -590,7 +590,7 @@ void FCompensationEvaluator::CacheTransforms(UWorld* InWorld, const TSharedPtr<I
 				BakeHelper->PreEvaluation(MovieScene, InFrame);
 			}
 		}
-		InSequencer->GetEvaluationTemplate().EvaluateSynchronousBlocking(Context, *InSequencer);
+		InSequencer->GetEvaluationTemplate().EvaluateSynchronousBlocking(Context);
 
 		// evaluate constraints
 		for (const TWeakObjectPtr<UTickableConstraint>& InConstraint : AllConstraints)

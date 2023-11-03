@@ -3587,7 +3587,7 @@ bool UnrealToUsd::ConvertControlRigSection(
 			InPlayer->GetPlaybackStatus()
 		).SetHasJumped( true );
 
-		InPlayer->GetEvaluationTemplate().EvaluateSynchronousBlocking( Context, *InPlayer );
+		InPlayer->GetEvaluationTemplate().EvaluateSynchronousBlocking( Context );
 		ControlRig->Evaluate_AnyThread();
 
 		URigHierarchy* Hierarchy = ControlRig->GetHierarchy();
