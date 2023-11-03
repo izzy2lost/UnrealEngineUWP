@@ -221,7 +221,7 @@ void UK2Node_EvaluateChooser::ExpandNode(class FKismetCompilerContext& CompilerC
 
 		UEdGraphPin* OutputPin = CallFunction->GetReturnValuePin();
 
-		if (Chooser->OutputObjectType)
+		if (Chooser && Chooser->OutputObjectType)
 		{
 			UEdGraphPin* OutputClassPin = CallFunction->FindPin(TEXT("ObjectClass"));
 			CallFunction->GetSchema()->TrySetDefaultObject(*OutputClassPin, Chooser->OutputObjectType);
