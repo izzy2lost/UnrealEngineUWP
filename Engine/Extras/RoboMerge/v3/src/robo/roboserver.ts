@@ -40,6 +40,24 @@ let ENVIRONMENT: {[param: string]: any}
 			parse: str => str === "false" ? false : true,
 			env: 'ROBO_PREVIEW_ONLY',
 			dflt: false
+		},
+		useAuthInDev: {
+			match: /^(-useAuthInDev)$/,
+			parse: str => str === "false" ? false : true,
+			env: 'ROBO_USE_AUTH_IN_DEV',
+			dflt: false
+		},
+		oktaSignIn: {
+			match: /^(-oktaSignIn)$/,
+			parse: str => str === "false" ? false : true,
+			env: 'OKTA_SIGN_IN',
+			dflt: false
+		},
+		ldapSignIn: {
+			match: /^(-ldapSignIn)$/,
+			parse: str => str === "false" ? false : true,
+			env: 'LDAP_SIGN_IN',
+			dflt: true
 		}
 	}
 
@@ -111,7 +129,13 @@ export class RoboServer {
 		}
 
 		//this.server.addFileMapping('/', 'index.html')
-		this.server.addFileMapping('/login', 'login.html', {secureOnly: true})
+		if (ENVIRONMENT.devMode && ENVIRONMENT.useAuthInDev) {
+			this.server.addFileMapping('/login', 'login.html', {secureOnly: false})
+		}
+		else {
+			this.server.addFileMapping('/login', 'login.html', {secureOnly: true})
+		}
+
 		this.server.addFileMapping('/allbots', 'allbots.html')
 		this.server.addFileMapping('/js/*.wasm', 'bin/$1.wasm.gz', {
 			filetype: "application/wasm", 
@@ -366,6 +390,34 @@ class RoboWebApp implements AppInterface {
 		
 		const token = await Session.login({user: creds.user, password: creds.password}, this.webAppLogger);
 		return token || {statusCode: 401, message: 'invalid credentials'};
+	}
+
+	@Handler('POST', '/oktaLogin')
+	async oktaLogin() {
+		if (!this.request.reqData) {
+			return {statusCode: 400, message: 'no log-in data received'}
+		}
+		
+		const creds = querystring.parse(this.request.reqData);
+		if (!creds.user || Array.isArray(creds.user) || !creds.displayName || Array.isArray(creds.displayName) || !creds.groups || Array.isArray(creds.groups)) {
+			return {statusCode: 400, message: 'invalid log-in data'}
+		}
+		const token = Session.oktaLogin(creds.user, creds.displayName, creds.groups);
+		return token || {statusCode: 401, message: 'invalid credentials'};
+	}
+
+	@Handler('GET', '/oktaConfig')
+	async oktaConfig() {
+		return fs.readFileSync('config/okta.cfg.json', 'utf8');
+	}
+
+	@Handler('GET', '/signInMethod')
+	async signInMethod() {
+		const signIn = {
+			okta: ENVIRONMENT.oktaSignIn,
+			ldap: ENVIRONMENT.ldapSignIn
+		};
+		return signIn;
 	}
 
 	@SecureHandler('PUT', '/api/control/verbose/*')
@@ -659,11 +711,30 @@ class RoboWebApp implements AppInterface {
 			}
 		}
 		else if (ENVIRONMENT.devMode) {
-			const user = ENVIRONMENT.devModeUser || 'dev'
-			this.authData = {
-				user,
-				displayName: `${user} (dev mode)`,
-				tags: new Set(['fte', 'admin'])
+			if (ENVIRONMENT.useAuthInDev) {
+				const authToken = getCookie(this.getCookies(), 'auth')
+				if (authToken) {
+					this.authData = Session.tokenToAuthData(authToken)
+				}
+
+				if (!this.authData) {
+					let redirectString = this.request.url.pathname
+					if (this.request.url.search) {
+						redirectString = `${redirectString}${this.request.url.search}`
+					}
+
+					return {statusCode: 302, message: 'Must log in', headers: [
+						['Location', `/login?redirect=${encodeURIComponent(redirectString)}`]
+					]}
+				}
+			}
+			else {
+				const user = ENVIRONMENT.devModeUser || 'dev'
+				this.authData = {
+					user,
+					displayName: `${user} (dev mode)`,
+					tags: new Set(['fte', 'admin'])
+				}
 			}
 		}
 		else {

@@ -385,6 +385,7 @@ function generateRobomergeHeader(createSignedInUserDiv = true) {
 		let logOutButton = $('<button id="log-out" class="btn btn-xs btn-warning">Sign out</button>')
 		logOutButton.click(function() {
 			document.cookie = 'auth=; path=; redirect_to=;';
+			document.cookie = 'signedOut=true;';
 			window.location.href = '/login';
 		})
 		loggedInUser.append(logOutButton)

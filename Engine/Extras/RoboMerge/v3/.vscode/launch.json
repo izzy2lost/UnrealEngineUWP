@@ -29,7 +29,11 @@
                 "EPIC_ENV": "dev",
                 "EPIC_DEPLOYMENT": "local",
                 "BOTNAME": "test",
-                "ROBO_RUNBOTS": "yes"
+                "ROBO_RUNBOTS": "yes",
+                "ROBO_PERSISTENCE_BACKUP_FREQUENCY": "0",
+                "ROBO_USE_AUTH_IN_DEV": "false",
+                "OKTA_SIGN_IN": "false",
+                "LDAP_SIGN_IN": "true"
             },
             "smartStep": true,
             "skipFiles": [

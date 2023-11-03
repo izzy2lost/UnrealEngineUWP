@@ -16,6 +16,10 @@
 	},
 	"bot-groups": [
 		{
+			"group": "Robomerge_Admin_Access",
+			"tags": ["admin"]
+		},
+		{
 			"group": "Robomerge_FTE_Access",
 			"tags": ["fte"]
 		}
