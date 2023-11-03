@@ -66,6 +66,11 @@ static TAutoConsoleVariable<float> CVarLocalFogVolumeGlobalStartDistance(
 	TEXT("The start distance in centimeter from which local fog volumes starts to appear."),
 	ECVF_RenderThreadSafe);
 
+static TAutoConsoleVariable<int32> CVarLocalFogVolumeUseHZB(
+	TEXT("r.LocalFogVolume.UseHZB"), 1,
+	TEXT("Use the HZB to cull loca lfog volume away.\n"),
+	ECVF_RenderThreadSafe);
+
 // Example of tile setup
 //  - 1920x1080 => 15x9 tiles
 //  - Allowing max 32 volumes at once => culling list buffer = 15 * 9 * 32 * 1 byte = 4320 bytes = 4.3KB
@@ -231,7 +236,8 @@ class FLocalFogVolumeTiledCullingCS : public FGlobalShader
 	DECLARE_GLOBAL_SHADER(FLocalFogVolumeTiledCullingCS);
 	SHADER_USE_PARAMETER_STRUCT(FLocalFogVolumeTiledCullingCS, FGlobalShader);
 
-	using FPermutationDomain = TShaderPermutationDomain<>;
+	class FUseHZB : SHADER_PERMUTATION_BOOL("USE_HZB");
+	using FPermutationDomain = TShaderPermutationDomain<FUseHZB>;
 
 public:
 	const static uint32 GroupSize = 8;
@@ -243,6 +249,11 @@ public:
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<float4>, LocalFogVolumeCullingDataBuffer)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, TileDataBufferUAV)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, TileDrawIndirectBufferUAV)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, HZBTexture)
+		SHADER_PARAMETER_SAMPLER(SamplerState, HZBSampler)
+		SHADER_PARAMETER(FVector2f, HZBSize)
+		SHADER_PARAMETER(FVector2f, HZBViewSize)
+		SHADER_PARAMETER(FIntRect, HZBViewRect)
 		SHADER_PARAMETER(FVector4f, LeftPlane)
 		SHADER_PARAMETER(FVector4f, RightPlane)
 		SHADER_PARAMETER(FVector4f, TopPlane)
@@ -271,6 +282,12 @@ static void LocalFogVolumeViewTiledCullingPass(FViewInfo& View, FRDGBuilder& Gra
 	PassParameters->LocalFogVolumeTileDataTextureUAV	= View.LocalFogVolumeViewData.TileDataTextureArrayUAV;
 	PassParameters->TileDataBufferUAV					= View.LocalFogVolumeViewData.GPUTileDataBufferUAV;
 	PassParameters->TileDrawIndirectBufferUAV			= View.LocalFogVolumeViewData.GPUTileDrawIndirectBufferUAV;
+
+	PassParameters->HZBTexture							= View.HZB;
+	PassParameters->HZBSampler							= TStaticSamplerState<SF_Point, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
+	PassParameters->HZBSize								= FVector2f(View.HZBMipmap0Size);
+	PassParameters->HZBViewSize							= FVector2f(View.ViewRect.Size());
+	PassParameters->HZBViewRect							= FIntRect(0, 0, View.ViewRect.Width(), View.ViewRect.Height());
 
 	auto ConvertPlanToVector4f = [&](FVector4f& OutVec4f, auto& Plane, bool bFlipPlane)
 	{
@@ -316,7 +333,10 @@ static void LocalFogVolumeViewTiledCullingPass(FViewInfo& View, FRDGBuilder& Gra
 	TileDataTextureSize.Z = 1;
 	const FIntVector NumGroups = FIntVector::DivideAndRoundUp(TileDataTextureSize, FLocalFogVolumeTiledCullingCS::GroupSize);
 
-	TShaderMapRef<FLocalFogVolumeTiledCullingCS> ComputeShader(View.ShaderMap);
+	
+	FLocalFogVolumeTiledCullingCS::FPermutationDomain PermutationVector;
+	PermutationVector.Set<FLocalFogVolumeTiledCullingCS::FUseHZB>(View.HZB != nullptr && CVarLocalFogVolumeUseHZB.GetValueOnRenderThread());
+	TShaderMapRef<FLocalFogVolumeTiledCullingCS> ComputeShader(View.ShaderMap, PermutationVector);
 	FComputeShaderUtils::AddPass(GraphBuilder, RDG_EVENT_NAME("LocalFogVolume.TiledCulling"), PassFlag, ComputeShader, PassParameters, NumGroups);
 }
 

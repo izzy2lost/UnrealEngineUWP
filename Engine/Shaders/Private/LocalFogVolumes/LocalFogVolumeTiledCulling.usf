@@ -18,6 +18,8 @@ RWTexture2DArray<uint> LocalFogVolumeTileDataTextureUAV;
 RWBuffer<uint> TileDataBufferUAV;
 RWBuffer<uint> TileDrawIndirectBufferUAV;
 
+int4 HZBViewRect;
+
 #ifndef THREADGROUP_SIZE
 #error THREADGROUP_SIZE must be defined
 #endif
@@ -25,6 +27,8 @@ RWBuffer<uint> TileDrawIndirectBufferUAV;
 [numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, 1)]
 void LocalFogVolumeTiledCullingCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 {
+	ResolvedView = ResolveView();
+
 	uint2 TileCoord = uint2(DispatchThreadId.xy);
 
 	if (any(TileCoord >= LFVTileDataResolution))
@@ -68,6 +72,15 @@ void LocalFogVolumeTiledCullingCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 		TilePlanes[i] *= Scale;
 	}
 #endif
+#if USE_HZB
+	static float4x4 IdentityLocalToTranslatedWorldMatrix =
+	{
+		{ 1, 0, 0, 0 },
+		{ 0, 1, 0, 0 },
+		{ 0, 0, 1, 0 },
+		{ 0, 0, 0, 1 }
+	};
+#endif
 
 	uint LFVCount = 0;
 	for (int LFVIndex = 0; LFVIndex < LFVInstcount; ++LFVIndex)
@@ -84,6 +97,46 @@ void LocalFogVolumeTiledCullingCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 				break;
 			}
 		}
+
+	#if USE_HZB
+		if (!bCompletelyOutside)
+		{
+		#if 0
+			// Sphere
+			float4 SphereCenterView = mul(Sphere.xyz + LWCToFloat(PrimaryView.PreViewTranslation), ResolvedView.TranslatedWorldToView);
+			FFrustumCullData Cull = SphereCullFrustum(SphereCenterView, Sphere.w, ResolvedView.ViewToClip, 0.0/*float ZNear*/, false/*bool bNearClip*/ , true/*bool bSkipFrustumCull*/);
+		#else
+			FFrustumCullData Cull = BoxCullFrustum(
+				Sphere.xyz + LWCToFloat(PrimaryView.PreViewTranslation),
+				Sphere.www,
+				IdentityLocalToTranslatedWorldMatrix,
+				ResolvedView.TranslatedWorldToClip,
+				ResolvedView.ViewToClip,
+				false /*bIsOrtho*/, true /* near clip */, true /* skip culling */
+			);
+		#endif
+
+		#if 0 // USE_TILED_HZB // Not working yet...
+			Cull.RectMin.xy = float2(TileCoord.x,			(TileCoord.y))			/ float2(LFVTileDataResolution);
+			Cull.RectMax.xy = float2(TileCoord.x + 1.0f,	(TileCoord.y + 1.0f))	/ float2(LFVTileDataResolution);
+
+			Cull.RectMin.x = Cull.RectMin.x * ViewToTileSpaceRatio.x * 2.0 - 1.0;
+			Cull.RectMax.x = Cull.RectMax.x * ViewToTileSpaceRatio.x * 2.0 - 1.0;
+
+			Cull.RectMin.y = 1.0/ViewToTileSpaceRatio.y - Cull.RectMin.y;
+			Cull.RectMax.y = 1.0/ViewToTileSpaceRatio.y - Cull.RectMax.y;
+
+			Cull.RectMin.y = Cull.RectMin.y * 2 - 1;
+			Cull.RectMax.y = Cull.RectMax.y * 2 - 1;
+		#endif
+
+			int4 ActualHZBViewRect = int4(0.0.xx, ResolvedView.ViewRectMinAndSize.zw);
+			FScreenRect Rect = GetScreenRect(ActualHZBViewRect, Cull, 4);
+
+			bCompletelyOutside = !IsVisibleHZB(Rect, true /*bSample4x4*/);
+		}
+	#endif
+
 		if (!bCompletelyOutside)
 		{
 			LocalFogVolumeTileDataTextureUAV[uint3(TileCoord, 1 + LFVCount)] = LFVIndex;
