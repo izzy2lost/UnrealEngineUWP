@@ -15,7 +15,7 @@ class UAISenseConfig_Touch : public UAISenseConfig
 	GENERATED_UCLASS_BODY()
 public:
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Sense", config)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Sense", config)
 	FAISenseAffiliationFilter DetectionByAffiliation = {true, true, true};
 	
 	AIMODULE_API virtual TSubclassOf<UAISense> GetSenseImplementation() const override;
