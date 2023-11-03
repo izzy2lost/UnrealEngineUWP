@@ -3,7 +3,7 @@
 #pragma once
 
 // Change this to force recompilation of all Stochastic Shadows shaders
-#pragma message("UESHADERMETADATA_VERSION A16ACC4F-1C35-1CD1-1AAF-82395A79FB2B")
+#pragma message("UESHADERMETADATA_VERSION CA6ACC4F-2C35-2CD1-1CAF-82395A79FB2B")
 
 #define SUPPORT_CONTACT_SHADOWS 0
 #define USE_IES_PROFILE 0
@@ -24,7 +24,7 @@
 #define SHADOW_MASK_TILE_SIZE 8
 #define INVALID_SHADOW_MASK_TILE_INDEX 0xFFFFFFFF
 #define MAX_SHADOW_MASK_AGE 7
-#define MAX_HISTORY_LENGTH 7
+#define MAX_SHADOW_MASK_HISTORY_LENGTH 7
 
 // Keep in sync with StochasticShadows.cpp
 #define MAX_LIGHT_SCENE_ID_XY 16
@@ -127,8 +127,12 @@ struct FShadowMask
 {
 	float Factor;
 	float FactorSq;
-	uint Age;			// [0;7] When was last traced
-	uint HistoryLength; // [0;7] How many history frames were accumulated
+
+	// Number of frames from when this pixel was traced. Values in [0;7].
+	uint Age;			
+
+	// Number of frames accumulated in history. Values in [0;7].
+	uint HistoryLength;
 
 	bool IsValid()
 	{
@@ -153,7 +157,7 @@ uint PackShadowMask(FShadowMask ShadowMask)
 	PackedShadowMask |= clamp(uint(ShadowMask.Factor * 0x3FF + 0.5f), 0u, 0x3FFu); // 10 bits
 	PackedShadowMask |= clamp(uint(ShadowMask.FactorSq * 0x3FF + 0.5f), 0, 0x3FFu) << 10; // 10 bits
 	PackedShadowMask |= min(ShadowMask.Age, MAX_SHADOW_MASK_AGE) << 20;
-	PackedShadowMask |= min(ShadowMask.HistoryLength, MAX_HISTORY_LENGTH) << 23;
+	PackedShadowMask |= min(ShadowMask.HistoryLength, MAX_SHADOW_MASK_HISTORY_LENGTH) << 23;
 	return PackedShadowMask;
 }
 
@@ -351,8 +355,8 @@ void AccumulateHistoryShadowMask(uint LightSceneId, uint2 ShadowMaskScreenCoord,
 			FShadowMask HistoryShadowMask = UnpackShadowMask(ShadowMaskAtlasHistory[HistoryShadowMaskAtlasCoord]);
 
 			// Increase age as we are sampling previous frame
-			HistoryShadowMask.Age += 1;
-			HistoryShadowMask.HistoryLength += 1;
+			HistoryShadowMask.Age = min(HistoryShadowMask.Age + 1, MAX_SHADOW_MASK_AGE);
+			HistoryShadowMask.HistoryLength = min(HistoryShadowMask.HistoryLength + 1, MAX_SHADOW_MASK_HISTORY_LENGTH);
 
 			if (HistoryShadowMask.IsValid())
 			{

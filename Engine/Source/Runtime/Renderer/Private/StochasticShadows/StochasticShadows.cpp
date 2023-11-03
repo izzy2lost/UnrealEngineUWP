@@ -39,8 +39,22 @@ static TAutoConsoleVariable<int32> CVarStochasticShadowsTemporal(
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
-static TAutoConsoleVariable<int32> CVarStochasticShadowsGuiding(
-	TEXT("r.StochasticShadows.Guiding"),
+static TAutoConsoleVariable<int32> CVarStochasticShadowsTemporalMaxFramesAccumulated(
+	TEXT("r.StochasticShadows.Temporal.MaxFramesAccumulated"),
+	8,
+	TEXT("Max history length when accumulating frames. Lower values have less ghosting, but more noise."),
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
+static TAutoConsoleVariable<float> CVarStochasticShadowsTemporalStdDevOffset(
+	TEXT("r.StochasticShadows.Temporal.StdDevOffset"),
+	0.1f,
+	TEXT("Increases standard deviation in neighborhood clamp. Higher values cause more ghosting, but allow smoother temporal accumulation."),
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
+static TAutoConsoleVariable<int32> CVarStochasticSamplingShadowEstimate(
+	TEXT("r.StochasticShadows.Sampling.ShadowEstimate"),
 	1,
 	TEXT("Whether to use shadow mask history for sample guiding."),
 	ECVF_Scalability | ECVF_RenderThreadSafe
@@ -421,7 +435,8 @@ class FCompositeShadowMaskTracesCS : public FGlobalShader
 	class FNumSamplesPerPixel : SHADER_PERMUTATION_SPARSE_INT("NUM_SAMPLES_PER_PIXEL", 1, 2, 4);
 	class FTemporalAccumulation : SHADER_PERMUTATION_BOOL("TEMPORAL_ACCUMULATION");
 	class FHashTable : SHADER_PERMUTATION_BOOL("HASH_TABLE");
-	using FPermutationDomain = TShaderPermutationDomain<FNumSamplesPerPixel, FTemporalAccumulation, FHashTable>;
+	class FDebugMode : SHADER_PERMUTATION_BOOL("DEBUG_MODE");
+	using FPermutationDomain = TShaderPermutationDomain<FNumSamplesPerPixel, FTemporalAccumulation, FHashTable, FDebugMode>;
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
@@ -708,6 +723,8 @@ void FDeferredShadingSceneRenderer::RenderStochasticShadows(FRDGBuilder& GraphBu
 		StochasticShadowsParameters.MinLightSampleWeight = CVarStochasticShadowsMinSampleWeight.GetValueOnRenderThread();
 		StochasticShadowsParameters.TileDataStride = TileDataStride;
 		StochasticShadowsParameters.DownsampledTileDataStride = DownsampledTileDataStride;
+		StochasticShadowsParameters.TemporalMaxFramesAccumulated = CVarStochasticShadowsTemporalMaxFramesAccumulated.GetValueOnRenderThread();
+		StochasticShadowsParameters.TemporalStdDevOffset = CVarStochasticShadowsTemporalStdDevOffset.GetValueOnRenderThread();
 		StochasticShadowsParameters.DebugMode = CVarStochasticShadowsDebug.GetValueOnRenderThread();
 
 		if (bDebug)
@@ -842,7 +859,7 @@ void FDeferredShadingSceneRenderer::RenderStochasticShadows(FRDGBuilder& GraphBu
 			PermutationVector.Set<FGenerateSamplesCS::FTileType>(TileType);
 			PermutationVector.Set<FGenerateSamplesCS::FNumSamplesPerPixel>(NumSamplesPerPixel1d);
 			PermutationVector.Set<FGenerateSamplesCS::FShadowMaskReprojectionWeights>(bTemporal);
-			PermutationVector.Set<FGenerateSamplesCS::FShadowFactorEstimate>(bTemporal && CVarStochasticShadowsGuiding.GetValueOnRenderThread() != 0);
+			PermutationVector.Set<FGenerateSamplesCS::FShadowFactorEstimate>(bTemporal && CVarStochasticSamplingShadowEstimate.GetValueOnRenderThread() != 0);
 			PermutationVector.Set<FGenerateSamplesCS::FDebugMode>(bDebug);
 			PermutationVector.Set<FGenerateSamplesCS::FHashTable>(bUseHashTable);
 			PermutationVector.Set<FGenerateSamplesCS::FCandidateLightMask>(ShadowMaskAtlasHistory && CVarStochasticShadowsCandidateLightMask.GetValueOnRenderThread() != 0);
@@ -951,6 +968,7 @@ void FDeferredShadingSceneRenderer::RenderStochasticShadows(FRDGBuilder& GraphBu
 		PermutationVector.Set<FCompositeShadowMaskTracesCS::FNumSamplesPerPixel>(NumSamplesPerPixel1d);
 		PermutationVector.Set<FCompositeShadowMaskTracesCS::FTemporalAccumulation>(bTemporal);
 		PermutationVector.Set<FCompositeShadowMaskTracesCS::FHashTable>(bUseHashTable);
+		PermutationVector.Set<FCompositeShadowMaskTracesCS::FDebugMode>(bDebug);
 		auto ComputeShader = View.ShaderMap->GetShader<FCompositeShadowMaskTracesCS>(PermutationVector);
 
 		FComputeShaderUtils::AddPass(

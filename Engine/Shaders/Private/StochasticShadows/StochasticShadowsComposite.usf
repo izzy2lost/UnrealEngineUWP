@@ -5,11 +5,37 @@
 #include "../ShaderPrint.ush"
 #include "StochasticShadows.ush"
 
-RWTexture2D<uint> RWShadowMaskTileAtlas;
 StructuredBuffer<uint2> ShadowMaskTileData;
 Texture2D<uint2> ShadowMaskHistoryScreenCoord00;
 Texture2D<float4> ShadowMaskHistoryWeights;
 Texture2D<uint> LightSamples;
+uint TemporalMaxFramesAccumulated;
+float TemporalStdDevOffset;
+
+RWTexture2D<uint> RWShadowMaskTileAtlas;
+
+#define SHARED_TILE_BORDER 1
+#define SHARED_TILE_SIZE (8 + 2 * SHARED_TILE_BORDER)
+groupshared uint SharedSampleAccumulator[SHARED_TILE_SIZE][SHARED_TILE_SIZE];
+
+struct FSampleAccumulator
+{
+	uint SampleSum;
+	uint NumSamples;
+};
+
+uint PackSampleAccumulator(FSampleAccumulator SampleAccumulator)
+{
+	return SampleAccumulator.SampleSum | (SampleAccumulator.NumSamples << 16);
+}
+
+FSampleAccumulator UnpackSampleAccumulator(uint Packed)
+{
+	FSampleAccumulator SampleAccumulator;
+	SampleAccumulator.SampleSum = Packed & 0xFFFF;
+	SampleAccumulator.NumSamples = Packed >> 16;
+	return SampleAccumulator;
+}
 
 /**
  * Run one thread per shadow mask pixel and composite current frame's traces.
@@ -22,31 +48,24 @@ void CompositeShadowMaskTracesCS(
 	uint3 DispatchThreadId : SV_DispatchThreadID)
 {
 	uint ShadowMaskTileIndex = GroupId.x;
-	uint2 LocalShadowMaskTileCoord = GroupThreadId.xy;
 
 	uint LightSceneId = 0;
-	uint2 ShadowMaskScreenCoord = 0;	
-	UnpackShadowMaskTile(ShadowMaskTileData[ShadowMaskTileIndex], LightSceneId, ShadowMaskScreenCoord);
-	ShadowMaskScreenCoord += LocalShadowMaskTileCoord;
+	uint2 BaseShadowMaskScreenCoord = 0;	
+	UnpackShadowMaskTile(ShadowMaskTileData[ShadowMaskTileIndex], LightSceneId, BaseShadowMaskScreenCoord);
 
-#define DEBUG_MODE 0
-#if DEBUG_MODE
-	int2 DebugScreenCoord = View.CursorPosition.x >= 0 ? View.CursorPosition * View.ViewResolutionFraction : -1;
-	bool bDebug = all(ShadowMaskScreenCoord == DebugScreenCoord / SHADOW_MASK_DOWNSAMPLE_FACTOR);
-	FShaderPrintContext Context = InitShaderPrintContext(true, float2(0.1, 0.3));
-
-	if (bDebug)
+	GroupMemoryBarrierWithGroupSync();
+	
+	// Composite traces into SharedShadowMask
+	for (uint SharedShadowMaskY = GroupThreadId.y; SharedShadowMaskY < SHARED_TILE_SIZE; SharedShadowMaskY += THREADGROUP_SIZE)
 	{
-		Print(Context, TEXT("CompositeShadowMaskTracesCS"));
-	}
-#endif
-
-	if (all(ShadowMaskScreenCoord < ShadowMaskViewSize))
-	{
-		// Accumulate current frame traces
-		FShadowMask ShadowMask = InitShadowMask();
+		for (uint SharedShadowMaskX = GroupThreadId.x; SharedShadowMaskX < SHARED_TILE_SIZE; SharedShadowMaskX += THREADGROUP_SIZE)
 		{
-			FShadowMaskAccumulator Accumulator = InitShadowMaskAccumulator();
+			uint2 ShadowMaskScreenCoord = clamp(int2(BaseShadowMaskScreenCoord) + int2(SharedShadowMaskX - SHARED_TILE_BORDER, SharedShadowMaskY - SHARED_TILE_BORDER), 0, ShadowMaskViewSize - 1);
+			
+			FSampleAccumulator SampleAccumulator;
+			SampleAccumulator.SampleSum = 0;
+			SampleAccumulator.NumSamples = 0;
+
 			for (uint LocalSampleY = 0; LocalSampleY < NUM_SAMPLES_PER_PIXEL_Y; ++LocalSampleY)
 			{
 				for (uint LocalSampleX = 0; LocalSampleX < NUM_SAMPLES_PER_PIXEL_X; ++LocalSampleX)
@@ -56,25 +75,75 @@ void CompositeShadowMaskTracesCS(
 
 					if (LightSample.LightSceneId == LightSceneId)
 					{
-						float Factor = LightSample.bVisible ? 1.0f : 0.0f;
-
-						float Weight = 1.0f;
-						Accumulator.FactorSum += Factor * Weight;
-						Accumulator.FactorSqSum += Pow2(Factor) * Weight;
-						Accumulator.WeightSum += Weight;
+						SampleAccumulator.SampleSum += LightSample.bVisible ? 1 : 0;
+						SampleAccumulator.NumSamples += 1;
 					}
 				}
 			}
 
-			if (Accumulator.WeightSum > 0.0f)
+			SharedSampleAccumulator[SharedShadowMaskX][SharedShadowMaskY] = PackSampleAccumulator(SampleAccumulator);			
+		}
+	}
+	
+	GroupMemoryBarrierWithGroupSync();
+
+	uint2 LocalShadowMaskTileCoord = GroupThreadId.xy;
+	uint2 ShadowMaskScreenCoord = BaseShadowMaskScreenCoord + LocalShadowMaskTileCoord;
+
+#if DEBUG_MODE
+	int2 DebugScreenCoord = View.CursorPosition.x >= 0 ? View.CursorPosition * View.ViewResolutionFraction : -1;
+	bool bDebug = all(ShadowMaskScreenCoord == DebugScreenCoord / SHADOW_MASK_DOWNSAMPLE_FACTOR);
+	FShaderPrintContext Context = InitShaderPrintContext(true, float2(0.1, 0.3));
+
+	if (bDebug)
+	{
+		Print(Context, TEXT("CompositeShadowMaskTraces"));
+	}
+#endif
+
+	// Temporal reproject and write out new shadow masks
+	if (all(ShadowMaskScreenCoord < ShadowMaskViewSize))
+	{
+		FSampleAccumulator CenterSampleAccumulator = UnpackSampleAccumulator(SharedSampleAccumulator[LocalShadowMaskTileCoord.x + SHARED_TILE_BORDER][LocalShadowMaskTileCoord.y + SHARED_TILE_BORDER]);
+
+		FShadowMask ShadowMask = InitShadowMask();
+		if (CenterSampleAccumulator.NumSamples > 0)
+		{
+			ShadowMask.Factor = CenterSampleAccumulator.SampleSum / (float)CenterSampleAccumulator.NumSamples;
+			ShadowMask.FactorSq = CenterSampleAccumulator.SampleSum / (float)CenterSampleAccumulator.NumSamples;
+			ShadowMask.Age = 0;
+		}
+
+		FSampleAccumulator SampleAccumulator = CenterSampleAccumulator;
+		const int FilterSize = 1;
+		for (int SampleOffsetY = -FilterSize; SampleOffsetY <= FilterSize; ++SampleOffsetY)
+		{
+			for (int SampleOffsetX = -FilterSize; SampleOffsetX <= FilterSize; ++SampleOffsetX)
 			{
-				ShadowMask.Age = 0;
-				ShadowMask.Factor = Accumulator.FactorSum / Accumulator.WeightSum;
-				ShadowMask.FactorSq = Accumulator.FactorSqSum / Accumulator.WeightSum;
+				if (!(SampleOffsetX == 0 && SampleOffsetY == 0))
+				{
+					FSampleAccumulator NeighborSampleAccumulator = UnpackSampleAccumulator(SharedSampleAccumulator[LocalShadowMaskTileCoord.x + SHARED_TILE_BORDER + SampleOffsetX][LocalShadowMaskTileCoord.y + SHARED_TILE_BORDER + SampleOffsetY]);
+					SampleAccumulator.SampleSum += NeighborSampleAccumulator.SampleSum;
+					SampleAccumulator.NumSamples += NeighborSampleAccumulator.NumSamples;
+				}
 			}
 		}
 
-		// History reprojection
+		#if DEBUG_MODE
+		if (bDebug && ShadowMask.IsValid())
+		{
+			Newline(Context);
+			Print(Context, TEXT("NumSamples: "));
+			Print(Context, SampleAccumulator.NumSamples);
+			Newline(Context);
+			Print(Context, TEXT("SampleSum: "));
+			Print(Context, SampleAccumulator.SampleSum);
+			Newline(Context);
+			Print(Context, TEXT("ShadowMask: "));
+			Print(Context, ShadowMask.Factor);
+		}
+		#endif
+
 		#if TEMPORAL_ACCUMULATION
 		{
 			int2 ScreenCoord00 = ShadowMaskHistoryScreenCoord00[ShadowMaskScreenCoord];
@@ -94,21 +163,52 @@ void CompositeShadowMaskTracesCS(
 					float HistoryShadowFactor = Accumulator.FactorSum / Accumulator.WeightSum;
 					float HistoryShadowFactorSq = Accumulator.FactorSqSum / Accumulator.WeightSum;
 
+					// Neighborhood clamp
+					if (SampleAccumulator.NumSamples > CenterSampleAccumulator.NumSamples)
+					{
+						float Mean = SampleAccumulator.SampleSum / float(SampleAccumulator.NumSamples);
+						float Variance = max(Mean - Mean * Mean, 0.0f);
+						float StdDev = sqrt(Variance) + TemporalStdDevOffset;
+						float ClampMin = Mean - 0.5f * StdDev;
+						float ClampMax = Mean + 0.5f * StdDev;
+		
+						#if DEBUG_MODE
+						if (bDebug && ShadowMask.IsValid())
+						{
+							Newline(Context);
+							Print(Context, TEXT("Clamp: "));
+							Print(Context, ClampMin);
+							Print(Context, ClampMax);
+							Newline(Context);
+							Print(Context, TEXT("HistoryShadowFactor: "));
+							Print(Context, HistoryShadowFactor);
+						}
+						#endif
+
+						float ClampedHistoryShadowFactor = clamp(HistoryShadowFactor, ClampMin, ClampMax);
+						float DistanceToClamped = abs(ClampedHistoryShadowFactor - HistoryShadowFactor);
+
+						// Speedup accumulation if new samples don't fit history
+						Accumulator.MaxHistoryLength *= saturate(1.0f - 2.0f * DistanceToClamped);
+						HistoryShadowFactor = ClampedHistoryShadowFactor;
+					}
+
 					// Merge with reprojected history data
 					if (ShadowMask.IsValid())
 					{
-						float NewNumFramesAccumulated = max(Accumulator.MaxHistoryLength, 8.0f);
+						float NewNumFramesAccumulated = min(Accumulator.MaxHistoryLength, min(TemporalMaxFramesAccumulated, MAX_SHADOW_MASK_HISTORY_LENGTH));
 						float Alpha = 1.0f / (1.0f + NewNumFramesAccumulated);
 						ShadowMask.Factor = lerp(HistoryShadowFactor, ShadowMask.Factor, Alpha);
 						ShadowMask.FactorSq = lerp(HistoryShadowFactorSq, ShadowMask.FactorSq, Alpha);
 						ShadowMask.Age = 0;
+						ShadowMask.HistoryLength = Accumulator.MaxHistoryLength;
 					}
 					else
 					{
 						ShadowMask.Factor = HistoryShadowFactor;
 						ShadowMask.FactorSq = HistoryShadowFactorSq;
 						ShadowMask.Age = Accumulator.MinAge;
-						ShadowMask.HistoryLength = 0;
+						ShadowMask.HistoryLength = Accumulator.MaxHistoryLength;
 					}
 				}
 			}

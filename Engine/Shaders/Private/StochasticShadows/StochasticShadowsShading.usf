@@ -9,7 +9,7 @@
 #include "../LightGridCommon.ush"
 #include "StochasticShadows.ush"
 
-#define DEBUG_SHADOW_MASK 0
+#define DEBUG_SHADOW_MASK 0	
 
 RWTexture2D<float4> RWSceneColor;
 

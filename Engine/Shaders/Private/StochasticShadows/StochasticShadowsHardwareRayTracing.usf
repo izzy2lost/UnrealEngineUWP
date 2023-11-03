@@ -34,17 +34,6 @@ StructuredBuffer<uint> CompactedTraceTexelData;
 StructuredBuffer<uint> CompactedTraceTexelAllocator;
 Texture2D<float> DownsampledSceneDepth;
 
-//#sdl_todo: Shared with Lumen?
-float3 CalcPrevTranslatedWorldPositionFromGPUSceneInstanceIndex(float3 TranslatedWorldPosition, uint GPUSceneInstanceIndex)
-{
-	FInstanceSceneData InstanceSceneData = GetInstanceSceneData(GPUSceneInstanceIndex, Scene.GPUScene.InstanceDataSOAStride);
-
-	FLWCVector3 WorldPosition = LWCSubtract(LWCPromote(TranslatedWorldPosition), PrimaryView.PreViewTranslation);
-	float3 LocalPosition = LWCMultiply(WorldPosition, InstanceSceneData.WorldToLocal);
-	FLWCVector3 PrevWorldPosition = LWCMultiply(LocalPosition, InstanceSceneData.PrevLocalToWorld);
-	return LWCToFloat(LWCAdd(PrevWorldPosition, PrimaryView.PreViewTranslation));
-}
-
 RAY_TRACING_ENTRY_RAYGEN_OR_INLINE(HardwareRayTraceLightSamples)
 {
 	uint ThreadIndex = DispatchThreadIndex.x;
@@ -139,16 +128,7 @@ RAY_TRACING_ENTRY_RAYGEN_OR_INLINE(HardwareRayTraceLightSamples)
 
 		if (Payload.IsHit())
 		{
-			uint SceneInstanceIndex = Payload.GetGPUSceneInstanceIndex();
-			float3 TranslatedWorldPosition = Ray.Origin + Ray.Direction * Payload.HitT;
-			float3 WorldVelocity = TranslatedWorldPosition - CalcPrevTranslatedWorldPositionFromGPUSceneInstanceIndex(TranslatedWorldPosition, SceneInstanceIndex);
-
 			LightSample.bVisible = false;
-			RWLightSamples[SampleCoord] = PackLightSample(LightSample);
-		}
-		else
-		{
-			LightSample.bVisible = true;
 			RWLightSamples[SampleCoord] = PackLightSample(LightSample);
 		}
 
