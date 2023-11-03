@@ -53,6 +53,8 @@ namespace mu
 
 			BoneMapIndex = 0;
 			BoneMapCount = 0;
+
+			bCastShadow = false;
 		}
 
 		int32 m_firstVertex;
@@ -64,6 +66,8 @@ namespace mu
 		uint32 BoneMapIndex;
 		uint32 BoneMapCount;
 
+		bool bCastShadow;
+
 		//!
 		inline bool operator==(const MESH_SURFACE& o) const
 		{
@@ -73,7 +77,8 @@ namespace mu
 				&& m_indexCount == o.m_indexCount
 				&& m_id == o.m_id
 				&& BoneMapIndex == o.BoneMapIndex
-				&& BoneMapCount == o.BoneMapCount;
+				&& BoneMapCount == o.BoneMapCount
+				&& bCastShadow == o.bCastShadow;
 		}
 
 		inline void Serialise(OutputArchive& arch) const;
@@ -217,7 +222,8 @@ namespace mu
         void GetSurface( int32 surfaceIndex,
                          int32* FirstVertex, int32* VertexCount,
                          int32* FirstIndex, int32* IndexCount,
-						 int32* FirstBone, int32* BoneCount) const;
+						 int32* FirstBone, int32* BoneCount,
+						 bool* bCastShadow) const;
 
         //! Return an internal id that can be used to match mesh surfaces and instance surfaces.
         //! Only valid for meshes that are part of instances.

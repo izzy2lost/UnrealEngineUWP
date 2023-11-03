@@ -527,6 +527,9 @@ namespace mu
 				NewSurface.m_vertexCount = pFirst->GetVertexCount() + pSecond->GetVertexCount();
 				NewSurface.m_indexCount = pFirst->GetIndexCount() + pSecond->GetIndexCount();
 				NewSurface.BoneMapCount = Result->BoneMap.Num();
+				
+				//All merged surfaces will have the same bCastShadow value. Decided by the first merged mesh
+				NewSurface.bCastShadow = pFirst->m_surfaces.Last().bCastShadow;
 			}
 			else
 			{

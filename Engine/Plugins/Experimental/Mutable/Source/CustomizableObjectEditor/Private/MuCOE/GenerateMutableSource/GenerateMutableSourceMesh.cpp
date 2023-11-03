@@ -1513,6 +1513,14 @@ mu::MeshPtr ConvertSkeletalMeshToMutable(const USkeletalMesh* InSkeletalMesh, co
 		}
 	}
 
+	// Ensure Surface Data
+	mu::MESH_SURFACE MeshSurface;
+	MeshSurface.m_vertexCount = MutableMesh->m_VertexBuffers.GetElementCount();
+	MeshSurface.m_indexCount = MutableMesh->m_IndexBuffers.GetElementCount();
+	MeshSurface.BoneMapCount = MutableMesh->BoneMap.Num();
+	MeshSurface.bCastShadow = MeshSection.bCastShadow;
+	MutableMesh->m_surfaces.Add(MeshSurface);
+
 	if (!bIgnorePhysics && InSkeletalMesh->GetPhysicsAsset() && MutableMesh->GetSkeleton() && GenerationContext.Options.bPhysicsAssetMergeEnabled)
 	{
 		// Find BodySetups with relevant bones.

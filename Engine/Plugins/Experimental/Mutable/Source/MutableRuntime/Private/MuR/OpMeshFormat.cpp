@@ -692,6 +692,8 @@ namespace mu
 		// A shallow copy is done here, it should not be a problem.
 		Result->AdditionalPhysicsBodies = pSource->AdditionalPhysicsBodies;
 
+		Result->m_surfaces = pSource->m_surfaces;
+
 		Result->ResetStaticFormatFlags();
 		Result->EnsureSurfaceData();
 	}

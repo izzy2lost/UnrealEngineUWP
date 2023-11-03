@@ -385,7 +385,8 @@ int Mesh::GetSurfaceCount() const
 void Mesh::GetSurface( int32 surfaceIndex,
                        int32* firstVertex, int32* vertexCount,
                        int32* firstIndex, int32* indexCount,
-					   int32* BoneIndex, int32* BoneCount) const
+					   int32* BoneIndex, int32* BoneCount,
+					   bool* bCastShadow) const
 {
     int count = GetSurfaceCount();
 
@@ -400,6 +401,7 @@ void Mesh::GetSurface( int32 surfaceIndex,
             if (indexCount) *indexCount = surf.m_indexCount;
             if (BoneIndex) *BoneIndex = surf.BoneMapIndex;
             if (BoneCount) *BoneCount = surf.BoneMapCount;
+            if (bCastShadow) *bCastShadow = surf.bCastShadow;
         }
         else
         {
@@ -410,6 +412,7 @@ void Mesh::GetSurface( int32 surfaceIndex,
             if (indexCount) *indexCount = GetIndexCount();
 			if (BoneIndex) *BoneIndex = 0;
 			if (BoneCount) *BoneCount = BoneMap.Num();
+			if (bCastShadow) *bCastShadow = false;
         }
     }
     else
@@ -421,6 +424,7 @@ void Mesh::GetSurface( int32 surfaceIndex,
         if (indexCount) *indexCount = 0;
 		if (BoneIndex) *BoneIndex = 0;
 		if (BoneCount) *BoneCount = 0;
+		if (bCastShadow) *bCastShadow = false;
     }
 }
 
@@ -1089,8 +1093,7 @@ void UnserialiseLegacySurfaces(InputArchive& arch, TArray<MESH_SURFACE>& OutMesh
 //-------------------------------------------------------------------------------------------------
 void MESH_SURFACE::Serialise(OutputArchive& arch) const
 {
-
-	const int32 ver = 0;
+	const int32 ver = 1;
 	arch << ver;
 
 	arch << m_firstVertex;
@@ -1099,9 +1102,9 @@ void MESH_SURFACE::Serialise(OutputArchive& arch) const
 	arch << m_indexCount;
 	arch << BoneMapIndex;
 	arch << BoneMapCount;
-	
-	arch << m_id;
+	arch << bCastShadow;
 
+	arch << m_id;
 }
 
 
@@ -1110,7 +1113,7 @@ void MESH_SURFACE::Unserialise(InputArchive& arch)
 {
 	int32 ver = 0;
 	arch >> ver;
-	check(ver == 0);
+	check(ver <= 1);
 
 	arch >> m_firstVertex;
 	arch >> m_vertexCount;
@@ -1118,7 +1121,12 @@ void MESH_SURFACE::Unserialise(InputArchive& arch)
 	arch >> m_indexCount;
 	arch >> BoneMapIndex;
 	arch >> BoneMapCount;
-		 
+
+	if (ver >= 1)
+	{
+		arch >> bCastShadow;
+	}
+
 	arch >> m_id;
 }
 
