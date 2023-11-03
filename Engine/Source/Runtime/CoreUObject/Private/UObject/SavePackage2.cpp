@@ -2457,14 +2457,6 @@ ESavePackageResult FinalizeFile(FStructuredArchive::FRecord& StructuredArchiveRo
 {
 	SCOPED_SAVETIMER(UPackage_Save_FinalizeFile);
 
-	// In the concurrent case, it is called right after routing presave so it can be done in batch before going concurrent
-	if (!SaveContext.IsConcurrent())
-	{
-		// If we're writing to the existing file call ResetLoaders on the Package so that we drop the handle to the file on disk and can write to it
-		//COOK_STAT(FScopedDurationTimer SaveTimer(FSavePackageStats::ResetLoadersTimeSec));
-		ResetLoadersForSave(SaveContext.GetPackage(), SaveContext.GetFilename());
-	}
-
 	FSavePackageContext* SavePackageContext = SaveContext.GetSavePackageContext();
 	IPackageWriter* PackageWriter = SavePackageContext ? SavePackageContext->PackageWriter : nullptr;
 	if (PackageWriter || SaveContext.IsSaveToMemory())
@@ -3051,21 +3043,20 @@ FSavePackageResultStruct UPackage::Save2(UPackage* InPackage, UObject* InAsset, 
 
 	// Ensures
 	SlowTask.EnterProgressFrame();
-	EnsurePackageLocalization(SaveContext.GetPackage());
 	{
-		// FullyLoad the package's Loader, so that anything we need to serialize (bulkdata, thumbnails) is available
-		//COOK_STAT(FScopedDurationTimer SaveTimer(FSavePackageStats::FullyLoadLoadersTimeSec));
-		EnsureLoadingComplete(SaveContext.GetPackage());
-
 		if (!SaveContext.IsConcurrent())
 		{
-			// We need to fulfill all pending streaming and async loading requests to then allow us to lock the global IO manager. 
-			// The latter implies flushing all file handles which is a pre-requisite of saving a package. The code basically needs 
-			// to be sure that we are not reading from a file that is about to be overwritten and that there is no way we might 
-			// start reading from the file till we are done overwriting it.
-			FlushAsyncLoading();
+			// We need to make sure to flush any pending request that may involve the existing linker of this package as we want to reset it
+			// to release any handle on the file prior to overwriting it.
+			UPackage* Package = SaveContext.GetPackage();
+			ConditionalFlushAsyncLoadingForSave(Package);
+			(*GFlushStreamingFunc)();
+
+			EnsurePackageLocalization(Package);
+
+			// FullyLoad the package's Loader, so that anything we need to serialize (bulkdata, thumbnails) is available
+			EnsureLoadingComplete(Package);
 		}
-		(*GFlushStreamingFunc)();
 	}
 
 	// PreSave Asset
@@ -3079,26 +3070,33 @@ FSavePackageResultStruct UPackage::Save2(UPackage* InPackage, UObject* InAsset, 
 		SaveContext.SetPreSaveCleanup(ObjectSaveContext.bCleanupRequired);
 	}
 
-	// Route Presave only if not calling concurrently or if the PackageWriter claims already completed, in those case they should be handled separately already
 	SlowTask.EnterProgressFrame();
-	IPackageWriter* PackageWriter = SaveContext.GetPackageWriter();
-	if (!SaveContext.IsConcurrent() && (!PackageWriter || !PackageWriter->IsPreSaveCompleted()))
+	if (!SaveContext.IsConcurrent())
 	{
-		SaveContext.Result = RoutePresave(SaveContext);
+		// Route Presave only if not calling concurrently or if the PackageWriter claims already completed, in those case they should be handled separately already
+		IPackageWriter* PackageWriter = SaveContext.GetPackageWriter();
+		if (!PackageWriter || !PackageWriter->IsPreSaveCompleted())
+		{
+			SaveContext.Result = RoutePresave(SaveContext);
+			if (SaveContext.Result != ESavePackageResult::Success)
+			{
+				return SaveContext.Result;
+			}
+		}
+
+		// Trigger platform cooked data caching after PreSave but before package harvesting 
+		// After PreSave because objects can be created during PreSave and we need to cache them
+		// Before package harvesting because it might modify some property and hence affect the harvested
+		// property name of a tagged property for example
+		SaveContext.Result = BeginCachePlatformCookedData(SaveContext);
 		if (SaveContext.Result != ESavePackageResult::Success)
 		{
 			return SaveContext.Result;
 		}
-	}
 
-	// Trigger platform cooked data caching after PreSave but before package harvesting 
-	// After PreSave because objects can be created during PreSave and we need to cache them
-	// Before package harvesting because it might modify some property and hence affect the harvested
-	// property name of a tagged property for example
-	SaveContext.Result = BeginCachePlatformCookedData(SaveContext);
-	if (SaveContext.Result != ESavePackageResult::Success)
-	{
-		return SaveContext.Result;
+		// If we're writing to the existing file call ResetLoaders on the Package so that we drop the handle to the file on disk and can write to it
+		// This might end flushing async loading for this package
+		ResetLoadersForSave(SaveContext.GetPackage(), SaveContext.GetFilename());
 	}
 
 	SlowTask.EnterProgressFrame();

@@ -656,26 +656,6 @@ typedef uint32 ELazyLoaderFlags;
 	Global functions
 -----------------------------------------------------------------------------*/
 
-/**
- * Reset the linker exports associated with the package
- * @note, this might flush async loading if the linker is owned by the loading thread
- */
-COREUOBJECT_API void ResetLinkerExports(UPackage* InPackage);
-
-/**
- * Remove references to the linker for the given package and delete the linker. 
- * Can be called after the package has finished loading.
- * Flushes async loading.
- */
-COREUOBJECT_API void ResetLoaders(UObject* InOuter);
-COREUOBJECT_API void ResetLoaders(TArrayView<UObject*> InOuters);
-
-/** Deletes all linkers that have finished loading */
-COREUOBJECT_API void DeleteLoaders();
-
-/** Queues linker for deletion */
-COREUOBJECT_API void DeleteLoader(FLinkerLoad* Loader);
-
 /** 
  * Loads a linker for a package and returns it without loading any objects.
  * @param InOuter Package if known, can be null
@@ -713,9 +693,29 @@ COREUOBJECT_API FLinkerLoad* GetPackageLinker(UPackage* InOuter, const FPackageP
 UE_DEPRECATED(5.0, "Use version that takes a FPackagePath without a FGuid instead")
 COREUOBJECT_API FLinkerLoad* GetPackageLinker(UPackage* InOuter, const TCHAR* InLongPackageName, uint32 LoadFlags, UPackageMap* Sandbox, FGuid* CompatibleGuid, FArchive* InReaderOverride = nullptr, FUObjectSerializeContext** InOutLoadContext = nullptr, FLinkerLoad* ImportLinker = nullptr, const FLinkerInstancingContext* InstancingContext = nullptr);
 
-
-
 COREUOBJECT_API FString GetPrestreamPackageLinkerName(const TCHAR* InLongPackageName, bool bSkipIfExists = true);
+
+/**
+ * Reset the linker exports associated with the package
+ * @note, this might flush async loading if the linker is owned by the loading thread
+ */
+COREUOBJECT_API void ResetLinkerExports(UPackage* InPackage);
+
+/**
+ * Remove references to the linker for the given package and delete the linker.
+ * Can be called after the package has finished loading.
+ * Flushes async loading.
+ */
+COREUOBJECT_API void ResetLoaders(UObject* InOuter);
+COREUOBJECT_API void ResetLoaders(TArrayView<UObject*> InOuters);
+
+
+/**
+ *  Conditionally flush async loading for a specific package if there's any pending async requests
+ * 
+ * @param InPackage		The package to flush for
+ */
+COREUOBJECT_API void ConditionalFlushAsyncLoadingForSave(UPackage* InPackage);
 
 /**
  *
@@ -733,6 +733,12 @@ COREUOBJECT_API void ResetLoadersForSave(UPackage* Package, const TCHAR* Filenam
  * @param	InPackage			The package we are saving along with their filename
  */
 COREUOBJECT_API void ResetLoadersForSave(TArrayView<FPackageSaveInfo> InPackages);
+
+/** Deletes all linkers that have finished loading */
+COREUOBJECT_API void DeleteLoaders();
+
+/** Queues linker for deletion */
+COREUOBJECT_API void DeleteLoader(FLinkerLoad* Loader);
 
 /*
  * Ensure all data that can be loaded from the linker (thumbnails, bulk data) is loaded, in preparation for saving out the given package
