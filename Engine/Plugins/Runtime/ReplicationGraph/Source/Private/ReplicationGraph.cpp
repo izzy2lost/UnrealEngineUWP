@@ -681,6 +681,8 @@ void UReplicationGraph::AddNetworkActor(AActor* Actor)
 		return;
 	}
 
+	ensureMsgf(!Actor->bNetTemporary, TEXT("ReplicationGraph does not support bNetTemporary. Actor: %s has bNetTemporary set."), *Actor->GetPathName());
+
 	// Create global rep info	
 	FGlobalActorReplicationInfo& GlobalInfo = GlobalActorReplicationInfoMap.Get(Actor);
 	GlobalInfo.bWantsToBeDormant = Actor->NetDormancy > DORM_Awake;
