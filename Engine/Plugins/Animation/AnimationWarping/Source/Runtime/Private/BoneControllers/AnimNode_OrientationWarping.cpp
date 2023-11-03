@@ -114,7 +114,7 @@ void FAnimNode_OrientationWarping::EvaluateSkeletalControl_AnyThread(FComponentS
 	float TargetOrientationAngleRad;
 
 	const float DeltaSeconds = Output.AnimInstanceProxy->GetDeltaSeconds();
-	const float MaxAngleCorrectionRad = FMath::DegreesToRadians(MaxCorrectionRateDegrees) * DeltaSeconds;
+	const float MaxAngleCorrectionRad = FMath::DegreesToRadians(MaxCorrectionDegrees);
 	const FVector RotationAxisVector = UE::Anim::GetAxisVector(RotationAxis);
 	FVector LocomotionForward = FVector::ZeroVector;
 
@@ -233,8 +233,6 @@ void FAnimNode_OrientationWarping::EvaluateSkeletalControl_AnyThread(FComponentS
 					const float MaxRootMotionDeltaToCompensateRad = FMath::DegreesToRadians(MaxRootMotionDeltaToCompensateDegrees);
 					if (FMath::Abs(RootMotionDeltaAngleRad) < MaxRootMotionDeltaToCompensateRad)
 					{
-						// Otherwise, clamp the maximum counter-compensation by our max allowed correction to prevent pops.
-						RootMotionDeltaAngleRad = FMath::Clamp(RootMotionDeltaAngleRad, -MaxAngleCorrectionRad, MaxAngleCorrectionRad);
 						ActualOrientationAngleRad = FMath::UnwindRadians(ActualOrientationAngleRad + RootMotionDeltaAngleRad);
 					}
 				}
@@ -276,6 +274,7 @@ void FAnimNode_OrientationWarping::EvaluateSkeletalControl_AnyThread(FComponentS
 		ActualOrientationAngleRad = TargetOrientationAngleRad;
 	}
 
+	ActualOrientationAngleRad = FMath::Clamp(ActualOrientationAngleRad, -MaxAngleCorrectionRad, MaxAngleCorrectionRad);
 	// Allow the alpha value of the node to affect the final rotation
 	ActualOrientationAngleRad *= ActualAlpha;
 

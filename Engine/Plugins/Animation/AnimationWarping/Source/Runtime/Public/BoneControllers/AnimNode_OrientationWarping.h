@@ -74,7 +74,7 @@ struct ANIMATIONWARPINGRUNTIME_API FAnimNode_OrientationWarping : public FAnimNo
 	// Max correction we're allowed to do per-second when using interpolation.
 	// This minimizes pops when we have a large difference between current and target orientation.
 	UPROPERTY(EditAnywhere, Category=Settings, meta=(ClampMin="0.0", EditCondition="RotationInterpSpeed > 0.0f"))
-	float MaxCorrectionRateDegrees = 720.f;
+	float MaxCorrectionDegrees = 180.f;
 
 	// Don't compensate our interpolator when the instantaneous root motion delta is higher than this. This is likely a pivot.
 	UPROPERTY(EditAnywhere, Category=Settings, meta=(ClampMin="0.0", EditCondition="RotationInterpSpeed > 0.0f"))
