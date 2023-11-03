@@ -590,6 +590,11 @@ namespace Gauntlet
 		public string Sandbox { get; set; }
 
 		/// <summary>
+		/// Optional directory where local builds will be installed
+		/// </summary>
+		public string DestLocalInstallDir { get; set; }
+
+		/// <summary>
 		/// Whether or not we should retain our devices this pass
 		/// </summary>
 		public bool ShouldRetainDevices { get; set; }
@@ -894,6 +899,12 @@ namespace Gauntlet
 
 					// todo - should this be elsewhere?
 					AppConfig.Sandbox = Sandbox;
+
+					if (!string.IsNullOrEmpty(DestLocalInstallDir) && BuildHostPlatform.Current.Platform == Device.Platform)
+					{
+						AppConfig.DestLocalInstallDir = Path.Combine(DestLocalInstallDir, Device.Platform.ToString(), Device.Name );
+					}
+
 
 					Device.ClearSavedDirectory(AppConfig);
 

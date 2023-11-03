@@ -254,7 +254,8 @@ namespace Gauntlet
 			if (BuildVolume.Equals(LocalRoot, StringComparison.OrdinalIgnoreCase) == false)
 			{
 				string SubDir = string.IsNullOrEmpty(AppConfig.Sandbox) ? AppConfig.ProjectName : AppConfig.Sandbox;
-				string DestPath = Path.Combine(this.LocalCachePath, SubDir, AppConfig.ProcessType.ToString());
+				string BasePath = string.IsNullOrEmpty(AppConfig.DestLocalInstallDir) ? this.LocalCachePath : AppConfig.DestLocalInstallDir;
+				string DestPath = Path.Combine(BasePath, SubDir, AppConfig.ProcessType.ToString());
 
 				if (!SkipDeploy)
 				{
