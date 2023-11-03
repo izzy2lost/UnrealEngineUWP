@@ -95,7 +95,7 @@ struct FPluginDescriptor
 	FString VersePath;
 
 	/** Origin/visibility of Verse code in this plugin's Content/Verse folder */
-	EVerseScope::Type VerseScope = EVerseScope::User;
+	EVerseScope::Type VerseScope = EVerseScope::PublicUser;
 
 	/** The version of the Verse language that this plugin targets.
 		If no value is specified, the latest stable version is used. */
