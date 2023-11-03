@@ -25,7 +25,6 @@ struct FParameterBlockViewEntry;
 enum class EParameterBlockCategoryType : uint8
 {
 	Parameter,
-	BuiltIn,
 	Graph,
 	// --- ---
 	Invalid
