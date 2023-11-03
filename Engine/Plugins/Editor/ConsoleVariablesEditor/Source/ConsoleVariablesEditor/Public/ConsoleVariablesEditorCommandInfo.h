@@ -116,14 +116,14 @@ struct CONSOLEVARIABLESEDITOR_API FConsoleVariablesEditorCommandInfo
  
 	bool IsCurrentValueDifferentFromInputValue(const FString& InValueToCompare);
  
+	void OnConsoleVariableChanged(IConsoleVariable* ChangedVariable);
+
 	/** The actual string key or name */
 	UPROPERTY()
 	FString Command;
 	EConsoleObjectType ObjectType = EConsoleObjectType::NullObject;
 	/** This object is periodically refreshed to mitigate the occurrence of stale pointers. */
-	IConsoleObject* ConsoleObjectPtr;
-	FDateTime TimeOfLastConsoleObjectRefresh;
-	double ConsoleObjectRefreshThreshold = 1.0;
+	IConsoleObject* ConsoleObjectPtr = nullptr;
 	
 	/** The value of this variable (if Variable object type) when the module started in this session after it may have been set by an ini file. */
 	FString StartupValueAsString;
@@ -132,6 +132,7 @@ struct CONSOLEVARIABLESEDITOR_API FConsoleVariablesEditorCommandInfo
 	EConsoleVariableFlags StartupSource = ECVF_Default;
 	/** If the variable was last changed by the current preset */
 	bool bSetInCurrentSession = false;
+	bool bHasAttemptedFind = false;
 	/** When variables change, this callback is executed. */
 	FDelegateHandle OnVariableChangedCallbackHandle;
 	/** A mapping of SetBy console variable flags to information like the associated display text. */

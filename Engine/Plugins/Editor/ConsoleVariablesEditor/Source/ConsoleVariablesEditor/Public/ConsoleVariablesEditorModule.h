@@ -38,10 +38,7 @@ public:
 	/** Find all console variables and cache their startup values */
 	void QueryAndBeginTrackingConsoleVariables();
 
-	void AddConsoleObjectCommandInfoToMainReference(TSharedRef<FConsoleVariablesEditorCommandInfo> InCommandInfo)
-	{
-		ConsoleObjectsMainReference.Add(InCommandInfo);
-	}
+	void AddConsoleObjectCommandInfoToMainReference(TSharedRef<FConsoleVariablesEditorCommandInfo> InCommandInfo);
 
 	/** Find a tracked console variable by the command string with optional case sensitivity. */
 	CONSOLEVARIABLESEDITOR_API TWeakPtr<FConsoleVariablesEditorCommandInfo> FindCommandInfoByName(
@@ -55,14 +52,6 @@ public:
 	CONSOLEVARIABLESEDITOR_API TArray<TWeakPtr<FConsoleVariablesEditorCommandInfo>> FindCommandInfosMatchingTokens(
 		const TArray<FString>& InTokens, ESearchCase::Type InSearchCase = ESearchCase::IgnoreCase);
 
-	/**
-	 *Find a tracked console variable by its console object reference.
-	 *Note that some commands do not have an associated console object (such as 'stat unit') and will not be found with this method.
-	 *It's normally safer to use FindCommandInfoByName() instead.
-	 */
-	CONSOLEVARIABLESEDITOR_API TWeakPtr<FConsoleVariablesEditorCommandInfo> FindCommandInfoByConsoleObjectReference(
-		IConsoleObject* InConsoleObjectReference);
-	
 	[[nodiscard]] TObjectPtr<UConsoleVariablesAsset> GetPresetAsset() const;
 	[[nodiscard]] TObjectPtr<UConsoleVariablesAsset> GetGlobalSearchAsset() const;
 	
@@ -89,6 +78,8 @@ public:
 
 	virtual void AddReferencedObjects( FReferenceCollector& Collector )  override;
 	virtual FString GetReferencerName() const override;
+
+	void OnConsoleVariableChanged(FConsoleVariablesEditorCommandInfo& CommandInfo, IConsoleVariable* ChangedVariable);
 
 private:
 	/** Scoped based struct to track inbound cvars set by Multi-user. */
@@ -133,8 +124,6 @@ private:
 
 	void RegisterMenuItem();
 	void RegisterProjectSettings() const;
-
-	void OnConsoleVariableChanged(IConsoleVariable* ChangedVariable);
 	void OnConsoleObjectUnregistered(const TCHAR* InName, IConsoleObject* InConsoleObject);
 
 	TObjectPtr<UConsoleVariablesAsset> AllocateTransientPreset(const FName DesiredName) const;
@@ -155,7 +144,7 @@ private:
 	TObjectPtr<UConsoleVariablesAsset> EditingGlobalSearchAsset = nullptr;
 
 	/** All tracked variables and their default, startup, and current values */
-	TArray<TSharedPtr<FConsoleVariablesEditorCommandInfo>> ConsoleObjectsMainReference;
+	TMap<FString, TSharedPtr<FConsoleVariablesEditorCommandInfo>> ConsoleObjectsMainReference;
 
 	/**
 	 * A map of commands invoked by Multi-user.  Each command has a corresponding reference count.
