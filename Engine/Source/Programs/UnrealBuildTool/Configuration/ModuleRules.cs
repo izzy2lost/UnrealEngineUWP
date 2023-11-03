@@ -44,19 +44,24 @@ namespace UnrealBuildTool
 	public enum VerseScope
 	{
 		/// <summary>
-		/// Created by Epic and is entirely hidden from public users
-		/// </summary>
-		InternalAPI,
-
-		/// <summary>
 		/// Created by Epic and only public definitions will be visible to public users
 		/// </summary>
 		PublicAPI,
 
 		/// <summary>
+		/// Created by Epic and is entirely hidden from public users
+		/// </summary>
+		InternalAPI,
+
+		/// <summary>
 		/// Created by a public user
 		/// </summary>
-		User
+		PublicUser,
+
+		/// <summary>
+		/// Created by an Epic internal user
+		/// </summary>
+		InternalUser
 	}
 
 	/// <summary>
@@ -1328,7 +1333,7 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// Visibility of Verse code in this module's Source/Verse folder
 		/// </summary>
-		public VerseScope VerseScope = VerseScope.User;
+		public VerseScope VerseScope = VerseScope.PublicUser;
 
 		/// <summary>
 		/// Whether this module qualifies included headers from other modules relative to the root of their 'Public' folder. This reduces the number
