@@ -5,6 +5,7 @@
 #include "Async/TaskGraphInterfaces.h"
 #include "D3D12RHICommon.h"
 #include "Templates/RefCounting.h"
+#include "D3D12BindlessDescriptors.h"
 
 enum class ED3D12QueueType;
 

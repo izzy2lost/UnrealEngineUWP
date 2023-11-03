@@ -396,6 +396,13 @@ void FD3D12ContextCommon::Finalize(TArray<FD3D12Payload*>& OutPayloads)
 	OutPayloads.Append(MoveTemp(Payloads));
 }
 
+void FD3D12CommandContext::Finalize(TArray<FD3D12Payload*>& OutPayloads)
+{
+	FlushPendingDescriptorUpdates();
+
+	FD3D12ContextCommon::Finalize(OutPayloads);
+}
+
 FD3D12QueryLocation FD3D12QueryAllocator::Allocate(ED3D12QueryType Type, void* Target)
 {
 	check(Type != ED3D12QueryType::None);
@@ -666,13 +673,21 @@ void FD3D12ContextCommon::ConditionalSplitCommandList()
 	}
 }
 
+void FD3D12DynamicRHI::RHIBeginFrame(FRHICommandListImmediate& RHICmdList)
+{
+	RHICmdList.EnqueueLambda([](FRHICommandListBase& ExecutingCmdList)
+	{
+		FD3D12CommandContext& Context = static_cast<FD3D12CommandContext&>(ExecutingCmdList.GetContext());
+		FD3D12Device* Device = Context.Device;
+
+		Device->GetGPUProfiler().BeginFrame();
+		Device->GetDefaultBufferAllocator().BeginFrame(ExecutingCmdList);
+		Device->GetTextureAllocator().BeginFrame(ExecutingCmdList);
+	});
+}
+
 void FD3D12CommandContext::RHIBeginFrame()
 {
-	Device->GetGPUProfiler().BeginFrame();
-
-	Device->GetDefaultBufferAllocator().BeginFrame();
-	Device->GetTextureAllocator().BeginFrame();
-
 	bTrackingEvents = IsDefaultContext() && Device->GetGPUProfiler().bTrackingEvents;
 
 #if D3D12_RHI_RAYTRACING

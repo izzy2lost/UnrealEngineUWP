@@ -223,7 +223,7 @@ private:
 class FD3D12SubAllocatedOnlineHeap : public FD3D12OnlineHeap
 {
 public:
-	FD3D12SubAllocatedOnlineHeap(FD3D12DescriptorCache& DescriptorCache, FD3D12ContextCommon& Context);
+	FD3D12SubAllocatedOnlineHeap(FD3D12DescriptorCache& DescriptorCache, FD3D12CommandContext& Context);
 
 	// Override FD3D12OnlineHeap functions
 	virtual bool RollOver() final override;
@@ -240,7 +240,7 @@ private:
 	FD3D12OnlineDescriptorBlock* CurrentBlock = nullptr;
 
 	FD3D12DescriptorCache& DescriptorCache;
-	FD3D12ContextCommon& Context;
+	FD3D12CommandContext& Context;
 };
 
 
@@ -397,6 +397,7 @@ private:
 
 	TSharedPtr<FD3D12SamplerSet> LocalSamplerSet;
 	bool bHeapsOverridden = false;
+	bool bUsingViewHeap = true;
 
 	uint32 NumLocalViewDescriptors = 0;
 

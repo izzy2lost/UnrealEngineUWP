@@ -1243,7 +1243,7 @@ void FD3D12ResourceLocation::AsStandAlone(FD3D12Resource* Resource, uint64 InSiz
 }
 
 
-bool FD3D12ResourceLocation::OnAllocationMoved(FRHIPoolAllocationData* InNewData)
+bool FD3D12ResourceLocation::OnAllocationMoved(FRHICommandListBase& RHICmdList, FRHIPoolAllocationData* InNewData)
 {
 	// Assume linked list allocated for now - only defragging allocator
 	FRHIPoolAllocationData& AllocationData = GetPoolAllocatorPrivateData().PoolData;
@@ -1339,7 +1339,7 @@ bool FD3D12ResourceLocation::OnAllocationMoved(FRHIPoolAllocationData* InNewData
 	check(!CurrentResource->GetDesc().NeedsUAVAliasWorkarounds());
 
 	// Notify all the dependent resources about the change
-	Owner->ResourceRenamed();
+	Owner->ResourceRenamed(RHICmdList);
 
 	return true;
 }

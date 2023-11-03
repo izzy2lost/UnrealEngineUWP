@@ -35,6 +35,8 @@ extern int32 GGlobalSamplerDescriptorHeapSize;
 extern int32 GGlobalSamplerHeapSize;
 extern int32 GOnlineDescriptorHeapSize;
 extern int32 GOnlineDescriptorHeapBlockSize;
+extern int32 GBindlessOnlineDescriptorHeapSize;
+extern int32 GBindlessOnlineDescriptorHeapBlockSize;
 
 enum class ED3D12PipelineType : uint8
 {
@@ -654,7 +656,7 @@ public:
 	ED3D12PipelineType LastComputePipelineType = ED3D12PipelineType::Compute;
 #endif // D3D12_RHI_RAYTRACING
 
-	void ApplyState(ED3D12PipelineType PipelineType);
+	void ApplyState(ERHIPipeline HardwarePipe, ED3D12PipelineType PipelineType);
 	void ApplySamplers(const FD3D12RootSignature* const pRootSignature, uint32 StartStage, uint32 EndStage);
 	void ApplyResources(const FD3D12RootSignature* const pRootSignature, uint32 StartStage, uint32 EndStage);
 	void ApplyBindlessResources(const FD3D12RootSignature* const pRootSignature, uint32 StartStage, uint32 EndStage);

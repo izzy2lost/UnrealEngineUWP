@@ -112,14 +112,6 @@ static FAutoConsoleVariableRef CVarMinDriverVersionForRayTracingAMD(
 	ECVF_ReadOnly | ECVF_RenderThreadSafe
 );
 
-int32 GAllowAsyncCompute = 1;
-static FAutoConsoleVariableRef CVarAllowAsyncCompute(
-	TEXT("r.D3D12.AllowAsyncCompute"),
-	GAllowAsyncCompute,
-	TEXT("Allow usage of async compute"),
-	ECVF_ReadOnly | ECVF_RenderThreadSafe
-);
-
 #if !UE_BUILD_SHIPPING
 static TAutoConsoleVariable<int32> CVarExperimentalShaderModels(
 	TEXT("r.D3D12.ExperimentalShaderModels"),
@@ -1679,16 +1671,6 @@ void FD3D12DynamicRHI::Init()
 
 	D3D12_FEATURE_DATA_D3D12_OPTIONS6 options = {};
 	HRESULT Options6HR = GetAdapter().GetD3DDevice()->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS6, &options, sizeof(options));
-
-	// Allow async compute by default on nVidia cards which support PerPrimitiveShadingRateSupportedWithViewportIndexing 
-	// this should be a good metric according to nVidia itself (this is set for Ampere and newer cards)
-	bool bnVidiaAsyncComputeSupported = false;
-	if (IsRHIDeviceNVIDIA() && Options6HR == S_OK && options.PerPrimitiveShadingRateSupportedWithViewportIndexing)
-	{
-		bnVidiaAsyncComputeSupported = true;
-	}
-
-	GSupportsEfficientAsyncCompute = GAllowAsyncCompute && (FParse::Param(FCommandLine::Get(), TEXT("ForceAsyncCompute")) || (GRHISupportsParallelRHIExecute && (IsRHIDeviceAMD() || bnVidiaAsyncComputeSupported)));
 
 #if WITH_MGPU
 	// Disallow async compute in mGPU mode due to submission order bugs (UE-193929).

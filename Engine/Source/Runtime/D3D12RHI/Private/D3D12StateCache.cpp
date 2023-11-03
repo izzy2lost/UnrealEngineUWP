@@ -60,6 +60,22 @@ static FAutoConsoleVariableRef CVarOnlineDescriptorHeapBlockSize(
 	ECVF_ReadOnly
 );
 
+int32 GBindlessOnlineDescriptorHeapSize = 500 * 1000;
+static FAutoConsoleVariableRef CVarBindlessOnlineDescriptorHeapSize(
+	TEXT("D3D12.BindlessOnlineDescriptorHeapSize"),
+	GBindlessOnlineDescriptorHeapSize,
+	TEXT("Online descriptor heap size"),
+	ECVF_ReadOnly
+);
+
+int32 GBindlessOnlineDescriptorHeapBlockSize = 2000;
+static FAutoConsoleVariableRef CVarBindlessOnlineDescriptorHeapBlockSize(
+	TEXT("D3D12.BindlessOnlineDescriptorHeapBlockSize"),
+	GBindlessOnlineDescriptorHeapBlockSize,
+	TEXT("Block size for sub allocations on the global view descriptor heap."),
+	ECVF_ReadOnly
+);
+
 inline bool operator!=(D3D12_CPU_DESCRIPTOR_HANDLE lhs, D3D12_CPU_DESCRIPTOR_HANDLE rhs)
 {
 	return lhs.ptr != rhs.ptr;
@@ -99,14 +115,17 @@ FD3D12StateCache::FD3D12StateCache(FD3D12CommandContext& Context, FRHIGPUMask No
 	// Cache the resource binding tier
 	ResourceBindingTier = Adapter->GetResourceBindingTier();
 
-	const int32 MaximumResourceHeapSize = Adapter->GetMaxDescriptorsForHeapType(ERHIDescriptorHeapType::Standard);
-	const int32 MaximumSamplerHeapSize = Adapter->GetMaxDescriptorsForHeapType(ERHIDescriptorHeapType::Sampler);
-
-	check(GLocalViewHeapSize <= MaximumResourceHeapSize || MaximumResourceHeapSize < 0);
-	check(GOnlineDescriptorHeapSize <= MaximumResourceHeapSize || MaximumResourceHeapSize < 0);
-
 	const uint32 NumSamplerDescriptors = NUM_SAMPLER_DESCRIPTORS;
-	check(NumSamplerDescriptors <= MaximumSamplerHeapSize);
+
+	checkCode(
+		const int32 MaximumResourceHeapSize = Adapter->GetMaxDescriptorsForHeapType(ERHIDescriptorHeapType::Standard);
+		const int32 MaximumSamplerHeapSize = Adapter->GetMaxDescriptorsForHeapType(ERHIDescriptorHeapType::Sampler);
+
+		check(GLocalViewHeapSize <= MaximumResourceHeapSize || MaximumResourceHeapSize < 0);
+		check(GOnlineDescriptorHeapSize <= MaximumResourceHeapSize || MaximumResourceHeapSize < 0);
+
+		check(NumSamplerDescriptors <= MaximumSamplerHeapSize);
+	);
 
 	DescriptorCache.Init(GLocalViewHeapSize, NumSamplerDescriptors);
 
@@ -385,7 +404,7 @@ void FD3D12StateCache::InternalSetPipelineState(FD3D12PipelineState* InPipelineS
 	}
 }
 
-void FD3D12StateCache::ApplyState(ED3D12PipelineType PipelineType)
+void FD3D12StateCache::ApplyState(ERHIPipeline HardwarePipe, ED3D12PipelineType PipelineType)
 {
 	//SCOPE_CYCLE_COUNTER(STAT_D3D12ApplyStateTime);
 	const bool bForceState = false;
@@ -434,8 +453,8 @@ void FD3D12StateCache::ApplyState(ED3D12PipelineType PipelineType)
 	{
 		FD3D12BindlessDescriptorManager& BindlessManager = GetParentDevice()->GetBindlessDescriptorManager();
 
-		FD3D12DescriptorHeap* ResourceHeap = BindlessManager.GetHeap(ERHIDescriptorHeapType::Standard, ERHIBindlessConfiguration::AllShaders);
-		FD3D12DescriptorHeap* SamplerHeap = BindlessManager.GetHeap(ERHIDescriptorHeapType::Sampler, ERHIBindlessConfiguration::AllShaders);
+		FD3D12DescriptorHeap* ResourceHeap = BindlessManager.GetResourceHeap(HardwarePipe, ERHIBindlessConfiguration::AllShaders);
+		FD3D12DescriptorHeap* SamplerHeap = BindlessManager.GetSamplerHeap(ERHIBindlessConfiguration::AllShaders);
 
 		checkf(!bBindlessResources || ResourceHeap != nullptr, TEXT("Using dynamic samplers without the bindless sampler heap configured. Please check your configuration."));
 		checkf(!bBindlessSamplers || SamplerHeap != nullptr, TEXT("Using dynamic samplers without the bindless sampler heap configured. Please check your configuration."));

@@ -135,6 +135,8 @@ public:
 
 	/////// RHI Methods
 
+	RHI_API virtual void RHIBeginFrame(FRHICommandListImmediate& RHICmdList);
+
 	// FlushType: Thread safe
 	virtual FSamplerStateRHIRef RHICreateSamplerState(const FSamplerStateInitializerRHI& Initializer) = 0;
 

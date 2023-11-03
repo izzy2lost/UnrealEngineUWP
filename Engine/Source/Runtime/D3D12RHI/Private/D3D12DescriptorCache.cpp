@@ -45,6 +45,10 @@ void FD3D12DescriptorCache::Init(uint32 InNumLocalViewDescriptors, uint32 InNumS
 
 	bBindlessResources = BindlessDescriptorManager.AreResourcesFullyBindless();
 	bBindlessSamplers = BindlessDescriptorManager.AreSamplersFullyBindless();
+
+#if !D3D12RHI_USE_CONSTANT_BUFFER_VIEWS
+	bUsingViewHeap = !bBindlessResources;
+#endif
 #endif
 
 	// Always Init a local sampler heap as the high level cache will always miss initialy
@@ -52,14 +56,16 @@ void FD3D12DescriptorCache::Init(uint32 InNumLocalViewDescriptors, uint32 InNumS
 	// lazily as a backup to save memory)
 	LocalSamplerHeap.Init(IsUsingBindlessSamplers() ? 0 : InNumSamplerDescriptors, ERHIDescriptorHeapType::Sampler);
 
-	NumLocalViewDescriptors = InNumLocalViewDescriptors;
+	NumLocalViewDescriptors = bUsingViewHeap ? InNumLocalViewDescriptors : 0;
 
-	CurrentViewHeap = &SubAllocatedViewHeap;
+	CurrentViewHeap = bUsingViewHeap  ? &SubAllocatedViewHeap : nullptr;
 	CurrentSamplerHeap = IsUsingBindlessSamplers() ? nullptr : &LocalSamplerHeap;
 }
 
 bool FD3D12DescriptorCache::SetDescriptorHeaps(bool bForceHeapChanged)
 {
+	const ERHIPipeline Pipeline = Context.GetPipeline();
+
 	// See if the descriptor heaps changed.
 	bool bHeapChanged = bForceHeapChanged;
 
@@ -67,11 +73,11 @@ bool FD3D12DescriptorCache::SetDescriptorHeaps(bool bForceHeapChanged)
 	FD3D12BindlessDescriptorManager& BindlessDescriptorManager = GetParentDevice()->GetBindlessDescriptorManager();
 	if (IsUsingBindlessResources())
 	{
-		check(BindlessResourcesHeap == BindlessDescriptorManager.GetHeap(ERHIDescriptorHeapType::Standard));
+		check(BindlessResourcesHeap == BindlessDescriptorManager.GetResourceHeap(Pipeline));
 	}
 	if (IsUsingBindlessSamplers())
 	{
-		check(BindlessSamplersHeap == BindlessDescriptorManager.GetHeap(ERHIDescriptorHeapType::Sampler));
+		check(BindlessSamplersHeap == BindlessDescriptorManager.GetSamplerHeap());
 	}
 #endif
 
@@ -140,7 +146,7 @@ void FD3D12DescriptorCache::OpenCommandList()
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
 	if (IsUsingBindlessSamplers())
 	{
-		BindlessSamplersHeap = GetParentDevice()->GetBindlessDescriptorManager().GetHeap(ERHIDescriptorHeapType::Sampler);
+		BindlessSamplersHeap = GetParentDevice()->GetBindlessDescriptorManager().GetSamplerHeap();
 	}
 	else
 #endif
@@ -152,11 +158,13 @@ void FD3D12DescriptorCache::OpenCommandList()
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
 	if (IsUsingBindlessResources())
 	{
-		BindlessResourcesHeap = GetParentDevice()->GetBindlessDescriptorManager().GetHeap(ERHIDescriptorHeapType::Standard);
+		BindlessResourcesHeap = GetParentDevice()->GetBindlessDescriptorManager().GetResourceHeap(Context.GetPipeline());
 	}
 #endif
-
-	CurrentViewHeap->OpenCommandList();
+	if (CurrentViewHeap)
+	{
+		CurrentViewHeap->OpenCommandList();
+	}
 
 	if (!IsUsingBindlessSamplers())
 	{
@@ -171,7 +179,10 @@ void FD3D12DescriptorCache::OpenCommandList()
 
 void FD3D12DescriptorCache::CloseCommandList()
 {
-	CurrentViewHeap->CloseCommandList();
+	if (CurrentViewHeap)
+	{
+		CurrentViewHeap->CloseCommandList();
+	}
 
 	if (!IsUsingBindlessSamplers())
 	{
@@ -973,7 +984,7 @@ void FD3D12GlobalOnlineSamplerHeap::ConsolidateUniqueSamplerTables(TArrayView<FD
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // FD3D12SubAllocatedOnlineHeap
 
-FD3D12SubAllocatedOnlineHeap::FD3D12SubAllocatedOnlineHeap(FD3D12DescriptorCache& DescriptorCache, FD3D12ContextCommon& Context)
+FD3D12SubAllocatedOnlineHeap::FD3D12SubAllocatedOnlineHeap(FD3D12DescriptorCache& DescriptorCache, FD3D12CommandContext& Context)
 	: FD3D12OnlineHeap(Context.Device, false)
 	, DescriptorCache(DescriptorCache)
 	, Context(Context)
@@ -1027,7 +1038,7 @@ bool FD3D12SubAllocatedOnlineHeap::AllocateBlock()
 	// Extract global heap data
 	if (CurrentBlock)
 	{
-		Heap = new FD3D12DescriptorHeap(OnlineManager.GetDescriptorHeap(), CurrentBlock->BaseSlot, CurrentBlock->Size);
+		Heap = new FD3D12DescriptorHeap(OnlineManager.GetDescriptorHeap(Context.GetPipeline()), CurrentBlock->BaseSlot, CurrentBlock->Size);
 	}
 	else
 	{

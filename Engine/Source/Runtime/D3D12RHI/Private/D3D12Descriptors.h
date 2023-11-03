@@ -93,7 +93,7 @@ public:
 	FD3D12DescriptorManager(FD3D12Device* Device, FD3D12DescriptorHeap* InHeap, TConstArrayView<TStatId> InStats);
 	~FD3D12DescriptorManager();
 
-	void UpdateImmediately(FRHIDescriptorHandle InHandle, D3D12_CPU_DESCRIPTOR_HANDLE InSourceCpuHandle);
+	void UpdateDescriptorImmediately(FRHIDescriptorHandle InHandle, D3D12_CPU_DESCRIPTOR_HANDLE InSourceCpuHandle);
 
 	inline       FD3D12DescriptorHeap* GetHeap()       { return Heap.GetReference(); }
 	inline const FD3D12DescriptorHeap* GetHeap() const { return Heap.GetReference(); }
@@ -141,17 +141,17 @@ public:
 	FD3D12OnlineDescriptorBlock* AllocateHeapBlock();
 	void FreeHeapBlock(FD3D12OnlineDescriptorBlock* InHeapBlock);
 
-	ID3D12DescriptorHeap* GetHeap() { return Heap->GetHeap(); }
-	FD3D12DescriptorHeap* GetDescriptorHeap() { return Heap.GetReference(); }
+	ID3D12DescriptorHeap* GetHeap(ERHIPipeline Pipeline) { return Heaps[Pipeline]->GetHeap(); }
+	FD3D12DescriptorHeap* GetDescriptorHeap(ERHIPipeline Pipeline) { return Heaps[Pipeline].GetReference(); }
 
-	D3D12_CPU_DESCRIPTOR_HANDLE GetCPUSlotHandle(FD3D12OnlineDescriptorBlock* InBlock) const { return Heap->GetCPUSlotHandle(InBlock->BaseSlot); }
-	D3D12_GPU_DESCRIPTOR_HANDLE GetGPUSlotHandle(FD3D12OnlineDescriptorBlock* InBlock) const { return Heap->GetGPUSlotHandle(InBlock->BaseSlot); }
+	D3D12_CPU_DESCRIPTOR_HANDLE GetCPUSlotHandle(ERHIPipeline Pipeline, FD3D12OnlineDescriptorBlock* InBlock) const { return Heaps[Pipeline]->GetCPUSlotHandle(InBlock->BaseSlot); }
+	D3D12_GPU_DESCRIPTOR_HANDLE GetGPUSlotHandle(ERHIPipeline Pipeline, FD3D12OnlineDescriptorBlock* InBlock) const { return Heaps[Pipeline]->GetGPUSlotHandle(InBlock->BaseSlot); }
 	
 	// Called by the EOP task to recycle blocks
 	void Recycle(FD3D12OnlineDescriptorBlock* Block);
 
 private:
-	FD3D12DescriptorHeapPtr Heap;
+	TRHIPipelineArray<FD3D12DescriptorHeapPtr> Heaps;
 
 	TQueue<FD3D12OnlineDescriptorBlock*> FreeBlocks;
 

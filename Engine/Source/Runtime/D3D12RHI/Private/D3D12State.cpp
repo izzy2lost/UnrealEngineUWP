@@ -674,7 +674,7 @@ FD3D12SamplerState::FD3D12SamplerState(FD3D12Device* InParent, const D3D12_SAMPL
 
 	if (BindlessHandle.IsValid())
 	{
-		GetParentDevice()->GetBindlessDescriptorManager().UpdateImmediately(BindlessHandle, OfflineDescriptor);
+		GetParentDevice()->GetBindlessDescriptorManager().UpdateDescriptorImmediately(BindlessHandle, OfflineDescriptor);
 	}
 #endif
 }

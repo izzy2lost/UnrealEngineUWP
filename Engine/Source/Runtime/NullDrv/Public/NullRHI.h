@@ -348,6 +348,7 @@ public:
 		return new FNullTexture(Desc);
 	}
 
+	using FDynamicRHI::RHIBeginFrame;
 	virtual void RHIBeginFrame() final override
 	{
 

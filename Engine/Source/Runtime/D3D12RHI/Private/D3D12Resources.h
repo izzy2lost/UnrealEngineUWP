@@ -598,7 +598,7 @@ public:
 	FD3D12PoolAllocatorPrivateData&    GetPoolAllocatorPrivateData   ()       { return AllocatorData.PoolAllocatorPrivateData;               }
 
 	// Pool allocation specific functions
-	bool OnAllocationMoved(FRHIPoolAllocationData* InNewData);
+	bool OnAllocationMoved(FRHICommandListBase& RHICmdList, FRHIPoolAllocationData* InNewData);
 	void UnlockPoolData();
 
 	bool IsValid() const { return Type != ResourceLocationType::eUndefined; }
@@ -757,7 +757,7 @@ class FD3D12ShaderResourceRenameListener
 protected:
 
 	friend class FD3D12BaseShaderResource;
-	virtual void ResourceRenamed(FD3D12BaseShaderResource* InRenamedResource, FD3D12ResourceLocation* InNewResourceLocation) = 0;
+	virtual void ResourceRenamed(FRHICommandListBase& RHICmdList, FD3D12BaseShaderResource* InRenamedResource, FD3D12ResourceLocation* InNewResourceLocation) = 0;
 };
 
 
@@ -792,12 +792,12 @@ public:
 		return RenameListeners.Num() != 0;
 	}
 
-	void ResourceRenamed()
+	void ResourceRenamed(FRHICommandListBase& RHICmdList)
 	{
 		FScopeLock Lock(&RenameListenersCS);
 		for (FD3D12ShaderResourceRenameListener* RenameListener : RenameListeners)
 		{
-			RenameListener->ResourceRenamed(this, &ResourceLocation);
+			RenameListener->ResourceRenamed(RHICmdList, this, &ResourceLocation);
 		}
 	}
 
@@ -879,8 +879,8 @@ public:
 	}
 #endif
 
-	void Rename(FD3D12ResourceLocation& NewLocation);
-	void RenameLDAChain(FD3D12ResourceLocation& NewLocation);
+	void Rename(FRHICommandListBase& RHICmdList, FD3D12ResourceLocation& NewLocation);
+	void RenameLDAChain(FRHICommandListBase& RHICmdList, FD3D12ResourceLocation& NewLocation);
 
 	void TakeOwnership(FD3D12Buffer& Other);
 	void ReleaseOwnership();

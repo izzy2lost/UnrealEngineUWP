@@ -90,6 +90,24 @@ static void BindUniformBuffer(FD3D12CommandContext& Context, FRHIShader* Shader,
 	Context.DirtyUniformBuffers[ShaderFrequency] |= (1 << BufferIndex);
 }
 
+void FD3D12CommandContext::AddPendingDescriptorUpdate(FRHIDescriptorHandle InHandle, D3D12_CPU_DESCRIPTOR_HANDLE InDescriptor)
+{
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+	PendingDescriptorUpdates.Add(InHandle, InDescriptor);
+#endif
+}
+
+void FD3D12CommandContext::FlushPendingDescriptorUpdates()
+{
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+	if (PendingDescriptorUpdates.Num())
+	{
+		GetParentDevice()->GetBindlessDescriptorManager().FlushPendingDescriptorUpdates(*this, GetPipeline(), PendingDescriptorUpdates);
+		PendingDescriptorUpdates.Empty();
+	}
+#endif
+}
+
 // Vertex state.
 void FD3D12CommandContext::RHISetStreamSource(uint32 StreamIndex, FRHIBuffer* VertexBufferRHI, uint32 Offset)
 {
@@ -98,44 +116,56 @@ void FD3D12CommandContext::RHISetStreamSource(uint32 StreamIndex, FRHIBuffer* Ve
 	StateCache.SetStreamSource(VertexBuffer ? &VertexBuffer->ResourceLocation : nullptr, StreamIndex, Offset);
 }
 
-void FD3D12CommandContext::RHIDispatchComputeShader(uint32 ThreadGroupCountX, uint32 ThreadGroupCountY, uint32 ThreadGroupCountZ)
+void FD3D12CommandContext::SetupDispatch(uint32 ThreadGroupCountX, uint32 ThreadGroupCountY, uint32 ThreadGroupCountZ)
 {
 	if (IsDefaultContext())
 	{
-		GetParentDevice()->RegisterGPUDispatch(FIntVector(ThreadGroupCountX, ThreadGroupCountY, ThreadGroupCountZ));	
+		GetParentDevice()->RegisterGPUDispatch(FIntVector(ThreadGroupCountX, ThreadGroupCountY, ThreadGroupCountZ));
 	}
 
 	CommitComputeShaderConstants();
 	CommitComputeResourceTables();
-	StateCache.ApplyState(ED3D12PipelineType::Compute);
+
+	StateCache.ApplyState(GetPipeline(), ED3D12PipelineType::Compute);
+
+	FlushPendingDescriptorUpdates();
+}
+
+FD3D12ResourceLocation& FD3D12CommandContext::SetupIndirectArgument(FRHIBuffer* ArgumentBufferRHI, D3D12_RESOURCE_STATES ExtraStates)
+{
+	FD3D12ResourceLocation& ArgumentBufferLocation = RetrieveObject<FD3D12Buffer>(ArgumentBufferRHI)->ResourceLocation;
+
+	// Indirect args buffer can be a previously pending UAV, which becomes PS\Non-PS read. ApplyState will flush pending transitions, so enqueue the indirect arg transition and flush here.
+	TransitionResource(ArgumentBufferLocation.GetResource(), D3D12_RESOURCE_STATE_TBD, D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT | ExtraStates, D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES);
+
+	// Must flush so the desired state is actually set.
+	FlushResourceBarriers();
+
+	UpdateResidency(ArgumentBufferLocation.GetResource());
+
+	return ArgumentBufferLocation;
+}
+
+void FD3D12CommandContext::PostGpuEvent()
+{
+	ConditionalSplitCommandList();
+	DEBUG_EXECUTE_COMMAND_LIST(this);
+}
+
+void FD3D12CommandContext::RHIDispatchComputeShader(uint32 ThreadGroupCountX, uint32 ThreadGroupCountY, uint32 ThreadGroupCountZ)
+{
+	SetupDispatch(ThreadGroupCountX, ThreadGroupCountY, ThreadGroupCountZ);
 
 	GraphicsCommandList()->Dispatch(ThreadGroupCountX, ThreadGroupCountY, ThreadGroupCountZ);
 	
-	ConditionalSplitCommandList();
-
-	DEBUG_EXECUTE_COMMAND_LIST(this);
+	PostGpuEvent();
 }
 
 void FD3D12CommandContext::RHIDispatchIndirectComputeShader(FRHIBuffer* ArgumentBufferRHI, uint32 ArgumentOffset)
 {
-	FD3D12Buffer* ArgumentBuffer = RetrieveObject<FD3D12Buffer>(ArgumentBufferRHI);
-
-	if (IsDefaultContext())
-	{
-		GetParentDevice()->RegisterGPUDispatch(FIntVector(1, 1, 1));	
-	}
-
-	CommitComputeShaderConstants();
-	CommitComputeResourceTables();
-
-	FD3D12ResourceLocation& Location = ArgumentBuffer->ResourceLocation;
-
-	StateCache.ApplyState(ED3D12PipelineType::Compute);
-
-	// Indirect args buffer can be a previously pending UAV, which becomes PS\Non-PS read. ApplyState will flush pending transitions, so enqueue the indirect arg transition and flush here.
-	D3D12_RESOURCE_STATES IndirectState = D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT | D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
-	TransitionResource(Location.GetResource(), D3D12_RESOURCE_STATE_TBD, IndirectState, D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES);
-	FlushResourceBarriers();	// Must flush so the desired state is actually set.
+	SetupDispatch(1, 1, 1);
+	
+	FD3D12ResourceLocation& ArgumentBufferLocation = SetupIndirectArgument(ArgumentBufferRHI, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 
 	FD3D12Adapter* Adapter = GetParentDevice()->GetParentAdapter();
 	ID3D12CommandSignature* CommandSignature = IsAsyncComputeContext()
@@ -145,16 +175,13 @@ void FD3D12CommandContext::RHIDispatchIndirectComputeShader(FRHIBuffer* Argument
 	GraphicsCommandList()->ExecuteIndirect(
 		CommandSignature,
 		1,
-		Location.GetResource()->GetResource(),
-		Location.GetOffsetFromBaseOfResource() + ArgumentOffset,
+		ArgumentBufferLocation.GetResource()->GetResource(),
+		ArgumentBufferLocation.GetOffsetFromBaseOfResource() + ArgumentOffset,
 		NULL,
 		0
-		);
-	UpdateResidency(Location.GetResource());
+	);
 	
-	ConditionalSplitCommandList();
-
-	DEBUG_EXECUTE_COMMAND_LIST(this);
+	PostGpuEvent();
 }
 
 template <typename FunctionType>
@@ -1537,8 +1564,7 @@ void FD3D12CommandContext::CommitComputeResourceTables()
 	SetResourcesFromTables(ComputePSO->GetComputeShader());
 }
 
-void FD3D12CommandContext::RHISetShaderRootConstants(
-	const FUint32Vector4& Constants)
+void FD3D12CommandContext::RHISetShaderRootConstants(const FUint32Vector4& Constants)
 {
 	StateCache.SetRootConstants(Constants);
 }
@@ -1560,112 +1586,98 @@ void FD3D12CommandContext::RHIDispatchShaderBundle(
 	UE::RHICore::DispatchShaderBundleEmulation(RHICmdList, ShaderBundle, RecordArgBufferSRV->GetBuffer(), Dispatches);
 }
 
+void FD3D12CommandContext::SetupDraw(FRHIBuffer* IndexBufferRHI, uint32 NumPrimitives /* = 0 */, uint32 NumVertices /* = 0 */)
+{
+	if (bTrackingEvents)
+	{
+		GetParentDevice()->RegisterGPUWork(NumPrimitives, NumVertices);
+	}
+
+	CommitGraphicsResourceTables();
+	CommitNonComputeShaderConstants();
+
+	if (IndexBufferRHI)
+	{
+		FD3D12Buffer* IndexBuffer = RetrieveObject<FD3D12Buffer>(IndexBufferRHI);
+
+		// determine 16bit vs 32bit indices
+		const DXGI_FORMAT Format = (IndexBuffer->GetStride() == sizeof(uint16) ? DXGI_FORMAT_R16_UINT : DXGI_FORMAT_R32_UINT);
+
+		StateCache.SetIndexBuffer(IndexBuffer->ResourceLocation, Format, 0);
+	}
+
+	StateCache.ApplyState(GetPipeline(), ED3D12PipelineType::Graphics);
+
+	FlushPendingDescriptorUpdates();
+}
+
+void FD3D12CommandContext::SetupDispatchDraw(uint32 ThreadGroupCountX, uint32 ThreadGroupCountY, uint32 ThreadGroupCountZ)
+{
+	if (bTrackingEvents)
+	{
+		GetParentDevice()->RegisterGPUDispatch(FIntVector(ThreadGroupCountX, ThreadGroupCountY, ThreadGroupCountZ));
+	}
+
+	CommitGraphicsResourceTables();
+	CommitNonComputeShaderConstants();
+
+	StateCache.ApplyState(GetPipeline(), ED3D12PipelineType::Graphics);
+
+	FlushPendingDescriptorUpdates();
+}
+
 void FD3D12CommandContext::RHIDrawPrimitive(uint32 BaseVertexIndex, uint32 NumPrimitives, uint32 NumInstances)
 {
 	RHI_DRAW_CALL_STATS(StateCache.GetGraphicsPipelinePrimitiveType(), FMath::Max(NumInstances, 1U) * NumPrimitives);
 
-	CommitGraphicsResourceTables();
-	CommitNonComputeShaderConstants();
-
 	uint32 VertexCount = StateCache.GetVertexCount(NumPrimitives);
 	NumInstances = FMath::Max<uint32>(1, NumInstances);
 
-	if (bTrackingEvents)
-	{
-		GetParentDevice()->RegisterGPUWork(NumPrimitives * NumInstances, VertexCount * NumInstances);
-	}
+	SetupDraw(nullptr, NumPrimitives * NumInstances, VertexCount * NumInstances);
 
-	StateCache.ApplyState(ED3D12PipelineType::Graphics);
 	GraphicsCommandList()->DrawInstanced(VertexCount, NumInstances, BaseVertexIndex, 0);
 
-	ConditionalSplitCommandList();
-
-	DEBUG_EXECUTE_COMMAND_LIST(this);
+	PostGpuEvent();
 }
 
 void FD3D12CommandContext::RHIDrawPrimitiveIndirect(FRHIBuffer* ArgumentBufferRHI, uint32 ArgumentOffset)
 {
-	FD3D12Buffer* ArgumentBuffer = RetrieveObject<FD3D12Buffer>(ArgumentBufferRHI);
-
 	RHI_DRAW_CALL_INC();
-	if (bTrackingEvents)
-	{
-		GetParentDevice()->RegisterGPUWork(0);
-	}
 
-	CommitGraphicsResourceTables();
-	CommitNonComputeShaderConstants();
+	SetupDraw(nullptr, 0, 0);
 
-	FD3D12ResourceLocation& Location = ArgumentBuffer->ResourceLocation;
-
-	StateCache.ApplyState(ED3D12PipelineType::Graphics);
-
-	// Indirect args buffer can be a previously pending UAV, which becomes PS\Non-PS read. ApplyState will flush pending transitions, so enqueue the indirect
-	// arg transition and flush here.
-	TransitionResource(Location.GetResource(), D3D12_RESOURCE_STATE_TBD, D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT, D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES);
-	FlushResourceBarriers();	// Must flush so the desired state is actually set.
+	FD3D12ResourceLocation& ArgumentBufferLocation = SetupIndirectArgument(ArgumentBufferRHI);
 
 	GraphicsCommandList()->ExecuteIndirect(
 		GetParentDevice()->GetParentAdapter()->GetDrawIndirectCommandSignature(),
 		1,
-		Location.GetResource()->GetResource(),
-		Location.GetOffsetFromBaseOfResource() + ArgumentOffset,
+		ArgumentBufferLocation.GetResource()->GetResource(),
+		ArgumentBufferLocation.GetOffsetFromBaseOfResource() + ArgumentOffset,
 		NULL,
 		0
 	);
 
-	UpdateResidency(Location.GetResource());
-
-	ConditionalSplitCommandList();
-
-	DEBUG_EXECUTE_COMMAND_LIST(this);
+	PostGpuEvent();
 }
 
-void FD3D12CommandContext::RHIDrawIndexedIndirect(FRHIBuffer* IndexBufferRHI, FRHIBuffer* ArgumentsBufferRHI, int32 DrawArgumentsIndex, uint32 /*NumInstances*/)
+void FD3D12CommandContext::RHIDrawIndexedIndirect(FRHIBuffer* IndexBufferRHI, FRHIBuffer* ArgumentBufferRHI, int32 DrawArgumentsIndex, uint32 /*NumInstances*/)
 {
-	const uint32 IndexBufferStride = FD3D12DynamicRHI::ResourceCast(IndexBufferRHI)->GetStride();
-	const uint32 ArgumentsBufferStride = FD3D12DynamicRHI::ResourceCast(ArgumentsBufferRHI)->GetStride();
-
-	FD3D12Buffer* IndexBuffer = RetrieveObject<FD3D12Buffer>(IndexBufferRHI);
-	FD3D12Buffer* ArgumentsBuffer = RetrieveObject<FD3D12Buffer>(ArgumentsBufferRHI);
-
 	RHI_DRAW_CALL_INC();
-	if (bTrackingEvents)
-	{
-		GetParentDevice()->RegisterGPUWork(1);
-	}
 
-	CommitGraphicsResourceTables();
-	CommitNonComputeShaderConstants();
+	SetupDraw(IndexBufferRHI, 1);
 
-	// determine 16bit vs 32bit indices
-	const DXGI_FORMAT Format = (IndexBufferStride == sizeof(uint16) ? DXGI_FORMAT_R16_UINT : DXGI_FORMAT_R32_UINT);
-
-	StateCache.SetIndexBuffer(IndexBuffer->ResourceLocation, Format, 0);
-
-	FD3D12ResourceLocation& Location = ArgumentsBuffer->ResourceLocation;
-
-	StateCache.ApplyState(ED3D12PipelineType::Graphics);
-
-	// Indirect args buffer can be a previously pending UAV, which becomes PS\Non-PS read. ApplyState will flush pending transitions, so enqueue the indirect
-	// arg transition and flush here.
-	TransitionResource(Location.GetResource(), D3D12_RESOURCE_STATE_TBD, D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT, D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES);
-	FlushResourceBarriers();	// Must flush so the desired state is actually set.
+	FD3D12ResourceLocation& ArgumentBufferLocation = SetupIndirectArgument(ArgumentBufferRHI);
 
 	GraphicsCommandList()->ExecuteIndirect(
 		GetParentDevice()->GetParentAdapter()->GetDrawIndexedIndirectCommandSignature(),
 		1,
-		Location.GetResource()->GetResource(),
-		Location.GetOffsetFromBaseOfResource() + DrawArgumentsIndex * ArgumentsBufferStride,
+		ArgumentBufferLocation.GetResource()->GetResource(),
+		ArgumentBufferLocation.GetOffsetFromBaseOfResource() + DrawArgumentsIndex * ArgumentBufferRHI->GetStride(),
 		NULL,
 		0
 	);
 
-	UpdateResidency(Location.GetResource());
-
-	ConditionalSplitCommandList();
-
-	DEBUG_EXECUTE_COMMAND_LIST(this);
+	PostGpuEvent();
 }
 
 void FD3D12CommandContext::RHIDrawIndexedPrimitive(FRHIBuffer* IndexBufferRHI, int32 BaseVertexIndex, uint32 FirstInstance, uint32 NumVertices, uint32 StartIndex, uint32 NumPrimitives, uint32 NumInstances)
@@ -1686,14 +1698,6 @@ void FD3D12CommandContext::RHIDrawIndexedPrimitive(FRHIBuffer* IndexBufferRHI, i
 
 	NumInstances = FMath::Max<uint32>(1, NumInstances);
 
-	if (bTrackingEvents)
-	{
-		GetParentDevice()->RegisterGPUWork(NumPrimitives * NumInstances, NumVertices * NumInstances);
-	}
-
-	CommitGraphicsResourceTables();
-	CommitNonComputeShaderConstants();
-
 	uint32 IndexCount = StateCache.GetVertexCount(NumPrimitives);
 
 	// Verify that we are not trying to read outside the index buffer range
@@ -1701,16 +1705,11 @@ void FD3D12CommandContext::RHIDrawIndexedPrimitive(FRHIBuffer* IndexBufferRHI, i
 	checkf((StartIndex + IndexCount) * IndexBuffer->GetStride() <= IndexBuffer->GetSize(),
 		TEXT("Start %u, Count %u, Type %u, Buffer Size %u, Buffer stride %u"), StartIndex, IndexCount, StateCache.GetGraphicsPipelinePrimitiveType(), IndexBuffer->GetSize(), IndexBuffer->GetStride());
 
-	// determine 16bit vs 32bit indices
-	const DXGI_FORMAT Format = (IndexBuffer->GetStride() == sizeof(uint16) ? DXGI_FORMAT_R16_UINT : DXGI_FORMAT_R32_UINT);
-	StateCache.SetIndexBuffer(IndexBuffer->ResourceLocation, Format, 0);
-	StateCache.ApplyState(ED3D12PipelineType::Graphics);
+	SetupDraw(IndexBufferRHI, NumPrimitives * NumInstances, NumVertices * NumInstances);
 
 	GraphicsCommandList()->DrawIndexedInstanced(IndexCount, NumInstances, StartIndex, BaseVertexIndex, FirstInstance);
 
-	ConditionalSplitCommandList();
-
-	DEBUG_EXECUTE_COMMAND_LIST(this);
+	PostGpuEvent();
 }
 
 void FD3D12CommandContext::RHIMultiDrawIndexedPrimitiveIndirect(FRHIBuffer* IndexBufferRHI, FRHIBuffer* ArgumentBufferRHI, uint32 ArgumentOffset, FRHIBuffer* CountBufferRHI, uint32 CountBufferOffset, uint32 MaxDrawArguments)
@@ -1718,16 +1717,10 @@ void FD3D12CommandContext::RHIMultiDrawIndexedPrimitiveIndirect(FRHIBuffer* Inde
 	FD3D12Buffer* IndexBuffer = RetrieveObject<FD3D12Buffer>(IndexBufferRHI);
 
 	// called should make sure the input is valid, this avoid hidden bugs
-	ensure(IndexBufferRHI->GetSize() > 0);
-	ensure(IndexBuffer->ResourceLocation.GetResource() != nullptr);
-
-	if (IndexBufferRHI->GetSize() == 0 || IndexBuffer->ResourceLocation.GetResource() == nullptr)
+	if (!ensure(IndexBufferRHI->GetSize() > 0) || !ensure(IndexBuffer->ResourceLocation.GetResource() != nullptr))
 	{
 		return;
 	}
-
-	const uint32 IndexBufferStride = FD3D12DynamicRHI::ResourceCast(IndexBufferRHI)->GetStride();
-	FD3D12Buffer* ArgumentBuffer = RetrieveObject<FD3D12Buffer>(ArgumentBufferRHI);
 
 	ID3D12Resource* CountBufferResource = nullptr;
 	uint64 CountBufferOffsetFromResourceBase = 0;
@@ -1742,41 +1735,21 @@ void FD3D12CommandContext::RHIMultiDrawIndexedPrimitiveIndirect(FRHIBuffer* Inde
 	}
 
 	RHI_DRAW_CALL_INC();
-	if (bTrackingEvents)
-	{
-		GetParentDevice()->RegisterGPUWork(0);
-	}
 
-	CommitGraphicsResourceTables();
-	CommitNonComputeShaderConstants();
+	SetupDraw(IndexBufferRHI, 0, 0);
 
-	// Set the index buffer.
-	const DXGI_FORMAT Format = (IndexBufferStride == sizeof(uint16) ? DXGI_FORMAT_R16_UINT : DXGI_FORMAT_R32_UINT);
-	StateCache.SetIndexBuffer(IndexBuffer->ResourceLocation, Format, 0);
-
-	FD3D12ResourceLocation& Location = ArgumentBuffer->ResourceLocation;
-
-	StateCache.ApplyState(ED3D12PipelineType::Graphics);
-
-	// Indirect args buffer can be a previously pending UAV, which becomes PS\Non-PS read. ApplyState will flush pending transitions, so enqueue the indirect
-	// arg transition and flush here.
-	TransitionResource(Location.GetResource(), D3D12_RESOURCE_STATE_TBD, D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT, D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES);
-	FlushResourceBarriers();	// Must flush so the desired state is actually set.
+	FD3D12ResourceLocation& ArgumentBufferLocation = SetupIndirectArgument(ArgumentBufferRHI);
 
 	GraphicsCommandList()->ExecuteIndirect(
 		GetParentDevice()->GetParentAdapter()->GetDrawIndexedIndirectCommandSignature(),
 		MaxDrawArguments,
-		Location.GetResource()->GetResource(),
-		Location.GetOffsetFromBaseOfResource() + ArgumentOffset,
+		ArgumentBufferLocation.GetResource()->GetResource(),
+		ArgumentBufferLocation.GetOffsetFromBaseOfResource() + ArgumentOffset,
 		CountBufferResource,
 		CountBufferOffsetFromResourceBase
 	);
 
-	UpdateResidency(Location.GetResource());
-
-	ConditionalSplitCommandList();
-
-	DEBUG_EXECUTE_COMMAND_LIST(this);
+	PostGpuEvent();
 }
 
 void FD3D12CommandContext::RHIDrawIndexedPrimitiveIndirect(FRHIBuffer* IndexBufferRHI, FRHIBuffer* ArgumentBufferRHI, uint32 ArgumentOffset)
@@ -1788,59 +1761,31 @@ void FD3D12CommandContext::RHIDrawIndexedPrimitiveIndirect(FRHIBuffer* IndexBuff
 #if PLATFORM_SUPPORTS_MESH_SHADERS
 void FD3D12CommandContext::RHIDispatchMeshShader(uint32 ThreadGroupCountX, uint32 ThreadGroupCountY, uint32 ThreadGroupCountZ)
 {
-	if (bTrackingEvents)
-	{
-		GetParentDevice()->RegisterGPUDispatch(FIntVector(ThreadGroupCountX, ThreadGroupCountY, ThreadGroupCountZ));
-	}
-
-	CommitGraphicsResourceTables();
-	CommitNonComputeShaderConstants();
-
-	StateCache.ApplyState(ED3D12PipelineType::Graphics);
+	SetupDispatchDraw(ThreadGroupCountX, ThreadGroupCountY, ThreadGroupCountZ);
 
 	GraphicsCommandList6()->DispatchMesh(ThreadGroupCountX, ThreadGroupCountY, ThreadGroupCountZ);
 
-	ConditionalSplitCommandList();
-
-	DEBUG_EXECUTE_COMMAND_LIST(this);
+	PostGpuEvent();
 }
 
 void FD3D12CommandContext::RHIDispatchIndirectMeshShader(FRHIBuffer* ArgumentBufferRHI, uint32 ArgumentOffset)
 {
-	FD3D12Buffer* ArgumentBuffer = RetrieveObject<FD3D12Buffer>(ArgumentBufferRHI);
-
 	RHI_DRAW_CALL_INC();
-	if (bTrackingEvents)
-	{
-		GetParentDevice()->RegisterGPUWork(0);
-	}
 
-	CommitGraphicsResourceTables();
-	CommitNonComputeShaderConstants();
+	SetupDispatchDraw(1, 1, 1);
 
-	FD3D12ResourceLocation& Location = ArgumentBuffer->ResourceLocation;
-
-	StateCache.ApplyState(ED3D12PipelineType::Graphics);
-
-	// Indirect args buffer can be a previously pending UAV, which becomes PS\Non-PS read. ApplyState will flush pending transitions, so enqueue the indirect
-	// arg transition and flush here.
-	TransitionResource(Location.GetResource(), D3D12_RESOURCE_STATE_TBD, D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT, D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES);
-	FlushResourceBarriers();	// Must flush so the desired state is actually set.
+	FD3D12ResourceLocation& ArgumentBufferLocation = SetupIndirectArgument(ArgumentBufferRHI);
 
 	GraphicsCommandList()->ExecuteIndirect(
 		GetParentDevice()->GetParentAdapter()->GetDispatchIndirectMeshCommandSignature(),
 		1,
-		Location.GetResource()->GetResource(),
-		Location.GetOffsetFromBaseOfResource() + ArgumentOffset,
+		ArgumentBufferLocation.GetResource()->GetResource(),
+		ArgumentBufferLocation.GetOffsetFromBaseOfResource() + ArgumentOffset,
 		NULL,
 		0
 	);
 
-	UpdateResidency(Location.GetResource());
-
-	ConditionalSplitCommandList();
-
-	DEBUG_EXECUTE_COMMAND_LIST(this);
+	PostGpuEvent();
 }
 #endif // PLATFORM_SUPPORTS_MESH_SHADERS
 

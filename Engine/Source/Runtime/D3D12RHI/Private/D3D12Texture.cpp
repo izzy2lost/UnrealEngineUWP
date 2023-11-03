@@ -963,13 +963,15 @@ void FD3D12DynamicRHI::RHIUpdateTextureReference(FRHICommandListBase& RHICmdList
 	FRHITexture* NewTexture = InNewTexture ? InNewTexture : FRHITextureReference::GetDefaultTexture();
 
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
-	if (FRHIShaderResourceView* TextureRefSRV = TextureRef ? TextureRef->GetBindlessView() : nullptr)
+	if (FRHIShaderResourceView* DestinationSRVRHI = TextureRef ? TextureRef->GetBindlessView() : nullptr)
 	{
-		FD3D12ShaderResourceView* TextureRefSRVD3D12 = ResourceCast(TextureRefSRV);
-		if (TextureRefSRVD3D12->IsBindless())
+		FD3D12ShaderResourceView* DestinationSRV = ResourceCast(DestinationSRVRHI);
+		if (DestinationSRV->IsBindless())
 		{
-			FD3D12BindlessDescriptorManager& BindlessDescriptorManager = TextureRefSRVD3D12->GetParentDevice()->GetBindlessDescriptorManager();
-			BindlessDescriptorManager.UpdateDeferred(TextureRefSRVD3D12->GetBindlessHandle(), ResourceCast(NewTexture)->GetShaderResourceView()->GetOfflineCpuHandle());
+			FD3D12ShaderResourceView* SourceSRV = ResourceCast(NewTexture)->GetShaderResourceView();
+
+			FD3D12BindlessDescriptorManager& BindlessDescriptorManager = DestinationSRV->GetParentDevice()->GetBindlessDescriptorManager();
+			BindlessDescriptorManager.UpdateResourceDescriptor(RHICmdList, DestinationSRV->GetBindlessHandle(), SourceSRV->GetOfflineCpuHandle());
 		}
 	}
 #endif // PLATFORM_SUPPORTS_BINDLESS_RENDERING

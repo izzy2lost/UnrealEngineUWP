@@ -102,7 +102,7 @@ struct FRHICommandRenameUploadBuffer final : public FRHICommand<FRHICommandRenam
 		MemoryTrace_ReallocFree(Resource->ResourceLocation.GetGPUVirtualAddress(), EMemoryTraceRootHeap::VideoMemory);
 		MemoryTrace_ReallocAlloc(NewLocation.GetGPUVirtualAddress(), Resource->ResourceLocation.GetSize(), Resource->BufferAlignment, EMemoryTraceRootHeap::VideoMemory);
 #endif
-		Resource->RenameLDAChain(NewLocation);
+		Resource->RenameLDAChain(CmdList, NewLocation);
 
 		if (PreviousPipeline.IsSet())
 		{
@@ -431,17 +431,17 @@ FD3D12Buffer* FD3D12Adapter::CreateRHIBuffer(
 	return BufferOut;
 }
 
-void FD3D12Buffer::Rename(FD3D12ResourceLocation& NewLocation)
+void FD3D12Buffer::Rename(FRHICommandListBase& RHICmdList, FD3D12ResourceLocation& NewLocation)
 {
 	FD3D12ResourceLocation::TransferOwnership(ResourceLocation, NewLocation);
-	ResourceRenamed();
+	ResourceRenamed(RHICmdList);
 }
 
-void FD3D12Buffer::RenameLDAChain(FD3D12ResourceLocation& NewLocation)
+void FD3D12Buffer::RenameLDAChain(FRHICommandListBase& RHICmdList, FD3D12ResourceLocation& NewLocation)
 {
 	// Dynamic buffers use cross-node resources (with the exception of BUF_MultiGPUAllocate)
 	//ensure(GetUsage() & BUF_AnyDynamic);
-	Rename(NewLocation);
+	Rename(RHICmdList, NewLocation);
 
 	if (GNumExplicitGPUsForRendering > 1)
 	{
@@ -455,7 +455,7 @@ void FD3D12Buffer::RenameLDAChain(FD3D12ResourceLocation& NewLocation)
 			for (auto NextBuffer = ++FLinkedObjectIterator(this); NextBuffer; ++NextBuffer)
 			{
 				FD3D12ResourceLocation::ReferenceNode(NextBuffer->GetParentDevice(), NextBuffer->ResourceLocation, ResourceLocation);
-				NextBuffer->ResourceRenamed();
+				NextBuffer->ResourceRenamed(RHICmdList);
 			}
 		}
 	}
@@ -831,7 +831,7 @@ void FD3D12DynamicRHI::RHITransferBufferUnderlyingResource(FRHICommandListBase& 
 		Dst->ReleaseOwnership();
 	}
 
-	Dst->ResourceRenamed();
+	Dst->ResourceRenamed(RHICmdList);
 }
 
 void FD3D12DynamicRHI::RHICopyBuffer(FRHIBuffer* SourceBufferRHI, FRHIBuffer* DestBufferRHI)

@@ -767,7 +767,7 @@ void FD3D12Viewport::IssueFrameEvent()
 	TArray<FD3D12Payload*> Payloads;
 	for (FD3D12Device* Device : ParentAdapter->GetDevices())
 	{
-		FD3D12ContextCommon& Context = Device->GetDefaultCommandContext();
+		FD3D12CommandContext& Context = Device->GetDefaultCommandContext();
 
 		FD3D12SyncPointRef SyncPoint = FD3D12SyncPoint::Create(ED3D12SyncPointType::GPUAndCPU);
 

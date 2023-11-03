@@ -43,6 +43,14 @@ static FAutoConsoleVariableRef CTrackedReleasedAllocationFrameRetention(
 );
 #endif
 
+int32 GAllowAsyncCompute = 1;
+static FAutoConsoleVariableRef CVarAllowAsyncCompute(
+	TEXT("r.D3D12.AllowAsyncCompute"),
+	GAllowAsyncCompute,
+	TEXT("Allow usage of async compute"),
+	ECVF_ReadOnly | ECVF_RenderThreadSafe
+);
+
 #if PLATFORM_WINDOWS
 
 #if UE_BUILD_SHIPPING || UE_BUILD_TEST
@@ -1221,6 +1229,36 @@ void FD3D12Adapter::InitializeDevices()
 				}
 			}
 #endif // PLATFORM_WINDOWS
+		}
+
+		if (FParse::Param(FCommandLine::Get(), TEXT("DisableAsyncCompute")))
+		{
+			GSupportsEfficientAsyncCompute = false;
+		}
+		else if (FParse::Param(FCommandLine::Get(), TEXT("ForceAsyncCompute")))
+		{
+			GSupportsEfficientAsyncCompute = true;
+		}
+		else if (!GSupportsEfficientAsyncCompute && GAllowAsyncCompute && GRHISupportsParallelRHIExecute)
+		{
+			if (IsRHIDeviceAMD())
+			{
+				GSupportsEfficientAsyncCompute = true;
+			}
+#if PLATFORM_WINDOWS
+			else
+			{
+				D3D12_FEATURE_DATA_D3D12_OPTIONS6 D3D12Caps6{};
+				HRESULT Options6HR = RootDevice->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS6, &D3D12Caps6, sizeof(D3D12Caps6));
+
+				// Allow async compute by default on nVidia cards which support PerPrimitiveShadingRateSupportedWithViewportIndexing 
+				// this should be a good metric according to nVidia itself (this is set for Ampere and newer cards)
+				if (IsRHIDeviceNVIDIA() && Options6HR == S_OK && D3D12Caps6.PerPrimitiveShadingRateSupportedWithViewportIndexing)
+				{
+					GSupportsEfficientAsyncCompute = true;
+				}
+			}
+#endif
 		}
 
 #if PLATFORM_WINDOWS

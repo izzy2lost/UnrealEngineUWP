@@ -8,6 +8,7 @@ D3D12CommandContext.h: D3D12 Command Context Interfaces
 
 #include "D3D12RHIPrivate.h"
 #include "D3D12Queue.h"
+#include "D3D12BindlessDescriptors.h"
 
 #include "Windows/AllowWindowsPlatformTypes.h"
 THIRD_PARTY_INCLUDES_START
@@ -186,7 +187,7 @@ public:
 
 	// Complete recording of the current command list set, and appends the resulting
 	// payloads to the given array. Resets the context so new commands can be recorded.
-	void Finalize(TArray<FD3D12Payload*>& OutPayloads);
+	virtual void Finalize(TArray<FD3D12Payload*>& OutPayloads);
 
 	// The owner device of this context
 	FD3D12Device* const Device;
@@ -741,6 +742,11 @@ public:
 		return StaticUniformBuffers;
 	}
 
+	void AddPendingDescriptorUpdate(FRHIDescriptorHandle InHandle, D3D12_CPU_DESCRIPTOR_HANDLE InDescriptor);
+	void FlushPendingDescriptorUpdates();
+
+	virtual void Finalize(TArray<FD3D12Payload*>& OutPayloads) override;
+
 protected:
 
 	FD3D12CommandContext* GetContext(uint32 InGPUIndex) final override 
@@ -749,6 +755,11 @@ protected:
 	}
 
 private:
+	void SetupDispatch(uint32 ThreadGroupCountX, uint32 ThreadGroupCountY, uint32 ThreadGroupCountZ);
+	void SetupDraw(FRHIBuffer* IndexBufferRHI, uint32 NumPrimitives = 0, uint32 NumVertices = 0);
+	void SetupDispatchDraw(uint32 ThreadGroupCountX, uint32 ThreadGroupCountY, uint32 ThreadGroupCountZ);
+	FD3D12ResourceLocation& SetupIndirectArgument(FRHIBuffer* ArgumentBufferRHI, D3D12_RESOURCE_STATES ExtraStates = static_cast<D3D12_RESOURCE_STATES>(0));
+	void PostGpuEvent();
 
 	static void ClearUAV(TRHICommandList_RecursiveHazardous<FD3D12CommandContext>& RHICmdList, FD3D12UnorderedAccessView_RHI* UAV, const void* ClearValues, bool bFloat);
 
@@ -759,6 +770,10 @@ private:
 	void HandleReservedResourceCommits   (const struct FD3D12TransitionData* TransitionData);
 
 	TArray<FRHIUniformBuffer*> StaticUniformBuffers;
+
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+	FD3D12PendingResourceDescriptorUpdates PendingDescriptorUpdates;
+#endif
 };
 
 // Version of command context to handle multi-GPU.  Because IRHICommandContext is pure virtual we can return the normal

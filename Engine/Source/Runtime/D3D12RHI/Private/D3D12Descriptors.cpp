@@ -104,7 +104,7 @@ FD3D12DescriptorManager::FD3D12DescriptorManager(FD3D12Device* Device, FD3D12Des
 
 FD3D12DescriptorManager::~FD3D12DescriptorManager() = default;
 
-void FD3D12DescriptorManager::UpdateImmediately(FRHIDescriptorHandle InHandle, D3D12_CPU_DESCRIPTOR_HANDLE InSourceCpuHandle)
+void FD3D12DescriptorManager::UpdateDescriptorImmediately(FRHIDescriptorHandle InHandle, D3D12_CPU_DESCRIPTOR_HANDLE InSourceCpuHandle)
 {
 	UE::D3D12Descriptors::CopyDescriptor(GetParentDevice(), GetHeap(), InHandle, InSourceCpuHandle);
 }
@@ -125,21 +125,40 @@ void FD3D12OnlineDescriptorManager::Init(uint32 InTotalSize, uint32 InBlockSize,
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
 	if (bBindlessResources)
 	{
-		Heap = GetParentDevice()->GetBindlessDescriptorManager().AllocateHeap(ERHIDescriptorHeapType::Standard, InTotalSize);
+#if D3D12RHI_USE_CONSTANT_BUFFER_VIEWS
+		Heaps = GetParentDevice()->GetBindlessDescriptorManager().AllocateResourceHeapsForAllPipelines(InTotalSize);
+		for (ERHIPipeline Pipeline : GetRHIPipelines())
+		{
+			if (Heaps[Pipeline])
+			{
+				INC_DWORD_STAT(STAT_NumViewOnlineDescriptorHeaps);
+				INC_MEMORY_STAT_BY(STAT_ViewOnlineDescriptorHeapMemory, Heaps[Pipeline]->GetMemorySize());
+			}
+		}
+#else
+		// We won't need CBVs, so don't allocate the heap for them
+		return;
+#endif
 	}
 	else
 #endif
 	{
-		Heap = GetParentDevice()->GetDescriptorHeapManager().AllocateHeap(
+		FD3D12DescriptorHeapPtr Heap = GetParentDevice()->GetDescriptorHeapManager().AllocateHeap(
 			TEXT("Device Global - Online View Heap"),
 			ERHIDescriptorHeapType::Standard,
 			InTotalSize,
 			D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE);
+
+		INC_DWORD_STAT(STAT_NumViewOnlineDescriptorHeaps);
+		INC_MEMORY_STAT_BY(STAT_ViewOnlineDescriptorHeapMemory, Heap->GetMemorySize());
+
+		for (ERHIPipeline Pipeline : GetRHIPipelines())
+		{
+			Heaps[Pipeline] = Heap;
+		}
 	}
 
 	// Update the stats
-	INC_DWORD_STAT(STAT_NumViewOnlineDescriptorHeaps);
-	INC_MEMORY_STAT_BY(STAT_ViewOnlineDescriptorHeapMemory, Heap->GetMemorySize());
 	INC_DWORD_STAT_BY(STAT_GlobalViewHeapFreeDescriptors, InTotalSize);
 
 	// Compute amount of free blocks

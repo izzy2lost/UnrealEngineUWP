@@ -3088,7 +3088,7 @@ void FD3D12RayTracingGeometry::UnregisterAsRenameListener(uint32 InGPUIndex)
 	bRegisteredAsRenameListener[InGPUIndex] = false;
 }
 
-void FD3D12RayTracingGeometry::ResourceRenamed(FD3D12BaseShaderResource* InRenamedResource, FD3D12ResourceLocation* InNewResourceLocation)
+void FD3D12RayTracingGeometry::ResourceRenamed(FRHICommandListBase& RHICmdList, FD3D12BaseShaderResource* InRenamedResource, FD3D12ResourceLocation* InNewResourceLocation)
 {
 	// Empty resource location is used on destruction of the base shader resource but this
 	// shouldn't happen for RT Geometries because it keeps smart pointers to it's resources.

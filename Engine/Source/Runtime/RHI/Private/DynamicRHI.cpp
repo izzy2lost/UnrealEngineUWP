@@ -477,6 +477,10 @@ void RHIExit()
 	FRHICommandListImmediate::CleanupGraphEvents();
 }
 
+void FDynamicRHI::RHIBeginFrame(FRHICommandListImmediate& RHICmdList)
+{
+}
+
 // Default fallback; will not work for non-8-bit surfaces and it's extremely slow.
 void FDynamicRHI::RHIReadSurfaceData(FRHITexture* Texture, FIntRect Rect, TArray<FLinearColor>& OutData, FReadSurfaceDataFlags InFlags)
 {

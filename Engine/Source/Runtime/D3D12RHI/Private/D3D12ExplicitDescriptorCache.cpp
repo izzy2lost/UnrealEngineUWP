@@ -291,8 +291,8 @@ void FD3D12ExplicitDescriptorCache::Init(uint32 NumViewDescriptors, uint32 NumSa
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
 	FD3D12BindlessDescriptorManager& BindlessManager = GetParentDevice()->GetBindlessDescriptorManager();
 
-	bBindlessViews = BindlessManager.HasHeap(ERHIDescriptorHeapType::Standard, BindlessConfig);
-	bBindlessSamplers = BindlessManager.HasHeap(ERHIDescriptorHeapType::Sampler, BindlessConfig);
+	bBindlessViews = BindlessManager.AreResourcesBindless(BindlessConfig);
+	bBindlessSamplers = BindlessManager.AreSamplersBindless(BindlessConfig);
 #else
 	const bool bBindlessViews = false;
 	const bool bBindlessSamplers = false;
@@ -339,8 +339,8 @@ void FD3D12ExplicitDescriptorCache::SetDescriptorHeaps(FD3D12CommandContext& Com
 
 	FD3D12BindlessDescriptorManager& BindlessManager = GetParentDevice()->GetBindlessDescriptorManager();
 
-	ID3D12DescriptorHeap* ViewHeapToSet = bBindlessViews ? BindlessManager.GetHeap(ERHIDescriptorHeapType::Standard)->GetHeap() : ViewHeap.D3D12Heap;
-	ID3D12DescriptorHeap* SamplerHeapToSet = bBindlessSamplers ? BindlessManager.GetHeap(ERHIDescriptorHeapType::Sampler)->GetHeap() : SamplerHeap.D3D12Heap;
+	ID3D12DescriptorHeap* ViewHeapToSet = bBindlessViews ? BindlessManager.GetResourceHeap(CommandContext.GetPipeline())->GetHeap() : ViewHeap.D3D12Heap;
+	ID3D12DescriptorHeap* SamplerHeapToSet = bBindlessSamplers ? BindlessManager.GetSamplerHeap()->GetHeap() : SamplerHeap.D3D12Heap;
 #else
 	check(ViewHeap.GetParentDevice() == CommandContext.GetParentDevice());
 	check(SamplerHeap.GetParentDevice() == CommandContext.GetParentDevice());

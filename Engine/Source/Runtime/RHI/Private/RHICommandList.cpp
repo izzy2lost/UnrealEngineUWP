@@ -1329,6 +1329,9 @@ void FRHICommandListImmediate::EndDrawingViewport(FRHIViewport* Viewport, bool b
 void FRHICommandListImmediate::BeginFrame()
 {
 	check(IsImmediate() && IsInRenderingThread());
+
+	GDynamicRHI->RHIBeginFrame(*this);
+
 	if (Bypass())
 	{
 		ProcessStats();
