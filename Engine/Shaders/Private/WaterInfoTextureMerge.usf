@@ -3,9 +3,13 @@
 #include "Common.ush"
 
 Texture2D<float4> GroundDepthTexture;
+SamplerState GroundDepthTextureSampler;
 Texture2D<float4> WaterBodyTexture;
+SamplerState WaterBodyTextureSampler;
 Texture2D<float4> WaterBodyDepthTexture;
+SamplerState WaterBodyDepthTextureSampler;
 Texture2D<float4> DilatedWaterBodyDepthTexture;
+SamplerState DilatedWaterBodyDepthTextureSampler;
 
 float2 WaterHeightExtents;
 float GroundZMin;
@@ -30,10 +34,13 @@ void Main(
 	out float4 OutColor : SV_Target0
 )
 {
-	const float2 WaterBodyVelocity = WaterBodyTexture.Load(int3(Position.xy, 0)).xy;
-	const float WaterBodyDeviceDepth = WaterBodyDepthTexture.Load(int3(Position.xy, 0)).x;
-	const float DilationDeviceDepth = DilatedWaterBodyDepthTexture.Load(int3(Position.xy, 0)).x;
-	const float GroundDeviceDepth = GroundDepthTexture.Load(int3(Position.xy, 0)).x;
+	const float2 ScreenPosition = SvPositionToScreenPosition(Position).xy;
+	float2 ScreenUV = ScreenPosition * View.ScreenPositionScaleBias.xy + View.ScreenPositionScaleBias.wz;
+
+	const float2 WaterBodyVelocity = WaterBodyTexture.SampleLevel(WaterBodyTextureSampler, ScreenUV, 0);
+	const float WaterBodyDeviceDepth =  WaterBodyDepthTexture.SampleLevel(WaterBodyDepthTextureSampler, ScreenUV, 0);
+	const float DilationDeviceDepth = DilatedWaterBodyDepthTexture.SampleLevel(DilatedWaterBodyDepthTextureSampler, ScreenUV, 0);
+	const float GroundDeviceDepth =  GroundDepthTexture.SampleLevel(GroundDepthTextureSampler, ScreenUV, 0);
 
 	const float GroundSceneDepth = ConvertFromDeviceZ(GroundDeviceDepth);
 	float GroundZ = CaptureZ - GroundSceneDepth;

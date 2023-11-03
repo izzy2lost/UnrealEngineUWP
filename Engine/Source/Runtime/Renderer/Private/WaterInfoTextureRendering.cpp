@@ -54,9 +54,13 @@ public:
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FViewUniformShaderParameters, View)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FSceneTextureShaderParameters, SceneTextures)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float4>, GroundDepthTexture)
+		SHADER_PARAMETER_SAMPLER(SamplerState, GroundDepthTextureSampler)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float4>, WaterBodyTexture)
+		SHADER_PARAMETER_SAMPLER(SamplerState, WaterBodyTextureSampler)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float4>, WaterBodyDepthTexture)
+		SHADER_PARAMETER_SAMPLER(SamplerState, WaterBodyDepthTextureSampler)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float4>, DilatedWaterBodyDepthTexture)
+		SHADER_PARAMETER_SAMPLER(SamplerState, DilatedWaterBodyDepthTextureSampler)
 		SHADER_PARAMETER(FVector2f, WaterHeightExtents)
 		SHADER_PARAMETER(float, GroundZMin)
 		SHADER_PARAMETER(float, CaptureZ)
@@ -970,9 +974,13 @@ void RenderWaterInfoTexture(
 			PassParameters->RenderTargets[0] = FRenderTargetBinding(MergedTexture, ERenderTargetLoadAction::ENoAction);
 			PassParameters->SceneTextures = GetSceneTextureShaderParameters(WaterView);
 			PassParameters->GroundDepthTexture = TerrainDepthBuffer;
+			PassParameters->GroundDepthTextureSampler = TStaticSamplerState<SF_Point, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
 			PassParameters->WaterBodyTexture = WaterInfoColorTexture;
+			PassParameters->WaterBodyTextureSampler = TStaticSamplerState<SF_Point, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
 			PassParameters->WaterBodyDepthTexture = WaterInfoDepthBuffer;
+			PassParameters->WaterBodyDepthTextureSampler = TStaticSamplerState<SF_Point, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
 			PassParameters->DilatedWaterBodyDepthTexture = DilatedDepthBuffer;
+			PassParameters->DilatedWaterBodyDepthTextureSampler = TStaticSamplerState<SF_Point, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
 			PassParameters->CaptureZ = RenderingParams.CaptureZ;
 			PassParameters->WaterHeightExtents = RenderingParams.WaterHeightExtents;
 			PassParameters->GroundZMin = RenderingParams.GroundZMin;
