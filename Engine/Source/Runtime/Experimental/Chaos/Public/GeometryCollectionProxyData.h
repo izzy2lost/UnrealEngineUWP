@@ -370,4 +370,5 @@ private:
 public:
 	uint8 IsObjectDynamic: 1;
 	uint8 IsObjectLoading: 1;
+	uint8 IsRootBroken : 1;
 };

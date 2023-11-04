@@ -172,6 +172,7 @@ static Chaos::FImplicitObjectPtr MakeTransformImplicitObject(const Chaos::FImpli
 FGeometryCollectionResults::FGeometryCollectionResults()
 	: IsObjectDynamic(false)
 	, IsObjectLoading(false)
+	, IsRootBroken(false)
 {}
 
 void FGeometryCollectionResults::Reset()
@@ -185,6 +186,7 @@ void FGeometryCollectionResults::Reset()
 
 	IsObjectDynamic = false;
 	IsObjectLoading = false;
+	IsRootBroken = false;
 }
 
 //==============================================================================
@@ -3634,6 +3636,21 @@ void FGeometryCollectionPhysicsProxy::BufferPhysicsResults_Internal(Chaos::FPBDR
 
 		const TManagedArray<FTransform>& MassToLocalArray = Parameters.RestCollection->GetAttribute<FTransform>(MassToLocalAttributeName, FTransformCollection::TransformGroup);
 
+		// Explicitly handle root breaking to ensure that the Root GT particle Active state matches the PT particle.
+		// If the root was in a cluster union and the cluster gets broken immediately on removal, we
+		// will never hit the logic below that checks for the particle changing from active to inactive.
+		// The parent checks also miss the case where the parent has an external parent (GC particles
+		// historically assume that the root has no parent which is not true any more).
+		if (Parameters.InitialRootIndex != INDEX_NONE)
+		{
+			const Chaos::FPBDRigidClusteredParticleHandle* RootHandle = SolverParticleHandles[Parameters.InitialRootIndex];
+			if (RootHandle != nullptr)
+			{
+				const bool bIsRootBroken = RootHandle->Disabled() && (RootHandle->Parent() == nullptr);
+				Results.IsRootBroken = bIsRootBroken;
+			}
+		}
+
 		for (int32 TransformGroupIndex = 0; TransformGroupIndex < NumTransforms; ++TransformGroupIndex)
 		{
 			Chaos::FPBDRigidClusteredParticleHandle* Handle = SolverParticleHandles[TransformGroupIndex];
@@ -4062,6 +4079,17 @@ bool FGeometryCollectionPhysicsProxy::PullNonInterpolatableDataFromSinglePhysics
 		{
 			GTParticlesToInternalClusterUniqueIdx.Add(GTParticles[TransformGroupIndex].Get(), StateData.InternalClusterUniqueIdx);
 			InternalClusterUniqueIdxToChildrenTransformIndices.FindOrAdd(StateData.InternalClusterUniqueIdx).Add(TransformGroupIndex);
+		}
+	}
+
+	// See comments in BufferPhysicsResults_Internal where IsRootBroken is set
+	const int32 RootIndex = Parameters.InitialRootIndex;
+	if (RootIndex != INDEX_NONE)
+	{
+		// NOTE: We never return to unbroken once broken
+		if (CurrentResults.IsRootBroken)
+		{
+			GameThreadCollection.Active[RootIndex] = false;
 		}
 	}
 
