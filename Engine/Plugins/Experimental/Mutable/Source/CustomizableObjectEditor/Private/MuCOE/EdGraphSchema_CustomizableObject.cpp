@@ -1264,7 +1264,7 @@ FText UEdGraphSchema_CustomizableObject::GetPinCategoryName(const FName& PinCate
 	{
 		return LOCTEXT("Material_Asset_Pin_Category", "Table Material");
 	}
-	else if (PinCategory == UEdGraphSchema_CustomizableObject::PC_MaterialAsset)
+	else if (PinCategory == UEdGraphSchema_CustomizableObject::PC_Wildcard)
 	{
 		return LOCTEXT("Wildcard_Pin_Category", "Wildcard");
 	}
