@@ -83,4 +83,9 @@ Decompress(const FBuffer& Buffer)
 	return Decompress(Buffer.Data(), Buffer.Size());
 }
 
+bool Decompress(FBufferView Input, FMutBufferView Output)
+{
+	return Decompress(Input.Data, Input.Size, Output.Data, Output.Size);
+}
+
 }  // namespace unsync

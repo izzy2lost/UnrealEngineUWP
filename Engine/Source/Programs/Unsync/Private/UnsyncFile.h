@@ -9,6 +9,7 @@
 #include <atomic>
 #include <functional>
 #include <memory>
+#include <mutex>
 
 namespace unsync {
 
@@ -168,7 +169,7 @@ struct FWindowsFile : FIOReaderWriter
 	virtual void   FlushAll() override;
 	virtual void   FlushOne() override;
 	virtual uint64 GetSize() override { return FileSize; }
-	virtual bool   IsValid() override { return FileHandle != INVALID_HANDLE_VALUE; }
+	virtual bool   IsValid() override;
 	virtual void   Close() override;
 	virtual int32  GetError() override { return LastError; }
 
@@ -202,11 +203,16 @@ struct FWindowsFile : FIOReaderWriter
 	static constexpr uint32 UNBUFFERED_READ_ALIGNMENT = 4096;
 
 private:
+
+	// All internal methods expect the Mutex to be locked
+	void   InternalFlushAll();
 	uint32 CompleteReadCommand(Command& Cmd);
 	bool   OpenFileHandle(EFileMode InMode);
 
 private:
 	EFileMode Mode;
+
+	std::mutex Mutex;
 };
 using FNativeFile = FWindowsFile;
 #endif	// UNSYNC_PLATFORM_WINDOWS
@@ -307,6 +313,7 @@ struct FMemReader : FIOReader
 struct FMemReaderWriter : FMemReader, FIOReaderWriter
 {
 	FMemReaderWriter(uint8* InData, uint64 InDataSize);
+	FMemReaderWriter(FMutBufferView Buffer) : FMemReaderWriter(Buffer.Data, Buffer.Size) {}
 
 	// IOBase
 	virtual void Close() override

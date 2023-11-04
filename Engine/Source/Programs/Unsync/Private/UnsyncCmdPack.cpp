@@ -6,12 +6,15 @@
 #include "UnsyncHashTable.h"
 #include "UnsyncSerialization.h"
 #include "UnsyncThread.h"
+#include "UnsyncError.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <atomic>
 
 namespace unsync {
+
+static constexpr uint64 GMaxPackFileSize = 1_GB;
 
 template<typename CallbackT>
 static void
@@ -82,7 +85,7 @@ BuildP4HaveSet(const FPath& Root, std::string_view P4HaveDataUtf8, FDirectoryMan
 	ForLines(P4HaveDataUtf8, Callback);
 }
 
-struct FPackIndexEntry
+struct FPackIndexEntry	// structure is serialized
 {
 	FHash128 BlockHash		= {};
 	FHash128 CompressedHash = {};
@@ -90,6 +93,81 @@ struct FPackIndexEntry
 	uint32	 CompressedSize = 0;
 };
 static_assert(sizeof(FPackIndexEntry) == 40);
+
+struct FPackDatabase
+{
+	struct FEntry
+	{
+		FPackIndexEntry IndexEntry = {};
+		uint32			PackIndex  = ~0u;
+	};
+
+	// non-thread-safe
+	void Load(const FPath& PackRoot)
+	{
+		// TODO: cache index files locally if they're remote
+
+		const FPath ExpectedExtension = FPath(".unsync_index");
+		for (const std::filesystem::directory_entry& Dir : RecursiveDirectoryScan(PackRoot))
+		{
+			if (!Dir.is_regular_file())
+			{
+				continue;
+			}
+
+			const FPath&	IndexFilePath = Dir.path();
+			FPathStringView IndexFilePathView(IndexFilePath.native());
+			if (!IndexFilePathView.ends_with(ExpectedExtension.native()))
+			{
+				continue;
+			}
+
+			FPath PackFilePath = FPath(IndexFilePathView).replace_extension(".unsync_pack");
+			FFileAttributes PackAttrib = GetFileAttrib(PackFilePath);
+			if (!PackAttrib.bValid)
+			{
+				// TODO: also check file size, etc.
+				continue;
+			}
+
+			uint32 PackIndex = CheckedNarrow(PackFilenames.size());
+			PackFilenames.push_back(PackFilePath);
+			PackFileCache.push_back(nullptr);
+
+			FBuffer IndexEntries = ReadFileToBuffer(IndexFilePath);	 // TODO: add header & hash at the end
+
+			for (const FPackIndexEntry& IndexEntry : ReinterpretView<FPackIndexEntry>(IndexEntries))
+			{
+				UNSYNC_ASSERT(IndexEntry.Offset + IndexEntry.CompressedSize < GMaxPackFileSize);
+
+				FEntry DatabaseEntry;
+				DatabaseEntry.IndexEntry	   = IndexEntry;
+				DatabaseEntry.PackIndex		   = PackIndex;
+				BlockMap[IndexEntry.BlockHash] = DatabaseEntry;
+			}
+		}
+	}
+
+	// thread-safe
+	std::shared_ptr<FNativeFile> GetPackFile(uint32 PackFileIndex) const
+	{
+		std::lock_guard<std::mutex> LockGuard(FileCacheMutex);
+
+		if (!PackFileCache[PackFileIndex])
+		{
+			FNativeFile* NewFile		 = new FNativeFile(PackFilenames[PackFileIndex], EFileMode::ReadOnlyUnbuffered);
+			PackFileCache[PackFileIndex] = std::shared_ptr<FNativeFile>(NewFile);
+		}
+
+		return PackFileCache[PackFileIndex];
+	}
+
+	std::vector<FPath>						  PackFilenames;
+	THashMap<FHash128, FEntry>				  BlockMap;
+
+	mutable std::vector<std::shared_ptr<FNativeFile>> PackFileCache;
+	mutable std::mutex FileCacheMutex;
+};
 
 inline void
 AddHash(uint64* Accumulator, const FHash128& Hash)
@@ -110,8 +188,6 @@ MakeHashFromParts(uint64* Parts)
 
 struct FPackWriteContext
 {
-	static constexpr uint64 MaxPackFileSize = 1_GB;
-
 	FPackWriteContext(const FPath& InOutputRoot) : OutputRoot(InOutputRoot) { Reset(); }
 	~FPackWriteContext() { FinishPack(); }
 
@@ -119,9 +195,9 @@ struct FPackWriteContext
 	{
 		std::lock_guard<std::mutex> LockGuard(Mutex);
 
-		UNSYNC_ASSERT(CompressedData.Size <= MaxPackFileSize);
+		UNSYNC_ASSERT(CompressedData.Size <= GMaxPackFileSize);
 
-		if (PackBuffer.Size() + CompressedData.Size > MaxPackFileSize)
+		if (PackBuffer.Size() + CompressedData.Size > GMaxPackFileSize)
 		{
 			FinishPack();
 		}
@@ -134,6 +210,8 @@ struct FPackWriteContext
 
 		IndexEntries.push_back(IndexEntry);
 		PackBuffer.Append(CompressedData);
+
+		UNSYNC_ASSERT(PackBuffer.Size() == IndexEntry.Offset + IndexEntry.CompressedSize);
 
 		AddHash(IndexFileHashSum, IndexEntry.BlockHash);
 	}
@@ -171,7 +249,7 @@ struct FPackWriteContext
 private:
 	void Reset()
 	{
-		PackBuffer.Reserve(MaxPackFileSize);
+		PackBuffer.Reserve(GMaxPackFileSize);
 		PackBuffer.Clear();
 		IndexEntries.clear();
 
@@ -323,7 +401,8 @@ CmdPack(const FCmdPackOptions& Options)
 		}
 	}
 
-	THashSet<FHash128> SeenBlockHashSet;
+	THashSet<FHash128> SeenBlockHashSet;  // TODO: use FPackDatabase, perhaps in some osrt of lightweight mode
+
 	UNSYNC_LOG(L"Loading block database");
 	{
 		UNSYNC_LOG_INDENT;
@@ -490,7 +569,35 @@ CmdPack(const FCmdPackOptions& Options)
 	}
 
 	UNSYNC_LOG(L"Computing file blocks");
-	UpdateDirectoryManifestBlocks(DirectoryManifest, InputRoot, BlockParams);
+	{
+		// Invalidate files with blocks that are not available in the pack DB
+		auto BlockValidator = [&SeenBlockHashSet](std::pair<const std::wstring, FFileManifest>& It)
+		{
+			FFileManifest& FileManifest = It.second;
+			uint64		   ValidFileSize = 0;
+
+			for (const FGenericBlock& Block : FileManifest.Blocks)
+			{
+				if (SeenBlockHashSet.find(Block.HashStrong.ToHash128()) == SeenBlockHashSet.end())
+				{
+					break;
+				}
+
+				ValidFileSize += Block.Size;
+			}
+
+			if (ValidFileSize != FileManifest.Size)
+			{
+				FileManifest.BlockSize = 0;
+				FileManifest.Blocks.clear();
+				FileManifest.MacroBlocks.clear();
+			}
+		};
+		ParallelForEach(DirectoryManifest.Files, BlockValidator);
+
+		// Scan files and generate new unique blocks
+		UpdateDirectoryManifestBlocks(DirectoryManifest, InputRoot, BlockParams);
+	}
 
 	uint64 ManifestUniqueBytes	   = 0;
 	uint64 ManifestCompressedBytes = 0;
@@ -577,6 +684,264 @@ CmdPack(const FCmdPackOptions& Options)
 			   llu(CompressedBytes.load()),
 			   SizeMb(CompressedBytes.load()),
 			   ProcessedRawBytes > 0 ? (100.0 * double(CompressedBytes.load()) / double(ProcessedRawBytes)) : 0);
+
+	return 0;
+}
+
+bool
+BuildTargetFromPack(FIOWriter& Output, const FPackDatabase& PackDb, TArrayView<FGenericBlock> Manifest)
+{
+	struct FScheduleItem
+	{
+		uint32				   PackIndex  = ~0u;
+		const FPackIndexEntry* IndexEntry = nullptr;
+		const FGenericBlock*   Block;
+
+		bool operator<(const FScheduleItem& Other) const
+		{
+			if (PackIndex != Other.PackIndex)
+			{
+				return PackIndex < Other.PackIndex;
+			}
+			return IndexEntry->Offset < Other.IndexEntry->Offset;
+		}
+	};
+
+	std::vector<FScheduleItem> Schedule;
+	Schedule.reserve(Manifest.Size());
+
+	for (const FGenericBlock& Block : Manifest)
+	{
+		FHash128 BlockHash = Block.HashStrong.ToHash128();
+
+		auto FindIt = PackDb.BlockMap.find(BlockHash);
+		if (FindIt == PackDb.BlockMap.end())
+		{
+			UNSYNC_ERROR(L"Pack database does not contain required block");
+			return false;
+		}
+
+		const FPackDatabase::FEntry& PackEntry = FindIt->second;
+
+		FScheduleItem ScheduleItem;
+		ScheduleItem.PackIndex	= PackEntry.PackIndex;
+		ScheduleItem.IndexEntry = &PackEntry.IndexEntry;
+		ScheduleItem.Block		= &Block;
+
+		Schedule.push_back(ScheduleItem);
+	}
+
+	std::sort(Schedule.begin(), Schedule.end());
+
+	std::shared_ptr<FNativeFile> PackFile;
+	uint32						 CurrentPackId = ~0u;
+
+	// TODO: multi-threaded decompression
+
+	auto ReadCallback = [&Schedule, &Output](FIOBuffer Buffer, uint64 SourceOffset, uint64 ReadSize, uint64 ScheduleIndex)
+	{
+		const FScheduleItem& Item = Schedule[ScheduleIndex];
+
+		UNSYNC_ASSERT(ReadSize == Item.IndexEntry->CompressedSize);
+
+		FHash128 CompressedHash = HashBlake3Bytes<FHash128>(Buffer.GetData(), Buffer.GetSize());
+		UNSYNC_ASSERT(CompressedHash == Item.IndexEntry->CompressedHash);
+
+		FIOBuffer Decompressed = FIOBuffer::Alloc(Item.Block->Size, L"PackBlockDecompress");
+		if (!Decompress(Buffer.GetBufferView(), Decompressed.GetMutBufferView()))
+		{
+			UNSYNC_FATAL(L"Failed to decompress block while reading from pack");
+			return;
+		}
+
+		UNSYNC_ASSERT(Decompressed.GetSize() == Item.Block->Size);
+
+		Output.Write(Decompressed.GetData(), Item.Block->Offset, Item.Block->Size);
+	};
+
+	for (uint64 ScheduleIndex = 0; ScheduleIndex < Schedule.size(); ++ScheduleIndex)
+	{
+		const FScheduleItem& Item = Schedule[ScheduleIndex];
+		if (CurrentPackId != Item.PackIndex)
+		{
+			if (PackFile)
+			{
+				PackFile->FlushAll();
+			}
+
+			PackFile = PackDb.GetPackFile(Item.PackIndex);
+
+			if (!PackFile->IsValid())
+			{
+				UNSYNC_ERROR(L"Failed to open pack file '%ls'", PackDb.PackFilenames[Item.PackIndex].wstring().c_str());
+				return false;
+			}
+
+			CurrentPackId = Item.PackIndex;
+		}
+
+		UNSYNC_ASSERT(Item.IndexEntry->Offset < PackFile->GetSize());
+		UNSYNC_ASSERT(Item.IndexEntry->Offset + Item.IndexEntry->CompressedSize <= PackFile->GetSize());
+		PackFile->ReadAsync(Item.IndexEntry->Offset, Item.IndexEntry->CompressedSize, ScheduleIndex, ReadCallback);
+	}
+
+	if (PackFile)
+	{
+		PackFile->FlushAll();
+	}
+
+	return true;
+}
+
+struct FDirectoryCreationCache
+{
+	bool EnsureDirectoryExists(const FPath& Path)
+	{
+		std::lock_guard<std::mutex> LockGuard(Mutex);
+		if (CreatedDirectories.find(Path) != CreatedDirectories.end())
+		{
+			return true;
+		}
+		else
+		{
+			bool bCreated = unsync::EnsureDirectoryExists(Path);
+			if (bCreated)
+			{
+				CreatedDirectories.insert(Path);
+			}
+			return bCreated;
+		}
+	}
+
+	THashSet<FPath> CreatedDirectories;
+	std::mutex		Mutex;
+};
+
+bool
+SyncDirectoryFromPack(const FPath& OutputRoot, const FPackDatabase& PackDb, const FDirectoryManifest& NewDirectoryManifest)
+{
+	// TODO: multithreading
+	// TODO: incremental sync
+	// TODO: fetch blocks from server
+
+	FAtomicError Error;
+
+	FDirectoryCreationCache DirCache;
+
+	auto BuildTargetCallback = [&Error, &PackDb, &DirCache](const std::pair<const std::wstring, FFileManifest>& FileIt)
+	{
+		if (Error)
+		{
+			return;
+		}
+
+		const FFileManifest& FileManifest	= FileIt.second;
+		const FPath&		 TargetFilePath = FileManifest.CurrentPath;
+
+		FPath TargetFileParent = TargetFilePath.parent_path();
+		if (!DirCache.EnsureDirectoryExists(TargetFileParent))
+		{
+			UNSYNC_ERROR(L"Failed to create target directory '%ls'", TargetFileParent.wstring().c_str());
+			Error.Set(AppError("Failed to create target directory"));
+			return;
+		}
+
+		FNativeFile TargetFile(TargetFilePath, EFileMode::CreateWriteOnly, FileManifest.Size);
+		if (!TargetFile.IsValid())
+		{
+			UNSYNC_ERROR(L"Failed to create target file '%ls'", TargetFilePath.wstring().c_str());
+			Error.Set(AppError("Failed to create target file"));
+			return;
+		}
+
+		if (!BuildTargetFromPack(TargetFile, PackDb, MakeView(FileManifest.Blocks)))
+		{
+			UNSYNC_FATAL(L"Failed to reconstruct target file from pack '%ls'", TargetFilePath.wstring().c_str());
+			Error.Set(AppError("Failed to reconstruct target file from pack"));
+			return;
+		}
+	};
+
+	ParallelForEach(NewDirectoryManifest.Files, BuildTargetCallback);
+
+	return !Error;
+}
+
+int32
+CmdUnpack(const FCmdUnpackOptions& Options)
+{
+	UNSYNC_LOG(L"Unpacking snapshot '%hs' to '%ls'", Options.SnapshotName.c_str(), Options.OutputPath.wstring().c_str());
+	UNSYNC_LOG_INDENT;
+
+	if (!EnsureDirectoryExists(Options.OutputPath))
+	{
+		UNSYNC_ERROR(L"Failed to create output directory");
+		return -1;
+	}
+
+	const FPath& StoreRoot = Options.StorePath;
+	const FPath	 PackRoot  = StoreRoot / "pack";
+
+	FPackDatabase PackDb;
+	{
+		UNSYNC_LOG(L"Loading block database");
+		UNSYNC_LOG_INDENT;
+		PackDb.Load(PackRoot);
+	}
+
+	FPath	SnapshotPath   = Options.StorePath / (Options.SnapshotName + ".unsync_snapshot");
+	FBuffer SnapshotBuffer = ReadFileToBuffer(SnapshotPath);
+	if (SnapshotBuffer.Empty())
+	{
+		UNSYNC_ERROR(L"Failed read directory snapshot manifest");
+		return -1;
+	}
+
+	TArrayView<FGenericBlock> ManifestBlocks = ReinterpretView<FGenericBlock>(SnapshotBuffer);
+
+	uint64 ManifestFileSize = 0;
+	for (const FGenericBlock& Block : ManifestBlocks)
+	{
+		if (Block.Offset != ManifestFileSize)
+		{
+			UNSYNC_FATAL(L"Unexpected block offset found in the snapshot file");
+			return -1;
+		}
+		ManifestFileSize += Block.Size;
+	}
+
+	FBuffer ManifestBuffer;
+	{
+		ManifestBuffer.Resize(ManifestFileSize);
+		FMemReaderWriter ManifestWriter(ManifestBuffer);
+		if (!BuildTargetFromPack(ManifestWriter, PackDb, ManifestBlocks))
+		{
+			UNSYNC_FATAL(L"Failed to reconstruct directory manfiest from snapshot");
+			return -1;
+		}
+	}
+	
+
+	FDirectoryManifest NewDirectoryManifest;
+	{
+		FMemReader		   ManifestMemReader(ManifestBuffer);
+		FIOReaderStream	   ManifestReaderStream(ManifestMemReader);
+		if (!LoadDirectoryManifest(NewDirectoryManifest, Options.OutputPath, ManifestReaderStream))
+		{
+			UNSYNC_FATAL(L"Failed to deserialize directory manfiest from snapshot");
+			return -1;
+		}
+	}
+
+	UNSYNC_LOG(L"Writing target files");
+	{
+		UNSYNC_LOG_INDENT;
+		if (!SyncDirectoryFromPack(Options.OutputPath, PackDb, NewDirectoryManifest))
+		{
+			UNSYNC_FATAL(L"Failed to sync directory pack");
+			return -1;
+		}
+	}
 
 	return 0;
 }

@@ -18,5 +18,6 @@ uint64 CompressInto(FBufferView Input, FMutBufferView Output, int ZstdCompressio
 FBuffer Decompress(const uint8* Data, uint64 DataSize);
 FBuffer Decompress(const FBuffer& Buffer);
 bool	Decompress(const uint8* InputData, uint64 InputDataSize, uint8* OutputData, uint64 OutputDataSize);
+bool	Decompress(FBufferView Input, FMutBufferView Output);
 
 }  // namespace unsync

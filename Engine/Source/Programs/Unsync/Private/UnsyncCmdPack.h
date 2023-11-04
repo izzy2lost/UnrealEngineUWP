@@ -19,4 +19,13 @@ struct FCmdPackOptions
 
 int32 CmdPack(const FCmdPackOptions& Options);
 
+struct FCmdUnpackOptions
+{
+	FPath			  OutputPath;
+	FPath			  StorePath;
+	std::string		  SnapshotName;
+};
+
+int32 CmdUnpack(const FCmdUnpackOptions& Options);
+
 }

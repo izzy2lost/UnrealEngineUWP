@@ -279,10 +279,18 @@ FWindowsFile::OpenFileHandle(EFileMode InMode)
 	}
 }
 
+bool
+FWindowsFile::IsValid()
+{
+	std::lock_guard<std::mutex> LockGuard(Mutex);
+	return FileHandle != INVALID_HANDLE_VALUE;
+}
+
 void
 FWindowsFile::Close()
 {
-	FlushAll();
+	InternalFlushAll();
+
 	if (FileHandle != INVALID_HANDLE_VALUE)
 	{
 		CloseHandle(FileHandle);
@@ -301,6 +309,8 @@ FWindowsFile::Close()
 uint32
 FWindowsFile::CompleteReadCommand(Command& Cmd)
 {
+	// Expects that Mutex is locked
+
 	UNSYNC_ASSERT(Cmd.bActive);
 	const uint32 MaxAttempts = 100;
 
@@ -394,11 +404,13 @@ FWindowsFile::Write(const void* Data, uint64 DestOffset, uint64 TotalSize)
 {
 	// TODO: !!!!! fire-and-forget asynchronous writes !!!!!
 
+	std::lock_guard<std::mutex> LockGuard(Mutex);
+
 	UNSYNC_ASSERT(IsWritable(Mode));
 
 	if (!IsWriteOnly(Mode))
 	{
-		FlushAll();	 // flush any outstanding read requests before writing
+		InternalFlushAll();	 // flush any outstanding read requests before writing
 	}
 
 	LARGE_INTEGER Pos;
@@ -464,6 +476,8 @@ FWindowsFile::Write(const void* Data, uint64 DestOffset, uint64 TotalSize)
 uint64
 FWindowsFile::Read(void* Dest, uint64 SourceOffset, uint64 ReadSize)
 {
+	std::lock_guard<std::mutex> LockGuard(Mutex);
+
 	UNSYNC_ASSERTF((Mode & EFileMode::Unbuffered) == 0, L"Unbuffered files only support ReadAsync");
 	UNSYNC_ASSERT(IsReadable(Mode));
 
@@ -511,6 +525,8 @@ FWindowsFile::Read(void* Dest, uint64 SourceOffset, uint64 ReadSize)
 bool
 FWindowsFile::ReadAsync(uint64 SourceOffset, uint64 Size, uint64 UserData, IOCallback Callback)
 {
+	std::lock_guard<std::mutex> LockGuard(Mutex);
+
 	UNSYNC_ASSERT(IsReadable(Mode));
 
 	uint32 CmdIdx = ~0u;
@@ -575,7 +591,7 @@ FWindowsFile::ReadAsync(uint64 SourceOffset, uint64 Size, uint64 UserData, IOCal
 }
 
 void
-FWindowsFile::FlushAll()
+FWindowsFile::InternalFlushAll()
 {
 	for (uint32 I = 0; I < NUM_QUEUES; ++I)
 	{
@@ -587,8 +603,18 @@ FWindowsFile::FlushAll()
 }
 
 void
+FWindowsFile::FlushAll()
+{
+	std::lock_guard<std::mutex> LockGuard(Mutex);
+
+	InternalFlushAll();
+}
+
+void
 FWindowsFile::FlushOne()
 {
+	std::lock_guard<std::mutex> LockGuard(Mutex);
+
 	uint32 NumValidEvents			  = 0;
 	HANDLE Events[NUM_QUEUES]		  = {};
 	uint32 CommandIndices[NUM_QUEUES] = {};

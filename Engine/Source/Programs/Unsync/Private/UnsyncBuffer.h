@@ -91,6 +91,7 @@ public:
 	}
 
 	operator FBufferView() const { return View(); }
+	operator FMutBufferView() { return MutView(); }
 
 private:
 	void EnsureCapacity(uint64 RequiredCapacity);
@@ -99,6 +100,14 @@ private:
 	uint64 BufferSize	  = 0;
 	uint64 BufferCapacity = 0;
 };
+
+template<typename T>
+TArrayView<T>
+ReinterpretView(FBufferView BufferView)
+{
+	const uint64 Count = BufferView.Size / sizeof(T);
+	return MakeView(reinterpret_cast<const T*>(BufferView.Data), Count);
+}
 
 struct FBufferPool
 {

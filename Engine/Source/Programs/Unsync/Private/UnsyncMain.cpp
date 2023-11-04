@@ -79,6 +79,7 @@ InnerMain(int Argc, char** Argv)
 	std::string				 ScavengeRootUtf8;
 	std::string				 P4HavePathUtf8;
 	std::string				 StorePathUtf8;
+	std::string				 SnapshotNameUtf8;
 	bool					 bRunP4Have			 = false;
 	bool					 bForceOperation	 = false;
 	bool					 bAllowInsecureTls	 = false;
@@ -176,6 +177,20 @@ InnerMain(int Argc, char** Argv)
 		RunP4HaveOpt->excludes(P4HaveFileOpt);
 
 		SubCommands.push_back(SubPack);
+	}
+
+	CLI::App* SubUnpack = nullptr;
+	{
+		SubUnpack =
+			Cli.add_subcommand("unpack",
+							   "EXPERIMENTAL: Sync directory based on package snapshot");
+
+		SubUnpack->add_option("Output", OutputFilenameUtf8, "Output directory path")->required();
+
+		SubUnpack->add_option("--store", StorePathUtf8, "Pack storage path")->required();
+		SubUnpack->add_option("--snapshot", SnapshotNameUtf8, "Directory snapshot ID")->required();
+
+		SubCommands.push_back(SubUnpack);
 	}
 
 	// Configure push
@@ -602,7 +617,7 @@ InnerMain(int Argc, char** Argv)
 		DefaultChunkingAlgorithm = EChunkingAlgorithmID::FixedBlocks;
 	}
 
-	if (Cli.got_subcommand(SubHash) || Cli.got_subcommand(SubDiff) || Cli.got_subcommand(SubPack))
+	if (Cli.got_subcommand(SubHash) || Cli.got_subcommand(SubDiff))
 	{
 		if (!bIncrementalMode)
 		{
@@ -778,7 +793,7 @@ InnerMain(int Argc, char** Argv)
 
 		return CmdHash(HashOptions);
 	}
-	if (Cli.got_subcommand(SubPack))
+	else if (Cli.got_subcommand(SubPack))
 	{
 		FCmdPackOptions PackOptions;
 
@@ -790,6 +805,16 @@ InnerMain(int Argc, char** Argv)
 		PackOptions.Algorithm	 = Algorithm;
 
 		return CmdPack(PackOptions);
+	}
+	else if (Cli.got_subcommand(SubUnpack))
+	{
+		FCmdUnpackOptions UnpackOptions;
+
+		UnpackOptions.OutputPath   = OutputFilename;
+		UnpackOptions.SnapshotName = SnapshotNameUtf8;
+		UnpackOptions.StorePath	   = NormalizeFilenameUtf8(StorePathUtf8);
+
+		return CmdUnpack(UnpackOptions);
 	}
 	else if (Cli.got_subcommand(SubDiff))
 	{
