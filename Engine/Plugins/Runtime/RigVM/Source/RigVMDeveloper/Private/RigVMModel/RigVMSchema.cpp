@@ -277,28 +277,25 @@ bool URigVMSchema::CanAddNode(URigVMController* InController, const URigVMNode* 
 			URigVMFunctionLibrary* TargetLibrary = Graph->GetDefaultFunctionLibrary();
 			URigVMLibraryNode* LocalizedFunctionDefinition = TargetLibrary->FindPreviouslyLocalizedFunction(FunctionDefinition.LibraryPointer);
 
-			if(InController)
+			if((LocalizedFunctionDefinition == nullptr) && InController->RequestLocalizeFunctionDelegate.IsBound())
 			{
-				if((LocalizedFunctionDefinition == nullptr) && InController->RequestLocalizeFunctionDelegate.IsBound())
+				if(InController->RequestLocalizeFunctionDelegate.Execute(FunctionDefinition.LibraryPointer))
 				{
-					if(InController->RequestLocalizeFunctionDelegate.Execute(FunctionDefinition.LibraryPointer))
-					{
-						LocalizedFunctionDefinition = TargetLibrary->FindPreviouslyLocalizedFunction(FunctionDefinition.LibraryPointer);
-					}
+					LocalizedFunctionDefinition = TargetLibrary->FindPreviouslyLocalizedFunction(FunctionDefinition.LibraryPointer);
 				}
+			}
 
-				if(LocalizedFunctionDefinition == nullptr)
-				{
-					return false;
-				}
-			
-				InController->SetReferencedFunction(const_cast<URigVMFunctionReferenceNode*>(FunctionRefNode), LocalizedFunctionDefinition, false);
-				FunctionDefinition = FunctionRefNode->GetReferencedFunctionHeader();
+			if(LocalizedFunctionDefinition == nullptr)
+			{
+				return false;
+			}
+		
+			InController->SetReferencedFunction(const_cast<URigVMFunctionReferenceNode*>(FunctionRefNode), LocalizedFunctionDefinition, false);
+			FunctionDefinition = FunctionRefNode->GetReferencedFunctionHeader();
 
-				if(!SupportsGraphFunction(InController, &FunctionDefinition))
-				{
-					return false;
-				}
+			if(!SupportsGraphFunction(InController, &FunctionDefinition))
+			{
+				return false;
 			}
 		}
 	}

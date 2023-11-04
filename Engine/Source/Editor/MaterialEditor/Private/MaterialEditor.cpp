@@ -4923,10 +4923,11 @@ void FMaterialEditor::OnResetToDefault(const FToolMenuContext& InMenuContext) co
 	UGraphNodeContextMenuContext* NodeContext = InMenuContext.FindContext<UGraphNodeContextMenuContext>();
 	const int32 PinIndex = NodeContext->Pin->SourceIndex;
 	const UMaterialGraphNode_Root* RootPinNode = Cast<UMaterialGraphNode_Root>(NodeContext->Pin->GetOwningNode());
-	UEdGraphPin* TargetPin = RootPinNode->GetPinAt(PinIndex);
 
 	if (RootPinNode != nullptr)
 	{
+		UEdGraphPin* TargetPin = RootPinNode->GetPinAt(PinIndex);
+
 		const FScopedTransaction Transaction( NSLOCTEXT("GraphEditor", "ResetPinToDefault", "Reset Pin Value to its default" ) );
 		TargetPin->Modify();
 		
@@ -5167,7 +5168,7 @@ bool FMaterialEditor::OnCanCreateSubstrateNodeForPin(const FToolMenuContext& InM
 	{
 		return FSubstrateWidget::HasInputSubstrateType(TargetPin);
 	}
-	else if (TargetPin && (TargetPin->Direction == EEdGraphPinDirection::EGPD_Output) && (TargetPin->LinkedTo.Num() == 0) && NodeForPin != ESubstrateNodeForPin::Slab)
+	else if ((TargetPin->Direction == EEdGraphPinDirection::EGPD_Output) && (TargetPin->LinkedTo.Num() == 0) && NodeForPin != ESubstrateNodeForPin::Slab)
 	{
 		return FSubstrateWidget::HasOutputSubstrateType(TargetPin);
 	}

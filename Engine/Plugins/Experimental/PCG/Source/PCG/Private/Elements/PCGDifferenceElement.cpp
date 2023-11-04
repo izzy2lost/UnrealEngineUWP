@@ -187,8 +187,7 @@ bool FPCGDifferenceElement::ExecuteInternal(FPCGContext* Context) const
 		Output.Data = DifferenceData;
 
 		// Finally, apply any discretization based on the mode
-		if (DifferenceData && 
-			(Settings->Mode == EPCGDifferenceMode::Discrete || 
+		if ((Settings->Mode == EPCGDifferenceMode::Discrete || 
 			(Settings->Mode == EPCGDifferenceMode::Inferred && bHasPointsInSource && bHasPointsInDifferences)))
 		{
 			Output.Data = DifferenceData->ToPointData(Context);

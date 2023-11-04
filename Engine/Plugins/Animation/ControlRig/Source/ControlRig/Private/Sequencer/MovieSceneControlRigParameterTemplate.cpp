@@ -1695,10 +1695,10 @@ struct TControlRigParameterActuatorTransform : TMovieSceneBlendingActuator<FCont
 		const UMovieSceneControlRigParameterSection* Section = SectionData.Get();
 
 		UControlRig* ControlRig = Section ? GetControlRig(Section, InObject) : nullptr;
-		URigHierarchy* Hierarchy = ControlRig->GetHierarchy();
 
 		if (ControlRig && Section && (Section->ControlsToSet.Num() == 0 || Section->ControlsToSet.Contains(ParameterName)))
 		{
+			URigHierarchy* Hierarchy = ControlRig->GetHierarchy();
 			FRigControlElement* ControlElement = ControlRig->FindControl(ParameterName);
 			if (ControlElement && ControlElement->Settings.AnimationType != ERigControlAnimationType::ProxyControl &&
 				ControlElement->Settings.AnimationType != ERigControlAnimationType::VisualCue)

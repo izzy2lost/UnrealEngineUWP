@@ -186,6 +186,7 @@ template<typename TControlFunctorType, typename TBodyModifierFunctorType> void F
 		}
 		if (LimbBones.bCreateBodyModifiers)
 		{
+			checkSlow(Node);
 			CreateBodyModifiersFromLimbBones(LimbName, LimbBones, Node->SetupData.DefaultBodyModifierData, NameRecords, BodyModifierFunctor);
 		}
 	}

@@ -226,6 +226,11 @@ bool FDisplayClusterProjectionMPCDIPolicy::CalculateView(IDisplayClusterViewport
 {
 	check(IsInGameThread());
 
+	if (!InViewport)
+	{
+		return false;
+	}
+
 	if (WarpBlendInterface.IsValid() == false || WarpBlendContexts.Num() == 0)
 	{
 		if (!IsEditorOperationMode(InViewport))
@@ -239,7 +244,7 @@ bool FDisplayClusterProjectionMPCDIPolicy::CalculateView(IDisplayClusterViewport
 	// Override viewpoint
 	// MPCDI always expects the location of the viewpoint component (eye location from the real world)
 	FVector ViewOffset = FVector::ZeroVector;
-	if (!InViewport || !InViewport->GetViewPointCameraEye(InContextNum, InOutViewLocation, InOutViewRotation, ViewOffset))
+	if (!InViewport->GetViewPointCameraEye(InContextNum, InOutViewLocation, InOutViewRotation, ViewOffset))
 	{
 		return false;
 	}

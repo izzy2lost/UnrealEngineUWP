@@ -376,10 +376,7 @@ bool FPCGVolumeSamplerElement::ExecuteInternal(FPCGContext* Context) const
 				IterState.OutputData,
 				Context->TimeSliceIsEnabled());
 
-		if (Context)
-		{
-			PCGE_LOG_C(Verbose, LogOnly, Context, FText::Format(LOCTEXT("GenerationInfo", "Generated {0} points in volume"), IterState.OutputData->GetPoints().Num()));
-		}
+		PCGE_LOG_C(Verbose, LogOnly, Context, FText::Format(LOCTEXT("GenerationInfo", "Generated {0} points in volume"), IterState.OutputData->GetPoints().Num()));
 
 		return bAsyncDone;
 	});

@@ -668,8 +668,7 @@ namespace UE::NeuralMorphModel
 		const TArray<FVector3f>& UnskinnedPositions = Sampler->GetUnskinnedVertexPositions();
 		if (MaskVizItemIndex == INDEX_NONE ||
 			NumVerts != Model->GetInputInfo()->GetNumBaseMeshVertices() ||
-			UnskinnedPositions.Num() != NumVerts ||
-			Sampler == nullptr)
+			UnskinnedPositions.Num() != NumVerts)
 		{
 			return;
 		}

@@ -99,7 +99,7 @@ void FRetargetSkeleton::GenerateRetargetPose(
 	}
 
 	// no retarget pose specified (will use default pose from skeletal mesh with no offsets)
-	if (InRetargetPose==nullptr  || RetargetRootBone == NAME_None)
+	if (RetargetRootBone == NAME_None)
 	{
 		return;
 	}

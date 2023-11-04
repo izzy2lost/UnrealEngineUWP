@@ -755,7 +755,7 @@ void SPCGEditorGraphAttributeListView::RefreshPinComboBox()
 			const UPCGPin* PCGPin = InPins[PinIndex];
 			const bool bIsOutputPin = PCGPin->IsOutputPin();
 			// Pin is included in list if it is connected, or if it is an output pin.
-			if (PCGPin && (PCGPin->IsConnected() || bIsOutputPin))
+			if (PCGPin->IsConnected() || bIsOutputPin)
 			{
 				FString ItemName = FString::Format(*InFormatText, { PCGPin->Properties.Label.ToString() });
 				InOutItems.Add(MakeShared<FPinComboBoxItem>(FName(ItemName), PinIndex, bIsOutputPin));

@@ -3703,49 +3703,51 @@ FNiagaraScriptMergeManager::FApplyDiffResults FNiagaraScriptMergeManager::ApplyE
 
 	for (UNiagaraHierarchyItemBase* AddedInput : DiffResults.AddedSummaryEntriesInOther)
 	{
-		UNiagaraHierarchyItemBase* SummaryItemParent = AddedInput->GetTypedOuter<UNiagaraHierarchyItemBase>();
-		bool bParentIsRoot = SummaryItemParent->IsA<UNiagaraHierarchyRoot>();
-		FNiagaraHierarchyIdentity ParentIdentity = SummaryItemParent ? SummaryItemParent->GetPersistentIdentity() : FNiagaraHierarchyIdentity();
-
-		if(ParentIdentity.IsValid())
+		if (UNiagaraHierarchyItemBase* SummaryItemParent = AddedInput->GetTypedOuter<UNiagaraHierarchyItemBase>())
 		{
-			// if the parent is the root, we can't use the parent identity to copy over the child as the two roots are supposed to be different, so we add it directly
-			if(bParentIsRoot)
+			FNiagaraHierarchyIdentity ParentIdentity = SummaryItemParent->GetPersistentIdentity();
+	
+			if(ParentIdentity.IsValid())
 			{
-				/** Core principal of adding new items:
-				 * Any added item should come without children, as the parent could have added the same child somewhere else
-				 * Otherwise we'd need to identify not just new items vs. old items, but also new items with old children.
-				 * The children we removed but actually belong will be added back during another iteration of the loop
-				*/
-				if(BaseRoot->FindChildWithIdentity(AddedInput->GetPersistentIdentity(), false) == nullptr)
+				const bool bParentIsRoot = SummaryItemParent->IsA<UNiagaraHierarchyRoot>();
+				// if the parent is the root, we can't use the parent identity to copy over the child as the two roots are supposed to be different, so we add it directly
+				if(bParentIsRoot)
 				{
-					UNiagaraHierarchyItemBase* NewChild = BaseRoot->CopyAndAddItemAsChild(*AddedInput);
-					NewChild->GetChildrenMutable().Empty();
-					// for root level category, we have to fixup the section objects they point to as after duplicating them they will still point to the original section
-					if(UNiagaraHierarchyCategory* AsCategory = Cast<UNiagaraHierarchyCategory>(NewChild))
+					/** Core principal of adding new items:
+					* Any added item should come without children, as the parent could have added the same child somewhere else
+					* Otherwise we'd need to identify not just new items vs. old items, but also new items with old children.
+					* The children we removed but actually belong will be added back during another iteration of the loop
+					*/
+					if(BaseRoot->FindChildWithIdentity(AddedInput->GetPersistentIdentity(), false) == nullptr)
 					{
-						AsCategory->FixupSectionLinkage();
-					}
-				}				
-			}
-			else
-			{
-				// it's possible the child was already added via ownership link
-				// (i.e. if categoryA owns inputA and categoryA is copied first, inputA will be included too)
-				// we only want to add that child if it hasn't been added already
-				if(BaseRoot->FindChildWithIdentity(AddedInput->GetPersistentIdentity(), true) == nullptr)
-				{
-					UNiagaraHierarchyItemBase* NewChild = BaseRoot->CopyAndAddItemUnderParentIdentity(*AddedInput, ParentIdentity);
-					
-					//if(!ensure(NewChild != nullptr))
-					if(NewChild == nullptr)
-					{
-						UE_LOG(LogNiagaraEditor, Log, TEXT("Item %s could not be added during merge process"), *AddedInput->ToString());
-					}
-					else
-					{
-						// see above
+						UNiagaraHierarchyItemBase* NewChild = BaseRoot->CopyAndAddItemAsChild(*AddedInput);
 						NewChild->GetChildrenMutable().Empty();
+						// for root level category, we have to fixup the section objects they point to as after duplicating them they will still point to the original section
+						if(UNiagaraHierarchyCategory* AsCategory = Cast<UNiagaraHierarchyCategory>(NewChild))
+						{
+							AsCategory->FixupSectionLinkage();
+						}
+					}				
+				}
+				else
+				{
+					// it's possible the child was already added via ownership link
+					// (i.e. if categoryA owns inputA and categoryA is copied first, inputA will be included too)
+					// we only want to add that child if it hasn't been added already
+					if(BaseRoot->FindChildWithIdentity(AddedInput->GetPersistentIdentity(), true) == nullptr)
+					{
+						UNiagaraHierarchyItemBase* NewChild = BaseRoot->CopyAndAddItemUnderParentIdentity(*AddedInput, ParentIdentity);
+						
+						//if(!ensure(NewChild != nullptr))
+						if(NewChild == nullptr)
+						{
+							UE_LOG(LogNiagaraEditor, Log, TEXT("Item %s could not be added during merge process"), *AddedInput->ToString());
+						}
+						else
+						{
+							// see above
+							NewChild->GetChildrenMutable().Empty();
+						}
 					}
 				}
 			}

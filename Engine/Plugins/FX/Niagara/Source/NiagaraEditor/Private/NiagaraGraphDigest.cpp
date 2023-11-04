@@ -1902,22 +1902,22 @@ void FNiagaraCompilationNode::RegisterPassthroughPin(FParameterMapHistoryBuilder
 	FNiagaraTypeDefinition InDef = InputPin->Variable.GetType();
 	FNiagaraTypeDefinition OutDef = OutputPin->Variable.GetType();
 
-	if (InputPin && InDef == FNiagaraTypeDefinition::GetParameterMapDef() && OutDef == FNiagaraTypeDefinition::GetParameterMapDef() && InputPin->LinkedTo)
+	if (InDef == FNiagaraTypeDefinition::GetParameterMapDef() && OutDef == FNiagaraTypeDefinition::GetParameterMapDef() && InputPin->LinkedTo)
 	{
 		int32 PMIdx = Builder.TraceParameterMapOutputPin(InputPin->LinkedTo);
 		Builder.RegisterParameterMapPin(PMIdx, OutputPin);
 	}
-	else if (InputPin && InDef.IsStatic() && InputPin->LinkedTo)
+	else if (InDef.IsStatic() && InputPin->LinkedTo)
 	{
 		int32 ConstantIdx = Builder.GetConstantFromOutputPin(InputPin->LinkedTo);
 		Builder.RegisterConstantPin(ConstantIdx, InputPin);
 
-		if (OutputPin && OutDef == InDef)
+		if (OutDef == InDef)
 		{
 			Builder.RegisterConstantPin(ConstantIdx, OutputPin);
 		}
 	}
-	else if (InputPin && InDef.IsStatic() && !InputPin->LinkedTo)
+	else if (InDef.IsStatic() && !InputPin->LinkedTo)
 	{
 		FString CachedDefaultValue;
 		if (!Builder.TraversalStateContext->GetFunctionDefaultValue(NodeGuid, InputPin->PinName, CachedDefaultValue))
@@ -1927,7 +1927,7 @@ void FNiagaraCompilationNode::RegisterPassthroughPin(FParameterMapHistoryBuilder
 
 		int32 ConstantIdx = Builder.AddOrGetConstantFromValue(CachedDefaultValue);
 		Builder.RegisterConstantPin(ConstantIdx, InputPin);
-		if (OutputPin && OutDef == InDef)
+		if (OutDef == InDef)
 		{
 			Builder.RegisterConstantPin(ConstantIdx, OutputPin);
 		}

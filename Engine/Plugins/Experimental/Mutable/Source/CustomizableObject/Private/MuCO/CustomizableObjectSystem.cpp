@@ -1302,10 +1302,11 @@ void UCustomizableObjectSystem::ClearResourceCacheProtected()
 bool UCustomizableObjectSystem::LockObject(const class UCustomizableObject* InObject)
 {
 	check(InObject != nullptr);
+	check(InObject->GetPrivate());
 	check(!InObject->GetPrivate()->bLocked);
 	check(IsInGameThread() && !IsInParallelGameThread());
 
-	if (InObject && InObject->GetPrivate() && Private)
+	if (Private)
 	{
 		// If the current instance is for this object, make the lock fail by returning false
 		if (Private->CurrentInstanceBeingUpdated &&
@@ -1373,13 +1374,11 @@ bool UCustomizableObjectSystem::LockObject(const class UCustomizableObject* InOb
 void UCustomizableObjectSystem::UnlockObject(const class UCustomizableObject* Obj)
 {
 	check(Obj != nullptr);
+	check(Obj->GetPrivate());
 	check(Obj->GetPrivate()->bLocked);
 	check(IsInGameThread() && !IsInParallelGameThread());
 	
-	if (Obj && Obj->GetPrivate())
-	{
-		Obj->GetPrivate()->bLocked = false;
-	}
+	Obj->GetPrivate()->bLocked = false;
 }
 
 

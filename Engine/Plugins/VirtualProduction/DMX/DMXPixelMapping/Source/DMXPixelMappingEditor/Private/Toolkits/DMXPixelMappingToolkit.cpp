@@ -217,7 +217,7 @@ void FDMXPixelMappingToolkit::SelectComponents(const TSet<FDMXPixelMappingCompon
 		}
 		else
 		{
-			if (UDMXPixelMappingRendererComponent* RendererComponentParent = ComponentReference.GetComponent()->GetFirstParentByClass<UDMXPixelMappingRendererComponent>(ComponentReference.GetComponent()))
+			if (UDMXPixelMappingRendererComponent* RendererComponentParent = ComponentReference.GetComponent() ? ComponentReference.GetComponent()->GetFirstParentByClass<UDMXPixelMappingRendererComponent>(ComponentReference.GetComponent()) : nullptr)
 			{
 				SetActiveRenderComponent(RendererComponentParent);
 			}

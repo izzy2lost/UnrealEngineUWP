@@ -706,7 +706,7 @@ void FInstanceCullingContext::BuildRenderingCommandsInternal(
 		InstanceCullingDrawParams->Scene = InstanceCullingManager->SceneUB.GetBuffer(GraphBuilder);
 	}
 
-	if (AsyncProcessingMode != EAsyncProcessingMode::Synchronous && InstanceCullingDrawParams && InstanceCullingManager && InstanceCullingManager->IsDeferredCullingActive() && (InstanceCullingMode == EInstanceCullingMode::Normal))
+	if (AsyncProcessingMode != EAsyncProcessingMode::Synchronous && InstanceCullingManager && InstanceCullingManager->IsDeferredCullingActive() && (InstanceCullingMode == EInstanceCullingMode::Normal))
 	{
 		FInstanceCullingDeferredContext *DeferredContext = InstanceCullingManager->DeferredContext;
 
@@ -834,6 +834,7 @@ void FInstanceCullingContext::BuildRenderingCommandsInternal(
 	PassParametersTmp.NumCullingViews = 0;
 	if (bCullInstances || bAllowWPODisable)
 	{
+		checkSlow(InstanceCullingManager);
 #if DO_CHECK
 		for (int32 ViewId : ViewIds)
 		{

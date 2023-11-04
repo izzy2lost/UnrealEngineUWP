@@ -395,7 +395,7 @@ namespace UE::Chaos::ClothGenerator
 			SimResource.NumSimulatedFrames = &NumSimulatedFrames;
 			SimResource.bCancelled = &bCancelled;
 	
-			if (CopyComponent == nullptr || SimResource.Proxy == nullptr || SimResource.Pipe == nullptr)
+			if (SimResource.Proxy == nullptr || SimResource.Pipe == nullptr)
 			{
 				UE_LOG(LogChaosClothGenerator, Error, TEXT("Failed to allocate simulation resources"));
 				return false;

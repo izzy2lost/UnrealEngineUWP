@@ -521,7 +521,7 @@ bool FPCGSurfaceSamplerElement::ExecuteInternal(FPCGContext* InContext) const
 		// Run the execution until the time slice is finished
 		const bool bAsyncDone = PCGSurfaceSampler::SampleSurface(Context, IterState.Settings, ExecState.GeneratingShapes[IterationIndex], ExecState.BoundingShape, IterState.OutputPoints, Context->TimeSliceIsEnabled());
 
-		if (Context && bAsyncDone)
+		if (bAsyncDone)
 		{
 			PCGE_LOG_C(Verbose, LogOnly, Context, FText::Format(LOCTEXT("GenerationInfo", "Generated {0} points in {1} cells"), IterState.OutputPoints->GetPoints().Num(), IterState.Settings.CellCount));
 		}

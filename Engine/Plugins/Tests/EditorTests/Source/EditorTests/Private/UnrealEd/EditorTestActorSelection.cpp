@@ -78,7 +78,7 @@ bool FAssetActorTest::RunTest(const FString& Parameters)
 	AddCommand(new FFunctionLatentCommand([TestAsset, TestWorld, this, EditorTestName] {
 		// Spawn the test asset actor
 		*TestAsset = (*TestWorld)->SpawnActor<AActor>(FVector::ZeroVector, FRotator::ZeroRotator);
-		if (TestAsset == nullptr)
+		if (*TestAsset == nullptr)
 		{
 			AddError(EditorTestName + TEXT(": Failed to spawn the test asset."));
 		}

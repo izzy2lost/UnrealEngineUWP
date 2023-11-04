@@ -218,14 +218,13 @@ UStaticMesh* FAbcImporter::CreateStaticMeshFromSample(UObject* InParent, const F
 		{
 			UMaterialInterface* Material = AbcImporterUtilities::RetrieveMaterial(*AbcFile, FaceSetName, InParent, Flags);
 
-			if (Material != DefaultMaterial)
-			{
-				Material->PostEditChange();
-			}
-
 			if (Material == nullptr)
 			{
 				Material = DefaultMaterial;
+			}
+			else if (Material != DefaultMaterial)
+			{
+				Material->PostEditChange();
 			}
 
 			FName MaterialName(*FaceSetName);
@@ -812,14 +811,13 @@ TArray<UObject*> FAbcImporter::ImportAsSkeletalMesh(UObject* InParent, EObjectFl
 		for (const FString& FaceSetName : AbcFile->GetUniqueFaceSetNames())
 		{
 			UMaterialInterface* Material = AbcImporterUtilities::RetrieveMaterial(*AbcFile, FaceSetName, InParent, Flags);
-			if (Material != DefaultMaterial)
-			{
-				Material->PostEditChange();
-			}
-
 			if (Material == nullptr)
 			{
 				Material = DefaultMaterial;
+			}
+			else if (Material != DefaultMaterial)
+			{
+				Material->PostEditChange();
 			}
 
 			FName MaterialName(*FaceSetName);

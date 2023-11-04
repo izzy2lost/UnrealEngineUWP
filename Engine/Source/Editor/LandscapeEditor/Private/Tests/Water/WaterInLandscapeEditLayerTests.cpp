@@ -114,7 +114,10 @@ void FWaterInLandscapeEditLayerTestBase::Teardown()
 	}
 	if (WaterBrush)
 	{
-		Landscape->RemoveBrush(WaterBrush);
+		if (Landscape)
+		{
+			Landscape->RemoveBrush(WaterBrush);
+		}
 		World->EditorDestroyActor(WaterBrush, false);
 	}
 	// Removing landscape

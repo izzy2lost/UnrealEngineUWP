@@ -523,7 +523,7 @@ void FMaterialEditorHelpers::ExpandNode(FMaterialEditor& MaterialEditor, FMateri
 		UEdGraphPin* FunctionCallInputPin = FunctionCallInputPins[InputIndex];
 		const FFunctionExpressionInput& FunctionCallInput = FunctionCallExpression->FunctionInputs[InputIndex];
 		UMaterialExpressionFunctionInput* FunctionInput = IdsToFunctionInputs.FindRef(FunctionCallInput.ExpressionInputId);
-		UMaterialGraphNode* FunctionInputNode = Cast<UMaterialGraphNode>(FunctionInput->GraphNode);
+		UMaterialGraphNode* FunctionInputNode = FunctionInput ? Cast<UMaterialGraphNode>(FunctionInput->GraphNode) : nullptr;
 
 		if (!ensure(FunctionInput) || !ensure(FunctionInputNode))
 		{
@@ -652,7 +652,7 @@ void FMaterialEditorHelpers::ExpandNode(FMaterialEditor& MaterialEditor, FMateri
 		UEdGraphPin* FunctionCallOutputPin = FunctionCallOutputPins[OutputIndex];
 		const FFunctionExpressionOutput& FunctionCallOutput = FunctionCallExpression->FunctionOutputs[OutputIndex];
 		UMaterialExpressionFunctionOutput* FunctionOutput = IdsToFunctionOutputs.FindRef(FunctionCallOutput.ExpressionOutputId);
-		UMaterialGraphNode* FunctionOutputNode = Cast<UMaterialGraphNode>(FunctionOutput->GraphNode);
+		UMaterialGraphNode* FunctionOutputNode = FunctionOutput ? Cast<UMaterialGraphNode>(FunctionOutput->GraphNode) : nullptr;
 
 		if (!ensure(FunctionOutput) || !ensure(FunctionOutputNode))
 		{

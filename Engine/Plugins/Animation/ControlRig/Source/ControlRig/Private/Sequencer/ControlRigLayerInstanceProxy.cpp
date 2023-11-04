@@ -183,7 +183,7 @@ void FControlRigLayerInstanceProxy::AddControlRigTrack(int32 ControlRigID, UCont
 
 		if (ControlRigNodes.Num() > 0)
 		{
-			int32 PriorityOrder = Track->GetPriorityOrder();
+			int32 PriorityOrder = Track ? Track->GetPriorityOrder() : INDEX_NONE;
 			if (PriorityOrder == INDEX_NONE) //track has no order so just add to end, will happen on creation
 			{
 				if (InControlRig->IsAdditive()) //additive added to end of all

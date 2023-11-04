@@ -1162,7 +1162,7 @@ void UWorldPartitionSubsystem::UpdateStreamingStateInternal(const UWorld* InWorl
 	// Subsystem can be null during EndPlayMap. WorldPartition::Uninitialize will still call UpdateStreamingStateInternal to cleanup it's streaming levels
 	UWorldPartitionSubsystem* WorldPartitionSubsystem = UWorld::GetSubsystem<UWorldPartitionSubsystem>(World);
 	check(WorldPartitionSubsystem || InWorldPartition);
-	if (!InWorldPartition && WorldPartitionSubsystem->RegisteredWorldPartitions.IsEmpty())
+	if (!InWorldPartition && (WorldPartitionSubsystem == nullptr || WorldPartitionSubsystem->RegisteredWorldPartitions.IsEmpty()))
 	{
 		return;
 	}

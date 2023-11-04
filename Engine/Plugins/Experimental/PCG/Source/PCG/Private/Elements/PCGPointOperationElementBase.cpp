@@ -105,7 +105,7 @@ bool FPCGPointOperationElementBase::ExecutePointOperation(ContextType* Context, 
 			Context->TimeSliceIsEnabled(),
 			PointsPerChunk);
 
-		if (bAsyncDone && Context)
+		if (bAsyncDone)
 		{
 			PCGE_LOG_C(Verbose, LogOnly, Context, FText::Format(LOCTEXT("PointProcessInfo", "Processed {0} points"), IterState.NumPoints));
 		}

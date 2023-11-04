@@ -689,11 +689,11 @@ struct FUsdStageActorImpl
 
 			// Creates the new function on the LevelSequence's director blueprint
 			NewEndpoint = FMovieSceneDirectorBlueprintUtils::CreateFunctionEndpoint(DirectorBlueprint, EndpointDefinition);
-			NewEndpoint->MetaData.bCallInEditor = true;
 			if (!NewEndpoint)
 			{
 				return;
 			}
+			NewEndpoint->MetaData.bCallInEditor = true;
 		}
 
 		// Create a function call node within that endpoint that calls our UFunction

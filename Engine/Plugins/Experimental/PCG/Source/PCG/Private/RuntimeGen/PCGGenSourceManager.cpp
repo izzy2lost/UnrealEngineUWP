@@ -105,13 +105,13 @@ bool FPCGGenSourceManager::UnregisterGenSource(const IPCGGenSourceBase* InGenSou
 
 void FPCGGenSourceManager::OnGameModePostLogin(AGameModeBase* InGameMode, APlayerController* InPlayerController)
 {
-	if (InPlayerController->GetWorld() != World)
+	if (InPlayerController == nullptr || InPlayerController->GetWorld() != World)
 	{
 		return;
 	}
 	ensure(IsInGameThread());
 
-	if (InPlayerController && InPlayerController->GetPawn())
+	if (InPlayerController->GetPawn())
 	{
 		UPCGGenSourcePlayer* GenSource = NewObject<UPCGGenSourcePlayer>();
 		GenSource->SetPlayerController(InPlayerController);

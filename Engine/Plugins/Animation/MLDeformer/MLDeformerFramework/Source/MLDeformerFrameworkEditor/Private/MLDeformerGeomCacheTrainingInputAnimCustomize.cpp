@@ -106,17 +106,14 @@ namespace UE::MLDeformer
 
 		USkeleton* Skeleton = nullptr;
 		FMLDeformerEditorModel* EditorModel = nullptr;
-		if (Model)
+		if (Model->GetSkeletalMesh())
 		{
-			if (Model->GetSkeletalMesh())
-			{
-				Skeleton = Model->GetSkeletalMesh()->GetSkeleton();
-			}
-
-			// Get the editor model for this runtime model.
-			FMLDeformerEditorModule& EditorModule = FModuleManager::LoadModuleChecked<FMLDeformerEditorModule>("MLDeformerFrameworkEditor");
-			EditorModel = EditorModule.GetModelRegistry().GetEditorModel(Model);
+			Skeleton = Model->GetSkeletalMesh()->GetSkeleton();
 		}
+
+		// Get the editor model for this runtime model.
+		FMLDeformerEditorModule& EditorModule = FModuleManager::LoadModuleChecked<FMLDeformerEditorModule>("MLDeformerFrameworkEditor");
+		EditorModel = EditorModule.GetModelRegistry().GetEditorModel(Model);
 
 		// Add the properties
 		IDetailPropertyRow& AnimRow = ChildBuilder.AddProperty(AnimSequenceHandle.ToSharedRef());
