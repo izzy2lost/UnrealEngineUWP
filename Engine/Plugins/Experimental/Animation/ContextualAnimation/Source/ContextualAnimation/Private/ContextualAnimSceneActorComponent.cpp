@@ -78,6 +78,7 @@ UContextualAnimSceneActorComponent::UContextualAnimSceneActorComponent(const FOb
 	SetIsReplicatedByDefault(true);
 
 	SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	SetGenerateOverlapEvents(false);
 }
 
 void UContextualAnimSceneActorComponent::AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector)
