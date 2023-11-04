@@ -844,10 +844,10 @@ protected:
 	UPROPERTY(BlueprintAssignable, Category = "Events", meta = (AllowPrivateAccess = true))
 	FCommonSelectedStateChangedBase OnSelectedChangedBase;
 
-	UPROPERTY(BlueprintAssignable, Category = "Events", meta = (AllowPrivateAccess = true))
+	UPROPERTY(BlueprintAssignable, Category = "Events", meta = (AllowPrivateAccess = true, DisplayName = "OnClicked"))
 	FCommonButtonBaseClicked OnButtonBaseClicked;
 
-	UPROPERTY(BlueprintAssignable, Category = "Events", meta = (AllowPrivateAccess = true))
+	UPROPERTY(BlueprintAssignable, Category = "Events", meta = (AllowPrivateAccess = true, DisplayName = "OnDoubleClicked"))
 	FCommonButtonBaseClicked OnButtonBaseDoubleClicked;
 
 	UPROPERTY(BlueprintAssignable, Category = "Events", meta = (AllowPrivateAccess = true))
