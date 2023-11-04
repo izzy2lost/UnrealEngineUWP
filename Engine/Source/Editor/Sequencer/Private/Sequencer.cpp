@@ -2394,11 +2394,6 @@ void FSequencer::NotifyMovieSceneDataChanged( EMovieSceneDataChangeType DataChan
 		RefreshTree();
 		SetPlaybackStatus( StoredPlaybackState );
 	}
-	else if (DataChangeType == EMovieSceneDataChangeType::RefreshUI)
-	{
-		RefreshUI();
-		return;
-	}
 	else if (DataChangeType == EMovieSceneDataChangeType::TrackValueChangedRefreshImmediately)
 	{
 		// Evaluate now

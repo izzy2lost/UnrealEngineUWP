@@ -1485,7 +1485,7 @@ void ULevelSequenceEditorSubsystem::FixActorReferences()
 		FSequencerUtilities::UpdateBindingIDs(Sequencer.ToSharedRef(), GuidPair.Key, GuidPair.Value);
 	}
 
-	Sequencer->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::RefreshUI);
+	Sequencer->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::MovieSceneStructureItemsChanged);
 }
 
 void ULevelSequenceEditorSubsystem::AddActorsToBindingInternal()

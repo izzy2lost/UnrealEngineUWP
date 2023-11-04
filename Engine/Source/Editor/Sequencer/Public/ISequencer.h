@@ -195,9 +195,7 @@ enum class EMovieSceneDataChangeType
 	/** It's not known what data has changed. */
 	Unknown,
 	/** Refresh Tree on Next Tick */
-	RefreshTree,
-	/** Refresh UI completely */
-	RefreshUI
+	RefreshTree
 };
 
 /**
