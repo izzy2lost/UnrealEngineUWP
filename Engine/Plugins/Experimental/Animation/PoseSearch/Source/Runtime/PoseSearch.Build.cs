@@ -31,6 +31,8 @@ public class PoseSearch : ModuleRules
 		{
 			PrivateDependencyModuleNames.AddRange(
 				new string[] {
+					"AnimationModifiers",
+					"AnimationBlueprintLibrary",
 					"DerivedDataCache",
 					"UnrealEd"
 				}

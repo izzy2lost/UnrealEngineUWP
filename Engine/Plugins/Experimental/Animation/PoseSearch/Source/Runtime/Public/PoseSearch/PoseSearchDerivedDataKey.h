@@ -53,8 +53,11 @@ public:
 	const TSet<const UObject*>& GetDependencies() const;
 
 protected:
-	// to keep the key generation lightweight, we hash only the full names for these types
-	bool AddNameOnly(class UObject* Object) const;
+	// to keep the key generation lightweight, we don't hash these types
+	static bool IsExcludedType(class UObject* Object);
+
+	// to keep the key generation lightweight, we hash only the full names for these types. Object(s) will be added to Dependencies
+	static bool IsAddNameOnlyType(class UObject* Object);
 
 #if UE_POSE_SEARCH_DERIVED_DATA_LOGGING
 	FString GetIndentation() const;
@@ -64,7 +67,7 @@ protected:
 	HashBuilderType Hasher;
 
 	// Set of objects that have already been serialized
-	TSet<const UObject*> ObjectsAlreadySerialized;
+	TSet<const UObject*> Dependencies;
 
 	// Object currently being serialized
 	const UObject* ObjectBeingSerialized = nullptr;
