@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "NiagaraWorldManager.h"
+#include "Engine/Engine.h"
 #include "Engine/Level.h"
 #include "GameFramework/Pawn.h"
 #include "NiagaraModule.h"
