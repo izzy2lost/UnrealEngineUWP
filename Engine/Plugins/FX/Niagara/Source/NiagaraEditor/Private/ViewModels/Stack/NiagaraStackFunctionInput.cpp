@@ -1736,7 +1736,7 @@ void UNiagaraStackFunctionInput::GetAvailableParameterHandles(TArray<FNiagaraPar
 
 	for (FAssetData& CollectionAsset : CollectionAssets)
 	{
-		if ( UNiagaraParameterCollection* Collection = Cast<UNiagaraParameterCollection>(CollectionAsset.GetAsset()) )
+		if ( UNiagaraParameterCollection* Collection = Cast<UNiagaraParameterCollection>(CollectionAsset.GetSoftObjectPath().TryLoad()) )
 		{
 			for (const FNiagaraVariable& CollectionParam : Collection->GetParameters())
 			{
