@@ -210,6 +210,9 @@ public:
 	void PrimePool(UNiagaraSystem* System);
 
 	static void RequestInvalidateCachedSystemScalabilityDataForAllWorlds();
+
+	void SetTickGroupPriority(const int32 NiagaraTickGroupIndex, const bool bHighPriority);
+
 private:
 	static void InvalidateCachedSystemScalabilityDataForAllWorlds();
 	void InvalidateCachedSystemScalabilityData();
