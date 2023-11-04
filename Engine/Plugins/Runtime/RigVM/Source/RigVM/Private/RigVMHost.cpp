@@ -69,7 +69,12 @@ TArray<URigVMHost*> URigVMHost::FindRigVMHosts(UObject* Outer, TSubclassOf<URigV
 	for (TObjectIterator<URigVMHost> Itr; Itr; ++Itr)
 	{
 		URigVMHost* RigInstance = *Itr;
-		const UClass* RigInstanceClass = RigInstance ? RigInstance->GetClass() : nullptr;
+		if (!RigInstance)
+		{
+			continue;
+		}
+		
+		const UClass* RigInstanceClass = RigInstance->GetClass();
 		if (OptionalClass == nullptr || (RigInstanceClass && RigInstanceClass->IsChildOf(OptionalClass)))
 		{
 			if(RigInstance->IsInOuter(Outer))
@@ -148,8 +153,9 @@ void URigVMHost::PostLoad()
 			InitializeCDOVM();
 		}
 
-		if (!ensure(VM->ValidateAllOperandsDuringLoad()))
+		if (!ensure(VM->ValidateBytecode()))
 		{
+			UE_LOG(LogRigVM, Warning, TEXT("%s: Invalid bytecode detected. VM will be reset."), *GetPathName());
 			VM->Reset(ExtendedExecuteContext);
 		}
 	}

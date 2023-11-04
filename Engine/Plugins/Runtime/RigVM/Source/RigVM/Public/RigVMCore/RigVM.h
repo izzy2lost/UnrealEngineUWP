@@ -992,7 +992,7 @@ public:
 		return ActiveExecutions.load();
 	}
 
-	bool ValidateAllOperandsDuringLoad();
+	bool ValidateBytecode();
 	void RefreshArgumentNameCaches();
 
 private:
