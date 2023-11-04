@@ -1067,16 +1067,8 @@ FAutoConsoleCommand DebugAbilitySystemEffectApply(TEXT("AbilitySystem.Effect.App
 		UAbilitySystemGlobals& AbilitySystemGlobals = UAbilitySystemGlobals::Get();
 
 		APlayerController* PC = World->GetFirstPlayerController();
->>>> ORIGINAL //Fortnite/Dev-FN-28/Engine/Plugins/Runtime/GameplayAbilities/Source/GameplayAbilities/Private/AbilitySystemGlobals.cpp#1
-		APawn* Pawn = PC->GetPawn();
-		UAbilitySystemComponent* ASC = PC ? AbilitySystemGlobals.GetAbilitySystemComponentFromActor(Pawn) : nullptr;
-==== THEIRS //Fortnite/Dev-FN-28/Engine/Plugins/Runtime/GameplayAbilities/Source/GameplayAbilities/Private/AbilitySystemGlobals.cpp#2
-		APawn* Pawn = PC->GetPawn();
-		UAbilitySystemComponent* ASC = AbilitySystemGlobals.GetAbilitySystemComponentFromActor(Pawn);
-==== YOURS //Marc.Audy_Fortnite/Engine/Plugins/Runtime/GameplayAbilities/Source/GameplayAbilities/Private/AbilitySystemGlobals.cpp
 		APawn* Pawn = PC ? PC->GetPawn() : nullptr;
 		UAbilitySystemComponent* ASC = Pawn ? AbilitySystemGlobals.GetAbilitySystemComponentFromActor(Pawn) : nullptr;
-<<<<
 		if (!ASC)
 		{
 			OutputDevice.Logf(TEXT("Could not find Player (%s) with AbilitySystemComponent in World (%s)"), *GetNameSafe(PC), *GetNameSafe(World));
