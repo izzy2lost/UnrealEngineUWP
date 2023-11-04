@@ -131,6 +131,7 @@ private:
 #if WITH_EDITOR
 	/** Used to track down when StaticMesh has been modified for notification purpose */
 	class UStaticMesh* KnownStaticMesh = nullptr;
+	FDelegateHandle PreMeshBuildDelegateHandle;
 #endif
 	ENGINE_API void NotifyIfStaticMeshChanged();
 
