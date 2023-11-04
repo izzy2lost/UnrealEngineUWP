@@ -78,6 +78,14 @@ namespace
 		TEXT("(default: false)"),
 		ECVF_Scalability | ECVF_RenderThreadSafe);
 
+	TAutoConsoleVariable<int32> CVarAutoExposureLuminanceMethod(
+		TEXT("r.AutoExposure.LuminanceMethod"),
+		0,
+		TEXT("0 - Uniform.\n")
+		TEXT("1 - NSTC.\n")
+		TEXT("2 - Rec709."),
+		ECVF_RenderThreadSafe);
+
 	TAutoConsoleVariable<bool> CVarAutoExposureIgnoreMaterialsReconstructFromSceneColor(
 		TEXT("r.AutoExposure.IgnoreMaterials.ReconstructFromSceneColor"),
 		true,
@@ -533,6 +541,24 @@ FEyeAdaptationParameters GetEyeAdaptationParameters(const FViewInfo& View)
 	Parameters.VisualizeDebugType = CVarEyeAdaptationVisualizeDebugType.GetValueOnRenderThread();
 	Parameters.MeterMaskTexture = MeterMask;
 	Parameters.MeterMaskSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
+
+	const int32 LuminanceMethod = CVarAutoExposureLuminanceMethod.GetValueOnRenderThread();
+	if (LuminanceMethod == 1)
+	{
+		// NTSC / match weights in Common.ush
+		Parameters.LuminanceWeights = FVector3f(0.3f, 0.59f, 0.11f);
+	}
+	else if (LuminanceMethod == 2)
+	{
+		// Rec 709
+		Parameters.LuminanceWeights = FVector3f(0.2126f, 0.7152f, 0.0722f);
+	}
+	else
+	{
+		// default (uniform weights)
+		Parameters.LuminanceWeights = FVector3f(1.0f / 3.0f);
+	}
+
 	return Parameters;
 }
 
@@ -613,6 +639,7 @@ class FSetupExposureIlluminanceCS : public FGlobalShader
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, ColorTexture)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, RWIlluminanceTexture)
 		SHADER_PARAMETER_STRUCT(FScreenPassTextureViewportParameters, Illuminance)
+		SHADER_PARAMETER_STRUCT(FEyeAdaptationParameters, EyeAdaptation)
 		SHADER_PARAMETER(uint32, IllumiananceDownscaleFactor)
 	END_SHADER_PARAMETER_STRUCT()
 
@@ -663,6 +690,7 @@ FRDGTextureRef AddSetupExposureIlluminancePass(
 			PassParameters->ColorTexture = SceneTextures.Color.Resolve;
 			PassParameters->RWIlluminanceTexture = GraphBuilder.CreateUAV(OutputTexture);
 			PassParameters->Illuminance = GetScreenPassTextureViewportParameters(OutputViewport);
+			PassParameters->EyeAdaptation = GetEyeAdaptationParameters(View);
 			PassParameters->IllumiananceDownscaleFactor = GetAutoExposureIlluminanceDownscaleFactor();
 
 			auto ComputeShader = View.ShaderMap->GetShader<FSetupExposureIlluminanceCS>();

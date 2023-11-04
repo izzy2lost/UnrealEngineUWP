@@ -372,7 +372,7 @@ uint IllumiananceDownscaleFactor;
 // but skip the min since we apply EyeAdaptation_IgnoreMaterialsMinBaseColorLuminance here
 float CalculateEyeAdaptationLuminanceWithoutMin(float3 Color)
 {
-	return dot(Color, float3(1.0f, 1.0f, 1.0f) / 3.0f);
+	return dot(Color, EyeAdaptation_LuminanceWeights);
 }
 
 [numthreads(8, 8, 1)]
