@@ -32,6 +32,15 @@ void USoundNodeWavePlayer::Serialize(FArchive& Ar)
 	}
 }
 
+bool USoundNodeWavePlayer::ContainsProceduralSoundReference() const
+{
+	if (SoundWave)
+	{
+		return SoundWave->IsA<USoundWaveProcedural>();
+	}
+	return false;
+}
+
 void USoundNodeWavePlayer::LoadAsset(bool bAddToRoot)
 {
 	if (IsAsyncLoadingMultithreaded())

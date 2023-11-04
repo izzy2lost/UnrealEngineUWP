@@ -7,6 +7,7 @@
 #include "Sound/SoundCue.h"
 #include "Misc/App.h"
 #include "Sound/SoundNodeWavePlayer.h"
+#include "Sound/SoundNodeQualityLevel.h"
 #include "AudioCompressionSettingsUtils.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(SoundNode)
@@ -238,6 +239,31 @@ void USoundNode::RemoveSoundWaveOnChildWavePlayers()
 				{
 					WavePlayer->ClearAssetReferences();
 				}
+			}
+		}
+	}
+}
+
+void USoundNode::LoadChildWavePlayerAssets(bool bAddToRoot, bool bRecurse)
+{
+	// Search child nodes for wave players, then load their sound wave asset.
+	for (USoundNode* ChildNode : ChildNodes)
+	{
+		if (ChildNode)
+		{
+			if (bRecurse)
+			{
+				ChildNode->LoadChildWavePlayerAssets(bAddToRoot, bRecurse);
+			}
+
+			if (USoundNodeWavePlayer* WavePlayer = Cast<USoundNodeWavePlayer>(ChildNode))
+			{
+				WavePlayer->LoadAsset(bAddToRoot);
+			}
+			else if (USoundNodeQualityLevel* QualityNode = Cast<USoundNodeQualityLevel>(ChildNode))
+			{
+				// Take into account quality nodes by only loading wave players for the relevant quality level
+				QualityNode->LoadChildWavePlayers(bAddToRoot, bRecurse);
 			}
 		}
 	}

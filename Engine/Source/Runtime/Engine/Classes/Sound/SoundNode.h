@@ -235,5 +235,13 @@ public:
 	 * This should only be called by USoundNodeQualityLevel::PostLoad when au.CullSoundWaveHardReferences is 1.
 	 */
 	ENGINE_API virtual void RemoveSoundWaveOnChildWavePlayers();
+
+	/**
+	 * Load wave assets for any wave player sound nodes 
+	 * childed off of this node, taking into account quality nodes
+	 *
+	 * @param bRecurse when true, this will cause all children of child nodes to be loaded as well.
+	 */
+	ENGINE_API virtual void LoadChildWavePlayerAssets(bool bAddToRoot, bool bRecurse);
 };
 

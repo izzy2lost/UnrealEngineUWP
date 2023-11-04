@@ -76,6 +76,11 @@ void USoundNodeQualityLevel::ReleaseRetainerOnChildWavePlayers(bool bRecurse)
 	ForCurrentQualityLevel([bRecurse](USoundNode* Node) { Node->ReleaseRetainerOnChildWavePlayers(bRecurse); });
 }
 
+void USoundNodeQualityLevel::LoadChildWavePlayers(bool bAddToRoot, bool bRecurse)
+{
+	ForCurrentQualityLevel([bAddToRoot, bRecurse](USoundNode* Node) { Node->LoadChildWavePlayerAssets(bAddToRoot, bRecurse); });
+}
+
 int32 USoundNodeQualityLevel::GetMaxChildNodes() const
 {
 	return GetDefault<UAudioSettings>()->QualityLevels.Num();

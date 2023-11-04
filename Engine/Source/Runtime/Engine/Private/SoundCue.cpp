@@ -303,6 +303,34 @@ void USoundCue::EvaluateNodes(bool bAddToRoot)
 		}
 	};
 
+	TFunction<void(USoundNode*)> LoadProceduralAssets = [&](USoundNode* SoundNode)
+	{
+		if (SoundNode == nullptr)
+		{
+			return;
+		}
+
+		if (USoundNodeAssetReferencer* AssetReferencerNode = Cast<USoundNodeAssetReferencer>(SoundNode))
+		{
+			if (AssetReferencerNode->ContainsProceduralSoundReference())
+			{
+				AssetReferencerNode->ConditionalPostLoad();
+				AssetReferencerNode->LoadAsset(bAddToRoot);
+			}
+		}
+		else if (USoundNodeQualityLevel* QualityLevelNode = Cast<USoundNodeQualityLevel>(SoundNode))
+		{
+			QualityLevelNode->LoadChildWavePlayers(bAddToRoot, /*bRecurse=*/true);
+		}
+		else
+		{
+			for (USoundNode* ChildNode : SoundNode->ChildNodes)
+			{
+				LoadProceduralAssets(ChildNode);
+			}
+		}
+	};
+
 	// Only Evaluate nodes if we haven't been cooked, as cooked builds will hard-ref all SoundAssetReferences.	
 	UE_CLOG(CookedQualityIndex == INDEX_NONE, LogAudio, Verbose, TEXT("'%s', DOING EvaluateNodes as we are *NOT* cooked"), *GetName());
 	UE_CLOG(CookedQualityIndex != INDEX_NONE, LogAudio, Verbose, TEXT("'%s', SKIPPING EvaluateNodes as we *ARE* cooked"), *GetName());
@@ -310,6 +338,12 @@ void USoundCue::EvaluateNodes(bool bAddToRoot)
 	if (CookedQualityIndex == INDEX_NONE)
 	{		
 		EvaluateNodes_Internal(FirstNode);
+	}
+	else
+	{
+		// We need to load procedural assets (MetaSounds) to initialize their resources
+		// before playing (which EvaluateNodes_Internal does in the other case)
+		LoadProceduralAssets(FirstNode);
 	}
 }
 
