@@ -6,6 +6,7 @@
 #include "Animation/AnimNode_RelevantAssetPlayerBase.h"
 #include "Animation/AnimationAsset.h"
 #include "CoreMinimal.h"
+#include "IHasContext.h"
 #include "InstancedStruct.h"
 #include "IObjectChooser.h"
 #include "BlendStack/AnimNode_BlendStack.h"
@@ -94,13 +95,15 @@ struct FChooserPlayerSettings
 };
 
 USTRUCT(BlueprintInternalUseOnly)
-struct FAnimNode_ChooserPlayer : public FAnimNode_BlendStack_Standalone
+struct FAnimNode_ChooserPlayer : public FAnimNode_BlendStack_Standalone, public IHasContextClass
 {
 	GENERATED_BODY()
 
 	CHOOSER_API FAnimNode_ChooserPlayer();
 
 public:
+	virtual TConstArrayView<FInstancedStruct> GetContextData() const override { return ChooserContextDefinition; }
+	
 	// How often the chooser should be evaluated
 	UPROPERTY(EditAnywhere, Category = "Chooser")
 	EChooserEvaluationFrequency EvaluationFrequency = EChooserEvaluationFrequency::OnBecomeRelevant;
@@ -160,6 +163,7 @@ private:
 	UAnimationAsset* CurrentAsset = nullptr;
 	float CurrentStartTime = 0;
 	bool CurrentMirror = false;
+	bool bInitialized = false;
 	uint32 CurrentCurveOverridesHash = 0;
 	
 

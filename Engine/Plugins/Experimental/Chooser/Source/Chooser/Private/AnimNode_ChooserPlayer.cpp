@@ -2,6 +2,7 @@
 
 #include "AnimNode_ChooserPlayer.h"
 
+#include "IHasContext.h"
 #include "Animation/AnimInstanceProxy.h"
 #include "Animation/AnimPoseSearchProvider.h"
 #include "Animation/AnimStats.h"
@@ -63,10 +64,17 @@ void FAnimNode_ChooserPlayer::Initialize_AnyThread(const FAnimationInitializeCon
 	DECLARE_SCOPE_HIERARCHICAL_COUNTER_ANIMNODE(Initialize_AnyThread)
 	FAnimNode_BlendStack_Standalone::Initialize_AnyThread(Context);
 	
-	if(ChooserContext.Params.IsEmpty())
+	if(!bInitialized)
 	{
 		ChooserContext.AddObjectParam(Context.GetAnimInstanceObject());
 		ChooserContext.AddStructParam(Settings);
+
+		if (FObjectChooserBase* ObjectChooser = Chooser.GetMutablePtr<FObjectChooserBase>())
+		{
+			ObjectChooser->Compile(this,false);
+		}
+		
+		bInitialized = true;
 	}
 }
 

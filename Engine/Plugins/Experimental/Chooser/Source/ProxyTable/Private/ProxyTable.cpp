@@ -128,7 +128,7 @@ void UProxyTable::BuildRuntimeData()
 	for(const FProxyEntry& Entry : RuntimeEntries) 
 	{
 		Keys.Add(Entry.GetGuid());
-   		RuntimeValues.Add({Entry.ValueStruct, Entry.OutputStructData});
+   		RuntimeValues.Add({Entry.Proxy, Entry.ValueStruct, Entry.OutputStructData});
 	}
 	
 	// register callbacks on updated dependencies
@@ -147,13 +147,6 @@ void UProxyTable::BuildRuntimeData()
 	}
 }
 
-
-void UProxyTable::PostLoad()
-{
-	Super::PostLoad();
-	BuildRuntimeData();
-}
-
 void UProxyTable::PostTransacted(const FTransactionObjectEvent& TransactionEvent)
 {
 	UObject::PostTransacted(TransactionEvent);
@@ -162,6 +155,31 @@ void UProxyTable::PostTransacted(const FTransactionObjectEvent& TransactionEvent
 }
 
 #endif
+
+void UProxyTable::PostLoad()
+{
+	Super::PostLoad();
+#if WITH_EDITORONLY_DATA
+	BuildRuntimeData();
+#endif
+
+	// compilation for property accesses
+	for(FRuntimeProxyValue& Entry : RuntimeValues) 
+	{
+		if (FObjectChooserBase* Result = Entry.Value.GetMutablePtr<FObjectChooserBase>())
+		{
+			// need to compile results in case one is a LookupProxy
+			Result->Compile(Entry.ProxyAsset, false);
+		}
+
+		/// compile any struct output property references
+		for(FProxyStructOutput& StructOutput : Entry.OutputStructData)
+		{
+			StructOutput.Binding.Compile(Entry.ProxyAsset);
+		}
+	}
+}
+
 
 void UProxyTable::BeginDestroy()
 {

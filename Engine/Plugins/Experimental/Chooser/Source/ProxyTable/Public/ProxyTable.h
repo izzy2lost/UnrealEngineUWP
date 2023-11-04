@@ -57,6 +57,9 @@ struct PROXYTABLE_API FRuntimeProxyValue
 	GENERATED_BODY()
 
 	UPROPERTY()
+	TObjectPtr<UProxyAsset> ProxyAsset;
+
+	UPROPERTY()
 	FInstancedStruct Value;
 
 	UPROPERTY()
@@ -80,6 +83,7 @@ public:
 	FObjectChooserBase::EIteratorStatus FindProxyObjectMulti(const FGuid& Key, FChooserEvaluationContext &Context, FObjectChooserBase::FObjectChooserIteratorCallback Callback) const;
 	UObject* FindProxyObject(const FGuid& Key, FChooserEvaluationContext& Context) const;
 
+	virtual void PostLoad() override;
 #if WITH_EDITORONLY_DATA
 public:
 	FProxyTableChanged OnProxyTableChanged;
@@ -90,7 +94,6 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Inheritance")
 	TArray<TObjectPtr<UProxyTable>> InheritEntriesFrom;
 
-	virtual void PostLoad() override;
 	virtual void PostTransacted(const FTransactionObjectEvent& TransactionEvent) override;
 private:
 	void BuildRuntimeData();

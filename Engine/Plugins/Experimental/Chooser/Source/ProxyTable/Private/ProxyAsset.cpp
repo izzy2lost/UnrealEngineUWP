@@ -83,6 +83,14 @@ void UProxyAsset::PostLoad()
 		Guid.B = GetTypeHash(GetPackage()->GetPathName());
 	}
 
+	if (ProxyTable.IsValid())
+	{
+		// compile property access for Proxy Table fallback codepath
+		if (FChooserParameterProxyTableBase* ProxyReference = ProxyTable.GetMutablePtr<FChooserParameterProxyTableBase>())
+		{
+			ProxyReference->Compile(this, false);
+		}
+	}
 }
 
 void UProxyAsset::PostDuplicate(EDuplicateMode::Type DuplicateMode)
