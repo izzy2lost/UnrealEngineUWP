@@ -3395,7 +3395,7 @@ static bool ReceivePropertyHelper(
 				check(GuidReferences->ParentIndex == Cmd.ParentIndex);
 
 				// If we're already tracking the guids, re-copy lists only if they've changed
-				if (!NetworkGuidSetsAreSame(GuidReferences->GetUnmappedGUIDs(), TrackedUnmappedGuids))
+				if (!NetworkGuidSetsAreSame(GuidReferences->UnmappedGUIDs, TrackedUnmappedGuids))
 				{
 					bOutGuidsChanged = true;
 				}
@@ -3408,7 +3408,7 @@ static bool ReceivePropertyHelper(
 			if (GuidReferences == nullptr || bOutGuidsChanged)
 			{
 				// First time tracking these guids (or guids changed), so add (or replace) new entry
-				GuidReferencesMap->Emplace(AbsOffset, FGuidReferences(Bunch, Mark, TrackedUnmappedGuids, TrackedDynamicMappedGuids, Cmd.ParentIndex, CmdIndex, Bunch.PackageMap));
+				GuidReferencesMap->Add(AbsOffset, FGuidReferences(Bunch, Mark, TrackedUnmappedGuids, TrackedDynamicMappedGuids, Cmd.ParentIndex, CmdIndex));
 				bOutGuidsChanged = true;
 			}
 			else if (UE::Net::Private::bAlwaysUpdateGuidReferenceMapForNetSerializeObjectStruct && Cmd.Type == ERepLayoutCmdType::NetSerializeStructWithObjectReferences)
@@ -3416,7 +3416,7 @@ static bool ReceivePropertyHelper(
 				// If this is a NetSerialize struct with object references, there may be other properties "wrapped up" with this GUID reference.
 				// In this case, the entry in the map should be always be updated, so there isn't outdated data in the entry that also gets
 				// applied when the Guid possibly goes unmapped and then mapped later.
-				GuidReferencesMap->Emplace(AbsOffset, FGuidReferences(Bunch, Mark, TrackedUnmappedGuids, TrackedDynamicMappedGuids, Cmd.ParentIndex, CmdIndex, Bunch.PackageMap));
+				GuidReferencesMap->Add(AbsOffset, FGuidReferences(Bunch, Mark, TrackedUnmappedGuids, TrackedDynamicMappedGuids, Cmd.ParentIndex, CmdIndex));
 			}
 		}
 		else
@@ -3450,8 +3450,7 @@ static FGuidReferencesMap* PrepReceivedArray(
 	FRepShadowDataBuffer* OutShadowBaseData,
 	FRepObjectDataBuffer* OutBaseData,
 	TArray<FProperty*>* RepNotifies,
-	bool& bOutShadowDataCopied,
-	UPackageMap* PackageMap)
+	bool& bOutShadowDataCopied)
 {
 	FGuidReferences* NewGuidReferencesArray = nullptr;
 
@@ -3462,7 +3461,11 @@ static FGuidReferencesMap* PrepReceivedArray(
 
 		if (NewGuidReferencesArray == nullptr)
 		{
-			NewGuidReferencesArray = &ParentGuidReferences->Emplace(AbsOffset, FGuidReferences(new FGuidReferencesMap, Cmd.ParentIndex, CmdIndex, PackageMap));
+			NewGuidReferencesArray = &ParentGuidReferences->FindOrAdd(AbsOffset);
+
+			NewGuidReferencesArray->Array = new FGuidReferencesMap;
+			NewGuidReferencesArray->ParentIndex = Cmd.ParentIndex;
+			NewGuidReferencesArray->CmdIndex = CmdIndex;
 		}
 
 		check(NewGuidReferencesArray != nullptr);
@@ -3665,8 +3668,7 @@ static bool ReceiveProperties_r(FReceivePropertiesSharedParams& Params, FReceive
 					&ShadowArrayBuffer,
 					&ObjectArrayBuffer,
 					StackParams.RepNotifies,
-					ArrayStackParams.bShadowDataCopied,
-					Params.Bunch.PackageMap);
+					ArrayStackParams.bShadowDataCopied);
 
 				// Read the next array handle.
 				ReadPropertyHandle(Params);
@@ -4051,8 +4053,8 @@ bool FRepLayout::ReceiveProperties_BackwardsCompatible_r(
 				&LocalShadowData,
 				&LocalData,
 				ShadowData ? &RepState->RepNotifies : nullptr,
-				bShadowDataCopied,
-				TempReader.PackageMap);
+				bShadowDataCopied
+				);
 
 			// Read until we read all array elements
 			while (true)
@@ -4185,7 +4187,7 @@ void FRepLayout::GatherGuidReferences_r(
 
 		OutTrackedGuidMemoryBytes += GuidReferences.Buffer.Num();
 
-		OutReferencedGuids.Append(GuidReferences.GetUnmappedGUIDs());
+		OutReferencedGuids.Append(GuidReferences.UnmappedGUIDs);
 		OutReferencedGuids.Append(GuidReferences.MappedDynamicGUIDs);
 	}
 }
@@ -4248,7 +4250,7 @@ bool FRepLayout::MoveMappedObjectToUnmapped_r(FGuidReferencesMap* GuidReferences
 		if (GuidReferences.MappedDynamicGUIDs.Contains(GUID))
 		{
 			GuidReferences.MappedDynamicGUIDs.Remove(GUID);
-			GuidReferences.AddUnmappedGUID(GUID);
+			GuidReferences.UnmappedGUIDs.Add(GUID);
 			bFoundGUID = true;
 
 #if WITH_PUSH_MODEL
@@ -4372,7 +4374,40 @@ void FRepLayout::UpdateUnmappedObjects_r(
 			continue;
 		}
 
-		bool bMappedSomeGUIDs = GuidReferences.UpdateUnmappedGUIDs(Connection->PackageMap, OriginalObject, Cmd.Property, AbsOffset);
+		bool bMappedSomeGUIDs = false;
+
+		for (auto UnmappedIt = GuidReferences.UnmappedGUIDs.CreateIterator(); UnmappedIt; ++UnmappedIt)
+		{
+			const FNetworkGUID& GUID = *UnmappedIt;
+
+			if (Connection->PackageMap->IsGUIDBroken(GUID, false))
+			{
+				UE_LOG(LogRep, Warning, TEXT("UpdateUnmappedObjects_r: Broken GUID. NetGuid: %s"), *GUID.ToString());
+				UnmappedIt.RemoveCurrent();
+				continue;
+			}
+
+			UObject* Object = Connection->PackageMap->GetObjectFromNetGUID(GUID, false);
+
+			if (Object != nullptr)
+			{
+				UE_LOG(LogRep, VeryVerbose, TEXT("UpdateUnmappedObjects_r: REMOVED unmapped property: Offset: %i, Guid: %s, PropName: %s, ObjName: %s"), AbsOffset, *GUID.ToString(), *Cmd.Property->GetName(), *Object->GetName());
+
+				if (GUID.IsDynamic())
+				{
+					// If this guid is dynamic, move it to the dynamic guids list
+					GuidReferences.MappedDynamicGUIDs.Add(GUID);
+				}
+
+				// Remove from unmapped guids list
+				UnmappedIt.RemoveCurrent();
+				bMappedSomeGUIDs = true;
+
+#if WITH_PUSH_MODEL
+				FNetPrivatePushIdHelper::MarkPropertyDirty(OriginalObject, GuidReferences.ParentIndex);
+#endif
+			}
+		}
 
 		// If we resolved some guids, re-deserialize the data which will hook up the object pointer with the property
 		if (bMappedSomeGUIDs)
@@ -4421,11 +4456,11 @@ void FRepLayout::UpdateUnmappedObjects_r(
 		}
 
 		// If we still have more unmapped guids, we need to keep processing this entry
-		if (GuidReferences.GetUnmappedGUIDs().Num() > 0)
+		if (GuidReferences.UnmappedGUIDs.Num() > 0)
 		{
 			bOutHasMoreUnmapped = true;
 		}
-		else if (GuidReferences.GetUnmappedGUIDs().Num() == 0 && GuidReferences.MappedDynamicGUIDs.Num() == 0)
+		else if (GuidReferences.UnmappedGUIDs.Num() == 0 && GuidReferences.MappedDynamicGUIDs.Num() == 0)
 		{
 			It.RemoveCurrent();
 		}

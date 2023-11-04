@@ -15,7 +15,6 @@
 #include "Misc/MemStack.h"
 #include "Misc/ScopeExit.h"
 #include "Net/Core/Trace/Private/NetTraceInternal.h"
-#include "Net/Core/Misc/GuidReferences.h"
 #include "Net/Core/NetCoreModule.h"
 #include "UObject/UObjectIterator.h"
 #include "EngineStats.h"
@@ -113,6 +112,7 @@ namespace UE::Net
 {
 	extern int32 FilterGuidRemapping;
 	extern bool bDiscardTornOffActorRPCs;
+	extern bool bRemapStableSubobjects;
 
 	static float QueuedBunchTimeoutSeconds = 30.0f;
 	static FAutoConsoleVariableRef CVarQueuedBunchTimeoutSeconds(
@@ -2408,11 +2408,11 @@ void UActorChannel::DestroyActorAndComponents()
 		}
 
 		// Also unmap any stably-named subobjects we didn't create
-		if (UE::Net::Private::bRemapStableSubobjects)
+		if (UE::Net::bRemapStableSubobjects)
 		{
 			TArray<UObject*> Inners;
 			GetObjectsWithOuter(Actor, Inners);
-			for (const UObject* Inner : Inners)
+			for (UObject* Inner : Inners)
 			{
 				if (Inner->IsNameStableForNetworking())
 				{

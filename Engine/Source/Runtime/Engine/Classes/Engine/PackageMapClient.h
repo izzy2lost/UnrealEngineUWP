@@ -146,31 +146,6 @@ private:
 	TObjectPtr<UObject> Object;
 };
 
-namespace UE::Net::Private
-{
-	/** Simple class to manage a reference-counted array of FNetworkGUIDs */
-	class FRefCountedNetGUIDArray
-	{
-	public:
-		FRefCountedNetGUIDArray() {}
-		FRefCountedNetGUIDArray(const FRefCountedNetGUIDArray&) = delete;
-		FRefCountedNetGUIDArray& operator=(const FRefCountedNetGUIDArray&) = delete;
-
-		FRefCountedNetGUIDArray(FRefCountedNetGUIDArray&& Other) = default;
-		FRefCountedNetGUIDArray& operator=(FRefCountedNetGUIDArray&& Other) = default;
-		~FRefCountedNetGUIDArray() = default;
-
-		void Add(FNetworkGUID NetGUID);
-		void RemoveSwap(FNetworkGUID NetGUID);
-
-		const TArray<FNetworkGUID>& GetNetGUIDs() const { return NetGUIDs; }
-
-	private:
-		TArray<FNetworkGUID> NetGUIDs;
-		TArray<int32> RefCounts;
-	};
-}
-
 class FNetGUIDCache
 {
 public:
@@ -252,9 +227,6 @@ public:
 	ENGINE_API void ReportSyncLoadedGUIDs();
 
 	ENGINE_API void ResetReplayDirtyTracking();
-
-	ENGINE_API const TArray<FNetworkGUID>* FindUnmappedStablyNamedGuidsWithOuter(FNetworkGUID OuterGUID) const;
-	ENGINE_API const void RemoveUnmappedStablyNamedGuidsWithOuter(FNetworkGUID OuterGUID) { UnmappedStablyNamedGuids_OuterToInner.Remove(OuterGUID); }
 
 	TMap< FNetworkGUID, FNetGuidCacheObject >		ObjectLookup;
 	TMap< TWeakObjectPtr< UObject >, FNetworkGUID >	NetGUIDLookup;
@@ -357,12 +329,6 @@ private:
 	 * pending guids. 
 	 */
 	TMap<FNetworkGUID, TWeakPtr<FQueuedBunchObjectReference>> QueuedBunchObjectReferences;
-
-	/**
-	 * Map of outer GUIDs to their unmapped, stably named subobjects.
-	 * So that the inner objects can be remapped when their outer GUID is imported again.
-	 */
-	TMap<FNetworkGUID, UE::Net::Private::FRefCountedNetGUIDArray> UnmappedStablyNamedGuids_OuterToInner;
 
 #if CSV_PROFILER
 public:
@@ -540,9 +506,6 @@ public:
 
 		return FullGuidCachePath;
 	}
-
-	virtual void AddUnmappedNetGUIDReference(FNetworkGUID UnmappedGUID) override;
-	virtual void RemoveUnmappedNetGUIDReference(FNetworkGUID MappedGUID) override;
 
 protected:
 
