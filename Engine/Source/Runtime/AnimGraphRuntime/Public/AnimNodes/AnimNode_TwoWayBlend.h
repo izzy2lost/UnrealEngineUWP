@@ -41,7 +41,7 @@ protected:
 	uint8 bResetChildOnActivation:1;
 
 	/** Always update children, regardless of whether or not that child has weight. */
-	UPROPERTY(EditAnywhere, Category = Option)
+	UPROPERTY(EditAnywhere, Category = Option, meta=(PinHiddenByDefault))
 	uint8 bAlwaysUpdateChildren:1;
 
 public:
