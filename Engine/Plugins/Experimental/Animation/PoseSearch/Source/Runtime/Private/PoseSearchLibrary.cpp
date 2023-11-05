@@ -363,6 +363,15 @@ void UPoseSearchLibrary::UpdateMotionMatchingState(
 		}
 #endif // UE_POSE_SEARCH_TRACE_ENABLED
 
+		
+#if WITH_EDITOR
+		// resetting CurrentSearchResult if any DDC indexing on the requested databases is still in progress
+		if (SearchContext.IsAsyncBuildIndexInProgress())
+		{
+			InOutMotionMatchingState.CurrentSearchResult.Reset();
+		}
+#endif // WITH_EDITOR
+
 #if !NO_LOGGING
 		if (!SearchResult.IsValid())
 		{
@@ -371,6 +380,14 @@ void UPoseSearchLibrary::UpdateMotionMatchingState(
 			StringBuilder << bForceInterrupt;
 			StringBuilder << "], CanAdvance [";
 			StringBuilder << bCanAdvance;
+			StringBuilder << "], Indexing [";
+
+#if WITH_EDITOR
+			StringBuilder << SearchContext.IsAsyncBuildIndexInProgress();
+//#else // WITH_EDITOR
+			StringBuilder << false;
+#endif // WITH_EDITOR
+
 			StringBuilder << "], Databases [";
 
 			for (int32 DatabaseIndex = 0; DatabaseIndex < Databases.Num(); ++DatabaseIndex)
@@ -428,11 +445,7 @@ void UPoseSearchLibrary::UpdateMotionMatchingState(
 		const UPoseSearchDatabase* CurResultDatabase = CurResult.Database.Get();
 
 #if WITH_EDITOR
-		// in case we're still indexing MotionMatchingState.CurrentSearchResult.Database we Reset the MotionMatchingState
-		if (!FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndex(CurResultDatabase, ERequestAsyncBuildFlag::ContinueRequest))
-		{
-		}
-		else
+		if (FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndex(CurResultDatabase, ERequestAsyncBuildFlag::ContinueRequest))
 #endif // WITH_EDITOR
 		{
 			if (bDebugDrawCurResult)

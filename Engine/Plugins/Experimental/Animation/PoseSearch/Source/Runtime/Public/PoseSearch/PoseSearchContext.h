@@ -190,6 +190,12 @@ struct POSESEARCH_API FSearchContext
 	// returns the world space transform of the bone SchemaBoneIdx at time SampleTime
 	FTransform GetWorldBoneTransformAtTime(float SampleTime, const UPoseSearchSchema* Schema = nullptr, int8 SchemaBoneIdx = RootSchemaBoneIdx);
 	
+#if WITH_EDITOR
+	void SetAsyncBuildIndexInProgress() { bAsyncBuildIndexInProgress = true; }
+	void ResetAsyncBuildIndexInProgress() { bAsyncBuildIndexInProgress = false; }
+	bool IsAsyncBuildIndexInProgress() const { return bAsyncBuildIndexInProgress; }
+#endif // WITH_EDITOR
+
 private:
 	FVector GetSamplePositionInternal(float SampleTime, float OriginTime, const UPoseSearchSchema* Schema, int8 SchemaSampleBoneIdx = RootSchemaBoneIdx, int8 SchemaOriginBoneIdx = RootSchemaBoneIdx, const FVector* SampleBonePositionWorldOverride = nullptr);
 	FQuat GetSampleRotationInternal(float SampleTime, float OriginTime, const UPoseSearchSchema* Schema, int8 SchemaSampleBoneIdx = RootSchemaBoneIdx, int8 SchemaOriginBoneIdx = RootSchemaBoneIdx, const FQuat* SampleBoneRotationWorldOverride = nullptr);
@@ -217,6 +223,10 @@ private:
 
 	float CurrentBestTotalCost = MAX_flt;
 	
+#if WITH_EDITOR
+	bool bAsyncBuildIndexInProgress = false;
+#endif // WITH_EDITOR
+
 #if UE_POSE_SEARCH_TRACE_ENABLED
 
 	struct FPoseCandidateIdCost

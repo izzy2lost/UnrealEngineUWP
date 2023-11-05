@@ -852,6 +852,7 @@ UE::PoseSearch::FSearchResult UPoseSearchDatabase::Search(UE::PoseSearch::FSearc
 #if WITH_EDITOR
 	if (!FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndex(this, ERequestAsyncBuildFlag::ContinueRequest))
 	{
+		SearchContext.SetAsyncBuildIndexInProgress();
 		return Result;
 	}
 #endif // WITH_EDITOR
@@ -960,6 +961,7 @@ UE::PoseSearch::FSearchResult UPoseSearchDatabase::SearchContinuingPose(UE::Pose
 #if WITH_EDITOR
 	if (!FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndex(this, ERequestAsyncBuildFlag::ContinueRequest))
 	{
+		SearchContext.SetAsyncBuildIndexInProgress();
 		return Result;
 	}
 #endif // WITH_EDITOR
