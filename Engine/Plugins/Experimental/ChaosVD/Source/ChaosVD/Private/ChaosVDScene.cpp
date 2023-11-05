@@ -413,7 +413,7 @@ void FChaosVDScene::CreateBaseLights(UWorld* TargetWorld) const
 UWorld* FChaosVDScene::CreatePhysicsVDWorld()
 {
 	const FName UniqueWorldName = FName(FGuid::NewGuid().ToString());
-	UWorld* NewWorld = NewWorld = NewObject<UWorld>( GetTransientPackage(), UniqueWorldName );
+	UWorld* NewWorld = NewObject<UWorld>( GetTransientPackage(), UniqueWorldName );
 	
 	NewWorld->WorldType = EWorldType::EditorPreview;
 

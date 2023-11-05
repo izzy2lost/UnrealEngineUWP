@@ -2513,7 +2513,7 @@ TSharedPtr<SWidget> SBindingsList::OnSourceConstructContextMenu()
 								bCanRecombinePin = false;
 							}
 
-							UEdGraphPin* GraphPin = GraphPin = EditorSubsystem->GetConversionFunctionArgumentPin(WidgetBlueprint, *Binding, Entry->GetBindingParameterName(), bSourceToDestination);
+							UEdGraphPin* GraphPin = EditorSubsystem->GetConversionFunctionArgumentPin(WidgetBlueprint, *Binding, Entry->GetBindingParameterName(), bSourceToDestination);
 							if (GraphPin == nullptr || GraphPin->ParentPin == nullptr)
 							{
 								bCanRecombinePinVisible = false;

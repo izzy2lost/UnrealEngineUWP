@@ -530,7 +530,7 @@ void UCookCommandlet::RunCookByTheBookCook(UCookOnTheFlyServer* CookOnTheFlyServ
 		DECLARE_SCOPE_CYCLE_COUNTER(TEXT("CookByTheBook.MainLoop"), STAT_CookByTheBook_MainLoop, STATGROUP_LoadTime);
 		while (CookOnTheFlyServer->IsInSession())
 		{
-			uint32 TickResults = TickResults = CookOnTheFlyServer->TickCookByTheBook(MAX_flt,
+			uint32 TickResults = CookOnTheFlyServer->TickCookByTheBook(MAX_flt,
 				ShowProgress ? ECookTickFlags::None : ECookTickFlags::HideProgressDisplay);
 			ConditionalCollectGarbage(TickResults, *CookOnTheFlyServer);
 		}
