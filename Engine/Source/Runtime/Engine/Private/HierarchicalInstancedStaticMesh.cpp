@@ -2596,7 +2596,7 @@ void UHierarchicalInstancedStaticMeshComponent::BuildComponentInstanceData(FInst
 	OutData.NumSourceInstances = PerInstanceSMData.Num();
 	OutData.NumCustomDataFloats = NumCustomDataFloats;
 
-	OutData.BuildChangeSet = [&](FISMInstanceUpdateChangeSet &ChangeSet)
+	OutData.BuildChangeSet = [this](FISMInstanceUpdateChangeSet &ChangeSet)
 	{
 		BuildInstanceDataDeltaChangeSetCommon(ChangeSet);
 		ChangeSet.SetInstanceTransforms(MakeStridedView(PerInstanceSMData, &FInstancedStaticMeshInstanceData::Transform), -TranslatedInstanceSpaceOrigin);

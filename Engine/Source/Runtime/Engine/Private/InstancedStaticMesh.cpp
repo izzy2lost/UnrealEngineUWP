@@ -2419,7 +2419,7 @@ void UInstancedStaticMeshComponent::BuildComponentInstanceData(FInstanceUpdateCo
 	OutData.NumCustomDataFloats = NumCustomDataFloats;
 
 	// Function that only gets called if we actually need to flush any changes.
-	OutData.BuildChangeSet = [&](FISMInstanceUpdateChangeSet &ChangeSet)
+	OutData.BuildChangeSet = [this](FISMInstanceUpdateChangeSet &ChangeSet)
 	{
 		BuildInstanceDataDeltaChangeSetCommon(ChangeSet);
 
