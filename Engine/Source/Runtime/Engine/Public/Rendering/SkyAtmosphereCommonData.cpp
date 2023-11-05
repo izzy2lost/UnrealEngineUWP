@@ -63,7 +63,7 @@ FAtmosphereSetup::FAtmosphereSetup(const USkyAtmosphereComponent& SkyAtmosphereC
 				FMath::Exp(-CoeffSRGB.B));
 
 			// Convert transmittance color from sRGB to working color space.
-			Transmittance = FColorSpaceTransform(FColorSpace(EColorSpace::sRGB), WorkingColorSpace).Apply(Transmittance);
+			Transmittance = FColorSpaceTransform::GetSRGBToWorkingColorSpace().Apply(Transmittance);
 
 			// New we have a transmittance in working color space, convert it back to coefficients for this working color space.
 			return FLinearColor(

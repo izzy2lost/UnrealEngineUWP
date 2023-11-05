@@ -41,6 +41,7 @@
 #include "VT/RuntimeVirtualTexture.h"
 #include "SparseVolumeTexture/SparseVolumeTexture.h"
 #include "ProfilingDebugging/LoadTimeTracker.h"
+#include "ColorSpace.h"
 
 #include "Materials/MaterialExpressionAbs.h"
 #include "Materials/MaterialExpressionAbsorptionMediumMaterialOutput.h"
@@ -214,6 +215,7 @@
 #include "Materials/MaterialExpressionSphereMask.h"
 #include "Materials/MaterialExpressionSphericalParticleOpacity.h"
 #include "Materials/MaterialExpressionSquareRoot.h"
+#include "Materials/MaterialExpressionSRGBColorToWorkingColorSpace.h"
 #include "Materials/MaterialExpressionStaticBool.h"
 #include "Materials/MaterialExpressionStaticSwitch.h"
 #include "Materials/MaterialExpressionStep.h"
@@ -11029,6 +11031,62 @@ int32 UMaterialExpressionSquareRoot::Compile(class FMaterialCompiler* Compiler, 
 void UMaterialExpressionSquareRoot::GetCaption(TArray<FString>& OutCaptions) const
 {
 	OutCaptions.Add(TEXT("Sqrt"));
+}
+#endif // WITH_EDITOR
+
+UMaterialExpressionSRGBColorToWorkingColorSpace::UMaterialExpressionSRGBColorToWorkingColorSpace(const FObjectInitializer& ObjectInitializer)
+	: Super(ObjectInitializer)
+{
+#if WITH_EDITORONLY_DATA
+	// Structure to hold one-time initialization
+	struct FConstructorStatics
+	{
+		FText NAME_Color;
+		FConstructorStatics()
+			: NAME_Color(LOCTEXT("Color", "Color"))
+		{
+		}
+	};
+	static FConstructorStatics ConstructorStatics;
+
+	MenuCategories.Add(ConstructorStatics.NAME_Color);
+#endif
+}
+
+#if WITH_EDITOR
+int32 UMaterialExpressionSRGBColorToWorkingColorSpace::Compile(class FMaterialCompiler* Compiler, int32 OutputIndex)
+{
+	if (!Input.GetTracedInput().Expression)
+	{
+		return Compiler->Errorf(TEXT("Missing sRGBColorToWorkingColorSpace input"));
+	}
+
+	int32 Color = Input.Compile(Compiler);
+	int32 Result = Color;
+
+	if (!UE::Color::FColorSpace::GetWorking().IsSRGB())
+	{
+		const UE::Color::FColorSpaceTransform& Transform = UE::Color::FColorSpaceTransform::GetSRGBToWorkingColorSpace();
+
+		const int32 R = Compiler->Dot(Color, Compiler->Constant3((float)Transform.M[0][0], (float)Transform.M[1][0], (float)Transform.M[2][0]));
+		const int32 G = Compiler->Dot(Color, Compiler->Constant3((float)Transform.M[0][1], (float)Transform.M[1][1], (float)Transform.M[2][1]));
+		const int32 B = Compiler->Dot(Color, Compiler->Constant3((float)Transform.M[0][2], (float)Transform.M[1][2], (float)Transform.M[2][2]));
+		Result = Compiler->AppendVector(Compiler->AppendVector(R, G), B);
+
+		EMaterialValueType VectorType = Compiler->GetParameterType(Color);
+		if (VectorType & MCT_Float4 || VectorType == MCT_LWCVector4)
+		{
+			// We preserve the original alpha when applicable
+			Result = Compiler->AppendVector(Result, Compiler->ComponentMask(Color, false, false, false, true));
+		}
+	}
+
+	return Result;
+}
+
+void UMaterialExpressionSRGBColorToWorkingColorSpace::GetCaption(TArray<FString>& OutCaptions) const
+{
+	OutCaptions.Add(TEXT("sRGBColorToWorkingColorSpace"));
 }
 #endif // WITH_EDITOR
 

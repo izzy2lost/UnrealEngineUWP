@@ -8288,7 +8288,7 @@ void GlobalBeginCompileShader(
 					FromXYZ.M[0][1], FromXYZ.M[1][1], FromXYZ.M[2][1],
 					FromXYZ.M[0][2], FromXYZ.M[1][2], FromXYZ.M[2][2]));
 
-			const FColorSpaceTransform FromSRGB(FColorSpace(EColorSpace::sRGB), WorkingColorSpace);
+			const FColorSpaceTransform& FromSRGB = FColorSpaceTransform::GetSRGBToWorkingColorSpace();
 			SET_SHADER_DEFINE(Input.Environment,
 				SRGB_TO_WORKING_COLOR_SPACE_MAT,
 				FString::Printf(MatrixFormat,

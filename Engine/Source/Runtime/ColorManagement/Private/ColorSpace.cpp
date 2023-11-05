@@ -301,6 +301,13 @@ FMatrix44d FColorSpaceTransform::CalcChromaticAdaptionMatrix(FVector3d SourceXYZ
 	return XyzToRgb * ScaleMat * RgbToXyz;
 }
 
+FColorSpaceTransform FColorSpaceTransform::GetSRGBToWorkingColorSpace()
+{
+	static FColorSpaceTransform CachedTransform = FColorSpaceTransform(FColorSpace(EColorSpace::sRGB), FColorSpace::GetWorking());
+	
+	return CachedTransform;
+}
+
 static FMatrix44d CalcColorSpaceTransformMatrix(const FColorSpace& Src, const FColorSpace& Dst, EChromaticAdaptationMethod Method)
 {
 	if (Method == UE::Color::EChromaticAdaptationMethod::None)

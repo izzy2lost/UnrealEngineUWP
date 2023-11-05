@@ -197,6 +197,7 @@
 #include "Materials/MaterialExpressionSpeedTree.h"
 #include "Materials/MaterialExpressionSphereMask.h"
 #include "Materials/MaterialExpressionSquareRoot.h"
+#include "Materials/MaterialExpressionSRGBColorToWorkingColorSpace.h"
 #include "Materials/MaterialExpressionStaticBool.h"
 #include "Materials/MaterialExpressionStaticComponentMaskParameter.h"
 #include "Materials/MaterialExpressionStaticSwitch.h"
@@ -238,6 +239,7 @@
 #include "MaterialShared.h"
 #include "Misc/MemStackUtility.h"
 #include "RenderUtils.h"
+#include "ColorSpace.h"
 
 bool UMaterialExpression::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
 {
@@ -2375,6 +2377,36 @@ bool UMaterialExpressionSquareRoot::GenerateHLSLExpression(FMaterialHLSLGenerato
 		return false;
 	}
 	OutExpression = Generator.GetTree().NewUnaryOp(EOperation::Sqrt, InputExpression);
+	return true;
+}
+
+bool UMaterialExpressionSRGBColorToWorkingColorSpace::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
+{
+	using namespace UE::HLSLTree;
+	const FExpression* InputExpression = Input.AcquireHLSLExpression(Generator, Scope);
+	if (!InputExpression)
+	{
+		return false;
+	}
+
+	if (!UE::Color::FColorSpace::GetWorking().IsSRGB())
+	{
+		UE::HLSLTree::FTree& Tree = Generator.GetTree();
+		const UE::Color::FColorSpaceTransform& Transform = UE::Color::FColorSpaceTransform::GetSRGBToWorkingColorSpace();
+
+		// TODO: Replace by matrix or dot operations if possible. Currently there is no way to create a matrix constant or apply a dot product, resulting in higher instruction counts.
+		const FExpression* RRR = Tree.NewBinaryOp(EOperation::Mul, InputExpression, Generator.NewConstant(UE::Shader::FValue((float)Transform.M[0][0], (float)Transform.M[1][0], (float)Transform.M[2][0])));
+		const FExpression* GGG = Tree.NewBinaryOp(EOperation::Mul, InputExpression, Generator.NewConstant(UE::Shader::FValue((float)Transform.M[0][1], (float)Transform.M[1][1], (float)Transform.M[2][1])));
+		const FExpression* BBB = Tree.NewBinaryOp(EOperation::Mul, InputExpression, Generator.NewConstant(UE::Shader::FValue((float)Transform.M[0][2], (float)Transform.M[1][2], (float)Transform.M[2][2])));
+		const FExpression* R = Tree.NewUnaryOp(EOperation::Sum, RRR);
+		const FExpression* G = Tree.NewUnaryOp(EOperation::Sum, GGG);
+		const FExpression* B = Tree.NewUnaryOp(EOperation::Sum, BBB);
+		const FExpression* ColorExpression = Tree.NewExpression<FExpressionAppend>(Tree.NewExpression<FExpressionAppend>(R, G), B);
+
+		// We preserve the original alpha if possible
+		OutExpression = Tree.NewExpression<FExpressionAppend>(ColorExpression, Generator.NewSwizzle(FSwizzleParameters(3), InputExpression));
+	}
+
 	return true;
 }
 

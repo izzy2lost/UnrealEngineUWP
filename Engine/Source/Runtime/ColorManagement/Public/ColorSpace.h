@@ -388,6 +388,11 @@ struct FColorSpaceTransform : FMatrix44d
 	* @param Method Adaptation method (None, Bradford, CAT02).
 	*/
 	COLORMANAGEMENT_API static FMatrix44d CalcChromaticAdaptionMatrix(FVector3d SourceXYZ, FVector3d TargetXYZ, EChromaticAdaptationMethod Method = EChromaticAdaptationMethod::Bradford);
+
+	/**
+	* Convenience function to get a (statically cached) conversion from sRGB/Rec709 to the working color space.
+	*/
+	COLORMANAGEMENT_API static FColorSpaceTransform GetSRGBToWorkingColorSpace();
 };
 
 } }  // end namespace UE::Color
