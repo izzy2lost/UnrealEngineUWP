@@ -302,16 +302,16 @@ namespace Chaos
 		NewUnion.Parameters = Parameters;
 		NewUnion.ClusterUnionParameters = ClusterUnionParameters;
 
-		if (ClusterUnionParameters.GravityGroupOverride != INDEX_NONE)
-		{
-			NewUnion.InternalCluster->SetGravityGroupIndex(ClusterUnionParameters.GravityGroupOverride);
-		}
-
 		// Some parameters aren't relevant after creation.
 		NewUnion.ClusterUnionParameters.UniqueIndex = nullptr;
 
 		if (ensure(NewUnion.InternalCluster != nullptr))
 		{
+			if (ClusterUnionParameters.GravityGroupOverride != INDEX_NONE)
+			{
+				NewUnion.InternalCluster->SetGravityGroupIndex(ClusterUnionParameters.GravityGroupOverride);
+			}
+
 			NewUnion.InternalCluster->SetInternalCluster(true);
 			if (AccelerationStructureSplitStaticAndDynamic == 1)
 			{
