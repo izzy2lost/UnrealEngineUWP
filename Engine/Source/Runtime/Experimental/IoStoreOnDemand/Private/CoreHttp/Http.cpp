@@ -2777,6 +2777,11 @@ void FSocketGroup::RecvInternal(FTickState& State)
 				check(Send == nullptr);
 				Send = Next;
 				SendInternal(State);
+
+				if (!Socket.IsValid())
+				{
+					return;
+				}
 			}
 		}
 	}
