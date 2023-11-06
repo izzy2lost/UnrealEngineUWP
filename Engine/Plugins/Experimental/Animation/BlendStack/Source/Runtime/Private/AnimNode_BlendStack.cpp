@@ -836,7 +836,7 @@ int32 FAnimNode_BlendStack_Standalone::GetNextPoseLinkIndex()
 	}
 
 	const int32 NumPoseLinks = SampleGraphPoseLinks.Num();
-	CurrentSamplePoseLink = ++CurrentSamplePoseLink;
+	++CurrentSamplePoseLink;
 	if (CurrentSamplePoseLink == NumPoseLinks) { CurrentSamplePoseLink = 0; }
 
 	return CurrentSamplePoseLink;
