@@ -65,8 +65,9 @@ bool UseFrontLayerReflection(float2 BufferUV, float SceneDepth)
 	{
 		float SingleLayerDeviceZ = Texture2DSampleLevel(FrontLayerTranslucencyReflectionsStruct.SceneDepth, GlobalPointClampedSampler, BufferUV, 0.0f).x;
 		float DeviceZ = ConvertToDeviceZ(SceneDepth);
-		
-		if (abs(SingleLayerDeviceZ - DeviceZ) < FrontLayerTranslucencyReflectionsStruct.RelativeDepthThreshold)
+
+		// ULP float comparison
+		if (abs(asint(SingleLayerDeviceZ) - asint(DeviceZ)) <= FrontLayerTranslucencyReflectionsStruct.RelativeDepthThreshold)
 		{
 			bValid = true;
 		}

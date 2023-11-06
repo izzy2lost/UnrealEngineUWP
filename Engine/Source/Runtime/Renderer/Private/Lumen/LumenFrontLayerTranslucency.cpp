@@ -39,11 +39,10 @@ FAutoConsoleVariableRef CVarLumenTranslucencyReflectionsFrontLayerAllowed(
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
-float GLumenFrontLayerRelativeDepthThreshold = .0001f;
-FAutoConsoleVariableRef CVarLumenFrontLayerRelativeDepthThreshold(
-	TEXT("r.Lumen.TranslucencyReflections.FrontLayer.RelativeDepthThreshold"),
-	GLumenFrontLayerRelativeDepthThreshold,
-	TEXT("Depth test threshold used to determine whether the fragments being rendered match the single layer that reflections were calculated for"),
+static TAutoConsoleVariable<float> CVarLumenFrontLayerDepthThreshold(
+	TEXT("r.Lumen.TranslucencyReflections.FrontLayer.DepthThreshold"),
+	1024.0f,
+	TEXT("Depth test threshold used to determine whether the fragments being rendered match the single layer that reflections were calculated for. In float ULP units."),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
@@ -551,7 +550,7 @@ void FDeferredShadingSceneRenderer::RenderLumenFrontLayerTranslucencyReflections
 			ERDGPassFlags::Compute);
 
 		View.LumenFrontLayerTranslucency.bEnabled = true;
-		View.LumenFrontLayerTranslucency.RelativeDepthThreshold = GLumenFrontLayerRelativeDepthThreshold;
+		View.LumenFrontLayerTranslucency.RelativeDepthThreshold = CVarLumenFrontLayerDepthThreshold.GetValueOnRenderThread();
 		View.LumenFrontLayerTranslucency.Radiance = ReflectionTexture;
 		View.LumenFrontLayerTranslucency.Normal = ReflectionGBuffer.FrontLayerTranslucencyNormal;
 		View.LumenFrontLayerTranslucency.SceneDepth = ReflectionGBuffer.FrontLayerTranslucencySceneDepth;
