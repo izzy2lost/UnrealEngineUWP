@@ -71,7 +71,7 @@ public:
 		{
 			Head->Items[Head->NumItems++] = Item;
 			Lock.Unlock();
-			FMemory::Free(NewChunk);
+			FMemory::Free(NewChunk); //-V611 There is no destructor and the memory came from Malloc...
 			return;
 		}
 
