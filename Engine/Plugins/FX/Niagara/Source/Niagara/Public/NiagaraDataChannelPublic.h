@@ -6,6 +6,7 @@
 #include "NiagaraCommon.h"
 #include "NiagaraDataChannelPublic.generated.h"
 
+struct FNiagaraDataChannelPublishRequest;
 class FNiagaraWorldManager;
 class UNiagaraDataChannelAsset;
 class UNiagaraDataChannel;
@@ -150,7 +151,7 @@ struct FNiagaraDataChannelGameDataLayout
 };
 
 
-#if !UE_BUILD_SHIPPING
+#if WITH_NIAGARA_DEBUGGER
 
 /** Hooks into internal NiagaraDataChannels code for debugging and testing purposes. */
 class FNiagaraDataChannelDebugUtilities
@@ -162,10 +163,36 @@ public:
 	static NIAGARA_API void Tick(FNiagaraWorldManager* WorldMan, float DeltaSeconds, ETickingGroup TickGroup);
 	
 	static NIAGARA_API UNiagaraDataChannelHandler* FindDataChannelHandler(FNiagaraWorldManager* WorldMan, UNiagaraDataChannel* DataChannel);
+
+	static void LogWrite(const FNiagaraDataChannelPublishRequest& WriteRequest, const UNiagaraDataChannel* DataChannel, const ETickingGroup& TickGroup);
+	static void DumpAllWritesToLog();
+
+	static FNiagaraDataChannelDebugUtilities& Get();
+	static void TearDown();
+
+private:
+	struct FChannelWriteRequest
+	{
+		TSharedPtr<FNiagaraDataChannelGameData> Data;
+		bool bVisibleToGame = false;
+		bool bVisibleToCPUSims = false;
+		bool bVisibleToGPUSims = false;
+		ETickingGroup TickGroup;
+		FString DebugSource;
+	};
+	struct FFrameDebugData
+	{
+		uint64 FrameNumber;
+		TArray<FChannelWriteRequest> WriteRequests;
+	};
+	
+	static FString ToJson(FNiagaraDataChannelGameData* Data);
+	static FString TickGroupToString(const ETickingGroup& TickGroup);
+	TArray<FFrameDebugData> FrameData;
 };
 
 
-#endif//UE_BUILD_SHIPPING
+#endif//WITH_NIAGARA_DEBUGGER
 
 
 /** Buffer containing a single FNiagaraVariable's data at the game level. AoS layout. LWC Types. */

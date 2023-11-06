@@ -32,6 +32,7 @@
 #include "NiagaraComponentRendererProperties.h"
 #include "NiagaraVolumeRendererProperties.h"
 #include "NiagaraCustomVersion.h"
+#include "NiagaraDataChannel.h"
 #include "NiagaraShaderModule.h"
 #include "UObject/CoreRedirects.h"
 #include "NiagaraGpuComputeDispatch.h"
@@ -614,6 +615,7 @@ void INiagaraModule::ShutdownModule()
 
 #if WITH_NIAGARA_DEBUGGER
 	DebuggerClient.Reset();
+	FNiagaraDataChannelDebugUtilities::TearDown();
 #endif
 
 #if NIAGARA_PERF_BASELINES

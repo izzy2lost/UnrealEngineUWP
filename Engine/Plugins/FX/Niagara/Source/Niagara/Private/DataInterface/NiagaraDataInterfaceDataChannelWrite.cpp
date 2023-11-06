@@ -288,6 +288,9 @@ struct FNDIDataChannelWriteInstanceData
 				PublishRequest.bVisibleToGPUSims = Interface->bPublishToGPU;
 				PublishRequest.Data = Data->GetCurrentData();
 				PublishRequest.LwcTile = Instance->GetLWCTile();
+#if !UE_BUILD_SHIPPING
+				PublishRequest.DebugSource = FString::Format(TEXT("{0} ({1})"), {Instance->GetSystem()->GetName(), GetPathNameSafe(Interface)});
+#endif
 				DataChannelData->Publish(PublishRequest);
 			}
 		}

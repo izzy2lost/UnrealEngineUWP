@@ -142,7 +142,7 @@ void UNiagaraDataChannelWriter::WriteData(const FNiagaraVariableBase& Var, int32
 	}
 }
 
-bool UNiagaraDataChannelWriter::InitWrite(FNiagaraDataChannelSearchParameters SearchParams, int32 Count, bool bVisibleToGame, bool bVisibleToCPU, bool bVisibleToGPU)
+bool UNiagaraDataChannelWriter::InitWrite(FNiagaraDataChannelSearchParameters SearchParams, int32 Count, bool bVisibleToGame, bool bVisibleToCPU, bool bVisibleToGPU, const FString& DebugSource)
 {
 	if (Count == 0)
 	{
@@ -152,8 +152,7 @@ bool UNiagaraDataChannelWriter::InitWrite(FNiagaraDataChannelSearchParameters Se
 
 	check(Owner);
 
-	FNiagaraDataChannelDataPtr DestData = Owner->FindData(SearchParams, ENiagaraResourceAccess::WriteOnly);
-	if(DestData)
+	if(FNiagaraDataChannelDataPtr DestData = Owner->FindData(SearchParams, ENiagaraResourceAccess::WriteOnly))
 	{
 		//TODO- Dont create a whole new game Data here. Rather grab a pre-made staging/input One from the Data PTR With the relevant publish Flags.
 		Data = Owner->GetDataChannel()->CreateGameData();
@@ -164,6 +163,9 @@ bool UNiagaraDataChannelWriter::InitWrite(FNiagaraDataChannelSearchParameters Se
 		PublishRequest.bVisibleToCPUSims = bVisibleToCPU;
 		PublishRequest.bVisibleToGPUSims = bVisibleToGPU;
 		PublishRequest.GameData = Data;
+#if !UE_BUILD_SHIPPING
+		PublishRequest.DebugSource = DebugSource;
+#endif
 		DestData->Publish(PublishRequest);
 		return true;
 	}

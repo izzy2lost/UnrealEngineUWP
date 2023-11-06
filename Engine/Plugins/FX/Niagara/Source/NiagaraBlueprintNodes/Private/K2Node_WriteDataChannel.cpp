@@ -5,10 +5,12 @@
 #include "BlueprintActionDatabaseRegistrar.h"
 #include "BlueprintNodeSpawner.h"
 #include "K2Node_ExecutionSequence.h"
+#include "K2Node_Self.h"
 #include "KismetCompiler.h"
 #include "NiagaraBlueprintUtil.h"
 #include "NiagaraDataChannel.h"
 #include "NiagaraDataChannelAccessor.h"
+#include "Kismet/KismetSystemLibrary.h"
 
 #define LOCTEXT_NAMESPACE "K2Node_WriteDataChannel"
 
@@ -71,6 +73,18 @@ void UK2Node_WriteDataChannel::ExpandNode(FKismetCompilerContext& CompilerContex
 	CreateWriterNode->SetFromFunction(UNiagaraDataChannelLibrary::StaticClass()->FindFunctionByName(GET_FUNCTION_NAME_CHECKED(UNiagaraDataChannelLibrary, WriteToNiagaraDataChannel)));
 	CreateWriterNode->AllocateDefaultPins();
 
+#if WITH_NIAGARA_DEBUGGER
+	// add path info for current BP for debug purposes 
+	UK2Node_CallFunction* GetPathNode = CompilerContext.SpawnIntermediateNode<UK2Node_CallFunction>(this, SourceGraph);
+	GetPathNode->SetFromFunction(UKismetSystemLibrary::StaticClass()->FindFunctionByName(GET_FUNCTION_NAME_CHECKED(UKismetSystemLibrary, GetPathName)));
+	GetPathNode->AllocateDefaultPins();
+	UK2Node_Self* SelfNode = CompilerContext.SpawnIntermediateNode<UK2Node_Self>(this, SourceGraph);
+	SelfNode->AllocateDefaultPins();
+
+	CompilerContext.GetSchema()->TryCreateConnection(SelfNode->FindPinChecked(UEdGraphSchema_K2::PN_Self), GetPathNode->FindPinChecked(FName("Object")));
+	CompilerContext.GetSchema()->TryCreateConnection(CreateWriterNode->FindPinChecked(FName("DebugSource")), GetPathNode->GetReturnValuePin());
+#endif
+
 	// transfer the input pins over
 	static TArray<TPair<FName, FName>> PinsToTransfer = { {"Channel", "Channel"}, {"SearchParams", "SearchParams"}, {"bVisibleToBlueprint", "bVisibleToGame"},
 		{"bVisibleToNiagaraCPU", "bVisibleToCPU"}, {"bVisibleToNiagaraGPU", "bVisibleToGPU"}};
@@ -83,13 +97,13 @@ void UK2Node_WriteDataChannel::ExpandNode(FKismetCompilerContext& CompilerContex
 	}
 	CreateWriterNode->FindPinChecked(FName("Count"))->DefaultValue = FString::FromInt(1);
 	
-	UEdGraphPin* OldExecPin = FindPinChecked(UEdGraphSchema_K2::PN_Execute, EGPD_Input);
-	UEdGraphPin* NewExecPin = CreateWriterNode->FindPinChecked(UEdGraphSchema_K2::PN_Execute, EGPD_Input);
+	UEdGraphPin* OldExecPin = GetExecPin();
+	UEdGraphPin* NewExecPin = CreateWriterNode->GetExecPin();
 	CompilerContext.MovePinLinksToIntermediate(*OldExecPin, *NewExecPin);
 
 	// create the write function nodes
-	UEdGraphPin* LastExecPin = CreateWriterNode->FindPinChecked(UEdGraphSchema_K2::PN_Then, EGPD_Output);
-	UEdGraphPin* WriterResultPin = CreateWriterNode->FindPinChecked(UEdGraphSchema_K2::PN_ReturnValue, EGPD_Output);
+	UEdGraphPin* LastExecPin = CreateWriterNode->GetThenPin();
+	UEdGraphPin* WriterResultPin = CreateWriterNode->GetReturnValuePin();
 	for (const FNiagaraDataChannelVariable& InVar : DataChannel->Get()->GetVariables())
 	{
 		if (IgnoredVariables.Contains(InVar.Version))
@@ -124,14 +138,12 @@ void UK2Node_WriteDataChannel::ExpandNode(FKismetCompilerContext& CompilerContex
 		CompilerContext.MovePinLinksToIntermediate(*VarInputPin, *WriteDataNode->FindPinChecked(FName("InData"), EGPD_Input));
 
 		// connect exec pins
-		CompilerContext.GetSchema()->TryCreateConnection(LastExecPin, WriteDataNode->FindPinChecked(UEdGraphSchema_K2::PN_Execute, EGPD_Input));
-		LastExecPin = WriteDataNode->FindPinChecked(UEdGraphSchema_K2::PN_Then, EGPD_Output);
+		CompilerContext.GetSchema()->TryCreateConnection(LastExecPin, WriteDataNode->GetExecPin());
+		LastExecPin = WriteDataNode->GetThenPin();
 	}
 
-
 	// connect the last exec pin
-	UEdGraphPin* OldThenPin = FindPinChecked(UEdGraphSchema_K2::PN_Then, EGPD_Output);
-	CompilerContext.MovePinLinksToIntermediate(*OldThenPin, *LastExecPin);
+	CompilerContext.MovePinLinksToIntermediate(*GetThenPin(), *LastExecPin);
 }
 
 UFunction* UK2Node_WriteDataChannel::GetWriteFunctionForType(const FNiagaraTypeDefinition& TypeDef)

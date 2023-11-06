@@ -150,7 +150,7 @@ void UNiagaraDataChannelHandler_Islands::Tick(float DeltaTime, ETickingGroup Tic
 	for (auto It = ActiveIslands.CreateIterator(); It; ++It)
 	{
 		FNDCIsland& Island = IslandPool[*It];
-		Island.Tick();
+		Island.Tick(TickGroup);
 
 		if(IslandChannel->GetDebugDrawSettings().ShowBounds())
 		{
@@ -399,9 +399,9 @@ void FNDCIsland::EndFrame()
 	Data->EndFrame(Owner);
 }
 
-void FNDCIsland::Tick()
+void FNDCIsland::Tick(const ETickingGroup& TickGroup)
 {
-	int32 AddedData = Data->ConsumePublishRequests(Owner);
+	int32 AddedData = Data->ConsumePublishRequests(Owner, TickGroup);
 	if (IsBeingUsed() && AddedData > 0)
 	{
 		for (UNiagaraComponent* Comp : NiagaraSystems)

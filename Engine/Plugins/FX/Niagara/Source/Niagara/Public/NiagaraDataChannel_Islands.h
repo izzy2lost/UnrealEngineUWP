@@ -37,7 +37,7 @@ public:
 	void Init(UNiagaraDataChannelHandler_Islands* Owner);
 	void BeginFrame();
 	void EndFrame();
-	void Tick();
+	void Tick(const ETickingGroup& TickGroup);
 
 	bool Contains(FVector Point);
 	double DistanceToPoint(FVector Point);
