@@ -337,7 +337,7 @@ namespace MenuExtension_Blueprint
 							
 							// Ensure that all the selected blueprints are actors
 							const bool bAreAllSelectedBlueprintsActors =
-								Algo::AllOf(SelectedBlueprintParentClasses, [](UClass* ParentClass){ return ParentClass->IsChildOf(AActor::StaticClass()); });
+								Algo::AllOf(SelectedBlueprintParentClasses, [](UClass* ParentClass){ return ParentClass && ParentClass->IsChildOf(AActor::StaticClass()); });
 							
 							if (bAreAllSelectedBlueprintsActors)
 							{
