@@ -25,7 +25,6 @@ public class NNERuntimeRDG : ModuleRules
         PrivateDependencyModuleNames.AddRange(new string[]
         {
             "NNE",
-			"NNEUtils",
 			"NNEHlslShaders",
             "RHI",
 			"Projects"
@@ -50,6 +49,14 @@ public class NNERuntimeRDG : ModuleRules
 		if (Target.Platform == UnrealTargetPlatform.Linux)
 		{	
 			PrivateDependencyModuleNames.Add("VulkanRHI");
+		}
+
+		if ((Target.Type == TargetType.Editor || Target.Type == TargetType.Program) &&
+			(Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.Linux)
+			)
+		{
+			PrivateDefinitions.Add("NNE_UTILITIES_AVAILABLE");
+			PrivateDependencyModuleNames.Add("NNEUtilities");
 		}
 	}
 }

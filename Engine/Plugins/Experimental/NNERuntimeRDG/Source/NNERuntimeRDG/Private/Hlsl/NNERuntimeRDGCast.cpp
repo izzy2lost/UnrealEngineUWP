@@ -1,10 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "NNERuntimeRDGCast.h"
+
+#include "Helper/NNERuntimeRDGLogHelper.h"
 #include "NNERuntimeRDGHelperCast.h"
 #include "NNETensor.h"
 #include "NNETypes.h"
-#include "NNEUtilsLogHelper.h"
 
 namespace UE::NNERuntimeRDG::Private::Hlsl
 {
@@ -82,7 +83,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 				case ENNETensorDataType::Int64:
 					break;
 				default:
-					FString TargetType = NNEUtils::Internal::GetTensorDataTypeName(To);
+					FString TargetType = LogHelper::GetTensorDataTypeName(To);
 					UE_LOG(LogNNE, Warning, TEXT("Cast: Target tensor data type %s not supported."), *TargetType);
 					bIsValid = false;
 			}

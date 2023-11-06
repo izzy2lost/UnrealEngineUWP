@@ -7,9 +7,12 @@ using UnrealBuildTool;
 
 public class NNEOnnxEditor : ModuleRules
 {
-    public NNEOnnxEditor(ReadOnlyTargetRules Target) : base(Target)
-    {
+	public NNEOnnxEditor(ReadOnlyTargetRules Target) : base(Target)
+	{
 		Type = ModuleType.External;
+
+		if (Target.Type != TargetType.Editor && Target.Type != TargetType.Program)
+			return;
 
 		string IncPath = Path.Combine(ModuleDirectory, "include");
 		PublicSystemIncludePaths.Add(IncPath);

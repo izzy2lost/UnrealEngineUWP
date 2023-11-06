@@ -3,7 +3,6 @@
 #ifdef NNE_USE_DIRECTML
 #include "NNEDmlOperator.h"
 #include "NNEDmlOperatorUtils.h"
-#include "NNEUtilsLogHelper.h"
 
 namespace UE::NNERuntimeRDG::Private::Dml
 {

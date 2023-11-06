@@ -9,6 +9,9 @@ public class NNEProtobufEditor : ModuleRules
 	{
 		Type = ModuleType.External;
 
+		if (Target.Type != TargetType.Editor && Target.Type != TargetType.Program)
+			return;
+
 		PublicSystemIncludePaths.Add(Path.Combine(ModuleDirectory, "include"));
 
 		string LibraryName = "libprotobuf-lite";

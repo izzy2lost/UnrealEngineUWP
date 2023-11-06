@@ -12,7 +12,9 @@
 #include "NNEModelData.h"
 #include "NNERuntimeFormat.h"
 #include "NNERuntimeRDGBase.h"
-#include "NNEUtilsModelOptimizer.h"
+#ifdef NNE_UTILITIES_AVAILABLE
+#include "NNEUtilitiesModelOptimizer.h"
+#endif // NNE_UTILITIES_AVAILABLE
 
 #ifdef NNE_USE_DIRECTML
 
@@ -98,7 +100,12 @@ using namespace UE::NNERuntimeRDG::Private::Dml;
 
 bool UNNERuntimeRDGDmlImpl::CanCreateModelData(FString FileType, TConstArrayView<uint8> FileData, FGuid FileId, const ITargetPlatform* TargetPlatform) const
 {
+#ifdef NNE_UTILITIES_AVAILABLE
 	return FileType.Compare("onnx", ESearchCase::IgnoreCase) == 0;
+#else
+	UE_LOG(LogNNE, Display, TEXT("NNEUtilities is not available on this platform"));
+	return false;
+#endif
 }
 
 TSharedPtr<UE::NNE::FSharedModelData> UNNERuntimeRDGDmlImpl::CreateModelData(FString FileType, TConstArrayView<uint8> FileData, FGuid FileId, const ITargetPlatform* TargetPlatform)
@@ -108,7 +115,8 @@ TSharedPtr<UE::NNE::FSharedModelData> UNNERuntimeRDGDmlImpl::CreateModelData(FSt
 		return {};
 	}
 
-	TUniquePtr<UE::NNE::Internal::IModelOptimizer> Optimizer = UE::NNEUtils::Internal::CreateONNXToNNEModelOptimizer();
+#ifdef NNE_UTILITIES_AVAILABLE
+	TUniquePtr<UE::NNE::Internal::IModelOptimizer> Optimizer = UE::NNEUtilities::Internal::CreateONNXToNNEModelOptimizer();
 #ifdef NNE_USE_DIRECTML
 	Optimizer->AddValidator(MakeShared<FModelValidatorDml>());
 #endif
@@ -134,6 +142,9 @@ TSharedPtr<UE::NNE::FSharedModelData> UNNERuntimeRDGDmlImpl::CreateModelData(FSt
 	Writer.Serialize(OutputModel.Data.GetData(), OutputModel.Data.Num());
 
 	return MakeShared<UE::NNE::FSharedModelData>(MakeSharedBufferFromArray(MoveTemp(Result)), 0);
+#else //NNE_UTILITIES_AVAILABLE
+	return {};
+#endif //NNE_UTILITIES_AVAILABLE
 };
 
 FString UNNERuntimeRDGDmlImpl::GetModelDataIdentifier(FString FileType, TConstArrayView<uint8> FileData, FGuid FileId, const ITargetPlatform* TargetPlatform)

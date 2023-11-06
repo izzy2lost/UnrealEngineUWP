@@ -47,7 +47,7 @@ FModelInfo* FModelInfo::Get()
 
 FModelInfo::FModelInfo()
 	: Guid((int32)'R', (int32)'D', (int32)'G', (int32)'D')
-	, Version(0x1)
+	, Version(0x2)
 {
 }
 

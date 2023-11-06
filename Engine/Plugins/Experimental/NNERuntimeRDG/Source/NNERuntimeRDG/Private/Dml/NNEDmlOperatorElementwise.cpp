@@ -44,7 +44,7 @@ private:
 	float Max;
 
 	FOperatorDmlElementWiseUnary() 
-		: Min(TNumericLimits<float>::Min())
+		: Min(TNumericLimits<float>::Lowest())
 		, Max(TNumericLimits<float>::Max()) 
 	{
 	}

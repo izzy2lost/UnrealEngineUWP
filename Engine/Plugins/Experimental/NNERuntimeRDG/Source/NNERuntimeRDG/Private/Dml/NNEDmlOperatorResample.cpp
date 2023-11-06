@@ -188,7 +188,7 @@ public:
 		}
 
 		// Read attributes
-		Mode = ModeFromString(Attributes.GetValue<FString>(TEXT("mode")));
+		Mode = ModeFromString(Attributes.GetValueOrDefault<FString>(TEXT("mode"), TEXT("nearest")));
 
 		if constexpr (IsResize)
 		{

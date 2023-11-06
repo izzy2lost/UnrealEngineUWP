@@ -3,7 +3,6 @@
 #include "NNERuntimeRDGModel.h"
 
 #include "NNERuntimeFormat.h"
-#include "NNEUtilsModelOptimizer.h"
 #include "RenderGraphBuilder.h"
 #include "RenderGraphUtils.h"
 #include "RHIGPUReadback.h"

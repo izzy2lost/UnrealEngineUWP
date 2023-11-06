@@ -1,8 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "NNEUtilitiesLogHelper.h"
+#include "NNERuntimeRDGLogHelper.h"
 
-namespace UE::NNEUtilities::Internal
+namespace UE::NNERuntimeRDG::Private::LogHelper
 {
 
 FString GetTensorDataTypeName(ENNETensorDataType DataType)
@@ -30,5 +30,5 @@ FString GetTensorDataTypeName(ENNETensorDataType DataType)
 	}
 }
 
-} // UE::NNEUtilities::Internal
+} // UE::NNERuntimeRDG::Private::LogHelper
 

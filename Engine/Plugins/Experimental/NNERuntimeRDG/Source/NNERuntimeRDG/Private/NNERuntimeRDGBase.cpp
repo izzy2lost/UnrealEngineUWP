@@ -2,9 +2,8 @@
 
 #include "NNERuntimeRDGBase.h"
 
+#include "Helper/NNERuntimeRDGLogHelper.h"
 #include "NNERuntimeFormat.h"
-#include "NNEUtilsLogHelper.h"
-#include "NNEUtilsModelOptimizer.h"
 #include "RenderGraphBuilder.h"
 #include "RenderGraphUtils.h"
 #include "RHIGPUReadback.h"
@@ -59,7 +58,7 @@ bool FInputValidator::Validate(TConstArrayView<ENNETensorDataType> InputTypes)
 		check(TemplateIdx < TemplateTypes.Num());
 		if (INDEX_NONE == TemplateTypes[TemplateIdx].Find(InputTypes[Idx]))
 		{
-			FString TargetType = NNEUtils::Internal::GetTensorDataTypeName(InputTypes[Idx]);
+			FString TargetType = LogHelper::GetTensorDataTypeName(InputTypes[Idx]);
 			UE_LOG(LogNNE, Warning, TEXT("Input at index '%d' (from template T%d) is of type '%s' witch is not supported for that input."), Idx, TemplateIdx, *TargetType);
 			bAreInputValid = false;
 		}

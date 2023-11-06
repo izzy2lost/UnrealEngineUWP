@@ -15,8 +15,8 @@
 	"IsBetaVersion": true,
 	"IsExperimentalVersion": false,
 	"Installed": false,
-	"SupportedTargetPlatforms": [
-		"Win64", "Linux"
+	"TargetAllowList": [
+		"EditorAndProgram"
 	],
 	"Modules": [
 		{

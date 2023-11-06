@@ -144,16 +144,21 @@ namespace ModelOptimizerNNEHelper
 		else if (Tensor.int32_data().size() && DataType == ENNETensorDataType::Int32)
 		{
 			//Supported : INT32
-			//Not supported at the moment: INT16, INT8, UINT16, UINT8, BOOL, FLOAT16, BFLOAT16, FLOAT8E4M3FN, FLOAT8E4M3FNUZ, FLOAT8E5M2, FLOAT8E5M2FNUZ
+			//Not supported at the moment: INT16, INT8, UINT16, UINT8, BOOL, FLOAT16, BFLOAT16, FLOAT8E4M3FN, FLOAT8E4M3FNUZ, FLOAT8E5M2, FLOAT8E5M2FNUZ, UINT32
 			Data = Tensor.int32_data().data();
 			DataSize = Tensor.int32_data().size() * sizeof(int32);
 		}
 		else if (Tensor.uint64_data().size())
 		{
 			//Supported UINT64
-			//Not supported UINT32
-			Data = Tensor.int32_data().data();
-			DataSize = Tensor.int32_data().size() * sizeof(uint64);
+			Data = Tensor.uint64_data().data();
+			DataSize = Tensor.uint64_data().size() * sizeof(uint64);
+		}
+		else if (Tensor.int64_data().size())
+		{
+			//Supported INT64
+			Data = Tensor.int64_data().data();
+			DataSize = Tensor.int64_data().size() * sizeof(int64);
 		}
 		else
 		{
@@ -327,7 +332,7 @@ namespace ModelOptimizerNNEHelper
 
 			for (const std::string& TensorName : Node.input())
 			{
-				ENNETensorDataType DataType;
+				ENNETensorDataType DataType = ENNETensorDataType::None;
 				TArray<int32> Shape;
 				const void* Data = nullptr;
 				uint64 DataSize = 0;
@@ -341,7 +346,7 @@ namespace ModelOptimizerNNEHelper
 						return false;
 					}
 				}
-				else
+				else if (!TensorName.empty())
 				{
 					const onnx::ValueInfoProto* ValueInfoProto = GetValueInfoProtoFromGraphProto(Graph, TensorName);
 					if (!ValueInfoProto)
