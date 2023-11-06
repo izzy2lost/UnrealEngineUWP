@@ -5,7 +5,7 @@
 // HEADER_UNIT_SKIP - Not included directly
 
 #include "Templates/SharedPointer.h"
-#include "Containers/CastedTo.h"
+#include "CastedTo.h"
 
 class FControlFlowContainerBase : public TSharedFromThis<FControlFlowContainerBase>
 {
