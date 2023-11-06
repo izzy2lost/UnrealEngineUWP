@@ -30,7 +30,7 @@ namespace UE::NNERuntimeRDG::Private::Dml
 bool FRuntimeDmlStartup()
 {
 	bool bIsD3D12RHI = GDynamicRHI && GDynamicRHI->GetInterfaceType() == ERHIInterfaceType::D3D12;		
-	bool bLoadDirectML = true;
+	bool bLoadDirectML = bIsD3D12RHI;
 
 	if (IsRunningCommandlet() && !IsAllowCommandletRendering())
 	{
@@ -155,6 +155,11 @@ FString UNNERuntimeRDGDmlImpl::GetModelDataIdentifier(FString FileType, TConstAr
 bool UNNERuntimeRDGDmlImpl::CanCreateModelRDG(TObjectPtr<UNNEModelData> ModelData) const
 {
 #ifdef NNE_USE_DIRECTML
+	if (bRegisterOnlyOperators)
+	{
+		return false;
+	}
+
 	TSharedPtr<UE::NNE::FSharedModelData> SharedData = ModelData->GetModelData(GetRuntimeName());
 
 	if (!SharedData.IsValid())
@@ -215,13 +220,15 @@ UNNERuntimeRDGDmlImpl::~UNNERuntimeRDGDmlImpl()
 #endif
 }
 
-bool UNNERuntimeRDGDmlImpl::Init(bool bRegisterOnlyOperators)
+bool UNNERuntimeRDGDmlImpl::Init(bool bInRegisterOnlyOperators)
 {
+	bRegisterOnlyOperators = bInRegisterOnlyOperators;
+
 #ifdef NNE_USE_DIRECTML
 	
 	if (bRegisterOnlyOperators)
 	{
-		UE_LOG(LogNNE, Display, TEXT("Registering only operators"));
+		UE_LOG(LogNNE, Display, TEXT("RDGDml:Registering only operators"));
 		return true;
 	}
 

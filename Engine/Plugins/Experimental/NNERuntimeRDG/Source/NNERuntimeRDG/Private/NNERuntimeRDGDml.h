@@ -39,7 +39,10 @@ public:
 
 	virtual bool CanCreateModelRDG(TObjectPtr<UNNEModelData> ModelData) const override;
 	virtual TSharedPtr<UE::NNE::IModelRDG> CreateModelRDG(TObjectPtr<UNNEModelData> ModelData) override;
+
 private:
+	
 	UE::NNERuntimeRDG::Private::Dml::FDmlDeviceContext* Ctx;
+	bool												bRegisterOnlyOperators { false };
 };
 
