@@ -44,11 +44,14 @@ class UTextureExporterJPEG : public UExporter
 
 
 UCLASS()
-class UTextureExporterUEJPEG : public UTextureExporterGeneric
+class UTextureExporterUEJPEG : public UExporter
 {
 	GENERATED_UCLASS_BODY()
 	
-	virtual bool SupportsTexture(UTexture* Texture) const override;
+	//~ Begin UExporter Interface
+	UNREALED_API virtual bool SupportsObject(UObject* Object) const override;
+	UNREALED_API virtual bool ExportBinary( UObject* Object, const TCHAR* Type, FArchive& Ar, FFeedbackContext* Warn, int32 FileIndex = 0, uint32 PortFlags=0 ) override;
+	//~ End UExporter Interface
 };
 
 
