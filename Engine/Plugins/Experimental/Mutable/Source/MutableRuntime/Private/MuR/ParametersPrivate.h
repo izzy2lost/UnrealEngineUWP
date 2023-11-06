@@ -55,6 +55,7 @@ namespace Private
         TIndirectObject& operator=(const TIndirectObject<T>& Other) 
         { 
             Get() = Other; 
+			return *this;
         }
 
         TIndirectObject& operator=(const T& Object) 

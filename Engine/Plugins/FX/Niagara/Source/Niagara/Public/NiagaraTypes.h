@@ -1139,7 +1139,7 @@ const FNiagaraTypeDefinition& FNiagaraTypeDefinition::Get()
 	else if constexpr (std::is_same_v<T, FNiagaraID>) { return GetIDDef(); }
 	else if constexpr (std::is_same_v<T, FNiagaraRandInfo>) { return GetRandInfoDef(); }
 	else { static_assert(sizeof(T) == 0, "Unsupported type"); }
-}
+} //-V591
 
 //////////////////////////////////////////////////////////////////////////
 
