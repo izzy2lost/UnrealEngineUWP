@@ -810,6 +810,7 @@ void UMovieSceneAudioSystem::OnSchedulePersistentTasks(UE::MovieScene::IEntitySy
 
 	TaskScheduler->AddPrerequisite(GatherInputsTask, EvaluateAudioTask);
 	TaskScheduler->AddPrerequisite(GatherTriggersTask, EvaluateAudioTask);
+	TaskScheduler->AddPrerequisite(ResetSharedDataTask, EvaluateAudioTask);
 }
 
 void UMovieSceneAudioSystem::OnRun(FSystemTaskPrerequisites& InPrerequisites, FSystemSubsequentTasks& Subsequents)
