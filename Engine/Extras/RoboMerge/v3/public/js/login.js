@@ -52,8 +52,8 @@ $(async () => {
 				const user = await authClient.token.getUserInfo(accessToken, idToken);
 
 				const postData = {
-					user: user.email,
-					displayName: user.preferred_username,
+					user: user.preferred_username,
+					displayName: user.name,
 					groups: JSON.stringify(user.groups)
 				};
 
