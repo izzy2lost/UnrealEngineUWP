@@ -458,6 +458,8 @@ private:
 	TSet<TSoftObjectPtr<AActor>> GeneratedActors_DEPRECATED;
 #endif
 
+	// NOTE: This should not be made visible or editable because it will change the way the BP actors are
+	// duplicated/setup and might trigger an ensure in the resources.
 	UPROPERTY()
 	TArray<TObjectPtr<UPCGManagedResource>> GeneratedResources;
 

@@ -2662,7 +2662,12 @@ bool UPCGComponent::ShouldTrackLandscape() const
 void UPCGComponent::SetManagedResources(const TArray<TObjectPtr<UPCGManagedResource>>& Resources)
 {
 	FScopeLock ResourcesLock(&GeneratedResourcesLock);
-	check(GeneratedResources.IsEmpty());
+
+	// We expect the GeneratedResources to be empty here, as otherwise they might not be taken care of properly - they
+	// will be lost down below, but this should not happen. However, if the GeneratedResources are marked as Visible,
+	// then they will be copied over during BP duplication, hence why this will happen, hence the ensure here.
+	ensure(GeneratedResources.IsEmpty());
+
 	GeneratedResources = Resources;
 
 	// Remove any null entries
