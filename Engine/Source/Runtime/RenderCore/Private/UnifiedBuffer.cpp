@@ -65,16 +65,16 @@ class FByteBufferShader : public FGlobalShader
 		{
 			return FDataDrivenShaderPlatformInfo::GetSupportsByteBufferComputeShaders(Parameters.Platform);
 		}
+		// Don't compile structured buffer size variations unless we need them
+		else if (ResourceType != EByteBufferResourceType::StructuredBuffer && static_cast<EByteBufferStructuredSize>(PermutationVector.Get<StructuredElementSizeDim>()) != EByteBufferStructuredSize::Uint4)
+		{
+			return false;
+		}
 		else
 		{
 			return true;
 		}
 
-		// Don't compile structured buffer size variations unless we need them
-		if (ResourceType != EByteBufferResourceType::StructuredBuffer && static_cast<EByteBufferStructuredSize>(PermutationVector.Get<StructuredElementSizeDim>()) != EByteBufferStructuredSize::Uint4)
-		{
-			return false;
-		}
 	}
 
 	BEGIN_SHADER_PARAMETER_STRUCT( FParameters, )
