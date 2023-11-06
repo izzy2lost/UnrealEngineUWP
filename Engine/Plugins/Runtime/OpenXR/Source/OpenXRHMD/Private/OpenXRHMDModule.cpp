@@ -38,6 +38,12 @@ static TAutoConsoleVariable<bool> CVarCheckOpenXRInstanceConformance(
 	TEXT("If true, OpenXR will verify Instance is conformant by calling xrStringToPath. Some runtimes fail without a system attached at instance creation time."),
 	ECVF_RenderThreadSafe);
 
+static TAutoConsoleVariable<bool> CVarRetainPreInitInstance(
+	TEXT("xr.RetainPreInitInstance"),
+	false,
+	TEXT("If true, OpenXR will retain any instance created during PreInit rather than destroying it.  Destroying it is more correct because we are not yet certain to have chosen OpenXRHMD, and another HMD plugin could take over and try to create an instance of its own which would fail on a runtime that supports only one."),
+	ECVF_RenderThreadSafe);
+
 //---------------------------------------------------
 // OpenXRHMD Plugin Implementation
 //---------------------------------------------------
@@ -48,6 +54,8 @@ FOpenXRHMDModule::FOpenXRHMDModule()
 	: LoaderHandle(nullptr)
 	, Instance(XR_NULL_HANDLE)
 	, RenderBridge(nullptr)
+	, OculusAudioInputDevice()
+	, OculusAudioOutputDevice()
 { }
 
 FOpenXRHMDModule::~FOpenXRHMDModule()
@@ -85,6 +93,43 @@ TSharedPtr< class IXRTrackingSystem, ESPMode::ThreadSafe > FOpenXRHMDModule::Cre
 	}
 
 	return nullptr;
+}
+
+bool FOpenXRHMDModule::PreInit()
+{
+#if PLATFORM_WINDOWS
+	// On Windows, we need to get the audio input/output devices before init, so create the instance first, grab the audio devices, and then
+	// immediately destroy it so a new one can be created for the actual initialize call
+	const bool bInitialized = InitInstance();
+	if (bInitialized)
+	{
+		if (IsExtensionEnabled(XR_OCULUS_AUDIO_DEVICE_GUID_EXTENSION_NAME))
+		{
+			PFN_xrGetAudioInputDeviceGuidOculus GetAudioInputDeviceGuidOculus = nullptr;
+			if (XR_ENSURE(xrGetInstanceProcAddr(Instance, "xrGetAudioInputDeviceGuidOculus", (PFN_xrVoidFunction*)&GetAudioInputDeviceGuidOculus)))
+			{
+				WCHAR DeviceGuid[XR_MAX_AUDIO_DEVICE_STR_SIZE_OCULUS];
+				GetAudioInputDeviceGuidOculus(Instance, DeviceGuid);
+				OculusAudioInputDevice = FString(XR_MAX_AUDIO_DEVICE_STR_SIZE_OCULUS, DeviceGuid);
+			}
+
+			PFN_xrGetAudioOutputDeviceGuidOculus GetAudioOutputDeviceGuidOculus = nullptr;
+			if (XR_ENSURE(xrGetInstanceProcAddr(Instance, "xrGetAudioOutputDeviceGuidOculus", (PFN_xrVoidFunction*)&GetAudioOutputDeviceGuidOculus)))
+			{
+				WCHAR DeviceGuid[XR_MAX_AUDIO_DEVICE_STR_SIZE_OCULUS];
+				GetAudioOutputDeviceGuidOculus(Instance, DeviceGuid);
+				OculusAudioOutputDevice = FString(XR_MAX_AUDIO_DEVICE_STR_SIZE_OCULUS, DeviceGuid);
+			}
+		}
+		if (!CVarRetainPreInitInstance.GetValueOnAnyThread())
+		{
+			XR_ENSURE(xrDestroyInstance(Instance));
+			Instance = nullptr;
+		}
+	}
+	return bInitialized;
+#endif // PLATFORM_WINDOWS
+	return true;
 }
 
 void FOpenXRHMDModule::ShutdownModule()
@@ -1134,34 +1179,10 @@ XrPath FOpenXRHMDModule::ResolveNameToPath(FName Name)
 
 FString FOpenXRHMDModule::GetAudioInputDevice()
 {
-#if PLATFORM_WINDOWS
-	if (Instance && IsExtensionEnabled(XR_OCULUS_AUDIO_DEVICE_GUID_EXTENSION_NAME))
-	{
-		PFN_xrGetAudioInputDeviceGuidOculus GetAudioInputDeviceGuidOculus = nullptr;
-		if (XR_ENSURE(xrGetInstanceProcAddr(Instance, "xrGetAudioInputDeviceGuidOculus", (PFN_xrVoidFunction*)&GetAudioInputDeviceGuidOculus)))
-		{
-			WCHAR DeviceGuid[XR_MAX_AUDIO_DEVICE_STR_SIZE_OCULUS];
-			GetAudioInputDeviceGuidOculus(Instance, DeviceGuid);
-			return FString(XR_MAX_AUDIO_DEVICE_STR_SIZE_OCULUS, DeviceGuid);
-		}
-	}
-#endif // PLATFORM_WINDOWS
-	return FString();
+	return OculusAudioInputDevice;
 }
 
 FString FOpenXRHMDModule::GetAudioOutputDevice()
 {
-#if PLATFORM_WINDOWS
-	if (Instance && IsExtensionEnabled(XR_OCULUS_AUDIO_DEVICE_GUID_EXTENSION_NAME))
-	{
-		PFN_xrGetAudioOutputDeviceGuidOculus GetAudioOutputDeviceGuidOculus = nullptr;
-		if (XR_ENSURE(xrGetInstanceProcAddr(Instance, "xrGetAudioOutputDeviceGuidOculus", (PFN_xrVoidFunction*)&GetAudioOutputDeviceGuidOculus)))
-		{
-			WCHAR DeviceGuid[XR_MAX_AUDIO_DEVICE_STR_SIZE_OCULUS];
-			GetAudioOutputDeviceGuidOculus(Instance, DeviceGuid);
-			return FString(XR_MAX_AUDIO_DEVICE_STR_SIZE_OCULUS, DeviceGuid);
-		}
-	}
-#endif // PLATFORM_WINDOWS
-	return FString();
+	return OculusAudioOutputDevice;
 }
