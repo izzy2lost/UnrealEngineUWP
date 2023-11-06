@@ -586,7 +586,7 @@ void URigVM::Reset_Internal()
 	FactoriesPtr = &FactoriesStorage;
 	ByteCodePtr = &ByteCodeStorage;
 
-	ExternalPropertyPaths.Reset();
+	ExternalVariables.Reset();
 	LazyBranches.Reset();
 
 	InvalidateCachedMemory_Internal();
