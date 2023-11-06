@@ -2417,7 +2417,7 @@ void FOnDemandIoBackend::ProcessHttpRequests(FHttpClient& HttpClient, FBitWindow
 			if (NumConcurrentRequests >= MaxConcurrentRequests)
 			{
 				TRACE_CPUPROFILER_EVENT_SCOPE(IasBackend::TickHttpSaturated);
-				while (NumConcurrentRequests >= MaxConcurrentRequests)
+				while (NumConcurrentRequests >= MaxConcurrentRequests) //-V654
 				{
 					HttpClient.Tick(MAX_uint32, GIasHttpRateLimitKiBPerSecond);
 				}
