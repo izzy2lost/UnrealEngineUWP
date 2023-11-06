@@ -911,6 +911,8 @@ namespace Gauntlet
 					"ECBranch",
 					"ECChangelist",
 					"PreFlightChange",
+					"AssetRegistryCacheRootFolder",
+					"DeactivatedTestConfigPath",
 			}.Select(I => I.ToLower()).ToArray();
 
 			bool ShouldArgBeDisplayed(string InArg)
