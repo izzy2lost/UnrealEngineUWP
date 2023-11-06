@@ -474,4 +474,5 @@ public:
 
 private:
 	TSharedRef<SWidget> GetTypeMenu(TSharedPtr<IPropertyHandle> InPropertyHandle, FNiagaraDataChannelVariable* Var);
+	TSharedPtr<SComboButton> ChangeTypeButton;
 };
