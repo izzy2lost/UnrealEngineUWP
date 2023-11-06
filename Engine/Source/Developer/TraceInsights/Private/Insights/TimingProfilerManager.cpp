@@ -519,8 +519,17 @@ void FTimingProfilerManager::SetSelectedTimer(uint32 InTimerId)
 void FTimingProfilerManager::OnThreadFilterChanged()
 {
 	UpdateCallersAndCallees();
-	UpdateAggregatedTimerStats();
 	UpdateAggregatedCounterStats();
+
+	TSharedPtr<STimingProfilerWindow> Wnd = GetProfilerWindow();
+	if (Wnd)
+	{
+		TSharedPtr<STimersView> TimersView = Wnd->GetTimersView();
+		if (TimersView)
+		{
+			TimersView->OnTimingViewTrackListChanged();
+		}
+	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

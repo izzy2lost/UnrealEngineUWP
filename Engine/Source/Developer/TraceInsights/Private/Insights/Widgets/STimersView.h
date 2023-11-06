@@ -91,6 +91,8 @@ public:
 
 	ETraceFrameType GetFrameTypeMode() { return ModeFrameType; }
 
+	void OnTimingViewTrackListChanged();
+
 private:
 	void InitCommandList();
 
