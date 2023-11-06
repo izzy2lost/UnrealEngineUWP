@@ -72,6 +72,22 @@ struct FNegativeSpaceSampleSettings
 	bool bOnlyConnectedToHull = false;
 	// Maximum number of voxels to use per dimension, when performing VoxelSearch
 	int32 MaxVoxelsPerDim = 128;
+	// Attempt to keep negative space computation deterministic (e.g., do not run marching cubes in parallel for voxel search)
+	bool bDeterministic = false;
+
+	// @return the scale factor that has been applied by Rescale()
+	double GetAppliedScaleFactor() const
+	{
+		return AppliedScaleFactor;
+	}
+
+	void Rescale(double ScaleFactor)
+	{
+		MinSpacing *= ScaleFactor;
+		ReduceRadiusMargin *= ScaleFactor;
+		MinRadius *= ScaleFactor;
+		AppliedScaleFactor *= ScaleFactor;
+	}
 
 	// Make sure the settings values are in valid ranges
 	void Sanitize()
@@ -82,6 +98,11 @@ struct FNegativeSpaceSampleSettings
 		MinRadius = FMath::Max(0.0, MinRadius);
 		MaxVoxelsPerDim = FMath::Clamp(MaxVoxelsPerDim, 4, 4096);
 	}
+	
+private:
+
+	// Track how the settings have been rescaled
+	double AppliedScaleFactor = 1;
 };
 
 // Define a volume with a set of spheres
@@ -102,6 +123,11 @@ public:
 	inline double GetRadius(int32 Idx) const
 	{
 		return Radius[Idx];
+	}
+
+	inline void SetRadius(int32 Idx, double UpdateRadius)
+	{
+		Radius[Idx] = UpdateRadius;
 	}
 
 	// Add spheres covering the negative space of the given fast winding tree
@@ -128,6 +154,20 @@ public:
 	{
 		Position.Append(Other.Position);
 		Radius.Append(Other.Radius);
+	}
+
+	// Remove spheres with radius below a threshold
+	void RemoveSmaller(double MinRadius)
+	{
+		for (int32 Idx = 0; Idx < Radius.Num(); ++Idx)
+		{
+			if (Radius[Idx] < MinRadius)
+			{
+				Radius.RemoveAtSwap(Idx, 1, false);
+				Position.RemoveAtSwap(Idx, 1, false);
+				--Idx;
+			}
+		}
 	}
 
 	void AppendSpheres(TArrayView<const FSphere> Spheres)
@@ -195,6 +235,13 @@ public:
 	 */
 	GEOMETRYCORE_API void InitializeFromIndexMesh(TArrayView<const FVector3f> Vertices, TArrayView<const FIntVector> Faces, bool bMergeEdges, int32 FaceVertexOffset = 0);
 
+	/**
+	 * Find negative space that should be protected. Uses the mesh passed on construction or to InitializeFromMesh or InitializeFromIndexMesh
+	 * @param Settings	Settings to use to find the negative space
+	 * @return			False on failure -- e.g., if there was no mesh available
+	 */
+	GEOMETRYCORE_API bool InitializeNegativeSpace(const FNegativeSpaceSampleSettings& Settings);
+
 	//
 	// Settings
 	//
@@ -241,31 +288,15 @@ public:
 	 * @param ErrorTolerance		Stop splitting when hulls have error less than this (expressed in cm; will be cubed for volumetric error). Overrides NumOutputHulls if specified
 	 * @param MinThicknessTolerance	Optionally specify a minimum thickness (in cm) for convex parts; parts below this thickness will always be merged away. Overrides NumOutputHulls and ErrorTolerance when needed
 	 * @param MaxOutputHulls		If > 0, maximum number of convex hulls to generate. Overrides ErrorTolerance and TargetNumParts when needed
+	 * @param bOnlySplitIfOverlapNegativeSpace	If true, use NegativeSpace to guide splits, and only split parts that overlap negative space
 	 */
-	void Compute(int32 NumOutputHulls, int32 NumAdditionalSplits = 10, double ErrorTolerance = 0.0, double MinThicknessTolerance = 0, int32 MaxOutputHulls = -1)
-	{
-		if (MaxOutputHulls > 0)
-		{
-			NumOutputHulls = FMath::Min(NumOutputHulls, MaxOutputHulls);
-		}
-		int32 TargetNumSplits = NumOutputHulls + NumAdditionalSplits;
-		for (int32 SplitIdx = 0; SplitIdx < TargetNumSplits; SplitIdx++)
-		{
-			int32 NumNewParts = SplitWorst(bool(SplitIdx % 2), ErrorTolerance);
-			if (NumNewParts == 0)
-			{
-				break;
-			}
-		}
-		
-		constexpr bool bAllowCompact = true;
-		MergeBest(NumOutputHulls, ErrorTolerance, MinThicknessTolerance, bAllowCompact, false, MaxOutputHulls);
-	}
+	GEOMETRYCORE_API void Compute(int32 NumOutputHulls, int32 NumAdditionalSplits = 10, double ErrorTolerance = 0.0, double MinThicknessTolerance = 0, int32 MaxOutputHulls = -1, bool bOnlySplitIfNegativeSpaceCovered = false);
 
 	// Split the worst convex part, and return the increase in the total number of convex parts after splitting (can be more than 1 if result has multiple separate connected components)
 	// Note: could return 0 if no splits were possible
 	// @param bCanSkipUnreliableGeoVolumes		if true, don't split hulls where we have questionable geometry volume results, unless there is no hull with good geometry volume results
-	GEOMETRYCORE_API int32 SplitWorst(bool bCanSkipUnreliableGeoVolumes = false, double ErrorTolerance = 0.0);
+	// @param bOnlySplitIfNegativeSpaceCovered	if true, don't split hulls unless they overlap with some covered Negative Space (stored in the corresponding member variable)
+	GEOMETRYCORE_API int32 SplitWorst(bool bCanSkipUnreliableGeoVolumes = false, double ErrorTolerance = 0.0, bool bOnlySplitIfNegativeSpaceCovered = false);
 
 	// Merge the pairs of convex hulls in the decomposition that will least increase the error.  Intermediate results can be used across merges, so it is best to do all merges in one call.
 	// Note: A future version of this function may replace NumOutputHulls with MaxOutputHulls, but this version keeps both parameters for compatibility / consistent behavior.
@@ -403,6 +434,7 @@ public:
 			HullTriangles.Reset();
 			HullPlanes.Reset();
 			HullSourceID = -1;
+			OverlapsNegativeSpace.Reset();
 			HullVolume = 0;
 			GeoVolume = 0;
 			SumHullsVolume = -FMathd::MaxReal;
@@ -433,6 +465,9 @@ public:
 		TArray<FPlane3d> HullPlanes; // 1:1 with HullTriangles
 
 		int32 HullSourceID = -1; // Optional ID, cleared on merge, to track the origin of un-merged hulls
+
+		// Indices of NegativeSpace spheres that are overlapped by the part
+		TArray<int32> OverlapsNegativeSpace;
 
 		// Measurements of the geo and hull, to be used when evaluating potential further splits
 		double HullVolume = 0, GeoVolume = 0;
@@ -555,6 +590,36 @@ public:
 	// @param SecondSideIdxStart	The first index in the Decomposition array of new FConvexParts that were on the opposite side of the plane from SplitIdx.  Will be different from NewIdxStart only if the first part was split into multiple components.
 	// @param OrigHullVolume		The volume of the convex hull *before* the split was performed -- used to precompute the merge cost.
 	GEOMETRYCORE_API void UpdateProximitiesAfterSplit(int32 SplitIdx, int32 NewIdxStart, FPlane3d CutPlane, int32 SecondSideIdxStart, double OrigHullVolume);
+
+	// Fix overlaps between current Decomposition and associated NegativeSpace, using the saved associations in the FConvexPart::OverlapsNegativeSpace
+	// Note the tolerance and min radius may not be the same as originally used to generate the negative space; they should just be large enough to
+	// avoid 'locking' the merge step for any hulls that still overlap negative space after splitting
+	GEOMETRYCORE_API void FixHullOverlapsInNegativeSpace(double NegativeSpaceTolerance = UE_DOUBLE_KINDA_SMALL_NUMBER, double NegativeSpaceMinRadius = UE_DOUBLE_KINDA_SMALL_NUMBER);
+	
+	// Tests if a convex part overlaps a sphere
+	// @param Part				Convex part to test for overlap with sphere
+	// @param Center			Center of sphere
+	// @param Radius			Radius of sphere
+	// @param TransformIntoSphereSpace	If non-null, transform from convex hull to sphere coordinate space. Otherwise, hulls and spheres are assumed to be in the same space.
+	// @param OutDistanceSq		If non-null, and there is an overlap, will be filled with the squared distance from the sphere center to the convex hull (0 if the center is inside the hull). If no overlap is found, value is not meaningful.
+	// @return true if the Part overlaps the sphere, false otherwise
+	GEOMETRYCORE_API static bool ConvexPartVsSphereOverlap(const FConvexPart& Part, FVector3d Center, double Radius, const FTransform* OptionalTransformIntoSphereSpace = nullptr, double* OutDistanceSq = nullptr);
+
+	// Get the current negative space tracked by the convex decomposition
+	// Note: Does not include externally-managed negative space passed to MergeBest.
+	// Note: Direct access is const-only; use InitializeNegativeSpace() to set the negative space.
+	const FSphereCovering& GetNegativeSpace() const
+	{
+		return NegativeSpace;
+	}
+
+private:
+	
+	// Initialize mappings from Decomposition parts to NegativeSpace indices (FConvexPart::OverlapsNegativeSpace)
+	void InitNegativeSpaceConvexPartMapping();
+
+	// Negative space to attempt to protect; can be referenced by the Decomposition parts
+	FSphereCovering NegativeSpace;
 };
 
 } // end namespace UE::Geometry
