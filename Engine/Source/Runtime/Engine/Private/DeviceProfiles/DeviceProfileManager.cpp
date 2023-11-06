@@ -862,7 +862,7 @@ UDeviceProfile* UDeviceProfileManager::FindProfile(const FString& ProfileName, b
 
 	if ( bCreateProfileOnFail && FoundProfile == nullptr )
 	{
-		FString PlatformName = OptionalPlatformName != NAME_None ? OptionalPlatformName.ToString() : FString(FPlatformProperties::IniPlatformName());
+		FString PlatformName = (OptionalPlatformName != NAME_None) ? OptionalPlatformName.ToString() : FString(FPlatformProperties::IniPlatformName());
 		FoundProfile = CreateProfile(ProfileName, PlatformName);
 	}
 	return FoundProfile;
