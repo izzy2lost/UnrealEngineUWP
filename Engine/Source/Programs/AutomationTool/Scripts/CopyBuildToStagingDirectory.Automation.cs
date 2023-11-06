@@ -1861,7 +1861,7 @@ namespace AutomationScripts
 				}
 
 				// this is needed for all targets
-				if (NormalizedPath == "configredirects.ini")
+				if (NormalizedPath == "configredirects.ini" || NormalizedPath == "pluginbase.ini")
 				{
 					return true;
 				}
