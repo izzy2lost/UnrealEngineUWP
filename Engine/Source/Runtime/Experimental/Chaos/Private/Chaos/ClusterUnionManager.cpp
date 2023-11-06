@@ -603,6 +603,9 @@ namespace Chaos
 		// not the new parent when AddParticlesToCluster is called.
 		MClustering.AddParticlesToCluster(Cluster->InternalCluster, FinalParticlesToAdd, ChildToParentMap);
 
+		// Cluster has one-way interaction only if all children are also one-way
+		bool bIsOneWayInteraction = (bIsNewCluster) || Cluster->InternalCluster->OneWayInteraction();
+
 		for (FPBDRigidParticleHandle* Particle : FinalParticlesToAdd)
 		{
 			if (Particle->GetGeometry() == nullptr)
@@ -619,6 +622,8 @@ namespace Chaos
 				Cluster->PendingConnectivityOperations.Add({ Particle, EClusterUnionConnectivityOperation::Add });
 				Cluster->AddPendingGeometryOperation(EClusterUnionGeometryOperation::Add, Particle);
 			}
+
+			bIsOneWayInteraction &= Particle->OneWayInteraction();
 
 			if (!Cluster->ChildProperties.Contains(Particle))
 			{
@@ -684,10 +689,12 @@ namespace Chaos
 					Cluster->InternalCluster->SetGravityGroupIndex(ParticlePropertySource->GravityGroupIndex());
 				}
 
+				// Should be min or max of all children or something else that doesn't depend on order? 
 				Cluster->InternalCluster->SetInitialOverlapDepenetrationVelocity(ParticlePropertySource->InitialOverlapDepenetrationVelocity());
-				Cluster->InternalCluster->SetOneWayInteraction(ParticlePropertySource->OneWayInteraction());
 			}
 		}
+
+		Cluster->InternalCluster->SetOneWayInteraction(bIsOneWayInteraction);
 	}
 
 	DECLARE_CYCLE_STAT(TEXT("FClusterUnionManager::DeferredClusterUnionUpdate"), STAT_DeferredClusterUnionUpdate, STATGROUP_Chaos);
