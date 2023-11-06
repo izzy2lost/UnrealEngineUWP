@@ -526,7 +526,7 @@ namespace UnrealBuildTool.Artifacts
 				}
 				Directory.CreateDirectory(directory.FullName);
 
-				_store = BundleStorageClient.CreateFromDirectory(directory, BundleReaderCache.None, logger);
+				_store = BundleStorageClient.CreateFromDirectory(directory, BundleCache.None, logger);
 
 				State = ArtifactCacheState.Available;
 				return State;

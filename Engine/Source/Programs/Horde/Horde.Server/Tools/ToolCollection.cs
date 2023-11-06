@@ -162,7 +162,7 @@ namespace Horde.Server.Tools
 		private readonly VersionedCollection<ToolId, Tool> _tools;
 		private readonly StorageService _storageService;
 		private readonly IClock _clock;
-		private readonly BundleReaderCache _cache;
+		private readonly BundleCache _cache;
 		private readonly ILogger _logger;
 
 		private static readonly RedisKey s_baseKey = "tools/v1/";
@@ -172,7 +172,7 @@ namespace Horde.Server.Tools
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public ToolCollection(MongoService mongoService, RedisService redisService, StorageService storageService, BundleReaderCache cache, IClock clock, ILogger<ToolCollection> logger)
+		public ToolCollection(MongoService mongoService, RedisService redisService, StorageService storageService, BundleCache cache, IClock clock, ILogger<ToolCollection> logger)
 		{
 			_tools = new VersionedCollection<ToolId, Tool>(mongoService, "Tools", redisService, s_baseKey, s_types);
 			_storageService = storageService;

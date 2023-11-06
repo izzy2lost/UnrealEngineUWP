@@ -9,7 +9,7 @@ namespace EpicGames.Horde.Storage
 	/// <summary>
 	/// Options for creating a storage cache
 	/// </summary>
-	public class BundleReaderCacheOptions
+	public class BundleCacheOptions
 	{
 		/// <summary>
 		/// Size of the header cache
@@ -25,7 +25,7 @@ namespace EpicGames.Horde.Storage
 	/// <summary>
 	/// Implements caching functionality for reading from a storage client
 	/// </summary>
-	public sealed class BundleReaderCache : IDisposable
+	public sealed class BundleCache : IDisposable
 	{
 		readonly MemoryCache? _headerCache;
 		readonly MemoryCache? _packetCache;
@@ -33,7 +33,7 @@ namespace EpicGames.Horde.Storage
 		/// <summary>
 		/// Instance of an empty cache
 		/// </summary>
-		public static BundleReaderCache None { get; } = new BundleReaderCache(new BundleReaderCacheOptions { HeaderCacheSize = 0, PacketCacheSize = 0 });
+		public static BundleCache None { get; } = new BundleCache(new BundleCacheOptions { HeaderCacheSize = 0, PacketCacheSize = 0 });
 
 		/// <summary>
 		/// Size of the configured header cache
@@ -53,14 +53,14 @@ namespace EpicGames.Horde.Storage
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public BundleReaderCache() : this(new BundleReaderCacheOptions()) 
+		public BundleCache() : this(new BundleCacheOptions()) 
 		{ 
 		}
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public BundleReaderCache(BundleReaderCacheOptions options)
+		public BundleCache(BundleCacheOptions options)
 		{
 			if (options.HeaderCacheSize > 0)
 			{

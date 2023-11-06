@@ -127,7 +127,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 		const int DefaultUncachedFetchSize = 1 * 1024 * 1024;
 
 		readonly IStorageClient _store;
-		readonly BundleReaderCache _cache;
+		readonly BundleCache _cache;
 		readonly ILogger _logger;
 
 		readonly object _queueLock = new object();
@@ -142,7 +142,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 		/// <summary>
 		/// Accessor for the cache
 		/// </summary>
-		public BundleReaderCache Cache => _cache;
+		public BundleCache Cache => _cache;
 
 		/// <summary>
 		/// Constructor
@@ -150,7 +150,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 		/// <param name="store"></param>
 		/// <param name="cache">Cache for data</param>
 		/// <param name="logger">Logger for output</param>
-		public BundleReader(IStorageClient store, BundleReaderCache cache, ILogger logger)
+		public BundleReader(IStorageClient store, BundleCache cache, ILogger logger)
 		{
 			_store = store;
 			_cache = cache;

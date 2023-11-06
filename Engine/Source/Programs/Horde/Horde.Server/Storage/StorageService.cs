@@ -488,7 +488,7 @@ namespace Horde.Server.Storage
 
 		readonly RedisService _redisService;
 		readonly IClock _clock;
-		readonly BundleReaderCache _bundleReaderCache;
+		readonly BundleCache _bundleCache;
 		readonly IMemoryCache _memoryCache;
 		readonly IStorageBackendProvider _storageBackendProvider;
 		readonly IOptionsMonitor<GlobalConfig> _globalConfig;
@@ -512,11 +512,11 @@ namespace Horde.Server.Storage
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public StorageService(MongoService mongoService, RedisService redisService, IClock clock, BundleReaderCache bundleReaderCache, IMemoryCache memoryCache, IStorageBackendProvider storageBackendProvider, IOptionsMonitor<GlobalConfig> globalConfig, Tracer tracer, ILogger<StorageService> logger)
+		public StorageService(MongoService mongoService, RedisService redisService, IClock clock, BundleCache bundleCache, IMemoryCache memoryCache, IStorageBackendProvider storageBackendProvider, IOptionsMonitor<GlobalConfig> globalConfig, Tracer tracer, ILogger<StorageService> logger)
 		{
 			_redisService = redisService;
 			_clock = clock;
-			_bundleReaderCache = bundleReaderCache;
+			_bundleCache = bundleCache;
 			_memoryCache = memoryCache;
 			_storageBackendProvider = storageBackendProvider;
 			_globalConfig = globalConfig;
@@ -615,7 +615,7 @@ namespace Horde.Server.Storage
 
 #pragma warning disable CA2000 // Dispose objects before losing scope
 							client = new StorageClientImpl(this, namespaceConfig, backend, _tracer);
-							client = new BundleStorageClient(client, _bundleReaderCache, _logger);
+							client = new BundleStorageClient(client, _bundleCache, _logger);
 #pragma warning restore CA2000 // Dispose objects before losing scope
 
 							NamespaceInfo namespaceInfo = new NamespaceInfo(namespaceConfig, backend, new SharedStorageClient(client));

@@ -276,7 +276,7 @@ namespace Horde.Server.Tests
 
 			services.AddSingleton<StorageService>();
 			services.AddSingleton<StorageBackendCache>();
-			services.AddSingleton<BundleReaderCache>();
+			services.AddSingleton<BundleCache>();
 		}
 
 		public Task<Fixture> CreateFixtureAsync()

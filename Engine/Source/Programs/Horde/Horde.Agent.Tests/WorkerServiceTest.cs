@@ -68,7 +68,7 @@ namespace Horde.Agent.Tests
 			_serviceCollection.AddLogging();
 			_serviceCollection.AddHordeHttpClient();
 			_serviceCollection.AddSingleton<IServerLoggerFactory, FakeServerLoggerFactory>();
-			_serviceCollection.AddSingleton<BundleReaderCache>();
+			_serviceCollection.AddSingleton<BundleCache>();
 			_serviceCollection.AddSingleton<StorageBackendCache>();
 			_serviceCollection.AddSingleton<HttpStorageClientFactory>();
 

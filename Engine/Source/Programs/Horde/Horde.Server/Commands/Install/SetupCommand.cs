@@ -58,9 +58,9 @@ namespace Horde.Server.Commands.Install
 
 			RefName refName = new RefName("latest");
 
-			using BundleReaderCache bundleReaderCache = new BundleReaderCache();
+			using BundleCache bundleCache = new BundleCache();
 
-			using IStorageClient client = BundleStorageClient.CreateFromDirectory(bundleDir, bundleReaderCache, logger);
+			using IStorageClient client = BundleStorageClient.CreateFromDirectory(bundleDir, bundleCache, logger);
 			await using (IStorageWriter writer = client.CreateWriter(refName))
 			{
 				DirectoryNode dirNode = new DirectoryNode();

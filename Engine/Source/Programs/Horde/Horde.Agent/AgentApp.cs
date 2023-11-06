@@ -214,7 +214,7 @@ namespace Horde.Agent
 			services.AddSingleton<WorkerService>();
 			services.AddHostedService(sp => sp.GetRequiredService<WorkerService>());
 
-			services.AddSingleton<BundleReaderCache>();
+			services.AddSingleton<BundleCache>();
 			services.AddSingleton<StorageBackendCache>(CreateStorageBackendCache);
 			services.AddSingleton<HttpStorageClientFactory>();
 

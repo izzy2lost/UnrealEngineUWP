@@ -138,7 +138,7 @@ namespace Horde.Agent.Tests
 		[TestMethod]
 		public async Task StorageLoggerTestAsync()
 		{
-			using BundleReaderCache cache = new BundleReaderCache();
+			using BundleCache cache = new BundleCache();
 			using MemoryStorageClient store = new MemoryStorageClient();
 
 			BundleReader reader = new BundleReader(store, cache, NullLogger.Instance);

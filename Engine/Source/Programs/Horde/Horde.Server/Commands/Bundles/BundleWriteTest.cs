@@ -50,7 +50,7 @@ namespace Horde.Server.Commands.Bundles
 		public override async Task<int> ExecuteAsync(ILogger logger)
 		{
 			using NullStorageClient nullStore = new NullStorageClient();
-			using BundleStorageClient store = new BundleStorageClient(nullStore, BundleReaderCache.None, logger);
+			using BundleStorageClient store = new BundleStorageClient(nullStore, BundleCache.None, logger);
 
 			BundleOptions options = new BundleOptions();
 			options.CompressionFormat = BundleCompressionFormat.None;

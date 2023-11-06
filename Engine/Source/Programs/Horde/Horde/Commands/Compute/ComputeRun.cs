@@ -107,7 +107,7 @@ namespace Horde.Commands.Compute
 
 			// Create a sandbox from the data to be uploaded
 			using MemoryStorageClient memoryStorage = new MemoryStorageClient();
-			using BundleStorageClient storage = new BundleStorageClient(memoryStorage, BundleReaderCache.None, logger);
+			using BundleStorageClient storage = new BundleStorageClient(memoryStorage, BundleCache.None, logger);
 			BlobLocator sandbox = await CreateSandboxAsync(TaskFile, storage, cancellationToken);
 
 			// Open a socket and upload the sandbox

@@ -29,7 +29,7 @@ namespace EpicGames.Horde.Tests
 		{
 			_cache = new MemoryCache(new MemoryCacheOptions());
 			_memoryStore = new MemoryStorageClient();
-			_storage = new BundleStorageClient(_memoryStore, BundleReaderCache.None, NullLogger.Instance);
+			_storage = new BundleStorageClient(_memoryStore, BundleCache.None, NullLogger.Instance);
 		}
 
 		public void Dispose()

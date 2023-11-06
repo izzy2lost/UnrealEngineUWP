@@ -280,18 +280,18 @@ namespace EpicGames.Horde.Storage.Clients
 	{
 		readonly IHttpClientFactory _httpClientFactory;
 		readonly StorageBackendCache _backendCache;
-		readonly BundleReaderCache _readerCache;
+		readonly BundleCache _bundleCache;
 		readonly ILogger<HttpStorageBackend> _backendLogger;
 		readonly ILogger<HttpStorageClient> _clientLogger;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public HttpStorageClientFactory(IHttpClientFactory httpClientFactory, StorageBackendCache backendCache, BundleReaderCache readerCache, ILogger<HttpStorageBackend> backendLogger, ILogger<HttpStorageClient> clientLogger)
+		public HttpStorageClientFactory(IHttpClientFactory httpClientFactory, StorageBackendCache backendCache, BundleCache bundleCache, ILogger<HttpStorageBackend> backendLogger, ILogger<HttpStorageClient> clientLogger)
 		{
 			_httpClientFactory = httpClientFactory;
 			_backendCache = backendCache;
-			_readerCache = readerCache;
+			_bundleCache = bundleCache;
 			_backendLogger = backendLogger;
 			_clientLogger = clientLogger;
 		}
@@ -320,7 +320,7 @@ namespace EpicGames.Horde.Storage.Clients
 			}
 
 			HttpStorageClient client = new HttpStorageClient(basePath, CreateClient, backend, _clientLogger);
-			return new BundleStorageClient(client, _readerCache, _clientLogger);
+			return new BundleStorageClient(client, _bundleCache, _clientLogger);
 		}
 
 		/// <summary>

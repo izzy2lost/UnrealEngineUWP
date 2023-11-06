@@ -95,7 +95,7 @@ namespace EpicGames.Horde.Storage.Clients
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public BundleStorageClient(IStorageClient inner, BundleReaderCache cache, ILogger logger)
+		public BundleStorageClient(IStorageClient inner, BundleCache cache, ILogger logger)
 		{
 			_inner = inner;
 			_bundleReader = new Bundles.V1.BundleReader(this, cache, logger);
@@ -113,13 +113,13 @@ namespace EpicGames.Horde.Storage.Clients
 		public static BundleStorageClient CreateFromMemory(ILogger logger)
 		{
 			MemoryStorageClient blobStore = new MemoryStorageClient();
-			return new BundleStorageClient(blobStore, BundleReaderCache.None, logger);
+			return new BundleStorageClient(blobStore, BundleCache.None, logger);
 		}
 
 		/// <summary>
 		/// Creates a bundle storage client around a directory on the filesystem
 		/// </summary>
-		public static BundleStorageClient CreateFromDirectory(DirectoryReference rootDir, BundleReaderCache cache, ILogger logger)
+		public static BundleStorageClient CreateFromDirectory(DirectoryReference rootDir, BundleCache cache, ILogger logger)
 		{
 			FileStorageClient fileStorageClient = new FileStorageClient(rootDir, logger);
 			return new BundleStorageClient(fileStorageClient, cache, logger);

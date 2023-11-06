@@ -33,8 +33,8 @@ namespace Horde.Commands.Workspace
 		[CommandLine("-Stats")]
 		public bool Stats { get; set; }
 
-		public WorkspaceSync(HttpStorageClientFactory storageClientFactory, BundleReaderCache bundleReaderCache, IOptions<CmdConfig> config)
-			: base(storageClientFactory, bundleReaderCache, config)
+		public WorkspaceSync(HttpStorageClientFactory storageClientFactory, BundleCache bundleCache, IOptions<CmdConfig> config)
+			: base(storageClientFactory, bundleCache, config)
 		{
 		}
 
@@ -42,7 +42,7 @@ namespace Horde.Commands.Workspace
 		{
 			if (File != null)
 			{
-				using IStorageClient store = BundleStorageClient.CreateFromDirectory(File.Directory, BundleReaderCache, logger);
+				using IStorageClient store = BundleStorageClient.CreateFromDirectory(File.Directory, BundleCache, logger);
 				BlobHandle handle = store.CreateBlobHandle(await FileStorageClient.ReadRefAsync(File));
 				return await ExecuteInternalAsync(store, handle, logger);
 			}

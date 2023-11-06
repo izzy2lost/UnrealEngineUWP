@@ -529,7 +529,7 @@ namespace Horde.Server
 			services.AddSingleton<StorageService>();
 			services.AddScoped(sp => sp.GetRequiredService<StorageService>().CreateStorageClientFactory(sp.GetRequiredService<IOptionsSnapshot<GlobalConfig>>().Value));
 			services.AddSingleton<TestDataService>();
-			services.AddSingleton<BundleReaderCache>();
+			services.AddSingleton<BundleCache>();
 			services.AddSingleton<StorageBackendCache>(CreateStorageBackendCache);
 
 			if (settings.JiraUrl != null)
