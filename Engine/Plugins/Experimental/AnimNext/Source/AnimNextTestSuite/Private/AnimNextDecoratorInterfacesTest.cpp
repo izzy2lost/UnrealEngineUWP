@@ -34,39 +34,33 @@ namespace UE::AnimNext
 		static TArray<FDecoratorUID>* EvaluatedDecorators = nullptr;
 	}
 
-	struct FDecoratorWithNoChildren : FBaseDecorator, IHierarchy, IUpdate, IEvaluate
+	struct FDecoratorWithNoChildren : FBaseDecorator, IUpdate, IEvaluate
 	{
 		DECLARE_ANIM_DECORATOR(FDecoratorWithNoChildren, 0xe2400d2a, FBaseDecorator)
 
-		// IHierarchy impl
-		virtual void GetChildren(FExecutionContext& Context, const TDecoratorBinding<IHierarchy>& Binding, FChildrenArray& Children) const override
-		{
-			IHierarchy::GetChildren(Context, Binding, Children);
-		}
-
 		// IUpdate impl
-		virtual void PreUpdate(FExecutionContext& Context, const TDecoratorBinding<IUpdate>& Binding) const override
+		virtual void PreUpdate(FUpdateTraversalContext& Context, const TDecoratorBinding<IUpdate>& Binding, const FDecoratorUpdateState& DecoratorState) const override
 		{
 			if (Private::UpdatedDecorators != nullptr)
 			{
 				Private::UpdatedDecorators->Add(FDecoratorWithNoChildren::DecoratorUID);
 			}
 
-			IUpdate::PreUpdate(Context, Binding);
+			IUpdate::PreUpdate(Context, Binding, DecoratorState);
 		}
 
-		virtual void PostUpdate(FExecutionContext& Context, const TDecoratorBinding<IUpdate>& Binding) const override
+		virtual void PostUpdate(FUpdateTraversalContext& Context, const TDecoratorBinding<IUpdate>& Binding, const FDecoratorUpdateState& DecoratorState) const override
 		{
 			if (Private::UpdatedDecorators != nullptr)
 			{
 				Private::UpdatedDecorators->Add(FDecoratorWithNoChildren::DecoratorUID);
 			}
 
-			IUpdate::PostUpdate(Context, Binding);
+			IUpdate::PostUpdate(Context, Binding, DecoratorState);
 		}
 
 		// IEvaluate impl
-		virtual void PreEvaluate(FExecutionContext& Context, const TDecoratorBinding<IEvaluate>& Binding) const override
+		virtual void PreEvaluate(const FExecutionContext& Context, const TDecoratorBinding<IEvaluate>& Binding) const override
 		{
 			if (Private::EvaluatedDecorators != nullptr)
 			{
@@ -76,7 +70,7 @@ namespace UE::AnimNext
 			IEvaluate::PreEvaluate(Context, Binding);
 		}
 
-		virtual void PostEvaluate(FExecutionContext& Context, const TDecoratorBinding<IEvaluate>& Binding) const override
+		virtual void PostEvaluate(const FExecutionContext& Context, const TDecoratorBinding<IEvaluate>& Binding) const override
 		{
 			if (Private::EvaluatedDecorators != nullptr)
 			{
@@ -88,7 +82,6 @@ namespace UE::AnimNext
 	};
 
 	DEFINE_ANIM_DECORATOR_BEGIN(FDecoratorWithNoChildren)
-		DEFINE_ANIM_DECORATOR_IMPLEMENTS_INTERFACE(IHierarchy)
 		DEFINE_ANIM_DECORATOR_IMPLEMENTS_INTERFACE(IUpdate)
 		DEFINE_ANIM_DECORATOR_IMPLEMENTS_INTERFACE(IEvaluate)
 	DEFINE_ANIM_DECORATOR_END(FDecoratorWithNoChildren)
@@ -104,14 +97,19 @@ namespace UE::AnimNext
 		{
 			FDecoratorPtr Child;
 
-			void Construct(FExecutionContext& Context, const FDecoratorBinding& Binding)
+			void Construct(const FExecutionContext& Context, const FDecoratorBinding& Binding)
 			{
 				Child = Context.AllocateNodeInstance(Binding.GetDecoratorPtr(), Binding.GetSharedData<FSharedData>()->Child);
 			}
 		};
 
 		// IHierarchy impl
-		virtual void GetChildren(FExecutionContext& Context, const TDecoratorBinding<IHierarchy>& Binding, FChildrenArray& Children) const override
+		virtual uint32 GetNumChildren(const FExecutionContext& Context, const TDecoratorBinding<IHierarchy>& Binding) const override
+		{
+			return 1;
+		}
+
+		virtual void GetChildren(const FExecutionContext& Context, const TDecoratorBinding<IHierarchy>& Binding, FChildrenArray& Children) const override
 		{
 			const FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
 
@@ -135,7 +133,7 @@ namespace UE::AnimNext
 		{
 			FDecoratorPtr Children[2];
 
-			void Construct(FExecutionContext& Context, const FDecoratorBinding& Binding)
+			void Construct(const FExecutionContext& Context, const FDecoratorBinding& Binding)
 			{
 				Children[0] = Context.AllocateNodeInstance(Binding.GetDecoratorPtr(), Binding.GetSharedData<FSharedData>()->Children[0]);
 				Children[1] = Context.AllocateNodeInstance(Binding.GetDecoratorPtr(), Binding.GetSharedData<FSharedData>()->Children[1]);
@@ -143,7 +141,12 @@ namespace UE::AnimNext
 		};
 
 		// IHierarchy impl
-		virtual void GetChildren(FExecutionContext& Context, const TDecoratorBinding<IHierarchy>& Binding, FChildrenArray& Children) const override
+		virtual uint32 GetNumChildren(const FExecutionContext& Context, const TDecoratorBinding<IHierarchy>& Binding) const override
+		{
+			return 2;
+		}
+
+		virtual void GetChildren(const FExecutionContext& Context, const TDecoratorBinding<IHierarchy>& Binding, FChildrenArray& Children) const override
 		{
 			const FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
 
@@ -154,28 +157,36 @@ namespace UE::AnimNext
 		}
 
 		// IUpdate impl
-		virtual void PreUpdate(FExecutionContext& Context, const TDecoratorBinding<IUpdate>& Binding) const override
+		virtual void PreUpdate(FUpdateTraversalContext& Context, const TDecoratorBinding<IUpdate>& Binding, const FDecoratorUpdateState& DecoratorState) const override
 		{
 			if (Private::UpdatedDecorators != nullptr)
 			{
 				Private::UpdatedDecorators->Add(FDecoratorWithChildren::DecoratorUID);
 			}
 
-			IUpdate::PreUpdate(Context, Binding);
+			IUpdate::PreUpdate(Context, Binding, DecoratorState);
 		}
 
-		virtual void PostUpdate(FExecutionContext& Context, const TDecoratorBinding<IUpdate>& Binding) const override
+		virtual void QueueChildrenForTraversal(FUpdateTraversalContext& Context, const TDecoratorBinding<IUpdate>& Binding, const FDecoratorUpdateState& DecoratorState, FUpdateTraversalQueue& TraversalQueue) const override
+		{
+			const FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
+
+			TraversalQueue.Push(InstanceData->Children[0], DecoratorState);
+			TraversalQueue.Push(InstanceData->Children[1], DecoratorState);
+		}
+
+		virtual void PostUpdate(FUpdateTraversalContext& Context, const TDecoratorBinding<IUpdate>& Binding, const FDecoratorUpdateState& DecoratorState) const override
 		{
 			if (Private::UpdatedDecorators != nullptr)
 			{
 				Private::UpdatedDecorators->Add(FDecoratorWithChildren::DecoratorUID);
 			}
 
-			IUpdate::PostUpdate(Context, Binding);
+			IUpdate::PostUpdate(Context, Binding, DecoratorState);
 		}
 
 		// IEvaluate impl
-		virtual void PreEvaluate(FExecutionContext& Context, const TDecoratorBinding<IEvaluate>& Binding) const override
+		virtual void PreEvaluate(const FExecutionContext& Context, const TDecoratorBinding<IEvaluate>& Binding) const override
 		{
 			if (Private::EvaluatedDecorators != nullptr)
 			{
@@ -185,7 +196,7 @@ namespace UE::AnimNext
 			IEvaluate::PreEvaluate(Context, Binding);
 		}
 
-		virtual void PostEvaluate(FExecutionContext& Context, const TDecoratorBinding<IEvaluate>& Binding) const override
+		virtual void PostEvaluate(const FExecutionContext& Context, const TDecoratorBinding<IEvaluate>& Binding) const override
 		{
 			if (Private::EvaluatedDecorators != nullptr)
 			{
@@ -362,16 +373,6 @@ bool FAnimationAnimNextRuntimeTest_IHierarchy::RunTest(const FString& InParamete
 		AddErrorIfFalse(ChildrenNodeD[1].IsValid() && ChildrenNodeD[1].GetNodeInstance()->GetNodeHandle() == NodeC, "FAnimationAnimNextRuntimeTest_IHierarchy -> Expected child: NodeC");
 
 		{
-			TDecoratorBinding<IHierarchy> HierarchyBindingNodeA;
-			AddErrorIfFalse(Context.GetInterface(ChildrenNodeD[0], HierarchyBindingNodeA), "FAnimationAnimNextRuntimeTest_IHierarchy -> IHierarchy not found");
-
-			FChildrenArray ChildrenNodeA;
-			HierarchyBindingNodeA.GetChildren(Context, ChildrenNodeA);
-
-			AddErrorIfFalse(ChildrenNodeA.Num() == 0, "FAnimationAnimNextRuntimeTest_IHierarchy -> Expected 0 children");
-		}
-
-		{
 			TDecoratorBinding<IHierarchy> HierarchyBindingNodeC;
 			AddErrorIfFalse(Context.GetInterface(ChildrenNodeD[1], HierarchyBindingNodeC), "FAnimationAnimNextRuntimeTest_IHierarchy -> IHierarchy not found");
 
@@ -390,16 +391,6 @@ bool FAnimationAnimNextRuntimeTest_IHierarchy::RunTest(const FString& InParamete
 
 				AddErrorIfFalse(ChildrenNodeB.Num() == 1, "FAnimationAnimNextRuntimeTest_IHierarchy -> Expected 1 child");
 				AddErrorIfFalse(ChildrenNodeB[0].IsValid() && ChildrenNodeB[0].GetNodeInstance()->GetNodeHandle() == NodeA, "FAnimationAnimNextRuntimeTest_IHierarchy -> Expected child: NodeA");
-
-				{
-					TDecoratorBinding<IHierarchy> HierarchyBindingNodeA;
-					AddErrorIfFalse(Context.GetInterface(ChildrenNodeB[0], HierarchyBindingNodeA), "FAnimationAnimNextRuntimeTest_IHierarchy -> IHierarchy not found");
-
-					FChildrenArray ChildrenNodeA;
-					HierarchyBindingNodeA.GetChildren(Context, ChildrenNodeA);
-
-					AddErrorIfFalse(ChildrenNodeA.Num() == 0, "FAnimationAnimNextRuntimeTest_IHierarchy -> Expected 0 children");
-				}
 			}
 		}
 	}
@@ -541,8 +532,7 @@ bool FAnimationAnimNextRuntimeTest_IUpdate::RunTest(const FString& InParameters)
 		AddErrorIfFalse(NodeCPtr.IsValid(), "FAnimationAnimNextRuntimeTest_IUpdate -> Failed to allocate root node instance");
 
 		// Call pre/post update on our graph
-		FUpdateTraversalContext TraversalContext(0.0333f);
-		UpdateGraph(Context, TraversalContext, NodeCPtr);
+		UpdateGraph(Context, NodeCPtr, 0.0333f);
 
 		AddErrorIfFalse(UpdatedDecorators.Num() == 6, "FAnimationAnimNextRuntimeTest_IUpdate -> Expected 6 nodes to have been visited during the update traversal");
 		AddErrorIfFalse(UpdatedDecorators[0] == FDecoratorWithChildren::DecoratorUID, "FAnimationAnimNextRuntimeTest_IUpdate -> Unexpected update order");		// NodeC

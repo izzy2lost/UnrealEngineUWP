@@ -19,7 +19,9 @@ namespace UE::AnimNext
 	}
 
 	FExecutionContext::FExecutionContext(TArrayView<const uint8> InGraphSharedData)
-		: GraphSharedData(InGraphSharedData)
+		: NodeTemplateRegistry(FNodeTemplateRegistry::Get())
+		, DecoratorRegistry(FDecoratorRegistry::Get())
+		, GraphSharedData(InGraphSharedData)
 		, RigVMLatentMemoryHandles()
 		, RigVMExecuteContext(nullptr)
 	{
@@ -29,7 +31,9 @@ namespace UE::AnimNext
 	}
 
 	FExecutionContext::FExecutionContext(TArrayView<const uint8> InGraphSharedData, FRigVMExtendedExecuteContext& InRigVMExecuteContext, FRigVMMemoryHandleArray InRigVMLatentMemoryHandles)
-		: GraphSharedData(InGraphSharedData)
+		: NodeTemplateRegistry(FNodeTemplateRegistry::Get())
+		, DecoratorRegistry(FDecoratorRegistry::Get())
+		, GraphSharedData(InGraphSharedData)
 		, RigVMLatentMemoryHandles(InRigVMLatentMemoryHandles)
 		, RigVMExecuteContext(&InRigVMExecuteContext)
 	{
@@ -45,7 +49,7 @@ namespace UE::AnimNext
 		Private::GThreadLocalExecutionContext = nullptr;
 	}
 
-	FDecoratorPtr FExecutionContext::AllocateNodeInstance(FWeakDecoratorPtr ParentBinding, FAnimNextDecoratorHandle ChildDecoratorHandle)
+	FDecoratorPtr FExecutionContext::AllocateNodeInstance(const FWeakDecoratorPtr& ParentBinding, FAnimNextDecoratorHandle ChildDecoratorHandle) const
 	{
 		ensure(ChildDecoratorHandle.IsValid());
 		if (!ChildDecoratorHandle.IsValid())
@@ -115,7 +119,7 @@ namespace UE::AnimNext
 		return FDecoratorPtr(NodeInstance, ChildDecoratorIndex);
 	}
 
-	void FExecutionContext::ReleaseNodeInstance(FNodeInstance* NodeInstance)
+	void FExecutionContext::ReleaseNodeInstance(FNodeInstance* NodeInstance) const
 	{
 		ensure(NodeInstance != nullptr && NodeInstance->IsValid());
 		if (NodeInstance == nullptr || !NodeInstance->IsValid())
@@ -160,7 +164,7 @@ namespace UE::AnimNext
 		FMemory::Free(NodeInstance);
 	}
 
-	bool FExecutionContext::GetInterfaceImpl(FDecoratorInterfaceUID InterfaceUID, FWeakDecoratorPtr DecoratorPtr, FDecoratorBinding& InterfaceBinding) const
+	bool FExecutionContext::GetInterfaceImpl(FDecoratorInterfaceUID InterfaceUID, const FWeakDecoratorPtr& DecoratorPtr, FDecoratorBinding& InterfaceBinding) const
 	{
 		if (!DecoratorPtr.IsValid())
 		{
@@ -273,7 +277,7 @@ namespace UE::AnimNext
 		return false;
 	}
 
-	bool FExecutionContext::GetInterfaceSuperImpl(FDecoratorInterfaceUID InterfaceUID, FWeakDecoratorPtr DecoratorPtr, FDecoratorBinding& SuperBinding) const
+	bool FExecutionContext::GetInterfaceSuperImpl(FDecoratorInterfaceUID InterfaceUID, const FWeakDecoratorPtr& DecoratorPtr, FDecoratorBinding& SuperBinding) const
 	{
 		if (!DecoratorPtr.IsValid())
 		{
@@ -358,16 +362,12 @@ namespace UE::AnimNext
 	const FNodeTemplate* FExecutionContext::GetNodeTemplate(const FNodeDescription& NodeDesc) const
 	{
 		check(NodeDesc.GetTemplateHandle().IsValid());
-
-		const FNodeTemplateRegistry& NodeTemplateRegistry = FNodeTemplateRegistry::Get();
 		return NodeTemplateRegistry.Find(NodeDesc.GetTemplateHandle());
 	}
 
 	const FDecorator* FExecutionContext::GetDecorator(const FDecoratorTemplate& Template) const
 	{
 		check(Template.GetRegistryHandle().IsValid());
-
-		const FDecoratorRegistry& DecoratorRegistry = FDecoratorRegistry::Get();
 		return DecoratorRegistry.Find(Template.GetRegistryHandle());
 	}
 

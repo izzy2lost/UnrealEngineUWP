@@ -51,10 +51,10 @@ namespace UE::AnimNext
 		DECLARE_ANIM_DECORATOR_INTERFACE(IEvaluate, 0xa303e9e7)
 
 		// Called before a decorator's children are evaluated
-		virtual void PreEvaluate(FExecutionContext& Context, const TDecoratorBinding<IEvaluate>& Binding) const;
+		virtual void PreEvaluate(const FExecutionContext& Context, const TDecoratorBinding<IEvaluate>& Binding) const;
 
 		// Called after a decorator's children have been evaluated
-		virtual void PostEvaluate(FExecutionContext& Context, const TDecoratorBinding<IEvaluate>& Binding) const;
+		virtual void PostEvaluate(const FExecutionContext& Context, const TDecoratorBinding<IEvaluate>& Binding) const;
 	};
 
 	/**
@@ -64,13 +64,13 @@ namespace UE::AnimNext
 	struct TDecoratorBinding<IEvaluate> : FDecoratorBinding
 	{
 		// @see IEvaluate::PreEvaluate
-		void PreEvaluate(FExecutionContext& Context) const
+		void PreEvaluate(const FExecutionContext& Context) const
 		{
 			GetInterface()->PreEvaluate(Context, *this);
 		}
 
 		// @see IEvaluate::PostEvaluate
-		void PostEvaluate(FExecutionContext& Context) const
+		void PostEvaluate(const FExecutionContext& Context) const
 		{
 			GetInterface()->PostEvaluate(Context, *this);
 		}

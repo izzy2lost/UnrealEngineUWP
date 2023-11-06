@@ -5,11 +5,6 @@
 #include "DecoratorBase/ExecutionContext.h"
 #include "EvaluationVM/Tasks/BlendKeyframes.h"
 
-#if 0
-// TODO: Validate blend by bool and blend smoother through a cvar at runtime to select the bool value
-static TAutoConsoleVariable<int32> CVarAnimNextForceBlendBool(TEXT("a.AnimNextForceBlendBool"), -1, TEXT("If != -1, then the value [0 (false), 1 (true)] is used to control Blend By Bool and override its value."));
-#endif
-
 namespace UE::AnimNext
 {
 	AUTO_REGISTER_ANIM_DECORATOR(FBlendByBoolDecorator)
@@ -24,7 +19,7 @@ namespace UE::AnimNext
 	static constexpr int32 TRUE_CHILD_INDEX = 0;
 	static constexpr int32 FALSE_CHILD_INDEX = 1;
 
-	void FBlendByBoolDecorator::PostEvaluate(FExecutionContext& Context, const TDecoratorBinding<IEvaluate>& Binding) const
+	void FBlendByBoolDecorator::PostEvaluate(const FExecutionContext& Context, const TDecoratorBinding<IEvaluate>& Binding) const
 	{
 		const FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
 
@@ -46,7 +41,7 @@ namespace UE::AnimNext
 		}
 	}
 
-	void FBlendByBoolDecorator::PreUpdate(FExecutionContext& Context, const TDecoratorBinding<IUpdate>& Binding) const
+	void FBlendByBoolDecorator::PreUpdate(FUpdateTraversalContext& Context, const TDecoratorBinding<IUpdate>& Binding, const FDecoratorUpdateState& DecoratorState) const
 	{
 		const FSharedData* SharedData = Binding.GetSharedData<FSharedData>();
 		FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
@@ -54,7 +49,7 @@ namespace UE::AnimNext
 		TDecoratorBinding<IDiscreteBlend> DiscreteBlendDecorator;
 		Context.GetInterface(Binding, DiscreteBlendDecorator);
 
-		const float DestinationChildIndex = DiscreteBlendDecorator.GetBlendDestinationChildIndex(Context);
+		const int32 DestinationChildIndex = DiscreteBlendDecorator.GetBlendDestinationChildIndex(Context);
 		if (InstanceData->PreviousChildIndex != DestinationChildIndex)
 		{
 			DiscreteBlendDecorator.OnBlendTransition(Context, InstanceData->PreviousChildIndex, DestinationChildIndex);
@@ -63,12 +58,47 @@ namespace UE::AnimNext
 		}
 	}
 
-	uint32 FBlendByBoolDecorator::GetNumChildren(FExecutionContext& Context, const TDecoratorBinding<IHierarchy>& Binding) const
+	void FBlendByBoolDecorator::QueueChildrenForTraversal(FUpdateTraversalContext& Context, const TDecoratorBinding<IUpdate>& Binding, const FDecoratorUpdateState& DecoratorState, FUpdateTraversalQueue& TraversalQueue) const
+	{
+		const FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
+
+		// The destination child index has been updated in PreUpdate, we can use the cached version
+		const int32 DestinationChildIndex = InstanceData->PreviousChildIndex;
+
+		TDecoratorBinding<IDiscreteBlend> DiscreteBlendDecorator;
+		Context.GetInterface(Binding, DiscreteBlendDecorator);
+
+		const float BlendWeightTrue = DiscreteBlendDecorator.GetBlendWeight(Context, TRUE_CHILD_INDEX);
+		if (InstanceData->TrueChild.IsValid() && FAnimWeight::IsRelevant(BlendWeightTrue))
+		{
+			FDecoratorUpdateState DecoratorStateTrue = DecoratorState.WithWeight(BlendWeightTrue);
+			if (DestinationChildIndex != TRUE_CHILD_INDEX)
+			{
+				DecoratorStateTrue = DecoratorStateTrue.AsBlendingOut();
+			}
+
+			TraversalQueue.Push(InstanceData->TrueChild, DecoratorStateTrue);
+		}
+
+		const float BlendWeightFalse = 1.0f - BlendWeightTrue;
+		if (InstanceData->FalseChild.IsValid() && FAnimWeight::IsRelevant(BlendWeightFalse))
+		{
+			FDecoratorUpdateState DecoratorStateFalse = DecoratorState.WithWeight(BlendWeightFalse);
+			if (DestinationChildIndex != FALSE_CHILD_INDEX)
+			{
+				DecoratorStateFalse = DecoratorStateFalse.AsBlendingOut();
+			}
+
+			TraversalQueue.Push(InstanceData->FalseChild, DecoratorStateFalse);
+		}
+	}
+
+	uint32 FBlendByBoolDecorator::GetNumChildren(const FExecutionContext& Context, const TDecoratorBinding<IHierarchy>& Binding) const
 	{
 		return 2;
 	}
 
-	void FBlendByBoolDecorator::GetChildren(FExecutionContext& Context, const TDecoratorBinding<IHierarchy>& Binding, FChildrenArray& Children) const
+	void FBlendByBoolDecorator::GetChildren(const FExecutionContext& Context, const TDecoratorBinding<IHierarchy>& Binding, FChildrenArray& Children) const
 	{
 		const FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
 
@@ -77,7 +107,7 @@ namespace UE::AnimNext
 		Children.Add(InstanceData->FalseChild);
 	}
 
-	float FBlendByBoolDecorator::GetBlendWeight(FExecutionContext& Context, const TDecoratorBinding<IDiscreteBlend>& Binding, int32 ChildIndex) const
+	float FBlendByBoolDecorator::GetBlendWeight(const FExecutionContext& Context, const TDecoratorBinding<IDiscreteBlend>& Binding, int32 ChildIndex) const
 	{
 		TDecoratorBinding<IDiscreteBlend> DiscreteBlendDecorator;
 		Context.GetInterface(Binding, DiscreteBlendDecorator);
@@ -99,29 +129,15 @@ namespace UE::AnimNext
 		}
 	}
 
-	int32 FBlendByBoolDecorator::GetBlendDestinationChildIndex(FExecutionContext& Context, const TDecoratorBinding<IDiscreteBlend>& Binding) const
+	int32 FBlendByBoolDecorator::GetBlendDestinationChildIndex(const FExecutionContext& Context, const TDecoratorBinding<IDiscreteBlend>& Binding) const
 	{
 		const FSharedData* SharedData = Binding.GetSharedData<FSharedData>();
-
-#if 0
-		{
-			const int32 BoolOverride = CVarAnimNextForceBlendBool.GetValueOnAnyThread();
-			if (BoolOverride == 0)
-			{
-				return FALSE_CHILD_INDEX;
-			}
-			else if (BoolOverride == 1)
-			{
-				return TRUE_CHILD_INDEX;
-			}
-		}
-#endif
 
 		const bool bCondition = SharedData->GetbCondition(Context, Binding);
 		return bCondition ? TRUE_CHILD_INDEX : FALSE_CHILD_INDEX;
 	}
 
-	void FBlendByBoolDecorator::OnBlendTransition(FExecutionContext& Context, const TDecoratorBinding<IDiscreteBlend>& Binding, int32 OldChildIndex, int32 NewChildIndex) const
+	void FBlendByBoolDecorator::OnBlendTransition(const FExecutionContext& Context, const TDecoratorBinding<IDiscreteBlend>& Binding, int32 OldChildIndex, int32 NewChildIndex) const
 	{
 		TDecoratorBinding<IDiscreteBlend> DiscreteBlendDecorator;
 		Context.GetInterface(Binding, DiscreteBlendDecorator);
@@ -133,7 +149,7 @@ namespace UE::AnimNext
 		DiscreteBlendDecorator.OnBlendTerminated(Context, OldChildIndex);
 	}
 
-	void FBlendByBoolDecorator::OnBlendInitiated(FExecutionContext& Context, const TDecoratorBinding<IDiscreteBlend>& Binding, int32 ChildIndex) const
+	void FBlendByBoolDecorator::OnBlendInitiated(const FExecutionContext& Context, const TDecoratorBinding<IDiscreteBlend>& Binding, int32 ChildIndex) const
 	{
 		const FSharedData* SharedData = Binding.GetSharedData<FSharedData>();
 		FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
@@ -155,7 +171,7 @@ namespace UE::AnimNext
 		}
 	}
 
-	void FBlendByBoolDecorator::OnBlendTerminated(FExecutionContext& Context, const TDecoratorBinding<IDiscreteBlend>& Binding, int32 ChildIndex) const
+	void FBlendByBoolDecorator::OnBlendTerminated(const FExecutionContext& Context, const TDecoratorBinding<IDiscreteBlend>& Binding, int32 ChildIndex) const
 	{
 		FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
 

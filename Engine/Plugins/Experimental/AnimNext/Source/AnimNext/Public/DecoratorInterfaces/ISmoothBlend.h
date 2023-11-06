@@ -17,7 +17,7 @@ namespace UE::AnimNext
 		DECLARE_ANIM_DECORATOR_INTERFACE(ISmoothBlend, 0x1c2c1739)
 
 		// Returns the desired blend time for the specified child
-		virtual float GetBlendTime(FExecutionContext& Context, const TDecoratorBinding<ISmoothBlend>& Binding, int32 ChildIndex) const;
+		virtual float GetBlendTime(const FExecutionContext& Context, const TDecoratorBinding<ISmoothBlend>& Binding, int32 ChildIndex) const;
 	};
 
 	/**
@@ -27,7 +27,7 @@ namespace UE::AnimNext
 	struct TDecoratorBinding<ISmoothBlend> : FDecoratorBinding
 	{
 		// @see ISmoothBlend::GetBlendTime
-		float GetBlendTime(FExecutionContext& Context, int32 ChildIndex) const
+		float GetBlendTime(const FExecutionContext& Context, int32 ChildIndex) const
 		{
 			return GetInterface()->GetBlendTime(Context, *this, ChildIndex);
 		}

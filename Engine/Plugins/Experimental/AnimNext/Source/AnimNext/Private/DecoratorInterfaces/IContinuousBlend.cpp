@@ -6,7 +6,7 @@
 
 namespace UE::AnimNext
 {
-	float IContinuousBlend::GetBlendWeight(FExecutionContext& Context, const TDecoratorBinding<IContinuousBlend>& Binding, int32 ChildIndex) const
+	float IContinuousBlend::GetBlendWeight(const FExecutionContext& Context, const TDecoratorBinding<IContinuousBlend>& Binding, int32 ChildIndex) const
 	{
 		TDecoratorBinding<IContinuousBlend> SuperBinding;
 		if (Context.GetInterfaceSuper(Binding, SuperBinding))

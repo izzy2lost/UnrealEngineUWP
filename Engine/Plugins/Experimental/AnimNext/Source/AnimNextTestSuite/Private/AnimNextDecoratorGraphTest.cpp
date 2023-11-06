@@ -37,9 +37,9 @@ namespace UE::AnimNext
 		using FSharedData = FTestDecoratorSharedData;
 
 		// IUpdate impl
-		virtual void PostUpdate(FExecutionContext& Context, const TDecoratorBinding<IUpdate>& Binding) const override
+		virtual void PostUpdate(FUpdateTraversalContext& Context, const TDecoratorBinding<IUpdate>& Binding, const FDecoratorUpdateState& DecoratorState) const override
 		{
-			IUpdate::PostUpdate(Context, Binding);
+			IUpdate::PostUpdate(Context, Binding, DecoratorState);
 
 			const FSharedData* SharedData = Binding.GetSharedData<FSharedData>();
 			UE::AnimNext::FParamStack& ParamStack = UE::AnimNext::FParamStack::Get();
@@ -56,7 +56,7 @@ namespace UE::AnimNext
 		}
 
 		// IEvaluate impl
-		virtual void PostEvaluate(FExecutionContext& Context, const TDecoratorBinding<IEvaluate>& Binding) const override
+		virtual void PostEvaluate(const FExecutionContext& Context, const TDecoratorBinding<IEvaluate>& Binding) const override
 		{
 			IEvaluate::PostEvaluate(Context, Binding);
 

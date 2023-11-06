@@ -19,7 +19,7 @@ namespace UE::AnimNext
 		// Returns the blend weight for the specified child
 		// Multiple children can have non-zero weight but their sum must be 1.0
 		// Returns -1.0 if the child index is invalid
-		virtual float GetBlendWeight(FExecutionContext& Context, const TDecoratorBinding<IContinuousBlend>& Binding, int32 ChildIndex) const;
+		virtual float GetBlendWeight(const FExecutionContext& Context, const TDecoratorBinding<IContinuousBlend>& Binding, int32 ChildIndex) const;
 	};
 
 	/**
@@ -29,7 +29,7 @@ namespace UE::AnimNext
 	struct TDecoratorBinding<IContinuousBlend> : FDecoratorBinding
 	{
 		// @see IContinuousBlend::GetBlendWeight
-		float GetBlendWeight(FExecutionContext& Context, int32 ChildIndex) const
+		float GetBlendWeight(const FExecutionContext& Context, int32 ChildIndex) const
 		{
 			return GetInterface()->GetBlendWeight(Context, *this, ChildIndex);
 		}

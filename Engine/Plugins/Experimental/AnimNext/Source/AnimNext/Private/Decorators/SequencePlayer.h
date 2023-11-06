@@ -60,16 +60,16 @@ namespace UE::AnimNext
 			float InternalTimeAccumulator = 0.0f;
 			float PrevInternalTimeAccumulator = 0.0f;
 
-			void Construct(FExecutionContext& Context, const FDecoratorBinding& Binding);
+			void Construct(const FExecutionContext& Context, const FDecoratorBinding& Binding);
 		};
 
 		// IEvaluate impl
-		virtual void PreEvaluate(FExecutionContext& Context, const TDecoratorBinding<IEvaluate>& Binding) const override;
+		virtual void PreEvaluate(const FExecutionContext& Context, const TDecoratorBinding<IEvaluate>& Binding) const override;
 
 		// ITimeline impl
-		virtual double GetPlayRate(FExecutionContext& Context, const TDecoratorBinding<ITimeline>& Binding) const override;
+		virtual double GetPlayRate(const FExecutionContext& Context, const TDecoratorBinding<ITimeline>& Binding) const override;
 
 		// IUpdate impl
-		virtual void PreUpdate(FExecutionContext& Context, const TDecoratorBinding<IUpdate>& Binding) const override;
+		virtual void PreUpdate(FUpdateTraversalContext& Context, const TDecoratorBinding<IUpdate>& Binding, const FDecoratorUpdateState& DecoratorState) const override;
 	};
 }

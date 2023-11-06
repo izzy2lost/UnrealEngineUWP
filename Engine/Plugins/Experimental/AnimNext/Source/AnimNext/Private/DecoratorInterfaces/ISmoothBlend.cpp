@@ -6,7 +6,7 @@
 
 namespace UE::AnimNext
 {
-	float ISmoothBlend::GetBlendTime(FExecutionContext& Context, const TDecoratorBinding<ISmoothBlend>& Binding, int32 ChildIndex) const
+	float ISmoothBlend::GetBlendTime(const FExecutionContext& Context, const TDecoratorBinding<ISmoothBlend>& Binding, int32 ChildIndex) const
 	{
 		TDecoratorBinding<ISmoothBlend> SuperBinding;
 		if (Context.GetInterfaceSuper(Binding, SuperBinding))

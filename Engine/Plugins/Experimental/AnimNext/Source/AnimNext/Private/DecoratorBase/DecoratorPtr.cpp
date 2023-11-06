@@ -5,16 +5,16 @@
 
 namespace UE::AnimNext
 {
-	FDecoratorPtr::FDecoratorPtr(FNodeInstance* NodeInstance, uint32 DecoratorIndex_)
-		: PackedPointerAndFlags(NodeInstance != nullptr ? reinterpret_cast<uintptr_t>(NodeInstance) : 0)
-		, DecoratorIndex(DecoratorIndex_)
+	FDecoratorPtr::FDecoratorPtr(FNodeInstance* InNodeInstance, uint32 InDecoratorIndex)
+		: PackedPointerAndFlags(InNodeInstance != nullptr ? reinterpret_cast<uintptr_t>(InNodeInstance) : 0)
+		, DecoratorIndex(InDecoratorIndex)
 	{
-		check((reinterpret_cast<uintptr_t>(NodeInstance) & FLAGS_MASK) == 0);	// Make sure we have enough alignment
+		check((reinterpret_cast<uintptr_t>(InNodeInstance) & FLAGS_MASK) == 0);	// Make sure we have enough alignment
 		check(DecoratorIndex <= MAX_uint8);	// Make sure we don't truncate
 
-		if (NodeInstance != nullptr)
+		if (InNodeInstance != nullptr)
 		{
-			NodeInstance->AddReference();
+			InNodeInstance->AddReference();
 		}
 	}
 
@@ -41,17 +41,17 @@ namespace UE::AnimNext
 		DecoratorPtr.DecoratorIndex = 0;
 	}
 
-	FDecoratorPtr::FDecoratorPtr(FNodeInstance* NodeInstance, EFlags Flags, uint32 DecoratorIndex_)
-		: PackedPointerAndFlags(NodeInstance != nullptr ? (reinterpret_cast<uintptr_t>(NodeInstance) | Flags) : 0)
-		, DecoratorIndex(DecoratorIndex_)
+	FDecoratorPtr::FDecoratorPtr(FNodeInstance* InNodeInstance, EFlags InFlags, uint32 InDecoratorIndex)
+		: PackedPointerAndFlags(InNodeInstance != nullptr ? (reinterpret_cast<uintptr_t>(InNodeInstance) | InFlags) : 0)
+		, DecoratorIndex(InDecoratorIndex)
 	{
-		check((reinterpret_cast<uintptr_t>(NodeInstance) & FLAGS_MASK) == 0);	// Make sure we have enough alignment
+		check((reinterpret_cast<uintptr_t>(InNodeInstance) & FLAGS_MASK) == 0);	// Make sure we have enough alignment
 		check(DecoratorIndex <= MAX_uint8);	// Make sure we don't truncate
 
 		// Only increment the reference count if we aren't a weak handle
-		if (NodeInstance != nullptr && (Flags & IS_WEAK_BIT) == 0)
+		if (InNodeInstance != nullptr && (InFlags & IS_WEAK_BIT) == 0)
 		{
-			NodeInstance->AddReference();
+			InNodeInstance->AddReference();
 		}
 	}
 
@@ -112,9 +112,9 @@ namespace UE::AnimNext
 		DecoratorIndex = 0;
 	}
 
-	FWeakDecoratorPtr::FWeakDecoratorPtr(FNodeInstance* NodeInstance_, uint32 DecoratorIndex_)
-		: NodeInstance(NodeInstance_)
-		, DecoratorIndex(DecoratorIndex_)
+	FWeakDecoratorPtr::FWeakDecoratorPtr(FNodeInstance* InNodeInstance, uint32 InDecoratorIndex)
+		: NodeInstance(InNodeInstance)
+		, DecoratorIndex(InDecoratorIndex)
 	{
 		check(DecoratorIndex <= MAX_uint8);	// Make sure we don't truncate
 	}

@@ -15,7 +15,7 @@ namespace UE::AnimNext
 		DEFINE_ANIM_DECORATOR_IMPLEMENTS_INTERFACE(ITimeline)
 	DEFINE_ANIM_DECORATOR_END(FSequencePlayerDecorator)
 
-	void FSequencePlayerDecorator::FInstanceData::Construct(FExecutionContext& Context, const FDecoratorBinding& Binding)
+	void FSequencePlayerDecorator::FInstanceData::Construct(const FExecutionContext& Context, const FDecoratorBinding& Binding)
 	{
 		const FSharedData* SharedData = Binding.GetSharedData<FSharedData>();
 		if (SharedData->AnimSequence != nullptr)
@@ -26,7 +26,7 @@ namespace UE::AnimNext
 		}
 	}
 
-	void FSequencePlayerDecorator::PreEvaluate(FExecutionContext& Context, const TDecoratorBinding<IEvaluate>& Binding) const
+	void FSequencePlayerDecorator::PreEvaluate(const FExecutionContext& Context, const TDecoratorBinding<IEvaluate>& Binding) const
 	{
 		const FSharedData* SharedData = Binding.GetSharedData<FSharedData>();
 
@@ -40,24 +40,23 @@ namespace UE::AnimNext
 		TraversalContext.AppendTask(Task);
 	}
 
-	double FSequencePlayerDecorator::GetPlayRate(FExecutionContext& Context, const TDecoratorBinding<ITimeline>& Binding) const
+	double FSequencePlayerDecorator::GetPlayRate(const FExecutionContext& Context, const TDecoratorBinding<ITimeline>& Binding) const
 	{
 		const FSharedData* SharedData = Binding.GetSharedData<FSharedData>();
 		return SharedData->GetPlayRate(Context, Binding);
 	}
 
-	void FSequencePlayerDecorator::PreUpdate(FExecutionContext& Context, const TDecoratorBinding<IUpdate>& Binding) const
+	void FSequencePlayerDecorator::PreUpdate(FUpdateTraversalContext& Context, const TDecoratorBinding<IUpdate>& Binding, const FDecoratorUpdateState& DecoratorState) const
 	{
 		const FSharedData* SharedData = Binding.GetSharedData<FSharedData>();
 		if (SharedData->AnimSequence != nullptr)
 		{
 			FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
-			const FUpdateTraversalContext& TraversalContext = Context.GetTraversalContext<FUpdateTraversalContext>();
 
 			TDecoratorBinding<ITimeline> TimelineDecorator;
 			Context.GetInterface(Binding, TimelineDecorator);
 
-			const float DeltaTime = TraversalContext.GetDeltaTime();
+			const float DeltaTime = DecoratorState.GetDeltaTime();
 			const float PlayRate = (float)TimelineDecorator.GetPlayRate(Context);
 
 			const float EffectiveDelta = FMath::IsNearlyZero(DeltaTime) || FMath::IsNearlyZero(PlayRate) ? 0.f : DeltaTime * PlayRate;

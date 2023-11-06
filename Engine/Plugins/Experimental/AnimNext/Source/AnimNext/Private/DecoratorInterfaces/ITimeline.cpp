@@ -6,7 +6,7 @@
 
 namespace UE::AnimNext
 {
-	double ITimeline::GetPlayRate(FExecutionContext& Context, const TDecoratorBinding<ITimeline>& Binding) const
+	double ITimeline::GetPlayRate(const FExecutionContext& Context, const TDecoratorBinding<ITimeline>& Binding) const
 	{
 		TDecoratorBinding<ITimeline> SuperBinding;
 		if (Context.GetInterfaceSuper(Binding, SuperBinding))

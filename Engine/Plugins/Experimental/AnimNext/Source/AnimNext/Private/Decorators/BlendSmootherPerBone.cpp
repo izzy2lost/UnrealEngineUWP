@@ -19,7 +19,7 @@ namespace UE::AnimNext
 		DEFINE_ANIM_DECORATOR_IMPLEMENTS_INTERFACE(IDiscreteBlend)
 	DEFINE_ANIM_DECORATOR_END(FBlendSmootherPerBoneDecorator)
 
-	void FBlendSmootherPerBoneDecorator::PostEvaluate(FExecutionContext& Context, const TDecoratorBinding<IEvaluate>& Binding) const
+	void FBlendSmootherPerBoneDecorator::PostEvaluate(const FExecutionContext& Context, const TDecoratorBinding<IEvaluate>& Binding) const
 	{
 		const FSharedData* SharedData = Binding.GetSharedData<FSharedData>();
 		const FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
@@ -67,7 +67,7 @@ namespace UE::AnimNext
 		TraversalContext.AppendTask(FAnimNextNormalizeKeyframeRotationsTask());
 	}
 
-	void FBlendSmootherPerBoneDecorator::PreUpdate(FExecutionContext& Context, const TDecoratorBinding<IUpdate>& Binding) const
+	void FBlendSmootherPerBoneDecorator::PreUpdate(FUpdateTraversalContext& Context, const TDecoratorBinding<IUpdate>& Binding, const FDecoratorUpdateState& DecoratorState) const
 	{
 		const FSharedData* SharedData = Binding.GetSharedData<FSharedData>();
 		FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
@@ -79,7 +79,7 @@ namespace UE::AnimNext
 		}
 
 		// Update the decorators below us, they might trigger a transition
-		IUpdate::PreUpdate(Context, Binding);
+		IUpdate::PreUpdate(Context, Binding, DecoratorState);
 
 		if (!SharedData->BlendProfile)
 		{
@@ -109,7 +109,7 @@ namespace UE::AnimNext
 		FBlendSampleData::NormalizeDataWeight(InstanceData->PerBoneSampleData);
 	}
 
-	void FBlendSmootherPerBoneDecorator::OnBlendTransition(FExecutionContext& Context, const TDecoratorBinding<IDiscreteBlend>& Binding, int32 OldChildIndex, int32 NewChildIndex) const
+	void FBlendSmootherPerBoneDecorator::OnBlendTransition(const FExecutionContext& Context, const TDecoratorBinding<IDiscreteBlend>& Binding, int32 OldChildIndex, int32 NewChildIndex) const
 	{
 		const FSharedData* SharedData = Binding.GetSharedData<FSharedData>();
 		FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
@@ -135,7 +135,7 @@ namespace UE::AnimNext
 		}
 	}
 
-	void FBlendSmootherPerBoneDecorator::InitializeInstanceData(FExecutionContext& Context, const FDecoratorBinding& Binding, const FSharedData* SharedData, FInstanceData* InstanceData)
+	void FBlendSmootherPerBoneDecorator::InitializeInstanceData(const FExecutionContext& Context, const FDecoratorBinding& Binding, const FSharedData* SharedData, FInstanceData* InstanceData)
 	{
 		check(InstanceData->PerChildBlendData.IsEmpty());
 

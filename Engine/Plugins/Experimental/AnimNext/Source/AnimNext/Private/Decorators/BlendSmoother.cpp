@@ -2,6 +2,7 @@
 
 #include "Decorators/BlendSmoother.h"
 
+#include "Animation/AnimTypes.h"
 #include "DecoratorBase/ExecutionContext.h"
 #include "DecoratorInterfaces/IHierarchy.h"
 #include "EvaluationVM/Tasks/BlendKeyframes.h"
@@ -16,7 +17,7 @@ namespace UE::AnimNext
 		DEFINE_ANIM_DECORATOR_IMPLEMENTS_INTERFACE(ISmoothBlend)
 	DEFINE_ANIM_DECORATOR_END(FBlendSmootherDecorator)
 
-	void FBlendSmootherDecorator::PreUpdate(FExecutionContext& Context, const TDecoratorBinding<IUpdate>& Binding) const
+	void FBlendSmootherDecorator::PreUpdate(FUpdateTraversalContext& Context, const TDecoratorBinding<IUpdate>& Binding, const FDecoratorUpdateState& DecoratorState) const
 	{
 		const FSharedData* SharedData = Binding.GetSharedData<FSharedData>();
 		FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
@@ -28,10 +29,9 @@ namespace UE::AnimNext
 		}
 
 		// Update the decorators below us, they might trigger a transition
-		IUpdate::PreUpdate(Context, Binding);
+		IUpdate::PreUpdate(Context, Binding, DecoratorState);
 
-		const FUpdateTraversalContext& TraversalContext = Context.GetTraversalContext<FUpdateTraversalContext>();
-		const float DeltaTime = TraversalContext.GetDeltaTime();
+		const float DeltaTime = DecoratorState.GetDeltaTime();
 
 		// Advance the weights
 		float SumWeight = 0.0f;
@@ -46,7 +46,14 @@ namespace UE::AnimNext
 
 			ChildBlendData.Blend.Update(DeltaTime);
 
-			const float NewBlendWeight = ChildBlendData.Blend.GetBlendedValue();
+			float NewBlendWeight = ChildBlendData.Blend.GetBlendedValue();
+
+			if (!FAnimWeight::IsRelevant(NewBlendWeight))
+			{
+				// Our new weight is no longer relevant, snap it to zero and normalization below will fix-up the other weights
+				// We'll then terminate the blend below
+				NewBlendWeight = 0.0f;
+			}
 
 			ChildBlendData.Weight = NewBlendWeight;
 			SumWeight += NewBlendWeight;
@@ -89,19 +96,19 @@ namespace UE::AnimNext
 		}
 	}
 
-	float FBlendSmootherDecorator::GetBlendWeight(FExecutionContext& Context, const TDecoratorBinding<IDiscreteBlend>& Binding, int32 ChildIndex) const
+	float FBlendSmootherDecorator::GetBlendWeight(const FExecutionContext& Context, const TDecoratorBinding<IDiscreteBlend>& Binding, int32 ChildIndex) const
 	{
 		const FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
 		return InstanceData->PerChildBlendData.IsValidIndex(ChildIndex) ? InstanceData->PerChildBlendData[ChildIndex].Weight : -1.0f;
 	}
 
-	const FAlphaBlend* FBlendSmootherDecorator::GetBlendState(FExecutionContext& Context, const TDecoratorBinding<IDiscreteBlend>& Binding, int32 ChildIndex) const
+	const FAlphaBlend* FBlendSmootherDecorator::GetBlendState(const FExecutionContext& Context, const TDecoratorBinding<IDiscreteBlend>& Binding, int32 ChildIndex) const
 	{
 		const FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
 		return InstanceData->PerChildBlendData.IsValidIndex(ChildIndex) ? &InstanceData->PerChildBlendData[ChildIndex].Blend : nullptr;
 	}
 
-	void FBlendSmootherDecorator::OnBlendTransition(FExecutionContext& Context, const TDecoratorBinding<IDiscreteBlend>& Binding, int32 OldChildIndex, int32 NewChildIndex) const
+	void FBlendSmootherDecorator::OnBlendTransition(const FExecutionContext& Context, const TDecoratorBinding<IDiscreteBlend>& Binding, int32 OldChildIndex, int32 NewChildIndex) const
 	{
 		const FSharedData* SharedData = Binding.GetSharedData<FSharedData>();
 		FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
@@ -150,13 +157,13 @@ namespace UE::AnimNext
 		DiscreteBlendDecorator.OnBlendInitiated(Context, NewChildIndex);
 	}
 
-	float FBlendSmootherDecorator::GetBlendTime(FExecutionContext& Context, const TDecoratorBinding<ISmoothBlend>& Binding, int32 ChildIndex) const
+	float FBlendSmootherDecorator::GetBlendTime(const FExecutionContext& Context, const TDecoratorBinding<ISmoothBlend>& Binding, int32 ChildIndex) const
 	{
 		const FSharedData* SharedData = Binding.GetSharedData<FSharedData>();
 		return SharedData->BlendTimes.IsValidIndex(ChildIndex) ? SharedData->BlendTimes[ChildIndex] : 0.0f;
 	}
 
-	void FBlendSmootherDecorator::InitializeInstanceData(FExecutionContext& Context, const FDecoratorBinding& Binding, const FSharedData* SharedData, FInstanceData* InstanceData)
+	void FBlendSmootherDecorator::InitializeInstanceData(const FExecutionContext& Context, const FDecoratorBinding& Binding, const FSharedData* SharedData, FInstanceData* InstanceData)
 	{
 		check(InstanceData->PerChildBlendData.IsEmpty());
 

@@ -19,8 +19,10 @@ namespace UE::AnimNext
 {
 	struct FNodeDescription;
 	struct FNodeInstance;
+	struct FNodeTemplateRegistry;
 	struct FNodeTemplate;
 	struct FDecorator;
+	struct FDecoratorRegistry;
 	struct FDecoratorTemplate;
 	struct ITraversalContext;
 
@@ -43,7 +45,7 @@ namespace UE::AnimNext
 		// Queries a node for a decorator that implements the specified interface.
 		// If no such decorator exists, nullptr is returned.
 		template<class DecoratorInterface>
-		bool GetInterface(FWeakDecoratorPtr DecoratorPtr, TDecoratorBinding<DecoratorInterface>& InterfaceBinding) const;
+		bool GetInterface(const FWeakDecoratorPtr& DecoratorPtr, TDecoratorBinding<DecoratorInterface>& InterfaceBinding) const;
 
 		// Queries a node for a decorator that implements the specified interface.
 		// If no such decorator exists, nullptr is returned.
@@ -53,7 +55,7 @@ namespace UE::AnimNext
 		// Queries a node for a decorator lower on the stack that implements the specified interface.
 		// If no such decorator exists, nullptr is returned.
 		template<class DecoratorInterface>
-		bool GetInterfaceSuper(FWeakDecoratorPtr DecoratorPtr, TDecoratorBinding<DecoratorInterface>& SuperBinding) const;
+		bool GetInterfaceSuper(const FWeakDecoratorPtr& DecoratorPtr, TDecoratorBinding<DecoratorInterface>& SuperBinding) const;
 
 		// Queries a node for a decorator lower on the stack that implements the specified interface.
 		// If no such decorator exists, nullptr is returned.
@@ -62,14 +64,14 @@ namespace UE::AnimNext
 
 		// Allocates a new node instance from a decorator handle
 		// If the desired decorator lives in the current parent, a weak handle to it will be returned
-		FDecoratorPtr AllocateNodeInstance(const FDecoratorBinding& ParentBinding, FAnimNextDecoratorHandle ChildDecoratorHandle);
+		FDecoratorPtr AllocateNodeInstance(const FDecoratorBinding& ParentBinding, FAnimNextDecoratorHandle ChildDecoratorHandle) const;
 
 		// Allocates a new node instance from a decorator handle
 		// If the desired decorator lives in the current parent, a weak handle to it will be returned
-		FDecoratorPtr AllocateNodeInstance(FWeakDecoratorPtr ParentBinding, FAnimNextDecoratorHandle ChildDecoratorHandle);
+		FDecoratorPtr AllocateNodeInstance(const FWeakDecoratorPtr& ParentBinding, FAnimNextDecoratorHandle ChildDecoratorHandle) const;
 
 		// Releases a node instance that is no longer referenced
-		void ReleaseNodeInstance(FNodeInstance* Node);
+		void ReleaseNodeInstance(FNodeInstance* Node) const;
 
 		// Returns the current strongly typed traversal context or nullptr if not in a traversal
 		template<class TraversalContextType>
@@ -83,16 +85,21 @@ namespace UE::AnimNext
 		FExecutionContext(const FExecutionContext&) = delete;
 		FExecutionContext(FExecutionContext&&) = delete;
 
-		bool GetInterfaceImpl(FDecoratorInterfaceUID InterfaceUID, FWeakDecoratorPtr DecoratorPtr, FDecoratorBinding& InterfaceBinding) const;
-		bool GetInterfaceSuperImpl(FDecoratorInterfaceUID InterfaceUID, FWeakDecoratorPtr DecoratorPtr, FDecoratorBinding& SuperBinding) const;
+		bool GetInterfaceImpl(FDecoratorInterfaceUID InterfaceUID, const FWeakDecoratorPtr& DecoratorPtr, FDecoratorBinding& InterfaceBinding) const;
+		bool GetInterfaceSuperImpl(FDecoratorInterfaceUID InterfaceUID, const FWeakDecoratorPtr& DecoratorPtr, FDecoratorBinding& SuperBinding) const;
 		const void* EvaluateLatentPinImpl(FLatentPropertyHandle LatentPropertyHandle) const;
 
 		const FNodeDescription& GetNodeDescription(FNodeHandle NodeHandle) const;
 		const FNodeTemplate* GetNodeTemplate(const FNodeDescription& NodeDesc) const;
 		const FDecorator* GetDecorator(const FDecoratorTemplate& DecoratorDesc) const;
 
+		// Cached references to the registries we need
+		const FNodeTemplateRegistry& NodeTemplateRegistry;
+		const FDecoratorRegistry& DecoratorRegistry;
+
 		ITraversalContext* TraversalContext = nullptr;
 
+		// Cached properties for the currently executing graph
 		TArrayView<const uint8> GraphSharedData;
 		FRigVMMemoryHandleArray RigVMLatentMemoryHandles;
 		FRigVMExtendedExecuteContext* RigVMExecuteContext;
@@ -106,7 +113,7 @@ namespace UE::AnimNext
 	//////////////////////////////////////////////////////////////////////////
 
 	template<class DecoratorInterface>
-	inline bool FExecutionContext::GetInterface(FWeakDecoratorPtr DecoratorPtr, TDecoratorBinding<DecoratorInterface>& InterfaceBinding) const
+	inline bool FExecutionContext::GetInterface(const FWeakDecoratorPtr& DecoratorPtr, TDecoratorBinding<DecoratorInterface>& InterfaceBinding) const
 	{
 		constexpr FDecoratorInterfaceUID InterfaceUID = DecoratorInterface::InterfaceUID;
 		return GetInterfaceImpl(InterfaceUID, DecoratorPtr, InterfaceBinding);
@@ -119,7 +126,7 @@ namespace UE::AnimNext
 	}
 
 	template<class DecoratorInterface>
-	inline bool FExecutionContext::GetInterfaceSuper(FWeakDecoratorPtr DecoratorPtr, TDecoratorBinding<DecoratorInterface>& SuperBinding) const
+	inline bool FExecutionContext::GetInterfaceSuper(const FWeakDecoratorPtr& DecoratorPtr, TDecoratorBinding<DecoratorInterface>& SuperBinding) const
 	{
 		constexpr FDecoratorInterfaceUID InterfaceUID = DecoratorInterface::InterfaceUID;
 		return GetInterfaceSuperImpl(InterfaceUID, DecoratorPtr, SuperBinding);
@@ -131,7 +138,7 @@ namespace UE::AnimNext
 		return GetInterfaceSuper<DecoratorInterface>(Binding.GetDecoratorPtr(), SuperBinding);
 	}
 
-	inline FDecoratorPtr FExecutionContext::AllocateNodeInstance(const FDecoratorBinding& ParentBinding, FAnimNextDecoratorHandle ChildDecoratorHandle)
+	inline FDecoratorPtr FExecutionContext::AllocateNodeInstance(const FDecoratorBinding& ParentBinding, FAnimNextDecoratorHandle ChildDecoratorHandle) const
 	{
 		return AllocateNodeInstance(ParentBinding.GetDecoratorPtr(), ChildDecoratorHandle);
 	}

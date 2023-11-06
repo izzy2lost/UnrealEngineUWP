@@ -41,7 +41,7 @@ namespace UE::AnimNext
 		FEvaluationProgram* OldEvaluationProgram;
 	};
 
-	void IEvaluate::PreEvaluate(FExecutionContext& Context, const TDecoratorBinding<IEvaluate>& Binding) const
+	void IEvaluate::PreEvaluate(const FExecutionContext& Context, const TDecoratorBinding<IEvaluate>& Binding) const
 	{
 		TDecoratorBinding<IEvaluate> SuperBinding;
 		if (Context.GetInterfaceSuper(Binding, SuperBinding))
@@ -50,7 +50,7 @@ namespace UE::AnimNext
 		}
 	}
 
-	void IEvaluate::PostEvaluate(FExecutionContext& Context, const TDecoratorBinding<IEvaluate>& Binding) const
+	void IEvaluate::PostEvaluate(const FExecutionContext& Context, const TDecoratorBinding<IEvaluate>& Binding) const
 	{
 		TDecoratorBinding<IEvaluate> SuperBinding;
 		if (Context.GetInterfaceSuper(Binding, SuperBinding))

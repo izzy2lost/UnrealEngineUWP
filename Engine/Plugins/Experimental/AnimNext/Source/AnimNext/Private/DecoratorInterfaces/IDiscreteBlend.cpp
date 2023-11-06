@@ -6,7 +6,7 @@
 
 namespace UE::AnimNext
 {
-	float IDiscreteBlend::GetBlendWeight(FExecutionContext& Context, const TDecoratorBinding<IDiscreteBlend>& Binding, int32 ChildIndex) const
+	float IDiscreteBlend::GetBlendWeight(const FExecutionContext& Context, const TDecoratorBinding<IDiscreteBlend>& Binding, int32 ChildIndex) const
 	{
 		TDecoratorBinding<IDiscreteBlend> SuperBinding;
 		if (Context.GetInterfaceSuper(Binding, SuperBinding))
@@ -17,7 +17,7 @@ namespace UE::AnimNext
 		return -1.0f;
 	}
 
-	const FAlphaBlend* IDiscreteBlend::GetBlendState(FExecutionContext& Context, const TDecoratorBinding<IDiscreteBlend>& Binding, int32 ChildIndex) const
+	const FAlphaBlend* IDiscreteBlend::GetBlendState(const FExecutionContext& Context, const TDecoratorBinding<IDiscreteBlend>& Binding, int32 ChildIndex) const
 	{
 		TDecoratorBinding<IDiscreteBlend> SuperBinding;
 		if (Context.GetInterfaceSuper(Binding, SuperBinding))
@@ -28,7 +28,7 @@ namespace UE::AnimNext
 		return nullptr;
 	}
 
-	int32 IDiscreteBlend::GetBlendDestinationChildIndex(FExecutionContext& Context, const TDecoratorBinding<IDiscreteBlend>& Binding) const
+	int32 IDiscreteBlend::GetBlendDestinationChildIndex(const FExecutionContext& Context, const TDecoratorBinding<IDiscreteBlend>& Binding) const
 	{
 		TDecoratorBinding<IDiscreteBlend> SuperBinding;
 		if (Context.GetInterfaceSuper(Binding, SuperBinding))
@@ -39,7 +39,7 @@ namespace UE::AnimNext
 		return INDEX_NONE;
 	}
 
-	void IDiscreteBlend::OnBlendTransition(FExecutionContext& Context, const TDecoratorBinding<IDiscreteBlend>& Binding, int32 OldChildIndex, int32 NewChildIndex) const
+	void IDiscreteBlend::OnBlendTransition(const FExecutionContext& Context, const TDecoratorBinding<IDiscreteBlend>& Binding, int32 OldChildIndex, int32 NewChildIndex) const
 	{
 		TDecoratorBinding<IDiscreteBlend> SuperBinding;
 		if (Context.GetInterfaceSuper(Binding, SuperBinding))
@@ -48,7 +48,7 @@ namespace UE::AnimNext
 		}
 	}
 
-	void IDiscreteBlend::OnBlendInitiated(FExecutionContext& Context, const TDecoratorBinding<IDiscreteBlend>& Binding, int32 ChildIndex) const
+	void IDiscreteBlend::OnBlendInitiated(const FExecutionContext& Context, const TDecoratorBinding<IDiscreteBlend>& Binding, int32 ChildIndex) const
 	{
 		TDecoratorBinding<IDiscreteBlend> SuperBinding;
 		if (Context.GetInterfaceSuper(Binding, SuperBinding))
@@ -57,7 +57,7 @@ namespace UE::AnimNext
 		}
 	}
 
-	void IDiscreteBlend::OnBlendTerminated(FExecutionContext& Context, const TDecoratorBinding<IDiscreteBlend>& Binding, int32 ChildIndex) const
+	void IDiscreteBlend::OnBlendTerminated(const FExecutionContext& Context, const TDecoratorBinding<IDiscreteBlend>& Binding, int32 ChildIndex) const
 	{
 		TDecoratorBinding<IDiscreteBlend> SuperBinding;
 		if (Context.GetInterfaceSuper(Binding, SuperBinding))

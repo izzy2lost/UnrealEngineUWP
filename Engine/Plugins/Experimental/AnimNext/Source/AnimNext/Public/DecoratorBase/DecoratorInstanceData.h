@@ -27,7 +27,7 @@ namespace UE::AnimNext
 		// You can override this function by adding a new one with the same name on your
 		// derived type.
 		// Decorators are constructed from the bottom to the top.
-		void Construct(FExecutionContext& Context, const FDecoratorBinding& Binding) noexcept
+		void Construct(const FExecutionContext& Context, const FDecoratorBinding& Binding) noexcept
 		{
 		}
 
@@ -36,7 +36,7 @@ namespace UE::AnimNext
 		// You can override this function by adding a new one with the same name on your
 		// derived type.
 		// Decorators are destructed from the top to the bottom.
-		void Destruct(FExecutionContext& Context, const FDecoratorBinding& Binding) noexcept
+		void Destruct(const FExecutionContext& Context, const FDecoratorBinding& Binding) noexcept
 		{
 		}
 	};

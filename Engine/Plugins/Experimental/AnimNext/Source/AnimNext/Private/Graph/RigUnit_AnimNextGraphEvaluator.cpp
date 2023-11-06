@@ -47,8 +47,7 @@ void FRigUnit_AnimNextGraphEvaluator::StaticExecute(FRigVMExtendedExecuteContext
 		const FContext& InterfaceContext = VMExecuteContext.GetContext();
 
 		// Call pre/post update on our graph
-		FUpdateTraversalContext TraversalContext(InterfaceContext.GetDeltaTime());
-		UpdateGraph(Context, TraversalContext, GraphInstancePtr);
+		UpdateGraph(Context, GraphInstancePtr, InterfaceContext.GetDeltaTime());
 	}
 
 	if (EnumHasAnyFlags(SimulationSteps, EAnimNextGraphSimulationSteps::Evaluate))
