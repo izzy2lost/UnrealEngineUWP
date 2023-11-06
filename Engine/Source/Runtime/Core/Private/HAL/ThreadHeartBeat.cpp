@@ -954,7 +954,7 @@ void FGameThreadHitchHeartBeatThreaded::InitSettings()
 		CmdLine_StackWalk = FParse::Param(FCommandLine::Get(), TEXT("hitchdetectionstackwalk"));
 
 		// Determine whether to start suspended
-		bool bStartSuspended = false;
+		bStartSuspended = false;
 		if (GConfig)
 		{
 			GConfig->GetBool(TEXT("Core.System"), TEXT("GameThreadHeartBeatStartSuspended"), bStartSuspended, GEngineIni);
@@ -1173,6 +1173,15 @@ void FGameThreadHitchHeartBeatThreaded::ResumeHeartBeat()
 		FrameStart(true);
 	}
 	UE_LOG(LogCore, Log, TEXT("HitchHeartBeat Resume called (count %d) - State: %s"), SuspendedCount, SuspendedCount == 0 ? TEXT("Running") : TEXT("Suspended"));
+#endif
+}
+
+bool FGameThreadHitchHeartBeatThreaded::IsStartedSuspended()
+{
+#if USE_HITCH_DETECTION
+	return bStartSuspended;
+#else
+	return true;
 #endif
 }
 
