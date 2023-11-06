@@ -12,6 +12,22 @@ class GenericApplication;
 struct FGuid;
 class IPlatformChunkInstall;
 
+#if PLATFORM_CPU_X86_FAMILY
+namespace ECPUFeatureBits_X86
+{
+	constexpr uint32 SSE2 = 1U << 2;
+	constexpr uint32 SSSE3 = 1U << 3;
+	constexpr uint32 SSE42 = 1U << 4;
+	constexpr uint32 AVX = 1U << 5;
+	constexpr uint32 BMI1 = 1U << 6; // Bit Manipulation Instructions - 1
+	constexpr uint32 BMI2 = 1U << 7; // Bit Manipulation Instructions - 2
+	constexpr uint32 AVX2 = 1U << 8;
+	constexpr uint32 F16C = 1U << 9; // Float16 conversion instructions
+	constexpr uint32 AVX512 = 1U << 10; // Skylake feature set : AVXF512{ F,VL,BW,DQ}.
+	constexpr uint32 AVX512_NOCAVEATS = 1U << 11; // Set when we have AVX512 without caveats like throttling.
+}
+#endif
+
 /** Helper struct used to get the string version of the Windows version. */
 struct FWindowsOSVersionHelper
 {
@@ -177,6 +193,14 @@ struct FWindowsPlatformMisc
 	 * @return	Returns true if cpuid is supported
 	 */
 	static CORE_API bool HasCPUIDInstruction();
+
+#if PLATFORM_CPU_X86_FAMILY
+	// Query the CPUID and parse out various feature bits. This is safe to call multiple times and caches the result internally for rapid access.
+	// Bits are all from the ECPUFeatureBits_X86 namespace.
+	static CORE_API uint32 GetFeatureBits_X86();
+	static CORE_API bool CheckFeatureBit_X86(uint32 FeatureBit_X86) { return (GetFeatureBits_X86() & FeatureBit_X86) != 0; }
+	static CORE_API bool CheckAllFeatureBits_X86(uint32 FeatureBits_X86) { return (GetFeatureBits_X86() & FeatureBits_X86) == FeatureBits_X86; }
+#endif
 
 	/**
 	 * Determines if AVX2 instruction set is supported on this platform
