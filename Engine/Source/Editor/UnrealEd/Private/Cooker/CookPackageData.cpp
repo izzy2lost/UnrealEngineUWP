@@ -3152,27 +3152,20 @@ void FPackageDatas::ClearCookedPlatforms()
 	});
 }
 
-void FPackageDatas::ClearCookResultsForPlugin(const FString& InPluginName)
+void FPackageDatas::ClearCookResultsForPackages(const TSet<FName>& InPackages)
 {
-	TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(InPluginName);
-	if (Plugin.IsValid())
-	{
-		FString PluginPath = Plugin->GetMountedAssetPath();
-		int AffectedPackagesCount = 0;
-
-		LockAndEnumeratePackageDatas([PluginPath, &AffectedPackagesCount](FPackageData* PackageData)
+	int32 AffectedPackagesCount = 0;
+	LockAndEnumeratePackageDatas([InPackages, &AffectedPackagesCount](FPackageData* PackageData)
+		{
+			const FName& PackageName = PackageData->GetPackageName();
+			if (InPackages.Contains(PackageName))
 			{
-				// Does this PackageData belong to the plugin?
-				const FName& PackageName = PackageData->GetPackageName();
-				if (PackageName.ToString().StartsWith(PluginPath))
-				{
-					PackageData->ClearCookResults();
-					AffectedPackagesCount++;
-				}
-			});
+				PackageData->ClearCookResults();
+				AffectedPackagesCount++;
+			}
+		});
 
-		UE_LOG(LogCook, Display, TEXT("Cleared the cook results of %d packages because plugin '%s' was requested to be recooked."), AffectedPackagesCount, *InPluginName);
-	}
+	UE_LOG(LogCook, Display, TEXT("Cleared the cook results of %d packages because ClearCookResultsForPackages requested them to be recooked."), AffectedPackagesCount);
 }
 
 void FPackageDatas::OnRemoveSessionPlatform(const ITargetPlatform* TargetPlatform)

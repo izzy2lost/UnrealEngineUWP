@@ -93,7 +93,6 @@ enum class ECookByTheBookOptions
 	DlcLoadMainAssetRegistry =			0x00020000, // If cooking DLC, populate the main game asset registry
 	ZenStore =							0x00040000, // Store cooked data in Zen Store
 	DlcReevaluateUncookedAssets =		0x00080000, // If cooking DLC, ignore assets in the base asset registry that were not cooked, so that this cook has an opportunity to cook the assets
-	DlcRecook =							0x00100000,	// If cooking DLC, force all the assets in the DLC to be cooked even if they are marked as already cooked.
 };
 ENUM_CLASS_FLAGS(ECookByTheBookOptions);
 
@@ -1272,12 +1271,6 @@ private:
 	static FString GetMountedAssetPathForPlugin(const FString& InPluginName);
 
 	FString GetMetadataDirectory() const;
-
-	/**
-	 * In a recook build, gets the list of plugins that need to be recooked, which includes DLCName if cooking a DLC
-	 * and all the plugins specified by the -CookPlugins command line parameter.
-	 */
-	void GetPluginsToRecook(TSet<FString>& OutPlugins) const;
 
 	/**
 	 * Is the local CookOnTheFlyServer cooking a Project+Engine+EmbeddedPlugin Release that can be used as a

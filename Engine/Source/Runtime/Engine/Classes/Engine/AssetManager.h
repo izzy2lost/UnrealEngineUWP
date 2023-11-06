@@ -528,6 +528,13 @@ public:
 		TArray<FName>& PackagesToCook, TArray<FName>& PackagesToNeverCook);
 
 	/**
+	 * Allows for game code to modify the base packages that have been read in from the DevelopmentAssetRegistry when performing a DLC cook.
+	 * Can be used to modify which packages should be considered to be already cooked.
+	 * Any packages within the PackagesToClearResults will have their cook results cleared and be cooked again if requested by the cooker.
+	 */
+	ENGINE_API virtual void ModifyDLCBasePackages(const ITargetPlatform* TargetPlatform, TArray<FName>& PlatformBasedPackages, TSet<FName>& PackagesToClearResults) const {};
+
+	/**
 	 * If the given package contains a primary asset, get the packages referenced by its AssetBundleEntries.
 	 * Used to inform the cook of should-be-cooked dependencies of PrimaryAssets for PrimaryAssets that
 	 * are recorded in the AssetManager but have cooktype Unknown and so are not returned from ModifyCook.

@@ -1237,26 +1237,6 @@ FString UCookOnTheFlyServer::GetMetadataDirectory() const
 	return ProjectOrPluginRoot / TEXT("Metadata");
 }
 
-void UCookOnTheFlyServer::GetPluginsToRecook(TSet<FString>& OutPlugins) const
-{
-	OutPlugins.Empty();
-
-	// DLCName, if cooking a DLC.
-	if (IsCookingDLC())
-	{
-		OutPlugins.Add(CookByTheBookOptions->DlcName);
-	}
-
-	// Command line parameter -CookPlugins.
-	TArray<FString> PluginsList;
-	FString CookPluginsStr;
-	if (FParse::Value(FCommandLine::Get(), TEXT("CookPlugins="), CookPluginsStr, false))
-	{
-		CookPluginsStr.ParseIntoArray(PluginsList, TEXT(","));
-	}
-	OutPlugins.Append(PluginsList);
-}
-
 // allow for a command line to start async preloading a Development AssetRegistry if requested
 static FEventRef GPreloadAREvent(EEventMode::ManualReset);
 static FEventRef GPreloadARInfoEvent(EEventMode::ManualReset);
@@ -11740,39 +11720,18 @@ void UCookOnTheFlyServer::RecordDLCPackagesFromBaseGame(FBeginCookContext& Begin
 
 		TArray<FName>& PlatformBasedPackages = CookByTheBookOptions->BasedOnReleaseCookedPackages.FindOrAdd(PlatformName);
 		PlatformBasedPackages.Reset(ActivePackageList.Num());
-
-		// Packages that are present in PlatformBasedPackages will be stripped from the AssetRegistry and pak files generated for this cook.
-		// If we are recooking plugins, make sure packages that live in those plugins are *not* added to PlatformBasedPackages to prevent them from being stripped.
-		TArray<FString> PathsToSkip;
-		if (!!(CookOptions & ECookByTheBookOptions::DlcRecook))
-		{
-			TSet<FString> Plugins;
-			GetPluginsToRecook(Plugins);
-			for (const FString& Plugin : Plugins)
-			{
-				PathsToSkip.Add(GetMountedAssetPathForPlugin(Plugin));
-			}
-		}
-
 		for (UE::Cook::FConstructPackageData& PackageData : ActivePackageList)
 		{
-			bool bShouldSkip = false;
-			if (PathsToSkip.Num() > 0)
-			{
-				const FString PackageNameString = PackageData.PackageName.ToString();
-				for (const FString& Path : PathsToSkip)
-				{
-					if (PackageNameString.StartsWith(*Path))
-					{
-						bShouldSkip = true;
-						break;
-					}
-				}
-			}
+			PlatformBasedPackages.Add(PackageData.NormalizedFileName);
+		}
 
-			if (!bShouldSkip)
+		{
+			// allow game or plugins to modify if certain packages from the base game should be recooked.
+			TSet<FName> PackagesToClearCookResults;
+			UAssetManager::Get().ModifyDLCBasePackages(TargetPlatform, PlatformBasedPackages, PackagesToClearCookResults);
+			if (PackagesToClearCookResults.Num())
 			{
-				PlatformBasedPackages.Add(PackageData.NormalizedFileName);
+				PackageDatas->ClearCookResultsForPackages(PackagesToClearCookResults);
 			}
 		}
 		bFirstAddExistingPackageDatas = false;
@@ -11796,17 +11755,6 @@ void UCookOnTheFlyServer::RecordDLCPackagesFromBaseGame(FBeginCookContext& Begin
 			{
 				UE_LOG(LogCook, Error, TEXT("Failed to resolve package data for ExtraReleaseVersionAsset [%s]"), *AssetPath);
 			}
-		}
-	}
-
-	if (!!(CookOptions & ECookByTheBookOptions::DlcRecook))
-	{
-		TSet<FString> Plugins;
-		GetPluginsToRecook(Plugins);
-		for (const FString& Plugin : Plugins)
-		{
-			// Mark all the packages in the plugin as not cooked to force them to be cooked again.
-			PackageDatas->ClearCookResultsForPlugin(Plugin);
 		}
 	}
 }

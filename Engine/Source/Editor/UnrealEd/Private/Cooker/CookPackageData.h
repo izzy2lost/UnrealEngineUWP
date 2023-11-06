@@ -1415,8 +1415,8 @@ public:
 	void Clear();
 	/** Set all platforms to not cooked in all PackageDatas. Used to e.g. invalidate previous cooks. */
 	void ClearCookedPlatforms();
-	/** Set all platforms to not cooked in all PackageDatas that belong to the given plugin. */
-	void ClearCookResultsForPlugin(const FString& InPluginName);
+	/** Set all platforms to not cooked in all PackageDatas that are in the given set */
+	void ClearCookResultsForPackages(const TSet<FName>& InPackages);
 	/** Remove all data about the given platform from all PackageDatas and other memory used by *this. */
 	void OnRemoveSessionPlatform(const ITargetPlatform* TargetPlatform);
 
