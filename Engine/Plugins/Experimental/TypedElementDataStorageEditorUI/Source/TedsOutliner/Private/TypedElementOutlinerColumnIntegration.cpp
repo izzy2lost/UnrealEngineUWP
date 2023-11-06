@@ -189,6 +189,20 @@ public:
 			];
 	}
 
+	// TODO: Sorting is currently handled through the fallback column if it exists because we have no way to sort columns through TEDS
+	virtual void SortItems(TArray<FSceneOutlinerTreeItemPtr>& RootItems, const EColumnSortMode::Type SortMode) const override
+	{
+		if(FallbackColumn)
+		{
+			FallbackColumn->SortItems(RootItems, SortMode);
+		}
+	}
+
+	virtual bool SupportsSorting() const override
+	{
+		return FallbackColumn ? FallbackColumn->SupportsSorting() : false;
+	}
+
 	void SetHighlightText(SWidget& Widget)
 	{
 		if (TSharedPtr<ITypedElementUiTextCapability> TextCapability = Widget.GetMetaData<ITypedElementUiTextCapability>())
