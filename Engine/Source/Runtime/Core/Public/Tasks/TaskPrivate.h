@@ -725,6 +725,7 @@ namespace UE::Tasks
 		};
 
 		inline constexpr int32 SmallTaskSize = 256;
+		inline constexpr int32 LargeTaskAlignment = 16; // Larger than this will result in very wasteful allocations with MallocBinned2/3
 		using FExecutableTaskAllocator = TLockFreeFixedSizeAllocator_TLSCache<SmallTaskSize, PLATFORM_CACHE_LINE_SIZE>;
 		CORE_API extern FExecutableTaskAllocator SmallTaskAllocator;
 
@@ -746,7 +747,7 @@ namespace UE::Tasks
 
 			static void* operator new(size_t Size)
 			{
-				return Size <= SmallTaskSize ? SmallTaskAllocator.Allocate() : GMalloc->Malloc(sizeof(TExecutableTask), PLATFORM_CACHE_LINE_SIZE);
+				return Size <= SmallTaskSize ? SmallTaskAllocator.Allocate() : GMalloc->Malloc(sizeof(TExecutableTask), LargeTaskAlignment);
 			}
 
 			static void operator delete(void* Ptr, size_t Size)
