@@ -324,6 +324,19 @@ public:
 	 */
 	static CORE_API bool IsRelativePath(FStringView InPath);
 
+	/**
+	 * Report whether the path has an unneeded trailing slash. 
+	 * /root/path	-> false
+	 * /root/		-> true
+	 * /root//		-> true
+	 * /			-> false
+	 * //			-> false
+	 * ///			-> true
+	 * d:/			-> false
+	 * d://			-> true
+	 */
+	static CORE_API bool HasRedundantTerminatingSeparator(FStringView A);
+
 	/** Convert to absolute using process BaseDir(), normalize and append. FPaths::ConvertRelativePathToFull() equivalent. */
 	static CORE_API void ToAbsolutePath(FStringView InPath, FStringBuilderBase& OutPath);
 	

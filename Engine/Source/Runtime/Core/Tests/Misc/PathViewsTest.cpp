@@ -631,6 +631,28 @@ TEST_CASE_NAMED(FPathViewsIsRelativePathTest, "System::Core::Misc::PathViews::Is
 	Instance.IsRelativePathTest();
 }
 
+TEST_CASE_NAMED(FPathViewsHasRedundantTerminatingSeparatorTest, "System::Core::Misc::PathViews::HasRedundantTerminatingSeparator", "[ApplicationContextMask][SmokeFilter]")
+{
+	CHECK_EQUALS(TEXT(""), FPathViews::HasRedundantTerminatingSeparator(TEXTVIEW("")), false);
+	CHECK_EQUALS(TEXT("/"), FPathViews::HasRedundantTerminatingSeparator(TEXTVIEW("/")), false);
+	CHECK_EQUALS(TEXT("//"), FPathViews::HasRedundantTerminatingSeparator(TEXTVIEW("//")), false);
+	CHECK_EQUALS(TEXT("///"), FPathViews::HasRedundantTerminatingSeparator(TEXTVIEW("///")), true);
+	CHECK_EQUALS(TEXT("\\"), FPathViews::HasRedundantTerminatingSeparator(TEXTVIEW("\\")), false);
+	CHECK_EQUALS(TEXT("\\\\"), FPathViews::HasRedundantTerminatingSeparator(TEXTVIEW("\\\\")), false);
+	CHECK_EQUALS(TEXT("\\\\\\"), FPathViews::HasRedundantTerminatingSeparator(TEXTVIEW("\\\\\\")), true);
+	CHECK_EQUALS(TEXT("text"), FPathViews::HasRedundantTerminatingSeparator(TEXTVIEW("text")), false);
+	CHECK_EQUALS(TEXT("text/"), FPathViews::HasRedundantTerminatingSeparator(TEXTVIEW("text/")), true);
+	CHECK_EQUALS(TEXT("text//"), FPathViews::HasRedundantTerminatingSeparator(TEXTVIEW("text//")), true);
+	CHECK_EQUALS(TEXT("text\\"), FPathViews::HasRedundantTerminatingSeparator(TEXTVIEW("text\\")), true);
+	CHECK_EQUALS(TEXT("text\\\\"), FPathViews::HasRedundantTerminatingSeparator(TEXTVIEW("text\\\\")), true);
+	CHECK_EQUALS(TEXT("D:"), FPathViews::HasRedundantTerminatingSeparator(TEXTVIEW("D:")), false);
+	CHECK_EQUALS(TEXT("D:/"), FPathViews::HasRedundantTerminatingSeparator(TEXTVIEW("D:/")), false);
+	CHECK_EQUALS(TEXT("D://"), FPathViews::HasRedundantTerminatingSeparator(TEXTVIEW("D://")), true);
+	CHECK_EQUALS(TEXT("D:\\"), FPathViews::HasRedundantTerminatingSeparator(TEXTVIEW("D:\\")), false);
+	CHECK_EQUALS(TEXT("D:\\\\"), FPathViews::HasRedundantTerminatingSeparator(TEXTVIEW("D:\\\\")), true);
+}
+
+
 TEST_CASE_NAMED(FPathViewsSplitFirstComponentTest, "System::Core::Misc::PathViews::SplitFirstComponent", "[ApplicationContextMask][SmokeFilter]")
 {
 	auto RunSplitFirstTest = [](const TCHAR* FullPath, const TCHAR* ExpectedFirst, const TCHAR* ExpectedRemaining)

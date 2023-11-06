@@ -26,55 +26,6 @@ namespace UE4PathViews_Private
 
 	static bool IsSlashOrBackslashOrPeriod(TCHAR C) { return C == TEXT('/') || C == TEXT('\\') || C == TEXT('.'); }
 
-	static bool HasRedundantTerminatingSeparator(FStringView A)
-	{
-		if (A.Len() <= 2)
-		{
-			if (A.Len() <= 1)
-			{
-				// "", "c", or "/", All of these are either not slash terminating or not redundant
-				return false;
-			}
-			else if (!IsSlashOrBackslash(A[1]))
-			{
-				// "/c" or "cd"
-				return false;
-			}
-			else if (IsSlashOrBackslash(A[0]))
-			{
-				// "//"
-				return false;
-			}
-			else if (A[0] == ':')
-			{
-				// ":/", which is an invalid path, and we arbitrarily decide its terminating slash is not redundant
-				return false;
-			}
-			else
-			{
-				// "c/"
-				return true;
-			}
-		}
-		else if (!IsSlashOrBackslash(A[A.Len() - 1]))
-		{
-			// "/Some/Path"
-			return false;
-		}
-		else if (A[A.Len() - 2] == ':')
-		{
-			// "Volume:/",  "Volume:/Some/Path:/"
-			// The first case is the root dir of the volume and is not redundant
-			// The second case is an invalid path (at most one colon), and we arbitrarily decide its terminating slash is not redundant
-			return false;
-		}
-		else
-		{
-			// /Some/Path/
-			return true;
-		}
-	}
-
 	static bool StringEqualsIgnoreCaseIgnoreSeparator(FStringView A, FStringView B)
 	{
 		if (A.Len() != B.Len())
@@ -196,6 +147,57 @@ FStringView FPathViews::GetPathLeaf(const FStringView& InPath)
 		return GetCleanFilename(InPath.Left(UE_PTRDIFF_TO_INT32(EndPos - InPath.GetData())));
 	}
 	return FStringView();
+}
+
+bool FPathViews::HasRedundantTerminatingSeparator(FStringView A)
+{
+	using namespace UE4PathViews_Private;
+
+	if (A.Len() <= 2)
+	{
+		if (A.Len() <= 1)
+		{
+			// "", "c", or "/", All of these are either not slash terminating or not redundant
+			return false;
+		}
+		else if (!IsSlashOrBackslash(A[1]))
+		{
+			// "/c" or "cd"
+			return false;
+		}
+		else if (IsSlashOrBackslash(A[0]))
+		{
+			// "//"
+			return false;
+		}
+		else if (A[0] == ':')
+		{
+			// ":/", which is an invalid path, and we arbitrarily decide its terminating slash is not redundant
+			return false;
+		}
+		else
+		{
+			// "c/"
+			return true;
+		}
+	}
+	else if (!IsSlashOrBackslash(A[A.Len() - 1]))
+	{
+		// "/Some/Path"
+		return false;
+	}
+	else if (A[A.Len() - 2] == ':')
+	{
+		// "Volume:/",  "Volume:/Some/Path:/"
+		// The first case is the root dir of the volume and is not redundant
+		// The second case is an invalid path (at most one colon), and we arbitrarily decide its terminating slash is not redundant
+		return false;
+	}
+	else
+	{
+		// /Some/Path/
+		return true;
+	}
 }
 
 bool FPathViews::IsPathLeaf(FStringView InPath)
@@ -513,15 +515,10 @@ void FPathViews::NormalizeFilename(FStringBuilderBase& InOutPath)
 	FPlatformMisc::NormalizePath(InOutPath);
 }
 
-static bool ShouldRemoveTrailingSlash(FStringView Dir)
-{
-	return Dir.EndsWith(TEXT('/')) && !Dir.EndsWith(TEXTVIEW("//"), ESearchCase::CaseSensitive) && !Dir.EndsWith(TEXTVIEW(":/"), ESearchCase::CaseSensitive);
-}
-
 void FPathViews::NormalizeDirectoryName(FStringBuilderBase& InOutPath)
 {
 	Algo::Replace(MakeArrayView(InOutPath), TEXT('\\'), TEXT('/'));
-	InOutPath.RemoveSuffix(ShouldRemoveTrailingSlash(InOutPath.ToView()) ? 1 : 0);
+	InOutPath.RemoveSuffix(HasRedundantTerminatingSeparator(InOutPath.ToView()) ? 1 : 0);
 	FPlatformMisc::NormalizePath(InOutPath);
 }
 
