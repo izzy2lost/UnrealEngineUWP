@@ -84,13 +84,13 @@ UWorldPartitionRuntimeHashSet* UWorldPartitionRuntimeHashSet::CreateFrom(const U
 					else
 					{
 						HLODSetup.PartitionLayer = NewObject<URuntimePartitionPersistent>(HashSet, NAME_None);;
+						HLODSetup.PartitionLayer->LoadingRange = 0;
 					}
 
 					HLODSetup.PartitionLayer->Name = HLODSetup.Name;
 					HLODSetup.PartitionLayer->bBlockOnSlowStreaming = false;
 					HLODSetup.PartitionLayer->bClientOnlyVisible = true;
 					HLODSetup.PartitionLayer->Priority = 0;
-					HLODSetup.PartitionLayer->LoadingRange = 0;
 					HLODSetup.PartitionLayer->HLODIndex = HLODIndex;
 				}
 			}

@@ -29,7 +29,7 @@ struct FRuntimePartitionHLODSetup
 
 	/** whether this HLOD setup is spatially loaded or not */
 	UPROPERTY(EditAnywhere, Category = RuntimeSettings)
-	bool bIsSpatiallyLoaded;
+	bool bIsSpatiallyLoaded = true;
 
 	UPROPERTY(VisibleAnywhere, Category = RuntimeSettings, Instanced, Meta = (EditCondition = "bIsSpatiallyLoaded", HideEditConditionToggle, NoResetToDefault, TitleProperty = "Name"))
 	TObjectPtr<URuntimePartition> PartitionLayer;
