@@ -18,6 +18,7 @@ public:
 	virtual FText GetAssetDisplayName() const override { return NSLOCTEXT("AssetTypeActions", "AssetTypeActions_HLODLayer", "HLOD Layer"); }
 	virtual FLinearColor GetAssetColor() const override { return FLinearColor(FColor(0, 200, 200)); }
 	virtual TSoftClassPtr<UObject> GetAssetClass() const override { return UHLODLayer::StaticClass(); }
+	virtual FAssetSupportResponse CanLocalize(const FAssetData& InAsset) const override { return FAssetSupportResponse::NotSupported(); }
 	virtual TConstArrayView<FAssetCategoryPath> GetAssetCategories() const override
 	{
 		static const auto Categories = { EAssetCategoryPaths::World };

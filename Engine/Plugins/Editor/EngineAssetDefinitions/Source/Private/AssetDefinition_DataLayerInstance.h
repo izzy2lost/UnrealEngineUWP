@@ -19,6 +19,7 @@ public:
 	virtual FText GetAssetDisplayName() const override { return NSLOCTEXT("AssetTypeActions", "AssetTypeActions_DataLayerInstance", "Data Layer Instance"); }
 	virtual FLinearColor GetAssetColor() const override { return FLinearColor(FColor(52, 213, 235)); }
 	virtual TSoftClassPtr<UObject> GetAssetClass() const override { return UDataLayerInstance::StaticClass(); }
+	virtual FAssetSupportResponse CanLocalize(const FAssetData& InAsset) const override { return FAssetSupportResponse::NotSupported(); }
 	virtual TConstArrayView<FAssetCategoryPath> GetAssetCategories() const override
 	{
 		return TConstArrayView<FAssetCategoryPath>();
