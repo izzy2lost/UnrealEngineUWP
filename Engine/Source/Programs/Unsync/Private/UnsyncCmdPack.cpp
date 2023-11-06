@@ -797,6 +797,11 @@ struct FDirectoryCreationCache
 {
 	bool EnsureDirectoryExists(const FPath& Path)
 	{
+		if (GDryRun)
+		{
+			return true;
+		}
+
 		std::lock_guard<std::mutex> LockGuard(Mutex);
 		if (CreatedDirectories.find(Path) != CreatedDirectories.end())
 		{
@@ -820,7 +825,6 @@ struct FDirectoryCreationCache
 bool
 SyncDirectoryFromPack(const FPath& OutputRoot, const FPackDatabase& PackDb, const FDirectoryManifest& NewDirectoryManifest)
 {
-	// TODO: multithreading
 	// TODO: incremental sync
 	// TODO: fetch blocks from server
 
@@ -846,20 +850,45 @@ SyncDirectoryFromPack(const FPath& OutputRoot, const FPackDatabase& PackDb, cons
 			return;
 		}
 
-		FNativeFile TargetFile(TargetFilePath, EFileMode::CreateWriteOnly, FileManifest.Size);
-		if (!TargetFile.IsValid())
+		if (GDryRun)
 		{
-			UNSYNC_ERROR(L"Failed to create target file '%ls'", TargetFilePath.wstring().c_str());
-			Error.Set(AppError("Failed to create target file"));
-			return;
+			FNullReaderWriter NullFile(FileManifest.Size);
+			if (!BuildTargetFromPack(NullFile, PackDb, MakeView(FileManifest.Blocks)))
+			{
+				UNSYNC_FATAL(L"Failed to reconstruct target file from pack '%ls'", TargetFilePath.wstring().c_str());
+				Error.Set(AppError("Failed to reconstruct target file from pack"));
+				return;
+			}
 		}
+		else
+		{
+			// TODO: mark file writable if it exists
+			FNativeFile TargetFile(TargetFilePath, EFileMode::CreateWriteOnly, FileManifest.Size);
 
-		if (!BuildTargetFromPack(TargetFile, PackDb, MakeView(FileManifest.Blocks)))
-		{
-			UNSYNC_FATAL(L"Failed to reconstruct target file from pack '%ls'", TargetFilePath.wstring().c_str());
-			Error.Set(AppError("Failed to reconstruct target file from pack"));
-			return;
+			if (!TargetFile.IsValid())
+			{
+				UNSYNC_ERROR(L"Failed to create target file '%ls'", TargetFilePath.wstring().c_str());
+				Error.Set(AppError("Failed to create target file"));
+				return;
+			}
+
+			if (!BuildTargetFromPack(TargetFile, PackDb, MakeView(FileManifest.Blocks)))
+			{
+				UNSYNC_FATAL(L"Failed to reconstruct target file from pack '%ls'", TargetFilePath.wstring().c_str());
+				Error.Set(AppError("Failed to reconstruct target file from pack"));
+				return;
+			}
+
+			TargetFile.Close();
+
+			SetFileMtime(TargetFilePath, FileManifest.Mtime);
+
+			if (FileManifest.bReadOnly)
+			{
+				SetFileReadOnly(TargetFilePath, true);
+			}
 		}
+		
 	};
 
 	ParallelForEach(NewDirectoryManifest.Files, BuildTargetCallback);
@@ -947,6 +976,14 @@ CmdUnpack(const FCmdUnpackOptions& Options)
 			UNSYNC_FATAL(L"Failed to sync directory pack");
 			return -1;
 		}
+	}
+
+	UNSYNC_LOG(L"Saving directory manifest");
+	const FPath ManifestRoot		  = Options.OutputPath / ".unsync";
+	const FPath DirectoryManifestPath = ManifestRoot / "manifest.bin";
+	if (!GDryRun && EnsureDirectoryExists(ManifestRoot))
+	{
+		SaveDirectoryManifest(NewDirectoryManifest, DirectoryManifestPath);
 	}
 
 	return 0;
