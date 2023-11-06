@@ -25,6 +25,7 @@ PXR_NAMESPACE_OPEN_SCOPE
 	class UsdTyped;
 PXR_NAMESPACE_CLOSE_SCOPE
 
+class UGeometryCache;
 class UMaterialInstanceConstant;
 class UMaterialInstanceDynamic;
 class UStaticMesh;
@@ -216,6 +217,15 @@ namespace UnrealToUsd
 	 * created for each provided LOD index. Within each variant, a single Mesh prim also named LOD0, LOD1, etc. will contain the mesh data.
 	 */
 	USDUTILITIES_API bool ConvertMeshDescriptions( const TArray<FMeshDescription>& LODIndexToMeshDescription, pxr::UsdPrim& UsdPrim, const FMatrix& AdditionalTransform, const pxr::UsdTimeCode TimeCode = pxr::UsdTimeCode::Default() );
+
+	/**
+	* Extracts animated mesh data from GeometryCache and places the results in UsdPrim.
+	* @param GeometryCache - GeometryCache to convert
+	* @param UsdPrim - Prim to receive the mesh data or LOD variant set
+	* @param StageForMaterialAssignments - Stage to use when authoring material assignments (we use this when we want to export the mesh to a payload layer, but the material assignments to an asset layer)
+	* @return Whether the conversion was successful or not.
+	*/
+	USDUTILITIES_API bool ConvertGeometryCache(const UGeometryCache* GeometryCache, pxr::UsdPrim& UsdPrim, UE::FUsdStage* StageForMaterialAssignments = nullptr);
 }
 #endif // USE_USD_SDK
 

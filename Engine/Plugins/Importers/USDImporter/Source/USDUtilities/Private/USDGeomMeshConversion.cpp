@@ -9,6 +9,7 @@
 #include "USDClassesModule.h"
 #include "USDConversionUtils.h"
 #include "USDDrawModeComponent.h"
+#include "USDLayerUtils.h"
 #include "USDLog.h"
 #include "USDMemory.h"
 #include "USDPrimConversion.h"
@@ -21,6 +22,9 @@
 #include "UsdWrappers/UsdStage.h"
 
 #include "Engine/StaticMesh.h"
+#include "GeometryCache.h"
+#include "GeometryCacheMeshData.h"
+#include "GeometryCacheTrack.h"
 #include "Materials/MaterialInstanceConstant.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "MeshDescription.h"
@@ -3327,7 +3331,11 @@ UsdUtils::FUsdPrimMaterialAssignmentInfo UsdUtils::GetPrimMaterialAssignments(
 				int32 LastAssignmentIndex = Result.Slots.Num() - 1;
 				for (int PolygonIndex : PolygonIndicesInSubset)
 				{
-					Result.MaterialIndices[PolygonIndex] = LastAssignmentIndex;
+					// #ueent_todo: There can be issues with PolygonIndex being bigger that the number of faces with varying GeomSubsets
+					if (Result.MaterialIndices.IsValidIndex(PolygonIndex))
+					{
+						Result.MaterialIndices[PolygonIndex] = LastAssignmentIndex;
+					}
 				}
 			}
 		}
@@ -3763,7 +3771,7 @@ bool UnrealToUsd::ConvertMeshDescriptions( const TArray<FMeshDescription>& LODIn
 			VariantSet.SetVariantSelection( VariantName );
 			EditContext.Emplace( VariantSet.GetVariantEditContext() );
 		}
-
+		
 		pxr::UsdGeomMesh TargetMesh;
 		if ( bExportMultipleLODs )
 		{
@@ -3787,6 +3795,450 @@ bool UnrealToUsd::ConvertMeshDescriptions( const TArray<FMeshDescription>& LODIn
 	{
 		VariantSets.GetVariantSet( UnrealIdentifiers::LOD ).SetVariantSelection( LowestLODAdded );
 	}
+
+	return true;
+}
+
+namespace UE::UsdGeometryCacheConversion::Private
+{
+	void AppendGeometryCacheMeshData(const FGeometryCacheMeshData& InMeshData, FGeometryCacheMeshData& InOutFlattenedMeshData)
+	{
+		// MeshData are flattened together by appending their data...
+		const int32 VertexIndexOffset = InOutFlattenedMeshData.Positions.Num();
+		const int32 IndicesIndexOffset = InOutFlattenedMeshData.Indices.Num();
+
+		InOutFlattenedMeshData.Positions.Append(InMeshData.Positions);
+		InOutFlattenedMeshData.TextureCoordinates.Append(InMeshData.TextureCoordinates);
+		InOutFlattenedMeshData.TangentsX.Append(InMeshData.TangentsX);
+		InOutFlattenedMeshData.TangentsZ.Append(InMeshData.TangentsZ);
+		InOutFlattenedMeshData.Colors.Append(InMeshData.Colors);
+
+		// ... and adjusting the indices with the proper offset
+		InOutFlattenedMeshData.Indices.Reserve(InOutFlattenedMeshData.Indices.Num() + InMeshData.Indices.Num());
+		Algo::Transform(InMeshData.Indices, InOutFlattenedMeshData.Indices, [VertexIndexOffset](uint32 Index) { return Index + VertexIndexOffset; });
+
+		// Same with the BatchInfo's StartIndex, which describes where each mesh section starts
+		for (const FGeometryCacheMeshBatchInfo& BatchInfo : InMeshData.BatchesInfo)
+		{
+			FGeometryCacheMeshBatchInfo AdjustedBatchInfo(BatchInfo);
+			AdjustedBatchInfo.StartIndex += IndicesIndexOffset;
+			InOutFlattenedMeshData.BatchesInfo.Add(AdjustedBatchInfo);
+		}
+
+		// Also merge the VertexInfo attributes that are checked when converting the MeshData
+		InOutFlattenedMeshData.VertexInfo.bHasTangentZ |= InMeshData.VertexInfo.bHasTangentZ;
+		InOutFlattenedMeshData.VertexInfo.bHasUV0 |= InMeshData.VertexInfo.bHasUV0;
+		InOutFlattenedMeshData.VertexInfo.bHasColor0 |= InMeshData.VertexInfo.bHasColor0;
+		InOutFlattenedMeshData.VertexInfo.bHasMotionVectors |= InMeshData.VertexInfo.bHasMotionVectors;
+	}
+
+	FGeometryCacheMeshData GetFlattenedGeometryCacheMeshData(const UGeometryCache* GeometryCache, int32 FrameIndex)
+	{
+		FGeometryCacheMeshData FlattenedMeshData;
+		if (GeometryCache->Tracks.Num() == 1)
+		{
+			GeometryCache->Tracks[0]->GetMeshDataAtSampleIndex(FrameIndex, FlattenedMeshData);
+		}
+		else
+		{
+			// MeshData for each track are aggregated together into a single flattened MeshData
+			for (int32 TrackIndex = 0; TrackIndex < GeometryCache->Tracks.Num(); ++TrackIndex)
+			{
+				FGeometryCacheMeshData TrackMeshData;
+				GeometryCache->Tracks[TrackIndex]->GetMeshDataAtSampleIndex(FrameIndex, TrackMeshData);
+
+				AppendGeometryCacheMeshData(TrackMeshData, FlattenedMeshData);
+			}
+		}
+		return MoveTemp(FlattenedMeshData);
+	}
+
+	struct FGeometryCacheExportContext
+	{
+		FGeometryCacheExportContext(const UGeometryCache& GeometryCache)
+			: SlotNames(GeometryCache.MaterialSlotNames)
+			, FrameRate((GeometryCache.GetEndFrame() - GeometryCache.GetStartFrame()) / GeometryCache.CalculateDuration())
+		{
+		}
+
+		const TArray<FName>& SlotNames;
+		const float FrameRate;
+
+		// Cached values of the last written attribute values
+		// Since int cannot be interpolated, the missing timesampled attribute values will be the "held"
+		// values of the previous written timesample
+		pxr::VtArray<int> FaceVertexCounts;
+		pxr::VtArray<int> FaceVertexIndices;
+	};
+
+	void ConvertGeometryCacheMeshData(
+		const FGeometryCacheMeshData& MeshData,
+		pxr::UsdGeomMesh& UsdMesh,
+		const pxr::VtArray<std::string>& MaterialAssignments,
+		const pxr::UsdTimeCode TimeCode,
+		pxr::UsdPrim MaterialPrim,
+		FGeometryCacheExportContext& ExportContext
+	)
+	{
+		pxr::UsdPrim MeshPrim = UsdMesh.GetPrim();
+		pxr::UsdStageRefPtr Stage = MeshPrim.GetStage();
+		if (!Stage)
+		{
+			return;
+		}
+		const FUsdStageInfo StageInfo{Stage};
+
+		// Vertices
+		{
+			const int32 VertexCount = MeshData.Positions.Num();
+
+			// Points
+			{
+				pxr::UsdAttribute Points = UsdMesh.CreatePointsAttr();
+				if (Points)
+				{
+					pxr::VtArray<pxr::GfVec3f> PointsArray;
+					PointsArray.reserve(VertexCount);
+
+					for (int32 VertexIndex = 0; VertexIndex < VertexCount; ++VertexIndex)
+					{
+						PointsArray.push_back(UnrealToUsd::ConvertVector(StageInfo, (FVector)MeshData.Positions[VertexIndex]));
+					}
+
+					Points.Set(PointsArray, TimeCode);
+				}
+			}
+
+			// Normals
+			if (MeshData.VertexInfo.bHasTangentZ)
+			{
+				// We need to emit this if we're writing normals (which we always are) because any DCC that can
+				// actually subdivide (like usdview) will just discard authored normals and fully recompute them
+				// on-demand in case they have a valid subdivision scheme (which is the default state).
+				// Reference: https://graphics.pixar.com/usd/release/api/class_usd_geom_mesh.html#UsdGeom_Mesh_Normals
+				if (pxr::UsdAttribute SubdivisionAttr = UsdMesh.CreateSubdivisionSchemeAttr())
+				{
+					ensure(SubdivisionAttr.Set(pxr::UsdGeomTokens->none));
+				}
+
+				pxr::UsdAttribute NormalsAttribute = UsdMesh.CreateNormalsAttr();
+				if (NormalsAttribute)
+				{
+					pxr::VtArray<pxr::GfVec3f> Normals;
+					Normals.reserve(VertexCount);
+
+					for (int32 VertexIndex = 0; VertexIndex < VertexCount; ++VertexIndex)
+					{
+						FVector VertexNormal = MeshData.TangentsZ[VertexIndex].ToFVector();
+						Normals.push_back(UnrealToUsd::ConvertVector(StageInfo, VertexNormal));
+					}
+
+					NormalsAttribute.Set(Normals, TimeCode);
+				}
+			}
+
+			// UVs
+			if (MeshData.VertexInfo.bHasUV0)
+			{
+				// Only one UV set is supported
+				const int32 TexCoordSourceIndex = 0;
+				pxr::TfToken UsdUVSetName = UsdUtils::GetUVSetName(TexCoordSourceIndex).Get();
+
+				pxr::UsdGeomPrimvar PrimvarST = pxr::UsdGeomPrimvarsAPI(MeshPrim).CreatePrimvar(UsdUVSetName, pxr::SdfValueTypeNames->TexCoord2fArray, pxr::UsdGeomTokens->vertex);
+
+				if (PrimvarST)
+				{
+					pxr::VtVec2fArray UVs;
+
+					for (int32 VertexIndex = 0; VertexIndex < VertexCount; ++VertexIndex)
+					{
+						FVector2D TexCoord = FVector2D(MeshData.TextureCoordinates[VertexIndex]);
+						TexCoord[1] = 1.f - TexCoord[1];
+
+						UVs.push_back(UnrealToUsd::ConvertVector(TexCoord));
+					}
+
+					PrimvarST.Set(UVs, TimeCode);
+				}
+			}
+
+			// Vertex colors
+			if (MeshData.VertexInfo.bHasColor0)
+			{
+				pxr::UsdGeomPrimvar DisplayColorPrimvar = UsdMesh.CreateDisplayColorPrimvar(pxr::UsdGeomTokens->vertex);
+				pxr::UsdGeomPrimvar DisplayOpacityPrimvar = UsdMesh.CreateDisplayOpacityPrimvar(pxr::UsdGeomTokens->vertex);
+
+				if (DisplayColorPrimvar && DisplayOpacityPrimvar)
+				{
+					pxr::VtArray<pxr::GfVec3f> DisplayColors;
+					DisplayColors.reserve(VertexCount);
+
+					pxr::VtArray<float> DisplayOpacities;
+					DisplayOpacities.reserve(VertexCount);
+
+					for (int32 VertexIndex = 0; VertexIndex < VertexCount; ++VertexIndex)
+					{
+						const FColor& VertexColor = MeshData.Colors[VertexIndex];
+
+						// The color in the MeshData is already stored as linear
+						pxr::GfVec4f Color = UnrealToUsd::ConvertColor(VertexColor.ReinterpretAsLinear());
+						DisplayColors.push_back(pxr::GfVec3f(Color[0], Color[1], Color[2]));
+						DisplayOpacities.push_back(Color[3]);
+					}
+
+					DisplayColorPrimvar.Set(DisplayColors, TimeCode);
+					DisplayOpacityPrimvar.Set(DisplayOpacities, TimeCode);
+				}
+			}
+
+			// Velocities
+			if (MeshData.VertexInfo.bHasMotionVectors)
+			{
+				pxr::UsdAttribute VelocitiesAttribute = UsdMesh.CreateVelocitiesAttr();
+				if (VelocitiesAttribute)
+				{
+					pxr::VtArray<pxr::GfVec3f> Velocities;
+					Velocities.reserve(VertexCount);
+
+					for (int32 VertexIndex = 0; VertexIndex < VertexCount; ++VertexIndex)
+					{
+						// The motion vectors in the MeshData are stored as unit per frame so convert it back to unit per second
+						Velocities.push_back(UnrealToUsd::ConvertVector(StageInfo, (FVector) -MeshData.MotionVectors[VertexIndex] * ExportContext.FrameRate));
+					}
+
+					VelocitiesAttribute.Set(Velocities, TimeCode);
+				}
+			}
+
+		}
+
+		// Faces
+		{
+			const int32 NumIndices = MeshData.Indices.Num();
+			const int32 FaceCount = NumIndices / 3;
+			// Face Vertex Counts
+			{
+				pxr::UsdAttribute FaceCountsAttribute = UsdMesh.CreateFaceVertexCountsAttr();
+
+				if (FaceCountsAttribute)
+				{
+					pxr::VtArray<int> FaceVertexCounts;
+					FaceVertexCounts.reserve(FaceCount);
+
+					for (int32 FaceIndex = 0; FaceIndex < FaceCount; ++FaceIndex)
+					{
+						FaceVertexCounts.push_back(3);
+					}
+
+					if (ExportContext.FaceVertexCounts != FaceVertexCounts)
+					{
+						FaceCountsAttribute.Set(FaceVertexCounts, TimeCode);
+						ExportContext.FaceVertexCounts = FaceVertexCounts;
+					}
+				}
+			}
+
+			// Face Vertex Indices
+			{
+				pxr::UsdAttribute FaceVertexIndicesAttribute = UsdMesh.GetFaceVertexIndicesAttr();
+
+				if (FaceVertexIndicesAttribute)
+				{
+					pxr::VtArray<int> FaceVertexIndices;
+					FaceVertexIndices.reserve(NumIndices);
+
+					for (int32 Index = 0; Index < NumIndices; ++Index)
+					{
+						FaceVertexIndices.push_back(MeshData.Indices[Index]);
+					}
+
+					if (ExportContext.FaceVertexIndices != FaceVertexIndices)
+					{
+						FaceVertexIndicesAttribute.Set(FaceVertexIndices, TimeCode);
+						ExportContext.FaceVertexIndices = FaceVertexIndices;
+					}
+				}
+			}
+		}
+
+		// Material assignments
+		{
+			// This mesh has a single material assignment, just add an unrealMaterials attribute to the mesh prim
+			if (MaterialAssignments.size() == 1)
+			{
+				if (pxr::UsdAttribute UEMaterialsAttribute = MaterialPrim.CreateAttribute(UnrealIdentifiers::MaterialAssignment, pxr::SdfValueTypeNames->String))
+				{
+					UEMaterialsAttribute.Set(MaterialAssignments[0]);
+				}
+			}
+			// Multiple material assignments to the same mesh. Need to create a GeomSubset for each UE mesh section
+			else if (MaterialAssignments.size() > 1)
+			{
+				TSet<FString> UsedSectionNames;
+				// Need to fetch all triangles of a section, and add their indices
+				for (int32 SectionIndex = 0; SectionIndex < MeshData.BatchesInfo.Num(); ++SectionIndex)
+				{
+					const FGeometryCacheMeshBatchInfo& Section = MeshData.BatchesInfo[SectionIndex];
+
+					// Note that we will continue on even if we have no material assignment, so as to satisfy the "partition" family condition (below)
+					std::string SectionMaterial;
+					if (Section.MaterialIndex >= 0 && Section.MaterialIndex < MaterialAssignments.size())
+					{
+						SectionMaterial = MaterialAssignments[Section.MaterialIndex];
+					}
+
+					FString SectionName;
+					if (ExportContext.SlotNames.IsValidIndex(SectionIndex))
+					{
+						SectionName = ExportContext.SlotNames[SectionIndex].ToString();
+						SectionName = UsdUtils::GetUniqueName(SectionName, UsedSectionNames);
+						UsedSectionNames.Add(SectionName);
+					}
+					else
+					{
+						SectionName = FString::Printf(TEXT("Section%d"), SectionIndex);
+					}
+
+					FSdfPath PrimPath(*SectionName);
+					pxr::UsdPrim GeomSubsetPrim = Stage->DefinePrim(
+						MeshPrim.GetPath().AppendPath(PrimPath),
+						UnrealToUsd::ConvertToken(TEXT("GeomSubset")).Get()
+					);
+
+					// MaterialPrim may be in another stage, so we may need another GeomSubset there
+					pxr::UsdPrim MaterialGeomSubsetPrim = GeomSubsetPrim;
+					if (MaterialPrim.GetStage() != MeshPrim.GetStage())
+					{
+						MaterialGeomSubsetPrim = MaterialPrim.GetStage()->OverridePrim(
+							MaterialPrim.GetPath().AppendPath(PrimPath)
+						);
+					}
+
+					pxr::UsdGeomSubset GeomSubsetSchema{GeomSubsetPrim};
+
+					// Element type attribute
+					// Write the geomsubset attributes only once since they are at Default time anyway
+					pxr::UsdAttribute ElementTypeAttr = GeomSubsetSchema.CreateElementTypeAttr();
+					if (!ElementTypeAttr.HasAuthoredValue())
+					{
+						ElementTypeAttr.Set(pxr::UsdGeomTokens->face);
+
+						// Indices attribute
+						const uint32 TriangleCount = Section.NumTriangles;
+						const uint32 FirstTriangleIndex = Section.StartIndex / 3; // StartIndex is the first *vertex* instance index
+						pxr::VtArray<int> IndicesAttrValue;
+						for (uint32 TriangleIndex = FirstTriangleIndex; TriangleIndex - FirstTriangleIndex < TriangleCount; ++TriangleIndex)
+						{
+							// Note that we add VertexInstances in sequence to the usda file for the faceVertexInstances attribute, which
+							// also constitutes our triangle order
+							IndicesAttrValue.push_back(static_cast<int>(TriangleIndex));
+						}
+
+						// Since family name and type attributes must be set at time Default, set the Indices at time Default too
+						// #ueent_todo: Add support for varying geomsubsets. This can happen with animation where sections 
+						// visibility are toggled on/off
+						pxr::UsdAttribute IndicesAttr = GeomSubsetSchema.CreateIndicesAttr();
+						IndicesAttr.Set(IndicesAttrValue);
+
+						// Family name attribute
+						pxr::UsdAttribute FamilyNameAttr = GeomSubsetSchema.CreateFamilyNameAttr();
+						FamilyNameAttr.Set(pxr::UsdShadeTokens->materialBind);
+
+						// Family type
+						pxr::UsdGeomSubset::SetFamilyType(UsdMesh, pxr::UsdShadeTokens->materialBind, pxr::UsdGeomTokens->partition);
+
+						// unrealMaterial attribute
+						if (pxr::UsdAttribute UEMaterialsAttribute = MaterialGeomSubsetPrim.CreateAttribute(UnrealIdentifiers::MaterialAssignment, pxr::SdfValueTypeNames->String))
+						{
+							UEMaterialsAttribute.Set(SectionMaterial);
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+bool UnrealToUsd::ConvertGeometryCache(const UGeometryCache* GeometryCache, pxr::UsdPrim& UsdPrim, UE::FUsdStage* StageForMaterialAssignments)
+{
+	namespace UsdGeometryCacheImpl = UE::UsdGeometryCacheConversion::Private;
+
+	FScopedUsdAllocs UsdAllocs;
+
+	pxr::UsdStageRefPtr Stage = UsdPrim.GetStage();
+	if (!GeometryCache || !Stage)
+	{
+		return false;
+	}
+
+	const FUsdStageInfo StageInfo(Stage);
+
+	pxr::SdfPath ParentPrimPath = UsdPrim.GetPath();
+
+	// Collect all material assignments, referenced by the sections' material indices
+	bool bHasMaterialAssignments = false;
+	pxr::VtArray< std::string > MaterialAssignments;
+	for (const UMaterialInterface* Material : GeometryCache->Materials)
+	{
+		FString AssignedMaterialPathName;
+		if (Material)
+		{
+			if (Material->GetOutermost() != GetTransientPackage())
+			{
+				AssignedMaterialPathName = Material->GetPathName();
+				bHasMaterialAssignments = true;
+			}
+		}
+
+		MaterialAssignments.push_back(UnrealToUsd::ConvertString(*AssignedMaterialPathName).Get());
+	}
+	if (!bHasMaterialAssignments)
+	{
+		// Prevent creation of the unrealMaterials attribute in case we don't have any assignments at all
+		MaterialAssignments.clear();
+	}
+
+	// Author material bindings on the dedicated stage if we have one
+	pxr::UsdStageRefPtr MaterialStage;
+	if (StageForMaterialAssignments)
+	{
+		MaterialStage = static_cast<pxr::UsdStageRefPtr>(*StageForMaterialAssignments);
+	}
+	else
+	{
+		MaterialStage = Stage;
+	}
+
+	pxr::UsdGeomMesh TargetMesh{UsdPrim};
+	pxr::UsdPrim MaterialPrim = MaterialStage->OverridePrim(UsdPrim.GetPath());
+
+	const int32 StartFrame = GeometryCache->GetStartFrame();
+	const int32 EndFrame = GeometryCache->GetEndFrame();
+	int32 ActualStartFrame = -1;
+
+	UsdGeometryCacheImpl::FGeometryCacheExportContext ExportContext(*GeometryCache);
+	for (int32 FrameIndex = StartFrame; FrameIndex <= EndFrame; ++FrameIndex)
+	{
+		FGeometryCacheMeshData MeshData = UsdGeometryCacheImpl::GetFlattenedGeometryCacheMeshData(GeometryCache, FrameIndex - StartFrame);
+		// First frame of the animation cannot be empty otherwise the geometry cache translator would not be able to detect the animation
+		// It is allowed to have empty frames during or at the end of the animation, eg. for fluid sim or FX that disappear
+		const bool bIsValidFrame = MeshData.Positions.Num() > 0 || ActualStartFrame > 0;
+		if (bIsValidFrame)
+		{
+			if (ActualStartFrame == -1)
+			{
+				// The actual start frame is the first frame with some data
+				ActualStartFrame = FrameIndex;
+			}
+			const float TimeCode = FrameIndex;
+			UsdGeometryCacheImpl::ConvertGeometryCacheMeshData(MeshData, TargetMesh, MaterialAssignments, TimeCode, MaterialPrim, ExportContext);
+		}
+	}
+
+	// Configure time metadata for the stage
+	UE::FUsdStage UsdStage(MaterialStage);
+	UsdUtils::AddTimeCodeRangeToLayer(UsdStage.GetRootLayer(), ActualStartFrame, EndFrame);
+	UsdStage.SetTimeCodesPerSecond(ExportContext.FrameRate);
 
 	return true;
 }
