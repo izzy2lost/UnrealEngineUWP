@@ -48,6 +48,12 @@ namespace UnrealBuildTool
 		public bool bBuildPluginAsLocal = false;
 
 		/// <summary>
+		/// When building a foreign plugin, whether to build plugins it depends on as well.
+		/// </summary>
+		[CommandLine("-BuildDependantPlugins")]
+		public bool bBuildDependantPlugins = false;
+
+		/// <summary>
 		/// Set of module names to compile.
 		/// </summary>
 		[CommandLine("-Module=")]

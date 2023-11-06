@@ -1601,6 +1601,11 @@ namespace UnrealBuildTool
 		public FileReference? ForeignPlugin;
 
 		/// <summary>
+		/// When building a foreign plugin, whether to build plugins it depends on as well.
+		/// </summary>
+		public bool bBuildDependantPlugins = false;
+
+		/// <summary>
 		/// Collection of all UBT plugins (project files)
 		/// </summary>
 		public List<FileReference>? UbtPlugins;
@@ -1693,6 +1698,7 @@ namespace UnrealBuildTool
 			RulesAssembly = InRulesAssembly;
 			TargetType = Rules.Type;
 			ForeignPlugin = InDescriptor.ForeignPlugin;
+			bBuildDependantPlugins = InDescriptor.bBuildDependantPlugins;
 			bDeployAfterCompile = InRules.bDeployAfterCompile && !InRules.bDisableLinking && InDescriptor.OnlyModuleNames.Count == 0;
 
 			// now that we have the platform, we can set the intermediate path to include the platform/architecture name
@@ -2698,9 +2704,14 @@ namespace UnrealBuildTool
 			if (ForeignPlugin != null)
 			{
 				HashSet<FileItem> RetainOutputItems = new HashSet<FileItem>();
+
+				UEBuildPlugin? ForeignBuildPlugin = BuildPlugins.Find(x => x.File == ForeignPlugin);
+				
 				foreach (UEBuildPlugin Plugin in BuildPlugins)
 				{
-					if (Plugin.File == ForeignPlugin)
+					// Retain foreign plugin dependencies if it was specified.
+					bool? bIsForeignPluginDependency = ForeignBuildPlugin?.Dependencies?.Contains(Plugin);
+					if (Plugin.File == ForeignPlugin || (bBuildDependantPlugins && bIsForeignPluginDependency == true))
 					{
 						foreach (UEBuildModule Module in Plugin.Modules)
 						{
