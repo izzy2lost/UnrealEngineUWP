@@ -25,6 +25,8 @@ AudioStreaming.h: Definitions of classes used for audio streaming.
 
 ENGINE_API DECLARE_LOG_CATEGORY_EXTERN(LogAudioStreamCaching, Display, All);
 
+class FAudioStreamingMemoryCountedFeature;
+
 // Basic fixed-size LRU cache for retaining chunks of compressed audio data.
 class FAudioChunkCache
 {
@@ -127,7 +129,11 @@ public:
 
 	void AddForceInlineSoundWave(const FSoundWaveProxyPtr&);
 
-	void RemoveForecInlineSoundWave(const FSoundWaveProxyPtr&);
+	void RemoveForceInlineSoundWave(const FSoundWaveProxyPtr&);
+
+	void AddMemoryCountedFeature(const FAudioStreamingMemoryCountedFeature& Feature);
+
+	void RemoveMemoryCountedFeature(const FAudioStreamingMemoryCountedFeature& Feature);
 
 	// This function will reclaim memory by freeing as many chunks as needed to free BytesToFree.
 	// returns the amount of bytes we were actually able to free.
@@ -402,6 +408,8 @@ private:
 
 	TAtomic<uint64> ForceInlineMemoryCounterBytes;
 
+	TAtomic<uint64> FeatureMemoryCounterBytes;
+
 	// Number of async load operations we have currently in flight.
 	FThreadSafeCounter NumberOfLoadsInFlight;
 
@@ -427,6 +435,8 @@ private:
 
 	// This is set to true when BeginLoggingCacheMisses is called. 
 	bool bLogCacheMisses;
+
+	uint64 GetCurrentMemoryUsageBytes() const { return MemoryCounterBytes + ForceInlineMemoryCounterBytes + FeatureMemoryCounterBytes; }
 
 	// Returns cached element if it exists in our cache, nullptr otherwise.
 	// If the index of the element is already known, it can be used here to avoid searching the cache.
@@ -518,6 +528,8 @@ public:
 	virtual void RemoveStreamingSoundWave(const FSoundWaveProxyPtr& SoundWave) override;
 	virtual void AddForceInlineSoundWave(const FSoundWaveProxyPtr& SoundWave) override;
 	virtual void RemoveForceInlineSoundWave(const FSoundWaveProxyPtr& SoundWave) override;
+	virtual void AddMemoryCountedFeature(const FAudioStreamingMemoryCountedFeature& Feature) override;
+	virtual void RemoveMemoryCountedFeature(const FAudioStreamingMemoryCountedFeature& Feature) override;
 	virtual void AddDecoder(ICompressedAudioInfo* CompressedAudioInfo) override;
 	virtual void RemoveDecoder(ICompressedAudioInfo* CompressedAudioInfo) override;
 	virtual bool IsManagedStreamingSoundWave(const FSoundWaveProxyPtr&  SoundWave) const override;

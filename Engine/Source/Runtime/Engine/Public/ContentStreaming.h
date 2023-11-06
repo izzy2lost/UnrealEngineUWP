@@ -47,6 +47,7 @@ class UStaticMesh;
 class USkeletalMesh;
 class UStreamableRenderAsset;
 class FSoundSource;
+class FAudioStreamingMemoryCountedFeature;
 struct FWaveInstance;
 struct FRenderAssetStreamingManager;
 
@@ -526,6 +527,10 @@ struct IAudioStreamingManager : public IStreamingManager
 	/** Removes the memory usage of the force inline sound from the streaming cache budget */
 	virtual void RemoveForceInlineSoundWave(const FSoundWaveProxyPtr& SoundWave) { };
 
+	virtual void AddMemoryCountedFeature(const FAudioStreamingMemoryCountedFeature& Feature) { };
+
+	virtual void RemoveMemoryCountedFeature(const FAudioStreamingMemoryCountedFeature& Feature) { };
+
 	/** Adds the decoder to the streaming manager to prevent stream chunks from getting reaped from underneath it */
 	virtual void AddDecoder(ICompressedAudioInfo* CompressedAudioInfo) = 0;
 
@@ -853,3 +858,45 @@ protected:
 #endif
 };
 
+class ENGINE_API FAudioStreamingMemoryCountedFeature : public TSharedFromThis<FAudioStreamingMemoryCountedFeature>
+{
+public:
+	FAudioStreamingMemoryCountedFeature(FName InFeatureName, uint64 InMemoryUseInBytes)
+	: FeatureName(InFeatureName)
+	, MemoryUseInBytes(InMemoryUseInBytes)
+	{
+		if (MemoryUseInBytes != 0)
+		{
+			IStreamingManager::Get().GetAudioStreamingManager().AddMemoryCountedFeature(*this);
+		}
+	}
+	
+	~FAudioStreamingMemoryCountedFeature()
+	{
+		if (MemoryUseInBytes != 0)
+		{
+			IStreamingManager::Get().GetAudioStreamingManager().RemoveMemoryCountedFeature(*this);
+		}
+	}
+	
+	uint64 GetMemoryUseInBytes() const { return MemoryUseInBytes; } 
+	FName GetFeatureName() const { return FeatureName; }
+
+	void ResetMemoryUseInBytes(uint64 InMemoryUseInBytes)
+	{
+		if (MemoryUseInBytes != 0)
+		{
+			IStreamingManager::Get().GetAudioStreamingManager().RemoveMemoryCountedFeature(*this);
+		}
+		
+		MemoryUseInBytes = InMemoryUseInBytes;
+
+		if (MemoryUseInBytes != 0)
+		{
+			IStreamingManager::Get().GetAudioStreamingManager().AddMemoryCountedFeature(*this);
+		}
+	}
+private:
+	const FName FeatureName;
+	uint64 MemoryUseInBytes;
+};
