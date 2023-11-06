@@ -27970,7 +27970,7 @@ int32 UMaterialExpressionNeuralNetworkInput::Compile(class FMaterialCompiler* Co
 		else
 		{
 			int32 ViewportUV = Compiler->GetViewportUV();
-			int32 BatchIndex = bUseTextureAsInput ? -1.0f : 0.0f;
+			float BatchIndex = bUseTextureAsInput ? -1.0f : 0.0f;
 				
 			CodeInput = Compiler->AppendVector(Compiler->Constant2(BatchIndex, 0.0f), ViewportUV);
 		}
