@@ -291,6 +291,10 @@ FSimpleDelegate FGameFeaturePostMountingContext::PauseUntilComplete(FString InPa
 FInstallBundlePluginProtocolOptions::FInstallBundlePluginProtocolOptions()
 	: InstallBundleFlags(EInstallBundleRequestFlags::Defaults)
 	, ReleaseInstallBundleFlags(EInstallBundleReleaseRequestFlags::None)
+	, bUninstallBeforeTerminate(false)
+	, bUserPauseDownload(false)
+	, bAllowIniLoading(false)
+	, bDoNotDownload(false)
 {}
 
 bool FInstallBundlePluginProtocolOptions::operator==(const FInstallBundlePluginProtocolOptions& Other) const
@@ -302,6 +306,31 @@ bool FInstallBundlePluginProtocolOptions::operator==(const FInstallBundlePluginP
 		bUserPauseDownload == Other.bUserPauseDownload && 
 		bAllowIniLoading == Other.bAllowIniLoading &&
 		bDoNotDownload == Other.bDoNotDownload;
+}
+
+// TODO : FGameFeatureProtocolOptions - C++20 will allow inline init for bitfields
+FGameFeatureProtocolOptions::FGameFeatureProtocolOptions()
+	: bForceSyncLoading(false)
+	, bLogWarningOnForcedDependencyCreation(false)
+	, bLogErrorOnForcedDependencyCreation(false)
+{ 
+	SetSubtype<FNull>(); 
+}
+
+FGameFeatureProtocolOptions::FGameFeatureProtocolOptions(const FInstallBundlePluginProtocolOptions& InOptions) 
+	: TUnion(InOptions) 
+	, bForceSyncLoading(false)
+	, bLogWarningOnForcedDependencyCreation(false)
+	, bLogErrorOnForcedDependencyCreation(false)
+{
+}
+
+FGameFeatureProtocolOptions::FGameFeatureProtocolOptions(FNull InOptions)
+	: bForceSyncLoading(false)
+	, bLogWarningOnForcedDependencyCreation(false)
+	, bLogErrorOnForcedDependencyCreation(false)
+{
+	SetSubtype<FNull>(InOptions);
 }
 
 void UGameFeaturesSubsystem::Initialize(FSubsystemCollectionBase& Collection)
@@ -1494,6 +1523,8 @@ void UGameFeaturesSubsystem::LoadBuiltInGameFeaturePlugin(const TSharedRef<IPlug
 			{
 				FGameFeatureProtocolOptions ProtocolOptions;
 				ProtocolOptions.bForceSyncLoading = BehaviorOptions.bForceSyncLoading;
+				ProtocolOptions.bLogWarningOnForcedDependencyCreation = BehaviorOptions.bLogWarningOnForcedDependencyCreation;
+				ProtocolOptions.bLogErrorOnForcedDependencyCreation = BehaviorOptions.bLogErrorOnForcedDependencyCreation;
 				UGameFeaturePluginStateMachine* StateMachine = FindOrCreateGameFeaturePluginStateMachine(PluginURL, ProtocolOptions);
 
 				EBuiltInAutoState InitialAutoState = (BehaviorOptions.AutoStateOverride != EBuiltInAutoState::Invalid) ? 
@@ -2313,19 +2344,24 @@ UGameFeaturePluginStateMachine* UGameFeaturesSubsystem::FindGameFeaturePluginSta
 
 // Note: ProtocolOptions is not defaulted here. Any API call that could create a state machine should allow the user to pass ProtocolOptions to initialize the machine.
 // It is acceptable that user passes null options. 
-UGameFeaturePluginStateMachine* UGameFeaturesSubsystem::FindOrCreateGameFeaturePluginStateMachine(const FString& PluginURL, const FGameFeatureProtocolOptions& ProtocolOptions)
+UGameFeaturePluginStateMachine* UGameFeaturesSubsystem::FindOrCreateGameFeaturePluginStateMachine(const FString& PluginURL, const FGameFeatureProtocolOptions& ProtocolOptions, bool* bOutFoundExisting /*= nullptr*/)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(GFP_FindOrCreateStateMachine);
 	FGameFeaturePluginIdentifier PluginIdentifier(PluginURL);
 	TObjectPtr<UGameFeaturePluginStateMachine> const* ExistingStateMachine =
 		GameFeaturePluginStateMachines.FindByHash(GetTypeHash(PluginIdentifier.GetIdentifyingString()), PluginIdentifier.GetIdentifyingString());
+
+	if (bOutFoundExisting)
+	{
+		*bOutFoundExisting = !!ExistingStateMachine;
+	}
+
 	if (ExistingStateMachine)
 	{
-		EGameFeaturePluginProtocol ExpectedProtocol = (*ExistingStateMachine)->GetPluginIdentifier().GetPluginProtocol();
-		ensureAlwaysMsgf(ExpectedProtocol == PluginIdentifier.GetPluginProtocol(), TEXT("Expected protocol %s for %.*s"), UE::GameFeatures::GameFeaturePluginProtocolPrefix(ExpectedProtocol), PluginIdentifier.GetIdentifyingString().Len(), PluginIdentifier.GetIdentifyingString().GetData());
-
 		// In this case, still return the existing machine, even if the protocol doesn't match. This function should never return null.
 		// There can only be one active instance of any machine.
+		EGameFeaturePluginProtocol ExpectedProtocol = (*ExistingStateMachine)->GetPluginIdentifier().GetPluginProtocol();
+		ensureAlwaysMsgf(ExpectedProtocol == PluginIdentifier.GetPluginProtocol(), TEXT("Expected protocol %s for %.*s"), UE::GameFeatures::GameFeaturePluginProtocolPrefix(ExpectedProtocol), PluginIdentifier.GetIdentifyingString().Len(), PluginIdentifier.GetIdentifyingString().GetData());
 
 		UE_LOG(LogGameFeatures, VeryVerbose, TEXT("Found GameFeaturePlugin StateMachine using Identifier:%.*s from PluginURL:%s"), PluginIdentifier.GetIdentifyingString().Len(), PluginIdentifier.GetIdentifyingString().GetData(), *PluginURL);
 		return *ExistingStateMachine;
@@ -2452,8 +2488,14 @@ void UGameFeaturesSubsystem::FinishTermination(UGameFeaturePluginStateMachine* M
 	TerminalGameFeaturePluginStateMachines.RemoveSwap(Machine);
 }
 
-bool UGameFeaturesSubsystem::FindOrCreatePluginDependencyStateMachines(const FString& PluginURL, const FString& PluginFilename, const FGameFeatureProtocolOptions& InDepProtocolOptions, TArray<UGameFeaturePluginStateMachine*>& OutDependencyMachines)
+bool UGameFeaturesSubsystem::FindOrCreatePluginDependencyStateMachines(const FString& PluginURL, const FGameFeaturePluginStateMachineProperties& InStateProperties, TArray<UGameFeaturePluginStateMachine*>& OutDependencyMachines)
 {
+	const FString& PluginFilename = InStateProperties.PluginInstalledFilename;
+	const FGameFeatureProtocolOptions InDepProtocolOptions = InStateProperties.RecycleProtocolOptions();
+
+	const bool bWarnOnDepCreation = InStateProperties.ProtocolOptions.bLogWarningOnForcedDependencyCreation;
+	const bool bErrorOnDepCreation = InStateProperties.ProtocolOptions.bLogErrorOnForcedDependencyCreation;
+
 	FGameFeaturePluginDetails Details;
 	if (GetGameFeaturePluginDetailsInternal(PluginFilename, Details))
 	{
@@ -2490,10 +2532,51 @@ bool UGameFeaturesSubsystem::FindOrCreatePluginDependencyStateMachines(const FSt
 			{
 				// Always propogate non-protocol specific flags
 				DepProtocolOptions.bForceSyncLoading = InDepProtocolOptions.bForceSyncLoading;
+				DepProtocolOptions.bLogWarningOnForcedDependencyCreation = InDepProtocolOptions.bLogWarningOnForcedDependencyCreation;
+				DepProtocolOptions.bLogErrorOnForcedDependencyCreation = InDepProtocolOptions.bLogErrorOnForcedDependencyCreation;
 			}
 
-			UGameFeaturePluginStateMachine* ResolvedDependency = FindOrCreateGameFeaturePluginStateMachine(DependencyURL, DepProtocolOptions);
+			bool bFoundExisting = false;
+			UGameFeaturePluginStateMachine* ResolvedDependency = FindOrCreateGameFeaturePluginStateMachine(DependencyURL, DepProtocolOptions, &bFoundExisting);
 			check(ResolvedDependency);
+
+			if (!bFoundExisting)
+			{
+				// Propogate bWasLoadedAsBuiltInGameFeaturePlugin
+				if (InStateProperties.bWasLoadedAsBuiltInGameFeaturePlugin)
+				{
+					ResolvedDependency->SetWasLoadedAsBuiltIn();
+				}
+
+				// Note: Given that LoadBuiltInGameFeaturePlugins does a topological sort, we don't expect to hit this path for built-ins
+				if (bWarnOnDepCreation)
+				{
+					if (InStateProperties.bWasLoadedAsBuiltInGameFeaturePlugin)
+					{
+						UE_LOGFMT(LogGameFeatures, Warning, "GFP dependency {Dep} was forcibly created by {Parent}, Game specific policies may be incorrectly filtering this dependency.",
+							("Dep", ResolvedDependency->GetPluginIdentifier().GetIdentifyingString()), ("Parent", InStateProperties.PluginIdentifier.GetIdentifyingString()));
+					}
+					else
+					{
+						UE_LOGFMT(LogGameFeatures, Warning, "GFP dependency {Dep} was unexpectedly forcibly created by {Parent}",
+							("Dep", ResolvedDependency->GetPluginIdentifier().GetIdentifyingString()), ("Parent", InStateProperties.PluginIdentifier.GetIdentifyingString()));
+					}
+				}
+				else if (bErrorOnDepCreation)
+				{
+					if (InStateProperties.bWasLoadedAsBuiltInGameFeaturePlugin)
+					{
+						UE_LOGFMT(LogGameFeatures, Error, "GFP dependency {Dep} was forcibly created by {Parent}, Game specific policies may be incorrectly filtering this dependency.",
+							("Dep", ResolvedDependency->GetPluginIdentifier().GetIdentifyingString()), ("Parent", InStateProperties.PluginIdentifier.GetIdentifyingString()));
+					}
+					else
+					{
+						UE_LOGFMT(LogGameFeatures, Error, "GFP dependency {Dep} was unexpectedly forcibly created by {Parent}",
+							("Dep", ResolvedDependency->GetPluginIdentifier().GetIdentifyingString()), ("Parent", InStateProperties.PluginIdentifier.GetIdentifyingString()));
+					}
+				}
+			}
+
 			OutDependencyMachines.Add(ResolvedDependency);
 		}
 

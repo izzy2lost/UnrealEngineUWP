@@ -2208,7 +2208,7 @@ struct FWaitingForDependenciesTransitionPolicy
 		UGameFeaturesSubsystem& GameFeaturesSubsystem = UGameFeaturesSubsystem::Get();
 
 		return GameFeaturesSubsystem.FindOrCreatePluginDependencyStateMachines(
-			*InStateProperties.PluginIdentifier.GetFullPluginURL(), InStateProperties.PluginInstalledFilename, InStateProperties.RecycleProtocolOptions(), OutDependencyMachines);
+			*InStateProperties.PluginIdentifier.GetFullPluginURL(), InStateProperties, OutDependencyMachines);
 	}
 
 	static FGameFeaturePluginStateRange GetDependencyStateRange()

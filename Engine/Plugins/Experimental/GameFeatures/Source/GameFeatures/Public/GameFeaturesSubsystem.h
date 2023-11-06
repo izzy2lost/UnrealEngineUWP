@@ -20,6 +20,7 @@ class IPlugin;
 class FJsonObject;
 struct FWorldContext;
 struct FGameFeaturePluginStateRange;
+struct FGameFeaturePluginStateMachineProperties;
 enum class EInstallBundleRequestFlags : uint32;
 enum class EInstallBundleReleaseRequestFlags : uint32;
 
@@ -257,7 +258,15 @@ struct FGameFeaturePluginDetails
 struct FBuiltInGameFeaturePluginBehaviorOptions
 {
 	EBuiltInAutoState AutoStateOverride = EBuiltInAutoState::Invalid;
+
+	/** Force this GFP to load synchronously even if async loading is allowed */
 	bool bForceSyncLoading = false;
+
+	/** Log Warning if loading this GFP forces dependencies to be created, useful for catching GFP load filtering bugs */
+	bool bLogWarningOnForcedDependencyCreation = false;
+
+	/** Log Error if loading this GFP forces dependencies to be created, useful for catching GFP load filtering bugs */
+	bool bLogErrorOnForcedDependencyCreation = false;
 };
 
 struct FGameFeaturePluginPredownloadHandle : public TSharedFromThis<FGameFeaturePluginPredownloadHandle>
@@ -345,28 +354,34 @@ struct GAMEFEATURES_API FInstallBundlePluginProtocolOptions
 	EInstallBundleReleaseRequestFlags ReleaseInstallBundleFlags;
 
 	/** If we want to attempt to uninstall InstallBundle data installed by this plugin before terminating */
-	bool bUninstallBeforeTerminate = false;
+	bool bUninstallBeforeTerminate : 1;
 
 	/** If we want to set the Downloading state to pause because of user interaction */
-	bool bUserPauseDownload = false;
+	bool bUserPauseDownload : 1;
 
 	/** Allow the GFP to load INI files, should only be allowed for trusted content */
-	bool bAllowIniLoading = false;
+	bool bAllowIniLoading : 1;
 
 	/** Disallows downloading, useful for conditionally loading content only if it's already been installed **/
-	bool bDoNotDownload = false;
+	bool bDoNotDownload : 1;
 
 	bool operator==(const FInstallBundlePluginProtocolOptions& Other) const;
 };
 
 struct FGameFeatureProtocolOptions : public TUnion<FInstallBundlePluginProtocolOptions, FNull>
 {
-	FGameFeatureProtocolOptions() { SetSubtype<FNull>(); }
-	explicit FGameFeatureProtocolOptions(const FInstallBundlePluginProtocolOptions& InOptions) : TUnion(InOptions) {}
-	explicit FGameFeatureProtocolOptions(FNull InOptions) { SetSubtype<FNull>(InOptions); }
+	GAMEFEATURES_API FGameFeatureProtocolOptions();
+	GAMEFEATURES_API explicit FGameFeatureProtocolOptions(const FInstallBundlePluginProtocolOptions& InOptions);
+	GAMEFEATURES_API explicit FGameFeatureProtocolOptions(FNull InOptions);
 
 	/** Force this GFP to load synchronously even if async loading is allowed */
-	bool bForceSyncLoading = false;
+	bool bForceSyncLoading : 1;
+
+	/** Log Warning if loading this GFP forces dependencies to be created, useful for catching GFP load filtering bugs */
+	bool bLogWarningOnForcedDependencyCreation : 1;
+
+	/** Log Error if loading this GFP forces dependencies to be created, useful for catching GFP load filtering bugs */
+	bool bLogErrorOnForcedDependencyCreation : 1;
 };
 
 /** The manager subsystem for game features */
@@ -665,7 +680,7 @@ private:
 	UGameFeaturePluginStateMachine* FindGameFeaturePluginStateMachine(const FGameFeaturePluginIdentifier& PluginIdentifier) const;
 
 	/** Gets the state machine associated with the specified URL, creates it if it doesnt exist */
-	UGameFeaturePluginStateMachine* FindOrCreateGameFeaturePluginStateMachine(const FString& PluginURL, const FGameFeatureProtocolOptions& ProtocolOptions);
+	UGameFeaturePluginStateMachine* FindOrCreateGameFeaturePluginStateMachine(const FString& PluginURL, const FGameFeatureProtocolOptions& ProtocolOptions, bool* bOutFoundExisting = nullptr);
 
 	/** Notification that a game feature has finished loading, and whether it was successful */
 	void LoadBuiltInGameFeaturePluginComplete(const UE::GameFeatures::FResult& Result, UGameFeaturePluginStateMachine* Machine, FGameFeaturePluginStateRange RequestedDestination);
@@ -685,7 +700,7 @@ private:
 	friend class UGameFeaturePluginStateMachine;
 
 	/** Handler for when a state machine requests its dependencies. Returns false if the dependencies could not be read */
-	bool FindOrCreatePluginDependencyStateMachines(const FString& PluginURL, const FString& PluginFilename, const FGameFeatureProtocolOptions& DepProtocolOptions, TArray<UGameFeaturePluginStateMachine*>& OutDependencyMachines);
+	bool FindOrCreatePluginDependencyStateMachines(const FString& PluginURL, const FGameFeaturePluginStateMachineProperties& InStateProperties, TArray<UGameFeaturePluginStateMachine*>& OutDependencyMachines);
 	template <typename> friend struct FTransitionDependenciesGameFeaturePluginState;
 	friend struct FWaitingForDependenciesTransitionPolicy;
 

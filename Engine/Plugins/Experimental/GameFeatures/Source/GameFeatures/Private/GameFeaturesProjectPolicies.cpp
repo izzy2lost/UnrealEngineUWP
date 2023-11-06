@@ -16,6 +16,9 @@ void UDefaultGameFeaturesProjectPolicies::InitGameFeatureManager()
 		// By default, force all initially loaded plugins to synchronously load, this overrides the behavior of GameFeaturePlugin.AsyncLoad which will be used for later loads
 		OutOptions.bForceSyncLoading = true;
 
+		// By default, no plugins are filtered so we expect all built-in dependencies to be created before their parent GFPs
+		OutOptions.bLogWarningOnForcedDependencyCreation = true;
+
 		return true;
 	};
 
