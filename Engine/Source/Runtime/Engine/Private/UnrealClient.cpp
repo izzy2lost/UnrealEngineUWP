@@ -62,7 +62,7 @@ bool FRenderTarget::ReadPixels(TArray< FColor >& OutImageData, FReadSurfaceDataF
 	ENQUEUE_RENDER_COMMAND(ReadSurfaceCommand)(
 		[RenderTarget_RT = this, SrcRect_RT = InSrcRect, OutData_RT = &OutImageData, Flags_RT = InFlags](FRHICommandListImmediate& RHICmdList)
 		{
-			RHICmdList.ReadSurfaceData(RenderTarget_RT->GetRenderTargetTexture(), SrcRect_RT, *OutData_RT, Flags_RT);
+			RHICmdList.ReadSurfaceData(RenderTarget_RT->GetShaderResourceTexture(), SrcRect_RT, *OutData_RT, Flags_RT);
 		});
 	FlushRenderingCommands();
 
@@ -102,11 +102,11 @@ bool FRenderTarget::ReadFloat16Pixels(TArray<FFloat16Color>& OutImageData, FRead
 	ENQUEUE_RENDER_COMMAND(ReadSurfaceFloatCommand)(
 		[RenderTarget_RT = this, SrcRect_RT = InSrcRect, OutData_RT = &OutImageData, Flags_RT = InFlags](FRHICommandListImmediate& RHICmdList)
 	{
-		RHICmdList.ReadSurfaceFloatData(RenderTarget_RT->GetRenderTargetTexture(), SrcRect_RT, *OutData_RT, Flags_RT);
+		RHICmdList.ReadSurfaceFloatData(RenderTarget_RT->GetShaderResourceTexture(), SrcRect_RT, *OutData_RT, Flags_RT);
 	});
 	FlushRenderingCommands();
 
-	return OutImageData.Num() > 0;;
+	return OutImageData.Num() > 0;
 }
 
 bool FRenderTarget::ReadLinearColorPixels(TArray<FLinearColor> &OutImageData, FReadSurfaceDataFlags InFlags, FIntRect InSrcRect)
@@ -122,7 +122,7 @@ bool FRenderTarget::ReadLinearColorPixels(TArray<FLinearColor> &OutImageData, FR
 	ENQUEUE_RENDER_COMMAND(ReadSurfaceCommand)(
 		[RenderTarget_RT = this, SrcRect_RT = InSrcRect, OutData_RT = &OutImageData, Flags_RT = InFlags](FRHICommandListImmediate& RHICmdList)
 		{
-			RHICmdList.ReadSurfaceData(RenderTarget_RT->GetRenderTargetTexture(), SrcRect_RT, *OutData_RT, Flags_RT);
+			RHICmdList.ReadSurfaceData(RenderTarget_RT->GetShaderResourceTexture(), SrcRect_RT, *OutData_RT, Flags_RT);
 		});
 	FlushRenderingCommands();
 
@@ -143,9 +143,6 @@ bool FRenderTarget::ReadLinearColorPixelsPtr(FLinearColor* OutImageBytes, FReadS
 	return bResult;
 }
 
-/** 
-* @return display gamma expected for rendering to this render target 
-*/
 float FRenderTarget::GetDisplayGamma() const
 {
 	if (GEngine == NULL)
@@ -163,10 +160,6 @@ float FRenderTarget::GetDisplayGamma() const
 	}
 }
 
-/**
-* Accessor for the surface RHI when setting this render target
-* @return render target surface RHI resource
-*/
 const FTextureRHIRef& FRenderTarget::GetRenderTargetTexture() const
 {
 	return RenderTargetTextureRHI;
@@ -180,6 +173,11 @@ FRDGTextureRef FRenderTarget::GetRenderTargetTexture(FRDGBuilder& GraphBuilder) 
 FUnorderedAccessViewRHIRef FRenderTarget::GetRenderTargetUAV() const
 {
 	return FUnorderedAccessViewRHIRef();
+}
+
+const FTextureRHIRef& FRenderTarget::GetShaderResourceTexture() const
+{
+	return RenderTargetTextureRHI;
 }
 
 void FScreenshotRequest::RequestScreenshot(bool bInShowUI)

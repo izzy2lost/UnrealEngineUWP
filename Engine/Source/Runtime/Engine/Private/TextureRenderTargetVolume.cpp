@@ -241,9 +241,6 @@ void FTextureRenderTargetVolumeResource::InitRHI(FRHICommandListBase& RHICmdList
 
 		RHIUpdateTextureReference(Owner->TextureReference.TextureReferenceRHI,TextureRHI);
 
-		// Can't set this as it's a texture 2D
-		//RenderTargetTextureRHI = VolumeSurfaceRHI;
-
 		AddToDeferredUpdateList(true);
 	}
 

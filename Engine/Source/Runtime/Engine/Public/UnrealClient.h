@@ -59,6 +59,12 @@ public:
 	 */
 	ENGINE_API virtual FRDGTextureRef GetRenderTargetTexture(FRDGBuilder& GraphBuilder) const;
 
+	/**
+	* Accessor for the surface RHI to use when reading the reading target (may differ from GetRenderTargetTexture() for some implementations like cubemaps)
+	* @return surface RHI resource
+	*/
+	ENGINE_API virtual const FTextureRHIRef& GetShaderResourceTexture() const;
+
 	// Properties.
 	virtual FIntPoint GetSizeXY() const = 0;
 

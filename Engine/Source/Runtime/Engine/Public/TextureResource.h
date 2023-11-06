@@ -362,6 +362,9 @@ public:
 	 */
 	ENGINE_API static bool IsSupportedFormat( EPixelFormat Format );
 
+	// FRenderTarget implementation
+	virtual const FTextureRHIRef& GetShaderResourceTexture() const override;
+
 	// FTextureRenderTargetResource interface
 	
 	virtual class FTextureRenderTarget2DResource* GetTextureRenderTarget2DResource() { return nullptr; }

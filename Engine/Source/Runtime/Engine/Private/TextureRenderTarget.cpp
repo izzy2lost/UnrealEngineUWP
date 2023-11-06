@@ -422,6 +422,14 @@ bool FTextureRenderTargetResource::IsSupportedFormat( EPixelFormat Format )
 	}
 }
 
+const FTextureRHIRef& FTextureRenderTargetResource::GetShaderResourceTexture() const
+{
+	// Override GetShaderResourceTexture() because FTextureRenderTargetResource is both a FRenderTarget (RenderTargetTextureRHI) and a FTexture (TextureRHI)
+	//  but in some implementations (e.g. cubemaps), those are different. We need to return the one that's used as a shader resource here :
+	return TextureRHI;
+}
+
+
 /** 
 * Render target resource should be sampled in linear color space
 *
