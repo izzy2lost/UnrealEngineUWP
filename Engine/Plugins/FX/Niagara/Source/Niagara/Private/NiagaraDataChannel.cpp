@@ -32,7 +32,7 @@ void FNiagaraDataChannelGameDataLayout::Init(const TArray<FNiagaraDataChannelVar
 	for (const FNiagaraDataChannelVariable& Var : Variables)
 	{
 		//Sigh.
-		//We must convert from the variable stored var in the data channels definition as we currently cannot serialize/store actual LWC types in FNiagawraTypeDefinitions.
+		//We must convert from the variable stored var in the data channels definition as we currently cannot serialize/store actual LWC types in FNiagaraTypeDefinitions.
 		FNiagaraTypeDefinition LWCType = FNiagaraTypeHelper::GetLWCType(Var.GetType());
 		FNiagaraVariableBase LWCVar(LWCType, Var.GetName());
 
@@ -185,13 +185,13 @@ void FNiagaraDataChannelGameData::WriteToDataSet(FNiagaraDataBuffer* DestBuffer,
 			//Positions are a special case that are stored as FVectors in game data but converted to an LWCTile local FVector3f in simulation data.
 			if (DestStruct == FNiagaraTypeDefinition::GetPositionStruct())
 			{	
-				float* DestX = (float*)DestBuffer->GetInstancePtrFloat(FloatCompIdx++, DestStartIdx);
-				float* DestY = (float*)DestBuffer->GetInstancePtrFloat(FloatCompIdx++, DestStartIdx);
-				float* DestZ = (float*)DestBuffer->GetInstancePtrFloat(FloatCompIdx++, DestStartIdx);
+				float* DestX = DestBuffer->GetInstancePtrFloat(FloatCompIdx++, DestStartIdx);
+				float* DestY = DestBuffer->GetInstancePtrFloat(FloatCompIdx++, DestStartIdx);
+				float* DestZ = DestBuffer->GetInstancePtrFloat(FloatCompIdx++, DestStartIdx);
 								
 				for (int32 i = 0; i < NumInstances; ++i)
 				{
-					FVector* Src = (FVector*)((SrcData + i * SrcVarSize));
+					FVector* Src = reinterpret_cast<FVector*>((SrcData + i * SrcVarSize));
 
 					FVector3f SimLocalSWC = FVector3f((*Src) - FVector(SimulationLwcTile) * FLargeWorldRenderScalar::GetTileSize());
 					*DestX++ = SimLocalSWC.X;
@@ -207,51 +207,50 @@ void FNiagaraDataChannelGameData::WriteToDataSet(FNiagaraDataBuffer* DestBuffer,
 				{
 					FProperty* SrcProperty = *SrcPropertyIt;
 					FProperty* DestProperty = *DestPropertyIt;
-					int32 SrcOffset = SrcProperty->GetOffset_ForInternal();
 					SrcData = SrcPropertyBase + SrcProperty->GetOffset_ForInternal();
 
 					//Convert any LWC doubles to floats. //TODO: Insert LWCTile... probably need to explicitly check for vectors etc.
 					if (SrcProperty->IsA(FDoubleProperty::StaticClass()))
 					{
 						check(DestProperty->IsA(FFloatProperty::StaticClass()));
-						float* Dest = (float*)DestBuffer->GetInstancePtrFloat(FloatCompIdx++, DestStartIdx);
+						float* Dest = DestBuffer->GetInstancePtrFloat(FloatCompIdx++, DestStartIdx);
 						//Write all instances for this component.
 						for (int32 i = 0; i < NumInstances; ++i)
 						{
-							double* Src = (double*)((SrcData + i * SrcVarSize));
+							double* Src = reinterpret_cast<double*>((SrcData + i * SrcVarSize));
 							*Dest++ = *Src;
 						}
 					}
 					else if (SrcProperty->IsA(FFloatProperty::StaticClass()))
 					{
-						float* Dest = (float*)DestBuffer->GetInstancePtrFloat(FloatCompIdx++, DestStartIdx);
+						float* Dest = DestBuffer->GetInstancePtrFloat(FloatCompIdx++, DestStartIdx);
 
 						//Write all instances for this component.
 						for (int32 i = 0; i < NumInstances; ++i)
 						{
-							float* Src = (float*)((SrcData + i * SrcVarSize));
+							float* Src = reinterpret_cast<float*>((SrcData + i * SrcVarSize));
 							*Dest++ = *Src;
 						}
 					}
 					else if (SrcProperty->IsA(FUInt16Property::StaticClass()))
 					{
-						FFloat16* Dest = (FFloat16*)DestBuffer->GetInstancePtrHalf(HalfCompIdx++, DestStartIdx);
+						FFloat16* Dest = DestBuffer->GetInstancePtrHalf(HalfCompIdx++, DestStartIdx);
 
 						//Write all instances for this component.
 						for (int32 i = 0; i < NumInstances; ++i)
 						{
-							FFloat16* Src = (FFloat16*)((SrcData + i * SrcVarSize));
+							FFloat16* Src = reinterpret_cast<FFloat16*>((SrcData + i * SrcVarSize));
 							*Dest++ = *Src;
 						}
 					}
 					else if (SrcProperty->IsA(FIntProperty::StaticClass()) || SrcProperty->IsA(FBoolProperty::StaticClass()))
 					{
-						int32* Dest = (int32*)DestBuffer->GetInstancePtrInt32(IntCompIdx++, DestStartIdx);
+						int32* Dest = DestBuffer->GetInstancePtrInt32(IntCompIdx++, DestStartIdx);
 
 						//Write all instances for this component.
 						for (int32 i = 0; i < NumInstances; ++i)
 						{
-							int32* Src = (int32*)((SrcData + i * SrcVarSize));
+							int32* Src = reinterpret_cast<int32*>((SrcData + i * SrcVarSize));
 							*Dest++ = *Src;
 						}
 					}
@@ -292,7 +291,6 @@ void FNiagaraDataChannelGameData::AppendFromDataSet(const FNiagaraDataBuffer* Sr
 	static TArray<uint8> LWCConversionBuffer;
 
 	int32 NumInstances = SrcBuffer->GetNumInstances();
-	int32 OrigNumDataChannel = NumElements;
 	NumElements += NumInstances;
 
 	const FNiagaraDataChannelGameDataLayout& Layout = DataChannel->GetGameDataLayout();
@@ -339,13 +337,13 @@ void FNiagaraDataChannelGameData::AppendFromDataSet(const FNiagaraDataBuffer* Sr
 			//Special case for writing to Niagara Positions. We must offset the data into the simulation local LWC space.
 			if (SrcStruct == FNiagaraTypeDefinition::GetPositionStruct())
 			{
-				float* SrcX = (float*)SrcBuffer->GetComponentPtrFloat(FloatCompIdx++);
-				float* SrcY = (float*)SrcBuffer->GetComponentPtrFloat(FloatCompIdx++);
-				float* SrcZ = (float*)SrcBuffer->GetComponentPtrFloat(FloatCompIdx++);
+				const float* SrcX = reinterpret_cast<const float*>(SrcBuffer->GetComponentPtrFloat(FloatCompIdx++));
+				const float* SrcY = reinterpret_cast<const float*>(SrcBuffer->GetComponentPtrFloat(FloatCompIdx++));
+				const float* SrcZ = reinterpret_cast<const float*>(SrcBuffer->GetComponentPtrFloat(FloatCompIdx++));
 
 				for (int32 i = 0; i < NumInstances; ++i)
 				{
-					FVector* Dest = (FVector*)(DestData + VarSize * i);
+					FVector* Dest = reinterpret_cast<FVector*>(DestData + VarSize * i);
 					*Dest = FVector(*SrcX++, *SrcY++, *SrcZ++) + FVector(SimulationLwcTile) * FLargeWorldRenderScalar::GetTileSize();
 				}
 			}
@@ -360,49 +358,49 @@ void FNiagaraDataChannelGameData::AppendFromDataSet(const FNiagaraDataBuffer* Sr
 					DestData += DestProperty->GetOffset_ForInternal();
 					if (DestPropertyIt->IsA(FDoubleProperty::StaticClass()))
 					{
-						double* Dest = (double*)(DestData);
-						float* Src = (float*)SrcBuffer->GetComponentPtrFloat(FloatCompIdx++);
+						double* Dest = reinterpret_cast<double*>(DestData);
+						const float* Src = reinterpret_cast<const float*>(SrcBuffer->GetComponentPtrFloat(FloatCompIdx++));
 
 						//Write all instances for this component.
 						for (int32 i = 0; i < NumInstances; ++i)
 						{
-							Dest = (double*)(DestData + VarSize * i);
+							Dest = reinterpret_cast<double*>(DestData + VarSize * i);
 							*Dest = *Src++;
 						}
 					}
 					else if (DestPropertyIt->IsA(FFloatProperty::StaticClass()))
 					{
-						float* Dest = (float*)(DestData);
-						float* Src = (float*)SrcBuffer->GetComponentPtrFloat(FloatCompIdx++);
+						float* Dest = reinterpret_cast<float*>(DestData);
+						const float* Src = reinterpret_cast<const float*>(SrcBuffer->GetComponentPtrFloat(FloatCompIdx++));
 
 						//Write all instances for this component.
 						for (int32 i = 0; i < NumInstances; ++i)
 						{
-							Dest = (float*)(DestData + VarSize * i);
+							Dest = reinterpret_cast<float*>(DestData + VarSize * i);
 							*Dest = *Src++;
 						}
 					}
 					else if (DestPropertyIt->IsA(FUInt16Property::StaticClass()))
 					{
-						FFloat16* Dest = (FFloat16*)(DestData);
-						FFloat16* Src = (FFloat16*)SrcBuffer->GetComponentPtrHalf(HalfCompIdx++);
+						FFloat16* Dest = reinterpret_cast<FFloat16*>(DestData);
+						const FFloat16* Src = reinterpret_cast<const FFloat16*>(SrcBuffer->GetComponentPtrHalf(HalfCompIdx++));
 
 						//Write all instances for this component.
 						for (int32 i = 0; i < NumInstances; ++i)
 						{
-							Dest = (FFloat16*)(DestData + VarSize * i);
+							Dest = reinterpret_cast<FFloat16*>(DestData + VarSize * i);
 							*Dest = *Src++;
 						}
 					}
 					else if (DestPropertyIt->IsA(FIntProperty::StaticClass()) || DestPropertyIt->IsA(FBoolProperty::StaticClass()))
 					{
-						int32* Dest = (int32*)(DestData);
-						int32* Src = (int32*)SrcBuffer->GetComponentPtrInt32(IntCompIdx++);
+						int32* Dest = reinterpret_cast<int32*>(DestData);
+						const int32* Src = reinterpret_cast<const int32*>(SrcBuffer->GetComponentPtrInt32(IntCompIdx++));
 
 						//Write all instances for this component.
 						for (int32 i = 0; i < NumInstances; ++i)
 						{
-							Dest = (int32*)(DestData + VarSize * i);
+							Dest = reinterpret_cast<int32*>(DestData + VarSize * i);
 							*Dest = *Src++;
 						}
 					}
@@ -596,7 +594,7 @@ int32 FNiagaraDataChannelData::ConsumePublishRequests(UNiagaraDataChannelHandler
 	
 	if(NDCCVars::bEmitWarningsOnLateNDCWrites && DataChannel->ShouldEnforceTickGroupReadWriteOrder())
 	{
-		ETickingGroup PublishSourceTG = (ETickingGroup)(FMath::Clamp((int32)Owner->GetCurrentTickGroup() - 1, 0, (int32)ETickingGroup::TG_MAX-1));//We're consuming from the previous TG.
+		ETickingGroup PublishSourceTG = static_cast<ETickingGroup>(FMath::Clamp(static_cast<int32>(Owner->GetCurrentTickGroup()) - 1, 0, static_cast<int32>(ETickingGroup::TG_MAX) - 1));//We're consuming from the previous TG.
 		ETickingGroup FinalWriteTG = DataChannel->GetFinalWriteTickGroup();
 
 		//TODO: Possibly allow late writes to be deferred to the next frame?
@@ -667,7 +665,7 @@ int32 FNiagaraDataChannelData::ConsumePublishRequests(UNiagaraDataChannelHandler
 
 	//Now do the actual data collection.
 
-	GameData->SetNum(NewGameDataChannel);
+	GameData->Reserve(NewGameDataChannel);
 
 	for (auto It = PublishRequests.CreateIterator(); It ; ++It)
 	{
@@ -998,6 +996,20 @@ UNiagaraDataChannelWriter* UNiagaraDataChannelLibrary::WriteToNiagaraDataChannel
 UNiagaraDataChannelReader* UNiagaraDataChannelLibrary::ReadFromNiagaraDataChannel(const UObject* WorldContextObject, const UNiagaraDataChannelAsset* Channel, FNiagaraDataChannelSearchParameters SearchParams, bool bReadPreviousFrame)
 {
 	return CreateDataChannelReader(WorldContextObject, Channel->Get(), SearchParams, bReadPreviousFrame);
+}
+
+int32 UNiagaraDataChannelLibrary::GetDataChannelElementCount(const UObject* WorldContextObject, const UNiagaraDataChannelAsset* Channel, FNiagaraDataChannelSearchParameters SearchParams, bool bReadPreviousFrame)
+{
+	if (UNiagaraDataChannelReader* Reader = CreateDataChannelReader(WorldContextObject, Channel->Get(), SearchParams, bReadPreviousFrame))
+	{
+		return Reader->Num();
+	}
+	return 0;
+}
+
+void UNiagaraDataChannelLibrary::ReadFromNiagaraDataChannelSingle(const UObject*, const UNiagaraDataChannelAsset*, int32, FNiagaraDataChannelSearchParameters, bool, ENiagartaDataChannelReadResult&)
+{
+	// this function is just a placeholder and calls into CreateDataChannelReader and its individual read functions from the BP node
 }
 
 void UNiagaraDataChannelLibrary::WriteToNiagaraDataChannelSingle(const UObject*, const UNiagaraDataChannelAsset*, FNiagaraDataChannelSearchParameters, bool, bool, bool)

@@ -28,7 +28,7 @@ int32 UNiagaraDataChannelReader::Num()const
 {
 	if (Data.IsValid())
 	{
-		return Data->GetGameData()->Num();
+		return bReadingPreviousFrame ? Data->GetGameData()->PrevNum() : Data->GetGameData()->Num();
 	}
 	return 0;
 }
@@ -46,71 +46,85 @@ bool UNiagaraDataChannelReader::ReadData(const FNiagaraVariableBase& Var, int32 
 	return false;
 }
 
-double UNiagaraDataChannelReader::ReadFloat(FName VarName, int32 Index)const
+double UNiagaraDataChannelReader::ReadFloat(FName VarName, int32 Index, bool& IsValid)const
 {
 	double RetVal = 0.0f;
-	ReadData<double>(FNiagaraVariableBase(FNiagaraTypeHelper::GetDoubleDef(), VarName), Index, RetVal);
+	IsValid = ReadData<double>(FNiagaraVariableBase(FNiagaraTypeHelper::GetDoubleDef(), VarName), Index, RetVal);
 	return RetVal;
 }
 
-FVector2D UNiagaraDataChannelReader::ReadVector2D(FName VarName, int32 Index)const
+FVector2D UNiagaraDataChannelReader::ReadVector2D(FName VarName, int32 Index, bool& IsValid)const
 {
 	FVector2D RetVal = FVector2D::ZeroVector;
-	ReadData<FVector2D>(FNiagaraVariableBase(FNiagaraTypeHelper::GetVector2DDef(), VarName), Index, RetVal);
+	IsValid = ReadData<FVector2D>(FNiagaraVariableBase(FNiagaraTypeHelper::GetVector2DDef(), VarName), Index, RetVal);
 	return RetVal;
 }
 
-FVector UNiagaraDataChannelReader::ReadVector(FName VarName, int32 Index)const
+FVector UNiagaraDataChannelReader::ReadVector(FName VarName, int32 Index, bool& IsValid)const
 {
 	FVector RetVal = FVector::ZeroVector;
-	ReadData<FVector>(FNiagaraVariableBase(FNiagaraTypeHelper::GetVectorDef(), VarName), Index, RetVal);
+	IsValid = ReadData<FVector>(FNiagaraVariableBase(FNiagaraTypeHelper::GetVectorDef(), VarName), Index, RetVal);
 	return RetVal;
 }
 
-FVector4 UNiagaraDataChannelReader::ReadVector4(FName VarName, int32 Index)const
+FVector4 UNiagaraDataChannelReader::ReadVector4(FName VarName, int32 Index, bool& IsValid)const
 {
 	FVector4 RetVal = FVector4(0.0f);
-	ReadData<FVector4>(FNiagaraVariableBase(FNiagaraTypeHelper::GetVector4Def(), VarName), Index, RetVal);
+	IsValid = ReadData<FVector4>(FNiagaraVariableBase(FNiagaraTypeHelper::GetVector4Def(), VarName), Index, RetVal);
 	return RetVal;
 }
 
-FQuat UNiagaraDataChannelReader::ReadQuat(FName VarName, int32 Index)const
+FQuat UNiagaraDataChannelReader::ReadQuat(FName VarName, int32 Index, bool& IsValid)const
 {
 	FQuat RetVal = FQuat::Identity;
-	ReadData<FQuat>(FNiagaraVariableBase(FNiagaraTypeHelper::GetQuatDef(), VarName), Index, RetVal);
+	IsValid = ReadData<FQuat>(FNiagaraVariableBase(FNiagaraTypeHelper::GetQuatDef(), VarName), Index, RetVal);
 	return RetVal;
 }
 
-FLinearColor UNiagaraDataChannelReader::ReadLinearColor(FName VarName, int32 Index)const
+FLinearColor UNiagaraDataChannelReader::ReadLinearColor(FName VarName, int32 Index, bool& IsValid)const
 {
 	FLinearColor RetVal = FLinearColor::White;
-	ReadData<FLinearColor>(FNiagaraVariableBase(FNiagaraTypeDefinition::GetColorDef(), VarName), Index, RetVal);
+	IsValid = ReadData<FLinearColor>(FNiagaraVariableBase(FNiagaraTypeDefinition::GetColorDef(), VarName), Index, RetVal);
 	return RetVal;
 }
 
-int32 UNiagaraDataChannelReader::ReadInt(FName VarName, int32 Index)const
+int32 UNiagaraDataChannelReader::ReadInt(FName VarName, int32 Index, bool& IsValid)const
 {
 	int32 RetVal = 0;
-	ReadData<int32>(FNiagaraVariableBase(FNiagaraTypeDefinition::GetIntDef(), VarName), Index, RetVal);
+	IsValid = ReadData<int32>(FNiagaraVariableBase(FNiagaraTypeDefinition::GetIntDef(), VarName), Index, RetVal);
 	return RetVal;
 }
 
-uint8 UNiagaraDataChannelReader::ReadEnum(FName VarName, int32 Index) const
+uint8 UNiagaraDataChannelReader::ReadEnum(FName VarName, int32 Index, bool& IsValid) const
 {
-	return static_cast<uint8>(ReadInt(VarName, Index));
+	return static_cast<uint8>(ReadInt(VarName, Index, IsValid));
 }
 
-bool UNiagaraDataChannelReader::ReadBool(FName VarName, int32 Index)const
+bool UNiagaraDataChannelReader::ReadBool(FName VarName, int32 Index, bool& IsValid)const
 {
-	bool RetVal = false;
-	ReadData<bool>(FNiagaraVariableBase(FNiagaraTypeDefinition::GetBoolDef(), VarName), Index, RetVal);
+	FNiagaraBool RetVal(false);
+	IsValid = ReadData<FNiagaraBool>(FNiagaraVariableBase(FNiagaraTypeDefinition::GetBoolDef(), VarName), Index, RetVal);
 	return RetVal;
 }
 
-FVector UNiagaraDataChannelReader::ReadPosition(FName VarName, int32 Index)const
+FVector UNiagaraDataChannelReader::ReadPosition(FName VarName, int32 Index, bool& IsValid)const
 {
 	FVector RetVal = FVector::ZeroVector;
-	ReadData<FVector>(FNiagaraVariableBase(FNiagaraTypeDefinition::GetPositionDef(), VarName), Index, RetVal);
+	IsValid = ReadData<FVector>(FNiagaraVariableBase(FNiagaraTypeDefinition::GetPositionDef(), VarName), Index, RetVal);
+	return RetVal;
+}
+
+FNiagaraID UNiagaraDataChannelReader::ReadID(FName VarName, int32 Index, bool& IsValid) const
+{
+	FNiagaraID RetVal;
+	IsValid = ReadData<FNiagaraID>(FNiagaraVariableBase(FNiagaraTypeDefinition::GetIDDef(), VarName), Index, RetVal);
+	return RetVal;
+}
+
+FNiagaraSpawnInfo UNiagaraDataChannelReader::ReadSpawnInfo(FName VarName, int32 Index, bool& IsValid) const
+{
+	FNiagaraSpawnInfo RetVal;
+	IsValid = ReadData<FNiagaraSpawnInfo>(FNiagaraVariableBase(FNiagaraTypeDefinition(FNiagaraSpawnInfo::StaticStruct()), VarName), Index, RetVal);
 	return RetVal;
 }
 

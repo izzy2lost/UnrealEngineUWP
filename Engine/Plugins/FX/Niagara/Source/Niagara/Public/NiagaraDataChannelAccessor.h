@@ -41,34 +41,40 @@ public:
 	NIAGARA_API int32 Num()const;
 
 	UFUNCTION(BlueprintCallable, Category = NiagaraDataChannel, meta = (Keywords = "Niagara DataChannel"))
-	NIAGARA_API double ReadFloat(FName VarName, int32 Index)const;
+	NIAGARA_API double ReadFloat(FName VarName, int32 Index, bool& IsValid)const;
 
 	UFUNCTION(BlueprintCallable, Category = NiagaraDataChannel, meta = (Keywords = "Niagara DataChannel"))
-	NIAGARA_API FVector2D ReadVector2D(FName VarName, int32 Index)const;
+	NIAGARA_API FVector2D ReadVector2D(FName VarName, int32 Index, bool& IsValid)const;
 
 	UFUNCTION(BlueprintCallable, Category = NiagaraDataChannel, meta = (Keywords = "Niagara DataChannel"))
-	NIAGARA_API FVector ReadVector(FName VarName, int32 Index)const;
+	NIAGARA_API FVector ReadVector(FName VarName, int32 Index, bool& IsValid)const;
 
 	UFUNCTION(BlueprintCallable, Category = NiagaraDataChannel, meta = (Keywords = "Niagara DataChannel"))
-	NIAGARA_API FVector4 ReadVector4(FName VarName, int32 Index)const;
+	NIAGARA_API FVector4 ReadVector4(FName VarName, int32 Index, bool& IsValid)const;
 
 	UFUNCTION(BlueprintCallable, Category = NiagaraDataChannel, meta = (Keywords = "Niagara DataChannel"))
-	NIAGARA_API FQuat ReadQuat(FName VarName, int32 Index)const;
+	NIAGARA_API FQuat ReadQuat(FName VarName, int32 Index, bool& IsValid)const;
 
 	UFUNCTION(BlueprintCallable, Category = NiagaraDataChannel, meta = (Keywords = "Niagara DataChannel"))
-	NIAGARA_API FLinearColor ReadLinearColor(FName VarName, int32 Index)const;
+	NIAGARA_API FLinearColor ReadLinearColor(FName VarName, int32 Index, bool& IsValid)const;
 
 	UFUNCTION(BlueprintCallable, Category = NiagaraDataChannel, meta = (Keywords = "Niagara DataChannel"))
-	NIAGARA_API int32 ReadInt(FName VarName, int32 Index)const;
+	NIAGARA_API int32 ReadInt(FName VarName, int32 Index, bool& IsValid)const;
 
 	UFUNCTION(BlueprintCallable, Category = NiagaraDataChannel, meta = (Keywords = "Niagara DataChannel"))
-	NIAGARA_API uint8 ReadEnum(FName VarName, int32 Index)const;
+	NIAGARA_API uint8 ReadEnum(FName VarName, int32 Index, bool& IsValid)const;
 
 	UFUNCTION(BlueprintCallable, Category = NiagaraDataChannel, meta = (Keywords = "Niagara DataChannel"))
-	NIAGARA_API bool ReadBool(FName VarName, int32 Index)const;
+	NIAGARA_API bool ReadBool(FName VarName, int32 Index, bool& IsValid)const;
 
 	UFUNCTION(BlueprintCallable, Category = NiagaraDataChannel, meta = (Keywords = "Niagara DataChannel"))
-	NIAGARA_API FVector ReadPosition(FName VarName, int32 Index)const;
+	NIAGARA_API FVector ReadPosition(FName VarName, int32 Index, bool& IsValid)const;
+
+	UFUNCTION(BlueprintCallable, Category = NiagaraDataChannel, meta = (Keywords = "Niagara DataChannel"))
+	NIAGARA_API FNiagaraID ReadID(FName VarName, int32 Index, bool& IsValid)const;
+
+	UFUNCTION(BlueprintCallable, Category = NiagaraDataChannel, meta = (Keywords = "Niagara DataChannel"))
+	NIAGARA_API FNiagaraSpawnInfo ReadSpawnInfo(FName VarName, int32 Index, bool& IsValid)const;
 };
 
 UCLASS(Experimental, BlueprintType, MinimalAPI)

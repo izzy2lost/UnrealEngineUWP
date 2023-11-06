@@ -205,7 +205,7 @@ struct FNiagaraDataChannelVariableBuffer
 		check(sizeof(T) == Size);
 		if (Index >= 0 && Index < Num())
 		{
-			T* Dest = ((T*)Data.GetData()) + Index;
+			T* Dest = reinterpret_cast<T*>(Data.GetData()) + Index;
 			*Dest = InData;
 
 			return true;
@@ -225,7 +225,7 @@ struct FNiagaraDataChannelVariableBuffer
 		if (Index >= 0 && Index < NumElems)
 		{
 			const uint8* DataPtr = bPreviousFrameData ? PrevData.GetData() : Data.GetData();
-			T* Src = ((T*)DataPtr) + Index;
+			const T* Src = reinterpret_cast<const T*>(DataPtr) + Index;
 			OutData = *Src;
 
 			return true;

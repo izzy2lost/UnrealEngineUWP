@@ -269,7 +269,7 @@ void FNiagaraDataChannelBPNodeDetails::CustomizeDetails(IDetailLayoutBuilder& De
 	}
 
 	UObject* Obj = SelectedObjects[0].Get();
-	UK2Node_WriteDataChannel* Node = Cast<UK2Node_WriteDataChannel>(Obj);
+	UK2Node_DataChannelBase* Node = Cast<UK2Node_DataChannelBase>(Obj);
 	if(Node == nullptr || Node->GetDataChannel() == nullptr)
 	{
 		return;
@@ -279,13 +279,13 @@ void FNiagaraDataChannelBPNodeDetails::CustomizeDetails(IDetailLayoutBuilder& De
 	IDetailCategoryBuilder& ChannelCategoryBuilder = DetailBuilder.EditCategory(TEXT("Data Channel"));
 	for (const FNiagaraDataChannelVariable& Var : DataChannel->GetVariables())
 	{
-		TWeakObjectPtr<UK2Node_WriteDataChannel> NodePtr(Node);
+		TWeakObjectPtr<UK2Node_DataChannelBase> NodePtr(Node);
 		FGuid VarGuid = Var.Version;
 		auto CheckStateChanged = [NodePtr, VarGuid](const ECheckBoxState NewState)
 		{
-			if (UK2Node_WriteDataChannel* Node = NodePtr.Get())
+			if (UK2Node_DataChannelBase* Node = NodePtr.Get())
 			{
-				FScopedTransaction Transaction(LOCTEXT("ChangeAttributeWrite", "Change data channel attribute write"));
+				FScopedTransaction Transaction(LOCTEXT("ChangeAttributeAccess", "Change data channel attribute access"));
 				Node->Modify();
 				if (NewState == ECheckBoxState::Checked)
 				{
@@ -301,7 +301,7 @@ void FNiagaraDataChannelBPNodeDetails::CustomizeDetails(IDetailLayoutBuilder& De
 		};
 		auto SPCheckState = [NodePtr, VarGuid]()
 		{
-			if (UK2Node_WriteDataChannel* Node = NodePtr.Get())
+			if (UK2Node_DataChannelBase* Node = NodePtr.Get())
 			{
 				return Node->IgnoredVariables.Contains(VarGuid) ? ECheckBoxState::Unchecked : ECheckBoxState::Checked;
 			}

@@ -190,6 +190,13 @@ void UNiagaraDataChannel::ForEachDataChannel(TAction Func)
 	}
 }
 
+UENUM(BlueprintType)
+enum class ENiagartaDataChannelReadResult : uint8
+{
+	Success,
+	Failure
+};
+
 /**
 * A C++ and Blueprint accessible library of utility functions for accessing Niagara DataChannel
 */
@@ -198,7 +205,7 @@ class NIAGARA_API UNiagaraDataChannelLibrary : public UBlueprintFunctionLibrary
 {
 	GENERATED_UCLASS_BODY()
 
-	UFUNCTION(BlueprintCallable, Category = NiagaraDataChannel, meta = (Keywords = "niagara DataChannel", WorldContext = "WorldContextObject", UnsafeDuringActorConstruction = "true"))
+	UFUNCTION(BlueprintInternalUseOnly, Category = NiagaraDataChannel, meta = (Keywords = "niagara DataChannel", WorldContext = "WorldContextObject", UnsafeDuringActorConstruction = "true"))
 	static UNiagaraDataChannelHandler* GetNiagaraDataChannel(const UObject* WorldContextObject, const UNiagaraDataChannelAsset* Channel);
 
 	/**
@@ -225,11 +232,39 @@ class NIAGARA_API UNiagaraDataChannelLibrary : public UBlueprintFunctionLibrary
 	 *								Reading the current frame allows for zero latency reads, but any data elements that are generated after this reader is used are missed.
 	 *								Reading the previous frame's data introduces a frame of latency but ensures we never miss any data as we have access to the whole frame.
 	 */
-	UFUNCTION(BlueprintCallable, Category = NiagaraDataChannel, meta = (Keywords = "niagara DataChannel", WorldContext = "WorldContextObject", UnsafeDuringActorConstruction = "true"))
+	UFUNCTION(BlueprintCallable, Category = NiagaraDataChannel, DisplayName="Read From Niagara Data Channel (Batch)", meta = (AdvancedDisplay = "SearchParams", Keywords = "niagara DataChannel", WorldContext = "WorldContextObject", UnsafeDuringActorConstruction = "true"))
 	static UNiagaraDataChannelReader* ReadFromNiagaraDataChannel(const UObject* WorldContextObject, const UNiagaraDataChannelAsset* Channel, FNiagaraDataChannelSearchParameters SearchParams, bool bReadPreviousFrame);
 
 	/**
-	 * Writes a single element to a Niagara Data Channel
+	 * Returns the number of readable elements in the given data channel
+	 *
+	 * @param WorldContextObject	World to execute in
+	 * @param Channel				The channel to read from
+	 * @param SearchParams			Parameters used when retrieving a specific set of Data Channel Data to read or write like the islands data channel type.
+	 * @param bReadPreviousFrame	True if this reader will read the previous frame's data. If false, we read the current frame.
+	 *								Reading the current frame allows for zero latency reads, but any data elements that are generated after this reader is used are missed.
+	 *								Reading the previous frame's data introduces a frame of latency but ensures we never miss any data as we have access to the whole frame.
+	 */
+	UFUNCTION(BlueprintCallable, Category = NiagaraDataChannel, meta = (bReadPreviousFrame="true", AdvancedDisplay = "SearchParams, bReadPreviousFrame", Keywords = "niagara DataChannel num size", WorldContext = "WorldContextObject", UnsafeDuringActorConstruction = "true"))
+	static int32 GetDataChannelElementCount(const UObject* WorldContextObject, const UNiagaraDataChannelAsset* Channel, FNiagaraDataChannelSearchParameters SearchParams, bool bReadPreviousFrame);
+
+	/**
+	 * Reads a single entry from the given data channel, if possible.
+	 *
+	 * @param WorldContextObject	World to execute in
+	 * @param Channel				The channel to read from
+	 * @param Index					The data index to read from
+	 * @param SearchParams			Parameters used when retrieving a specific set of Data Channel Data to read or write like the islands data channel type.
+	 * @param bReadPreviousFrame	True if this reader will read the previous frame's data. If false, we read the current frame.
+	 *								Reading the current frame allows for zero latency reads, but any data elements that are generated after this reader is used are missed.
+	 *								Reading the previous frame's data introduces a frame of latency but ensures we never miss any data as we have access to the whole frame.
+	 * @param ReadResult			Used by Blueprint for the return value
+	 */
+	UFUNCTION(BlueprintInternalUseOnly, Category = NiagaraDataChannel, DisplayName="Read From Niagara Data Channel", meta = (bReadPreviousFrame="true", AdvancedDisplay = "SearchParams, bReadPreviousFrame", ExpandEnumAsExecs="ReadResult", Keywords = "niagara DataChannel", WorldContext = "WorldContextObject", UnsafeDuringActorConstruction = "true"))
+	static void ReadFromNiagaraDataChannelSingle(const UObject* WorldContextObject, const UNiagaraDataChannelAsset* Channel, int32 Index, FNiagaraDataChannelSearchParameters SearchParams, bool bReadPreviousFrame, ENiagartaDataChannelReadResult& ReadResult);
+
+	/**
+	 * Writes a single element to a Niagara Data Channel. The element won't be immediately visible to readers, as it needs to be processed first. The earliest point it can be read is in the next tick group.
 	 *
 	 * @param WorldContextObject	World to execute in
 	 * @param Channel				The channel to write to

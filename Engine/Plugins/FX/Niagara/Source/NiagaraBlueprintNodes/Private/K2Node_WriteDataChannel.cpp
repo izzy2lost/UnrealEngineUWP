@@ -4,6 +4,7 @@
 
 #include "BlueprintActionDatabaseRegistrar.h"
 #include "BlueprintNodeSpawner.h"
+#include "K2Node_ExecutionSequence.h"
 #include "KismetCompiler.h"
 #include "NiagaraBlueprintUtil.h"
 #include "NiagaraDataChannel.h"
@@ -14,18 +15,6 @@
 UK2Node_WriteDataChannel::UK2Node_WriteDataChannel()
 {
 	FunctionReference.SetExternalMember(GET_FUNCTION_NAME_CHECKED(UNiagaraDataChannelLibrary, WriteToNiagaraDataChannelSingle), UNiagaraDataChannelLibrary::StaticClass());
-}
-
-void UK2Node_WriteDataChannel::PostLoad()
-{
-	Super::PostLoad();
-
-#if WITH_EDITORONLY_DATA
-	if (DataChannel && DataChannel->Get()->GetVersion() != DataChannelVersion && HasValidBlueprint())
-	{
-		ReconstructNode();
-	}
-#endif
 }
 
 void UK2Node_WriteDataChannel::AllocateDefaultPins()
@@ -46,43 +35,7 @@ void UK2Node_WriteDataChannel::AllocateDefaultPins()
 			NewPin->PersistentGuid = InVar.Version;
 #endif
 		}
-
-#if WITH_EDITORONLY_DATA
-		DataChannelVersion = DataChannel->Get()->GetVersion();
-#endif
 	}
-}
-
-void UK2Node_WriteDataChannel::PinDefaultValueChanged(UEdGraphPin* Pin)
-{
-	Super::PinDefaultValueChanged(Pin);
-
-#if WITH_EDITORONLY_DATA
-	if (Pin == GetChannelSelectorPin())
-	{
-		if (UNiagaraDataChannelAsset* ChannelAsset = Cast<UNiagaraDataChannelAsset>(Pin->DefaultObject))
-		{
-			DataChannel = ChannelAsset;
-			ReconstructNode();
-		}
-	}
-#endif
-}
-
-void UK2Node_WriteDataChannel::PinConnectionListChanged(UEdGraphPin* Pin)
-{
-	Super::PinConnectionListChanged(Pin);
-
-#if WITH_EDITORONLY_DATA
-	if (Pin == GetChannelSelectorPin())
-	{
-		if (UNiagaraDataChannelAsset* ChannelAsset = Cast<UNiagaraDataChannelAsset>(Pin->DefaultObject))
-		{
-			DataChannel = Pin->LinkedTo.Num() == 0 ? ChannelAsset : nullptr;
-			ReconstructNode();
-		}
-	}
-#endif
 }
 
 void UK2Node_WriteDataChannel::GetMenuActions(FBlueprintActionDatabaseRegistrar& InActionRegistrar) const
@@ -95,16 +48,15 @@ void UK2Node_WriteDataChannel::GetMenuActions(FBlueprintActionDatabaseRegistrar&
 	}
 }
 
-FText UK2Node_WriteDataChannel::GetMenuCategory() const
-{
-	static FText MenuCategory = LOCTEXT("MenuCategory", "Niagara Data Channel");
-	return MenuCategory;
-}
-
 void UK2Node_WriteDataChannel::ExpandNode(FKismetCompilerContext& CompilerContext, UEdGraph* SourceGraph)
 {
 	if (!DataChannel)
 	{
+		// replace function with a noop if we don't have a data channel
+		UK2Node_ExecutionSequence* NoopNode = CompilerContext.SpawnIntermediateNode<UK2Node_ExecutionSequence>(this, SourceGraph);
+		NoopNode->AllocateDefaultPins();
+		CompilerContext.MovePinLinksToIntermediate(*GetExecPin(), *NoopNode->GetExecPin());
+		CompilerContext.MovePinLinksToIntermediate(*GetThenPin(), *NoopNode->GetThenPinGivenIndex(0));
 		return;
 	}
 	ExpandSplitPins(CompilerContext, SourceGraph);
@@ -175,45 +127,6 @@ void UK2Node_WriteDataChannel::ExpandNode(FKismetCompilerContext& CompilerContex
 	// connect the last exec pin
 	UEdGraphPin* OldThenPin = FindPinChecked(UEdGraphSchema_K2::PN_Then, EGPD_Output);
 	CompilerContext.MovePinLinksToIntermediate(*OldThenPin, *LastExecPin);
-}
-
-UK2Node::ERedirectType UK2Node_WriteDataChannel::DoPinsMatchForReconstruction(const UEdGraphPin* NewPin, int32 NewPinIndex, const UEdGraphPin* OldPin, int32 OldPinIndex) const
-{
-	const UEdGraphSchema_K2* K2Schema = GetDefault<UEdGraphSchema_K2>();
-	
-	ERedirectType Result = UK2Node::DoPinsMatchForReconstruction(NewPin, NewPinIndex, OldPin, OldPinIndex);
-	if (ERedirectType_None == Result && K2Schema && K2Schema->ArePinTypesCompatible(NewPin->PinType, OldPin->PinType) && (NewPin->PersistentGuid == OldPin->PersistentGuid) && OldPin->PersistentGuid.IsValid())
-	{
-		Result = ERedirectType_Name;
-	}
-
-	return Result;
-}
-
-void UK2Node_WriteDataChannel::PreloadRequiredAssets()
-{
-	Super::PreloadRequiredAssets();
-
-	if (DataChannel)
-	{
-		PreloadObject(DataChannel);
-		PreloadObject(DataChannel->Get());
-	}
-}
-
-bool UK2Node_WriteDataChannel::ShouldShowNodeProperties() const
-{
-	return true;
-}
-
-UNiagaraDataChannel* UK2Node_WriteDataChannel::GetDataChannel() const
-{
-	return DataChannel ? DataChannel->Get() : nullptr;
-}
-
-UEdGraphPin* UK2Node_WriteDataChannel::GetChannelSelectorPin() const
-{
-	return FindPinChecked(FName("Channel"), EGPD_Input);
 }
 
 UFunction* UK2Node_WriteDataChannel::GetWriteFunctionForType(const FNiagaraTypeDefinition& TypeDef)
