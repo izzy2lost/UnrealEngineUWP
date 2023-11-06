@@ -35,7 +35,7 @@ struct PCG_API FPCGStaticMeshSpawnerEntry
 	FCollisionProfileName CollisionProfile;
 };
 
-UCLASS(BlueprintType, ClassGroup = (Procedural))
+UCLASS(BlueprintType, ClassGroup = (Procedural), meta = (PrioritizeCategories = "Settings"))
 class PCG_API UPCGStaticMeshSpawnerSettings : public UPCGSettings
 {
 	GENERATED_BODY()
@@ -73,17 +73,17 @@ public:
 
 public:
 	/** Defines the method of mesh selection per input data */
-	UPROPERTY(BlueprintReadOnly, EditAnywhere, NoClear, Category = Settings)
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, NoClear, Category = MeshSelector)
 	TSubclassOf<UPCGMeshSelectorBase> MeshSelectorType;
 
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Instanced, Category = Settings)
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Instanced, Category = MeshSelector)
 	TObjectPtr<UPCGMeshSelectorBase> MeshSelectorParameters;
 
 	/** Defines the method of custom data packing for spawned (H)ISMCs */
-	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = Settings)
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = InstanceDataPacker)
 	TSubclassOf<UPCGInstanceDataPackerBase> InstanceDataPackerType;
 
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Instanced, Category = Settings)
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Instanced, Category = InstanceDataPacker)
 	TObjectPtr<UPCGInstanceDataPackerBase> InstanceDataPackerParameters = nullptr;
 
 	/** Attribute name to store mesh SoftObjectPaths inside if the output pin is connected. Note: Will overwrite existing data if the attribute name already exists. */

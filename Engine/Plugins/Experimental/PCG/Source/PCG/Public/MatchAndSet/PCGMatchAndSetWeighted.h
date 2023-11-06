@@ -57,10 +57,10 @@ public:
 
 public:
 	/** Values and their respective weights */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = MatchAndSet)
 	TArray<FPCGMatchAndSetWeightedEntry> Entries;
 
 	/** Controls whether the output data should mutate its seed - prevents issues when doing multiple random processes in a row */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = MatchAndSet)
 	bool bShouldMutateSeed = true;
 };

@@ -14,7 +14,7 @@ class UPCGMatchAndSetBase;
 * on the point data it consumes as input.
 * E.g. for a given point, if it matches with something in the Match & Set object, it will set a value on the point.
 */
-UCLASS(BlueprintType, ClassGroup = (Procedural))
+UCLASS(BlueprintType, ClassGroup = (Procedural), meta = (PrioritizeCategories = "Settings"))
 class PCG_API UPCGPointMatchAndSetSettings : public UPCGSettings
 {
 	GENERATED_BODY()
@@ -55,11 +55,11 @@ protected:
 
 public:
 	/** Defines the type of Match & Set object to use. */
-	UPROPERTY(BlueprintReadOnly, EditAnywhere, NoClear, Category = Settings)
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, NoClear, Category = MatchAndSet)
 	TSubclassOf<UPCGMatchAndSetBase> MatchAndSetType;
 
 	/** Instance of MatchAndSetType, stores the data that will be used in these settings. */
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Instanced, Category = Settings)
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Instanced, Category = MatchAndSet)
 	TObjectPtr<UPCGMatchAndSetBase> MatchAndSetInstance;
 
 	/** "Set" part of the Match & Set - defines what will be changed in the operation */

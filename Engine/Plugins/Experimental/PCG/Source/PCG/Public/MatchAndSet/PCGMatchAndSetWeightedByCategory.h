@@ -65,22 +65,22 @@ public:
 
 public:
 	/** Attribute to match against */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = MatchAndSet)
 	FName CategoryAttribute;
 
 	/** Type of the attribute to match against. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = MatchAndSet)
 	EPCGMetadataTypes CategoryType = EPCGMetadataTypes::Double;
 
 	UPROPERTY()
 	EPCGMetadataTypesConstantStructStringMode CategoryStringMode_DEPRECATED;
 
 	/** Lookup entries (key -> weighted list) */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = MatchAndSet)
 	TArray<FPCGMatchAndSetWeightedByCategoryEntryList> Categories;
 
 	/** Controls whether the output data should mutate its seed - prevents issues when doing multiple random processes in a row */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = MatchAndSet)
 	bool bShouldMutateSeed = true;
 };
 

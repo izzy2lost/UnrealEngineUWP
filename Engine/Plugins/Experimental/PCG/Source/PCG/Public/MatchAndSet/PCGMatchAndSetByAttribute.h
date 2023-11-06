@@ -58,11 +58,11 @@ public:
 
 public:
 	/** Attribute to match on the data */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = MatchAndSet)
 	FName MatchSourceAttribute;
 
 	/** Type of the attribute to match against. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = MatchAndSet)
 	EPCGMetadataTypes MatchSourceType = EPCGMetadataTypes::Double;
 
 	/** String type of the attribute to match against (if required). */
@@ -70,6 +70,6 @@ public:
 	EPCGMetadataTypesConstantStructStringMode MatchSourceStringMode_DEPRECATED;
 
 	/** Lookup entries (key-value pairs) */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = MatchAndSet)
 	TArray<FPCGMatchAndSetByAttributeEntry> Entries;
 };

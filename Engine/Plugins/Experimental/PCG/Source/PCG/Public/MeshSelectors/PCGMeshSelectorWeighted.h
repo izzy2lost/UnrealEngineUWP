@@ -95,12 +95,12 @@ protected:
 #endif // WITH_EDITOR
 
 public:
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (TitleProperty = "DisplayName"))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = MeshSelector, meta = (TitleProperty = "DisplayName"))
 	TArray<FPCGMeshSelectorWeightedEntry> MeshEntries;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (InlineEditConditionToggle))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = MeshSelector, meta = (InlineEditConditionToggle))
 	bool bUseAttributeMaterialOverrides = false;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, DisplayName = "By Attribute Material Overrides", Category = Settings, meta = (EditCondition = "bUseAttributeMaterialOverrides"))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, DisplayName = "By Attribute Material Overrides", Category = MeshSelector, meta = (EditCondition = "bUseAttributeMaterialOverrides"))
 	TArray<FName> MaterialOverrideAttributes;
 };
