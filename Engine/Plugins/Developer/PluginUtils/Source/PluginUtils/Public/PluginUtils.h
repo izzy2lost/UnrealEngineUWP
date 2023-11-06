@@ -91,6 +91,10 @@ public:
 		/** The Verse path to the root of this plugin's content directory */
 		FString VersePath;
 
+		/** The version of the Verse language that this plugin targets.
+			If no value is specified, the latest stable version is used. */
+		TOptional<uint32> VerseVersion;
+
 		/** If to generate Verse source code definitions from assets contained in this plugin */
 		bool bEnableVerseAssetReflection = false;
 
