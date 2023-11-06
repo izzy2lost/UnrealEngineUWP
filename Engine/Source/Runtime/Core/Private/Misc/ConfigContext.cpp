@@ -389,10 +389,14 @@ bool FConfigContext::PerformLoad()
 		ConfigFile->bHasPlatformName = true;
 
 		// chcek if the config file wants to save all sections
-		bool bLocalSaveAllSections;
-		ConfigFile->bCanSaveAllSections = ConfigFile->GetBool(SectionsToSaveString, SaveAllSectionsKey, bLocalSaveAllSections) && bLocalSaveAllSections;
-		// we can always save all sections of a User config file
-		ConfigFile->bCanSaveAllSections = ConfigFile->bCanSaveAllSections || BaseIniName.Contains(TEXT("User"));
+		bool bLocalSaveAllSections = false;
+		ConfigFile->GetBool(SectionsToSaveString, SaveAllSectionsKey, bLocalSaveAllSections);
+
+		// we can always save all sections of a User config file, Editor* (not Editor.ini tho, that is already handled in the normal method)
+		bool bIsUserFile = BaseIniName.Contains(TEXT("User"));
+		bool bIsEditorSettingsFile = BaseIniName.Contains(TEXT("Editor")) && BaseIniName != TEXT("Editor");
+
+		ConfigFile->bCanSaveAllSections = bLocalSaveAllSections || bIsUserFile || bIsEditorSettingsFile;
 
 		// don't write anything to disk in cooked builds - we will always use re-generated INI files anyway.
 		// Note: Unfortunately bAllowGeneratedIniWhenCooked is often true even in shipping builds with cooked data

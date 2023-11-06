@@ -50,7 +50,7 @@ inline FConfigLayer GConfigLayers[] =
 inline FConfigLayer GPluginLayers[] =
 {
 	// Engine/Base.ini
-	{ TEXT("AbsoluteBase"),				TEXT("{ENGINE}/Config/Base.ini"), EConfigLayerFlags::NoExpand},
+	{ TEXT("AbsoluteBase"),				TEXT("{ENGINE}/Config/PluginBase.ini"), EConfigLayerFlags::NoExpand},
 
 	// Plugin/Base*.ini
 	{ TEXT("PluginBase"),				TEXT("{PLUGIN}/Config/Base{TYPE}.ini") },
