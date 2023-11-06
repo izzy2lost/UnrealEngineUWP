@@ -895,9 +895,9 @@ FSceneView* ULocalPlayer::CalcSceneView( class FSceneViewFamily* ViewFamily,
 		View->OverridePostProcessSettings(ViewInfo.PostProcessSettings, ViewInfo.PostProcessBlendWeight);
 
 		// Camera overrides (cameras blending in, camera modifiers, etc)
-		if (PlayerController->PlayerCameraManager &&
-				CameraAnimPPSettings && CameraAnimPPBlendWeights && CameraAnimPPBlendOrders)
+		if (PlayerController->PlayerCameraManager)
 		{
+			checkSlow(CameraAnimPPBlendWeights && CameraAnimPPBlendOrders && CameraAnimPPSettings);
 			for (int32 PPIdx = 0; PPIdx < CameraAnimPPBlendWeights->Num(); ++PPIdx)
 			{
 				if ((*CameraAnimPPBlendOrders)[PPIdx] == VTBlendOrder_Override)

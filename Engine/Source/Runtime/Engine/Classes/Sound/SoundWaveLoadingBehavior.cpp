@@ -123,6 +123,11 @@ private:
 		// Then stack ranks the most important behavior. (RetainOnLoad (Highest), PrimeOnLoad (Medium), LoadOnDemand (Lowest))
 		// Which ever wins, we also capture the "SizeOfFirstChunk" to use for that wave.
 
+		if (!InWave)
+		{
+			return {};
+		}
+
 		const bool bIsAssetRegistryStartup = AssetRegistry.IsSearchAsync() && AssetRegistry.IsLoadingAssets();
 
 		// Disallow during startup of registry (cookers will have already done this)
@@ -131,12 +136,7 @@ private:
 			UE_LOG(LogAudio, Warning, TEXT("FindOwningLoadingBehavior called before AssetRegistry is ready. SoundWave=%s"), *InWave->GetName());
 			return {};
 		}
-
-		if (!InWave)
-		{
-			return {};
-		}
-		
+	
 		const UPackage* WavePackage = InWave->GetPackage();
 		if (!WavePackage)
 		{

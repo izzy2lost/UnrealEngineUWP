@@ -3645,7 +3645,7 @@ void FRigVMEditor::HandleSetObjectBeingDebugged(UObject* InObject)
 	if (DebuggedHost == nullptr)
 	{
 		// fall back to our default control rig (which still can be nullptr)
-		if (GetRigVMBlueprint() != nullptr && GetBlueprintObj() && !bIsSettingObjectBeingDebugged)
+		if (GetRigVMBlueprint() != nullptr && !bIsSettingObjectBeingDebugged)
 		{
 			TGuardValue<bool> GuardSettingObjectBeingDebugged(bIsSettingObjectBeingDebugged, true);
 			GetBlueprintObj()->SetObjectBeingDebugged(GetRigVMHost());

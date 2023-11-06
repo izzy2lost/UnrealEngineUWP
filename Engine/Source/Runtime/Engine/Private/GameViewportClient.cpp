@@ -1347,7 +1347,7 @@ void UGameViewportClient::Draw(FViewport* InViewport, FCanvas* SceneCanvas)
 
 	// Create temp debug canvas object
 	FIntPoint DebugCanvasSize = InViewport->GetSizeXY();
-	if (bStereoRendering && GEngine->XRSystem.IsValid() && GEngine->XRSystem->GetHMDDevice())
+	if (bStereoRendering && GEngine && GEngine->XRSystem.IsValid() && GEngine->XRSystem->GetHMDDevice())
 	{
 		DebugCanvasSize = GEngine->XRSystem->GetHMDDevice()->GetIdealDebugCanvasRenderTargetSize();
 	}

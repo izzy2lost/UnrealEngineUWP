@@ -740,7 +740,7 @@ bool ULevelInstanceSubsystem::CheckForLoop(const ILevelInstanceInterface* LevelI
 				if (LoopInfo)
 				{
 					TSoftObjectPtr<UWorld> CurrentAsset = (CurrentLevelInstance == LevelInstance)? WorldAsset : (CurrentLevelInstance)? CurrentLevelInstance->GetWorldAsset() : nullptr;
-					FText LevelInstanceName = (CurrentActor)? FText::FromString(CurrentActor->GetPathName()) : FText::FromString("Invalid Actor cannot retrieve LevelInstance name.");
+					FText LevelInstanceName = FText::FromString(CurrentActor->GetPathName());
 					FText Description = FText::Format(LOCTEXT("LevelInstanceLoopLink", "-> Actor: {0} loads"), LevelInstanceName);
 					LoopInfo->Emplace(Description, CurrentAsset);
 				}

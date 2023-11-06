@@ -656,10 +656,9 @@ AActor* UPCGComponent::ClearPCGLink(UClass* TemplateActor)
 		{
 			Cleanup(true);
 		}
-		else
+		else if (NewActor)
 		{
-			checkSlow(World);
-			World->DestroyActor(NewActor);
+			NewActor->Destroy();
 			NewActor = nullptr;
 		}
 	}
