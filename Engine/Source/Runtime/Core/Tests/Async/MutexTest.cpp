@@ -5,6 +5,7 @@
 #include "Async/Mutex.h"
 
 #include "Async/UniqueLock.h"
+#include "HAL/PlatformProcess.h"
 #include "HAL/Thread.h"
 #include "TestHarness.h"
 
@@ -31,6 +32,7 @@ TEST_CASE("Core::Async::Mutex", "[Core][Async][Slow]")
 			{
 				while (!Mutex.TryLock()) // spin on attempting to acquire the lock
 				{
+					FPlatformProcess::YieldThread();
 				}
 				CHECK(Mutex.IsLocked());
 				CHECK(!Mutex.TryLock());

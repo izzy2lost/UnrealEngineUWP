@@ -5,6 +5,7 @@
 #include "Async/ExternalMutex.h"
 
 #include "Async/UniqueLock.h"
+#include "HAL/PlatformProcess.h"
 #include "HAL/Thread.h"
 #include "TestHarness.h"
 
@@ -35,6 +36,7 @@ TEST_CASE("Core::Async::ExternalMutex", "[Core][Async][Slow]")
 				FExternalMutex Mutex(ExternalState);
 				while (!Mutex.TryLock()) // spin on attempting to acquire the lock
 				{
+					FPlatformProcess::YieldThread();
 				}
 				CHECK(Mutex.IsLocked());
 				CHECK(!Mutex.TryLock());
