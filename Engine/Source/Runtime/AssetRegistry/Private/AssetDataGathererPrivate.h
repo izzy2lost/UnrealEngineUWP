@@ -12,11 +12,7 @@
 
 #include <atomic>
 
-namespace UE
-{
-namespace AssetDataGather
-{
-namespace Private
+namespace UE::AssetDataGather::Private
 {
 
 class FMountDir;
@@ -840,6 +836,35 @@ private:
 	friend class FScanDir;
 };
 
-} // namespace Private
-} // namespace AssetDataGather
-} // namespace UE
+/**
+ * Settings about whether to use cache data for the AssetDataGatherer; these settings are shared by
+ * FPreloader and the FAssetDataGatherer.
+ */
+struct FPreloadSettings
+{
+public:
+	void Initialize();
+	bool IsCacheReadEnabled() const;
+	bool IsCacheWriteEnabled() const;
+	bool IsMonolithicCacheActivatedDuringPreload() const;
+	bool IsPreloadMonolithicCache() const;
+	bool IsGatherDependsData() const;
+	bool IsForceDependsGathering() const;
+	FString GetLegacyMonolithicCacheFilename() const;
+	const FString& GetMonolithicCacheBaseFilename() const;
+	const FString& GetAssetRegistryCacheRootFolder() const;
+	TArray<FString> FindShardedMonolithicCacheFiles() const;
+
+private:
+	FString MonolithicCacheBaseFilename;
+	FString AssetRegistryCacheRootFolder;
+	bool bForceDependsGathering = false;
+	bool bGatherDependsData = false;
+	bool bCacheReadEnabled = false;
+	bool bCacheWriteEnabled = false;
+	bool bMonolithicCacheActivatedDuringPreload = false;
+	bool bInitialized = false;
+};
+extern FPreloadSettings GPreloadSettings;
+
+} // namespace UE::AssetDataGather::Private
