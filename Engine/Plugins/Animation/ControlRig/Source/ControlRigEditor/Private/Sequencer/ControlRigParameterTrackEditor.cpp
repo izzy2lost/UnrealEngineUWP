@@ -3293,9 +3293,9 @@ void FControlRigParameterTrackEditor::GetControlRigKeys(
 
 	//Need seperate index fo bools,ints and enums and floats since there are seperate entries for each later when they are accessed by the set key stuff.
 	int32 SpaceChannelIndex = 0;
-	for (int32 ControlIndex = 0; ControlIndex < Controls.Num(); ++ControlIndex)
+	for (int32 LocalControlIndex = 0; LocalControlIndex < Controls.Num(); ++LocalControlIndex)
 	{
-		FRigControlElement* ControlElement = Controls[ControlIndex];
+		FRigControlElement* ControlElement = Controls[LocalControlIndex];
 		check(ControlElement);
 
 		if (!Hierarchy->IsAnimatable(ControlElement))
@@ -3306,9 +3306,9 @@ void FControlRigParameterTrackEditor::GetControlRigKeys(
 		if (FChannelMapInfo* pChannelIndex = SectionToKey->ControlChannelMap.Find(ControlElement->GetFName()))
 		{
 			int32 ChannelIndex = pChannelIndex->ChannelIndex;
+			const int32 MaskIndex = pChannelIndex->MaskIndex;
 
-
-			bool bMaskKeyOut = (ControlIndex >= ControlsMask.Num() || ControlsMask[ControlIndex] == false);
+			bool bMaskKeyOut = (MaskIndex >= ControlsMask.Num() || ControlsMask[MaskIndex] == false);
 			bool bSetKey = ParameterName.IsNone() || (ControlElement->GetFName() == ParameterName && !bMaskKeyOut);
 
 			FRigControlValue ControlValue = InControlRig->GetControlValue(ControlElement, ERigControlValueType::Current);

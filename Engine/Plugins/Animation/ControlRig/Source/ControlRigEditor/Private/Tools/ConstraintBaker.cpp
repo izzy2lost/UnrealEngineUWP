@@ -231,7 +231,7 @@ void FConstraintBaker::Bake(UWorld* InWorld,
 	FConstraintSections ConstraintSections = FMovieSceneConstraintChannelHelper::GetConstraintSectionAndChannel(
 		InConstraint, InSequencer);
 	IMovieSceneConstrainedSection* ConstrainedSection = Cast<IMovieSceneConstrainedSection>(ConstraintSections.ConstraintSection);
-	if (ConstrainedSection == nullptr) 
+	if (ConstrainedSection == nullptr || ConstraintSections.ActiveChannel == nullptr)
 	{
 		return;
 	}
