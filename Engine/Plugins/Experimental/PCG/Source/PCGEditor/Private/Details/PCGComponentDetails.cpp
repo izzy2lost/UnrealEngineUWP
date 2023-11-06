@@ -159,7 +159,7 @@ EVisibility FPCGComponentDetails::GenerateButtonVisible() const
 	for (const TWeakObjectPtr<UPCGComponent>& Component : SelectedComponents)
 	{
 		// If component is runtime generated then generate/cleanup is managed by the scheduler.
-		if (Component.IsValid() && !Component->IsGenerating() && Component->GenerationTrigger != EPCGComponentGenerationTrigger::GenerateAtRuntime)
+		if (Component.IsValid() && !Component->IsGenerating() && !Component->IsManagedByRuntimeGenSystem())
 		{
 			return EVisibility::Visible;
 		}
@@ -173,7 +173,7 @@ EVisibility FPCGComponentDetails::CancelButtonVisible() const
 	for (const TWeakObjectPtr<UPCGComponent>& Component : SelectedComponents)
 	{
 		// If component is runtime generated then generate/cleanup is managed by the scheduler.
-		if (Component.IsValid() && Component->IsGenerating() && Component->GenerationTrigger != EPCGComponentGenerationTrigger::GenerateAtRuntime)
+		if (Component.IsValid() && Component->IsGenerating() && !Component->IsManagedByRuntimeGenSystem())
 		{
 			return EVisibility::Visible;
 		}
@@ -187,7 +187,7 @@ EVisibility FPCGComponentDetails::CleanupButtonVisible() const
 	for (const TWeakObjectPtr<UPCGComponent>& Component : SelectedComponents)
 	{
 		// If component is runtime generated then generate/cleanup is managed by the scheduler.
-		if (Component.IsValid() && Component->GenerationTrigger != EPCGComponentGenerationTrigger::GenerateAtRuntime)
+		if (Component.IsValid() && !Component->IsManagedByRuntimeGenSystem())
 		{
 			return EVisibility::Visible;
 		}
@@ -200,7 +200,7 @@ EVisibility FPCGComponentDetails::RefreshButtonVisible() const
 {
 	for (const TWeakObjectPtr<UPCGComponent>& Component : SelectedComponents)
 	{
-		if (Component.IsValid() && Component->GenerationTrigger == EPCGComponentGenerationTrigger::GenerateAtRuntime)
+		if (Component.IsValid() && Component->IsManagedByRuntimeGenSystem())
 		{
 			return EVisibility::Visible;
 		}

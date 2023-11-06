@@ -73,7 +73,7 @@ FPCGRuntimeGenScheduler::~FPCGRuntimeGenScheduler()
 	GenSourceManager = nullptr;
 }
 
-void FPCGRuntimeGenScheduler::Tick(const APCGWorldActor* InPCGWorldActor)
+void FPCGRuntimeGenScheduler::Tick(APCGWorldActor* InPCGWorldActor)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGRuntimeGenScheduler::Tick);
 	check(InPCGWorldActor && GenSourceManager);
@@ -198,7 +198,7 @@ bool FPCGRuntimeGenScheduler::ShouldTick()
 
 void FPCGRuntimeGenScheduler::TickQueueComponentsForGeneration(
 	const TSet<IPCGGenSourceBase*>& InGenSources,
-	const APCGWorldActor* InPCGWorldActor,
+	APCGWorldActor* InPCGWorldActor,
 	TMap<FGridGenerationKey, double>& OutComponentsToGenerate)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGRuntimeGenScheduler::TickQueueComponentsForGeneration);
@@ -246,7 +246,7 @@ void FPCGRuntimeGenScheduler::TickQueueComponentsForGeneration(
 		const UPCGSchedulingPolicyBase* Policy = OriginalComponent->GetRuntimeGenSchedulingPolicy();
 
 		// TODO: For each execution domain (for now only GenAtRuntime/dynamic), assuming we run Preview through this scheduler, which it seems like we will.
-		if (OriginalComponent->GenerationTrigger == EPCGComponentGenerationTrigger::GenerateAtRuntime)
+		if (OriginalComponent->IsManagedByRuntimeGenSystem())
 		{
 			bool bHasUnbounded = false;
 			PCGHiGenGrid::FSizeArray GridSizes;
@@ -388,7 +388,7 @@ void FPCGRuntimeGenScheduler::TickQueueComponentsForGeneration(
 		const UPCGSchedulingPolicyBase* Policy = OriginalComponent->GetRuntimeGenSchedulingPolicy();
 
 		// TODO: For each execution domain (for now only GenAtRuntime/dynamic), assuming we run Preview through this scheduler, which it seems like we will.
-		if (OriginalComponent->GenerationTrigger == EPCGComponentGenerationTrigger::GenerateAtRuntime)
+		if (OriginalComponent->IsManagedByRuntimeGenSystem())
 		{
 			// Unbounded will grab the base GenerationRadius used for non-partitioned and unbounded.
 			const double MaxGenerationRadius = OriginalComponent->GetGenerationRadiusFromGrid(EPCGHiGenGrid::Unbounded);
@@ -686,12 +686,13 @@ void FPCGRuntimeGenScheduler::TickCVars(const APCGWorldActor* InPCGWorldActor)
 
 void FPCGRuntimeGenScheduler::OnOriginalComponentRegistered(UPCGComponent* InOriginalComponent)
 {
-	// Ensure we are not a local component.
-	if (!InOriginalComponent || Cast<APCGPartitionActor>(InOriginalComponent->GetOwner()))
+	// Ensure we are non-local runtime managed component.
+	if (!InOriginalComponent || !InOriginalComponent->IsManagedByRuntimeGenSystem() || Cast<APCGPartitionActor>(InOriginalComponent->GetOwner()))
 	{
-		ensure(false);
 		return;
 	}
+
+	CreateGridGuidsForComponent(InOriginalComponent);
 
 	// When an original/non-partitioned component is registered, we need to dirty the state.
 	bAnyRuntimeGenComponentsExistDirty = true;
@@ -920,6 +921,9 @@ void FPCGRuntimeGenScheduler::RefreshComponent(UPCGComponent* InComponent, bool 
 	}
 	else
 	{
+		// Grid sizes might have changed, so we should defensively create grid guids.
+		CreateGridGuidsForComponent(OriginalComponent);
+
 		TArray<FGridGenerationKey> GenerationKeys;
 
 		for (FGridGenerationKey GenerationKey : GeneratedComponents)
@@ -1128,4 +1132,20 @@ void FPCGRuntimeGenScheduler::ResetPartitionActorPoolToSize(uint32 NewPoolSize)
 	PartitionActorPool.Empty();
 	PartitionActorPoolSize = 0;
 	AddPartitionActorPoolCount(NewPoolSize);
+}
+
+void FPCGRuntimeGenScheduler::CreateGridGuidsForComponent(UPCGComponent* InComponent)
+{
+	if (InComponent && InComponent->IsPartitioned() && InComponent->IsManagedByRuntimeGenSystem())
+	{
+		if (APCGWorldActor* PCGWorldActor = PCGHelpers::GetPCGWorldActor(World))
+		{
+			bool bHasUnbounded;
+			PCGHiGenGrid::FSizeArray GridSizes;
+			ensure(PCGHelpers::GetGenerationGridSizes(InComponent->GetGraph(), PCGWorldActor, GridSizes, bHasUnbounded));
+
+			// TODO: This will mark the package as dirty, which should not happen from runtime gen.
+			PCGWorldActor->CreateGridGuidsIfNecessary(GridSizes);
+		}
+	}
 }

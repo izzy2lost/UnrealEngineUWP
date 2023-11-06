@@ -398,7 +398,7 @@ void SPCGEditorGraphDebugObjectTree::RefreshTree()
 
 	for (UObject* PCGComponentObject : PCGComponents)
 	{
-		if (!IsValid(PCGComponentObject) || PCGComponentObject->HasAnyFlags(RF_Transient))
+		if (!IsValid(PCGComponentObject))
 		{
 			continue;
 		}

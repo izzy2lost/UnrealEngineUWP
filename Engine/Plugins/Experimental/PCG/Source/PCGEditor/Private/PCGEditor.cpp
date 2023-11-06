@@ -278,7 +278,7 @@ void FPCGEditor::UpdateDebugAfterComponentSelection(UPCGComponent* InOldComponen
 		check(Component);
 
 		// GenerateAtRuntime components should be refreshed through the runtime gen scheduler.
-		if (Component->GenerationTrigger == EPCGComponentGenerationTrigger::GenerateAtRuntime)
+		if (Component->IsManagedByRuntimeGenSystem())
 		{
 			if (UPCGSubsystem* Subsystem = GetSubsystem())
 			{
@@ -1376,7 +1376,7 @@ void FPCGEditor::OnToggleDebug()
 			if (PCGSettingsInterface->bDebug != bNewCheckState)
 			{
 				PCGSettingsInterface->bDebug = bNewCheckState;
-				PCGNode->OnNodeChangedDelegate.Broadcast(PCGNode, EPCGChangeType::Debug);
+				PCGNode->OnNodeChangedDelegate.Broadcast(PCGNode, EPCGChangeType::Settings);
 			}
 		}
 	}

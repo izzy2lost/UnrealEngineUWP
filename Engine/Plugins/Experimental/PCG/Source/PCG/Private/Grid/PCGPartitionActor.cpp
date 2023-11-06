@@ -191,7 +191,7 @@ void APCGPartitionActor::BeginPlay()
 			{
 				// If we have an original component that is generated (or generating), this one is automatically generated => GenerateOnLoad.
 				// But if its runtime generated then it's handled by the runtime generation scheduler.
-				if ((It.Key->bGenerated || It.Key->IsGenerating()) && ensure(It.Key->GenerationTrigger != EPCGComponentGenerationTrigger::GenerateAtRuntime))
+				if ((It.Key->bGenerated || It.Key->IsGenerating()) && ensure(!It.Key->IsManagedByRuntimeGenSystem()))
 				{
 					It.Value->GenerationTrigger = EPCGComponentGenerationTrigger::GenerateOnLoad;
 				}

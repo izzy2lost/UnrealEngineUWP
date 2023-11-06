@@ -365,7 +365,7 @@ FPCGTaskId UPCGSubsystem::ScheduleComponent(UPCGComponent* PCGComponent, EPCGHiG
 
 #if WITH_EDITOR
 	// Create the PartitionActors if necessary. Skip if this is a runtime managed component, PAs are handled manually by the RuntimeGenScheduler.
-	if (PCGComponent->IsPartitioned() && !PCGHelpers::IsRuntimeOrPIE() && PCGComponent->GenerationTrigger != EPCGComponentGenerationTrigger::GenerateAtRuntime)
+	if (PCGComponent->IsPartitioned() && !PCGHelpers::IsRuntimeOrPIE() && !PCGComponent->IsManagedByRuntimeGenSystem())
 	{
 		if (!GridSizes.IsEmpty())
 		{
@@ -680,7 +680,7 @@ void UPCGSubsystem::CancelAllGeneration()
 
 void UPCGSubsystem::RefreshRuntimeGenComponent(UPCGComponent* RuntimeComponent, bool bRemovePartitionActors)
 {
-	if (!ensure(RuntimeComponent && RuntimeComponent->GenerationTrigger == EPCGComponentGenerationTrigger::GenerateAtRuntime))
+	if (!ensure(RuntimeComponent && RuntimeComponent->IsManagedByRuntimeGenSystem()))
 	{
 		return;
 	}
@@ -971,7 +971,7 @@ void UPCGSubsystem::CreatePartitionActorsWithinBounds(const FBox& InBounds, cons
 
 FPCGTaskId UPCGSubsystem::ScheduleRefresh(UPCGComponent* Component, bool bForceRegen)
 {
-	check(Component && Component->GenerationTrigger != EPCGComponentGenerationTrigger::GenerateAtRuntime);
+	check(Component && !Component->IsManagedByRuntimeGenSystem());
 
 	TWeakObjectPtr<UPCGComponent> ComponentPtr(Component);
 

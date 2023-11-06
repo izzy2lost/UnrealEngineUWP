@@ -36,7 +36,7 @@ public:
 	FPCGRuntimeGenScheduler& operator=(const FPCGRuntimeGenScheduler& other) = delete;
 	FPCGRuntimeGenScheduler& operator=(FPCGRuntimeGenScheduler&& other) = delete; 
 
-	void Tick(const APCGWorldActor* InPCGWorldActor);
+	void Tick(APCGWorldActor* InPCGWorldActor);
 
 	void OnOriginalComponentRegistered(UPCGComponent* InOriginalComponent);
 	void OnOriginalComponentUnregistered(UPCGComponent* InOriginalComponent);
@@ -58,7 +58,7 @@ protected:
 	/** Queue nearby components for generation. */
 	void TickQueueComponentsForGeneration(
 		const TSet<IPCGGenSourceBase*>& GenSources,
-		const APCGWorldActor* InPCGWorldActor,
+		APCGWorldActor* InPCGWorldActor,
 		TMap<FGridGenerationKey, double>& OutComponentsToGenerate);
 
 	/** Perform immediate cleanup on components that become out of range. */
@@ -92,6 +92,9 @@ protected:
 
 	/** Destroy all pooled partition actors and rebuild with the NewPoolSize. */
 	void ResetPartitionActorPoolToSize(uint32 NewPoolSize);
+
+	/** Create grid guids for the given component (if necessary). Only succeeds on partitioned original components. */
+	void CreateGridGuidsForComponent(UPCGComponent* InComponent);
 
 private:
 	/** Tracks the generated components managed by the RuntimeGenScheduler. For local components, this generation key will hold the original component.

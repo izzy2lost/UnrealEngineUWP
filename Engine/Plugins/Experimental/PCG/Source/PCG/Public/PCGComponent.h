@@ -310,6 +310,9 @@ public:
 	bool IsPartitioned() const;
 	bool IsLocalComponent() const { return bIsComponentLocal; }
 
+	/** Returns true if the component is managed by the runtime generation system. Nothing else should generate or cleanup this component. */
+	bool IsManagedByRuntimeGenSystem() const { return GenerationTrigger == EPCGComponentGenerationTrigger::GenerateAtRuntime; }
+
 	/* Responsibility of the PCG Partition Actor to mark is local */
 	void MarkAsLocalComponent() { bIsComponentLocal = true; }
 
@@ -350,12 +353,15 @@ protected:
 	UPROPERTY(Transient, VisibleAnywhere, Category = Debug)
 	uint32 GenerationGridSize = PCGHiGenGrid::UnboundedGridSize();
 
-	// Current editing mode that depends on the serialized editing mode and loading
-	UPROPERTY(Transient, EditAnywhere, Category = "Editing Settings", meta = (DisplayName = "Editing Mode", EditCondition = "!bIsComponentLocal", DisplayPriority = 300))
+	/** Current editing mode that depends on the serialized editing mode and loading. If the component is set to GenerateAtRuntime, this will behave as Preview. */
+	UPROPERTY(Transient, EditAnywhere, Category = "Editing Settings", meta = (DisplayName = "Editing Mode", EditCondition = "!bIsComponentLocal && GenerationTrigger != EPCGComponentGenerationTrigger::GenerateAtRuntime", DisplayPriority = 300))
 	EPCGEditorDirtyMode CurrentEditingMode = EPCGEditorDirtyMode::Normal;
 
 	UPROPERTY(VisibleAnywhere, Category = Debug, meta = (NoResetToDefault))
 	EPCGEditorDirtyMode SerializedEditingMode = EPCGEditorDirtyMode::Normal;
+
+	/** Used to store the CurrentEditingMode when it is forcefully changed by another system, such as runtime generation. */
+	EPCGEditorDirtyMode PreviousEditingMode = EPCGEditorDirtyMode::Normal;
 
 public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Input Node Settings (Deprecated)", meta = (DisplayPriority = 800))

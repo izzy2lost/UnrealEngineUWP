@@ -165,7 +165,7 @@ TArray<FPCGTaskId> FPCGActorAndComponentMapping::DispatchToRegisteredLocalCompon
 		return {};
 	}
 
-	const bool bIsRuntimeGenerated = OriginalComponent->GenerationTrigger == EPCGComponentGenerationTrigger::GenerateAtRuntime;
+	const bool bIsRuntimeGenerated = OriginalComponent->IsManagedByRuntimeGenSystem();
 
 	const TMap<const UPCGComponent*, TSet<TObjectPtr<APCGPartitionActor>>>& Map = bIsRuntimeGenerated ? ComponentToRuntimeGenPartitionActorsMap : ComponentToPartitionActorsMap;
 
@@ -279,7 +279,7 @@ bool FPCGActorAndComponentMapping::RegisterOrUpdatePartitionedPCGComponent(UPCGC
 	// In Editor only, we will create new partition actors depending on the new bounds and generation trigger. Runtime managed components should not create PAs here
 	// TODO: For now it will always create the PA. But if we want to create them only when we generate, we need to make
 	// sure to update the runtime flow, for them to also create PA if they need to.
-	if ((bComponentHasChanged || bComponentWasAdded) && InComponent->GenerationTrigger != EPCGComponentGenerationTrigger::GenerateAtRuntime)
+	if ((bComponentHasChanged || bComponentWasAdded) && !InComponent->IsManagedByRuntimeGenSystem())
 	{
 		bool bHasUnbounded = false;
 		PCGHiGenGrid::FSizeArray GridSizes;
@@ -435,7 +435,7 @@ void FPCGActorAndComponentMapping::UnregisterPCGComponent(UPCGComponent* InCompo
 
 void FPCGActorAndComponentMapping::UnregisterPartitionedPCGComponent(UPCGComponent* InComponent)
 {
-	if (!PartitionedOctree.RemoveComponent(InComponent) || InComponent->GenerationTrigger == EPCGComponentGenerationTrigger::GenerateAtRuntime)
+	if (!PartitionedOctree.RemoveComponent(InComponent) || InComponent->IsManagedByRuntimeGenSystem())
 	{
 		return;
 	}
@@ -574,22 +574,18 @@ void FPCGActorAndComponentMapping::ForAllIntersectingPartitionActors(const FBox&
 		return;
 	}
 
-	PCGHiGenGrid::FSizeToGuidMap GridSizeToGuid;
-	PCGWorldActor->GetGridGuids(GridSizeToGuid);
-	for (const TPair<uint32, FGuid>& SizeAndGuid : GridSizeToGuid)
+	auto ForAllIntersectingPartitionActorsOfGridSize = [InFunc, PCGWorldActor, &InBounds](const TMap<uint32, TMap<FIntVector, TObjectPtr<APCGPartitionActor>>>& Map, FRWLock& Lock, uint32 GridSize)
 	{
-		const uint32 GridSize = SizeAndGuid.Key;
-
 		const bool bUse2DGrid = PCGWorldActor->bUse2DGrid;
 		FIntVector MinCellCoords = UPCGActorHelpers::GetCellCoord(InBounds.Min, GridSize, bUse2DGrid);
 		FIntVector MaxCellCoords = UPCGActorHelpers::GetCellCoord(InBounds.Max, GridSize, bUse2DGrid);
 
-		FReadScopeLock ReadLock(PartitionActorsMapLock);
+		FReadScopeLock ReadLock(Lock);
 
-		const TMap<FIntVector, TObjectPtr<APCGPartitionActor>>* PartitionActorsMapGrid = PartitionActorsMap.Find(GridSize);
+		const TMap<FIntVector, TObjectPtr<APCGPartitionActor>>* PartitionActorsMapGrid = Map.Find(GridSize);
 		if (!PartitionActorsMapGrid || PartitionActorsMapGrid->IsEmpty())
 		{
-			continue;
+			return;
 		}
 
 		for (int32 z = MinCellCoords.Z; z <= MaxCellCoords.Z; z++)
@@ -609,6 +605,16 @@ void FPCGActorAndComponentMapping::ForAllIntersectingPartitionActors(const FBox&
 				}
 			}
 		}
+	};
+
+	PCGHiGenGrid::FSizeToGuidMap GridSizeToGuid;
+	PCGWorldActor->GetGridGuids(GridSizeToGuid);
+	for (const TPair<uint32, FGuid>& SizeAndGuid : GridSizeToGuid)
+	{
+		const uint32 GridSize = SizeAndGuid.Key;
+
+		ForAllIntersectingPartitionActorsOfGridSize(PartitionActorsMap, PartitionActorsMapLock, GridSize);
+		ForAllIntersectingPartitionActorsOfGridSize(RuntimeGenPartitionActorsMap, RuntimeGenPartitionActorsMapLock, GridSize);
 	}
 }
 
@@ -713,7 +719,7 @@ bool FPCGActorAndComponentMapping::AnyRuntimeGenComponentsExist() const
 {
 	for (UPCGComponent* Component : PartitionedOctree.GetAllComponents())
 	{
-		if (Component && Component->GenerationTrigger == EPCGComponentGenerationTrigger::GenerateAtRuntime)
+		if (Component && Component->IsManagedByRuntimeGenSystem())
 		{
 			return true;
 		}
@@ -721,7 +727,7 @@ bool FPCGActorAndComponentMapping::AnyRuntimeGenComponentsExist() const
 
 	for (UPCGComponent* Component : NonPartitionedOctree.GetAllComponents())
 	{
-		if (Component && Component->GenerationTrigger == EPCGComponentGenerationTrigger::GenerateAtRuntime)
+		if (Component && Component->IsManagedByRuntimeGenSystem())
 		{
 			return true;
 		}

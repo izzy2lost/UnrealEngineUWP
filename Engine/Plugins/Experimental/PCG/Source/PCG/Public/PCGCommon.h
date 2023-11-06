@@ -19,7 +19,6 @@ enum class EPCGChangeType : uint8
 	Edge = 1 << 3,
 	Node = 1 << 4,
 	Structural = 1 << 5,
-	Debug = 1 << 6, // The Debug change type propagates when debug is toggled on a node.
 };
 ENUM_CLASS_FLAGS(EPCGChangeType);
 
