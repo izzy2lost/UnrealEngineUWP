@@ -59,6 +59,11 @@ void UK2Node_WriteDataChannel::ExpandNode(FKismetCompilerContext& CompilerContex
 		CompilerContext.MovePinLinksToIntermediate(*GetThenPin(), *NoopNode->GetThenPinGivenIndex(0));
 		return;
 	}
+	if (DataChannelVersion != DataChannel->Get()->GetVersion())
+	{
+		CompilerContext.MessageLog.Error(*LOCTEXT("StaleNode", "Node is out of sync with the data channel asset, please refresh node to fix up the pins - @@").ToString(), this);
+		return;
+	}
 	ExpandSplitPins(CompilerContext, SourceGraph);
 	
 	// create function call node to init the writer object 
