@@ -330,13 +330,18 @@ class UMaterialExpression : public UObject
 	*/
 	virtual void GetTexturesForceMaterialRecompile(TArray<UTexture *> &Textures) const { }
 
+
 	/** 
-	 * Callback to get any texture reference this expression emits.
+	 * To get any texture references this expression emits.
 	 * This is used to link the compiled uniform expressions with their default texture values. 
 	 * Any UMaterialExpression whose compilation creates a texture uniform expression (eg Compiler->Texture, Compiler->TextureParameter) must implement this.
 	 */
 	virtual UObject* GetReferencedTexture() const { return nullptr; }
-	/** Returns true if GetReferencedTexture() can ever return a valid pointer. */
+
+	using ReferencedTextureArray = TArray<UObject*, TInlineAllocator<4>>; 
+	virtual ReferencedTextureArray GetReferencedTextures() const { return { GetReferencedTexture() }; }
+	
+	/** Returns true if GetReferencedTexture() / GetReferencedTextures() can ever return a valid pointer(s). */
 	virtual bool CanReferenceTexture() const { return false; }
 
 #if WITH_EDITOR

@@ -87,7 +87,7 @@ bool operator==(const FTextureCopyRequest& InEntryA, const FTextureCopyRequest& 
 	return (InEntryA.Source == InEntryB.Source) && (InEntryA.Destination == InEntryB.Destination);
 }
 
-bool FBatchTextureCopy::AddWeightmapCopy(UTexture2D* InDestination, int8 InDestinationChannel, const ULandscapeComponent* InComponent, ULandscapeLayerInfoObject* InLayerInfo)
+bool FBatchTextureCopy::AddWeightmapCopy(UTexture* InDestination, int8 InDestinationSlice, int8 InDestinationChannel, const ULandscapeComponent* InComponent, ULandscapeLayerInfoObject* InLayerInfo)
 {
 	FTextureCopyRequest CopyRequest;
 	const TArray<UTexture2D*>& ComponentWeightmapTextures = InComponent->GetWeightmapTextures();
@@ -95,6 +95,7 @@ bool FBatchTextureCopy::AddWeightmapCopy(UTexture2D* InDestination, int8 InDesti
 	int8 SourceChannel = INDEX_NONE;
 
 	CopyRequest.Destination = InDestination;
+	CopyRequest.DestinationSlice = InDestinationSlice;
 
 	// Find the proper Source Texture and channel from Layer Allocations
 	for (const FWeightmapLayerAllocationInfo& ComponentWeightmapLayerAllocation : ComponentWeightmapLayerAllocations)
@@ -137,7 +138,7 @@ bool FBatchTextureCopy::ProcessTextureCopies()
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FBatchTextureCopy::ProcessTextureCopyRequest);
 	TMap<UTexture2D*, FSourceDataMipNumber> Sources;
-	TMap<UTexture2D*, FDestinationDataMipNumber> Destinations;
+	TMap<UTexture*, FDestinationDataMipNumber> Destinations;
 
 	if (CopyRequests.Num() == 0)
 	{
@@ -161,7 +162,7 @@ bool FBatchTextureCopy::ProcessTextureCopies()
 	}
 
 	// Lock all destinations mips
-	for (TPair<UTexture2D*, FDestinationDataMipNumber>& Destination : Destinations)
+	for (TPair<UTexture*, FDestinationDataMipNumber>& Destination : Destinations)
 	{
 		int32 MipNumber = Destination.Value.MipNumber;
 		TArray<uint8*>& DestinationDataPtr = Destination.Value.DestinationDataPtr;
@@ -184,13 +185,15 @@ bool FBatchTextureCopy::ProcessTextureCopies()
 
 		for (int32 MipLevel = 0; MipLevel < MipNumber; ++MipLevel)
 		{
+			const int64 MipSizeInBytes = CopyRequest.Key.Source->Source.CalcMipSize(MipLevel);
+			
 			const int32 MipSize = CopyRequest.Key.Destination->Source.GetSizeX() >> MipLevel;
 			check(MipSize == (CopyRequest.Key.Destination->Source.GetSizeY() >> MipLevel));
 
 			int32 MipSizeSquare = FMath::Square(MipSize);
 			FSharedBuffer MipSrcData = SourceDataMipNumber->MipData->GetMipData(0, 0, MipLevel);
 			const uint8* SourceTextureData = static_cast<const uint8*>(MipSrcData.GetData());
-			uint8* DestTextureData = DestinationDataMipNumber->DestinationDataPtr[MipLevel];
+			uint8* DestTextureData = DestinationDataMipNumber->DestinationDataPtr[MipLevel] + CopyRequest.Key.DestinationSlice * MipSizeInBytes;
 
 			check((SourceTextureData != nullptr) && (DestTextureData != nullptr));
 
@@ -217,7 +220,7 @@ bool FBatchTextureCopy::ProcessTextureCopies()
 	// Note that source textures do not need unlocking, data will be released once the FMipData go out of scope
 	
 	// Unlock all destination mips
-	for (TPair<UTexture2D*, FDestinationDataMipNumber>& Destination : Destinations)
+	for (TPair<UTexture*, FDestinationDataMipNumber>& Destination : Destinations)
 	{
 		int32 MipNumber = Destination.Value.MipNumber;
 		
@@ -230,6 +233,22 @@ bool FBatchTextureCopy::ProcessTextureCopies()
 	return true;
 }
 
+int32 LandscapeMobileWeightTextureArray = 0;
+static FAutoConsoleVariableRef CVarLandscapeMobileWeightTextureArray(
+	TEXT("landscape.MobileWeightTextureArray"),
+	LandscapeMobileWeightTextureArray,
+	TEXT("Use Texture Arrays for weights on Mobile platforms"),
+	ECVF_ReadOnly);
+
+bool IsMobileWeightmapTextureArrayEnabled()
+{
+	return LandscapeMobileWeightTextureArray != 0;	
+}
+	
+bool UseWeightmapTextureArray(EShaderPlatform InPlatform)
+{
+	return IsMobilePlatform(InPlatform) && (LandscapeMobileWeightTextureArray != 0);	
+}
 
 #endif //!WITH_EDITOR
 

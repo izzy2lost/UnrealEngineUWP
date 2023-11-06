@@ -626,21 +626,35 @@ public:
 class FExpressionStaticTerrainLayerWeight : public FExpression
 {
 public:
-	FExpressionStaticTerrainLayerWeight(const FMaterialParameterInfo& InBaseParameterInfo, const FExpression* InTexCoordExpression, float InDefaultWeight)
-		: BaseParameterInfo(InBaseParameterInfo)
-		, TexCoordExpression(InTexCoordExpression)
-		, DefaultWeight(InDefaultWeight)
+	FExpressionStaticTerrainLayerWeight(const FMaterialParameterInfo& InBaseParameterInfo, const FExpression* InTexCoordExpression, float InDefaultWeight, bool bInTextureArray)
+			: BaseParameterInfo(InBaseParameterInfo)
+			, TexCoordExpression(InTexCoordExpression)
+			, DefaultWeight(InDefaultWeight)
+			, bTextureArray(bInTextureArray)
 	{
 		check(!BaseParameterInfo.Name.IsNone());
 	}
-
+	
+	UE_DEPRECATED(5.4, "FExpressionStaticTerrainLayerWeight::FExpressionStaticTerrainLayerWeight(const FMaterialParameterInfo& , const FExpression* , float) has been deprecate. Use version above")
+	FExpressionStaticTerrainLayerWeight(const FMaterialParameterInfo& InBaseParameterInfo, const FExpression* InTexCoordExpression, float InDefaultWeight)
+			: BaseParameterInfo(InBaseParameterInfo)
+			, TexCoordExpression(InTexCoordExpression)
+			, DefaultWeight(InDefaultWeight)
+			, bTextureArray(false)
+	{
+		check(!BaseParameterInfo.Name.IsNone());
+	}
+	
 	FMaterialParameterInfo BaseParameterInfo;
 	const FExpression* TexCoordExpression;
 	float DefaultWeight;
+	bool bTextureArray;
 
 	virtual bool PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const override;
 	virtual void EmitValuePreshader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValuePreshaderResult& OutResult) const override;
 	virtual void EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const override;
+private:
+	bool UseTextureArraySample(const FEmitContext& Context) const;
 };
 
 class FExpressionTextureProperty : public FExpression

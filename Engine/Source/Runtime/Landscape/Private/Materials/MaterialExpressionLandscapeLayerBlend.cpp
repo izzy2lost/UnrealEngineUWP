@@ -5,6 +5,9 @@
 #include "Engine/Texture.h"
 #include "EngineGlobals.h"
 #include "MaterialCompiler.h"
+#include "DataDrivenShaderPlatformInfo.h"
+#include "LandscapeUtils.h"
+
 #if WITH_EDITOR
 #include "MaterialGraph/MaterialGraphNode.h"
 #include "MaterialHLSLGenerator.h"
@@ -154,6 +157,8 @@ int32 UMaterialExpressionLandscapeLayerBlend::Compile(class FMaterialCompiler* C
 	TArray<int32> WeightCodes;
 	WeightCodes.Empty(Layers.Num());
 
+	const bool bTextureArrayEnabled = UE::Landscape::UseWeightmapTextureArray(Compiler->GetShaderPlatform());
+	
 	for (int32 LayerIdx = 0; LayerIdx<Layers.Num(); LayerIdx++)
 	{
 		WeightCodes.Add(INDEX_NONE);
@@ -167,7 +172,7 @@ int32 UMaterialExpressionLandscapeLayerBlend::Compile(class FMaterialCompiler* C
 			const int32 HeightCode = Layer.HeightInput.Expression ? Layer.HeightInput.Compile(Compiler) : Compiler->Constant(Layer.ConstHeightInput);
 
 			const int32 DefaultWeightCode = Layer.PreviewWeight > 0.0f ? Compiler->Constant(Layer.PreviewWeight) : INDEX_NONE;
-			const int32 WeightCode = Compiler->StaticTerrainLayerWeight(Layer.LayerName, DefaultWeightCode);
+			const int32 WeightCode = Compiler->StaticTerrainLayerWeight(Layer.LayerName, DefaultWeightCode, bTextureArrayEnabled);
 			if (WeightCode != INDEX_NONE)
 			{
 				switch (Layer.BlendType)
@@ -234,7 +239,7 @@ int32 UMaterialExpressionLandscapeLayerBlend::Compile(class FMaterialCompiler* C
 		if (Layer.BlendType == LB_AlphaBlend)
 		{
 			const int32 DefaultWeightCode = Layer.PreviewWeight > 0.0f ? Compiler->Constant(Layer.PreviewWeight) : INDEX_NONE;
-			const int32 WeightCode = Compiler->StaticTerrainLayerWeight(Layer.LayerName, DefaultWeightCode);
+			const int32 WeightCode = Compiler->StaticTerrainLayerWeight(Layer.LayerName, DefaultWeightCode, bTextureArrayEnabled);
 			if (WeightCode != INDEX_NONE)
 			{
 				const int32 LayerCode = Layer.LayerInput.Expression
@@ -305,7 +310,8 @@ bool UMaterialExpressionLandscapeLayerBlend::GenerateHLSLExpression(FMaterialHLS
 		if (Layer.BlendType != LB_AlphaBlend)
 		{
 			const FExpression* WeightExpression = nullptr;
-			verify(GenerateStaticTerrainLayerWeightExpression(Layer.LayerName, Layer.PreviewWeight, Generator, WeightExpression));
+			const bool bTextureArrayEnabled = UE::Landscape::IsMobileWeightmapTextureArrayEnabled();
+			verify(GenerateStaticTerrainLayerWeightExpression(Layer.LayerName, Layer.PreviewWeight, bTextureArrayEnabled, Generator, WeightExpression));
 
 			if (WeightExpression)
 			{
@@ -368,7 +374,8 @@ bool UMaterialExpressionLandscapeLayerBlend::GenerateHLSLExpression(FMaterialHLS
 		if (Layer.BlendType == LB_AlphaBlend)
 		{
 			const FExpression* WeightExpression = nullptr;
-			verify(GenerateStaticTerrainLayerWeightExpression(Layer.LayerName, Layer.PreviewWeight, Generator, WeightExpression));
+			const bool bTextureArrayEnabled = UE::Landscape::IsMobileWeightmapTextureArrayEnabled();
+			verify(GenerateStaticTerrainLayerWeightExpression(Layer.LayerName, Layer.PreviewWeight, bTextureArrayEnabled, Generator, WeightExpression));
 
 			if (WeightExpression)
 			{
@@ -388,6 +395,11 @@ bool UMaterialExpressionLandscapeLayerBlend::GenerateHLSLExpression(FMaterialHLS
 UObject* UMaterialExpressionLandscapeLayerBlend::GetReferencedTexture() const
 {
 	return GEngine->WeightMapPlaceholderTexture;
+}
+
+UMaterialExpression::ReferencedTextureArray UMaterialExpressionLandscapeLayerBlend::GetReferencedTextures() const
+{
+	return { GEngine->WeightMapPlaceholderTexture, GEngine->WeightMapArrayPlaceholderTexture };
 }
 
 #if WITH_EDITOR

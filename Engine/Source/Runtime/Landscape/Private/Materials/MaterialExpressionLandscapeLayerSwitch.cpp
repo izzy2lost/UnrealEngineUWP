@@ -6,6 +6,7 @@
 #include "EngineGlobals.h"
 #include "MaterialCompiler.h"
 #include "Materials/Material.h"
+#include "LandscapeUtils.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MaterialExpressionLandscapeLayerSwitch)
 
@@ -49,9 +50,11 @@ bool UMaterialExpressionLandscapeLayerSwitch::IsResultMaterialAttributes(int32 O
 
 int32 UMaterialExpressionLandscapeLayerSwitch::Compile(class FMaterialCompiler* Compiler, int32 OutputIndex)
 {
+	const bool bTextureArrayEnabled = UE::Landscape::UseWeightmapTextureArray(Compiler->GetShaderPlatform());
 	const int32 WeightCode = Compiler->StaticTerrainLayerWeight(
 		ParameterName,
-		PreviewUsed ? Compiler->Constant(1.0f) : INDEX_NONE
+		PreviewUsed ? Compiler->Constant(1.0f) : INDEX_NONE,
+		bTextureArrayEnabled
 		);
 
 	int32 ReturnCode = INDEX_NONE;
@@ -78,6 +81,11 @@ int32 UMaterialExpressionLandscapeLayerSwitch::Compile(class FMaterialCompiler* 
 UObject* UMaterialExpressionLandscapeLayerSwitch::GetReferencedTexture() const
 {
 	return GEngine->WeightMapPlaceholderTexture;
+}
+
+UMaterialExpression::ReferencedTextureArray UMaterialExpressionLandscapeLayerSwitch::GetReferencedTextures() const
+{
+	return { GEngine->WeightMapPlaceholderTexture, GEngine->WeightMapArrayPlaceholderTexture };
 }
 
 #if WITH_EDITOR

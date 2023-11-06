@@ -4826,12 +4826,18 @@ bool UMaterialExpressionDistanceCullFade::GenerateHLSLExpression(FMaterialHLSLGe
 	return true;
 }
 
-bool GenerateStaticTerrainLayerWeightExpression(FName LayerName, float PreviewWeight, FMaterialHLSLGenerator& Generator, const UE::HLSLTree::FExpression*& OutExpression)
+bool GenerateStaticTerrainLayerWeightExpression(FName LayerName, float PreviewWeight, bool bUseTextureArray, FMaterialHLSLGenerator& Generator, const UE::HLSLTree::FExpression*& OutExpression)
 {
 	using namespace UE::HLSLTree;
 	const FExpression* TexCoordExpression = Generator.NewExternalInput(Material::EExternalInput::TexCoord3);
-	OutExpression = Generator.GetTree().NewExpression<Material::FExpressionStaticTerrainLayerWeight>(Generator.GetParameterInfo(LayerName), TexCoordExpression, PreviewWeight);
+	OutExpression = Generator.GetTree().NewExpression<Material::FExpressionStaticTerrainLayerWeight>(Generator.GetParameterInfo(LayerName), TexCoordExpression, PreviewWeight, bUseTextureArray);
 	return true;
+}
+
+bool GenerateStaticTerrainLayerWeightExpression(FName LayerName, float PreviewWeight, FMaterialHLSLGenerator& Generator, const UE::HLSLTree::FExpression*& OutExpression)
+{
+	const bool bUseTextureArray = false;
+	return GenerateStaticTerrainLayerWeightExpression(LayerName, PreviewWeight, bUseTextureArray, Generator, OutExpression);
 }
 
 UE::Shader::EValueType UMaterialExpressionNeuralNetworkInput::GetCustomOutputType(int32 OutputIndex) const

@@ -1048,7 +1048,7 @@ protected:
 
 	virtual bool GetStaticBoolValue(int32 BoolIndex, bool& bSucceeded) override;
 
-	virtual int32 StaticTerrainLayerWeight(FName ParameterName, int32 Default) override;
+	virtual int32 StaticTerrainLayerWeight(FName ParameterName, int32 Default, bool bTextureArray = false) override;
 
 	virtual int32 VertexColor() override;
 

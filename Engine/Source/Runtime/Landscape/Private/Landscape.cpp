@@ -93,6 +93,7 @@ Landscape.cpp: Terrain rendering
 #include "WorldPartition/WorldPartitionHelpers.h"
 #include "WorldPartition/WorldPartitionHandle.h"
 #include "WorldPartition/Landscape/LandscapeActorDesc.h"
+#include "Engine\Texture2DArray.h"
 
 #if WITH_EDITOR
 #include "Rendering/StaticLightingSystemInterface.h"
@@ -705,6 +706,12 @@ void ULandscapeComponent::Serialize(FArchive& Ar)
 		{
 			TexturesAndMaterials.Add((UObject**)&static_cast<UTexture2D*&>(MobileWeightmapTexture));
 		}
+		
+		if (MobileWeightmapTextureArray)
+		{
+			TexturesAndMaterials.Add((UObject**)&static_cast<UTexture2DArray*&>(MobileWeightmapTextureArray));
+		}
+		
 		for (auto& ItPair : LayersData)
 		{
 			FLandscapeLayerComponentData& LayerComponentData = ItPair.Value;
@@ -776,7 +783,7 @@ void ULandscapeComponent::Serialize(FArchive& Ar)
 
 			Exchange(MobileMaterialInterfaces, BackupMobileMaterialInterfaces);
 			Exchange(MobileWeightmapTextures, BackupMobileWeightmapTextures);
-
+			MobileWeightmapTextureArray = TObjectPtr<UTexture2DArray>(nullptr);
 			Super::Serialize(Ar);
 
 			Exchange(MobileMaterialInterfaces, BackupMobileMaterialInterfaces);
@@ -1243,6 +1250,11 @@ void ULandscapeComponent::PostLoad()
 	for (UTexture2D* MobileWeightmapTexture : MobileWeightmapTextures)
 	{
 		ReparentObject(MobileWeightmapTexture);
+	}
+
+	if (MobileWeightmapTextureArray)
+	{
+		ReparentObject(MobileWeightmapTextureArray.Get());
 	}
 
 	for (auto& ItPair : LayersData)

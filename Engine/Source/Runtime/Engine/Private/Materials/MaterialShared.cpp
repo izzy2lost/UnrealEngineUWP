@@ -4783,7 +4783,8 @@ bool UMaterialInterface::IsTextureReferencedByProperty(EMaterialProperty InPrope
 
 		virtual EMaterialExpressionVisitResult Visit(UMaterialExpression* InExpression) override
 		{
-			if (InExpression->GetReferencedTexture() == Texture)
+			const UMaterialExpression::ReferencedTextureArray ReferencedTextures = InExpression->GetReferencedTextures();
+			if (ReferencedTextures.Contains( Texture ))
 			{
 				FoundTexture = true;
 				return MVR_STOP;

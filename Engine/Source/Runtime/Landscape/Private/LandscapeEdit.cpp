@@ -45,6 +45,7 @@ LandscapeEdit.cpp: Landscape editing
 #include "LandscapeSplinesComponent.h"
 #include "Serialization/MemoryWriter.h"
 #include "MaterialCachedData.h"
+#include "Math/UnrealMathUtility.h"
 
 #if WITH_EDITOR
 #include "Engine/World.h"
@@ -89,6 +90,7 @@ LandscapeEdit.cpp: Landscape editing
 #include "Serialization/MemoryWriter.h"
 #include "Engine/Canvas.h"
 #include "Spatial/PointHashGrid2.h"
+#include "Engine/Texture2DArray.h"
 
 DEFINE_LOG_CATEGORY(LogLandscape);
 DEFINE_LOG_CATEGORY(LogLandscapeBP);
@@ -5388,6 +5390,7 @@ ALandscapeProxy* ULandscapeInfo::MoveComponentsToProxy(const TArray<ULandscapeCo
 		Component->MobileDataSourceHash.Invalidate();
 		Component->MobileMaterialInterfaces.Reset();
 		Component->MobileWeightmapTextures.Reset();
+		Component->MobileWeightmapTextureArray = nullptr; 
 
 		Component->UpdateMaterialInstances();
 	}
@@ -7354,49 +7357,91 @@ void ULandscapeComponent::GenerateMobilePlatformPixelData(bool bIsCooking, const
 	UE::Landscape::FBatchTextureCopy CopyRequests;
 
 	MobileWeightmapTextures.Empty();
+	MobileWeightmapTextureArray = nullptr;
+
+	const int32 NumWeightTextures = FMath::DivideAndRoundUp(static_cast<int32>(Algo::CountIf(MobileWeightmapLayerAllocations, [](const FWeightmapLayerAllocationInfo& AllocationInfo) { return AllocationInfo.LayerInfo; })), 4);
+
+	const bool MobileWeightmapTextureArrayEnabled = UE::Landscape::IsMobileWeightmapTextureArrayEnabled();
+	
+	if (MobileWeightmapTextureArrayEnabled && NumWeightTextures > 0)
+	{
+		MobileWeightmapTextureArray = GetLandscapeProxy()->CreateLandscapeTextureArray(WeightmapSize, WeightmapSize, NumWeightTextures, TEXTUREGROUP_Terrain_Weightmap, TSF_BGRA8);
+		MobileWeightmapTextureArray->PostEditChange();
+		MobileWeightmapTextureArray->UpdateResource();
+	}
+	else
+	{
+		MobileWeightmapTextures.SetNum(NumWeightTextures);
+		for (int32 i = 0; i < NumWeightTextures; ++i)
+		{
+			UTexture2D* CurrentWeightmapTexture  = GetLandscapeProxy()->CreateLandscapeTexture(WeightmapSize, WeightmapSize, TEXTUREGROUP_Terrain_Weightmap, TSF_BGRA8);
+			CreateEmptyTextureMips(CurrentWeightmapTexture, true);
+			MobileWeightmapTextures[i] = CurrentWeightmapTexture;
+		}
+	}
+
 	{
 		FLandscapeTextureDataInterface LandscapeData;
 		UTexture2D* CurrentWeightmapTexture = nullptr;
 		int32 CurrentChannel = 0;
 		int32 RemainingChannels = 0;
-
+		int32 index = 0;
 		for (auto& Allocation : MobileWeightmapLayerAllocations)
 		{
-			if (Allocation.LayerInfo)
+			if (!Allocation.LayerInfo)
 			{
-				if (RemainingChannels == 0)
-				{
-					// create a new weightmap texture if we've run out of channels
-					CurrentChannel = 0;
-					RemainingChannels = 4;
-                    CurrentWeightmapTexture = GetLandscapeProxy()->CreateLandscapeTexture(WeightmapSize, WeightmapSize, TEXTUREGROUP_Terrain_Weightmap, TSF_BGRA8);
-					CreateEmptyTextureMips(CurrentWeightmapTexture, true);
-					MobileWeightmapTextures.Add(CurrentWeightmapTexture);
-				}
-
-				CopyRequests.AddWeightmapCopy(CurrentWeightmapTexture, IntCastChecked<int8>(CurrentChannel), this, Allocation.LayerInfo);
-
-				// update Allocation
-				Allocation.WeightmapTextureIndex = IntCastChecked<uint8>(MobileWeightmapTextures.Num() - 1);
-				Allocation.WeightmapTextureChannel = IntCastChecked<uint8>(CurrentChannel);
-				CurrentChannel++;
-				RemainingChannels--;
+				continue;
 			}
+			
+			if (RemainingChannels == 0)
+			{
+				CurrentChannel = 0;
+				RemainingChannels = 4;
+			}
+
+			int32 Slice = FMath::DivideAndRoundDown(index,4);
+			if (MobileWeightmapTextureArrayEnabled)
+			{
+				CopyRequests.AddWeightmapCopy(MobileWeightmapTextureArray, Slice, IntCastChecked<int8>(CurrentChannel), this, Allocation.LayerInfo);	
+			}
+			else
+			{
+				CopyRequests.AddWeightmapCopy(MobileWeightmapTextures[Slice], 0, IntCastChecked<int8>(CurrentChannel), this, Allocation.LayerInfo);
+			}
+			
+			// update Allocation
+			Allocation.WeightmapTextureIndex = IntCastChecked<uint8>(Slice);
+			Allocation.WeightmapTextureChannel = IntCastChecked<uint8>(CurrentChannel);
+			CurrentChannel++;
+			RemainingChannels--;
+			index++;
 		}
+		
 	}
-
+	
 	CopyRequests.ProcessTextureCopies();
-
-	GDisableAutomaticTextureMaterialUpdateDependencies = true;
-	for (int TextureIdx = 0; TextureIdx < MobileWeightmapTextures.Num(); TextureIdx++)
+	
+	if (MobileWeightmapTextureArray)
 	{
-		UTexture* Texture = MobileWeightmapTextures[TextureIdx];
-		Texture->PostEditChange();
-
-		// PostEditChange() will assign a random GUID to the texture, which leads to non-deterministic builds.
-		Texture->SetDeterministicLightingGuid();
+		GDisableAutomaticTextureMaterialUpdateDependencies = true;
+		MobileWeightmapTextureArray->PostEditChange();
+		MobileWeightmapTextureArray->UpdateResource();
+		MobileWeightmapTextureArray->SetDeterministicLightingGuid();
+		GDisableAutomaticTextureMaterialUpdateDependencies = false;
 	}
-	GDisableAutomaticTextureMaterialUpdateDependencies = false;
+	else
+	{
+		GDisableAutomaticTextureMaterialUpdateDependencies = true;
+		for (int TextureIdx = 0; TextureIdx < MobileWeightmapTextures.Num(); TextureIdx++)
+		{
+			UTexture* Texture = MobileWeightmapTextures[TextureIdx];
+			Texture->PostEditChange();
+
+			// PostEditChange() will assign a random GUID to the texture, which leads to non-deterministic builds.
+			Texture->SetDeterministicLightingGuid();
+		}
+		GDisableAutomaticTextureMaterialUpdateDependencies = false;
+	}
 
 	FLinearColor Masks[4];
 	Masks[0] = FLinearColor(1, 0, 0, 0);
@@ -7432,11 +7477,18 @@ void ULandscapeComponent::GenerateMobilePlatformPixelData(bool bIsCooking, const
 				}
 			}
 
-			for (int TextureIdx = 0; TextureIdx < MobileWeightmapTextures.Num(); TextureIdx++)
+			if (MobileWeightmapTextureArray)
 			{
-				NewMobileMaterialInstance->SetTextureParameterValue(FName(*FString::Printf(TEXT("Weightmap%d"), TextureIdx)), MobileWeightmapTextures[TextureIdx]);
+				NewMobileMaterialInstance->SetTextureParameterValue(TEXT("WeightmapArray"), MobileWeightmapTextureArray);	
 			}
-
+			else
+			{
+				for (int TextureIdx = 0; TextureIdx < MobileWeightmapTextures.Num(); TextureIdx++)
+				{
+					NewMobileMaterialInstance->SetTextureParameterValue(FName(*FString::Printf(TEXT("Weightmap%d"), TextureIdx)), MobileWeightmapTextures[TextureIdx]);
+				}	
+			}
+			
 			MobileMaterialInterfaces.Add(NewMobileMaterialInstance);
 		}
 	}
@@ -7494,11 +7546,18 @@ void ULandscapeComponent::GenerateMobilePlatformPixelData(bool bIsCooking, const
 				}
 			}
 
-			for (int TextureIdx = 0; TextureIdx < MobileWeightmapTextures.Num(); TextureIdx++)
+			if (MobileWeightmapTextureArray)
 			{
-				NewMobileMaterialInstance->SetTextureParameterValueEditorOnly(FName(*FString::Printf(TEXT("Weightmap%d"), TextureIdx)), MobileWeightmapTextures[TextureIdx]);
+				NewMobileMaterialInstance->SetTextureParameterValueEditorOnly(TEXT("WeightmapArray"), MobileWeightmapTextureArray);
 			}
-
+			else
+			{
+				for (int TextureIdx = 0; TextureIdx < MobileWeightmapTextures.Num(); TextureIdx++)
+				{
+					NewMobileMaterialInstance->SetTextureParameterValueEditorOnly(FName(*FString::Printf(TEXT("Weightmap%d"), TextureIdx)), MobileWeightmapTextures[TextureIdx]);
+				}
+			}
+			
 			NewMobileMaterialInstance->PostEditChange();
 
 			MobileMaterialInterfaces.Add(NewMobileMaterialInstance);
@@ -7543,6 +7602,24 @@ UTexture2D* ALandscapeProxy::CreateLandscapeTexture(int32 InSizeX, int32 InSizeY
 	NewTexture->LODGroup = InLODGroup;
 
 	return NewTexture;
+}
+
+UTexture2DArray* ALandscapeProxy::CreateLandscapeTextureArray(int32 InSizeX, int32 InSizeY, int32 Slices, TextureGroup InLODGroup, ETextureSourceFormat InFormat, UObject* OptionalOverrideOuter )
+{
+	UObject* TexOuter = OptionalOverrideOuter ? OptionalOverrideOuter : const_cast<ALandscapeProxy*>(this);
+	UTexture2DArray* NewTextureArray = NewObject<UTexture2DArray>(TexOuter);
+	
+	const int32 NumMips = FMath::FloorLog2(FMath::Max(InSizeX, InSizeY)) + 1;
+	NewTextureArray->Source.Init(InSizeX, InSizeY, Slices, NumMips, InFormat);
+
+	NewTextureArray->SRGB = false;
+	NewTextureArray->CompressionNone = true;
+	NewTextureArray->MipGenSettings = TMGS_LeaveExistingMips;
+	NewTextureArray->AddressX = TA_Clamp;
+	NewTextureArray->AddressY = TA_Clamp;
+	NewTextureArray->LODGroup = InLODGroup;
+	
+	return NewTextureArray;
 }
 
 UTexture2D* ALandscapeProxy::CreateLandscapeToolTexture(int32 InSizeX, int32 InSizeY, TextureGroup InLODGroup, ETextureSourceFormat InFormat) const

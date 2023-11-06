@@ -1400,9 +1400,15 @@ public:
 	UPROPERTY()
 	TObjectPtr<class UTexture> WeightMapPlaceholderTexture;
 
+	UPROPERTY()
+	TObjectPtr<class UTexture> WeightMapArrayPlaceholderTexture;
+	
 	/** Path of the texture used as a placeholder for terrain weight-maps to give the material the correct texture format. */
 	UPROPERTY(globalconfig)
 	FSoftObjectPath WeightMapPlaceholderTextureName;
+
+	UPROPERTY(globalconfig)
+	FSoftObjectPath WeightMapArrayPlaceholderTextureName;
 
 	/** Texture used to display LightMapDensity */
 	UPROPERTY()

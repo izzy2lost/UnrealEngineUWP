@@ -336,6 +336,14 @@ private:
 ENGINE_API bool GenerateStaticTerrainLayerWeightExpression(
 	FName LayerName,
 	float PreviewWeight,
+	bool bUseTextureArray, 
+	FMaterialHLSLGenerator& Generator,
+	const UE::HLSLTree::FExpression*& OutExpression);
+
+UE_DEPRECATED(5.4, "GenerateStaticTerrainLayerWeightExpression(FName, float, FMaterialHLSLGenerator&, const UE::HLSLTree::FExpression*&) use version above")
+ENGINE_API bool GenerateStaticTerrainLayerWeightExpression(
+	FName LayerName,
+	float PreviewWeight,
 	FMaterialHLSLGenerator& Generator,
 	const UE::HLSLTree::FExpression*& OutExpression);
 

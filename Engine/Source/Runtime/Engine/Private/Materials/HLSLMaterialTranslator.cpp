@@ -8047,7 +8047,7 @@ bool FHLSLMaterialTranslator::GetStaticBoolValue(int32 BoolIndex, bool& bSucceed
 	return false;
 }
 
-int32 FHLSLMaterialTranslator::StaticTerrainLayerWeight(FName LayerName,int32 Default)
+int32 FHLSLMaterialTranslator::StaticTerrainLayerWeight(FName LayerName,int32 Default, bool bTextureArray)
 {
 	// Look up the weight-map index for this static parameter.
 	int32 WeightmapCode = INDEX_NONE;
@@ -8075,19 +8075,31 @@ int32 FHLSLMaterialTranslator::StaticTerrainLayerWeight(FName LayerName,int32 De
 			continue;
 		}
 
-		constexpr EMaterialSamplerType SamplerType = SAMPLERTYPE_Masks;
-		FString WeightmapName = FString::Printf(TEXT("Weightmap%d"), WeightmapIndex);
-		int32 TextureReferenceIndex = INDEX_NONE;
-
 		FMaterialParameterInfo GlobalParameterInfo;
 		PushParameterOwner(GlobalParameterInfo);
 
-		int32 TextureCodeIndex = TextureParameter(FName(*WeightmapName), GEngine->WeightMapPlaceholderTexture, TextureReferenceIndex, SamplerType);
-		int32 SampleCodeIndex = TextureSample(TextureCodeIndex, TextureCoordinate(3, false, false), SamplerType, /*MipValue0Index = */INDEX_NONE, /*MipValue1Index = */INDEX_NONE, /*MipValueMode = */TMVM_None, /*SamplerSource = */SSM_TerrainWeightmapGroupSettings);
-
+		int32 UVIndex = TextureCoordinate(3, false, false);
+		constexpr EMaterialSamplerType SamplerType = SAMPLERTYPE_Masks;
+		int32 TextureReferenceIndex = INDEX_NONE;
+		int32 SampleCodeIndex = 0;
+		 
+		if (bTextureArray)
+		{
+			int32 TextureArrayCodeIndex = TextureParameter(TEXT("WeightmapArray"), GEngine->WeightMapArrayPlaceholderTexture, TextureReferenceIndex, SamplerType);
+			int32 ConstantSliceIndex = Constant(WeightmapIndex);
+			int32 UVWIndex = AppendVector(UVIndex, ConstantSliceIndex);
+			SampleCodeIndex = TextureSample(TextureArrayCodeIndex, UVWIndex, SamplerType, /*MipValue0Index = */INDEX_NONE, /*MipValue1Index = */INDEX_NONE, /*MipValueMode = */TMVM_None, /*SamplerSource = */SSM_TerrainWeightmapGroupSettings);
+		}
+		else
+		{
+			FString WeightmapName = FString::Printf(TEXT("Weightmap%d"), WeightmapIndex);
+			int32 TextureCodeIndex = TextureParameter(FName(*WeightmapName), GEngine->WeightMapPlaceholderTexture, TextureReferenceIndex, SamplerType);
+			SampleCodeIndex = TextureSample(TextureCodeIndex, UVIndex, SamplerType, /*MipValue0Index = */INDEX_NONE, /*MipValue1Index = */INDEX_NONE, /*MipValueMode = */TMVM_None, /*SamplerSource = */SSM_TerrainWeightmapGroupSettings);
+		}
+	
 		FString LayerMaskName = FString::Printf(TEXT("LayerMask_%s"), *Parameter.LayerName.ToString());
-		int32 CurrentWeightmapCode = Dot(SampleCodeIndex, VectorParameter(FName(*LayerMaskName), FLinearColor(1.f, 0.f, 0.f, 0.f)));
-
+		int32 CurrentWeightmapCode = Dot(SampleCodeIndex, VectorParameter(FName(*LayerMaskName), FLinearColor(1.f, 0.f, 0.f, 0.f)));	
+		 
 		if(WeightmapCode == INDEX_NONE)
 		{
 			WeightmapCode = CurrentWeightmapCode;

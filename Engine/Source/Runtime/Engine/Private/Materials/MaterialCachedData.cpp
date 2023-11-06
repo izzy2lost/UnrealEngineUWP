@@ -360,12 +360,14 @@ void FMaterialCachedExpressionData::UpdateForExpressions(const FMaterialCachedEx
 		const bool bCanReferenceTexture = Expression->CanReferenceTexture();
 		if (!ReferencedTexture && bCanReferenceTexture)
 		{
-			ReferencedTexture = Expression->GetReferencedTexture();
+			const UMaterialExpression::ReferencedTextureArray ExpressionReferencedTextures = Expression->GetReferencedTextures();
+			for (UObject* ExpressionReferencedTexture : ExpressionReferencedTextures)
+			{
+				ReferencedTextures.AddUnique(ExpressionReferencedTexture);
+			}
 		}
-
-		if (ReferencedTexture)
+		else if (ReferencedTexture)
 		{
-			checkf(bCanReferenceTexture, TEXT("CanReferenceTexture() returned false, but found a referenced texture"));
 			ReferencedTextures.AddUnique(ReferencedTexture);
 		}
 

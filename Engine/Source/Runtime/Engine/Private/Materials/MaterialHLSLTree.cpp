@@ -1675,7 +1675,8 @@ bool FExpressionStaticTerrainLayerWeight::PrepareValue(FEmitContext& Context, FE
 {
 	bool bFoundMatchingParameter = false;
 	FEmitData& EmitData = Context.FindData<FEmitData>();
-
+	// TODO: revist whether we need to add the parameters to CachedExpressionData
+	const bool bTextureArrayEnabled = UseTextureArraySample(Context);
 	if (EmitData.StaticParameters)
 	{
 		for (int32 ParameterIndex = 0; ParameterIndex < EmitData.StaticParameters->EditorOnly.TerrainLayerWeightParameters.Num(); ++ParameterIndex)
@@ -1706,10 +1707,17 @@ bool FExpressionStaticTerrainLayerWeight::PrepareValue(FEmitContext& Context, FE
 			}
 
 			FMaterialParameterInfo WeightmapParameterInfo = BaseParameterInfo;
-			WeightmapParameterInfo.Name = *FString::Printf(TEXT("Weightmap%d"), WeightmapIndex);
-
 			FMaterialParameterMetadata WeightmapParameterMeta;
-			WeightmapParameterMeta.Value = GEngine->WeightMapPlaceholderTexture;
+			if (bTextureArrayEnabled)
+			{
+				WeightmapParameterInfo.Name = FName(TEXT("WeightmapArray"));
+				WeightmapParameterMeta.Value = GEngine->WeightMapPlaceholderTexture;
+			}
+			else
+			{
+				WeightmapParameterInfo.Name = *FString::Printf(TEXT("Weightmap%d"), WeightmapIndex);
+				WeightmapParameterMeta.Value = GEngine->WeightMapArrayPlaceholderTexture;
+			}
 
 			UObject* UnusedReferencedTexture;
 			EmitData.CachedExpressionData->AddParameter(WeightmapParameterInfo, WeightmapParameterMeta, UnusedReferencedTexture);
@@ -1725,6 +1733,7 @@ bool FExpressionStaticTerrainLayerWeight::PrepareValue(FEmitContext& Context, FE
 
 		if (bFoundMatchingParameter && EmitData.CachedExpressionData)
 		{
+			EmitData.CachedExpressionData->ReferencedTextures.AddUnique(GEngine->WeightMapArrayPlaceholderTexture);
 			EmitData.CachedExpressionData->ReferencedTextures.AddUnique(GEngine->WeightMapPlaceholderTexture);
 		}
 	}
@@ -1771,8 +1780,10 @@ void FExpressionStaticTerrainLayerWeight::EmitValueShader(FEmitContext& Context,
 		OutResult.Code = Context.EmitConstantZero(Scope, Shader::EValueType::Float4);
 		return;
 	}
+	
+	const bool bTextureArrayEnabled = UseTextureArraySample(Context);
 
-	const EMaterialValueType TextureMaterialType = GEngine->WeightMapPlaceholderTexture->GetMaterialType();
+	const EMaterialValueType TextureMaterialType = bTextureArrayEnabled ? GEngine->WeightMapArrayPlaceholderTexture->GetMaterialType() : GEngine->WeightMapPlaceholderTexture->GetMaterialType();
 	const Shader::EValueType TexCoordType = Private::GetTexCoordType(TextureMaterialType);
 	FEmitShaderExpression* EmitTexCoordValue = nullptr;
 	FEmitShaderExpression* EmitResult = nullptr;
@@ -1799,14 +1810,29 @@ void FExpressionStaticTerrainLayerWeight::EmitValueShader(FEmitContext& Context,
 		}
 
 		FMaterialTextureValue TextureValue;
-		TextureValue.Texture = GEngine->WeightMapPlaceholderTexture;
-		TextureValue.SamplerType = SAMPLERTYPE_Masks;
-		TextureValue.ParameterInfo = BaseParameterInfo;
-		TextureValue.ParameterInfo.Name = *FString::Printf(TEXT("Weightmap%d"), WeightmapIndex);
-
+		if (bTextureArrayEnabled)
+		{
+			TextureValue.Texture = GEngine->WeightMapArrayPlaceholderTexture;
+			TextureValue.SamplerType = SAMPLERTYPE_Masks;
+			TextureValue.ParameterInfo = BaseParameterInfo;
+			TextureValue.ParameterInfo.Name = FName(TEXT("WeightmapArray"));
+		}
+		else
+		{
+			TextureValue.Texture = GEngine->WeightMapPlaceholderTexture;
+			TextureValue.SamplerType = SAMPLERTYPE_Masks;
+			TextureValue.ParameterInfo = BaseParameterInfo;
+			TextureValue.ParameterInfo.Name = *FString::Printf(TEXT("Weightmap%d"), WeightmapIndex);	
+		}
+		
 		if (!EmitTexCoordValue)
 		{
 			EmitTexCoordValue = TexCoordExpression->GetValueShader(Context, Scope, TexCoordType);
+		}
+
+		if (bTextureArrayEnabled)
+		{
+			EmitTexCoordValue = Context.EmitExpression(Scope, Shader::EValueType::Float3, TEXT("float3((%).xy,%)"), EmitTexCoordValue, WeightmapIndex);
 		}
 
 		FEmitShaderExpression* EmitWeightmapSampleValue = Private::EmitTextureSampleShader(
@@ -1859,6 +1885,11 @@ void FExpressionStaticTerrainLayerWeight::EmitValueShader(FEmitContext& Context,
 
 	check(NumWeightmapParameters > 0);
 	OutResult.Code = NumWeightmapParameters > 1 ? Context.EmitExpression(Scope, Shader::EValueType::Float1, TEXT("saturate(%)"), EmitResult) : EmitResult;
+}
+
+bool FExpressionStaticTerrainLayerWeight::UseTextureArraySample(const FEmitContext& Context) const
+{
+	return bTextureArray && !Context.TargetParameters.IsGenericTarget() && IsMobilePlatform(Context.TargetParameters.ShaderPlatform);
 }
 
 bool FExpressionTextureProperty::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const

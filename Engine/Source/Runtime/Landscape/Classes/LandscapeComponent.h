@@ -15,7 +15,7 @@
 #include "LandscapeWeightmapUsage.h"
 #include "Containers/ArrayView.h"
 #include "Engine/StreamableRenderAsset.h"
-
+#include "Engine/Texture2DArray.h"
 #include "LandscapeComponent.generated.h"
 
 class ALandscape;
@@ -626,6 +626,9 @@ public:
 	UPROPERTY(NonPIEDuplicateTransient)
 	TArray<TObjectPtr<UTexture2D>> MobileWeightmapTextures;
 
+	UPROPERTY(NonPIEDuplicateTransient)
+	TObjectPtr<UTexture2DArray> MobileWeightmapTextureArray;
+	
 	/** Layer allocations used by mobile.*/
 	UPROPERTY()
 	TArray<FWeightmapLayerAllocationInfo> MobileWeightmapLayerAllocations;
