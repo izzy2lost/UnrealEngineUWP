@@ -52,7 +52,7 @@ UE_NET_TEST_FIXTURE(FDirtyNetObjectTrackerTestFixture, TestNoObjectIsDirtyFromSt
 
 UE_NET_TEST_FIXTURE(FDirtyNetObjectTrackerTestFixture, CannotMarkInvalidObjectAsDirty)
 {
-	MarkNetObjectStateDirty(ReplicationSystemId, FNetRefHandle().GetId());
+	MarkNetObjectStateDirty(ReplicationSystemId, FNetRefHandleManager::InvalidInternalIndex);
 	MarkNetObjectStateDirty(ReplicationSystemId, NetObjectIndexRangeEnd + 1);
 
 	FDirtyObjectsAccessor DirtyObjectsAccessor(*DirtyNetObjectTracker);

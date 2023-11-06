@@ -134,7 +134,7 @@ public:
 
 	static void SetArrayNum(FExamplePolymorphicArrayStruct& ArrayContainer, SIZE_T Num)
 	{
-		ArrayContainer.Data.SetNum(static_cast<SSIZE_T>(Num));
+		ArrayContainer.Data.SetNum(IntCastChecked<int32>(Num));
 	}
 
 private:

@@ -59,7 +59,7 @@ void NetObjectProtocolReferencesToString(FStringBuilderBase& StringBuilder, uint
 extern "C" IRISCORE_API UReplicationSystem* GetReplicationSystemForDebug(uint32 Id);
 
 /** DebugOutputObject state for Handle specified by NetRefHandleId and ReplicationSystemId. */
-extern "C" IRISCORE_API void DebugOutputNetObjectState(uint32 NetRefHandleId, uint32 ReplicationSystemId);
+extern "C" IRISCORE_API void DebugOutputNetObjectState(uint64 NetRefHandleId, uint32 ReplicationSystemId);
 
 /**
  * Variant of NetObjectStateToString that can be used from breakpoints and in watch window to print the current state of a NetRefHandle.

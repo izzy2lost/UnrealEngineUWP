@@ -236,7 +236,7 @@ UE_NET_TEST_FIXTURE(FTestDerivedStructInObjectFixture, CanReplicateDerivedStruct
 	// Check that the members have been replicated
 	{
 		UE_NET_ASSERT_EQ(ClientObject->DerivedStructArray.Num(), ServerObject->DerivedStructArray.Num());
-		SIZE_T MemberIt = 0;
+		int32 MemberIt = 0;
 		for (const FTestDerivedStruct_Inherited_WithNetSerializer_Inherited_WithoutNetSerializer& ServerItem : ServerObject->DerivedStructArray)
 		{
 			const FTestDerivedStruct_Inherited_WithNetSerializer_Inherited_WithoutNetSerializer& ClientItem = ClientObject->DerivedStructArray[MemberIt];
@@ -380,14 +380,13 @@ UE_NET_TEST_FIXTURE(FTestDerivedStructInObjectFixture, NotAppliedMemberInDerived
 	const uint8 ClientModifiedNotAppliedPropertyBaseValue = ClientObject->DerivedStructArray[0].ByteMemberNotSetOnApply ^ 123U;
 	for (auto& Element : ClientObject->DerivedStructArray)
 	{
-		const uint8 Index = &Element - ClientObject->DerivedStructArray.GetData();
+		const uint8 Index = IntCastChecked<uint8>(&Element - ClientObject->DerivedStructArray.GetData());
 		Element.ByteMemberNotSetOnApply = ClientModifiedNotAppliedPropertyBaseValue + Index;
 	}
 
 	// On the server modify all elements in the array
 	for (auto& Element : ServerObject->DerivedStructArray)
 	{
-		const uint8 Index = &Element - ServerObject->DerivedStructArray.GetData();
 		Element.ByteMember0 ^= 1U;
 		Element.ByteMember1 ^= 2U;
 		Element.ByteMemberNotSetOnApply ^= 231U;
@@ -400,7 +399,7 @@ UE_NET_TEST_FIXTURE(FTestDerivedStructInObjectFixture, NotAppliedMemberInDerived
 	// Verify that the not applied member remains as is.
 	for (const auto& Element : ClientObject->DerivedStructArray)
 	{
-		const uint8 Index = &Element - ClientObject->DerivedStructArray.GetData();
+		const uint8 Index = IntCastChecked<uint8>(&Element - ClientObject->DerivedStructArray.GetData());
 		UE_NET_ASSERT_EQ(Element.ByteMemberNotSetOnApply, uint8(ClientModifiedNotAppliedPropertyBaseValue + Index));
 	}
 }
@@ -468,7 +467,7 @@ UE_NET_TEST_FIXTURE(FTestDerivedStructInObjectFixture, NotAppliedMemberInStructD
 	const uint8 ClientModifiedNotAppliedPropertyBaseValue = ClientObject->DerivedStructArray[0].ByteMemberNotSetOnApply ^ 123U;
 	for (auto& Element : ClientObject->DerivedStructArray)
 	{
-		const uint8 Index = &Element - ClientObject->DerivedStructArray.GetData();
+		const uint8 Index = IntCastChecked<uint8>(&Element - ClientObject->DerivedStructArray.GetData());
 		Element.ByteMemberNotSetOnApply = ClientModifiedNotAppliedPropertyBaseValue + Index;
 		Element.ByteMember3_NotReplicated = ClientModifiedNotReplicatedPropertyValue;
 	}
@@ -476,7 +475,6 @@ UE_NET_TEST_FIXTURE(FTestDerivedStructInObjectFixture, NotAppliedMemberInStructD
 	// On the server modify all elements in the array
 	for (auto& Element : ServerObject->DerivedStructArray)
 	{
-		const uint8 Index = &Element - ServerObject->DerivedStructArray.GetData();
 		Element.ByteMember0 ^= 1U;
 		Element.ByteMemberNotSetOnApply ^= 231U;
 		Element.ByteMember2 ^= 2U;
@@ -490,7 +488,7 @@ UE_NET_TEST_FIXTURE(FTestDerivedStructInObjectFixture, NotAppliedMemberInStructD
 	// Verify that the not applied member remains as is.
 	for (const auto& Element : ClientObject->DerivedStructArray)
 	{
-		const uint8 Index = &Element - ClientObject->DerivedStructArray.GetData();
+		const uint8 Index = IntCastChecked<uint8>(&Element - ClientObject->DerivedStructArray.GetData());
 		UE_NET_ASSERT_EQ(Element.ByteMember0, ServerObject->DerivedStructArray[Index].ByteMember0);
 		UE_NET_ASSERT_EQ(Element.ByteMemberNotSetOnApply, uint8(ClientModifiedNotAppliedPropertyBaseValue + Index));
 		UE_NET_ASSERT_EQ(Element.ByteMember2, ServerObject->DerivedStructArray[Index].ByteMember2);
@@ -513,8 +511,8 @@ void FTestDerivedStruct_Inherited_WithNetSerializer_NetSerializer::Deserialize(F
 	QuantizedType& Target = *reinterpret_cast<QuantizedType*>(Args.Target);
 
 	FNetBitStreamReader* Reader = Context.GetBitStreamReader();
-	Target.ByteMember0 = Reader->ReadBits(8U);
-	Target.ByteMember1 = Reader->ReadBits(8U);
+	Target.ByteMember0 = IntCastChecked<uint8>(Reader->ReadBits(8U));
+	Target.ByteMember1 = IntCastChecked<uint8>(Reader->ReadBits(8U));
 }
 
 void FTestDerivedStruct_Inherited_WithNetSerializer_NetSerializer::Quantize(FNetSerializationContext& Context, const FNetQuantizeArgs& Args)
@@ -579,9 +577,9 @@ void FTestDerivedStruct_Inherited_WithNetSerializerWithApply_NetSerializer::Dese
 	QuantizedType& Target = *reinterpret_cast<QuantizedType*>(Args.Target);
 
 	FNetBitStreamReader* Reader = Context.GetBitStreamReader();
-	Target.ByteMember0 = Reader->ReadBits(8U);
-	Target.ByteMember1 = Reader->ReadBits(8U);
-	Target.ByteMemberNotSetOnApply = Reader->ReadBits(8U);
+	Target.ByteMember0 = IntCastChecked<uint8>(Reader->ReadBits(8U));
+	Target.ByteMember1 = IntCastChecked<uint8>(Reader->ReadBits(8U));
+	Target.ByteMemberNotSetOnApply = IntCastChecked<uint8>(Reader->ReadBits(8U));
 }
 
 void FTestDerivedStruct_Inherited_WithNetSerializerWithApply_NetSerializer::Quantize(FNetSerializationContext& Context, const FNetQuantizeArgs& Args)

@@ -55,6 +55,8 @@ namespace UnrealBuildTool.Rules
 				PrivateIncludePathModuleNames.Add("Catch2");
 			}
 
+			UnsafeTypeCastWarningLevel = WarningLevel.Error;
+
 			PrivateDefinitions.Add(String.Format("UE_NET_WITH_LOW_LEVEL_TESTS={0}", Target.ExplicitTestsTarget ? "1" : "0"));
 
 			SetupIrisSupport(Target);

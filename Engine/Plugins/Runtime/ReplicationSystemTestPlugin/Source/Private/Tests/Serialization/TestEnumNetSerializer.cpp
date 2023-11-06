@@ -198,7 +198,7 @@ void FTestEnumIntNetSerializer<SerializerConfig, SourceType, EnumType>::TestVali
 	{
 		TArray<bool> ExpectedResults;
 		ExpectedResults.SetNumUninitialized(Values.Num());
-		for (SIZE_T ValueIt = 0, ValueEndIt = Values.Num(); ValueIt != ValueEndIt; ++ValueIt)
+		for (int32 ValueIt = 0, ValueEndIt = Values.Num(); ValueIt != ValueEndIt; ++ValueIt)
 		{
 			ExpectedResults[ValueIt] = true;
 		}

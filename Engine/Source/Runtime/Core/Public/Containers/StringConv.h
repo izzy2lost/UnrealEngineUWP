@@ -120,7 +120,7 @@ namespace StringConv
 					const uint32 LowCodepoint = Codepoint;
 
 					// Combine our high and low surrogates together to a single Unicode codepoint
-					Codepoint = StringConv::EncodeSurrogate(HighCodepoint, LowCodepoint);
+					Codepoint = StringConv::EncodeSurrogate(static_cast<uint16>(HighCodepoint), static_cast<uint16>(LowCodepoint));
 
 					StrBuffer[Index] = Codepoint;
 					{

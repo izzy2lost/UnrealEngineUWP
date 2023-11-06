@@ -332,7 +332,7 @@ void NetObjectStateToString(FStringBuilderBase& StringBuilder, FNetRefHandle Ref
 	FReplicationInstanceOperations::OutputInternalStateToString(NetSerializationContext, StringBuilder, nullptr, InternalStateBuffer, ReplicatedObjectData.InstanceProtocol, ReplicatedObjectData.Protocol);
 }
 
-void DebugOutputNetObjectState(uint32 NetRefHandleId, uint32 ReplicationSystemId)
+void DebugOutputNetObjectState(uint64 NetRefHandleId, uint32 ReplicationSystemId)
 {
 	const FNetRefHandle RefHandle = Private::FNetRefHandleManager::MakeNetRefHandle(NetRefHandleId, ReplicationSystemId);
 

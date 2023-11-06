@@ -53,7 +53,7 @@ void USphereNetObjectPrioritizerForTest::PrioritizeWithParams(USphereNetObjectPr
 			const FVector* FirstPos = Params.InPositions.GetData();
 			for (const FVector& Pos : MakeArrayView(Params.InPositions.GetData() + ObjectIt, CurrentBatchObjectCount))
 			{
-				const uint32 Index = &Pos - FirstPos;
+				const int32 Index = static_cast<int32>(&Pos - FirstPos);
 				BatchParams.Positions[Index] = VectorLoadFloat3_W0(&Params.InPositions[Index]);
 			}
 
@@ -176,16 +176,16 @@ UE_NET_TEST_FIXTURE(FTestSphereNetObjectPrioritizer, ViewPositionSameAsObjectGiv
 
 	// Test one view
 	{
-		PrioParams.View = MakeReplicationView(TestPosition, FVector(1, 0, 0), FMath::DegreesToRadians(60));
+		PrioParams.View = MakeReplicationView(TestPosition, FVector(1, 0, 0), FMath::DegreesToRadians(60.0f));
 		SphereNetObjectPrioritizer->PrioritizeWithParams(PrioParams);
 		UE_NET_ASSERT_EQ(OutPriority, SphereNetObjectPrioritizerConfig->InnerPriority);
 	}
 
 	// Test two views
 	{
-		PrioParams.View = MakeReplicationView(TestPosition, FVector(1, 0, 0), FMath::DegreesToRadians(60));
+		PrioParams.View = MakeReplicationView(TestPosition, FVector(1, 0, 0), FMath::DegreesToRadians(60.0f));
 		// Add second view at origin.
-		PrioParams.View.Views.Add(MakeReplicationView(FVector(0, 0, 0), FVector(1, 0, 0), FMath::DegreesToRadians(60)).Views[0]);
+		PrioParams.View.Views.Add(MakeReplicationView(FVector(0, 0, 0), FVector(1, 0, 0), FMath::DegreesToRadians(60.0f)).Views[0]);
 
 		SphereNetObjectPrioritizer->PrioritizeWithParams(PrioParams);
 		UE_NET_ASSERT_EQ(OutPriority, SphereNetObjectPrioritizerConfig->InnerPriority);
@@ -198,10 +198,10 @@ UE_NET_TEST_FIXTURE(FTestSphereNetObjectPrioritizer, ViewPositionSameAsObjectGiv
 
 	// Test more than two views.
 	{
-		PrioParams.View = MakeReplicationView(TestPosition, FVector(1, 0, 0), FMath::DegreesToRadians(60));
+		PrioParams.View = MakeReplicationView(TestPosition, FVector(1, 0, 0), FMath::DegreesToRadians(60.0f));
 		// Add a couple of views.
-		PrioParams.View.Views.Add(MakeReplicationView(FVector(0, 0, 0), FVector(1, 0, 0), FMath::DegreesToRadians(60)).Views[0]);
-		PrioParams.View.Views.Add(MakeReplicationView(-TestPosition, FVector(1, 0, 0), FMath::DegreesToRadians(60)).Views[0]);
+		PrioParams.View.Views.Add(MakeReplicationView(FVector(0, 0, 0), FVector(1, 0, 0), FMath::DegreesToRadians(60.0f)).Views[0]);
+		PrioParams.View.Views.Add(MakeReplicationView(-TestPosition, FVector(1, 0, 0), FMath::DegreesToRadians(60.0f)).Views[0]);
 
 		SphereNetObjectPrioritizer->PrioritizeWithParams(PrioParams);
 		UE_NET_ASSERT_EQ(OutPriority, SphereNetObjectPrioritizerConfig->InnerPriority);
@@ -225,16 +225,16 @@ UE_NET_TEST_FIXTURE(FTestSphereNetObjectPrioritizer, ViewPositionFarAwayFromObje
 
 	// Test one view
 	{
-		PrioParams.View = MakeReplicationView(TestPosition + FVector(0, 0, SphereNetObjectPrioritizerConfig->OuterRadius), FVector(1, 0, 0), FMath::DegreesToRadians(60));
+		PrioParams.View = MakeReplicationView(TestPosition + FVector(0, 0, SphereNetObjectPrioritizerConfig->OuterRadius), FVector(1, 0, 0), FMath::DegreesToRadians(60.0f));
 		SphereNetObjectPrioritizer->PrioritizeWithParams(PrioParams);
 		UE_NET_ASSERT_EQ(OutPriority, SphereNetObjectPrioritizerConfig->OuterPriority);
 	}
 
 	// Test two views
 	{
-		PrioParams.View = MakeReplicationView(TestPosition + FVector(0, 0, SphereNetObjectPrioritizerConfig->OuterRadius), FVector(1, 0, 0), FMath::DegreesToRadians(60));
+		PrioParams.View = MakeReplicationView(TestPosition + FVector(0, 0, SphereNetObjectPrioritizerConfig->OuterRadius), FVector(1, 0, 0), FMath::DegreesToRadians(60.0f));
 		// Add second view even further away
-		PrioParams.View.Views.Add(MakeReplicationView(TestPosition + FVector(0, 0, 2.0f*SphereNetObjectPrioritizerConfig->OuterRadius), FVector(1, 0, 0), FMath::DegreesToRadians(60)).Views[0]);
+		PrioParams.View.Views.Add(MakeReplicationView(TestPosition + FVector(0, 0, 2.0f*SphereNetObjectPrioritizerConfig->OuterRadius), FVector(1, 0, 0), FMath::DegreesToRadians(60.0f)).Views[0]);
 
 		SphereNetObjectPrioritizer->PrioritizeWithParams(PrioParams);
 		UE_NET_ASSERT_EQ(OutPriority, SphereNetObjectPrioritizerConfig->OuterPriority);
@@ -247,10 +247,10 @@ UE_NET_TEST_FIXTURE(FTestSphereNetObjectPrioritizer, ViewPositionFarAwayFromObje
 
 	// Test more than two views.
 	{
-		PrioParams.View = MakeReplicationView(TestPosition + FVector(0, 0, SphereNetObjectPrioritizerConfig->OuterRadius), FVector(1, 0, 0), FMath::DegreesToRadians(60));
+		PrioParams.View = MakeReplicationView(TestPosition + FVector(0, 0, SphereNetObjectPrioritizerConfig->OuterRadius), FVector(1, 0, 0), FMath::DegreesToRadians(60.0f));
 		// Add a couple of views
-		PrioParams.View.Views.Add(MakeReplicationView(TestPosition + FVector(0, 0, 2.0f*SphereNetObjectPrioritizerConfig->OuterRadius), FVector(1, 0, 0), FMath::DegreesToRadians(60)).Views[0]);
-		PrioParams.View.Views.Add(MakeReplicationView(TestPosition - FVector(0, 0, 4.0f*SphereNetObjectPrioritizerConfig->OuterRadius), FVector(1, 0, 0), FMath::DegreesToRadians(60)).Views[0]);
+		PrioParams.View.Views.Add(MakeReplicationView(TestPosition + FVector(0, 0, 2.0f*SphereNetObjectPrioritizerConfig->OuterRadius), FVector(1, 0, 0), FMath::DegreesToRadians(60.0f)).Views[0]);
+		PrioParams.View.Views.Add(MakeReplicationView(TestPosition - FVector(0, 0, 4.0f*SphereNetObjectPrioritizerConfig->OuterRadius), FVector(1, 0, 0), FMath::DegreesToRadians(60.0f)).Views[0]);
 
 		SphereNetObjectPrioritizer->PrioritizeWithParams(PrioParams);
 		UE_NET_ASSERT_EQ(OutPriority, SphereNetObjectPrioritizerConfig->OuterPriority);
@@ -274,16 +274,16 @@ UE_NET_TEST_FIXTURE(FTestSphereNetObjectPrioritizer, ViewPositionVeryFarAwayFrom
 
 	// Test one view
 	{
-		PrioParams.View = MakeReplicationView(TestPosition + SphereNetObjectPrioritizerConfig->OuterRadius, FVector(1, 0, 0), FMath::DegreesToRadians(60));
+		PrioParams.View = MakeReplicationView(TestPosition + SphereNetObjectPrioritizerConfig->OuterRadius, FVector(1, 0, 0), FMath::DegreesToRadians(60.0f));
 		SphereNetObjectPrioritizer->PrioritizeWithParams(PrioParams);
 		UE_NET_ASSERT_EQ(OutPriority, SphereNetObjectPrioritizerConfig->OutsidePriority);
 	}
 
 	// Test two views
 	{
-		PrioParams.View = MakeReplicationView(TestPosition + SphereNetObjectPrioritizerConfig->OuterRadius, FVector(1, 0, 0), FMath::DegreesToRadians(60));
+		PrioParams.View = MakeReplicationView(TestPosition + SphereNetObjectPrioritizerConfig->OuterRadius, FVector(1, 0, 0), FMath::DegreesToRadians(60.0f));
 		// Add second view even further away
-		PrioParams.View.Views.Add(MakeReplicationView(TestPosition + 2.0f*SphereNetObjectPrioritizerConfig->OuterRadius, FVector(1, 0, 0), FMath::DegreesToRadians(60)).Views[0]);
+		PrioParams.View.Views.Add(MakeReplicationView(TestPosition + 2.0f*SphereNetObjectPrioritizerConfig->OuterRadius, FVector(1, 0, 0), FMath::DegreesToRadians(60.0f)).Views[0]);
 
 		SphereNetObjectPrioritizer->PrioritizeWithParams(PrioParams);
 		UE_NET_ASSERT_EQ(OutPriority, SphereNetObjectPrioritizerConfig->OutsidePriority);
@@ -296,10 +296,10 @@ UE_NET_TEST_FIXTURE(FTestSphereNetObjectPrioritizer, ViewPositionVeryFarAwayFrom
 
 	// Test more than two views.
 	{
-		PrioParams.View = MakeReplicationView(TestPosition + SphereNetObjectPrioritizerConfig->OuterRadius, FVector(1, 0, 0), FMath::DegreesToRadians(60));
+		PrioParams.View = MakeReplicationView(TestPosition + SphereNetObjectPrioritizerConfig->OuterRadius, FVector(1, 0, 0), FMath::DegreesToRadians(60.0f));
 		// Add a couple of views
-		PrioParams.View.Views.Add(MakeReplicationView(TestPosition + 2.0f*SphereNetObjectPrioritizerConfig->OuterRadius, FVector(1, 0, 0), FMath::DegreesToRadians(60)).Views[0]);
-		PrioParams.View.Views.Add(MakeReplicationView(TestPosition - 4.0f*SphereNetObjectPrioritizerConfig->OuterRadius, FVector(1, 0, 0), FMath::DegreesToRadians(60)).Views[0]);
+		PrioParams.View.Views.Add(MakeReplicationView(TestPosition + 2.0f*SphereNetObjectPrioritizerConfig->OuterRadius, FVector(1, 0, 0), FMath::DegreesToRadians(60.0f)).Views[0]);
+		PrioParams.View.Views.Add(MakeReplicationView(TestPosition - 4.0f*SphereNetObjectPrioritizerConfig->OuterRadius, FVector(1, 0, 0), FMath::DegreesToRadians(60.0f)).Views[0]);
 
 		SphereNetObjectPrioritizer->PrioritizeWithParams(PrioParams);
 		UE_NET_ASSERT_EQ(OutPriority, SphereNetObjectPrioritizerConfig->OutsidePriority);
@@ -333,7 +333,7 @@ UE_NET_TEST_FIXTURE(FTestSphereNetObjectPrioritizer, ViewPositionInRadiusInterva
 
 	// Test single view
 	{
-		PrioParams.View = MakeReplicationView(ViewPosition, FVector(1, 0, 0), FMath::DegreesToRadians(60));
+		PrioParams.View = MakeReplicationView(ViewPosition, FVector(1, 0, 0), FMath::DegreesToRadians(60.0f));
 		SphereNetObjectPrioritizer->PrioritizeWithParams(PrioParams);
 
 		for (float Priority : OutPriorities)

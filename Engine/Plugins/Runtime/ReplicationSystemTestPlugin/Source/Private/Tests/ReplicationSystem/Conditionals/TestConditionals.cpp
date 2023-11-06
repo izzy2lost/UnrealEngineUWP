@@ -491,7 +491,7 @@ UE_NET_TEST_FIXTURE(FTestConditionalsFixture, CanMixConditions)
 	const UTestReplicatedIrisObject* ClientObjectArray[sizeof(ClientArray)/sizeof(ClientArray[0])];
 	for (FReplicationSystemTestClient*& Client : ClientArray)
 	{
-		const uint32 ClientIndex = &Client - ClientArray;
+		const SIZE_T ClientIndex = &Client - ClientArray;
 		ClientObjectArray[ClientIndex] = Cast<UTestReplicatedIrisObject>(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle));
 		UE_NET_ASSERT_NE(ClientObjectArray[ClientIndex], nullptr);
 	}
@@ -499,7 +499,7 @@ UE_NET_TEST_FIXTURE(FTestConditionalsFixture, CanMixConditions)
 	// Validate all the members
 	for (FReplicationSystemTestClient*& Client : ClientArray)
 	{
-		const uint32 ClientIndex = &Client - ClientArray;
+		const SIZE_T ClientIndex = &Client - ClientArray;
 		const UTestReplicatedIrisObject* ClientObject = ClientObjectArray[ClientIndex];
 
 		// Everybody should get the physics members
@@ -555,7 +555,7 @@ UE_NET_TEST_FIXTURE(FTestConditionalsFixture, CanSwitchAutonmousConnection)
 	const UTestReplicatedIrisObject* ClientObjectArray[sizeof(ClientArray)/sizeof(ClientArray[0])];
 	for (FReplicationSystemTestClient*& Client : ClientArray)
 	{
-		const uint32 ClientIndex = &Client - ClientArray;
+		const SIZE_T ClientIndex = &Client - ClientArray;
 		ClientObjectArray[ClientIndex] = Cast<UTestReplicatedIrisObject>(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle));
 		UE_NET_ASSERT_NE(ClientObjectArray[ClientIndex], nullptr);
 	}
@@ -583,7 +583,7 @@ UE_NET_TEST_FIXTURE(FTestConditionalsFixture, CanSwitchAutonmousConnection)
 	// Validate all the members
 	for (FReplicationSystemTestClient*& Client : ClientArray)
 	{
-		const uint32 ClientIndex = &Client - ClientArray;
+		const SIZE_T ClientIndex = &Client - ClientArray;
 		const UTestReplicatedIrisObject* ClientObject = ClientObjectArray[ClientIndex];
 
 		if (Client->ConnectionIdOnServer == AutonomousClientConnectionId)
@@ -655,7 +655,7 @@ UE_NET_TEST_FIXTURE(FTestConditionalsFixture, SubObjectConditionsMatchesParentOb
 	const UTestReplicatedIrisObject* ClientSubObjectArray[sizeof(ClientArray)/sizeof(ClientArray[0])];
 	for (FReplicationSystemTestClient*& Client : ClientArray)
 	{
-		const uint32 ClientIndex = &Client - ClientArray;
+		const SIZE_T ClientIndex = &Client - ClientArray;
 		ClientObjectArray[ClientIndex] = Cast<UTestReplicatedIrisObject>(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle));
 		UE_NET_ASSERT_NE(ClientObjectArray[ClientIndex], nullptr);
 		ClientSubObjectArray[ClientIndex] = Cast<UTestReplicatedIrisObject>(Client->GetReplicationBridge()->GetReplicatedObject(ServerSubObject->NetRefHandle));
@@ -665,7 +665,7 @@ UE_NET_TEST_FIXTURE(FTestConditionalsFixture, SubObjectConditionsMatchesParentOb
 	// Validate all the members
 	for (FReplicationSystemTestClient*& Client : ClientArray)
 	{
-		const uint32 ClientIndex = &Client - ClientArray;
+		const SIZE_T ClientIndex = &Client - ClientArray;
 
 		for (const UTestReplicatedIrisObject* ClientObject : {ClientObjectArray[ClientIndex], ClientSubObjectArray[ClientIndex]})
 		{

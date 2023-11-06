@@ -116,10 +116,10 @@ bool UReplicatedTestObjectBridge::WriteCreationHeader(UE::Net::FNetSerialization
 	}
 	if (const UTestReplicatedIrisObject* TestReplicatedIrisObject = Cast<UTestReplicatedIrisObject>(Object))
 	{
-		NumComponentsToSpawn = TestReplicatedIrisObject->Components.Num();
-		NumIrisComponentsToSpawn = TestReplicatedIrisObject->IrisComponents.Num();
-		NumDynamicComponentsToSpawn = TestReplicatedIrisObject->DynamicStateComponents.Num();
-		NumConnectionFilteredComponentsToSpawn = TestReplicatedIrisObject->ConnectionFilteredComponents.Num();
+		NumComponentsToSpawn = IntCastChecked<uint16>(TestReplicatedIrisObject->Components.Num());
+		NumIrisComponentsToSpawn = IntCastChecked<uint16>(TestReplicatedIrisObject->IrisComponents.Num());
+		NumDynamicComponentsToSpawn = IntCastChecked<uint16>(TestReplicatedIrisObject->DynamicStateComponents.Num());
+		NumConnectionFilteredComponentsToSpawn = IntCastChecked<uint16>(TestReplicatedIrisObject->ConnectionFilteredComponents.Num());
 	}
 
 	UObject* Archetype = Object->GetArchetype();
