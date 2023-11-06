@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "SlateMaterialResource.h"
-#include "Rendering/SlateRendererSettings.h"
+#include "SlateRHIRendererSettings.h"
 #include "Engine/Texture.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialRenderProxy.h"
@@ -148,7 +148,7 @@ void FSlateMaterialResource::UpdateMaterial(const UMaterialInterface& InMaterial
 		CachedSlatePostBuffers = ESlatePostRT::None;
 		for (const UTexture* OutUsedTexture : OutUsedTextures)
 		{
-			for (const TPair<ESlatePostRT, FSlatePostSettings>& SlatePostSetting : USlateRendererSettings::Get()->GetSlatePostSettings())
+			for (const TPair<ESlatePostRT, FSlatePostSettings>& SlatePostSetting : USlateRHIRendererSettings::Get()->GetSlatePostSettings())
 			{
 				const ESlatePostRT SlatePostBitflag = SlatePostSetting.Key;
 				const FSlatePostSettings& SlatePostSettingValue = SlatePostSetting.Value;

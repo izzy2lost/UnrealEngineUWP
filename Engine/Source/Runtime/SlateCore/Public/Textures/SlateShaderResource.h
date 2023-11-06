@@ -5,7 +5,7 @@
 #include "CoreMinimal.h"
 #include "Stats/Stats.h"
 #include "SlateGlobals.h"
-#include "Rendering/SlateRendererSettings.h"
+#include "Rendering/SlateRendererTypes.h"
 #include "Rendering/SlateResourceHandle.h"
 
 class FSlateShaderResourceProxy;

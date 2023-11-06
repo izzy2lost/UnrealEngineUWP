@@ -9,26 +9,6 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(SlateRHIPostBufferProcessor)
 
-void USlateRHIPostBufferProcessor::PostProcess(FRenderResource* InViewInfo, FRenderResource* InViewportTexture, FVector2D InElementWindowSize, FSlateRHIRenderingPolicyInterface InRenderingPolicy, UTextureRenderTarget2D* InSlatePostBuffer)
-{
-	ENQUEUE_RENDER_COMMAND(FUpdateSlatePostBuffersWithFX)([Self = this, InViewInfo, InViewportTexture, InElementWindowSize, InRenderingPolicy, InSlatePostBuffer](FRHICommandListImmediate& RHICmdList)
-	{
-		if (Self)
-		{
-			FTexture2DRHIRef BackBuffer = Self->GetBackbuffer_RenderThread(InViewInfo, InViewportTexture, InElementWindowSize, RHICmdList);
-
-			if (BackBuffer)
-			{
-				FTexture2DRHIRef Src = Self->GetSrcTexture_RenderThread(BackBuffer, InViewportTexture);
-				FTextureReferenceRHIRef& Dst = Self->GetDstTexture_RenderThread(InSlatePostBuffer);
-				FIntPoint DstExtent = Self->GetDstExtent_RenderThread(BackBuffer, InViewportTexture);
-
-				Self->PostProcess_RenderThread(InRenderingPolicy, RHICmdList, Src, Dst, DstExtent);
-			}
-		}
-	});
-}
-
 FTexture2DRHIRef USlateRHIPostBufferProcessor::GetBackbuffer_RenderThread(FRenderResource* InViewInfo, FRenderResource* InViewportTexture, FVector2D InElementWindowSize, FRHICommandListImmediate& InRHICmdList)
 {
 	FViewportInfo* ViewInfo = static_cast<FViewportInfo*>(InViewInfo);

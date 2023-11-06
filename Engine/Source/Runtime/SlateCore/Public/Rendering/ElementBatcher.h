@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Rendering/RenderingCommon.h"
-#include "Rendering/SlateRendererSettings.h"
+#include "Rendering/SlateRendererTypes.h"
 #include "Layout/Clipping.h"
 #include "Stats/Stats.h"
 #include "SlateGlobals.h"

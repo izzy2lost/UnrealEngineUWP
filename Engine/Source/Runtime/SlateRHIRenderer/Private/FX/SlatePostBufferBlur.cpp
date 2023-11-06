@@ -14,20 +14,17 @@ void USlatePostBufferBlur::PostProcess(FRenderResource* InViewInfo, FRenderResou
 		// Explicit param copy to avoid renderthread from reading value during gamethread write
 		float GaussianBlurStrengthCopy = GaussianBlurStrength;
 
-		ENQUEUE_RENDER_COMMAND(FUpdateSlatePostBuffersWithFX_Blur)([Self = this, InViewInfo, InViewportTexture, InElementWindowSize, InRenderingPolicy, InSlatePostBuffer, GaussianBlurStrengthCopy](FRHICommandListImmediate& RHICmdList)
+		ENQUEUE_RENDER_COMMAND(FUpdateSlatePostBuffersWithFX_Blur)([InViewInfo, InViewportTexture, InElementWindowSize, InRenderingPolicy, InSlatePostBuffer, GaussianBlurStrengthCopy](FRHICommandListImmediate& RHICmdList)
 		{
-			if (Self)
+			FTexture2DRHIRef BackBuffer = USlateRHIPostBufferProcessor::GetBackbuffer_RenderThread(InViewInfo, InViewportTexture, InElementWindowSize, RHICmdList);
+
+			if (BackBuffer)
 			{
-				FTexture2DRHIRef BackBuffer = Self->GetBackbuffer_RenderThread(InViewInfo, InViewportTexture, InElementWindowSize, RHICmdList);
+				FTexture2DRHIRef Src = USlateRHIPostBufferProcessor::GetSrcTexture_RenderThread(BackBuffer, InViewportTexture);
+				FTextureReferenceRHIRef& Dst = USlateRHIPostBufferProcessor::GetDstTexture_RenderThread(InSlatePostBuffer);
+				FIntPoint DstExtent = USlateRHIPostBufferProcessor::GetDstExtent_RenderThread(BackBuffer, InViewportTexture);
 
-				if (BackBuffer)
-				{
-					FTexture2DRHIRef Src = Self->GetSrcTexture_RenderThread(BackBuffer, InViewportTexture);
-					FTextureReferenceRHIRef& Dst = Self->GetDstTexture_RenderThread(InSlatePostBuffer);
-					FIntPoint DstExtent = Self->GetDstExtent_RenderThread(BackBuffer, InViewportTexture);
-
-					InRenderingPolicy.BlurRectExternal(RHICmdList, Src, Dst, DstExtent, GaussianBlurStrengthCopy);
-				}
+				InRenderingPolicy.BlurRectExternal(RHICmdList, Src, Dst, DstExtent, GaussianBlurStrengthCopy);
 			}
 		});
 	}

@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "SlateUTextureResource.h"
+#include "SlateRHIRendererSettings.h"
 
 FSlateBaseUTextureResource::FSlateBaseUTextureResource(UTexture* InTexture)
 	: TextureObject(InTexture)
@@ -111,7 +112,7 @@ void FSlateUTextureResource::UpdateTexture(UTexture* InTexture)
 	if (Proxy && TextureObject)
 	{
 		CachedSlatePostBuffers = ESlatePostRT::None;
-		for (const TPair<ESlatePostRT, FSlatePostSettings>& SlatePostSetting : USlateRendererSettings::Get()->GetSlatePostSettings())
+		for (const TPair<ESlatePostRT, FSlatePostSettings>& SlatePostSetting : USlateRHIRendererSettings::Get()->GetSlatePostSettings())
 		{
 			const ESlatePostRT SlatePostBitflag = SlatePostSetting.Key;
 			const FSlatePostSettings& SlatePostSettingValue = SlatePostSetting.Value;

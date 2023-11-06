@@ -1,9 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Rendering/SlateRendererSettings.h"
+#include "SlateRHIRendererSettings.h"
 #include "HAL/IConsoleManager.h"
 
-#include UE_INLINE_GENERATED_CPP_BY_NAME(SlateRendererSettings)
+#include UE_INLINE_GENERATED_CPP_BY_NAME(SlateRHIRendererSettings)
 
 static TAutoConsoleVariable<int32> CVarDefaultEnablePostRenderTarget_0(
 	TEXT("Slate.DefaultEnablePostRenderTarget_0"),
@@ -19,19 +19,7 @@ FSlatePostSettings::FSlatePostSettings()
 {
 }
 
-USlateCorePostBufferProcessor* FSlatePostSettings::GetProcessor() const
-{
-	USlateCorePostBufferProcessor* Result = nullptr;
-
-	if (PostProcessorClass)
-	{
-		Result = Cast<USlateCorePostBufferProcessor>(PostProcessorClass->GetDefaultObject());
-	}
-
-	return Result;
-}
-
-USlateRendererSettings::USlateRendererSettings()
+USlateRHIRendererSettings::USlateRHIRendererSettings()
 {
 	SlatePostSettings.Add(ESlatePostRT::ESlatePostRT_0, FSlatePostSettings());
 	SlatePostSettings.Add(ESlatePostRT::ESlatePostRT_1, FSlatePostSettings());
@@ -50,7 +38,7 @@ USlateRendererSettings::USlateRendererSettings()
 	SlatePostSettings[ESlatePostRT::ESlatePostRT_4].PathToSlatePostRT = "/Engine/EngineResources/SlatePost4_RT.SlatePost4_RT";
 }
 
-USlateRendererSettings::~USlateRendererSettings()
+USlateRHIRendererSettings::~USlateRHIRendererSettings()
 {
 	for (TPair<ESlatePostRT, FSlatePostSettings>& SlatePostSetting : SlatePostSettings)
 	{
@@ -64,28 +52,22 @@ USlateRendererSettings::~USlateRendererSettings()
 	}
 }
 
-FSlatePostSettings& USlateRendererSettings::GetMutableSlatePostSetting(ESlatePostRT InPostBufferBit)
+FSlatePostSettings& USlateRHIRendererSettings::GetMutableSlatePostSetting(ESlatePostRT InPostBufferBit)
 {
 	return SlatePostSettings[InPostBufferBit];
 }
 
-const FSlatePostSettings& USlateRendererSettings::GetSlatePostSetting(ESlatePostRT InPostBufferBit) const
+const FSlatePostSettings& USlateRHIRendererSettings::GetSlatePostSetting(ESlatePostRT InPostBufferBit) const
 {
 	return SlatePostSettings[InPostBufferBit];
 }
 
-USlateCorePostBufferProcessor* USlateRendererSettings::GetSlatePostProcessor(ESlatePostRT InPostBufferBit) const
-{
-	const FSlatePostSettings& Settings = SlatePostSettings[InPostBufferBit];
-	return Settings.GetProcessor();
-}
-
-UObject* USlateRendererSettings::TryGetPostBufferRT(ESlatePostRT InPostBufferBit) const
+UObject* USlateRHIRendererSettings::TryGetPostBufferRT(ESlatePostRT InPostBufferBit) const
 {
 	return SlatePostSettings[InPostBufferBit].CachedSlatePostRT;
 }
 
-UObject* USlateRendererSettings::LoadGetPostBufferRT(ESlatePostRT InPostBufferBit)
+UObject* USlateRHIRendererSettings::LoadGetPostBufferRT(ESlatePostRT InPostBufferBit)
 {
 	UObject* Result = TryGetPostBufferRT(InPostBufferBit);
 
@@ -103,7 +85,7 @@ UObject* USlateRendererSettings::LoadGetPostBufferRT(ESlatePostRT InPostBufferBi
 	return Result;
 }
 
-const TMap<ESlatePostRT, FSlatePostSettings>& USlateRendererSettings::GetSlatePostSettings() const
+const TMap<ESlatePostRT, FSlatePostSettings>& USlateRHIRendererSettings::GetSlatePostSettings() const
 {
 	return SlatePostSettings;
 }

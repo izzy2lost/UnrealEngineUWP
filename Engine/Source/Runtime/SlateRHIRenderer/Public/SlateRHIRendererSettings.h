@@ -5,54 +5,21 @@
 #include "CoreMinimal.h"
 #include "Containers/ContainerAllocationPolicies.h"
 #include "Engine/DeveloperSettings.h"
+#include "FX/SlateRHIPostBufferProcessor.h"
 #include "Misc/EnumRange.h"
 #include "UObject/Object.h"
 #include "UObject/SoftObjectPath.h"
+#include "Rendering/SlateRendererTypes.h"
 #include "Templates/SubclassOf.h"
 
-
-#include "SlateRendererSettings.generated.h"
-
-/**
- * Bitfield used to mark if a slate post RT is used or not
- */
-UENUM(BlueprintType)
-enum class ESlatePostRT : uint8
-{
-	None = 0 << 0,
-	ESlatePostRT_0 = 1 << 0,
-	ESlatePostRT_1 = 1 << 1,
-	ESlatePostRT_2 = 1 << 2,
-	ESlatePostRT_3 = 1 << 3,
-	ESlatePostRT_4 = 1 << 4,
-	Num = 5
-};
-
-ENUM_CLASS_FLAGS(ESlatePostRT);
-
-ENUM_RANGE_BY_VALUES(ESlatePostRT, ESlatePostRT::ESlatePostRT_0, ESlatePostRT::ESlatePostRT_1, ESlatePostRT::ESlatePostRT_2, ESlatePostRT::ESlatePostRT_3, ESlatePostRT::ESlatePostRT_4);
-
-/**
- * Do not inherit from. Instead inherit from USlateRHIPostBufferProcessor. For an example see: USlatePostBufferBlur.
- * 
- * Base class for types that can process the backbuffer scene into the slate post buffer.
- * This class is exposed to SlateCore, but due to module limitations, you should inherit
- * from 'USlateRHIPostBufferProcessor' & implement 'PostProcess_RenderThread' in your derived class.
- * 
- * SlateRHI will only know how to utilize classes that derive from USlateRHIPostBufferProcessor.
- */
-UCLASS(Abstract, Blueprintable, CollapseCategories)
-class SLATECORE_API USlateCorePostBufferProcessor : public UObject
-{
-	GENERATED_BODY()
-};
+#include "SlateRHIRendererSettings.generated.h"
 
 /**
  * Settings for a particular Slate Post RT.
  * Notably if enabled & blur by default. To be updated with additional effects & to be expandable in game code / settings.
  */
 USTRUCT(BlueprintType, meta=(HiddenByDefault, DisableSplitPin))
-struct SLATECORE_API FSlatePostSettings
+struct SLATERHIRENDERER_API FSlatePostSettings
 {
 	GENERATED_BODY()
 
@@ -60,7 +27,8 @@ public:
 
 	FSlatePostSettings();
 
-	friend class USlateRendererSettings;
+	friend class USlateRHIRendererSettings;
+	friend class USlateFXSubsytem;
 
 public:
 
@@ -70,7 +38,7 @@ public:
 
 	/** Copy of actually loaded post processor class */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = BufferSettings, Meta = (AllowAbstract = false))
-	TSubclassOf<USlateCorePostBufferProcessor> PostProcessorClass;
+	TSubclassOf<USlateRHIPostBufferProcessor> PostProcessorClass;
 
 private:
 
@@ -80,42 +48,40 @@ private:
 	
 public:
 
-	/** Get post processing object using CDO from soft path if loaded */
-	USlateCorePostBufferProcessor* GetProcessor() const;
-
 	/** Get asset name for post RT texture */
 	const FString& GetPathToSlatePostRT() const { return PathToSlatePostRT; }
 
 private:
 
 	/** Cached load of Slate Post RT Asset */
-	UObject* CachedSlatePostRT;
+	UPROPERTY(Transient)
+	TObjectPtr<UObject> CachedSlatePostRT;
 };
 
 /**
  * Settings used to control slate rendering
  */
 UCLASS(config = Game, defaultconfig)
-class SLATECORE_API USlateRendererSettings : public UDeveloperSettings
+class SLATERHIRENDERER_API USlateRHIRendererSettings : public UDeveloperSettings
 {
 	GENERATED_BODY()
 
 public:
 		
-	static const USlateRendererSettings* Get() 
+	static const USlateRHIRendererSettings* Get()
 	{ 
-		return GetDefault<USlateRendererSettings>();
+		return GetDefault<USlateRHIRendererSettings>();
 	}
 
-	static USlateRendererSettings* GetMutable()
+	static USlateRHIRendererSettings* GetMutable()
 	{
-		return GetMutableDefault<USlateRendererSettings>();
+		return GetMutableDefault<USlateRHIRendererSettings>();
 	}
 
 public:
 
-	USlateRendererSettings();
-	~USlateRendererSettings();
+	USlateRHIRendererSettings();
+	~USlateRHIRendererSettings();
 
 public:
 
@@ -126,10 +92,6 @@ public:
 	/** Get settings struct for a particular post buffer index */
 	UFUNCTION(BlueprintCallable, Category = "SlateFX")
 	const FSlatePostSettings& GetSlatePostSetting(ESlatePostRT InPostBufferBit) const;
-
-	/** Get post processor for a particular post buffer index, if it exists */
-	UFUNCTION(BlueprintCallable, Category = "SlateFX")
-	USlateCorePostBufferProcessor* GetSlatePostProcessor(ESlatePostRT InPostBufferBit) const;
 
 public:
 

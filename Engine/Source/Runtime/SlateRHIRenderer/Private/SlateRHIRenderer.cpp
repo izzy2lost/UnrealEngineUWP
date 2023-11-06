@@ -3,6 +3,7 @@
 #include "SlateRHIRenderer.h"
 #include "Fonts/FontCache.h"
 #include "SlateRHIRenderingPolicy.h"
+#include "SlateRHIRendererSettings.h"
 #include "Misc/ScopeLock.h"
 #include "Modules/ModuleManager.h"
 #include "Styling/CoreStyle.h"
@@ -11,6 +12,7 @@
 #include "EngineGlobals.h"
 #include "Engine/AssetManager.h"
 #include "Engine/TextureRenderTarget2D.h"
+#include "FX/SlateFXSubsystem.h"
 #include "FX/SlateRHIPostBufferProcessor.h"
 #include "Materials/MaterialRenderProxy.h"
 #include "MaterialShared.h"
@@ -25,7 +27,6 @@
 #include "SlateShaders.h"
 #include "Rendering/ElementBatcher.h"
 #include "Rendering/SlateRenderer.h"
-#include "Rendering/SlateRendererSettings.h"
 #include "RenderResource.h"
 #include "RenderingThread.h"
 #include "RHIResources.h"
@@ -1751,16 +1752,16 @@ void FSlateRHIRenderer::DrawWindows_Private(FSlateDrawBuffer& WindowDrawBuffer)
 					uint8 SlatePostBufferBitIndex = 0;
 					for (ESlatePostRT SlatePostBufferBit : TEnumRange<ESlatePostRT>())
 					{
-						if (!USlateRendererSettings::Get()->GetSlatePostSetting(SlatePostBufferBit).bEnabled)
+						if (!USlateRHIRendererSettings::Get()->GetSlatePostSetting(SlatePostBufferBit).bEnabled)
 						{
 							SlatePostBufferBitIndex++;
 							continue;
 						}
 
-						UTextureRenderTarget2D* SlatePostBuffer = Cast<UTextureRenderTarget2D>(USlateRendererSettings::Get()->TryGetPostBufferRT(SlatePostBufferBit));
+						UTextureRenderTarget2D* SlatePostBuffer = Cast<UTextureRenderTarget2D>(USlateRHIRendererSettings::Get()->TryGetPostBufferRT(SlatePostBufferBit));
 						if (!SlatePostBuffer)
 						{
-							SlatePostBuffer = Cast<UTextureRenderTarget2D>(USlateRendererSettings::GetMutable()->LoadGetPostBufferRT(SlatePostBufferBit));
+							SlatePostBuffer = Cast<UTextureRenderTarget2D>(USlateRHIRendererSettings::GetMutable()->LoadGetPostBufferRT(SlatePostBufferBit));
 						}
 
 						bool bIsViewportPresentForPIE = GIsEditor ? Window->GetViewport().IsValid() : true;
@@ -1776,14 +1777,14 @@ void FSlateRHIRenderer::DrawWindows_Private(FSlateDrawBuffer& WindowDrawBuffer)
 							{
 								ViewportTexture = static_cast<FSlateRenderTargetRHI*>(Window->GetViewport()->GetViewportRenderTargetTexture());
 							}
-							
+
 							FIntPoint SizeSlatePostRT = GIsEditor
 								? FIntPoint(ViewportTexture->GetWidth(), ViewportTexture->GetHeight())
 								: FIntPoint(ViewInfo->DesiredWidth, ViewInfo->DesiredHeight);
 
 							bool bHDREnabled = IsHDREnabled();
-							bool bIsPixelFormatCorrect = bHDREnabled 
-								? SlatePostBuffer->GetFormat() == EPixelFormat::PF_FloatRGBA 
+							bool bIsPixelFormatCorrect = bHDREnabled
+								? SlatePostBuffer->GetFormat() == EPixelFormat::PF_FloatRGBA
 								: SlatePostBuffer->GetFormat() == EPixelFormat::PF_A2B10G10R10;
 							if (SlatePostBuffer->SizeX != SizeSlatePostRT.X || SlatePostBuffer->SizeY != SizeSlatePostRT.Y || !bIsPixelFormatCorrect)
 							{
@@ -1792,7 +1793,22 @@ void FSlateRHIRenderer::DrawWindows_Private(FSlateDrawBuffer& WindowDrawBuffer)
 
 							const FVector2D ElementWindowSize = ElementList.GetWindowSize();
 
-							if (USlateRHIPostBufferProcessor* PostProcessor = Cast<USlateRHIPostBufferProcessor>(USlateRendererSettings::Get()->GetSlatePostProcessor(SlatePostBufferBit)))
+							auto GetPostProcessor = [&](ESlatePostRT InSlatePostBufferBit)
+							{
+								USlateRHIPostBufferProcessor* Result = nullptr;
+
+								if (GEngine)
+								{
+									if (USlateFXSubsystem* SlateFXSubsystem = GEngine->GetEngineSubsystem<USlateFXSubsystem>())
+									{
+										Result = SlateFXSubsystem->GetSlatePostProcessor(InSlatePostBufferBit);
+									}
+								}
+
+								return Result;
+							};
+
+							if (USlateRHIPostBufferProcessor* PostProcessor = GetPostProcessor(SlatePostBufferBit))
 							{
 								// Allow the post processor to enque render commands, we delgate this task so it can be done in a thread safe manner.
 								PostProcessor->PostProcess(ViewInfo, ViewportTexture, ElementWindowSize, FSlateRHIRenderingPolicyInterface(RenderingPolicy.Get()), SlatePostBuffer);
