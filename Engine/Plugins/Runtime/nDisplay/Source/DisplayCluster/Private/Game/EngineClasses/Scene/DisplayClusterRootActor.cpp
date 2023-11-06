@@ -734,27 +734,10 @@ void ADisplayClusterRootActor::InitializeRootActor()
 
 	StageGeometryComponent->Invalidate();
 
-	// Packaged, PIE and -game runtime
-	if (IsRunningGame() || IsRunningPIE())
+	if (CurrentConfigData)
 	{
-		if (CurrentConfigData)
-		{
-			BuildHierarchy();
-
-			return;
-		}
+		BuildHierarchy();
 	}
-#if WITH_EDITOR
-	// Initialize from file property by default in Editor
-	else
-	{
-		if (CurrentConfigData)
-		{
-			BuildHierarchy();
-			return;
-		}
-	}
-#endif
 }
 
 void ADisplayClusterRootActor::UpdateProceduralMeshComponentData(const UProceduralMeshComponent* InProceduralMeshComponent)
