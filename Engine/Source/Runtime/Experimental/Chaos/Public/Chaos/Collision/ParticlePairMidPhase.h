@@ -333,6 +333,12 @@ namespace Chaos
 			Flags.bIsCCDActive = bCCDIsActive;
 		}
 
+		void SetConvexOptimizationIsActive(bool bSetConvexOptimizationIsActive)
+		{
+			Flags.bIsModified = true;
+			Flags.bIsConvexOptimizationActive = bSetConvexOptimizationIsActive;
+		}
+
 		/*
 		 * True if CCD is supported by either particle
 		 */
@@ -387,6 +393,7 @@ namespace Chaos
 				uint16 bIsCCD : 1;       // True if CCD is supported by either particle
 				uint16 bIsCCDActive : 1; // True if CCD is active for this midphase on this frame. This can be changed by modifiers and resets to bIsCCD each frame.
 				uint16 bUseSweep : 1;    // True if CCD is active (this frame) and we are moving fast enough to require a sweep
+				uint16 bIsConvexOptimizationActive : 1; // True if convex optimization is active for this midphase
 				uint16 bIsSleeping : 1;
 				uint16 bIsModified : 1;  // True if a modifier applied any changes to this midphase
 			};

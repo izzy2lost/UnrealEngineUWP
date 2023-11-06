@@ -20,6 +20,11 @@ namespace Chaos
 		MidPhase->SetCCDIsActive(false);
 	}
 
+	void FMidPhaseModifier::DisableConvexOptimization()
+	{
+		MidPhase->SetConvexOptimizationIsActive(false);
+	}
+
 	void FMidPhaseModifier::GetParticles(
 		FGeometryParticleHandle** Particle0,
 		FGeometryParticleHandle** Particle1) const

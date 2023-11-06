@@ -489,6 +489,16 @@ namespace Chaos
 		return { Constraint->GetShape0(), Constraint->GetShape1() };
 	}
 
+	const FShapeInstance* FContactPairModifier::GetShape(int32 ParticleIdx) const
+	{
+		return Constraint->GetShape(ParticleIdx);
+	}
+
+	const FConstImplicitObjectRef FContactPairModifier::GetImplicit(int32 ParticleIdx) const
+	{
+		return Constraint->GetImplicit(ParticleIdx);
+	}
+
 	bool FContactPairModifier::IsEdgeContactPoint(int32 ContactPointIdx) const
 	{
 		const FManifoldPoint& ManifoldPoint = Constraint->GetManifoldPoint(ContactPointIdx);

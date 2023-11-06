@@ -3,6 +3,7 @@
 
 #include "Chaos/Core.h"
 #include "ParticleHandleFwd.h"
+#include "Chaos/ImplicitFwd.h"
 
 namespace
 {
@@ -22,6 +23,7 @@ namespace Chaos
 	class FCollisionContactModifier;
 	class FContactPairModifier;
 	class FPerShapeData;
+	class FShapeInstance;
 	class FPBDCollisionConstraintContainerCookie;
 
 	class FContactPairModifier
@@ -246,6 +248,16 @@ namespace Chaos
 		* Get shape pair from constraint.
 		*/
 		CHAOS_API TVec2<const FPerShapeData*> GetShapePair() const;
+
+		/*
+		* Get one of the particle's shapes.
+		*/
+		CHAOS_API const FShapeInstance* GetShape(int32 ParticleIdx) const;
+
+		/*
+		* Get one of the particle's implicit objects.
+		*/
+		CHAOS_API const FConstImplicitObjectRef GetImplicit(int32 ParticleIdx) const;
 
 		/*
 		* Check to see if a contact point index is an edge contact.

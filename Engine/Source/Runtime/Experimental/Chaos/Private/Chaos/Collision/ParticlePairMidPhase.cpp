@@ -812,6 +812,7 @@ namespace Chaos
 		Flags.bIsCCDActive = false;
 		Flags.bIsSleeping = false;
 		Flags.bIsModified = false;
+		Flags.bIsConvexOptimizationActive = true;
 
 		ResetImpl();
 	}
@@ -822,6 +823,7 @@ namespace Chaos
 		{
 			Flags.bIsActive = true;
 			Flags.bIsCCDActive = Flags.bIsCCD;
+			Flags.bIsConvexOptimizationActive = true;
 			Flags.bIsModified = false;
 		}
 	}
@@ -850,6 +852,9 @@ namespace Chaos
 			FConstGenericParticleHandle(Particle1)->CCDEnabled());
 		Flags.bIsCCD = bIsCCD;
 		Flags.bIsCCDActive = bIsCCD;
+
+		// Initially we allow for convex optimization where available
+		Flags.bIsConvexOptimizationActive = true;
 
 		BuildDetectorsImpl();
 
@@ -1185,8 +1190,14 @@ namespace Chaos
 		FPBDRigidClusteredParticleHandle* ClusteredHandle0 = GetParticle0()->CastToClustered();
 		FPBDRigidClusteredParticleHandle* ClusteredHandle1 = GetParticle1()->CastToClustered();
 
-		Private::FConvexOptimizer* ConvexOptimizer0 = ClusteredHandle0 ? ClusteredHandle0->ConvexOptimizer().Get() : nullptr;
-		Private::FConvexOptimizer* ConvexOptimizer1 = ClusteredHandle1 ? ClusteredHandle1->ConvexOptimizer().Get() : nullptr;
+		Private::FConvexOptimizer* ConvexOptimizer0
+			= Flags.bIsConvexOptimizationActive && ClusteredHandle0
+			? ClusteredHandle0->ConvexOptimizer().Get()
+			: nullptr;
+		Private::FConvexOptimizer* ConvexOptimizer1
+			= Flags.bIsConvexOptimizationActive && ClusteredHandle1
+			? ClusteredHandle1->ConvexOptimizer().Get()
+			: nullptr;
 
 		// See if we have a BVH for either/both of the particles
 		const Private::FImplicitBVH* BVH0 = nullptr;

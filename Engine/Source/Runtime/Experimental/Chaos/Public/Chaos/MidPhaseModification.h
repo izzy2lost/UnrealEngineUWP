@@ -52,6 +52,9 @@ namespace Chaos
 		// Disable CCD for this pair
 		CHAOS_API void DisableCCD();
 
+		// Disable convex optimization for this pair
+		CHAOS_API void DisableConvexOptimization();
+
 		//
 		// Accessor functions
 		//
