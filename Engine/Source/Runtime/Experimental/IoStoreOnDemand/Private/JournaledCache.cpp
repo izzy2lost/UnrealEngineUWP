@@ -780,6 +780,11 @@ EIoErrorCode FDiskCache::Materialize(uint64 Key, FIoBuffer& Out, uint32 Offset) 
 
 	ReadSize = FMath::Min<uint32>(uint32(Out.GetSize()), ReadSize);
 
+	if (EntryDataCursor + Offset + ReadSize > uint64(DataHandle->Size()))
+	{
+		return EIoErrorCode::ReadError;
+	}
+
 	TRACE_COUNTER_SET(IasReadCursor, EntryDataCursor + Offset);
 
 	DataHandle->Seek(EntryDataCursor + Offset);
