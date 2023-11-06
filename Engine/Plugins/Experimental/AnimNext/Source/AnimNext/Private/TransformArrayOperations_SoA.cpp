@@ -5,6 +5,9 @@
 #include "AnimNextStats.h"
 
 DEFINE_STAT(STAT_AnimNext_CopyTransforms_SoA);
+DEFINE_STAT(STAT_AnimNext_NormalizeRotations_SoA);
+DEFINE_STAT(STAT_AnimNext_BlendOverwrite_SoA);
+DEFINE_STAT(STAT_AnimNext_BlendAccumulate_SoA);
 
 namespace UE::AnimNext
 {
@@ -77,6 +80,8 @@ namespace UE::AnimNext
 
 	void NormalizeRotations(const FTransformArraySoAView& Input)
 	{
+		SCOPE_CYCLE_COUNTER(STAT_AnimNext_NormalizeRotations_SoA);
+
 		const int32 NumTransforms = Input.Num();
 
 		for (int32 TransformIndex = 0; TransformIndex < NumTransforms; ++TransformIndex)
@@ -137,6 +142,8 @@ namespace UE::AnimNext
 
 	void BlendOverwriteWithScale(const FTransformArraySoAView& Dest, const FTransformArraySoAConstView& Source, const float ScaleWeight)
 	{
+		SCOPE_CYCLE_COUNTER(STAT_AnimNext_BlendOverwrite_SoA);
+
 		const int32 NumTransforms = Source.Num();
 
 		check(Dest.Num() >= NumTransforms);
@@ -151,6 +158,8 @@ namespace UE::AnimNext
 
 	void BlendAddWithScale(const FTransformArraySoAView& Dest, const FTransformArraySoAConstView& Source, const float ScaleWeight)
 	{
+		SCOPE_CYCLE_COUNTER(STAT_AnimNext_BlendAccumulate_SoA);
+
 		const int32 NumTransforms = Source.Num();
 
 		check(Dest.Num() >= NumTransforms);
