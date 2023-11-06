@@ -33,6 +33,7 @@
 #include "NetworkingDistanceConstants.h"
 #include "Engine/ChildConnection.h"
 #include "Net/Core/Trace/NetTrace.h"
+#include "Net/Core/Misc/GuidReferences.h"
 #include "Net/Core/PropertyConditions/PropertyConditions.h"
 #include "Net/DataChannel.h"
 #include "GameFramework/PlayerState.h"
@@ -929,9 +930,6 @@ namespace UE
 	{
 		int32 FilterGuidRemapping = 1;
 		static FAutoConsoleVariableRef CVarFilterGuidRemapping(TEXT("net.FilterGuidRemapping"), FilterGuidRemapping, TEXT("Remove destroyed and parent guids from unmapped list"));
-
-		bool bRemapStableSubobjects = true;
-		static FAutoConsoleVariableRef CVarNetRemapStableSubobjects(TEXT("net.RemapStableSubobjects"), bRemapStableSubobjects, TEXT("If enabled, attempts to remap stable subobjects when net.OptimizedRemapping is also enabled."));
 	};
 };
 
@@ -1082,33 +1080,22 @@ void UNetDriver::TickFlush(float DeltaSeconds)
 
 					if (GuidCache->GetObjectFromNetGUID(NetworkGuid, false) != nullptr)
 					{
-						if (UE::Net::bRemapStableSubobjects)
+						if (UE::Net::Private::bRemapStableSubobjects)
 						{
 							QUICK_SCOPE_CYCLE_COUNTER(STAT_NetRemapStableSubobjects);
 
-							// Stably-named/net addressable subobjects are created by user code on clients and not by replication.
-							// Normally this optimized remapping path relies on adding NetGuids of spawned actors/objects to the
-							// GuidCache->ImportedNetGuids list, but for net addressable subobjects there's no hook to do this.
-							// In order to actually remap them so references will be valid, this code will find any potentially
-							// unmapped addressable subobjects of an owning object that is in the import list (like a replicated actor).
-							// It looks through the unmapped replicators' reference list for any guids that have the imported
-							// guid in their outer chain.
-							TSet<FNetworkGUID>& PendingGuidsRef = PendingOuterNetGuidsRef.FindOrAdd(NetworkGuid);
-							
-							for (FObjectReplicator* Replicator : UnmappedReplicators)
-							{
-								for (const FNetworkGUID ReferencedGuid : Replicator->ReferencedGuids)
-								{
-									const FNetGuidCacheObject* const CacheObjectPtr = GuidCache->GetCacheObject(ReferencedGuid);
+							// Import any unmapped, stably-named guids that are inners of the GUID that just mapped.
+							// These are tracked separately from the normal ImportedNetGuids since they are often
+							// default subobjects created in constructors and there's no other hook to import them.
+							const TArray<FNetworkGUID>* Inners = GuidCache->FindUnmappedStablyNamedGuidsWithOuter(NetworkGuid);
 
-									if (CacheObjectPtr && !CacheObjectPtr->PathName.IsNone())
-									{
-										if (UE::Net::Private::IsGuidInOuterChain(*GuidCache, CacheObjectPtr, NetworkGuid))
-										{
-											PendingGuidsRef.Add(ReferencedGuid);
-										}
-									}
-								}
+							if (Inners)
+							{
+								TSet<FNetworkGUID>& PendingGuidsRef = PendingOuterNetGuidsRef.FindOrAdd(NetworkGuid);
+								PendingGuidsRef.Append(*Inners);
+									
+								// Now that they're on the pending import list, they will stay there until mapped. Can remove from the outer-to-inner map.
+								GuidCache->RemoveUnmappedStablyNamedGuidsWithOuter(NetworkGuid);
 							}
 						}
 

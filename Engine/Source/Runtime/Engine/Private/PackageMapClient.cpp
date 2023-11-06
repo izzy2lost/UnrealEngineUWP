@@ -15,6 +15,7 @@
 #include "ProfilingDebugging/ScopedTimers.h"
 #include "GameFramework/GameStateBase.h"
 #include "HAL/LowLevelMemStats.h"
+#include "Net/Core/Misc/GuidReferences.h"
 #include "Net/Core/Trace/NetTrace.h"
 #include "Serialization/MemoryReader.h"
 #include "Net/NetworkGranularMemoryLogging.h"
@@ -82,6 +83,44 @@ namespace UE
 		}
 	};
 };
+
+namespace UE::Net::Private
+{
+	void FRefCountedNetGUIDArray::Add(FNetworkGUID NetGUID)
+	{
+		const int32 FoundIndex = NetGUIDs.IndexOfByKey(NetGUID);
+
+		if (RefCounts.IsValidIndex(FoundIndex))
+		{
+			++RefCounts[FoundIndex];
+		}
+		else
+		{
+			NetGUIDs.Add(NetGUID);
+			RefCounts.Add(1);
+
+			ensureMsgf(NetGUIDs.Num() == RefCounts.Num(), TEXT("FRefCountedNetGUIDArray::Add: arrays out of sync"));
+		}
+	}
+
+	void FRefCountedNetGUIDArray::RemoveSwap(FNetworkGUID NetGUID)
+	{
+		const int32 FoundIndex = NetGUIDs.IndexOfByKey(NetGUID);
+
+		if (RefCounts.IsValidIndex(FoundIndex))
+		{
+			--RefCounts[FoundIndex];
+
+			ensureMsgf(RefCounts[FoundIndex] >= 0, TEXT("FRefCountedNetGUIDArray::RemoveSwap: invalid RefCount %d at index %d"), RefCounts[FoundIndex], FoundIndex);
+
+			if (RefCounts[FoundIndex] == 0)
+			{
+				NetGUIDs.RemoveAtSwap(FoundIndex);
+				RefCounts.RemoveAtSwap(FoundIndex);
+			}
+		}
+	}
+}
 
 static TAutoConsoleVariable<int32> CVarAllowAsyncLoading(
 	TEXT("net.AllowAsyncLoading"),
@@ -2566,6 +2605,66 @@ void UPackageMapClient::Serialize(FArchive& Ar)
 
 		// Don't count the GUID Cache here. Instead, we'll let the UNetDriver count it as
 		// that's the class that constructs it.
+	}
+}
+
+const TArray<FNetworkGUID>* FNetGUIDCache::FindUnmappedStablyNamedGuidsWithOuter(FNetworkGUID OuterGUID) const
+{
+	using namespace UE::Net::Private;
+
+	const FRefCountedNetGUIDArray* Found = UnmappedStablyNamedGuids_OuterToInner.Find(OuterGUID);
+	if (Found)
+	{
+		return &Found->GetNetGUIDs();
+	}
+
+	return nullptr;
+}
+
+void UPackageMapClient::AddUnmappedNetGUIDReference(FNetworkGUID UnmappedGUID)
+{
+	using namespace UE::Net::Private;
+
+	if (bRemapStableSubobjects && GuidCache)
+	{
+		// For any new unmapped guids that represent stably-named inner objects, keep track of them
+		// so that when the NetDriver updates unmapped objects, if an outer GUID is imported, we can also import its
+		// stably-named inners. These are usually subobjects created in the constructor and don't get imported via any other path.
+		const FNetGuidCacheObject* CacheObject = GuidCache->GetCacheObject(UnmappedGUID);
+		if (CacheObject && CacheObject->OuterGUID.IsValid() && !CacheObject->PathName.IsNone())
+		{
+			FRefCountedNetGUIDArray& Inners = GuidCache->UnmappedStablyNamedGuids_OuterToInner.FindOrAdd(CacheObject->OuterGUID);
+			Inners.Add(UnmappedGUID);
+
+			UE_LOG(LogNetPackageMap, VeryVerbose, TEXT("Adding unmapped stably-named inner object NetGUID to tracking map: %s. With outer: %s"), *GuidCache->Describe(UnmappedGUID), *GuidCache->Describe(CacheObject->OuterGUID));
+		}
+	}
+}
+
+void UPackageMapClient::RemoveUnmappedNetGUIDReference(FNetworkGUID NetGUID)
+{
+	using namespace UE::Net::Private;
+
+	if (bRemapStableSubobjects && GuidCache)
+	{
+		// When a GUID reference is no longer tracked, if we were tracking it as a stably-named inner object,
+		// do the bookkeeping here. Decrement the refcount and remove it when there are no more references.
+		const FNetGuidCacheObject* CacheObject = GuidCache->GetCacheObject(NetGUID);
+		if (CacheObject)
+		{
+			FRefCountedNetGUIDArray* FoundInners = GuidCache->UnmappedStablyNamedGuids_OuterToInner.Find(CacheObject->OuterGUID);
+			if (FoundInners)
+			{
+				UE_LOG(LogNetPackageMap, VeryVerbose, TEXT("Removing stably-named inner GUID from tracking map: %s. With outer: %s"), *GuidCache->Describe(NetGUID), *GuidCache->Describe(CacheObject->OuterGUID));
+				
+				FoundInners->RemoveSwap(NetGUID);
+
+				if (FoundInners->GetNetGUIDs().Num() == 0)
+				{
+					GuidCache->RemoveUnmappedStablyNamedGuidsWithOuter(CacheObject->OuterGUID);
+				}
+			}
+		}
 	}
 }
 
