@@ -834,8 +834,4 @@ protected:
 
 	/** Pending drag function to be called if bDeferDrag is true */
 	TFunction<void()> PendingDragFunction;
-
-	/** Use Ctrl + MMB to do indirect manipulation on the Y axis */
-	UPROPERTY()
-	bool bCtrlMiddleDoesY = true;
 };
