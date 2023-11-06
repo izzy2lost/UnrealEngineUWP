@@ -1313,7 +1313,7 @@ bool AActor::IsMainPackageActor() const
 	return IsPackageExternal() && ParentComponent.IsExplicitlyNull();
 }
 
-AActor* AActor::FindActorInPackage(UPackage* InPackage)
+AActor* AActor::FindActorInPackage(UPackage* InPackage, bool bEvenIfPendingKill)
 {
 	AActor* Actor = nullptr;
 	ForEachObjectWithPackage(InPackage, [&Actor](UObject* Object)
@@ -1326,7 +1326,7 @@ AActor* AActor::FindActorInPackage(UPackage* InPackage)
 			}
 		}
 		return !Actor;
-	}, false);
+	}, false, bEvenIfPendingKill ? RF_NoFlags : (RF_InternalPendingKill | RF_InternalGarbage));
 	return Actor;
 }
 

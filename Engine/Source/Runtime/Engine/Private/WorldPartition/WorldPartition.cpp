@@ -1625,7 +1625,7 @@ void UWorldPartition::Tick(float DeltaSeconds)
 
 	for (TMap<FGuid, FDirtyActor>::TIterator DirtyActorIt(DirtyActors); DirtyActorIt; ++DirtyActorIt)
 	{
-		const FDirtyActor& DirtyActor = DirtyActorIt.Value();
+		FDirtyActor& DirtyActor = DirtyActorIt.Value();
 		if (DirtyActor.WorldPartitionRef.IsSet())
 		{
 			const FWorldPartitionReference& Ref = DirtyActor.WorldPartitionRef.GetValue();
@@ -1655,10 +1655,23 @@ void UWorldPartition::Tick(float DeltaSeconds)
 					DirtyActorIt.RemoveCurrent();
 				}
 			}
-			// In this case, we know that the DirtyActor is not in the transaction buffer anymore and this is fine removing it.
-			else if ((!DirtyActor.ActorPtr.IsValid(true)))
+			else
 			{
-				DirtyActorIt.RemoveCurrent();
+				if (DirtyActor.ActorPtr.IsValid(true))
+				{
+					// If the actor is pending kill, check if there's another version of it in the same package and replace the pointer with the new version
+					// (since UEditorEngine::ReplaceActors don't always broadcast FCoreUObjectDelegates::OnObjectsReplaced).
+					if (AActor* NewActor = AActor::FindActorInPackage(DirtyActor.ActorPtr.Get(true)->GetPackage(), false); NewActor && NewActor != DirtyActor.ActorPtr.Get(true))
+					{
+						DirtyActor.ActorPtr = NewActor;
+					}
+				}
+				else
+				{
+					// In this case, we know that the dirty actor is not in the transaction buffer anymore and this is fine removing it (actor was added, then
+					// deleted and gargage collection happened).
+					DirtyActorIt.RemoveCurrent();
+				}
 			}
 		}
 	}

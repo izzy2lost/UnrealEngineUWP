@@ -2182,7 +2182,7 @@ public:
 	/** Used to check if Actor is the main actor of a package (currently Child Actors are not) */
 	ENGINE_API bool IsMainPackageActor() const;
 
-	static ENGINE_API AActor* FindActorInPackage(UPackage* InPackage);
+	static ENGINE_API AActor* FindActorInPackage(UPackage* InPackage, bool bEvenIfPendingKill = true);
 
 #if WITH_EDITOR
 	ENGINE_API virtual bool Modify(bool bAlwaysMarkDirty = true) override;
