@@ -2,6 +2,7 @@
 
 #include "ReferenceSkeleton.h"
 #include "Animation/Skeleton.h"
+#include "Animation/SkeletonRemappingRegistry.h"
 #include "EngineLogs.h"
 #include "Engine/SkeletalMesh.h"
 
@@ -500,6 +501,9 @@ void FReferenceSkeleton::RebuildRefSkeleton(const USkeleton* Skeleton, bool bReb
 			}
 		}
 	}
+
+	// Full rebuild of all compatible with this and with ones we are compatible with.
+	UE::Anim::FSkeletonRemappingRegistry::Get().RefreshMappings(Skeleton);
 }
 
 void FReferenceSkeleton::RemoveDuplicateBones(const UObject* Requester, TArray<FBoneIndexType> & DuplicateBones)

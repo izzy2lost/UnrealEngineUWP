@@ -99,7 +99,7 @@ const FSkeletonRemapping& FSkeletonRemappingRegistry::GetRemapping(const USkelet
 	}
 }
 
-void FSkeletonRemappingRegistry::RefreshMappings(USkeleton* InSkeleton)
+void FSkeletonRemappingRegistry::RefreshMappings(const USkeleton* InSkeleton)
 {
 	TArray<TSharedPtr<FSkeletonRemapping>> ExistingMappings;
 	{
