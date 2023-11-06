@@ -64,7 +64,7 @@ namespace EpicGames.Horde.Tests
 			TextNode node = new TextNode("Hello world");
 			BlobHandle handle = await writer.FlushAsync(node, CancellationToken.None);
 
-			BlobHandle bundleHandle = store.CreateBlobHandle(handle.GetLocator().Outermost);
+			BlobHandle bundleHandle = store.CreateBlobHandle(handle.GetLocator().BaseLocator);
 			using BlobData blobData = await bundleHandle.ReadBlobDataAsync();
 
 			return blobData.Data.ToArray();

@@ -13,7 +13,6 @@ using Microsoft.Extensions.Logging;
 using EpicGames.Horde.Storage.Backends;
 using System.IO;
 using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
 
 namespace EpicGames.Horde.Storage.Clients
 {
@@ -24,27 +23,30 @@ namespace EpicGames.Horde.Storage.Clients
 	{
 		class Handle : BlobHandle
 		{
-			readonly HttpStorageClient _outer;
+			readonly HttpStorageClient _httpStorageClient;
 			readonly BlobLocator _locator;
 
-			public Handle(HttpStorageClient outer, BlobLocator locator)
+			/// <inheritdoc/>
+			public override BlobHandle? Outer => null;
+
+			public Handle(HttpStorageClient httpStorageClient, BlobLocator locator)
 			{
-				_outer = outer;
+				_httpStorageClient = httpStorageClient;
 				_locator = locator;
 			}
 
 			/// <inheritdoc/>
 			public override Task<Stream> OpenAsync(int offset = 0, int? length = null, CancellationToken cancellationToken = default)
-				=> _outer._backend.OpenAsync(_locator.ToString(), offset, length, cancellationToken);
+				=> _httpStorageClient._backend.OpenAsync(_locator.ToString(), offset, length, cancellationToken);
 
 			/// <inheritdoc/>
 			public override ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default)
-				=> _outer.ReadBlobAsync(_locator, cancellationToken);
+				=> _httpStorageClient.ReadBlobAsync(_locator, cancellationToken);
 
 			/// <inheritdoc/>
-			public override bool TryGetLocator([NotNullWhen(true)] out BlobLocator locator)
+			public override bool TryAppendIdentifier(Utf8StringBuilder builder)
 			{
-				locator = _locator;
+				builder.Append(_locator.Path);
 				return true;
 			}
 
@@ -85,7 +87,7 @@ namespace EpicGames.Horde.Storage.Clients
 		/// <inheritdoc/>
 		public BlobHandle CreateBlobHandle(BlobLocator locator)
 		{
-			if (locator.TryUnwrapFull(out BlobLocator outer, out Utf8String fragment))
+			if (locator.TryUnwrap(out BlobLocator outer, out Utf8String fragment))
 			{
 				return new BlobFragmentHandle(new Handle(this, outer), fragment);
 			}

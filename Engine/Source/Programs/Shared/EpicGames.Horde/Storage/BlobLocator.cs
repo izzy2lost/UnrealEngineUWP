@@ -11,7 +11,7 @@ using EpicGames.Core;
 namespace EpicGames.Horde.Storage
 {
 	/// <summary>
-	/// Identifier for a blob within a particular namespace. Locators can be nested to allow forming a hierarchy of storage clients using the <see cref="Outer"/> and <see cref="Fragment"/> properties.
+	/// Identifier for a blob within a particular namespace.
 	/// </summary>
 	[JsonSchemaString]
 	[TypeConverter(typeof(BlobLocatorTypeConverter))]
@@ -67,9 +67,9 @@ namespace EpicGames.Horde.Storage
 		public bool IsValid() => !_path.IsEmpty;
 
 		/// <summary>
-		/// The outermost blob locator
+		/// The base blob locator
 		/// </summary>
-		public BlobLocator Outermost
+		public BlobLocator BaseLocator
 		{
 			get
 			{
@@ -81,35 +81,11 @@ namespace EpicGames.Horde.Storage
 		/// <summary>
 		/// Fragment within the base blob
 		/// </summary>
-		public Utf8String OutermostFragment
-		{
-			get
-			{
-				int hashIdx = _path.IndexOf('#');
-				return (hashIdx == -1) ? Utf8String.Empty : _path.Slice(hashIdx + 1);
-			}
-		}
-
-		/// <summary>
-		/// The containing blob locator
-		/// </summary>
-		public BlobLocator Outer
-		{
-			get
-			{
-				int hashIdx = _path.LastIndexOf('#');
-				return (hashIdx == -1) ? new BlobLocator(Utf8String.Empty) : new BlobLocator(_path.Slice(0, hashIdx));
-			}
-		}
-
-		/// <summary>
-		/// Fragment within the base blob
-		/// </summary>
 		public Utf8String Fragment
 		{
 			get
 			{
-				int hashIdx = _path.LastIndexOf('#');
+				int hashIdx = _path.IndexOf('#');
 				return (hashIdx == -1) ? Utf8String.Empty : _path.Slice(hashIdx + 1);
 			}
 		}
@@ -120,40 +96,23 @@ namespace EpicGames.Horde.Storage
 		public bool CanUnwrap() => _path.IndexOf('#') != -1;
 
 		/// <summary>
-		/// Split this locator into 
+		/// Split this locator into a locator and fragment
 		/// </summary>
-		/// <param name="outer"></param>
-		/// <param name="fragment"></param>
-		/// <returns></returns>
-		public bool TryUnwrap(out BlobLocator outer, out Utf8String fragment)
+		/// <param name="baseLocator">Receives the base blob locator</param>
+		/// <param name="fragment">Receives the blob fragment</param>
+		/// <returns>True if the locator was unwrapped, false otherwise</returns>
+		public bool TryUnwrap(out BlobLocator baseLocator, out Utf8String fragment)
 		{
 			int hashIdx = _path.LastIndexOf('#');
-			return Split(hashIdx, out outer, out fragment);
-		}
-
-		/// <summary>
-		/// Split this locator into the outermost fragment and locator
-		/// </summary>
-		/// <param name="outer">The outermost blob locator</param>
-		/// <param name="fragment">The corresponding fragment</param>
-		/// <returns>True if </returns>
-		public bool TryUnwrapFull(out BlobLocator outer, out Utf8String fragment)
-		{
-			int hashIdx = _path.IndexOf('#');
-			return Split(hashIdx, out outer, out fragment);
-		}
-
-		bool Split(int hashIdx, out BlobLocator outer, out Utf8String fragment)
-		{
 			if (hashIdx == -1)
 			{
-				outer = this;
+				baseLocator = this;
 				fragment = default;
 				return false;
 			}
 			else
 			{
-				outer = new BlobLocator(_path.Slice(0, hashIdx));
+				baseLocator = new BlobLocator(_path.Slice(0, hashIdx));
 				fragment = _path.Slice(hashIdx + 1);
 				return true;
 			}

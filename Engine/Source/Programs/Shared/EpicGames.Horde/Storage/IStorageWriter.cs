@@ -163,19 +163,12 @@ namespace EpicGames.Horde.Storage
 			public BlobHandle? _inner;
 
 			/// <inheritdoc/>
-			public override bool TryGetLocator([NotNullWhen(true)] out BlobLocator blobId)
+			public override BlobHandle? Outer => _inner?.Outer;
+
+			/// <inheritdoc/>
+			public override bool TryAppendIdentifier(Utf8StringBuilder builder)
 			{
-				BlobLocator innerBlobId;
-				if (_inner != null && _inner.TryGetLocator(out innerBlobId))
-				{
-					blobId = innerBlobId;
-					return true;
-				}
-				else
-				{
-					blobId = default;
-					return false;
-				}
+				return _inner?.TryAppendIdentifier(builder) ?? false;
 			}
 
 			/// <inheritdoc/>

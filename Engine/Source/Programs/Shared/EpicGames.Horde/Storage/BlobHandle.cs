@@ -59,24 +59,9 @@ namespace EpicGames.Horde.Storage
 		}
 
 		/// <summary>
-		/// Gets a path to this blob that can be used to describe blob references over the wire.
+		/// For a blob nested within another blob, gets a handle to the containing blob (eg. For a bundle node, will return the packet. For a bundle packet, will return the bundle. For a bundle or other non-nested blob, returns null.)
 		/// </summary>
-		public BlobLocator GetLocator()
-		{
-			BlobLocator locator;
-			if (!TryGetLocator(out locator))
-			{
-				throw new InvalidOperationException("Blob has not yet been written to storage");
-			}
-			return locator;
-		}
-
-		/// <summary>
-		/// Attempt to get a path for this blob.
-		/// </summary>
-		/// <param name="locator">Receives the blob path on success.</param>
-		/// <returns>True if a path was available, false if the blob has not yet been flushed to storage.</returns>
-		public abstract bool TryGetLocator([NotNullWhen(true)] out BlobLocator locator);
+		public abstract BlobHandle? Outer { get; }
 
 		/// <summary>
 		/// Gets the type of this blob
@@ -146,11 +131,18 @@ namespace EpicGames.Horde.Storage
 		/// </summary>
 		public virtual ValueTask FlushAsync(CancellationToken cancellationToken = default) => new ValueTask();
 
+		/// <summary>
+		/// Gets an identifier for this blob, relative to its outer
+		/// </summary>
+		/// <param name="builder">Builder for appending the identifier to</param>
+		/// <returns>True if an identifier was returned, false otherwise</returns>
+		public abstract bool TryAppendIdentifier(Utf8StringBuilder builder);
+
 		/// <inheritdoc/>
 		public override string ToString()
 		{
 			BlobLocator locator;
-			if (TryGetLocator(out locator))
+			if (this.TryGetLocator(out locator))
 			{
 				return locator.ToString();
 			}
@@ -170,9 +162,9 @@ namespace EpicGames.Horde.Storage
 	public class BlobFragmentHandle : BlobHandle
 	{
 		/// <summary>
-		/// Handle to the inner blob
+		/// Handle to the outer blob
 		/// </summary>
-		public BlobHandle Inner { get; }
+		public override BlobHandle Outer { get; }
 
 		/// <summary>
 		/// The fragment portion of the handle
@@ -182,26 +174,17 @@ namespace EpicGames.Horde.Storage
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public BlobFragmentHandle(BlobHandle inner, Utf8String fragment)
+		public BlobFragmentHandle(BlobHandle outer, Utf8String fragment)
 		{
-			Inner = inner;
+			Outer = outer;
 			Fragment = fragment;
 		}
 
 		/// <inheritdoc/>
-		public override bool TryGetLocator([NotNullWhen(true)] out BlobLocator locator)
+		public override bool TryAppendIdentifier(Utf8StringBuilder builder)
 		{
-			BlobLocator innerLocator;
-			if (Inner.TryGetLocator(out innerLocator))
-			{
-				locator = new BlobLocator(innerLocator, Fragment.Span);
-				return true;
-			}
-			else
-			{
-				locator = default;
-				return false;
-			}
+			builder.Append(Fragment);
+			return true;
 		}
 
 		/// <inheritdoc/>
@@ -211,10 +194,10 @@ namespace EpicGames.Horde.Storage
 		}
 
 		/// <inheritdoc/>
-		public override bool Equals(object? obj) => obj is BlobFragmentHandle other && Inner == other.Inner && Fragment == other.Fragment;
+		public override bool Equals(object? obj) => obj is BlobFragmentHandle other && Outer.Equals(other.Outer) && Fragment == other.Fragment;
 
 		/// <inheritdoc/>
-		public override int GetHashCode() => HashCode.Combine(Inner, Fragment);
+		public override int GetHashCode() => HashCode.Combine(Outer, Fragment);
 	}
 
 	/// <summary>
@@ -222,6 +205,86 @@ namespace EpicGames.Horde.Storage
 	/// </summary>
 	public static class BlobHandleExtensions
 	{
+		/// <summary>
+		/// Gets a path to this blob that can be used to describe blob references over the wire.
+		/// </summary>
+		/// <param name="handle">Handle to query</param>
+		public static BlobLocator GetLocator(this BlobHandle handle)
+		{
+			BlobLocator locator;
+			if (!TryGetLocator(handle, out locator))
+			{
+				throw new InvalidOperationException("Blob has not yet been written to storage");
+			}
+			return locator;
+		}
+
+		/// <summary>
+		/// Attempt to get a path for this blob.
+		/// </summary>
+		/// <param name="handle">Handle to query</param>
+		/// <param name="locator">Receives the blob path on success.</param>
+		/// <returns>True if a path was available, false if the blob has not yet been flushed to storage.</returns>
+		public static bool TryGetLocator(this BlobHandle handle, [NotNullWhen(true)] out BlobLocator locator)
+		{
+			Utf8StringBuilder builder = new Utf8StringBuilder();
+			if (AppendLocator(handle, builder))
+			{
+				locator = new BlobLocator(builder.ToUtf8String());
+				return true;
+			}
+			else
+			{
+				locator = default;
+				return false;
+			}
+		}
+
+		/// <summary>
+		/// Builds a full locator for a blob by traversing the outer chain
+		/// </summary>
+		static bool AppendLocator(BlobHandle handle, Utf8StringBuilder builder)
+		{
+			BlobHandle? outer = handle.Outer;
+			if (outer != null)
+			{
+				if (!AppendLocator(outer, builder))
+				{
+					return false;
+				}
+				if (outer.Outer == null)
+				{
+					builder.Append('#');
+				}
+				else
+				{
+					builder.Append('&');
+				}
+			}
+			return handle.TryAppendIdentifier(builder);
+		}
+
+		/// <summary>
+		/// Gets an identifier for a blob handle
+		/// </summary>
+		/// <param name="handle">Handle to the blob</param>
+		/// <param name="fragment">On success, receives the fragment path</param>
+		/// <returns>True if the handle has an identifier</returns>
+		public static bool TryGetIdentifier(this BlobHandle handle, out Utf8String fragment)
+		{
+			Utf8StringBuilder builder = new Utf8StringBuilder();
+			if (handle.TryAppendIdentifier(builder))
+			{
+				fragment = builder.ToUtf8String();
+				return true;
+			}
+			else
+			{
+				fragment = default;
+				return false;
+			}
+		}
+
 		/// <summary>
 		/// Helper method for awaiting a handle and returning its locator
 		/// </summary>

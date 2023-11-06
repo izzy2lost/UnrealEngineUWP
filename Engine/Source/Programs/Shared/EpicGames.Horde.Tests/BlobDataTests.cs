@@ -3,7 +3,6 @@
 using EpicGames.Core;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Storage;
@@ -18,11 +17,14 @@ namespace EpicGames.Horde.Tests
 		{
 			readonly BlobLocator _locator;
 
+			public override BlobHandle? Outer => null;
+
 			public DummyHandle(string locator) => _locator = new BlobLocator(new Utf8String(locator));
 			public override ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
-			public override bool TryGetLocator([NotNullWhen(true)] out BlobLocator locator)
+
+			public override bool TryAppendIdentifier(Utf8StringBuilder builder)
 			{
-				locator = _locator;
+				builder.Append(_locator.Path);
 				return true;
 			}
 

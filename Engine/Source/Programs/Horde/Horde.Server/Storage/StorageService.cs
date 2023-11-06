@@ -4,7 +4,6 @@ using System;
 using System.Buffers;
 using System.Collections.Generic;
 using System.ComponentModel;
-using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -57,6 +56,8 @@ namespace Horde.Server.Storage
 			readonly string _path;
 			readonly Tracer _tracer;
 
+			public override BlobHandle? Outer => null;
+
 			public LeafBlobHandle(IStorageBackend backend, string path, Tracer tracer)
 			{
 				_backend = backend;
@@ -94,9 +95,9 @@ namespace Horde.Server.Storage
 			}
 
 			/// <inheritdoc/>
-			public override bool TryGetLocator([NotNullWhen(true)] out BlobLocator locator)
+			public override bool TryAppendIdentifier(Utf8StringBuilder builder)
 			{
-				locator = new BlobLocator(_path);
+				builder.Append(_path);
 				return true;
 			}
 
@@ -152,9 +153,9 @@ namespace Horde.Server.Storage
 			/// <inheritdoc/>
 			public BlobHandle CreateBlobHandle(BlobLocator locator)
 			{
-				if (locator.TryUnwrapFull(out BlobLocator outer, out Utf8String fragment))
+				if (locator.TryUnwrap(out BlobLocator baseLocator, out Utf8String fragment))
 				{
-					return new BlobFragmentHandle(new LeafBlobHandle(_backend, outer.ToString(), _tracer), fragment);
+					return new BlobFragmentHandle(new LeafBlobHandle(_backend, baseLocator.ToString(), _tracer), fragment);
 				}
 				else
 				{
@@ -695,7 +696,7 @@ namespace Horde.Server.Storage
 							foreach (BlobHandle import in imports)
 							{
 								BlobLocator importLocator = import.GetLocator();
-								string importPath = importLocator.Outermost.ToString();
+								string importPath = importLocator.BaseLocator.ToString();
 
 								FilterDefinition<BlobInfo> filter = Builders<BlobInfo>.Filter.Expr(x => x.NamespaceId == blobInfo.NamespaceId && x.Path == importPath);
 								UpdateDefinition<BlobInfo> update = Builders<BlobInfo>.Update.SetOnInsert(x => x.Imports, null);
@@ -733,8 +734,8 @@ namespace Horde.Server.Storage
 		{
 			BlobLocator locator = target.GetLocator();
 
-			string blobPath = locator.Outermost.ToString();
-			string blobFragment = locator.OutermostFragment.ToString();
+			string blobPath = locator.BaseLocator.ToString();
+			string blobFragment = locator.Fragment.ToString();
 
 			BlobInfo? blobInfo = await _blobCollection.Find(x => x.NamespaceId == namespaceId && x.Path == blobPath).FirstOrDefaultAsync(cancellationToken);
 			if (blobInfo == null)
@@ -763,8 +764,8 @@ namespace Horde.Server.Storage
 		{
 			BlobLocator locator = target.GetLocator();
 
-			string blobPath = locator.Outermost.ToString();
-			string blobFragment = locator.OutermostFragment.ToString();
+			string blobPath = locator.BaseLocator.ToString();
+			string blobFragment = locator.Fragment.ToString();
 
 			FilterDefinition<BlobInfo> filter = Builders<BlobInfo>.Filter.Expr(x => x.NamespaceId == namespaceId && x.Path == blobPath);
 			UpdateDefinition<BlobInfo> update = Builders<BlobInfo>.Update.PullFilter(x => x.Aliases, Builders<AliasInfo>.Filter.Expr(x => x.Name == name && x.Fragment == blobFragment));
@@ -921,7 +922,7 @@ namespace Horde.Server.Storage
 		/// <inheritdoc/>
 		async Task WriteRefAsync(NamespaceId namespaceId, RefName name, BlobLocator target, RefOptions? options = null, CancellationToken cancellationToken = default)
 		{
-			string path = target.Outermost.ToString();
+			string path = target.BaseLocator.ToString();
 
 			BlobInfo? newBlobInfo = await _blobCollection.Find(x => x.NamespaceId == namespaceId && x.Path == path).FirstOrDefaultAsync(cancellationToken);
 			if (newBlobInfo == null)

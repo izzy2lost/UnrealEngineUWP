@@ -5,9 +5,9 @@ using System.Buffers;
 using System.Buffers.Text;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
@@ -25,32 +25,42 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 		public BlobLocator BundleLocator { get; }
 		public int ExportIdx { get; }
 
+		/// <inheritdoc/>
+		public override BlobHandle Outer { get; }
+
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public FlushedNodeHandle(BundleReader reader, BlobLocator bundleLocator, int exportIdx)
+		public FlushedNodeHandle(BundleReader reader, BlobLocator bundleLocator, BlobHandle bundleHandle, int exportIdx)
 		{
+			Debug.Assert(!bundleLocator.CanUnwrap());
+
 			_reader = reader;
 			BundleLocator = bundleLocator;
+			Outer = bundleHandle;
 			ExportIdx = exportIdx;
 		}
 
-		public static FlushedNodeHandle FromBlobLocator(BundleReader reader, BlobLocator locator)
+		public FlushedNodeHandle(BundleReader reader, BlobLocator bundleLocator, BlobHandle bundleHandle, ReadOnlySpan<byte> fragment)
 		{
-			if (locator.TryUnwrap(out BlobLocator bundleLocator, out Utf8String fragment) && Utf8Parser.TryParse(fragment, out int exportIdx, out int bytesConsumed) && bytesConsumed == fragment.Length)
+			Debug.Assert(!bundleLocator.CanUnwrap());
+
+			_reader = reader;
+			BundleLocator = bundleLocator;
+			Outer = bundleHandle;
+
+			if (!Utf8Parser.TryParse(fragment, out int exportIdx, out int bytesConsumed) || bytesConsumed != fragment.Length)
 			{
-				return new FlushedNodeHandle(reader, bundleLocator, exportIdx);
+				throw new ArgumentException($"Fragment {Encoding.UTF8.GetString(fragment)} is not valid for a bundle export");
 			}
-			else
-			{
-				throw new ArgumentException($"Locator {locator} is not a valid bundle node");
-			}
+
+			ExportIdx = exportIdx;
 		}
 
 		/// <inheritdoc/>
-		public override bool TryGetLocator([NotNullWhen(true)] out BlobLocator locator)
+		public override bool TryAppendIdentifier(Utf8StringBuilder builder)
 		{
-			locator = new BlobLocator(BundleLocator, ExportIdx.ToString());
+			builder.Append(ExportIdx);
 			return true;
 		}
 
@@ -93,6 +103,8 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 			public PendingBundle? PendingBundle => _pendingBundle;
 			public FlushedNodeHandle? FlushedNodeHandle => _flushedHandle;
 
+			public override BlobHandle? Outer => (_flushedHandle != null) ? _flushedHandle.Outer : throw new NotSupportedException();
+
 			public PendingNode(BundleReader reader, BlobType blobType, int packet, int offset, int length, IReadOnlyList<BlobHandle> refs, IReadOnlyList<AliasInfo> aliases, PendingBundle pendingBundle)
 			{
 				_reader = reader;
@@ -108,20 +120,9 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 			}
 
 			/// <inheritdoc/>
-			public override bool TryGetLocator([NotNullWhen(true)] out BlobLocator locator)
+			public override bool TryAppendIdentifier(Utf8StringBuilder builder)
 			{
-				if (_flushedHandle != null && _flushedHandle.TryGetLocator(out BlobLocator flushedLocator))
-				{
-					locator = flushedLocator;
-					return true;
-				}
-				else
-				{
-					Console.WriteLine($"Unable to get locator for node {BlobType}:{Packet}:{Offset}:{Length}. Handle is {FlushedNodeHandle}. Bundle is {PendingBundle}.");
-
-					locator = default;
-					return false;
-				}
+				return _flushedHandle?.TryAppendIdentifier(builder) ?? false;
 			}
 
 			public void MarkAsWritten(FlushedNodeHandle flushedHandle)
@@ -439,7 +440,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 					{
 						PendingNode node = _queue[idx];
 
-						FlushedNodeHandle flushedHandle = new FlushedNodeHandle(_treeReader, locator, idx);
+						FlushedNodeHandle flushedHandle = new FlushedNodeHandle(_treeReader, locator, handle, idx);
 						_queue[idx].MarkAsWritten(flushedHandle);
 
 						foreach (AliasInfo alias in node.Aliases)

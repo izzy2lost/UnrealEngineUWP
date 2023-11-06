@@ -2,7 +2,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -17,22 +16,28 @@ namespace EpicGames.Horde.Storage.Clients
 	{
 		class Handle : BlobHandle
 		{
-			readonly KeyValueStorageClient _outer;
+			readonly KeyValueStorageClient _keyValueStorageClient;
 			readonly BlobLocator _locator;
 
-			public Handle(KeyValueStorageClient outer, BlobLocator locator)
+			/// <inheritdoc/>
+			public override BlobHandle? Outer => null;
+
+			/// <summary>
+			/// Constructor
+			/// </summary>
+			public Handle(KeyValueStorageClient keyValueStorageClient, BlobLocator locator)
 			{
-				_outer = outer;
+				_keyValueStorageClient = keyValueStorageClient;
 				_locator = locator;
 			}
 
 			/// <inheritdoc/>
-			public override ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default) => _outer.ReadBlobAsync(_locator, cancellationToken);
+			public override ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default) => _keyValueStorageClient.ReadBlobAsync(_locator, cancellationToken);
 
 			/// <inheritdoc/>
-			public override bool TryGetLocator([NotNullWhen(true)] out BlobLocator locator)
+			public override bool TryAppendIdentifier(Utf8StringBuilder builder)
 			{
-				locator = _locator;
+				builder.Append(_locator.Path);
 				return true;
 			}
 
@@ -65,9 +70,9 @@ namespace EpicGames.Horde.Storage.Clients
 		/// <inheritdoc/>
 		public virtual BlobHandle CreateBlobHandle(BlobLocator locator)
 		{
-			if (locator.TryUnwrapFull(out BlobLocator outer, out Utf8String fragment))
+			if (locator.TryUnwrap(out BlobLocator baseLocator, out Utf8String fragment))
 			{
-				return new BlobFragmentHandle(new Handle(this, outer), fragment);
+				return new BlobFragmentHandle(new Handle(this, baseLocator), fragment);
 			}
 			else
 			{

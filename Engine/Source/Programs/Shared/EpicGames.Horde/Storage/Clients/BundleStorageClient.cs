@@ -2,7 +2,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -25,6 +24,9 @@ namespace EpicGames.Horde.Storage.Clients
 			readonly BundleStorageClient _storageClient;
 			readonly BlobLocator _locator;
 			List<BlobHandle>? _refs;
+
+			/// <inheritdoc/>
+			public override BlobHandle? Outer => null;
 
 			/// <summary>
 			/// Constructor
@@ -73,9 +75,9 @@ namespace EpicGames.Horde.Storage.Clients
 			}
 
 			/// <inheritdoc/>
-			public override bool TryGetLocator([NotNullWhen(true)] out BlobLocator locator)
+			public override bool TryAppendIdentifier(Utf8StringBuilder builder)
 			{
-				locator = _locator;
+				builder.Append(_locator.Path);
 				return true;
 			}
 
@@ -196,9 +198,9 @@ namespace EpicGames.Horde.Storage.Clients
 		/// <inheritdoc/>
 		public BlobHandle CreateBlobHandle(BlobLocator locator)
 		{
-			if (locator.CanUnwrap())
+			if (locator.TryUnwrap(out BlobLocator baseLocator, out Utf8String fragment))
 			{
-				return Bundles.V1.FlushedNodeHandle.FromBlobLocator(_bundleReader, locator);
+				return new Bundles.V1.FlushedNodeHandle(_bundleReader, baseLocator, new BundleHandle(this, baseLocator), fragment.Span);
 			}
 			else
 			{
