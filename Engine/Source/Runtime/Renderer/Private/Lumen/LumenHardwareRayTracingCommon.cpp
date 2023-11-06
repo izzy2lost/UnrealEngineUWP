@@ -90,6 +90,12 @@ bool LumenHardwareRayTracing::IsRayGenSupported()
 	return GRHISupportsRayTracingShaders && GRHISupportsRayTracingDispatchIndirect;
 }
 
+bool LumenHardwareRayTracing::IsHitLightingSupported(EShaderPlatform ShaderPlatform)
+{
+	// Hit-Lighting uses wave ops inside the lighting loop
+	return IsRayGenSupported() && RHISupportsWaveOperations(ShaderPlatform);
+}
+
 bool Lumen::UseHardwareRayTracing(const FSceneViewFamily& ViewFamily)
 {
 #if RHI_RAYTRACING

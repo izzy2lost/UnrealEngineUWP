@@ -884,7 +884,7 @@ FScreenPassTexture AddVisualizeLumenScenePass(FRDGBuilder& GraphBuilder, const F
 				VisualizeTiles[1].Mode = VISUALIZE_MODE_REFLECTION_VIEW;
 				if (Lumen::UseHardwareRayTracing(ViewFamily))
 				{
-					VisualizeTiles[1].Name = LumenReflections::IsHitLightingForceEnabled(View, bLumenGIEnabled) ? TEXT("Reflection View, HWRT with hit lighting") : TEXT("Reflection View, HWRT");
+					VisualizeTiles[1].Name = LumenReflections::UseHitLighting(View, bLumenGIEnabled) ? TEXT("Reflection View, HWRT with hit lighting") : TEXT("Reflection View, HWRT");
 				}
 				else
 				{

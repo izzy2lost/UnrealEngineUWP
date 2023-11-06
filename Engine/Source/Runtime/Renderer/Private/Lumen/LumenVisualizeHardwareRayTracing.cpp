@@ -131,7 +131,15 @@ namespace LumenVisualize
 
 	bool UseHitLighting(const FViewInfo& View, bool bLumenGIEnabled)
 	{
-		return LumenVisualize::IsHitLightingForceEnabled(View, bLumenGIEnabled) || CVarLumenVisualizeHardwareRayTracingRetraceHitLighting.GetValueOnRenderThread() != 0;
+		#if RHI_RAYTRACING
+		if (LumenHardwareRayTracing::IsHitLightingSupported(View.GetShaderPlatform()))
+		{
+			return LumenVisualize::IsHitLightingForceEnabled(View, bLumenGIEnabled)
+				|| CVarLumenVisualizeHardwareRayTracingRetraceHitLighting.GetValueOnRenderThread() != 0;
+		}
+		#endif
+
+		return false;
 	}
 }
 
