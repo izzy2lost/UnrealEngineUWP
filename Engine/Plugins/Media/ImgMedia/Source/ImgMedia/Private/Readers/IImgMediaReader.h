@@ -333,7 +333,7 @@ struct FImgMediaFrame final
 	std::atomic<uint32> Stride = 0;
 
 	// This should only be used if you do not need to make changes to sample converter.
-	virtual IMediaTextureSampleConverter* GetSampleConverter()
+	IMediaTextureSampleConverter* GetSampleConverter()
 	{
 		return SampleConverter.Get();
 	};
