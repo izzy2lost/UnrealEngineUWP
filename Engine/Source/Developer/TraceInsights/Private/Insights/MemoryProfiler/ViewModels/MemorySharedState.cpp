@@ -27,6 +27,9 @@
 
 #include <limits>
 
+static_assert(Insights::FMemoryTracker::InvalidTrackerId == TraceServices::FMemoryTrackerInfo::InvalidTrackerId, "InvalidTrackerId");
+static_assert(Insights::FMemoryTag::InvalidTagId == TraceServices::FMemoryTagInfo::InvalidTagId, "InvalidTagId");
+
 #define LOCTEXT_NAMESPACE "MemorySharedState"
 
 const FName Insights::FQueryTargetWindowSpec::NewWindow = TEXT("New Window");

@@ -234,6 +234,8 @@ void SMemAllocTableTreeView::ResetAndStartQuery()
 	TSharedPtr<Insights::FMemAllocTable> MemAllocTable = GetMemAllocTable();
 	if (MemAllocTable)
 	{
+		MemAllocTable->SetTimeMarkerA(TimeMarkers[0]); // to be used by LLM Size and LLM Delta Size columns
+
 		TArray<FMemoryAlloc>& Allocs = MemAllocTable->GetAllocs();
 		Allocs.Reset(10 * 1024 * 1024);
 	}

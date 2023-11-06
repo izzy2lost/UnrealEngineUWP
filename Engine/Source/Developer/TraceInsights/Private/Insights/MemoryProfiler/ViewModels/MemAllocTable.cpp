@@ -10,6 +10,7 @@
 // Insights
 #include "Insights/MemoryProfiler/ViewModels/CallstackFormatting.h"
 #include "Insights/MemoryProfiler/ViewModels/MemAllocFilterValueConverter.h"
+#include "Insights/MemoryProfiler/ViewModels/MemAllocGroupingByTag.h"
 #include "Insights/MemoryProfiler/ViewModels/MemAllocNode.h"
 #include "Insights/MemoryProfiler/ViewModels/MemAllocTable.h"
 #include "Insights/Table/ViewModels/TableCellValueFormatter.h"
@@ -38,6 +39,8 @@ const FName FMemAllocTableColumns::AddressColumnId(TEXT("Address"));
 const FName FMemAllocTableColumns::MemoryPageColumnId(TEXT("MemoryPage"));
 const FName FMemAllocTableColumns::CountColumnId(TEXT("Count"));
 const FName FMemAllocTableColumns::SizeColumnId(TEXT("Size"));
+const FName FMemAllocTableColumns::LLMSizeColumnId(TEXT("LLMSize"));
+const FName FMemAllocTableColumns::LLMDeltaSizeColumnId(TEXT("LLMDeltaSize"));
 const FName FMemAllocTableColumns::TagColumnId(TEXT("Tag"));
 const FName FMemAllocTableColumns::AssetColumnId(TEXT("Asset"));
 const FName FMemAllocTableColumns::PackageColumnId(TEXT("Package"));
@@ -731,7 +734,7 @@ void FMemAllocTable::AddDefaultColumns()
 		Column.SetInitialSortMode(EColumnSortMode::Descending);
 
 		Column.SetAggregation(ETableColumnAggregation::Sum);
-		
+
 		AddColumn(ColumnRef);
 	}
 	//////////////////////////////////////////////////
@@ -788,6 +791,136 @@ void FMemAllocTable::AddDefaultColumns()
 		TSharedRef<ITableCellValueSorter> Sorter = MakeShared<FSorterByInt64Value>(ColumnRef);
 		Column.SetValueSorter(Sorter);
 		Column.SetInitialSortMode(EColumnSortMode::Descending);
+
+		TSharedRef<IFilterValueConverter> Converter = MakeShared<FMemoryFilterValueConverter>();
+		Column.SetValueConverter(Converter);
+
+		Column.SetAggregation(ETableColumnAggregation::Sum);
+
+		AddColumn(ColumnRef);
+	}
+	//////////////////////////////////////////////////
+	// LLM Size Column
+	{
+		TSharedRef<FTableColumn> ColumnRef = MakeShared<FTableColumn>(FMemAllocTableColumns::LLMSizeColumnId);
+		FTableColumn& Column = *ColumnRef;
+
+		Column.SetIndex(ColumnIndex++);
+
+		Column.SetShortName(LOCTEXT("LLMSizeColumnName", "LLM Size"));
+		Column.SetTitleName(LOCTEXT("LLMSizeColumnTitle", "LLM Size"));
+		Column.SetDescription(LOCTEXT("LLMSizeColumnDesc", "Size reported by LLM (only for Mem Tag group nodes)"));
+
+		Column.SetFlags(ETableColumnFlags::CanBeHidden | ETableColumnFlags::CanBeFiltered);
+
+		Column.SetHorizontalAlignment(HAlign_Right);
+		Column.SetInitialWidth(100.0f);
+
+		Column.SetDataType(ETableCellDataType::Int64);
+
+		class FLLMSizeValueGetter : public FTableCellValueGetter
+		{
+		public:
+			virtual const TOptional<FTableCellValue> GetValue(const FTableColumn& Column, const FBaseTreeNode& Node) const override
+			{
+				if (Node.IsGroup())
+				{
+					if (Node.Is<FMemTagTableTreeNode>())
+					{
+						int64 LLMSize = Node.As<FMemTagTableTreeNode>().GetLLMSize();
+						return FTableCellValue(LLMSize);
+					}
+					else
+					{
+						const FTableTreeNode& NodePtr = static_cast<const FTableTreeNode&>(Node);
+						if (NodePtr.HasAggregatedValue(Column.GetId()))
+						{
+							return NodePtr.GetAggregatedValue(Column.GetId());
+						}
+					}
+				}
+				return TOptional<FTableCellValue>();
+			}
+		};
+		TSharedRef<ITableCellValueGetter> Getter = MakeShared<FLLMSizeValueGetter>();
+		Column.SetValueGetter(Getter);
+
+		TSharedRef<ITableCellValueFormatter> Formatter = MakeShared<FInt64ValueFormatterAsMemory>();
+		Column.SetValueFormatter(Formatter);
+
+		TSharedRef<ITableCellValueSorter> Sorter = MakeShared<FSorterByInt64Value>(ColumnRef);
+		Column.SetValueSorter(Sorter);
+		Column.SetInitialSortMode(EColumnSortMode::Descending);
+
+		TSharedRef<IFilterValueConverter> Converter = MakeShared<FMemoryFilterValueConverter>();
+		Column.SetValueConverter(Converter);
+
+		Column.SetAggregation(ETableColumnAggregation::Sum);
+
+		AddColumn(ColumnRef);
+	}
+	//////////////////////////////////////////////////
+	// LLM Delta Size Column
+	{
+		TSharedRef<FTableColumn> ColumnRef = MakeShared<FTableColumn>(FMemAllocTableColumns::LLMDeltaSizeColumnId);
+		FTableColumn& Column = *ColumnRef;
+
+		Column.SetIndex(ColumnIndex++);
+
+		Column.SetShortName(LOCTEXT("LLMDeltaSizeColumnName", "LLM Delta"));
+		Column.SetTitleName(LOCTEXT("LLMDeltaSizeColumnTitle", "LLM Delta Size"));
+		Column.SetDescription(LOCTEXT("LLMDeltaSizeColumnDesc", "Difference from size reported by LLM (only for Mem Tag group nodes)"));
+
+		Column.SetFlags(ETableColumnFlags::CanBeHidden | ETableColumnFlags::CanBeFiltered);
+
+		Column.SetHorizontalAlignment(HAlign_Right);
+		Column.SetInitialWidth(100.0f);
+
+		Column.SetDataType(ETableCellDataType::Int64);
+
+		class FLLMDeltaSizeValueGetter : public FTableCellValueGetter
+		{
+		public:
+			virtual const TOptional<FTableCellValue> GetValue(const FTableColumn& Column, const FBaseTreeNode& Node) const override
+			{
+				if (Node.IsGroup())
+				{
+					if (Node.Is<FMemTagTableTreeNode>())
+					{
+						int64 LLMSize = Node.As<FMemTagTableTreeNode>().GetLLMSize();
+						int64 Size = 0;
+						const FTableTreeNode& NodePtr = static_cast<const FTableTreeNode&>(Node);
+						if (NodePtr.HasAggregatedValue(FMemAllocTableColumns::SizeColumnId))
+						{
+							const FTableCellValue& Value = NodePtr.GetAggregatedValue(FMemAllocTableColumns::SizeColumnId);
+							if (Value.DataType == ETableCellDataType::Int64)
+							{
+								Size = Value.AsInt64();
+							}
+						}
+						return FTableCellValue(Size - LLMSize);
+					}
+					else
+					{
+						const FTableTreeNode& NodePtr = static_cast<const FTableTreeNode&>(Node);
+						if (NodePtr.HasAggregatedValue(Column.GetId()))
+						{
+							return NodePtr.GetAggregatedValue(Column.GetId());
+						}
+					}
+				}
+				return TOptional<FTableCellValue>();
+			}
+		};
+		TSharedRef<ITableCellValueGetter> Getter = MakeShared<FLLMDeltaSizeValueGetter>();
+		Column.SetValueGetter(Getter);
+
+		TSharedRef<ITableCellValueFormatter> Formatter = MakeShared<FInt64ValueFormatterAsMemory>();
+		Column.SetValueFormatter(Formatter);
+
+		TSharedRef<ITableCellValueSorter> Sorter = MakeShared<FSorterByInt64Value>(ColumnRef);
+		Column.SetValueSorter(Sorter);
+		Column.SetInitialSortMode(EColumnSortMode::Ascending);
 
 		TSharedRef<IFilterValueConverter> Converter = MakeShared<FMemoryFilterValueConverter>();
 		Column.SetValueConverter(Converter);

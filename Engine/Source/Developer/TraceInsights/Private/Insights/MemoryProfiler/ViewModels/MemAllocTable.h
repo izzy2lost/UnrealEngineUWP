@@ -30,6 +30,8 @@ struct FMemAllocTableColumns
 	static const FName MemoryPageColumnId;
 	static const FName CountColumnId;
 	static const FName SizeColumnId;
+	static const FName LLMSizeColumnId;
+	static const FName LLMDeltaSizeColumnId;
 	static const FName TagColumnId;
 	static const FName AssetColumnId;
 	static const FName PackageColumnId;
@@ -61,11 +63,15 @@ public:
 	const FMemoryAlloc* GetMemAlloc(int32 InIndex) const { return IsValidRowIndex(InIndex) ? &Allocs[InIndex] : nullptr; }
 	const FMemoryAlloc& GetMemAllocChecked(int32 InIndex) const { check(IsValidRowIndex(InIndex)); return Allocs[InIndex]; }
 
+	double GetTimeMarkerA() const { return TimeA; }
+	void SetTimeMarkerA(double InTime) { TimeA = InTime; }
+
 private:
 	void AddDefaultColumns();
 
 private:
 	TArray<FMemoryAlloc> Allocs;
+	double TimeA = 0.0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
