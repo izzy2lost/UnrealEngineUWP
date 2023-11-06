@@ -91,29 +91,6 @@ bool FSourceControlWindows::ChoosePackagesToCheckIn(const FSourceControlWindowsO
 		return false;
 	}
 
-	if (ISourceControlModule::Get().GetProvider().UsesSnapshots())
-	{
-		bool bSyncNeeded = FSourceControlWindows::CanSyncLatest();
-		if (bSyncNeeded)
-		{
-			FBookmarkScoped BookmarkScoped; // Preserve viewport camera orientation.
-
-			if (!FSourceControlWindows::SyncLatest())
-			{
-				FCheckinResultInfo ResultInfo;
-				ResultInfo.Description = LOCTEXT("SourceControlSyncFailed", "Revision control failed to sync to the latest revision.");
-				OnCompleteDelegate.ExecuteIfBound(ResultInfo);
-
-				return false;
-			}
-		}
-		else
-		{
-			// SyncLatest saves packages so do that explicitly if sync is not needed.
-			SaveDirtyPackages(/*bUseDialog=*/false);
-		}
-	}
-
 	// Start selection process...
 
 	// make sure we update the SCC status of all packages (this could take a long time, so we will run it as a background task)
@@ -335,6 +312,37 @@ bool FSourceControlWindows::PromptForCheckin(FCheckinResultInfo& OutResultInfo, 
 		OutResultInfo.Description = LOCTEXT("CheckinCancelled", "File check in cancelled.");
 
 		return false;
+	}
+
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	// Sync to latest if using snapshots.
+	if (ISourceControlModule::Get().GetProvider().UsesSnapshots())
+	{
+		const bool bSyncNeeded = FSourceControlWindows::CanSyncLatest();
+		if (bSyncNeeded)
+		{
+			FBookmarkScoped BookmarkScoped; // Preserve viewport camera orientation.
+
+			if (!FSourceControlWindows::SyncLatest())
+			{
+				OutResultInfo.Description = LOCTEXT("SCC_Checkin_Aborted_Sync", "File check in aborted because the sync to the latest snapshot failed.");
+				return false;
+			}
+
+			TArray<FSourceControlStateRef> Conflicts = ISourceControlModule::Get().GetProvider().GetCachedStateByPredicate(
+				[](const FSourceControlStateRef& State)
+				{
+					return State->IsConflicted();
+				}
+			);
+
+			const bool bConflictsRemaining = (Conflicts.Num() > 0);
+			if (bConflictsRemaining)
+			{
+				OutResultInfo.Description = LOCTEXT("SCC_Checkin_Aborted_Conflicts", "File check in aborted because the sync to the latest snapshot resulted in conflicts that need to be resolved.");
+				return false;
+			}
+		}
 	}
 
 
