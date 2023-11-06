@@ -1251,7 +1251,6 @@ public:
 
 	/** Show or hide the widget. */
 	UNREALED_API void ShowWidget(const bool bShow);
-	UNREALED_API bool GetShowWidget() const { return bShowWidget; }
 
 	/**
 	 * Returns whether or not the flight camera is active

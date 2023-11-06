@@ -70,11 +70,6 @@ bool UEditorTransformGizmoSource::GetVisible() const
 {
 	if (const FEditorViewportClient* ViewportClient = GetViewportClient()) 
 	{
-		if (!ViewportClient->GetShowWidget())
-		{
-			return false;
-		}
-		
 		const FEditorModeTools& ModeTools = GetModeTools();
 		if (ModeTools.GetShowWidget() && ModeTools.UsesTransformWidget())
 		{
