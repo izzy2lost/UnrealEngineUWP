@@ -147,7 +147,7 @@ namespace UE::NearestNeighborModel
 					{
 						if (UNearestNeighborKMeansData* KMeansData = Cast<UNearestNeighborKMeansData>(&Data))
 						{
-							UNearestNeighborTrainingModel* TrainingModel = FHelpers::GetDerivedCDO<UNearestNeighborTrainingModel>();
+							UNearestNeighborTrainingModel* TrainingModel = FHelpers::NewDerivedObject<UNearestNeighborTrainingModel>();
 							TrainingModel->Init(EditorModel.Get());
 							const int32 ResultInt = TrainingModel->KmeansClusterPoses(KMeansData);
 							const EOpFlag Result = ToOpFlag(ResultInt);

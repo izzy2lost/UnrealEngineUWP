@@ -411,6 +411,11 @@ namespace UE::MLDeformer
 		bool bInvertMaskChannel)
 	{
 		FMLDeformerSampler* Sampler = GetSamplerForActiveAnim();
+		// In case when ActiveTrainingInputAnimIndex == INDEX_NONE but we have a sampler (e.g. testing), use that.
+		if (Sampler == nullptr)
+		{
+			Sampler = GetSamplerForTrainingAnim(0);
+		}
 
 		OutMorphTargets.Reset();
 		if (Deltas.IsEmpty() || Sampler == nullptr)

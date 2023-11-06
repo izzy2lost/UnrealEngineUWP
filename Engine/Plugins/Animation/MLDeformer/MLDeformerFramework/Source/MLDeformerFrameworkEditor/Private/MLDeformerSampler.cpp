@@ -106,6 +106,11 @@ namespace UE::MLDeformer
 
 	void FMLDeformerSampler::Sample(int32 InAnimFrameIndex)
 	{
+		FMLDeformerTrainingInputAnim* TrainingInputAnim = EditorModel->GetTrainingInputAnim(AnimIndex);
+		if (!TrainingInputAnim || !TrainingInputAnim->IsValid())
+		{
+			return;
+		}
 		UAnimSequence* TrainingAnimSequence = EditorModel->GetTrainingInputAnim(AnimIndex)->GetAnimSequence();
 		check(TrainingAnimSequence);
 		const EAnimInterpolationType InterpolationTypeBackup = TrainingAnimSequence->Interpolation;

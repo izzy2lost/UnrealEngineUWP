@@ -118,7 +118,7 @@ bool UNearestNeighborAnimStream::AppendFrames(const UAnimSequence* Anim, TArray<
 		check(RotKeys[Index].Num() == CurrentFrames);
 		RotKeys[Index].SetNum(CurrentFrames + NewFrames);
 		check(ScaleKeys[Index].Num() == CurrentFrames);
-		ScaleKeys[Index].Reserve(CurrentFrames + NewFrames);
+		ScaleKeys[Index].SetNum(CurrentFrames + NewFrames);
 	}
 	for (int32 Index = 0; Index < NewFrames; ++Index)
 	{

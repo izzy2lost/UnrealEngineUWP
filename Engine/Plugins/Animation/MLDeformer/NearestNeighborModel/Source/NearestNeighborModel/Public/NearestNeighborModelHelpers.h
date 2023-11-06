@@ -3,7 +3,6 @@
 
 #include "CoreTypes.h"
 #include "Logging/LogMacros.h"
-#include "UObject/Class.h"
 
 class UAnimSequence;
 class UGeometryCache;
@@ -21,7 +20,7 @@ namespace UE::NearestNeighborModel
 		static int32 GetNumFrames(const UGeometryCache* GeometryCache);
 		
 		template<class T>
-		static T* GetDerivedCDO()
+		static T* NewDerivedObject()
 		{
 			TArray<UClass*> Classes;
 			GetDerivedClasses(T::StaticClass(), Classes);
@@ -29,9 +28,7 @@ namespace UE::NearestNeighborModel
 			{
 				return nullptr;
 			}
-				
-			T* Object = Cast<T>(Classes.Last()->GetDefaultObject());
-			return Object;
+			return NewObject<T>(GetTransientPackage(), Classes.Last());
 		}
 #endif
 	

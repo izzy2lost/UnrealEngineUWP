@@ -59,7 +59,7 @@ namespace UE::NearestNeighborModel
 					{
 						if (UNearestNeighborStatsData* StatsData = Cast<UNearestNeighborStatsData>(&Data))
 						{
-							UNearestNeighborTrainingModel* TrainingModel = FHelpers::GetDerivedCDO<UNearestNeighborTrainingModel>();
+							UNearestNeighborTrainingModel* TrainingModel = FHelpers::NewDerivedObject<UNearestNeighborTrainingModel>();
 							TrainingModel->Init(EditorModel.Get());
 							const int32 ResultInt = TrainingModel->GetNeighborStats(StatsData);
 							const EOpFlag Result = ToOpFlag(ResultInt);

@@ -518,7 +518,16 @@ namespace UE::NearestNeighborModel
 			return UpdateResult;
 		}
 		InitEngineMorphTargets(NearestNeighborModel->GetMorphTargetDeltas());
-		NearestNeighborModel->UpdateMorphTargetsLastWriteTime();
+		const TSharedPtr<const FExternalMorphSet> MorphSet = NearestNeighborModel->GetMorphTargetSet();
+		if (MorphSet.IsValid() && MorphSet->MorphBuffers.IsMorphResourcesInitialized())
+		{
+			NearestNeighborModel->UpdateMorphTargetsLastWriteTime();
+		}
+		else
+		{
+			UE_LOG(LogNearestNeighborModel, Error, TEXT("Morph target set is empty"));
+			UpdateResult |= EOpFlag::Error;
+		}
 		SetDefaultDeformerGraphIfNeeded();
 		return UpdateResult;
 	}
@@ -571,7 +580,7 @@ namespace UE::NearestNeighborModel
 			UE_LOG(LogNearestNeighborModel, Error, TEXT("Network is not trained. Nearest neighbor data cannot be updated."));
 			return EOpFlag::Error;
 		}
-		UNearestNeighborTrainingModel *TrainingModel = FHelpers::GetDerivedCDO<UNearestNeighborTrainingModel>();
+		UNearestNeighborTrainingModel *TrainingModel = FHelpers::NewDerivedObject<UNearestNeighborTrainingModel>();
 		if (!TrainingModel)
 		{
 			return EOpFlag::Error;
@@ -680,7 +689,7 @@ namespace UE::NearestNeighborModel
 	
 		if (Deltas.Num() == 0)
 		{
-			UE_LOG(LogNearestNeighborModel, Error, TEXT("All cloth parts are empty. No morph targets are generated."));
+			UE_LOG(LogNearestNeighborModel, Error, TEXT("All sections are empty. No morph targets are generated."));
 			return EOpFlag::Error;
 		}
 

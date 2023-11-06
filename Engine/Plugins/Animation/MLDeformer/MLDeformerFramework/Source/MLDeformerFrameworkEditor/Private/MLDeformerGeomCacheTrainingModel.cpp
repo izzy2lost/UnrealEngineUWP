@@ -25,10 +25,10 @@ bool UMLDeformerGeomCacheTrainingModel::FindNextAnimToSample(int32& OutNextAnimI
 	const int32 NumInputAnims = EditorModel->GetNumTrainingInputAnims();
 	while (NumTries < NumInputAnims)	// Try all input animations at worst case.
 	{
-		const FMLDeformerGeomCacheTrainingInputAnim& InputAnim = GeomCacheModel->GetTrainingInputAnims()[AnimIndex];
-		if (InputAnim.IsEnabled())
+		const FMLDeformerTrainingInputAnim* InputAnim = EditorModel->GetTrainingInputAnim(AnimIndex);
+		if (InputAnim && InputAnim->IsEnabled())
 		{
-			if (NumTimesSampled[AnimIndex] < InputAnim.GetNumFramesToSample())
+			if (NumTimesSampled[AnimIndex] < InputAnim->GetNumFramesToSample())
 			{
 				OutNextAnimIndex = AnimIndex;
 				return true;
