@@ -3217,6 +3217,11 @@ int32 FEngineLoop::PreInitPreStartupScreen(const TCHAR* CmdLine)
 	}
 
 	{
+		SCOPED_BOOT_TIMING("PreInitHMDDevice()");
+		PreInitHMDDevice();
+	}
+
+	{
 		SCOPED_BOOT_TIMING("RHIInit");
 		// Initialize the RHI.
 		RHIInit(bHasEditorToken);
@@ -6655,8 +6660,6 @@ bool FEngineLoop::AppInit( )
 	}
 
 	FEmbeddedCommunication::ForceTick(17);
-
-	PreInitHMDDevice();
 
 	// after the above has run we now have the REQUIRED set of engine .INIs  (all of the other .INIs)
 	// that are gotten from .h files' config() are not requires and are dynamically loaded when the .u files are loaded
