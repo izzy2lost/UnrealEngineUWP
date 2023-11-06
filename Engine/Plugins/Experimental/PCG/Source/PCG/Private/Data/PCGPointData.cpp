@@ -668,3 +668,59 @@ UPCGSpatialData* UPCGPointData::CopyInternal() const
 
 	return NewPointData;
 }
+
+void UPCGPointData::Flatten()
+{
+	if (!Metadata)
+	{
+		return;
+	}
+
+	// If there is no more attributes, reset all keys from points to invalid
+	if (Metadata->GetAttributeCount() == 0)
+	{
+		bool bWasModified = false;
+		for (FPCGPoint& Point : Points)
+		{
+			if (Point.MetadataEntry != PCGInvalidEntryKey)
+			{
+				if (!bWasModified)
+				{
+					Modify();
+					bWasModified = true;
+				}
+
+				Point.MetadataEntry = PCGInvalidEntryKey;
+			}
+		}
+
+		return;
+	}
+
+	// Gather all the keys that are not invalid
+	TArray<PCGMetadataEntryKey> EntryKeys;
+	EntryKeys.Reserve(Points.Num());
+	for (const FPCGPoint& Point : Points)
+	{
+		if (Point.MetadataEntry != PCGInvalidEntryKey)
+		{
+			EntryKeys.Add(Point.MetadataEntry);
+		}
+	}
+
+	// Then flatten and compress the Metadata for all invalid entry keys. Return true if something changed.
+	if (Metadata->FlattenAndCompress(EntryKeys))
+	{
+		Modify();
+
+		// Go over all the points and assign all a new entry key for all points that has a valid entry key in the first place.
+		PCGMetadataEntryKey CurrentEntryKey = 0;
+		for (FPCGPoint& Point : Points)
+		{
+			if (Point.MetadataEntry != PCGInvalidEntryKey)
+			{
+				Point.MetadataEntry = CurrentEntryKey++;
+			}
+		}
+	}
+}

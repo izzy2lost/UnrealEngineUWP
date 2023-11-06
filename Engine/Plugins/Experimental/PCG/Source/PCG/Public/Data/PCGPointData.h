@@ -113,6 +113,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = SpatialData)
 	void CopyPointsFrom(const UPCGPointData* InData, const TArray<int>& InDataIndices);
 
+	/** Make a pass on Metadata to flatten parenting and only keep entries used by points. */
+	virtual void Flatten() override;
+
 	TArray<FPCGPoint>& GetMutablePoints();
 
 	const PointOctree& GetOctree() const;

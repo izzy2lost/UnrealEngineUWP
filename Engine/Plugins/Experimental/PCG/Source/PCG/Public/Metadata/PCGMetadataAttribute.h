@@ -25,7 +25,13 @@ public:
 	virtual ~FPCGMetadataAttributeBase() = default;
 	virtual void Serialize(UPCGMetadata* InMetadata, FArchive& InArchive);
 
+	/** Unparents current attribute by flattening the values, entries, etc. */
 	virtual void Flatten() = 0;
+	/** Unparents current attribute by flattening the values, entries, etc while only keeping the entries referenced in InEntryKeysToKeep. There must be NO invalid entry keys. */
+	virtual void FlattenAndCompress(const TArray<PCGMetadataEntryKey>& InEntryKeysToKeep) = 0;
+
+	/** Remove all entries, values and parenting. */
+	virtual void Reset() = 0;
 
 	const UPCGMetadata* GetMetadata() const { return Metadata; }
 	int16 GetTypeId() const { return TypeId; }

@@ -81,9 +81,15 @@ public:
 	const UPCGMetadata* GetRoot() const;
 	bool HasParent(const UPCGMetadata* InTentativeParent) const;
 
-	/** Unparents current metadata by flattening the attributes (values, entries, etc.) */
+	/** Unparents current metadata by flattening the attributes (values, entries, etc.) and potentially compress the data to remove unused values. */
 	UFUNCTION(BlueprintCallable, Category = "PCG|Metadata|Advanced")
 	void Flatten();
+
+	/** Unparents current metadata by flattening the attributes (values, entries, etc.) */
+	void FlattenImpl();
+
+	/** Unparents current metadata, flatten attribute and only keep the entries specified. Return true if something has changed and keys needs be updated. */
+	bool FlattenAndCompress(const TArray<PCGMetadataEntryKey>& InEntryKeysToKeep);
 
 	UFUNCTION(BlueprintCallable, Category = "PCG|Metadata")
 	UPARAM(DisplayName = "Metadata") UPCGMetadata* CreateInteger32Attribute(FName AttributeName, int32 DefaultValue, bool bAllowsInterpolation, bool bOverrideParent = true);

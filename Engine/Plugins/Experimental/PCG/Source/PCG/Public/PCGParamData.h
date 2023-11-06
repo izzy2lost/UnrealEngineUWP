@@ -25,6 +25,8 @@ public:
 	virtual bool HasCachedLastSelector() const override;
 	virtual FPCGAttributePropertyInputSelector GetCachedLastSelector() const override;
 	virtual void SetLastSelector(const FPCGAttributePropertySelector& InSelector) override;
+
+	virtual UPCGParamData* DuplicateData() const override;
 	// ~End UPCGData interface
 
 	UFUNCTION(BlueprintCallable, Category = Metadata)

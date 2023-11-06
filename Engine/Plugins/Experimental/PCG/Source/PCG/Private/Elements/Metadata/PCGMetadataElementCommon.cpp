@@ -10,22 +10,12 @@ namespace PCGMetadataElementCommon
 	void DuplicateTaggedData(const FPCGTaggedData& InTaggedData, FPCGTaggedData& OutTaggedData, UPCGMetadata*& OutMetadata)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(PCGMetadataElementCommon::DuplicateTaggedData);
-
-		if (const UPCGSpatialData* SpatialInput = Cast<const UPCGSpatialData>(InTaggedData.Data))
+		if (InTaggedData.Data)
 		{
-			UPCGSpatialData* NewSpatialData = SpatialInput->DuplicateData();
-			OutTaggedData.Data = NewSpatialData;
-
-			OutMetadata = NewSpatialData->Metadata;
-		}
-		else if (const UPCGParamData* ParamsInput = Cast<const UPCGParamData>(InTaggedData.Data))
-		{
-			UPCGParamData* NewParamData = NewObject<UPCGParamData>();
-			NewParamData->Metadata->InitializeAsCopy(ParamsInput->Metadata);
-
-			OutTaggedData.Data = NewParamData;
-
-			OutMetadata = NewParamData->Metadata;
+			UPCGData* NewData = InTaggedData.Data->DuplicateData();
+			check(NewData);
+			OutTaggedData.Data = NewData;
+			OutMetadata = NewData->MutableMetadata();
 		}
 	}
 

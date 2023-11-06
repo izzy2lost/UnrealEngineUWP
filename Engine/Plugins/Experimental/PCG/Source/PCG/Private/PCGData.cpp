@@ -138,6 +138,19 @@ void UPCGData::InitUID()
 	UID = ++UIDCounter;
 }
 
+void UPCGData::Flatten()
+{
+	if (UPCGMetadata* Metadata = MutableMetadata())
+	{
+		Metadata->FlattenImpl();
+	}
+}
+
+UPCGData* UPCGData::DuplicateData() const
+{
+	return Cast<UPCGData>(StaticDuplicateObject(this, GetTransientPackage()));
+}
+
 bool FPCGTaggedData::operator==(const FPCGTaggedData& Other) const
 {
 	return Data == Other.Data &&

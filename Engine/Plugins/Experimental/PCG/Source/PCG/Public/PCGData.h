@@ -50,13 +50,17 @@ public:
 	virtual FPCGAttributePropertyInputSelector GetCachedLastSelector() const { return FPCGAttributePropertyInputSelector{}; }
 	virtual void SetLastSelector(const FPCGAttributePropertySelector& InSelector) {};
 
+	/** Return a copy of the data, with Metadata inheritence for spatial data. */
+	virtual UPCGData* DuplicateData() const;
+
 	// ~Begin UObject interface
 	virtual void PostDuplicate(bool bDuplicateForPIE) override { InitUID(); }
 	// ~End UObject interface
 
-	// Metadata getters, to be implemented if data supports Metadata
+	// Metadata ops, to be implemented if data supports Metadata
 	virtual UPCGMetadata* MutableMetadata() { return nullptr; }
 	virtual const UPCGMetadata* ConstMetadata() const { return nullptr; }
+	virtual void Flatten();
 
 protected:
 	/** Computes Crc for this and any connected data. */

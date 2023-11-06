@@ -275,6 +275,20 @@ bool UPCGMetadata::HasParent(const UPCGMetadata* InTentativeParent) const
 
 void UPCGMetadata::Flatten()
 {
+	// Check if we have a UPCGData owner, if so call it, otherwise just call FlattenImpl
+	if (UPCGData* Owner = Cast<UPCGData>(GetOuter()))
+	{
+		Owner->Flatten();
+	}
+	else
+	{
+		FlattenImpl();
+	}
+}
+
+void UPCGMetadata::FlattenImpl()
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGMetadata::FlattenImpl);
 	Modify();
 
 	const int32 NumEntries = GetItemCountForChild();
@@ -309,6 +323,36 @@ void UPCGMetadata::Flatten()
 	ParentKeys.Reset();
 	ParentKeys.Init(PCGInvalidEntryKey, NumEntries);
 	ItemKeyOffset = 0;
+}
+
+bool UPCGMetadata::FlattenAndCompress(const TArray<PCGMetadataEntryKey>& InEntryKeysToKeep)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGMetadata::FlattenAndCompress);
+
+	// No keys or no parents, nothing to do
+	if (Attributes.IsEmpty())
+	{
+		return false;
+	}
+
+	Modify();
+
+	AttributeLock.WriteLock();
+	for (auto& AttributePair : Attributes)
+	{
+		FPCGMetadataAttributeBase* Attribute = AttributePair.Value;
+		check(Attribute);
+
+		Attribute->FlattenAndCompress(InEntryKeysToKeep);
+	}
+	AttributeLock.WriteUnlock();
+
+	Parent = nullptr;
+	ParentKeys.Reset();
+	ParentKeys.Init(PCGInvalidEntryKey, InEntryKeysToKeep.Num());
+	ItemKeyOffset = 0;
+
+	return true;
 }
 
 void UPCGMetadata::AddAttributeInternal(FName AttributeName, FPCGMetadataAttributeBase* Attribute)

@@ -162,3 +162,11 @@ void UPCGParamData::SetLastSelector(const FPCGAttributePropertySelector& InSelec
 	bHasCachedLastSelector = true;
 	CachedLastSelector.ImportFromOtherSelector(InSelector);
 }
+
+UPCGParamData* UPCGParamData::DuplicateData() const
+{
+	UPCGParamData* NewParamData = NewObject<UPCGParamData>();
+	NewParamData->Metadata->InitializeAsCopy(Metadata);
+
+	return NewParamData;
+}

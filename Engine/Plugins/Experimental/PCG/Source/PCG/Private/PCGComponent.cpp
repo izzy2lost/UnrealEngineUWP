@@ -408,25 +408,14 @@ void UPCGComponent::PostProcessGraph(const FBox& InNewBounds, bool bInGenerated,
 			//GeneratedGraphOutput = Context->InputData;
 			for (const FPCGTaggedData& TaggedData : Context->InputData.TaggedData)
 			{
-				FPCGTaggedData& DuplicatedTaggedData = GeneratedGraphOutput.TaggedData.Add_GetRef(TaggedData);
 				// TODO: outering the first layer might not be sufficient here - might need to expose
 				// some methods in the data to traverse all the data to outer everything for serialization
-				DuplicatedTaggedData.Data = Cast<UPCGData>(StaticDuplicateObject(TaggedData.Data, this));
-
-				UPCGMetadata* DuplicatedMetadata = nullptr;
-				if (const UPCGSpatialData* DuplicatedSpatialData = Cast<UPCGSpatialData>(DuplicatedTaggedData.Data))
+				if (UPCGData* DuplicatedData = TaggedData.Data->DuplicateData())
 				{
-					DuplicatedMetadata = DuplicatedSpatialData->Metadata;
-				}
-				else if (const UPCGParamData* DuplicatedParamData = Cast<UPCGParamData>(DuplicatedTaggedData.Data))
-				{
-					DuplicatedMetadata = DuplicatedParamData->Metadata;
-				}
-
-				// Make sure the metadata can be serialized independently
-				if (DuplicatedMetadata)
-				{
-					DuplicatedMetadata->Flatten();
+					FPCGTaggedData& DuplicatedTaggedData = GeneratedGraphOutput.TaggedData.Add_GetRef(TaggedData);
+					DuplicatedTaggedData.Data = DuplicatedData;
+					DuplicatedData->Rename(nullptr, this);
+					DuplicatedData->Flatten();
 				}
 			}
 

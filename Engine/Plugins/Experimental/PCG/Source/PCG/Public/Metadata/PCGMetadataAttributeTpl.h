@@ -58,7 +58,7 @@ public:
 		// We don't need to flatten the EntryToValueKeyMap - this will have been taken care of in the metadata flatten
 
 		// Flatten values, from root to current attribute
-		if(Parent)
+		if (Parent)
 		{
 			FWriteScopeLock ScopeLock(ValueLock);
 
@@ -87,6 +87,99 @@ public:
 		// Reset value offset, and lose parent
 		ValueKeyOffset = 0;
 		Parent = nullptr;
+	}
+
+	virtual void FlattenAndCompress(const TArray<PCGMetadataEntryKey>& InEntryKeysToKeep) override
+	{
+		// No entries, we can just delete everything in the attribute.
+		if (InEntryKeysToKeep.IsEmpty())
+		{
+			Reset();
+			return;
+		}
+
+		TArray<PCGMetadataValueKey> AllValueKeys;
+		TArray<PCGMetadataValueKey> AllUniqueValueKeys;
+		AllValueKeys.Reserve(InEntryKeysToKeep.Num());
+		constexpr bool bUseValueKeys = PCG::Private::MetadataTraits<T>::CompressData;
+		if constexpr (bUseValueKeys)
+		{
+			AllUniqueValueKeys.Reserve(InEntryKeysToKeep.Num());
+		}
+
+		// First gather all value keys associated with the entry keys to keep.
+		// If we compress data, we also store the unique value keys used (that is not default).
+		for (const PCGMetadataEntryKey& EntryKey : InEntryKeysToKeep)
+		{
+			AllValueKeys.Add(GetValueKey(EntryKey));
+			if constexpr (bUseValueKeys)
+			{
+				if (AllValueKeys.Last() != PCGDefaultValueKey)
+				{
+					AllUniqueValueKeys.AddUnique(AllValueKeys.Last());
+				}
+			}
+		}
+
+		// Then for each value key (or unique values keys), gather the value in a NewValues array
+		// and also keep a mapping between old value key and new value key.
+		// Only done if the old value key is not the default one.
+		TMap<PCGMetadataValueKey, PCGMetadataValueKey> ValueKeyMapping;
+		TArray<T> NewValues;
+		const TArray<PCGMetadataValueKey>& AllValueKeysRef = !bUseValueKeys ? AllValueKeys : AllUniqueValueKeys;
+		NewValues.Reserve(AllValueKeysRef.Num());
+		ValueKeyMapping.Reserve(AllValueKeysRef.Num());
+		for (PCGMetadataValueKey ValueKey : AllValueKeysRef)
+		{
+			if (ValueKey != PCGDefaultValueKey)
+			{
+				ValueKeyMapping.Add(ValueKey, NewValues.Num());
+				NewValues.Add(GetValue(ValueKey));
+			}
+		}
+
+		// Move the new values in place of the old values.
+		ValueLock.WriteLock();
+		Values = std::move(NewValues);
+		ValueLock.WriteUnlock();
+
+		// And finally, create a new entry to value mapping.
+		// Logic is that each entry to keep will have their "index" as new entry key
+		// (like if the entries to keep are [25, 47, 54], the new entries would be [0, 1, 2]).
+		// So the operation is:
+		// All pairs Old EK -> Old VK transform to New EK -> New VK.
+		TMap<PCGMetadataEntryKey, PCGMetadataValueKey> NewMap;
+		for (int32 i = 0; i < InEntryKeysToKeep.Num(); ++i)
+		{
+			PCGMetadataValueKey ValueKey = AllValueKeys[i];
+			if (ValueKey != PCGDefaultValueKey && ensure(InEntryKeysToKeep[i] != PCGInvalidEntryKey))
+			{
+				NewMap.Add(i, ValueKeyMapping[ValueKey]);
+			}
+		}
+
+		// And move the map.
+		EntryMapLock.WriteLock();
+		EntryToValueKeyMap = std::move(NewMap);
+		EntryMapLock.WriteUnlock();
+
+		// At the end, reset value offset, and lose parent.
+		ValueKeyOffset = 0;
+		Parent = nullptr;
+	}
+
+	virtual void Reset() override
+	{
+		ValueKeyOffset = 0;
+		Parent = nullptr;
+
+		EntryMapLock.WriteLock();
+		EntryToValueKeyMap.Empty();
+		EntryMapLock.WriteUnlock();
+
+		ValueLock.WriteLock();
+		Values.Empty();
+		ValueLock.WriteUnlock();
 	}
 
 	const FPCGMetadataAttribute* GetParent() const { return static_cast<const FPCGMetadataAttribute*>(Parent); }
