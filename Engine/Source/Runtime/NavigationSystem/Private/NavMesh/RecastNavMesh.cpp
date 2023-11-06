@@ -1173,9 +1173,14 @@ void ARecastNavMesh::SetConfig(const FNavDataConfig& Src)
 	// Step 2: update ARecastNavMesh from the new NavDataConfig
 	AgentHeight = NavDataConfig.AgentHeight;
 	AgentRadius = NavDataConfig.AgentRadius;
-	for (int32 Index = 0; Index < (int32)ENavigationDataResolution::MAX; Index++)
+
+	if (Src.HasStepHeightOverride())
 	{
-		SetAgentMaxStepHeight((ENavigationDataResolution)Index, NavDataConfig.AgentStepHeight);
+		// If there is an override, apply it to all resolutions
+		for (int32 Index = 0; Index < (int32)ENavigationDataResolution::MAX; Index++)
+		{
+			SetAgentMaxStepHeight((ENavigationDataResolution)Index, NavDataConfig.AgentStepHeight);
+		}
 	}
 }
 
