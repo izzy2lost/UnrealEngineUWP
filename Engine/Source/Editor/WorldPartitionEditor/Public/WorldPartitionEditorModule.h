@@ -149,11 +149,7 @@ private:
 
 	FDelegateHandle LevelEditorExtenderDelegateHandle;
 
-	TSharedPtr<class FHLODLayerAssetTypeActions> HLODLayerAssetTypeActions;
-	TSharedPtr<class FDataLayerAssetTypeActions> DataLayerAssetTypeActions;
-
 	TWeakPtr<SDockTab> WorldPartitionTab;
-
 	TWeakPtr<SDockTab> ContentBundleTab;
 
 	TWeakPtr<SContentBundleBrowser> ContentBundleBrowser;
