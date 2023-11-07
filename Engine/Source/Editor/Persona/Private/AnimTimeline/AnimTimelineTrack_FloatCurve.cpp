@@ -201,7 +201,7 @@ void FAnimTimelineTrack_FloatCurve::OnCommitCurveName(const FText& InText, EText
 		const FName RequestedName = FName(*InText.ToString());
 		
 		const TArray<FFloatCurve>& FloatCurves = AnimSequenceBase->GetDataModel()->GetFloatCurves();
-		if (!FloatCurves.ContainsByPredicate([RequestedName](const FFloatCurve& Curve)
+		if (FloatCurves.ContainsByPredicate([RequestedName](const FFloatCurve& Curve)
 		{
 			return Curve.GetName() == RequestedName;
 		}))
