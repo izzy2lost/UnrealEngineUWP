@@ -24,25 +24,31 @@ namespace EpicGames.Core
 		class DefaultReadOnlyMemoryOwner<T> : IReadOnlyMemoryOwner<T>
 		{
 			public ReadOnlyMemory<T> Memory { get; }
+			readonly IDisposable? _owner;
 
-			public DefaultReadOnlyMemoryOwner(ReadOnlyMemory<T> memory) => Memory = memory;
-			public void Dispose() { }
+			public DefaultReadOnlyMemoryOwner(ReadOnlyMemory<T> memory, IDisposable? owner)
+			{
+				Memory = memory;
+				_owner = owner;
+			}
+
+			public void Dispose() => _owner?.Dispose();
 		}
 
 		/// <summary>
 		/// Wrap an array as a <see cref="IReadOnlyMemoryOwner{T}"/>
 		/// </summary>
-		public static IReadOnlyMemoryOwner<T> Create<T>(T[] memory)
+		public static IReadOnlyMemoryOwner<T> Create<T>(T[] memory, IDisposable? owner = null)
 		{
-			return new DefaultReadOnlyMemoryOwner<T>(memory);
+			return new DefaultReadOnlyMemoryOwner<T>(memory, owner);
 		}
 
 		/// <summary>
 		/// Wrap a <see cref="ReadOnlyMemory{T}"/> as a <see cref="IReadOnlyMemoryOwner{T}"/>
 		/// </summary>
-		public static IReadOnlyMemoryOwner<T> Create<T>(ReadOnlyMemory<T> memory)
+		public static IReadOnlyMemoryOwner<T> Create<T>(ReadOnlyMemory<T> memory, IDisposable? owner = null)
 		{
-			return new DefaultReadOnlyMemoryOwner<T>(memory);
+			return new DefaultReadOnlyMemoryOwner<T>(memory, owner);
 		}
 
 		// Wraps a ReadOnlyMemoryOwner in a stream
