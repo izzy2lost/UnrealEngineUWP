@@ -15,10 +15,9 @@ export const MarkdownLink: React.FunctionComponent<ILinkProps> = props => {
       href = removeAnchorLink(window.location.hash) + href;
    }
 
-   if (href?.startsWith("file://")) {
+   if (href?.startsWith("file://") || href?.startsWith("/api/v1")) {
       return <a children={props.children} href={href!} />;
    }
-
 
    if (href) {
 
