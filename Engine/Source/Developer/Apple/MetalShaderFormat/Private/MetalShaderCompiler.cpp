@@ -882,8 +882,9 @@ void CompileMetalShader(const FShaderCompilerInput& Input, const FString& InPrep
 	FString EntryPointName = Input.EntryPointName;
 	FString PreprocessedSource = InPreprocessedSource;
 
-	FShaderParameterParser ShaderParameterParser(Input.Environment.CompilerFlags, nullptr, {}, {});
-	if (!ShaderParameterParser.ParseAndModify(Input, Output.Errors, PreprocessedSource, EBindlessParameterMode::Default))
+	FShaderParameterParser::FPlatformConfiguration PlatformConfiguration;
+	FShaderParameterParser ShaderParameterParser(PlatformConfiguration);
+	if (!ShaderParameterParser.ParseAndModify(Input, Output.Errors, PreprocessedSource))
 	{
 		// The FShaderParameterParser will add any relevant errors.
 		return;

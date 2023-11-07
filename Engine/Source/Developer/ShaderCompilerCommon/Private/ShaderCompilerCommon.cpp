@@ -373,14 +373,6 @@ const TCHAR* ParseHLSLSymbolName(const TCHAR* SearchString, FString& SymbolName)
 	return Result.GetData() + Result.Len();
 }
 
-EShaderParameterType UE::ShaderCompilerCommon::ParseParameterType(
-	FStringView InType,
-	TArrayView<const TCHAR* const> InExtraSRVTypes,
-	TArrayView<const TCHAR* const> InExtraUAVTypes)
-{
-	return FShaderParameterParser::ParseParameterType(InType, InExtraSRVTypes, InExtraUAVTypes);
-}
-
 FStringView UE::ShaderCompilerCommon::RemoveConstantBufferPrefix(FStringView InName)
 {
 	return UE::String::RemoveFromStart(InName, FStringView(UE::ShaderCompilerCommon::kUniformBufferConstantBufferPrefix));
@@ -389,21 +381,6 @@ FStringView UE::ShaderCompilerCommon::RemoveConstantBufferPrefix(FStringView InN
 FString UE::ShaderCompilerCommon::RemoveConstantBufferPrefix(const FString& InName)
 {
 	return FString(RemoveConstantBufferPrefix(FStringView(InName)));
-}
-
-EShaderParameterType UE::ShaderCompilerCommon::ParseAndRemoveBindlessParameterPrefix(FStringView& InName)
-{
-	return FShaderParameterParser::ParseAndRemoveBindlessParameterPrefix(InName);
-}
-
-EShaderParameterType UE::ShaderCompilerCommon::ParseAndRemoveBindlessParameterPrefix(FString& InName)
-{
-	return FShaderParameterParser::ParseAndRemoveBindlessParameterPrefix(InName);
-}
-
-bool UE::ShaderCompilerCommon::RemoveBindlessParameterPrefix(FString& InName)
-{
-	return FShaderParameterParser::RemoveBindlessParameterPrefix(InName);
 }
 
 bool UE::ShaderCompilerCommon::ValidatePackedResourceCounts(FShaderCompilerOutput& Output, const FShaderCodePackedResourceCounts& PackedResourceCounts)

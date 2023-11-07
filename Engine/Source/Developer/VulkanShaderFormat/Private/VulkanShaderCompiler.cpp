@@ -2538,6 +2538,28 @@ static bool CompileShaderGroup(
 	return bSuccess;
 }
 
+struct FPS5ShaderParameterParserPlatformConfiguration : public FShaderParameterParser::FPlatformConfiguration
+{
+	FPS5ShaderParameterParserPlatformConfiguration(const FShaderCompilerInput& Input)
+		: FShaderParameterParser::FPlatformConfiguration()
+	{
+		EnumAddFlags(Flags, EShaderParameterParserConfigurationFlags::SupportsBindless | EShaderParameterParserConfigurationFlags::BindlessUsesArrays);
+
+		// Create a _RootShaderParameters and bind it in slot 0 like any other uniform buffer
+		if (Input.Target.GetFrequency() == SF_RayGen && Input.RootParametersStructure != nullptr)
+		{
+			ConstantBufferType = TEXTVIEW("cbuffer");
+			EnumAddFlags(Flags, EShaderParameterParserConfigurationFlags::UseStableConstantBuffer);
+		}
+	}
+
+	virtual FString GenerateBindlessAccess(EBindlessConversionType BindlessType, FStringView ShaderTypeString, FStringView IndexString) const final
+	{
+		checkf(false, TEXT("Vulkan does not use GenerateBindlessAccess"));
+		return FString();
+	}
+};
+
 void CompileVulkanShader(const FShaderCompilerInput& Input, const FString& InPreprocessedSource, FShaderCompilerOutput& Output, const class FString& WorkingDirectory)
 {
 	check(IsVulkanShaderFormat(Input.ShaderFormat));
@@ -2545,11 +2567,9 @@ void CompileVulkanShader(const FShaderCompilerInput& Input, const FString& InPre
 	FString EntryPointName = Input.EntryPointName;
 	FString PreprocessedSource = InPreprocessedSource;
 
-	// Create a _RootShaderParameters and bind it in slot 0 like any other uniform buffer
-	const TCHAR* ConstantBufferType = (Input.Target.GetFrequency() == SF_RayGen && Input.RootParametersStructure != nullptr) ? TEXT("cbuffer") : nullptr;
-
-	FShaderParameterParser ShaderParameterParser(Input.Environment.CompilerFlags, ConstantBufferType, {}, {});
-	if (!ShaderParameterParser.ParseAndModify(Input, Output.Errors, PreprocessedSource, EBindlessParameterMode::Vulkan))
+	FPS5ShaderParameterParserPlatformConfiguration PlatformConfiguration(Input);
+	FShaderParameterParser ShaderParameterParser(PlatformConfiguration);
+	if (!ShaderParameterParser.ParseAndModify(Input, Output.Errors, PreprocessedSource))
 	{
 		// The FShaderParameterParser will add any relevant errors.
 		return;

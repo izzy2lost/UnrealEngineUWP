@@ -1389,6 +1389,26 @@ bool PreprocessD3DShader(
 	return true;
 }
 
+struct FD3DShaderParameterParserPlatformConfiguration : public FShaderParameterParser::FPlatformConfiguration
+{
+	FD3DShaderParameterParserPlatformConfiguration()
+		: FShaderParameterParser::FPlatformConfiguration(TEXTVIEW("cbuffer"), EShaderParameterParserConfigurationFlags::UseStableConstantBuffer|EShaderParameterParserConfigurationFlags::SupportsBindless)
+	{
+	}
+
+	virtual FString GenerateBindlessAccess(EBindlessConversionType BindlessType, FStringView ShaderTypeString, FStringView IndexString) const final
+	{
+		// GetResourceFromHeap(Type, Index) ResourceDescriptorHeap[Index]
+		// GetSamplerFromHeap(Type, Index)  SamplerDescriptorHeap[Index]
+
+		const TCHAR* HeapString = BindlessType == EBindlessConversionType::Sampler ? TEXT("SamplerDescriptorHeap") : TEXT("ResourceDescriptorHeap");
+
+		return FString::Printf(TEXT("%s[%.*s]"),
+			HeapString,
+			IndexString.Len(), IndexString.GetData()
+		);
+	}
+};
 
 void CompileD3DShader(const FShaderCompilerInput& Input, const FString& InPreprocessedSource, FShaderCompilerOutput& Output, const FString& WorkingDirectory, ELanguage Language)
 {
@@ -1406,8 +1426,9 @@ void CompileD3DShader(const FShaderCompilerInput& Input, const FString& InPrepro
 	FString EntryPointName = Input.EntryPointName;
 	FString PreprocessedSource = InPreprocessedSource;
 
-	FShaderParameterParser ShaderParameterParser(Input.Environment.CompilerFlags, TEXT("cbuffer"), {}, {});
-	if (!ShaderParameterParser.ParseAndModify(Input, Output.Errors, PreprocessedSource, EBindlessParameterMode::Default))
+	FD3DShaderParameterParserPlatformConfiguration PlatformConfiguration;
+	FShaderParameterParser ShaderParameterParser(PlatformConfiguration);
+	if (!ShaderParameterParser.ParseAndModify(Input, Output.Errors, PreprocessedSource))
 	{
 		// The FShaderParameterParser will add any relevant errors.
 		return;

@@ -64,26 +64,8 @@ extern SHADERCOMPILERCOMMON_API int16 GetNumUniformBuffersUsed(const FShaderComp
 
 namespace UE::ShaderCompilerCommon
 {
-	UE_DEPRECATED(5.3, "Deprecated; use FShaderCompilerInput::ShouldUseStableContantBuffer directly")
-	inline bool ShouldUseStableConstantBuffer(const FShaderCompilerInput& Input)
-	{
-		return Input.ShouldUseStableConstantBuffer();
-	}
-
-	UE_DEPRECATED(5.3, "Deprecated; use FShaderParameterParser::ParseParameterType instead")
-	extern SHADERCOMPILERCOMMON_API EShaderParameterType ParseParameterType(FStringView InType, TArrayView<const TCHAR* const> InExtraSRVTypes, TArrayView<const TCHAR* const> InExtraUAVTypes);
-
 	extern SHADERCOMPILERCOMMON_API FStringView          RemoveConstantBufferPrefix(FStringView InName);
 	extern SHADERCOMPILERCOMMON_API FString              RemoveConstantBufferPrefix(const FString& InName);
-
-	UE_DEPRECATED(5.3, "Deprecated; use FShaderParameterParser::ParseAndRemoveBindlessParameterPrefix instead")
-	extern SHADERCOMPILERCOMMON_API EShaderParameterType ParseAndRemoveBindlessParameterPrefix(FStringView& InName);
-	
-	UE_DEPRECATED(5.3, "Deprecated; use FShaderParameterParser::ParseAndRemoveBindlessParameterPrexix instead")
-	extern SHADERCOMPILERCOMMON_API EShaderParameterType ParseAndRemoveBindlessParameterPrefix(FString& InName);
-
-	UE_DEPRECATED(5.3, "Deprecated; use FShaderParameterParser::RemoveBindlessParameterPrefix instead")
-	extern SHADERCOMPILERCOMMON_API bool                 RemoveBindlessParameterPrefix(FString& InName);
 
 	extern SHADERCOMPILERCOMMON_API bool                 ValidatePackedResourceCounts(FShaderCompilerOutput& Output, const FShaderCodePackedResourceCounts& PackedResourceCounts);
 
