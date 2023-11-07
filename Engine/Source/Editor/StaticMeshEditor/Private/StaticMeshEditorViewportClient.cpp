@@ -1114,12 +1114,12 @@ void FStaticMeshEditorViewportClient::ProcessClick(class FSceneView& InView, cla
 					FStaticMeshLODResources& RenderData = StaticMeshComponent->GetStaticMesh()->GetRenderData()->LODResources[LODLevel];
 
 					int32 NumBackFacingTriangles = 0;
-					uint32 IndexBufferIndex = 0;
 					for (int32 SectionIndex = 0; SectionIndex < RenderData.Sections.Num(); ++SectionIndex)
 					{
 						const FStaticMeshSection& Section = RenderData.Sections[SectionIndex];
 						const int32 FaceMaterialIndex = Section.MaterialIndex;
 						const int32 NumFaces = Section.NumTriangles;
+						uint32 IndexBufferIndex = Section.FirstIndex;
 						for (int32 FaceIndex = 0; FaceIndex < NumFaces; ++FaceIndex)
 						{
 							FVector VertexPosition[3];
