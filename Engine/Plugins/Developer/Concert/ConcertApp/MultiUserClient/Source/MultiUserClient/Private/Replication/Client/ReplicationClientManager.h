@@ -105,7 +105,15 @@ namespace UE::MultiUserClient
 		 * when the session shuts down.
 		 */
 		const TWeakPtr<IConcertClientSession> Session;
-
+		
+		/**
+		 * Sends FConcertReplication_QueryReplicationInfo_Request in regular intervals.
+		 * Shared by all remote clients so all requests are bundled reducing the number of network requests. 
+		 */
+		FRegularQueryService QueryService;
+		/** Keeps a cache of object to owning clients. */
+		FGlobalAuthorityCache AuthorityCache;
+		
 		/** Manages the local client */
 		FLocalReplicationClient LocalClient;
 		
@@ -121,14 +129,6 @@ namespace UE::MultiUserClient
 		FRemoteClientDelegate OnPostRemoteClientAddedDelegate;
 		/** Called just before a remote client is about to be removed from RemoteClients. */
 		FRemoteClientDelegate OnPreRemoteClientRemovedDelegate; 
-		
-		/**
-		 * Sends FConcertReplication_QueryReplicationInfo_Request in regular intervals.
-		 * Shared by all remote clients so all requests are bundled reducing the number of network requests. 
-		 */
-		FRegularQueryService QueryService;
-		/** Keeps a cache of object to owning clients. */
-		FGlobalAuthorityCache AuthorityCache;
 		
 		/** Manages SNotificationItems when submission to the server fails. */
 		FSubmissionNotifier SubmissionNotifier;

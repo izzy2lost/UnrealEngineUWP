@@ -5,6 +5,7 @@
 #include "IConcertSyncClient.h"
 #include "Replication/Authority/AuthorityChangeTracker.h"
 #include "Replication/Stream/StreamChangeTracker.h"
+#include "Replication/Util/GlobalAuthorityCache.h"
 #include "Replication/Util/StreamRequestUtils.h"
 
 namespace UE::MultiUserClient
@@ -13,9 +14,11 @@ namespace UE::MultiUserClient
 		TSharedRef<IConcertSyncClient> InClient,
 		FStreamChangeTracker& InStreamChangeTracker,
 		FAuthorityChangeTracker& InAuthorityChangeTracker,
-		IClientStreamSynchronizer& InStreamSynchronizer
+		IClientStreamSynchronizer& InStreamSynchronizer,
+		const FGlobalAuthorityCache& InAuthorityCache
 		)
 		: Client(MoveTemp(InClient))
+		, AuthorityCache(InAuthorityCache)
 		, StreamChangeTracker(InStreamChangeTracker)
 		, AuthorityChangeTracker(InAuthorityChangeTracker)
 		, StreamSynchronizer(InStreamSynchronizer)
@@ -55,9 +58,12 @@ namespace UE::MultiUserClient
 			return nullptr;
 		}
 
-		// TODO DP: We should check the authority change for conflicts one more time here, in case the remote client's streams have changed since the user last edited authority
+		const FGuid LocalClientId = Client->GetConcertClient()->GetCurrentSession()->GetSessionClientEndpointId();
+		
 		// The authority request is pre-built now to avoid sending changes the local client makes while we're waiting for the latent server responses
 		FAuthorityChangeRequest AuthorityChangeRequest = AuthorityChangeTracker.BuildChangeRequest(GetLocalClientStreamId());
+		// Predict conflicts in case the remote client's streams have changed. Also: while the UI highlights "bad" requests, it does not correct it.
+		AuthorityCache.CleanseConflictsFrom(AuthorityChangeRequest, LocalClientId);
 		
 		const FStreamChangelist& Changelist = StreamChangeTracker.GetCachedDeltaChange();
 		const bool bIsChangelistEmpty = Changelist.ObjectsToPut.IsEmpty() && Changelist.ObjectsToRemove.IsEmpty();
@@ -79,6 +85,8 @@ namespace UE::MultiUserClient
 			FChangeStreamRequest Request = StreamSynchronizer.GetServerState().ReplicatedObjects.IsEmpty()
 				? StreamRequestUtils::BuildChangeRequest_CreateNewStream(GetLocalClientStreamId(), Changelist)
 				: StreamRequestUtils::BuildChangeRequest_UpdateExistingStream(Changelist);
+			// Predict conflicts in case the remote client's streams have changed. Also: while the UI highlights "bad" requests, it does not correct it.
+			AuthorityCache.CleanseConflictsFrom(AuthorityChangeRequest, LocalClientId);
 		
 			ReplicationManager->ChangeStream(Request)
 				.Next([this, DestructionDetection = LifetimeToken->AsWeak(), Request, AuthorityChangeRequest = MoveTemp(AuthorityChangeRequest)](FChangeStreamResponse&& Response)

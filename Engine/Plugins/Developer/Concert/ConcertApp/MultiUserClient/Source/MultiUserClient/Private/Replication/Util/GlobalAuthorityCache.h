@@ -24,14 +24,17 @@ namespace UE::MultiUserClient
 	 * Allows efficient look-up of which objects and properties are owned by which clients.
 	 * This class efficiently answers the question: "Which clients own this object?"
 	 */
-	class FGlobalAuthorityCache : public FNoncopyable, private ConcertSyncCore::Replication::AuthorityConflictUtils::IReplicationGroundTruth
+	class FGlobalAuthorityCache
+		: public FNoncopyable
+		, private ConcertSyncCore::Replication::AuthorityConflictUtils::IReplicationGroundTruth
 	{
 	public:
 
 		using FProcessPropertyConflict = TFunctionRef<EBreakBehavior(const FGuid& ConflictingClientId, const FConcertPropertyChain& Property)>;
 		
 		FGlobalAuthorityCache(FReplicationClientManager& InClientManager);
-		~FGlobalAuthorityCache();
+		/** Called when the local client has been created and it is safe to register client events with FReplicationClientManager. */
+		void RegisterEvents();
 
 		/** Iterates every client that has authority over Object. */
 		void ForEachClientWithAuthorityOverObject(const FSoftObjectPath& Object, TFunctionRef<EBreakBehavior(const FGuid& ClientId)> Callback) const;
@@ -53,7 +56,22 @@ namespace UE::MultiUserClient
 
 		/** Gets the client that has authority over the given property, if there is any. */
 		TOptional<FGuid> GetClientWithAuthorityOverProperty(const FSoftObjectPath& Object, const FConcertPropertyChain& Property) const;
-
+		
+		/**
+		 * Removes entries from Request that would generate conflicts.
+		 * 
+		 * @param Request The request to clense
+		 * @param SendingClient The client that will send the request
+		 */
+		void CleanseConflictsFrom(ConcertSyncClient::Replication::FAuthorityChangeRequest& Request, const FGuid& SendingClient) const;
+		/**
+		 * Removes entries from Request that would generate conflicts.
+		 * 
+		 * @param Request The request to clense
+		 * @param SendingClient The client that will send the request
+		 */
+		void CleanseConflictsFrom(ConcertSyncClient::Replication::FChangeStreamRequest& Request, const FGuid& SendingClient) const;
+		
 		DECLARE_MULTICAST_DELEGATE_OneParam(FOnCacheChanged, const FGuid& ClientId);
 		/** Called when the cache changes for a specific client. */
 		FOnCacheChanged& OnCacheChanged() { return OnCacheChangedDelegate; }

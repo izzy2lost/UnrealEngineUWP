@@ -10,24 +10,14 @@ namespace UE::MultiUserClient
 {
 	FGlobalAuthorityCache::FGlobalAuthorityCache(FReplicationClientManager& InClientManager)
 		: ClientManager(InClientManager)
+	{}
+
+	void FGlobalAuthorityCache::RegisterEvents()
 	{
 		RegisterForClientEvents(ClientManager.GetLocalClient());
 
 		ClientManager.OnPostRemoteClientAdded().AddRaw(this, &FGlobalAuthorityCache::OnPostRemoteClientAdded);
 		ClientManager.OnPreRemoteClientRemoved().AddRaw(this, &FGlobalAuthorityCache::OnPreRemoteClientRemoved);
-	}
-
-	FGlobalAuthorityCache::~FGlobalAuthorityCache()
-	{
-		// FGlobalAuthorityCache is owned by FRelicationClientManager so this is strictly not needed. But we'll follow RAII in case ownership changes.
-		UnregisterFromClientEvents(ClientManager.GetLocalClient());
-		for (const TNonNullPtr<FRemoteReplicationClient>& RemoteClient : ClientManager.GetRemoteClients())
-		{
-			UnregisterFromClientEvents(*RemoteClient);
-		}
-		
-		ClientManager.OnPostRemoteClientAdded().RemoveAll(this);
-		ClientManager.OnPreRemoteClientRemoved().RemoveAll(this);
 	}
 
 	void FGlobalAuthorityCache::ForEachClientWithAuthorityOverObject(const FSoftObjectPath& Object, TFunctionRef<EBreakBehavior(const FGuid& ClientId)> Callback) const
@@ -129,6 +119,16 @@ namespace UE::MultiUserClient
 		return Result;
 	}
 
+	void FGlobalAuthorityCache::CleanseConflictsFrom(ConcertSyncClient::Replication::FAuthorityChangeRequest& Request, const FGuid& SendingClient) const
+	{
+		ConcertSyncCore::Replication::AuthorityConflictUtils::CleanseConflictsFrom(Request, SendingClient, *this);
+	}
+
+	void FGlobalAuthorityCache::CleanseConflictsFrom(ConcertSyncClient::Replication::FChangeStreamRequest& Request, const FGuid& SendingClient) const
+	{
+		ConcertSyncCore::Replication::AuthorityConflictUtils::CleanseConflictsFrom(Request, SendingClient, *this);
+	}
+
 	void FGlobalAuthorityCache::RegisterForClientEvents(const FReplicationClient& Client)
 	{
 		const FGuid& ClientEndpointId = Client.GetEndpointId();
@@ -173,7 +173,7 @@ namespace UE::MultiUserClient
 			}
 		}
 	}
-
+	
 	void FGlobalAuthorityCache::ForEachStream(const FGuid& ClientEndpointId, TFunctionRef<EBreakBehavior(const FGuid& StreamId, const FObjectReplicationMap& ReplicationMap)> Callback) const
 	{
 		const FReplicationClient* Client = ClientManager.FindClient(ClientEndpointId);

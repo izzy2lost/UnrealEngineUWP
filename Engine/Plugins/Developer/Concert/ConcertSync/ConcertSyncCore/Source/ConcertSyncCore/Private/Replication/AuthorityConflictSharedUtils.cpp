@@ -3,6 +3,8 @@
 #include "Replication/AuthorityConflictSharedUtils.h"
 
 #include "Replication/Data/ReplicationStreamDescription.h"
+#include "Replication/Messages/ChangeAuthority.h"
+#include "Replication/Messages/ChangeStream.h"
 
 namespace UE::ConcertSyncCore::Replication::AuthorityConflictUtils
 {
@@ -80,5 +82,70 @@ namespace UE::ConcertSyncCore::Replication::AuthorityConflictUtils
 			GroundTruth
 			);
 		return bFreeOfConflicts ? EAuthorityConflict::Allowed : EAuthorityConflict::Conflict;
+	}
+
+	void CleanseConflictsFrom(FConcertReplication_ChangeAuthority_Request& Request, const FGuid& SendingClient, const IReplicationGroundTruth& GroundTruth)
+	{
+		// Need to check whether TakeAuthority is taking authority over properties other clients are already replicating
+		GroundTruth.ForEachStream(SendingClient, [&SendingClient, &Request, &GroundTruth](const FGuid& StreamId, const FObjectReplicationMap& ReplicationMap)
+		{
+			for (auto ChangeIt = Request.TakeAuthority.CreateIterator(); ChangeIt; ++ChangeIt)
+			{
+				TPair<FSoftObjectPath, FConcertStreamArray>& Change = *ChangeIt;
+				
+				const FReplicatedObjectInfo* ObjectInfo = ReplicationMap.ReplicatedObjects.Find(Change.Key);
+				if (!ObjectInfo)
+				{
+					ChangeIt.RemoveCurrent();
+					continue;
+				}
+
+				const FSoftObjectPath& ObjectPath = Change.Key;
+				const TArray<FConcertPropertyChain>& Properties = ObjectInfo->PropertySelection.ReplicatedProperties;
+				const EAuthorityConflict Conflict = EnumerateAuthorityConflicts(SendingClient, ObjectPath, Properties, GroundTruth);
+
+				const bool bHasConflict = Conflict == EAuthorityConflict::Conflict;
+				FConcertStreamArray& StreamArray = Change.Value;
+				if (bHasConflict && StreamArray.StreamIds.Num() > 1)
+				{
+					StreamArray.StreamIds.Remove(StreamId);
+				}
+				else if (bHasConflict)
+				{
+					ChangeIt.RemoveCurrent();
+				}
+			}
+
+			return Request.TakeAuthority.IsEmpty() ? EBreakBehavior::Break : EBreakBehavior::Continue;
+		});
+	}
+	
+	void CleanseConflictsFrom(FConcertReplication_ChangeStream_Request& Request, const FGuid& SendingClient, const IReplicationGroundTruth& GroundTruth)
+	{
+		// Need to check whether ObjectsToPut adds any properties that an existing client has authority over.
+		GroundTruth.ForEachStream(SendingClient, [&SendingClient, &Request, &GroundTruth](const FGuid& StreamId, const FObjectReplicationMap& ReplicationMap)
+		{
+			for (auto ChangeIt = Request.ObjectsToPut.CreateIterator(); ChangeIt; ++ChangeIt)
+			{
+				const TPair<FObjectInStreamID, FConcertReplication_ChangeStream_PutObject>& Change = *ChangeIt;
+				const FConcertReplication_ChangeStream_PutObject& PutObject = Change.Value;
+
+				// Just changing the class?
+				if (PutObject.Properties.ReplicatedProperties.IsEmpty())
+				{
+					continue;
+				}
+				
+				const FSoftObjectPath& ObjectPath = Change.Key.Object;
+				const EAuthorityConflict Conflict = EnumerateAuthorityConflicts(SendingClient, ObjectPath, PutObject.Properties.ReplicatedProperties, GroundTruth);
+				if (Conflict == EAuthorityConflict::Conflict)
+				{
+					ChangeIt.RemoveCurrent();
+				}
+			}
+
+			const bool bIsRequestEmpty = Request.ObjectsToPut.IsEmpty();
+			return bIsRequestEmpty ? EBreakBehavior::Break : EBreakBehavior::Continue;
+		});
 	}
 }

@@ -11,21 +11,22 @@ namespace UE::MultiUserClient
 	FLocalReplicationClient::FLocalReplicationClient(
 		UMultiUserReplicationClientPreset& InSessionContent,
 		TUniquePtr<IClientStreamSynchronizer> InStreamSynchronizer,
-		TSharedRef<IConcertSyncClient> InClient
+		TSharedRef<IConcertSyncClient> InClient,
+		const FGlobalAuthorityCache& InAuthorityCache
 		)
 		: FReplicationClient(
 			InClient->GetConcertClient()->GetCurrentSession()->GetSessionClientEndpointId(),
 			InSessionContent,
 			MoveTemp(InStreamSynchronizer),
-			MakeUnique<FAuthoritySynchronizer_LocalClient>(
-				InClient,
-				FDoesObjectHaveProperties::CreateLambda([this](const FSoftObjectPath& ObjectPath)
-				{
-					return GetStreamDiffer().DoesObjectHavePropertiesAfterSubmit(ObjectPath);
-				})),
-			[this, InClient](FStreamChangeTracker& InStreamChangeTracker, FAuthorityChangeTracker& InAuthorityChangeTracker, IClientStreamSynchronizer& InStreamSynchronizer)
+		MakeUnique<FAuthoritySynchronizer_LocalClient>(
+			InClient,
+			FDoesObjectHaveProperties::CreateLambda([this](const FSoftObjectPath& ObjectPath)
 			{
-				return MakeUnique<FSubmissionWorkflow_LocalClient>(InClient, InStreamChangeTracker, InAuthorityChangeTracker, InStreamSynchronizer);
+				return GetStreamDiffer().DoesObjectHavePropertiesAfterSubmit(ObjectPath);
+			})),
+			[this, InClient, &InAuthorityCache](FStreamChangeTracker& InStreamChangeTracker, FAuthorityChangeTracker& InAuthorityChangeTracker, IClientStreamSynchronizer& InStreamSynchronizer) mutable
+			{
+				return MakeUnique<FSubmissionWorkflow_LocalClient>(MoveTemp(InClient), InStreamChangeTracker, InAuthorityChangeTracker, InStreamSynchronizer, InAuthorityCache);
 			})
 	{}
 }

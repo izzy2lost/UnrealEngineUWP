@@ -7,8 +7,11 @@
 #include "Misc/EBreakBehavior.h"
 #include "Templates/Function.h"
 
+
 struct FConcertPropertyChain;
 struct FConcertPropertySelection;
+struct FConcertReplication_ChangeAuthority_Request;
+struct FConcertReplication_ChangeStream_Request;
 struct FObjectReplicationMap;
 struct FReplicatedObjectId;
 
@@ -60,4 +63,24 @@ namespace UE::ConcertSyncCore::Replication::AuthorityConflictUtils
 		const IReplicationGroundTruth& GroundTruth,
 		FProcessAuthorityConflict ProcessConflict = [](const FGuid&, const FGuid&, const FConcertPropertyChain&){ return EBreakBehavior::Break; }
 		);
+
+	/**
+	 * Removes entries from Request that would generate conflicts.
+	 * 
+	 * @param Request The request to clense
+	 * @param SendingClient The client that will send the request
+	 * @param GroundTruth Provides information about clients. On the server, it is the definite state whereas on client machines it would be
+	 * what the local client thinks what the server state is.
+	 */
+	CONCERTSYNCCORE_API void CleanseConflictsFrom(FConcertReplication_ChangeAuthority_Request& Request, const FGuid& SendingClient, const IReplicationGroundTruth& GroundTruth);
+	
+	/**
+	 * Removes entries from Request that would generate conflicts.
+	 * 
+	 * @param Request The request to clense
+	 * @param SendingClient The client that will send the request
+	 * @param GroundTruth Provides information about clients. On the server, it is the definite state whereas on client machines it would be
+	 * what the local client thinks what the server state is.
+	 */
+	CONCERTSYNCCORE_API void CleanseConflictsFrom(FConcertReplication_ChangeStream_Request& Request, const FGuid& SendingClient, const IReplicationGroundTruth& GroundTruth);
 }

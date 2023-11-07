@@ -17,6 +17,7 @@ namespace UE::MultiUserClient
 	class IClientAuthoritySynchronizer;
 	class IClientStreamSynchronizer;
 	class FAuthorityChangeTracker;
+	class FGlobalAuthorityCache;
 	class FStreamChangeTracker;
 	
 	/** Handles the submission workflow for a single client. */
@@ -28,7 +29,8 @@ namespace UE::MultiUserClient
 			TSharedRef<IConcertSyncClient> InClient,
 			FStreamChangeTracker& InStreamChangeTracker,
 			FAuthorityChangeTracker& InAuthorityChangeTracker,
-			IClientStreamSynchronizer& InStreamSynchronizer
+			IClientStreamSynchronizer& InStreamSynchronizer,
+			const FGlobalAuthorityCache& InAuthorityCache
 			);
 		
 		//~ Begin ISubmissionWorkflow Interface
@@ -44,6 +46,9 @@ namespace UE::MultiUserClient
 		
 		/** Used to send authority requests to the server. */
 		const TSharedRef<IConcertSyncClient> Client;
+
+		/** Used to filter out changes that would cause a conflict when submitted. */
+		const FGlobalAuthorityCache& AuthorityCache;
 
 		/** Used to get changes made to the stream */
 		FStreamChangeTracker& StreamChangeTracker;

@@ -6,6 +6,8 @@
 
 namespace UE::MultiUserClient
 {
+	class FGlobalAuthorityCache;
+
 	/** Holds extra information about a local replication client. */
 	class FLocalReplicationClient : public FReplicationClient
 	{
@@ -14,7 +16,8 @@ namespace UE::MultiUserClient
 		FLocalReplicationClient(
 			UMultiUserReplicationClientPreset& InSessionContent,
 			TUniquePtr<IClientStreamSynchronizer> InStreamSynchronizer,
-			TSharedRef<IConcertSyncClient> InClient
+			TSharedRef<IConcertSyncClient> InClient,
+			const FGlobalAuthorityCache& InAuthorityCache
 			);
 	};
 }

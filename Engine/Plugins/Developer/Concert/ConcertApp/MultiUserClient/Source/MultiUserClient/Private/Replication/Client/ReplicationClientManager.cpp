@@ -19,15 +19,16 @@ namespace UE::MultiUserClient
 		)
 		: SessionContent(NewObject<UMultiUserReplicationSessionPreset>(GetTransientPackage(), NAME_None, RF_Transient))
 		, Session(InSession)
+		, QueryService(InClient)
+		, AuthorityCache(*this)
 		, LocalClient([this, InClient]()
 		{
 			UMultiUserReplicationClientPreset* ClientPreset = SessionContent->AddClient();
-			return FLocalReplicationClient(*ClientPreset, MakeUnique<FStreamSynchronizer_LocalClient>(InClient, ClientPreset->Stream->StreamId), InClient);
+			return FLocalReplicationClient(*ClientPreset, MakeUnique<FStreamSynchronizer_LocalClient>(InClient, ClientPreset->Stream->StreamId), InClient, AuthorityCache);
 		}())
-		, QueryService(InClient)
-		, AuthorityCache(*this)
 		, SubmissionNotifier(*this)
 	{
+		AuthorityCache.RegisterEvents();
 		InSession->OnSessionClientChanged().AddRaw(this, &FReplicationClientManager::OnSessionClientChanged);
 
 		for (const FGuid& ClientEndpointId : InSession->GetSessionClientEndpointIds())
