@@ -274,7 +274,14 @@ namespace Horde.Agent
 		/// <returns></returns>
 		static DirectoryReference GetAppDir()
 		{
-			return new DirectoryReference(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!);
+			string? directoryName = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+			if (!String.IsNullOrEmpty(directoryName))
+			{
+				return new DirectoryReference(directoryName);	
+			}
+			
+			// When C# project is packaged as a single file, GetExecutingAssembly above does not work
+			return DirectoryReference.FromFile(new FileReference(Environment.ProcessPath!));
 		}
 
 		/// <summary>
