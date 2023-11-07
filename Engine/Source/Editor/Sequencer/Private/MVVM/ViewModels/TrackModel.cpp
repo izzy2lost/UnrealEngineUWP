@@ -544,6 +544,15 @@ FSlateColor FTrackModel::GetLabelColor() const
 				if (TViewModelPtr<FObjectBindingModel> ObjectBindingModel = FindAncestorOfType<FObjectBindingModel>())
 				{
 					LabelParams.BindingID = ObjectBindingModel->GetObjectGuid();
+
+					// If the object binding model has an invalid binding, we want to use its label color, as it may be red or gray depending on situation
+					// and we want the children of that to have the same color.
+					// Otherwise, we can use the track's label color below
+					TArrayView<TWeakObjectPtr<> > BoundObjects = LabelParams.Player->FindBoundObjects(LabelParams.BindingID, LabelParams.SequenceID);
+					if (BoundObjects.Num() == 0)
+					{
+						return ObjectBindingModel->GetLabelColor();
+					}
 				}
 			}
 		}
