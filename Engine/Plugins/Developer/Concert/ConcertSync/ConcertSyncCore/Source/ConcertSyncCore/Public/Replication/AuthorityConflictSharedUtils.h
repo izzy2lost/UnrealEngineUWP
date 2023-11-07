@@ -72,7 +72,7 @@ namespace UE::ConcertSyncCore::Replication::AuthorityConflictUtils
 	 * @param GroundTruth Provides information about clients. On the server, it is the definite state whereas on client machines it would be
 	 * what the local client thinks what the server state is.
 	 */
-	CONCERTSYNCCORE_API void CleanseConflictsFrom(FConcertReplication_ChangeAuthority_Request& Request, const FGuid& SendingClient, const IReplicationGroundTruth& GroundTruth);
+	CONCERTSYNCCORE_API void CleanseConflictsFromAuthorityRequest(FConcertReplication_ChangeAuthority_Request& Request, const FGuid& SendingClient, const IReplicationGroundTruth& GroundTruth);
 	
 	/**
 	 * Removes entries from Request that would generate conflicts.
@@ -82,5 +82,5 @@ namespace UE::ConcertSyncCore::Replication::AuthorityConflictUtils
 	 * @param GroundTruth Provides information about clients. On the server, it is the definite state whereas on client machines it would be
 	 * what the local client thinks what the server state is.
 	 */
-	CONCERTSYNCCORE_API void CleanseConflictsFrom(FConcertReplication_ChangeStream_Request& Request, const FGuid& SendingClient, const IReplicationGroundTruth& GroundTruth);
+	CONCERTSYNCCORE_API void CleanseConflictsFromStreamRequest(FConcertReplication_ChangeStream_Request& Request, const FGuid& SendingClient, const IReplicationGroundTruth& GroundTruth);
 }

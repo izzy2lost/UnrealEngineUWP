@@ -119,14 +119,14 @@ namespace UE::MultiUserClient
 		return Result;
 	}
 
-	void FGlobalAuthorityCache::CleanseConflictsFrom(ConcertSyncClient::Replication::FAuthorityChangeRequest& Request, const FGuid& SendingClient) const
+	void FGlobalAuthorityCache::CleanseConflictsFromAuthorityRequest(ConcertSyncClient::Replication::FAuthorityChangeRequest& Request, const FGuid& SendingClient) const
 	{
-		ConcertSyncCore::Replication::AuthorityConflictUtils::CleanseConflictsFrom(Request, SendingClient, *this);
+		ConcertSyncCore::Replication::AuthorityConflictUtils::CleanseConflictsFromAuthorityRequest(Request, SendingClient, *this);
 	}
 
-	void FGlobalAuthorityCache::CleanseConflictsFrom(ConcertSyncClient::Replication::FChangeStreamRequest& Request, const FGuid& SendingClient) const
+	void FGlobalAuthorityCache::CleanseConflictsFromStreamRequest(ConcertSyncClient::Replication::FChangeStreamRequest& Request, const FGuid& SendingClient) const
 	{
-		ConcertSyncCore::Replication::AuthorityConflictUtils::CleanseConflictsFrom(Request, SendingClient, *this);
+		ConcertSyncCore::Replication::AuthorityConflictUtils::CleanseConflictsFromStreamRequest(Request, SendingClient, *this);
 	}
 
 	void FGlobalAuthorityCache::RegisterForClientEvents(const FReplicationClient& Client)

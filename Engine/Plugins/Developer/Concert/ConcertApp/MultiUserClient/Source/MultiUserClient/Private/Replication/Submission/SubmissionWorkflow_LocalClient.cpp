@@ -57,13 +57,9 @@ namespace UE::MultiUserClient
 		{
 			return nullptr;
 		}
-
-		const FGuid LocalClientId = Client->GetConcertClient()->GetCurrentSession()->GetSessionClientEndpointId();
 		
 		// The authority request is pre-built now to avoid sending changes the local client makes while we're waiting for the latent server responses
 		FAuthorityChangeRequest AuthorityChangeRequest = AuthorityChangeTracker.BuildChangeRequest(GetLocalClientStreamId());
-		// Predict conflicts in case the remote client's streams have changed. Also: while the UI highlights "bad" requests, it does not correct it.
-		AuthorityCache.CleanseConflictsFrom(AuthorityChangeRequest, LocalClientId);
 		
 		const FStreamChangelist& Changelist = StreamChangeTracker.GetCachedDeltaChange();
 		const bool bIsChangelistEmpty = Changelist.ObjectsToPut.IsEmpty() && Changelist.ObjectsToRemove.IsEmpty();
@@ -82,21 +78,22 @@ namespace UE::MultiUserClient
 		}
 		else
 		{
-			FChangeStreamRequest Request = StreamSynchronizer.GetServerState().ReplicatedObjects.IsEmpty()
+			FChangeStreamRequest StreamRequest = StreamSynchronizer.GetServerState().ReplicatedObjects.IsEmpty()
 				? StreamRequestUtils::BuildChangeRequest_CreateNewStream(GetLocalClientStreamId(), Changelist)
 				: StreamRequestUtils::BuildChangeRequest_UpdateExistingStream(Changelist);
+			
 			// Predict conflicts in case the remote client's streams have changed. Also: while the UI highlights "bad" requests, it does not correct it.
-			AuthorityCache.CleanseConflictsFrom(AuthorityChangeRequest, LocalClientId);
+			AuthorityCache.CleanseConflictsFromStreamRequest(StreamRequest, GetLocalClientId());
 		
-			ReplicationManager->ChangeStream(Request)
-				.Next([this, DestructionDetection = LifetimeToken->AsWeak(), Request, AuthorityChangeRequest = MoveTemp(AuthorityChangeRequest)](FChangeStreamResponse&& Response)
+			ReplicationManager->ChangeStream(StreamRequest)
+				.Next([this, DestructionDetection = LifetimeToken->AsWeak(), StreamRequest, AuthorityChangeRequest = MoveTemp(AuthorityChangeRequest)](FChangeStreamResponse&& Response)
 				{
-					const FSubmitStreamChangesResponse SubmissionResult { EStreamSubmissionErrorCode::Success, { FCompletedChangeSubmission{Request, Response } } };
+					const FSubmitStreamChangesResponse SubmissionResult { EStreamSubmissionErrorCode::Success, { FCompletedChangeSubmission{StreamRequest, Response } } };
 					// The request might execute after we're destroyed, e.g. by leaving session while request is on the way.
 					// In that case, the Concert session triggers the OnSessionConnectionChanged which destroys us. Only after that, all the requests are timed out.
 					if (DestructionDetection.IsValid())
 					{
-						OnStreamChangeCompleted(Request, Response, AuthorityChangeRequest);
+						OnStreamChangeCompleted(StreamRequest, Response, AuthorityChangeRequest);
 					}
 
 					return SubmissionResult;
@@ -165,6 +162,9 @@ namespace UE::MultiUserClient
 			return;
 		}
 
+		// Predict conflicts in case the remote client's streams have changed. Also: while the UI highlights "bad" requests, it does not correct it.
+		AuthorityCache.CleanseConflictsFromAuthorityRequest(AuthorityChangeRequest, GetLocalClientId());
+		
 		FSubmitAuthorityChangesRequest Request{ EAuthoritySubmissionRequestErrorCode::Success, AuthorityChangeRequest };
 		Operation->EmplaceAuthorityRequestPromise(Request);
 		ReplicationManager->RequestAuthorityChange(MoveTemp(AuthorityChangeRequest))
@@ -183,5 +183,10 @@ namespace UE::MultiUserClient
 					AuthorityRequestCompletedDelegate.Broadcast(Request, Result);
 				}
 			});
+	}
+	
+	FGuid FSubmissionWorkflow_LocalClient::GetLocalClientId() const
+	{
+		return Client->GetConcertClient()->GetCurrentSession()->GetSessionClientEndpointId();
 	}
 }

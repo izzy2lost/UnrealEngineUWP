@@ -73,6 +73,8 @@ namespace UE::MultiUserClient
 			ConcertSyncClient::Replication::FAuthorityChangeRequest AuthorityChangeRequest
 			);
 		void SendAuthorityChangeRequest(ConcertSyncClient::Replication::FAuthorityChangeRequest AuthorityChangeRequest);
+		
+		FGuid GetLocalClientId() const;
 	};
 }
 

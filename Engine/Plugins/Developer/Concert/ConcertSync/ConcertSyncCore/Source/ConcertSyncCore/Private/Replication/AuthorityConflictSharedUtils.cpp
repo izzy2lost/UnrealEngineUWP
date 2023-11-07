@@ -84,7 +84,7 @@ namespace UE::ConcertSyncCore::Replication::AuthorityConflictUtils
 		return bFreeOfConflicts ? EAuthorityConflict::Allowed : EAuthorityConflict::Conflict;
 	}
 
-	void CleanseConflictsFrom(FConcertReplication_ChangeAuthority_Request& Request, const FGuid& SendingClient, const IReplicationGroundTruth& GroundTruth)
+	void CleanseConflictsFromAuthorityRequest(FConcertReplication_ChangeAuthority_Request& Request, const FGuid& SendingClient, const IReplicationGroundTruth& GroundTruth)
 	{
 		// Need to check whether TakeAuthority is taking authority over properties other clients are already replicating
 		GroundTruth.ForEachStream(SendingClient, [&SendingClient, &Request, &GroundTruth](const FGuid& StreamId, const FObjectReplicationMap& ReplicationMap)
@@ -120,7 +120,7 @@ namespace UE::ConcertSyncCore::Replication::AuthorityConflictUtils
 		});
 	}
 	
-	void CleanseConflictsFrom(FConcertReplication_ChangeStream_Request& Request, const FGuid& SendingClient, const IReplicationGroundTruth& GroundTruth)
+	void CleanseConflictsFromStreamRequest(FConcertReplication_ChangeStream_Request& Request, const FGuid& SendingClient, const IReplicationGroundTruth& GroundTruth)
 	{
 		// Need to check whether ObjectsToPut adds any properties that an existing client has authority over.
 		GroundTruth.ForEachStream(SendingClient, [&SendingClient, &Request, &GroundTruth](const FGuid& StreamId, const FObjectReplicationMap& ReplicationMap)
