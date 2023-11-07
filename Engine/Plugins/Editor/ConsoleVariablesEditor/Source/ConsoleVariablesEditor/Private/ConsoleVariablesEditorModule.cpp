@@ -63,17 +63,20 @@ void FConsoleVariablesEditorModule::StartupModule()
 	FCoreDelegates::OnFEngineLoopInitComplete.AddRaw(this, &FConsoleVariablesEditorModule::OnFEngineLoopInitComplete);
 }
 
-void FConsoleVariablesEditorModule::ShutdownModule()
+void FConsoleVariablesEditorModule::PreUnloadCallback()
 {
-	UToolMenus::UnregisterOwner(this);
-
-	FCoreDelegates::OnFEngineLoopInitComplete.RemoveAll(this);
-
 	if (OnConsoleObjectUnregisteredHandle.IsValid())
 	{
 		IConsoleManager::Get().OnConsoleObjectUnregistered().Remove(OnConsoleObjectUnregisteredHandle);
 		OnConsoleObjectUnregisteredHandle.Reset();
 	}
+}
+
+void FConsoleVariablesEditorModule::ShutdownModule()
+{
+	UToolMenus::UnregisterOwner(this);
+
+	FCoreDelegates::OnFEngineLoopInitComplete.RemoveAll(this);
 
 	FConsoleVariablesEditorStyle::Shutdown();
 	
