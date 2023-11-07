@@ -1,5 +1,5 @@
-
 // Copyright Epic Games, Inc. All Rights Reserved.
+
 #include "SequencerCurveEditorObject.h"
 #include "MVVM/CurveEditorExtension.h"
 #include "MVVM/ViewModels/SequencerEditorViewModel.h"
