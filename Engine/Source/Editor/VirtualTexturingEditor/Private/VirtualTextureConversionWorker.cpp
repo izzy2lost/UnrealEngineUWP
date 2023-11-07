@@ -97,7 +97,6 @@ void FVirtualTextureConversionWorker::AddReferencedObjects( FReferenceCollector&
 	Collector.AddReferencedObjects( Materials );
 	Collector.AddReferencedObjects( Functions );
 	Collector.AddReferencedObjects( SizeRejectedTextures );
-	Collector.AddReferencedObjects( SizeRejectedTextures );
 	Collector.AddReferencedObjects( MaterialRejectedTextures );
 
 	for (auto& KV : AuditTrail)
@@ -482,7 +481,27 @@ void FVirtualTextureConversionWorker::FilterList(int32 SizeThreshold)
 
 	for (UTexture2D *Texture : UserTextures)
 	{
-		if (Texture->GetSizeX()*Texture->GetSizeY() >= SizeThreshold * SizeThreshold)
+		bool DoInclude;
+
+		if ( !Texture->Source.IsPowerOfTwo() && Texture->PowerOfTwoMode == ETexturePowerOfTwoSetting::None )
+		{
+			// not pow2, reject
+			DoInclude = false;
+		}
+		else 
+		{
+			// don't use Texture->GetSizeX() as it can be Default texture
+			FIntPoint Size = Texture->Source.GetLogicalSize();
+			uint64 TexturePixelCount = (uint64) Size.X * Size.Y;
+
+			DoInclude = ( TexturePixelCount >= (uint64)SizeThreshold * SizeThreshold );
+			
+			// for Backwards this should be the other way around
+			//	we want to filter textures *Smaller* than SizeThreshold
+			if ( bConvertBackward ) DoInclude = ! DoInclude;
+		}
+
+		if ( DoInclude )
 		{
 			Textures.Add(Texture);
 		}

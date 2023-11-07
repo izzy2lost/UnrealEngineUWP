@@ -14,12 +14,16 @@ namespace UE::TextureUtilitiesCommon::Experimental
 
 namespace Private
 {
+
+	// resize so that the largest dimension is <= MaxSize
 	bool ResizeTexture2D(UTexture* Texture, int32 MaxSize, const ITargetPlatform* TargetPlatform)
 	{
 		// Protect the code from an async build of the texture
+		// @@ I think that this PreEditChange can (and should) be moved to after DownsizeImageUsingTextureSettings
 		Texture->PreEditChange(nullptr);
 
 		// We want to reduce the asset size so ignore the imported mip(s)
+		//	@@ should not do this if MipGen == LeaveExisting
 		const int32 MipIndex = 0;
 		FImage SourceMip0;
 		if (!Texture->Source.GetMipImage(SourceMip0, MipIndex))
@@ -28,6 +32,8 @@ namespace Private
 		}
 
 		const int32 LayerIndex = 0;
+		// DownsizeImageUsingTextureSettings is not const but I think it can and should be?
+		//	(the Texture itself is not changed, only the FImage argument is changed)
 		if ( ! Texture->DownsizeImageUsingTextureSettings(TargetPlatform, SourceMip0, MaxSize, LayerIndex) )
 		{
 			return false;
@@ -54,6 +60,10 @@ namespace Private
 
 	bool ResizeTextureSlicedBy2DLayers(UTexture* Texture, int32 MaxSize, const ITargetPlatform* TargetPlatform)
 	{
+		// should check Source size vs MaxSize and early return here
+		if ( Texture->Source.GetSizeX() <= MaxSize && Texture->Source.GetSizeY() <= MaxSize )
+			return false;
+				
 		// Protect the code from an async build of the texture
 		Texture->PreEditChange(nullptr);
 
@@ -67,6 +77,7 @@ namespace Private
 
 			{
 				// We want to reduce the asset size so ignore the imported mip(s)
+				//	@@ should not do this if MipGen == LeaveExisting
 				TArray<FImage> Slices;
 				Slices.Reserve(Texture->Source.GetNumSlices());
 
@@ -95,7 +106,10 @@ namespace Private
 					FImage& ResizedSlice = ResizedSlices.AddDefaulted_GetRef();
 
 					const int32 LayerIndex = 0;
-					Texture->DownsizeImageUsingTextureSettings(TargetPlatform, Slice, MaxSize, LayerIndex);
+					if ( ! Texture->DownsizeImageUsingTextureSettings(TargetPlatform, Slice, MaxSize, LayerIndex) )
+					{
+						return false;
+					}
 					ResizedSlice = MoveTemp(Slice);
 				}
 			}
@@ -128,9 +142,17 @@ namespace Private
 		// Protect the code from an async build of the texture
 		Texture->PreEditChange(nullptr);
 
+		/*
 		FIntPoint LogicalSourceSize = Texture->Source.GetLogicalSize();
 		double RatioX = double(MaxSize) / LogicalSourceSize.X;
 		double RatioY = double(MaxSize) / LogicalSourceSize.Y;
+
+		// early return if we're not shrinking
+		if ( RatioX >= 1.0 && RatioY >= 1.0 )
+		{
+			return false;
+		}
+		*/
 
 		TArray<FTextureSourceBlock > ResizedSourceBlocks;
 		ResizedSourceBlocks.Reserve(Texture->Source.GetNumBlocks());
@@ -154,9 +176,13 @@ namespace Private
 		
 			FImage& ResizedBlock = ResizedBlocks.AddDefaulted_GetRef();
 
-			int32 BlockMaxSize = FMath::RoundToInt32(FMath::Min(ResizedSourceBlock.SizeX * RatioX, ResizedSourceBlock.SizeY * RatioY));
+			//int32 BlockMaxSize = FMath::RoundToInt32(FMath::Min(ResizedSourceBlock.SizeX * RatioX, ResizedSourceBlock.SizeY * RatioY));
 
-			Texture->DownsizeImageUsingTextureSettings(TargetPlatform, SourceMip0, MaxSize, LayerIndex);
+			// each block is resized to MaxSize
+			if ( ! Texture->DownsizeImageUsingTextureSettings(TargetPlatform, SourceMip0, MaxSize, LayerIndex) )
+			{
+				return false;
+			}
 			ResizedBlock = MoveTemp(SourceMip0);
 			
 			ResizedSourceBlock.SizeX = ResizedBlock.SizeX;
@@ -267,6 +293,8 @@ bool DownsizeTextureSourceData(UTexture* Texture, int32 TargetSizeInGame, const 
 			return Private::ResizeTextureSlicedBy2DLayers(Texture, TargetSourceSize, TargetPlatform);
 		}
 	}
+	// could do GetTextureClass == Array ?
+	// other classes unsupported
 	
 	return false;
 }
@@ -304,6 +332,9 @@ bool DownsizeTexureSourceDataNearRenderingSize(UTexture* Texture, const ITargetP
 
 		return true;
 	}
+	//	PreEditChange may have been called even if DownsizeTextureSourceData return false
+	//	we don't PostEditChange here
+	//	that's okay but not great
 
 	return false;
 }

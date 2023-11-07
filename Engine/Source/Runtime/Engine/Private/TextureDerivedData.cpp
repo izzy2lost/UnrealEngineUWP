@@ -3937,7 +3937,7 @@ bool UTexture::DownsizeImageUsingTextureSettings(const ITargetPlatform* TargetPl
 {
 	// resize so that the largest dimension is <= TargetSize
 
-	if (TargetSize < 1 || LayerIndex < 0 || InOutImage.IsImageInfoValid() == false)
+	if (TargetSize <= 1 || LayerIndex < 0 || InOutImage.IsImageInfoValid() == false)
 	{
 		UE_LOG(LogTexture, Error, TEXT("Invalid parameter supplied to DownsizeImageUsingTextureSettings target size = %d layer index = %d image valid: %s"),
 			TargetSize, LayerIndex, InOutImage.IsImageInfoValid() ? TEXT("true") : TEXT("false"));
@@ -3947,6 +3947,7 @@ bool UTexture::DownsizeImageUsingTextureSettings(const ITargetPlatform* TargetPl
 	if (TargetSize >= InOutImage.SizeX && TargetSize >= InOutImage.SizeY)
 	{
 		// both dimensions already small enough, early out
+		// InOutImage is not changed
 		return true;
 	}
 

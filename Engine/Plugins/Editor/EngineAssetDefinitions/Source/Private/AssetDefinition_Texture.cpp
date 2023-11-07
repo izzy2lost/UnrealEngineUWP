@@ -17,6 +17,7 @@
 #include "VirtualTexturingEditorModule.h"
 #include "Algo/AnyOf.h"
 #include "AssetRegistry/AssetRegistryHelpers.h"
+#include "TextureAssetActions.h"
 
 #define LOCTEXT_NAMESPACE "UAssetDefinition_Texture"
 
@@ -53,6 +54,14 @@ namespace MenuExtension_Texture
 				return Factory;
 			}
 		);
+	}
+
+	static void ExecuteResizeTextureSource(const FToolMenuContext& InContext)
+	{
+		if (const UContentBrowserAssetContextMenuContext* CBContext = UContentBrowserAssetContextMenuContext::FindContextWithAssets(InContext))
+		{
+			UE::TextureAssetActions::ResizeTextureSource_WithDialog(CBContext->LoadSelectedObjects<UTexture>());
+		}
 	}
 
 	static void ExecuteConvertToVirtualTexture(const FToolMenuContext& InContext)
@@ -97,9 +106,11 @@ namespace MenuExtension_Texture
 		UToolMenus::RegisterStartupCallback(FSimpleMulticastDelegate::FDelegate::CreateLambda([]()
 		{
 			FToolMenuOwnerScoped OwnerScoped(UE_MODULE_NAME);
-			UToolMenu* Menu = UE::ContentBrowser::ExtendToolMenu_AssetContextMenu(UTexture::StaticClass());
+
+			{
+				UToolMenu* Menu = UE::ContentBrowser::ExtendToolMenu_AssetContextMenu(UTexture::StaticClass());
 		
-			FToolMenuSection& Section = Menu->FindOrAddSection("GetAssetActions");
+				FToolMenuSection& Section = Menu->FindOrAddSection("GetAssetActions");
 				Section.AddDynamicEntry(NAME_None, FNewToolMenuSectionDelegate::CreateLambda([](FToolMenuSection& InSection)
 				{
 					if (const UContentBrowserAssetContextMenuContext* Context = UContentBrowserAssetContextMenuContext::FindContextWithAssets(InSection))
@@ -111,7 +122,36 @@ namespace MenuExtension_Texture
 							const FToolMenuExecuteAction UIAction = FToolMenuExecuteAction::CreateStatic(&ExecuteCreateMaterial);
 							InSection.AddMenuEntry("Texture_CreateMaterial", Label, ToolTip, Icon, UIAction);
 						}
-											
+															
+						if ( Context->SelectedAssets.Num() == 1 )
+						{
+							const TAttribute<FText> Label = LOCTEXT("Texture_FindMaterials", "Find Materials Using This");
+							const TAttribute<FText> ToolTip = LOCTEXT("Texture_FindMaterialsTooltip", "Finds all materials that use this material in the content browser.");
+							const FSlateIcon Icon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Find");
+							const FToolMenuExecuteAction UIAction = FToolMenuExecuteAction::CreateStatic(&ExecuteFindMaterials);
+							InSection.AddMenuEntry("Texture_FindMaterials", Label, ToolTip, Icon, UIAction);
+						}
+						
+						{
+							const TAttribute<FText> Label = LOCTEXT("Texture_ResizeSource", "Resize Texture Source");
+							const TAttribute<FText> ToolTip = LOCTEXT("Texture_ResizeSourceTooltip", "Reduce texture asset size by shrinking the texture source dimensions.");
+							const FSlateIcon Icon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "ClassIcon.Texture2D");
+							const FToolMenuExecuteAction UIAction = FToolMenuExecuteAction::CreateStatic(&ExecuteResizeTextureSource);
+							InSection.AddMenuEntry("Texture_ResizeSource", Label, ToolTip, Icon, UIAction);
+						}
+					}
+				}));
+			}
+
+			{
+				// VT actions should only be on Texture2D , not all UTexture
+				UToolMenu* Menu = UE::ContentBrowser::ExtendToolMenu_AssetContextMenu(UTexture2D::StaticClass());
+		
+				FToolMenuSection& Section = Menu->FindOrAddSection("GetAssetActions");
+				Section.AddDynamicEntry(NAME_None, FNewToolMenuSectionDelegate::CreateLambda([](FToolMenuSection& InSection)
+				{
+					if (const UContentBrowserAssetContextMenuContext* Context = UContentBrowserAssetContextMenuContext::FindContextWithAssets(InSection))
+					{											
 						static const auto CVarVirtualTexturesEnabled = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.VirtualTextures"));
 						check(CVarVirtualTexturesEnabled);
 						
@@ -130,36 +170,35 @@ namespace MenuExtension_Texture
 									AssetData.GetTagValue<bool>("VirtualTextureStreaming", VirtualTextured);
 									return VirtualTextured;
 								});
+								
+							const bool bHasNonVirtualTextures =
+								Algo::AnyOf(Context->SelectedAssets, [](const FAssetData& AssetData){ 
+									bool VirtualTextured = false;
+									AssetData.GetTagValue<bool>("VirtualTextureStreaming", VirtualTextured);
+									return !VirtualTextured;
+								});
 
 							if (bHasVirtualTextures)
 							{
-								const TAttribute<FText> Label = LOCTEXT("Texture_ConvertToRegular", "Convert to Regular Texture");
+								const TAttribute<FText> Label = LOCTEXT("Texture_ConvertToRegular", "Convert VT to Regular Texture");
 								const TAttribute<FText> ToolTip = LOCTEXT("Texture_ConvertToRegularTooltip", "Converts this texture to a regular 2D texture if it is a virtual texture.");
 								const FSlateIcon Icon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "ClassIcon.Texture2D");
 								const FToolMenuExecuteAction UIAction = FToolMenuExecuteAction::CreateStatic(&ExecuteConvertToRegularTexture);
-								InSection.AddMenuEntry("Texture_ConvertToVT", Label, ToolTip, Icon, UIAction);
+								InSection.AddMenuEntry("Texture_ConvertToRegular", Label, ToolTip, Icon, UIAction);
 							}
 						
-							if (!bHasVirtualTextures)
+							if (bHasNonVirtualTextures)
 							{
 								const TAttribute<FText> Label = LOCTEXT("Texture_ConvertToVT", "Convert to Virtual Texture");
-								const TAttribute<FText> ToolTip = LOCTEXT("Texture_ConvertToVTTooltip", "Converts this texture to a virtual texture if it fits the size limit imposed in the texture importer settings.");
+								const TAttribute<FText> ToolTip = LOCTEXT("Texture_ConvertToVTTooltip", "Converts this texture to a virtual texture if it exceeds the specified size.");
 								const FSlateIcon Icon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "ClassIcon.Texture2D");
 								const FToolMenuExecuteAction UIAction = FToolMenuExecuteAction::CreateStatic(&ExecuteConvertToVirtualTexture);
 								InSection.AddMenuEntry("Texture_ConvertToVT", Label, ToolTip, Icon, UIAction);
 							}
 						}
-						
-						if ( Context->SelectedAssets.Num() == 1 )
-						{
-							const TAttribute<FText> Label = LOCTEXT("Texture_FindMaterials", "Find Materials Using This");
-							const TAttribute<FText> ToolTip = LOCTEXT("Texture_FindMaterialsTooltip", "Finds all materials that use this material in the content browser.");
-							const FSlateIcon Icon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Find");
-							const FToolMenuExecuteAction UIAction = FToolMenuExecuteAction::CreateStatic(&ExecuteFindMaterials);
-							InSection.AddMenuEntry("Texture_FindMaterials", Label, ToolTip, Icon, UIAction);
-						}
 					}
 				}));
+			}
 		}));
 	});
 }
