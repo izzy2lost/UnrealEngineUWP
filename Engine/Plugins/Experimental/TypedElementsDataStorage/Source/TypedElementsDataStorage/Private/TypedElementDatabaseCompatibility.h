@@ -7,6 +7,7 @@
 #include "Compatibility/TypedElementObjectReinstancingManager.h"
 #include "Elements/Interfaces/TypedElementDataStorageInterface.h"
 #include "Elements/Interfaces/TypedElementDataStorageCompatibilityInterface.h"
+#include "Engine/World.h"
 #include "Misc/Change.h"
 #include "UObject/ObjectMacros.h"
 #include "UObject/WeakObjectPtr.h"
@@ -119,6 +120,11 @@ private:
 	void OnObjectAdded(const void* Object, FTypedElementDatabaseCompatibilityObjectTypeInfo TypeInfo, TypedElementRowHandle Row) const;
 	void OnPreObjectRemoved(const void* Object, FTypedElementDatabaseCompatibilityObjectTypeInfo TypeInfo, TypedElementRowHandle Row) const;
 	
+	void OnPostWorldInitialization(UWorld* World, const UWorld::InitializationValues InitializationValues);
+	void OnPreWorldFinishDestroy(UWorld* World);
+
+	void OnActorDestroyed(AActor* Actor);
+	
 	template<typename AddressType>
 	struct PendingRegistration
 	{
@@ -169,8 +175,11 @@ private:
 	 */
 	TSet<TObjectKey<const UObject>> ObjectsNeedingFullSync;
 
+	TMap<UWorld*, FDelegateHandle> ActorDestroyedDelegateHandles;
 	FDelegateHandle PostEditChangePropertyDelegateHandle;
 	FDelegateHandle ObjectModifiedDelegateHandle;
+	FDelegateHandle PostWorldInitializationDelegateHandle;
+	FDelegateHandle PreWorldFinishDestroyDelegateHandle;
 };
 
 enum class ETypedElementDatabaseCompatibilityObjectType : uint8

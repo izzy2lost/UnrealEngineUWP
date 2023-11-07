@@ -30,10 +30,21 @@ void UTypedElementDatabaseCompatibility::Initialize(ITypedElementDataStorageInte
 
 	PostEditChangePropertyDelegateHandle = FCoreUObjectDelegates::OnObjectPropertyChanged.AddUObject(this, &UTypedElementDatabaseCompatibility::OnPostEditChangeProperty);
 	ObjectModifiedDelegateHandle = FCoreUObjectDelegates::OnObjectModified.AddUObject(this, &UTypedElementDatabaseCompatibility::OnObjectModified);
+	
+	PostWorldInitializationDelegateHandle = FWorldDelegates::OnPostWorldInitialization.AddUObject(this, &UTypedElementDatabaseCompatibility::OnPostWorldInitialization);
+	PreWorldFinishDestroyDelegateHandle = FWorldDelegates::OnPreWorldFinishDestroy.AddUObject(this, &UTypedElementDatabaseCompatibility::OnPreWorldFinishDestroy);
 }
 
 void UTypedElementDatabaseCompatibility::Deinitialize()
 {
+	for (TPair<UWorld*, FDelegateHandle>& It : ActorDestroyedDelegateHandles)
+	{
+		It.Key->RemoveOnActorDestroyededHandler(It.Value);
+	}
+
+	FWorldDelegates::OnPreWorldFinishDestroy.Remove(PreWorldFinishDestroyDelegateHandle);
+	FWorldDelegates::OnPostWorldInitialization.Remove(PostWorldInitializationDelegateHandle);
+
 	FCoreUObjectDelegates::OnObjectModified.Remove(ObjectModifiedDelegateHandle);
 	FCoreUObjectDelegates::OnObjectPropertyChanged.Remove(PostEditChangePropertyDelegateHandle);
 	
@@ -717,6 +728,27 @@ void UTypedElementDatabaseCompatibility::OnPreObjectRemoved(const void* Object, 
 		const ObjectRemovedCallback& Callback = CallbackPair.Key;
 		Callback(Object, TypeInfo, Row);
 	}
+}
+
+void UTypedElementDatabaseCompatibility::OnPostWorldInitialization(UWorld* World, const UWorld::InitializationValues InitializationValues)
+{
+	FDelegateHandle Handle = World->AddOnActorDestroyedHandler(
+		FOnActorDestroyed::FDelegate::CreateUObject(this, &UTypedElementDatabaseCompatibility::OnActorDestroyed));
+	ActorDestroyedDelegateHandles.Add(World, Handle);
+}
+
+void UTypedElementDatabaseCompatibility::OnPreWorldFinishDestroy(UWorld* World)
+{
+	FDelegateHandle Handle;
+	if (ActorDestroyedDelegateHandles.RemoveAndCopyValue(World, Handle))
+	{
+		World->RemoveOnActorDestroyededHandler(Handle);
+	}
+}
+
+void UTypedElementDatabaseCompatibility::OnActorDestroyed(AActor* Actor)
+{
+	RemoveCompatibleObjectExplicit(Actor);
 }
 
 
