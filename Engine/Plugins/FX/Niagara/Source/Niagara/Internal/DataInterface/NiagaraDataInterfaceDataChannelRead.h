@@ -21,10 +21,11 @@ There is working code for this already but the concept/API needs more fleshing o
 
 */
 
+#include "Containers/DynamicRHIResourceArray.h"
 
+#include "NiagaraDataChannelPublic.h"
 #include "NiagaraDataInterfaceDataChannelCommon.h"
 #include "NiagaraDataInterfaceRW.h"
-#include "NiagaraDataInterfaceEmitterBinding.h"
 #include "NiagaraDataSetAccessor.h"
 #include "NiagaraDataInterfaceDataChannelRead.generated.h"
 

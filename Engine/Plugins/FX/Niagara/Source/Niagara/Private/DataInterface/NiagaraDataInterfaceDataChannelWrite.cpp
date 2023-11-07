@@ -19,7 +19,6 @@
 #if WITH_EDITOR
 #include "INiagaraEditorOnlyDataUtlities.h"
 #include "Modules/ModuleManager.h"
-#include "NiagaraModule.h"
 #endif
 
 #define LOCTEXT_NAMESPACE "NiagaraDataInterfaceDataChannelWrite"
@@ -286,9 +285,8 @@ struct FNDIDataChannelWriteInstanceData
 				PublishRequest.bVisibleToGame = Interface->bPublishToGame;
 				PublishRequest.bVisibleToCPUSims = Interface->bPublishToCPU;
 				PublishRequest.bVisibleToGPUSims = Interface->bPublishToGPU;
-				PublishRequest.Data = Data->GetCurrentData();
 				PublishRequest.LwcTile = Instance->GetLWCTile();
-#if !UE_BUILD_SHIPPING
+#if WITH_NIAGARA_DEBUGGER
 				PublishRequest.DebugSource = FString::Format(TEXT("{0} ({1})"), {Instance->GetSystem()->GetName(), GetPathNameSafe(Interface)});
 #endif
 				DataChannelData->Publish(PublishRequest);
@@ -583,6 +581,113 @@ bool UNiagaraDataInterfaceDataChannelWrite::Equals(const UNiagaraDataInterface* 
 		}
 	}
 	return false;
+}
+
+UObject* UNiagaraDataInterfaceDataChannelWrite::SimCacheBeginWrite(UObject* SimCache, FNiagaraSystemInstance* NiagaraSystemInstance, const void* OptionalPerInstanceData, FNiagaraSimCacheFeedbackContext& FeedbackContext) const
+{
+	return NewObject<UNDIDataChannelWriteSimCacheData>(SimCache);
+}
+
+bool UNiagaraDataInterfaceDataChannelWrite::SimCacheWriteFrame(UObject* StorageObject, int FrameIndex, FNiagaraSystemInstance* SystemInstance, const void* OptionalPerInstanceData, FNiagaraSimCacheFeedbackContext& FeedbackContext) const
+{
+	if (!Channel || !Channel->Get())
+	{
+		FeedbackContext.Errors.Add(TEXT("Missing data channel asset for data channel writer DI"));
+		return false;
+	}
+	if (OptionalPerInstanceData == nullptr)
+	{
+		FeedbackContext.Errors.Add(TEXT("Missing per instance data for data channel writer DI"));
+		return false;
+	}
+	// put data from instance data into the storage object
+	const FNDIDataChannelWriteInstanceData* InstanceData = static_cast<const FNDIDataChannelWriteInstanceData*>(OptionalPerInstanceData);
+	if (UNDIDataChannelWriteSimCacheData* Storage = Cast<UNDIDataChannelWriteSimCacheData>(StorageObject))
+	{
+		ensure(Storage->FrameData.Num() == FrameIndex);
+		FNDIDataChannelWriteSimCacheFrame& FrameData = Storage->FrameData.AddDefaulted_GetRef();
+		
+		if (InstanceData->DataChannelData && ShouldPublish() && InstanceData->Data && InstanceData->Data->GetCurrentData() && InstanceData->Data->GetCurrentData()->GetNumInstances() > 0)
+		{
+			FNiagaraDataChannelGameData GameData;
+			GameData.Init(Channel->Get());
+			GameData.AppendFromDataSet(InstanceData->Data->GetCurrentData(), SystemInstance->GetLWCTile());
+			
+			FrameData.NumElements = GameData.Num();
+			for (const FNiagaraDataChannelVariableBuffer& VarBuffer : GameData.GetVariableBuffers())
+			{
+				FNDIDataChannelWriteSimCacheFrameBuffer& FrameBuffer = FrameData.VariableData.AddDefaulted_GetRef();
+				FrameBuffer.Size = VarBuffer.Size;
+				FrameBuffer.Data = VarBuffer.Data;
+			}
+			const FNiagaraDataChannelGameDataLayout& Layout = Channel->Get()->GetGameDataLayout();
+			for (const TPair<FNiagaraVariableBase, int32>& VarPair : Layout.VariableIndices)
+			{
+				FrameData.VariableData[VarPair.Value].SourceVar = VarPair.Key;
+			}
+			
+			FrameData.bVisibleToGame = bPublishToGame;
+			FrameData.bVisibleToCPUSims = bPublishToCPU;
+			FrameData.bVisibleToGPUSims = bPublishToGPU;
+		}
+		return true;
+	} 
+	return false;
+}
+
+bool UNiagaraDataInterfaceDataChannelWrite::SimCacheReadFrame(UObject* StorageObject, int FrameA, int FrameB, float Interp, FNiagaraSystemInstance* SystemInstance, void* OptionalPerInstanceData)
+{
+	if (Channel == nullptr || Channel->Get() == nullptr)
+	{
+		return false;
+	}
+
+	FNiagaraDataChannelDataPtr DataChannelData;
+	if (FNiagaraWorldManager* WorldMan = FNiagaraWorldManager::Get(SystemInstance->GetWorld()))
+	{
+		if (UNiagaraDataChannelHandler* Handler = WorldMan->GetDataChannelManager().FindDataChannelHandler(Channel->Get()))
+		{
+			FNiagaraDataChannelSearchParameters SearchParams(SystemInstance->GetAttachComponent());
+			DataChannelData = Handler->FindData(SearchParams, ENiagaraResourceAccess::WriteOnly);
+		}
+	}
+	if (!DataChannelData.IsValid())
+	{
+		return false;
+	}
+	
+	if (UNDIDataChannelWriteSimCacheData* Storage = Cast<UNDIDataChannelWriteSimCacheData>(StorageObject))
+	{
+		if (Storage->FrameData.IsValidIndex(FrameA))
+		{
+			FNDIDataChannelWriteSimCacheFrame& Frame = Storage->FrameData[FrameA];
+			FNiagaraDataChannelPublishRequest PublishRequest;
+			PublishRequest.bVisibleToGame = Frame.bVisibleToGame;
+			PublishRequest.bVisibleToCPUSims = Frame.bVisibleToCPUSims;
+			PublishRequest.bVisibleToGPUSims = Frame.bVisibleToGPUSims;
+#if WITH_NIAGARA_DEBUGGER
+			PublishRequest.DebugSource = FString::Format(TEXT("{0} (Sim cache {1})"), {SystemInstance->GetSystem()->GetName(), GetPathNameSafe(StorageObject->GetOuter())});
+#endif
+
+			PublishRequest.GameData = MakeShared<FNiagaraDataChannelGameData>();
+			PublishRequest.GameData->Init(Channel->Get());
+			PublishRequest.GameData->SetNum(Frame.NumElements);
+			for (int32 i = 0; i < Frame.VariableData.Num(); i++)
+			{
+				const FNDIDataChannelWriteSimCacheFrameBuffer& Buffer = Frame.VariableData[i];
+				PublishRequest.GameData->SetFromSimCache(Buffer.SourceVar, Buffer.Data, Buffer.Size);
+			}
+			
+			DataChannelData->Publish(PublishRequest);
+			return true;
+		}
+	}
+	return false;
+}
+
+void UNiagaraDataInterfaceDataChannelWrite::SimCachePostReadFrame(void* OptionalPerInstanceData, FNiagaraSystemInstance* SystemInstance)
+{
+	// send data to data channel
 }
 
 bool UNiagaraDataInterfaceDataChannelWrite::CopyToInternal(UNiagaraDataInterface* Destination)const

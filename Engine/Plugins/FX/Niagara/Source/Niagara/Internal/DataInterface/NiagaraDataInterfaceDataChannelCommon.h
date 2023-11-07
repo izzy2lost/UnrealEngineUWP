@@ -4,8 +4,6 @@
 #include "NiagaraCommon.h"
 #include "NiagaraDataSetCompiledData.h"
 #include "NiagaraCompileHash.h"
-#include "Misc/LazySingleton.h"
-#include "NiagaraDataChannelCommon.h"
 #include "NiagaraDataInterface.h"
 #include "NiagaraDataInterfaceDataChannelCommon.generated.h"
 

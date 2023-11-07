@@ -12,6 +12,7 @@
 #include "NiagaraWorldManager.h"
 
 #include "NiagaraDataChannel.h"
+#include "NiagaraDataChannelCommon.h"
 #include "NiagaraDataChannelHandler.h"
 #include "NiagaraDataChannelManager.h"
 

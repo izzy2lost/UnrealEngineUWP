@@ -319,4 +319,5 @@ public:
 	const UNiagaraDataChannel* GetDataChannel()const { return DataChannel.Get(); }
 
 	const TConstArrayView<FNiagaraDataChannelVariableBuffer> GetVariableBuffers()const { return VariableData; }
+	void SetFromSimCache(const FNiagaraVariableBase& SourceVar, TConstArrayView<uint8> Data, int32 Size);
 };

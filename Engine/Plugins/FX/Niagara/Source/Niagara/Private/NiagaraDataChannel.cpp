@@ -441,6 +441,18 @@ void FNiagaraDataChannelGameData::AppendFromDataSet(const FNiagaraDataBuffer* Sr
 	}
 }
 
+void FNiagaraDataChannelGameData::SetFromSimCache(const FNiagaraVariableBase& SourceVar, TConstArrayView<uint8> Data, int32 Size)
+{
+	const FNiagaraDataChannelGameDataLayout& Layout = DataChannel->GetGameDataLayout();
+	if (const int* Index = Layout.VariableIndices.Find(SourceVar))
+	{
+		if (VariableData[*Index].Size == Size)
+		{
+			VariableData[*Index].Data = Data;
+		}
+	}
+}
+
 //////////////////////////////////////////////////////////////////////////
 
 void FNiagaraDataChannelDataProxy::BeginFrame(bool bKeepPreviousFrameData)

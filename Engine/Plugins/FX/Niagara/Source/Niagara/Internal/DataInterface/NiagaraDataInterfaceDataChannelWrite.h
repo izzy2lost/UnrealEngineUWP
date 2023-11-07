@@ -18,7 +18,9 @@ This avoids cumbersome work in the graph to access data but requires special han
 
 
 #include "NiagaraDataInterfaceDataChannelCommon.h"
+#include "NiagaraDataChannelCommon.h"
 #include "NiagaraDataInterface.h"
+#include "NiagaraSimCacheCustomStorageInterface.h"
 #include "NiagaraDataInterfaceDataChannelWrite.generated.h"
 
 /** Additional compile time information used by the Write DI. */
@@ -34,8 +36,56 @@ struct FNDIDataChannelWriteCompiledData : public FNDIDataChannelCompiledData
 	bool Init(UNiagaraSystem* System, UNiagaraDataInterfaceDataChannelWrite* OwnerDI);
 };
 
+USTRUCT()
+struct FNDIDataChannelWriteSimCacheFrameBuffer
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	TArray<uint8> Data;
+
+	UPROPERTY()
+	int32 Size = 0;
+
+	UPROPERTY()
+	FNiagaraVariableBase SourceVar;
+};
+
+USTRUCT()
+struct FNDIDataChannelWriteSimCacheFrame
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	int32 NumElements = 0;
+
+	UPROPERTY()
+	TArray<FNDIDataChannelWriteSimCacheFrameBuffer> VariableData;
+
+	UPROPERTY()
+	bool bVisibleToGame = false;
+
+	UPROPERTY()
+	bool bVisibleToCPUSims = false;
+
+	UPROPERTY()
+	bool bVisibleToGPUSims = false;
+};
+
+UCLASS()
+class UNDIDataChannelWriteSimCacheData : public UObject
+{
+	GENERATED_BODY()
+
+public:
+
+	UPROPERTY()
+	TArray<FNDIDataChannelWriteSimCacheFrame> FrameData;
+};
+
+
 UCLASS(Experimental, EditInlineNew, Category = "Data Channels", CollapseCategories, meta = (DisplayName = "Data Channel Writer"), MinimalAPI)
-class UNiagaraDataInterfaceDataChannelWrite : public UNiagaraDataInterface
+class UNiagaraDataInterfaceDataChannelWrite : public UNiagaraDataInterface, public INiagaraSimCacheCustomStorageInterface
 {
 	GENERATED_UCLASS_BODY()
 
@@ -129,6 +179,11 @@ public:
 
 	bool ShouldPublish()const { return bPublishToGame || bPublishToCPU || bPublishToGPU; }
 
+	//sim cache functions
+	virtual UObject* SimCacheBeginWrite(UObject* SimCache, FNiagaraSystemInstance* NiagaraSystemInstance, const void* OptionalPerInstanceData, FNiagaraSimCacheFeedbackContext& FeedbackContext) const override;
+	virtual bool SimCacheWriteFrame(UObject* StorageObject, int FrameIndex, FNiagaraSystemInstance* SystemInstance, const void* OptionalPerInstanceData, FNiagaraSimCacheFeedbackContext& FeedbackContext) const override;
+	virtual bool SimCacheReadFrame(UObject* StorageObject, int FrameA, int FrameB, float Interp, FNiagaraSystemInstance* SystemInstance, void* OptionalPerInstanceData) override;
+	virtual void SimCachePostReadFrame(void* OptionalPerInstanceData, FNiagaraSystemInstance* SystemInstance) override;
 protected:
 	NIAGARA_API virtual bool CopyToInternal(UNiagaraDataInterface* Destination) const override;
 
