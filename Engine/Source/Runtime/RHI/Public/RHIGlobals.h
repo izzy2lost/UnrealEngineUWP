@@ -603,7 +603,7 @@ struct FRHIGlobals
 		/**
 		* True if the RHI supports reserved (AKA tiled, virtual or sparse) resources and operations related to them.
 		*/
-		bool Supported = true;
+		bool Supported = false;
 
 		/**
 		* Smallest mip dimension of reserved texture arrays must be greater or equal to this value.
