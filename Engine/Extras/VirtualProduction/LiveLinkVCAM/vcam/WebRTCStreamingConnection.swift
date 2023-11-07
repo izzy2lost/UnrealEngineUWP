@@ -44,7 +44,10 @@ class WebRTCStreamingConnection : StreamingConnection {
             self._url?.absoluteString ?? ""
         }
         set {
-            self._url = URL(string: "ws://\(newValue):80")
+            let host : String
+            let port : UInt16?
+            (host, port) = NetUtility.hostAndPortFromAddress(newValue)
+            self._url = URL(string: "ws://\(host):\(port ?? 80)")
         }
     }
     
