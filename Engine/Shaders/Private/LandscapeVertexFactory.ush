@@ -4,6 +4,8 @@
 	LandscapeVertexFactory.usf: Landscape vertex factory.
 =============================================================================*/
 
+// Compile Version 2
+
 #include "VertexFactoryCommon.ush"
 
 #define VERTEX_FACTORY_MODIFIES_INTERPOLATION 1

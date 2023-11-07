@@ -12,7 +12,12 @@ class AWorldSettings;
 class IConsoleVariable;
 class ULandscapeInfo;
 class FLandscapeNotificationManager;
+class ULandscapeComponent;
+class FLandscapeGrassMapsBuilder;
+class FLandscapeTextureStreamingManager;
 struct FDateTime;
+struct FScopedSlowTask;
+
 namespace UE::Landscape
 {
 	enum class EOutdatedDataFlags : uint8;
@@ -57,8 +62,11 @@ public:
 	virtual TStatId GetStatId() const override;
 	// End FTickableGameObject overrides
 
+	// setting this to true causes grass instance generation to go wider (multiplies the limits by GGrassCreationPrioritizedMultipler)
 	void PrioritizeGrassCreation(bool bPrioritizeGrassCreation) { bIsGrassCreationPrioritized = bPrioritizeGrassCreation; }
 	bool IsGrassCreationPrioritized() const { return bIsGrassCreationPrioritized; }
+	FLandscapeGrassMapsBuilder* GetGrassMapBuilder() { return GrassMapsBuilder; }
+	FLandscapeTextureStreamingManager* GetTextureStreamingManager() { return TextureStreamingManager; }
 
 	/**
 	 * Can be called at runtime : (optionally) flushes grass on all landscape components and updates them
@@ -67,9 +75,18 @@ public:
 	 * @param InOptionalCameraLocations : (optional) camera locations that should be used when updating the grass. If not specified, the usual (streaming manager-based) view locations will be used
 	 */
 	LANDSCAPE_API void RegenerateGrass(bool bInFlushGrass, bool bInForceSync, TOptional<TArrayView<FVector>> InOptionalCameraLocations = TOptional<TArrayView<FVector>>());
+	
+	// Remove all grass instances from the specified components.  If passed null, removes all grass instances from all proxies.
+	void RemoveGrassInstances(const TSet<ULandscapeComponent*>* ComponentsToRemoveGrassInstances = nullptr);
+
+	// called when components are registered to the world	
+	void RegisterComponent(ULandscapeComponent* Component);
+	void UnregisterComponent(ULandscapeComponent* Component);
 
 #if WITH_EDITOR
 	LANDSCAPE_API void BuildAll();
+
+	// Synchronously build grass maps for all components
 	LANDSCAPE_API void BuildGrassMaps();
 	LANDSCAPE_API void BuildPhysicalMaterial();
 
@@ -108,7 +125,6 @@ public:
 	FDateTime GetAppCurrentDateTime();
 	LANDSCAPE_API void AddAsyncEvent(FGraphEventRef GraphEventRef);
 
-
 	// Returns true if we should build nanite meshes in parallel asynchronously. 
 	bool IsMultithreadedNaniteBuildEnabled();
 
@@ -137,8 +153,10 @@ private:
 	TArray<TWeakObjectPtr<ALandscapeProxy>> Proxies;
 	FDelegateHandle OnNaniteWorldSettingsChangedHandle;
 
+	FLandscapeTextureStreamingManager* TextureStreamingManager = nullptr;
+	FLandscapeGrassMapsBuilder* GrassMapsBuilder = nullptr;
+
 #if WITH_EDITOR
-	class FLandscapeGrassMapsBuilder* GrassMapsBuilder = nullptr;
 	class FLandscapePhysicalMaterialBuilder* PhysicalMaterialBuilder = nullptr;
 	
 	FLandscapeNotificationManager* NotificationManager = nullptr;

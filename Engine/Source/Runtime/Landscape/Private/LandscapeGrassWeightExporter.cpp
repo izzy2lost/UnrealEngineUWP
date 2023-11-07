@@ -13,16 +13,18 @@
 #include "SimpleMeshDrawCommandPass.h"
 #include "TextureResource.h"
 #include "RenderCaptureInterface.h"
+#include "ShaderPlatformCachedIniValue.h"
 
-#if WITH_EDITOR
 class FLandscapeGrassWeightVS;
 class FLandscapeGrassWeightPS;
 
-int32 RenderCaptureNextGrassmapDraws = 0;
+int32 GRenderCaptureNextGrassmapDraws = 0;
 static FAutoConsoleVariableRef CVarRenderCaptureNextGrassmapDraws(
-	TEXT("landscape.RenderCaptureNextGrassmapDraws"),
-	RenderCaptureNextGrassmapDraws,
+	TEXT("grass.GrassMap.RenderCaptureNextDraws"),
+	GRenderCaptureNextGrassmapDraws,
 	TEXT("Trigger render captures during the next N grassmap draw calls."));
+
+extern int32 GGrassMapAlwaysBuildRuntimeGenerationResources;
 
 BEGIN_SHADER_PARAMETER_STRUCT(FLandscapeGrassPassParameters, )
 	SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
@@ -37,6 +39,117 @@ public:
 	int32 OutputPass;
 	FVector2f RenderOffset;
 };
+
+static bool ShouldCacheLandscapeGrassShaders(const FMeshMaterialShaderPermutationParameters& Parameters)
+{
+	static FShaderPlatformCachedIniValue<int32> GrassMapsUseRuntimeGenerationPerPlatform(TEXT("grass.GrassMap.UseRuntimeGeneration"));
+
+	bool bIsEditorPlatform = 
+		IsFeatureLevelSupported(Parameters.Platform, ERHIFeatureLevel::SM5) &&
+		EnumHasAllFlags(Parameters.Flags, EShaderPermutationFlags::HasEditorOnlyData);
+
+	bool bShouldBuildForPlatform = 
+		bIsEditorPlatform ||
+		GGrassMapAlwaysBuildRuntimeGenerationResources ||
+		(GrassMapsUseRuntimeGenerationPerPlatform.Get(Parameters.Platform) != 0);
+
+	bool bIsFixedGridVertexFactory =
+		Parameters.VertexFactoryType == FindVertexFactoryType(FName(TEXT("FLandscapeFixedGridVertexFactory"), FNAME_Find));
+
+	// We only need grass weight shaders for Landscape fixed grid vertex factories
+	// And only for platforms that have runtime generation enabled or are editor platforms (or if we are always building resources)
+	return  (Parameters.MaterialParameters.bIsUsedWithLandscape || Parameters.MaterialParameters.bIsSpecialEngineMaterial) &&
+			bIsFixedGridVertexFactory &&
+			bShouldBuildForPlatform;
+}
+
+class FLandscapeGrassWeightVS : public FMeshMaterialShader
+{
+	DECLARE_SHADER_TYPE(FLandscapeGrassWeightVS, MeshMaterial);
+
+	LAYOUT_FIELD(FShaderParameter, RenderOffsetParameter);
+
+protected:
+
+	FLandscapeGrassWeightVS()
+	{}
+
+	FLandscapeGrassWeightVS(const FMeshMaterialShaderType::CompiledShaderInitializerType& Initializer)
+		: FMeshMaterialShader(Initializer)
+	{
+		RenderOffsetParameter.Bind(Initializer.ParameterMap, TEXT("RenderOffset"));
+		PassUniformBuffer.Bind(Initializer.ParameterMap, FSceneTextureUniformParameters::FTypeInfo::GetStructMetadata()->GetShaderVariableName());
+	}
+
+public:
+
+	static bool ShouldCompilePermutation(const FMeshMaterialShaderPermutationParameters& Parameters)
+	{
+		return ShouldCacheLandscapeGrassShaders(Parameters);
+	}
+
+	void GetShaderBindings(
+		const FScene* Scene,
+		ERHIFeatureLevel::Type FeatureLevel,
+		const FPrimitiveSceneProxy* PrimitiveSceneProxy,
+		const FMaterialRenderProxy& MaterialRenderProxy,
+		const FMaterial& Material,
+		const FMeshPassProcessorRenderState& DrawRenderState,
+		const FLandscapeGrassWeightShaderElementData& ShaderElementData,
+		FMeshDrawSingleShaderBindings& ShaderBindings) const
+	{
+		FMeshMaterialShader::GetShaderBindings(Scene, FeatureLevel, PrimitiveSceneProxy, MaterialRenderProxy, Material, DrawRenderState, ShaderElementData, ShaderBindings);
+
+		ShaderBindings.Add(RenderOffsetParameter, ShaderElementData.RenderOffset);
+	}
+};
+
+IMPLEMENT_MATERIAL_SHADER_TYPE(, FLandscapeGrassWeightVS, TEXT("/Engine/Private/LandscapeGrassWeight.usf"), TEXT("VSMain"), SF_Vertex);
+
+class FLandscapeGrassWeightPS : public FMeshMaterialShader
+{
+	DECLARE_SHADER_TYPE(FLandscapeGrassWeightPS, MeshMaterial);
+	LAYOUT_FIELD(FShaderParameter, OutputPassParameter);
+public:
+
+	static bool ShouldCompilePermutation(const FMeshMaterialShaderPermutationParameters& Parameters)
+	{
+		return ShouldCacheLandscapeGrassShaders(Parameters);
+	}
+
+	FLandscapeGrassWeightPS(const ShaderMetaType::CompiledShaderInitializerType& Initializer)
+		: FMeshMaterialShader(Initializer)
+	{
+		OutputPassParameter.Bind(Initializer.ParameterMap, TEXT("OutputPass"));
+		PassUniformBuffer.Bind(Initializer.ParameterMap, FSceneTextureUniformParameters::FTypeInfo::GetStructMetadata()->GetShaderVariableName());
+	}
+
+	FLandscapeGrassWeightPS()
+	{}
+
+	void GetShaderBindings(
+		const FScene* Scene,
+		ERHIFeatureLevel::Type FeatureLevel,
+		const FPrimitiveSceneProxy* PrimitiveSceneProxy,
+		const FMaterialRenderProxy& MaterialRenderProxy,
+		const FMaterial& Material,
+		const FMeshPassProcessorRenderState& DrawRenderState,
+		const FLandscapeGrassWeightShaderElementData& ShaderElementData,
+		FMeshDrawSingleShaderBindings& ShaderBindings) const
+	{
+		FMeshMaterialShader::GetShaderBindings(Scene, FeatureLevel, PrimitiveSceneProxy, MaterialRenderProxy, Material, DrawRenderState, ShaderElementData, ShaderBindings);
+
+		ShaderBindings.Add(OutputPassParameter, ShaderElementData.OutputPass);
+	}
+};
+
+IMPLEMENT_MATERIAL_SHADER_TYPE(, FLandscapeGrassWeightPS, TEXT("/Engine/Private/LandscapeGrassWeight.usf"), TEXT("PSMain"), SF_Pixel);
+
+void UE::Landscape::Grass::AddGrassWeightShaderTypes(FMaterialShaderTypes& InOutShaderTypes)
+{
+	InOutShaderTypes.AddShaderType<FLandscapeGrassWeightVS>();
+	InOutShaderTypes.AddShaderType<FLandscapeGrassWeightPS>();
+}
 
 class FLandscapeGrassWeightMeshProcessor : public FMeshPassProcessor
 {
@@ -149,10 +262,6 @@ bool FLandscapeGrassWeightMeshProcessor::Process(
 {
 	const FVertexFactory* VertexFactory = MeshBatch.VertexFactory;
 
-	TMeshProcessorShaders<
-		FLandscapeGrassWeightVS,
-		FLandscapeGrassWeightPS> PassShaders;
-
 	FMaterialShaderTypes ShaderTypes;
 	ShaderTypes.AddShaderType<FLandscapeGrassWeightVS>();
 	ShaderTypes.AddShaderType<FLandscapeGrassWeightPS>();
@@ -163,6 +272,9 @@ bool FLandscapeGrassWeightMeshProcessor::Process(
 		return false;
 	}
 
+	TMeshProcessorShaders<
+		FLandscapeGrassWeightVS,
+		FLandscapeGrassWeightPS> PassShaders;
 	Shaders.TryGetVertexShader(PassShaders.VertexShader);
 	Shaders.TryGetPixelShader(PassShaders.PixelShader);
 
@@ -335,8 +447,8 @@ FLandscapeGrassWeightExporter::FLandscapeGrassWeightExporter(ALandscapeProxy* In
 
 	UE::RenderCommandPipe::FSyncScope SyncScope;
 
-	RenderCaptureInterface::FScopedCapture RenderCapture((RenderCaptureNextGrassmapDraws != 0), TEXT("LandscapeGrassmapCapture"));
-	RenderCaptureNextGrassmapDraws = FMath::Max(0, RenderCaptureNextGrassmapDraws - 1);
+	RenderCaptureInterface::FScopedCapture RenderCapture((GRenderCaptureNextGrassmapDraws != 0), TEXT("LandscapeGrassmapCapture"));
+	GRenderCaptureNextGrassmapDraws = FMath::Max(0, GRenderCaptureNextGrassmapDraws - 1);
 
 	// render
 	FLandscapeGrassWeightExporter_RenderThread* Exporter = this;
@@ -348,8 +460,98 @@ FLandscapeGrassWeightExporter::FLandscapeGrassWeightExporter(ALandscapeProxy* In
 		});
 }
 
+
+struct FByteBuffer2DView : public IBuffer2DView<uint8>
+{
+	uint8* BufferStart = nullptr;
+	int32 ByteStrideY = 0;
+	int32 ByteStrideX = 0;
+	int32 NumX = 0;
+	int32 NumY = 0;
+
+	// copy elements from buffer to Dest, in X then Y order
+	virtual void CopyTo(uint8* Dest, int32 SizeInBytes) const override
+	{
+		for (int Y = 0; SizeInBytes > 0 && Y < NumY; Y++)
+		{
+			uint8* Src = BufferStart + Y * ByteStrideY;
+			int32 CopyCountX = FMath::Min(SizeInBytes, NumX);
+			// we can't use memcpy because of the ByteStride
+			while (CopyCountX--)
+			{
+				*Dest = *Src;
+				Dest++;
+				Src += ByteStrideX;
+			}
+			SizeInBytes -= NumX;
+		}
+	}
+
+	bool IsAllZero() const
+	{
+		for (int Y = 0; Y < NumY; Y++)
+		{
+			uint8 MaxBits = 0;
+			uint8* Src = BufferStart + Y * ByteStrideY;
+			for (int X = 0; X < NumX; X++)
+			{
+				MaxBits = MaxBits | *Src;
+				Src += ByteStrideX;
+			}
+			if (MaxBits != 0)
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
+	virtual int32 Num() const override { return NumX * NumY; }
+};
+
+// FColor memory layout matches our BGRA GPU layout only on little endian CPUs!
+#if PLATFORM_LITTLE_ENDIAN
+	#define BGRA_AS_FCOLOR_BLUE B
+	#define BGRA_AS_FCOLOR_GREEN G
+	#define BGRA_AS_FCOLOR_RED R
+	#define BGRA_AS_FCOLOR_ALPHA A
+#else
+	#define BGRA_AS_FCOLOR_BLUE A
+	#define BGRA_AS_FCOLOR_GREEN R
+	#define BGRA_AS_FCOLOR_RED G
+	#define BGRA_AS_FCOLOR_ALPHA B
+#endif // PLATFORM_LITTLE_ENDIAN
+
+struct FHeightBuffer2DView : IBuffer2DView<uint16>
+{
+	FColor* BufferStart = nullptr;
+	int32 StrideY = 0;
+	int32 NumX = 0;
+	int32 NumY = 0;
+
+	// copy elements from buffer to Dest, in X then Y order
+	virtual void CopyTo(uint16* Dest, int32 Count) const override
+	{
+		for (int y = 0; Count > 0 && y < NumY; y++)
+		{
+			FColor* Src = BufferStart + y * StrideY;
+			int32 CopyCountX = FMath::Min(Count, NumX);
+			while (CopyCountX--)
+			{
+				*Dest = (((uint16) Src->BGRA_AS_FCOLOR_RED) << 8) + (uint16)(Src->BGRA_AS_FCOLOR_GREEN);
+				Dest++;
+				Src++;
+			}
+			Count -= NumX;
+		}
+	}
+
+	virtual int32 Num() const override { return NumX * NumY; }
+};
+
 TMap<ULandscapeComponent*, TUniquePtr<FLandscapeComponentGrassData>, TInlineSetAllocator<1>> FLandscapeGrassWeightExporter::FetchResults()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(FetchResults);
 	TMap<ULandscapeComponent*, TUniquePtr<FLandscapeComponentGrassData>, TInlineSetAllocator<1>> Results;
 	TArray<FColor> Samples;
 
@@ -371,10 +573,8 @@ TMap<ULandscapeComponent*, TUniquePtr<FLandscapeComponentGrassData>, TInlineSetA
 	}
 
 	Results.Reserve(ComponentInfos.Num());
-
-	// Local data will be moved in contiguous array at the end of export (to minimize slack waste)
-	TArray<uint16> HeightData;
-	TMap<ULandscapeGrassType*, TArray<uint8>> WeightData;
+	FHeightBuffer2DView HeightData;
+	TMap<ULandscapeGrassType*, IBuffer2DView<uint8>*> WeightData;
 
 	for (auto& ComponentInfo : ComponentInfos)
 	{
@@ -382,33 +582,35 @@ TMap<ULandscapeComponent*, TUniquePtr<FLandscapeComponentGrassData>, TInlineSetA
 
 		TUniquePtr<FLandscapeComponentGrassData> NewGrassData = MakeUnique<FLandscapeComponentGrassData>(Component);
 
-		if (ComponentInfo.FirstHeightMipsPassIndex != MAX_int32)
-		{
-			HeightData.Empty(FMath::Square(ComponentSizeVerts));
-		}
-		else
-		{
-			HeightData.Empty(0);
-		}
+		int32 ComponentSizeVerts2 = FMath::Square(ComponentSizeVerts);
+
+		HeightData.NumX = ComponentSizeVerts;
+		HeightData.NumY = ComponentSizeVerts;
+		HeightData.StrideY = TargetSize.X;
+
 #if WITH_EDITORONLY_DATA
 		NewGrassData->HeightMipData.Empty(HeightMips.Num());
 #endif // WITH_EDITORONLY_DATA
 
 		WeightData.Empty();
-		TArray<TArray<uint8>*> GrassWeightArrays;
-		GrassWeightArrays.Empty(ComponentInfo.RequestedGrassTypes.Num());
-		for (auto GrassType : ComponentInfo.RequestedGrassTypes)
-		{
-			WeightData.Add(GrassType);
-		}
 
-		// need a second loop because the WeightData map will reallocate its arrays as grass types are added
-		for (auto GrassType : ComponentInfo.RequestedGrassTypes)
+		// this array is in 1:1 correspondence with ComponentInfo.RequestedGrassTypes
+		TArray<FByteBuffer2DView> GrassWeightArrays;
+		GrassWeightArrays.SetNum(ComponentInfo.RequestedGrassTypes.Num());
+
+		for (int32 Index = 0; Index < GrassWeightArrays.Num(); Index++)
 		{
-			TArray<uint8>* DataArray = WeightData.Find(GrassType);
-			check(DataArray);
-			DataArray->Empty(FMath::Square(ComponentSizeVerts));
-			GrassWeightArrays.Add(DataArray);
+			FByteBuffer2DView* WeightView = &GrassWeightArrays[Index];
+			ULandscapeGrassType* GrassType = ComponentInfo.RequestedGrassTypes[Index];
+
+			WeightView->NumX = ComponentSizeVerts;
+			WeightView->NumY = ComponentSizeVerts;
+			WeightView->ByteStrideX = 4;
+			WeightView->ByteStrideY = TargetSize.X * 4;
+			WeightView->BufferStart = nullptr;
+
+			// Note: WeightData points directly at the elements of GrassWeightArrays (DO NOT REALLOCATE GRASSWEIGHTARRAYS)
+			WeightData.Add(GrassType, WeightView);
 		}
 
 		// output debug bitmap
@@ -423,65 +625,39 @@ TMap<ULandscapeComponent*, TUniquePtr<FLandscapeComponentGrassData>, TInlineSetA
 		}
 #endif
 
-		// FColor memory layout matches our BGRA GPU layout only on little endian CPUs!
-		#if PLATFORM_LITTLE_ENDIAN
-			#define BGRA_AS_FCOLOR_BLUE B
-			#define BGRA_AS_FCOLOR_GREEN G
-			#define BGRA_AS_FCOLOR_RED R
-			#define BGRA_AS_FCOLOR_ALPHA A
-		#else
-			#define BGRA_AS_FCOLOR_BLUE A
-			#define BGRA_AS_FCOLOR_GREEN R
-			#define BGRA_AS_FCOLOR_RED G
-			#define BGRA_AS_FCOLOR_ALPHA B
-		#endif // PLATFORM_LITTLE_ENDIAN
-
+		int32 GrassTypeCount = ComponentInfo.RequestedGrassTypes.Num();
 		for (int32 PassIdx = 0; PassIdx < ComponentInfo.NumPasses; PassIdx++)
 		{
 			FColor* SampleData = &Samples[ComponentInfo.PixelOffsetX + PassIdx * ComponentSizeVerts];
+
 			if (PassIdx < ComponentInfo.FirstHeightMipsPassIndex)
 			{
-				if (PassIdx == 0)
+				if (PassIdx == 0)	// height in RG, grass weights in BA
 				{
-					for (int32 y = 0; y < ComponentSizeVerts; y++)
+					HeightData.BufferStart = SampleData;
+					if (GrassTypeCount > 0)
 					{
-						for (int32 x = 0; x < ComponentSizeVerts; x++)
+						GrassWeightArrays[0].BufferStart = &SampleData->BGRA_AS_FCOLOR_BLUE;
+						if (GrassTypeCount > 1)
 						{
-							FColor& Sample = SampleData[x + y * TargetSize.X];
-							uint16 Height = (((uint16)Sample.BGRA_AS_FCOLOR_RED) << 8) + (uint16)(Sample.BGRA_AS_FCOLOR_GREEN);
-							HeightData.Add(Height);
-							if (ComponentInfo.RequestedGrassTypes.Num() > 0)
-							{
-								GrassWeightArrays[0]->Add(Sample.BGRA_AS_FCOLOR_BLUE);
-								if (ComponentInfo.RequestedGrassTypes.Num() > 1)
-								{
-									GrassWeightArrays[1]->Add(Sample.BGRA_AS_FCOLOR_ALPHA);
-								}
-							}
+							GrassWeightArrays[1].BufferStart = &SampleData->BGRA_AS_FCOLOR_ALPHA;
 						}
 					}
 				}
 				else
 				{
-					for (int32 y = 0; y < ComponentSizeVerts; y++)
-					{
-						for (int32 x = 0; x < ComponentSizeVerts; x++)
-						{
-							FColor& Sample = SampleData[x + y * TargetSize.X];
+					int32 TypeIdx = PassIdx * 4 - 2;
 
-							int32 TypeIdx = PassIdx * 4 - 2;
-							GrassWeightArrays[TypeIdx++]->Add(Sample.BGRA_AS_FCOLOR_RED);
-							if (TypeIdx < ComponentInfo.RequestedGrassTypes.Num())
+					GrassWeightArrays[TypeIdx+0].BufferStart = &SampleData->BGRA_AS_FCOLOR_RED;
+					if (GrassTypeCount > TypeIdx+1)
+					{
+						GrassWeightArrays[TypeIdx+1].BufferStart = &SampleData->BGRA_AS_FCOLOR_GREEN;
+						if (GrassTypeCount > TypeIdx + 2)
+						{
+							GrassWeightArrays[TypeIdx + 2].BufferStart = &SampleData->BGRA_AS_FCOLOR_BLUE;
+							if (GrassTypeCount > TypeIdx + 3)
 							{
-								GrassWeightArrays[TypeIdx++]->Add(Sample.BGRA_AS_FCOLOR_GREEN);
-								if (TypeIdx < ComponentInfo.RequestedGrassTypes.Num())
-								{
-									GrassWeightArrays[TypeIdx++]->Add(Sample.BGRA_AS_FCOLOR_BLUE);
-									if (TypeIdx < ComponentInfo.RequestedGrassTypes.Num())
-									{
-										GrassWeightArrays[TypeIdx++]->Add(Sample.BGRA_AS_FCOLOR_ALPHA);
-									}
-								}
+								GrassWeightArrays[TypeIdx + 3].BufferStart = &SampleData->BGRA_AS_FCOLOR_ALPHA;
 							}
 						}
 					}
@@ -493,13 +669,15 @@ TMap<ULandscapeComponent*, TUniquePtr<FLandscapeComponentGrassData>, TInlineSetA
 				const int32 Mip = HeightMips[PassIdx - ComponentInfo.FirstHeightMipsPassIndex];
 				int32 MipSizeVerts = NumSubsections * (SubsectionSizeQuads >> Mip);
 				TArray<uint16>& MipHeightData = NewGrassData->HeightMipData.Add(Mip);
+				MipHeightData.SetNumUninitialized(MipSizeVerts* MipSizeVerts);
+				uint16* DstMipHeight = MipHeightData.GetData();
 				for (int32 y = 0; y < MipSizeVerts; y++)
 				{
+					FColor* SrcSample = &SampleData[y * TargetSize.X];
 					for (int32 x = 0; x < MipSizeVerts; x++)
 					{
-						FColor& Sample = SampleData[x + y * TargetSize.X];
-						uint16 Height = (((uint16)Sample.BGRA_AS_FCOLOR_RED) << 8) + (uint16)(Sample.BGRA_AS_FCOLOR_GREEN);
-						MipHeightData.Add(Height);
+						*DstMipHeight++ = (((uint16)SrcSample->BGRA_AS_FCOLOR_RED) << 8) + (uint16)(SrcSample->BGRA_AS_FCOLOR_GREEN);
+						SrcSample++;
 					}
 				}
 #endif // WITH_EDITORONLY_DATA
@@ -510,20 +688,22 @@ TMap<ULandscapeComponent*, TUniquePtr<FLandscapeComponentGrassData>, TInlineSetA
 		#undef BGRA_AS_FCOLOR_GREEN
 		#undef BGRA_AS_FCOLOR_RED
 		#undef BGRA_AS_FCOLOR_ALPHA
-
-		// remove null grass type if we had one (can occur if the node has null entries)
-		WeightData.Remove(nullptr);
-
-		// Remove any grass data that is entirely weight 0
-		for (auto Iter(WeightData.CreateIterator()); Iter; ++Iter)
+		
 		{
-			if (Iter->Value.IndexOfByPredicate([&](const int8& Weight) { return Weight != 0; }) == INDEX_NONE)
+			TRACE_CPUPROFILER_EVENT_SCOPE(RemoveZeroWeight);
+			for (auto Iter(WeightData.CreateIterator()); Iter; ++Iter)
 			{
-				Iter.RemoveCurrent();
+				// Remove null grass type if we had one (can occur if the node has null entries)
+				// Remove any grass data that is entirely weight 0
+				if (Iter->Key == nullptr ||
+					((FByteBuffer2DView*)Iter->Value)->IsAllZero())
+				{
+					Iter.RemoveCurrent();
+				}
 			}
 		}
 
-		NewGrassData->InitializeFrom(HeightData, WeightData);
+		NewGrassData->InitializeFrom(&HeightData, WeightData);
 		Results.Add(Component, MoveTemp(NewGrassData));
 	}
 
@@ -532,6 +712,8 @@ TMap<ULandscapeComponent*, TUniquePtr<FLandscapeComponentGrassData>, TInlineSetA
 
 void FLandscapeGrassWeightExporter::ApplyResults()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(ApplyResults);
+
 	TMap<ULandscapeComponent*, TUniquePtr<FLandscapeComponentGrassData>, TInlineSetAllocator<1>> NewGrassData = FetchResults();
 
 	for (auto&& GrassDataPair : NewGrassData)
@@ -579,103 +761,3 @@ void FLandscapeGrassWeightExporter::AddReferencedObjects(UObject* InThis, FRefer
 		Collector.AddReferencedObjects(Info.RequestedGrassTypes);
 	}
 }
-
-static bool ShouldCacheLandscapeGrassShaders(const FMeshMaterialShaderPermutationParameters& Parameters)
-{
-	// We only need grass weight shaders for Landscape vertex factories on desktop platforms
-	return (Parameters.MaterialParameters.bIsUsedWithLandscape || Parameters.MaterialParameters.bIsSpecialEngineMaterial) &&
-		IsFeatureLevelSupported(Parameters.Platform, ERHIFeatureLevel::SM5) &&
-		Parameters.VertexFactoryType == FindVertexFactoryType(FName(TEXT("FLandscapeFixedGridVertexFactory"), FNAME_Find)) &&
-		EnumHasAllFlags(Parameters.Flags, EShaderPermutationFlags::HasEditorOnlyData);
-}
-
-class FLandscapeGrassWeightVS : public FMeshMaterialShader
-{
-	DECLARE_SHADER_TYPE(FLandscapeGrassWeightVS, MeshMaterial);
-
-	LAYOUT_FIELD(FShaderParameter, RenderOffsetParameter);
-
-protected:
-
-	FLandscapeGrassWeightVS()
-	{}
-
-	FLandscapeGrassWeightVS(const FMeshMaterialShaderType::CompiledShaderInitializerType& Initializer)
-		: FMeshMaterialShader(Initializer)
-	{
-		RenderOffsetParameter.Bind(Initializer.ParameterMap, TEXT("RenderOffset"));
-		PassUniformBuffer.Bind(Initializer.ParameterMap, FSceneTextureUniformParameters::FTypeInfo::GetStructMetadata()->GetShaderVariableName());
-	}
-
-public:
-
-	static bool ShouldCompilePermutation(const FMeshMaterialShaderPermutationParameters& Parameters)
-	{
-		return ShouldCacheLandscapeGrassShaders(Parameters);
-	}
-
-	void GetShaderBindings(
-		const FScene* Scene,
-		ERHIFeatureLevel::Type FeatureLevel,
-		const FPrimitiveSceneProxy* PrimitiveSceneProxy,
-		const FMaterialRenderProxy& MaterialRenderProxy,
-		const FMaterial& Material,
-		const FMeshPassProcessorRenderState& DrawRenderState,
-		const FLandscapeGrassWeightShaderElementData& ShaderElementData,
-		FMeshDrawSingleShaderBindings& ShaderBindings) const
-	{
-		FMeshMaterialShader::GetShaderBindings(Scene, FeatureLevel, PrimitiveSceneProxy, MaterialRenderProxy, Material, DrawRenderState, ShaderElementData, ShaderBindings);
-
-		ShaderBindings.Add(RenderOffsetParameter, ShaderElementData.RenderOffset);
-	}
-};
-
-IMPLEMENT_MATERIAL_SHADER_TYPE(, FLandscapeGrassWeightVS, TEXT("/Engine/Private/LandscapeGrassWeight.usf"), TEXT("VSMain"), SF_Vertex);
-
-class FLandscapeGrassWeightPS : public FMeshMaterialShader
-{
-	DECLARE_SHADER_TYPE(FLandscapeGrassWeightPS, MeshMaterial);
-	LAYOUT_FIELD(FShaderParameter, OutputPassParameter);
-public:
-
-	static bool ShouldCompilePermutation(const FMeshMaterialShaderPermutationParameters& Parameters)
-	{
-		return ShouldCacheLandscapeGrassShaders(Parameters);
-	}
-
-	FLandscapeGrassWeightPS(const ShaderMetaType::CompiledShaderInitializerType& Initializer)
-		: FMeshMaterialShader(Initializer)
-	{
-		OutputPassParameter.Bind(Initializer.ParameterMap, TEXT("OutputPass"));
-		PassUniformBuffer.Bind(Initializer.ParameterMap, FSceneTextureUniformParameters::FTypeInfo::GetStructMetadata()->GetShaderVariableName());
-	}
-
-	FLandscapeGrassWeightPS()
-	{}
-
-	void GetShaderBindings(
-		const FScene* Scene,
-		ERHIFeatureLevel::Type FeatureLevel,
-		const FPrimitiveSceneProxy* PrimitiveSceneProxy,
-		const FMaterialRenderProxy& MaterialRenderProxy,
-		const FMaterial& Material,
-		const FMeshPassProcessorRenderState& DrawRenderState,
-		const FLandscapeGrassWeightShaderElementData& ShaderElementData,
-		FMeshDrawSingleShaderBindings& ShaderBindings) const
-	{
-		FMeshMaterialShader::GetShaderBindings(Scene, FeatureLevel, PrimitiveSceneProxy, MaterialRenderProxy, Material, DrawRenderState, ShaderElementData, ShaderBindings);
-
-		ShaderBindings.Add(OutputPassParameter, ShaderElementData.OutputPass);
-	}
-};
-
-IMPLEMENT_MATERIAL_SHADER_TYPE(, FLandscapeGrassWeightPS, TEXT("/Engine/Private/LandscapeGrassWeight.usf"), TEXT("PSMain"), SF_Pixel);
-
-void UE::Landscape::Grass::AddGrassWeightShaderTypes(FMaterialShaderTypes& InOutShaderTypes)
-{
-	InOutShaderTypes.AddShaderType<FLandscapeGrassWeightVS>();
-	InOutShaderTypes.AddShaderType<FLandscapeGrassWeightPS>();
-}
-
-#endif // WITH_EDITOR
-

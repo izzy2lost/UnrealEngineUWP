@@ -18,6 +18,7 @@ LandscapeEditLayers.cpp: Landscape editing layers mode
 #include "LandscapeEditTypes.h"
 #include "LandscapeUtils.h"
 #include "LandscapeSubsystem.h"
+#include "LandscapeTextureStreamingManager.h"
 
 #include "Application/SlateApplicationBase.h"
 #include "Shader.h"
@@ -1745,18 +1746,6 @@ typedef FLandscapeLayersRender_RenderThread<FLandscapeLayersWeightmapShaderParam
 
 #if WITH_EDITOR
 
-bool ALandscape::IsTextureReady(UTexture2D* InTexture, bool bInWaitForStreaming)
-{
-	check(InTexture);
-	InTexture->bForceMiplevelsToBeResident = true;
-	if (bInWaitForStreaming && !InTexture->IsFullyStreamedIn())
-	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(Landscape_WaitForTextureStreaming);
-		InTexture->WaitForStreaming();
-	}
-	return !InTexture->IsDefaultTexture() && InTexture->IsFullyStreamedIn();
-}
-
 bool ALandscape::IsMaterialResourceCompiled(FMaterialResource* InMaterialResource, bool bInWaitForCompilation)
 {
 	check(InMaterialResource);
@@ -3460,6 +3449,8 @@ bool ALandscape::PrepareTextureResources(bool bInWaitForStreaming)
 	// All components containing heightmaps that have just completed streaming in (filled out below)
 	TSet<ULandscapeComponent*> StreamedInHeightmapComponents;
 
+	FLandscapeTextureStreamingManager* TextureStreamingManager = GetWorld()->GetSubsystem<ULandscapeSubsystem>()->GetTextureStreamingManager();
+
 	bool bIsReady = true;
 	Info->ForEachLandscapeProxy([&](ALandscapeProxy* Proxy)
 	{
@@ -3468,7 +3459,7 @@ bool ALandscape::PrepareTextureResources(bool bInWaitForStreaming)
 			UTexture2D* ComponentHeightmap = Component->GetHeightmap();
 
 			{
-				bool bIsTextureReady = IsTextureReady(ComponentHeightmap, bInWaitForStreaming);
+				bool bIsTextureReady = TextureStreamingManager->RequestTextureFullyStreamedInForever(ComponentHeightmap, bInWaitForStreaming);
 				if (!bIsTextureReady)
 				{
 					StreamingInTexturesAfter.Add(ComponentHeightmap);
@@ -3487,7 +3478,7 @@ bool ALandscape::PrepareTextureResources(bool bInWaitForStreaming)
 
 			for (UTexture2D* ComponentWeightmap : Component->GetWeightmapTextures())
 			{
-				bool bIsTextureReady = IsTextureReady(ComponentWeightmap, bInWaitForStreaming);
+				bool bIsTextureReady = TextureStreamingManager->RequestTextureFullyStreamedInForever(ComponentWeightmap, bInWaitForStreaming);
 				// If the texture is not ready, start tracking its state changes to be notified when it's fully streamed in : 
 				if (!bIsTextureReady)
 				{
@@ -3629,8 +3620,10 @@ bool ALandscape::PrepareLayersTextureResources(const TArray<FLandscapeLayer>& In
 		return false;
 	}
 
+	FLandscapeTextureStreamingManager* TextureStreamingManager = GetWorld()->GetSubsystem<ULandscapeSubsystem>()->GetTextureStreamingManager();
+
 	bool bIsReady = true;
-	Info->ForEachLandscapeProxy([&](ALandscapeProxy* Proxy)
+	Info->ForEachLandscapeProxy([&, TextureStreamingManager](ALandscapeProxy* Proxy)
 	{
 		for (const FLandscapeLayer& Layer : InLayers)
 		{
@@ -3638,11 +3631,11 @@ bool ALandscape::PrepareLayersTextureResources(const TArray<FLandscapeLayer>& In
 			{
 				if (FLandscapeLayerComponentData* ComponentLayerData = Component->GetLayerData(Layer.Guid))
 				{
-					bIsReady &= IsTextureReady(ComponentLayerData->HeightmapData.Texture, bInWaitForStreaming);
+					bIsReady &= TextureStreamingManager->RequestTextureFullyStreamedInForever(ComponentLayerData->HeightmapData.Texture, bInWaitForStreaming);
 
 					for (UTexture2D* LayerWeightmap : ComponentLayerData->WeightmapData.Textures)
 					{
-						bIsReady &= IsTextureReady(LayerWeightmap, bInWaitForStreaming);
+						bIsReady &= TextureStreamingManager->RequestTextureFullyStreamedInForever(LayerWeightmap, bInWaitForStreaming);
 					}
 				}
 			}
@@ -3671,13 +3664,15 @@ bool ALandscape::PrepareLayersBrushResources(ERHIFeatureLevel::Type InFeatureLev
 		}
 	}
 
+	FLandscapeTextureStreamingManager* TextureStreamingManager = GetWorld()->GetSubsystem<ULandscapeSubsystem>()->GetTextureStreamingManager();
+
 	bool bIsReady = true;
 	for (UObject* Dependency : Dependencies)
 	{
 		// Streamable textures need to be fully streamed in : 
 		if (UTexture2D* Texture = Cast<UTexture2D>(Dependency))
 		{
-			bIsReady &= IsTextureReady(Texture, bInWaitForStreaming);
+			bIsReady &= TextureStreamingManager->RequestTextureFullyStreamedInForever(Texture, bInWaitForStreaming);
 		}
 
 		// Material shaders need to be fully compiled : 
@@ -5678,6 +5673,10 @@ bool ALandscape::ResolveLayersTexture(
 			}
 		}
 
+		// change lighting guid to be the hash of the source data (so we can use lighting guid to detect when it actually changes)
+		// TODO [chris.tchou] we should check(InOutputTexture->Source.bGuidIsHash); .. but it's not a public value currently.
+ 		InOutputTexture->SetLightingGuid(InOutputTexture->Source.GetId());
+
 		// Find out whether some channels from this weightmap are now all zeros : 
 		static constexpr uint32 AllChannelsAllZerosMask = 15;
 		uint32 AllZerosTextureChannelMask = AllChannelsAllZerosMask;
@@ -6081,10 +6080,10 @@ void ALandscape::ReallocateLayersWeightmaps(FUpdateLayersContentContext& InUpdat
 	//GDisableAutomaticTextureMaterialUpdateDependencies = true;
 
 	FTextureCompilingManager::Get().FinishCompilation(NewCreatedTextures);
+	FLandscapeTextureStreamingManager* TextureStreamingManager = GetWorld()->GetSubsystem<ULandscapeSubsystem>()->GetTextureStreamingManager();
 	for (UTexture* Texture : NewCreatedTextures)
 	{
-		Texture->bForceMiplevelsToBeResident = true;
-		Texture->WaitForStreaming();
+		TextureStreamingManager->RequestTextureFullyStreamedInForever(Texture, /* bWaitForStreaming= */ true);
 	}
 
 	//GDisableAutomaticTextureMaterialUpdateDependencies = false;

@@ -63,6 +63,7 @@ Landscape.cpp: Terrain rendering
 #include "ComponentRecreateRenderStateContext.h"
 #include "LandscapeWeightmapUsage.h"
 #include "LandscapeSubsystem.h"
+#include "LandscapeGrassMapsBuilder.h"
 #include "LandscapeCulling.h"
 #include "ContentStreaming.h"
 #include "UObject/ObjectSaveContext.h"
@@ -211,6 +212,10 @@ FAutoConsoleVariableRef CVarRenderNaniteLandscape(
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
+extern int32 GGrassEnable;
+extern int32 GGrassMapUseRuntimeGeneration;
+extern FAutoConsoleVariableRef CVarGrassMapUseRuntimeGeneration;
+
 struct FCompareULandscapeComponentClosest
 {
 	FCompareULandscapeComponentClosest(const FIntPoint& InCenter) : Center(InCenter) {}
@@ -325,14 +330,85 @@ void ULandscapeComponent::BeginCacheForCookedPlatformData(const ITargetPlatform*
 {
 	Super::BeginCacheForCookedPlatformData(TargetPlatform);
 
+	// first check if there is a cooked state cached currently, and reset back to non cooked state if so
+	if (PlatformCook.CurrentCookedPlatformOrdinal != -1)
+	{
+		ClearAllCachedCookedPlatformData();
+	}
+
+	// record the platform we are cooking for, so we know what state we are in
+	PlatformCook.CurrentCookedPlatformOrdinal = TargetPlatform->GetPlatformOrdinal();
+	PlatformCook.bStripGrassData = false;
+	PlatformCook.StrippedGrassData = nullptr;
+
 	if (!HasAnyFlags(RF_ClassDefaultObject))
 	{
 		if (TargetPlatform->SupportsFeature(ETargetPlatformFeatures::MobileRendering))
 		{
 			CheckGenerateMobilePlatformData(/*bIsCooking = */ true, TargetPlatform);
 		}
+
+		// determine whether our target platform is going to need serialized grass data
+		bool bNeedSerializedGrassData = false;
+		{
+			TSharedPtr<IConsoleVariable> TargetPlatformUseRuntimeGeneration =
+				CVarGrassMapUseRuntimeGeneration->GetPlatformValueVariable(*TargetPlatform->IniPlatformName());
+			check(TargetPlatformUseRuntimeGeneration.IsValid());
+
+			if (!TargetPlatformUseRuntimeGeneration->GetBool())
+			{
+				bNeedSerializedGrassData = true;
+			}
+		}
+		PlatformCook.bStripGrassData = !bNeedSerializedGrassData;
+
+		if (ALandscapeProxy* Proxy = GetLandscapeProxy())
+		{
+			// Also strip grass data according to Proxy flags (when not cooking for editor)
+			if (!TargetPlatform->AllowsEditorObjects())
+			{
+				if (CVarAllowGrassStripping->GetBool() &&
+					((Proxy->bStripGrassWhenCookedClient && Proxy->bStripGrassWhenCookedServer) ||
+					(Proxy->bStripGrassWhenCookedClient && TargetPlatform->IsClientOnly()) ||
+					(Proxy->bStripGrassWhenCookedServer && TargetPlatform->IsServerOnly())))
+				{
+					PlatformCook.bStripGrassData = true;
+				}
+			}
+		}
+		
+		if (PlatformCook.bStripGrassData)
+		{
+			// save existing value before we strip it, so we can restore later
+			PlatformCook.StrippedGrassData = GrassData;
+			TUniquePtr<FLandscapeComponentGrassData> NewGrassData = MakeUnique<FLandscapeComponentGrassData>();
+			GrassData = MakeShareable(NewGrassData.Release());
+			GrassData->NumElements = 0;
+		}
 	}
 }
+
+bool ULandscapeComponent::IsCachedCookedPlatformDataLoaded(const ITargetPlatform* TargetPlatform)
+{
+	return (PlatformCook.CurrentCookedPlatformOrdinal == TargetPlatform->GetPlatformOrdinal());
+}
+
+void ULandscapeComponent::ClearAllCachedCookedPlatformData()
+{
+	// restore back to "non-cooked" state
+	if (PlatformCook.CurrentCookedPlatformOrdinal >= 0 && PlatformCook.bStripGrassData)
+	{
+		if (PlatformCook.StrippedGrassData.IsValid())
+		{
+			GrassData = PlatformCook.StrippedGrassData.ToSharedRef();
+		}
+	}
+
+	PlatformCook.CurrentCookedPlatformOrdinal = -1;
+	PlatformCook.bStripGrassData = false;
+	PlatformCook.StrippedGrassData = nullptr;
+}
+
 
 void ALandscapeProxy::CheckGenerateMobilePlatformData(bool bIsCooking, const ITargetPlatform* TargetPlatform)
 {
@@ -1362,7 +1438,6 @@ void ULandscapeComponent::PostLoad()
 	{
 		UpdateGrassTypes();
 	}
-	UpdateGrassTypesMaxDiscardDistance();
 
 #if !UE_BUILD_SHIPPING
 	if (MobileCombinationMaterialInstances.Num() == 0)
@@ -1437,7 +1512,6 @@ ALandscapeProxy::ALandscapeProxy(const FObjectInitializer& ObjectInitializer)
 #if WITH_EDITORONLY_DATA
 	, TargetDisplayOrder(ELandscapeLayerDisplayMode::Default)
 #endif // WITH_EDITORONLY_DATA
-	, bHasLandscapeGrass(true)
 {
 	bReplicates = false;
 	NetUpdateFrequency = 10.0f;
@@ -1478,9 +1552,6 @@ ALandscapeProxy::ALandscapeProxy(const FObjectInitializer& ObjectInitializer)
 #endif
 
 #if WITH_EDITOR
-	NumComponentsNeedingGrassMapRender = 0;
-	NumTexturesToStreamForVisibleGrassMapRender = 0;
-
 	if (VisibilityLayer == nullptr)
 	{
 		// Structure to hold one-time initialization
@@ -1987,10 +2058,13 @@ void ULandscapeComponent::OnRegister()
 		UWorld* World = GetLandscapeProxy()->GetWorld();
 		if (World)
 		{
-			ULandscapeInfo* Info = GetLandscapeInfo();
-			if (Info)
+			if (ULandscapeInfo* Info = GetLandscapeInfo())
 			{
 				Info->RegisterActorComponent(this);
+			}
+			if (ULandscapeSubsystem *Subsystem = World->GetSubsystem<ULandscapeSubsystem>())
+			{
+				Subsystem->RegisterComponent(this);
 			}
 		}
 	}
@@ -2017,10 +2091,13 @@ void ULandscapeComponent::OnUnregister()
 
 		if (World)
 		{
-			ULandscapeInfo* Info = GetLandscapeInfo();
-			if (Info)
+			if (ULandscapeInfo* Info = GetLandscapeInfo())
 			{
 				Info->UnregisterActorComponent(this);
+			}
+			if (ULandscapeSubsystem* Subsystem = World->GetSubsystem<ULandscapeSubsystem>())
+			{
+				Subsystem->UnregisterComponent(this);
 			}
 		}
 	}
@@ -2114,6 +2191,18 @@ TArray<TObjectPtr<UTexture2D>>& ULandscapeComponent::GetWeightmapTextures(const 
 #endif
 
 	return WeightmapTextures;
+}
+
+const TArray<UTexture2D*>& ULandscapeComponent::GetRenderedWeightmapTexturesForFeatureLevel(ERHIFeatureLevel::Type FeatureLevel) const
+{
+	if (FeatureLevel == ERHIFeatureLevel::ES3_1)
+	{
+		return MobileWeightmapTextures;
+	}
+	else
+	{
+		return WeightmapTextures;
+	}
 }
 
 const TArray<FWeightmapLayerAllocationInfo>& ULandscapeComponent::GetWeightmapLayerAllocations(bool InReturnEditingWeightmap) const
@@ -2695,15 +2784,18 @@ void ALandscape::PostInitProperties()
 				{
 					// Create conditional GrassRenderingNotification
 					GrassRenderingNotification = MakeShared<FLandscapeNotification>(this, FLandscapeNotification::EType::GrassRendering,
-						[this]() { return NumComponentsNeedingGrassMapRender > 0 && !(FSlateApplication::Get().HasAnyMouseCaptor() || GUnrealEd->IsUserInteracting()); },
-						[this](FText& InText)
+						// display condition
+						[this, LandscapeSubSystem]()
+						{
+							return GGrassEnable && !GGrassMapUseRuntimeGeneration &&
+								(LandscapeSubSystem->GetGrassMapBuilder()->GetTotalGrassMapsWaitingToRender() > 0) &&
+								!(FSlateApplication::Get().HasAnyMouseCaptor() || GUnrealEd->IsUserInteracting());
+						},
+						// retrieve text
+						[this, LandscapeSubSystem](FText& InText)
 						{
 							// Accumulating all outstanding grass maps that need to be rendered for ALL landscapes because only one such notification can be displayed at a time
-							int ComponentsNeedingGrassMapRenderAllLandscapes = 0;
-							for (const ALandscape* Landscape : TObjectRange<ALandscape>(RF_ClassDefaultObject | RF_ArchetypeObject, true, EInternalObjectFlags::Garbage))
-							{
-								ComponentsNeedingGrassMapRenderAllLandscapes += Landscape->NumComponentsNeedingGrassMapRender;
-							}
+							int ComponentsNeedingGrassMapRenderAllLandscapes = LandscapeSubSystem->GetGrassMapBuilder()->GetTotalGrassMapsWaitingToRender();
 							
 							FFormatNamedArguments Args;
 							Args.Add(TEXT("OutstandingGrassMaps"), FText::AsNumber(ComponentsNeedingGrassMapRenderAllLandscapes));
@@ -3498,16 +3590,24 @@ void ALandscapeProxy::PreSave(FObjectPreSaveContext ObjectSaveContext)
 	Super::PreSave(ObjectSaveContext);
 
 #if WITH_EDITOR
-	// Work out whether we have grass or not for the next game run
-	BuildGrassMaps();
-
-	for (ULandscapeComponent* Component : LandscapeComponents)
+	if (!ObjectSaveContext.IsProceduralSave()) // only finalize grass in a true editor save (when a GPU is available).
 	{
-		// Reset flag
-		Component->GrassData->bIsDirty = false;
+		// It would be nice to strip grass data at editor save time to reduce asset size on disk.
+		// Unfortunately we can't easily know if there is a platform out there that may need to use the serialized grass map path.
+		// And future cook processes may not have a GPU available to build the grass data themselves.
+		// So for now, we always build all grass maps on editor save, just in case.
+		// The grass maps will get stripped later in BeginCacheForCookedPlatformData for cooked builds that don't need them.
+		{
+			// generate all of the grass data
+			BuildGrassMaps();
+			for (ULandscapeComponent* Component : LandscapeComponents)
+			{
+				// Manually reset dirty flag (for post save)
+				Component->GrassData->bIsDirty = false;
+			}
+		}
 	}
 
-	
 	if (ULandscapeInfo* LandscapeInfo = GetLandscapeInfo())
 	{
 		LandscapeInfo->UpdateNanite(ObjectSaveContext.GetTargetPlatform());
@@ -4100,6 +4200,23 @@ void ALandscapeProxy::PostLoad()
 			continue;
 		}
 
+#if !WITH_EDITOR
+		// if using runtime grass gen, it should have been cleared out in PreSave
+		if (GGrassMapUseRuntimeGeneration)
+		{
+			if (Comp->GrassData->HasValidData() && bUseRuntimeGrassMapGeneration)
+			{
+				UE_LOG(LogGrass, Warning, TEXT("grass.GrassMap.UseRuntimeGeneration is enabled, but component %s on landscape %s has unnecessary grass data saved.  Ensure grass.GrassMap.UseRuntimeGeneration is enabled at cook time to reduce cooked data size."),
+					*Comp->GetName(),
+					*GetName());
+
+				// Free the memory, so at least we will save the space at runtime.
+				TUniquePtr<FLandscapeComponentGrassData> NewGrassData = MakeUnique<FLandscapeComponentGrassData>();
+				Comp->GrassData = MakeShareable(NewGrassData.Release());
+			}
+		}
+#endif // !WITH_EDITOR
+
 		// Validate the layer combination and store it in the MaterialInstanceConstantMap
 		UMaterialInstance* MaterialInstance = Comp->GetMaterialInstance(0, false);
 
@@ -4210,10 +4327,6 @@ void ALandscapeProxy::Destroyed()
 		{
 			SplineComponent->ModifySplines();
 		}
-
-		NumComponentsNeedingGrassMapRender = 0;
-		TotalTexturesToStreamForVisibleGrassMapRender -= NumTexturesToStreamForVisibleGrassMapRender;
-		NumTexturesToStreamForVisibleGrassMapRender = 0;
 	}
 
 	// Destroy the Nanite component when we get destroyed so that we don't restore a garbage Nanite component (it's non-transactional and will get regenerated anyway)
@@ -5995,12 +6108,6 @@ ALandscapeProxy::~ALandscapeProxy()
 		delete Task;
 	}
 	AsyncFoliageTasks.Empty();
-
-#if WITH_EDITOR
-	NumComponentsNeedingGrassMapRender = 0;
-	TotalTexturesToStreamForVisibleGrassMapRender -= NumTexturesToStreamForVisibleGrassMapRender;
-	NumTexturesToStreamForVisibleGrassMapRender = 0;
-#endif
 
 #if WITH_EDITORONLY_DATA
 	LandscapeProxies.Remove(this);

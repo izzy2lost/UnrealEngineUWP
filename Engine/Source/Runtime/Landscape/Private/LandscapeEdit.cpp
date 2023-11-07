@@ -83,6 +83,9 @@ LandscapeEdit.cpp: Landscape editing
 #include "ActorPartition/ActorPartitionSubsystem.h"
 #include "LandscapeUtils.h"
 #include "LandscapeSplineActor.h"
+#include "Materials/MaterialExpressionLandscapeGrassOutput.h"
+#include "ShaderPlatformCachedIniValue.h"
+#include "DataDrivenShaderPlatformInfo.h"
 #endif
 #include "Algo/Count.h"
 #include "Algo/Transform.h"
@@ -7293,9 +7296,30 @@ static void GetAllMobileRelevantLayerNames(TSet<FName>& OutLayerNames, UMaterial
 {
 	TArray<FName> LayerNames;
 
+	bool bMobileUseRuntimeGrassMapGeneration = false;
+	{
+		// if ANY mobile platform has runtime generation (because we don't calculate mobile weightmaps per platform, just mobile/non-mobile)
+		static FShaderPlatformCachedIniValue<bool> UseRuntimeGenerationCVar(TEXT("grass.GrassMaps.UseRuntimeGeneration"));
+		for (int32 SPIndex = 0; SPIndex < SP_NumPlatforms; SPIndex++)
+		{
+			EShaderPlatform SP = static_cast<EShaderPlatform>(SPIndex);
+			if (FGenericDataDrivenShaderPlatformInfo::IsValid(SP) && IsMobilePlatform(SP) && UseRuntimeGenerationCVar.Get(SP))
+			{
+				bMobileUseRuntimeGrassMapGeneration = true;
+				break;
+			}
+		}
+	}
+
+	TSet<UClass*> MobileCustomOutputExpressionTypesToQuery;
+	if (bMobileUseRuntimeGrassMapGeneration)
+	{
+		MobileCustomOutputExpressionTypesToQuery.Add(UMaterialExpressionLandscapeGrassOutput::StaticClass());
+	}
+
 	const bool bRecurseIntoMaterialFunctions = true;
 	TArray<UMaterialExpression*> ES31Expressions;
-	InMaterial->GetAllReferencedExpressions(ES31Expressions, nullptr, ERHIFeatureLevel::ES3_1, EMaterialQualityLevel::Num, ERHIShadingPath::Num, bRecurseIntoMaterialFunctions );
+	InMaterial->GetAllReferencedExpressions(ES31Expressions, nullptr, ERHIFeatureLevel::ES3_1, EMaterialQualityLevel::Num, ERHIShadingPath::Num, bRecurseIntoMaterialFunctions, &MobileCustomOutputExpressionTypesToQuery);
 
 	TArray<UMaterialExpression*> MobileExpressions = MoveTemp(ES31Expressions);
 	for (UMaterialExpression* Expression : MobileExpressions)

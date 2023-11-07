@@ -65,6 +65,7 @@ namespace UE::Landscape
 
 #if WITH_EDITOR
 LANDSCAPE_API extern bool GLandscapeEditModeActive;
+extern int32 GGrassMapUseRuntimeGeneration;
 
 DECLARE_MULTICAST_DELEGATE_TwoParams(FOnLandscapeProxyComponentDataChanged, ALandscapeProxy*, const FLandscapeProxyComponentDataChangedParams&);
 #endif // WITH_EDITOR
@@ -599,15 +600,27 @@ public:
 	/** Frame offset for tick interval*/
 	uint32 FrameOffsetForTickInterval;
 
-	// Only used outside of the editor (e.g. in cooked builds)
-	// Disables landscape grass processing entirely if no landscape components have landscape grass configured
-	UPROPERTY()
-	bool bHasLandscapeGrass;
-
-	// Only used outside of the editor (e.g. in cooked builds)
+	// Only used outside of the editor (e.g. in cooked builds) - this value is no longer authoritative TODO [chris.tchou] remove
 	// Cached grass max discard distance for all grass types in all landscape components with landscape grass configured
 	UPROPERTY()
 	float GrassTypesMaxDiscardDistance = 0.0f;
+
+	// Non-serialized runtime cache of values derived from the assigned grass types.
+	// Call ALandscapeProxy::UpdateGrassTypeSummary() to update.
+	struct FGrassTypeSummary
+	{
+		// Used to track validity of these values, as it automatically invalidates if you add or remove a component.
+		// If you do both add AND remove, then the add should also trigger UpdateGrassTypes() which will invalidate this cache.
+		// Negative is the invalid state.
+		int32 LandscapeComponentCount = -1;
+
+		bool bHasAnyGrass = true;
+		double MaxInstanceDiscardDistance = DBL_MAX;
+	};
+	FGrassTypeSummary GrassTypeSummary;
+	inline bool IsGrassTypeSummaryValid() { return LandscapeComponents.Num() == GrassTypeSummary.LandscapeComponentCount; }
+	inline void InvalidateGrassTypeSummary() { GrassTypeSummary.LandscapeComponentCount = -1; }
+	void UpdateGrassTypeSummary();
 
 	/**
 	 *	The resolution to cache lighting at, in texels/quad in one axis
@@ -794,6 +807,11 @@ public:
 	UPROPERTY(EditAnywhere, Category = Landscape, AdvancedDisplay, meta = (LandscapeInherited))
 	bool bUseCompressedHeightmapStorage = false;
 
+	/** Enable runtime grass data generation to save memory, when grass.GrassMap.UseRuntimeGeneration is true (this is checked per platform).
+		When enabled grass data is not serialized during cook and will be regenerated at runtime when the landscape is loaded. */
+	UPROPERTY(EditAnywhere, Category = Landscape, AdvancedDisplay, meta = (LandscapeInherited))
+	bool bUseRuntimeGrassMapGeneration = false;
+
 	/** Strip Physics/collision components when cooked for client */
 	UPROPERTY(EditAnywhere, Category = Landscape, AdvancedDisplay, meta = (LandscapeOverridable))
 	bool bStripPhysicsWhenCookedClient = false;
@@ -945,12 +963,11 @@ public:
 
 	static void SetGrassUpdateInterval(int32 Interval) { GrassUpdateInterval = Interval; }
 
-	/* Per-frame call to update dynamic grass placement and render grassmaps */
+	/* Determine whether we should update dynamic grass instances this update tick */
 	FORCEINLINE bool ShouldTickGrass() const
 	{
-		// At runtime if we don't have grass we will never have any so avoid ticking it
-		// In editor we might have a material that didn't have grass and now does so we can't rely on bHasLandscapeGrass.
-		if (!GIsEditor && !bHasLandscapeGrass)
+		// don't tick grass if there's no grass to tick
+		if (!GrassTypeSummary.bHasAnyGrass)
 		{
 			return false;
 		}
@@ -967,15 +984,18 @@ public:
 		return true;
 	}
 	void TickGrass(const TArray<FVector>& Cameras, int32& InOutNumCompsCreated);
+	void ProcessAsyncGrassInstanceTasks(bool bWaitAsyncTasks, bool bForceSync, const TSet<UHierarchicalInstancedStaticMeshComponent*>& StillUsed);
 
-	/** Flush the grass cache */
+	/** Flush the grass cache, removing grass instances on the given components (or all proxy components if the component set is not specified).
+	*     bFlushGrassMaps will delete the grass data / density maps on the components as well, but only in editor mode, and only if the grass maps are renderable (i.e. they can be regenerated).
+	*/
 	LANDSCAPE_API void FlushGrassComponents(const TSet<ULandscapeComponent*>* OnlyForComponents = nullptr, bool bFlushGrassMaps = true);
 
 	/**
-		Update Grass 
+		Update Grass -- Builds grass instances given the camera locations
 		* @param Cameras to use for culling, if empty, then NO culling
 		* @param InOutNumComponentsCreated, value can increase if components were created, it is also used internally to limit the number of creations
-		* @param bForceSync if true, block and finish all work
+		* @param bForceSync if true, block and finish all work so that grass is fully populated for the given cameras
 	*/
 	LANDSCAPE_API void UpdateGrass(const TArray<FVector>& Cameras, int32& InOutNumComponentsCreated, bool bForceSync = false);
 	LANDSCAPE_API void UpdateGrass(const TArray<FVector>& Cameras, bool bForceSync = false);
@@ -1011,15 +1031,9 @@ public:
 	LANDSCAPE_API void UpdateRenderingMethod();
 
 #if WITH_EDITOR
-	/** Update Grass maps */
-	void UpdateGrassData(bool bInShouldMarkDirty = false, struct FScopedSlowTask* InSlowTask = nullptr);
-
 	/** Render grass maps for the specified components */
-	UE_DEPRECATED(5.4, "This version of RenderGrassMaps is deprecated to account for landscape components with their own grass types, use the other version instead.")
+	UE_DEPRECATED(5.4, "This version of RenderGrassMaps is deprecated.  Use BuildGrassMaps() instead.")
 	void RenderGrassMaps(const TArray<ULandscapeComponent*>& InLandscapeComponents, const TArray<ULandscapeGrassType*>& InGrassTypes) {}
-
-	/** Render grass maps for the specified components */
-	void RenderGrassMaps(TArrayView<ULandscapeComponent* const> InLandscapeComponents);
 
 	struct UE_DEPRECATED(5.3, "FGIBakedTextureState is officially deprecated now and nothing updates it anymore") FGIBakedTextureState
 	{
@@ -1338,13 +1352,6 @@ public:
 	/** Creates a LandscapeWeightMapUsage object outered to this proxy. */
 	LANDSCAPE_API ULandscapeWeightmapUsage* CreateWeightmapUsage();
 
-	/* For the grassmap rendering notification */
-	int32 NumComponentsNeedingGrassMapRender;
-
-	/* To throttle texture streaming when we're trying to render a grassmap */
-	int32 NumTexturesToStreamForVisibleGrassMapRender;
-	LANDSCAPE_API static int32 TotalTexturesToStreamForVisibleGrassMapRender;
-
 	UE_DEPRECATED(5.3, "NumComponentsNeedingTextureBaking is officially deprecated now and nothing updates it anymore")
 	int32 NumComponentsNeedingTextureBaking;
 
@@ -1456,8 +1463,6 @@ private:
 	FName GenerateUniqueLandscapeTextureName(UObject* InOuter, TextureGroup InLODGroup) const;
 
 #if WITH_EDITOR
-	void UpdateGrassDataStatus(TSet<UTexture2D*>* OutCurrentForcedStreamedTextures, TSet<UTexture2D*>* OutDesiredForcedStreamedTextures, TSet<ULandscapeComponent*>* OutComponentsNeedingGrassMapRender, TSet<ULandscapeComponent*>* OutOutdatedComponents, bool bInEnableForceResidentFlag, int32* OutOutdatedGrassMaps = nullptr) const;
-
 	/** Create Blank Nanite Component */
 	void CreateNaniteComponents(int32 NumComponents);
 

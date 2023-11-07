@@ -5899,7 +5899,7 @@ void UMaterial::GetAllExpressionsForCustomInterpolators(TArray<class UMaterialEx
 
 #if WITH_EDITOR
 bool UMaterial::GetAllReferencedExpressions(TArray<UMaterialExpression*>& OutExpressions, struct FStaticParameterSet* InStaticParameterSet,
-	ERHIFeatureLevel::Type InFeatureLevel, EMaterialQualityLevel::Type InQuality, ERHIShadingPath::Type InShadingPath, const bool bInRecurseIntoMaterialFunctions)
+	ERHIFeatureLevel::Type InFeatureLevel, EMaterialQualityLevel::Type InQuality, ERHIShadingPath::Type InShadingPath, const bool bInRecurseIntoMaterialFunctions, TSet<UClass*>* InMobileCustomOutputExpressionTypesToQuery)
 {
 	using namespace MaterialImpl;
 
@@ -5935,16 +5935,18 @@ bool UMaterial::GetAllReferencedExpressions(TArray<UMaterialExpression*>& OutExp
 			}
 		}
 
-		// TODO: Need an actual ShaderPlatform for a more precise result
+		// TODO: Need an actual ShaderPlatform for a more precise result. This just grabs the handiest one on the current machine.
 		EShaderPlatform ShaderPlatform = GetFeatureLevelShaderPlatform(ERHIFeatureLevel::ES3_1);
+		
 		bool bMobileUseVirtualTexturing = UseVirtualTexturing(ShaderPlatform);
-		if (bMobileUseVirtualTexturing)
+		if (bMobileUseVirtualTexturing || (InMobileCustomOutputExpressionTypesToQuery && InMobileCustomOutputExpressionTypesToQuery->Num() > 0))
 		{
 			TArray<class UMaterialExpressionCustomOutput*> CustomOutputExpressions;
 			GetAllCustomOutputExpressions(CustomOutputExpressions);
 			for (UMaterialExpressionCustomOutput* Expression : CustomOutputExpressions)
 			{
-				if (Expression->IsA<UMaterialExpressionRuntimeVirtualTextureOutput>())
+				if ((bMobileUseVirtualTexturing && Expression->IsA<UMaterialExpressionRuntimeVirtualTextureOutput>()) ||
+					(InMobileCustomOutputExpressionTypesToQuery && InMobileCustomOutputExpressionTypesToQuery->Contains(Expression->GetClass())))
 				{
 					TArray<FExpressionInput*> ProcessedInputs;
 					RecursiveGetExpressionChain(Expression, ProcessedInputs, OutExpressions, InStaticParameterSet, InFeatureLevel, InQuality, InShadingPath, SF_NumFrequencies, MP_MAX, bInRecurseIntoMaterialFunctions);

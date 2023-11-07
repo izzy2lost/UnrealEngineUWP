@@ -61,6 +61,8 @@ static FAutoConsoleVariableRef CVarUpdateProxyActorRenderMethodUpdateOnTickAtRun
 	GUpdateProxyActorRenderMethodOnTickAtRuntime,
 	TEXT("Update landscape proxy's rendering method (nanite enabled) when ticked. Always enabled in editor."));
 
+extern int32 GGrassMapUseRuntimeGeneration;
+
 DECLARE_CYCLE_STAT(TEXT("LandscapeSubsystem Tick"), STAT_LandscapeSubsystemTick, STATGROUP_Landscape);
 
 #define LOCTEXT_NAMESPACE "LandscapeSubsystem"
@@ -107,8 +109,12 @@ void ULandscapeSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 		LandscapeNaniteEnabledCVar->OnChangedDelegate().AddUObject(this, &ULandscapeSubsystem::OnNaniteEnabledChanged);
 	}
 
+	TextureStreamingManager = new FLandscapeTextureStreamingManager();
+	check(TextureStreamingManager);
+
+	GrassMapsBuilder = new FLandscapeGrassMapsBuilder(GetWorld(), *TextureStreamingManager);
+
 #if WITH_EDITOR
-	GrassMapsBuilder = new FLandscapeGrassMapsBuilder(GetWorld());
 	PhysicalMaterialBuilder = new FLandscapePhysicalMaterialBuilder(GetWorld());
 
 	if (!IsRunningCommandlet())
@@ -180,11 +186,35 @@ void ULandscapeSubsystem::Deinitialize()
 void ULandscapeSubsystem::HandlePostGarbageCollect()
 {
 	ALandscapeProxy::RemoveInvalidExclusionBoxes();
+	GetTextureStreamingManager()->CleanupInvalidEntries();
 }
 
 TStatId ULandscapeSubsystem::GetStatId() const
 {
 	RETURN_QUICK_DECLARE_CYCLE_STAT(ULandscapeSubsystem, STATGROUP_Tickables);
+}
+
+void ULandscapeSubsystem::RegisterComponent(ULandscapeComponent* Component)
+{
+	GetGrassMapBuilder()->RegisterComponent(Component);
+}
+
+void ULandscapeSubsystem::UnregisterComponent(ULandscapeComponent* Component)
+{
+	GetGrassMapBuilder()->UnregisterComponent(Component);
+}
+
+
+void ULandscapeSubsystem::RemoveGrassInstances(const TSet<ULandscapeComponent*>* ComponentsToRemoveGrassInstances)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(RemoveGrassInstances);
+	for (TWeakObjectPtr<ALandscapeProxy> ProxyPtr : Proxies)
+	{
+		if (ALandscapeProxy* Proxy = ProxyPtr.Get())
+		{
+			Proxy->FlushGrassComponents(ComponentsToRemoveGrassInstances, /*bFlushGrassMaps = */false);
+		}
+	}
 }
 
 void ULandscapeSubsystem::RegenerateGrass(bool bInFlushGrass, bool bInForceSync, TOptional<TArrayView<FVector>> InOptionalCameraLocations)
@@ -200,14 +230,7 @@ void ULandscapeSubsystem::RegenerateGrass(bool bInFlushGrass, bool bInForceSync,
 
 	if (bInFlushGrass)
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(FlushGrass);
-		for (TWeakObjectPtr<ALandscapeProxy> ProxyPtr : Proxies)
-		{
-			if (ALandscapeProxy* Proxy = ProxyPtr.Get())
-			{
-				Proxy->FlushGrassComponents(/*OnlyForComponents = */nullptr, /*bFlushGrassMaps = */false);
-			}
-		}
+		RemoveGrassInstances();
 	}
 
 	{
@@ -268,6 +291,7 @@ void ULandscapeSubsystem::Tick(float DeltaTime)
 	Super::Tick(DeltaTime);
 
 	UWorld* World = GetWorld();
+	bool bIsGameWorld = World->IsGameWorld();
 
 #if WITH_EDITOR
 	AppCurrentDateTime = FDateTime::Now();
@@ -300,14 +324,13 @@ void ULandscapeSubsystem::Tick(float DeltaTime)
 	{
 		if (OldCameras.Num() || World->ViewLocationsRenderedLastFrame.Num())
 		{
-			Cameras = &OldCameras;
-			// there is a bug here, which often leaves us with no cameras in the editor
+			// there is a bug here, which often leaves us with no cameras in the editor -- try to fall back to previous camera position(s)
 			if (World->ViewLocationsRenderedLastFrame.Num())
 			{
 				check(IsInGameThread());
-				Cameras = &World->ViewLocationsRenderedLastFrame;
-				OldCameras = *Cameras;
+				OldCameras = World->ViewLocationsRenderedLastFrame;
 			}
+			Cameras = &OldCameras;
 		}
 	}
 	else
@@ -325,6 +348,66 @@ void ULandscapeSubsystem::Tick(float DeltaTime)
 		}
 	}
 
+	// dereference and filter TWeakObjectPtr proxies once, up front, to get the list of active proxies
+	// also run early update on Proxies, and determine if all of the proxies are ready for grass generation to start
+	// TODO [chris.tchou] We should drop the usage of TWeakObjectPtr to reduce the dereference cost, can rely on register/unregister instead
+	bool bAllProxiesReadyForGrassMapGeneration = true;
+	bool bAllProxiesRuntimeGrassMapsDisabled = true;
+	static TArray<ALandscapeProxy*> ActiveProxies;
+	ActiveProxies.Reset(Proxies.Num());
+	for (TWeakObjectPtr<ALandscapeProxy> ProxyPtr : Proxies)
+	{
+		if (ALandscapeProxy* Proxy = ProxyPtr.Get())
+		{
+			ActiveProxies.Add(Proxy);
+			
+			// Update the proxies proxy
+			{
+				if (Proxy->bUseRuntimeGrassMapGeneration)
+				{
+					bAllProxiesRuntimeGrassMapsDisabled = false;
+				}
+
+#if WITH_EDITOR
+				if (!bIsGameWorld)
+				{
+					// in editor, automatically update component grass types if the material changes
+					for (ULandscapeComponent* Component : Proxy->LandscapeComponents)
+					{
+						Component->UpdateGrassTypes();
+					}
+
+					// before starting grass map generation in editor, ensure layers are up to date
+					// and grass update is enabled (if disabled then a tool is currently operating)
+					ALandscape* Landscape = Proxy->GetLandscapeActor();
+					if ((Landscape == nullptr) || !Landscape->bGrassUpdateEnabled || !Landscape->IsUpToDate())
+					{
+						bAllProxiesReadyForGrassMapGeneration = false;
+					}
+				}
+#endif // WITH_EDITOR
+
+				// Update the grass type summary if necessary
+				if (!Proxy->IsGrassTypeSummaryValid())
+				{
+					Proxy->UpdateGrassTypeSummary();
+				}
+			}
+		}
+	}
+
+	bool bGrassMapGenerationDisabled = bAllProxiesRuntimeGrassMapsDisabled;
+#if WITH_EDITOR
+	if (GIsEditor && !bIsGameWorld)
+	{
+		bGrassMapGenerationDisabled = false;
+	}
+#endif // WITH_EDITOR
+
+	bool bAllowStartGrassMapGeneration = bAllProxiesReadyForGrassMapGeneration && !bGrassMapGenerationDisabled && (!bIsGameWorld || GGrassMapUseRuntimeGeneration);
+
+	GrassMapsBuilder->AmortizedUpdateGrassMaps(Cameras ? *Cameras : TArray<FVector>(), bIsGrassCreationPrioritized, bAllowStartGrassMapGeneration);
+
 	int32 InOutNumComponentsCreated = 0;
 #if WITH_EDITOR
 	int32 NumProxiesUpdated = 0;
@@ -336,49 +419,49 @@ void ULandscapeSubsystem::Tick(float DeltaTime)
 		NumNaniteMeshUpdatesAvailable -= NumMeshesToUpdate;
 	}
 #endif // WITH_EDITOR
-	for (TWeakObjectPtr<ALandscapeProxy> ProxyPtr : Proxies)
+	for (ALandscapeProxy* Proxy : ActiveProxies)
 	{
-		if (ALandscapeProxy* Proxy = ProxyPtr.Get())
-		{
 #if WITH_EDITOR
-			if (GIsEditor)
+		if (GIsEditor)
+		{
+			if (ALandscape* Landscape = Cast<ALandscape>(Proxy))
 			{
-				if (ALandscape* Landscape = Cast<ALandscape>(Proxy))
-				{
-					Landscape->TickLayers(DeltaTime);
-				}
-
-				// editor-only
-				if (!World->IsPlayInEditor())
-				{
-					Proxy->UpdatePhysicalMaterialTasks();
-				}
+				Landscape->TickLayers(DeltaTime);
 			}
 
-			Proxy->GetAsyncWorkMonitor().Tick(DeltaTime);
-
-			if (IsLiveNaniteRebuildEnabled())
+			// editor-only
+			if (!World->IsPlayInEditor())
 			{
-				if (NumProxiesUpdated < NumMeshesToUpdate && Proxy->GetAsyncWorkMonitor().CheckIfUpdateTriggeredAndClear(FAsyncWorkMonitor::EAsyncWorkType::BuildNaniteMeshes))
-				{
-					NumProxiesUpdated++;
-					Proxy->UpdateNaniteRepresentation(/* const ITargetPlatform* = */nullptr);
-				}
-			}
-#endif //WITH_EDITOR
-			if (Cameras && Proxy->ShouldTickGrass())
-			{
-				Proxy->TickGrass(*Cameras, InOutNumComponentsCreated);
-			}
-
-#if !WITH_EDITOR
-			if (GUpdateProxyActorRenderMethodOnTickAtRuntime)
-#endif // WITH_EDITOR
-			{
-				Proxy->UpdateRenderingMethod();
+				Proxy->UpdatePhysicalMaterialTasks();
 			}
 		}
+
+		Proxy->GetAsyncWorkMonitor().Tick(DeltaTime);
+
+		if (IsLiveNaniteRebuildEnabled())
+		{
+			if (NumProxiesUpdated < NumMeshesToUpdate && Proxy->GetAsyncWorkMonitor().CheckIfUpdateTriggeredAndClear(FAsyncWorkMonitor::EAsyncWorkType::BuildNaniteMeshes))
+			{
+				NumProxiesUpdated++;
+				Proxy->UpdateNaniteRepresentation(/* const ITargetPlatform* = */nullptr);
+			}
+		}
+#endif //WITH_EDITOR
+		// TODO [chris.tchou] : this stops all async task processing if cameras go away, which might leave tasks dangling
+		if (Cameras && Proxy->ShouldTickGrass())
+		{
+			Proxy->TickGrass(*Cameras, InOutNumComponentsCreated);
+		}
+
+#if !WITH_EDITOR
+		if (GUpdateProxyActorRenderMethodOnTickAtRuntime)
+#endif // WITH_EDITOR
+		{
+			Proxy->UpdateRenderingMethod();
+		}
 	}
+
+	ActiveProxies.Reset();
 
 #if WITH_EDITOR
 	if (GIsEditor && !World->IsPlayInEditor())

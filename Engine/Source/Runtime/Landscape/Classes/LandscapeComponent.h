@@ -184,6 +184,15 @@ inline uint32 GetTypeHash(const FWeightmapLayerAllocationInfo& InAllocInfo)
 	return InAllocInfo.GetHash();
 }
 
+template<typename T>
+struct IBuffer2DView
+{
+	// copy up to Count elements to Dest, in X then Y order (standard image order)
+	virtual void CopyTo(T* Dest, int32 Count) const = 0;
+
+	// return the total number of elements
+	virtual int32 Num() const = 0;
+};
 
 struct FLandscapeComponentGrassData
 {
@@ -207,7 +216,7 @@ struct FLandscapeComponentGrassData
 
 	// Grass data was updated but not saved yet
 	bool bIsDirty = false;
-#endif
+#endif // WITH_EDITORONLY_DATA
 	
 	static constexpr int32 UnknownNumElements = -1;
 	// Elements per contiguous array: for validation and also to indicate whether the grass data is valid (NumElements >= 0, meaning 0 elements is valid but the grass data is all zero and 
@@ -219,9 +228,7 @@ struct FLandscapeComponentGrassData
 
 	FLandscapeComponentGrassData() = default;
 
-#if WITH_EDITOR
 	FLandscapeComponentGrassData(ULandscapeComponent* Component);
-#endif
 
 	// Returns whether grass data has been computed (or serialized) yet. Returns true even if the data is completely empty (e.g. all-zero weightmap data)
 	bool HasValidData() const;
@@ -230,6 +237,7 @@ struct FLandscapeComponentGrassData
 	bool HasData() const;
 
 	void InitializeFrom(const TArray<uint16>& HeightData, const TMap<ULandscapeGrassType*, TArray<uint8>>& WeightData);
+	void InitializeFrom(IBuffer2DView<uint16>* HeightData, TMap<ULandscapeGrassType*, IBuffer2DView<uint8>*>& WeightData);
 
 	bool HasWeightData() const;
 	TArrayView<uint8> GetWeightData(const ULandscapeGrassType* GrassType);
@@ -514,18 +522,31 @@ private:
 	UPROPERTY(EditAnywhere, Category = LandscapeComponent)
 	TArray<FLandscapePerLODMaterialOverride> PerLODOverrideMaterials;
 
+#if WITH_EDITORONLY_DATA
 	/** The value of the landscape material AllStateCRC the last time the GrassTypes array was updated from it */
 	uint32 LastLandscapeMaterialAllStateCRCWhenGrassTypesBuilt = 0;
+#endif // WITH_EDITORONLY_DATA
 
-	/** Cached list of grass types supported by the component's material. Call UpdateGrassTypes() to ensure this array is up to date */
+	/** Cached list of grass types supported by the component's material.
+	  *	This is needed in a cooked build, as the grass types list is not available
+	  * on the cooked material.
+	  * Call UpdateGrassTypes() to ensure this array is up to date */
 	UPROPERTY()
 	TArray<TObjectPtr<ULandscapeGrassType>> GrassTypes;
 
-	/** Cached max discard distance of all grass types supported by the component's material*/
-	UPROPERTY()
-	float GrassTypesMaxDiscardDistance = 0.0f;
-
 public:
+	// Non-serialized runtime cache of values derived from the assigned grass types.
+	// Call ALandscapeProxy::UpdateGrassTypeSummary() to update.
+	struct FGrassTypeSummary
+	{
+		bool bInvalid = true;
+		double MaxInstanceDiscardDistance = DBL_MAX;
+	};
+	FGrassTypeSummary GrassTypeSummary;
+	inline bool IsGrassTypeSummaryValid() { return GrassTypeSummary.bInvalid; }
+
+	/** Invalidate the grass type summary.  Call whenever grass types are changed to indicate that the summary values are out of date. */
+	LANDSCAPE_API void InvalidateGrassTypeSummary();
 
 	/** Uniquely identifies this component's built map data. */
 	UPROPERTY()
@@ -673,6 +694,20 @@ public:
 	 * Returns false if there are no non-null physical materials. (We probably don't want to use if no physical material connections are bound.)
 	 */
 	bool GetRenderPhysicalMaterials(TArray<UPhysicalMaterial*>& OutPhysicalMaterials) const;
+
+	// Non-serialized data used to implement BeginCacheForCookedPlatformData() / ClearAllCachedCookedPlatformData()
+	struct FPlatformCook
+	{
+		// -1 indicates not currently cached for a cooked platform
+		int32 CurrentCookedPlatformOrdinal = -1;
+
+		// flags indicating if the current cooked platform stripped grass or collision
+		bool bStripGrassData = false;
+
+		// if Landscape data is stripped by a platform cook, it is stored here so it can be restored
+		TSharedPtr<FLandscapeComponentGrassData> StrippedGrassData;
+	};
+	FPlatformCook PlatformCook;
 #endif // WITH_EDITOR
 
 	//~ Begin UObject Interface.	
@@ -690,6 +725,8 @@ public:
 
 #if WITH_EDITOR
 	virtual void BeginCacheForCookedPlatformData(const ITargetPlatform* TargetPlatform) override;
+	virtual bool IsCachedCookedPlatformDataLoaded(const ITargetPlatform* TargetPlatform) override;
+	virtual void ClearAllCachedCookedPlatformData() override;
 	virtual void PreEditUndo() override;
 	virtual void PostEditUndo() override;
 	virtual void PreEditChange(FProperty* PropertyThatWillChange) override;
@@ -732,6 +769,7 @@ public:
 	LANDSCAPE_API const TArray<UTexture2D*>& GetWeightmapTextures(bool InReturnEditingWeightmap = false) const;
 	LANDSCAPE_API TArray<TObjectPtr<UTexture2D>>& GetWeightmapTextures(const FGuid& InLayerGuid);
 	LANDSCAPE_API const TArray<UTexture2D*>& GetWeightmapTextures(const FGuid& InLayerGuid) const;
+	const TArray<UTexture2D*>& GetRenderedWeightmapTexturesForFeatureLevel(ERHIFeatureLevel::Type FeatureLevel) const;
 
 	LANDSCAPE_API TArray<FWeightmapLayerAllocationInfo>& GetWeightmapLayerAllocations(bool InReturnEditingWeightmap = false);
 	LANDSCAPE_API const TArray<FWeightmapLayerAllocationInfo>& GetWeightmapLayerAllocations(bool InReturnEditingWeightmap = false) const;
@@ -819,20 +857,21 @@ public:
 	const TArray<TObjectPtr<ULandscapeGrassType>>& GetGrassTypes() const { return GrassTypes; }
 
 	/** Temporarily sets the grass type for this component. Any call to UpdateGrassTypes may override what has been set using this method. */
-	void SetGrassTypes(const TArray<TObjectPtr<ULandscapeGrassType>>& InGrassTypes)	{ GrassTypes = InGrassTypes; }
+	void SetGrassTypes(const TArray<TObjectPtr<ULandscapeGrassType>>& InGrassTypes)
+	{
+		GrassTypes = InGrassTypes;
+		InvalidateGrassTypeSummary();
+	}
 	
 	bool MaterialHasGrass() const { return !GetGrassTypes().IsEmpty(); }
-	
-	float GetGrassTypesMaxDiscardDistance() const { return GrassTypesMaxDiscardDistance; }
-	void SetGrassTypesMaxDiscardDistance(const float InGrassTypesMaxDiscardDistance) { GrassTypesMaxDiscardDistance = InGrassTypesMaxDiscardDistance; }
+
+	float GetGrassTypesMaxDiscardDistance() const { return GrassTypeSummary.MaxInstanceDiscardDistance; }
+	void SetGrassTypesMaxDiscardDistance(const float InGrassTypesMaxDiscardDistance) { GrassTypeSummary.MaxInstanceDiscardDistance = InGrassTypesMaxDiscardDistance; GrassTypeSummary.bInvalid = false; }
+
+	/** If the LandscapeMaterial has changed, updates the GrassTypes array. Returns true if the GrassTypes array was updated. */
+	LANDSCAPE_API bool UpdateGrassTypes(bool bForceUpdate = false);
 
 #if WITH_EDITOR
-	/** If the LandscapeMaterial has changed, updates the GrassTypes array. Returns true if the GrassTypes array was updated. */
-	bool UpdateGrassTypes(bool bForceUpdate = false);
-
-	/** Recomputes the maximum discard distance across all grass types in the GrassTypes array. */
-	void UpdateGrassTypesMaxDiscardDistance();
-
 	/** Deletes a layer from this component if it does not contain data, calling DeleteLayerAllocation. */
 	bool DeleteLayerIfAllZero(const FGuid& InEditLayerGuid, const uint8* const TexDataPtr, int32 TexSize, int32 LayerIdx, bool bShouldDirtyPackage);
 
@@ -852,16 +891,15 @@ public:
 	LANDSCAPE_API void ReplaceLayer(ULandscapeLayerInfoObject* FromLayerInfo, ULandscapeLayerInfoObject* ToLayerInfo, FLandscapeEditDataInterface& LandscapeEdit);
 	void ReplaceLayerInternal(ULandscapeLayerInfoObject* FromLayerInfo, ULandscapeLayerInfoObject* ToLayerInfo, FLandscapeEditDataInterface& LandscapeEdit, const FGuid& InEditLayerGUID);
 
-	/** Creates and destroys cooked grass data stored in the map */
-	void RenderGrassMap();
+#endif // WITH_EDITOR
+
+	/** Destroys grass map data stored on the component */
 	void RemoveGrassMap();
 
 	/* Could a grassmap currently be generated, disregarding whether our textures are streamed in? */
 	bool CanRenderGrassMap() const;
 
-	/* Are the textures we need to render a grassmap currently streamed in? */
-	bool AreTexturesStreamedForGrassMapRender() const;
-
+#if WITH_EDITOR
 	/** Computes a hash representing the state of the material and grasstypes used by this component. */
 	LANDSCAPE_API uint32 ComputeGrassMapGenerationHash() const;
 
@@ -910,7 +948,7 @@ public:
 	LANDSCAPE_API void GetGeneratedTexturesAndMaterialInstances(TArray<UObject*>& OutTexturesAndMaterials) const;
 	LANDSCAPE_API TArray<UTexture*> GetGeneratedTextures() const;
 	LANDSCAPE_API TArray<UMaterialInstance*> GetGeneratedMaterialInstances() const;
-#endif
+#endif // WITH_EDITOR
 
 	/** Gets the landscape proxy actor which owns this component */
 	LANDSCAPE_API ALandscapeProxy* GetLandscapeProxy() const;

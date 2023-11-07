@@ -20,6 +20,7 @@
 #include "CollisionQueryParams.h"
 #include "Engine/World.h"
 #include "LandscapeSubsystem.h"
+#include "LandscapeGrassMapsBuilder.h"
 #include "LandscapeRender.h"
 #include "LandscapeProxy.h"
 #include "LandscapeInfo.h"
@@ -2517,7 +2518,10 @@ void ULandscapeHeightfieldCollisionComponent::PreSave(FObjectPreSaveContext Obje
 				{
 					RenderComponent->GetMaterialInstance(0, false)->GetMaterialResource(GetWorld()->GetFeatureLevel())->FinishCompilation();
 				}
-				RenderComponent->RenderGrassMap();
+
+				ULandscapeSubsystem* LandscapeSubsystem = GetWorld()->GetSubsystem<ULandscapeSubsystem>();
+				TArray<TObjectPtr<ULandscapeComponent>> Components = { RenderComponent };
+				LandscapeSubsystem->GetGrassMapBuilder()->BuildGrassMapsNowForComponents(Components, /* SlowTask= */ nullptr, /* bMarkDirty= */ false);
 			}
 		}
 #endif// WITH_EDITOR
@@ -2527,7 +2531,6 @@ void ULandscapeHeightfieldCollisionComponent::PreSave(FObjectPreSaveContext Obje
 #if WITH_EDITOR
 void ULandscapeInfo::UpdateAllAddCollisions()
 {
-
 	TRACE_CPUPROFILER_EVENT_SCOPE(ULandscapeInfo::UpdateAllAddCollisions);
 	XYtoAddCollisionMap.Reset();
 

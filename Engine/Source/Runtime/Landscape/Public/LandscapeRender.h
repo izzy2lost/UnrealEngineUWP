@@ -96,7 +96,8 @@ LANDSCAPE_API extern TObjectPtr<UMaterialInterface> GLandscapeDirtyMaterial;
 
 namespace UE::Landscape
 {
-bool NeedsFixedGridVertexFactory(EShaderPlatform InShaderPlatform);
+	bool NeedsFixedGridVertexFactory(EShaderPlatform InShaderPlatform);
+	bool ShouldBuildGrassMapRenderingResources();
 } // namespace UE::Landscape
 
 /** The uniform shader parameters for a landscape draw call. */
@@ -368,13 +369,15 @@ public:
 	FLandscapeVertexFactory* TileVertexFactory;
 	FVertexBuffer* TileDataBuffer;
 	
+	// array per mip level, storing FIndexBuffer pointers
 	FIndexBuffer** IndexBuffers;
+
+	// array per mip level, storing index buffer ranges per subssection, and for the entire component
 	FLandscapeIndexRanges* IndexRanges;
+
 	bool bUse32BitIndices;
-#if WITH_EDITOR
 	FIndexBuffer* GrassIndexBuffer;
 	TArray<int32, TInlineAllocator<8>> GrassIndexMipOffsets;
-#endif
 
 #if RHI_RAYTRACING
 	TArray<FIndexBuffer*> ZeroOffsetIndexBuffers;
@@ -385,10 +388,8 @@ public:
 	template <typename INDEX_TYPE>
 	void CreateIndexBuffers(FRHICommandListBase& RHICmdList, const FName& OwnerName);
 	
-#if WITH_EDITOR
 	template <typename INDEX_TYPE>
 	void CreateGrassIndexBuffer(FRHICommandListBase& RHICmdList, const FName& InOwnerName);
-#endif
 
 	LANDSCAPE_API virtual ~FLandscapeSharedBuffers();
 };
@@ -782,11 +783,9 @@ protected:
 	bool bUsesLandscapeCulling;
 
 
-#if WITH_EDITOR
 	// Precomputed grass rendering MeshBatch and per-LOD params
 	FMeshBatch                           GrassMeshBatch;
 	TArray<FLandscapeBatchElementParams> GrassBatchParams;
-#endif
 
 	FVector4f WeightmapScaleBias;
 	TArray<UTexture2D*> WeightmapTextures;
@@ -888,9 +887,7 @@ public:
 	friend class FLandscapeVertexFactoryPixelShaderParameters;
 	friend struct FLandscapeBatchElementParams;
 
-#if WITH_EDITOR
 	const FMeshBatch& GetGrassMeshBatch() const { return GrassMeshBatch; }
-#endif
 
 	// FLandcapeSceneProxy
 	LANDSCAPE_API void ChangeComponentScreenSizeToUseSubSections_RenderThread(float InComponentScreenSizeToUseSubSections);

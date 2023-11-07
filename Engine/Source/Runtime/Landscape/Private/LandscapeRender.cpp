@@ -161,6 +161,9 @@ extern TAutoConsoleVariable<int32> CVarLandscapeShowDirty;
 
 extern RENDERER_API TAutoConsoleVariable<float> CVarStaticMeshLODDistanceScale;
 
+extern int32 GGrassMapUseRuntimeGeneration;
+extern int32 GGrassMapAlwaysBuildRuntimeGenerationResources;
+
 #if !UE_BUILD_SHIPPING
 int32 GVarDumpLandscapeLODsCurrentFrame = 0;
 
@@ -226,22 +229,31 @@ static FAutoConsoleVariableRef CVarLandscapeRayTracingGeometryFractionalLODUpdat
 
 namespace UE::Landscape
 {
-bool NeedsFixedGridVertexFactory(EShaderPlatform InShaderPlatform)
-{
-	bool bNeedsFixedGridVertexFactory = false;
-	// We need the fixed grid vertex factory for virtual texturing : 
-	bNeedsFixedGridVertexFactory |= UseVirtualTexturing(InShaderPlatform);
+	bool NeedsFixedGridVertexFactory(EShaderPlatform InShaderPlatform)
+	{
+		bool bNeedsFixedGridVertexFactory = false;
+		// We need the fixed grid vertex factory for virtual texturing : 
+		bNeedsFixedGridVertexFactory |= UseVirtualTexturing(InShaderPlatform);
 
-	// We need the fixed grid vertex factory for rendering Landscape into Lumen Surface Cache: 
-	bNeedsFixedGridVertexFactory |= DoesPlatformSupportLumenGI(InShaderPlatform);
+		// We need the fixed grid vertex factory for rendering Landscape into Lumen Surface Cache: 
+		bNeedsFixedGridVertexFactory |= DoesPlatformSupportLumenGI(InShaderPlatform);
 
-	// We need the fixed grid vertex factory for rendering the water info texture : 
-	// This cvar is defined in the water plugin and searching for it should return nullptr if the plugin is not loaded
-	const bool bWaterPluginLoaded = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Water.WaterInfo.RenderMethod")) != nullptr;
-	bNeedsFixedGridVertexFactory |= bWaterPluginLoaded;
+		// We need the fixed grid vertex factory for rendering the water info texture : 
+		// This cvar is defined in the water plugin and searching for it should return nullptr if the plugin is not loaded
+		const bool bWaterPluginLoaded = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Water.WaterInfo.RenderMethod")) != nullptr;
+		bNeedsFixedGridVertexFactory |= bWaterPluginLoaded;
 
-	return bNeedsFixedGridVertexFactory;
-}
+		return bNeedsFixedGridVertexFactory;
+	}
+
+	bool ShouldBuildGrassMapRenderingResources()
+	{
+		#if WITH_EDITOR
+			return true;
+		#else
+			return (GGrassMapUseRuntimeGeneration || GGrassMapAlwaysBuildRuntimeGenerationResources);
+		#endif // WITH_EDITOR
+	}
 } // namespace UE::Landscape
 
 //
@@ -1487,10 +1499,8 @@ void FLandscapeComponentSceneProxy::CreateRenderThreadResources(FRHICommandListB
 
 		bool bNeedsFixedGridVertexFactory = NeedsFixedGridVertexFactory(GetScene().GetShaderPlatform());
 
-#if WITH_EDITOR
 		// We also need the fixed vertex factor for grass/physical materials : 
 		bNeedsFixedGridVertexFactory |= (SharedBuffers->GrassIndexBuffer != nullptr);
-#endif // WITH_EDITOR
 
 		if (bNeedsFixedGridVertexFactory)
 		{
@@ -1532,7 +1542,6 @@ void FLandscapeComponentSceneProxy::CreateRenderThreadResources(FRHICommandListB
 		LandscapeFixedGridUniformShaderParameters[LodIndex].InitResource(RHICmdList);
 	}
 
-#if WITH_EDITOR
 	// Create MeshBatch for grass rendering
 	if (SharedBuffers->GrassIndexBuffer)
 	{
@@ -1585,7 +1594,6 @@ void FLandscapeComponentSceneProxy::CreateRenderThreadResources(FRHICommandListB
 			CollisionBatchElement->FirstIndex = SharedBuffers->GrassIndexMipOffsets[Mip];
 		}
 	}
-#endif
 }
 
 #if RHI_RAYTRACING
@@ -3097,7 +3105,6 @@ void FLandscapeSharedBuffers::CreateIndexBuffers(FRHICommandListBase& RHICmdList
 	}
 }
 
-#if WITH_EDITOR
 template <typename INDEX_TYPE>
 void FLandscapeSharedBuffers::CreateGrassIndexBuffer(FRHICommandListBase& RHICmdList, const FName& InOwnerName)
 {
@@ -3143,7 +3150,6 @@ void FLandscapeSharedBuffers::CreateGrassIndexBuffer(FRHICommandListBase& RHICmd
 	IndexBuffer->InitResource(RHICmdList);
 	GrassIndexBuffer = IndexBuffer;
 }
-#endif
 
 FLandscapeSharedBuffers::FLandscapeSharedBuffers(FRHICommandListBase& RHICmdList, const int32 InSharedBuffersKey, const int32 InSubsectionSizeQuads, const int32 InNumSubsections, const ERHIFeatureLevel::Type InFeatureLevel, const FName& InOwnerName)
 	: SharedBuffersKey(InSharedBuffersKey)
@@ -3157,10 +3163,7 @@ FLandscapeSharedBuffers::FLandscapeSharedBuffers(FRHICommandListBase& RHICmdList
 	, TileVertexFactory(nullptr)
 	, TileDataBuffer(nullptr)
 	, bUse32BitIndices(false)
-
-#if WITH_EDITOR
 	, GrassIndexBuffer(nullptr)
-#endif
 {
 	NumVertices = FMath::Square(SubsectionSizeVerts) * FMath::Square(NumSubsections);
 	
@@ -3182,22 +3185,18 @@ FLandscapeSharedBuffers::FLandscapeSharedBuffers(FRHICommandListBase& RHICmdList
 	{
 		bUse32BitIndices = true;
 		CreateIndexBuffers<uint32>(RHICmdList, InOwnerName);
-#if WITH_EDITOR
-		if (InFeatureLevel > ERHIFeatureLevel::ES3_1)
+		if (UE::Landscape::ShouldBuildGrassMapRenderingResources())
 		{
 			CreateGrassIndexBuffer<uint32>(RHICmdList, InOwnerName);
 		}
-#endif
 	}
 	else
 	{
 		CreateIndexBuffers<uint16>(RHICmdList, InOwnerName);
-#if WITH_EDITOR
-		if (InFeatureLevel > ERHIFeatureLevel::ES3_1)
+		if (UE::Landscape::ShouldBuildGrassMapRenderingResources())
 		{
 			CreateGrassIndexBuffer<uint16>(RHICmdList, InOwnerName);
 		}
-#endif
 	}
 }
 
@@ -3225,13 +3224,11 @@ FLandscapeSharedBuffers::~FLandscapeSharedBuffers()
 	}
 #endif
 
-#if WITH_EDITOR
 	if (GrassIndexBuffer)
 	{
 		GrassIndexBuffer->ReleaseResource();
 		delete GrassIndexBuffer;
 	}
-#endif
 
 	delete VertexFactory;
 
@@ -3363,7 +3360,8 @@ void FLandscapeVertexFactory::InitRHI(FRHICommandListBase& RHICmdList)
 	// position decls
 	Elements.Add(AccessStreamComponent(Data.PositionComponent, 0));
 
-	AddPrimitiveIdStreamElement(EVertexInputStreamType::Default, Elements, 1, 0xff);
+	// Use the same attribute on mobile and non-mobile, to enable the GPUScene path on both.
+	AddPrimitiveIdStreamElement(EVertexInputStreamType::Default, Elements, /* AttributeIndex = */ 1, /* AttributeIndex_Mobile = */ 1);
 	// create the actual device decls
 	InitDeclaration(Elements);
 }
@@ -3384,8 +3382,7 @@ void FLandscapeVertexFactory::ModifyCompilationEnvironment(const FVertexFactoryS
 {
 	FVertexFactory::ModifyCompilationEnvironment(Parameters, OutEnvironment);
 
-	// TODO: support GPUScene on mobile
-	OutEnvironment.SetDefine(TEXT("VF_SUPPORTS_PRIMITIVE_SCENE_DATA"), Parameters.VertexFactoryType->SupportsPrimitiveIdStream() && UseGPUScene(Parameters.Platform, GetMaxSupportedFeatureLevel(Parameters.Platform)) && !IsMobilePlatform(Parameters.Platform));
+	OutEnvironment.SetDefine(TEXT("VF_SUPPORTS_PRIMITIVE_SCENE_DATA"), Parameters.VertexFactoryType->SupportsPrimitiveIdStream() && UseGPUScene(Parameters.Platform, GetMaxSupportedFeatureLevel(Parameters.Platform)));
 
 	// Make sure landscape vertices go back to local space so that we have consistency between the transform on normals and geometry
 	OutEnvironment.SetDefine(TEXT("RAY_TRACING_DYNAMIC_MESH_IN_LOCAL_SPACE"), TEXT("1"));
