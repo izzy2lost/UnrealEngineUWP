@@ -127,6 +127,9 @@ protected:
 	// Map of properties created for widgets; to aid in debug data generation
 	TMap<UWidget*, FProperty*> WidgetToMemberVariableMap;
 
+	// Map of properties created in parent widget for bind widget validation
+	TMap<UWidget*, FProperty*> ParentWidgetToBindWidgetMap;
+
 	// Map of properties created for widget animations; to aid in debug data generation
 	TMap<UWidgetAnimation*, FProperty*> WidgetAnimToMemberVariableMap;
 
