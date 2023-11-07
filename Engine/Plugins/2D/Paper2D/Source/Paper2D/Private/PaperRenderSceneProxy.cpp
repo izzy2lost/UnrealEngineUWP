@@ -602,6 +602,8 @@ void FPaperRenderSceneProxy::SetTransientTextureOverride_RenderThread(const UTex
 
 FSpriteTextureOverrideRenderProxy* FPaperRenderSceneProxy::GetCachedMaterialProxyForSection(FMeshElementCollector& Collector, int32 SectionIndex, FMaterialRenderProxy* ParentMaterialProxy) const
 {
+	UE::TScopeLock Lock(MaterialTextureOverrideProxiesMutex);
+
 	if (MaterialTextureOverrideProxies.Num() < BatchedSections.Num())
 	{
 		MaterialTextureOverrideProxies.AddDefaulted(BatchedSections.Num() - MaterialTextureOverrideProxies.Num());

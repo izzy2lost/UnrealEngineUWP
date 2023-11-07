@@ -163,6 +163,8 @@ protected:
 protected:
 	TArray<FSpriteRenderSection> BatchedSections;
 	TArray<FDynamicMeshVertex> Vertices;
+
+	mutable UE::FMutex MaterialTextureOverrideProxiesMutex;
 	mutable TArray<FSpriteTextureOverrideRenderProxy*> MaterialTextureOverrideProxies;
 
 	FPaperSpriteVertexBuffer VertexBuffer;
