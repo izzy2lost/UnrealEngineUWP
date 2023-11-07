@@ -652,6 +652,7 @@ namespace CrossCompiler
 			TLinearArray<FNode*> Parameters;
 
 			bool bIsDefinition;
+			bool bIsOperator;
 			bool bIsStatic;
 
 			//Signature

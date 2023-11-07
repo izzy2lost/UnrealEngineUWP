@@ -569,6 +569,7 @@ namespace CrossCompiler
 			ReturnSemantic(nullptr),
 			Parameters(InAllocator),
 			bIsDefinition(false),
+			bIsOperator(false),
 			bIsStatic(false)
 		{
 		}
@@ -586,6 +587,10 @@ namespace CrossCompiler
 			if (ScopeIdentifier)
 			{
 				Writer << ScopeIdentifier << TEXT("::");
+			}
+			if (bIsOperator)
+			{
+				Writer << TEXT("operator");
 			}
 			Writer << Identifier;
 			Writer << (TCHAR)'(';
