@@ -4,6 +4,7 @@
 #include "Iris/ReplicationSystem/NetBlob/NetRPC.h"
 #include "Iris/ReplicationSystem/ReplicationSystem.h"
 #include "Iris/ReplicationSystem/ReplicationSystemInternal.h"
+#include "HAL/IConsoleManager.h"
 
 UNetRPCHandler::UNetRPCHandler()
 {
@@ -23,6 +24,12 @@ TRefCountPtr<UE::Net::Private::FNetRPC> UNetRPCHandler::CreateRPC(const UE::Net:
 	FNetBlobCreationInfo CreationInfo;
 	CreationInfo.Type = GetNetBlobType();
 	CreationInfo.Flags = ((Function->FunctionFlags & FUNC_NetReliable) != 0) ? UE::Net::ENetBlobFlags::Reliable : UE::Net::ENetBlobFlags::None;
+	// Unicast RPCs should be ordered with respect to other reliable and unicast RPCs.
+	if ((Function->FunctionFlags & FUNC_NetMulticast) == 0)
+	{
+		CreationInfo.Flags |= UE::Net::ENetBlobFlags::Ordered;
+	}
+
 	FNetRPC* RPC = FNetRPC::Create(ReplicationSystem, CreationInfo, ObjectReference, Function, Parameters);
 	return RPC;
 }

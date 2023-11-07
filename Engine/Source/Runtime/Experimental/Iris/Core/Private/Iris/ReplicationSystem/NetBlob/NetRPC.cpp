@@ -339,6 +339,12 @@ bool FNetRPC::ResolveFunctionAndObject(FNetSerializationContext& Context)
 
 	Function = FunctionDescriptor->Function;
 
+	// Patch up NetBlobFlags based on function flags.
+	if (Function && ((Function->FunctionFlags & FUNC_NetReliable) != 0))
+	{
+		CreationInfo.Flags |= ENetBlobFlags::Reliable;
+	}
+
 	// Set the BlobDescriptor even if it has zero size so that we can trace with a meaningful name.
 	BlobDescriptor = FunctionDescriptor->Descriptor;
 

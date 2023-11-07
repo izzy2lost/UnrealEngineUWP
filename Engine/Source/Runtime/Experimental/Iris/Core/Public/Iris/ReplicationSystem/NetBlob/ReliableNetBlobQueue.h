@@ -81,7 +81,7 @@ public:
 	IRISCORE_API bool Enqueue(const TRefCountPtr<FNetBlob>& Blob);
 
 	/** On the receiving end this will return a pointer to the next blob that can be processed. */
-	IRISCORE_API const TRefCountPtr<FNetBlob>* Peek() const;
+	IRISCORE_API const TRefCountPtr<FNetBlob>* Peek();
 
 	/** On the receiving end this will remove the next blob to be processed from the queue. Call after processing the blob returned from Peek(). */
 	IRISCORE_API void Pop();

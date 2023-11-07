@@ -29,7 +29,7 @@ enum class ENetBlobFlags : uint32
 {
 	None = 0,
 
-	/** The blob should be delivered reliably in order with respect to other reliable blobs. */
+	/** The blob should be delivered reliably in order with respect to other reliable blobs. Implies Ordered. */
 	Reliable = 1U << 0U,
 
 	/** Used for FRawDataNetBlob derived classes to avoid duplicate serialization when splitting large blob. */
@@ -37,6 +37,9 @@ enum class ENetBlobFlags : uint32
 
 	/** Used to indicate that this blob have ObjectReferences that might have to be exported. */
 	HasExports = RawDataNetBlob << 1U,
+
+	/** The blob should respect delivery order with respect to other Ordered blobs, including Reliable ones. Unreliable ordered blobs will only be sent once. */
+	Ordered = HasExports << 1U,
 };
 ENUM_CLASS_FLAGS(ENetBlobFlags);
 

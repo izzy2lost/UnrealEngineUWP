@@ -109,21 +109,37 @@ bool UTestReplicatedObjectWithRPC::CallRemoteFunction(UFunction* Function, void*
 void UTestReplicatedObjectWithRPC::ClientRPC_Implementation()
 {
 	bClientRPCCalled = true;
+	ClientRPCCallOrder = ++CallOrder;
 }
 
 void UTestReplicatedObjectWithRPC::ClientRPCWithParam_Implementation(int32 IntParam)
 {
 	ClientRPCWithParamCalled = IntParam;
+	ClientRPCWithParamCallOrder = ++CallOrder;
+}
+
+void UTestReplicatedObjectWithRPC::ClientUnreliableRPC_Implementation()
+{
+	bClientUnreliableRPCCalled = true;
+	ClientUnreliableRPCCallOrder = ++CallOrder;
 }
 
 void UTestReplicatedObjectWithRPC::ServerRPC_Implementation()
 {
 	bServerRPCCalled = true;
+	ServerRPCCallOrder = ++CallOrder;
 }
 
 void UTestReplicatedObjectWithRPC::ServerRPCWithParam_Implementation(int32 IntParam)
 {
 	ServerRPCWithParamCalled = IntParam;
+	ServerRPCWithParamCallOrder = ++CallOrder;
+}
+
+void UTestReplicatedObjectWithRPC::ServerUnreliableRPC_Implementation()
+{
+	bServerUnreliableRPCCalled = true;
+	ServerUnreliableRPCCallOrder = ++CallOrder;
 }
 
 void UTestReplicatedObjectWithRPC::NetMulticast_MultiCastRPCSendImmediate_Implementation()

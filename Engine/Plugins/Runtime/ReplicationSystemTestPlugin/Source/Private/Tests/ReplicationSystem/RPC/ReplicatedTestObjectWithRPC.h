@@ -40,18 +40,32 @@ public:
 	UFUNCTION(Reliable, Client)
 	void ClientRPC();
 	bool bClientRPCCalled = false;
+	int32 ClientRPCCallOrder = 0;
 
 	UFUNCTION(Reliable, Client)
 	void ClientRPCWithParam(int32 IntParam);
 	int32 ClientRPCWithParamCalled = 0;
+	int32 ClientRPCWithParamCallOrder = 0;
+
+	UFUNCTION(Unreliable, Client)
+	void ClientUnreliableRPC();
+	bool bClientUnreliableRPCCalled = false;
+	int32 ClientUnreliableRPCCallOrder = 0;
 
 	UFUNCTION(Reliable, Server)
 	void ServerRPC();
 	bool bServerRPCCalled = false;
+	int32 ServerRPCCallOrder = 0;
 
 	UFUNCTION(Reliable, Server)
 	void ServerRPCWithParam(int32 IntParam);
 	int32 ServerRPCWithParamCalled = 0;
+	int32 ServerRPCWithParamCallOrder = 0;
+
+	UFUNCTION(Unreliable, Server)
+	void ServerUnreliableRPC();
+	bool bServerUnreliableRPCCalled = false;
+	int32 ServerUnreliableRPCCallOrder = 0;
 
 	UFUNCTION(NetMulticast, unreliable)
 	void NetMulticast_MultiCastRPCSendImmediate();
@@ -62,6 +76,5 @@ public:
 	int32 NetMulticast_MultiCastRPCCallOrder = 0;
 
 	int32 CallOrder = 0;
-
 };
 

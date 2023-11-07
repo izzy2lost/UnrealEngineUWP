@@ -105,7 +105,8 @@ uint32 FReliableNetBlobQueue::SerializeInternal(FNetSerializationContext& Contex
 		FNetBitStreamRollbackScope RollbackScope(*Writer);
 		FNetExportRollbackScope ExportRollbackScope(Context);
 
-		const TRefCountPtr<FNetBlob>& Attachment = NetBlobs[Index];
+		// GetRefCount() is not const.
+		TRefCountPtr<FNetBlob>& Attachment = NetBlobs[Index];
 
 		// If this sequence is disjoint from the previous sequence we need to serialize the full index.
 		// It's important that the sequence number is sent first so we can validate it before receiving exports and payload.
@@ -114,17 +115,22 @@ uint32 FReliableNetBlobQueue::SerializeInternal(FNetSerializationContext& Contex
 			Writer->WriteBits(Index, IndexBitCount);
 		}
 
-		// If we have exports, append them, if attachment is rolled back we will roll back any appended exports as well.
-		ObjectReferenceCache->AddPendingExports(Context, Attachment->CallGetExports());
+		// Unreliable blobs may have been released.
+		const bool bHasData = Attachment.GetRefCount() > 0;
+		if (Writer->WriteBool(bHasData))
+		{
+			// If we have exports, append them, if attachment is rolled back we will roll back any appended exports as well.
+			ObjectReferenceCache->AddPendingExports(Context, Attachment->CallGetExports());
 
-		Attachment->SerializeCreationInfo(Context, Attachment->GetCreationInfo());
-		if (bSerializeWithObject)
-		{
-			Attachment->SerializeWithObject(Context, RefHandle);
-		}
-		else
-		{
-			Attachment->Serialize(Context);
+			Attachment->SerializeCreationInfo(Context, Attachment->GetCreationInfo());
+			if (bSerializeWithObject)
+			{
+				Attachment->SerializeWithObject(Context, RefHandle);
+			}
+			else
+			{
+				Attachment->Serialize(Context);
+			}
 		}
 
 		const uint32 HasMoreBlobsWritePos = Writer->GetPosBits();
@@ -181,7 +187,18 @@ void FReliableNetBlobQueue::CommitReplicationRecord(const FReliableNetBlobQueue:
 		UnsentBlobCount -= Count;
 		for (uint32 Seq = Record.Sequences[Index], EndSeq = Seq + Count; Seq != EndSeq; ++Seq)
 		{
-			SetSequenceIsSent(Seq);
+			const uint32 BlobIndex = SequenceToIndex(Seq);
+			SetIndexIsSent(BlobIndex);
+
+			// Release unreliable blobs. They should not be resent.
+			TRefCountPtr<FNetBlob>& RefCountBlob = NetBlobs[BlobIndex];
+			if (const FNetBlob* Blob = RefCountBlob.GetReference())
+			{
+				if (!EnumHasAnyFlags(Blob->GetCreationInfo().Flags, ENetBlobFlags::Reliable))
+				{
+					RefCountBlob.SafeRelease();
+				}
+			}
 		}
 	}
 }
@@ -233,25 +250,28 @@ uint32 FReliableNetBlobQueue::DeserializeInternal(FNetSerializationContext& Cont
 			return DeserializedCount;
 		}
 
-		FNetBlobCreationInfo CreationInfo;
-		FNetBlob::DeserializeCreationInfo(Context, CreationInfo);
-		CreationInfo.Flags = CreationInfo.Flags | ENetBlobFlags::Reliable;
-		const TRefCountPtr<FNetBlob>& Blob = BlobReceiver->CreateNetBlob(CreationInfo);
-		if (!Blob.IsValid())
+		TRefCountPtr<FNetBlob> Blob;
+		if (const bool bHasData = Reader->ReadBool())
 		{
-			UE_LOG(LogIris, Warning, TEXT("%hs"), "Unable to create blob.");
-			Context.SetError(GNetError_UnsupportedNetBlob);
+			FNetBlobCreationInfo CreationInfo;
+			FNetBlob::DeserializeCreationInfo(Context, CreationInfo);
+			Blob = BlobReceiver->CreateNetBlob(CreationInfo);
+			if (!Blob.IsValid())
+			{
+				UE_LOG(LogIris, Warning, TEXT("%hs"), "Unable to create blob.");
+				Context.SetError(GNetError_UnsupportedNetBlob);
 
-			return DeserializedCount;
-		}
+				return DeserializedCount;
+			}
 
-		if (bSerializeWithObject)
-		{
-			Blob->DeserializeWithObject(Context, RefHandle);
-		}
-		else
-		{
-			Blob->Deserialize(Context);
+			if (bSerializeWithObject)
+			{
+				Blob->DeserializeWithObject(Context, RefHandle);
+			}
+			else
+			{
+				Blob->Deserialize(Context);
+			}
 		}
 		
 		bHasMoreBlobs = Reader->ReadBool();
@@ -263,7 +283,7 @@ uint32 FReliableNetBlobQueue::DeserializeInternal(FNetSerializationContext& Cont
 			break;
 		}
 
-		NetBlobs[Index] = Blob;
+		NetBlobs[Index] = MoveTemp(Blob);
 		LastSeq = FMath::Max(LastSeq, ReceivedSeq + 1U);
 		SetIndexIsAcked(Index);
 
@@ -289,12 +309,23 @@ bool FReliableNetBlobQueue::Enqueue(const TRefCountPtr<FNetBlob>& Blob)
 	return true;
 }
 
-const TRefCountPtr<FNetBlob>* FReliableNetBlobQueue::Peek() const
+const TRefCountPtr<FNetBlob>* FReliableNetBlobQueue::Peek()
 {
-	const uint32 Index = SequenceToIndex(FirstSeq);
-	if (IsIndexAcked(Index))
+	for (; FirstSeq < LastSeq; ++FirstSeq)
 	{
-		return &NetBlobs[Index];
+		const uint32 Index = SequenceToIndex(FirstSeq);
+		if (!IsIndexAcked(Index))
+		{
+			return nullptr;
+		}
+
+		if (NetBlobs[Index].GetRefCount() > 0)
+		{
+			return &NetBlobs[Index];
+		}
+
+		// We skip over empty blobs and ack them.
+		ClearIndexIsAcked(Index);
 	}
 
 	return nullptr;

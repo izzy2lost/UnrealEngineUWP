@@ -205,4 +205,127 @@ namespace UE::Net::Private
 		UE_NET_ASSERT_TRUE(ServerSubObject->ServerRPCWithParamCalled == IntParam);
 	}
 
+	UE_NET_TEST_FIXTURE(FRPCTestFixture, TestUnreliableRPCIsOrderedWithReliableRPCToClient)
+	{
+		// Add a client
+		FReplicationSystemTestClient* Client = CreateClient();
+
+		// Spawn object on server
+		UTestReplicatedObjectWithRPC* ServerObject = Server->CreateObject<UTestReplicatedObjectWithRPC>();
+
+		ServerObject->bIsServerObject = true;
+		ServerObject->ReplicationSystem = Server->GetReplicationSystem();
+		Server->ReplicationSystem->SetOwningNetConnection(ServerObject->NetRefHandle, Client->ConnectionIdOnServer);
+
+		// Send and deliver packet
+		Server->UpdateAndSend({Client});
+
+		UTestReplicatedObjectWithRPC* ClientObject = Cast<UTestReplicatedObjectWithRPC>(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle));
+		
+		// Verify that created server handle now also exists on client
+		UE_NET_ASSERT_NE(ClientObject, nullptr);
+
+		// Call reliable + unreliable + reliable RPCs
+		ServerObject->ClientRPC();
+		ServerObject->ClientUnreliableRPC();
+		ServerObject->ClientRPCWithParam(1);
+
+		// Send and deliver packet
+		Server->UpdateAndSend({Client});
+
+		// Verify RPC reception
+		UE_NET_ASSERT_TRUE(ClientObject->bClientRPCCalled);
+		UE_NET_ASSERT_TRUE(ClientObject->bClientUnreliableRPCCalled);
+		UE_NET_ASSERT_NE(ClientObject->ClientRPCWithParamCalled, 0);
+
+		// Verify RPC call order
+		UE_NET_ASSERT_LT(ClientObject->ClientRPCCallOrder, ClientObject->ClientUnreliableRPCCallOrder);
+		UE_NET_ASSERT_LT(ClientObject->ClientUnreliableRPCCallOrder, ClientObject->ClientRPCWithParamCallOrder);
+	}
+
+	UE_NET_TEST_FIXTURE(FRPCTestFixture, TestUnreliableRPCIsOrderedWithReliableRPCToServer)
+	{
+		// Add a client
+		FReplicationSystemTestClient* Client = CreateClient();
+
+		// Spawn object on server
+		UTestReplicatedObjectWithRPC* ServerObject = Server->CreateObject<UTestReplicatedObjectWithRPC>();
+
+		ServerObject->bIsServerObject = true;
+		ServerObject->ReplicationSystem = Server->GetReplicationSystem();
+		Server->ReplicationSystem->SetOwningNetConnection(ServerObject->NetRefHandle, Client->ConnectionIdOnServer);
+
+		// Send and deliver packet
+		Server->UpdateAndSend({Client});
+
+		UTestReplicatedObjectWithRPC* ClientObject = Cast<UTestReplicatedObjectWithRPC>(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle));
+		
+		// Verify that created server handle now also exists on client
+		UE_NET_ASSERT_NE(ClientObject, nullptr);
+
+		ClientObject->ReplicationSystem = Client->GetReplicationSystem();
+
+		// Call reliable + unreliable + reliable RPCs
+		ClientObject->ServerRPC();
+		ClientObject->ServerUnreliableRPC();
+		ClientObject->ServerRPCWithParam(1);
+
+		// Send and deliver packet
+		Client->UpdateAndSend(Server);
+
+		// Verify RPC reception
+		UE_NET_ASSERT_TRUE(ServerObject->bServerRPCCalled);
+		UE_NET_ASSERT_TRUE(ServerObject->bServerUnreliableRPCCalled);
+		UE_NET_ASSERT_NE(ServerObject->ServerRPCWithParamCalled, 0);
+
+		// Verify RPC call order
+		UE_NET_ASSERT_LT(ServerObject->ServerRPCCallOrder, ServerObject->ServerUnreliableRPCCallOrder);
+		UE_NET_ASSERT_LT(ServerObject->ServerUnreliableRPCCallOrder, ServerObject->ServerRPCWithParamCallOrder);
+	}
+
+	UE_NET_TEST_FIXTURE(FRPCTestFixture, TestUnreliableRPCIsNotResentAfterPacketLoss)
+	{
+		// Add a client
+		FReplicationSystemTestClient* Client = CreateClient();
+
+		// Spawn object on server
+		UTestReplicatedObjectWithRPC* ServerObject = Server->CreateObject<UTestReplicatedObjectWithRPC>();
+
+		ServerObject->bIsServerObject = true;
+		ServerObject->ReplicationSystem = Server->GetReplicationSystem();
+		Server->ReplicationSystem->SetOwningNetConnection(ServerObject->NetRefHandle, Client->ConnectionIdOnServer);
+
+		// Send and deliver packet
+		Server->UpdateAndSend({Client});
+
+		UTestReplicatedObjectWithRPC* ClientObject = Cast<UTestReplicatedObjectWithRPC>(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle));
+		
+		// Verify that created server handle now also exists on client
+		UE_NET_ASSERT_NE(ClientObject, nullptr);
+
+		// Call reliable + unreliable + reliable RPCs
+		ServerObject->ClientRPC();
+		ServerObject->ClientUnreliableRPC();
+		ServerObject->ClientRPCWithParam(1);
+
+		// Send and do not deliver packet
+		Server->UpdateAndSend({Client}, DoNotDeliverPacket);
+
+		// Verify no RPCs were received
+		UE_NET_ASSERT_FALSE(ClientObject->bClientRPCCalled);
+		UE_NET_ASSERT_FALSE(ClientObject->bClientUnreliableRPCCalled);
+		UE_NET_ASSERT_EQ(ClientObject->ClientRPCWithParamCalled, 0);
+
+		// Send and deliver packet
+		Server->UpdateAndSend({Client}, DeliverPacket);
+
+		// Verify unreliable RPC was dropped
+		UE_NET_ASSERT_TRUE(ClientObject->bClientRPCCalled);
+		UE_NET_ASSERT_FALSE(ClientObject->bClientUnreliableRPCCalled);
+		UE_NET_ASSERT_NE(ClientObject->ClientRPCWithParamCalled, 0);
+
+		// Verify RPC call order
+		UE_NET_ASSERT_LT(ClientObject->ClientRPCCallOrder, ClientObject->ClientRPCWithParamCallOrder);
+	}
+
 }

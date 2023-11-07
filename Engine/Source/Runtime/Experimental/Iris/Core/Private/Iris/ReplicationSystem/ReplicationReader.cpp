@@ -2114,8 +2114,9 @@ void FReplicationReader::ResolveAndDispatchAttachments(FNetSerializationContext&
 		{
 			while (const TRefCountPtr<FNetBlob>* Attachment = AttachmentQueue->PeekReliable())
 			{
-				// Delay attachments with unresolved pending references
-				if (bCanDelayAttachments)
+				// Delay reliable attachments with unresolved pending references
+				const bool bIsReliable = EnumHasAnyFlags(Attachment->GetReference()->GetCreationInfo().Flags, ENetBlobFlags::Reliable);
+				if (bIsReliable && bCanDelayAttachments)
 				{
 					bool bDelayRpc = false;
 

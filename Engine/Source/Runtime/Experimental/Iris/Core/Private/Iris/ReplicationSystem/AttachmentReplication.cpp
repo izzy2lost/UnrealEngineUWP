@@ -31,9 +31,6 @@ namespace AttachmentReplicationCVars
 
 	static int32 MaxSimultaneousObjectsWithRPCs = 4096;
 	FAutoConsoleVariableRef CVarMaxSimultaneousObjectsWithRPCs(TEXT("net.MaxSimultaneousObjectsWithRPCs"), MaxSimultaneousObjectsWithRPCs, TEXT("Maximum number of objects that can have unsent RPCs at the same time. "));
-
-	static bool bMakeAllRPCsReliable = false;
-	FAutoConsoleVariableRef CVarAllRPCsReliable(TEXT("net.Iris.AllRPCReliable"), bMakeAllRPCsReliable, TEXT("Forces all the queued RPCs to be reliable. "));
 }
 
 static const FName NetError_UnreliableQueueFull("Unreliable attachment queue full");
@@ -190,7 +187,7 @@ FNetObjectAttachmentSendQueue::~FNetObjectAttachmentSendQueue()
 bool FNetObjectAttachmentSendQueue::Enqueue(TArrayView<const TRefCountPtr<FNetBlob>> Attachments)
 {
 	const FNetBlobCreationInfo& CreationInfo = Attachments[0]->GetCreationInfo();
-	if (EnumHasAnyFlags(CreationInfo.Flags, ENetBlobFlags::Reliable) || UE::Net::Private::AttachmentReplicationCVars::bMakeAllRPCsReliable)
+	if (EnumHasAnyFlags(CreationInfo.Flags, ENetBlobFlags::Reliable | ENetBlobFlags::Ordered))
 	{
 		if (ReliableQueue == nullptr)
 		{
