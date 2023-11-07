@@ -373,6 +373,14 @@ namespace CQTestTests
 				Assert.Fail("Unexpected Error");
 			});
 		}
+
+		TEST_METHOD(Timeout_InLatentActions_ProvidesTimeoutInErrorMessage)
+		{
+			Assert.ExpectErrorRegex(TEXT("\\d{2,} milliseconds"));
+			TestCommandBuilder.StartWhen([]() {
+				return false;
+				}, FTimespan::FromMilliseconds(50));
+		}
 	};
 
 	// --------------------------------------------------------
