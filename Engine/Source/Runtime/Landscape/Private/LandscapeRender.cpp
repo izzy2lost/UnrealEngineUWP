@@ -1443,6 +1443,7 @@ FLandscapeComponentSceneProxy::FLandscapeComponentSceneProxy(ULandscapeComponent
 	}
 #endif
 
+	bOpaqueOrMasked = true; // Landscape is always opaque
 	UpdateVisibleInLumenScene();
 }
 

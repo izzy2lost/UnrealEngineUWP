@@ -161,6 +161,7 @@ namespace MeshRepresentation
 		const FStaticMeshLODResources& LODModel,
 		const TArray<FSignedDistanceFieldBuildSectionData>& SectionData,
 		bool bGenerateAsIfTwoSided,
+		bool bIncludeTranslucentTriangles,
 		FEmbreeScene& EmbreeScene);
 
 	void DeleteEmbreeScene(FEmbreeScene& EmbreeScene);

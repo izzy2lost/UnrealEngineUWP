@@ -38,12 +38,14 @@ namespace LumenCardCapture
 	constexpr int32 LandscapeLOD = 0;
 };
 
-bool ShouldCompileLumenMeshCardShaders(const FMeshMaterialShaderPermutationParameters& Parameters)
+// Called at runtime and during cook.
+bool ShouldCompileLumenMeshCardShaders(EMaterialDomain Domain, const FVertexFactoryType* VertexFactoryType, EShaderPlatform Platform)
 {
-	return Parameters.MaterialParameters.MaterialDomain == MD_Surface
-		&& Parameters.VertexFactoryType->SupportsLumenMeshCards()
-		&& IsOpaqueOrMaskedBlendMode(Parameters.MaterialParameters.BlendMode)
-		&& DoesPlatformSupportLumenGI(Parameters.Platform);
+	// We compile shader for opaque and translucent shaders for translucent refraction with hardware ray tracing and hit lighting
+	return Domain == MD_Surface
+		&& ShouldIncludeDomainInMeshPass(Domain)
+		&& VertexFactoryType->SupportsLumenMeshCards()
+		&& DoesPlatformSupportLumenGI(Platform);
 }
 
 class FLumenCardVS : public FMeshMaterialShader
@@ -54,7 +56,7 @@ protected:
 
 	static bool ShouldCompilePermutation(const FMeshMaterialShaderPermutationParameters& Parameters)
 	{
-		return ShouldCompileLumenMeshCardShaders(Parameters);
+		return ShouldCompileLumenMeshCardShaders(Parameters.MaterialParameters.MaterialDomain, Parameters.VertexFactoryType, Parameters.Platform);
 	}
 
 	FLumenCardVS(const ShaderMetaType::CompiledShaderInitializerType& Initializer)
@@ -79,7 +81,7 @@ public:
 			return false;
 		}
 
-		return ShouldCompileLumenMeshCardShaders(Parameters);
+		return ShouldCompileLumenMeshCardShaders(Parameters.MaterialParameters.MaterialDomain, Parameters.VertexFactoryType, Parameters.Platform);
 	}
 
 	FLumenCardPS(const ShaderMetaType::CompiledShaderInitializerType& Initializer)
@@ -116,19 +118,13 @@ public:
 			return false;
 		}
 
-		if (!Parameters.VertexFactoryType->SupportsLumenMeshCards())
-		{
-			return false;
-		}
-
 		if (!Parameters.VertexFactoryType->SupportsComputeShading())
 		{
 			return false;
 		}
 
-		return Parameters.MaterialParameters.MaterialDomain == MD_Surface
-			&& IsOpaqueOrMaskedBlendMode(Parameters.MaterialParameters.BlendMode)
-			&& DoesPlatformSupportLumenGI(Parameters.Platform);
+		return IsOpaqueOrMaskedBlendMode(Parameters.MaterialParameters.BlendMode)
+			&& ShouldCompileLumenMeshCardShaders(Parameters.MaterialParameters.MaterialDomain, Parameters.VertexFactoryType, Parameters.Platform);
 	}
 
 	FLumenCardCS(const ShaderMetaType::CompiledShaderInitializerType& Initializer)
@@ -354,8 +350,9 @@ void FLumenCardMeshProcessor::AddMeshBatch(const FMeshBatch& RESTRICT MeshBatch,
 {
 	LLM_SCOPE_BYTAG(Lumen);
 
+	EShaderPlatform Platform = GetFeatureLevelShaderPlatform(FeatureLevel);
 	if ((MeshBatch.bUseForMaterial || MeshBatch.bUseForLumenSurfaceCacheCapture)
-		&& DoesPlatformSupportLumenGI(GetFeatureLevelShaderPlatform(FeatureLevel))
+		&& DoesPlatformSupportLumenGI(Platform)
 		&& (PrimitiveSceneProxy && PrimitiveSceneProxy->ShouldRenderInMainPass() && PrimitiveSceneProxy->AffectsDynamicIndirectLighting()))
 	{
 		const FMaterialRenderProxy* MaterialRenderProxy = MeshBatch.MaterialRenderProxy;
@@ -364,18 +361,16 @@ void FLumenCardMeshProcessor::AddMeshBatch(const FMeshBatch& RESTRICT MeshBatch,
 			const FMaterial* Material = MaterialRenderProxy->GetMaterialNoFallback(FeatureLevel);
 			if (Material)
 			{
-				auto TryAddMeshBatch = [this](const FMeshBatch& RESTRICT MeshBatch, uint64 BatchElementMask, const FPrimitiveSceneProxy* RESTRICT PrimitiveSceneProxy, int32 StaticMeshId, const FMaterialRenderProxy& MaterialRenderProxy, const FMaterial& Material) -> bool
+				auto TryAddMeshBatch = [this, Platform](const FMeshBatch& RESTRICT MeshBatch, uint64 BatchElementMask, const FPrimitiveSceneProxy* RESTRICT PrimitiveSceneProxy, int32 StaticMeshId, const FMaterialRenderProxy& MaterialRenderProxy, const FMaterial& Material) -> bool
 				{
 					const FMaterialShadingModelField ShadingModels = Material.GetShadingModels();
-					const bool bIsTranslucent = IsTranslucentBlendMode(Material);
 					const FMeshDrawingPolicyOverrideSettings OverrideSettings = ComputeMeshOverrideSettings(MeshBatch);
 					const ERasterizerFillMode MeshFillMode = ComputeMeshFillMode(Material, OverrideSettings);
 					const ERasterizerCullMode MeshCullMode = ComputeMeshCullMode(Material, OverrideSettings);
 
-					if (!bIsTranslucent
-						&& ShouldIncludeDomainInMeshPass(Material.GetMaterialDomain()))
+					const FVertexFactory* VertexFactory = MeshBatch.VertexFactory;
+					if (ShouldCompileLumenMeshCardShaders(Material.GetMaterialDomain(), VertexFactory->GetType(), Platform))
 					{
-						const FVertexFactory* VertexFactory = MeshBatch.VertexFactory;
 						FVertexFactoryType* VertexFactoryType = VertexFactory->GetType();
 						constexpr bool bMultiViewCapture = false;
 
@@ -504,8 +499,9 @@ void FLumenCardMeshProcessor::CollectPSOInitializers(const FSceneTexturesConfig&
 {
 	LLM_SCOPE_BYTAG(Lumen);
 
+	EShaderPlatform Platform = GetFeatureLevelShaderPlatform(FeatureLevel);
 	if (!PreCacheParams.bRenderInMainPass || !PreCacheParams.bAffectDynamicIndirectLighting ||
-		!Lumen::ShouldPrecachePSOs(GetFeatureLevelShaderPlatform(FeatureLevel)))
+		!Lumen::ShouldPrecachePSOs(Platform))
 	{
 		return;
 	}
@@ -516,8 +512,7 @@ void FLumenCardMeshProcessor::CollectPSOInitializers(const FSceneTexturesConfig&
 	const ERasterizerFillMode MeshFillMode = ComputeMeshFillMode(Material, OverrideSettings);
 	const ERasterizerCullMode MeshCullMode = ComputeMeshCullMode(Material, OverrideSettings);
 
-	if (!bIsTranslucent
-		&& ShouldIncludeDomainInMeshPass(Material.GetMaterialDomain()))
+	if (ShouldCompileLumenMeshCardShaders(Material.GetMaterialDomain(), VertexFactoryData.VertexFactoryType, Platform))
 	{
 		constexpr bool bMultiViewCapture = false;
 

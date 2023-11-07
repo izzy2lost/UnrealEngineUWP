@@ -438,7 +438,8 @@ FStaticMeshSceneProxy::FStaticMeshSceneProxy(const FStaticMeshSceneProxyDesc& In
 		bAllowApproximateOcclusion = true;
 	}
 
-	if (MaterialRelevance.bOpaque && !MaterialRelevance.bUsesSingleLayerWaterMaterial)
+	bOpaqueOrMasked = MaterialRelevance.bOpaque;
+	if (!MaterialRelevance.bUsesSingleLayerWaterMaterial)
 	{
 		UpdateVisibleInLumenScene();
 	}

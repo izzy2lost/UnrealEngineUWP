@@ -1068,12 +1068,17 @@ bool FMeshUtilities::GenerateCardRepresentationData(
 	{
 		const double StartTime = FPlatformTime::Seconds();
 
+		// We include translucent triangles to get card representation for them in case translucent mesh tracing is used
+		// in combination with hardware ray tracing for hit lighting.
+		const bool bIncludeTranslucentTriangles = true; 
+
 		FEmbreeScene EmbreeScene;
 		MeshRepresentation::SetupEmbreeScene(MeshName,
 			SourceMeshData,
 			LODModel,
 			SectionData,
 			bGenerateAsIfTwoSided,
+			bIncludeTranslucentTriangles,
 			EmbreeScene);
 
 		if (!EmbreeScene.EmbreeScene)

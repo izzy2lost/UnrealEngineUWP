@@ -910,6 +910,7 @@ FSceneProxy::FSceneProxy(const FMaterialAudit& MaterialAudit, const FStaticMeshS
 
 	bReverseCulling = ProxyDesc.bReverseCulling;
 
+	bOpaqueOrMasked = true; // Nanite only supports opaque
 	UpdateVisibleInLumenScene();
 }
 

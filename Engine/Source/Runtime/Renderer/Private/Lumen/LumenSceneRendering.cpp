@@ -23,6 +23,7 @@
 #include "ProfilingDebugging/CpuProfilerTrace.h"
 #include "DataDrivenShaderPlatformInfo.h"
 #include "StaticMeshBatch.h"
+#include "LumenReflections.h"
 
 int32 GLumenFastCameraMode = 0;
 FAutoConsoleVariableRef CVarLumenFastCameraMode(
@@ -335,7 +336,8 @@ public:
 		float InLumenSceneDetail,
 		float InMaxDistanceFromCamera,
 		int32 InFirstPrimitiveGroupIndex,
-		int32 InNumPrimitiveGroupsPerPacket)
+		int32 InNumPrimitiveGroupsPerPacket,
+		bool  InAddTranslucentToCache)
 		: PrimitiveGroups(InPrimitiveGroups)
 		, ViewOrigins(InViewOrigins)
 		, FirstPrimitiveGroupIndex(InFirstPrimitiveGroupIndex)
@@ -346,6 +348,7 @@ public:
 		, MinCardResolution(FMath::Clamp(FMath::RoundToInt(LumenScene::GetCardMinResolution() / LumenSceneDetail), 1, 1024))
 		, FarFieldCardMaxDistanceSq(LumenScene::GetFarFieldCardMaxDistance() * LumenScene::GetFarFieldCardMaxDistance())
 		, FarFieldCardTexelDensity(LumenScene::GetFarFieldCardTexelDensity())
+		, bAddTranslucentToCache(InAddTranslucentToCache)
 	{
 	}
 
@@ -382,7 +385,7 @@ public:
 					MaxCardResolution = MaxCardExtent * FarFieldCardTexelDensity;
 				}
 
-				if (DistanceSquared <= CardMaxDistanceSq && MaxCardResolution >= (PrimitiveGroup.bEmissiveLightSource ? 1.0f : MinCardResolution))
+				if (DistanceSquared <= CardMaxDistanceSq && MaxCardResolution >= (PrimitiveGroup.bEmissiveLightSource ? 1.0f : MinCardResolution) && (PrimitiveGroup.bOpaqueOrMasked || bAddTranslucentToCache))
 				{
 					if (PrimitiveGroup.MeshCardsIndex == -1 && PrimitiveGroup.bValidMeshCards)
 					{
@@ -413,6 +416,8 @@ public:
 	const int32 MinCardResolution;
 	const float FarFieldCardMaxDistanceSq;
 	const float FarFieldCardTexelDensity;
+
+	const bool bAddTranslucentToCache;
 };
 
 struct FSurfaceCacheRemove
@@ -996,7 +1001,8 @@ void UpdateSurfaceCachePrimitives(
 	const TArray<FVector, TInlineAllocator<2>>& LumenSceneCameraOrigins,
 	float LumenSceneDetail,
 	float MaxCardUpdateDistanceFromCamera,
-	FLumenCardRenderer& LumenCardRenderer)
+	FLumenCardRenderer& LumenCardRenderer,
+	bool bAddTranslucentToCache)
 {
 	QUICK_SCOPE_CYCLE_COUNTER(UpdateSurfaceCachePrimitives);
 
@@ -1015,7 +1021,8 @@ void UpdateSurfaceCachePrimitives(
 				LumenSceneDetail,
 				MaxCardUpdateDistanceFromCamera,
 				TaskIndex * NumPrimitivesPerTask,
-				NumPrimitivesPerTask);
+				NumPrimitivesPerTask,
+				bAddTranslucentToCache);
 		}
 
 		const bool bExecuteInParallel = FApp::ShouldUseThreadingForPerformance() && GLumenSceneParallelUpdate != 0;
@@ -1459,12 +1466,14 @@ void FDeferredShadingSceneRenderer::BeginUpdateLumenSceneTasks(FRDGBuilder& Grap
 		TArray<FVector, TInlineAllocator<Lumen::MaxViews>> LumenSceneCameraOrigins;
 		float MaxCardUpdateDistanceFromCamera = 0.0f;
 		float LumenSceneDetail = 0.0f;
+		bool bAddTranslucentToCache = false;
 
 		for (const FViewInfo& View : Views)
 		{
 			LumenSceneCameraOrigins.Add(Lumen::GetLumenSceneViewOrigin(View, Lumen::GetNumGlobalDFClipmaps(View) - 1));
 			MaxCardUpdateDistanceFromCamera = FMath::Max(MaxCardUpdateDistanceFromCamera, LumenScene::GetCardMaxDistance(View));
 			LumenSceneDetail = FMath::Max(LumenSceneDetail, FMath::Clamp<float>(View.FinalPostProcessSettings.LumenSceneDetail, .125f, 8.0f));
+			bAddTranslucentToCache |= LumenReflections::UseTranslucentRayTracing(View) && LumenReflections::UseHitLighting(View, GetViewPipelineState(View).DiffuseIndirectMethod == EDiffuseIndirectMethod::Lumen);
 		}
 
 		const int32 MaxTileCapturesPerFrame = GetMaxTileCapturesPerFrame();
@@ -1487,7 +1496,8 @@ void FDeferredShadingSceneRenderer::BeginUpdateLumenSceneTasks(FRDGBuilder& Grap
 					LumenSceneCameraOrigins,
 					LumenSceneDetail,
 					MaxCardUpdateDistanceFromCamera,
-					LumenCardRenderer);
+					LumenCardRenderer,
+					bAddTranslucentToCache);
 			}
 
 			UpdateSurfaceCacheMeshCards(

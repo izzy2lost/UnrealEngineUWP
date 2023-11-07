@@ -263,6 +263,7 @@ void FMeshUtilities::GenerateSignedDistanceFieldVolumeData(
 	if (DistanceFieldResolutionScale > 0)
 	{
 		const double StartTime = FPlatformTime::Seconds();
+		const bool bIncludeTranslucentTriangles = false;
 
 		FEmbreeScene EmbreeScene;
 		MeshRepresentation::SetupEmbreeScene(MeshName,
@@ -270,6 +271,7 @@ void FMeshUtilities::GenerateSignedDistanceFieldVolumeData(
 			LODModel,
 			SectionData,
 			bGenerateAsIfTwoSided,
+			bIncludeTranslucentTriangles,
 			EmbreeScene);
 
 		check(EmbreeScene.bUseEmbree);

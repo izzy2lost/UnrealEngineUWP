@@ -669,6 +669,7 @@ public:
 	inline bool IsVisibleInRealTimeSkyCaptures() const { return bVisibleInRealTimeSkyCaptures; }
 	inline bool IsVisibleInRayTracing() const { return bVisibleInRayTracing; }
 	inline bool IsVisibleInLumenScene() const { return bVisibleInLumenScene; }
+	inline bool IsOpaqueOrMasked() const { return bOpaqueOrMasked; }
 	inline bool ShouldRenderInMainPass() const { return bRenderInMainPass; }
 	inline bool ShouldRenderInDepthPass() const { return bRenderInMainPass || bRenderInDepthPass; }
 	inline bool SupportsParallelGDME() const { return bSupportsParallelGDME; }
@@ -1192,6 +1193,9 @@ protected:
 
 	/** Whether this component should be tracked by Lumen Scene. Turning this off will remove it from Lumen Scene and Lumen won't generate surface cache for it. */
 	uint8 bVisibleInLumenScene : 1;
+
+	/** Whether this component contains opaque materials (cached once from assigned material). Note: if composed from multiple meshes and materials, it may contain translucent materials. */
+	uint8 bOpaqueOrMasked : 1;
 
 	/** Whether this component can skip redundant transform updates where applicable. */
 	uint8 bCanSkipRedundantTransformUpdates : 1;

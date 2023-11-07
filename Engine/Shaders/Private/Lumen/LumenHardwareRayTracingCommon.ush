@@ -988,7 +988,9 @@ FRayTracedLightingResult TraceSurfaceCacheRay(
 		SurfaceCacheSample = SampleLumenMinimalRayHit(Ray, Context, MinimalRayResult);
 	}
 
-	// Single re-trace when hit masked part of surface cache
+#if !RECURSIVE_REFRACTION_TRACES
+	// If we trace for translucent, then we want to consider all the surfaces and not do any Opacity based masking.
+	// If we trace only for opaque, we do a single re-trace when hit masked part of surface cache
 	if (MinimalRayResult.bHit && MinimalRayResult.bCompleted && Context.bAlphaMasking && SurfaceCacheSample.bValid && SurfaceCacheSample.Opacity < 0.5f)
 	{
 		Ray.TMin = MinimalRayResult.HitT + 0.01f;
@@ -1000,6 +1002,7 @@ FRayTracedLightingResult TraceSurfaceCacheRay(
 			SurfaceCacheSample = SampleLumenMinimalRayHit(Ray, Context, MinimalRayResult);
 		}
 	}
+#endif
 
 	return CreateRayTracedLightingResult(Ray, Context, MinimalRayResult, SurfaceCacheSample);
 }

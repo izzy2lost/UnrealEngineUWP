@@ -128,6 +128,7 @@ void MeshRepresentation::SetupEmbreeScene(
 	const FStaticMeshLODResources& LODModel,
 	const TArray<FSignedDistanceFieldBuildSectionData>& SectionData,
 	bool bGenerateAsIfTwoSided,
+	bool bIncludeTranslucentTriangles,
 	FEmbreeScene& EmbreeScene)
 {
 	const uint32 NumVertices = SourceMeshData.IsValid() ? SourceMeshData.GetNumVertices() : LODModel.VertexBuffers.PositionVertexBuffer.GetNumVertices();
@@ -207,9 +208,7 @@ void MeshRepresentation::SetupEmbreeScene(
 		const bool bDegenerateTriangle = TriangleNormal.SizeSquared() < SMALL_NUMBER;
 		if (!bDegenerateTriangle)
 		{
-			//FilteredTriangles.Add(TriangleIndex);
-
-			bool bTriangleIsOpaqueOrMasked = false;
+			bool bIncludeTriangle = false;
 
 			for (int32 SectionIndex = 0; SectionIndex < Sections.Num(); SectionIndex++)
 			{
@@ -219,14 +218,15 @@ void MeshRepresentation::SetupEmbreeScene(
 				{
 					if (SectionData.IsValidIndex(SectionIndex))
 					{
-						bTriangleIsOpaqueOrMasked = !IsTranslucentBlendMode(SectionData[SectionIndex].BlendMode) && SectionData[SectionIndex].bAffectDistanceFieldLighting;
+						const bool bIsOpaqueOrMasked = !IsTranslucentBlendMode(SectionData[SectionIndex].BlendMode);
+						bIncludeTriangle = (bIsOpaqueOrMasked || bIncludeTranslucentTriangles) && SectionData[SectionIndex].bAffectDistanceFieldLighting;
 					}
 
 					break;
 				}
 			}
 
-			if (bTriangleIsOpaqueOrMasked)
+			if (bIncludeTriangle)
 			{
 				FilteredTriangles.Add(TriangleIndex);
 			}
