@@ -1325,7 +1325,10 @@ TSharedRef<TSet<FFolder>> SSceneOutliner::GatherInvalidMoveToDestinations() cons
 
 	for (const auto& Item : OutlinerTreeView->GetSelectedItems())
 	{
-		if (FFolderTreeItem* ParentFolderItem = Item->GetParent()->CastTo<FFolderTreeItem>())
+		const FSceneOutlinerTreeItemPtr Parent = Item->GetParent();
+		const FFolderTreeItem* ParentFolderItem = Parent.IsValid() ? Parent->CastTo<FFolderTreeItem>() : nullptr;
+
+		if (ParentFolderItem)
 		{
 			auto FolderHasOtherSubFolders = [&Item](const TWeakPtr<ISceneOutlinerTreeItem>& WeakItem)
 			{
