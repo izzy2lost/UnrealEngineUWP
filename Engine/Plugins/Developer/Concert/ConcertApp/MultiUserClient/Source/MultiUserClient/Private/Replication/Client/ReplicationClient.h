@@ -34,6 +34,7 @@ namespace UE::MultiUserClient
 
 		FReplicationClient(
 			const FGuid& EndpointId,
+			FGlobalAuthorityCache& InAuthorityCache,
 			UMultiUserReplicationClientPreset& InSessionContent,
 			TUniquePtr<IClientStreamSynchronizer> InStreamSynchronizer,
 			TUniquePtr<IClientAuthoritySynchronizer> InAuthoritySynchronizer,

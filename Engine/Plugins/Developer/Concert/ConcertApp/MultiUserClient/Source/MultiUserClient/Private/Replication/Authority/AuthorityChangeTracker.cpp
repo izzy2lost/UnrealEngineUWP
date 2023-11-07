@@ -3,21 +3,26 @@
 #include "AuthorityChangeTracker.h"
 
 #include "IClientAuthoritySynchronizer.h"
+#include "Replication/Util/GlobalAuthorityCache.h"
 
 namespace UE::MultiUserClient
 {
 	FAuthorityChangeTracker::FAuthorityChangeTracker(
-		IClientAuthoritySynchronizer& InAuthoritySynchronizer
+		const FGuid& InClientId,
+		const IClientAuthoritySynchronizer& InAuthoritySynchronizer,
+		FGlobalAuthorityCache& InAuthorityCache
 		)
-		: AuthoritySynchronizer(InAuthoritySynchronizer)
+		: ClientId(InClientId)
+		, AuthoritySynchronizer(InAuthoritySynchronizer)
+		, AuthorityCache(InAuthorityCache)
 	{
-		AuthoritySynchronizer.OnServerStateChanged().AddRaw(this, &FAuthorityChangeTracker::RefreshChanges);
+		AuthorityCache.OnCacheChanged().AddRaw(this, &FAuthorityChangeTracker::OnClientChanged);
 	}
 
 	FAuthorityChangeTracker::~FAuthorityChangeTracker()
 	{
 		// Strictly not needed because AuthoritySynchronizer will die at the same time as us but let's be nice
-		AuthoritySynchronizer.OnServerStateChanged().RemoveAll(this);
+		AuthorityCache.OnCacheChanged().RemoveAll(this);
 	}
 
 	void FAuthorityChangeTracker::SetAuthorityIfAllowed(TConstArrayView<FSoftObjectPath> ObjectPaths, bool bNewAuthorityState)
@@ -60,7 +65,8 @@ namespace UE::MultiUserClient
 
 	bool FAuthorityChangeTracker::CanSetAuthorityFor(const FSoftObjectPath& ObjectPath) const
 	{
-		return AuthoritySynchronizer.CanChangeAuthority(ObjectPath);
+		return AuthoritySynchronizer.CanChangeAuthority(ObjectPath)
+			&& AuthorityCache.CanClientTakeAuthorityAfterSubmission(ObjectPath, ClientId) != FGlobalAuthorityCache::ECanTakeAuthority::Conflict;
 	}
 
 	EAuthorityMutability FAuthorityChangeTracker::GetChangeAuthorityMutability(const FSoftObjectPath& ObjectPath) const

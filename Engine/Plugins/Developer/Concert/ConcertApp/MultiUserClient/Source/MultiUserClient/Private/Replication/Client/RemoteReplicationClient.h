@@ -15,6 +15,7 @@ namespace UE::MultiUserClient
 
 		FRemoteReplicationClient(
 			const FGuid& InConcertClientId,
+			FGlobalAuthorityCache& InAuthorityCache,
 			UMultiUserReplicationClientPreset& InSessionContent,
 			FRegularQueryService& QueryService
 			);

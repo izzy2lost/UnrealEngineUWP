@@ -11,11 +11,13 @@ namespace UE::MultiUserClient
 {
 	FRemoteReplicationClient::FRemoteReplicationClient(
 		const FGuid& InConcertClientId,
+		FGlobalAuthorityCache& InAuthorityCache,
 		UMultiUserReplicationClientPreset& InSessionContent,
 		FRegularQueryService& QueryService
 		)
 		: FReplicationClient(
 			InConcertClientId,
+			InAuthorityCache,
 			InSessionContent,
 			MakeUnique<FStreamSynchronizer_RemoteClient>(InConcertClientId, QueryService),
 			MakeUnique<FAuthoritySynchronizer_RemoteClient>(

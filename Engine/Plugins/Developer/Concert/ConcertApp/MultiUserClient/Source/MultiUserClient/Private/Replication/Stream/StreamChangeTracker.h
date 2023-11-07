@@ -70,8 +70,10 @@ namespace UE::MultiUserClient
 		/** @return Whether there are any changes that that can be submitted to the server (excludes those with warnings). */
 		bool HasChanges() const;
 
-		/** @return If change are submitted, is ObjectPath in the stream? */
+		/** @return If changes are submitted, is ObjectPath in the stream? */
 		bool DoesObjectHavePropertiesAfterSubmit(const FSoftObjectPath& ObjectPath) const;
+		/** @return Gets the final state the object will have after submission. */
+		const FConcertPropertySelection* GetPropertiesAfterSubmit(const FSoftObjectPath& ObjectPath) const;
 
 		enum class EObjectChangeType
 		{
@@ -82,15 +84,6 @@ namespace UE::MultiUserClient
 		};
 		/** @return Whether this object's local configuration differs from the server version. */
 		EObjectChangeType GetObjectChanges(const FSoftObjectPath& Object) const;
-		
-		enum class EPropertyChangeType
-		{
-			NoChange,
-			Added,
-			Removed
-		};
-		/** @return Gets how the given property config differs from what is on the server. */
-		EPropertyChangeType GetPropertyChanges(const FSoftObjectPath& Object, const FConcertPropertyChain& PropertyChain) const;
 
 		/** Called when RevertCachedChanges is called. The UI should be refreshed. */
 		DECLARE_MULTICAST_DELEGATE(FOnChangesReverted);

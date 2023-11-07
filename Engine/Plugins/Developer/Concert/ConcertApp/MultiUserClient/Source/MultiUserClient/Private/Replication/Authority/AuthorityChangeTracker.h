@@ -6,6 +6,11 @@
 #include "Containers/ContainersFwd.h"
 #include "Replication/IConcertClientReplicationManager.h"
 
+namespace UE::MultiUserClient
+{
+	class FGlobalAuthorityCache;
+}
+
 struct FSoftObjectPath;
 
 namespace UE::MultiUserClient
@@ -17,8 +22,8 @@ namespace UE::MultiUserClient
 	class FAuthorityChangeTracker
 	{
 	public:
-
-		FAuthorityChangeTracker(IClientAuthoritySynchronizer& InAuthoritySynchronizer);
+		
+		FAuthorityChangeTracker(const FGuid& InClientId, const IClientAuthoritySynchronizer& InAuthoritySynchronizer, FGlobalAuthorityCache& InAuthorityCache);
 		~FAuthorityChangeTracker();
 		
 		/**
@@ -49,14 +54,21 @@ namespace UE::MultiUserClient
 		
 	private:
 
-		/** Knows the current authority state of the client. */
-		IClientAuthoritySynchronizer& AuthoritySynchronizer;
+		/** Id of the client this change tracker is tracking. */
+		const FGuid ClientId;
+
+		/** Knows the current authority state of the client and determines whether we support changing this client's authority at all. */
+		const IClientAuthoritySynchronizer& AuthoritySynchronizer;
+		/** Used to determine whether other clients have authority over objects. */
+		FGlobalAuthorityCache& AuthorityCache;
 
 		/** Object to the authority state it should have. */
 		TMap<FSoftObjectPath, bool> NewAuthorityStates;
 
 		/** Called when NewAuthorityStates is updated. */
 		FOnAuthorityChangeMade FOnAuthorityChangeMadeDelegate;
+		
+		void OnClientChanged(const FGuid& Guid) { RefreshChanges(); }
 	};
 }
 

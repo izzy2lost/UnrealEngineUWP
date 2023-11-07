@@ -11,6 +11,7 @@ namespace UE::MultiUserClient
 {
 	FReplicationClient::FReplicationClient(
 		const FGuid& EndpointId,
+		FGlobalAuthorityCache& InAuthorityCache,
 		UMultiUserReplicationClientPreset& InSessionContent,
 		TUniquePtr<IClientStreamSynchronizer> InStreamSynchronizer,
 		TUniquePtr<IClientAuthoritySynchronizer> InAuthoritySynchronizer,
@@ -29,7 +30,7 @@ namespace UE::MultiUserClient
 			ClientContentStorage->Stream->MakeReplicationMapGetterAttribute(),
 			FStreamChangeTracker::FOnModifyReplicationMap::CreateLambda([this](){ ClientContentStorage->Stream->Modify(); })
 			)
-		, LocalAuthorityDiffer(*AuthoritySynchronizer)
+		, LocalAuthorityDiffer(EndpointId, *AuthoritySynchronizer, InAuthorityCache)
 		, SubmissionWorkflow(MakeSubmissionWorkflowFunc(LocalClientStreamDiffer, LocalAuthorityDiffer, *StreamSynchronizer.Get()))
 		, AutoSubmissionPolicy(*SubmissionWorkflow.Get(), LocalClientEditModel.Get(), LocalAuthorityDiffer)
 	{
@@ -52,7 +53,7 @@ namespace UE::MultiUserClient
 		// This must be done before SetAuthorityIfAllowed because it uses the cache for checking whether the object has properties assigned
 		LocalClientStreamDiffer.RefreshChangesCache();
 		
-		// Better UX for user: automatically take authority for newly added objects
+		// Better UX for user: automatically take authority for newly added objects (but only if it is allowed and causes no conflicts)
 		TArray<FSoftObjectPath> ObjectPaths;
 		Algo::Transform(AddedObjects, ObjectPaths, [](const UObject* Object){ return FSoftObjectPath(Object); });
 		LocalAuthorityDiffer.SetAuthorityIfAllowed(ObjectPaths, true);

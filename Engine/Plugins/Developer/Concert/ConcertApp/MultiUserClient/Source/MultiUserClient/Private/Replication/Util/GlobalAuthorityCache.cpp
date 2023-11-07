@@ -48,16 +48,17 @@ namespace UE::MultiUserClient
 		return Result;
 	}
 
-	FGlobalAuthorityCache::ECanTakeAuthority FGlobalAuthorityCache::CanClientTakeAuthority(const FSoftObjectPath& Object, const FGuid& ClientId, FProcessPropertyConflict ProcessConflict) const
+	FGlobalAuthorityCache::ECanTakeAuthority FGlobalAuthorityCache::CanClientTakeAuthorityAfterSubmission(const FSoftObjectPath& Object, const FGuid& ClientId, FProcessPropertyConflict ProcessConflict) const
 	{
 		const FReplicationClient* Client = ClientManager.FindClient(ClientId);
 		if (!ensure(Client))
 		{
 			return ECanTakeAuthority::NotApplicable;
 		}
-		
-		const FReplicatedObjectInfo* ObjectInfo = Client->GetStreamSynchronizer().GetServerState().ReplicatedObjects.Find(Object);
-		if (!ObjectInfo)
+
+		// Important: Get server state with local changes applied to it! CanClientTakeAuthority answers: "Can the client take authority after submitting?" 
+		const FConcertPropertySelection* PropertySelection = Client->GetStreamDiffer().GetPropertiesAfterSubmit(Object);
+		if (!PropertySelection)
 		{
 			// Nothing to take authority over
 			return ECanTakeAuthority::NotApplicable;
@@ -67,7 +68,7 @@ namespace UE::MultiUserClient
 		const EAuthorityConflict Conflict = EnumerateAuthorityConflicts(
 			ClientId,
 			Object,
-			ObjectInfo->PropertySelection.ReplicatedProperties,
+			PropertySelection->ReplicatedProperties,
 			*this,
 			[&ProcessConflict](const FGuid& ClientId, const FGuid&, const FConcertPropertyChain& ConflictingProperty)
 			{

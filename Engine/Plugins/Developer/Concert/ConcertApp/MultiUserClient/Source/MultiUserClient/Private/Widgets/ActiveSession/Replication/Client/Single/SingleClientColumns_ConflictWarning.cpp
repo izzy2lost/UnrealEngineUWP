@@ -35,7 +35,7 @@ namespace UE::MultiUserClient::SingleClientColumns
 				{
 					const auto GetVisibility = [&InAuthorityCache, ClientId, ObjectPath = InArgs.RowData.GetObjectPath()]()
 					{
-						const FGlobalAuthorityCache::ECanTakeAuthority TakeAuthorityResult = InAuthorityCache.CanClientTakeAuthority(ObjectPath, ClientId);
+						const FGlobalAuthorityCache::ECanTakeAuthority TakeAuthorityResult = InAuthorityCache.CanClientTakeAuthorityAfterSubmission(ObjectPath, ClientId);
 						return TakeAuthorityResult == FGlobalAuthorityCache::ECanTakeAuthority::Conflict
 							? EVisibility::Visible
 							: EVisibility::Collapsed;
@@ -43,7 +43,7 @@ namespace UE::MultiUserClient::SingleClientColumns
 					const auto GetToolTip = [InClient = MoveTemp(InClient), &InAuthorityCache, ClientId, ObjectPath = InArgs.RowData.GetObjectPath()]()
 					{
 						TSet<FString> ClientNames;
-						const FGlobalAuthorityCache::ECanTakeAuthority TakeAuthorityResult = InAuthorityCache.CanClientTakeAuthority(ObjectPath, ClientId,
+						const FGlobalAuthorityCache::ECanTakeAuthority TakeAuthorityResult = InAuthorityCache.CanClientTakeAuthorityAfterSubmission(ObjectPath, ClientId,
 						[InClient, &ClientNames](const FGuid& ClientId, const FConcertPropertyChain& ConflictingProperty)
 						{
 							ClientNames.Add(ClientUtils::GetClientDisplayName(*InClient, ClientId));

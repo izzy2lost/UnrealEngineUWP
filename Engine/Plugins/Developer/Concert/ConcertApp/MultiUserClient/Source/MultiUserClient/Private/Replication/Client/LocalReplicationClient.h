@@ -14,10 +14,10 @@ namespace UE::MultiUserClient
 	public:
 
 		FLocalReplicationClient(
+			FGlobalAuthorityCache& InAuthorityCache,
 			UMultiUserReplicationClientPreset& InSessionContent,
 			TUniquePtr<IClientStreamSynchronizer> InStreamSynchronizer,
-			TSharedRef<IConcertSyncClient> InClient,
-			const FGlobalAuthorityCache& InAuthorityCache
+			TSharedRef<IConcertSyncClient> InClient
 			);
 	};
 }

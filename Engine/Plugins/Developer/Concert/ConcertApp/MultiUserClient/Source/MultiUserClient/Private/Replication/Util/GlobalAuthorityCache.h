@@ -49,8 +49,8 @@ namespace UE::MultiUserClient
 			Allowed
 		};
 		
-		/** @return Whether the given client can take authority over the object without causing any conflicts. */
-		ECanTakeAuthority CanClientTakeAuthority(const FSoftObjectPath& Object, const FGuid& ClientId, FProcessPropertyConflict ProcessConflict = [](auto&, auto&){ return EBreakBehavior::Break; }) const;
+		/** @return Whether the given client can take authority over the object without causing any conflicts. This also considers the changes made to the stream after submission. */
+		ECanTakeAuthority CanClientTakeAuthorityAfterSubmission(const FSoftObjectPath& Object, const FGuid& ClientId, FProcessPropertyConflict ProcessConflict = [](auto&, auto&){ return EBreakBehavior::Break; }) const;
 		/** @return Whether the given client add the given property to the object without causing any conflicts. */
 		bool CanClientAddProperty(const FSoftObjectPath& Object, const FGuid& ClientId, const FConcertPropertyChain& Chain) const;
 

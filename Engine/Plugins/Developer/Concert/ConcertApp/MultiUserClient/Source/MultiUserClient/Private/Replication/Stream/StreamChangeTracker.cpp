@@ -72,6 +72,20 @@ namespace UE::MultiUserClient
 		}
 	}
 
+	const FConcertPropertySelection* FStreamChangeTracker::GetPropertiesAfterSubmit(const FSoftObjectPath& ObjectPath) const
+	{
+		const FGuid StreamId = StreamSynchronizer.GetStreamId();
+		const FObjectInStreamID ObjectId { StreamId, ObjectPath };
+		const FConcertReplication_ChangeStream_PutObject* PutObject = CachedDeltaChange.ObjectsToPut.Find(ObjectId);
+		if (PutObject && !PutObject->Properties.ReplicatedProperties.IsEmpty())
+		{
+			return &PutObject->Properties;
+		}
+
+		const FReplicatedObjectInfo* ObjectInfo = StreamSynchronizer.GetServerState().ReplicatedObjects.Find(ObjectPath);
+		return ObjectInfo ? &ObjectInfo->PropertySelection : nullptr;
+	}
+
 	FStreamChangeTracker::EObjectChangeType FStreamChangeTracker::GetObjectChanges(const FSoftObjectPath& Object) const
 	{
 		const FGuid StreamId = StreamSynchronizer.GetStreamId();
@@ -89,12 +103,6 @@ namespace UE::MultiUserClient
 
 		const bool bObjectIsOnServer = StreamSynchronizer.GetServerState().ReplicatedObjects.Contains(Object);
 		return bObjectIsOnServer ? EObjectChangeType::PropertiesModified : EObjectChangeType::Added;
-	}
-
-	FStreamChangeTracker::EPropertyChangeType FStreamChangeTracker::GetPropertyChanges(const FSoftObjectPath& Object, const FConcertPropertyChain& PropertyChain) const
-	{
-		// TODO DP:
-		return EPropertyChangeType::NoChange;
 	}
 	
 	FStreamChangelist FStreamChangeTracker::DiffChanges(
