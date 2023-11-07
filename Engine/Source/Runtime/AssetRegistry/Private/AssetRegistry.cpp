@@ -4340,25 +4340,32 @@ Impl::EGatherStatus FAssetRegistryImpl::TickGatherer(Impl::FEventContext& EventC
 		// startup up until that point, and we need to wait for all the plugins to load before declaring completion.
 		if (!bInitialSearchCompleted && bPreloadingComplete && IsEngineStartupModuleLoadingComplete())
 		{
-#if WITH_EDITOR
-			// update redirectors
-			UpdateRedirectCollector();
-#endif
-
-			// Handle any deferred loading operations
-			SetPerformanceMode(Impl::EPerformanceMode::MostlyStatic);
-
-			RecordTimer();
-			LogSearchDiagnostics(InitialSearchStartTime);
-			TRACE_END_REGION(TEXT("Asset Registry Scan"));
-
-			bInitialSearchCompleted = true;
-
-			EventContext.bFileLoadedEventBroadcast = true;
+			RecordTimer(); // OnInitialSearchComplete reads data set by RecordTimer
+			OnInitialSearchCompleted(EventContext);
 		}
 	}
 
 	return OutStatus;
+}
+
+void FAssetRegistryImpl::OnInitialSearchCompleted(Impl::FEventContext& EventContext)
+{
+	bInitialSearchCompleted = true;
+
+#if WITH_EDITOR
+	// update redirectors
+	UpdateRedirectCollector();
+#endif
+
+	// Handle any deferred loading operations
+	SetPerformanceMode(Impl::EPerformanceMode::MostlyStatic);
+
+	LogSearchDiagnostics(InitialSearchStartTime);
+	TRACE_END_REGION(TEXT("Asset Registry Scan"));
+
+	GlobalGatherer->OnInitialSearchCompleted();
+
+	EventContext.bFileLoadedEventBroadcast = true;
 }
 
 void FAssetRegistryImpl::LogSearchDiagnostics(double StartTime)
@@ -4371,11 +4378,16 @@ void FAssetRegistryImpl::LogSearchDiagnostics(double StartTime)
 	Telemetry.DiscoveryTimeSeconds = Diagnostics.DiscoveryTimeSeconds;
 	Telemetry.GatherTimeSeconds = Diagnostics.GatherTimeSeconds;
 	Telemetry.StoreTimeSeconds = StoreGatherResultsTimeSeconds;
+	Telemetry.NumCachedDirectories = Diagnostics.NumCachedDirectories;
+	Telemetry.NumUncachedDirectories = Diagnostics.NumUncachedDirectories;
 	Telemetry.NumCachedAssetFiles = Diagnostics.NumCachedAssetFiles;
 	Telemetry.NumUncachedAssetFiles = Diagnostics.NumUncachedAssetFiles;
 	FTelemetryRouter::Get().ProvideTelemetry(Telemetry);
-	UE_LOG(LogAssetRegistry, Log, TEXT("AssetRegistryGather time %.4fs: AssetDataDiscovery %0.4fs, AssetDataGather %0.4fs, StoreResults %0.4fs."),
-		Total, Diagnostics.DiscoveryTimeSeconds, Diagnostics.GatherTimeSeconds, StoreGatherResultsTimeSeconds);
+	UE_LOG(LogAssetRegistry, Log, TEXT("AssetRegistryGather time %.4fs: AssetDataDiscovery %0.4fs, AssetDataGather %0.4fs, StoreResults %0.4fs.")
+		TEXT("\n\tNumCachedDirectories %d. NumUncachedDirectories %d. NumCachedFiles %d. NumUncachedFiles %d."),
+		Total, Diagnostics.DiscoveryTimeSeconds, Diagnostics.GatherTimeSeconds, StoreGatherResultsTimeSeconds,
+		Diagnostics.NumCachedDirectories, Diagnostics.NumUncachedDirectories, Diagnostics.NumCachedAssetFiles,
+		Diagnostics.NumUncachedAssetFiles);
 
 #if !NO_LOGGING
 	if (bVerboseLogging)

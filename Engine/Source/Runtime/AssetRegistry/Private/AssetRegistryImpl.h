@@ -367,6 +367,7 @@ private:
 		Premade::ELoadResult LoadResult, FAssetRegistryState&& ARState);
 	/** Add MountPoints of all AssetDatas currently registered in this->State to the list of PersistentMountPoints. */
 	void UpdatePersistentMountPoints();
+	void OnInitialSearchCompleted(Impl::FEventContext& EventContext);
 
 private:
 

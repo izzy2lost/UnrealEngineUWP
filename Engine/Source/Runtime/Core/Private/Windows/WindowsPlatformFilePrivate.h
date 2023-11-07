@@ -18,7 +18,7 @@
 **/
 class FWindowsPlatformFile : public IPhysicalPlatformFile
 {
-private:
+public:
 	/**
 	  * Convert from a valid Unreal Path to a canonical and strict-valid Windows Path.
 	  * An Unreal Path may have either \ or / and may have empty directories (two / in a row), and may have .. and may be relative
@@ -78,6 +78,18 @@ public:
 	// Forced not inline to reduce stack space usage since IterateDirectoryCommon might be recursive
 	FORCENOINLINE static HANDLE FindFirstFileWithWildcard(const TCHAR* Directory, WIN32_FIND_DATAW& OutData);
 	bool IterateDirectoryCommon(const TCHAR* Directory, const TFunctionRef<bool(const WIN32_FIND_DATAW&)>& Visitor);
+
+	virtual bool FileJournalIsAvailable(const TCHAR* VolumeOrPath = nullptr, ELogVerbosity::Type* OutErrorLevel = nullptr,
+		FString* OutError = nullptr) override;
+	virtual EFileJournalResult FileJournalGetLatestEntry(const TCHAR* VolumeName, FFileJournalEntryHandle& OutEntryHandle,
+		FString* OutError = nullptr) override;
+	virtual bool FileJournalIterateDirectory(const TCHAR* Directory, FDirectoryJournalVisitorFunc Visitor) override;
+	virtual FFileJournalData FileJournalGetFileData(const TCHAR* FilenameOrDirectory) override;
+	virtual EFileJournalResult FileJournalReadModified(const TCHAR* VolumeName,
+		const FFileJournalEntryHandle& StartingJournalEntry, TMap<FFileJournalFileHandle, FString>& KnownDirectories,
+		TSet<FString>& OutModifiedDirectories, FFileJournalEntryHandle& OutNextJournalEntry,
+		FString* OutError = nullptr) override;
+	virtual FString FileJournalGetVolumeName(FStringView InPath) override;
 };
 
 namespace UE::WindowsPlatformFile::Private

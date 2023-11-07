@@ -58,6 +58,10 @@ namespace UE::Telemetry::AssetRegistry
         double GatherTimeSeconds = 0.0;
         // Time spent storing asset data in the asset registry for searching
         double StoreTimeSeconds = 0.0;
+        // Number of directories read from cache
+        int32 NumCachedDirectories = 0;
+        // Number of directories scanned from disk
+        int32 NumUncachedDirectories = 0;
         // Number of asset files read from cache
         int32 NumCachedAssetFiles = 0;
         // Number of asset files read loose from disk

@@ -58,6 +58,10 @@ struct FAssetGatherDiagnostics
 	float DiscoveryTimeSeconds;
 	/** Time spent reading asset files on disk / from cache */
 	float GatherTimeSeconds;
+	/** How many directories in the search results were read from the cache. */
+	int32 NumCachedDirectories;
+	/** How many directories in the search results were not in the cache and were read by scanning the disk. */
+	int32 NumUncachedDirectories;
 	/** How many files in the search results were read from the cache. */
 	int32 NumCachedAssetFiles;
 	/** How many files in the search results were not in the cache and were read by parsing the file. */
@@ -74,6 +78,7 @@ public:
 		const TArray<FString>& InMountRelativePathsDenyList, bool bInAsyncEnabled);
 	virtual ~FAssetDataGatherer();
 
+	void OnInitialSearchCompleted();
 
 	// Extra at-construction configuration 
 

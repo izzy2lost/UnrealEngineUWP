@@ -4,6 +4,7 @@
 
 #include "AssetDataGatherer.h"
 
+#include "AssetDataGathererDiscoveryCache.h"
 #include "Containers/Set.h"
 #include "Misc/Optional.h"
 #include "Misc/StringBuilder.h"
@@ -598,10 +599,12 @@ public:
 	void GetAndTrimSearchResults(bool& bOutIsComplete, TArray<FString>& OutDiscoveredPaths,
 		FFilesToSearch& OutFilesToSearch, int32& OutNumPathsToSearch);
 	/** Get diagnostics for telemetry or logging. */
-	void GetDiagnostics(float& OutCumulativeDiscoveryTime);
+	void GetDiagnostics(float& OutCumulativeDiscoveryTime, int32& OutNumCachedDirectories,
+		int32& OutNumUncachedDirectories);
 	/** Wait (joining in on the tick) until all currently monitored paths have been scanned. */
 	void WaitForIdle(double EndTimeSeconds);
 	bool IsIdle() const;
+	void OnInitialSearchCompleted();
 
 	/** Optionally set some scan properties for the given paths and then wait for their scans to finish. */
 	void SetPropertiesAndWait(TArrayView<FPathExistence> QueryPaths, bool bAddToAllowList, bool bForceRescan,
@@ -777,6 +780,10 @@ private:
 	int32 CumulativeDiscoveredFiles = 0;
 	/** Cumulative total of time spent in all non-idle periods. */
 	float CumulativeDiscoveryTime = 0.f;
+	/** The total number of directories in the search results that were read from the cache. */
+	int32 NumCachedDirectories = 0;
+	/** The total number of directories in the search results that were not in the cache and were read by iterating the disk. */
+	int32 NumUncachedDirectories = 0;
 
 	// Variable section for variables that are read/writable only within TreeLock.
 
@@ -832,20 +839,25 @@ private:
 	};
 	TArray<FDirToScanBuffer> DirToScanBuffers;
 
+	FAssetDataDiscoveryCache Cache;
+
 	friend class FMountDir;
 	friend class FScanDir;
 };
 
 /**
  * Settings about whether to use cache data for the AssetDataGatherer; these settings are shared by
- * FPreloader and the FAssetDataGatherer.
+ * FPreloader, FAssetDataGatherer, and FAssetDataDiscovery.
  */
 struct FPreloadSettings
 {
 public:
 	void Initialize();
-	bool IsCacheReadEnabled() const;
-	bool IsCacheWriteEnabled() const;
+	bool IsGatherCacheReadEnabled() const;
+	bool IsGatherCacheWriteEnabled() const;
+	bool IsDiscoveryCacheReadEnabled() const;
+	EFeatureEnabled IsDiscoveryCacheWriteEnabled() const;
+	bool IsDiscoveryCacheInvalidateEnabled() const;
 	bool IsMonolithicCacheActivatedDuringPreload() const;
 	bool IsPreloadMonolithicCache() const;
 	bool IsGatherDependsData() const;
@@ -860,8 +872,11 @@ private:
 	FString AssetRegistryCacheRootFolder;
 	bool bForceDependsGathering = false;
 	bool bGatherDependsData = false;
-	bool bCacheReadEnabled = false;
-	bool bCacheWriteEnabled = false;
+	bool bGatherCacheReadEnabled = false;
+	bool bGatherCacheWriteEnabled = false;
+	bool bDiscoveryCacheReadEnabled = false;
+	EFeatureEnabled DiscoveryCacheWriteEnabled = EFeatureEnabled::Never;
+	bool bDiscoveryCacheInvalidateEnabled = false;
 	bool bMonolithicCacheActivatedDuringPreload = false;
 	bool bInitialized = false;
 };
