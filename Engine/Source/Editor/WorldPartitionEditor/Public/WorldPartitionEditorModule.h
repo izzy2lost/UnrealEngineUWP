@@ -78,6 +78,20 @@ public:
 	virtual bool GetAdvancedMode() const override;
 	virtual void SetAdvancedMode(bool bInAdvancedMode) override;
 
+	virtual bool GetShowHLODsInEditor() const override;
+	virtual void SetShowHLODsInEditor(bool bInShowHLODsInEditor) override;
+ 
+	virtual bool GetShowHLODsOverLoadedRegions() const override;
+	virtual void SetShowHLODsOverLoadedRegions(bool bInShowHLODsOverLoadedRegions) override;
+
+	virtual double GetHLODInEditorMinDrawDistance() const override;
+	virtual void SetHLODInEditorMinDrawDistance(double InMinDrawDistance) override;
+
+	virtual double GetHLODInEditorMaxDrawDistance() const override;
+	virtual void SetHLODInEditorMaxDrawDistance(double InMaxDrawDistance) override;
+
+	virtual bool IsHLODInEditorAllowed(UWorld* InWorld, FText* OutDisallowedReason) const override;
+
 	/**
 	 * Convert the specified map to a world partition map.
 	 */
@@ -147,6 +161,7 @@ private:
 	void RunCommandletAsExternalProcess(const FString& InCommandletArgs, const FText& InOperationDescription, int32& OutResult, bool& bOutCancelled);
 	void OnConvertMap();
 
+	FDelegateHandle EditorInitializedHandle;
 	FDelegateHandle LevelEditorExtenderDelegateHandle;
 
 	TWeakPtr<SDockTab> WorldPartitionTab;
