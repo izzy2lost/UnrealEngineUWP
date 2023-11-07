@@ -14,10 +14,10 @@ namespace EpicGames.Horde.Storage.Nodes
 	{
 		class HandleMapper
 		{
-			readonly INodeReader _reader;
+			readonly IBlobReader _reader;
 			readonly List<HashedNodeRef> _refs;
 
-			public HandleMapper(INodeReader reader, List<HashedNodeRef> refs)
+			public HandleMapper(IBlobReader reader, List<HashedNodeRef> refs)
 			{
 				_reader = reader;
 				_refs = refs;
@@ -68,7 +68,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// Deserialization constructor
 		/// </summary>
 		/// <param name="reader">Reader to deserialize from</param>
-		public CbNode(INodeReader reader)
+		public CbNode(IBlobReader reader)
 		{
 			Object = new CbObject(reader.GetMemory().ToArray());
 
@@ -79,7 +79,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		}
 
 		/// <inheritdoc/>
-		public override void Serialize(INodeWriter writer)
+		public override void Serialize(IBlobWriter writer)
 		{
 			writer.WriteFixedLengthBytes(Object.GetView().Span);
 		}

@@ -29,7 +29,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// Deserialization constructor
 		/// </summary>
 		/// <param name="reader">Reader to deserialize from</param>
-		public RedirectNode(INodeReader reader) => Handle = reader.ReadBlobReference();
+		public RedirectNode(IBlobReader reader) => Handle = reader.ReadBlobReference();
 
 		/// <summary>
 		/// Gets a typed reference to the target node
@@ -42,6 +42,6 @@ namespace EpicGames.Horde.Storage.Nodes
 		public NodeRef<TTarget> ToNodeRef<TTarget>() where TTarget : Node => new NodeRef<TTarget>(Handle);
 
 		/// <inheritdoc/>
-		public override void Serialize(INodeWriter writer) => writer.WriteBlobReference(Handle);
+		public override void Serialize(IBlobWriter writer) => writer.WriteBlobReference(Handle);
 	}
 }

@@ -39,12 +39,12 @@ namespace EpicGames.Horde.Tests
 
 			public TextNode(string text) => Text = text;
 
-			public TextNode(INodeReader reader)
+			public TextNode(IBlobReader reader)
 			{
 				Text = reader.ReadString();
 			}
 
-			public override void Serialize(INodeWriter writer)
+			public override void Serialize(IBlobWriter writer)
 			{
 				writer.WriteString(Text);
 			}
@@ -133,13 +133,13 @@ namespace EpicGames.Horde.Tests
 				Refs = refs;
 			}
 
-			public SimpleNode(INodeReader reader)
+			public SimpleNode(IBlobReader reader)
 			{
 				Data = new ReadOnlySequence<byte>(reader.ReadVariableLengthBytes());
 				Refs = reader.ReadVariableLengthArray(() => reader.ReadHashedNodeRef<SimpleNode>());
 			}
 
-			public override void Serialize(INodeWriter writer)
+			public override void Serialize(IBlobWriter writer)
 			{
 				writer.WriteVariableLengthBytes(Data);
 				writer.WriteVariableLengthArray(Refs, x => writer.WriteHashedNodeRef(x));

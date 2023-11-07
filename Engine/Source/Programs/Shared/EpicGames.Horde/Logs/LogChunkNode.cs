@@ -111,13 +111,13 @@ namespace EpicGames.Horde.Logs
 		/// Deserializing constructor
 		/// </summary>
 		/// <param name="reader">Reader to pull data from</param>
-		public LogChunkNode(INodeReader reader)
+		public LogChunkNode(IBlobReader reader)
 			: this(reader.ReadVariableLengthBytes())
 		{
 		}
 
 		/// <inheritdoc/>
-		public override void Serialize(INodeWriter writer)
+		public override void Serialize(IBlobWriter writer)
 		{
 			writer.WriteVariableLengthBytes(Data.Span);
 		}
@@ -228,7 +228,7 @@ namespace EpicGames.Horde.Logs
 		/// Deserializing constructor
 		/// </summary>
 		/// <param name="reader"></param>
-		public LogChunkRef(INodeReader reader)
+		public LogChunkRef(IBlobReader reader)
 			: base(reader)
 		{
 			LineIndex = (int)reader.ReadUnsignedVarInt();
@@ -238,7 +238,7 @@ namespace EpicGames.Horde.Logs
 		}
 
 		/// <inheritdoc/>
-		public override void Serialize(INodeWriter writer)
+		public override void Serialize(IBlobWriter writer)
 		{
 			base.Serialize(writer);
 

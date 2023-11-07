@@ -187,7 +187,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// Deserialization constructor
 		/// </summary>
 		/// <param name="reader">Reader to deserialize from</param>
-		public DirectoryNode(INodeReader reader)
+		public DirectoryNode(IBlobReader reader)
 		{
 			Flags = (DirectoryFlags)reader.ReadUnsignedVarInt();
 
@@ -207,7 +207,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		}
 
 		/// <inheritdoc/>
-		public override void Serialize(INodeWriter writer)
+		public override void Serialize(IBlobWriter writer)
 		{
 			writer.WriteUnsignedVarInt((ulong)Flags);
 

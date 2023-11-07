@@ -93,7 +93,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// Deserialize from a buffer
 		/// </summary>
 		/// <param name="reader"></param>
-		public FileEntry(INodeReader reader)
+		public FileEntry(IBlobReader reader)
 			: base(reader)
 		{
 			Name = reader.ReadString();
@@ -112,7 +112,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// Serialize this entry
 		/// </summary>
 		/// <param name="writer"></param>
-		public override void Serialize(INodeWriter writer)
+		public override void Serialize(IBlobWriter writer)
 		{
 			base.Serialize(writer);
 

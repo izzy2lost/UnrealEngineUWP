@@ -2,13 +2,11 @@
 
 using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Reflection.Emit;
 using System.Threading;
 using System.Threading.Tasks;
-using EpicGames.Core;
 
 namespace EpicGames.Horde.Storage
 {
@@ -66,7 +64,7 @@ namespace EpicGames.Horde.Storage
 		/// Serialize the contents of this node
 		/// </summary>
 		/// <returns>Data for the node</returns>
-		public abstract void Serialize(INodeWriter writer);
+		public abstract void Serialize(IBlobWriter writer);
 
 		#region Static methods
 
@@ -200,7 +198,7 @@ namespace EpicGames.Horde.Storage
 			s_guidToDeserializer.TryAdd(nodeType.Guid, deserializer);
 		}
 
-		static readonly ConstructorInfo? s_nodeReaderTypeCtor = typeof(NodeReader).GetConstructor(new[] { typeof(BlobData) });
+		static readonly ConstructorInfo? s_nodeReaderTypeCtor = typeof(BlobReader).GetConstructor(new[] { typeof(BlobData) });
 
 		static Func<BlobData, Node> CreateDeserializer(Type type)
 		{
@@ -219,7 +217,7 @@ namespace EpicGames.Horde.Storage
 				return (Func<BlobData, Node>)method.CreateDelegate(typeof(Func<BlobData, Node>));
 			}
 
-			ConstructorInfo? nodeReaderCtor = type.GetConstructor(new[] { typeof(NodeReader) });
+			ConstructorInfo? nodeReaderCtor = type.GetConstructor(new[] { typeof(BlobReader) });
 			if (nodeReaderCtor != null)
 			{
 				DynamicMethod method = new DynamicMethod($"Create_{type.Name}", type, signature, true);
@@ -233,169 +231,10 @@ namespace EpicGames.Horde.Storage
 				return (Func<BlobData, Node>)method.CreateDelegate(typeof(Func<BlobData, Node>));
 			}
 
-			throw new InvalidOperationException($"Type {type.Name} does not have a constructor taking a {typeof(BlobData).Name} or {typeof(NodeReader).Name} instance as parameter.");
+			throw new InvalidOperationException($"Type {type.Name} does not have a constructor taking a {typeof(BlobData).Name} or {typeof(BlobReader).Name} instance as parameter.");
 		}
 
 		#endregion
-	}
-
-	/// <summary>
-	/// Interface for reading nodes from storage
-	/// </summary>
-	public interface INodeReader : IMemoryReader
-	{
-		/// <summary>
-		/// Type to deserialize
-		/// </summary>
-		BlobType Type { get; }
-
-		/// <summary>
-		/// Version of the current node, as specified via <see cref="NodeTypeAttribute"/>
-		/// </summary>
-		int Version { get; }
-
-		/// <summary>
-		/// Locations of all referenced nodes.
-		/// </summary>
-		IReadOnlyList<IBlobHandle> References { get; }
-
-		/// <summary>
-		/// Gets the next serialized blob handle
-		/// </summary>
-		IBlobHandle ReadBlobReference();
-	}
-
-	/// <summary>
-	/// Reader for tree nodes
-	/// </summary>
-	sealed class NodeReader : MemoryReader, INodeReader
-	{
-		/// <summary>
-		/// Type to deserialize
-		/// </summary>
-		public BlobType Type => _blobData.Type;
-
-		/// <summary>
-		/// Version of the current node, as specified via <see cref="NodeTypeAttribute"/>
-		/// </summary>
-		public int Version => Type.Version;
-
-		/// <summary>
-		/// Total length of the data in this node
-		/// </summary>
-		public int Length => _blobData.Data.Length;
-
-		/// <summary>
-		/// Amount of data remaining to be read
-		/// </summary>
-		public int RemainingLength => RemainingMemory.Length;
-
-		/// <summary>
-		/// Raw data for this blob
-		/// </summary>
-		public ReadOnlyMemory<byte> Data => _blobData.Data;
-
-		/// <summary>
-		/// Locations of all referenced nodes.
-		/// </summary>
-		public IReadOnlyList<IBlobHandle> References => _blobData.Refs;
-
-		readonly BlobData _blobData;
-		int _refIdx;
-
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		public NodeReader(BlobData blobData)
-			: base(blobData.Data)
-		{
-			_blobData = blobData;
-		}
-
-		/// <summary>
-		/// Gets the next serialized blob handle
-		/// </summary>
-		public IBlobHandle ReadBlobReference() => _blobData.Refs[_refIdx++];
-	}
-
-	/// <summary>
-	/// Interface for a writer of node objects
-	/// </summary>
-	public interface INodeWriter : IMemoryWriter
-	{
-		/// <summary>
-		/// Adds a reference to another blob. This reference is stored out of band, and will not result in any bytes written to the output.
-		/// </summary>
-		/// <param name="reference">Referenced blob</param>
-		void WriteBlobReference(IBlobHandle reference);
-	}
-
-	/// <summary>
-	/// Writer for node objects, which tracks references to other nodes
-	/// </summary>
-	sealed class NodeWriter : INodeWriter
-	{
-		readonly IStorageWriter _treeWriter;
-
-		Memory<byte> _memory;
-		readonly List<IBlobHandle> _refs = new List<IBlobHandle>();
-		int _length;
-
-		/// <summary>
-		/// List of serialized references
-		/// </summary>
-		public IReadOnlyList<IBlobHandle> References => _refs;
-
-		/// <inheritdoc/>
-		public int Length => _length;
-
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		/// <param name="treeWriter"></param>
-		public NodeWriter(IStorageWriter treeWriter)
-		{
-			_treeWriter = treeWriter;
-			_memory = treeWriter.GetOutputBuffer(0, 2 * 1024);
-		}
-
-		/// <summary>
-		/// Adds a reference to another blob. This reference is stored out of band, and will not result in any bytes written to the output.
-		/// </summary>
-		/// <param name="reference">Referenced blob</param>
-		public void WriteBlobReference(IBlobHandle reference) => _refs.Add(reference);
-
-		/// <summary>
-		/// Computes the hash of the written data
-		/// </summary>
-		public IoHash ComputeHash() => IoHash.Compute(_memory.Span.Slice(0, _length));
-
-		/// <summary>
-		/// Writes a handle to another node
-		/// </summary>
-		public void WriteHashedBlobHandle(IoHash hash, IBlobHandle target)
-		{
-			this.WriteIoHash(hash);
-			WriteBlobReference(target);
-		}
-
-		/// <inheritdoc/>
-		public Span<byte> GetSpan(int sizeHint = 0) => GetMemory(sizeHint).Span;
-
-		/// <inheritdoc/>
-		public Memory<byte> GetMemory(int sizeHint = 0)
-		{
-			int newLength = _length + Math.Max(sizeHint, 1);
-			if (newLength > _memory.Length)
-			{
-				newLength = _length + Math.Max(sizeHint, 1024);
-				_memory = _treeWriter.GetOutputBuffer(_length, Math.Max(_memory.Length * 2, newLength));
-			}
-			return _memory.Slice(_length);
-		}
-
-		/// <inheritdoc/>
-		public void Advance(int length) => _length += length;
 	}
 
 	/// <summary>

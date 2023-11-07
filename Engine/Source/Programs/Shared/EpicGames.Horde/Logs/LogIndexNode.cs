@@ -88,7 +88,7 @@ namespace EpicGames.Horde.Logs
 		/// Deserialization constructor
 		/// </summary>
 		/// <param name="reader">Reader for data</param>
-		public LogIndexNode(INodeReader reader)
+		public LogIndexNode(IBlobReader reader)
 		{
 			int version = (int)reader.ReadUnsignedVarInt();
 			if (version != CurrentVersion)
@@ -102,7 +102,7 @@ namespace EpicGames.Horde.Logs
 		}
 
 		/// <inheritdoc/>
-		public override void Serialize(INodeWriter writer)
+		public override void Serialize(IBlobWriter writer)
 		{
 			writer.WriteUnsignedVarInt(CurrentVersion);
 			writer.WriteNgramSet(_ngramSet);

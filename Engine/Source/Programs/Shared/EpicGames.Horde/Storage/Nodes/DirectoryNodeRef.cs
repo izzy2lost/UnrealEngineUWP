@@ -26,7 +26,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public DirectoryNodeRef(INodeReader reader)
+		public DirectoryNodeRef(IBlobReader reader)
 			: base(reader)
 		{
 			Length = (long)reader.ReadUnsignedVarInt();
@@ -36,7 +36,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// Serialize this directory entry to disk
 		/// </summary>
 		/// <param name="writer"></param>
-		public override void Serialize(INodeWriter writer)
+		public override void Serialize(IBlobWriter writer)
 		{
 			base.Serialize(writer);
 

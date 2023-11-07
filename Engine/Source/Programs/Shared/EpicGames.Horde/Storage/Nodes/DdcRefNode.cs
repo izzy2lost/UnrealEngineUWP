@@ -34,20 +34,20 @@ namespace Horde.Server.Ddc
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public DdcRefNode(INodeReader reader)
+		public DdcRefNode(IBlobReader reader)
 		{
 			RootHash = reader.ReadIoHash();
 			References = reader.ReadList(x => (reader.ReadIoHash(), reader.ReadBlobReference()));
 		}
 
 		/// <inheritdoc/>
-		public override void Serialize(INodeWriter writer)
+		public override void Serialize(IBlobWriter writer)
 		{
 			writer.WriteIoHash(RootHash);
 			writer.WriteList(References, x => WriteReference(writer, x.Hash, x.Handle));
 		}
 
-		static void WriteReference(INodeWriter writer, IoHash hash, IBlobHandle handle)
+		static void WriteReference(IBlobWriter writer, IoHash hash, IBlobHandle handle)
 		{
 			writer.WriteIoHash(hash);
 			writer.WriteBlobReference(handle);

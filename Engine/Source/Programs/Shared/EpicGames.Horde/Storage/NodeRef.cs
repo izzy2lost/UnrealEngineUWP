@@ -33,13 +33,13 @@ namespace EpicGames.Horde.Storage
 		/// Deserialization constructor
 		/// </summary>
 		/// <param name="reader"></param>
-		public NodeRef(INodeReader reader) => Handle = reader.ReadBlobReference();
+		public NodeRef(IBlobReader reader) => Handle = reader.ReadBlobReference();
 
 		/// <summary>
 		/// Serialize the node to the given writer
 		/// </summary>
 		/// <param name="writer"></param>
-		public virtual void Serialize(INodeWriter writer) => writer.WriteBlobReference(Handle);
+		public virtual void Serialize(IBlobWriter writer) => writer.WriteBlobReference(Handle);
 
 		/// <summary>
 		/// Resolve this reference to a concrete node
@@ -74,7 +74,7 @@ namespace EpicGames.Horde.Storage
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public NodeRef(INodeReader reader) : base(reader)
+		public NodeRef(IBlobReader reader) : base(reader)
 		{ }
 
 		/// <summary>
@@ -106,14 +106,14 @@ namespace EpicGames.Horde.Storage
 		/// Deserialization constructor
 		/// </summary>
 		/// <param name="reader"></param>
-		public HashedNodeRef(INodeReader reader) : this(reader.ReadIoHash(), reader.ReadBlobReference())
+		public HashedNodeRef(IBlobReader reader) : this(reader.ReadIoHash(), reader.ReadBlobReference())
 		{ }
 
 		/// <summary>
 		/// Serialize the node to the given writer
 		/// </summary>
 		/// <param name="writer"></param>
-		public override void Serialize(INodeWriter writer)
+		public override void Serialize(IBlobWriter writer)
 		{
 			base.Serialize(writer);
 			writer.WriteIoHash(Hash);
@@ -143,7 +143,7 @@ namespace EpicGames.Horde.Storage
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public HashedNodeRef(INodeReader reader) : base(reader)
+		public HashedNodeRef(IBlobReader reader) : base(reader)
 		{
 		}
 
@@ -168,7 +168,7 @@ namespace EpicGames.Horde.Storage
 		/// </summary>
 		/// <param name="reader">Reader to deserialize from</param>
 		/// <returns>New untyped ref</returns>
-		public static NodeRef ReadNodeRef(this INodeReader reader)
+		public static NodeRef ReadNodeRef(this IBlobReader reader)
 		{
 			return new NodeRef(reader);
 		}
@@ -179,7 +179,7 @@ namespace EpicGames.Horde.Storage
 		/// <typeparam name="T">Type of the referenced node</typeparam>
 		/// <param name="reader">Reader to deserialize from</param>
 		/// <returns>New strongly typed ref</returns>
-		public static NodeRef<T> ReadNodeRef<T>(this INodeReader reader) where T : Node
+		public static NodeRef<T> ReadNodeRef<T>(this IBlobReader reader) where T : Node
 		{
 			return new NodeRef<T>(reader);
 		}
@@ -189,7 +189,7 @@ namespace EpicGames.Horde.Storage
 		/// </summary>
 		/// <param name="reader">Reader to deserialize from</param>
 		/// <returns>New untyped ref</returns>
-		public static HashedNodeRef ReadHashedNodeRef(this INodeReader reader)
+		public static HashedNodeRef ReadHashedNodeRef(this IBlobReader reader)
 		{
 			return new HashedNodeRef(reader);
 		}
@@ -200,7 +200,7 @@ namespace EpicGames.Horde.Storage
 		/// <typeparam name="T">Type of the referenced node</typeparam>
 		/// <param name="reader">Reader to deserialize from</param>
 		/// <returns>New strongly typed ref</returns>
-		public static HashedNodeRef<T> ReadHashedNodeRef<T>(this INodeReader reader) where T : Node
+		public static HashedNodeRef<T> ReadHashedNodeRef<T>(this IBlobReader reader) where T : Node
 		{
 			return new HashedNodeRef<T>(reader);
 		}
@@ -210,7 +210,7 @@ namespace EpicGames.Horde.Storage
 		/// </summary>
 		/// <param name="reader">Reader to deserialize from</param>
 		/// <returns>New untyped ref</returns>
-		public static NodeRef? ReadOptionalNodeRef(this INodeReader reader)
+		public static NodeRef? ReadOptionalNodeRef(this IBlobReader reader)
 		{
 			if (reader.ReadBoolean())
 			{
@@ -227,7 +227,7 @@ namespace EpicGames.Horde.Storage
 		/// </summary>
 		/// <param name="reader">Reader to deserialize from</param>
 		/// <returns>New strongly typed ref</returns>
-		public static NodeRef<T>? ReadOptionalNodeRef<T>(this INodeReader reader) where T : Node
+		public static NodeRef<T>? ReadOptionalNodeRef<T>(this IBlobReader reader) where T : Node
 		{
 			if (reader.ReadBoolean())
 			{
@@ -244,7 +244,7 @@ namespace EpicGames.Horde.Storage
 		/// </summary>
 		/// <param name="writer">Writer to serialize to</param>
 		/// <param name="nodeRef">Value to write</param>
-		public static void WriteNodeRef(this INodeWriter writer, NodeRef nodeRef)
+		public static void WriteNodeRef(this IBlobWriter writer, NodeRef nodeRef)
 		{
 			nodeRef.Serialize(writer);
 		}
@@ -254,7 +254,7 @@ namespace EpicGames.Horde.Storage
 		/// </summary>
 		/// <param name="writer">Writer to serialize to</param>
 		/// <param name="nodeRef">Value to write</param>
-		public static void WriteHashedNodeRef(this INodeWriter writer, HashedNodeRef nodeRef)
+		public static void WriteHashedNodeRef(this IBlobWriter writer, HashedNodeRef nodeRef)
 		{
 			nodeRef.Serialize(writer);
 		}
@@ -264,7 +264,7 @@ namespace EpicGames.Horde.Storage
 		/// </summary>
 		/// <param name="writer">Writer to serialize to</param>
 		/// <param name="value">Value to write</param>
-		public static void WriteOptionalNodeRef(this INodeWriter writer, NodeRef? value)
+		public static void WriteOptionalNodeRef(this IBlobWriter writer, NodeRef? value)
 		{
 			if (value == null)
 			{
@@ -287,7 +287,7 @@ namespace EpicGames.Horde.Storage
 		public static async ValueTask<HashedNodeRef<TNode>> WriteHashedNodeAsync<TNode>(this IStorageWriter writer, TNode node, CancellationToken cancellationToken = default) where TNode : Node
 		{
 			// Serialize the node
-			NodeWriter nodeWriter = new NodeWriter(writer);
+			BlobWriter nodeWriter = new BlobWriter(writer);
 			node.Serialize(nodeWriter);
 			IoHash hash = nodeWriter.ComputeHash();
 

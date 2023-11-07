@@ -119,7 +119,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public ChunkedDataNodeRef(INodeReader reader)
+		public ChunkedDataNodeRef(IBlobReader reader)
 			: base(reader)
 		{
 			Type = (ChunkedDataNodeType)reader.ReadUnsignedVarInt();
@@ -128,7 +128,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public ChunkedDataNodeRef(ChunkedDataNodeType type, INodeReader reader)
+		public ChunkedDataNodeRef(ChunkedDataNodeType type, IBlobReader reader)
 			: base(reader)
 		{
 			Type = type;
@@ -144,7 +144,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		}
 
 		/// <inheritdoc/>
-		public override void Serialize(INodeWriter writer)
+		public override void Serialize(IBlobWriter writer)
 		{
 			base.Serialize(writer);
 
@@ -185,14 +185,14 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <summary>
 		/// Create a leaf node from the given serialized data
 		/// </summary>
-		public LeafChunkedDataNode(INodeReader reader)
+		public LeafChunkedDataNode(IBlobReader reader)
 		{
 			// Keep this code in sync with CopyToStreamAsync
 			Data = reader.GetMemory();
 		}
 
 		/// <inheritdoc/>
-		public override void Serialize(INodeWriter writer)
+		public override void Serialize(IBlobWriter writer)
 		{
 			writer.WriteFixedLengthBytes(Data.Span);
 		}
@@ -410,7 +410,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public InteriorChunkedDataNode(INodeReader reader)
+		public InteriorChunkedDataNode(IBlobReader reader)
 		{
 			// Keep this code in sync with CopyToStreamAsync
 			List<ChunkedDataNodeRef> children = new List<ChunkedDataNodeRef>();
@@ -429,7 +429,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		}
 
 		/// <inheritdoc/>
-		public override void Serialize(INodeWriter writer)
+		public override void Serialize(IBlobWriter writer)
 		{
 			foreach (ChunkedDataNodeRef child in Children)
 			{
@@ -534,7 +534,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		public static async Task CopyToStreamAsync(BlobData nodeData, Stream outputStream, CancellationToken cancellationToken)
 		{
-			NodeReader nodeReader = new NodeReader(nodeData);
+			BlobReader nodeReader = new BlobReader(nodeData);
 			while (nodeReader.GetMemory(0).Length > 0)
 			{
 				_ = nodeReader.ReadIoHash();

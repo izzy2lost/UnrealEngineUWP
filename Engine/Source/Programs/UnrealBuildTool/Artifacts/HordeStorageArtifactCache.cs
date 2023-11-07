@@ -47,7 +47,7 @@ namespace UnrealBuildTool.Artifacts
 		/// Construct a new artifact action from the reader
 		/// </summary>
 		/// <param name="reader">Source reader</param>
-		public HordeArtifactAction(INodeReader reader)
+		public HordeArtifactAction(IBlobReader reader)
 		{
 			ArtifactAction = reader.ReadArtifactAction();
 			OutputRefs = reader.ReadVariableLengthArray(() => new HashedNodeRef<ChunkedDataNode>(reader));
@@ -57,7 +57,7 @@ namespace UnrealBuildTool.Artifacts
 		/// Serialize the artifact action 
 		/// </summary>
 		/// <param name="writer">Destination writer</param>
-		public void Serialize(INodeWriter writer)
+		public void Serialize(IBlobWriter writer)
 		{
 			writer.WriteArtifactAction(ArtifactAction);
 			writer.WriteVariableLengthArray(OutputRefs, x => x.Serialize(writer));
@@ -104,7 +104,7 @@ namespace UnrealBuildTool.Artifacts
 		/// </summary>
 		/// <param name="reader">Source reader</param>
 		/// <returns>Created artifact action</returns>
-		public static HordeArtifactAction ReadHordeArtifactAction(this INodeReader reader)
+		public static HordeArtifactAction ReadHordeArtifactAction(this IBlobReader reader)
 		{
 			return new HordeArtifactAction(reader);
 		}
@@ -114,7 +114,7 @@ namespace UnrealBuildTool.Artifacts
 		/// </summary>
 		/// <param name="writer">Destination writer</param>
 		/// <param name="artifactAction">Artifact action to write</param>
-		public static void WriteHordeArtifactAction(this INodeWriter writer, HordeArtifactAction artifactAction)
+		public static void WriteHordeArtifactAction(this IBlobWriter writer, HordeArtifactAction artifactAction)
 		{
 			artifactAction.Serialize(writer);
 		}
@@ -143,13 +143,13 @@ namespace UnrealBuildTool.Artifacts
 		/// Construct a new artifact action collection from the source reader
 		/// </summary>
 		/// <param name="reader">Source reader</param>
-		public ArtifactActionCollectionNode(INodeReader reader)
+		public ArtifactActionCollectionNode(IBlobReader reader)
 		{
 			ArtifactActions = reader.ReadDictionary<IoHash, HordeArtifactAction>(() => reader.ReadIoHash(), () => reader.ReadHordeArtifactAction());
 		}
 
 		/// <inheritdoc/>
-		public override void Serialize(INodeWriter writer)
+		public override void Serialize(IBlobWriter writer)
 		{
 			writer.WriteDictionary<IoHash, HordeArtifactAction>(ArtifactActions, (x) => writer.WriteIoHash(x), (x) => writer.WriteHordeArtifactAction(x));
 		}

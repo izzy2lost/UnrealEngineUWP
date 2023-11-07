@@ -82,7 +82,7 @@ namespace EpicGames.Horde.Logs
 		/// Deserializing constructor
 		/// </summary>
 		/// <param name="reader">Reader to draw data from</param>
-		public LogNode(INodeReader reader)
+		public LogNode(IBlobReader reader)
 		{
 			Format = (LogFormat)reader.ReadUInt8();
 			LineCount = (int)reader.ReadUnsignedVarInt();
@@ -93,7 +93,7 @@ namespace EpicGames.Horde.Logs
 		}
 
 		/// <inheritdoc/>
-		public override void Serialize(INodeWriter writer)
+		public override void Serialize(IBlobWriter writer)
 		{
 			writer.WriteUInt8((byte)Format);
 			writer.WriteUnsignedVarInt(LineCount);

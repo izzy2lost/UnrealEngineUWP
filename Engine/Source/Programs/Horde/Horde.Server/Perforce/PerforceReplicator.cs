@@ -53,7 +53,7 @@ namespace Horde.Server.Perforce
 				Paths = new List<string>();
 			}
 
-			public SyncNode(INodeReader reader)
+			public SyncNode(IBlobReader reader)
 			{
 				Change = (int)reader.ReadUnsignedVarInt();
 				ParentChange = (int)reader.ReadUnsignedVarInt();
@@ -62,7 +62,7 @@ namespace Horde.Server.Perforce
 			}
 
 			/// <inheritdoc/>
-			public override void Serialize(INodeWriter writer)
+			public override void Serialize(IBlobWriter writer)
 			{
 				writer.WriteUnsignedVarInt(Change);
 				writer.WriteUnsignedVarInt(ParentChange);
