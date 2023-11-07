@@ -77,12 +77,12 @@ UDynamicMesh* UGeometryScriptLibrary_MeshBooleanFunctions::ApplyMeshBoolean(
 		});
 	});
 
-	// bSuccess comes back false even if we only had small errors...
-	bSuccess = (NewResultMesh.TriangleCount() > 0);
-	 
-	if (bSuccess == false)
+	// Note: ignore bSuccess, as it comes back false even if we only had small errors...
+
+	bool bFailDueToEmptyResult = (!Options.bAllowEmptyResult && NewResultMesh.TriangleCount() == 0);
+	if (bFailDueToEmptyResult)
 	{
-		UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("BooleanUnion_Failed", "BooleanUnion: Boolean operation failed"));
+		UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("BooleanUnion_Failed", "BooleanUnion: Boolean operation failed due to an empty result; enable Allow Empty Result if empty results should be accepted."));
 		return TargetMesh;
 	}
 

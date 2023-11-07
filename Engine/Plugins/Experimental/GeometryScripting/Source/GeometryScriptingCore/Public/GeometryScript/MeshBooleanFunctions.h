@@ -32,6 +32,10 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
 	float SimplifyPlanarTolerance = 0.01f;
+
+	// Whether to allow the Mesh Boolean operation to generate an empty mesh as its result
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	bool bAllowEmptyResult = false;
 };
 
 
