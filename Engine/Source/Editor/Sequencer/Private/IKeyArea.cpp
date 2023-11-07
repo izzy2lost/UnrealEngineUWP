@@ -329,6 +329,7 @@ TUniquePtr<FCurveModel> IKeyArea::CreateCurveEditorModel(TSharedRef<ISequencer> 
 			CurveModel->SetLongDisplayName(LongDisplayName);
 			CurveModel->SetIntentionName(IntentName);
 			CurveModel->SetLongIntentionName(LongIntentName);
+			CurveModel->SetChannelName(ChannelHandle.GetMetaData()->Name);
 			if (Color.IsSet())
 			{
 				CurveModel->SetColor(Color.GetValue(),false);

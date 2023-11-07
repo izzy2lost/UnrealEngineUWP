@@ -81,8 +81,7 @@ TArray<FSequencerChannelProxy> USequencerCurveEditorObject::GetChannelsWithSelec
 			{
 				if (UMovieSceneSection* Section = Cast<UMovieSceneSection>(Curve->GetOwningObject()))
 				{
-					FString IntentionName = Curve->GetLongIntentionName();
-					FName ChannelName = FName(*IntentionName);
+					FName ChannelName = Curve->GetChannelName();
 					FSequencerChannelProxy ChannelProxy(ChannelName,Section);
 					OutSelectedChannels.Add(ChannelProxy);
 
@@ -146,7 +145,7 @@ FCurveModelID USequencerCurveEditorObject::GetCurve(UMovieSceneSection* InSectio
 		const TMap<FCurveModelID, TUniquePtr<FCurveModel>>& Curves = CurveEditor->GetCurves();
 		for (const TPair <FCurveModelID, TUniquePtr<FCurveModel>>& Pair : Curves)
 		{
-			if (Pair.Value.IsValid() && Pair.Value->GetOwningObject() == InSection && Pair.Value->GetLongIntentionName() == InName)
+			if (Pair.Value.IsValid() && Pair.Value->GetOwningObject() == InSection && Pair.Value->GetChannelName() == InName)
 			{
 				return Pair.Key;
 			}
