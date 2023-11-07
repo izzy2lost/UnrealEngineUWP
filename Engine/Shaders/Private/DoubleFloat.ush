@@ -60,9 +60,10 @@ struct FDFScalar
 	FDFType operator*(FFloatType Rhs) { return DFMultiply(this, Rhs); }
 	FDFType operator/(FDFType Rhs) { return DFDivide(this, Rhs); }
 	FDFType operator/(FFloatType Rhs) { return DFDivide(this, Rhs); }*/
-	FDFType operator-() { return DFNegate(this); }
+	//Commented out until supported by HlslParser
+	/*FDFType operator-() { return DFNegate(this); }
 	FBoolType operator>(FFloatType Rhs) { return DFGreater(this, Rhs); }
-	FBoolType operator<(FFloatType Rhs) { return DFLess(this, Rhs); }
+	FBoolType operator<(FFloatType Rhs) { return DFLess(this, Rhs); }*/
 
 	FFloatType Demote() { return DFDemote(this); }
 #endif

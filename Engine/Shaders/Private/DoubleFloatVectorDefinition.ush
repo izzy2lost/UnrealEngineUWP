@@ -38,14 +38,15 @@ struct FDFType
 	FDFType Operator(FDFScalar Rhs) { return DFOperation(this, Rhs); } \
 	FDFType Operator(float Rhs) { return DFOperation(this, Rhs); }
 
-	FDFScalar operator[](int idx) { return DFGetComponent(this, idx); }
-	FDFType operator-() { return DFNegate(this); }
-	//DECLARE_VEC_VEC_OP(operator+, DFAdd)
-	//DECLARE_VEC_VEC_OP(operator-, DFSubtract)
-	//DECLARE_VEC_VEC_OP(operator*, DFMultiply)
-	//DECLARE_VEC_VEC_OP(operator/, DFDivide)
-	FBoolType operator>(FFloatType Rhs) { return DFGreater(this, Rhs); }
-	FBoolType operator<(FFloatType Rhs) { return DFLess(this, Rhs); }
+	//Commented out until supported by HlslParser
+	//FDFScalar operator[](int idx) { return DFGetComponent(this, idx); }
+	//FDFType operator-() { return DFNegate(this); }
+	////DECLARE_VEC_VEC_OP(operator+, DFAdd)
+	////DECLARE_VEC_VEC_OP(operator-, DFSubtract)
+	////DECLARE_VEC_VEC_OP(operator*, DFMultiply)
+	////DECLARE_VEC_VEC_OP(operator/, DFDivide)
+	//FBoolType operator>(FFloatType Rhs) { return DFGreater(this, Rhs); }
+	//FBoolType operator<(FFloatType Rhs) { return DFLess(this, Rhs); }
 
 	FFloatType Demote() { return DFDemote(this); }
 
