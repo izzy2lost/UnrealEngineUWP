@@ -191,14 +191,7 @@ static void CheckRayTracingGeometryInitializer(
 	const FName OwnerName = UStaticMesh::GetLODPathName(Mesh, LODIdx);
 
 	FRayTracingGeometryInitializer TmpInitializer;
-	if (Mesh->HasValidNaniteData() && Nanite::GetSupportsRayTracingProceduralPrimitive(GMaxRHIShaderPlatform))
-	{
-		FStaticMeshLODResources::SetupRayTracingProceduralGeometryInitializer(TmpInitializer, Mesh->GetFName(), OwnerName);
-	}
-	else
-	{
-		LODResource.SetupRayTracingGeometryInitializer(TmpInitializer, Mesh->GetFName(), OwnerName);
-	}
+	LODResource.SetupRayTracingGeometryInitializer(TmpInitializer, Mesh->GetFName(), OwnerName);
 
 	TmpInitializer.Type = ExpectedInitializerType;
 

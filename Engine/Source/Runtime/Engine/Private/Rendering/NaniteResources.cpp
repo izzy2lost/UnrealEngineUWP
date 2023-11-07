@@ -125,15 +125,6 @@ static FAutoConsoleVariableRef CVarNaniteRayTracingMode(
 	ECVF_RenderThreadSafe
 );
 
-#define VF_NANITE_PROCEDURAL_INTERSECTOR 1
-
-static int32 GNaniteRaytracingProceduralPrimitive = 0;
-static FAutoConsoleVariableRef CVarNaniteRaytracingProceduralPrimitive(
-	TEXT("r.RayTracing.Nanite.ProceduralPrimitive"),
-	GNaniteRaytracingProceduralPrimitive,
-	TEXT("Whether to raytrace nanite meshes using procedural primitives instead of a proxy."),
-	ECVF_RenderThreadSafe | ECVF_ReadOnly);
-
 int32 GNaniteCustomDepthEnabled = 1;
 static FAutoConsoleVariableRef CVarNaniteCustomDepthStencil(
 	TEXT("r.Nanite.CustomDepth"),
@@ -147,11 +138,6 @@ namespace Nanite
 ERayTracingMode GetRayTracingMode()
 {
 	return (ERayTracingMode)GNaniteRayTracingMode;
-}
-
-bool GetSupportsRayTracingProceduralPrimitive(EShaderPlatform InShaderPlatform)
-{
-	return GNaniteRaytracingProceduralPrimitive && VF_NANITE_PROCEDURAL_INTERSECTOR && FDataDrivenShaderPlatformInfo::GetSupportsRayTracingProceduralPrimitive(InShaderPlatform);
 }
 
 bool GetSupportsCustomDepthRendering()
@@ -1830,7 +1816,7 @@ ERayTracingPrimitiveFlags FSceneProxy::GetCachedRayTracingInstance(FRayTracingIn
 	else
 	{
 		RayTracingInstance.Geometry = &RenderData->LODResources[ValidLODIndex].RayTracingGeometry;
-		RayTracingInstance.bApplyLocalBoundsTransform = RayTracingInstance.Geometry->RayTracingGeometryRHI->GetInitializer().GeometryType == RTGT_Procedural;
+		RayTracingInstance.bApplyLocalBoundsTransform = false;
 	}
 
 	//checkf(SupportsInstanceDataBuffer() && InstanceSceneData.Num() <= GetPrimitiveSceneInfo()->GetNumInstanceSceneDataEntries(),
@@ -1839,15 +1825,7 @@ ERayTracingPrimitiveFlags FSceneProxy::GetCachedRayTracingInstance(FRayTracingIn
 	RayTracingInstance.NumTransforms = GetPrimitiveSceneInfo()->GetNumInstanceSceneDataEntries();
 	// When ERayTracingPrimitiveFlags::CacheInstances is used, instance transforms are copied from GPUScene while building ray tracing instance buffer.
 
-	if (RayTracingInstance.Geometry && RayTracingInstance.Geometry->Initializer.GeometryType == RTGT_Procedural)
-	{
-		// Currently we only support 1 material when using procedural ray tracing primitive
-		RayTracingInstance.Materials.SetNum(1);
-	}
-	else
-	{
-		RayTracingInstance.Materials.SetNum(RayTracingMaterialProxiesPerLOD[ValidLODIndex].Num());
-	}
+	RayTracingInstance.Materials.SetNum(RayTracingMaterialProxiesPerLOD[ValidLODIndex].Num());
 
 	SetupRayTracingMaterials(ValidLODIndex, RayTracingInstance.Materials, bUsingNaniteRayTracing);
 

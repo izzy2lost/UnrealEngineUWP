@@ -1376,19 +1376,12 @@ void FStaticMeshLODResources::InitResources(UStaticMesh* Parent, int32 LODIndex)
 #if RHI_RAYTRACING
 	if (IsRayTracingAllowed() && Parent && Parent->bSupportRayTracing)
 	{
-		const bool bProceduralPrimitive = Parent->HasValidNaniteData() && Nanite::GetSupportsRayTracingProceduralPrimitive(GMaxRHIShaderPlatform);
 		ENQUEUE_RENDER_COMMAND(InitStaticMeshRayTracingGeometry)(
-			[this, DebugName = Parent->GetFName(), bProceduralPrimitive, OwnerName](FRHICommandListImmediate& RHICmdList)
+			[this, DebugName = Parent->GetFName(), OwnerName](FRHICommandListImmediate& RHICmdList)
 			{
 				FRayTracingGeometryInitializer Initializer;
-				if (bProceduralPrimitive)
-				{
-					SetupRayTracingProceduralGeometryInitializer(Initializer, DebugName, OwnerName);
-				}
-				else
-				{
-					SetupRayTracingGeometryInitializer(Initializer, DebugName, OwnerName);
-				}
+				SetupRayTracingGeometryInitializer(Initializer, DebugName, OwnerName);
+
 				RayTracingGeometry.SetInitializer(Initializer);
 			}
 		);
@@ -1468,29 +1461,6 @@ void FStaticMeshLODResources::SetupRayTracingGeometryInitializer(FRayTracingGeom
 		Initializer.TotalPrimitiveCount += Section.NumTriangles;
 	}
 	Initializer.Segments = GeometrySections;
-}
-
-void FStaticMeshLODResources::SetupRayTracingProceduralGeometryInitializer(FRayTracingGeometryInitializer& Initializer, const FName& DebugName, const FName& OwnerName)
-{
-	Initializer.DebugName = DebugName;
-	Initializer.OwnerName = OwnerName;
-	Initializer.IndexBuffer = nullptr;
-	Initializer.TotalPrimitiveCount = 1; // one AABB
-	Initializer.GeometryType = RTGT_Procedural;
-	Initializer.bFastBuild = false;
-
-	FRayTracingGeometrySegment Segment;
-	Segment.bForceOpaque = false;
-	Segment.bAllowDuplicateAnyHitShaderInvocation = false;
-	Segment.FirstPrimitive = 0;
-	Segment.NumPrimitives = 1;
-	Segment.VertexBuffer = GetUnitCubeAABBVertexBuffer();
-	Segment.VertexBufferElementType = VET_Float3;
-	Segment.VertexBufferStride = sizeof(FVector3f) * 2;
-	Segment.VertexBufferOffset = 0;
-	Segment.MaxVertices = 2;
-
-	Initializer.Segments.Add(Segment);
 }
 #endif // RHI_RAYTRACING
 
