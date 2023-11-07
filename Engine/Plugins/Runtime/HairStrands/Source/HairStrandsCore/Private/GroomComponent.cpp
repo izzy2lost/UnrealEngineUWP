@@ -553,9 +553,6 @@ public:
 				}
 			}
 		}
-
-		// TODO: Rendering hair strands currently requires a deterministic ordering of calls to GetDynamicMeshElements.
-		bSupportsParallelGDME = false;
 	}
 
 	virtual ~FHairStrandsSceneProxy()
