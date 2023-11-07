@@ -41,6 +41,10 @@
 	<Property Name="GauntletEditorTestArgs" Value="-build=editor $(GauntletCommonArgs) $(ExtraGauntletEditorTestArgs)" />
 	<Property Name="GauntletCookedEditorTestArgs" Value="-cookededitor $(GauntletCommonArgs) $(ExtraGauntletEditorTestArgs)" />
 
+	<!-- Arguments for handling devices when using device reservation block -->
+	<Property Name="GauntletPreInstallArgs" Value="-fullclean"/>
+	<Property Name="GauntletTestSkipInstallArgs" Value="-skipinstall"/>
+
     <!-- this is fully generated dynamiclly when needed, it's simply here so it can be used without worrying if its set -->
     <Property Name="GauntletReportArgs" Value="" />
 

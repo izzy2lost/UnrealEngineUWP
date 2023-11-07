@@ -41,6 +41,7 @@
 	<!-- Where builds are saved to locally -->
 	<Property Name="ProjectOutputDirectory" Value="$(ProjectPath)/Saved/StagedBuilds"/>
 	<Property Name="ShaderSymbolsDirectory" Value="$(ProjectPath)/Saved/ShaderSymbols"/>
+	<Property Name="LocalInstallDirectory" Value="$(ProjectPath)/Saved/LocalInstall"/>
 	<Property Name="AutomationReportOutputDirectory" Value=""/>
 
 	<!-- Scratch network path that can be used for tests if we aren't publishing. Assumes there's a cleanup script.. -->
