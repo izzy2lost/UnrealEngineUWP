@@ -122,8 +122,9 @@ STB_PP_DEF void preprocessor_file_free(char* text, pp_diagnostic* pd);
 // DEFINE_NAME DEFINE_VALUE
 STB_PP_DEF struct macro_definition* pp_define(struct stb_arena* a, const char* def);
 
-// specifies a custom macro name, with substitution to be handled by the custom macro callback functions
-STB_PP_DEF struct macro_definition* pp_define_custom_macro(struct stb_arena* a, const char* identifier);
+// specifies a custom macro name, with substitution to be handled by the custom macro callback functions.  If "preprocess_args_first" is set,
+// args of macro are preprocessed before begin callback (and again afterwards).
+STB_PP_DEF struct macro_definition* pp_define_custom_macro(struct stb_arena* a, const char* identifier, unsigned char preprocess_args_first);
 
 // override behaviour of a particular error result (can be used to, for instance, downgrade
 // an error to a warning or a "no warning" i.e. valid case).

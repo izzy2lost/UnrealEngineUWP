@@ -99,6 +99,7 @@ struct macro_definition
 	uint8 predefined;
 	uint8 is_variadic;	// if true, then __VA_ARGS__ will be specified using 'num_arguments' as argument_index
 	uint8 disabled;
+	uint8 preprocess_args_first;	// only applies to custom macros
 	struct macro_definition* next;	// push/pop stack
 };
 
@@ -3214,11 +3215,38 @@ static void maybe_expand_macro(parse_state* cs, struct macro_definition* pending
 				// Null terminate
 				arrput(custom_macro_buffer, 0);
 
+				// Optionally preprocess the macro args before calling the custom macro callback.  Need to disable the macro first.
+				md->disabled = 1;
+
+				if (md->preprocess_args_first)
+				{
+					parse_state ncs = *cs;
+					ncs.parent = cs;
+					ncs.src = custom_macro_buffer;
+					ncs.src_offset = 0;
+					ncs.src_length = arrlennonull(custom_macro_buffer) - 1;
+					ncs.dest = 0											;		// Create new dest string
+					preprocess_string(&ncs, IN_MACRO_yes, md->symbol_name, NULL);
+
+					// Replace custom_macro_buffer with new dest string
+					arrfree(custom_macro_buffer);
+					custom_macro_buffer = ncs.dest;
+					
+					if (!custom_macro_buffer)
+					{
+						md->disabled = 0;
+						do_error(cs, "Preprocessing args for custom macro handler '%s' failed", md->symbol_name);
+						return;
+					}
+					arrput(custom_macro_buffer, 0);
+				}
+
 				// Send the custom macro text to the callback, preprocess it, then signal the end of the custom macro
 				const char* substitution_text = custommacro_begin(custom_macro_buffer, c->custom_context);
 
 				if (substitution_text == 0)
 				{
+					md->disabled = 0;
 					arrfree(custom_macro_buffer);
 					do_error(cs, "Custom macro handler for '%s' failed", md->symbol_name);
 					return;
@@ -3229,7 +3257,6 @@ static void maybe_expand_macro(parse_state* cs, struct macro_definition* pending
 				ncs.src = substitution_text;
 				ncs.src_offset = 0;
 				ncs.src_length = strlen(substitution_text);
-				md->disabled = 1;
 				preprocess_string(&ncs, IN_MACRO_yes, md->symbol_name, NULL);
 				md->disabled = 0;
 				cs->dest = ncs.dest;
@@ -4880,7 +4907,7 @@ static void define_macro(pphash* map, struct macro_definition* m)
 	stringhash_put(map, m->symbol_name, m->symbol_name_length, m);
 }
 
-struct macro_definition* pp_define_custom_macro(struct stb_arena* a, const char* identifier)
+struct macro_definition* pp_define_custom_macro(struct stb_arena* a, const char* identifier, unsigned char preprocess_args_first)
 {
 	struct macro_definition* md = (struct macro_definition*)stb_arena_alloc(a, sizeof(*md));
 
@@ -4891,6 +4918,7 @@ struct macro_definition* pp_define_custom_macro(struct stb_arena* a, const char*
 	md->simple_expansion_length = 0;
 	md->num_parameters = MACRO_NUM_PARAMETERS_custom;
 	md->predefined = 1;
+	md->preprocess_args_first = preprocess_args_first;
 
 	return md;
 }
