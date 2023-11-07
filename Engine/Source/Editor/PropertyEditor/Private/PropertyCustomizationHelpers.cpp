@@ -142,11 +142,15 @@ namespace PropertyCustomizationHelpers
 			.IsFocusable( false );
 	}
 
-	TSharedRef<SWidget> MakeUseSelectedButton( FSimpleDelegate OnUseSelectedClicked, TAttribute<FText> OptionalToolTipText, TAttribute<bool> IsEnabled )
+	TSharedRef<SWidget> MakeUseSelectedButton( FSimpleDelegate OnUseSelectedClicked, TAttribute<FText> OptionalToolTipText, TAttribute<bool> IsEnabled, const bool IsActor )
 	{
 		return
 			SNew( SPropertyEditorButton )
-			.Text( OptionalToolTipText.Get().IsEmpty() ? LOCTEXT( "UseButtonToolTipText", "Use Selected Asset from Content Browser") : OptionalToolTipText )
+			.Text(
+				!OptionalToolTipText.Get().IsEmpty() ? OptionalToolTipText
+				: IsActor ? LOCTEXT( "UseActorButtonToolTipText", "Use Selected Actor from the Level Editor")
+				: LOCTEXT( "UseButtonToolTipText", "Use Selected Asset from Content Browser")
+			)
 			.Image( FAppStyle::GetBrush("Icons.Use") )
 			.OnClickAction( OnUseSelectedClicked )
 			.IsEnabled(IsEnabled)

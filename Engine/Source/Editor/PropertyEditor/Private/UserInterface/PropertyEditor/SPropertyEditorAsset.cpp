@@ -665,14 +665,14 @@ void SPropertyEditorAsset::Construct(const FArguments& InArgs, const TSharedPtr<
 		];
 	}
 
-	if( !bIsActor && InArgs._DisplayUseSelected )
+	if( InArgs._DisplayUseSelected )
 	{
 		ButtonBox->AddSlot()
 		.VAlign(VAlign_Center)
 		.AutoWidth()
 		.Padding( 2.0f, 0.0f )
 		[
-			PropertyCustomizationHelpers::MakeUseSelectedButton( FSimpleDelegate::CreateSP( this, &SPropertyEditorAsset::OnUse ), FText(), IsEnabledAttribute )
+			PropertyCustomizationHelpers::MakeUseSelectedButton( FSimpleDelegate::CreateSP( this, &SPropertyEditorAsset::OnUse ), FText(), IsEnabledAttribute, bIsActor )
 		];
 	}
 
@@ -1372,6 +1372,7 @@ void SPropertyEditorAsset::OnUse()
 	// Use the property editor path if it is valid and there is no custom filtering required
 	if(PropertyEditor.IsValid()
 		&& !OnShouldFilterAsset.IsBound()
+		&& !OnShouldFilterActor.IsBound()
 		&& AllowedClassFilters.Num() == 0
 		&& DisallowedClassFilters.Num() == 0
 		&& (GEditor ? !GEditor->MakeAssetReferenceFilter(FAssetReferenceFilterContext()).IsValid() : true))
@@ -1388,6 +1389,12 @@ void SPropertyEditorAsset::OnUse()
 		if( ObjectClass && ObjectClass->IsChildOf( AActor::StaticClass() ) )
 		{
 			Selection = GEditor->GetSelectedActors()->GetTop( ObjectClass );
+
+			// For actors filtered means allowed, unlike for assets (where filtered means NOT allowed)
+			if (!IsFilteredActor(static_cast<const AActor*>(Selection)))
+			{
+				Selection = nullptr;
+			}
 		}
 		else if( ObjectClass )
 		{
