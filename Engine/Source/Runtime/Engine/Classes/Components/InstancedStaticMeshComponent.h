@@ -574,6 +574,11 @@ public:
 	 */
 	ENGINE_API void SetBakedLightingDataChanged(int32 InInstanceIndex);
 
+	/**
+	 * Mark the "shadowmap" or lightmap uv as modified for all the instances since this is stored in external data.
+	 */
+	ENGINE_API void SetBakedLightingDataChangedAll();
+
 	/** 
 	 * Clears all the updated instance tracking data AND instance ID association, also forcing a full update of the instance data the next time it is flushed.	 
 	 * NOTE: Destroying the instance updated tracking means the renderer has to treat the instances as completely new, preventing e.g., velocity tracking and caching from working reliably.

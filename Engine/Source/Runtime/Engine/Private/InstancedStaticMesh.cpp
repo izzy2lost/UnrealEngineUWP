@@ -4411,6 +4411,11 @@ void UInstancedStaticMeshComponent::SetBakedLightingDataChanged(int32 InInstance
 	PrimitiveInstanceDataManager.BakedLightingDataChanged(InInstanceIndex);
 }
 
+void UInstancedStaticMeshComponent::SetBakedLightingDataChangedAll()
+{
+	PrimitiveInstanceDataManager.BakedLightingDataChangedAll();
+}
+
 void UInstancedStaticMeshComponent::InvalidateInstanceDataTracking()
 {
 	PrimitiveInstanceDataManager.Invalidate(GetNumInstances());

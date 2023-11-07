@@ -1025,6 +1025,8 @@ void FScene::AddGeometryInstanceFromComponent(UInstancedStaticMeshComponent* InC
 	InstanceRenderState.LocalBounds = InComponent->CalcBounds(FTransform::Identity);
 	InstanceRenderState.bCastShadow = InComponent->CastShadow && InComponent->bCastStaticShadow;
 
+	InstanceRenderState.ComponentUObject->SetBakedLightingDataChangedAll();
+
 	for (int32 LODIndex = 0; LODIndex < Instance->LODLightmaps.Num(); LODIndex++)
 	{
 		InstanceRenderState.LODPerInstanceLightmapSize.Add(Instance->LODPerInstanceLightmapSize[LODIndex]);
@@ -1119,6 +1121,8 @@ void FScene::RemoveGeometryInstanceFromComponent(UInstancedStaticMeshComponent* 
 	{
 		HISMC->BuildTreeIfOutdated(false, true);
 	}
+
+	InComponent->SetBakedLightingDataChangedAll();
 
 	ENQUEUE_RENDER_COMMAND(RenderThreadRemove)(
 		[ElementId, &RenderState = RenderState](FRHICommandListImmediate&) mutable
