@@ -65,6 +65,15 @@ void UCustomizableObjectNodeObject::BackwardsCompatibleFixup()
 		// It is safe to do this here as Node Object do not use its node guid to link themeselves to other nodes.
 		CreateNewGuid();
 	}
+
+	// Update state never-stream flag from deprecated enum
+	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::CustomizableObjectStateHasSeparateNeverStreamFlag)
+	{
+		for (FCustomizableObjectState& s : States)
+		{
+			s.bDisableTextureStreaming = s.TextureCompressionStrategy != ETextureCompressionStrategy::None;
+		}
+	}
 }
 
 
@@ -300,6 +309,7 @@ void UCustomizableObjectNodeObject::PostDuplicate(bool bDuplicateForPIE)
 
 	Identifier = FGuid::NewGuid();
 }
+
 
 void UCustomizableObjectNodeObject::SetParentObject(UCustomizableObject* CustomizableParentObject)
 {

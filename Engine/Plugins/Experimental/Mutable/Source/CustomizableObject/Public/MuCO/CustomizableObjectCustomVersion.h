@@ -106,6 +106,8 @@ struct CUSTOMIZABLEOBJECT_API FCustomizableObjectCustomVersion
 
 		CustomizableObjectStateHasSeparateNeverStreamFlag,
 
+		CustomizableObjectNodeHasSeparateNeverStreamFlag,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1
