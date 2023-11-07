@@ -31,7 +31,12 @@ FDetailItemNode::FDetailItemNode(const FDetailLayoutCustomization& InCustomizati
 
 void FDetailItemNode::Initialize()
 {
-	if( ( Customization.HasCustomWidget() && Customization.WidgetDecl->VisibilityAttr.IsBound() )
+	bool bHasCustomPropertyRowWidget = Customization.PropertyRow 
+			                            && ( Customization.PropertyRow->CustomNameWidget()
+			                                || Customization.PropertyRow->CustomValueWidget());
+	
+	if( bHasCustomPropertyRowWidget
+	    || ( Customization.HasCustomWidget() && Customization.WidgetDecl->VisibilityAttr.IsBound() )
 		|| ( Customization.HasCustomBuilder() && Customization.CustomBuilderRow->RequiresTick() )
 		|| ( Customization.HasPropertyNode() && Customization.PropertyRow->RequiresTick() )
 		|| ( Customization.HasGroup() && Customization.DetailGroup->RequiresTick() ) )

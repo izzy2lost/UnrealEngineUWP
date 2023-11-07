@@ -640,6 +640,10 @@ EVisibility FDetailPropertyRow::GetPropertyVisibility() const
 	{
 		return EVisibility::Collapsed;
 	}
+	else if (CustomPropertyWidget.IsValid() && CustomPropertyWidget->VisibilityAttr.IsBound())
+	{
+		return CustomPropertyWidget->VisibilityAttr.Get();
+	}
 
 	return PropertyVisibility.Get();
 }
