@@ -14,6 +14,7 @@
 #include "IAnimationBlueprintEditor.h"
 #include "Animation/AnimBlueprint.h"
 #include "Subsystems/AssetEditorSubsystem.h"
+#include "ObjectTrace.h"
 #endif
 
 #define LOCTEXT_NAMESPACE "InertializationsTrack"
@@ -219,6 +220,11 @@ bool FInertializationTrack::HandleDoubleClickInternal()
 						if (UAnimBlueprint* AnimBlueprint = Cast<UAnimBlueprint>(InstanceClass.Get()->ClassGeneratedBy))
 						{
 							GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->OpenEditorForAsset(AnimBlueprint);
+
+							if (UObject* SelectedInstance = FObjectTrace::GetObjectFromId(ObjectId))
+							{
+								AnimBlueprint->SetObjectBeingDebugged(SelectedInstance);
+							}
 
 							if (IAnimationBlueprintEditor* AnimBlueprintEditor = static_cast<IAnimationBlueprintEditor*>(GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->FindEditorForAsset(AnimBlueprint, true)))
 							{
