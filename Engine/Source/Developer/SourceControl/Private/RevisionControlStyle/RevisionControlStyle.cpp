@@ -2,6 +2,8 @@
 
 #include "RevisionControlStyle/RevisionControlStyle.h"
 
+#if SOURCE_CONTROL_WITH_SLATE
+
 #include "Styling/SlateStyleRegistry.h"
 #include "Styling/SlateStyleMacros.h"
 #include "Styling/CoreStyle.h"
@@ -140,3 +142,5 @@ const FName& FDefaultRevisionControlStyle::GetStyleSetName() const
 {
 	return StyleName;
 }
+
+#endif //SOURCE_CONTROL_WITH_SLATE

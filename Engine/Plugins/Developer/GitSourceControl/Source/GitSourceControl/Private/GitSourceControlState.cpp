@@ -69,6 +69,8 @@ ISourceControlState::FResolveInfo FGitSourceControlState::GetResolveInfo() const
 	return PendingResolveInfo;
 }
 
+#if SOURCE_CONTROL_WITH_SLATE
+
 FSlateIcon FGitSourceControlState::GetIcon() const
 {
 	switch (WorkingCopyState)
@@ -96,6 +98,8 @@ FSlateIcon FGitSourceControlState::GetIcon() const
 
 	return FSlateIcon();
 }
+
+#endif //SOURCE_CONTROL_WITH_SLATE
 
 
 FText FGitSourceControlState::GetDisplayName() const

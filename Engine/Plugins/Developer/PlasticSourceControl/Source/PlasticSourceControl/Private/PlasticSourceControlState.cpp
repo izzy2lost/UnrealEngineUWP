@@ -88,6 +88,7 @@ ISourceControlState::FResolveInfo FPlasticSourceControlState::GetResolveInfo() c
 	return PendingResolveInfo;
 }
 
+#if SOURCE_CONTROL_WITH_SLATE
 FSlateIcon FPlasticSourceControlState::GetIcon() const
 {
 	if (!IsCurrent())
@@ -134,6 +135,7 @@ FSlateIcon FPlasticSourceControlState::GetIcon() const
 		return FSlateIcon();
 	}
 }
+#endif //SOURCE_CONTROL_WITH_SLATE
 
 FText FPlasticSourceControlState::GetDisplayName() const
 {

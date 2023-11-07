@@ -1,25 +1,26 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ScopedSourceControlProgress.h"
-#include "Misc/App.h"
-#include "ISourceControlProvider.h"
+
 #if SOURCE_CONTROL_WITH_SLATE
-#include "Layout/Visibility.h"
-#include "Widgets/DeclarativeSyntaxSupport.h"
-#include "Input/Reply.h"
-#include "Widgets/Images/SThrobber.h"
-#include "Widgets/SBoxPanel.h"
-#include "Widgets/SWindow.h"
-#include "Widgets/Layout/SBorder.h"
-#include "Widgets/Input/SButton.h"
-#include "Widgets/Layout/SBox.h"
-#include "Widgets/Layout/SUniformGridPanel.h"
-#include "Widgets/Text/STextBlock.h"
-#include "Widgets/Images/SImage.h"
-#include "Framework/Docking/TabManager.h"
 #include "Framework/Application/SlateApplication.h"
+#include "Framework/Docking/TabManager.h"
+#include "ISourceControlProvider.h"
+#include "Input/Reply.h"
+#include "Layout/Visibility.h"
+#include "Misc/App.h"
 #include "RHI.h"
 #include "RenderingThread.h"
+#include "Widgets/DeclarativeSyntaxSupport.h"
+#include "Widgets/Images/SImage.h"
+#include "Widgets/Images/SThrobber.h"
+#include "Widgets/Input/SButton.h"
+#include "Widgets/Layout/SBorder.h"
+#include "Widgets/Layout/SBox.h"
+#include "Widgets/Layout/SUniformGridPanel.h"
+#include "Widgets/SBoxPanel.h"
+#include "Widgets/SWindow.h"
+#include "Widgets/Text/STextBlock.h"
 
 #define LOCTEXT_NAMESPACE "SourceControlProgress"
 
@@ -188,8 +189,11 @@ private:
 	FSimpleDelegate OnCancelled;
 };
 
+#endif // SOURCE_CONTROL_WITH_SLATE
+
 FScopedSourceControlProgress::FScopedSourceControlProgress(const FText& InText, const FSimpleDelegate& InOnCancelled)
 {
+#if SOURCE_CONTROL_WITH_SLATE
 	if(!(FApp::IsUnattended() || IsRunningCommandlet()) && !InText.IsEmpty())
 	{
 		TSharedRef<SWindow> Window = SNew(SWindow)
@@ -214,18 +218,22 @@ FScopedSourceControlProgress::FScopedSourceControlProgress(const FText& InText, 
 	
 		Tick();
 	}
+#endif //SOURCE_CONTROL_WITH_SLATE
 }
 
 FScopedSourceControlProgress::~FScopedSourceControlProgress()
 {
+#if SOURCE_CONTROL_WITH_SLATE
 	if(WindowPtr.IsValid())
 	{
 		WindowPtr.Pin()->RequestDestroyWindow();
 	}
+#endif
 }
 
 void FScopedSourceControlProgress::Tick()
 {
+#if SOURCE_CONTROL_WITH_SLATE
 	if (!(FApp::IsUnattended() || IsRunningCommandlet()) && WindowPtr.IsValid() && FSlateApplication::Get().CanDisplayWindows())
 	{
 		// Mark begin frame
@@ -246,8 +254,7 @@ void FScopedSourceControlProgress::Tick()
 		// Sync the game thread and the render thread. This is needed if many StatusUpdate are called.
 		FSlateApplication::Get().GetRenderer()->Sync();
 	}
+#endif
 }
-
-#endif // SOURCE_CONTROL_WITH_SLATE
 
 #undef LOCTEXT_NAMESPACE

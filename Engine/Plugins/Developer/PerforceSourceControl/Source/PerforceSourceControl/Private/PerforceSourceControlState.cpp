@@ -98,6 +98,7 @@ ISourceControlState::FResolveInfo FPerforceSourceControlState::GetResolveInfo() 
 	return PendingResolveInfo;
 }
 
+#if SOURCE_CONTROL_WITH_SLATE
 FSlateIcon FPerforceSourceControlState::GetIcon() const
 {
 	if (IsConflicted())
@@ -120,7 +121,6 @@ FSlateIcon FPerforceSourceControlState::GetIcon() const
 			return FSlateIcon(FRevisionControlStyleManager::GetStyleSetName(), "RevisionControl.ModifiedOtherBranch", NAME_None, "RevisionControl.ModifiedBadge");
 		}
 	}
-
 
 	switch (State)
 	{
@@ -145,7 +145,7 @@ FSlateIcon FPerforceSourceControlState::GetIcon() const
 		return FSlateIcon(FRevisionControlStyleManager::GetStyleSetName(), "RevisionControl.Branched");
 	}
 }
-
+#endif //SOURCE_CONTROL_WITH_SLATE
 
 FText FPerforceSourceControlState::GetDisplayName() const
 {
