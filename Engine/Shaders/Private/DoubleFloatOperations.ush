@@ -136,6 +136,7 @@ FFloatType DFAddDemote(FDFType Lhs, FFloatType Rhs)
 }
 
 FFloatType DFAddDemote(FFloatType Lhs, FDFType Rhs) { return DFAddDemote(Rhs, Lhs); }
+FFloatType DFAddDemote(FFloatType Lhs, FFloatType Rhs) { return Lhs + Rhs; }
 
 FDFType DFFastAdd(FDFType Lhs, FDFType Rhs)
 {
@@ -176,6 +177,7 @@ FFloatType DFFastAddDemote(FDFType Lhs, FDFType Rhs)
 
 FFloatType DFFastAddDemote(FDFType Lhs, FFloatType Rhs) { return DFAddDemote(Lhs, Rhs); }
 FFloatType DFFastAddDemote(FFloatType Lhs, FDFType Rhs) { return DFFastAddDemote(Rhs, Lhs); }
+FFloatType DFFastAddDemote(FFloatType Lhs, FFloatType Rhs) { return Rhs + Lhs; }
 
 /*****************/
 /** SUBTRACTION **/
@@ -186,14 +188,17 @@ FDFType DFSubtract(FDFType Lhs, FDFType Rhs) { return DFAdd(Lhs, DFNegate(Rhs));
 FDFType DFSubtract(FDFType Lhs, FFloatType Rhs) { return DFAdd(Lhs, -Rhs); }
 FDFType DFSubtract(FFloatType Lhs, FDFType Rhs) { return DFAdd(Lhs, DFNegate(Rhs)); }
 
+FFloatType DFSubtractDemote(FFloatType Lhs, FFloatType Rhs) { return Lhs - Rhs; }
 FFloatType DFSubtractDemote(FDFType Lhs, FDFType Rhs) { return DFAddDemote(Lhs, DFNegate(Rhs)); }
 FFloatType DFSubtractDemote(FDFType Lhs, FFloatType Rhs) { return DFAddDemote(Lhs, -Rhs); }
 FFloatType DFSubtractDemote(FFloatType Lhs, FDFType Rhs) { return DFAddDemote(Lhs, DFNegate(Rhs)); }
 
+FDFType DFFastSubtract(FFloatType Lhs, FFloatType Rhs) { return DFFastAdd(Lhs, -Rhs); }
 FDFType DFFastSubtract(FDFType Lhs, FDFType Rhs) { return DFFastAdd(Lhs, DFNegate(Rhs)); }
 FDFType DFFastSubtract(FDFType Lhs, FFloatType Rhs) { return DFFastAdd(Lhs, -Rhs); }
 FDFType DFFastSubtract(FFloatType Lhs, FDFType Rhs) { return DFFastAdd(Lhs, DFNegate(Rhs)); }
 
+FFloatType DFFastSubtractDemote(FFloatType Lhs, FFloatType Rhs) { return Lhs - Rhs; }
 FFloatType DFFastSubtractDemote(FDFType Lhs, FDFType Rhs) { return DFFastAddDemote(Lhs, DFNegate(Rhs)); }
 FFloatType DFFastSubtractDemote(FDFType Lhs, FFloatType Rhs) { return DFFastAddDemote(Lhs, -Rhs); }
 FFloatType DFFastSubtractDemote(FFloatType Lhs, FDFType Rhs) { return DFFastAddDemote(Lhs, DFNegate(Rhs)); }
@@ -309,6 +314,7 @@ FFloatType DFMultiplyDemote(FDFType Lhs, FFloatType Rhs)
 }
 
 FFloatType DFMultiplyDemote(FFloatType Lhs, FDFType Rhs) { return DFMultiplyDemote(Rhs, Lhs); }
+FFloatType DFMultiplyDemote(FFloatType Lhs, FFloatType Rhs) { return Lhs * Rhs; }
 
 // Fast multiplication that assumes the factor is a power of two.
 // If this assumption is valid, no precision is lost.
@@ -415,6 +421,7 @@ FDFType DFFastDivide(FDFType Lhs, FFloatType Rhs)
 }
 
 FDFType DFFastDivide(FFloatType Lhs, FDFType Rhs) { return DFFastDivide(DFPromote(Lhs), Rhs); }
+FDFType DFFastDivide(FFloatType Lhs, FFloatType Rhs) { return DFFastDivide(DFPromote(Lhs), Rhs); }
 
 FFloatType DFFastDivideDemote(FDFType Lhs, FDFType Rhs)
 {
@@ -451,6 +458,7 @@ FFloatType DFFastDivideDemote(FDFType Lhs, FFloatType Rhs)
 }
 
 FFloatType DFFastDivideDemote(FFloatType Lhs, FDFType Rhs) { return DFFastDivideDemote(DFPromote(Lhs), Rhs); }
+FFloatType DFFastDivideDemote(FFloatType Lhs, FFloatType Rhs) { return Lhs / Rhs; }
 
 // Fast division that assumes the divisor is a power of two.
 // If this assumption is valid, no precision is lost.

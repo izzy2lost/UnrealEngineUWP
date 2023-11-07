@@ -10,7 +10,7 @@
 
 struct FDFType;
 FDFType DFBroadcastFunc(FDFScalar V);
-FDFType DFBroadcastFunc(float V);
+FFloatType DFBroadcastFunc(float V);
 FDFScalar DFGetComponent(FDFType V, int C);
 FDFType DFNegate(FDFType In);
 DECLARE_VEC_VEC_OP(DFAdd);
@@ -66,23 +66,36 @@ FDFType DFBroadcastFunc(FDFScalar V)
 	return DFConstructor(High, Low);
 }
 
-FDFType DFBroadcastFunc(float V)
+FFloatType DFBroadcastFunc(float V)
 {
-	const FFloatType High = V;
-	return DFPromote(High);
+	const FFloatType Single = V;
+	return Single;
 }
 
-#define DEFINE_BROADCASTED_OP(DFOperation) \
-FDFType DFOperation(FDFType Lhs, FDFScalar Rhs) { return DFOperation(Lhs, DFBroadcastFunc(Rhs)); } \
-FDFType DFOperation(FDFType Lhs, float Rhs)     { return DFOperation(Lhs, DFBroadcastFunc(Rhs)); }
+#define DEFINE_BROADCASTED_OP(FReturnType, DFOperation) \
+	FReturnType DFOperation(FDFScalar Lhs, FDFType Rhs) { return DFOperation(DFBroadcastFunc(Lhs), Rhs); } \
+	FReturnType DFOperation(float Lhs, FDFType Rhs) { return DFOperation(DFBroadcastFunc(Lhs), Rhs); } \
+	FReturnType DFOperation(FDFScalar Lhs, FFloatType Rhs) { return DFOperation(DFBroadcastFunc(Lhs), Rhs); } \
+	FReturnType DFOperation(float Lhs, FFloatType Rhs) { return DFOperation(DFBroadcastFunc(Lhs), Rhs); } \
+	FReturnType DFOperation(FDFType Lhs, FDFScalar Rhs) { return DFOperation(Lhs, DFBroadcastFunc(Rhs)); } \
+	FReturnType DFOperation(FDFType Lhs, float Rhs)     { return DFOperation(Lhs, DFBroadcastFunc(Rhs)); } \
+	FReturnType DFOperation(FFloatType Lhs, FDFScalar Rhs) { return DFOperation(Lhs, DFBroadcastFunc(Rhs)); } \
+	FReturnType DFOperation(FFloatType Lhs, float Rhs) { return DFOperation(Lhs, DFBroadcastFunc(Rhs)); }
 
-DEFINE_BROADCASTED_OP(DFAdd)
-DEFINE_BROADCASTED_OP(DFFastAdd)
-DEFINE_BROADCASTED_OP(DFSubtract)
-DEFINE_BROADCASTED_OP(DFFastSubtract)
-DEFINE_BROADCASTED_OP(DFMultiply)
-DEFINE_BROADCASTED_OP(DFDivide)
-DEFINE_BROADCASTED_OP(DFFastDivide)
+DEFINE_BROADCASTED_OP(FDFType	, DFAdd)
+DEFINE_BROADCASTED_OP(FFloatType, DFAddDemote)
+DEFINE_BROADCASTED_OP(FDFType	, DFFastAdd)
+DEFINE_BROADCASTED_OP(FFloatType, DFFastAddDemote)
+DEFINE_BROADCASTED_OP(FDFType	, DFSubtract)
+DEFINE_BROADCASTED_OP(FFloatType, DFSubtractDemote)
+DEFINE_BROADCASTED_OP(FDFType	, DFFastSubtract)
+DEFINE_BROADCASTED_OP(FFloatType, DFFastSubtractDemote)
+DEFINE_BROADCASTED_OP(FDFType	, DFMultiply)
+DEFINE_BROADCASTED_OP(FFloatType, DFMultiplyDemote)
+DEFINE_BROADCASTED_OP(FDFType	, DFDivide)
+DEFINE_BROADCASTED_OP(FDFType	, DFFastDivide)
+DEFINE_BROADCASTED_OP(FFloatType, DFFastDivideDemote)
+
 
 #undef DEFINE_BROADCASTED_OP
 
