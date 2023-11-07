@@ -3453,6 +3453,21 @@ void FHLSLMaterialTranslator::AddLWCFuncUsage(ELWCFunctionKind Kind, const uint3
 	MaterialCompilationOutput.EstimatedLWCFuncUsages[(int)Kind] += Count;
 }
 
+FString FHLSLMaterialTranslator::GetWorldPositionOrDefault(int32 WorldPosition, EPositionOrigin PositionOrigin)
+{
+	FString WorldPosCode;
+	if (PositionOrigin == EPositionOrigin::Absolute)
+	{
+		WorldPosCode = WorldPosition == INDEX_NONE ? FString(TEXT("Parameters.AbsoluteWorldPosition")) : CoerceParameter(WorldPosition, MCT_LWCVector3);
+	}
+	else if (PositionOrigin == EPositionOrigin::CameraRelative)
+	{
+		WorldPosCode = WorldPosition == INDEX_NONE ? FString(TEXT("GetTranslatedWorldPosition(Parameters)")) : CoerceParameter(WorldPosition, MCT_Float3);
+	}
+	else { check(0); }
+	return WorldPosCode;
+}
+
 /** Creates a unique symbol name and adds it to the symbol list. */
 FString FHLSLMaterialTranslator::CreateSymbolName(const TCHAR* SymbolNameHint)
 {
@@ -7798,7 +7813,7 @@ int32 FHLSLMaterialTranslator::VirtualTextureUniform(FName ParameterName, int32 
 	return AddUniformExpression(new FMaterialUniformExpressionRuntimeVirtualTextureUniform(ParameterInfo, TextureIndex, VectorIndex), GetMaterialValueType(Type), TEXT(""));
 }
 
-int32 FHLSLMaterialTranslator::VirtualTextureWorldToUV(int32 WorldPositionIndex, int32 P0, int32 P1, int32 P2)
+int32 FHLSLMaterialTranslator::VirtualTextureWorldToUV(int32 WorldPositionIndex, int32 P0, int32 P1, int32 P2, EPositionOrigin PositionOrigin)
 {
 	if (!UseVirtualTexturing(Platform) || WorldPositionIndex == INDEX_NONE || P0 == INDEX_NONE || P1 == INDEX_NONE || P2 == INDEX_NONE)
 	{
@@ -7807,12 +7822,19 @@ int32 FHLSLMaterialTranslator::VirtualTextureWorldToUV(int32 WorldPositionIndex,
 
 	const EDerivativeStatus WorldPositionDerivStatus = GetDerivativeStatus(WorldPositionIndex);
 
-	FString CodeFinite = FString::Printf(TEXT("VirtualTextureWorldToUV(%s, %s, %s, %s)"), *CoerceParameter(WorldPositionIndex, MCT_LWCVector3), *GetParameterCode(P0), *GetParameterCode(P1), *GetParameterCode(P2));
+	EMaterialValueType WorldPositionType = (EMaterialValueType)0;
+	switch (PositionOrigin)
+	{
+	case EPositionOrigin::Absolute: { WorldPositionType = MCT_LWCVector3; break; }
+	case EPositionOrigin::CameraRelative: { WorldPositionType = MCT_Float3; break; } //P0 is camera-relative
+	default: { checkNoEntry(); }
+	}
+	FString CodeFinite = FString::Printf(TEXT("VirtualTextureWorldToUV(%s, %s, %s, %s)"), *CoerceParameter(WorldPositionIndex, WorldPositionType), *GetParameterCode(P0), *GetParameterCode(P1), *GetParameterCode(P2));
 	if (IsAnalyticDerivEnabled() && IsDerivativeValid(WorldPositionDerivStatus))
 	{
 		if (WorldPositionDerivStatus == EDerivativeStatus::Valid)
 		{
-			WorldPositionIndex = ValidCast(WorldPositionIndex, MCT_LWCVector3);
+			WorldPositionIndex = ValidCast(WorldPositionIndex, WorldPositionType);
 			FString WorldPositionDeriv = GetParameterCodeDeriv(WorldPositionIndex, CompiledPDV_Analytic);
 			FString CodeAnalytic = FString::Printf(TEXT("VirtualTextureWorldToUVDeriv(%s, %s, %s, %s)"), *WorldPositionDeriv, *GetParameterCode(P0), *GetParameterCode(P1), *GetParameterCode(P2));
 			return AddCodeChunkInnerDeriv(*CodeFinite, *CodeAnalytic, MCT_Float2, false, EDerivativeStatus::Valid);
@@ -10624,7 +10646,7 @@ int32 FHLSLMaterialTranslator::TemporalSobol(int32 Index, int32 Seed)
 		*GetParameterCode(Seed));
 }
 
-int32 FHLSLMaterialTranslator::Noise(int32 Position, float Scale, int32 Quality, uint8 NoiseFunction, bool bTurbulence, int32 Levels, float OutputMin, float OutputMax, float LevelScale, int32 FilterWidth, bool bTiling, uint32 RepeatSize)
+int32 FHLSLMaterialTranslator::Noise(int32 Position, EPositionOrigin PositionOrigin, float Scale, int32 Quality, uint8 NoiseFunction, bool bTurbulence, int32 Levels, float OutputMin, float OutputMax, float LevelScale, int32 FilterWidth, bool bTiling, uint32 RepeatSize)
 {
 	if(Position == INDEX_NONE || FilterWidth == INDEX_NONE)
 	{
@@ -10652,6 +10674,12 @@ int32 FHLSLMaterialTranslator::Noise(int32 Position, float Scale, int32 Quality,
 	int32 TilingConst = Constant(bTiling);
 	int32 RepeatSizeConst = Constant(RepeatSize);
 
+	if (PositionOrigin == EPositionOrigin::CameraRelative)
+	{
+		//LWC_TODO: add support for translated world positions in the corresponding HLSL function
+		Position = TransformPosition(MCB_TranslatedWorld, MCB_World, Position);
+	}
+
 	const EMaterialValueType PositionType = GetParameterType(Position);
 	if (IsLWCType(PositionType))
 	{
@@ -10677,11 +10705,17 @@ int32 FHLSLMaterialTranslator::Noise(int32 Position, float Scale, int32 Quality,
 		*GetParameterCode(RepeatSizeConst));
 }
 
-int32 FHLSLMaterialTranslator::VectorNoise(int32 Position, int32 Quality, uint8 NoiseFunction, bool bTiling, uint32 TileSize)
+int32 FHLSLMaterialTranslator::VectorNoise(int32 Position, EPositionOrigin PositionOrigin, int32 Quality, uint8 NoiseFunction, bool bTiling, uint32 TileSize)
 {
 	if (Position == INDEX_NONE)
 	{
 		return INDEX_NONE;
+	}
+
+	if (PositionOrigin == EPositionOrigin::CameraRelative)
+	{
+		//LWC_TODO: add support for translated world positions in the corresponding HLSL function
+		Position = TransformPosition(MCB_TranslatedWorld, MCB_World, Position);
 	}
 
 	int32 QualityConst = Constant(Quality);
@@ -10810,7 +10844,7 @@ int32 FHLSLMaterialTranslator::GetHairColorFromMelanin(int32 Melanin, int32 Redn
 	return AddCodeChunk(MCT_Float3, TEXT("MaterialExpressionGetHairColorFromMelanin(%s, %s, %s)"), *GetParameterCode(Melanin), *GetParameterCode(Redness), *GetParameterCode(DyeColor));
 }
 
-int32 FHLSLMaterialTranslator::DistanceToNearestSurface(int32 PositionArg)
+int32 FHLSLMaterialTranslator::DistanceToNearestSurface(int32 PositionArg, EPositionOrigin PositionOrigin)
 {
 	if (ErrorUnlessPlatformSupports(FDataDrivenShaderPlatformInfo::GetSupportsDistanceFields, TEXT("DistanceField")) == INDEX_NONE)
 	{
@@ -10824,10 +10858,10 @@ int32 FHLSLMaterialTranslator::DistanceToNearestSurface(int32 PositionArg)
 
 	MaterialCompilationOutput.bUsesGlobalDistanceField = true;
 
-	return AddCodeChunk(MCT_Float, TEXT("GetDistanceToNearestSurfaceGlobal(%s)"), *CoerceParameter(PositionArg, MCT_LWCVector3));
+	return AddCodeChunk(MCT_Float, TEXT("GetDistanceToNearestSurfaceGlobal(%s)"), *GetWorldPositionOrDefault(PositionArg, PositionOrigin));
 }
 
-int32 FHLSLMaterialTranslator::DistanceFieldGradient(int32 PositionArg)
+int32 FHLSLMaterialTranslator::DistanceFieldGradient(int32 PositionArg, EPositionOrigin PositionOrigin)
 {
 	if (ErrorUnlessPlatformSupports(FDataDrivenShaderPlatformInfo::GetSupportsDistanceFields, TEXT("DistanceField")) == INDEX_NONE)
 	{
@@ -10841,10 +10875,10 @@ int32 FHLSLMaterialTranslator::DistanceFieldGradient(int32 PositionArg)
 
 	MaterialCompilationOutput.bUsesGlobalDistanceField = true;
 
-	return AddCodeChunk(MCT_Float3, TEXT("GetDistanceFieldGradientGlobal(%s)"), *CoerceParameter(PositionArg, MCT_LWCVector3));
+	return AddCodeChunk(MCT_Float3, TEXT("GetDistanceFieldGradientGlobal(%s)"), *GetWorldPositionOrDefault(PositionArg, PositionOrigin));
 }
 
-int32 FHLSLMaterialTranslator::DistanceFieldApproxAO(int32 PositionArg, int32 NormalArg, int32 BaseDistanceArg, int32 RadiusArg, uint32 NumSteps, float StepScale)
+int32 FHLSLMaterialTranslator::DistanceFieldApproxAO(int32 PositionArg, EPositionOrigin PositionOrigin, int32 NormalArg, int32 BaseDistanceArg, int32 RadiusArg, uint32 NumSteps, float StepScale)
 {
 	if (ErrorUnlessPlatformSupports(FDataDrivenShaderPlatformInfo::GetSupportsDistanceFields, TEXT("DistanceField")) == INDEX_NONE)
 	{
@@ -10899,7 +10933,7 @@ int32 FHLSLMaterialTranslator::DistanceFieldApproxAO(int32 PositionArg, int32 No
 
 	return AddCodeChunk(MCT_Float,
 		TEXT("CalculateDistanceFieldApproxAO(%s, %s, %s, %s, %s, %s, %s)"),
-		*CoerceParameter(PositionArg, MCT_LWCVector3),
+		*GetWorldPositionOrDefault(PositionArg, PositionOrigin),
 		*CoerceParameter(NormalArg, MCT_Float3),
 		*GetParameterCode(NumStepsConst),
 		*CoerceParameter(StepDistance, MCT_Float),
@@ -10908,7 +10942,7 @@ int32 FHLSLMaterialTranslator::DistanceFieldApproxAO(int32 PositionArg, int32 No
 		*CoerceParameter(MaxDistance, MCT_Float));
 }
 
-int32 FHLSLMaterialTranslator::SamplePhysicsField(int32 PositionArg, const int32 OutputType, const int32 TargetIndex)
+int32 FHLSLMaterialTranslator::SamplePhysicsField(int32 PositionArg, EPositionOrigin PositionOrigin, const int32 OutputType, const int32 TargetIndex)
 {
 	if (ErrorUnlessFeatureLevelSupported(ERHIFeatureLevel::SM5) == INDEX_NONE)
 	{
@@ -10920,25 +10954,29 @@ int32 FHLSLMaterialTranslator::SamplePhysicsField(int32 PositionArg, const int32
 		return INDEX_NONE;
 	}
 
-	// LWC_TODO: LWC aware physics field
-	if (TargetIndex != INDEX_NONE)
+	if (TargetIndex == INDEX_NONE)
 	{
-		if (OutputType == EFieldOutputType::Field_Output_Vector)
-		{
-			return AddCodeChunk(MCT_Float3, TEXT("MatPhysicsField_SamplePhysicsVectorField(%s,%d)"), *CoerceParameter(PositionArg, MCT_Float3), static_cast<uint8>(TargetIndex));
-		}
-		else if (OutputType == EFieldOutputType::Field_Output_Scalar)
-		{
-			return AddCodeChunk(MCT_Float, TEXT("MatPhysicsField_SamplePhysicsScalarField(%s,%d)"), *CoerceParameter(PositionArg, MCT_Float3), static_cast<uint8>(TargetIndex));
-		}
-		else if (OutputType == EFieldOutputType::Field_Output_Integer)
-		{
-			return AddCodeChunk(MCT_Float, TEXT("MatPhysicsField_SamplePhysicsIntegerField(%s,%d)"), *CoerceParameter(PositionArg, MCT_Float3), static_cast<uint8>(TargetIndex));
-		}
-		else
-		{
-			return INDEX_NONE;
-		}
+		return INDEX_NONE;
+	}
+
+	if (PositionOrigin == EPositionOrigin::CameraRelative)
+	{
+		// LWC_TODO: support translated-world coordinates
+		PositionArg = TransformPosition(MCB_TranslatedWorld, MCB_World, PositionArg);
+	}
+
+	// LWC_TODO: LWC aware physics field
+	if (OutputType == EFieldOutputType::Field_Output_Vector)
+	{
+		return AddCodeChunk(MCT_Float3, TEXT("MatPhysicsField_SamplePhysicsVectorField(%s,%d)"), *CoerceParameter(PositionArg, MCT_Float3), static_cast<uint8>(TargetIndex));
+	}
+	else if (OutputType == EFieldOutputType::Field_Output_Scalar)
+	{
+		return AddCodeChunk(MCT_Float, TEXT("MatPhysicsField_SamplePhysicsScalarField(%s,%d)"), *CoerceParameter(PositionArg, MCT_Float3), static_cast<uint8>(TargetIndex));
+	}
+	else if (OutputType == EFieldOutputType::Field_Output_Integer)
+	{
+		return AddCodeChunk(MCT_Float, TEXT("MatPhysicsField_SamplePhysicsIntegerField(%s,%d)"), *CoerceParameter(PositionArg, MCT_Float3), static_cast<uint8>(TargetIndex));
 	}
 	else
 	{
@@ -10946,9 +10984,9 @@ int32 FHLSLMaterialTranslator::SamplePhysicsField(int32 PositionArg, const int32
 	}
 }
 
-int32 FHLSLMaterialTranslator::AtmosphericFogColor( int32 WorldPosition )
+int32 FHLSLMaterialTranslator::AtmosphericFogColor( int32 WorldPosition, EPositionOrigin PositionOrigin )
 {
-	return SkyAtmosphereAerialPerspective(WorldPosition);
+	return SkyAtmosphereAerialPerspective(WorldPosition, PositionOrigin);
 }
 
 int32 FHLSLMaterialTranslator::AtmosphericLightVector()
@@ -10961,10 +10999,10 @@ int32 FHLSLMaterialTranslator::AtmosphericLightColor()
 	return AddCodeChunk(MCT_Float3, TEXT("MaterialExpressionAtmosphericLightColor(Parameters)"));
 }
 
-int32 FHLSLMaterialTranslator::SkyAtmosphereLightIlluminance(int32 WorldPosition, int32 LightIndex)
+int32 FHLSLMaterialTranslator::SkyAtmosphereLightIlluminance(int32 WorldPosition, EPositionOrigin PositionOrigin, int32 LightIndex)
 {
 	bUsesSkyAtmosphere = true;
-	FString WorldPosCode = WorldPosition == INDEX_NONE ? FString(TEXT("Parameters.AbsoluteWorldPosition")) : CoerceParameter(WorldPosition, MCT_LWCVector3);
+	FString WorldPosCode = GetWorldPositionOrDefault(WorldPosition, PositionOrigin);
 	return AddCodeChunk(MCT_Float3, TEXT("MaterialExpressionSkyAtmosphereLightIlluminance(Parameters, %s, %d)"), *WorldPosCode, LightIndex);
 }
 
@@ -10993,10 +11031,10 @@ int32 FHLSLMaterialTranslator::SkyAtmosphereViewLuminance()
 	return AddCodeChunk(MCT_Float3, TEXT("MaterialExpressionSkyAtmosphereViewLuminance(Parameters)"));
 }
 
-int32 FHLSLMaterialTranslator::SkyAtmosphereAerialPerspective(int32 WorldPosition)
+int32 FHLSLMaterialTranslator::SkyAtmosphereAerialPerspective(int32 WorldPosition, EPositionOrigin PositionOrigin)
 {
 	bUsesSkyAtmosphere = true;
-	FString WorldPosCode = WorldPosition == INDEX_NONE ? FString(TEXT("Parameters.AbsoluteWorldPosition")) : CoerceParameter(WorldPosition, MCT_LWCVector3);
+	FString WorldPosCode = GetWorldPositionOrDefault(WorldPosition, PositionOrigin);
 	return AddCodeChunk(MCT_Float4, TEXT("MaterialExpressionSkyAtmosphereAerialPerspective(Parameters, %s)"), *WorldPosCode);
 }
 

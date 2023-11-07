@@ -1734,10 +1734,10 @@ float3 MaterialExpressionAtmosphericLightColor(FMaterialPixelParameters Paramete
 	return MaterialExpressionSkyAtmosphereLightIlluminanceOnGround(Parameters, 0);
 }
 
-float3 MaterialExpressionSkyAtmosphereLightIlluminance(FMaterialPixelParameters Parameters, FLWCVector3 WorldPosition, uint LightIndex)
+float3 MaterialExpressionSkyAtmosphereLightIlluminance(FMaterialPixelParameters Parameters, float3 TranslatedWorldPosition, uint LightIndex)
 {
 #if MATERIAL_SKY_ATMOSPHERE && PROJECT_SUPPORT_SKY_ATMOSPHERE
-	const float3 PlanetCenterToTranslatedWorldPos = (LWCToFloat(LWCAdd(WorldPosition, ResolvedView.PreViewTranslation)) - ResolvedView.SkyPlanetTranslatedWorldCenterAndViewHeight.xyz) * CM_TO_SKY_UNIT;
+	const float3 PlanetCenterToTranslatedWorldPos = (TranslatedWorldPosition - ResolvedView.SkyPlanetTranslatedWorldCenterAndViewHeight.xyz) * CM_TO_SKY_UNIT;
 
 	// GetAtmosphereTransmittance does a shadow test against the virtual planet.
 	const float3 TransmittanceToLight = GetAtmosphereTransmittance(
@@ -1748,6 +1748,12 @@ float3 MaterialExpressionSkyAtmosphereLightIlluminance(FMaterialPixelParameters 
 #else
 	return float3(0.0f, 0.0f, 0.0f);
 #endif
+}
+
+float3 MaterialExpressionSkyAtmosphereLightIlluminance(FMaterialPixelParameters Parameters, FLWCVector3 WorldPosition, uint LightIndex)
+{
+	const float3 TranslatedWorldPosition = LWCToFloat(LWCAdd(WorldPosition, ResolvedView.PreViewTranslation));
+	return MaterialExpressionSkyAtmosphereLightIlluminance(Parameters, TranslatedWorldPosition, LightIndex);
 }
 
 #if MATERIAL_SKY_ATMOSPHERE && PROJECT_SUPPORT_SKY_ATMOSPHERE
@@ -1806,11 +1812,11 @@ float3 MaterialExpressionSkyAtmosphereViewLuminance(FMaterialPixelParameters Par
 #endif
 }
 
-float4 MaterialExpressionSkyAtmosphereAerialPerspective(FMaterialPixelParameters Parameters, FLWCVector3 WorldPosition)
+float4 MaterialExpressionSkyAtmosphereAerialPerspective(FMaterialPixelParameters Parameters, float3 TranslatedWorldPosition)
 {
 #if MATERIAL_SKY_ATMOSPHERE && PROJECT_SUPPORT_SKY_ATMOSPHERE
-	const float3 TranslatedWorldPosition = LWCToFloat(LWCAdd(WorldPosition, ResolvedView.PreViewTranslation)) * CM_TO_SKY_UNIT;
-	const float3 SkyCameraTranslatedWorldOrigin = ResolvedView.SkyCameraTranslatedWorldOrigin.xyz*CM_TO_SKY_UNIT;
+	const float3 SkyTranslatedWorldPosition = TranslatedWorldPosition * CM_TO_SKY_UNIT;
+	const float3 SkyCameraTranslatedWorldOrigin = ResolvedView.SkyCameraTranslatedWorldOrigin.xyz * CM_TO_SKY_UNIT;
 
 	// NDCPosition is not computed using WorldPosition because it could result in position outside the frustum, 
 	// distorted uvs and bad visuals with artefact. Only the distance computation can actually be benefit from the surface position specified here.
@@ -1819,7 +1825,7 @@ float4 MaterialExpressionSkyAtmosphereAerialPerspective(FMaterialPixelParameters
 	const float NearFadeOutRangeInvDepthKm = 1.0 / 0.00001f; // 1 centimeter fade region
 	float4 AerialPerspective = GetAerialPerspectiveLuminanceTransmittance(
 		ResolvedView.RealTimeReflectionCapture, ResolvedView.SkyAtmosphereCameraAerialPerspectiveVolumeSizeAndInvSize,
-		NDCPosition, TranslatedWorldPosition - SkyCameraTranslatedWorldOrigin,
+		NDCPosition, SkyTranslatedWorldPosition - SkyCameraTranslatedWorldOrigin,
 		View.CameraAerialPerspectiveVolume, View.CameraAerialPerspectiveVolumeSampler,
 		ResolvedView.SkyAtmosphereCameraAerialPerspectiveVolumeDepthResolutionInv,
 		ResolvedView.SkyAtmosphereCameraAerialPerspectiveVolumeDepthResolution,
@@ -1832,6 +1838,12 @@ float4 MaterialExpressionSkyAtmosphereAerialPerspective(FMaterialPixelParameters
 #else
 	return float4(0.0f, 0.0f, 0.0f, 1.0f); // RGB= null scattering, A= null transmittance
 #endif
+}
+
+float4 MaterialExpressionSkyAtmosphereAerialPerspective(FMaterialPixelParameters Parameters, FLWCVector3 WorldPosition)
+{
+	const float3 TranslatedWorldPosition = LWCToFloat(LWCAdd(WorldPosition, ResolvedView.PreViewTranslation));
+	return MaterialExpressionSkyAtmosphereAerialPerspective(Parameters, TranslatedWorldPosition);
 }
 
 float3 MaterialExpressionSkyAtmosphereDistantLightScatteredLuminance(FMaterialPixelParameters Parameters)

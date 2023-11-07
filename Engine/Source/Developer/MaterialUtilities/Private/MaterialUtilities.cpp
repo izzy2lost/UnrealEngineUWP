@@ -370,7 +370,7 @@ struct FExportMaterialCompiler : public FProxyMaterialCompiler
 		return Compiler->ReflectionVector();
 	}
 
-	virtual int32 AtmosphericFogColor(int32 WorldPosition) override
+	virtual int32 AtmosphericFogColor(int32 WorldPosition, EPositionOrigin PositionOrigin) override
 	{
 		return INDEX_NONE;
 	}

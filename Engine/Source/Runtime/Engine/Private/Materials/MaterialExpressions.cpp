@@ -674,6 +674,28 @@ int32 CompileSubstrateBlendFunction(FMaterialCompiler* Compiler, const int32 A, 
 	return INDEX_NONE;
 }
 
+EWorldPositionIncludedOffsets GetWorldPositionTypeWithOrigin(EPositionOrigin PositionOrigin, bool IncludeOffsets = true)
+{
+	switch (PositionOrigin)
+	{
+	case EPositionOrigin::Absolute: return IncludeOffsets ? WPT_Default : WPT_ExcludeAllShaderOffsets;
+	case EPositionOrigin::CameraRelative: return IncludeOffsets ? WPT_CameraRelative : WPT_CameraRelativeNoOffsets;
+	default: checkNoEntry();
+	}
+	return WPT_Default;
+}
+
+FName GetWorldPositionInputName(EPositionOrigin PositionOrigin)
+{
+	switch (PositionOrigin)
+	{
+	case EPositionOrigin::CameraRelative: return TEXT("Translated World Position");
+	case EPositionOrigin::Absolute: return TEXT("World Position");
+	default: checkNoEntry();
+	}
+	return FName();
+}
+
 void FMaterialExpressionCollection::AddExpression(UMaterialExpression* InExpression)
 {
 	Expressions.AddUnique(InExpression);
@@ -3167,6 +3189,16 @@ UObject* UMaterialExpressionRuntimeVirtualTextureSample::GetReferencedTexture() 
 
 #if WITH_EDITOR
 
+FName UMaterialExpressionRuntimeVirtualTextureSample::GetInputName(int32 InputIndex) const
+{
+	if (CachedInputs[InputIndex] == &WorldPosition)
+	{
+		return GetWorldPositionInputName(WorldPositionOriginType);
+	}
+
+	return Super::GetInputName(InputIndex);
+}
+
 void UMaterialExpressionRuntimeVirtualTextureSample::PostLoad()
 {
 	Super::PostLoad();
@@ -3201,12 +3233,20 @@ bool UMaterialExpressionRuntimeVirtualTextureSample::CanEditChange(const FProper
 void UMaterialExpressionRuntimeVirtualTextureSample::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
 	// Update MaterialType setting to match VirtualTexture
-	if (PropertyChangedEvent.Property && PropertyChangedEvent.Property->GetName() == TEXT("VirtualTexture"))
+	const FName PropertyName = PropertyChangedEvent.GetPropertyName();
+	if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(ThisClass, VirtualTexture))
 	{
 		if (VirtualTexture != nullptr)
 		{
 			InitVirtualTextureDependentSettings();
 			FEditorSupportDelegates::ForcePropertyWindowRebuild.Broadcast(this);
+		}
+	}
+	else if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(ThisClass, WorldPositionOriginType))
+	{
+		if (GraphNode)
+		{
+			GraphNode->ReconstructNode();
 		}
 	}
 
@@ -3440,16 +3480,34 @@ int32 UMaterialExpressionRuntimeVirtualTextureSample::Compile(class FMaterialCom
 		}
 		else
 		{
-			WorldPositionIndex = Compiler->WorldPosition(WPT_Default);
+			WorldPositionIndex = Compiler->WorldPosition(GetWorldPositionTypeWithOrigin(WorldPositionOriginType));
 			ensure(WorldPositionIndex != INDEX_NONE);
 		}
 		
 		if (WorldPositionIndex != INDEX_NONE)
 		{
-			const int32 P0 = Uniforms[ERuntimeVirtualTextureShaderUniform_WorldToUVTransform0];
-			const int32 P1 = Uniforms[ERuntimeVirtualTextureShaderUniform_WorldToUVTransform1];
-			const int32 P2 = Uniforms[ERuntimeVirtualTextureShaderUniform_WorldToUVTransform2];
-			CoordinateIndex = Compiler->VirtualTextureWorldToUV(WorldPositionIndex, P0, P1, P2);
+			if (WorldPositionOriginType == EPositionOrigin::Absolute)
+			{
+				const int32 P0 = Uniforms[ERuntimeVirtualTextureShaderUniform_WorldToUVTransform0];
+				const int32 P1 = Uniforms[ERuntimeVirtualTextureShaderUniform_WorldToUVTransform1];
+				const int32 P2 = Uniforms[ERuntimeVirtualTextureShaderUniform_WorldToUVTransform2];
+				CoordinateIndex = Compiler->VirtualTextureWorldToUV(WorldPositionIndex, P0, P1, P2, EPositionOrigin::Absolute);
+			}
+			else if (WorldPositionOriginType == EPositionOrigin::CameraRelative)
+			{
+				//TODO: optimize by calculating translated world to VT directly.
+				//This requires some more work as the transform is currently fed in through a preshader variable, which is cached.
+				const int32 AbsWorldPosIndex = Compiler->TransformPosition(EMaterialCommonBasis::MCB_TranslatedWorld, EMaterialCommonBasis::MCB_World, WorldPositionIndex);
+
+				const int32 P0 = Uniforms[ERuntimeVirtualTextureShaderUniform_WorldToUVTransform0];
+				const int32 P1 = Uniforms[ERuntimeVirtualTextureShaderUniform_WorldToUVTransform1];
+				const int32 P2 = Uniforms[ERuntimeVirtualTextureShaderUniform_WorldToUVTransform2];
+				CoordinateIndex = Compiler->VirtualTextureWorldToUV(AbsWorldPosIndex, P0, P1, P2, EPositionOrigin::Absolute);
+			}
+			else
+			{
+				checkNoEntry();
+			}
 		}
 	}
 	
@@ -19586,6 +19644,30 @@ bool UMaterialExpressionNoise::CanEditChange(const FProperty* InProperty) const
 	return bIsEditable;
 }
 
+FName UMaterialExpressionNoise::GetInputName(int32 InputIndex) const
+{
+	if (CachedInputs[InputIndex] == &Position)
+	{
+		return GetWorldPositionInputName(WorldPositionOriginType);
+	}
+
+	return Super::GetInputName(InputIndex);
+}
+
+void UMaterialExpressionNoise::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	const FName PropertyName = PropertyChangedEvent.GetPropertyName();
+	if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(ThisClass, WorldPositionOriginType))
+	{
+		if (GraphNode)
+		{
+			GraphNode->ReconstructNode();
+		}
+	}
+
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+}
+
 int32 UMaterialExpressionNoise::Compile(class FMaterialCompiler* Compiler, int32 OutputIndex)
 {
 	int32 PositionInput;
@@ -19596,7 +19678,7 @@ int32 UMaterialExpressionNoise::Compile(class FMaterialCompiler* Compiler, int32
 	}
 	else
 	{
-		PositionInput = Compiler->WorldPosition(WPT_Default);
+		PositionInput = Compiler->WorldPosition(GetWorldPositionTypeWithOrigin(WorldPositionOriginType));
 	}
 
 	int32 FilterWidthInput;
@@ -19610,7 +19692,7 @@ int32 UMaterialExpressionNoise::Compile(class FMaterialCompiler* Compiler, int32
 		FilterWidthInput = Compiler->Constant(0);
 	}
 
-	return Compiler->Noise(PositionInput, Scale, Quality, NoiseFunction, bTurbulence, Levels, OutputMin, OutputMax, LevelScale, FilterWidthInput, bTiling, RepeatSize);
+	return Compiler->Noise(PositionInput, WorldPositionOriginType, Scale, Quality, NoiseFunction, bTurbulence, Levels, OutputMin, OutputMax, LevelScale, FilterWidthInput, bTiling, RepeatSize);
 }
 
 void UMaterialExpressionNoise::GetCaption(TArray<FString>& OutCaptions) const
@@ -19673,6 +19755,30 @@ bool UMaterialExpressionVectorNoise::CanEditChange(const FProperty* InProperty) 
 	return bIsEditable;
 }
 
+FName UMaterialExpressionVectorNoise::GetInputName(int32 InputIndex) const
+{
+	if (CachedInputs[InputIndex] == &Position)
+	{
+		return GetWorldPositionInputName(WorldPositionOriginType);
+	}
+
+	return Super::GetInputName(InputIndex);
+}
+
+void UMaterialExpressionVectorNoise::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	const FName PropertyName = PropertyChangedEvent.GetPropertyName();
+	if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(ThisClass, WorldPositionOriginType))
+	{
+		if (GraphNode)
+		{
+			GraphNode->ReconstructNode();
+		}
+	}
+
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+}
+
 int32 UMaterialExpressionVectorNoise::Compile(class FMaterialCompiler* Compiler, int32 OutputIndex)
 {
 	int32 PositionInput;
@@ -19683,10 +19789,10 @@ int32 UMaterialExpressionVectorNoise::Compile(class FMaterialCompiler* Compiler,
 	}
 	else
 	{
-		PositionInput = Compiler->WorldPosition(WPT_Default);
+		PositionInput = Compiler->WorldPosition(GetWorldPositionTypeWithOrigin(WorldPositionOriginType));
 	}
 
-	return Compiler->VectorNoise(PositionInput, Quality, NoiseFunction, bTiling, TileSize);
+	return Compiler->VectorNoise(PositionInput, WorldPositionOriginType, Quality, NoiseFunction, bTiling, TileSize);
 }
 
 void UMaterialExpressionVectorNoise::GetCaption(TArray<FString>& OutCaptions) const
@@ -19767,6 +19873,30 @@ UMaterialExpressionDistanceToNearestSurface::UMaterialExpressionDistanceToNeares
 }
 
 #if WITH_EDITOR
+FName UMaterialExpressionDistanceToNearestSurface::GetInputName(int32 InputIndex) const
+{
+	if (CachedInputs[InputIndex] == &Position)
+	{
+		return GetWorldPositionInputName(WorldPositionOriginType);
+	}
+
+	return Super::GetInputName(InputIndex);
+}
+
+void UMaterialExpressionDistanceToNearestSurface::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	const FName PropertyName = PropertyChangedEvent.GetPropertyName();
+	if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(ThisClass, WorldPositionOriginType))
+	{
+		if (GraphNode)
+		{
+			GraphNode->ReconstructNode();
+		}
+	}
+
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+}
+
 int32 UMaterialExpressionDistanceToNearestSurface::Compile(class FMaterialCompiler* Compiler, int32 OutputIndex)
 {
 	int32 PositionArg = INDEX_NONE;
@@ -19777,10 +19907,10 @@ int32 UMaterialExpressionDistanceToNearestSurface::Compile(class FMaterialCompil
 	}
 	else 
 	{
-		PositionArg = Compiler->WorldPosition(WPT_Default);
+		PositionArg = Compiler->WorldPosition(GetWorldPositionTypeWithOrigin(WorldPositionOriginType));
 	}
 
-	return Compiler->DistanceToNearestSurface(PositionArg);
+	return Compiler->DistanceToNearestSurface(PositionArg, WorldPositionOriginType);
 }
 
 void UMaterialExpressionDistanceToNearestSurface::GetCaption(TArray<FString>& OutCaptions) const
@@ -19812,6 +19942,30 @@ UMaterialExpressionDistanceFieldGradient::UMaterialExpressionDistanceFieldGradie
 }
 
 #if WITH_EDITOR
+FName UMaterialExpressionDistanceFieldGradient::GetInputName(int32 InputIndex) const
+{
+	if (CachedInputs[InputIndex] == &Position)
+	{
+		return GetWorldPositionInputName(WorldPositionOriginType);
+	}
+
+	return Super::GetInputName(InputIndex);
+}
+
+void UMaterialExpressionDistanceFieldGradient::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	const FName PropertyName = PropertyChangedEvent.GetPropertyName();
+	if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(ThisClass, WorldPositionOriginType))
+	{
+		if (GraphNode)
+		{
+			GraphNode->ReconstructNode();
+		}
+	}
+
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+}
+
 int32 UMaterialExpressionDistanceFieldGradient::Compile(class FMaterialCompiler* Compiler, int32 OutputIndex)
 {
 	int32 PositionArg = INDEX_NONE;
@@ -19822,10 +19976,10 @@ int32 UMaterialExpressionDistanceFieldGradient::Compile(class FMaterialCompiler*
 	}
 	else 
 	{
-		PositionArg = Compiler->WorldPosition(WPT_Default);
+		PositionArg = Compiler->WorldPosition(GetWorldPositionTypeWithOrigin(WorldPositionOriginType));
 	}
 
-	return Compiler->DistanceFieldGradient(PositionArg);
+	return Compiler->DistanceFieldGradient(PositionArg, WorldPositionOriginType);
 }
 
 void UMaterialExpressionDistanceFieldGradient::GetCaption(TArray<FString>& OutCaptions) const
@@ -19862,6 +20016,30 @@ UMaterialExpressionDistanceFieldApproxAO::UMaterialExpressionDistanceFieldApprox
 }
 
 #if WITH_EDITOR
+FName UMaterialExpressionDistanceFieldApproxAO::GetInputName(int32 InputIndex) const
+{
+	if (CachedInputs[InputIndex] == &Position)
+	{
+		return GetWorldPositionInputName(WorldPositionOriginType);
+	}
+
+	return Super::GetInputName(InputIndex);
+}
+
+void UMaterialExpressionDistanceFieldApproxAO::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	const FName PropertyName = PropertyChangedEvent.GetPropertyName();
+	if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(ThisClass, WorldPositionOriginType))
+	{
+		if (GraphNode)
+		{
+			GraphNode->ReconstructNode();
+		}
+	}
+
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+}
+
 int32 UMaterialExpressionDistanceFieldApproxAO::Compile(class FMaterialCompiler* Compiler, int32 OutputIndex)
 {
 	int32 PositionArg = INDEX_NONE;
@@ -19872,7 +20050,7 @@ int32 UMaterialExpressionDistanceFieldApproxAO::Compile(class FMaterialCompiler*
 	}
 	else
 	{
-		PositionArg = Compiler->WorldPosition(WPT_Default);
+		PositionArg = Compiler->WorldPosition(GetWorldPositionTypeWithOrigin(WorldPositionOriginType));
 	}
 
 	int32 NormalArg = INDEX_NONE;
@@ -19889,7 +20067,7 @@ int32 UMaterialExpressionDistanceFieldApproxAO::Compile(class FMaterialCompiler*
 	int32 BaseDistanceArg = BaseDistance.GetTracedInput().Expression ? BaseDistance.Compile(Compiler) : Compiler->Constant(BaseDistanceDefault);
 	int32 RadiusArg = Radius.GetTracedInput().Expression ? Radius.Compile(Compiler) : Compiler->Constant(RadiusDefault);
 
-	return Compiler->DistanceFieldApproxAO(PositionArg, NormalArg, BaseDistanceArg, RadiusArg, NumSteps, StepScaleDefault);
+	return Compiler->DistanceFieldApproxAO(PositionArg, WorldPositionOriginType, NormalArg, BaseDistanceArg, RadiusArg, NumSteps, StepScaleDefault);
 }
 
 void UMaterialExpressionDistanceFieldApproxAO::GetCaption(TArray<FString>& OutCaptions) const
@@ -19924,6 +20102,30 @@ UMaterialExpressionSamplePhysicsVectorField::UMaterialExpressionSamplePhysicsVec
 }
 
 #if WITH_EDITOR
+FName UMaterialExpressionSamplePhysicsVectorField::GetInputName(int32 InputIndex) const
+{
+	if (CachedInputs[InputIndex] == &WorldPosition)
+	{
+		return GetWorldPositionInputName(WorldPositionOriginType);
+	}
+
+	return Super::GetInputName(InputIndex);
+}
+
+void UMaterialExpressionSamplePhysicsVectorField::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	const FName PropertyName = PropertyChangedEvent.GetPropertyName();
+	if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(ThisClass, WorldPositionOriginType))
+	{
+		if (GraphNode)
+		{
+			GraphNode->ReconstructNode();
+		}
+	}
+
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+}
+
 int32 UMaterialExpressionSamplePhysicsVectorField::Compile(class FMaterialCompiler* Compiler, int32 OutputIndex)
 {
 	int32 PositionArg = INDEX_NONE;
@@ -19934,10 +20136,10 @@ int32 UMaterialExpressionSamplePhysicsVectorField::Compile(class FMaterialCompil
 	}
 	else
 	{
-		PositionArg = Compiler->WorldPosition(WPT_Default);
+		PositionArg = Compiler->WorldPosition(GetWorldPositionTypeWithOrigin(WorldPositionOriginType));
 	}
 
-	return Compiler->SamplePhysicsField(PositionArg, EFieldOutputType::Field_Output_Vector, static_cast<uint8>(FieldTarget));
+	return Compiler->SamplePhysicsField(PositionArg, WorldPositionOriginType, EFieldOutputType::Field_Output_Vector, static_cast<uint8>(FieldTarget));
 }
 
 void UMaterialExpressionSamplePhysicsVectorField::GetCaption(TArray<FString>& OutCaptions) const
@@ -19972,6 +20174,30 @@ UMaterialExpressionSamplePhysicsScalarField::UMaterialExpressionSamplePhysicsSca
 }
 
 #if WITH_EDITOR
+FName UMaterialExpressionSamplePhysicsScalarField::GetInputName(int32 InputIndex) const
+{
+	if (CachedInputs[InputIndex] == &WorldPosition)
+	{
+		return GetWorldPositionInputName(WorldPositionOriginType);
+	}
+
+	return Super::GetInputName(InputIndex);
+}
+
+void UMaterialExpressionSamplePhysicsScalarField::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	const FName PropertyName = PropertyChangedEvent.GetPropertyName();
+	if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(ThisClass, WorldPositionOriginType))
+	{
+		if (GraphNode)
+		{
+			GraphNode->ReconstructNode();
+		}
+	}
+
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+}
+
 int32 UMaterialExpressionSamplePhysicsScalarField::Compile(class FMaterialCompiler* Compiler, int32 OutputIndex)
 {
 	int32 PositionArg = INDEX_NONE;
@@ -19982,10 +20208,10 @@ int32 UMaterialExpressionSamplePhysicsScalarField::Compile(class FMaterialCompil
 	}
 	else
 	{
-		PositionArg = Compiler->WorldPosition(WPT_Default);
+		PositionArg = Compiler->WorldPosition(GetWorldPositionTypeWithOrigin(WorldPositionOriginType));
 	}
 
-	return Compiler->SamplePhysicsField(PositionArg, EFieldOutputType::Field_Output_Scalar, static_cast<uint8>(FieldTarget));
+	return Compiler->SamplePhysicsField(PositionArg, WorldPositionOriginType, EFieldOutputType::Field_Output_Scalar, static_cast<uint8>(FieldTarget));
 }
 
 void UMaterialExpressionSamplePhysicsScalarField::GetCaption(TArray<FString>& OutCaptions) const
@@ -20020,7 +20246,33 @@ UMaterialExpressionSamplePhysicsIntegerField::UMaterialExpressionSamplePhysicsIn
 #endif
 }
 
+
+
 #if WITH_EDITOR
+FName UMaterialExpressionSamplePhysicsIntegerField::GetInputName(int32 InputIndex) const
+{
+	if (CachedInputs[InputIndex] == &WorldPosition)
+	{
+		return GetWorldPositionInputName(WorldPositionOriginType);
+	}
+
+	return Super::GetInputName(InputIndex);
+}
+
+void UMaterialExpressionSamplePhysicsIntegerField::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	const FName PropertyName = PropertyChangedEvent.GetPropertyName();
+	if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(ThisClass, WorldPositionOriginType))
+	{
+		if (GraphNode)
+		{
+			GraphNode->ReconstructNode();
+		}
+	}
+
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+}
+
 int32 UMaterialExpressionSamplePhysicsIntegerField::Compile(class FMaterialCompiler* Compiler, int32 OutputIndex)
 {
 	int32 PositionArg = INDEX_NONE;
@@ -20031,10 +20283,10 @@ int32 UMaterialExpressionSamplePhysicsIntegerField::Compile(class FMaterialCompi
 	}
 	else
 	{
-		PositionArg = Compiler->WorldPosition(WPT_Default);
+		PositionArg = Compiler->WorldPosition(GetWorldPositionTypeWithOrigin(WorldPositionOriginType));
 	}
 
-	return Compiler->SamplePhysicsField(PositionArg, EFieldOutputType::Field_Output_Integer, static_cast<uint8>(FieldTarget));
+	return Compiler->SamplePhysicsField(PositionArg, WorldPositionOriginType, EFieldOutputType::Field_Output_Integer, static_cast<uint8>(FieldTarget));
 }
 
 void UMaterialExpressionSamplePhysicsIntegerField::GetCaption(TArray<FString>& OutCaptions) const
@@ -21236,6 +21488,30 @@ UMaterialExpressionAtmosphericFogColor::UMaterialExpressionAtmosphericFogColor(c
 }
 
 #if WITH_EDITOR
+FName UMaterialExpressionAtmosphericFogColor::GetInputName(int32 InputIndex) const
+{
+	if (CachedInputs[InputIndex] == &WorldPosition)
+	{
+		return GetWorldPositionInputName(WorldPositionOriginType);
+	}
+
+	return Super::GetInputName(InputIndex);
+}
+
+void UMaterialExpressionAtmosphericFogColor::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	const FName PropertyName = PropertyChangedEvent.GetPropertyName();
+	if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(ThisClass, WorldPositionOriginType))
+	{
+		if (GraphNode)
+		{
+			GraphNode->ReconstructNode();
+		}
+	}
+
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+}
+
 int32 UMaterialExpressionAtmosphericFogColor::Compile(class FMaterialCompiler* Compiler, int32 OutputIndex)
 {
 	int32 WorldPositionInput = INDEX_NONE;
@@ -21245,7 +21521,7 @@ int32 UMaterialExpressionAtmosphericFogColor::Compile(class FMaterialCompiler* C
 		WorldPositionInput = WorldPosition.Compile(Compiler);
 	}
 
-	return Compiler->AtmosphericFogColor( WorldPositionInput );
+	return Compiler->AtmosphericFogColor( WorldPositionInput, WorldPositionOriginType );
 }
 
 void UMaterialExpressionAtmosphericFogColor::GetCaption(TArray<FString>& OutCaptions) const
@@ -21815,6 +22091,30 @@ UMaterialExpressionSkyAtmosphereLightIlluminance::UMaterialExpressionSkyAtmosphe
 }
 
 #if WITH_EDITOR
+FName UMaterialExpressionSkyAtmosphereLightIlluminance::GetInputName(int32 InputIndex) const
+{
+	if (CachedInputs[InputIndex] == &WorldPosition)
+	{
+		return GetWorldPositionInputName(WorldPositionOriginType);
+	}
+
+	return Super::GetInputName(InputIndex);
+}
+
+void UMaterialExpressionSkyAtmosphereLightIlluminance::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	const FName PropertyName = PropertyChangedEvent.GetPropertyName();
+	if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(ThisClass, WorldPositionOriginType))
+	{
+		if (GraphNode)
+		{
+			GraphNode->ReconstructNode();
+		}
+	}
+
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+}
+
 int32 UMaterialExpressionSkyAtmosphereLightIlluminance::Compile(class FMaterialCompiler* Compiler, int32 OutputIndex)
 {
 	int32 WorldPositionInput;
@@ -21824,9 +22124,9 @@ int32 UMaterialExpressionSkyAtmosphereLightIlluminance::Compile(class FMaterialC
 	}
 	else
 	{
-		WorldPositionInput = Compiler->WorldPosition(WPT_Default);
+		WorldPositionInput = Compiler->WorldPosition(GetWorldPositionTypeWithOrigin(WorldPositionOriginType));
 	}
-	return Compiler->SkyAtmosphereLightIlluminance(WorldPositionInput, LightIndex);
+	return Compiler->SkyAtmosphereLightIlluminance(WorldPositionInput, WorldPositionOriginType, LightIndex);
 }
 
 void UMaterialExpressionSkyAtmosphereLightIlluminance::GetCaption(TArray<FString>& OutCaptions) const
@@ -22012,6 +22312,30 @@ UMaterialExpressionSkyAtmosphereAerialPerspective::UMaterialExpressionSkyAtmosph
 }
 
 #if WITH_EDITOR
+FName UMaterialExpressionSkyAtmosphereAerialPerspective::GetInputName(int32 InputIndex) const
+{
+	if (CachedInputs[InputIndex] == &WorldPosition)
+	{
+		return GetWorldPositionInputName(WorldPositionOriginType);
+	}
+
+	return Super::GetInputName(InputIndex);
+}
+
+void UMaterialExpressionSkyAtmosphereAerialPerspective::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	const FName PropertyName = PropertyChangedEvent.GetPropertyName();
+	if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(ThisClass, WorldPositionOriginType))
+	{
+		if (GraphNode)
+		{
+			GraphNode->ReconstructNode();
+		}
+	}
+
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+}
+
 int32 UMaterialExpressionSkyAtmosphereAerialPerspective::Compile(class FMaterialCompiler* Compiler, int32 OutputIndex)
 {
 	int32 WorldPositionInput;
@@ -22021,9 +22345,9 @@ int32 UMaterialExpressionSkyAtmosphereAerialPerspective::Compile(class FMaterial
 	}
 	else
 	{
-		WorldPositionInput = Compiler->WorldPosition(WPT_Default);
+		WorldPositionInput = Compiler->WorldPosition(GetWorldPositionTypeWithOrigin(WorldPositionOriginType));
 	}
-	return Compiler->SkyAtmosphereAerialPerspective(WorldPositionInput);
+	return Compiler->SkyAtmosphereAerialPerspective(WorldPositionInput, WorldPositionOriginType);
 }
 
 void UMaterialExpressionSkyAtmosphereAerialPerspective::GetCaption(TArray<FString>& OutCaptions) const

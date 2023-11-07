@@ -618,6 +618,6 @@ enum class EPositionOrigin : uint8
 	/** Absolute world position, i.e. relative to (0,0,0) */
 	Absolute UMETA(DisplayName="Absolute World Position"),
 
-	/** Camera relative world position */
+	/** Camera relative world position, i.e. translated world space */
 	CameraRelative UMETA(DisplayName="Camera Relative World Position")
 };
