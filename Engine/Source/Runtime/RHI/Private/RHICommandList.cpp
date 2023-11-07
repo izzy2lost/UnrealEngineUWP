@@ -724,7 +724,7 @@ void FRHICommandListImmediate::ExecuteAndReset(bool bFlushResources)
 		{
 			if (Context)
 			{
-				IRHIPlatformCommandList* CommandList = GDynamicRHI->RHIFinalizeContext(Context);
+				IRHIPlatformCommandList* CommandList = GDynamicRHI ? GDynamicRHI->RHIFinalizeContext(Context) : nullptr;
 				if (CommandList)
 				{
 					CommandLists.Add(CommandList);

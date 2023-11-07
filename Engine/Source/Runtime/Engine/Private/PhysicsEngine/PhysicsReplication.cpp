@@ -1087,7 +1087,7 @@ bool FPhysicsReplicationAsync::DefaultReplication(Chaos::FPBDRigidParticleHandle
 
 	const FString ObjectName
 #if CHAOS_DEBUG_NAME
-		= Handle->DebugName() ? *Handle->DebugName() : FString(TEXT(""));
+		= Handle && Handle->DebugName() ? *Handle->DebugName() : FString(TEXT(""));
 #else
 		= FString(TEXT(""));
 #endif
