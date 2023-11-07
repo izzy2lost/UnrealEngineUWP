@@ -559,8 +559,10 @@ public:
 		Entry = InEntry;
 		WidgetBlueprintWeak = InWidgetBlueprint;
 
-		static IConsoleVariable* StaticCVarDefaultExecutionMode = IConsoleManager::Get().FindConsoleVariable(TEXT("MVVM.DefaultExecutionMode"));
-		CVarDefaultExecutionMode = StaticCVarDefaultExecutionMode;
+		static IConsoleVariable* CVarDefaultExecutionMode = IConsoleManager::Get().FindConsoleVariable(TEXT("MVVM.DefaultExecutionMode"));
+		ensure(CVarDefaultExecutionMode);
+		DefaultExecutionMode = CVarDefaultExecutionMode ? (EMVVMExecutionMode)CVarDefaultExecutionMode->GetInt() : EMVVMExecutionMode::DelayedWhenSharedElseImmediate;
+
 		
 		FMVVMBlueprintViewBinding* ViewBinding = GetThisViewBinding();
 
@@ -1102,8 +1104,7 @@ private:
 			if (NewState == ECheckBoxState::Checked)
 			{
 				UMVVMEditorSubsystem* Subsystem = GEditor->GetEditorSubsystem<UMVVMEditorSubsystem>();
-				EMVVMExecutionMode ExecutionMode = CVarDefaultExecutionMode ? (EMVVMExecutionMode)CVarDefaultExecutionMode->GetInt() : EMVVMExecutionMode::Immediate;
-				Subsystem->OverrideExecutionModeForBinding(WidgetBlueprintWeak.Get(), *ViewBinding, ExecutionMode);
+				Subsystem->OverrideExecutionModeForBinding(WidgetBlueprintWeak.Get(), *ViewBinding, DefaultExecutionMode);
 			}
 			else
 			{
@@ -1155,7 +1156,7 @@ private:
 
 	FText GetExecutioModeValue() const
 	{
-		EMVVMExecutionMode ExecutionMode = CVarDefaultExecutionMode ? (EMVVMExecutionMode)CVarDefaultExecutionMode->GetInt() : EMVVMExecutionMode::Immediate;
+		EMVVMExecutionMode ExecutionMode = DefaultExecutionMode;
 		if (FMVVMBlueprintViewBinding* ViewBinding = GetThisViewBinding())
 		{
 			if (ViewBinding->bOverrideExecutionMode)
@@ -1168,7 +1169,7 @@ private:
 	
 	FText GetExecutioModeValueToolTip() const
 	{
-		EMVVMExecutionMode ExecutionMode = CVarDefaultExecutionMode ? (EMVVMExecutionMode)CVarDefaultExecutionMode->GetInt() : EMVVMExecutionMode::Immediate;
+		EMVVMExecutionMode ExecutionMode = DefaultExecutionMode;
 		if (FMVVMBlueprintViewBinding* ViewBinding = GetThisViewBinding())
 		{
 			if (ViewBinding->bOverrideExecutionMode)
@@ -1324,7 +1325,7 @@ private:
 	TWeakObjectPtr<UWidgetBlueprint> WidgetBlueprintWeak;
 	TSharedPtr<SCustomDialog> ErrorDialog;
 	TArray<TSharedPtr<FText>> ErrorItems;
-	IConsoleVariable* CVarDefaultExecutionMode = nullptr;
+	EMVVMExecutionMode DefaultExecutionMode = EMVVMExecutionMode::DelayedWhenSharedElseImmediate;
 };
 
 /**

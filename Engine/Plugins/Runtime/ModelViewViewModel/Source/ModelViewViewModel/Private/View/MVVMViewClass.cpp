@@ -274,18 +274,31 @@ void FMVVMViewClass_SourceCreator::PostSerialize(const FArchive& Ar)
 ///////////////////////////////////////////////////////////////////////
 namespace UE::MVVM::Private
 {
-	int32 GDefaultEvaluationMode = (int32)EMVVMExecutionMode::Immediate;
-	static FAutoConsoleVariableRef CVarDefaultEvaluationMode(
+	FAutoConsoleVariable CVarDefaultEvaluationMode(
 		TEXT("MVVM.DefaultExecutionMode"),
-		GDefaultEvaluationMode,
-		TEXT("The default evaluation mode of a MVVM binding.")
+		static_cast<uint8>(EMVVMExecutionMode::DelayedWhenSharedElseImmediate),
+		TEXT("The default evaluation mode of a MVVM binding. Must restart if changed."),
+		EConsoleVariableFlags::ECVF_ReadOnly
 	);
 }
 
 EMVVMExecutionMode FMVVMViewClass_CompiledBinding::GetExecuteMode() const
 {
-	EMVVMExecutionMode DefaultMode = (EMVVMExecutionMode)UE::MVVM::Private::GDefaultEvaluationMode;
-	EMVVMExecutionMode Result = (Flags & EBindingFlags::OverrideExecuteMode) == 0 ? DefaultMode : ExecutionMode;
+	struct FLocal
+	{
+		FLocal()
+		{
+			IConsoleVariable* CVarDefaultExecutionMode = IConsoleManager::Get().FindConsoleVariable(TEXT("MVVM.DefaultExecutionMode"));
+			if (ensure(CVarDefaultExecutionMode))
+			{
+				DefaultMode = (EMVVMExecutionMode)CVarDefaultExecutionMode->GetInt();
+			}
+		}
+		EMVVMExecutionMode DefaultMode = EMVVMExecutionMode::DelayedWhenSharedElseImmediate;
+	};
+	static FLocal Local;
+
+	EMVVMExecutionMode Result = (Flags & EBindingFlags::OverrideExecuteMode) == 0 ? Local.DefaultMode : ExecutionMode;
 	return Result == EMVVMExecutionMode::DelayedWhenSharedElseImmediate ? (Binding.IsShared() ? EMVVMExecutionMode::Delayed : EMVVMExecutionMode::Immediate) : Result;
 }
 

@@ -1858,12 +1858,19 @@ bool FMVVMViewBlueprintCompiler::CompileBindings(const FCompiledBindingLibraryCo
 		return false;
 	}
 
-	static IConsoleVariable* CVarDefaultExecutionMode = IConsoleManager::Get().FindConsoleVariable(TEXT("MVVM.DefaultExecutionMode"));
-	if (!CVarDefaultExecutionMode)
+	struct FLocal
 	{
-		WidgetBlueprintCompilerContext.MessageLog.Error(*LOCTEXT("CantFindDefaultExecutioMode", "The default execution mode cannot be found.").ToString());
-		return false;
-	}
+		FLocal()
+		{
+			IConsoleVariable* CVarDefaultExecutionMode = IConsoleManager::Get().FindConsoleVariable(TEXT("MVVM.DefaultExecutionMode"));
+			if (ensure(CVarDefaultExecutionMode))
+			{
+				DefaultMode = (EMVVMExecutionMode)CVarDefaultExecutionMode->GetInt();
+			}
+		}
+		EMVVMExecutionMode DefaultMode = EMVVMExecutionMode::DelayedWhenSharedElseImmediate;
+	};
+	static FLocal LocalDefaultMode;
 
 	// Store bindings with corresponding ComplexConversionFunctionContextIndex to be sorted and mark the last binding 
 	// in the complex conversion as bExecuteAtInitialization == true
@@ -2000,7 +2007,7 @@ bool FMVVMViewBlueprintCompiler::CompileBindings(const FCompiledBindingLibraryCo
 				ComplexConversionFunctionContextIndex = CompileBinding.ComplexConversionFunctionContextIndex;
 			}
 
-			NewBinding.ExecutionMode = ViewBinding->bOverrideExecutionMode ? ViewBinding->OverrideExecutionMode : (EMVVMExecutionMode)CVarDefaultExecutionMode->GetInt();;
+			NewBinding.ExecutionMode = ViewBinding->bOverrideExecutionMode ? ViewBinding->OverrideExecutionMode : LocalDefaultMode.DefaultMode;
 			NewBinding.EditorId = ViewBinding->BindingId;
 
 			NewBinding.Flags |= (ViewBinding->bEnabled) ? FMVVMViewClass_CompiledBinding::EBindingFlags::EnabledByDefault : 0;
