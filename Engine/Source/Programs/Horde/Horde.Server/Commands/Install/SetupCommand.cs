@@ -58,15 +58,36 @@ namespace Horde.Server.Commands.Install
 
 			RefName refName = new RefName("latest");
 
-			using BundleCache bundleCache = new BundleCache();
-
-			using IStorageClient client = BundleStorageClient.CreateFromDirectory(bundleDir, bundleCache, logger);
-			await using (IStorageWriter writer = client.CreateWriter(refName))
+			using (BundleCache bundleCache = new BundleCache())
 			{
-				DirectoryNode dirNode = new DirectoryNode();
-				await dirNode.CopyFromDirectoryAsync(looseAgentDir.ToDirectoryInfo(), new ChunkingOptions(), writer, null);
-				await client.WriteRefAsync(refName, dirNode);
+				using (IStorageClient client = BundleStorageClient.CreateFromDirectory(bundleDir, bundleCache, logger))
+				{
+					await using (IStorageWriter writer = client.CreateWriter(refName))
+					{
+						DirectoryNode dirNode = new DirectoryNode();
+						await dirNode.CopyFromDirectoryAsync(looseAgentDir.ToDirectoryInfo(), new ChunkingOptions(), writer, null);
+						await client.WriteRefAsync(refName, dirNode);
+					}
+				}
 			}
+
+			// Create the agent installer bundle
+			DirectoryReference installerBundleDir = DirectoryReference.Combine(serverDir, "Tools", "horde-agent-installer");
+			DirectoryReference.CreateDirectory(installerBundleDir);
+			using (BundleCache bundleCache = new BundleCache())
+			{
+				using (IStorageClient client = BundleStorageClient.CreateFromDirectory(installerBundleDir, bundleCache, logger))
+				{
+					await using (IStorageWriter writer = client.CreateWriter(refName))
+					{
+						DirectoryNode dirNode = new DirectoryNode();
+						await dirNode.CopyFromDirectoryAsync(installerBundleDir.ToDirectoryInfo(), new ChunkingOptions(), writer, null);
+						await client.WriteRefAsync(refName, dirNode);
+					}
+				}
+			}
+
+			FileVersionInfo versionInfo = FileVersionInfo.GetVersionInfo(FileReference.Combine(looseAgentDir, "hordeagent.exe").FullName);
 
 			// Update the server config to include the bundled tool
 			FileReference serverConfigFile = FileReference.Combine(serverDir, "appsettings.json");
@@ -80,8 +101,16 @@ namespace Horde.Server.Commands.Install
 				bundledTool[nameof(BundledToolConfig.Name)] = "Horde Agent";
 				bundledTool[nameof(BundledToolConfig.Description)] = "Cross-platform build of the Horde Agent";
 				bundledTool[nameof(BundledToolConfig.RefName)] = refName.ToString();
+				if (!String.IsNullOrEmpty(versionInfo.ProductVersion))
+				{
+					bundledTool[nameof(BundledToolConfig.Version)] = versionInfo.ProductVersion;
+				}
 
-				FileVersionInfo versionInfo = FileVersionInfo.GetVersionInfo(FileReference.Combine(looseAgentDir, "hordeagent.exe").FullName);
+				bundledTool = FindOrAddElementByKey(bundledTools, nameof(BundledToolConfig.Id), "horde-agent-installer");
+				bundledTool[nameof(BundledToolConfig.Name)] = "Horde Agent Installer (Windows)";
+				bundledTool[nameof(BundledToolConfig.Description)] = "MSI installer for the Horde Agent on Windows";
+				bundledTool[nameof(BundledToolConfig.RefName)] = refName.ToString();
+
 				if (!String.IsNullOrEmpty(versionInfo.ProductVersion))
 				{
 					bundledTool[nameof(BundledToolConfig.Version)] = versionInfo.ProductVersion;
