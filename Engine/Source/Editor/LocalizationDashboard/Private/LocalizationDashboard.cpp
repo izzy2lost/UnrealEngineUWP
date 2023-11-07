@@ -190,7 +190,7 @@ void SLocalizationDashboard::Construct(const FArguments& InArgs, const TSharedPt
 		]
 	];
 
-	MainFrameModule.MakeMainMenuNoWidget(TabManager, "LocalizationDashboard.MainMenu", ToolMenuContext);
+	MainFrameModule.MakeMainMenu(TabManager, "LocalizationDashboard.MainMenu", ToolMenuContext);
 
 	// Open the first game target if present
 	if (ULocalizationTargetSet* GameTargetSet = ULocalizationSettings::GetGameTargetSet())

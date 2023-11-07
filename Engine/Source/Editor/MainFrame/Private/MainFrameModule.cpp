@@ -311,7 +311,7 @@ void FMainFrameModule::CreateDefaultMainFrameAuxiliary(const bool bStartImmersiv
 
 
 			FToolMenuContext EmptyContext;
-			MakeMainMenuNoWidget(FGlobalTabmanager::Get(), "MainFrame.NomadMainMenu", EmptyContext);
+			MakeMainMenu(FGlobalTabmanager::Get(), "MainFrame.NomadMainMenu", EmptyContext);
 		
 			MainFrameContent = FGlobalTabmanager::Get()->RestoreFrom(LoadedLayout, RootWindow, WindowConfig.bEmbedTitleAreaContent, OutputCanBeNullptr);
 			// MainFrameContent will only be nullptr if its main area contains invalid tabs (probably some layout bug). If so, reset layout to avoid potential crashes
@@ -380,12 +380,12 @@ bool FMainFrameModule::IsRecreatingDefaultMainFrame() const
 }
 
 
-void FMainFrameModule::MakeMainMenuNoWidget(const TSharedPtr<FTabManager>& TabManager, const FName MenuName, FToolMenuContext& ToolMenuContext) const
+TSharedRef<SWidget> FMainFrameModule::MakeMainMenu(const TSharedPtr<FTabManager>& TabManager, const FName MenuName, FToolMenuContext& ToolMenuContext) const
 {
 	// Can't make the MainMenu without the global editor commands having been registered
 	FGlobalEditorCommonCommands::Register();
 
-	FMainMenu::MakeMainMenu(TabManager, MenuName, ToolMenuContext);
+	return FMainMenu::MakeMainMenu(TabManager, MenuName, ToolMenuContext);
 }
 
 TSharedRef<SWidget> FMainFrameModule::MakeDeveloperTools( const TArray<FMainFrameDeveloperTool>& AdditionalTools ) const

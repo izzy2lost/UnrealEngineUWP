@@ -15,13 +15,15 @@ class FLevelEditorMenu
 {
 
 public:
+
 	static void RegisterLevelEditorMenus();
 
 	/**
-	 * Static: Creates a main menu for the given level editor's tab manager.
+	 * Static: Creates a widget for the level editor's menu
+	 *
+	 * @return	New widget
 	 */
-	static void MakeLevelEditorMenu(const TSharedPtr<FUICommandList>& CommandList, TSharedPtr<class SLevelEditor> LevelEditor);
-
+	static TSharedRef< SWidget > MakeLevelEditorMenu( const TSharedPtr<FUICommandList>& CommandList, TSharedPtr<class SLevelEditor> LevelEditor );
 private:
 	static void RegisterBuildMenu();
 	static void RegisterSelectMenu();

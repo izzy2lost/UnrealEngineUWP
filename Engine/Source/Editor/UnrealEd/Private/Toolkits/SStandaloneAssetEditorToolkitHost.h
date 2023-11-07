@@ -124,8 +124,8 @@ private:
 	/** The widget that will house the overlay widgets (if any) */
 	TSharedPtr<SBox> MenuOverlayWidgetContent;
 
-	/** Track whether we've created a main menu yet. */
-	bool bMainMenuCreated = false;
+	/** The default menu widget */
+	TSharedPtr< SWidget > DefaultMenuWidget;
 
 	/** The DockTab in which we reside. */
 	TWeakPtr<SDockTab> HostTabPtr;

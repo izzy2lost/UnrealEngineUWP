@@ -6,7 +6,6 @@
 #include "SlateFwd.h"
 #include "Modules/ModuleInterface.h"
 #include "Modules/ModuleManager.h"
-#include "Widgets/SNullWidget.h"
 #include "Widgets/SWidget.h"
 #include "Framework/Commands/UICommandList.h"
 #include "Framework/MultiBox/MultiBoxExtender.h"
@@ -63,27 +62,12 @@ public:
 	 * a menu for your tab, you should call this function to create your menu, passing in an extender object to add your
 	 * tab-specific menu items!
 	 *
-	 * @param	TabManager	The tab manager for the tab you're creating the menu for. This is needed so we can populate the layout menus correctly.
+	 * @param	TabManager	The tab manager for the tab you're creating the menu for.  This is needed so we can populate the layout menus correctly.
 	 * @param	Extender	Extender object used to customize the main frame menu
 	 *
 	 * @return	The newly-created menu widget
 	 */
-	UE_DEPRECATED(5.4, "Generation of main menu widgets is moving into the tab manager and therefore we cannot reliably return a widget here. Please call MakeMainMenuNoWidget instead.")
-	virtual TSharedRef<SWidget> MakeMainMenu(const TSharedPtr<FTabManager>& TabManager, const FName MenuName, FToolMenuContext& ToolMenuContext) const
-	{
-		MakeMainMenuNoWidget(TabManager, MenuName, ToolMenuContext);
-		return SNullWidget::NullWidget;
-	}
-
-	/**
-	 * Generates a menu that includes application global commands, such as "Save All", "Exit", etc.  If you're building
-	 * a menu for your tab, you should call this function to create your menu, passing in an extender object to add your
-	 * tab-specific menu items!
-	 *
-	 * @param	TabManager	The tab manager for the tab you're creating the menu for. This is needed so we can populate the layout menus correctly.
-	 * @param	Extender	Extender object used to customize the main frame menu
-	 */
-	virtual void MakeMainMenuNoWidget( const TSharedPtr<FTabManager>& TabManager, const FName MenuName, FToolMenuContext& ToolMenuContext ) const = 0;
+	virtual TSharedRef<SWidget> MakeMainMenu( const TSharedPtr<FTabManager>& TabManager, const FName MenuName, FToolMenuContext& ToolMenuContext ) const = 0;
 
 	/**
 	 * Generates a menu that's just like the "main menu" widget above, except it also includes some infrequently used commands

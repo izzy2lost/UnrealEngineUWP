@@ -24,9 +24,9 @@ public:
 	 *
 	 * @param TabManager Create the workspace menu based on this tab manager.
 	 * @param MenuName Identifier associated with the menu.
-	 * @param ToolMenuContext Context containing state.
+	 * @return ToolMenuContext Context containing state.
 	 */
-	static void MakeMainMenu( const TSharedPtr<FTabManager>& TabManager, const FName MenuName, FToolMenuContext& ToolMenuContext );
+	static TSharedRef<SWidget> MakeMainMenu( const TSharedPtr<FTabManager>& TabManager, const FName MenuName, FToolMenuContext& ToolMenuContext );
 
 	/**
 	 * Static: Registers main menu with menu system.
