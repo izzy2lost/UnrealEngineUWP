@@ -3,8 +3,8 @@
 #include "PostProcess/PostProcessBokehDOF.h"
 #include "PostProcess/PostProcessDOF.h"
 #include "CanvasTypes.h"
-#include "RenderTargetTemp.h"
 #include "PostProcess/DiaphragmDOF.h"
+#include "SceneRendering.h"
 #include "DataDrivenShaderPlatformInfo.h"
 #include "UnrealEngine.h"
 

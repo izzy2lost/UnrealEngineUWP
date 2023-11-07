@@ -16,7 +16,6 @@
 #include "RenderGraphUtils.h"
 #include "SceneTextureParameters.h"
 #include "DynamicPrimitiveDrawing.h"
-#include "RenderTargetTemp.h"
 #include "ShaderPrint.h"
 
 // Console variables

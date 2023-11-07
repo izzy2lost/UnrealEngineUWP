@@ -17,7 +17,6 @@
 #include "DeferredShadingRenderer.h"
 #include "DumpGPU.h"
 #include "DynamicPrimitiveDrawing.h"
-#include "RenderTargetTemp.h"
 #include "RendererModule.h"
 #include "ScenePrivate.h"
 #include "PostProcess/DiaphragmDOF.h"

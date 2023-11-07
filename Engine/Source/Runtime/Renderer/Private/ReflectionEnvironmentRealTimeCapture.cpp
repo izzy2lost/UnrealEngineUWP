@@ -22,7 +22,6 @@
 
 #if WITH_EDITOR
 #include "CanvasTypes.h"
-#include "RenderTargetTemp.h"
 #endif
 
 extern float GReflectionCaptureNearPlane;

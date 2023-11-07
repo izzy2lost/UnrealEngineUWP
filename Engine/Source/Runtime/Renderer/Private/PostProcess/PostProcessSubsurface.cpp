@@ -15,7 +15,6 @@
 #include "DataDrivenShaderPlatformInfo.h"
 #include "Engine/SubsurfaceProfile.h"
 #include "CanvasTypes.h"
-#include "RenderTargetTemp.h"
 #include "ScenePrivate.h"
 #include "GenerateMips.h"
 #include "ClearQuad.h"

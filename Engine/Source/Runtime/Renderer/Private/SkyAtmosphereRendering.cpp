@@ -10,7 +10,6 @@
 #include "DeferredShadingRenderer.h"
 #include "LightSceneInfo.h"
 #include "PixelShaderUtils.h"
-#include "RenderTargetTemp.h"
 #include "Rendering/SkyAtmosphereCommonData.h"
 #include "ScenePrivate.h"
 #include "SceneRenderTargetParameters.h"

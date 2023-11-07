@@ -5,7 +5,6 @@
 #include "CanvasTypes.h"
 #include "DataDrivenShaderPlatformInfo.h"
 #include "Engine/Engine.h"
-#include "RenderTargetTemp.h"
 #include "ScenePrivate.h"
 #include "SpriteIndexBuffer.h"
 #include "PostProcess/PostProcessing.h"

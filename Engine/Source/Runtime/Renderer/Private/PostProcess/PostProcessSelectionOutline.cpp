@@ -7,7 +7,6 @@
 #include "EditorPrimitivesRendering.h"
 #include "SceneTextureParameters.h"
 #include "CanvasTypes.h"
-#include "RenderTargetTemp.h"
 #include "ClearQuad.h"
 #include "ScenePrivate.h"
 #include "PostProcess/SceneRenderTargets.h"
