@@ -56,9 +56,6 @@ namespace UE::PixelStreamingVCam::Private
 			This->StreamerId = FString::Printf(TEXT("VCam%d"), NextDefaultStreamerId++);
 		}
 
-		// Rename the underlying session to the streamer name
-		This->Rename(*This->StreamerId);
-
 		// Setup livelink source
 		UVCamPixelStreamingSubsystem::Get()->TryGetLiveLinkSource(This);
 		if (UVCamPixelStreamingSubsystem* PixelStreamingSubsystem = UVCamPixelStreamingSubsystem::Get())
