@@ -655,6 +655,18 @@ void UGameFeaturesSubsystem::RemoveGameFeatureFromAssetManager(const UGameFeatur
 	}
 }
 
+void UGameFeaturesSubsystem::ForEachGameFeature(TFunction<void(FGameFeatureInfo&&)>& Visitor) const
+{
+	for (auto StateMachineIt = GameFeaturePluginStateMachines.CreateConstIterator(); StateMachineIt; ++StateMachineIt)
+	{
+		if (UGameFeaturePluginStateMachine* GFSM = StateMachineIt.Value())
+		{	
+			FGameFeatureInfo GameFeatureInfo = { GFSM->GetPluginName(), GFSM->GetPluginURL(), GFSM->WasLoadedAsBuiltIn(), GFSM->GetCurrentState() };
+			Visitor(MoveTemp(GameFeatureInfo));
+		}
+	}
+}
+
 void UGameFeaturesSubsystem::AddObserver(UObject* Observer)
 {
 	//@TODO: GameFeaturePluginEnginePush: May want to warn if one is added after any game feature plugins are already initialized, or go to a CallOrRegister sort of pattern

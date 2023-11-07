@@ -384,6 +384,16 @@ struct FGameFeatureProtocolOptions : public TUnion<FInstallBundlePluginProtocolO
 	bool bLogErrorOnForcedDependencyCreation : 1;
 };
 
+// some important information about a gamefeature
+struct FGameFeatureInfo
+{
+	FString Name;
+	FString URL;
+	bool bLoadedAsBuiltIn;
+	EGameFeaturePluginState CurrentState;
+	EGameFeaturePluginState DestinationState;
+};
+
 /** The manager subsystem for game features */
 UCLASS()
 class GAMEFEATURES_API UGameFeaturesSubsystem : public UEngineSubsystem
@@ -405,6 +415,8 @@ public:
 
 	void AddObserver(UObject* Observer);
 	void RemoveObserver(UObject* Observer);
+
+	void ForEachGameFeature(TFunction<void(FGameFeatureInfo&&)>& Visitor) const;
 
 	/**
 	 * Calls the compile-time lambda on each active game feature data of the specified type
