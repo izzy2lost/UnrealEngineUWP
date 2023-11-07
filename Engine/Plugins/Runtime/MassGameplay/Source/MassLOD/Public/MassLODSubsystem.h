@@ -111,6 +111,8 @@ public:
 	void RegisterActorViewer(AActor& ActorViewer);
 	void UnregisterActorViewer(AActor& ActorViewer);
 
+	bool IsUsingPlayerPawnLocationInsteadOfCamera() const { return bUsePlayerPawnLocationInsteadOfCamera; }
+
 #if WITH_MASSGAMEPLAY_DEBUG
 	void DebugSetUsePlayerPawnLocationInsteadOfCamera(const bool bInValue) { bUsePlayerPawnLocationInsteadOfCamera = bInValue; }
 	void DebugUnregisterActorViewer();
