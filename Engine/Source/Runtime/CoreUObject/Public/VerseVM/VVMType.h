@@ -52,7 +52,7 @@ struct VType : VCell
 	{
 		checkf(IsA<CastType>(),
 			TEXT("Expected type %s, but got type %s."),
-			*Verse::DebugName(CastType::Type::Tag),
+			*Verse::DebugName(CastType::Tag),
 			*DebugName());
 		return *static_cast<CastType*>(this);
 	}
