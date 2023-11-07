@@ -21,13 +21,13 @@ namespace EpicGames.Horde.Storage.Clients
 	/// </summary>
 	public sealed class HttpStorageClient : IStorageClient
 	{
-		class Handle : BlobHandle
+		class Handle : IBlobHandle
 		{
 			readonly HttpStorageClient _httpStorageClient;
 			readonly BlobLocator _locator;
 
 			/// <inheritdoc/>
-			public override BlobHandle? Outer => null;
+			public IBlobHandle? Outer => null;
 
 			public Handle(HttpStorageClient httpStorageClient, BlobLocator locator)
 			{
@@ -36,15 +36,15 @@ namespace EpicGames.Horde.Storage.Clients
 			}
 
 			/// <inheritdoc/>
-			public override Task<Stream> OpenAsync(int offset = 0, int? length = null, CancellationToken cancellationToken = default)
+			public Task<Stream> OpenBodyAsync(int offset = 0, int? length = null, CancellationToken cancellationToken = default)
 				=> _httpStorageClient._backend.OpenAsync(_locator.ToString(), offset, length, cancellationToken);
 
 			/// <inheritdoc/>
-			public override ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default)
+			public ValueTask<BlobData> ReadAsync(CancellationToken cancellationToken = default)
 				=> _httpStorageClient.ReadBlobAsync(_locator, cancellationToken);
 
 			/// <inheritdoc/>
-			public override bool TryAppendIdentifier(Utf8StringBuilder builder)
+			public bool TryAppendIdentifier(Utf8StringBuilder builder)
 			{
 				builder.Append(_locator.Path);
 				return true;
@@ -85,7 +85,7 @@ namespace EpicGames.Horde.Storage.Clients
 		#region Blobs
 
 		/// <inheritdoc/>
-		public BlobHandle CreateBlobHandle(BlobLocator locator)
+		public IBlobHandle CreateBlobHandle(BlobLocator locator)
 		{
 			if (locator.TryUnwrap(out BlobLocator outer, out Utf8String fragment))
 			{
@@ -105,11 +105,11 @@ namespace EpicGames.Horde.Storage.Clients
 		public async ValueTask<BlobData> ReadBlobAsync(BlobLocator locator, CancellationToken cancellationToken = default)
 		{
 			IReadOnlyMemoryOwner<byte> owner = await _backend.ReadAsync(locator.ToString(), cancellationToken);
-			return new ReadOnlyMemoryOwnerBlobData(BlobType.Leaf, owner, Array.Empty<BlobHandle>());
+			return new ReadOnlyMemoryOwnerBlobData(BlobType.Leaf, owner, Array.Empty<IBlobHandle>());
 		}
 
 		/// <inheritdoc/>
-		public async ValueTask<BlobHandle> WriteBlobAsync(BlobType type, Stream stream, IReadOnlyList<BlobHandle> references, string? basePath = null, CancellationToken cancellationToken = default)
+		public async ValueTask<IBlobHandle> WriteBlobAsync(BlobType type, Stream stream, IReadOnlyList<IBlobHandle> references, string? basePath = null, CancellationToken cancellationToken = default)
 		{
 			string path = await _backend.WriteAsync(stream, basePath, cancellationToken);
 			return new Handle(this, new BlobLocator(path));
@@ -135,13 +135,13 @@ namespace EpicGames.Horde.Storage.Clients
 		#region Aliases
 
 		/// <inheritdoc/>
-		public Task AddAliasAsync(string name, BlobHandle target, int rank = 0, ReadOnlyMemory<byte> data = default, CancellationToken cancellationToken = default)
+		public Task AddAliasAsync(string name, IBlobHandle target, int rank = 0, ReadOnlyMemory<byte> data = default, CancellationToken cancellationToken = default)
 		{
 			throw new NotSupportedException("Http storage client does not currently support aliases.");
 		}
 
 		/// <inheritdoc/>
-		public Task RemoveAliasAsync(string name, BlobHandle target, CancellationToken cancellationToken = default)
+		public Task RemoveAliasAsync(string name, IBlobHandle target, CancellationToken cancellationToken = default)
 		{
 			throw new NotSupportedException("Http storage client does not currently support aliases.");
 		}
@@ -170,7 +170,7 @@ namespace EpicGames.Horde.Storage.Clients
 						for (int idx = 0; idx < message.Nodes.Count; idx++)
 						{
 							FindNodeResponse node = message.Nodes[idx];
-							BlobHandle handle = CreateBlobHandle(node.Blob);
+							IBlobHandle handle = CreateBlobHandle(node.Blob);
 							aliases[idx] = new BlobAlias(handle, node.Rank, node.Data);
 						}
 
@@ -211,7 +211,7 @@ namespace EpicGames.Horde.Storage.Clients
 		}
 
 		/// <inheritdoc/>
-		public async Task<BlobHandle?> TryReadRefAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
+		public async Task<IBlobHandle?> TryReadRefAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
 		{
 			using (HttpClient httpClient = _createClient())
 			{
@@ -248,7 +248,7 @@ namespace EpicGames.Horde.Storage.Clients
 		}
 
 		/// <inheritdoc/>
-		public async Task WriteRefAsync(RefName name, BlobHandle target, RefOptions? options = null, CancellationToken cancellationToken = default)
+		public async Task WriteRefAsync(RefName name, IBlobHandle target, RefOptions? options = null, CancellationToken cancellationToken = default)
 		{
 			await target.FlushAsync(cancellationToken);
 			BlobLocator locator = target.GetLocator();

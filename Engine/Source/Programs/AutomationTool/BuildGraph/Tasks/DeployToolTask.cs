@@ -150,7 +150,7 @@ namespace AutomationTool.Tasks
 				return httpClient;
 			}
 
-			BlobHandle handle;
+			IBlobHandle handle;
 
 			string basePath = $"api/v1/tools/{Parameters.Id}";
 			using HttpStorageBackend httpStorageBackend = new HttpStorageBackend(basePath, CreateHttpClient, Logger);

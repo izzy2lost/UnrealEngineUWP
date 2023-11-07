@@ -75,7 +75,7 @@ namespace EpicGames.Horde.Storage
 	/// </summary>
 	/// <param name="Target">Target blob</param>
 	/// <param name="Data">Inline data stored with the ref</param>
-	public record class RefValue(BlobHandle Target, ReadOnlyMemory<byte> Data);
+	public record class RefValue(IBlobHandle Target, ReadOnlyMemory<byte> Data);
 
 	/// <summary>
 	/// Interface for the storage system.
@@ -94,7 +94,7 @@ namespace EpicGames.Horde.Storage
 		/// </summary>
 		/// <param name="locator">Path to the blob</param>
 		/// <returns>New handle to the blob</returns>
-		BlobHandle CreateBlobHandle(BlobLocator locator);
+		IBlobHandle CreateBlobHandle(BlobLocator locator);
 
 		/// <summary>
 		/// Creates a new writer for storage blobs
@@ -104,7 +104,7 @@ namespace EpicGames.Horde.Storage
 		IStorageWriter CreateWriter(string? basePath = null);
 
 		/// <summary>
-		/// Read a blob from the underlying storage system. Calling <see cref="BlobHandle.ReadBlobDataAsync(CancellationToken)"/> is more efficient than calling this method repeatedly for small blobs.
+		/// Read a blob from the underlying storage system. Calling <see cref="IBlobHandle.ReadAsync(CancellationToken)"/> is more efficient than calling this method repeatedly for small blobs.
 		/// </summary>
 		/// <param name="locator">Locator for the blob</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
@@ -118,7 +118,7 @@ namespace EpicGames.Horde.Storage
 		/// <param name="references">References to other blobs</param>
 		/// <param name="basePath">Base path for writes</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		ValueTask<BlobHandle> WriteBlobAsync(BlobType type, Stream stream, IReadOnlyList<BlobHandle> references, string? basePath = null, CancellationToken cancellationToken = default);
+		ValueTask<IBlobHandle> WriteBlobAsync(BlobType type, Stream stream, IReadOnlyList<IBlobHandle> references, string? basePath = null, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Attempts to get a redirect URL for the given blob
@@ -148,7 +148,7 @@ namespace EpicGames.Horde.Storage
 		/// <param name="rank">Rank for this alias. In situations where an alias has multiple mappings, the alias with the highest rank will be returned by default.</param>
 		/// <param name="data">Additional data to be stored inline with the alias</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		Task AddAliasAsync(string name, BlobHandle handle, int rank = 0, ReadOnlyMemory<byte> data = default, CancellationToken cancellationToken = default);
+		Task AddAliasAsync(string name, IBlobHandle handle, int rank = 0, ReadOnlyMemory<byte> data = default, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Removes an alias from a blob
@@ -156,7 +156,7 @@ namespace EpicGames.Horde.Storage
 		/// <param name="name">Name of the alias</param>
 		/// <param name="handle">Locator for the blob</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		Task RemoveAliasAsync(string name, BlobHandle handle, CancellationToken cancellationToken = default);
+		Task RemoveAliasAsync(string name, IBlobHandle handle, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Finds blobs with the given alias. Unlike refs, aliases do not serve as GC roots.
@@ -178,7 +178,7 @@ namespace EpicGames.Horde.Storage
 		/// <param name="cacheTime">Minimum coherency for any cached value to be returned</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Blob pointed to by the ref</returns>
-		Task<BlobHandle?> TryReadRefAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default);
+		Task<IBlobHandle?> TryReadRefAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Writes a new ref to the store
@@ -188,7 +188,7 @@ namespace EpicGames.Horde.Storage
 		/// <param name="options">Options for the new ref</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Unique identifier for the blob</returns>
-		Task WriteRefAsync(RefName name, BlobHandle handle, RefOptions? options = null, CancellationToken cancellationToken = default);
+		Task WriteRefAsync(RefName name, IBlobHandle handle, RefOptions? options = null, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Reads data for a ref from the store
@@ -343,7 +343,7 @@ namespace EpicGames.Horde.Storage
 		/// <param name="data">Data to be stored</param>
 		/// <param name="references">References to other blobs</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		public static ValueTask<BlobHandle> WriteBlobAsync(this IStorageClient store, BlobType type, ReadOnlyMemory<byte> data, IReadOnlyList<BlobHandle> references, CancellationToken cancellationToken = default)
+		public static ValueTask<IBlobHandle> WriteBlobAsync(this IStorageClient store, BlobType type, ReadOnlyMemory<byte> data, IReadOnlyList<IBlobHandle> references, CancellationToken cancellationToken = default)
 		{
 			return WriteBlobAsync(store, null, type, data, references, cancellationToken);
 		}
@@ -357,7 +357,7 @@ namespace EpicGames.Horde.Storage
 		/// <param name="data">Data to be stored</param>
 		/// <param name="references">References to other blobs</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		public static async ValueTask<BlobHandle> WriteBlobAsync(this IStorageClient store, string? basePath, BlobType type, ReadOnlyMemory<byte> data, IReadOnlyList<BlobHandle> references, CancellationToken cancellationToken = default)
+		public static async ValueTask<IBlobHandle> WriteBlobAsync(this IStorageClient store, string? basePath, BlobType type, ReadOnlyMemory<byte> data, IReadOnlyList<IBlobHandle> references, CancellationToken cancellationToken = default)
 		{
 			using ReadOnlyMemoryStream stream = new ReadOnlyMemoryStream(data);
 			return await store.WriteBlobAsync(type, stream, references, basePath, cancellationToken);
@@ -394,7 +394,7 @@ namespace EpicGames.Horde.Storage
 		/// <returns>True if the ref exists, false if it did not exist</returns>
 		public static async Task<bool> HasRefAsync(this IStorageClient store, RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
 		{
-			BlobHandle? target = await store.TryReadRefAsync(name, cacheTime, cancellationToken);
+			IBlobHandle? target = await store.TryReadRefAsync(name, cacheTime, cancellationToken);
 			return target != null;
 		}
 
@@ -406,7 +406,7 @@ namespace EpicGames.Horde.Storage
 		/// <param name="cacheTime">Minimum coherency for any cached value to be returned</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Blob pointed to by the ref</returns>
-		public static async Task<BlobHandle?> TryReadRefTargetAsync(this IStorageClient store, RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
+		public static async Task<IBlobHandle?> TryReadRefTargetAsync(this IStorageClient store, RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
 		{
 			return await store.TryReadRefAsync(name, cacheTime, cancellationToken);
 		}
@@ -419,9 +419,9 @@ namespace EpicGames.Horde.Storage
 		/// <param name="cacheTime">Minimum coherency of any cached result</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>The ref target</returns>
-		public static async Task<BlobHandle> ReadRefTargetAsync(this IStorageClient store, RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
+		public static async Task<IBlobHandle> ReadRefTargetAsync(this IStorageClient store, RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
 		{
-			BlobHandle? refTarget = await store.TryReadRefTargetAsync(name, cacheTime, cancellationToken);
+			IBlobHandle? refTarget = await store.TryReadRefTargetAsync(name, cacheTime, cancellationToken);
 			return refTarget ?? throw new RefNameNotFoundException(name);
 		}
 
@@ -434,7 +434,7 @@ namespace EpicGames.Horde.Storage
 		/// <param name="options">Options for the new ref</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Unique identifier for the blob</returns>
-		public static Task WriteRefTargetAsync(this IStorageClient store, RefName name, BlobHandle handle, RefOptions? options = null, CancellationToken cancellationToken = default)
+		public static Task WriteRefTargetAsync(this IStorageClient store, RefName name, IBlobHandle handle, RefOptions? options = null, CancellationToken cancellationToken = default)
 		{
 			return store.WriteRefAsync(name, handle, options: options, cancellationToken: cancellationToken);
 		}

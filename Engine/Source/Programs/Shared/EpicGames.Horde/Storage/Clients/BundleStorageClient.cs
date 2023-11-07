@@ -19,14 +19,14 @@ namespace EpicGames.Horde.Storage.Clients
 		/// <summary>
 		/// Handle to a bundle object
 		/// </summary>
-		class BundleHandle : BlobHandle
+		class BundleHandle : IBlobHandle
 		{
 			readonly BundleStorageClient _storageClient;
 			readonly BlobLocator _locator;
-			List<BlobHandle>? _refs;
+			List<IBlobHandle>? _refs;
 
 			/// <inheritdoc/>
-			public override BlobHandle? Outer => null;
+			public IBlobHandle? Outer => null;
 
 			/// <summary>
 			/// Constructor
@@ -38,14 +38,14 @@ namespace EpicGames.Horde.Storage.Clients
 			}
 
 			/// <inheritdoc/>
-			public override ValueTask<BlobType> GetTypeAsync(CancellationToken cancellationToken = default) => new ValueTask<BlobType>(Bundle.BlobType);
+			public ValueTask<BlobType> ReadTypeAsync(CancellationToken cancellationToken = default) => new ValueTask<BlobType>(Bundle.BlobType);
 
 			/// <inheritdoc/>
-			public override async ValueTask<IReadOnlyList<BlobHandle>> GetRefsAsync(CancellationToken cancellationToken = default)
+			public async ValueTask<IReadOnlyList<IBlobHandle>> ReadImportsAsync(CancellationToken cancellationToken = default)
 			{
 				if (_refs == null)
 				{
-					List<BlobHandle> refs = new List<BlobHandle>();
+					List<IBlobHandle> refs = new List<IBlobHandle>();
 
 					Bundles.V1.BundleHeader header = await _storageClient.ReadHeaderAsync(_locator, cancellationToken);
 					foreach (BlobLocator import in header.Imports)
@@ -59,23 +59,23 @@ namespace EpicGames.Horde.Storage.Clients
 			}
 
 			/// <inheritdoc/>
-			public override Task<Stream> OpenAsync(int offset = 0, int? length = null, CancellationToken cancellationToken = default)
+			public Task<Stream> OpenBodyAsync(int offset = 0, int? length = null, CancellationToken cancellationToken = default)
 			{
 				return _storageClient.OpenBlobAsync(_locator, offset, length, cancellationToken);
 			}
 
 			/// <inheritdoc/>
-			public override async ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default)
+			public async ValueTask<BlobData> ReadAsync(CancellationToken cancellationToken = default)
 			{
 				using (Stream stream = await _storageClient.OpenBlobAsync(_locator, 0, cancellationToken: cancellationToken))
 				{
 					byte[] data = await stream.ReadAllBytesAsync(cancellationToken);
-					return new BlobData(Bundle.BlobType, data, await GetRefsAsync(cancellationToken));
+					return new BlobData(Bundle.BlobType, data, await ReadImportsAsync(cancellationToken));
 				}
 			}
 
 			/// <inheritdoc/>
-			public override bool TryAppendIdentifier(Utf8StringBuilder builder)
+			public bool TryAppendIdentifier(Utf8StringBuilder builder)
 			{
 				builder.Append(_locator.Path);
 				return true;
@@ -136,12 +136,12 @@ namespace EpicGames.Horde.Storage.Clients
 		/// <inheritdoc/>
 		public async ValueTask<BlobData> ReadBlobAsync(BlobLocator locator, CancellationToken cancellationToken = default)
 		{
-			BlobHandle handle = CreateBlobHandle(locator);
-			return await handle.ReadBlobDataAsync(cancellationToken);
+			IBlobHandle handle = CreateBlobHandle(locator);
+			return await handle.ReadAsync(cancellationToken);
 		}
 
 		/// <inheritdoc/>
-		public async ValueTask<BlobHandle> WriteBlobAsync(BlobType type, Stream stream, IReadOnlyList<BlobHandle> references, string? basePath = null, CancellationToken cancellationToken = default)
+		public async ValueTask<IBlobHandle> WriteBlobAsync(BlobType type, Stream stream, IReadOnlyList<IBlobHandle> references, string? basePath = null, CancellationToken cancellationToken = default)
 		{
 			if (type == Bundle.BlobType)
 			{
@@ -180,12 +180,12 @@ namespace EpicGames.Horde.Storage.Clients
 		/// Read a bundle from the underlying storage
 		/// </summary>
 		async Task<Stream> OpenBundleAsync(BlobLocator locator, int offset, int? length, CancellationToken cancellationToken)
-			=> await _inner.CreateBlobHandle(locator).OpenAsync(offset, length, cancellationToken);
+			=> await _inner.CreateBlobHandle(locator).OpenBodyAsync(offset, length, cancellationToken);
 
 		/// <summary>
 		/// Write a bundle to the underlying storage
 		/// </summary>
-		ValueTask<BlobHandle> WriteBundleAsync(Stream stream, IReadOnlyList<BlobHandle> references, string? basePath = null, CancellationToken cancellationToken = default)
+		ValueTask<IBlobHandle> WriteBundleAsync(Stream stream, IReadOnlyList<IBlobHandle> references, string? basePath = null, CancellationToken cancellationToken = default)
 			=> _inner.WriteBlobAsync(Bundle.BlobType, stream, references, basePath, cancellationToken);
 
 		/// <inheritdoc/>
@@ -196,7 +196,7 @@ namespace EpicGames.Horde.Storage.Clients
 		#region Nodes
 
 		/// <inheritdoc/>
-		public BlobHandle CreateBlobHandle(BlobLocator locator)
+		public IBlobHandle CreateBlobHandle(BlobLocator locator)
 		{
 			if (locator.TryUnwrap(out BlobLocator baseLocator, out Utf8String fragment))
 			{
@@ -219,11 +219,11 @@ namespace EpicGames.Horde.Storage.Clients
 		#region Aliases
 
 		/// <inheritdoc/>
-		public Task AddAliasAsync(string name, BlobHandle handle, int rank, ReadOnlyMemory<byte> data, CancellationToken cancellationToken)
+		public Task AddAliasAsync(string name, IBlobHandle handle, int rank, ReadOnlyMemory<byte> data, CancellationToken cancellationToken)
 			=> _inner.AddAliasAsync(name, handle, rank, data, cancellationToken);
 
 		/// <inheritdoc/>
-		public Task RemoveAliasAsync(string name, BlobHandle handle, CancellationToken cancellationToken)
+		public Task RemoveAliasAsync(string name, IBlobHandle handle, CancellationToken cancellationToken)
 			=> _inner.RemoveAliasAsync(name, handle, cancellationToken);
 
 		/// <inheritdoc/>
@@ -247,9 +247,9 @@ namespace EpicGames.Horde.Storage.Clients
 			=> _inner.DeleteRefAsync(name, cancellationToken);
 
 		/// <inheritdoc/>
-		public async Task<BlobHandle?> TryReadRefAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
+		public async Task<IBlobHandle?> TryReadRefAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
 		{
-			BlobHandle? target = await _inner.TryReadRefAsync(name, cacheTime, cancellationToken);
+			IBlobHandle? target = await _inner.TryReadRefAsync(name, cacheTime, cancellationToken);
 			if (target != null)
 			{
 				target = CreateBlobHandle(target.GetLocator());
@@ -258,7 +258,7 @@ namespace EpicGames.Horde.Storage.Clients
 		}
 
 		/// <inheritdoc/>
-		public Task WriteRefAsync(RefName name, BlobHandle target, RefOptions? options, CancellationToken cancellationToken)
+		public Task WriteRefAsync(RefName name, IBlobHandle target, RefOptions? options, CancellationToken cancellationToken)
 			=> _inner.WriteRefAsync(name, target, options, cancellationToken);
 
 		#endregion

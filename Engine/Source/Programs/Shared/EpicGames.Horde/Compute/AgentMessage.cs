@@ -652,8 +652,8 @@ namespace EpicGames.Horde.Compute
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		public static async Task SendBlobDataAsync(this AgentMessageChannel channel, BlobLocator locator, int offset, int length, IStorageClient storage, CancellationToken cancellationToken = default)
 		{
-			BlobHandle handle = storage.CreateBlobHandle(locator);
-			using Stream stream = await handle.OpenAsync(offset, (length == 0)? null : length, cancellationToken);
+			IBlobHandle handle = storage.CreateBlobHandle(locator);
+			using Stream stream = await handle.OpenBodyAsync(offset, (length == 0)? null : length, cancellationToken);
 
 			const int MaxChunkSize = 512 * 1024;
 			for (int chunkOffset = 0; ;)

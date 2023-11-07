@@ -24,12 +24,12 @@ namespace EpicGames.Horde.Storage
 		/// <summary>
 		/// Handles to referenced blobs
 		/// </summary>
-		public IReadOnlyList<BlobHandle> Refs { get; }
+		public IReadOnlyList<IBlobHandle> Refs { get; }
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public BlobData(BlobType type, ReadOnlyMemory<byte> data, IReadOnlyList<BlobHandle> refs)
+		public BlobData(BlobType type, ReadOnlyMemory<byte> data, IReadOnlyList<IBlobHandle> refs)
 		{
 			Type = type;
 			Data = data;
@@ -62,7 +62,7 @@ namespace EpicGames.Horde.Storage
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public ReadOnlyMemoryOwnerBlobData(BlobType type, IReadOnlyMemoryOwner<byte> owner, IReadOnlyList<BlobHandle> refs)
+		public ReadOnlyMemoryOwnerBlobData(BlobType type, IReadOnlyMemoryOwner<byte> owner, IReadOnlyList<IBlobHandle> refs)
 			: base(type, owner.Memory, refs)
 		{
 			_owner = owner;

@@ -13,16 +13,16 @@ namespace EpicGames.Horde.Tests
 	[TestClass]
 	public class BlobDataTests
 	{
-		class DummyHandle : BlobHandle
+		class DummyHandle : IBlobHandle
 		{
 			readonly BlobLocator _locator;
 
-			public override BlobHandle? Outer => null;
+			public IBlobHandle? Outer => null;
 
 			public DummyHandle(string locator) => _locator = new BlobLocator(new Utf8String(locator));
-			public override ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
+			public ValueTask<BlobData> ReadAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
 
-			public override bool TryAppendIdentifier(Utf8StringBuilder builder)
+			public bool TryAppendIdentifier(Utf8StringBuilder builder)
 			{
 				builder.Append(_locator.Path);
 				return true;
@@ -35,7 +35,7 @@ namespace EpicGames.Horde.Tests
 		[TestMethod]
 		public void HeaderSerialization()
 		{
-			List<BlobHandle> refs = new List<BlobHandle>();
+			List<IBlobHandle> refs = new List<IBlobHandle>();
 			refs.Add(new DummyHandle("hello"));
 			refs.Add(new DummyHandle("world"));
 

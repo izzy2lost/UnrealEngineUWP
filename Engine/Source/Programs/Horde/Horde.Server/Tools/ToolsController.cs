@@ -127,7 +127,7 @@ namespace Horde.Server.Tools
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public GetToolDeploymentResponse(IToolDeployment deployment, BlobHandle handle)
+		public GetToolDeploymentResponse(IToolDeployment deployment, IBlobHandle handle)
 		{
 			_deployment = deployment;
 			Locator = handle.GetLocator();
@@ -519,7 +519,7 @@ namespace Horde.Server.Tools
 		private async Task<GetToolDeploymentResponse> GetDeploymentInfoResponseAsync(ITool tool, IToolDeployment deployment, CancellationToken cancellationToken)
 		{
 			using IStorageClient client = _toolCollection.CreateStorageClient(tool);
-			BlobHandle rootHandle = await client.ReadRefTargetAsync(deployment.RefName, cancellationToken: cancellationToken);
+			IBlobHandle rootHandle = await client.ReadRefTargetAsync(deployment.RefName, cancellationToken: cancellationToken);
 
 			return new GetToolDeploymentResponse(deployment, rootHandle);
 		}

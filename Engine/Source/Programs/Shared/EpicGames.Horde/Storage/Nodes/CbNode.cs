@@ -27,7 +27,7 @@ namespace EpicGames.Horde.Storage.Nodes
 			{
 				if (field.IsAttachment())
 				{
-					BlobHandle handle = _reader.ReadBlobReference();
+					IBlobHandle handle = _reader.ReadBlobReference();
 					_refs.Add(new HashedNodeRef(field.AsAttachment(), handle));
 				}
 				else if (field.IsArray())

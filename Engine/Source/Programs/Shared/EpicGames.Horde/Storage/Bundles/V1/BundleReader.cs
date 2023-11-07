@@ -443,8 +443,8 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 			int prefetchSize = _cache != null ? DefaultFetchSize : DefaultUncachedFetchSize;
 			for (; ; )
 			{
-				BlobHandle handle = _store.CreateBlobHandle(bundle.Locator);
-				await using (Stream stream = await handle.OpenAsync(0, prefetchSize, cancellationToken))
+				IBlobHandle handle = _store.CreateBlobHandle(bundle.Locator);
+				await using (Stream stream = await handle.OpenBodyAsync(0, prefetchSize, cancellationToken))
 				{
 					// Read the header data
 					byte[] prelude = new byte[Bundle.SignatureLength];
@@ -499,8 +499,8 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 			Interlocked.Increment(ref _numPacketReads);
 			Interlocked.Add(ref _numBytesRead, maxOffset - minOffset);
 
-			BlobHandle handle = _store.CreateBlobHandle(bundleInfo.Locator);
-			await using (Stream stream = await handle.OpenAsync(bundleInfo.HeaderLength + minOffset, maxOffset - minOffset, cancellationToken))
+			IBlobHandle handle = _store.CreateBlobHandle(bundleInfo.Locator);
+			await using (Stream stream = await handle.OpenBodyAsync(bundleInfo.HeaderLength + minOffset, maxOffset - minOffset, cancellationToken))
 			{
 				// Copy all the packets that have been read into separate buffers, so we can cache them indidually.
 				for (int packetIdx = minPacketIdx; packetIdx <= maxPacketIdx; packetIdx++)
@@ -546,7 +546,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 			BundleHeader header = await ReadHeaderAsync(bundleLocator, cancellationToken);
 			BundleExport export = header.Exports[exportIdx];
 
-			List<BlobHandle> refs = new List<BlobHandle>(export.References.Count);
+			List<IBlobHandle> refs = new List<IBlobHandle>(export.References.Count);
 			foreach (BundleExportRef reference in export.References)
 			{
 				BlobLocator importBlob;

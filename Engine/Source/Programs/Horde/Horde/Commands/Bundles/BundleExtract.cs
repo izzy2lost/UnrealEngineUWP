@@ -38,19 +38,19 @@ namespace Horde.Commands.Bundles
 			if (File != null)
 			{
 				using IStorageClient store = BundleStorageClient.CreateFromDirectory(File.Directory, BundleCache, logger);
-				BlobHandle handle = store.CreateBlobHandle(await FileStorageClient.ReadRefAsync(File));
+				IBlobHandle handle = store.CreateBlobHandle(await FileStorageClient.ReadRefAsync(File));
 				await ExecuteInternalAsync(store, handle, logger);
 			}
 			else if (Ref != null)
 			{
 				using IStorageClient store = CreateStorageClient();
-				BlobHandle handle = await store.ReadRefTargetAsync(new RefName(Ref));
+				IBlobHandle handle = await store.ReadRefTargetAsync(new RefName(Ref));
 				await ExecuteInternalAsync(store, handle, logger);
 			}
 			else if (Node != null)
 			{
 				using IStorageClient store = CreateStorageClient();
-				BlobHandle handle = store.CreateBlobHandle(new BlobLocator(Node));
+				IBlobHandle handle = store.CreateBlobHandle(new BlobLocator(Node));
 				await ExecuteInternalAsync(store, handle, logger);
 			}
 			else
@@ -61,7 +61,7 @@ namespace Horde.Commands.Bundles
 			return 0;
 		}
 
-		protected async Task ExecuteInternalAsync(IStorageClient store, BlobHandle handle, ILogger logger)
+		protected async Task ExecuteInternalAsync(IStorageClient store, IBlobHandle handle, ILogger logger)
 		{
 			Stopwatch timer = Stopwatch.StartNew();
 

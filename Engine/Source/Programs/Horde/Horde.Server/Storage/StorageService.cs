@@ -50,13 +50,13 @@ namespace Horde.Server.Storage
 	/// </summary>
 	public sealed class StorageService : IHostedService, IStorageClientFactory, IAsyncDisposable
 	{
-		sealed class LeafBlobHandle : BlobHandle
+		sealed class LeafBlobHandle : IBlobHandle
 		{
 			readonly IStorageBackend _backend;
 			readonly string _path;
 			readonly Tracer _tracer;
 
-			public override BlobHandle? Outer => null;
+			public IBlobHandle? Outer => null;
 
 			public LeafBlobHandle(IStorageBackend backend, string path, Tracer tracer)
 			{
@@ -66,12 +66,12 @@ namespace Horde.Server.Storage
 			}
 
 			/// <inheritdoc/>
-			public override ValueTask<BlobType> GetTypeAsync(CancellationToken cancellationToken = default) => new ValueTask<BlobType>(BlobType.Leaf);
+			public ValueTask<BlobType> ReadTypeAsync(CancellationToken cancellationToken = default) => new ValueTask<BlobType>(BlobType.Leaf);
 
 			/// <inheritdoc/>
-			public override async Task<Stream> OpenAsync(int offset = 0, int? length = null, CancellationToken cancellationToken = default)
+			public async Task<Stream> OpenBodyAsync(int offset = 0, int? length = null, CancellationToken cancellationToken = default)
 			{
-				using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(StorageService)}.{nameof(LeafBlobHandle)}.{nameof(OpenAsync)}");
+				using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(StorageService)}.{nameof(LeafBlobHandle)}.{nameof(OpenBodyAsync)}");
 				span.SetAttribute("path", _path);
 				span.SetAttribute("offset", offset);
 				span.SetAttribute("length", length);
@@ -85,17 +85,17 @@ namespace Horde.Server.Storage
 			}
 
 			/// <inheritdoc/>
-			public override ValueTask<IReadOnlyList<BlobHandle>> GetRefsAsync(CancellationToken cancellationToken = default) => new ValueTask<IReadOnlyList<BlobHandle>>(Array.Empty<BlobHandle>());
+			public ValueTask<IReadOnlyList<IBlobHandle>> ReadImportsAsync(CancellationToken cancellationToken = default) => new ValueTask<IReadOnlyList<IBlobHandle>>(Array.Empty<IBlobHandle>());
 
 			/// <inheritdoc/>
-			public override async ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default)
+			public async ValueTask<BlobData> ReadAsync(CancellationToken cancellationToken = default)
 			{
 				IReadOnlyMemoryOwner<byte> obj = await _backend.ReadAsync(_path, cancellationToken);
-				return new ReadOnlyMemoryOwnerBlobData(BlobType.Leaf, obj, Array.Empty<BlobHandle>());
+				return new ReadOnlyMemoryOwnerBlobData(BlobType.Leaf, obj, Array.Empty<IBlobHandle>());
 			}
 
 			/// <inheritdoc/>
-			public override bool TryAppendIdentifier(Utf8StringBuilder builder)
+			public bool TryAppendIdentifier(Utf8StringBuilder builder)
 			{
 				builder.Append(_path);
 				return true;
@@ -151,7 +151,7 @@ namespace Horde.Server.Storage
 			#region Blobs
 
 			/// <inheritdoc/>
-			public BlobHandle CreateBlobHandle(BlobLocator locator)
+			public IBlobHandle CreateBlobHandle(BlobLocator locator)
 			{
 				if (locator.TryUnwrap(out BlobLocator baseLocator, out Utf8String fragment))
 				{
@@ -172,12 +172,12 @@ namespace Horde.Server.Storage
 			/// <inheritdoc/>
 			public async ValueTask<BlobData> ReadBlobAsync(BlobLocator locator, CancellationToken cancellationToken = default)
 			{
-				BlobHandle handle = CreateBlobHandle(locator);
-				return await handle.ReadBlobDataAsync(cancellationToken);
+				IBlobHandle handle = CreateBlobHandle(locator);
+				return await handle.ReadAsync(cancellationToken);
 			}
 
 			/// <inheritdoc/>
-			public async ValueTask<BlobHandle> WriteBlobAsync(BlobType type, Stream stream, IReadOnlyList<BlobHandle> references, string? basePath = null, CancellationToken cancellationToken = default)
+			public async ValueTask<IBlobHandle> WriteBlobAsync(BlobType type, Stream stream, IReadOnlyList<IBlobHandle> references, string? basePath = null, CancellationToken cancellationToken = default)
 			{
 				string path = await _backend.WriteAsync(stream, basePath, cancellationToken);
 
@@ -218,10 +218,10 @@ namespace Horde.Server.Storage
 			#region Aliases
 
 			/// <inheritdoc/>
-			public Task AddAliasAsync(string name, BlobHandle target, int rank = 0, ReadOnlyMemory<byte> data = default, CancellationToken cancellationToken = default) => _outer.AddAliasAsync(NamespaceId, name, target, rank, data, cancellationToken);
+			public Task AddAliasAsync(string name, IBlobHandle target, int rank = 0, ReadOnlyMemory<byte> data = default, CancellationToken cancellationToken = default) => _outer.AddAliasAsync(NamespaceId, name, target, rank, data, cancellationToken);
 
 			/// <inheritdoc/>
-			public Task RemoveAliasAsync(string name, BlobHandle target, CancellationToken cancellationToken = default) => _outer.RemoveAliasAsync(NamespaceId, name, target, cancellationToken);
+			public Task RemoveAliasAsync(string name, IBlobHandle target, CancellationToken cancellationToken = default) => _outer.RemoveAliasAsync(NamespaceId, name, target, cancellationToken);
 
 			/// <inheritdoc/>
 			public async Task<BlobAlias[]> FindAliasesAsync(string alias, int? maxResults, CancellationToken cancellationToken = default)
@@ -239,7 +239,7 @@ namespace Horde.Server.Storage
 			#region Refs
 
 			/// <inheritdoc/>
-			public async Task<BlobHandle?> TryReadRefAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
+			public async Task<IBlobHandle?> TryReadRefAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
 			{
 				RefInfo? result = await _outer.TryReadRefAsync(NamespaceId, name, cacheTime, cancellationToken);
 				if (result == null)
@@ -250,7 +250,7 @@ namespace Horde.Server.Storage
 			}
 
 			/// <inheritdoc/>
-			public async Task WriteRefAsync(RefName name, BlobHandle target, RefOptions? options = null, CancellationToken cancellationToken = default)
+			public async Task WriteRefAsync(RefName name, IBlobHandle target, RefOptions? options = null, CancellationToken cancellationToken = default)
 			{
 				await target.FlushAsync(cancellationToken);
 				await _outer.WriteRefAsync(NamespaceId, name, target.GetLocator(), options, cancellationToken);
@@ -689,11 +689,11 @@ namespace Horde.Server.Storage
 						NamespaceInfo? namespaceInfo;
 						if (scopedState.Value.Namespaces.TryGetValue(blobInfo.NamespaceId, out namespaceInfo))
 						{
-							BlobHandle handle = namespaceInfo.Client.CreateBlobHandle(blobInfo.Locator);
-							IReadOnlyList<BlobHandle> imports = await handle.GetRefsAsync(cancellationToken);
+							IBlobHandle handle = namespaceInfo.Client.CreateBlobHandle(blobInfo.Locator);
+							IReadOnlyList<IBlobHandle> imports = await handle.ReadImportsAsync(cancellationToken);
 
 							List<ObjectId> importInfoIds = new List<ObjectId>();
-							foreach (BlobHandle import in imports)
+							foreach (IBlobHandle import in imports)
 							{
 								BlobLocator importLocator = import.GetLocator();
 								string importPath = importLocator.BaseLocator.ToString();
@@ -730,7 +730,7 @@ namespace Horde.Server.Storage
 		/// <param name="data">Inline data to store with this alias</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Sequence of thandles</returns>
-		async Task AddAliasAsync(NamespaceId namespaceId, string name, BlobHandle target, int rank, ReadOnlyMemory<byte> data, CancellationToken cancellationToken = default)
+		async Task AddAliasAsync(NamespaceId namespaceId, string name, IBlobHandle target, int rank, ReadOnlyMemory<byte> data, CancellationToken cancellationToken = default)
 		{
 			BlobLocator locator = target.GetLocator();
 
@@ -760,7 +760,7 @@ namespace Horde.Server.Storage
 		/// <param name="target">Target node for the alias</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Sequence of thandles</returns>
-		async Task RemoveAliasAsync(NamespaceId namespaceId, string name, BlobHandle target, CancellationToken cancellationToken = default)
+		async Task RemoveAliasAsync(NamespaceId namespaceId, string name, IBlobHandle target, CancellationToken cancellationToken = default)
 		{
 			BlobLocator locator = target.GetLocator();
 

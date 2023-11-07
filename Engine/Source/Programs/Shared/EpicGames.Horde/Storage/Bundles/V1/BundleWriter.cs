@@ -16,9 +16,9 @@ using Microsoft.Extensions.Logging;
 namespace EpicGames.Horde.Storage.Bundles.V1
 {
 	/// <summary>
-	/// Implementation of <see cref="BlobHandle"/> for nodes which can be read from storage
+	/// Implementation of <see cref="IBlobHandle"/> for nodes which can be read from storage
 	/// </summary>
-	sealed class FlushedNodeHandle : BlobHandle
+	sealed class FlushedNodeHandle : IBlobHandle
 	{
 		readonly BundleReader _reader;
 
@@ -26,12 +26,12 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 		public int ExportIdx { get; }
 
 		/// <inheritdoc/>
-		public override BlobHandle Outer { get; }
+		public IBlobHandle Outer { get; }
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public FlushedNodeHandle(BundleReader reader, BlobLocator bundleLocator, BlobHandle bundleHandle, int exportIdx)
+		public FlushedNodeHandle(BundleReader reader, BlobLocator bundleLocator, IBlobHandle bundleHandle, int exportIdx)
 		{
 			Debug.Assert(!bundleLocator.CanUnwrap());
 
@@ -41,7 +41,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 			ExportIdx = exportIdx;
 		}
 
-		public FlushedNodeHandle(BundleReader reader, BlobLocator bundleLocator, BlobHandle bundleHandle, ReadOnlySpan<byte> fragment)
+		public FlushedNodeHandle(BundleReader reader, BlobLocator bundleLocator, IBlobHandle bundleHandle, ReadOnlySpan<byte> fragment)
 		{
 			Debug.Assert(!bundleLocator.CanUnwrap());
 
@@ -58,17 +58,17 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 		}
 
 		/// <inheritdoc/>
-		public override bool TryAppendIdentifier(Utf8StringBuilder builder)
+		public bool TryAppendIdentifier(Utf8StringBuilder builder)
 		{
 			builder.Append(ExportIdx);
 			return true;
 		}
 
 		/// <inheritdoc/>
-		public override ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default) => _reader.ReadNodeDataAsync(BundleLocator, ExportIdx, cancellationToken);
+		public ValueTask<BlobData> ReadAsync(CancellationToken cancellationToken = default) => _reader.ReadNodeDataAsync(BundleLocator, ExportIdx, cancellationToken);
 
 		/// <inheritdoc/>
-		public override ValueTask FlushAsync(CancellationToken cancellationToken = default) => new ValueTask();
+		public ValueTask FlushAsync(CancellationToken cancellationToken = default) => new ValueTask();
 
 		/// <inheritdoc/>
 		public override bool Equals(object? obj) => obj is FlushedNodeHandle other && BundleLocator == other.BundleLocator && ExportIdx == other.ExportIdx;
@@ -84,7 +84,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 	public sealed class BundleWriter : IStorageWriter
 	{
 		// Information about a unique output node. Note that multiple node refs may de-duplicate to the same output node.
-		internal class PendingNode : BlobHandle
+		internal class PendingNode : IBlobHandle
 		{
 			readonly BundleReader _reader;
 
@@ -97,15 +97,15 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 			public readonly int Packet;
 			public readonly int Offset;
 			public readonly int Length;
-			public readonly BlobHandle[] Refs;
+			public readonly IBlobHandle[] Refs;
 			public readonly AliasInfo[] Aliases;
 
 			public PendingBundle? PendingBundle => _pendingBundle;
 			public FlushedNodeHandle? FlushedNodeHandle => _flushedHandle;
 
-			public override BlobHandle? Outer => (_flushedHandle != null) ? _flushedHandle.Outer : throw new NotSupportedException();
+			public IBlobHandle? Outer => (_flushedHandle != null) ? _flushedHandle.Outer : throw new NotSupportedException();
 
-			public PendingNode(BundleReader reader, BlobType blobType, int packet, int offset, int length, IReadOnlyList<BlobHandle> refs, IReadOnlyList<AliasInfo> aliases, PendingBundle pendingBundle)
+			public PendingNode(BundleReader reader, BlobType blobType, int packet, int offset, int length, IReadOnlyList<IBlobHandle> refs, IReadOnlyList<AliasInfo> aliases, PendingBundle pendingBundle)
 			{
 				_reader = reader;
 
@@ -120,7 +120,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 			}
 
 			/// <inheritdoc/>
-			public override bool TryAppendIdentifier(Utf8StringBuilder builder)
+			public bool TryAppendIdentifier(Utf8StringBuilder builder)
 			{
 				return _flushedHandle?.TryAppendIdentifier(builder) ?? false;
 			}
@@ -136,7 +136,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 			}
 
 			/// <inheritdoc/>
-			public override async ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default)
+			public async ValueTask<BlobData> ReadAsync(CancellationToken cancellationToken = default)
 			{
 				if (_flushedHandle == null)
 				{
@@ -150,18 +150,18 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 					}
 				}
 
-				return await _flushedHandle!.ReadBlobDataAsync(cancellationToken);
+				return await _flushedHandle!.ReadAsync(cancellationToken);
 			}
 
 			/// <inheritdoc/>
-			public override async ValueTask FlushAsync(CancellationToken cancellationToken = default)
+			public async ValueTask FlushAsync(CancellationToken cancellationToken = default)
 			{
 				if (_flushedHandle != null)
 				{
 					return;
 				}
 
-				foreach (BlobHandle nodeRef in Refs)
+				foreach (IBlobHandle nodeRef in Refs)
 				{
 					await nodeRef.FlushAsync(cancellationToken);
 				}
@@ -298,7 +298,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 			}
 
 			// Finish a node write
-			public PendingNode WriteNode(BlobType blobType, int size, IReadOnlyList<BlobHandle> refs, IReadOnlyList<AliasInfo> aliases)
+			public PendingNode WriteNode(BlobType blobType, int size, IReadOnlyList<IBlobHandle> refs, IReadOnlyList<AliasInfo> aliases)
 			{
 				PendingNode pendingNode = new PendingNode(_treeReader, blobType, _currentPacketIdx, _currentPacketLength, (int)size, refs, aliases, this);
 				_currentPacketLength += pendingNode.Length;
@@ -411,7 +411,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 					(BundleHeader header, List<ReadOnlyMemory<byte>> packets) = CreateBundle();
 
 					// Write the bundle to storage
-					BlobHandle[] imports = new BlobHandle[header.Imports.Count];
+					IBlobHandle[] imports = new IBlobHandle[header.Imports.Count];
 					for (int idx = 0; idx < header.Imports.Count; idx++)
 					{
 						imports[idx] = store.CreateBlobHandle(new BlobLocator(header.Imports[idx].Path));
@@ -427,7 +427,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 					}
 
 					// Write it
-					BlobHandle handle;
+					IBlobHandle handle;
 					using (ReadOnlySequenceStream stream = new ReadOnlySequenceStream(sequence.Construct()))
 					{
 						handle = await store.WriteBlobAsync(Bundle.BlobType, stream, imports, basePath);
@@ -480,10 +480,10 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 				Dictionary<BlobType, int> typeToIndex = new Dictionary<BlobType, int>();
 
 				// Map of node handle to reference
-				Dictionary<BlobHandle, BundleExportRef> nodeHandleToExportRef = new Dictionary<BlobHandle, BundleExportRef>();
+				Dictionary<IBlobHandle, BundleExportRef> nodeHandleToExportRef = new Dictionary<IBlobHandle, BundleExportRef>();
 				for (int exportIdx = 0; exportIdx < _queue.Count; exportIdx++)
 				{
-					BlobHandle handle = _queue[exportIdx];
+					IBlobHandle handle = _queue[exportIdx];
 					nodeHandleToExportRef[handle] = new BundleExportRef(-1, exportIdx);
 				}
 
@@ -494,7 +494,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 					int typeIdx = FindOrAddItemIndex(nodeInfo.BlobType, types, typeToIndex);
 
 					List<BundleExportRef> exportRefs = new List<BundleExportRef>();
-					foreach (BlobHandle handle in nodeInfo.Refs)
+					foreach (IBlobHandle handle in nodeInfo.Refs)
 					{
 						BundleExportRef exportRef;
 						if (!nodeHandleToExportRef.TryGetValue(handle, out exportRef))
@@ -744,7 +744,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 		/// <param name="aliases">Aliases for the node</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Handle to the written node</returns>
-		public async ValueTask<BlobHandle> WriteBlobAsync(BlobType type, int size, IReadOnlyList<BlobHandle> references, IReadOnlyList<AliasInfo> aliases, CancellationToken cancellationToken = default)
+		public async ValueTask<IBlobHandle> WriteBlobAsync(BlobType type, int size, IReadOnlyList<IBlobHandle> references, IReadOnlyList<AliasInfo> aliases, CancellationToken cancellationToken = default)
 		{
 			PendingBundle currentBundle = GetCurrentBundle();
 
@@ -753,7 +753,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 			TraceLogger?.LogInformation("Added new node for {NodeKey} in bundle {BundleId}", pendingNode, currentBundle.BundleId);
 
 			// Add dependencies on all bundles containing a dependent node
-			foreach (BlobHandle reference in references)
+			foreach (IBlobHandle reference in references)
 			{
 				PendingNode? pendingReference = reference as PendingNode;
 				if (pendingReference?.PendingBundle != null)
@@ -803,7 +803,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 		/// <param name="root">Root for the tree</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns></returns>
-		public async Task<BlobHandle> FlushAsync(Node root, CancellationToken cancellationToken = default)
+		public async Task<IBlobHandle> FlushAsync(Node root, CancellationToken cancellationToken = default)
 		{
 			return await NodeRefExtensions.FlushAsync(this, root, cancellationToken);
 		}

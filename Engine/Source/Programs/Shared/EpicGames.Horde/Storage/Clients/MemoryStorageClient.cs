@@ -46,7 +46,7 @@ namespace EpicGames.Horde.Storage.Clients
 		}
 
 		/// <inheritdoc/>
-		public override async ValueTask<BlobHandle> WriteBlobAsync(BlobType type, Stream stream, IReadOnlyList<BlobHandle> references, string? basePath = null, CancellationToken cancellationToken = default)
+		public override async ValueTask<IBlobHandle> WriteBlobAsync(BlobType type, Stream stream, IReadOnlyList<IBlobHandle> references, string? basePath = null, CancellationToken cancellationToken = default)
 		{
 			BlobLocator locator = new BlobLocator($"mem-{s_sessionId}-{Interlocked.Increment(ref s_uniqueId)}");
 			_blobs[locator] = new BlobData(type, await stream.ReadAllBytesAsync(cancellationToken), references);
@@ -66,7 +66,7 @@ namespace EpicGames.Horde.Storage.Clients
 		#region Aliases
 
 		/// <inheritdoc/>
-		public override Task AddAliasAsync(string name, BlobHandle handle, int rank = 0, ReadOnlyMemory<byte> data = default, CancellationToken cancellationToken = default)
+		public override Task AddAliasAsync(string name, IBlobHandle handle, int rank = 0, ReadOnlyMemory<byte> data = default, CancellationToken cancellationToken = default)
 		{
 			BlobLocator locator = handle.GetLocator();
 			_aliases.AddOrUpdate(name, _ => new AliasListNode(locator, rank, data, null), (_, entry) => new AliasListNode(locator, rank, data, entry));
@@ -74,7 +74,7 @@ namespace EpicGames.Horde.Storage.Clients
 		}
 
 		/// <inheritdoc/>
-		public override Task RemoveAliasAsync(string name, BlobHandle handle, CancellationToken cancellationToken = default)
+		public override Task RemoveAliasAsync(string name, IBlobHandle handle, CancellationToken cancellationToken = default)
 		{
 			BlobLocator locator = handle.GetLocator();
 			for (; ; )
@@ -136,7 +136,7 @@ namespace EpicGames.Horde.Storage.Clients
 			{
 				for (; entry != null; entry = entry.Next)
 				{
-					BlobHandle handle = CreateBlobHandle(entry.Locator);
+					IBlobHandle handle = CreateBlobHandle(entry.Locator);
 					aliases.Add(new BlobAlias(handle, entry.Rank, entry.Data));
 				}
 			}
@@ -151,21 +151,21 @@ namespace EpicGames.Horde.Storage.Clients
 		public override Task<bool> DeleteRefAsync(RefName name, CancellationToken cancellationToken) => Task.FromResult(_refs.TryRemove(name, out _));
 
 		/// <inheritdoc/>
-		public override Task<BlobHandle?> TryReadRefAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
+		public override Task<IBlobHandle?> TryReadRefAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
 		{
 			BlobLocator locator;
 			if (_refs.TryGetValue(name, out locator))
 			{
-				return Task.FromResult<BlobHandle?>(CreateBlobHandle(locator));
+				return Task.FromResult<IBlobHandle?>(CreateBlobHandle(locator));
 			}
 			else
 			{
-				return Task.FromResult<BlobHandle?>(null);
+				return Task.FromResult<IBlobHandle?>(null);
 			}
 		}
 
 		/// <inheritdoc/>
-		public override async Task WriteRefAsync(RefName name, BlobHandle target, RefOptions? options = null, CancellationToken cancellationToken = default)
+		public override async Task WriteRefAsync(RefName name, IBlobHandle target, RefOptions? options = null, CancellationToken cancellationToken = default)
 		{
 			await target.FlushAsync(cancellationToken);
 			_refs[name] = target.GetLocator();

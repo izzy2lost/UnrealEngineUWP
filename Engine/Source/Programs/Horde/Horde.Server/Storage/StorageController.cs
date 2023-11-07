@@ -98,7 +98,7 @@ namespace Horde.Server.Storage
 			else
 			{
 				using Stream stream = file.OpenReadStream();
-				BlobHandle handle = await storageClient.WriteBlobAsync(Bundle.BlobType, stream, Array.Empty<BlobHandle>(), prefix, cancellationToken);
+				IBlobHandle handle = await storageClient.WriteBlobAsync(Bundle.BlobType, stream, Array.Empty<IBlobHandle>(), prefix, cancellationToken);
 				return new WriteBlobResponse { Blob = handle.GetLocator().ToString(), SupportsRedirects = storageClient.SupportsRedirects };
 			}
 		}
@@ -176,8 +176,8 @@ namespace Horde.Server.Storage
 			}
 
 #pragma warning disable CA2000 // Dispose objects before losing scope
-			BlobHandle handle = storageClient.CreateBlobHandle(new BlobLocator(locator.Path));
-			Stream stream = await handle.OpenAsync(offset, length, cancellationToken);
+			IBlobHandle handle = storageClient.CreateBlobHandle(new BlobLocator(locator.Path));
+			Stream stream = await handle.OpenBodyAsync(offset, length, cancellationToken);
 			return new FileStreamResult(stream, "application/octet-stream");
 #pragma warning restore CA2000 // Dispose objects before losing scope
 		}
@@ -244,7 +244,7 @@ namespace Horde.Server.Storage
 			}
 #pragma warning restore CS0618 // Type or member is obsolete
 
-			BlobHandle target = client.CreateBlobHandle(request.Target);
+			IBlobHandle target = client.CreateBlobHandle(request.Target);
 			await client.WriteRefAsync(refName, target, request.Options, cancellationToken);
 
 			return Ok();
@@ -289,7 +289,7 @@ namespace Horde.Server.Storage
 				}
 			}
 
-			BlobHandle? target = await client.TryReadRefAsync(refName, cacheTime, cancellationToken: cancellationToken);
+			IBlobHandle? target = await client.TryReadRefAsync(refName, cacheTime, cancellationToken: cancellationToken);
 			if (target == null)
 			{
 				return new NotFoundResult();
@@ -301,13 +301,11 @@ namespace Horde.Server.Storage
 #pragma warning disable CS0618 // Type or member is obsolete
 			try
 			{
-				string locator = target.ToString();
-				int hashIdx = locator.LastIndexOf('#');
-
-				if (hashIdx != -1)
+				BlobLocator locator = target.GetLocator();
+				if(locator.TryUnwrap(out BlobLocator blob, out Utf8String fragment) && Int32.TryParse(fragment.ToString(), out int exportIdx))
 				{
-					response.Blob = new BlobLocator(locator.Substring(0, hashIdx));
-					response.ExportIdx = Int32.Parse(locator.Substring(hashIdx + 1));
+					response.Blob = blob;
+					response.ExportIdx = exportIdx;
 				}
 			}
 			catch { }
@@ -382,7 +380,7 @@ namespace Horde.Server.Storage
 
 			object content;
 
-			using BlobData blobData = await storageClient.CreateBlobHandle(locator).ReadBlobDataAsync(cancellationToken);
+			using BlobData blobData = await storageClient.CreateBlobHandle(locator).ReadAsync(cancellationToken);
 
 			Node node = Node.Deserialize(blobData);
 			switch (node)
@@ -412,7 +410,7 @@ namespace Horde.Server.Storage
 			return new { type = blobData.Type.Guid, @class = node.GetType().Name, content = content };
 		}
 
-		static string GetNodeLink(string linkBase, BlobHandle handle) => GetNodeLink(linkBase, handle.GetLocator());
+		static string GetNodeLink(string linkBase, IBlobHandle handle) => GetNodeLink(linkBase, handle.GetLocator());
 		
 		static string GetNodeLink(string linkBase, BlobLocator locator) => $"{linkBase}/nodes/{locator}";
 	}

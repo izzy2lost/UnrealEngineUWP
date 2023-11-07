@@ -136,7 +136,7 @@ namespace Horde.Commands.Compute
 			DirectoryNode sandbox = new DirectoryNode();
 			await sandbox.CopyFromDirectoryAsync(taskFile.Directory.ToDirectoryInfo(), new ChunkingOptions(), writer, null, cancellationToken);
 
-			BlobHandle handle = await writer.FlushAsync(sandbox, cancellationToken);
+			IBlobHandle handle = await writer.FlushAsync(sandbox, cancellationToken);
 			return handle.GetLocator();
 		}
 	}

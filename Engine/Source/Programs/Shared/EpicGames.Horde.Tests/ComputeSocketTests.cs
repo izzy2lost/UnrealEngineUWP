@@ -163,7 +163,7 @@ namespace EpicGames.Horde.Tests
 						DirectoryNode root = new DirectoryNode();
 						root.AddDirectory(new DirectoryEntry("subdir", directory.Length, directoryRef));
 
-						BlobHandle handle = await treeWriter.FlushAsync(root);
+						IBlobHandle handle = await treeWriter.FlushAsync(root);
 						await channel.UploadFilesAsync("", handle.GetLocator(), storage);
 
 						Assert.IsTrue(FileReference.Exists(file));

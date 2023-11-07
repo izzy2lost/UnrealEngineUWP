@@ -24,19 +24,19 @@ namespace Horde.Server.Tests
 			BlobType type2 = new BlobType(Guid.Parse("{6CB3A005-26BA-4787-86D2-793ED13771CB}"), 0);
 			byte[] data2 = new byte[] { 4, 5, 6 };
 
-			BlobHandle handle1a;
-			BlobHandle handle1b;
-			BlobHandle handle2;
+			IBlobHandle handle1a;
+			IBlobHandle handle1b;
+			IBlobHandle handle2;
 			await using (IStorageWriter writer = client.CreateWriter())
 			{
 				data1.CopyTo(writer.GetOutputBuffer(0, data1.Length));
-				handle1a = await writer.WriteBlobAsync(type1, data1.Length, Array.Empty<BlobHandle>(), new AliasInfo[] { new AliasInfo("foo", 2) });
+				handle1a = await writer.WriteBlobAsync(type1, data1.Length, Array.Empty<IBlobHandle>(), new AliasInfo[] { new AliasInfo("foo", 2) });
 
 				data1.CopyTo(writer.GetOutputBuffer(0, data1.Length));
-				handle1b = await writer.WriteBlobAsync(type1, data1.Length, Array.Empty<BlobHandle>(), new AliasInfo[] { new AliasInfo("foo", 1) });
+				handle1b = await writer.WriteBlobAsync(type1, data1.Length, Array.Empty<IBlobHandle>(), new AliasInfo[] { new AliasInfo("foo", 1) });
 
 				data2.CopyTo(writer.GetOutputBuffer(0, data2.Length));
-				handle2 = await writer.WriteBlobAsync(type2, data2.Length, Array.Empty<BlobHandle>(), new AliasInfo[] { new AliasInfo("bar") });
+				handle2 = await writer.WriteBlobAsync(type2, data2.Length, Array.Empty<IBlobHandle>(), new AliasInfo[] { new AliasInfo("bar") });
 			}
 
 			BlobAlias[] aliases;

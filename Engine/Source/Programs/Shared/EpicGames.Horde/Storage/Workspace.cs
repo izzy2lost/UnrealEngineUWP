@@ -723,7 +723,7 @@ namespace EpicGames.Horde.Storage
 
 		async Task ExtractDataAsync(HashedNodeRef<ChunkedDataNode> nodeRef, Stream outputStream, CancellationToken cancellationToken)
 		{
-			BlobType blobType = await nodeRef.Handle.GetTypeAsync(cancellationToken);
+			BlobType blobType = await nodeRef.Handle.ReadTypeAsync(cancellationToken);
 			if (blobType.Guid == LeafChunkedDataNode.BlobType.Guid)
 			{
 				await ExtractLeafDataAsync(nodeRef, outputStream, cancellationToken);
@@ -755,7 +755,7 @@ namespace EpicGames.Horde.Storage
 			}
 
 			// Otherwise 
-			using BlobData blobData = await nodeRef.Handle.ReadBlobDataAsync(cancellationToken);
+			using BlobData blobData = await nodeRef.Handle.ReadAsync(cancellationToken);
 			await LeafChunkedDataNode.CopyToStreamAsync(blobData, outputStream, cancellationToken);
 		}
 

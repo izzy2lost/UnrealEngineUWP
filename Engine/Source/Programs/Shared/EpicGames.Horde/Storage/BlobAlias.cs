@@ -10,5 +10,5 @@ namespace EpicGames.Horde.Storage
 	/// <param name="Target">Handle to the target blob for the alias</param>
 	/// <param name="Rank">Rank for the alias</param>
 	/// <param name="Data">Data stored inline with the alias</param>
-	public record class BlobAlias(BlobHandle Target, int Rank, ReadOnlyMemory<byte> Data);
+	public record class BlobAlias(IBlobHandle Target, int Rank, ReadOnlyMemory<byte> Data);
 }

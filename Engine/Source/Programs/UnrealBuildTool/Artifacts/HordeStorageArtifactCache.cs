@@ -497,7 +497,7 @@ namespace UnrealBuildTool.Artifacts
 					await hordeArtifactAction.WriteFilesAsync(writer, cancellationToken);
 
 					// Save the collection
-					BlobHandle _ = await _store.WriteRefAsync(refName, node, cancellationToken: cancellationToken);
+					IBlobHandle _ = await _store.WriteRefAsync(refName, node, cancellationToken: cancellationToken);
 				}, cancellationToken));
 			}
 			return tasks;

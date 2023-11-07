@@ -65,7 +65,7 @@ namespace Horde.Server.Tests
 			await using IStorageWriter writer = store.CreateWriter();
 			blob.Data.CopyTo(writer.GetOutputBuffer(0, blob.Data.Length));
 
-			BlobHandle handle = await writer.WriteBlobAsync(s_blobType, blob.Data.Length, blob.References.ConvertAll(x => store.CreateBlobHandle(x)));
+			IBlobHandle handle = await writer.WriteBlobAsync(s_blobType, blob.Data.Length, blob.References.ConvertAll(x => store.CreateBlobHandle(x)));
 			await handle.FlushAsync();
 
 			return handle.GetLocator();
@@ -113,7 +113,7 @@ namespace Horde.Server.Tests
 			{
 				RefName refName = new RefName("hello");
 				await store.WriteRefTargetAsync(refName, store.CreateBlobHandle(locator3));
-				BlobHandle refTarget = await store.ReadRefTargetAsync(refName);
+				IBlobHandle refTarget = await store.ReadRefTargetAsync(refName);
 				Assert.AreEqual(locator3, refTarget.GetLocator());
 			}
 		}
@@ -155,7 +155,7 @@ namespace Horde.Server.Tests
 
 		static async Task<BlobLocator> TryReadRefTargetAsync(IStorageClient store, RefName name)
 		{
-			BlobHandle? handle = await store.TryReadRefTargetAsync(name);
+			IBlobHandle? handle = await store.TryReadRefTargetAsync(name);
 			if (handle == null)
 			{
 				return default;

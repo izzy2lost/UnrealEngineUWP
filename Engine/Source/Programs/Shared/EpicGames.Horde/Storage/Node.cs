@@ -257,12 +257,12 @@ namespace EpicGames.Horde.Storage
 		/// <summary>
 		/// Locations of all referenced nodes.
 		/// </summary>
-		IReadOnlyList<BlobHandle> References { get; }
+		IReadOnlyList<IBlobHandle> References { get; }
 
 		/// <summary>
 		/// Gets the next serialized blob handle
 		/// </summary>
-		BlobHandle ReadBlobReference();
+		IBlobHandle ReadBlobReference();
 	}
 
 	/// <summary>
@@ -298,7 +298,7 @@ namespace EpicGames.Horde.Storage
 		/// <summary>
 		/// Locations of all referenced nodes.
 		/// </summary>
-		public IReadOnlyList<BlobHandle> References => _blobData.Refs;
+		public IReadOnlyList<IBlobHandle> References => _blobData.Refs;
 
 		readonly BlobData _blobData;
 		int _refIdx;
@@ -315,7 +315,7 @@ namespace EpicGames.Horde.Storage
 		/// <summary>
 		/// Gets the next serialized blob handle
 		/// </summary>
-		public BlobHandle ReadBlobReference() => _blobData.Refs[_refIdx++];
+		public IBlobHandle ReadBlobReference() => _blobData.Refs[_refIdx++];
 	}
 
 	/// <summary>
@@ -327,7 +327,7 @@ namespace EpicGames.Horde.Storage
 		/// Adds a reference to another blob. This reference is stored out of band, and will not result in any bytes written to the output.
 		/// </summary>
 		/// <param name="reference">Referenced blob</param>
-		void WriteBlobReference(BlobHandle reference);
+		void WriteBlobReference(IBlobHandle reference);
 	}
 
 	/// <summary>
@@ -338,13 +338,13 @@ namespace EpicGames.Horde.Storage
 		readonly IStorageWriter _treeWriter;
 
 		Memory<byte> _memory;
-		readonly List<BlobHandle> _refs = new List<BlobHandle>();
+		readonly List<IBlobHandle> _refs = new List<IBlobHandle>();
 		int _length;
 
 		/// <summary>
 		/// List of serialized references
 		/// </summary>
-		public IReadOnlyList<BlobHandle> References => _refs;
+		public IReadOnlyList<IBlobHandle> References => _refs;
 
 		/// <inheritdoc/>
 		public int Length => _length;
@@ -363,7 +363,7 @@ namespace EpicGames.Horde.Storage
 		/// Adds a reference to another blob. This reference is stored out of band, and will not result in any bytes written to the output.
 		/// </summary>
 		/// <param name="reference">Referenced blob</param>
-		public void WriteBlobReference(BlobHandle reference) => _refs.Add(reference);
+		public void WriteBlobReference(IBlobHandle reference) => _refs.Add(reference);
 
 		/// <summary>
 		/// Computes the hash of the written data
@@ -373,7 +373,7 @@ namespace EpicGames.Horde.Storage
 		/// <summary>
 		/// Writes a handle to another node
 		/// </summary>
-		public void WriteHashedBlobHandle(IoHash hash, BlobHandle target)
+		public void WriteHashedBlobHandle(IoHash hash, IBlobHandle target)
 		{
 			this.WriteIoHash(hash);
 			WriteBlobReference(target);
@@ -410,9 +410,9 @@ namespace EpicGames.Horde.Storage
 		/// <param name="handle"></param>
 		/// <param name="cancellationToken"></param>
 		/// <returns></returns>
-		public static async ValueTask<TNode> ReadNodeAsync<TNode>(this BlobHandle handle, CancellationToken cancellationToken = default) where TNode : Node
+		public static async ValueTask<TNode> ReadNodeAsync<TNode>(this IBlobHandle handle, CancellationToken cancellationToken = default) where TNode : Node
 		{
-			using BlobData blobData = await handle.ReadBlobDataAsync(cancellationToken);
+			using BlobData blobData = await handle.ReadAsync(cancellationToken);
 			return Node.Deserialize<TNode>(blobData);
 		}
 
@@ -425,7 +425,7 @@ namespace EpicGames.Horde.Storage
 		/// <param name="refOptions">Options for the ref</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Location of node targetted by the ref</returns>
-		public static async Task<BlobHandle> WriteRefAsync(this IStorageClient store, RefName name, Node node, RefOptions? refOptions = null, CancellationToken cancellationToken = default)
+		public static async Task<IBlobHandle> WriteRefAsync(this IStorageClient store, RefName name, Node node, RefOptions? refOptions = null, CancellationToken cancellationToken = default)
 		{
 			await using IStorageWriter writer = store.CreateWriter(name);
 			HashedNodeRef<Node> nodeRef = await writer.WriteHashedNodeAsync(node, cancellationToken);
@@ -443,13 +443,13 @@ namespace EpicGames.Horde.Storage
 		/// <returns>Node for the given ref, or null if it does not exist</returns>
 		public static async Task<TNode?> TryReadRefAsync<TNode>(this IStorageClient store, RefName name, DateTime cacheTime = default, CancellationToken cancellationToken = default) where TNode : Node
 		{
-			BlobHandle? refTarget = await store.TryReadRefTargetAsync(name, cacheTime, cancellationToken);
+			IBlobHandle? refTarget = await store.TryReadRefTargetAsync(name, cacheTime, cancellationToken);
 			if (refTarget == null)
 			{
 				return null;
 			}
 
-			using BlobData blobData = await refTarget.ReadBlobDataAsync(cancellationToken);
+			using BlobData blobData = await refTarget.ReadAsync(cancellationToken);
 			return Node.Deserialize<TNode>(blobData);
 		}
 

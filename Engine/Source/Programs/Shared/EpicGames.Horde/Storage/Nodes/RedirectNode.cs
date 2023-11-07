@@ -11,7 +11,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <summary>
 		/// The target handle
 		/// </summary>
-		public BlobHandle Handle { get; }
+		public IBlobHandle Handle { get; }
 
 		/// <summary>
 		/// Constructor
@@ -23,7 +23,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// Constructor
 		/// </summary>
 		/// <param name="handle">Target node for the redirect</param>
-		public RedirectNode(BlobHandle handle) => Handle = handle;
+		public RedirectNode(IBlobHandle handle) => Handle = handle;
 
 		/// <summary>
 		/// Deserialization constructor

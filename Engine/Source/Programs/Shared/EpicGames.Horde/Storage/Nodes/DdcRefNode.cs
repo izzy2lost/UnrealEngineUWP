@@ -20,7 +20,7 @@ namespace Horde.Server.Ddc
 		/// <summary>
 		/// References to attachments. We embed this in the ref node to ensure any aliased blobs have a hard reference from the root.
 		/// </summary>
-		public List<(IoHash Hash, BlobHandle Handle)> References { get; }
+		public List<(IoHash Hash, IBlobHandle Handle)> References { get; }
 
 		/// <summary>
 		/// Constructor
@@ -28,7 +28,7 @@ namespace Horde.Server.Ddc
 		public DdcRefNode(IoHash rootHash)
 		{
 			RootHash = rootHash;
-			References = new List<(IoHash, BlobHandle)>();
+			References = new List<(IoHash, IBlobHandle)>();
 		}
 
 		/// <summary>
@@ -47,7 +47,7 @@ namespace Horde.Server.Ddc
 			writer.WriteList(References, x => WriteReference(writer, x.Hash, x.Handle));
 		}
 
-		static void WriteReference(INodeWriter writer, IoHash hash, BlobHandle handle)
+		static void WriteReference(INodeWriter writer, IoHash hash, IBlobHandle handle)
 		{
 			writer.WriteIoHash(hash);
 			writer.WriteBlobReference(handle);
