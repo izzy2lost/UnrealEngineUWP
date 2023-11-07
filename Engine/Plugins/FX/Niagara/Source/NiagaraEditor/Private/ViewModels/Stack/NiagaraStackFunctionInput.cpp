@@ -1734,9 +1734,16 @@ void UNiagaraStackFunctionInput::GetAvailableParameterHandles(TArray<FNiagaraPar
 	TArray<FAssetData> CollectionAssets;
 	AssetRegistryModule.Get().GetAssetsByClass(UNiagaraParameterCollection::StaticClass()->GetClassPathName(), CollectionAssets);
 
+	// This is a temporary HACK in order to prevent warnings when loading this content and the parameter collection is missing.
+	auto LoadQuiet = [](FAssetData& AssetData)
+	{
+		uint32 LoadFlags = LOAD_Quiet | LOAD_NoWarn;
+		return StaticLoadObject(UNiagaraParameterCollection::StaticClass(), nullptr, *AssetData.GetObjectPathString(), nullptr, LoadFlags, nullptr, true);
+	};
+
 	for (FAssetData& CollectionAsset : CollectionAssets)
 	{
-		if ( UNiagaraParameterCollection* Collection = Cast<UNiagaraParameterCollection>(CollectionAsset.GetSoftObjectPath().TryLoad()) )
+		if (UNiagaraParameterCollection* Collection = Cast<UNiagaraParameterCollection>(LoadQuiet(CollectionAsset)))
 		{
 			for (const FNiagaraVariable& CollectionParam : Collection->GetParameters())
 			{
