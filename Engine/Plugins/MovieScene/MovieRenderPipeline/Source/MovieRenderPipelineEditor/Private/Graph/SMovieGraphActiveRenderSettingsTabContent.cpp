@@ -180,7 +180,7 @@ const TArray<TSharedPtr<FActiveRenderSettingsTreeElement>>& FActiveRenderSetting
 		for (const FProperty* Property : SettingsNode->GetAllOverrideableProperties())
 		{
 			TSharedPtr<FActiveRenderSettingsTreeElement> Element =
-				MakeShared<FActiveRenderSettingsTreeElement>(Property->GetFName(), EElementType::Property);
+				MakeShared<FActiveRenderSettingsTreeElement>(FName(Property->GetDisplayNameText().ToString()), EElementType::Property);
 			Element->SettingsNode = SettingsNode;
 			Element->SettingsProperty = Property;
 			Element->FlattenedGraph = FlattenedGraph;

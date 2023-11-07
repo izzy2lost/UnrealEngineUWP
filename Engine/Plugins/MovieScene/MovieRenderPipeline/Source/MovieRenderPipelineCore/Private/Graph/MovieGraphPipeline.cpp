@@ -227,33 +227,46 @@ void UMovieGraphPipeline::UpdateLayerContentsInRenderLayerSubsystem(const UMovie
 		
 		for (const UMovieGraphModifierNode* ModifierNode : ModifierNodes)
 		{
-			ModifierNode->ModifierClass->SetCollections({});
-			
-			// Find the collection that this modifier is modifying
-			for (const UMovieGraphCollectionNode* CollectionNode : CollectionNodes)
+			// For each modifier instance, find the collection(s) that it is modifying
+			for (UMoviePipelineCollectionModifier* ModifierInstance : ModifierNode->GetModifiers())
 			{
-				if (!CollectionNode || !CollectionNode->Collection)
-				{
-					continue;
-				}
-				
-				if (CollectionNode->Collection->GetCollectionName() == ModifierNode->ModifiedCollectionName)
-				{
-					ModifierNode->ModifierClass->SetCollections({CollectionNode->Collection});
-					break;
-				}
-			}
+				ModifierInstance->SetCollections({});
+				TArray<UMovieGraphCollection*> ModifierCollections;
 
-			// If the modifier had a valid collection added to it, add the modifier to the render layer. The modifier
-			// won't have any effect without a collection to act on.
-			if (ModifierNode->ModifierClass->GetCollections().IsEmpty())
-			{
-				UE_LOG(LogMovieRenderPipeline, Warning, TEXT("The modifier '%s' specified a collection '%s', but the collection couldn't be found."),
-					*ModifierNode->ModifierName, *ModifierNode->ModifiedCollectionName);
-			}
-			else
-			{
-				RenderLayer->AddModifier(ModifierNode->ModifierClass);
+				for (const FName& ModifiedCollectionName : ModifierNode->GetCollections())
+				{
+					bool bFoundModifiedCollection = false;
+					
+					for (const UMovieGraphCollectionNode* CollectionNode : CollectionNodes)
+					{
+						if (!CollectionNode || !CollectionNode->Collection)
+						{
+							continue;
+						}
+
+						if (CollectionNode->Collection->GetCollectionName() == ModifiedCollectionName)
+						{
+							bFoundModifiedCollection = true;
+							ModifierCollections.Add(CollectionNode->Collection);
+							break;
+						}
+					}
+
+					if (!bFoundModifiedCollection)
+					{
+						UE_LOG(LogMovieRenderPipeline, Warning, TEXT("The modifier '%s' specified a collection '%s', but the collection couldn't be found."),
+							*ModifierNode->ModifierName, *ModifiedCollectionName.ToString());
+					}
+				}
+
+				// If the modifier had valid collection(s) added to it, add the modifier to the render layer. The modifier
+				// won't have any effect without collection(s) to act on.
+				if (!ModifierCollections.IsEmpty())
+				{
+					ModifierInstance->SetCollections(ModifierCollections);
+
+					RenderLayer->AddModifier(ModifierInstance);
+				}
 			}
 		}
 	}

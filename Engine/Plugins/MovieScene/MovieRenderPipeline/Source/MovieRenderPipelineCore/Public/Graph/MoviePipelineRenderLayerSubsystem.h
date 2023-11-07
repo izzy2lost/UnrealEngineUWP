@@ -475,7 +475,7 @@ private:
  * Base class for providing actor modification functionality via collections.
  */
 UCLASS(Abstract)
-class UMoviePipelineCollectionModifier : public UObject
+class MOVIERENDERPIPELINECORE_API UMoviePipelineCollectionModifier : public UObject
 {
 	GENERATED_BODY()
 
@@ -494,11 +494,6 @@ public:
 	virtual void ApplyModifier(const UWorld* World) PURE_VIRTUAL(UMoviePipelineCollectionModifier::ApplyModifier, );
 	virtual void UndoModifier() PURE_VIRTUAL(UMoviePipelineCollectionModifier::UndoModifier, );
 
-public:
-	/** Whether an inverted collection of actors should be used instead. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings")
-	bool bUseInvertedActors = false;
-
 protected:
 	/** The collections which this modifier will operate on. */
 	UPROPERTY()
@@ -508,14 +503,14 @@ protected:
 /**
  * Modifies actor materials.
  */
-UCLASS(BlueprintType)
-class UMoviePipelineMaterialModifier : public UMoviePipelineCollectionModifier
+UCLASS(BlueprintType, DisplayName="Material")
+class MOVIERENDERPIPELINECORE_API UMoviePipelineMaterialModifier : public UMoviePipelineCollectionModifier
 {
 	GENERATED_BODY()
 
 public:
 	UFUNCTION(BlueprintCallable, Category = "Settings")
-	void SetMaterial(TSoftObjectPtr<UMaterialInterface> InMaterial) { MaterialToApply = InMaterial; }
+	void SetMaterial(TSoftObjectPtr<UMaterialInterface> InMaterial) { Material = InMaterial; }
 
 	UFUNCTION(BlueprintCallable, Category = "Settings")
 	virtual void ApplyModifier(const UWorld* World) override;
@@ -531,15 +526,18 @@ private:
 	FComponentToMaterialMap ModifiedComponents;
 
 public:
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings")
-	TSoftObjectPtr<UMaterialInterface> MaterialToApply;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
+	uint8 bOverride_Material : 1;
+	
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings", meta = (EditCondition = "bOverride_Material"))
+	TSoftObjectPtr<UMaterialInterface> Material;
 };
 
 /**
  * Modifies actor visibility.
  */
-UCLASS(BlueprintType)
-class UMoviePipelineVisibilityModifier : public UMoviePipelineCollectionModifier
+UCLASS(BlueprintType, DisplayName="Visibility")
+class MOVIERENDERPIPELINECORE_API UMoviePipelineVisibilityModifier : public UMoviePipelineCollectionModifier
 {
 	GENERATED_BODY()
 
@@ -578,30 +576,45 @@ private:
 	TArray<FActorVisibilityState> ModifiedActors;
 
 public:
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
+	uint8 bOverride_bIsHidden : 1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
+	uint8 bOverride_bCastsShadows : 1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
+	uint8 bOverride_bCastShadowWhileHidden : 1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
+	uint8 bOverride_bAffectIndirectLightingWhileHidden : 1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
+	uint8 bOverride_bHoldout : 1;
+	
 	/**
 	 * If true, the actor will not be visible and will not contribute to any secondary effects (shadows, indirect
 	 * lighting) unless their respective flags are set below.
 	 */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings", meta = (EditCondition = "bOverride_bIsHidden"))
 	uint8 bIsHidden : 1;
 	
 	/** If true, the primitive will cast shadows. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Primitive")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings", meta = (EditCondition = "bOverride_bCastsShadows"))
 	uint8 bCastsShadows : 1;
 
 	/** If true, the primitive will cast shadows even if it is hidden. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Primitive")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings", meta = (EditCondition = "bOverride_bCastShadowWhileHidden"))
 	uint8 bCastShadowWhileHidden : 1;
 
 	/** Controls whether the primitive should affect indirect lighting when hidden. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Primitive")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings", meta = (EditCondition = "bOverride_bAffectIndirectLightingWhileHidden"))
 	uint8 bAffectIndirectLightingWhileHidden : 1;
 
 	/**
 	 * If true, the primitive will render black with an alpha of 0, but all secondary effects (shadows, reflections,
 	 * indirect lighting) remain. This feature is currently only implemented in the Path Tracer.
 	 */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Primitive|Path Tracing")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings", meta = (EditCondition = "bOverride_bHoldout"))
 	uint8 bHoldout : 1;
 };
 

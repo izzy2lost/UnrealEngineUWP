@@ -20,11 +20,11 @@
 #include "ActorTreeItem.h"
 #include "ClassViewerFilter.h"
 #include "ClassViewerModule.h"
+#include "Graph/MovieGraphSharedWidgets.h"
 #include "ISceneOutliner.h"
 #include "SceneOutlinerModule.h"
 #include "SceneOutlinerPublicTypes.h"
 #include "SClassViewer.h"
-#include "Widgets/SCompoundWidget.h"
 #endif
 
 #define LOCTEXT_NAMESPACE "MovieGraph"
@@ -32,120 +32,6 @@
 namespace UE::MovieGraph::Private
 {
 #if WITH_EDITOR
-	/**
-	 * A widget which lists items in rows w/ an alternating row color, where each item has an icon and text. A summary row appears at the end of the
-	 * list indicating how many items are in the list.
-	 */
-	template<typename ListType>
-	class SQueryContentsList final : public SCompoundWidget
-	{
-	public:
-		DECLARE_DELEGATE_RetVal_OneParam(const FSlateBrush*, FGetRowIcon, ListType);
-		DECLARE_DELEGATE_RetVal_OneParam(FText, FGetRowText, ListType);
-		
-		SLATE_BEGIN_ARGS(SQueryContentsList<ListType>)
-		{}
-			SLATE_ATTRIBUTE(TArray<ListType>*, DataSource)
-			SLATE_ATTRIBUTE(FText, DataType)
-			SLATE_ATTRIBUTE(FText, DataTypePlural)
-			SLATE_EVENT(FGetRowIcon, OnGetRowIcon);
-			SLATE_EVENT(FGetRowText, OnGetRowText);
-		SLATE_END_ARGS()
-
-		const FSlateBrush* GetRowIcon(const ListType& InListData) const
-		{
-			if (OnGetRowIcon.IsBound())
-			{
-				return OnGetRowIcon.Execute(InListData);
-			}
-			
-			return nullptr;
-		}
-
-		FText GetRowText(const ListType& InListData) const
-		{
-			if (OnGetRowText.IsBound())
-			{
-				return OnGetRowText.Execute(InListData);
-			}
-			
-			return FText();
-		}
-
-		void Construct(const FArguments& InArgs)
-		{
-			DataSource = InArgs._DataSource.Get();
-			DataType = InArgs._DataType.Get();
-			DataTypePlural = InArgs._DataTypePlural.Get();
-			OnGetRowIcon = InArgs._OnGetRowIcon;
-			OnGetRowText = InArgs._OnGetRowText;
-			
-			ChildSlot
-			.HAlign(HAlign_Fill)
-			.VAlign(VAlign_Top)
-			[
-				SNew(SVerticalBox)
-				+ SVerticalBox::Slot()
-				.AutoHeight()
-				[
-					SNew(SListView<ListType>)
-					.ListItemsSource(DataSource)
-					.OnGenerateRow_Lambda([this](const ListType& InListData, const TSharedRef<STableViewBase>& InOwnerTable)
-					{
-						return SNew(STableRow<ListType>, InOwnerTable)
-							.Style(FAppStyle::Get(), "TableView.AlternatingRow")
-							.ShowWires(false)
-							[
-								SNew(SHorizontalBox)
-								+ SHorizontalBox::Slot()
-								.VAlign(VAlign_Center)
-								.Padding(7.f, 5.f, 7.f, 5.f)
-								.AutoWidth()
-								[
-									SNew(SImage)
-									.Image(GetRowIcon(InListData))
-								]
-									
-								+ SHorizontalBox::Slot()
-								.VAlign(VAlign_Center)
-								.HAlign(HAlign_Fill)
-								[
-									SNew(STextBlock)
-									.Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
-									.Text(GetRowText(InListData))
-								]
-							];
-					})
-				]
-
-				+ SVerticalBox::Slot()
-				.AutoHeight()
-				[
-					SNew(SBorder)
-					.BorderImage(FAppStyle::Get().GetBrush("Brushes.Header"))
-					.VAlign(VAlign_Center)
-					.HAlign(HAlign_Fill)
-					.Padding(FMargin(14, 4))
-					[
-						SNew(STextBlock)
-						.Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
-						.Text_Lambda([this]()
-						{
-							return FText::FromString(FString::Printf(TEXT("%i %s"), DataSource->Num(), DataSource->Num() == 1 ? *DataType.ToString() : *DataTypePlural.ToString()));
-						})
-					]
-				]
-			];
-		}
-
-	private:
-		FGetRowIcon OnGetRowIcon;
-		FGetRowText OnGetRowText;
-		FText DataType;
-		FText DataTypePlural;
-		TArray<ListType>* DataSource = nullptr;
-	};
-
 	/**
 	 * A filter that can be used in the class viewer that appears in the Add menu. Filters out specified classes, and optionally filters out classes
 	 * that do not have a specific base class.
@@ -185,7 +71,7 @@ namespace UE::MovieGraph::Private
 
 void UMoviePipelineMaterialModifier::ApplyModifier(const UWorld* World)
 {
-	UMaterialInterface* NewMaterial = MaterialToApply.LoadSynchronous();
+	UMaterialInterface* NewMaterial = Material.LoadSynchronous();
 	if (!NewMaterial)
 	{
 		return;
@@ -613,7 +499,7 @@ TArray<TSharedRef<SWidget>> UMovieGraphConditionGroupQuery_Actor::GetWidgets()
 	}
 
 	Widgets.Add(
-		SNew(UE::MovieGraph::Private::SQueryContentsList<TSharedPtr<TSoftObjectPtr<AActor>>>)
+		SNew(SMovieGraphSimpleList<TSharedPtr<TSoftObjectPtr<AActor>>>)
 			.DataSource(&ListDataSource)
 			.DataType(FText::FromString("Actor"))
 			.DataTypePlural(FText::FromString("Actors"))
@@ -857,7 +743,7 @@ TArray<TSharedRef<SWidget>> UMovieGraphConditionGroupQuery_ActorType::GetWidgets
 	TArray<TSharedRef<SWidget>> Widgets;
 
 	Widgets.Add(
-		SNew(UE::MovieGraph::Private::SQueryContentsList<UClass*>)
+		SNew(SMovieGraphSimpleList<UClass*>)
 			.DataSource(&ActorTypes)
 			.DataType(FText::FromString("Actor Type"))
 			.DataTypePlural(FText::FromString("Actor Types"))
@@ -1036,7 +922,7 @@ TArray<TSharedRef<SWidget>> UMovieGraphConditionGroupQuery_ComponentType::GetWid
 	TArray<TSharedRef<SWidget>> Widgets;
 
 	Widgets.Add(
-		SNew(UE::MovieGraph::Private::SQueryContentsList<UClass*>)
+		SNew(SMovieGraphSimpleList<UClass*>)
 			.DataSource(&ComponentTypes)
 			.DataType(FText::FromString("Component Type"))
 			.DataTypePlural(FText::FromString("Component Types"))
@@ -1444,7 +1330,6 @@ void UMoviePipelineRenderLayerSubsystem::Initialize(FSubsystemCollectionBase& Co
 	VisualizationModifier_HideWorld = NewObject<UMoviePipelineVisibilityModifier>(GetTransientPackage(), NAME_None, RF_Transient);
 	VisualizationModifier_HideWorld->AddCollection(VisualizationEmptyCollection);
 	VisualizationModifier_HideWorld->SetHidden(true);
-	VisualizationModifier_HideWorld->bUseInvertedActors = true;
 
 	// Selectively show collections in the visualization
 	VisualizationModifier_VisibleCollections = NewObject<UMoviePipelineVisibilityModifier>(GetTransientPackage(), NAME_None, RF_Transient);

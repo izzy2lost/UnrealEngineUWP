@@ -10,6 +10,7 @@
 #include "Graph/Nodes/MovieGraphInputNode.h"
 #include "Graph/Nodes/MovieGraphOutputNode.h"
 #include "Graph/Nodes/MovieGraphRemoveRenderSettingNode.h"
+#include "Graph/Nodes/MovieGraphSubgraphNode.h"
 #include "Graph/Nodes/MovieGraphVariableNode.h"
 #include "MovieGraphUtils.h"
 #include "MoviePipelineQueue.h"
@@ -984,6 +985,29 @@ TArray<FString> UMovieGraphConfig::GetUpstreamBranchNames(UMovieGraphNode* FromN
 		}));
 
 	return BranchNames;
+}
+
+void UMovieGraphConfig::GetAllContainedSubgraphs(TSet<UMovieGraphConfig*>& OutSubgraphs) const
+{
+	for (const TObjectPtr<UMovieGraphNode>& Node : GetNodes())
+	{
+		if (!Node)
+		{
+			continue;
+		}
+		
+		if (const UMovieGraphSubgraphNode* SubgraphNode = Cast<UMovieGraphSubgraphNode>(Node))
+		{
+			UMovieGraphConfig* SubgraphConfig = SubgraphNode->GetSubgraphAsset();
+			
+			// Don't recurse into this graph if it was already added (to prevent infinite recursion)
+			if (!OutSubgraphs.Contains(SubgraphConfig))
+			{
+				OutSubgraphs.Add(SubgraphConfig);
+				SubgraphConfig->GetAllContainedSubgraphs(OutSubgraphs);
+			}
+		}
+	}
 }
 
 void UMovieGraphConfig::InitializeFlattenedNode(UMovieGraphNode* InNode)
