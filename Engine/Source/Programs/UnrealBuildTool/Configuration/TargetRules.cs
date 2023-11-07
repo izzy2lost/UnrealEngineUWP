@@ -2734,15 +2734,16 @@ namespace UnrealBuildTool
 			bDeployAfterCompile = bForceSkipDeploy ? false : bDeployAfterCompile;
 
 			// Determine intermediate environment overrides based on command line flags
-			if (IntermediateEnvironment == UnrealIntermediateEnvironment.Default)
+			if (StaticAnalyzer != StaticAnalyzer.None)
+			{
+				// Always override environment for analyzing, regardless of other settings
+				IntermediateEnvironment = UnrealIntermediateEnvironment.Analyze;
+			}
+			else if (IntermediateEnvironment == UnrealIntermediateEnvironment.Default)
 			{
 				if (bIWYU)
 				{
 					IntermediateEnvironment = UnrealIntermediateEnvironment.IWYU;
-				}
-				else if (StaticAnalyzer != StaticAnalyzer.None)
-				{
-					IntermediateEnvironment = UnrealIntermediateEnvironment.Analyze;
 				}
 				else if (!bUseUnityBuild)
 				{
