@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "DerivedDataCacheStats.h"
+#include "DerivedDataLegacyCacheStore.h"
 
 #include "Algo/BinarySearch.h"
 
@@ -274,6 +275,8 @@ void FCacheStoreStats::AddRequest(const FCacheStoreRequestStats& Stats)
 
 	if (!Stats.Latency.IsInfinity())
 	{
+		UE_LOG(LogDerivedDataCache, VeryVerbose, TEXT("%s: Adding request latency of %.2fms from %s on %s with status %s"),
+			*Name, Stats.Latency.ToMilliseconds(), LexToString(Stats.Op), LexToString(Stats.Type), *WriteToString<32>(Stats.Status));
 		AverageLatency.Add(Stats.StartTime, Stats.EndTime, Stats.Latency.ToSeconds());
 	}
 
@@ -296,6 +299,22 @@ void FCacheStoreStats::AddRequest(const FCacheStoreRequestStats& Stats)
 	CallStats.Accumulate(HitOrMiss, EStatType::Cycles, int64(Stats.OtherThreadTime.ToSeconds() / FPlatformTime::GetSecondsPerCycle64()), /*bIsInGameThread*/ false);
 	CallStats.Accumulate(HitOrMiss, EStatType::Bytes, bIsGet ? Stats.PhysicalReadSize : Stats.PhysicalWriteSize, bIsInGameThread);
 #endif
+}
+
+void FCacheStoreStats::AddLatency(FMonotonicTimePoint StartTime, FMonotonicTimePoint EndTime, FMonotonicTimeSpan Latency)
+{
+	if (!Latency.IsInfinity())
+	{
+		UE_LOG(LogDerivedDataCache, VeryVerbose, TEXT("%s: Adding non-request latency of %.2fms"),
+			*Name, Latency.ToMilliseconds());
+		AverageLatency.Add(StartTime, EndTime, Latency.ToSeconds());
+	}
+}
+
+double FCacheStoreStats::GetAverageLatency()
+{
+	TUniqueLock Lock(Mutex);
+	return AverageLatency.GetValue(FMonotonicTimePoint::Now());
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

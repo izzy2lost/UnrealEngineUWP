@@ -120,6 +120,22 @@ enum class ECacheStoreRequestType : uint8
 	Value,
 };
 
+inline const TCHAR* LexToString(ECacheStoreRequestType CacheStoreRequestType)
+{
+	switch (CacheStoreRequestType)
+	{
+	case ECacheStoreRequestType::None:
+		return TEXT("None");
+	case ECacheStoreRequestType::Record:
+		return TEXT("Record");
+	case ECacheStoreRequestType::Value:
+		return TEXT("Value");
+	}
+
+	checkNoEntry();
+	return TEXT("Unknown value! (Update LexToString!)");
+}
+
 /**
  * The operation performed by the request.
  */
@@ -130,6 +146,24 @@ enum class ECacheStoreRequestOp : uint8
 	Get,
 	GetChunk,
 };
+
+inline const TCHAR* LexToString(ECacheStoreRequestOp CacheStoreRequestOp)
+{
+	switch (CacheStoreRequestOp)
+	{
+	case ECacheStoreRequestOp::None:
+		return TEXT("None");
+	case ECacheStoreRequestOp::Put:
+		return TEXT("Put");
+	case ECacheStoreRequestOp::Get:
+		return TEXT("Get");
+	case ECacheStoreRequestOp::GetChunk:
+		return TEXT("GetChunk");
+	}
+
+	checkNoEntry();
+	return TEXT("Unknown value! (Update LexToString!)");
+}
 
 enum class ECacheStoreFlags : uint32
 {
@@ -268,6 +302,12 @@ public:
 
 	/** Adds stats for a single request that was processed by the associated cache store. */
 	virtual void AddRequest(const FCacheStoreRequestStats& Stats) = 0;
+
+	/** Adds stats for latency for a measurement that was done for the associated cache store. */
+	virtual void AddLatency(FMonotonicTimePoint StartTime, FMonotonicTimePoint EndTime, FMonotonicTimeSpan Latency) = 0;
+
+	/** Gets the average latency value for the current time in seconds. */
+	virtual double GetAverageLatency() = 0;
 };
 
 template <typename RequestRangeType, typename OnCompleteType>

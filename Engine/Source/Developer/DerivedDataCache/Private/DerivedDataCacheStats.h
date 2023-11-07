@@ -180,6 +180,8 @@ private:
 	void SetStatus(ECacheStoreStatusCode StatusCode, const FText& Status) final;
 	void SetAttribute(FStringView Key, FStringView Value) final;
 	void AddRequest(const FCacheStoreRequestStats& Stats) final;
+	void AddLatency(FMonotonicTimePoint StartTime, FMonotonicTimePoint EndTime, FMonotonicTimeSpan Latency) final;
+	double GetAverageLatency() final;
 };
 
 class FCacheStats final
