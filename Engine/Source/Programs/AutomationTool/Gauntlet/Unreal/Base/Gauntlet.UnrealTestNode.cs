@@ -913,6 +913,16 @@ namespace Gauntlet
 					"PreFlightChange",
 					"AssetRegistryCacheRootFolder",
 					"DeactivatedTestConfigPath",
+					"SkipInstall",
+					"destlocalinstalldir",
+					"deviceurl",
+					"devicepool",
+					"VerifyLogin",
+					"cleardevices",
+					"reboot",
+					"fullclean",
+					"BuildName",
+					"PerfReportServer",
 			}.Select(I => I.ToLower()).ToArray();
 
 			bool ShouldArgBeDisplayed(string InArg)
