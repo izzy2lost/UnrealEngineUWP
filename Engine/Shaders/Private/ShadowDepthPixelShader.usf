@@ -61,13 +61,24 @@ void Main(
 	
 	FMaterialPixelParameters MaterialParameters = GetMaterialPixelParameters(Inputs.FactoryInterpolants, SvPosition);
 	FPixelMaterialInputs PixelMaterialInputs;
-	#if INTERPOLATE_POSITION
+	#if INTERPOLATE_POSITION || (USE_WORLD_POSITION_EXCLUDING_SHADER_OFFSETS && !IS_NANITE_PASS)
 	    {
 			float4 ScreenPosition  = SvPositionToResolvedScreenPosition(SvPosition);  
 			
-			float3 TranslatedWorld = Inputs.PixelPosition.xyz;
+			float3 TranslatedWorld = 
+		#if INTERPOLATE_POSITION
+			Inputs.PixelPosition.xyz;
+		#else
+			SvPositionToResolvedTranslatedWorld(SvPosition);
+		#endif
 
-			CalcMaterialParametersEx(MaterialParameters, PixelMaterialInputs, SvPosition, ScreenPosition, 1, TranslatedWorld, TranslatedWorld);
+			CalcMaterialParametersEx(MaterialParameters, PixelMaterialInputs, SvPosition, ScreenPosition, 1, TranslatedWorld, 
+		#if USE_WORLD_POSITION_EXCLUDING_SHADER_OFFSETS && !IS_NANITE_PASS
+				Inputs.PixelPositionExcludingWPO
+		#else
+				TranslatedWorld
+		#endif			
+			);
 		}
 	#else
 		CalcMaterialParameters(MaterialParameters, PixelMaterialInputs, SvPosition, 1);

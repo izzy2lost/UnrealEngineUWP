@@ -1588,7 +1588,11 @@ void HWRasterizePS(VSOut In,
 		
 		FMaterialPixelParameters MaterialParameters = FetchNaniteMaterialPixelParameters(NaniteView, PackedPixel, VIRTUAL_TEXTURE_TARGET, Barycentrics, false, VertIndexes, bCalcVertIndexes, Interpolants, SvPosition);
 		FPixelMaterialInputs PixelMaterialInputs;
+#if USE_WORLD_POSITION_EXCLUDING_SHADER_OFFSETS
+		CalcMaterialParametersEx(MaterialParameters, PixelMaterialInputs, SvPosition, MaterialParameters.ScreenPosition, true, MaterialParameters.WorldPosition_CamRelative, MaterialParameters.WorldPosition_NoOffsets_CamRelative);		
+#else
 		CalcMaterialParameters(MaterialParameters, PixelMaterialInputs, SvPosition, true /*bIsFrontFace*/);
+#endif
 
 		// NOTE: Disable PDO in shadow passes (it does undesirable things and has always been disabled in these passes in Unreal)
 		#if WANT_PIXEL_DEPTH_OFFSET && SHADOW_DEPTH_SHADER == 0
