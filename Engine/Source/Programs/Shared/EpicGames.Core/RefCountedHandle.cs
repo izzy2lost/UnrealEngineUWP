@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
+using System.Buffers;
 using System.Threading;
 
 namespace EpicGames.Core
@@ -53,6 +54,14 @@ namespace EpicGames.Core
 		public static IRefCountedHandle<T> Create<T>(T target, IDisposable? owner)
 		{
 			return new RefCountedHandle<T>(target, owner);
+		}
+
+		/// <summary>
+		/// Creates a reference counted handle to a memory owner.
+		/// </summary>
+		public static IRefCountedHandle<Memory<T>> Create<T>(IMemoryOwner<T> target) where T : struct
+		{
+			return new RefCountedHandle<Memory<T>>(target.Memory, target);
 		}
 	}
 

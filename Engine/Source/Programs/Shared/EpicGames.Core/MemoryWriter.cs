@@ -307,6 +307,11 @@ namespace EpicGames.Core
 		Chunk _currentChunk;
 
 		/// <summary>
+		/// Accessor for the allocated chunks
+		/// </summary>
+		protected IReadOnlyList<Chunk> Chunks => _chunks;
+
+		/// <summary>
 		/// Length of the current sequence
 		/// </summary>
 		public int Length { get; private set; }
@@ -349,7 +354,14 @@ namespace EpicGames.Core
 			int requiredSize = _currentChunk.Length + Math.Max(sizeHint, 1);
 			if (requiredSize > _currentChunk.Data.Length)
 			{
-				_currentChunk = CreateChunk(_currentChunk.RunningIndex + _currentChunk.Length, Math.Max(sizeHint, _chunkSize));
+				int runningIndex = _currentChunk.RunningIndex + _currentChunk.Length;
+				if (_currentChunk.Length == 0)
+				{
+					_currentChunk.Release();
+					_chunks.RemoveAt(_chunks.Count - 1);
+				}
+
+				_currentChunk = CreateChunk(runningIndex, Math.Max(sizeHint, _chunkSize));
 				_chunks.Add(_currentChunk);
 			}
 			return _currentChunk.Data.Slice(_currentChunk.Length);
@@ -486,12 +498,7 @@ namespace EpicGames.Core
 		{
 			public readonly IMemoryOwner<byte> Owner;
 
-			public PooledChunk(int runningIndex, int size)
-				: this(runningIndex, MemoryPool<byte>.Shared.Rent(size))
-			{
-			}
-
-			private PooledChunk(int runningIndex, IMemoryOwner<byte> owner)
+			public PooledChunk(int runningIndex, IMemoryOwner<byte> owner)
 				: base(runningIndex, owner.Memory)
 			{
 				Owner = owner;
@@ -499,6 +506,8 @@ namespace EpicGames.Core
 
 			public override void Release() => Owner.Dispose();
 		}
+
+		readonly IMemoryAllocator<byte> _allocator;
 
 		/// <summary>
 		/// Constructor
@@ -514,17 +523,155 @@ namespace EpicGames.Core
 		/// <param name="initialSize">Size of the initial chunk</param>
 		/// <param name="chunkSize">Default size for subsequent chunks</param>
 		public ChunkedMemoryWriter(int initialSize = 4096, int chunkSize = 4096)
-			: base(new PooledChunk(0, initialSize), chunkSize)
+			: this(PoolAllocator.Shared, initialSize, chunkSize)
 		{
 		}
 
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		/// <param name="allocator">Allocator to draw from</param>
+		/// <param name="initialSize">Size of the initial chunk</param>
+		/// <param name="chunkSize">Default size for subsequent chunks</param>
+		public ChunkedMemoryWriter(IMemoryAllocator<byte> allocator, int initialSize = 4096, int chunkSize = 4096)
+			: base(new PooledChunk(0, allocator.Alloc(initialSize)), chunkSize)
+		{
+			_allocator = allocator;
+		}
+
 		/// <inheritdoc/>
-		protected override Chunk CreateChunk(int runningIndex, int size) => new PooledChunk(runningIndex, size);
+		protected override Chunk CreateChunk(int runningIndex, int size) => new PooledChunk(runningIndex, _allocator.Alloc(size));
 
 		/// <inheritdoc/>
 		public void Dispose()
 		{
 			Clear();
+		}
+	}
+
+	/// <summary>
+	/// Implementation of <see cref="ChunkedMemoryWriterBase"/> which takes pages from a <see cref="IMemoryAllocator{Byte}"/>
+	/// </summary>
+	public sealed class RefCountedMemoryWriter : ChunkedMemoryWriterBase, IDisposable
+	{
+		class BufferChunk : Chunk
+		{
+			public readonly IRefCountedHandle<Memory<byte>> Handle;
+
+			public BufferChunk(int runningIndex, IRefCountedHandle<Memory<byte>> handle)
+				: base(runningIndex, handle.Target)
+			{
+				Handle = handle;
+			}
+
+			public override void Release()
+			{
+				Handle.Dispose();
+			}
+		}
+
+		class ArrayDisposer : IDisposable
+		{
+			readonly IDisposable[] _handles;
+
+			public ArrayDisposer(IDisposable[] handles) => _handles = handles;
+
+			public void Dispose()
+			{
+				for (int idx = 0; idx < _handles.Length; idx++)
+				{
+					_handles[idx].Dispose();
+				}
+			}
+		}
+
+		readonly IMemoryAllocator<byte> _allocator;
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		/// <param name="allocator">Allocator for buffers</param>
+		/// <param name="chunkSize"></param>
+		public RefCountedMemoryWriter(IMemoryAllocator<byte> allocator, int chunkSize)
+			: this(allocator, chunkSize, chunkSize)
+		{ }
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		/// <param name="allocator">Allocator for buffers</param>
+		/// <param name="initialSize">Size of the initial chunk</param>
+		/// <param name="chunkSize">Default size for subsequent chunks</param>
+		public RefCountedMemoryWriter(IMemoryAllocator<byte> allocator, int initialSize, int chunkSize)
+			: base(new BufferChunk(0, RefCountedHandle.Create(allocator.Alloc(initialSize))), chunkSize)
+		{
+			_allocator = allocator;
+		}
+
+		/// <inheritdoc/>
+		protected override Chunk CreateChunk(int runningIndex, int size) => new BufferChunk(runningIndex, RefCountedHandle.Create(_allocator.Alloc(size)));
+
+		/// <inheritdoc/>
+		public void Dispose()
+		{
+			Clear();
+		}
+
+		/// <summary>
+		/// Returns a contiguous block of memory containing the written data
+		/// </summary>
+		public IRefCountedHandle<ReadOnlyMemory<byte>> AsRefCountedMemory()
+		{
+			if (Chunks.Count == 1)
+			{
+				BufferChunk buffer = (BufferChunk)Chunks[0];
+				return RefCountedHandle.Create<ReadOnlyMemory<byte>>(buffer.WrittenMemory, buffer.Handle.AddRef());
+			}
+			else
+			{
+				int length = Length;
+
+				IRefCountedHandle<Memory<byte>> allocation = RefCountedHandle.Create(_allocator.Alloc(length));
+				CopyTo(allocation.Target.Span);
+
+				return RefCountedHandle.Create<ReadOnlyMemory<byte>>(allocation.Target.Slice(0, length), allocation);
+			}
+		}
+
+		/// <summary>
+		/// Creates a reference counted sequence from the allocated data
+		/// </summary>
+		public IRefCountedHandle<ReadOnlySequence<byte>> AsRefCountedSequence() => AsRefCountedSequence(0, Length);
+
+		/// <summary>
+		/// Creates a reference counted sequence from the allocated data
+		/// </summary>
+		public IRefCountedHandle<ReadOnlySequence<byte>> AsRefCountedSequence(int offset) => AsRefCountedSequence(offset, Length - offset);
+
+		/// <summary>
+		/// Creates a reference counted sequence from the allocated data
+		/// </summary>
+		public IRefCountedHandle<ReadOnlySequence<byte>> AsRefCountedSequence(int offset, int length)
+		{
+			int minChunkIdx = 0;
+			while (minChunkIdx + 1 < Chunks.Count && offset > Chunks[minChunkIdx + 1].RunningIndex)
+			{
+				minChunkIdx++;
+			}
+
+			int maxChunkIdx = minChunkIdx + 1;
+			while (maxChunkIdx < Chunks.Count && offset + length > Chunks[maxChunkIdx].RunningIndex)
+			{
+				maxChunkIdx++;
+			}
+
+			IDisposable[] handles = new IDisposable[maxChunkIdx - minChunkIdx];
+			for (int chunkIdx = minChunkIdx; chunkIdx < maxChunkIdx; chunkIdx++)
+			{
+				handles[chunkIdx - minChunkIdx] = ((BufferChunk)Chunks[chunkIdx]).Handle.AddRef();
+			}
+
+			return new RefCountedHandle<ReadOnlySequence<byte>>(AsSequence(offset, length), new ArrayDisposer(handles));
 		}
 	}
 
