@@ -52,7 +52,7 @@ public:
 
 				if (PropertyOffset < ActorDescAr.ClassDescSizeof)
 				{
-					check((PropertyOffset + sizeof(V)) <= ActorDescAr.ClassDescSizeof);
+					check((PropertyOffset + sizeof(V.Value)) <= ActorDescAr.ClassDescSizeof);
 					const DestPropertyType* RefValue = (const DestPropertyType*)(*(UPTRINT*)&ActorDescAr.ClassDesc + PropertyOffset);
 					return RefValue;
 				}
