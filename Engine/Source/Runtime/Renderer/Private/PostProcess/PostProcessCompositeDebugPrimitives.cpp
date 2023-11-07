@@ -56,7 +56,8 @@ FScreenPassTexture AddDebugPrimitivePass(
 		DebugPrimitiveDepth,
 		SceneDepthJitter,
 		NumMSAASamples,
-		true);	// - Draw Background Colour
+		true,
+		Inputs.bUseMetalMSAAHDRDecode);
 
 	//Composite the debug draw elements into the scene
 	FDebugPrimitivesPassParameters* PassParameters = GraphBuilder.AllocParameters<FDebugPrimitivesPassParameters>();

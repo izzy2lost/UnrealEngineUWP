@@ -2674,6 +2674,7 @@ void AddMobilePostProcessingPasses(FRDGBuilder& GraphBuilder, FScene* Scene, con
 		PassSequence.AcceptOverrideIfLastPass(EPass::DebugPrimitive, PassInputs.OverrideOutput);
 		PassInputs.SceneColor = SceneColor;
 		PassInputs.SceneDepth = SceneDepth;
+		PassInputs.bUseMetalMSAAHDRDecode = bMetalMSAAHDRDecode;
 
 		SceneColor = AddDebugPrimitivePass(GraphBuilder, View, PassInputs);
 	}

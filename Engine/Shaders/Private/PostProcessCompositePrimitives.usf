@@ -264,6 +264,11 @@ void MainPopulateSceneDepthPS(
 		Color_UVViewportBilinearMin, Color_UVViewportBilinearMax);
 	ColorUV = clamp(ColorUV, float2(0, 0), float2(1, 1));
 	OutColor = Texture2DSampleLevel(ColorTexture, ColorSampler, ColorUV, 0).rgba;
+
+#if METAL_MSAA_HDR_DECODE
+	OutColor.rgb *= rcp(OutColor.r * (-0.299) + OutColor.g * (-0.587) + OutColor.b * (-0.114) + 1.0);
+#endif
+
 #else
 	OutColor = 0.0;
 #endif
