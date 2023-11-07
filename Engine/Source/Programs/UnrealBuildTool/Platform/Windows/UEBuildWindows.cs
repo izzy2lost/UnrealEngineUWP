@@ -1513,7 +1513,7 @@ namespace UnrealBuildTool
 		{
 			bool bBuildShaderFormats = Target.bForceBuildShaderFormats;
 
-			if (!Target.bBuildRequiresCookedData)
+			if (!Target.bBuildRequiresCookedData && Target.Type != TargetType.Program)
 			{
 				if (ModuleName == "TargetPlatform")
 				{

@@ -1119,7 +1119,12 @@ const TCHAR* FWindowsPlatformProcess::BaseDir()
 
 			FString CollapseResult(Result);
 #ifdef UE_RELATIVE_BASE_DIR
-			CollapseResult /= UE_RELATIVE_BASE_DIR;
+			// this may have been defined at compile time because we are in Restricted, but then we have been staged as a program, and then remapped out of Restricted
+			// so if we are already in a Binaries/Win64 directory
+			if (IFileManager::Get().DirectoryExists(*FPaths::Combine(CollapseResult, UE_RELATIVE_BASE_DIR)))
+			{
+				CollapseResult = FPaths::Combine(CollapseResult, UE_RELATIVE_BASE_DIR);
+			}
 #endif
 			FPaths::CollapseRelativeDirectories(CollapseResult);
 			FCString::Strcpy(Result, *CollapseResult);

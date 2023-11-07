@@ -932,16 +932,16 @@ public class DeploymentContext //: ProjectParams
 			StageCrashReporterFile(FileType, InputFile, StagedFile);
 		}
 	}
-
-	public void StageVulkanValidationLayerFiles(StagedFileType FileType, DirectoryReference InputDir, StageFilesSearch Option)
+	
+	public void StageVulkanValidationLayerFiles(ProjectParams Params, StagedFileType FileType, DirectoryReference InputDir, StageFilesSearch Option)
 	{
-			StageVulkanValidationLayerFiles(FileType, InputDir, Option, new StagedDirectoryReference(InputDir.MakeRelativeTo(LocalRoot)));
-		}
+		StageVulkanValidationLayerFiles(Params, FileType, InputDir, Option, new StagedDirectoryReference(InputDir.MakeRelativeTo(LocalRoot)));
+	}
 
-	public void StageVulkanValidationLayerFiles(StagedFileType FileType, DirectoryReference InputDir, StageFilesSearch Option, StagedDirectoryReference OutputDir)
+	public void StageVulkanValidationLayerFiles(ProjectParams Params, StagedFileType FileType, DirectoryReference InputDir, StageFilesSearch Option, StagedDirectoryReference OutputDir)
 	{
 		// This needs to match the c++ define VULKAN_HAS_DEBUGGING_ENABLED to avoid mismatched functionality/files
-		bool bShouldStageVulkanLayers = StageTargetConfigurations.Contains(UnrealTargetConfiguration.Debug) || StageTargetConfigurations.Contains(UnrealTargetConfiguration.Development);
+		bool bShouldStageVulkanLayers = !Params.IsProgramTarget && (StageTargetConfigurations.Contains(UnrealTargetConfiguration.Debug) || StageTargetConfigurations.Contains(UnrealTargetConfiguration.Development));
 		if (bShouldStageVulkanLayers)
 		{
 			List<FileReference> InputFiles = FindFilesToStage(InputDir, Option);

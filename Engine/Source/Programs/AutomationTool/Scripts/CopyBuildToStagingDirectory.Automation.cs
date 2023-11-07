@@ -1426,7 +1426,7 @@ namespace AutomationScripts
 						}
 					}
 
-					SC.StageVulkanValidationLayerFiles(StagedFileType.NonUFS, DirectoryReference.Combine(SC.EngineRoot, "Binaries", "ThirdParty", "Vulkan", SC.PlatformDir), StageFilesSearch.AllDirectories);
+					SC.StageVulkanValidationLayerFiles(Params, StagedFileType.NonUFS, DirectoryReference.Combine(SC.EngineRoot, "Binaries", "ThirdParty", "Vulkan", SC.PlatformDir), StageFilesSearch.AllDirectories);
 
 					// CrashReportClient is a standalone slate app that does not look in the generated pak file, so it needs the Content/Slate and Shaders/StandaloneRenderer folders Non-UFS
 					// @todo Make CrashReportClient more portable so we don't have to do this
