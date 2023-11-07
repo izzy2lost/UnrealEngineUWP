@@ -57,6 +57,13 @@ private:
 		FNaniteDisplacedMeshParams Parameters;
 		FString Folder;
 		ELinkDisplacedMeshAssetSetting LinkDisplacedMeshAssetSetting;
+
+		FOnLinkDisplacedMeshArgs(const FNaniteDisplacedMeshParams& InParameters, const FString& InFolder, const ELinkDisplacedMeshAssetSetting& InLinkDisplacedMeshAssetSetting)
+			: Parameters(InParameters)
+			, Folder(InFolder)
+			, LinkDisplacedMeshAssetSetting(InLinkDisplacedMeshAssetSetting)
+		{
+		}
 	};
 
 	TArray<FOnLinkDisplacedMeshArgs> QueuedLinkingRequest;
