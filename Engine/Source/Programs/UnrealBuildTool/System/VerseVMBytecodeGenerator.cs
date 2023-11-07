@@ -836,7 +836,7 @@ namespace UnrealBuildTool
 
 			Inst("NewClass")
 				.Arg("Dest", Role.UnifyDef)
-				.Arg("Fields", Role.Immediate, Arity.Fixed, "VFields")
+				.Arg("Constructor", Role.Immediate, Arity.Fixed, "VConstructor")
 				.Arg("Inherited", Role.Use, Arity.Variadic)
 				.Suspends();
 

@@ -10,9 +10,9 @@
 
 namespace Verse
 {
-struct VEntry;
-struct VUniqueString;
 struct VClass;
+struct VProcedure;
+struct VUniqueString;
 
 /// A Verse object that may store fields and associated values for those fields on it.
 /// An object points to an emergent type, which in turn points to a "shape".
@@ -22,10 +22,17 @@ struct VObject : VHeapValue
 	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VHeapValue);
 	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
 
+	/// Allocate a new uninitialized object with the given shape.
 	static VObject& New(FAllocationContext Context, VEmergentType& InEmergentType);
 
-	/// `InValues` should match the order of fields in `InFields` before this is called.
-	static VObject& New(FAllocationContext Context, VClass& InClass, VUniqueStringSet& InFields, const TArray<VValue>& InValues);
+	/// Allocate a new object. Also returns a sequence of VProcedures to invoke to finish the object's construction.
+	/// `InValues` should match the order of IDs in `InFields`.
+	static VObject& New(
+		FAllocationContext Context,
+		VClass& InClass,
+		VUniqueStringSet& InFields,
+		const TArray<VValue>& InValues,
+		TArray<VProcedure*>& OutConstructor);
 
 	const VValue LoadField(FAllocationContext Context, const VUniqueString& Name);
 
@@ -36,8 +43,6 @@ struct VObject : VHeapValue
 	void SetField(FAllocationContext Context, VUniqueString& Name, VValue Value);
 
 private:
-	static uint64 AllocationSize(const uint64 NumIndexedFields);
-
 	VObject(FAllocationContext Context, VEmergentType& InEmergentType);
 
 	/*

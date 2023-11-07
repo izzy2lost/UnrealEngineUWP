@@ -238,6 +238,8 @@ struct VUniqueStringSet : VCell
 	class FConstIterator
 	{
 	public:
+		FSetElementId GetId() const;
+		const TWriteBarrier<VUniqueString>* operator->() const;
 		const TWriteBarrier<VUniqueString>& operator*() const;
 		bool operator==(const FConstIterator& Rhs) const;
 		bool operator!=(const FConstIterator& Rhs) const;

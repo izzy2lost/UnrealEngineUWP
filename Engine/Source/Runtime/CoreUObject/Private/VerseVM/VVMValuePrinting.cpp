@@ -5,10 +5,10 @@
 #include "Containers/UnrealString.h"
 #include "VerseVM/Inline/VVMCellInline.h"
 #include "VerseVM/Inline/VVMIntInline.h"
-#include "VerseVM/Inline/VVMShapeInline.h"
 #include "VerseVM/Inline/VVMTupleInline.h"
 #include "VerseVM/Inline/VVMUTF8StringInline.h"
 #include "VerseVM/Inline/VVMValueInline.h"
+#include "VerseVM/VVMClass.h"
 #include "VerseVM/VVMFunction.h"
 #include "VerseVM/VVMInt.h"
 #include "VerseVM/VVMLog.h"
@@ -22,21 +22,6 @@
 
 namespace Verse
 {
-FString ToString(const EFieldType FieldType)
-{
-	switch (FieldType)
-	{
-#define VERSE_VISIT_FIELDTYPE(Name) \
-	case EFieldType::Name:          \
-		return #Name;
-		VERSE_ENUM_FIELDTYPES(VERSE_VISIT_FIELDTYPE)
-#undef VERSE_VISIT_FIELDTYPE
-		default:
-			VERSE_UNREACHABLE();
-	}
-	return "";
-}
-
 FString FDefaultCellFormatter::ToString(FAllocationContext Context, VCell& Cell) const
 {
 	if (Cell.IsA<VTuple>())
@@ -78,9 +63,9 @@ FString FDefaultCellFormatter::ToString(FAllocationContext Context, VCell& Cell)
 	{
 		return Verse::ToString(Context, *UniqueStringSet);
 	}
-	else if (::Verse::VFields* Fields = Cell.DynamicCast<VFields>())
+	else if (const ::Verse::VConstructor* Constructor = Cell.DynamicCast<VConstructor>())
 	{
-		return Verse::ToString(Context, *Fields, *this);
+		return Verse::ToString(Context, *Constructor);
 	}
 
 	if (VValue Logic(Cell); Logic.IsLogic())
@@ -215,13 +200,14 @@ FString ToString(FAllocationContext Context, const VUniqueStringSet& UniqueStrin
 	return Result;
 }
 
-FString ToString(FAllocationContext Context, VFields& Fields, const FCellFormatter& CellFormatter)
+FString ToString(FAllocationContext Context, const VConstructor& Constructor, const FCellFormatter& CellFormatter)
 {
-	FString Result = "Fields(\n";
-	for (auto& Entry : Fields.GetFields())
+	FString Result = "Constructor(\n";
+	for (uint32 Index = 0; Index < Constructor.NumEntries; ++Index)
 	{
-		const FString ConstantStringRepresentation = Entry.Value.Constant.Get().ToString(Context, CellFormatter);
-		Result += FString::Printf(TEXT("\t%s : Entry(Index: %d, Constant: %s, Type: %s))\n"), *ToString(Context, *Entry.Key), Entry.Value.Index, *ConstantStringRepresentation, *Verse::ToString(Entry.Value.Type));
+		const VConstructor::VEntry& Entry = Constructor.Entries[Index];
+		const FString ConstantStringRepresentation = Entry.Value.Get().ToString(Context, CellFormatter);
+		Result += FString::Printf(TEXT("\t%s : Entry(Value: %s, Dynamic: %s))\n"), *ToString(Context, *Entry.Name), *ConstantStringRepresentation, Entry.bDynamic ? "true" : "false");
 	}
 	Result += FString::Printf(TEXT(")"));
 	return Result;

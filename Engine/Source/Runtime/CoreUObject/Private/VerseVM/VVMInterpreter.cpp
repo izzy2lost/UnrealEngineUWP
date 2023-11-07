@@ -185,17 +185,14 @@ static VFrame& MakeFrameForCallee(FRunningContext Context, VFrame* CallerFrame, 
 	VProcedure& Procedure = Function.GetProcedure();
 	VFrame& Frame = VFrame::New(Context, Procedure.NumRegisters, CallerFrame, CallerPC, Procedure, ReturnSlot);
 
-	check(Function.NumCaptures + Procedure.NumParameters <= Procedure.NumRegisters);
+	check(1 + Procedure.NumParameters <= Procedure.NumRegisters);
+
+	Frame.Registers[0].Set(Context, *Function.ParentScope.Get());
 
 	UnboxArguments(Context, Procedure.NumParameters, NumArgs, GetArg,
 		[&](uint32 Param, VValue Value) {
-			Frame.Registers[Param].Set(Context, Value);
+			Frame.Registers[1 + Param].Set(Context, Value);
 		});
-
-	for (uint32 CaptureIndex = 0; CaptureIndex < Function.NumCaptures; ++CaptureIndex)
-	{
-		Frame.Registers[CaptureIndex + Procedure.NumParameters].Set(Context, Function.Captures[CaptureIndex].Get());
-	}
 
 	return Frame;
 }
@@ -1237,7 +1234,7 @@ class FInterpreter
 	template <typename OpType>
 	FOpResult NewClassImpl(OpType& Op)
 	{
-		VFields* Fields = Op.Fields.Get();
+		VConstructor* Constructor = Op.Constructor.Get();
 
 		TArray<VClass*> InheritedClasses = {};
 		const uint32 NumInherited = Op.Inherited.Num();
@@ -1250,17 +1247,14 @@ class FInterpreter
 			InheritedClasses.Add(&InheritedClass);
 		}
 
-		// We explicitly copy here because we don't want to move the value out of the register, since
-		// subsequent bytecode might be relying on it!
-		VFields::FieldsMap FieldsCopy(Fields->GetFields());
-		VClass& NewClass = VClass::New(Context, InheritedClasses, MoveTemp(FieldsCopy), nullptr);
+		VClass& NewClass = VClass::New(Context, *Constructor, InheritedClasses);
 		DEF(Op.Dest, NewClass);
 
 		return {FOpResult::Normal};
 	}
 
 	template <typename OpType>
-	FOpResult NewObjectImpl(OpType& Op, VClass& Class)
+	FOpResult NewObjectImpl(OpType& Op, VClass& Class, VObject*& NewObject, TArray<VProcedure*>& Initializers)
 	{
 		const uint32 NumFields = Op.Fields->Num();
 		const uint32 NumValues = Op.Values.Num();
@@ -1275,8 +1269,8 @@ class FInterpreter
 			REQUIRE_CONCRETE(CurrentValue);
 			Values.Add(CurrentValue);
 		}
-		VObject& NewObject = VObject::New(Context, Class, *Op.Fields.Get(), Values);
-		DEF(Op.Dest, NewObject);
+		NewObject = &VObject::New(Context, Class, *Op.Fields.Get(), Values, Initializers);
+		DEF(Op.Dest, *NewObject);
 
 		return {FOpResult::Normal};
 	}
@@ -1287,7 +1281,11 @@ class FInterpreter
 		const VValue& ObjectOperand = GetOperand(Op.Object);
 		REQUIRE_CONCRETE(ObjectOperand);
 		VObject& Object = ObjectOperand.StaticCast<VObject>();
-		const VValue FieldValue = Object.LoadField(Context, *Op.Name.Get());
+		VValue FieldValue = Object.LoadField(Context, *Op.Name.Get());
+		if (FieldValue.IsCellOfType<VProcedure>())
+		{
+			FieldValue = VFunction::New(Context, FieldValue.StaticCast<VProcedure>(), Object);
+		}
 		DEF(Op.Dest, FieldValue);
 		return {FOpResult::Normal};
 	}
@@ -1306,23 +1304,20 @@ class FInterpreter
 		V_DIE_IF(EmergentType == nullptr);
 		const VShape* Shape = EmergentType->Shape.Get();
 		V_DIE_IF(Shape == nullptr);
-		const VFields::VEntry* Field = Shape->GetField(Context, *Op.Name.Get());
+		const VShape::VEntry* Field = Shape->GetField(Context, *Op.Name.Get());
 		V_DIE_IF(Field == nullptr);
 		bool bSucceeded = false;
 		switch (Field->Type)
 		{
-			case EFieldType::Constant:
-			{
-				// If the field's data lives on the shape, we effectively just need to `Def` which will handle unification for us.
-				bSucceeded = Def(Field->Constant.Get(), ValueOperand);
-				break;
-			}
-			// If the field's data in question lives on the object, just set it.
-			case EFieldType::Mutable:
 			case EFieldType::Offset:
 			{
 				VRestValue& Slot = Object.GetFieldSlot(Context, *Op.Name.Get());
 				bSucceeded = Def(Slot, ValueOperand);
+				break;
+			}
+			case EFieldType::Constant:
+			{
+				bSucceeded = Def(Field->Value.Get(), ValueOperand);
 				break;
 			}
 			default:
@@ -1816,15 +1811,19 @@ class FInterpreter
 					REQUIRE_CONCRETE(ClassOperand);
 					VClass& Class = ClassOperand.StaticCast<VClass>();
 
-					OP_IMPL_HELPER(NewObject, Class);
+					VObject* Object = nullptr;
+					TArray<VProcedure*> Initializers;
+					OP_IMPL_HELPER(NewObject, Class, Object, Initializers);
 
-					if (VProcedure* Blocks = Class.GetBlocks())
+					// Push initializers onto the stack in reverse order to run them in forward order.
+					while (Initializers.Num() > 0)
 					{
-						VFunction& Function = VFunction::New(Context, *Blocks, 0);
+						VProcedure& Procedure = *Initializers.Pop();
+						VFunction& Function = VFunction::New(Context, Procedure, *Object);
 						VValue ReturnSlot = VValue::Placeholder(VPlaceholder::New(Context, 0));
 						VFrame& NewFrame = MakeFrameForCallee(Context, State.Frame, NextPC, ReturnSlot, Function, 0,
 							[](uint32 Arg) -> VValue { VERSE_UNREACHABLE(); });
-						UpdateExecutionState(&NewFrame, Function.GetProcedure().GetOpsBegin(), *State.FailureContext);
+						UpdateExecutionState(&NewFrame, Procedure.GetOpsBegin(), *State.FailureContext);
 					}
 				}
 				END_OP_CASE()

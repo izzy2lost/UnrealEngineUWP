@@ -7,44 +7,38 @@
 #endif
 
 #include "VVMGlobalTrivialEmergentTypePtr.h"
-#include "VVMType.h"
 
 namespace Verse
 {
 struct VProcedure;
 
-struct VFunction : VCell
+struct VFunction : VHeapValue
 {
-	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VCell);
+	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VHeapValue);
 	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
 
 	using Args = TArray<VValue, TInlineAllocator<8>>;
 
 	TWriteBarrier<VProcedure> Procedure;
-	const uint32 NumCaptures;
-	TWriteBarrier<VValue> Captures[];
+	TWriteBarrier<VCell> ParentScope;
 
 	// Upon failure, returns an uninitialized VValue
 	COREUOBJECT_API VValue InvokeInTransaction(FRunningContext Context, VValue Argument);
 	COREUOBJECT_API VValue InvokeInTransaction(FRunningContext Context, Args&& Args);
 
-	static VFunction& New(FAllocationContext Context, VProcedure& Procedure, uint32 NumCaptures)
+	static VFunction& New(FAllocationContext Context, VProcedure& Procedure, VCell& ParentScope)
 	{
-		return *new (Context.AllocateFastCell(offsetof(VFunction, Captures) + sizeof(Captures[0]) * NumCaptures)) VFunction(Context, Procedure, NumCaptures);
+		return *new (Context.AllocateFastCell(sizeof(VFunction))) VFunction(Context, Procedure, ParentScope);
 	}
 
 	VProcedure& GetProcedure() { return *Procedure.Get(); }
 
 private:
-	VFunction(FAllocationContext Context, VProcedure& InFunction, uint32 InNumCaptures)
-		: VCell(Context, &GlobalTrivialEmergentType.Get(Context))
+	VFunction(FAllocationContext Context, VProcedure& InFunction, VCell& InParentScope)
+		: VHeapValue(Context, &GlobalTrivialEmergentType.Get(Context))
 		, Procedure(Context, &InFunction)
-		, NumCaptures(InNumCaptures)
+		, ParentScope(Context, InParentScope)
 	{
-		for (uint32 CaptureIndex = 0; CaptureIndex < NumCaptures; ++CaptureIndex)
-		{
-			new (&Captures[CaptureIndex]) TWriteBarrier<VValue>{};
-		}
 	}
 };
 } // namespace Verse

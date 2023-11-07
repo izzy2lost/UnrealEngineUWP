@@ -7,6 +7,7 @@
 
 #include "Templates/SharedPointer.h"
 #include "VerseVM/VVMCppClassInfo.h"
+#include "VerseVM/VVMProcedure.h"
 #include "VerseVM/VVMShape.h"
 #include "VerseVM/VVMType.h"
 
@@ -46,9 +47,94 @@ public:
 	static uint32 GetKeyHash(const VUniqueStringSet& Key);
 };
 
-/// Classes are first class values in Verse, so this inherits from `VHeapValue` rather than `VCell`.
-/// `VHeapValue` more represents things that actual values in Verse programs can be, whereas `VCell` is more
-/// for things that are internal data values to the VM itself.
+/// A sequence of fields and blocks in a class body.
+/// May represent either a single class, or the flattened combination of a subclass and its superclasses.
+struct VConstructor : VCell
+{
+	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VCell);
+	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
+
+	struct VEntry
+	{
+		/// When non-null, the name of this field. When null, this entry represents a block.
+		TWriteBarrier<VUniqueString> Name;
+
+		/// When bDynamic, a VProcedure for a default initializer or block, or nothing for an uninitialized field.
+		/// Otherwise, a constant VValue for a default field value (which may be a VProcedure for functions, which bind Self lazily).
+		TWriteBarrier<VValue> Value;
+		bool bDynamic;
+
+		static VEntry Constant(FAllocationContext Context, VUniqueString& InField, VValue InValue)
+		{
+			return VEntry{
+				{Context, InField},
+				{Context, InValue},
+				false
+            };
+		}
+
+		static VEntry Field(FAllocationContext Context, VUniqueString& InField)
+		{
+			return {
+				{Context, InField},
+				{},
+				true
+            };
+		}
+
+		static VEntry FieldInitializer(FAllocationContext Context, VUniqueString& InField, VProcedure& Code)
+		{
+			return {
+				{Context,      InField},
+				{Context, VValue(Code)},
+				true
+            };
+		}
+
+		static VEntry Block(FAllocationContext Context, VProcedure& Code)
+		{
+			return {
+				{},
+				{Context, VValue(Code)},
+				true
+            };
+		}
+
+		VProcedure* Initializer() const
+		{
+			if (bDynamic && Value.Get())
+			{
+				return &Value.Get().StaticCast<VProcedure>();
+			}
+			else
+			{
+				return nullptr;
+			}
+		}
+	};
+
+	uint32 NumEntries;
+	VEntry Entries[];
+
+	static VConstructor& New(FAllocationContext Context, const TArray<VEntry>& InEntries)
+	{
+		size_t NumBytes = offsetof(VConstructor, Entries) + InEntries.Num() * sizeof(Entries[0]);
+		return *new (Context.AllocateFastCell(NumBytes)) VConstructor(Context, InEntries);
+	}
+
+private:
+	VConstructor(FAllocationContext Context, const TArray<VEntry>& InEntries)
+		: VCell(Context, &GlobalTrivialEmergentType.Get(Context))
+		, NumEntries(InEntries.Num())
+	{
+		for (uint32 Index = 0; Index < NumEntries; ++Index)
+		{
+			new (&Entries[Index]) VEntry(InEntries[Index]);
+		}
+	}
+};
+
+/// A first-class Verse value representing a class.
 struct VClass : VHeapValue
 {
 	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VHeapValue);
@@ -56,41 +142,31 @@ struct VClass : VHeapValue
 	/**
 	 * Creates a new class.
 	 *
-	 * @param InInherited 	This should be an array of the other classes, in order of inheritance, that this class inherits from.
-	 * @param InFields 	This should contain the field names and default values (if any), along with the attributes of each entry.
+	 * @param InConstructor The sequence of fields and blocks in the class body.
+	 * @param InInherited   An array of base classes in order of inheritance.
 	 */
-	static VClass& New(FAllocationContext Context, const TArray<VClass*>& InInherited, VFields::FieldsMap&& InFields, VProcedure* Blocks);
-
-	uint32 NumInherited() const;
+	static VClass& New(FAllocationContext Context, VConstructor& InConstructor, const TArray<VClass*>& InInherited);
 
 	/// Vends an emergent type based on requested fields to override in the class archetype instantiation.
 	VEmergentType& GetOrCreateEmergentTypeForArchetype(FAllocationContext Context, VUniqueStringSet& ArchetypeFieldNames);
 
-	VProcedure* GetBlocks() { return Blocks.Get(); }
+	VConstructor& GetConstructor() { return *Constructor; }
 
 private:
-	VClass(FAllocationContext Context, const TArray<VClass*>& InInherited, VFields::FieldsMap&& InFields, VProcedure* Blocks);
+	VClass(FAllocationContext Context, VConstructor& InConstructor, const TArray<VClass*>& InInherited);
 
-	/// Gets the combined fields (i.e. including inherited classes) and values. Can also specify additional fields
-	/// to override existing fields with; the result will have re-ordered indices for offset-based fields.
-	VFields::FieldsMap GetCombinedFields(FAllocationContext Context, const VUniqueStringSet& InFieldNames) const;
-
-	static size_t DataOffset();
-	static size_t AllocationSize(const uint32 NumInherited);
-
-	/// Each class is guarded with a write barrier because we need to be able to mark the inherited classes within this class as still live.
-	TWriteBarrier<VClass>* Inherited() const;
-
-	/// This class's fields and default values (if any). This also includes the inherited classes' fields/values.
-	const VFields::FieldsMap Fields;
-
-	/// A procedure for the collection of blocks in the class body.
-	TWriteBarrier<VProcedure> Blocks;
+	/// Append to `Entries` those elements of `Base` which are not already overridden, indicated by `Fields`.
+	static void Extend(TSet<VUniqueString*>& Fields, TArray<VConstructor::VEntry>& Entries, const VConstructor& Base);
 
 	// TODO: (yiliang.siew) This should be a weak map when we can support it in the GC. https://jira.it.epicgames.com/browse/SOL-5312
 	/// This is a cache that allows for fast vending of emergent types based on the fields being overridden.
 	TMap<TWriteBarrier<VUniqueStringSet>, TWriteBarrier<VEmergentType>, FDefaultSetAllocator, FEmergentTypesCacheKeyFuncs> EmergentTypesCache;
 
-	const uint32 NumInheritedClasses;
+	/// The combined sequence of initializers and blocks in this class and its superclasses, in execution order.
+	/// Actual object construction may further override some elements of this sequence.
+	TWriteBarrier<VConstructor> Constructor;
+
+	uint32 NumInherited;
+	TWriteBarrier<VClass> Inherited[];
 };
 }; // namespace Verse

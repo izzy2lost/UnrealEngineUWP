@@ -14,16 +14,16 @@
 namespace Verse
 {
 
-struct VFalse : VCell
+struct VFalse : VHeapValue
 {
-	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VCell);
+	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VHeapValue);
 	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
 
 	static void InitializeGlobals();
 
 private:
 	VFalse(FAllocationContext Context)
-		: VCell(Context, &GlobalTrivialEmergentType.Get(Context))
+		: VHeapValue(Context, &GlobalTrivialEmergentType.Get(Context))
 	{
 	}
 

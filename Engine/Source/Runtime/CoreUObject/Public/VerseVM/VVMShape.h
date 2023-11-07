@@ -18,58 +18,48 @@ struct VUniqueString;
 template <Verse::VCppClassInfo* ClassInfo>
 struct TGlobalTrivialEmergentTypePtr;
 
-#define VERSE_ENUM_FIELDTYPES(Decl)                                                                                             \
-	/*                                                                                                                          \
-	 * Whether or not the field's data is stored in the object.                                                                 \
-	 * i.e. `c := class { X:int = 0 }` versus `c := class { X:int }`.                                                           \
-	 */                                                                                                                         \
-	Decl(Offset)      /* Same as `Offset`, but also indicates that this is a mutable field. i.e. `c := class { var X:int }` */  \
-		Decl(Mutable) /*                                                                                                        \
-					   * Shapes have the ability to store constants in them.                                                    \
-					   * This will be the case in instances such as when we have fields that                                    \
-					   * point to some sort of global entry, or if the field is initialized with a constant value.              \
-					   * Other examples include fields that refer to functions/lambdas.                                         \
-					   *                                                                                                        \
-					   * Example: `a := class{ F:int = 0, G:int = 0}; A:a = a{F:= 100}` where `F` is a constant value of `100`. \
-					   *                                                                                                        \
-					   * For `A.F`, that would just point to the constant value directly.                                       \
-					   *                                                                                                        \
-					   * Another example: `a := class{ B(X:int, Y:int):int = X + Y }; A:a = a{}` where `B` is a constant proc.  \
-					   * `A.B` just points to the function directly.                                                            \
-					   */                                                                                                       \
-		Decl(Constant)
-
 enum class EFieldType : int8
 {
-#define VERSE_VISIT_FIELDTYPE(Name) Name,
-	VERSE_ENUM_FIELDTYPES(VERSE_VISIT_FIELDTYPE)
-#undef VERSE_VISIT_FIELDTYPE
+	// The field's value is stored in the object.
+	// e.g. `c := class{ X:int }` or `c := class{ var X:int = 0 }`
+	Offset,
+
+	// The field's value is stored in the shape.
+	// This is used for fields default-initialized to a constant, such as methods.
+	// e.g. `a := class{ X:int = 3, Y:int = 5, F(Z:int):int = X + Y + Z }; A := a{ X := 8 }
+	// Here, `A.Y` and `A.F` are stored in the shape, while `A.X` is stored in the object.
+	Constant,
 };
 
-/// Represents a series of entries for fields that are used to instantiate classes in the VM.
-struct VFields : VCell
+/// Maps fully qualified names to offsets/constants.
+struct VShape : VCell
 {
-	/// Represents a field entry on a given shape.
 	struct VEntry
 	{
-		/// The zero-based offset for the given entry that can be used to index into the object.
-		uint64 Index;
+		union
+		{
+			/// The zero-based offset for the given entry that can be used to index into the object.
+			uint64 Index;
 
-		/// This can either be a constant value for the given entry, or, in conjunction with the index, be
-		/// the "default value" for the offset-based entry.
-		TWriteBarrier<VValue> Constant;
+			/// The constant value for the given entry.
+			TWriteBarrier<VValue> Value;
+		};
+
 		EFieldType Type;
-
-		~VEntry() = default;
 
 		// Must have a copy/move constructor in order to be used with `TMap` as the value type.
 		VEntry(const VEntry& Other);
-		VEntry(VEntry&& Other);
-		VEntry(const uint64 InIndex, const bool bIsMutable);
-		VEntry(FAccessContext Context, VValue InConstant, const EFieldType FieldType);
-		VEntry(FAccessContext Context, VValue InConstant);
+		VEntry(VEntry&& Other)
+			: VEntry(Other) {}
 
-		inline bool operator==(const VEntry& Other) const;
+		static VEntry Offset() { return {}; }
+		static VEntry Constant(FAccessContext Context, VValue InConstant) { return {Context, InConstant}; }
+
+		bool operator==(const VEntry& Other) const;
+
+	private:
+		VEntry();
+		VEntry(FAccessContext Context, VValue InConstant);
 	};
 
 	/// We're providing this in order to be able to lookup into the fields map without having to
@@ -87,32 +77,11 @@ struct VFields : VCell
 	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VCell);
 	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
 
-	static VFields& New(FAllocationContext Context, FieldsMap&& InFields);
-
-	FieldsMap& GetFields();
-
-private:
-	VFields(FAllocationContext Context, FieldsMap&& InFields);
-
-	template <typename TVisitor>
-	static void VisitFields(FieldsMap&, TVisitor&);
-
-	FieldsMap Fields;
-
-	friend struct VShape;
-};
-
-/// Maps fully qualified names to offsets/constants.
-struct VShape : VCell
-{
-	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VCell);
-	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
-
-	/// Creates a new shape. Note that indices for offset-based fields will be discarded and the fields given re-ordered
+	/// Create a new shape. Note that indices for offset-based fields will be discarded and the fields given re-ordered
 	/// indices as part of the new shape created.
-	static VShape* New(FAllocationContext Context, VFields::FieldsMap&& InFields);
+	static VShape* New(FAllocationContext Context, FieldsMap&& InFields);
 
-	const VFields::VEntry* GetField(FAllocationContext Context, const VUniqueString& Name) const;
+	const VEntry* GetField(FAllocationContext Context, const VUniqueString& Name) const;
 
 	uint64 GetNumFields() const;
 
@@ -121,15 +90,13 @@ struct VShape : VCell
 	friend uint32 GetTypeHash(const VShape& Shape);
 
 private:
-	VShape(FAllocationContext Context, VFields::FieldsMap&& InFields);
-
-	const VFields::FieldsMap& GetFields() const;
+	VShape(FAllocationContext Context, FieldsMap&& InFields);
 
 	/// Mapping of the field names to their data in the layout.
 	/// This should not be mutated after initialization; if this needs to be modified, you
 	/// should create a new shape and emergent type instead.
 	/// We can't mark this map as `const` because we need to be able to mark the entries and names to hold strong references to them.
-	VFields::FieldsMap Fields;
+	FieldsMap Fields;
 
 	uint64 NumIndexedFields;
 

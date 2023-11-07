@@ -12,9 +12,9 @@
 namespace Verse
 {
 
-struct VEnumerator : VCell
+struct VEnumerator : VHeapValue
 {
-	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VCell);
+	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VHeapValue);
 	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
 
 	static VEnumerator& New(FAllocationContext Context)
@@ -24,7 +24,7 @@ struct VEnumerator : VCell
 
 private:
 	VEnumerator(FAllocationContext Context)
-		: VCell(Context, &GlobalTrivialEmergentType.Get(Context))
+		: VHeapValue(Context, &GlobalTrivialEmergentType.Get(Context))
 	{
 	}
 };

@@ -49,6 +49,16 @@ template struct FUniqueStringSetKeyFuncsBase<TWriteBarrier<VUniqueString>>;
 inline VUniqueStringSet::FConstIterator::FConstIterator(SetType::TRangedForConstIterator InCurrentIteration)
 	: CurrentIteration(InCurrentIteration) {}
 
+inline FSetElementId VUniqueStringSet::FConstIterator::GetId() const
+{
+	return CurrentIteration.GetId();
+}
+
+inline const TWriteBarrier<VUniqueString>* VUniqueStringSet::FConstIterator::operator->() const
+{
+	return &*CurrentIteration;
+}
+
 inline const TWriteBarrier<VUniqueString>& VUniqueStringSet::FConstIterator::operator*() const
 {
 	return *CurrentIteration;

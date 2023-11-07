@@ -19,7 +19,7 @@ template <typename TVisitor>
 void VFunction::VisitReferencesImpl(TVisitor& Visitor)
 {
 	Visitor.Visit(Procedure);
-	Visitor.Visit(Captures, NumCaptures);
+	Visitor.Visit(ParentScope);
 }
 
 } // namespace Verse

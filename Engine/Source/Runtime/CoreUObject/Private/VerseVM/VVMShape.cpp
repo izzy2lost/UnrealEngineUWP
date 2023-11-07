@@ -13,39 +13,10 @@
 namespace Verse
 {
 
-DEFINE_DERIVED_VCPPCLASSINFO(VFields);
-TGlobalTrivialEmergentTypePtr<&VFields::StaticCppClassInfo> VFields::GlobalTrivialEmergentType;
-
-template <typename TVisitor>
-void VFields::VisitReferencesImpl(TVisitor& Visitor)
-{
-	VisitFields(Fields, Visitor);
-}
-
-template <typename TVisitor>
-void VFields::VisitFields(FieldsMap& Fields, TVisitor& Visitor)
-{
-	for (auto It = Fields.CreateIterator(); It; ++It)
-	{
-		switch (It->Value.Type)
-		{
-			case EFieldType::Constant:
-				Visitor.Visit(It->Value.Constant);
-				break;
-			case EFieldType::Offset:
-			case EFieldType::Mutable:
-				break;
-			default:
-				VERSE_UNREACHABLE();
-		}
-		Visitor.Visit(It->Key);
-	}
-}
-
 DEFINE_DERIVED_VCPPCLASSINFO(VShape);
 TGlobalTrivialEmergentTypePtr<&VShape::StaticCppClassInfo> VShape::GlobalTrivialEmergentType;
 
-VShape::VShape(FAllocationContext Context, VFields::FieldsMap&& InFields)
+VShape::VShape(FAllocationContext Context, FieldsMap&& InFields)
 	: VCell(Context, &GlobalTrivialEmergentType.Get(Context))
 	, Fields(MoveTemp(InFields))
 {
@@ -56,7 +27,6 @@ VShape::VShape(FAllocationContext Context, VFields::FieldsMap&& InFields)
 	{
 		switch (Pair.Value.Type)
 		{
-			case EFieldType::Mutable:
 			case EFieldType::Offset:
 				Pair.Value.Index = CurrentIndex++;
 				break;
@@ -71,10 +41,21 @@ VShape::VShape(FAllocationContext Context, VFields::FieldsMap&& InFields)
 template <typename TVisitor>
 void VShape::VisitReferencesImpl(TVisitor& Visitor)
 {
-	VFields::VisitFields(Fields, Visitor);
+	for (auto It = Fields.CreateIterator(); It; ++It)
+	{
+		switch (It->Value.Type)
+		{
+			case EFieldType::Offset:
+				break;
+			case EFieldType::Constant:
+				Visitor.Visit(It->Value.Value);
+				break;
+		}
+		Visitor.Visit(It->Key);
+	}
 }
 
-VShape* VShape::New(FAllocationContext Context, VFields::FieldsMap&& InFields)
+VShape* VShape::New(FAllocationContext Context, FieldsMap&& InFields)
 {
 	// We allocate in the destructor space here since we're making `VShape` destructible so that it can
 	// destruct its `TMap` member of fields.

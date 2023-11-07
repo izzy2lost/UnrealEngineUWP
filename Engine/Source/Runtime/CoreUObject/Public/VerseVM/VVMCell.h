@@ -162,6 +162,7 @@ public:
 
 static_assert(sizeof(VCell) <= 8);
 
+/// `VHeapValue` represents Verse-facing values, while `VCell` represents VM-internal structures.
 // To be or not to be ...
 // Keep it here for now.
 struct VHeapValue : VCell

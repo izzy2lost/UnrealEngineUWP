@@ -10,9 +10,8 @@
 #include "Containers/Array.h"
 #include "Containers/StringConv.h"
 #include "VVMBytecode.h"
+#include "VVMClass.h"
 #include "VVMContext.h"
-#include "VVMShape.h"
-#include "VVMUTF8String.h"
 #include "VVMValue.h"
 #include "VVMWriteBarrier.h"
 // IWYU pragma: end_keep

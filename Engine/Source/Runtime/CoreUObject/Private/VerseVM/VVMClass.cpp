@@ -14,26 +14,37 @@
 
 namespace Verse
 {
+DEFINE_DERIVED_VCPPCLASSINFO(VConstructor);
+TGlobalTrivialEmergentTypePtr<&VConstructor::StaticCppClassInfo> VConstructor::GlobalTrivialEmergentType;
+
+template <typename TVisitor>
+void VConstructor::VisitReferencesImpl(TVisitor& Visitor)
+{
+	for (uint32 Index = 0; Index < NumEntries; ++Index)
+	{
+		Visitor.Visit(Entries[Index].Name);
+		Visitor.Visit(Entries[Index].Value);
+	}
+}
+
 DEFINE_DERIVED_VCPPCLASSINFO(VClass);
 
-VFields::FieldsMap VClass::GetCombinedFields(FAllocationContext Context, const VUniqueStringSet& InFieldNames) const
+void VClass::Extend(TSet<VUniqueString*>& Fields, TArray<VConstructor::VEntry>& Entries, const VConstructor& Base)
 {
-	VFields::FieldsMap AllFields{Fields};
-
-	for (const TWriteBarrier<VUniqueString>& FieldName : InFieldNames)
+	for (uint32 Index = 0; Index < Base.NumEntries; ++Index)
 	{
-		VFields::VEntry* Entry = AllFields.Find(FieldName);
-		// If the entry doesn't exist, add it to the map and treat it as an offset-based field
-		// in order to support extension data members in the future.
-		if (!Entry)
+		const VConstructor::VEntry& Entry = Base.Entries[Index];
+		if (VUniqueString* Field = Entry.Name.Get())
 		{
-			Entry = &AllFields.Add({Context, VUniqueString::New(Context, FieldName.Get()->AsStringView())}, {Context, {}, EFieldType::Offset});
+			bool bIsAlreadyInSet;
+			Fields.FindOrAdd(Field, &bIsAlreadyInSet);
+			if (bIsAlreadyInSet)
+			{
+				continue;
+			}
 		}
-		Entry->Type = EFieldType::Offset; // Offset here, because just the field names alone won't tell us if a value is being provided.
-		Entry->Index = 0;                 // Just zero out the entry first; the re-ordering of indices comes later.
+		Entries.Add(Entry);
 	}
-
-	return AllFields;
 }
 
 VEmergentType& VClass::GetOrCreateEmergentTypeForArchetype(FAllocationContext Context, VUniqueStringSet& ArchetypeFieldNames)
@@ -44,16 +55,37 @@ VEmergentType& VClass::GetOrCreateEmergentTypeForArchetype(FAllocationContext Co
 	// TODO: This in the future shouldn't even require a hash table lookup when we introduce inline caching for this.
 	if (TWriteBarrier<VEmergentType>* ExistingEmergentType = EmergentTypesCache.FindByHash(GetTypeHash(ArchetypeFieldNames), ArchetypeFieldNames))
 	{
-		return *(ExistingEmergentType)->Get();
+		return *ExistingEmergentType->Get();
 	}
 
-	// First get a mapping of all fields, including those from the inherited classes, then override these fields with
-	// the incoming archetype instantiation requested, and then finally vend a shape/emergent type resulting from that.
-	// We don't pass in the values associated with the field names here because by virtue of overriding the field during archetype
-	// instantiation, it _must_ be an offset-based field since the object must store the data for the field.
-	VFields::FieldsMap AllFields = GetCombinedFields(Context, ArchetypeFieldNames);
+	// Build a combined map of all fields from the archetype, this class, and superclasses.
+	// Earlier fields (from the archetype and subclasses) override later fields via `FindOrAdd`.
+	VShape::FieldsMap Fields;
+	for (const TWriteBarrier<VUniqueString>& Field : ArchetypeFieldNames)
+	{
+		// Always store fields from the archetype in the object.
+		Fields.Add({Context, Field.Get()}, VShape::VEntry::Offset());
+	}
+	for (uint32 Index = 0; Index < Constructor->NumEntries; ++Index)
+	{
+		VConstructor::VEntry& Entry = Constructor->Entries[Index];
+		if (VUniqueString* Field = Entry.Name.Get())
+		{
+			if (Entry.bDynamic)
+			{
+				// Store dynamically-initialized and uninitialized fields in the object.
+				Fields.FindOrAdd({Context, Entry.Name.Get()}, VShape::VEntry::Offset());
+			}
+			else
+			{
+				// Store constant-initialized fields in the shape.
+				Fields.FindOrAdd({Context, Entry.Name.Get()}, VShape::VEntry::Constant(Context, Entry.Value.Get()));
+			}
+		}
+	}
 
-	VShape* NewShape = VShape::New(Context, MoveTemp(AllFields));
+	// Compute the shape by interning the set of fields.
+	VShape* NewShape = VShape::New(Context, MoveTemp(Fields));
 	VEmergentType* NewEmergentType = VEmergentTypeCreator::GetOrCreate(Context, NewShape, VObject::GlobalTrivialEmergentType.Get(Context).Type.Get(), &VObject::StaticCppClassInfo);
 	V_DIE_IF(NewEmergentType == nullptr);
 
@@ -67,11 +99,11 @@ VEmergentType& VClass::GetOrCreateEmergentTypeForArchetype(FAllocationContext Co
 template <typename TVisitor>
 void VClass::VisitReferencesImpl(TVisitor& Visitor)
 {
-	Visitor.Visit(Blocks);
+	Visitor.Visit(Constructor);
 
 	// Mark the inherited classes to ensure that they don't get swept during GC since we want to keep their information
 	// around when anything needs to query the class inheritance hierarchy.
-	Visitor.Visit(Inherited(), NumInherited());
+	Visitor.Visit(Inherited, NumInherited);
 
 	// We need both the unique string sets and emergent types that are being cached for fast lookup of emergent types to remain allocated.
 	UE::FExternalMutex ExternalMutex(Mutex);

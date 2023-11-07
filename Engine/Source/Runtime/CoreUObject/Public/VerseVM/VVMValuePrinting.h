@@ -14,9 +14,9 @@ namespace Verse
 {
 struct VInt;
 struct VCell;
+struct VConstructor;
 struct VUniqueString;
 struct VUniqueStringSet;
-struct VFields;
 struct VValue;
 struct VRestValue;
 struct FAllocationContext;
@@ -39,7 +39,7 @@ COREUOBJECT_API FString ToString(double Double);
 COREUOBJECT_API FString ToString(FAllocationContext, const VValue& Value, const FCellFormatter& CellFormatter = FDefaultCellFormatter{});
 COREUOBJECT_API FString ToString(FAllocationContext Context, const VUniqueString& String);
 COREUOBJECT_API FString ToString(FAllocationContext Context, const VUniqueStringSet& String);
-COREUOBJECT_API FString ToString(FAllocationContext Context, VFields& Fields, const FCellFormatter& CellFormatter = FDefaultCellFormatter{});
+COREUOBJECT_API FString ToString(FAllocationContext Context, const VConstructor& Constructor, const FCellFormatter& CellFormatter = FDefaultCellFormatter{});
 FString ToString(FAllocationContext, const VRestValue& Value, const FCellFormatter& CellFormatter = FDefaultCellFormatter{});
 
 } // namespace Verse
