@@ -1828,7 +1828,7 @@ BEGIN_SHADER_PARAMETER_STRUCT(FBuildAccelerationStructurePassParams, )
 
 	SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
 	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSceneUniformParameters, Scene)
-	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FRaytracingLightDataPacked, LightDataPacked)
+	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FRayTracingLightGrid, LightGridPacked)
 	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FLumenHardwareRayTracingUniformBufferParameters, LumenHardwareRayTracingUniformBuffer)
 
 	SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, ClusterPageData)
@@ -1984,8 +1984,6 @@ void FDeferredShadingSceneRenderer::SetupRayTracingLightDataForViews(FRDGBuilder
 
 	const bool bIsPathTracing = ViewFamily.EngineShowFlags.PathTracing;
 
-	uint32 NumOfSkippedRayTracingLights = 0;
-
 	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ++ViewIndex)
 	{
 		FViewInfo& View = Views[ViewIndex];
@@ -1997,24 +1995,10 @@ void FDeferredShadingSceneRenderer::SetupRayTracingLightDataForViews(FRDGBuilder
 		}
 		else
 		{
-			// This light data is a function of the camera position, so must be computed per view.
-			View.RayTracingLightDataUniformBuffer = CreateRayTracingLightData(GraphBuilder, Scene, View, View.ShaderMap, NumOfSkippedRayTracingLights);
+			// The light data is built in TranslatedWorld space so must be built per view
+			View.RayTracingLightGridUniformBuffer = CreateRayTracingLightData(GraphBuilder, Scene, View, View.ShaderMap);
 		}
 	}
-
-#if !UE_BUILD_SHIPPING
-	if (!bIsPathTracing && NumOfSkippedRayTracingLights > 0)
-	{
-		OnGetOnScreenMessages.AddLambda([NumOfSkippedRayTracingLights](FScreenMessageWriter& ScreenMessageWriter)->void
-			{
-				FString String = FString::Printf(
-					TEXT("%d light(s) skipped. Active Ray Tracing light count > RAY_TRACING_LIGHT_COUNT_MAXIMUM (%d)."),
-					NumOfSkippedRayTracingLights,
-					RAY_TRACING_LIGHT_COUNT_MAXIMUM);
-				ScreenMessageWriter.DrawLine(FText::FromString(String), 10, FColor::Yellow);
-			});
-	}
-#endif
 }
 
 bool FDeferredShadingSceneRenderer::DispatchRayTracingWorldUpdates(FRDGBuilder& GraphBuilder, FRDGBufferRef& OutDynamicGeometryScratchBuffer)
@@ -2116,7 +2100,7 @@ bool FDeferredShadingSceneRenderer::DispatchRayTracingWorldUpdates(FRDGBuilder& 
 			PassParams->View = ReferenceView.ViewUniformBuffer;
 			PassParams->Scene = GetSceneUniforms().GetBuffer(GraphBuilder);
 			PassParams->DynamicGeometryScratchBuffer = OutDynamicGeometryScratchBuffer;
-			PassParams->LightDataPacked = nullptr;
+			PassParams->LightGridPacked = nullptr;
 			PassParams->ClusterPageData = nullptr;
 			PassParams->HierarchyBuffer = nullptr;
 			PassParams->RayTracingDataBuffer = nullptr;
@@ -2139,7 +2123,7 @@ bool FDeferredShadingSceneRenderer::DispatchRayTracingWorldUpdates(FRDGBuilder& 
 			PassParams->View = ReferenceView.ViewUniformBuffer;
 			PassParams->Scene = GetSceneUniforms().GetBuffer(GraphBuilder);
 			PassParams->DynamicGeometryScratchBuffer = OutDynamicGeometryScratchBuffer;
-			PassParams->LightDataPacked = nullptr;
+			PassParams->LightGridPacked = nullptr;
 			PassParams->ClusterPageData = nullptr;
 			PassParams->HierarchyBuffer = nullptr;
 			PassParams->RayTracingDataBuffer = nullptr;
@@ -2248,7 +2232,7 @@ void FDeferredShadingSceneRenderer::WaitForRayTracingScene(FRDGBuilder& GraphBui
 	PassParams->Scene = GetSceneUniformBufferRef(GraphBuilder);
 	PassParams->RayTracingSceneScratchBuffer = nullptr;
 	PassParams->DynamicGeometryScratchBuffer = nullptr;
-	PassParams->LightDataPacked = bIsPathTracing ? nullptr : ReferenceView.RayTracingLightDataUniformBuffer; // accessed by FRayTracingLightingMS
+	PassParams->LightGridPacked = bIsPathTracing ? nullptr : ReferenceView.RayTracingLightGridUniformBuffer; // accessed by FRayTracingLightingMS // Is this needed for anything?
 	PassParams->LumenHitDataBuffer = ReferenceView.LumenHardwareRayTracingHitDataBuffer;
 	PassParams->LumenHardwareRayTracingUniformBuffer = ReferenceView.LumenHardwareRayTracingUniformBuffer;
 

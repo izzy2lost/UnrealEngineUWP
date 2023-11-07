@@ -8,12 +8,7 @@ VirtualShadowMapProjectionCommon.ush:
 #include "../Common.ush"
 #include "VirtualShadowMapPageAccessCommon.ush"
 #include "VirtualShadowMapProjectionStructs.ush"
-
-/** Light types */
-#define LIGHT_TYPE_DIRECTIONAL 0
-#define LIGHT_TYPE_POINT 1
-#define LIGHT_TYPE_SPOT 2
-#define LIGHT_TYPE_RECT 3
+#include "/Engine/Shared/LightDefinitions.h"
 
 #define VIRTUAL_SHADOW_MAP_MIN_OCCLUDER_DISTANCE 1e-6f
 

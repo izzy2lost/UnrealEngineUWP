@@ -68,6 +68,7 @@ void FRayTracingDebugVisualizationMenuCommands::CreateRayTracingDebugVisualizati
 	RayTracingDebugModeNames.Add(LOCTEXT("Dynamic Instances", "Dynamic Instances"));
 	RayTracingDebugModeNames.Add(LOCTEXT("Proxy Type", "Proxy Type"));
 	RayTracingDebugModeNames.Add(LOCTEXT("Picker", "Picker"));
+	RayTracingDebugModeNames.Add(LOCTEXT("Light Grid Occupancy", "Light Grid Occupancy"));
 
 	for ( int32 RayTracingDebugIndex = 0; RayTracingDebugIndex < RayTracingDebugModeNames.Num(); ++RayTracingDebugIndex)
 	{

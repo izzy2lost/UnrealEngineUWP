@@ -15,13 +15,18 @@
 
 FRHIRayTracingShader* GetRayTracingLightingMissShader(const FGlobalShaderMap* ShaderMap);
 
-BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FRaytracingLightDataPacked, RENDERER_API)
-	SHADER_PARAMETER(uint32, Count)
-	SHADER_PARAMETER(uint32, CellCount)
-	SHADER_PARAMETER(float, CellScale)
-	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<FRTLightingData>, LightDataBuffer)
-	SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, LightIndices)
-	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint4>, LightCullingVolume)
+// This struct holds a light grid and list of raytracing lights for both building and rendering
+BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FRayTracingLightGrid, )
+	SHADER_PARAMETER(uint32, SceneLightCount)
+	SHADER_PARAMETER(uint32, SceneInfiniteLightCount)
+	SHADER_PARAMETER(FVector3f, SceneLightsTranslatedBoundMin)
+	SHADER_PARAMETER(FVector3f, SceneLightsTranslatedBoundMax)
+	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<FRTLightingData>, SceneLights)
+	SHADER_PARAMETER_RDG_TEXTURE(Texture2D<uint>, LightGrid)
+	SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, LightGridData)
+	SHADER_PARAMETER(unsigned, LightGridResolution)
+	SHADER_PARAMETER(unsigned, LightGridMaxCount)
+	SHADER_PARAMETER(int, LightGridAxis)
 END_GLOBAL_SHADER_PARAMETER_STRUCT()
 
 using FRayTracingLightFunctionMap = TMap<const FLightSceneInfo*, int32>;
@@ -32,12 +37,11 @@ RDG_REGISTER_BLACKBOARD_STRUCT(FRayTracingLightFunctionMap)
 FRayTracingLightFunctionMap GatherLightFunctionLights(FScene* Scene, const FEngineShowFlags EngineShowFlags, ERHIFeatureLevel::Type InFeatureLevel);
 FRayTracingLightFunctionMap GatherLightFunctionLightsPathTracing(FScene* Scene, const FEngineShowFlags EngineShowFlags, ERHIFeatureLevel::Type InFeatureLevel);
 
-TRDGUniformBufferRef<FRaytracingLightDataPacked> CreateRayTracingLightData(
+TRDGUniformBufferRef<FRayTracingLightGrid> CreateRayTracingLightData(
 	FRDGBuilder& GraphBuilder,
 	const FScene* Scene,
 	const FSceneView& View,
-	FGlobalShaderMap* ShaderMap,
-	uint32& NumOfSkippedRayTracingLights);
+	FGlobalShaderMap* ShaderMap);
 
 void BindLightFunctionShaders(
 	FRHICommandList& RHICmdList,

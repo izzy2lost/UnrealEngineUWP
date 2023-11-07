@@ -33,7 +33,6 @@ class FTileIntersectionParameters;
 class FDistanceFieldAOParameters;
 class UStaticMeshComponent;
 class FExponentialHeightFogSceneInfo;
-class FRaytracingLightDataPacked;
 class FLumenCardScatterContext;
 namespace LumenRadianceCache
 {

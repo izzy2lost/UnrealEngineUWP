@@ -22,14 +22,9 @@
 #include "RayTracingRectLight.ush"
 #include "RayTracingSphereLight.ush"
 #include "RayTracingCapsuleLight.ush"
+#include "/Engine/Shared/LightDefinitions.h"
 
 #define USE_TRANSLUCENT_SHADOW  (!COMPUTESHADER && PLATFORM_SUPPORTS_RAY_TRACING_HIGH_END_EFFECTS) // support translucent shadow path in high end ray tracing without inline ray tracing
-
-/** Light types */
-#define LIGHT_TYPE_DIRECTIONAL 0
-#define LIGHT_TYPE_POINT 1
-#define LIGHT_TYPE_SPOT 2
-#define LIGHT_TYPE_RECT 3
 
 #define ShadowMaskType_Opaque 0
 #define ShadowMaskType_Hair 1

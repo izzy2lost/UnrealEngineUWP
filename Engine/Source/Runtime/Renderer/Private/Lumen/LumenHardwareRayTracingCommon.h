@@ -62,7 +62,7 @@ public:
 		SHADER_PARAMETER_SRV(StructuredBuffer, RayTracingSceneMetadata)
 
 		// Lighting structures
-		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FRaytracingLightDataPacked, LightDataPacked)
+		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FRayTracingLightGrid, LightGridParameters)
 		SHADER_PARAMETER_STRUCT_REF(FReflectionCaptureShaderData, ReflectionCapture)
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FForwardLightData, Forward)
 

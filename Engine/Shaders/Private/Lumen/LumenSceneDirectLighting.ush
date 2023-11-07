@@ -3,12 +3,7 @@
 #pragma once
 
 #include "LumenSceneLighting.ush"
-
-// Must match ELumenLightType in LumenSceneDirectLighting.cpp
-#define LIGHT_TYPE_DIRECTIONAL 0
-#define LIGHT_TYPE_POINT 1
-#define LIGHT_TYPE_SPOT 2
-#define LIGHT_TYPE_RECT 3
+#include "/Engine/Shared/LightDefinitions.h"
 
 RWStructuredBuffer<uint> RWShadowMaskTiles;
 StructuredBuffer<uint> ShadowMaskTiles;

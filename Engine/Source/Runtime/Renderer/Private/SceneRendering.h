@@ -58,7 +58,7 @@ class FSceneViewState;
 class FViewInfo;
 struct FILCUpdatePrimTaskData;
 class FPostprocessContext;
-class FRaytracingLightDataPacked;
+class FRayTracingLightGrid;
 class FRayTracingDecals;
 class FRayTracingLocalShaderBindingWriter;
 class FVirtualShadowMapClipmap;
@@ -1579,7 +1579,7 @@ public:
 	FGraphEventRef									RayTracingCallableBindingsTask;
 
 	// Common resources used for lighting in ray tracing effects
-	TRDGUniformBufferRef<FRaytracingLightDataPacked>	RayTracingLightDataUniformBuffer;
+	TRDGUniformBufferRef<FRayTracingLightGrid>			RayTracingLightGridUniformBuffer;
 	TRDGUniformBufferRef<FRayTracingDecals>				RayTracingDecalUniformBuffer;
 	bool												bHasRayTracingDecals = false;
 

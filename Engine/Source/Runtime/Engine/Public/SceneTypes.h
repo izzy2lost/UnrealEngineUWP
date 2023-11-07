@@ -12,6 +12,7 @@
 
 #include "PrimitiveDirtyState.h"
 #include "PrimitiveComponentId.h"
+#include "LightDefinitions.h"
 
 #include "SceneTypes.generated.h"
 
@@ -106,16 +107,18 @@ private:
 	void AllocateInternal(ERHIFeatureLevel::Type FeatureLevel);
 };
 
-/** different light component types */
+/** Different light component types. The enum uses values defined in a shared header with shader code so that the two sides are always consistent. */
 enum ELightComponentType
 {
-	LightType_Directional = 0,
-	LightType_Point,
-	LightType_Spot,
-	LightType_Rect,
-	LightType_MAX,
+	LightType_Directional = LIGHT_TYPE_DIRECTIONAL,
+	LightType_Point		  = LIGHT_TYPE_POINT,
+	LightType_Spot		  = LIGHT_TYPE_SPOT,
+	LightType_Rect 		  = LIGHT_TYPE_RECT,
+	LightType_MAX         = LIGHT_TYPE_MAX,
 	LightType_NumBits = 2
 };
+
+static_assert(LightType_MAX <= (1 << LightType_NumBits), "LightType_NumBits is not large enough to hold all possible light types");
 
 /**
  * The types of interactions between a light and a primitive.

@@ -1,8 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#ifndef DIM_DENOISER_OUTPUT
-	#define DIM_DENOISER_OUTPUT 0
-#endif
 
 #include "/Engine/Shared/RayTracingTypes.h"
 #include "../Common.ush"

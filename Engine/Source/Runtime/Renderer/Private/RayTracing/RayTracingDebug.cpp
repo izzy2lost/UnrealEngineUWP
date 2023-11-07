@@ -156,6 +156,7 @@ class FRayTracingDebugRGS : public FGlobalShader
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, ViewUniformBuffer)
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSceneUniformParameters, SceneUniformBuffer)
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FRayTracingDebugHitStatsUniformBufferParameters, RayTracingDebugHitStatsUniformBuffer)
+		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FRayTracingLightGrid, LightGridPacked)
 	END_SHADER_PARAMETER_STRUCT()
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
@@ -1331,6 +1332,7 @@ void FDeferredShadingSceneRenderer::RenderRayTracingDebug(FRDGBuilder& GraphBuil
 		RayTracingDebugVisualizationModes.Emplace(FName(*LOCTEXT("Instance Overlap", "Instance Overlap").ToString()),							RAY_TRACING_DEBUG_VIZ_INSTANCE_OVERLAP);
 		RayTracingDebugVisualizationModes.Emplace(FName(*LOCTEXT("Triangle Hit Count", "Triangle Hit Count").ToString()),						RAY_TRACING_DEBUG_VIZ_TRIANGLE_HITCOUNT);
 		RayTracingDebugVisualizationModes.Emplace(FName(*LOCTEXT("Hit Count Per Instance", "Hit Count Per Instance").ToString()),				RAY_TRACING_DEBUG_VIZ_HITCOUNT_PER_INSTANCE);
+		RayTracingDebugVisualizationModes.Emplace(FName(*LOCTEXT("Light Grid Occupancy", "Light Grid Occupancy").ToString()),                   RAY_TRACING_DEBUG_VIZ_LIGHT_GRID_COUNT);
 	}
 
 	uint32 DebugVisualizationMode;
@@ -1510,6 +1512,7 @@ void FDeferredShadingSceneRenderer::RenderRayTracingDebug(FRDGBuilder& GraphBuil
 	RayGenParameters->TriangleHitCountMaxThreshold = FMath::Clamp((float)CVarRayTracingDebugHitCountMaxThreshold.GetValueOnRenderThread(), 1, 100000);
 	RayGenParameters->TriangleHitCountPerInstanceMaxThreshold = FMath::Max(1, CVarRayTracingDebugHitCountPerInstanceMaxThreshold.GetValueOnRenderThread());
 	RayGenParameters->RayTracingDebugHitStatsUniformBuffer = DebugHitStatsUniformBuffer;
+	RayGenParameters->LightGridPacked = View.RayTracingLightGridUniformBuffer;
 	RayGenParameters->TopKMostHitInstances = CVarRayTracingDebugHitCountTopKHits.GetValueOnRenderThread();
 	RayGenParameters->NumTotalInstances = NumInstances;
 

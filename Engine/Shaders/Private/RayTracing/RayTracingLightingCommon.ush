@@ -13,18 +13,12 @@
 #include "RayTracingCapsuleLight.ush"
 #include "RayTracingSkyLightEvaluation.ush"
 #include "RayTracingLightCullingCommon.ush"
+#include "/Engine/Shared/LightDefinitions.h"
 #include "/Engine/Shared/RayTracingTypes.h"
 
 #ifndef ENABLE_FAR_FIELD_TRACING
 #define ENABLE_FAR_FIELD_TRACING 0
 #endif // ENABLE_FAR_FIELD_TRACING
-
-// Light types: should match SceneTypes.h until there is a common header
-#define LIGHT_TYPE_DIRECTIONAL		0 
-#define LIGHT_TYPE_POINT			1 
-#define LIGHT_TYPE_SPOT				2 
-#define LIGHT_TYPE_RECT				3 
-#define LIGHT_TYPE_MAX				4 
 
 FDeferredLightData GetRayTracingDeferredLightData(
 	int LightIndex,
@@ -32,7 +26,7 @@ FDeferredLightData GetRayTracingDeferredLightData(
 	inout uint OutLightMissShaderIndex)
 {
 	FDeferredLightData LightData = (FDeferredLightData)0;
-	FRTLightingData RayTracingLightData = RaytracingLightsDataPacked.LightDataBuffer[LightIndex];
+	FRTLightingData RayTracingLightData = RaytracingLightGridData.SceneLights[LightIndex];
 
 	const uint LightType = RayTracingLightData.Type;
 
@@ -329,7 +323,7 @@ float3 ComputeDirectLighting(
 	Payload.SetRayDirection(ViewDirection);
 
 	FCulledLightList CullData = FCulledLightList::Create(TranslatedWorldPosition);
-	const uint LightCount = CullData.NumLights();
+	const uint LightCount = CullData.GetNumLights();
 
 	for (uint Index = 0; WaveActiveAnyTrue(Index < LightCount); Index++)
 	{

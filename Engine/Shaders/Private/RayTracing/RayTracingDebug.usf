@@ -3,6 +3,7 @@
 #define SUBSTRATE_MATERIALCONTAINER_IS_VIEWRESOURCE 0
 
 #include "/Engine/Shared/RayTracingDebugTypes.h"
+#include "/Engine/Shared/RayTracingTypes.h"
 #include "../Common.ush"
 #include "../ShadingCommon.ush"
 #include "../ColorMap.ush"
@@ -11,6 +12,7 @@
 #include "../Substrate/Substrate.ush"
 
 #include "RayTracingDebugUtils.ush"
+#include "RayTracingLightCullingCommon.ush"
 
 #include "/Engine/Shared/RayTracingDebugDefinitions.h"
 
@@ -104,6 +106,7 @@ float4 DebugRayTracingMaterial(FRayDesc Ray, bool bIsFarField)
 		case RAY_TRACING_DEBUG_VIZ_INDIRECT_IRRADIANCE:		return float4(Payload.IndirectIrradiance, 1.0f);
 		case RAY_TRACING_DEBUG_VIZ_WORLD_POSITION:			return float4(Payload.TranslatedWorldPos, 1.0f);
 		case RAY_TRACING_DEBUG_VIZ_HITKIND:					return Payload.IsFrontFace() ? float4(0.0, 1.0, 0.0, 1.0f) : float4(1.0, 0.0, 0.0, 1.0f);
+		case RAY_TRACING_DEBUG_VIZ_LIGHT_GRID_COUNT:	    return float4(FCulledLightList::Create(Payload.TranslatedWorldPos).Visualize(1) * abs(dot(Payload.WorldNormal, Ray.Direction)), 1.0f);
 		#if PLATFORM_SUPPORTS_SHADER_TIMESTAMP
 		case RAY_TRACING_DEBUG_VIZ_PERFORMANCE:				return float4(ColorMapInferno(float(TimeEnd - TimeBegin) * TimingScale), 1);
 		#endif // PLATFORM_SUPPORTS_SHADER_TIMESTAMP

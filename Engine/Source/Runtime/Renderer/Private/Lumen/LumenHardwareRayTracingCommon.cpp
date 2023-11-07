@@ -277,7 +277,7 @@ void SetLumenHardwareRayTracingSharedParameters(
 	SharedParameters->TLAS = View.GetRayTracingSceneLayerViewChecked(ERayTracingSceneLayer::Base);
 
 	// Lighting data
-	SharedParameters->LightDataPacked = View.RayTracingLightDataUniformBuffer;
+	SharedParameters->LightGridParameters = View.RayTracingLightGridUniformBuffer;
 	SharedParameters->ReflectionCapture = View.ReflectionCaptureUniformBuffer;
 	SharedParameters->Forward = View.ForwardLightingResources.ForwardLightUniformBuffer;
 

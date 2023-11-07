@@ -37,6 +37,7 @@ Texture2D<float> RayGuidingCDFY;
 #include "/Engine/Private/PathTracing/Material/PathTracingMaterialSampling.ush"
 #include "/Engine/Private/PathTracing/Material/PathTracingRadianceProbe.ush"
 
+#include "/Engine/Shared/LightDefinitions.h"
 
 #include "LightmapEncoding.ush"
 #include "LightmapCommon.ush"
@@ -1145,12 +1146,6 @@ struct FLightShaderConstants
 		LightShaderParameters.RectLightBarnLength = RectLightBarnLength;
 	}
 };
-
-#define LIGHT_TYPE_DIRECTIONAL		0 
-#define LIGHT_TYPE_POINT			1 
-#define LIGHT_TYPE_SPOT				2 
-#define LIGHT_TYPE_RECT				3 
-#define LIGHT_TYPE_MAX				4 
 
 bool GenerateOcclusionRay(
 	int LightType,
