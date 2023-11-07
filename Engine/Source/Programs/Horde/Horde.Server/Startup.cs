@@ -390,7 +390,11 @@ namespace Horde.Server
 			RedisSerializer.RegisterConverter<AgentId, AgentIdRedisConverter>();
 
 #pragma warning disable CA2000 // Dispose objects before losing scope
-			RedisService redisService = new RedisService(settings);
+			RedisService redisService;
+			using (Serilog.Extensions.Logging.SerilogLoggerFactory loggerFactory = new Serilog.Extensions.Logging.SerilogLoggerFactory(Serilog.Log.Logger))
+			{
+				redisService = new RedisService(Options.Create(settings), loggerFactory.CreateLogger<RedisService>());
+			}
 #pragma warning restore CA2000 // Dispose objects before losing scope
 			services.AddSingleton<RedisService>(sp => redisService);
 			services.AddDataProtection().PersistKeysToStackExchangeRedis(() => redisService.DatabaseSingleton, "aspnet-data-protection");

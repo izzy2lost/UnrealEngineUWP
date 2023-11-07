@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Net;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Horde.Server.Server;
@@ -160,9 +161,13 @@ namespace Horde.Server.Tests
 		private MongoService? _mongoService;
 		private readonly LoggerFactory _loggerFactory = new LoggerFactory();
 
-		private static RedisRunner? s_redisRunner;
+		const bool UseExistingRedisInstance = true;
+		const int RedisPort = 6379;
+		const int RedisDbNum = 15;
+
+		private static int? s_redisPort;
+		private static RedisProcess? s_redisProcess;
 		private RedisService? _redisService;
-        public const int RedisDbNum = 15;
 
 		public DatabaseIntegrationTest()
 		{
@@ -210,30 +215,41 @@ namespace Horde.Server.Tests
 			return _mongoService;
         }
 
-		private static RedisRunner GetRedisRunner()
+		int GetRedisPort()
 		{
 			lock (s_lockObject)
 			{
-				if (s_redisRunner == null)
-				{
-					// One-time setup per test run to avoid overhead of starting the external Redis process
-					s_redisRunner = new RedisRunner();
-					s_redisRunner.Start();
-				}
+				s_redisPort ??= GetRedisPortInternal();
+				return s_redisPort.Value;
 			}
-			return s_redisRunner;
+		}
+
+		int GetRedisPortInternal()
+		{
+			if (UseExistingRedisInstance && !DatabaseRunner.IsPortAvailable(RedisPort))
+			{
+				return RedisPort;
+			}
+
+			if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+			{
+				s_redisProcess = new RedisProcess(_loggerFactory.CreateLogger("redis"));
+				s_redisProcess.Start("--save \"\" --appendonly no");
+
+				return s_redisProcess.Port;
+			}
+
+			throw new Exception("Unable to connect to Redis");
 		}
 
 		public RedisService GetRedisServiceSingleton()
         {
 			if (_redisService == null)
 			{
-				RedisRunner redisRunner = GetRedisRunner();
+				int port = GetRedisPort();
+				_redisService = new RedisService($"localhost:{port},allowAdmin=true", RedisDbNum, _loggerFactory.CreateLogger<RedisService>());
 
-				(string host, int port) = redisRunner.GetListenAddress();
-				_redisService = new RedisService($"{host}:{port},allowAdmin=true", RedisDbNum, _loggerFactory);
 				IConnectionMultiplexer cm = _redisService.ConnectionPool.GetConnection();
-
 				foreach (EndPoint endpoint in cm.GetEndPoints())
 				{
 					cm.GetServer(endpoint).FlushDatabase(RedisDbNum);

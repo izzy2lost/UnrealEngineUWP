@@ -142,7 +142,7 @@ public abstract class DatabaseRunner : IDisposable
 		return port;
 	}
 
-	private static bool IsPortAvailable(int port)
+	public static bool IsPortAvailable(int port)
 	{
 		if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
 		{
@@ -211,17 +211,5 @@ public class MongoDbRunnerLocal : DatabaseRunner
 	{
 		(string host, int listenPort) = GetListenAddress();
 		return $"mongodb://{host}:{listenPort}";
-	}
-}
-
-public class RedisRunner : DatabaseRunner
-{
-	public RedisRunner() : base("redis", "ThirdParty/Redis/redis-server.exe", 6379, true)
-	{
-	}
-
-	protected override string GetArguments()
-	{
-		return $"--port {Port} --save \"\" --appendonly no";
 	}
 }

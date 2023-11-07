@@ -1,6 +1,10 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
+using System.Runtime.Versioning;
 using System.Threading;
+using System.Threading.Tasks;
+using Horde.Server.Server;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace Horde.Server.Tests
@@ -18,12 +22,13 @@ namespace Horde.Server.Tests
         }
         
         [TestMethod]
-        public void RunRedisTest()
+		[SupportedOSPlatform("windows")]
+        public async Task RunRedisTestAsync()
         {
-	        using RedisRunner runner = new RedisRunner();
-	        runner.Start();
-	        Thread.Sleep(100);
-	        runner.Stop();
+	        await using RedisProcess runner = new RedisProcess(NullLogger.Instance);
+	        runner.Start("--save \"\" --appendonly no");
+	        await Task.Delay(100);
+	        await runner.StopAsync();
         }
     }
 }

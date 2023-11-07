@@ -2,7 +2,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using System.Net;
 using System.Net.NetworkInformation;
@@ -39,27 +38,15 @@ namespace Horde.Server.Server
 		/// </summary>
 		public RedisConnectionPool ConnectionPool { get; }
 
-		ManagedProcessGroup? _redisProcessGroup;
-		ManagedProcess? _redisProcess;
-		BackgroundTask? _redisProcessLogTask;
+		RedisProcess? _redisProcess;
 		readonly ConnectionMultiplexer _multiplexer;
-		readonly ILoggerFactory _loggerFactory;
 		readonly ILogger<RedisService> _logger;
-
-		/// <summary>
-		/// Hack to initialize RedisService early enough to use data protection
-		/// </summary>
-		/// <param name="settings"></param>
-		public RedisService(ServerSettings settings)
-			: this(Options.Create(settings), new Serilog.Extensions.Logging.SerilogLoggerFactory(Serilog.Log.Logger))
-		{
-		}
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public RedisService(IOptions<ServerSettings> options, ILoggerFactory loggerFactory)
-			: this(options.Value.RedisConnectionConfig, -1, loggerFactory)
+		public RedisService(IOptions<ServerSettings> options, ILogger<RedisService> logger)
+			: this(options.Value.RedisConnectionConfig, -1, logger)
 		{
 		}
 
@@ -68,11 +55,10 @@ namespace Horde.Server.Server
 		/// </summary>
 		/// <param name="connectionString">Redis connection string. If null, we will start a temporary redis instance on the local machine.</param>
 		/// <param name="dbNum">Override for the database to use. Set to -1 to use the default from the connection string.</param>
-		/// <param name="loggerFactory"></param>
-		public RedisService(string? connectionString, int dbNum, ILoggerFactory loggerFactory)
+		/// <param name="logger"></param>
+		public RedisService(string? connectionString, int dbNum, ILogger<RedisService> logger)
 		{
-			_loggerFactory = loggerFactory;
-			_logger = loggerFactory.CreateLogger<RedisService>();
+			_logger = logger;
 
 			if (connectionString == null)
 			{
@@ -80,9 +66,9 @@ namespace Horde.Server.Server
 				{
 					connectionString = $"localhost:{RedisPort}";
 				}
-				else if (TryStartRedisServer())
+				else if (TryStartRedisProcess())
 				{
-					connectionString = $"localhost:{RedisPort}";
+					connectionString = $"localhost:{_redisProcess!.Port}";
 				}
 				else
 				{
@@ -126,18 +112,8 @@ namespace Horde.Server.Server
 
 			if (_redisProcess != null)
 			{
-				_redisProcess.Dispose();
+				await _redisProcess.DisposeAsync();
 				_redisProcess = null;
-			}
-			if (_redisProcessGroup != null)
-			{
-				_redisProcessGroup.Dispose();
-				_redisProcessGroup = null;
-			}
-			if (_redisProcessLogTask != null)
-			{
-				await _redisProcessLogTask.DisposeAsync();
-				_redisProcessLogTask = null;
 			}
 		}
 
@@ -162,64 +138,21 @@ namespace Horde.Server.Server
 		/// Attempts to start a local instance of Redis
 		/// </summary>
 		/// <returns></returns>
-		bool TryStartRedisServer()
+		bool TryStartRedisProcess()
 		{
+			if (_redisProcess != null)
+			{
+				return true;
+			}
 			if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
 			{
 				return false;
 			}
 
-			FileReference redisExe = FileReference.Combine(ServerApp.AppDir, "ThirdParty", "Redis", "redis-server.exe");
-			if (!FileReference.Exists(redisExe))
-			{
-				_logger.LogDebug("Redis executable does not exist at {ExePath}", redisExe);
-				return false;
-			}
-
-			FileReference redisConfigFile = FileReference.Combine(redisExe.Directory, "redis.conf");
-			try
-			{
-				_redisProcessGroup = new ManagedProcessGroup();
-				_redisProcess = new ManagedProcess(_redisProcessGroup, redisExe.FullName, $"\"{redisConfigFile}\"", null, null, ProcessPriorityClass.Normal);
-				_redisProcess.StdIn.Close();
-				_redisProcessLogTask = BackgroundTask.StartNew(RelayRedisOutputAsync);
-				return true;
-			}
-			catch (Exception ex)
-			{
-				_logger.LogWarning(ex, "Unable to start Redis server process");
-				return false;
-			}
-		}
-
-		/// <summary>
-		/// Copies output from the redis process to the logger
-		/// </summary>
-		/// <returns></returns>
-		async Task RelayRedisOutputAsync(CancellationToken cancellationToken)
-		{
-			ILogger redisLogger = _loggerFactory.CreateLogger("Redis");
-			for (; ; )
-			{
-				string? line = await _redisProcess!.ReadLineAsync(cancellationToken);
-				if (line == null)
-				{
-					break;
-				}
-				if (line.Length > 0)
-				{
-					redisLogger.Log(LogLevel.Information, "{Output}", line);
-				}
-			}
-
-			if (_redisProcess.ExitCode == 0)
-			{
-				redisLogger.LogInformation("Redis exit code {ExitCode}", _redisProcess.ExitCode);
-			}
-			else
-			{
-				redisLogger.LogCritical("Redis exit code {ExitCode}", _redisProcess.ExitCode);
-			}
+			FileReference redisConfigFile = FileReference.Combine(RedisProcess.RedisExe.Directory, "redis.conf");
+			_redisProcess = new RedisProcess(_logger);
+			_redisProcess.Start($"\"{redisConfigFile}\"");
+			return true;
 		}
 
 		/// <summary>
