@@ -119,6 +119,7 @@ EDerivativeType GetDerivType(EMaterialValueType ValueType, bool bAllowNonFloat)
 {
 	switch (ValueType)
 	{
+	case MCT_StaticBool:
 	case MCT_Float:
 	case MCT_Float1:
 		return EDerivativeType::Float1;
