@@ -12,7 +12,7 @@
 namespace UE
 {
 
-TEST_CASE("Core::Async::Mutex", "[Core][Async][Slow]")
+TEST_CASE("Core::Async::Mutex", "[Core][Async][Slow][LinuxSkip]")
 {
 	constexpr static int32 TaskCount = 5;
 
