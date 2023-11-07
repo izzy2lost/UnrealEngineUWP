@@ -72,6 +72,7 @@ namespace Horde.Server.Commands.Install
 			}
 
 			// Create the agent installer bundle
+			DirectoryReference looseAgentInstallerDir = DirectoryReference.Combine(serverDir, "Tools", "horde-agent-installer-loose");
 			DirectoryReference installerBundleDir = DirectoryReference.Combine(serverDir, "Tools", "horde-agent-installer");
 			DirectoryReference.CreateDirectory(installerBundleDir);
 			using (BundleCache bundleCache = new BundleCache())
@@ -81,7 +82,7 @@ namespace Horde.Server.Commands.Install
 					await using (IStorageWriter writer = client.CreateWriter(refName))
 					{
 						DirectoryNode dirNode = new DirectoryNode();
-						await dirNode.CopyFromDirectoryAsync(installerBundleDir.ToDirectoryInfo(), new ChunkingOptions(), writer, null);
+						await dirNode.CopyFromDirectoryAsync(looseAgentInstallerDir.ToDirectoryInfo(), new ChunkingOptions(), writer, null);
 						await client.WriteRefAsync(refName, dirNode);
 					}
 				}
