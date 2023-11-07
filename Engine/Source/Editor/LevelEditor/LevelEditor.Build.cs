@@ -89,8 +89,7 @@ public class LevelEditor : ModuleRules
 				"UnsavedAssetsTracker",
 				"UncontrolledChangelists",
 				"RenderCore",
-				"DeveloperSettings",
-				"WorldPartitionEditor",
+				"DeveloperSettings"
 			}
 		);
 
@@ -104,6 +103,7 @@ public class LevelEditor : ModuleRules
 				"AutomationWindow",
 				"Layers",
 				"WorldBrowser",
+				"WorldPartitionEditor",
 				"AssetTools",
 				"WorkspaceMenuStructure",
 				"NewLevelDialog",

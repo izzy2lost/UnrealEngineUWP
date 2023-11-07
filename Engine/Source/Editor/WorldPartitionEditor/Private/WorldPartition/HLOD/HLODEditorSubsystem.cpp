@@ -5,17 +5,16 @@
 #include "Editor.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
-#include "GameFramework/WorldSettings.h"
 #include "Subsystems/UnrealEditorSubsystem.h"
-#include "WorldPartitionEditorModule.h"
 #include "WorldPartition/HLOD/HLODEditorData.h"
 #include "WorldPartition/WorldPartition.h"
 #include "WorldPartition/WorldPartitionSubsystem.h"
 
+
 static TAutoConsoleVariable<bool> CVarHLODInEditorEnabled(
-	TEXT("wp.Editor.HLOD.AllowShowingHLODsInEditor"),
+	TEXT("wp.Editor.HLOD"),
 	false,
-	TEXT("Allow showing World Partition HLODs in the editor."));
+	TEXT("Show World Partition HLODs in the editor."));
 
 
 UWorldPartitionHLODEditorSubsystem::UWorldPartitionHLODEditorSubsystem()
@@ -28,10 +27,7 @@ UWorldPartitionHLODEditorSubsystem::~UWorldPartitionHLODEditorSubsystem()
 
 bool UWorldPartitionHLODEditorSubsystem::IsHLODInEditorEnabled()
 {
-	const IWorldPartitionEditorModule* WorldPartitionEditorModule = FModuleManager::GetModulePtr<IWorldPartitionEditorModule>("WorldPartitionEditor");
-	const bool bShowHLODsInEditorForWorld = WorldPartitionEditorModule && WorldPartitionEditorModule->IsHLODInEditorAllowed(GetWorld());
-	const bool bShowHLODsInEditorUserSetting = WorldPartitionEditorModule && WorldPartitionEditorModule->GetShowHLODsInEditor();
-	return CVarHLODInEditorEnabled.GetValueOnGameThread() && bShowHLODsInEditorUserSetting && bShowHLODsInEditorForWorld;
+	return CVarHLODInEditorEnabled.GetValueOnGameThread();
 }
 
 bool UWorldPartitionHLODEditorSubsystem::DoesSupportWorldType(const EWorldType::Type WorldType) const
@@ -47,10 +43,6 @@ void UWorldPartitionHLODEditorSubsystem::Initialize(FSubsystemCollectionBase& Co
 	Super::Initialize(Collection);
 
 	bForceHLODStateUpdate = true;
-	CachedCameraLocation = FVector::Zero();
-	CachedHLODMinDrawDistance = 0;
-	CachedHLODMaxDrawDistance = 0;
-	bCachedShowHLODsOverLoadedRegions = false;
 	
 	GetWorld()->OnWorldPartitionInitialized().AddUObject(this, &UWorldPartitionHLODEditorSubsystem::OnWorldPartitionInitialized);
 	GetWorld()->OnWorldPartitionUninitialized().AddUObject(this, &UWorldPartitionHLODEditorSubsystem::OnWorldPartitionUninitialized);
@@ -116,41 +108,9 @@ void UWorldPartitionHLODEditorSubsystem::Tick(float DeltaTime)
 		
 		if (IsHLODInEditorEnabled())
 		{
-			bool bForceHLODVisibilityUpdate = false;
-
-			IWorldPartitionEditorModule* WorldPartitionEditorModule = FModuleManager::GetModulePtr<IWorldPartitionEditorModule>("WorldPartitionEditor");
-
-			// "Show HLODs over loaded region" option changed ?
-			if (WorldPartitionEditorModule->GetShowHLODsOverLoadedRegions() != bCachedShowHLODsOverLoadedRegions)
-			{ 
-				bCachedShowHLODsOverLoadedRegions = WorldPartitionEditorModule->GetShowHLODsOverLoadedRegions();
-				bForceHLODVisibilityUpdate = true;
-
-				// Clear loading state of actors if we are going to always show HLODs
-				if (bCachedShowHLODsOverLoadedRegions)
-				{
-					HLODEditorData->ClearLoadedActorsState();
-				}
-				else
-				{
-					bForceHLODStateUpdate = true;
-				}
-			}
-
-			// Actors or regions were loaded ?
-			if (bForceHLODStateUpdate && !bCachedShowHLODsOverLoadedRegions)
+			if (bForceHLODStateUpdate)
 			{
 				HLODEditorData->UpdateLoadedActorsState();
-				bForceHLODVisibilityUpdate = true;
-			}
-			
-			// Min/Max draw distance for HLODs was changed ?
-			if (WorldPartitionEditorModule->GetHLODInEditorMinDrawDistance() != CachedHLODMinDrawDistance ||
-				WorldPartitionEditorModule->GetHLODInEditorMaxDrawDistance() != CachedHLODMaxDrawDistance)
-			{
-				CachedHLODMinDrawDistance = WorldPartitionEditorModule->GetHLODInEditorMinDrawDistance();
-				CachedHLODMaxDrawDistance = WorldPartitionEditorModule->GetHLODInEditorMaxDrawDistance();
-				bForceHLODVisibilityUpdate = true;
 			}
 
 			UUnrealEditorSubsystem* UnrealEditorSubsystem = GEditor->GetEditorSubsystem<UUnrealEditorSubsystem>();
@@ -160,18 +120,14 @@ void UWorldPartitionHLODEditorSubsystem::Tick(float DeltaTime)
 				FRotator CameraRotation;
 				UnrealEditorSubsystem->GetLevelViewportCameraInfo(CameraLocation, CameraRotation);
 
-				// Camera was moved ?
-				const bool bCameraMoved = CameraLocation != CachedCameraLocation;
-				if (bCameraMoved)
+				if (bForceHLODStateUpdate || CameraLocation != CachedCameraLocation)
 				{
 					CachedCameraLocation = CameraLocation;
-				}
 
-				if (bForceHLODVisibilityUpdate || bCameraMoved)
-				{					
-					HLODEditorData->UpdateVisibility(CameraLocation, CachedHLODMinDrawDistance, CachedHLODMaxDrawDistance, bForceHLODVisibilityUpdate);
+					HLODEditorData->UpdateVisibility(CameraLocation, bForceHLODStateUpdate);
 				}
 			}
+
 			bForceHLODStateUpdate = false;
 		}
 	}

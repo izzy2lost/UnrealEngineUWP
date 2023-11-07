@@ -14,7 +14,6 @@
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Input/SSpinBox.h"
-#include "Widgets/Input/SSlider.h"
 #include "Styling/AppStyle.h"
 #include "Camera/CameraActor.h"
 #include "Misc/ConfigCacheIni.h"
@@ -48,13 +47,11 @@
 #include "SEditorViewportViewMenuContext.h"
 #include "Bookmarks/IBookmarkTypeTools.h"
 #include "ToolMenu.h"
-#include "WorldPartitionEditorModule.h"
 #include "WorldPartition/WorldPartitionSubsystem.h"
 #include "SLevelViewport.h"
 #include "SortHelper.h"
 #include "Interfaces/IMainFrameModule.h"
 #include "SCommonEditorViewportToolbarBase.h"
-#include "WorldPartition/WorldPartition.h"
 
 #define LOCTEXT_NAMESPACE "LevelViewportToolBar"
 
@@ -1272,12 +1269,6 @@ void SLevelViewportToolBar::FillShowMenu(UToolMenu* Menu) const
 					FNewToolMenuDelegate::CreateStatic(&SLevelViewportToolBar::FillShowFoliageTypesMenu, Viewport), false, FSlateIcon(FAppStyle::Get().GetStyleSetName(), "ShowFlagsMenu.SubMenu.FoliageTypes"));
 			}
 
-			// Show 'HLODs' sub-menu is dynamically generated when the user enters 'show' menu
-			if (World->IsPartitionedWorld())
-			{
-				Section.AddSubMenu("ShowHLODsMenu", LOCTEXT("ShowHLODsMenu", "HLODs"), LOCTEXT("ShowHLODsMenu_ToolTip", "Settings for HLODs in editor"),
-					FNewToolMenuDelegate::CreateSP(this, &SLevelViewportToolBar::FillShowHLODsMenu), false, FSlateIcon(FAppStyle::Get().GetStyleSetName(), "ShowFlagsMenu.SubMenu.HLODs"));
-			}
 		}
 	}
 }
@@ -1499,131 +1490,6 @@ void SLevelViewportToolBar::FillShowFoliageTypesMenu(UToolMenu* Menu, TWeakPtr<c
 
 			Section.AddMenuEntry(NAME_None, FText::FromName(MeshName), FText::GetEmpty(), FSlateIcon(), Action, EUserInterfaceActionType::ToggleButton);
 		}
-	}
-}
-
-double SLevelViewportToolBar::OnGetHLODInEditorMinDrawDistanceValue() const
-{
-	IWorldPartitionEditorModule* WorldPartitionEditorModule = FModuleManager::GetModulePtr<IWorldPartitionEditorModule>("WorldPartitionEditor");
-	return WorldPartitionEditorModule ? WorldPartitionEditorModule->GetHLODInEditorMinDrawDistance() : 0;
-}
-
-void SLevelViewportToolBar::OnHLODInEditorMinDrawDistanceValueChanged(double NewValue) const
-{
-	IWorldPartitionEditorModule* WorldPartitionEditorModule = FModuleManager::GetModulePtr<IWorldPartitionEditorModule>("WorldPartitionEditor");
-	if (WorldPartitionEditorModule)
-	{
-		WorldPartitionEditorModule->SetHLODInEditorMinDrawDistance(NewValue);
-		GEditor->RedrawLevelEditingViewports(true);
-	}
-}
-
-double SLevelViewportToolBar::OnGetHLODInEditorMaxDrawDistanceValue() const
-{
-	IWorldPartitionEditorModule* WorldPartitionEditorModule = FModuleManager::GetModulePtr<IWorldPartitionEditorModule>("WorldPartitionEditor");
-	return WorldPartitionEditorModule ? WorldPartitionEditorModule->GetHLODInEditorMaxDrawDistance() : 0;
-}
-
-void SLevelViewportToolBar::OnHLODInEditorMaxDrawDistanceValueChanged(double NewValue) const
-{
-	IWorldPartitionEditorModule* WorldPartitionEditorModule = FModuleManager::GetModulePtr<IWorldPartitionEditorModule>("WorldPartitionEditor");
-	if (WorldPartitionEditorModule)
-	{
-		WorldPartitionEditorModule->SetHLODInEditorMaxDrawDistance(NewValue);
-		GEditor->RedrawLevelEditingViewports(true);
-	}
-}
-
-void SLevelViewportToolBar::FillShowHLODsMenu(UToolMenu* Menu) const
-{
-	auto ViewportPtr = Viewport.Pin();
-	if (!ViewportPtr.IsValid())
-	{
-		return;
-	}
-
-	UWorld* World = ViewportPtr->GetWorld();
-	UWorldPartition* WorldPartition = World ? World->GetWorldPartition() : nullptr;
-	IWorldPartitionEditorModule* WorldPartitionEditorModule = FModuleManager::GetModulePtr<IWorldPartitionEditorModule>("WorldPartitionEditor");
-	
-	if (WorldPartition == nullptr || WorldPartitionEditorModule == nullptr)
-	{
-		return;
-	}
-
-	FText HLODInEditorDisallowedReason;
-	const bool bHLODInEditorAllowed = WorldPartitionEditorModule->IsHLODInEditorAllowed(World, &HLODInEditorDisallowedReason);
-
-	//Menu->AddMenuEntry(NAME_None, FToolMenuEntry::InitMenuEntry("HLODsInEditorUnavailable", HLODInEditorDisallowedReason, HLODInEditorDisallowedReason, FSlateIcon(), FToolUIAction()));
-
-	// Show HLODs
-	{
-		FToolUIAction UIAction;
-		UIAction.ExecuteAction = FToolMenuExecuteAction::CreateLambda([WorldPartitionEditorModule](const FToolMenuContext& InContext) { WorldPartitionEditorModule->SetShowHLODsInEditor(!WorldPartitionEditorModule->GetShowHLODsInEditor()); });
-		UIAction.CanExecuteAction = FToolMenuCanExecuteAction::CreateLambda([bHLODInEditorAllowed](const FToolMenuContext& InContext) { return bHLODInEditorAllowed; });
-		UIAction.GetActionCheckState = FToolMenuGetActionCheckState::CreateLambda([WorldPartitionEditorModule](const FToolMenuContext& InContext) { return WorldPartitionEditorModule->GetShowHLODsInEditor() ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; });
-		FToolMenuEntry MenuEntry = FToolMenuEntry::InitMenuEntry("ShowHLODs", LOCTEXT("ShowHLODs", "Show HLODs"), bHLODInEditorAllowed ? LOCTEXT("ShowHLODsToolTip", "Show/Hide HLODs") : HLODInEditorDisallowedReason, FSlateIcon(), UIAction, EUserInterfaceActionType::ToggleButton);
-		Menu->AddMenuEntry(NAME_None, MenuEntry);
-	}
-
-	// Show HLODs Over Loaded Regions
-	{
-		FToolUIAction UIAction;
-		UIAction.ExecuteAction = FToolMenuExecuteAction::CreateLambda([WorldPartitionEditorModule](const FToolMenuContext& InContext) { WorldPartitionEditorModule->SetShowHLODsOverLoadedRegions(!WorldPartitionEditorModule->GetShowHLODsOverLoadedRegions()); });
-		UIAction.CanExecuteAction = FToolMenuCanExecuteAction::CreateLambda([bHLODInEditorAllowed](const FToolMenuContext& InContext) { return bHLODInEditorAllowed; });
-		UIAction.GetActionCheckState = FToolMenuGetActionCheckState::CreateLambda([WorldPartitionEditorModule](const FToolMenuContext& InContext) { return WorldPartitionEditorModule->GetShowHLODsOverLoadedRegions() ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; });
-		FToolMenuEntry ShowHLODsEntry = FToolMenuEntry::InitMenuEntry("ShowHLODsOverLoadedRegions", LOCTEXT("ShowHLODsOverLoadedRegions", "Show HLODs Over Loaded Regions"), bHLODInEditorAllowed ? LOCTEXT("ShowHLODsOverLoadedRegions_ToolTip", "Show/Hide HLODs over loaded actors or regions") : HLODInEditorDisallowedReason, FSlateIcon(), UIAction, EUserInterfaceActionType::ToggleButton);
-		Menu->AddMenuEntry(NAME_None, ShowHLODsEntry);
-	}
-
-	// Min/Max Draw Distance
-	{
-		const double MinDrawDistanceMinValue = 0;
-		const double MinDrawDistanceMaxValue = 102400;
-
-		const double MaxDrawDistanceMinValue = 0;
-		const double MaxDrawDistanceMaxValue = 1638400;
-
-		TSharedRef<SSpinBox<double>> MinDrawDistanceSpinBox = SNew(SSpinBox<double>)
-			.MinValue(MinDrawDistanceMinValue)
-			.MaxValue(MinDrawDistanceMaxValue)
-			.IsEnabled(bHLODInEditorAllowed)
-			.Value(this, &SLevelViewportToolBar::OnGetHLODInEditorMinDrawDistanceValue)
-			.OnValueChanged(this, &SLevelViewportToolBar::OnHLODInEditorMinDrawDistanceValueChanged)
-			.ToolTipText(bHLODInEditorAllowed ? LOCTEXT("HLODsInEditor_MinDrawDistance_Tooltip", "Sets the minimum distance at which HLOD will be rendered") : HLODInEditorDisallowedReason);
-
-		TSharedRef<SSpinBox<double>> MaxDrawDistanceSpinBox = SNew(SSpinBox<double>)
-			.MinValue(MaxDrawDistanceMinValue)
-			.MaxValue(MaxDrawDistanceMaxValue)
-			.IsEnabled(bHLODInEditorAllowed)
-			.Value(this, &SLevelViewportToolBar::OnGetHLODInEditorMaxDrawDistanceValue)
-			.OnValueChanged(this, &SLevelViewportToolBar::OnHLODInEditorMaxDrawDistanceValueChanged)
-			.ToolTipText(bHLODInEditorAllowed ? LOCTEXT("HLODsInEditor_MaxDrawDistance_Tooltip", "Sets the maximum distance at which HLODs will be rendered") : HLODInEditorDisallowedReason);
-
-		auto CreateDrawDistanceWidget = [](TSharedRef<SSpinBox<double>> InSpinBoxWidget)
-		{
-			return SNew(SBox)
-				.HAlign(HAlign_Right)
-				[
-					SNew(SBox)
-						.Padding(FMargin(0.0f, 0.0f, 0.0f, 0.0f))
-						.WidthOverride(100.0f)
-						[
-							SNew(SBorder)
-								.BorderImage(FAppStyle::Get().GetBrush("Menu.WidgetBorder"))
-								.Padding(FMargin(1.0f))
-								[
-									InSpinBoxWidget
-								]
-						]
-				];
-		};
-			
-		FToolMenuEntry MinDrawDistanceMenuEntry = FToolMenuEntry::InitWidget("Min Draw Distance", CreateDrawDistanceWidget(MinDrawDistanceSpinBox), LOCTEXT("MinDrawDistance", "Min Draw Distance"));
-		Menu->AddMenuEntry(NAME_None, MinDrawDistanceMenuEntry);
-
-		FToolMenuEntry MaxDrawDistanceMenuEntry = FToolMenuEntry::InitWidget("Max Draw Distance", CreateDrawDistanceWidget(MaxDrawDistanceSpinBox), LOCTEXT("MaxDrawDistance", "Max Draw Distance"));
-		Menu->AddMenuEntry(NAME_None, MaxDrawDistanceMenuEntry);
 	}
 }
 

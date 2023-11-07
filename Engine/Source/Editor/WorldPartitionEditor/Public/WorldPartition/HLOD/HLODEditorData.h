@@ -10,7 +10,7 @@ class UWorldPartition;
 // Represent an HLOD actor in the editor, loaded or not
 struct FHLODSceneNode
 {
-	void UpdateVisibility(const FVector& InCameraLocation, double InMinDrawDistance, double InMaxDrawDistance, bool bInForceHidden, bool bInForceVisibilityUpdate, int32 InLastStateUpdate);
+	void UpdateVisibility(const FVector& InCameraLocation, bool bInForceHidden, bool bInForceVisibilityUpdate, int32 InLastStateUpdate);
 
 	FHLODSceneNode* ParentHLOD = nullptr;
 	TArray<FHLODSceneNode*> ChildrenHLODs;
@@ -29,9 +29,8 @@ struct FWorldPartitionHLODEditorData
 public:
 	FWorldPartitionHLODEditorData(UWorldPartition* InWorldPartition);
 	
-	void ClearLoadedActorsState();
 	void UpdateLoadedActorsState();
-	void UpdateVisibility(const FVector& InCameraLocation, double InMinDrawDistance, double InMaxDrawDistance, bool bForceVisibilityUpdate);
+	void UpdateVisibility(const FVector& InCameraLocation, bool bForceVisibilityUpdate);
 
 	void SetHLODLoadingState(bool bInShouldBeLoaded);
 

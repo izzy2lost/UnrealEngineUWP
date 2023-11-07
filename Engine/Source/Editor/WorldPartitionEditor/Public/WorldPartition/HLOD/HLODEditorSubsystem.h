@@ -42,11 +42,10 @@ public:
 	virtual void Tick(float DeltaTime) override;
 	virtual TStatId GetStatId() const override;
 	//~ End FTickableGameObject Interface
-	
-private:
-	bool IsHLODInEditorEnabled();
-	void SetHLODInEditorEnabled(bool bInEnable);
 
+	static bool IsHLODInEditorEnabled();
+
+private:
 	void OnWorldPartitionInitialized(UWorldPartition* InWorldPartition);
 	void OnWorldPartitionUninitialized(UWorldPartition* InWorldPartition);
 
@@ -56,10 +55,6 @@ private:
 	
 private:
 	FVector CachedCameraLocation;
-	double CachedHLODMinDrawDistance;
-	double CachedHLODMaxDrawDistance;
-	bool bCachedShowHLODsOverLoadedRegions;
-
 	bool bForceHLODStateUpdate;
 
 	TPimplPtr<FWorldPartitionHLODEditorData> HLODEditorData;

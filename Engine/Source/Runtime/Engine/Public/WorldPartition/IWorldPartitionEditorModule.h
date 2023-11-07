@@ -53,20 +53,6 @@ public:
 	virtual bool IsEditingContentBundle() const = 0;
 	virtual bool IsEditingContentBundle(const FGuid& ContentBundleGuid) const = 0;
 
-	virtual bool GetShowHLODsInEditor() const = 0;
-	virtual void SetShowHLODsInEditor(bool bInShowHLODsInEditor) = 0;
-
-	virtual bool GetShowHLODsOverLoadedRegions() const = 0;
-	virtual void SetShowHLODsOverLoadedRegions(bool bInShowHLODsOverLoadedRegions) = 0;
-
-	virtual double GetHLODInEditorMinDrawDistance() const = 0;
-	virtual void SetHLODInEditorMinDrawDistance(double InMinDrawDistance) = 0;
-
-	virtual double GetHLODInEditorMaxDrawDistance() const = 0;
-	virtual void SetHLODInEditorMaxDrawDistance(double InMaxDrawDistance) = 0;
-
-	virtual bool IsHLODInEditorAllowed(UWorld* InWorld, FText* OutDisallowedReason = nullptr) const = 0;
-
 	/** Triggered when a world is added. */
 	DECLARE_EVENT_OneParam(IWorldPartitionEditorModule, FWorldPartitionCreated, UWorld*);
 

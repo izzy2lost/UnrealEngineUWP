@@ -301,7 +301,6 @@ UWorldPartition::UWorldPartition(const FObjectInitializer& ObjectInitializer)
 	StreamingStateEpoch = 0;
 
 #if WITH_EDITOR
-	bAllowShowingHLODsInEditor = true;
 	WorldPartitionStreamingPolicyClass = UWorldPartitionLevelStreamingPolicy::StaticClass();
 #endif
 }
