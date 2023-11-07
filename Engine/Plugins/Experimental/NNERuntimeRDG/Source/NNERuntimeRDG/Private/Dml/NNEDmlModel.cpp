@@ -7,6 +7,7 @@
 
 #include "RenderGraphBuilder.h"
 #include "RenderGraphUtils.h"
+#include "NNERenderGraphUtils.h"
 
 #include "ID3D12DynamicRHI.h"
 #endif
@@ -22,18 +23,14 @@ static FAutoConsoleVariableRef CVarNNEDmlMetaCommands(
 namespace UE::NNERuntimeRDG::Private::Dml
 {
 
-#if STATS
-DECLARE_STATS_GROUP(TEXT("NNEDmlModel"), STATGROUP_NNEDmlModel, STATCAT_Advanced);
-DECLARE_MEMORY_STAT(TEXT("MemSizeWeights GPU"), STAT_MemSizeWeights, STATGROUP_NNEDmlModel);
-DECLARE_MEMORY_STAT(TEXT("MemSizePersistent GPU"), STAT_MemSizePersist, STATGROUP_NNEDmlModel);
-DECLARE_MEMORY_STAT(TEXT("MemSizeTemp GPU"), STAT_MemSizeTemp, STATGROUP_NNEDmlModel);
-DECLARE_DWORD_COUNTER_STAT(TEXT("InferenceCount"), STAT_InferenceCount, STATGROUP_NNEDmlModel);
-#endif
+DECLARE_STATS_GROUP(TEXT("NNEDmlModelInstance"), STATGROUP_NNEDmlModelInstance, STATCAT_Advanced);
+DECLARE_MEMORY_STAT(TEXT("MemSizeWeights GPU"), STAT_MemSizeWeights, STATGROUP_NNEDmlModelInstance);
+DECLARE_MEMORY_STAT(TEXT("MemSizePersistent GPU"), STAT_MemSizePersist, STATGROUP_NNEDmlModelInstance);
+DECLARE_MEMORY_STAT(TEXT("MemSizeTemp GPU"), STAT_MemSizeTemp, STATGROUP_NNEDmlModelInstance);
+DECLARE_DWORD_COUNTER_STAT(TEXT("InferenceCount"), STAT_InferenceCount, STATGROUP_NNEDmlModelInstance);
 
-#if HAS_GPU_STATS
-DECLARE_GPU_STAT_NAMED(GPU_STAT_DispatchTime, TEXT("NNEDmlModelDispatchTime"));
-DECLARE_GPU_STAT_NAMED(GPU_STAT_DispatchD3DTime, TEXT("NNEDmlModelDispatchD3DTime"));
-#endif
+DECLARE_GPU_STAT_NAMED(NNE_DmlModelInstance_Dispatch_GPU, TEXT("NNE_DmlModelInstance_Dispatch"));
+DECLARE_GPU_STAT_NAMED(NNE_DmlModelInstance_DispatchD3D_GPU, TEXT("NNE_DmlModelInstance_DispatchD3D"));
 
 // Empty tensor is marked by -1
 static constexpr int32 GEmptyTensorIdx = -1;
@@ -824,18 +821,20 @@ FModelInstance::FModelInstance()
 
 FModelInstance::~FModelInstance()
 {
-#if STATS
+	NNE_TRACE_EVENT_SCOPED(NNE_DmlModel_<dtor>);
+
 	DEC_MEMORY_STAT_BY(STAT_MemSizeWeights, MemSizeWeights);
 	DEC_MEMORY_STAT_BY(STAT_MemSizeTemp, MemSizeTemp);
 	DEC_MEMORY_STAT_BY(STAT_MemSizePersist, MemSizePersist);
-#endif
 	
 	FEvent* Signal = FGenericPlatformProcess::GetSynchEventFromPool(false);
 
-	ENQUEUE_RENDER_COMMAND(FDmlModelInstance_Release)
+	ENQUEUE_RENDER_COMMAND(NNE_DmlModel_ReleaseResources)
 	(
 		[this, &Signal](FRHICommandListImmediate& RHICmdList)
 		{
+			NNE_TRACE_EVENT_SCOPED(NNE_DmlModel_ReleaseResources_RT);
+
 			if (DispatchFence.IsValid())
 			{
 				while (!DispatchFence->Poll())
@@ -1003,6 +1002,8 @@ bool FModelInstance::InitCompiledOp()
 	static constexpr EBufferUsageFlags	TempBuffFlags = BUF_Static | BUF_ShaderResource | BUF_UnorderedAccess;
 	static constexpr ERHIAccess			TempBuffAccess = ERHIAccess::UAVMask;
 
+	NNE_TRACE_EVENT_SCOPED(NNE_DmlModelInstance_InitCompiledOp);
+
 	HRESULT					Res;
 	IDMLDevice*				Device = DevCtx->Device;
 	IDMLCompiledOperator*	CompiledOps[] = { CompiledOp };
@@ -1045,7 +1046,7 @@ bool FModelInstance::InitCompiledOp()
 
 	FEvent* Signal = FGenericPlatformProcess::GetSynchEventFromPool(false);
 	
-	ENQUEUE_RENDER_COMMAND(FDmlModelInstance_SetTensorData)
+	ENQUEUE_RENDER_COMMAND(NNE_DmlModelInstance_InitCompiledOp)
 	(
 		[
 			this, 
@@ -1054,7 +1055,9 @@ bool FModelInstance::InitCompiledOp()
 		]
 		(FRHICommandListImmediate& RHICmdList)
 		{
-			DispatchFence = DynamicRHI->RHICreateGPUFence(TEXT("FDmlModelInstanceDispatchFence"));
+			NNE_TRACE_EVENT_SCOPED(NNE_DmlModelInstance_InitCompiledOp_RT);
+
+			DispatchFence = DynamicRHI->RHICreateGPUFence(TEXT("NNE_DmlModelInstance_DispatchFence"));
 
 			FRHIBufferInputArray	Inputs;
 
@@ -1072,9 +1075,9 @@ bool FModelInstance::InitCompiledOp()
 
 			if (MemSizeWeights)
 			{
-				UploadFence = RHICreateGPUFence(TEXT("FDmlModelInstance_UploadFence"));
+				UploadFence = RHICreateGPUFence(TEXT("NNE_DmlModelInstance_UploadFence"));
 
-				UploadBuff = CreateRHIBuffer(RHICmdList, MemSizeWeights, BUF_ShaderResource | BUF_Dynamic | BUF_FastVRAM, ERHIAccess::CopySrc, TEXT("FDmlModelInstance_UploadBuffer"));
+				UploadBuff = CreateRHIBuffer(RHICmdList, MemSizeWeights, BUF_ShaderResource | BUF_Dynamic | BUF_FastVRAM, ERHIAccess::CopySrc, TEXT("NNE_DmlModelInstance_UploadBuffer"));
 				check(UploadBuff);
 				UploadBuff->DisableLifetimeExtension();
 
@@ -1118,14 +1121,14 @@ bool FModelInstance::InitCompiledOp()
 
 			if (MemSizePersist)
 			{
-				PersistBuff = CreateRHIBuffer(RHICmdList, MemSizePersist, PersistBuffFlags, PersistBuffAccess, TEXT("FDmlModelInstance_PeristBuff"));
+				PersistBuff = CreateRHIBuffer(RHICmdList, MemSizePersist, PersistBuffFlags, PersistBuffAccess, TEXT("NNE_DmlModelInstance_PeristBuff"));
 				check(PersistBuff.IsValid());
 				INC_MEMORY_STAT_BY(STAT_MemSizePersist, MemSizePersist);
 			}
 
 			if (MemSizeTemp)
 			{
-				TempBuff = CreateRHIBuffer(RHICmdList, MemSizeTemp, TempBuffFlags, TempBuffAccess, TEXT("FDmlModelInstance_TempBuff"));
+				TempBuff = CreateRHIBuffer(RHICmdList, MemSizeTemp, TempBuffFlags, TempBuffAccess, TEXT("NNE_DmlModelInstance_TempBuff"));
 				check(TempBuff.IsValid());
 				INC_MEMORY_STAT_BY(STAT_MemSizeTemp, MemSizeTemp);
 			}
@@ -1134,7 +1137,7 @@ bool FModelInstance::InitCompiledOp()
 
 			if (InitTempMemSize)
 			{
-				InitTempBuff = CreateRHIBuffer(RHICmdList, InitTempMemSize, TempBuffFlags, TempBuffAccess, TEXT("FDmlModelInstance_InitTempBuff"));
+				InitTempBuff = CreateRHIBuffer(RHICmdList, InitTempMemSize, TempBuffFlags, TempBuffAccess, TEXT("NNE_DmlModelInstance_InitTempBuff"));
 				InitTempBuff->DisableLifetimeExtension();
 				check(InitTempBuff.IsValid());
 			}
@@ -1154,10 +1157,12 @@ bool FModelInstance::InitCompiledOp()
 			RHICmdList.EnqueueLambda(
 				[this, Inputs, Barriers, InitTempBuff](FRHICommandListImmediate& RHICmdList)
 				{
+					NNE_TRACE_EVENT_SCOPED(NNE_DmlModelInstance_InitCompiledOpD3D_RHI);
+
 					ID3D12GraphicsCommandList* D3DCmdList = nullptr;
 
 					D3DCmdList = DynamicRHI->RHIGetGraphicsCommandList(DevCtx->DeviceIndex);
-					D3DCmdList->SetName(TEXT("FDmlModelInstance_SetTensorData_CmdList"));
+					D3DCmdList->SetName(TEXT("NNE_DmlModelInstance_InitCompiledOp_CmdList"));
 
 					BindingTable->Bind(OpInit, Inputs, PersistBuff, InitTempBuff);
 			
@@ -1205,9 +1210,8 @@ END_SHADER_PARAMETER_STRUCT()
 
 void FModelInstance::AddDispatchOps_RenderThread(FRDGBuilder& GraphBuilder)
 {
-#if STATS
+	NNE_TRACE_EVENT_SCOPED(NNE_DmlModelInstance_Dispatch);
 	INC_DWORD_STAT(STAT_InferenceCount);
-#endif
 
 	FDmlModelDispatchPassParameters* DispatchParams = GraphBuilder.AllocParameters<FDmlModelDispatchPassParameters>();
 
@@ -1231,16 +1235,18 @@ void FModelInstance::AddDispatchOps_RenderThread(FRDGBuilder& GraphBuilder)
 		DispatchParams->OutputBuffers.Emplace(AllTensorRDGRefs[OutputTensorIndices[Idx]]->GetBuffer(), ERHIAccess::UAVCompute);
 	}
 
-#if HAS_GPU_STATS
-	RDG_GPU_STAT_SCOPE(GraphBuilder, GPU_STAT_DispatchTime);
-#endif
+	RDG_EVENT_SCOPE(GraphBuilder, "NNE_DmlModelInstance_Dispatch_Pass");
+	RDG_GPU_STAT_SCOPE_VERBOSE(GraphBuilder, NNE_DmlModelInstance_Dispatch_GPU, TEXT("NNE_DmlModelInstance_Dispatch_GPU"));
+	RDG_CSV_STAT_EXCLUSIVE_SCOPE(GraphBuilder, NNE_DmlModelInstance_Dispatch);
 
 	GraphBuilder.AddPass(
-		RDG_EVENT_NAME("FDmlModelInstance_Dispatch"),
+		RDG_EVENT_NAME("NNE_DmlModelInstance_Dispatch_Pass"),
 		DispatchParams,
 		ERDGPassFlags::Compute | ERDGPassFlags::NeverCull,
 		[this, DispatchParams, NumWeightTensors](FRHICommandListImmediate& RHICmdList)
 		{
+			NNE_TRACE_EVENT_SCOPED(NNE_DmlModelInstance_Dispatch_Pass);
+
 			FRHIBufferInputArray	RHIInputBuffers;
 			FRHIBufferOutputArray	RHIOutputBuffers;
 
@@ -1262,14 +1268,14 @@ void FModelInstance::AddDispatchOps_RenderThread(FRDGBuilder& GraphBuilder)
 			}
 
 			{
-#if HAS_GPU_STATS
-				SCOPED_GPU_STAT(RHICmdList, GPU_STAT_DispatchD3DTime)
-#endif
+				SCOPED_GPU_STAT(RHICmdList, NNE_DmlModelInstance_DispatchD3D_GPU)
 
 				DispatchFence->Clear();
 				RHICmdList.EnqueueLambda(
 					[this, InputBuffers = MoveTemp(RHIInputBuffers), OutputBuffers = MoveTemp(RHIOutputBuffers)](FRHICommandListImmediate& RHICmdList)
 					{
+						NNE_TRACE_EVENT_SCOPED(NNE_DmlModelInstance_DispatchD3D_RHI);
+
 						TArray<CD3DX12_RESOURCE_BARRIER, TInlineAllocator<MaxNumInputs + MaxNumOutputs>>	PreBarriers;
 						TArray<CD3DX12_RESOURCE_BARRIER, TInlineAllocator<MaxNumOutputs * 2>>				PostBarriers;
 
@@ -1320,7 +1326,7 @@ void FModelInstance::AddDispatchOps_RenderThread(FRDGBuilder& GraphBuilder)
 						ID3D12GraphicsCommandList* D3DCmdList = nullptr;
 
 						D3DCmdList = DynamicRHI->RHIGetGraphicsCommandList(DevCtx->DeviceIndex);
-						D3DCmdList->SetName(TEXT("FDmlModelInstance_Dispatch_CmdList"));
+						D3DCmdList->SetName(TEXT("NNE_DmlModelInstance_Dispatch_CmdList"));
 						D3DCmdList->SetDescriptorHeaps(1, &DescHeap);
 						D3DCmdList->ResourceBarrier(PreBarriers.Num(), PreBarriers.GetData());
 						DevCtx->CmdRec->RecordDispatch(D3DCmdList, CompiledOp, BindingTable->Get());

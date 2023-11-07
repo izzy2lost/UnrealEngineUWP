@@ -27,8 +27,9 @@ public class NNERuntimeRDG : ModuleRules
             "NNE",
 			"NNEHlslShaders",
             "RHI",
-			"Projects"
-        });
+			"Projects",
+			"TraceLog"
+		});
 
         if (Target.Platform == UnrealTargetPlatform.Win64)
 		{
