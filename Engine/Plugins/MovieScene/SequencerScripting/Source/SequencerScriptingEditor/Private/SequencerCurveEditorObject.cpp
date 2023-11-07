@@ -1,3 +1,4 @@
+
 // Copyright Epic Games, Inc. All Rights Reserved.
 #include "SequencerCurveEditorObject.h"
 #include "MVVM/CurveEditorExtension.h"
@@ -80,10 +81,8 @@ TArray<FSequencerChannelProxy> USequencerCurveEditorObject::GetChannelsWithSelec
 			{
 				if (UMovieSceneSection* Section = Cast<UMovieSceneSection>(Curve->GetOwningObject()))
 				{
-					FString IntentionName = Curve->GetIntentionName();
-					FText DisplayName = Curve->GetShortDisplayName();
-					FText LongName = Curve->GetLongDisplayName();
-					FName ChannelName = FName(*DisplayName.ToString());
+					FString IntentionName = Curve->GetLongIntentionName();
+					FName ChannelName = FName(*IntentionName);
 					FSequencerChannelProxy ChannelProxy(ChannelName,Section);
 					OutSelectedChannels.Add(ChannelProxy);
 
