@@ -3,6 +3,22 @@
 #include "WorldPartition/WorldPartitionEditorSettings.h"
 #include "WorldPartition/WorldPartition.h"
 
+UWorldPartitionEditorSettings::UWorldPartitionEditorSettings()
+{
+	CommandletClass = UWorldPartitionConvertCommandlet::StaticClass();
+	InstancedFoliageGridSize = 25600;
+	MinimapLowQualityWorldUnitsPerPixelThreshold = 12800;
+	bEnableLoadingInEditor = true;
+	bEnableStreamingGenerationLogOnPIE = true;
+	bShowHLODsInEditor = true;
+	bShowHLODsOverLoadedRegions = false;
+	HLODMinDrawDistance = 12800;
+	HLODMaxDrawDistance = 0;
+	bDisablePIE = false;
+	bDisableBugIt = false;
+	bAdvancedMode = true;
+}
+
 void UWorldPartitionEditorSettings::PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent)
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);

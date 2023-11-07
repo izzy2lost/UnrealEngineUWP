@@ -16,7 +16,7 @@ class UWorldPartitionHLODSourceActors;
 
 ENGINE_API DECLARE_LOG_CATEGORY_EXTERN(LogHLODHash, Log, All);
 
-UCLASS(NotPlaceable, MinimalAPI)
+UCLASS(NotPlaceable, MinimalAPI, HideCategories=(Rendering, Replication, Collision, Physics, Navigation, Networking, Input, Actor, LevelInstance, Cooking))
 class AWorldPartitionHLOD : public AActor
 {
 	GENERATED_UCLASS_BODY()

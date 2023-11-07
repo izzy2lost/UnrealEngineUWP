@@ -105,6 +105,12 @@ static void GatherLoadedActorsBounds(TArray<FBoundsWithVolume>& OutLoadedBounds,
 	}
 }
 
+void FWorldPartitionHLODEditorData::ClearLoadedActorsState()
+{
+	// Increment update counter - used to quickly find out if an HLOD actor needs be hidden without having to flag the whole hierarchy
+	LastStateUpdate++;
+}
+
 void FWorldPartitionHLODEditorData::UpdateLoadedActorsState()
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FWorldPartitionHLODEditorData::UpdateLoadedActorsState);
@@ -189,7 +195,7 @@ void FWorldPartitionHLODEditorData::UpdateLoadedActorsState()
 	}
 }
 
-void FWorldPartitionHLODEditorData::UpdateVisibility(const FVector& InCameraLocation, bool bInForceVisibilityUpdate)
+void FWorldPartitionHLODEditorData::UpdateVisibility(const FVector& InCameraLocation, double InMinDrawDistance, double InMaxDrawDistance, bool bInForceVisibilityUpdate)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FWorldPartitionHLODEditorData::UpdateVisibility);
 
@@ -208,11 +214,11 @@ void FWorldPartitionHLODEditorData::UpdateVisibility(const FVector& InCameraLoca
 	for (const auto HLODActorNode : TopLevelHLODActorNodes)
 	{
 		// Recurse from the top level HLOD down to HLOD0
-		HLODActorNode->UpdateVisibility(InCameraLocation, /*bInForceHidden*/false, bInForceVisibilityUpdate, LastStateUpdate);
+		HLODActorNode->UpdateVisibility(InCameraLocation, InMinDrawDistance, InMaxDrawDistance, /*bInForceHidden*/false, bInForceVisibilityUpdate, LastStateUpdate);
 	}
 }
 
-void FHLODSceneNode::UpdateVisibility(const FVector& InCameraLocation, bool bInForceHidden, bool bInForceVisibilityUpdate, int32 InLastStateUpdate)
+void FHLODSceneNode::UpdateVisibility(const FVector& InCameraLocation, double InMinDrawDistance, double InMaxDrawDistance, bool bInForceHidden, bool bInForceVisibilityUpdate, int32 InLastStateUpdate)
 {
 	bool bNodeShouldBeVisible = !bInForceHidden;
 
@@ -232,9 +238,18 @@ void FHLODSceneNode::UpdateVisibility(const FVector& InCameraLocation, bool bInF
 			const bool bHasLoadedChildrenHLODs = Algo::AnyOf(ChildrenHLODs, [](FHLODSceneNode* ChildHLODNode) { return ChildHLODNode->HLODActorHandle.IsLoaded(); });
 			if (bHasLoadedChildrenHLODs)
 			{
-				const float DistanceSquared = Bounds.ComputeSquaredDistanceFromBoxToPoint(InCameraLocation);
+				const double DistanceSquared = Bounds.ComputeSquaredDistanceFromBoxToPoint(InCameraLocation);
 				const bool bNearCulled = DistanceSquared < FMath::Square(HLODActor->GetMinVisibleDistance());
 				bNodeShouldBeVisible = !bNearCulled;
+			}
+			
+			// Apply HLOD min/max draw distance user setting
+			if (bNodeShouldBeVisible && (InMinDrawDistance != 0 || InMaxDrawDistance != 0))
+			{
+				const double DistanceSquared = Bounds.ComputeSquaredDistanceFromBoxToPoint(InCameraLocation);
+				const bool bNearCulled = InMinDrawDistance == 0 ? false : DistanceSquared < FMath::Square(InMinDrawDistance);
+				const bool bFarCulled = InMaxDrawDistance == 0 ? false : DistanceSquared > FMath::Square(InMaxDrawDistance);
+				bNodeShouldBeVisible = !bNearCulled && !bFarCulled;
 			}
 		}
 
@@ -248,7 +263,7 @@ void FHLODSceneNode::UpdateVisibility(const FVector& InCameraLocation, bool bInF
 	const bool bForceHideChildren = bNodeShouldBeVisible || bInForceHidden;
 	for (FHLODSceneNode* Child : ChildrenHLODs)
 	{
-		Child->UpdateVisibility(InCameraLocation, bForceHideChildren, bInForceVisibilityUpdate, InLastStateUpdate);
+		Child->UpdateVisibility(InCameraLocation, InMinDrawDistance, InMaxDrawDistance, bForceHideChildren, bInForceVisibilityUpdate, InLastStateUpdate);
 	}
 }
 

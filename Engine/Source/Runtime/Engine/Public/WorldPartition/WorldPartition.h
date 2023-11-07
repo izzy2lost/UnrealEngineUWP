@@ -392,6 +392,8 @@ public:
 
 	bool IsEnablingStreamingJustified() const { return bEnablingStreamingJustified; }
 
+	bool IsHLODsInEditorAllowed() const { return bAllowShowingHLODsInEditor; }
+
 	const TMap<FGuid, FDirtyActor>& GetDirtyActors() const { return DirtyActors; }
 #endif
 
@@ -497,6 +499,12 @@ private:
 	UPROPERTY(EditAnywhere, Category = WorldPartitionSetup, AdvancedDisplay)
 	EWorldPartitionDataLayersLogicOperator DataLayersLogicOperator;
 
+#if WITH_EDITORONLY_DATA
+	/** Whether HLODs should be allowed to be displayed in the editor for this map */
+	UPROPERTY(EditAnywhere, Category = WorldPartitionSetup, AdvancedDisplay, meta = (EditConditionHides, EditCondition = "bEnableStreaming", HideEditConditionToggle))
+	uint8 bAllowShowingHLODsInEditor : 1;
+#endif
+
 	TObjectPtr<UWorld> World;
 
 #if WITH_EDITOR
@@ -577,7 +585,7 @@ private:
 	ENGINE_API void HashActorDesc(FWorldPartitionActorDesc* ActorDesc);
 	ENGINE_API void UnhashActorDesc(FWorldPartitionActorDesc* ActorDesc);
 	void OnContentBundleRemovedContent(const FContentBundleEditor* ContentBundle);
-	bool IsStreamingEnabledInEditor() const;
+	ENGINE_API bool IsStreamingEnabledInEditor() const;
 
 public:
 	// Editor loader adapters management
