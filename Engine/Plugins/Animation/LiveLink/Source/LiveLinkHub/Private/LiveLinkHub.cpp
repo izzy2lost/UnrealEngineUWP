@@ -22,6 +22,9 @@ void FLiveLinkHub::Initialize()
 	LiveLinkProvider = MakeShared<FLiveLinkHubProvider>();
 	LiveLinkHubClient = MakeShared<FLiveLinkHubClient>(AsShared());
 
+	CommandExecutor = MakeUnique<FConsoleCommandExecutor>();
+	IModularFeatures::Get().RegisterModularFeature(IConsoleCommandExecutor::ModularFeatureName(), CommandExecutor.Get());
+	
 	IModularFeatures::Get().RegisterModularFeature(ILiveLinkClient::ModularFeatureName, LiveLinkHubClient.Get());
 
 	RecordingController = MakeShared<FLiveLinkHubRecordingController>();

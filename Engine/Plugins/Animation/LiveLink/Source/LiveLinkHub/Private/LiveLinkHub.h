@@ -4,6 +4,8 @@
 
 #include "LiveLinkTypes.h"
 #include "Templates/SubclassOf.h"
+#include "Templates/UniquePtr.h"
+#include "Toolkits/FConsoleCommandExecutor.h"
 
 class FLiveLinkHubClient;
 class FLiveLinkHubClientsController;
@@ -85,6 +87,8 @@ private:
 	TSharedPtr<FLiveLinkHubClient> LiveLinkHubClient;
 	/** LiveLinkProvider used to transfer data to connected UE clients. */
 	TSharedPtr<FLiveLinkHubProvider> LiveLinkProvider;
+	/** Handles execution of commands */
+	TUniquePtr<FConsoleCommandExecutor> CommandExecutor;
 
 	friend class FLiveLinkHubModule;
 };

@@ -9,6 +9,7 @@
 #include "Misc/App.h"
 #include "Modules/ModuleManager.h"
 #include "Recording/LiveLinkHubRecordingController.h"
+#include "SLiveLinkHubStatusBar.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SComboButton.h"
 #include "Widgets/Layout/SBorder.h"
@@ -36,7 +37,8 @@ TSharedRef<SWidget> GetModeSwitcherContent()
 void SLiveLinkHubTabViewBase::Construct(const FArguments& InArgs)
 {
 	TSharedPtr<FLiveLinkHub> LiveLinkHub = FModuleManager::Get().GetModuleChecked<FLiveLinkHubModule>("LiveLinkHub").GetLiveLinkHub();
-
+	const FName StatusBarId = TEXT("LiveLinkHubStatusBar");
+	
 	ChildSlot
 	[
 		SNew(SBorder)
@@ -101,6 +103,17 @@ void SLiveLinkHubTabViewBase::Construct(const FArguments& InArgs)
 			.Padding(1.0f, 2.0f)
 			[
 				InArgs._Content.Widget
+			]
+			+SVerticalBox::Slot()
+			.AutoHeight()
+			[
+				SNew(SSeparator)
+				.Orientation(Orient_Horizontal)
+			]
+			+SVerticalBox::Slot()
+			.AutoHeight()
+			[
+				SNew(SLiveLinkHubStatusBar, StatusBarId)
 			]
 		]
 	];

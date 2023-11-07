@@ -35,6 +35,7 @@ namespace UnrealBuildTool.Rules
 				"TimeManagement",
 				"ToolWidgets",
 				"UnrealEd",
+				"OutputLog",
 			});
 		}
 	}

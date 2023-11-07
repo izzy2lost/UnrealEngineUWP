@@ -12,7 +12,6 @@ class SLiveLinkHubMainTabView : public SLiveLinkHubTabViewWithManagerBase
 {
 public:
 	//~ Tab IDs
-	static const FName StatusBarTabId;
 	static const FName SourcesTabId;
 	static const FName SourceDetailsTabId;
 	static const FName SubjectsTabId;

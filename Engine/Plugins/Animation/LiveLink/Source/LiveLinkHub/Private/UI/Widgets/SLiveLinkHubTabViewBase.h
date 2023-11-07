@@ -20,7 +20,6 @@ public:
 
 	/**
 	 * @param InArgs
-	 * @param InStatusBarId Unique ID needed for the status bar
 	 */
 	void Construct(const FArguments& InArgs);
 };

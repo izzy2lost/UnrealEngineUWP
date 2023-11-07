@@ -22,7 +22,6 @@
 
 #define LOCTEXT_NAMESPACE "LiveLinkHub.SLiveLinkHubMainTabView"
 
-const FName SLiveLinkHubMainTabView::StatusBarTabId("StatusBarTabId");
 const FName SLiveLinkHubMainTabView::SourcesTabId("SourcesTabId");
 const FName SLiveLinkHubMainTabView::SourceDetailsTabId("SourceDetailsTabId");
 const FName SLiveLinkHubMainTabView::SubjectsTabId("SubjectsTabId");
