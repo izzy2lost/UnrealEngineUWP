@@ -211,6 +211,11 @@ bool FObjectPtrProperty::AllowObjectTypeReinterpretationTo(const FObjectProperty
 	return Other && Other->IsA<FObjectProperty>();
 }
 
+bool FObjectPtrProperty::AllowCrossLevel() const
+{
+	return HasAnyPropertyFlags(CPF_InstancedReference);
+}
+
 uint32 FObjectPtrProperty::GetValueTypeHashInternal(const void* Src) const
 {
 	return GetTypeHash((FObjectPtr&)GetPropertyValue(Src));
