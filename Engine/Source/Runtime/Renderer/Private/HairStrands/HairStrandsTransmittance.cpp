@@ -506,7 +506,7 @@ static void AddHairStrandsVoxelShadowMaskPass(
 	FHairStrandsVoxelShadowMaskPS::FPermutationDomain PermutationVector;
 	PermutationVector.Set<FHairStrandsVoxelShadowMaskPS::FOnePass>(bOnePass);
 
-	TShaderMapRef<FPostProcessVS> VertexShader(View.ShaderMap);
+	TShaderMapRef<FScreenVS> VertexShader(View.ShaderMap);
 	TShaderMapRef<FHairStrandsVoxelShadowMaskPS> PixelShader(View.ShaderMap, PermutationVector);
 	const FGlobalShaderMap* GlobalShaderMap = View.ShaderMap;
 	const FIntRect Viewport = View.ViewRect;
@@ -701,7 +701,7 @@ static void AddHairStrandsDeepShadowMaskPass(
 	PermutationVector.Set<FHairStrandsDeepShadowMaskPS::FKernelType>(FMath::Clamp(GStrandHairShadowMaskKernelType, 0, 4));
 
 	const FIntPoint OutputResolution = SceneDepthTexture->Desc.Extent;
-	TShaderMapRef<FPostProcessVS> VertexShader(View.ShaderMap);
+	TShaderMapRef<FScreenVS> VertexShader(View.ShaderMap);
 	TShaderMapRef<FHairStrandsDeepShadowMaskPS> PixelShader(View.ShaderMap, PermutationVector);
 	const FGlobalShaderMap* GlobalShaderMap = View.ShaderMap;
 	const FIntRect Viewport = View.ViewRect;
