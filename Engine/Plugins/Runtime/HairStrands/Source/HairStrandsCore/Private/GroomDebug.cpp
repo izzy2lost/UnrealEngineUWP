@@ -885,7 +885,7 @@ static void AddHairDebugPrintInstancePass(
 	// Force ShaderPrint on.
 	ShaderPrint::SetEnabled(true);
 	// Request more drawing primitives & characters for printing if needed	
-	ShaderPrint::RequestSpaceForLines(InstanceCount * 16u);
+	ShaderPrint::RequestSpaceForLines(InstanceCount * 64u);
 	ShaderPrint::RequestSpaceForCharacters(InstanceCount * 256 + 512);
 
 	if (!ShaderPrintData || InstanceCount == 0) { return; }

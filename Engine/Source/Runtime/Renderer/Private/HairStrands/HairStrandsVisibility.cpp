@@ -3853,6 +3853,7 @@ void AddHairStrandsSelectionOutlinePass(
 	FRDGBuilder& GraphBuilder,
 	const FViewInfo& View,
 	const FIntRect& ViewportRect,
+	const FHairStrandsMacroGroupDatas& MacroGroupDatas,
 	FRDGTextureRef VisNodeIndex,
 	FRDGBufferRef VisNodeData,
 	FRDGTextureRef CoverageTexture,
@@ -3864,13 +3865,19 @@ void AddHairStrandsSelectionOutlinePass(
 	}
 
 #if WITH_EDITOR
-	// Create mapping table between PrimitiveId and BatchId
+	// Create mapping table between MaterialId and BatchId
 	TArray<uint32> SelectionMaterialId;
-	SelectionMaterialId.Reserve(View.HairStrandsMeshElements.Num());
-	for (const FMeshBatchAndRelevance& MeshBatch : View.HairStrandsMeshElements)
+	SelectionMaterialId.Init(0u, View.HairStrandsMeshElements.Num());
+	for (const FHairStrandsMacroGroupData& MacroGroupData : MacroGroupDatas)
 	{
-		const uint32 bSelected = MeshBatch.PrimitiveSceneProxy->IsSelected() ? 1u : 0u;
-		SelectionMaterialId.Add(bSelected);
+		for (const FHairStrandsMacroGroupData::PrimitiveInfo& PrimitiveInfo : MacroGroupData.PrimitivesInfos)
+		{
+			if (SelectionMaterialId.IsValidIndex(PrimitiveInfo.MaterialId) && PrimitiveInfo.PrimitiveSceneProxy)
+			{
+				const uint32 bSelected = PrimitiveInfo.PrimitiveSceneProxy->IsSelected() ? 1u : 0u;
+				SelectionMaterialId[PrimitiveInfo.MaterialId] = bSelected;
+			}
+		}
 	}
 
 	FRDGBufferRef SelectionMaterialIdBuffer = CreateUploadBuffer(GraphBuilder, TEXT("Hair.MaterialIdToHitProxyIdBuffer"), sizeof(uint32), SelectionMaterialId.Num(), SelectionMaterialId.GetData(), sizeof(uint32) * SelectionMaterialId.Num());
@@ -3938,6 +3945,7 @@ void AddHairStrandsHitProxyIdPass(
 	FRDGBuilder& GraphBuilder,
 	const FScene& Scene,
 	const FViewInfo& View,
+	const FHairStrandsMacroGroupDatas& MacroGroupDatas,
 	FRDGTextureRef VisNodeIndex,
 	FRDGBufferRef VisNodeData,
 	FRDGTextureRef CoverageTexture,
@@ -3950,13 +3958,22 @@ void AddHairStrandsHitProxyIdPass(
 		return;
 	}
 
-	// Create mapping table between PrimitiveId and BatchId
+	// Create mapping table between MaterialId and BatchId
 	TArray<uint32> MaterialIdToHitProxyId;
-	MaterialIdToHitProxyId.Reserve(View.HairStrandsMeshElements.Num());
-	for (const FMeshBatchAndRelevance& MeshBatch : View.HairStrandsMeshElements)
+	MaterialIdToHitProxyId.Init(0u, View.HairStrandsMeshElements.Num());
+	for (const FHairStrandsMacroGroupData& MacroGroupData : MacroGroupDatas)
 	{
-		uint32 HitColor = MeshBatch.Mesh->BatchHitProxyId.GetColor().DWColor();
-		MaterialIdToHitProxyId.Add(HitColor);
+		for (const FHairStrandsMacroGroupData::PrimitiveInfo& PrimitiveInfo : MacroGroupData.PrimitivesInfos)
+		{
+			if (MaterialIdToHitProxyId.IsValidIndex(PrimitiveInfo.MaterialId))
+			{
+				if (const FMeshBatch* MeshBatch = PrimitiveInfo.Mesh)
+				{
+					const uint32 HitColor = MeshBatch->BatchHitProxyId.GetColor().DWColor();
+					MaterialIdToHitProxyId[PrimitiveInfo.MaterialId] = HitColor;
+				}
+			}
+		}
 	}
 
 	FRDGBufferRef MaterialIdToHitProxyIdBuffer = CreateUploadBuffer(GraphBuilder, TEXT("Hair.MaterialIdToHitProxyIdBuffer"), sizeof(uint32), MaterialIdToHitProxyId.Num(), MaterialIdToHitProxyId.GetData(), sizeof(uint32) * MaterialIdToHitProxyId.Num());
@@ -4073,6 +4090,7 @@ void DrawEditorSelection(FRDGBuilder& GraphBuilder, const FViewInfo& View, const
 		GraphBuilder,
 		View,
 		ViewportRect,
+		View.HairStrandsViewData.MacroGroupDatas,
 		View.HairStrandsViewData.VisibilityData.NodeIndex,
 		View.HairStrandsViewData.VisibilityData.NodeVisData,
 		View.HairStrandsViewData.VisibilityData.CoverageTexture,
@@ -4211,7 +4229,7 @@ void DrawHitProxies(
 			OutMaxNodeCount);
 	}
 
-	AddHairStrandsHitProxyIdPass(GraphBuilder, Scene, View, VisNodeIndex, VisNodeData, CoverageTexture, HitProxyTexture, HitProxyDepthTexture);
+	AddHairStrandsHitProxyIdPass(GraphBuilder, Scene, View, MacroGroupDatas, VisNodeIndex, VisNodeData, CoverageTexture, HitProxyTexture, HitProxyDepthTexture);
 }
 
 // Check if any simulated/skinned-bound groom has its positions updated (e.g. for invalidating the path-tracer accumulation)

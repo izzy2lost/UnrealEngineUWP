@@ -263,20 +263,34 @@ void CreateHairStrandsMacroGroups(
 		}
 	};
 
-	// 1. Add all visible hair-strands instances
-	static FBoxSphereBounds EmptyBound(ForceInit);
-	const int32 ActiveInstanceCount = Scene->HairStrandsSceneData.RegisteredProxies.Num();
-	TBitArray InstancesVisibility(false, ActiveInstanceCount);
+	// 0. Pre-sort visible instances by register index to get stable macro-groups
+	struct FVisibleBatch
+	{
+		const FMeshBatchAndRelevance* Batch = nullptr;
+		FHairGroupPublicData* HairData = nullptr;
+	};
+	TArray<FVisibleBatch> VisibleBatches;
+	VisibleBatches.Reserve(View.HairStrandsMeshElements.Num());
 	for (const FMeshBatchAndRelevance& MeshBatchAndRelevance : View.HairStrandsMeshElements)
 	{
 		if (HairStrands::IsHairStrandsVF(MeshBatchAndRelevance.Mesh))
 		{
 			if (FHairGroupPublicData* HairData = HairStrands::GetHairData(MeshBatchAndRelevance.Mesh))
 			{
-				UpdateMacroGroup(HairData, MeshBatchAndRelevance.Mesh, MeshBatchAndRelevance.PrimitiveSceneProxy, EmptyBound);
-				InstancesVisibility[HairData->Instance->RegisteredIndex] = true;
+				VisibleBatches.Add( { &MeshBatchAndRelevance, HairData });
 			}
 		}
+	}
+	VisibleBatches.Sort([](const FVisibleBatch& A, const FVisibleBatch& B) { return A.HairData->Instance->RegisteredIndex < B.HairData->Instance->RegisteredIndex; });
+
+	// 1. Add all visible hair-strands instances
+	static FBoxSphereBounds EmptyBound(ForceInit);
+	const int32 ActiveInstanceCount = Scene->HairStrandsSceneData.RegisteredProxies.Num();
+	TBitArray InstancesVisibility(false, ActiveInstanceCount);
+	for (FVisibleBatch& VisibleBatch : VisibleBatches)
+	{
+		UpdateMacroGroup(VisibleBatch.HairData, VisibleBatch.Batch->Mesh, VisibleBatch.Batch->PrimitiveSceneProxy, EmptyBound);
+		InstancesVisibility[VisibleBatch.HairData->Instance->RegisteredIndex] = true;
 	}
 
 	// 2. Add all hair-strands instances which are non-visible in primary view(s) but visible in shadow view(s)
