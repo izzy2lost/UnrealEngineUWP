@@ -541,6 +541,7 @@ void SMyBlueprint::Construct(const FArguments& InArgs, TWeakPtr<FBlueprintEditor
 		.OnGetSectionTitle(this, &SMyBlueprint::OnGetSectionTitle)
 		.OnGetSectionWidget(this, &SMyBlueprint::OnGetSectionWidget)
 		.OnActionMatchesName(this, &SMyBlueprint::HandleActionMatchesName)
+		.DefaultRowExpanderBaseIndentLevel(1)
 		.AlphaSortItems(false)
 		.UseSectionStyling(true);
 

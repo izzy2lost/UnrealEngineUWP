@@ -211,6 +211,7 @@ void SOptimusEditorGraphExplorer::CreateWidgets()
 	    .OnCanRenameSelectedAction(this, &SOptimusEditorGraphExplorer::CanRequestRenameOnActionNode)
 	    .OnGetSectionTitle(this, &SOptimusEditorGraphExplorer::OnGetSectionTitle)
 	    .OnGetSectionWidget(this, &SOptimusEditorGraphExplorer::OnGetSectionWidget)
+		.DefaultRowExpanderBaseIndentLevel(1)
 	    .AlphaSortItems(false)
 	    .UseSectionStyling(true);
 

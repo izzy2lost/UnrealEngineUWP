@@ -311,6 +311,7 @@ void SGraphActionMenu::Construct( const FArguments& InArgs, bool bIsReadOnly/* =
 	this->bIgnoreUIUpdate = false;
 	this->bUseSectionStyling = InArgs._UseSectionStyling;
 	this->bAllowPreselectedItemActivation = InArgs._bAllowPreselectedItemActivation;
+	this->DefaultRowExpanderBaseIndentLevel = InArgs._DefaultRowExpanderBaseIndentLevel;
 
 	this->bAutoExpandActionMenu = InArgs._AutoExpandActionMenu;
 	this->bShowFilterTextBox = InArgs._ShowFilterTextBox;
@@ -1022,7 +1023,7 @@ TSharedRef<ITableRow> SGraphActionMenu::MakeWidget( TSharedPtr<FGraphActionNode>
 	{
 		ExpanderWidget =
 			SNew(SExpanderArrow, TableRow)
-			.BaseIndentLevel(1);
+			.BaseIndentLevel(DefaultRowExpanderBaseIndentLevel);
 	}
 
 	RowContainer->AddSlot()
