@@ -89,11 +89,14 @@ void FGeometryCollectionISM::CreateISM(AActor* InOwningActor)
 void FGeometryCollectionISM::InitISM(const FGeometryCollectionStaticMeshInstance& InMeshInstance, bool bKeepAlive, bool bOverrideTransformUpdates)
 {
 	MeshInstance = InMeshInstance;
-	check(MeshInstance.StaticMesh);
 	check(ISMComponent != nullptr);
 
+	UStaticMesh* StaticMesh = MeshInstance.StaticMesh.Get();
+	// We should only get here for valid static mesh objects.
+	check(StaticMesh != nullptr);
+
 #if WITH_EDITOR
-	const FName ISMName = MakeUniqueObjectName(ISMComponent->GetOwner(), UInstancedStaticMeshComponent::StaticClass(), InMeshInstance.StaticMesh->GetFName());
+	const FName ISMName = MakeUniqueObjectName(ISMComponent->GetOwner(), UInstancedStaticMeshComponent::StaticClass(), StaticMesh->GetFName());
 	const FString ISMNameString = ISMName.ToString();
 	ISMComponent->Rename(*ISMNameString);
 #endif
@@ -104,10 +107,13 @@ void FGeometryCollectionISM::InitISM(const FGeometryCollectionStaticMeshInstance
 	ISMComponent->EmptyOverrideMaterials();
 	for (int32 MaterialIndex = 0; MaterialIndex < MeshInstance.MaterialsOverrides.Num(); MaterialIndex++)
 	{
-		ISMComponent->SetMaterial(MaterialIndex, MeshInstance.MaterialsOverrides[MaterialIndex]);
+		UMaterialInterface* Material = MeshInstance.MaterialsOverrides[MaterialIndex].Get();
+		// We should only get here for valid material objects.
+		check(Material != nullptr);
+		ISMComponent->SetMaterial(MaterialIndex, Material);
 	}
 
-	ISMComponent->SetStaticMesh(MeshInstance.StaticMesh);
+	ISMComponent->SetStaticMesh(StaticMesh);
 	ISMComponent->SetMobility((MeshInstance.Desc.Flags & FISMComponentDescription::StaticMobility) != 0 ? EComponentMobility::Static : EComponentMobility::Movable);
 
 	ISMComponent->NumCustomDataFloats = MeshInstance.Desc.NumCustomDataFloats;
@@ -437,13 +443,37 @@ void FGeometryCollectionISMPool::RequestPreallocateMeshInstance(const FGeometryC
 	}
 }
 
+static bool AreWeakPointersValid(FGeometryCollectionStaticMeshInstance& InMeshInstance)
+{
+	if (!InMeshInstance.StaticMesh.IsValid())
+	{
+		return false;
+	}
+
+	for (TWeakObjectPtr<UMaterialInterface> Material : InMeshInstance.MaterialsOverrides)
+	{
+		if (!Material.IsValid())
+		{
+			return false;
+		}
+	}
+
+	return true;
+}
+
 void FGeometryCollectionISMPool::ProcessPreallocationRequests(UGeometryCollectionISMPoolComponent* OwningComponent, int32 MaxPreallocations)
 {
 	int32 NumAdded = 0;
 	for (TSet<FGeometryCollectionStaticMeshInstance>::TIterator It(PrellocationQueue); It; ++It)
 	{
 		bool bISMCreated = false;
-		GetOrAddISM(OwningComponent, *It, bISMCreated);
+
+		// Objects in the entries of the preallocation queue may no longer be loaded.
+		if (AreWeakPointersValid(*It))
+		{
+			GetOrAddISM(OwningComponent, *It, bISMCreated);
+		}
+
 		It.RemoveCurrent();
 
 		if (bISMCreated)

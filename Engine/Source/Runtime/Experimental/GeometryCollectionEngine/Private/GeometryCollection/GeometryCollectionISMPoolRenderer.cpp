@@ -149,7 +149,8 @@ void UGeometryCollectionISMPoolRenderer::InitInstancesFromGeometryCollection(UGe
 			StaticMeshInstance.StaticMesh = const_cast<UStaticMesh*>(StaticMesh);
 			if (bMaterialOverride)
 			{
-				StaticMeshInstance.MaterialsOverrides = AutoInstanceMesh.Materials;
+				StaticMeshInstance.MaterialsOverrides.Reset();
+				StaticMeshInstance.MaterialsOverrides.Append(AutoInstanceMesh.Materials);
 			}
 
 			TArray<float> DummyCustomData;

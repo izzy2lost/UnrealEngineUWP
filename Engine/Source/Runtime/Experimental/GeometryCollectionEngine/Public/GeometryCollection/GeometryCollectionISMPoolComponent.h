@@ -157,14 +157,18 @@ FORCEINLINE uint32 GetTypeHash(const FISMComponentDescription& Desc)
  */
 struct FGeometryCollectionStaticMeshInstance
 {
-	UStaticMesh* StaticMesh = nullptr;
-	TArray<UMaterialInterface*> MaterialsOverrides;
+	TWeakObjectPtr<UStaticMesh> StaticMesh;
+	TArray<TWeakObjectPtr<UMaterialInterface>> MaterialsOverrides;
 	TArray<float> CustomPrimitiveData;
 	FISMComponentDescription Desc;
 
 	bool operator==(const FGeometryCollectionStaticMeshInstance& Other) const 
 	{
-		if (StaticMesh != Other.StaticMesh || !(Desc == Other.Desc))
+		if (!(Desc == Other.Desc))
+		{
+			return false;
+		}
+		if (!StaticMesh.HasSameIndexAndSerialNumber(Other.StaticMesh))
 		{
 			return false;
 		}
@@ -174,9 +178,7 @@ struct FGeometryCollectionStaticMeshInstance
 		}
 		for (int32 MatIndex = 0; MatIndex < MaterialsOverrides.Num(); MatIndex++)
 		{
-			const FName MatName = MaterialsOverrides[MatIndex] ? MaterialsOverrides[MatIndex]->GetFName() : NAME_None;
-			const FName OtherName = Other.MaterialsOverrides[MatIndex] ? Other.MaterialsOverrides[MatIndex]->GetFName() : NAME_None;
-			if (MatName != OtherName)
+			if (!MaterialsOverrides[MatIndex].HasSameIndexAndSerialNumber(Other.MaterialsOverrides[MatIndex]))
 			{
 				return false;
 			}
@@ -201,7 +203,7 @@ FORCEINLINE uint32 GetTypeHash(const FGeometryCollectionStaticMeshInstance& Mesh
 {
 	uint32 CombinedHash = GetTypeHash(MeshInstance.StaticMesh);
 	CombinedHash = HashCombineFast(CombinedHash, GetTypeHash(MeshInstance.MaterialsOverrides.Num()));
-	for (const UMaterialInterface* Material: MeshInstance.MaterialsOverrides)
+	for (const TWeakObjectPtr<UMaterialInterface> Material: MeshInstance.MaterialsOverrides)
 	{
 		CombinedHash = HashCombineFast(CombinedHash, GetTypeHash(Material));
 	}
