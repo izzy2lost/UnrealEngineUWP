@@ -51,6 +51,12 @@ namespace AutomationTest
 		bLogTestStateTrace,
 		TEXT("Whether to enable or disable logging of test state trace"));
 
+	static bool bEnableStereoTestVariants = false;
+	static FAutoConsoleVariableRef CVarAutomationEnableStereoTestVariants(
+		TEXT("Automation.EnableStereoTestVariants"),
+		bEnableStereoTestVariants,
+		TEXT("Whether to enable stereo test variants for screenshot functional tests"));
+
 	// The method prepares the filename and LineNumber to be placed in the form that could be extracted by SAutomationWindow widget if it is additionally eclosed into []
 	// The result format is filename(line)
 	static FString CreateFileLineDescription(const FString& Filename, const int32 LineNumber)
@@ -299,6 +305,11 @@ bool FAutomationTestFramework::NeedSkipStackWalk()
 bool FAutomationTestFramework::NeedLogBPTestMetadata()
 {
 	return AutomationTest::bLogBPTestMetadata;
+}
+
+bool FAutomationTestFramework::NeedPerformStereoTestVariants()
+{
+	return AutomationTest::bEnableStereoTestVariants;
 }
 
 bool FAutomationTestFramework::RegisterAutomationTest( const FString& InTestNameToRegister, FAutomationTestBase* InTestToRegister )

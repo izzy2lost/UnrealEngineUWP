@@ -19,11 +19,6 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ScreenshotFunctionalTest)
 
-static TAutoConsoleVariable<int32> CVarEnableStereoTestVariants(
-	TEXT("r.EnableStereoScreenshotTestVariants"), 0,
-	TEXT("Allows screenshot comparison tests with \"Support Stereo Test Variants\" checked to also test stereo rendering."),
-	ECVF_Default);
-
 AScreenshotFunctionalTest::AScreenshotFunctionalTest( const FObjectInitializer& ObjectInitializer )
 	: AScreenshotFunctionalTestBase(ObjectInitializer)
 	, bCameraCutOnScreenshotPrep(true)
@@ -46,7 +41,7 @@ void AScreenshotFunctionalTest::Serialize(FArchive& Ar)
 
 void AScreenshotFunctionalTest::PrepareTest()
 {
-	bShouldDoViewRectOffsetVariant = bSupportStereoTestVariants && CVarEnableStereoTestVariants.GetValueOnAnyThread() > 0;
+	bShouldDoViewRectOffsetVariant = bSupportStereoTestVariants && FAutomationTestFramework::NeedPerformStereoTestVariants();
 
 	// Pre-prep flush to allow rendering to temporary targets and other test resources
 	UAutomationBlueprintFunctionLibrary::FinishLoadingBeforeScreenshot();

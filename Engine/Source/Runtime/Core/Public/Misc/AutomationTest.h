@@ -1160,6 +1160,11 @@ public:
 	static CORE_API bool NeedLogBPTestMetadata();
 
 	/**
+	 * Whether to also run stereo test variants for screenshot functional testts
+	 */
+	static CORE_API bool NeedPerformStereoTestVariants();
+
+	/**
 	 * Notify that the screenshot comparison has completed
 	 */
 	CORE_API void NotifyScreenshotComparisonComplete(const FAutomationScreenshotCompareResults& CompareResults);

@@ -691,6 +691,14 @@ protected:
 						CVar->Set(false);
 					}					
 				}
+				else if (FParse::Command(&TempCmd, TEXT("EnableStereoTests")))
+				{
+					if (IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("Automation.EnableStereoTestVariants")))
+					{
+						Ar.Logf(TEXT("Automation: Enabling Stereo Test Variants"));
+						CVar->Set(true);
+					}
+				}
 				else
 				{
 					Ar.Logf(TEXT("Incorrect automation command syntax! Supported commands are: "));
@@ -705,6 +713,8 @@ protected:
 					Ar.Logf(TEXT("\tAutomation Now"));
 					Ar.Logf(TEXT("\tAutomation Quit"));
 					Ar.Logf(TEXT("\tAutomation SoftQuit"));
+					Ar.Logf(TEXT("\tAutomation IgnoreLogEvents"));
+					Ar.Logf(TEXT("\tAutomation EnableStereoTests"));
 					bHandled = false;
 				}
 			}
