@@ -43,6 +43,7 @@ namespace UE::MultiUserClient
 			.AdditionalColumns =
 			{
 				SingleClientColumns::ToggleSubobjectAuthority(AuthorityTracker, SubmissionWorkflow),
+				SingleClientColumns::ConflictWarningForSubobject(InClient, AuthorityCache, ReplicationClient->GetEndpointId()),
 				SingleClientColumns::OwnerOfSubobject(InClient, AuthorityCache)
 			}
 		};
@@ -59,7 +60,8 @@ namespace UE::MultiUserClient
 			},
 			.AdditionalPropertyColumns =
 			{
-				SingleClientColumns::OwnerOfProperty(InClient, AuthorityCache, MoveTemp(GetReplicationViewerAttribute))
+				SingleClientColumns::OwnerOfProperty(InClient, AuthorityCache, MoveTemp(GetReplicationViewerAttribute)),
+				SingleClientColumns::ConflictWarningForProperty(InClient, GetReplicationViewerAttribute, AuthorityCache, ReplicationClient->GetEndpointId())
 			},
 			.IsEditingEnabled = TAttribute<bool>::CreateLambda([&SubmissionWorkflow](){ return SubmissionWorkflow.GetUploadability() != EChangeUploadability::NotImplemented; }),
 			.EditingDisabledToolTipText = LOCTEXT("Editing.NotImplemented", "Editing remote clients is not implemented. You can only edit the local client."),

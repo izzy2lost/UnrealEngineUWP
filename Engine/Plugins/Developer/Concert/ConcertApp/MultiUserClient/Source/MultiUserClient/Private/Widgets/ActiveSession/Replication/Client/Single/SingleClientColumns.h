@@ -34,11 +34,13 @@ namespace UE::MultiUserClient::SingleClientColumns
 	enum class ESubobjectColumnOrder
 	{
 		ToggleAuthority = 0,
+		ConflictWarning = 5,
 		Owner = 20
 	};
 	/** @see UE::ConcertClientSharedSlate::ReplicationColumns::Property::EReplicationPropertyColumnOrder */
 	enum class EPropertyColumnOrder
 	{
+		ConflictWarning = 5,
 		Owner = 50
 	};
 
@@ -116,5 +118,43 @@ namespace UE::MultiUserClient::SingleClientColumns
 		const TSharedRef<IConcertClient>& InClient,
 		FGlobalAuthorityCache& InAuthorityCache,
 		const TAttribute<const ConcertClientSharedSlate::IReplicationStreamViewer*>& InViewerAttribute
+		);
+
+	
+	/********** Conflict warning **********/
+	extern const FName ConflictWarningTopLevelObjectColumnId;
+	extern const FName ConflictWarningSubobjectColumnId;
+	extern const FName ConflictWarningPropertyColumnId;
+	
+	/**
+	 * Displays a warning symbol next to the checkbox if checking the checkbox would cause an authority conflict when submitted.
+	 * 
+	 * @param InClient The local Concert client used to look up other client display info
+	 * @param InAuthorityCache Used to determine which client owns the object
+	 * @param ClientId ID of the client for which the icon is being created
+	 * 
+	 * @return Column that can be placed in the table
+	 */
+	ConcertClientSharedSlate::ReplicationColumns::FReplicationSubobjectObjectColumn ConflictWarningForSubobject(
+		TSharedRef<IConcertClient> InClient,
+		FGlobalAuthorityCache& InAuthorityCache,
+		const FGuid& ClientId
+		);
+
+	/**
+	 * Displays a warning symbol next to the checkbox if checking the checkbox would cause an authority conflict when submitted.
+	 * 
+	 * @param InClient The local Concert client used to look up other client display info
+	 * @param InViewer Used to determine which objects the property box is displaying
+	 * @param InAuthorityCache Used to determine which client owns the property
+	 * @param ClientId ID of the client for which to check whether the property can be added to the stream
+	 * 
+	 * @return Column that can be placed in the table
+	 */
+	ConcertClientSharedSlate::ReplicationColumns::FReplicationPropertyColumn ConflictWarningForProperty(
+		TSharedRef<IConcertClient> InClient,
+		TAttribute<const ConcertClientSharedSlate::IReplicationStreamViewer*> InViewer,
+		FGlobalAuthorityCache& InAuthorityCache,
+		const FGuid& ClientId
 		);
 }

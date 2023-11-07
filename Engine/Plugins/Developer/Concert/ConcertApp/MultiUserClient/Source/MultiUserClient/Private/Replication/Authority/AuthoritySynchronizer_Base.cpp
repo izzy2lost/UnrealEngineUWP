@@ -23,7 +23,6 @@ namespace UE::MultiUserClient
 			return EAuthorityMutability::NoProperties;
 		}
 
-		// TODO DP UE-198356 check whether this would cause a conflict with other clients
 		return EAuthorityMutability::Allowed;
 	}
 }

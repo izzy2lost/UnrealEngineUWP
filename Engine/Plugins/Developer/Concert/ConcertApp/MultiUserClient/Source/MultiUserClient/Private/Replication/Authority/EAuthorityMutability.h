@@ -13,9 +13,6 @@ namespace UE::MultiUserClient
 		/** The object has no registered properties. Cannot take authority. */
 		NoProperties,
 		
-		// TODO DP UE-198356: Add function to query which properties and clients are conflicting
-		/** Another client has authority over some of the object's registered properties already. Cannot take authority. */
-		ClientConflict,
 		/** The operation is not implemented. */
 		NotSupported
 	};

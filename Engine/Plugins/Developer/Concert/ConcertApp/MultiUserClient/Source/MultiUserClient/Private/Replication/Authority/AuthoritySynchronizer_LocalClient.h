@@ -18,6 +18,7 @@ namespace UE::MultiUserClient
 
 		//~ Begin IClientAuthoritySynchronizer Interface
 		virtual bool HasAuthorityOver(const FSoftObjectPath& ObjectPath) const override;
+		virtual bool HasAnyAuthority() const override;
 		//~ End IClientAuthoritySynchronizer Interface
 
 	private:

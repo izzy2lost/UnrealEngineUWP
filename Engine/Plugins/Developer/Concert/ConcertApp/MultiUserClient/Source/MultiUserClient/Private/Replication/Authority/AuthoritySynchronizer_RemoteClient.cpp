@@ -32,6 +32,11 @@ namespace UE::MultiUserClient
 		return EAuthorityMutability::NotSupported;
 	}
 
+	bool FAuthoritySynchronizer_RemoteClient::HasAnyAuthority() const
+	{
+		return !LastServerState.IsEmpty();
+	}
+
 	void FAuthoritySynchronizer_RemoteClient::HandleAuthorityQuery(const TArray<FReplicationAuthorityInfo>& PerStreamAuthority)
 	{
 		TSet<FSoftObjectPath> OldServerState = MoveTemp(LastServerState);

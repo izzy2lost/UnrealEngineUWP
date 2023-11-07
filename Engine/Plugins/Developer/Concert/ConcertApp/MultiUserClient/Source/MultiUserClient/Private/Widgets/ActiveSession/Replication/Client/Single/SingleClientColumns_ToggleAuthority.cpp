@@ -200,8 +200,6 @@ namespace UE::MultiUserClient::SingleClientColumns
 						{
 						case EAuthorityMutability::Allowed: return LOCTEXT("Subobject.ChangeAuthority.ToolTip.Allowed", "Toggles whether this object should be replicated.");
 						case EAuthorityMutability::NoProperties: return LOCTEXT("Subobject.ChangeAuthority.ToolTip.NoProperties", "Toggles whether this object should be replicated.\nAssign properties to this object first.\n");
-						// TODO DP UE-198356: Make the tooltip display info about the conflicting client
-						case EAuthorityMutability::ClientConflict: return LOCTEXT("Subobject.ChangeAuthority.ToolTip.ClientConflict", "Toggles whether this object should be replicated.\nAnother client already is already replicating some of the assigned properties.");
 						case EAuthorityMutability::NotSupported: return NotSupportedText;
 						default: checkNoEntry(); return FText::GetEmpty();
 						}

@@ -24,9 +24,12 @@ namespace UE::ConcertSyncServer::Replication
 				, Getters(Getters)
 			{}
 
-			virtual void ForEachStream(const FGuid& ClientEndpointId, TFunctionRef<EBreakBehavior(const FSharedReplicationStreamDescription& Stream)> Callback) const override
+			virtual void ForEachStream(const FGuid& ClientEndpointId, TFunctionRef<EBreakBehavior(const FGuid& StreamId, const FObjectReplicationMap& ReplicationMap)> Callback) const override
 			{
-				Getters.ForEachStream(ClientEndpointId, [&Callback](const FReplicationStreamDescription& Stream){ return Callback(Stream.BaseDescription); });
+				Getters.ForEachStream(ClientEndpointId, [&Callback](const FReplicationStreamDescription& Stream)
+				{
+					return Callback(Stream.BaseDescription.Identifier, Stream.BaseDescription.ReplicationMap);
+				});
 			}
 			
 			virtual void ForEachSendingClient(TFunctionRef<EBreakBehavior(const FGuid& ClientEndpointId)> Callback) const override

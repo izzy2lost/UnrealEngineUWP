@@ -388,15 +388,15 @@ namespace UE::ConcertSyncTests::Replication::Authority
 				, bExistingClientHasAuthority(bExistingClientHasAuthority)
 			{}
 
-			virtual void ForEachStream(const FGuid& ClientEndpointId, TFunctionRef<EBreakBehavior(const FSharedReplicationStreamDescription& Stream)> Callback) const override
+			virtual void ForEachStream(const FGuid& ClientEndpointId, TFunctionRef<EBreakBehavior(const FGuid& StreamId, const FObjectReplicationMap& ReplicationMap)> Callback) const override
 			{
 				if (ClientEndpointId == RequestingClientId)
 				{
-					Callback(RequestingClientStream);
+					Callback(RequestingClientStream.Identifier, RequestingClientStream.ReplicationMap);
 				}
 				if (ClientEndpointId == ExistingClientId)
 				{
-					Callback(ExistingClientStream);
+					Callback(ExistingClientStream.Identifier, ExistingClientStream.ReplicationMap);
 				}
 			}
 			

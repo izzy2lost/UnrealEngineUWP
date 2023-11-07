@@ -2,7 +2,6 @@
 
 #include "Replication/AuthorityConflictSharedUtils.h"
 
-#include "Replication/Data/ObjectIds.h"
 #include "Replication/Data/ReplicationStreamDescription.h"
 
 namespace UE::ConcertSyncCore::Replication::AuthorityConflictUtils
@@ -24,17 +23,16 @@ namespace UE::ConcertSyncCore::Replication::AuthorityConflictUtils
 				}
 				
 				EBreakBehavior Result = EBreakBehavior::Continue;
-				GroundTruth.ForEachStream(ClientEndpointId, [&Object, &Callback, &ClientEndpointId, &GroundTruth, &Result](const FSharedReplicationStreamDescription& Stream) mutable
+				GroundTruth.ForEachStream(ClientEndpointId, [&Object, &Callback, &ClientEndpointId, &GroundTruth, &Result](const FGuid& StreamId, const FObjectReplicationMap& ReplicationMap) mutable
 				{
 					// If client has not claimed authority over this object in this stream, skip
-					const FGuid& StreamId = Stream.Identifier;
 					if (!GroundTruth.HasAuthority(ClientEndpointId, StreamId, Object))
 					{
 						return EBreakBehavior::Continue;
 					}
 
 					// This client is using the request object: report the potential conflict ...
-					const FObjectReplicationMap& ObjectReplicationMap = Stream.ReplicationMap;
+					const FObjectReplicationMap& ObjectReplicationMap = ReplicationMap;
 					const FReplicatedObjectInfo* ReplicationObjectInfo = ObjectReplicationMap.ReplicatedObjects.Find(Object);
 					if (ReplicationObjectInfo && Callback(ClientEndpointId, StreamId, ReplicationObjectInfo->PropertySelection) == EBreakBehavior::Break)
 					{

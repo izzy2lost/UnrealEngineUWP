@@ -2,6 +2,7 @@
 
 #include "GlobalAuthorityCache.h"
 
+#include "Replication/AuthorityConflictSharedUtils.h"
 #include "Replication/Client/RemoteReplicationClient.h"
 #include "Replication/Client/ReplicationClientManager.h"
 
@@ -55,6 +56,52 @@ namespace UE::MultiUserClient
 			return EBreakBehavior::Continue;
 		});
 		return Result;
+	}
+
+	FGlobalAuthorityCache::ECanTakeAuthority FGlobalAuthorityCache::CanClientTakeAuthority(const FSoftObjectPath& Object, const FGuid& ClientId, FProcessPropertyConflict ProcessConflict) const
+	{
+		const FReplicationClient* Client = ClientManager.FindClient(ClientId);
+		if (!ensure(Client))
+		{
+			return ECanTakeAuthority::NotApplicable;
+		}
+		
+		const FReplicatedObjectInfo* ObjectInfo = Client->GetStreamSynchronizer().GetServerState().ReplicatedObjects.Find(Object);
+		if (!ObjectInfo)
+		{
+			// Nothing to take authority over
+			return ECanTakeAuthority::NotApplicable;
+		}
+		
+		using namespace ConcertSyncCore::Replication::AuthorityConflictUtils;
+		const EAuthorityConflict Conflict = EnumerateAuthorityConflicts(
+			ClientId,
+			Object,
+			ObjectInfo->PropertySelection.ReplicatedProperties,
+			*this,
+			[&ProcessConflict](const FGuid& ClientId, const FGuid&, const FConcertPropertyChain& ConflictingProperty)
+			{
+				return ProcessConflict(ClientId, ConflictingProperty);
+			});
+		return Conflict == EAuthorityConflict::Allowed ? ECanTakeAuthority::Allowed : ECanTakeAuthority::Conflict;
+	}
+
+	bool FGlobalAuthorityCache::CanClientAddProperty(const FSoftObjectPath& Object, const FGuid& ClientId, const FConcertPropertyChain& Chain) const
+	{
+		const FReplicationClient* Client = ClientManager.FindClient(ClientId);
+		if (!ensure(Client))
+		{
+			return false;
+		}
+		
+		using namespace ConcertSyncCore::Replication::AuthorityConflictUtils;
+		const EAuthorityConflict Conflict = EnumerateAuthorityConflicts(
+			ClientId,
+			Object,
+			{ Chain },
+			*this
+			);
+		return Conflict == EAuthorityConflict::Allowed;
 	}
 
 	TOptional<FGuid> FGlobalAuthorityCache::GetClientWithAuthorityOverProperty(const FSoftObjectPath& Object, const FConcertPropertyChain& Property) const
@@ -125,5 +172,44 @@ namespace UE::MultiUserClient
 				It.RemoveCurrent();
 			}
 		}
+	}
+
+	void FGlobalAuthorityCache::ForEachStream(const FGuid& ClientEndpointId, TFunctionRef<EBreakBehavior(const FGuid& StreamId, const FObjectReplicationMap& ReplicationMap)> Callback) const
+	{
+		const FReplicationClient* Client = ClientManager.FindClient(ClientEndpointId);
+		if (!ensure(Client))
+		{
+			return;
+		}
+
+		const IClientStreamSynchronizer& StreamSynchronizer = Client->GetStreamSynchronizer();
+		Callback(StreamSynchronizer.GetStreamId(), StreamSynchronizer.GetServerState());
+	}
+
+	void FGlobalAuthorityCache::ForEachSendingClient(TFunctionRef<EBreakBehavior(const FGuid& ClientEndpointId)> Callback) const
+	{
+		auto ProcessClient = [&Callback](const FReplicationClient& Client)
+		{
+			return Client.GetAuthoritySynchronizer().HasAnyAuthority()
+				? Callback(Client.GetEndpointId())
+				:EBreakBehavior::Continue;
+		};
+
+		if (ProcessClient(ClientManager.GetLocalClient()) == EBreakBehavior::Break)
+		{
+			return;
+		}
+		for (const TNonNullPtr<FRemoteReplicationClient>& RemoteClient : ClientManager.GetRemoteClients())
+		{
+			if (ProcessClient(*RemoteClient) == EBreakBehavior::Break)
+			{
+				break;
+			}
+		}
+	}
+
+	bool FGlobalAuthorityCache::HasAuthority(const FGuid& ClientId, const FGuid& StreamId, const FSoftObjectPath& ObjectPath) const
+	{
+		return GetClientsWithAuthorityOverObject(ObjectPath).Contains(ClientId);
 	}
 }

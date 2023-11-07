@@ -216,7 +216,6 @@ namespace UE::ConcertClientSharedSlate
 		if (RowData.IsSeparator())
 		{
 			return SNew(SBox)
-				.Padding(1.f)
 				[
 					SNew(SSeparator)
 					.SeparatorImage(FAppStyle::Get().GetBrush("Menu.Separator"))

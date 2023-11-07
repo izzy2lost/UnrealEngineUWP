@@ -4,6 +4,8 @@
 
 #include "Replication/Client/RemoteReplicationClient.h"
 
+#include "Replication/AuthorityConflictSharedUtils.h"
+
 #include "Delegates/Delegate.h"
 #include "Templates/Function.h"
 
@@ -22,9 +24,11 @@ namespace UE::MultiUserClient
 	 * Allows efficient look-up of which objects and properties are owned by which clients.
 	 * This class efficiently answers the question: "Which clients own this object?"
 	 */
-	class FGlobalAuthorityCache : public FNoncopyable
+	class FGlobalAuthorityCache : public FNoncopyable, private ConcertSyncCore::Replication::AuthorityConflictUtils::IReplicationGroundTruth
 	{
 	public:
+
+		using FProcessPropertyConflict = TFunctionRef<EBreakBehavior(const FGuid& ConflictingClientId, const FConcertPropertyChain& Property)>;
 		
 		FGlobalAuthorityCache(FReplicationClientManager& InClientManager);
 		~FGlobalAuthorityCache();
@@ -33,6 +37,19 @@ namespace UE::MultiUserClient
 		void ForEachClientWithAuthorityOverObject(const FSoftObjectPath& Object, TFunctionRef<EBreakBehavior(const FGuid& ClientId)> Callback) const;
 		/** Util that uses ForEachClientWithAuthorityOverObject to make an array. */
 		TArray<FGuid> GetClientsWithAuthorityOverObject(const FSoftObjectPath& Object) const;
+
+		enum class ECanTakeAuthority
+		{
+			/** The specified client has no properties, does not exist, etc. */
+			NotApplicable,
+			Conflict,
+			Allowed
+		};
+		
+		/** @return Whether the given client can take authority over the object without causing any conflicts. */
+		ECanTakeAuthority CanClientTakeAuthority(const FSoftObjectPath& Object, const FGuid& ClientId, FProcessPropertyConflict ProcessConflict = [](auto&, auto&){ return EBreakBehavior::Break; }) const;
+		/** @return Whether the given client add the given property to the object without causing any conflicts. */
+		bool CanClientAddProperty(const FSoftObjectPath& Object, const FGuid& ClientId, const FConcertPropertyChain& Chain) const;
 
 		/** Gets the client that has authority over the given property, if there is any. */
 		TOptional<FGuid> GetClientWithAuthorityOverProperty(const FSoftObjectPath& Object, const FConcertPropertyChain& Property) const;
@@ -73,6 +90,12 @@ namespace UE::MultiUserClient
 			AddClient(ClientId);
 			OnCacheChangedDelegate.Broadcast(ClientId);
 		}
+
+		//~ Begin IReplicationGroundTruth Interface
+		virtual void ForEachStream(const FGuid& ClientEndpointId, TFunctionRef<EBreakBehavior(const FGuid& StreamId, const FObjectReplicationMap& ReplicationMap)> Callback) const override;
+		virtual void ForEachSendingClient(TFunctionRef<EBreakBehavior(const FGuid& ClientEndpointId)> Callback) const override;
+		virtual bool HasAuthority(const FGuid& ClientId, const FGuid& StreamId, const FSoftObjectPath& ObjectPath) const override;
+		//~ End IReplicationGroundTruth Interface
 	};
 }
 

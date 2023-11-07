@@ -35,6 +35,23 @@ namespace UE::MultiUserClient
 		return ensure(ReplicationManager) && !ReplicationManager->GetClientOwnedStreamsForObject(ObjectPath).IsEmpty();
 	}
 
+	bool FAuthoritySynchronizer_LocalClient::HasAnyAuthority() const
+	{
+		const IConcertClientReplicationManager* ReplicationManager = Client->GetReplicationManager();
+		if (!ensure(ReplicationManager))
+		{
+			return false;
+		}
+		
+		bool bReached = false;
+		ReplicationManager->ForEachClientOwnedObject([&bReached](const FSoftObjectPath& Object, TSet<FGuid>&& OwningStreams)
+		{
+			bReached = true;
+			return EBreakBehavior::Break;
+		});
+		return bReached;
+	}
+
 	void FAuthoritySynchronizer_LocalClient::OnAuthorityChanged() const
 	{
 		OnServerStateChangedDelegate.Broadcast();

@@ -7,6 +7,7 @@
 #include "Replication/Editor/View/IReplicationStreamViewer.h"
 #include "Replication/Editor/View/ReplicationColumnsUtils.h"
 #include "Replication/Util/GlobalAuthorityCache.h"
+#include "Widgets/ActiveSession/Replication/Client/ClientUtils.h"
 #include "Widgets/ClientName/SClientName.h"
 
 #define LOCTEXT_NAMESPACE "SingleClientColumns.Owner"
@@ -24,17 +25,7 @@ namespace UE::MultiUserClient::SingleClientColumns
 		{
 			for (const FGuid& ClientId : Clients)
 			{
-				FConcertSessionClientInfo ClientInfo;
-				const TSharedPtr<IConcertClientSession> Session = InClient->GetCurrentSession();
-				const bool bIsLocalClient = ensure(Session) && Session->GetSessionClientEndpointId() == ClientId;
-				if (bIsLocalClient)
-				{
-					InOutSearchStrings.Add(ConcertClientSharedSlate::SClientName::GetDisplayText(Session->GetLocalClientInfo(), bIsLocalClient).ToString());
-				}
-				else if (ensure(Session) && Session->FindSessionClient(ClientId, ClientInfo))
-				{
-					InOutSearchStrings.Add(ConcertClientSharedSlate::SClientName::GetDisplayText(ClientInfo.ClientInfo, bIsLocalClient).ToString());
-				}
+				InOutSearchStrings.Add(ClientUtils::GetClientDisplayName(*InClient, ClientId));
 			}
 		}
 	}

@@ -9,8 +9,8 @@
 
 struct FConcertPropertyChain;
 struct FConcertPropertySelection;
+struct FObjectReplicationMap;
 struct FReplicatedObjectId;
-struct FSharedReplicationStreamDescription;
 
 namespace UE::ConcertSyncCore::Replication::AuthorityConflictUtils
 {
@@ -30,7 +30,7 @@ namespace UE::ConcertSyncCore::Replication::AuthorityConflictUtils
 	public:
 
 		/** Provides a way to extract all streams registered to a given client. */
-		virtual void ForEachStream(const FGuid& ClientEndpointId, TFunctionRef<EBreakBehavior(const FSharedReplicationStreamDescription& Stream)> Callback) const = 0;
+		virtual void ForEachStream(const FGuid& ClientEndpointId, TFunctionRef<EBreakBehavior(const FGuid& StreamId, const FObjectReplicationMap& ReplicationMap)> Callback) const = 0;
 
 		/** Iterates through all clients have registered to send any data. */
 		virtual void ForEachSendingClient(TFunctionRef<EBreakBehavior(const FGuid& ClientEndpointId)> Callback) const = 0;

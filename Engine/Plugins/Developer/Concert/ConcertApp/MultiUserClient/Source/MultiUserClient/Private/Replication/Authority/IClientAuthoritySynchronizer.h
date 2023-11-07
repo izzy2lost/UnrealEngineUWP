@@ -20,6 +20,9 @@ namespace UE::MultiUserClient
 		/** @return Whether the ObjectPath's authority can be changed. */
 		bool CanChangeAuthority(const FSoftObjectPath& ObjectPath) const { return GetChangeAuthorityMutability(ObjectPath) == EAuthorityMutability::Allowed; }
 
+		/** @return Whether this client is sending anything at all. */
+		virtual bool HasAnyAuthority() const = 0;
+
 		/** @return Whether the local instance thinks this client has authority over ObjectPath. */
 		virtual bool HasAuthorityOver(const FSoftObjectPath& ObjectPath) const = 0;
 

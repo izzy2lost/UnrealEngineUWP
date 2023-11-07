@@ -23,6 +23,7 @@ namespace UE::MultiUserClient
 
 		//~ Begin IClientAuthoritySynchronizer Interface
 		virtual EAuthorityMutability GetChangeAuthorityMutability(const FSoftObjectPath& ObjectPath) const override;
+		virtual bool HasAnyAuthority() const override;
 		virtual bool HasAuthorityOver(const FSoftObjectPath& ObjectPath) const override { return LastServerState.Contains(ObjectPath); }
 		//~ End IClientAuthoritySynchronizer Interface
 
