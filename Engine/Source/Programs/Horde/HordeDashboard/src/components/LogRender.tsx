@@ -298,7 +298,8 @@ export const renderLine = (navigate: NavigateFunction, line: LogLine | undefined
                return false;
             }
             
-            if (!renderedTags.has(ptype)) {               
+            if (!renderedTags.has(ptype)) {
+               line.format = line.format?.replaceAll(t, ptext);
                return false;
             }
                   
