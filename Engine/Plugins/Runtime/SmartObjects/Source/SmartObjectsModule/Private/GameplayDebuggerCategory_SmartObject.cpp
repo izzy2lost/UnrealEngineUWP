@@ -69,11 +69,11 @@ void FGameplayDebuggerCategory_SmartObject::CollectData(APlayerController* Owner
 	AddTextLine(FString::Printf(TEXT("{White}Collection entries = {Green}%d\n{White}Runtime objects (Active / Inactive) = {Green}%s {White}/ {Grey}%s\n{White}Registered components = {Green}%s"),
 		NumCollectionEntries, *LexToString(NumActiveObjects), *LexToString(NumRuntimeObjects-NumActiveObjects),  *LexToString(NumRegisteredComponents)));
 
-	const FColor FreeColor = FColorList::SeaGreen;
+	const FColor FreeColor = FColorList::LimeGreen;
 	const FColor ClaimedColor = FColorList::Gold;
 	const FColor OccupiedColor = FColorList::Red;
 	const FColor SlotDisabledColor = FColorList::LightGrey;
-	const FColor ObjectDisabledColor = FColorList::DimGrey;
+	const FColor ObjectDisabledColor = FColorList::Black;
 
 	const TMap<FSmartObjectHandle, FSmartObjectRuntime>& RuntimeSmartObjects = Subsystem->DebugGetRuntimeObjects();
 
