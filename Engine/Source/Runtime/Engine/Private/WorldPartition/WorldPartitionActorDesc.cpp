@@ -188,6 +188,10 @@ void FWorldPartitionActorDesc::Init(const AActor* InActor)
 		const AActor* AttachParentActor = InActor->GetAttachParentActor();
 		if (AttachParentActor)
 		{
+			while (AttachParentActor->GetParentActor())
+			{
+				AttachParentActor = AttachParentActor->GetParentActor();
+			}
 			ParentActor = AttachParentActor->GetActorGuid();
 		}
 
