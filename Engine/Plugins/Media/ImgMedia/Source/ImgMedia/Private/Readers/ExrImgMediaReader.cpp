@@ -344,6 +344,7 @@ void FExrImgMediaReader::UncancelFrame(int32 FrameNumber)
 TSharedPtr<IImgMediaReader, ESPMode::ThreadSafe> FExrImgMediaReader::GetReader(const TSharedRef <FImgMediaLoader, ESPMode::ThreadSafe>& InLoader, FString FirstImageInSequencePath)
 {
 	bool bIsCustomFormat = false;
+	bool bIsOptimizedForGpu = false;
 	FIntPoint TileSize(EForceInit::ForceInitToZero);
 
 #if defined(PLATFORM_WINDOWS) && PLATFORM_WINDOWS
@@ -359,6 +360,7 @@ TSharedPtr<IImgMediaReader, ESPMode::ThreadSafe> FExrImgMediaReader::GetReader(c
 	}
 
 	bIsCustomFormat = Info.FormatName.Equals(TEXT("EXR CUSTOM"));
+	bIsOptimizedForGpu = Info.FormatName.Equals(TEXT("EXR GPU")) || bIsCustomFormat;
 	if (bIsCustomFormat)
 	{
 		TileSize = Info.TileDimensions;
@@ -369,6 +371,7 @@ TSharedPtr<IImgMediaReader, ESPMode::ThreadSafe> FExrImgMediaReader::GetReader(c
 	if (GDynamicRHI && GDynamicRHI->GetInterfaceType() == ERHIInterfaceType::D3D12
 		&& Info.CompressionName == "Uncompressed" 
 		&& CVarEnableUncompressedExrGpuReader.GetValueOnAnyThread()
+		&& bIsOptimizedForGpu
 		)
 	{
 		TSharedRef<FExrImgMediaReaderGpu, ESPMode::ThreadSafe> GpuReader = 
@@ -416,7 +419,16 @@ bool FExrImgMediaReader::GetInfo(const FString& FilePath, FImgMediaFrameInfo& Ou
 	}
 	else
 	{
-		OutInfo.FormatName = TEXT("EXR");
+		// Can GPU reader be utilized to read this EXR file.
+		if (HeaderReader.IsOptimizedForGpu())
+		{
+			OutInfo.FormatName = TEXT("EXR GPU");
+		}
+		else
+		{
+			OutInfo.FormatName = TEXT("EXR");
+		}
+
 		OutInfo.bHasTiles = HeaderReader.GetTileSize(OutInfo.TileDimensions);
 		OutInfo.TileBorder = 0;
 	}

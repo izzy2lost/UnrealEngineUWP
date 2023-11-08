@@ -189,6 +189,23 @@ int32 FOpenExrHeaderReader::CalculateNumMipLevels(const FIntPoint& NumTiles) con
 	return 1;
 }
 
+bool FOpenExrHeaderReader::IsOptimizedForGpu() const
+{
+	const exr_attribute_t* Attribute = nullptr;
+
+	CheckExrResult(exr_get_attribute_by_name(*((exr_context_t*)FileContext.Get()), 0, EXR_ATTRIBUTE_CHANNELS, &Attribute));
+
+	for (int ChannelId = 0; ChannelId < Attribute->chlist->num_channels; ChannelId++)
+	{
+		const exr_pixel_type_t ChannelType = Attribute->chlist->entries[ChannelId].pixel_type;
+		if (ChannelType != EXR_PIXEL_HALF)
+		{
+			return false;
+		}
+	}
+	return Attribute->chlist->num_channels <= 4;
+}
+
 bool FOpenExrHeaderReader::GetTileSize(FIntPoint& OutTileSize) const
 {
 	const exr_attribute_t* Attribute = nullptr;
