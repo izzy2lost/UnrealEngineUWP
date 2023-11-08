@@ -522,6 +522,8 @@ namespace Gauntlet
 				throw new AutomationException("No build found that can support a role of {0}.", Role);
 			}
 
+			Log.Info("Selected build {Build} for test run.", Config.Build.ToString());
+
 			if (Role.Options != null)
 			{
 				UnrealTestConfiguration ConfigOptions = Role.Options as UnrealTestConfiguration;
