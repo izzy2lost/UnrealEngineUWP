@@ -783,6 +783,14 @@ void FAnimNode_BlendStack_Standalone::BlendTo(const FAnimationUpdateContext& Con
 	const UBlendProfile* BlendProfile, EAlphaBlendOption BlendOption, bool bUseInertialBlend, const FVector& BlendParameters, float PlayRate,
 	FName GroupName, EAnimGroupRole::Type GroupRole, EAnimSyncMethod GroupMethod)
 {
+	const bool bBlendStackIsEmpty = AnimPlayers.IsEmpty();
+
+	// If the blend stack is empty, we shouldn't blend. Pop into the requested pose.
+	if (bBlendStackIsEmpty)
+	{		
+		BlendTime = 0.0f;
+	}
+
 	if (bUseInertialBlend)
 	{
 		RequestInertialBlend(Context, BlendTime, BlendProfile, BlendOption);
@@ -791,7 +799,7 @@ void FAnimNode_BlendStack_Standalone::BlendTo(const FAnimationUpdateContext& Con
 
 	// If we don't add a new player, re-use the same graph...
 	int32 NewSamplePoseLinkIndex = CurrentSamplePoseLink;
-	if (!AnimPlayers.IsEmpty() && AnimPlayers[0].GetCurrentBlendInTime() < MaxBlendInTimeToOverrideAnimation)
+	if (!bBlendStackIsEmpty && AnimPlayers[0].GetCurrentBlendInTime() < MaxBlendInTimeToOverrideAnimation)
 	{
 		// replacing AnimPlayers[0] with this new BlendTo request
 		UE_LOG(LogBlendStack, Verbose, TEXT("FAnimNode_BlendStack_Standalone '%s' replaced by '%s' because blend time in is less than MaxBlendInTimeToOverrideAnimation (%.2f / %.2f)"), *AnimPlayers[0].GetAnimationName(), *GetNameSafe(AnimationAsset), AnimPlayers[0].GetCurrentBlendInTime(), MaxBlendInTimeToOverrideAnimation);
