@@ -239,7 +239,7 @@ struct TEntityGroupingHandlerImpl<GroupingPolicy, TIntegerSequence<int, Componen
 			const FMovieSceneEntityID EntityID(EntityIDs[Index]);
 			FEntityGroupID& GroupID(GroupIDs[Index]);
 
-			if (GroupID.IsValid())
+			if (GroupID.HasGroup())
 			{
 				const bool bIsGroupEmpty = Builder->RemoveEntityFromGroup(EntityID, GroupID);
 				if (bIsGroupEmpty)
@@ -260,7 +260,9 @@ struct TEntityGroupingHandlerImpl<GroupingPolicy, TIntegerSequence<int, Componen
 					FreedGroupIndices[GroupID.GroupIndex] = true;
 				}
 				// Leave the GroupID on the entity so that downstream systems can use it to track
-				// that this entity is leaving its group.
+				// that this entity is leaving its group, but flag it so we don't re-free it.
+				ensure(!EnumHasAllFlags(GroupID.Flags , EEntityGroupFlags::RemovedFromGroup));
+				GroupID.Flags |= EEntityGroupFlags::RemovedFromGroup;
 			}
 		}
 	}

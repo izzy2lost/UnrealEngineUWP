@@ -379,9 +379,14 @@ void UMovieSceneEntitySystemLinker::HandlePostGarbageCollection()
 	// Allow any other system to tag garbage
 	Events.TagGarbage.Broadcast(this);
 
-	auto RouteTagGarbage = [](UMovieSceneEntitySystem* System){ System->TagGarbage(); };
-	SystemGraph.IteratePhase(ESystemPhase::Spawn, RouteTagGarbage);
-	SystemGraph.IteratePhase(ESystemPhase::Instantiation, RouteTagGarbage);
+	TSet<UMovieSceneEntitySystem*> SystemsToTag;
+	auto GatherSystemsToTag = [&SystemsToTag](UMovieSceneEntitySystem* System){ SystemsToTag.Add(System); };
+	SystemGraph.IteratePhase(ESystemPhase::Spawn, GatherSystemsToTag);
+	SystemGraph.IteratePhase(ESystemPhase::Instantiation, GatherSystemsToTag);
+	for (UMovieSceneEntitySystem* System : SystemsToTag)
+	{
+		System->TagGarbage();
+	}
 
 	CleanGarbage();
 }

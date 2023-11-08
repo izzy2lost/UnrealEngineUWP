@@ -484,6 +484,17 @@ struct FEntityGroupingPolicyKey
 };
 
 /**
+ * Flags for FEntityGroupID
+ */
+enum class EEntityGroupFlags : uint8
+{
+	None = 0,
+	RemovedFromGroup = 1 << 0
+};
+
+ENUM_CLASS_FLAGS(EEntityGroupFlags);
+
+/**
  * The component data for describing what group an entity belongs to (see UMovieSceneEntityGroupingSystem)
  */
 struct FEntityGroupID
@@ -492,18 +503,28 @@ struct FEntityGroupID
 
 	FEntityGroupingPolicyKey PolicyKey;
 	int32 GroupIndex = INDEX_NONE;
+	EEntityGroupFlags Flags = EEntityGroupFlags::None;
 
 	FEntityGroupID() {}
 	FEntityGroupID(const FEntityGroupingPolicyKey InPolicyKey, int32 InGroupIndex) : PolicyKey(InPolicyKey), GroupIndex(InGroupIndex) {}
 
+	/**
+	 * Returns whether this component points to a valid grouping policy, and has a valid group.
+	 */
 	bool IsValid() const
 	{
 		return PolicyKey.IsValid() && GroupIndex != INDEX_NONE;
 	}
 
+	/**
+	 * Returns whether this component is valid (see IsValid) and if it still belongs to a group.
+	 * If the entity was removed from its group, the GroupIndex would still be valid, but we would
+	 * have set Flags to RemovedFromGroup. This lets downstream systems still know what group the
+	 * entity *used* to be part of, for their own book-keeping.
+	 */
 	bool HasGroup() const
 	{
-		return GroupIndex != INDEX_NONE;
+		return PolicyKey.IsValid() && GroupIndex != INDEX_NONE && !EnumHasAnyFlags(Flags, EEntityGroupFlags::RemovedFromGroup);
 	}
 
 	friend uint32 GetTypeHash(const FEntityGroupID& GroupID)

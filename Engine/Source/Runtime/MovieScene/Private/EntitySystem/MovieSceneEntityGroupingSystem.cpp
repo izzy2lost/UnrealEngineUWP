@@ -21,7 +21,7 @@ FEntityGroupBuilder::FEntityGroupBuilder(UMovieSceneEntityGroupingSystem* InOwne
 
 void FEntityGroupBuilder::AddEntityToGroup(const FMovieSceneEntityID& InEntity, const FEntityGroupID& InNewGroupID)
 {
-	if (ensure(InNewGroupID.IsValid()))
+	if (ensure(InNewGroupID.HasGroup()))
 	{
 		// Add the entity to the group.
 		UMovieSceneEntityGroupingSystem::FEntityGroupInfo& GroupInfo = Owner->Groups.FindOrAdd(InNewGroupID);
@@ -31,7 +31,7 @@ void FEntityGroupBuilder::AddEntityToGroup(const FMovieSceneEntityID& InEntity, 
 
 bool FEntityGroupBuilder::RemoveEntityFromGroup(const FMovieSceneEntityID& InEntity, const FEntityGroupID& InPreviousGroupID)
 {
-	if (ensure(InPreviousGroupID.IsValid()))
+	if (ensure(InPreviousGroupID.HasGroup()))
 	{
 		// Remove the entity from the group. We should find that group, and find that entity inside it.
 		UMovieSceneEntityGroupingSystem::FEntityGroupInfo* PreviousGroup = Owner->Groups.Find(InPreviousGroupID);
