@@ -330,6 +330,11 @@ namespace Metasound
 		// Create FOperatorInfos from Nodes
 		TSortedMap<FOperatorID, FGraphOperatorData::FOperatorInfo>& OperatorMap = InOutGraphOperatorData.OperatorMap;
 		TArray<FOperatorID>& OperatorOrder = InOutGraphOperatorData.OperatorOrder;
+
+		const int32 NumNodes = InSortedNodes.Num();
+		OperatorMap.Reserve(OperatorMap.Num() + NumNodes);
+		OperatorOrder.Reserve(OperatorOrder.Num() + NumNodes);
+
 		{
 			METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(Metasound::FOperatorBuilder::InitializeOperatorInfo::Nodes);
 			for (const INode* Node : InSortedNodes)
@@ -462,9 +467,11 @@ namespace Metasound
 			{
 #if METASOUND_CPUPROFILERTRACE_ENABLED
 				// Use node class name if valid, otherwise (for example graph nodes) use instance name 
+				TStringBuilder<256> TraceNamePtr;
 				const FNodeClassName& NodeClassName = Node->GetMetadata().ClassName;
-				const FString& NodeTraceName = NodeClassName.IsValid() ? NodeClassName.GetFullName().ToString() : Node->GetInstanceName().ToString();
-				METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*FString::Printf(TEXT("Metasound::FOperatorBuilder::CreateOperators::CreateAndBind %s"), *NodeTraceName));
+				const FName& NodeTraceName = NodeClassName.IsValid() ? NodeClassName.GetFullName() : Node->GetInstanceName();
+				TraceNamePtr << "Metasound::FOperatorBuilder::CreateOperators::CreateAndBind " << NodeTraceName;
+				METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*TraceNamePtr);
 #endif // METASOUND_CPUPROFILERTRACE_ENABLED
 
 				FBuildOperatorParams CreateParams{*Node, InOutContext.Settings, OperatorInfo.VertexData.GetInputs(), InOutContext.Environment, this};
