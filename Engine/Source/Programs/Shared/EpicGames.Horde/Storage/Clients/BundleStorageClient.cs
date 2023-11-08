@@ -258,7 +258,7 @@ namespace EpicGames.Horde.Storage.Clients
 		}
 
 		/// <inheritdoc/>
-		public Task WriteRefAsync(RefName name, IBlobHandle target, RefOptions? options, CancellationToken cancellationToken)
+		public Task WriteRefAsync(RefName name, IBlobHandle target, RefOptions? options = null, CancellationToken cancellationToken = default)
 			=> _inner.WriteRefAsync(name, target, options, cancellationToken);
 
 		#endregion

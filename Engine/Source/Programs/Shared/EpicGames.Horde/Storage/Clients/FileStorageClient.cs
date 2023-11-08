@@ -65,7 +65,7 @@ namespace EpicGames.Horde.Storage.Clients
 		public override async ValueTask<BlobData> ReadBlobAsync(BlobLocator locator, CancellationToken cancellationToken = default)
 		{
 			IReadOnlyMemoryOwner<byte> owner = await _backend.ReadAsync(locator.ToString(), cancellationToken);
-			return new ReadOnlyMemoryOwnerBlobData(BlobType.Leaf, owner, Array.Empty<IBlobHandle>());
+			return new BlobDataWithOwner(BlobType.Leaf, owner.Memory, Array.Empty<IBlobHandle>(), owner);
 		}
 
 		/// <inheritdoc/>

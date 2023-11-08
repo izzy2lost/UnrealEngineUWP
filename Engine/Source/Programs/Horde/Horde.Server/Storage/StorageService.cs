@@ -91,7 +91,7 @@ namespace Horde.Server.Storage
 			public async ValueTask<BlobData> ReadAsync(CancellationToken cancellationToken = default)
 			{
 				IReadOnlyMemoryOwner<byte> obj = await _backend.ReadAsync(_path, cancellationToken);
-				return new ReadOnlyMemoryOwnerBlobData(BlobType.Leaf, obj, Array.Empty<IBlobHandle>());
+				return new BlobDataWithOwner(BlobType.Leaf, obj.Memory, Array.Empty<IBlobHandle>(), obj);
 			}
 
 			/// <inheritdoc/>

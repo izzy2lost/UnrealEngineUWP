@@ -284,6 +284,24 @@ namespace EpicGames.Horde.Storage
 		/// <param name="node">Node to write</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>A flag indicating whether the node is dirty, and if it is, an optional bundle that contains it</returns>
+		public static async ValueTask<NodeRef<TNode>> WriteNodeAsync<TNode>(this IStorageWriter writer, TNode node, CancellationToken cancellationToken = default) where TNode : Node
+		{
+			// Serialize the node
+			BlobWriter nodeWriter = new BlobWriter(writer);
+			node.Serialize(nodeWriter);
+
+			// Write the final data
+			IBlobHandle handle = await writer.WriteBlobAsync(node.NodeType, nodeWriter.Length, nodeWriter.References, cancellationToken);
+			return new NodeRef<TNode>(handle);
+		}
+
+		/// <summary>
+		/// Writes an individual node to storage
+		/// </summary>
+		/// <param name="writer">Writer to serialize nodes to</param>
+		/// <param name="node">Node to write</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns>A flag indicating whether the node is dirty, and if it is, an optional bundle that contains it</returns>
 		public static async ValueTask<HashedNodeRef<TNode>> WriteHashedNodeAsync<TNode>(this IStorageWriter writer, TNode node, CancellationToken cancellationToken = default) where TNode : Node
 		{
 			// Serialize the node

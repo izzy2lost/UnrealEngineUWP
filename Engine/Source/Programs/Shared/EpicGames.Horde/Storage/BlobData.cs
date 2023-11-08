@@ -55,15 +55,15 @@ namespace EpicGames.Horde.Storage
 	/// <summary>
 	/// Implementation of <see cref="BlobData"/> for <see cref="IReadOnlyMemoryOwner{Byte}"/> instances.
 	/// </summary>
-	public class ReadOnlyMemoryOwnerBlobData : BlobData
+	public class BlobDataWithOwner : BlobData
 	{
-		readonly IReadOnlyMemoryOwner<byte> _owner;
+		readonly IDisposable _owner;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public ReadOnlyMemoryOwnerBlobData(BlobType type, IReadOnlyMemoryOwner<byte> owner, IReadOnlyList<IBlobHandle> refs)
-			: base(type, owner.Memory, refs)
+		public BlobDataWithOwner(BlobType type, ReadOnlyMemory<byte> data, IReadOnlyList<IBlobHandle> refs, IDisposable owner)
+			: base(type, data, refs)
 		{
 			_owner = owner;
 		}
