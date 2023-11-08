@@ -465,7 +465,7 @@ bool FWorldPartitionEditorModule::IsHLODInEditorAllowed(UWorld* InWorld, FText* 
 
 	if (!InWorld->GetWorldPartition()->IsHLODsInEditorAllowed())
 	{
-		SetDissallowedReason(LOCTEXT("HLODInEditor_StreamingDisabled", "HLOD in editor is disabled for this world"));
+		SetDissallowedReason(LOCTEXT("HLODInEditor_HLODsInEditorDisallowed", "HLOD in editor is disabled for this world"));
 		return false;
 	}
 
