@@ -662,6 +662,10 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Animation|Montage")
 	ENGINE_API float Montage_GetEffectivePlayRate(const UAnimMontage* Montage) const;
 
+	/** Returns true if there is an animation montage is currently active and playing that was created from the provided animation. */
+	UFUNCTION(BlueprintPure, Category = "Animation|Montage")
+	ENGINE_API bool DynamicMontage_IsPlayingFrom(const UAnimSequenceBase* Animation) const;
+
 	/*********************************************************************************************
 	* AnimMontage sync. See notes in AnimMontage.h
 	********************************************************************************************* */

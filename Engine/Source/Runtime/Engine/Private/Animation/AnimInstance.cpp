@@ -2773,6 +2773,29 @@ float UAnimInstance::Montage_GetEffectivePlayRate(const UAnimMontage* Montage) c
 	return 0.f;
 }
 
+bool UAnimInstance::DynamicMontage_IsPlayingFrom(const UAnimSequenceBase* Animation) const
+{
+	if (!Animation)
+	{
+		return false;
+	}
+
+	if (const UAnimMontage* AnimMontage = Cast<UAnimMontage>(Animation))
+	{
+		return Montage_IsPlaying(AnimMontage);
+	}
+
+	for (const TPair<UAnimMontage*, FAnimMontageInstance*>& ActiveMontage : ActiveMontagesMap)
+	{
+		if (ActiveMontage.Key->IsDynamicMontage() && ActiveMontage.Key->GetFirstAnimReference() == Animation)
+		{
+			return ActiveMontage.Value->IsPlaying();
+		}
+	}
+
+	return false;
+}
+
 void UAnimInstance::MontageSync_Follow(const UAnimMontage* MontageFollower, const UAnimInstance* OtherAnimInstance, const UAnimMontage* MontageLeader)
 {
 	if (!MontageFollower || !OtherAnimInstance || !MontageLeader)

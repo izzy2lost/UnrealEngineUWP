@@ -716,6 +716,12 @@ class UAnimMontage : public UAnimCompositeBase
 	/** return true if valid slot */
 	ENGINE_API bool IsValidSlot(FName InSlotName) const;
 
+	UFUNCTION(BlueprintPure, Category = "Montage")
+	ENGINE_API bool IsDynamicMontage() const;
+
+	UFUNCTION(BlueprintPure, Category = "Montage")
+	ENGINE_API UAnimSequenceBase* GetFirstAnimReference() const;
+
 public:
 	//~ Begin UObject Interface
 	virtual void PostLoad() override;

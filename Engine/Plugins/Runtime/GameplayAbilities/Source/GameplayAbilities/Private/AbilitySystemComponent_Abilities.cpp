@@ -2812,10 +2812,12 @@ float UAbilitySystemComponent::PlayMontage(UGameplayAbility* InAnimatingAbility,
 				}
 			}
 
+			UAnimSequenceBase* Animation = NewAnimMontage->IsDynamicMontage() ? NewAnimMontage->GetFirstAnimReference() : NewAnimMontage;
+
 			if (NewAnimMontage->HasRootMotion() && AnimInstance->GetOwningActor())
 			{
 				UE_LOG(LogRootMotion, Log, TEXT("UAbilitySystemComponent::PlayMontage %s, Role: %s")
-					, *GetNameSafe(NewAnimMontage)
+					, *GetNameSafe(Animation)
 					, *UEnum::GetValueAsString(TEXT("Engine.ENetRole"), AnimInstance->GetOwningActor()->GetLocalRole())
 					);
 			}
@@ -2843,14 +2845,21 @@ float UAbilitySystemComponent::PlayMontage(UGameplayAbility* InAnimatingAbility,
 				FGameplayAbilityRepAnimMontage& MutableRepAnimMontageInfo = GetRepAnimMontageInfo_Mutable();
 
 				// Those are static parameters, they are only set when the montage is played. They are not changed after that.
-				MutableRepAnimMontageInfo.AnimMontage = NewAnimMontage;
+				MutableRepAnimMontageInfo.Animation = Animation;
 				MutableRepAnimMontageInfo.PlayInstanceId = (MutableRepAnimMontageInfo.PlayInstanceId < UINT8_MAX ? MutableRepAnimMontageInfo.PlayInstanceId + 1 : 0);
 
 				MutableRepAnimMontageInfo.SectionIdToPlay = 0;
-				if (MutableRepAnimMontageInfo.AnimMontage && StartSectionName != NAME_None)
+				if (MutableRepAnimMontageInfo.Animation && StartSectionName != NAME_None)
 				{
 					// we add one so INDEX_NONE can be used in the on rep
-					MutableRepAnimMontageInfo.SectionIdToPlay = MutableRepAnimMontageInfo.AnimMontage->GetSectionIndex(StartSectionName) + 1;
+					MutableRepAnimMontageInfo.SectionIdToPlay = NewAnimMontage->GetSectionIndex(StartSectionName) + 1;
+				}
+
+				if (NewAnimMontage->IsDynamicMontage())
+				{
+					check(!NewAnimMontage->SlotAnimTracks.IsEmpty());
+					MutableRepAnimMontageInfo.SlotName = NewAnimMontage->SlotAnimTracks[0].SlotName;
+					MutableRepAnimMontageInfo.BlendOutTime = NewAnimMontage->GetDefaultBlendInTime();
 				}
 
 				// Update parameters that change during Montage life time.
@@ -2909,7 +2918,16 @@ void UAbilitySystemComponent::AnimMontage_UpdateReplicatedData(FGameplayAbilityR
 	const UAnimInstance* AnimInstance = AbilityActorInfo.IsValid() ? AbilityActorInfo->GetAnimInstance() : nullptr;
 	if (AnimInstance && LocalAnimMontageInfo.AnimMontage)
 	{
-		OutRepAnimMontageInfo.AnimMontage = LocalAnimMontageInfo.AnimMontage;
+		if (LocalAnimMontageInfo.AnimMontage->IsDynamicMontage())
+		{
+			OutRepAnimMontageInfo.Animation = LocalAnimMontageInfo.AnimMontage->GetFirstAnimReference();
+			OutRepAnimMontageInfo.BlendOutTime = LocalAnimMontageInfo.AnimMontage->GetDefaultBlendOutTime();
+		}
+		else
+		{
+			OutRepAnimMontageInfo.Animation = LocalAnimMontageInfo.AnimMontage;
+			OutRepAnimMontageInfo.BlendOutTime = 0.0f;
+		}
 
 		// Compressed Flags
 		const bool bIsStopped = AnimInstance->Montage_GetIsStopped(LocalAnimMontageInfo.AnimMontage);
@@ -3041,7 +3059,7 @@ void UAbilitySystemComponent::OnRep_ReplicatedAnimMontage()
 		{
 			ABILITY_LOG( Warning, TEXT("\n\nOnRep_ReplicatedAnimMontage, %s"), *GetNameSafe(this));
 			ABILITY_LOG( Warning, TEXT("\tAnimMontage: %s\n\tPlayRate: %f\n\tPosition: %f\n\tBlendTime: %f\n\tNextSectionID: %d\n\tIsStopped: %d\n\tPlayInstanceId: %d"),
-				*GetNameSafe(ConstRepAnimMontageInfo.AnimMontage),
+				*GetNameSafe(ConstRepAnimMontageInfo.Animation),
 				ConstRepAnimMontageInfo.PlayRate,
 				ConstRepAnimMontageInfo.Position,
 				ConstRepAnimMontageInfo.BlendTime,
@@ -3052,19 +3070,33 @@ void UAbilitySystemComponent::OnRep_ReplicatedAnimMontage()
 				*GetNameSafe(LocalAnimMontageInfo.AnimMontage), AnimInstance->Montage_GetPosition(LocalAnimMontageInfo.AnimMontage));
 		}
 
-		if(ConstRepAnimMontageInfo.AnimMontage )
+		if(ConstRepAnimMontageInfo.Animation)
 		{
 			// New Montage to play
-			if ((LocalAnimMontageInfo.AnimMontage != ConstRepAnimMontageInfo.AnimMontage) || 
+			UAnimSequenceBase* LocalAnimation = LocalAnimMontageInfo.AnimMontage && LocalAnimMontageInfo.AnimMontage->IsDynamicMontage() ? LocalAnimMontageInfo.AnimMontage->GetFirstAnimReference() : LocalAnimMontageInfo.AnimMontage;
+			if ((LocalAnimation != ConstRepAnimMontageInfo.Animation) ||
 			    (LocalAnimMontageInfo.PlayInstanceId != ConstRepAnimMontageInfo.PlayInstanceId))
 			{
 				LocalAnimMontageInfo.PlayInstanceId = ConstRepAnimMontageInfo.PlayInstanceId;
-				PlayMontageSimulated(ConstRepAnimMontageInfo.AnimMontage, ConstRepAnimMontageInfo.PlayRate);
+
+				if (UAnimMontage* MontageToPlay = Cast<UAnimMontage>(ConstRepAnimMontageInfo.Animation))
+				{
+					PlayMontageSimulated(MontageToPlay, ConstRepAnimMontageInfo.PlayRate);
+				}
+				else
+				{
+					PlaySlotAnimationAsDynamicMontageSimulated(
+						ConstRepAnimMontageInfo.Animation,
+						ConstRepAnimMontageInfo.SlotName,
+						ConstRepAnimMontageInfo.BlendTime,
+						ConstRepAnimMontageInfo.BlendOutTime,
+						ConstRepAnimMontageInfo.PlayRate);
+				}
 			}
 
 			if (LocalAnimMontageInfo.AnimMontage == nullptr)
 			{ 
-				ABILITY_LOG(Warning, TEXT("OnRep_ReplicatedAnimMontage: PlayMontageSimulated failed. Name: %s, AnimMontage: %s"), *GetNameSafe(this), *GetNameSafe(ConstRepAnimMontageInfo.AnimMontage));
+				ABILITY_LOG(Warning, TEXT("OnRep_ReplicatedAnimMontage: PlayMontageSimulated failed. Name: %s, Animation: %s"), *GetNameSafe(this), *GetNameSafe(ConstRepAnimMontageInfo.Animation));
 				return;
 			}
 
@@ -3122,7 +3154,7 @@ void UAbilitySystemComponent::OnRep_ReplicatedAnimMontage()
 				if ((CurrentSectionID == RepSectionID) && (FMath::Abs(DeltaPosition) > MONTAGE_REP_POS_ERR_THRESH) && (ConstRepAnimMontageInfo.IsStopped == 0))
 				{
 					// fast forward to server position and trigger notifies
-					if (FAnimMontageInstance* MontageInstance = AnimInstance->GetActiveInstanceForMontage(ConstRepAnimMontageInfo.AnimMontage))
+					if (FAnimMontageInstance* MontageInstance = AnimInstance->GetActiveInstanceForMontage(LocalAnimMontageInfo.AnimMontage))
 					{
 						// Skip triggering notifies if we're going backwards in time, we've already triggered them.
 						const float DeltaTime = !FMath::IsNearlyZero(ConstRepAnimMontageInfo.PlayRate) ? (DeltaPosition / ConstRepAnimMontageInfo.PlayRate) : 0.f;
@@ -3239,10 +3271,14 @@ void UAbilitySystemComponent::CurrentMontageJumpToSection(FName SectionName)
 			FGameplayAbilityRepAnimMontage& MutableRepAnimMontageInfo = GetRepAnimMontageInfo_Mutable();
 
 			MutableRepAnimMontageInfo.SectionIdToPlay = 0;
-			if (MutableRepAnimMontageInfo.AnimMontage)
+			if (MutableRepAnimMontageInfo.Animation)
 			{
-				// we add one so INDEX_NONE can be used in the on rep
-				MutableRepAnimMontageInfo.SectionIdToPlay = MutableRepAnimMontageInfo.AnimMontage->GetSectionIndex(SectionName) + 1;
+				// Only change SectionIdToPlay if the anim montage's source is a montage. Dynamic montages have no sections.
+				if (const UAnimMontage* RepAnimMontage = Cast<UAnimMontage>(MutableRepAnimMontageInfo.Animation))
+				{
+					// we add one so INDEX_NONE can be used in the on rep
+					MutableRepAnimMontageInfo.SectionIdToPlay = RepAnimMontage->GetSectionIndex(SectionName) + 1;
+				}
 			}
 
 			AnimMontage_UpdateReplicatedData();
@@ -3250,8 +3286,9 @@ void UAbilitySystemComponent::CurrentMontageJumpToSection(FName SectionName)
 		
 		// If we are NOT the authority, then let the server handling jumping the montage.
 		if (!IsOwnerActorAuthoritative())
-		{
-			ServerCurrentMontageJumpToSectionName(LocalAnimMontageInfo.AnimMontage, SectionName);
+		{	
+			UAnimSequenceBase* Animation = LocalAnimMontageInfo.AnimMontage->IsDynamicMontage() ? LocalAnimMontageInfo.AnimMontage->GetFirstAnimReference() : LocalAnimMontageInfo.AnimMontage;
+			ServerCurrentMontageJumpToSectionName(Animation, SectionName);
 		}
 	}
 }
@@ -3259,9 +3296,9 @@ void UAbilitySystemComponent::CurrentMontageJumpToSection(FName SectionName)
 void UAbilitySystemComponent::CurrentMontageSetNextSectionName(FName FromSectionName, FName ToSectionName)
 {
 	UAnimInstance* AnimInstance = AbilityActorInfo.IsValid() ? AbilityActorInfo->GetAnimInstance() : nullptr;
-	if( LocalAnimMontageInfo.AnimMontage && AnimInstance )
+	if (LocalAnimMontageInfo.AnimMontage && AnimInstance)
 	{
-		// Set Next Section Name. 
+		// Set Next Section Name.
 		AnimInstance->Montage_SetNextSection(FromSectionName, ToSectionName, LocalAnimMontageInfo.AnimMontage);
 
 		// Update replicated version for Simulated Proxies if we are on the server.
@@ -3272,7 +3309,8 @@ void UAbilitySystemComponent::CurrentMontageSetNextSectionName(FName FromSection
 		else
 		{
 			float CurrentPosition = AnimInstance->Montage_GetPosition(LocalAnimMontageInfo.AnimMontage);
-			ServerCurrentMontageSetNextSectionName(LocalAnimMontageInfo.AnimMontage, CurrentPosition, FromSectionName, ToSectionName);
+			UAnimSequenceBase* Animation = LocalAnimMontageInfo.AnimMontage->IsDynamicMontage() ? LocalAnimMontageInfo.AnimMontage->GetFirstAnimReference() : LocalAnimMontageInfo.AnimMontage;
+			ServerCurrentMontageSetNextSectionName(Animation, CurrentPosition, FromSectionName, ToSectionName);
 		}
 	}
 }
@@ -3292,24 +3330,27 @@ void UAbilitySystemComponent::CurrentMontageSetPlayRate(float InPlayRate)
 		}
 		else
 		{
+			UAnimSequenceBase* Animation = LocalAnimMontageInfo.AnimMontage->IsDynamicMontage() ? LocalAnimMontageInfo.AnimMontage->GetFirstAnimReference() : LocalAnimMontageInfo.AnimMontage;
 			ServerCurrentMontageSetPlayRate(LocalAnimMontageInfo.AnimMontage, InPlayRate);
 		}
 	}
 }
 
-bool UAbilitySystemComponent::ServerCurrentMontageSetNextSectionName_Validate(UAnimMontage* ClientAnimMontage, float ClientPosition, FName SectionName, FName NextSectionName)
+bool UAbilitySystemComponent::ServerCurrentMontageSetNextSectionName_Validate(UAnimSequenceBase* ClientAnimation, float ClientPosition, FName SectionName, FName NextSectionName)
 {
 	return true;
 }
 
-void UAbilitySystemComponent::ServerCurrentMontageSetNextSectionName_Implementation(UAnimMontage* ClientAnimMontage, float ClientPosition, FName SectionName, FName NextSectionName)
+void UAbilitySystemComponent::ServerCurrentMontageSetNextSectionName_Implementation(UAnimSequenceBase* ClientAnimation, float ClientPosition, FName SectionName, FName NextSectionName)
 {
 	UAnimInstance* AnimInstance = AbilityActorInfo.IsValid() ? AbilityActorInfo->GetAnimInstance() : nullptr;
-	if (AnimInstance)
+	if (AnimInstance && LocalAnimMontageInfo.AnimMontage)
 	{
-		UAnimMontage* CurrentAnimMontage = LocalAnimMontageInfo.AnimMontage;
-		if (CurrentAnimMontage && ClientAnimMontage == CurrentAnimMontage)
+		UAnimSequenceBase* CurrentAnimation = LocalAnimMontageInfo.AnimMontage->IsDynamicMontage() ? LocalAnimMontageInfo.AnimMontage->GetFirstAnimReference() : LocalAnimMontageInfo.AnimMontage;
+		if (ClientAnimation == CurrentAnimation)
 		{
+			UAnimMontage* CurrentAnimMontage = LocalAnimMontageInfo.AnimMontage;
+
 			// Set NextSectionName
 			AnimInstance->Montage_SetNextSection(SectionName, NextSectionName, CurrentAnimMontage);
 
@@ -3335,19 +3376,21 @@ void UAbilitySystemComponent::ServerCurrentMontageSetNextSectionName_Implementat
 	}
 }
 
-bool UAbilitySystemComponent::ServerCurrentMontageJumpToSectionName_Validate(UAnimMontage* ClientAnimMontage, FName SectionName)
+bool UAbilitySystemComponent::ServerCurrentMontageJumpToSectionName_Validate(UAnimSequenceBase* ClientAnimation, FName SectionName)
 {
 	return true;
 }
 
-void UAbilitySystemComponent::ServerCurrentMontageJumpToSectionName_Implementation(UAnimMontage* ClientAnimMontage, FName SectionName)
+void UAbilitySystemComponent::ServerCurrentMontageJumpToSectionName_Implementation(UAnimSequenceBase* ClientAnimation, FName SectionName)
 {
 	UAnimInstance* AnimInstance = AbilityActorInfo.IsValid() ? AbilityActorInfo->GetAnimInstance() : nullptr;
 	if (AnimInstance)
 	{
-		UAnimMontage* CurrentAnimMontage = LocalAnimMontageInfo.AnimMontage;
-		if (ClientAnimMontage == CurrentAnimMontage)
+		UAnimSequenceBase* CurrentAnimation = LocalAnimMontageInfo.AnimMontage->IsDynamicMontage() ? LocalAnimMontageInfo.AnimMontage->GetFirstAnimReference() : LocalAnimMontageInfo.AnimMontage;
+		if (ClientAnimation == CurrentAnimation)
 		{
+			UAnimMontage* CurrentAnimMontage = LocalAnimMontageInfo.AnimMontage;
+
 			// Set NextSectionName
 			AnimInstance->Montage_JumpToSection(SectionName, CurrentAnimMontage);
 
@@ -3357,10 +3400,14 @@ void UAbilitySystemComponent::ServerCurrentMontageJumpToSectionName_Implementati
 				FGameplayAbilityRepAnimMontage& MutableRepAnimMontageInfo = GetRepAnimMontageInfo_Mutable();
 
 				MutableRepAnimMontageInfo.SectionIdToPlay = 0;
-				if (MutableRepAnimMontageInfo.AnimMontage && SectionName != NAME_None)
+				if (MutableRepAnimMontageInfo.Animation && SectionName != NAME_None)
 				{
-					// we add one so INDEX_NONE can be used in the on rep
-					MutableRepAnimMontageInfo.SectionIdToPlay = MutableRepAnimMontageInfo.AnimMontage->GetSectionIndex(SectionName) + 1;
+					// Only change SectionIdToPlay if the anim montage's source is a montage. Dynamic montages have no sections.
+					if (const UAnimMontage* RepAnimMontage = Cast<UAnimMontage>(MutableRepAnimMontageInfo.Animation))
+					{
+						// we add one so INDEX_NONE can be used in the on rep
+						MutableRepAnimMontageInfo.SectionIdToPlay = RepAnimMontage->GetSectionIndex(SectionName) + 1;
+					}
 				}
 
 				AnimMontage_UpdateReplicatedData();
@@ -3369,21 +3416,23 @@ void UAbilitySystemComponent::ServerCurrentMontageJumpToSectionName_Implementati
 	}
 }
 
-bool UAbilitySystemComponent::ServerCurrentMontageSetPlayRate_Validate(UAnimMontage* ClientAnimMontage, float InPlayRate)
+bool UAbilitySystemComponent::ServerCurrentMontageSetPlayRate_Validate(UAnimSequenceBase* ClientAnimation, float InPlayRate)
 {
 	return true;
 }
 
-void UAbilitySystemComponent::ServerCurrentMontageSetPlayRate_Implementation(UAnimMontage* ClientAnimMontage, float InPlayRate)
+void UAbilitySystemComponent::ServerCurrentMontageSetPlayRate_Implementation(UAnimSequenceBase* ClientAnimation, float InPlayRate)
 {
 	UAnimInstance* AnimInstance = AbilityActorInfo.IsValid() ? AbilityActorInfo->GetAnimInstance() : nullptr;
 	if (AnimInstance)
 	{
-		UAnimMontage* CurrentAnimMontage = LocalAnimMontageInfo.AnimMontage;
-		if (ClientAnimMontage == CurrentAnimMontage)
+		UAnimSequenceBase* CurrentAnimation = LocalAnimMontageInfo.AnimMontage->IsDynamicMontage() ? LocalAnimMontageInfo.AnimMontage->GetFirstAnimReference() : LocalAnimMontageInfo.AnimMontage;
+		if (ClientAnimation == CurrentAnimation)
 		{
+			UAnimMontage* CurrentAnimMontage = LocalAnimMontageInfo.AnimMontage;
+
 			// Set PlayRate
-			AnimInstance->Montage_SetPlayRate(LocalAnimMontageInfo.AnimMontage, InPlayRate);
+			AnimInstance->Montage_SetPlayRate(CurrentAnimMontage, InPlayRate);
 
 			// Update replicated version for Simulated Proxies if we are on the server.
 			if (IsOwnerActorAuthoritative())
@@ -3392,6 +3441,20 @@ void UAbilitySystemComponent::ServerCurrentMontageSetPlayRate_Implementation(UAn
 			}
 		}
 	}
+}
+
+UAnimMontage* UAbilitySystemComponent::PlaySlotAnimationAsDynamicMontage(UGameplayAbility* AnimatingAbility, FGameplayAbilityActivationInfo ActivationInfo, UAnimSequenceBase* AnimAsset, FName SlotName, float BlendInTime, float BlendOutTime, float InPlayRate, float StartTimeSeconds)
+{
+	UAnimMontage* DynamicMontage = UAnimMontage::CreateSlotAnimationAsDynamicMontage(AnimAsset, SlotName, BlendInTime, BlendOutTime, InPlayRate, 1, -1.0f, 0.0f);
+	PlayMontage(AnimatingAbility, ActivationInfo, DynamicMontage, InPlayRate, NAME_None, StartTimeSeconds);
+	return DynamicMontage;
+}
+
+UAnimMontage* UAbilitySystemComponent::PlaySlotAnimationAsDynamicMontageSimulated(UAnimSequenceBase* AnimAsset, FName SlotName, float BlendInTime, float BlendOutTime, float InPlayRate)
+{
+	UAnimMontage* DynamicMontage = UAnimMontage::CreateSlotAnimationAsDynamicMontage(AnimAsset, SlotName, BlendInTime, BlendOutTime, InPlayRate, 1, -1.0f, 0.0f);
+	PlayMontageSimulated(DynamicMontage, InPlayRate, NAME_None);
+	return DynamicMontage;
 }
 
 UAnimMontage* UAbilitySystemComponent::GetCurrentMontage() const

@@ -96,6 +96,21 @@ bool UAnimMontage::IsValidSlot(FName InSlotName) const
 	return false;
 }
 
+bool UAnimMontage::IsDynamicMontage() const
+{
+	return GetPackage() == GetTransientPackage();
+}
+
+UAnimSequenceBase* UAnimMontage::GetFirstAnimReference() const
+{
+	if(!SlotAnimTracks.IsEmpty() && !SlotAnimTracks[0].AnimTrack.AnimSegments.IsEmpty())
+	{
+		return SlotAnimTracks[0].AnimTrack.AnimSegments[0].GetAnimReference();
+	}
+
+	return nullptr;
+}
+
 const FAnimTrack* UAnimMontage::GetAnimationData(FName InSlotName) const
 {
 	for (int32 I=0; I<SlotAnimTracks.Num(); ++I)
