@@ -186,7 +186,7 @@ namespace UnrealBuildTool
 		public bool bCanExecuteRemotelyWithXGE { get; set; } = true;
 
 		/// <inheritdoc/>
-		public bool bCanExecuteInBox { get; set; } = true;
+		public bool bCanExecuteInUBA { get; set; } = true;
 
 		/// <inheritdoc/>
 		public bool bUseActionHistory => true;
@@ -417,7 +417,7 @@ namespace UnrealBuildTool
 			bCanExecuteRemotely = Reader.ReadBool();
 			bCanExecuteRemotelyWithSNDBS = Reader.ReadBool();
 			bCanExecuteRemotelyWithXGE = Reader.ReadBool();
-			bCanExecuteInBox = Reader.ReadBool();
+			bCanExecuteInUBA = Reader.ReadBool();
 			Architecture = UnrealArch.Parse(Reader.ReadString()!);
 			Weight = Reader.ReadDouble();
 
@@ -456,7 +456,7 @@ namespace UnrealBuildTool
 			Writer.WriteBool(bCanExecuteRemotely);
 			Writer.WriteBool(bCanExecuteRemotelyWithSNDBS);
 			Writer.WriteBool(bCanExecuteRemotelyWithXGE);
-			Writer.WriteBool(bCanExecuteInBox);
+			Writer.WriteBool(bCanExecuteInUBA);
 			Writer.WriteString(Architecture.ToString());
 			Writer.WriteDouble(Weight);
 

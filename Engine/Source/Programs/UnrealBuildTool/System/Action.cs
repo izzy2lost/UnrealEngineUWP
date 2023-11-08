@@ -148,7 +148,7 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// True if this action can be executed by box
 		/// </summary>
-		bool bCanExecuteInBox { get; }
+		bool bCanExecuteInUBA { get; }
 
 		/// <summary>
 		/// True if this action is using the GCC compiler.  Some build systems may be able to optimize for this case.
@@ -270,7 +270,7 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// True if this action can be executed in box
 		/// </summary>
-		public bool bCanExecuteInBox { get; set; } = true;
+		public bool bCanExecuteInUBA { get; set; } = true;
 
 		/// <summary>
 		/// True if this action is using the GCC compiler.  Some build systems may be able to optimize for this case.
@@ -329,7 +329,7 @@ namespace UnrealBuildTool
 			bCanExecuteRemotely = InOther.bCanExecuteRemotely;
 			bCanExecuteRemotelyWithSNDBS = InOther.bCanExecuteRemotelyWithSNDBS;
 			bCanExecuteRemotelyWithXGE = InOther.bCanExecuteRemotelyWithXGE;
-			bCanExecuteInBox = InOther.bCanExecuteInBox;
+			bCanExecuteInUBA = InOther.bCanExecuteInUBA;
 			bIsGCCCompiler = InOther.bIsGCCCompiler;
 			bShouldOutputStatusDescription = InOther.bShouldOutputStatusDescription;
 			bProducesImportLibrary = InOther.bProducesImportLibrary;
@@ -351,7 +351,7 @@ namespace UnrealBuildTool
 			bCanExecuteRemotely = Reader.ReadBool();
 			bCanExecuteRemotelyWithSNDBS = Reader.ReadBool();
 			bCanExecuteRemotelyWithXGE = Reader.ReadBool();
-			bCanExecuteInBox = Reader.ReadBool();
+			bCanExecuteInUBA = Reader.ReadBool();
 			bIsGCCCompiler = Reader.ReadBool();
 			bShouldOutputStatusDescription = Reader.ReadBool();
 			bProducesImportLibrary = Reader.ReadBool();
@@ -381,7 +381,7 @@ namespace UnrealBuildTool
 			Writer.WriteBool(bCanExecuteRemotely);
 			Writer.WriteBool(bCanExecuteRemotelyWithSNDBS);
 			Writer.WriteBool(bCanExecuteRemotelyWithXGE);
-			Writer.WriteBool(bCanExecuteInBox);
+			Writer.WriteBool(bCanExecuteInUBA);
 			Writer.WriteBool(bIsGCCCompiler);
 			Writer.WriteBool(bShouldOutputStatusDescription);
 			Writer.WriteBool(bProducesImportLibrary);
@@ -463,9 +463,9 @@ namespace UnrealBuildTool
 			}
 
 			bool bCanExecuteInBox;
-			if (Object.TryGetBoolField("bCanExecuteInBox", out bCanExecuteInBox))
+			if (Object.TryGetBoolField("bCanExecuteInUBA", out bCanExecuteInBox))
 			{
-				Action.bCanExecuteInBox = bCanExecuteInBox;
+				Action.bCanExecuteInUBA = bCanExecuteInBox;
 			}
 
 			bool bIsGCCCompiler;
@@ -576,7 +576,7 @@ namespace UnrealBuildTool
 			Writer.WriteValue("bCanExecuteRemotely", Action.bCanExecuteRemotely);
 			Writer.WriteValue("bCanExecuteRemotelyWithSNDBS", Action.bCanExecuteRemotelyWithSNDBS);
 			Writer.WriteValue("bCanExecuteRemotelyWithXGE", Action.bCanExecuteRemotelyWithXGE);
-			Writer.WriteValue("bCanExecuteInBox", Action.bCanExecuteInBox);
+			Writer.WriteValue("bCanExecuteInUBA", Action.bCanExecuteInUBA);
 			Writer.WriteValue("bIsGCCCompiler", Action.bIsGCCCompiler);
 			Writer.WriteValue("bShouldOutputStatusDescription", Action.bShouldOutputStatusDescription);
 			Writer.WriteValue("bProducesImportLibrary", Action.bProducesImportLibrary);
@@ -698,7 +698,7 @@ namespace UnrealBuildTool
 		public bool bCanExecuteRemotely => Inner.bCanExecuteRemotely;
 		public bool bCanExecuteRemotelyWithSNDBS => Inner.bCanExecuteRemotelyWithSNDBS;
 		public bool bCanExecuteRemotelyWithXGE => Inner.bCanExecuteRemotelyWithXGE;
-		public bool bCanExecuteInBox => Inner.bCanExecuteInBox;
+		public bool bCanExecuteInUBA => Inner.bCanExecuteInUBA;
 		public bool bIsGCCCompiler => Inner.bIsGCCCompiler;
 		public bool bShouldOutputStatusDescription => Inner.bShouldOutputStatusDescription;
 		public bool bProducesImportLibrary => Inner.bProducesImportLibrary;

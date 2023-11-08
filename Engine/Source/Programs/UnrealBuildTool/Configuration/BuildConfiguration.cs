@@ -40,7 +40,7 @@ namespace UnrealBuildTool
 		public bool bAllowHybridExecutor = false;
 
 		/// <summary>
-		/// Whether the experimental box executor will be used.
+		/// This property is being renamed and should not be used
 		/// </summary>
 		[XmlConfigFile]
 		[CommandLine("-Box", Value = "true")]
@@ -48,17 +48,36 @@ namespace UnrealBuildTool
 		public bool bAllowBoxExecutor = false;
 
 		/// <summary>
-		/// Whether the experimental box (local only) executor will be used.
+		/// Whether the experimental UnrealBuildAccelerator executor will be used.
+		/// </summary>
+		[CommandLine("-UBA", Value = "true")]
+		[CommandLine("-NoUBA", Value = "false")]
+		public bool bAllowUBAExecutor
+		{
+			get => bAllowBoxExecutor || bAllowUBAExecutorPrivate;
+			set => bAllowUBAExecutorPrivate = value;
+		}
+		private bool bAllowUBAExecutorPrivate = false;
+
+		/// <summary>
+		/// This property is being renamed and should not be used
 		/// </summary>
 		[XmlConfigFile]
 		[CommandLine("-BoxLocal", Value = "true")]
 		[CommandLine("-NoBoxLocal", Value = "false")]
-		public bool bAllowBoxLocalExecutor
+		public bool bAllowBoxLocalExecutor = false;
+
+		/// <summary>
+		/// Whether the experimental UnrealBuildAccelerator (local only) executor will be used.
+		/// </summary>
+		[CommandLine("-UBALocal", Value = "true")]
+		[CommandLine("-NoUBALocal", Value = "false")]
+		public bool bAllowUBALocalExecutor
 		{
-			get => bAllowBoxExecutor || bAllowBoxLocalExecutorPrivate;
-			set => bAllowBoxLocalExecutorPrivate = value;
+			get => bAllowUBAExecutor || bAllowBoxLocalExecutor || bAllowUBALocalExecutorPrivate;
+			set => bAllowUBALocalExecutorPrivate = value;
 		}
-		private bool bAllowBoxLocalExecutorPrivate = false;
+		private bool bAllowUBALocalExecutorPrivate = false;
 
 		/// <summary>
 		/// Whether XGE may be used if available, default is true.

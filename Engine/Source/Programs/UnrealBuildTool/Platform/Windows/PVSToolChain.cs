@@ -812,7 +812,7 @@ namespace UnrealBuildTool
 				AnalyzeAction.DeleteItems.Add(OutputFileItem); // PVS Studio will append by default, so need to delete produced items
 				AnalyzeAction.Weight = Target.MSVCCompileActionWeight * 2.0; // Very high memory usage
 				AnalyzeAction.bCanExecuteRemotely = false;
-				AnalyzeAction.bCanExecuteInBox = true;
+				AnalyzeAction.bCanExecuteInUBA = true;
 
 				Result.ObjectFiles.AddRange(AnalyzeAction.ProducedItems);
 			}

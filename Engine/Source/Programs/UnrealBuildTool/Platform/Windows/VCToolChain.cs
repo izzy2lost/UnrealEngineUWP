@@ -2651,7 +2651,7 @@ namespace UnrealBuildTool
 
 			if (LinkEnvironment.bPGOOptimize || LinkEnvironment.bPGOProfile)
 			{
-				LinkAction.bCanExecuteInBox = false; // Disabled for now. Should revisit to see why it is not working
+				LinkAction.bCanExecuteInUBA = false; // Disabled for now. Should revisit to see why it is not working
 			}
 
 			// Create link repro if requested, this argument is intentionally not added to the response file
@@ -2663,7 +2663,7 @@ namespace UnrealBuildTool
 				LinkAction.CommandArguments = $"{LinkAction.CommandArguments} /LINKREPRO:{Utils.MakePathSafeToUseWithCommandLine(LinkReproPath.FullName)}";
 
 				LinkAction.bCanExecuteRemotely = false;
-				LinkAction.bCanExecuteInBox = false;
+				LinkAction.bCanExecuteInUBA = false;
 			}
 
 			Logger.LogDebug("     Linking: {StatusDescription}", LinkAction.StatusDescription);
