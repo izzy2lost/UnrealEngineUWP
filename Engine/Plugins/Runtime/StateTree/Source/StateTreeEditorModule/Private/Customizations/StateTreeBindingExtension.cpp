@@ -1,14 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "StateTreeBindingExtension.h"
-#include "Blueprint/StateTreeNodeBlueprintBase.h"
 #include "EdGraphSchema_K2.h"
 #include "Features/IModularFeatures.h"
 #include "IPropertyAccessEditor.h"
 #include "StateTreeAnyEnum.h"
 #include "StateTreeCompiler.h"
 #include "StateTreeEditorPropertyBindings.h"
-#include "StateTreePropertyHelpers.h"
 #include "StateTreeNodeBase.h"
 #include "Styling/AppStyle.h"
 #include "UObject/EnumProperty.h"
@@ -496,6 +494,8 @@ struct FCachedBindingData : public TSharedFromThis<FCachedBindingData>
 				Image = FCoreStyle::Get().GetBrush("Icons.ErrorWithColor");
 				Color = FLinearColor::White;
 			}
+
+			CachedSourcePath = *SourcePath;
 		}
 		else
 		{
@@ -504,6 +504,8 @@ struct FCachedBindingData : public TSharedFromThis<FCachedBindingData>
 			TooltipText = FText::Format(LOCTEXT("BindTooltip", "Bind {0} to value from another property."), UE::StateTree::PropertyBinding::GetPropertyTypeText(Property));
 			Image = FAppStyle::GetBrush(PropertyIcon);
 			Color = Schema->GetPinTypeColor(PinType);
+
+			CachedSourcePath.Reset();
 		}
 
 		bIsDataCached = true;
@@ -683,13 +685,43 @@ private:
 
 	void ConditionallyUpdateData()
 	{
-		if (!bIsDataCached)
+		UObject* OwnerObject = WeakOwnerObject.Get();
+		if (!OwnerObject)
+		{
+			return;
+		}
+		
+		IStateTreeEditorPropertyBindingsOwner* BindingOwner = Cast<IStateTreeEditorPropertyBindingsOwner>(OwnerObject);
+		if (!BindingOwner)
+		{
+			return;
+		}
+
+		FStateTreeEditorPropertyBindings* EditorBindings = BindingOwner->GetPropertyEditorBindings();
+		if (!EditorBindings)
+		{
+			return;
+		}
+
+		const FStateTreePropertyPath* CurrentSourcePath = EditorBindings->GetPropertyBindingSource(TargetPath);
+		bool bPathsIdentical = false;
+		if (CurrentSourcePath)
+		{
+			bPathsIdentical = CachedSourcePath == *CurrentSourcePath;
+		}
+		else
+		{
+			bPathsIdentical = CachedSourcePath.IsPathEmpty();
+		}
+
+		if (!bIsDataCached || !bPathsIdentical)
 		{
 			UpdateData();
 		}
 	}
 	
 	TWeakObjectPtr<UObject> WeakOwnerObject = nullptr;
+	FStateTreePropertyPath CachedSourcePath;
 	FStateTreePropertyPath TargetPath;
 	TSharedPtr<const IPropertyHandle> PropertyHandle;
 	TArray<FStateTreeBindableStructDesc> AccessibleStructs;

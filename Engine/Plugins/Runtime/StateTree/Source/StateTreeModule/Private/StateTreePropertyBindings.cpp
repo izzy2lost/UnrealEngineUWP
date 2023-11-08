@@ -1530,6 +1530,9 @@ bool FStateTreePropertyPath::ResolveIndirectionsWithValue(const FStateTreeDataVi
 				{
 					if (StructProperty->Struct == TBaseStructure<FInstancedStruct>::Get())
 					{
+						// The property path is pointing into the instanced struct, it must be present.
+						// @TODO:	We could potentially check the BaseStruct metadata in editor (for similar behavior as objects)
+						//			Omitting for now to have matching functionality in editor and runtime.
 						const FInstancedStruct& InstancedStruct = *reinterpret_cast<const FInstancedStruct*>(CurrentAddress + Offset);
 						if (!InstancedStruct.IsValid())
 						{
@@ -1576,18 +1579,10 @@ bool FStateTreePropertyPath::ResolveIndirectionsWithValue(const FStateTreeDataVi
 				{
 					const UObject* Object = *reinterpret_cast<UObject* const*>(CurrentAddress + Offset);
 					CurrentAddress = reinterpret_cast<const uint8*>(Object);
-					if (Property->HasAnyPropertyFlags(CPF_PersistentInstance | CPF_InstancedReference))
+					
+					// The property path is pointing into the object, if the object is present use it's specific type, otherwise use the type of the pointer.
+					if (Object)
 					{
-						if (!Object)
-						{
-							if (OutError)
-							{
-								*OutError = FString::Printf(TEXT("Expecting valid instanced object value at path '%s'."),
-									*ToString(Segment.GetIndex(), TEXT("<"), TEXT(">")));
-							}
-							OutIndirections.Reset();
-							return false;
-						}
 						CurrentStruct = Object->GetClass();
 						Indirection.InstanceStruct = CurrentStruct;
 						Indirection.AccessType = EStateTreePropertyAccessType::ObjectInstance;

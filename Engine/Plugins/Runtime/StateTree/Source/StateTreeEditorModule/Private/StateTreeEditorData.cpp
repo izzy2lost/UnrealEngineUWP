@@ -197,6 +197,7 @@ void UStateTreeEditorData::PostEditChangeChainProperty(FPropertyChangedChainEven
 			{
 				TMap<FGuid, const FStateTreeDataView> AllStructValues;
 				GetAllStructValues(AllStructValues);
+				Modify();
 				EditorBindings.RemoveUnusedBindings(AllStructValues);
 			}
 		}
