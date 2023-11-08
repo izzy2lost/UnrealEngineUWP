@@ -26,10 +26,10 @@ namespace UE::MultiUserClient
 		FAuthorityChangeTracker(const FGuid& InClientId, const IClientAuthoritySynchronizer& InAuthoritySynchronizer, FGlobalAuthorityCache& InAuthorityCache);
 		~FAuthorityChangeTracker();
 		
-		/**
-		 * Marks that the authority should be changed to bNewAuthorityState.
-		 */
+		/** Marks that the authority should be changed to bNewAuthorityState. */
 		void SetAuthorityIfAllowed(TConstArrayView<FSoftObjectPath> ObjectPaths, bool bNewAuthorityState);
+		/** Reverts any local, unsubmitted changes made for the ObjectPaths. */
+		void ClearAuthorityChange(TConstArrayView<FSoftObjectPath> ObjectPaths);
 
 		/** Diffs NewAuthorityStates to the current authority states and removes entries. */
 		void RefreshChanges();
@@ -48,9 +48,9 @@ namespace UE::MultiUserClient
 		/** Builds a change request from the local changes. */
 		ConcertSyncClient::Replication::FAuthorityChangeRequest BuildChangeRequest(const FGuid& StreamId) const;
 
-		/** Called when NewAuthorityStates is updated. */
+		/** Called entries are added to NewAuthorityStates. NOT called when objects are removed. */
 		DECLARE_MULTICAST_DELEGATE(FOnAuthorityChangeMade);
-		FOnAuthorityChangeMade& OnAuthorityChangeMade() { return FOnAuthorityChangeMadeDelegate; }
+		FOnAuthorityChangeMade& OnAddedOwnedObjects() { return OnAddedOwnedObjectsDelegate; }
 		
 	private:
 
@@ -66,7 +66,7 @@ namespace UE::MultiUserClient
 		TMap<FSoftObjectPath, bool> NewAuthorityStates;
 
 		/** Called when NewAuthorityStates is updated. */
-		FOnAuthorityChangeMade FOnAuthorityChangeMadeDelegate;
+		FOnAuthorityChangeMade OnAddedOwnedObjectsDelegate;
 		
 		void OnClientChanged(const FGuid& Guid) { RefreshChanges(); }
 	};

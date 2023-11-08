@@ -21,7 +21,7 @@ namespace UE::MultiUserClient
 	{
 		StreamEditorModel.OnObjectsChanged().AddRaw(this, &FAutoSubmissionPolicy::OnObjectsChanged);
 		StreamEditorModel.OnPropertiesChanged().AddRaw(this, &FAutoSubmissionPolicy::OnChangesDetected);
-		AuthorityChangeTracker.OnAuthorityChangeMade().AddRaw(this, &FAutoSubmissionPolicy::OnChangesDetected);
+		AuthorityChangeTracker.OnAddedOwnedObjects().AddRaw(this, &FAutoSubmissionPolicy::OnChangesDetected);
 	}
 
 	FAutoSubmissionPolicy::~FAutoSubmissionPolicy()
@@ -29,7 +29,7 @@ namespace UE::MultiUserClient
 		FCoreDelegates::OnEndFrame.RemoveAll(this);
 		StreamEditorModel.OnObjectsChanged().RemoveAll(this);
 		StreamEditorModel.OnPropertiesChanged().RemoveAll(this);
-		AuthorityChangeTracker.OnAuthorityChangeMade().RemoveAll(this);
+		AuthorityChangeTracker.OnAddedOwnedObjects().RemoveAll(this);
 	}
 
 	void FAutoSubmissionPolicy::OnChangesDetected()

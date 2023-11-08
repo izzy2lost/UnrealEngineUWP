@@ -27,17 +27,31 @@ namespace UE::MultiUserClient
 
 	void FAuthorityChangeTracker::SetAuthorityIfAllowed(TConstArrayView<FSoftObjectPath> ObjectPaths, bool bNewAuthorityState)
 	{
+		bool bAddedAnything = false;
+		
 		for (const FSoftObjectPath& ObjectPath : ObjectPaths)
 		{
-			if (CanSetAuthorityFor(ObjectPath))
+			bool* bCurrentValue = NewAuthorityStates.Find(ObjectPath);
+			const bool bValueWasChanged = !bCurrentValue || *bCurrentValue != bNewAuthorityState;
+			
+			if (bValueWasChanged && CanSetAuthorityFor(ObjectPath))
 			{
+				bAddedAnything = true;
 				NewAuthorityStates.Add(ObjectPath, bNewAuthorityState);
 			}
 		}
 
-		if (HasChanges())
+		if (bAddedAnything)
 		{
-			FOnAuthorityChangeMadeDelegate.Broadcast();
+			OnAddedOwnedObjectsDelegate.Broadcast();
+		}
+	}
+
+	void FAuthorityChangeTracker::ClearAuthorityChange(TConstArrayView<FSoftObjectPath> ObjectPaths)
+	{
+		for (const FSoftObjectPath& ObjectPath : ObjectPaths)
+		{
+			NewAuthorityStates.Remove(ObjectPath);
 		}
 	}
 

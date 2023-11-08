@@ -24,7 +24,10 @@ namespace UE::MultiUserClient
 {
 	class ISubmissionWorkflow;
 	
-	/** Holds on to info about a local or remote client. */
+	/**
+	 * Holds on to shared info about a local or remote client.
+	 * This class' responsibility is to initialize all systems that exist for the life time of a client in a session.
+	 */
 	class FReplicationClient : public FNoncopyable
 	{
 	public:
@@ -109,6 +112,9 @@ namespace UE::MultiUserClient
 		// Respond to model changing
 		void OnObjectsChanged(TConstArrayView<UObject*> AddedObjects, TConstArrayView<FSoftObjectPath> RemovedObjects, ConcertClientSharedSlate::EReplicatedObjectChangeReason ReplicatedObjectChangeReason);
 		void OnPropertiesChanged();
+		
+		/** Removes authority if request fails */
+		void OnAuthoritySubmissionCompleted(const FSubmitAuthorityChangesRequest& Request, const FSubmitAuthorityChangesResponse& Response);
 	};
 }
 

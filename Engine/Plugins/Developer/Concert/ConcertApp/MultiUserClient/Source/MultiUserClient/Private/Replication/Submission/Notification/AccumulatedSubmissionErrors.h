@@ -12,10 +12,16 @@ namespace UE::MultiUserClient
 	{
 		int32 NumTimeouts = 0;
 
-		/** Changing the these objects would cause authority conflicts. */
-		TSet<FSoftObjectPath> AuthorityConflicts;
-		/** This should be empty. If not, that means our client code made a bad request. */
-		TSet<FSoftObjectPath> SemanticErrors;
+		/**
+		 * Changing the these objects would cause authority conflicts.
+		 * Maps to the number of times it was rejected (across multiple submits).
+		 */
+		TMap<FSoftObjectPath, int32> AuthorityConflicts;
+		/**
+		 * This should be empty. If not, that means our client code made a bad request.
+		 * Maps to the number of times it was rejected (across multiple submits).
+		 */
+		TMap<FSoftObjectPath, int32> SemanticErrors;
 		/** Should be false. If not, that means our client code made a bad request. */
 		bool bFailedStreamCreation = false;
 	};
@@ -24,7 +30,10 @@ namespace UE::MultiUserClient
 	{
 		int32 NumTimeouts = 0;
 
-		/** These objects had conflicts */
-		TSet<FSoftObjectPath> Rejected;
+		/**
+		 * These objects had conflicts.
+		 * Maps to the number of times it was rejected (across multiple submits).
+		 */
+		TMap<FSoftObjectPath, int32> Rejected;
 	};
 }

@@ -6,6 +6,7 @@
 #include "Replication/Editor/Model/IEditableObjectToPropertiesModel.h"
 #include "Replication/ReplicationWidgetFactories.h"
 #include "Replication/Stream/StreamChangeTracker.h"
+#include "Replication/Submission/Data/AuthoritySubmission.h"
 
 namespace UE::MultiUserClient
 {
@@ -41,6 +42,8 @@ namespace UE::MultiUserClient
 		{
 			OnModelExternallyChangedDelegate.Broadcast();
 		});
+
+		SubmissionWorkflow->OnAuthorityRequestCompleted().AddRaw(this, &FReplicationClient::OnAuthoritySubmissionCompleted);
 	}
 
 	void FReplicationClient::OnObjectsChanged(
@@ -68,5 +71,19 @@ namespace UE::MultiUserClient
 		LocalClientStreamDiffer.RefreshChangesCache();
 		// Refresh because authority changes may no longer be valid after modifying the stream
 		LocalAuthorityDiffer.RefreshChanges();
+	}
+
+	void FReplicationClient::OnAuthoritySubmissionCompleted(const FSubmitAuthorityChangesRequest& Request, const FSubmitAuthorityChangesResponse& Response)
+	{
+		if (!Response.Response)
+		{
+			return;
+		}
+
+		// Use case: You and another client submit at the same time. You lose. Revert your local changes so the checkboxes accurately reflect the authority state.
+		for (const TPair<FSoftObjectPath, FConcertStreamArray>& RejectedObjectPair : Response.Response.GetValue().RejectedObjects)
+		{
+			LocalAuthorityDiffer.ClearAuthorityChange({ RejectedObjectPair.Key });
+		}
 	}
 }

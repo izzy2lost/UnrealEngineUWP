@@ -4,6 +4,7 @@
 
 #include "AccumulatedSubmissionErrors.h"
 
+#include "Algo/Accumulate.h"
 #include "Styling/AppStyle.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/SBoxPanel.h"
@@ -55,11 +56,18 @@ namespace UE::MultiUserClient
 
 	void SAuthorityRejectedNotification::AddRejectionErrorWidget(TSharedRef<SVerticalBox> Result, const FAccumulatedAuthorityErrors& Errors)
 	{
+		const int32 NumConflicts = Algo::TransformAccumulate(Errors.Rejected, [](const TPair<FSoftObjectPath, int32>& Pair){ return Pair.Value; }, 0);
+		const FText Text = FText::Format(
+			LOCTEXT("RejectionsFmt", "{0} {0}|plural(one=Rejection,other=Rejections) for {1} {1}|plural(one=Object,other=Objects)"),
+			NumConflicts,
+			Errors.Rejected.Num()
+			);
+		
 		Result->AddSlot()
 			.AutoHeight()
 			[
 				SNew(STextBlock)
-				.Text(FText::Format(LOCTEXT("RejectionsFmt", "{0} {0}|plural(one=Rejection,other=Rejections)"), Errors.Rejected.Num()))
+				.Text(Text)
 				.Font(FAppStyle::Get().GetFontStyle(TEXT("NotificationList.FontLight")))
 				.TextStyle(&FAppStyle::GetWidgetStyle<FTextBlockStyle>("NotificationList.WidgetText"))
 			];

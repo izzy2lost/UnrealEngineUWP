@@ -74,14 +74,14 @@ namespace UE::MultiUserClient
 		switch(CompletedOp.ErrorCode)
 		{
 		case EStreamSubmissionErrorCode::Success:
-			Algo::Transform(
-				CompletedOp.SubmissionInfo->Response.AuthorityConflicts, StreamErrors.AuthorityConflicts,
-				[](const TPair<FObjectInStreamID, FReplicatedObjectId>& Pair) { return Pair.Key.Object; }
-				);
-			Algo::Transform(
-				CompletedOp.SubmissionInfo->Response.ObjectsToPutSemanticErrors, StreamErrors.SemanticErrors,
-				[](const TPair<FObjectInStreamID, EConcertPutObjectErrorCode>& Pair) { return Pair.Key.Object; }
-				);
+			for (const TPair<FObjectInStreamID, FReplicatedObjectId>& Pair : CompletedOp.SubmissionInfo->Response.AuthorityConflicts)
+			{
+				StreamErrors.AuthorityConflicts.FindOrAdd(Pair.Key.Object, 0) += 1;
+			}
+			for (const TPair<FObjectInStreamID, EConcertPutObjectErrorCode>& Pair : CompletedOp.SubmissionInfo->Response.ObjectsToPutSemanticErrors)
+			{
+				StreamErrors.SemanticErrors.FindOrAdd(Pair.Key.Object, 0) += 1;
+			}
 			StreamErrors.bFailedStreamCreation |= !CompletedOp.SubmissionInfo->Response.FailedStreamCreation.IsEmpty();
 			break;
 			
@@ -100,10 +100,10 @@ namespace UE::MultiUserClient
 		switch (ResponseOp.ErrorCode)
 		{
 		case EAuthoritySubmissionResponseErrorCode::Success:
-			Algo::Transform(
-				ResponseOp.Response->RejectedObjects, AuthorityErrors.Rejected,
-				[](const TPair<FSoftObjectPath, FConcertStreamArray>& Pair) { return Pair.Key; }
-				);
+			for (const TPair<FSoftObjectPath, FConcertStreamArray>& Pair : ResponseOp.Response->RejectedObjects)
+			{
+				AuthorityErrors.Rejected.FindOrAdd(Pair.Key, 0) += 1;
+			}
 			break;
 			
 		case EAuthoritySubmissionResponseErrorCode::Timeout:

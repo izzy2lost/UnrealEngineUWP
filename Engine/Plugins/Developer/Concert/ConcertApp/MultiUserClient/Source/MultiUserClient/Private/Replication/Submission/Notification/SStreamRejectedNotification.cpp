@@ -4,6 +4,7 @@
 
 #include "AccumulatedSubmissionErrors.h"
 
+#include "Algo/Accumulate.h"
 #include "Styling/AppStyle.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/SBoxPanel.h"
@@ -63,11 +64,18 @@ namespace UE::MultiUserClient
 
 	void SStreamRejectedNotification::AddAuthorityConflictErrorWidget(TSharedRef<SVerticalBox> Result, const FAccumulatedStreamErrors& Errors)
 	{
+		const int32 NumConflicts = Algo::TransformAccumulate(Errors.AuthorityConflicts, [](const TPair<FSoftObjectPath, int32>& Pair){ return Pair.Value; }, 0);
+		const FText Text = FText::Format(
+			LOCTEXT("ConflictsFmt", "{0} {0}|plural(one=Conflict,other=Conflicts) for {1} {1}|plural(one=Object,other=Objects)"),
+			NumConflicts,
+			Errors.AuthorityConflicts.Num()
+			);
+		
 		Result->AddSlot()
 			.AutoHeight()
 			[
 				SNew(STextBlock)
-				.Text(FText::Format(LOCTEXT("ConflictsFmt", "{0} {0}|plural(one=Conflict,other=Conflicts)"), Errors.AuthorityConflicts.Num()))
+				.Text(Text)
 				.Font(FAppStyle::Get().GetFontStyle(TEXT("NotificationList.FontLight")))
 				.TextStyle(&FAppStyle::GetWidgetStyle<FTextBlockStyle>("NotificationList.WidgetText"))
 			];
@@ -75,11 +83,18 @@ namespace UE::MultiUserClient
 	
 	void SStreamRejectedNotification::AddSemanticErrorWidget(TSharedRef<SVerticalBox> Result, const FAccumulatedStreamErrors& Errors)
 	{
+		const int32 NumConflicts = Algo::TransformAccumulate(Errors.SemanticErrors, [](const TPair<FSoftObjectPath, int32>& Pair){ return Pair.Value; }, 0);
+		const FText Text = FText::Format(
+			LOCTEXT("SemanticErrorsFmt", "{0} {0}|plural(one=Semantic Error,other=Semantic Errors) for {1} {1}|plural(one=Object,other=Objects)"),
+			NumConflicts,
+			Errors.AuthorityConflicts.Num()
+			);
+		
 		Result->AddSlot()
 			.AutoHeight()
 			[
 				SNew(STextBlock)
-				.Text(FText::Format(LOCTEXT("SemanticFmt", "{0} {0}|plural(one=Semantic Error,other=Semantic Errors)"), Errors.SemanticErrors.Num()))
+				.Text(Text)
 				.Font(FAppStyle::Get().GetFontStyle(TEXT("NotificationList.FontLight")))
 				.TextStyle(&FAppStyle::GetWidgetStyle<FTextBlockStyle>("NotificationList.WidgetText"))
 			];
