@@ -123,10 +123,17 @@ bool FStateTreeExecutionContext::AreExternalDataViewsValid() const
 	{
 		const FStateTreeDataView& DataView = DataViews[DataDesc.Handle.DataViewIndex.Get()];
 			
+		auto IsAssignmentValid = [](const FStateTreeExternalDataDesc& DataDesc, const FStateTreeDataView& DataView)
+		{	
+			const UClass* DataDescClass = Cast<UClass>(DataDesc.Struct);
+			const UClass* DataViewClass = Cast<UClass>(DataView.GetStruct());
+			return DataView.GetStruct()->IsChildOf(DataDesc.Struct) || (DataViewClass && DataDescClass && DataViewClass->ImplementsInterface(DataDescClass));
+		};
+
 		if (DataDesc.Requirement == EStateTreeExternalDataRequirement::Required)
 		{
 			// Required items must have valid pointer of the expected type.  
-			if (!DataView.IsValid() || !DataView.GetStruct()->IsChildOf(DataDesc.Struct))
+			if (!DataView.IsValid() || !IsAssignmentValid(DataDesc, DataView))
 			{
 				bResult = false;
 				break;
@@ -135,7 +142,7 @@ bool FStateTreeExecutionContext::AreExternalDataViewsValid() const
 		else
 		{
 			// Optional items must have same type if they are set.
-			if (DataView.IsValid() && !DataView.GetStruct()->IsChildOf(DataDesc.Struct))
+			if (DataView.IsValid() && !IsAssignmentValid(DataDesc, DataView))
 			{
 				bResult = false;
 				break;

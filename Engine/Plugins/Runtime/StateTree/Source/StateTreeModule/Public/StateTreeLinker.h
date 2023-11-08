@@ -4,6 +4,7 @@
 
 #include "StateTreeSchema.h"
 #include "StateTreeExecutionTypes.h"
+#include "Templates/Casts.h"
 #include "StateTreeLinker.generated.h"
 
 UENUM()
@@ -44,13 +45,23 @@ struct FStateTreeLinker
 	}
 
 	/**
-	 * Links reference to an external UObject.
+	 * Links reference to an external UStruct.
 	 * @param Handle Reference to TStateTreeExternalDataHandle<> with USTRUCT type to link to.
 	 */
 	template <typename T>
-	typename TEnableIf<!TIsDerivedFrom<typename T::DataType, UObject>::IsDerived, void>::Type LinkExternalData(T& Handle)
+	typename TEnableIf<!TIsDerivedFrom<typename T::DataType, UObject>::IsDerived && !TIsIInterface<typename T::DataType>::Value, void>::Type LinkExternalData(T& Handle)
 	{
 		LinkExternalData(Handle, T::DataType::StaticStruct(), T::DataRequirement);
+	}
+
+	/**
+	 * Links reference to an external IInterface.
+	 * @param Handle Reference to TStateTreeExternalDataHandle<> with IINTERFACE type to link to.
+	 */
+	template <typename T>
+	typename TEnableIf<TIsIInterface<typename T::DataType>::Value, void>::Type LinkExternalData(T& Handle)
+	{
+		LinkExternalData(Handle, T::DataType::UClassType::StaticClass(), T::DataRequirement);
 	}
 
 	/**

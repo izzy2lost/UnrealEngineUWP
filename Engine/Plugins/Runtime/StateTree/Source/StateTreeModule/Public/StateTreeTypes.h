@@ -688,7 +688,7 @@ struct STATETREEMODULE_API FStateTreeDataView
 	 * USTRUCT() getters (reference & pointer, const & mutable)
 	 */
 	template <typename T>
-	typename TEnableIf<!TIsDerivedFrom<T, UObject>::IsDerived, const T&>::Type Get() const
+	typename TEnableIf<!TIsDerivedFrom<T, UObject>::IsDerived && !TIsIInterface<T>::Value, const T&>::Type Get() const
 	{
 		check(Memory != nullptr);
 		check(Struct != nullptr);
@@ -697,7 +697,7 @@ struct STATETREEMODULE_API FStateTreeDataView
 	}
 
 	template <typename T>
-    typename TEnableIf<!TIsDerivedFrom<T, UObject>::IsDerived, T&>::Type GetMutable() const
+    typename TEnableIf<!TIsDerivedFrom<T, UObject>::IsDerived && !TIsIInterface<T>::Value, T&>::Type GetMutable() const
 	{
 		check(Memory != nullptr);
 		check(Struct != nullptr);
@@ -706,7 +706,7 @@ struct STATETREEMODULE_API FStateTreeDataView
 	}
 
 	template <typename T>
-    typename TEnableIf<!TIsDerivedFrom<T, UObject>::IsDerived, const T*>::Type GetPtr() const
+    typename TEnableIf<!TIsDerivedFrom<T, UObject>::IsDerived && !TIsIInterface<T>::Value, const T*>::Type GetPtr() const
 	{
 		// If Memory is set, expect Struct too. Otherwise, let nulls pass through.
 		check(!Memory || (Memory && Struct));
@@ -715,12 +715,47 @@ struct STATETREEMODULE_API FStateTreeDataView
 	}
 
 	template <typename T>
-    typename TEnableIf<!TIsDerivedFrom<T, UObject>::IsDerived, T*>::Type GetMutablePtr() const
+    typename TEnableIf<!TIsDerivedFrom<T, UObject>::IsDerived && !TIsIInterface<T>::Value, T*>::Type GetMutablePtr() const
 	{
 		// If Memory is set, expect Struct too. Otherwise, let nulls pass through.
 		check(!Memory || (Memory && Struct));
 		check(!Struct || Struct->IsChildOf(T::StaticStruct()));
 		return ((T*)Memory);
+	}
+
+	/*
+	 * IInterface() getters (reference & pointer, const & mutable)
+	 */
+	template <typename T>
+	typename TEnableIf<TIsIInterface<T>::Value, const T&>::Type Get() const
+	{
+		check(!Memory || (Memory && Struct));
+		check(Struct->IsChildOf(UObject::StaticClass()) && ((UClass*)Struct)->ImplementsInterface(T::UClassType::StaticClass()));
+		return *(T*)((UObject*)Memory)->GetInterfaceAddress(T::UClassType::StaticClass());
+	}
+
+	template <typename T>
+    typename TEnableIf<TIsIInterface<T>::Value, T&>::Type GetMutable() const
+	{
+		check(!Memory || (Memory && Struct));
+		check(Struct->IsChildOf(UObject::StaticClass()) && ((UClass*)Struct)->ImplementsInterface(T::UClassType::StaticClass()));
+		return *(T*)((UObject*)Memory)->GetInterfaceAddress(T::UClassType::StaticClass());
+	}
+
+	template <typename T>
+    typename TEnableIf<TIsIInterface<T>::Value, const T*>::Type GetPtr() const
+	{
+		check(!Memory || (Memory && Struct));
+		check(Struct->IsChildOf(UObject::StaticClass()) && ((UClass*)Struct)->ImplementsInterface(T::UClassType::StaticClass()));
+		return (T*)((UObject*)Memory)->GetInterfaceAddress(T::UClassType::StaticClass());
+	}
+
+	template <typename T>
+    typename TEnableIf<TIsIInterface<T>::Value, T*>::Type GetMutablePtr() const
+	{
+		check(!Memory || (Memory && Struct));
+		check(Struct->IsChildOf(UObject::StaticClass()) && ((UClass*)Struct)->ImplementsInterface(T::UClassType::StaticClass()));
+		return (T*)((UObject*)Memory)->GetInterfaceAddress(T::UClassType::StaticClass());
 	}
 
 	/** @return Struct describing the data type. */
