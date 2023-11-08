@@ -25,6 +25,7 @@
 #include "MetasoundTrace.h"
 #include "MetasoundUObjectRegistry.h"
 #include "MetasoundVertex.h"
+#include "PerPlatformProperties.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MetasoundBuilderSubsystem)
 
@@ -1491,6 +1492,11 @@ void UMetaSoundSourceBuilder::OnRemovingOutput(int32 OutputIndex) const
 	});
 }
 
+void UMetaSoundSourceBuilder::SetBlockRateOverride(float BlockRate)
+{
+	GetMetaSoundSource().BlockRateOverride.Default = BlockRate;
+}
+
 void UMetaSoundSourceBuilder::SetFormat(EMetaSoundOutputAudioFormat OutputFormat, EMetaSoundBuilderResult& OutResult)
 {
 	using namespace Metasound::Engine;
@@ -1532,6 +1538,28 @@ void UMetaSoundSourceBuilder::SetFormat(EMetaSoundOutputAudioFormat OutputFormat
 
 	const bool bSuccess = Builder.ModifyInterfaces(MoveTemp(Options));
 	OutResult = bSuccess ? EMetaSoundBuilderResult::Succeeded : EMetaSoundBuilderResult::Failed;
+}
+
+#if WITH_EDITORONLY_DATA
+void UMetaSoundSourceBuilder::SetPlatformBlockRateOverride(const FPerPlatformFloat& PlatformBlockRate)
+{
+	GetMetaSoundSource().BlockRateOverride = PlatformBlockRate;
+}
+
+void UMetaSoundSourceBuilder::SetPlatformSampleRateOverride(const FPerPlatformInt& PlatformSampleRate)
+{
+	GetMetaSoundSource().SampleRateOverride = PlatformSampleRate;
+}
+#endif // WITH_EDITORONLY_DATA
+
+void UMetaSoundSourceBuilder::SetQuality(FName Quality)
+{
+	GetMetaSoundSource().QualitySetting = Quality;
+}
+
+void UMetaSoundSourceBuilder::SetSampleRateOverride(int32 SampleRate)
+{
+	GetMetaSoundSource().SampleRateOverride.Default = SampleRate;
 }
 
 UMetaSoundPatchBuilder* UMetaSoundBuilderSubsystem::CreatePatchBuilder(FName BuilderName, EMetaSoundBuilderResult& OutResult)

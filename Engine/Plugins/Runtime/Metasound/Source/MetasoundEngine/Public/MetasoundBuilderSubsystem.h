@@ -22,6 +22,7 @@
 
 
 // Forward Declarations
+class FMetasoundAssetBase;
 class UAudioComponent;
 class UMetaSound;
 class UMetaSoundPatch;
@@ -29,7 +30,8 @@ class UMetaSoundSource;
 
 struct FMetasoundFrontendClassName;
 struct FMetasoundFrontendVersion;
-class FMetasoundAssetBase;
+struct FPerPlatformFloat;
+struct FPerPlatformInt;
 
 enum class EMetaSoundOutputAudioFormat : uint8;
 
@@ -529,17 +531,36 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Audio|MetaSound|Builder")
 	bool GetLiveUpdatesEnabled() const;
 
+	// Sets the MetaSound's BlockRate override
+	UFUNCTION(BlueprintCallable, Category = "Audio|MetaSound|Builder")
+	void SetBlockRateOverride(float BlockRate);
+
 	// Sets the output audio format of the source
 	UFUNCTION(BlueprintCallable, Category = "Audio|MetaSound|Builder", meta = (ExpandEnumAsExecs = "OutResult"))
 	void SetFormat(EMetaSoundOutputAudioFormat OutputFormat, EMetaSoundBuilderResult& OutResult);
+
+	// Sets the MetaSound's SampleRate override
+	UFUNCTION(BlueprintCallable, Category = "Audio|MetaSound|Builder")
+	void SetSampleRateOverride(int32 SampleRate);
 
 	const Metasound::Engine::FOutputAudioFormatInfoPair* FindOutputAudioFormatInfo() const;
 
 	virtual const UClass& GetBuilderUClass() const override;
 
+#if WITH_EDITORONLY_DATA
+	// Sets the MetaSound's BlockRate override (editor only, to allow setting per-platform values)
+	void SetPlatformBlockRateOverride(const FPerPlatformFloat& PlatformFloat);
+
+	// Sets the MetaSound's BlockRate override (editor only, to allow setting per-platform values)
+	void SetPlatformSampleRateOverride(const FPerPlatformInt& PlatformInt);
+#endif // WITH_EDITORONLY_DATA
+
+	// Sets the MetaSound's Quality level
+	UFUNCTION(BlueprintCallable, Category = "Audio|MetaSound|Builder")
+	void SetQuality(FName Quality);
+
 protected:
 	virtual void CreateTransientBuilder() override;
-
 
 private:
 	static TOptional<Metasound::FAnyDataReference> CreateDataReference(const Metasound::FOperatorSettings& InOperatorSettings, FName DataType, const Metasound::FLiteral& InLiteral, Metasound::EDataReferenceAccessType AccessType);
