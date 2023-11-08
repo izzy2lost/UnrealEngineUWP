@@ -744,7 +744,8 @@ void UMetaSoundSource::RegisterGraphWithFrontend(Metasound::Frontend::FMetaSound
 
 	FMetasoundAssetBase::RegisterGraphWithFrontend(InRegistrationOptions);
 	const bool bIsRuntimeInputDataValid = RuntimeInputData.bIsValid.load();
-	if (!bIsRuntimeInputDataValid)
+	// Runtime data does not need to and should not be created at cook
+	if (!bIsRuntimeInputDataValid && !IsRunningCookCommandlet())
 	{
 		CacheRuntimeInputData();
 	}
