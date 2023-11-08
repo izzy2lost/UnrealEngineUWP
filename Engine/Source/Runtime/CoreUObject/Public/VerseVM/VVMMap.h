@@ -102,15 +102,7 @@ struct VMap : VHeapValue
 	// only works as long as nothing is removed from the map.
 	VValue GetKey(const int32 Index);
 	VValue GetValue(const int32 Index);
-
-	void Add(FAllocationContext Context, const VValue Key, const VValue Value)
-	{
-		TWriteBarrier<VValue> NewKey(Context, Key);
-		TWriteBarrier<VValue> NewValue(Context, Value);
-		Add(NewKey, NewValue);
-	}
-
-	void Add(const TWriteBarrier<VValue>& Key, const TWriteBarrier<VValue>& Value);
+	void Add(FAllocationContext Context, VValue Key, VValue Value);
 
 	size_t GetAllocatedSize() const
 	{

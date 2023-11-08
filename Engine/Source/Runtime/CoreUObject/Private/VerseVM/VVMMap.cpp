@@ -28,12 +28,16 @@ uint32 VMapInternalKeyFuncs::GetKeyHash(VValue Key)
 DEFINE_DERIVED_VCPPCLASSINFO(VMap);
 TGlobalTrivialEmergentTypePtr<&VMap::StaticCppClassInfo> VMap::GlobalTrivialEmergentType;
 
-void VMap::Add(const TWriteBarrier<VValue>& Key, const TWriteBarrier<VValue>& Value)
+void VMap::Add(FAllocationContext Context, VValue Key, VValue Value)
 {
 	UE::FExternalMutex ExternalMutex(Mutex);
 	UE::TUniqueLock Lock(ExternalMutex);
+
+	TWriteBarrier<VValue> NewKey(Context, Key);
+	TWriteBarrier<VValue> NewValue(Context, Value);
+
 	const size_t PreviousAllocatedSize = GetAllocatedSize();
-	InternalMap.Add(Key, Value);
+	InternalMap.Add(NewKey, NewValue);
 	FHeap::ReportAllocatedNativeBytes((GetAllocatedSize() - PreviousAllocatedSize));
 }
 
