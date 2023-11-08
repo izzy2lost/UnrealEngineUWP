@@ -438,6 +438,10 @@ namespace Chaos
 			}
 		}
 
+		virtual void KillSafeAsyncTasks()
+		{
+		}
+
 		virtual bool AreAnyTasksPending() const
 		{
 			return false;

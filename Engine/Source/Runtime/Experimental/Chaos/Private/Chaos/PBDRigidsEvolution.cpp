@@ -216,6 +216,8 @@ namespace Chaos
 		, bIsSingleThreaded(InIsSingleThreaded)
 		, bCanStartAsyncTasks(true)
 		, LatestExternalTimestampConsumed_Internal(-1)
+		, bAccelerationStructureTaskStarted(nullptr)
+		, bAccelerationStructureTaskSignalKill(nullptr)
 		, SpatialCollectionFactory(new FDefaultCollectionFactory())
 	{
 		Particles.GetParticleHandles().AddArray(&PhysicsMaterials);
@@ -255,7 +257,9 @@ namespace Chaos
 		, FAccelerationStructure* InExternalAccelerationStructure
 		, bool InForceFullBuild
 		, bool InIsSingleThreaded
-		, bool InNeedsReset)
+		, bool InNeedsReset
+		, std::atomic<bool>** bOutStarted
+		, std::atomic<bool>** bOutKillTask)
 		: SpatialCollectionFactory(InSpatialCollectionFactory)
 		, SpatialAccelerationCache(InSpatialAccelerationCache)
 		, InternalStructure(InInternalAccelerationStructure)
@@ -263,8 +267,11 @@ namespace Chaos
 		, IsForceFullBuild(InForceFullBuild)
 		, bIsSingleThreaded(InIsSingleThreaded)
 		, bNeedsReset(InNeedsReset)
+		, bStarted(false)
+		, bKillTask(false)
 	{
-
+		*bOutStarted = &bStarted;
+		*bOutKillTask = &bKillTask;
 	}
 
 	TStatId FPBDRigidsEvolutionBase::FChaosAccelerationStructureTask::GetStatId()
@@ -510,6 +517,12 @@ namespace Chaos
 
 	void FPBDRigidsEvolutionBase::FChaosAccelerationStructureTask::DoTask(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent)
 	{
+		bStarted = true;
+		if (bKillTask) // We can kill the task before it has really started
+		{
+			return;
+		}		
+
 		LLM_SCOPE(ELLMTag::ChaosAcceleration);
 
 #if !WITH_EDITOR
@@ -814,7 +827,7 @@ namespace Chaos
 			if (bCanStartAsyncTasks)
 			{
 				// we run the task for both starting a new accel structure as well as for the time-slicing
-				AccelerationStructureTaskComplete = TGraphTask<FChaosAccelerationStructureTask>::CreateTask().ConstructAndDispatchWhenReady(*SpatialCollectionFactory, SpatialAccelerationCache, AsyncInternalAcceleration, AsyncExternalAcceleration, ForceFullBuild, bIsSingleThreaded, bNeedsReset);
+				AccelerationStructureTaskComplete = TGraphTask<FChaosAccelerationStructureTask>::CreateTask().ConstructAndDispatchWhenReady(*SpatialCollectionFactory, SpatialAccelerationCache, AsyncInternalAcceleration, AsyncExternalAcceleration, ForceFullBuild, bIsSingleThreaded, bNeedsReset, &bAccelerationStructureTaskStarted, &bAccelerationStructureTaskSignalKill);
 			}
 		}
 		else

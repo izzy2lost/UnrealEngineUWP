@@ -298,6 +298,11 @@ namespace Chaos
 		/** Apply a solver configuration to this solver, set externally by the owner of a solver (see UPhysicsSettings for world solver settings) */
 		CHAOS_API void ApplyConfig(const FChaosSolverConfiguration& InConfig);
 
+		virtual void KillSafeAsyncTasks() override
+		{
+			GetEvolution()->KillSafeAsyncTasks();
+		}
+
 		virtual bool AreAnyTasksPending() const override
 		{
 			if (IsPendingTasksComplete() == false || GetEvolution()->AreAnyTasksPending())

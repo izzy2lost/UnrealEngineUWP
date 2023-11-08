@@ -916,9 +916,18 @@ public:
 		return UniqueIndicesPendingRelease.Contains(UniqueIdx) || PendingReleaseIndices.Contains(UniqueIdx);
 	}
 
+	void KillSafeAsyncTasks()
+	{
+		if (AccelerationStructureTaskComplete.GetReference() && !AccelerationStructureTaskComplete->IsComplete() && bAccelerationStructureTaskSignalKill != nullptr)
+		{
+			*bAccelerationStructureTaskSignalKill = true;			
+		}
+	}
+
 	bool AreAnyTasksPending() const
 	{
-		return (AccelerationStructureTaskComplete.GetReference() && !AccelerationStructureTaskComplete->IsComplete());
+		return AccelerationStructureTaskComplete.GetReference() && !AccelerationStructureTaskComplete->IsComplete() && 
+			(bAccelerationStructureTaskSignalKill == nullptr || bAccelerationStructureTaskStarted  == nullptr || *bAccelerationStructureTaskSignalKill == false || *bAccelerationStructureTaskStarted == true);
 	}
 
 	void SetCanStartAsyncTasks(bool bInCanStartAsyncTasks)
@@ -1096,7 +1105,9 @@ protected:
 			, FAccelerationStructure* InExternalAccelerationStructure
 			, bool InForceFullBuild
 			, bool InIsSingleThreaded
-			, bool bNeedsReset);
+			, bool bNeedsReset
+			, std::atomic<bool>** bOutStarted
+			, std::atomic<bool>** bOutKillTask);
 		static FORCEINLINE TStatId GetStatId();
 		static FORCEINLINE ENamedThreads::Type GetDesiredThread();
 		static FORCEINLINE ESubsequentsMode::Type GetSubsequentsMode();
@@ -1109,11 +1120,15 @@ protected:
 		bool IsForceFullBuild;
 		bool bIsSingleThreaded;
 		bool bNeedsReset;
+		std::atomic<bool> bStarted;
+		std::atomic<bool> bKillTask;
 
 	private:
 		void UpdateStructure(FAccelerationStructure* AccelerationStructure, FAccelerationStructure* CopyToAccelerationStructure = nullptr);
 	};
 	FGraphEventRef AccelerationStructureTaskComplete;
+	std::atomic<bool>* bAccelerationStructureTaskStarted;
+	std::atomic<bool>* bAccelerationStructureTaskSignalKill;
 
 	TUniquePtr<ISpatialAccelerationCollectionFactory> SpatialCollectionFactory;
 

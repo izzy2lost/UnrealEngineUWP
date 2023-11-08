@@ -399,6 +399,15 @@ void FChaosScene::OnSyncBodies(Chaos::FPhysicsSolverBase* Solver)
 	Solver->PullPhysicsStateForEachDirtyProxy_External(Dispatcher);
 }
 
+void FChaosScene::KillSafeAsyncTasks()
+{
+	Chaos::FPBDRigidsSolver* Solver = GetSolver();
+	if (Solver )
+	{
+		Solver->KillSafeAsyncTasks();
+	}
+}
+
 bool FChaosScene::AreAnyTasksPending() const
 {
 	const Chaos::FPBDRigidsSolver* Solver = GetSolver();
