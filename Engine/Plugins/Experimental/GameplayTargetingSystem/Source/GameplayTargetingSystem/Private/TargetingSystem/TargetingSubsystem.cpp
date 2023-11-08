@@ -527,7 +527,10 @@ void UTargetingSubsystem::ExecuteTargetingRequestWithHandleInternal(FTargetingRe
 				}
 
 				RequestData.bComplete = true;
-				RequestData.BroadcastTargetingRequestDelegate(TargetingHandle);
+				/* Creates a copy of the RequestData, so that the delegates are free to call ExecuteTargetingRequestWithHandleInternal recursively.
+				   After this copy, the RequestData reference is considered as invalid. */
+				FTargetingRequestData RequestDataCopy = RequestData;
+				RequestDataCopy.BroadcastTargetingRequestDelegate(TargetingHandle);
 
 #if ENABLE_DRAW_DEBUG
 #if WITH_EDITORONLY_DATA
