@@ -779,16 +779,16 @@ bool UCustomizableObject::ConditionalAutoCompile()
 {
 	check(IsInGameThread());
 
-	// Don't compile compiled objects
-	if (IsCompiled())
-	{
-		return true;
-	}
-
 	// Don't compile objects being compiled
 	if (IsLocked())
 	{
 		return false;
+	}
+
+	// Don't compile compiled objects
+	if (IsCompiled())
+	{
+		return true;
 	}
 
 	UCustomizableObjectSystem* System = UCustomizableObjectSystem::GetInstance();

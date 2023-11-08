@@ -4843,18 +4843,7 @@ FGraphEventRef UCustomizableInstancePrivateData::LoadAdditionalAssetsAsync(const
 		// Add Skeletons to merge
 		for (const uint32 SkeletonId : SkeletonData.SkeletonIds)
 		{
-			TSoftObjectPtr<USkeleton> AssetPtr;
-			if (SkeletonId == 0)
-			{
-				FMutableRefSkeletalMeshData* RefSkeletalMeshData = CustomizableObject->GetRefSkeletalMeshData(SkeletonData.ComponentIndex);
-				check(RefSkeletalMeshData);
-
-				AssetPtr = RefSkeletalMeshData->Skeleton;
-			}
-			else
-			{
-				AssetPtr = CustomizableObject->GetReferencedSkeletonAssetPtr(SkeletonId);
-			}
+			TSoftObjectPtr<USkeleton> AssetPtr = CustomizableObject->GetReferencedSkeletonAssetPtr(SkeletonId);
 
 			if (AssetPtr.IsNull())
 			{
@@ -4872,7 +4861,6 @@ FGraphEventRef UCustomizableInstancePrivateData::LoadAdditionalAssetsAsync(const
 			{
 				AssetsToStream.Add(AssetPtr.ToSoftObjectPath());
 			}
-
 		}
 	}
 

@@ -453,9 +453,11 @@ public:
 	mu::Instance::ID InstanceID = 0; // Redundant
 	const mu::Instance* MutableInstance = nullptr;
 
+	int32 NumComponents = 0;
+	int32 NumLODsAvailable = 0;
+
 	int32 CurrentMinLOD = 0;
 	int32 CurrentMaxLOD = 0;
-	int32 NumLODsAvailable = 0;
 
 	TArray<uint16> RequestedLODs;
 
