@@ -243,6 +243,29 @@ bool FillTableColumn(const UCustomizableObjectNodeTable* TableNode,	mu::TablePtr
 			{
 				MeshUniqueTags += GenerateGameplayTag(Tag.ToString());
 			}
+			
+			TArray<int32> StreamedResources;
+
+			if (GenerationContext.Object->bEnableAssetUserDataMerge)
+			{
+				const TArray<UAssetUserData*>* AssetUserDataArray = SkeletalMesh->GetAssetUserDataArray();
+
+				if (AssetUserDataArray)
+				{
+					for (UAssetUserData* AssetUserData : *AssetUserDataArray)
+					{
+						if (!AssetUserData)
+						{
+							continue;
+						}
+
+						const int32 ResourceIndex = GenerationContext.AddAssetUserDataToStreamedResources(AssetUserData);
+						StreamedResources.Add(ResourceIndex);
+
+						MeshUniqueTags += AssetUserData->GetPathName();
+					}
+				}
+			}
 
 			//TODO: Add AnimBp physics to Tables.
 			mu::Ptr<mu::Mesh> MutableMesh = GenerateMutableMesh(SkeletalMesh, TSoftClassPtr<UAnimInstance>(), LODIndexConnected, SectionIndexConnected, LODIndex, SectionIndex, MeshUniqueTags, GenerationContext, TableNode);
@@ -271,21 +294,9 @@ bool FillTableColumn(const UCustomizableObjectNodeTable* TableNode,	mu::TablePtr
 					AddTagToMutableMeshUnique(*MutableMesh, GenerateGameplayTag(Tag.ToString()));
 				}
 
-				if (GenerationContext.Object->bEnableAssetUserDataMerge)
+				for (int32 ResourceIndex : StreamedResources)
 				{
-					const TArray<UAssetUserData*>* AssetUserDataArray = SkeletalMesh->GetAssetUserDataArray();
-
-					if (AssetUserDataArray && !AssetUserDataArray->IsEmpty())
-					{
-						for (const UAssetUserData* AssetUserData : *AssetUserDataArray)
-						{
-							FString AuxString = AssetUserData->GetPathName();
-							GenerationContext.AssetUserDataAssetsMap.Add(AuxString, TSoftObjectPtr<UAssetUserData>(AssetUserData));
-
-							FString AssetUserDataTag = GenerateAssetUserDataTag(AuxString);
-							AddTagToMutableMeshUnique(*MutableMesh, AssetUserDataTag);
-						}
-					}
+					MutableMesh->AddStreamedResource(ResourceIndex);
 				}
 
 				AddSocketTagsToMesh(SkeletalMesh, MutableMesh, GenerationContext);

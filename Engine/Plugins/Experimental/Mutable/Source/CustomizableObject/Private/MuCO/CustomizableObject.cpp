@@ -432,13 +432,118 @@ void UCustomizableObject::UpdateCompiledDataFromModel()
 }
 
 
-void UCustomizableObject::SaveCompiledData(FArchive& MemoryWriter, bool bSkipEditorOnlyData)
+void SerializeStreamedResources(FArchive& Ar, UObject* Object, TArray<FCustomizableObjectStreamedResourceData>& StreamedResources, bool bIsCooking)
+{
+	if (Ar.IsSaving())
+	{
+		int32 NumStreamedResources = StreamedResources.Num();
+		Ar << NumStreamedResources;
+
+		for (const FCustomizableObjectStreamedResourceData& ResourceData : StreamedResources)
+		{
+			const FCustomizableObjectResourceData& Data = ResourceData.GetLoadedData();
+			Ar << Data.Type;
+
+			switch (Data.Type)
+			{
+			case ECOResourceDataType::AssetUserData:
+			{
+				const FCustomizableObjectAssetUserData* AssetUserData = Data.Data.GetPtr<FCustomizableObjectAssetUserData>();
+				FString AssetUserDataPath = TSoftObjectPtr<UAssetUserData>(AssetUserData->AssetUserDataEditor).ToSoftObjectPath().ToString();
+				Ar << AssetUserDataPath;
+				break;
+			}
+			default:
+				check(false);
+				break;
+			}
+		}
+	}
+	else 
+	{
+		const FString CustomizableObjectName = GetNameSafe(Object) + TEXT("_");
+
+		int32 NumStreamedResources = 0;
+		Ar << NumStreamedResources;
+
+		// Initialize if not cooking. Otherwise, resources will be initialized at this point, and only their data will be updated.
+		if (!bIsCooking) 
+		{
+			StreamedResources.SetNumUninitialized(NumStreamedResources);
+		}			
+		
+		check(NumStreamedResources == StreamedResources.Num())
+
+		for (int32 ResourceIndex = 0; ResourceIndex < NumStreamedResources; ++ResourceIndex)
+		{
+			UCustomizableObjectResourceDataContainer* Container = nullptr;
+
+			if (bIsCooking)
+			{
+				// Override existing containers
+				Container = StreamedResources[ResourceIndex].GetPath().Get();
+			}
+
+			// Generate a deterministic name to help with deterministic cooking
+			if (!Container)
+			{
+				const FString ContainerName = CustomizableObjectName + FString::Printf(TEXT("SR_%d"), ResourceIndex);
+
+				UCustomizableObjectResourceDataContainer* ExistingContainer = Cast<UCustomizableObjectResourceDataContainer>(FindObject<UObject>(Object, *ContainerName));
+				Container = ExistingContainer ? ExistingContainer : NewObject<UCustomizableObjectResourceDataContainer>(
+					Object,
+					FName(*ContainerName),
+					RF_Public);
+
+				StreamedResources[ResourceIndex] = { Container };
+			}
+
+			check(Container);
+			Ar << Container->Data.Type;
+			switch (Container->Data.Type)
+			{
+				case ECOResourceDataType::AssetUserData:
+				{
+					FString AssetUserDataPath;
+					Ar << AssetUserDataPath;
+					
+					FCustomizableObjectAssetUserData ResourceData;
+					ResourceData.AssetUserDataEditor = TSoftObjectPtr<UAssetUserData>(AssetUserDataPath).LoadSynchronous();
+
+					if (bIsCooking)
+					{
+						// Rename the asset user data for duplicate
+						const FString AssetName = CustomizableObjectName + GetNameSafe(ResourceData.AssetUserDataEditor);
+						
+						// Find or duplicate the AUD replacing the outer
+						ResourceData.AssetUserData = FindObject<UAssetUserData>(Container, *AssetName);
+						if (!ResourceData.AssetUserData)
+						{
+							// AUD may be private objects within meshes. Duplicate changing the outer to avoid including meshes into the builds.
+							ResourceData.AssetUserData = DuplicateObject<UAssetUserData>(ResourceData.AssetUserDataEditor, Container, FName(*AssetName));
+						}
+					}
+
+					Container->Data.Data = FInstancedStruct::Make(ResourceData);
+					break;
+				}
+				default:
+					break;
+			}
+		}
+	}
+}
+
+
+void UCustomizableObject::SaveCompiledData(FArchive& MemoryWriter, bool bIsCooking)
 {
 	int32 InternalVersion = CurrentSupportedVersion;
 	MutableCompiledDataStreamHeader Header(InternalVersion, VersionId);
 	MemoryWriter << Header;
 
 	MemoryWriter << ReferenceSkeletalMeshesData;
+
+	SerializeStreamedResources(MemoryWriter, this, StreamedResourceData, bIsCooking);
 	
 	int32 NumReferencedMaterials = ReferencedMaterials.Num();
 	MemoryWriter << NumReferencedMaterials;
@@ -496,7 +601,7 @@ void UCustomizableObject::SaveCompiledData(FArchive& MemoryWriter, bool bSkipEdi
 	MemoryWriter << HashToStreamableBlock;
 
 	// All Editor Only data must be serialized here
-	if (!bSkipEditorOnlyData)
+	if (!bIsCooking)
 	{
 		MemoryWriter << CustomizableObjectPathMap;
 		MemoryWriter << GroupNodeMap;
@@ -511,7 +616,7 @@ void UCustomizableObject::SaveCompiledData(FArchive& MemoryWriter, bool bSkipEdi
 	MemoryWriter << LODSettings.bLODStreamingEnabled;
 }
 
-void UCustomizableObject::LoadCompiledData(FArchive& MemoryReader, const ITargetPlatform* InTargetPlatform, bool bSkipEditorOnlyData)
+void UCustomizableObject::LoadCompiledData(FArchive& MemoryReader, const ITargetPlatform* InTargetPlatform, bool bIsCooking)
 {
 	PrivateData->SetModel(nullptr, FGuid());
 	ClearCompiledData();
@@ -532,7 +637,8 @@ void UCustomizableObject::LoadCompiledData(FArchive& MemoryReader, const ITarget
 			ReferenceSkeletalMeshData.InitResources(this, InTargetPlatform);
 		}
 
-		// We can load
+		SerializeStreamedResources(MemoryReader, this, StreamedResourceData, bIsCooking);
+
 		int32 NumReferencedMaterials = 0;
 		MemoryReader << NumReferencedMaterials;
 
@@ -604,7 +710,7 @@ void UCustomizableObject::LoadCompiledData(FArchive& MemoryReader, const ITarget
 		MemoryReader << HashToStreamableBlock;
 
 		// All Editor Only data must be loaded here
-		if (!bSkipEditorOnlyData)
+		if (!bIsCooking)
 		{
 			MemoryReader << CustomizableObjectPathMap;
 			MemoryReader << GroupNodeMap;

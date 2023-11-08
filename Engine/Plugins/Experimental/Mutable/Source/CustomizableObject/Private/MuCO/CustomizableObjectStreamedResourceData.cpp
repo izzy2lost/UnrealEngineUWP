@@ -1,16 +1,16 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "MuCO/CustomizableObjectStreamedExtensionData.h"
+#include "MuCO/CustomizableObjectStreamedResourceData.h"
 
 #include "ExternalPackageHelper.h"
 #include "MuCO/CustomizableObject.h"
 #include "UObject/Package.h"
 
-#include UE_INLINE_GENERATED_CPP_BY_NAME(CustomizableObjectStreamedExtensionData)
+#include UE_INLINE_GENERATED_CPP_BY_NAME(CustomizableObjectStreamedResourceData)
 
 #if WITH_EDITOR
-FCustomizableObjectStreamedExtensionData::FCustomizableObjectStreamedExtensionData(
-	UCustomizableObjectExtensionDataContainer* InContainer)
+FCustomizableObjectStreamedResourceData::FCustomizableObjectStreamedResourceData(
+	UCustomizableObjectResourceDataContainer* InContainer)
 {
 	check(IsInGameThread());
 	check(InContainer);
@@ -19,8 +19,8 @@ FCustomizableObjectStreamedExtensionData::FCustomizableObjectStreamedExtensionDa
 	ContainerPath = InContainer;
 }
 
-void FCustomizableObjectStreamedExtensionData::ConvertToSoftReferenceForCooking(
-	const TSoftObjectPtr<UCustomizableObjectExtensionDataContainer>& NewContainerPath)
+void FCustomizableObjectStreamedResourceData::ConvertToSoftReferenceForCooking(
+	const TSoftObjectPtr<UCustomizableObjectResourceDataContainer>& NewContainerPath)
 {
 	check(IsInGameThread());
 
@@ -31,14 +31,14 @@ void FCustomizableObjectStreamedExtensionData::ConvertToSoftReferenceForCooking(
 }
 #endif // WITH_EDITOR
 
-bool FCustomizableObjectStreamedExtensionData::IsLoaded() const
+bool FCustomizableObjectStreamedResourceData::IsLoaded() const
 {
 	check(IsInGameThread());
 
 	return Container != nullptr;
 }
 
-const FCustomizableObjectExtensionData& FCustomizableObjectStreamedExtensionData::GetLoadedData() const
+const FCustomizableObjectResourceData& FCustomizableObjectStreamedResourceData::GetLoadedData() const
 {
 	check(IsInGameThread());
 
@@ -46,7 +46,7 @@ const FCustomizableObjectExtensionData& FCustomizableObjectStreamedExtensionData
 	return Container->Data;
 }
 
-void FCustomizableObjectStreamedExtensionData::Unload()
+void FCustomizableObjectStreamedResourceData::Unload()
 {
 	check(IsInGameThread());
 
@@ -71,7 +71,7 @@ void FCustomizableObjectStreamedExtensionData::Unload()
 	}
 }
 
-void FCustomizableObjectStreamedExtensionData::NotifyLoaded(const UCustomizableObjectExtensionDataContainer* LoadedContainer)
+void FCustomizableObjectStreamedResourceData::NotifyLoaded(const UCustomizableObjectResourceDataContainer* LoadedContainer)
 {
 	check(IsInGameThread());
 	check(ContainerPath.Get() == LoadedContainer);

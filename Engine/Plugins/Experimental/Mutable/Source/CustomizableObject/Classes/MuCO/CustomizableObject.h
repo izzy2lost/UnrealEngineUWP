@@ -4,8 +4,9 @@
 
 #include "RHIDefinitions.h"
 #include "MuCO/CustomizableObjectClothingTypes.h"
-#include "MuCO/CustomizableObjectExtensionData.h"
-#include "MuCO/CustomizableObjectStreamedExtensionData.h"
+#include "MuCO/CustomizableObjectResourceData.h"
+#include "MuCO/CustomizableObjectResourceDataTypes.h"
+#include "MuCO/CustomizableObjectStreamedResourceData.h"
 #include "MuCO/CustomizableObjectIdentifier.h"
 #include "MuCO/CustomizableObjectParameterTypeDefinitions.h"
 #include "MuCO/CustomizableObjectUIData.h"
@@ -1201,11 +1202,15 @@ public:
 
 	// mu::ExtensionData::Index is an index into this array when mu::ExtensionData::Origin is ConstantAlwaysLoaded
 	UPROPERTY()
-	TArray<FCustomizableObjectExtensionData> AlwaysLoadedExtensionData;
+	TArray<FCustomizableObjectResourceData> AlwaysLoadedExtensionData;
 
 	// mu::ExtensionData::Index is an index into this array when mu::ExtensionData::Origin is ConstantStreamed
 	UPROPERTY()
-	TArray<FCustomizableObjectStreamedExtensionData> StreamedExtensionData;
+	TArray<FCustomizableObjectStreamedResourceData> StreamedExtensionData;
+
+	// Constant Resources streamed in on demand when generating meshes
+	UPROPERTY()
+	TArray<FCustomizableObjectStreamedResourceData> StreamedResourceData;
 
 private:
 	/** Use the SkeletalMesh of reference as a placeholder until the custom mesh is ready to use.
@@ -1485,7 +1490,7 @@ private:
 	// This is a manual version number for the binary blobs in this asset.
 	// Increasing it invalidates all the previously compiled models.
 	// Warning: If while merging code both versions have changed, take the highest+1.
-	static const int32 CurrentSupportedVersion = 410;
+	static const int32 CurrentSupportedVersion = 411;
 
 public:
 
@@ -1634,10 +1639,6 @@ public:
 
 	UPROPERTY()
 	TArray<FAnimBpOverridePhysicsAssetsInfo> AnimBpOverridePhysiscAssetsInfo;
-
-	/** Stores the UAssetUserData assets gathered from the SkeletalMesh nodes during compilation, to be used in mesh generation in-game */
-	UPROPERTY()
-	TMap<FString, TSoftObjectPtr<UAssetUserData>> AssetUserDataAssetsMap;
 
 	UPROPERTY()
 	/** Stores the sockets provided by the part skeletal meshes, to be merged in the generated meshes */

@@ -155,6 +155,65 @@ mu::MeshPtr FMutableGraphGenerationContext::FindGeneratedMesh( const FGeneratedM
 }
 
 
+int32 FMutableGraphGenerationContext::AddStreamedResource(uint32 InResourceHash, UCustomizableObjectResourceDataContainer*& OutNewResource)
+{
+	OutNewResource = nullptr;
+
+	// Return resource index if found.
+	if (int32* ResourceIndex = StreamedResourceIndices.Find(InResourceHash))
+	{
+		return *ResourceIndex;
+	}
+
+	int32 NewResourceIndex = StreamedResourceData.Num();
+	const FString ContainerName = FString::Printf(TEXT("SR_%d"), NewResourceIndex);
+
+	UObject* ExistingObject = FindObject<UObject>(Object, *ContainerName);
+	if (ExistingObject)
+	{
+		// This must have been left behind from a previous compilation and hasn't been deleted by 
+		// GC yet.
+		//
+		// Move it into the transient package to get it out of the way.
+		ExistingObject->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors);
+
+		check(!FindObject<UObject>(Object, *ContainerName));
+	}
+
+	OutNewResource = NewObject<UCustomizableObjectResourceDataContainer>(
+		Object,
+		FName(*ContainerName),
+		RF_Public);
+
+	StreamedResourceData.Add(OutNewResource);
+	StreamedResourceIndices.Add({ InResourceHash, NewResourceIndex });
+
+	return NewResourceIndex;
+}
+
+
+int32 FMutableGraphGenerationContext::AddAssetUserDataToStreamedResources(UAssetUserData* AssetUserData)
+{
+	check(AssetUserData);
+	const uint32 AssetIdentifier = AssetUserData->GetUniqueID();
+
+	UCustomizableObjectResourceDataContainer* NewResource = nullptr;
+	const int32 ResourceIndex = AddStreamedResource(AssetIdentifier, NewResource);
+
+	if (NewResource) // Nullptr if not new
+	{
+		FCustomizableObjectAssetUserData ResourceData;
+		ResourceData.AssetUserDataEditor = AssetUserData;
+
+		NewResource->Data.Type = ECOResourceDataType::AssetUserData;
+		NewResource->Data.Data = FInstancedStruct::Make(ResourceData);
+	}
+
+	check(StreamedResourceData[ResourceIndex].GetLoadedData().Type == ECOResourceDataType::AssetUserData);
+	return ResourceIndex;
+}
+
+
 /** Adds to ParameterNamesMap the node Node to the array of elements with name Name */
 void FMutableGraphGenerationContext::AddParameterNameUnique(const UCustomizableObjectNode* Node, FString Name)
 {
@@ -1415,12 +1474,6 @@ FString GenerateAnimationInstanceTag(const FString& AnimInstance, const FName& S
 FString GenerateGameplayTag(const FString& GameplayTag)
 {
 	return FString("__AnimBPTag:") + GameplayTag;
-}
-
-
-FString GenerateAssetUserDataTag(const FString& AssetUserData)
-{
-	return FString("__AssetUserData:") + AssetUserData;
 }
 
 

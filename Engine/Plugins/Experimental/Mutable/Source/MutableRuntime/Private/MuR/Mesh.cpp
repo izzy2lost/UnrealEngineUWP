@@ -51,6 +51,7 @@ MeshPtr Mesh::Clone() const
 	pResult->m_pSkeleton = m_pSkeleton;
 	pResult->m_pPhysicsBody = m_pPhysicsBody;
 	pResult->m_tags = m_tags;
+	pResult->StreamedResources = StreamedResources;
 
     // Clone the main buffers
     pResult->m_VertexBuffers = m_VertexBuffers;
@@ -107,6 +108,11 @@ MeshPtr Mesh::Clone(EMeshCopyFlags Flags) const
 	if (EnumHasAnyFlags(Flags, EMeshCopyFlags::WithTags))
 	{
 		pResult->m_tags = m_tags;
+	}
+
+	if (EnumHasAnyFlags(Flags, EMeshCopyFlags::WithStreamedResources))
+	{
+		pResult->StreamedResources = StreamedResources;
 	}
 
     // Clone the main buffers
@@ -194,6 +200,11 @@ void Mesh::CopyFrom(const Mesh& From, EMeshCopyFlags Flags)
 	if (EnumHasAnyFlags(Flags, EMeshCopyFlags::WithTags))
 	{
 		m_tags = From.m_tags;
+	}
+
+	if (EnumHasAnyFlags(Flags, EMeshCopyFlags::WithStreamedResources))
+	{
+		StreamedResources = From.StreamedResources;
 	}
 
     // Copy the main buffers
@@ -517,6 +528,23 @@ void Mesh::SetTag( int tagIndex, const FString& Name )
     {
         m_tags[tagIndex] = Name;
     }
+}
+
+
+//---------------------------------------------------------------------------------------------
+void Mesh::AddStreamedResource(int32 ResourceIndex)
+{
+	if (ensure(ResourceIndex >= 0))
+	{
+		StreamedResources.AddUnique(ResourceIndex);
+	}
+}
+
+
+//---------------------------------------------------------------------------------------------
+const TArray<int32>& Mesh::GetStreamedResources() const
+{
+	return StreamedResources;
 }
 
 
@@ -1180,7 +1208,7 @@ void Mesh::FBonePose::Unserialise(InputArchive& arch)
 //-------------------------------------------------------------------------------------------------
 void Mesh::Serialise(OutputArchive& arch) const
 {
-	uint32 ver = 17;
+	uint32 ver = 18;
 	arch << ver;
 
 	arch << m_IndexBuffers;
@@ -1198,6 +1226,7 @@ void Mesh::Serialise(OutputArchive& arch) const
 	arch << m_surfaces;
 
 	arch << m_tags;
+	arch << StreamedResources;
 
 	arch << BonePoses;
 	arch << BoneMap;
@@ -1211,7 +1240,7 @@ void Mesh::Unserialise(InputArchive& arch)
 {
 	uint32 ver;
 	arch >> ver;
-	check(ver <= 17);
+	check(ver <= 18);
 
 	arch >> m_IndexBuffers;
 	arch >> m_VertexBuffers;
@@ -1278,6 +1307,11 @@ void Mesh::Unserialise(InputArchive& arch)
 	else
 	{
 		arch >> m_tags;
+	}
+
+	if (ver >= 18)
+	{
+		arch >> StreamedResources;
 	}
 
 	if (ver >= 13)

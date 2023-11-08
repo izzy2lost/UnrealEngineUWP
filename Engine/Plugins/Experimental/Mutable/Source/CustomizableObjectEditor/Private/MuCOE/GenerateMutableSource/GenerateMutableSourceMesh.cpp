@@ -2878,22 +2878,25 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 				MeshUniqueTags += AnimBPTag;
 			}
 
-			TArray<FString> AssetUserDataTags;
+			TArray<int32> StreamedResources;
 
 			if (GenerationContext.Object->bEnableAssetUserDataMerge)
 			{
 				const TArray<UAssetUserData*>* AssetUserDataArray = TypedNodeSkel->SkeletalMesh->GetAssetUserDataArray();
 
-				if (AssetUserDataArray && !AssetUserDataArray->IsEmpty())
+				if (AssetUserDataArray)
 				{
-					for (const UAssetUserData* AssetUserData : *AssetUserDataArray)
+					for (UAssetUserData* AssetUserData : *AssetUserDataArray)
 					{
-						FString AuxString = AssetUserData->GetPathName();
-						GenerationContext.AssetUserDataAssetsMap.Add(AuxString, TSoftObjectPtr<UAssetUserData>(AssetUserData));
+						if (!AssetUserData)
+						{
+							continue;
+						}
 
-						FString AssetUserDataTag = GenerateAssetUserDataTag(AuxString);
-						AssetUserDataTags.Add(AssetUserDataTag);
-						MeshUniqueTags += AssetUserDataTag;
+						const int32 ResourceIndex = GenerationContext.AddAssetUserDataToStreamedResources(AssetUserData);
+						StreamedResources.Add(ResourceIndex);
+
+						MeshUniqueTags += AssetUserData->GetPathName();
 					}
 				}
 			}
@@ -2971,9 +2974,9 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 					AddTagToMutableMeshUnique(*MutableMesh, GamePlayTag);
 				}
 
-				for (const FString& AssetUserDataTag : AssetUserDataTags)
+				for (int32 ResourceIndex : StreamedResources)
 				{
-					AddTagToMutableMeshUnique(*MutableMesh, AssetUserDataTag);
+					MutableMesh->AddStreamedResource(ResourceIndex);
 				}
 
 				AddSocketTagsToMesh(TypedNodeSkel->SkeletalMesh, MutableMesh, GenerationContext);

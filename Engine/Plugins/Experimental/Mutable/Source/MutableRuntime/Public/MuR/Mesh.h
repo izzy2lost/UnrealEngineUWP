@@ -150,6 +150,7 @@ namespace mu
 		WithBoneMap = 1 << 13,
 		WithSkeletonIDs = 1 << 14,
 		WithAdditionalPhysics = 1 << 15,
+		WithStreamedResources = 1 << 16,
 
 		AllFlags = 0xFFFFFFFF
 	};
@@ -284,6 +285,12 @@ namespace mu
         void SetTag( int tagIndex, const FString& Name );
 
 		//!
+		void AddStreamedResource(int32 ResourceIndex);
+
+		//!
+		const TArray<int32>& GetStreamedResources() const;
+
+		//!
 		int32 FindBonePose(uint16 BoneId) const;
 		
 		//!
@@ -379,6 +386,9 @@ namespace mu
 		//!
 		TArray<FString> m_tags;
 
+		//!
+		TArray<int32> StreamedResources;
+
 		struct FBonePose
 		{
 			// Index of the bone in the CO BoneNames array
@@ -434,6 +444,7 @@ namespace mu
 					equal = false;
 				}
 			}
+			if (equal) equal = (StreamedResources == o.StreamedResources);
 			if (equal) equal = (m_surfaces == o.m_surfaces);
 			if (equal) equal = (m_tags == o.m_tags);
 			if (equal) equal = (SkeletonIDs == o.SkeletonIDs);

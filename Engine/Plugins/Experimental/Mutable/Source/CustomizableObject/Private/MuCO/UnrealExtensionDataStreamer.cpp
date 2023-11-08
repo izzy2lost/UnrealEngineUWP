@@ -178,7 +178,7 @@ TSharedPtr<FStreamableHandle> FUnrealExtensionDataStreamer::StartLoadOnGameThrea
 		return nullptr;
 	}
 
-	FCustomizableObjectStreamedExtensionData& StreamedData = Object->StreamedExtensionData[LoadHandle->Data->Index];
+	FCustomizableObjectStreamedResourceData& StreamedData = Object->StreamedExtensionData[LoadHandle->Data->Index];
 	if (StreamedData.IsLoaded())
 	{
 		// Already loaded
@@ -246,13 +246,13 @@ void FUnrealExtensionDataStreamer::NotifyLoadCompleted(
 		return;
 	}
 
-	FCustomizableObjectStreamedExtensionData& StreamedData = Object->StreamedExtensionData[LoadHandle->Data->Index];
+	FCustomizableObjectStreamedResourceData& StreamedData = Object->StreamedExtensionData[LoadHandle->Data->Index];
 
 	// The object could have been loaded by another request, in which case we can skip updating
 	// the StreamedData.
 	if (!StreamedData.IsLoaded())
 	{
-		const UCustomizableObjectExtensionDataContainer* LoadedObject = StreamedData.GetPath().Get();
+		const UCustomizableObjectResourceDataContainer* LoadedObject = StreamedData.GetPath().Get();
 		if (!LoadedObject)
 		{
 			// Object wasn't loaded for some reason

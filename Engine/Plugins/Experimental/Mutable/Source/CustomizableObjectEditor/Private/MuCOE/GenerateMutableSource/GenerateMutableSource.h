@@ -632,6 +632,15 @@ struct FMutableGraphGenerationContext
 	/** Find a mesh if already generated for a given source and flags. */
 	mu::Ptr<mu::Mesh> FindGeneratedMesh(const FGeneratedMeshData::FKey& Key);
 
+	/** Add a resource to the streamed resources array.
+	  * OutStreamedResourceContainer - Container to store the streamed resource.
+	  * Returns resource index in the array of streamed resources. */
+	int32 AddStreamedResource(const uint32 InResourceHash, UCustomizableObjectResourceDataContainer*& OutStreamedResourceContainer);
+
+	/** Adds a streamed resource of type AssetUserData.
+	  * Returns resource index in the array of streamed resources. */
+	int32 AddAssetUserDataToStreamedResources(UAssetUserData* AssetUserData);
+
 	/** Adds to ParameterNamesMap the node Node to the array of elements with name Name */
 	void AddParameterNameUnique(const UCustomizableObjectNode* Node, FString Name);
 
@@ -750,9 +759,6 @@ struct FMutableGraphGenerationContext
 	/** Stores the anim BP assets gathered from the SkeletalMesh nodes during compilation, to be used in mesh generation in-game */
 	TMap<FString, TSoftClassPtr<UAnimInstance>> AnimBPAssetsMap;
 
-	/** Stores the AssetUserData assets gathered from the SkeletalMesh nodes during compilation, to be used in mesh generation in-game */
-	TMap<FString, TSoftObjectPtr<UAssetUserData>> AssetUserDataAssetsMap;
-
 	/** Stores the sockets provided by the part skeletal meshes, to be merged in the generated meshes */
 	TArray<FMutableRefSocket> SocketArray;
 
@@ -805,10 +811,14 @@ struct FMutableGraphGenerationContext
 	// UCustomizableObjectNodeMaterial material to SharedSurfaceId
 	TMap<UCustomizableObjectNodeMaterial*, TArray<FSharedSurface>> SharedSurfaceIds;
 
+	/** Resource Data constants */
+	TMap<uint32, int32> StreamedResourceIndices;
+	TArray<FCustomizableObjectStreamedResourceData> StreamedResourceData;
+
 	/** Extension Data constants are collected here */
 	FExtensionDataCompilerInterface ExtensionDataCompilerInterface;
-	TArray<FCustomizableObjectExtensionData> AlwaysLoadedExtensionData;
-	TArray<UCustomizableObjectExtensionDataContainer*> StreamedExtensionData;
+	TArray<FCustomizableObjectResourceData> AlwaysLoadedExtensionData;
+	TArray<UCustomizableObjectResourceDataContainer*> StreamedExtensionData;
 
 	/** See UCustomizableObject::ParticipatingObjects. */
 	TMap<TObjectPtr<const UObject>, FGuid> ParticipatingObjects;

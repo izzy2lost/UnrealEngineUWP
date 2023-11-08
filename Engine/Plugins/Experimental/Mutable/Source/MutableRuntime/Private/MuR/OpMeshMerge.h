@@ -1144,6 +1144,16 @@ namespace mu
 		{
 			Result->m_tags.AddUnique(SecondTag);
 		}
+
+
+		// Streamed Resources
+		Result->StreamedResources = pFirst->StreamedResources;
+
+		const int32 NumStreamedResources = pSecond->StreamedResources.Num();
+		for (int32 Index = 0; Index < NumStreamedResources; ++Index)
+		{
+			Result->StreamedResources.AddUnique(pSecond->StreamedResources[Index]);
+		}
 	}
 	
 

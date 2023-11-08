@@ -194,13 +194,13 @@ void UCustomizableInstancePrivateData::PrepareForUpdate(const TSharedRef<FUpdate
 	{
 		ComponentData.AnimSlotToBP.Empty();
 		ComponentData.AssetUserDataArray.Empty();
-		ComponentData.AssetUserDataToStream.Empty();
 		ComponentData.Skeletons.Skeleton = nullptr;
 		ComponentData.Skeletons.SkeletonIds.Empty();
 		ComponentData.Skeletons.SkeletonsToMerge.Empty();
 		ComponentData.PhysicsAssets.PhysicsAssetToLoad.Empty();
 		ComponentData.PhysicsAssets.PhysicsAssetsToMerge.Empty();
 		ComponentData.ClothingPhysicsAssetsToStream.Empty();
+		ComponentData.StreamedResourceIndex.Empty();
 
 #if WITH_EDITORONLY_DATA
 		ComponentData.MeshPartPaths.Empty();
@@ -1972,7 +1972,7 @@ bool UCustomizableInstancePrivateData::UpdateSkeletalMesh_PostBeginUpdate0(UCust
 
 				TArray<FInputPinDataContainer>& ContainerArray = ExtensionToExtensionData.FindOrAdd(Extension);
 
-				const FCustomizableObjectExtensionData* ReferencedExtensionData = nullptr;
+				const FCustomizableObjectResourceData* ReferencedExtensionData = nullptr;
 				switch (ExtensionOutput.Data->Origin)
 				{
 					case mu::ExtensionData::EOrigin::ConstantAlwaysLoaded:
@@ -1986,7 +1986,7 @@ bool UCustomizableInstancePrivateData::UpdateSkeletalMesh_PostBeginUpdate0(UCust
 					{
 						check(CustomizableObject->StreamedExtensionData.IsValidIndex(ExtensionOutput.Data->Index));
 						
-						const FCustomizableObjectStreamedExtensionData& StreamedData =
+						const FCustomizableObjectStreamedResourceData& StreamedData =
 							CustomizableObject->StreamedExtensionData[ExtensionOutput.Data->Index];
 
 						if (!StreamedData.IsLoaded())
@@ -4881,6 +4881,26 @@ FGraphEventRef UCustomizableInstancePrivateData::LoadAdditionalAssetsAsync(const
 
 			FCustomizableInstanceComponentData* ComponentData = GetComponentData(Component.Id);
 
+			const TArray<int32>& StreamedResources = MutableMesh->GetStreamedResources();
+			const TArray<FCustomizableObjectStreamedResourceData>& StreamedResourcesData = CustomizableObject->StreamedResourceData;
+
+			for (int32 ResourceIndex : StreamedResources)
+			{
+				if (!StreamedResourcesData.IsValidIndex(ResourceIndex))
+				{
+					UE_LOG(LogMutable, Error, TEXT("Invalid streamed resource index. Max Index [%d]. Resource Index [%d]."), StreamedResourcesData.Num(), ResourceIndex);
+					continue; 
+				}
+
+				const FCustomizableObjectStreamedResourceData& StreamedResource = StreamedResourcesData[ResourceIndex];
+				if (!StreamedResource.IsLoaded())
+				{
+					AssetsToStream.AddUnique(StreamedResource.GetPath().ToSoftObjectPath());
+				}
+
+				ComponentData->StreamedResourceIndex.Add(ResourceIndex);
+			}
+
 			const bool bReplacePhysicsAssets = HasCOInstanceFlags(ReplacePhysicsAssets);
 
 			for (int32 TagIndex = 0; TagIndex < MutableMesh->GetTagCount(); ++TagIndex)
@@ -4981,25 +5001,6 @@ FGraphEventRef UCustomizableInstancePrivateData::LoadAdditionalAssetsAsync(const
 				{
 					AnimBPGameplayTags.AddTag(FGameplayTag::RequestGameplayTag(*Tag));
 				}
-				else if (Tag.RemoveFromStart("__AssetUserData:"))
-				{
-					const FString& AssetPath = Tag;
-
-					TSoftObjectPtr<UAssetUserData>* AssetUserData = CustomizableObject->AssetUserDataAssetsMap.Find(AssetPath);
-
-					if (AssetUserData && !AssetUserData->IsNull())
-					{
-						if (AssetUserData->Get())
-						{
-							ComponentData->AssetUserDataArray.Add(AssetUserData->Get());
-						}
-						else
-						{
-							ComponentData->AssetUserDataToStream.Add(*AssetUserData);
-							AssetsToStream.Add(AssetUserData->ToSoftObjectPath());
-						}
-					}
-				}
 #if WITH_EDITORONLY_DATA
 				else if (Tag.RemoveFromStart("__MeshPath:"))
 				{
@@ -5095,8 +5096,36 @@ void UCustomizableInstancePrivateData::AdditionalAssetsAsyncLoaded(UCustomizable
 #endif
 
 	
+	TArray<FCustomizableObjectStreamedResourceData>& StreamedResources = CustomizableObject->StreamedResourceData;
+
 	for (FCustomizableInstanceComponentData& ComponentData : ComponentsData)
 	{
+		for (int32 ResourceIndex : ComponentData.StreamedResourceIndex)
+		{
+			FCustomizableObjectStreamedResourceData& Resource = StreamedResources[ResourceIndex];
+			if (!Resource.IsLoaded())
+			{
+				Resource.NotifyLoaded(Resource.GetPath().Get());
+			}
+
+			const FCustomizableObjectResourceData& ResourceData = Resource.GetLoadedData();
+			switch (ResourceData.Type)
+			{
+				case ECOResourceDataType::AssetUserData:
+				{
+					const FCustomizableObjectAssetUserData* AUDResource = ResourceData.Data.GetPtr<FCustomizableObjectAssetUserData>();
+#if WITH_EDITORONLY_DATA
+					ComponentData.AssetUserDataArray.Add(AUDResource->AssetUserDataEditor);
+#else
+					ComponentData.AssetUserDataArray.Add(AUDResource->AssetUserData);
+#endif
+					break;
+				}
+				default:
+					break;
+			}
+		}
+
 		// Loaded Skeletons
 		FReferencedSkeletons& Skeletons = ComponentData.Skeletons;
 		for (int32 SkeletonIndex : Skeletons.SkeletonIds)
@@ -5172,28 +5201,6 @@ void UCustomizableInstancePrivateData::AdditionalAssetsAsyncLoaded(UCustomizable
 #endif
 		}
 
-		for (TSoftObjectPtr<UAssetUserData> LoadedAssetUserData : ComponentData.AssetUserDataToStream)
-		{
-			if (LoadedAssetUserData.IsValid())
-			{
-				ComponentData.AssetUserDataArray.Add(LoadedAssetUserData.Get());
-			}
-#if WITH_EDITOR
-			else
-			{
-				FMessageLogModule& MessageLogModule = FModuleManager::LoadModuleChecked<FMessageLogModule>("MessageLog");
-				MessageLogModule.RegisterLogListing(FName("Mutable"), FText::FromString(FString("Mutable")));
-				FMessageLog MessageLog("Mutable");
-
-				FString ErrorMsg = FString::Printf(TEXT("Mutable couldn't load the AssetUserData [%s]. If it has been deleted or renamed, please recompile all the mutable objects that use it."), *LoadedAssetUserData.GetAssetName());
-				UE_LOG(LogMutable, Error, TEXT("%s"), *ErrorMsg);
-				MessageLog.Notify(FText::FromString(ErrorMsg), EMessageSeverity::Error, true);
-			}
-#endif
-		}
-
-		ComponentData.AssetUserDataToStream.Empty();
-
 		const int32 AdditionalPhysicsNum = ComponentData.PhysicsAssets.AdditionalPhysicsAssetsToLoad.Num();
 		ComponentData.PhysicsAssets.AdditionalPhysicsAssets.Reserve(AdditionalPhysicsNum);
 		for (int32 I = 0; I < AdditionalPhysicsNum; ++I)
@@ -5215,6 +5222,15 @@ void UCustomizableInstancePrivateData::AdditionalAssetsAsyncLoaded(UCustomizable
 	}
 
 	PassThroughTexturesToLoad.Empty();
+
+	// Only Unload in cooked builds. Unloading them when in the editor will trigger an assert. 
+	if (FPlatformProperties::RequiresCookedData())
+	{
+		for (FCustomizableObjectStreamedResourceData& ResourceData : StreamedResources)
+		{
+			ResourceData.Unload();
+		}
+	}
 }
 
 

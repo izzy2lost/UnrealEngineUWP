@@ -681,6 +681,7 @@ namespace mu
 		}
 
 		Result->m_tags = pSource->m_tags;
+		Result->StreamedResources = pSource->StreamedResources;
 
 		Result->AdditionalBuffers = pSource->AdditionalBuffers;
 

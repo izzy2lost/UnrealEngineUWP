@@ -1193,7 +1193,7 @@ void FCustomizableObjectCompiler::CompileInternal(UCustomizableObject* Object, c
 		Object->AlwaysLoadedExtensionData = MoveTemp(GenerationContext.AlwaysLoadedExtensionData);
 
 		Object->StreamedExtensionData.Empty(GenerationContext.StreamedExtensionData.Num());
-		for (UCustomizableObjectExtensionDataContainer* Container : GenerationContext.StreamedExtensionData)
+		for (UCustomizableObjectResourceDataContainer* Container : GenerationContext.StreamedExtensionData)
 		{
 			Object->StreamedExtensionData.Emplace(Container);
 		}
@@ -1233,16 +1233,7 @@ void FCustomizableObjectCompiler::CompileInternal(UCustomizableObject* Object, c
 	
 		Object->AnimBPAssetsMap = GenerationContext.AnimBPAssetsMap;
 
-		// Mark the object as modified, used to avoid missing assets in packages. 
-		if (!Object->AssetUserDataAssetsMap.OrderIndependentCompareEqual(GenerationContext.AssetUserDataAssetsMap))
-		{
-			if (!ParamNamesToSelectedOptions.Num()) // Don't mark the objects as modified because of a partial compilation
-			{
-				Object->MarkPackageDirty();
-			}
-		}
-
-		Object->AssetUserDataAssetsMap = GenerationContext.AssetUserDataAssetsMap;
+		Object->StreamedResourceData = MoveTemp(GenerationContext.StreamedResourceData);
 
 		// Mark the object as modified, used to avoid missing assets in packages.
 		if (Object->SocketArray != GenerationContext.SocketArray)

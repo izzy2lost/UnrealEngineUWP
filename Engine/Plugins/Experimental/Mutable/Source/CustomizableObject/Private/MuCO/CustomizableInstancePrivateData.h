@@ -136,8 +136,8 @@ struct FCustomizableInstanceComponentData
 	UPROPERTY(Transient, Category = CustomizableObjectInstance, editfixedsize, VisibleAnywhere)
 	TSet<TObjectPtr<UAssetUserData>> AssetUserDataArray;
 
-	// Temp structure to store the AssetUserData that will be async loaded during an update
-	TSet<TSoftObjectPtr<UAssetUserData>> AssetUserDataToStream;
+	// Index of the resource in the StreamedResourceData array of the CustomizableObject.
+	TArray<int32> StreamedResourceIndex;
 
 #if WITH_EDITORONLY_DATA
 	// Just used for mutable.EnableMutableAnimInfoDebugging command
