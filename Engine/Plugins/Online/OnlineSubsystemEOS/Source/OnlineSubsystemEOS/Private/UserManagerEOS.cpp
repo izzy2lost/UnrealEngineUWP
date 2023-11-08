@@ -2656,15 +2656,19 @@ void FUserManagerEOS::SetPresence(const FUniqueNetId& UserId, const FOnlineUserP
 		Record.Key = RawString.Key.Get();
 		Record.Value = RawString.Value.Get();
 	}
-	EOS_PresenceModification_SetDataOptions DataOptions = { };
-	DataOptions.ApiVersion = 1;
-	UE_EOS_CHECK_API_MISMATCH(EOS_PRESENCE_SETDATA_API_LATEST, 1);
-	DataOptions.RecordsCount = Records.Num();
-	DataOptions.Records = Records.GetData();
-	EOS_EResult SetDataResult = EOS_PresenceModification_SetData(ChangeHandle, &DataOptions);
-	if (SetDataResult != EOS_EResult::EOS_Success)
+
+	if (Records.Num() > 0)
 	{
-		UE_LOG_ONLINE(Error, TEXT("EOS_PresenceModification_SetData() failed with result code (%s)"), *LexToString(SetDataResult));
+		EOS_PresenceModification_SetDataOptions DataOptions = { };
+		DataOptions.ApiVersion = 1;
+		UE_EOS_CHECK_API_MISMATCH(EOS_PRESENCE_SETDATA_API_LATEST, 1);
+		DataOptions.RecordsCount = Records.Num();
+		DataOptions.Records = Records.GetData();
+		EOS_EResult SetDataResult = EOS_PresenceModification_SetData(ChangeHandle, &DataOptions);
+		if (SetDataResult != EOS_EResult::EOS_Success)
+		{
+			UE_LOG_ONLINE(Error, TEXT("EOS_PresenceModification_SetData() failed with result code (%s)"), *LexToString(SetDataResult));
+		}
 	}
 
 	FSetPresenceCallback* CallbackObj = new FSetPresenceCallback(AsWeak());
