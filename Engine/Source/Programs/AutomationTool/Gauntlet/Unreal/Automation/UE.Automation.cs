@@ -136,6 +136,12 @@ namespace UE
 		public virtual int LogIdleTimeout { get; set; } = 30 * 60;
 
 		/// <summary>
+		/// Enable stereo variants for image based tests
+		/// </summary>
+		[AutoParam]
+		public bool EnableStereoTestVariants = false;
+
+		/// <summary>
 		/// Used for having the editor and any client communicate
 		/// </summary>
 		public string SessionID = Guid.NewGuid().ToString();
@@ -217,6 +223,12 @@ namespace UE
 			{
 				AutomationTestArgument += "Quit;";
 				AppConfig.CommandLine += " -unattended";
+			}
+
+			// Enable stereo variants for image based tests if requested
+			if (EnableStereoTestVariants)
+			{
+				AutomationTestArgument += "EnableStereoTests;";
 			}
 
 			bool HasNoOtherRole = !OtherRoles.Any();
