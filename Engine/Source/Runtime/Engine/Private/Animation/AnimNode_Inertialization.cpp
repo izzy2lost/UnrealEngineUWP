@@ -621,6 +621,88 @@ void FInertializationPose::InitFrom(const FCompactPose& Pose, const FBlendedCurv
 	DeltaTime = InDeltaTime;
 }
 
+void FInertializationSparsePose::InitFrom(
+	const FCompactPose& Pose,
+	const FBlendedCurve& InCurves,
+	const FTransform& InComponentTransform,
+	const FName& InAttachParentName,
+	float InDeltaTime)
+{
+	const FBoneContainer& BoneContainer = Pose.GetBoneContainer();
+
+	const int32 NumSkeletonBones = UE::Anim::GetNumSkeletonBones(BoneContainer);
+
+	// Allocate Bone Index Array
+
+	BoneIndices.Init(INDEX_NONE, NumSkeletonBones);
+
+	int32 NumInertializationBones = 0;
+
+	for (const FCompactPoseBoneIndex BoneIndex : Pose.ForEachBoneIndex())
+	{
+		const int32 SkeletonPoseBoneIndex = BoneContainer.GetSkeletonIndex(BoneIndex);
+
+		if (SkeletonPoseBoneIndex == INDEX_NONE)
+		{
+			continue;
+		}
+
+		// For each valid bone in the Compact Pose we write into BoneIndices the InertializationBoneIndex -
+		// i.e. the index into BoneTranslations, BoneRotations, and BoneScales we are going to use to store
+		// the transform data
+
+		BoneIndices[SkeletonPoseBoneIndex] = NumInertializationBones;
+		NumInertializationBones++;
+	}
+
+	// Initialize the BoneTranslations, BoneRotations, and BoneScales arrays
+
+	BoneTranslations.Init(FVector::ZeroVector, NumInertializationBones);
+	BoneRotations.Init(FQuat::Identity, NumInertializationBones);
+	BoneScales.Init(FVector::OneVector, NumInertializationBones);
+
+	for (const FCompactPoseBoneIndex BoneIndex : Pose.ForEachBoneIndex())
+	{
+		const int32 SkeletonPoseBoneIndex = BoneContainer.GetSkeletonIndex(BoneIndex);
+
+		if (SkeletonPoseBoneIndex == INDEX_NONE)
+		{
+			continue;
+		}
+
+		// Get the InertializationBoneIndex and write the transform data
+
+		const uint16 InertializationBoneIndex = BoneIndices[SkeletonPoseBoneIndex];
+		check(InertializationBoneIndex != INDEX_NONE);
+
+		const FTransform BoneTransform = Pose[BoneIndex];
+		BoneTranslations[InertializationBoneIndex] = BoneTransform.GetTranslation();
+		BoneRotations[InertializationBoneIndex] = BoneTransform.GetRotation();
+		BoneScales[InertializationBoneIndex] = BoneTransform.GetScale3D();
+	}
+
+	// Init the rest of the snapshot data
+
+	Curves.InitFrom(InCurves);
+	ComponentTransform = InComponentTransform;
+	AttachParentName = InAttachParentName;
+	DeltaTime = InDeltaTime;
+}
+
+bool FInertializationSparsePose::IsEmpty() const
+{
+	return BoneIndices.IsEmpty();
+}
+
+void FInertializationSparsePose::Empty()
+{
+	BoneIndices.Empty();
+	BoneTranslations.Empty();
+	BoneRotations.Empty();
+	BoneScales.Empty();
+	Curves.BlendedCurve.Empty();
+}
+
 
 // Initialize the pose difference from the current pose and the two previous snapshots
 //

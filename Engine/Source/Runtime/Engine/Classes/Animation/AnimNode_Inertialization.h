@@ -234,6 +234,39 @@ struct TUseBitwiseSwap<FInertializationPose>
 	enum { Value = false };
 };
 
+// Structure for storing a pose snapshot sparsely (i.e. when we may not have the full set of transform for every bone)
+struct FInertializationSparsePose
+{
+	friend struct FAnimNode_Inertialization;
+	friend struct FAnimNode_DeadBlending;
+
+private:
+
+	FTransform ComponentTransform;
+	
+	// For each SkeletonPoseBoneIndex this array stores the index into the BoneTranslations, BoneRotations, and 
+	// BoneScales arrays which contains that bone's data. Or INDEX_NONE if this bone's data is not in the snapshot.
+	TArray<uint16> BoneIndices;
+	
+	// Bone translation Data
+	TArray<FVector> BoneTranslations;
+	
+	// Bone Rotation Data
+	TArray<FQuat> BoneRotations;
+	
+	// Bone Scale Data
+	TArray<FVector> BoneScales;
+
+    // Curve Data
+	FInertializationCurve Curves;
+
+	FName AttachParentName;
+	float DeltaTime;
+
+	void InitFrom(const FCompactPose& Pose, const FBlendedCurve& InCurves, const FTransform& InComponentTransform, const FName& InAttachParentName, float InDeltaTime);
+	bool IsEmpty() const;
+	void Empty();
+};
 
 USTRUCT()
 struct FInertializationBoneDiff

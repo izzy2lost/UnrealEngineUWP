@@ -188,10 +188,10 @@ private:
 	 * @param SrcPoseCurr	The pose recorded as output of the inertializer on the previous frame.
 	 */
 	void InitFrom(
-		const FCompactPose& InPose,
-		const FBlendedCurve& InCurves,
-		const FInertializationPose& SrcPosePrev,
-		const FInertializationPose& SrcPoseCurr);
+		const FCompactPose& InPose, 
+		const FBlendedCurve& InCurves, 
+		const FInertializationSparsePose& SrcPosePrev,
+		const FInertializationSparsePose& SrcPoseCurr);
 
 	/**
 	 * Computes the extrapolated pose and blends it with the input pose.
@@ -213,7 +213,8 @@ private:
 	TArray<FCompactPoseBoneIndex, TInlineAllocator<8>> BoneFilter;
 
 	// Snapshots of the actor pose generated as output.
-	TArray<FInertializationPose, TInlineAllocator<2>> PoseSnapshots;
+	FInertializationSparsePose PrevPoseSnapshot;
+	FInertializationSparsePose CurrPoseSnapshot;
 
 	// Pending inertialization requests.
 	UPROPERTY(Transient)
@@ -226,7 +227,8 @@ private:
 
 	// Recorded pose state at point of transition.
 
-	TBitArray<TInlineAllocator<16>> BoneValid;
+	TArray<uint16> BoneIndices;
+	
 	TArray<FVector> BoneTranslations;
 	TArray<FQuat> BoneRotations;
 	TArray<FQuat4f> BoneRotationDirections;
