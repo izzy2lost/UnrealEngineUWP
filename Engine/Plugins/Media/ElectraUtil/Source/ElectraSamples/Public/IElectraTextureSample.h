@@ -76,6 +76,8 @@ protected:
 	/** Precomputed colorimetric data */
 	UE::Color::EEncoding ColorEncoding;
 	UE::Color::FColorSpace SampleColorSpace;
+	UE::Color::FColorSpace DisplayColorSpace;
+	bool bDisplayColorSpaceValid;
 	float DisplayMasteringLuminanceMin;
 	float DisplayMasteringLuminanceMax;
 	uint16 MaxCLL;
