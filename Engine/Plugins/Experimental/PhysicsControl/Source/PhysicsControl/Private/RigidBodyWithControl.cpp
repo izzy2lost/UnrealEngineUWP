@@ -204,6 +204,14 @@ ImmediatePhysics::FActorHandle* FAnimNode_RigidBodyWithControl::FindBodyFromBone
 }
 
 //======================================================================================================================
+void FAnimNode_RigidBodyWithControl::UpdateBodyIndicesInControlRecord(FRigidBodyControlRecord& ControlRecord)
+{
+	ControlRecord.ChildBodyIndex = FindBodyIndexFromBoneName(ControlRecord.Control.ChildBoneName);
+	ControlRecord.ParentBodyIndex = ControlRecord.Control.ParentBoneName.IsNone() ?
+		-1 : FindBodyIndexFromBoneName(ControlRecord.Control.ParentBoneName);
+}
+
+//======================================================================================================================
 FName FAnimNode_RigidBodyWithControl::CreateControl(
 	const FName ParentBoneName, const FName ChildBoneName, const FPhysicsControlData& ControlData)
 {
@@ -315,6 +323,12 @@ void FAnimNode_RigidBodyWithControl::InitControlsAndBodyModifiers(const FReferen
 
 	CreateOperatorsForNode(this, AllLimbBones, RefSkeleton, GetPhysicsAsset(), NameRecords);
 
+	for (TMap<FName, FRigidBodyControlRecord>::ElementType& NameRecordPair : ControlRecords)
+	{
+		FRigidBodyControlRecord& ControlRecord = NameRecordPair.Value;
+		UpdateBodyIndicesInControlRecord(ControlRecord);
+	}
+
 	// Create any additional sets that have been requested
 	CreateAdditionalSets(AdditionalSets, ModifierRecords, ControlRecords, NameRecords);
 
@@ -416,9 +430,11 @@ static void ConvertStrengthToSpringParams(
 }
 
 //======================================================================================================================
-void FAnimNode_RigidBodyWithControl::UpdateDriveSpringDamperSettings(
-	Chaos::FPBDJointSettings&  Settings, 
-	const FPhysicsControlData& ControlData)
+// Adjusts the constraint spring drive settings to reflect the control data
+static void UpdateDriveSpringDamperSettings(
+	Chaos::FPBDJointConstraintHandle* Constraint,
+	const Chaos::FPBDJointSettings&   Settings, 
+	const FPhysicsControlData&        ControlData)
 {
 	float LinearSpring;
 	float LinearDamping;
@@ -430,28 +446,26 @@ void FAnimNode_RigidBodyWithControl::UpdateDriveSpringDamperSettings(
 	ConvertStrengthToSpringParams(AngularSpring, AngularDamping, 
 		ControlData.AngularStrength, ControlData.AngularDampingRatio, ControlData.AngularExtraDamping);
 
-	Settings.LinearDriveStiffness = { LinearSpring, LinearSpring, LinearSpring };
-	Settings.LinearDriveDamping = { LinearDamping, LinearDamping, LinearDamping };
-	Settings.LinearDriveMaxForce = { 0, 0, 0};
-
-	Settings.AngularDriveStiffness = { AngularSpring, AngularSpring, AngularSpring };
-	Settings.AngularDriveDamping = { AngularDamping, AngularDamping, AngularDamping };
-	Settings.AngularDriveMaxTorque = { 0, 0, 0 };
+	Constraint->SetDriveProperties(
+		Chaos::FVec3(LinearSpring), Chaos::FVec3(LinearDamping), Chaos::FVec3(0),
+		Chaos::FVec3(AngularSpring), Chaos::FVec3(AngularDamping), Chaos::FVec3(0));
 }
 
 //======================================================================================================================
-static FTransform CalculateTargetTM(
+static RigidBodyWithControl::FPosQuat CalculateTargetTM(
 	const Chaos::FPBDJointSettings&                 JointSettings, 
 	const RigidBodyWithControl::FRigidBodyPoseData& PoseData,
 	const int32                                     ParentBodyIndex, 
 	const int32                                     ChildBodyIndex)
 {
-	FTransform ChildTargetTM = 
-		JointSettings.ConnectorTransforms[ConstraintChildIndex] * PoseData.GetTM(ChildBodyIndex);
+	const RigidBodyWithControl::FPosQuat ChildTargetTM =
+		RigidBodyWithControl::FPosQuat(JointSettings.ConnectorTransforms[ConstraintChildIndex]) * 
+		PoseData.GetTM(ChildBodyIndex);
 	if (ParentBodyIndex >= 0)
 	{
-		const FTransform ParentTargetTM = 
-			JointSettings.ConnectorTransforms[ConstraintParentIndex] * PoseData.GetTM(ParentBodyIndex);
+		const RigidBodyWithControl::FPosQuat ParentTargetTM =
+			RigidBodyWithControl::FPosQuat(JointSettings.ConnectorTransforms[ConstraintParentIndex]) * 
+			PoseData.GetTM(ParentBodyIndex);
 		return ChildTargetTM * ParentTargetTM.Inverse();
 	}
 	return ChildTargetTM;
@@ -465,7 +479,7 @@ void FAnimNode_RigidBodyWithControl::ApplyControl(FRigidBodyControlRecord& Contr
 
 	if (JointHandle)
 	{
-		Chaos::FPBDJointConstraintHandle* const Constraint = JointHandle->GetConstraint();
+		Chaos::FPBDJointConstraintHandle* Constraint = JointHandle->GetConstraint();
 		if (Constraint)
 		{
 			if (ControlRecord.ExpectedUpdateCounter.Get() != PoseData.UpdateCounter.Get())
@@ -478,7 +492,7 @@ void FAnimNode_RigidBodyWithControl::ApplyControl(FRigidBodyControlRecord& Contr
 
 			if (ChildActorHandle && ParentActorHandle)
 			{
-				Chaos::FPBDJointSettings JointSettings = Constraint->GetSettings();
+				const Chaos::FPBDJointSettings& JointSettings = Constraint->GetSettings();
 
 				// TODO
 				// - cache settings / previous input parameters to avoid unnecessary repeating
@@ -487,60 +501,61 @@ void FAnimNode_RigidBodyWithControl::ApplyControl(FRigidBodyControlRecord& Contr
 				// Update the target point on the child
 				if (ControlRecord.ControlTarget.bUseTargetPoint)
 				{
-					JointSettings.ConnectorTransforms[ConstraintChildIndex].SetLocation(
-						ControlRecord.ControlTarget.TargetPoint);
+					Constraint->SetChildConnectorLocation(ControlRecord.ControlTarget.TargetPoint);
 				}
 				else
 				{
-					FVector ChildCoMPositionOffset = ChildActorHandle->GetLocalCoMTransform().GetLocation();
-					JointSettings.ConnectorTransforms[ConstraintChildIndex].SetLocation(ChildCoMPositionOffset);
+					const FVector ChildCoMPositionOffset = ChildActorHandle->GetLocalCoMLocation();
+					Constraint->SetChildConnectorLocation(ChildCoMPositionOffset);
 				}
 
-				const int32 ChildBodyIndex = FindBodyIndexFromBoneName(ControlRecord.Control.ChildBoneName);
-				const int32 ParentBodyIndex = ControlRecord.Control.ParentBoneName.IsNone() ? 
-					-1 : FindBodyIndexFromBoneName(ControlRecord.Control.ParentBoneName);
+				checkSlow(FindBodyIndexFromBoneName(ControlRecord.Control.ChildBoneName) == ControlRecord.ChildBodyIndex);
+				checkSlow((ControlRecord.Control.ParentBoneName.IsNone() ? -1 : 
+					FindBodyIndexFromBoneName(ControlRecord.Control.ParentBoneName)) == ControlRecord.ParentBodyIndex);
 
-				FTransform TargetTM(
+				RigidBodyWithControl::FPosQuat TargetTM(
 					ControlRecord.ControlTarget.TargetOrientation, 
 					ControlRecord.ControlTarget.TargetPosition);
 
 				if (ControlRecord.ControlTarget.bUseSkeletalAnimation)
 				{
-					FTransform AnimTargetTM = CalculateTargetTM(
-						JointSettings, PoseData, ParentBodyIndex, ChildBodyIndex);
+					RigidBodyWithControl::FPosQuat AnimTargetTM = CalculateTargetTM(
+						JointSettings, PoseData, ControlRecord.ParentBodyIndex, ControlRecord.ChildBodyIndex);
 					TargetTM = TargetTM * AnimTargetTM;
 				}
 
-				JointSettings.LinearDrivePositionTarget = TargetTM.GetTranslation();
-				JointSettings.AngularDrivePositionTarget = TargetTM.GetRotation();
+				Constraint->SetLinearDrivePositionTarget(TargetTM.GetTranslation());
+				Constraint->SetAngularDrivePositionTarget(TargetTM.GetRotation());
 
-				if (DeltaTime != 0)
+				if ((DeltaTime * ControlRecord.CurrentData.LinearTargetVelocityMultiplier) != 0)
 				{
-					FTransform PrevTargetTM = ControlRecord.PrevTargetTM;
-
-					FVector Velocity = (TargetTM.GetTranslation() - PrevTargetTM.GetTranslation()) / DeltaTime;
-					// Note that quats multiply in the opposite order to TMs, and must be in the same hemisphere.
-					const FQuat Q = TargetTM.GetRotation();
-					FQuat PrevQ = PrevTargetTM.GetRotation();
-					PrevQ.EnforceShortestArcWith(Q);
-
-					const FQuat DeltaQ = Q * PrevQ.Inverse();
-					const FVector AngularVelocity = DeltaQ.ToRotationVector() / DeltaTime;
-
-					JointSettings.LinearDriveVelocityTarget = 
-						Velocity * ControlRecord.CurrentData.LinearTargetVelocityMultiplier;
-					JointSettings.AngularDriveVelocityTarget = 
-						AngularVelocity * ControlRecord.CurrentData.AngularTargetVelocityMultiplier;
+					FVector Velocity = (TargetTM.GetTranslation() - ControlRecord.PrevTargetTM.GetTranslation()) / DeltaTime;
+					Constraint->SetLinearDriveVelocityTarget(
+						Velocity * ControlRecord.CurrentData.LinearTargetVelocityMultiplier);
 				}
 				else
 				{
-					JointSettings.LinearDriveVelocityTarget = FVector::ZeroVector;
-					JointSettings.AngularDriveVelocityTarget = FVector::ZeroVector;
+					Constraint->SetLinearDriveVelocityTarget(Chaos::FVec3(0));
 				}
 
-				UpdateDriveSpringDamperSettings(JointSettings, ControlRecord.CurrentData);
+				if ((DeltaTime * ControlRecord.CurrentData.AngularTargetVelocityMultiplier) != 0)
+				{
+					// Note that quats multiply in the opposite order to TMs, and must be in the same hemisphere.
+					const FQuat Q = TargetTM.GetRotation();
+					FQuat PrevQ = ControlRecord.PrevTargetTM.GetRotation();
+					PrevQ.EnforceShortestArcWith(Q);
+					const FQuat DeltaQ = Q * PrevQ.Inverse();
+					const FVector AngularVelocity = DeltaQ.ToRotationVector() / DeltaTime;
 
-				Constraint->SetSettings(JointSettings);
+					Constraint->SetAngularDriveVelocityTarget( 
+						AngularVelocity * ControlRecord.CurrentData.AngularTargetVelocityMultiplier);
+				}
+				else
+				{
+					Constraint->SetAngularDriveVelocityTarget(Chaos::FVec3(0));
+				}
+
+				UpdateDriveSpringDamperSettings(Constraint, JointSettings, ControlRecord.CurrentData);
 
 				ControlRecord.PrevTargetTM = TargetTM;
 				ControlRecord.ExpectedUpdateCounter = PoseData.UpdateCounter;
@@ -731,13 +746,12 @@ void FAnimNode_RigidBodyWithControl::ApplyKinematicTargets()
 				const int32 BodyIndex = FindBodyIndexFromBoneName(ModifierRecord->Modifier.BoneName);
 				if (ActorHandle->GetIsKinematic() && BodyIndex != INDEX_NONE)
 				{
-					FTransform TM(Target.TargetOrientation, Target.TargetPosition);
+					RigidBodyWithControl::FPosQuat TM(Target.TargetOrientation, Target.TargetPosition);
 					if (Target.bUseSkeletalAnimation)
 					{
-						FTransform PoseTM = PoseData.GetTM(BodyIndex);
-						TM = TM * PoseTM;
+						TM = TM * PoseData.GetTM(BodyIndex);
 					}
-					ActorHandle->SetKinematicTarget(TM);
+					ActorHandle->SetKinematicTarget(TM.ToTransform());
 				}
 			}
 		}

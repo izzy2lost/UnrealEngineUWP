@@ -81,6 +81,8 @@ FRigidBodyControlRecord::FRigidBodyControlRecord(const FRigidBodyControl& InCont
 	: Control(InControl)
 	, JointHandle(InJointHandle)
 	, CurrentData(Control.ControlData)
+	, ChildBodyIndex(-1)
+	, ParentBodyIndex(-1)
 {
 }
 

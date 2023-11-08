@@ -28,46 +28,65 @@ struct FOutputBoneData
 };
 
 //======================================================================================================================
-struct FBoneData
+// Simple minimal implementation of a "FTransform without scale"
+struct FPosQuat
 {
-	FBoneData()
-		: Position(FVector::ZeroVector), Orientation(FQuat::Identity) 
-	{}
-	FBoneData(const FVector& InPosition, const FQuat& InOrientation)
-		: Position(InPosition)
-		, Orientation(InOrientation)
-	{}
+	FPosQuat(const FVector& Pos, const FQuat& Quat) : Translation(Pos), Rotation(Quat) {}
+	FPosQuat(const FQuat& Quat, const FVector& Pos) : Translation(Pos), Rotation(Quat) {}
+	FPosQuat(const FRotator& Rotator, const FVector& Pos) : Translation(Pos), Rotation(Rotator) {}
+	FPosQuat() : Translation(EForceInit::ForceInitToZero), Rotation(EForceInit::ForceInit) {}
+	FPosQuat(const FTransform& TM) : Translation(TM.GetTranslation()), Rotation(TM.GetRotation()) {}
+	FPosQuat(ENoInit) {}
 
-	/**
-	 * Sets position/orientation in both current and previous (i.e. implying zero velocity)
-	 */
-	void Set(const FVector& InPosition, const FQuat& InOrientation) { 
-		Position = InPosition; Orientation = InOrientation; }
+	FORCEINLINE FVector GetTranslation() const { return Translation; }
+	FORCEINLINE FQuat GetRotation() const { return Rotation; }
 
-	FTransform GetTM() const { return FTransform(Orientation, Position); }
+	FORCEINLINE FTransform ToTransform() const
+	{
+		return FTransform(Rotation, Translation);
+	}
 
-	FVector Position;
-	FQuat   Orientation;
+	// Note that multiplication operates in the same sense as FTransform (i.e. "backwards")
+	FORCEINLINE FPosQuat operator*(const FPosQuat& Other) const
+	{
+		FQuat OutRotation = Other.Rotation * Rotation;
+		FVector OutTranslation = Other.Rotation * (Translation) + Other.Translation;
+		return FPosQuat(OutTranslation, OutRotation);
+	}
+
+	FORCEINLINE FVector operator*(const FVector& Position) const
+	{
+		return Translation + Rotation * Position;
+	}
+
+	FORCEINLINE FPosQuat Inverse() const
+	{
+		const FQuat OutRotation = Rotation.Inverse();
+		return FPosQuat(OutRotation * -Translation, OutRotation);
+	}
+
+	FVector Translation;
+	FQuat Rotation;
 };
 
 //======================================================================================================================
 struct FRigidBodyPoseData
 {
 	void Update(
-		FComponentSpacePoseContext&   ComponentSpacePoseContext,
-		const TArray<FOutputBoneData> OutputBoneData,
-		const ESimulationSpace        SimulationSpace,
-		const FBoneReference&         BaseBoneRef,
-		const FGraphTraversalCounter& InUpdateCounter);
+		FComponentSpacePoseContext&    ComponentSpacePoseContext,
+		const TArray<FOutputBoneData>& OutputBoneData,
+		const ESimulationSpace         SimulationSpace,
+		const FBoneReference&          BaseBoneRef,
+		const FGraphTraversalCounter&  InUpdateCounter);
 
-	FTransform GetTM(int32 Index) const { return BoneData[Index].GetTM(); }
-	bool IsValidIndex(const int32 Index) const { return BoneData.IsValidIndex(Index); }
-	bool IsEmpty() const { return BoneData.IsEmpty(); }
+	FPosQuat GetTM(int32 Index) const { return BoneTMs[Index]; }
+	bool IsValidIndex(const int32 Index) const { return BoneTMs.IsValidIndex(Index); }
+	bool IsEmpty() const { return BoneTMs.IsEmpty(); }
 
 	/**
 	 * The cached skeletal data, updated at the start of each tick
 	 */
-	TArray<FBoneData> BoneData;
+	TArray<FPosQuat> BoneTMs;
 
 	/**
 	 * The origin (in world space). BoneData transforms are relative to this.

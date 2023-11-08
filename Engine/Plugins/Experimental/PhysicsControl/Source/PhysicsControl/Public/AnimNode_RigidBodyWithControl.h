@@ -178,13 +178,6 @@ public:
 	uint8 bFreezeIncomingPoseOnStart : 1;
 
 	/**
-		Correct for linear tearing on bodies with all axes Locked.
-		This only works if all axes linear translation are locked
-	*/
-	UPROPERTY(EditAnywhere, Category = Settings)
-	uint8 bClampLinearTranslationLimitToRefPose : 1;
-
-	/**
 		Change the parent space transforms of constraints read from the physics asset to match the relative 
 		bone transforms in the in-coming skeleton.
 	*/
@@ -331,6 +324,7 @@ private:
 	int32 AddBody(ImmediatePhysics::FActorHandle* const BodyHandle); 
 	int32 FindBodyIndexFromBoneName(const FName BoneName) const;
 	ImmediatePhysics::FActorHandle* FindBodyFromBoneName(const FName BoneName) const;
+	void UpdateBodyIndicesInControlRecord(FRigidBodyControlRecord& ControlRecord);
 
 	ImmediatePhysics::FJointHandle* CreateConstraint(
 		ImmediatePhysics::FActorHandle* const ChildBodyHandle, ImmediatePhysics::FActorHandle* const ParentBodyHandle);
@@ -346,9 +340,6 @@ private:
 
 	// This applies the desired constraint profile, if necessary
 	void ApplyCurrentConstraintProfile();
-
-	// Adjusts the spring drive settings to reflect the control data
-	void UpdateDriveSpringDamperSettings(Chaos::FPBDJointSettings& Settings, const FPhysicsControlData& ControlData);
 
 	TMap<FName, int32> BodyNameToIndexMap;
 	ImmediatePhysics::FActorHandle* WorldSpaceControlActorHandle;
@@ -465,27 +456,12 @@ private:
 		FBodyAnimData()
 			: TransferedBoneAngularVelocity(ForceInit)
 			, TransferedBoneLinearVelocity(ForceInitToZero)
-			, LinearXMotion(ELinearConstraintMotion::LCM_Locked)
-			, LinearYMotion(ELinearConstraintMotion::LCM_Locked)
-			, LinearZMotion(ELinearConstraintMotion::LCM_Locked)
-			, LinearLimit(0.0f)
-			, RefPoseLength (0.f)
 			, bIsSimulated(false)
 			, bBodyTransformInitialized(false)
 		{}
 
-		FQuat TransferedBoneAngularVelocity;
+		FVector TransferedBoneAngularVelocity;
 		FVector TransferedBoneLinearVelocity;
-
-		ELinearConstraintMotion LinearXMotion;
-		ELinearConstraintMotion LinearYMotion;
-		ELinearConstraintMotion LinearZMotion;
-		float LinearLimit;
-		// we don't use linear limit but use default length to limit the bodies
-		// linear limits are defined per constraint - it can be any two joints that can limit
-		// this is just default length of the local space from parent, and we use that info to limit
-		// the translation
-		float RefPoseLength;
 
 		bool bIsSimulated : 1;
 		bool bBodyTransformInitialized : 1;

@@ -45,6 +45,7 @@ DECLARE_CYCLE_STAT(TEXT("RigidBodyNodeWithControl_Simulation"), STAT_RigidBodyNo
 DECLARE_CYCLE_STAT(TEXT("RigidBodyNodeWithControl_SimulationWait"), STAT_RigidBodyNodeWithControl_SimulationWait, STATGROUP_Anim);
 DECLARE_CYCLE_STAT(TEXT("RigidBodyNodeWithControl_PreUpdate"), STAT_RigidBodyNodeWithControl_PreUpdate, STATGROUP_Anim);
 DECLARE_CYCLE_STAT(TEXT("RigidBodyNodeWithControl_Update"), STAT_RigidBodyNodeWithControl_Update, STATGROUP_Anim);
+DECLARE_CYCLE_STAT(TEXT("RigidBodyNodeWithControl_PoseUpdate"), STAT_RigidBodyNodeWithControl_PoseUpdate, STATGROUP_Anim);
 DECLARE_CYCLE_STAT(TEXT("FAnimNode_RigidBodyWithControl::EvaluateSkeletalControl_AnyThread"), STAT_ImmediateEvaluateSkeletalControl, STATGROUP_ImmediatePhysics);
 
 CSV_DECLARE_CATEGORY_MODULE_EXTERN(ENGINE_API, Animation);
@@ -138,7 +139,6 @@ FAnimNode_RigidBodyWithControl::FAnimNode_RigidBodyWithControl()
 	, bOverrideWorldGravity(false)
 	, bTransferBoneVelocities(false)
 	, bFreezeIncomingPoseOnStart(false)
-	, bClampLinearTranslationLimitToRefPose(false)
 	, bModifyConstraintTransformsToMatchSkeleton(false)
 	, WorldSpaceMinimumScale(0.01f)
 	, EvaluationResetTime(0.01f)
@@ -308,7 +308,6 @@ void FAnimNode_RigidBodyWithControl::InitializeNewBodyTransformsDuringSimulation
 
 				const FTransform WSBodyTM = BodyRelativeTransform * Bodies[OutputData.ParentBodyIndex]->GetWorldTransform();
 				Bodies[BodyIndex]->InitWorldTransform(WSBodyTM);
-				BodyAnimData[BodyIndex].RefPoseLength = (float) BodyRelativeTransform.GetLocation().Size();
 			}
 			// If we don't have a parent body, then we can just grab the incoming pose in component space.
 			else
@@ -626,14 +625,14 @@ void FAnimNode_RigidBodyWithControl::EvaluateSkeletalControl_AnyThread(FComponen
 								BodyData.TransferedBoneLinearVelocity = ((NextSSTM.GetLocation() - PrevSSTM.GetLocation()) / DeltaSeconds);
 								
 								// Angular Velocity
-								const FQuat DeltaRotation = (NextSSTM.GetRotation().Inverse() * PrevSSTM.GetRotation());
-								const float RotationAngle = (float) DeltaRotation.GetAngle() / DeltaSeconds;
-								BodyData.TransferedBoneAngularVelocity = (FQuat(DeltaRotation.GetRotationAxis(), RotationAngle)); 
+								FQuat DeltaRotation = (NextSSTM.GetRotation().Inverse() * PrevSSTM.GetRotation());
+								DeltaRotation.EnforceShortestArcWith(FQuat::Identity);
+								BodyData.TransferedBoneAngularVelocity = DeltaRotation.ToRotationVector() / DeltaSeconds;
 							}
 							else
 							{
-								BodyData.TransferedBoneLinearVelocity = (FVector::ZeroVector);
-								BodyData.TransferedBoneAngularVelocity = (FQuat::Identity); 
+								BodyData.TransferedBoneLinearVelocity = FVector::ZeroVector;
+								BodyData.TransferedBoneAngularVelocity = FVector::ZeroVector;
 							}
 
 						}
@@ -667,11 +666,6 @@ void FAnimNode_RigidBodyWithControl::EvaluateSkeletalControl_AnyThread(FComponen
 
 						BodyTM = ConvertCSTransformToSimSpace(SimulationSpace, ComponentSpaceTM, CompWorldSpaceTM, BaseBoneTM);
 						Bodies[BodyIndex]->SetWorldTransform(BodyTM);
-						if (OutputData.ParentBodyIndex != INDEX_NONE)
-						{
-							BodyAnimData[BodyIndex].RefPoseLength = (float) 
-								BodyTM.GetRelativeTransform(Bodies[OutputData.ParentBodyIndex]->GetWorldTransform()).GetLocation().Size();
-						}
 					}
 				}
 				break;
@@ -691,11 +685,6 @@ void FAnimNode_RigidBodyWithControl::EvaluateSkeletalControl_AnyThread(FComponen
 						const FTransform& ComponentSpaceTM = Output.Pose.GetComponentSpaceTransform(OutputData.CompactPoseBoneIndex);
 						const FTransform BodyTM = ConvertCSTransformToSimSpace(SimulationSpace, ComponentSpaceTM, CompWorldSpaceTM, BaseBoneTM);
 						Bodies[BodyIndex]->InitWorldTransform(BodyTM);
-						if (OutputData.ParentBodyIndex != INDEX_NONE)
-						{
-							BodyAnimData[BodyIndex].RefPoseLength = (float)
-								BodyTM.GetRelativeTransform(Bodies[OutputData.ParentBodyIndex]->GetWorldTransform()).GetLocation().Size();
-						}
 					}
 				}
 				break;
@@ -719,8 +708,11 @@ void FAnimNode_RigidBodyWithControl::EvaluateSkeletalControl_AnyThread(FComponen
 		if (bNeedsSimulationTick)
 		{
 			// Update the pose data
-			PoseData.Update(
-				Output, OutputBoneData, SimulationSpace, BaseBoneRef, Output.AnimInstanceProxy->GetUpdateCounter());
+			{
+				SCOPE_CYCLE_COUNTER(STAT_RigidBodyNodeWithControl_PoseUpdate);
+				PoseData.Update(
+					Output, OutputBoneData, SimulationSpace, BaseBoneRef, Output.AnimInstanceProxy->GetUpdateCounter());
+			}
 
 			// Transfer bone velocities previously captured.
 			if (bTransferBoneVelocities && (CapturedBoneVelocityPose.GetPose().GetNumBones() > 0))
@@ -734,9 +726,7 @@ void FAnimNode_RigidBodyWithControl::EvaluateSkeletalControl_AnyThread(FComponen
 					{
 						ImmediatePhysics::FActorHandle* Body = Bodies[BodyIndex];
 						Body->SetLinearVelocity(BodyData.TransferedBoneLinearVelocity);
-
-						const FQuat AngularVelocity = BodyData.TransferedBoneAngularVelocity;
-						Body->SetAngularVelocity(AngularVelocity.GetRotationAxis() * AngularVelocity.GetAngle());
+						Body->SetAngularVelocity(BodyData.TransferedBoneAngularVelocity);
 					}
 				}
 
@@ -813,8 +803,7 @@ void FAnimNode_RigidBodyWithControl::EvaluateSkeletalControl_AnyThread(FComponen
 				if (!BodyAnimData[BodyIndex].bIsSimulated)
 				{
 					// TODO support explicit targets for kinematics, like we do for controls
-					FTransform TM = PoseData.GetTM(BodyIndex);
-					Bodies[BodyIndex]->SetKinematicTarget(TM);
+					Bodies[BodyIndex]->SetKinematicTarget(PoseData.GetTM(BodyIndex).ToTransform());
 				}
 			}
 
@@ -888,51 +877,7 @@ void FAnimNode_RigidBodyWithControl::EvaluateSkeletalControl_AnyThread(FComponen
 			const int32 BodyIndex = OutputData.BodyIndex;
 			// Note that we always read back, whether kinematic or simulated
 			FTransform BodyTM = Bodies[BodyIndex]->GetWorldTransform();
-
-			// if we clamp translation, we only do this when all linear translation are locked
-			// 
-			// @todo(ccaulfield): this shouldn't be required with Chaos - projection should be handling it...
-			if (bClampLinearTranslationLimitToRefPose
-				&&BodyAnimData[BodyIndex].LinearXMotion == ELinearConstraintMotion::LCM_Locked
-				&& BodyAnimData[BodyIndex].LinearYMotion == ELinearConstraintMotion::LCM_Locked
-				&& BodyAnimData[BodyIndex].LinearZMotion == ELinearConstraintMotion::LCM_Locked)
-			{
-				// grab local space of length from ref pose 
-				// we have linear limit value - see if that works
-				// calculate current local space from parent
-				// find parent transform
-				const int32 ParentBodyIndex = OutputData.ParentBodyIndex;
-				FTransform ParentTransform = FTransform::Identity;
-				if (ParentBodyIndex != INDEX_NONE)
-				{
-					ParentTransform = Bodies[ParentBodyIndex]->GetWorldTransform();
-				}
-
-				// get local transform
-				FTransform LocalTransform = BodyTM.GetRelativeTransform(ParentTransform);
-				const float CurrentLength = (float) LocalTransform.GetTranslation().Size();
-
-				// this is inconsistent with constraint. The actual linear limit is set by constraint
-				if (!FMath::IsNearlyEqual(CurrentLength, BodyAnimData[BodyIndex].RefPoseLength, KINDA_SMALL_NUMBER))
-				{
-					float RefPoseLength = BodyAnimData[BodyIndex].RefPoseLength;
-					if (CurrentLength > RefPoseLength)
-					{
-						float Scale = (CurrentLength > KINDA_SMALL_NUMBER) ? RefPoseLength / CurrentLength : 0.f;
-						// we don't use 1.f here because 1.f can create pops based on float issue. 
-						// so we only activate clamping when less than 90%
-						if (Scale < 0.9f)
-						{
-							LocalTransform.ScaleTranslation(Scale);
-							BodyTM = LocalTransform * ParentTransform;
-							Bodies[BodyIndex]->SetWorldTransform(BodyTM);
-						}
-					}
-				}
-			}
-
 			FTransform ComponentSpaceTM;
-
 			switch(SimulationSpace)
 			{
 				case ESimulationSpace::ComponentSpace: ComponentSpaceTM = BodyTM; break;
@@ -1235,17 +1180,6 @@ void FAnimNode_RigidBodyWithControl::InitPhysics(const UAnimInstance* InAnimInst
 						if (Bodies.Find(Body1Handle, BodyIndex))
 						{
 							Joints[BodyIndex] = NewJointHandle;
-
-							BodyAnimData[BodyIndex].LinearXMotion = CI->GetLinearXMotion();
-							BodyAnimData[BodyIndex].LinearYMotion = CI->GetLinearYMotion();
-							BodyAnimData[BodyIndex].LinearZMotion = CI->GetLinearZMotion();
-							BodyAnimData[BodyIndex].LinearLimit = CI->GetLinearLimit();
-
-							//set limit to ref pose 
-							FTransform Body1Transform = Body1Handle->GetWorldTransform();
-							FTransform Body2Transform = Body2Handle->GetWorldTransform();
-							BodyAnimData[BodyIndex].RefPoseLength = (float) 
-								Body1Transform.GetRelativeTransform(Body2Transform).GetLocation().Size();
 						}
 
 						if (CI->IsCollisionDisabled())

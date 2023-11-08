@@ -136,6 +136,9 @@ namespace ImmediatePhysics_Chaos
 		/** Get the actor-space centre of mass offset */
 		ENGINE_API FTransform GetLocalCoMTransform() const;
 
+		/** Get the actor-space centre of mass offset (location only) */
+		ENGINE_API FVector GetLocalCoMLocation() const;
+
 		ENGINE_API Chaos::FGeometryParticleHandle* GetParticle();
 		ENGINE_API const Chaos::FGeometryParticleHandle* GetParticle() const;
 

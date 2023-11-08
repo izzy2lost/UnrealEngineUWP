@@ -732,6 +732,11 @@ namespace ImmediatePhysics_Chaos
 		return FTransform(Handle()->RotationOfMass(), Handle()->CenterOfMass());
 	}
 
+	FVector FActorHandle::GetLocalCoMLocation() const
+	{
+		return Handle()->CenterOfMass();
+	}
+
 	int32 FActorHandle::GetLevel() const
 	{
 		return Level;

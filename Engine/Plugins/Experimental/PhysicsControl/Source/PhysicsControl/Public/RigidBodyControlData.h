@@ -5,6 +5,7 @@
 #include "PhysicsControlLimbData.h"
 #include "Physics/ImmediatePhysics/ImmediatePhysicsDeclares.h"
 #include "Animation/AnimTypes.h"
+#include "RigidBodyPoseData.h"
 #include "RigidBodyControlData.generated.h"
 
 /**
@@ -339,11 +340,17 @@ struct FRigidBodyControlRecord
 
 	// The previous control target. This will have been set at the end of a previous update (but
 	// only if the control was enabled etc), so to check if it is valid, check the update counter.
-	FTransform PrevTargetTM;
+	RigidBodyWithControl::FPosQuat PrevTargetTM;
 
 	// Update counter set when the control was last updated.
 	// TODO just store the count we're interested in rather than the whole structure
 	FGraphTraversalCounter ExpectedUpdateCounter;
+
+	// Cached child body index - needs to be updated whenever the bone name changes
+	int32 ChildBodyIndex;
+
+	// Cached parent body index - needs to be updated whenever the bone name changes
+	int32 ParentBodyIndex;
 };
 
 /**

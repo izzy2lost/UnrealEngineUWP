@@ -9,11 +9,11 @@ namespace RigidBodyWithControl
 
 //======================================================================================================================
 void FRigidBodyPoseData::Update(
-	FComponentSpacePoseContext&   ComponentSpacePoseContext,
-	const TArray<FOutputBoneData> OutputBoneData,
-	const ESimulationSpace        SimulationSpace,
-	const FBoneReference&         BaseBoneRef,
-	const FGraphTraversalCounter& InUpdateCounter)
+	FComponentSpacePoseContext&    ComponentSpacePoseContext,
+	const TArray<FOutputBoneData>& OutputBoneData,
+	const ESimulationSpace         SimulationSpace,
+	const FBoneReference&          BaseBoneRef,
+	const FGraphTraversalCounter&  InUpdateCounter)
 {
 	ExpectedUpdateCounter = UpdateCounter;
 	ExpectedUpdateCounter.Increment();
@@ -24,25 +24,25 @@ void FRigidBodyPoseData::Update(
 	const FTransform BaseBoneTM = ComponentSpacePoseContext.Pose.GetComponentSpaceTransform(
 		BaseBoneRef.GetCompactPoseIndex(BoneContainer));
 
-	if (BoneData.Num() == OutputBoneData.Num())
+	if (BoneTMs.Num() == OutputBoneData.Num())
 	{
 		for (const FOutputBoneData& OutputData : OutputBoneData)
 		{
 			const int32 BodyIndex = OutputData.BodyIndex;
 			const FTransform& ComponentSpaceTM = ComponentSpacePoseContext.Pose.GetComponentSpaceTransform(OutputData.CompactPoseBoneIndex);
 			const FTransform BodyTM = ConvertCSTransformToSimSpace(SimulationSpace, ComponentSpaceTM, CompWorldSpaceTM, BaseBoneTM);
-			BoneData[BodyIndex].Set(BodyTM.GetLocation(), BodyTM.GetRotation());
+			BoneTMs[BodyIndex] = BodyTM;
 		}
 	}
 	else
 	{
-		BoneData.Empty(OutputBoneData.Num());
+		BoneTMs.Empty(OutputBoneData.Num());
 		for (const FOutputBoneData& OutputData : OutputBoneData)
 		{
 			const int32 BodyIndex = OutputData.BodyIndex;
 			const FTransform& ComponentSpaceTM = ComponentSpacePoseContext.Pose.GetComponentSpaceTransform(OutputData.CompactPoseBoneIndex);
 			const FTransform BodyTM = ConvertCSTransformToSimSpace(SimulationSpace, ComponentSpaceTM, CompWorldSpaceTM, BaseBoneTM);
-			BoneData.Emplace(BodyTM.GetLocation(), BodyTM.GetRotation());
+			BoneTMs.Emplace(BodyTM);
 		}
 	}
 }
