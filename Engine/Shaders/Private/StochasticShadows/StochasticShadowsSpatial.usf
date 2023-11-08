@@ -152,7 +152,7 @@ void ShadowMaskSpatialPassCS(
 		float4 ScenePlane = float4(GBuffer.WorldNormal, dot(TranslatedWorldPosition, GBuffer.WorldNormal));
 
 		const int FilterSize = 1;
-		const float FilterWeights[2] = { 1.0f, 1.0f / 2.0f };
+		const float FilterWeights[3] = { 1.0f, 1.0f / 2.0f, 1 / 3.0f };
 		for (int SampleOffsetY = -FilterSize; SampleOffsetY <= FilterSize; ++SampleOffsetY)
 		{
 			for (int SampleOffsetX = -FilterSize; SampleOffsetX <= FilterSize; ++SampleOffsetX)

@@ -1362,7 +1362,7 @@ void FDeferredShadingSceneRenderer::RenderLights(
 				FTranslucentLightInjectionCollector Collector(GraphBuilder, Views);
 
 				// Collect all the light injection data
-				for (int32 LightIndex = SimpleLightsEnd; LightIndex < StochasticShadowsLightStart; LightIndex++)
+				for (int32 LightIndex = SimpleLightsEnd; LightIndex < SortedLights.Num(); LightIndex++)
 				{
 					const FSortedLightSceneInfo& SortedLightInfo = SortedLights[LightIndex];
 					const FLightSceneInfo& LightSceneInfo = *SortedLightInfo.LightSceneInfo;

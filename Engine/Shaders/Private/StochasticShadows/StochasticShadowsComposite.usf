@@ -14,7 +14,7 @@ float TemporalStdDevOffset;
 
 RWTexture2D<uint> RWShadowMaskTileAtlas;
 
-#define SHARED_TILE_BORDER 1
+#define SHARED_TILE_BORDER 2
 #define SHARED_TILE_SIZE (8 + 2 * SHARED_TILE_BORDER)
 groupshared uint SharedSampleAccumulator[SHARED_TILE_SIZE][SHARED_TILE_SIZE];
 
@@ -92,7 +92,7 @@ void CompositeShadowMaskTracesCS(
 
 #if DEBUG_MODE
 	int2 DebugScreenCoord = View.CursorPosition.x >= 0 ? View.CursorPosition * View.ViewResolutionFraction : -1;
-	bool bDebug = all(ShadowMaskScreenCoord == DebugScreenCoord / SHADOW_MASK_DOWNSAMPLE_FACTOR);
+	bool bDebug = all(ShadowMaskScreenCoord == DebugScreenCoord / SHADOW_MASK_DOWNSAMPLE_FACTOR) && LightSceneId == 3;
 	FShaderPrintContext Context = InitShaderPrintContext(true, float2(0.1, 0.3));
 
 	if (bDebug)
@@ -115,10 +115,10 @@ void CompositeShadowMaskTracesCS(
 		}
 
 		FSampleAccumulator SampleAccumulator = CenterSampleAccumulator;
-		const int FilterSize = 1;
-		for (int SampleOffsetY = -FilterSize; SampleOffsetY <= FilterSize; ++SampleOffsetY)
+		int KernelSize = 2;
+		for (int SampleOffsetY = -KernelSize; SampleOffsetY <= KernelSize; ++SampleOffsetY)
 		{
-			for (int SampleOffsetX = -FilterSize; SampleOffsetX <= FilterSize; ++SampleOffsetX)
+			for (int SampleOffsetX = -KernelSize; SampleOffsetX <= KernelSize; ++SampleOffsetX)
 			{
 				if (!(SampleOffsetX == 0 && SampleOffsetY == 0))
 				{
@@ -164,7 +164,7 @@ void CompositeShadowMaskTracesCS(
 					float HistoryShadowFactorSq = Accumulator.FactorSqSum / Accumulator.WeightSum;
 
 					// Neighborhood clamp
-					if (SampleAccumulator.NumSamples > CenterSampleAccumulator.NumSamples)
+					if (SampleAccumulator.NumSamples > 4)
 					{
 						float Mean = SampleAccumulator.SampleSum / float(SampleAccumulator.NumSamples);
 						float Variance = max(Mean - Mean * Mean, 0.0f);
@@ -201,7 +201,7 @@ void CompositeShadowMaskTracesCS(
 						ShadowMask.Factor = lerp(HistoryShadowFactor, ShadowMask.Factor, Alpha);
 						ShadowMask.FactorSq = lerp(HistoryShadowFactorSq, ShadowMask.FactorSq, Alpha);
 						ShadowMask.Age = 0;
-						ShadowMask.HistoryLength = Accumulator.MaxHistoryLength;
+						ShadowMask.HistoryLength = min(Accumulator.MaxHistoryLength + 1, MAX_SHADOW_MASK_HISTORY_LENGTH);
 					}
 					else
 					{

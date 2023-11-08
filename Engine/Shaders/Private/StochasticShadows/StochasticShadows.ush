@@ -356,7 +356,6 @@ void AccumulateHistoryShadowMask(uint LightSceneId, uint2 ShadowMaskScreenCoord,
 
 			// Increase age as we are sampling previous frame
 			HistoryShadowMask.Age = min(HistoryShadowMask.Age + 1, MAX_SHADOW_MASK_AGE);
-			HistoryShadowMask.HistoryLength = min(HistoryShadowMask.HistoryLength + 1, MAX_SHADOW_MASK_HISTORY_LENGTH);
 
 			if (HistoryShadowMask.IsValid())
 			{
