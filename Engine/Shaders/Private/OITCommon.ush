@@ -252,7 +252,9 @@ void AddOITSample_MLAB(uint2 InPixelCoord, float3 InColor, float3 InTrans, float
 		{
 			if (all(LastSample.Trans < TranslucentBasePass.OIT.TransmittanceThreshold))
 			{
+				// The return is import here as it avoid GPU hang. Discard is not enough here, probably due to ROV/UAV output
 				discard;
+				return;
 			}
 		}
 	}
