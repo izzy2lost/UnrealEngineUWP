@@ -13,6 +13,7 @@
 #include "Kismet/KismetMathLibrary.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "EdGraphSchema_K2.h"
+#include "K2Node_CastByteToEnum.h"
 
 #define LOCTEXT_NAMESPACE "K2Node_ReadDataChannel"
 
@@ -90,6 +91,10 @@ void UK2Node_ReadDataChannel::ExpandNode(FKismetCompilerContext& CompilerContext
 		CompilerContext.MovePinLinksToIntermediate(*OrgInputPin, *NewInputPin);
 	}
 	CompilerContext.MovePinLinksToIntermediate(*GetExecPin(), *CreateReaderNode->GetExecPin());
+	if (FindPin(FName("WorldContextObject"), EGPD_Input) && CreateReaderNode->FindPin(FName("WorldContextObject")))
+	{
+		CompilerContext.MovePinLinksToIntermediate(*FindPin(FName("WorldContextObject"), EGPD_Input), *CreateReaderNode->FindPin(FName("WorldContextObject"), EGPD_Input));
+	}
 
 	// add a validity check for the return value
 	UK2Node_CallFunction* IsValidNode = CompilerContext.SpawnIntermediateNode<UK2Node_CallFunction>(this, SourceGraph);
@@ -141,7 +146,20 @@ void UK2Node_ReadDataChannel::ExpandNode(FKismetCompilerContext& CompilerContext
 		}
 		ReadDataNode->FindPinChecked(FName("VarName"), EGPD_Input)->DefaultValue = InVar.GetName().ToString();
 		CompilerContext.CopyPinLinksToIntermediate(*IndexPin, *ReadDataNode->FindPinChecked(FName("Index"), EGPD_Input));
-		CompilerContext.MovePinLinksToIntermediate(*VarOutputPin, *ReadDataNode->GetReturnValuePin());
+		if (InVar.GetType().IsEnum())
+		{
+			// the read function only returns a byte, so we need to convert it to the actual enum pin
+			UK2Node_CastByteToEnum* CastEnumNode = CompilerContext.SpawnIntermediateNode<UK2Node_CastByteToEnum>(this, SourceGraph);
+			CastEnumNode->bSafe = true; 
+			CastEnumNode->Enum = InVar.GetType().GetEnum(); 
+			CastEnumNode->AllocateDefaultPins();
+			Schema->TryCreateConnection(ReadDataNode->GetReturnValuePin(), CastEnumNode->FindPinChecked(FName("Byte"), EGPD_Input));
+			CompilerContext.MovePinLinksToIntermediate(*VarOutputPin, *CastEnumNode->FindPinChecked(UEdGraphSchema_K2::PN_ReturnValue));
+		}
+		else
+		{
+			CompilerContext.MovePinLinksToIntermediate(*VarOutputPin, *ReadDataNode->GetReturnValuePin());
+		}
 
 		// do a boolean AND of all the IsValid return values
 		UEdGraphPin* ReadValidPin = ReadDataNode->FindPinChecked(FName("IsValid"), EGPD_Output);

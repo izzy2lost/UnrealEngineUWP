@@ -96,6 +96,10 @@ void UK2Node_WriteDataChannel::ExpandNode(FKismetCompilerContext& CompilerContex
 		CompilerContext.MovePinLinksToIntermediate(*OrgInputPin, *NewInputPin);
 	}
 	CreateWriterNode->FindPinChecked(FName("Count"))->DefaultValue = FString::FromInt(1);
+	if (FindPin(FName("WorldContextObject"), EGPD_Input) && CreateWriterNode->FindPin(FName("WorldContextObject")))
+	{
+		CompilerContext.MovePinLinksToIntermediate(*FindPin(FName("WorldContextObject"), EGPD_Input), *CreateWriterNode->FindPin(FName("WorldContextObject"), EGPD_Input));
+	}
 	
 	UEdGraphPin* OldExecPin = GetExecPin();
 	UEdGraphPin* NewExecPin = CreateWriterNode->GetExecPin();
@@ -135,6 +139,12 @@ void UK2Node_WriteDataChannel::ExpandNode(FKismetCompilerContext& CompilerContex
 			continue;
 		}
 		WriteDataNode->FindPinChecked(FName("VarName"), EGPD_Input)->DefaultValue = InVar.GetName().ToString();
+
+		if (InVar.GetType().IsEnum())
+		{
+			// bit of a dirty hack to just change the pin type of the function call node, but since the underlying type is the same it should be fine... 
+			WriteDataNode->FindPinChecked(FName("InData"), EGPD_Input)->PinType = VarInputPin->PinType;
+		}
 		CompilerContext.MovePinLinksToIntermediate(*VarInputPin, *WriteDataNode->FindPinChecked(FName("InData"), EGPD_Input));
 
 		// connect exec pins
