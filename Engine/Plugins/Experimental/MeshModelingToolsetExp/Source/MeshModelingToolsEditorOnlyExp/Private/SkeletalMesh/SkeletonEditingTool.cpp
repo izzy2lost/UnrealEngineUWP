@@ -436,6 +436,7 @@ void USkeletonEditingTool::RegisterUnParentAction(FInteractiveToolActionSet& InO
 		[this]()
 		{
 			UnParentBones();
+			UpdateGizmo();
 		});
 }
 
@@ -1115,6 +1116,7 @@ void USkeletonEditingTool::HandleSkeletalMeshModified(const TArray<FName>& InBon
 			Selection = BoneNames;
 			break;
 		case ESkeletalMeshNotifyType::HierarchyChanged:
+			UpdateGizmo();
 			break;
 		default:
 			break;

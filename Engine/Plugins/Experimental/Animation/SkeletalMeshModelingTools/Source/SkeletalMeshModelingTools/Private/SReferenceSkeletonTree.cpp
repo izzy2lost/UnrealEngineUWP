@@ -1022,6 +1022,7 @@ FReply SReferenceSkeletonTree::OnAcceptDrop(const FDragDropEvent& DragDropEvent,
 		if (Notifier.IsValid())
 		{
 			Notifier->Notify( {BoneName}, ESkeletalMeshNotifyType::HierarchyChanged);
+			Notifier->Notify( {BoneName}, ESkeletalMeshNotifyType::BonesSelected);
 		}
 		EndChange();
 	}
