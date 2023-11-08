@@ -471,7 +471,8 @@ static void DoResizeTextureSource(UTexture * Texture,int TargetSize)
 	{
 		// not a warning, just FYI
 		// changing built size is totally possible and expected to happen sometimes
-		UE_LOG(LogTexture,Display,TEXT("DoResizeTextureSource failed to preserve built size; was: %dx%d now: %dx%d on [%s]"),
+		//	basically any time you resize smaller than the previous in-game size
+		UE_LOG(LogTexture,Verbose,TEXT("DoResizeTextureSource failed to preserve built size; was: %dx%d now: %dx%d on [%s]"),
 			BeforeSizeX,BeforeSizeY,
 			AfterSizeX,AfterSizeY,
 			*Texture->GetFullName());
@@ -538,7 +539,7 @@ void STextureAssetList::UpdateList()
 		Entry.Enabled = true;
 
 		ETextureClass Class = Texture->GetTextureClass();
-		if ( Class != ETextureClass::TwoD ) // @@ also ::Cube , Array ?
+		if ( Class != ETextureClass::TwoD && Class != ETextureClass::Cube ) //  Array ?
 		{
 			Status->WrongType = true;
 			Entry.Enabled = false;

@@ -18,12 +18,7 @@ namespace Private
 	// resize so that the largest dimension is <= MaxSize
 	bool ResizeTexture2D(UTexture* Texture, int32 MaxSize, const ITargetPlatform* TargetPlatform)
 	{
-		// Protect the code from an async build of the texture
-		// @@ I think that this PreEditChange can (and should) be moved to after DownsizeImageUsingTextureSettings
-		Texture->PreEditChange(nullptr);
-
 		// We want to reduce the asset size so ignore the imported mip(s)
-		//	@@ should not do this if MipGen == LeaveExisting
 		const int32 MipIndex = 0;
 		FImage SourceMip0;
 		if (!Texture->Source.GetMipImage(SourceMip0, MipIndex))
@@ -31,14 +26,25 @@ namespace Private
 			return false;
 		}
 
+		int32 NumSlices = Texture->Source.GetNumSlices(); // == 1 or 6 for cubes
+
 		const int32 LayerIndex = 0;
-		// DownsizeImageUsingTextureSettings is not const but I think it can and should be?
-		//	(the Texture itself is not changed, only the FImage argument is changed)
-		if ( ! Texture->DownsizeImageUsingTextureSettings(TargetPlatform, SourceMip0, MaxSize, LayerIndex) )
+		bool MadeChanges;
+		if ( ! Texture->DownsizeImageUsingTextureSettings(TargetPlatform, SourceMip0, MaxSize, LayerIndex, MadeChanges) )
+		{
+			// a critical error
+			return false;
+		}
+		if ( ! MadeChanges )
 		{
 			return false;
 		}
-		FImage ResizedImage = MoveTemp(SourceMip0);
+		
+		Texture->PreEditChange(nullptr);
+
+		FImage ResizedImage = MoveTemp(SourceMip0); // this is just a variable rename
+
+		check( ResizedImage.NumSlices == NumSlices ); // slices are done one by one
 
 		UE::Serialization::FEditorBulkData::FSharedBufferWithID ResizedImageBufferWithID = MakeSharedBufferFromArray(MoveTemp(ResizedImage.RawData));
 
@@ -58,26 +64,28 @@ namespace Private
 		return true;
 	}
 
-	bool ResizeTextureSlicedBy2DLayers(UTexture* Texture, int32 MaxSize, const ITargetPlatform* TargetPlatform)
+	bool ResizeTextureSlicesOneByOne(UTexture* Texture, int32 MaxSize, const ITargetPlatform* TargetPlatform)
 	{
+		// @@ delete me; this function is not used; the normal ResizeTexture2D does the same thing
+
 		// should check Source size vs MaxSize and early return here
 		if ( Texture->Source.GetSizeX() <= MaxSize && Texture->Source.GetSizeY() <= MaxSize )
 			return false;
 				
-		// Protect the code from an async build of the texture
-		Texture->PreEditChange(nullptr);
-
 		FImage ResizedImage;
+
 		{
+			check( Texture->Source.GetNumSlices() > 1 );
+
 			TArray<FImage> ResizedSlices;
 			ResizedSlices.Reserve(Texture->Source.GetNumSlices());
 
 			ERawImageFormat::Type FormatUsed;
 			EGammaSpace GammaSpaceUsed;
+			bool MadeAnyChanges = false;
 
 			{
 				// We want to reduce the asset size so ignore the imported mip(s)
-				//	@@ should not do this if MipGen == LeaveExisting
 				TArray<FImage> Slices;
 				Slices.Reserve(Texture->Source.GetNumSlices());
 
@@ -92,26 +100,40 @@ namespace Private
 					FormatUsed = SourceMip0.Format;
 					GammaSpaceUsed = SourceMip0.GammaSpace;
 
+					check( SourceMip0.NumSlices == Texture->Source.GetNumSlices() );
+
 					for (int32 Index = 0; Index < SourceMip0.NumSlices; ++Index)
 					{
 						FImage& Slice = Slices.AddDefaulted_GetRef();
 						FImageView SliceView = SourceMip0.GetSlice(Index);
 
-						FImageCore::CopyImage(SliceView, Slice);
+						SliceView.CopyTo(Slice); // allocs new image in Slice
 					}
 				}
+
+				check( Slices.Num() == Texture->Source.GetNumSlices() );
 
 				for (FImage& Slice : Slices)
 				{
-					FImage& ResizedSlice = ResizedSlices.AddDefaulted_GetRef();
-
 					const int32 LayerIndex = 0;
-					if ( ! Texture->DownsizeImageUsingTextureSettings(TargetPlatform, Slice, MaxSize, LayerIndex) )
+					bool MadeChanges;
+					if ( ! Texture->DownsizeImageUsingTextureSettings(TargetPlatform, Slice, MaxSize, LayerIndex, MadeChanges) )
 					{
+						// a critical error
 						return false;
 					}
+					MadeAnyChanges = MadeAnyChanges || MadeChanges;
+					
+					FImage& ResizedSlice = ResizedSlices.AddDefaulted_GetRef();
 					ResizedSlice = MoveTemp(Slice);
 				}
+			}
+
+			check( ResizedSlices.Num() == Texture->Source.GetNumSlices() );
+			
+			if ( ! MadeAnyChanges )
+			{
+				return false;
 			}
 
 			// Move the resized slices into the resized image
@@ -122,7 +144,9 @@ namespace Private
 				FImageCore::CopyImage(ResizedSlices[Index], ResizedImage.GetSlice(Index));
 			}
 		}
-
+		
+		// Protect the code from an async build of the texture
+		Texture->PreEditChange(nullptr);
 
 		UE::Serialization::FEditorBulkData::FSharedBufferWithID ResizedImageBufferWithID = MakeSharedBufferFromArray(MoveTemp(ResizedImage.RawData));
 
@@ -133,14 +157,17 @@ namespace Private
 			, NumMips
 			, FImageCoreUtils::ConvertToTextureSourceFormat(ResizedImage.Format)
 			, MoveTemp(ResizedImageBufferWithID));
+			
+		// if gamma was Pow22 it is now sRGB
+		Texture->bUseLegacyGamma = false;
 
 		return true;
 	}
 
 	bool ResizeTexture2DBlocked(UTexture* Texture, int32 MaxSize, const ITargetPlatform* TargetPlatform)
 	{
-		// Protect the code from an async build of the texture
-		Texture->PreEditChange(nullptr);
+		// note: does not support layers
+		// MaxSize is applied to each block in the UDIM, not the total size
 
 		/*
 		FIntPoint LogicalSourceSize = Texture->Source.GetLogicalSize();
@@ -160,6 +187,8 @@ namespace Private
 		TArray<FImage> ResizedBlocks;
 		ResizedBlocks.Reserve(Texture->Source.GetNumBlocks());
 
+		bool MadeAnyChanges = false;
+
 		for (int32 BlockIndex = 0; BlockIndex < Texture->Source.GetNumBlocks(); ++BlockIndex)
 		{
 			// We want to reduce the asset size so ignore the imported mip(s)
@@ -171,18 +200,21 @@ namespace Private
 				return false;
 			}
 
+			//int32 BlockMaxSize = FMath::RoundToInt32(FMath::Min(ResizedSourceBlock.SizeX * RatioX, ResizedSourceBlock.SizeY * RatioY));
+
+			// each block is resized to MaxSize
+			bool MadeChanges;
+			if ( ! Texture->DownsizeImageUsingTextureSettings(TargetPlatform, SourceMip0, MaxSize, LayerIndex, MadeChanges) )
+			{
+				// critical error
+				return false;
+			}
+			MadeAnyChanges = MadeAnyChanges || MadeChanges;
+
 			FTextureSourceBlock& ResizedSourceBlock = ResizedSourceBlocks.AddDefaulted_GetRef();
 			Texture->Source.GetBlock(BlockIndex, ResizedSourceBlock);
 		
 			FImage& ResizedBlock = ResizedBlocks.AddDefaulted_GetRef();
-
-			//int32 BlockMaxSize = FMath::RoundToInt32(FMath::Min(ResizedSourceBlock.SizeX * RatioX, ResizedSourceBlock.SizeY * RatioY));
-
-			// each block is resized to MaxSize
-			if ( ! Texture->DownsizeImageUsingTextureSettings(TargetPlatform, SourceMip0, MaxSize, LayerIndex) )
-			{
-				return false;
-			}
 			ResizedBlock = MoveTemp(SourceMip0);
 			
 			ResizedSourceBlock.SizeX = ResizedBlock.SizeX;
@@ -190,10 +222,18 @@ namespace Private
 			ResizedSourceBlock.NumSlices = 1;
 		}
 
+		if ( ! MadeAnyChanges )
+		{
+			return false;
+		}
+		
+		// Protect the code from an async build of the texture
+		Texture->PreEditChange(nullptr);
+
 		int64 SizeNeededInBytes = 0;
 		for (const FImage& Block : ResizedBlocks)
 		{
-			SizeNeededInBytes += Block.RawData.Num();
+			SizeNeededInBytes += Block.RawData.Num(); // Block.GetImageSizeBytes()
 		}
 		FUniqueBuffer WriteImageBuffer = FUniqueBuffer::Alloc(SizeNeededInBytes);
 
@@ -216,6 +256,9 @@ namespace Private
 			MoveTemp(ResizedImageBufferWithID)
 		);
 
+		// if gamma was Pow22 it is now sRGB
+		Texture->bUseLegacyGamma = false;
+
 		return true;
 	}
 }
@@ -226,6 +269,19 @@ bool DownsizeTextureSourceData(UTexture* Texture, int32 TargetSizeInGame, const 
 	check( Texture->Source.IsValid() );
 
 	// Check if we don't know how to resize that texture
+
+	if ( Texture->Source.GetNumMips() > 1 && Texture->MipGenSettings == TMGS_LeaveExistingMips )
+	{
+		//	should not do this if MipGen == LeaveExisting ; or maybe warn?
+		// return false;
+
+		// go ahead and do it, but warn:
+
+		UE_LOG(LogTexture,Warning,TEXT("DownsizeTextureSourceData: Texture has LeaveExistingMips ; they will be discarded! [%s]"),
+			*Texture->GetFullName());
+	}
+
+	// we only support 1 layer currently
 	if (Texture->Source.GetNumLayers() != 1)
 	{
 		return false;
@@ -290,7 +346,8 @@ bool DownsizeTextureSourceData(UTexture* Texture, int32 TargetSizeInGame, const 
 		}
 		else
 		{
-			return Private::ResizeTextureSlicedBy2DLayers(Texture, TargetSourceSize, TargetPlatform);
+			//return Private::ResizeTextureSlicesOneByOne(Texture, TargetSourceSize, TargetPlatform);
+			return Private::ResizeTexture2D(Texture, TargetSourceSize, TargetPlatform);
 		}
 	}
 	// could do GetTextureClass == Array ?

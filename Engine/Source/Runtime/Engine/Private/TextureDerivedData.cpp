@@ -3933,9 +3933,13 @@ void UTexture::SetMinTextureResidentMipCount(int32 InMinTextureResidentMipCount)
 }
 
 #if WITH_EDITOR
-bool UTexture::DownsizeImageUsingTextureSettings(const ITargetPlatform* TargetPlatform, FImage& InOutImage, int32 TargetSize, int32 LayerIndex)
+// return value false for critical errors
+// may return true even if nothing was done; check OutMadeChanges
+// InOutImage is modified in place ; output image will be same format but changed dimensions
+bool UTexture::DownsizeImageUsingTextureSettings(const ITargetPlatform* TargetPlatform, FImage& InOutImage, int32 TargetSize, int32 LayerIndex, bool & OutMadeChanges) const
 {
 	// resize so that the largest dimension is <= TargetSize
+	OutMadeChanges = false;
 
 	if (TargetSize <= 1 || LayerIndex < 0 || InOutImage.IsImageInfoValid() == false)
 	{
@@ -3963,10 +3967,30 @@ bool UTexture::DownsizeImageUsingTextureSettings(const ITargetPlatform* TargetPl
 
 	// Teak the build setting to generate a mip for our image
 	FTextureBuildSettings& BuildSettings = SettingPerLayer[LayerIndex];
+	// even if we are a Cube or LatLong, tell it we are just 2d ?
+	//  so the image is shrunk as a plain 2d
+	//	@@ not sure this is okay/best for latlongs
 	BuildSettings.bCubemap = false;
 	BuildSettings.bTextureArray = false;
 	BuildSettings.bVolume = false;
 	BuildSettings.bLongLatSource = false;
+
+	if ( BuildSettings.MipGenSettings == TMGS_NoMipmaps ||
+		BuildSettings.MipGenSettings == TMGS_LeaveExistingMips )
+	{
+		// what kind of mipgen do we use here?
+		// yuck!
+		BuildSettings.MipGenSettings = TMGS_SimpleAverage;
+	}
+
+	/*
+	// ?? yes ??
+	// make sure modern options are set:
+	BuildSettings.bUseNewMipFilter = true;
+	BuildSettings.bSharpenWithoutColorShift = false;
+	if ( IsNormalMap() )
+		BuildSettings.bNormalizeNormals = true;
+	*/
 
 	FImage Temp;
 	// convert to RGBA32F linear for the compressor
@@ -3983,6 +4007,9 @@ bool UTexture::DownsizeImageUsingTextureSettings(const ITargetPlatform* TargetPl
 	// make sure BuildSourceImageMips doesn't reallocate :
 	constexpr int BuildSourceImageMipsMaxCount = 20; // plenty
 	BuildSourceImageMips.Empty(BuildSourceImageMipsMaxCount);
+
+	// one nice thing we do get from GenerateMipChain (as opposed to ResizeImage)
+	//	is that wrap/clamp address mode is respected and cubemaps clamp
 
 	ITextureCompressorModule::GenerateMipChain(BuildSettings, Temp, BuildSourceImageMips, 1);
 
@@ -4006,11 +4033,13 @@ bool UTexture::DownsizeImageUsingTextureSettings(const ITargetPlatform* TargetPl
 		SelectedOutput->CopyTo(InOutImage, InOutImage.Format, InOutImage.GammaSpace);
 	}
 
+	OutMadeChanges = true;
+
 	return true;
 }
 
 
-void UTexture::GetTargetPlatformBuildSettings(const ITargetPlatform* TargetPlatform, TArray<TArray<FTextureBuildSettings>>& OutSettingPerSupportedFormatPerLayer)
+void UTexture::GetTargetPlatformBuildSettings(const ITargetPlatform* TargetPlatform, TArray<TArray<FTextureBuildSettings>>& OutSettingPerSupportedFormatPerLayer) const
 {
 	ETextureEncodeSpeed EncodeSpeed = ETextureEncodeSpeed::Final;
 
