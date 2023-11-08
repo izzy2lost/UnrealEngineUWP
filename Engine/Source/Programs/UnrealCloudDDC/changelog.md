@@ -1,5 +1,8 @@
 # Unreleased
 
+# 0.5.1
+* Fixed issue in helm charts defaulting to a incorrect docker registry path.
+
 # 0.5.0
 * Fixed issue introduced in `0.4.0` that would cause last access tracking to not work correctly.
 * Ability to run with auth enabled but using only the service account scheme - useful for a simpler setup as that does not require setup specific information.
