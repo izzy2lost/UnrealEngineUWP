@@ -1,5 +1,7 @@
 #pragma once
 
+#if VM_SIMULATION==0
+
 #define PER_WAVE_DATA_SIZE 2
 #define PER_WATERZONE_DATA_SIZE 2
 #define PER_WATERBODY_DATA_SIZE 1
@@ -174,3 +176,4 @@ float2 DecodeWaterInfoVelocity(float4 WaterInfoSample, float MaxVelocity)
 	return (NormalizedFlow - 0.5) * 2.0 * MaxVelocity;
 }
 
+#endif
