@@ -43,8 +43,8 @@ void ULocalFogVolumeComponent::SendRenderTransformCommand()
 
 void ULocalFogVolumeComponent::CreateRenderState_Concurrent(FRegisterComponentContext* Context)
 {
-	Super::CreateRenderState_Concurrent(Context);	
-	
+	Super::CreateRenderState_Concurrent(Context);
+
 	bool bHidden = false;
 #if WITH_EDITORONLY_DATA
 	bHidden = GetOwner() ? GetOwner()->bHiddenEdLevel : false;
@@ -209,6 +209,7 @@ ALocalFogVolume::ALocalFogVolume(const FObjectInitializer& ObjectInitializer)
 	}
 #endif // WITH_EDITORONLY_DATA
 
-	PrimaryActorTick.bCanEverTick = true;
+	PrimaryActorTick.bCanEverTick = false;
+
 	SetHidden(false);
 }
