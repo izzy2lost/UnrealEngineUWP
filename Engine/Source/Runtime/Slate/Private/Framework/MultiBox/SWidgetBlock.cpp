@@ -111,7 +111,7 @@ void SWidgetBlock::BuildMultiBlockWidget(const ISlateStyle* StyleSet, const FNam
 		// If there is no label, allow the custom menu widget to consume the entire space
 		if (!bHasLabel)
 		{
-			// Wee use 1 pixel of padding to ensure the menu border shows up
+			// We use 1 pixel of padding to ensure the menu border shows up
 			Padding = FMargin(1);
 		}
 	}
@@ -146,7 +146,15 @@ void SWidgetBlock::BuildMultiBlockWidget(const ISlateStyle* StyleSet, const FNam
 	if (OwnerMultiBoxWidgetPinned->GetSearchTextWidget() == WidgetBlock->ContentWidget)
 	{
 		OwnerMultiBoxWidgetPinned->SetSearchBlockWidget(this->AsWidget());
-		this->AsWidget()->SetVisibility(EVisibility::Collapsed);
+
+		// When we are always showing the search widget, we should not hide it here.
+		if (IConsoleVariable* AlwaysShowMenuSearchFieldVar = IConsoleManager::Get().FindConsoleVariable(TEXT("Slate.AlwaysShowMenuSearchField")))
+		{
+			if (!AlwaysShowMenuSearchFieldVar->GetBool())
+			{
+				this->AsWidget()->SetVisibility(EVisibility::Collapsed);
+			}
+		}
 	}
 
 	ChildSlot
