@@ -356,6 +356,10 @@ static void AddPass_ClearStreamingRequestCount(FRDGBuilder& GraphBuilder, FRDGBu
 static void AddPass_UpdateClusterLeafFlags(FRDGBuilder& GraphBuilder, FRDGBufferUAVRef ClusterPageBufferUAV, const TArray<uint32>& PackedUpdates)
 {
 	const uint32 NumClusterUpdates = PackedUpdates.Num();
+	if (NumClusterUpdates == 0u)
+	{
+		return;
+	}
 
 	const uint32 NumUpdatesBufferElements = FMath::RoundUpToPowerOfTwo(NumClusterUpdates);
 	FRDGBufferRef UpdatesBuffer = CreateStructuredBuffer(	GraphBuilder, TEXT("Nanite.PackedClusterUpdatesBuffer"), PackedUpdates.GetTypeSize(),
