@@ -251,4 +251,20 @@ FText FCookMetadataState::GetSizesPresentAsText() const
 	return CookMetadataSizesPresentStrings[static_cast<size_t>(SizesPresent)];
 }
 
+FText FCookMetadataPluginEntry::GetPluginTypeAsText() const
+{
+	// Uncapitalized, presentation-ready
+	static FText CookMetadataPluginEntryTypeStrings[] =
+	{
+		NSLOCTEXT("CookMetadataPluginEntryType", "PluginTypeUnassigned", "unknown"),
+		NSLOCTEXT("CookMetadataPluginEntryType", "PluginTypeNormal", "normal"),
+		NSLOCTEXT("CookMetadataPluginEntryType", "PluginTypeRoot", "root"),
+		NSLOCTEXT("CookMetadataPluginEntryType", "PluginTypeEnginePseudo", "engine pseudoplugin"),
+		NSLOCTEXT("CookMetadataPluginEntryType", "PluginTypeGamePseudo", "game pseudoplugin"),
+		NSLOCTEXT("CookMetadataPluginEntryType", "PluginTypeShaderPseudo", "shader pseudoplugin")
+	};
+
+	static_assert(sizeof(CookMetadataPluginEntryTypeStrings) / sizeof(CookMetadataPluginEntryTypeStrings[0]) == static_cast<size_t>(ECookMetadataPluginType::Count));
+	return CookMetadataPluginEntryTypeStrings[static_cast<size_t>(Type)];
+}
 } // end namespace

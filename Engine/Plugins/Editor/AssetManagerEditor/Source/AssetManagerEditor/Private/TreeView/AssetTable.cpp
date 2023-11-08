@@ -36,6 +36,7 @@ const FName FAssetTableColumns::ChunksColumnId(TEXT("Chunks"));
 const FName FAssetTableColumns::NativeClassColumnId(TEXT("NativeClass"));
 const FName FAssetTableColumns::PluginNameColumnId(TEXT("PluginName"));
 const FName FAssetTableColumns::PluginInclusiveSizeColumnId(TEXT("PluginInclusiveSize"));
+const FName FAssetTableColumns::PluginTypeColumnId(TEXT("PluginType"));
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // FAssetTableStringValueGetterWithDependencyAggregationHandling
@@ -1341,7 +1342,168 @@ void FAssetTable::AddDefaultColumns()
 
 		AddColumn(ColumnRef);
 	}
-	
+
+	//////////////////////////////////////////////////
+	// PluginType Column
+	{
+		TSharedRef<FTableColumn> ColumnRef = MakeShared<FTableColumn>(FAssetTableColumns::PluginTypeColumnId);
+		FTableColumn& Column = *ColumnRef;
+
+		Column.SetIndex(ColumnIndex++);
+
+		Column.SetShortName(LOCTEXT("PluginTypeColumnName", "Plugin Type"));
+		Column.SetTitleName(LOCTEXT("PluginTypeColumnTitle", "Plugin Type"));
+		Column.SetDescription(LOCTEXT("PluginTypeColumnDesc", "Plugin Type (e.g., Normal, Root, Shader Pseudoplugin, etc.)"));
+
+		Column.SetFlags(ETableColumnFlags::CanBeHidden | ETableColumnFlags::CanBeFiltered);
+
+		Column.SetHorizontalAlignment(HAlign_Left);
+		Column.SetInitialWidth(75.0f);
+
+		Column.SetDataType(ETableCellDataType::CString);
+
+		class FPluginTypeValueGetter : public FTableCellValueGetter
+		{
+		public:
+			virtual const TOptional<FTableCellValue> GetValue(const FTableColumn& Column, const FBaseTreeNode& Node) const override
+			{
+				if (Node.Is<FPluginSimpleGroupNode>())
+				{
+					TSharedPtr<FTable> TablePtr = static_cast<const FPluginSimpleGroupNode&>(Node).GetParentTable().Pin();
+					const FAssetTable& AssetTable = static_cast<const FAssetTable&>(*TablePtr);
+					int32 PluginIndex = static_cast<const FPluginSimpleGroupNode&>(Node).GetPluginIndex();
+					return FTableCellValue(AssetTable.GetPluginInfoByIndex(PluginIndex).GetPluginType());
+				}
+
+				return TOptional<FTableCellValue>();
+			}
+		};
+		TSharedRef<ITableCellValueGetter> Getter = MakeShared<FPluginTypeValueGetter>();
+		Column.SetValueGetter(Getter);
+
+		TSharedRef<ITableCellValueFormatter> Formatter = MakeShared<FCStringValueFormatterAsText>();
+		Column.SetValueFormatter(Formatter);
+
+		TSharedRef<ITableCellValueSorter> Sorter = MakeShared<FSorterByCStringValue>(ColumnRef);
+		Column.SetValueSorter(Sorter);
+		Column.SetInitialSortMode(EColumnSortMode::Descending);
+
+		Column.SetAggregation(ETableColumnAggregation::SameValue);
+
+		AddColumn(ColumnRef);
+	}
+
+	//////////////////////////////////////////////////
+	// Custom Columns
+	for (int32 CustomColumnIndex = 0; CustomColumnIndex < CustomColumns.Num(); CustomColumnIndex++)
+	{
+		const FCustomColumnDefinition& CustomColumn = CustomColumns[CustomColumnIndex];
+
+		TSharedRef<FTableColumn> ColumnRef = MakeShared<FTableColumn>(CustomColumn.ColumnId);
+		FTableColumn& Column = *ColumnRef;
+
+		Column.SetIndex(ColumnIndex++);
+
+		const FText NameAsText = FText::FromName(CustomColumn.ColumnId);
+		Column.SetShortName(NameAsText);
+		Column.SetTitleName(NameAsText);
+		Column.SetDescription(LOCTEXT("CustomColumnDesc", "Custom column data"));
+
+		Column.SetFlags(ETableColumnFlags::CanBeHidden | ETableColumnFlags::CanBeFiltered);
+
+		Column.SetHorizontalAlignment(HAlign_Left);
+		if (CustomColumn.Type == ECustomColumnDefinitionType::Boolean)
+		{
+			Column.SetInitialWidth(50.f);
+			Column.SetDataType(ETableCellDataType::Bool);
+			class FCustomColumnBoolValueGetter : public FTableCellValueGetter
+			{
+			public:
+
+				FCustomColumnBoolValueGetter(int32 InIndexWithinRowData) :
+					FTableCellValueGetter(),
+					IndexWithinRowData(InIndexWithinRowData) {}
+
+				virtual const TOptional<FTableCellValue> GetValue(const FTableColumn& Column, const FBaseTreeNode& Node) const override
+				{
+					if (Node.Is<FPluginSimpleGroupNode>() && !Node.Is<FPluginDependenciesGroupNode>())
+					{
+						// This node represents a single plugin (it might be the plugin itself or the plugin+deps node for that plugin)
+						const FPluginSimpleGroupNode& PluginNode = Node.As<FPluginSimpleGroupNode>();
+						TSharedPtr<FTable> TablePtr = PluginNode.GetParentTable().Pin();
+						const FAssetTable& AssetTable = static_cast<const FAssetTable&>(*TablePtr);
+						const FAssetTablePluginInfo& PluginInfo = AssetTable.GetPluginInfoByIndexChecked(PluginNode.GetPluginIndex());
+						if (const bool* Value = PluginInfo.TryGetDataByKey<bool>(IndexWithinRowData))
+						{
+							return FTableCellValue(*Value);
+						}
+					}
+
+					return TOptional<FTableCellValue>();
+				}
+
+			private:
+				int32 IndexWithinRowData;
+			};
+
+			TSharedRef<ITableCellValueGetter> Getter = MakeShared<FCustomColumnBoolValueGetter>(CustomColumnIndex);
+			Column.SetValueGetter(Getter);
+
+			TSharedRef<ITableCellValueFormatter> Formatter = MakeShared<FBoolValueFormatterAsTrueFalse>();
+			Column.SetValueFormatter(Formatter);
+
+			TSharedRef<ITableCellValueSorter> Sorter = MakeShared<FSorterByBoolValue>(ColumnRef);
+			Column.SetValueSorter(Sorter);
+		}
+		else
+		{
+			Column.SetInitialWidth(200.f);
+			Column.SetDataType(ETableCellDataType::CString);
+			class FCustomColumnStringValueGetter : public FTableCellValueGetter
+			{
+			public:
+
+				FCustomColumnStringValueGetter(int32 InIndexWithinRowData) :
+					FTableCellValueGetter(),
+					IndexWithinRowData(InIndexWithinRowData) {}
+
+				virtual const TOptional<FTableCellValue> GetValue(const FTableColumn& Column, const FBaseTreeNode& Node) const override
+				{
+					if (Node.Is<FPluginSimpleGroupNode>() && !Node.Is<FPluginDependenciesGroupNode>())
+					{
+						// This node represents a single plugin (it might be the plugin itself or the plugin+deps node for that plugin)
+						const FPluginSimpleGroupNode& PluginNode = Node.As<FPluginSimpleGroupNode>();
+						TSharedPtr<FTable> TablePtr = PluginNode.GetParentTable().Pin();
+						const FAssetTable& AssetTable = static_cast<const FAssetTable&>(*TablePtr);
+						const FAssetTablePluginInfo& PluginInfo = AssetTable.GetPluginInfoByIndexChecked(PluginNode.GetPluginIndex());
+						if (const TCHAR* const* Value = PluginInfo.TryGetDataByKey<const TCHAR*>(IndexWithinRowData))
+						{
+							return FTableCellValue(*Value);
+						}
+					}
+
+					return TOptional<FTableCellValue>();
+				}
+
+			private:
+				int32 IndexWithinRowData;
+			};
+
+			TSharedRef<ITableCellValueGetter> Getter = MakeShared<FCustomColumnStringValueGetter>(CustomColumnIndex);
+			Column.SetValueGetter(Getter);
+
+			TSharedRef<ITableCellValueFormatter> Formatter = MakeShared<FCStringValueFormatterAsText>();
+			Column.SetValueFormatter(Formatter);
+
+			TSharedRef<ITableCellValueSorter> Sorter = MakeShared<FSorterByCStringValue>(ColumnRef);
+			Column.SetValueSorter(Sorter);
+		}
+
+
+		Column.SetAggregation(ETableColumnAggregation::SameValue);
+
+		AddColumn(ColumnRef);
+	}
 }
 
 /*static*/TSet<int32> FAssetTableRow::GatherAllReachableNodes(const TArray<int32>& StartingNodes, const FAssetTable& OwningTable, const TSet<int32>& AdditionalNodesToStopAt, const TSet<const TCHAR*, TStringPointerSetKeyFuncs_DEPRECATED<const TCHAR*>>& RestrictToPlugins, TMap<int32, TArray<int32>>* OutRouteMap /*= nullptr*/)

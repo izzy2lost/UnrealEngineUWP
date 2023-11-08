@@ -109,6 +109,13 @@ void SAssetTableTreeView::Tick(const FGeometry& AllottedGeometry, const double I
 		{
 			bNeedsToRebuild = false;
 			RebuildTree(true);
+			if (bNeedsToRebuildColumns)
+			{
+				// This resets the column information only. It does NOT nuke the table data.
+				GetAssetTable()->Reset();
+				RebuildColumns();
+				bNeedsToRebuildColumns = false;
+			}
 			ApplyViewPreset(*SelectedViewPreset);
 		}
 	}
@@ -1964,6 +1971,27 @@ void SAssetTableTreeView::RefreshAssets()
 		// Plugin Data
 		{
 			const UE::Cook::FCookMetadataPluginHierarchy& PluginHierarchy = CookMetadata.GetPluginHierarchy();
+
+			for (int32 CustomColumnIndex = 0; CustomColumnIndex < PluginHierarchy.CustomFieldEntries.Num(); CustomColumnIndex++)
+			{
+				FAssetTable::FCustomColumnDefinition CustomColumnDefinition;
+				CustomColumnDefinition.ColumnId = FName(PluginHierarchy.CustomFieldEntries[CustomColumnIndex].Name);
+				UE::Cook::ECookMetadataCustomFieldType FieldType = PluginHierarchy.CustomFieldEntries[CustomColumnIndex].Type;
+				if (ensureMsgf(FieldType != UE::Cook::ECookMetadataCustomFieldType::Unknown, TEXT("Unknown field type encountered")))
+				{
+					if (FieldType == UE::Cook::ECookMetadataCustomFieldType::String)
+					{
+						CustomColumnDefinition.Type = FAssetTable::ECustomColumnDefinitionType::String;
+					}
+					else if (FieldType == UE::Cook::ECookMetadataCustomFieldType::Bool)
+					{
+						CustomColumnDefinition.Type = FAssetTable::ECustomColumnDefinitionType::Boolean;
+					}
+				}
+				CustomColumnDefinition.Key = CustomColumnIndex;
+				AssetTable->AddCustomColumn(CustomColumnDefinition);
+			}
+
 			int64 TotalMismatch = 0;
 			int64 TotalSize = 0;
 			for (const UE::Cook::FCookMetadataPluginEntry& PluginEntry : PluginHierarchy.PluginsEnabledAtCook)
@@ -1977,6 +2005,28 @@ void SAssetTableTreeView::RefreshAssets()
 				else if (const int64* SizePtr = PluginToSizeMap.Find(PluginEntry.Name))
 				{
 					PluginInfo.Size = *SizePtr;
+				}
+
+				PluginInfo.PluginTypeString = AssetTable->StoreStr(*PluginEntry.GetPluginTypeAsText().ToString());
+
+				for (int32 CustomColumnIndex = 0; CustomColumnIndex < PluginHierarchy.CustomFieldEntries.Num(); CustomColumnIndex++)
+				{
+					if (const UE::Cook::FCookMetadataPluginEntry::CustomFieldVariantType* VariantEntry = PluginEntry.CustomFields.Find(CustomColumnIndex))
+					{
+						FAssetTablePluginInfo::FCustomColumnData ColumnData;
+						ColumnData.Key = CustomColumnIndex;
+
+						if (PluginHierarchy.CustomFieldEntries[CustomColumnIndex].Type == UE::Cook::ECookMetadataCustomFieldType::Bool)
+						{
+							ColumnData.Value.Set<bool>(VariantEntry->Get<bool>());
+						}
+						else if (PluginHierarchy.CustomFieldEntries[CustomColumnIndex].Type == UE::Cook::ECookMetadataCustomFieldType::String)
+						{
+							ColumnData.Value.Set<const TCHAR*>(AssetTable->StoreStr(*VariantEntry->Get<FString>()));
+						}
+
+						PluginInfo.CustomColumnData.Add(ColumnData);
+					}
 				}
 
 				///
@@ -2093,7 +2143,7 @@ void SAssetTableTreeView::RefreshAssets()
 		StringStore.GetNumStrings(), StringStore.GetTotalStringSize(), StringStore.GetAllocatedSize(),
 		(double)StringStore.GetAllocatedSize() * 100.0 / (double)StringStore.GetTotalInputStringSize());
 
-	RequestRebuildTree();
+	RequestRebuildTree(/*NeedsColumnRebuild =*/true);
 }
 
 void SAssetTableTreeView::ClearTableAndTree()
@@ -2217,9 +2267,10 @@ void SAssetTableTreeView::DumpDifferencesBetweenDiscoveredDataAndLoadedMetadata(
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void SAssetTableTreeView::RequestRebuildTree()
+void SAssetTableTreeView::RequestRebuildTree(bool NeedsColumnRebuild)
 {
 	bNeedsToRebuild = true;
+	bNeedsToRebuildColumns = NeedsColumnRebuild;
 	FooterLeftText = LOCTEXT("FooterLeftTextFmt_RebuildTree_Filtered", "Rebuilding tree... please wait...");
 }
 

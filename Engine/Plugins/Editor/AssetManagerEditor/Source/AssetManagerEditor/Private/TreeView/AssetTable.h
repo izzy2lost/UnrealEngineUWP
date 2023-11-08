@@ -8,6 +8,7 @@
 #include "Containers/StringView.h"
 #include "Insights/Table/ViewModels/Table.h"
 #include "Misc/CString.h"
+#include "Misc/TVariant.h"
 
 namespace UE
 {
@@ -126,6 +127,7 @@ struct FAssetTableColumns
 	static const FName NativeClassColumnId;
 	static const FName PluginNameColumnId;
 	static const FName PluginInclusiveSizeColumnId;
+	static const FName PluginTypeColumnId;
 };
 
 struct FAssetTableDependencySizes
@@ -148,6 +150,7 @@ public:
 	const TArray<int32>& GetReferencers() const { return PluginReferencers; }
 	int64 GetSize() const { return Size; }
 	bool IsRootPlugin() const { return bIsRootPlugin; }
+	const TCHAR* GetPluginType() const { return PluginTypeString; }
 
 	int64 GetOrComputeTotalSizeInclusiveOfDependencies(const FAssetTable& OwningTable) const;
 
@@ -158,12 +161,43 @@ public:
 
 	static void ComputeTotalSelfAndInclusiveSizes(const FAssetTable& OwningTable, const TSet<int32>& RootPlugins, int64& OutTotalSelfSize, int64& OutTotalInclusiveSize);
 
+	template<typename T> const T* TryGetDataByKey(int32 Key) const
+	{
+		// In general there are expected to be very few keys since each key corresponds to a custom implemented
+		// column. Therefore a simple linear search is expected to be sufficiently performant.
+		for (const FCustomColumnData& CustomDataEntry : CustomColumnData)
+		{
+			if (CustomDataEntry.Key > Key)
+			{
+				// We've passed where this key ought to be found. No entry is present.
+				break; 
+			}
+			else if (CustomDataEntry.Key == Key)
+			{
+				return CustomDataEntry.Value.TryGet<T>();
+			}
+		}
+		return nullptr;
+	}
+
 private:
 	void ComputeDependencySizes(const FAssetTable& OwningTable) const;
 
 	TArray<int32> PluginDependencies;
 	TArray<int32> PluginReferencers;
+
+	typedef TVariant<bool, const TCHAR*> CustomFieldVariantType;
+
+	struct FCustomColumnData
+	{
+		CustomFieldVariantType Value;
+		int32 Key;
+	};
+
+	TArray<FCustomColumnData> CustomColumnData;
+
 	const TCHAR* PluginName = nullptr;
+	const TCHAR* PluginTypeString = nullptr;
 	int64 Size = 0;
 	mutable int64 InclusiveSize = -1;
 	mutable int64 UniqueDependenciesSize = -1;
@@ -298,7 +332,23 @@ public:
 		StringStore.Reset();
 		Plugins.Empty();
 		PluginNameToIndexMap.Empty();
+		CustomColumns.Empty();
 	}
+
+	enum class ECustomColumnDefinitionType
+	{
+		Boolean,
+		String
+	};
+
+	struct FCustomColumnDefinition
+	{
+		FName ColumnId;
+		ECustomColumnDefinitionType Type;
+		int32 Key;
+	};
+
+	void AddCustomColumn(const FCustomColumnDefinition& ColumnDefinition) { CustomColumns.Add(ColumnDefinition); }
 
 private:
 	void AddDefaultColumns();
@@ -307,6 +357,7 @@ private:
 	TArray<FAssetTableRow> Assets;
 	TArray<FAssetTablePluginInfo> Plugins;
 	TMap<const TCHAR*, int32, FDefaultSetAllocator, TStringPointerMapKeyFuncs_DEPRECATED<const TCHAR*, int32>> PluginNameToIndexMap;
+	TArray<FCustomColumnDefinition> CustomColumns;
 	int32 VisibleAssetCount = 0;
 	FAssetTableStringStore StringStore;
 };

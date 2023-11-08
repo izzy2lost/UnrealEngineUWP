@@ -130,7 +130,7 @@ private:
 	typedef TSet<const TCHAR*, TStringPointerSetKeyFuncs_DEPRECATED<const TCHAR*>> DeprecatedTCharSetType;
 	void DumpDifferencesBetweenDiscoveredDataAndLoadedMetadata(TMap<const TCHAR*, DeprecatedTCharSetType, FDefaultSetAllocator, TStringPointerMapKeyFuncs_DEPRECATED<const TCHAR*, DeprecatedTCharSetType>>& DiscoveredPluginDependencyEdges) const;
 
-	void RequestRebuildTree();
+	void RequestRebuildTree(bool bNeedsColumnRebuild = false);
 
 	void UpdateRegistryInfoTextPostLoad(ECheckFilesExistAndHashMatchesResult StatusResult);
 
@@ -138,6 +138,7 @@ private:
 	bool bNeedsToOpenRegistry = false;
 	bool bNeedsToRefreshAssets = false;
 	bool bNeedsToRebuild = false;
+	bool bNeedsToRebuildColumns = false;
 
 	FText FooterLeftTextStoredPreOpen;
 	FText RegistryLoadedText;

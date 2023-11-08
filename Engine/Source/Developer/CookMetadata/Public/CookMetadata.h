@@ -144,7 +144,7 @@ enum class ECookMetadataPluginType
 	// referencing the shader, including possibly an "Unrooted" plugin.
 	ShaderPseudo,
 
-
+	Count
 };
 
 enum class ECookMetadataCustomFieldType : uint8
@@ -191,6 +191,8 @@ struct COOKMETADATA_API FCookMetadataPluginEntry
 	FPluginSizeInfo ExclusiveSizes;
 
 	uint32 DependencyCount() const { return DependencyIndexEnd - DependencyIndexStart; }
+
+	FText GetPluginTypeAsText() const;
 
 	// !!! If you edit this, be sure to update the upgrade paths in CookMetadata.cpp
 	friend FArchive& operator<<(FArchive& Ar, FCookMetadataPluginEntry& Entry)
