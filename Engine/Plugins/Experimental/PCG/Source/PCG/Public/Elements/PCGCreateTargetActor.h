@@ -44,10 +44,10 @@ protected:
 	void OnBlueprintChanged(UBlueprint* Blueprint);
 	void SetupBlueprintEvent();
 	void TeardownBlueprintEvent();
-#endif
 
 private:
 	void RefreshTemplateActor();
+#endif
 
 public:
 	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = Settings, meta = (OnlyPlaceable, DisallowCreateNew))

@@ -585,7 +585,9 @@ void UPCGNode::SetSettingsInterface(UPCGSettingsInterface* InSettingsInterface, 
 		// a node and get both settings objects in the clipboard text, and the wrong settings can be used upon paste.
 		if (ensure(SettingsInterface->GetOuter() == this))
 		{
+#if WITH_EDITOR
 			SettingsInterface->Rename(nullptr, GetTransientPackage(), REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
+#endif
 			SettingsInterface->MarkAsGarbage();
 		}
 	}

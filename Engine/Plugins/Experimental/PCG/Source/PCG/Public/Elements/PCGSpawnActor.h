@@ -136,10 +136,10 @@ protected:
 
 	void SetupBlueprintEvent();
 	void TeardownBlueprintEvent();
-#endif
 
 private:
 	void RefreshTemplateActor();
+#endif
 };
 
 UCLASS(ClassGroup = (Procedural))

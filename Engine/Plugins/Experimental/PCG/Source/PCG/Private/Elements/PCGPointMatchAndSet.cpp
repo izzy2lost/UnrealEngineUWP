@@ -164,7 +164,9 @@ void UPCGPointMatchAndSetSettings::RefreshMatchAndSet()
 		// Forget previous instance
 		if (MatchAndSetInstance)
 		{
+#if WITH_EDITOR
 			MatchAndSetInstance->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors | REN_ForceNoResetLoaders);
+#endif
 			MatchAndSetInstance->MarkAsGarbage();
 			MatchAndSetInstance = nullptr;
 		}

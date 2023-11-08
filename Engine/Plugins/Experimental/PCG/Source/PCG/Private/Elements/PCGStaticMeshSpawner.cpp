@@ -509,7 +509,9 @@ void UPCGStaticMeshSpawnerSettings::RefreshMeshSelector()
 	{
 		if (MeshSelectorParameters)
 		{
+#if WITH_EDITOR
 			MeshSelectorParameters->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors | REN_ForceNoResetLoaders);
+#endif
 			MeshSelectorParameters->MarkAsGarbage();
 			MeshSelectorParameters = nullptr;
 		}
@@ -529,7 +531,9 @@ void UPCGStaticMeshSpawnerSettings::RefreshInstancePacker()
 	{
 		if (InstanceDataPackerParameters)
 		{
+#if WITH_EDITOR
 			InstanceDataPackerParameters->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors | REN_ForceNoResetLoaders);
+#endif
 			InstanceDataPackerParameters->MarkAsGarbage();
 			InstanceDataPackerParameters = nullptr;
 		}

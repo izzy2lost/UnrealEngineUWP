@@ -305,7 +305,6 @@ void UPCGSpawnActorSettings::OnBlueprintChanged(UBlueprint* InBlueprint)
 	DirtyCache();
 	OnSettingsChangedDelegate.Broadcast(this, EPCGChangeType::Settings);
 }
-#endif // WITH_EDITOR
 
 void UPCGSpawnActorSettings::RefreshTemplateActor()
 {
@@ -352,6 +351,8 @@ void UPCGSpawnActorSettings::RefreshTemplateActor()
 		TemplateActor = nullptr;
 	}
 }
+
+#endif // WITH_EDITOR
 
 bool FPCGSpawnActorElement::ExecuteInternal(FPCGContext* InContext) const
 {

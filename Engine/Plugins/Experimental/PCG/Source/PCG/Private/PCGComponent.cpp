@@ -856,10 +856,10 @@ void UPCGComponent::CleanupLocalImmediate(bool bRemoveComponents)
 						LoadedPreviewResources.Add(Resource);
 					}
 					else
-#endif
 					{
 						Resource->Rename(nullptr, nullptr, REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 					}
+#endif
 				}
 
 				GeneratedResources.RemoveAtSwap(ResourceIndex);
@@ -958,10 +958,10 @@ FPCGTaskId UPCGComponent::CreateCleanupTask(bool bRemoveComponents, const TArray
 							ThisComponent->LoadedPreviewResources.Add(Resource);
 						}
 						else
-#endif
 						{
 							Resource->Rename(nullptr, nullptr, REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 						}
+#endif
 					}
 
 					ThisComponent->GeneratedResources.RemoveAtSwap(Context->ResourceIndex);
@@ -1081,10 +1081,10 @@ void UPCGComponent::CleanupUnusedManagedResources()
 						LoadedPreviewResources.Add(Resource);
 					}
 					else
-#endif
 					{
 						Resource->Rename(nullptr, nullptr, REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 					}
+#endif
 				}
 
 				GeneratedResources.RemoveAtSwap(ResourceIndex);
@@ -2433,7 +2433,9 @@ void UPCGComponent::RefreshSchedulingPolicy()
 	// Only delete it if we are the owner, it's for deprecation where local components had hard ref on original policy.
 	if (IsValid(SchedulingPolicy) && SchedulingPolicy->GetOuter() == this)
 	{
+#if WITH_EDITOR
 		SchedulingPolicy->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors | REN_ForceNoResetLoaders);
+#endif
 		SchedulingPolicy->MarkAsGarbage();
 	}
 

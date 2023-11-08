@@ -139,8 +139,6 @@ void UPCGCreateTargetActor::OnBlueprintChanged(UBlueprint* InBlueprint)
 	OnSettingsChangedDelegate.Broadcast(this, EPCGChangeType::Settings);
 }
 
-#endif // WITH_EDITOR
-
 void UPCGCreateTargetActor::RefreshTemplateActor()
 {
 	// Implementation note: this is similar to the child actor component implementation
@@ -186,6 +184,8 @@ void UPCGCreateTargetActor::RefreshTemplateActor()
 		TemplateActor = nullptr;
 	}
 }
+
+#endif // WITH_EDITOR
 
 void UPCGCreateTargetActor::PostLoad()
 {
