@@ -9753,7 +9753,9 @@ const FSlateBrush* FBlueprintEditorUtils::GetIconFromPin( const FEdGraphPinType&
 	{
 		IconBrush = FAppStyle::GetBrush(TEXT("GraphEditor.Delegate_16x"));
 	}
-	else if( PinSubObject )
+	// FindObject will crash if called during save - and we have reported crashes here
+	// due to the save progress dialog invoking this function somehow
+	else if( PinSubObject && !UE::IsSavingPackage(nullptr)) 
 	{
 		UClass* VarClass = FindObject<UClass>(nullptr, *PinSubObject->GetFullName());
 		if( VarClass )
