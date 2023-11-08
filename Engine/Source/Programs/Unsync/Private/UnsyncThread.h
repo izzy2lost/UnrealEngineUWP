@@ -111,24 +111,22 @@ public:
 	// Does nothing if the number of already launched workers is lower than given value.
 	void StartWorkers(uint32 NumWorkers);
 
-	// Adds a task to the FIFO queue and returns its fence value
-	uint64 PushTask(FTaskFunction&& Fun);
+	// Adds a task to the FIFO queue
+	void PushTask(FTaskFunction&& Fun);
 
-	// Block current thread until all tasks before and including given fence value
-	void WaitForFence(uint64 FenceValue);
+	// Try to pop the next task from the queue and execute it on the current thread.
+	// Returns false if queue is empty, which may happen if worker threads have picked up the tasks already.
+	bool TryExecuteTask() { return DoWorkInternal(false); }
 
 private:
 
 	// Try to execute a task and return whether there may be more tasks to run
-	bool DoWork(bool bWaitForSignal);
+	bool DoWorkInternal(bool bWaitForSignal);
 
 	FTaskFunction PopTask(bool bWaitForSignal);
 
 	std::vector<std::thread>  Threads;
 	std::deque<FTaskFunction> Tasks;
-
-	std::atomic<uint64> NumTasksPushed;
-	std::atomic<uint64> NumTasksCompleted;
 
 	std::mutex				Mutex;
 	std::condition_variable WorkerWakeupCondition;

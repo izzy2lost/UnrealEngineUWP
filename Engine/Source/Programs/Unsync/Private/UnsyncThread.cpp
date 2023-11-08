@@ -20,7 +20,7 @@ FThreadPool::StartWorkers(uint32 NumWorkers)
 		Threads.emplace_back(
 			[this]()
 			{
-				while (DoWork(true))
+				while (DoWorkInternal(true))
 				{
 				}
 			});
@@ -60,51 +60,34 @@ FThreadPool::PopTask(bool bWaitForSignal)
 	return Result;
 }
 
-uint64
+void
 FThreadPool::PushTask(FTaskFunction&& Fun)
 {
 	if (Threads.empty())
 	{
 		Fun();
-		return NumTasksPushed;
 	}
 	else
 	{
 		std::unique_lock<std::mutex> LockScope(Mutex);
 		Tasks.push_back(std::forward<FTaskFunction>(Fun));
 		WorkerWakeupCondition.notify_one();
-		return ++NumTasksPushed;
 	}
 }
 
 bool
-FThreadPool::DoWork(bool bWaitForSignal)
+FThreadPool::DoWorkInternal(bool bWaitForSignal)
 {
 	FTaskFunction Task = PopTask(bWaitForSignal);
 
 	if (Task)
 	{
 		Task();
-		++NumTasksCompleted;
 		return true;
 	}
 	else
 	{
 		return false;
-	}
-}
-
-void
-FThreadPool::WaitForFence(uint64 FenceValue)
-{
-	while (NumTasksCompleted < FenceValue)
-	{
-		if (DoWork(false))
-		{
-			continue;
-		}
-
-		std::this_thread::sleep_for(std::chrono::milliseconds(1));
 	}
 }
 
