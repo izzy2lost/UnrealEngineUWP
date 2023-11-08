@@ -569,6 +569,11 @@ public:
 	/** Returns true if there is at least one browser open that is eligible to be a primary content browser */
 	virtual bool HasPrimaryContentBrowser() const = 0;
 
+	/** Sets the primary content browser for subsequent state changes through this singleton
+	 * Returns true if content browser was changed sucessfully
+	 */
+	virtual bool SetPrimaryContentBrowser(FName InstanceName) = 0;
+
 	/** Brings the primary content browser to the front or opens one if it does not exist. */
 	virtual void FocusPrimaryContentBrowser(bool bFocusSearch) = 0;
 

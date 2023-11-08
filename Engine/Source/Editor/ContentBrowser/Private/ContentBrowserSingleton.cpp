@@ -288,6 +288,21 @@ bool FContentBrowserSingleton::HasPrimaryContentBrowser() const
 	}
 }
 
+bool FContentBrowserSingleton::SetPrimaryContentBrowser(FName InstanceName)
+{
+	for (int32 BrowserIdx = 0; BrowserIdx < AllContentBrowsers.Num(); ++BrowserIdx)
+	{
+		TSharedPtr<SContentBrowser> ContentBrowser = AllContentBrowsers[BrowserIdx].Pin();
+		if ( ContentBrowser && ContentBrowser->GetInstanceName() == InstanceName)
+		{
+			// There is at least one valid content browser
+			PrimaryContentBrowser = ContentBrowser;
+			return true;
+		}
+	}
+	return false;
+}
+
 void FContentBrowserSingleton::FocusPrimaryContentBrowser(bool bFocusSearch)
 {
 	// See if the primary content browser is still valid
