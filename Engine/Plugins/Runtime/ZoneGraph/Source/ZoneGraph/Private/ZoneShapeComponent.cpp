@@ -865,17 +865,5 @@ FPrimitiveSceneProxy* UZoneShapeComponent::CreateSceneProxy()
 	return new FZoneShapeSceneProxy(*this);
 }
 
-const FZoneShapeConnector* UZoneShapeComponent::GetShapeConnectorByPointIndex(int32 PointIndex) const
-{
-	for (const FZoneShapeConnector& ShapeConnector : ShapeConnectors)
-	{
-		if (ShapeConnector.PointIndex == PointIndex)
-		{
-			return &ShapeConnector;
-		}
-	}
-	return nullptr;
-}
-
 #endif // !UE_BUILD_SHIPPING
 

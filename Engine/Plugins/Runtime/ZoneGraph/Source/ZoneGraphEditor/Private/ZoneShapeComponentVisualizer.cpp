@@ -18,7 +18,6 @@
 #include "LevelEditorActions.h"
 #include "ScopedTransaction.h"
 #include "ActorEditorUtils.h"
-#include "ZoneGraphQuery.h"
 #include "ZoneGraphSubsystem.h"
 #include "ZoneGraphSettings.h"
 #include "ZoneShapeActor.h"
@@ -26,8 +25,6 @@
 #include "ZoneShapeUtilities.h"
 #include "ZoneGraphRenderingUtilities.h"
 #include "BezierUtilities.h"
-#include "CanvasTypes.h"
-#include "SceneManagement.h"
 
 // Uncomment to draw additional rotation debug visualizations.
 // #define ZONEGRAPH_DEBUG_ROTATIONS
@@ -416,68 +413,7 @@ void FZoneShapeComponentVisualizer::DrawVisualization(const UActorComponent* Com
 #endif
 	}
 
-	// Draw auto connection range indicator
-	if (bIsActiveComponent && bIsAutoConnecting && ShapePoints.IsValidIndex(SelectedPointForConnecting))
-	{
-		// Draw a wire sphere
-		const FZoneShapePoint& DraggedPoint = ShapePoints[SelectedPointForConnecting];
-		FVector Center = ShapeComp->GetComponentTransform().TransformPosition(DraggedPoint.Position);
-		const FTransform Transform(FQuat::Identity, Center);
-		constexpr FColor IndicatorColor = FColor(255, 165, 0, 255);
-		const UZoneGraphSettings* ZoneGraphSettings = GetDefault<UZoneGraphSettings>();
-		check(ZoneGraphSettings);
-		const float Radius = ZoneGraphSettings->GetBuildSettings().DragEndpointAutoConnectRange;
-		DrawWireSphere(PDI, Transform, IndicatorColor, Radius, 12, SDPG_World, 0.0f, 0.001f, false);
-
-		// Tint the chevron of the candidate connectors
-		for (int32 i = 0; i < DestShapeConnectorInfos.Num(); i++)
-		{
-			const ZoneShapeConnectorRenderInfo& Info = DestShapeConnectorInfos[i];
-			const FVector WorldPosition = Info.Position;
-			const FVector WorldNormal = Info.Normal;
-			const FVector WorldUp = Info.Up;
-			const FVector WorldSide = FVector::CrossProduct(Info.Normal, Info.Up);
-
-			constexpr FColor GreenColor = FColor(0, 255, 0, 255);
-			constexpr FColor YellowColor = FColor(255, 255, 0, 255);
-			const FColor& ChevronColor = i == ClosestShapeConnectorInfoIndex ? GreenColor : YellowColor;
-			PDI->DrawLine(WorldPosition - WorldNormal * 20, WorldPosition - WorldSide * 20, ChevronColor, SDPG_World, 4, DepthBias, true);
-			PDI->DrawLine(WorldPosition - WorldNormal * 20, WorldPosition + WorldSide * 20, ChevronColor, SDPG_World, 4, DepthBias, true);
-		}
-	}
-
 	PDI->SetHitProxy(nullptr);
-}
-
-void FZoneShapeComponentVisualizer::DrawVisualizationHUD(const UActorComponent* Component, const FViewport* Viewport, const FSceneView* View, FCanvas* Canvas)
-{
-	const UZoneShapeComponent* ShapeComp = Cast<const UZoneShapeComponent>(Component);
-	{
-		if (ShapeComp == GetEditedComponent())
-		{
-			check(SelectionState)
-			int32 SelectedControlPoint = SelectionState->GetSelectedControlPoint();
-			int32 LastPointIndexSelected = SelectionState->GetLastPointIndexSelected();
-			if (SelectionState->GetSelectedPoints().Num() == 1 &&
-				(LastPointIndexSelected == 0 || LastPointIndexSelected == (ShapeComp->GetNumPoints() - 1)))
-			{
-				const FIntRect CanvasRect = Canvas->GetViewRect();
-
-				static const FText AutoConnectionHelp = LOCTEXT("ZoneShapeAutoConnectionMessage", "Auto Zone Shape Connection: Hold C and drag zone shape end point close to another shape connector to connect.");
-
-				auto DisplaySnapToActorHelpText = [&](const FText& SnapHelpText)
-				{
-					int32 XL;
-					int32 YL;
-					StringSize(GEngine->GetLargeFont(), XL, YL, *SnapHelpText.ToString());
-					const float DrawPositionX = FMath::FloorToFloat(CanvasRect.Min.X + (CanvasRect.Width() - XL) * 0.5f);
-					const float DrawPositionY = CanvasRect.Min.Y + 50.0f;
-					Canvas->DrawShadowedString(DrawPositionX, DrawPositionY, *SnapHelpText.ToString(), GEngine->GetLargeFont(), FLinearColor::Yellow);
-				};
-				DisplaySnapToActorHelpText(AutoConnectionHelp);
-			}
-		}
-	}
 }
 
 void FZoneShapeComponentVisualizer::ChangeSelectionState(int32 Index, bool bIsCtrlHeld) const
@@ -829,102 +765,12 @@ bool FZoneShapeComponentVisualizer::HandleInputDelta(FEditorViewportClient* View
 			return false;
 		}
 
-		int32 SelectedControlPoint = SelectionState->GetSelectedControlPoint();
-		int32 LastPointIndexSelected = SelectionState->GetLastPointIndexSelected();
 		if (SelectionState->GetSelectedControlPoint() != INDEX_NONE)
 		{
 			return TransformSelectedControlPoint(DeltaTranslate);
 		}
 		else if (SelectionState->GetSelectedPoints().Num() > 0)
 		{
-			if (!ViewportClient->IsAltPressed() &&
-				SelectionState->GetSelectedPoints().Num() == 1 &&
-				(LastPointIndexSelected == 0 || LastPointIndexSelected == (ShapeComp->GetNumPoints() - 1)))
-			{
-				// Cache the selected index
-				SelectedPointForConnecting = LastPointIndexSelected;
-				FZoneShapePoint DraggedPoint = ShapeComp->GetPoints()[SelectedPointForConnecting];
-				const FTransform& SourceTransform = ShapeComp->GetComponentTransform();
-				FVector DraggedPointWorldPosition = SourceTransform.TransformPosition(DraggedPoint.Position);
-
-				if (ViewportClient->Viewport->KeyState(EKeys::C))
-				{
-#if WITH_EDITOR
-					bIsAutoConnecting = true;
-
-					DestShapeConnectorInfos.Empty();
-					ClosestShapeConnectorInfoIndex = INDEX_NONE;
-
-					const FZoneShapeConnector* SourceConnector = ShapeComp->GetShapeConnectorByPointIndex(SelectedPointForConnecting);
-
-					UZoneGraphSubsystem* ZoneGraph = UWorld::GetSubsystem<UZoneGraphSubsystem>(ShapeComp->GetWorld());
-					if (SourceConnector && ZoneGraph)
-					{
-						const FVector SourceWorldPosition = SourceTransform.TransformPosition(SourceConnector->Position);
-
-						const UZoneGraphSettings* ZoneGraphSettings = GetDefault<UZoneGraphSettings>();
-						check(ZoneGraphSettings);
-
-						TArray<uint32> QueryResults;
-						const float AutoConnectRange = ZoneGraphSettings->GetBuildSettings().DragEndpointAutoConnectRange;
-						FBox Bounds = FBox::BuildAABB(DraggedPointWorldPosition, FVector(AutoConnectRange));
-						ZoneGraph->GetBuilder().QueryHashGrid(Bounds, QueryResults);
-						const TArray<FZoneGraphBuilderRegisteredComponent>& RegisteredShapeComponents = ZoneGraph->GetBuilder().GetRegisteredZoneShapeComponents();
-						double ShortestDistance = AutoConnectRange;
-						for (uint32 Index : QueryResults)
-						{
-							check(RegisteredShapeComponents.IsValidIndex(int32(Index)));
-							UZoneShapeComponent* DestShapeComp = RegisteredShapeComponents[Index].Component;
-							if (!DestShapeComp || ShapeComp->GetComponentLevel() != DestShapeComp->GetComponentLevel())
-							{
-								continue;
-							}
-
-							const FTransform& DestTransform = DestShapeComp->GetComponentTransform();
-							TConstArrayView<FZoneShapeConnector> DestConnectors = DestShapeComp->GetShapeConnectors();
-
-							for (int32 j = 0; j < DestConnectors.Num(); j++)
-							{
-								const FZoneShapeConnector& DestConnector = DestConnectors[j];
-								const FVector DestWorldPosition = DestTransform.TransformPosition(DestConnector.Position);
-								const FVector DestWorldNormal = DestTransform.TransformVector(DestConnector.Normal);
-
-								double Distance = FVector::Dist(SourceWorldPosition, DestWorldPosition);
-								if (SourceConnector == &DestConnector || SourceConnector->LaneProfile != DestConnector.LaneProfile)
-								{
-									continue;
-								}
-
-								// Check that the profile orientation matches before connecting.
-								if (const FZoneLaneProfile* LaneProfile = ZoneGraphSettings->GetLaneProfileByRef(SourceConnector->LaneProfile))
-								{
-									if (LaneProfile->IsSymmetrical() || SourceConnector->bReverseLaneProfile != DestConnector.bReverseLaneProfile)
-									{
-										if (Distance < AutoConnectRange)
-										{
-											const FVector WorldPosition = DestTransform.TransformPosition(DestConnector.Position);
-											const FVector WorldNormal = DestTransform.TransformVector(DestConnector.Normal);
-											const FVector WorldUp = DestTransform.TransformVector(DestConnector.Up);
-											DestShapeConnectorInfos.Add({ WorldPosition, WorldNormal, WorldUp });
-										}
-
-										if (ShortestDistance > Distance)
-										{
-											ShortestDistance = Distance;
-											ClosestShapeConnectorInfoIndex = DestShapeConnectorInfos.Num() - 1;
-
-											NearestPointWorldPosition = DestWorldPosition;
-											NearestPointWorldNormal = DestWorldNormal;
-										}
-									}
-								}
-							}
-						}
-					}
-#endif
-				}
-			}
-
 			if (ViewportClient->IsAltPressed())
 			{
 				if (ViewportClient->GetWidgetMode() == UE::Widget::WM_Translate && ViewportClient->GetCurrentWidgetAxis() != EAxisList::None)
@@ -1083,12 +929,7 @@ bool FZoneShapeComponentVisualizer::HandleInputKey(FEditorViewportClient* Viewpo
 	bool bHandled = false;
 
 	UZoneShapeComponent* ShapeComp = GetEditedShapeComponent();
-	if (!ShapeComp)
-	{
-		return false;
-	}
-	
-	if (IsAnySelectedPointIndexOutOfRange(*ShapeComp))
+	if (ShapeComp != nullptr && IsAnySelectedPointIndexOutOfRange(*ShapeComp))
 	{
 		// Something external has changed the number of shape points, meaning that the cached selected keys are no longer valid
 		EndEditing();
@@ -1106,66 +947,6 @@ bool FZoneShapeComponentVisualizer::HandleInputKey(FEditorViewportClient* Viewpo
 
 		bHasCachedRotation = false;
 		CachedRotation = FQuat::Identity;
-
-		if (bIsAutoConnecting && SelectedPointForConnecting >= 0 && SelectedPointForConnecting < ShapeComp->GetNumPoints())
-		{
-			const UZoneGraphSettings* ZoneGraphSettings = GetDefault<UZoneGraphSettings>();
-			check(ZoneGraphSettings);
-
-			const FZoneLaneProfile* LaneProfile = ZoneGraphSettings->GetLaneProfileByRef(ShapeComp->GetCommonLaneProfile());
-			check(LaneProfile);
-			float HalfLanesTotalWidth = LaneProfile->GetLanesTotalWidth() * 0.5;
-
-			FZoneShapePoint& DraggedPoint = ShapeComp->GetMutablePoints()[SelectedPointForConnecting];
-
-#if WITH_EDITOR
-			if (const FZoneShapeConnector* SourceConnector = ShapeComp->GetShapeConnectorByPointIndex(SelectedPointForConnecting))
-			{
-				const FTransform& SourceTransform = ShapeComp->GetComponentTransform();
-				const FVector SourceWorldNormal = SourceTransform.TransformVector(SourceConnector->Normal);
-
-				const FZoneGraphBuildSettings& BuildSettings = ZoneGraphSettings->GetBuildSettings();
-				static const float ConnectionSnapAngleCos = FMath::Cos(FMath::DegreesToRadians(BuildSettings.ConnectionSnapAngle));
-
-				if (ClosestShapeConnectorInfoIndex != INDEX_NONE)
-				{
-					// Snap point location
-					DraggedPoint.Position = SourceTransform.InverseTransformPosition(NearestPointWorldPosition);
-					FVector Normal = SourceTransform.InverseTransformVector(NearestPointWorldNormal);
-					const FRotator Rotation = FRotationMatrix::MakeFromX(SelectedPointForConnecting == 0 ? Normal : -Normal).Rotator();
-					DraggedPoint.Rotation = Rotation;
-
-					// If the zone shape is a spline and the point type is not Bezier, setting the point rotation doesn't work.
-					// An extra point is needed to align the connectors and make it connect.
-					if (ShapeComp->GetShapeType() == FZoneShapeType::Spline &&
-						DraggedPoint.Type != FZoneShapePointType::Bezier &&
-						FVector::DotProduct(SourceWorldNormal, -NearestPointWorldNormal) <= ConnectionSnapAngleCos)
-					{
-						// Add extra point
-						TArray<FZoneShapePoint>& Points = ShapeComp->GetMutablePoints();
-						FZoneShapePoint ExtraPoint = DraggedPoint;
-						ExtraPoint.Position += Normal * HalfLanesTotalWidth;
-						ExtraPoint.Rotation = Rotation;
-						Points.Insert(ExtraPoint, ShapeComp->GetNumPoints() - 1);
-					}
-
-					// Update shape
-					ShapeComp->UpdateShape();
-				}
-			}
-#endif
-		}
-
-		bIsAutoConnecting = false;
-		DestShapeConnectorInfos.Empty();
-		ClosestShapeConnectorInfoIndex = INDEX_NONE;
-	}
-
-	if (Key == EKeys::C && Event == IE_Released)
-	{
-		bIsAutoConnecting = false;
-		DestShapeConnectorInfos.Empty();
-		ClosestShapeConnectorInfoIndex = INDEX_NONE;
 	}
 
 	if (Key == EKeys::LeftMouseButton && Event == IE_Pressed)
@@ -1925,7 +1706,7 @@ void FZoneShapeComponentVisualizer::BreakAtPoint(bool bCreateNewActor) const
 			NewShapeComponent->SetWorldTransform(ShapeComp->GetComponentTransform());
 			ShapeOwner->AddInstanceComponent(NewShapeComponent);
 			NewShapeComponent->RegisterComponent();
-			NewShapeComponent->AttachToComponent(ShapeComp, FAttachmentTransformRules::KeepWorldTransform);
+			NewShapeComponent->AttachToComponent(ShapeComp, FAttachmentTransformRules::KeepWorldTransform); // Should we attach to the root component?
 			NewShapeComponent->Modify();
 		}
 

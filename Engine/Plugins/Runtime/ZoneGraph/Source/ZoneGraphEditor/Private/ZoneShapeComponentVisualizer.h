@@ -162,7 +162,6 @@ public:
 	virtual void OnRegister() override;
 	virtual void DrawVisualization(const UActorComponent* Component, const FSceneView* View, FPrimitiveDrawInterface* PDI) override;
 	virtual bool VisProxyHandleClick(FEditorViewportClient* InViewportClient, HComponentVisProxy* VisProxy, const FViewportClick& Click) override;
-	virtual void DrawVisualizationHUD(const UActorComponent* Component, const FViewport* Viewport, const FSceneView* View, FCanvas* Canvas) override;
 	virtual void EndEditing() override;
 	virtual bool GetWidgetLocation(const FEditorViewportClient* ViewportClient, FVector& OutLocation) const override;
 	virtual bool GetCustomInputCoordinateSystem(const FEditorViewportClient* ViewportClient, FMatrix& OutMatrix) const override;
@@ -192,26 +191,6 @@ public:
 	}
 
 protected:
-
-	struct ZoneShapeConnectorRenderInfo
-	{
-		ZoneShapeConnectorRenderInfo(FVector InPosition, FVector InNormal, FVector InUp)
-			: Position(InPosition)
-			, Normal(InNormal)
-			, Up(InUp)
-		{
-
-		}
-
-		// Position of the connector.
-		FVector Position = FVector::ZeroVector;
-
-		// Normal direction of the connector.
-		FVector Normal = FVector::ForwardVector;
-
-		// Up direction of the connector.
-		FVector Up = FVector::UpVector;
-	};
 
 	/** Determine if any selected key index is out of range (perhaps because something external has modified the shape) */
 	bool IsAnySelectedPointIndexOutOfRange(const UZoneShapeComponent& Comp) const;
@@ -310,15 +289,7 @@ protected:
 
 	bool bIsSelectingComponent = false;
 
-	bool bIsAutoConnecting = false;
-	int32 SelectedPointForConnecting = -1;
-	TArray<ZoneShapeConnectorRenderInfo> DestShapeConnectorInfos;
-	int32 ClosestShapeConnectorInfoIndex = INDEX_NONE;
-	FVector NearestPointWorldPosition;
-	FVector NearestPointWorldNormal;
-
 private:
-
 	void BreakAtPoint(bool bCreateNewActor) const;
 	void BreakAtSegment(bool bCreateNewActor) const;
 };
