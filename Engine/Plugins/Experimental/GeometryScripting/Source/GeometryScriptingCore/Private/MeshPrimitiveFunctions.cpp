@@ -1553,9 +1553,10 @@ UDynamicMesh* UGeometryScriptLibrary_MeshPrimitiveFunctions::AppendSimpleCollisi
 	for (const FKConvexElem& Convex : SimpleCollision.AggGeom.ConvexElems)
 	{
 		FDynamicMesh3 ConvexMesh;
+		FTransform ConvexTransform = Convex.GetTransform();
 		for (FVector V : Convex.VertexData)
 		{
-			ConvexMesh.AppendVertex(V);
+			ConvexMesh.AppendVertex(ConvexTransform.TransformPosition(V));
 		}
 		for (int32 TriStart = 0; TriStart + 2 < Convex.IndexData.Num(); TriStart += 3)
 		{
