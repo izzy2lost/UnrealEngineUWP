@@ -28,6 +28,10 @@ inline void ValidateShaderParameters(FRHIShader* RHIShader, RHIValidation::FTrac
 		case FRHIShaderParameterResource::EType::Texture:
 			if (FRHITexture* Texture = static_cast<FRHITexture*>(Parameter.Resource))
 			{
+				if (GRHIValidationEnabled)
+				{
+					RHIValidation::ValidateShaderResourceView(RHIShader, Parameter.Index, Texture);
+				}
 				Tracker->Assert(Texture->GetWholeResourceIdentitySRV(), InRequiredAccess);
 			}
 			break;

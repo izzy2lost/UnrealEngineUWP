@@ -2108,6 +2108,38 @@ namespace RHIValidation
 		return false;
 	}
 
+	bool ValidateDimension(EShaderCodeResourceBindingType Type, ETextureDimension Dimension, bool SRV)
+	{
+		// Ignore invalid types
+		if (Type == EShaderCodeResourceBindingType::Invalid)
+		{
+			return true;
+		}
+
+		if (Type == EShaderCodeResourceBindingType::Texture2D || Type == EShaderCodeResourceBindingType::RWTexture2D || Type == EShaderCodeResourceBindingType::Texture2DMS)
+		{
+			return Dimension == ETextureDimension::Texture2D;
+		}
+		else if (Type == EShaderCodeResourceBindingType::Texture2DArray || Type == EShaderCodeResourceBindingType::RWTexture2DArray)
+		{
+			return Dimension == ETextureDimension::Texture2DArray;
+		}
+		else if (Type == EShaderCodeResourceBindingType::Texture3D || Type == EShaderCodeResourceBindingType::RWTexture3D)
+		{
+			return Dimension == ETextureDimension::Texture3D;
+		}
+		else if (Type == EShaderCodeResourceBindingType::TextureCube || Type == EShaderCodeResourceBindingType::RWTextureCube)
+		{
+			return Dimension == ETextureDimension::TextureCube;
+		}
+		else if (Type == EShaderCodeResourceBindingType::TextureCubeArray)
+		{
+			return Dimension == ETextureDimension::TextureCubeArray;
+		}
+
+		return false;
+	}
+
 	bool ValidateBuffer(EShaderCodeResourceBindingType Type, FRHIViewDesc::EBufferType BufferType, bool SRV)
 	{
 		// Ignore invalid types
@@ -2238,6 +2270,50 @@ namespace RHIValidation
 						BindIndex,
 						FRHIViewDesc::GetBufferTypeString(SRV->GetDesc().Buffer.SRV.BufferType));
 				}
+				RHI_VALIDATION_CHECK(false, *ErrorMessage);
+			}
+		}
+#endif
+	}
+
+	/** Validates that the SRV is conform to what the shader expects */
+	void ValidateShaderResourceView(const FRHIShader* RHIShaderBase, uint32 BindIndex, const FRHITexture* Texture)
+	{
+#if RHI_INCLUDE_SHADER_DEBUG_DATA
+		if (Texture)
+		{
+			// Validate Type
+			if (!RHIShaderBase->DebugSRVTypeValidationData.Num())
+				return;
+
+			static const auto ShaderCodeValidationTypePredicate = [](const FShaderCodeValidationType& lhs, const FShaderCodeValidationType& rhs) -> bool { return lhs.BindPoint < rhs.BindPoint; };
+
+			FShaderCodeValidationType SRVValidationType = { BindIndex , EShaderCodeResourceBindingType::Invalid };
+			int32 FoundIndex = Algo::BinarySearch(RHIShaderBase->DebugSRVTypeValidationData, SRVValidationType, ShaderCodeValidationTypePredicate);
+
+			if (FoundIndex != INDEX_NONE)
+			{
+				EShaderCodeResourceBindingType ExpectedType = RHIShaderBase->DebugSRVTypeValidationData[FoundIndex].Type;
+
+				if (!ValidateDimension(ExpectedType, Texture->GetDesc().Dimension, true))
+				{
+					FString ErrorMessage = FString::Printf(TEXT("Shader %s: Dimension for Texture %s at BindIndex \"%d\" must match type declared in the shader"), 
+						RHIShaderBase->GetShaderName(),
+						*Texture->GetName().ToString(),
+						BindIndex);
+					ErrorMessage += FString::Printf(TEXT("\nBind point: %d, HLSL Type: %s, Actual Dimension: %s"),
+						BindIndex,
+						GetShaderCodeResourceBindingTypeName(ExpectedType),
+						GetTextureDimensionString(Texture->GetDesc().Dimension));
+					RHI_VALIDATION_CHECK(false, *ErrorMessage);
+				}
+			}
+			else
+			{
+				FString ErrorMessage = FString::Printf(TEXT("Shader %s: No bind point found at BindIndex \"%d\" possible UAV/SRV mismatch"), RHIShaderBase->GetShaderName(), BindIndex);
+					ErrorMessage += FString::Printf(TEXT("\nBind point: %d, Type: %s"),
+						BindIndex,
+						GetTextureDimensionString(Texture->GetDesc().Dimension));
 				RHI_VALIDATION_CHECK(false, *ErrorMessage);
 			}
 		}

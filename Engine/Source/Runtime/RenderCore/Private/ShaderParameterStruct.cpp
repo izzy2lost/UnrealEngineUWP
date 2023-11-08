@@ -5,8 +5,6 @@
 =============================================================================*/
 
 #include "ShaderParameterStruct.h"
-#include "RenderGraphPrivate.h"
-#include "RHIValidationCommon.h"
 
 /** Context of binding a map. */
 struct FShaderParameterStructBindingContext
@@ -523,26 +521,6 @@ void ValidateShaderParameters(const TShaderRef<FShader>& Shader, const FShaderPa
 				{
 					EmitNullShaderParameterFatalError(Shader, ParametersMetadata, Parameter.ByteOffset);
 				}
-
-#if ENABLE_RHI_VALIDATION
-				if (GRHIValidationEnabled && GRDGAllowRHIAccess)
-				{
-					if (BaseType == UBMT_SRV)
-					{
-						if (const FRHIShaderResourceView* SRV = static_cast<const FRHIShaderResourceView*>(Resource))
-						{
-							RHIValidation::ValidateShaderResourceView(RHIShader, Parameter.BaseIndex, SRV);
-						}
-					}
-					else if (BaseType == UBMT_UAV)
-					{
-						if (const FRHIUnorderedAccessView* UAV = static_cast<const FRHIUnorderedAccessView*>(Resource))
-						{
-							RHIValidation::ValidateUnorderedAccessView(RHIShader, Parameter.BaseIndex, UAV);
-						}
-					}
-				}
-#endif 
 				break;
 			}
 			case UBMT_RDG_TEXTURE:
@@ -565,23 +543,6 @@ void ValidateShaderParameters(const TShaderRef<FShader>& Shader, const FShaderPa
 				{
 					EmitNullShaderParameterFatalError(Shader, ParametersMetadata, Parameter.ByteOffset);
 				}
-
-#if ENABLE_RHI_VALIDATION
-				if (GRHIValidationEnabled && GRDGAllowRHIAccess)
-				{
-					if (BaseType == UBMT_RDG_TEXTURE_SRV || BaseType == UBMT_RDG_BUFFER_SRV)
-					{
-						const FRHIShaderResourceView* SRV = static_cast<const FRHIShaderResourceView*>(GraphResource->GetRHI());
-						RHIValidation::ValidateShaderResourceView(RHIShader, Parameter.BaseIndex, SRV);
-
-					}
-					else if (BaseType == UBMT_RDG_TEXTURE_UAV || BaseType == UBMT_RDG_BUFFER_UAV)
-					{
-						const FRHIUnorderedAccessView* UAV = static_cast<const FRHIUnorderedAccessView*>(GraphResource->GetRHI());
-						RHIValidation::ValidateUnorderedAccessView(RHIShader, Parameter.BaseIndex, UAV);
-					}
-				}
-#endif
 				break;
 			}
 			default:
