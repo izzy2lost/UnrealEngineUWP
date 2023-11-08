@@ -35,7 +35,7 @@ namespace UE::MultiUserClient::SingleClientColumns
 	{
 		ToggleAuthority = 0,
 		ConflictWarning = 5,
-		Owner = 20
+		Owner = 40
 	};
 	/** @see UE::ConcertClientSharedSlate::ReplicationColumns::Property::EReplicationPropertyColumnOrder */
 	enum class EPropertyColumnOrder

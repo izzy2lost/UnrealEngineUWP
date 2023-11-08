@@ -13,6 +13,7 @@
 #include "Replication/Settings/ConcertReplicationEditorSettings.h"
 
 #include "Algo/AnyOf.h"
+#include "Replication/Editor/Model/ISubobjectModel.h"
 #include "UObject/Class.h"
 #include "Widgets/SBoxPanel.h"
 
@@ -28,11 +29,15 @@ namespace UE::ConcertClientSharedSlate
 	{
 		ObjectSelectionSource = MoveTemp(InObjectSelectionSource);
 		PropertySelectionSource = MoveTemp(InPropertySelectionSource);
+		SubobjectModel = InArgs._SubobjectModel;
 		
 		EditablePropertiesModel = MoveTemp(InPropertiesModel);
 		EditablePropertiesModel->OnObjectsChanged().AddSP(this, &SBaseReplicationStreamEditor::OnObjectsChanged);
 		EditablePropertiesModel->OnPropertiesChanged().AddSP(this, &SBaseReplicationStreamEditor::OnPropertiesChanged);
-		PropertiesModelAdapter = MakeShared<FFakeObjectToPropertiesEditorModel>(EditablePropertiesModel.ToSharedRef(), PropertySelectionSource.ToSharedRef());
+		
+		const bool bOutlinerCanShowSubobjects = InArgs._SubobjectModel.IsValid();
+		const EFakeObjectModelFlags ModelFlags = bOutlinerCanShowSubobjects ? EFakeObjectModelFlags::None : EFakeObjectModelFlags::OnlyTopLevelObjects;
+		PropertiesModelAdapter = MakeShared<FFakeObjectToPropertiesEditorModel>(EditablePropertiesModel.ToSharedRef(), PropertySelectionSource.ToSharedRef(), ModelFlags);
 
 		IsEditingEnabledAttribute = InArgs._IsEditingEnabled;
 		EditingDisabledToolTipTextAttribute = InArgs._EditingDisabledToolTipText;
@@ -45,6 +50,7 @@ namespace UE::ConcertClientSharedSlate
 				.AdditionalObjectColumns(InArgs._AdditionalObjectColumns)
 				.AdditionalPropertyColumns(InArgs._AdditionalPropertyColumns)
 				.SubobjectView(InArgs._SubobjectView)
+				.SubobjectModel(InArgs._SubobjectModel)
 				.OnDeleteObjects(this, &SBaseReplicationStreamEditor::OnDeleteObjects)
 				.OnObjectsContextMenuOpening(this, &SBaseReplicationStreamEditor::OnObjectsContextMenuOpening)
 				.SortPropertyRowPredicate(InArgs._SortPropertyRowPredicate)
@@ -109,7 +115,7 @@ namespace UE::ConcertClientSharedSlate
 	void SBaseReplicationStreamEditor::OnObjectsChanged(TConstArrayView<UObject*> AddedObjects, TConstArrayView<FSoftObjectPath> RemovedObjects, EReplicatedObjectChangeReason ChangeReason)
 	{
 		ReplicationViewer->RefreshObjectData();
-
+			
 		// Newly added objects should be automatically selected
 		if (!AddedObjects.IsEmpty())
 		{
@@ -121,6 +127,8 @@ namespace UE::ConcertClientSharedSlate
 				return PropertiesModelAdapter->IsTopLevelObject(Object);
 			}, [](const UObject* Object){ return Object; });
 			ReplicationViewer->SelectTopLevelObjects(TopLevelObjects);
+			constexpr bool bRecursive = true;
+			ReplicationViewer->ExpandObjects(TopLevelObjects, bRecursive);
 		}
 	}
 

@@ -7,6 +7,13 @@
 namespace UE::ConcertClientSharedSlate
 {
 	class IPropertySelectionSourceModel;
+
+	enum class EFakeObjectModelFlags
+	{
+		None,
+		OnlyTopLevelObjects = 1 << 0
+	};
+	ENUM_CLASS_FLAGS(EFakeObjectModelFlags);
 	
 	/**
 	 * This model is passed tp SObjectToPropertyView by SObjectToPropertyEditor.
@@ -24,24 +31,27 @@ namespace UE::ConcertClientSharedSlate
 	{
 	public:
 
-		FFakeObjectToPropertiesEditorModel(TSharedRef<IObjectToPropertiesModel> RealModel, TSharedRef<IPropertySelectionSourceModel> PropertySelectionSource)
+		FFakeObjectToPropertiesEditorModel(
+			TSharedRef<IObjectToPropertiesModel> RealModel,
+			TSharedRef<IPropertySelectionSourceModel> PropertySelectionSource,
+			EFakeObjectModelFlags Flags
+			)
 			: RealModel(MoveTemp(RealModel))
 			, PropertySelectionSource(MoveTemp(PropertySelectionSource))
+			, Flags(Flags)
 		{}
 		
 		/** Whether this object should be displayed in the outliner. */
 		bool IsTopLevelObject(const FSoftObjectPath& ObjectPath) const;
 
 		//~ Begin IObjectToPropertiesModel Interface
-		
 		// Technically these functions should be also be wrapped but the SObjectToPropertyView does not use them so let's not for now.
 		virtual uint32 GetNumReplicatedObjects() const override { return RealModel->GetNumReplicatedObjects(); }
 		virtual uint32 GetNumProperties(const FSoftObjectPath& Object) const override { return RealModel->GetNumProperties(Object); }
 		virtual bool ContainsObjects(const TSet<FSoftObjectPath>& Objects) const override { return RealModel->ContainsObjects(Objects); }
+		virtual bool ContainsProperties(const FSoftObjectPath& Object, const TSet<FConcertPropertyChain>& Properties) const override { return RealModel->ContainsProperties(Object, Properties); }
 		
 		virtual FSoftClassPath GetObjectClass(const FSoftObjectPath& Object) const override;
-		// This function is by SObjectToPropertyEditor and not used by SObjectToPropertyView so forward it normally
-		virtual bool ContainsProperties(const FSoftObjectPath& Object, const TSet<FConcertPropertyChain>& Properties) const override { return RealModel->ContainsProperties(Object, Properties); }
 		virtual bool ForEachReplicatedObject(TFunctionRef<EBreakBehavior(const FSoftObjectPath& Object)> Delegate) const override;
 		virtual bool ForEachProperty(const FSoftObjectPath& ObjectPath, TFunctionRef<EBreakBehavior(const FConcertPropertyChain& Property)> Delegate) const override;
 		//~ End IObjectToPropertiesModel Interface
@@ -49,14 +59,16 @@ namespace UE::ConcertClientSharedSlate
 	private:
 
 		/** The real model which is used to implement all the other functions. */
-		TSharedRef<IObjectToPropertiesModel> RealModel;
+		const TSharedRef<IObjectToPropertiesModel> RealModel;
 
 		/** Determines the properties that can be selected. */
-		TSharedRef<IPropertySelectionSourceModel> PropertySelectionSource;
+		const TSharedRef<IPropertySelectionSourceModel> PropertySelectionSource;
+
+		/** Affects behaviour of this model. */
+		const EFakeObjectModelFlags Flags;
 
 		/** Returns all objects that must be listed in the top-outliner section of the replication view. */
 		bool IterateTopLevelObjects(TFunctionRef<EBreakBehavior(const FSoftObjectPath& Object)> Delegate) const;
-
 		/** Iterates all properties on the given object's path. */
 		bool IterateDisplayedProperties(const FSoftObjectPath& ObjectPath, TFunctionRef<EBreakBehavior(const FConcertPropertyChain& Property)> Delegate) const;
 	};

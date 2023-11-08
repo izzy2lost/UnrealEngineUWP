@@ -4,7 +4,7 @@
 
 #include "Misc/EBreakBehavior.h"
 #include "ReplicatedSubobjectData.h"
-#include "Replication/Editor/Model/Subobject/ISubobjectModel.h"
+#include "Replication/Editor/Model/ISubobjectModel.h"
 #include "Replication/Editor/View/ObjectViewer/Tree/SelectionViewerColumns.h"
 
 #include "Containers/Queue.h"

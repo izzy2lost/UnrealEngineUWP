@@ -31,14 +31,6 @@ namespace UE::ConcertClientSharedSlate
 
 		/** @return The sources that should be displayed in the right-click context menu when clicked in the menu. */
 		virtual TArray<TSharedRef<IObjectSourceModel>> GetContextMenuOptions(const FSoftObjectPath& Items) = 0;
-
-		/**
-		 * Checks whether the selected item is valid to be added to the IEditableObjectToPropertiesModel.
-		 *
-		 * This can be used to validate the asset when it is initially displayed but could also be useful for validating
-		 * actors / assets that were drag-dropped into the editor.
-		 */
-		virtual EObjectItemValidity GetItemValidity(const FSoftObjectPath& Item) const = 0;
 		
 		virtual ~IObjectSelectionSourceModel() = default;
 	};

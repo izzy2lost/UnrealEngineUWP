@@ -4,14 +4,15 @@
 
 #include "ConcertFrontendUtils.h"
 #include "Replication/Editor/Model/IObjectToPropertiesModel.h"
+#include "Replication/Editor/Model/ISubobjectModel.h"
 #include "Replication/Editor/Model/ReplicatedObjectData.h"
 #include "Replication/Editor/View/ObjectViewer/Property/SReplicatedPropertiesView.h"
 #include "Replication/Editor/View/ObjectViewer/Tree/SelectionViewerColumns.h"
 #include "SSubobjectAndPropertySection.h"
+#include "Replication/Editor/View/ObjectUtils.h"
 
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SSplitter.h"
-#include "Widgets/Layout/SWidgetSwitcher.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Text/STextBlock.h"
 
@@ -22,6 +23,7 @@ namespace UE::ConcertClientSharedSlate
 	void SReplicationStreamViewer::Construct(const FArguments& InArgs, TSharedRef<IObjectToPropertiesModel> InPropertiesModel)
 	{
 		PropertiesModel = MoveTemp(InPropertiesModel);
+		SubobjectModel = InArgs._SubobjectModel;
 		
 		ChildSlot
 		[
@@ -73,9 +75,12 @@ namespace UE::ConcertClientSharedSlate
 		PropertiesModel->ForEachReplicatedObject([this, &NewPathToObjectDataCache](const FSoftObjectPath& Path) mutable
 		{
 			const TSharedPtr<FReplicatedObjectData>* ExistingItem = PathToObjectDataCache.Find(Path);
+			ExistingItem = ExistingItem ? ExistingItem : NewPathToObjectDataCache.Find(Path);
 			const TSharedRef<FReplicatedObjectData> Item = ExistingItem ? ExistingItem->ToSharedRef() : AllocateObjectData(Path);
-			AllObjectRowData.Emplace(Item);
+			AllObjectRowData.AddUnique(Item);
 			NewPathToObjectDataCache.Emplace(Path, Item);
+			
+			BuildObjectHierarchyIfNeeded(Item, NewPathToObjectDataCache);
 			return EBreakBehavior::Continue;
 		});
 
@@ -119,6 +124,41 @@ namespace UE::ConcertClientSharedSlate
 		}
 	}
 
+	void SReplicationStreamViewer::ExpandObjects(TConstArrayView<FSoftObjectPath> Objects, bool bRecursive)
+	{
+		if (Objects.IsEmpty())
+		{
+			return;
+		}
+		
+		TArray<TSharedPtr<FReplicatedObjectData>> ItemsToExpand;
+		ItemsToExpand.Reserve(Objects.Num());
+		for (const FSoftObjectPath& Path : Objects)
+		{
+			if (const TSharedPtr<FReplicatedObjectData>* Item = PathToObjectDataCache.Find(Path))
+			{
+				ItemsToExpand.Add(*Item);
+			}
+			
+			if (bRecursive && SubobjectModel)
+			{
+				SubobjectModel->ForEachSubobject([this, &ItemsToExpand](const FSoftObjectPath&, const FSoftObjectPath& ChildObject)
+				{
+					if (const TSharedPtr<FReplicatedObjectData>* Item = PathToObjectDataCache.Find(ChildObject))
+					{
+						ItemsToExpand.Add(*Item);
+					}
+					return EBreakBehavior::Continue;
+				});
+			}
+		}
+
+		if (ItemsToExpand.IsEmpty())
+		{
+			ReplicatedObjects->SetSelectedItems(ItemsToExpand, true);
+		}
+	}
+
 	void SReplicationStreamViewer::ClearSubobjectSelection()
 	{
 		SubobjectAndPropertySection->ClearSubobjectSelection();
@@ -152,7 +192,7 @@ namespace UE::ConcertClientSharedSlate
 	{
 		TArray Columns
 		{
-			ReplicationColumns::TopLevel::LabelColumn(PropertiesModel.ToSharedRef()),
+			ReplicationColumns::TopLevel::LabelColumn(PropertiesModel.ToSharedRef(), SubobjectModel.Get()),
 			ReplicationColumns::TopLevel::TypeColumn(PropertiesModel.ToSharedRef())
 		};
 		Columns.Append(InArgs._AdditionalObjectColumns);
@@ -241,11 +281,83 @@ namespace UE::ConcertClientSharedSlate
 		});
 	}
 
+	void SReplicationStreamViewer::BuildObjectHierarchyIfNeeded(TSharedPtr<FReplicatedObjectData> ReplicatedObjectData, TMap<FSoftObjectPath, TSharedPtr<FReplicatedObjectData>>& NewPathToObjectDataCache)
+	{
+		// We're are supposed to display any hierarchy in the outliner if SubobjectModel is not set.
+		const FSoftObjectPath& ObjectPath = ReplicatedObjectData->GetObjectPath();
+		if (!SubobjectModel)
+		{
+			return;
+		}
+
+		// Find top level object of ReplicatedObjectData
+		const TOptional<FSoftObjectPath> OwningActor = ObjectUtils::GetActorOf(ObjectPath);
+		if (!SubobjectModel->IsTopLevelObject(ObjectPath) && !OwningActor)
+		{
+			return;
+		}
+		const FSoftObjectPath TopLevelObject = OwningActor.Get(ObjectPath);
+		SubobjectModel->SetTopLevelObject(TopLevelObject);
+		
+		const auto AddItem = [this, &NewPathToObjectDataCache](const FSoftObjectPath& ObjectPath)
+		{
+			const TSharedPtr<FReplicatedObjectData>* ExistingItem = PathToObjectDataCache.Find(ObjectPath);
+			ExistingItem = ExistingItem ? ExistingItem : NewPathToObjectDataCache.Find(ObjectPath);
+			const TSharedRef<FReplicatedObjectData> Item = ExistingItem ? ExistingItem->ToSharedRef() : AllocateObjectData(ObjectPath);
+			AllObjectRowData.AddUnique(Item);
+			NewPathToObjectDataCache.Emplace(ObjectPath, Item);
+		};
+		// Add all objects that appear in the hierarchy of ReplicatedObjectData
+		AddItem(TopLevelObject);
+		SubobjectModel->ForEachSubobject([this, &AddItem](const FSoftObjectPath&, const FSoftObjectPath& ChildObject)
+		{
+			 AddItem(ChildObject);
+			return EBreakBehavior::Continue;
+		});
+	}
+
 	void SReplicationStreamViewer::GetObjectRowChildren(TSharedPtr<FReplicatedObjectData> ReplicatedObjectData, TFunctionRef<void(TSharedPtr<FReplicatedObjectData>)> ProcessChild)
 	{
-		// For now there are no children in the outliner.
-		// In the future we could add an external delegate that allows child actors to be parented.
 		// Important: this view should be possible to be built in programs, so it should not reference things like AActor, UActorComponent, ResolveObject, etc. directly.
+		
+		const FSoftObjectPath& SearchedObject = ReplicatedObjectData->GetObjectPath();
+		if (!SubobjectModel)
+		{
+			return;
+		}
+
+		const TOptional<FSoftObjectPath> OwningActor = ObjectUtils::GetActorOf(SearchedObject);
+		if (!SubobjectModel->IsTopLevelObject(SearchedObject) && !OwningActor)
+		{
+			return;
+		}
+		SubobjectModel->SetTopLevelObject(OwningActor.Get(SearchedObject));
+		
+		if (SubobjectModel->IsTopLevelObject(SearchedObject))
+		{
+			for (FName Category : SubobjectModel->GetCategories())
+			{
+				SubobjectModel->ForEachRootSubobject(Category, [this, &ProcessChild](const FSoftObjectPath& ChildObject)
+				{
+					if (const TSharedPtr<FReplicatedObjectData>* ObjectData = PathToObjectDataCache.Find(ChildObject))
+					{
+						ProcessChild(*ObjectData);
+					}
+					return EBreakBehavior::Continue;
+				});
+			}
+		}
+		else
+		{
+			SubobjectModel->ForEachDirectChildSubobject(SearchedObject, [this, &ProcessChild](const FSoftObjectPath& ChildObject)
+			{
+				if (const TSharedPtr<FReplicatedObjectData>* ObjectData = PathToObjectDataCache.Find(ChildObject))
+				{
+					ProcessChild(*ObjectData);
+				}
+				return EBreakBehavior::Continue;
+			});
+		}
 	}
 }
 

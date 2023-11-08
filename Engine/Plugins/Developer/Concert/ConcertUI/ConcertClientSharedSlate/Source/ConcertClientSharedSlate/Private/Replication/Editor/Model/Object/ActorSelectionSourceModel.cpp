@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Replication/Editor/Model/Object/EditorObjectSelectionSourceModel.h"
+#include "Replication/Editor/Model/Object/ActorSelectionSourceModel.h"
 
 #include "Replication/Editor/Model/Object/SelectedActorsSource.h"
 #include "Replication/Editor/Model/Object/WorldActorSource.h"
@@ -11,7 +11,7 @@
 
 namespace UE::ConcertClientSharedSlate
 {
-	FEditorObjectSelectionSourceModel::FEditorObjectSelectionSourceModel()
+	FActorSelectionSourceModel::FActorSelectionSourceModel()
 		: BaseActorCategory([this]()
 		{
 			return FObjectSourceCategory
@@ -29,25 +29,15 @@ namespace UE::ConcertClientSharedSlate
 		}())
 	{}
 
-	TArray<FObjectSourceCategory> FEditorObjectSelectionSourceModel::GetRootSources() const
+	TArray<FObjectSourceCategory> FActorSelectionSourceModel::GetRootSources() const
 	{
 		FObjectSourceCategory ActorCategory = BaseActorCategory;
 		return { ActorCategory };
 	}
 
-	TArray<TSharedRef<IObjectSourceModel>> FEditorObjectSelectionSourceModel::GetContextMenuOptions(const FSoftObjectPath& Item)
+	TArray<TSharedRef<IObjectSourceModel>> FActorSelectionSourceModel::GetContextMenuOptions(const FSoftObjectPath& Item)
 	{
 		return {};
-	}
-
-	EObjectItemValidity FEditorObjectSelectionSourceModel::GetItemValidity(const FSoftObjectPath& Item) const
-	{
-		if (!Item.ResolveObject() && !Item.TryLoad())
-		{
-			return EObjectItemValidity::DoesNotExist;
-		}
-		
-		return EObjectItemValidity::Invalid;
 	}
 }
 

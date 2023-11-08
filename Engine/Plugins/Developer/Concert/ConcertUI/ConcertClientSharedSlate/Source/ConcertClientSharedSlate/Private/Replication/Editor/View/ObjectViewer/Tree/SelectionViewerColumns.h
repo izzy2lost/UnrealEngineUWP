@@ -28,7 +28,7 @@ namespace UE::ConcertClientSharedSlate::ReplicationColumns::TopLevel
 		Type = 30,
 	};
 
-	FReplicationTopLevelObjectColumn LabelColumn(TSharedRef<IObjectToPropertiesModel> Model);
+	FReplicationTopLevelObjectColumn LabelColumn(TSharedRef<IObjectToPropertiesModel> Model, ISubobjectModel* SubobjectModel = nullptr);
 	FReplicationTopLevelObjectColumn TypeColumn(TSharedRef<IObjectToPropertiesModel> Model);
 }
 

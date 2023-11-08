@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Delegates/Delegate.h"
+#include "Misc/EBreakBehavior.h"
 #include "Templates/Function.h"
 
 enum class EBreakBehavior : uint8;
@@ -13,13 +14,16 @@ namespace UE::ConcertClientSharedSlate
 	/**
 	 * Decides on the contents for the subobject tree view.
 	 */
-	class ISubobjectModel
+	class CONCERTCLIENTSHAREDSLATE_API ISubobjectModel
 	{
 	public:
 
 		/** Sets the object for which to build the subobject hierarchy. */
 		virtual void SetTopLevelObject(const FSoftObjectPath& TopLevelObject) = 0;
 		virtual FSoftObjectPath GetTopLevelObject() const = 0;
+
+		/** @return Whether Object is a top-level object, i.e. valid to pass to SetTopLevelObject. */
+		virtual bool IsTopLevelObject(const FSoftObjectPath& Object) const = 0;
 
 		/**
 		 * Gets the categories that can be passed to ForEachRootSubobject.
@@ -30,20 +34,23 @@ namespace UE::ConcertClientSharedSlate
 
 		/** Gets the display name for the subobject */
 		virtual FText GetSubobjectDisplayName(const FSoftObjectPath& ObjectPath) const = 0;
-
+		
 		/**
 		 * Gets the direct subobjects of the top level objects.
 		 * @param Category The category for the objects.
 		 * @param Callback Callback to invoke for each found root object.
 		 * @see GetCategories for valid categories.
 		 */
-		virtual void ForEachRootSubobject(FName Category, TFunctionRef<EBreakBehavior(const FSoftObjectPath& Object)> Callback) = 0;
+		virtual void ForEachRootSubobject(FName Category, TFunctionRef<EBreakBehavior(const FSoftObjectPath& Object)> Callback) const = 0;
 		/** Gets the direct subobject children of another subobject. Child subobjects are implicitly in the same category as Parent. */
-		virtual void ForEachDirectChildSubobject(const FSoftObjectPath& Parent, TFunctionRef<EBreakBehavior(const FSoftObjectPath& Object)> Callback) = 0;
+		virtual void ForEachDirectChildSubobject(const FSoftObjectPath& Parent, TFunctionRef<EBreakBehavior(const FSoftObjectPath& Object)> Callback) const = 0;
 
 		DECLARE_MULTICAST_DELEGATE(FOnHierarchyChanged)
 		/** Called when the hierarchy has changed, e.g. due to calling SetTopLevelObject. */
 		virtual FOnHierarchyChanged& OnHierarchyChanged() = 0;
+
+		/** Util for iterating all subobjects. */
+		void ForEachSubobject(TFunctionRef<EBreakBehavior(const FSoftObjectPath& Parent, const FSoftObjectPath& ChildObject)> Callback);
 
 		virtual ~ISubobjectModel() = default;
 	};

@@ -37,6 +37,7 @@ namespace UE::ConcertClientSharedSlate
 				.AdditionalObjectColumns(InArgs._AdditionalObjectColumns)
 				.AdditionalPropertyColumns(PropertyColumns)
 				.SubobjectView(InArgs._SubobjectView)
+				.SubobjectModel(InArgs._SubobjectModel)
 				.OnExtendObjectsContextMenu(InArgs._OnExtendObjectsContextMenu)
 				.SortPropertyRowPredicate(this, &SDefaultReplicationStreamEditor::SortPropertiesPredicate)
 				.LeftOfObjectSearchBar()

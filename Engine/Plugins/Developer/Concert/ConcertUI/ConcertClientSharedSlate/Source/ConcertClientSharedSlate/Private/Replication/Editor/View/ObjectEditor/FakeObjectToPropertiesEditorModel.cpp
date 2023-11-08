@@ -4,44 +4,13 @@
 
 #include "Replication/Editor/Model/Property/IPropertySelectionSourceModel.h"
 #include "Replication/Editor/Model/Property/IPropertySourceModel.h"
+#include "Replication/Editor/View/ObjectUtils.h"
 #include "Replication/PropertyChainUtils.h"
 
 #include "GameFramework/Actor.h"
 
 namespace UE::ConcertClientSharedSlate
 {
-	namespace Private
-	{
-		static TOptional<FSoftObjectPath> GetTopLevelObjectOf(const FSoftObjectPath& SoftObjectPath)
-		{
-			// Example of an actor called floor
-			// SoftObjectPath = { AssetPath = {PackageName = "/Game/Maps/SyncBoxLevel", AssetName = "SyncBoxLevel"}, SubPathString = "PersistentLevel.Floor" } }
-			const FString& SubPathString = SoftObjectPath.GetSubPathString();
-
-			constexpr int32 PersistentLevelStringLength = 16; // "PersistentLevel." has 16 characters
-			const bool bIsWorldObject = SubPathString.Contains(TEXT("PersistentLevel."), ESearchCase::CaseSensitive);
-			if (!bIsWorldObject)
-			{
-				// Not a path to a world object
-				return {};
-			}
-
-			// Start search after the . behind PersistentLevel
-			const int32 StartSearch = PersistentLevelStringLength + 1;
-			const int32 IndexOfDotAfterActorName = SubPathString.Find(TEXT("."), ESearchCase::CaseSensitive, ESearchDir::FromStart, StartSearch);
-			if (IndexOfDotAfterActorName == INDEX_NONE)
-			{
-				// SoftObjectPath points to an actor
-				return {};
-			}
-
-			const int32 NumToChopOffRight = SubPathString.Len() - IndexOfDotAfterActorName;
-			const FString NewSubstring = SubPathString.LeftChop(NumToChopOffRight);
-			const FSoftObjectPath PathToOwningActor(SoftObjectPath.GetAssetPath(), NewSubstring);
-			return PathToOwningActor;
-		}
-	}
-	
 	bool FFakeObjectToPropertiesEditorModel::IsTopLevelObject(const FSoftObjectPath& ObjectPath) const
 	{
 		const FSoftClassPath ClassPath = GetObjectClass(ObjectPath);
@@ -64,8 +33,10 @@ namespace UE::ConcertClientSharedSlate
 
 	bool FFakeObjectToPropertiesEditorModel::ForEachReplicatedObject(TFunctionRef<EBreakBehavior(const FSoftObjectPath& Object)> Delegate) const
 	{
-		// This makes SObjectToPropertyView only show actors in the outliner
-		return IterateTopLevelObjects(Delegate);
+		return EnumHasAnyFlags(Flags, EFakeObjectModelFlags::OnlyTopLevelObjects)
+			// This makes SReplicationStreamViewer only show actors in the outliner
+			? IterateTopLevelObjects(Delegate) 
+			: RealModel->ForEachReplicatedObject(Delegate);
 	}
 
 	bool FFakeObjectToPropertiesEditorModel::ForEachProperty(const FSoftObjectPath& ObjectPath, TFunctionRef<EBreakBehavior(const FConcertPropertyChain& Property)> Delegate) const
@@ -105,7 +76,7 @@ namespace UE::ConcertClientSharedSlate
 		// Now determine the top level objects that are not in RealModel but that need to be shown for subobjects that are in RealModel
 		for (const FSoftObjectPath& NonTopLevelObject : NonTopLevelObjects)
 		{
-			const TOptional<FSoftObjectPath> TopLevelObject = Private::GetTopLevelObjectOf(NonTopLevelObject);
+			const TOptional<FSoftObjectPath> TopLevelObject = ObjectUtils::GetActorOf(NonTopLevelObject);
 			if (!TopLevelObject)
 			{
 				continue;

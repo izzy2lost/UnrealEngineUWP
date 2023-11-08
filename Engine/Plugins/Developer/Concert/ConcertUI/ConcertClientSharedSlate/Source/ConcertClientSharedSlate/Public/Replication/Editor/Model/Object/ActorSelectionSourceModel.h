@@ -6,21 +6,16 @@
 
 namespace UE::ConcertClientSharedSlate
 {
-	class FAddOuterSource;
-	class FComponentFromActorSource_ContextMenu;
-	class FWorldActorSource;
-
-	/** Collection of default logic for selecting objects from the current editor world. */
-	class CONCERTCLIENTSHAREDSLATE_API FEditorObjectSelectionSourceModel : public IObjectSelectionSourceModel
+	/** Logic for selecting actors from the current editor world. */
+	class CONCERTCLIENTSHAREDSLATE_API FActorSelectionSourceModel : public IObjectSelectionSourceModel
 	{
 	public:
 
-		FEditorObjectSelectionSourceModel();
+		FActorSelectionSourceModel();
 
 		//~ Begin IObjectSelectionSourceModel Interface
 		virtual TArray<FObjectSourceCategory> GetRootSources() const override;
 		virtual TArray<TSharedRef<IObjectSourceModel>> GetContextMenuOptions(const FSoftObjectPath& Item) override;
-		virtual EObjectItemValidity GetItemValidity(const FSoftObjectPath& Item) const override;
 		//~ End IObjectSelectionSourceModel Interface
 
 	private:

@@ -27,6 +27,7 @@ namespace UE::ConcertClientSharedSlate
 	class IEditableObjectToPropertiesModel;
 	class IReplicationSubobjectView;
 	class IObjectToPropertiesModel;
+	class ISubobjectModel;
 	class SReplicatedPropertiesView;
 	
 	/**
@@ -52,6 +53,8 @@ namespace UE::ConcertClientSharedSlate
 
 			/** Optional. Placed between root object outliner and property editor. */
 			SLATE_ARGUMENT(TSharedPtr<IReplicationSubobjectView>, SubobjectView)
+			/** Optional. If set, this determines the children nested under the root objects. */
+			SLATE_ARGUMENT(TSharedPtr<ISubobjectModel>, SubobjectModel)
 
 			/** Optional. Called when the delete key is pressed in the object view. */
 			SLATE_EVENT(SReplicationTreeView<FReplicatedObjectData>::FDeleteItems, OnDeleteObjects)
@@ -85,6 +88,9 @@ namespace UE::ConcertClientSharedSlate
 
 		/** Selects the given objects from the top level view, if applicable. */
 		void SelectTopLevelObjects(TConstArrayView<FSoftObjectPath> Objects);
+
+		/** Expands the given objects, recursively if desired. */
+		void ExpandObjects(TConstArrayView<FSoftObjectPath> Objects, bool bRecursive);
 		
 		/** Clears all objects selected in the subobject view, if there is one. */
 		void ClearSubobjectSelection();
@@ -96,6 +102,8 @@ namespace UE::ConcertClientSharedSlate
 
 		/** The model this view is visualizing. */
 		TSharedPtr<IObjectToPropertiesModel> PropertiesModel;
+		/** Can be null. If set, this determines the children nested under the root objects. */
+		TSharedPtr<ISubobjectModel> SubobjectModel;
 
 		/** Lists the properties of the selected actor */
 		TSharedPtr<SExpandableArea> PropertyArea;
@@ -114,7 +122,7 @@ namespace UE::ConcertClientSharedSlate
 
 		bool bIsPropertyAreaExpanded = false;
 
-		TSharedRef<FReplicatedObjectData> AllocateObjectData(FSoftObjectPath ObjectPath);
+		static TSharedRef<FReplicatedObjectData> AllocateObjectData(FSoftObjectPath ObjectPath);
 
 		// Widget creation helpers
 		TSharedRef<SWidget> CreateContentWidget(const FArguments& InArgs);
@@ -123,7 +131,9 @@ namespace UE::ConcertClientSharedSlate
 
 		/** Sets RootObjectRowData to all non-root nodes from ObjectRowData. */
 		void BuildRootObjectRowData();
-		
+
+		/** Creates an item for every object in the hierarchy of ReplicatedObjectData */
+		void BuildObjectHierarchyIfNeeded(TSharedPtr<FReplicatedObjectData> ReplicatedObjectData, TMap<FSoftObjectPath, TSharedPtr<FReplicatedObjectData>>& NewPathToObjectDataCache);
 		void GetObjectRowChildren(TSharedPtr<FReplicatedObjectData> ReplicatedObjectData, TFunctionRef<void(TSharedPtr<FReplicatedObjectData>)> ProcessChild);
 		
 		/** Handles how much space the 'Clients' area uses with respect to its expansion state. */

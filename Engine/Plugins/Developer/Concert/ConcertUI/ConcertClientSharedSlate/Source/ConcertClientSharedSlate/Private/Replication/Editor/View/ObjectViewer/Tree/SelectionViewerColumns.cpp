@@ -4,9 +4,9 @@
 
 #include "ClassIconFinder.h"
 #include "Replication/Editor/Model/IEditableObjectToPropertiesModel.h"
+#include "Replication/Editor/Model/ISubobjectModel.h"
 #include "Replication/Editor/Model/ReplicatedPropertyData.h"
 #include "Replication/Editor/Model/ReplicatedObjectData.h"
-#include "Replication/Editor/Model/Subobject/ISubobjectModel.h"
 #include "Replication/Editor/View/DisplayUtils.h"
 #include "Replication/Editor/View/ObjectEditor/SBaseReplicationStreamEditor.h"
 #include "Replication/Editor/View/ReplicationColumnsUtils.h"
@@ -14,6 +14,7 @@
 
 #include "Internationalization/Internationalization.h"
 #include "GameFramework/Actor.h"
+#include "Replication/Editor/View/ObjectUtils.h"
 #include "Textures/SlateIcon.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/SBoxPanel.h"
@@ -28,12 +29,23 @@ namespace UE::ConcertClientSharedSlate::ReplicationColumns::TopLevel
 	const FName LabelColumnId = TEXT("LabelColumn");
 	const FName TypeColumnId = TEXT("TypeColumn");
 	
-	FReplicationTopLevelObjectColumn LabelColumn(TSharedRef<IObjectToPropertiesModel> Model)
+	FReplicationTopLevelObjectColumn LabelColumn(TSharedRef<IObjectToPropertiesModel> Model, ISubobjectModel* SubobjectModel)
 	{
 		return FReplicationTopLevelObjectColumn(
 			FReplicationTopLevelObjectColumn::FArguments()
-				.GenerateWidgetColumn_Lambda([Model = MoveTemp(Model)](const FReplicationTopLevelObjectColumn::FBuildArgs& Args)
+				.GenerateWidgetColumn_Lambda([Model = MoveTemp(Model), SubobjectModel](const FReplicationTopLevelObjectColumn::FBuildArgs& Args)
 				{
+					const FSoftObjectPath& ObjectPath = Args.RowData.GetObjectPath();
+					FText Text = DisplayUtils::GetObjectDisplayText(ObjectPath);
+					if (SubobjectModel && !SubobjectModel->IsTopLevelObject(ObjectPath))
+					{
+						if (const TOptional<FSoftObjectPath> OwningActorPath = ObjectUtils::GetActorOf(ObjectPath))
+						{
+							SubobjectModel->SetTopLevelObject(*OwningActorPath);
+							Text = SubobjectModel->GetSubobjectDisplayName(ObjectPath);
+						}
+					}
+					
 					return SNew(SHorizontalBox)
 						+SHorizontalBox::Slot()
 						.AutoWidth()
@@ -51,7 +63,7 @@ namespace UE::ConcertClientSharedSlate::ReplicationColumns::TopLevel
 						[
 							SNew(STextBlock)
 							.HighlightText(TAttribute<FText>::CreateLambda([HighlightText = Args.HighlightText](){ return *HighlightText; }))
-							.Text(DisplayUtils::GetObjectDisplayText(Args.RowData.GetObjectPath()))
+							.Text(Text)
 						];
 				})
 				.PopulateSearchItems_Lambda([](const FReplicatedObjectData& ObjectData, TArray<FString>& InOutSearchStrings)

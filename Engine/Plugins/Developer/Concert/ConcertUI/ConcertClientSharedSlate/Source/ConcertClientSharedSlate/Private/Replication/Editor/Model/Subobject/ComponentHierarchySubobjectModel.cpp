@@ -7,6 +7,7 @@
 #include "Misc/EBreakBehavior.h"
 
 #include "GameFramework/Actor.h"
+#include "Replication/Editor/View/ObjectUtils.h"
 
 namespace UE::ConcertClientSharedSlate
 {
@@ -26,8 +27,8 @@ namespace UE::ConcertClientSharedSlate
 		if (InTopLevelObject != TopLevelObject)
 		{
 			TopLevelObject = InTopLevelObject;
-
-			if (AActor* Actor = GetTopLevelObjectAsActor())
+			if (AActor* Actor = GetTopLevelObjectAsActor()
+				; !TopLevelObject.IsNull() && ensureAlwaysMsgf(Actor, TEXT("Not a top-level object")))
 			{
 				USubobjectDataSubsystem* SubobjectDataSubsystem = USubobjectDataSubsystem::Get();
 				TArray<FSubobjectDataHandle> Handles;
@@ -41,9 +42,13 @@ namespace UE::ConcertClientSharedSlate
 					ObjectMetaData.Add(Object, { FText::FromString(SubobjectData->GetDisplayString()) });
 				}
 			}
-			
 			OnHierarchyChangedDelegate.Broadcast();
 		}
+	}
+
+	bool FComponentHierarchySubobjectModel::IsTopLevelObject(const FSoftObjectPath& Object) const
+	{
+		return ObjectUtils::IsActor(Object);
 	}
 
 	FText FComponentHierarchySubobjectModel::GetSubobjectDisplayName(const FSoftObjectPath& ObjectPath) const
@@ -52,7 +57,7 @@ namespace UE::ConcertClientSharedSlate
 		return MetaData ? MetaData->DisplayLabel : FText::GetEmpty();
 	}
 
-	void FComponentHierarchySubobjectModel::ForEachRootSubobject(FName Category, TFunctionRef<EBreakBehavior(const FSoftObjectPath& Object)> Callback)
+	void FComponentHierarchySubobjectModel::ForEachRootSubobject(FName Category, TFunctionRef<EBreakBehavior(const FSoftObjectPath& Object)> Callback) const
 	{
 		const AActor* Actor = GetTopLevelObjectAsActor();
 		if (!Actor)
@@ -81,11 +86,11 @@ namespace UE::ConcertClientSharedSlate
 		}
 	}
 
-	void FComponentHierarchySubobjectModel::ForEachDirectChildSubobject(const FSoftObjectPath& Parent, TFunctionRef<EBreakBehavior(const FSoftObjectPath&)> Callback)
+	void FComponentHierarchySubobjectModel::ForEachDirectChildSubobject(const FSoftObjectPath& Parent, TFunctionRef<EBreakBehavior(const FSoftObjectPath&)> Callback) const
 	{
 		const UObject* Object = Parent.ResolveObject();
 		const UObject* TopLevel = GetTopLevelObjectAsActor();
-		if (!Object || !ensure(TopLevel && Object->IsIn(TopLevel)))
+		if (!Object || !ensureAlways(TopLevel && Object->IsIn(TopLevel)))
 		{
 			return;
 		}
