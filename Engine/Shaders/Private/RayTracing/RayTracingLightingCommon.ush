@@ -513,6 +513,7 @@ FMaterialClosestHitPayload TraceRayAndAccumulateResults(
 	in uint ShouldDoEmissiveAndIndirectLighting,
 	in bool bRayTraceSkyLightContribution,
 	in bool bDecoupleSampleGeneration,
+	in bool bIsCameraRay,
 	inout FRayCone RayCone,
 	in bool bEnableSkyLightContribution,
 	inout float3 Radiance)
@@ -531,7 +532,8 @@ FMaterialClosestHitPayload TraceRayAndAccumulateResults(
 		InstanceInclusionMask,
 		Ray,
 		RayCone,
-		bEnableSkyLightContribution);
+		bEnableSkyLightContribution,
+		bIsCameraRay);
 
 	float3 TranslatedWorldPosition = Ray.Origin + Ray.Direction * Payload.HitT;
 	float3 ViewDirection = Ray.Direction;

@@ -575,8 +575,10 @@ RAY_TRACING_ENTRY_CLOSEST_HIT(MaterialCHS,
 		uint MaterialBlendingMode = RAY_TRACING_BLEND_MODE_OPAQUE;
 	#endif
 
+	const uint PrimitiveFlags = GetPrimitiveData(MaterialParameters.PrimitiveId).Flags;
+
 	Payload.BlendingMode = MaterialBlendingMode;
-	Payload.PrimitiveLightingChannelMask = GetPrimitive_LightingChannelMask(MaterialParameters.PrimitiveId);
+	Payload.PrimitiveLightingChannelMask = GetPrimitive_LightingChannelMask_FromFlags(PrimitiveFlags);
 
 	Payload.HitT = RayTCurrent();
 	if (HitKind() == HIT_KIND_TRIANGLE_FRONT_FACE)
@@ -590,6 +592,22 @@ RAY_TRACING_ENTRY_CLOSEST_HIT(MaterialCHS,
 
 	// Fill payload with material data
 	GetMaterialPayload(PixelMaterialInputs, MaterialParameters, Interpolants, PackedPayload.IsEnableSkyLightContribution(), Payload); 
+
+	// After we have gathered the material info, check to see if we are a holdout to see if we need to overwrite the shaded result
+#if MATERIALBLENDING_ALPHAHOLDOUT
+	const bool bIsHoldout = true;
+#else
+	const bool bIsHoldout = (PrimitiveFlags & PRIMITIVE_SCENE_DATA_FLAG_HOLDOUT) != 0;
+#endif
+	const bool bIsCameraRay = PackedPayload.IsCameraRay();
+	if (bIsHoldout && bIsCameraRay)
+	{
+		Payload.ShadingModelID = SHADINGMODELID_UNLIT;
+		Payload.Radiance = 0.0;
+		Payload.BaseColor = 0.0;
+		Payload.Specular = 0.0;
+		Payload.SetHoldout();
+	}
 
 	PackedPayload = PackRayTracingPayload(Payload, PropagatedCone);
 

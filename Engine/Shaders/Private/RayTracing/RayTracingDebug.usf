@@ -46,18 +46,16 @@ float4 AnisoDebugColor(float InAniso)
 	// Follow same mapping than raster buffer visualization (BP located in Engine/Contents/Anisotropy)
 	float AniG = saturate(InAniso);
 	float AniB = saturate(-1.0 * InAniso);
-	return float4(0.0, pow(AniG, 2.2), pow(AniB, 2.2), 1.0f);
+	return float4(0.0, pow(AniG, 2.2), pow(AniB, 2.2), 0.0f);
 }
 
 float4 RoughnessDebugColor(float InRoughness)
 {
-	return float4(pow(InRoughness, 2.2f).xxx, 1.0f);
+	return float4(pow(InRoughness, 2.2f).xxx, 0.0f);
 }
 
 float4 DebugRayTracingMaterial(FRayDesc Ray, bool bIsFarField)
 {
-	uint2 PixelCoord = DispatchRaysIndex().xy + View.ViewRectMin.xy;
-
 	FRayCone RayCone = (FRayCone)0;
 	RayCone.SpreadAngle = View.EyeToPixelSpreadAngle;
 
@@ -99,16 +97,16 @@ float4 DebugRayTracingMaterial(FRayDesc Ray, bool bIsFarField)
 		// 1. Non-material dependent debug view
 		switch (VisualizationMode)
 		{
-		case RAY_TRACING_DEBUG_VIZ_RADIANCE:				return float4(Payload.Radiance, 1.0f);
-		case RAY_TRACING_DEBUG_VIZ_OPACITY:					return float4((1.0f - Payload.Opacity).xxx, 1.0f);
-		case RAY_TRACING_DEBUG_VIZ_BLENDING_MODE:			return float4(Payload.BlendingMode.xxx, 1.0f);
-		case RAY_TRACING_DEBUG_VIZ_LIGHTING_CHANNEL_MASK:	return float4(Payload.PrimitiveLightingChannelMask & 0x1, Payload.PrimitiveLightingChannelMask & 0x2, Payload.PrimitiveLightingChannelMask & 0x4, 1.0f);
-		case RAY_TRACING_DEBUG_VIZ_INDIRECT_IRRADIANCE:		return float4(Payload.IndirectIrradiance, 1.0f);
-		case RAY_TRACING_DEBUG_VIZ_WORLD_POSITION:			return float4(Payload.TranslatedWorldPos, 1.0f);
-		case RAY_TRACING_DEBUG_VIZ_HITKIND:					return Payload.IsFrontFace() ? float4(0.0, 1.0, 0.0, 1.0f) : float4(1.0, 0.0, 0.0, 1.0f);
-		case RAY_TRACING_DEBUG_VIZ_LIGHT_GRID_COUNT:	    return float4(FCulledLightList::Create(Payload.TranslatedWorldPos).Visualize(1) * abs(dot(Payload.WorldNormal, Ray.Direction)), 1.0f);
+		case RAY_TRACING_DEBUG_VIZ_RADIANCE:				return float4(Payload.Radiance, 0.0f);
+		case RAY_TRACING_DEBUG_VIZ_OPACITY:					return float4((1.0f - Payload.Opacity).xxx, 0.0f);
+		case RAY_TRACING_DEBUG_VIZ_BLENDING_MODE:			return float4(Payload.BlendingMode.xxx, 0.0f);
+		case RAY_TRACING_DEBUG_VIZ_LIGHTING_CHANNEL_MASK:	return float4(Payload.PrimitiveLightingChannelMask & 0x1, Payload.PrimitiveLightingChannelMask & 0x2, Payload.PrimitiveLightingChannelMask & 0x4, 0.0f);
+		case RAY_TRACING_DEBUG_VIZ_INDIRECT_IRRADIANCE:		return float4(Payload.IndirectIrradiance, 0.0f);
+		case RAY_TRACING_DEBUG_VIZ_WORLD_POSITION:			return float4(Payload.TranslatedWorldPos, 0.0f);
+		case RAY_TRACING_DEBUG_VIZ_HITKIND:					return Payload.IsFrontFace() ? float4(0.0, 1.0, 0.0, 0.0f) : float4(1.0, 0.0, 0.0, 0.0f);
+		case RAY_TRACING_DEBUG_VIZ_LIGHT_GRID_COUNT:	    return float4(FCulledLightList::Create(Payload.TranslatedWorldPos).Visualize(1) * abs(dot(Payload.WorldNormal, Ray.Direction)), 0.0f);
 		#if PLATFORM_SUPPORTS_SHADER_TIMESTAMP
-		case RAY_TRACING_DEBUG_VIZ_PERFORMANCE:				return float4(ColorMapInferno(float(TimeEnd - TimeBegin) * TimingScale), 1);
+		case RAY_TRACING_DEBUG_VIZ_PERFORMANCE:				return float4(ColorMapInferno(float(TimeEnd - TimeBegin) * TimingScale), 0.0f);
 		#endif // PLATFORM_SUPPORTS_SHADER_TIMESTAMP
 		}
 
@@ -125,51 +123,51 @@ float4 DebugRayTracingMaterial(FRayDesc Ray, bool bIsFarField)
 			switch (VisualizationMode)
 			{				
 			case RAY_TRACING_DEBUG_VIZ_FAR_FIELD:		return float4(SubstrateGetBSDFBaseColor(BSDF), Payload.HitT);
-			case RAY_TRACING_DEBUG_VIZ_GBUFFER_AO:		return float4(SubstrateGetIrradianceAndAO(SubstratePixelHeader).MaterialAO.xxx, 1.0f);
-			case RAY_TRACING_DEBUG_VIZ_SHADING_MODEL:	return float4(GetShadingModelColor(SubstrateGetLegacyShadingModels(BSDF)), 1.0f);
-			case RAY_TRACING_DEBUG_VIZ_BASE_COLOR:		return float4(SubstrateGetBSDFBaseColor(BSDF), 1.0f);
-			case RAY_TRACING_DEBUG_VIZ_DIFFUSE_COLOR:	return float4(SubstrateGetBSDFDiffuseColor(BSDF), 1.0f);
-			case RAY_TRACING_DEBUG_VIZ_SPECULAR_COLOR:	return float4(SubstrateGetBSDFSpecularColor(BSDF).xxx, 1.0f);
-			case RAY_TRACING_DEBUG_VIZ_METALLIC:		return float4(SubstrateGetBSDFMetallic(BSDF).xxx, 1.0f);
-			case RAY_TRACING_DEBUG_VIZ_SPECULAR:		return float4(SubstrateGetBSDFSpecular(BSDF).xxx, 1.0f);
+			case RAY_TRACING_DEBUG_VIZ_GBUFFER_AO:		return float4(SubstrateGetIrradianceAndAO(SubstratePixelHeader).MaterialAO.xxx, 0.0f);
+			case RAY_TRACING_DEBUG_VIZ_SHADING_MODEL:	return float4(GetShadingModelColor(SubstrateGetLegacyShadingModels(BSDF)), 0.0f);
+			case RAY_TRACING_DEBUG_VIZ_BASE_COLOR:		return float4(SubstrateGetBSDFBaseColor(BSDF), 0.0f);
+			case RAY_TRACING_DEBUG_VIZ_DIFFUSE_COLOR:	return float4(SubstrateGetBSDFDiffuseColor(BSDF), 0.0f);
+			case RAY_TRACING_DEBUG_VIZ_SPECULAR_COLOR:	return float4(SubstrateGetBSDFSpecularColor(BSDF).xxx, 0.0f);
+			case RAY_TRACING_DEBUG_VIZ_METALLIC:		return float4(SubstrateGetBSDFMetallic(BSDF).xxx, 0.0f);
+			case RAY_TRACING_DEBUG_VIZ_SPECULAR:		return float4(SubstrateGetBSDFSpecular(BSDF).xxx, 0.0f);
 			case RAY_TRACING_DEBUG_VIZ_ROUGHNESS:		return RoughnessDebugColor(SubstrateGetBSDFRoughness(BSDF));
-			case RAY_TRACING_DEBUG_VIZ_IOR:				return float4(1, 1, 1, 1.0f);
-			case RAY_TRACING_DEBUG_VIZ_CUSTOM_DATA:		return float4(0, 0, 0, 0);
-			case RAY_TRACING_DEBUG_VIZ_WORLD_NORMAL:	return float4(TangentBasis[2] * 0.5 + 0.5, 1.0f);
-			case RAY_TRACING_DEBUG_VIZ_WORLD_TANGENT:	return float4(TangentBasis[0] * 0.5 + 0.5, 1.0f);
+			case RAY_TRACING_DEBUG_VIZ_IOR:				return float4(1, 1, 1, 0.0f);
+			case RAY_TRACING_DEBUG_VIZ_CUSTOM_DATA:		return float4(0, 0, 0, 0.0f);
+			case RAY_TRACING_DEBUG_VIZ_WORLD_NORMAL:	return float4(TangentBasis[2] * 0.5 + 0.5, 0.0f);
+			case RAY_TRACING_DEBUG_VIZ_WORLD_TANGENT:	return float4(TangentBasis[0] * 0.5 + 0.5, 0.0f);
 			case RAY_TRACING_DEBUG_VIZ_ANISOTROPY:		return AnisoDebugColor(SubstrateGetBSDFAnisotropy(BSDF));
 			}
 		}
 	#else // SUBSTRATE_ENABLED
 		switch (VisualizationMode)
 		{
-			case RAY_TRACING_DEBUG_VIZ_WORLD_NORMAL:	return float4(Payload.WorldNormal * 0.5 + 0.5, 1.0f);
+			case RAY_TRACING_DEBUG_VIZ_WORLD_NORMAL:	return float4(Payload.WorldNormal * 0.5 + 0.5, 0.0f);
 			case RAY_TRACING_DEBUG_VIZ_FAR_FIELD:		return float4(Payload.BaseColor.rgb, Payload.HitT);
-			case RAY_TRACING_DEBUG_VIZ_GBUFFER_AO:		return float4(Payload.GBufferAO, Payload.GBufferAO, Payload.GBufferAO, 1.0f);
-			case RAY_TRACING_DEBUG_VIZ_SHADING_MODEL:	return float4(GetShadingModelColor(Payload.ShadingModelID), 1.0f);
-			case RAY_TRACING_DEBUG_VIZ_BASE_COLOR:		return float4(Payload.BaseColor.rgb, 1.0f);
-			case RAY_TRACING_DEBUG_VIZ_DIFFUSE_COLOR:	return float4(Payload.DiffuseColor.rgb, 1.0f);
-			case RAY_TRACING_DEBUG_VIZ_SPECULAR_COLOR:	return float4(Payload.SpecularColor.rgb, 1.0f);
-			case RAY_TRACING_DEBUG_VIZ_METALLIC:		return float4(Payload.Metallic, Payload.Metallic, Payload.Metallic, 1.0f);
-			case RAY_TRACING_DEBUG_VIZ_SPECULAR:		return float4(Payload.Specular, Payload.Specular, Payload.Specular, 1.0f);
+			case RAY_TRACING_DEBUG_VIZ_GBUFFER_AO:		return float4(Payload.GBufferAO, Payload.GBufferAO, Payload.GBufferAO, 0.0f);
+			case RAY_TRACING_DEBUG_VIZ_SHADING_MODEL:	return float4(GetShadingModelColor(Payload.ShadingModelID), 0.0f);
+			case RAY_TRACING_DEBUG_VIZ_BASE_COLOR:		return float4(Payload.BaseColor.rgb, 0.0f);
+			case RAY_TRACING_DEBUG_VIZ_DIFFUSE_COLOR:	return float4(Payload.DiffuseColor.rgb, 0.0f);
+			case RAY_TRACING_DEBUG_VIZ_SPECULAR_COLOR:	return float4(Payload.SpecularColor.rgb, 0.0f);
+			case RAY_TRACING_DEBUG_VIZ_METALLIC:		return float4(Payload.Metallic, Payload.Metallic, Payload.Metallic, 0.0f);
+			case RAY_TRACING_DEBUG_VIZ_SPECULAR:		return float4(Payload.Specular, Payload.Specular, Payload.Specular, 0.0f);
 			case RAY_TRACING_DEBUG_VIZ_ROUGHNESS:		return RoughnessDebugColor(Payload.Roughness);
-			case RAY_TRACING_DEBUG_VIZ_IOR:				return float4(Payload.Ior, Payload.Ior, Payload.Ior, 1.0f);
-			case RAY_TRACING_DEBUG_VIZ_CUSTOM_DATA:		return float4(Payload.CustomData);
-			case RAY_TRACING_DEBUG_VIZ_WORLD_TANGENT:	return float4(Payload.WorldTangent * 0.5 + 0.5, 1.0f);
+			case RAY_TRACING_DEBUG_VIZ_IOR:				return float4(Payload.Ior, Payload.Ior, Payload.Ior, 0.0f);
+			case RAY_TRACING_DEBUG_VIZ_CUSTOM_DATA:		return float4(Payload.CustomData.xyz, 0.0f);
+			case RAY_TRACING_DEBUG_VIZ_WORLD_TANGENT:	return float4(Payload.WorldTangent * 0.5 + 0.5, 0.0f);
 			case RAY_TRACING_DEBUG_VIZ_ANISOTROPY:		return AnisoDebugColor(Payload.Anisotropy);
 		}
 	#endif // SUBSTRATE_ENABLED
 	}
 
 	// HitT is packed into the alpha for far field compositing
-	return (RAY_TRACING_DEBUG_VIZ_FAR_FIELD) ? float4(0, 0, 0, -1) : float4(0, 0, 0, 1);
+	return (VisualizationMode == RAY_TRACING_DEBUG_VIZ_FAR_FIELD) ? float4(0, 0, 0, -1.0) : float4(0, 0, 0, 1);
 }
 
 #else // USE_DEBUG_CHS
 
 // Add functions that use the debug payload only
 
-float4 DebugRayTracingInstance(FRayDesc Ray, uint2 PixelCoord, out float OutDepth)
+float4 DebugRayTracingInstance(FRayDesc Ray, out float OutDepth)
 {
 	float4 Result = float4(0, 0, 0, 1);
 
@@ -265,6 +263,7 @@ float4 DebugRayTracingInstance(FRayDesc Ray, uint2 PixelCoord, out float OutDept
 		float3 TranslatedWorldPosition = Ray.Origin + Payload.HitT * Ray.Direction;
 		float4 ClipPosition = mul(float4(TranslatedWorldPosition, 1.0), View.TranslatedWorldToClip);
 		OutDepth = ClipPosition.z / ClipPosition.w;
+		Result.a = 0.0;
 	}
 
 	return Result;
@@ -290,14 +289,14 @@ RAY_TRACING_ENTRY_RAYGEN(RayTracingDebugMainRGS)
 
 #if USE_DEBUG_CHS
 	{
-		Result = DebugRayTracingInstance(Ray, PixelCoord, OutDepth);
+		Result = DebugRayTracingInstance(Ray, OutDepth);
 	}
 #else // USE_DEBUG_CHS
 	{
 		bool bIsFarField = false;
 		Result = DebugRayTracingMaterial(Ray, bIsFarField);
 		
-		const bool bNearFieldMiss = Result.w <= 0.0;
+		const bool bNearFieldMiss = Result.w < 0.0;
 		if (VisualizationMode == RAY_TRACING_DEBUG_VIZ_FAR_FIELD && bNearFieldMiss)
 		{
 			bIsFarField = true;
@@ -310,7 +309,7 @@ RAY_TRACING_ENTRY_RAYGEN(RayTracingDebugMainRGS)
 	if (ShouldUsePreExposure)
 	{
 		// Only  when the output is tonemapped
-		Result *= View.PreExposure;
+		Result.rgb *= View.PreExposure;
 	}
 
 	if (!IsFinite(Result.r) || !IsFinite(Result.g) || !IsFinite(Result.b))
@@ -321,6 +320,8 @@ RAY_TRACING_ENTRY_RAYGEN(RayTracingDebugMainRGS)
 			Result.rgb = float3(1,0,1);
 		}
 	}
+
+	Result.a = Result.a;
 	
 	Output[PixelCoord] = Result;
 

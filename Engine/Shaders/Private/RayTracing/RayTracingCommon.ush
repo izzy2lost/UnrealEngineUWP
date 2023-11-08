@@ -173,7 +173,7 @@ void name##_INTERNAL(uint3 DispatchThreadIndex)
 #define RAY_TRACING_PAYLOAD_OUTPUT_FLAG_NONE                               0
 #define RAY_TRACING_PAYLOAD_OUTPUT_FLAG_FRONT_FACE                   (1 << 0) // Indicates that ray has hit front face of a primitive. Set by closest hit shader.
 #define RAY_TRACING_PAYLOAD_OUTPUT_FLAG_TWO_SIDED                    (1 << 1) // Ray hit a two-sided material
-#define RAY_TRACING_PAYLOAD_OUTPUT_FLAG_UNUSED2                      (1 << 2) // Free for future use
+#define RAY_TRACING_PAYLOAD_OUTPUT_FLAG_IS_HOLDOUT                   (1 << 2) // We hit a primitive flagged as a holdout
 #define RAY_TRACING_PAYLOAD_OUTPUT_FLAG_UNUSED3                      (1 << 3) // Free for future use
 #define RAY_TRACING_PAYLOAD_OUTPUT_FLAG_UNUSED4                      (1 << 4) // Free for future use
 #define RAY_TRACING_PAYLOAD_OUTPUT_FLAG_UNUSED5                      (1 << 5) // Free for future use
@@ -184,7 +184,7 @@ void name##_INTERNAL(uint3 DispatchThreadIndex)
 #define RAY_TRACING_PAYLOAD_INPUT_FLAG_LUMEN_PAYLOAD		         (1 << 2) // Indicates that closest hit shader should evaluate geometry normal and instanceid.
 #define RAY_TRACING_PAYLOAD_INPUT_FLAG_IGNORE_TRANSLUCENT            (1 << 3) // Indicates that translucent materials should be ignored by IgnoreHit() in anyhit shaders.
 #define RAY_TRACING_PAYLOAD_INPUT_FLAG_SHADOW_RAY                    (1 << 4) // Indicates this ray is being traced as part of a raytraced shadow calculation (see TraceVisibilityRay).
-#define RAY_TRACING_PAYLOAD_INPUT_FLAG_UNUSED5                       (1 << 5) // Free for future use
+#define RAY_TRACING_PAYLOAD_INPUT_FLAG_CAMERA_RAY                    (1 << 5) // Indicates this ray is being traced directly from the camera
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 // Instance descriptor
@@ -604,7 +604,11 @@ struct FPackedMaterialClosestHitPayload : FMinimalPayload
 	void SetIgnoreTranslucentMaterials()	{ Flags |= RAY_TRACING_PAYLOAD_INPUT_FLAG_IGNORE_TRANSLUCENT; }
 	bool IsIgnoreTranslucentMaterials()		{ return (Flags & RAY_TRACING_PAYLOAD_INPUT_FLAG_IGNORE_TRANSLUCENT) != 0; }
 
+	void SetShadowRay()                     { Flags |= RAY_TRACING_PAYLOAD_INPUT_FLAG_SHADOW_RAY; }
 	bool IsShadowRay()						{ return (Flags & RAY_TRACING_PAYLOAD_INPUT_FLAG_SHADOW_RAY) != 0; }
+
+	void SetCameraRay()                     { Flags |= RAY_TRACING_PAYLOAD_INPUT_FLAG_CAMERA_RAY; }
+	bool IsCameraRay()						{ return (Flags & RAY_TRACING_PAYLOAD_INPUT_FLAG_CAMERA_RAY) != 0; }
 
 	FRayCone GetRayCone()					{ return UnpackRayCone(PackedRayCone); }
 	void SetRayCone(FRayCone NewRayCone)	{ PackedRayCone = PackRayCone(NewRayCone); }
@@ -739,6 +743,9 @@ struct FMaterialClosestHitPayload : FMinimalPayload
 
 	void SetTwoSided() { Flags |= RAY_TRACING_PAYLOAD_OUTPUT_FLAG_TWO_SIDED; }
 	bool IsTwoSided() { return (Flags & RAY_TRACING_PAYLOAD_OUTPUT_FLAG_TWO_SIDED) != 0; }
+
+	void SetHoldout() { Flags |= RAY_TRACING_PAYLOAD_OUTPUT_FLAG_IS_HOLDOUT; }
+	bool IsHoldout() { return (Flags & RAY_TRACING_PAYLOAD_OUTPUT_FLAG_IS_HOLDOUT) != 0; }
 	
 	FRayCone GetRayCone() { return RayCone; }
 	void SetRayCone(FRayCone NewRayCone) { RayCone = NewRayCone; }
@@ -777,7 +784,11 @@ struct FPackedMaterialClosestHitPayload : FMinimalPayload
 	void SetIgnoreTranslucentMaterials() { IorAndShadingModelIDAndBlendingModeAndFlagsAndPrimitiveLightingChannelMask |= RAY_TRACING_PAYLOAD_INPUT_FLAG_IGNORE_TRANSLUCENT << 23; }
 	bool IsIgnoreTranslucentMaterials() { return ((IorAndShadingModelIDAndBlendingModeAndFlagsAndPrimitiveLightingChannelMask >> 23) & RAY_TRACING_PAYLOAD_INPUT_FLAG_IGNORE_TRANSLUCENT) != 0; }
 
-	bool IsShadowRay() { return ((IorAndShadingModelIDAndBlendingModeAndFlagsAndPrimitiveLightingChannelMask >> 23) & RAY_TRACING_PAYLOAD_INPUT_FLAG_SHADOW_RAY) != 0; }
+	void SetShadowRay()                     { IorAndShadingModelIDAndBlendingModeAndFlagsAndPrimitiveLightingChannelMask |= RAY_TRACING_PAYLOAD_INPUT_FLAG_SHADOW_RAY << 23; }
+	bool IsShadowRay()						{ return ((IorAndShadingModelIDAndBlendingModeAndFlagsAndPrimitiveLightingChannelMask >> 23) & RAY_TRACING_PAYLOAD_INPUT_FLAG_SHADOW_RAY) != 0; }
+
+	void SetCameraRay()                     { IorAndShadingModelIDAndBlendingModeAndFlagsAndPrimitiveLightingChannelMask |= RAY_TRACING_PAYLOAD_INPUT_FLAG_CAMERA_RAY << 23; }
+	bool IsCameraRay()						{ return ((IorAndShadingModelIDAndBlendingModeAndFlagsAndPrimitiveLightingChannelMask >> 23) & RAY_TRACING_PAYLOAD_INPUT_FLAG_CAMERA_RAY) != 0; }
 
 	FRayCone GetRayCone() { return UnpackRayCone(PackedRayCone); }
 	void SetRayCone(FRayCone NewRayCone) { PackedRayCone = PackRayCone(NewRayCone); }
@@ -1188,7 +1199,8 @@ void TraceMaterialRayPacked(
 	in FRayDesc Ray,
 	// Payload Inputs
 	inout FRayCone RayCone,
-	in bool bEnableSkyLightContribution)
+	in bool bEnableSkyLightContribution,
+	in bool bIsCameraRay)
 {
 	const uint RayContributionToHitGroupIndex = RAY_TRACING_SHADER_SLOT_MATERIAL;
 	const uint MultiplierForGeometryContributionToShaderIndex = RAY_TRACING_NUM_SHADER_SLOTS;
@@ -1202,6 +1214,11 @@ void TraceMaterialRayPacked(
 	{
 		// Enable Sky Light contribution in the payload if requested
 		Payload.SetEnableSkyLightContribution();
+	}
+
+	if (bIsCameraRay)
+	{
+		Payload.SetCameraRay();
 	}
 
 

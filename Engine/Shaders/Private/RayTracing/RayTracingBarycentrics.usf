@@ -81,7 +81,7 @@ void RayTracingBarycentricsCommon(uint2 DispatchThreadIndex)
 	float4 Result = float4(0, 0, 0, 1);
 	if (Payload.IsHit())
 	{
-		Result = float4(Payload.Barycentrics, 1.0f - Payload.Barycentrics.x - Payload.Barycentrics.y, 1.0f);
+		Result = float4(Payload.Barycentrics, 1.0f - Payload.Barycentrics.x - Payload.Barycentrics.y, 0.0f);
 	}
 	Output[PixelCoord] = Result;
 }
