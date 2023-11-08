@@ -139,6 +139,12 @@ private:
 	UPROPERTY(EditAnywhere, Category = Memory)
 	bool bPreallocateMemory = false;
 
+	/**
+	* Clear any active blends if we just became relevant, to avoid carrying over undesired blends.
+	*/	
+	UPROPERTY(EditAnywhere, Category = Blending)
+	bool bResetOnBecomingRelevant = true;
+
 #if WITH_EDITORONLY_DATA
 	
 	// This setting can be used to show what the extrapolation of the animation looks like.
@@ -212,6 +218,9 @@ private:
 	// Pending inertialization requests.
 	UPROPERTY(Transient)
 	TArray<FInertializationRequest> RequestQueue;
+
+	// Update Counter for detecting being relevant
+	FGraphTraversalCounter UpdateCounter;
 
 private:
 

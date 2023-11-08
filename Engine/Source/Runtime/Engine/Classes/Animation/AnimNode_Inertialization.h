@@ -382,6 +382,12 @@ private:
 	UPROPERTY(EditAnywhere, Category = Memory)
 	bool bPreallocateMemory = false;
 
+	/**
+	* Clear any active blends if we just became relevant, to avoid carrying over undesired blends.
+	*/	
+	UPROPERTY(EditAnywhere, Category = Blending)
+	bool bResetOnBecomingRelevant = false;
+
 public: // FAnimNode_Inertialization
 
 	ENGINE_API FAnimNode_Inertialization();
@@ -441,6 +447,9 @@ private:
 	// Pending inertialization requests
 	UPROPERTY(Transient)
 	TArray<FInertializationRequest> RequestQueue;
+
+	// Update Counter for detecting being relevant
+	FGraphTraversalCounter UpdateCounter;
 
 	// Teleport type
 	ETeleportType TeleportType;
