@@ -16,6 +16,8 @@
 #include "Misc/ScopeTryLock.h"
 #include "ProfilingDebugging/CsvProfiler.h"
 #include "AudioLinkLog.h"
+#include "DSP/BufferDiagnostics.h"
+#include "Algo/Accumulate.h"
 
 // Link to "Audio" profiling category
 CSV_DECLARE_CATEGORY_MODULE_EXTERN(AUDIOMIXERCORE_API, Audio);
@@ -1296,6 +1298,9 @@ namespace Audio
 					if (ChildSubmix->IsRenderingAudio())
 					{
 						ChildSubmix->ProcessAudio(InputBuffer);
+
+						// Check the buffer after processing to catch any bad values.
+						AUDIO_CHECK_BUFFER_NAMED_MSG(InputBuffer, TEXT("Submix Chidren"), TEXT("Submix: %s"), *ChildSubmix->GetName());
 					}
 				}
 				else
@@ -1322,6 +1327,9 @@ namespace Audio
 				const EMixerSourceSubmixSendStage SubmixSendStage = MixerSourceVoiceIter.Value.SubmixSendStage;
 
 				MixerSourceVoice->MixOutputBuffers(NumChannels, SendLevel, SubmixSendStage, InputBuffer);
+				
+				// Check the buffer after each voice mix to catch any bad values.
+				AUDIO_CHECK_BUFFER_NAMED_MSG(InputBuffer, TEXT("Submix SourceMix"), TEXT("Submix: %s"), *GetName());
 			}
 		}
 
@@ -1679,6 +1687,9 @@ namespace Audio
 
 			if (SubmixEffect->ProcessAudio(InputData, OutputData))
 			{
+				AUDIO_CHECK_BUFFER_NAMED_MSG(*OutputData.AudioBuffer,TEXT("Submix Effects"), TEXT("FxPreset=%s, Submix=%s"), 
+					*GetNameSafe(SubmixEffect->GetPreset()), *GetName());
+				
 				// Mix in the dry signal directly
 				const float DryLevel = SubmixEffect->GetDryLevel();
 				if (DryLevel > 0.0f)
