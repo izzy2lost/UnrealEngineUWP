@@ -70,7 +70,16 @@ public:
 	}
 
 	/** If false, the asset being edited will not be included in reopen assets prompt on restart */
+	UE_DEPRECATED(5.4, "Use the override that takes in an UObject instead")
 	virtual bool IncludeAssetInRestoreOpenAssetsPrompt() const { return true; }
+
+	virtual bool IncludeAssetInRestoreOpenAssetsPrompt(UObject* Asset) const
+	{
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		return IncludeAssetInRestoreOpenAssetsPrompt();
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	}
+
 	virtual bool IsPrimaryEditor() const = 0;
 	virtual void InvokeTab(const struct FTabId& TabId) = 0;
 	UE_DEPRECATED(5.0, "Toolbar tab no longer exists and tab ID will return None; do not add it to layouts")

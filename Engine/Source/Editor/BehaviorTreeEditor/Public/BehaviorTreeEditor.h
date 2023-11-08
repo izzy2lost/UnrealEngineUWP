@@ -65,6 +65,10 @@ public:
 	virtual void FocusWindow(UObject* ObjectToFocusOn = NULL) override;
 	//~ End IBehaviorTreeEditor Interface
 
+	//~ Begin IAssetEditorInstance Interface
+	virtual bool IncludeAssetInRestoreOpenAssetsPrompt(UObject* Asset) const override;
+	//~ End IAssetEditorInstance Interface
+
 	//~ Begin FEditorUndoClient Interface
 	virtual void PostUndo(bool bSuccess) override;
 	virtual void PostRedo(bool bSuccess) override;

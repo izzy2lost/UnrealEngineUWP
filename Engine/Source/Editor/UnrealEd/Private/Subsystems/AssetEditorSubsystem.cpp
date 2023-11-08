@@ -392,7 +392,7 @@ void UAssetEditorSubsystem::NotifyAssetOpened(UObject* Asset, IAssetEditorInstan
 
 	AssetOpenedInEditorEvent.Broadcast(Asset, InInstance);
 
-	if(InInstance->IncludeAssetInRestoreOpenAssetsPrompt())
+	if(InInstance->IncludeAssetInRestoreOpenAssetsPrompt(Asset))
 	{
 		SaveOpenAssetEditors(false);
 	}
@@ -1364,10 +1364,10 @@ void UAssetEditorSubsystem::SaveOpenAssetEditors(const bool bOnShutdown)
 		for (const TPair<IAssetEditorInstance*, FAssetEntry>& EditorPair : OpenedEditors)
 		{
 			IAssetEditorInstance* Editor = EditorPair.Key;
-			if (Editor != nullptr && Editor->IncludeAssetInRestoreOpenAssetsPrompt())
+			if (Editor != nullptr)
 			{
 				UObject* EditedObject = EditorPair.Value.ObjectPtr.Get();
-				if (EditedObject != nullptr)
+				if (EditedObject != nullptr && Editor->IncludeAssetInRestoreOpenAssetsPrompt(EditedObject))
 				{
 					// only record assets that have a valid saved package
 					UPackage* Package = EditedObject->GetOutermost();

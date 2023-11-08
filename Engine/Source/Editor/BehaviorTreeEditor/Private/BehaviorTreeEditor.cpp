@@ -1640,6 +1640,12 @@ void FBehaviorTreeEditor::FocusWindow(UObject* ObjectToFocusOn)
 	FWorkflowCentricApplication::FocusWindow(ObjectToFocusOn);
 }
 
+bool FBehaviorTreeEditor::IncludeAssetInRestoreOpenAssetsPrompt(UObject* Asset) const
+{
+	// If we're in a BT editor which has a valid BehaviorTree, then don't reopen the BB during restore, only the BT
+	return Asset && (!Asset->IsA(UBlackboardData::StaticClass()) || !BehaviorTree);
+}
+
 void FBehaviorTreeEditor::OnNodeTitleCommitted(const FText& NewText, ETextCommit::Type CommitInfo, UEdGraphNode* NodeBeingChanged)
 {
 	if (NodeBeingChanged)
