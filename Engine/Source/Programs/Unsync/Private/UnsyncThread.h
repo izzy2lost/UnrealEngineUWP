@@ -7,6 +7,11 @@
 
 UNSYNC_THIRD_PARTY_INCLUDES_START
 #include <atomic>
+#include <condition_variable>
+#include <deque>
+#include <functional>
+#include <thread>
+#include <vector>
 #if UNSYNC_USE_CONCRT
 #	include <concrt.h>
 #	include <concurrent_queue.h>
@@ -16,7 +21,6 @@ UNSYNC_THIRD_PARTY_INCLUDES_START
 #	endif
 #else
 #	include <semaphore>
-#	include <thread>
 #	ifdef __APPLE__
 #		define UNSYNC_USE_MACH_SEMAPHORE 1
 #	endif
@@ -93,6 +97,45 @@ struct FThreadLogConfig
 
 void SchedulerSleep(uint32 Milliseconds);
 void SchedulerYield();
+
+class FThreadPool
+{
+public:
+
+	using FTaskFunction = std::function<void()>;
+
+	FThreadPool() = default;
+	~FThreadPool();
+
+	// Launches worker threads until total started worker count reaches NumWorkers.
+	// Does nothing if the number of already launched workers is lower than given value.
+	void StartWorkers(uint32 NumWorkers);
+
+	// Adds a task to the FIFO queue and returns its fence value
+	uint64 PushTask(FTaskFunction&& Fun);
+
+	// Block current thread until all tasks before and including given fence value
+	void WaitForFence(uint64 FenceValue);
+
+private:
+
+	// Try to execute a task and return whether there may be more tasks to run
+	bool DoWork(bool bWaitForSignal);
+
+	FTaskFunction PopTask(bool bWaitForSignal);
+
+	std::vector<std::thread>  Threads;
+	std::deque<FTaskFunction> Tasks;
+
+	std::atomic<uint64> NumTasksPushed;
+	std::atomic<uint64> NumTasksCompleted;
+
+	std::mutex				Mutex;
+	std::condition_variable WorkerWakeupCondition;
+	std::atomic<bool>		bShutdown;
+};
+
+extern FThreadPool GThreadPool;
 
 #if UNSYNC_USE_CONCRT
 
