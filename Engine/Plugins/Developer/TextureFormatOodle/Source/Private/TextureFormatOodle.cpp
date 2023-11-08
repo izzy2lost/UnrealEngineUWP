@@ -210,6 +210,12 @@ struct FOodleJobDebugInfo
 	int RDOLambda;
 };
 
+
+struct FOodleTextureVTable;
+
+static void TFO_Plugins_Init();
+static void TFO_Plugins_Install(const FOodleTextureVTable * VTable);
+
 /**
 * 
 * FOodleTextureVTable provides function calls to a specific version of the Oodle Texture dynamic lib
@@ -218,8 +224,15 @@ struct FOodleJobDebugInfo
 **/
 struct FOodleTextureVTable
 {
+	const TCHAR * VersionString = nullptr;
 	FName	Version;
-	void *	DynamicLib  = nullptr;
+
+	// LoadedDynamicLib is set on first use
+	//	if either of LoadedDynamicLib or LoadFailed is set, a load was attempted, don't try again
+	//	if both == 0, load has not been tried yet
+	void * LoadedDynamicLib  = nullptr;
+	std::atomic<int> LoadResult = 0; // 0 = not done, 1 = ok, -1 = fail
+	FCriticalSection DynamicLibLoadLock;
 
 	t_fp_OodleTex_EncodeBCN_RDO_Ex * fp_OodleTex_EncodeBCN_RDO_Ex = nullptr;
 
@@ -239,12 +252,39 @@ struct FOodleTextureVTable
 	{
 	}
 
-	bool LoadDynamicLib(FString InVersionString)
+	void Init(const TCHAR * InVersionString)
 	{
+		// this runs from Module init, threads are not running
+		VersionString = InVersionString;
 		Version = FName(InVersionString);
+	}
+
+	bool TryLoad()
+	{
+		// load DLL on demand
+		// this can run some threads so must be thread safe
+
+		int GotLoadResult = LoadResult.load(std::memory_order_acquire);
+		if ( GotLoadResult )
+		{
+			return ( GotLoadResult > 0 );
+		}
+
+		// else try to load :
+		
+		// Lock so only one thread does init :
+		FScopeLock TryLoadLock(&DynamicLibLoadLock);
+
+		// double check inside lock :
+		
+		GotLoadResult = LoadResult.load(std::memory_order_acquire);
+		if ( GotLoadResult )
+		{
+			return ( GotLoadResult > 0 );
+		}
 
 		// TFO_DLL_PREFIX/SUFFIX is set by the build.cs with the right names for this platform
-		FString DynamicLibName = FString(TFO_DLL_PREFIX) + InVersionString + FString(TFO_DLL_SUFFIX);
+		FString DynamicLibName = FString(TFO_DLL_PREFIX) + VersionString + FString(TFO_DLL_SUFFIX);
 
 		// I want to see this log by default in Cook+Editor , but not in TBW
 		#ifndef VerboseIfNotEditor
@@ -257,12 +297,15 @@ struct FOodleTextureVTable
 
 		UE_LOG(LogTextureFormatOodle,VerboseIfNotEditor,TEXT("Oodle Texture loading DLL: %s"), *DynamicLibName);
 
-		DynamicLib = FPlatformProcess::GetDllHandle(*DynamicLibName);
+		void * DynamicLib = FPlatformProcess::GetDllHandle(*DynamicLibName);
 		if ( DynamicLib == nullptr )
 		{
 			UE_LOG(LogTextureFormatOodle, Warning, TEXT("Oodle Texture %s requested but could not be loaded"), *DynamicLibName);
+			
+			//don't change Version after Init, not thread safe (FName is not atomic)
+			//Version = FName("invalid"); // so we can't be found in later searches
 
-			Version = FName("invalid"); // so we can't be found
+			LoadResult.store(-1,std::memory_order_release); // publish
 			return false;
 		}
 	
@@ -287,7 +330,10 @@ struct FOodleTextureVTable
 			UE_LOG(LogTextureFormatOodle, Warning, TEXT("Oodle Texture %s loaded but failed in LogVersion with error %d=%s"), *DynamicLibName,
 				(int)OodleErr, ANSI_TO_TCHAR(OodleErrStr) );
 
-			Version = FName("invalid"); // so we can't be found
+			//don't change Version after Init, not thread safe (FName is not atomic)
+			//Version = FName("invalid"); // so we can't be found in later searches
+
+			LoadResult.store(-1,std::memory_order_release); // publish
 			return false;
 		}
 
@@ -317,16 +363,21 @@ struct FOodleTextureVTable
 		
 		fp_OodleTex_PixelFormat_BytesPerPixel = (t_fp_OodleTex_PixelFormat_BytesPerPixel *) FPlatformProcess::GetDllExport( DynamicLib, TEXT("OodleTex_PixelFormat_BytesPerPixel") );
 		check( fp_OodleTex_PixelFormat_BytesPerPixel != nullptr );
+		
+		TFO_Plugins_Install(this);
+
+		LoadedDynamicLib = DynamicLib;
+		LoadResult.store(1,std::memory_order_release); // publish
 
 		return true;
 	}
 
 	~FOodleTextureVTable()
 	{
-		if ( DynamicLib )
+		if ( LoadedDynamicLib )
 		{
-			FPlatformProcess::FreeDllHandle(DynamicLib);
-			DynamicLib = nullptr;
+			FPlatformProcess::FreeDllHandle(LoadedDynamicLib);
+			LoadedDynamicLib = nullptr;
 		}
 	}
 };
@@ -466,10 +517,6 @@ static UE::DDS::EDXGIFormat DXGIFormatFromOodleBC(OodleTex_BC InBC)
 	}
 	return UE::DDS::EDXGIFormat::UNKNOWN;
 }
-
-
-static void TFO_Plugins_Init();
-static void TFO_Plugins_Install(const FOodleTextureVTable * VTable);
 
 // user data passed to Oodle Jobify system
 static int OodleJobifyNumThreads = 0;
@@ -820,15 +867,16 @@ public:
 
 		VTables.SetNum(OodleTextureVersionsCount);
 
+		// set up the VTable versions but don't actually load them yet
+		// they will be loaded on first use
 		for(int32 i=0;i<OodleTextureVersionsCount;i++)
 		{
-			if ( VTables[i].LoadDynamicLib( FString(OodleTextureVersions[i]) ) )
-			{
-				TFO_Plugins_Install(&(VTables[i]));
-			}
+			VTables[i].Init( OodleTextureVersions[i] );
 		}
 
+		#if 1
 		// verify the latest and oldest can be found :
+		//	(this forces loading of two DLLs that we might not actually need, could stop doing this)
 		if ( GetOodleTextureVTable(OodleTextureVersionLatest) == nullptr ||
 			GetOodleTextureVTable(OodleTextureSdkVersionToUseIfNone) == nullptr )
 		{
@@ -840,6 +888,7 @@ public:
 
 			return false;
 		}
+		#endif
 
 		return true;
 	}
@@ -850,6 +899,10 @@ public:
 		{
 			if ( VTables[i].Version == InVersion )
 			{
+				// before we return the VTable pointer, make sure it is loaded :
+				if ( ! const_cast<FOodleTextureVTable &>(VTables[i]).TryLoad() )
+					return nullptr;
+
 				return &(VTables[i]);
 			}
 		}
