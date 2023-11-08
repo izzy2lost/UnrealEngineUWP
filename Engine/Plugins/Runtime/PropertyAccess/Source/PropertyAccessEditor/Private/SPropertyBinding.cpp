@@ -201,7 +201,7 @@ void SPropertyBinding::ForEachBindableFunction(UClass* FromClass, Predicate Pred
 template <typename Predicate>
 void SPropertyBinding::ForEachBindableProperty(UStruct* InStruct, Predicate Pred) const
 {
-	if(Args.OnCanBindProperty.IsBound())
+	if(InStruct && Args.OnCanBindProperty.IsBound())
 	{
 		UBlueprintGeneratedClass* SkeletonClass = Blueprint ? Cast<UBlueprintGeneratedClass>(Blueprint->SkeletonGeneratedClass) : nullptr;
 
@@ -887,7 +887,7 @@ void SPropertyBinding::FillPropertyMenu(FMenuBuilder& MenuBuilder, UStruct* InOw
 	}
 
 	// Add 'none' entry only if we just have the search block in the builder
-	if ( MenuBuilder.GetMultiBox()->GetBlocks().Num() == 1 )
+	if ( InOwnerStruct && MenuBuilder.GetMultiBox()->GetBlocks().Num() == 1 )
 	{
 		MenuBuilder.BeginSection("None", InOwnerStruct->GetDisplayNameText());
 		MenuBuilder.AddWidget(SNew(STextBlock).Text(LOCTEXT("None", "None")), FText::GetEmpty());
