@@ -386,6 +386,10 @@ bool FMutableTextureMipDataProvider::PollMips(const FTextureUpdateSyncOptions& S
 			}
 			++MipIndex;
 		}
+
+		// Force the immediate release of the image memory to reduce the transient memory usage
+		Image = nullptr;
+		OperationData->Result = nullptr;
 	}
 
 	OperationData = nullptr;
