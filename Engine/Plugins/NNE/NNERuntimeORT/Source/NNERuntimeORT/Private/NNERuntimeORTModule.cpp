@@ -33,7 +33,8 @@ namespace UE::NNERuntimeORT::Private::DllHelper
 		DllHandles.Add(DllHandle);
 		return true;
 	}
-	}
+
+} // namespace UE::NNERuntimeRDG::Private::Dml
 
 void FNNERuntimeORTModule::StartupModule()
 {
@@ -46,20 +47,34 @@ void FNNERuntimeORTModule::StartupModule()
 		return;
 	}
 
+#if PLATFORM_WINDOWS
+	const FString ModuleDir = FPlatformProcess::GetModulesDirectory();
+	const FString DirectMLSharedLibPath = FPaths::Combine(ModuleDir, TEXT(PREPROCESSOR_TO_STRING(DIRECTML_PATH)), TEXT("DirectML.dll"));
+
+	const bool bDirectMLDllLoaded = UE::NNERuntimeORT::Private::DllHelper::GetDllHandle(DirectMLSharedLibPath, DllHandles);
+	if (!bDirectMLDllLoaded)
+	{
+		UE_LOG(LogNNE, Error, TEXT("Failed to load DirectML shared library. ORT Dml Runtime won't be available."));
+	}
+#endif // PLATFORM_WINDOWS
+
 	Ort::InitApi();
 
 #if PLATFORM_WINDOWS
-	// NNE runtime ORT Dml startup
-	NNERuntimeORTDml = NewObject<UNNERuntimeORTDml>();
-	if (NNERuntimeORTDml.IsValid())
+	if (bDirectMLDllLoaded)
 	{
-		TWeakInterfacePtr<INNERuntime> RuntimeDmlInterface(NNERuntimeORTDml.Get());
+		// NNE runtime ORT Dml startup
+		NNERuntimeORTDml = NewObject<UNNERuntimeORTDml>();
+		if (NNERuntimeORTDml.IsValid())
+		{
+			TWeakInterfacePtr<INNERuntime> RuntimeDmlInterface(NNERuntimeORTDml.Get());
 
-		NNERuntimeORTDml->Init();
-		NNERuntimeORTDml->AddToRoot();
-		UE::NNE::RegisterRuntime(RuntimeDmlInterface);
+			NNERuntimeORTDml->Init();
+			NNERuntimeORTDml->AddToRoot();
+			UE::NNE::RegisterRuntime(RuntimeDmlInterface);
+		}
 	}
-#endif
+#endif // PLATFORM_WINDOWS
 
 	// NNE runtime ORT Cpu startup
 	NNERuntimeORTCpu = NewObject<UNNERuntimeORTCpu>();
