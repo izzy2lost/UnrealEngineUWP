@@ -388,7 +388,10 @@ void FPreAnimatedStateExtension::RestoreGlobalState(const FRestoreStateParams& P
 	GroupMetaData.Shrink();
 
 	// Invalidate cached data for any sequence instance that belongs to the terminal instance
-	if (Params.TerminalInstanceHandle.IsValid())
+	if (Params.TerminalInstanceHandle.IsValid() && 
+			ensureMsgf(
+				Linker->GetInstanceRegistry()->IsHandleValid(Params.TerminalInstanceHandle),
+				TEXT("Terminal instance handle is not valid anymore, was the sequence destroyed?")))
 	{
 		Linker->GetInstanceRegistry()->MutateInstance(Params.TerminalInstanceHandle).InvalidateCachedData();
 	}
