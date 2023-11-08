@@ -904,6 +904,18 @@ public:
 	struct FEditorAudioBulkData
 	{
 		UE::Serialization::FEditorBulkData RawData;
+		USoundWave* SoundWave;
+
+		FEditorAudioBulkData()
+			: RawData()
+			, SoundWave()
+		{
+		}
+			
+		FEditorAudioBulkData(USoundWave* Owner)
+		{
+			SoundWave = Owner;
+		}
 
 		ENGINE_API void CreateFromBulkData(FBulkData& InBulkData, const FGuid& InGuid, UObject* Owner);
 		ENGINE_API void Serialize(FArchive& Ar, UObject* Owner, bool bAllowRegister=true);
