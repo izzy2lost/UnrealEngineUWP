@@ -24,9 +24,11 @@
 		OutProperty: RequiredEditorPlatforms - Editor platforms to build to cook targets      
 	-->
 
-<Property Name="AllEditorPlatforms" Value="Mac+Win64+Linux" />
+<Property Name="AllDesktopPlatforms" Value="Mac+Win64+Linux" />
+<Property Name="AllEditorPlatforms" Value="$(AllDesktopPlatforms)" />
 <Property Name="AllConsolePlatforms" Value="" />
 <Property Name="AllTargetPlatforms" Value="Android+IOS+Mac+TVOS+Win64+Linux" />
+<Property Name="AllVirtualizedPlatforms" Value="" />
 
 <Option Name="EditorPlatforms" DefaultValue="" Description="Alternative to 'WithFooEditor', a list of editors to build and test. Win64+Mac etc"/>
 <Option Name="TargetPlatforms" DefaultValue="" Description="Alternative to 'WithFoo', a list of Platforms to build and test. Android+IOS etc"/>
@@ -44,9 +46,11 @@
 <Option Name="CookedEditorPlatformsToSkipTests" DefaultValue="" Restrict=".*" Description="List of editor cooked platforms that editor tests won't be run on" />
 <Option Name="PlatformsToSkipTests" DefaultValue="" Restrict=".*" Description="List of platforms that all tests won't be run on. Overrides Editor/TargetPlatformsToSkipTests when non-empty." />
 
-<Macro Name="AddPlatform" Arguments="Platform;IsConsole;IsEnabled">
+<Macro Name="AddPlatform" Arguments="Platform;IsConsole;IsEnabled" OptionalArguments="IsVirtualized">
+	<Property Name="IsVirtualized" Value="('$(IsVirtualized)' != '' and '$(IsVirtualized)' != 'false')"/>
 	<Property Name="AllTargetPlatforms" Value="$(AllTargetPlatforms)+$(Platform)" If="!ContainsItem('$(AllTargetPlatforms)', '$(Platform)', '+')"/>
 	<Property Name="AllConsolePlatforms" Value="$(AllConsolePlatforms)+$(Platform)" If="$(IsConsole) and !ContainsItem('$(AllConsolePlatforms)', '$(Platform)', '+')"/>
+	<Property Name="AllVirtualizedPlatforms" Value="$(AllVirtualizedPlatforms)+$(Platform)" If="$(IsVirtualized) And !ContainsItem('$(AllVirtualizedPlatforms)', '$(Platform)', '+')"/>
 	<Property Name="TargetPlatforms" Value="$(TargetPlatforms)+$(Platform)" If="$(IsEnabled) and !ContainsItem('$(TargetPlatforms)', '$(Platform)', '+')"/>
 </Macro>
 	
