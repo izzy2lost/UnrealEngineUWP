@@ -456,6 +456,85 @@ namespace UE::Interchange::Gltf::Private
 		return true;
 	}
 
+	void GetT0Transform(const GLTF::FAnimation& GltfAnimation, const GLTF::FNode& AnimatedNode, const TArray<int32>& ChannelIndices, FTransform& OutTransform)
+	{
+		int32 LowerIndex = 0;
+		int32 HigherIndex = 0;
+		double RequestedTime = 0.;
+
+		FVector3f TranslationData = FVector3f(OutTransform.GetTranslation());
+		FQuat4f RotationData = FQuat4f(OutTransform.GetRotation());
+		FVector3f ScaleData = FVector3f(OutTransform.GetScale3D());
+
+		for (const int32& ChannelIndex : ChannelIndices)
+		{
+			const GLTF::FAnimation::FChannel& Channel = GltfAnimation.Channels[ChannelIndex];
+			const GLTF::FAnimation::FSampler& Sampler = GltfAnimation.Samplers[Channel.Sampler];
+
+			TArray<float> Seconds;
+			Sampler.Input.GetFloatArray(Seconds);
+
+			if (Seconds.Num() == 0)
+			{
+				continue;
+			}
+
+			switch (Channel.Target.Path)
+			{
+				case GLTF::FAnimation::EPath::Translation:
+				{
+					TArray<FVector3f> TranslationBuffer;
+					TranslationBuffer.SetNumUninitialized(Sampler.Output.Count);
+					Sampler.Output.GetCoordArray(TranslationBuffer.GetData());
+					const float Scale = GltfUnitConversionMultiplier; // Convert m to cm
+					for (FVector3f& Position : TranslationBuffer)
+					{
+						Position *= Scale;
+					}
+
+					TranslationData = InterpolateValue(Seconds, TranslationBuffer, LowerIndex, HigherIndex, RequestedTime, Sampler.Interpolation, false);
+					break;
+				}
+				case GLTF::FAnimation::EPath::Rotation:
+				{
+					TArray<FQuat4f> RotationBuffer;
+					TArray<FVector4f> RotationBufferTemp;
+					RotationBufferTemp.SetNumUninitialized(Sampler.Output.Count);
+					RotationBuffer.SetNumUninitialized(Sampler.Output.Count);
+
+					Sampler.Output.GetQuatArray(RotationBufferTemp.GetData());
+
+					for (size_t Index = 0; Index < Sampler.Output.Count; Index++)
+					{
+						RotationBuffer[Index] = FQuat4f(RotationBufferTemp[Index][0], RotationBufferTemp[Index][1], RotationBufferTemp[Index][2], RotationBufferTemp[Index][3]);
+					}
+
+					RotationData = InterpolateValue(Seconds, RotationBuffer, LowerIndex, HigherIndex, RequestedTime, Sampler.Interpolation, true);
+					RotationData.Normalize();
+					break;
+				}
+				case GLTF::FAnimation::EPath::Scale:
+				{
+					TArray<FVector3f> ScaleBuffer;
+					ScaleBuffer.SetNumUninitialized(Sampler.Output.Count);
+					Sampler.Output.GetCoordArray(ScaleBuffer.GetData());
+
+					ScaleData = InterpolateValue(Seconds, ScaleBuffer, LowerIndex, HigherIndex, RequestedTime, Sampler.Interpolation, false);
+
+					break;
+				}
+				default:
+					UE_LOG(LogInterchangeImport, Warning, TEXT("Animation type not supported"));
+					break;
+			}
+		}
+
+		OutTransform = FTransform(
+			FQuat4d(RotationData),
+			FVector3d(TranslationData),
+			FVector3d(ScaleData));
+	}
+
 	bool GetBakedAnimationTransformPayloadData(const FString& PayLoadKey, const GLTF::FAsset& GltfAsset, FAnimationPayloadData& PayloadData)
 	{
 		const double BakeInterval = 1.0 / PayloadData.BakeFrequency;

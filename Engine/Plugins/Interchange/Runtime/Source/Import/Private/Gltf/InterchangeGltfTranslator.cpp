@@ -212,7 +212,8 @@ namespace UE::Interchange::Gltf::Private
 }
 
 void UInterchangeGLTFTranslator::HandleGltfNode( UInterchangeBaseNodeContainer& NodeContainer, const GLTF::FNode& GltfNode, const FString& ParentNodeUid, const int32 NodeIndex, 
-	bool &bHasVariants, TArray<int32>& SkinnedMeshNodes, TSet<int>& UnusedMeshIndices ) const
+	bool &bHasVariants, TArray<int32>& SkinnedMeshNodes, TSet<int>& UnusedMeshIndices,
+	const TMap<int32, FTransform>& T0Transforms ) const
 {
 	using namespace UE::Interchange::Gltf::Private;
 
@@ -268,6 +269,16 @@ void UInterchangeGLTFTranslator::HandleGltfNode( UInterchangeBaseNodeContainer& 
 			if (GltfNode.bHasLocalBindPose)
 			{
 				InterchangeSceneNode->SetCustomBindPoseLocalTransform(&NodeContainer, GltfNode.LocalBindPose);
+			}
+			
+			if (GltfAsset.Animations.Num() == 0 || !T0Transforms.Contains(GltfNode.Index))
+			{
+				//If no animations present, use Local Transform for T0
+				InterchangeSceneNode->SetCustomTimeZeroLocalTransform(&NodeContainer, GltfNode.Transform);
+			}
+			else
+			{
+				InterchangeSceneNode->SetCustomTimeZeroLocalTransform(&NodeContainer, T0Transforms[GltfNode.Index]);
 			}
 			break;
 		}
@@ -349,7 +360,7 @@ void UInterchangeGLTFTranslator::HandleGltfNode( UInterchangeBaseNodeContainer& 
 	{
 		if ( GltfAsset.Nodes.IsValidIndex( ChildIndex ) )
 		{
-			HandleGltfNode( NodeContainer, GltfAsset.Nodes[ ChildIndex ], NodeUid, ChildIndex, bHasVariants, SkinnedMeshNodes, UnusedMeshIndices );
+			HandleGltfNode( NodeContainer, GltfAsset.Nodes[ ChildIndex ], NodeUid, ChildIndex, bHasVariants, SkinnedMeshNodes, UnusedMeshIndices, T0Transforms);
 		}
 	}
 }
@@ -663,6 +674,33 @@ bool UInterchangeGLTFTranslator::Translate( UInterchangeBaseNodeContainer& NodeC
 
 	// Scenes
 	{
+		//Generate T0 Transforms
+		TMap<int32, FTransform> T0Transforms;
+		if (GltfAsset.Animations.Num() > 0)
+		{
+			const GLTF::FAnimation& Animation = GltfAsset.Animations[0];
+
+			//Only Skeletal Animations (no Morph Animations as those do not produce FTransforms)
+			TMap<int32, TArray<int32>> AnimatedNodesIndexToChannelIndices;//(AnimatedNodeIndex, [Channels])
+			for (int32 ChannelIndex = 0; ChannelIndex < Animation.Channels.Num(); ++ChannelIndex)
+			{
+				const GLTF::FAnimation::FChannel& Channel = Animation.Channels[ChannelIndex];
+
+				if (Channel.Target.Node.Type == GLTF::FNode::EType::Joint)
+				{
+					TArray<int32>& ChannelIndices = AnimatedNodesIndexToChannelIndices.FindOrAdd(Channel.Target.Node.Index);
+					ChannelIndices.Add(ChannelIndex);
+				}
+			}
+
+			for (const TPair<int32, TArray<int32>>& AnimatedNodeIndexToChannelIndices : AnimatedNodesIndexToChannelIndices)
+			{
+				FTransform T0Transform;
+				UE::Interchange::Gltf::Private::GetT0Transform(Animation, GltfAsset.Nodes[AnimatedNodeIndexToChannelIndices.Key], AnimatedNodeIndexToChannelIndices.Value, T0Transform);
+				T0Transforms.Emplace(AnimatedNodeIndexToChannelIndices.Key, T0Transform);
+			}
+		}
+
 		int32 SceneIndex = 0;
 		for ( const GLTF::FScene& GltfScene : GltfAsset.Scenes )
 		{
@@ -682,7 +720,7 @@ bool UInterchangeGLTFTranslator::Translate( UInterchangeBaseNodeContainer& NodeC
 			{
 				if ( GltfAsset.Nodes.IsValidIndex( NodeIndex ) )
 				{
-					HandleGltfNode( NodeContainer, GltfAsset.Nodes[ NodeIndex ], SceneNodeUid, NodeIndex, bHasVariants, SkinnedMeshNodes, UnusedGltfMeshIndices );
+					HandleGltfNode( NodeContainer, GltfAsset.Nodes[ NodeIndex ], SceneNodeUid, NodeIndex, bHasVariants, SkinnedMeshNodes, UnusedGltfMeshIndices, T0Transforms);
 				}
 			}
 
