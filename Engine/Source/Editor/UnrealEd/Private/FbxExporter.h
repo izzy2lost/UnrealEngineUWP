@@ -57,7 +57,7 @@ namespace UnFbx
 		virtual int32 GetLength() const = 0;
 		/** Updates the runtime state of the animation track to the specified frame. */
 		virtual void UpdateAnimation(int32 LocalFrame) = 0;
-		virtual float GetFrameRate() const { return 1.f / DEFAULT_SAMPLERATE; }
+		virtual double GetFrameRate() const { return 1.0 / static_cast<double>(DEFAULT_SAMPLERATE); }
 		/** The anim sequence that drives this anim track */
 		virtual UAnimSequence* GetAnimSequence(int32 LocalFrame) const { return nullptr; }
 		/** The time into the anim sequence for the given LocalFrame */
@@ -73,7 +73,7 @@ namespace UnFbx
 		UNREALED_API virtual int32 GetStartFrame() const override;
 		UNREALED_API virtual int32 GetLength() const override;
 		UNREALED_API virtual void UpdateAnimation(int32 LocalFrame) override;
-		UNREALED_API virtual float GetFrameRate() const override;
+		UNREALED_API virtual double GetFrameRate() const override;
 		UNREALED_API virtual UAnimSequence* GetAnimSequence(int32 LocalFrame) const override;
 		UNREALED_API virtual float GetAnimTime(int32 LocalFrame) const override;
 
@@ -280,7 +280,7 @@ private:
 	/**
 	* Export Anim Track of the given SkeletalMeshComponent
 	*/
-	UNREALED_API void ExportAnimTrack( IAnimTrackAdapter& AnimTrackAdapter, AActor* Actor, USkeletalMeshComponent* SkeletalMeshComponent, float SamplingRate );
+	UNREALED_API void ExportAnimTrack( IAnimTrackAdapter& AnimTrackAdapter, AActor* Actor, USkeletalMeshComponent* SkeletalMeshComponent, double SamplingRate );
 
 	UNREALED_API void ExportModel(UModel* Model, FbxNode* Node, const char* Name);
 

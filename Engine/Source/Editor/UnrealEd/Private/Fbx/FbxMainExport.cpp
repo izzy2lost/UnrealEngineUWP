@@ -1736,7 +1736,7 @@ void FLevelSequenceAnimTrackAdapter::UpdateAnimation( int32 LocalFrame )
 	MovieScenePlayer->GetEvaluationTemplate().EvaluateSynchronousBlocking( Context );
 }
 
-float FLevelSequenceAnimTrackAdapter::GetFrameRate() const
+double FLevelSequenceAnimTrackAdapter::GetFrameRate() const
 {
 	return MovieScene->GetDisplayRate().AsDecimal();
 }
@@ -3249,7 +3249,7 @@ void FFbxExporter::ExportLevelSequenceBaked3DTransformTrack(IAnimTrackAdapter& A
 	int32 LocalStartFrame = FFrameRate::TransformTime(FFrameTime(DiscreteInclusiveLower(InPlaybackRange)), TickResolution, DisplayRate).RoundToFrame().Value;
 	int32 AnimationLength = FFrameRate::TransformTime(FFrameTime(FFrameNumber(DiscreteSize(InPlaybackRange))), TickResolution, DisplayRate).RoundToFrame().Value + 1; // Add one so that we export a key for the end frame
 
-	const float SampleRate = 1.0f/DisplayRate.AsDecimal();
+	const double SampleRate = 1.0/DisplayRate.AsDecimal();
 
 	for (int32 FrameNumber = LocalStartFrame; FrameNumber < LocalStartFrame + AnimationLength; ++FrameNumber)
 	{

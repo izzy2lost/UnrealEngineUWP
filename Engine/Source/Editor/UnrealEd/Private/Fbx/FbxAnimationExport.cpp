@@ -548,11 +548,11 @@ FbxNode* FFbxExporter::ExportAnimSequence( const UAnimSequence* AnimSeq, const U
 }
 
 
-void FFbxExporter::ExportAnimTrack(IAnimTrackAdapter& AnimTrackAdapter, AActor* Actor, USkeletalMeshComponent* InSkeletalMeshComponent, float SamplingRate)
+void FFbxExporter::ExportAnimTrack(IAnimTrackAdapter& AnimTrackAdapter, AActor* Actor, USkeletalMeshComponent* InSkeletalMeshComponent, double SamplingRate)
 {
 	// show a status update every 1 second worth of samples
-	const float UpdateFrequency = 1.0f;
-	float NextUpdateTime = UpdateFrequency;
+	const double UpdateFrequency = 1.0;
+	double NextUpdateTime = UpdateFrequency;
 
 	// find root and find the bone array
 	TArray<FbxNode*> BoneNodes;
@@ -580,12 +580,12 @@ void FFbxExporter::ExportAnimTrack(IAnimTrackAdapter& AnimTrackAdapter, AActor* 
 	int32 LocalStartFrame = AnimTrackAdapter.GetLocalStartFrame();
 	int32 StartFrame = AnimTrackAdapter.GetStartFrame();
 	int32 AnimationLength = AnimTrackAdapter.GetLength();
-	float FrameRate = AnimTrackAdapter.GetFrameRate();
+	double FrameRate = AnimTrackAdapter.GetFrameRate();
 
 	TArray<USkeletalMeshComponent*> SkeletalMeshComponents;
 	Actor->GetComponents(SkeletalMeshComponents);
 
-	const float TickRate = 1.0f/FrameRate;
+	const double TickRate = 1.0/FrameRate;
 
 	FScopedSlowTask SlowTask(AnimationLength + 1, NSLOCTEXT("UnrealEd", "ExportAnimationProgress", "Exporting Animation"));
 	SlowTask.MakeDialog(true);
@@ -595,7 +595,7 @@ void FFbxExporter::ExportAnimTrack(IAnimTrackAdapter& AnimTrackAdapter, AActor* 
 		SlowTask.EnterProgressFrame();
 		
 		int32 LocalFrame = LocalStartFrame + FrameCount;
-		float SampleTime = (StartFrame + FrameCount) / FrameRate;
+		double SampleTime = (StartFrame + FrameCount) / FrameRate;
 
 		// This will call UpdateSkelPose on the skeletal mesh component to move bones based on animations in the sequence
 		AnimTrackAdapter.UpdateAnimation(LocalFrame);
@@ -642,7 +642,7 @@ void FFbxExporter::ExportAnimTrack(IAnimTrackAdapter& AnimTrackAdapter, AActor* 
 
 		NextUpdateTime -= SamplingRate;
 
-		if( NextUpdateTime <= 0.0f )
+		if( NextUpdateTime <= 0.0 )
 		{
 			NextUpdateTime = UpdateFrequency;
 			GWarn->StatusUpdate( FMath::RoundToInt( SampleTime ), AnimationLength, NSLOCTEXT("FbxExporter", "ExportingToFbxStatus", "Exporting to FBX") );
