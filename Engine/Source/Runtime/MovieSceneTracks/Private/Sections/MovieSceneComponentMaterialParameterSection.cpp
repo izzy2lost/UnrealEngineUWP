@@ -47,6 +47,7 @@ UMovieSceneComponentMaterialParameterSection::UMovieSceneComponentMaterialParame
 	: Super(ObjectInitializer)
 {
 	bSupportsInfiniteRange = true;
+	EvalOptions.EnableAndSetCompletionMode(EMovieSceneCompletionMode::ProjectDefault);
 }
 
 EMovieSceneChannelProxyType UMovieSceneComponentMaterialParameterSection::CacheChannelProxy()
