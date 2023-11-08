@@ -73,14 +73,11 @@ bool LumenReflections::IsHitLightingForceEnabled(const FViewInfo& View, bool bLu
 bool LumenReflections::UseHitLighting(const FViewInfo& View, bool bLumenGIEnabled)
 {
 #if RHI_RAYTRACING
-	if (LumenHardwareRayTracing::IsHitLightingSupported(View.GetShaderPlatform()))
-	{
-		return IsHitLightingForceEnabled(View, bLumenGIEnabled) 
-			|| (CVarLumenReflectionsHardwareRayTracingRetraceHitLighting.GetValueOnRenderThread() != 0);
-	}
-#endif
-
+	return IsHitLightingForceEnabled(View, bLumenGIEnabled) 
+		|| (CVarLumenReflectionsHardwareRayTracingRetraceHitLighting.GetValueOnRenderThread() != 0);
+#else
 	return false;
+#endif
 }
 
 bool LumenReflections::UseTranslucentRayTracing(const FViewInfo& View)

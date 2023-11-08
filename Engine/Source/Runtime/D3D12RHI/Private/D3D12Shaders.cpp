@@ -66,7 +66,9 @@ static bool ValidateShaderIsUsable(FD3D12ShaderData* InShader, EShaderFrequency 
 		return false;
 	}
 
-	if (EnumHasAnyFlags(InShader->Features, EShaderCodeFeatures::WaveOps) && !GRHISupportsWaveOperations)
+	// When we're using the SM5 shader library plus raytracing, GRHISupportsWaveOperations is false because DXBC shaders can't do wave ops,
+	// but RT shaders are compiled to DXIL and can use wave ops (HW support is guaranteed too).
+	if (EnumHasAnyFlags(InShader->Features, EShaderCodeFeatures::WaveOps) && !GRHISupportsWaveOperations && !IsRayTracingShaderFrequency(InFrequency))
 	{
 		return false;
 	}
@@ -201,7 +203,10 @@ FRayTracingShaderRHIRef FD3D12DynamicRHI::RHICreateRayTracingShader(TArrayView<c
 
 	if (!InitShaderCommon(ShaderCode, Offset, Shader))
 	{
-		delete Shader;
+		// We can't just call delete on the shader since it's an FRHIResource, so it must use the deletion queue mechanism.
+		// However, since it starts with refcount 0, we must first AddRef it in order to be able to call Release.
+		Shader->AddRef();
+		Shader->Release();
 		return nullptr;
 	}
 

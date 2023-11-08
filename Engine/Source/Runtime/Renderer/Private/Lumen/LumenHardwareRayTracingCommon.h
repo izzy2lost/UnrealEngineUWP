@@ -14,7 +14,6 @@ namespace LumenHardwareRayTracing
 {
 	bool IsInlineSupported();
 	bool IsRayGenSupported();
-	bool IsHitLightingSupported(EShaderPlatform ShaderPlatform);
 }
 
 #if RHI_RAYTRACING
