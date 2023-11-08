@@ -40,10 +40,36 @@ namespace UE::PoseSearch
 		{
 		case EPoseSearchInterruptMode::DoNotInterrupt:
 			return false;
-		case EPoseSearchInterruptMode::InterruptOnDatabaseChange:
+
+		case EPoseSearchInterruptMode::InterruptOnDatabaseChange:	// Fall through
+		case EPoseSearchInterruptMode::InterruptOnDatabaseChangeAndInvalidateContinuingPose:
 			return !Databases.Contains(CurrentResultDatabase);
-		case EPoseSearchInterruptMode::ForceInterrupt:
+
+		case EPoseSearchInterruptMode::ForceInterrupt:				// Fall through
+		case EPoseSearchInterruptMode::ForceInterruptAndInvalidateContinuingPose:
 			return true;
+
+		default:
+			unimplemented();
+			return false;
+		}
+	}
+
+	static bool IsInvalidatingContinuingPose(EPoseSearchInterruptMode InterruptMode, const UPoseSearchDatabase* CurrentResultDatabase, const TArray<TObjectPtr<const UPoseSearchDatabase>>& Databases)
+	{
+		switch (InterruptMode)
+		{
+		case EPoseSearchInterruptMode::DoNotInterrupt:				// Fall through
+		case EPoseSearchInterruptMode::InterruptOnDatabaseChange:	// Fall through
+		case EPoseSearchInterruptMode::ForceInterrupt:	
+			return false;
+
+		case EPoseSearchInterruptMode::InterruptOnDatabaseChangeAndInvalidateContinuingPose:
+			return !Databases.Contains(CurrentResultDatabase);
+
+		case EPoseSearchInterruptMode::ForceInterruptAndInvalidateContinuingPose:
+			return true;
+
 		default:
 			unimplemented();
 			return false;
@@ -319,6 +345,13 @@ void UPoseSearchLibrary::UpdateMotionMatchingState(
 	FMemMark Mark(FMemStack::Get());
 	const UAnimInstance* AnimInstance = Cast<const UAnimInstance>(Context.AnimInstanceProxy->GetAnimInstanceObject());
 	check(AnimInstance);
+
+	const UPoseSearchDatabase* CurrentResultDatabase = InOutMotionMatchingState.CurrentSearchResult.Database.Get();
+	if (IsInvalidatingContinuingPose(InterruptMode, CurrentResultDatabase, Databases))
+	{
+		InOutMotionMatchingState.CurrentSearchResult.Reset();
+	}
+
 	FSearchContext SearchContext(AnimInstance, History, TConstArrayView<const UAnimationAsset*>(), &TrajectoryRootSpace, 0.f,
 		&InOutMotionMatchingState.PoseIndicesHistory, InOutMotionMatchingState.CurrentSearchResult, PoseJumpThresholdTime);
 
@@ -329,8 +362,6 @@ void UPoseSearchLibrary::UpdateMotionMatchingState(
 	if (bSearch)
 	{
 		InOutMotionMatchingState.ElapsedPoseSearchTime = 0.f;
-
-		const UPoseSearchDatabase* CurrentResultDatabase = SearchContext.GetCurrentResult().Database.Get();
 		const bool bForceInterrupt = IsForceInterrupt(InterruptMode, CurrentResultDatabase, Databases);
 
 		// Evaluate continuing pose

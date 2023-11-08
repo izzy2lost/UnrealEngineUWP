@@ -28,8 +28,16 @@ enum class EPoseSearchInterruptMode : uint8
 	// continuing pose search will be interrupted if its database is not listed in the searchable databases
 	InterruptOnDatabaseChange,
 
+	// continuing pose search will be interrupted if its database is not listed in the searchable databases, 
+	// and continuing pose will be invalidated (forcing the schema to use pose history to build the query)
+	InterruptOnDatabaseChangeAndInvalidateContinuingPose,
+
 	// continuing pose search will always be interrupted
 	ForceInterrupt,
+
+	/// continuing pose search will always be interrupted
+	// and continuing pose will be invalidated (forcing the schema to use pose history to build the query)
+	ForceInterruptAndInvalidateContinuingPose,
 };
 
 struct FAnimationUpdateContext;
