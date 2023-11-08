@@ -783,35 +783,13 @@ void SGraphNode_BehaviorTree::AddPin(const TSharedRef<SGraphPin>& PinToAdd)
 
 TSharedPtr<SToolTip> SGraphNode_BehaviorTree::GetComplexTooltip()
 {
-	UBehaviorTreeGraphNode_CompositeDecorator* DecoratorNode = Cast<UBehaviorTreeGraphNode_CompositeDecorator>(GraphNode);
-	if (DecoratorNode && DecoratorNode->GetBoundGraph())
-	{
-		return SNew(SToolTip)
-			[
-				SNew(SOverlay)
-				+SOverlay::Slot()
-				[
-					// Create the tooltip graph preview, make sure to disable state overlays to
-					// prevent the PIE / read-only borders from obscuring the graph
-					SNew(SGraphPreviewer, DecoratorNode->GetBoundGraph())
-					.CornerOverlayText(LOCTEXT("CompositeDecoratorOverlayText", "Composite Decorator"))
-					.ShowGraphStateOverlay(false)
-				]
-				+SOverlay::Slot()
-				.Padding(2.0f)
-				[
-					SNew(STextBlock)
-					.Text(LOCTEXT("CompositeDecoratorTooltip", "Double-click to Open"))
-					.ColorAndOpacity(FSlateColor::UseSubduedForeground())
-				]
-			];
-	}
+	const UBehaviorTreeGraphNode* BTGraphNode = Cast<UBehaviorTreeGraphNode>(GraphNode);
+	const bool bHasErrors = BTGraphNode && BTGraphNode->HasErrors();
 
-	UBehaviorTreeGraphNode_Task* TaskNode = Cast<UBehaviorTreeGraphNode_Task>(GraphNode);
-	if(TaskNode && TaskNode->NodeInstance)
+	if (!bHasErrors)
 	{
-		UBTTask_RunBehavior* RunBehavior = Cast<UBTTask_RunBehavior>(TaskNode->NodeInstance);
-		if(RunBehavior && RunBehavior->GetSubtreeAsset() && RunBehavior->GetSubtreeAsset()->BTGraph)
+		UBehaviorTreeGraphNode_CompositeDecorator* DecoratorNode = Cast<UBehaviorTreeGraphNode_CompositeDecorator>(GraphNode);
+		if (DecoratorNode && DecoratorNode->GetBoundGraph())
 		{
 			return SNew(SToolTip)
 				[
@@ -820,18 +798,46 @@ TSharedPtr<SToolTip> SGraphNode_BehaviorTree::GetComplexTooltip()
 					[
 						// Create the tooltip graph preview, make sure to disable state overlays to
 						// prevent the PIE / read-only borders from obscuring the graph
-						SNew(SGraphPreviewer, RunBehavior->GetSubtreeAsset()->BTGraph)
-						.CornerOverlayText(LOCTEXT("RunBehaviorOverlayText", "Run Behavior"))
+						SNew(SGraphPreviewer, DecoratorNode->GetBoundGraph())
+						.CornerOverlayText(LOCTEXT("CompositeDecoratorOverlayText", "Composite Decorator"))
 						.ShowGraphStateOverlay(false)
 					]
 					+SOverlay::Slot()
 					.Padding(2.0f)
 					[
 						SNew(STextBlock)
-						.Text(LOCTEXT("RunBehaviorTooltip", "Double-click to Open"))
+						.Text(LOCTEXT("CompositeDecoratorTooltip", "Double-click to Open"))
 						.ColorAndOpacity(FSlateColor::UseSubduedForeground())
 					]
 				];
+		}
+
+		UBehaviorTreeGraphNode_Task* TaskNode = Cast<UBehaviorTreeGraphNode_Task>(GraphNode);
+		if(TaskNode && TaskNode->NodeInstance)
+		{
+			UBTTask_RunBehavior* RunBehavior = Cast<UBTTask_RunBehavior>(TaskNode->NodeInstance);
+			if(RunBehavior && RunBehavior->GetSubtreeAsset() && RunBehavior->GetSubtreeAsset()->BTGraph)
+			{
+				return SNew(SToolTip)
+					[
+						SNew(SOverlay)
+						+SOverlay::Slot()
+						[
+							// Create the tooltip graph preview, make sure to disable state overlays to
+							// prevent the PIE / read-only borders from obscuring the graph
+							SNew(SGraphPreviewer, RunBehavior->GetSubtreeAsset()->BTGraph)
+							.CornerOverlayText(LOCTEXT("RunBehaviorOverlayText", "Run Behavior"))
+							.ShowGraphStateOverlay(false)
+						]
+						+SOverlay::Slot()
+						.Padding(2.0f)
+						[
+							SNew(STextBlock)
+							.Text(LOCTEXT("RunBehaviorTooltip", "Double-click to Open"))
+							.ColorAndOpacity(FSlateColor::UseSubduedForeground())
+						]
+					];
+			}
 		}
 	}
 

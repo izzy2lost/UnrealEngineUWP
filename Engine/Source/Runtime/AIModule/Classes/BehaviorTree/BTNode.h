@@ -157,6 +157,9 @@ class UBTNode : public UObject, public IGameplayTaskOwnerInterface
 	/** Get whether this node is using a blueprint for its logic */
 	AIMODULE_API virtual bool UsesBlueprint() const;
 
+	/** Validates this node and returns the resulting error message. Empty means no error. */
+	AIMODULE_API virtual FString GetErrorMessage() const;
+
 	/** Called after creating new node in behavior tree editor, use for versioning */
 	virtual void OnNodeCreated() {}
 #endif

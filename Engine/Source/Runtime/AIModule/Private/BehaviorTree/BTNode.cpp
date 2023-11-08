@@ -221,6 +221,11 @@ bool UBTNode::UsesBlueprint() const
 	return false;
 }
 
+FString UBTNode::GetErrorMessage() const
+{
+	return FString();
+}
+
 #endif
 
 UGameplayTasksComponent* UBTNode::GetGameplayTasksComponent(const UGameplayTask& Task) const

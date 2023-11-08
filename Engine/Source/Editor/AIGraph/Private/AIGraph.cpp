@@ -93,6 +93,15 @@ void UpdateAIGraphNodeErrorMessage(UAIGraphNode& Node)
 	if (Node.NodeInstance)
 	{
 		Node.ErrorMessage = FGraphNodeClassHelper::GetDeprecationMessage(Node.NodeInstance->GetClass());
+
+		// Only check for node-specific errors if the node is not deprecated
+		if (Node.ErrorMessage.IsEmpty())
+		{
+			Node.UpdateErrorMessage();
+
+			// For node-specific validation we don't want to spam the log with errors
+			return;
+		}
 	}
 	else
 	{

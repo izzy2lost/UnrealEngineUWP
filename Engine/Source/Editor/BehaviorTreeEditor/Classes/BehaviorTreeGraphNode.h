@@ -53,6 +53,7 @@ class BEHAVIORTREEEDITOR_API UBehaviorTreeGraphNode : public UAIGraphNode
 	virtual void RemoveAllSubNodes() override;
 	virtual int32 FindSubNodeDropIndex(UAIGraphNode* SubNode) const override;
 	virtual void InsertSubNodeAt(UAIGraphNode* SubNode, int32 DropIndex) override;
+	virtual void UpdateErrorMessage() override;
 
 	UE_DEPRECATED(5.4, "Use GetOwnerBehaviorTreeGraph instead.")
 	virtual UBehaviorTreeGraph* GetBehaviorTreeGraph();

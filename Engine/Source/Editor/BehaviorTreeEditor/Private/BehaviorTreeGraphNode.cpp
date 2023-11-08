@@ -333,6 +333,19 @@ void UBehaviorTreeGraphNode::InsertSubNodeAt(UAIGraphNode* SubNode, int32 DropIn
 	}
 }
 
+void UBehaviorTreeGraphNode::UpdateErrorMessage()
+{
+	Super::UpdateErrorMessage();
+
+	if (ErrorMessage.IsEmpty())
+	{
+		if (const UBTNode* BTNodeInstance = Cast<UBTNode>(NodeInstance))
+		{
+			ErrorMessage = BTNodeInstance->GetErrorMessage();
+		}
+	}
+}
+
 FLinearColor UBehaviorTreeGraphNode::GetBackgroundColor(bool bIsActiveForDebugger) const
 {
 	return BehaviorTreeColors::NodeBody::Default;

@@ -374,8 +374,13 @@ void UAIGraphNode::UpdateNodeClassData()
 	if (NodeInstance)
 	{
 		UpdateNodeClassDataFrom(NodeInstance->GetClass(), ClassData);
-		ErrorMessage = ClassData.GetDeprecatedMessage();
+		UpdateErrorMessage();
 	}
+}
+
+void UAIGraphNode::UpdateErrorMessage()
+{
+	ErrorMessage = ClassData.GetDeprecatedMessage();
 }
 
 void UAIGraphNode::UpdateNodeClassDataFrom(UClass* InstanceClass, FGraphNodeClassData& UpdatedData)
