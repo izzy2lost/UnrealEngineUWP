@@ -177,7 +177,7 @@ FUnorderedAccessViewRHIRef FRenderTarget::GetRenderTargetUAV() const
 
 const FTextureRHIRef& FRenderTarget::GetShaderResourceTexture() const
 {
-	return RenderTargetTextureRHI;
+	return GetRenderTargetTexture();
 }
 
 void FScreenshotRequest::RequestScreenshot(bool bInShowUI)
