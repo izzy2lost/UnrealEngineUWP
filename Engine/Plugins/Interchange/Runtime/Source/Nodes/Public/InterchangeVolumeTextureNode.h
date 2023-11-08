@@ -8,7 +8,7 @@
 #include "InterchangeVolumeTextureNode.generated.h"
 
 
-UCLASS(BlueprintType, Experimental)
+UCLASS(BlueprintType)
 class INTERCHANGENODES_API UInterchangeVolumeTextureNode : public UInterchangeTextureNode
 {
 	GENERATED_BODY()

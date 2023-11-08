@@ -41,7 +41,7 @@ enum class EInterchangeTextureFilterMode : uint8
 	Default
 };
 
-UCLASS(BlueprintType, Abstract, Experimental)
+UCLASS(BlueprintType, Abstract)
 class INTERCHANGENODES_API UInterchangeTextureNode : public UInterchangeBaseNode
 {
 	GENERATED_BODY()

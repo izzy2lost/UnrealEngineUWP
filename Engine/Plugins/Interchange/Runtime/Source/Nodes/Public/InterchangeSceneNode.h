@@ -33,7 +33,7 @@ namespace UE
  * The scene node represent a transform node in the scene
  * Scene node can have user defined attribute. Use UInterchangeUserDefinedAttributesAPI to get\set user define attribute data
  */
-UCLASS(BlueprintType, Experimental)
+UCLASS(BlueprintType)
 class INTERCHANGENODES_API UInterchangeSceneNode : public UInterchangeBaseNode
 {
 	GENERATED_BODY()

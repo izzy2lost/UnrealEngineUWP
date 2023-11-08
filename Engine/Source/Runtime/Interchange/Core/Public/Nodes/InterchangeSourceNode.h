@@ -22,7 +22,7 @@ struct FFrame;
 /**
  * This class allow a translator to add general source data that describe the whole source. Pipeline can use this information.
  */
-UCLASS(BlueprintType, Experimental, MinimalAPI)
+UCLASS(BlueprintType, MinimalAPI)
 class UInterchangeSourceNode : public UInterchangeBaseNode
 {
 	GENERATED_BODY()

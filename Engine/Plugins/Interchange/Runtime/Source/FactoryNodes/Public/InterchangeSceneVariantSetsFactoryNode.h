@@ -7,7 +7,7 @@
 
 #include "InterchangeSceneVariantSetsFactoryNode.generated.h"
 
-UCLASS(BlueprintType, Experimental)
+UCLASS(BlueprintType)
 class INTERCHANGEFACTORYNODES_API UInterchangeSceneVariantSetsFactoryNode : public UInterchangeFactoryBaseNode
 {
 	GENERATED_BODY()

@@ -10,7 +10,7 @@
 class IDatasmithBaseMaterialElement;
 class UInterchangeBaseNodeContainer;
 
-UCLASS(BlueprintType, Experimental)
+UCLASS(BlueprintType)
 class INTERCHANGENODES_API UInterchangeDecalMaterialNode : public UInterchangeShaderNode
 {
 	GENERATED_BODY()

@@ -25,7 +25,7 @@ namespace UE
 } // namespace UE
 
 
-UCLASS(BlueprintType, Experimental)
+UCLASS(BlueprintType)
 class INTERCHANGEFACTORYNODES_API UInterchangeStaticMeshFactoryNode : public UInterchangeMeshFactoryNode
 {
 	GENERATED_BODY()

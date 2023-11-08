@@ -6,7 +6,7 @@
 
 #include "InterchangeMeshActorFactoryNode.generated.h"
 
-UCLASS(BlueprintType, Experimental)
+UCLASS(BlueprintType)
 class INTERCHANGEFACTORYNODES_API UInterchangeMeshActorFactoryNode : public UInterchangeActorFactoryNode
 {
 	GENERATED_BODY()

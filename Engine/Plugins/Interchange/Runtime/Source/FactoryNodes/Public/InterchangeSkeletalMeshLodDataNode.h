@@ -21,7 +21,7 @@ namespace UE
 	}//ns Interchange
 }//ns UE
 
-UCLASS(BlueprintType, Experimental)
+UCLASS(BlueprintType)
 class INTERCHANGEFACTORYNODES_API UInterchangeSkeletalMeshLodDataNode : public UInterchangeFactoryBaseNode
 {
 	GENERATED_BODY()

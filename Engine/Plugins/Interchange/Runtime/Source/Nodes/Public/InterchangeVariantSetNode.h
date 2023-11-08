@@ -10,7 +10,7 @@
 /**
  * Class to represent a set of variants
  */
-UCLASS(BlueprintType, Experimental)
+UCLASS(BlueprintType)
 class INTERCHANGENODES_API UInterchangeVariantSetNode : public UInterchangeBaseNode
 {
 	GENERATED_BODY()
@@ -95,7 +95,7 @@ private:
 /**
  * Class to represent a set of VariantSet nodes
  */
-UCLASS(BlueprintType, Experimental)
+UCLASS(BlueprintType)
 class INTERCHANGENODES_API UInterchangeSceneVariantSetsNode : public UInterchangeBaseNode
 {
 	GENERATED_BODY()

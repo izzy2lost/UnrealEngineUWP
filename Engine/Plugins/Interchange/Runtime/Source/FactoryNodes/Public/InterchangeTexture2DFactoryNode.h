@@ -22,7 +22,7 @@ namespace UE::Interchange
 	};
 }//ns UE::Interchange
 
-UCLASS(BlueprintType, Experimental)
+UCLASS(BlueprintType)
 class INTERCHANGEFACTORYNODES_API UInterchangeTexture2DFactoryNode : public UInterchangeTextureFactoryNode
 {
 	GENERATED_BODY()

@@ -8,7 +8,7 @@
 #include "InterchangeTextureLightProfileNode.generated.h"
 
 
-UCLASS(BlueprintType, Experimental)
+UCLASS(BlueprintType)
 class INTERCHANGENODES_API UInterchangeTextureLightProfileNode : public UInterchangeTextureNode
 {
 	GENERATED_BODY()

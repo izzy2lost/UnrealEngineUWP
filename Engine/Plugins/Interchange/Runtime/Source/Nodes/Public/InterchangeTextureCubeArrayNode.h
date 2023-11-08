@@ -8,7 +8,7 @@
 #include "InterchangeTextureCubeArrayNode.generated.h"
 
 
-UCLASS(BlueprintType, Experimental)
+UCLASS(BlueprintType)
 class INTERCHANGENODES_API UInterchangeTextureCubeArrayNode : public UInterchangeTextureNode
 {
 	GENERATED_BODY()

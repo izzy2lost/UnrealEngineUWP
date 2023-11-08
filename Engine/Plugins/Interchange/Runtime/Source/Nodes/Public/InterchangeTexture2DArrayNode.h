@@ -10,7 +10,7 @@
 
 
 
-UCLASS(BlueprintType, Experimental)
+UCLASS(BlueprintType)
 class INTERCHANGENODES_API UInterchangeTexture2DArrayNode : public UInterchangeTextureNode
 {
 	GENERATED_BODY()

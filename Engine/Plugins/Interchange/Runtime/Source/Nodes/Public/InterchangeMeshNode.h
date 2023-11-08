@@ -62,7 +62,7 @@ public:
 };
 
 
-UCLASS(BlueprintType, Experimental)
+UCLASS(BlueprintType)
 class INTERCHANGENODES_API UInterchangeMeshNode : public UInterchangeBaseNode
 {
 	GENERATED_BODY()

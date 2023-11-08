@@ -11,7 +11,7 @@
 
 #include "InterchangeSkeletonFactoryNode.generated.h"
 
-UCLASS(BlueprintType, Experimental)
+UCLASS(BlueprintType)
 class INTERCHANGEFACTORYNODES_API UInterchangeSkeletonFactoryNode : public UInterchangeFactoryBaseNode
 {
 	GENERATED_BODY()

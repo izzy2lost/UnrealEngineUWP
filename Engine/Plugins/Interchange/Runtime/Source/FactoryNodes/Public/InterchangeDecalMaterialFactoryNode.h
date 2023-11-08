@@ -7,7 +7,7 @@
 
 #include "InterchangeDecalMaterialFactoryNode.generated.h"
 
-UCLASS(BlueprintType, Experimental)
+UCLASS(BlueprintType)
 class INTERCHANGEFACTORYNODES_API UInterchangeDecalMaterialFactoryNode : public UInterchangeBaseMaterialFactoryNode
 {
 	GENERATED_BODY()

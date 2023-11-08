@@ -13,7 +13,7 @@ class UInterchangeBaseNodeContainer;
  * The Shader Ports API manages a set of inputs and outputs attributes.
  * This API can be used over any InterchangeBaseNode that wants to support shader ports as attributes.
  */
-UCLASS(BlueprintType, Experimental)
+UCLASS(BlueprintType)
 class INTERCHANGENODES_API UInterchangeShaderPortsAPI : public UObject
 {
 	GENERATED_BODY()
@@ -140,7 +140,7 @@ private:
 /**
  * A shader node is a named set of inputs and outputs. It can be connected to other shader nodes and finally to a shader graph input.
  */
-UCLASS(BlueprintType, Experimental)
+UCLASS(BlueprintType)
 class INTERCHANGENODES_API UInterchangeShaderNode : public UInterchangeBaseNode
 {
 	GENERATED_BODY()
@@ -202,7 +202,7 @@ private:
 /**
  * A function call shader node has a named set of inputs and outputs which corresponds to the inputs and outputs of the shader function it instances.
  */
-UCLASS(BlueprintType, Experimental)
+UCLASS(BlueprintType)
 class INTERCHANGENODES_API UInterchangeFunctionCallShaderNode : public UInterchangeShaderNode
 {
 	GENERATED_BODY()
@@ -227,7 +227,7 @@ private:
 /**
  * A shader graph has its own set of inputs on which shader nodes can be connected to.
  */
-UCLASS(BlueprintType, Experimental)
+UCLASS(BlueprintType)
 class INTERCHANGENODES_API UInterchangeShaderGraphNode : public UInterchangeShaderNode
 {
 	GENERATED_BODY()

@@ -21,7 +21,7 @@ enum class EInterchangeSkeletalMeshContentType : uint8
 	MAX,
 };
 
-UCLASS(BlueprintType, Experimental)
+UCLASS(BlueprintType)
 class INTERCHANGEFACTORYNODES_API UInterchangeSkeletalMeshFactoryNode : public UInterchangeMeshFactoryNode
 {
 	GENERATED_BODY()

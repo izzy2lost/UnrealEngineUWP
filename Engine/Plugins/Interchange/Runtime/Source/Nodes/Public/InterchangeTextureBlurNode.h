@@ -8,7 +8,7 @@
 
 class UInterchangeBaseNodeContainer;
 
-UCLASS(BlueprintType, Experimental)
+UCLASS(BlueprintType)
 class INTERCHANGENODES_API UInterchangeTextureBlurNode : public UInterchangeTexture2DNode
 {
 	GENERATED_BODY()

@@ -12,7 +12,7 @@
 
 #include "InterchangePhysicsAssetFactoryNode.generated.h"
 
-UCLASS(BlueprintType, Experimental)
+UCLASS(BlueprintType)
 class INTERCHANGEFACTORYNODES_API UInterchangePhysicsAssetFactoryNode : public UInterchangeFactoryBaseNode
 {
 	GENERATED_BODY()

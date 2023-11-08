@@ -159,7 +159,7 @@ private:
 /**
  * Abstract class providing the minimal services required for an animation track node
  */
-UCLASS(Abstract, Experimental)
+UCLASS(Abstract)
 class INTERCHANGENODES_API UInterchangeAnimationTrackBaseNode : public UInterchangeBaseNode
 {
 	GENERATED_BODY()
@@ -199,7 +199,7 @@ private:
 /**
  * Class to represent an animation which instances another animation track set node
  */
-UCLASS(BlueprintType, Experimental)
+UCLASS(BlueprintType)
 class INTERCHANGENODES_API UInterchangeAnimationTrackSetInstanceNode : public UInterchangeAnimationTrackBaseNode
 {
 	GENERATED_BODY()
@@ -278,7 +278,7 @@ private:
  * Class to represent an animation on the property of a camera, light or scene node
  * The list of supported properties is enumerated in EInterchangeAnimatedProperty
  */
-UCLASS(BlueprintType, Experimental)
+UCLASS(BlueprintType)
 class INTERCHANGENODES_API UInterchangeAnimationTrackNode : public UInterchangeAnimationTrackBaseNode
 {
 	GENERATED_BODY()
@@ -357,7 +357,7 @@ private:
 /**
  * Class to represent an animation on the transform of a camera, light or scene node
  */
-UCLASS(BlueprintType, Experimental)
+UCLASS(BlueprintType)
 class INTERCHANGENODES_API UInterchangeTransformAnimationTrackNode : public UInterchangeAnimationTrackNode
 {
 	GENERATED_BODY()
@@ -414,7 +414,7 @@ private:
 /*
 * Class to hold onto the relationships between a set of animation tracks and the bones, morph targets of a skeleton.
 */
-UCLASS(BlueprintType, Experimental)
+UCLASS(BlueprintType)
 class INTERCHANGENODES_API UInterchangeSkeletalAnimationTrackNode : public UInterchangeAnimationTrackBaseNode
 {
 	GENERATED_BODY()
