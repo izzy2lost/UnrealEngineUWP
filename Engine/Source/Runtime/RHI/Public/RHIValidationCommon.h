@@ -25,6 +25,7 @@ class FRHIShaderResourceView;
 class FRHIUniformBuffer;
 class FRHIViewableResource;
 class FRHIUnorderedAccessView;
+class FRHITexture;
 
 class FValidationComputeContext;
 class FValidationContext;
