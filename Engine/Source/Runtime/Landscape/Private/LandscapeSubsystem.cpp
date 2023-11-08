@@ -844,6 +844,12 @@ static FAutoConsoleVariableRef CVarLandscapeMultithreadNaniteBuild(
 	LandscapeMultithreadNaniteBuild,
 	TEXT("Multithread nanite landscape build in (World Partition Maps Only)"));
 
+int32 LandscapeMaxSimultaneousMultithreadNaniteBuilds = -1;
+static FAutoConsoleVariableRef CVarLandscapeMaxSimultaneousMultithreadNaniteBuilds(
+	TEXT("landscape.Nanite.MaxSimultaneousMultithreadBuilds"),
+	LandscapeMaxSimultaneousMultithreadNaniteBuilds,
+	TEXT("Max number of simultaneous Nanite static mesh tasks (-1 = unlimited )"));
+
 bool ULandscapeSubsystem::IsMultithreadedNaniteBuildEnabled()
 {
 	return LandscapeMultithreadNaniteBuild > 0;
@@ -867,6 +873,34 @@ void ULandscapeSubsystem::IncNaniteBuild()
 void ULandscapeSubsystem::DecNaniteBuild()
 {
 	NaniteBuildsInFlight--;
+	NaniteStaticMeshesInFlight--;
+}
+
+void ULandscapeSubsystem::WaitLaunchNaniteBuild()
+{
+	ON_SCOPE_EXIT
+	{
+		++NaniteStaticMeshesInFlight;
+	};
+	
+	if (LandscapeMultithreadNaniteBuild != 0 && LandscapeMaxSimultaneousMultithreadNaniteBuilds == -1)
+	{
+		return;
+	}
+	
+	const int32 MaxNaniteBuilds  = LandscapeMultithreadNaniteBuild ? LandscapeMaxSimultaneousMultithreadNaniteBuilds : 1;
+
+	if (MaxNaniteBuilds < 0)
+	{
+		return;
+	}
+
+	while(NaniteStaticMeshesInFlight >= MaxNaniteBuilds)
+	{
+		FPlatformProcess::Sleep(0.05f);
+	}
+
+	check((LandscapeMultithreadNaniteBuild != 0) || (NaniteStaticMeshesInFlight <= 1));
 }
 
 #endif // WITH_EDITOR

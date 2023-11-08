@@ -134,6 +134,9 @@ public:
 	bool AreNaniteBuildsInProgress() const;
 	void IncNaniteBuild();
 	void DecNaniteBuild();
+
+	// Wait unit we're able to continue a landscape export task (Max concurrent nanite mesh builds is defined by  landscape.Nanite.MaxSimultaneousMultithreadBuilds and landscape.Nanite.MultithreadBuild CVars)
+	void WaitLaunchNaniteBuild(); 
 #endif // WITH_EDITOR
 
 private:
@@ -169,6 +172,7 @@ private:
 	float NumNaniteMeshUpdatesAvailable = 0.0f;
 
 	std::atomic<int32> NaniteBuildsInFlight;
+	std::atomic<int32> NaniteStaticMeshesInFlight;
 
 #endif // WITH_EDITOR
 	

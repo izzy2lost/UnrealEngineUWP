@@ -175,6 +175,12 @@ FGraphEventRef ULandscapeNaniteComponent::InitializeForLandscapeAsync(ALandscape
 				return;
 			}
 
+			UWorld* World = AsyncBuildData->LandscapeWeakRef->GetWorld();
+			ULandscapeSubsystem* LandscapeSubSystem = World->GetSubsystem<ULandscapeSubsystem>();
+			check(LandscapeSubSystem);
+
+			LandscapeSubSystem->WaitLaunchNaniteBuild();
+		
 			UPackage* Package = AsyncBuildData->LandscapeWeakRef->GetPackage();
 			AsyncBuildData->NaniteStaticMesh = NewObject<UStaticMesh>(/*Outer = */Package, MakeUniqueObjectName(/*Parent = */Package, UStaticMesh::StaticClass(), TEXT("LandscapeNaniteMesh")));
 			AsyncBuildData->SourceModel = &AsyncBuildData->NaniteStaticMesh->AddSourceModel();
@@ -220,6 +226,7 @@ FGraphEventRef ULandscapeNaniteComponent::InitializeForLandscapeAsync(ALandscape
 				AsyncBuildData->bCancelled = true;
 				return;
 			}
+		
 			// Apply the mesh description cleanup/optimization here instead of during DDC build (avoids expensive large mesh copies)
 			{
 				FMeshDescriptionHelper MeshDescriptionHelper(&AsyncBuildData->SourceModel->BuildSettings);
