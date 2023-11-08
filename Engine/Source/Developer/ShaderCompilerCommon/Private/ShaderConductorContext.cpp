@@ -385,6 +385,91 @@ namespace CrossCompiler
 		}
 	}
 
+	static void AppendDxcArguments(const FShaderConductorOptions& InOptions, TArray<const ANSICHAR*>& DxcArguments)
+	{
+		// Select language version
+		DxcArguments.Add("-spirv");
+		DxcArguments.Add("-Qunused-arguments");
+
+		switch (InOptions.HlslVersion)
+		{
+		case 2015:
+			DxcArguments.Add("-HV");
+			DxcArguments.Add("2015");
+			break;
+		case 2016:
+			DxcArguments.Add("-HV");
+			DxcArguments.Add("2016");
+			break;
+		case 2017:
+			DxcArguments.Add("-HV");
+			DxcArguments.Add("2017");
+			break;
+		case 2018:
+			DxcArguments.Add("-HV");
+			DxcArguments.Add("2018");
+			break;
+		case 2021:
+			DxcArguments.Add("-HV");
+			DxcArguments.Add("2021");
+			break;
+		default:
+			checkf(false, TEXT("Invalid HLSL version: expected 2015, 2016, 2017, 2018, or 2021 but %u was specified"), InOptions.HlslVersion);
+			break;
+		}
+
+		// Add additional DXC arguments that are not exposed by ShaderConductor API directly
+		if (!InOptions.bDisableScalarBlockLayout)
+		{
+			DxcArguments.Add("-fvk-use-scalar-layout");
+		}
+		if (InOptions.bPreserveStorageInput)
+		{
+			DxcArguments.Add("-fspv-preserve-storage-input");
+		}
+		if (InOptions.bForceStorageImageFormat)
+		{
+			DxcArguments.Add("-fvk-force-storage-image-format");
+		}
+		if (InOptions.bSvPositionImplicitInvariant)
+		{
+			DxcArguments.Add("-fspv-svposition-implicit-invariant");
+		}
+		if (InOptions.bSupportPreciseOutputs)
+		{
+			DxcArguments.Add("-fspv-support-precise-outputs");
+		}
+
+		using ETargetEnvironment = CrossCompiler::FShaderConductorOptions::ETargetEnvironment;
+		if (InOptions.bEnable16bitTypes)
+		{
+			DxcArguments.Add("-fspv-target-env=universal1.5");
+
+			// ShaderConductor.cpp forgot to pipedown enable16bitTypes, so work arround by adding the parameter manually in here.
+			DxcArguments.Add("-enable-16bit-types");
+		}
+		else
+		{
+			switch (InOptions.TargetEnvironment)
+			{
+			default:
+				checkf(false, TEXT("Unexpected SPIR-V target environment: %d"), (uint32)InOptions.TargetEnvironment);
+			case ETargetEnvironment::Vulkan_1_0:
+				DxcArguments.Add("-fspv-target-env=vulkan1.0");
+				break;
+			case ETargetEnvironment::Vulkan_1_1:
+				DxcArguments.Add("-fspv-target-env=vulkan1.1");
+				break;
+			case ETargetEnvironment::Vulkan_1_2:
+				DxcArguments.Add("-fspv-target-env=vulkan1.2");
+				break;
+			case ETargetEnvironment::Vulkan_1_3:
+				DxcArguments.Add("-fspv-target-env=vulkan1.3");
+				break;
+			}
+		}
+	}
+
 	static void ConvertScOptions(FShaderConductorContext::FShaderConductorIntermediates& Intermediates, const FShaderConductorOptions& InOptions, ShaderConductor::Compiler::Options& OutOptions, bool bIgnoreCustomDxcArgs = false)
 	{
 		// Validate input shader model with respect to certain language features.
@@ -412,88 +497,7 @@ namespace CrossCompiler
 
 		DxcArgRefs.Empty();
 
-		// Select language version
-		DxcArgRefs.Add("-spirv");
-		DxcArgRefs.Add("-Qunused-arguments");
-
-		switch (InOptions.HlslVersion)
-		{
-		case 2015:
-			DxcArgRefs.Add("-HV");
-			DxcArgRefs.Add("2015");
-			break;
-		case 2016:
-			DxcArgRefs.Add("-HV");
-			DxcArgRefs.Add("2016");
-			break;
-		case 2017:
-			DxcArgRefs.Add("-HV");
-			DxcArgRefs.Add("2017");
-			break;
-		case 2018:
-			DxcArgRefs.Add("-HV");
-			DxcArgRefs.Add("2018");
-			break;
-		case 2021:
-			DxcArgRefs.Add("-HV");
-			DxcArgRefs.Add("2021");
-			break;
-		default:
-			checkf(false, TEXT("Invalid HLSL version: expected 2015, 2016, 2017, 2018, or 2021 but %u was specified"), InOptions.HlslVersion);
-			break;
-		}
-
-		// Add additional DXC arguments that are not exposed by ShaderConductor API directly
-		if (!InOptions.bDisableScalarBlockLayout)
-		{
-			DxcArgRefs.Add("-fvk-use-scalar-layout");
-		}
-		if (InOptions.bPreserveStorageInput)
-		{
-			DxcArgRefs.Add("-fspv-preserve-storage-input");
-		}
-        if (InOptions.bForceStorageImageFormat)
-        {
-            DxcArgRefs.Add("-fvk-force-storage-image-format");
-        }
-		if (InOptions.bSvPositionImplicitInvariant)
-		{
-			DxcArgRefs.Add("-fspv-svposition-implicit-invariant");
-		}
-		if (InOptions.bSupportPreciseOutputs)
-		{
-			DxcArgRefs.Add("-fspv-support-precise-outputs");
-		}
-
-
-		using ETargetEnvironment = CrossCompiler::FShaderConductorOptions::ETargetEnvironment;
-		if (OutOptions.enable16bitTypes)
-		{
-			DxcArgRefs.Add("-fspv-target-env=universal1.5");
-
-			// ShaderConductor.cpp forgot to pipedown enable16bitTypes, so work arround by adding the parameter manually in here.
-			DxcArgRefs.Add("-enable-16bit-types");
-		}
-		else
-		{
-			switch (InOptions.TargetEnvironment)
-			{
-			default:
-				checkf(false, TEXT("Unexpected SPIR-V target environment: %d"), (uint32)InOptions.TargetEnvironment);
-			case ETargetEnvironment::Vulkan_1_0:
-				DxcArgRefs.Add("-fspv-target-env=vulkan1.0");
-				break;
-			case ETargetEnvironment::Vulkan_1_1:
-				DxcArgRefs.Add("-fspv-target-env=vulkan1.1");
-				break;
-			case ETargetEnvironment::Vulkan_1_2:
-				DxcArgRefs.Add("-fspv-target-env=vulkan1.2");
-				break;
-			case ETargetEnvironment::Vulkan_1_3:
-				DxcArgRefs.Add("-fspv-target-env=vulkan1.3");
-				break;
-			}
-		}
+		AppendDxcArguments(InOptions, DxcArgRefs);
 
 		if (!InOptions.SpirvCustomOptimizationPasses.IsEmpty())
 		{
@@ -845,6 +849,39 @@ namespace CrossCompiler
 	int32 FShaderConductorContext::GetSourceLength() const
 	{
 		return (Intermediates->ShaderSource.Num() > 0 ? (Intermediates->ShaderSource.Num() - 1) : 0);
+	}
+
+	static const TCHAR* GetHlslShaderModelProfile(ShaderConductor::ShaderStage Stage)
+	{
+		switch (Stage)
+		{
+		case ShaderConductor::ShaderStage::VertexShader:	return TEXT("vs");
+		case ShaderConductor::ShaderStage::PixelShader:		return TEXT("ps");
+		case ShaderConductor::ShaderStage::GeometryShader:	return TEXT("gs");
+		case ShaderConductor::ShaderStage::HullShader:		return TEXT("hl");
+		case ShaderConductor::ShaderStage::DomainShader:	return TEXT("ds");
+		case ShaderConductor::ShaderStage::ComputeShader:	return TEXT("cs");
+		default:											return TEXT("lib");
+		}
+	}
+
+	FString FShaderConductorContext::GenerateDxcArguments(const FShaderConductorOptions& Options) const
+	{
+		FString CmdLineArgs = FString::Printf(
+			TEXT("-E %s -T %s_%d_%d"),
+			ANSI_TO_TCHAR(Intermediates->EntryPoint.GetData()), GetHlslShaderModelProfile(Intermediates->Stage), (int32)Options.ShaderModel.Major, (int32)Options.ShaderModel.Minor
+		);
+
+		TArray<const ANSICHAR*> DxcArguments;
+		AppendDxcArguments(Options, DxcArguments);
+
+		for (const ANSICHAR* Argument : DxcArguments)
+		{
+			CmdLineArgs += TEXT(" ");
+			CmdLineArgs += ANSI_TO_TCHAR(Argument);
+		}
+
+		return CmdLineArgs;
 	}
 
 	void FShaderConductorContext::ConvertCompileErrors(TArray<FString>&& ErrorStringLines, TArray<FShaderCompilerError>& OutErrors)

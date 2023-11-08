@@ -1764,44 +1764,14 @@ static void Patch64bitSamplers(FVulkanSpirv& Spirv)
 	}
 }
 
-static FString VulkanGetShaderProfileDXC(const FVulkanShaderCompilerInternalState& InternalState, const CrossCompiler::FShaderConductorOptions Options)
-{
-	const TCHAR* ShaderProfile = TEXT("unknown");
-	switch (InternalState.GetShaderFrequency())
-	{
-	case SF_Vertex:
-		ShaderProfile = TEXT("vs");
-		break;
-
-	case SF_Pixel:
-		ShaderProfile = TEXT("ps");
-		break;
-
-	case SF_Geometry:
-		ShaderProfile = TEXT("gs");
-		break;
-
-	case SF_Compute:
-		ShaderProfile = TEXT("cs");
-		break;
-
-	case SF_RayGen:
-	case SF_RayMiss:
-	case SF_RayHitGroup:
-	case SF_RayCallable:
-		return TEXT("lib_6_3");
-	}
-
-	return FString::Printf(TEXT("%s_%d_%d"), ShaderProfile, Options.ShaderModel.Major, Options.ShaderModel.Minor); 
-}
-
 static void VulkanCreateDXCCompileBatchFiles(
+	const CrossCompiler::FShaderConductorContext& CompilerContext,
 	const FVulkanShaderCompilerInternalState& InternalState,
-	const CrossCompiler::FShaderConductorOptions Options)
+	const CrossCompiler::FShaderConductorOptions& Options)
 {
-	FString USFFilename = InternalState.Input.GetSourceFilename();
-	FString SPVFilename = FPaths::GetBaseFilename(USFFilename) + TEXT(".DXC.spv");
-	FString GLSLFilename = FPaths::GetBaseFilename(USFFilename) + TEXT(".SPV.glsl");
+	const FString USFFilename = InternalState.Input.GetSourceFilename();
+	const FString SPVFilename = FPaths::GetBaseFilename(USFFilename) + TEXT(".DXC.spv");
+	const FString GLSLFilename = FPaths::GetBaseFilename(USFFilename) + TEXT(".SPV.glsl");
 
 	FString DxcPath = FPaths::ConvertRelativePathToFull(FPaths::EngineDir());
 
@@ -1811,32 +1781,10 @@ static void VulkanCreateDXCCompileBatchFiles(
 	FString DxcFilename = FPaths::Combine(DxcPath, TEXT("dxc.exe"));
 	FPaths::MakePlatformFilename(DxcFilename);
 
-	const TCHAR* VulkanVersion = TEXT("vulkanUNKNOWN");
-	if (Options.TargetEnvironment == CrossCompiler::FShaderConductorOptions::ETargetEnvironment::Vulkan_1_0)
-	{
-		VulkanVersion = TEXT("vulkan1.0");
-	}
-	else if (Options.TargetEnvironment == CrossCompiler::FShaderConductorOptions::ETargetEnvironment::Vulkan_1_1)
-	{
-		VulkanVersion = TEXT("vulkan1.1");
-	}
-	else if (Options.TargetEnvironment == CrossCompiler::FShaderConductorOptions::ETargetEnvironment::Vulkan_1_2)
-	{
-		VulkanVersion = TEXT("vulkan1.2");
-	}
-	else if (Options.TargetEnvironment == CrossCompiler::FShaderConductorOptions::ETargetEnvironment::Vulkan_1_3)
-	{
-		VulkanVersion = TEXT("vulkan1.3");
-	}
-	else
-	{
-		ensure(false);
-	}
-
-	FString ShaderProfile = VulkanGetShaderProfileDXC(InternalState, Options);
-
 	// CompileDXC.bat
 	{
+		const FString DxcArguments = CompilerContext.GenerateDxcArguments(Options);
+
 		FString BatchFileContents =  FString::Printf(
 			TEXT(
 				"@ECHO OFF\n"
@@ -1847,7 +1795,7 @@ static void VulkanCreateDXCCompileBatchFiles(
 				"\tGOTO :END\n"
 				")\n"
 				"ECHO Compiling with DXC...\n"
-				"%%DXC%% -HV %d -T %s -E %s -spirv -fspv-target-env=%s -Fo %s %s\n"
+				"%%DXC%% %s -Fo %s %s\n"
 				"WHERE %%SPIRVCROSS%%\n"
 				"IF %%ERRORLEVEL%% NEQ 0 (\n"
 				"\tECHO spirv-cross.exe not found in Path environment variable, please build it from source https://github.com/KhronosGroup/SPIRV-Cross\n"
@@ -1860,10 +1808,7 @@ static void VulkanCreateDXCCompileBatchFiles(
 			),
 			*DxcFilename,
 			*DxcPath,
-			Options.HlslVersion,
-			*ShaderProfile,
-			*InternalState.GetEntryPointName(),
-			VulkanVersion,
+			*DxcArguments,
 			*SPVFilename,
 			*USFFilename,
 			*GLSLFilename,
@@ -2056,7 +2001,7 @@ static bool CompileWithShaderConductor(
 
 	if (InternalState.bDebugDump)
 	{
-		VulkanCreateDXCCompileBatchFiles(InternalState, Options);
+		VulkanCreateDXCCompileBatchFiles(CompilerContext, InternalState, Options);
 	}
 
 	// Before the shader rewritter removes all traces of it, pull any WAVESIZE directives from the shader source

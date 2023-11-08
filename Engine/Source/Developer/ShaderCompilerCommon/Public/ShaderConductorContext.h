@@ -232,6 +232,9 @@ namespace CrossCompiler
 		/** Returns a length of the internal loaded sources (excluding the null terminator). This is automatically updated when RewriteHlsl() is called. */
 		int32 GetSourceLength() const;
 
+		/** Returns the DXC command line arguments for the specified options. This does not include an output file, i.e. "-Fo" argument is not included. */
+		FString GenerateDxcArguments(const FShaderConductorOptions& Options) const;
+
 		/** Returns the list of current compile errors. */
 		inline const TArray<FShaderCompilerError>& GetErrors() const
 		{
