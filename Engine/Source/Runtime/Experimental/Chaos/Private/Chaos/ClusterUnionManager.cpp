@@ -1064,6 +1064,9 @@ namespace Chaos
 			RemoveParticlesFromClusterUnionGeometry(ClusterUnion.InternalCluster, PendingGeometryRemovals, ClusterUnion.GeometryChildParticles);
 			ClusterUnion.Geometry = ClusterUnion.InternalCluster->GetGeometry();
 			ClusterUnion.ClearPendingGeometryOperations(EClusterUnionGeometryOperation::Remove);
+
+			ImplicitUnion = ClusterUnion.Geometry->template AsA<FImplicitObjectUnion>();
+			check(ImplicitUnion != nullptr);
 		}
 
 		check(ClusterUnion.Geometry != nullptr);
