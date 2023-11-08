@@ -4429,7 +4429,7 @@ void FGeometryCollectionPhysicsProxy::SetFilterData_Internal(const FCollisionFil
 				}
 
 				FClusterHandle* ParentHandle = Handle->Parent();
-				if (ParentHandle && ParentHandle->InternalCluster())
+				if (ParentHandle && ParentHandle->InternalCluster() && ParentHandle->PhysicsProxy() == this)
 				{
 					if (!ProcessedInternalClusters.Contains(ParentHandle))
 					{
