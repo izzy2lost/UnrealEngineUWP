@@ -442,7 +442,8 @@ void SerializeStreamedResources(FArchive& Ar, UObject* Object, TArray<FCustomiza
 		for (const FCustomizableObjectStreamedResourceData& ResourceData : StreamedResources)
 		{
 			const FCustomizableObjectResourceData& Data = ResourceData.GetLoadedData();
-			Ar << Data.Type;
+			uint32 Type = (uint32)Data.Type;
+			Ar << Type;
 
 			switch (Data.Type)
 			{
@@ -475,7 +476,7 @@ void SerializeStreamedResources(FArchive& Ar, UObject* Object, TArray<FCustomiza
 		// Initialize if not cooking. Otherwise, resources will be initialized at this point, and only their data will be updated.
 		if (!bIsCooking) 
 		{
-			StreamedResources.SetNumUninitialized(NumStreamedResources);
+			StreamedResources.SetNum(NumStreamedResources);
 		}			
 		
 		check(NumStreamedResources == StreamedResources.Num())
@@ -505,7 +506,10 @@ void SerializeStreamedResources(FArchive& Ar, UObject* Object, TArray<FCustomiza
 			}
 
 			check(Container);
-			Ar << Container->Data.Type;
+			uint32 Type = 0;
+			Ar << Type;
+			
+			Container->Data.Type = (ECOResourceDataType)Type;
 			switch (Container->Data.Type)
 			{
 				case ECOResourceDataType::AssetUserData:
@@ -541,6 +545,7 @@ void SerializeStreamedResources(FArchive& Ar, UObject* Object, TArray<FCustomiza
 					break;
 				}
 				default:
+					check(false);
 					break;
 			}
 		}
