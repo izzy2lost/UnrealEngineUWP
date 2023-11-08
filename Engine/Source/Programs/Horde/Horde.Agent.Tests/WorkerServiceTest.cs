@@ -163,7 +163,7 @@ namespace Horde.Agent.Tests
 			});
 
 			_serviceCollection.AddSingleton<IJobExecutorFactory>(x => new SimpleTestExecutorFactory(executor));
-			using ServiceProvider serviceProvider = _serviceCollection.BuildServiceProvider();
+			await using ServiceProvider serviceProvider = _serviceCollection.BuildServiceProvider();
 
 			JobHandler jobHandler = serviceProvider.GetRequiredService<JobHandler>();
 			jobHandler._stepAbortPollInterval = TimeSpan.FromMilliseconds(1);
@@ -191,7 +191,7 @@ namespace Horde.Agent.Tests
 			});
 
 			_serviceCollection.AddSingleton<IJobExecutorFactory>(x => new SimpleTestExecutorFactory(executor));
-			using ServiceProvider serviceProvider = _serviceCollection.BuildServiceProvider();
+			await using ServiceProvider serviceProvider = _serviceCollection.BuildServiceProvider();
 
 			JobHandler jobHandler = serviceProvider.GetRequiredService<JobHandler>();
 			jobHandler._stepAbortPollInterval = TimeSpan.FromMilliseconds(5);

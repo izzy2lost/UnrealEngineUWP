@@ -58,7 +58,7 @@ namespace Horde.Server.Commands.Install
 
 			RefName refName = new RefName("latest");
 
-			using (BundleCache bundleCache = new BundleCache())
+			await using (BundleCache bundleCache = new BundleCache())
 			{
 				using (IStorageClient client = BundleStorageClient.CreateFromDirectory(bundleDir, bundleCache, logger))
 				{
@@ -75,7 +75,7 @@ namespace Horde.Server.Commands.Install
 			DirectoryReference looseAgentInstallerDir = DirectoryReference.Combine(serverDir, "Tools", "horde-agent-installer-loose");
 			DirectoryReference installerBundleDir = DirectoryReference.Combine(serverDir, "Tools", "horde-agent-installer");
 			DirectoryReference.CreateDirectory(installerBundleDir);
-			using (BundleCache bundleCache = new BundleCache())
+			await using (BundleCache bundleCache = new BundleCache())
 			{
 				using (IStorageClient client = BundleStorageClient.CreateFromDirectory(installerBundleDir, bundleCache, logger))
 				{
