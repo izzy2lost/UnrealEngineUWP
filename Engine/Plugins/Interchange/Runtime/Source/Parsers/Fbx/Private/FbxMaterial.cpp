@@ -41,6 +41,12 @@ namespace UE
 				{
 					return nullptr;
 				}
+				FString NormalizeFilePath = TextureFilePath;
+				FPaths::NormalizeFilename(NormalizeFilePath);
+				if (!FPaths::FileExists(NormalizeFilePath))
+				{
+					return nullptr;
+				}
 				const FString TextureName = FPaths::GetBaseFilename(TextureFilePath);
 				const FString TextureNodeID = UInterchangeTextureNode::MakeNodeUid(TextureName);
 
@@ -52,8 +58,7 @@ namespace UE
 				UInterchangeTexture2DNode* NewTextureNode = UInterchangeTexture2DNode::Create(&NodeContainer, TextureName);
 
 				//All texture translator expect a file as the payload key
-				FString NormalizeFilePath = TextureFilePath;
-				FPaths::NormalizeFilename(NormalizeFilePath);
+				
 				NewTextureNode->SetPayLoadKey(NormalizeFilePath);
 
 				return NewTextureNode;
@@ -352,23 +357,25 @@ namespace UE
 							if (FbxFileTexture* FbxTexture = MaterialProperty.GetSrcObject<FbxFileTexture>(0))
 							{
 								const FString TexturePath = FbxTexture->GetFileName();
-
-								if (const UInterchangeTexture2DNode* TextureNode = CreateTexture2DNode(NodeContainer, TexturePath))
+								if (TexturePath.IsEmpty() || !FPaths::FileExists(TexturePath))
 								{
-									const FString TextureName = FPaths::GetBaseFilename(TexturePath);
+									if (const UInterchangeTexture2DNode* TextureNode = CreateTexture2DNode(NodeContainer, TexturePath))
+									{
+										const FString TextureName = FPaths::GetBaseFilename(TexturePath);
 
-									// NormalFromHeightmap needs TextureObject(not just a sample as it takes multiple samples from it)
-									UInterchangeShaderNode* TextureObjectNode = UInterchangeShaderNode::Create(&NodeContainer, TextureName, ShaderGraphNode->GetUniqueID());
-									TextureObjectNode->SetCustomShaderType(TextureObject::Name.ToString());
-									TextureObjectNode->AddStringAttribute(UInterchangeShaderPortsAPI::MakeInputValueKey(TextureObject::Inputs::Texture.ToString()), TextureNode->GetUniqueID());
+										// NormalFromHeightmap needs TextureObject(not just a sample as it takes multiple samples from it)
+										UInterchangeShaderNode* TextureObjectNode = UInterchangeShaderNode::Create(&NodeContainer, TextureName, ShaderGraphNode->GetUniqueID());
+										TextureObjectNode->SetCustomShaderType(TextureObject::Name.ToString());
+										TextureObjectNode->AddStringAttribute(UInterchangeShaderPortsAPI::MakeInputValueKey(TextureObject::Inputs::Texture.ToString()), TextureNode->GetUniqueID());
 
-									UInterchangeShaderNode* HeightMapNode = UInterchangeShaderNode::Create(&NodeContainer, NormalFromHeightMap::Name.ToString(), ShaderGraphNode->GetUniqueID());
-									HeightMapNode->SetCustomShaderType(NormalFromHeightMap::Name.ToString());
+										UInterchangeShaderNode* HeightMapNode = UInterchangeShaderNode::Create(&NodeContainer, NormalFromHeightMap::Name.ToString(), ShaderGraphNode->GetUniqueID());
+										HeightMapNode->SetCustomShaderType(NormalFromHeightMap::Name.ToString());
 
-									UInterchangeShaderPortsAPI::ConnectDefaultOuputToInput(HeightMapNode, NormalFromHeightMap::Inputs::HeightMap.ToString(), TextureObjectNode->GetUniqueID());
-									HeightMapNode->AddFloatAttribute(UInterchangeShaderPortsAPI::MakeInputValueKey(NormalFromHeightMap::Inputs::Intensity.ToString()), Factor);
+										UInterchangeShaderPortsAPI::ConnectDefaultOuputToInput(HeightMapNode, NormalFromHeightMap::Inputs::HeightMap.ToString(), TextureObjectNode->GetUniqueID());
+										HeightMapNode->AddFloatAttribute(UInterchangeShaderPortsAPI::MakeInputValueKey(NormalFromHeightMap::Inputs::Intensity.ToString()), Factor);
 
-									UInterchangeShaderPortsAPI::ConnectDefaultOuputToInput(ShaderGraphNode, Materials::Common::Parameters::Normal.ToString(), HeightMapNode->GetUniqueID());
+										UInterchangeShaderPortsAPI::ConnectDefaultOuputToInput(ShaderGraphNode, Materials::Common::Parameters::Normal.ToString(), HeightMapNode->GetUniqueID());
+									}
 								}
 							}
 						}
