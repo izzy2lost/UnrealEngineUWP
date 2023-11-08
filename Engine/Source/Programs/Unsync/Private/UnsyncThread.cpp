@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "UnsyncThread.h"
+#include "UnsyncUtil.h"
 
 #include <chrono>
 
@@ -152,5 +153,44 @@ SchedulerYield()
 }
 
 #endif	// UNSYNC_USE_CONCRT
+
+void
+TestThread()
+{
+	UNSYNC_LOG(L"TestThread()");
+	UNSYNC_LOG_INDENT;
+
+	{
+		UNSYNC_LOG(L"PushTask");
+
+		const uint32		NumTasks = 1000;
+		std::atomic<uint32> Counter	 = 0;
+
+		{
+			FThreadPool ThreadPool;
+			ThreadPool.StartWorkers(10);
+
+			uint32 RandomSeed = 1234;
+			for (uint32 i = 0; i < NumTasks; ++i)
+			{
+				uint32 R = Xorshift32(RandomSeed) % 10;
+				ThreadPool.PushTask(
+					[R, &Counter]
+					{
+						SchedulerSleep(1 + R);
+						Counter++;
+					});
+			}
+
+			while (ThreadPool.TryExecuteTask())
+			{
+			}
+
+			// thread pool destructor waits for outstanding tasks
+		}
+
+		UNSYNC_ASSERT(Counter == NumTasks)
+	}
+}
 
 }  // namespace unsync

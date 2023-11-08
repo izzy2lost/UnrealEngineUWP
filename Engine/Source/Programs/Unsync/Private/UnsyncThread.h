@@ -2,8 +2,10 @@
 
 #pragma once
 
-#include "UnsyncUtil.h"
+#include "UnsyncCommon.h"
+
 #include "UnsyncLog.h"
+#include "UnsyncUtil.h"
 
 UNSYNC_THIRD_PARTY_INCLUDES_START
 #include <atomic>

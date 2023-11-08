@@ -834,6 +834,12 @@ RunTests(const std::string& Preset)
 		EStrongHashAlgorithmID::Blake3_256,
 	};
 
+	if (Preset == "thread" || Preset == "all")
+	{
+		extern void TestThread();
+		TestThread();
+	}
+
 	if (Preset == "misc" || Preset == "all")
 	{
 		TestMisc();
