@@ -1658,11 +1658,19 @@ public:
 		FScopeLock ScopeLock(&CriticalSection);
 		for (auto& It : FullPipelines)
 		{
-			delete It.Value;
+			if (It.Value)
+			{
+				It.Value->WaitCompletion();
+				delete It.Value;
+			}
 		}
 		for (auto& It : PartialPipelines)
 		{
-			delete It.Value;
+			if (It.Value)
+			{
+				It.Value->WaitCompletion();
+				delete It.Value;
+			}
 		}
 	}
 
