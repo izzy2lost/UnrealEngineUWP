@@ -276,6 +276,7 @@ namespace UnrealBuildTool
 			CopyAction.DeleteItems.Add(TargetFile);
 			CopyAction.StatusDescription = TargetFile.Location.GetFileName();
 			CopyAction.bCanExecuteRemotely = false;
+			CopyAction.bCanExecuteInUBA = false;
 			return CopyAction;
 		}
 
@@ -315,6 +316,8 @@ namespace UnrealBuildTool
 			NewAction.CommandPath = Unreal.DotnetPath;
 			NewAction.CommandArguments = $"\"{Unreal.UnrealBuildToolDllPath}\" -Mode={Attribute.Name} {Arguments}";
 			NewAction.CommandDescription = Attribute.Name;
+			NewAction.bCanExecuteRemotely = false;
+			NewAction.bCanExecuteInUBA = false;
 			return NewAction;
 		}
 

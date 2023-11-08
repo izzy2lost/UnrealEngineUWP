@@ -1197,7 +1197,6 @@ namespace UnrealBuildTool
 				PostBuildSyncAction.ProducedItems.Add(FileItem.GetItemByFileReference(GetStagedExecutablePath(Executable.Location, Target.Name)));
 				PostBuildSyncAction.DeleteItems.UnionWith(PostBuildSyncAction.ProducedItems);
 				PostBuildSyncAction.StatusDescription = "Executing PostBuildSync";
-				PostBuildSyncAction.bCanExecuteRemotely = false;
 
 				OutputFiles.AddRange(PostBuildSyncAction.ProducedItems);
 			}
