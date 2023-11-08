@@ -4538,14 +4538,18 @@ void FSceneRenderer::GatherShadowDynamicMeshElements(FDynamicShadowsTaskData& Ta
 		? UE::Tasks::EExtendedTaskPriority::None
 		: UE::Tasks::EExtendedTaskPriority::Inline;
 
-	UE::Tasks::FTask MeshCollectorsTask;
-
 	int32 NumShadowViews = 0;
 	for (FProjectedShadowInfo* ProjectedShadowInfo : TaskData.ShadowsToGather)
 	{
 		NumShadowViews += ProjectedShadowInfo->bOnePassPointLightShadow ? 6 : 1;
 	}
-	TaskData.InstanceCullingManager.AllocateViews(NumShadowViews);
+
+	UE::Tasks::FTask MeshCollectorsTask = UE::Tasks::Launch(UE_SOURCE_LOCATION, [&InstanceCullingManager = TaskData.InstanceCullingManager, NumShadowViews]
+	{
+		// Wait to allocate views until after the task event has triggered.
+		InstanceCullingManager.AllocateViews(NumShadowViews);
+
+	}, TaskData.BeginGatherDynamicMeshElementsTask, TaskPriority, ExtendedTaskPriority);
 
 	if (TaskData.bMultithreadedGDME)
 	{
@@ -4598,7 +4602,7 @@ void FSceneRenderer::GatherShadowDynamicMeshElements(FDynamicShadowsTaskData& Ta
 					}
 				}
 
-			}, TaskData.BeginGatherDynamicMeshElementsTask, TaskPriority));
+			}, MeshCollectorsTask, TaskPriority));
 		}
 
 		MeshCollectorsTaskEvent.Trigger();
