@@ -480,7 +480,7 @@ namespace WaveTable
 		}
 	}
 
-	int32 FWaveTableSampler::ComputeIndexFinished(TArrayView<const float> InSyncTriggers, TArrayView<float> OutIndicesView)
+	float FWaveTableSampler::ComputeIndexFinished(TArrayView<const float> InSyncTriggers, TArrayView<float> OutIndicesView)
 	{
 		check(!OutIndicesView.IsEmpty());
 
