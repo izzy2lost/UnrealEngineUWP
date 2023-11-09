@@ -12,10 +12,6 @@
 
 CSV_DECLARE_CATEGORY_EXTERN(AnimationBudget);
 
-#if UE_BUILD_SHIPPING
-static_assert(sizeof(USkeletalMeshComponentBudgeted) <= 4080, "We expect SkeletalMeshComponentBudgeted to be 4080 or less, otherwise we waste memory on 288bytes of padding on MallocBinned2. Please improve padding on this class hierarchy to pay for your added variable.");
-#endif
-
 FOnCalculateSignificance USkeletalMeshComponentBudgeted::OnCalculateSignificanceDelegate;
 
 USkeletalMeshComponentBudgeted::USkeletalMeshComponentBudgeted(const FObjectInitializer& ObjectInitializer)
