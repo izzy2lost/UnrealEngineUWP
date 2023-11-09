@@ -180,6 +180,7 @@ void CompactLightSampleTracesCS(
 
 StructuredBuffer<uint> CompactedTraceTexelData;
 Texture2D<float> DownsampledSceneDepth;
+Texture2D<UNORM float3> DownsampledSceneWorldNormal;
 
 [numthreads(THREADGROUP_SIZE, 1, 1)]
 void ScreenSpaceRayTraceLightSamplesCS(
@@ -208,6 +209,7 @@ void ScreenSpaceRayTraceLightSamplesCS(
 
 		float2 ScreenUV = (ScreenCoord + 0.5f) * View.BufferSizeAndInvSize.zw;
 		float SceneDepth = DownsampledSceneDepth[DownsampledScreenCoord];
+		float3 SceneWorldNormal = normalize(DecodeNormal(DownsampledSceneWorldNormal[DownsampledScreenCoord]));
 		float3 TranslatedWorldPosition = GetTranslatedWorldPositionFromScreenUV(ScreenUV, SceneDepth);
 
 		FLightSample LightSample = UnpackLightSample(RWLightSamples[SampleCoord]);
@@ -225,12 +227,11 @@ void ScreenSpaceRayTraceLightSamplesCS(
 			float2 CornerScreenUV = ScreenUV + .5f * View.BufferSizeAndInvSize.zw;
 			float2 CornerScreenPosition = (CornerScreenUV - View.ScreenPositionScaleBias.wz) / View.ScreenPositionScaleBias.xy;
 			float3 CornerTranslatedWorldPosition = mul(float4(GetScreenPositionForProjectionType(CornerScreenPosition, SceneDepth), SceneDepth, 1), View.ScreenToTranslatedWorld).xyz;
-			float3 WorldNormal = GetGBufferDataFromSceneTextures(ScreenUV).WorldNormal; // #sdl_todo: get normal from a DownsampledNormal buffer
 
 			// #sdl_todo: fixup bias and incorporate it into Lumen
 			// Project texel corner onto normal
-			float NormalBias = abs(dot(CornerTranslatedWorldPosition - TranslatedWorldPosition, WorldNormal)) * 2.0f;
-			TranslatedWorldPosition += NormalBias * WorldNormal + 0.05f * WorldNormal;
+			float NormalBias = abs(dot(CornerTranslatedWorldPosition - TranslatedWorldPosition, SceneWorldNormal)) * 2.0f;
+			TranslatedWorldPosition += NormalBias * SceneWorldNormal + 0.05f * SceneWorldNormal;
 
 			float4 RayStartClip = mul(float4(TranslatedWorldPosition, 1.0f), View.TranslatedWorldToClip);
 

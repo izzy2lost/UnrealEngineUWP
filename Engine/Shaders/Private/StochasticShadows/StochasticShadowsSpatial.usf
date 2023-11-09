@@ -10,6 +10,7 @@ Texture2D<uint> ShadowMaskPageTable;
 StructuredBuffer<uint> ShadowMaskHashTable;
 StructuredBuffer<uint2> ShadowMaskTileData;
 Texture2D<float> DownsampledSceneDepth;
+Texture2D<UNORM float3> DownsampledSceneWorldNormal;
 uint MaxShadingTiles;
 
 Texture2D<float4> ShadowMaskUpsampleWeights;
@@ -145,24 +146,25 @@ void ShadowMaskSpatialPassCS(
 		uint2 ShadowMaskTileAtlasCoord = GetShadowMaskTileAtlasCoord(ShadowMaskTileIndex, LocalShadowMaskTileCoord);
 		FShadowMaskAccumulator ShadowMaskAccumulator = InitShadowMaskAccumulator();
 
-		// #sdl_todo: load downsampled depth instead
+		uint2 CenterSampleSharedTileCoord = LocalShadowMaskTileCoord + SHARED_TILE_BORDER;
 		const float2 ScreenUV = (DownsampledScreenCoordToScreenCoord(ShadowMaskScreenCoord) + 0.5f) * View.BufferSizeAndInvSize.zw;
-		const FGBufferData GBuffer = GetGBufferData(ScreenUV);
-		float3 TranslatedWorldPosition = GetTranslatedWorldPositionFromScreenUV(ScreenUV, GBuffer.Depth);
-		float4 ScenePlane = float4(GBuffer.WorldNormal, dot(TranslatedWorldPosition, GBuffer.WorldNormal));
+		float CenterSampleDepth = SharedSceneDepth[CenterSampleSharedTileCoord.x][CenterSampleSharedTileCoord.y];
+		float3 CenterSampleNormal = normalize(DecodeNormal(DownsampledSceneWorldNormal[ShadowMaskScreenCoord]));
+		float3 TranslatedWorldPosition = GetTranslatedWorldPositionFromScreenUV(ScreenUV, CenterSampleDepth);
+		float4 ScenePlane = float4(CenterSampleNormal, dot(TranslatedWorldPosition, CenterSampleNormal));
 
-		const int FilterSize = 1;
-		const float FilterWeights[3] = { 1.0f, 1.0f / 2.0f, 1 / 3.0f };
-		for (int SampleOffsetY = -FilterSize; SampleOffsetY <= FilterSize; ++SampleOffsetY)
+		const int KernelSize = 1;
+		const float KernelWeights[3] = { 1.0f, 1.0f / 2.0f, 1.0f / 3.0f };
+		for (int SampleOffsetY = -KernelSize; SampleOffsetY <= KernelSize; ++SampleOffsetY)
 		{
-			for (int SampleOffsetX = -FilterSize; SampleOffsetX <= FilterSize; ++SampleOffsetX)
+			for (int SampleOffsetX = -KernelSize; SampleOffsetX <= KernelSize; ++SampleOffsetX)
 			{
 				uint2 SharedShadowMaskTileCoord = (GroupThreadId.xy + SHARED_TILE_BORDER) - int2(SampleOffsetX, SampleOffsetY);
 				FShadowMask SampleShadowMask = UnpackShadowMask(SharedShadowMask[SharedShadowMaskTileCoord.x][SharedShadowMaskTileCoord.y]);
 
 				if (SampleShadowMask.IsValid())
 				{
-					float SampleWeight = FilterWeights[abs(SampleOffsetX)] * FilterWeights[abs(SampleOffsetY)];
+					float SampleWeight = KernelWeights[abs(SampleOffsetX)] * KernelWeights[abs(SampleOffsetY)];
 
 					uint2 SampleShadowMaskScreenCoord = clamp((int2)BaseShadowMaskScreenCoord + (int2)SharedShadowMaskTileCoord - SHARED_TILE_BORDER, 0, ShadowMaskViewSize - 1);
 					float SampleDepth = SharedSceneDepth[SharedShadowMaskTileCoord.x][SharedShadowMaskTileCoord.y];

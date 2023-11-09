@@ -90,6 +90,7 @@ int DebugMode;
 RWTexture2D<uint2> RWShadowMaskHistoryScreenCoord00;
 RWTexture2D<float4> RWShadowMaskHistoryWeights;
 RWTexture2D<float> RWDownsampledSceneDepth;
+RWTexture2D<UNORM float3> RWDownsampledSceneWorldNormal;
 RWTexture2D<uint> RWShadowMaskPageTable;
 RWStructuredBuffer<uint> RWShadowMaskHashTable;
 RWStructuredBuffer<uint> RWShadowMaskTileAllocator;
@@ -619,7 +620,9 @@ void GenerateSamplesCS(
 				RWShadowMaskHistoryWeights[DownsampledScreenCoord] = ShadowMaskHistoryWeights;
 			}
 			#endif
+
 			RWDownsampledSceneDepth[DownsampledScreenCoord] = SceneDepth;
+			RWDownsampledSceneWorldNormal[DownsampledScreenCoord] = EncodeNormal(GBuffer.WorldNormal);
 
 			for (uint LightSampleIndex = 0; LightSampleIndex < NUM_SAMPLES_PER_PIXEL; ++LightSampleIndex)
 			{

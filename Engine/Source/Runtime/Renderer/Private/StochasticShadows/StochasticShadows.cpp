@@ -55,7 +55,7 @@ static TAutoConsoleVariable<float> CVarStochasticShadowsTemporalStdDevOffset(
 
 static TAutoConsoleVariable<int32> CVarStochasticSamplingShadowEstimate(
 	TEXT("r.StochasticShadows.Sampling.ShadowEstimate"),
-	1,
+	0,
 	TEXT("Whether to use shadow mask history for sample guiding."),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
@@ -306,6 +306,7 @@ class FGenerateSamplesCS : public FGlobalShader
 		RDG_BUFFER_ACCESS(IndirectArgs, ERHIAccess::IndirectArgs)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FStochasticShadowsParameters, StochasticShadowsParameters)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float>, RWDownsampledSceneDepth)
+		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<UNORM float3>, RWDownsampledSceneWorldNormal)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<uint32>, RWShadowMaskHistoryScreenCoord00)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, RWShadowMaskHistoryWeights)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<uint>, RWShadowMaskTileAllocator)
@@ -605,6 +606,10 @@ void FDeferredShadingSceneRenderer::RenderStochasticShadows(FRDGBuilder& GraphBu
 		FRDGTextureDesc::Create2D(DownsampledBufferSize, PF_R32_FLOAT, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
 		TEXT("StochasticShadows.DownsampledSceneDepth"));
 
+	FRDGTextureRef DownsampledSceneWorldNormal = GraphBuilder.CreateTexture(
+		FRDGTextureDesc::Create2D(DownsampledBufferSize, PF_A2B10G10R10, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
+		TEXT("StochasticShadows.DownsampledSceneWorldNormal"));
+
 	FRDGTextureRef LightSamples = GraphBuilder.CreateTexture(
 		FRDGTextureDesc::Create2D(DonwnsampledSampleBufferSize, PF_R16_UINT, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
 		TEXT("StochasticShadows.LightSamples"));
@@ -713,6 +718,7 @@ void FDeferredShadingSceneRenderer::RenderStochasticShadows(FRDGBuilder& GraphBu
 		StochasticShadowsParameters.ShadowMaskViewSize = ShadowMaskViewSize;
 		StochasticShadowsParameters.StochasticShadowsStateFrameIndex = StochasticShadows::GetStateFrameIndex(View.ViewState);
 		StochasticShadowsParameters.DownsampledSceneDepth = DownsampledSceneDepth;
+		StochasticShadowsParameters.DownsampledSceneWorldNormal = DownsampledSceneWorldNormal;
 		StochasticShadowsParameters.MaxShadowMaskTiles = MaxShadowMaskTiles;
 		StochasticShadowsParameters.MaxShadingTiles = (ShadingTileAtlasSize.X * ShadingTileAtlasSize.Y) / (StochasticShadows::ShadowMaskTileSize * StochasticShadows::ShadowMaskTileSize);
 		StochasticShadowsParameters.MaxShadingTilesPerGridCell = StochasticShadows::MaxShadingTilesPerGridCell;
@@ -823,6 +829,7 @@ void FDeferredShadingSceneRenderer::RenderStochasticShadows(FRDGBuilder& GraphBu
 	// Generate new candidate light samples
 	{
 		FRDGTextureUAVRef DownsampledSceneDepthUAV = GraphBuilder.CreateUAV(DownsampledSceneDepth, ERDGUnorderedAccessViewFlags::SkipBarrier);
+		FRDGTextureUAVRef DownsampledSceneWorldNormalUAV = GraphBuilder.CreateUAV(DownsampledSceneWorldNormal, ERDGUnorderedAccessViewFlags::SkipBarrier);
 		FRDGTextureUAVRef ShadowMaskHistoryScreenCoord00UAV = GraphBuilder.CreateUAV(ShadowMaskHistoryScreenCoord00, ERDGUnorderedAccessViewFlags::SkipBarrier);
 		FRDGTextureUAVRef ShadowMaskHistoryWeightsUAV = GraphBuilder.CreateUAV(ShadowMaskHistoryWeights, ERDGUnorderedAccessViewFlags::SkipBarrier);
 		FRDGBufferUAVRef ShadowMaskTileAllocatorUAV = GraphBuilder.CreateUAV(ShadowMaskTileAllocator, ERDGUnorderedAccessViewFlags::SkipBarrier);
@@ -837,6 +844,7 @@ void FDeferredShadingSceneRenderer::RenderStochasticShadows(FRDGBuilder& GraphBu
 			PassParameters->IndirectArgs = DownsampledTileIndirectArgs;
 			PassParameters->StochasticShadowsParameters = StochasticShadowsParameters;
 			PassParameters->RWDownsampledSceneDepth = DownsampledSceneDepthUAV;
+			PassParameters->RWDownsampledSceneWorldNormal = DownsampledSceneWorldNormalUAV;
 			PassParameters->RWShadowMaskHistoryScreenCoord00 = ShadowMaskHistoryScreenCoord00UAV;
 			PassParameters->RWShadowMaskHistoryWeights = ShadowMaskHistoryWeightsUAV;
 			PassParameters->RWShadowMaskTileAllocator = ShadowMaskTileAllocatorUAV;
