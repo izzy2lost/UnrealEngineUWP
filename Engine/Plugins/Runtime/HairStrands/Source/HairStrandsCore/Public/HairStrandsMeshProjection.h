@@ -52,18 +52,11 @@ struct FHairStrandsProjectionMeshData
 uint32 GetHairStrandsMaxSectionCount();
 uint32 GetHairStrandsMaxTriangleCount();
 
-enum class HairStrandsTriangleType
-{
-	RestPose,
-	DeformedPose,
-};
-
 /* Update the triangles information on which hair stands have been projected */
 void AddHairStrandUpdateMeshTrianglesPass(
 	FRDGBuilder& GraphBuilder,
 	FGlobalShaderMap* ShaderMap,
 	const int32 LODIndex,
-	const HairStrandsTriangleType Type,
 	const FHairStrandsProjectionMeshData::LOD& MeshData,
 	FHairStrandsRestRootResource* RestResources,
 	FHairStrandsDeformedRootResource* DeformedResources);
@@ -73,7 +66,6 @@ void AddHairStrandInitMeshSamplesPass(
 	FRDGBuilder& GraphBuilder,
 	FGlobalShaderMap* ShaderMap,
 	const int32 LODIndex,
-	const HairStrandsTriangleType Type,
 	const FHairStrandsProjectionMeshData::LOD& MeshData,
 	FHairStrandsRestRootResource* RestResources,
 	FHairStrandsDeformedRootResource* DeformedResources);

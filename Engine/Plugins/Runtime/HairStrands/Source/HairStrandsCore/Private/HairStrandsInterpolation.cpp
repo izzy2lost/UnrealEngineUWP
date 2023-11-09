@@ -84,13 +84,6 @@ inline uint32 ComputeGroupSize()
 	return GroupSize;
 }
 
-enum class EDeformationType : uint8
-{
-	Simulation,		// Use the output of the hair simulation
-	RestGuide,		// Use the rest guide as input of the interpolation (no deformation), only weighted interpolation
-	OffsetGuide		// Offset the guides
-};
-
 void GetHairStrandsAttributeParameter(const FHairStrandsBulkData& In, FHairStrandsInstanceAttributeParameters& Out)
 {
 	check(FMath::IsPowerOfTwo(In.Header.Strides.CurveAttributeChunkElementCount));
@@ -343,7 +336,6 @@ IMPLEMENT_GLOBAL_SHADER(FDeformGuideCS, "/Engine/Private/HairStrands/HairStrands
 static void AddDeformSimHairStrandsPass(
 	FRDGBuilder& GraphBuilder,
 	FGlobalShaderMap* ShaderMap,
-	EDeformationType DeformationType,
 	const uint32 MeshLODIndex,
 	const uint32 VertexCount,
 	FHairStrandsRestRootResource* SimRestRootResources,
@@ -366,14 +358,7 @@ static void AddDeformSimHairStrandsPass(
 		InternalDeformationTypeCount
 	};
 
-	EInternalDeformationType InternalDeformationType = InternalDeformationTypeCount;
-	switch (DeformationType)
-	{
-	case EDeformationType::RestGuide   : InternalDeformationType = InternalDeformationType_ByPass; break;
-	case EDeformationType::OffsetGuide : InternalDeformationType = InternalDeformationType_Offset; break;
-	}
-
-	if (InternalDeformationType == InternalDeformationTypeCount) return;
+	EInternalDeformationType InternalDeformationType = InternalDeformationType_Offset;
 
 	FDeformGuideCS::FParameters* Parameters = GraphBuilder.AllocParameters<FDeformGuideCS::FParameters>();
 	Parameters->SimRestPosePositionBuffer = SimRestPosePositionBuffer;
@@ -381,8 +366,6 @@ static void AddDeformSimHairStrandsPass(
 	Parameters->VertexCount = VertexCount;
 	Parameters->SimDeformedOffsetBuffer = SimDeformedOffsetBuffer;
 	Parameters->SimRestOffset = (FVector3f)SimRestOffset;
-
-	if (DeformationType == EDeformationType::OffsetGuide)
 	{
 		const bool bIsPointToCurveBuffersValid = SimPointToCurveBuffer != nullptr;
 		if (bIsPointToCurveBuffersValid)
@@ -1858,7 +1841,6 @@ void ComputeHairStrandsInterpolation(
 								AddDeformSimHairStrandsPass(
 									GraphBuilder,
 									ShaderMap,
-									EDeformationType::OffsetGuide,
 									MeshLODIndex,
 									Instance->Guides.RestResource->GetPointCount(),
 									Instance->Guides.RestRootResource,
@@ -2416,7 +2398,6 @@ void ResetHairStrandsInterpolation(
 	AddDeformSimHairStrandsPass(
 		GraphBuilder,
 		ShaderMap,
-		EDeformationType::OffsetGuide,
 		MeshLODIndex,
 		Instance->Guides.RestResource->GetPointCount(),
 		Instance->Guides.RestRootResource,

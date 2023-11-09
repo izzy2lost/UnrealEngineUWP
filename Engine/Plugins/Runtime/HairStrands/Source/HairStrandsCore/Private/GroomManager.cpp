@@ -292,7 +292,6 @@ static void RunInternalHairInterpolation(
 							GraphBuilder,
 							ShaderMap,
 							MeshLODIndex,
-							HairStrandsTriangleType::DeformedPose,
 							MeshDataLOD,
 							Instance->Strands.RestRootResource,
 							Instance->Strands.DeformedRootResource);
@@ -334,7 +333,6 @@ static void RunInternalHairInterpolation(
 								GraphBuilder,
 								ShaderMap,
 								MeshLODIndex,
-								HairStrandsTriangleType::DeformedPose,
 								MeshDataLOD,
 								CardsInstance.Guides.RestRootResource,
 								CardsInstance.Guides.DeformedRootResource);
@@ -380,7 +378,6 @@ static void RunInternalHairInterpolation(
 							GraphBuilder,
 							ShaderMap,
 							Instance->Debug.MeshLODIndex,
-							HairStrandsTriangleType::DeformedPose,
 							MeshDataLOD,
 							Instance->Guides.RestRootResource,
 							Instance->Guides.DeformedRootResource);
@@ -391,7 +388,6 @@ static void RunInternalHairInterpolation(
 								GraphBuilder,
 								ShaderMap,
 								Instance->Debug.MeshLODIndex,
-								HairStrandsTriangleType::DeformedPose,
 								MeshDataLOD,
 								Instance->Guides.RestRootResource,
 								Instance->Guides.DeformedRootResource);

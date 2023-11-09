@@ -275,7 +275,6 @@ void AddHairStrandUpdateMeshTrianglesPass(
 	FRDGBuilder& GraphBuilder,
 	FGlobalShaderMap* ShaderMap,
 	const int32 LODIndex,
-	const HairStrandsTriangleType Type,
 	const FHairStrandsProjectionMeshData::LOD& MeshData,
 	FHairStrandsRestRootResource* RestResources,
 	FHairStrandsDeformedRootResource* DeformedResources)
@@ -286,12 +285,7 @@ void AddHairStrandUpdateMeshTrianglesPass(
 		return;
 	}
 
-	if (Type == HairStrandsTriangleType::RestPose && LODIndex >= RestResources->LODs.Num())
-	{
-		return;
-	}
-
-	if (Type == HairStrandsTriangleType::DeformedPose && (LODIndex >= RestResources->LODs.Num() || LODIndex >= DeformedResources->LODs.Num()))
+	if ((LODIndex >= RestResources->LODs.Num() || LODIndex >= DeformedResources->LODs.Num()))
 	{
 		return;
 	}
@@ -314,7 +308,7 @@ void AddHairStrandUpdateMeshTrianglesPass(
 	const TArray<uint32>& ValidSectionIndices = RestResources->BulkData.GetValidSectionIndices(LODIndex);
 	const uint32 ValidSectionCount = ValidSectionIndices.Num();
 	const uint32 PassCount = FMath::DivideAndRoundUp(ValidSectionCount, FHairUpdateMeshTriangleCS::SectionArrayCount);
-	const bool bComputePreviousDeformedPosition = IsHairStrandContinuousDecimationReorderingEnabled() && Type == HairStrandsTriangleType::DeformedPose;
+	const bool bComputePreviousDeformedPosition = IsHairStrandContinuousDecimationReorderingEnabled();
 
 	const uint32 MaxUniqueTriangleCount = RestLODData.RestUniqueTrianglePositionBuffer.Buffer->Desc.NumElements * 3;
 
@@ -325,11 +319,6 @@ void AddHairStrandUpdateMeshTrianglesPass(
 	const bool bEnableUAVOverlap = true;
 	const ERDGUnorderedAccessViewFlags UAVFlags = bEnableUAVOverlap ? ERDGUnorderedAccessViewFlags::SkipBarrier : ERDGUnorderedAccessViewFlags::None;
 	CommonParameters.UniqueTriangleIndices = RegisterAsSRV(GraphBuilder, RestLODData.UniqueTriangleIndexBuffer);
-	if (Type == HairStrandsTriangleType::RestPose)
-	{
-		OutputCurrBuffer = Register(GraphBuilder, RestLODData.RestUniqueTrianglePositionBuffer, ERDGImportedBufferFlags::CreateUAV, UAVFlags);
-	}
-	else if (Type == HairStrandsTriangleType::DeformedPose)
 	{
 		FHairStrandsDeformedRootResource::FLOD& DeformedLODData = DeformedResources->LODs[LODIndex];
 		OutputCurrBuffer = Register(GraphBuilder, DeformedLODData.GetDeformedUniqueTrianglePositionBuffer(FHairStrandsDeformedRootResource::FLOD::Current), ERDGImportedBufferFlags::CreateUAV, UAVFlags);
@@ -340,11 +329,6 @@ void AddHairStrandUpdateMeshTrianglesPass(
 		}
 
 		DeformedLODData.Status = FHairStrandsDeformedRootResource::FLOD::EStatus::Completed;
-	}
-	else
-	{
-		// error
-		return;
 	}
 
 	CommonParameters.OutUniqueTriangleCurrPosition = OutputCurrBuffer.UAV;
@@ -724,7 +708,6 @@ void AddHairStrandInitMeshSamplesPass(
 	FRDGBuilder& GraphBuilder,
 	FGlobalShaderMap* ShaderMap,
 	const int32 LODIndex,
-	const HairStrandsTriangleType Type,
 	const FHairStrandsProjectionMeshData::LOD& MeshData,
 	FHairStrandsRestRootResource* RestResources,
 	FHairStrandsDeformedRootResource* DeformedResources)
@@ -734,12 +717,7 @@ void AddHairStrandInitMeshSamplesPass(
 		return;
 	}
 
-	if (Type == HairStrandsTriangleType::RestPose && LODIndex >= RestResources->LODs.Num())
-	{
-		return;
-	}
-
-	if (Type == HairStrandsTriangleType::DeformedPose && (LODIndex >= RestResources->LODs.Num() || LODIndex >= DeformedResources->LODs.Num()))
+	if ((LODIndex >= RestResources->LODs.Num() || LODIndex >= DeformedResources->LODs.Num()))
 	{
 		return;
 	}
@@ -763,20 +741,11 @@ void AddHairStrandInitMeshSamplesPass(
 	if (SectionCount > 0 && RestLODData.SampleCount > 0)
 	{
 		FRDGImportedBuffer OutBuffer;
-		if (Type == HairStrandsTriangleType::RestPose)
-		{
-			OutBuffer = Register(GraphBuilder, RestLODData.RestSamplePositionsBuffer, ERDGImportedBufferFlags::CreateUAV);
-		}
-		else if (Type == HairStrandsTriangleType::DeformedPose)
 		{
 			FHairStrandsDeformedRootResource::FLOD& DeformedLODData = DeformedResources->LODs[LODIndex];
 			check(DeformedLODData.LODIndex == LODIndex);
 
 			OutBuffer = Register(GraphBuilder, DeformedLODData.GetDeformedSamplePositionsBuffer(FHairStrandsDeformedRootResource::FLOD::Current), ERDGImportedBufferFlags::CreateUAV);
-		}
-		else
-		{
-			return;
 		}
 		for (uint32 PassIt = 0; PassIt < PassCount; ++PassIt)
 		{

@@ -64,6 +64,12 @@ static FAutoConsoleVariableRef CVarHairCardsAtlasDebug(TEXT("r.HairStrands.Cards
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
+enum class HairStrandsTriangleType
+{
+	RestPose,
+	DeformedPose,
+};
+
 FCachedGeometry GetCacheGeometryForHair(
 	FRDGBuilder& GraphBuilder,
 	FSceneInterface* Scene,
