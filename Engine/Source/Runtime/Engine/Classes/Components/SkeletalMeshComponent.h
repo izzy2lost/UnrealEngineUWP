@@ -810,6 +810,10 @@ private:
 	uint8 bPostEvaluatingAnimation:1;
 
 public:
+	/** Physics-engine representation of aggregate which contains a physics asset instance with more than numbers of bodies. */
+	FPhysicsAggregateHandle Aggregate;
+
+public:
 
 	/** Cache AnimCurveUidVersion from Skeleton and this will be used to identify if it needs to be updated */
 	UPROPERTY(transient)
@@ -1381,9 +1385,6 @@ public:
 	/** Array of FConstraintInstance structs, storing per-instance state about each constraint. */
 	TArray<struct FConstraintInstance*> Constraints;
 
-	/** Physics-engine representation of aggregate which contains a physics asset instance with more than numbers of bodies. */
-	FPhysicsAggregateHandle Aggregate;
-
 	FSkeletalMeshComponentClothTickFunction ClothTickFunction;
 
 	/**
@@ -1442,13 +1443,6 @@ private:
 
 	ENGINE_API void ComputeTeleportRotationThresholdInRadians();
 	ENGINE_API void ComputeTeleportDistanceThresholdInRadians();
-
-	// Can't rely on time value, because those may be affected by dilation and whether or not
-	// the game is paused.
-	// Also can't just rely on a flag as other components (like CharacterMovementComponent) may tick
-	// the pose and we can't guarantee tick order.
-	UPROPERTY(Transient)
-	uint32 LastPoseTickFrame;
 
 public:
 
@@ -2649,6 +2643,15 @@ private:
 	 * Cooking does not guarantee skeleton containing all names
 	 */
 	ENGINE_API bool AreRequiredCurvesUpToDate() const;
+
+
+private:
+	// Can't rely on time value, because those may be affected by dilation and whether or not
+	// the game is paused.
+	// Also can't just rely on a flag as other components (like CharacterMovementComponent) may tick
+	// the pose and we can't guarantee tick order.
+	UPROPERTY(Transient)
+	uint32 LastPoseTickFrame; 
 
 public:
 	ENGINE_API void ConditionallyDispatchQueuedAnimEvents();
