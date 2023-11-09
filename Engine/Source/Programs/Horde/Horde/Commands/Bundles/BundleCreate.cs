@@ -79,7 +79,7 @@ namespace Horde.Commands.Bundles
 			{
 				ChunkingOptions options = new ChunkingOptions();
 
-				DirectoryNode node = await DirectoryNode.CreateAsync(baseDir, files.ConvertAll(x => x.ToFileInfo()), options, writer, null, CancellationToken.None);
+				DirectoryNode node = await DirectoryNode.CreateAsync(baseDir, files.ConvertAll(x => x.ToFileInfo()), options, writer, new CopyStatsLogger(logger), CancellationToken.None);
 				HashedNodeRef<DirectoryNode> nodeRef = await writer.WriteHashedNodeAsync(node, CancellationToken.None);
 
 				await writer.FlushAsync();

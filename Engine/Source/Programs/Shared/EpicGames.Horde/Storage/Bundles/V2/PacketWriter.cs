@@ -222,6 +222,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 					IRefCountedHandle<Memory<byte>> newBufferHandle = RefCountedHandle.Create(_allocator.Alloc(newSize));
 					_buffer.Slice(0, _length + usedSize).CopyTo(newBufferHandle.Target);
 					_buffer = newBufferHandle.Target;
+					_bufferHandle.Dispose();
 
 					_bufferHandle = newBufferHandle;
 				}

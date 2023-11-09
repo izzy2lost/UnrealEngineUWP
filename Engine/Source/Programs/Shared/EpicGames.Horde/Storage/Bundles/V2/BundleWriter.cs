@@ -194,8 +194,8 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 			IBlobHandle? _flushedHandle;
 #pragma warning disable CA2213
 			PendingPacketHandle? _currentPacket;
-#pragma warning restore CA2213
 			List<PendingPacketHandle>? _pendingPackets = new List<PendingPacketHandle>();
+#pragma warning restore CA2213
 			int _length;
 			RefCountedMemoryWriter _writer;
 
@@ -233,6 +233,11 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 						pendingPacket.Dispose();
 					}
 					_pendingPackets = null;
+				}
+				if (_writer != null)
+				{
+					_writer.Dispose();
+					_writer = null!;
 				}
 			}
 
