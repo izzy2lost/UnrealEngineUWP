@@ -4,7 +4,7 @@
 
 #include "FakeObjectToPropertiesEditorModel.h"
 #include "Model/Item/SourceModelBuilders.h"
-#include "Replication/Editor/Model/IEditableObjectToPropertiesModel.h"
+#include "Replication/Editor/Model/IEditableReplicationStreamModel.h"
 #include "Replication/Editor/Model/Object/IObjectSelectionSourceModel.h"
 #include "Replication/Editor/Model/Property/IPropertySelectionSourceModel.h"
 #include "Replication/Editor/Model/ReplicatedObjectData.h"
@@ -23,7 +23,7 @@ namespace UE::ConcertClientSharedSlate
 {
 	void SBaseReplicationStreamEditor::Construct(
 		const FArguments& InArgs,
-		TSharedRef<IEditableObjectToPropertiesModel> InPropertiesModel,
+		TSharedRef<IEditableReplicationStreamModel> InPropertiesModel,
 		TSharedRef<IObjectSelectionSourceModel> InObjectSelectionSource,
 		TSharedRef<IPropertySelectionSourceModel> InPropertySelectionSource)
 	{

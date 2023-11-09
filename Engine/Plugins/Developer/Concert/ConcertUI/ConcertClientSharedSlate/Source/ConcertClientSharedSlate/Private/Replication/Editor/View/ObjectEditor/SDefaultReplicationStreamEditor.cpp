@@ -2,7 +2,7 @@
 
 #include "SDefaultReplicationStreamEditor.h"
 
-#include "Replication/Editor/Model/IEditableObjectToPropertiesModel.h"
+#include "Replication/Editor/Model/IEditableReplicationStreamModel.h"
 #include "Replication/Editor/View/ObjectViewer/Tree/SelectionViewerColumns.h"
 
 #include "SBaseReplicationStreamEditor.h"
@@ -11,7 +11,7 @@ namespace UE::ConcertClientSharedSlate
 {
 	void SDefaultReplicationStreamEditor::Construct(
 		const FArguments& InArgs,
-		TSharedRef<IEditableObjectToPropertiesModel> InPropertiesModel,
+		TSharedRef<IEditableReplicationStreamModel> InPropertiesModel,
 		TSharedRef<IObjectSelectionSourceModel> InObjectSelectionSource,
 		TSharedRef<IPropertySelectionSourceModel> InPropertySelectionSource)
 	{

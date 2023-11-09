@@ -73,9 +73,9 @@ namespace UE::MultiUserClient
 
 	void FMultiUserReplicationManager::OnLeaveSession(IConcertClientSession&)
 	{
-		// This clears the UI. The clients' IEditableObjectToPropertiesModels should no longer be referenced by anyone.
+		// This clears the UI. The clients' IEditableReplicationStreamModels should no longer be referenced by anyone.
 		SetConnectionStateAndBroadcast(EMultiUserReplicationConnectionState::Disconnected);
-		// Keep in mind the IEditableObjectToPropertiesModels were referenced by the UI so call this after clearing the UI.
+		// Keep in mind the IEditableReplicationStreamModels were referenced by the UI so call this after clearing the UI.
 		ConnectedState.Reset();
 	}
 

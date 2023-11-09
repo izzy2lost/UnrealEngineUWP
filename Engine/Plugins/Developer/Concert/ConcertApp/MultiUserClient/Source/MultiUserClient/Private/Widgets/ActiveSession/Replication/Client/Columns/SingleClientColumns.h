@@ -11,7 +11,7 @@ class IConcertClient;
 namespace UE::ConcertClientSharedSlate
 {
 	class IReplicationStreamViewer;
-	class IObjectToPropertiesModel;
+	class IReplicationStreamModel;
 }
 
 namespace UE::MultiUserClient
@@ -59,7 +59,7 @@ namespace UE::MultiUserClient::SingleClientColumns
 	 * @return Column that can be placed in the table
 	 */
 	ConcertClientSharedSlate::ReplicationColumns::FReplicationTopLevelObjectColumn ToggleTopLevelAuthority(
-		ConcertClientSharedSlate::IObjectToPropertiesModel& ClientStreamModel,
+		ConcertClientSharedSlate::IReplicationStreamModel& ClientStreamModel,
 		FAuthorityChangeTracker& ChangeTracker,
 		ISubmissionWorkflow& SubmissionWorkflow
 		);
@@ -93,7 +93,7 @@ namespace UE::MultiUserClient::SingleClientColumns
 	ConcertClientSharedSlate::ReplicationColumns::FReplicationTopLevelObjectColumn OwnerOfTopLevelObject(
 		const TSharedRef<IConcertClient>& InClient,
 		FGlobalAuthorityCache& InAuthorityCache,
-		ConcertClientSharedSlate::IObjectToPropertiesModel& InObjectModel
+		ConcertClientSharedSlate::IReplicationStreamModel& InObjectModel
 		);
 
 	/**

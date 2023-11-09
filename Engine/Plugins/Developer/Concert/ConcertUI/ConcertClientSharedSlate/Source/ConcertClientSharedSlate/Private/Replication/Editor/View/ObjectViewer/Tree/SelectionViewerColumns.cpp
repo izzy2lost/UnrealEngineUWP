@@ -3,7 +3,7 @@
 #include "SelectionViewerColumns.h"
 
 #include "ClassIconFinder.h"
-#include "Replication/Editor/Model/IEditableObjectToPropertiesModel.h"
+#include "Replication/Editor/Model/IEditableReplicationStreamModel.h"
 #include "Replication/Editor/Model/ISubobjectModel.h"
 #include "Replication/Editor/Model/ReplicatedPropertyData.h"
 #include "Replication/Editor/Model/ReplicatedObjectData.h"
@@ -29,7 +29,7 @@ namespace UE::ConcertClientSharedSlate::ReplicationColumns::TopLevel
 	const FName LabelColumnId = TEXT("LabelColumn");
 	const FName TypeColumnId = TEXT("TypeColumn");
 	
-	FReplicationTopLevelObjectColumn LabelColumn(TSharedRef<IObjectToPropertiesModel> Model, ISubobjectModel* SubobjectModel)
+	FReplicationTopLevelObjectColumn LabelColumn(TSharedRef<IReplicationStreamModel> Model, ISubobjectModel* SubobjectModel)
 	{
 		return FReplicationTopLevelObjectColumn(
 			FReplicationTopLevelObjectColumn::FArguments()
@@ -77,7 +77,7 @@ namespace UE::ConcertClientSharedSlate::ReplicationColumns::TopLevel
 			);
 	}
 	
-	FReplicationTopLevelObjectColumn TypeColumn(TSharedRef<IObjectToPropertiesModel> Model)
+	FReplicationTopLevelObjectColumn TypeColumn(TSharedRef<IReplicationStreamModel> Model)
 	{
 		return FReplicationTopLevelObjectColumn(
 			FReplicationTopLevelObjectColumn::FArguments()
@@ -213,7 +213,7 @@ namespace UE::ConcertClientSharedSlate::ReplicationColumns::Property
 		static ECheckBoxState OnGetPropertyCheckboxState(
 			const FConcertPropertyChain& PropertyChain,
 			const IReplicationStreamViewer& Viewer,
-			const IObjectToPropertiesModel& Model
+			const IReplicationStreamModel& Model
 			)
 		{
 			const TArray<FSoftObjectPath> SelectedObjectPaths = Viewer.GetObjectsBeingPropertyEdited();
@@ -224,7 +224,7 @@ namespace UE::ConcertClientSharedSlate::ReplicationColumns::Property
 			bool bIsChecked,
 			const FConcertPropertyChain& PropertyChain,
 			const IReplicationStreamViewer& Viewer,
-			IEditableObjectToPropertiesModel& Model
+			IEditableReplicationStreamModel& Model
 			)
 		{
 			const TArray Properties{ PropertyChain };
@@ -273,7 +273,7 @@ namespace UE::ConcertClientSharedSlate::ReplicationColumns::Property
 	
 	FReplicationPropertyColumn ReplicatesColumns(
 		TWeakPtr<IReplicationStreamViewer> Viewer,
-		TWeakPtr<IEditableObjectToPropertiesModel> Model,
+		TWeakPtr<IEditableReplicationStreamModel> Model,
 		TReplicationColumnDelegates<FReplicatedPropertyData>::FIsEnabled IsEnabledDelegate,
 		TAttribute<FText> DisabledToolTipText,
 		const float ColumnWidth,
@@ -288,14 +288,14 @@ namespace UE::ConcertClientSharedSlate::ReplicationColumns::Property
 				[Viewer, Model](const FReplicatedPropertyData& Data)
 				{
 					const TSharedPtr<IReplicationStreamViewer> ViewerPin = Viewer.Pin();
-					const TSharedPtr<IEditableObjectToPropertiesModel> ModelPin = Model.Pin();
+					const TSharedPtr<IEditableReplicationStreamModel> ModelPin = Model.Pin();
 					return ensure(ViewerPin && ModelPin) ? Private::OnGetPropertyCheckboxState(Data.GetProperty(), *ViewerPin, *ModelPin) : ECheckBoxState::Undetermined;
 				}),
 				FPropertyColumnDelegates::FOnColumnCheckboxChanged::CreateLambda(
 				[Viewer, Model](bool bIsChecked, const FReplicatedPropertyData& Data)
 				{
 					const TSharedPtr<IReplicationStreamViewer> ViewerPin = Viewer.Pin();
-					const TSharedPtr<IEditableObjectToPropertiesModel> ModelPin = Model.Pin();
+					const TSharedPtr<IEditableReplicationStreamModel> ModelPin = Model.Pin();
 					if (ensure(ViewerPin && ModelPin))
 					{
 						Private::OnPropertyCheckboxChanged(bIsChecked, Data.GetProperty(), *ViewerPin, *ModelPin);
@@ -318,7 +318,7 @@ namespace UE::ConcertClientSharedSlate::ReplicationColumns::Property
 		);
 	}
 
-	ECheckBoxState GetPropertyCheckboxStateBasedOnSelection(const FConcertPropertyChain& Property, TConstArrayView<FSoftObjectPath> Selection, const IObjectToPropertiesModel& Model)
+	ECheckBoxState GetPropertyCheckboxStateBasedOnSelection(const FConcertPropertyChain& Property, TConstArrayView<FSoftObjectPath> Selection, const IReplicationStreamModel& Model)
 	{
 		ECheckBoxState CheckBoxState = ECheckBoxState::Undetermined;
 		for (const FSoftObjectPath& SelectedObject : Selection)
@@ -343,7 +343,7 @@ namespace UE::ConcertClientSharedSlate::ReplicationColumns::Property
 	
 	bool SortBySelectionThenByName_PropertyPredicate(
 		const TArray<FSoftObjectPath>& SelectedObjects,
-		const IObjectToPropertiesModel& Model,
+		const IReplicationStreamModel& Model,
 		const FReplicatedPropertyData& Left,
 		const FReplicatedPropertyData& Right
 		)

@@ -8,9 +8,9 @@
 
 namespace UE::ConcertClientSharedSlate
 {
-	class IEditableObjectToPropertiesModel;
+	class IEditableReplicationStreamModel;
 	class IReplicationStreamViewer;
-	class IObjectToPropertiesModel;
+	class IReplicationStreamModel;
 	class ISubobjectModel;
 }
 
@@ -28,8 +28,8 @@ namespace UE::ConcertClientSharedSlate::ReplicationColumns::TopLevel
 		Type = 30,
 	};
 
-	FReplicationTopLevelObjectColumn LabelColumn(TSharedRef<IObjectToPropertiesModel> Model, ISubobjectModel* SubobjectModel = nullptr);
-	FReplicationTopLevelObjectColumn TypeColumn(TSharedRef<IObjectToPropertiesModel> Model);
+	FReplicationTopLevelObjectColumn LabelColumn(TSharedRef<IReplicationStreamModel> Model, ISubobjectModel* SubobjectModel = nullptr);
+	FReplicationTopLevelObjectColumn TypeColumn(TSharedRef<IReplicationStreamModel> Model);
 }
 
 namespace UE::ConcertClientSharedSlate::ReplicationColumns::Subobject
@@ -80,7 +80,7 @@ namespace UE::ConcertClientSharedSlate::ReplicationColumns::Property
 	 */
 	CONCERTCLIENTSHAREDSLATE_API FReplicationPropertyColumn ReplicatesColumns(
 		TWeakPtr<IReplicationStreamViewer> Viewer,
-		TWeakPtr<IEditableObjectToPropertiesModel> Model,
+		TWeakPtr<IEditableReplicationStreamModel> Model,
 		TReplicationColumnDelegates<FReplicatedPropertyData>::FIsEnabled IsEnabledDelegate = {},
 		TAttribute<FText> DisabledToolTipText = {},
 		const float ColumnWidth = 20.f,
@@ -96,12 +96,12 @@ namespace UE::ConcertClientSharedSlate::ReplicationColumns::Property
 	CONCERTCLIENTSHAREDSLATE_API ECheckBoxState GetPropertyCheckboxStateBasedOnSelection(
 		const FConcertPropertyChain& Property,
 		TConstArrayView<FSoftObjectPath> Selection,
-		const IObjectToPropertiesModel& Model
+		const IReplicationStreamModel& Model
 		);
 	/** Util for sorting property data by whether its ReplicatesColumns() column is checked. */
 	CONCERTCLIENTSHAREDSLATE_API bool SortBySelectionThenByName_PropertyPredicate(
 		const TArray<FSoftObjectPath>& SelectedObjects,
-		const IObjectToPropertiesModel& Model,
+		const IReplicationStreamModel& Model,
 		const FReplicatedPropertyData& Left,
 		const FReplicatedPropertyData& Right
 		);

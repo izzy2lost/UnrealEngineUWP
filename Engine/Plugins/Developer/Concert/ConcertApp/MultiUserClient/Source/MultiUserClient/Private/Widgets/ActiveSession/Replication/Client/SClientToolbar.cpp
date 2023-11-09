@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "SSingleClientToolbar.h"
+#include "SClientToolbar.h"
 
 #include "Widgets/ActiveSession/Replication/Client/SReplicationStatus.h"
 
@@ -9,7 +9,7 @@
 
 namespace UE::MultiUserClient
 {
-	void SSingleClientToolbar::Construct(const FArguments& InArgs, const ConcertClientSharedSlate::IObjectToPropertiesModel& InObjectModel, FGlobalAuthorityCache& InAuthorityCache)
+	void SClientToolbar::Construct(const FArguments& InArgs, const ConcertClientSharedSlate::IReplicationStreamModel& InObjectModel, FGlobalAuthorityCache& InAuthorityCache)
 	{
 		ChildSlot
 		[

@@ -9,7 +9,7 @@ namespace UE::ConcertClientSharedSlate
 	class FConcertSyncCoreReplicatedPropertySource;
 	
 	/**
-	 * Decides which properties can be added to IEditableObjectToPropertiesModel.
+	 * Decides which properties can be added to IEditableReplicationStreamModel.
 	 * The allowed properties are those returned by UE::ConcertSyncCore::ForEachReplicatableProperty.
 	 */
 	class CONCERTCLIENTSHAREDSLATE_API FSelectPropertyFromUClassModel : public IPropertySelectionSourceModel

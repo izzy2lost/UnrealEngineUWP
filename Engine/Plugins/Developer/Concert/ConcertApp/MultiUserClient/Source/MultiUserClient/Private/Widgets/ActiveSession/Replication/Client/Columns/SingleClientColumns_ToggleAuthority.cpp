@@ -7,7 +7,7 @@
 #include "Replication/Authority/AuthorityChangeTracker.h"
 #include "Replication/Authority/EAuthorityMutability.h"
 #include "Replication/Authority/IClientAuthoritySynchronizer.h"
-#include "Replication/Editor/Model/IObjectToPropertiesModel.h"
+#include "Replication/Editor/Model/IReplicationStreamModel.h"
 #include "Replication/Editor/View/IReplicationStreamViewer.h"
 #include "Replication/Editor/View/ReplicationColumnsUtils.h"
 #include "Replication/Submission/ISubmissionWorkflow.h"
@@ -25,7 +25,7 @@ namespace UE::MultiUserClient::SingleClientColumns
 	{
 		static ECheckBoxState GetCheckboxState(
 			const ConcertClientSharedSlate::FReplicatedObjectData& ObjectData,
-			ConcertClientSharedSlate::IObjectToPropertiesModel* ClientStreamModel,
+			ConcertClientSharedSlate::IReplicationStreamModel* ClientStreamModel,
 			FAuthorityChangeTracker* ChangeTracker
 			)
 		{
@@ -76,7 +76,7 @@ namespace UE::MultiUserClient::SingleClientColumns
 		static void OnCheckboxStateChanged(
 			bool bIsChecked,
 			const ConcertClientSharedSlate::FReplicatedObjectData& ObjectData,
-			ConcertClientSharedSlate::IObjectToPropertiesModel* ClientStreamModel,
+			ConcertClientSharedSlate::IReplicationStreamModel* ClientStreamModel,
 			FAuthorityChangeTracker* ChangeTracker
 			)
 		{
@@ -93,7 +93,7 @@ namespace UE::MultiUserClient::SingleClientColumns
 
 		static bool IsEnabled(
 			const ConcertClientSharedSlate::FReplicatedObjectData& ObjectData,
-			ConcertClientSharedSlate::IObjectToPropertiesModel* ClientStreamModel,
+			ConcertClientSharedSlate::IReplicationStreamModel* ClientStreamModel,
 			FAuthorityChangeTracker* ChangeTracker
 			)
 		{
@@ -115,7 +115,7 @@ namespace UE::MultiUserClient::SingleClientColumns
 	}
 	
 	ConcertClientSharedSlate::ReplicationColumns::FReplicationTopLevelObjectColumn ToggleTopLevelAuthority(
-		ConcertClientSharedSlate::IObjectToPropertiesModel& ClientStreamModel,
+		ConcertClientSharedSlate::IReplicationStreamModel& ClientStreamModel,
 		FAuthorityChangeTracker& ChangeTracker,
 		ISubmissionWorkflow& SubmissionWorkflow
 		)

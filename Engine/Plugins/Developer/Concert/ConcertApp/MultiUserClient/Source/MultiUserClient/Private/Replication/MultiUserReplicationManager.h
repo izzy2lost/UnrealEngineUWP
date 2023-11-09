@@ -20,7 +20,7 @@ namespace UE::ConcertSyncClient::Replication
 
 namespace UE::ConcertClientSharedSlate
 {
-	class IEditableObjectToPropertiesModel;
+	class IEditableReplicationStreamModel;
 }
 
 namespace UE::MultiUserClient

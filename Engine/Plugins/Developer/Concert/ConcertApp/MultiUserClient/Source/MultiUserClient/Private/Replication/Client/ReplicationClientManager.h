@@ -23,7 +23,7 @@ struct FConcertSessionClientInfo;
 
 namespace UE::ConcertClientSharedSlate
 {
-	class IEditableObjectToPropertiesModel;
+	class IEditableReplicationStreamModel;
 }
 
 namespace UE::MultiUserClient

@@ -16,7 +16,7 @@ class UMultiUserReplicationClientPreset;
 
 namespace UE::ConcertClientSharedSlate
 {
-	class IEditableObjectToPropertiesModel;
+	class IEditableReplicationStreamModel;
 	enum class EReplicatedObjectChangeReason : uint8;
 }
 
@@ -45,7 +45,7 @@ namespace UE::MultiUserClient
 			);
 
 		UMultiUserReplicationClientPreset* GetClientContent() const { return ClientContentStorage; }
-		TSharedRef<ConcertClientSharedSlate::IEditableObjectToPropertiesModel> GetClientEditModel() const { return LocalClientEditModel; }
+		TSharedRef<ConcertClientSharedSlate::IEditableReplicationStreamModel> GetClientEditModel() const { return LocalClientEditModel; }
 		IClientStreamSynchronizer& GetStreamSynchronizer() const { return *StreamSynchronizer.Get(); }
 		IClientAuthoritySynchronizer& GetAuthoritySynchronizer() const { return *AuthoritySynchronizer.Get(); }
 		
@@ -62,7 +62,7 @@ namespace UE::MultiUserClient
 
 		/**
 		 * Called when the data underlying the model has changed externally. Since the change was not caused by the model,
-		 * its events, like IEditableObjectToPropertiesModel::OnObjectsChanged, were not called.
+		 * its events, like IEditableReplicationStreamModel::OnObjectsChanged, were not called.
 		 * 
 		 * Subscribers are intended to call IReplicationStreamEditor::Refresh() in response.
 		 * 
@@ -94,7 +94,7 @@ namespace UE::MultiUserClient
 		 * The UI is destroyed right after this FClientStreamRepository.
 		 * @see FMultiUserReplicationManager::OnLeaveSession
 		 */
-		TSharedRef<ConcertClientSharedSlate::IEditableObjectToPropertiesModel> LocalClientEditModel;
+		TSharedRef<ConcertClientSharedSlate::IEditableReplicationStreamModel> LocalClientEditModel;
 		
 		/** Tracks changes made to server's state of the client's streams and prepares to upload them using StreamSynchronizer. */
 		FStreamChangeTracker LocalClientStreamDiffer;

@@ -21,7 +21,7 @@ namespace UE::ConcertClientSharedSlate
 		Invalid
 	};
 	
-	/** Decides which objects can be added to a IEditableObjectToPropertiesModel. */
+	/** Decides which objects can be added to a IEditableReplicationStreamModel. */
 	class IObjectSelectionSourceModel : public TSharedFromThis<IObjectSelectionSourceModel>
 	{
 	public:

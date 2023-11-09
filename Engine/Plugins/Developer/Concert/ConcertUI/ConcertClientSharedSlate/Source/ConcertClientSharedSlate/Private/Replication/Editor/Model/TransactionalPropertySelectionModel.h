@@ -19,12 +19,12 @@ namespace UE::ConcertClientSharedSlate
 			TAttribute<FObjectReplicationMap*> ReplicationMapAttribute
 			);
 		
-		//~ Begin IEditableObjectToPropertiesModel Interface
+		//~ Begin IEditableReplicationStreamModel Interface
 		virtual void AddObjects(TConstArrayView<UObject*> Objects) override;
 		virtual void RemoveObjects(TConstArrayView<FSoftObjectPath> Objects) override;
 		virtual void AddProperties(const FSoftObjectPath&, TConstArrayView<FConcertPropertyChain> Properties) override;
 		virtual void RemoveProperties(const FSoftObjectPath&, TConstArrayView<FConcertPropertyChain> Properties) override;
-		//~ End IEditableObjectToPropertiesModel Interface
+		//~ End IEditableReplicationStreamModel Interface
 
 		//~ Begin FEditorUndoClient Interface
 		virtual bool MatchesContext(const FTransactionContext& InContext, const TArray<TPair<UObject*, FTransactionObjectEvent>>& TransactionObjectContexts) const override;

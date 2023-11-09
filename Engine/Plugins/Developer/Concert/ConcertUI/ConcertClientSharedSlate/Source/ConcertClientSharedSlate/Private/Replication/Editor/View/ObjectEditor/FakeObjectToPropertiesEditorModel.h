@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "Replication/Editor/Model/IObjectToPropertiesModel.h"
+#include "Replication/Editor/Model/IReplicationStreamModel.h"
 
 namespace UE::ConcertClientSharedSlate
 {
@@ -27,12 +27,12 @@ namespace UE::ConcertClientSharedSlate
 	 * underlying model.
 	 * @see UE::ConcertClientSharedSlate::ReplicationPropertyColumns::ReplicatesColumns.
 	 */
-	class FFakeObjectToPropertiesEditorModel : public IObjectToPropertiesModel
+	class FFakeObjectToPropertiesEditorModel : public IReplicationStreamModel
 	{
 	public:
 
 		FFakeObjectToPropertiesEditorModel(
-			TSharedRef<IObjectToPropertiesModel> RealModel,
+			TSharedRef<IReplicationStreamModel> RealModel,
 			TSharedRef<IPropertySelectionSourceModel> PropertySelectionSource,
 			EFakeObjectModelFlags Flags
 			)
@@ -44,7 +44,7 @@ namespace UE::ConcertClientSharedSlate
 		/** Whether this object should be displayed in the outliner. */
 		bool IsTopLevelObject(const FSoftObjectPath& ObjectPath) const;
 
-		//~ Begin IObjectToPropertiesModel Interface
+		//~ Begin IReplicationStreamModel Interface
 		// Technically these functions should be also be wrapped but the SObjectToPropertyView does not use them so let's not for now.
 		virtual uint32 GetNumReplicatedObjects() const override { return RealModel->GetNumReplicatedObjects(); }
 		virtual uint32 GetNumProperties(const FSoftObjectPath& Object) const override { return RealModel->GetNumProperties(Object); }
@@ -54,12 +54,12 @@ namespace UE::ConcertClientSharedSlate
 		virtual FSoftClassPath GetObjectClass(const FSoftObjectPath& Object) const override;
 		virtual bool ForEachReplicatedObject(TFunctionRef<EBreakBehavior(const FSoftObjectPath& Object)> Delegate) const override;
 		virtual bool ForEachProperty(const FSoftObjectPath& ObjectPath, TFunctionRef<EBreakBehavior(const FConcertPropertyChain& Property)> Delegate) const override;
-		//~ End IObjectToPropertiesModel Interface
+		//~ End IReplicationStreamModel Interface
 
 	private:
 
 		/** The real model which is used to implement all the other functions. */
-		const TSharedRef<IObjectToPropertiesModel> RealModel;
+		const TSharedRef<IReplicationStreamModel> RealModel;
 
 		/** Determines the properties that can be selected. */
 		const TSharedRef<IPropertySelectionSourceModel> PropertySelectionSource;

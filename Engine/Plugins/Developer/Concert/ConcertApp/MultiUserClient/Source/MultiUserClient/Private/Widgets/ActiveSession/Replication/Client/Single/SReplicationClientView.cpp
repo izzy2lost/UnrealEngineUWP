@@ -4,7 +4,7 @@
 
 #include "MultiUserReplicationSettings.h"
 #include "Replication/Client/ReplicationClient.h"
-#include "Replication/Editor/Model/IEditableObjectToPropertiesModel.h"
+#include "Replication/Editor/Model/IReplicationStreamModel.h"
 #include "Replication/Editor/Model/Object/ActorSelectionSourceModel.h"
 #include "Replication/Editor/Model/Property/SelectPropertyFromUClassModel.h"
 #include "Replication/Editor/View/IReplicationStreamEditor.h"
@@ -12,7 +12,7 @@
 #include "Replication/Client/ReplicationClientManager.h"
 #include "Replication/Submission/ISubmissionWorkflow.h"
 #include "Widgets/ActiveSession/Replication/Client/Columns/SingleClientColumns.h"
-#include "Widgets/ActiveSession/Replication/Client/Single/SSingleClientToolbar.h"
+#include "Widgets/ActiveSession/Replication/Client/SClientToolbar.h"
 
 #include "HAL/IConsoleManager.h"
 #include "Widgets/SBoxPanel.h"
@@ -37,7 +37,7 @@ namespace UE::MultiUserClient
 		FReplicationClient* ReplicationClient = GetReplicationClientAttribute.Get();
 		check(ReplicationClient);
 		
-		ConcertClientSharedSlate::IObjectToPropertiesModel& PropertyModel = *ReplicationClient->GetClientEditModel();
+		ConcertClientSharedSlate::IReplicationStreamModel& PropertyModel = *ReplicationClient->GetClientEditModel();
 		FGlobalAuthorityCache& AuthorityCache = ClientManager->GetAuthorityCache();
 		ChildSlot
 		[
@@ -48,7 +48,7 @@ namespace UE::MultiUserClient
 			.AutoHeight()
 			.Padding(2.f)
 			[
-				SNew(SSingleClientToolbar, PropertyModel, AuthorityCache)
+				SNew(SClientToolbar, PropertyModel, AuthorityCache)
 				.ViewSelectionArea() [ InArgs._ViewSelectionArea.Widget ]
 				.DisplayedClients(TSet{ ReplicationClient->GetEndpointId() })
 			]
@@ -99,7 +99,7 @@ namespace UE::MultiUserClient
 		)
 	{
 		using namespace ConcertClientSharedSlate;
-		IObjectToPropertiesModel& PropertyModel = *InReplicationClient.GetClientEditModel();
+		IReplicationStreamModel& PropertyModel = *InReplicationClient.GetClientEditModel();
 		FAuthorityChangeTracker& AuthorityTracker = InReplicationClient.GetAuthorityDiffer();
 		ISubmissionWorkflow& SubmissionWorkflow = InReplicationClient.GetSubmissionWorkflow();
 		FGlobalAuthorityCache& AuthorityCache = ClientManager->GetAuthorityCache();
@@ -149,7 +149,7 @@ namespace UE::MultiUserClient
 		)
 	{
 		using namespace ConcertClientSharedSlate;
-		IObjectToPropertiesModel& PropertyModel = *InReplicationClient.GetClientEditModel();
+		IReplicationStreamModel& PropertyModel = *InReplicationClient.GetClientEditModel();
 		FAuthorityChangeTracker& AuthorityTracker = InReplicationClient.GetAuthorityDiffer();
 		ISubmissionWorkflow& SubmissionWorkflow = InReplicationClient.GetSubmissionWorkflow();
 		FGlobalAuthorityCache& AuthorityCache = ClientManager->GetAuthorityCache();

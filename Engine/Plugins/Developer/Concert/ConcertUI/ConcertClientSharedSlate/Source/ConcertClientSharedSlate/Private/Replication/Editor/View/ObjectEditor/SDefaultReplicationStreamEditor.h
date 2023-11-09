@@ -14,7 +14,7 @@ struct FConcertReplicationEditorSettings;
 
 namespace UE::ConcertClientSharedSlate
 {
-	class IEditableObjectToPropertiesModel;
+	class IEditableReplicationStreamModel;
 	class IObjectSelectionSourceModel;
 	class IPropertySelectionSourceModel;
 	class IReplicationSubobjectView;
@@ -65,7 +65,7 @@ namespace UE::ConcertClientSharedSlate
 
 		void Construct(
 			const FArguments& InArgs,
-			TSharedRef<IEditableObjectToPropertiesModel> InPropertiesModel,
+			TSharedRef<IEditableReplicationStreamModel> InPropertiesModel,
 			TSharedRef<IObjectSelectionSourceModel> InObjectSelectionSource,
 			TSharedRef<IPropertySelectionSourceModel> InPropertySelectionSource
 			);
@@ -82,7 +82,7 @@ namespace UE::ConcertClientSharedSlate
 		TSharedPtr<SBaseReplicationStreamEditor> WrappedEditor;
 		
 		/** Model needed for sorting properties based on selection. */
-		TSharedPtr<IEditableObjectToPropertiesModel> PropertiesModel;
+		TSharedPtr<IEditableReplicationStreamModel> PropertiesModel;
 		
 		bool SortPropertiesPredicate(const FReplicatedPropertyData& Left, const FReplicatedPropertyData& Right) const;
     };

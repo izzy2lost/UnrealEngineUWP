@@ -2,7 +2,7 @@
 
 #include "Replication/Editor/View/DisplayUtils.h"
 
-#include "Replication/Editor/Model/IObjectToPropertiesModel.h"
+#include "Replication/Editor/Model/IReplicationStreamModel.h"
 
 #include "AssetRegistry/AssetData.h"
 #include "AssetRegistry/AssetRegistryModule.h"
@@ -45,7 +45,7 @@ namespace UE::ConcertClientSharedSlate::DisplayUtils
 		return Object.GetName();
 	}
 
-	FText GetObjectTypeText(const IObjectToPropertiesModel& Model, const FSoftObjectPath& Object)
+	FText GetObjectTypeText(const IReplicationStreamModel& Model, const FSoftObjectPath& Object)
 	{
 		if (const FSoftClassPath ClassPath = Model.GetObjectClass(Object); ClassPath.IsValid())
 		{
@@ -75,7 +75,7 @@ namespace UE::ConcertClientSharedSlate::DisplayUtils
 		return FText::GetEmpty();
 	}
 
-	FSlateIcon GetObjectIcon(const IObjectToPropertiesModel& Model, const FSoftObjectPath& Object)
+	FSlateIcon GetObjectIcon(const IReplicationStreamModel& Model, const FSoftObjectPath& Object)
 	{
 		if (const FSoftClassPath ClassPath = Model.GetObjectClass(Object); ClassPath.IsValid())
 		{

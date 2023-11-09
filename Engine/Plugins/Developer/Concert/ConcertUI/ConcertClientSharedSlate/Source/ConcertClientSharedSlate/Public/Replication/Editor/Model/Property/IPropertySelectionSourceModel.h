@@ -10,7 +10,7 @@ namespace UE::ConcertClientSharedSlate
 {
 	using FPropertySourceCategory = ConcertSharedSlate::TSourceSelectionCategory<FSelectablePropertyInfo>;
 	
-	/** Decides which properties can be added to a IObjectToPropertiesModel. */
+	/** Decides which properties can be added to a IReplicationStreamModel. */
 	class IPropertySelectionSourceModel : public TSharedFromThis<IPropertySelectionSourceModel>
 	{
 	public:

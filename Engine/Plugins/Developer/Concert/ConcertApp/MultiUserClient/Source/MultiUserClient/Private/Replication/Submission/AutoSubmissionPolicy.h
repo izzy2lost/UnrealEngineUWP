@@ -2,12 +2,12 @@
 
 #pragma once
 
-#include "Replication/Editor/Model/IEditableObjectToPropertiesModel.h"
+#include "Replication/Editor/Model/IEditableReplicationStreamModel.h"
 #include "Templates/UnrealTemplate.h"
 
 namespace UE::ConcertClientSharedSlate
 {
-	class IEditableObjectToPropertiesModel;
+	class IEditableReplicationStreamModel;
 }
 
 namespace UE::MultiUserClient
@@ -28,7 +28,7 @@ namespace UE::MultiUserClient
 		
 		FAutoSubmissionPolicy(
 			ISubmissionWorkflow& InSubmissionWorkflow,
-			ConcertClientSharedSlate::IEditableObjectToPropertiesModel& InStreamEditorModel,
+			ConcertClientSharedSlate::IEditableReplicationStreamModel& InStreamEditorModel,
 			FAuthorityChangeTracker& InAuthorityChangeTracker
 			);
 		~FAutoSubmissionPolicy();
@@ -39,7 +39,7 @@ namespace UE::MultiUserClient
 		ISubmissionWorkflow& SubmissionWorkflow;
 
 		/** Informs us when the stream is structurally changed by the user. */
-		ConcertClientSharedSlate::IEditableObjectToPropertiesModel& StreamEditorModel;
+		ConcertClientSharedSlate::IEditableReplicationStreamModel& StreamEditorModel;
 		/** Informs us when authority is changed by the user. */
 		FAuthorityChangeTracker& AuthorityChangeTracker;
 		

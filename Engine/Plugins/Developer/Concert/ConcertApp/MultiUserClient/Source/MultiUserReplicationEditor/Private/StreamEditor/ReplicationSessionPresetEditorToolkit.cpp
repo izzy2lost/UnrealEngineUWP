@@ -74,7 +74,7 @@ namespace UE::MultiUserReplicationEditor
 	{
 		using namespace ConcertClientSharedSlate;
 		
-		const TSharedRef<IEditableObjectToPropertiesModel> AssetReadWriteModel = CreatePropertySelectionModel(
+		const TSharedRef<IEditableReplicationStreamModel> AssetReadWriteModel = CreatePropertySelectionModel(
 			*GetEditedStreamAsset(),
 			GetEditedStreamAsset()->GetUnassignedClient()->Stream->MakeReplicationMapGetterAttribute()
 			);

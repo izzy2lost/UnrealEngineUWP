@@ -3,7 +3,7 @@
 #include "AutoSubmissionPolicy.h"
 
 #include "ISubmissionWorkflow.h"
-#include "Replication/Editor/Model/IEditableObjectToPropertiesModel.h"
+#include "Replication/Editor/Model/IEditableReplicationStreamModel.h"
 
 #include "Misc/CoreDelegates.h"
 #include "Replication/Authority/AuthorityChangeTracker.h"
@@ -12,7 +12,7 @@ namespace UE::MultiUserClient
 {
 	FAutoSubmissionPolicy::FAutoSubmissionPolicy(
 		ISubmissionWorkflow& InSubmissionWorkflow,
-		ConcertClientSharedSlate::IEditableObjectToPropertiesModel& InStreamEditorModel,
+		ConcertClientSharedSlate::IEditableReplicationStreamModel& InStreamEditorModel,
 		FAuthorityChangeTracker& InAuthorityChangeTracker
 		)
 		: SubmissionWorkflow(InSubmissionWorkflow)

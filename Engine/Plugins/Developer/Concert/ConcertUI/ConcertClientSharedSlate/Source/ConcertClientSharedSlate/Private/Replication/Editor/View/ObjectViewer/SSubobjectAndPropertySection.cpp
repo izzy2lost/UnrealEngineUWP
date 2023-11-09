@@ -2,7 +2,7 @@
 
 #include "SSubobjectAndPropertySection.h"
 
-#include "Replication/Editor/Model/IObjectToPropertiesModel.h"
+#include "Replication/Editor/Model/IReplicationStreamModel.h"
 #include "Replication/Editor/Model/ReplicatedObjectData.h"
 #include "Replication/Editor/Model/ReplicatedPropertyData.h"
 #include "Replication/Editor/View/IReplicationSubobjectView.h"
@@ -21,7 +21,7 @@
 
 namespace UE::ConcertClientSharedSlate
 {
-	void SSubobjectAndPropertySection::Construct(const FArguments& InArgs, TSharedRef<IObjectToPropertiesModel> InPropertiesModel)
+	void SSubobjectAndPropertySection::Construct(const FArguments& InArgs, TSharedRef<IReplicationStreamModel> InPropertiesModel)
 	{
 		PropertiesModel = MoveTemp(InPropertiesModel);
 		SortPropertyRowPredicate = InArgs._SortPropertyRowPredicate;

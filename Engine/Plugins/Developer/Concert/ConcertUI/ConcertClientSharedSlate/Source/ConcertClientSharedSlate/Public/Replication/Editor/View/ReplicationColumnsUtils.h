@@ -11,9 +11,9 @@ struct FConcertPropertyChain;
 
 namespace UE::ConcertClientSharedSlate
 {
-	class IEditableObjectToPropertiesModel;
+	class IEditableReplicationStreamModel;
 	class IReplicationStreamViewer;
-	class IObjectToPropertiesModel;
+	class IReplicationStreamModel;
 }
 
 namespace UE::ConcertClientSharedSlate

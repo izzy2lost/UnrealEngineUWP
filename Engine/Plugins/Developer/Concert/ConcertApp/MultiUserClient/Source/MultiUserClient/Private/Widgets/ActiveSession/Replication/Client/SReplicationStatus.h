@@ -9,7 +9,7 @@ class STextBlock;
 
 namespace UE::ConcertClientSharedSlate
 {
-	class IObjectToPropertiesModel;
+	class IReplicationStreamModel;
 }
 
 namespace UE::MultiUserClient
@@ -33,13 +33,13 @@ namespace UE::MultiUserClient
 			SLATE_ATTRIBUTE(TSet<FGuid>, DisplayedClients)
 		SLATE_END_ARGS()
 
-		void Construct(const FArguments& InArgs, const ConcertClientSharedSlate::IObjectToPropertiesModel& InObjectModel, FGlobalAuthorityCache& InAuthorityCache);
+		void Construct(const FArguments& InArgs, const ConcertClientSharedSlate::IReplicationStreamModel& InObjectModel, FGlobalAuthorityCache& InAuthorityCache);
 		virtual ~SReplicationStatus() override;
 
 	private:
 
 		/** Used to look up registered objects and subobjects. */
-		const ConcertClientSharedSlate::IObjectToPropertiesModel* ObjectModel;
+		const ConcertClientSharedSlate::IReplicationStreamModel* ObjectModel;
 		/** Used to get authority state of objects and informs us when authority changes. */
 		FGlobalAuthorityCache* AuthorityCache;
 

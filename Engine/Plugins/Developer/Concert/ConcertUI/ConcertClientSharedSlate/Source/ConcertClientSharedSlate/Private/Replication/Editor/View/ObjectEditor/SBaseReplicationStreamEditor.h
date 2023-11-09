@@ -15,13 +15,13 @@ struct FConcertReplicationEditorSettings;
 
 namespace UE::ConcertClientSharedSlate
 {
-	class IEditableObjectToPropertiesModel;
+	class IEditableReplicationStreamModel;
 	class FFakeObjectToPropertiesEditorModel;
 	class FReplicatedObjectData;
 	class FReplicatedPropertyData;
 	class IReplicationSubobjectView;
 	class IObjectSelectionSourceModel;
-	class IObjectToPropertiesModel;
+	class IReplicationStreamModel;
 	class IPropertySelectionSourceModel;
 	class IReplicationSubobjectView;
 	class ISubobjectModel;
@@ -31,11 +31,11 @@ namespace UE::ConcertClientSharedSlate
 	struct FSelectableObjectInfo;
 	
 	/**
-	 * Extends SObjectToPropertyView with common functionality for editing (with an IEditableObjectToPropertiesModel):
-	 * - Pressing delete calls IEditableObjectToPropertiesModel::RemoveObjects
+	 * Extends SObjectToPropertyView with common functionality for editing (with an IEditableReplicationStreamModel):
+	 * - Pressing delete calls IEditableReplicationStreamModel::RemoveObjects
 	 * - A combo box to left of the object search bar for adding new top level objects
 	 * - Default context menu items for top-level objects, such as deleting or adding more based right-clicked object
-	 * - Wraps the IEditableObjectToPropertiesModel with FFakeObjectToPropertiesEditorModel so the SObjectToPropertyView:
+	 * - Wraps the IEditableReplicationStreamModel with FFakeObjectToPropertiesEditorModel so the SObjectToPropertyView:
 	 *		- displays only top-level objects in the outliner (i.e. excludes components)
 	 *		- displays all properties in the property view instead of just those registered in the model
 	 *
@@ -82,7 +82,7 @@ namespace UE::ConcertClientSharedSlate
 		SLATE_END_ARGS()
 
 		void Construct(const FArguments& InArgs,
-           TSharedRef<IEditableObjectToPropertiesModel> InPropertiesModel,
+           TSharedRef<IEditableReplicationStreamModel> InPropertiesModel,
            TSharedRef<IObjectSelectionSourceModel> InObjectSelectionSource,
            TSharedRef<IPropertySelectionSourceModel> InPropertySelectionSource
 		);
@@ -100,7 +100,7 @@ namespace UE::ConcertClientSharedSlate
 		TSharedPtr<SReplicationStreamViewer> ReplicationViewer;
 
 		/** For reading and writting to the edited asset */
-		TSharedPtr<IEditableObjectToPropertiesModel> EditablePropertiesModel;
+		TSharedPtr<IEditableReplicationStreamModel> EditablePropertiesModel;
 		/**
 		 * Fakes to SObjectToPropertyView that all UClass properties are contained.
 		 * We inject checkboxes to SObjectToPropertyView which do the actual adding and removing.

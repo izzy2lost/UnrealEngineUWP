@@ -16,8 +16,8 @@ struct FObjectReplicationMap;
 
 namespace UE::ConcertClientSharedSlate
 {
-	class IEditableObjectToPropertiesModel;
-	class IObjectToPropertiesModel;
+	class IEditableReplicationStreamModel;
+	class IReplicationStreamModel;
 	class IObjectSelectionSourceModel;
 	class IReplicationStreamEditor;
 	class IReplicationStreamViewer;
@@ -36,7 +36,7 @@ namespace UE::ConcertClientSharedSlate
 	 * 
 	 * @return A model that will edit the FObjectReplicationMap.
 	 */
-	CONCERTCLIENTSHAREDSLATE_API TSharedRef<IEditableObjectToPropertiesModel> CreatePropertySelectionModel(
+	CONCERTCLIENTSHAREDSLATE_API TSharedRef<IEditableReplicationStreamModel> CreatePropertySelectionModel(
 		UObject& OwnerObject,
 		TAttribute<FObjectReplicationMap*> ReplicationMapAttribute
 		);
@@ -64,7 +64,7 @@ namespace UE::ConcertClientSharedSlate
 		 * The model that the editor is displaying.
 		 * @note The view will keep a strong reference to this.
 		 */
-		TSharedRef<IEditableObjectToPropertiesModel> DataModel;
+		TSharedRef<IEditableReplicationStreamModel> DataModel;
 		/**
 		 * Determines the objects that can be added to the object list. 
 		 * @note The view will keep a strong reference to this.

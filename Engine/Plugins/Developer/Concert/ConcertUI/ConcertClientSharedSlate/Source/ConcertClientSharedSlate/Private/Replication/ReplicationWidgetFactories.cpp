@@ -53,7 +53,7 @@ namespace UE::ConcertClientSharedSlate
 			.ReplicationSettings(Params.ReplicationSettingsAttribute);
 	}
 
-	TSharedRef<IEditableObjectToPropertiesModel> CreatePropertySelectionModel(
+	TSharedRef<IEditableReplicationStreamModel> CreatePropertySelectionModel(
 		UObject& OwnerObject,
 		TAttribute<FObjectReplicationMap*> ReplicationMapAttribute
 		)

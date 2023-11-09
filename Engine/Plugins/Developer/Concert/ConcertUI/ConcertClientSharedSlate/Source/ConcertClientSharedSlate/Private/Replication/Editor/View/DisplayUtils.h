@@ -12,7 +12,7 @@ struct FSoftObjectPath;
 
 namespace UE::ConcertClientSharedSlate
 {
-	class IObjectToPropertiesModel;
+	class IReplicationStreamModel;
 }
 
 namespace UE::ConcertClientSharedSlate::DisplayUtils
@@ -26,10 +26,10 @@ namespace UE::ConcertClientSharedSlate::DisplayUtils
 	FString GetObjectDisplayString(const UObject& Object);
 	
 	/** @return The text to use for displaying this object's type */
-	FText GetObjectTypeText(const IObjectToPropertiesModel& Model, const FSoftObjectPath& Object);
+	FText GetObjectTypeText(const IReplicationStreamModel& Model, const FSoftObjectPath& Object);
 	
 	/** @return The icon to use for this object */
-	FSlateIcon GetObjectIcon(const IObjectToPropertiesModel& Model, const FSoftObjectPath& Object);
+	FSlateIcon GetObjectIcon(const IReplicationStreamModel& Model, const FSoftObjectPath& Object);
 	/** @return The icon to use for this object */
 	FSlateIcon GetObjectIcon(UObject& Object);
 

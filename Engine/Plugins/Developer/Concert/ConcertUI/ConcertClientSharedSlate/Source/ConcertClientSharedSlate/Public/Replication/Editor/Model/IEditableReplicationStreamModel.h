@@ -2,11 +2,12 @@
 
 #pragma once
 
+#include "IReplicationStreamModel.h"
+
 #include "Containers/ContainersFwd.h"
 #include "Containers/Map.h"
 #include "Containers/Set.h"
 #include "Delegates/DelegateCombinations.h"
-#include "IObjectToPropertiesModel.h"
 
 class UObject;
 struct FConcertPropertyChain;
@@ -25,7 +26,7 @@ namespace UE::ConcertClientSharedSlate
 	 * Models may not always be writable. When editing a UAsset, it will be writable. However, if we join a multi-user
 	 * session we do not want to edit the objects nor properties - only read.
 	 */
-	class CONCERTCLIENTSHAREDSLATE_API IEditableObjectToPropertiesModel : public IObjectToPropertiesModel
+	class CONCERTCLIENTSHAREDSLATE_API IEditableReplicationStreamModel : public IReplicationStreamModel
 	{
 	public:
 

@@ -34,7 +34,7 @@ namespace UE::MultiUserClient::SingleClientColumns
 	{
 		static TArray<FGuid> GetOwnersOfTopLevelObject(
 			const FGlobalAuthorityCache& InAuthorityCache,
-			ConcertClientSharedSlate::IObjectToPropertiesModel& InObjectModel,
+			ConcertClientSharedSlate::IReplicationStreamModel& InObjectModel,
 			const FSoftObjectPath& InTopLevelObject
 			)
 		{
@@ -54,7 +54,7 @@ namespace UE::MultiUserClient::SingleClientColumns
 	ConcertClientSharedSlate::ReplicationColumns::FReplicationTopLevelObjectColumn OwnerOfTopLevelObject(
 		const TSharedRef<IConcertClient>& InClient,
 		FGlobalAuthorityCache& InAuthorityCache,
-		ConcertClientSharedSlate::IObjectToPropertiesModel& InObjectModel
+		ConcertClientSharedSlate::IReplicationStreamModel& InObjectModel
 		)
 	{
 		using FColumnType = ConcertClientSharedSlate::ReplicationColumns::FReplicationSubobjectObjectColumn;

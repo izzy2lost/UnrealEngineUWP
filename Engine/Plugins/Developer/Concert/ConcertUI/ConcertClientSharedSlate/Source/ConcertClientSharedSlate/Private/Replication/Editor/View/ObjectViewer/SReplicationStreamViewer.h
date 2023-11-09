@@ -24,18 +24,18 @@ namespace UE::ConcertClientSharedSlate
 	class SSubobjectAndPropertySection;
 	class FReplicatedPropertyData;
 	class FReplicatedObjectData;
-	class IEditableObjectToPropertiesModel;
+	class IEditableReplicationStreamModel;
 	class IReplicationSubobjectView;
-	class IObjectToPropertiesModel;
+	class IReplicationStreamModel;
 	class ISubobjectModel;
 	class SReplicatedPropertiesView;
 	
 	/**
 	 * Root widget for viewing UMultiUserPropertyReplicationSelection.
-	 * This widget knows how to display IObjectToPropertiesModel.
+	 * This widget knows how to display IReplicationStreamModel.
 	 * 
 	 * The underlying data is modified by SObjectToPropertyEditor, which uses this widget's extension
-	 * points to call functions on IEditableObjectToPropertiesModel.
+	 * points to call functions on IEditableReplicationStreamModel.
 	 *
 	 * Important: this view should be possible to be built in programs, so it should not reference things like AActor,
 	 * UActorComponent, ResolveObject, etc. directly. 
@@ -74,7 +74,7 @@ namespace UE::ConcertClientSharedSlate
 			SLATE_ATTRIBUTE(FText, NoOutlinerObjects)
 		SLATE_END_ARGS()
 
-		void Construct(const FArguments& InArgs, TSharedRef<IObjectToPropertiesModel> InPropertiesModel);
+		void Construct(const FArguments& InArgs, TSharedRef<IReplicationStreamModel> InPropertiesModel);
 
 		//~ Begin IReplicationStreamViewer Interface
 		virtual void Refresh() override;
@@ -101,7 +101,7 @@ namespace UE::ConcertClientSharedSlate
 	private:
 
 		/** The model this view is visualizing. */
-		TSharedPtr<IObjectToPropertiesModel> PropertiesModel;
+		TSharedPtr<IReplicationStreamModel> PropertiesModel;
 		/** Can be null. If set, this determines the children nested under the root objects. */
 		TSharedPtr<ISubobjectModel> SubobjectModel;
 

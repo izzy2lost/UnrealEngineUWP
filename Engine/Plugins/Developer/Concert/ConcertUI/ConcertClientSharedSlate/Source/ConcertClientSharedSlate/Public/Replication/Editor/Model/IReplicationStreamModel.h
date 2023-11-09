@@ -11,9 +11,9 @@ namespace UE::ConcertClientSharedSlate
 {
 	/**
 	 * Abstracts the concept of mapping objects to properties. This is a read-only interface.
-	 * @see IEditableObjectToPropertiesModel 
+	 * @see IEditableReplicationStreamModel 
 	 */
-	class CONCERTCLIENTSHAREDSLATE_API IObjectToPropertiesModel : public TSharedFromThis<IObjectToPropertiesModel>
+	class CONCERTCLIENTSHAREDSLATE_API IReplicationStreamModel : public TSharedFromThis<IReplicationStreamModel>
 	{
 	public:
 
@@ -102,6 +102,6 @@ namespace UE::ConcertClientSharedSlate
 			});
 		}
 		
-		virtual ~IObjectToPropertiesModel() = default;
+		virtual ~IReplicationStreamModel() = default;
 	};
 }

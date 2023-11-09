@@ -7,7 +7,7 @@
 
 namespace UE::ConcertClientSharedSlate
 {
-	class IObjectToPropertiesModel;
+	class IReplicationStreamModel;
 }
 
 namespace UE::MultiUserClient
@@ -19,11 +19,11 @@ namespace UE::MultiUserClient
 	/**
 	 * Contains a bunch of actions that can be performed on client view.
 	 */
-	class SSingleClientToolbar : public SCompoundWidget
+	class SClientToolbar : public SCompoundWidget
 	{
 	public:
 		
-		SLATE_BEGIN_ARGS(SSingleClientToolbar)
+		SLATE_BEGIN_ARGS(SClientToolbar)
 		{}
 			/** Dedicated space for a widget with which to change the view. */
 			SLATE_NAMED_SLOT(FArguments, ViewSelectionArea)
@@ -32,7 +32,7 @@ namespace UE::MultiUserClient
 			SLATE_ATTRIBUTE(TSet<FGuid>, DisplayedClients)
 		SLATE_END_ARGS()
 
-		void Construct(const FArguments& InArgs, const ConcertClientSharedSlate::IObjectToPropertiesModel& InObjectModel, FGlobalAuthorityCache& InAuthorityCache);
+		void Construct(const FArguments& InArgs, const ConcertClientSharedSlate::IReplicationStreamModel& InObjectModel, FGlobalAuthorityCache& InAuthorityCache);
 	};
 }
 

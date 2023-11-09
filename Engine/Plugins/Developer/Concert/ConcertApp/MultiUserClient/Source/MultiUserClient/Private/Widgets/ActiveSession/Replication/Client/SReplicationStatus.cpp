@@ -45,7 +45,7 @@ namespace UE::MultiUserClient
 		}
 	}
 	
-	void SReplicationStatus::Construct(const FArguments& InArgs, const ConcertClientSharedSlate::IObjectToPropertiesModel& InObjectModel, FGlobalAuthorityCache& InAuthorityCache)
+	void SReplicationStatus::Construct(const FArguments& InArgs, const ConcertClientSharedSlate::IReplicationStreamModel& InObjectModel, FGlobalAuthorityCache& InAuthorityCache)
 	{
 		ObjectModel = &InObjectModel;
 		AuthorityCache = &InAuthorityCache;

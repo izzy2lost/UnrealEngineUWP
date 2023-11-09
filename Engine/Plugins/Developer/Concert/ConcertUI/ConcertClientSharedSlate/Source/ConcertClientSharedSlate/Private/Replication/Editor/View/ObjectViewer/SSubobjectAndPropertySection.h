@@ -45,7 +45,7 @@ namespace UE::ConcertClientSharedSlate
 			SLATE_NAMED_SLOT(FArguments, LeftOfPropertySearchBar)
 		SLATE_END_ARGS()
 
-		void Construct(const FArguments& InArgs, TSharedRef<IObjectToPropertiesModel> InPropertiesModel);
+		void Construct(const FArguments& InArgs, TSharedRef<IReplicationStreamModel> InPropertiesModel);
 
 		/** If there is a subobject view, makes it select the root objects. */
 		void SelectRootObjects() const;
@@ -61,7 +61,7 @@ namespace UE::ConcertClientSharedSlate
 	private:
 		
 		/** The model this view is visualizing. */
-		TSharedPtr<IObjectToPropertiesModel> PropertiesModel;
+		TSharedPtr<IReplicationStreamModel> PropertiesModel;
 		
 		/** Optional. External widget that selects subobjects from ActorArea. */
 		TSharedPtr<IReplicationSubobjectView> SubobjectView;
