@@ -99,6 +99,7 @@ namespace Impl
 		Active,
 		Complete,
 		UnableToProgress,
+		WaitingForEvents,
 	};
 
 	/** Affects how rules are applied to improve loading/runtime performance */
