@@ -8,6 +8,7 @@
 #include "PersonaTabs.h"
 #include "Editor/RigHierarchyTabSummoner.h"
 #include "Editor/ModularRigHierarchyTabSummoner.h"
+#include "Editor/RigModuleAssetBrowserTabSummoner.h"
 #include "Editor/RigVMExecutionStackTabSummoner.h"
 #include "Editor/RigCurveContainerTabSummoner.h"
 #include "Editor/RigValidationTabSummoner.h"
@@ -17,14 +18,9 @@
 FControlRigEditorMode::FControlRigEditorMode(const TSharedRef<FControlRigEditor>& InControlRigEditor, bool bCreateDefaultLayout)
 	: FBlueprintEditorApplicationMode(InControlRigEditor, FControlRigEditorModes::ControlRigEditorMode, FControlRigEditorModes::GetLocalizedMode, false, false)
 {
-
 	ControlRigBlueprintPtr = CastChecked<UControlRigBlueprint>(InControlRigEditor->GetBlueprintObj());
 
 	TabFactories.RegisterFactory(MakeShared<FRigHierarchyTabSummoner>(InControlRigEditor));
-	if (ControlRigBlueprintPtr->IsModularRig())
-	{
-		TabFactories.RegisterFactory(MakeShared<FModularRigHierarchyTabSummoner>(InControlRigEditor));
-	}
 	TabFactories.RegisterFactory(MakeShared<FRigVMExecutionStackTabSummoner>(InControlRigEditor));
 	TabFactories.RegisterFactory(MakeShared<FRigCurveContainerTabSummoner>(InControlRigEditor));
 	TabFactories.RegisterFactory(MakeShared<FRigValidationTabSummoner>(InControlRigEditor));
@@ -46,7 +42,7 @@ FControlRigEditorMode::FControlRigEditorMode(const TSharedRef<FControlRigEditor>
 
 	if(bCreateDefaultLayout)
 	{
-		TabLayout = FTabManager::NewLayout("Standalone_ControlRigEditMode_Layout_v1.6")
+		TabLayout = FTabManager::NewLayout("Standalone_ControlRigEditMode_Layout_v1.8")
 			->AddArea
 			(
 				// Main application area
@@ -73,21 +69,12 @@ FControlRigEditorMode::FControlRigEditorMode(const TSharedRef<FControlRigEditor>
 						->Split
 						(
 							//	Left bottom - rig/hierarchy
-							ControlRigBlueprintPtr->IsModularRig() ?
-								FTabManager::NewStack()
-								->SetSizeCoefficient(0.5f)
-								->AddTab(FRigHierarchyTabSummoner::TabID, ETabState::OpenedTab)
-								->AddTab(FModularRigHierarchyTabSummoner::TabID, ETabState::OpenedTab)
-								->AddTab(FRigVMExecutionStackTabSummoner::TabID, ETabState::OpenedTab)
-								->AddTab(FRigCurveContainerTabSummoner::TabID, ETabState::OpenedTab)
-								->AddTab(FBlueprintEditorTabs::MyBlueprintID, ETabState::OpenedTab)
-									:
-								FTabManager::NewStack()
-								->SetSizeCoefficient(0.5f)
-								->AddTab(FRigHierarchyTabSummoner::TabID, ETabState::OpenedTab)
-								->AddTab(FRigVMExecutionStackTabSummoner::TabID, ETabState::OpenedTab)
-								->AddTab(FRigCurveContainerTabSummoner::TabID, ETabState::OpenedTab)
-								->AddTab(FBlueprintEditorTabs::MyBlueprintID, ETabState::OpenedTab)
+							FTabManager::NewStack()
+							->SetSizeCoefficient(0.5f)
+							->AddTab(FRigHierarchyTabSummoner::TabID, ETabState::OpenedTab)
+							->AddTab(FRigVMExecutionStackTabSummoner::TabID, ETabState::OpenedTab)
+							->AddTab(FRigCurveContainerTabSummoner::TabID, ETabState::OpenedTab)
+							->AddTab(FBlueprintEditorTabs::MyBlueprintID, ETabState::OpenedTab)
 						)
 					)
 					->Split
@@ -157,7 +144,11 @@ void FControlRigEditorMode::RegisterTabFactories(TSharedPtr<FTabManager> InTabMa
 FModularRigEditorMode::FModularRigEditorMode(const TSharedRef<FControlRigEditor>& InControlRigEditor)
 	: FControlRigEditorMode(InControlRigEditor, false)
 {
-	TabLayout = FTabManager::NewLayout("Standalone_ModularRigEditMode_Layout_v1.0")
+
+	TabFactories.RegisterFactory(MakeShared<FModularRigHierarchyTabSummoner>(InControlRigEditor));
+	TabFactories.RegisterFactory(MakeShared<FRigModuleAssetBrowserTabSummoner>(InControlRigEditor));
+	
+	TabLayout = FTabManager::NewLayout("Standalone_ModularRigEditMode_Layout_v1.2")
 		->AddArea
 		(
 			// Main application area
@@ -183,22 +174,27 @@ FModularRigEditorMode::FModularRigEditorMode(const TSharedRef<FControlRigEditor>
 					)
 					->Split
 					(
-						//	Left bottom - rig/hierarchy
-						InControlRigEditor->GetControlRigBlueprint()->IsModularRig() ?
+						//	Left bottom - rig/hierarchy/modules
+						FTabManager::NewSplitter()
+						->SetOrientation(Orient_Horizontal)
+						->SetSizeCoefficient(0.5f)
+						->Split
+						(
+							// Left bottom left
 							FTabManager::NewStack()
 							->SetSizeCoefficient(0.5f)
+							->SetForegroundTab(FRigHierarchyTabSummoner::TabID)
 							->AddTab(FBlueprintEditorTabs::CompilerResultsID, ETabState::ClosedTab)
 							->AddTab(FRigHierarchyTabSummoner::TabID, ETabState::OpenedTab)
+							->AddTab(FRigCurveContainerTabSummoner::TabID, ETabState::OpenedTab)
+							->AddTab(FBlueprintEditorTabs::MyBlueprintID, ETabState::OpenedTab)
+						)
+						->Split(
+							// Left bottom right
+							FTabManager::NewStack()
+							->SetSizeCoefficient(0.5f)
 							->AddTab(FModularRigHierarchyTabSummoner::TabID, ETabState::OpenedTab)
-							->AddTab(FRigCurveContainerTabSummoner::TabID, ETabState::OpenedTab)
-							->AddTab(FBlueprintEditorTabs::MyBlueprintID, ETabState::OpenedTab)
-								:
-							FTabManager::NewStack()
-							->SetSizeCoefficient(0.5f)
-							->AddTab(FBlueprintEditorTabs::CompilerResultsID, ETabState::ClosedTab)
-							->AddTab(FRigHierarchyTabSummoner::TabID, ETabState::OpenedTab)
-							->AddTab(FRigCurveContainerTabSummoner::TabID, ETabState::OpenedTab)
-							->AddTab(FBlueprintEditorTabs::MyBlueprintID, ETabState::OpenedTab)
+						)
 					)
 				)
 				->Split
@@ -212,10 +208,18 @@ FModularRigEditorMode::FModularRigEditorMode(const TSharedRef<FControlRigEditor>
 						// Right top
 						FTabManager::NewStack()
 						->SetHideTabWell(false)
-						->SetSizeCoefficient(1.f)
+						->SetSizeCoefficient(0.5f )
 						->AddTab(FBlueprintEditorTabs::DetailsID, ETabState::OpenedTab)
 						->AddTab(FPersonaTabs::AdvancedPreviewSceneSettingsID, ETabState::OpenedTab)
 						->AddTab(FRigAnimAttributeTabSummoner::TabID, ETabState::OpenedTab)
+						->SetForegroundTab(FBlueprintEditorTabs::DetailsID)
+					)
+					->Split(
+						// Right bottom
+						FTabManager::NewStack()
+						->SetHideTabWell(false)
+						->SetSizeCoefficient(0.5f)
+						->AddTab(FRigModuleAssetBrowserTabSummoner::TabID, ETabState::OpenedTab)
 						->SetForegroundTab(FBlueprintEditorTabs::DetailsID)
 					)
 				)
