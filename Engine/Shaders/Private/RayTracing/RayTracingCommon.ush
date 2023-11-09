@@ -571,6 +571,9 @@ struct FMaterialClosestHitPayload : FMinimalPayload
 	void SetTwoSided()						{ Flags |= RAY_TRACING_PAYLOAD_OUTPUT_FLAG_TWO_SIDED; }
 	bool IsTwoSided()						{ return (Flags & RAY_TRACING_PAYLOAD_OUTPUT_FLAG_TWO_SIDED) != 0; }
 
+	void SetHoldout()                       { Flags |= RAY_TRACING_PAYLOAD_OUTPUT_FLAG_IS_HOLDOUT; }
+	bool IsHoldout()                        { return (Flags & RAY_TRACING_PAYLOAD_OUTPUT_FLAG_IS_HOLDOUT) != 0; }
+
 	FRayCone GetRayCone()					{ return RayCone; }
 	void SetRayCone(FRayCone In)			{ RayCone = In; }
 	float3 GetRayDirection()				{ return RayDirection; }

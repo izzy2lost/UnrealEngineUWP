@@ -602,10 +602,14 @@ RAY_TRACING_ENTRY_CLOSEST_HIT(MaterialCHS,
 	const bool bIsCameraRay = PackedPayload.IsCameraRay();
 	if (bIsHoldout && bIsCameraRay)
 	{
+#if SUBSTRATE_ENABLED
+		// SUBSTRATE_TODO: Need to clear the material data and set a black unlit material in this case
+#else
 		Payload.ShadingModelID = SHADINGMODELID_UNLIT;
 		Payload.Radiance = 0.0;
 		Payload.BaseColor = 0.0;
 		Payload.Specular = 0.0;
+#endif
 		Payload.SetHoldout();
 	}
 
