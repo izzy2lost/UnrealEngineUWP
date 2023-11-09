@@ -1775,10 +1775,15 @@ void FKConvexElem::ResetChaosConvexMesh()
 
 ENGINE_API void FKConvexElem::ComputeChaosConvexIndices(bool bForceCompute)
 {
+	// these indices are not needed for simulation, but only get used for debug visualization
+#if (UE_ENABLE_DEBUG_DRAWING && !USE_NULL_RHI)	// FIXME: UE_ENABLE_DEBUG_DRAWING needs to be fixed to incorportate !USE_NULL_RHI
 	if (bForceCompute || IndexData.Num() == 0)
 	{
 		IndexData = GetChaosConvexIndices();
 	}
+#else
+	IndexData.Reset();
+#endif
 }
 
 TArray<int32> FKConvexElem::GetChaosConvexIndices() const

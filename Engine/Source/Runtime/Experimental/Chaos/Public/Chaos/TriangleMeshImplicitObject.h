@@ -668,8 +668,12 @@ namespace Chaos
 				// unless it is required for gameplay, as we are wasting disk space.
 				if (Ar.IsLoading())
 				{
-					ExternalFaceIndexMap = MakeUnique<TArray<int32>>(TArray<int32>());
-					Ar << *ExternalFaceIndexMap;
+					TUniquePtr<TArray<int32>> ExternalFaceIndexMapTemp = MakeUnique<TArray<int32>>(TArray<int32>());
+					Ar << *ExternalFaceIndexMapTemp;
+					if (!ExternalFaceIndexMapTemp->IsEmpty())
+					{
+						ExternalFaceIndexMap = MoveTemp(ExternalFaceIndexMapTemp);
+					}
 				}
 				else
 				{
