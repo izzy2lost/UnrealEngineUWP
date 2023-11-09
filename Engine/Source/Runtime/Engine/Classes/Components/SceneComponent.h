@@ -112,6 +112,8 @@ private:
 	UPROPERTY(ReplicatedUsing = OnRep_AttachSocketName)
 	FName AttachSocketName;
 
+	FName NetOldAttachSocketName;
+
 	/** List of child SceneComponents that are attached to us. */
 	UPROPERTY(ReplicatedUsing = OnRep_AttachChildren, Transient)
 	TArray<TObjectPtr<USceneComponent>> AttachChildren;
@@ -120,7 +122,6 @@ private:
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<USceneComponent>> ClientAttachedChildren;
 
-	FName NetOldAttachSocketName;
 	USceneComponent* NetOldAttachParent;
 
 public:
