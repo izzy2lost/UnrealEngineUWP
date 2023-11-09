@@ -241,7 +241,6 @@ public:
 #endif
 
 	const TArray<TWeakObjectPtr<UNiagaraParameterDefinitions>>& GetCachedParameterDefinitionsAssets();
-	const TArray<TWeakObjectPtr<UNiagaraParameterCollection>>& GetCachedParameterCollectionAssets();
 
 	NIAGARAEDITOR_API void GetTargetSystemAndEmitterForDataInterface(UNiagaraDataInterface* InDataInterface, UNiagaraSystem*& OutOwningSystem, FVersionedNiagaraEmitter& OutOwningEmitter);
 	NIAGARAEDITOR_API void GetDataInterfaceFeedbackSafe(UNiagaraDataInterface* InDataInterface, TArray<FNiagaraDataInterfaceError>& OutErrors, TArray<FNiagaraDataInterfaceFeedback>& Warnings, TArray<FNiagaraDataInterfaceFeedback>& Info);
@@ -299,17 +298,7 @@ private:
 			{
 				if (AssetDatum.IsAssetLoaded() || (bAllowLoading && FPackageName::GetPackageMountPoint(AssetDatum.PackageName.ToString()) != NAME_None))
 				{
-					AssetType* Asset = nullptr;
-					if (AssetDatum.IsAssetLoaded() == false && bForceLoadSilent)
-					{
-						Asset = Cast<AssetType>(LoadSilent(AssetDatum));
-					}
-					else
-					{
-						Asset = Cast<AssetType>(AssetDatum.GetAsset());
-					}
-
-					if (Asset != nullptr)
+					if (AssetType* Asset = Cast<AssetType>(AssetDatum.GetAsset()))
 					{
 						Asset->ConditionalPostLoad();
 						CachedAssets.Add(MakeWeakObjectPtr(Asset));
@@ -320,18 +309,8 @@ private:
 
 		const TArray<TWeakObjectPtr<AssetType>>& Get() const { return CachedAssets; };
 
-		void SetForceLoadSilent(bool bInForceLoadSilent) { bForceLoadSilent = bInForceLoadSilent; }
-
-	private:
-		static UObject* LoadSilent(const FAssetData& AssetData)
-		{
-			uint32 LoadFlags = LOAD_Quiet | LOAD_NoWarn;
-			return StaticLoadObject(AssetType::StaticClass(), nullptr, *AssetData.GetObjectPathString(), nullptr, LoadFlags, nullptr, true);
-		};
-
 	private:
 		TArray<TWeakObjectPtr<AssetType>> CachedAssets;
-		bool bForceLoadSilent = false;
 	};
 
 	void RegisterDefaultRendererFactories();

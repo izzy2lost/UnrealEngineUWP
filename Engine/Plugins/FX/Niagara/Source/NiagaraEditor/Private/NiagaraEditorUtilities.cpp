@@ -3061,19 +3061,6 @@ bool FNiagaraEditorUtilities::GetAvailableParameterDefinitions(const TArray<FStr
 	return AssetRegistryModule.GetRegistry().GetAssets(ARFilter, OutParameterDefinitionsAssetData);
 }
 
-void FNiagaraEditorUtilities::GetAvailableParameterCollections(TArray<UNiagaraParameterCollection*>& OutParameterCollections)
-{
-	const TArray<TWeakObjectPtr<UNiagaraParameterCollection>>& CachedParameterCollectionAssets = FNiagaraEditorModule::Get().GetCachedParameterCollectionAssets();
-
-	for (const TWeakObjectPtr<UNiagaraParameterCollection>& CachedParameterCollectionAsset : CachedParameterCollectionAssets)
-	{
-		if (UNiagaraParameterCollection* ParameterCollection = CachedParameterCollectionAsset.Get())
-		{
-			OutParameterCollections.Add(ParameterCollection);
-		}
-	}
-}
-
 TSharedPtr<INiagaraParameterDefinitionsSubscriberViewModel> FNiagaraEditorUtilities::GetOwningLibrarySubscriberViewModelForGraph(const UNiagaraGraph* Graph)
 {
 	if (UNiagaraScript* BaseScript = Graph->GetTypedOuter<UNiagaraScript>())

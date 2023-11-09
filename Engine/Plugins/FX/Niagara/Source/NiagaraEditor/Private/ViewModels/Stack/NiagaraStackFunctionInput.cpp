@@ -1730,19 +1730,31 @@ void UNiagaraStackFunctionInput::GetAvailableParameterHandles(TArray<FNiagaraPar
 	}
 
 	//Parameter Collections
-	TArray<UNiagaraParameterCollection*> AvailableParameterCollections;
-	FNiagaraEditorUtilities::GetAvailableParameterCollections(AvailableParameterCollections);
-	for (UNiagaraParameterCollection* Collection : AvailableParameterCollections)
+	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+	TArray<FAssetData> CollectionAssets;
+	AssetRegistryModule.Get().GetAssetsByClass(UNiagaraParameterCollection::StaticClass()->GetClassPathName(), CollectionAssets);
+
+	// This is a temporary HACK in order to prevent warnings when loading this content and the parameter collection is missing.
+	auto LoadQuiet = [](FAssetData& AssetData)
 	{
-		for (const FNiagaraVariable& CollectionParam : Collection->GetParameters())
+		uint32 LoadFlags = LOAD_Quiet | LOAD_NoWarn;
+		return StaticLoadObject(UNiagaraParameterCollection::StaticClass(), nullptr, *AssetData.GetObjectPathString(), nullptr, LoadFlags, nullptr, true);
+	};
+
+	for (FAssetData& CollectionAsset : CollectionAssets)
+	{
+		if (UNiagaraParameterCollection* Collection = Cast<UNiagaraParameterCollection>(LoadQuiet(CollectionAsset)))
 		{
-			if (FNiagaraEditorUtilities::AreTypesAssignable(CollectionParam.GetType(), InputType))
+			for (const FNiagaraVariable& CollectionParam : Collection->GetParameters())
 			{
-				AvailableParameterHandles.AddUnique(FNiagaraParameterHandle(CollectionParam.GetName()));
-			}
-			else if (UNiagaraScript* ConversionScript = FindConversionScript(CollectionParam.GetType(), ConversionScriptCache, bIncludeConversionScripts))
-			{
-				AvailableConversionHandles.Add(CollectionParam, ConversionScript);
+				if (FNiagaraEditorUtilities::AreTypesAssignable(CollectionParam.GetType(), InputType))
+				{
+					AvailableParameterHandles.AddUnique(FNiagaraParameterHandle(CollectionParam.GetName()));
+				}
+				else if (UNiagaraScript* ConversionScript = FindConversionScript(CollectionParam.GetType(), ConversionScriptCache, bIncludeConversionScripts))
+				{
+					AvailableConversionHandles.Add(CollectionParam, ConversionScript);
+				}
 			}
 		}
 	}

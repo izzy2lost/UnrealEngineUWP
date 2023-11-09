@@ -770,11 +770,14 @@ FReply SNiagaraStackFunctionInputValue::OnLinkedInputDoubleClicked(const FGeomet
 	FString ParamName;
 	FunctionInput->GetLinkedValueHandle().GetName().ToString().Split(TEXT("."), &ParamCollection, &ParamName);
 
-	TArray<UNiagaraParameterCollection*> AvailableParameterCollections;
-	FNiagaraEditorUtilities::GetAvailableParameterCollections(AvailableParameterCollections);
-	for (UNiagaraParameterCollection* Collection : AvailableParameterCollections)
+	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+	TArray<FAssetData> CollectionAssets;
+	AssetRegistryModule.Get().GetAssetsByClass(UNiagaraParameterCollection::StaticClass()->GetClassPathName(), CollectionAssets);
+
+	for (FAssetData& CollectionAsset : CollectionAssets)
 	{
-		if (Collection->GetNamespace() == *ParamCollection)
+		UNiagaraParameterCollection* Collection = CastChecked<UNiagaraParameterCollection>(CollectionAsset.GetAsset());
+		if (Collection && Collection->GetNamespace() == *ParamCollection)
 		{
 			if (UNiagaraParameterCollectionInstance* NPCInst = FunctionInput->GetSystemViewModel()->GetSystem().GetParameterCollectionOverride(Collection))
 			{
