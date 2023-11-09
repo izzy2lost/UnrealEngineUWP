@@ -642,8 +642,9 @@ void UNearestNeighborModelSection::PostEditChangeProperty(FPropertyChangedEvent&
 		InvalidateTraining();
 		UpdateVertexWeights();
 	}
+	// Sometimes we need to set geometry cache to None before checking in. Do not invalidate training in this case.
 	if (Property->GetFName() == GET_MEMBER_NAME_CHECKED(UNearestNeighborModelSection, NeighborPoses) ||
-		Property->GetFName() == GET_MEMBER_NAME_CHECKED(UNearestNeighborModelSection, NeighborMeshes) ||
+		// Property->GetFName() == GET_MEMBER_NAME_CHECKED(UNearestNeighborModelSection, NeighborMeshes) ||
 		Property->GetFName() == GET_MEMBER_NAME_CHECKED(UNearestNeighborModelSection, ExcludedFrames))
 	{
 		InvalidateInference();
@@ -1041,7 +1042,6 @@ void UNearestNeighborModel::PostEditChangeProperty(FPropertyChangedEvent& Proper
 		return;
 	}
 	if (Property->GetFName() == UMLDeformerModel::GetSkeletalMeshPropertyName() ||
-		PropertyChangedEvent.GetMemberPropertyName() == TEXT("TrainingInputAnims") ||
 		Property->GetFName() == UMLDeformerModel::GetAlignmentTransformPropertyName() ||
 		Property->GetFName() == UMLDeformerModel::GetBoneIncludeListPropertyName() ||
 		Property->GetFName() == UMLDeformerModel::GetCurveIncludeListPropertyName() ||
@@ -1054,6 +1054,14 @@ void UNearestNeighborModel::PostEditChangeProperty(FPropertyChangedEvent& Proper
 		Property->GetFName() == UNearestNeighborModel::GetEarlyStopEpochsPropertyName())
 	{
 		InvalidateTraining();
+	}
+	if (PropertyChangedEvent.GetMemberPropertyName() == TEXT("TrainingInputAnims"))
+	{
+		// Sometimes we need to set geometry cache to None before checking in. Do not invalidate training in this case.
+		if (Property->GetFName() != FMLDeformerGeomCacheTrainingInputAnim::GetGeomCachePropertyName())
+		{
+			InvalidateTraining();
+		}
 	}
 
 	if (Property->GetFName() == UNearestNeighborModel::GetBoneIncludeListPropertyName() ||
