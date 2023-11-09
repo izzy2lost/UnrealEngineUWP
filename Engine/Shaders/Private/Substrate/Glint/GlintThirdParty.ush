@@ -604,20 +604,20 @@ float Sample_P_1D(FGlintLutParams GlintLutParams, float u, int ij, int l)
 
 	// Samples the positive part of the 1D distribution
 	// Sampled value is in [0, 1)
-	float sample = 0;
+	float Sample = 0;
 	LOOP
 	for (uint it = 0; it < EntryCount; ++it)
 	{
 		if (Cdfs[it] <= u && u <= Cdfs[it + 1])
 		{
 			const float s = (u - Cdfs[it]) / max(0.0001f, (Cdfs[it+1]-Cdfs[it]));
-			sample = saturate((it + s) / float(EntryCount));
+			Sample = saturate((it + s) / float(EntryCount));
 			break;
 		}
 	}
 
 	// Output is in [-alpha_dist_isqrt2_4, alpha_dist_isqrt2_4]
-	return SignScale * sample * alpha_dist_isqrt2_4;
+	return SignScale * Sample * alpha_dist_isqrt2_4;
 }
 
 //=============================================================================

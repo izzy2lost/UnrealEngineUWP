@@ -320,8 +320,6 @@ RAY_TRACING_ENTRY_RAYGEN(RayTracingDebugMainRGS)
 			Result.rgb = float3(1,0,1);
 		}
 	}
-
-	Result.a = Result.a;
 	
 	Output[PixelCoord] = Result;
 

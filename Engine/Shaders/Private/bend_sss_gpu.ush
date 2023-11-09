@@ -463,7 +463,7 @@ struct DispatchParameters
 			float depth_delta = abs(start_depth - DepthData[sample_index + i] * depth_scale);
 
 		#if TRACK_HIT_UV && PACKED_HIT_INDEX
-			uint depth_delta_packed = asuint(depth_delta) & 0xffffff80 | (i + 1);
+			uint depth_delta_packed = (asuint(depth_delta) & 0xffffff80) | (i + 1);
 			hard_shadow_packed = min(hard_shadow_packed, depth_delta_packed);
 		#else
 			// We want to find the distance of the sample that is closest to the reference depth
@@ -489,7 +489,7 @@ struct DispatchParameters
 			float depth_delta = abs(start_depth - DepthData[sample_index + i] * depth_scale);
 
 		#if TRACK_HIT_UV && PACKED_HIT_INDEX
-			uint depth_delta_packed = asuint(depth_delta) & 0xffffff80 | (i + 1);
+			uint depth_delta_packed = (asuint(depth_delta) & 0xffffff80) | (i + 1);
 			shadow_value_packed[i & 3] = min(shadow_value_packed[i & 3], depth_delta_packed);
 		#else
 			// Do the same as the hard_shadow code above, but this will accumulate to 4 separate values.
@@ -518,7 +518,7 @@ struct DispatchParameters
 			float depth_delta = abs(start_depth - DepthData[sample_index + i] * depth_scale) + fade_out;
 
 		#if TRACK_HIT_UV && PACKED_HIT_INDEX
-			uint depth_delta_packed = asuint(depth_delta) & 0xffffff80 | (i + 1);
+			uint depth_delta_packed = (asuint(depth_delta) & 0xffffff80) | (i + 1);
 			shadow_value_packed[i & 3] = min(shadow_value_packed[i & 3], depth_delta_packed);
 		#else
 			shadow_value[i & 3] = min(shadow_value[i & 3], depth_delta);

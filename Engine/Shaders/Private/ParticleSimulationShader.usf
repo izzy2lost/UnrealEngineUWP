@@ -579,7 +579,7 @@ void PixelMain(
 		Force += ComputeDrag(Velocity.xyz, DragCoefficient);
 
 		// Compute force to a point gravity source.
-		Force += ComputeAttractionForce(PositionSample);
+		Force += ComputeAttractionForce(PositionSample.xyz);
 
 		// Compute the acceleration to apply to the particle this frame.
 		float3 Acceleration = Force * DeltaSeconds;

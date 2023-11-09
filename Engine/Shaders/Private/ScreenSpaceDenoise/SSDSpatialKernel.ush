@@ -1084,7 +1084,7 @@ void AccumulateBilinear2x2Kernel(
 	FLATTEN
 	if (bUseStocasticBilinear)
 	{
-		float2 SampleOffset;
+		float2 SampleOffset = 0;
 		float WeigthAccumulation = 0.0;
 
 		UNROLL_N(4)

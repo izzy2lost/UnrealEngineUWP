@@ -106,7 +106,7 @@ float4 FindQuatBetweenVectors(in float3 VectorA, in float3 VectorB)
 
 float4 QuatFromMatrix(in float3 R[3])
 {
-	float4 Q;
+	float4 Q = 0;
 	float s;
 	float tr = R[0][0] + R[1][1] + R[2][2];
 

@@ -227,15 +227,11 @@ uint2 ComputeRandomSeed(uint2 PixelPosition)
 float3 ComputeL(float3 N, float2 E)
 {
 	float3x3 TangentBasis = GetTangentBasis(N);
-	
-	float3 L;
-	L.xy = UniformSampleDiskConcentric( E );
-	L.z = sqrt( 1 - dot( L.xy, L.xy ) );
-	L = mul( L, TangentBasis );
-
-	return L;
-
+#if 1	
+	float3 TangentL = CosineSampleHemisphereConcentric(E).xyz;
+#else
 	float3 TangentL = CosineSampleHemisphere(E).xyz;
+#endif
 	return mul(TangentL, TangentBasis);
 }
 

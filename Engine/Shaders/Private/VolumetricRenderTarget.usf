@@ -763,8 +763,7 @@ void ComposeVolumetricRTOverScenePS(
 		}
 	}
 	return;
-
-#endif
+#else // PERMUTATION_RENDER_UNDERWATER_BUFFER
 
 	// We only want to run the special "cloud over water" code path on actual water pixels, otherwise depth threshold can cause visual issues.
 	FScreenSpaceData ScreenSpaceData = GetScreenSpaceData(ScreenUV);
@@ -875,6 +874,7 @@ void ComposeVolumetricRTOverScenePS(
 	{
 		clip(-1.0f);
 	}
+#endif // PERMUTATION_RENDER_UNDERWATER_BUFFER
 
 #endif
 

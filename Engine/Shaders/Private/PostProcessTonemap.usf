@@ -368,9 +368,9 @@ float4 TonemapCommonPS(
 		const float3 SceneColorTint = 1.0;
 	#elif SUPPORTS_SCENE_COLOR_APPLY_PARAMETERS
 		// Note that SceneColorApplyParamaters[0] is only for FFT bloom energy conservativeness = doesn't need to be in PreExposure
-		const float3 SceneColorTint = ColorScale0 * SceneColorApplyParamaters[0].xyz;
+		const float3 SceneColorTint = ColorScale0.rgb * SceneColorApplyParamaters[0].xyz;
 	#else
-		const float3 SceneColorTint = ColorScale0;
+		const float3 SceneColorTint = ColorScale0.rgb;
 	#endif
 
 	// Compute the local exposure based of the scene color.

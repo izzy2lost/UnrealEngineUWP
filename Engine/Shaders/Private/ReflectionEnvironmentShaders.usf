@@ -922,7 +922,7 @@ float3 GetIlluminance()
 	// See https://www.ppsloan.org/publications/StupidSH36.pdf, p.9.
 	IlluminanceAcc.rgb *= 4.0 * PI / IlluminanceAcc.a;
 
-	return IlluminanceAcc;
+	return IlluminanceAcc.rgb;
 }
 
 float GetSimpleAutoExposure()

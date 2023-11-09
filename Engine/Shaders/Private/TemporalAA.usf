@@ -846,8 +846,9 @@ float4 TransformSceneColor(float4 RawLinearSceneColorRGBA)
 {
 	#if AA_YCOCG
 		return float4(RGBToYCoCg(RawLinearSceneColorRGBA.rgb), RawLinearSceneColorRGBA.a);
+	#else
+		return RawLinearSceneColorRGBA;
 	#endif
-	return RawLinearSceneColorRGBA;
 }
 
 // Reciprocal of TransformSceneColor().
@@ -855,8 +856,9 @@ float4 TransformBackToRawLinearSceneColor(float4 SceneColor)
 {
 	#if AA_YCOCG
 		return float4(YCoCgToRGB(SceneColor.xyz), SceneColor.a);
+	#else
+		return SceneColor;
 	#endif
-	return SceneColor;
 }
 
 // Transform current frame's RAW scene color RGB to TAA's working color space.
@@ -870,8 +872,9 @@ float GetSceneColorLuma4(float4 SceneColor)
 {
 	#if AA_YCOCG
 		return SceneColor.x;
+	#else
+		return Luma4(SceneColor.rgb);
 	#endif
-	return Luma4(SceneColor.rgb);
 }
 
 // Get the HDR weight of the transform scene color.
@@ -881,8 +884,9 @@ float GetSceneColorHdrWeight(
 {
 	#if AA_YCOCG
 		return HdrWeightY(SceneColor.x, InputParams.FrameExposureScale);
+	#else
+		return HdrWeight4(SceneColor.rgb, InputParams.FrameExposureScale);
 	#endif
-	return HdrWeight4(SceneColor.rgb, InputParams.FrameExposureScale);
 }
 
 

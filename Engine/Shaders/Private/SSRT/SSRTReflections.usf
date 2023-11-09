@@ -189,7 +189,7 @@ void ScreenSpaceReflections(
 
 	OutColor = lerp(float4(1, 0, 0, 1), float4(1, 1 ,0, 1), PatternMask) * 0.2f;
 	return;
-#endif
+#else
 
 	float a = Roughness * Roughness;
 	float a2 = a * a;
@@ -416,6 +416,7 @@ void ScreenSpaceReflections(
 			sqrt(ClosestHitDistanceSqr));
 	}
 	#endif
+#endif // SSR_QUALITY == 0
 }
 
 void ScreenSpaceReflectionsPS(

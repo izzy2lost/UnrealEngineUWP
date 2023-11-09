@@ -193,7 +193,7 @@ void TileMainCS(uint2 DispatchThreadId : SV_DispatchThreadID, uint LinearIndex :
 		BRANCH
 		if (CMask > 0u && CMask < 0xF)
 		{
-			bClearHeader = TopLayerTexture.Load(uint3(PixelCoord,0)) == 0;
+			bClearHeader = TopLayerTexture.Load(uint3(PixelCoord,0)).x == 0;
 		}
 
 		// Header clear

@@ -32,7 +32,7 @@ void ReflectionClearTracesCS(
 	uint GroupThreadId : SV_GroupThreadID)
 {
 	FReflectionTileData TileData;
-	uint2 TmpReflectionTracingCoord = GetReflectionTracingScreenCoord(GroupId/*TileCoord*/, GroupThreadId/*InnerTileCoord*/, TileData);
+	uint2 TmpReflectionTracingCoord = GetReflectionTracingScreenCoord(GroupId/*TileCoord*/, GroupThreadId/*InnerTileCoord*/, TileData).xy;
 	const FReflectionTracingCoord ReflectionTracingCoord = GetReflectionTracingCoord(TmpReflectionTracingCoord, TileData.ClosureIndex);
 
 	RWTraceRadiance[ReflectionTracingCoord.CoordFlatten] = 0.0f;
@@ -58,7 +58,7 @@ void ReflectionTraceScreenTexturesCS(
 	uint GroupThreadId : SV_GroupThreadID)
 {
 	FReflectionTileData TileData;
-	const uint2 TmpReflectionTracingCoord = GetReflectionTracingScreenCoord(GroupId/*TileCoord*/, GroupThreadId/*InnerTileCoord*/, TileData);
+	const uint2 TmpReflectionTracingCoord = GetReflectionTracingScreenCoord(GroupId/*TileCoord*/, GroupThreadId/*InnerTileCoord*/, TileData).xy;
 	const FReflectionTracingCoord ReflectionTracingCoord = GetReflectionTracingCoord(TmpReflectionTracingCoord, TileData.ClosureIndex);
 
 	if (all(ReflectionTracingCoord.Coord < ReflectionTracingViewSize))
@@ -578,7 +578,7 @@ void TraceMeshSDFs(FReflectionTracingCoord ReflectionTracingCoord, float TraceHi
 	TraceInput.Setup(SamplePosition, SampleTranslatedPosition, RayData.Direction, RayCone.SpreadAngle, 0.0f, max(TraceHitDistance - PullbackForSurfaceExpand, 0.0f), RayData.RadianceCacheMaxTraceDistance, 1.0f);
 	TraceInput.bHiResSurface = UseHighResSurface != 0;
 	TraceInput.VoxelTraceStartDistance = MaxMeshSDFTraceDistance;
-	TraceInput.DitherScreenCoord = ReflectionTracingCoord.CoordFlatten;
+	TraceInput.DitherScreenCoord = ReflectionTracingCoord.CoordFlatten.xy;
 
 	uint CardGridCellIndex = ComputeCardGridCellIndex(ReflectionTracingCoord.Coord * ReflectionDownsampleFactor, SceneDepth);
 	TraceInput.NumMeshSDFs = NumGridCulledMeshSDFObjects[CardGridCellIndex];

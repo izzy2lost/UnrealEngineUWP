@@ -884,7 +884,7 @@ FRayTracedLightingResult TraceAndCalculateRayTracedLighting(
 						// And according to the surface specular transmission.
 						// This is not applied by the legacy shading model, so it is only accounted when Substrate is enabled.
 						const float NoV = saturate(dot(-Ray.Direction, Payload.GetWorldNormal()));
-						NextRefractionPathVertexThroughput *= 1.0 - EnvBRDF(LumenMaterial.TopLayerSpecularColor, LumenMaterial.TopLayerRoughness, NoV);
+						NextRefractionPathVertexThroughput *= 1.0 - EnvBRDF(LumenMaterial.TopLayerSpecularColor, LumenMaterial.TopLayerRoughness, NoV).x;
 					#endif
 					}
 				#endif // RECURSIVE_REFRACTION_TRACES

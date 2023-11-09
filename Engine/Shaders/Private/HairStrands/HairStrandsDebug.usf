@@ -1926,7 +1926,7 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 	{
 		const float4 Color0 = lerp(ColorRoot, ColorTip, P0.UCoord);
 		const float4 Color1 = lerp(ColorRoot, ColorTip, P1.UCoord);
-		AddLineWS(mul(float4(P0.Position, 1), LocalToWorld), mul(float4(P1.Position,1), LocalToWorld), Color0, Color1);
+		AddLineWS(mul(float4(P0.Position, 1), LocalToWorld).xyz, mul(float4(P1.Position,1), LocalToWorld).xyz, Color0, Color1);
 	}
 }
 
@@ -2918,7 +2918,7 @@ void MainDrawDebugAABBCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 		// Cluster
 		if (DispatchThreadId.x < ClusterCount)
 		{
-			const FHairAABB ClusterBound = ReadHairAABB(DispatchThreadId, ClusterAABBBuffer, 1);
+			const FHairAABB ClusterBound = ReadHairAABB(DispatchThreadId.x, ClusterAABBBuffer, 1);
 			AddAABBTWS(ClusterBound.Min, ClusterBound.Max, float4(0.5f, 1.0f, 0.0f, 0.3f));
 		}
 	}

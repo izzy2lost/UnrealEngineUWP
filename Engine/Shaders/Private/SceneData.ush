@@ -1037,7 +1037,6 @@ FInstanceSceneData GetInstanceSceneData(uint InstanceId, uint SOAStride, bool bC
 																 float4(0.0f, 0.0f, 0.0f, 1.0f)));
 		#endif
 
-			float3 TilePosition 				= PrimitiveData.TilePosition;
 			InstanceData.PrevLocalToWorld		= MakeLWCMatrix(TilePosition, PrevLocalToRelativeWorld);
 		}
 		else

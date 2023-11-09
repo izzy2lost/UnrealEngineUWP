@@ -262,7 +262,7 @@ FTrackingResult SampleBasedMajorantMarch(float3 WorldRayOrigin, float3 WorldRayD
 		HitT += WorldStepSize;
 	}
 	Result.Distance = HitT;
-	Result.Pdf = Result.Throughput;
+	Result.Pdf = Result.Throughput.x; // TODO: handle RGB?
 
 	return Result;
 }
@@ -285,7 +285,7 @@ FTrackingResult SampleBasedMaxMajorantMarch(float3 WorldRayOrigin, float3 WorldR
 		HitT += WorldStepSize;
 	}
 	Result.Distance = HitT;
-	Result.Pdf = Result.Throughput;
+	Result.Pdf = Result.Throughput.x; // TODO: handle RGB?
 
 	return Result;
 }

@@ -325,7 +325,7 @@ void Main(
 				{
 					//For per pixel diffusion, use default transmission parameters (only NormalScale & ExtinctionScale are used)
 					const float3 ColoredMFP = SubstrateSubSurfaceHeaderGetMFP(SSSHeader);
-					const float3 GreyMFP    = SubstrateShadowColoredMFPToGreyScaleMFP(ColoredMFP);
+					const float GreyMFP    = SubstrateShadowColoredMFPToGreyScaleMFP(ColoredMFP);
 					const float Extinction  = SubstrateShadowMFPToExtinction(GreyMFP);
 					TransmissionParams.ExtinctionScale = Extinction;
 				}
@@ -501,7 +501,7 @@ void MainOnePassPointLightPS(
 	{
 		//For per pixel diffusion, use default transmission parameters (only NormalScale & ExtinctionScale are used)
 		const float3 ColoredMFP = SubstrateSubSurfaceHeaderGetMFP(SSSHeader);
-		const float3 GreyMFP    = SubstrateShadowColoredMFPToGreyScaleMFP(ColoredMFP);
+		const float GreyMFP     = SubstrateShadowColoredMFPToGreyScaleMFP(ColoredMFP);
 		const float Extinction  = SubstrateShadowMFPToExtinction(GreyMFP);
 		TransmissionParams.ExtinctionScale = Extinction;
 	}

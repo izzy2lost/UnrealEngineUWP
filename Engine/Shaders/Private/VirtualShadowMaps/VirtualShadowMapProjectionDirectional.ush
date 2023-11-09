@@ -108,7 +108,7 @@ FSMRTClipmapRayState SMRTClipmapRayInitialize(
 		RayStartUVZ.z += OptimalBias;
 	}
 
-	FSMRTClipmapRayState Result;
+	FSMRTClipmapRayState Result = (FSMRTClipmapRayState)0;
 	Result.ClipmapId = ProjectionData.VirtualShadowMapId;
 	Result.RayStartUVZ = RayStartUVZ;
 	Result.RayStepUVZ = RayStepUVZ;

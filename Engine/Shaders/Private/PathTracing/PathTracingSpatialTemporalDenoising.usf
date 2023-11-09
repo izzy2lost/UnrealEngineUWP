@@ -735,7 +735,7 @@ uint MipLevel;
 
 FPixelOffset GetPixelOffsetFromLowerMip(float2 Position, uint MipDiff)
 {
-	uint MipPosMultipler = 1 << (MipDiff);
+	uint MipPosMultipler = 1u << (MipDiff);
 	uint LowerMipLevel = MipLevel + MipDiff;
 
 	float2 LowerMipPosition = 0.0f;
@@ -1003,7 +1003,7 @@ uint MipLevel;
 float4 Get3x3Blur(int2 Position)
 {
 	float2 BufferUV = GetBufferUVFromPosition(Position, MipLevel);
-	float2 HalfPixel = 0.5f * (1 << MipLevel) * TargetViewport_ExtentInverse;
+	float2 HalfPixel = 0.5f * (1u << MipLevel) * TargetViewport_ExtentInverse;
 
 #if 0
 	//Sampling pattern and weights
@@ -1374,7 +1374,7 @@ void VisualizePathTracingMotionVector(
 	float4 Velocity = TemporalDenoisingMotionVector.Load(TexCoord);
 
 	// draw the denoised scene
-	OutColor.rgb = DenoisedTexture.Load(TexCoord) * View.PreExposure;
+	OutColor.rgb = DenoisedTexture.Load(TexCoord).rgb * View.PreExposure;
 
 #if VISUALIZE_COLOR_ENCODING
 	float s, h, v;

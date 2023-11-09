@@ -26,7 +26,7 @@
 
 #define VOXEL_COUNT_MAX 6
 
-#define SHADOW_BIT 0x80000000
+#define SHADOW_BIT 0x80000000u
 
 struct FSparseVoxelPayload
 {
