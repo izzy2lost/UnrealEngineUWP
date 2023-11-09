@@ -103,7 +103,7 @@ void FLogBenchmarkUtil::GetInstancesStats(int32& OutNumInstances, int32& OutNumB
 	
 	for (TObjectIterator<UCustomizableObjectInstance> Instance; Instance; ++Instance)
 	{
-		if (!IsValidChecked(*Instance) ||
+		if (!IsValid(*Instance) ||
 			Instance->HasAnyFlags(RF_ClassDefaultObject))
 		{
 			continue;
@@ -206,7 +206,7 @@ void FLogBenchmarkUtil::UpdateStats()
 
 	for (TObjectIterator<UCustomizableObjectInstanceUsage> CustomizableObjectInstanceUsage; CustomizableObjectInstanceUsage; ++CustomizableObjectInstanceUsage)
 	{
-		if (CustomizableObjectInstanceUsage && CustomizableObjectInstanceUsage->IsNetMode(NM_DedicatedServer))
+		if (!IsValid(*CustomizableObjectInstanceUsage) || CustomizableObjectInstanceUsage->IsNetMode(NM_DedicatedServer))
 		{
 			continue;
 		}

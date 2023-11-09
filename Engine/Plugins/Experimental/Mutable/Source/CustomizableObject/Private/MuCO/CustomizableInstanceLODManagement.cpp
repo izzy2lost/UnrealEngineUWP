@@ -73,13 +73,13 @@ void UpdatePawnToInstancesDistances(const class UCustomizableObjectInstance* Onl
 	for (TObjectIterator<UCustomizableObjectInstanceUsage> CustomizableObjectInstanceUsage; CustomizableObjectInstanceUsage; ++CustomizableObjectInstanceUsage)
 	{
 #if WITH_EDITOR
-		if (CustomizableObjectInstanceUsage && CustomizableObjectInstanceUsage->IsNetMode(NM_DedicatedServer))
+		if (IsValid(*CustomizableObjectInstanceUsage) && CustomizableObjectInstanceUsage->IsNetMode(NM_DedicatedServer))
 		{
 			continue;
 		}
 #endif
 
-		if (CustomizableObjectInstanceUsage->IsValidLowLevel() && (OnlyForInstance == nullptr || CustomizableObjectInstanceUsage->GetCustomizableObjectInstance() == OnlyForInstance))
+		if (IsValid(*CustomizableObjectInstanceUsage) && (OnlyForInstance == nullptr || CustomizableObjectInstanceUsage->GetCustomizableObjectInstance() == OnlyForInstance))
 		{
 			CustomizableObjectInstanceUsage->UpdateDistFromComponentToPlayer(ViewCenter.IsValid() ? ViewCenter.Get() : nullptr, OnlyForInstance != nullptr);
 		}
@@ -93,12 +93,12 @@ void UpdateCameraToInstancesDistance(const FVector CameraPosition)
 	for (TObjectIterator<UCustomizableObjectInstanceUsage> CustomizableObjectInstanceUsage; CustomizableObjectInstanceUsage; ++CustomizableObjectInstanceUsage)
 	{
 #if WITH_EDITOR
-		if (CustomizableObjectInstanceUsage && CustomizableObjectInstanceUsage->IsNetMode(NM_DedicatedServer))
+		if (IsValid(*CustomizableObjectInstanceUsage) && CustomizableObjectInstanceUsage->IsNetMode(NM_DedicatedServer))
 		{
 			continue;
 		}
 #endif
-		if (CustomizableObjectInstanceUsage->IsValidLowLevel() && !CustomizableObjectInstanceUsage->IsTemplate())
+		if (IsValid(*CustomizableObjectInstanceUsage) && !CustomizableObjectInstanceUsage->IsTemplate())
 		{
 			CustomizableObjectInstanceUsage->UpdateDistFromComponentToLevelEditorCamera(CameraPosition);
 		}
@@ -125,7 +125,7 @@ void UCustomizableInstanceLODManagement::UpdateInstanceDistsAndLODs(FMutableInst
 			for (TObjectIterator<UCustomizableObjectInstanceUsage> CustomizableObjectInstanceUsage; CustomizableObjectInstanceUsage; ++CustomizableObjectInstanceUsage)
 			{
 #if WITH_EDITOR
-				if (CustomizableObjectInstanceUsage && CustomizableObjectInstanceUsage->IsNetMode(NM_DedicatedServer))
+				if (IsValid(*CustomizableObjectInstanceUsage) && CustomizableObjectInstanceUsage->IsNetMode(NM_DedicatedServer))
 				{
 					continue;
 				}
@@ -200,7 +200,7 @@ void UCustomizableInstanceLODManagement::UpdateInstanceDistsAndLODs(FMutableInst
 
 		for (TObjectIterator<UCustomizableObjectInstance> CustomizableObjectInstance; CustomizableObjectInstance; ++CustomizableObjectInstance)
 		{
-			if (IsValidChecked(*CustomizableObjectInstance) &&
+			if (IsValid(*CustomizableObjectInstance) &&
 				CustomizableObjectInstance->GetPrivate() &&
 				CustomizableObjectInstance->GetIsBeingUsedByComponentInPlay())
 			{
@@ -302,13 +302,13 @@ void UCustomizableInstanceLODManagement::UpdateInstanceDistsAndLODs(FMutableInst
 		for (TObjectIterator<UCustomizableObjectInstanceUsage> CustomizableObjectInstanceUsage; CustomizableObjectInstanceUsage; ++CustomizableObjectInstanceUsage)
 		{
 #if WITH_EDITOR
-			if (CustomizableObjectInstanceUsage && CustomizableObjectInstanceUsage->IsNetMode(NM_DedicatedServer))
+			if (IsValid(*CustomizableObjectInstanceUsage) && CustomizableObjectInstanceUsage->IsNetMode(NM_DedicatedServer))
 			{
 				continue;
 			}
 #endif
 
-			if (CustomizableObjectInstanceUsage && !CustomizableObjectInstanceUsage->IsTemplate())
+			if (IsValid(*CustomizableObjectInstanceUsage) && !CustomizableObjectInstanceUsage->IsTemplate())
 			{
 				UCustomizableObjectInstance* COI = CustomizableObjectInstanceUsage->GetCustomizableObjectInstance();
 				if (!COI || !COI->GetCustomizableObject())

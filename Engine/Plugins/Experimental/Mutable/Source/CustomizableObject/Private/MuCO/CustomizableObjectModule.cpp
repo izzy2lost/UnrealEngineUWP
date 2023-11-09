@@ -227,13 +227,13 @@ UCustomizableObjectInstanceUsage* GetPlayerCustomizableObjectInstanceUsage(const
 		for (TObjectIterator<UCustomizableObjectInstanceUsage> CustomizableObjectInstanceUsage; CustomizableObjectInstanceUsage; ++CustomizableObjectInstanceUsage)
 		{
 #if WITH_EDITOR
-			if (CustomizableObjectInstanceUsage && CustomizableObjectInstanceUsage->IsNetMode(NM_DedicatedServer))
+			if (IsValid(*CustomizableObjectInstanceUsage) && CustomizableObjectInstanceUsage->IsNetMode(NM_DedicatedServer))
 			{
 				continue;
 			}
 #endif
 
-			if (CustomizableObjectInstanceUsage->IsValidLowLevel() && !CustomizableObjectInstanceUsage->IsTemplate() 
+			if (IsValid(*CustomizableObjectInstanceUsage) && !CustomizableObjectInstanceUsage->IsTemplate()
 				&& CustomizableObjectInstanceUsage->GetAttachParent())
 			{
 				AActor* CustomizableActor = CustomizableObjectInstanceUsage->GetAttachParent()->GetAttachmentRootActor();
@@ -259,13 +259,13 @@ UCustomizableObjectInstanceUsage* GetPlayerCustomizableObjectInstanceUsage(const
 		for (TObjectIterator<UCustomizableObjectInstanceUsage> CustomizableObjectInstanceUsage; CustomizableObjectInstanceUsage; ++CustomizableObjectInstanceUsage)
 		{
 #if WITH_EDITOR
-			if (CustomizableObjectInstanceUsage && CustomizableObjectInstanceUsage->IsNetMode(NM_DedicatedServer))
+			if (IsValid(*CustomizableObjectInstanceUsage) && CustomizableObjectInstanceUsage->IsNetMode(NM_DedicatedServer))
 			{
 				continue;
 			}
 #endif
 
-			if (CustomizableObjectInstanceUsage->IsValidLowLevel() && !CustomizableObjectInstanceUsage->IsTemplate())
+			if (IsValid(*CustomizableObjectInstanceUsage) && !CustomizableObjectInstanceUsage->IsTemplate())
 			{
 				++IndexFound;
 				SelectedCustomizableObjectInstanceUsage = *CustomizableObjectInstanceUsage;

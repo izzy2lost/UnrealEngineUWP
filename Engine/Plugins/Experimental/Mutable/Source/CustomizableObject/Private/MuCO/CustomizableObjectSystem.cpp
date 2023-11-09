@@ -361,13 +361,13 @@ void UCustomizableObjectSystem::LogShowData(bool bFullInfo, bool ShowMaterialInf
 		const UCustomizableObjectInstanceUsage* CustomizableObjectInstanceUsage = *It;
 
 #if WITH_EDITOR
-		if (CustomizableObjectInstanceUsage && CustomizableObjectInstanceUsage->IsNetMode(NM_DedicatedServer))
+		if (IsValid(CustomizableObjectInstanceUsage) && CustomizableObjectInstanceUsage->IsNetMode(NM_DedicatedServer))
 		{
 			continue;
 		}
 #endif
 
-		if (CustomizableObjectInstanceUsage && CustomizableObjectInstanceUsage->GetCustomizableObjectInstance() 
+		if (IsValid(CustomizableObjectInstanceUsage) && CustomizableObjectInstanceUsage->GetCustomizableObjectInstance()
 			&& CustomizableObjectInstanceUsage->GetAttachParent())
 		{
 			const AActor* ParentActor = CustomizableObjectInstanceUsage->GetAttachParent()->GetAttachmentRootActor();
@@ -814,14 +814,14 @@ void FinishUpdateGlobal(const TSharedRef<FUpdateContextPrivate>& Context)
 		for (TObjectIterator<UCustomizableObjectInstanceUsage> It; It; ++It) // Since iterating objects is expensive, for now CustomizableObjectInstanceUsage does not have a FinishUpdate function.
 		{
 #if WITH_EDITOR
-			if (It && It->IsNetMode(NM_DedicatedServer))
+			if (IsValid(*It) && It->IsNetMode(NM_DedicatedServer))
 			{
 				continue;
 			}
 #endif
 
 			if (const UCustomizableObjectInstanceUsage* CustomizableObjectInstanceUsage = *It;
-				CustomizableObjectInstanceUsage &&
+				IsValid(CustomizableObjectInstanceUsage) &&
 				CustomizableObjectInstanceUsage->GetCustomizableObjectInstance() == Instance)
 			{
 				CustomizableObjectInstanceUsage->Callbacks();
@@ -884,13 +884,13 @@ void UpdateSkeletalMesh(const TSharedRef<FUpdateContextPrivate>& Context)
 		UCustomizableObjectInstanceUsage* CustomizableObjectInstanceUsage = *It;
 
 #if WITH_EDITOR
-		if (CustomizableObjectInstanceUsage && CustomizableObjectInstanceUsage->IsNetMode(NM_DedicatedServer))
+		if (IsValid(CustomizableObjectInstanceUsage) && CustomizableObjectInstanceUsage->IsNetMode(NM_DedicatedServer))
 		{
 			continue;
 		}
 #endif
 
-		if (CustomizableObjectInstanceUsage &&
+		if (IsValid(CustomizableObjectInstanceUsage) &&
 			(CustomizableObjectInstanceUsage->GetCustomizableObjectInstance() == CustomizableObjectInstance) &&
 			CustomizableObjectInstance->SkeletalMeshes.IsValidIndex(CustomizableObjectInstanceUsage->GetComponentIndex())
 		   )
@@ -1387,7 +1387,7 @@ bool UCustomizableObjectSystem::CheckIfDiskOrMipUpdateOperationsPending(const UC
 {
 	for (TObjectIterator<UCustomizableObjectInstance> CustomizableObjectInstance; CustomizableObjectInstance; ++CustomizableObjectInstance)
 	{
-		if (CustomizableObjectInstance->GetCustomizableObject() == &Object)
+		if (IsValid(*CustomizableObjectInstance) && CustomizableObjectInstance->GetCustomizableObject() == &Object)
 		{
 			for (const FGeneratedTexture& GeneratedTexture : CustomizableObjectInstance->GetPrivate()->GeneratedTextures)
 			{
@@ -2906,12 +2906,12 @@ namespace impl
 #if WITH_EDITOR
 		for (TObjectIterator<UCustomizableObjectInstanceUsage> CustomizableObjectInstanceUsage; CustomizableObjectInstanceUsage && !bIsInEditorViewport; ++CustomizableObjectInstanceUsage)
 		{
-			if (CustomizableObjectInstanceUsage && CustomizableObjectInstanceUsage->IsNetMode(NM_DedicatedServer))
+			if (IsValid(*CustomizableObjectInstanceUsage) && CustomizableObjectInstanceUsage->IsNetMode(NM_DedicatedServer))
 			{
 				continue;
 			}
 
-			if (CustomizableObjectInstanceUsage &&
+			if (IsValid(*CustomizableObjectInstanceUsage) &&
 				CustomizableObjectInstanceUsage->GetCustomizableObjectInstance() == CandidateInstance)
 			{
 				EWorldType::Type WorldType = EWorldType::Type::None;
@@ -3097,7 +3097,7 @@ bool UCustomizableObjectSystem::Tick(float DeltaTime)
 
 		for (TObjectIterator<UCustomizableObjectInstance> CustomizableObjectInstance; CustomizableObjectInstance; ++CustomizableObjectInstance)
 		{
-			if (IsValidChecked(*CustomizableObjectInstance) && CustomizableObjectInstance->GetPrivate())
+			if (IsValid(*CustomizableObjectInstance) && CustomizableObjectInstance->GetPrivate())
 			{
 				UCustomizableInstancePrivateData* ObjectInstancePrivateData = CustomizableObjectInstance->GetPrivate();
 
@@ -3230,7 +3230,7 @@ bool UCustomizableObjectSystem::Tick(float DeltaTime)
 		{
 			for (TObjectIterator<UCustomizableObjectInstance> CustomizableObjectInstance; CustomizableObjectInstance; ++CustomizableObjectInstance)
 			{
-				if (IsValidChecked(*CustomizableObjectInstance) && CustomizableObjectInstance->GetPrivate())
+				if (IsValid(*CustomizableObjectInstance) && CustomizableObjectInstance->GetPrivate())
 				{
 					CustomizableObjectInstance->GetPrivate()->LastMinSquareDistFromComponentToPlayer = CustomizableObjectInstance->GetPrivate()->MinSquareDistFromComponentToPlayer;
 					CustomizableObjectInstance->GetPrivate()->MinSquareDistFromComponentToPlayer = FLT_MAX;
@@ -3444,7 +3444,7 @@ int32 UCustomizableObjectSystem::GetTotalInstances() const
 	
 	for (TObjectIterator<UCustomizableObjectInstance> Instance; Instance; ++Instance)
 	{
-		if (!Instance ||
+		if (!IsValid(*Instance) ||
 			Instance->HasAnyFlags(RF_ClassDefaultObject))
 		{
 			continue;
@@ -3849,7 +3849,7 @@ void FCustomizableObjectSystemPrivate::UpdateStats()
 	
 	for (TObjectIterator<UCustomizableObjectInstance> Instance; Instance; ++Instance)
 	{
-		if (!IsValidChecked(*Instance))
+		if (!IsValid(*Instance))
 		{
 			continue;
 		}

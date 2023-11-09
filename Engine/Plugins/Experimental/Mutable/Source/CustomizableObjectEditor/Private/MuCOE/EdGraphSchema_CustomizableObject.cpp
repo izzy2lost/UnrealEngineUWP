@@ -525,7 +525,7 @@ void UEdGraphSchema_CustomizableObject::GetGraphContextActions(FGraphContextMenu
 	for (TObjectIterator<UCustomizableObjectNode> It(RF_NoFlags); It; ++It)
 	{
 		const UCustomizableObjectNode* Node = *It;
-		if (!Node->HasAllFlags(RF_ClassDefaultObject) || Node->GetClass()->HasAnyClassFlags(CLASS_Abstract))
+		if (!IsValid(Node) || !Node->HasAllFlags(RF_ClassDefaultObject) || Node->GetClass()->HasAnyClassFlags(CLASS_Abstract))
 		{
 			// Only interested in non-abstract CDOs
 			continue;
@@ -738,7 +738,7 @@ void UEdGraphSchema_CustomizableObject::GetContextMenuActionsReconstructAllChild
 	for (TObjectIterator<UCustomizableObjectNode> It(RF_NoFlags); It; ++It)
 	{
 		const UCustomizableObjectNode* Node = *It;
-		if (!Node->HasAllFlags(RF_ClassDefaultObject))
+		if (!IsValid(Node) || !Node->HasAllFlags(RF_ClassDefaultObject))
 		{
 			continue; // Only interested in CDOs
 		}

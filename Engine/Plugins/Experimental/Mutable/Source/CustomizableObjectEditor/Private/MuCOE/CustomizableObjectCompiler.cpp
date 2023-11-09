@@ -236,7 +236,7 @@ void FCustomizableObjectCompiler::Compile(UCustomizableObject& Object, const FCo
 	for (TObjectIterator<UCustomizableObjectInstance> It; It; ++It)
 	{
 		UCustomizableObjectInstance* Instance = *It;
-		if (Instance &&
+		if (IsValid(Instance) &&
 			Instance->GetCustomizableObject() == &Object)
 		{
 			Instance->DestroyLiveUpdateInstance();
@@ -1523,7 +1523,7 @@ void FCustomizableObjectCompiler::FinishCompilation()
 	for (TObjectIterator<UCustomizableObjectInstance> It; It; ++It)
 	{
 		UCustomizableObjectInstance* Instance = *It;
-		if (Instance &&
+		if (IsValid(Instance) &&
 			Instance->GetCustomizableObject() == CurrentObject)
 		{
 			Instance->SetObject(CurrentObject);

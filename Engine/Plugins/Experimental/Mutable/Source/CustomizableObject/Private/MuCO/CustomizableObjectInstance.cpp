@@ -2755,13 +2755,13 @@ void UCustomizableInstancePrivateData::DiscardResourcesAndSetReferenceSkeletalMe
 		UCustomizableObjectInstanceUsage* CustomizableObjectInstanceUsage = *It;
 
 #if WITH_EDITOR
-		if (CustomizableObjectInstanceUsage && CustomizableObjectInstanceUsage->IsNetMode(NM_DedicatedServer))
+		if (IsValid(CustomizableObjectInstanceUsage) && CustomizableObjectInstanceUsage->IsNetMode(NM_DedicatedServer))
 		{
 			continue;
 		}
 #endif
 
-		if (CustomizableObjectInstanceUsage && CustomizableObjectInstanceUsage->GetCustomizableObjectInstance() == Instance)
+		if (IsValid(CustomizableObjectInstanceUsage) && CustomizableObjectInstanceUsage->GetCustomizableObjectInstance() == Instance)
 		{
 			UCustomizableObject* CustomizableObject = Instance->GetCustomizableObject();
 			bool bReplaceDiscardedWithReferenceMesh = UCustomizableObjectSystem::GetInstance()->GetPrivate()->IsReplaceDiscardedWithReferenceMeshEnabled();

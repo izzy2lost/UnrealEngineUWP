@@ -77,7 +77,7 @@ TArray<UEdGraphPin*> FollowPinArray(const UEdGraphPin& Pin, bool* bOutCycleDetec
 				const UCustomizableObjectNodeExternalPin* LinkedNode = nullptr;
 				for (TObjectIterator<UCustomizableObjectNodeExternalPin> It; It; ++It)
 				{
-					if ((*It)->GetNodeExposePin() == ExposePinNode)
+					if (IsValid(*It) && (*It)->GetNodeExposePin() == ExposePinNode)
 					{
 						LinkedNode = *It;
 						break;
