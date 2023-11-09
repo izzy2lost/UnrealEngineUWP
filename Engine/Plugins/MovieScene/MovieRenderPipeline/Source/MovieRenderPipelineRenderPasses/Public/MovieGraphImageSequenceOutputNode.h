@@ -49,6 +49,19 @@ public:
 #endif
 
 protected:
+	/** Convenience function to get the list of active composite passes from render data. */
+	TArray<TPair<FMovieGraphRenderDataIdentifier, TUniquePtr<FImagePixelData>>> GetCompositedPasses(
+		UE::MovieGraph::FMovieGraphOutputMergerFrame* InRawFrameData) const;
+
+	/** Convenience function to create the output file name. */
+	FString CreateFileName(
+		UE::MovieGraph::FMovieGraphOutputMergerFrame* InRawFrameData,
+		const UMovieGraphPipeline* InPipeline,
+		const TPair<FMovieGraphRenderDataIdentifier, TUniquePtr<FImagePixelData>>& InRenderData,
+		const EImageFormat InImageFormat,
+		FMovieGraphResolveArgs& OutMergedFormatArgs) const;
+
+protected:
 	/** The output format (as known used by the ImageWriteQueue) to output into. */
 	EImageFormat OutputFormat;
 
@@ -77,6 +90,8 @@ public:
 		bQuantizeTo8Bit = false;
 		Compression = EEXRCompressionFormat::PIZ;
 	}
+
+	virtual void OnReceiveImageDataImpl(UMovieGraphPipeline* InPipeline, UE::MovieGraph::FMovieGraphOutputMergerFrame* InRawFrameData, const TSet<FMovieGraphRenderDataIdentifier>& InMask) override;
 
 #if WITH_EDITOR
 	virtual FText GetNodeTitle(const bool bGetDescriptive = false) const override 
@@ -114,6 +129,30 @@ public:
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(EditCondition="bOverride_Compression"), Category = "EXR")
 	EEXRCompressionFormat Compression;
+
+protected:
+
+	/** Convenience function to create a new EXR image write task, given a file name and compression format. */
+	TUniquePtr<FEXRImageWriteTask> CreateImageWriteTask(
+		FString InFileName,
+		EEXRCompressionFormat InCompression
+	) const;
+	
+	/** Convenience function to prepare the image write task's global file metadata. */
+	void PrepareTaskGlobalMetadata(
+		FEXRImageWriteTask& InOutImageTask,
+		UE::MovieGraph::FMovieGraphOutputMergerFrame* InRawFrameData,
+		TMap<FString, FString>& InMetadata
+	) const;
+
+	/** Convenience function to update the image write task for layer data. */
+	void UpdateTaskPerLayer(
+		FEXRImageWriteTask& InOutImageTask,
+		const UMovieGraphImageSequenceOutputNode* InParentNode,
+		FImagePixelData* InImageData,
+		int32 InLayerIndex,
+		const FString& InLayerName = {}
+	) const;
 };
 
 

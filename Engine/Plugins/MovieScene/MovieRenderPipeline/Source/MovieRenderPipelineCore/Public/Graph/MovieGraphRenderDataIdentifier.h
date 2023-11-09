@@ -52,6 +52,12 @@ struct FMovieGraphRenderDataIdentifier
 		return FString::Printf(TEXT("RootBranch: %s Renderer:%s SubResource: %s Camera: %s"), *InIdentifier.RootBranchName.ToString(), *InIdentifier.RendererName, *InIdentifier.SubResourceName, *InIdentifier.CameraName);
 	}
 
+	bool IsBranchAndCameraEqual(const FMovieGraphRenderDataIdentifier& InIdentifier) const
+	{
+		return CameraName == InIdentifier.CameraName &&
+			RootBranchName == InIdentifier.RootBranchName;
+	}
+
 public:
 	/** 
 	* The root branch name that this render layer exists on. Actual display name comes from a UMovieGraphRenderLayerNode (if found in the branch)
