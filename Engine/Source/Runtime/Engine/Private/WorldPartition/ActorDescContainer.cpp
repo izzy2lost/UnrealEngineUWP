@@ -126,15 +126,16 @@ void UActorDescContainer::Initialize(const FInitializeParams& InitParams)
 					ValidActorDescs.Remove(ActorDesc->GetGuid());
 				}
 			}
-			else if (FWorldPartitionActorDesc* ExistingDescGuid = FActorDescList::GetActorDesc(ActorDesc->GetGuid()))
+			else if (TUniquePtr<FWorldPartitionActorDesc>* ExistingActorDescPtr = ValidActorDescs.Find(ActorDesc->GetGuid()))
 			{
-				check(ExistingDescGuid->GetGuid() == ActorDesc->GetGuid());
+				const FWorldPartitionActorDesc* ExistingActorDesc = ExistingActorDescPtr->Get();
+				check(ExistingActorDesc->GetGuid() == ActorDesc->GetGuid());
 				UE_LOG(LogWorldPartition, Warning, TEXT("Duplicate actor descriptor guid `%s`: Actor: '%s' from package '%s' -> Existing actor '%s' from package '%s'"), 
 					*ActorDesc->GetGuid().ToString(), 
 					*ActorDesc->GetActorName().ToString(), 
 					*ActorDesc->GetActorPackage().ToString(),
-					*ExistingDescGuid->GetActorName().ToString(),
-					*ExistingDescGuid->GetActorPackage().ToString());
+					*ExistingActorDesc->GetActorName().ToString(),
+					*ExistingActorDesc->GetActorPackage().ToString());
 				InvalidActors.Emplace(Asset);
 			}
 			else

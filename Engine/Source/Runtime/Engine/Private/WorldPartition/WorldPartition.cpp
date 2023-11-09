@@ -2076,7 +2076,9 @@ UActorDescContainer* UWorldPartition::RegisterActorDescContainer(const FContaine
 				WorldDataLayerActorsDesc = FoundWorldDataLayerActorsDesc;
 			}
 
-			// Filter actors with duplicated GUID in WorldPartition
+			// Filter actors with duplicated GUID in WorldPartition (across containers):
+			// difference with the duplicate check in UActorDescContainer is that WorldPartition is a collection of containers so same Guid could exist across those containers
+			// which wouldn't be validated by the container itself.
 			if (GetActorDesc(ActorDesc->GetGuid()))
 			{
 				UE_LOG(LogWorldPartition, Warning, TEXT("Found existing actor descriptor guid `%s`: Actor: '%s' from package '%s'"),
