@@ -7299,7 +7299,8 @@ static void GetAllMobileRelevantLayerNames(TSet<FName>& OutLayerNames, UMaterial
 	bool bMobileUseRuntimeGrassMapGeneration = false;
 	{
 		// if ANY mobile platform has runtime generation (because we don't calculate mobile weightmaps per platform, just mobile/non-mobile)
-		static FShaderPlatformCachedIniValue<bool> UseRuntimeGenerationCVar(TEXT("grass.GrassMaps.UseRuntimeGeneration"));
+		static FShaderPlatformCachedIniValue<bool> UseRuntimeGenerationCVar(TEXT("grass.GrassMap.UseRuntimeGeneration"));
+		FGenericDataDrivenShaderPlatformInfo::Initialize();
 		for (int32 SPIndex = 0; SPIndex < SP_NumPlatforms; SPIndex++)
 		{
 			EShaderPlatform SP = static_cast<EShaderPlatform>(SPIndex);
