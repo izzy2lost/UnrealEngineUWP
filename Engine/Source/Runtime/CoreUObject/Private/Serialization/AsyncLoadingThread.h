@@ -381,6 +381,8 @@ public:
 
 	bool ShouldAlwaysLoadPackageAsync(const FPackagePath& InPackagePath) override;
 
+	int32 LoadPackage(const FPackagePath& PackagePath, FLoadPackageAsyncOptionalParams OptionalParams) override;
+
 	int32 LoadPackage(
 			const FPackagePath& InPackagePath,
 			FName InCustomName,

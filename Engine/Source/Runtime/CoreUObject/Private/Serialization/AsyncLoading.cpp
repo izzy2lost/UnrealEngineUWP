@@ -7437,6 +7437,21 @@ bool FAsyncLoadingThread::ShouldAlwaysLoadPackageAsync(const FPackagePath& InPac
 	return FPlatformProperties::RequiresCookedData() && GEventDrivenLoaderEnabled && EVENT_DRIVEN_ASYNC_LOAD_ACTIVE_AT_RUNTIME;
 }
 
+int32 FAsyncLoadingThread::LoadPackage(const FPackagePath& PackagePath, FLoadPackageAsyncOptionalParams OptionalParams)
+{
+	if (OptionalParams.ProgressDelegate.IsValid())
+	{
+		UE_LOG(LogStreaming, Warning, TEXT("Progress delegate is only supported for zenloader. A CompletionDelegate should be used instead for this loader."));
+	}
+
+	FLoadPackageAsyncDelegate CompletionDelegate;
+	if (OptionalParams.CompletionDelegate.IsValid())
+	{
+		CompletionDelegate = MoveTemp(*OptionalParams.CompletionDelegate.Get());
+	}
+	return LoadPackage(PackagePath, OptionalParams.CustomPackageName, MoveTemp(CompletionDelegate), OptionalParams.PackageFlags, OptionalParams.PIEInstanceID, OptionalParams.PackagePriority, OptionalParams.InstancingContext, OptionalParams.LoadFlags);
+}
+
 int32 FAsyncLoadingThread::LoadPackage(const FPackagePath& InPackagePath, FName InCustomName, FLoadPackageAsyncDelegate InCompletionDelegate, EPackageFlags InPackageFlags, int32 InPIEInstanceID, int32 InPackagePriority, const FLinkerInstancingContext* InInstancingContext, uint32 InLoadFlags)
 {
 	checkf(IsInGameThread(), TEXT("LoadPackageAsync is only thread-safe when using the zenloader (i.e. AsyncLoading2)."));

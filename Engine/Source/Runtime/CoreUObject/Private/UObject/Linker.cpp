@@ -900,7 +900,7 @@ void ConditionalFlushAsyncLoadingForLinkers(TConstArrayView<FLinkerLoad*> InLink
 		TArray<int32, TInlineAllocator<4>> RequestIds;
 		for (FLinkerLoad* Linker : InLinkers)
 		{
-			int32 Request = LoadPackageAsync(Linker->GetPackagePath());
+			int32 Request = LoadPackageAsync(Linker->GetPackagePath(), FLoadPackageAsyncOptionalParams{ .PackagePriority = MAX_int32 });
 			RequestIds.Add(Request);
 		}
 		FlushAsyncLoading(RequestIds);
