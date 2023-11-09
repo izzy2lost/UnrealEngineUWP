@@ -1,17 +1,42 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Graph/Nodes/MovieGraphOutputSettingNode.h"
-
 #include "Graph/MovieGraphProjectSettings.h"
+#include "Graph/MovieGraphBlueprintLibrary.h"
 #include "Styling/AppStyle.h"
+#include "Algo/Find.h"
 
 UMovieGraphOutputSettingNode::UMovieGraphOutputSettingNode()
-	: OutputResolution(FMovieGraphNamedResolution(FMovieGraphNamedResolution::DefaultResolutionName))
-	, OutputFrameRate(FFrameRate(24, 1))
+	: OutputFrameRate(FFrameRate(24, 1))
 	, bOverwriteExistingOutput(true)
 	, ZeroPadFrameNumbers(4)
 	, FrameNumberOffset(0)
 {
+	// We prefer a 1080p resolution by default, but users may not have a preset that matches that. So we'll 
+	// look for a matching resolution if we can find one, otherwise we go to Custom set to 1920x1080.
+	const FMovieGraphNamedResolution* FoundResolution = nullptr;
+	if (const UMovieGraphProjectSettings* MovieGraphProjectSettings =
+		GetDefault<UMovieGraphProjectSettings>())
+	{
+		FoundResolution = Algo::FindByPredicate(
+			MovieGraphProjectSettings->DefaultNamedResolutions,
+			[](const FMovieGraphNamedResolution& Other)
+			{
+				return Other.Resolution == FIntPoint(1920, 1080);
+			});
+	}
+
+	// If we found one that was 1080p, regardless of name, use it.
+	if (FoundResolution)
+	{
+		OutputResolution = *FoundResolution;
+	}
+	else
+	{
+		// We didn't find one that was 1080p, just force a custom resolution.
+		OutputResolution = UMovieGraphBlueprintLibrary::NamedResolutionFromSize(1920, 1080);
+	}
+
 	FileNameFormat = TEXT("{sequence_name}.{frame_number}");
 	OutputDirectory.Path = TEXT("{project_dir}/Saved/MovieRenders/");
 }

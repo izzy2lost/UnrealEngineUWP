@@ -24,7 +24,6 @@ public:
 		, Description(InDescription)
 	{}
 
-	FMovieGraphNamedResolution(const FName& InResolutionProfileName);
 	
 	/** The name of the resolution this links to */
 	UPROPERTY(config, EditAnywhere, BlueprintReadWrite, Category = "Movie Graph|Resolution")
@@ -47,4 +46,9 @@ public:
 	 * The default resolution name to use when one is not defined.
 	 */
 	inline static FName DefaultResolutionName = TEXT("1080p (FHD)");
+
+	/**
+	 * Predefined name for the 'custom' resolution option in the combobox
+	 */
+	inline static FName CustomEntryName = TEXT("Custom");
 };

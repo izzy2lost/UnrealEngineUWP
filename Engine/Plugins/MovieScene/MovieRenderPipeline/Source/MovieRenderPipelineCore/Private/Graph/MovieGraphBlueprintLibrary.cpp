@@ -3,6 +3,7 @@
 #include "Graph/MovieGraphBlueprintLibrary.h"
 
 #include "Graph/MovieGraphPipeline.h"
+#include "Graph/MovieGraphProjectSettings.h"
 #include "Graph/Nodes/MovieGraphOutputSettingNode.h"
 #include "Graph/Nodes/MovieGraphRenderLayerNode.h"
 #include "Graph/Nodes/MovieGraphCameraNode.h"
@@ -523,4 +524,44 @@ UCineCameraComponent* UMovieGraphBlueprintLibrary::GetCurrentCineCamera(const UM
 	}
 
 	return nullptr;
+}
+
+FMovieGraphNamedResolution UMovieGraphBlueprintLibrary::NamedResolutionFromProfile(const FName& InResolutionProfileName)
+{
+	// Find a matching custom entry from Project Settings
+	if (const UMovieGraphProjectSettings* MovieGraphProjectSettings =
+		GetDefault<UMovieGraphProjectSettings>())
+	{
+		if (const FMovieGraphNamedResolution* Match = MovieGraphProjectSettings->FindNamedResolutionForOption(InResolutionProfileName))
+		{
+			return *Match;
+		}
+	}
+
+	// If we couldn't find it, throw an exception
+	FFrame::KismetExecutionMessage(
+		*FString::Printf(
+			TEXT("%hs: Could not find named resolution with profile name %s in Project Settings."), __FUNCTION__, *InResolutionProfileName.ToString()),
+		ELogVerbosity::Error);
+
+	return FMovieGraphNamedResolution();
+}
+
+bool UMovieGraphBlueprintLibrary::IsNamedResolutionValid(const FName& InResolutionProfileName)
+{
+	if (const UMovieGraphProjectSettings* MovieGraphProjectSettings =
+		GetDefault<UMovieGraphProjectSettings>())
+	{
+		if (const FMovieGraphNamedResolution* Match = MovieGraphProjectSettings->FindNamedResolutionForOption(InResolutionProfileName))
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
+FMovieGraphNamedResolution UMovieGraphBlueprintLibrary::NamedResolutionFromSize(const int32 InResX, const int32 InResY)
+{
+	return FMovieGraphNamedResolution(FMovieGraphNamedResolution::CustomEntryName, FIntPoint(InResX, InResY), FString());
 }

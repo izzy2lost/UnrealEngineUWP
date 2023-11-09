@@ -76,11 +76,11 @@ protected:
 			}
 		}
 
-		ComboBoxOptions.AddUnique(CustomEntryName);
+		ComboBoxOptions.AddUnique(FMovieGraphNamedResolution::CustomEntryName);
 
 		if (!IsCurrentOptionValid())
 		{
-			SetCurrentOptionAndCacheTooltipText(CustomEntryName);
+			SetCurrentOptionAndCacheTooltipText(FMovieGraphNamedResolution::CustomEntryName);
 		}
 	}
 
@@ -108,7 +108,7 @@ protected:
 	const FMovieGraphNamedResolution* FindNamedResolutionForOption(const FName& InOption) const
 	{
 		// Return the custom entry
-		if (InOption.IsEqual(CustomEntryName))
+		if (InOption.IsEqual(FMovieGraphNamedResolution::CustomEntryName))
 		{
 			return &CustomEntry;
 		}
@@ -171,7 +171,7 @@ protected:
 			SNew(SHorizontalBox)
 			.Visibility_Lambda([this]()
 			{
-				return GetCurrentOptionAssigningIfNeeded().IsEqual(CustomEntryName) ?
+				return GetCurrentOptionAssigningIfNeeded().IsEqual(FMovieGraphNamedResolution::CustomEntryName) ?
 					EVisibility::Visible : EVisibility::Collapsed;
 			})
 
@@ -361,15 +361,12 @@ protected:
 	 */
 	FDelegateHandle OnProjectSettingsModifiedHandle;
 
-	/**
-	 * Predefined name for the 'custom' resolution option in the combobox
-	 */
-	inline static FName CustomEntryName = TEXT("Custom");
+
 	/**
 	 * Default FMovieGraphNamedResolution for the 'custom' option
 	 */
 	inline static FMovieGraphNamedResolution CustomEntry =
-		FMovieGraphNamedResolution(CustomEntryName, FIntPoint(1920, 1080), CustomEntryName.ToString());	
+		FMovieGraphNamedResolution(FMovieGraphNamedResolution::CustomEntryName, FIntPoint(1920, 1080), FMovieGraphNamedResolution::CustomEntryName.ToString());
 };
 
 #undef LOCTEXT_NAMESPACE

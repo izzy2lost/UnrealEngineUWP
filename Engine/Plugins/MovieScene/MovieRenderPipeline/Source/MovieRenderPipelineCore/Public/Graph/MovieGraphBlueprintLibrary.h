@@ -5,6 +5,7 @@
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "Graph/MovieGraphFilenameResolveParams.h"
 #include "Misc/FrameRate.h"
+#include "MovieGraphNamedResolution.h"
 
 #include "MovieGraphBlueprintLibrary.generated.h"
 
@@ -192,4 +193,27 @@ public:
 	*/
 	UFUNCTION(BlueprintPure, Category = "Movie Graph")
 	static UCineCameraComponent* GetCurrentCineCamera(const UMovieGraphPipeline* InMovieGraphPipeline);
+
+
+
+	/**
+	* Create a Named Resolution from the profile name. Throws a Kismet Exception if the profile name isn't found.
+	* The known profiles can be found in UMovieGraphProjectSettings's CDO.
+	*/
+	UFUNCTION(BlueprintPure, Category = "Movie Graph")
+	static FMovieGraphNamedResolution NamedResolutionFromProfile(const FName& InResolutionProfileName);
+
+	/**
+	* Utility function for checking if a given resolution profile name is valid, since NamedResolutionFromProfile
+	* will throw a kismet exception, but blueprints can't actually try/catch them.
+	*/
+	UFUNCTION(BlueprintPure, Category = "Movie Graph")
+	static bool IsNamedResolutionValid(const FName& InResolutionProfileName);
+
+	/**
+	* Create a Named Resolution from the given resolution. Given named resolution will be named "Custom".
+	*/
+	UFUNCTION(BlueprintPure, Category = "Movie Graph")
+	static FMovieGraphNamedResolution NamedResolutionFromSize(const int32 InResX, const int32 InResY);
+
 };

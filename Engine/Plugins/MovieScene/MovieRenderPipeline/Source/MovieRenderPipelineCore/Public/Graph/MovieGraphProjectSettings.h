@@ -13,7 +13,7 @@
 /**
  * Settings that apply to the Movie Graph.
  */
-UCLASS(config = MovieRenderPipeline, DefaultConfig, meta=(DisplayName = "Movie Graph Settings"))
+UCLASS(BlueprintType, config = MovieRenderPipeline, DefaultConfig, meta=(DisplayName = "Movie Graph Settings"))
 class MOVIERENDERPIPELINECORE_API UMovieGraphProjectSettings : public UDeveloperSettings
 {
 public:
