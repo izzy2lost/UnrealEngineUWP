@@ -66,6 +66,9 @@ namespace Horde.Server.Storage
 			}
 
 			/// <inheritdoc/>
+			public ValueTask FlushAsync(CancellationToken cancellationToken = default) => default;
+
+			/// <inheritdoc/>
 			public ValueTask<BlobType> ReadTypeAsync(CancellationToken cancellationToken = default) => new ValueTask<BlobType>(BlobType.Leaf);
 
 			/// <inheritdoc/>

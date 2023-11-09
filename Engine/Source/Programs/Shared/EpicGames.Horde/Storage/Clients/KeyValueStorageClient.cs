@@ -32,6 +32,9 @@ namespace EpicGames.Horde.Storage.Clients
 			}
 
 			/// <inheritdoc/>
+			public ValueTask FlushAsync(CancellationToken cancellationToken = default) => default;
+
+			/// <inheritdoc/>
 			public ValueTask<BlobData> ReadAsync(CancellationToken cancellationToken = default) => _keyValueStorageClient.ReadBlobAsync(_locator, cancellationToken);
 
 			/// <inheritdoc/>

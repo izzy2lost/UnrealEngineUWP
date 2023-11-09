@@ -20,6 +20,7 @@ namespace EpicGames.Horde.Tests
 			public IBlobHandle? Outer => null;
 
 			public DummyHandle(string locator) => _locator = new BlobLocator(new Utf8String(locator));
+			public ValueTask FlushAsync(CancellationToken cancellationToken = default) => default;
 			public ValueTask<BlobData> ReadAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
 
 			public bool TryAppendIdentifier(Utf8StringBuilder builder)

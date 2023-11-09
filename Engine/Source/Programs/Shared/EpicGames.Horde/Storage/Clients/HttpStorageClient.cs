@@ -36,6 +36,9 @@ namespace EpicGames.Horde.Storage.Clients
 			}
 
 			/// <inheritdoc/>
+			public ValueTask FlushAsync(CancellationToken cancellationToken = default) => default;
+
+			/// <inheritdoc/>
 			public Task<Stream> OpenBodyAsync(int offset = 0, int? length = null, CancellationToken cancellationToken = default)
 				=> _httpStorageClient._backend.OpenAsync(_locator.ToString(), offset, length, cancellationToken);
 

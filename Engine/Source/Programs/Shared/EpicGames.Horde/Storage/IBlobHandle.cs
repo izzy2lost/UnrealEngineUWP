@@ -66,7 +66,7 @@ namespace EpicGames.Horde.Storage
 		/// <summary>
 		/// Flush the referenced not to underlying storage
 		/// </summary>
-		ValueTask FlushAsync(CancellationToken cancellationToken = default) => new ValueTask();
+		ValueTask FlushAsync(CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Open the blob's data stream
@@ -162,6 +162,9 @@ namespace EpicGames.Horde.Storage
 			Outer = outer;
 			Fragment = fragment;
 		}
+
+		/// <inheritdoc/>
+		public ValueTask FlushAsync(CancellationToken cancellationToken = default) => default;
 
 		/// <inheritdoc/>
 		public bool TryAppendIdentifier(Utf8StringBuilder builder)
