@@ -456,6 +456,55 @@ void FShaderParametersMetadata::InitializeAllUniformBufferStructs()
 	}
 }
 
+void FShaderParametersMetadata::FMember::SerializeLayout(FArchive& Ar)
+{
+	// This is only used at the moment for writing to a buffer for hashing; deserialize not supported
+	// due to various const members, but also not needed.
+	check(Ar.IsSaving());
+
+	Ar << Offset;
+	Ar << reinterpret_cast<uint8&>(BaseType);
+	Ar.Serialize(const_cast<TCHAR*>(Name), FCString::Strlen(Name));
+	Ar << NumElements;
+
+	const bool bIsRHIResource = (
+		BaseType == UBMT_TEXTURE ||
+		BaseType == UBMT_SRV ||
+		BaseType == UBMT_SAMPLER);
+	const bool bIsRDGResource = IsRDGResourceReferenceShaderParameterType(BaseType);
+
+	if (BaseType == UBMT_INT32 ||
+		BaseType == UBMT_UINT32 ||
+		BaseType == UBMT_FLOAT32)
+	{
+		Ar << reinterpret_cast<uint8&>(Precision);
+		Ar << NumRows;
+		Ar << NumColumns;
+	}
+	else if (BaseType == UBMT_INCLUDED_STRUCT || BaseType == UBMT_NESTED_STRUCT)
+	{
+		const_cast<FShaderParametersMetadata*>(Struct)->SerializeLayout(Ar);
+	}
+	else if (bIsRHIResource || bIsRDGResource)
+	{
+		Ar.Serialize(const_cast<TCHAR*>(ShaderType), FCString::Strlen(ShaderType));
+	}
+}
+
+void FShaderParametersMetadata::SerializeLayout(FArchive& Ar) 
+{
+	// This is only used at the moment for writing to a buffer for hashing; deserialize not supported
+	check(Ar.IsSaving());
+
+	Ar << const_cast<uint32&>(Size);
+
+	for (FMember& CurrentMember : Members)
+	{
+		CurrentMember.SerializeLayout(Ar);
+	}
+}
+
+
 void FShaderParametersMetadata::InitializeLayout(FRHIUniformBufferLayoutInitializer* OutLayoutInitializer)
 {
 	check(!IsLayoutInitialized());

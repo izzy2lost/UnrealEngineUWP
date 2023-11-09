@@ -251,6 +251,8 @@ public:
 			return ElementSize;
 		}
 
+		void SerializeLayout(FArchive& Ar);
+
 		static RENDERCORE_API void GenerateShaderParameterType(
 			FString& Result,
 			bool bSupportsPrecisionModifier,
@@ -388,6 +390,8 @@ public:
 		check(IsLayoutInitialized());
 		return LayoutHash;	
 	}
+
+	void SerializeLayout(FArchive& Ar);
 
 	/** Iterate recursively over all FShaderParametersMetadata. */
 	template<typename TParameterFunction>

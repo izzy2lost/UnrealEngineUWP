@@ -3660,8 +3660,7 @@ FShaderCommonCompileJob::FInputHash FShaderCompileJob::GetInputHash()
 
 		if (Input.RootParametersStructure)
 		{
-			uint32 LayoutHash = Input.RootParametersStructure->GetLayoutHash();
-			Hasher << LayoutHash;
+			const_cast<FShaderParametersMetadata*>(Input.RootParametersStructure)->SerializeLayout(Hasher);
 		}
 
 		InputHash = Hasher.Finalize();
@@ -3680,6 +3679,11 @@ FShaderCommonCompileJob::FInputHash FShaderCompileJob::GetInputHash()
 			Archive << Input;
 			Input.DebugGroupName = MoveTemp(DebugGroupNameTmp);
 			Input.Environment.SerializeEverythingButFiles(Archive);
+
+			if (Input.RootParametersStructure)
+			{
+				const_cast<FShaderParametersMetadata*>(Input.RootParametersStructure)->SerializeLayout(Archive);
+			}
 
 			// hash the source file so changes to files during the development are picked up
 			const FSHAHash& SourceHash = GetShaderFileHash(*Input.VirtualSourceFilePath, Input.Target.GetPlatform());
