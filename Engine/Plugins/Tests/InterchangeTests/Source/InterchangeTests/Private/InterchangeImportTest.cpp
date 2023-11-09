@@ -8,6 +8,7 @@
 #include "HAL/FileManager.h"
 #include "Misc/AutomationTest.h"
 #include "InterchangeDispatcher.h"
+#include "InterchangeHelper.h"
 #include "InterchangeImportTestData.h"
 #include "InterchangeImportTestPlan.h"
 #include "InterchangeImportTestStepBase.h"
@@ -98,10 +99,17 @@ bool FInterchangeImportTest::RunTest(const FString& Path)
 	return true;
 #endif
 
+	static const auto CVarInterchangeFbx = IConsoleManager::Get().FindConsoleVariable(TEXT("Interchange.FeatureFlags.Import.FBX"));
+	bool IsInterchangeFbxEnabled = CVarInterchangeFbx->GetBool();
+	UE::Interchange::FScopedLambda IsInterchangeEnabledGuard([&IsInterchangeFbxEnabled]()
+		{
+			CVarInterchangeFbx->Set(IsInterchangeFbxEnabled, ECVF_SetByConsole);
+		});
+	//Make sure interchange is enabled for fbx
+	CVarInterchangeFbx->Set(true, ECVF_SetByConsole);
+
 	// Determine the test plan assets within the given path which will be run in parallel
-
 	TArray<FInterchangeImportTestData> TestPlans;
-
 	if (Path.Contains(TEXT(".")))
 	{
 		// Run test on a single TestPlan asset
