@@ -11,8 +11,8 @@
 uint VertexCount;
 uint MaxSampleCount;
 
-Buffer<float4> RestSamplePositionsBuffer;
-Buffer<float4> MeshSampleWeightsBuffer;
+StructuredBuffer<float4> RestSamplePositionsBuffer;
+StructuredBuffer<float4> MeshSampleWeightsBuffer;
 
 Buffer<float4> RestPositionBuffer;
 RWBuffer<float4> OutDeformedPositionBuffer;

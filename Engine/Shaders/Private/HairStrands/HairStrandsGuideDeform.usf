@@ -54,8 +54,8 @@ Buffer<float4>  BoneDeformedPositionBuffer;
 
 #if PERMUTATION_DEFORMATION == DEFORMATION_OFFSET_GUIDE_GLOBAL
 uint SampleCount;
-Buffer<float4>  RestSamplePositionsBuffer;
-Buffer<float4>  MeshSampleWeightsBuffer;
+StructuredBuffer<float4>  RestSamplePositionsBuffer;
+StructuredBuffer<float4>  MeshSampleWeightsBuffer;
 #endif
 
 float3 DisplacePosition(uint VertexIndex, float3 Pos)

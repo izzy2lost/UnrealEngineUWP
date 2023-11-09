@@ -325,8 +325,8 @@ Buffer<uint>  RootToUniqueTriangleIndexBuffer;
 Buffer<float4>  RestPositionBuffer;
 Buffer<float4>  DeformedPositionBuffer;
 
-Buffer<float4> RestSamplePositionsBuffer;
-Buffer<float4> DeformedSamplePositionsBuffer;
+StructuredBuffer<float4> RestSamplePositionsBuffer;
+StructuredBuffer<float4> DeformedSamplePositionsBuffer;
 
 [numthreads(256, 1, 1)]
 void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
