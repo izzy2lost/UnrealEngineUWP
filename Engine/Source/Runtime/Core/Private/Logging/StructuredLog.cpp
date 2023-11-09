@@ -887,7 +887,6 @@ void FatalLogWithFieldArray(const FLogCategoryBase& Category, const FStaticLogRe
 	Record.FormatMessageTo(Message);
 
 	StaticFailDebug(TEXT("Fatal error:"), "", Log.File, Log.Line, /*bIsEnsure*/ false, PLATFORM_RETURN_ADDRESS(), TEXT("%s"), *Message);
-	FDebug::AssertFailed("", Log.File, Log.Line, TEXT("%s"), *Message);
 
 	UE_DEBUG_BREAK_AND_PROMPT_FOR_REMOTE();
 	FDebug::ProcessFatalError(PLATFORM_RETURN_ADDRESS());
@@ -911,7 +910,6 @@ void FatalLogWithFieldArray(const FLogCategoryBase& Category, const FStaticLocal
 	Record.FormatMessageTo(Message);
 
 	StaticFailDebug(TEXT("Fatal error:"), "", Log.File, Log.Line, /*bIsEnsure*/ false, PLATFORM_RETURN_ADDRESS(), TEXT("%s"), *Message);
-	FDebug::AssertFailed("", Log.File, Log.Line, TEXT("%s"), *Message);
 
 	UE_DEBUG_BREAK_AND_PROMPT_FOR_REMOTE();
 	FDebug::ProcessFatalError(PLATFORM_RETURN_ADDRESS());

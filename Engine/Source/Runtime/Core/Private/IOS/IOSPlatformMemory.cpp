@@ -10,6 +10,7 @@
 #include "HAL/MallocAnsi.h"
 #include "GenericPlatform/GenericPlatformMemoryPoolStats.h"
 #include "Misc/CoreDelegates.h"
+#include "Logging/StructuredLog.h"
 
 void FIOSPlatformMemory::OnOutOfMemory(uint64 Size, uint32 Alignment)
 {
@@ -52,7 +53,11 @@ void FIOSPlatformMemory::OnOutOfMemory(uint64 Size, uint32 Alignment)
 		FCoreDelegates::GetMemoryTrimDelegate().Broadcast();
     
 		// ErrorMsg might be unrelated to OoM error in some cases as the code that calls OnOutOfMemory could have called other system functions that modified errno
-		UE_LOG(LogMemory, Warning, TEXT("Ran out of memory allocating %llu bytes with alignment %u. Last error msg: %s."), Size, Alignment, ErrorMsg);
+		UE_LOGFMT_NSLOC(LogMemory, Warning, "Memory", "OutOfMemoryError", "Ran out of memory allocating {Bytes} bytes with alignment {Alignment}. Last error msg: {LastError}.",
+			("Bytes", Size),
+			("Alignment", Alignment),
+			("LastError", ErrorMsg)
+		);
     
 		// make this a fatal error that ends here not in the log
 		// changed to 3 from NULL because clang noticed writing to NULL and warned about it

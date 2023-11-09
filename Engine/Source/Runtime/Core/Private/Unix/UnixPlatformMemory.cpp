@@ -14,6 +14,7 @@
 #include "Templates/UnrealTemplate.h"
 #include "Containers/UnrealString.h"
 #include "Logging/LogMacros.h"
+#include "Logging/StructuredLog.h"
 #include "HAL/MallocAnsi.h"
 #include "HAL/MallocMimalloc.h"
 #include "HAL/MallocJemalloc.h"
@@ -1194,7 +1195,11 @@ void FUnixPlatformMemory::OnOutOfMemory(uint64 Size, uint32 Alignment)
 		FCoreDelegates::GetOutOfMemoryDelegate().Broadcast();
 
 		// ErrorMsg might be unrelated to OoM error in some cases as the code that calls OnOutOfMemory could have called other system functions that modified errno
-		UE_LOG(LogMemory, Fatal, TEXT("Ran out of memory allocating %llu bytes with alignment %u. Last error msg: %s."), Size, Alignment, ErrorMsg);
+		UE_LOGFMT_NSLOC(LogMemory, Fatal, "Memory", "OutOfMemoryError", "Ran out of memory allocating {Bytes} bytes with alignment {Alignment}. Last error msg: {LastError}.",
+			("Bytes", Size),
+			("Alignment", Alignment),
+			("LastError", ErrorMsg)
+		);
 	};
 	
 	UE_CALL_ONCE(HandleOOM);
