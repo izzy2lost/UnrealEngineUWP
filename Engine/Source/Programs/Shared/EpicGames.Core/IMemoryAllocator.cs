@@ -22,6 +22,29 @@ namespace EpicGames.Core
 	}
 
 	/// <summary>
+	/// Implementation of <see cref="IMemoryAllocator{Byte}"/> which creates regular arrays on the managed heap. Note that these
+	/// allocations are subject to GC, and will not be freed immediately.
+	/// </summary>
+	public class ManagedHeapAllocator : IMemoryAllocator<byte>
+	{
+		class MemoryOwner : IMemoryOwner<byte>
+		{
+			public Memory<byte> Memory { get; }
+
+			public MemoryOwner(int size) => Memory = new byte[size];
+			public void Dispose() { }
+		}
+
+		/// <summary>
+		/// Default shared instance
+		/// </summary>
+		public static ManagedHeapAllocator Instance { get; } = new ManagedHeapAllocator();
+
+		/// <inheritdoc/>
+		public IMemoryOwner<byte> Alloc(int minSize) => new MemoryOwner(minSize);
+	}
+
+	/// <summary>
 	/// Implementation of <see cref="IMemoryAllocator{Byte}"/> which rents blocks from a memory pool.
 	/// </summary>
 	public class PoolAllocator : IMemoryAllocator<byte>

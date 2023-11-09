@@ -137,6 +137,13 @@ namespace EpicGames.Horde.Storage
 		/// <param name="builder">Builder for appending the identifier to</param>
 		/// <returns>True if an identifier was returned, false otherwise</returns>
 		bool TryAppendIdentifier(Utf8StringBuilder builder);
+
+		/// <summary>
+		/// Gets a handle to a nested blob object
+		/// </summary>
+		/// <param name="fragment">Name of the blob fragment</param>
+		public IBlobHandle GetFragmentHandle(ReadOnlySpan<byte> fragment)
+			=> throw new InvalidOperationException("Not supported for this handle type.");
 	}
 
 	/// <summary>

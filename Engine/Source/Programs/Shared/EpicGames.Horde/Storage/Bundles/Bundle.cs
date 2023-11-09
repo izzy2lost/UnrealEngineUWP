@@ -38,6 +38,11 @@ namespace EpicGames.Horde.Storage.Bundles
 		ImportHashes = 4,
 
 		/// <summary>
+		/// Structure bundles as a sequence of self-contained packets (uses V2 code)
+		/// </summary>
+		PacketSequence = 5,
+
+		/// <summary>
 		/// Last item in the enum. Used for <see cref="Latest"/>
 		/// </summary>
 		LatestPlusOne,
@@ -47,6 +52,16 @@ namespace EpicGames.Horde.Storage.Bundles
 		/// The current version number
 		/// </summary>
 		Latest = (int)LatestPlusOne - 1,
+
+		/// <summary>
+		/// Last version using the V1 pipeline
+		/// </summary>
+		LatestV1 = ImportHashes,
+
+		/// <summary>
+		/// Last version using the V2 pipeline
+		/// </summary>
+		LatestV2 = Latest,
 #pragma warning restore CA1069 // Enums values should not be duplicated
 	}
 

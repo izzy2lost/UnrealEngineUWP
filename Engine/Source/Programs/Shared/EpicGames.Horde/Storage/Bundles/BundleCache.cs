@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Threading;
@@ -126,11 +127,45 @@ namespace EpicGames.Horde.Storage
 				_size = size;
 			}
 
-			public void Dispose()
+			public virtual void Dispose()
 			{
 				Interlocked.Add(ref _outer._currentSize, -_size);
 				_size = 0;
 			}
+		}
+
+		sealed class MemoryAllocation : MemoryReservation, IMemoryOwner<byte>
+		{
+			readonly IMemoryOwner<byte> _owner;
+
+			public Memory<byte> Memory => _owner.Memory;
+
+			public MemoryAllocation(BundleCache outer, IMemoryOwner<byte> owner)
+				: base(outer, owner.Memory.Length)
+			{
+				_owner = owner;
+			}
+
+			public override void Dispose()
+			{
+				base.Dispose();
+
+				_owner.Dispose();
+			}
+		}
+
+		class MemoryAllocator : IMemoryAllocator<byte>
+		{
+			readonly BundleCache _outer;
+			readonly IMemoryAllocator<byte> _inner;
+
+			public MemoryAllocator(BundleCache outer, IMemoryAllocator<byte> inner)
+			{
+				_outer = outer;
+				_inner = inner;
+			}
+
+			public IMemoryOwner<byte> Alloc(int minSize) => new MemoryAllocation(_outer, _inner.Alloc(minSize));
 		}
 
 		readonly object _lockObject = new object();
@@ -138,6 +173,7 @@ namespace EpicGames.Horde.Storage
 		readonly LinkedList<CacheValue> _items = new LinkedList<CacheValue>();
 		readonly Dictionary<object, CacheValue> _itemLookup = new Dictionary<object, CacheValue>();
 		readonly CancellationTokenSource _cancellationSource = new CancellationTokenSource();
+		readonly IMemoryAllocator<byte> _allocator;
 
 		long _currentSize;
 
@@ -148,6 +184,11 @@ namespace EpicGames.Horde.Storage
 		/// Instance of an empty cache
 		/// </summary>
 		public static BundleCache None { get; } = new BundleCache(new BundleCacheOptions { MaxSize = 0, HeaderCacheSize = 0, PacketCacheSize = 0 });
+
+		/// <summary>
+		/// Accessor for the default allocator
+		/// </summary>
+		public IMemoryAllocator<byte> Allocator => _allocator;
 
 		/// <summary>
 		/// Size of the configured header cache
@@ -177,6 +218,8 @@ namespace EpicGames.Horde.Storage
 		public BundleCache(BundleCacheOptions options)
 		{
 			_options = options;
+			_allocator = new MemoryAllocator(this, PoolAllocator.Shared);
+
 			if (options.HeaderCacheSize > 0)
 			{
 				_headerCache = new MemoryCache(new MemoryCacheOptions { SizeLimit = options.HeaderCacheSize });
@@ -294,6 +337,15 @@ namespace EpicGames.Horde.Storage
 			{
 				item?.Unlock();
 			}
+		}
+
+		/// <summary>
+		/// Allocate a block of memory from the shared heap
+		/// </summary>
+		/// <param name="size">Size of the allocation. The returned memory may be larger than this.</param>
+		public IMemoryOwner<byte> Allocate(int size)
+		{
+			return _allocator.Alloc(size);
 		}
 
 		/// <summary>

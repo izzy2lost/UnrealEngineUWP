@@ -146,7 +146,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 			Packets.Write(writer);
 
 			// Fill in the length of the header, and append it to the builder
-			BundleSignature signature = new BundleSignature(BundleVersion.Latest, writer.Length);
+			BundleSignature signature = new BundleSignature(BundleVersion.LatestV1, writer.Length);
 			Bundle.WriteSignature(signatureData, signature);
 
 			writer.AppendTo(builder);
@@ -209,7 +209,11 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 		/// <returns>New header object</returns>
 		public static async Task<BundleHeader> ReadAsync(BundleSignature signature, Stream stream, CancellationToken cancellationToken = default)
 		{
-			if (signature.Version >= BundleVersion.InPlace)
+			if (signature.Version > BundleVersion.LatestV1)
+			{
+				return new BundleHeader(Array.Empty<BlobType>(), Array.Empty<BlobLocator>(), Array.Empty<BundleExport>(), Array.Empty<BundlePacket>());
+			}
+			else if (signature.Version >= BundleVersion.InPlace)
 			{
 				return await ReadLatestAsync(signature.Version, stream, signature.HeaderLength - Bundle.SignatureLength, cancellationToken);
 			}

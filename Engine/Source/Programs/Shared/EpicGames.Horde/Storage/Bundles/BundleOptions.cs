@@ -8,6 +8,16 @@ namespace EpicGames.Horde.Storage.Bundles
 	public class BundleOptions
 	{
 		/// <summary>
+		/// Default options value
+		/// </summary>
+		public static BundleOptions Default { get; } = new BundleOptions();
+
+		/// <summary>
+		/// Maximum version number of bundles to write
+		/// </summary>
+		public BundleVersion MaxVersion { get; set; } = BundleVersion.LatestV1;
+
+		/// <summary>
 		/// Maximum payload size fo a blob
 		/// </summary>
 		public int MaxBlobSize { get; set; } = 10 * 1024 * 1024;

@@ -223,9 +223,10 @@ namespace EpicGames.Horde.Tests
 			IBlobHandle bundleTarget = store.CreateBlobHandle(refTarget.GetLocator().BaseLocator);
 			using BlobData bundleData = await bundleTarget.ReadAsync();
 
-			BundleHeader bundleHeader = BundleHeader.Read(bundleData.Data);
-			Assert.AreEqual(0, bundleHeader.Imports.Count);
-			Assert.AreEqual(3, bundleHeader.Exports.Count);
+// This is specific to V1 data
+//			BundleHeader bundleHeader = BundleHeader.Read(bundleData.Data);
+//			Assert.AreEqual(0, bundleHeader.Imports.Count);
+//			Assert.AreEqual(3, bundleHeader.Exports.Count);
 
 			// Create a new bundle and read it back in again
 			DirectoryNode newRoot = await store.ReadRefAsync<DirectoryNode>(refName);

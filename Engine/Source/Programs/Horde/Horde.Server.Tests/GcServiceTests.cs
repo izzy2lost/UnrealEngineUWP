@@ -49,9 +49,11 @@ namespace Horde.Server.Tests
 
 			IStorageBackend backend = ServiceProvider.GetRequiredService<IStorageBackendProvider>().CreateBackend(globalConfig.Storage.Backends[0]);
 
-			string[] remaining = await backend.EnumerateAsync().Select(x => $"{x}#0").ToArrayAsync();
+			string[] remaining = await backend.EnumerateAsync().ToArrayAsync();
 			Assert.AreEqual(nodes.Count, remaining.Length);
-			Assert.IsTrue(remaining.All(x => nodes.Contains(new BlobLocator(x))));
+
+			HashSet<string> nodePaths = new HashSet<string>(nodes.Select(x => x.BaseLocator.ToString()), StringComparer.Ordinal);
+			Assert.IsTrue(remaining.All(x => nodePaths.Contains(x)));
 		}
 
 		static async Task<HashSet<BlobLocator>> FindNodesAsync(IStorageClient store, IEnumerable<BlobLocator> roots)

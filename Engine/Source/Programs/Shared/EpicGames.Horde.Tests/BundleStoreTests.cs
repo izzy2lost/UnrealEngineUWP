@@ -25,7 +25,7 @@ namespace EpicGames.Horde.Tests
 	public class BundleStoreTests
 	{
 		[TestMethod]
-		public async Task CreateBundlesManuallyAsync()
+		public async Task CreateBundlesManuallyV1Async()
 		{
 			byte[] a = CreateBundleManually();
 			byte[] b = await CreateBundleNormalAsync();
@@ -59,7 +59,7 @@ namespace EpicGames.Horde.Tests
 		{
 			using MemoryStorageClient memoryStore = new MemoryStorageClient();
 			using BundleStorageClient store = new BundleStorageClient(memoryStore, BundleCache.None, NullLogger.Instance);
-			await using IStorageWriter writer = store.CreateWriter(options: new BundleOptions { CompressionFormat = BundleCompressionFormat.None });
+			await using IStorageWriter writer = store.CreateWriter(options: new BundleOptions { MaxVersion = BundleVersion.ImportHashes, CompressionFormat = BundleCompressionFormat.None });
 
 			TextNode node = new TextNode("Hello world");
 			IBlobHandle handle = await writer.FlushAsync(node, CancellationToken.None);
@@ -400,8 +400,22 @@ namespace EpicGames.Horde.Tests
 
 				HashedNodeRef<ChunkedDataNode> file = root.GetFileEntry("test");
 
-				long uniqueSize = memoryStore.Blobs.Values.Select(x => BundleHeader.Read(x.Data)).SelectMany(x => x.Packets).Sum(x => x.DecodedLength);
+				Dictionary<BlobLocator, long> locatorToSize = new Dictionary<BlobLocator, long>();
+				await GetUniqueBlobsAsync(file.Handle, locatorToSize);
+
+				long uniqueSize = locatorToSize.Sum(x => x.Value);
 				Assert.IsTrue(uniqueSize < data.Length / 3); // random fraction meaning "lots of dedupe happened"
+			}
+		}
+
+		static async Task GetUniqueBlobsAsync(IBlobHandle handle, Dictionary<BlobLocator, long> locatorToSize)
+		{
+			using BlobData data = await handle.ReadAsync();
+			locatorToSize[handle.GetLocator()] = data.Data.Length;
+
+			foreach (IBlobHandle reference in data.Refs)
+			{
+				await GetUniqueBlobsAsync(reference, locatorToSize);
 			}
 		}
 

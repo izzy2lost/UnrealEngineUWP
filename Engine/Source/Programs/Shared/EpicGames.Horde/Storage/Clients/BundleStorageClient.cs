@@ -1,12 +1,16 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
+using System.Buffers.Text;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Storage.Bundles;
+using EpicGames.Horde.Storage.Bundles.V1;
+using EpicGames.Horde.Storage.Bundles.V2;
 using Microsoft.Extensions.Logging;
 
 namespace EpicGames.Horde.Storage.Clients
@@ -22,23 +26,23 @@ namespace EpicGames.Horde.Storage.Clients
 		class BundleHandle : IBlobHandle
 		{
 			readonly BundleStorageClient _storageClient;
-			readonly BlobLocator _locator;
+			readonly IBlobHandle _inner;
 			List<IBlobHandle>? _refs;
 
 			/// <inheritdoc/>
-			public IBlobHandle? Outer => null;
+			public IBlobHandle? Outer => _inner.Outer;
 
 			/// <summary>
 			/// Constructor
 			/// </summary>
-			public BundleHandle(BundleStorageClient storageClient, BlobLocator locator)
+			public BundleHandle(BundleStorageClient storageClient, IBlobHandle inner)
 			{
 				_storageClient = storageClient;
-				_locator = locator;
+				_inner = inner;
 			}
 
 			/// <inheritdoc/>
-			public ValueTask FlushAsync(CancellationToken cancellationToken = default) => default;
+			public ValueTask FlushAsync(CancellationToken cancellationToken = default) => _inner.FlushAsync(cancellationToken);
 
 			/// <inheritdoc/>
 			public ValueTask<BlobType> ReadTypeAsync(CancellationToken cancellationToken = default) => new ValueTask<BlobType>(Bundle.BlobType);
@@ -50,10 +54,18 @@ namespace EpicGames.Horde.Storage.Clients
 				{
 					List<IBlobHandle> refs = new List<IBlobHandle>();
 
-					Bundles.V1.BundleHeader header = await _storageClient.ReadHeaderAsync(_locator, cancellationToken);
+					Bundles.V1.BundleHeader header = await _storageClient.ReadHeaderAsync(_inner.GetLocator(), cancellationToken);
+					if (header.Exports.Count > 0)
+					{
 					foreach (BlobLocator import in header.Imports)
 					{
 						refs.Add(_storageClient.CreateBlobHandle(new BlobLocator(import.Path)));
+					}
+					}
+					else
+					{
+						using BlobData blobData = await ReadAsync(cancellationToken);
+						refs.AddRange(blobData.Refs);
 					}
 
 					_refs = refs;
@@ -63,36 +75,103 @@ namespace EpicGames.Horde.Storage.Clients
 
 			/// <inheritdoc/>
 			public Task<Stream> OpenBodyAsync(int offset = 0, int? length = null, CancellationToken cancellationToken = default)
-			{
-				return _storageClient.OpenBlobAsync(_locator, offset, length, cancellationToken);
-			}
+				=> _inner.OpenBodyAsync(offset, length, cancellationToken);
 
 			/// <inheritdoc/>
 			public async ValueTask<BlobData> ReadAsync(CancellationToken cancellationToken = default)
 			{
-				using (Stream stream = await _storageClient.OpenBlobAsync(_locator, 0, cancellationToken: cancellationToken))
+				IReadOnlyMemoryOwner<byte> data = await _inner.ReadBodyAsync(cancellationToken);
+
+				List<BlobLocator> importLocators = ReadImports(data.Memory).ToList();
+				List<IBlobHandle> importHandles = importLocators.ConvertAll(x => _storageClient.CreateBlobHandle(x));
+
+				return new BlobDataWithOwner(Bundle.BlobType, data.Memory, importHandles, data);
+			}
+
+			IEnumerable<BlobLocator> ReadImports(ReadOnlyMemory<byte> data)
+			{
+				BundleSignature signature = Bundle.ReadSignature(data.Span);
+				if (signature.Version <= BundleVersion.LatestV1)
 				{
-					byte[] data = await stream.ReadAllBytesAsync(cancellationToken);
-					return new BlobData(Bundle.BlobType, data, await ReadImportsAsync(cancellationToken));
+					return ReadImportsV1(data);
 				}
+				else if (signature.Version <= BundleVersion.LatestV2)
+				{
+					return ReadImportsV2(data);
+				}
+				else
+				{
+					throw new InvalidOperationException($"Unsupported bundle version {(int)signature.Version}");
+				}
+			}
+
+			static IEnumerable<BlobLocator> ReadImportsV1(ReadOnlyMemory<byte> data)
+			{
+				BundleHeader header = BundleHeader.Read(data);
+				return header.Imports.Select(x => x.BaseLocator);
+			}
+
+			IEnumerable<BlobLocator> ReadImportsV2(ReadOnlyMemory<byte> data)
+			{
+				HashSet<BlobLocator> locators = new HashSet<BlobLocator>();
+				while (data.Length > 0)
+				{
+					BundleSignature signature = Bundle.ReadSignature(data.Span);
+
+					using IRefCountedHandle<Bundles.V2.Packet> packet = Bundles.V2.Packet.Decode(data, _storageClient._cache.Allocator);
+					for (int idx = 0; idx < packet.Target.GetImportCount(); idx++)
+					{
+						PacketImport import = packet.Target.GetImport(idx);
+						if (import.BaseIdx == -1)
+						{
+							locators.Add(new BlobLocator(import.Fragment));
+						}
+					}
+
+					data = data.Slice(Bundle.SignatureLength + signature.HeaderLength);
+				}
+				return locators;
 			}
 
 			/// <inheritdoc/>
 			public bool TryAppendIdentifier(Utf8StringBuilder builder)
+				=> _inner.TryAppendIdentifier(builder);
+
+			/// <inheritdoc/>
+			public IBlobHandle GetFragmentHandle(ReadOnlySpan<byte> fragment)
 			{
-				builder.Append(_locator.Path);
-				return true;
+				int exportIdx;
+				if (Utf8Parser.TryParse(fragment, out exportIdx, out int numBytesRead) && numBytesRead == fragment.Length)
+				{
+					return new Bundles.V1.FlushedNodeHandle(_storageClient._bundleReader, _inner.GetLocator(), this, exportIdx);
+				}
+
+				int ampIdx = fragment.IndexOf((byte)'&');
+				if (ampIdx == -1)
+				{
+					return new Bundles.V2.PacketHandle(_storageClient, this, fragment, _storageClient._cache);
+				}
+				else
+				{
+					return new Bundles.V2.PacketHandle(_storageClient, this, fragment.Slice(0, ampIdx), _storageClient._cache).GetFragmentHandle(fragment.Slice(ampIdx + 1));
+				}
 			}
 
 			/// <inheritdoc/>
-			public override bool Equals(object? obj) => obj is BundleHandle other && _locator == other._locator;
+			public override bool Equals(object? obj) => obj is BundleHandle other && _inner.Equals(other._inner);
 
 			/// <inheritdoc/>
-			public override int GetHashCode() => _locator.GetHashCode();
+			public override int GetHashCode() => _inner.GetHashCode();
 		}
 
 		readonly IStorageClient _inner;
+		readonly BundleCache _cache;
 		readonly Bundles.V1.BundleReader _bundleReader;
+
+		/// <summary>
+		/// Allocator which trims the cache to keep below a maximum size
+		/// </summary>
+		public IMemoryAllocator<byte> Allocator => _cache.Allocator;
 
 		/// <inheritdoc/>
 		public bool SupportsRedirects { get; } = false;
@@ -103,6 +182,7 @@ namespace EpicGames.Horde.Storage.Clients
 		public BundleStorageClient(IStorageClient inner, BundleCache cache, ILogger logger)
 		{
 			_inner = inner;
+			_cache = cache;
 			_bundleReader = new Bundles.V1.BundleReader(this, cache, logger);
 		}
 
@@ -203,16 +283,48 @@ namespace EpicGames.Horde.Storage.Clients
 		{
 			if (locator.TryUnwrap(out BlobLocator baseLocator, out Utf8String fragment))
 			{
-				return new Bundles.V1.FlushedNodeHandle(_bundleReader, baseLocator, new BundleHandle(this, baseLocator), fragment.Span);
+				BundleHandle bundleHandle = new BundleHandle(this, CreateBlobHandle(baseLocator));
+
+				int exportIdx;
+				if (Utf8Parser.TryParse(fragment.Span, out exportIdx, out int numBytesRead) && numBytesRead == fragment.Length)
+				{
+					return new Bundles.V1.FlushedNodeHandle(_bundleReader, baseLocator, bundleHandle, exportIdx);
+				}
+
+				int ampIdx = fragment.IndexOf('&');
+				if (ampIdx == -1)
+				{
+					return new Bundles.V2.PacketHandle(this, bundleHandle, fragment.Span, _cache);
+				}
+				else
+				{
+					return new Bundles.V2.ExportHandle(new Bundles.V2.PacketHandle(this, bundleHandle, fragment.Slice(0, ampIdx).Span, _cache), fragment.Span.Slice(ampIdx + 1));
+				}
 			}
 			else
 			{
-				return new BundleHandle(this, locator);
+				return new BundleHandle(this, _inner.CreateBlobHandle(baseLocator));
 			}
 		}
 
 		/// <inheritdoc/>
-		public IStorageWriter CreateWriter(string? basePath = null, BundleOptions? options = null) => new Bundles.V1.BundleWriter(this, _bundleReader, basePath, options);
+		public IStorageWriter CreateWriter(string? basePath = null, BundleOptions? options = null)
+		{
+			options ??= BundleOptions.Default;
+
+			if (options.MaxVersion == BundleVersion.LatestV1)
+			{
+				return new Bundles.V1.BundleWriter(this, _bundleReader, basePath, options);
+			}
+			else if(options.MaxVersion == BundleVersion.LatestV2)
+			{
+				return new Bundles.V2.BundleWriter(this, basePath, _cache, options);
+			}
+			else
+			{
+				throw new InvalidOperationException($"Unsupported bundle version: {(int)options.MaxVersion}");
+			}
+		}
 
 		/// <inheritdoc/>
 		IStorageWriter IStorageClient.CreateWriter(string? basePath) => CreateWriter(basePath);
