@@ -52,6 +52,7 @@ public:
 		if (--ReferenceCount == 0)
 		{
 			Wait();
+			Task = {};
 		}
 	}
 
