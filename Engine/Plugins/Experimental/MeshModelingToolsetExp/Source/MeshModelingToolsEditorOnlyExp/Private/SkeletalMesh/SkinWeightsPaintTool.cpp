@@ -1023,10 +1023,13 @@ void USkinWeightsPaintTool::OnEndDrag(const FRay& Ray)
 	bSmoothStroke = false;
 	bStampPending = false;
 
-	// close change, record transaction
-	const FText TransactionLabel = LOCTEXT("PaintWeightChange", "Paint skin weights.");
-	EndChange(TransactionLabel);
-	LongTransactions.Close(GetToolManager());
+	if (ActiveChange)
+	{
+		// close change, record transaction
+		const FText TransactionLabel = LOCTEXT("PaintWeightChange", "Paint skin weights.");
+		EndChange(TransactionLabel);
+		LongTransactions.Close(GetToolManager());
+	}
 }
 
 bool USkinWeightsPaintTool::OnUpdateHover(const FInputDeviceRay& DevicePos)
