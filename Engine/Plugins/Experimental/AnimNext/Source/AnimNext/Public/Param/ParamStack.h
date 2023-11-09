@@ -15,6 +15,7 @@
 #include "ParamEntry.h"
 #include "Param/ParamResult.h"
 #include "AnimNextStats.h"
+#include "Containers/HashTable.h"
 
 class UAnimNextSchedule;
 class UAnimNextSchedulerWorldSubsystem;
@@ -85,13 +86,7 @@ private:
 	{
 		FPushedLayer(FParamStackLayer& InLayer, FParamStack& InStack);
 
-		FPushedLayer(const FPushedLayer& InPreviousLayer, FParamStackLayer& InLayer, FParamStack& InStack);
-
 		FParamStackLayer& Layer;
-
-		// Index offset for the previous layer for each active param.
-		// Offset into FParamStack::PreviousLayerIndices.
-		uint32 PreviousLayerIndexStart = MAX_uint32;
 
 		// Serial number used for identifying layers to pop
 		uint32 SerialNumber = 0;
@@ -191,7 +186,7 @@ public:
 	FPushedLayerHandle PushValues(Args&&... InValues)
 	{
 		constexpr int32 NumItems = sizeof...(InValues) / 2;
-		TArray<TPair<FParamId, Private::FParamEntry>, TInlineAllocator<NumItems>> ParamIdValues;
+		TArray<Private::FParamEntry, TInlineAllocator<NumItems>> ParamIdValues;
 		ParamIdValues.Reserve(NumItems);
 		return PushValuesHelper(ParamIdValues, Forward<Args>(InValues)...);
 	}
@@ -239,7 +234,7 @@ public:
 	static FParamStackLayerHandle MakeValuesLayer(Args&&... InValues)
 	{
 		constexpr int32 NumItems = sizeof...(InValues) / 2;
-		TArray<TPair<FParamId, Private::FParamEntry>, TInlineAllocator<NumItems>> ParamIdValues;
+		TArray<Private::FParamEntry, TInlineAllocator<NumItems>> ParamIdValues;
 		ParamIdValues.Reserve(NumItems);
 		return MakeValuesLayerHelper(ParamIdValues, Forward<Args>(InValues)...);
 	}
@@ -247,8 +242,6 @@ public:
 	// Pop a parameter layer. Attempting to pop an invalid layer handle is supported.
 	// Asserts if the layer supplied is valid and not the top layer
 	ANIMNEXT_API void PopLayer(FPushedLayerHandle InLayer);
-
-
 
 	// Get a pointer to a parameter's value given a FParamId.
 	// @param	InParamId			Parameter ID to find the currently-pushed value for
@@ -411,21 +404,44 @@ public:
 private:
 	ANIMNEXT_API FParamStack();
 
-	void SetParent(TWeakPtr<const FParamStack> InParent);
+	ANIMNEXT_API void SetParent(TWeakPtr<const FParamStack> InParent);
 
 	// Get the param stack that is attached to the current thread
 	static ANIMNEXT_API TWeakPtr<FParamStack> GetForCurrentThread();
 
+	// Behavior flag for coalescing parent stacks on thread attachment 
+	enum class ECoalesce
+	{
+		// Do nothing
+		None,
+
+		// Coalesce parent stacks into this stack
+		Coalesce
+	};
+
 	// Attach a param stack to the current thread
-	static ANIMNEXT_API void AttachToCurrentThread(TWeakPtr<FParamStack> InStack);
+	static ANIMNEXT_API void AttachToCurrentThread(TWeakPtr<FParamStack> InStack, ECoalesce InCoalesce = ECoalesce::None);
 
 	// Attach a param stack that is 'pending' for the specified object to the current thread.
 	// @return true if the stack was successfully attached
-	static ANIMNEXT_API bool AttachToCurrentThreadForPendingObject(const UObject* InObject);
+	static ANIMNEXT_API bool AttachToCurrentThreadForPendingObject(const UObject* InObject, ECoalesce InCoalesce = ECoalesce::None);
 
+	// Behavior flag for de-coalescing parent stacks on thread detachment
+	enum class EDecoalesce
+	{
+		// Do nothing
+		None,
+
+		// Remove coalesced parent stacks from this stack
+		Decoalesce
+	};
+
+	// Detach a param stack to the current thread
+	static ANIMNEXT_API TWeakPtr<FParamStack> DetachFromCurrentThread(EDecoalesce InDecoalesce = EDecoalesce::None);
+	
 	// Detach a param stack that is 'pending' for the specified object from the current thread.
 	// @return true if the stack was successfully detached
-	static ANIMNEXT_API bool DetachFromCurrentThreadForPendingObject(const UObject* InObject);
+	static ANIMNEXT_API bool DetachFromCurrentThreadForPendingObject(const UObject* InObject, EDecoalesce InDecoalesce = EDecoalesce::None);
 
 	// Adds a stack asscociated with a 'pending' object - that is, an object that is due to have some
 	// asscociated logic run that needs to access the relevant stack.
@@ -435,21 +451,19 @@ private:
 	// Removes a stack asscociated with a 'pending' object. Asserts if any existing stack still has outstanding references.
 	static ANIMNEXT_API void RemoveForPendingObject(const UObject* InObject);
 
-	// Detach a param stack to the current thread
-	static ANIMNEXT_API TWeakPtr<FParamStack> DetachFromCurrentThread();
-
 	// Create a cached parameter layer from set of params. Mutabilty is on a per-parameter basis.
-	static ANIMNEXT_API FParamStackLayerHandle MakeLayer(TConstArrayView<TPair<FParamId, Private::FParamEntry>> InParams);
+	static ANIMNEXT_API FParamStackLayerHandle MakeLayer(TConstArrayView<Private::FParamEntry> InParams);
 
 	// Push an internally-owned layer. Copies parameter data to internal storage.
-	ANIMNEXT_API FPushedLayerHandle PushLayer(TConstArrayView<TPair<FParamId, Private::FParamEntry>> InParams);
+	ANIMNEXT_API FPushedLayerHandle PushLayer(TConstArrayView<Private::FParamEntry> InParams);
 
 	// Recursive helper function for PushValues
 	template <uint32 NumItems, typename FirstType, typename SecondType, typename... OtherTypes>
-	FPushedLayerHandle PushValuesHelper(TArray<TPair<FParamId, Private::FParamEntry>, TInlineAllocator<NumItems>>& InArray, FirstType&& InFirst, SecondType&& InSecond, OtherTypes&&... InOthers)
+	FPushedLayerHandle PushValuesHelper(TArray<Private::FParamEntry, TInlineAllocator<NumItems>>& InArray, FirstType&& InFirst, SecondType&& InSecond, OtherTypes&&... InOthers)
 	{
-		InArray.Emplace(FParamId(InFirst),
+		InArray.Emplace(
 			Private::FParamEntry(
+				FParamId(InFirst),
 				FParamTypeHandle::GetHandle<std::remove_reference_t<SecondType>>(),
 				TArrayView<uint8>(const_cast<uint8*>(reinterpret_cast<const uint8*>(&InSecond)), sizeof(std::remove_reference_t<SecondType>)),
 				std::is_reference_v<SecondType>,
@@ -469,10 +483,11 @@ private:
 
 	// Recursive helper function for MakeValuesLayer
 	template <uint32 NumItems, typename FirstType, typename SecondType, typename... OtherTypes>
-	static FParamStackLayerHandle MakeValuesLayerHelper(TArray<TPair<FParamId, Private::FParamEntry>, TInlineAllocator<NumItems>>& InArray, FirstType&& InFirst, SecondType&& InSecond, OtherTypes&&... InOthers)
+	static FParamStackLayerHandle MakeValuesLayerHelper(TArray<Private::FParamEntry, TInlineAllocator<NumItems>>& InArray, FirstType&& InFirst, SecondType&& InSecond, OtherTypes&&... InOthers)
 	{
-		InArray.Emplace(FParamId(InFirst), 
+		InArray.Emplace( 
 			Private::FParamEntry(
+				FParamId(InFirst),
 				FParamTypeHandle::GetHandle<std::remove_reference_t<SecondType>>(),
 				TArrayView<uint8>(const_cast<uint8*>(reinterpret_cast<const uint8*>(&InSecond)), sizeof(std::remove_reference_t<SecondType>)),
 				std::is_reference_v<SecondType>,
@@ -527,14 +542,28 @@ private:
 	// Frees any owned storage, restores owned storage offset
 	void FreeOwnedParamStorage(uint32 InOffset);
 
-	// Resize layer indices to deal with any new params we have seen since the stack was created
-	void ResizeLayerIndices();
-
 	// Get a new serial number for a pushed layer
 	uint32 MakeSerialNumber();
 
+	// Find the topmost value for the specified parameter
+	const Private::FParamEntry* FindParam(FParamId InId) const;
+	Private::FParamEntry* FindMutableParam(FParamId InId);
+
+	// Combine this stack with its parents to allow a single hash query to discover parameters
+	// Requires the stack is empty before this is called
+	ANIMNEXT_API void Coalesce();
+
+	// Remove all combined parameters that were added in Coalesce()
+	ANIMNEXT_API void Decoalesce();
+
 	// Layer stack
 	TArray<FPushedLayer> Layers;
+
+	// Stack of entry ptrs, pointing to Layers, indexed by LayerHash
+	TArray<Private::FParamEntry*> EntryStack;
+
+	// Hash table for the current layer index per-parameter. Indexes EntryStack.
+	FHashTable LayerHash;
 
 	// Owned layers, paged for stable addresses as layers reference them by ptr
 	// Grows with each new pushed owned layer
@@ -544,20 +573,17 @@ private:
 	// Grows with each new pushed layer, free'd when the param stack is destroyed
 	TPagedArray<uint8, 4096> OwnedLayerParamStorage;
 
-	// Indicies into layers. These are the indices into the layer stack where the current 'top' value resides.
-	// Grows on creation and when new parameter IDs are encountered
-	TArray<uint16> LayerIndices;
-
-	// Indices for the previous layer for each active param. MAX_uint16 if there is no previous layer for the param.
-	// Pushed layers hold views into this array.
-	// Grows with each new pushed layer, free'd when the param stack is destroyed
-	TArray<uint16> PreviousLayerIndices;
-
 	// Parent stack from outer scope
 	TWeakPtr<const FParamStack> WeakParentStack;
 
+	// Coalesced layer handles
+	TArray<FPushedLayerHandle> CoalesceLayerHandles;
+
 	// Serial number for stack layers
 	uint32 SerialNumber = 0;
+
+	// Flag to indicate coalesced query path
+	bool bIsCoalesced = false;
 };
 
 }

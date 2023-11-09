@@ -120,11 +120,11 @@ void FScheduleTickFunction::RunSchedule(TConstArrayView<FAnimNextScheduleInstruc
 			{
 				uint32 TaskIndex = Instruction.Operand;
 				FScheduleInstanceData& InstanceData = ScheduleContext.GetInstanceData();
-				FParamStack::AttachToCurrentThread(InstanceData.GetParamStack(Schedule->Tasks[TaskIndex].ParamScopeIndex));
+				FParamStack::AttachToCurrentThread(InstanceData.GetParamStack(Schedule->Tasks[TaskIndex].ParamScopeIndex), FParamStack::ECoalesce::Coalesce);
 
 				Schedule->Tasks[TaskIndex].RunGraph(ScheduleContext);
 
-				FParamStack::DetachFromCurrentThread();
+				FParamStack::DetachFromCurrentThread(FParamStack::EDecoalesce::Decoalesce);
 				break;
 			}
 		case EAnimNextScheduleScheduleOpcode::BeginRunExternalTask:
@@ -146,8 +146,6 @@ void FScheduleTickFunction::RunSchedule(TConstArrayView<FAnimNextScheduleInstruc
 				{
 					if (const UObject* Object = InTargetObjects[InstructionIndex].Get())
 					{
-						FScheduleInstanceData& InstanceData = ScheduleContext.GetInstanceData();
-						uint32 ExternalTaskIndex = Instruction.Operand;
 						FParamStack::RemoveForPendingObject(Object);
 					}
 				}
@@ -170,7 +168,7 @@ void FScheduleTickFunction::RunSchedule(TConstArrayView<FAnimNextScheduleInstruc
 
 				uint32 ScopeEntryIndex = Instruction.Operand;
 				FScheduleInstanceData& InstanceData = ScheduleContext.GetInstanceData();
-				FParamStack::AttachToCurrentThread(InstanceData.GetParamStack(Schedule->ParamScopeEntryTasks[ScopeEntryIndex].ParamScopeIndex));
+				FParamStack::AttachToCurrentThread(InstanceData.GetParamStack(Schedule->ParamScopeEntryTasks[ScopeEntryIndex].ParamScopeIndex), FParamStack::ECoalesce::Coalesce);
 
 				Schedule->ParamScopeEntryTasks[ScopeEntryIndex].RunParamScopeEntry(ScheduleContext);
 
@@ -188,7 +186,7 @@ void FScheduleTickFunction::RunSchedule(TConstArrayView<FAnimNextScheduleInstruc
 
 				Schedule->ParamScopeExitTasks[ScopeExitIndex].RunParamScopeExit(ScheduleContext);
 
-				FParamStack::DetachFromCurrentThread();
+				FParamStack::DetachFromCurrentThread(FParamStack::EDecoalesce::Decoalesce);
 				break;
 			}
 		default:

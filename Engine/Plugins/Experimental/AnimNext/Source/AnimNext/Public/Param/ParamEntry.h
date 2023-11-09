@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Param/ParamTypeHandle.h"
+#include "Param/ParamId.h"
 
 class UAnimNextComponent;
 
@@ -14,6 +15,8 @@ namespace UE::AnimNext
 	struct FInstancedPropertyBagLayer;
 	struct FParamStackLayerHandle;
 	struct FRemappedLayer;
+	struct FParamResult;
+	struct FParamCompatibility;
 }
 
 namespace UE::AnimNext
@@ -52,8 +55,9 @@ private:
 	friend struct UE::AnimNext::FParamStackLayerHandle;
 	friend struct UE::AnimNext::FRemappedLayer;
 	friend class ::UAnimNextComponent;
+	template<typename ElementType, typename AllocatorType> friend class ::TArray;
 
-	ANIMNEXT_API FParamEntry(const FParamTypeHandle& InTypeHandle, TArrayView<uint8> InData, bool bInIsReference, bool bInIsMutable);
+	ANIMNEXT_API FParamEntry(const FParamId& InId, const FParamTypeHandle& InTypeHandle, TArrayView<uint8> InData, bool bInIsReference, bool bInIsMutable);
 
 	// Get the type handle of this param 
 	FParamTypeHandle GetTypeHandle() const { return TypeHandle; }
@@ -80,6 +84,10 @@ private:
 		}
 	}
 
+	FParamResult GetParamData(FParamTypeHandle InTypeHandle, TConstArrayView<uint8>& OutParamData) const;
+
+	FParamResult GetParamData(FParamTypeHandle InTypeHandle, TConstArrayView<uint8>& OutParamData, FParamTypeHandle& OutParamTypeHandle, FParamCompatibility InRequiredCompatibility) const;
+
 	// Get an mutable view of the parameter's data, returns an empty array view if this parameter is immutable
 	TArrayView<uint8> GetMutableData()
 	{
@@ -97,15 +105,40 @@ private:
 		return TArrayView<uint8>();
 	}
 
+	FParamResult GetMutableParamData(FParamTypeHandle InTypeHandle, TArrayView<uint8>& OutParamData);
+
+	FParamResult GetMutableParamData(FParamTypeHandle InTypeHandle, TArrayView<uint8>& OutParamData, FParamTypeHandle& OutParamTypeHandle, FParamCompatibility InRequiredCompatibility);
+
 	// Check whether this param represents valid data. Note that this doesn't check the type hande for validity.
 	bool IsValid() const
 	{
 		return Size > 0;
 	}
 
+	// Get the name of this parameter
+	FName GetName() const
+	{
+		return Id.GetName();
+	}
+
+	// Get the hash of this parameter
+	uint32 GetHash() const
+	{
+		return Id.GetHash();
+	}
+
+	// Get the Id of this parameter
+	const FParamId& GetId() const
+	{
+		return Id;
+	}
+	
 	// Raw ptr to the data, or the data itself if we have EFlags::Embedded
 	void* Data = nullptr;
 
+	// ID of the parameter
+	FParamId Id;
+	
 	// The type of the param
 	FParamTypeHandle TypeHandle;
 

@@ -25,7 +25,7 @@ namespace UE::AnimNext::Tests
 namespace UE::AnimNext
 {
 
-// Global identifier used to index into dense parameter arrays
+// Global identifier used to avoid re-hashing parameter names
 struct ANIMNEXT_API FParamId
 {
 	friend struct FParamStack;
@@ -39,40 +39,35 @@ struct ANIMNEXT_API FParamId
 	friend class FModule;
 	friend struct FRemappedLayer;
 
-	static constexpr uint32 InvalidIndex = MAX_uint32;
-
 	FParamId() = default;
 	FParamId(const FParamId& InName) = default;
 	FParamId& operator=(const FParamId& InName) = default;
 
-	// Make a parameter ID from an FName
+	// Make a parameter ID from an FName, generating the hash
 	explicit FParamId(FName InName);
 
-	// Get the index of this param
-	uint32 ToInt() const
+	// Make a parameter ID from a name and hash
+	explicit FParamId(FName InName, uint32 InHash);
+
+	// Get the name of this param
+	FName GetName() const
 	{
-		return ParameterIndex;
+		return Name;
 	}
 
-	// Get the name that this parameter was created from
-	FName ToName() const;
+	// Get the hash of this param
+	uint32 GetHash() const
+	{
+		return Hash;
+	}
 
 	// Check if this ID represents a valid parameter
 	bool IsValid() const
 	{
-		return ParameterIndex != InvalidIndex;
+		return Hash != 0;
 	}
 
 private:
-	// Make a parameter ID from an index (for internal use)
-	explicit FParamId(uint32 InParameterIndex)
-		: ParameterIndex(InParameterIndex)
-	{
-	}
-
-	// Make a new parameter ID (internal usage only)
-	static uint32 MakeParamId_NoLock(FName InName);
-
 	// Initialize the parameter ID system
 	static void Init();
 
@@ -87,14 +82,9 @@ private:
 
 	// Register all built-in adapters
 	static void RegisterBuiltInAdapters();
-	
+
 	// Refresh all adapters defined in config
 	static void RefreshConfigAdapters();
-	
-	// Get the maximum parameter ID that can exist at present
-	// Note that this can change via concurrent modifications when new parameters are created by 
-	// different threads
-	static FParamId GetMaxParamId();
 
 	// Get any built in adapter for the supplied parameter
 	static const FParamAdapter* GetAdapter(FParamId InId);
@@ -108,16 +98,13 @@ private:
 	{
 		return reinterpret_cast<ReturnType*>(GetScratchAreaForParamIdAdapter(InId));
 	}
-	
-#if WITH_DEV_AUTOMATION_TESTS
-	// Used to isolate global param IDs from automated tests
-	static void BeginTestSandbox();
-	static void EndTestSandbox();
-#endif
 
 private:
-	// Stable index
-	uint32 ParameterIndex = InvalidIndex;
+	// Parameter name
+	FName Name;
+
+	// Name hash
+	uint32 Hash = 0;
 };
 
 } // end namespace UE::AnimNext

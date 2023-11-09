@@ -8,143 +8,86 @@
 namespace UE::AnimNext
 {
 
+FParamStackLayer::FParamStackLayer(uint32 InParamCount)
+	: HashTable(FMath::Max<uint32>(32u, FMath::RoundUpToPowerOfTwo(InParamCount + 1)), InParamCount)
+{
+}
+	
 FParamStackLayer::~FParamStackLayer()
 {
 }
 
-FParamStackLayer::FParamStackLayer(TConstArrayView<TPair<FParamId, Private::FParamEntry>> InParams)
+FParamStackLayer::FParamStackLayer(TConstArrayView<Private::FParamEntry> InParams)
+	: FParamStackLayer(InParams.Num())
 {
-	MinParamId = MAX_uint32;
-	uint32 MaxParamId = 0;
+	Params.Reserve(InParams.Num());
 	for (uint32 ParamIndex = 0; ParamIndex < static_cast<uint32>(InParams.Num()); ++ParamIndex)
 	{
-		MinParamId = FMath::Min(InParams[ParamIndex].Key.ToInt(), MinParamId);
-		MaxParamId = FMath::Max(InParams[ParamIndex].Key.ToInt(), MaxParamId);
-	}
-
-	if (MinParamId <= MaxParamId)
-	{
-		const uint32 ParamRangeSize = (MaxParamId - MinParamId) + 1;
-		Params.SetNumZeroed(ParamRangeSize);
-		for (uint32 ParamIndex = 0; ParamIndex < static_cast<uint32>(InParams.Num()); ++ParamIndex)
-		{
-			const TPair<FParamId, Private::FParamEntry>& Pair = InParams[ParamIndex];
-			const uint32 LocalParamIndex = Pair.Key.ToInt() - MinParamId;
-			Params[LocalParamIndex] = Pair.Value;
-		}
+		const Private::FParamEntry& Param = InParams[ParamIndex];
+		Params.Add(Param);
+		HashTable.Add(Param.GetHash(), ParamIndex);
 	}
 }
-
-
+	
 FParamResult FParamStackLayer::GetParamData(FParamId InId, FParamTypeHandle InTypeHandle, TConstArrayView<uint8>& OutParamData) const
 {
-	const uint32 LocalParamIndex = InId.ToInt() - MinParamId;
-
-	const Private::FParamEntry& Param = Params[LocalParamIndex];
-	if (!Param.IsValid())
+	const Private::FParamEntry* ParamPtr = FindEntry(InId);
+	if (ParamPtr == nullptr)
 	{
 		return EParamResult::NotInScope;
 	}
 
-	FParamCompatibility Compatibility = UE::AnimNext::FParamUtils::GetCompatibility(InTypeHandle, Param.GetTypeHandle());
-	if (!Compatibility.IsCompatible())
-	{
-		return EParamResult::TypeError;
-	}
-
-	OutParamData = Param.GetData();
-	return EParamResult::Success;
+	return ParamPtr->GetParamData(InTypeHandle, OutParamData);
 }
 
 FParamResult FParamStackLayer::GetParamData(FParamId InId, FParamTypeHandle InTypeHandle, TConstArrayView<uint8>& OutParamData, FParamTypeHandle& OutParamTypeHandle, FParamCompatibility InRequiredCompatibility) const
 {
-	const uint32 LocalParamIndex = InId.ToInt() - MinParamId;
-
-	if(!Params.IsValidIndex(LocalParamIndex))
+	const Private::FParamEntry* ParamPtr = FindEntry(InId);
+	if (ParamPtr == nullptr)
 	{
 		return EParamResult::NotInScope;
 	}
 
-	const Private::FParamEntry& Param = Params[LocalParamIndex];
-	if (!Param.IsValid())
-	{
-		return EParamResult::NotInScope;
-	}
-
-	OutParamTypeHandle = Param.GetTypeHandle();
-
-	FParamCompatibility Compatibility = UE::AnimNext::FParamUtils::GetCompatibility(InTypeHandle, OutParamTypeHandle);
-	if (Compatibility < InRequiredCompatibility)
-	{
-		return EParamResult::TypeError;
-	}
-
-	OutParamData = Param.GetData();
-
-	if (Compatibility == InRequiredCompatibility)
-	{
-		return EParamResult::Success | EParamResult::TypeCompatible;
-	}
-
-	return EParamResult::Success;
+	return ParamPtr->GetParamData(InTypeHandle, OutParamData, OutParamTypeHandle, InRequiredCompatibility);
 }
 
 FParamResult FParamStackLayer::GetMutableParamData(FParamId InId, FParamTypeHandle InTypeHandle, TArrayView<uint8>& OutParamData)
 {
-	const uint32 LocalParamIndex = InId.ToInt() - MinParamId;
-
-	Private::FParamEntry& Param = Params[LocalParamIndex];
-	if (!Param.IsValid())
+	Private::FParamEntry* ParamPtr = FindMutableEntry(InId);
+	if (ParamPtr == nullptr)
 	{
 		return EParamResult::NotInScope;
 	}
 
-	FParamResult AccessResult = EParamResult::Success;
-	FParamCompatibility Compatibility = UE::AnimNext::FParamUtils::GetCompatibility(InTypeHandle, Param.GetTypeHandle());
-	if (!Compatibility.IsCompatible())
-	{
-		AccessResult.Result |= EParamResult::TypeError;
-	}
-
-	AccessResult.Result |= !Param.IsMutable() ? EParamResult::MutabilityError : EParamResult::Success;
-	if (AccessResult.IsSuccessful())
-	{
-		OutParamData = Param.GetMutableData();
-	}
-
-	return AccessResult;
+	return ParamPtr->GetMutableParamData(InTypeHandle, OutParamData);
 }
 
 FParamResult FParamStackLayer::GetMutableParamData(FParamId InId, FParamTypeHandle InTypeHandle, TArrayView<uint8>& OutParamData, FParamTypeHandle& OutParamTypeHandle, FParamCompatibility InRequiredCompatibility)
 {
-	const uint32 LocalParamIndex = InId.ToInt() - MinParamId;
-
-	Private::FParamEntry& Param = Params[LocalParamIndex];
-	if (!Param.IsValid())
+	Private::FParamEntry* ParamPtr = FindMutableEntry(InId);
+	if (ParamPtr == nullptr)
 	{
 		return EParamResult::NotInScope;
 	}
 
-	OutParamTypeHandle = Param.GetTypeHandle();
-
-	FParamResult AccessResult = EParamResult::Success;
-	FParamCompatibility Compatibility = UE::AnimNext::FParamUtils::GetCompatibility(InTypeHandle, OutParamTypeHandle);
-	if (Compatibility < InRequiredCompatibility)
-	{
-		AccessResult.Result |= EParamResult::TypeError;
-	}
-	else if (Compatibility == InRequiredCompatibility)
-	{
-		AccessResult.Result |= EParamResult::TypeCompatible;
-	}
-
-	AccessResult.Result |= !Param.IsMutable() ? EParamResult::MutabilityError : EParamResult::Success;
-	if (AccessResult.IsSuccessful())
-	{
-		OutParamData = Param.GetMutableData();
-	}
-
-	return AccessResult;
+	return ParamPtr->GetMutableParamData(InTypeHandle, OutParamData, OutParamTypeHandle, InRequiredCompatibility);
 }
 
+const Private::FParamEntry* FParamStackLayer::FindEntry(FParamId InId) const
+{
+	for(uint32 Index = HashTable.First(InId.GetHash()); HashTable.IsValid(Index); Index = HashTable.Next(Index))
+	{
+		if(Params[Index].GetName() == InId.GetName())
+		{
+			return &Params[Index];
+		}
+	}
+	return nullptr;
+}
+
+Private::FParamEntry* FParamStackLayer::FindMutableEntry(FParamId InId) const
+{
+	return const_cast<Private::FParamEntry*>(FindEntry(InId));
+}
+	
 }

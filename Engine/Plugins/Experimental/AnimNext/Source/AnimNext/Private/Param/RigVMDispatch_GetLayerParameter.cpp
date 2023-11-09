@@ -46,16 +46,6 @@ FString FRigVMDispatch_GetLayerParameter::GetArgumentMetaData(const FName& InArg
 
 	return Super::GetArgumentMetaData(InArgumentName, InMetaDataKey);
 }
-
-FString FRigVMDispatch_GetLayerParameter::GetArgumentDefaultValue(const FName& InArgumentName, TRigVMTypeIndex InTypeIndex) const
-{
-	if (InArgumentName == ParameterIdName)
-	{
-		return FString::Printf(TEXT("%u"), 0xffffffff);
-	}
-
-	return Super::GetArgumentDefaultValue(InArgumentName, InTypeIndex);
-}
 #endif
 
 const TArray<FRigVMTemplateArgumentInfo>& FRigVMDispatch_GetLayerParameter::GetArgumentInfos() const
@@ -97,10 +87,10 @@ void FRigVMDispatch_GetLayerParameter::Execute(FRigVMExtendedExecuteContext& InC
 	check(ValueProperty);
 	uint8* TargetDataPtr = Handles[1].GetData();
 
-	uint32& ParameterId = *(uint32*)Handles[2].GetData();
-	if (ParameterId == FParamId::InvalidIndex)
+	uint32& ParameterHash = *(uint32*)Handles[2].GetData();
+	if (ParameterHash == 0 && Parameter != NAME_None)
 	{
-		ParameterId = FParamId(Parameter).ToInt();
+		ParameterHash = GetTypeHash(Parameter);
 	}
 
 	uint32& TypeHandle = *(uint32*)Handles[3].GetData();
@@ -111,7 +101,7 @@ void FRigVMDispatch_GetLayerParameter::Execute(FRigVMExtendedExecuteContext& InC
 
 	FAnimNextParameterExecuteContext& ParamContext = InContext.GetPublicData<FAnimNextParameterExecuteContext>();
 	TConstArrayView<uint8> SourceData;
-	if (ParamContext.GetLayerHandle().GetValueRaw(FParamId(ParameterId), FParamTypeHandle::FromRaw(TypeHandle), SourceData).IsSuccessful())
+	if (ParamContext.GetLayerHandle().GetValueRaw(FParamId(Parameter, ParameterHash), FParamTypeHandle::FromRaw(TypeHandle), SourceData).IsSuccessful())
 	{
 		ValueProperty->CopyCompleteValue(TargetDataPtr, SourceData.GetData());
 	}

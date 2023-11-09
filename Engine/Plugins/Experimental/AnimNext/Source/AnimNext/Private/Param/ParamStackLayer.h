@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Param/ParamId.h"
 #include "Param/ParamCompatibility.h"
+#include "Containers/HashTable.h"
 
 struct FInstancedPropertyBag;
 
@@ -12,6 +13,7 @@ namespace UE::AnimNext
 {
 	struct FParamResult;
 	struct FParamTypeHandle;
+	struct FParamStack;
 }
 
 namespace UE::AnimNext::Private
@@ -27,13 +29,15 @@ namespace UE::AnimNext
 // Memory ownership for params is variable depending on the layer's subclass
 struct FParamStackLayer
 {
-	FParamStackLayer() = default;
+	FParamStackLayer() = delete;
+
 	virtual ~FParamStackLayer();
 
-	friend struct FParamStack;
-	friend struct FParamStackLayerHandle;
+	// Constructor that reserves space for the specified parameters
+	explicit FParamStackLayer(uint32 InParamCount);
 
-	explicit FParamStackLayer(TConstArrayView<TPair<FParamId, Private::FParamEntry>> InParams);
+	// Constructor for set of user parameters
+	explicit FParamStackLayer(TConstArrayView<Private::FParamEntry> InParams);
 
 	ANIMNEXT_API FParamResult GetParamData(FParamId InId, FParamTypeHandle InTypeHandle, TConstArrayView<uint8>& OutParamData) const;
 	ANIMNEXT_API FParamResult GetParamData(FParamId InId, FParamTypeHandle InTypeHandle, TConstArrayView<uint8>& OutParamData, FParamTypeHandle& OutParamTypeHandle, FParamCompatibility InRequiredCompatibility = FParamCompatibility::Equal()) const;
@@ -44,11 +48,17 @@ struct FParamStackLayer
 	ANIMNEXT_API virtual UObject* AsUObject() { return nullptr; }
 	ANIMNEXT_API virtual FInstancedPropertyBag* AsInstancedPropertyBag() { return nullptr; }
 
+	const Private::FParamEntry* FindEntry(FParamId InId) const;
+	Private::FParamEntry* FindMutableEntry(FParamId InId) const;
+	
 	// Params that this layer supplies
 	TArray<Private::FParamEntry> Params;
 
-	// ID that the param indices start at. Maps the global param ID range into the range for this layer
-	uint32 MinParamId = 0;
+	// Hash table for param IDs
+	FHashTable HashTable;
+
+	// Owning stack for this layer if it is owned internally, otherwise nullptr
+	FParamStack* OwningStack = nullptr;
 
 	// Storage offset for this layer if it is owned internally, otherwise MAX_uint32
 	uint32 OwnedStorageOffset = MAX_uint32;

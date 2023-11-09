@@ -75,7 +75,7 @@ public:
 	FParamResult SetValues(Args&&... InValues)
 	{
 		constexpr int32 NumItems = sizeof...(InValues) / 2;
-		TArray<TPair<FParamId, Private::FParamEntry>, TInlineAllocator<NumItems>> ParamIdValues;
+		TArray<Private::FParamEntry, TInlineAllocator<NumItems>> ParamIdValues;
 		ParamIdValues.Reserve(NumItems);
 		return SetValuesHelper(ParamIdValues, Forward<Args>(InValues)...);
 	}
@@ -170,7 +170,7 @@ private:
 	friend class UAnimNextParameterBlock;
 
 	// Set parameter values
-	ANIMNEXT_API FParamResult SetValuesInternal(TConstArrayView<TPair<FParamId, Private::FParamEntry>> InParams);
+	ANIMNEXT_API FParamResult SetValuesInternal(TConstArrayView<Private::FParamEntry> InParams);
 
 	// Helpers for As() to hide Layer
 	ANIMNEXT_API UObject* GetUObjectFromLayer() const;
@@ -178,10 +178,11 @@ private:
 
 	// Recursive helper function for SetValues
 	template <uint32 NumItems, typename FirstType, typename SecondType, typename... OtherTypes>
-	FParamResult SetValuesHelper(TArray<TPair<FParamId, Private::FParamEntry>, TInlineAllocator<NumItems>>& InArray, FirstType&& InFirst, SecondType&& InSecond, OtherTypes&&... InOthers)
+	FParamResult SetValuesHelper(TArray<Private::FParamEntry, TInlineAllocator<NumItems>>& InArray, FirstType&& InFirst, SecondType&& InSecond, OtherTypes&&... InOthers)
 	{
-		InArray.Emplace(FParamId(InFirst),
+		InArray.Emplace(
 			Private::FParamEntry(
+				FParamId(InFirst),
 				FParamTypeHandle::GetHandle<std::remove_reference_t<SecondType>>(),
 				TArrayView<uint8>(const_cast<uint8*>(reinterpret_cast<const uint8*>(&InSecond)), sizeof(std::remove_reference_t<SecondType>)),
 				std::is_reference_v<SecondType>,

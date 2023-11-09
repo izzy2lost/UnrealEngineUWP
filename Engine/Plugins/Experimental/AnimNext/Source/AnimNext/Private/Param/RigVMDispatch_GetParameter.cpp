@@ -48,16 +48,6 @@ FString FRigVMDispatch_GetParameter::GetArgumentMetaData(const FName& InArgument
 
 	return Super::GetArgumentMetaData(InArgumentName, InMetaDataKey);
 }
-
-FString FRigVMDispatch_GetParameter::GetArgumentDefaultValue(const FName& InArgumentName, TRigVMTypeIndex InTypeIndex) const
-{
-	if (InArgumentName == ParameterIdName)
-	{
-		return FString::Printf(TEXT("%u"), 0xffffffff);
-	}
-
-	return Super::GetArgumentDefaultValue(InArgumentName, InTypeIndex);
-}
 #endif
 
 const TArray<FRigVMTemplateArgumentInfo>& FRigVMDispatch_GetParameter::GetArgumentInfos() const
@@ -99,10 +89,10 @@ void FRigVMDispatch_GetParameter::Execute(FRigVMExtendedExecuteContext& InContex
 	check(ValueProperty);
 	uint8* TargetDataPtr = Handles[1].GetData();
 
-	uint32& ParameterId = *(uint32*)Handles[2].GetData();
-	if (ParameterId == FParamId::InvalidIndex)
+	uint32& ParameterHash = *(uint32*)Handles[2].GetData();
+	if (ParameterHash == 0 && Parameter != NAME_None)
 	{
-		ParameterId = FParamId(Parameter).ToInt();
+		ParameterHash = GetTypeHash(Parameter);
 	}
 
 	uint32& TypeHandle = *(uint32*)Handles[3].GetData();
@@ -112,7 +102,7 @@ void FRigVMDispatch_GetParameter::Execute(FRigVMExtendedExecuteContext& InContex
 	}
 
 	TConstArrayView<uint8> SourceData;
-	if (FParamStack::Get().GetParamData(FParamId(ParameterId), FParamTypeHandle::FromRaw(TypeHandle), SourceData).IsSuccessful())
+	if (FParamStack::Get().GetParamData(FParamId(Parameter, ParameterHash), FParamTypeHandle::FromRaw(TypeHandle), SourceData).IsSuccessful())
 	{
 		ValueProperty->CopyCompleteValue(TargetDataPtr, SourceData.GetData());
 	}

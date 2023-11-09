@@ -49,16 +49,6 @@ FString FRigVMDispatch_SetLayerParameter::GetArgumentMetaData(const FName& InArg
 
 	return Super::GetArgumentMetaData(InArgumentName, InMetaDataKey);
 }
-
-FString FRigVMDispatch_SetLayerParameter::GetArgumentDefaultValue(const FName& InArgumentName, TRigVMTypeIndex InTypeIndex) const
-{
-	if (InArgumentName == ParameterIdName)
-	{
-		return FString::Printf(TEXT("%u"), 0xffffffff);
-	}
-
-	return Super::GetArgumentDefaultValue(InArgumentName, InTypeIndex);
-}
 #endif
 
 const TArray<FRigVMTemplateArgumentInfo>& FRigVMDispatch_SetLayerParameter::GetArgumentInfos() const
@@ -106,10 +96,10 @@ void FRigVMDispatch_SetLayerParameter::Execute(FRigVMExtendedExecuteContext& InC
 	check(ValueProperty);
 	const uint8* SourceData =  Handles[1].GetData();
 
-	uint32& RawParameterId = *(uint32*)Handles[2].GetData();
-	if (RawParameterId == FParamId::InvalidIndex && Parameter != NAME_None)
+	uint32& ParameterHash = *(uint32*)Handles[2].GetData();
+	if (ParameterHash == 0 && Parameter != NAME_None)
 	{
-		RawParameterId = FParamId(Parameter).ToInt();
+		ParameterHash = GetTypeHash(Parameter);
 	}
 
 	uint32& RawTypeHandle = *(uint32*)Handles[3].GetData();
@@ -118,7 +108,7 @@ void FRigVMDispatch_SetLayerParameter::Execute(FRigVMExtendedExecuteContext& InC
 		RawTypeHandle = FParamTypeHandle::FromProperty(ValueProperty).ToRaw();
 	}
 
-	FParamId ParameterId(RawParameterId);
+	FParamId ParameterId(Parameter, ParameterHash);
 	FParamTypeHandle TypeHandle = FParamTypeHandle::FromRaw(RawTypeHandle);
 	if(ParameterId.IsValid() && TypeHandle.IsValid())
 	{

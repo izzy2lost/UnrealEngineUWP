@@ -294,8 +294,6 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FParamStackTest, "Animation.AnimNext.Parameters
 
 bool FParamStackTest::RunTest(const FString& InParameters)
 {
-	FParamId::BeginTestSandbox();
-
 	FParamId ParamIds[] = { FParamId("Param0"), FParamId("Param1"), FParamId("Param2"), FParamId("Param3") };
 
 	// Check immediate value interfaces
@@ -548,17 +546,40 @@ bool FParamStackTest::RunTest(const FString& InParameters)
 			AddErrorIfFalse(Stack.GetParam<float>(ParamName) == (float)Index, FString::Printf(TEXT("%s != %.0f"), *ParamName.ToString(), (float)Index));
 		}
 
-		Stack.PushValue(FName("Param", MAX_uint16), (float)MAX_uint16);
-		AddErrorIfFalse(Stack.GetParamPtr<float>(FName("Param", MAX_uint16)) == nullptr, TEXT("Overflowed stack value is non-null"));
-
 		for (int32 Index = NumParams - 1; Index >= 0; --Index)
 		{
 			Stack.PopLayer(Handles[Index]);
 		}
 	}
 
-	FParamId::EndTestSandbox();
+	// Check parent links & coalescing of parent stacks
+	{
+		TSharedPtr<FParamStack> Stack1 = MakeShared<FParamStack>();
+		TSharedPtr<FParamStack> Stack2 = MakeShared<FParamStack>();
+		Stack2->SetParent(Stack1);
 
+		FParamStack::FPushedLayerHandle Handle1 = Stack1->PushValues("Param2", 3.0f, "Param1", 3.0f);
+
+		AddErrorIfFalse(Stack2->GetParam<float>("Param1") == 3.0f, "Decoalesced Param1 != 3.0f");
+		AddErrorIfFalse(Stack2->GetParam<float>("Param2") == 3.0f, "Decoalesced Param2 != 3.0f");
+
+		Stack2->Coalesce();
+
+		FParamStack::FPushedLayerHandle Handle2 = Stack2->PushValues("Param3", 5.0f, "Param0", 6.0f);
+
+		AddErrorIfFalse(Stack2->GetParam<float>("Param1") == 3.0f, "Coalesced Param1 != 3.0f");
+		AddErrorIfFalse(Stack2->GetParam<float>("Param2") == 3.0f, "Coalesced Param2 != 3.0f");
+		AddErrorIfFalse(Stack2->GetParam<float>("Param3") == 5.0f, "Coalesced Param3 != 5.0f");
+		AddErrorIfFalse(Stack2->GetParam<float>("Param0") == 6.0f, "Coalesced Param0 != 6.0f");
+
+		Stack2->PopLayer(Handle2);
+
+		Stack2->Decoalesce();
+
+		AddErrorIfFalse(Stack2->GetParam<float>("Param1") == 3.0f, "Decoalesced Param1 != 3.0f");
+		AddErrorIfFalse(Stack2->GetParam<float>("Param2") == 3.0f, "Decoalesced Param2 != 3.0f");
+	}
+	
 	return true;
 }
 

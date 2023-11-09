@@ -65,22 +65,18 @@ FParamResult FParamStackLayerHandle::GetValueRaw(FParamId InParamId, FParamTypeH
 	return Layer->GetParamData(InParamId, InTypeHandle, OutData);
 }
 
-FParamResult FParamStackLayerHandle::SetValuesInternal(TConstArrayView<TPair<FParamId, Private::FParamEntry>> InParams)
+FParamResult FParamStackLayerHandle::SetValuesInternal(TConstArrayView<Private::FParamEntry> InParams)
 {
 	check(Layer.IsValid());
 
-	const uint32 MinParamId = Layer->MinParamId;
-	for (const TPair<FParamId, Private::FParamEntry>& ParamPair : InParams)
+	for (const Private::FParamEntry& Param : InParams)
 	{
-		const uint32 LocalParamIndex = ParamPair.Key.ToInt() - MinParamId;
-		if(Layer->Params.IsValidIndex(LocalParamIndex))
+		if(Private::FParamEntry* ParamPtr = Layer->FindMutableEntry(Param.GetId()))
 		{
-			Private::FParamEntry& Param = Layer->Params[LocalParamIndex];
-			
-			check(Param.GetTypeHandle() == ParamPair.Value.GetTypeHandle());
-			check(Param.IsMutable());
+			check(ParamPtr->GetTypeHandle() == Param.GetTypeHandle());
+			check(ParamPtr->IsMutable());
 
-			FParamHelpers::Copy(ParamPair.Value.GetTypeHandle(), ParamPair.Value.GetData(), Param.GetMutableData());
+			FParamHelpers::Copy(ParamPtr->GetTypeHandle(), Param.GetData(), ParamPtr->GetMutableData());
 			return EParamResult::Success;
 		}
 	}

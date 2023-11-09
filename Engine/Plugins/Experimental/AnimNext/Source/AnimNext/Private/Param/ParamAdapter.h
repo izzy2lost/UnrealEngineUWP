@@ -43,6 +43,8 @@ struct FParamAdapter
 	FParamDefinition Definition;
 
 	FObjectAdapterFunction Function;
+	
+	uint32 BufferOffset = MAX_uint32;
 };
 
 }

@@ -7,9 +7,8 @@
 namespace UE::AnimNext
 {
 
-FParamDefinition::FParamDefinition(uint32 InIdIndex, FName InName, const UObject* InObject)
-	: Id(FParamId(InIdIndex))
-	, Name(InName)
+FParamDefinition::FParamDefinition(FName InName, const UObject* InObject)
+	: Id(InName)
 	, TypeHandle(FParamTypeHandle::FromObject(InObject))
 	, Type(TypeHandle.GetType())
 #if WITH_EDITORONLY_DATA
@@ -20,9 +19,8 @@ FParamDefinition::FParamDefinition(uint32 InIdIndex, FName InName, const UObject
 {
 }
 
-FParamDefinition::FParamDefinition(uint32 InIdIndex, FName InName, const FProperty* InProperty)
-	: Id(FParamId(InIdIndex))
-	, Name(InName)
+FParamDefinition::FParamDefinition(FName InName, const FProperty* InProperty)
+	: Id(InName)
 	, TypeHandle(FParamTypeHandle::FromProperty(InProperty))
 	, Type(TypeHandle.GetType())
 #if WITH_EDITORONLY_DATA
@@ -32,17 +30,16 @@ FParamDefinition::FParamDefinition(uint32 InIdIndex, FName InName, const FProper
 	, Function(nullptr)
 {
 	// Param names should not contain periods. Periods are only a display concern. Use underscores.
-	check(!Name.ToString().Contains(TEXT(".")));
+	check(!InName.ToString().Contains(TEXT(".")));
 }
 
-FParamDefinition::FParamDefinition(uint32 InIdIndex, FName InName, const UFunction* InFunction)
-	: Id(FParamId(InIdIndex))
-	, Name(InName)
+FParamDefinition::FParamDefinition(FName InName, const UFunction* InFunction)
+	: Id(InName)
 	, Property(nullptr)
 	, Function(InFunction)
 {
 	// Param names should not contain periods. Periods are only a display concern. Use underscores.
-	check(!Name.ToString().Contains(TEXT(".")));
+	check(!InName.ToString().Contains(TEXT(".")));
 
 	const FProperty* ReturnProperty = InFunction->GetReturnProperty();
 	check(ReturnProperty);

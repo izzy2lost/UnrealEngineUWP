@@ -53,7 +53,7 @@ void UAnimNextComponent::OnRegister()
 
 				if(StackToUse.IsValid())
 				{
-					TArray<TPair<FParamId, Private::FParamEntry>, TInlineAllocator<4>> Params;
+					TArray<Private::FParamEntry, TInlineAllocator<4>> Params;
 					for(UAnimNextComponentParameter* Parameter : ParamPair.Value)
 					{
 						FParamId ParamId;
@@ -64,7 +64,7 @@ void UAnimNextComponent::OnRegister()
 
 						constexpr bool bIsReference = true;
 						constexpr bool bIsMutable = false;
-						Params.Emplace(ParamId, Private::FParamEntry(Type.GetHandle(), TArrayView<uint8>(Value, 1), bIsReference, bIsMutable));
+						Params.Emplace(Private::FParamEntry(ParamId, Type.GetHandle(), TArrayView<uint8>(Value, 1), bIsReference, bIsMutable));
 					}
 
 					FParamStackLayerHandle NewLayer = FParamStack::MakeLayer(Params);

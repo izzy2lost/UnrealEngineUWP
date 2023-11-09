@@ -11,7 +11,7 @@ static TMap<FName, FParamDefinition> RegisteredParams;
 
 FParamDefinition FParams::RegisterBuiltInParameter(const FParamDefinition& InDefinition)
 {
-	return RegisteredParams.Add(InDefinition.Name, InDefinition);
+	return RegisteredParams.Add(InDefinition.GetName(), InDefinition);
 }
 
 void FParams::UnregisterBuiltInParameter(FName InName)

@@ -30,14 +30,13 @@ enum class EParamDefinitionFlags : uint8
 
 ENUM_CLASS_FLAGS(EParamDefinitionFlags);
 
-// Definition of a parameter for reserved for internal use
+// Definition of a parameter reserved for internal use
 struct FParamDefinition
 {
 	FParamDefinition() = default;
 
 	FParamDefinition(FName InName, const FAnimNextParamType& InType, const FText& InTooltip, EParamDefinitionFlags InFlags = EParamDefinitionFlags::None)
 		: Id(InName)
-		, Name(InName)
 		, TypeHandle(InType.GetHandle())
 		, Type(InType)
 #if WITH_EDITORONLY_DATA
@@ -48,10 +47,10 @@ struct FParamDefinition
 		, Flags(InFlags)
 	{
 		// Param names should not be 'none'
-		check(Name != NAME_None);
+		check(InName != NAME_None);
 		// Param names should not contain periods. Use underscores.
 		// Periods are only a display concern and we want parameters to be expressible as members of objects & structures. 
-		check(!Name.ToString().Contains(TEXT(".")));
+		check(!InName.ToString().Contains(TEXT(".")));
 	}
 
 	FParamDefinition(FName InName, const FAnimNextParamType& InType, EParamDefinitionFlags InFlags = EParamDefinitionFlags::None)
@@ -61,7 +60,6 @@ struct FParamDefinition
 	
 	FParamDefinition(FParamId InId, const FAnimNextParamType& InType, const FText& InTooltip, EParamDefinitionFlags InFlags = EParamDefinitionFlags::None)
 		: Id(InId)
-		, Name(InId.ToName())
 		, TypeHandle(InType.GetHandle())
 		, Type(InType)
 #if WITH_EDITORONLY_DATA
@@ -78,9 +76,18 @@ struct FParamDefinition
 	{
 	}
 
+	// Make a parameter definition from its name and a UObject
+	FParamDefinition(FName InName, const UObject* InObject);
+
+	// Make a parameter definition from its name and a property
+	FParamDefinition(FName InName, const FProperty* InProperty);
+
+	// Make a parameter definition from its name and the return value of a function
+	FParamDefinition(FName InName, const UFunction* InFunction);
+	
 	FName GetName() const
 	{
-		return Name;
+		return Id.GetName();
 	}
 
 	FParamId GetId() const
@@ -104,31 +111,7 @@ private:
 	friend struct FParamAdapter;
 	friend struct UncookedOnly::FUtils;
 
-	FParamDefinition(int32 InIdIndex, FName InName, const FAnimNextParamType& InType, const FText& InTooltip, EParamDefinitionFlags InFlags = EParamDefinitionFlags::None)
-		: Id(InIdIndex)
-		, Name(InName)
-		, TypeHandle(InType.GetHandle())
-		, Type(InType)
-#if WITH_EDITORONLY_DATA
-		, Tooltip(InTooltip)
-#endif
-		, Property(nullptr)
-		, Function(nullptr)
-		, Flags(InFlags)
-	{
-	}
-
-	// Make a parameter definition from its ID and a UObject
-	FParamDefinition(uint32 InIdIndex, FName InName, const UObject* InObject);
-
-	// Make a parameter definition from its ID and a property
-	FParamDefinition(uint32 InIdIndex, FName InName, const FProperty* InProperty);
-
-	// Make a parameter definition from its ID and the return value of a function
-	FParamDefinition(uint32 InIdIndex, FName InName, const UFunction* InFunction);
-
 	FParamId Id;
-	FName Name;
 	FParamTypeHandle TypeHandle;
 	FAnimNextParamType Type;
 #if WITH_EDITORONLY_DATA
