@@ -8,17 +8,19 @@
 
 #include "CoreTypes.h"
 #include "Misc/AssertionMacros.h"
-#include "VVMVisitorWrapper.h"
+#include "VVMValue.h"
+#include "VVMWriteBarrier.h"
 
 class UObject;
 
 namespace Verse
 {
 struct VCell;
+struct VRestValue;
 
-struct FAbstractVisitorDispatch
+struct FAbstractVisitor
 {
-	UE_NONCOPYABLE(FAbstractVisitorDispatch);
+	UE_NONCOPYABLE(FAbstractVisitor);
 
 	enum class EReferrerType
 	{
@@ -46,35 +48,70 @@ struct FAbstractVisitorDispatch
 	// A stack based context to maintain the chain of referrers
 	struct FReferrerContext
 	{
-		FReferrerContext(FAbstractVisitorDispatch& InVisitor, FReferrerToken InReferrer);
+		FReferrerContext(FAbstractVisitor& InVisitor, FReferrerToken InReferrer);
 		~FReferrerContext();
 
 		FReferrerToken GetReferrer() const { return Referrer; }
 
 	private:
-		FAbstractVisitorDispatch& Visitor;
+		FAbstractVisitor& Visitor;
 		FReferrerToken Referrer;
 		FReferrerContext* Previous;
 	};
 
-	virtual ~FAbstractVisitorDispatch() = default;
+	virtual ~FAbstractVisitor() = default;
 
+	// The context provides information about the current cell being visited
 	FReferrerContext* GetContext() const
 	{
 		return Context;
 	}
 
-	// Override the following methods to constomize how different values will be processed
-	virtual void VisitNonNull(const VCell* InCell) {}
-	virtual void VisitNonNull(const UObject* InObject) {}
+	// Override the following methods to constomize how different values will be processed.  For visitors that just need
+	// to enumerate VCell and UObject references, these are the only methods that need to be overridden
+	virtual void VisitNonNull(VCell* InCell);
+	virtual void VisitNonNull(UObject* InObject);
+
+	// This method is only invoked by VCell to visit the emergent type of the cell.  It should not be
+	// called in any other situtation.
+	virtual void VisitEmergentType(const VCell* InEmergentType);
+
+	// The default implementation of the following methods just check for null values and then forward to the non-null variants
+	virtual void Visit(VCell* InCell);
+	virtual void Visit(UObject* InObject);
+
+	// The default implementation looks for either a VCell or UObject pointer and invokes the proper Visit method if found
+	virtual void Visit(VValue Value);
+
+	// The default implementation forwards the call to the VRestValue::Visit method
+	virtual void Visit(VRestValue& Value);
+
+	template <typename T>
+	FORCEINLINE void Visit(TWriteBarrier<T>& Value)
+	{
+		Visit(Value.Get());
+	}
+
+	template <typename T>
+	FORCEINLINE void Visit(T Begin, T End)
+	{
+		for (; Begin != End; ++Begin)
+		{
+			Visit(*Begin);
+		}
+	}
+
+	template <typename T>
+	FORCEINLINE void Visit(T* Values, uint32 Count)
+	{
+		Visit(Values, Values + Count);
+	}
 
 protected:
-	FAbstractVisitorDispatch() = default;
+	FAbstractVisitor() = default;
 
 private:
 	FReferrerContext* Context{nullptr};
 };
-
-using FAbstractVisitor = TVisitorWrapper<FAbstractVisitorDispatch>;
 
 } // namespace Verse

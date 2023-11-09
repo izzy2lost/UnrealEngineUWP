@@ -9,7 +9,6 @@
 #include "VerseVM/VVMCppClassInfo.h"
 #include "VerseVM/VVMLog.h"
 #include "VerseVM/VVMMarkStackVisitor.h"
-#include "VerseVM/VVMVisitorWrapper.h"
 
 namespace Verse
 {

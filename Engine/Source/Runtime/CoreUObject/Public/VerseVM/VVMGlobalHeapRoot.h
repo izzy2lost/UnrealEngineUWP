@@ -10,12 +10,8 @@
 
 namespace Verse
 {
-struct FAbstractVisitorDispatch;
-struct FMarkStackVisitorDispatch;
-template <typename TVisitor>
-struct TVisitorWrapper;
-using FAbstractVisitor = TVisitorWrapper<FAbstractVisitorDispatch>;
-using FMarkStackVisitor = TVisitorWrapper<FMarkStackVisitorDispatch>;
+struct FAbstractVisitor;
+struct FMarkStackVisitor;
 
 // If you have a class that is meant to be used exclusively for global variables (like TUniqueConstructor), then
 // subclass this to give that class the ability to mark its referenced cells.

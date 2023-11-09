@@ -8,7 +8,6 @@
 #include "VerseVM/VVMEmergentType.h"
 #include "VerseVM/VVMHeap.h"
 #include "VerseVM/VVMMarkStackVisitor.h"
-#include "VerseVM/VVMVisitorWrapper.h"
 #include <type_traits>
 
 namespace Verse

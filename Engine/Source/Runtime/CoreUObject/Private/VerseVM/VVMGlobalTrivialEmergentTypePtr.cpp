@@ -4,7 +4,6 @@
 #include "VerseVM/VVMGlobalTrivialEmergentTypePtr.h"
 #include "VerseVM/Inline/VVMAbstractVisitorInline.h"
 #include "VerseVM/VVMMarkStackVisitor.h"
-#include "VerseVM/VVMVisitorWrapper.h"
 
 namespace Verse
 {

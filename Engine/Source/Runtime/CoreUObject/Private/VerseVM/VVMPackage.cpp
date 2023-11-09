@@ -5,7 +5,6 @@
 #include "VerseVM/Inline/VVMAbstractVisitorInline.h"
 #include "VerseVM/VVMCppClassInfo.h"
 #include "VerseVM/VVMMarkStackVisitor.h"
-#include "VerseVM/VVMVisitorWrapper.h"
 
 namespace Verse
 {

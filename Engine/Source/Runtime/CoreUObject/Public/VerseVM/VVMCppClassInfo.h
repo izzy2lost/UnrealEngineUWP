@@ -14,17 +14,12 @@ class FString;
 
 namespace Verse
 {
+struct FAbstractVisitor;
 struct FMarkStack;
+struct FMarkStackVisitor;
 struct FRunningContext;
 struct VCell;
 struct VValue;
-
-struct FAbstractVisitorDispatch;
-struct FMarkStackVisitorDispatch;
-template <typename TVisitor>
-struct TVisitorWrapper;
-using FAbstractVisitor = TVisitorWrapper<FAbstractVisitorDispatch>;
-using FMarkStackVisitor = TVisitorWrapper<FMarkStackVisitorDispatch>;
 
 // MSVC and clang-cl have a non-portable __super that can be used to validate the user's super-class declaration.
 #if defined(_MSC_VER)
@@ -84,7 +79,7 @@ public:                                                                         
 			This->StaticCast<CellType>().VisitInheritedAndNonInheritedReferences(Visitor);                                                                                      \
 		},                                                                                                                                                                      \
 		[](::Verse::VCell* This, ::Verse::FAbstractVisitor& Visitor) -> void {                                                                                                  \
-			::Verse::FAbstractVisitorDispatch::FReferrerContext Context(Visitor, This);                                                                                         \
+			::Verse::FAbstractVisitor::FReferrerContext Context(Visitor, This);                                                                                                 \
 			This->StaticCast<CellType>().VisitInheritedAndNonInheritedReferences(Visitor);                                                                                      \
 		},                                                                                                                                                                      \
 		[](::Verse::VCell* This) -> void {                                                                                                                                      \

@@ -8,7 +8,6 @@
 #include "VerseVM/VVMCppClassInfo.h"
 #include "VerseVM/VVMMarkStackVisitor.h"
 #include "VerseVM/VVMUnreachable.h"
-#include "VerseVM/VVMVisitorWrapper.h"
 
 namespace Verse
 {

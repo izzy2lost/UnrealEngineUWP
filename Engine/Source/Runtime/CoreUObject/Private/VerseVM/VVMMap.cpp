@@ -9,7 +9,6 @@
 #include "VerseVM/Inline/VVMEqualInline.h"
 #include "VerseVM/Inline/VVMValueInline.h"
 #include "VerseVM/VVMMarkStackVisitor.h"
-#include "VerseVM/VVMVisitorWrapper.h"
 #include "VerseVM/VVMWriteBarrier.h"
 
 namespace Verse

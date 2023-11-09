@@ -77,7 +77,7 @@ void VCell::VisitReferences(TVisitor& Visitor)
 template <typename TVisitor>
 void VCell::VisitReferencesImpl(TVisitor& Visitor)
 {
-	Visitor.VisitNonNull(GetEmergentType());
+	Visitor.VisitEmergentType(GetEmergentType());
 }
 
 DEFINE_TRIVIAL_VISIT_REFERENCES(VHeapValue);

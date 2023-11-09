@@ -54,7 +54,6 @@
 #include "VerseVM/VVMHeap.h"
 #include "VerseVM/VVMMarkStack.h"
 #include "VerseVM/VVMValue.h"
-#include "VerseVM/VVMVisitorWrapper.h"
 #include "VerseVM/VVMWriteBarrier.h"
 #endif
 
@@ -3198,7 +3197,7 @@ struct TVerseDebugReachabilityVisitor : public Verse::FAbstractVisitor
 	{
 	}
 
-	virtual void VisitNonNull(const Verse::VCell* InCell) override
+	virtual void VisitNonNull(Verse::VCell* InCell) override
 	{
 		Context.Stats.AddVerseCells(1);
 		if (MarkStack.TryMarkNonNull(InCell) && bTrackHistory)
@@ -3212,21 +3211,20 @@ struct TVerseDebugReachabilityVisitor : public Verse::FAbstractVisitor
 		}
 	}
 
-	virtual void VisitNonNull(const UObject* InObject) override
+	virtual void VisitNonNull(UObject* InObject) override
 	{
-		UObject* Object = const_cast<UObject*>(InObject);
-		UE::GC::GStats.IncreaseObjectRefStats(Object);
+		UE::GC::GStats.IncreaseObjectRefStats(InObject);
 		Verse::FAbstractVisitor::FReferrerContext* VisitorContext = GetContext();
 		const Verse::VCell* Referencer = VisitorContext != nullptr && VisitorContext->GetReferrer().IsCell() ? VisitorContext->GetReferrer().AsCell() : nullptr;
-		if (ValidateReference(Object, PermanentPool, FReferenceToken(Referencer), FMemberId(0)))
+		if (ValidateReference(InObject, PermanentPool, FReferenceToken(Referencer), FMemberId(0)))
 		{
-			FReferenceMetadata Metadata(GUObjectArray.ObjectToIndex(Object));
-			bool bReachedFirst = TReachabilityProcessor<Options>::HandleValidReference(Context, FImmutableReference{ Object }, Metadata);
+			FReferenceMetadata Metadata(GUObjectArray.ObjectToIndex(InObject));
+			bool bReachedFirst = TReachabilityProcessor<Options>::HandleValidReference(Context, FImmutableReference{ InObject }, Metadata);
 			if (bReachedFirst && bTrackHistory)
 			{
 				if (Referencer != nullptr)
 				{
-					GetContextHistoryReferences(Context, FReferenceToken(Referencer), 0).Add(FGCDirectReference(Object));
+					GetContextHistoryReferences(Context, FReferenceToken(Referencer), 0).Add(FGCDirectReference(InObject));
 				}
 			}
 		}

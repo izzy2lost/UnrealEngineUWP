@@ -13,7 +13,6 @@
 #include "VVMGlobalHeapRoot.h"
 #include "VVMLog.h"
 #include "VVMMarkStackVisitor.h"
-#include "VVMVisitorWrapper.h"
 #include "VVMWriteBarrier.h"
 
 namespace Verse

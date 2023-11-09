@@ -14,44 +14,44 @@ class UObject;
 namespace Verse
 {
 
-inline FAbstractVisitorDispatch::FReferrerToken::FReferrerToken(VCell* Cell)
+inline FAbstractVisitor::FReferrerToken::FReferrerToken(VCell* Cell)
 	: EncodedBits(BitCast<uint64>(Cell) | static_cast<uint64>(EReferrerType::Cell))
 {
 }
 
-inline FAbstractVisitorDispatch::FReferrerToken::FReferrerToken(UObject* Object)
+inline FAbstractVisitor::FReferrerToken::FReferrerToken(UObject* Object)
 	: EncodedBits(BitCast<uint64>(Object) | static_cast<uint64>(EReferrerType::UObject))
 {
 }
 
-inline FAbstractVisitorDispatch::EReferrerType FAbstractVisitorDispatch::FReferrerToken::GetType() const
+inline FAbstractVisitor::EReferrerType FAbstractVisitor::FReferrerToken::GetType() const
 {
 	return static_cast<EReferrerType>((EncodedBits & EncodingBits));
 }
 
-inline bool FAbstractVisitorDispatch::FReferrerToken::IsCell() const
+inline bool FAbstractVisitor::FReferrerToken::IsCell() const
 {
 	return GetType() == EReferrerType::Cell;
 }
 
-inline VCell* FAbstractVisitorDispatch::FReferrerToken::AsCell() const
+inline VCell* FAbstractVisitor::FReferrerToken::AsCell() const
 {
 	checkSlow(IsCell());
 	return BitCast<VCell*>(EncodedBits & ~EncodingBits);
 }
 
-inline bool FAbstractVisitorDispatch::FReferrerToken::IsUObject() const
+inline bool FAbstractVisitor::FReferrerToken::IsUObject() const
 {
 	return GetType() == EReferrerType::UObject;
 }
 
-inline UObject* FAbstractVisitorDispatch::FReferrerToken::AsUObject() const
+inline UObject* FAbstractVisitor::FReferrerToken::AsUObject() const
 {
 	checkSlow(IsUObject());
 	return BitCast<UObject*>(EncodedBits & ~EncodingBits);
 }
 
-inline FAbstractVisitorDispatch::FReferrerContext::FReferrerContext(FAbstractVisitorDispatch& InVisitor, FReferrerToken InReferrer)
+inline FAbstractVisitor::FReferrerContext::FReferrerContext(FAbstractVisitor& InVisitor, FReferrerToken InReferrer)
 	: Visitor(InVisitor)
 	, Referrer(InReferrer)
 {
@@ -59,7 +59,7 @@ inline FAbstractVisitorDispatch::FReferrerContext::FReferrerContext(FAbstractVis
 	Visitor.Context = this;
 }
 
-inline FAbstractVisitorDispatch::FReferrerContext::~FReferrerContext()
+inline FAbstractVisitor::FReferrerContext::~FReferrerContext()
 {
 	Visitor.Context = Previous;
 }

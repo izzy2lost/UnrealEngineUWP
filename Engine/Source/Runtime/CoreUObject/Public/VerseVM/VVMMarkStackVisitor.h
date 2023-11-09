@@ -9,16 +9,16 @@
 #include "CoreTypes.h"
 #include "Misc/AssertionMacros.h"
 #include "VVMMarkStack.h"
-#include "VVMVisitorWrapper.h"
+#include "VVMRestValue.h"
 
 namespace Verse
 {
 
-struct FMarkStackVisitorDispatch
+struct FMarkStackVisitor
 {
-	UE_NONCOPYABLE(FMarkStackVisitorDispatch);
+	UE_NONCOPYABLE(FMarkStackVisitor);
 
-	FMarkStackVisitorDispatch(FMarkStack& InMarkStack)
+	FMarkStackVisitor(FMarkStack& InMarkStack)
 		: MarkStack(InMarkStack)
 	{
 	}
@@ -33,10 +33,68 @@ struct FMarkStackVisitorDispatch
 		MarkStack.MarkNonNull(InObject);
 	}
 
+	FORCEINLINE void VisitEmergentType(const VCell* InEmergentType)
+	{
+		VisitNonNull(InEmergentType);
+	}
+
+	FORCEINLINE void Visit(const VCell* InCell)
+	{
+		if (InCell != nullptr)
+		{
+			VisitNonNull(InCell);
+		}
+	}
+
+	FORCEINLINE void Visit(const UObject* InObject)
+	{
+		if (InObject != nullptr)
+		{
+			VisitNonNull(InObject);
+		}
+	}
+
+	FORCEINLINE void Visit(VValue Value)
+	{
+		if (VCell* Cell = Value.ExtractCell())
+		{
+			Visit(Cell);
+		}
+		else if (Value.IsUObject())
+		{
+			Visit(Value.AsUObject());
+		}
+	}
+
+	FORCEINLINE void Visit(const VRestValue& Value)
+	{
+		Value.Visit(*this);
+	}
+
+	// NOTE: The Value parameter can not be passed by value.
+	template <typename T>
+	FORCEINLINE void Visit(const TWriteBarrier<T>& Value)
+	{
+		Visit(Value.Get());
+	}
+
+	template <typename T>
+	FORCEINLINE void Visit(T Begin, T End)
+	{
+		for (; Begin != End; ++Begin)
+		{
+			Visit(*Begin);
+		}
+	}
+
+	template <typename T>
+	FORCEINLINE void Visit(T* Values, uint32 Count)
+	{
+		Visit(Values, Values + Count);
+	}
+
 private:
 	FMarkStack& MarkStack;
 };
-
-using FMarkStackVisitor = TVisitorWrapper<FMarkStackVisitorDispatch>;
 
 } // namespace Verse

@@ -10,7 +10,6 @@
 #include "VerseVM/VVMMarkStackVisitor.h"
 #include "VerseVM/VVMProcedure.h"
 #include "VerseVM/VVMTypeCreator.h"
-#include "VerseVM/VVMVisitorWrapper.h"
 
 namespace Verse
 {

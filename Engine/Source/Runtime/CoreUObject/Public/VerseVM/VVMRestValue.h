@@ -52,6 +52,12 @@ struct VRestValue
 	FString ToString(FAllocationContext, const FCellFormatter& Formatter) const;
 
 	template <typename TVisitor>
+	FORCEINLINE void Visit(TVisitor& Visitor)
+	{
+		Visitor.Visit(Value);
+	}
+
+	template <typename TVisitor>
 	FORCEINLINE void Visit(TVisitor& Visitor) const
 	{
 		Visitor.Visit(Value);

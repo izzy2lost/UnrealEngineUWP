@@ -11,7 +11,6 @@
 #include "VVMLazyInitialized.h"
 #include "VVMMarkStack.h"
 #include "VVMMarkStackVisitor.h"
-#include "VVMVisitorWrapper.h"
 #include "VVMWriteBarrier.h"
 
 namespace Verse
