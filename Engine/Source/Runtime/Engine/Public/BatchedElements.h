@@ -246,6 +246,7 @@ public:
 		FAllocationInfo() = default;
 
 	private:
+		int32 NumLineVertices = 0;
 		int32 NumPoints = 0;
 		int32 NumWireTris = 0;
 		int32 NumWireTriVerts = 0;
