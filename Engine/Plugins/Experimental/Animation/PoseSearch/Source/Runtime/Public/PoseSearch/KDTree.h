@@ -201,7 +201,7 @@ struct FKDTree
 	POSESEARCH_API SIZE_T GetAllocatedSize() const;
 
 	FDataSource DataSource;
-	FKDTreeImplementation* Impl = nullptr;
+	FKDTreeImplementation* KDTreeImplementation = nullptr;
 };
 
 FArchive& Serialize(FArchive& Ar, FKDTree& KDTree, const float* data);
