@@ -6,14 +6,14 @@
 #include "MediaCapture.h"
 #include "MediaIOCoreModule.h"
 #include "ImagePixelData.h"
-#include "PostProcess/PostProcessing.h"
+#include "PostProcess/PostProcessMaterialInputs.h"
 #include "RenderGraphUtils.h"
 #include "RHI.h"
 #include "RHICommandList.h"
 #include "RHIResources.h"
 #include "SceneView.h"
 #include "ScreenPass.h"
-#include "PostProcess/PostProcessMaterialInputs.h"
+
 
 class FRDGTexture;
 

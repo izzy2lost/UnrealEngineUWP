@@ -13,7 +13,6 @@
 #include "PixelShaderUtils.h"
 #include "RenderGraphEvent.h"
 #include "RenderGraphResources.h"
-#include "SceneRendering.h"
 #include "SceneView.h"
 #include "ScreenPass.h"
 #include "ShaderParameterMacros.h"
@@ -64,7 +63,7 @@ namespace UE::MediaCapture::Resample
 	IMPLEMENT_GLOBAL_SHADER(FMediaCaptureResamplePS, "/MediaIOShaders/MediaIO.usf", "MediaDownsample", SF_Pixel);
 	
 	/** Adds a Resample pass to the graph builder. */
-	void AddResamplePass(FRDGBuilder& GraphBuilder, const FViewInfo& View, const FScreenPassTexture& InputTexture, FRDGTextureRef OutputTexture)
+	void AddResamplePass(FRDGBuilder& GraphBuilder, const FScreenPassTexture& InputTexture, FRDGTextureRef OutputTexture)
 	{
 		check(InputTexture.Texture);
 		FScreenPassRenderTarget Input;
@@ -483,20 +482,8 @@ namespace UE::MediaCapture
 			
 		const FIntRect ViewRect(ConversionPassArgs.CopyInfo.GetSourceRect());
 
-		//Dummy ViewFamily/ViewInfo created to use built in Draw Screen/Texture Pass
-		FSceneViewFamily ViewFamily(FSceneViewFamily::ConstructionValues(nullptr, nullptr, FEngineShowFlags(ESFIM_Game))
-			.SetTime(FGameTime()));
-		FSceneViewInitOptions ViewInitOptions;
-		ViewInitOptions.ViewFamily = &ViewFamily;
-		ViewInitOptions.SetViewRectangle(ViewRect);
-		ViewInitOptions.ViewOrigin = FVector::ZeroVector;
-		ViewInitOptions.ViewRotationMatrix = FMatrix::Identity;
-		ViewInitOptions.ProjectionMatrix = FMatrix::Identity;
-			
-		FViewInfo ViewInfo = FViewInfo(ViewInitOptions);
-
 		RDG_GPU_STAT_SCOPE(Args.GraphBuilder, MediaCapture_Resample);
-		MediaCapture::Resample::AddResamplePass(Args.GraphBuilder, ViewInfo, FScreenPassTexture(ConversionPassArgs.SourceRGBTexture), (FRDGTextureRef)OutputTexture);
+		MediaCapture::Resample::AddResamplePass(Args.GraphBuilder, FScreenPassTexture(ConversionPassArgs.SourceRGBTexture), (FRDGTextureRef)OutputTexture);
 	}
 
 	FRenderPipeline::FRenderPipeline(UMediaCapture* InMediaCapture)
