@@ -19,7 +19,8 @@ namespace UE::NearestNeighborModel
 		// Colors and sizes.
 		Set("NearestNeighborModel.NearestNeighborActors.WireframeColor", FLinearColor(1.0f, 1.0f, 0.0f));
 		Set("NearestNeighborModel.NearestNeighborActors.LabelColor", FLinearColor(1.0f, 1.0f, 0.0f));
-		Set("NearestNeighborModel.Verts.VertsColor", FLinearColor(1.0f, 0.5f, 0.0f));
+		Set("NearestNeighborModel.Verts.VertsColor0", FLinearColor(0.7f, 0.7f, 0.7f));
+		Set("NearestNeighborModel.Verts.VertsColor1", FLinearColor(1.0f, 0.5f, 0.0f));
 
 		FSlateStyleRegistry::RegisterSlateStyle(*this);
 	}

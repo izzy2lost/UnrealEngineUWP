@@ -423,12 +423,12 @@ void UNearestNeighborModelInstance::RunNearestNeighborModel(float DeltaTime, flo
 			{
 				const float Sigma = NearestNeighborModel->GetRBFSigma();
 				using UE::NearestNeighborModel::Private::UpdateRBFWeights;
-				UpdateRBFWeights(SectionMorphWeights, SectionPreviousWeights, SquaredDistances, Sigma, OffsetWeight, DecayCoeff);
+				UpdateRBFWeights(SectionMorphWeights, SectionPreviousWeights, SquaredDistances, Sigma, OffsetWeight * ModelWeight, DecayCoeff);
 			}
 			else
 			{
 				using UE::NearestNeighborModel::Private::UpdateNearestNeighborWeights;
-				UpdateNearestNeighborWeights(SectionMorphWeights, SectionPreviousWeights, SquaredDistances, OffsetWeight, DecayCoeff);
+				UpdateNearestNeighborWeights(SectionMorphWeights, SectionPreviousWeights, SquaredDistances, OffsetWeight * ModelWeight, DecayCoeff);
 			}
 
 #if WITH_EDITOR

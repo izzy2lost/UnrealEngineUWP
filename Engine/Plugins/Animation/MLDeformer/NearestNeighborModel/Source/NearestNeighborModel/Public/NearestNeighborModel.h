@@ -70,6 +70,19 @@ struct UE_DEPRECATED(5.4, "FClothPartData is deprecated. Use UNearestNeighborMod
 	TArray<float> NeighborCoeffs;
 };
 
+#if WITH_EDITORONLY_DATA
+UENUM()
+enum class ENearestNeighborModelSectionWeightMapCreationMethod : uint8
+{
+	/** Include all vertices from text with weight 1. */
+	FromText,
+	/** Use skinning weights from selected bones. */
+	SelectedBones,
+	/** Use weights from a vertex attribute. */
+	VertexAttributes,
+};
+#endif
+
 /**
  * The section of the nearest neighbor model.
  * Each section contains a set of vertices in the original skeletal mesh.
@@ -115,6 +128,7 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "Section")
 	const TArray<int32>& GetVertexMap() const;
+	const TArray<float>& GetVertexWeights() const;
 	
 	UFUNCTION(BlueprintPure, Category = "Section")
 	const TArray<float>& GetPCABasis() const;
@@ -131,6 +145,8 @@ public:
 
 	FMLDeformerGeomCacheTrainingInputAnim* GetInputAnim() const;
 
+	EOpFlag UpdateVertexWeights();
+
 	EOpFlag UpdateForTraining();
 	EOpFlag UpdateForInference();
 	void InvalidateTraining();
@@ -142,11 +158,18 @@ public:
 	void SetModel(UNearestNeighborModel* InModel);
 	const UNearestNeighborModel* GetModel() const;
 
+	ENearestNeighborModelSectionWeightMapCreationMethod GetWeightMapCreationMethod() const;
+	FString GetBoneNamesString() const;
+	const TArray<FName>& GetBoneNames() const;
+	void SetBoneNames(const TArray<FName>& InBoneNames);
+
 	static FName GetNumPCACoeffsPropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModelSection, NumPCACoeffs); }
 	static FName GetVertexMapStringPropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModelSection, VertexMapString); }
 	static FName GetNeighborPosesPropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModelSection, NeighborPoses); }
 	static FName GetNeighborMeshesPropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModelSection, NeighborMeshes); }
 	static FName GetExcludedFramesPropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModelSection, ExcludedFrames); }
+	static FName GetWeightMapCreationMethodPropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModelSection, WeightMapCreationMethod); }
+	static FName GetAttributeNamePropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModelSection, AttributeName); }
 #endif
 #if WITH_EDITORONLY_DATA
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
@@ -157,7 +180,6 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 protected:
 #if WITH_EDITORONLY_DATA
-
 	/** Poses of the nearest neighbor ROM. */
 	UPROPERTY(EditAnywhere, Category = "Section")
 	TObjectPtr<UAnimSequence> NeighborPoses;
@@ -165,6 +187,18 @@ protected:
 	/** Geometry cache of the nearest neighbor ROM. */
 	UPROPERTY(EditAnywhere, Category = "Section")
 	TObjectPtr<UGeometryCache> NeighborMeshes;
+
+	/** Method to create weight map for this section. */
+	UPROPERTY(EditAnywhere, Category = "Section")
+	ENearestNeighborModelSectionWeightMapCreationMethod WeightMapCreationMethod = ENearestNeighborModelSectionWeightMapCreationMethod::FromText;
+
+	/** Bone names used to create weight map. */
+	UPROPERTY()
+	TArray<FName> BoneNames;
+	
+	/** A float vertex attribute that is used to compute weight maps */
+	UPROPERTY(EditAnywhere, Category = "Section", meta = (GetOptions = "GetVertexAttributeNames", NoResetToDefault))
+	FName AttributeName;
 
 	/** A string containing vertex indices for this section, e.g. "2, 3, 5-8, 9, 11-20" */
 	UPROPERTY(EditAnywhere, Category = "Section", meta = (DisplayName = "Vertex Indices"))
@@ -182,10 +216,14 @@ protected:
 	UPROPERTY()
 	TObjectPtr<UNearestNeighborModel> Model = nullptr;
 
-	/** Vertex indices for this section */
+	/** Vertex indices for this section. VertexMap.Num() == NumVertices */
 	UPROPERTY()
 	TArray<int32> VertexMap;
-	
+
+	/** The vertex weights for this section. VertexWeights.Num() == NumVertices. */
+	UPROPERTY()
+	TArray<float> VertexWeights;
+
 	/** Flattened array of PCA basis. The shape of PCA basis is (PCACoeffNum, NumVertices * 3)  */
 	UPROPERTY()
 	TArray<float> PCABasis;
@@ -247,10 +285,14 @@ private:
 	void Reset();
 	void ResetPCAData();
 	void ResetNearestNeighborData();
-	EOpFlag UpdateVertexMap();
-	
-	static FString BackwardCompatibleVertexString;
+	EOpFlag UpdateVertexWeightsFromText();
+	EOpFlag UpdateVertexWeightsSelectedBones();
+	EOpFlag UpdateVertexWeightsVertexAttributes();
+	EOpFlag NormalizeVertexWeights();
 
+	UFUNCTION()
+	TArray<FName> GetVertexAttributeNames() const;
+	
 	/** A temporary InputAnim used by GetInputAnim() function. */
 	mutable TUniquePtr<FMLDeformerGeomCacheTrainingInputAnim> InputAnim;
 #endif
@@ -401,6 +443,7 @@ public:
 	void UpdateNetworkOutputDim();
 
 	bool IsBeforeCustomVersionWasAdded() const;
+	const TArray<float>& GetVertexWeightSum() const;
 
 	static FName GetInputDimPropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModel, InputDim); }
 	static FName GetHiddenLayerDimsPropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModel, HiddenLayerDims); }
@@ -524,6 +567,8 @@ private:
 	void UpdateCachedDeltasTimestamp();
 	void UpdateCachedPCATimestamp();
 	void UpdateCachedNetworkTimestamp();
+
+	void ComputeVertexWeightSum();
 	// FNearestNeighborModelDetails needs to call private function GetSection(int32).
 	friend class UE::NearestNeighborModel::FNearestNeighborModelDetails;
 #endif
@@ -554,5 +599,7 @@ private:
 
 	UPROPERTY()
 	FString NetworkLastWriteArchitectureString;
+
+	TArray<float> VertexWeightSum;
 #endif
 };

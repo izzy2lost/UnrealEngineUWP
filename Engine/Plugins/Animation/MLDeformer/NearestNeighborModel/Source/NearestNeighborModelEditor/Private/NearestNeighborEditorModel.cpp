@@ -29,15 +29,17 @@ namespace UE::NearestNeighborModel
 {
 	namespace Private
 	{
-		void AddFloatArrayToDeltaArray(TConstArrayView<float> FloatArr, TConstArrayView<int32> VertexMap, TArrayView<FVector3f> OutDeltaArr)
+		void AddFloatArrayToDeltaArray(TConstArrayView<float> FloatArr, TConstArrayView<int32> VertexMap, TConstArrayView<float> VertexWeights, TArrayView<FVector3f> OutDeltaArr)
 		{
 			const int32 SectionNumVerts = VertexMap.Num();
 			check(FloatArr.Num() == SectionNumVerts * 3);
+			check(VertexWeights.Num() == SectionNumVerts);
 			for (int32 Index = 0; Index < SectionNumVerts; ++Index)
 			{
 				const int32 FloatIndex = Index * 3;
 				const int32 DeltaIndex = VertexMap[Index];
-				OutDeltaArr[DeltaIndex] = FVector3f(FloatArr[FloatIndex], FloatArr[FloatIndex + 1], FloatArr[FloatIndex + 2]);
+				const float Weight = VertexWeights[Index];
+				OutDeltaArr[DeltaIndex] = FVector3f(FloatArr[FloatIndex], FloatArr[FloatIndex + 1], FloatArr[FloatIndex + 2]) * Weight;
 			}
 		}
 	};
@@ -321,7 +323,8 @@ namespace UE::NearestNeighborModel
 			// Draw the verts for the current frame.
 			if (bDrawVerts)
 			{
-				const FLinearColor VertsColor = FNearestNeighborModelEditorStyle::Get().GetColor("NearestNeighborModel.Verts.VertsColor");
+				const FLinearColor VertsColor0 = FNearestNeighborModelEditorStyle::Get().GetColor("NearestNeighborModel.Verts.VertsColor0");
+				const FLinearColor VertsColor1 = FNearestNeighborModelEditorStyle::Get().GetColor("NearestNeighborModel.Verts.VertsColor1");
 				const uint8 DepthGroup = VizSettings->GetXRayDeltas() ? 100 : 0;
 				const float PointSize = 5;
 				const int32 SectionIndex = VizSettings->VertVizSectionIndex;
@@ -331,9 +334,12 @@ namespace UE::NearestNeighborModel
 					if (NearestNeighborModel)
 					{
 						TConstArrayView<int32> VertexMap = NearestNeighborModel->GetSection(SectionIndex).GetVertexMap();
+						TConstArrayView<float> VertexWeights = NearestNeighborModel->GetSection(SectionIndex).GetVertexWeights();
 						for (int32 Index = 0; Index < VertexMap.Num(); ++Index)
 						{
 							const int32 ArrayIndex = 3 * VertexMap[Index];
+							const float Weight = VertexWeights[Index];
+							const FLinearColor VertsColor = FMath::Lerp(VertsColor0, VertsColor1, Weight);
 							const FVector VertexPos = (FVector)LinearSkinnedPositions[VertexMap[Index]];
 							PDI->DrawPoint(VertexPos, VertsColor, PointSize, DepthGroup);
 						}
@@ -344,7 +350,7 @@ namespace UE::NearestNeighborModel
 					for (int32 Index = 0; Index < LinearSkinnedPositions.Num(); ++Index)
 					{
 						const FVector VertexPos = (FVector)LinearSkinnedPositions[Index];
-						PDI->DrawPoint(VertexPos, VertsColor, PointSize, DepthGroup);
+						PDI->DrawPoint(VertexPos, VertsColor1, PointSize, DepthGroup);
 					}
 				}
 			}
@@ -639,14 +645,17 @@ namespace UE::NearestNeighborModel
 		{
 			const FSection& Section = NearestNeighborModel->GetSection(SectionIndex);
 			TConstArrayView<int32> VertexMap = Section.GetVertexMap();
+			TConstArrayView<float> VertexWeights = Section.GetVertexWeights();
 			if (VertexMap.IsEmpty())
 			{
 				UE_LOG(LogNearestNeighborModel, Warning, TEXT("Section %d has empty vertex map. No morph targets are generated for this section"), SectionIndex);
 				Result |= EOpFlag::Warning;
 				continue;
 			}
+			check(VertexMap.Num() == Section.GetNumVertices());
+			check(VertexWeights.Num() == Section.GetNumVertices());
 			TArrayView<FVector3f> MeanDeltas(Deltas.GetData(), NumBaseMeshVerts);
-			AddFloatArrayToDeltaArray(Section.GetVertexMean(), VertexMap, MeanDeltas);
+			AddFloatArrayToDeltaArray(Section.GetVertexMean(), VertexMap, VertexWeights, MeanDeltas);
 			const int32 NumPCACoeffs = Section.GetNumPCACoeffs();
 			const int32 SectionNumVerts = Section.GetNumVertices();
 			check(VertexMap.Num() == SectionNumVerts);
@@ -654,7 +663,7 @@ namespace UE::NearestNeighborModel
 			{
 				TConstArrayView<float> BasisFloats(Section.GetPCABasis().GetData() + Index * SectionNumVerts * 3, SectionNumVerts * 3);
 				TArrayView<FVector3f> BasisDeltas(Deltas.GetData() + (MorphOffset + Index) * NumBaseMeshVerts, NumBaseMeshVerts);
-				AddFloatArrayToDeltaArray(BasisFloats, VertexMap, BasisDeltas);
+				AddFloatArrayToDeltaArray(BasisFloats, VertexMap, VertexWeights, BasisDeltas);
 			}
 			MorphOffset += NumPCACoeffs;
 		}
@@ -663,6 +672,7 @@ namespace UE::NearestNeighborModel
 		{
 			const FSection& Section = NearestNeighborModel->GetSection(SectionIndex);
 			TConstArrayView<int32> VertexMap = Section.GetVertexMap();
+			TConstArrayView<float> VertexWeights = Section.GetVertexWeights();
 			if (VertexMap.IsEmpty())
 			{
 				// Warning already generated
@@ -683,7 +693,7 @@ namespace UE::NearestNeighborModel
 			{
 				TConstArrayView<float> NeighborOffsets(RuntimeNeighborOffsets.GetData() + Index * SectionNumVerts * 3, SectionNumVerts * 3);
 				TArrayView<FVector3f> NeighborDeltas(Deltas.GetData() + (MorphOffset + Index) * NumBaseMeshVerts, NumBaseMeshVerts);
-				AddFloatArrayToDeltaArray(NeighborOffsets, VertexMap, NeighborDeltas);
+				AddFloatArrayToDeltaArray(NeighborOffsets, VertexMap, VertexWeights, NeighborDeltas);
 			}
 		}
 	
