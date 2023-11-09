@@ -2508,7 +2508,8 @@ void UMovieSceneControlRigParameterSection::RecreateWithThisControlRig(UControlR
 			break;
 		}
 	}
-	ReconstructChannelProxy();
+	CacheChannelProxy();
+	BroadcastChanged();
 }
 
 void UMovieSceneControlRigParameterSection::SetControlRig(UControlRig* InControlRig)

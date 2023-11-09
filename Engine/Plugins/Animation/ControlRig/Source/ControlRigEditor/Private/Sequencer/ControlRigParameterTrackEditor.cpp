@@ -3101,11 +3101,8 @@ void FControlRigParameterTrackEditor::HandleOnPostConstructed(UControlRig* Subje
 
 		if (GetSequencer().IsValid())
 		{
-			//If FK control rig on next tick we refresh the tree
-			if (ControlRig->IsA<UFKControlRig>())
-			{
-				GetSequencer()->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::RefreshTree);
-			}
+			//refresh tree for ANY control rig may be FK or procedural
+			GetSequencer()->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::RefreshTree);
 		}
 	}
 }
