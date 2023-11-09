@@ -142,6 +142,11 @@ bool FPCGTextureSamplerElement::ExecuteInternal(FPCGContext* InContext) const
 	const bool bUseTileBounds = Settings->bUseTileBounds;
 	const FVector2D& TileBoundsMin = Settings->TileBoundsMin;
 	const FVector2D& TileBoundsMax = Settings->TileBoundsMax;
+#if WITH_EDITOR
+	const bool bForceEditorOnlyCPUSampling = Settings->bForceEditorOnlyCPUSampling;
+#else
+	const bool bForceEditorOnlyCPUSampling = false;
+#endif
 
 	TArray<FPCGTaggedData>& Outputs = Context->OutputData.TaggedData;
 	FPCGTaggedData& Output = Outputs.Emplace_GetRef();
@@ -174,7 +179,7 @@ bool FPCGTextureSamplerElement::ExecuteInternal(FPCGContext* InContext) const
 		}
 	};
 
-	TextureData->Initialize(Texture, TextureArrayIndex, FinalTransform, PostInitializeCallback);
+	TextureData->Initialize(Texture, TextureArrayIndex, FinalTransform, PostInitializeCallback, bForceEditorOnlyCPUSampling);
 
 	TextureData->DensityFunction = DensityFunction;
 	TextureData->ColorChannel = ColorChannel;

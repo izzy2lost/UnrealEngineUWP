@@ -8,6 +8,7 @@
 
 class UPCGSpatialData;
 class UTexture;
+class UTexture2D;
 
 UENUM(BlueprintType)
 enum class EPCGTextureColorChannel : uint8
@@ -24,6 +25,15 @@ enum class EPCGTextureDensityFunction : uint8
 	Ignore,
 	Multiply
 };
+
+namespace PCGTextureSamplingHelpers
+{
+	/** Returns true if a texture is CPU-accessible. */
+	bool IsTextureCPUAccessible(UTexture2D* Texture);
+
+	/** Returns true if a texture is both GPU-accessible and reachable from CPU memory. */
+	bool CanGPUTextureBeCPUAccessed(UTexture2D* Texture);
+}
 
 UCLASS(Abstract)
 class PCG_API UPCGBaseTextureData : public UPCGSurfaceData
@@ -100,7 +110,7 @@ class PCG_API UPCGTextureData : public UPCGBaseTextureData
 	GENERATED_BODY()
 
 public:
-	void Initialize(UTexture* InTexture, uint32 InTextureIndex, const FTransform& InTransform, const TFunction<void()>& PostInitializeCallback);
+	void Initialize(UTexture* InTexture, uint32 InTextureIndex, const FTransform& InTransform, const TFunction<void()>& PostInitializeCallback, bool bCreateCPUDuplicateEditorOnly = false);
 
 	// ~Begin UPCGData interface
 	virtual EPCGDataType GetDataType() const override { return EPCGDataType::Texture; }
@@ -122,9 +132,20 @@ private:
 	*/
 	bool InitializeFromGPUTexture(const TFunction<void()>& PostInitializeCallback);
 
+#if WITH_EDITOR
+	/** Attempts to initialize the UPCGTextureData from a GPU-accessible texture, but with CPU-accessible memory. Returns true if initialization succeeds. */
+	bool InitializeGPUTextureFromCPU();
+#endif
+
 public:
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = Properties)
 	TWeakObjectPtr<UTexture> Texture = nullptr;
+
+#if WITH_EDITORONLY_DATA
+	/** Transient CPU visible duplicate of Texture created and used only when initialized with bCreateCPUDuplicateEditorOnly. */
+	UPROPERTY(Transient)
+	TObjectPtr<UTexture2D> DuplicateTexture = nullptr;
+#endif
 
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = Properties)
 	int TextureIndex = 0;

@@ -14,8 +14,33 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PCGTextureData)
 
-namespace PCGTextureSampling
+namespace PCGTextureSamplingHelpers
 {
+	bool IsTextureCPUAccessible(UTexture2D* Texture)
+	{
+		FTexturePlatformData* PlatformData = Texture ? Texture->GetPlatformData() : nullptr;
+		return PlatformData && PlatformData->GetHasCpuCopy();
+	}
+
+	bool CanGPUTextureBeCPUAccessed(UTexture2D* Texture)
+	{
+		// SRGB textures need to be GPU sampled.
+		if (!Texture || Texture->SRGB)
+		{
+			return false;
+		}
+
+		FTexturePlatformData* PlatformData = Texture->GetPlatformData();
+
+		// If a CPU copy is available, this is a CPU texture and not a GPU texture, so we return false.
+		if (!PlatformData || PlatformData->GetHasCpuCopy())
+		{
+			return false;
+		}
+
+		return PlatformData->Mips.Num() == 1 && PlatformData->PixelFormat == PF_B8G8R8A8;
+	}
+
 	template<typename ValueType>
 	bool Sample(const FVector2D& InPosition,
 		const FBox2D& InSurface,
@@ -162,10 +187,10 @@ bool UPCGBaseTextureData::SamplePoint(const FTransform& InTransform, const FBox&
 	FBox2D Surface(FVector2D(-1.0f, -1.0f), FVector2D(1.0f, 1.0f));
 
 	FLinearColor Color = FLinearColor(EForceInit::ForceInit);
-	if (PCGTextureSampling::Sample<FLinearColor>(Position2D, Surface, this, Width, Height, Color, [this](int32 Index) { return ColorData[Index]; }))
+	if (PCGTextureSamplingHelpers::Sample<FLinearColor>(Position2D, Surface, this, Width, Height, Color, [this](int32 Index) { return ColorData[Index]; }))
 	{
 		OutPoint.Color = Color;
-		OutPoint.Density = ((DensityFunction == EPCGTextureDensityFunction::Ignore) ? 1.0f : PCGTextureSampling::SampleFloatChannel(Color, ColorChannel));
+		OutPoint.Density = ((DensityFunction == EPCGTextureDensityFunction::Ignore) ? 1.0f : PCGTextureSamplingHelpers::SampleFloatChannel(Color, ColorChannel));
 		return OutPoint.Density > 0;
 	}
 	else
@@ -219,9 +244,9 @@ const UPCGPointData* UPCGBaseTextureData::CreatePointData(FPCGContext* Context) 
 		FVector2D LocalCoordinate((2.0 * X + 0.5) / XCount - 1.0, (2.0 * Y + 0.5) / YCount - 1.0);
 		FLinearColor Color = FLinearColor(EForceInit::ForceInit);
 
-		if (PCGTextureSampling::Sample<FLinearColor>(LocalCoordinate, Surface, this, Width, Height, Color, [this](int32 Index) { return ColorData[Index]; }))
+		if (PCGTextureSamplingHelpers::Sample<FLinearColor>(LocalCoordinate, Surface, this, Width, Height, Color, [this](int32 Index) { return ColorData[Index]; }))
 		{
-			const float Density = ((DensityFunction == EPCGTextureDensityFunction::Ignore) ? 1.0f : PCGTextureSampling::SampleFloatChannel(Color, ColorChannel));
+			const float Density = ((DensityFunction == EPCGTextureDensityFunction::Ignore) ? 1.0f : PCGTextureSamplingHelpers::SampleFloatChannel(Color, ColorChannel));
 			if (Density > 0 || bKeepZeroDensityPoints)
 			{
 				FVector LocalPosition(LocalCoordinate, 0);
@@ -266,7 +291,7 @@ void UPCGBaseTextureData::CopyBaseTextureData(UPCGBaseTextureData* NewTextureDat
 	NewTextureData->Width = Width;
 }
 
-void UPCGTextureData::Initialize(UTexture* InTexture, uint32 InTextureIndex, const FTransform& InTransform, const TFunction<void()>& PostInitializeCallback)
+void UPCGTextureData::Initialize(UTexture* InTexture, uint32 InTextureIndex, const FTransform& InTransform, const TFunction<void()>& PostInitializeCallback, bool bCreateCPUDuplicateEditorOnly)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGTextureData::Initialize);
 
@@ -287,6 +312,29 @@ void UPCGTextureData::Initialize(UTexture* InTexture, uint32 InTextureIndex, con
 		return;
 	}
 
+#if WITH_EDITOR
+	// Create a duplicate texture if necessary.
+	if (bCreateCPUDuplicateEditorOnly)
+	{
+		UTexture2D* Texture2D = Cast<UTexture2D>(Texture);
+		if (!Texture2D)
+		{
+			UTexture2DArray* Texture2DArray = CastChecked<UTexture2DArray>(Texture);
+			Texture2D = Texture2DArray->SourceTextures.IsValidIndex(TextureIndex) ? Texture2DArray->SourceTextures[TextureIndex] : nullptr;
+		}
+
+		if (Texture2D && !PCGTextureSamplingHelpers::IsTextureCPUAccessible(Texture2D) && !PCGTextureSamplingHelpers::CanGPUTextureBeCPUAccessed(Texture2D))
+		{
+			FObjectDuplicationParameters DuplicationParams(Texture2D, /*Outer=*/this);
+			DuplicateTexture = CastChecked<UTexture2D>(StaticDuplicateObjectEx(DuplicationParams));
+			DuplicateTexture->MipGenSettings = TextureMipGenSettings::TMGS_NoMipmaps;
+			DuplicateTexture->CompressionSettings = TextureCompressionSettings::TC_VectorDisplacementmap; // Allows the texture to be in a non-compressed format (B8G8R8A8), which is necessary to convince the data to remain CPU-side.
+			DuplicateTexture->SRGB = false;
+			DuplicateTexture->UpdateResource();
+		}
+	}
+#endif
+
 	// Prioritize initializing from a CPU texture when the provided texture is marked as CPU accessible
 	if (InitializeFromCPUTexture())
 	{
@@ -294,6 +342,15 @@ void UPCGTextureData::Initialize(UTexture* InTexture, uint32 InTextureIndex, con
 	}
 	else
 	{
+#if WITH_EDITOR
+		// Try reading the texture back from CPU-accessible memory if possible.
+		if (InitializeGPUTextureFromCPU())
+		{
+			PostInitializeCallback();
+			return;
+		}
+#endif
+
 		if (!InitializeFromGPUTexture(PostInitializeCallback))
 		{
 			UE_LOG(LogPCG, Error, TEXT("PCGTextureData failed to initialize texture '%s'"), *Texture->GetFName().ToString());
@@ -536,3 +593,45 @@ bool UPCGTextureData::InitializeFromGPUTexture(const TFunction<void()>& PostInit
 
 	return true;
 }
+
+#if WITH_EDITOR
+bool UPCGTextureData::InitializeGPUTextureFromCPU()
+{
+	if (!DuplicateTexture || !PCGTextureSamplingHelpers::CanGPUTextureBeCPUAccessed(DuplicateTexture))
+	{
+		return false;
+	}
+
+	FTexturePlatformData* PlatformData = DuplicateTexture->GetPlatformData();
+	if (!PlatformData)
+	{
+		return false;
+	}
+
+	bool bBulkDataAccessed = false;
+
+	if (const uint8_t* BulkData = reinterpret_cast<const uint8_t*>(PlatformData->Mips[0].BulkData.LockReadOnly()))
+	{
+		bBulkDataAccessed = true;
+
+		Width = PlatformData->SizeX;
+		Height = PlatformData->SizeY;
+		const int32 PixelCount = Width * Height;
+		ColorData.SetNum(PixelCount);
+
+		const FColor* FormattedImageData = reinterpret_cast<const FColor*>(BulkData);
+		for (int32 D = 0; D < PixelCount; ++D)
+		{
+			ColorData[D] = FormattedImageData[D].ReinterpretAsLinear();
+		}
+	}
+	else
+	{
+		UE_LOG(LogPCG, Error, TEXT("PCGTextureData unable to get bulk data from '%s'."), *Texture->GetFName().ToString());
+	}
+
+	PlatformData->Mips[0].BulkData.Unlock();
+
+	return bBulkDataAccessed;
+}
+#endif

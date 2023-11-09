@@ -91,6 +91,15 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Tiling", meta = (EditCondition = "bUseAdvancedTiling && bUseTileBounds", PCG_Overridable))
 	FVector2D TileBoundsMax = FVector2D(0.5, 0.5);
 
+#if WITH_EDITORONLY_DATA
+	/** Even if the texture is not set to CPU-available, it can still be accessed from CPU memory under certain conditions (sRGB disabled, no mipmaps, and non-compressed format).
+	 * Reading from CPU memory will be faster and more accurate than reading from GPU memory, since the texture will not be subject to compression or resolution clamping. Enable
+	 * this flag to force a duplicate of the texture with the correct settings for CPU memory access. This is editor-only.
+	 */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings")
+	bool bForceEditorOnlyCPUSampling = false;
+#endif
+
 protected:
 #if WITH_EDITORONLY_DATA
 	// Used to hide the 'TextureArrayIndex' property.
