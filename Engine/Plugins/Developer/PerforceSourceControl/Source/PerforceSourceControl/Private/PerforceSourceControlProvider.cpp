@@ -180,6 +180,17 @@ TMap<ISourceControlProvider::EStatus, FString> FPerforceSourceControlProvider::G
 	Result.Add(EStatus::Port, Settings.GetPort());
 	Result.Add(EStatus::User, Settings.GetUserName());
 	Result.Add(EStatus::Client, Settings.GetWorkspace());
+
+	if (!Settings.GetWorkspace().IsEmpty())
+	{
+		FScopedPerforceConnection ScopedConnection(EConcurrency::Synchronous, *const_cast<FPerforceSourceControlProvider*>(this));
+		if (ScopedConnection.IsValid())
+		{
+			FPerforceConnection& Connection = ScopedConnection.GetConnection();
+			Result.Add(EStatus::WorkspacePath, Connection.ClientRoot);
+		}
+	}
+
 	return Result;
 }
 
