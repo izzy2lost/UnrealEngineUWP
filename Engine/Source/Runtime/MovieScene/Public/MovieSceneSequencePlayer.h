@@ -434,6 +434,9 @@ public:
 	/** Perform any tear-down work when this player is no longer (and will never) be needed */
 	MOVIESCENE_API void TearDown();
 
+	/** Returns whether this player is valid, i.e. it has been initialized and not torn down yet */
+	MOVIESCENE_API bool IsValid() const;
+
 public:
 
 	/**

@@ -1286,6 +1286,13 @@ void UMovieSceneSequencePlayer::TearDown()
 		TickManager->UnregisterTickClient(this);
 		TickManager = nullptr;
 	}
+
+	Status = EMovieScenePlayerStatus::Stopped;
+}
+
+bool UMovieSceneSequencePlayer::IsValid() const
+{
+	return RootTemplateInstance.IsValid();
 }
 
 bool UMovieSceneSequencePlayer::IsDisablingEventTriggers(FFrameTime& DisabledUntilTime) const
