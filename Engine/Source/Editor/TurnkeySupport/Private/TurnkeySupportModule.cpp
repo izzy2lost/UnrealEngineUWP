@@ -1,6 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "TurnkeySupportModule.h"
+
+#if !UE_WITH_TURNKEY_SUPPORT
+class FTurnkeySupportModuleEmpty : public IModuleInterface {};
+IMPLEMENT_MODULE(FTurnkeySupportModuleEmpty, TurnkeySupport)
+#else // UE_WITH_TURNKEY_SUPPORT
+
 #include "TurnkeySupport.h"
 
 #include "SlateOptMacros.h"
@@ -2677,3 +2683,5 @@ void FTurnkeySupportModule::ShutdownModule( )
 IMPLEMENT_MODULE(FTurnkeySupportModule, TurnkeySupport);
 
 #undef LOCTEXT_NAMESPACE
+
+#endif // UE_WITH_TURNKEY_SUPPORT

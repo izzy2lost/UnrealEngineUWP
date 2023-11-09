@@ -3,7 +3,9 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Interfaces/ITurnkeySupportModule.h"
 
+#if UE_WITH_TURNKEY_SUPPORT
 
 class FTurnkeyEditorSupport
 {
@@ -25,3 +27,5 @@ public:
 	static void ShowInstallationHelp(FName IniPlatformName, FString DocLink);
 	static bool IsPIERunning();
 };
+
+#endif // UE_WITH_TURNKEY_SUPPORT

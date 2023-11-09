@@ -1,6 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "TurnkeyEditorSupport.h"
+
+#if UE_WITH_TURNKEY_SUPPORT
+
 #include "Internationalization/Text.h"
 #include "ITurnkeyIOModule.h"
 #include "Misc/AssertionMacros.h"
@@ -288,3 +291,5 @@ bool FTurnkeyEditorSupport::IsPIERunning()
 
 
 #undef LOCTEXT_NAMESPACE
+
+#endif // UE_WITH_TURNKEY_SUPPORT

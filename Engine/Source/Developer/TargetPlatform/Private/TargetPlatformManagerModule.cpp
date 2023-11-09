@@ -156,7 +156,7 @@ public:
 		, bIgnoreFirstDelegateCall(true)
 		, bSkipOneTextureFormatManagerInvalidate(false)
 	{
-#if WITH_EDITOR
+#if WITH_EDITOR && UE_WITH_TURNKEY_SUPPORT
 
 		ITurnkeySupportModule::Get().UpdateSdkInfo();
 #endif
@@ -1197,12 +1197,14 @@ protected:
 			bTPInitialized = TargetPlatform->InitializeHostPlatform();
 		}
 
+#if UE_WITH_TURNKEY_SUPPORT
 		if (bTPInitialized)
 		{
 			ITurnkeySupportModule::Get().UpdateSdkInfo();
 		}
 
 		ITurnkeySupportModule::Get().ClearDeviceStatus(PlatformName);
+#endif
 		Invalidate();
 
 		return bTPInitialized;

@@ -7,6 +7,12 @@
 #include "Modules/ModuleManager.h"
 #include "Modules/ModuleManager.h"
 
+#ifndef UE_WITH_TURNKEY_SUPPORT
+#define UE_WITH_TURNKEY_SUPPORT 1
+#endif
+
+#if UE_WITH_TURNKEY_SUPPORT
+
 class SWidget;
 
 enum class ETurnkeyPlatformSdkStatus : uint8
@@ -113,3 +119,5 @@ public:
 	 */
 	virtual ~ITurnkeySupportModule( ) { }
 };
+
+#endif // UE_WITH_TURNKEY_SUPPORT

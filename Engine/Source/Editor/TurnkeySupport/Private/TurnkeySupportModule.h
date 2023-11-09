@@ -4,6 +4,9 @@
 
 #include "CoreMinimal.h"
 #include "Interfaces/ITurnkeySupportModule.h"
+
+#if UE_WITH_TURNKEY_SUPPORT
+
 #if WITH_EDITOR
 	#include "Misc/CoreMisc.h"
 #endif
@@ -62,3 +65,5 @@ private:
 #endif
 
 };
+
+#endif // UE_WITH_TURNKEY_SUPPORT

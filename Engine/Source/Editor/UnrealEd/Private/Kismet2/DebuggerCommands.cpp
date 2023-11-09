@@ -708,10 +708,12 @@ void FPlayWorldCommands::BuildToolbar(FToolMenuSection& InSection, bool bInclude
 	InSection.AddEntry(StepOverEntry);	
 	InSection.AddEntry(StepOutEntry);
 
+#if UE_WITH_TURNKEY_SUPPORT
 	if (bIncludeLaunchButtonAndOptions)
 	{
 		ITurnkeySupportModule::Get().MakeTurnkeyMenu(InSection);
 	}
+#endif
 }
 
 static void MakePreviewDeviceMenu(FMenuBuilder& MenuBuilder)
@@ -857,8 +859,10 @@ TSharedRef< SWidget > FPlayWorldCommands::GeneratePlayMenuContent(TSharedRef<FUI
 			FLocal::AddPlayModeMenuEntry(Section, PlayMode_Simulate);
 		}
 
+#if UE_WITH_TURNKEY_SUPPORT
 		// quick launch on devices
 		ITurnkeySupportModule::Get().MakeQuickLaunchItems(Menu, FOnQuickLaunchSelected::CreateStatic(&RememberQuickLaunch));
+#endif
 
 		// tip section
 		{
@@ -1368,7 +1372,9 @@ void FInternalPlayWorldCommandCallbacks::RepeatLastPlay_Clicked()
 	// hand over to Turnkey module
 	if (PlaySettings->LastExecutedPlayModeType == EPlayModeType::PlayMode_QuickLaunch)
 	{
+#if UE_WITH_TURNKEY_SUPPORT
 		ITurnkeySupportModule::Get().RepeatQuickLaunch(PlaySettings->LastExecutedLaunchName);
+#endif
 	}
 	else
 	{
