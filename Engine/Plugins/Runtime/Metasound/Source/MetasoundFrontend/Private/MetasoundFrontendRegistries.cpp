@@ -27,6 +27,13 @@
 #include "MetasoundRouter.h"
 #include "MetasoundTrace.h"
 
+bool bBusyWaitOnAsyncRegistrationTasks = true;
+static FAutoConsoleVariableRef CVarAsyncRegistrationTasksBusyWait(
+	TEXT("au.MetaSound.BusyWaitOnAsyncRegistrationTasks"),
+	bBusyWaitOnAsyncRegistrationTasks,
+	TEXT("Use TaskGraph BusyWait instead of simple Wait. Required to avoid hangs on platforms with low number of cores."),
+	ECVF_Default);
+
 namespace Metasound
 {
 	namespace Frontend
@@ -956,7 +963,14 @@ namespace Metasound
 			if (ActiveRegistrationTask.IsValid())
 			{
 				METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(Metasound::FRegistryContainerImpl::WaitForRegistrationTaskToComplete);
-				ActiveRegistrationTask.Wait();
+				if (bBusyWaitOnAsyncRegistrationTasks)
+				{
+					ActiveRegistrationTask.BusyWait();
+				}
+				else
+				{
+					ActiveRegistrationTask.Wait();
+				}
 			}
 		}
 
