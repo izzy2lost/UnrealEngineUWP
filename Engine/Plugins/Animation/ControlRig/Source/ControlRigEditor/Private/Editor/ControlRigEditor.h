@@ -86,6 +86,7 @@ public:
 	virtual void CreateEmptyGraphContent(URigVMController* InController) override;
 
 	int32 GetRigHierarchyTabCount() const { return RigHierarchyTabCount; }
+	int32 GetModularRigHierarchyTabCount() const { return ModularRigHierarchyTabCount; }
 
 	bool IsModularRig() const;
 
@@ -125,6 +126,12 @@ public:
 	void SetDetailViewForRigElements(const TArray<FRigElementKey>& InKeys);
 	bool DetailViewShowsAnyRigElement() const;
 	bool DetailViewShowsRigElement(FRigElementKey InKey) const;
+
+	//void SetDetailViewForRigModules();
+	void SetDetailViewForRigModules(const TArray<FString>& InKeys);
+	bool DetailViewShowsAnyRigModule() const;
+	bool DetailViewShowsRigModule(FString InKey) const;
+
 	virtual void RefreshDetailView() override;
 
 	void CreatePersonaToolKitIfRequired();
@@ -306,6 +313,7 @@ protected:
 	bool IsConstructionModeEnabled() const;
 
 	int32 RigHierarchyTabCount;
+	int32 ModularRigHierarchyTabCount;
 	TWeakObjectPtr<AStaticMeshActor> WeakGroundActorPtr;
 
 	void OnPreForwardsSolve_AnyThread(UControlRig* InRig, const FName& InEventName);
@@ -334,5 +342,7 @@ protected:
 	friend class FControlRigEditorMode;
 	friend class SControlRigStackView;
 	friend class SRigHierarchy;
+	friend class SModularRigHierarchy;
 	friend struct FRigHierarchyTabSummoner;
+	friend struct FModularRigHierarchyTabSummoner;
 };

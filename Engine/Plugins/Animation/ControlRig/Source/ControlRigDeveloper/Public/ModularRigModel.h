@@ -68,7 +68,9 @@ public:
 
 	void UpdateCachedChildren();
 
-	FRigModuleReference* FindModule(const FString InNameSpace);
+	FRigModuleReference* FindModule(const FString InNameSpace) const;
+
+	FString FindParentNamespace(const FString InNameSpace) const;
 	
 private:
 	TWeakObjectPtr<UObject> OuterClientHost;

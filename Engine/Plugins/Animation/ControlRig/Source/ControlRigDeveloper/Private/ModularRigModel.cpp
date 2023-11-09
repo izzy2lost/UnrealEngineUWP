@@ -61,14 +61,14 @@ void FModularRigModel::UpdateCachedChildren()
 	}
 }
 
-FRigModuleReference* FModularRigModel::FindModule(const FString InNameSpace)
+FRigModuleReference* FModularRigModel::FindModule(const FString InNameSpace) const
 {
-	TArray<FRigModuleReference*>* Children = &RootModules;
+	const TArray<FRigModuleReference*>* Children = &RootModules;
 
 	FString Left = InNameSpace, Right;
 	while (Left.Split(UModularRig::NamespaceSeparator, &Left, &Right))
 	{
-		FRigModuleReference** Child = Children->FindByPredicate([Left](FRigModuleReference* Module)
+		FRigModuleReference* const * Child = Children->FindByPredicate([Left](FRigModuleReference* Module)
 		{
 			return Module->Name.ToString() == Left;
 		});
@@ -82,7 +82,7 @@ FRigModuleReference* FModularRigModel::FindModule(const FString InNameSpace)
 		Left = Right;
 	}
 
-	FRigModuleReference** Child = Children->FindByPredicate([Left](FRigModuleReference* Module)
+	FRigModuleReference* const * Child = Children->FindByPredicate([Left](FRigModuleReference* Module)
 		{
 			return Module->Name.ToString() == Left;
 		});
@@ -92,4 +92,13 @@ FRigModuleReference* FModularRigModel::FindModule(const FString InNameSpace)
 		return nullptr;
 	}
 	return *Child;
+}
+
+FString FModularRigModel::FindParentNamespace(const FString InNameSpace) const
+{
+	if (FRigModuleReference* Element = FindModule(InNameSpace))
+	{
+		return Element->ParentNamespace;
+	}
+	return FString();
 }

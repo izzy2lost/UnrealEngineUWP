@@ -298,12 +298,15 @@ public:
 	*/
 	FRigHierarchyModifiedEvent& OnHierarchyModified() { return HierarchyModifiedEvent; }
 
+	FOnRigVMRefreshEditorEvent& OnModularRigCompiled() { return ModularRigCompiled; }
+
 private:
 
 	UPROPERTY()
 	TObjectPtr<UControlRigValidator> Validator;
 
 	FRigHierarchyModifiedEvent	HierarchyModifiedEvent;
+	FOnRigVMRefreshEditorEvent ModularRigCompiled;
 
 	void HandleHierarchyModified(ERigHierarchyNotification InNotification, URigHierarchy* InHierarchy, const FRigBaseElement* InElement);
 

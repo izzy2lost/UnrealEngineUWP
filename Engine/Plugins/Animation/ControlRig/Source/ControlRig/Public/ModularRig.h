@@ -5,6 +5,36 @@
 
 #include "ModularRig.generated.h"
 
+struct FRigModuleInstance;
+
+struct CONTROLRIG_API FModuleInstanceHandle
+{
+public:
+
+	FModuleInstanceHandle()
+		: Rig(nullptr)
+		, Path()
+	{}
+
+	FModuleInstanceHandle(UModularRig* InRig, const FString& InPath);
+	FModuleInstanceHandle(UModularRig* InRig, const FRigModuleInstance* InElement);
+
+	bool IsValid() const { return Get() != nullptr; }
+	operator bool() const { return IsValid(); }
+	
+	const UModularRig* GetRig() const { return Rig.Get(); }
+	UModularRig* GetHierarchy() { return Rig.Get(); }
+	const FString& GetPath() const { return Path; }
+
+	const FRigModuleInstance* Get() const;
+	FRigModuleInstance* Get();
+
+private:
+
+	TWeakObjectPtr<UModularRig> Rig;
+	FString Path;
+};
+
 USTRUCT(BlueprintType)
 struct CONTROLRIG_API FRigModuleInstance 
 {
@@ -17,8 +47,6 @@ struct CONTROLRIG_API FRigModuleInstance
 	{
 	}
 
-	~FRigModuleInstance();
-
 	UPROPERTY()
 	FName Name;
 
@@ -29,6 +57,8 @@ struct CONTROLRIG_API FRigModuleInstance
 	FString ParentPath;
 
 	TArray<FRigModuleInstance*> CachedChildren;
+
+	FString GetPath() const;
 };
 
 /** Runs logic for mapping input data to transforms (the "Rig") */
@@ -60,13 +90,31 @@ public:
 
 	void ResetModules();
 
+	void UpdateCachedChildren();
+
 	/** Adds a module to the rig*/
 	bool AddModuleInstance(const FName& InModuleName, TSubclassOf<UControlRig> InModuleClass, FString InParentPath, const TMap<FRigElementKey, FRigElementKey>& InConnectionMap, const TMap<FName, FString>& InVariables);
 	FRigModuleInstance* AddModuleInstance(const FName& InModuleName, TSubclassOf<UControlRig> InModuleClass, FRigModuleInstance* InParent, const TMap<FRigElementKey, FRigElementKey>& InConnectionMap, const TMap<FName, FString>& InVariables);
 
-	FRigModuleInstance* FindModule(const FString& InPath);
+	FRigModuleInstance* FindModule(const FString& InPath) const;
+	FString GetParentPath(const FString& InPath) const;
 
 	void ForEachModule(TFunctionRef<bool(FRigModuleInstance*)> PerModuleFunction);
+	void ForEachModule(TFunctionRef<bool(const FRigModuleInstance*)> PerModuleFunction) const;
+
+	/**
+	 * Returns a handle to an existing element
+	 * @param InKey The key of the handle to retrieve.
+	 * @return The retrieved handle (may be invalid)
+	 */
+	FModuleInstanceHandle GetHandle(const FString& InPath) const
+	{
+		if(FRigModuleInstance* Module = FindModule(InPath))
+		{
+			return FModuleInstanceHandle((UModularRig*)this, InPath);
+		}
+		return FModuleInstanceHandle();
+	}
 
 	static const FString NamespaceSeparator;
 };

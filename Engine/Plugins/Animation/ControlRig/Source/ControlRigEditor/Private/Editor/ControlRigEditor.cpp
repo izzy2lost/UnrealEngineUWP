@@ -125,6 +125,7 @@ FControlRigEditor::FControlRigEditor()
 	, ActiveController(nullptr)
 	, bExecutionControlRig(true)
 	, RigHierarchyTabCount(0)
+	, ModularRigHierarchyTabCount(0)
 	, bIsConstructionEventRunning(false)
 	, LastHierarchyHash(INDEX_NONE)
 	, bRefreshDirectionManipulationTargetsRequired(false)
@@ -1125,6 +1126,67 @@ bool FControlRigEditor::DetailViewShowsRigElement(FRigElementKey InKey) const
 					if (WrappedStruct->IsChildOf(FRigBaseElement::StaticStruct()))
 					{
 						if(WrapperObject->GetContent<FRigBaseElement>().GetKey() == InKey)
+						{
+							return true;
+						}
+					}
+				}
+			}
+		}
+	}
+	return false;
+}
+
+void FControlRigEditor::SetDetailViewForRigModules(const TArray<FString>& InKeys)
+{
+	if(IsDetailsPanelRefreshSuspended())
+	{
+		return;
+	}
+
+	ClearDetailObject();
+
+	UControlRigBlueprint* RigBlueprint = Cast<UControlRigBlueprint>(GetBlueprintObj());
+	UModularRig* RigBeingDebugged = Cast<UModularRig>(RigBlueprint->GetDebuggedControlRig());
+	TArray<UObject*> Objects;
+
+	for(const FString& Key : InKeys)
+	{
+		FRigModuleInstance* Element = RigBeingDebugged->FindModule(Key);
+		if (Element == nullptr)
+		{
+			continue;
+		}
+
+		URigVMDetailsViewWrapperObject* WrapperObject = URigVMDetailsViewWrapperObject::MakeInstance(GetDetailWrapperClass(), GetBlueprintObj(), FRigModuleInstance::StaticStruct(), (uint8*)Element, RigBeingDebugged);
+		WrapperObject->GetWrappedPropertyChangedChainEvent().AddSP(this, &FControlRigEditor::OnWrappedPropertyChangedChainEvent);
+		WrapperObject->AddToRoot();
+
+		Objects.Add(WrapperObject);
+	}
+	
+	SetDetailObjects(Objects);
+}
+
+bool FControlRigEditor::DetailViewShowsAnyRigModule() const
+{
+	return DetailViewShowsStruct(FRigModuleInstance::StaticStruct());
+}
+
+bool FControlRigEditor::DetailViewShowsRigModule(FString InKey) const
+{
+	TArray< TWeakObjectPtr<UObject> > SelectedObjects = Inspector->GetSelectedObjects();
+	for (TWeakObjectPtr<UObject> SelectedObject : SelectedObjects)
+	{
+		if (SelectedObject.IsValid())
+		{
+			if(URigVMDetailsViewWrapperObject* WrapperObject = Cast<URigVMDetailsViewWrapperObject>(SelectedObject.Get()))
+			{
+				if (const UScriptStruct* WrappedStruct = WrapperObject->GetWrappedStruct())
+				{
+					if (WrappedStruct->IsChildOf(FRigModuleInstance::StaticStruct()))
+					{
+						if(WrapperObject->GetContent<FRigModuleInstance>().GetPath() == InKey)
 						{
 							return true;
 						}

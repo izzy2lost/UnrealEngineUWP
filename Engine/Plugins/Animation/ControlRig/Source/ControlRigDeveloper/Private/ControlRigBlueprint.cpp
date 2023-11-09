@@ -1587,6 +1587,8 @@ void UControlRigBlueprint::RecompileModularRig()
 			}
 		}
 	}
+
+	OnModularRigCompiled().Broadcast(this);
 }
 
 #endif

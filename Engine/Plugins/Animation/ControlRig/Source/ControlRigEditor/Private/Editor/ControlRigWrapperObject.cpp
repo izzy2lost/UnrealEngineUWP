@@ -4,6 +4,7 @@
 
 #if WITH_EDITOR
 #include "ControlRigElementDetails.h"
+#include "ControlRigModuleDetails.h"
 #include "PropertyEditorModule.h"
 #include "Modules/ModuleManager.h"
 #endif
@@ -44,6 +45,14 @@ UClass* UControlRigWrapperObject::GetClassForStruct(UScriptStruct* InStruct, boo
 			{
 				PropertyEditorModule.RegisterCustomClassLayout(WrapperClassName, FOnGetDetailCustomizationInstance::CreateStatic(&FRigSocketElementDetails::MakeInstance));
 			}
+		}
+	}
+	else if (InStruct->IsChildOf(FRigModuleInstance::StaticStruct()))
+	{
+		FPropertyEditorModule& PropertyEditorModule = FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
+		if (!PropertyEditorModule.GetClassNameToDetailLayoutNameMap().Contains(WrapperClassName))
+		{
+			PropertyEditorModule.RegisterCustomClassLayout(WrapperClassName, FOnGetDetailCustomizationInstance::CreateStatic(&FRigModuleInstanceDetails::MakeInstance));
 		}
 	}
 #endif

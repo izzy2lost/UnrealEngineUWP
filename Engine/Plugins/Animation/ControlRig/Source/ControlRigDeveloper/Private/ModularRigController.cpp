@@ -7,6 +7,7 @@
 #include "ControlRigBlueprint.h"
 #include "ModularRigModel.h"
 #include "Kismet2/BlueprintEditorUtils.h"
+#include "Misc/DefaultValueHelper.h"
 #include "Rigs/RigHierarchyController.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ModularRigController)
@@ -61,7 +62,6 @@ bool UModularRigController::AddModule(const FName& InModuleName, TSubclassOf<UCo
 
 		Model->Modules.Add(FRigModuleReference(InModuleName, InClass, FString()));
 		NewModule = &Model->Modules.Last();
-		Model->RootModules.Add(NewModule);
 	}
 	else if (FRigModuleReference* ParentModule = FindModule(InParentModulePath))
 	{
@@ -75,14 +75,17 @@ bool UModularRigController::AddModule(const FName& InModuleName, TSubclassOf<UCo
 
 		Model->Modules.Add(FRigModuleReference(InModuleName, InClass, ParentModule->GetNamespace()));
 		NewModule = &Model->Modules.Last();
-		ParentModule->CachedChildren.Add(&Model->Modules.Last());
 	}
+
+	Model->UpdateCachedChildren();
 
 	if (!NewModule)
 	{
 		UE_LOG(LogControlRig, Error, TEXT("Error while creating module %s"), *InModuleName.ToString());
 		return false;
 	}
+
+	Notify(EModularRigNotification::ModuleAdded, NewModule);
 
 	const FString NewNamespace = NewModule->GetNamespace();
 
@@ -114,8 +117,6 @@ bool UModularRigController::AddModule(const FName& InModuleName, TSubclassOf<UCo
 			// }
 		}
 	}
-
-	Notify(EModularRigNotification::ModuleAdded, NewModule);
 
 #if WITH_EDITOR
 	TransactionPtr.Reset();
@@ -230,7 +231,10 @@ bool UModularRigController::SetConfigValueInModule(const FString& InModulePath, 
 
 	TArray<uint8, TAlignedHeapAllocator<16>> TempStorage;
 	TempStorage.AddZeroed(Property->GetSize());
-	if (!FBlueprintEditorUtils::PropertyValueFromString(Property, InValue, TempStorage.GetData()))
+	uint8* TempMemory = TempStorage.GetData();
+	Property->InitializeValue(TempMemory);
+
+	if (!FBlueprintEditorUtils::PropertyValueFromString_Direct(Property, InValue, TempMemory))
 	{
 		UE_LOG(LogControlRig, Error, TEXT("Value %s for variable %s in module %s is not valid"), *InValue, *InVariableName.ToString(), *InModulePath);
 		return false;
@@ -275,6 +279,39 @@ bool UModularRigController::ReparentModule(const FString& InModulesPath, const F
 {
 	// todo: UE-199050
 	return false;
+}
+
+FName UModularRigController::GetSafeNewName(const FString& InModuleDesiredPath)
+{
+	FString ParentPath, DesiredName = InModuleDesiredPath;
+	InModuleDesiredPath.Split(UModularRig::NamespaceSeparator, &ParentPath, &DesiredName);
+
+	TArray<FRigModuleReference*>* Children = &Model->RootModules;
+	if (!ParentPath.IsEmpty())
+	{
+		if (FRigModuleReference* Parent = FindModule(ParentPath))
+		{
+			Children = &Parent->CachedChildren;
+		}
+	}
+
+	bool bSafeToUse = false;
+	FString NewName = DesiredName;
+	int32 Index = 0;
+	while (!bSafeToUse)
+	{
+		bSafeToUse = true;
+		for (FRigModuleReference* Child : *Children)
+		{
+			if (Child->Name == *NewName)
+			{
+				bSafeToUse = false;
+				NewName = FString::Printf(TEXT("%s%d"), *DesiredName, ++Index);
+				break;
+			}
+		}
+	}
+	return *NewName;
 }
 
 void UModularRigController::Notify(const EModularRigNotification& InNotification, const FRigModuleReference* InElement)

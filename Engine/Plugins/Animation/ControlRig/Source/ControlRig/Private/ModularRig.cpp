@@ -13,22 +13,43 @@
 
 const FString UModularRig::NamespaceSeparator = TEXT(":");
 
-FRigModuleInstance::~FRigModuleInstance()
+////////////////////////////////////////////////////////////////////////////////
+// FModuleInstanceHandle
+////////////////////////////////////////////////////////////////////////////////
+
+FModuleInstanceHandle::FModuleInstanceHandle(UModularRig* InRig, const FString& InPath)
+: Rig(InRig)
+, Path(InPath)
 {
-	CachedChildren.Reset();
-	if (Rig && Rig.IsValid())
-	{
-		static int32 ObjectIndexToBeDestroyed = 0;
-		static constexpr TCHAR ObjectNameFormat[] = TEXT("FRigModuleInstance_ObjectToBeDestroyed_%d");
-		const FString NewObjectName = FString::Printf(ObjectNameFormat, ObjectIndexToBeDestroyed++);
-		Rig->Rename(*NewObjectName, GetTransientPackage(), REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
-		if(!Rig->IsRooted())
-		{
-			Rig->MarkAsGarbage();
-		}
-		Rig = nullptr;
-	}
 }
+
+FModuleInstanceHandle::FModuleInstanceHandle(UModularRig* InRig, const FRigModuleInstance* InModule)
+: Rig(InRig)
+, Path(InModule->GetPath())
+{
+}
+
+const FRigModuleInstance* FModuleInstanceHandle::Get() const
+{
+	if(Rig.IsValid())
+	{
+		return Rig->FindModule(Path);
+	}
+	return nullptr;
+}
+
+FRigModuleInstance* FModuleInstanceHandle::Get()
+{
+	if(Rig.IsValid())
+	{
+		return Rig->FindModule(Path);
+	}
+	return nullptr;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// UModularRig
+////////////////////////////////////////////////////////////////////////////////
 
 UModularRig::UModularRig(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -40,11 +61,22 @@ UModularRig::UModularRig(const FObjectInitializer& ObjectInitializer)
 
 void UModularRig::BeginDestroy()
 {
+	ResetModules();
+	
 	Super::BeginDestroy();
 	
 #if WITH_EDITOR
 	FCoreUObjectDelegates::OnObjectsReplaced.RemoveAll(this);
 #endif
+}
+
+FString FRigModuleInstance::GetPath() const
+{
+	if (!ParentPath.IsEmpty())
+	{
+		return FString::Printf(TEXT("%s:%s"), *ParentPath, *Name.ToString()); 
+	}
+	return Name.ToString();
 }
 
 void UModularRig::InitializeVMs(bool bRequestInit)
@@ -136,8 +168,52 @@ void UModularRig::OnObjectsReplaced(const TMap<UObject*, UObject*>& OldToNewInst
 
 void UModularRig::ResetModules()
 {
+	for (FRigModuleInstance& Module : Modules)
+	{
+		Module.CachedChildren.Reset();
+		TSoftObjectPtr<UControlRig> Rig = Module.Rig;
+		if (Rig && Rig.IsValid())
+		{
+			static int32 ObjectIndexToBeDestroyed = 0;
+			static constexpr TCHAR ObjectNameFormat[] = TEXT("FRigModuleInstance_ObjectToBeDestroyed_%d");
+			const FString NewObjectName = FString::Printf(ObjectNameFormat, ObjectIndexToBeDestroyed++);
+			Rig->Rename(*NewObjectName, GetTransientPackage(), REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
+			if(!Rig->IsRooted())
+			{
+				Rig->MarkAsGarbage();
+			}
+			Rig = nullptr;
+		}
+	}
+	
 	RootModules.Reset();
 	Modules.Reset();
+}
+
+void UModularRig::UpdateCachedChildren()
+{
+	TMap<FString, FRigModuleInstance*> PathToModule;
+	for (FRigModuleInstance& Module : Modules)
+	{
+		Module.CachedChildren.Reset();
+		PathToModule.Add(Module.GetPath(), &Module);
+	}
+	
+	RootModules.Reset();
+	for (FRigModuleInstance& Module : Modules)
+	{
+		if (Module.ParentPath.IsEmpty())
+		{
+			RootModules.Add(&Module);
+		}
+		else
+		{
+			if (FRigModuleInstance** ParentModule = PathToModule.Find(Module.ParentPath))
+			{
+				(*ParentModule)->CachedChildren.Add(&Module);
+			}
+		}
+	}
 }
 
 bool UModularRig::AddModuleInstance(const FName& InModuleName, TSubclassOf<UControlRig> InModuleClass, FString InParentPath,
@@ -185,13 +261,9 @@ FRigModuleInstance* UModularRig::AddModuleInstance(const FName& InModuleName, TS
 
 	if (InParent)
 	{
-		InParent->CachedChildren.Add(&NewModule);
-		NewModule.ParentPath = InParent->ParentPath.IsEmpty() ? InParent->Name.ToString() : InParent->ParentPath + NamespaceSeparator + InParent->Name.ToString();
+		NewModule.ParentPath = InParent->GetPath();
 	}
-	else
-	{
-		RootModules.Add(&NewModule);
-	}
+	UpdateCachedChildren();
 
 	// Configure module
 	{
@@ -214,13 +286,13 @@ FRigModuleInstance* UModularRig::AddModuleInstance(const FName& InModuleName, TS
 	return &NewModule;
 }
 
-FRigModuleInstance* UModularRig::FindModule(const FString& InPath)
+FRigModuleInstance* UModularRig::FindModule(const FString& InPath) const
 {
-	TArray<FRigModuleInstance*>* Children = &RootModules;
+	const TArray<FRigModuleInstance*>* Children = &RootModules;
 	FString Left = InPath, Right;
 	while (Left.Split(NamespaceSeparator, &Left, &Right))
 	{
-		FRigModuleInstance** Cur = Children->FindByPredicate([Left](FRigModuleInstance* Module)
+		FRigModuleInstance* const * Cur = Children->FindByPredicate([Left](FRigModuleInstance* Module)
 		{
 			return Module->Name == Left;
 		});
@@ -232,7 +304,7 @@ FRigModuleInstance* UModularRig::FindModule(const FString& InPath)
 		Left = Right;
 	}
 
-	FRigModuleInstance** Cur = Children->FindByPredicate([Left](FRigModuleInstance* Module)
+	FRigModuleInstance* const * Cur = Children->FindByPredicate([Left](FRigModuleInstance* Module)
 		{
 			return Module->Name == Left;
 		});
@@ -243,7 +315,29 @@ FRigModuleInstance* UModularRig::FindModule(const FString& InPath)
 	return *Cur;
 }
 
+FString UModularRig::GetParentPath(const FString& InPath) const
+{
+	if (FRigModuleInstance* Element = FindModule(InPath))
+	{
+		return Element->ParentPath;
+	}
+	return FString();
+}
+
 void UModularRig::ForEachModule(TFunctionRef<bool(FRigModuleInstance*)> PerModuleFunction)
+{
+	TArray<FRigModuleInstance*> ModuleInstances = RootModules;
+	for (int32 ModuleIndex = 0; ModuleIndex < ModuleInstances.Num(); ++ModuleIndex)
+	{
+		if (!PerModuleFunction(ModuleInstances[ModuleIndex]))
+		{
+			break;
+		}
+		ModuleInstances.Append(ModuleInstances[ModuleIndex]->CachedChildren);
+	}
+}
+
+void UModularRig::ForEachModule(TFunctionRef<bool(const FRigModuleInstance*)> PerModuleFunction) const
 {
 	TArray<FRigModuleInstance*> ModuleInstances = RootModules;
 	for (int32 ModuleIndex = 0; ModuleIndex < ModuleInstances.Num(); ++ModuleIndex)

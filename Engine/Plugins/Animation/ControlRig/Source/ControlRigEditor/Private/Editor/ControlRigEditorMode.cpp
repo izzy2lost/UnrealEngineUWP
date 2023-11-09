@@ -7,6 +7,7 @@
 #include "IPersonaToolkit.h"
 #include "PersonaTabs.h"
 #include "Editor/RigHierarchyTabSummoner.h"
+#include "Editor/ModularRigHierarchyTabSummoner.h"
 #include "Editor/RigVMExecutionStackTabSummoner.h"
 #include "Editor/RigCurveContainerTabSummoner.h"
 #include "Editor/RigValidationTabSummoner.h"
@@ -20,6 +21,10 @@ FControlRigEditorMode::FControlRigEditorMode(const TSharedRef<FControlRigEditor>
 	ControlRigBlueprintPtr = CastChecked<UControlRigBlueprint>(InControlRigEditor->GetBlueprintObj());
 
 	TabFactories.RegisterFactory(MakeShared<FRigHierarchyTabSummoner>(InControlRigEditor));
+	if (ControlRigBlueprintPtr->IsModularRig())
+	{
+		TabFactories.RegisterFactory(MakeShared<FModularRigHierarchyTabSummoner>(InControlRigEditor));
+	}
 	TabFactories.RegisterFactory(MakeShared<FRigVMExecutionStackTabSummoner>(InControlRigEditor));
 	TabFactories.RegisterFactory(MakeShared<FRigCurveContainerTabSummoner>(InControlRigEditor));
 	TabFactories.RegisterFactory(MakeShared<FRigValidationTabSummoner>(InControlRigEditor));
@@ -41,7 +46,7 @@ FControlRigEditorMode::FControlRigEditorMode(const TSharedRef<FControlRigEditor>
 
 	if(bCreateDefaultLayout)
 	{
-		TabLayout = FTabManager::NewLayout("Standalone_ControlRigEditMode_Layout_v1.5")
+		TabLayout = FTabManager::NewLayout("Standalone_ControlRigEditMode_Layout_v1.6")
 			->AddArea
 			(
 				// Main application area
@@ -68,12 +73,21 @@ FControlRigEditorMode::FControlRigEditorMode(const TSharedRef<FControlRigEditor>
 						->Split
 						(
 							//	Left bottom - rig/hierarchy
-							FTabManager::NewStack()
-							->SetSizeCoefficient(0.5f)
-							->AddTab(FRigHierarchyTabSummoner::TabID, ETabState::OpenedTab)
-							->AddTab(FRigVMExecutionStackTabSummoner::TabID, ETabState::OpenedTab)
-							->AddTab(FRigCurveContainerTabSummoner::TabID, ETabState::OpenedTab)
-							->AddTab(FBlueprintEditorTabs::MyBlueprintID, ETabState::OpenedTab)
+							ControlRigBlueprintPtr->IsModularRig() ?
+								FTabManager::NewStack()
+								->SetSizeCoefficient(0.5f)
+								->AddTab(FRigHierarchyTabSummoner::TabID, ETabState::OpenedTab)
+								->AddTab(FModularRigHierarchyTabSummoner::TabID, ETabState::OpenedTab)
+								->AddTab(FRigVMExecutionStackTabSummoner::TabID, ETabState::OpenedTab)
+								->AddTab(FRigCurveContainerTabSummoner::TabID, ETabState::OpenedTab)
+								->AddTab(FBlueprintEditorTabs::MyBlueprintID, ETabState::OpenedTab)
+									:
+								FTabManager::NewStack()
+								->SetSizeCoefficient(0.5f)
+								->AddTab(FRigHierarchyTabSummoner::TabID, ETabState::OpenedTab)
+								->AddTab(FRigVMExecutionStackTabSummoner::TabID, ETabState::OpenedTab)
+								->AddTab(FRigCurveContainerTabSummoner::TabID, ETabState::OpenedTab)
+								->AddTab(FBlueprintEditorTabs::MyBlueprintID, ETabState::OpenedTab)
 						)
 					)
 					->Split
@@ -170,12 +184,21 @@ FModularRigEditorMode::FModularRigEditorMode(const TSharedRef<FControlRigEditor>
 					->Split
 					(
 						//	Left bottom - rig/hierarchy
-						FTabManager::NewStack()
-						->SetSizeCoefficient(0.5f)
-						->AddTab(FBlueprintEditorTabs::CompilerResultsID, ETabState::ClosedTab)
-						->AddTab(FRigHierarchyTabSummoner::TabID, ETabState::OpenedTab)
-						->AddTab(FRigCurveContainerTabSummoner::TabID, ETabState::OpenedTab)
-						->AddTab(FBlueprintEditorTabs::MyBlueprintID, ETabState::OpenedTab)
+						InControlRigEditor->GetControlRigBlueprint()->IsModularRig() ?
+							FTabManager::NewStack()
+							->SetSizeCoefficient(0.5f)
+							->AddTab(FBlueprintEditorTabs::CompilerResultsID, ETabState::ClosedTab)
+							->AddTab(FRigHierarchyTabSummoner::TabID, ETabState::OpenedTab)
+							->AddTab(FModularRigHierarchyTabSummoner::TabID, ETabState::OpenedTab)
+							->AddTab(FRigCurveContainerTabSummoner::TabID, ETabState::OpenedTab)
+							->AddTab(FBlueprintEditorTabs::MyBlueprintID, ETabState::OpenedTab)
+								:
+							FTabManager::NewStack()
+							->SetSizeCoefficient(0.5f)
+							->AddTab(FBlueprintEditorTabs::CompilerResultsID, ETabState::ClosedTab)
+							->AddTab(FRigHierarchyTabSummoner::TabID, ETabState::OpenedTab)
+							->AddTab(FRigCurveContainerTabSummoner::TabID, ETabState::OpenedTab)
+							->AddTab(FBlueprintEditorTabs::MyBlueprintID, ETabState::OpenedTab)
 					)
 				)
 				->Split

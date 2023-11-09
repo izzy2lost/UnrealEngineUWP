@@ -2,6 +2,7 @@
 
 #include "ControlRigBlueprintEditorLibrary.h"
 #include "Editor/SRigHierarchy.h"
+#include "Editor/SModularRigHierarchy.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "RigVMModel/RigVMPin.h"
 
@@ -88,6 +89,7 @@ void UControlRigBlueprintEditorLibrary::SetupAllEditorMenus()
 {
 	SRigHierarchy::CreateContextMenu();
 	SRigHierarchy::CreateDragDropMenu();
+	SModularRigHierarchy::CreateContextMenu();
 }
 
 TArray<FRigModuleDescription> UControlRigBlueprintEditorLibrary::GetAvailableRigModules()

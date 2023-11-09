@@ -1,0 +1,612 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#include "Editor/SModularRigHierarchy.h"
+#include "Widgets/Input/SComboButton.h"
+#include "Styling/AppStyle.h"
+#include "Widgets/Input/SButton.h"
+#include "Widgets/Input/SSearchBox.h"
+#include "Kismet2/BlueprintEditorUtils.h"
+#include "ScopedTransaction.h"
+#include "Editor/ControlRigEditor.h"
+#include "BlueprintActionDatabase.h"
+#include "BlueprintVariableNodeSpawner.h"
+#include "Widgets/Layout/SSpacer.h"
+#include "Widgets/Images/SImage.h"
+#include "Widgets/Text/STextBlock.h"
+#include "K2Node_VariableGet.h"
+#include "RigVMBlueprintUtils.h"
+#include "ControlRigModularRigHierarchyCommands.h"
+#include "ControlRigBlueprint.h"
+#include "Graph/ControlRigGraph.h"
+#include "Graph/ControlRigGraphNode.h"
+#include "Graph/ControlRigGraphSchema.h"
+#include "GraphEditorModule.h"
+#include "Framework/MultiBox/MultiBoxBuilder.h"
+#include "AnimationRuntime.h"
+#include "ClassViewerFilter.h"
+#include "PropertyCustomizationHelpers.h"
+#include "Framework/Application/SlateApplication.h"
+#include "Editor/EditorEngine.h"
+#include "HelperUtil.h"
+#include "Widgets/Text/SInlineEditableTextBlock.h"
+#include "ControlRig.h"
+#include "HAL/PlatformApplicationMisc.h"
+#include "HAL/PlatformTime.h"
+#include "Dialogs/Dialogs.h"
+#include "IPersonaToolkit.h"
+#include "SKismetInspector.h"
+#include "Types/WidgetActiveTimerDelegate.h"
+#include "Dialog/SCustomDialog.h"
+#include "EditMode/ControlRigEditMode.h"
+#include "ToolMenus.h"
+#include "Editor/ControlRigContextMenuContext.h"
+#include "Editor/SRigSpacePickerWidget.h"
+#include "Settings/ControlRigSettings.h"
+#include "Framework/Notifications/NotificationManager.h"
+#include "Widgets/Notifications/SNotificationList.h"
+#include "Styling/AppStyle.h"
+#include "ControlRigSkeletalMeshComponent.h"
+#include "Sequencer/ControlRigLayerInstance.h"
+#include "Algo/MinElement.h"
+#include "Algo/MaxElement.h"
+#include "AssetRegistry/AssetRegistryModule.h"
+#include "DragAndDrop/AssetDragDropOp.h"
+#include "Kismet2/SClassPickerDialog.h"
+#include "RigVMFunctions/Math/RigVMMathLibrary.h"
+#include "Preferences/PersonaOptions.h"
+
+#define LOCTEXT_NAMESPACE "SModularRigHierarchy"
+
+
+///////////////////////////////////////////////////////////
+
+const FName SModularRigHierarchy::ContextMenuName = TEXT("ControlRigEditor.ModularRigHierarchy.ContextMenu");
+
+SModularRigHierarchy::~SModularRigHierarchy()
+{
+	const FControlRigEditor* Editor = ControlRigEditor.IsValid() ? ControlRigEditor.Pin().Get() : nullptr;
+	OnEditorClose(Editor, ControlRigBlueprint.Get());
+}
+
+void SModularRigHierarchy::Construct(const FArguments& InArgs, TSharedRef<FControlRigEditor> InControlRigEditor)
+{
+	ControlRigEditor = InControlRigEditor;
+
+	ControlRigBlueprint = ControlRigEditor.Pin()->GetControlRigBlueprint();
+
+	ControlRigBlueprint->OnRefreshEditor().AddRaw(this, &SModularRigHierarchy::HandleRefreshEditorFromBlueprint);
+	ControlRigBlueprint->OnSetObjectBeingDebugged().AddRaw(this, &SModularRigHierarchy::HandleSetObjectBeingDebugged);
+	ControlRigBlueprint->OnModularRigCompiled().AddRaw(this, &SModularRigHierarchy::HandleRefreshEditorFromBlueprint);
+
+	// for deleting, renaming, dragging
+	CommandList = MakeShared<FUICommandList>();
+
+	UEditorEngine* Editor = Cast<UEditorEngine>(GEngine);
+	if (Editor != nullptr)
+	{
+		Editor->RegisterForUndo(this);
+	}
+
+	BindCommands();
+
+	// setup all delegates for the rig hierarchy widget
+	FModularRigTreeDelegates Delegates;
+	Delegates.OnGetHierarchy = FOnGetModularRigTreeHierarchy::CreateSP(this, &SModularRigHierarchy::GetHierarchyForTreeView);
+	Delegates.OnContextMenuOpening = FOnContextMenuOpening::CreateSP(this, &SModularRigHierarchy::CreateContextMenuWidget);
+	Delegates.OnCanAcceptDrop = FOnModularRigTreeCanAcceptDrop::CreateSP(this, &SModularRigHierarchy::OnCanAcceptDrop);
+	Delegates.OnAcceptDrop = FOnModularRigTreeAcceptDrop::CreateSP(this, &SModularRigHierarchy::OnAcceptDrop);
+	Delegates.OnMouseButtonClick = FOnModularRigTreeMouseButtonClick::CreateSP(this, &SModularRigHierarchy::OnItemClicked);
+	Delegates.OnRequestDetailsInspection = FOnModularRigTreeRequestDetailsInspection::CreateSP(this, &SModularRigHierarchy::OnRequestDetailsInspection);
+	
+	ChildSlot
+	[
+		SNew(SVerticalBox)
+		+SVerticalBox::Slot()
+		.Padding(0.0f, 0.0f)
+		[
+			SNew(SBorder)
+			.Padding(0.0f)
+			.ShowEffectWhenDisabled(false)
+			[
+				SNew(SBorder)
+				.Padding(2.0f)
+				.BorderImage(FAppStyle::GetBrush("SCSEditor.TreePanel"))
+				[
+					SAssignNew(TreeView, SModularRigHierarchyTreeView)
+					.RigTreeDelegates(Delegates)
+					.AutoScrollEnabled(true)
+				]
+			]
+		]
+	];
+
+	RefreshTreeView();
+
+	if (ControlRigEditor.IsValid())
+	{
+		ControlRigEditor.Pin()->GetKeyDownDelegate().BindLambda([&](const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent)->FReply {
+			return OnKeyDown(MyGeometry, InKeyEvent);
+		});
+		ControlRigEditor.Pin()->OnGetViewportContextMenu().BindSP(this, &SModularRigHierarchy::GetContextMenu);
+		ControlRigEditor.Pin()->OnViewportContextMenuCommands().BindSP(this, &SModularRigHierarchy::GetContextMenuCommands);
+		ControlRigEditor.Pin()->OnEditorClosed().AddSP(this, &SModularRigHierarchy::OnEditorClose);
+	}
+	
+	CreateContextMenu();
+}
+
+void SModularRigHierarchy::OnEditorClose(const FRigVMEditor* InEditor, URigVMBlueprint* InBlueprint)
+{
+	if (InEditor)
+	{
+		FControlRigEditor* Editor = (FControlRigEditor*)InEditor;  
+		Editor->OnGetViewportContextMenu().Unbind();
+		Editor->OnViewportContextMenuCommands().Unbind();
+	}
+
+	if (UControlRigBlueprint* BP = Cast<UControlRigBlueprint>(InBlueprint))
+	{
+		InBlueprint->OnRefreshEditor().RemoveAll(this);
+		InBlueprint->OnSetObjectBeingDebugged().RemoveAll(this);
+	}
+	
+	ControlRigEditor.Reset();
+	ControlRigBlueprint.Reset();
+}
+
+void SModularRigHierarchy::BindCommands()
+{
+	// create new command
+	const FControlRigModularHierarchyCommands& Commands = FControlRigModularHierarchyCommands::Get();
+
+	CommandList->MapAction(Commands.AddModuleItem,
+		FExecuteAction::CreateSP(this, &SModularRigHierarchy::HandleNewItem),
+		FCanExecuteAction());
+}
+
+void SModularRigHierarchy::RefreshTreeView(bool bRebuildContent)
+{
+	const UModularRig* Hierarchy = GetHierarchy();
+	bool bDummySuspensionFlag = false;
+	bool* SuspensionFlagPtr = &bDummySuspensionFlag;
+	if (ControlRigEditor.IsValid())
+	{
+		SuspensionFlagPtr = &ControlRigEditor.Pin()->GetSuspendDetailsPanelRefreshFlag();
+	}
+	TGuardValue<bool> SuspendDetailsPanelRefreshGuard(*SuspensionFlagPtr, true);
+
+	TreeView->RefreshTreeView(bRebuildContent);
+}
+
+TArray<FString> SModularRigHierarchy::GetSelectedKeys() const
+{
+	TArray<TSharedPtr<FModularRigTreeElement>> SelectedItems = TreeView->GetSelectedItems();
+	
+	TArray<FString> SelectedKeys;
+	for (const TSharedPtr<FModularRigTreeElement>& SelectedItem : SelectedItems)
+	{
+		if(!SelectedItem->Key.IsEmpty())
+		{
+			SelectedKeys.AddUnique(SelectedItem->Key);
+		}
+	}
+
+	return SelectedKeys;
+}
+
+void SModularRigHierarchy::HandleRefreshEditorFromBlueprint(URigVMBlueprint* InBlueprint)
+{
+	RefreshTreeView();
+}
+
+void SModularRigHierarchy::HandleSetObjectBeingDebugged(UObject* InObject)
+{
+	if(ControlRigBeingDebuggedPtr.Get() == InObject)
+	{
+		return;
+	}
+
+	ControlRigBeingDebuggedPtr.Reset();
+	
+	if(UModularRig* ControlRig = Cast<UModularRig>(InObject))
+	{
+		ControlRigBeingDebuggedPtr = ControlRig;
+	}
+
+	RefreshTreeView();
+}
+
+TSharedPtr< SWidget > SModularRigHierarchy::CreateContextMenuWidget()
+{
+	UToolMenus* ToolMenus = UToolMenus::Get();
+
+	if (UToolMenu* Menu = GetContextMenu())
+	{
+		return ToolMenus->GenerateWidget(Menu);
+	}
+	
+	return SNullWidget::NullWidget;
+}
+
+void SModularRigHierarchy::OnItemClicked(TSharedPtr<FModularRigTreeElement> InItem)
+{
+	UModularRig* Rig = GetHierarchy();
+	check(Rig);
+
+	if (ControlRigEditor.IsValid() && InItem.IsValid())
+	{
+		ControlRigEditor.Pin()->SetDetailViewForRigModules({InItem->Key});
+	}
+
+	uint32 CurrentCycles = FPlatformTime::Cycles();
+	// double SecondsPassed = double(CurrentCycles - TreeView->LastClickCycles) * FPlatformTime::GetSecondsPerCycle();
+	// if (SecondsPassed > 0.5f)
+	// {
+	// 	RegisterActiveTimer(0.f, FWidgetActiveTimerDelegate::CreateLambda([this](double, float) {
+	// 		HandleRenameItem();
+	// 		return EActiveTimerReturnType::Stop;
+	// 	}));
+	// }
+
+	TreeView->LastClickCycles = CurrentCycles;
+}
+
+void SModularRigHierarchy::CreateContextMenu()
+{
+	static bool bCreatedMenu = false;
+	if(bCreatedMenu)
+	{
+		return;
+	}
+	bCreatedMenu = true;
+	
+	const FName MenuName = ContextMenuName;
+
+	UToolMenus* ToolMenus = UToolMenus::Get();
+	
+	if (!ensure(ToolMenus))
+	{
+		return;
+	}
+
+	if (UToolMenu* Menu = ToolMenus->ExtendMenu(MenuName))
+	{
+		Menu->AddDynamicSection(NAME_None, FNewToolMenuDelegate::CreateLambda([](UToolMenu* InMenu)
+			{
+				UControlRigContextMenuContext* MainContext = InMenu->FindContext<UControlRigContextMenuContext>();
+				
+				if (SModularRigHierarchy* RigHierarchyPanel = MainContext->GetModularRigHierarchyPanel())
+				{
+					const FControlRigModularHierarchyCommands& Commands = FControlRigModularHierarchyCommands::Get(); 
+				
+					FToolMenuSection& ElementsSection = InMenu->AddSection(TEXT("Elements"), LOCTEXT("ElementsHeader", "Elements"));
+					ElementsSection.AddSubMenu(TEXT("New"), LOCTEXT("New", "New"), LOCTEXT("New_ToolTip", "Create New Elements"),
+						FNewToolMenuDelegate::CreateLambda([Commands, RigHierarchyPanel](UToolMenu* InSubMenu)
+						{
+							FToolMenuSection& DefaultSection = InSubMenu->AddSection(NAME_None);
+							FString SelectedKey;
+							TArray<TSharedPtr<FModularRigTreeElement>> SelectedItems = RigHierarchyPanel->TreeView->GetSelectedItems();
+							if (SelectedItems.Num() > 0)
+							{
+								SelectedKey = SelectedItems[0]->Key;
+							}
+							
+							DefaultSection.AddMenuEntry(Commands.AddModuleItem);
+						})
+					);
+				}
+			})
+		);
+	}
+}
+
+UToolMenu* SModularRigHierarchy::GetContextMenu()
+{
+	const FName MenuName = ContextMenuName;
+	UToolMenus* ToolMenus = UToolMenus::Get();
+
+	if(!ensure(ToolMenus))
+	{
+		return nullptr;
+	}
+
+	// individual entries in this menu can access members of this context, particularly useful for editor scripting
+	UControlRigContextMenuContext* ContextMenuContext = NewObject<UControlRigContextMenuContext>();
+	FControlRigMenuSpecificContext MenuSpecificContext;
+	MenuSpecificContext.ModularRigHierarchyPanel = SharedThis(this);
+	ContextMenuContext->Init(ControlRigEditor, MenuSpecificContext);
+
+	FToolMenuContext MenuContext(CommandList);
+	MenuContext.AddObject(ContextMenuContext);
+
+	UToolMenu* Menu = ToolMenus->GenerateMenu(MenuName, MenuContext);
+
+	return Menu;
+}
+
+TSharedPtr<FUICommandList> SModularRigHierarchy::GetContextMenuCommands() const
+{
+	return CommandList;
+}
+
+bool SModularRigHierarchy::IsSingleSelected() const
+{
+	if(GetSelectedKeys().Num() == 1)
+	{
+		return true;
+	}
+	return false;
+}
+
+/** Filter class to show only RigModules. */
+class FClassViewerRigModulesFilter : public IClassViewerFilter
+{
+public:
+	FClassViewerRigModulesFilter()
+		: AssetRegistry(FModuleManager::GetModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry")).Get())
+	{}
+	
+	virtual bool IsClassAllowed(const FClassViewerInitializationOptions& InInitOptions, const UClass* InClass, TSharedRef< FClassViewerFilterFuncs > InFilterFuncs) override
+	{
+		if(InClass)
+		{
+			const bool bChildOfObjectClass = InClass->IsChildOf(UControlRig::StaticClass());
+			const bool bMatchesFlags = !InClass->HasAnyClassFlags(CLASS_Hidden | CLASS_HideDropDown | CLASS_Deprecated | CLASS_Abstract);
+			const bool bNotNative = !InClass->IsNative();
+
+			// Allow any class contained in the extra picker common classes array
+			if (InInitOptions.ExtraPickerCommonClasses.Contains(InClass))
+			{
+				return true;
+			}
+			
+			if (bChildOfObjectClass && bMatchesFlags && bNotNative)
+			{
+				const FAssetData AssetData(InClass);
+				return MatchesFilter(AssetData);
+			}
+		}
+		return false;
+	}
+
+	virtual bool IsUnloadedClassAllowed(const FClassViewerInitializationOptions& InInitOptions, const TSharedRef< const IUnloadedBlueprintData > InUnloadedClassData, TSharedRef< FClassViewerFilterFuncs > InFilterFuncs) override
+	{
+		const bool bChildOfObjectClass = InUnloadedClassData->IsChildOf(UControlRig::StaticClass());
+		const bool bMatchesFlags = !InUnloadedClassData->HasAnyClassFlags(CLASS_Hidden | CLASS_HideDropDown | CLASS_Deprecated | CLASS_Abstract);
+		if (bChildOfObjectClass && bMatchesFlags)
+		{
+			const FString GeneratedClassPathString = InUnloadedClassData->GetClassPathName().ToString();
+			const FString BlueprintPath = GeneratedClassPathString.LeftChop(2); // Chop off _C
+			const FAssetData AssetData = AssetRegistry.GetAssetByObjectPath(FSoftObjectPath(BlueprintPath));
+			return MatchesFilter(AssetData);
+
+		}
+		return false;
+	}
+
+private:
+	bool MatchesFilter(const FAssetData& AssetData)
+	{
+		static const UEnum* ControlTypeEnum = StaticEnum<EControlRigType>();
+		const FString ControlRigTypeStr = AssetData.GetTagValueRef<FString>(TEXT("ControlRigType"));
+		if (ControlRigTypeStr.IsEmpty())
+		{
+			return false;
+		}
+
+		const EControlRigType ControlRigType = (EControlRigType)(ControlTypeEnum->GetValueByName(*ControlRigTypeStr));
+		return ControlRigType == EControlRigType::RigModule;
+	}
+
+	const IAssetRegistry& AssetRegistry;
+};
+
+/** Create Item */
+void SModularRigHierarchy::HandleNewItem()
+{
+	if(!ControlRigEditor.IsValid())
+	{
+		return;
+	}
+
+	FString ParentPath;
+	if (IsSingleSelected())
+	{
+		ParentPath = GetSelectedKeys()[0];
+	}
+	
+	FClassViewerInitializationOptions Options;
+	Options.bShowUnloadedBlueprints = true;
+	Options.NameTypeToDisplay = EClassViewerNameTypeToDisplay::DisplayName;
+
+	TSharedPtr<FClassViewerRigModulesFilter> ClassFilter = MakeShareable(new FClassViewerRigModulesFilter());
+	Options.ClassFilters.Add(ClassFilter.ToSharedRef());
+	Options.bShowNoneOption = false;
+	
+	UClass* ChosenClass;
+	const FText TitleText = LOCTEXT("ModularRigHierarchy", "Pick Rig Module Class");
+	const bool bPressedOk = SClassPickerDialog::PickClass(TitleText, Options, ChosenClass, UControlRig::StaticClass());
+	if (bPressedOk)
+	{
+		HandleNewItem(ChosenClass, ParentPath);
+	}
+}
+
+void SModularRigHierarchy::HandleNewItem(UClass* InClass, const FString &InParentPath)
+{
+	UControlRig* ControlRig = InClass->GetDefaultObject<UControlRig>();
+	if (!ControlRig)
+	{
+		return;
+	}
+	
+	if (ControlRigBlueprint.IsValid())
+	{
+		FString ClassName = InClass->GetName();
+		ClassName.RemoveFromEnd(TEXT("_C"));
+		FString PathName = FString::Printf(TEXT("%s:%s"), *InParentPath, *ClassName);
+		const FName Name = CreateUniqueName(*PathName);
+		ControlRigBlueprint->GetModularRigController()->AddModule(Name, InClass, InParentPath);
+	}
+	
+	FSlateApplication::Get().DismissAllMenus();
+}
+
+class SModularRigHierarchyPasteTransformsErrorPipe : public FOutputDevice
+{
+public:
+
+	int32 NumErrors;
+
+	SModularRigHierarchyPasteTransformsErrorPipe()
+		: FOutputDevice()
+		, NumErrors(0)
+	{
+	}
+
+	virtual void Serialize(const TCHAR* V, ELogVerbosity::Type Verbosity, const class FName& Category) override
+	{
+		UE_LOG(LogControlRig, Error, TEXT("Error importing transforms to Hierarchy: %s"), V);
+		NumErrors++;
+	}
+};
+
+UModularRig* SModularRigHierarchy::GetHierarchy() const
+{
+	if (ControlRigBlueprint.IsValid())
+	{
+		if (UControlRig* DebuggedRig = ControlRigBeingDebuggedPtr.Get())
+		{
+			return Cast<UModularRig>(DebuggedRig);
+		}
+	}
+	if (ControlRigEditor.IsValid())
+	{
+		if (UControlRig* CurrentRig = ControlRigEditor.Pin()->GetControlRig())
+		{
+			return Cast<UModularRig>(CurrentRig);
+		}
+	}
+	return nullptr;
+}
+
+UModularRig* SModularRigHierarchy::GetDefaultHierarchy() const
+{
+	if (ControlRigBlueprint.IsValid())
+	{
+		if (UControlRig* DebuggedRig = ControlRigBeingDebuggedPtr.Get())
+		{
+			return Cast<UModularRig>(DebuggedRig);
+		}
+	}
+	return nullptr;
+}
+
+
+FName SModularRigHierarchy::CreateUniqueName(const FName& InBasePath) const
+{
+	return ControlRigBlueprint->GetModularRigController()->GetSafeNewName(InBasePath.ToString());
+}
+
+void SModularRigHierarchy::OnRequestDetailsInspection(const FString& InKey)
+{
+	if(!ControlRigEditor.IsValid())
+	{
+		return;
+	}
+	ControlRigEditor.Pin()->SetDetailViewForRigModules({InKey});
+}
+
+void SModularRigHierarchy::PostRedo(bool bSuccess) 
+{
+	if (bSuccess)
+	{
+		RefreshTreeView();
+	}
+}
+
+void SModularRigHierarchy::PostUndo(bool bSuccess) 
+{
+	if (bSuccess)
+	{
+		RefreshTreeView();
+	}
+}
+
+TOptional<EItemDropZone> SModularRigHierarchy::OnCanAcceptDrop(const FDragDropEvent& DragDropEvent, EItemDropZone DropZone, TSharedPtr<FModularRigTreeElement> TargetItem)
+{
+	const TOptional<EItemDropZone> InvalidDropZone;
+	TOptional<EItemDropZone> ReturnDropZone;
+
+	ReturnDropZone = DropZone;
+	return ReturnDropZone;
+}
+
+FReply SModularRigHierarchy::OnAcceptDrop(const FDragDropEvent& DragDropEvent, EItemDropZone DropZone, TSharedPtr<FModularRigTreeElement> TargetItem)
+{
+	const TSharedPtr<FModularRigTreeElement>* ItemAtMouse = TreeView->FindItemAtPosition(DragDropEvent.GetScreenSpacePosition());
+	FString ParentPath;
+	if (ItemAtMouse && ItemAtMouse->IsValid())
+	{
+		ParentPath = ItemAtMouse->Get()->Key;
+	}
+
+	TSharedPtr<FAssetDragDropOp> AssetDragDropOperation = DragDropEvent.GetOperationAs<FAssetDragDropOp>();
+	if (AssetDragDropOperation)
+	{
+		for (const FAssetData& AssetData : AssetDragDropOperation->GetAssets())
+		{
+			static const UEnum* ControlTypeEnum = StaticEnum<EControlRigType>();
+			const FString ControlRigTypeStr = AssetData.GetTagValueRef<FString>(TEXT("ControlRigType"));
+			if (ControlRigTypeStr.IsEmpty())
+			{
+				continue;
+			}
+
+			const EControlRigType ControlRigType = (EControlRigType)(ControlTypeEnum->GetValueByName(*ControlRigTypeStr));
+			if (ControlRigType != EControlRigType::RigModule)
+			{
+				continue;
+			}
+
+			UClass* AssetClass = AssetData.GetClass();
+			if (!AssetClass->IsChildOf(UControlRigBlueprint::StaticClass()))
+			{
+				continue;
+			}
+
+			if(UControlRigBlueprint* AssetBlueprint = Cast<UControlRigBlueprint>(AssetData.GetAsset()))
+			{
+				HandleNewItem(AssetBlueprint->GetControlRigClass(), ParentPath);
+			}
+		}
+
+		FReply::Handled();
+	}
+	
+	return FReply::Unhandled();
+}
+
+FReply SModularRigHierarchy::OnDrop(const FGeometry& MyGeometry, const FDragDropEvent& DragDropEvent)
+{
+	// only allow drops onto empty space of the widget (when there's no target item under the mouse)
+	// when dropped onto an item SModularRigHierarchy::OnAcceptDrop will deal with the event
+	const TSharedPtr<FModularRigTreeElement>* ItemAtMouse = TreeView->FindItemAtPosition(DragDropEvent.GetScreenSpacePosition());
+	FString ParentPath;
+	if (ItemAtMouse && ItemAtMouse->IsValid())
+	{
+		return SCompoundWidget::OnDrop(MyGeometry, DragDropEvent);
+	}
+	
+	if (OnCanAcceptDrop(DragDropEvent, EItemDropZone::BelowItem, nullptr))
+	{
+		if (OnAcceptDrop(DragDropEvent, EItemDropZone::BelowItem, nullptr).IsEventHandled())
+		{
+			return FReply::Handled();
+		}
+	}
+	return SCompoundWidget::OnDrop(MyGeometry, DragDropEvent);
+}
+
+#undef LOCTEXT_NAMESPACE
+
