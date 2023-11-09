@@ -64,9 +64,9 @@ private:
 	float BlendTimeMultiplier = 1.0f;
 
 	/**
-	 * When enabled, bone scales will be linearly interpolated. This is slightly more performant and consistent with the
-	 * rest of Unreal but visually gives the appearance of the rate of change of scale being affected by the overall
-	 * size of the bone.
+	 * When enabled, bone scales will be linearly interpolated and extrapolated. This is slightly more performant and
+	 * consistent with the rest of Unreal but visually gives the appearance of the rate of change of scale being affected
+	 * by the overall size of the bone. Note: this option must be enabled if you want this node to support negative scales.
 	 */
 	UPROPERTY(EditAnywhere, Category = Blending)
 	bool bLinearlyInterpolateScales = false;
