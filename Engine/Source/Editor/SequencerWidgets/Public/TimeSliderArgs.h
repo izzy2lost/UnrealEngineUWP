@@ -91,6 +91,9 @@ struct FTimeSliderArgs
 	/** Attribute defining the playback range for this controller */
 	TAttribute<TRange<FFrameNumber>> PlaybackRange;
 
+	/** Attribute defining the time bounds for this controller. The time bounds should be a subset of the playback range. */
+	TAttribute<TRange<FFrameNumber>> TimeBounds;
+
 	/** Attribute for the current sequence's display rate */
 	TAttribute<FFrameRate> DisplayRate;
 

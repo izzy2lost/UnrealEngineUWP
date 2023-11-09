@@ -176,6 +176,9 @@ public:
 		/** The playback range */
 		SLATE_ATTRIBUTE( TRange<FFrameNumber>, PlaybackRange )
 
+		/** The time bounds */
+		SLATE_ATTRIBUTE(TRange<FFrameNumber>, TimeBounds)
+
 		/** The selection range */
 		SLATE_ATTRIBUTE( TRange<FFrameNumber>, SelectionRange)
 

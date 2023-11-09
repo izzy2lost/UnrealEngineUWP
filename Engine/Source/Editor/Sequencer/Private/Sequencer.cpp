@@ -537,6 +537,7 @@ void FSequencer::InitSequencer(const FSequencerInitParams& InitParams, const TSh
 		.ViewRange( this, &FSequencer::GetViewRange )
 		.ClampRange( this, &FSequencer::GetClampRange )
 		.PlaybackRange( this, &FSequencer::GetPlaybackRange )
+		.TimeBounds( this, &FSequencer::GetTimeBounds )
 		.PlaybackStatus( this, &FSequencer::GetPlaybackStatus )
 		.SelectionRange( this, &FSequencer::GetSelectionRange )
 		.VerticalFrames(this, &FSequencer::GetVerticalFrames)

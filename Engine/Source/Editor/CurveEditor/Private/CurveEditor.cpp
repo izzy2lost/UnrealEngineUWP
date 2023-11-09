@@ -1018,7 +1018,7 @@ void FCurveEditor::JumpToStart()
 		return;
 	}
 
-	TimeSliderController->SetScrubPosition(TimeSliderController->GetPlayRange().GetLowerBoundValue(), /*bEvaluate*/ true);
+	TimeSliderController->SetScrubPosition(TimeSliderController->GetTimeBounds().GetLowerBoundValue(), /*bEvaluate*/ true);
 }
 
 void FCurveEditor::JumpToEnd()
@@ -1037,7 +1037,7 @@ void FCurveEditor::JumpToEnd()
 	// Calculate an offset from the end to go to. If they have snapping on (and the scrub style is a block) the last valid frame is represented as one
 	// whole display rate frame before the end, otherwise we just subtract a single frame which matches the behavior of hitting play and letting it run to the end.
 	FFrameTime OneFrame = bInsetDisplayFrame ? FFrameRate::TransformTime(FFrameTime(1), DisplayRate, TickResolution) : FFrameTime(1);
-	FFrameTime NewTime = TimeSliderController->GetPlayRange().GetUpperBoundValue() - OneFrame;
+	FFrameTime NewTime = TimeSliderController->GetTimeBounds().GetUpperBoundValue() - OneFrame;
 
 	TimeSliderController->SetScrubPosition(NewTime, /*bEvaluate*/ true);
 }
