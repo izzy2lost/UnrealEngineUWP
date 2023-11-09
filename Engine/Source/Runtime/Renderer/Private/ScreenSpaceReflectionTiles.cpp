@@ -9,13 +9,14 @@ static TAutoConsoleVariable<int32> CVarSSRTiledComposite(
 	TEXT("Enable tiled optimization of the screen space reflection."),
 	ECVF_RenderThreadSafe | ECVF_Scalability);
 
-static TAutoConsoleVariable<float> CVarSSRTiledCompositeMaxRoughness(
-	TEXT("r.SSR.TiledComposite.MaxRoughness"), 0.3f,
-	TEXT("Ignore pixels with roughness larger than this value."),
+static TAutoConsoleVariable<float> CVarSSRTiledCompositeOverrideMaxRoughness(
+	TEXT("r.SSR.TiledComposite.OverrideMaxRoughness"), -1.0f,
+	TEXT("Ignore pixels with roughness larger than this value.")
+	TEXT("<0: use derived value from ScreenSpaceReflectionMaxRoughness of FinalPostProcessSettings."),
 	ECVF_RenderThreadSafe | ECVF_Scalability);
 
 static TAutoConsoleVariable<float> CVarSSRTiledCompositeMinSpecular(
-	TEXT("r.SSR.TiledComposite.MinSpecular"), 0.01f,
+	TEXT("r.SSR.TiledComposite.MinSpecular"), 0.0f,
 	TEXT("Ignore pixels with very small specular contribution in case max roughness cannot filter them out"),
 	ECVF_RenderThreadSafe | ECVF_Scalability);
 
@@ -29,6 +30,17 @@ static TAutoConsoleVariable<bool> CVarSSRTiledCompositeVisualize(
 	TEXT("1: Visualize the tiling region."),
 	ECVF_RenderThreadSafe | ECVF_Scalability);
 
+
+static float GetScreenSpaceReflectionMaxRoughnessScale(const FViewInfo& View)
+{
+	float MaxRoughness = CVarSSRTiledCompositeOverrideMaxRoughness.GetValueOnRenderThread();
+
+	if (MaxRoughness < 0)
+	{
+		MaxRoughness = FMath::Clamp(View.FinalPostProcessSettings.ScreenSpaceReflectionMaxRoughness, 0.01f, 1.0f);
+	}
+	return MaxRoughness;
+}
 
 bool UseSSRIndirectDraw(EShaderPlatform ShaderPlatform)
 {
@@ -167,7 +179,7 @@ FScreenSpaceReflectionTileClassification ClassifySSRTiles(FRDGBuilder& GraphBuil
 			PassParameters->TiledViewRes = Result.TiledViewRes;
 			PassParameters->SSRDepthStencilTexture = DepthPrepassTexture ? GraphBuilder.CreateSRV(FRDGTextureSRVDesc::CreateWithPixelFormat(DepthPrepassTexture, PF_X24_G8)) : nullptr;
 			PassParameters->TileMaskBufferOut = TileMaskBufferUAV;
-			PassParameters->MaxRoughness = FMath::Clamp(CVarSSRTiledCompositeMaxRoughness.GetValueOnRenderThread(), -0.001f, 1.001f);
+			PassParameters->MaxRoughness = GetScreenSpaceReflectionMaxRoughnessScale(View);
 			PassParameters->MinSpecular = FMath::Clamp(CVarSSRTiledCompositeMinSpecular.GetValueOnRenderThread(), -0.001f, 1.001f);
 			PassParameters->bEnableTwoSidedFoliage = CVarSSRTiledCompositeTwoSidedFoliage.GetValueOnRenderThread() != 0;
 

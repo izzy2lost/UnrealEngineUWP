@@ -70,6 +70,15 @@ bool DoesPixelContainSSR(uint2 PixelPos)
 	// Ignore two sided foliage 
 	bContainValidPixels = bContainValidPixels && (bEnableTwoSidedFoliage ? true : (GBuffer.ShadingModelID != SHADINGMODELID_TWOSIDED_FOLIAGE));
 
+	// Cull special case where specular=0, and roughness=0
+	if (GBuffer.Roughness == 0 && GBuffer.Specular == 0)
+	{
+		bContainValidPixels = false;
+	}
+
+	// Clearcoat: if the material is clear coat it contains valid pixel.
+	bContainValidPixels = bContainValidPixels || (GBuffer.ShadingModelID == SHADINGMODELID_CLEAR_COAT);
+
 	return bContainValidPixels;
 #endif
 #endif // USE_SSR_PRE_PASS_STENCIL
