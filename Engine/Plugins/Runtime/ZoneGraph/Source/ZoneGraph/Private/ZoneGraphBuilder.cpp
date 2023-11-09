@@ -751,3 +751,8 @@ void FZoneGraphBuilder::ConnectLanes(TArray<FZoneShapeLaneInternalLink>& Interna
 		Lane.LinksEnd = ZoneStorage.LaneLinks.Num();
 	}
 }
+
+void FZoneGraphBuilder::QueryHashGrid(const FBox& Bounds, TArray<FZoneGraphBuilderHashGrid2D::ItemIDType>& OutResults)
+{
+	HashGrid.Query(Bounds, OutResults);
+}
