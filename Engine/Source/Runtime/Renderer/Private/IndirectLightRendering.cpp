@@ -1249,6 +1249,16 @@ void FDeferredShadingSceneRenderer::RenderDiffuseIndirectAndAmbientOcclusion(
 			SceneColorCopyTexture = GraphBuilder.CreateTexture(SceneColorCopyTextureDesc, TEXT("SceneCopyTextureCopy0"));
 		}
 
+		auto SetDefaultBlackIfNotTexture2DArray = [&SystemTextures](FRDGTextureRef In)
+		{
+			return In ? (In->Desc.Dimension == ETextureDimension::Texture2DArray ? In : SystemTextures.BlackArray) : nullptr;
+		};
+
+		auto SetDefaultBlackIfNotTexture2D = [&SystemTextures](FRDGTextureRef In)
+		{
+			return In ? (In->Desc.Dimension == ETextureDimension::Texture2D ? In : SystemTextures.Black) : nullptr;
+		};
+
 		auto ApplyDiffuseIndirect = [&](ESubstrateTileType TileType)
 		{
 			if (bEnableCopyPass)
@@ -1293,12 +1303,17 @@ void FDeferredShadingSceneRenderer::RenderDiffuseIndirectAndAmbientOcclusion(
 
 			PassParameters->bVisualizeDiffuseIndirect = bIsVisualizePass;
 
-			PassParameters->DiffuseIndirect_Lumen_0 = DenoiserOutputs.Textures[0];
-			PassParameters->DiffuseIndirect_Lumen_1 = DenoiserOutputs.Textures[1];
-			PassParameters->DiffuseIndirect_Lumen_2 = DenoiserOutputs.Textures[2];
-			PassParameters->DiffuseIndirect_Lumen_3 = DenoiserOutputs.Textures[3];
+			PassParameters->DiffuseIndirect_Lumen_0 = SetDefaultBlackIfNotTexture2DArray(DenoiserOutputs.Textures[0]);
+			PassParameters->DiffuseIndirect_Lumen_1 = SetDefaultBlackIfNotTexture2DArray(DenoiserOutputs.Textures[1]);
+			PassParameters->DiffuseIndirect_Lumen_2 = SetDefaultBlackIfNotTexture2DArray(DenoiserOutputs.Textures[2]);
+			PassParameters->DiffuseIndirect_Lumen_3 = SetDefaultBlackIfNotTexture2DArray(DenoiserOutputs.Textures[3]);
 
 			PassParameters->DiffuseIndirect = DenoiserOutputs;
+			for (uint32 EntryIt = 0; EntryIt < kMaxDenoiserBufferProcessingCount; ++EntryIt)
+			{
+				PassParameters->DiffuseIndirect.Textures[EntryIt] = SetDefaultBlackIfNotTexture2D(PassParameters->DiffuseIndirect.Textures[EntryIt]);
+			}
+
 			PassParameters->DiffuseIndirectSampler = TStaticSamplerState<SF_Point>::GetRHI();
 
 			PassParameters->PreIntegratedGF = GSystemTextures.PreintegratedGF->GetRHI();

@@ -386,16 +386,19 @@ void MainPS(
 				DiffuseIndirectLighting 		= DiffuseIndirect_Lumen_0.SampleLevel(GlobalPointClampedSampler, float3(SceneBufferUV, 0), 0).rgb;
 				RoughSpecularIndirectLighting 	= DiffuseIndirect_Lumen_2.SampleLevel(GlobalPointClampedSampler, float3(SceneBufferUV, 0), 0).rgb;
 				
-				#if SSR_TILED_COMPOSITION
-				bool bSSRTileUsed = IsSSRTileUsed(PixelPos, SSRTiledViewRes, SSRTileMaskBuffer);
-
-				if (bSSRTileUsed && bLumenReflectionInputIsSSR)
+				if (bLumenReflectionInputIsSSR)
 				{
-					SpecularIndirectLighting	= DiffuseIndirect_Lumen_3.SampleLevel(GlobalPointClampedSampler, float3(SceneBufferUV, 0), 0).rgba;
+					#if SSR_TILED_COMPOSITION
+					if (IsSSRTileUsed(PixelPos, SSRTiledViewRes, SSRTileMaskBuffer))
+					#endif
+					{
+						SpecularIndirectLighting = DiffuseIndirect_Textures_3.SampleLevel(GlobalPointClampedSampler, SceneBufferUV, 0).rgba;
+					}
 				}
-				#else
-				SpecularIndirectLighting 		= DiffuseIndirect_Lumen_3.SampleLevel(GlobalPointClampedSampler, float3(SceneBufferUV, 0), 0).rgba;
-				#endif
+				else
+				{
+					SpecularIndirectLighting = DiffuseIndirect_Lumen_3.SampleLevel(GlobalPointClampedSampler, float3(SceneBufferUV, 0), 0).rgba;
+				}
 			#else
 			{
 				// Sample the output of the denoiser.

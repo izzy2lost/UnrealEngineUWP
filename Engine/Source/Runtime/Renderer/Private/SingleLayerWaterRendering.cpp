@@ -250,7 +250,7 @@ bool NeedsSeparatedMainDirectionalLightTexture_Runtime(const FStaticShaderPlatfo
 }
 
 BEGIN_SHADER_PARAMETER_STRUCT(FSingleLayerWaterCommonShaderParameters, )
-	SHADER_PARAMETER_RDG_TEXTURE(Texture2D, ScreenSpaceReflectionsTexture)
+	SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D, ScreenSpaceReflectionsTexture)
 	SHADER_PARAMETER_SAMPLER(SamplerState, ScreenSpaceReflectionsSampler)
 	SHADER_PARAMETER_TEXTURE(Texture2D, PreIntegratedGF)
 	SHADER_PARAMETER_SAMPLER(SamplerState, PreIntegratedGFSampler)
@@ -847,7 +847,16 @@ void FDeferredShadingSceneRenderer::RenderSingleLayerWaterReflections(
 
 			const bool bIsInstancedStereoSideBySide = View.bIsInstancedStereoEnabled && !View.bIsMobileMultiViewEnabled && IStereoRendering::IsStereoEyeView(View);
 
-			Parameters.ScreenSpaceReflectionsTexture = ReflectionsColor ? ReflectionsColor : BlackDummyTexture;
+			FRDGTextureRef ScreenSpaceReflectionsTexture = ReflectionsColor ? ReflectionsColor : BlackDummyTexture;
+			if (ReflectionsColor && ReflectionsColor->Desc.Dimension == ETextureDimension::Texture2DArray)
+			{
+				Parameters.ScreenSpaceReflectionsTexture = GraphBuilder.CreateSRV(FRDGTextureSRVDesc::CreateForSlice(ScreenSpaceReflectionsTexture, 0));
+			}
+			else
+			{
+				Parameters.ScreenSpaceReflectionsTexture = GraphBuilder.CreateSRV(ScreenSpaceReflectionsTexture);
+			}
+
 			Parameters.ScreenSpaceReflectionsSampler = TStaticSamplerState<SF_Point>::GetRHI();
 			Parameters.PreIntegratedGF = GSystemTextures.PreintegratedGF->GetRHI();
 			Parameters.PreIntegratedGFSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
