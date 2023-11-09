@@ -29,7 +29,7 @@ public:
 	ENGINE_API UClusterUnionReplicatedProxyComponent(const FObjectInitializer& ObjectInitializer);
 
 	UFUNCTION()
-	UClusterUnionComponent* GetParentClusterUnionComponent() const { return ParentClusterUnion.Get(); }
+	ENGINE_API UClusterUnionComponent* GetParentClusterUnionComponent() const { return ParentClusterUnion.Get(); }
 
 	UFUNCTION()
 	ENGINE_API void SetParentClusterUnion(UClusterUnionComponent* InComponent);
@@ -42,6 +42,9 @@ public:
 
 	UFUNCTION()
 	ENGINE_API void SetParticleBoneIds(const TArray<int32>& InIds);
+
+	UFUNCTION()
+	ENGINE_API const TArray<int32>& GetParticleBoneIds() const { return ParticleBoneIds; }
 
 	UFUNCTION()
 	ENGINE_API void SetParticleChildToParent(int32 BoneId, const FTransform& ChildToParent);
