@@ -124,7 +124,7 @@ namespace EpicGames.Horde.Storage.Clients
 						PacketImport import = packet.Target.GetImport(idx);
 						if (import.BaseIdx == -1)
 						{
-							locators.Add(new BlobLocator(import.Fragment));
+							locators.Add(new BlobLocator(import.Fragment.Clone()));
 						}
 					}
 

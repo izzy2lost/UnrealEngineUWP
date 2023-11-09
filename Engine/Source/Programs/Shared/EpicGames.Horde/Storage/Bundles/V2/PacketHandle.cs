@@ -128,11 +128,19 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 		/// <inheritdoc/>
 		public bool TryAppendIdentifier(Utf8StringBuilder builder)
 		{
-			builder.Append("pkt=");
-			builder.Append(_packetOffset);
-			builder.Append(",");
-			builder.Append(_packetLength);
+			AppendIdentifier(builder, _packetOffset, _packetLength);
 			return true;
+		}
+
+		/// <summary>
+		/// Appends an identifier for a packet to the given buffer
+		/// </summary>
+		public static void AppendIdentifier(Utf8StringBuilder builder, int packetOffset, int packetLength)
+		{
+			builder.Append(s_fragmentPrefix);
+			builder.Append(packetOffset);
+			builder.Append((byte)',');
+			builder.Append(packetLength);
 		}
 
 		/// <inheritdoc/>
