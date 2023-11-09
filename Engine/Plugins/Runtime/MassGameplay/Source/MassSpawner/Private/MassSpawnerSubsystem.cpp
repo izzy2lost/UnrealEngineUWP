@@ -43,6 +43,8 @@ void UMassSpawnerSubsystem::Deinitialize()
 {
 	EntityManager.Reset();
 	TemplateRegistryInstance.ShutDown();
+
+	Super::Deinitialize();
 }
 
 void UMassSpawnerSubsystem::SpawnEntities(const FMassEntityTemplate& EntityTemplate, const uint32 NumberToSpawn, TArray<FMassEntityHandle>& OutEntities)

@@ -103,11 +103,14 @@ void UMassEntityEditorSubsystem::Initialize(FSubsystemCollectionBase& Collection
 	PhaseManager->Initialize(*this, ProcessingPhasesConfig);
 
 	PhaseManager->Start(EntityManager);
+
+	Super::Initialize(Collection);
 }
 
 void UMassEntityEditorSubsystem::Deinitialize()
 {
 	StopAndCleanUp();
+	Super::Deinitialize();
 }
 
 void UMassEntityEditorSubsystem::StopAndCleanUp()
