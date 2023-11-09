@@ -1661,9 +1661,15 @@ UPackage* LoadPackageInternal(UPackage* InOuter, const FPackagePath& PackagePath
 			PackageFlags |= PKG_PlayInEditor;
 		}
 #endif
-		constexpr int32 PIEInstanceID = INDEX_NONE;
-		constexpr int32 Priority = INT32_MAX;
-		int32 RequestID = LoadPackageAsync(PackagePath, PackageName, FLoadPackageAsyncDelegate(), PackageFlags, PIEInstanceID, Priority, InstancingContext, LoadFlags);
+		FLoadPackageAsyncOptionalParams OptionalParams
+		{
+			.CustomPackageName = PackageName,
+			.PackageFlags = PackageFlags,
+			.PackagePriority = INT32_MAX,
+			.InstancingContext = InstancingContext,
+			.LoadFlags = LoadFlags
+		};
+		int32 RequestID = LoadPackageAsync(PackagePath, MoveTemp(OptionalParams));
 
 		if (RequestID != INDEX_NONE)
 		{

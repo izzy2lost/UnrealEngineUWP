@@ -5053,9 +5053,6 @@ void FEngineLoop::Exit()
 
 	// Make sure we're not in the middle of loading something.
 	{
-		// From now on it's not allowed to request new async loads
-		SetAsyncLoadingAllowed(false);
-
 		bool bFlushOnExit = true;
 		if (GConfig)
 		{
@@ -5070,6 +5067,9 @@ void FEngineLoop::Exit()
 		{
 			CancelAsyncLoading();
 		}
+		// From now on it's not allowed to request new async loads
+		// any new requests done during the scope of the flush should have been flushed as well, now prevent any new requests
+		SetAsyncLoadingAllowed(false);
 	}
 
 	// Block till all outstanding resource streaming requests are fulfilled.
