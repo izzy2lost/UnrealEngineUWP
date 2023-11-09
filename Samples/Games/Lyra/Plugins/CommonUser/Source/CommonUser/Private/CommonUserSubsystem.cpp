@@ -1662,6 +1662,8 @@ void UCommonUserSubsystem::ProcessLoginRequest(TSharedRef<FUserLoginRequest> Req
 				Request->OverallLoginState = ECommonUserAsyncTaskState::NotStarted;
 				Request->PrivilegeCheckState = ECommonUserAsyncTaskState::NotStarted;
 				Request->TransferPlatformAuthState = ECommonUserAsyncTaskState::NotStarted;
+				Request->AutoLoginState = ECommonUserAsyncTaskState::NotStarted;
+				Request->LoginUIState = ECommonUserAsyncTaskState::NotStarted;
 
 				// Reprocess and immediately return
 				ProcessLoginRequest(Request);
