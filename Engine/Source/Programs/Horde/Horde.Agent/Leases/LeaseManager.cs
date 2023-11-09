@@ -116,6 +116,8 @@ namespace Horde.Agent.Leases
 		readonly Dictionary<string, LeaseHandler> _typeUrlToLeaseHandler;
 		readonly ILogger _logger;
 
+		AgentCapabilities? _capabilities;
+
 		public LeaseManager(ISession session, CapabilitiesService capabilitiesService, StatusService statusService, IEnumerable<LeaseHandler> leaseHandlers, ILogger logger)
 		{
 			_session = session;
@@ -225,6 +227,9 @@ namespace Horde.Agent.Leases
 			Stopwatch updateTimer = Stopwatch.StartNew();
 			Queue<TimeSpan> updateTimes = new Queue<TimeSpan>();
 
+			// Run a background task to update the capabilities of this agent
+			await using BackgroundTask updateCapsTask = BackgroundTask.StartNew(ctx => UpdateCapabilitiesBackgroundAsync(_session.WorkingDir, ctx));
+
 			// Loop until we're ready to exit
 			Stopwatch updateCapabilitiesTimer = Stopwatch.StartNew();
 			for (; ; )
@@ -282,19 +287,8 @@ namespace Horde.Agent.Leases
 					updateSessionRequest.Status = AgentStatus.Ok;
 				}
 
-				// Update the capabilities every 5m
-				if (updateCapabilitiesTimer.Elapsed > TimeSpan.FromMinutes(5.0))
-				{
-					try
-					{
-						updateSessionRequest.Capabilities = await _capabilitiesService.GetCapabilitiesAsync(_session.WorkingDir);
-					}
-					catch (Exception ex)
-					{
-						_logger.LogWarning(ex, "Unable to query agent capabilities. Ignoring.");
-					}
-					updateCapabilitiesTimer.Restart();
-				}
+				// Update the capabilities whenever the background task has generated a new instance
+				updateSessionRequest.Capabilities = Interlocked.Exchange(ref _capabilities, null);
 
 				// Complete the wait task if we subsequently stop
 				using (stopping ? (CancellationTokenRegistration?)null : stoppingToken.Register(() => _updateLeasesEvent.Set()))
@@ -561,6 +555,25 @@ namespace Horde.Agent.Leases
 			{
 				_logger.LogError("Invalid lease payload type ({PayloadType})", payload.TypeUrl);
 				return LeaseResult.Failed;
+			}
+		}
+
+		/// <summary>
+		/// Background task that updates the capabilities of this agent
+		/// </summary>
+		async Task UpdateCapabilitiesBackgroundAsync(DirectoryReference workingDir, CancellationToken cancellationToken)
+		{
+			while (!cancellationToken.IsCancellationRequested)
+			{
+				await Task.Delay(TimeSpan.FromMinutes(5.0), cancellationToken);
+				try
+				{
+					Interlocked.Exchange(ref _capabilities, await _capabilitiesService.GetCapabilitiesAsync(workingDir));
+				}
+				catch (Exception ex)
+				{
+					_logger.LogWarning(ex, "Unable to query agent capabilities. Ignoring.");
+				}
 			}
 		}
 	}

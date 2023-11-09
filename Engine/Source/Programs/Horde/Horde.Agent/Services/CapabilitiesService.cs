@@ -44,6 +44,24 @@ namespace Horde.Agent.Services
 		/// <returns>Worker object for advertising to the server</returns>
 		public async Task<AgentCapabilities> GetCapabilitiesAsync(DirectoryReference? workingDir)
 		{
+			Stopwatch timer = Stopwatch.StartNew();
+
+			Task<AgentCapabilities> task = GetCapabilitiesInternalAsync(workingDir);
+			while (!task.IsCompleted)
+			{
+				Task delayTask = Task.Delay(TimeSpan.FromSeconds(30.0));
+				if (Task.WhenAny(task, delayTask) == delayTask)
+				{
+					_logger.LogWarning("GetCapabilitiesInternalAsync() has been running for {Time}", timer.Elapsed);
+				}
+			}
+			_logger.LogInformation("Agent capabilities updated in {Time}", timer.Elapsed);
+
+			return await task;
+		}
+
+		async Task<AgentCapabilities> GetCapabilitiesInternalAsync(DirectoryReference? workingDir)
+		{
 			ILogger logger = _logger;
 
 			// Create the primary device
