@@ -28,6 +28,7 @@
 #include "PrimitiveSceneInfo.h"
 #include "HairStrandsClusterCulling.h"
 #include "GroomVisualizationData.h"
+#include "SkeletalMeshDeformerHelpers.h"
 
 static int32 GHairStrandsMinLOD = 0;
 static FAutoConsoleVariableRef CVarGHairStrandsMinLOD(TEXT("r.HairStrands.MinLOD"), GHairStrandsMinLOD, TEXT("Clamp the min hair LOD to this value, preventing to reach lower/high-quality LOD."), ECVF_Scalability);
@@ -394,6 +395,8 @@ static void RunInternalHairInterpolation(
 	}
 }
 
+EGroomCacheType GetHairInstanceCacheType(const FHairGroupInstance* Instance);
+
 static void RunHairStrandsInterpolation_Guide(
 	FRDGBuilder& GraphBuilder,
 	FSceneInterface* Scene,
@@ -414,6 +417,7 @@ static void RunHairStrandsInterpolation_Guide(
 	{
 		int32 HairLODIndex = -1;
 		int32 MeshLODIndex = -1;
+		EGroomCacheType ActiveGroomCacheType = EGroomCacheType::None;
 		EHairBindingType BindingType = EHairBindingType::NoneBinding;
 		bool bSimulationEnable = false;
 		bool bDeformationEnable = false;
@@ -445,6 +449,7 @@ static void RunHairStrandsInterpolation_Guide(
 
 		FInstanceData& InstanceData = InstanceDatas.AddDefaulted_GetRef();
 		InstanceData.Instance 					= Instance;
+		InstanceData.ActiveGroomCacheType 		= GetHairInstanceCacheType(Instance);
 		InstanceData.BindingType 				= Instance->BindingType;
 		InstanceData.HairLODIndex 				= Instance->HairGroupPublicData->LODIndex;
 		InstanceData.bSimulationEnable 			= Instance->HairGroupPublicData->IsSimulationEnable(InstanceData.HairLODIndex);
@@ -552,15 +557,13 @@ static void RunHairStrandsInterpolation_Guide(
 		}
 	}
 
-	// Apply deformation from
-	// * Bones 
-	// * RBF
+	// Apply deformation from RBF
 	for (FInstanceData& InstanceData : InstanceDatas)
 	{
 		if (
 			((InstanceData.Instance->Guides.bIsSimulationEnable || InstanceData.Instance->Guides.bIsDeformationEnable || InstanceData.Instance->Guides.bIsSimulationCacheEnable)) ||
 			(!InstanceData.Instance->Guides.bHasGlobalInterpolation && !InstanceData.Instance->Guides.bIsSimulationEnable && !InstanceData.Instance->Guides.bIsDeformationEnable && !InstanceData.Instance->Guides.bIsSimulationCacheEnable) ||
-			!IsHairStrandsBindingEnable()) return;
+			!IsHairStrandsBindingEnable()) continue;
 
 		FRDGExternalBuffer RawDeformedPositionBuffer = InstanceData.Instance->Guides.DeformedResource->GetBuffer(FHairStrandsDeformedResource::Current);
 		FRDGImportedBuffer DeformedPositionBuffer = Register(GraphBuilder, RawDeformedPositionBuffer, ERDGImportedBufferFlags::CreateUAV);
@@ -579,7 +582,82 @@ static void RunHairStrandsInterpolation_Guide(
 			RegisterAsSRV(GraphBuilder, InstanceData.Instance->Guides.DeformedResource->GetPositionOffsetBuffer(FHairStrandsDeformedResource::Current)),
 			InstanceData.Instance->Guides.bHasGlobalInterpolation,
 			nullptr);
-	}	
+	}
+
+	// Apply deformation from skeletal mesh bones
+	for (FInstanceData& InstanceData : InstanceDatas)
+	{
+		if (InstanceData.ActiveGroomCacheType != EGroomCacheType::None && InstanceData.Instance->Guides.bIsDeformationEnable && InstanceData.Instance->Guides.DeformedResource && InstanceData.Instance->DeformedComponent && (InstanceData.Instance->DeformedSection != INDEX_NONE))
+		{
+			if (USkeletalMeshComponent* SkeletalMeshComponent = Cast<USkeletalMeshComponent>(InstanceData.Instance->DeformedComponent))
+			{
+				if (FSkeletalMeshObject* SkeletalMeshObject = SkeletalMeshComponent->MeshObject)
+				{
+					const int32 LodIndex = SkeletalMeshObject->GetLOD();
+					FSkeletalMeshLODRenderData const* LodRenderData = &SkeletalMeshObject->GetSkeletalMeshRenderData().LODRenderData[LodIndex];
+				
+					if (LodRenderData->RenderSections.IsValidIndex(InstanceData.Instance->DeformedSection)) 
+					{
+						FRHIShaderResourceView* BoneBufferSRV = FSkeletalMeshDeformerHelpers::GetBoneBufferForReading(SkeletalMeshObject, LodIndex, InstanceData.Instance->DeformedSection, false);
+
+						// Guides deformation based on the skeletal mesh bones
+						FRDGImportedBuffer GuideDeformResource = Register(GraphBuilder, InstanceData.Instance->Guides.DeformedResource->GetBuffer(FHairStrandsDeformedResource::Current), ERDGImportedBufferFlags::CreateUAV);
+						AddDeformSimHairStrandsPass(
+							GraphBuilder,
+							ShaderMap,
+							InstanceData.MeshLODIndex,
+							InstanceData.Instance->Guides.RestResource->GetPointCount(),
+							InstanceData.Instance->Guides.RestRootResource,
+							InstanceData.Instance->Guides.DeformedRootResource,
+							RegisterAsSRV(GraphBuilder, InstanceData.Instance->Guides.RestResource->PositionBuffer),
+							RegisterAsSRV(GraphBuilder, InstanceData.Instance->Guides.RestResource->PointToCurveBuffer),
+							GuideDeformResource,
+							InstanceData.Instance->Guides.RestResource->GetPositionOffset(),
+							RegisterAsSRV(GraphBuilder, InstanceData.Instance->Guides.DeformedResource->GetPositionOffsetBuffer(FHairStrandsDeformedResource::Current)),
+							InstanceData.Instance->Guides.bHasGlobalInterpolation,
+							BoneBufferSRV);
+					}
+				}
+			}
+		}
+	}
+
+	// Apply guide cache update
+	for (FInstanceData& InstanceData : InstanceDatas)
+	{
+		if (InstanceData.ActiveGroomCacheType == EGroomCacheType::Guides)
+		{
+			FScopeLock Lock(InstanceData.Instance->Debug.GroomCacheBuffers->GetCriticalSection());
+			FGroomCacheGroupData* GroomCacheData0 = const_cast<FGroomCacheGroupData*>(&InstanceData.Instance->Debug.GroomCacheBuffers->GetCurrentFrameBuffer().GroupsData[InstanceData.Instance->Debug.GroupIndex]);
+			FGroomCacheGroupData* GroomCacheData1 = const_cast<FGroomCacheGroupData*>(&InstanceData.Instance->Debug.GroomCacheBuffers->GetNextFrameBuffer().GroupsData[InstanceData.Instance->Debug.GroupIndex]);
+
+			const float InterpolationFactor = InstanceData.Instance->Debug.GroomCacheBuffers->GetInterpolationFactor();
+
+			// Update CPU position offset to GPU
+			InstanceData.Instance->Guides.DeformedResource->SetPositionOffset(FHairStrandsDeformedResource::EFrameType::Current, FMath::Lerp(GroomCacheData0->BoundingBox.GetCenter(), GroomCacheData1->BoundingBox.GetCenter(), InterpolationFactor));
+			AddHairStrandUpdatePositionOffsetPass(
+				GraphBuilder,
+				ShaderMap,
+				InstanceData.MeshLODIndex,
+				InstanceData.Instance->Guides.DeformedRootResource,
+				InstanceData.Instance->Guides.DeformedResource);
+
+			// Pass to upload GroomCache guide positions
+			FGroomCacheResources CacheResources0 = CreateGroomCacheBuffer(GraphBuilder, GroomCacheData0->VertexData);
+			FGroomCacheResources CacheResources1 = CreateGroomCacheBuffer(GraphBuilder, GroomCacheData1->VertexData);
+			AddGroomCacheUpdatePass(
+				GraphBuilder,
+				ShaderMap,
+				InstanceData.Instance->Guides.RestResource->GetPointCount(),
+				InterpolationFactor,
+				CacheResources0,
+				CacheResources1,
+				RegisterAsSRV(GraphBuilder, InstanceData.Instance->Guides.RestResource->PositionBuffer),
+				RegisterAsSRV(GraphBuilder, InstanceData.Instance->Guides.DeformedResource->GetPositionOffsetBuffer(FHairStrandsDeformedResource::EFrameType::Current)),
+				RegisterAsUAV(GraphBuilder, InstanceData.Instance->Guides.DeformedResource->GetBuffer(FHairStrandsDeformedResource::Current)));
+		}
+	}
+
 }
 
 void AddDrawDebugClusterPass(

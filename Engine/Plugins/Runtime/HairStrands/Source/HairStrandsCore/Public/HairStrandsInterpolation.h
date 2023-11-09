@@ -30,6 +30,7 @@ struct FShaderPrintData;
 struct FHairStrandsRestRootResource;
 struct FHairStrandsDeformedRootResource;
 struct FRDGImportedBuffer;
+struct FGroomCacheVertexData;
 
 enum class EGroomViewMode : uint8;
 
@@ -64,5 +65,24 @@ void ComputeHairStrandsInterpolation(
 	FHairGroupInstance* Instance,
 	int32 LODIndex,
 	FHairStrandClusterData* ClusterData);
+
+struct FGroomCacheResources
+{
+	FRDGBufferSRVRef PositionBuffer = nullptr;
+	FRDGBufferSRVRef RadiusBuffer = nullptr;
+	bool bHasRadiusData = false;
+};
+FGroomCacheResources CreateGroomCacheBuffer(FRDGBuilder& GraphBuilder, FGroomCacheVertexData& InVertexData);
+
+void AddGroomCacheUpdatePass(
+	FRDGBuilder& GraphBuilder,
+	FGlobalShaderMap* ShaderMap,
+	uint32 PointCount,
+	float InterpolationFactor,
+	FGroomCacheResources CacheResources0,
+	FGroomCacheResources CacheResources1,
+	FRDGBufferSRVRef InBuffer,
+	FRDGBufferSRVRef InDeformedOffsetBuffer,
+	FRDGBufferUAVRef OutBuffer);
 
 HAIRSTRANDSCORE_API void ComputeInterpolationWeights(UGroomBindingAsset* BindingAsset, FSkeletalMeshRenderData* TargetRenderData, TArray<FRWBuffer>& TransferedPositions);
