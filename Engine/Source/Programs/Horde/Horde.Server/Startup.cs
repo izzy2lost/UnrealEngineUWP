@@ -483,6 +483,7 @@ namespace Horde.Server
 
 			services.AddSingleton<AclService>();
 			services.AddSingleton<AgentService>();
+			services.AddSingleton<AgentRelayService>();
 			services.AddHostedService<ArtifactExpirationService>();
 			services.AddSingleton<ConsistencyService>();
 			services.AddSingleton<RequestTrackerService>();
@@ -731,6 +732,7 @@ namespace Horde.Server
 
 			if (settings.IsRunModeActive(RunMode.Worker) && !settings.DatabaseReadOnlyMode)
 			{
+				services.AddHostedService(provider => provider.GetRequiredService<AgentRelayService>());
 				services.AddHostedService<AgentReportService>();
 				services.AddHostedService<BisectService>();
 				services.AddHostedService(provider => provider.GetRequiredService<FleetService>());
@@ -1200,6 +1202,7 @@ namespace Horde.Server
 				endpoints.MapGrpcService<RpcService>();
 				endpoints.MapGrpcService<JobRpcService>();
 				endpoints.MapGrpcService<LogRpcService>();
+				endpoints.MapGrpcService<AgentRelayService>();
 
 				endpoints.MapGrpcReflectionService();
 

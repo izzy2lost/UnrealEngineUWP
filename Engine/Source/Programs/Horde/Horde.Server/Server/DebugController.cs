@@ -13,7 +13,10 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Web;
 using EpicGames.Core;
+using Google.Protobuf;
+using Horde.Common.Rpc;
 using Horde.Server.Acls;
+using Horde.Server.Agents;
 using Horde.Server.Configuration;
 using Horde.Server.Jobs;
 using Horde.Server.Jobs.Graphs;
@@ -26,6 +29,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using MongoDB.Bson;
 using MongoDB.Driver;
 
 namespace Horde.Server.Server
@@ -247,6 +251,7 @@ namespace Horde.Server.Server
 		
 		private readonly MongoService _mongoService;
 		private readonly ConfigService _configService;
+		private readonly AgentRelayService _agentRelayService;
 		private readonly JobService _jobService;
 		private readonly JobTaskSource _jobTaskSource;
 		private readonly IGraphCollection _graphCollection;
@@ -257,13 +262,19 @@ namespace Horde.Server.Server
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public SecureDebugController(MongoService mongoService, ConfigService configService, JobService jobService, JobTaskSource jobTaskSource,
+		public SecureDebugController(
+			MongoService mongoService,
+			ConfigService configService,
+			AgentRelayService agentRelayService,
+			JobService jobService,
+			JobTaskSource jobTaskSource,
 			IGraphCollection graphCollection,
 			ILogFileCollection logFileCollection, IOptionsSnapshot<GlobalConfig> globalConfig, ILogger<SecureDebugController> logger)
 		{
 			_mongoService = mongoService;
 			_configService = configService;
 			_jobService = jobService;
+			_agentRelayService = agentRelayService;
 			_jobTaskSource = jobTaskSource;
 			_graphCollection = graphCollection;
 			_logFileCollection = logFileCollection;
@@ -371,6 +382,37 @@ namespace Horde.Server.Server
 
 			_globalConfig.Value.TryGetNetworkConfig(ip, out NetworkConfig? networkConfig);
 			return networkConfig == null ? StatusCode(StatusCodes.Status500InternalServerError, "Unable to find a network config for the IP") : Ok(networkConfig);
+		}
+		
+		/// <summary>
+		/// Add a port mapping for agent relay
+		/// </summary>
+		[HttpGet]
+		[Route("/api/v1/debug/relay/add-port")]
+		public async Task<ActionResult<object>> AddPortMappingAsync([FromQuery] string? agentIp = null, [FromQuery] int? agentPort = null)
+		{
+			if (!_globalConfig.Value.Authorize(ServerAclAction.Debug, User))
+			{
+				return Forbid(ServerAclAction.Debug);
+			}
+
+			if (agentIp == null || !IPAddress.TryParse(agentIp, out IPAddress? _))
+			{
+				return BadRequest("Unable to read or convert query parameter 'agentIp'");
+			}
+			
+			if (agentPort == null)
+			{
+				return BadRequest("Bad query parameter 'agentPort'");
+			}
+
+			string bogusLeaseId = ObjectId.GenerateNewId().ToString();
+			List<Port> ports = new()
+			{
+				new Port { ListenPort = -1, AgentPort = agentPort.Value, Protocol = PortProtocol.Tcp }
+			};
+			PortMapping portMapping = await _agentRelayService.AddPortMappingAsync(bogusLeaseId, agentIp, ports);
+			return JsonFormatter.Default.Format(portMapping);
 		}
 
 		/// <summary>

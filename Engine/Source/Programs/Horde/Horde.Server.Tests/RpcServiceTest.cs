@@ -51,103 +51,110 @@ namespace Horde.Server.Tests
 			throw new NotImplementedException();
 		}
 	}
+	
+	sealed class HttpContextStub : HttpContext
+	{
+		public override ConnectionInfo Connection { get; } = null!;
+		public override IFeatureCollection Features { get; } = null!;
+		public override IDictionary<object, object?> Items { get; set; } = null!;
+		public override HttpRequest Request { get; } = null!;
+		public override CancellationToken RequestAborted { get; set; }
+		public override IServiceProvider RequestServices { get; set; } = null!;
+		public override HttpResponse Response { get; } = null!;
+		public override ISession Session { get; set; } = null!;
+		public override string TraceIdentifier { get; set; } = null!;
+		public override ClaimsPrincipal User { get; set; }
+		public override WebSocketManager WebSockets { get; } = null!;
+
+		public HttpContextStub(Claim roleClaimType)
+		{
+			User = new ClaimsPrincipal(new ClaimsIdentity(new List<Claim>
+			{
+				roleClaimType
+			}, "TestAuthType"));
+		}
+
+		public HttpContextStub(ClaimsPrincipal user)
+		{
+			User = user;
+		}
+
+		public override void Abort()
+		{
+			throw new NotImplementedException();
+		}
+	}
+	
+	public class ServerCallContextStub : ServerCallContext
+	{
+		// Copied from ServerCallContextExtensions.cs in Grpc.Core
+		const string HttpContextKey = "__HttpContext";
+		
+		protected override string MethodCore { get; } = null!;
+		protected override string HostCore { get; } = null!;
+		protected override string PeerCore { get; } = null!;
+		protected override DateTime DeadlineCore { get; } = DateTime.Now.AddHours(24);
+		protected override Metadata RequestHeadersCore { get; } = null!;
+		protected override CancellationToken CancellationTokenCore => _cancellationToken;
+		protected override Metadata ResponseTrailersCore { get; } = null!;
+		protected override Status StatusCore { get; set; }
+		protected override WriteOptions? WriteOptionsCore { get; set; } = null!;
+		protected override AuthContext AuthContextCore { get; } = null!;
+		
+		private CancellationToken _cancellationToken;
+
+		public static ServerCallContext ForAdminWithAgentSessionId(string agentSessionId)
+		{
+			return new ServerCallContextStub(new ClaimsPrincipal(new ClaimsIdentity(new List<Claim>
+			{
+				HordeClaims.AdminClaim.ToClaim(),
+				new Claim(HordeClaimTypes.AgentSessionId, agentSessionId),
+			}, "TestAuthType")));
+		}
+		
+		public static ServerCallContext ForAdmin()
+		{
+			return new ServerCallContextStub(new ClaimsPrincipal(new ClaimsIdentity(new List<Claim>
+			{
+				HordeClaims.AdminClaim.ToClaim()
+			}, "TestAuthType")));
+		}
+
+		public ServerCallContextStub(Claim roleClaimType)
+		{
+			// The GetHttpContext extension falls back to getting the HttpContext from UserState
+			// We can piggyback on that behavior during tests
+			UserState[HttpContextKey] = new HttpContextStub(roleClaimType);
+		}
+		
+		public ServerCallContextStub(ClaimsPrincipal user)
+		{
+			// The GetHttpContext extension falls back to getting the HttpContext from UserState
+			// We can piggyback on that behavior during tests
+			UserState[HttpContextKey] = new HttpContextStub(user);
+		}
+
+		public void SetCancellationToken(CancellationToken cancellationToken)
+		{
+			_cancellationToken = cancellationToken;
+		}
+
+		protected override Task WriteResponseHeadersAsyncCore(Metadata responseHeaders)
+		{
+			throw new NotImplementedException();
+		}
+
+		protected override ContextPropagationToken CreatePropagationTokenCore(ContextPropagationOptions? options)
+		{
+			throw new NotImplementedException();
+		}
+	}
 
 	[TestClass]
 	public class RpcServiceTest : TestSetup
 	{
 		private readonly ServerCallContext _adminContext = new ServerCallContextStub(HordeClaims.AdminClaim.ToClaim());
 
-		sealed class HttpContextStub : HttpContext
-		{
-			public override ConnectionInfo Connection { get; } = null!;
-			public override IFeatureCollection Features { get; } = null!;
-			public override IDictionary<object, object?> Items { get; set; } = null!;
-			public override HttpRequest Request { get; } = null!;
-			public override CancellationToken RequestAborted { get; set; }
-			public override IServiceProvider RequestServices { get; set; } = null!;
-			public override HttpResponse Response { get; } = null!;
-			public override ISession Session { get; set; } = null!;
-			public override string TraceIdentifier { get; set; } = null!;
-			public override ClaimsPrincipal User { get; set; }
-			public override WebSocketManager WebSockets { get; } = null!;
-
-			public HttpContextStub(Claim roleClaimType)
-			{
-				User = new ClaimsPrincipal(new ClaimsIdentity(new List<Claim>
-				{
-					roleClaimType
-				}, "TestAuthType"));
-			}
-			
-			public HttpContextStub(ClaimsPrincipal user)
-			{
-				User = user;
-			}
-
-			public override void Abort()
-			{
-				throw new NotImplementedException();
-			}
-		}
-
-		class ServerCallContextStub : ServerCallContext
-		{
-			// Copied from ServerCallContextExtensions.cs in Grpc.Core
-			const string HttpContextKey = "__HttpContext";
-
-			public static ServerCallContext ForAdminWithAgentSessionId(string agentSessionId)
-			{
-				return new ServerCallContextStub(new ClaimsPrincipal(new ClaimsIdentity(new List<Claim>
-				{
-					HordeClaims.AdminClaim.ToClaim(),
-					new Claim(HordeClaimTypes.AgentSessionId, agentSessionId),
-				}, "TestAuthType")));
-			}
-			
-			public static ServerCallContext ForAdmin()
-			{
-				return new ServerCallContextStub(new ClaimsPrincipal(new ClaimsIdentity(new List<Claim>
-				{
-					HordeClaims.AdminClaim.ToClaim()
-				}, "TestAuthType")));
-			}
-
-			public ServerCallContextStub(Claim roleClaimType)
-			{
-				// The GetHttpContext extension falls back to getting the HttpContext from UserState
-				// We can piggyback on that behavior during tests
-				UserState[HttpContextKey] = new HttpContextStub(roleClaimType);
-			}
-			
-			public ServerCallContextStub(ClaimsPrincipal user)
-			{
-				// The GetHttpContext extension falls back to getting the HttpContext from UserState
-				// We can piggyback on that behavior during tests
-				UserState[HttpContextKey] = new HttpContextStub(user);
-			}
-
-			protected override Task WriteResponseHeadersAsyncCore(Metadata responseHeaders)
-			{
-				throw new NotImplementedException();
-			}
-
-			protected override ContextPropagationToken CreatePropagationTokenCore(ContextPropagationOptions? options)
-			{
-				throw new NotImplementedException();
-			}
-
-			protected override string MethodCore { get; } = null!;
-			protected override string HostCore { get; } = null!;
-			protected override string PeerCore { get; } = null!;
-			protected override DateTime DeadlineCore { get; } = DateTime.Now.AddHours(24);
-			protected override Metadata RequestHeadersCore { get; } = null!;
-			protected override CancellationToken CancellationTokenCore { get; } = new CancellationToken();
-			protected override Metadata ResponseTrailersCore { get; } = null!;
-			protected override Status StatusCore { get; set; }
-			protected override WriteOptions? WriteOptionsCore { get; set; } = null!;
-			protected override AuthContext AuthContextCore { get; } = null!;
-		}
-		
 		class RpcServiceInvoker : CallInvoker
 		{
 			private readonly RpcService _rpcService;
