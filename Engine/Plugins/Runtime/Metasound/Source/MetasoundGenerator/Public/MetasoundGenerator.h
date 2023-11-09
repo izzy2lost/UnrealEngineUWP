@@ -365,6 +365,7 @@ namespace Metasound
 		bool TryUseCachedOperator(FMetasoundGeneratorInitParams& InParams, bool bTriggerGenerator);
 		void ReleaseOperatorToCache();
 
+		TUniquePtr<FMetasoundEnvironment> EnvironmentPtr;
 		TUniquePtr<FAsyncTaskBase> BuilderTask;
 		FGuid OperatorID;
 		bool bUseOperatorPool = false;

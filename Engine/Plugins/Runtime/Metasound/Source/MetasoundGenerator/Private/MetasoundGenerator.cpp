@@ -33,6 +33,7 @@ namespace Metasound
 		static bool bEnableAsyncMetaSoundGeneratorBuilder = true;
 		static bool bEnableExperimentalOneShotOperatorPool = false;
 		static bool bEnableExperimentalOperatorPool = false;
+		static bool bEnableResetOnOperatorPoolInsertion = true;
 #if ENABLE_METASOUNDGENERATOR_INVALID_SAMPLE_VALUE_LOGGING
 		static bool bEnableMetaSoundGeneratorNonFiniteLogging = false;
 		static bool bEnableMetaSoundGeneratorInvalidSampleValueLogging = false;
@@ -208,6 +209,14 @@ FAutoConsoleVariableRef CVarMetaSoundEnableExperimentalOperatorPool(
 	Metasound::ConsoleVariables::bEnableExperimentalOperatorPool,
 	TEXT("Enables caching of all MetaSound operators.\n")
 	TEXT("Default: false"),
+	ECVF_Default);
+
+FAutoConsoleVariableRef CVarMetaSoundEnableResetOnOperatorPoolInsertion(
+	TEXT("au.MetaSound.Experimental.EnableResetOnOperatorPoolInsertion"),
+	Metasound::ConsoleVariables::bEnableResetOnOperatorPoolInsertion,
+	TEXT("Enables reset of MetaSound operators as they are inserted into the Operator pool.\n")
+	TEXT("This can save a significant amount memory at the cost of reseting pooled operators twice.\n")
+	TEXT("Default: true"),
 	ECVF_Default);
 
 #if ENABLE_METASOUNDGENERATOR_INVALID_SAMPLE_VALUE_LOGGING
@@ -865,7 +874,8 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 				// Reset operator internal state before playing it.
 				if (IOperator::FResetFunction Reset = GraphOperatorAndInputs.Operator->GetResetFunction())
 				{
-					IOperator::FResetParams ResetParams {OperatorSettings, InInitParams.Environment};
+					EnvironmentPtr = MakeUnique<FMetasoundEnvironment>(InInitParams.Environment);
+					IOperator::FResetParams ResetParams {OperatorSettings, *EnvironmentPtr};
 					Reset(GraphOperatorAndInputs.Operator.Get(), ResetParams);
 				}
 				
@@ -896,6 +906,17 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			{
 				// Release graph operator and input data to the cache
 				UE_LOG(LogMetasoundGenerator, VeryVerbose, TEXT("Caching operator %s"), *LexToString(OperatorID));
+
+				// give the operator a chance to reduce its memory footprint before being cached
+				if (ConsoleVariables::bEnableResetOnOperatorPoolInsertion && EnvironmentPtr.IsValid())
+				{
+					if (IOperator::FResetFunction Reset = GraphOperator->GetResetFunction())
+					{
+						IOperator::FResetParams ResetParams {OperatorSettings, *EnvironmentPtr.Get()};
+						Reset(GraphOperator.Get(), ResetParams);
+					}
+				}
+
 				OperatorPool->AddOperator(OperatorID, MoveTemp(GraphOperator), ReleaseInputVertexData());
 
 			}

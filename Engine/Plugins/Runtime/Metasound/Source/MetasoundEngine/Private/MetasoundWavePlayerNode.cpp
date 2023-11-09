@@ -490,7 +490,7 @@ namespace Metasound
 			SortedCuePoints.Reset();
 			for (Audio::TCircularAudioBuffer<float>& Buffer : SourceCircularBuffer)
 			{
-				Buffer.SetNum(0);
+				Buffer.Empty();
 			}
 
 			SourceState = WavePlayerNodePrivate::FSourceBufferState();

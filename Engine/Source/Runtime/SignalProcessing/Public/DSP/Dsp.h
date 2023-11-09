@@ -880,6 +880,13 @@ namespace Audio
 			SetCapacity(InCapacity);
 		}
 
+		void Empty()
+		{
+			ReadCounter.Set(0);
+			WriteCounter.Set(0);
+			InternalBuffer.Empty();
+		}
+
 		void SetCapacity(uint32 InCapacity)
 		{
 			checkf(InCapacity < (uint32)TNumericLimits<int32>::Max(), TEXT("Max capacity for this buffer is 2,147,483,647 samples. Otherwise our index arithmetic will not work."));

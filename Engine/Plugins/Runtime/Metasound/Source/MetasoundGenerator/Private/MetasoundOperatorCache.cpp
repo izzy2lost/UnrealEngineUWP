@@ -20,6 +20,7 @@
 namespace Metasound
 {
 #if METASOUND_OPERATORCACHEPROFILER_ENABLED
+	TRACE_DECLARE_INT_COUNTER(MetaSound_OperatorPool_NumOperators, TEXT("MetaSound/OperatorPool/NumOperatorsInPool"));
 	TRACE_DECLARE_FLOAT_COUNTER(MetaSound_OperatorPool_HitRatio, TEXT("MetaSound/OperatorPool/HitRatio"));
 	TRACE_DECLARE_FLOAT_COUNTER(MetaSound_OperatorPool_WindowedHitRatio, TEXT("MetaSound/OperatorPool/WindowedHitRatio"));
 
@@ -186,6 +187,7 @@ namespace Metasound
 #if METASOUND_OPERATORCACHEPROFILER_ENABLED
 				OperatorPoolPrivate::CacheHitCount++;
 				bCacheHit = true;
+				TRACE_COUNTER_DECREMENT(MetaSound_OperatorPool_NumOperators);
 #endif
 			}
 		}
@@ -212,6 +214,9 @@ namespace Metasound
 
 		FScopeLock Lock(&CriticalSection);
 		Stack.Add(InOperatorID);
+#if METASOUND_OPERATORCACHEPROFILER_ENABLED
+		TRACE_COUNTER_INCREMENT(MetaSound_OperatorPool_NumOperators);
+#endif // #if METASOUND_OPERATORCACHEPROFILER_ENABLED
 
 		if (TArray<FOperatorAndInputs>* OperatorArray = Operators.Find(InOperatorID))
 		{
@@ -303,7 +308,11 @@ namespace Metasound
 	{
 		FScopeLock Lock(&CriticalSection);
 		Operators.Remove(InOperatorID);
-		Stack.Remove(InOperatorID);
+		const int32 NumRemoved = Stack.Remove(InOperatorID);
+
+#if METASOUND_OPERATORCACHEPROFILER_ENABLED
+		TRACE_COUNTER_SUBTRACT(MetaSound_OperatorPool_NumOperators, int64(NumRemoved));
+#endif // #if METASOUND_OPERATORCACHEPROFILER_ENABLED
 	}
 
 	void FOperatorPool::RemoveOperatorsWithAssetClassID(const FGuid& InAssetClassID)
@@ -384,6 +393,9 @@ namespace Metasound
 				}
 			}
 			Stack.RemoveAt(0, NumToTrim);
+#if METASOUND_OPERATORCACHEPROFILER_ENABLED
+			TRACE_COUNTER_DECREMENT(MetaSound_OperatorPool_NumOperators);
+#endif // #if METASOUND_OPERATORCACHEPROFILER_ENABLED
 		}
 
 		// todo: prune AssetIdToGraphIdLookUp?
