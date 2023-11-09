@@ -2418,6 +2418,8 @@ void ALandscapeProxy::RemoveInvalidExclusionBoxes()
 			GGrassExclusionChangeTag++;
 		}
 	}
+
+	GGrassExclusionBoxes.Compact();
 }
 
 #if WITH_EDITOR
@@ -2587,6 +2589,8 @@ void ALandscapeProxy::UpdateGrass(const TArray<FVector>& Cameras, int32& InOutNu
 								}
 							}
 						}
+
+						Component->ActiveExcludedBoxes.Shrink();
 
 						//Sort exclude boxes by their volume size, as the biggest boxes are more likely to exclude points and early out when building grass
 						Component->ActiveExcludedBoxes.Sort([](const ULandscapeComponent::FExcludeBox& A, const ULandscapeComponent::FExcludeBox& B) {
