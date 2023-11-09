@@ -405,6 +405,20 @@ public:
 	}
 
 	/**
+	 * Checks whether this application can render anything or produce a derived data needed for rednering.
+	 * Certain application types never render, but produce DDC used during rendering and as such need to step into some rendering paths.
+	 *
+	 * A meaningful distinction from FApp::CanEverRender() is that commandlets like cooker will have FApp::CanEverRender() == false, but FApp::CanEverRenderOrProduceRenderData() == true.
+	 * As such, this function can be used to guard paths that e.g. load assets' render data.
+	 *
+	 * @return true if the application can render, false otherwise.
+	 */
+	INLINE_CANEVERRENDER static bool CanEverRenderOrProduceRenderData()
+	{
+		return !FPlatformProperties::RequiresCookedData() || FApp::CanEverRender();
+	}
+
+	/**
 	 * Checks whether this application can render audio.
 	 * Certain application types produce sound, while for others this can be controlled via the -nosound cmdline.
 	 * This can be used for decisions like omitting code paths that make no sense on servers or games running in headless mode (e.g. automated tests).

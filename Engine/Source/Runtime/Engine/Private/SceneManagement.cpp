@@ -1263,7 +1263,7 @@ FSharedSamplerState* Clamp_WorldGroupSettings = NULL;
 
 void InitializeSharedSamplerStates()
 {
-	if (!Wrap_WorldGroupSettings)
+	if (!Wrap_WorldGroupSettings && FApp::CanEverRender())
 	{
 		Wrap_WorldGroupSettings = new FSharedSamplerState(true);
 		Clamp_WorldGroupSettings = new FSharedSamplerState(false);

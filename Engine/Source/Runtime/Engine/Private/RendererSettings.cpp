@@ -551,6 +551,11 @@ void URendererSettings::UpdateWorkingColorSpaceAndChromaticities()
 {
 	using namespace UE::Color;
 
+	if (!FApp::CanEverRenderOrProduceRenderData())
+	{
+		return;
+	}
+
 	switch (WorkingColorSpaceChoice)
 	{
 	case EWorkingColorSpace::sRGB:
