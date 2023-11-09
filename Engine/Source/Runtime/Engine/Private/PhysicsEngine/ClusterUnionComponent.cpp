@@ -1118,6 +1118,8 @@ void UClusterUnionComponent::HandleAddOrModifiedClusteredComponent(const FMapped
 		}
 	}
 
+	OnChildToParentUpdated(ChangedComponentData.ComponentPtr, PerBoneChildToParent);
+
 	if (PerBoneChildToParent.Num())
 	{
 		// get the interface from the first element 

@@ -6557,6 +6557,24 @@ FTransform UGeometryCollectionComponent::GetRootCurrentComponentSpaceTransform()
 	return (RestCollection) ? FTransform(ComponentSpaceTransforms.RequestRootTransform()) : FTransform::Identity;
 }
 
+FTransform UGeometryCollectionComponent::GetRootParticleMassOffset() const
+{
+	FTransform MassOffset{ FTransform::Identity };
+	if (RestCollection)
+	{
+		const int32 RootIndex = RestCollection->GetRootIndex();
+		if (const FGeometryCollection* RestGeometryCollection = RestCollection->GetGeometryCollection().Get())
+		{
+			const TManagedArray<FTransform>* MassToLocal = RestGeometryCollection->FindAttribute<FTransform>("MassToLocal", FGeometryCollection::TransformGroup);
+			if (MassToLocal && MassToLocal->IsValidIndex(RootIndex))
+			{
+				MassOffset = (*MassToLocal)[RootIndex];
+			}
+		}
+	}
+	return MassOffset;
+}
+
 TArray<FTransform> UGeometryCollectionComponent::GetInitialLocalRestTransforms() const
 {
 	TArray<FTransform> InitialLocalTransforms;
