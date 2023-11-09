@@ -210,6 +210,18 @@ struct FRequestAnimCompressionParams
 	const ITargetPlatform* TargetPlatform;
 };
 
+/** Enum used to decide whether we should strip animation data on dedicated server */
+UENUM()
+enum class EStripAnimDataOnDedicatedServerSettings : uint8
+{
+	/** Strip track data on dedicated server if 'Strip Animation Data on Dedicated Server' option in Project Settings is true and EnableRootMotion is false */
+	UseProjectSetting,
+	/** Strip track data on dedicated server regardless of the value of 'Strip Animation Data on Dedicated Server' option in Project Settings as long as EnableRootMotion is false  */
+	StripAnimDataOnDedicatedServer,
+	/** Do not strip track data on dedicated server regardless of the value of 'Strip Animation Data on Dedicated Server' option in Project Settings  */
+	DoNotStripAnimDataOnDedicatedServer
+};
+
 UCLASS(config=Engine, hidecategories=(UObject, Length), BlueprintType, MinimalAPI)
 class UAnimSequence : public UAnimSequenceBase
 {
@@ -373,7 +385,9 @@ public:
 	int32 MarkerDataUpdateCounter;
 #endif // WITH_EDITORONLY_DATA
 
-
+	/** Enum used to decide whether we should strip animation data on dedicated server */
+	UPROPERTY(EditAnywhere, Category = Compression)
+	EStripAnimDataOnDedicatedServerSettings StripAnimDataOnDedicatedServer = EStripAnimDataOnDedicatedServerSettings::UseProjectSetting;
 
 public:
 	//~ Begin UObject Interface
