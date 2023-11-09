@@ -361,96 +361,6 @@ static void RunInternalHairInterpolation(
 					// Nothing to do
 				}
 			}
-			else if (EHairInterpolationPassType::Guides == PassType)
-			{
-				// Guide update need to run only if simulation is enabled, or if RBF is enabled (since RFB are transfer through guides)
-				if (bGlobalDeformationEnable || bSimulationEnable || bDeformationEnable)
-				{
-					check(Instance->Guides.IsValid());
-
-					if (BindingType == EHairBindingType::Skinning)
-					{
-						check(Instance->Guides.IsValid());
-						check(Instance->Guides.HasValidRootData());
-						check(Instance->Guides.DeformedRootResource->IsValid(MeshLODIndex));
-
-						AddHairStrandUpdateMeshTrianglesPass(
-							GraphBuilder,
-							ShaderMap,
-							Instance->Debug.MeshLODIndex,
-							MeshDataLOD,
-							Instance->Guides.RestRootResource,
-							Instance->Guides.DeformedRootResource);
-
-						if (bGlobalDeformationEnable)
-						{
-							AddHairStrandInitMeshSamplesPass(
-								GraphBuilder,
-								ShaderMap,
-								Instance->Debug.MeshLODIndex,
-								MeshDataLOD,
-								Instance->Guides.RestRootResource,
-								Instance->Guides.DeformedRootResource);
-
-							AddHairStrandUpdateMeshSamplesPass(
-								GraphBuilder,
-								ShaderMap,
-								Instance->Debug.MeshLODIndex,
-								MeshDataLOD,
-								Instance->Guides.RestRootResource,
-								Instance->Guides.DeformedRootResource);
-						}
-
-						AddHairStrandUpdatePositionOffsetPass(
-							GraphBuilder,
-							ShaderMap,
-							Instance->Debug.MeshLODIndex,
-							Instance->Guides.DeformedRootResource,
-							Instance->Guides.DeformedResource);
-
-						// Add manual transition for the GPU solver as Niagara does not track properly the RDG buffer, and so doesn't issue the correct transitions
-						if (MeshLODIndex >= 0)
-						{
-							GraphBuilder.UseExternalAccessMode(Register(GraphBuilder, Instance->Guides.DeformedRootResource->LODs[MeshLODIndex].GetDeformedUniqueTrianglePositionBuffer(FHairStrandsDeformedRootResource::FLOD::Current), ERDGImportedBufferFlags::CreateSRV).Buffer, ERHIAccess::SRVMask);
-
-							if (bGlobalDeformationEnable)
-							{
-								GraphBuilder.UseExternalAccessMode(Register(GraphBuilder, Instance->Guides.DeformedRootResource->LODs[MeshLODIndex].GetDeformedSamplePositionsBuffer(FHairStrandsDeformedRootResource::FLOD::Current), ERDGImportedBufferFlags::CreateSRV).Buffer, ERHIAccess::SRVMask);
-								GraphBuilder.UseExternalAccessMode(Register(GraphBuilder, Instance->Guides.DeformedRootResource->LODs[MeshLODIndex].GetMeshSampleWeightsBuffer(FHairStrandsDeformedRootResource::FLOD::Current), ERDGImportedBufferFlags::CreateSRV).Buffer, ERHIAccess::SRVMask);
-							}
-						}
-						GraphBuilder.UseExternalAccessMode(Register(GraphBuilder, Instance->Guides.DeformedResource->GetPositionOffsetBuffer(FHairStrandsDeformedResource::EFrameType::Current), ERDGImportedBufferFlags::CreateSRV).Buffer, ERHIAccess::SRVMask);
-					}
-					else if (bSimulationEnable || bDeformationEnable)
-					{
-						check(Instance->Guides.IsValid());
-
-						AddHairStrandUpdatePositionOffsetPass(
-							GraphBuilder,
-							ShaderMap,
-							Instance->Debug.MeshLODIndex,
-							nullptr,
-							Instance->Guides.DeformedResource);
-
-						// Add manual transition for the GPU solver as Niagara does not track properly the RDG buffer, and so doesn't issue the correct transitions
-						GraphBuilder.UseExternalAccessMode(Register(GraphBuilder, Instance->Guides.DeformedResource->GetPositionOffsetBuffer(FHairStrandsDeformedResource::EFrameType::Current), ERDGImportedBufferFlags::CreateSRV).Buffer, ERHIAccess::SRVMask);
-					}
-				}
-			}
-		}
-	}
-
-	// Reset deformation
-	if (EHairInterpolationPassType::Guides == PassType)
-	{
-		for (FHairStrandsInstance* AbstractInstance : Instances)
-		{
-			FHairGroupInstance* Instance = static_cast<FHairGroupInstance*>(AbstractInstance);
-
-			if (Instance->GeometryType == EHairGeometryType::NoneGeometry)
-				continue;
-
-			ResetHairStrandsInterpolation(GraphBuilder, ShaderMap, Instance, Instance->Debug.MeshLODIndex);
 		}
 	}
 
@@ -499,16 +409,177 @@ static void RunHairStrandsInterpolation_Guide(
 	RDG_EVENT_SCOPE(GraphBuilder, "HairGuideInterpolation");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, HairGuideInterpolation);
 
-	RunInternalHairInterpolation(
-		GraphBuilder,
-		Scene,
-		View,
-		ViewUniqueID,
-		Instances,
-		ShaderPrintData,
-		ShaderMap,
-		EHairInterpolationPassType::Guides,
-		nullptr);
+	// Update dynamic mesh triangles
+	struct FInstanceData
+	{
+		int32 HairLODIndex = -1;
+		int32 MeshLODIndex = -1;
+		EHairBindingType BindingType = EHairBindingType::NoneBinding;
+		bool bSimulationEnable = false;
+		bool bDeformationEnable = false;
+		bool bGlobalDeformationEnable = false;
+
+		FHairStrandsProjectionMeshData::LOD MeshDataLOD;
+		FHairGroupInstance* Instance = nullptr;
+
+		bool NeedsMeshUpdate() const
+		{
+			return 
+				MeshLODIndex >= 0 && 
+				(BindingType == EHairBindingType::Skinning) && 
+				(bGlobalDeformationEnable || bSimulationEnable || bDeformationEnable);
+		}
+	};
+
+	// Gather all instances which require guides or RBF deformations
+	TArray<FInstanceData> InstanceDatas;
+	InstanceDatas.Reserve(Instances.Num());
+	for (FHairStrandsInstance* AbstractInstance : Instances)
+	{
+		FHairGroupInstance* Instance = static_cast<FHairGroupInstance*>(AbstractInstance);
+		if (Instance->GeometryType == EHairGeometryType::NoneGeometry)
+		{
+			continue;
+		}	
+		check(Instance->HairGroupPublicData);
+
+		FInstanceData& InstanceData = InstanceDatas.AddDefaulted_GetRef();
+		InstanceData.Instance 					= Instance;
+		InstanceData.BindingType 				= Instance->BindingType;
+		InstanceData.HairLODIndex 				= Instance->HairGroupPublicData->LODIndex;
+		InstanceData.bSimulationEnable 			= Instance->HairGroupPublicData->IsSimulationEnable(InstanceData.HairLODIndex);
+		InstanceData.bDeformationEnable 		= Instance->HairGroupPublicData->bIsDeformationEnable;
+		InstanceData.bGlobalDeformationEnable 	= Instance->HairGroupPublicData->IsGlobalInterpolationEnable(InstanceData.HairLODIndex);
+		InstanceData.MeshLODIndex				= -1;
+
+		// Extract MeshDataLOD and compute MeshLODIndex
+		const FCachedGeometry CachedGeometry = GetCacheGeometryForHair(GraphBuilder, Scene, Instance, ShaderMap, true);
+		for (int32 SectionIndex = 0; SectionIndex < CachedGeometry.Sections.Num(); ++SectionIndex)
+		{
+			// Ensure all mesh's sections have the same LOD index
+			const int32 SectionLodIndex = CachedGeometry.Sections[SectionIndex].LODIndex;
+			if (InstanceData.MeshLODIndex < 0) InstanceData.MeshLODIndex = SectionLodIndex;
+			check(InstanceData.MeshLODIndex == SectionLodIndex);
+
+			InstanceData.MeshDataLOD.Sections.Add(ConvertMeshSection(CachedGeometry, SectionIndex));
+		}
+		Instance->Debug.MeshLODIndex = InstanceData.MeshLODIndex;
+
+		if (InstanceData.NeedsMeshUpdate())
+		{
+			check(InstanceData.Instance->Guides.IsValid());
+		}
+	}	
+
+	// Update dynamic mesh triangles
+	// Guide update need to run only if simulation is enabled, or if RBF is enabled (since RFB are transfer through guides)
+	for (FInstanceData& InstanceData : InstanceDatas)
+	{
+		if (InstanceData.NeedsMeshUpdate())
+		{		
+			check(InstanceData.Instance->Guides.IsValid());
+			check(InstanceData.Instance->Guides.HasValidRootData());
+			check(InstanceData.Instance->Guides.DeformedRootResource->IsValid(InstanceData.MeshLODIndex));
+
+			AddHairStrandUpdateMeshTrianglesPass(
+				GraphBuilder,
+				ShaderMap,
+				InstanceData.Instance->Debug.MeshLODIndex,
+				InstanceData.MeshDataLOD,
+				InstanceData.Instance->Guides.RestRootResource,
+				InstanceData.Instance->Guides.DeformedRootResource);
+		}
+	}
+
+	// Guide update need to run only if simulation is enabled, or if RBF is enabled (since RFB are transfer through guides)
+	for (FInstanceData& InstanceData : InstanceDatas)
+	{
+		if (InstanceData.NeedsMeshUpdate())
+		{		
+			if (InstanceData.bGlobalDeformationEnable)
+			{
+				AddHairStrandInitMeshSamplesPass(
+					GraphBuilder,
+					ShaderMap,
+					InstanceData.Instance->Debug.MeshLODIndex,
+					InstanceData.MeshDataLOD,
+					InstanceData.Instance->Guides.RestRootResource,
+					InstanceData.Instance->Guides.DeformedRootResource);
+			}
+		}
+	}
+
+	// Update position offset for each instance (GPU)
+	for (FInstanceData& InstanceData : InstanceDatas)
+	{
+		if (InstanceData.NeedsMeshUpdate())
+		{
+			AddHairStrandUpdatePositionOffsetPass(
+				GraphBuilder,
+				ShaderMap,
+				InstanceData.Instance->Debug.MeshLODIndex,
+				InstanceData.Instance->Guides.DeformedRootResource,
+				InstanceData.Instance->Guides.DeformedResource);
+
+			// Add manual transition for the GPU solver as Niagara does not track properly the RDG buffer, and so doesn't issue the correct transitions
+			{
+				GraphBuilder.UseExternalAccessMode(Register(GraphBuilder, InstanceData.Instance->Guides.DeformedRootResource->LODs[InstanceData.MeshLODIndex].GetDeformedUniqueTrianglePositionBuffer(FHairStrandsDeformedRootResource::FLOD::Current), ERDGImportedBufferFlags::CreateSRV).Buffer, ERHIAccess::SRVMask);
+
+				if (InstanceData.bGlobalDeformationEnable)
+				{
+					GraphBuilder.UseExternalAccessMode(Register(GraphBuilder, InstanceData.Instance->Guides.DeformedRootResource->LODs[InstanceData.MeshLODIndex].GetDeformedSamplePositionsBuffer(FHairStrandsDeformedRootResource::FLOD::Current), ERDGImportedBufferFlags::CreateSRV).Buffer, ERHIAccess::SRVMask);
+					GraphBuilder.UseExternalAccessMode(Register(GraphBuilder, InstanceData.Instance->Guides.DeformedRootResource->LODs[InstanceData.MeshLODIndex].GetMeshSampleWeightsBuffer(FHairStrandsDeformedRootResource::FLOD::Current), ERDGImportedBufferFlags::CreateSRV).Buffer, ERHIAccess::SRVMask);
+				}
+			}
+			GraphBuilder.UseExternalAccessMode(Register(GraphBuilder, InstanceData.Instance->Guides.DeformedResource->GetPositionOffsetBuffer(FHairStrandsDeformedResource::EFrameType::Current), ERDGImportedBufferFlags::CreateSRV).Buffer, ERHIAccess::SRVMask);
+		}
+	}
+
+	// Update position offset for each instance (CPU)
+	for (FInstanceData& InstanceData : InstanceDatas)
+	{
+		if (InstanceData.MeshLODIndex >= 0 && (InstanceData.BindingType != EHairBindingType::Skinning) && (InstanceData.bSimulationEnable || InstanceData.bDeformationEnable))
+		{		
+			AddHairStrandUpdatePositionOffsetPass(
+				GraphBuilder,
+				ShaderMap,
+				InstanceData.Instance->Debug.MeshLODIndex,
+				nullptr,
+				InstanceData.Instance->Guides.DeformedResource);
+
+			// Add manual transition for the GPU solver as Niagara does not track properly the RDG buffer, and so doesn't issue the correct transitions
+			GraphBuilder.UseExternalAccessMode(Register(GraphBuilder, InstanceData.Instance->Guides.DeformedResource->GetPositionOffsetBuffer(FHairStrandsDeformedResource::EFrameType::Current), ERDGImportedBufferFlags::CreateSRV).Buffer, ERHIAccess::SRVMask);
+		}
+	}
+
+	// Apply deformation from
+	// * Bones 
+	// * RBF
+	for (FInstanceData& InstanceData : InstanceDatas)
+	{
+		if (
+			((InstanceData.Instance->Guides.bIsSimulationEnable || InstanceData.Instance->Guides.bIsDeformationEnable || InstanceData.Instance->Guides.bIsSimulationCacheEnable)) ||
+			(!InstanceData.Instance->Guides.bHasGlobalInterpolation && !InstanceData.Instance->Guides.bIsSimulationEnable && !InstanceData.Instance->Guides.bIsDeformationEnable && !InstanceData.Instance->Guides.bIsSimulationCacheEnable) ||
+			!IsHairStrandsBindingEnable()) return;
+
+		FRDGExternalBuffer RawDeformedPositionBuffer = InstanceData.Instance->Guides.DeformedResource->GetBuffer(FHairStrandsDeformedResource::Current);
+		FRDGImportedBuffer DeformedPositionBuffer = Register(GraphBuilder, RawDeformedPositionBuffer, ERDGImportedBufferFlags::CreateUAV);
+
+		AddDeformSimHairStrandsPass(
+			GraphBuilder,
+			ShaderMap,
+			InstanceData.Instance->Debug.MeshLODIndex,
+			InstanceData.Instance->Guides.RestResource->GetPointCount(),
+			InstanceData.Instance->Guides.RestRootResource,
+			InstanceData.Instance->Guides.DeformedRootResource,
+			RegisterAsSRV(GraphBuilder, InstanceData.Instance->Guides.RestResource->PositionBuffer),
+			RegisterAsSRV(GraphBuilder, InstanceData.Instance->Guides.RestResource->PointToCurveBuffer),
+			DeformedPositionBuffer,
+			InstanceData.Instance->Guides.RestResource->GetPositionOffset(),
+			RegisterAsSRV(GraphBuilder, InstanceData.Instance->Guides.DeformedResource->GetPositionOffsetBuffer(FHairStrandsDeformedResource::Current)),
+			InstanceData.Instance->Guides.bHasGlobalInterpolation,
+			nullptr);
+	}	
 }
 
 void AddDrawDebugClusterPass(

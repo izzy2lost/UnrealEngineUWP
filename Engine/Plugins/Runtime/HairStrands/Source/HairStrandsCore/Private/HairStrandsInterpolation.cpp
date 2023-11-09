@@ -333,7 +333,7 @@ public:
 
 IMPLEMENT_GLOBAL_SHADER(FDeformGuideCS, "/Engine/Private/HairStrands/HairStrandsGuideDeform.usf", "MainCS", SF_Compute);
 
-static void AddDeformSimHairStrandsPass(
+void AddDeformSimHairStrandsPass(
 	FRDGBuilder& GraphBuilder,
 	FGlobalShaderMap* ShaderMap,
 	const uint32 MeshLODIndex,
@@ -342,7 +342,7 @@ static void AddDeformSimHairStrandsPass(
 	FHairStrandsDeformedRootResource* SimDeformedRootResources,
 	FRDGBufferSRVRef SimRestPosePositionBuffer,
 	FRDGBufferSRVRef SimPointToCurveBuffer,
-	FRDGImportedBuffer OutSimDeformedPositionBuffer,
+	FRDGImportedBuffer& OutSimDeformedPositionBuffer,
 	const FVector& SimRestOffset,
 	FRDGBufferSRVRef SimDeformedOffsetBuffer,
 	const bool bHasGlobalInterpolation,
@@ -1781,6 +1781,7 @@ void ComputeHairStrandsInterpolation(
 				Strands_PositionOffsetSRV = RegisterAsSRV(GraphBuilder, Instance->Strands.DeformedResource->GetPositionOffsetBuffer(FHairStrandsDeformedResource::EFrameType::Current));
 				Strands_TangentSRV = Strands_DeformedTangent.SRV;
 
+				// Move this in to the interpolation update!!!
 				if (ActiveGroomCacheType == EGroomCacheType::Guides)
 				{
 					FScopeLock Lock(Instance->Debug.GroomCacheBuffers->GetCriticalSection()); // This is not ideally it will block the rendering thread / game thread
@@ -1838,6 +1839,7 @@ void ComputeHairStrandsInterpolation(
 								FRHIShaderResourceView* BoneBufferSRV = FSkeletalMeshDeformerHelpers::GetBoneBufferForReading(SkeletalMeshObject, LodIndex, Instance->DeformedSection, false);
 
 								// Guides deformation based on the skeletal mesh bones
+								FRDGImportedBuffer GuideDeformResource = Register(GraphBuilder, Instance->Guides.DeformedResource->GetBuffer(FHairStrandsDeformedResource::Current), ERDGImportedBufferFlags::CreateUAV);
 								AddDeformSimHairStrandsPass(
 									GraphBuilder,
 									ShaderMap,
@@ -1847,7 +1849,7 @@ void ComputeHairStrandsInterpolation(
 									Instance->Guides.DeformedRootResource,
 									RegisterAsSRV(GraphBuilder, Instance->Guides.RestResource->PositionBuffer),
 									RegisterAsSRV(GraphBuilder, Instance->Guides.RestResource->PointToCurveBuffer),
-									Register(GraphBuilder, Instance->Guides.DeformedResource->GetBuffer(FHairStrandsDeformedResource::Current), ERDGImportedBufferFlags::CreateUAV),
+									GuideDeformResource,
 									Instance->Guides.RestResource->GetPositionOffset(),
 									RegisterAsSRV(GraphBuilder, Instance->Guides.DeformedResource->GetPositionOffsetBuffer(FHairStrandsDeformedResource::Current)),
 									Instance->Guides.bHasGlobalInterpolation,
@@ -2375,38 +2377,4 @@ void ComputeHairStrandsInterpolation(
 	Instance->HairGroupPublicData->bSupportVoxelization = Instance->Strands.Modifier.bSupportVoxelization && Instance->bCastShadow;
 
 	ExternalAccessQueue.Submit(GraphBuilder);
-}
-
-void ResetHairStrandsInterpolation(
-	FRDGBuilder& GraphBuilder,
-	FGlobalShaderMap* ShaderMap,
-	FHairGroupInstance* Instance,
-	int32 MeshLODIndex)
-{
-	if (!Instance || 
-		(Instance && (Instance->Guides.bIsSimulationEnable || Instance->Guides.bIsDeformationEnable || Instance->Guides.bIsSimulationCacheEnable)) ||
-		(Instance && !Instance->Guides.bHasGlobalInterpolation && !Instance->Guides.bIsSimulationEnable && !Instance->Guides.bIsDeformationEnable && !Instance->Guides.bIsSimulationCacheEnable) ||
-		!IsHairStrandsBindingEnable()) return;
-
-	DECLARE_GPU_STAT(HairStrandsGuideDeform);
-	RDG_EVENT_SCOPE(GraphBuilder, "HairStrandsGuideDeform");
-	RDG_GPU_STAT_SCOPE(GraphBuilder, HairStrandsGuideDeform);
-
-	FRDGExternalBuffer RawDeformedPositionBuffer = Instance->Guides.DeformedResource->GetBuffer(FHairStrandsDeformedResource::Current);
-	FRDGImportedBuffer DeformedPositionBuffer = Register(GraphBuilder, RawDeformedPositionBuffer, ERDGImportedBufferFlags::CreateUAV);
-
-	AddDeformSimHairStrandsPass(
-		GraphBuilder,
-		ShaderMap,
-		MeshLODIndex,
-		Instance->Guides.RestResource->GetPointCount(),
-		Instance->Guides.RestRootResource,
-		Instance->Guides.DeformedRootResource,
-		RegisterAsSRV(GraphBuilder, Instance->Guides.RestResource->PositionBuffer),
-		RegisterAsSRV(GraphBuilder, Instance->Guides.RestResource->PointToCurveBuffer),
-		DeformedPositionBuffer,
-		Instance->Guides.RestResource->GetPositionOffset(),
-		RegisterAsSRV(GraphBuilder, Instance->Guides.DeformedResource->GetPositionOffsetBuffer(FHairStrandsDeformedResource::Current)),
-		Instance->Guides.bHasGlobalInterpolation,
-		nullptr);
 }

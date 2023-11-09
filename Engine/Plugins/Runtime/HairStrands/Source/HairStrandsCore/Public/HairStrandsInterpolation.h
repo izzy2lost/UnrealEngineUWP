@@ -5,6 +5,7 @@
 #include "Containers/ContainersFwd.h"
 #include "HAL/Platform.h"
 #include "Math/MathFwd.h"
+#include "RenderGraphFwd.h"
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_3
 #include "CoreMinimal.h"
@@ -20,11 +21,15 @@ class FGlobalShaderMap;
 class FRDGBuilder;
 class FSkeletalMeshRenderData;
 class UGroomBindingAsset;
+class FRHIShaderResourceView;
 
 struct FHairGroupInstance;
 struct FHairStrandClusterData;
 struct FRWBuffer;
 struct FShaderPrintData;
+struct FHairStrandsRestRootResource;
+struct FHairStrandsDeformedRootResource;
+struct FRDGImportedBuffer;
 
 enum class EGroomViewMode : uint8;
 
@@ -33,11 +38,20 @@ enum class EGroomViewMode : uint8;
 //  1) when hair simulation is enabled, the first frame is correct
 //  2) when hair simulation is enabled/disabled (i.e., toggle/change) 
 //     we reset to deform buffer to rest state)
-void ResetHairStrandsInterpolation(
+void AddDeformSimHairStrandsPass(
 	FRDGBuilder& GraphBuilder,
 	FGlobalShaderMap* ShaderMap,
-	FHairGroupInstance* Instance,
-	int32 LODIndex);
+	const uint32 MeshLODIndex,
+	const uint32 VertexCount,
+	FHairStrandsRestRootResource* SimRestRootResources,
+	FHairStrandsDeformedRootResource* SimDeformedRootResources,
+	FRDGBufferSRVRef SimRestPosePositionBuffer,
+	FRDGBufferSRVRef SimPointToCurveBuffer,
+	FRDGImportedBuffer& OutSimDeformedPositionBuffer,
+	const FVector& SimRestOffset,
+	FRDGBufferSRVRef SimDeformedOffsetBuffer,
+	const bool bHasGlobalInterpolation,
+	FRHIShaderResourceView* BoneBufferSRV);
 
 void ComputeHairStrandsInterpolation(
 	FRDGBuilder& GraphBuilder,
