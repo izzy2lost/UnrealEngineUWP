@@ -279,6 +279,41 @@ void FPCGEditorModule::PopulateMenuActions(FMenuBuilder& MenuBuilder)
 				PCGEditorUtils::ForcePCGBlueprintVariableVisibility();
 				})),
 		NAME_None);
+
+	MenuBuilder.AddSubMenu(
+		LOCTEXT("PCGToolsLoggingSubMenu", "Logging / Reporting"),
+		LOCTEXT("PCGToolsLoggingSubMenu_Tooltip", "Logging and reporting related editor commands"),
+		FNewMenuDelegate::CreateLambda([this](FMenuBuilder& LoggingMenuBuilder)
+		{
+			LoggingMenuBuilder.AddMenuEntry(
+			LOCTEXT("LogAbnormalComponentState", "Log abnormal component state (actor order)"),
+			LOCTEXT("LogAbnormalComponentState_Tooltip", "Logs unusual PCG components state, for every loaded actor"),
+			FSlateIcon(),
+			FUIAction(
+				FExecuteAction::CreateLambda([]() {
+					if (UPCGSubsystem* PCGSubsystem = UPCGSubsystem::GetInstance(GEditor->GetEditorWorldContext().World()))
+					{
+						PCGSubsystem->LogAbnormalComponentStates(/*bGroupByState=*/false);
+					}
+				})),
+			NAME_None);
+
+			LoggingMenuBuilder.AddMenuEntry(
+			LOCTEXT("LogAbnormalComponentState", "Log abnormal component state (grouped by state)"),
+			LOCTEXT("LogAbnormalComponentState_Tooltip", "Logs unusual PCG components, for every loaded actor, grouped by state"),
+			FSlateIcon(),
+			FUIAction(
+				FExecuteAction::CreateLambda([]() {
+					if (UPCGSubsystem* PCGSubsystem = UPCGSubsystem::GetInstance(GEditor->GetEditorWorldContext().World()))
+					{
+						PCGSubsystem->LogAbnormalComponentStates(/*bGroupByState=*/true);
+					}
+				})),
+			NAME_None);
+		}),
+		false,
+		FSlateIcon());
+
 }
 
 void FPCGEditorModule::RegisterSettings()

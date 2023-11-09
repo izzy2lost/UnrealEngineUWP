@@ -305,7 +305,91 @@ void UPCGSubsystem::DestroyAllPCGWorldActors()
 		ActorToDestroy->Destroy();
 	}
 }
-#endif
+
+void UPCGSubsystem::LogAbnormalComponentStates(bool bGroupByState) const
+{
+	TArray<UPCGComponent*> DeactivatedComponents;
+	TArray<UPCGComponent*> NotGeneratedComponents;
+	TArray<UPCGComponent*> DirtyGeneratedComponents;
+
+	UE_LOG(LogPCG, Log, TEXT("--- Logging Abnormal PCG Component States ---"));
+
+	UPCGActorHelpers::ForEachActorInWorld(GetWorld(), AActor::StaticClass(), [bGroupByState, &DeactivatedComponents, &NotGeneratedComponents, &DirtyGeneratedComponents](AActor* InActor)
+	{
+		if (!InActor || !IsValid(InActor))
+		{
+			return true;
+		}
+
+		TInlineComponentArray<UPCGComponent*, 1> PCGComponents;
+		InActor->GetComponents(PCGComponents);
+
+		for (UPCGComponent* PCGComponent : PCGComponents)
+		{
+			if (!PCGComponent->bActivated)
+			{
+				if (bGroupByState)
+				{
+					DeactivatedComponents.Add(PCGComponent);
+				}
+				else
+				{
+					UE_LOG(LogPCG, Log, TEXT("%s - %s - Deactivated Component"), *InActor->GetName(), *PCGComponent->GetName());
+				}
+			}
+			else if (!PCGComponent->bGenerated && PCGComponent->GenerationTrigger != EPCGComponentGenerationTrigger::GenerateAtRuntime)
+			{
+				if (bGroupByState)
+				{
+					NotGeneratedComponents.Add(PCGComponent);
+				}
+				else
+				{
+					UE_LOG(LogPCG, Log, TEXT("%s - %s - Not Generated Component"), *InActor->GetName(), *PCGComponent->GetName());
+				}
+			}
+			else if (PCGComponent->bDirtyGenerated)
+			{
+				if (bGroupByState)
+				{
+					DirtyGeneratedComponents.Add(PCGComponent);
+				}
+				else
+				{
+					UE_LOG(LogPCG, Log, TEXT("%s - %s - Dirty Generated Component "), *InActor->GetName(), *PCGComponent->GetName());
+				}
+			}
+		}
+
+		return true;
+	});
+
+	if (bGroupByState)
+	{
+		UE_LOG(LogPCG, Log, TEXT("--- Deactivated PCG Components ---"));
+		for (UPCGComponent* Component : DeactivatedComponents)
+		{
+			check(Component && Component->GetOwner());
+			UE_LOG(LogPCG, Log, TEXT("%s - %s"), *Component->GetOwner()->GetName(), *Component->GetName());
+		}
+
+		UE_LOG(LogPCG, Log, TEXT("--- Not Generated Components ---"));
+		for (UPCGComponent* Component : NotGeneratedComponents)
+		{
+			check(Component && Component->GetOwner());
+			UE_LOG(LogPCG, Log, TEXT("%s - %s"), *Component->GetOwner()->GetName(), *Component->GetName());
+		}
+
+		UE_LOG(LogPCG, Log, TEXT("--- Dirty Components ---"));
+		for (UPCGComponent* Component : DirtyGeneratedComponents)
+		{
+			check(Component && Component->GetOwner());
+			UE_LOG(LogPCG, Log, TEXT("%s - %s"), *Component->GetOwner()->GetName(), *Component->GetName());
+		}
+	}
+}
+
+#endif // WITH_EDITOR
 
 void UPCGSubsystem::RegisterPCGWorldActor(APCGWorldActor* InActor)
 {

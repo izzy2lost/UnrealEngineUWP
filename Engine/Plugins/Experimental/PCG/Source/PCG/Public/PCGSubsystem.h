@@ -80,6 +80,7 @@ public:
 #if WITH_EDITOR
 	void DestroyAllPCGWorldActors();
 	void DestroyCurrentPCGWorldActor();
+	void LogAbnormalComponentStates(bool bGroupByState) const;
 #endif
 	void RegisterPCGWorldActor(APCGWorldActor* InActor);
 	void UnregisterPCGWorldActor(APCGWorldActor* InActor);
