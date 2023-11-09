@@ -91,6 +91,7 @@ class FDebuggerTrackCreator : public RewindDebugger::IRewindDebuggerTrackCreator
 private:
 	virtual FName GetTargetTypeNameInternal() const override;
 	virtual FName GetNameInternal() const override;
+	virtual void GetTrackTypesInternal(TArray<RewindDebugger::FRewindDebuggerTrackType>& Types) const override;
 	virtual TSharedPtr<RewindDebugger::FRewindDebuggerTrack> CreateTrackInternal(uint64 ObjectId) const override;
 	virtual bool HasDebugInfoInternal(uint64 ObjectId) const override;
 	virtual int32 GetSortOrderPriorityInternal() const override { return 10; };

@@ -368,11 +368,17 @@ FName FBlendWeightsTrackCreator::GetTargetTypeNameInternal() const
 	static const FName TargetTypeName = "AnimInstance";
 	return TargetTypeName;
 }
+	
+static const FName BlendWeightsName("BlendWeights");
 
 FName FBlendWeightsTrackCreator::GetNameInternal() const
 {
-	static const FName BlendWeightsName("BlendWeights");
 	return BlendWeightsName;
+}
+	
+void FBlendWeightsTrackCreator::GetTrackTypesInternal(TArray<FRewindDebuggerTrackType>& Types) const
+{
+	Types.Add({BlendWeightsName, LOCTEXT("Blend Weights", "Blend Weights")});
 }
 
 TSharedPtr<RewindDebugger::FRewindDebuggerTrack> FBlendWeightsTrackCreator::CreateTrackInternal(uint64 ObjectId) const
@@ -388,7 +394,7 @@ bool FBlendWeightsTrackCreator::HasDebugInfoInternal(uint64 ObjectId) const
 	bool bHasData = false;
 	if (const FAnimationProvider* AnimationProvider = AnalysisSession->ReadProvider<FAnimationProvider>(FAnimationProvider::ProviderName))
 	{
-		AnimationProvider->ReadAnimGraphTimeline(ObjectId, [&bHasData](const FAnimationProvider::AnimGraphTimeline& InGraphTimeline)
+		AnimationProvider->ReadTickRecordTimeline(ObjectId, [&bHasData](const FAnimationProvider::TickRecordTimeline& InGraphTimeline)
 		{
 			bHasData = true;
 		});

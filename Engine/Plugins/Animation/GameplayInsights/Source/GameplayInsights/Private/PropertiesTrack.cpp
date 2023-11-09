@@ -290,11 +290,17 @@ namespace RewindDebugger
 		return TargetTypeName;
 	}
 
+	static const FName PropertiesTrackCreatorName("PropertyWatch");
 	FName FPropertiesTrackCreator::GetNameInternal() const
 	{
-		static const FName PropertiesTrackCreatorName("PropertyWatch");
 		return PropertiesTrackCreatorName;
 	}
+
+	void FPropertiesTrackCreator::GetTrackTypesInternal(TArray<FRewindDebuggerTrackType>& Types) const 
+    {
+    	Types.Add({PropertiesTrackCreatorName, LOCTEXT("Properties", "Properties")});
+    }
+
 
 	TSharedPtr<FRewindDebuggerTrack> FPropertiesTrackCreator::CreateTrackInternal(uint64 ObjectId) const
 	{

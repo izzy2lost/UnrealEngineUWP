@@ -323,6 +323,11 @@ FName FMontagesTrackCreator::GetNameInternal() const
 	return MontagesName;
 }
 	
+void FMontagesTrackCreator::GetTrackTypesInternal(TArray<FRewindDebuggerTrackType>& Types) const 
+{
+	Types.Add({MontagesName, LOCTEXT("Montages", "Montages")});
+}
+	
 FName FMontagesTrack::GetNameInternal() const
 {
 	return MontagesName;

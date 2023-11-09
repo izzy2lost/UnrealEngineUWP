@@ -275,11 +275,17 @@ namespace RewindDebugger
 		return SkelMeshName;
 	}
 	
+	static const FName ExternalMorphSetName("ExternalMorphSetGroup");
+	
 	FName FExternalMorphSetGroupTrackCreator::GetNameInternal() const
 	{
-		static const FName ExternalMorphSetName("ExternalMorphSetGroup");
 		return ExternalMorphSetName;
 	}
+	
+	void FExternalMorphSetGroupTrackCreator::GetTrackTypesInternal(TArray<FRewindDebuggerTrackType>& Types) const 
+    {
+    	Types.Add({ExternalMorphSetName, LOCTEXT("External Morph Sets", "External Morph Sets")});
+    }
 
 	TSharedPtr<RewindDebugger::FRewindDebuggerTrack> FExternalMorphSetGroupTrackCreator::CreateTrackInternal(uint64 ObjectId) const
 	{

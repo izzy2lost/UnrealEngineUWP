@@ -163,6 +163,12 @@ FName FNotifiesTrackCreator::GetNameInternal() const
 	return NotifiesName;
 }
 
+void FNotifiesTrackCreator::GetTrackTypesInternal(TArray<FRewindDebuggerTrackType>& Types) const
+{
+	Types.Add({ NotifiesName, LOCTEXT("Notifies", "Notifies") });
+}
+
+
 TSharedPtr<RewindDebugger::FRewindDebuggerTrack> FNotifiesTrackCreator::CreateTrackInternal(uint64 ObjectId) const
 {
 	return MakeShared<RewindDebugger::FNotifiesTrack>(ObjectId);

@@ -4,6 +4,7 @@
 
 #include "ActorPickerMode.h"
 #include "Editor.h"
+#include "IRewindDebuggerTrackCreator.h"
 #include "Editor/EditorEngine.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
@@ -89,6 +90,27 @@ void SRewindDebugger::SetViewRange(TRange<double> NewRange)
 	ViewRange = NewRange;
 	OnViewRangeChanged.ExecuteIfBound(NewRange);
 }
+
+void SRewindDebugger::ToggleHideTrackType(const FName& TrackType)
+{
+	int32 Index = Settings.HiddenTrackTypes.Find(TrackType);
+
+	if (Index >=0)
+	{
+		Settings.HiddenTrackTypes.RemoveAtSwap(Index);
+	}
+	else
+	{
+		Settings.HiddenTrackTypes.Add(TrackType);
+	}
+	RefreshDebugComponents();
+}
+
+bool SRewindDebugger::ShouldHideTrackType(const FName& TrackType) const
+{
+	return Settings.HiddenTrackTypes.Contains(TrackType);
+}
+
 
 void SRewindDebugger::ToggleDisplayEmptyTracks()
 {
@@ -227,6 +249,7 @@ void SRewindDebugger::Construct(const FArguments& InArgs, TSharedRef<FUICommandL
 	OnViewRangeChanged = InArgs._OnViewRangeChanged;
 	OnComponentSelectionChanged = InArgs._OnComponentSelectionChanged;
 	BuildComponentContextMenu = InArgs._BuildComponentContextMenu;
+	TrackTypesAttribute = InArgs._TrackTypes;
 	ScrubTimeAttribute = InArgs._ScrubTime;
 	DebugComponents = InArgs._DebugComponents;
 	TraceTime.Initialize(InArgs._TraceTime);
@@ -457,17 +480,24 @@ void SRewindDebugger::Construct(const FArguments& InArgs, TSharedRef<FUICommandL
 	];
 }
 
-bool FilterTrack(TSharedPtr<RewindDebugger::FRewindDebuggerTrack>& Track, const FString& FilterString, bool bRemoveNoData, bool bParentFilterPassed = false)
+bool FilterTrack(TSharedPtr<RewindDebugger::FRewindDebuggerTrack>& Track, const FString& FilterString, bool bRemoveNoData, const TArray<FName>& FilteredTrackTypes, bool bParentFilterPassed = false)
 {
+	if (FilteredTrackTypes.Contains(Track->GetName()))
+	{
+		Track->SetIsVisible(false);
+		return false;
+	}
+	
 	const bool bStringFilterEmpty =  FilterString.IsEmpty();
 	const bool bStringFilterPassed = bParentFilterPassed || bStringFilterEmpty || Track->GetDisplayName().ToString().Contains(FilterString);
 
 	const bool bThisFilterPassed = (!bStringFilterEmpty && bStringFilterPassed);
 
+
 	bool bAnyChildVisible = false;
-	Track->IterateSubTracks([&bAnyChildVisible, bThisFilterPassed, FilterString, bRemoveNoData](TSharedPtr<RewindDebugger::FRewindDebuggerTrack> ChildTrack)
+	Track->IterateSubTracks([&bAnyChildVisible, bThisFilterPassed, FilterString, bRemoveNoData, FilteredTrackTypes](TSharedPtr<RewindDebugger::FRewindDebuggerTrack> ChildTrack)
 	{
-		const bool bChildIsVisible = FilterTrack(ChildTrack, FilterString, bRemoveNoData, bThisFilterPassed);
+		const bool bChildIsVisible = FilterTrack(ChildTrack, FilterString, bRemoveNoData, FilteredTrackTypes, bThisFilterPassed);
 		bAnyChildVisible |= bChildIsVisible;
 	});
 
@@ -483,7 +513,7 @@ void SRewindDebugger::RefreshDebugComponents()
 	{
 		for(TSharedPtr<RewindDebugger::FRewindDebuggerTrack>& DebugComponent : *DebugComponents)
 		{
-			FilterTrack(DebugComponent, TrackFilterBox->GetText().ToString(), !ShouldDisplayEmptyTracks());
+			FilterTrack(DebugComponent, TrackFilterBox->GetText().ToString(), !ShouldDisplayEmptyTracks(), Settings.HiddenTrackTypes);
 		}
 	}
 	
@@ -500,8 +530,27 @@ TSharedRef<SWidget> SRewindDebugger::MakeFilterMenu()
 {
 	FMenuBuilder Builder(true, nullptr);
 	Builder.AddWidget(TrackFilterBox.ToSharedRef(), FText(), true, false);
-	Builder.AddSeparator();
 	
+	Builder.BeginSection("TrackTypes", LOCTEXT("Track Types", "Track Types"));
+
+	const TArrayView<RewindDebugger::FRewindDebuggerTrackType> TrackTypes = TrackTypesAttribute.Get();
+
+	for(const RewindDebugger::FRewindDebuggerTrackType& TrackType : TrackTypes)
+	{
+		Builder.AddMenuEntry(
+			TrackType.DisplayName,
+			FText::Format(LOCTEXT("FilterTrackToolTip", "Show tracks of type {0}"), {TrackType.DisplayName}),
+			FSlateIcon(),
+			FUIAction(FExecuteAction::CreateLambda([this,TrackType](){ ToggleHideTrackType(TrackType.Name); }),
+				FCanExecuteAction(),
+				FIsActionChecked::CreateLambda([this,TrackType]() { return !ShouldHideTrackType(TrackType.Name); })),
+			NAME_None,
+			EUserInterfaceActionType::ToggleButton
+		);	
+	}
+
+	Builder.AddSeparator();
+
 	Builder.AddMenuEntry(
 		LOCTEXT("DisplayEmptyTracks", "Show Empty Object Tracks"),
 		LOCTEXT("DisplayEmptyTracksToolTip", "Show Object/Component tracks which have no sub tracks with any debug data"),

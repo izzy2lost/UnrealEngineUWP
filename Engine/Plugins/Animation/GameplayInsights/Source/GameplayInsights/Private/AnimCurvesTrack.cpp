@@ -226,6 +226,11 @@ FName FAnimationCurvesTrackCreator::GetNameInternal() const
 {
 	return AnimationCurvesName;
 }
+		
+void FAnimationCurvesTrackCreator::GetTrackTypesInternal(TArray<FRewindDebuggerTrackType>& Types) const
+{
+	Types.Add({AnimationCurvesName, LOCTEXT("Curves", "Curves")});
+}
 
 TSharedPtr<RewindDebugger::FRewindDebuggerTrack> FAnimationCurvesTrackCreator::CreateTrackInternal(uint64 ObjectId) const
 {

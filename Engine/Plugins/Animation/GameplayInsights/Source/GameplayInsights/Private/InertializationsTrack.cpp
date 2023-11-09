@@ -254,10 +254,15 @@ FName FInertializationsTrackCreator::GetTargetTypeNameInternal() const
 	return TargetTypeName;
 }
 
+static const FName InertializationsName("Inertializations");
 FName FInertializationsTrackCreator::GetNameInternal() const
 {
-	static const FName InertializationsName("Inertializations");
 	return InertializationsName;
+}
+
+void FInertializationsTrackCreator::GetTrackTypesInternal(TArray<FRewindDebuggerTrackType>& Types) const 
+{
+	Types.Add({InertializationsName, LOCTEXT("Inertializations", "Inertializations")});
 }
 
 TSharedPtr<RewindDebugger::FRewindDebuggerTrack> FInertializationsTrackCreator::CreateTrackInternal(uint64 ObjectId) const

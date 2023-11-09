@@ -50,6 +50,10 @@ public:
 	UPROPERTY(EditAnywhere, Config, Category = Filters)
 	bool bShowEmptyObjectTracks;
 	
+	/** The track types listed here will be hidden from the track tree view */
+	UPROPERTY(EditAnywhere, Config, Category = Filters)
+	TArray<FName> HiddenTrackTypes;
+	
 	/** Get Mutable CDO of URewindDebuggerSettings */
 	static URewindDebuggerSettings & Get();
 };

@@ -247,10 +247,15 @@ FName FPoseWatchesTrackCreator::GetTargetTypeNameInternal() const
 	return AnimInstanceName;
 }
 	
+static const FName PoseWatchesName("PoseWatches");
 FName FPoseWatchesTrackCreator::GetNameInternal() const
 {
-	static const FName PoseWatchesName("PoseWatches");
 	return PoseWatchesName;
+}
+		
+void FPoseWatchesTrackCreator::GetTrackTypesInternal(TArray<FRewindDebuggerTrackType>& Types) const 
+{
+	Types.Add({PoseWatchesName, LOCTEXT("Pose Watches", "Pose Watches")});
 }
 
 TSharedPtr<RewindDebugger::FRewindDebuggerTrack> FPoseWatchesTrackCreator::CreateTrackInternal(uint64 ObjectId) const

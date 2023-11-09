@@ -5,6 +5,7 @@
 #include "IRewindDebugger.h"
 #include "RewindDebuggerTrack.h"
 #include "BindableProperty.h"
+#include "IRewindDebuggerTrackCreator.h"
 #include "Containers/Ticker.h"
 #include "UObject/WeakObjectPtr.h"
 
@@ -125,6 +126,8 @@ public:
 	void SetIsDetailsPanelOpen(bool bIsOpen) { bIsDetailsPanelOpen = bIsOpen; }
 	bool IsDetailsPanelOpen(bool bIsOpen) { return bIsDetailsPanelOpen; }
 
+	TArrayView<RewindDebugger::FRewindDebuggerTrackType> GetTrackTypes() { return TrackTypes; };
+
 private:
 	void RefreshDebugComponents(TArray<TSharedPtr<RewindDebugger::FRewindDebuggerTrack>>& InTracks, TArray<TSharedPtr<FDebugObjectInfo>>& OutComponents);
 	
@@ -197,6 +200,8 @@ private:
 
 	bool bTargetActorPositionValid;
 	FVector TargetActorPosition;
+
+	TArray<RewindDebugger::FRewindDebuggerTrackType> TrackTypes;
 
 	bool bIsDetailsPanelOpen;
 };

@@ -2,15 +2,12 @@
 
 #include "AnimGraphNode_ChooserPlayer.h"
 
-#include <chrono>
-
 #include "EditorCategoryUtils.h"
 #include "DetailLayoutBuilder.h"
 #include "Animation/AnimAttributes.h"
 #include "Animation/AnimPoseSearchProvider.h"
 #include "Animation/AnimRootMotionProvider.h"
 #include "ChooserPropertyAccess.h"
-#include "Elements/Interfaces/TypedElementDataStorageCompatibilityInterface.h"
 
 #define LOCTEXT_NAMESPACE "AnimGraphNode_ChooserPlayer"
 

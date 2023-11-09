@@ -33,6 +33,7 @@
 #include "Widgets/Docking/SDockTab.h"
 #include "Widgets/Layout/SSpacer.h"
 #include "RewindDebuggerCommands.h"
+#include "RewindDebuggerTrackCreators.h"
 
 #define LOCTEXT_NAMESPACE "RewindDebugger"
 
@@ -73,6 +74,11 @@ FRewindDebugger::FRewindDebugger()  :
 	bTargetActorPositionValid(false),
 	bIsDetailsPanelOpen(true)
 {
+	RewindDebugger::FRewindDebuggerTrackCreators::EnumerateCreators([this](const RewindDebugger::IRewindDebuggerTrackCreator* Creator)
+    {
+		Creator->GetTrackTypes(TrackTypes);
+    });
+	
 	RecordingDuration.Set(0);
 
 	if (GEditor->bIsSimulatingInEditor || GEditor->PlayWorld)
@@ -1023,6 +1029,22 @@ void FRewindDebugger::Tick(float DeltaTime)
 															TRACE_CPUPROFILER_EVENT_SCOPE(ResetNodeVisitStates);
 															DebugData.ResetNodeVisitSites();
 														}
+														
+														// Anim node values can come from all phases
+														AnimationProvider->ReadAnimNodeValuesTimeline(ObjectId, [&Frame,AnimationProvider, &DebugData](const IAnimationProvider::AnimNodeValuesTimeline& InNodeValuesTimeline)
+														{
+															TRACE_CPUPROFILER_EVENT_SCOPE(AnimGraphNodeValues);
+															InNodeValuesTimeline.EnumerateEvents(Frame.StartTime, Frame.EndTime, [AnimationProvider, &DebugData](double InStartTime, double InEndTime, uint32 InDepth, const FAnimNodeValueMessage& InMessage)
+															{
+																// don't send "Name" Node value for display in the graph
+																if (FPlatformString::Strcmp(InMessage.Key, TEXT("Name")) != 0)
+																{
+																	FText Text = AnimationProvider->FormatNodeKeyValue(InMessage);
+																	DebugData.RecordNodeValue(InMessage.NodeId, Text.ToString());
+																}
+																return TraceServices::EEventEnumerate::Continue;
+															});
+														});
 
 														DebugData.DisableAllPoseWatches();
 							
@@ -1146,21 +1168,6 @@ void FRewindDebugger::Tick(float DeltaTime)
 
 																}
 							
-																// Anim node values can come from all phases
-																AnimationProvider->ReadAnimNodeValuesTimeline(Id, [InGraphStartTime, InGraphEndTime, AnimationProvider, &DebugData](const IAnimationProvider::AnimNodeValuesTimeline& InNodeValuesTimeline)
-																{
-																	TRACE_CPUPROFILER_EVENT_SCOPE(AnimGraphNodeValues);
-																	InNodeValuesTimeline.EnumerateEvents(InGraphStartTime, InGraphEndTime, [AnimationProvider, &DebugData](double InStartTime, double InEndTime, uint32 InDepth, const FAnimNodeValueMessage& InMessage)
-																	{
-																		// don't send "Name" Node value for display in the graph
-																		if (FPlatformString::Strcmp(InMessage.Key, TEXT("Name")) != 0)
-																		{
-																			FText Text = AnimationProvider->FormatNodeKeyValue(InMessage);
-																			DebugData.RecordNodeValue(InMessage.NodeId, Text.ToString());
-																		}
-																		return TraceServices::EEventEnumerate::Continue;
-																	});
-																});
 															}
 															return TraceServices::EEventEnumerate::Continue;
 														});

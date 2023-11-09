@@ -151,6 +151,11 @@ FName FChoosersTrackCreator::GetNameInternal() const
 	return ChoosersName;
 }
 
+void FChoosersTrackCreator::GetTrackTypesInternal(TArray<RewindDebugger::FRewindDebuggerTrackType>& Types) const
+{
+	Types.Add({ChoosersName, LOCTEXT("Chooser", "Choosers")});
+}
+
 TSharedPtr<RewindDebugger::FRewindDebuggerTrack> FChoosersTrackCreator::CreateTrackInternal(uint64 ObjectId) const
 {
 	return MakeShared<FChoosersTrack>(ObjectId);

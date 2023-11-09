@@ -176,6 +176,11 @@ FName FVisualLogTrackCreator::GetNameInternal() const
 {
 	return VisualLogName;
 }
+	
+void FVisualLogTrackCreator::GetTrackTypesInternal(TArray<FRewindDebuggerTrackType>& Types) const
+{
+	Types.Add({VisualLogName, LOCTEXT("Visual Logging", "Visual Logging")});
+}
 
 TSharedPtr<RewindDebugger::FRewindDebuggerTrack> FVisualLogTrackCreator::CreateTrackInternal(uint64 ObjectId) const
 {

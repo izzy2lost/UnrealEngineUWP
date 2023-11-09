@@ -428,11 +428,17 @@ FName FDebuggerTrackCreator::GetTargetTypeNameInternal() const
 	static FName TargetTypeName = "AnimInstance";
 	return TargetTypeName;
 }
+	
+static const FName PoseSearchDebuggerName("PoseSearchDebugger");
 
 FName FDebuggerTrackCreator::GetNameInternal() const
 {
-	static const FName Name("PoseSearchDebugger");
-	return Name;
+	return PoseSearchDebuggerName;
+}
+
+void FDebuggerTrackCreator::GetTrackTypesInternal(TArray<RewindDebugger::FRewindDebuggerTrackType>& Types) const
+{
+	Types.Add({PoseSearchDebuggerName, LOCTEXT("Pose Search", "Pose Search")});
 }
 
 TSharedPtr<RewindDebugger::FRewindDebuggerTrack> FDebuggerTrackCreator::CreateTrackInternal(uint64 ObjectId) const

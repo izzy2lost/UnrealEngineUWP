@@ -957,6 +957,11 @@ FName FAnimGraphSchematicTrackCreator::GetNameInternal() const
 	return AnimGraphSchematicName;
 }
 
+void FAnimGraphSchematicTrackCreator::GetTrackTypesInternal(TArray<RewindDebugger::FRewindDebuggerTrackType>& Types) const
+{
+	Types.Add({AnimGraphSchematicName, LOCTEXT("Anim Graph", "Anim Graph")});
+}
+
 TSharedPtr<RewindDebugger::FRewindDebuggerTrack> FAnimGraphSchematicTrackCreator::CreateTrackInternal(uint64 ObjectId) const
 {
 	return MakeShared<FAnimGraphSchematicTrack>(ObjectId);
