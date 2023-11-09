@@ -131,7 +131,19 @@ struct TNamedValueArray
 	{
 		return Elements.Num();
 	}
-	
+
+	/** @returns the max number of elements reserved in the array */
+	int32 Max() const
+	{
+		return Elements.Max();
+	}
+
+	/** Compacts the memory for the elements based on what was actually used */
+	void Shrink()
+	{
+		return Elements.Shrink();
+	}
+
 protected:
 	// Sort by FName - Note: this is not stable across serialization
 	struct FElementSortPredicate

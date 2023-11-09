@@ -265,7 +265,7 @@ void FAnimNode_StateMachine::Initialize_AnyThread(const FAnimationInitializeCont
 			// Reset transition related variables
 			StatesUpdated.Reset();
 			ActiveTransitionArray.Reset();
-			QueuedTransitionEvents.Reset(MaxTransitionsRequests);
+			QueuedTransitionEvents.Reset();
 
 			StateCacheBoneCounters.Reset(Machine->States.Num());
 			StateCacheBoneCounters.AddDefaulted(Machine->States.Num());
@@ -1426,7 +1426,7 @@ void FAnimNode_StateMachine::ClearTransitionEvents(const FName& EventName)
 void FAnimNode_StateMachine::ClearAllTransitionEvents()
 {
 	UE_LOG(LogAnimTransitionRequests, Verbose, TEXT("Clearing all request (Machine %s)"), *GetMachineDescription()->MachineName.ToString());
-	QueuedTransitionEvents.Reset(MaxTransitionsRequests);
+	QueuedTransitionEvents.Reset();
 }
 
 bool FAnimNode_StateMachine::QueryTransitionEvent(const int32 TransitionIndex, const FName& EventName) const
