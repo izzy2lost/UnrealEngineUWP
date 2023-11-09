@@ -714,28 +714,23 @@ FORCENOINLINE void FDebug::DumpStackTraceToLog(const TCHAR* Heading, const ELogV
 #if DO_ENSURE && !USING_CODE_ANALYSIS
 bool UE_DEBUG_SECTION VARARGS CheckVerifyImpl(bool& InOutExecuted, bool Always, const ANSICHAR* File, int32 Line, void* ProgramCounter, const ANSICHAR* Expr, const TCHAR* Format, ...)
 {
-	if ((!InOutExecuted || Always) && FPlatformMisc::IsEnsureAllowed())
+	InOutExecuted = true;
+	va_list Args;
+	va_start(Args, Format);
+	FDebug::OptionallyLogFormattedEnsureMessageReturningFalse(true, Expr, File, Line, ProgramCounter, Format, Args);
+	va_end(Args);
+
+	if (!FPlatformMisc::IsDebuggerPresent())
 	{
-		InOutExecuted = true;
-		va_list Args;
-		va_start(Args, Format);
-		FDebug::OptionallyLogFormattedEnsureMessageReturningFalse(true, Expr, File, Line, ProgramCounter, Format, Args);
-		va_end(Args);
-
-		if (!FPlatformMisc::IsDebuggerPresent())
-		{
-			FPlatformMisc::PromptForRemoteDebugging(true);
-			return false;
-		}
-
-#if UE_BUILD_SHIPPING
-		return true;
-#else
-		return !GIgnoreDebugger;
-#endif
+		FPlatformMisc::PromptForRemoteDebugging(true);
+		return false;
 	}
 
-	return false;
+#if UE_BUILD_SHIPPING
+	return true;
+#else
+	return !GIgnoreDebugger;
+#endif
 }
 #endif
 
