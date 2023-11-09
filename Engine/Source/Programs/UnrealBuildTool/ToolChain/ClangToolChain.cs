@@ -266,6 +266,8 @@ namespace UnrealBuildTool
 					Action AggregateTimingInfoAction = MakefileBuilder.CreateRecursiveAction<AggregateClangTimingInfo>(ActionType.ParseTimingInfo, String.Join(" ", AggregateActionArgs));
 					AggregateTimingInfoAction.WorkingDirectory = Unreal.EngineSourceDirectory;
 					AggregateTimingInfoAction.StatusDescription = $"Aggregating {TimingJsonFiles.Count} Timing File(s)";
+					AggregateTimingInfoAction.bCanExecuteRemotely = false;
+					AggregateTimingInfoAction.bCanExecuteRemotelyWithSNDBS = false;
 					AggregateTimingInfoAction.PrerequisiteItems.UnionWith(TimingJsonFiles);
 
 					AggregateTimingInfoAction.ProducedItems.Add(AggregateOutputFile);
@@ -282,6 +284,8 @@ namespace UnrealBuildTool
 					Action ArchiveTimingInfoAction = MakefileBuilder.CreateRecursiveAction<AggregateClangTimingInfo>(ActionType.ParseTimingInfo, String.Join(" ", ArchiveActionArgs));
 					ArchiveTimingInfoAction.WorkingDirectory = Unreal.EngineSourceDirectory;
 					ArchiveTimingInfoAction.StatusDescription = $"Archiving {TimingJsonFiles.Count} Timing File(s)";
+					ArchiveTimingInfoAction.bCanExecuteRemotely = false;
+					ArchiveTimingInfoAction.bCanExecuteRemotelyWithSNDBS = false;
 					ArchiveTimingInfoAction.PrerequisiteItems.UnionWith(TimingJsonFiles);
 
 					ArchiveTimingInfoAction.ProducedItems.Add(ArchiveOutputFile);
@@ -298,7 +302,6 @@ namespace UnrealBuildTool
 						CompileScoreExtractorAction.StatusDescription = $"Extracting CompileScore";
 						CompileScoreExtractorAction.bCanExecuteRemotely = false;
 						CompileScoreExtractorAction.bCanExecuteRemotelyWithSNDBS = false;
-						CompileScoreExtractorAction.bCanExecuteInUBA = false; // TODO: Unknown if supported
 						CompileScoreExtractorAction.PrerequisiteItems.UnionWith(TimingJsonFiles);
 						CompileScoreExtractorAction.CommandPath = ScoreDataExtractor;
 						CompileScoreExtractorAction.CommandArguments = $"-clang -verbosity 0 -timelinepack 1000000 -extract -i \"{NormalizeCommandLinePath(Makefile.ProjectIntermediateDirectory)}\" -o \"{NormalizeCommandLinePath(CompileScoreOutput)}\"";

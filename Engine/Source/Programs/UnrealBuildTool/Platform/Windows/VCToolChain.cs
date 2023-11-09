@@ -1806,6 +1806,8 @@ namespace UnrealBuildTool
 			Action ParseTimingInfoAction = Graph.CreateRecursiveAction<ParseMsvcTimingInfoMode>(ActionType.ParseTimingInfo, ParseTimingArguments);
 			ParseTimingInfoAction.WorkingDirectory = Unreal.EngineSourceDirectory;
 			ParseTimingInfoAction.StatusDescription = Path.GetFileName(TimingFile.AbsolutePath);
+			ParseTimingInfoAction.bCanExecuteRemotely = true;
+			ParseTimingInfoAction.bCanExecuteRemotelyWithSNDBS = true;
 			ParseTimingInfoAction.PrerequisiteItems.Add(SourceFile);
 			ParseTimingInfoAction.PrerequisiteItems.Add(TimingFile);
 			ParseTimingInfoAction.ProducedItems.Add(TimingJsonFile);
@@ -1858,6 +1860,8 @@ namespace UnrealBuildTool
 						Action AggregateTimingInfoAction = MakefileBuilder.CreateRecursiveAction<AggregateParsedTimingInfo>(ActionType.ParseTimingInfo, String.Join(" ", ActionArgs));
 						AggregateTimingInfoAction.WorkingDirectory = Unreal.EngineSourceDirectory;
 						AggregateTimingInfoAction.StatusDescription = $"Aggregating {TimingJsonFiles.Count} Timing File(s)";
+						AggregateTimingInfoAction.bCanExecuteRemotely = false;
+						AggregateTimingInfoAction.bCanExecuteRemotelyWithSNDBS = false;
 						AggregateTimingInfoAction.PrerequisiteItems.UnionWith(TimingJsonFiles);
 
 						FileItem AggregateOutputFile = FileItem.GetItemByFileReference(FileReference.Combine(Makefile.ProjectIntermediateDirectory, $"{Target.Name}.cta"));
@@ -1881,6 +1885,8 @@ namespace UnrealBuildTool
 						Action AggregateTimingInfoAction = MakefileBuilder.CreateRecursiveAction<AggregateClangTimingInfo>(ActionType.ParseTimingInfo, String.Join(" ", AggregateActionArgs));
 						AggregateTimingInfoAction.WorkingDirectory = Unreal.EngineSourceDirectory;
 						AggregateTimingInfoAction.StatusDescription = $"Aggregating {TimingJsonFiles.Count} Timing File(s)";
+						AggregateTimingInfoAction.bCanExecuteRemotely = false;
+						AggregateTimingInfoAction.bCanExecuteRemotelyWithSNDBS = false;
 						AggregateTimingInfoAction.PrerequisiteItems.UnionWith(TimingJsonFiles);
 
 						AggregateTimingInfoAction.ProducedItems.Add(AggregateOutputFile);
@@ -1897,6 +1903,8 @@ namespace UnrealBuildTool
 						Action ArchiveTimingInfoAction = MakefileBuilder.CreateRecursiveAction<AggregateClangTimingInfo>(ActionType.ParseTimingInfo, String.Join(" ", ArchiveActionArgs));
 						ArchiveTimingInfoAction.WorkingDirectory = Unreal.EngineSourceDirectory;
 						ArchiveTimingInfoAction.StatusDescription = $"Archiving {TimingJsonFiles.Count} Timing File(s)";
+						ArchiveTimingInfoAction.bCanExecuteRemotely = false;
+						ArchiveTimingInfoAction.bCanExecuteRemotelyWithSNDBS = false;
 						ArchiveTimingInfoAction.PrerequisiteItems.UnionWith(TimingJsonFiles);
 
 						ArchiveTimingInfoAction.ProducedItems.Add(ArchiveOutputFile);

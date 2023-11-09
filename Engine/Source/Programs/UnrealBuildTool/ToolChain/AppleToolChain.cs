@@ -1175,6 +1175,7 @@ namespace UnrealBuildTool
 			PostBuildSyncAction.PrerequisiteItems.Add(Executable);
 			PostBuildSyncAction.ProducedItems.Add(GetPostBuildOutputFile(Executable.Location, Target.Name, Target.Platform));
 			PostBuildSyncAction.StatusDescription = $"Executing PostBuildSync [{Executable.Location}]";
+			PostBuildSyncAction.bCanExecuteRemotely = false;
 
 			if (Target.Platform == UnrealTargetPlatform.IOS || Target.Platform == UnrealTargetPlatform.TVOS)
 			{
