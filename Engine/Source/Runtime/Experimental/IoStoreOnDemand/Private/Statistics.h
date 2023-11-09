@@ -47,6 +47,7 @@ public:
 	void OnCachePutReject(uint64 DataSize) IAS_STATISTICS_IMPL()
 	void OnCachePendingBytes(uint64 TotalSize) IAS_STATISTICS_IMPL()
 	void OnCachePersistedBytes(uint64 TotalSize) IAS_STATISTICS_IMPL()
+	void OnCacheWriteBytes(uint64 WriteSize) IAS_STATISTICS_IMPL()
 	void OnCacheSetMaxBytes(uint64 TotalSize) IAS_STATISTICS_IMPL()
 
 	void OnHttpEnqueue() IAS_STATISTICS_IMPL()

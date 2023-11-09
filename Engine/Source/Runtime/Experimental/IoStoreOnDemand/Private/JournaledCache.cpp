@@ -731,6 +731,8 @@ void FDiskCache::ClosePhrase(FDiskPhrase&& Phrase)
 		return;
 	}
 
+	FOnDemandIoBackendStats::Get()->OnCacheWriteBytes(WriteSize);
+
 	{
 		FWriteScopeLock _(Lock);
 		Prune(DataCursor, WriteSize);
