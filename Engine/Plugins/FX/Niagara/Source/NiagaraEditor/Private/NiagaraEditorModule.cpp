@@ -1610,6 +1610,12 @@ void FNiagaraEditorModule::OnPostEngineInit()
 	}
 
 	// ensure that all cached asset types are fully loaded.
+	const UNiagaraEditorSettings* NiagaraEditorSettings = GetDefault<UNiagaraEditorSettings>();
+	bool bForceSilentLoadingOfCachedAssets = NiagaraEditorSettings->GetForceSilentLoadingOfCachedAssets();
+
+	ParameterCollectionAssetCache.SetForceLoadSilent(bForceSilentLoadingOfCachedAssets);
+	ParameterDefinitionsAssetCache.SetForceLoadSilent(bForceSilentLoadingOfCachedAssets);
+
 	ParameterCollectionAssetCache.RefreshCache(true /*bAllowLoading*/);
 	ParameterDefinitionsAssetCache.RefreshCache(true /*bAllowLoading*/);
 
@@ -1907,6 +1913,11 @@ void FNiagaraEditorModule::EnsureReservedDefinitionUnique(FGuid& UniqueId)
 const TArray<TWeakObjectPtr<UNiagaraParameterDefinitions>>& FNiagaraEditorModule::GetCachedParameterDefinitionsAssets()
 {
 	return ParameterDefinitionsAssetCache.Get();
+}
+
+const TArray<TWeakObjectPtr<UNiagaraParameterCollection>>& FNiagaraEditorModule::GetCachedParameterCollectionAssets()
+{
+	return ParameterCollectionAssetCache.Get();
 }
 
 void FNiagaraEditorModule::GetTargetSystemAndEmitterForDataInterface(UNiagaraDataInterface* InDataInterface, UNiagaraSystem*& OutOwningSystem, FVersionedNiagaraEmitter& OutOwningEmitter)

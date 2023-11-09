@@ -508,6 +508,8 @@ public:
 	
 	NIAGARAEDITOR_API float GetExposureValue() const;
 	NIAGARAEDITOR_API void SetAutoExposureValue(bool bInUseAutoExposure);
+
+	NIAGARAEDITOR_API bool GetForceSilentLoadingOfCachedAssets() const { return bForceSilentLoadingOfCachedAssets; }
 	
 private:
 	NIAGARAEDITOR_API bool IsAllowedObjectByClassUsageInternal(const UObject& InObject, TSet<const UObject*>& CheckedObjects) const;
@@ -591,6 +593,9 @@ private:
 	
 	UPROPERTY(config)
 	TArray<FNiagaraParameterPanelSectionStorage> SystemParameterPanelSectionData;
+
+	UPROPERTY(config)
+	bool bForceSilentLoadingOfCachedAssets;
 	
 
 	FOnIsClassAllowed OnIsClassAllowedDelegate;

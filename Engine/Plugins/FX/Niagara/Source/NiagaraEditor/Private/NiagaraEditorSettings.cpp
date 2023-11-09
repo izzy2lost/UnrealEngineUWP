@@ -66,6 +66,7 @@ UNiagaraEditorSettings::UNiagaraEditorSettings(const FObjectInitializer& ObjectI
 	bResetDependentSystemsWhenEditingEmitters = false;
 	SetupNamespaceMetadata();
 	TrackedUsageBaseClasses = { UNiagaraNode::StaticClass(), UNiagaraDataInterface::StaticClass(), UNiagaraRendererProperties::StaticClass() };
+	bForceSilentLoadingOfCachedAssets = false;
 }
 
 #define LOCTEXT_NAMESPACE "NamespaceMetadata"
