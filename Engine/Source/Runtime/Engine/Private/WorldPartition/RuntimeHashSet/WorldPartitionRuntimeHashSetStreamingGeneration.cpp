@@ -241,6 +241,7 @@ bool UWorldPartitionRuntimeHashSet::GenerateStreaming(UWorldPartitionStreamingPo
 	check(RuntimeStreamingData.IsEmpty());
 	for (auto& [Partition, StreamingData] : RuntimePartitionsStreamingData)
 	{
+		StreamingData.CreatePartitionsSpatialIndex();
 		RuntimeStreamingData.Emplace(MoveTemp(StreamingData));
 	}
 
