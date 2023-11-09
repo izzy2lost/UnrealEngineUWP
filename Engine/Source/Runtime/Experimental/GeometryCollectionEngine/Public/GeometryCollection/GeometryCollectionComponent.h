@@ -1732,7 +1732,12 @@ private:
 
 	GEOMETRYCOLLECTIONENGINE_API void RegisterCustomRenderer();
 	GEOMETRYCOLLECTIONENGINE_API void UnregisterCustomRenderer();
+
+public:
+	/** Updates the custom renderer to the reflect the current state of the Geometry Collection */
 	GEOMETRYCOLLECTIONENGINE_API void RefreshCustomRenderer();
+
+private:
 
 	GEOMETRYCOLLECTIONENGINE_API void IncrementSleepTimer(float DeltaTime);
 	GEOMETRYCOLLECTIONENGINE_API void IncrementBreakTimer(float DeltaTime);
