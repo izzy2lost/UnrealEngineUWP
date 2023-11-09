@@ -492,7 +492,7 @@ public:
 			Reset();
 		}
 
-		void UpdateClothSimulData(FRHICommandList& RHICmdList, const TArray<FVector3f>& InSimulPositions, const TArray<FVector3f>& InSimulNormals, uint32 RevisionNumber, 
+		void UpdateClothSimulData(FRHICommandList& RHICmdList, TConstArrayView<FVector3f> InSimulPositions, TConstArrayView<FVector3f> InSimulNormals, uint32 RevisionNumber, 
 									ERHIFeatureLevel::Type FeatureLevel, bool bForceUpdateImmediately, const FName& AssetPathName);
 
 		void ReleaseClothSimulData()
