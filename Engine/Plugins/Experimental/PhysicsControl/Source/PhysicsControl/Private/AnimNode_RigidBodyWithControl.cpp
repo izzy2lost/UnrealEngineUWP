@@ -1009,6 +1009,8 @@ void FAnimNode_RigidBodyWithControl::InitPhysics(const UAnimInstance* InAnimInst
 	if(bEnabled)
 	{
 		PhysicsSimulation = new ImmediatePhysics::FSimulation();
+		PhysicsSimulation->SetRewindVelocities(true);
+
 		const int32 NumBodies = PhysicsAssetToUse->SkeletalBodySetups.Num();
 		BodyNameToIndexMap.Reset();
 		Bodies.Empty(NumBodies);

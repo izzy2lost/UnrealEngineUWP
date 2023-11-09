@@ -68,6 +68,12 @@ namespace ImmediatePhysics_Chaos
 		/** Set up potential collisions between the actor and all other dynamic actors */
 		ENGINE_API void AddToCollidingPairs(FActorHandle* ActorHandle);
 
+		/** 
+		 * Sets whether velocities should be rewound when simulating - this may happen when the requested 
+		 * step size is smaller than the fixed simulation step.
+		 */
+		ENGINE_API void SetRewindVelocities(bool bRewindVelocities);
+
 		/** Advance the simulation by DeltaTime */
 		ENGINE_API void Simulate(FReal DeltaTime, FReal MaxStepTime, int32 MaxSubSteps, const FVector& InGravity);
 		void Simulate_AssumesLocked(FReal DeltaTime, FReal MaxStepTime, int32 MaxSubSteps, const FVector& InGravity) { Simulate(DeltaTime, MaxStepTime, MaxSubSteps, InGravity); }

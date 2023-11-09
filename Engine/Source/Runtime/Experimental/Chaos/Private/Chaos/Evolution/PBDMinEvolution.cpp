@@ -17,7 +17,7 @@
 #include "ChaosStats.h"
 #include "ChaosVisualDebugger/ChaosVisualDebuggerTrace.h"
 
-//PRAGMA_DISABLE_OPTIMIZATION
+//UE_DISABLE_OPTIMIZATION
 
 namespace Chaos
 {
@@ -62,6 +62,7 @@ namespace Chaos
 		, ConstraintSolver(Private::FIterationSettings(0,0,0))
 		, Gravity(FVec3(0))
 		, SimulationSpaceSettings()
+		, bRewindVelocities(false)
 	{
 	}
 
@@ -181,6 +182,12 @@ namespace Chaos
 			{
 				Particle.X() = FVec3::Lerp(Particle.Handle()->AuxilaryValue(ParticlePrevXs), Particle.X(), T);
 				Particle.R() = FRotation3::Slerp(Particle.Handle()->AuxilaryValue(ParticlePrevRs), Particle.R(), (decltype(FQuat::X))T);	// LWC_TODO: Remove decltype cast once FQuat supports variants
+
+				if (bRewindVelocities)
+				{
+					Particle.V() = FVec3::Lerp(Particle.PreV(), Particle.V(), T);
+					Particle.W() = FVec3::Lerp(Particle.PreW(), Particle.W(), T);
+				}
 			}
 		}
 

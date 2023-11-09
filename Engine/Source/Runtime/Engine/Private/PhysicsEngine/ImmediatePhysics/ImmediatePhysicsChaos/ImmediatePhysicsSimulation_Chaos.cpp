@@ -804,6 +804,11 @@ namespace ImmediatePhysics_Chaos
 		return Implementation->RollingAverageStepTime;
 	}
 
+	void FSimulation::SetRewindVelocities(bool bRewindVelocities)
+	{
+		Implementation->Evolution.SetRewindVelocities(bRewindVelocities);
+	}
+
 	void FSimulation::Simulate(FReal InDeltaTime, FReal MaxStepTime, int32 MaxSubSteps, const FVector& InGravity)
 	{
 		SCOPE_CYCLE_COUNTER(STAT_ImmediateSimulate_Chaos);
