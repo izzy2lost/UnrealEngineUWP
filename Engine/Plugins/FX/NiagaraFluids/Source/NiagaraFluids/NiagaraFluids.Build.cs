@@ -7,8 +7,18 @@ namespace UnrealBuildTool.Rules
 		public NiagaraFluids(ReadOnlyTargetRules Target) : base(Target)
 		{
 			PublicDependencyModuleNames.Add("Core");
-			PrivateDependencyModuleNames.Add("RenderCore");
-			PrivateDependencyModuleNames.Add("Projects");
+			PrivateDependencyModuleNames.AddRange(
+            			new string[] {
+				            "Core",
+				            "CoreUObject",
+				            "Engine",
+				            "RenderCore",
+            				"Niagara",
+            				"Water",
+            				"DeveloperSettings",
+				            "Projects"
+            			}
+            		);
 		}
 	}
 }
