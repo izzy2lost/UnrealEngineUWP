@@ -1164,9 +1164,16 @@ void UK2Node::ValidateLinkedPinTypes(UEdGraphPin* OutputPin, FCompilerResultsLog
 					Args
 				);
 
-				const UEdGraphPin* SourcePin = FBlueprintEditorUtils::FindFirstCompilerRelevantLinkedPin(OutputPin);
-				check(SourcePin);
-				Message_Note(ConversionInfo.ToString(), SourcePin->GetOwningNode(), InputPin->GetOwningNode());
+				if (const UEdGraphPin* SourcePin = FBlueprintEditorUtils::FindFirstCompilerRelevantLinkedPin(OutputPin))
+				{
+					Message_Note(ConversionInfo.ToString(), SourcePin->GetOwningNode(), InputPin->GetOwningNode());
+				}
+				else
+				{
+					const UK2Node* OutputPinOwner = Cast<UK2Node>(OutputPin->GetOwningNode());
+
+					UE_LOG(LogBlueprint, Verbose, TEXT("Missing compiler relevant pin '%s' on node '%s'"), *OutputPin->GetName(), (OutputPinOwner ? *OutputPinOwner->GetFullName() : TEXT("<none>")));
+				}
 			}
 		}
 	}
