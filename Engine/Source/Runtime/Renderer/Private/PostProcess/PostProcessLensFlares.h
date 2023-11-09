@@ -65,4 +65,5 @@ FScreenPassTexture AddLensFlaresPass(
 	FRDGBuilder& GraphBuilder,
 	const FViewInfo& View,
 	FScreenPassTexture Bloom,
-	const FSceneDownsampleChain& SceneDownsampleChain);
+	FScreenPassTexture QualitySceneDownsample,
+	FScreenPassTexture DefaultSceneDownsample);

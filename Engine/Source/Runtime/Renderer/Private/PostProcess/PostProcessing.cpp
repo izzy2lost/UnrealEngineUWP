@@ -1125,7 +1125,9 @@ void AddPostProcessingPasses(
 
 			if (bLensFlareEnabled)
 			{
-				Bloom = AddLensFlaresPass(GraphBuilder, View, Bloom, *LensFlareSceneDownsampleChain);
+				const ELensFlareQuality LensFlareQuality = GetLensFlareQuality();
+				const uint32 LensFlareDownsampleStageIndex = static_cast<uint32>(ELensFlareQuality::MAX) - static_cast<uint32>(LensFlareQuality) - 1;
+				Bloom = AddLensFlaresPass(GraphBuilder, View, Bloom, LensFlareSceneDownsampleChain->GetTexture(LensFlareDownsampleStageIndex), LensFlareSceneDownsampleChain->GetFirstTexture());
 			}
 		}
 
@@ -2415,6 +2417,13 @@ void AddMobilePostProcessingPasses(FRDGBuilder& GraphBuilder, FScene* Scene, con
 				FVector4f TintB = FVector4f(1.0f, 1.0f, 1.0f, 0.0f);
 
 				BloomUpOutputs = AddBloomUpPass(PostProcessDownsample_Bloom[0], BloomUpOutputs, BloomUpScale, TintA, TintB);
+			}
+
+			if (IsLensFlaresEnabled(View))
+			{
+				const ELensFlareQuality LensFlareQuality = GetLensFlareQuality();
+				const uint32 LensFlareDownsampleStageIndex = static_cast<uint32>(ELensFlareQuality::MAX) - static_cast<uint32>(LensFlareQuality) - 1;
+				BloomUpOutputs = AddLensFlaresPass(GraphBuilder, View, BloomUpOutputs, PostProcessDownsample_Bloom[LensFlareDownsampleStageIndex], PostProcessDownsample_Bloom[0]);
 			}
 		}
 

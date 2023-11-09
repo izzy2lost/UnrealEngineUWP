@@ -36,7 +36,7 @@ class FLensFlareShader : public FGlobalShader
 public:
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
-		return IsFeatureLevelSupported(Parameters.Platform, ERHIFeatureLevel::SM5);
+		return true;
 	}
 
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
@@ -100,7 +100,7 @@ public:
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
-		return IsFeatureLevelSupported(Parameters.Platform, ERHIFeatureLevel::SM5);
+		return true;
 	}
 };
 
@@ -363,10 +363,10 @@ FScreenPassTexture AddLensFlaresPass(
 	FRDGBuilder& GraphBuilder,
 	const FViewInfo& View,
 	FScreenPassTexture Bloom,
-	const FSceneDownsampleChain& SceneDownsampleChain)
+	FScreenPassTexture QualitySceneDownsample,
+	FScreenPassTexture DefaultSceneDownsample)
 {
 	ensure(IsLensFlaresEnabled(View));
-	const ELensFlareQuality LensFlareQuality = GetLensFlareQuality();
 
 	const FPostProcessSettings& Settings = View.FinalPostProcessSettings;
 
@@ -394,12 +394,9 @@ FScreenPassTexture AddLensFlaresPass(
 		}
 	}
 
-	// The quality level controls which downsample stage we use as the flare input texture.
-	const uint32 LensFlareDownsampleStageIndex = static_cast<uint32>(ELensFlareQuality::MAX) - static_cast<uint32>(LensFlareQuality) - 1;
-
 	FLensFlareInputs LensFlareInputs;
 	LensFlareInputs.Bloom = Bloom;
-	LensFlareInputs.Flare = SceneDownsampleChain.GetTexture(LensFlareDownsampleStageIndex);
+	LensFlareInputs.Flare = QualitySceneDownsample;
 	LensFlareInputs.BokehShapeTexture = BokehTextureRHI;
 	LensFlareInputs.TintColorsPerFlare = Settings.LensFlareTints;
 	LensFlareInputs.TintColor = Settings.LensFlareTint;
@@ -411,7 +408,7 @@ FScreenPassTexture AddLensFlaresPass(
 	// composition. The pass needs a primary input in order to access the image descriptor and viewport for output.
 	if (!Bloom.IsValid())
 	{
-		LensFlareInputs.Bloom = SceneDownsampleChain.GetFirstTexture();
+		LensFlareInputs.Bloom = DefaultSceneDownsample;
 		LensFlareInputs.bCompositeWithBloom = false;
 	}
 
