@@ -106,79 +106,48 @@ static void D3D11FilterShaderCompileWarnings(const FString& CompileWarnings, TAr
 }
 
 // @return 0 if not recognized
-static const TCHAR* GetShaderProfileName(ELanguage Language, EShaderFrequency Frequency, bool bForceSM6)
+static const TCHAR* GetShaderProfileName(const FShaderCompilerInput& Input, ED3DShaderModel ShaderModel)
 {
-	if (IsUsingSM66(Language, Frequency))
+	if (ShaderModel == ED3DShaderModel::SM6_6)
 	{
-		switch (Frequency)
+		switch (Input.Target.GetFrequency())
 		{
-		default:
-			checkfSlow(false, TEXT("Unexpected shader frequency"));
-			return nullptr;
-		case SF_Pixel:
-			return TEXT("ps_6_6");
-		case SF_Vertex:
-			return TEXT("vs_6_6");
-		case SF_Mesh:
-			return TEXT("ms_6_6");
-		case SF_Amplification:
-			return TEXT("as_6_6");
-		case SF_Geometry:
-			return TEXT("gs_6_6");
-		case SF_Compute:
-			return TEXT("cs_6_6");
+		case SF_Pixel:         return TEXT("ps_6_6");
+		case SF_Vertex:        return TEXT("vs_6_6");
+		case SF_Mesh:          return TEXT("ms_6_6");
+		case SF_Amplification: return TEXT("as_6_6");
+		case SF_Geometry:      return TEXT("gs_6_6");
+		case SF_Compute:       return TEXT("cs_6_6");
 		case SF_RayGen:
 		case SF_RayMiss:
 		case SF_RayHitGroup:
-		case SF_RayCallable:
-			return TEXT("lib_6_6");
+		case SF_RayCallable:   return TEXT("lib_6_6");
 		}
 	}
-	else if(Language == ELanguage::SM5)
+	else if (ShaderModel == ED3DShaderModel::SM6_0)
 	{
 		//set defines and profiles for the appropriate shader paths
-		switch(Frequency)
+		switch (Input.Target.GetFrequency())
 		{
-		default:
-			checkfSlow(false, TEXT("Unexpected shader frequency"));
-			return nullptr;
-		case SF_Pixel:
-			return bForceSM6 ? TEXT("ps_6_0") : TEXT("ps_5_0");
-		case SF_Vertex:
-			return bForceSM6 ? TEXT("vs_6_0") : TEXT("vs_5_0");
-		case SF_Geometry:
-			return bForceSM6 ? TEXT("gs_6_0") : TEXT("gs_5_0");
-		case SF_Compute:
-			return bForceSM6 ? TEXT("cs_6_0") : TEXT("cs_5_0");
-		case SF_RayGen:
-		case SF_RayMiss:
-		case SF_RayHitGroup:
-		case SF_RayCallable:
-			checkNoEntry();
-			return TEXT("lib_6_5");
+		case SF_Pixel:    return TEXT("ps_6_0");
+		case SF_Vertex:   return TEXT("vs_6_0");
+		case SF_Geometry: return TEXT("gs_6_0");
+		case SF_Compute:  return TEXT("cs_6_0");
 		}
 	}
-	else if (Language == ELanguage::ES3_1)
+	else
 	{
-		checkSlow(Frequency == SF_Vertex ||
-			Frequency == SF_Pixel ||
-			Frequency == SF_Geometry ||
-			Frequency == SF_Compute);
-
 		//set defines and profiles for the appropriate shader paths
-		switch(Frequency)
+		switch (Input.Target.GetFrequency())
 		{
-		case SF_Pixel:
-			return bForceSM6 ? TEXT("ps_6_0") : TEXT("ps_5_0");
-		case SF_Vertex:
-			return bForceSM6 ? TEXT("vs_6_0") : TEXT("vs_5_0");
-		case SF_Geometry:
-			return bForceSM6 ? TEXT("gs_6_0") : TEXT("gs_5_0");
-		case SF_Compute:
-			return bForceSM6 ? TEXT("cs_6_0") : TEXT("cs_5_0");
+		case SF_Pixel:    return TEXT("ps_5_0");
+		case SF_Vertex:   return TEXT("vs_5_0");
+		case SF_Geometry: return TEXT("gs_5_0");
+		case SF_Compute:  return TEXT("cs_5_0");
 		}
 	}
 
+	checkfSlow(false, TEXT("Unexpected shader frequency"));
 	return nullptr;
 }
 
@@ -1291,71 +1260,16 @@ bool CompileAndProcessD3DShaderFXC(
 	return bSuccess;
 }
 
-inline bool ShouldUseDXC(const FShaderCompilerInput& Input, ELanguage Language)
-{
-	return IsUsingSM66(Input, Language)
-		|| Input.Environment.CompilerFlags.Contains(CFLAG_WaveOperations)
-		|| Input.Environment.CompilerFlags.Contains(CFLAG_ForceDXC)
-		|| Input.Environment.CompilerFlags.Contains(CFLAG_InlineRayTracing)
-		|| Input.Environment.GetIntegerValue(TEXT("PLATFORM_MAX_SAMPLERS")) > 16;
-}
-
 bool PreprocessD3DShader(
 	const FShaderCompilerInput& Input,
 	const FShaderCompilerEnvironment& Environment,
-	FShaderPreprocessOutput& Output,
-	ELanguage Language)
+	FShaderPreprocessOutput& Output)
 {
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS		// FShaderCompilerDefinitions will be made internal in the future, marked deprecated until then
 	FShaderCompilerDefinitions AdditionalDefines;
-	if (IsUsingSM66(Input, Language))
-	{
-		AdditionalDefines.SetDefine(TEXT("SM6_PROFILE"), 1);
-	}
-	else if (Language == ELanguage::SM5)
-	{
-		AdditionalDefines.SetDefine(TEXT("SM5_PROFILE"), 1);
-	}
-	else if (Language == ELanguage::ES3_1)
-	{
-		AdditionalDefines.SetDefine(TEXT("ES3_1_PROFILE"), 1);
-	}
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	FString& PreprocessedSource = Output.EditSource();
-	const bool bUseDXC = ShouldUseDXC(Input, Language);
-
-
-	// Set additional defines.
-	AdditionalDefines.SetDefine(TEXT("COMPILER_HLSL"), 1);
-	AdditionalDefines.SetDefine(TEXT("PLATFORM_SUPPORTS_ROV"), 1); // Assume min. spec HW supports with DX12/SM5
-
-	if (bUseDXC)
-	{
-		AdditionalDefines.SetDefine(TEXT("PLATFORM_SUPPORTS_CALLABLE_SHADERS"), 1);
-		AdditionalDefines.SetDefine(TEXT("PLATFORM_SUPPORTS_SM6_0_WAVE_OPERATIONS"), 1);
-		if (IsUsingSM66(Input, Language))
-		{
-			AdditionalDefines.SetDefine(TEXT("PLATFORM_SUPPORTS_STATIC_SAMPLERS"), 1);
-		}
-		AdditionalDefines.SetDefine(TEXT("PLATFORM_SUPPORTS_DIAGNOSTIC_BUFFER"), 1);
-		AdditionalDefines.SetDefine(TEXT("COMPILER_SUPPORTS_NOINLINE"), 1);
-
-		if (Environment.CompilerFlags.Contains(CFLAG_InlineRayTracing))
-		{
-			AdditionalDefines.SetDefine(TEXT("PLATFORM_SUPPORTS_INLINE_RAY_TRACING"), 1);
-		}
-
-		if (Language == ELanguage::SM6 && Environment.CompilerFlags.Contains(CFLAG_AllowRealTypes))
-		{
-			AdditionalDefines.SetDefine(TEXT("PLATFORM_SUPPORTS_REAL_TYPES"), 1);
-		}
-	}
-	else
-	{
-		AdditionalDefines.SetDefine(TEXT("COMPILER_FXC"), 1);
-	}
-
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	
 	if (Input.bSkipPreprocessedCache)
 	{
@@ -1410,14 +1324,13 @@ struct FD3DShaderParameterParserPlatformConfiguration : public FShaderParameterP
 	}
 };
 
-void CompileD3DShader(const FShaderCompilerInput& Input, const FString& InPreprocessedSource, FShaderCompilerOutput& Output, const FString& WorkingDirectory, ELanguage Language)
+void CompileD3DShader(const FShaderCompilerInput& Input, const FString& InPreprocessedSource, FShaderCompilerOutput& Output, const FString& WorkingDirectory, ED3DShaderModel ShaderModel)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(CompileD3DShader);
 
-	const bool bUseDXC = ShouldUseDXC(Input, Language);
-	const TCHAR* ShaderProfile = GetShaderProfileName(Language, Input.Target.GetFrequency(), bUseDXC);
+	const TCHAR* ShaderProfile = GetShaderProfileName(Input, ShaderModel);
 
-	if(!ShaderProfile)
+	if (!ShaderProfile)
 	{
 		Output.Errors.Add(FShaderCompilerError(*FString::Printf(TEXT("Unrecognized shader frequency %s"), GetShaderFrequencyString((EShaderFrequency)Input.Target.Frequency))));
 		return;
@@ -1502,8 +1415,8 @@ void CompileD3DShader(const FShaderCompilerInput& Input, const FString& InPrepro
 		}
 	}
 
-	const bool bSuccess = bUseDXC
-		? CompileAndProcessD3DShaderDXC(Input, PreprocessedSource, EntryPointName, ShaderParameterParser, ShaderProfile, Language, false, Output)
+	const bool bSuccess = DoesShaderModelRequireDXC(ShaderModel)
+		? CompileAndProcessD3DShaderDXC(Input, PreprocessedSource, EntryPointName, ShaderParameterParser, ShaderProfile, ShaderModel, false, Output)
 		: CompileAndProcessD3DShaderFXC(Input, PreprocessedSource, EntryPointName, ShaderParameterParser, ShaderProfile, false, Output);
 
 	if (!bSuccess && !Output.Errors.Num())

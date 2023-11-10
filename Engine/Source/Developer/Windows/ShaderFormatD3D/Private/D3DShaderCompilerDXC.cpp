@@ -175,7 +175,7 @@ public:
 		const FShaderCompilerInput& Input,
 		const FString& InEntryPoint,
 		const TCHAR* InShaderProfile,
-		ELanguage Language,
+		ED3DShaderModel ShaderModel,
 		const FString& InExports
 	)
 		: ShaderProfile(InShaderProfile)
@@ -191,8 +191,8 @@ public:
 		}
 
 		const bool bEnable16BitTypes =
-			// 16bit types are SM6.2 whereas Language == ELanguage::SM6 is SM6.6, so their support at runtime is guarented.
-			(Language == ELanguage::SM6 && Input.Environment.CompilerFlags.Contains(CFLAG_AllowRealTypes))
+			// 16bit types are SM6.2, so their support at runtime is guaranteed in SM6.6.
+			(ShaderModel >= ED3DShaderModel::SM6_6 && Input.Environment.CompilerFlags.Contains(CFLAG_AllowRealTypes))
 
 			// Enable 16bit_types to reduce DXIL size (compiler bug - will be fixed)
 			|| Input.IsRayTracingShader();
@@ -852,7 +852,7 @@ bool CompileAndProcessD3DShaderDXC(
 	const FString& EntryPointName,
 	const FShaderParameterParser& ShaderParameterParser,
 	const TCHAR* ShaderProfile,
-	ELanguage Language,
+	ED3DShaderModel ShaderModel,
 	bool bProcessingSecondTime,
 	FShaderCompilerOutput& Output)
 {
@@ -893,7 +893,7 @@ bool CompileAndProcessD3DShaderDXC(
 		Input,
 		EntryPointName,
 		ShaderProfile,
-		Language,
+		ShaderModel,
 		RayTracingExports
 	);
 
@@ -1233,7 +1233,7 @@ bool CompileAndProcessD3DShaderDXC(
 				// We only need this to appear when using a DXC shader
 				ShaderCode.AddOptionalData<FShaderCodeFeatures>(CodeFeatures);
 
-				if (Language != ELanguage::SM6)
+				if (ShaderModel >= ED3DShaderModel::SM6_0)
 				{
 					uint8 IsSM6 = 1;
 					ShaderCode.AddOptionalData('6', &IsSM6, 1);

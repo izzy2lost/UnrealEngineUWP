@@ -12,36 +12,30 @@
 
 struct FShaderTarget;
 
-enum class ELanguage
+enum class ED3DShaderModel
 {
-	SM5,
-	SM6,
-	ES3_1,
 	Invalid,
+	SM5_0,
+	SM6_0,
+	SM6_6,
 };
 
-inline bool IsUsingSM66(ELanguage Language, EShaderFrequency Frequency)
+inline bool DoesShaderModelRequireDXC(ED3DShaderModel ShaderModel)
 {
-	return Language == ELanguage::SM6 || IsRayTracingShaderFrequency(Frequency);
-}
-
-inline bool IsUsingSM66(const FShaderCompilerInput& Input, ELanguage Language)
-{
-	return IsUsingSM66(Language, Input.Target.GetFrequency());
+	return ShaderModel >= ED3DShaderModel::SM6_0;
 }
 
 bool PreprocessD3DShader(
 	const FShaderCompilerInput& Input,
 	const FShaderCompilerEnvironment& MergedEnvironment,
-	FShaderPreprocessOutput& PreprocessOutput,
-	ELanguage Language);
+	FShaderPreprocessOutput& PreprocessOutput);
 
 void CompileD3DShader(
 	const FShaderCompilerInput& Input,
 	const FString& InPreprocessedSource,
 	FShaderCompilerOutput& Output,
 	const FString& WorkingDirectory,
-	ELanguage Language);
+	ED3DShaderModel ShaderModel);
 
 /**
  * @param bSecondPassAferUnusedInputRemoval whether we're compiling the shader second time, after having removed the unused inputs discovered in the first pass
@@ -61,7 +55,7 @@ bool CompileAndProcessD3DShaderDXC(
 	const FString& InEntryPointName,
 	const FShaderParameterParser& ShaderParameterParser,
 	const TCHAR* ShaderProfile,
-	ELanguage Language,
+	ED3DShaderModel ShaderModel,
 	bool bProcessingSecondTime,
 	FShaderCompilerOutput& Output);
 
