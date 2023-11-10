@@ -89,8 +89,18 @@ class FLocalLightBufferPS : public FGlobalShader
 	{
 		FForwardLightingParameters::ModifyCompilationEnvironment(Parameters.Platform, OutEnvironment);
 		OutEnvironment.SetDefine(TEXT("LIGHT_FUNCTION"), 0);
-		OutEnvironment.SetRenderTargetOutputFormat(0, PF_FloatR11G11B10);
-		OutEnvironment.SetRenderTargetOutputFormat(1, PF_B8G8R8A8);
+
+		if (MobileLocalLightsBufferPrepassEnabled(Parameters.Platform))
+		{
+			OutEnvironment.SetRenderTargetOutputFormat(0, PF_FloatR11G11B10);
+			OutEnvironment.SetRenderTargetOutputFormat(1, PF_A2B10G10R10);
+			OutEnvironment.SetDefine(TEXT("POST_PROCESS_LOCAL_LIGHTS"), 0);
+		}
+		else
+		{
+			OutEnvironment.SetRenderTargetOutputFormat(0, PF_FloatR11G11B10);
+			OutEnvironment.SetDefine(TEXT("POST_PROCESS_LOCAL_LIGHTS"), 1);
+		}
 	}
 };
 
@@ -135,9 +145,18 @@ public:
 		OutEnvironment.SetDefine(TEXT("LIGHT_FUNCTION"), 1);
 		OutEnvironment.SetDefine(TEXT("COMPUTE_SHADER"), 0);
 		OutEnvironment.SetDefine(TEXT("SUBSTRATE_INLINE_SHADING"), 1);
-		OutEnvironment.SetRenderTargetOutputFormat(0, PF_FloatR11G11B10);
-		OutEnvironment.SetRenderTargetOutputFormat(1, PF_B8G8R8A8);
-
+		
+		if (MobileLocalLightsBufferPrepassEnabled(Parameters.Platform))
+		{
+			OutEnvironment.SetRenderTargetOutputFormat(0, PF_FloatR11G11B10);
+			OutEnvironment.SetRenderTargetOutputFormat(1, PF_A2B10G10R10);
+			OutEnvironment.SetDefine(TEXT("POST_PROCESS_LOCAL_LIGHTS"), 0);
+		}
+		else
+		{
+			OutEnvironment.SetRenderTargetOutputFormat(0, PF_FloatR11G11B10);
+			OutEnvironment.SetDefine(TEXT("POST_PROCESS_LOCAL_LIGHTS"), 1);
+		}
 	}
 
 	void SetParameters(FRHIBatchedShaderParameters& BatchedParameters, const FViewInfo& View, const FMaterialRenderProxy* MaterialProxy, const FMaterial& Material)
@@ -199,9 +218,10 @@ using LightFunctionMaterialPassDepthStencilState = TStaticDepthStencilState<
 	true, CF_Equal, SO_Keep, SO_Keep, SO_Keep,
 	STENCIL_MOBILE_LIGHTFUNCTION_MASK, 0>;
 
-void FMobileSceneRenderer::RenderMobileLocalLightsBuffer(FRDGBuilder& GraphBuilder, FSceneTextures& SceneTextures, const FSortedLightSetSceneInfo& SortedLights)
+void FMobileSceneRenderer::RenderMobileLocalLightsBuffer(FRDGBuilder& GraphBuilder, FSceneTextures& SceneTextures, bool bIsPrepass, const FSortedLightSetSceneInfo& SortedLights)
 {
 	if (!CompileShaderPermutationsForMobileLocalLightsBuffer(ShaderPlatform) ||
+		(bIsPrepass != MobileLocalLightsBufferPrepassEnabled(ShaderPlatform)) || 
 		IsMobileDeferredShadingEnabled(ShaderPlatform))
 	{
 		return;
@@ -270,9 +290,15 @@ void FMobileSceneRenderer::RenderMobileLocalLightsBuffer(FRDGBuilder& GraphBuild
 
 		{
 			FLocalLightBufferPrepassParameters* PassParameters = GraphBuilder.AllocParameters<FLocalLightBufferPrepassParameters>();
-			PassParameters->RenderTargets[0] = FRenderTargetBinding(SceneTextures.MobileLocalLightTextureA, ERenderTargetLoadAction::EClear);
-			PassParameters->RenderTargets[1] = FRenderTargetBinding(SceneTextures.MobileLocalLightTextureB, ERenderTargetLoadAction::EClear);
-
+			if (bIsPrepass)
+			{
+				PassParameters->RenderTargets[0] = FRenderTargetBinding(SceneTextures.MobileLocalLightTextureA, ERenderTargetLoadAction::EClear);
+				PassParameters->RenderTargets[1] = FRenderTargetBinding(SceneTextures.MobileLocalLightTextureB, ERenderTargetLoadAction::EClear);
+			}
+			else
+			{
+				PassParameters->RenderTargets[0] = FRenderTargetBinding(SceneTextures.Color.Resolve, ERenderTargetLoadAction::ELoad);
+			}
 
 			bool bRestoreDepthBuffer = false;
 			if (bRenderLightFunctions)
@@ -306,20 +332,25 @@ void FMobileSceneRenderer::RenderMobileLocalLightsBuffer(FRDGBuilder& GraphBuild
 			auto PixelShader = View.ShaderMap->GetShader<FLocalLightBufferPS>(PermutationVectorPS);
 
 			GraphBuilder.AddPass(
-				RDG_EVENT_NAME("RenderMobileLocalLightsBuffer"),
+				RDG_EVENT_NAME("RenderMobileLocalLightsBuffer %s", bIsPrepass ? TEXT("Prepass") : TEXT("PostProcess")),
 				PassParameters,
 				ERDGPassFlags::Raster,
-				[PassParameters, VertexShader, PixelShader, &View, GroupSize, &SortedLights, bRenderLightFunctions, bRestoreDepthBuffer](FRHICommandList& RHICmdList)
+				[PassParameters, VertexShader, PixelShader, &View, GroupSize, bIsPrepass, &SortedLights, bRenderLightFunctions, bRestoreDepthBuffer](FRHICommandList& RHICmdList)
 				{
-
 					FGraphicsPipelineStateInitializer GraphicsPSOInit;
 					RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);
 
 					RHICmdList.SetViewport(View.ViewRect.Min.X, View.ViewRect.Min.Y, 0.0f, View.ViewRect.Max.X, View.ViewRect.Max.Y, 1.0f);
 					GraphicsPSOInit.RasterizerState = TStaticRasterizerState<FM_Solid, CM_None>::GetRHI();
-					GraphicsPSOInit.BlendState = TStaticBlendState<>::GetRHI();
-
-
+					if (bIsPrepass)
+					{
+						GraphicsPSOInit.BlendState = TStaticBlendState<>::GetRHI();
+					}
+					else
+					{
+						GraphicsPSOInit.BlendState = TStaticBlendState<CW_RGB, BO_Add, BF_DestColor, BF_Zero>::GetRHI();
+					}
+					
 					// The main non-lightfunction pass creates a stencil mask of the lit area
 					// Later lightfunction passes use it for stencil test to avoid redundant PS execution
 					uint32 StencilRef = 0;
@@ -447,13 +478,6 @@ void FMobileSceneRenderer::RenderMobileLocalLightsBuffer(FRDGBuilder& GraphBuild
 						}
 					}
 				});
-
-				// QueueTextureExtraction to be used for next frame
-				if (!MobileUsesFullDepthPrepass(ShaderPlatform) && View.ViewState && !View.bStatePrevViewInfoIsReadOnly)
-				{
-					GraphBuilder.QueueTextureExtraction(SceneTextures.MobileLocalLightTextureA, &View.ViewState->PrevFrameViewInfo.MobileLocalLightTextureA);;
-					GraphBuilder.QueueTextureExtraction(SceneTextures.MobileLocalLightTextureB, &View.ViewState->PrevFrameViewInfo.MobileLocalLightTextureB);;
-				}
 		}
 	}
 }

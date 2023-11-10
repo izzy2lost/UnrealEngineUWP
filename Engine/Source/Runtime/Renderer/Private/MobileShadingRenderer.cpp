@@ -586,7 +586,7 @@ void FMobileSceneRenderer::InitViews(
 	}
 
 	// When we capturing scene depth, use a more precise format for SceneDepthAux as it will be used as a source DepthTexture
-	if (bSceneDepthCapture)
+	if (bSceneDepthCapture || MobileLocalLightsBufferPostprocessEnabled(ShaderPlatform))
 	{
 		SceneTexturesConfig.bPreciseDepthAux = true;
 	}
@@ -1102,7 +1102,7 @@ void FMobileSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 
 		if (bRendererOutputFinalSceneColor)
 		{
-			RenderMobileLocalLightsBuffer(GraphBuilder, SceneTextures, SortedLightSet);
+			RenderMobileLocalLightsBuffer(GraphBuilder, SceneTextures, true, SortedLightSet);
 		}
 
 		if (bRendererOutputFinalSceneColor)
@@ -1160,10 +1160,9 @@ void FMobileSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 		}
 	
 		GraphBuilder.SetCommandListStat(GET_STATID(STAT_CLMM_Post));
-		if(!bIsFullDepthPrepassEnabled)
-		{
-			RenderMobileLocalLightsBuffer(GraphBuilder, SceneTextures, SortedLightSet);
-		}
+
+		RenderMobileLocalLightsBuffer(GraphBuilder, SceneTextures, false, SortedLightSet);
+
 		FRendererModule& RendererModule = static_cast<FRendererModule&>(GetRendererModule());
 		RendererModule.RenderPostOpaqueExtensions(GraphBuilder, Views, SceneTextures);
 
