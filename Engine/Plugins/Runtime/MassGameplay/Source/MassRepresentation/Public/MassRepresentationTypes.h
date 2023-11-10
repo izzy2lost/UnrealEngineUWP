@@ -298,11 +298,21 @@ struct FMassISMCSharedDataMap
 		static constexpr bool bValueToCheck = true;
 	};
 
-	FMassISMCSharedData& GetAndMarkDirty(const uint32 Hash)
+	FMassISMCSharedData& GetAndMarkDirtyChecked(const uint32 Hash)
 	{
 		const int32 DataIndex = Map[Hash];
 		DirtyData[DataIndex] = true;
 		return Data[DataIndex];
+	}
+
+	FMassISMCSharedData* GetAndMarkDirty(const uint32 Hash)
+	{
+		if (const int32* DataIndex = Map.Find(Hash))
+		{
+			DirtyData[*DataIndex] = true;
+			return &Data[*DataIndex];
+		}
+		return nullptr;
 	}
 	
 	FMassISMCSharedData& FindOrAdd(const uint32 Hash, const FMassISMCSharedData& NewData)
@@ -419,7 +429,7 @@ public:
 				continue;
 			}
 
-			FMassISMCSharedData& SharedData = (*ISMCSharedDataPtr).GetAndMarkDirty(StaticMeshRefs[i]);
+			FMassISMCSharedData& SharedData = (*ISMCSharedDataPtr).GetAndMarkDirtyChecked(StaticMeshRefs[i]);
 			const int32 StartIndex = SharedData.StaticMeshInstanceCustomFloats.AddDefaulted(StructSizeInFloats + NumFloatsToPad);
 			InCustomDataType* CustomData = reinterpret_cast<InCustomDataType*>(&SharedData.StaticMeshInstanceCustomFloats[StartIndex]);
 			*CustomData = InCustomData;

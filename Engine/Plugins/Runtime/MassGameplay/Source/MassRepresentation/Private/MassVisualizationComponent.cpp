@@ -633,7 +633,7 @@ void FMassLODSignificanceRange::AddBatchedTransform(const int32 InstanceId, cons
 			continue;
 		}
 
-		FMassISMCSharedData& SharedData = ISMCSharedDataPtr->GetAndMarkDirty(StaticMeshRefs[i]);
+		FMassISMCSharedData& SharedData = ISMCSharedDataPtr->GetAndMarkDirtyChecked(StaticMeshRefs[i]);
 
 		SharedData.UpdateInstanceIds.Add(InstanceId);
 		SharedData.StaticMeshInstanceTransforms.Add(Transform);
@@ -651,7 +651,7 @@ void FMassLODSignificanceRange::AddBatchedCustomDataFloats(const TArray<float>& 
 			continue;
 		}
 
-		FMassISMCSharedData& SharedData = ISMCSharedDataPtr->GetAndMarkDirty(StaticMeshRefs[i]);
+		FMassISMCSharedData& SharedData = ISMCSharedDataPtr->GetAndMarkDirtyChecked(StaticMeshRefs[i]);
 		SharedData.StaticMeshInstanceCustomFloats.Append(CustomFloats);
 	}
 }
@@ -661,7 +661,7 @@ void FMassLODSignificanceRange::AddInstance(const int32 InstanceId, const FTrans
 	check(ISMCSharedDataPtr);
 	for (int i = 0; i < StaticMeshRefs.Num(); i++)
 	{
-		FMassISMCSharedData& SharedData = ISMCSharedDataPtr->GetAndMarkDirty(StaticMeshRefs[i]);
+		FMassISMCSharedData& SharedData = ISMCSharedDataPtr->GetAndMarkDirtyChecked(StaticMeshRefs[i]);
 		SharedData.UpdateInstanceIds.Add(InstanceId);
 		SharedData.StaticMeshInstanceTransforms.Add(Transform);
 		SharedData.StaticMeshInstancePrevTransforms.Add(Transform);
@@ -673,8 +673,10 @@ void FMassLODSignificanceRange::RemoveInstance(const int32 InstanceId)
 	check(ISMCSharedDataPtr);
 	for (int i = 0; i < StaticMeshRefs.Num(); i++)
 	{
-		FMassISMCSharedData& SharedData = ISMCSharedDataPtr->GetAndMarkDirty(StaticMeshRefs[i]);
-		SharedData.RemoveInstanceIds.Add(InstanceId);
+		if (FMassISMCSharedData* SharedData = ISMCSharedDataPtr->GetAndMarkDirty(StaticMeshRefs[i]))
+		{
+			SharedData->RemoveInstanceIds.Add(InstanceId);
+		}
 	}
 }
 
@@ -688,7 +690,7 @@ void FMassLODSignificanceRange::WriteCustomDataFloatsAtStartIndex(int32 StaticMe
 			return;
 		}
 
-		FMassISMCSharedData& SharedData = ISMCSharedDataPtr->GetAndMarkDirty(StaticMeshRefs[StaticMeshIndex]);
+		FMassISMCSharedData& SharedData = ISMCSharedDataPtr->GetAndMarkDirtyChecked(StaticMeshRefs[StaticMeshIndex]);
 
 		int32 StartIndex = FloatsPerInstance * SharedData.WriteIterator + StartFloatIndex;
 
