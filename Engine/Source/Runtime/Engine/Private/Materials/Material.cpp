@@ -1710,7 +1710,7 @@ bool UMaterial::CheckMaterialUsage_Concurrent(EMaterialUsage Usage) const
 						Material->CheckMaterialUsage(Usage);
 					}
 				};
-				UE_LOG(LogMaterial, Log, TEXT("Had to pass SMU back to game thread. Please ensure correct material usage flags on %s"), *GetPathNameSafe(this));
+				UE_LOG(LogMaterial, Log, TEXT("Had to pass SMU back to game thread. Please fix material usage flag %s on %s"), *GetUsageName(Usage), *GetPathNameSafe(this));
 
 				TSharedRef<FCallSMU, ESPMode::ThreadSafe> CallSMU = MakeShareable(new FCallSMU(const_cast<UMaterial*>(this), Usage));
 
