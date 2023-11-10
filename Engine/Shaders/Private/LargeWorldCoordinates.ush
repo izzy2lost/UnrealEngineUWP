@@ -513,6 +513,11 @@ float4x4 LWCHackToFloat(FLWCInverseMatrix v) { return (float4x4)0.0f; }
 #define LWCHackToFloat(V) LWCToFloat(V)
 #endif
 
+// Temporary hack until mad support is added to Switch toolchain
+#if SWITCH_PROFILE || SWITCH_PROFILE_FORWARD
+#define mad(a, b, c) (((a)*(b))+(c))
+#endif
+
 #define DEFINE_DF_TO_TILEOFFSET_OPERATOR(FDFType, FLWCType, LWCConstructor, FFloatType) \
 	FLWCType DFToTileOffset(FDFType In)																							\
 	{																															\
@@ -540,6 +545,11 @@ DEFINE_DF_TO_TILEOFFSET_OPERATOR(FDFVector2, FLWCVector2, MakeLWCVector2, float2
 DEFINE_DF_TO_TILEOFFSET_OPERATOR(FDFVector3, FLWCVector3, MakeLWCVector3, float3)
 DEFINE_DF_TO_TILEOFFSET_OPERATOR(FDFVector4, FLWCVector4, MakeLWCVector4, float4)
 #undef DEFINE_DF_TO_TILEOFFSET_OPERATOR
+
+// Temporary hack until mad support is added to Switch toolchain
+#if SWITCH_PROFILE || SWITCH_PROFILE_FORWARD
+#undef mad
+#endif
 
 FLWCMatrix DFToTileOffset(FDFMatrix In)
 {

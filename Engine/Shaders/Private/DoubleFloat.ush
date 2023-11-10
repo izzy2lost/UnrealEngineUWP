@@ -24,7 +24,7 @@
 
 // Temporary hack until mad support is added to Switch toolchain
 #if SWITCH_PROFILE || SWITCH_PROFILE_FORWARD
-#define mad(a, b, c) ((a*b)+c)
+#define mad(a, b, c) (((a)*(b))+(c))
 #endif
 
 /* FDFScalar */
