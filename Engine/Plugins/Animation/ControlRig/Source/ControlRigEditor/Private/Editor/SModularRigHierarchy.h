@@ -7,7 +7,6 @@
 #include "Editor/SModularRigHierarchyTreeView.h"
 #include "ControlRigBlueprint.h"
 #include "Editor/RigVMEditor.h"
-//#include "SModularRigHierarchy.generated.h"
 
 class SModularRigHierarchy;
 class FControlRigEditor;
@@ -59,11 +58,17 @@ private:
 
 	void HandleNewItem(UClass* InClass, const FString& InParentPath);
 
+	bool CanRenameModule() const;
+	void HandleRenameModule();
+	FName HandleRenameModule(const FString& InOldPath, const FName& InNewName);
+	bool HandleVerifyNameChanged(const FString& InOldPath, const FName& InNewName, FText& OutErrorMessage);
+
 	/** Set Selection Changed */
 	void OnSelectionChanged(TSharedPtr<FModularRigTreeElement> Selection, ESelectInfo::Type SelectInfo);
 
 	TSharedPtr< SWidget > CreateContextMenuWidget();
 	void OnItemClicked(TSharedPtr<FModularRigTreeElement> InItem);
+	void OnItemDoubleClicked(TSharedPtr<FModularRigTreeElement> InItem);
 	
 	// FEditorUndoClient
 	virtual void PostUndo(bool bSuccess) override;
@@ -100,6 +105,7 @@ private:
 	const UModularRig* GetHierarchyForTreeView() const { return GetHierarchy(); }
 	FName CreateUniqueName(const FName& InBasePath) const;
 	void OnRequestDetailsInspection(const FString& InKey);
+	void ClearDetailPanel() const;
 
 	void HandleRefreshEditorFromBlueprint(URigVMBlueprint* InBlueprint);
 	void HandleSetObjectBeingDebugged(UObject* InObject);

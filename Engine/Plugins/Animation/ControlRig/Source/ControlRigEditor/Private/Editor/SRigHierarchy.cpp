@@ -118,6 +118,8 @@ void SRigHierarchy::Construct(const FArguments& InArgs, TSharedRef<FControlRigEd
 	ControlRigBlueprint->OnRefreshEditor().AddRaw(this, &SRigHierarchy::HandleRefreshEditorFromBlueprint);
 	ControlRigBlueprint->OnSetObjectBeingDebugged().AddRaw(this, &SRigHierarchy::HandleSetObjectBeingDebugged);
 
+	DisplaySettings.bUseShortName = !ControlRigBlueprint->IsModularRig();
+
 	// for deleting, renaming, dragging
 	CommandList = MakeShared<FUICommandList>();
 

@@ -767,6 +767,7 @@ private:
 	friend class UControlRig;
 	friend class URigHierarchy;
 	friend class FRigHierarchyControllerInstructionBracket;
+	friend class UControlRigBlueprint;
 };
 
 class CONTROLRIG_API FRigHierarchyControllerInstructionBracket : TGuardValue<int32>

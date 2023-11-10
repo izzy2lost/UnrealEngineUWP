@@ -96,7 +96,10 @@ void SModularRigHierarchy::Construct(const FArguments& InArgs, TSharedRef<FContr
 	Delegates.OnCanAcceptDrop = FOnModularRigTreeCanAcceptDrop::CreateSP(this, &SModularRigHierarchy::OnCanAcceptDrop);
 	Delegates.OnAcceptDrop = FOnModularRigTreeAcceptDrop::CreateSP(this, &SModularRigHierarchy::OnAcceptDrop);
 	Delegates.OnMouseButtonClick = FOnModularRigTreeMouseButtonClick::CreateSP(this, &SModularRigHierarchy::OnItemClicked);
+	Delegates.OnMouseButtonDoubleClick = FOnModularRigTreeMouseButtonClick::CreateSP(this, &SModularRigHierarchy::OnItemDoubleClicked);
 	Delegates.OnRequestDetailsInspection = FOnModularRigTreeRequestDetailsInspection::CreateSP(this, &SModularRigHierarchy::OnRequestDetailsInspection);
+	Delegates.OnRenameElement = FOnModularRigTreeRenameElement::CreateSP(this, &SModularRigHierarchy::HandleRenameModule);
+	Delegates.OnVerifyModuleNameChanged = FOnModularRigTreeVerifyElementNameChanged::CreateSP(this, &SModularRigHierarchy::HandleVerifyNameChanged);
 	
 	ChildSlot
 	[
@@ -161,6 +164,10 @@ void SModularRigHierarchy::BindCommands()
 
 	CommandList->MapAction(Commands.AddModuleItem,
 		FExecuteAction::CreateSP(this, &SModularRigHierarchy::HandleNewItem),
+		FCanExecuteAction());
+
+	CommandList->MapAction(Commands.RenameModuleItem,
+		FExecuteAction::CreateSP(this, &SModularRigHierarchy::HandleRenameModule),
 		FCanExecuteAction());
 }
 
@@ -237,18 +244,11 @@ void SModularRigHierarchy::OnItemClicked(TSharedPtr<FModularRigTreeElement> InIt
 	{
 		ControlRigEditor.Pin()->SetDetailViewForRigModules({InItem->Key});
 	}
+}
 
-	uint32 CurrentCycles = FPlatformTime::Cycles();
-	// double SecondsPassed = double(CurrentCycles - TreeView->LastClickCycles) * FPlatformTime::GetSecondsPerCycle();
-	// if (SecondsPassed > 0.5f)
-	// {
-	// 	RegisterActiveTimer(0.f, FWidgetActiveTimerDelegate::CreateLambda([this](double, float) {
-	// 		HandleRenameItem();
-	// 		return EActiveTimerReturnType::Stop;
-	// 	}));
-	// }
+void SModularRigHierarchy::OnItemDoubleClicked(TSharedPtr<FModularRigTreeElement> InItem)
+{
 
-	TreeView->LastClickCycles = CurrentCycles;
 }
 
 void SModularRigHierarchy::CreateContextMenu()
@@ -294,6 +294,7 @@ void SModularRigHierarchy::CreateContextMenu()
 							DefaultSection.AddMenuEntry(Commands.AddModuleItem);
 						})
 					);
+					ElementsSection.AddMenuEntry(Commands.RenameModuleItem);
 				}
 			})
 		);
@@ -439,17 +440,96 @@ void SModularRigHierarchy::HandleNewItem(UClass* InClass, const FString &InParen
 	{
 		return;
 	}
+
+	FSlateApplication::Get().DismissAllMenus();
 	
 	if (ControlRigBlueprint.IsValid())
 	{
 		FString ClassName = InClass->GetName();
 		ClassName.RemoveFromEnd(TEXT("_C"));
-		FString PathName = FString::Printf(TEXT("%s:%s"), *InParentPath, *ClassName);
+		FString PathName = InParentPath.IsEmpty() ? *ClassName : FString::Printf(TEXT("%s:%s"), *InParentPath, *ClassName);
 		const FName Name = CreateUniqueName(*PathName);
 		ControlRigBlueprint->GetModularRigController()->AddModule(Name, InClass, InParentPath);
+
+		FString NewPathName = InParentPath.IsEmpty() ? *Name.ToString() : FString::Printf(TEXT("%s:%s"), *InParentPath, *Name.ToString());
+		TSharedPtr<FModularRigTreeElement> Element = TreeView->FindElement(NewPathName);
+		if (Element.IsValid())
+		{
+			TreeView->SetSelection({Element});
+			TreeView->bRequestRenameSelected = true;
+		}
+	}
+}
+
+bool SModularRigHierarchy::CanRenameModule() const
+{
+	return IsSingleSelected();
+}
+
+void SModularRigHierarchy::HandleRenameModule()
+{
+	if(!ControlRigEditor.IsValid())
+	{
+		return;
+	}
+
+	if (!CanRenameModule())
+	{
+		return;
+	}
+
+	UModularRig* Rig = GetDefaultHierarchy();
+	if (Rig)
+	{
+		FScopedTransaction Transaction(LOCTEXT("ModularRigHierarchyRenameSelected", "Rename selected module"));
+
+		TArray<TSharedPtr<FModularRigTreeElement>> SelectedItems = TreeView->GetSelectedItems();
+		if (SelectedItems.Num() == 1)
+		{
+			SelectedItems[0]->RequestRename();
+		}
+	}
+
+	return;
+}
+
+FName SModularRigHierarchy::HandleRenameModule(const FString& InOldPath, const FName& InNewName)
+{
+	ClearDetailPanel();
+	
+	if (ControlRigBlueprint.IsValid())
+	{
+		FScopedTransaction Transaction(LOCTEXT("ModularRigHierarchyRename", "Rename Module"));
+
+		UModularRigController* Controller = ControlRigBlueprint->GetModularRigController();
+		check(Controller);
+
+		FName ResultingName = NAME_None;
+		if (Controller->RenameModule(InOldPath, InNewName))
+		{
+			return InNewName;
+		}
+	}
+
+	return NAME_None;
+}
+
+bool SModularRigHierarchy::HandleVerifyNameChanged(const FString& InOldPath, const FName& InNewName, FText& OutErrorMessage)
+{
+	if (InNewName.IsNone())
+	{
+		return false;
 	}
 	
-	FSlateApplication::Get().DismissAllMenus();
+	if (ControlRigBlueprint.IsValid())
+	{
+		UModularRigController* Controller = ControlRigBlueprint->GetModularRigController();
+		check(Controller);
+
+		return Controller->CanRenameModule(InOldPath, InNewName, OutErrorMessage);
+	}
+
+	return false;
 }
 
 class SModularRigHierarchyPasteTransformsErrorPipe : public FOutputDevice
@@ -515,6 +595,14 @@ void SModularRigHierarchy::OnRequestDetailsInspection(const FString& InKey)
 		return;
 	}
 	ControlRigEditor.Pin()->SetDetailViewForRigModules({InKey});
+}
+
+void SModularRigHierarchy::ClearDetailPanel() const
+{
+	if(ControlRigEditor.IsValid())
+	{
+		ControlRigEditor.Pin()->ClearDetailObject();
+	}
 }
 
 void SModularRigHierarchy::PostRedo(bool bSuccess) 

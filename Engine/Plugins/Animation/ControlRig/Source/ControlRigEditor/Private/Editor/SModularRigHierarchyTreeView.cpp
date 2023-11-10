@@ -61,6 +61,11 @@ TSharedRef<ITableRow> FModularRigTreeElement::MakeTreeRowWidget(const TSharedRef
 	return SNew(SModularRigHierarchyItem, InOwnerTable, InRigTreeElement, InTreeView, bPinned);
 }
 
+void FModularRigTreeElement::RequestRename()
+{
+	OnRenameRequested.ExecuteIfBound();
+}
+
 //////////////////////////////////////////////////////////////
 /// SModularRigHierarchyItem
 ///////////////////////////////////////////////////////////
@@ -130,6 +135,8 @@ void SModularRigHierarchyItem::Construct(const FArguments& InArgs, const TShared
 			[
 				SAssignNew(InlineWidget, SInlineEditableTextBlock)
 				.Text(this, &SModularRigHierarchyItem::GetName, true)
+				.OnVerifyTextChanged(this, &SModularRigHierarchyItem::OnVerifyNameChanged)
+				.OnTextCommitted(this, &SModularRigHierarchyItem::OnNameCommitted)
 				.ToolTipText(this, &SModularRigHierarchyItem::GetItemTooltip)
 				.MultiLine(false)
 				.ColorAndOpacity_Lambda([this]()
@@ -142,6 +149,28 @@ void SModularRigHierarchyItem::Construct(const FArguments& InArgs, const TShared
 				})
 			]
 		], OwnerTable);
+
+	InRigTreeElement->OnRenameRequested.BindSP(InlineWidget.Get(), &SInlineEditableTextBlock::EnterEditingMode);
+}
+
+void SModularRigHierarchyItem::OnNameCommitted(const FText& InText, ETextCommit::Type InCommitType) const
+{
+	// for now only allow enter
+	// because it is important to keep the unique names per pose
+	if (InCommitType == ETextCommit::OnEnter)
+	{
+		FString NewName = InText.ToString();
+		const FString OldKey = WeakRigTreeElement.Pin()->Key;
+
+		Delegates.HandleRenameElement(OldKey, *NewName);
+	}
+}
+
+bool SModularRigHierarchyItem::OnVerifyNameChanged(const FText& InText, FText& OutErrorMessage)
+{
+	const FName NewName = *InText.ToString();
+	const FString OldPath = WeakRigTreeElement.Pin()->Key;
+	return Delegates.HandleVerifyElementNameChanged(OldPath, NewName, OutErrorMessage);
 }
 
 FText SModularRigHierarchyItem::GetName(bool bUseShortName) const
@@ -183,6 +212,7 @@ void SModularRigHierarchyTreeView::Construct(const FArguments& InArgs)
 	SuperArgs.ItemHeight(24);
 	SuperArgs.AllowInvisibleItemSelection(true);  //without this we deselect everything when we filter or we collapse
 	SuperArgs.OnMouseButtonClick(Delegates.OnMouseButtonClick);
+	SuperArgs.OnMouseButtonDoubleClick(Delegates.OnMouseButtonDoubleClick);
 	
 	SuperArgs.ShouldStackHierarchyHeaders_Lambda([]() -> bool {
 		return UControlRigEditorSettings::Get()->bShowStackedHierarchy;
@@ -251,6 +281,32 @@ void SModularRigHierarchyTreeView::Tick(const FGeometry& AllottedGeometry, const
 			}
 		}
 	}
+
+	if (bRequestRenameSelected)
+	{
+		RegisterActiveTimer(0.f, FWidgetActiveTimerDelegate::CreateLambda([this](double, float) {
+			TArray<TSharedPtr<FModularRigTreeElement>> SelectedItems = GetSelectedItems();
+			if (SelectedItems.Num() == 1)
+			{
+				SelectedItems[0]->RequestRename();
+			}
+			return EActiveTimerReturnType::Stop;
+		}));
+		bRequestRenameSelected = false;
+	}
+}
+
+TSharedPtr<FModularRigTreeElement> SModularRigHierarchyTreeView::FindElement(const FString& InElementKey)
+{
+	for (TSharedPtr<FModularRigTreeElement> Root : RootElements)
+	{
+		if (TSharedPtr<FModularRigTreeElement> Found = FindElement(InElementKey, Root))
+		{
+			return Found;
+		}
+	}
+
+	return TSharedPtr<FModularRigTreeElement>();
 }
 
 TSharedPtr<FModularRigTreeElement> SModularRigHierarchyTreeView::FindElement(const FString& InElementKey, TSharedPtr<FModularRigTreeElement> CurrentItem)
@@ -504,6 +560,12 @@ TArray<FString> SModularRigHierarchyTreeView::GetSelectedKeys() const
 		Keys.Add(SelectedElement->Key);
 	}
 	return Keys;
+}
+
+void SModularRigHierarchyTreeView::SetSelection(const TArray<TSharedPtr<FModularRigTreeElement>>& InSelection) 
+{
+	ClearSelection();
+	SetItemSelection(InSelection, true, ESelectInfo::Direct);
 }
 
 const TSharedPtr<FModularRigTreeElement>* SModularRigHierarchyTreeView::FindItemAtPosition(FVector2D InScreenSpacePosition) const

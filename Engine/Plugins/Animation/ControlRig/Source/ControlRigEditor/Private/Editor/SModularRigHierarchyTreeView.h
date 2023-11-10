@@ -14,8 +14,12 @@ class FModularRigTreeElement;
 
 DECLARE_DELEGATE_RetVal(const UModularRig*, FOnGetModularRigTreeHierarchy);
 DECLARE_DELEGATE_OneParam(FOnModularRigTreeRequestDetailsInspection, const FString&);
+DECLARE_DELEGATE_RetVal_TwoParams(FName, FOnModularRigTreeRenameElement, const FString& /*OldPath*/, const FName& /*NewName*/);
+DECLARE_DELEGATE_RetVal_ThreeParams(bool, FOnModularRigTreeVerifyElementNameChanged, const FString& /*OldPath*/, const FName& /*NewName*/, FText& /*OutErrorMessage*/);
+
 
 typedef STreeView<TSharedPtr<FModularRigTreeElement>>::FOnMouseButtonClick FOnModularRigTreeMouseButtonClick;
+typedef STreeView<TSharedPtr<FModularRigTreeElement>>::FOnMouseButtonDoubleClick FOnModularRigTreeMouseButtonDoubleClick;
 typedef STableRow<TSharedPtr<FModularRigTreeElement>>::FOnCanAcceptDrop FOnModularRigTreeCanAcceptDrop;
 typedef STableRow<TSharedPtr<FModularRigTreeElement>>::FOnAcceptDrop FOnModularRigTreeAcceptDrop;
 
@@ -23,10 +27,13 @@ struct CONTROLRIGEDITOR_API FModularRigTreeDelegates
 {
 	FOnGetModularRigTreeHierarchy OnGetHierarchy;
 	FOnModularRigTreeMouseButtonClick OnMouseButtonClick;
+	FOnModularRigTreeMouseButtonDoubleClick OnMouseButtonDoubleClick;
 	FOnModularRigTreeCanAcceptDrop OnCanAcceptDrop;
 	FOnModularRigTreeAcceptDrop OnAcceptDrop;
 	FOnContextMenuOpening OnContextMenuOpening;
 	FOnModularRigTreeRequestDetailsInspection OnRequestDetailsInspection;
+	FOnModularRigTreeRenameElement OnRenameElement;
+	FOnModularRigTreeVerifyElementNameChanged OnVerifyModuleNameChanged;
 	
 	FModularRigTreeDelegates()
 	{
@@ -39,6 +46,24 @@ struct CONTROLRIGEDITOR_API FModularRigTreeDelegates
 			return OnGetHierarchy.Execute();
 		}
 		return nullptr;
+	}
+
+	FName HandleRenameElement(const FString& OldPath, const FName& NewName) const
+	{
+		if(OnRenameElement.IsBound())
+		{
+			return OnRenameElement.Execute(OldPath, NewName);
+		}
+		return *OldPath;
+	}
+
+	bool HandleVerifyElementNameChanged(const FString& OldPath, const FName& NewName, FText& OutErrorMessage) const
+	{
+		if(OnVerifyModuleNameChanged.IsBound())
+		{
+			return OnVerifyModuleNameChanged.Execute(OldPath, NewName, OutErrorMessage);
+		}
+		return false;
 	}
 };
 
@@ -57,7 +82,13 @@ public:
 
 	TSharedRef<ITableRow> MakeTreeRowWidget(const TSharedRef<STableViewBase>& InOwnerTable, TSharedRef<FModularRigTreeElement> InRigTreeElement, TSharedPtr<SModularRigHierarchyTreeView> InTreeView, bool bPinned);
 
+	void RequestRename();
+
 	void RefreshDisplaySettings(const UModularRig* InHierarchy);
+
+	/** Delegate for when the context menu requests a rename */
+	DECLARE_DELEGATE(FOnRenameRequested);
+	FOnRenameRequested OnRenameRequested;
 
 	/** The brush to use when rendering an icon */
 	const FSlateBrush* IconBrush;
@@ -74,7 +105,10 @@ class SModularRigHierarchyItem : public STableRow<TSharedPtr<FModularRigTreeElem
 public:
 	
 	void Construct(const FArguments& InArgs, const TSharedRef<STableViewBase>& OwnerTable, TSharedRef<FModularRigTreeElement> InRigTreeElement, TSharedPtr<SModularRigHierarchyTreeView> InTreeView, bool bPinned);
- 	static TPair<const FSlateBrush*, FSlateColor> GetBrushForElementType(const UModularRig* InHierarchy, const FString& InKey);
+
+	void OnNameCommitted(const FText& InText, ETextCommit::Type InCommitType) const;
+	bool OnVerifyNameChanged(const FText& InText, FText& OutErrorMessage);
+	static TPair<const FSlateBrush*, FSlateColor> GetBrushForElementType(const UModularRig* InHierarchy, const FString& InKey);
 	static FLinearColor GetColorForControlType(ERigControlType InControlType, UEnum* InControlEnum);
 
 private:
@@ -106,16 +140,7 @@ public:
 	/** Performs auto scroll */
 	virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
 
-	virtual FReply OnFocusReceived(const FGeometry& MyGeometry, const FFocusEvent& InFocusEvent) override
-	{
-		FReply Reply = STreeView<TSharedPtr<FModularRigTreeElement>>::OnFocusReceived(MyGeometry, InFocusEvent);
-
-		LastClickCycles = FPlatformTime::Cycles();
-
-		return Reply;
-	}
-
-	uint32 LastClickCycles = 0;
+	bool bRequestRenameSelected = false;
 
 	/** Save a snapshot of the internal map that tracks item expansion before tree reconstruction */
 	void SaveAndClearSparseItemInfos()
@@ -143,6 +168,7 @@ public:
 	}
 
 
+	TSharedPtr<FModularRigTreeElement> FindElement(const FString& InElementKey);
 	static TSharedPtr<FModularRigTreeElement> FindElement(const FString& InElementKey, TSharedPtr<FModularRigTreeElement> CurrentItem);
 	bool AddElement(FString InKey, FString InParentKey = FString());
 	bool AddElement(const FRigModuleInstance* InElement);
@@ -153,6 +179,7 @@ public:
 	void HandleGetChildrenForTree(TSharedPtr<FModularRigTreeElement> InItem, TArray<TSharedPtr<FModularRigTreeElement>>& OutChildren);
 
 	TArray<FString> GetSelectedKeys() const;
+	void SetSelection(const TArray<TSharedPtr<FModularRigTreeElement>>& InSelection);
 	const TArray<TSharedPtr<FModularRigTreeElement>>& GetRootElements() const { return RootElements; }
 	FModularRigTreeDelegates& GetRigTreeDelegates() { return Delegates; }
 

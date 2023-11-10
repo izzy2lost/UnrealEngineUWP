@@ -20,6 +20,7 @@ struct CONTROLRIGEDITOR_API FRigTreeDisplaySettings
 
 		bFlattenHierarchyOnFilter = false;
 		bHideParentsOnFilter = false;
+		bUseShortName = true;
 		bShowImportedBones = true;
 		bShowBones = true;
 		bShowControls = true;
@@ -37,6 +38,9 @@ struct CONTROLRIGEDITOR_API FRigTreeDisplaySettings
 
 	/** Hide parents when text filtering is active */
 	bool bHideParentsOnFilter;
+
+	/** When true, the elements will show their short name */
+	bool bUseShortName;
 
 	/** Whether or not to show imported bones in the hierarchy */
 	bool bShowImportedBones;

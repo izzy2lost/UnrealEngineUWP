@@ -2277,6 +2277,107 @@ void UControlRigBlueprint::HandleRigModulesModified(EModularRigNotification InNo
 {
 	switch (InNotification)
 	{
+		case EModularRigNotification::ModuleAdded:
+		{
+			if (InModule)
+			{
+				if (URigHierarchyController* Controller = GetHierarchyController())
+				{
+					if (UControlRig* CDO = GetControlRigClass()->GetDefaultObject<UControlRig>())
+					{
+						FRigVMExtendedExecuteContext& Context = CDO->GetRigVMExtendedExecuteContext();
+						FRigHierarchyExecuteContextBracket HierarchyContextGuard(Controller->GetHierarchy(), &Context);
+			
+						// setup the module information
+						FControlRigExecuteContext& PublicContext = Context.GetPublicDataSafe<FControlRigExecuteContext>();
+						FControlRigExecuteContextRigModuleGuard RigModuleGuard(PublicContext, InModule->GetNamespace());
+			
+						UControlRig* ClassDefaultObject = InModule->Class->GetDefaultObject<UControlRig>();
+						const TArray<FRigModuleConnector>& Connectors = ClassDefaultObject->GetRigModuleSettings().ExposedConnectors;
+						for (const FRigModuleConnector& Connector : Connectors)
+						{
+							Controller->AddConnector(*Connector.Name, Connector.Settings);
+						}
+			
+						// todo: copy the sockets
+						// TArray<FRigSocketElement*> Sockets = DefaultModule->GetHierarchy()->GetElementsOfType<FRigSocketElement>();
+						// for (FRigSocketElement* Socket : Sockets)
+						// {
+						// 	Controller->CopySocket(NewModule->GetPath(), Socket);
+						// }
+
+						PropagateHierarchyFromBPToInstances();
+					}
+				}
+			}
+			break;
+		}
+		case EModularRigNotification::ModuleRenamed:
+		{
+			if (InModule)
+			{
+				if (URigHierarchyController* Controller = GetHierarchyController())
+				{
+					if (UControlRig* CDO = GetControlRigClass()->GetDefaultObject<UControlRig>())
+					{
+						struct ConnectionInfo
+						{
+							FString NewPath;
+							FRigElementKey TargetConnection;
+							FRigConnectorSettings Settings;
+						};
+						FString OldPath = FString::Printf(TEXT("%s%s:"), *InModule->ParentNamespace, *InModule->PreviousName.ToString());
+						FString NewPath = FString::Printf(TEXT("%s%s:"), *InModule->ParentNamespace, *InModule->Name.ToString());
+						TArray<FRigElementKey> Connectors = Controller->GetHierarchy()->GetKeysOfType<FRigConnectorElement>();
+						TMap<FRigElementKey, ConnectionInfo> RenamedConnectors; // old key -> new key
+						for (const FRigElementKey& Connector : Connectors)
+						{
+							FString OldConnectorName = Connector.Name.ToString();
+							if (OldConnectorName.StartsWith(OldPath))
+							{
+								ConnectionInfo& Info = RenamedConnectors.FindOrAdd(Connector);
+								Info.NewPath = OldConnectorName.Replace(*OldPath, *NewPath);
+								Info.Settings = CastChecked<FRigConnectorElement>(Controller->GetHierarchy()->FindChecked(Connector))->Settings;
+								if (FRigElementKey* TargetKey = ConnectionMap.Find(Connector))
+								{
+									Info.TargetConnection = *TargetKey;
+								}
+							}
+						}
+
+						// Remove connectors
+						for (TPair<FRigElementKey, ConnectionInfo>& Pair : RenamedConnectors)
+						{
+							Controller->RemoveElement(Pair.Key);
+						}
+
+						// Add connectors
+						{
+							FRigVMExtendedExecuteContext& Context = CDO->GetRigVMExtendedExecuteContext();
+							FRigHierarchyExecuteContextBracket HierarchyContextGuard(Controller->GetHierarchy(), &Context);
+							FControlRigExecuteContext& PublicContext = Context.GetPublicDataSafe<FControlRigExecuteContext>();
+							for (TPair<FRigElementKey, ConnectionInfo>& Pair : RenamedConnectors)
+							{
+								FString Namespace, ConnectorName;
+								Pair.Value.NewPath.Split(UModularRig::NamespaceSeparator, &Namespace, &ConnectorName, ESearchCase::CaseSensitive, ESearchDir::FromEnd);
+								Namespace.AppendChar(TCHAR(':'));
+								FControlRigExecuteContextRigModuleGuard RigModuleGuard(PublicContext, Namespace);
+								Controller->AddConnector(*ConnectorName, Pair.Value.Settings);
+							}
+						}
+
+						// Resolve Connectors
+						for (TPair<FRigElementKey, ConnectionInfo>& Pair : RenamedConnectors)
+						{
+							ResolveConnector(FRigElementKey(*Pair.Value.NewPath, ERigElementType::Connector), Pair.Value.TargetConnection);
+						}
+
+						PropagateHierarchyFromBPToInstances();
+					}
+				}
+			}
+			break;
+		}
 		case EModularRigNotification::ConnectionChanged:
 		{
 			const FString Namespace = InModule->GetNamespace();

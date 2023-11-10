@@ -38,6 +38,9 @@ struct CONTROLRIGDEVELOPER_API FRigModuleReference
 	UPROPERTY()
 	TMap<FName, FString> ConfigValues;
 
+	UPROPERTY(transient)
+	FName PreviousName;
+
 	TArray<FRigModuleReference*> CachedChildren;
 
 	FString GetNamespace() const;

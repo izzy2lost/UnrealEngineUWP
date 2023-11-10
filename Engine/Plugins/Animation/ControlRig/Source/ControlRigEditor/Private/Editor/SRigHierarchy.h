@@ -124,7 +124,7 @@ private:
 	/** Check whether we can deleting the selected item(s) */
 	bool CanRenameItem() const;
 
-	/** Delete Item */
+	/** Rename Item */
 	void HandleRenameItem();
 
 	bool CanPasteItems() const;

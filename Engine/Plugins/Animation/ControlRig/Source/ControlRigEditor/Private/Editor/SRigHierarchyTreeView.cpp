@@ -110,6 +110,7 @@ void SRigHierarchyItem::Construct(const FArguments& InArgs, const TSharedRef<STa
 {
 	WeakRigTreeElement = InRigTreeElement;
 	Delegates = InTreeView->GetRigTreeDelegates();
+	FRigTreeDisplaySettings DisplaySettings = Delegates.GetDisplaySettings();
 
 	if (!InRigTreeElement->Key.IsValid())
 	{
@@ -172,7 +173,7 @@ void SRigHierarchyItem::Construct(const FArguments& InArgs, const TSharedRef<STa
 			.VAlign(VAlign_Center)
 			[
 				SAssignNew(InlineWidget, SInlineEditableTextBlock)
-				.Text(this, &SRigHierarchyItem::GetName, true)
+				.Text(this, &SRigHierarchyItem::GetName, DisplaySettings.bUseShortName)
 				.ToolTipText(this, &SRigHierarchyItem::GetItemTooltip)
 				.OnVerifyTextChanged(this, &SRigHierarchyItem::OnVerifyNameChanged)
 				.OnTextCommitted(this, &SRigHierarchyItem::OnNameCommitted)

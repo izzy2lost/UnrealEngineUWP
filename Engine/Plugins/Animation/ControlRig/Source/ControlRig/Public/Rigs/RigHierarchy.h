@@ -4766,7 +4766,7 @@ private:
 
 	friend class UControlRig;
 	friend class UModularRig;
-	friend class UModularRigController;
+	friend class UControlRigBlueprint;
 };
 
 struct CONTROLRIG_API FRigHierarchyValidityBracket

@@ -21,6 +21,9 @@ public:
 	/** Add Module at root */
 	TSharedPtr< FUICommandInfo > AddModuleItem;
 
+	/** Rename Module */
+	TSharedPtr< FUICommandInfo > RenameModuleItem;
+
 	/**
 	 * Initialize commands
 	 */
