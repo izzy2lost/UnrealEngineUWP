@@ -503,6 +503,23 @@ void FRDGUserValidation::ValidateUploadBuffer(FRDGBufferRef Buffer, const FRDGBu
 	check(InitialDataCallback && InitialDataSizeCallback && InitialDataFreeCallback);
 }
 
+void FRDGUserValidation::ValidateCommitBuffer(FRDGBufferRef Buffer, uint64 CommitSizeInBytes)
+{
+	if (!GRDGValidation)
+	{
+		return;
+	}
+
+	check(Buffer);
+	checkf(EnumHasAnyFlags(Buffer->Desc.Usage, BUF_ReservedResource), TEXT("Buffer %s is not marked as reserved and thus cannot be queued for reserved resource commit."), Buffer->Name);
+	checkf(Buffer->IsExternal(), TEXT("Only external buffers support commit operation. It is expected that reserved resource commit mechanism is only used when perserving buffer contents is required."));
+	checkf(!Buffer->IsTransient(), TEXT("Transient buffers may not be reserved and do not support commit operation. It is expected that reserved resource commit mechanism is only used when perserving buffer contents is required."));
+	checkf(CommitSizeInBytes > 0, TEXT("Attempted to set a reserved buffer commit size of 0 for buffer %s"), Buffer->Name);
+
+	// This may be relaxed in the future, by committing the maximum amount of memory requested during the graph setup
+	checkf(!Buffer->PendingCommitSize, TEXT("Buffer %s is already queued for a reserved commit size of %ull"), Buffer->Name, Buffer->PendingCommitSize); 
+}
+
 void FRDGUserValidation::ValidateExtractTexture(FRDGTextureRef Texture, TRefCountPtr<IPooledRenderTarget>* OutTexturePtr)
 {
 	if (!GRDGValidation)

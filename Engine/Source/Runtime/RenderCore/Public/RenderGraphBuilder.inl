@@ -374,6 +374,14 @@ inline void FRDGBuilder::QueueBufferUpload(FRDGBufferRef Buffer, FRDGBufferIniti
 	Buffer->bForceNonTransient = 1;
 }
 
+inline void FRDGBuilder::QueueCommitReservedBuffer(FRDGBufferRef Buffer, uint64 CommitSizeInBytes)
+{
+	IF_RDG_ENABLE_DEBUG(UserValidation.ValidateCommitBuffer(Buffer, CommitSizeInBytes));
+
+	Buffer->PendingCommitSize = FMath::Max<uint64>(CommitSizeInBytes, Buffer->PendingCommitSize);
+	Buffer->PooledBuffer->SetCommittedSize(Buffer->PendingCommitSize);
+}
+
 inline void FRDGBuilder::QueueTextureExtraction(FRDGTextureRef Texture, TRefCountPtr<IPooledRenderTarget>* OutTexturePtr, ERHIAccess AccessFinal, ERDGResourceExtractionFlags Flags)
 {
 	QueueTextureExtraction(Texture, OutTexturePtr, Flags);

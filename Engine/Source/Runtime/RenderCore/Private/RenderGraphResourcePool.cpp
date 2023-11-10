@@ -144,6 +144,12 @@ TRefCountPtr<FRDGPooledBuffer> FRDGBufferPool::FindFreeBuffer(FRHICommandListBas
 
 		PooledBuffer->LastUsedFrame = FrameCounter;
 
+		if (EnumHasAllFlags(Desc.Usage, EBufferUsageFlags::ReservedResource))
+		{
+			checkf(!EnumHasAllFlags(Desc.Usage, EBufferUsageFlags::ImmediateCommit), TEXT("ImmediateCommit is not supported in FRDGBufferPool"));
+			PooledBuffer->CommittedSizeInBytes = 0;
+		}
+
 		return PooledBuffer;
 	}
 }

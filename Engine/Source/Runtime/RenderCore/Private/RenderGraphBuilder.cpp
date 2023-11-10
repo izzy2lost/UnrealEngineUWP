@@ -3298,6 +3298,12 @@ void FRDGBuilder::AddTransition(FRDGPassHandle PassHandle, FRDGBufferRef Buffer,
 		Info.AccessBefore = StateBefore.Access;
 		Info.AccessAfter = StateAfter.Access;
 
+		if (Buffer->PendingCommitSize > 0)
+		{
+			Info.CommitInfo.Emplace(Buffer->PendingCommitSize);
+			Buffer->PendingCommitSize = 0;
+		}
+
 		AddTransition(Buffer, StateBefore, StateAfter, Info);
 	}
 

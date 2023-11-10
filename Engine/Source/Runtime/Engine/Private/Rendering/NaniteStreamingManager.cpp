@@ -143,6 +143,14 @@ static FAutoConsoleVariableRef CVarNaniteStreamingDynamicPageUploadBuffer(
 	ECVF_RenderThreadSafe
 );
 
+static int32 GNaniteStreamingReservedResources = 0;
+static FAutoConsoleVariableRef CVarNaniteStreamingReservedResources(
+	TEXT("r.Nanite.Streaming.ReservedResources"),
+	GNaniteStreamingReservedResources,
+	TEXT("Allow allocating Nanite GPU resources as reserved resources for better memory utilization and more efficient resizing (EXPERIMENTAL)"),
+	ECVF_ReadOnly
+);
+
 static_assert(NANITE_MAX_GPU_PAGES_BITS + MAX_RUNTIME_RESOURCE_VERSIONS_BITS + NANITE_STREAMING_REQUEST_MAGIC_BITS <= 32,		"Streaming request member RuntimeResourceID_Magic doesn't fit in 32 bits");
 static_assert(NANITE_MAX_RESOURCE_PAGES_BITS + NANITE_MAX_GROUP_PARTS_BITS + NANITE_STREAMING_REQUEST_MAGIC_BITS <= 32,			"Streaming request member PageIndex_NumPages_Magic doesn't fit in 32 bits");
 
@@ -839,8 +847,20 @@ void FStreamingManager::InitRHI(FRHICommandListBase&)
 
 	PageUploader		= new FStreamingPageUploader();
 
+	FRDGBufferDesc ClusterDataBufferDesc = {};
+	if (GRHIGlobals.ReservedResources.Supported && GNaniteStreamingReservedResources)
+	{
+		uint64 MaxSizeInBytes = uint64(GetMaxPagePoolSizeInMB()) << 20;
+		ClusterDataBufferDesc = FRDGBufferDesc::CreateByteAddressDesc(MaxSizeInBytes);
+		ClusterDataBufferDesc.Usage |= EBufferUsageFlags::ReservedResource;
+	}
+	else
+	{
+		ClusterDataBufferDesc = FRDGBufferDesc::CreateByteAddressDesc(4);
+	}
+
 	ImposterData.DataBuffer = AllocatePooledBuffer(FRDGBufferDesc::CreateByteAddressDesc(4), TEXT("Nanite.StreamingManager.ImposterDataInitial"));
-	ClusterPageData.DataBuffer = AllocatePooledBuffer(FRDGBufferDesc::CreateByteAddressDesc(4), TEXT("Nanite.StreamingManager.ClusterPageDataInitial"));
+	ClusterPageData.DataBuffer = AllocatePooledBuffer(ClusterDataBufferDesc, TEXT("Nanite.StreamingManager.ClusterPageDataInitial"));
 	Hierarchy.DataBuffer = AllocatePooledBuffer(FRDGBufferDesc::CreateByteAddressDesc(4), TEXT("Nanite.StreamingManager.HierarchyDataInitial"));
 
 #if WITH_EDITOR

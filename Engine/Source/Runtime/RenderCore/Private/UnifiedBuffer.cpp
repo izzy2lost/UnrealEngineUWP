@@ -548,27 +548,37 @@ FRDGBuffer* ResizeBufferIfNeeded(FRDGBuilder& GraphBuilder, TRefCountPtr<FRDGPoo
 		return InternalBufferNew;
 	}
 
+	const uint32 BufferSizeNew = BufferDesc.GetSize();
+	const uint32 BufferSizeOld = ExternalBuffer->GetCommittedSize();
+
 	FRDGBuffer* InternalBufferOld = GraphBuilder.RegisterExternalBuffer(ExternalBuffer);
 
-	const uint32 BufferSize = BufferDesc.GetSize();
-	const uint32 BufferSizeOld = InternalBufferOld->GetSize();
+	if (BufferSizeNew == BufferSizeOld)
+	{
+		return InternalBufferOld;
+	}
 
-	if (BufferSize != BufferSizeOld)
+	if (EnumHasAllFlags(ExternalBuffer->Desc.Usage, EBufferUsageFlags::ReservedResource)
+		&& ensureMsgf(ExternalBuffer->GetSize() >= BufferSizeNew, TEXT("Reserved buffers can't grow beyond the size specified at creation")))
+	{
+		GraphBuilder.QueueCommitReservedBuffer(InternalBufferOld, BufferSizeNew);
+
+		return InternalBufferOld;
+	}
+	else
 	{
 		InternalBufferNew = GraphBuilder.CreateBuffer(BufferDesc, Name);
 		ExternalBuffer = GraphBuilder.ConvertToExternalBuffer(InternalBufferNew);
 
 		// Copy data to new buffer
 		FMemcpyResourceParams Params;
-		Params.Count = FMath::Min(BufferSize, BufferSizeOld) / BufferDesc.BytesPerElement;
+		Params.Count = FMath::Min(BufferSizeNew, BufferSizeOld) / BufferDesc.BytesPerElement;
 		Params.SrcOffset = 0;
 		Params.DstOffset = 0;
 		MemcpyResource(GraphBuilder, InternalBufferNew, InternalBufferOld, Params);
 
 		return InternalBufferNew;
 	}
-
-	return InternalBufferOld;
 }
 
 FRDGBuffer* ResizeBufferIfNeeded(FRDGBuilder& GraphBuilder, TRefCountPtr<FRDGPooledBuffer>& ExternalBuffer, EPixelFormat Format, uint32 NumElements, const TCHAR* Name)

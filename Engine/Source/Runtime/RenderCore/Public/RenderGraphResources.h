@@ -293,6 +293,12 @@ public:
 		return bExternal;
 	}
 
+	/** Whether this resource is allocated through the transient resource allocator. */
+	bool IsTransient() const
+	{
+		return bTransient;
+	}
+
 	/** Whether this resource is has been queued for extraction at the end of graph execution. */
 	bool IsExtracted() const
 	{
@@ -1192,6 +1198,11 @@ public:
 		return Desc.BytesPerElement * NumAllocatedElements;
 	}
 
+	FORCEINLINE uint64 GetCommittedSize() const
+	{
+		return FMath::Min<uint64>(CommittedSizeInBytes, GetSize());
+	}
+
 	const TCHAR* GetName() const
 	{
 		return Name;
@@ -1209,7 +1220,26 @@ private:
 		return AlignedDesc;
 	}
 
+	// Used internally by FRDGBuilder::QueueCommitReservedBuffer(),
+	// which is expected to be the only way to resize physical memory for FRDGPooledBuffer
+	void SetCommittedSize(uint64 InCommittedSizeInBytes)
+	{
+		if (InCommittedSizeInBytes == UINT64_MAX)
+		{
+			InCommittedSizeInBytes = GetSize();
+		}
+
+		checkf(EnumHasAllFlags(Desc.Usage, EBufferUsageFlags::ReservedResource), TEXT("CommitReservedResource() may only be used on reserved buffers"));
+		checkf(InCommittedSizeInBytes <= GetSize(), TEXT("Attempting to commit more memory than was reserved for this buffer during creation"));
+
+		CommittedSizeInBytes = InCommittedSizeInBytes;
+	}
+
 	const TCHAR* Name = nullptr;
+
+	// Size of the GPU physical memory committed to a reserved buffer.
+	// May be UINT64_MAX for regular (non-reserved) buffers or when the entire resource is committed.
+	uint64 CommittedSizeInBytes = UINT64_MAX;
 
 	const uint32 NumAllocatedElements;
 	uint32 LastUsedFrame = 0;
@@ -1288,6 +1318,11 @@ private:
 		return static_cast<FRHIBuffer*>(FRDGResource::GetRHIUnchecked());
 	}
 
+	bool IsCulled() const
+	{
+		return FRDGViewableResource::IsCulled() && (PendingCommitSize == 0);
+	}
+
 	/** Returns the current buffer state. Only valid to call after SetRHI. */
 	FRDGSubresourceState& GetState() const
 	{
@@ -1328,6 +1363,9 @@ private:
 	/** Optional callback to supply NumElements after the creation of this FRDGBuffer. */
 	FRDGBufferNumElementsCallback NumElementsCallback;
 
+	/** Optional reserved resource commit size to apply on the first resource transition. */
+	uint64 PendingCommitSize = 0;
+
 #if RDG_ENABLE_DEBUG
 	struct FRDGBufferDebugData* BufferDebugData = nullptr;
 	RENDERCORE_API FRDGBufferDebugData& GetBufferDebugData() const;
@@ -1339,6 +1377,12 @@ private:
 	friend FRDGBufferRegistry;
 	friend FRDGAllocator;
 	friend FRDGTrace;
+
+#if RDG_ENABLE_DEBUG
+	// Access to IsCulled() is needed
+	template <typename ResourceRegistryType, typename FunctionType>
+	friend void EnumerateExtendedLifetimeResources(ResourceRegistryType& Registry, FunctionType Function);
+#endif //RDG_ENABLE_DEBUG
 };
 
 /** Render graph tracked buffer SRV. */
