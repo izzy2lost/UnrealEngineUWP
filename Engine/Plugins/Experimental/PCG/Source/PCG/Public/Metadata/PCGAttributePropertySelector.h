@@ -54,6 +54,7 @@ public:
 	// Getters
 	EPCGAttributePropertySelection GetSelection() const { return Selection; }
 	const TArray<FString>& GetExtraNames() const { return ExtraNames; }
+	TArray<FString>& GetExtraNamesMutable() { return ExtraNames; }
 	FName GetAttributeName() const { return AttributeName; }
 	EPCGPointProperties GetPointProperty() const { return PointProperty; }
 	EPCGExtraProperties GetExtraProperty() const { return ExtraProperty; }

@@ -6,6 +6,8 @@
 #include "Metadata/PCGMetadataAttributeTraits.h"
 #include "Metadata/Accessors/IPCGAttributeAccessor.h"
 #include "Metadata/Accessors/PCGAttributeAccessorKeys.h"
+
+#include "Containers/Array.h"
 #include "Templates/UniquePtr.h"
 #include "UObject/NameTypes.h"
 
@@ -73,23 +75,39 @@ namespace PCGAttributeAccessorHelpers
 	PCG_API TUniquePtr<const IPCGAttributeAccessorKeys> CreateConstKeys(const UPCGData* InData, const FPCGAttributePropertySelector& InSelector);
 	PCG_API TUniquePtr<IPCGAttributeAccessorKeys> CreateKeys(UPCGData* InData, const FPCGAttributePropertySelector& InSelector);
 
-	/**
-	* Sorts array given the accessors and keys of the array
-	*/
-	template <typename T>
-	void SortByAttribute(const IPCGAttributeAccessor& InAccessor, const IPCGAttributeAccessorKeys& InKeys, TArray<T>& InArray, bool bAscending)
+	namespace Private
 	{
-		SortByAttribute(InAccessor, InKeys, InArray, bAscending, [](int Index) { return Index; });
+		// Use a lambda to have this code more likely to be inlined in SortByAttribute.
+		static inline auto DefaultIndexGetter = [](int32 Index) -> int32 { return Index; };
+
+		// Use bAscending bool to know if you need to negate the condition for equal, since CompareDescending is !CompareAscending
+		template<typename T>
+		bool DefaultStableCompareLess(const T& A, const T& B, int32 IndexA, int32 IndexB, bool bAscending)
+		{
+			if (PCG::Private::MetadataTraits<T>::Equal(A, B))
+			{
+				return (bAscending == (IndexA < IndexB));
+			}
+
+			return PCG::Private::MetadataTraits<T>::Less(A, B);
+		}
+
+		// We need the lambda, because we can't use a templated function as a default parameter without specifying the template, but we can with a generic lambda.
+		static inline auto DefaultStableCompareLessLambda = [](const auto& A, const auto& B, int32 IndexA, int32 IndexB, bool bAscending) -> bool { return DefaultStableCompareLess(A, B, IndexA, IndexB, bAscending); };
 	}
 
 	/**
-	* Sorts array given the accessors and keys of the array.
-	* A custom function is used to extract the index of the elements of the array,
-	* and sort by the values associated with that index.
+	* Sorts array given the accessors and keys of the array. Sort is stable by default.
+	* A custom function can be used to extract the index of the elements of the array,
+	* and sort ascending or descending by the values associated with that index.
+	* CompareLess method can also be provided, method signature needs to follow DefaultStableCompareLess.
+	* We need the decltypes on both function types to allow to provide default values for both callbacks.
+	* Check DefaultIndexGetter and DefaultStableCompareLess for their signatures.
 	*/
-	template <typename T, typename Func>
-	void SortByAttribute(const IPCGAttributeAccessor& InAccessor, const IPCGAttributeAccessorKeys& InKeys, TArray<T>& InArray, bool bAscending, Func&& CustomGetIndex)
+	template <typename T, typename GetIndexFunc = decltype(Private::DefaultIndexGetter), typename CompareLessFunc = decltype(Private::DefaultStableCompareLessLambda)>
+	void SortByAttribute(const IPCGAttributeAccessor& InAccessor, const IPCGAttributeAccessorKeys& InKeys, TArray<T>& InArray, bool bAscending, GetIndexFunc CustomGetIndex = Private::DefaultIndexGetter, CompareLessFunc CompareLess = Private::DefaultStableCompareLessLambda)
 	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(PCGAttributeAccessorHelpers::SortByAttribute);
 		check(InArray.Num() <= InKeys.GetNum())
 
 		if (InArray.IsEmpty())
@@ -97,7 +115,18 @@ namespace PCGAttributeAccessorHelpers
 			return;
 		}
 
-		auto Callback = [&InAccessor, &InKeys, &InArray, bAscending, &CustomGetIndex](auto Dummy)
+		// Prepare integer sequence
+		TArray<int32> ElementsIndexes;
+		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(PCGAttributeAccessorHelpers::SortByAttribute::PrepareIndexes);
+			ElementsIndexes.Reserve(InArray.Num());
+			for (int i = 0; i < InArray.Num(); ++i)
+			{
+				ElementsIndexes.Add(i);
+			}
+		}
+
+		auto SortIndexes = [&InAccessor, &InKeys, &InArray, bAscending, &CustomGetIndex, &CompareLess, &ElementsIndexes](auto Dummy)
 		{
 			using ValueType = decltype(Dummy);
 
@@ -105,78 +134,63 @@ namespace PCGAttributeAccessorHelpers
 			{
 				TArray<ValueType> CachedValues;
 
-				if constexpr (std::is_trivially_copyable_v<ValueType>)
 				{
-					CachedValues.SetNumUninitialized(InKeys.GetNum());
-				}
-				else
-				{
-					CachedValues.SetNum(InKeys.GetNum());
+					TRACE_CPUPROFILER_EVENT_SCOPE(PCGAttributeAccessorHelpers::SortByAttribute::AllocateCachedValues);
+					if constexpr (std::is_trivially_copyable_v<ValueType>)
+					{
+						CachedValues.SetNumUninitialized(InKeys.GetNum());
+					}
+					else
+					{
+						CachedValues.SetNum(InKeys.GetNum());
+					}
 				}
 
-				InAccessor.GetRange(TArrayView<ValueType>(CachedValues), 0, InKeys);
+				{
+					TRACE_CPUPROFILER_EVENT_SCOPE(PCGAttributeAccessorHelpers::SortByAttribute::GatherCachedValues);
+					InAccessor.GetRange(TArrayView<ValueType>(CachedValues), 0, InKeys);
+				}
 
-				auto CompareAscending = [&CachedValues, &CustomGetIndex](int LHS, int RHS)
+
+				// Pass bAscending bool to the compare function to be able to negate the condition on equal, for it to be also stable in descending mode.
+				auto CompareAscending = [&CachedValues, &CustomGetIndex, &CompareLess, bAscending](int LHS, int RHS)
 				{
 					const int32 LHSIndex = CustomGetIndex(LHS);
 					const int32 RHSIndex = CustomGetIndex(RHS);
-
-					const ValueType& LHSValue = CachedValues[LHSIndex];
-					const ValueType& RHSValue = CachedValues[RHSIndex];
-
-					if (PCG::Private::MetadataTraits<ValueType>::Equal(LHSValue, RHSValue))
-					{
-						return LHSIndex < RHSIndex;
-					}
-
-					return PCG::Private::MetadataTraits<ValueType>::Less(LHSValue, RHSValue);
+					return CompareLess(CachedValues[LHSIndex], CachedValues[RHSIndex], LHSIndex, RHSIndex, bAscending);
 				};
 
-				auto CompareDescending = [&CachedValues, &CustomGetIndex](int LHS, int RHS)
+				auto CompareDescending = [&CompareAscending](int LHS, int RHS) { return !CompareAscending(LHS, RHS); };
+
 				{
-					const int32 LHSIndex = CustomGetIndex(LHS);
-					const int32 RHSIndex = CustomGetIndex(RHS);
-
-					const ValueType& LHSValue = CachedValues[LHSIndex];
-					const ValueType& RHSValue = CachedValues[RHSIndex];
-
-					if (PCG::Private::MetadataTraits<ValueType>::Equal(LHSValue, RHSValue))
+					TRACE_CPUPROFILER_EVENT_SCOPE(PCGAttributeAccessorHelpers::SortByAttribute::SortIndexes);
+					if (bAscending)
 					{
-						return LHSIndex > RHSIndex;
+						ElementsIndexes.Sort(CompareAscending);
 					}
-
-					return PCG::Private::MetadataTraits<ValueType>::Greater(LHSValue, RHSValue);
-				};
-
-				// Fill integer sequence
-				TArray<int32> ElementsIndexes;
-				ElementsIndexes.Reserve(InArray.Num());
-				for (int i = 0; i < InArray.Num(); ++i)
-				{
-					ElementsIndexes.Add(i);
+					else
+					{
+						ElementsIndexes.Sort(CompareDescending);
+					}
 				}
-
-				if (bAscending)
-				{
-					ElementsIndexes.Sort(CompareAscending);
-				}
-				else
-				{
-					ElementsIndexes.Sort(CompareDescending);
-				}
-
-				TArray<T> SortedArray;
-				SortedArray.Reserve(InArray.Num());
-
-				for (int i = 0; i < InArray.Num(); ++i)
-				{
-					SortedArray.Add(MoveTemp(InArray[ElementsIndexes[i]]));
-				}
-
-				InArray = MoveTemp(SortedArray);
 			}
 		};
 
-		PCGMetadataAttribute::CallbackWithRightType(InAccessor.GetUnderlyingType(), Callback);
+		// Perform the sorting on the indexes using the attribute values provided by the accessor.
+		PCGMetadataAttribute::CallbackWithRightType(InAccessor.GetUnderlyingType(), SortIndexes);
+
+		// Write back the values according to the sorted indexes.
+		TArray<T> SortedArray;
+		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(PCGAttributeAccessorHelpers::SortByAttribute::WriteBackInSortedArray);
+			SortedArray.Reserve(InArray.Num());
+
+			for (int i = 0; i < InArray.Num(); ++i)
+			{
+				SortedArray.Add(MoveTemp(InArray[ElementsIndexes[i]]));
+			}
+		}
+
+		InArray = MoveTemp(SortedArray);
 	}
 }

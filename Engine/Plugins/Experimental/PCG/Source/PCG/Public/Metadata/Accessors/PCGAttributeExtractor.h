@@ -19,6 +19,7 @@ namespace PCGAttributeExtractorConstants
 	const FName VectorB = TEXT("B");
 	const FName VectorA = TEXT("A");
 	const FName VectorLength = TEXT("Length");
+	const FName VectorSquaredLength = TEXT("SquaredLength");
 	const FName VectorSize = TEXT("Size");
 	const FName VectorNormalized = TEXT("Normalized");
 
@@ -34,6 +35,8 @@ namespace PCGAttributeExtractorConstants
 		VectorA,
 		VectorLength,
 		VectorSize,
+		VectorSquaredLength,
+		VectorNormalized
 	};
 
 	// Transform

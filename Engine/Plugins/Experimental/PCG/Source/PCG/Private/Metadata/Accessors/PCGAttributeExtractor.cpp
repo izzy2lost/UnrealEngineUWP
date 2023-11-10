@@ -70,6 +70,12 @@ namespace PCGAttributeExtractor
 			return MakeUnique<FPCGChainAccessor<double, VectorType>>(std::move(InAccessor),
 				[](const VectorType& Value) -> double { return Value.Size(); });
 		}
+		else if (Name == PCGAttributeExtractorConstants::VectorSquaredLength)
+		{
+			bOutSuccess = true;
+			return MakeUnique<FPCGChainAccessor<double, VectorType>>(std::move(InAccessor),
+				[](const VectorType& Value) -> double { return Value.SizeSquared(); });
+		}
 		else if (Name == PCGAttributeExtractorConstants::VectorNormalized)
 		{
 			if constexpr (std::is_same_v<FQuat, VectorType>)
