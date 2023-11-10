@@ -65,9 +65,7 @@ struct FOITData
 	uint32 MaxSideSamplePerPixel = 0;
 	float TransmittanceThreshold = 0.f;
 
-	FRDGTextureRef SampleColorTexture = nullptr;
-	FRDGTextureRef SampleTransTexture = nullptr;
-	FRDGTextureRef SampleDepthTexture = nullptr;
+	FRDGTextureRef SampleDataTexture = nullptr;
 	FRDGTextureRef SampleCountTexture = nullptr;
 };
 

@@ -106,9 +106,7 @@ class FOITPixelDebugCS : public FGlobalShader
 		SHADER_PARAMETER(uint32, Method)
 		SHADER_PARAMETER(uint32, PassType)
 		SHADER_PARAMETER(uint32, SupportedPass)
-		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float3>, SampleColorTexture)
-		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float3>, SampleTransTexture)
-		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float>, SampleDepthTexture)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2DArray<uint>, SampleDataTexture)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<uint>, SampleCountTexture)
 		SHADER_PARAMETER_STRUCT_INCLUDE(ShaderPrint::FShaderParameters, ShaderPrintUniformBuffer)
 		END_SHADER_PARAMETER_STRUCT()
@@ -128,9 +126,7 @@ static void AddOITPixelDebugPass(
 	const FViewInfo& View,
 	FOITData& OITData)
 {
-	if (!OITData.SampleColorTexture ||
-		!OITData.SampleTransTexture ||
-		!OITData.SampleDepthTexture ||
+	if (!OITData.SampleDataTexture ||
 		!OITData.SampleCountTexture || 
 		!ShaderPrint::IsSupported(View.GetShaderPlatform()))
 		return;
@@ -147,9 +143,7 @@ static void AddOITPixelDebugPass(
 	Parameters->MaxSampleCount = OITData.MaxSamplePerPixel;
 	Parameters->Method = OITData.Method;
 	Parameters->MaxSideSampleCount = OITData.MaxSideSamplePerPixel;
-	Parameters->SampleColorTexture = OITData.SampleColorTexture;
-	Parameters->SampleTransTexture = OITData.SampleTransTexture;
-	Parameters->SampleDepthTexture = OITData.SampleDepthTexture;
+	Parameters->SampleDataTexture  = OITData.SampleDataTexture;
 	Parameters->SampleCountTexture = OITData.SampleCountTexture;
 	ShaderPrint::SetParameters(GraphBuilder, View.ShaderPrintData, Parameters->ShaderPrintUniformBuffer);
 
@@ -171,18 +165,16 @@ class FOITPixelCombineCS : public FGlobalShader
 	DECLARE_GLOBAL_SHADER(FOITPixelCombineCS);
 	SHADER_USE_PARAMETER_STRUCT(FOITPixelCombineCS, FGlobalShader);
 
-	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters,)
 		SHADER_PARAMETER(FIntPoint, Resolution)
 		SHADER_PARAMETER(uint32, MaxSideSampleCount)
 		SHADER_PARAMETER(uint32, MaxSampleCount)
 		SHADER_PARAMETER(uint32, Method)
 		SHADER_PARAMETER(uint32, PassType)
-		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float3>, SampleColorTexture)
-		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float3>, SampleTransTexture)
-		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float>, SampleDepthTexture)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2DArray<uint>, SampleDataTexture)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<uint>, SampleCountTexture)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, OutColorTexture)
-		END_SHADER_PARAMETER_STRUCT()
+	END_SHADER_PARAMETER_STRUCT()
 public:
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters) { return IsOITSortedPixelsSupported(Parameters.Platform); }
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
@@ -205,13 +197,11 @@ static void AddInternalOITComposePass(
 
 	if (!SceneColorTexture ||
 		 SceneColorTexture->Desc.NumSamples > 1 ||
-		!OITData.SampleColorTexture ||
-		!OITData.SampleTransTexture ||
-		!OITData.SampleDepthTexture ||
+		!OITData.SampleDataTexture ||
 		!OITData.SampleCountTexture)
 		return;
 
-	FIntPoint InResolution = OITData.SampleColorTexture->Desc.Extent;
+	FIntPoint InResolution = OITData.SampleDataTexture->Desc.Extent;
 	FIntPoint OutResolution = SceneColorTexture->Desc.Extent;
 	FIntPoint Resolution = FIntPoint(FMath::Min(InResolution.X, OutResolution.X), FMath::Min(InResolution.Y, OutResolution.Y));
 
@@ -221,9 +211,7 @@ static void AddInternalOITComposePass(
 	Parameters->Method = OITData.Method;
 	Parameters->MaxSampleCount = OITData.MaxSamplePerPixel;
 	Parameters->MaxSideSampleCount = OITData.MaxSideSamplePerPixel;
-	Parameters->SampleColorTexture = OITData.SampleColorTexture;
-	Parameters->SampleTransTexture = OITData.SampleTransTexture;
-	Parameters->SampleDepthTexture = OITData.SampleDepthTexture;
+	Parameters->SampleDataTexture = OITData.SampleDataTexture;
 	Parameters->SampleCountTexture = OITData.SampleCountTexture;
 	Parameters->OutColorTexture = GraphBuilder.CreateUAV(SceneColorTexture);
 
@@ -231,11 +219,8 @@ static void AddInternalOITComposePass(
 	TShaderMapRef<FOITPixelCombineCS > ComputeShader(View.ShaderMap, PermutationVector);
 
 	// Add 64 threads permutation
-	const uint32 GroupSize = 8;
-	const FIntVector DispatchCount = FIntVector(
-		(Resolution.X + GroupSize - 1) / GroupSize,
-		(Resolution.Y + GroupSize - 1) / GroupSize,
-		1);
+	const int32 GroupSize = 8;
+	const FIntVector DispatchCount = FIntVector(FMath::DivideAndRoundUp(Resolution.X, GroupSize), FMath::DivideAndRoundUp(Resolution.Y, GroupSize), 1);
 	FComputeShaderUtils::AddPass(
 		GraphBuilder,
 		RDG_EVENT_NAME("Translucency::OITCombine(%s)", !!(OITData.PassType & OITPass_SeperateTranslucency) ? TEXT("SeparateTransluency") : TEXT("Regular")),
@@ -922,7 +907,7 @@ namespace OIT
 		const bool bOIT = IsEnabled(EOITSortingType::SortedPixels, View.GetShaderPlatform());
 		const uint32 PassTypeBits = FMath::Clamp(CVarOIT_SortedPixels_PassType.GetValueOnRenderThread(), 0, 3);
 		const bool bPassValid = !!(PassTypeBits & PassType);
-
+		const uint32 LayerCount = 3u; /*Depth/Color/Trans*/
 		FOITData Out;
 		if (!bOIT || !bPassValid)
 		{
@@ -931,9 +916,7 @@ namespace OIT
 			Out.Method = 0;
 			Out.TransmittanceThreshold = 0;
 
-			Out.SampleColorTexture = GraphBuilder.CreateTexture(FRDGTextureDesc::Create2D(FIntPoint(1, 1), PF_R32_UINT, FClearValueBinding::None, TexCreate_ShaderResource | TexCreate_UAV), TEXT("OIT.SampleColor"));
-			Out.SampleTransTexture = GraphBuilder.CreateTexture(FRDGTextureDesc::Create2D(FIntPoint(1, 1), PF_R32_UINT, FClearValueBinding::None, TexCreate_ShaderResource | TexCreate_UAV), TEXT("OIT.SampleTrans"));
-			Out.SampleDepthTexture = GraphBuilder.CreateTexture(FRDGTextureDesc::Create2D(FIntPoint(1, 1), PF_R32_FLOAT, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV), TEXT("OIT.SampleDepth"));
+			Out.SampleDataTexture  = GraphBuilder.CreateTexture(FRDGTextureDesc::Create2DArray(FIntPoint(1, 1), PF_R32_UINT, FClearValueBinding::None, TexCreate_ShaderResource | TexCreate_UAV, LayerCount), TEXT("OIT.SampleData"));
 			Out.SampleCountTexture = GraphBuilder.CreateTexture(FRDGTextureDesc::Create2D(FIntPoint(1, 1), PF_R32_UINT, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV), TEXT("OIT.SampleCount"));
 			return Out;
 		}
@@ -960,17 +943,13 @@ namespace OIT
 			Out.Method = FMath::Clamp(CVarOIT_SortedPixels_Method.GetValueOnRenderThread(), 0, 1);
 			Out.TransmittanceThreshold = FMath::Clamp(CVarOIT_SortedPixels_TransmittanceThreshold.GetValueOnRenderThread(), 0.f, 1.f);
 
-			Out.SampleColorTexture = GraphBuilder.CreateTexture(FRDGTextureDesc::Create2D(EffectiveBufferSize * MaxSideSamplePerPixel, PF_R32_UINT, FClearValueBinding::None, TexCreate_ShaderResource | TexCreate_UAV), TEXT("OIT.SampleColor"));
-			Out.SampleTransTexture = GraphBuilder.CreateTexture(FRDGTextureDesc::Create2D(EffectiveBufferSize * MaxSideSamplePerPixel, PF_R32_UINT, FClearValueBinding::None, TexCreate_ShaderResource | TexCreate_UAV), TEXT("OIT.SampleTrans"));
-			Out.SampleDepthTexture = GraphBuilder.CreateTexture(FRDGTextureDesc::Create2D(EffectiveBufferSize * MaxSideSamplePerPixel, PF_R32_FLOAT, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV), TEXT("OIT.SampleDepth"));
+			Out.SampleDataTexture = GraphBuilder.CreateTexture(FRDGTextureDesc::Create2DArray(EffectiveBufferSize * MaxSideSamplePerPixel, PF_R32_UINT, FClearValueBinding::None, TexCreate_ShaderResource | TexCreate_UAV, LayerCount), TEXT("OIT.SampleData"));
 			Out.SampleCountTexture = GraphBuilder.CreateTexture(FRDGTextureDesc::Create2D(EffectiveBufferSize, PF_R32_UINT, FClearValueBinding::None, TexCreate_ShaderResource | TexCreate_UAV), TEXT("OIT.SampleCount"));
 		}
 
 		// TODO: Add tile clear based on the coarse translucent raster AABB buffer
-		AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(Out.SampleColorTexture), 0u);
-		AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(Out.SampleTransTexture), 0u);
+		//AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(Out.SampleDataTexture), 0u);
 		AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(Out.SampleCountTexture), 0u);
-		AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(Out.SampleDepthTexture), 0.f);
 
 		return Out;
 	}
@@ -983,9 +962,7 @@ namespace OIT
 		OutOIT.MaxSideSamplePerPixel = InOITData.MaxSideSamplePerPixel;
 		OutOIT.MaxSamplePerPixel = InOITData.MaxSamplePerPixel;
 		OutOIT.TransmittanceThreshold = InOITData.TransmittanceThreshold;
-		OutOIT.OutOITSampleColor = GraphBuilder.CreateUAV(InOITData.SampleColorTexture);
-		OutOIT.OutOITSampleTrans = GraphBuilder.CreateUAV(InOITData.SampleTransTexture);
-		OutOIT.OutOITSampleDepth = GraphBuilder.CreateUAV(InOITData.SampleDepthTexture);
+		OutOIT.OutOITSampleData  = GraphBuilder.CreateUAV(InOITData.SampleDataTexture);
 		OutOIT.OutOITSampleCount = GraphBuilder.CreateUAV(InOITData.SampleCountTexture);
 	}
 
