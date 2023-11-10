@@ -3,6 +3,7 @@
 using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using EpicGames.Core;
 
@@ -25,6 +26,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 
 		readonly List<BlobType> _types = new List<BlobType>();
 		readonly List<PacketImport> _imports = new List<PacketImport>();
+		readonly List<IBlobHandle> _importHandles = new List<IBlobHandle>();
 		readonly Dictionary<IBlobHandle, int> _importMap = new Dictionary<IBlobHandle, int>();
 		readonly List<int> _exportOffsets = new List<int>();
 
@@ -42,6 +44,14 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 			_packetHandle = packetHandle;
 			_allocator = allocator;
 			_lockObject = lockObject;
+
+			for (int idx = 0; idx < PacketImport.Bias; idx++)
+			{
+				_importHandles.Add(null!);
+			}
+
+			_importHandles[PacketImport.CurrentBundleBaseIdx + PacketImport.Bias] = _bundleHandle;
+			_importHandles[PacketImport.CurrentPacketBaseIdx + PacketImport.Bias] = _packetHandle;
 
 			_importMap[_bundleHandle] = PacketImport.CurrentBundleBaseIdx;
 			_importMap[_packetHandle] = PacketImport.CurrentPacketBaseIdx;
@@ -121,7 +131,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 		/// </summary>
 		/// <param name="exportIdx"></param>
 		/// <returns></returns>
-		public IReadOnlyMemoryOwner<byte> GetExportData(int exportIdx)
+		public BlobData GetExport(int exportIdx)
 		{
 			lock (_lockObject)
 			{
@@ -129,7 +139,19 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 				int length = _exportOffsets[exportIdx + 1] - offset;
 
 				PacketExport export = new PacketExport(_buffer.Slice(offset, length));
-				return ReadOnlyMemoryOwner.Create(export.GetPayload(), _bufferHandle.AddRef());
+				PacketExportHeader header = export.GetHeader();
+
+				BlobType type = _types[header.TypeIdx];
+
+				IBlobHandle[] imports = new IBlobHandle[header.Imports.Length];
+				for (int idx = 0; idx < header.Imports.Length; idx++)
+				{
+					int importIdx = header.Imports[idx];
+					imports[idx] = _importHandles[importIdx + PacketImport.Bias];
+				}
+
+				IReadOnlyMemoryOwner<byte> body = ReadOnlyMemoryOwner.Create(export.GetPayload(), _bufferHandle.AddRef());
+				return new BlobDataWithOwner(_types[header.TypeIdx], body.Memory, imports, body);
 			}
 		}
 
@@ -181,6 +203,9 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 				idx = _imports.Count;
 				_imports.Add(import);
 				_importMap.Add(handle, idx);
+
+				Debug.Assert(idx + PacketImport.Bias == _importHandles.Count);
+				_importHandles.Add(handle);
 			}
 			return idx;
 		}

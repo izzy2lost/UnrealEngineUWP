@@ -21,26 +21,19 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 			readonly PendingPacketHandle _packet;
 			readonly int _exportIdx;
 
-			readonly BlobType _type;
-			readonly IBlobHandle[] _imports;
-		
 			public IBlobHandle? Outer => _packet;
 
-			public PendingExportHandle(PendingPacketHandle packet, int exportIdx, BlobType type, IBlobHandle[] imports)
+			public PendingExportHandle(PendingPacketHandle packet, int exportIdx)
 			{
 				_packet = packet;
 				_exportIdx = exportIdx;
-				_type = type;
-				_imports = imports;
 			}
 
-			public ValueTask FlushAsync(CancellationToken cancellationToken = default) => _packet.FlushAsync(cancellationToken);
+			public ValueTask FlushAsync(CancellationToken cancellationToken = default) 
+				=> _packet.FlushAsync(cancellationToken);
 
-			public async ValueTask<BlobData> ReadAsync(CancellationToken cancellationToken = default)
-			{
-				IReadOnlyMemoryOwner<byte> body = await _packet.ReadExportBodyAsync(_exportIdx, cancellationToken);
-				return new BlobDataWithOwner(_type, body.Memory, _imports, body);
-			}
+			public ValueTask<BlobData> ReadAsync(CancellationToken cancellationToken = default)
+				=> _packet.ReadExportAsync(_exportIdx, cancellationToken);
 
 			public bool TryAppendIdentifier(Utf8StringBuilder builder)
 			{
@@ -105,7 +98,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 			{
 				int exportIdx = _packetWriter!.CompleteExport(size, type, references);
 
-				PendingExportHandle exportHandle = new PendingExportHandle(this, exportIdx, type, references.ToArray());
+				PendingExportHandle exportHandle = new PendingExportHandle(this, exportIdx);
 				_pendingExports ??= new List<PendingExportHandle>();
 				_pendingExports.Add(exportHandle);
 
@@ -144,16 +137,16 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 				return _flushedHandle!.ReadAsync(cancellationToken);
 			}
 
-			public async ValueTask<IReadOnlyMemoryOwner<byte>> ReadExportBodyAsync(int exportIdx, CancellationToken cancellationToken = default)
+			public async ValueTask<BlobData> ReadExportAsync(int exportIdx, CancellationToken cancellationToken = default)
 			{
 				lock (_lockObject)
 				{
 					if (_packetWriter != null)
 					{
-						return _packetWriter.GetExportData(exportIdx);
+						return _packetWriter.GetExport(exportIdx);
 					}
 				}
-				return await _flushedHandle!.ReadExportBodyAsync(exportIdx, cancellationToken);
+				return await _flushedHandle!.ReadExportAsync(exportIdx, cancellationToken);
 			}
 
 			public bool TryAppendIdentifier(Utf8StringBuilder builder)
