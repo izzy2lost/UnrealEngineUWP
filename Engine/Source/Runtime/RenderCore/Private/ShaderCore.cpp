@@ -1273,6 +1273,7 @@ public:
 		Job.PreprocessOutput.ElapsedTime = FPlatformTime::Seconds() - StartPreprocessTime;
 		Job.Output.PreprocessTime = Job.PreprocessOutput.ElapsedTime;
 		Job.Output.ShaderDiagnosticDatas = Job.PreprocessOutput.GetDiagnosticDatas();
+		Job.Output.Errors.Append(Job.PreprocessOutput.Errors);
 		return Job.PreprocessOutput.bSucceeded;
 	}
 
@@ -1333,8 +1334,6 @@ public:
 			PreprocessShaderInternal(Compiler, Job);
 		}
 
-		Job.Output.Errors.Append(Job.PreprocessOutput.Errors);
-
 		if (Job.PreprocessOutput.bSucceeded)
 		{
 			if (Job.SecondaryPreprocessOutput.IsValid())
@@ -1375,7 +1374,7 @@ public:
 	}
 };
 
-void ConditionalPreprocessShader(FShaderCommonCompileJob* Job)
+bool ConditionalPreprocessShader(FShaderCommonCompileJob* Job)
 {
 	static ITargetPlatformManagerModule& TargetPlatformManager = GetTargetPlatformManagerRef();
 	if (FShaderCompileJob* SingleJob = Job->GetSingleShaderJob())
@@ -1383,28 +1382,39 @@ void ConditionalPreprocessShader(FShaderCommonCompileJob* Job)
 		if (SingleJob->Input.bCachePreprocessed)
 		{
 			const IShaderFormat* ShaderFormat = TargetPlatformManager.FindShaderFormat(SingleJob->Input.ShaderFormat);
-			FInternalShaderCompilerFunctions::PreprocessShaderInternal(ShaderFormat, *SingleJob);
+			return FInternalShaderCompilerFunctions::PreprocessShaderInternal(ShaderFormat, *SingleJob);
 		}
+		return true;
+
 	}
 	else if (FShaderPipelineCompileJob* PipelineJob = Job->GetShaderPipelineJob())
 	{
+		bool bAnyFailed = false;
 		for (FShaderCompileJob* StageJob : PipelineJob->StageJobs)
 		{
 			if (StageJob->Input.bCachePreprocessed)
 			{
 				const IShaderFormat* ShaderFormat = TargetPlatformManager.FindShaderFormat(StageJob->Input.ShaderFormat);
-				if (!FInternalShaderCompilerFunctions::PreprocessShaderInternal(ShaderFormat, *StageJob))
+
+				if (!bAnyFailed)
 				{
-					// early out if preprocessing failed on one stage, no point in continuing
-					return;
+					bAnyFailed |= !FInternalShaderCompilerFunctions::PreprocessShaderInternal(ShaderFormat, *StageJob);
+				}
+				else
+				{
+					// skip subsequent stage preprocessing if a prior stage failed to avoid unnecessary work, but log an error to indicate this
+					FString Error = FString::Printf(
+						TEXT("Preprocessing %s stage skipped due to earlier stage preprocessing failure."),
+						GetShaderFrequencyString(StageJob->Input.Target.GetFrequency()));
+					StageJob->Output.Errors.Add(FShaderCompilerError(*Error));
 				}
 			}
 		}
+		return !bAnyFailed;
 	}
-	else
-	{
-		checkf(0, TEXT("Unknown shader compile job type or bad job pointer"));
-	}
+
+	checkf(0, TEXT("Unknown shader compile job type or bad job pointer"));
+	return false;
 }
 
 void CompileShader(const TArray<const IShaderFormat*>& ShaderFormats, FShaderCompilerInput& Input, FShaderCompilerOutput& Output, const FString& WorkingDirectory, int32* CompileCount)

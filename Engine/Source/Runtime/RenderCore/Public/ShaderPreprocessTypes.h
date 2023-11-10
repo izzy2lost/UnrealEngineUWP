@@ -122,6 +122,11 @@ public:
 		return bIsSecondary;
 	}
 
+	inline bool GetSucceeded() const
+	{
+		return bSucceeded;
+	}
+
 	inline void LogError(FString&& Message)
 	{
 		FShaderCompilerError& CompilerError = Errors.AddDefaulted_GetRef();;

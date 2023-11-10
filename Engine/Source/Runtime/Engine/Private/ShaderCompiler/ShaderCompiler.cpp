@@ -712,7 +712,7 @@ public:
 	void SubmitJobs(const TArray<FShaderCommonCompileJobPtr>& InJobs);
 
 	/** This is an entry point for all jobs that have finished the compilation (whether real or cached). Can be called from multiple threads. Returns mutex stall time. */
-	double ProcessFinishedJob(FShaderCommonCompileJob* FinishedJob, bool bWasCached);
+	double ProcessFinishedJob(FShaderCommonCompileJob* FinishedJob, bool bCompilationSkipped);
 
 	/** Adds the job to cache. */
 	void AddToCacheAndProcessPending(FShaderCommonCompileJob* FinishedJob);
@@ -1293,9 +1293,9 @@ void FShaderCompileJobCollection::SubmitJobs(const TArray<FShaderCommonCompileJo
 {
 	JobsCache->SubmitJobs(InJobs);
 }
-void FShaderCompileJobCollection::ProcessFinishedJob(FShaderCommonCompileJob* FinishedJob, bool bWasCached)
+void FShaderCompileJobCollection::ProcessFinishedJob(FShaderCommonCompileJob* FinishedJob, bool bCompilationSkipped)
 {
-	JobsCache->ProcessFinishedJob(FinishedJob, bWasCached);
+	JobsCache->ProcessFinishedJob(FinishedJob, bCompilationSkipped);
 }
 void FShaderCompileJobCollection::AddToCacheAndProcessPending(FShaderCommonCompileJob* FinishedJob)
 {
@@ -1742,13 +1742,22 @@ void FShaderJobCache::SubmitJobs(const TArray<FShaderCommonCompileJobPtr>& InJob
 						FPlatformProcess::Sleep(GShaderCompilerDebugStallSubmitJob * 0.001f);
 					}
 
+					bool bSubmitJob = true;
 					if (ShaderCompiler::IsJobCacheEnabled())
 					{
-						ConditionalPreprocessShader(Job);
+						bSubmitJob = ConditionalPreprocessShader(Job);
 						Job->GetInputHash();
 					}
-					SubmitJob(Job);
-
+					
+					if (bSubmitJob)
+					{
+						SubmitJob(Job);
+					}
+					else // if preprocessing ran and failed, finish the job immediately
+					{
+						ProcessFinishedJob(Job, /* bCompilationSkipped = */true);
+					}
+					
 					Job->TimeTaskSubmitJobs = FPlatformTime::Seconds() - TimeStart;
 				}, Prio);
 			}
@@ -1779,17 +1788,13 @@ void FShaderCompileJobCollection::HandlePrintStats()
 	GShaderCompilingManager->PrintStats();
 }
 
-double FShaderJobCache::ProcessFinishedJob(FShaderCommonCompileJob* FinishedJob, bool bWasCached)
+double FShaderJobCache::ProcessFinishedJob(FShaderCommonCompileJob* FinishedJob, bool bCompilationSkipped)
 {
 	double StallTime;
 
 	FinishedJob->OnComplete();
 
-	GShaderCompilerStats->RegisterFinishedJob(*FinishedJob, bWasCached);
-
-	if (!bWasCached)
-	{
-	}
+	GShaderCompilerStats->RegisterFinishedJob(*FinishedJob, bCompilationSkipped);
 
 	{
 		// Need to protect writes to FShaderMapCompileResults
@@ -1806,7 +1811,7 @@ double FShaderJobCache::ProcessFinishedJob(FShaderCommonCompileJob* FinishedJob,
 	}
 
 	InternalSubtractNumOutstandingJobs(1);
-	if (!bWasCached && ShaderCompiler::IsJobCacheEnabled())
+	if (!bCompilationSkipped && ShaderCompiler::IsJobCacheEnabled())
 	{
 		AddToCacheAndProcessPending(FinishedJob);
 	}
@@ -5036,11 +5041,11 @@ void FShaderCompilerStats::RegisterAssignedJob(FShaderCommonCompileJob& Job)
 }
 
 TRACE_DECLARE_INT_COUNTER(Shaders_Compiled, TEXT("Shaders/Compiled"));
-void FShaderCompilerStats::RegisterFinishedJob(FShaderCommonCompileJob& Job, bool bWasCached)
+void FShaderCompilerStats::RegisterFinishedJob(FShaderCommonCompileJob& Job, bool bCompilationSkipped)
 {
 	FScopeLock Lock(&CompileStatsLock);
 	
-	if (!bWasCached)
+	if (!bCompilationSkipped)
 	{
 		ensure(Job.TimeAssignedToExecution != 0.0);
 		Job.TimeExecutionCompleted = FPlatformTime::Seconds();
@@ -5059,18 +5064,18 @@ void FShaderCompilerStats::RegisterFinishedJob(FShaderCommonCompileJob& Job, boo
 		ensure(Job.TimeAddedToPendingQueue != 0.0 && Job.TimeAddedToPendingQueue <= Job.TimeExecutionCompleted);
 		AddToInterval(JobLifeTimeIntervals, TInterval<double>(Job.TimeAddedToPendingQueue, Job.TimeExecutionCompleted));
 	}
-
+	
 	if (Job.TimeTaskSubmitJobs)
 	{
 		Counters.AccumulatedTaskSubmitJobs += Job.TimeTaskSubmitJobs;
 		Counters.AccumulatedTaskSubmitJobsStall += Job.TimeTaskSubmitJobsStall;
 	}
 
-	auto RegisterStatsFromSingleJob = [this, bWasCached](const FShaderCompileJob& SingleJob)
+	auto RegisterStatsFromSingleJob = [this, bCompilationSkipped](const FShaderCompileJob& SingleJob)
 	{
 		// Register min/max/average shader code sizes for single job output
 		const int32 ShaderCodeSize = SingleJob.Output.ShaderCode.GetShaderCodeSize();
-		if (!bWasCached && ShaderCodeSize > 0)
+		if (!bCompilationSkipped && ShaderCodeSize > 0)
 		{
 			Counters.MinShaderCodeSize = (Counters.MinShaderCodeSize > 0 ? FMath::Min(Counters.MinShaderCodeSize, ShaderCodeSize) : ShaderCodeSize);
 			Counters.MaxShaderCodeSize = (Counters.MaxShaderCodeSize > 0 ? FMath::Max(Counters.MaxShaderCodeSize, ShaderCodeSize) : ShaderCodeSize);
@@ -5079,9 +5084,10 @@ void FShaderCompilerStats::RegisterFinishedJob(FShaderCommonCompileJob& Job, boo
 		}
 
 		// Sanity check; compile time should be 0 for cache hits
-		check(!bWasCached || SingleJob.Output.CompileTime == 0.0f);
-		// Preprocess time should always be non-zero if preprocessed job cache is enabled
-		check(!SingleJob.Input.bCachePreprocessed || SingleJob.Output.PreprocessTime > 0.0f);
+		check(!bCompilationSkipped || SingleJob.Output.CompileTime == 0.0f);
+		// Preprocess time should always be non-zero if preprocessed job cache is enabled and preprocessing succeeded;
+		// preprocessing for pipeline stage jobs may be skipped in the case preprocessing a preceding stage of the pipeline failed
+		check(!SingleJob.Input.bCachePreprocessed || !SingleJob.PreprocessOutput.GetSucceeded() || SingleJob.Output.PreprocessTime > 0.0f);
 
 		const FString ShaderName(SingleJob.Key.ShaderType->GetName());
 		if (FShaderTimings* Existing = ShaderTimings.Find(ShaderName))
@@ -5089,7 +5095,7 @@ void FShaderCompilerStats::RegisterFinishedJob(FShaderCommonCompileJob& Job, boo
 			// Always want to log preprocess time, in case preprocessed cache is enabled and preprocessing ran in the cooker prior to compilation
 			// (PreprocessTime will be 0 if preprocessed cache is disabled)
 			Existing->TotalPreprocessTime += SingleJob.Output.PreprocessTime;
-			if (!bWasCached)
+			if (!bCompilationSkipped)
 			{
 				// If no actual compiles have been logged yet, min compile time is just the compile time of this job (first to actually run)
 				Existing->MinCompileTime = Existing->NumCompiled ? FMath::Min(Existing->MinCompileTime, static_cast<float>(SingleJob.Output.CompileTime)) : SingleJob.Output.CompileTime;
@@ -5109,7 +5115,7 @@ void FShaderCompilerStats::RegisterFinishedJob(FShaderCommonCompileJob& Job, boo
 			New.AverageCompileTime = New.MinCompileTime;
 			// It's possible the first entry for a given shader didn't actually compile (i.e. hit in DDC)
 			// so we need to account for that in the stats
-			New.NumCompiled = bWasCached ? 0 : 1;
+			New.NumCompiled = bCompilationSkipped ? 0 : 1;
 			New.TotalPreprocessTime += SingleJob.Output.PreprocessTime;
 
 			ShaderTimings.Add(ShaderName, New);

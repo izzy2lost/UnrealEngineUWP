@@ -66,8 +66,10 @@ public:
 
 	void SubmitJobs(const TArray<FShaderCommonCompileJobPtr>& InJobs);
 	
-	/** This is an entry point for all jobs that have finished the compilation (whether real or cached). Can be called from multiple threads.*/
-	void ProcessFinishedJob(FShaderCommonCompileJob* FinishedJob, bool bWasCached = false);
+	/** Called for all completed jobs, including those that were cache hits, duplicates of other in flight jobs, or skipped due to failed preprocessing.
+	 * Can be called from multiple threads.
+	 */
+	void ProcessFinishedJob(FShaderCommonCompileJob* FinishedJob, bool bCompilationSkipped = false);
 
 	/** Adds the job to cache. */
 	void AddToCacheAndProcessPending(FShaderCommonCompileJob* FinishedJob);
@@ -402,7 +404,7 @@ public:
 	void RegisterAssignedJob(FShaderCommonCompileJob& InOutJob);
 
 	/** Marks the job as finished for the stats purpose. Job will be modified to include the current timestamp. */
-	void RegisterFinishedJob(FShaderCommonCompileJob& InOutJob, bool bWasCached);
+	void RegisterFinishedJob(FShaderCommonCompileJob& InOutJob, bool bCompilationSkipped);
 
 	/** Informs statistics about a new job batch, so we can tally up batches. */
 	void RegisterJobBatch(int32 NumJobs, EExecutionType ExecType);
