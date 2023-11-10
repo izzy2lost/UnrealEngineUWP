@@ -25,7 +25,7 @@ uint MaxRetraces;
 #if NIAGARA_SUPPORTS_COLLISION_GROUPS
 bool FindCollisionGroup(int GPUSceneIndexId, out int CollisionGroup)
 {
-	int Index;
+	uint Index = 0;
 	if (HashTableFind(GPUSceneIndexId, Index))
 	{
 		CollisionGroup = HashToCollisionGroups[Index];

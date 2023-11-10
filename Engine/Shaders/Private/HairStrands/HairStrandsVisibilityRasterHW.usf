@@ -141,7 +141,7 @@ RWTexture2D<uint>	OutDepthCovTexture;
 RWTexture2D<uint>	OutPrimMatTexture;
 float				CoverageScale;
 
-[earlydepthstencil]
+EARLYDEPTHSTENCIL
 void PSMain(
 	float4 Position : SV_Position,
 	float Radius : RADIUS,

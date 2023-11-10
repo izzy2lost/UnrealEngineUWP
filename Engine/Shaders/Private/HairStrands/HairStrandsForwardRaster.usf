@@ -866,7 +866,7 @@ void CompactionCS(uint DispatchThreadID : SV_DispatchThreadID, uint GroupThreadI
 
 			FDepthRange DepthRange;
 			DepthRange.MinZ = group_MinZ;
-			DepthRange.MinZ = group_MaxZ;
+			DepthRange.MaxZ = group_MaxZ;
 			StoreOutVisTileData(OutData, CompactedTile, VT_MinMaxDepth, PackDepthRange(DepthRange));
 		}
 	}
