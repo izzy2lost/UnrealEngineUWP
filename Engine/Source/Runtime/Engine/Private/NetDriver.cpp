@@ -11,6 +11,7 @@
 #include "EngineStats.h"
 #include "GameFramework/GameModeBase.h"
 #include "Misc/ConfigCacheIni.h"
+#include "Net/Core/NetHandle/NetHandleManager.h"
 #include "Net/Core/PropertyConditions/RepChangedPropertyTracker.h"
 #include "UObject/UObjectIterator.h"
 #include "Net/Core/Trace/Private/NetTraceInternal.h"
@@ -6550,12 +6551,14 @@ void UNetDriver::UpdateIrisReplicationViews() const
 			{
 				View.Pos = ViewTarget->GetActorLocation();
 				View.Dir = ViewTarget->GetActorRotation().Vector();
+				View.ViewTarget = UE::Net::FNetHandleManager::GetNetHandle(ViewTarget);
 			}
 			if (ViewingController)
 			{
 				FRotator ViewRotation = ViewingController->GetControlRotation();
 				ViewingController->GetPlayerViewPoint(View.Pos, ViewRotation);
 				View.Dir = ViewRotation.Vector();
+				View.Controller = UE::Net::FNetHandleManager::GetNetHandle(ViewingController);
 
 				if (const APlayerCameraManager* CameraManager = ViewingController->PlayerCameraManager)
 				{

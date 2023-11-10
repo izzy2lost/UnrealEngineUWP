@@ -46,6 +46,7 @@
 #include "Engine/ActorChannel.h"
 #include "GameFramework/PlayerController.h"
 #include "Net/RepLayout.h"
+#include "Net/Core/Misc/NetCVars.h"
 #include "Net/Core/Trace/Private/NetTraceInternal.h"
 #include "UObject/UObjectIterator.h"
 #include "DrawDebugHelpers.h"
@@ -131,8 +132,6 @@ static FAutoConsoleVariableRef CVarRepGraphOutOfRangeDistanceCheckRatio(TEXT("Ne
 
 int32 CVar_RepGraph_DormancyNode_ObsoleteBehavior = 0;
 static FAutoConsoleVariableRef CVarRepGraphDormancyNodeObsoleteBehavior(TEXT("Net.RepGraph.DormancyNodeObsoleteBehavior"), CVar_RepGraph_DormancyNode_ObsoleteBehavior, TEXT("This changes how the dormancy node deals with obsolete nodes. 0 = ignore. 1 = lazily destroy the node"), ECVF_Default);
-
-static TAutoConsoleVariable<float> CVar_ForceConnectionViewerPriority(TEXT("Net.RepGraph.ForceConnectionViewerPriority"), 1, TEXT("Force the connection's player controller and viewing pawn as topmost priority."));
 
 int32 CVar_RepGraph_GridSpatialization2D_DestroyDormantDynamicActorsDefault = 1;
 static FAutoConsoleVariableRef CVarRepGraphGridSpatialization2DDestroyDormantDynamicActorsDefault(TEXT("Net.RepGraph.GridSpatialization2DDestroyDormantDynamicActorsDefault"), CVar_RepGraph_GridSpatialization2D_DestroyDormantDynamicActorsDefault, TEXT("Configure what the default for UReplicationGraphNode_GridSpatialization2D::DestroyDormantDynamicActors should be."), ECVF_Default);
@@ -1479,7 +1478,7 @@ void UReplicationGraph::ReplicateActorListsForConnections_Default(UNetReplicatio
 					// We need to find if this is anyone's viewer or viewtarget, not just the parent connection.
 					if (Actor == CurViewer.ViewTarget || Actor == CurViewer.InViewer)
 					{
-						if (CVar_ForceConnectionViewerPriority.GetValueOnAnyThread() > 0)
+						if (UE::Net::CVar_ForceConnectionViewerPriority > 0)
 						{
 							AccumulatedPriority = -MAX_FLT;
 						}

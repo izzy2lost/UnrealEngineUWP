@@ -4,6 +4,7 @@
 #include "Iris/IrisConstants.h"
 #include "Iris/Core/IrisLog.h"
 #include "Iris/Core/IrisProfiler.h"
+#include "Net/Core/Misc/NetCVars.h"
 #include "Net/Core/NetBitArray.h"
 #include "Iris/ReplicationSystem/NetRefHandleManager.h"
 #include "Iris/ReplicationSystem/ReplicationConnections.h"
@@ -733,6 +734,40 @@ void FReplicationPrioritization::PrioritizeForConnection(uint32 ConnId, FPriorit
 		// Unhandled status
 		checkf(false, TEXT("Unexpected BatchProcessStatus %u"), ProcessStatus);
 		break;
+	}
+
+	// Optionally force very high priority on view targets
+	if (CVar_ForceConnectionViewerPriority > 0)
+	{
+		SetHighPriorityOnViewTargets(MakeArrayView(ConnInfo.Priorities), PrioParameters.View);
+	}
+}
+
+void FReplicationPrioritization::SetHighPriorityOnViewTargets(const TArrayView<float>& Priorities, const FReplicationView& ReplicationView)
+{
+	using namespace UE::Net::Private;
+
+	// We allow a view target to appear multiple times. It will get the same priority regardless.
+	TArray<FNetHandle, TInlineAllocator<16>> ViewTargets;
+	for (const FReplicationView::FView& View : ReplicationView.Views)
+	{
+		if (View.Controller.IsValid())
+		{
+			ViewTargets.Add(View.Controller);
+		}
+		if (View.ViewTarget != View.Controller && View.ViewTarget.IsValid())
+		{
+			ViewTargets.Add(View.ViewTarget);
+		}
+	}
+
+	for (const FNetHandle NetHandle : ViewTargets)
+	{
+		const FInternalNetRefIndex ViewTargetInternalIndex = NetRefHandleManager->GetInternalIndexFromNetHandle(NetHandle);
+		if (ViewTargetInternalIndex != FNetRefHandleManager::InvalidInternalIndex)
+		{
+			Priorities[ViewTargetInternalIndex] = ViewTargetHighPriority;
+		}
 	}
 }
 
