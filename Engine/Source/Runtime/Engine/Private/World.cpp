@@ -1364,6 +1364,8 @@ bool UWorld::IsReadyForFinishDestroy()
 		if (PhysicsScene != nullptr)
 		{
 			PhysicsScene->KillSafeAsyncTasks();
+			PhysicsScene->WaitSolverTasks();
+
 			if (PhysicsScene->AreAnyTasksPending())
 			{
 				return false;

@@ -408,6 +408,15 @@ void FChaosScene::KillSafeAsyncTasks()
 	}
 }
 
+void FChaosScene::WaitSolverTasks()
+{
+	Chaos::FPBDRigidsSolver* Solver = GetSolver();
+	if(Solver)
+	{
+		Solver->WaitOnPendingTasks_External();
+	}
+}
+
 bool FChaosScene::AreAnyTasksPending() const
 {
 	const Chaos::FPBDRigidsSolver* Solver = GetSolver();
