@@ -562,7 +562,8 @@ void FSourceCodeNavigationImpl::NavigateToFunctionSource( const FString& Functio
 		FString Name = FPaths::GetBaseFilename(FullModulePath);
 		if(Name == FunctionModuleName)
 		{
-            const FString SourceCodeLookupCommand = FString::Printf(TEXT("%sBuild/BatchFiles/Mac/SourceCodeLookup.sh \"%s\" \"%s\""), *FPaths::EngineDir(), *FunctionSymbolName, *FullModulePath);
+            FString FullDsymPath = FPaths::ChangeExtension(FullModulePath, TEXT("dsym"));
+            const FString SourceCodeLookupCommand = FString::Printf(TEXT("%sBuild/BatchFiles/Mac/SourceCodeLookup.sh \"%s\" \"%s\" \"%s\""), *FPaths::EngineDir(), *FunctionSymbolName, *FullModulePath, *FullDsymPath);
             FPlatformProcess::ExecProcess( TEXT("/bin/sh"), *SourceCodeLookupCommand, &ReturnCode, &Results, &Errors );
             if(ReturnCode == 0 && !Results.IsEmpty())
             {
@@ -579,6 +580,19 @@ void FSourceCodeNavigationImpl::NavigateToFunctionSource( const FString& Functio
                     int32 LineNumberPos = ColonIndex + 1;
                     int32 LineNumberLen = CloseIndex - LineNumberPos;
                     FString LineNumber = Results.Mid(LineNumberPos, LineNumberLen);
+                    
+                    if (!FPaths::FileExists(FileName))
+                    {
+                        // could be using dsym which has fullpath of source file on Horde build machine
+                        // fix it from /Users/build/Build/++UE5/Sync/Engine/Source/** to FPaths::EngineDir()/Source/**
+                        int pos = FileName.Find(TEXT("/Engine/Source/"));
+                        if (pos != INDEX_NONE)
+                        {
+                            FileName.RemoveAt(0, pos + 8 /* length of "/Engine/" */ );
+                            FileName.InsertAt(0, FPaths::EngineDir());
+                        }
+                    }
+                    
                     if (SourceCodeAccessor.OpenFileAtLine( FileName, FCString::Atoi(*LineNumber), 0 ))
                     {
                         return;
@@ -590,12 +604,19 @@ void FSourceCodeNavigationImpl::NavigateToFunctionSource( const FString& Functio
                 }
                 else
                 {
-                    UE_LOG(LogSelectionDetails, Warning, TEXT("NavigateToFunctionSource: Unexpected SourceCodeLookup.sh output: %s"), *Results);
+                    if (!FPaths::FileExists(FullDsymPath))
+                    {
+                        UE_LOG(LogSelectionDetails, Warning, TEXT("NavigateToFunctionSource: Missing dSYM files, please install Editor symbols for debugging"), *Results);
+                    }
+                    else
+                    {
+                        UE_LOG(LogSelectionDetails, Warning, TEXT("NavigateToFunctionSource: Unexpected SourceCodeLookup.sh output: %s"), *Results);
+                    }
                 }
             }
-            else
+            else if (ReturnCode != 0 || !Errors.IsEmpty())
             {
-                UE_LOG(LogSelectionDetails, Warning, TEXT("NavigateToFunctionSource: SourceCodeLookup.sh error: %s"), *Errors);
+                UE_LOG(LogSelectionDetails, Warning, TEXT("NavigateToFunctionSource: SourceCodeLookup.sh failed with code: %d\n%s"), ReturnCode, *Errors);
             }
 		}
 	}
