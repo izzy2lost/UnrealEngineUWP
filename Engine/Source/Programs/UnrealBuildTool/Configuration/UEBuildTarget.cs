@@ -569,7 +569,7 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// POSIX-compliant platforms
 		/// </summary>
-		public static UnrealPlatformGroup Posix = FindOrAddByName("Posix");
+		public static UnrealPlatformGroup PosixOS = FindOrAddByName("PosixOS");
 
 	}
 
