@@ -3252,7 +3252,7 @@ void FOpenXRHMD::OnBeginRendering_RHIThread(const FPipelinedFrameState& InFrameS
 	SCOPED_NAMED_EVENT(BeginFrame, FColor::Red);
 
 	FReadScopeLock Lock(SessionHandleMutex);
-	if (!bIsRunning || !RenderBridge)
+	if (!bIsRunning || (!RenderBridge && !bIsTrackingOnlySession))
 	{
 		return;
 	}
