@@ -168,11 +168,8 @@ void STrackLane::RecreateWidgets()
 	ViewParams.OwningTrackLane = SharedThis(this);
 	ViewParams.TimeToPixel = TimeToPixel;
 
-	// Construct views for this track lane
-	for (TTypedIterator<ITrackLaneExtension, FViewModelVariantIterator> It(TrackAreaExtension->GetTrackAreaModelList()); It; ++It)
+	auto ConstructTrackLaneView = [&](TViewModelPtr<ITrackLaneExtension> Model)
 	{
-		TViewModelPtr<ITrackLaneExtension> Model = *It;
-
 		TSharedPtr<ITrackLaneWidget> ParentView;
 
 		if (ParentLane)
@@ -201,8 +198,18 @@ void STrackLane::RecreateWidgets()
 			SlotArguments.AttachWidget(NewView->AsWidget());
 			Children.AddSlot(MoveTemp(SlotArguments));
 		}
+	};
+
+	// Construct views for this track lane
+	for (TTypedIterator<ITrackLaneExtension, FViewModelVariantIterator> It(TrackAreaExtension->GetTrackAreaModelList()); It; ++It)
+	{
+		ConstructTrackLaneView(*It);
 	}
 
+	for (TTypedIterator<ITrackLaneExtension, FViewModelVariantIterator> It(TrackAreaExtension->GetTopLevelChildTrackAreaModels()); It; ++It)
+	{
+		ConstructTrackLaneView(*It);
+	}
 }
 
 void STrackLane::OnArrangeChildren( const FGeometry& AllottedGeometry, FArrangedChildren& ArrangedChildren ) const

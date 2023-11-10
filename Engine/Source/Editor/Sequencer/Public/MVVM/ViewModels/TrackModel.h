@@ -85,7 +85,7 @@ public:
 	void OnModifiedIndirectly(UMovieSceneSignedObject*) override;
 
 	/* IDeferredSignedObjectFlushSignal */
-	void OnDeferredModifyFlush() override;
+	virtual void OnDeferredModifyFlush() override;
 
 	/*~ IOutlinerExtension */
 	FOutlinerSizing GetOutlinerSizing() const override;
@@ -140,10 +140,10 @@ public:
 	bool CanDelete(FText* OutErrorMessage) const override;
 	void Delete() override;
 
-private:
-
 	/*~ FViewModel interface */
-	void OnConstruct() override;
+	virtual void OnConstruct() override;
+
+private:
 
 	void ForceUpdate();
 

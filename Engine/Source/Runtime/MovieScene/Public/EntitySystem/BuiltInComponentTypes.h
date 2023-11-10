@@ -327,6 +327,21 @@ private:
 };
 
 
+enum class EMovieSceneBindingLifetimeState : uint8
+{
+	/** Object Binding State is Active. Tracks on this binding will be active. */
+	Active,
+	/** Object Binding is Inactive. Tracks on this binding will be inactive and states will be restored/kept depending on settings. */
+	InActive
+};
+
+struct FMovieSceneBindingLifetimeComponentData
+{
+	FGuid BindingGuid;
+
+	EMovieSceneBindingLifetimeState BindingLifetimeState = EMovieSceneBindingLifetimeState::Active;
+};
+
 /**
  * Specifies a unique, sorted path of hbiases that contribute to a blended output
  * Supports up to 8 unique HBiases in its path
@@ -600,6 +615,9 @@ public:
 
 	// An FGuid relating to a spawnable binding in a sequence
 	TComponentTypeID<FGuid> SpawnableBinding;
+
+	// Data relating to the lifetime of bindings
+	TComponentTypeID<FMovieSceneBindingLifetimeComponentData> BindingLifetime;
 
 public:
 

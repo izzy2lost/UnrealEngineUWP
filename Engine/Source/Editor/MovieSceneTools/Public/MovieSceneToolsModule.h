@@ -138,9 +138,11 @@ private:
 	FDelegateHandle CameraShakeSourceShakeCreateEditorHandle;
 	FDelegateHandle CVarTrackCreateEditorHandle;
 	FDelegateHandle CustomPrimitiveDataTrackCreateEditorHandle;
+	FDelegateHandle BindingLifetimeTrackCreateEditorHandle;
 
 	FDelegateHandle CameraCutTrackModelHandle;
 	FDelegateHandle CinematicShotTrackModelHandle;
+	FDelegateHandle BindingLifetimeTrackModelHandle;
 
 	FDelegateHandle GenerateEventEntryPointsHandle;
 	FDelegateHandle FixupDynamicBindingPayloadParameterNameHandle;

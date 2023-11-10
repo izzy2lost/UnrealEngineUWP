@@ -118,6 +118,18 @@ struct FMovieSceneObjectCache
 	 */
 	MOVIESCENE_API void InvalidateIfValid(const FGuid& InGuid);
 
+
+	/* Gets the current activation on the provided binding. If no binding lifetime track is present, true will be returned.
+	 * @param InGuid			The object binding ID
+	 */
+	MOVIESCENE_API bool GetBindingActivation(const FGuid& InGuid) const;
+
+	/* Sets the binding to either active or inactive. Inactive bindings will invalidate and not resolve while inactive.
+	 * @param InGuid			The object binding ID
+	 * @param bActive		    Where to activate or deactivate the binding.
+	 */
+	MOVIESCENE_API void SetBindingActivation(const FGuid& InGuid, bool bActive);
+
 	/**
 	 * Completely erase all knowledge of, anc caches for all object bindings
 	 */
@@ -222,6 +234,9 @@ private:
 	  */
 	TMap<FMovieSceneObjectBindingID, FGuidArray, FDefaultSetAllocator> ReverseMappedBindings;
 
+	/* A set of inactive binding ids based on Binding Lifetime track. While inactive, these will be prevented from resolving.*/
+	TSet<FGuid> InactiveBindingIds;
+
 	/** Serial number for this cache */
 	uint32 SerialNumber = 0;
 
@@ -299,6 +314,20 @@ struct FMovieSceneEvaluationState
 	}
 
 	/**
+	 * Find an object cache pertaining to the specified sequence
+	 *
+	 * @param InSequenceID		The sequence ID to lookup
+	 */
+	FORCEINLINE const FMovieSceneObjectCache* FindObjectCache(FMovieSceneSequenceIDRef SequenceID) const
+	{
+		if (const FVersionedObjectCache* Cache = ObjectCaches.Find(SequenceID))
+		{
+			return &Cache->ObjectCache;
+		}
+		return nullptr;
+	}
+
+	/**
 	 * Get an object cache pertaining to the specified sequence
 	 *
 	 * @param InSequenceID		The sequence ID to lookup
@@ -325,6 +354,20 @@ struct FMovieSceneEvaluationState
 	 * @param InSequenceID		The sequence ID to which the object binding belongs
 	 */
 	MOVIESCENE_API void Invalidate(const FGuid& InGuid, FMovieSceneSequenceIDRef InSequenceID);
+
+
+	/* Gets the current activation on the provided binding. If no binding lifetime track is present, true will be returned.
+	 * @param InGuid			The object binding ID
+	 * @param InSequenceID		The sequence ID to which the object binding belongs
+	 */
+	MOVIESCENE_API bool GetBindingActivation(const FGuid& InGuid, FMovieSceneSequenceIDRef InSequenceID) const;
+
+	/* Sets the binding to either active or inactive. Inactive bindings will invalidate and not resolve while inactive. 
+	 * @param InGuid			The object binding ID
+	 * @param InSequenceID		The sequence ID to which the object binding belongs
+	 * @param bActive		    Where to activate or deactivate the binding.
+	 */
+	MOVIESCENE_API void SetBindingActivation(const FGuid& InGuid, FMovieSceneSequenceIDRef InSequenceID, bool bActive);
 
 	/**
 	 * Forcably clear all object caches

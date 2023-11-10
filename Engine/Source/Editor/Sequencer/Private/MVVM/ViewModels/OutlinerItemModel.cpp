@@ -404,6 +404,31 @@ TSharedPtr<SWidget> FOutlinerItemModelMixin::CreateContextMenuWidget(const FCrea
 	return nullptr;
 }
 
+FSlateColor FOutlinerItemModelMixin::GetLabelColor() const
+{
+	if (TViewModelPtr<FSequenceModel> SequenceModel = AsViewModel()->FindAncestorOfType<FSequenceModel>())
+	{
+		if (TSharedPtr<FSequencerEditorViewModel> SequencerModel = SequenceModel->GetEditor())
+		{
+			if (IMovieScenePlayer* Player = SequencerModel->GetSequencer().Get())
+			{
+				if (TViewModelPtr<FObjectBindingModel> ObjectBindingModel = AsViewModel()->FindAncestorOfType<FObjectBindingModel>())
+				{
+					// If the object binding model has an invalid binding, we want to use its label color, as it may be red or gray depending on situation
+					// and we want the children of that to have the same color.
+					// Otherwise, we can use the track's label color below
+					TArrayView<TWeakObjectPtr<> > BoundObjects = Player->FindBoundObjects(ObjectBindingModel->GetObjectGuid(), SequenceModel->GetSequenceID());
+					if (BoundObjects.Num() == 0)
+					{
+						return ObjectBindingModel->GetLabelColor();
+					}
+				}
+			}
+		}
+	}
+	return IOutlinerExtension::GetLabelColor();
+}
+
 void FOutlinerItemModelMixin::BuildContextMenu(FMenuBuilder& MenuBuilder)
 {
 	TSharedPtr<FSequencer> Sequencer = StaticCastSharedPtr<FSequencer>(GetEditor()->GetSequencer());

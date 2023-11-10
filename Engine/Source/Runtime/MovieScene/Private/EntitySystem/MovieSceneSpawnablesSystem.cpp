@@ -166,6 +166,18 @@ void UMovieSceneSpawnablesSystem::OnRun(FSystemTaskPrerequisites& InPrerequisite
 
 		UObject* ExistingSpawnedObject = Player->GetSpawnRegister().FindSpawnedObject(SpawnableBindingID, SequenceID).Get();
 
+		if (!Player->State.GetBindingActivation(SpawnableBindingID, SequenceID))
+		{
+			// If the binding is currently inactive, don't spawn the object.
+
+			// If we have an existing spawned object, then we need to destroy the spawned object here.
+			if (ExistingSpawnedObject)
+			{
+				DestroyOldSpawnables(InstanceHandle, SpawnableBindingID);
+			}
+			return;
+		}
+
 		// Check whether the binding is overridden - if it is we cannot spawn a new object
 		if (const IMovieScenePlaybackClient* PlaybackClient = Player->GetPlaybackClient())
 		{

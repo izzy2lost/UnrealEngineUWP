@@ -207,6 +207,24 @@ void FMovieSceneObjectCache::InvalidateIfValid(const FGuid& InGuid)
 	}
 }
 
+bool FMovieSceneObjectCache::GetBindingActivation(const FGuid& InGuid) const
+{
+	return !InactiveBindingIds.Contains(InGuid);
+}
+
+void FMovieSceneObjectCache::SetBindingActivation(const FGuid& InGuid, bool bActive)
+{
+	if (bActive)
+	{
+		InactiveBindingIds.Remove(InGuid);
+	}
+	else
+	{
+		InactiveBindingIds.Add(InGuid);
+	}
+	InvalidateInternal(InGuid);
+}
+
 bool FMovieSceneObjectCache::InvalidateIfValidInternal(const FGuid& InGuid)
 {
 	// Don't manipulate the actual map structure, since this can be called from inside an iterator
@@ -328,6 +346,12 @@ void FMovieSceneObjectCache::UpdateBindings(const FGuid& InGuid, IMovieScenePlay
 	// Find the sequence for this cache.
 	UMovieSceneSequence* Sequence = WeakSequence.Get();
 	if (!Sequence)
+	{
+		return;
+	}
+
+	// Binding is inactive, do not resolve.
+	if (InactiveBindingIds.Contains(InGuid))
 	{
 		return;
 	}
@@ -529,6 +553,21 @@ void FMovieSceneEvaluationState::Invalidate(const FGuid& InGuid, FMovieSceneSequ
 	{
 		Pair.Value.ObjectCache.Invalidate(InGuid, SequenceID);
 	}
+}
+
+
+bool FMovieSceneEvaluationState::GetBindingActivation(const FGuid& InGuid, FMovieSceneSequenceIDRef InSequenceID) const
+{
+	if (const FMovieSceneObjectCache* Cache = FindObjectCache(InSequenceID))
+	{
+		return Cache->GetBindingActivation(InGuid);
+	}
+	return true;
+}
+
+void FMovieSceneEvaluationState::SetBindingActivation(const FGuid& InGuid, FMovieSceneSequenceIDRef InSequenceID, bool bActive)
+{
+	GetObjectCache(InSequenceID).SetBindingActivation(InGuid, bActive);
 }
 
 void FMovieSceneEvaluationState::ClearObjectCaches(IMovieScenePlayer& Player)

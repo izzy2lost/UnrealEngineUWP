@@ -3,6 +3,7 @@
 #include "Systems/MovieSceneDataLayerSystem.h"
 #include "EntitySystem/MovieSceneEntitySystemTask.h"
 #include "EntitySystem/MovieSceneSpawnablesSystem.h"
+#include "EntitySystem/MovieSceneBindingLifetimeSystem.h"
 #include "EntitySystem/MovieSceneEntitySystemLinker.h"
 #include "EntitySystem/BuiltInComponentTypes.h"
 #include "Evaluation/PreAnimatedState/MovieScenePreAnimatedEntityCaptureSource.h"
@@ -499,7 +500,7 @@ UMovieSceneDataLayerSystem::UMovieSceneDataLayerSystem(const FObjectInitializer&
 
 	if (HasAnyFlags(RF_ClassDefaultObject))
 	{
-		DefineImplicitPrerequisite(GetClass(), UMovieSceneSpawnablesSystem::StaticClass());
+		DefineImplicitPrerequisite(GetClass(), UMovieSceneBindingLifetimeSystem::StaticClass());
 	}
 	else
 	{

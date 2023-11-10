@@ -6,6 +6,7 @@
 #include "MVVM/ViewModels/ViewModel.h"
 #include "MVVM/ViewModels/ViewModelHierarchy.h"
 #include "MVVM/ViewModels/OutlinerItemModel.h"
+#include  "MVVM/ViewModels/BindingLifetimeOverlayModel.h"
 #include "MVVM/Extensions/IRenameableExtension.h"
 #include "MVVM/Extensions/ITrackAreaExtension.h"
 #include "MVVM/Extensions/IGroupableExtension.h"
@@ -13,6 +14,7 @@
 #include "MVVM/Extensions/ISortableExtension.h"
 #include "MVVM/Extensions/IDraggableOutlinerExtension.h"
 #include "MVVM/Extensions/IDeletableExtension.h"
+
 
 struct FMovieSceneBinding;
 
@@ -64,6 +66,8 @@ public:
 	FObjectBindingModel(FSequenceModel* OwnerModel, const FMovieSceneBinding& InBinding);
 	~FObjectBindingModel();
 
+	static EViewModelListType GetTopLevelChildTrackAreaGroupType();
+
 	void AddTrack(UMovieSceneTrack* Track);
 	void RemoveTrack(UMovieSceneTrack* Track);
 
@@ -85,6 +89,7 @@ public:
 	/*~ ITrackAreaExtension */
 	FTrackAreaParameters GetTrackAreaParameters() const override;
 	FViewModelVariantIterator GetTrackAreaModelList() const override;
+	FViewModelVariantIterator GetTopLevelChildTrackAreaModels() const override;
 
 	/*~ IGroupableExtension */
 	void GetIdentifierForGrouping(TStringBuilder<128>& OutString) const override;
@@ -148,7 +153,9 @@ protected:
 	FGuid ObjectBindingID;
 	FGuid ParentObjectBindingID;
 	FViewModelListHead TrackAreaList;
+	FViewModelListHead TopLevelChildTrackAreaList;
 	TSharedPtr<FLayerBarModel> LayerBar;
+	TSharedPtr<FBindingLifetimeOverlayModel> BindingLifetimeOverlayModel;
 	FSequenceModel* OwnerModel;
 };
 

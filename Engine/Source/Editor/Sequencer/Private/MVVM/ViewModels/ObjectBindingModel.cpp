@@ -5,15 +5,19 @@
 #include "MVVM/ViewModels/SequenceModel.h"
 #include "MVVM/ViewModels/TrackModel.h"
 #include "MVVM/ViewModels/LayerBarModel.h"
+#include "MVVM/ViewModels/BindingLifetimeTrackModel.h"
 #include "MVVM/ViewModels/ViewModelIterators.h"
 #include "MVVM/TrackModelStorageExtension.h"
 #include "MVVM/ObjectBindingModelStorageExtension.h"
 #include "MVVM/ViewModels/SequencerEditorViewModel.h"
 #include "MVVM/ViewModels/OutlinerViewModelDragDropOp.h"
 #include "MVVM/Views/SOutlinerObjectBindingView.h"
+#include "MVVM/Views/STrackLane.h"
 #include "MVVM/Selection/Selection.h"
 #include "MVVM/Extensions/IRecyclableExtension.h"
+#include "MVVM/Extensions/IBindingLifetimeExtension.h"
 #include "Algo/Sort.h"
+#include "AnimatedRange.h"
 #include "ClassViewerModule.h"
 #include "Containers/ArrayBuilder.h"
 #include "Engine/LevelStreaming.h"
@@ -42,6 +46,7 @@
 #include "SequencerUtilities.h"
 #include "Styling/AppStyle.h"
 #include "Styling/SlateIconFinder.h"
+#include "Widgets/SSequencerBindingLifetimeOverlay.h"
 
 #define LOCTEXT_NAMESPACE "ObjectBindingModel"
 
@@ -122,15 +127,23 @@ void GetKeyablePropertyPaths(UClass* Class, void* ValuePtr, UStruct* PropertySou
 FObjectBindingModel::FObjectBindingModel(FSequenceModel* InOwnerModel, const FMovieSceneBinding& InBinding)
 	: ObjectBindingID(InBinding.GetObjectGuid())
 	, TrackAreaList(EViewModelListType::TrackArea)
+	, TopLevelChildTrackAreaList(GetTopLevelChildTrackAreaGroupType())
 	, OwnerModel(InOwnerModel)
 {
 	RegisterChildList(&TrackAreaList);
+	RegisterChildList(&TopLevelChildTrackAreaList);
 
 	SetIdentifier(*ObjectBindingID.ToString());
 }
 
 FObjectBindingModel::~FObjectBindingModel()
 {
+}
+
+EViewModelListType FObjectBindingModel::GetTopLevelChildTrackAreaGroupType()
+{
+	static EViewModelListType TopLevelChildTrackAreaGroup = RegisterCustomModelListType();
+	return TopLevelChildTrackAreaGroup;
 }
 
 void FObjectBindingModel::OnConstruct()
@@ -145,7 +158,7 @@ void FObjectBindingModel::OnConstruct()
 			LayerBar = MakeShared<FLayerBarModel>(AsShared());
 			LayerBar->SetLinkedOutlinerItem(SharedThis(this));
 
-			GetChildrenForList(&TrackAreaList).AddChild(LayerBar);
+			GetChildrenForList(&TopLevelChildTrackAreaList).AddChild(LayerBar);
 		}
 	}
 
@@ -192,7 +205,7 @@ bool FObjectBindingModel::SupportsRebinding() const
 FTrackAreaParameters FObjectBindingModel::GetTrackAreaParameters() const
 {
 	FTrackAreaParameters Params;
-	Params.LaneType = ETrackAreaLaneType::Inline;
+	Params.LaneType = ETrackAreaLaneType::Nested;
 	return Params;
 }
 
@@ -201,13 +214,28 @@ FViewModelVariantIterator FObjectBindingModel::GetTrackAreaModelList() const
 	return &TrackAreaList;
 }
 
+FViewModelVariantIterator FObjectBindingModel::GetTopLevelChildTrackAreaModels() const
+{
+	return &TopLevelChildTrackAreaList;
+}
+
 void FObjectBindingModel::AddTrack(UMovieSceneTrack* Track)
 {
 	FTrackModelStorageExtension* TrackStorage = OwnerModel->CastDynamic<FTrackModelStorageExtension>();
 
-	TSharedPtr<FTrackModel> TrackModel = TrackStorage->CreateModelForTrack(Track, AsShared());
+	TViewModelPtr<FTrackModel> TrackModel = TrackStorage->CreateModelForTrack(Track, AsShared());
 
 	GetChildrenForList(&OutlinerChildList).AddChild(TrackModel);
+
+	if (TrackModel->IsA<IBindingLifetimeExtension>())
+	{
+		if (!BindingLifetimeOverlayModel)
+		{
+			BindingLifetimeOverlayModel = MakeShared<FBindingLifetimeOverlayModel>(AsShared(), GetEditor(), TrackModel.ImplicitCast());
+			BindingLifetimeOverlayModel->SetLinkedOutlinerItem(SharedThis(this));
+			GetChildrenForList(&TrackAreaList).AddChild(BindingLifetimeOverlayModel);
+		}
+	}
 }
 
 void FObjectBindingModel::RemoveTrack(UMovieSceneTrack* Track)
@@ -218,6 +246,14 @@ void FObjectBindingModel::RemoveTrack(UMovieSceneTrack* Track)
 	if (TrackModel)
 	{
 		TrackModel->RemoveFromParent();
+		if (TrackModel->IsA<IBindingLifetimeExtension>())
+		{
+			if (BindingLifetimeOverlayModel)
+			{
+				BindingLifetimeOverlayModel->RemoveFromParent();
+				BindingLifetimeOverlayModel.Reset();
+			}
+		}
 	}
 }
 
@@ -353,6 +389,11 @@ FSlateColor FObjectBindingModel::GetLabelColor() const
 	// e.g. Spawnables don't have valid object bindings when their track hasn't spawned them yet,
 	// so we override the default behavior of red with a gray so that users don't think there is something wrong.
 	TFunction<FSlateColor(const FObjectBindingModel&)> GetObjectBindingAncestorInvalidLabelColor = [&](const FObjectBindingModel& InObjectBindingModel) -> FSlateColor {
+		if (!Sequencer->State.GetBindingActivation(InObjectBindingModel.GetObjectGuid(), OwnerModel->GetSequenceID()))
+		{
+			return FSlateColor::UseSubduedForeground();
+		}
+		
 		if (TSharedPtr<FObjectBindingModel> ParentBindingModel = InObjectBindingModel.FindAncestorOfType<FObjectBindingModel>())
 		{
 			return GetObjectBindingAncestorInvalidLabelColor(*ParentBindingModel.Get());
@@ -1199,6 +1240,8 @@ void FObjectBindingModel::Delete()
 	{
 		ParentFolder->GetFolder()->RemoveChildObjectBinding(ObjectBindingID);
 	}
+
+	BindingLifetimeOverlayModel.Reset();
 }
 
 } // namespace Sequencer

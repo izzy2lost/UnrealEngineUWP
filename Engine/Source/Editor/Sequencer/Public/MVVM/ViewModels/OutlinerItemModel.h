@@ -49,6 +49,7 @@ public:
 	void SetExpansion(bool bInIsExpanded) override;
 	bool IsFilteredOut() const override;
 	TSharedPtr<SWidget> CreateContextMenuWidget(const FCreateOutlinerContextMenuWidgetParams& InParams) override;
+	FSlateColor GetLabelColor() const override;
 
 	/*~ ICurveEditorTreeItemExtension */
 	virtual bool HasCurves() const override;
