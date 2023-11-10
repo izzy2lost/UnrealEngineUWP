@@ -35,6 +35,11 @@
 #include "ProfilingDebugging/CountersTrace.h"
 #include "PackedNormal.h"
 
+TAutoConsoleVariable<bool> CVarTaskGraphBusyWait(
+	TEXT("mutable.TaskGraphBusyWait"),
+	true,
+	TEXT("Use TaskGraph BusyWait instead of simple Wait. Required to avoid hangs on platforms with low number of cores."),
+	ECVF_Default);
 
 namespace mu
 {

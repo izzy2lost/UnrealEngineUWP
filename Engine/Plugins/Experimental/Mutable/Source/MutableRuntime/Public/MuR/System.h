@@ -46,6 +46,9 @@ enum class ETextureCompressionStrategy : uint8
 };
 
 
+MUTABLERUNTIME_API extern TAutoConsoleVariable<bool> CVarTaskGraphBusyWait;
+
+
 namespace mu
 {
 	// Forward references

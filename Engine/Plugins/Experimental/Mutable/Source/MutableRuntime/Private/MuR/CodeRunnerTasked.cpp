@@ -54,16 +54,6 @@ static FAutoConsoleVariableRef CVarCoreRunnerTaskPriority(
 	TEXT("0 AnyThread. 1 to 6, from hight to low priority."),
 	ECVF_Default);
 
-
-bool bBusyWait = true;
-
-static FAutoConsoleVariableRef CVarCodeRunnerTaskGraphBusyWait(
-	TEXT("mutable.CodeRunnerTaskGraphBusyWait"),
-	bBusyWait,
-	TEXT("Use TaskGraph BusyWait instead of simple Wait. Required to avoid hangs on platforms with low number of cores."),
-	ECVF_Default);
-
-
 namespace mu
 {
 
@@ -558,7 +548,7 @@ namespace mu
 					if (IssuedTasks[IssuedIndex]->Event.IsValid())
 					{
 #ifdef MUTABLE_USE_NEW_TASKGRAPH
-						if (CVarCodeRunnerTaskGraphBusyWait->GetBool())
+						if (CVarTaskGraphBusyWait->GetBool())
 						{
 							IssuedTasks[IssuedIndex]->Event.BusyWait();							
 						}
@@ -567,12 +557,10 @@ namespace mu
 							IssuedTasks[IssuedIndex]->Event.Wait();
 						}
 #else
-						if (CVarCodeRunnerTaskGraphBusyWait->GetBool())
+						if (CVarTaskGraphBusyWait->GetBool())
 						{
-							FGraphEventRef Task = IssuedTasks[IssuedIndex]->Event;
-							
 							LowLevelTasks::BusyWaitUntil(
-								[Task]()
+								[Task = IssuedTasks[IssuedIndex]->Event]()
 								{
 									return Task->IsComplete();
 								}

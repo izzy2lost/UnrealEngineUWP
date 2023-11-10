@@ -119,9 +119,28 @@ void FMutableTaskGraph::WaitForMutableTasks()
 	if (LastMutableTask.IsValid())
 	{
 #ifdef MUTABLE_USE_NEW_TASKGRAPH
-		LastMutableTask.Wait();
+		if (CVarTaskGraphBusyWait->GetBool())
+		{
+			LastMutableTask.BusyWait();
+		}
+		else
+		{
+			LastMutableTask.Wait();
+		}
 #else
-		LastMutableTask->Wait();
+		if (CVarTaskGraphBusyWait->GetBool())
+		{
+			LowLevelTasks::BusyWaitUntil(
+				[Task = LastMutableTask]()
+				{
+					return Task->IsComplete();
+				}
+			);
+		}
+		else 
+		{
+			LastMutableTask->Wait();
+		}
 #endif
 		LastMutableTask = {};
 	}
