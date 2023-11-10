@@ -328,7 +328,7 @@ void UE::Interchange::FTaskParsing::DoTask(ENamedThreads::Type CurrentThread, co
 		for(TObjectPtr<UInterchangeTranslatorBase> Translator : AsyncHelper->Translators)
 		{
 			//We need a valid translator to add a result message
-			if (!Translator)
+			if (!Translator || AsyncHelper->bCancel)
 			{
 				continue;
 			}
