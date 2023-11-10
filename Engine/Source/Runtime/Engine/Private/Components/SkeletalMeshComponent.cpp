@@ -4149,7 +4149,7 @@ void USkeletalMeshComponent::SetAllowRigidBodyAnimNode(bool bInAllow, bool bRein
 	{
 		bDisableRigidBodyAnimNode = !bInAllow;
 
-		if(bReinitAnim && bRegistered)
+		if(bReinitAnim && bRegistered && GetSkeletalMeshAsset() != nullptr)
 		{
 			// need to reinitialize rigid body nodes for new setting to take effect
 			if (AnimScriptInstance)
