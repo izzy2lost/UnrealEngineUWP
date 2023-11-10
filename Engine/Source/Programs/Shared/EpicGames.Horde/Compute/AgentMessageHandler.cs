@@ -362,7 +362,7 @@ namespace EpicGames.Horde.Compute
 					_logger.LogWarning("Executable {Path} does not exist", resolvedExecutable);	
 				}
 				
-				if (!File.Exists(resolvedWorkingDir))
+				if (!Directory.Exists(resolvedWorkingDir))
 				{
 					_logger.LogWarning("Working dir {Path} does not exist", resolvedWorkingDir);	
 				}
