@@ -751,6 +751,17 @@ SUBSTRATE_TOP_LAYER_TYPE SubstratePackTopLayerData(FSubstrateTopLayerData In)
 #endif
 }
 
+bool SubstrateIsTopLayerMaterial(SUBSTRATE_TOP_LAYER_TYPE In)
+{
+#if SUBSTRATE_NORMAL_QUALITY==0
+	return In != 0;
+#elif SUBSTRATE_NORMAL_QUALITY==1
+	return In.y != 0;
+#else
+#error Unkown SUBSTRATE_NORMAL_QUALITY
+#endif
+}
+
 FSubstrateTopLayerData SubstrateUnpackTopLayerData(uint In)
 {
 	FSubstrateTopLayerData Out = (FSubstrateTopLayerData)0;
