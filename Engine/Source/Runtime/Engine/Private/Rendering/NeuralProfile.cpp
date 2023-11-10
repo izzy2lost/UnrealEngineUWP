@@ -20,6 +20,16 @@ DEFINE_LOG_CATEGORY_STATIC(LogNeuralProfile, Log, All);
 
 TUniquePtr<NeuralProfile::INeuralProfileManager> GNeuralProfileManager;
 
+static const TCHAR* GetNeuralProfileRuntimeName(ENeuralProfileRuntimeType NeuralProfileRuntimeType)
+{
+	static const TCHAR* const kRuntimeNames[] = {
+		TEXT("NNERuntimeRDGDml"),
+	};
+
+	static_assert(UE_ARRAY_COUNT(kRuntimeNames) == int32(ENeuralProfileRuntimeType::MAX), "Fix me");
+	return kRuntimeNames[int32(NeuralProfileRuntimeType)];
+}
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 // FNeuralProfileModelTextureManager
 
@@ -102,30 +112,39 @@ public:
 
 			FNeuralProfileStruct& CurrentSettings = NeuralProfileEntries[AllocationId].Settings;
 			const bool bModelIsTheSame =
-				CurrentSettings.RuntimeName == Settings.RuntimeName &&
+				CurrentSettings.RuntimeType == Settings.RuntimeType &&
 				CurrentSettings.NNEModelData == Settings.NNEModelData;
 
 			const bool bNeedToUpdateModel = !bModelIsTheSame;
 			
+			// Update model
 			if (bNeedToUpdateModel)
 			{
-				// any changes to the setting require an update of the NNE model.
-				if (Settings.NNEModelData.Get())
-				{
-					GNeuralProfileManager->UpdateModel(AllocationId, Settings.NNEModelData.Get(), Settings.RuntimeName);
-				}
+				// Any changes to the setting require an update of the NNE model.
+				GNeuralProfileManager->UpdateModel(AllocationId, Settings.NNEModelData.Get(), GetNeuralProfileRuntimeName(Settings.RuntimeType));
 			}
 
-			//update model tile type
-			if (CurrentSettings.TileSize != Settings.TileSize)
+			// Update tile setting
+			if (CurrentSettings.TileSize != Settings.TileSize || bNeedToUpdateModel)
 			{
 				GNeuralProfileManager->UpdateTileType(AllocationId, Settings.TileSize);
 			}
+
+			if (CurrentSettings.TileOverlap != Settings.TileOverlap || bNeedToUpdateModel)
+			{
+				GNeuralProfileManager->UpdateTileOverlap(AllocationId, Settings.TileOverlap);
+			}
 			
+			if (CurrentSettings.TileOverlapResolveType != Settings.TileOverlapResolveType || bNeedToUpdateModel)
+			{
+				GNeuralProfileManager->UpdateTileOverlapResolveType(AllocationId, Settings.TileOverlapResolveType);
+			}
+
+			// Update batch dimension
 			const bool bBufferSizeNeedsUpdate =
 				CurrentSettings.BatchSizeOverride != Settings.BatchSizeOverride;
 			int32 BatchSizeOverride = NeuralProfileEntries[AllocationId].Settings.BatchSizeOverride;
-			if (bBufferSizeNeedsUpdate)
+			if (bBufferSizeNeedsUpdate/* || bNeedToUpdateModel*/)
 			{
 				if (GNeuralProfileManager->UpdateBatchSize(AllocationId, Settings.BatchSizeOverride))
 				{
@@ -247,11 +266,11 @@ void UNeuralProfile::PostEditChangeProperty(struct FPropertyChangedEvent& Proper
 			{
 				Settings.InputDimension = GNeuralProfileManager->GetInputDimension(
 					Settings.NNEModelData.Get(),
-					Settings.RuntimeName);
+					GetNeuralProfileRuntimeName(Settings.RuntimeType));
 
 				Settings.OutputDimension = GNeuralProfileManager->GetOutputDimension(
 					Settings.NNEModelData.Get(),
-					Settings.RuntimeName);
+					GetNeuralProfileRuntimeName(Settings.RuntimeType));
 			});
 	}
 }

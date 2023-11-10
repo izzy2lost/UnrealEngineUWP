@@ -34,7 +34,25 @@ if the input texture has different dimensions, it will be scaled down before app
 	e.g., if the model input dimension is (1x3x200x200) and the used buffer size of the post processing
 	is 1000x1000, then 5x5 tiles ((5x5)x3x200x200) will be run and recombined.
 	*/
-	//Auto			UMETA(DisplayName = "Auto")
+	Auto			UMETA(DisplayName = "Auto")
+};
+
+UENUM(BlueprintType)
+enum class ETileOverlapResolveType : uint8
+{
+	/** Overlapped tile regions have no contribution to adjecent tiles*/
+	Ignore			UMETA(DisplayName = "Ignore"),
+
+	/** Overlapped regions are blended linearly to adjecent tiles*/
+	Feathering		UMETA(DisplayName = "Feathering")
+};
+
+
+UENUM(BlueprintType)
+enum class ENeuralProfileRuntimeType : uint8
+{
+	NNERuntimeRDGDml UMETA(DisplayName = "NNERuntimeRDGDml"),
+	MAX				 UMETA(Hidden)
 };
 
 // struct with all the settings we want in UNeuralProfile, separate to make it easer to pass this data around in the engine.
@@ -57,9 +75,9 @@ struct FNeuralProfileStruct
 	UPROPERTY(Category = "Common", EditAnywhere, BlueprintReadOnly, meta = (DisplayName = "Output Format", editcondition = "false", EditConditionHides))
 	ENeuralProfileFormat OutputFormat;
 
-	//runtime name (support "NNERuntimeRDGDml" only at this moment)
+	//runtime type (support "NNERuntimeRDGDml" only at this moment)
 	UPROPERTY(Category = "Model", EditAnywhere, BlueprintReadOnly)
-	FString RuntimeName;
+	ENeuralProfileRuntimeType RuntimeType;
 
 	/** Stores the NNEModelData imported from e.g., onnx model */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Model, meta = (DisplayName = "NNE Model Data"))
@@ -73,24 +91,33 @@ struct FNeuralProfileStruct
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Model, meta = (DisplayName = "Output Dimension", editcondition = "false"))
 	FIntVector4 OutputDimension;
 
-	/** Except for 1x1, all other model requires an intermediate buffer.*/
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Quality and Performance")
+	/** Used to override the batch size if the batch dimension is dynamic (-1)*/
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Override", meta = (DisplayName = "Batch Size"))
+	int32 BatchSizeOverride;
+
+	/** Total tiles used. Each tile will be executed by 1 batch */
+	UPROPERTY(EditAnywhere, Category = "Tile")
 	ENeuralModelTileType TileSize;
 
-	/** Used to override the batch size if the batch dimension is dynamic (-1)*/
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Quality and Performance")
-	int32 BatchSizeOverride;
+	/** Tile border overlaps (Left|Right, Top|Bottom). The larger this value, the more tiles are required to cover the whole screen when TileSize is Auto.*/
+	UPROPERTY(EditAnywhere, Category = "Tile", meta = (DisplayName = "Border Overlaps"))
+	FIntPoint TileOverlap;
+
+	UPROPERTY(EditAnywhere, Category = "Tile", meta = (DisplayName = "Overlap Resolve Type"))
+	ETileOverlapResolveType TileOverlapResolveType;
 
 	FNeuralProfileStruct()
 	{
 		InputFormat = ENeuralProfileFormat::Type32;
 		OutputFormat = ENeuralProfileFormat::Type32;
-		RuntimeName = "NNERuntimeRDGDml";
+		RuntimeType = ENeuralProfileRuntimeType::NNERuntimeRDGDml;
 		NNEModelData = nullptr;
 		InputDimension = FIntVector4(0);
 		OutputDimension = FIntVector4(0);
 		TileSize = ENeuralModelTileType::OneByOne;
 		BatchSizeOverride = 1;
+		TileOverlap = FIntPoint(0, 0);
+		TileOverlapResolveType = ETileOverlapResolveType::Ignore;
 	}
 
 	void Invalidate()
@@ -143,9 +170,11 @@ namespace NeuralProfile
 
 		virtual void UpdateTileType(int32 AllocationId, ENeuralModelTileType ModelTileSize) = 0;
 		virtual bool UpdateBatchSize(int32 AllocationId, int32 BatchSize) = 0;
-	
+		virtual void UpdateTileOverlap(int32 AllocationId, FIntPoint TileOverlap) = 0;
+		virtual void UpdateTileOverlapResolveType(int32 AllocationId, ETileOverlapResolveType TileOverlapResolveType) = 0;
+
 		virtual FIntVector4 GetInputDimension(UObject* NNEModelData, FString RuntimeName) = 0;
-		virtual FIntVector4 GetOutputDimension(UObject* NNEModelData, FString RuntimeName) = 0;
+		virtual FIntVector4 GetOutputDimension(UObject* NNEModelData, FString RuntimeName) = 0;		
 	};
 }
 

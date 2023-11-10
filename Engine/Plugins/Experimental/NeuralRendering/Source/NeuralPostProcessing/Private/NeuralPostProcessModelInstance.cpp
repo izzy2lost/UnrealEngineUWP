@@ -80,19 +80,15 @@ UNeuralPostProcessModelInstance::UNeuralPostProcessModelInstance(FObjectInitiali
 	RDGOutputBuffer = nullptr;
 	RDGTiledInputBuffer = nullptr;
 	RDGTiledOutputBuffer = nullptr;
-	TileSize = 1;
+	DispatchSize = 1;
 	ModelTileSize = ENeuralModelTileType::OneByOne;
 	DimensionOverride = FIntVector4(-1);
+	TileOverlap = FIntPoint(0);
 }
 
 void UNeuralPostProcessModelInstance::Update(UNNEModelData* NNEModelData, FString RuntimeName)
 {
 	this->CreateDefaultNNEModel(NNEModelData, RuntimeName);
-}
-
-void UNeuralPostProcessModelInstance::UpdateTileSize(int inTileSize)
-{
-	this->TileSize = inTileSize;
 }
 
 void UNeuralPostProcessModelInstance::Execute(FRDGBuilder& GraphBuilder)
@@ -105,37 +101,41 @@ void UNeuralPostProcessModelInstance::Execute(FRDGBuilder& GraphBuilder)
 	UE::NNE::FTensorShape InputShape = GetResolvedInputTensorShape();
 	int32 InputBatchSize = InputShape.GetData()[0];
 
-	auto RunSingleDispatch = [&]() {
+	auto RunSingleDispatch = [&](bool bAddFence = true) {
 		Input.Buffer = RDGInputBuffer;
 		Output.Buffer = RDGOutputBuffer;
 		int Status = ModelInstanceRDG->EnqueueRDG(GraphBuilder, InputBindings, OutputBindings);
 
 		checkf(!Status, TEXT("EnqueueRDG failed: %d"), Status);
 
-		AddPass(GraphBuilder, RDG_EVENT_NAME("EnqueueRDGFence"), [this](FRHICommandListImmediate& RHICmdList)
-			{
-				// Need to wait until the output buffer, RDGOutputBuffer, is ready.
-				RHICmdList.SubmitCommandsAndFlushGPU();
-				RHICmdList.BlockUntilGPUIdle();
-			});
+		if (bAddFence)
+		{
+			AddPass(GraphBuilder, RDG_EVENT_NAME("EnqueueRDGFence"), [this](FRHICommandListImmediate& RHICmdList)
+				{
+					// Need to wait until the output buffer, RDGOutputBuffer, is ready.
+					RHICmdList.SubmitCommandsAndFlushGPU();
+					RHICmdList.BlockUntilGPUIdle();
+				});
+		}
 	};
 
-	if (TileSize <= InputBatchSize)
+	if (DispatchSize == 1)
 	{
 		RunSingleDispatch();
 	}
-	else
+	else if (DispatchSize > 1)
 	{
 		// Since we have more tiles than batch per dispatch we need to copy the data from tiled
 		// to and from the buffer.
-		int32 NumOfDispatch = (TileSize + InputBatchSize - 1) / InputBatchSize;
+		int32 NumOfDispatch = DispatchSize;
 		int32 InputBufferSize = RDGInputBuffer->Desc.GetSize();
 		int32 OutputBufferSize = RDGOutputBuffer->Desc.GetSize();
 
 		for (int i = 0; i < NumOfDispatch; ++i)
 		{
+			bool bAddFence = i == NumOfDispatch - 1;
 			AddCopyBufferPass(GraphBuilder, RDGInputBuffer, 0, RDGTiledInputBuffer, InputBufferSize * i, InputBufferSize);
-			RunSingleDispatch();
+			RunSingleDispatch(bAddFence);
 			AddCopyBufferPass(GraphBuilder, RDGTiledOutputBuffer, OutputBufferSize * i, RDGOutputBuffer, 0, OutputBufferSize);
 		}
 	}
@@ -192,7 +192,7 @@ bool UNeuralPostProcessModelInstance::ModifyInputShape(int Dim, int Size)
 	if (NewResolvedInputShape[Dim] != Size)
 	{
 #if WITH_EDITOR
-		UE_LOG(LogNeuralPostProcessing, Error, TEXT("Cannot set dimension %d to %d. It is dynamic. revert back to %d"),Dim, Size, NewResolvedInputShape[Dim]);
+		UE_LOG(LogNeuralPostProcessing, Error, TEXT("Cannot set dimension %d to %d. It is not dynamic. revert back to %d"),Dim, Size, NewResolvedInputShape[Dim]);
 #endif
 		return false;
 	}
@@ -231,7 +231,7 @@ void UNeuralPostProcessModelInstance::CreateRDGBuffers(class FRDGBuilder& GraphB
 	RDGInputBuffer = GraphBuilder.CreateBuffer(InputBufferDesc, TEXT("NeuralPostProcessing.InputBuffer"));
 
 	// Create output buffers
-	checkf(ModelInstanceRDG->GetOutputTensorShapes().Num() == 1, TEXT("Post Processing requires models with a single output tensor!"));
+	checkf(ModelInstanceRDG->GetOutputTensorShapes().Num() >= 1, TEXT("Post Processing requires models with a single output tensor!"));
 	
 	ResolvedOutputTensorShape = ModelInstanceRDG->GetOutputTensorShapes()[0];
 	checkf(ResolvedOutputTensorShape.Rank() == 4, TEXT("Neural Post Processing requires models dim = 4 [static/dynamic x C x height x width]!"));
@@ -248,21 +248,22 @@ void UNeuralPostProcessModelInstance::CreateRDGBuffers(class FRDGBuilder& GraphB
 	
 	RDGOutputBuffer = GraphBuilder.CreateBuffer(OutputBufferDesc, *FString("SubsurfacePostProcessing.OutputBuffer"));
 
-	if (TileSize <= InputBatch)
+	if (DispatchSize <= 1)
 	{
 		RDGTiledInputBuffer = RDGInputBuffer;
 		RDGTiledOutputBuffer = RDGOutputBuffer;
 	}
-	else if (TileSize > InputBatch)
+	else
 	{
 		FRDGBufferDesc InputTiledBufferDesc = FRDGBufferDesc::CreateBufferDesc(sizeof(float), 
-			NeuralNetworkInputSize.X * NeuralNetworkInputSize.Y * InputChannels * InputBatch * TileSize);
+			NeuralNetworkInputSize.X * NeuralNetworkInputSize.Y * InputChannels * InputBatch * DispatchSize);
 		RDGTiledInputBuffer = GraphBuilder.CreateBuffer(InputTiledBufferDesc, TEXT("NeuralPostProcessing.TiledInputBuffer"));
 
 		FRDGBufferDesc OutputTiledBufferDesc = FRDGBufferDesc::CreateBufferDesc(sizeof(float), 
-			NeuralNetworkOutputSize.X * NeuralNetworkOutputSize.Y * OutputChannels * OutputBatch * TileSize);
+			NeuralNetworkOutputSize.X * NeuralNetworkOutputSize.Y * OutputChannels * OutputBatch * DispatchSize);
 		RDGTiledOutputBuffer = GraphBuilder.CreateBuffer(OutputTiledBufferDesc, TEXT("NeuralPostProcessing.TiledOutputBuffer"));
 	}
+
 }
 
 void UNeuralPostProcessModelInstance::CreateRDGBuffersIfNeeded(FRDGBuilder& GraphBuilder, bool bForceCreate)

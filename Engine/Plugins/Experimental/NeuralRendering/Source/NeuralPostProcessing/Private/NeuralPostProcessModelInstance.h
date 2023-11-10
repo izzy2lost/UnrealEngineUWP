@@ -19,6 +19,7 @@ TSharedPtr<UE::NNE::IModelInstanceRDG> CreateNNEModelInstance(UNNEModelData* NNE
 TSharedPtr<UE::NNE::IModelInstanceCPU> CreateNNECpuModelInstance(UNNEModelData* NNEModelData);
 
 enum class ENeuralModelTileType : uint8;
+enum class ETileOverlapResolveType : uint8;
 
 UCLASS()
 class UNeuralPostProcessModelInstance : public UObject
@@ -51,11 +52,16 @@ public:
 	FRDGBufferRef GetTiledInputBuffer();
 	FRDGBufferRef GetTiledOutputBuffer();
 
-	void UpdateTileSize(int TileSize = 1);
-	int GetTileSize() const { return TileSize; }
-
-	void UpdateModelTileType(ENeuralModelTileType inTileType) { ModelTileSize = inTileType; }
-	ENeuralModelTileType GetModelTileType()const { return ModelTileSize; }
+	void UpdateDispatchSize(int InDispatchSize){ DispatchSize = InDispatchSize;}
+	int	 GetDispatchSize() const{ return DispatchSize;}
+	void UpdateTileDimension(FIntPoint InTileDim) { TileDim = InTileDim; };
+	FIntPoint GetTileDimension() const { return TileDim; };
+	void UpdateModelTileType(ENeuralModelTileType InTileType) { ModelTileSize = InTileType; }
+	ENeuralModelTileType GetModelTileType() const { return ModelTileSize; }
+	void UpdateTileOverlap(FIntPoint InTileOverlap){ TileOverlap = InTileOverlap;}
+	FIntPoint GetTileOverlap() const { return TileOverlap;}
+	void UpdateTileOverlapResolveType(ETileOverlapResolveType InTileOverlapResolveType) { TileOverlapResolveType = InTileOverlapResolveType; }
+	ETileOverlapResolveType GetTileOverlapResolveType() const { return TileOverlapResolveType; }
 
 	bool IsValid() { return ModelInstanceRDG.IsValid();}
 
@@ -77,7 +83,8 @@ private:
 
 	ENeuralModelTileType ModelTileSize;
 
-	int TileSize = 1;
+	int DispatchSize = 1;
+	FIntPoint TileDim = FIntPoint(1,1);
 
 	// The NNE RDG Model 
 	TSharedPtr<UE::NNE::IModelInstanceRDG> ModelInstanceRDG;
@@ -89,5 +96,8 @@ private:
 	UE::NNE::FTensorShape ResolvedOutputTensorShape;
 
 	FIntVector4 DimensionOverride;
+
+	FIntPoint TileOverlap;
+	ETileOverlapResolveType TileOverlapResolveType;
 };
 
