@@ -89,8 +89,12 @@ public:
 	TArray<FString> LODNamesList;
 
 	/** Control whether mesh borders are displayed */
-	UPROPERTY(EditAnywhere, Category = LODPreview)
+	UPROPERTY(EditAnywhere, DisplayName = "Show Borders", Category = LODPreview, meta = (EditCondition = "!bShowingDefaultLOD", HideEditConditionToggle))
 	bool bShowSeams = true;
+
+	// Used to expose the VisibleLOD state to the above EditCondition
+	UPROPERTY(Transient, meta = (TransientToolProperty))
+	bool bShowingDefaultLOD = true;
 };
 
 
