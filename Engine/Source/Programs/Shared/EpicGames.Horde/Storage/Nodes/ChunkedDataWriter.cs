@@ -214,9 +214,9 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		public async Task AppendAsync(ReadOnlyMemory<byte> data, CancellationToken cancellationToken)
 		{
-			Memory<byte> buffer = _writer.GetOutputBuffer(_leafLength, _leafLength);
 			for (; ; )
 			{
+				Memory<byte> buffer = _writer.GetOutputBuffer(_leafLength, _leafLength);
 				int appendLength = AppendToLeafNode(buffer.Span.Slice(0, _leafLength), data.Span, ref _leafHash, _options.LeafOptions);
 
 				buffer = _writer.GetOutputBuffer(_leafLength, _leafLength + appendLength);
