@@ -78,6 +78,11 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 		}
 
 		/// <summary>
+		/// Gets the number of exports currently in this writer
+		/// </summary>
+		public int GetExportCount() => _exportOffsets.Count - 1;
+
+		/// <summary>
 		/// Writes a new blob to this packet
 		/// </summary>
 		/// <param name="size"></param>
@@ -209,6 +214,12 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 			}
 			return idx;
 		}
+
+		/// <summary>
+		/// Gets the import assigned to a particular index
+		/// </summary>
+		public IBlobHandle GetImport(int importIdx)
+			=> _importHandles[importIdx + PacketImport.Bias];
 
 		/// <summary>
 		/// Gets data to write new export

@@ -620,22 +620,28 @@ namespace EpicGames.Core
 		/// <summary>
 		/// Returns a contiguous block of memory containing the written data
 		/// </summary>
-		public IRefCountedHandle<ReadOnlyMemory<byte>> AsRefCountedMemory()
+		public IRefCountedHandle<ReadOnlyMemory<byte>> AsRefCountedMemory() => AsRefCountedMemory(0, Length);
+
+		/// <summary>
+		/// Returns a contiguous block of memory containing the written data
+		/// </summary>
+		public IRefCountedHandle<ReadOnlyMemory<byte>> AsRefCountedMemory(int offset) => AsRefCountedMemory(offset, Length - offset);
+
+		/// <summary>
+		/// Returns a contiguous block of memory containing the written data
+		/// </summary>
+		public IRefCountedHandle<ReadOnlyMemory<byte>> AsRefCountedMemory(int offset, int length)
 		{
-			if (Chunks.Count == 1)
+			IRefCountedHandle<ReadOnlySequence<byte>> sequence = AsRefCountedSequence(offset, length);
+			if (sequence.Target.IsSingleSegment)
 			{
-				BufferChunk buffer = (BufferChunk)Chunks[0];
-				return RefCountedHandle.Create<ReadOnlyMemory<byte>>(buffer.WrittenMemory, buffer.Handle.AddRef());
+				return RefCountedHandle.Create(sequence.Target.First, sequence);
 			}
-			else
-			{
-				int length = Length;
 
-				IRefCountedHandle<Memory<byte>> allocation = RefCountedHandle.Create(_allocator.Alloc(length));
-				CopyTo(allocation.Target.Span);
+			IRefCountedHandle<Memory<byte>> allocation = RefCountedHandle.Create(_allocator.Alloc(length));
+			sequence.Target.CopyTo(allocation.Target.Span);
 
-				return RefCountedHandle.Create<ReadOnlyMemory<byte>>(allocation.Target.Slice(0, length), allocation);
-			}
+			return RefCountedHandle.Create<ReadOnlyMemory<byte>>(allocation.Target.Slice(0, length), allocation);
 		}
 
 		/// <summary>
