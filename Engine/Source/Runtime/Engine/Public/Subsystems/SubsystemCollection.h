@@ -75,7 +75,7 @@ private:
 
 	ENGINE_API void RemoveAndDeinitializeSubsystem(USubsystem* Subsystem);
 
-	ENGINE_API void UpdateSubsystemArrayInternal(UClass* SubsystemClass, TArray<USubsystem*>& SubsystemArray) const;
+	ENGINE_API void PopulateSubsystemArrayInternal(UClass* SubsystemClass, TArray<USubsystem*>& SubsystemArray) const;
 
 	TMap<TObjectPtr<UClass>, TObjectPtr<USubsystem>> SubsystemMap;
 
