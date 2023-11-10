@@ -737,8 +737,8 @@ void UResavePackagesCommandlet::LoadAndSaveOnePackage(const FString& Filename)
 		// Get the package linker.
 		VerboseMessage(TEXT("Pre GetPackageLinker"));
 
-		FLinkerLoad* Linker = LoadPackageLinker(nullptr, PackagePath, LOAD_NoVerify);
-	
+		FLinkerLoad* Linker = GetPackageLinker(nullptr, PackagePath, LOAD_NoVerify, nullptr);
+
 		// Bail early if we don't have a valid linker (package was out of date, etc)
 		if( !Linker )
 		{
@@ -2783,7 +2783,7 @@ int32 UWrangleContentCommandlet::Main( const FString& Params )
 				// This should help capture more references.
 				GRedirectCollector.ResolveAllSoftObjectPaths(NAME_None);
 				
-				FLinkerLoad* Linker = LoadPackageLinker(nullptr, PackagePath, LOAD_Quiet | LOAD_NoWarn | LOAD_NoVerify);
+				FLinkerLoad* Linker = GetPackageLinker(nullptr, PackagePath, LOAD_Quiet | LOAD_NoWarn | LOAD_NoVerify, nullptr);
 
 				UWorld* World = UWorld::FindWorldInPackage(Package);
 				if (World && World->IsPartitionedWorld())
@@ -2987,7 +2987,7 @@ int32 UWrangleContentCommandlet::Main( const FString& Params )
 				}
 			}
 
-			FLinkerLoad* Linker = LoadPackageLinker(nullptr, PackagePath, LOAD_Quiet | LOAD_NoWarn | LOAD_NoVerify);
+			FLinkerLoad* Linker = GetPackageLinker(nullptr, PackagePath, LOAD_Quiet | LOAD_NoWarn | LOAD_NoVerify, nullptr);
 
 			// go through the exports in the package, looking for public objects
 			for (int32 ExportIndex = 0; ExportIndex < Linker->ExportMap.Num(); ExportIndex++)
