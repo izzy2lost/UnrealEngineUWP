@@ -14,6 +14,7 @@
 #include "ISkeletalMeshEditorModule.h"
 #include "ModelingToolsEditorModeStyle.h"
 #include "ModelingToolsManagerActions.h"
+#include "PersonaModule.h"
 #include "Modules/ModuleManager.h"
 #include "SkeletalMeshToolMenuContext.h"
 #include "ToolMenus.h"
@@ -167,6 +168,13 @@ void FSkeletalMeshModelingToolsModule::OnToggleEditingToolsMode(TWeakPtr<ISkelet
 		else
 		{
 			EditorModeManager.DeactivateMode(USkeletalMeshModelingToolsEditorMode::Id);
+		}
+
+		// make sure SkeletonSelection is active when toggling the mode, as they are compatible.
+		// it will be deactivated later when entering a tool 
+		if (!EditorModeManager.IsModeActive(FPersonaEditModes::SkeletonSelection))
+		{
+			EditorModeManager.ActivateMode(FPersonaEditModes::SkeletonSelection);
 		}
 	}
 }

@@ -367,11 +367,24 @@ bool USkeletalMeshModelingToolsEditorMode::ComputeBoundingBoxForViewportFocus(AA
 void USkeletalMeshModelingToolsEditorMode::OnToolStarted(UInteractiveToolManager* Manager, UInteractiveTool* Tool)
 {
 	FSkeletalMeshModelingToolsActionCommands::UpdateToolCommandBinding(Tool, Toolkit->GetToolkitCommands(), false);
+
+	// deactivate SkeletonSelection when a tool is activated.
+	// each tool is responsible for activating SkeletonSelection if necessary
+	if (Owner)
+	{
+		Owner->DeactivateMode(FPersonaEditModes::SkeletonSelection);
+	}
 }
 
 void USkeletalMeshModelingToolsEditorMode::OnToolEnded(UInteractiveToolManager* Manager, UInteractiveTool* Tool)
 {
 	FSkeletalMeshModelingToolsActionCommands::UpdateToolCommandBinding(Tool, Toolkit->GetToolkitCommands(), true);
+
+	// reactivate SkeletonSelection when deactivating a tool
+	if (Owner)
+	{
+		Owner->ActivateMode(FPersonaEditModes::SkeletonSelection);
+	}
 }
 
 void USkeletalMeshModelingToolsEditorMode::SetEditorBinding(const TWeakPtr<ISkeletalMeshEditor>& InSkeletalMeshEditor)
