@@ -118,9 +118,12 @@ Buffer<uint>	SimRootBarycentricBuffer;
 Buffer<uint>	SimRootToUniqueTriangleIndexBuffer;
 #endif
 
-Buffer<float4> OutSimHairPositionOffsetBuffer;
-Buffer<float4> OutRenHairPositionOffsetBuffer;
+uint InstanceRegisteredIndex;
+StructuredBuffer<float4> OutSimHairPositionOffsetBuffer;
+StructuredBuffer<float4> OutRenHairPositionOffsetBuffer;
 
+float3 GetSimPositionOffset() { return ReadSimPositionOffset(OutSimHairPositionOffsetBuffer, InstanceRegisteredIndex); }
+float3 GetRenPositionOffset() { return ReadRenPositionOffset(OutRenHairPositionOffsetBuffer, InstanceRegisteredIndex); }
 
 #ifndef GROUP_SIZE
 	#error Unknown group size	
@@ -436,7 +439,7 @@ void MainCS(uint2 DispatchThreadId : SV_DispatchThreadID)
 	// 2. Appply deformation
 	if (VertexIndex < VertexCount)
 	{
-		const FGuideDataWithOffset GuideData = GetGuideData(VertexIndex, PERMUTATION_USE_SINGLE_GUIDE, OutSimHairPositionOffsetBuffer[0].xyz);
+		const FGuideDataWithOffset GuideData = GetGuideData(VertexIndex, PERMUTATION_USE_SINGLE_GUIDE, GetSimPositionOffset());
 		const FRootTriangleData RenTri = GetRootTriangleData(VertexIndex, false);
 
 		// Manual decoding of the rest position
@@ -495,7 +498,7 @@ void MainCS(uint2 DispatchThreadId : SV_DispatchThreadID)
 				OutPosition = INFINITE_FLOAT;
 			}
 		}
-		OutRenDeformedPositionBuffer[VertexIndex] = PackHairControlPointPosition(PackedRestPosition, OutPosition, OutRenHairPositionOffsetBuffer[0].xyz);
+		OutRenDeformedPositionBuffer[VertexIndex] = PackHairControlPointPosition(PackedRestPosition, OutPosition, GetRenPositionOffset());
 	}
 }
 #endif // SHADER_HAIRINTERPOLATION

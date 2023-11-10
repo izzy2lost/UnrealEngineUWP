@@ -268,7 +268,7 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 
 	const float3 P_Local = UnpackHairControlPoint(
 		HairStrandsVF.PositionBuffer[VertexIndex],
-		HairStrandsVF.PositionOffsetBuffer[0].xyz,
+		ReadRenPositionOffset(HairStrandsVF.PositionOffsetBuffer, HairStrandsVF.RegisteredIndex),
 		HairStrandsVF.Radius * ScaleR,
 		HairStrandsVF.RootScale,
 		HairStrandsVF.TipScale).Position;
@@ -1844,6 +1844,9 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 #include "HairStrandsVertexFactoryCommon.ush"
 #include "../ShaderPrint.ush"
 
+uint InstanceRegisteredIndex;
+uint CardLODIndex;
+
 uint RenVertexCount;
 float3 RenRestOffset;
 
@@ -1854,11 +1857,11 @@ float4x4 LocalToWorld;
 
 Buffer<uint4> RenRestPosition;
 Buffer<uint4> RenDeformedPosition;
-Buffer<float4> RenDeformedOffset;
+StructuredBuffer<float4> RenDeformedOffset;
 
 Buffer<uint4> SimRestPosition;
 Buffer<uint4> SimDeformedPosition;
-Buffer<float4> SimDeformedOffset;
+StructuredBuffer<float4> SimDeformedOffset;
 
 float3 RestOffset;
 float3 DeformedOffset;
@@ -1898,7 +1901,7 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 	{
 		PackedP0 = RenDeformedPosition[VertexId];
 		PackedP1 = RenDeformedPosition[VertexId + 1];
-		Offset   = RenDeformedOffset[0].xyz;
+		Offset   = ReadCardPositionOffset(RenDeformedOffset, InstanceRegisteredIndex, CardLODIndex);
 		ColorRoot= ColorYellow;
 		ColorTip = ColorPurple;
 	}
@@ -1914,7 +1917,7 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 	{
 		PackedP0 = SimDeformedPosition[VertexId];
 		PackedP1 = SimDeformedPosition[VertexId + 1];
-		Offset   = SimDeformedOffset[0].xyz;
+		Offset   = ReadSimPositionOffset(SimDeformedOffset, InstanceRegisteredIndex);
 		ColorRoot= ColorCyan;
 		ColorTip = ColorRed;
 	}
@@ -2481,7 +2484,7 @@ void CSMain(
 		{
 			FHairControlPoint Out = UnpackHairControlPoint(
 				HairInstance_PositionBuffer[VisNode.ControlPointId],
-				HairInstance_PositionOffsetBuffer[0].xyz,
+				HairInstance_GetHairInstancePositionOffset(),
 				HairInstance_Radius,
 				HairInstance_RootScale,
 				HairInstance_TipScale);

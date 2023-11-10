@@ -467,17 +467,18 @@ void BinningCS(uint DispatchThreadID : SV_DispatchThreadID, uint GroupThreadID :
 		// Project segment end points and clip them to the screen
 		if (bSegValid)
 		{
+			const float3 InstancePositionOffset = HairStrandsVF_GetHairInstancePositionOffset();
 			float4 H0 = 0.0f;
 			float4 H1 = 0.0f;
 			uint Type = -1;
-			CalcHomogenousPos(HairStrandsVF_PositionBuffer[PrimID], HairStrandsVF_PositionOffsetBuffer[0].xyz, H0, Type);
+			CalcHomogenousPos(HairStrandsVF_PositionBuffer[PrimID], InstancePositionOffset, H0, Type);
 
 			bool bIsEndCV = (Type == HAIR_CONTROLPOINT_END);
 			bSegValid = !bIsEndCV;
 
 			if (bSegValid)
 			{
-				CalcHomogenousPos(HairStrandsVF_PositionBuffer[PrimID + 1], HairStrandsVF_PositionOffsetBuffer[0].xyz, H1, Type);
+				CalcHomogenousPos(HairStrandsVF_PositionBuffer[PrimID + 1], InstancePositionOffset, H1, Type);
 				
 				// Do clipping in homogenous coordinates
 				bSegValid = BlinnLineClipping(H0, H1);
@@ -884,7 +885,7 @@ void RasterCS(uint DispatchThreadID : SV_DispatchThreadID, uint GroupThreadID : 
 		group_TileNum = VisTileArgs[0];
 		group_LoopNum = (float(group_TileNum) + float(NumRasterizers - 1)) * RcpNumRasterizers;
 
-		group_PositionOffset = HairStrandsVF_PositionOffsetBuffer[0].xyz;
+		group_PositionOffset = HairStrandsVF_GetHairInstancePositionOffset();
 
 		/* no longer in use - keep for ref? Moving these values to group shared memory did seem to reduce VGPRs - more experimentation needed
 		group_RadScale = (((HairStrandsVF_TipScale - HairStrandsVF_RootScale) * HairStrandsVF_Radius * OutputResolutionf.x) / 63.0) / 255.0;
@@ -1297,7 +1298,7 @@ void RasterMultiSampleCS(uint DispatchThreadID : SV_DispatchThreadID, uint Group
 		group_TileNum = VisTileArgs[0];
 		group_LoopNum = (float(group_TileNum) + float(NumRasterizers - 1)) * RcpNumRasterizers;
 
-		group_PositionOffset = HairStrandsVF_PositionOffsetBuffer[0].xyz;
+		group_PositionOffset = HairStrandsVF_GetHairInstancePositionOffset();
 	}
 
 	GroupMemoryBarrierWithGroupSync();

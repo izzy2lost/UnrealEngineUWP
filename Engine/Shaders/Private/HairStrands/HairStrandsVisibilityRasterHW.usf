@@ -82,7 +82,7 @@ VSOutput VSMain(VSInput Input)
 	#endif // PERMUTATION_CULLING
 #endif // PERMUTATION_DRAW_INDIRECT
 
-	const float3 PositionOffset = HairStrandsVF_PositionOffsetBuffer[0].xyz;
+	const float3 PositionOffset = HairStrandsVF_GetHairInstancePositionOffset();
 
 	// Fetch both control points
 	const FHairControlPoint CP0 = UnpackHairControlPoint(

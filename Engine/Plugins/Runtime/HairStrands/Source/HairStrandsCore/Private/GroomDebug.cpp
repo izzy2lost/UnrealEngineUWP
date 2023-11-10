@@ -640,16 +640,18 @@ class FDrawDebugCardGuidesCS : public FGlobalShader
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, ViewUniformBuffer)
-		SHADER_PARAMETER(uint32,  DebugMode)
+		SHADER_PARAMETER(uint32, InstanceRegisteredIndex)
+		SHADER_PARAMETER(uint32, CardLODIndex)
+		SHADER_PARAMETER(uint32, DebugMode)
 		SHADER_PARAMETER(FMatrix44f, LocalToWorld)
 		
 		SHADER_PARAMETER(uint32,  RenVertexCount)
 		SHADER_PARAMETER(FVector3f, RenRestOffset)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, RenDeformedOffset)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer, RenDeformedOffset)
 		
 		SHADER_PARAMETER(uint32,  SimVertexCount)
 		SHADER_PARAMETER(FVector3f, SimRestOffset)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, SimDeformedOffset)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer, SimDeformedOffset)
 
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, RenRestPosition)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, RenDeformedPosition)
@@ -732,6 +734,8 @@ static void AddDrawDebugCardsGuidesPass(
 	FDrawDebugCardGuidesCS::FParameters* Parameters = GraphBuilder.AllocParameters<FDrawDebugCardGuidesCS::FParameters>();
 	Parameters->ViewUniformBuffer = View.ViewUniformBuffer;
 
+	Parameters->InstanceRegisteredIndex = Instance->RegisteredIndex;
+	Parameters->CardLODIndex = HairLODIndex;
 	Parameters->RenVertexCount = 0;
 	Parameters->RenRestOffset = FVector3f::ZeroVector;
 	Parameters->RenRestPosition = DefaultBuffer;

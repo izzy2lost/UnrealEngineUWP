@@ -100,7 +100,7 @@ void CSMain(uint DispatchThreadID : SV_DispatchThreadID, uint GroupThreadID : SV
 
 	const uint CurveID = DispatchThreadID;
 	const bool bValidCurve = CurveID < CurveCount;
-	const float3 PositionOffset = HairStrandsVF_PositionOffsetBuffer[0].xyz;
+	const float3 PositionOffset = HairStrandsVF_GetHairInstancePositionOffset();
 
 	bool bIsCurveVisibile = false;
 	uint PrimWriteOffset = 0;
@@ -260,7 +260,7 @@ void CSMain(uint DispatchThreadID : SV_DispatchThreadID, uint GroupThreadID : SV
 	bool bIsPrimValid = ControlPointId < ControlPointCount;
 	if (bIsPrimValid)
 	{
-		const float3 PositionOffset = HairStrandsVF_PositionOffsetBuffer[0].xyz;
+		const float3 PositionOffset = HairStrandsVF_GetHairInstancePositionOffset();
 
 		// Fetch both control points
 		FHairControlPoint CP0 = UnpackHairControlPoint(

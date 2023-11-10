@@ -915,13 +915,14 @@ class FHairCardsDeformationCS : public FGlobalShader
 	using FPermutationDomain = TShaderPermutationDomain<FDynamicGeometry>;
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER(uint32, InstanceRegisteredIndex)
 		SHADER_PARAMETER(FMatrix44f, LocalToWorld)
 		SHADER_PARAMETER(uint32, CardsVertexCount)
 		SHADER_PARAMETER(uint32, GuideVertexCount)
 		SHADER_PARAMETER(FVector3f, GuideRestPositionOffset)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, GuideRestPositionBuffer)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, GuideDeformedPositionBuffer)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, GuideDeformedPositionOffsetBuffer)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer, GuideDeformedPositionOffsetBuffer)
 		SHADER_PARAMETER_SRV(Buffer, CardsRestPositionBuffer)
 		SHADER_PARAMETER_SRV(Buffer, CardsRestTangentBuffer)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, CardsInterpolationBuffer)
@@ -983,6 +984,7 @@ static void AddHairCardsDeformationPass(
 	}
 	
 	FHairCardsDeformationCS::FParameters* Parameters = GraphBuilder.AllocParameters<FHairCardsDeformationCS::FParameters>();
+	Parameters->InstanceRegisteredIndex		= Instance->RegisteredIndex;
 	Parameters->LocalToWorld				= FMatrix44f(Instance->GetCurrentLocalToWorld().ToMatrixWithScale());		// LWC_TODO: Precision loss
 	Parameters->GuideVertexCount			= LOD.Guides.RestResource->GetPointCount();
 	Parameters->GuideRestPositionOffset		= (FVector3f)LOD.Guides.RestResource->GetPositionOffset();
@@ -1146,6 +1148,7 @@ class FHairRaytracingGeometryCS : public FGlobalShader
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER(uint32, PointCount)
+		SHADER_PARAMETER(uint32, HairStrandsVF_RegisteredIndex)
 		SHADER_PARAMETER(float, HairStrandsVF_HairRadius)
 		SHADER_PARAMETER(float, HairStrandsVF_HairRootScale)
 		SHADER_PARAMETER(float, HairStrandsVF_HairTipScale)
@@ -1156,7 +1159,7 @@ class FHairRaytracingGeometryCS : public FGlobalShader
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer,	HairStrandsVF_CullingRadiusScaleBuffer)
 		RDG_BUFFER_ACCESS(HairStrandsVF_CullingIndirectBufferArgs, ERHIAccess::IndirectArgs)
 
-		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, PositionOffsetBuffer)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer, PositionOffsetBuffer)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, PositionBuffer)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, TangentBuffer)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer, OutputPositionBuffer)
@@ -1191,6 +1194,7 @@ static void AddGenerateRaytracingGeometryPass(
 	FRDGBuilder& GraphBuilder,
 	FGlobalShaderMap* ShaderMap,
 	const FShaderPrintData* ShaderPrintData,
+	uint32 InstanceRegisteredIndex,
 	uint32 PointCount,
 	bool bProceduralPrimitive,
 	int ProceduralSplits,
@@ -1207,6 +1211,7 @@ static void AddGenerateRaytracingGeometryPass(
 	FHairRaytracingGeometryCS::FParameters* Parameters = GraphBuilder.AllocParameters<FHairRaytracingGeometryCS::FParameters>();
 	Parameters->PointCount = PointCount;
 	Parameters->PositionOffsetBuffer = HairWorldOffsetBuffer;
+	Parameters->HairStrandsVF_RegisteredIndex = InstanceRegisteredIndex;
 	Parameters->HairStrandsVF_HairRadius = HairRadius;
 	Parameters->HairStrandsVF_HairRootScale = RootScale;
 	Parameters->HairStrandsVF_HairTipScale = TipScale;
@@ -1751,6 +1756,9 @@ void ComputeHairStrandsInterpolation(
 					AddHairStrandUpdatePositionOffsetPass(
 						GraphBuilder,
 						ShaderMap,
+						EHairPositionUpdateType::Strands,
+						Instance->RegisteredIndex,
+						0,
 						MeshLODIndex,
 						Instance->Strands.DeformedRootResource,
 						Instance->Strands.DeformedResource);
@@ -1866,6 +1874,9 @@ void ComputeHairStrandsInterpolation(
 					AddHairStrandUpdatePositionOffsetPass(
 						GraphBuilder,
 						ShaderMap,
+						EHairPositionUpdateType::Strands,
+						Instance->RegisteredIndex,
+						0,
 						MeshLODIndex,
 						Instance->Strands.DeformedRootResource,
 						Instance->Strands.DeformedResource);
@@ -2001,6 +2012,7 @@ void ComputeHairStrandsInterpolation(
 						GraphBuilder,
 						ShaderMap,
 						ShaderPrintData,
+						Instance->RegisteredIndex,
 						ActivePointCount,
 						bProceduralPrimitive,
 						ProceduralSplits,

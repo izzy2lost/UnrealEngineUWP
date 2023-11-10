@@ -189,6 +189,16 @@ struct FVertexFactoryIntermediates
 	FSceneDataIntermediates SceneData;
 };
 
+float3 GetPositionOffset()
+{
+	return ReadRenPositionOffset(HairStrandsVF.PositionOffsetBuffer, HairStrandsVF.RegisteredIndex);
+}
+
+float3 GetPrevPositionOffset()
+{
+	return ReadRenPrevPositionOffset(HairStrandsVF.PreviousPositionOffsetBuffer, HairStrandsVF.RegisteredIndex);
+}
+
 uint GetHairControlPointId(FVertexFactoryInput Input)
 {
 	return GetVertexInfo(Input).HairControlPointId;
@@ -196,7 +206,7 @@ uint GetHairControlPointId(FVertexFactoryInput Input)
 
 FHairControlPoint GetVertexPosition(const FVertexInfo VertexInfo, bool bInvalidJointVertex=true)
 {
-	const float3 PositionOffset = HairStrandsVF.PositionOffsetBuffer[0].xyz;
+	const float3 PositionOffset = GetPositionOffset();
 
 	const uint4 PackedData = HairStrandsVF.PositionBuffer[VertexInfo.VertexIndex];
 	FHairControlPoint Out = UnpackHairControlPoint(
@@ -237,7 +247,7 @@ float GetWorldStrandRadius(FVertexFactoryInput Input)
 
 float3 GetVertexPreviousPosition(FVertexFactoryInput Input, bool bInvalidJointVertex = true)
 {
-	const float3 PreviousPositionOffset = HairStrandsVF.PreviousPositionOffsetBuffer[0].xyz;
+	const float3 PreviousPositionOffset = GetPrevPositionOffset();
 
 	FVertexInfo VertexInfo = GetVertexInfo(Input);
 	const uint4 PackedData = HairStrandsVF.PreviousPositionBuffer[VertexInfo.VertexIndex];
@@ -407,7 +417,7 @@ RAY_TRACING_ENTRY_INTERSECTION(MaterialIS)
 	}
 
 	const float EffectiveRadius = HairStrandsVF.Radius * HairStrandsVF.RaytracingRadiusScale;
-	const float3 PositionOffset = HairStrandsVF.PositionOffsetBuffer[0].xyz;
+	const float3 PositionOffset = GetPositionOffset();
 	FHairControlPoint P0 = UnpackHairControlPoint(
 		HairStrandsVF.PositionBuffer[VertexIndex0],
 		PositionOffset,
@@ -491,7 +501,7 @@ FMaterialPixelParameters GetMaterialPixelParameters(float3 RayOrigin, float3 Ray
 	const float EffectiveRadius = HairStrandsVF.Radius * HairStrandsVF.RaytracingRadiusScale;
 	float UCoord = Barycentrics.x;
 	float VCoord = Barycentrics.y;
-	const float3 PositionOffset = HairStrandsVF.PositionOffsetBuffer[0].xyz;
+	const float3 PositionOffset = GetPositionOffset();
 	FHairControlPoint P0 = UnpackHairControlPoint(
 		HairStrandsVF.PositionBuffer[VertexIndex0],
 		PositionOffset,
@@ -543,7 +553,7 @@ FMaterialPixelParameters GetMaterialPixelParameters(float3 RayOrigin, float3 Ray
 	float VCoord = 0;
 	{
 		// find central point of the hair strand
-		const float3 PositionOffset = HairStrandsVF.PositionOffsetBuffer[0].xyz;
+		const float3 PositionOffset = GetPositionOffset();
 		const float EffectiveRadius = HairStrandsVF.Radius * HairStrandsVF.RaytracingRadiusScale;
 		FHairControlPoint P0 = UnpackHairControlPoint(
 			HairStrandsVF.PositionBuffer[VertexIndex0],

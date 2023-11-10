@@ -14,10 +14,12 @@
 #if SHADER_DEFORM_CARDS
 float4x4 LocalToWorld;
 
+uint CardLODIndex;
+uint InstanceRegisteredIndex;
 uint CardsVertexCount;
 uint GuideVertexCount;
 float3 GuideRestPositionOffset;
-Buffer<float4> GuideDeformedPositionOffsetBuffer;
+StructuredBuffer<float4> GuideDeformedPositionOffsetBuffer;
 
 Buffer<uint4>  GuideRestPositionBuffer;
 Buffer<uint4>  GuideDeformedPositionBuffer;
@@ -84,7 +86,7 @@ void MainCS(uint DispatchThreadId : SV_DispatchThreadID)
 	const float GuideRadius = 1;
 	const float GuideRootScale = 1;
 	const float GuideTipScale = 1;
-	const float3 GuideDeformedPositionOffset = GuideDeformedPositionOffsetBuffer[0].xyz;
+	const float3 GuideDeformedPositionOffset = ReadCardPositionOffset(GuideDeformedPositionOffsetBuffer, InstanceRegisteredIndex, CardLODIndex);
 
 #if PERMUTATION_DYNAMIC_GEOMETRY == 0
 	// Simple deformation based on world space offset

@@ -2,6 +2,7 @@
 
 #include "../Common.ush"
 #include "HairStrandsBindingCommon.ush"
+#include "HairstrandsVertexFactoryCommon.ush"
 
 ////////////////////////////////////////////////////////////////////////
 // Deform hair mesh basd on RBF weights
@@ -453,10 +454,14 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 	float3 GetOffsetPrevPosition()	{ return CPUPrevPositionOffset; }
 #endif
 
-RWBuffer<float4> OutCurrOffsetBuffer;
+RWStructuredBuffer<float4> OutCurrOffsetBuffer;
 #if PERMUTATION_PREVIOUS
-RWBuffer<float4> OutPrevOffsetBuffer;
+RWStructuredBuffer<float4> OutPrevOffsetBuffer;
 #endif
+
+uint UpdateType;
+uint CardLODIndex;
+uint InstanceRegisteredIndex;
 
 [numthreads(1, 1, 1)]
 void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
@@ -464,9 +469,9 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 	if (DispatchThreadId.x > 0)
 		return;
 
-	OutCurrOffsetBuffer[0] = float4(GetOffsetCurrPosition(), 1);
+	WritePositionOffset(OutCurrOffsetBuffer, InstanceRegisteredIndex, UpdateType, HAIR_CURR, CardLODIndex, GetOffsetCurrPosition());
 #if PERMUTATION_PREVIOUS
-	OutPrevOffsetBuffer[0] = float4(GetOffsetPrevPosition(), 1);
+	WritePositionOffset(OutPrevOffsetBuffer, InstanceRegisteredIndex, UpdateType, HAIR_PREV, CardLODIndex, GetOffsetPrevPosition());
 #endif
 }
 

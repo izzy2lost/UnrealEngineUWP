@@ -131,7 +131,7 @@ void CSMain(uint DispatchThreadID : SV_DispatchThreadID, uint GroupThreadID : SV
 
 	const uint NumBatches = (NumControlPoints + 63) / 64;
 	const uint NumLoops = (NumBatches + (NumWorkGroups - 1)) / NumWorkGroups;
-	const float3 PositionOffset = HairStrandsVF_PositionOffsetBuffer[0].xyz;
+	const float3 PositionOffset = HairStrandsVF_GetHairInstancePositionOffset();
 
 	LOOP for (uint LoopIndex = 0; LoopIndex < NumLoops; ++LoopIndex)
 	{

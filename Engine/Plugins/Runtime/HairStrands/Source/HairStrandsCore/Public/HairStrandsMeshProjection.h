@@ -136,10 +136,20 @@ void AddHairCardsRBFInterpolationPass(
 	FHairStrandsRestRootResource* RestRootResources,
 	FHairStrandsDeformedRootResource* DeformedRootResources);
 
+enum class EHairPositionUpdateType : uint8
+{
+	Guides  = 0,
+	Strands = 1,
+	Cards   = 2,
+};
+
 void AddHairStrandUpdatePositionOffsetPass(
 	FRDGBuilder& GraphBuilder,
 	FGlobalShaderMap* ShaderMap,
-	const int32 LODIndex,
+	EHairPositionUpdateType UpdateType,
+	const int32 InstanceRegisteredIndex,
+	const int32 HairLODIndex,
+	const int32 MeshLODIndex,
 	FHairStrandsDeformedRootResource* DeformedRootResources,
 	FHairStrandsDeformedResource* DeformedResources);
 

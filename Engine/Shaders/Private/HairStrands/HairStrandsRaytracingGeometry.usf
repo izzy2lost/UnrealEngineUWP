@@ -14,10 +14,11 @@ float HairStrandsVF_HairRadius;
 float HairStrandsVF_HairRootScale;
 float HairStrandsVF_HairTipScale;
 
-Buffer<float4>	 PositionOffsetBuffer;
+uint HairStrandsVF_RegisteredIndex;
+StructuredBuffer<float4> PositionOffsetBuffer;
 Buffer<uint4> 	 PositionBuffer;
 Buffer<float4> 	 TangentBuffer;
-RWBuffer<float4> OutputPositionBuffer;
+RWBuffer<float4> OutputPositionBuffer;	
 #if PERMUTATION_PROCEDURAL_PRIMITIVE 
 uint             RaytracingProceduralSplits;
 #else
@@ -40,7 +41,7 @@ FHairControlPoint GetControlPoint(uint ControlPointId)
 	{
 		Out = UnpackHairControlPoint(
 			PositionBuffer[ControlPointId],
-			PositionOffsetBuffer[0].xyz,
+			ReadRenPositionOffset(PositionOffsetBuffer, HairStrandsVF_RegisteredIndex),
 			HairStrandsVF_HairRadius,
 			HairStrandsVF_HairRootScale,
 			HairStrandsVF_HairTipScale);

@@ -23,7 +23,7 @@ FHairControlPoint ReadControlPointData_{DataInterfaceName}(uint ControlPointInde
 	// Hair deformer work in local space so no need for position offset
 	return UnpackHairControlPoint(
 		{DataInterfaceName}_PositionBuffer[ControlPointIndex], 
-		{DataInterfaceName}_PositionOffsetBuffer[0].xyz,
+		{DataInterfaceName}_GetHairInstancePositionOffset(),
 		{DataInterfaceName}_Radius, 
 		{DataInterfaceName}_RootScale, 
 		{DataInterfaceName}_TipScale);

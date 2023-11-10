@@ -300,6 +300,9 @@ static void RunInternalHairInterpolation(
 						AddHairStrandUpdatePositionOffsetPass(
 							GraphBuilder,
 							ShaderMap,
+							EHairPositionUpdateType::Strands,
+							Instance->RegisteredIndex,
+							HairLODIndex,
 							MeshLODIndex,
 							Instance->Strands.DeformedRootResource,
 							Instance->Strands.DeformedResource);
@@ -311,6 +314,9 @@ static void RunInternalHairInterpolation(
 						AddHairStrandUpdatePositionOffsetPass(
 							GraphBuilder,
 							ShaderMap,
+							EHairPositionUpdateType::Strands,
+							Instance->RegisteredIndex,
+							HairLODIndex,
 							MeshLODIndex,
 							nullptr,
 							Instance->Strands.DeformedResource);
@@ -341,6 +347,9 @@ static void RunInternalHairInterpolation(
 							AddHairStrandUpdatePositionOffsetPass(
 								GraphBuilder,
 								ShaderMap,
+								EHairPositionUpdateType::Cards,
+								Instance->RegisteredIndex,
+								HairLODIndex,
 								MeshLODIndex,
 								CardsInstance.Guides.DeformedRootResource,
 								CardsInstance.Guides.DeformedResource);
@@ -351,6 +360,9 @@ static void RunInternalHairInterpolation(
 							AddHairStrandUpdatePositionOffsetPass(
 								GraphBuilder,
 								ShaderMap,
+								EHairPositionUpdateType::Cards,
+								Instance->RegisteredIndex,
+								HairLODIndex,
 								MeshLODIndex,
 								nullptr,
 								CardsInstance.Guides.DeformedResource);
@@ -522,6 +534,9 @@ static void RunHairStrandsInterpolation_Guide(
 			AddHairStrandUpdatePositionOffsetPass(
 				GraphBuilder,
 				ShaderMap,
+				EHairPositionUpdateType::Guides,
+				InstanceData.Instance->RegisteredIndex,
+				InstanceData.HairLODIndex,
 				InstanceData.Instance->Debug.MeshLODIndex,
 				InstanceData.Instance->Guides.DeformedRootResource,
 				InstanceData.Instance->Guides.DeformedResource);
@@ -548,6 +563,9 @@ static void RunHairStrandsInterpolation_Guide(
 			AddHairStrandUpdatePositionOffsetPass(
 				GraphBuilder,
 				ShaderMap,
+				EHairPositionUpdateType::Guides,
+				InstanceData.Instance->RegisteredIndex,
+				InstanceData.HairLODIndex,
 				InstanceData.Instance->Debug.MeshLODIndex,
 				nullptr,
 				InstanceData.Instance->Guides.DeformedResource);
@@ -638,6 +656,9 @@ static void RunHairStrandsInterpolation_Guide(
 			AddHairStrandUpdatePositionOffsetPass(
 				GraphBuilder,
 				ShaderMap,
+				EHairPositionUpdateType::Guides,
+				InstanceData.Instance->RegisteredIndex,
+				InstanceData.HairLODIndex,
 				InstanceData.MeshLODIndex,
 				InstanceData.Instance->Guides.DeformedRootResource,
 				InstanceData.Instance->Guides.DeformedResource);
