@@ -44,6 +44,7 @@ struct FLocalFogVolumeGPUInstanceData
 #define LFVMaxDensityIntoVolumetricFog	LFVStruct.LFV.LocalFogVolumeMaxDensityIntoVolumetricFog
 #define LFVRenderInVolumetricFog		LFVStruct.LFV.ShouldRenderLocalFogVolumeInVolumetricFog
 #define LFVGlobalStartDistance			LFVStruct.LFV.GlobalStartDistance
+#define LFVHalfResTextureSizeAndInvSize	LFVStruct.LFV.HalfResTextureSizeAndInvSize
 
 #define LFVDirectionalLightColor		LFVStruct.LFV.DirectionalLightColor
 #define LFVDirectionalLightDirection	LFVStruct.LFV.DirectionalLightDirection
@@ -56,6 +57,7 @@ uint									LFV_LocalFogVolumeTilePixelSize;
 float									LFV_LocalFogVolumeMaxDensityIntoVolumetricFog;
 uint									LFV_ShouldRenderLocalFogVolumeInVolumetricFog;
 float									LFV_GlobalStartDistance;
+float4									LFV_HalfResTextureSizeAndInvSize;
 
 float3									LFV_DirectionalLightColor;
 float3									LFV_DirectionalLightDirection;
@@ -72,6 +74,7 @@ Texture2DArray<uint>					LFV_LocalFogVolumeTileDataTexture;
 #define LFVMaxDensityIntoVolumetricFog	LFV_LocalFogVolumeMaxDensityIntoVolumetricFog
 #define LFVRenderInVolumetricFog		LFV_ShouldRenderLocalFogVolumeInVolumetricFog
 #define LFVGlobalStartDistance			LFV_GlobalStartDistance
+#define LFVHalfResTextureSizeAndInvSize	LFV_HalfResTextureSizeAndInvSize
 
 #define LFVDirectionalLightColor		LFV_DirectionalLightColor
 #define LFVDirectionalLightDirection	LFV_DirectionalLightDirection

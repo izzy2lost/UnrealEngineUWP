@@ -27,6 +27,7 @@ BEGIN_SHADER_PARAMETER_STRUCT(FLocalFogVolumeCommonParameters, )
 	SHADER_PARAMETER(float,  LocalFogVolumeMaxDensityIntoVolumetricFog)
 	SHADER_PARAMETER(uint32, ShouldRenderLocalFogVolumeInVolumetricFog)
 	SHADER_PARAMETER(float,  GlobalStartDistance)
+	SHADER_PARAMETER(FVector4f, HalfResTextureSizeAndInvSize)
 	SHADER_PARAMETER(FVector3f, DirectionalLightColor)
 	SHADER_PARAMETER(FVector3f, DirectionalLightDirection)
 END_SHADER_PARAMETER_STRUCT()
@@ -107,9 +108,16 @@ struct FLocalFogVolumeViewData
 
 	FLocalFogVolumeUniformParameters UniformParametersStruct;
 
-	FRDGTextureRef		TileDataTextureArray;		// First slice is the instance count, later slices are instance indices.
-	FRDGTextureSRVRef	TileDataTextureArraySRV;
-	FRDGTextureUAVRef	TileDataTextureArrayUAV;
+	FRDGTextureRef		TileDataTextureArray = nullptr;		// First slice is the instance count, later slices are instance indices.
+	FRDGTextureSRVRef	TileDataTextureArraySRV = nullptr;
+	FRDGTextureUAVRef	TileDataTextureArrayUAV = nullptr;
+
+	bool				bUseHalfResLocalFogVolume = false;	// Only for the mobile path for now
+	FIntPoint			HalfResResolution;
+	FRDGTextureRef		HalfResLocalFogVolumeView = nullptr;
+	FRDGTextureSRVRef	HalfResLocalFogVolumeViewSRV = nullptr;
+	FRDGTextureRef		HalfResLocalFogVolumeDepth = nullptr;
+	FRDGTextureSRVRef	HalfResLocalFogVolumeDepthSRV = nullptr;
 };
 
 
@@ -122,6 +130,7 @@ bool ShouldRenderLocalFogVolume(const FScene* Scene, const FSceneViewFamily& Sce
 bool ShouldRenderLocalFogVolumeDuringHeightFogPass(const FScene* Scene, const FSceneViewFamily& SceneViewFamily);
 bool ShouldRenderLocalFogVolumeInVolumetricFog(const FScene* Scene, const FSceneViewFamily& SceneViewFamily, bool bShouldRenderVolumetricFog);
 float GetLocalFogVolumeGlobalStartDistance();
+bool IsLocalFogVolumeHalfResolution();
 
 void GetLocalFogVolumeSortingData(const FScene* Scene, FRDGBuilder& GraphBuilder, FLocalFogVolumeSortingData& Out);
 
@@ -133,7 +142,8 @@ void InitLocalFogVolumesForViews(
 	TArray<FViewInfo>& Views,
 	const FSceneViewFamily& SceneViewFamily,
 	FRDGBuilder& GraphBuilder,
-	bool bShouldRenderVolumetricFog);
+	bool bShouldRenderVolumetricFog,
+	bool bUseHalfResLocalFogVolume);
 
 void RenderLocalFogVolume(
 	const FScene* Scene,
@@ -145,5 +155,8 @@ void RenderLocalFogVolume(
 
 void RenderLocalFogVolumeMobile(
 	FRHICommandList& RHICmdList, 
+	const FViewInfo& View);
+void RenderLocalFogVolumeHalfResMobile(
+	FRDGBuilder& GraphBuilder,
 	const FViewInfo& View);
 

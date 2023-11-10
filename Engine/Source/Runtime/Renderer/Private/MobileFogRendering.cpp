@@ -66,7 +66,7 @@ class FMobileFogPS : public FGlobalShader
 	class FSupportFogDirectionalLightInScattering	: SHADER_PERMUTATION_BOOL("PERMUTATION_SUPPORT_FOG_DIRECTIONAL_LIGHT_INSCATTERING");
 	class FSupportAerialPerspective					: SHADER_PERMUTATION_BOOL("PERMUTATION_SUPPORT_AERIAL_PERSPECTIVE");
 	class FSupportVolumetricFog						: SHADER_PERMUTATION_BOOL("PERMUTATION_SUPPORT_VOLUMETRIC_FOG");
-	class FSupportLocalFogVolume					: SHADER_PERMUTATION_BOOL("PERMUTATION_SUPPORT_LOCAL_FOG_VOLUME");
+	class FSupportLocalFogVolume					: SHADER_PERMUTATION_INT("PERMUTATION_SUPPORT_LOCAL_FOG_VOLUME", 3); // 0 disabled, 1 sample LFVs, 2 compose halfres LFV texture
 	
 	using FPermutationDomain = TShaderPermutationDomain< 
 		FSupportHeightFog, 
@@ -117,6 +117,10 @@ class FMobileFogPS : public FGlobalShader
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT_INCLUDE(FViewShaderParameters, View)
 		SHADER_PARAMETER_STRUCT(FLocalFogVolumeUniformParameters, LFV)
+		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D<float4>, HalfResLocalFogVolumeViewSRV)
+		SHADER_PARAMETER_SAMPLER(SamplerState, HalfResLocalFogVolumeViewSRVSampler)
+		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D<float>, HalfResLocalFogVolumeDepthSRV)
+		SHADER_PARAMETER_SAMPLER(SamplerState, HalfResLocalFogVolumeDepthSRVSampler)
 	END_SHADER_PARAMETER_STRUCT()
 };
 
@@ -195,6 +199,8 @@ void FMobileSceneRenderer::RenderFog(FRHICommandList& RHICmdList, const FViewInf
 	
 	const bool bShouldRenderVolumetricFog = ShouldRenderVolumetricFog();
 	bFogHasComposedLocalFogVolumes = bShouldRenderVolumetricFog && ShouldRenderLocalFogVolume(Scene, *View.Family) && ShouldRenderLocalFogVolumeInVolumetricFog(Scene, *View.Family, bShouldRenderVolumetricFog);
+	const bool bComposeHalfResLFV = View.LocalFogVolumeViewData.bUseHalfResLocalFogVolume;
+	bFogHasComposedLocalFogVolumes |= bComposeHalfResLFV;
 
 	FMobileFogPS::FPermutationDomain PsPermutationVector;
 	PsPermutationVector.Set<FMobileFogPS::FSupportHeightFog>(bUseHeightFog);
@@ -204,7 +210,7 @@ void FMobileSceneRenderer::RenderFog(FRHICommandList& RHICmdList, const FViewInf
 	PsPermutationVector.Set<FMobileFogPS::FSupportAerialPerspective>(bUseAerialPerspective);
 	PsPermutationVector.Set<FMobileFogPS::FSupportFogDirectionalLightInScattering>(bUseFogDirectionalInscatering);
 	PsPermutationVector.Set<FMobileFogPS::FSupportVolumetricFog>(bShouldRenderVolumetricFog);
-	PsPermutationVector.Set<FMobileFogPS::FSupportLocalFogVolume>(bFogHasComposedLocalFogVolumes);
+	PsPermutationVector.Set<FMobileFogPS::FSupportLocalFogVolume>(bFogHasComposedLocalFogVolumes ? (bComposeHalfResLFV ? 2 : 1) : 0);
 	
 	TShaderMapRef<FMobileFogPS> PixelShader(View.ShaderMap, PsPermutationVector);
 		
@@ -250,6 +256,10 @@ void FMobileSceneRenderer::RenderFog(FRHICommandList& RHICmdList, const FViewInf
 	FMobileFogPS::FParameters PSParameters;
 	PSParameters.View = View.GetShaderParameters();
 	PSParameters.LFV = View.LocalFogVolumeViewData.UniformParametersStruct;
+	PSParameters.HalfResLocalFogVolumeViewSRV = View.LocalFogVolumeViewData.HalfResLocalFogVolumeViewSRV;
+	PSParameters.HalfResLocalFogVolumeDepthSRV = View.LocalFogVolumeViewData.HalfResLocalFogVolumeDepthSRV;
+	PSParameters.HalfResLocalFogVolumeViewSRVSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
+	PSParameters.HalfResLocalFogVolumeDepthSRVSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
 	SetShaderParameters(RHICmdList, PixelShader, PixelShader.GetPixelShader(), PSParameters);
 
 	// Draw a quad covering the view.

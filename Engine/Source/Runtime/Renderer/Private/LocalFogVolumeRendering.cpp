@@ -6,6 +6,7 @@
 #include "ScreenPass.h"
 #include "LocalFogVolumeSceneProxy.h"
 #include "MobileBasePassRendering.h"
+#include "PixelShaderUtils.h"
 
 
 // The runtime ON/OFF toggle
@@ -71,6 +72,11 @@ static TAutoConsoleVariable<int32> CVarLocalFogVolumeUseHZB(
 	TEXT("Use the HZB to cull loca lfog volume away.\n"),
 	ECVF_RenderThreadSafe);
 
+static TAutoConsoleVariable<int32> CVarLocalFogVolumeHalfResolution(
+	TEXT("r.LocalFogVolume.HalfResolution"), 0,
+	TEXT("Set to one to render local fog volumes at half resoltuion with an upsampling to full resolution later. Only work for the mobile path for now.\n"),
+	ECVF_RenderThreadSafe);
+
 // Example of tile setup
 //  - 1920x1080 => 15x9 tiles
 //  - Allowing max 32 volumes at once => culling list buffer = 15 * 9 * 32 * 1 byte = 4320 bytes = 4.3KB
@@ -134,6 +140,10 @@ float GetLocalFogVolumeGlobalStartDistance()
 	return FMath::Max(0.0f, CVarLocalFogVolumeGlobalStartDistance.GetValueOnRenderThread());
 }
 
+bool IsLocalFogVolumeHalfResolution()
+{
+	return CVarLocalFogVolumeHalfResolution.GetValueOnRenderThread() > 0;
+}
 
 DECLARE_GPU_STAT(LocalFogVolumeVolumes);
 
@@ -170,6 +180,7 @@ void SetDummyLocalFogVolumeForView(FRDGBuilder& GraphBuilder, FViewInfo& View)
 	View.LocalFogVolumeViewData.UniformParametersStruct.LocalFogVolumeCommon.DirectionalLightColor						= FVector3f::Zero();
 	View.LocalFogVolumeViewData.UniformParametersStruct.LocalFogVolumeCommon.DirectionalLightDirection					= FVector3f::Zero();
 	View.LocalFogVolumeViewData.UniformParametersStruct.LocalFogVolumeCommon.GlobalStartDistance						= 0.0f;
+	View.LocalFogVolumeViewData.UniformParametersStruct.LocalFogVolumeCommon.HalfResTextureSizeAndInvSize				= FVector4f(1.0f, 1.0f, 1.0f, 1.0f);
 	View.LocalFogVolumeViewData.UniformParametersStruct.LocalFogVolumeTileDataTexture									= View.LocalFogVolumeViewData.TileDataTextureArraySRV;
 	View.LocalFogVolumeViewData.UniformBuffer																			= GraphBuilder.CreateUniformBuffer(&View.LocalFogVolumeViewData.UniformParametersStruct);
 
@@ -181,6 +192,12 @@ void SetDummyLocalFogVolumeForView(FRDGBuilder& GraphBuilder, FViewInfo& View)
 
 	View.LocalFogVolumeViewData.GPUTileDrawIndirectBuffer	= GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateIndirectDesc<FRHIDrawIndirectParameters>(), TEXT("LocalFogVolume.DispatchIndirectBuffer"));
 	View.LocalFogVolumeViewData.GPUTileDrawIndirectBufferUAV= nullptr;
+
+	View.LocalFogVolumeViewData.bUseHalfResLocalFogVolume = false;
+	View.LocalFogVolumeViewData.HalfResLocalFogVolumeView = GSystemTextures.GetBlackDummy(GraphBuilder);
+	View.LocalFogVolumeViewData.HalfResLocalFogVolumeViewSRV = GraphBuilder.CreateSRV(View.LocalFogVolumeViewData.HalfResLocalFogVolumeView);
+	View.LocalFogVolumeViewData.HalfResLocalFogVolumeDepth = GSystemTextures.GetBlackDummy(GraphBuilder);
+	View.LocalFogVolumeViewData.HalfResLocalFogVolumeDepthSRV = GraphBuilder.CreateSRV(View.LocalFogVolumeViewData.HalfResLocalFogVolumeDepth);
 }
 
 void SetDummyLocalFogVolumeForViews(FRDGBuilder& GraphBuilder, TArray<FViewInfo>& Views)
@@ -422,7 +439,7 @@ void GetLocalFogVolumeSortingData(const FScene* Scene, FRDGBuilder& GraphBuilder
 	Out.LocalFogVolumeSortKeys.SetNum(Out.LocalFogVolumeInstanceCountFinal, false/*bAllowShrinking*/);
 }
 
-void CreateViewLocalFogVolumeBufferSRV(const FScene* Scene, FViewInfo& View, FRDGBuilder& GraphBuilder, FLocalFogVolumeSortingData& SortingData, bool bShouldRenderLocalFogVolumeInVolumetricFog)
+void CreateViewLocalFogVolumeBufferSRV(const FScene* Scene, FViewInfo& View, FRDGBuilder& GraphBuilder, FLocalFogVolumeSortingData& SortingData, bool bShouldRenderLocalFogVolumeInVolumetricFog, bool bUseHalfResLocalFogVolume)
 {
 	if (SortingData.LocalFogVolumeInstanceCountFinal == 0)
 	{
@@ -523,8 +540,6 @@ void CreateViewLocalFogVolumeBufferSRV(const FScene* Scene, FViewInfo& View, FRD
 		View.LocalFogVolumeViewData.UniformParametersStruct.LocalFogVolumeCommon.DirectionalLightColor					= FVector3f(View.CachedViewUniformShaderParameters->DirectionalLightColor);
 		View.LocalFogVolumeViewData.UniformParametersStruct.LocalFogVolumeCommon.DirectionalLightDirection				= View.CachedViewUniformShaderParameters->DirectionalLightDirection;
 	}
-	View.LocalFogVolumeViewData.UniformParametersStruct.LocalFogVolumeTileDataTexture									= View.LocalFogVolumeViewData.TileDataTextureArraySRV;
-	View.LocalFogVolumeViewData.UniformBuffer																			= GraphBuilder.CreateUniformBuffer(&View.LocalFogVolumeViewData.UniformParametersStruct);
 
 	// This buffer must remain a basic vertex buffer for mobile to be able to read it from vertex shader
 	View.LocalFogVolumeViewData.GPUTileDataBuffer = CreateVertexBuffer(
@@ -536,6 +551,39 @@ void CreateViewLocalFogVolumeBufferSRV(const FScene* Scene, FViewInfo& View, FRD
 	View.LocalFogVolumeViewData.GPUTileDrawIndirectBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateIndirectDesc<FRHIDrawIndirectParameters>(), TEXT("LocalFogVolume.DispatchIndirectBuffer"));
 	View.LocalFogVolumeViewData.GPUTileDrawIndirectBufferUAV = GraphBuilder.CreateUAV(View.LocalFogVolumeViewData.GPUTileDrawIndirectBuffer, PF_R32_UINT);
 	AddClearUAVPass(GraphBuilder, View.LocalFogVolumeViewData.GPUTileDrawIndirectBufferUAV, 0, GetLocalFogVolumeTileCullingUseAsync() ? ERDGPassFlags::AsyncCompute : ERDGPassFlags::Compute);
+
+	View.LocalFogVolumeViewData.bUseHalfResLocalFogVolume = bUseHalfResLocalFogVolume;
+	if (View.LocalFogVolumeViewData.bUseHalfResLocalFogVolume)
+	{
+		FIntRect ViewRectAtOrigin = View.ViewRect;
+		ViewRectAtOrigin.Max -= ViewRectAtOrigin.Min;
+		ViewRectAtOrigin.Min -= ViewRectAtOrigin.Min;
+		FIntRect HalfResRect = GetDownscaledViewport(FScreenPassTextureViewport(ViewRectAtOrigin), FIntPoint(2, 2)).Rect;
+		View.LocalFogVolumeViewData.HalfResResolution = HalfResRect.Max - HalfResRect.Min;
+
+		const FIntPoint& HalfResSize = View.LocalFogVolumeViewData.HalfResResolution;
+		View.LocalFogVolumeViewData.UniformParametersStruct.LocalFogVolumeCommon.HalfResTextureSizeAndInvSize = FVector4f(HalfResSize.X, HalfResSize.Y, 1.0f/float(HalfResSize.X), 1.0f/float(HalfResSize.Y));
+
+		FRDGTextureDesc Texture2DHalfResLFVDesc(FRDGTextureDesc::Create2D(View.LocalFogVolumeViewData.HalfResResolution, PF_FloatRGBA, FClearValueBinding(EClearBinding::ENoneBound), TexCreate_RenderTargetable | TexCreate_ShaderResource | TexCreate_ReduceMemoryWithTilingMode | TexCreate_NoFastClear));
+
+		View.LocalFogVolumeViewData.HalfResLocalFogVolumeView = GraphBuilder.CreateTexture(Texture2DHalfResLFVDesc, TEXT("LocalFogVolume.HalfResLocalFogVolumeView"));
+		View.LocalFogVolumeViewData.HalfResLocalFogVolumeViewSRV = GraphBuilder.CreateSRV(FRDGTextureSRVDesc::Create(View.LocalFogVolumeViewData.HalfResLocalFogVolumeView));
+
+		Texture2DHalfResLFVDesc.Format = PF_R16F;
+		View.LocalFogVolumeViewData.HalfResLocalFogVolumeDepth = GraphBuilder.CreateTexture(Texture2DHalfResLFVDesc, TEXT("LocalFogVolume.HalfResLocalFogVolumeDepth"));
+		View.LocalFogVolumeViewData.HalfResLocalFogVolumeDepthSRV = GraphBuilder.CreateSRV(FRDGTextureSRVDesc::Create(View.LocalFogVolumeViewData.HalfResLocalFogVolumeDepth));
+	}
+	else
+	{
+		View.LocalFogVolumeViewData.UniformParametersStruct.LocalFogVolumeCommon.HalfResTextureSizeAndInvSize = FVector4f(1.0f, 1.0f, 1.0f, 1.0f);
+		View.LocalFogVolumeViewData.HalfResLocalFogVolumeView = GSystemTextures.GetBlackDummy(GraphBuilder);
+		View.LocalFogVolumeViewData.HalfResLocalFogVolumeViewSRV = GraphBuilder.CreateSRV(View.LocalFogVolumeViewData.HalfResLocalFogVolumeView);
+		View.LocalFogVolumeViewData.HalfResLocalFogVolumeDepth = GSystemTextures.GetBlackDummy(GraphBuilder);
+		View.LocalFogVolumeViewData.HalfResLocalFogVolumeDepthSRV = GraphBuilder.CreateSRV(View.LocalFogVolumeViewData.HalfResLocalFogVolumeDepth);
+	}
+
+	View.LocalFogVolumeViewData.UniformParametersStruct.LocalFogVolumeTileDataTexture = View.LocalFogVolumeViewData.TileDataTextureArraySRV;
+	View.LocalFogVolumeViewData.UniformBuffer = GraphBuilder.CreateUniformBuffer(&View.LocalFogVolumeViewData.UniformParametersStruct);
 }
 
 void InitLocalFogVolumesForViews(
@@ -543,7 +591,8 @@ void InitLocalFogVolumesForViews(
 	TArray<FViewInfo>& Views,
 	const FSceneViewFamily& SceneViewFamily,
 	FRDGBuilder& GraphBuilder,
-	bool bShouldRenderVolumetricFog)
+	bool bShouldRenderVolumetricFog,
+	bool bUseHalfResLocalFogVolume)
 {
 	const uint32 LocalFogVolumeInstanceCount = Scene->LocalFogVolumes.Num();
 	const bool bShouldRenderLocalFogVolume = ShouldRenderLocalFogVolume(Scene, SceneViewFamily);
@@ -556,7 +605,7 @@ void InitLocalFogVolumesForViews(
 
 		for (FViewInfo& View : Views)
 		{
-			CreateViewLocalFogVolumeBufferSRV(Scene, View, GraphBuilder, SortingData, ShouldRenderLocalFogVolumeInVolumetricFog(Scene, SceneViewFamily, bShouldRenderVolumetricFog));
+			CreateViewLocalFogVolumeBufferSRV(Scene, View, GraphBuilder, SortingData, ShouldRenderLocalFogVolumeInVolumetricFog(Scene, SceneViewFamily, bShouldRenderVolumetricFog), bUseHalfResLocalFogVolume);
 
 			if (View.LocalFogVolumeViewData.GPUInstanceCount > 0)
 			{
@@ -837,6 +886,43 @@ class FMobileLocalFogVolumeTiledRenderPS : public FGlobalShader
 
 IMPLEMENT_GLOBAL_SHADER(FMobileLocalFogVolumeTiledRenderPS, "/Engine/Private/LocalFogVolumes/LocalFogVolumeSplat.usf", "LocalFogVolumeTiledPS", SF_Pixel);
 
+class FMobileLocalFogVolumeTiledRenderHalfResPS : public FGlobalShader
+{
+	DECLARE_GLOBAL_SHADER(FMobileLocalFogVolumeTiledRenderHalfResPS);
+	SHADER_USE_PARAMETER_STRUCT(FMobileLocalFogVolumeTiledRenderHalfResPS, FGlobalShader);
+
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER_STRUCT_INCLUDE(FViewShaderParameters, View)
+		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FMobileBasePassUniformParameters, MobileBasePass)
+		//SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FMobileSceneTextureUniformParameters, SceneTextures)
+		SHADER_PARAMETER_STRUCT(FLocalFogVolumeUniformParameters, LFV)
+		SHADER_PARAMETER(int32, LocalFogVolumeTileDebug)
+		RENDER_TARGET_BINDING_SLOTS()
+	END_SHADER_PARAMETER_STRUCT()
+
+	using FPermutationDomain = TShaderPermutationDomain<>;
+
+	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		if (!IsMobilePlatform(Parameters.Platform))
+		{
+			return false;
+		}
+		return true;
+	}
+
+	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+	{
+		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+		const bool bMobileForceDepthRead = MobileUsesFullDepthPrepass(Parameters.Platform);
+		OutEnvironment.SetDefine(TEXT("LFV_TILED_PS"), 1);
+		OutEnvironment.SetDefine(TEXT("LFV_HALFRES_PS"), 1);
+		OutEnvironment.SetDefine(TEXT("IS_MOBILE_DEPTHREAD_SUBPASS"), bMobileForceDepthRead ? 0u : 1u);
+	}
+};
+
+IMPLEMENT_GLOBAL_SHADER(FMobileLocalFogVolumeTiledRenderHalfResPS, "/Engine/Private/LocalFogVolumes/LocalFogVolumeSplat.usf", "LocalFogVolumeTiledPS", SF_Pixel);
+
 void RenderLocalFogVolumeMobile(
 	FRHICommandList& RHICmdList,
 	const FViewInfo& View)
@@ -891,4 +977,31 @@ void RenderLocalFogVolumeMobile(
 
 	RHICmdList.SetStreamSource(0, nullptr, 0);
 	RHICmdList.DrawPrimitiveIndirect(View.LocalFogVolumeViewData.GPUTileDrawIndirectBuffer->GetIndirectRHICallBuffer(), 0);
+}
+
+void RenderLocalFogVolumeHalfResMobile(
+	FRDGBuilder& GraphBuilder,
+	const FViewInfo& View)
+{
+	if (View.LocalFogVolumeViewData.GPUInstanceCount == 0)
+	{
+		return;
+	}
+	FMobileLocalFogVolumeTiledRenderHalfResPS::FParameters* PassParameters = GraphBuilder.AllocParameters<FMobileLocalFogVolumeTiledRenderHalfResPS::FParameters>();
+
+	PassParameters->View = View.GetShaderParameters();;
+	PassParameters->LFV = View.LocalFogVolumeViewData.UniformParametersStruct;
+	PassParameters->LocalFogVolumeTileDebug = FMath::Clamp(CVarLocalFogVolumeTileDebug.GetValueOnRenderThread(), 0, 2);
+	PassParameters->MobileBasePass = CreateMobileBasePassUniformBuffer(GraphBuilder, View, EMobileBasePass::Opaque, EMobileSceneTextureSetupMode::SceneDepth);
+	PassParameters->RenderTargets[0] = FRenderTargetBinding(View.LocalFogVolumeViewData.HalfResLocalFogVolumeView, ERenderTargetLoadAction::ENoAction);
+	PassParameters->RenderTargets[1] = FRenderTargetBinding(View.LocalFogVolumeViewData.HalfResLocalFogVolumeDepth, ERenderTargetLoadAction::ENoAction);
+
+	FMobileLocalFogVolumeTiledRenderHalfResPS::FPermutationDomain PsPermutationVector;
+	auto PixelShader = View.ShaderMap->GetShader< FMobileLocalFogVolumeTiledRenderHalfResPS >(PsPermutationVector);
+	ClearUnusedGraphResources(PixelShader, PassParameters);
+
+	const FIntPoint HalfResolution = View.LocalFogVolumeViewData.HalfResResolution;
+	FPixelShaderUtils::AddFullscreenPass<FMobileLocalFogVolumeTiledRenderHalfResPS>(
+		GraphBuilder, View.ShaderMap, RDG_EVENT_NAME("LocalFogVolume.HalfRes"), PixelShader, PassParameters,
+		FIntRect(0, 0, HalfResolution.X, HalfResolution.Y));
 }
