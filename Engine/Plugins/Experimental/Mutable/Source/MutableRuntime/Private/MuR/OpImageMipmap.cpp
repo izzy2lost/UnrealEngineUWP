@@ -5,514 +5,403 @@
 #include "Async/ParallelFor.h"
 #include "HAL/UnrealMemory.h"
 
+namespace
+{
+
+bool bEnableCompressedMipGenerationMemoryOptimizations = false;
+static FAutoConsoleVariableRef CVarEnableCompressedMipGenerationMemoryOptimizations (
+	TEXT("mutable.EnableCompressedMipGenerationMemoryOptimizations"),
+	bEnableCompressedMipGenerationMemoryOptimizations,
+	TEXT("If set to true, enables memory optimizations for mip generation on compressed images."),
+	ECVF_Default);
+}
+
 namespace mu
 {
 
-	namespace OpImageMipmap_Detail
+
+namespace OpImageMipmap_Detail
+{
+
+	template<int32 PIXEL_SIZE>
+	inline void GenerateMipmapUint8Unfiltered(
+		int mips,
+		const uint8* pSource, uint8* Dest,
+		FIntVector2 sourceSize)
 	{
-
-		struct SharpenKernelStorage8
+		for (; mips >= 0; --mips)
 		{
-			constexpr static size_t SIZE = 8;
-			float m_storage[SIZE * SIZE];
-		};
+			FIntVector2 destSize = FIntVector2(FMath::DivideAndRoundUp(sourceSize.X, 2), FMath::DivideAndRoundUp(sourceSize.Y, 2));
 
-		template<size_t ITERS, size_t N>
-		inline void BlurKernel(float(&inOutKernelStorage)[N])
-		{
-			static_assert(N > 2);
-
-			float temp[N];
-
-			float* inBuf = &inOutKernelStorage[0];
-			float* outBuf = &temp[0];
-
-			for (int32 i = 0; i < ITERS; ++i)
+			for (int32 y = 0; y < destSize.Y; ++y)
 			{
-				constexpr float oneOverThree = 1.0f / 3.0f;
-
-				outBuf[0] = (inBuf[0] + inBuf[1]) * oneOverThree;
-
-				for (int32 j = 1; j < N - 1; ++j)
+				for (int32 x = 0; x < destSize.X; ++x)
 				{
-					outBuf[j] = (inBuf[j - 1] + inBuf[j] + inBuf[j + 1]) * oneOverThree;
-				}
-
-				outBuf[N - 1] = (inBuf[N - 2] + inBuf[N - 1]) * oneOverThree;
-
-				// Ping-pong buffers.
-				std::swap(outBuf, inBuf);
-			}
-
-			if (ITERS % 2 == 1)
-			{
-				for (uint32 i = 0; i < N; ++i)
-				{
-					inOutKernelStorage[i] = temp[i];
-				}
-			}
-		}
-
-		template<size_t N>
-		inline void BuildGaussianBlurKernel(float(&kernel)[N], float variance)
-		{
-			constexpr float sqrtTau = 2.5066282746310002f;
-			const auto normalDist = [sdSqrtTauInv = 1.0f / (FMath::Sqrt(variance) * sqrtTau),
-				twoVInv = 1.0f / (2.0f * variance)]
-				(float x)
-				-> float
-			{
-				return FMath::Exp(-x * x * twoVInv) * sdSqrtTauInv;
-			};
-
-			const float center = static_cast<float>(N) * 0.5f;
-			float sum = 0;
-			for (int32 i = 0; i < N; ++i)
-			{
-				const float dist = normalDist(static_cast<float>(i) - center + 0.5f);
-				kernel[i] = dist;
-				sum += dist;
-			}
-
-			const float normFactor = 1.0f / sum;
-			for (int32 i = 0; i < N; ++i)
-			{
-				kernel[i] *= normFactor;
-			}
-		}
-
-		template<size_t N>
-		inline void BuildSharpenKernel(float(&kernel)[N], float factor)
-		{
-			for (uint32 i = 0; i < N; ++i)
-			{
-				kernel[i] = 0.0f;
-			}
-
-			kernel[(N >> 1) - 1] = factor * 0.5f;
-			kernel[(N >> 1)] = factor * 0.5f;
-		}
-
-		template<size_t N>
-		inline void BuildKernel2DFromSeparable(float(&kernel1D)[N], SharpenKernelStorage8& outKernel)
-		{
-			static_assert(N == SharpenKernelStorage8::SIZE);
-
-			for (int32 y = 0; y < N; ++y)
-			{
-				for (int32 x = 0; x < N; ++x)
-				{
-					outKernel.m_storage[y * N + x] = kernel1D[y] * kernel1D[x];
-				}
-			}
-		}
-
-		inline SharpenKernelStorage8 MakeMipGaussianSharpenKernel(float factor)
-		{
-			SharpenKernelStorage8 kernel;
-
-			float kernel1DStorage0[SharpenKernelStorage8::SIZE];
-			float kernel1DStorage1[SharpenKernelStorage8::SIZE];
-
-			// negative factors indicate blur where the -factor is the variance.
-			if (factor < 0)
-			{
-				BuildGaussianBlurKernel(kernel1DStorage0, -factor);
-
-				BuildKernel2DFromSeparable(kernel1DStorage0, kernel);
-
-				return kernel;
-			}
-
-			BuildSharpenKernel(kernel1DStorage0, 1.0f + factor);
-			BuildSharpenKernel(kernel1DStorage1, -factor);
-
-			BlurKernel<1>(kernel1DStorage0);
-			BlurKernel<3>(kernel1DStorage1);
-
-			for (int32 i = 0; i < SharpenKernelStorage8::SIZE; ++i)
-			{
-				kernel1DStorage0[i] += kernel1DStorage1[i];
-			}
-
-			BuildKernel2DFromSeparable(kernel1DStorage0, kernel);
-
-			return kernel;
-		}
-
-		template<int32 PIXEL_SIZE, typename CHANNEL_TYPE, EAddressMode AD_MODE = EAddressMode::Wrap>
-		class ImageAccessor
-		{
-			const FIntVector2 m_dim;
-			CHANNEL_TYPE const* const m_pImageBuf;
-
-		public:
-			ImageAccessor(const CHANNEL_TYPE* const pImageBuf, FIntVector2 dim)
-				: m_dim(dim)
-				, m_pImageBuf(pImageBuf)
-			{
-			}
-
-			uint8 operator()(int32 x, int32 y, int32 c) const
-			{
-				if constexpr (AD_MODE == EAddressMode::Wrap)
-				{
-					// (y & (m_dim.Y - 1)) * m_dim.Y + (x & (m_dim.X - 1))
-					return m_pImageBuf[((y % m_dim.Y) * m_dim.X + (x % m_dim.X)) * PIXEL_SIZE + c];
-				}
-				else if (AD_MODE == EAddressMode::ClampToEdge)
-				{
-					return m_pImageBuf[(mu::clamp(y, 0, m_dim.Y - 1) * m_dim.X +
-						mu::clamp(x, 0, m_dim.X - 1))
-						* PIXEL_SIZE + c];
-				}
-				else if (AD_MODE == EAddressMode::ClampToBlack)
-				{
-					return ((x < m_dim.X) && (y < m_dim.Y) && (x >= 0) && (y >= 0))
-						? m_pImageBuf[(y * m_dim.X + x) * PIXEL_SIZE + c]
-						: 0;
-				}
-				else
-				{
-					return m_pImageBuf[(y * m_dim.X + x) * PIXEL_SIZE + c];
-				}
-			}
-		};
-
-
-		template<int32 PIXEL_SIZE, EAddressMode AD, typename PIXEL_TYPE>
-		void GenerateMipSharpenedRegion(
-			const SharpenKernelStorage8& kernel,
-			const ImageAccessor<PIXEL_SIZE, PIXEL_TYPE, AD>& sourceAccessor,
-			PIXEL_TYPE* Dest, FIntVector2 destSize,
-			FIntVector2 regionStart, FIntVector2 regionEnd)
-		{
-			// Only kernels of size 8 supported.
-			constexpr int32 kernelSize = SharpenKernelStorage8::SIZE;
-			static_assert(kernelSize == 8);
-
-			constexpr int32 kernelCenter = (kernelSize >> 1) - 1;
-			for (int32 y = regionStart.Y; y < regionEnd.Y; ++y)
-			{
-				for (int32 x = regionStart.X; x < regionEnd.X; ++x)
-				{
-					float stagingStorage[kernelSize * kernelSize * PIXEL_SIZE];
-
-					const FIntVector2 sourceCoord = FIntVector2(x << 1, y << 1);
-
-
-					// Convert Image kernel stamp to float. This conversion will be done multiple times.
-					// and should be done once before applying the kernel, or operate directly in unorm8/snorm8.
-					for (int32 ky = 0; ky < kernelSize; ++ky)
-					{
-						for (int32 kx = 0; kx < kernelSize; ++kx)
-						{
-							for (int32 c = 0; c < PIXEL_SIZE; ++c)
-							{
-								stagingStorage[(ky * kernelSize + kx) + (kernelSize * kernelSize * c)] = static_cast<float>(
-									sourceAccessor(sourceCoord.X + kx - kernelCenter,
-										sourceCoord.Y + ky - kernelCenter,
-										c)) / 255.0f;
-							}
-						}
-					}
-
-					// Apply kernel. Although the kernel is separable, the cost would not differ much from the not separable one.
-					// That is because to make it separable a partial convolution of the source is needed. 
-					// Since here we are only applying to half the image and the kernel used is small (8x8) the benefits are not 
-					// clear.
-
 					for (int32 c = 0; c < PIXEL_SIZE; ++c)
 					{
-						float sampleValue = 0.0f;
-						float sum = 0.0f;
-						for (int32 k = 0; k < kernelSize * kernelSize; ++k)
-						{
-							sampleValue += kernel.m_storage[k] * stagingStorage[k + (kernelSize * kernelSize * c)];
-							sum += kernel.m_storage[k];
-						}
-
-						Dest[(y * destSize.X + x) * PIXEL_SIZE + c] = static_cast<uint8>(mu::clamp(sampleValue, 0.0f, 1.0f) * 255.0f);
+						Dest[(y * destSize.X + x) * PIXEL_SIZE + c] =
+							pSource[((y << 1) * sourceSize.X + (x << 1)) * PIXEL_SIZE + c];
 					}
 				}
 			}
+
+			sourceSize = destSize;
+			pSource = Dest;
+			Dest = Dest + destSize.X * destSize.Y * PIXEL_SIZE;
 		}
+	}
 
-		template<size_t PIXEL_SIZE, EAddressMode AD_MODE>
-		inline void GenerateMipmapUint8Sharpen(int mips,
-			const uint8* pSource, uint8* Dest,
-			FIntVector2 sourceSize,
-			float sharpeningFactor)
+	template<int32 PIXEL_SIZE>
+	inline void GenerateMipmapsUint8SimpleAverage(
+		int mips,
+		const uint8* pSource, uint8* Dest,
+		FIntVector2 sourceSize)
+	{
+		
+		const uint8* pMipSource = pSource;
+		uint8* pMipDest = Dest;
+
+		FIntVector2 destSize = sourceSize;
+
+		for (int m = 0; m < mips; ++m)
 		{
-			SharpenKernelStorage8 kernel = MakeMipGaussianSharpenKernel(sharpeningFactor);
+			check(destSize[0] > 1 || destSize[1] > 1);
 
-			size_t totalDestSize = 0;
+			sourceSize = destSize;
 
-			for (; mips >= 0; --mips)
+			int fullColumns = destSize[0] / 2;
+			bool strayColumn = (destSize[0] % 2) != 0;
+			int fullRows = destSize[1] / 2;
+			bool strayRow = (destSize[1] % 2) != 0;
+
+			destSize[0] = FMath::DivideAndRoundUp(destSize[0], 2);
+			destSize[1] = FMath::DivideAndRoundUp(destSize[1], 2);
+
+			int sourceStride = sourceSize[0] * PIXEL_SIZE;
+			int destStride = destSize[0] * PIXEL_SIZE;
+
+			const auto ProcessRow = [
+				pMipDest, pMipSource, fullColumns, strayColumn, sourceStride, destStride
+			] (uint32 y)
 			{
-				ImageAccessor<PIXEL_SIZE, uint8, AD_MODE> sourceSampler(pSource, sourceSize);
-				ImageAccessor<PIXEL_SIZE, uint8, EAddressMode::None> sourceSamplerAddressModeNone(pSource, sourceSize);
+				const uint8* pSourceRow0 = pMipSource + 2 * y * sourceStride;
+				const uint8* pSourceRow1 = pSourceRow0 + sourceStride;
+				uint8* pDestRow = pMipDest + y * destStride;
 
-				FIntVector2 destSize = FIntVector2(FMath::DivideAndRoundUp(sourceSize.X, 2), FMath::DivideAndRoundUp(sourceSize.Y, 2));
-
-				// Core image, will never sample outside the image so we don't need to care about address mode.
-				// Only sample source pixels where the kernel can be fully applied.
-				// Border cases are treated separately.
-				GenerateMipSharpenedRegion(
-					kernel,
-					sourceSamplerAddressModeNone,
-					Dest, destSize,
-					FIntVector2(2, 2), FIntVector2(destSize.X - 2, destSize.Y - 2));
-
-				// Horizontal borders.
-				GenerateMipSharpenedRegion(
-					kernel,
-					sourceSampler,
-					Dest, destSize,
-					FIntVector2(0, 0), FIntVector2(destSize.X, FMath::Min(2, destSize.Y)));
-
-				GenerateMipSharpenedRegion(
-					kernel,
-					sourceSampler,
-					Dest, destSize,
-					FIntVector2(0, FMath::Max(destSize.Y - 2, 0)), FIntVector2(destSize.X, destSize.Y));
-
-				// Vertical borders
-				GenerateMipSharpenedRegion(
-					kernel,
-					sourceSampler,
-					Dest, destSize,
-					FIntVector2(0, FMath::Min(2, destSize.Y)), FIntVector2(FMath::Min(2, destSize.X), destSize.Y - 2));
-
-				GenerateMipSharpenedRegion(
-					kernel,
-					sourceSampler,
-					Dest, destSize,
-					FIntVector2(destSize.X - 2, FMath::Min(2, destSize.Y)), FIntVector2(destSize.X, destSize.Y - 2));
-
-				sourceSize = destSize;
-
-				pSource = Dest;
-				Dest = Dest + destSize.X * destSize.Y * PIXEL_SIZE;
-
-				totalDestSize += sourceSize.X * sourceSize.Y * PIXEL_SIZE;
-			}
-		}
-
-		template<int32 PIXEL_SIZE>
-		inline void GenerateMipmapUint8Unfiltered(
-			int mips,
-			const uint8* pSource, uint8* Dest,
-			FIntVector2 sourceSize)
-		{
-			for (; mips >= 0; --mips)
-			{
-				FIntVector2 destSize = FIntVector2(FMath::DivideAndRoundUp(sourceSize.X, 2), FMath::DivideAndRoundUp(sourceSize.Y, 2));
-
-				for (int32 y = 0; y < destSize.Y; ++y)
+				for (int x = 0; x < fullColumns; ++x)
 				{
-					for (int32 x = 0; x < destSize.X; ++x)
+					if constexpr (PIXEL_SIZE == 4)
 					{
-						for (int32 c = 0; c < PIXEL_SIZE; ++c)
-						{
-							Dest[(y * destSize.X + x) * PIXEL_SIZE + c] =
-								pSource[((y << 1) * sourceSize.X + (x << 1)) * PIXEL_SIZE + c];
-						}
-					}
-				}
+						//const uint64 Row0Bits = *reinterpret_cast<const uint64*>(pSourceRow0);
+						//const uint64 Row1Bits = *reinterpret_cast<const uint64*>(pSourceRow1);
 
-				sourceSize = destSize;
-				pSource = Dest;
-				Dest = Dest + destSize.X * destSize.Y * PIXEL_SIZE;
-			}
-		}
+						// Use memcpy to avoid any possible but improbable UB. memcpy should be optimized away by the compiler.
+						uint64 Row0Bits; 
+						uint64 Row1Bits;
 
-		template<int32 PIXEL_SIZE>
-		inline void GenerateMipmapsUint8SimpleAverage(
-			int mips,
-			const uint8* pSource, uint8* Dest,
-			FIntVector2 sourceSize)
-		{
-			
-			const uint8* pMipSource = pSource;
-			uint8* pMipDest = Dest;
-
-			FIntVector2 destSize = sourceSize;
-
-			for (int m = 0; m < mips; ++m)
-			{
-				check(destSize[0] > 1 || destSize[1] > 1);
-
-				sourceSize = destSize;
-
-				int fullColumns = destSize[0] / 2;
-				bool strayColumn = (destSize[0] % 2) != 0;
-				int fullRows = destSize[1] / 2;
-				bool strayRow = (destSize[1] % 2) != 0;
-
-				destSize[0] = FMath::DivideAndRoundUp(destSize[0], 2);
-				destSize[1] = FMath::DivideAndRoundUp(destSize[1], 2);
-
-				int sourceStride = sourceSize[0] * PIXEL_SIZE;
-				int destStride = destSize[0] * PIXEL_SIZE;
-
-				const auto ProcessRow = [
-					pMipDest, pMipSource, fullColumns, strayColumn, sourceStride, destStride
-				] (uint32 y)
-				{
-					const uint8* pSourceRow0 = pMipSource + 2 * y * sourceStride;
-					const uint8* pSourceRow1 = pSourceRow0 + sourceStride;
-					uint8* pDestRow = pMipDest + y * destStride;
-
-					for (int x = 0; x < fullColumns; ++x)
-					{
-						if constexpr (PIXEL_SIZE == 4)
-						{
-							//const uint64 Row0Bits = *reinterpret_cast<const uint64*>(pSourceRow0);
-							//const uint64 Row1Bits = *reinterpret_cast<const uint64*>(pSourceRow1);
-
-							// Use memcpy to avoid any possible but improbable UB. memcpy should be optimized away by the compiler.
-							uint64 Row0Bits; 
-							uint64 Row1Bits;
-
-							FMemory::Memcpy(&Row0Bits, pSourceRow0, sizeof(uint64));
-							FMemory::Memcpy(&Row1Bits, pSourceRow1, sizeof(uint64));
-							
-							const uint64 XorRow0Row1Bits = Row0Bits ^ Row1Bits;
-
-							// Average of 2 unsigned integers without overflow extended to work on multiple bytes.
-							constexpr uint64 ShiftMask = 0xFEFEFEFEFEFEFEFE;
-							const uint64 ErrorCorrection = XorRow0Row1Bits & 0x0101010101010101;
-							const uint64 AvgLowBits = (Row0Bits & Row1Bits) + ((XorRow0Row1Bits & ShiftMask) >> 1) + ErrorCorrection;
-							const uint64 AvgHighBits = AvgLowBits >> 32;
-							const uint32 Result = (AvgLowBits & AvgHighBits) + (((AvgLowBits ^ AvgHighBits) & ShiftMask) >> 1);
+						FMemory::Memcpy(&Row0Bits, pSourceRow0, sizeof(uint64));
+						FMemory::Memcpy(&Row1Bits, pSourceRow1, sizeof(uint64));
 						
-							//*reinterpret_cast<uint32*>(pDestRow) = Result;
-							FMemory::Memcpy(pDestRow, &Result, sizeof(uint32));
-						}
-						else
-						{
-							for (int32 C = 0; C < PIXEL_SIZE; ++C)
-							{
-								int32 PixelSum = pSourceRow0[C] + pSourceRow0[PIXEL_SIZE + C] + pSourceRow1[C] + pSourceRow1[PIXEL_SIZE + C];
-								pDestRow[C] = (uint8)(PixelSum >> 2);
-							}
-						}
+						const uint64 XorRow0Row1Bits = Row0Bits ^ Row1Bits;
 
-						pSourceRow0 += 2 * PIXEL_SIZE;
-						pSourceRow1 += 2 * PIXEL_SIZE;
-						pDestRow += PIXEL_SIZE;
+						// Average of 2 unsigned integers without overflow extended to work on multiple bytes.
+						constexpr uint64 ShiftMask = 0xFEFEFEFEFEFEFEFE;
+						const uint64 ErrorCorrection = XorRow0Row1Bits & 0x0101010101010101;
+						const uint64 AvgLowBits = (Row0Bits & Row1Bits) + ((XorRow0Row1Bits & ShiftMask) >> 1) + ErrorCorrection;
+						const uint64 AvgHighBits = AvgLowBits >> 32;
+						const uint32 Result = (AvgLowBits & AvgHighBits) + (((AvgLowBits ^ AvgHighBits) & ShiftMask) >> 1);
+					
+						//*reinterpret_cast<uint32*>(pDestRow) = Result;
+						FMemory::Memcpy(pDestRow, &Result, sizeof(uint32));
 					}
-
-					if (strayColumn)
+					else
 					{
-						if constexpr (PIXEL_SIZE == 4)
-						{	
-							//const uint32 Row0Bits = *reinterpret_cast<const uint32*>(pSourceRow0);
-							//const uint32 Row1Bits = *reinterpret_cast<const uint32*>(pSourceRow1);
-
-							uint32 Row0Bits; 
-							uint32 Row1Bits;
-
-							FMemory::Memcpy(&Row0Bits, pSourceRow0, sizeof(uint32));
-							FMemory::Memcpy(&Row1Bits, pSourceRow1, sizeof(uint32));
-
-							// Average of 2 unsigned integers without overflow extended to work on multiple bytes.
-							constexpr uint32 ShiftMask = 0xFEFEFEFE;
-							const uint32 Result = (Row0Bits & Row1Bits) + (((Row0Bits ^ Row1Bits) & ShiftMask) >> 1);
-
-							//*reinterpret_cast<uint32*>(pDestRow) = Result;
-							FMemory::Memcpy(pDestRow, &Result, sizeof(uint32));
-						}
-						else
+						for (int32 C = 0; C < PIXEL_SIZE; ++C)
 						{
-							for (int32 C = 0; C < PIXEL_SIZE; ++C)
-							{
-								int32 PixelSum = pSourceRow0[C] + pSourceRow1[C];
-								pDestRow[C] = (uint8)(PixelSum >> 1);
-							}
+							int32 PixelSum = pSourceRow0[C] + pSourceRow0[PIXEL_SIZE + C] + pSourceRow1[C] + pSourceRow1[PIXEL_SIZE + C];
+							pDestRow[C] = (uint8)(PixelSum >> 2);
 						}
 					}
-				};
 
-				constexpr int PixelConcurrencyThreshold = 0xffff;
-				if (destSize[0] * destSize[1] < PixelConcurrencyThreshold)
-				{
-					for (int y = 0; y < fullRows; ++y)
-					{
-						ProcessRow(y);
-					}
-				}
-				else
-				{
-					ParallelFor(fullRows, ProcessRow);
+					pSourceRow0 += 2 * PIXEL_SIZE;
+					pSourceRow1 += 2 * PIXEL_SIZE;
+					pDestRow += PIXEL_SIZE;
 				}
 
-				if (strayRow)
+				if (strayColumn)
 				{
-					const uint8* pSourceRow0 = pMipSource + 2 * fullRows * sourceStride;
-					const uint8* pSourceRow1 = pSourceRow0 + sourceStride;
-					uint8* pDestRow = pMipDest + fullRows * destStride;
+					if constexpr (PIXEL_SIZE == 4)
+					{	
+						//const uint32 Row0Bits = *reinterpret_cast<const uint32*>(pSourceRow0);
+						//const uint32 Row1Bits = *reinterpret_cast<const uint32*>(pSourceRow1);
 
-					for (int x = 0; x < fullColumns; ++x)
-					{
-						if constexpr (PIXEL_SIZE == 4)
-						{
-							//const uint32 Col0Bits = *reinterpret_cast<const uint32*>(pSourceRow0);
-							//const uint32 Col1Bits = *reinterpret_cast<const uint32*>(pSourceRow0 + 4);
+						uint32 Row0Bits; 
+						uint32 Row1Bits;
 
-							uint32 Col0Bits; 
-							uint32 Col1Bits;
+						FMemory::Memcpy(&Row0Bits, pSourceRow0, sizeof(uint32));
+						FMemory::Memcpy(&Row1Bits, pSourceRow1, sizeof(uint32));
 
-							FMemory::Memcpy(&Col0Bits, pSourceRow0, sizeof(uint32));
-							FMemory::Memcpy(&Col1Bits, pSourceRow0 + 4, sizeof(uint32));
+						// Average of 2 unsigned integers without overflow extended to work on multiple bytes.
+						constexpr uint32 ShiftMask = 0xFEFEFEFE;
+						const uint32 Result = (Row0Bits & Row1Bits) + (((Row0Bits ^ Row1Bits) & ShiftMask) >> 1);
 
-							// Average of 2 unsigned integers without overflow extended to work on multiple bytes. 
-							// In this case we use the ceil variant to be consistent with the method used for 4 pixel average. 
-							constexpr uint32 ShiftMask = 0xFEFEFEFE;
-							const uint32 Result = (Col0Bits & Col1Bits) + (((Col0Bits ^ Col1Bits) & ShiftMask) >> 1);
-
-							//*reinterpret_cast<uint32*>(pDestRow) = Result;
-							FMemory::Memcpy(pDestRow, &Result, sizeof(uint32));
-						}
-						else
-						{
-							for (int32 C = 0; C < PIXEL_SIZE; ++C)
-							{
-								int32 p = pSourceRow0[C] + pSourceRow0[PIXEL_SIZE + C];
-								pDestRow[C] = (uint8)(p >> 1);
-							}
-						}
-
-						pSourceRow0 += 2 * PIXEL_SIZE;
-						pDestRow += PIXEL_SIZE;
+						//*reinterpret_cast<uint32*>(pDestRow) = Result;
+						FMemory::Memcpy(pDestRow, &Result, sizeof(uint32));
 					}
-
-					if (strayColumn)
+					else
 					{
-						if constexpr (PIXEL_SIZE == 4)
+						for (int32 C = 0; C < PIXEL_SIZE; ++C)
 						{
-							//*reinterpret_cast<uint32*>(pDestRow) = *reinterpret_cast<const uint32*>(pSourceRow0);
-							FMemory::Memcpy(pDestRow, pSourceRow0, 4);
-						}
-						else
-						{
-							for (int32 C = 0; C < PIXEL_SIZE; ++C)
-							{
-								pDestRow[C] = pSourceRow0[C];
-							}
+							int32 PixelSum = pSourceRow0[C] + pSourceRow1[C];
+							pDestRow[C] = (uint8)(PixelSum >> 1);
 						}
 					}
 				}
+			};
 
-				// Reset the source pointer for the next mip, to use the dest that we have just
-				// generated.
-				pMipSource = pMipDest;
-				pMipDest += destSize[0] * destSize[1] * PIXEL_SIZE;
+			constexpr int PixelConcurrencyThreshold = 0xffff;
+			if (destSize[0] * destSize[1] < PixelConcurrencyThreshold)
+			{
+				for (int y = 0; y < fullRows; ++y)
+				{
+					ProcessRow(y);
+				}
 			}
-		}
+			else
+			{
+				ParallelFor(fullRows, ProcessRow);
+			}
 
-	} // namespace OpImageMipmap_Detail
+			if (strayRow)
+			{
+				const uint8* pSourceRow0 = pMipSource + 2 * fullRows * sourceStride;
+				const uint8* pSourceRow1 = pSourceRow0 + sourceStride;
+				uint8* pDestRow = pMipDest + fullRows * destStride;
+
+				for (int x = 0; x < fullColumns; ++x)
+				{
+					if constexpr (PIXEL_SIZE == 4)
+					{
+						//const uint32 Col0Bits = *reinterpret_cast<const uint32*>(pSourceRow0);
+						//const uint32 Col1Bits = *reinterpret_cast<const uint32*>(pSourceRow0 + 4);
+
+						uint32 Col0Bits; 
+						uint32 Col1Bits;
+
+						FMemory::Memcpy(&Col0Bits, pSourceRow0, sizeof(uint32));
+						FMemory::Memcpy(&Col1Bits, pSourceRow0 + 4, sizeof(uint32));
+
+						// Average of 2 unsigned integers without overflow extended to work on multiple bytes. 
+						// In this case we use the ceil variant to be consistent with the method used for 4 pixel average. 
+						constexpr uint32 ShiftMask = 0xFEFEFEFE;
+						const uint32 Result = (Col0Bits & Col1Bits) + (((Col0Bits ^ Col1Bits) & ShiftMask) >> 1);
+
+						//*reinterpret_cast<uint32*>(pDestRow) = Result;
+						FMemory::Memcpy(pDestRow, &Result, sizeof(uint32));
+					}
+					else
+					{
+						for (int32 C = 0; C < PIXEL_SIZE; ++C)
+						{
+							int32 p = pSourceRow0[C] + pSourceRow0[PIXEL_SIZE + C];
+							pDestRow[C] = (uint8)(p >> 1);
+						}
+					}
+
+					pSourceRow0 += 2 * PIXEL_SIZE;
+					pDestRow += PIXEL_SIZE;
+				}
+
+				if (strayColumn)
+				{
+					if constexpr (PIXEL_SIZE == 4)
+					{
+						//*reinterpret_cast<uint32*>(pDestRow) = *reinterpret_cast<const uint32*>(pSourceRow0);
+						FMemory::Memcpy(pDestRow, pSourceRow0, 4);
+					}
+					else
+					{
+						for (int32 C = 0; C < PIXEL_SIZE; ++C)
+						{
+							pDestRow[C] = pSourceRow0[C];
+						}
+					}
+				}
+			}
+
+			// Reset the source pointer for the next mip, to use the dest that we have just
+			// generated.
+			pMipSource = pMipDest;
+			pMipDest += destSize[0] * destSize[1] * PIXEL_SIZE;
+		}
+	}
+
+	// Generate next mip decompressed form block compressed image. 
+	template<int32 NumChannels, EMipmapFilterType Filter>
+	inline void GenerateNextMipBlockCompressed(
+		const uint8* Src, uint8* Dest, FIntVector2 SrcSize, EImageFormat SrcFormat, EImageFormat DestFormat)
+	{
+		MUTABLE_CPUPROFILER_SCOPE(GenerateNextMipBlockCompressed);
+
+		const FImageFormatData& DestFormatData = GetImageFormatData(DestFormat);
+		const FImageFormatData& SrcFormatData = GetImageFormatData(SrcFormat);
+
+		check(NumChannels == DestFormatData.Channels);
+		check(DestFormatData.PixelsPerBlockX == 1 && DestFormatData.PixelsPerBlockY == 1);
+
+		const int32 DestChannelCount = DestFormatData.Channels; 
+		const FIntVector2 PixelsPerBlock = FIntVector2(SrcFormatData.PixelsPerBlockX, SrcFormatData.PixelsPerBlockY);
+		const int32 BlockSizeInBytes = SrcFormatData.BytesPerBlock;
+
+		const FIntVector2 DestSize = FIntVector2(
+				FMath::DivideAndRoundUp(SrcSize.X, 2),
+				FMath::DivideAndRoundUp(SrcSize.Y, 2));
+
+		const FIntVector2 NumBlocks = FIntVector2(
+				FMath::DivideAndRoundUp(SrcSize.X, PixelsPerBlock.X),
+				FMath::DivideAndRoundUp(SrcSize.Y, PixelsPerBlock.Y));
+
+		constexpr int32 BatchSizeInBlocksX = 1 << 5;
+		constexpr int32 BatchSizeInBlocksY = 1 << 4;
+
+		FIntVector2 NumBatches = FIntVector2(
+				FMath::DivideAndRoundUp(NumBlocks.X, BatchSizeInBlocksX),
+				FMath::DivideAndRoundUp(NumBlocks.Y, BatchSizeInBlocksY));
+
+
+		// Limit the parallel job num based on actual num workers. Here we cannot rely on ParallelFor
+		// balancing the load as we need to allocate memory for every job. Make sure there is always 1 job.
+		// TODO: Consider balancing work on using a 2D grid.
+		const int32 MaxParallelJobs = FMath::Max(1, FMath::Min(int32(LowLevelTasks::FScheduler::Get().GetNumWorkers()), 8));
+		
+		constexpr int32 MinRowBatchesPerJob = 1;
+
+		const int32 NumRowBatchesPerJob = 
+			 FMath::Min(NumBatches.Y, FMath::Max(MinRowBatchesPerJob, FMath::DivideAndRoundUp(NumBatches.Y, MaxParallelJobs)));
+
+		const int32 NumParallelJobs = FMath::DivideAndRoundUp(NumBatches.Y, NumRowBatchesPerJob); 
+
+		// Use the tracking allocator policy on the image counter, this will not count for preventing memory peaks 
+		// but will show if it happens. This allocation should be small enough so it is not a problem to get over-budget
+		// by this amount. 
+		TArray<uint8, FDefaultMemoryTrackingAllocator<MemoryCounters::FImageMemoryCounter>> StagingMemory;
+
+		const miro::FImageSize StagingSize = miro::FImageSize(
+				uint16(BatchSizeInBlocksX*PixelsPerBlock.X), 
+				uint16(BatchSizeInBlocksY*PixelsPerBlock.Y));
+		
+		// Allocate extra memory so the mip computation can work on all possible pixels sizes. 
+		// Also add some extra padding so different threads do not share cache lines.
+		const int32 PerJobStagingBytes = StagingSize.X*StagingSize.Y*NumChannels + 8 + 64;
+		
+		StagingMemory.SetNum(PerJobStagingBytes*NumParallelJobs);
+		uint8 * const StagingMemoryData = StagingMemory.GetData();
+
+		miro::SubImageDecompression::FuncRefType DecompressionFunc = SelectDecompressionFunction(DestFormat, SrcFormat);
+
+		auto ProcessJob = 
+			[
+				NumParallelJobs, NumRowBatchesPerJob, 
+				StagingMemoryData, PerJobStagingBytes, 
+				NumBatches, NumBlocks, PixelsPerBlock, BlockSizeInBytes, DecompressionFunc,
+				Src, SrcSize, Dest, DestSize
+			](int32 JobId)
+		{
+			const int32 JobRowBegin = JobId*NumRowBatchesPerJob;
+			const int32 JobRowEnd   = FMath::Min(JobRowBegin + NumRowBatchesPerJob, NumBatches.Y);
+			uint8 * const JobStagingMemoryData = StagingMemoryData + JobId*PerJobStagingBytes;
+
+			for (int32 BatchY = JobRowBegin; BatchY < JobRowEnd; ++BatchY)
+			{
+				for (int32 BatchX = 0; BatchX < NumBatches.X; ++BatchX)
+				{
+					const FIntVector2 BatchBeginInBlocks = FIntVector2(BatchX*BatchSizeInBlocksX, BatchY*BatchSizeInBlocksY);
+					const FIntVector2 BatchEndInBlocks = FIntVector2(
+							FMath::Min(BatchBeginInBlocks.X + BatchSizeInBlocksX, NumBlocks.X),
+							FMath::Min(BatchBeginInBlocks.Y + BatchSizeInBlocksY, NumBlocks.Y));
+
+					const uint8* const SrcBatchData = Src + (BatchBeginInBlocks.Y * NumBlocks.X + BatchBeginInBlocks.X)*BlockSizeInBytes;
+
+					// Assume the decompressed size is always multiple of the block size. Trim unused bytes when copying to 
+					// the final destination.
+					const FIntVector2 BatchDecSizeInPixels = FIntVector2(
+							(BatchEndInBlocks.X - BatchBeginInBlocks.X)*PixelsPerBlock.X,
+							(BatchEndInBlocks.Y - BatchBeginInBlocks.Y)*PixelsPerBlock.Y);
+
+					const miro::FImageSize FromSize = miro::FImageSize(uint16(SrcSize.X), uint16(SrcSize.Y)); 
+					const miro::FImageSize SubSize  = miro::FImageSize(uint16(BatchDecSizeInPixels.X), uint16(BatchDecSizeInPixels.Y));
+					DecompressionFunc(FromSize, SubSize, SubSize, SrcBatchData, JobStagingMemoryData);
+
+					const FIntVector2 BatchOutBeginInPixels = FIntVector2(
+							(BatchBeginInBlocks.X*PixelsPerBlock.X) >> 1, 
+							(BatchBeginInBlocks.Y*PixelsPerBlock.Y) >> 1);
+
+					const FIntVector2 BatchOutEndInPixels = FIntVector2(
+							FMath::Min(BatchOutBeginInPixels.X + ((BatchSizeInBlocksX*PixelsPerBlock.X) >> 1), DestSize.X), 
+							FMath::Min(BatchOutBeginInPixels.Y + ((BatchSizeInBlocksY*PixelsPerBlock.Y) >> 1), DestSize.Y));
+		
+					// Generate partial next mip to dest.
+					// This works for all pixel sizes because we have preallocated more memory than needed.
+					for (int32 Y = BatchOutBeginInPixels.Y; Y < BatchOutEndInPixels.Y; ++Y)
+					{
+						for (int32 X = BatchOutBeginInPixels.X; X < BatchOutEndInPixels.X; ++X)
+						{
+							uint8* const DestPixel = Dest + (Y*DestSize.X + X) * NumChannels;
+
+							const FIntVector2 Row0Offset = FIntVector2(
+									(X - BatchOutBeginInPixels.X) << 1, (Y - BatchOutBeginInPixels.Y) << 1);
+
+							uint8 const * const SrcRow0 = JobStagingMemoryData + (Row0Offset.Y*BatchDecSizeInPixels.X + Row0Offset.X) * NumChannels;
+
+							if constexpr (Filter == EMipmapFilterType::MFT_SimpleAverage)
+							{
+								// Use memcpy to avoid any possible but improbable UB. memcpy should be optimized away by the compiler.
+								uint64 Row0Bits; 
+								FMemory::Memcpy(&Row0Bits, SrcRow0, sizeof(uint64));
+								
+								uint8 const * const SrcRow1 = JobStagingMemoryData + 
+										(FMath::Min(Row0Offset.Y + 1, BatchDecSizeInPixels.Y - 1)*BatchDecSizeInPixels.X + Row0Offset.X) * NumChannels;
+
+								uint64 Row1Bits;
+								FMemory::Memcpy(&Row1Bits, SrcRow1, sizeof(uint64));
+								
+								const uint64 OutOfBoundsMask = Row0Offset.X + 1 >= BatchDecSizeInPixels.X ? 0 : ~0;
+
+								constexpr uint64 ShiftMask = 0xFEFEFEFEFEFEFEFE;
+								
+								const uint64 XorRow0Row1Bits = Row0Bits ^ Row1Bits;
+								const uint64 ErrorCorrection = XorRow0Row1Bits & 0x0101010101010101;
+								
+								// Average of 2 unsigned integers without overflow extended to work on multiple bytes.
+								const uint64 AvgLowBits = (Row0Bits & Row1Bits) + ((XorRow0Row1Bits & ShiftMask) >> 1) + ErrorCorrection;
+								const uint64 AvgHighBits = OutOfBoundsMask ? AvgLowBits : (AvgLowBits >> 32);
+								const uint32 Result = (AvgLowBits & AvgHighBits) + (((AvgLowBits ^ AvgHighBits) & ShiftMask) >> 1);
+								
+								FMemory::Memcpy(DestPixel, &Result, NumChannels);
+							}
+							else // constexpr Filter == EMipmapFilterType::MFT_Unfiltered
+							{
+								FMemory::Memcpy(DestPixel, SrcRow0, NumChannels);	
+							}
+							static_assert(
+								Filter == EMipmapFilterType::MFT_SimpleAverage || 
+								Filter == EMipmapFilterType::MFT_Unfiltered);
+						}
+					}
+				}
+			}
+		};
+
+		if (NumParallelJobs == 1)
+		{
+			ProcessJob(0);
+		}
+		else if (NumParallelJobs > 1)
+		{	
+			ParallelFor(NumParallelJobs, ProcessJob);
+		}
+	}
+} // namespace OpImageMipmap_Detail
 
 
 	/** Generate the mipmaps for byte-based images of whatever number of channels.
@@ -533,38 +422,6 @@ namespace mu
 			GenerateMipmapsUint8SimpleAverage<PIXEL_SIZE>(mips, pSource, Dest, sourceSize);
 			break;
 		}
-		case EMipmapFilterType::MFT_Sharpen:
-		{
-			switch (settings.m_addressMode)
-			{
-			case EAddressMode::ClampToEdge:
-			{
-				GenerateMipmapUint8Sharpen<PIXEL_SIZE, EAddressMode::ClampToEdge>(
-					mips, pSource, Dest, sourceSize, settings.m_sharpenFactor);
-				break;
-			}
-			case EAddressMode::Wrap:
-			{
-				GenerateMipmapUint8Sharpen<PIXEL_SIZE, EAddressMode::Wrap>(
-					mips, pSource, Dest, sourceSize, settings.m_sharpenFactor);
-				break;
-			}
-			case EAddressMode::ClampToBlack:
-			{
-				GenerateMipmapUint8Sharpen<PIXEL_SIZE, EAddressMode::ClampToBlack>(
-					mips, pSource, Dest, sourceSize, settings.m_sharpenFactor);
-				break;
-			}
-			default:
-			{
-				GenerateMipmapUint8Sharpen<PIXEL_SIZE, EAddressMode::None>(
-					mips, pSource, Dest, sourceSize, settings.m_sharpenFactor);
-				break;
-			}
-			}
-
-			break;
-		}
 		case EMipmapFilterType::MFT_Unfiltered:
 		{
 			GenerateMipmapUint8Unfiltered<PIXEL_SIZE>(mips, pSource, Dest, sourceSize);
@@ -578,6 +435,62 @@ namespace mu
 		}
 	}
 
+	/** Generate the mipmaps for Block Comporessed images of whatever number of channels.
+	 *  The result is a non compressed image of the next mip with its tail.
+	* \param mips number of additional levels to build from the source.
+	*/
+	template<int32 PixelSize>
+	inline void GenerateMipmapsBlockCompressed(int32 Mips,
+		const uint8* SourceData, uint8* DestData,
+		FIntVector2 SourceSize, EImageFormat SrcFormat, EImageFormat DestFormat,
+		const FMipmapGenerationSettings& Settings)
+	{
+		using namespace OpImageMipmap_Detail;
+
+		switch (Settings.m_filterType)
+		{
+		case EMipmapFilterType::MFT_SimpleAverage:
+		{
+			GenerateNextMipBlockCompressed<PixelSize, EMipmapFilterType::MFT_SimpleAverage>(
+				SourceData, DestData, SourceSize, SrcFormat, DestFormat);
+
+			const FIntVector2 CurrentMipSize = FIntVector2(
+				FMath::DivideAndRoundUp(SourceSize[0], 2),
+				FMath::DivideAndRoundUp(SourceSize[1], 2));
+
+			if (CurrentMipSize.X > 1 || CurrentMipSize.Y > 1)
+			{
+				uint8* CurrentMipData = DestData;
+				uint8* NextMipData = CurrentMipData + CurrentMipSize.X*CurrentMipSize.Y*PixelSize;
+				GenerateMipmapsUint8SimpleAverage<PixelSize>(Mips - 1, CurrentMipData, NextMipData, CurrentMipSize);
+			}
+
+			break;
+		}
+		case EMipmapFilterType::MFT_Unfiltered:
+		{
+			GenerateNextMipBlockCompressed<PixelSize, EMipmapFilterType::MFT_Unfiltered>(
+					SourceData, DestData, SourceSize, SrcFormat, DestFormat);
+
+			const FIntVector2 CurrentMipSize = FIntVector2(
+					FMath::DivideAndRoundUp(SourceSize[0], 2), 
+					FMath::DivideAndRoundUp(SourceSize[1], 2));
+
+			if (CurrentMipSize.X > 1 || CurrentMipSize.Y > 1)
+			{
+				uint8* CurrentMipData = DestData;
+				uint8* NextMipData = CurrentMipData + CurrentMipSize.Y*CurrentMipSize.X*PixelSize;
+				GenerateMipmapUint8Unfiltered<PixelSize>(Mips + 1, CurrentMipData, NextMipData, CurrentMipSize);
+			}
+			break;
+		}
+		default:
+		{
+			check(false);
+			break;
+		}
+		}
+	}
 
 
     //---------------------------------------------------------------------------------------------
@@ -596,12 +509,15 @@ namespace mu
 			// Is it a block format?
 			if (mu::GetImageFormatData(BaseFormat).PixelsPerBlockX > 1)
 			{
-				// Uncompress the last mip that we already have
-				FIntVector2 UncompressedSize = Base->CalculateMipSize(StartLevel);
-				Scratch.Uncompressed = CreateImage(
-					(uint16)UncompressedSize[0], (uint16)UncompressedSize[1],
-					1,
-					EImageFormat::IF_RGBA_UBYTE, EInitializationType::NotInitialized);
+				if (!bEnableCompressedMipGenerationMemoryOptimizations)
+				{
+					// Uncompress the last mip that we already have
+					FIntVector2 UncompressedSize = Base->CalculateMipSize(StartLevel);
+					Scratch.Uncompressed = CreateImage(
+						(uint16)UncompressedSize[0], (uint16)UncompressedSize[1],
+						1,
+						EImageFormat::IF_RGBA_UBYTE, EInitializationType::NotInitialized);
+				}
 
 				FIntVector2 UncompressedMipsSize = Base->CalculateMipSize(StartLevel + 1);
 				// Generate the mipmaps from there on
@@ -710,13 +626,54 @@ namespace mu
 
 		uint8* pDestBuf = !bGenerateOnlyTail ? Dest->GetMipData(StartLevel + 1) : Dest->GetMipData(0);
 
-		FIntVector2 sourceSize = Base->CalculateMipSize(StartLevel);
+		FIntVector2 SourceSize = Base->CalculateMipSize(StartLevel);
 
 		EImageFormat BaseFormat = Base->GetFormat();
-		if (mu::IsCompressedFormat(BaseFormat))
+		const bool bIsBlockCompressedFormat = mu::IsBlockCompressedFormat(BaseFormat);
+		const bool bIsCompressedFormat = mu::IsCompressedFormat(BaseFormat);
+		
+		check(!bIsBlockCompressedFormat || bIsCompressedFormat);
+
+		if (bIsBlockCompressedFormat && bEnableCompressedMipGenerationMemoryOptimizations)
+		{
+			const EImageFormat DestFormat = Scratch.UncompressedMips->GetFormat();
+			uint8* DestData = Scratch.UncompressedMips->GetData();
+			switch (DestFormat)
+			{
+			case EImageFormat::IF_L_UBYTE:
+			{
+				constexpr int32 PixelSize = 1;
+				GenerateMipmapsBlockCompressed<PixelSize>(
+						LevelCount - StartLevel - 1, pSourceBuf, DestData, SourceSize, BaseFormat, DestFormat, Settings);
+				break;
+			}
+			case EImageFormat::IF_RGB_UBYTE:
+			{
+				constexpr int32 PixelSize = 3;
+				GenerateMipmapsBlockCompressed<PixelSize>(
+						LevelCount - StartLevel - 1, pSourceBuf, DestData, SourceSize, BaseFormat, DestFormat, Settings);
+				break;
+			}
+			case EImageFormat::IF_RGBA_UBYTE:
+			{
+				constexpr int32 PixelSize = 4;
+				GenerateMipmapsBlockCompressed<PixelSize>(
+						LevelCount - StartLevel - 1, pSourceBuf, DestData, SourceSize, BaseFormat, DestFormat, Settings);
+				break;
+			}
+			default: check(false);
+			}
+
+			bool bSuccess = false;
+			constexpr int32 OnlyLod = -1;
+			ImagePixelFormat(bSuccess, CompressionQuality, Scratch.CompressedMips.get(), Scratch.UncompressedMips.get(), OnlyLod); 
+			check(bSuccess);
+			
+			FMemory::Memcpy(pDestBuf, Scratch.CompressedMips->GetData(), Scratch.CompressedMips->GetDataSize());
+		}
+		else if (bIsCompressedFormat)
 		{
 			// Bad case.
-
 			// Uncompress the last mip that we already have
 			bool bSuccess = false;
 			ImagePixelFormat(bSuccess, CompressionQuality, Scratch.Uncompressed.get(), Base, StartLevel);
@@ -760,16 +717,16 @@ namespace mu
 			switch (Base->GetFormat())
 			{
 			case EImageFormat::IF_L_UBYTE:
-				GenerateMipmapsUint8<1>(LevelCount - StartLevel - 1, pSourceBuf, pDestBuf, sourceSize, Settings);
+				GenerateMipmapsUint8<1>(LevelCount - StartLevel - 1, pSourceBuf, pDestBuf, SourceSize, Settings);
 				break;
 
 			case EImageFormat::IF_RGB_UBYTE:
-				GenerateMipmapsUint8<3>(LevelCount - StartLevel - 1, pSourceBuf, pDestBuf, sourceSize, Settings);
+				GenerateMipmapsUint8<3>(LevelCount - StartLevel - 1, pSourceBuf, pDestBuf, SourceSize, Settings);
 				break;
 
 			case EImageFormat::IF_BGRA_UBYTE:
 			case EImageFormat::IF_RGBA_UBYTE:
-				GenerateMipmapsUint8<4>(LevelCount - StartLevel - 1, pSourceBuf, pDestBuf, sourceSize, Settings);
+				GenerateMipmapsUint8<4>(LevelCount - StartLevel - 1, pSourceBuf, pDestBuf, SourceSize, Settings);
 				break;
 
 			default:
@@ -777,7 +734,6 @@ namespace mu
 			}
 		}
 	}
-
 
 	void FImageOperator::ImageMipmap(int32 CompressionQuality, Image* Dest, const Image* Base,
 		int32 LevelCount,

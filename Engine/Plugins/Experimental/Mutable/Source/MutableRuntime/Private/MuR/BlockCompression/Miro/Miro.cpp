@@ -9326,8 +9326,892 @@ namespace miro
 	}
 
 #endif // MIRO_INCLUDE_ASTC
+}
+
+namespace miro::SubImageDecompression
+{
+
+#if MIRO_INCLUDE_ASTC
+	template<uint32 BlockSize>
+	void GenericSubImage_ASTCRGBL_To_RGB(FImageSize FromSize, FImageSize ToSize, FImageSize SubSize, const uint8* From, uint8* To)
+	{
+		init_astc_decompress();
+
+		for (uint32 y = 0; y < SubSize.Y; y += BlockSize)
+		{
+			for (uint32 x = 0; x < SubSize.X; x += BlockSize)
+			{
+				constexpr bool bIsSRGB = false;
+				uint8 Block[BlockSize * BlockSize * 4];
+				const bool bSuccess = astcdec::decompress(Block, From, bIsSRGB, BlockSize, BlockSize);
+				miro_check(bSuccess);
+
+				for (uint32 py = 0; py < BlockSize; py++)
+				{
+					for (uint32 px = 0; px < BlockSize; px++)
+					{
+						uint32 xi = x + px;
+						uint32 yi = y + py;
+
+						if (LIKELY((xi < ToSize.X) & (yi < ToSize.Y)))
+						{
+							uint8* ToPixel = To + (yi * ToSize.X + xi) * 3;
+							ToPixel[0] = Block[py * BlockSize * 4 + px * 4 + 0];
+							ToPixel[1] = Block[py * BlockSize * 4 + px * 4 + 1];
+							ToPixel[2] = Block[py * BlockSize * 4 + px * 4 + 2];
+						}
+					}
+				}
+
+				From += 16;
+			}
+		}
+
+	}
+
+	template<uint32 BlockSize>
+	void GenericSubImage_ASTCRGBL_To_RGBA(FImageSize FromSize, FImageSize ToSize, FImageSize SubSize, const uint8* From, uint8* To)
+	{
+		init_astc_decompress();
+
+		for (uint32 y = 0; y < SubSize.Y; y += BlockSize)
+		{
+			for (uint32 x = 0; x < SubSize.X; x += BlockSize)
+			{
+				bool bIsSRGB = false;
+				uint8 Block[BlockSize * BlockSize * 4];
+				bool bSuccess = astcdec::decompress(Block, From, bIsSRGB, BlockSize, BlockSize);
+				miro_check(bSuccess);
+
+				for (uint32 py = 0; py < BlockSize; py++)
+				{
+					for (uint32 px = 0; px < BlockSize; px++)
+					{
+						uint32 xi = x + px;
+						uint32 yi = y + py;
+
+						if (LIKELY((xi < ToSize.X) & (yi < ToSize.Y)))
+						{
+							uint8* ToPixel = To + (yi * ToSize.X + xi) * 4;
+							ToPixel[0] = Block[py * BlockSize * 4 + px * 4 + 0];
+							ToPixel[1] = Block[py * BlockSize * 4 + px * 4 + 1];
+							ToPixel[2] = Block[py * BlockSize * 4 + px * 4 + 2];
+							ToPixel[3] = 255;
+						}
+					}
+				}
+
+				From += 16;
+			}
+		}
+	}
+
+	template<uint32 BlockSize>
+	void GenericSubImage_ASTCRGBAL_To_RGBA(FImageSize FromSize, FImageSize ToSize, FImageSize SubSize, const uint8* From, uint8* To)
+	{
+		init_astc_decompress();
+	
+		const uint32 NumBlocksX = FMath::DivideAndRoundUp(uint32(FromSize.X), BlockSize);
+		const uint32 NumSubBlocksX = FMath::DivideAndRoundUp(uint32(SubSize.X), BlockSize);
+		const uint32 NumSubBlocksY = FMath::DivideAndRoundUp(uint32(SubSize.Y), BlockSize);
+
+		if (SubSize.X <= 0 || SubSize.Y <= 0)
+		{
+			return;
+		}
+
+		for (uint32 BlockY = 0; BlockY < NumSubBlocksY; ++BlockY)
+		{
+			for (uint32 BlockX = 0; BlockX < NumSubBlocksX; ++BlockX)
+			{
+				constexpr bool bIsSRGB = false;
+				uint8 Block[BlockSize * BlockSize * 4];
+
+				constexpr int32 CompressedBlockSize = 16;
+				const uint8* SrcBlockPtr = From + (BlockY * NumBlocksX + BlockX) * CompressedBlockSize;
+
+				bool bSuccess = astcdec::decompress(Block, SrcBlockPtr, bIsSRGB, BlockSize, BlockSize);
+				miro_check(bSuccess);
+
+				for (uint32 py = 0; py < BlockSize; py++)
+				{
+					for (uint32 px = 0; px < BlockSize; px++)
+					{
+						uint32 xi = FMath::Min(BlockX * BlockSize + px, uint32(SubSize.X) - 1);
+						uint32 yi = FMath::Min(BlockY * BlockSize + py, uint32(SubSize.Y) - 1);
+
+						uint8* ToPixel = To + (yi * ToSize.X + xi) * 4;
+						ToPixel[0] = Block[py * BlockSize * 4 + px * 4 + 0];
+						ToPixel[1] = Block[py * BlockSize * 4 + px * 4 + 1];
+						ToPixel[2] = Block[py * BlockSize * 4 + px * 4 + 2];
+						ToPixel[3] = Block[py * BlockSize * 4 + px * 4 + 3];
+					}
+				}
+			}
+		}
+	}
 
 
+	template<uint32 BlockSize>
+	void GenericSubImage_ASTCRGBAL_To_RGB(FImageSize FromSize, FImageSize ToSize, FImageSize SubSize, const uint8* From, uint8* To)
+	{
+		init_astc_decompress();
+
+		const uint32 NumBlocksX = FMath::DivideAndRoundUp(uint32(FromSize.X), BlockSize);
+		const uint32 NumSubBlocksX = FMath::DivideAndRoundUp(uint32(SubSize.X), BlockSize);
+		const uint32 NumSubBlocksY = FMath::DivideAndRoundUp(uint32(SubSize.Y), BlockSize);
+
+		for (uint32 BlockY = 0; BlockY < NumSubBlocksY; ++BlockY)
+		{
+			for (uint32 BlockX = 0; BlockX < NumSubBlocksX; ++BlockX)
+			{
+				constexpr bool bIsSRGB = false;
+				uint8 Block[BlockSize * BlockSize * 4];
+
+				constexpr int32 CompressedBlockSize = 16;
+				const uint8* SrcBlockPtr = From + (BlockY * NumBlocksX + BlockX) * CompressedBlockSize;
+
+				bool bSuccess = astcdec::decompress(Block, SrcBlockPtr, bIsSRGB, BlockSize, BlockSize);
+				miro_check(bSuccess);
+
+				for (uint32 py = 0; py < BlockSize; py++)
+				{
+					for (uint32 px = 0; px < BlockSize; px++)
+					{
+						uint32 xi = BlockX * BlockSize + px;
+						uint32 yi = BlockY * BlockSize + py;
+
+						if (LIKELY((xi < ToSize.X) & (yi < ToSize.Y)))
+						{
+							uint8* ToPixel = To + (yi * ToSize.X + xi) * 3;
+							ToPixel[0] = Block[py * BlockSize * 4 + px * 4 + 0];
+							ToPixel[1] = Block[py * BlockSize * 4 + px * 4 + 1];
+							ToPixel[2] = Block[py * BlockSize * 4 + px * 4 + 2];
+						}
+					}
+				}
+			}
+		}
+	}
+
+	template<uint32 BlockSize>
+	void GenericSubImage_ASTCRGL_To_RGB(FImageSize FromSize, FImageSize ToSize, FImageSize SubSize, const uint8* From, uint8* To)
+	{
+		init_astc_decompress();
+
+		const uint32 NumBlocksX = FMath::DivideAndRoundUp(uint32(FromSize.X), BlockSize);
+		const uint32 NumSubBlocksX = FMath::DivideAndRoundUp(uint32(SubSize.X), BlockSize);
+		const uint32 NumSubBlocksY = FMath::DivideAndRoundUp(uint32(SubSize.Y), BlockSize);
+
+		for (uint32 by = 0; by < NumSubBlocksY; ++by)
+		{
+			for (uint32 bx = 0; bx < NumSubBlocksX; ++bx)
+			{
+				constexpr int32 CompressedBlockSize = 16;
+				const uint8* SrcBlockPtr = From + (by * NumBlocksX + bx) * CompressedBlockSize;
+
+				constexpr bool bIsSRGB = false;
+				uint8 Block[BlockSize * BlockSize * 4];
+				const bool bSuccess = astcdec::decompress(Block, SrcBlockPtr, bIsSRGB, BlockSize, BlockSize);
+				miro_check(bSuccess);
+
+				for (uint32 BlockY = 0; BlockY < BlockSize; BlockY++)
+				{
+					for (uint32 BlockX = 0; BlockX < BlockSize; BlockX++)
+					{
+						uint32 xi = bx * BlockSize + BlockX;
+						uint32 yi = by * BlockSize + BlockY;
+
+						if (LIKELY((xi < ToSize.X) & (yi < ToSize.Y)))
+						{
+							uint8* ToPixel = To + (yi * ToSize.X + xi) * 3;
+							ToPixel[0] = Block[BlockY * BlockSize * 4 + BlockX * 4 + 0];
+							ToPixel[1] = Block[BlockY * BlockSize * 4 + BlockX * 4 + 3];
+							ToPixel[2] = 255;
+						}
+					}
+				}
+			}
+		}
+	}
+
+	template<uint32 BlockSize>
+	void GenericSubImage_ASTCRGL_To_RGBA(FImageSize FromSize, FImageSize ToSize, FImageSize SubSize, const uint8* From, uint8* To)
+	{
+		init_astc_decompress();
+		
+		const uint32 NumBlocksX = FMath::DivideAndRoundUp(uint32(FromSize.X), BlockSize);
+		const uint32 NumSubBlocksX = FMath::DivideAndRoundUp(uint32(SubSize.X), BlockSize);
+		const uint32 NumSubBlocksY = FMath::DivideAndRoundUp(uint32(SubSize.Y), BlockSize);
+
+		for (uint32 by = 0; by < NumSubBlocksY; ++by)
+		{
+			for (uint32 bx = 0; bx < NumSubBlocksX; ++bx)
+			{
+				constexpr int32 CompressedBlockSize = 16;
+				const uint8* SrcBlockPtr = From + (by * NumBlocksX + bx) * CompressedBlockSize;
+
+				constexpr bool bIsSRGB = false;
+				uint8 Block[BlockSize * BlockSize * 4];
+				bool bSuccess = astcdec::decompress(Block, SrcBlockPtr, bIsSRGB, BlockSize, BlockSize);
+				miro_check(bSuccess);
+
+				for (uint32 BlockY = 0; BlockY < BlockSize; BlockY++)
+				{
+					for (uint32 BlockX = 0; BlockX < BlockSize; BlockX++)
+					{
+						uint32 xi = bx * BlockSize + BlockX;
+						uint32 yi = by * BlockSize + BlockY;
+
+						if (LIKELY((xi < ToSize.X) & (yi < ToSize.Y)))
+						{
+							uint8* ToPixel = To + (yi * ToSize.X + xi) * 4;
+							ToPixel[0] = Block[BlockY * BlockSize * 4 + BlockX * 4 + 0];
+							ToPixel[1] = Block[BlockY * BlockSize * 4 + BlockX * 4 + 3];
+							ToPixel[2] = 255;
+							ToPixel[3] = 255;
+						}
+					}
+				}
+			}
+		}
+	}
+
+
+	void ASTC4x4RGBAL_To_RGBASubImage(FImageSize FromSize, FImageSize ToSize, FImageSize SubSize, const uint8* From, uint8* To)
+	{
+		GenericSubImage_ASTCRGBAL_To_RGBA<4>(FromSize, ToSize, SubSize, From, To);
+	}
+
+	void ASTC4x4RGBAL_To_RGBSubImage(FImageSize FromSize, FImageSize ToSize, FImageSize SubSize, const uint8* From, uint8* To)
+	{
+		GenericSubImage_ASTCRGBAL_To_RGB<4>(FromSize, ToSize, SubSize, From, To);
+	}
+
+	void ASTC4x4RGBL_To_RGBSubImage(FImageSize FromSize, FImageSize ToSize, FImageSize SubSize, const uint8* From, uint8* To)
+	{
+		GenericSubImage_ASTCRGBL_To_RGB<4>(FromSize, ToSize, SubSize, From, To);
+	}
+
+	void ASTC4x4RGBL_To_RGBASubImage(FImageSize FromSize, FImageSize ToSize, FImageSize SubSize, const uint8* From, uint8* To)
+	{
+		GenericSubImage_ASTCRGBL_To_RGBA<4>(FromSize, ToSize, SubSize, From, To);
+	}
+	
+	void ASTC4x4RGL_To_RGBSubImage(FImageSize FromSize, FImageSize ToSize, FImageSize SubSize, const uint8* From, uint8* To)
+	{
+		GenericSubImage_ASTCRGL_To_RGB<4>(FromSize, ToSize, SubSize, From, To);
+	}
+	
+	void ASTC4x4RGL_To_RGBASubImage(FImageSize FromSize, FImageSize ToSize, FImageSize SubSize, const uint8* From, uint8* To)
+	{
+		GenericSubImage_ASTCRGL_To_RGBA<4>(FromSize, ToSize, SubSize, From, To);
+	}
+
+
+	//---------------------------------------------------------------------------------------------
+	// 6x6
+	//---------------------------------------------------------------------------------------------
+	void ASTC6x6RGBAL_To_RGBASubImage(FImageSize FromSize, FImageSize ToSize, FImageSize SubSize, const uint8* From, uint8* To)
+	{
+		GenericSubImage_ASTCRGBAL_To_RGBA<6>(FromSize, ToSize, SubSize, From, To);
+	}
+
+	void ASTC6x6RGBAL_To_RGBSubImage(FImageSize FromSize, FImageSize ToSize, FImageSize SubSize, const uint8* From, uint8* To)
+	{
+		GenericSubImage_ASTCRGBAL_To_RGB<6>(FromSize, ToSize, SubSize, From, To);
+	}
+
+	void ASTC6x6RGBL_To_RGBSubImage(FImageSize FromSize, FImageSize ToSize, FImageSize SubSize, const uint8* From, uint8* To)
+	{
+		GenericSubImage_ASTCRGBL_To_RGB<6>(FromSize, ToSize, SubSize, From, To);
+	}
+
+	void ASTC6x6RGBL_To_RGBASubImage(FImageSize FromSize, FImageSize ToSize, FImageSize SubSize, const uint8* From, uint8* To)
+	{
+		GenericSubImage_ASTCRGBL_To_RGBA<6>(FromSize, ToSize, SubSize, From, To);
+	}
+
+	void ASTC6x6RGL_To_RGBSubImage(FImageSize FromSize, FImageSize ToSize, FImageSize SubSize, const uint8* From, uint8* To)
+	{
+		GenericSubImage_ASTCRGL_To_RGB<6>(FromSize, ToSize, SubSize, From, To);
+	}
+
+	void ASTC6x6RGL_To_RGBASubImage(FImageSize FromSize, FImageSize ToSize, FImageSize SubSize, const uint8* From, uint8* To)
+	{
+		GenericSubImage_ASTCRGL_To_RGBA<6>(FromSize, ToSize, SubSize, From, To);
+	}
+
+	//---------------------------------------------------------------------------------------------
+	// 8x8
+	//---------------------------------------------------------------------------------------------
+
+	void ASTC8x8RGBAL_To_RGBASubImage(FImageSize FromSize, FImageSize ToSize, FImageSize SubSize, const uint8* From, uint8* To)
+	{
+		GenericSubImage_ASTCRGBAL_To_RGBA<8>(FromSize, ToSize, SubSize, From, To);
+	}
+
+	void ASTC8x8RGBAL_To_RGBSubImage(FImageSize FromSize, FImageSize ToSize, FImageSize SubSize, const uint8* From, uint8* To)
+	{
+		GenericSubImage_ASTCRGBAL_To_RGB<8>(FromSize, ToSize, SubSize, From, To);
+	}
+
+	void ASTC8x8RGBL_To_RGBSubImage(FImageSize FromSize, FImageSize ToSize, FImageSize SubSize, const uint8* From, uint8* To)
+	{
+		GenericSubImage_ASTCRGBL_To_RGB<8>(FromSize, ToSize, SubSize, From, To);
+	}
+
+	void ASTC8x8RGBL_To_RGBASubImage(FImageSize FromSize, FImageSize ToSize, FImageSize SubSize, const uint8* From, uint8* To)
+	{
+		GenericSubImage_ASTCRGBL_To_RGBA<8>(FromSize, ToSize, SubSize, From, To);
+	}
+
+	void ASTC8x8RGL_To_RGBSubImage(FImageSize FromSize, FImageSize ToSize, FImageSize SubSize, const uint8* From, uint8* To)
+	{
+		GenericSubImage_ASTCRGL_To_RGB<8>(FromSize, ToSize, SubSize, From, To);
+	}
+
+	void ASTC8x8RGL_To_RGBASubImage(FImageSize FromSize, FImageSize ToSize, FImageSize SubSize, const uint8* From, uint8* To)
+	{
+		GenericSubImage_ASTCRGL_To_RGBA<8>(FromSize, ToSize, SubSize, From, To);
+	}
+
+
+	//---------------------------------------------------------------------------------------------
+	// 10x10
+	//---------------------------------------------------------------------------------------------
+	void ASTC10x10RGBAL_To_RGBASubImage(FImageSize FromSize, FImageSize ToSize, FImageSize SubSize, const uint8* From, uint8* To)
+	{
+		GenericSubImage_ASTCRGBAL_To_RGBA<10>(FromSize, ToSize, SubSize, From, To);
+	}
+
+	void ASTC10x10RGBAL_To_RGBSubImage(FImageSize FromSize, FImageSize ToSize, FImageSize SubSize, const uint8* From, uint8* To)
+	{
+		GenericSubImage_ASTCRGBAL_To_RGB<10>(FromSize, ToSize, SubSize, From, To);
+	}
+
+	void ASTC10x10RGBL_To_RGBSubImage(FImageSize FromSize, FImageSize ToSize, FImageSize SubSize, const uint8* From, uint8* To)
+	{
+		GenericSubImage_ASTCRGBL_To_RGB<10>(FromSize, ToSize, SubSize, From, To);
+	}
+
+	void ASTC10x10RGBL_To_RGBASubImage(FImageSize FromSize, FImageSize ToSize, FImageSize SubSize, const uint8* From, uint8* To)
+	{
+		GenericSubImage_ASTCRGBL_To_RGBA<10>(FromSize, ToSize, SubSize, From, To);
+	}
+
+	void ASTC10x10RGL_To_RGBSubImage(FImageSize FromSize, FImageSize ToSize, FImageSize SubSize, const uint8* From, uint8* To)
+	{
+		GenericSubImage_ASTCRGL_To_RGB<10>(FromSize, ToSize, SubSize, From, To);
+	}
+
+	void ASTC10x10RGL_To_RGBASubImage(FImageSize FromSize, FImageSize ToSize, FImageSize SubSize, const uint8* From, uint8* To)
+	{
+		GenericSubImage_ASTCRGL_To_RGBA<10>(FromSize, ToSize, SubSize, From, To);
+	}
+
+
+	//---------------------------------------------------------------------------------------------
+	// 12x12
+	//---------------------------------------------------------------------------------------------
+	void ASTC12x12RGBAL_To_RGBASubImage(FImageSize FromSize, FImageSize ToSize, FImageSize SubSize, const uint8* From, uint8* To)
+	{
+		GenericSubImage_ASTCRGBAL_To_RGBA<12>(FromSize, ToSize, SubSize, From, To);
+	}
+
+	void ASTC12x12RGBAL_To_RGBSubImage(FImageSize FromSize, FImageSize ToSize, FImageSize SubSize, const uint8* From, uint8* To)
+	{
+		GenericSubImage_ASTCRGBAL_To_RGB<12>(FromSize, ToSize, SubSize, From, To);
+	}
+
+	void ASTC12x12RGBL_To_RGBSubImage(FImageSize FromSize, FImageSize ToSize, FImageSize SubSize, const uint8* From, uint8* To)
+	{
+		GenericSubImage_ASTCRGBL_To_RGB<12>(FromSize, ToSize, SubSize, From, To);
+	}
+
+	void ASTC12x12RGBL_To_RGBASubImage(FImageSize FromSize, FImageSize ToSize, FImageSize SubSize, const uint8* From, uint8* To)
+	{
+		GenericSubImage_ASTCRGBL_To_RGBA<12>(FromSize, ToSize, SubSize, From, To);
+	}
+
+	void ASTC12x12RGL_To_RGBSubImage(FImageSize FromSize, FImageSize ToSize, FImageSize SubSize, const uint8* From, uint8* To)
+	{
+		GenericSubImage_ASTCRGL_To_RGB<12>(FromSize, ToSize, SubSize, From, To);
+	}
+
+	void ASTC12x12RGL_To_RGBASubImage(FImageSize FromSize, FImageSize ToSize, FImageSize SubSize, const uint8* From, uint8* To)
+	{
+		GenericSubImage_ASTCRGL_To_RGBA<12>(FromSize, ToSize, SubSize, From, To);
+	}
+
+#endif // MIRO_INCLUDE_ASTC
+	// BC Formats.
+
+#if MIRO_INCLUDE_BC
+	void BC1_To_RGBSubImage(FImageSize FromSize, FImageSize ToSize, FImageSize SubSize, const uint8* RESTRICT From, uint8* RESTRICT To)
+	{
+		constexpr uint32 BlockSize = 4;
+
+		const uint32 NumBlocksX = FMath::DivideAndRoundUp(uint32(FromSize.X), BlockSize);
+		const uint32 NumSubBlocksX = FMath::DivideAndRoundUp(uint32(SubSize.X), BlockSize);
+		const uint32 NumSubBlocksY = FMath::DivideAndRoundUp(uint32(SubSize.Y), BlockSize);
+
+		for (uint32 by = 0; by < NumSubBlocksY; ++by)
+		{
+			const uint8* RowFrom = From + 8 * NumBlocksX * by;
+
+			for (uint32 bx = 0; bx < NumSubBlocksX; ++bx)
+			{
+				uint8 Block[4 * 4 * 4];
+
+				bcdec::bcdec_bc1(RowFrom, Block, 4 * 4);
+
+				int32 b = 0;
+				for (int32 j = 0; j < 4; ++j)
+				{
+					for (int32 i = 0; i < 4; ++i)
+					{
+						if (LIKELY((by * 4 + j < ToSize.Y) & (bx * 4 + i < ToSize.X)))
+						{
+							uint8* pPixelDest = To + 3 * (ToSize.X * (by * 4 + j) + (bx * 4 + i));
+
+							pPixelDest[0] = Block[b + 0];
+							pPixelDest[1] = Block[b + 1];
+							pPixelDest[2] = Block[b + 2];
+						}
+
+						b += 4;
+					}
+				}
+
+				RowFrom += 8;
+			}
+		}
+	}
+
+
+	void BC1_To_RGBASubImage(FImageSize FromSize, FImageSize ToSize, FImageSize SubSize, const uint8* RESTRICT From, uint8* RESTRICT To)
+	{
+		constexpr uint32 BlockSize = 4;
+
+		const uint32 NumBlocksX = FMath::DivideAndRoundUp(uint32(FromSize.X), BlockSize);
+		const uint32 NumSubBlocksX = FMath::DivideAndRoundUp(uint32(SubSize.X), BlockSize);
+		const uint32 NumSubBlocksY = FMath::DivideAndRoundUp(uint32(SubSize.Y), BlockSize);
+
+		for (uint32 by = 0; by < NumSubBlocksY; ++by)
+		{
+			const uint8* RowFrom = From + 8 * NumBlocksX * by;
+
+			for (uint32 bx = 0; bx < NumSubBlocksX; ++bx)
+			{
+				uint8 Block[4 * 4 * 4];
+				bcdec::bcdec_bc1(RowFrom, Block, 4 * 4);
+
+				int32 b = 0;
+				for (int32 j = 0; j < 4; ++j)
+				{
+					for (int32 i = 0; i < 4; ++i)
+					{
+						if (LIKELY((by * 4 + j < ToSize.Y) & (bx * 4 + i < ToSize.X)))
+						{
+							uint8* pPixelDest = To + 4 * (ToSize.X * (by * 4 + j) + (bx * 4 + i));
+
+							pPixelDest[0] = Block[b + 0];
+							pPixelDest[1] = Block[b + 1];
+							pPixelDest[2] = Block[b + 2];
+							pPixelDest[3] = Block[b + 3];
+						}
+
+						b += 4;
+					}
+				}
+
+				RowFrom += 8;
+			}
+		}
+	}
+
+	void BC2_To_RGBASubImage(FImageSize FromSize, FImageSize ToSize, FImageSize SubSize, const uint8* RESTRICT From, uint8* RESTRICT To)
+	{
+		constexpr uint32 BlockSize = 4;
+
+		const uint32 NumBlocksX = FMath::DivideAndRoundUp(uint32(FromSize.X), BlockSize);
+		const uint32 NumSubBlocksX = FMath::DivideAndRoundUp(uint32(SubSize.X), BlockSize);
+		const uint32 NumSubBlocksY = FMath::DivideAndRoundUp(uint32(SubSize.Y), BlockSize);
+
+		for (uint32 by = 0; by < NumSubBlocksY; ++by)
+		{
+			const uint8* RowFrom = From + 16 * NumBlocksX * by;
+
+			for (uint32 bx = 0; bx < NumSubBlocksY; ++bx)
+			{
+				uint8 Block[4 * 4 * 4];
+
+				//uint8 const* ColourBlock = RowFrom + 8;
+				//uint8 const* AlphaBlock = RowFrom;
+
+				bcdec::bcdec_bc2(RowFrom, Block, 4 * 4);
+
+				int32 b = 0;
+				for (int32 j = 0; j < 4; ++j)
+				{
+					for (int32 i = 0; i < 4; ++i)
+					{
+						if (LIKELY((by * 4 + j < ToSize.Y) & (bx * 4 + i < ToSize.X)))
+						{
+							uint8* pPixelDest = To + 4 * (ToSize.X * (by * 4 + j) + (bx * 4 + i));
+
+							pPixelDest[0] = Block[b + 0];
+							pPixelDest[1] = Block[b + 1];
+							pPixelDest[2] = Block[b + 2];
+							pPixelDest[3] = Block[b + 3];
+						}
+
+						b += 4;
+					}
+				}
+
+				RowFrom += 16;
+			}
+		}
+	}
+
+	void BC2_To_RGBSubImage(FImageSize FromSize, FImageSize ToSize, FImageSize SubSize, const uint8* RESTRICT From, uint8* RESTRICT To)
+	{
+		constexpr uint32 BlockSize = 4;
+
+		const uint32 NumBlocksX = FMath::DivideAndRoundUp(uint32(FromSize.X), BlockSize);
+		const uint32 NumSubBlocksX = FMath::DivideAndRoundUp(uint32(SubSize.X), BlockSize);
+		const uint32 NumSubBlocksY = FMath::DivideAndRoundUp(uint32(SubSize.Y), BlockSize);
+
+		for (uint32 by = 0; by < NumSubBlocksX; ++by)
+		{
+			const uint8* RowFrom = From + 16 * NumBlocksX * by;
+
+			for (uint32 bx = 0; bx < NumSubBlocksY; ++bx)
+			{
+				uint8 Block[4 * 4 * 4];
+
+				//uint8 const* ColourBlock = from + 8;
+
+				// TODO, can skip alpha part
+				bcdec::bcdec_bc2(RowFrom, Block, 4 * 4);
+
+				int32 b = 0;
+				for (int32 j = 0; j < 4; ++j)
+				{
+					for (int32 i = 0; i < 4; ++i)
+					{
+						if (LIKELY((by * 4 + j < ToSize.Y) & (bx * 4 + i < ToSize.X)))
+						{
+							uint8* pPixelDest = To + 3 * (ToSize.X * (by * 4 + j) + (bx * 4 + i));
+
+							pPixelDest[0] = Block[b + 0];
+							pPixelDest[1] = Block[b + 1];
+							pPixelDest[2] = Block[b + 2];
+						}
+
+						b += 4;
+					}
+				}
+
+				RowFrom += 16;
+			}
+		}
+	}
+
+	void BC3_To_RGBASubImage(FImageSize FromSize, FImageSize ToSize, FImageSize SubSize, const uint8* RESTRICT From, uint8* RESTRICT To)
+	{
+		constexpr uint32 BlockSize = 4;
+
+		const uint32 NumBlocksX = FMath::DivideAndRoundUp(uint32(FromSize.X), BlockSize);
+		const uint32 NumSubBlocksX = FMath::DivideAndRoundUp(uint32(SubSize.X), BlockSize);
+		const uint32 NumSubBlocksY = FMath::DivideAndRoundUp(uint32(SubSize.Y), BlockSize);
+
+		for (uint32 by = 0; by < NumSubBlocksY; ++by)
+		{
+			const uint8* RowFrom = From + 16 * NumBlocksX * by;
+
+			for (uint32 bx = 0; bx < NumSubBlocksX; ++bx)
+			{
+				FMiroPixelBlock4x4 Block;
+
+				//uint8 const* ColourBlock = From + 8;
+				//uint8 const* AlphaBlock = From;
+
+				bcdec::bcdec_bc3(RowFrom, Block.bytes, 4 * 4);
+
+				int32 b = 0;
+				for (int32 j = 0; j < 4; ++j)
+				{
+					for (int32 i = 0; i < 4; ++i)
+					{
+						if (LIKELY((by * 4 + j < ToSize.Y) & (bx * 4 + i < ToSize.X)))
+						{
+							uint8* pPixelDest = To + 4 * (ToSize.X * (by * 4 + j) + (bx * 4 + i));
+
+							pPixelDest[0] = Block.bytes[b + 0];
+							pPixelDest[1] = Block.bytes[b + 1];
+							pPixelDest[2] = Block.bytes[b + 2];
+							pPixelDest[3] = Block.bytes[b + 3];
+						}
+
+						b += 4;
+					}
+				}
+
+				RowFrom += 16;
+			}
+		}
+	}
+
+	void BC3_To_RGBSubImage(FImageSize FromSize, FImageSize ToSize, FImageSize SubSize, const uint8* RESTRICT From, uint8* RESTRICT To)
+	{
+		constexpr uint32 BlockSize = 4;
+
+		const uint32 NumBlocksX = FMath::DivideAndRoundUp(uint32(FromSize.X), BlockSize);
+		const uint32 NumSubBlocksX = FMath::DivideAndRoundUp(uint32(SubSize.X), BlockSize);
+		const uint32 NumSubBlocksY = FMath::DivideAndRoundUp(uint32(SubSize.Y), BlockSize);
+
+		for (uint32 by = 0; by < NumSubBlocksY; ++by)
+		{
+			const uint8* RowFrom = From + 16 * NumBlocksX * by;
+
+			for (uint32 bx = 0; bx < NumSubBlocksY; ++bx)
+			{
+				uint8 Block[4 * 4 * 4];
+
+				bcdec::bcdec_bc3(RowFrom, Block, 4 * 4);
+
+				int32 b = 0;
+				for (int32 j = 0; j < 4; ++j)
+				{
+					for (int32 i = 0; i < 4; ++i)
+					{
+						if (LIKELY((by * 4 + j < ToSize.Y) & (bx * 4 + i < ToSize.X)))
+						{
+							uint8* pPixelDest = To + 3 * (ToSize.X * (by * 4 + j) + (bx * 4 + i));
+
+							pPixelDest[0] = Block[b + 0];
+							pPixelDest[1] = Block[b + 1];
+							pPixelDest[2] = Block[b + 2];
+						}
+
+						b += 4;
+					}
+				}
+
+				RowFrom += 16;
+			}
+		}
+	}
+
+	void BC4_To_LSubImage(FImageSize FromSize, FImageSize ToSize, FImageSize SubSize, const uint8* RESTRICT From, uint8* RESTRICT To)
+	{
+		constexpr uint32 BlockSize = 4;
+
+		const uint32 NumBlocksX = FMath::DivideAndRoundUp(uint32(FromSize.X), BlockSize);
+		const uint32 NumSubBlocksX = FMath::DivideAndRoundUp(uint32(SubSize.X), BlockSize);
+		const uint32 NumSubBlocksY = FMath::DivideAndRoundUp(uint32(SubSize.Y), BlockSize);
+		
+		for (uint32 by = 0; by < NumSubBlocksY; ++by)
+		{
+			const uint8* RowFrom = From + 8 * NumBlocksX * by;
+
+			for (uint32 bx = 0; bx < NumBlocksX; ++bx)
+			{
+				uint8 Block[4 * 4];
+
+				bcdec::bcdec_bc4(RowFrom, Block, 4);
+
+				int32 b = 0;
+				for (int32 j = 0; j < 4; ++j)
+				{
+					for (int32 i = 0; i < 4; ++i)
+					{
+						if (LIKELY((by * 4 + j < ToSize.Y) & (bx * 4 + i < ToSize.X)))
+						{
+							uint8* pPixelDest = To + 1 * (ToSize.X * (by * 4 + j) + (bx * 4 + i));
+
+							pPixelDest[0] = Block[b];
+						}
+
+						++b;
+					}
+				}
+
+				RowFrom += 8;
+			}
+		}
+	}
+
+
+	void BC4_To_RGBSubImage(FImageSize FromSize, FImageSize ToSize, FImageSize SubSize, const uint8* RESTRICT From, uint8* RESTRICT To)
+	{
+		constexpr uint32 BlockSize = 4;
+
+		const uint32 NumBlocksX = FMath::DivideAndRoundUp(uint32(FromSize.X), BlockSize);
+		const uint32 NumSubBlocksX = FMath::DivideAndRoundUp(uint32(SubSize.X), BlockSize);
+		const uint32 NumSubBlocksY = FMath::DivideAndRoundUp(uint32(SubSize.Y), BlockSize);
+
+		for (uint32 by = 0; by < NumSubBlocksY; ++by)
+		{
+			const uint8* RowFrom = From + 8 * NumBlocksX * by;
+
+			for (uint32 bx = 0; bx < NumSubBlocksX; ++bx)
+			{
+				uint8 Block[4 * 4];
+
+				bcdec::bcdec_bc4(RowFrom, Block, 4);
+
+				int32 b = 0;
+				for (int32 j = 0; j < 4; ++j)
+				{
+					for (int32 i = 0; i < 4; ++i)
+					{
+						if (LIKELY((by * 4 + j < ToSize.Y) & (bx * 4 + i < ToSize.X)))
+						{
+							uint8* pPixelDest = To + 3 * (ToSize.X * (by * 4 + j) + (bx * 4 + i));
+
+							pPixelDest[0] = Block[b];
+							pPixelDest[1] = Block[b];
+							pPixelDest[2] = Block[b];
+						}
+
+						++b;
+					}
+				}
+
+				RowFrom += 8;
+			}
+		}
+	}
+
+
+	void BC4_To_RGBASubImage(FImageSize FromSize, FImageSize ToSize, FImageSize SubSize, const uint8* RESTRICT From, uint8* RESTRICT To)
+	{
+		constexpr uint32 BlockSize = 4;
+
+		const uint32 NumBlocksX = FMath::DivideAndRoundUp(uint32(FromSize.X), BlockSize);
+		const uint32 NumSubBlocksX = FMath::DivideAndRoundUp(uint32(SubSize.X), BlockSize);
+		const uint32 NumSubBlocksY = FMath::DivideAndRoundUp(uint32(SubSize.Y), BlockSize);
+
+		for (uint32 by = 0; by < NumSubBlocksY; ++by)
+		{
+			const uint8* RowFrom = From + 8 * NumBlocksX * by;
+
+			for (uint32 bx = 0; bx < NumSubBlocksX; ++bx)
+			{
+				uint8 Block[4 * 4];
+
+				bcdec::bcdec_bc4(RowFrom, Block, 4);
+
+				int32 b = 0;
+				for (int32 j = 0; j < 4; ++j)
+				{
+					for (int32 i = 0; i < 4; ++i)
+					{
+						if (LIKELY((by * 4 + j < ToSize.Y) & (bx * 4 + i < ToSize.X)))
+						{
+							uint8* pPixelDest = To + 4 * (ToSize.X * (by * 4 + j) + (bx * 4 + i));
+
+							pPixelDest[0] = Block[b];
+							pPixelDest[1] = Block[b];
+							pPixelDest[2] = Block[b];
+							pPixelDest[3] = 255;
+						}
+
+						++b;
+					}
+				}
+
+				RowFrom += 8;
+			}
+		}
+	}
+
+
+	void BC5_To_RGBASubImage(FImageSize FromSize, FImageSize ToSize, FImageSize SubSize, const uint8* RESTRICT From, uint8* RESTRICT To)
+	{
+		constexpr uint32 BlockSize = 4;
+
+		const uint32 NumBlocksX = FMath::DivideAndRoundUp(uint32(FromSize.X), BlockSize);
+		const uint32 NumSubBlocksX = FMath::DivideAndRoundUp(uint32(SubSize.X), BlockSize);
+		const uint32 NumSubBlocksY = FMath::DivideAndRoundUp(uint32(SubSize.Y), BlockSize);
+
+		for (uint32 by = 0; by < NumSubBlocksY; ++by)
+		{
+			const uint8* RowFrom = From + 16 * NumBlocksX * by;
+
+			for (uint32 bx = 0; bx < NumSubBlocksX; ++bx)
+			{
+				uint8 Block[4 * 4 * 2];
+				bcdec::bcdec_bc5(RowFrom, Block, 4 * 2);
+
+				int32 b = 0;
+				for (int32 j = 0; j < 4; ++j)
+				{
+					for (int32 i = 0; i < 4; ++i)
+					{
+						if (LIKELY((by * 4 + j < ToSize.Y) & (bx * 4 + i < ToSize.X)))
+						{
+							uint8* pPixelDest = To + 4 * (ToSize.X * (by * 4 + j) + (bx * 4 + i));
+
+							pPixelDest[0] = Block[b + 0];
+							pPixelDest[1] = Block[b + 1];
+							pPixelDest[2] = 255;
+							pPixelDest[3] = 255;
+						}
+
+						b += 2;
+					}
+				}
+
+				RowFrom += 16;
+			}
+		}
+	}
+
+	void BC5_To_RGBSubImage(FImageSize FromSize, FImageSize ToSize, FImageSize SubSize, const uint8* RESTRICT From, uint8* RESTRICT To)
+	{
+		constexpr uint32 BlockSize = 4;
+
+		const uint32 NumBlocksX = FMath::DivideAndRoundUp(uint32(FromSize.X), BlockSize);
+		const uint32 NumSubBlocksX = FMath::DivideAndRoundUp(uint32(SubSize.X), BlockSize);
+		const uint32 NumSubBlocksY = FMath::DivideAndRoundUp(uint32(SubSize.Y), BlockSize);
+
+		for (uint32 by = 0; by < NumSubBlocksY; ++by)
+		{
+			const uint8* RowFrom = From + 16 * NumBlocksX * by;
+
+			for (uint32 bx = 0; bx < NumSubBlocksX; ++bx)
+			{
+				uint8 Block[4 * 4 * 2];
+				bcdec::bcdec_bc5(RowFrom, Block, 4 * 2);
+
+				int32 b = 0;
+				for (int32 j = 0; j < 4; ++j)
+				{
+					for (int32 i = 0; i < 4; ++i)
+					{
+						if (LIKELY((by * 4 + j < ToSize.Y) & (bx * 4 + i < ToSize.X)))
+						{
+							uint8* pPixelDest = To + 3 * (ToSize.X * (by * 4 + j) + (bx * 4 + i));
+
+							pPixelDest[0] = Block[b + 0];
+							pPixelDest[1] = Block[b + 1];
+							pPixelDest[2] = 255;
+						}
+
+						b += 2;
+					}
+				}
+
+				RowFrom += 16;
+			}
+		}
+	}
+#endif
 }
 
 #ifdef UE_MIRO_DEBUG

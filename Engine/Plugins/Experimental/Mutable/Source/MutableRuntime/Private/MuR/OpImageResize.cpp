@@ -4,6 +4,17 @@
 #include "MuR/MutableTrace.h"
 #include "Async/ParallelFor.h"
 
+namespace
+{
+
+bool bEnableImageResizeMemoryOptimizations = false;
+static FAutoConsoleVariableRef CVarEnableImageResizeMemoryOptimizations (
+	TEXT("mutable.EnableImageResizeMemoryOptimizations"),
+	bEnableImageResizeMemoryOptimizations,
+	TEXT("If set to true, enables image resize optimizations form small resizes and block compressed images."),
+	ECVF_Default);
+}
+
 namespace mu
 {
 	/** */
@@ -700,6 +711,321 @@ namespace mu
 
 	}
 
+namespace
+{
+	template<uint32 NumChannels>
+	void ImageResizeLinearDownByLessThanTwoSubImage(FVector2f ScalingFactor,
+			FImageSize DestSize, FImageSize DestSubSize, FImageSize SrcSize, FImageSize SrcSubSize,
+		  	uint8* RESTRICT SubDest, const uint8* RESTRICT SubSrc)
+	{
+		struct alignas(uint64) FPixelData
+		{
+			uint16 Data[4] = {0};
+		};
+
+		static_assert(NumChannels <= 4);
+		
+		//TODO: Consider using fixed point arithmetic or vector registers as optimization.
+		
+		FVector2f InvScalingFactor = FVector2f(1.0f) / ScalingFactor;
+		check(InvScalingFactor.X <= 2.0f && InvScalingFactor.Y <= 2.0f && InvScalingFactor.X >= 1.0f && InvScalingFactor.Y >= 1.0f);
+
+		for (uint16 Y = 0; Y < DestSubSize.Y; ++Y)
+		{
+			for (uint16 X = 0; X < DestSubSize.X; ++X)
+			{
+				auto LoadPixel = [](const uint8* Ptr) -> FPixelData
+				{
+					FPixelData Result;
+					if constexpr (NumChannels == 4)
+					{
+						uint32 PackedData;
+						FMemory::Memcpy(&PackedData, Ptr, sizeof(uint32));
+
+						Result.Data[0] = static_cast<uint16>((PackedData >> (8 * 0)) & 0xFF);
+						Result.Data[1] = static_cast<uint16>((PackedData >> (8 * 1)) & 0xFF);
+						Result.Data[2] = static_cast<uint16>((PackedData >> (8 * 2)) & 0xFF);
+						Result.Data[3] = static_cast<uint16>((PackedData >> (8 * 3)) & 0xFF);
+					}
+					else
+					{
+						for (int32 C = 0; C < NumChannels; ++C)
+						{
+							Result.Data[C] = static_cast<uint16>(Ptr[C]);
+						}
+					}
+
+					return Result;
+				};
+				
+				const FVector2f CoordsF = (FVector2f(X, Y) + 0.5f)*InvScalingFactor;
+				
+				using FUint16Vector2 = UE::Math::TIntVector2<uint16>;
+				const FUint16Vector2 FracINorm = FUint16Vector2(FMath::Frac(CoordsF.X) * 255.0f, FMath::Frac(CoordsF.Y) * 255.0f);
+				
+				const FIntVector2 Coords = FIntVector2(FMath::FloorToInt(CoordsF.X), FMath::FloorToInt(CoordsF.Y));
+				const FIntVector2 CoordsPlusOne = FIntVector2(
+						FMath::Min<int32>(Coords.X + 1, SrcSize.X - 1),
+						FMath::Min<int32>(Coords.Y + 1, SrcSize.Y - 1));
+
+				FPixelData PixelData00 = LoadPixel(SubSrc + (Coords.Y*SrcSize.X + Coords.X) * NumChannels);
+				FPixelData PixelData10 = LoadPixel(SubSrc + (Coords.Y*SrcSize.X + CoordsPlusOne.X) * NumChannels);
+				FPixelData PixelData01 = LoadPixel(SubSrc + (CoordsPlusOne.Y*SrcSize.X + Coords.X) * NumChannels);
+				FPixelData PixelData11 = LoadPixel(SubSrc + (CoordsPlusOne.Y*SrcSize.X + CoordsPlusOne.X) * NumChannels);
+				
+				FPixelData Result;
+				for (int32 C = 0; C < NumChannels; ++C)
+				{
+					const uint16 LerpY00 = ((PixelData10.Data[C] * FracINorm.X) + PixelData00.Data[C] * (255 - FracINorm.X)) / 255;
+					const uint16 LerpY01 = ((PixelData11.Data[C] * FracINorm.X) + PixelData01.Data[C] * (255 - FracINorm.X)) / 255;
+					Result.Data[C] = ((LerpY01 * FracINorm.Y) + LerpY00 * (255 - FracINorm.Y)) / 255;
+				}
+
+				uint8* Dest = SubDest + (Y*DestSize.X + X)*NumChannels;  
+
+				if constexpr (NumChannels == 4)
+				{
+					const uint32 PackedPixel = 
+						(static_cast<uint32>((Result.Data[0]) & 0xFF) << (8 * 0)) | 
+						(static_cast<uint32>((Result.Data[1]) & 0xFF) << (8 * 1)) | 
+						(static_cast<uint32>((Result.Data[2]) & 0xFF) << (8 * 2)) | 
+						(static_cast<uint32>((Result.Data[3]) & 0xFF) << (8 * 3));
+
+					FMemory::Memcpy(Dest, &PackedPixel, sizeof(uint32));
+				}
+				else
+				{
+					for (uint32 C = 0; C < NumChannels; ++C)
+					{
+						Dest[C] = static_cast<uint8>(Result.Data[C]);
+					}
+				}
+			}
+		}
+	}
+
+	void ImageResizeLinearDownByLessThanTwo(Image* Dest, const Image* InBase)
+	{
+
+		MUTABLE_CPUPROFILER_SCOPE(ImageResizeLinearDownByLessThanTwo);
+
+		const FImageSize DestSize = FImageSize(Dest->GetSizeX(), Dest->GetSizeY());
+		const FImageSize SrcSize = FImageSize(InBase->GetSizeX(), InBase->GetSizeY());
+		
+		check(SrcSize.X >= DestSize.X && SrcSize.Y >= DestSize.Y && SrcSize.X <= DestSize.X*2 && SrcSize.Y <= DestSize.Y*2);
+
+		const EImageFormat SrcFormat = InBase->GetFormat();
+		const EImageFormat DestFormat = Dest->GetFormat();
+	
+		uint8* DestData = Dest->GetData();
+		const uint8* SrcData = InBase->GetData();
+		
+		const FImageFormatData& DestFormatData = GetImageFormatData(Dest->GetFormat());
+		const FImageFormatData& SrcFormatData = GetImageFormatData(InBase->GetFormat());
+
+		const FVector2f ScalingFactor = FVector2f(DestSize.X, DestSize.Y) / FVector2f(SrcSize.X, SrcSize.Y);
+
+		if (SrcFormatData.PixelsPerBlockX == 1 && SrcFormatData.PixelsPerBlockY == 1)
+		{
+			MUTABLE_CPUPROFILER_SCOPE(ResizeUnCompressed);
+
+			// Uncompressed format, resize in one go directly to Dest.
+			switch(SrcFormat)
+			{
+
+			case EImageFormat::IF_L_UBYTE:
+			{
+				constexpr int32 NumChannels = 1;
+				ImageResizeLinearDownByLessThanTwoSubImage<NumChannels>(ScalingFactor,
+						DestSize, DestSize, SrcSize, SrcSize, DestData, SrcData);
+				break;
+			}
+
+			case EImageFormat::IF_RGB_UBYTE:
+			{
+				constexpr int32 NumChannels = 3;
+				ImageResizeLinearDownByLessThanTwoSubImage<NumChannels>(ScalingFactor,
+						DestSize, DestSize, SrcSize, SrcSize, DestData, SrcData);
+				break;
+			}
+
+			case EImageFormat::IF_RGBA_UBYTE:
+			case EImageFormat::IF_BGRA_UBYTE:
+			{
+				constexpr int32 NumChannels = 4;
+				ImageResizeLinearDownByLessThanTwoSubImage<NumChannels>(ScalingFactor,
+						DestSize, DestSize, SrcSize, SrcSize, DestData, SrcData);
+				break;
+			}
+			}
+		}
+		else if (SrcFormatData.PixelsPerBlockX > 0 && SrcFormatData.PixelsPerBlockY > 0)
+		{
+			MUTABLE_CPUPROFILER_SCOPE(ResizeBlockCompressed);
+
+			check(DestFormatData.PixelsPerBlockX == 1 && DestFormatData.PixelsPerBlockY == 1);
+
+			const int32 DestNumChannels = DestFormatData.Channels; 
+			const FIntVector2 PixelsPerBlock = FIntVector2(SrcFormatData.PixelsPerBlockX, SrcFormatData.PixelsPerBlockY);
+			const int32 BlockSizeInBytes = SrcFormatData.BytesPerBlock;
+
+			const FIntVector2 NumBlocks = FIntVector2(
+					FMath::DivideAndRoundUp(SrcSize.X, uint16(PixelsPerBlock.X)),
+					FMath::DivideAndRoundUp(SrcSize.Y, uint16(PixelsPerBlock.Y)));
+
+
+			constexpr int32 BatchSizeInBlocksX = 1 << 5;
+			constexpr int32 BatchSizeInBlocksY = 1 << 4;
+
+			const FIntVector2 NumBatches = FIntVector2(
+					FMath::DivideAndRoundUp(NumBlocks.X, BatchSizeInBlocksX),
+					FMath::DivideAndRoundUp(NumBlocks.Y, BatchSizeInBlocksY));
+
+			// Limit the parallel job num based on actual num workers. Here we cannot rely on ParallelFor
+			// balancing the load as we need to allocate memory for every job. Make sure there is always 1 job.
+			// TODO: Consider balancing work on using a 2D division.
+			const int32 MaxParallelJobs = FMath::Max(1, FMath::Min(int32(LowLevelTasks::FScheduler::Get().GetNumWorkers()), 8));
+			
+			constexpr int32 MinRowBatchesPerJob = 2;
+
+			const int32 NumRowBatchesPerJob = 
+				 FMath::Min(NumBatches.Y, FMath::Max(MinRowBatchesPerJob, FMath::DivideAndRoundUp(NumBatches.Y, MaxParallelJobs)));
+
+			const int32 NumParallelJobs = FMath::DivideAndRoundUp(NumBatches.Y, NumRowBatchesPerJob); 
+
+			// Allocate memory for 1 extra block, this is needed so that the data to compute the batch edges
+			// if available. This implies extra work needs to be done, for simplicity re-decompress those blocks, if
+			// that becomes a problem more convoluted memory cacheing schemes could be implemented.
+			const miro::FImageSize StagingSize = miro::FImageSize(
+					uint16((BatchSizeInBlocksX + 1)*PixelsPerBlock.X), 
+					uint16((BatchSizeInBlocksY + 1)*PixelsPerBlock.Y));
+		
+			// Add some extra padding so diferent threads do not share cache lines.
+			const int32 PerJobStagingBytes = StagingSize.X*StagingSize.Y*DestNumChannels + 64;
+
+			TArray<uint8, FDefaultMemoryTrackingAllocator<MemoryCounters::FImageMemoryCounter>> StagingMemory;
+			StagingMemory.SetNum(PerJobStagingBytes * NumParallelJobs);
+			uint8 * const StagingMemoryData = StagingMemory.GetData();
+
+			miro::SubImageDecompression::FuncRefType DecompressionFunc = SelectDecompressionFunction(DestFormat, SrcFormat);
+
+			auto ProcessJob = 
+				[
+					NumParallelJobs, NumRowBatchesPerJob, 
+					StagingMemoryData, PerJobStagingBytes, 
+					NumBatches, NumBlocks, PixelsPerBlock, BlockSizeInBytes, DestNumChannels, DecompressionFunc,
+					SrcData, SrcSize, DestData, DestSize, ScalingFactor
+				](int32 JobId)
+			{
+				const int32 JobRowBegin = JobId*NumRowBatchesPerJob;
+				const int32 JobRowEnd   = FMath::Min(JobRowBegin + NumRowBatchesPerJob, NumBatches.Y);
+				uint8 * const JobStagingMemoryData = StagingMemoryData + JobId*PerJobStagingBytes;
+
+				for (int32 BatchY = JobRowBegin; BatchY < JobRowEnd; ++BatchY)
+				{
+					for (int32 BatchX = 0; BatchX < NumBatches.X; ++BatchX)
+					{
+						const FIntVector2 BatchBeginInBlocks = FIntVector2(
+								BatchX*BatchSizeInBlocksX, BatchY*BatchSizeInBlocksY);
+
+						const FIntVector2 BatchDecEndInBlocks = FIntVector2(
+								FMath::Min(BatchBeginInBlocks.X + BatchSizeInBlocksX + 1, NumBlocks.X),
+								FMath::Min(BatchBeginInBlocks.Y + BatchSizeInBlocksY + 1, NumBlocks.Y));
+
+						const FIntVector2 BatchEndInBlocks = FIntVector2(
+								FMath::Min(BatchBeginInBlocks.X + BatchSizeInBlocksX, NumBlocks.X),
+								FMath::Min(BatchBeginInBlocks.Y + BatchSizeInBlocksY, NumBlocks.Y));
+
+						const uint8* const SrcBatchData = 
+								SrcData + (BatchBeginInBlocks.Y*NumBlocks.X + BatchBeginInBlocks.X)*BlockSizeInBytes;
+
+						// Assume the decompressed size is always multiple of the block size. Trim unused bytes when copying to 
+						// the final destination.
+						const FIntVector2 BatchDecSizeInPixels = FIntVector2(
+								(BatchDecEndInBlocks.X - BatchBeginInBlocks.X)*PixelsPerBlock.X,
+								(BatchDecEndInBlocks.Y - BatchBeginInBlocks.Y)*PixelsPerBlock.Y);
+
+						const miro::FImageSize FromSize = miro::FImageSize(SrcSize.X, SrcSize.Y); 
+						const miro::FImageSize DecSize  = miro::FImageSize(uint16(BatchDecSizeInPixels.X), uint16(BatchDecSizeInPixels.Y));
+
+						DecompressionFunc(FromSize, DecSize, DecSize, SrcBatchData, JobStagingMemoryData);
+
+						const FIntVector2 BatchOutBeginInPixels = FIntVector2( 
+								FMath::DivideAndRoundUp(BatchBeginInBlocks.X*PixelsPerBlock.X*DestSize.X, int32(SrcSize.X)),
+								FMath::DivideAndRoundUp(BatchBeginInBlocks.Y*PixelsPerBlock.Y*DestSize.Y, int32(SrcSize.Y)));
+
+						const FIntVector2 BatchOutEndInPixels = FIntVector2(
+								FMath::Min(
+									FMath::DivideAndRoundUp(BatchEndInBlocks.X*PixelsPerBlock.X*DestSize.X, int32(SrcSize.X)), 
+									int32(DestSize.X)),
+								FMath::Min(
+									FMath::DivideAndRoundUp(BatchEndInBlocks.Y*PixelsPerBlock.Y*DestSize.Y, int32(SrcSize.Y)), 
+									int32(DestSize.Y))); 
+					
+						const FIntVector2 BatchSizeInPixels = (BatchEndInBlocks - BatchBeginInBlocks)*PixelsPerBlock;
+						
+						const FImageSize SrcSubSize  = FImageSize(BatchSizeInPixels.X, BatchSizeInPixels.Y);
+						const FImageSize DestSubSize = FImageSize(
+								BatchOutEndInPixels.X - BatchOutBeginInPixels.X, 
+								BatchOutEndInPixels.Y - BatchOutBeginInPixels.Y);
+		
+						const FIntVector2& DestSubOffset = FIntVector2(BatchOutBeginInPixels.X, BatchOutBeginInPixels.Y);
+					
+						const uint8* SrcSubData = JobStagingMemoryData;
+						switch(DestNumChannels)
+						{
+						case 1:
+						{
+							constexpr int32 NumChannels = 1;
+						
+							uint8* DestSubData = DestData + (DestSubOffset.Y*DestSize.X + DestSubOffset.X)*NumChannels;
+
+							ImageResizeLinearDownByLessThanTwoSubImage<NumChannels>(ScalingFactor, 
+									DestSize, DestSubSize, DecSize, SrcSubSize, DestSubData, SrcSubData);
+							break;
+						}
+
+						case 3:
+						{
+							constexpr int32 NumChannels = 3;
+
+							uint8* DestSubData = DestData + (DestSubOffset.Y*DestSize.X + DestSubOffset.X)*NumChannels;
+							
+							ImageResizeLinearDownByLessThanTwoSubImage<NumChannels>(ScalingFactor, 
+									DestSize, DestSubSize, DecSize, SrcSubSize, DestSubData, SrcSubData);
+							break;
+						}
+
+						case 4:
+						{
+							constexpr int32 NumChannels = 4;
+
+							uint8* DestSubData = DestData + (DestSubOffset.Y*DestSize.X + DestSubOffset.X)*NumChannels;
+							
+							ImageResizeLinearDownByLessThanTwoSubImage<NumChannels>(ScalingFactor,
+									DestSize, DestSubSize, DecSize, SrcSubSize, DestSubData, SrcSubData);
+							break;
+						}
+						}
+					}
+				}
+			};
+
+			if (NumParallelJobs == 1)
+			{
+				ProcessJob(0);
+			}
+			else if (NumParallelJobs > 1)
+			{	
+				ParallelFor(NumParallelJobs, ProcessJob);
+			}
+		}
+		else
+		{
+			checkf(false, TEXT("Format not supported"));
+		}
+	}
+}
 
 	void FImageOperator::ImageResizeLinear(Image* Dest, int32 ImageCompressionQuality, const Image* InBase)
 	{
@@ -707,87 +1033,136 @@ namespace mu
 
 		check(!(InBase->m_flags & Image::IF_CANNOT_BE_SCALED));
 
-		ImagePtrConst Base = InBase;
-		ImagePtr BaseReformat;
+		const FImageSize BaseSize = FImageSize(InBase->GetSizeX(), InBase->GetSizeY());
+		const FImageSize DestSize = FImageSize(Dest->GetSizeX(), Dest->GetSizeY());
 
-		// Shouldn't happen! But if it does...
-		EImageFormat SourceFormat = Base->GetFormat();
-		EImageFormat UncompressedFormat = GetUncompressedFormat(SourceFormat);
-		if (SourceFormat != UncompressedFormat)
-		{
-			BaseReformat = ImagePixelFormat(ImageCompressionQuality, InBase, UncompressedFormat);
-			Base = BaseReformat;
-		}
+		// This case should be treated in the caller and skip the operation altogether.
+		check(BaseSize != DestSize);
 
-		FImageSize BaseSize = FImageSize(Base->GetSizeX(), Base->GetSizeY());
-		FImageSize DestSize = FImageSize(Dest->GetSizeX(), Dest->GetSizeY());
 		if (!DestSize[0] || !DestSize[1] || !BaseSize[0] || !BaseSize[1])
 		{
 			return;
 		}
 
-		// First resize X
-		ImagePtr Temp;
-		if (DestSize[0] > BaseSize[0])
+		const bool bIsDownSizeByLessThanTwo =
+			BaseSize.X >= DestSize.X && BaseSize.Y >= DestSize.Y && 
+			BaseSize.X < DestSize.X*2 && BaseSize.Y < DestSize.Y*2; 
+
+		const bool bIsUncompressedFormat = !mu::IsCompressedFormat(InBase->GetFormat());  
+		const bool bIsBlockCompressedFormat = mu::IsBlockCompressedFormat(InBase->GetFormat());
+
+		if (bIsDownSizeByLessThanTwo && (bIsUncompressedFormat || bIsBlockCompressedFormat) && bEnableImageResizeMemoryOptimizations)
 		{
-			Temp = CreateImage(DestSize[0], BaseSize[1], 1, Base->GetFormat(), EInitializationType::NotInitialized);
-			ImageMagnifyX(Temp.get(), Base.get());
-		}
-		else if (DestSize[0] < BaseSize[0])
-		{
-			Temp = CreateImage(DestSize[0], BaseSize[1], 1, Base->GetFormat(), EInitializationType::NotInitialized);
-			ImageMinifyX(Temp.get(), Base.get());
+			// Special case for small down resizes where no more than 2 pixels need to be sampled. 
+			// This could be extended to upsizes of any size.
+			
+			const EImageFormat BaseUncompressedFormat = GetUncompressedFormat(InBase->GetFormat());
+			const EImageFormat DestFormat = Dest->GetFormat();
+			
+			Ptr<Image> DecompressedDest = Dest;
+			if (DestFormat != BaseUncompressedFormat)
+			{
+				DecompressedDest = CreateImage(DestSize.X, DestSize.Y, 1, BaseUncompressedFormat, EInitializationType::NotInitialized);
+			}
+			
+			ImageResizeLinearDownByLessThanTwo(DecompressedDest.get(), InBase);
+
+			if (DestFormat != BaseUncompressedFormat)
+			{
+				bool bSuccess = false;
+				ImagePixelFormat(bSuccess, ImageCompressionQuality, Dest, DecompressedDest.get());
+				check(bSuccess);
+
+				ReleaseImage(DecompressedDest);
+			}
 		}
 		else
 		{
-			Temp = CloneImage(Base.get());
-		}
+			ImagePtrConst Base = InBase;
+			ImagePtr BaseReformat;
+			
+			// Shouldn't happen! But if it does...
+			const EImageFormat SourceFormat = Base->GetFormat();
+			const EImageFormat UncompressedFormat = GetUncompressedFormat(SourceFormat);
+			if (SourceFormat != UncompressedFormat)
+			{
+				BaseReformat = ImagePixelFormat(ImageCompressionQuality, InBase, UncompressedFormat);
+				Base = BaseReformat;
+			}
 
-		// Now resize Y
-		ImagePtr Temp2;
-		if (DestSize[1] > BaseSize[1])
-		{
-			Temp2 = CreateImage(DestSize[0], DestSize[1], 1, Base->GetFormat(), EInitializationType::NotInitialized);
-			ImageMagnifyY(Temp2.get(), Temp.get());
-			ReleaseImage(Temp);
-		}
-		else if (DestSize[1] < BaseSize[1])
-		{
-			Temp2 = CreateImage(DestSize[0], DestSize[1], 1, Base->GetFormat(), EInitializationType::NotInitialized);
-			ImageMinifyY(Temp2.get(), Temp.get());
-			ReleaseImage(Temp);
-		}
-		else
-		{
-			Temp2 = Temp;
-		}
-		Temp = nullptr;
+			const EImageFormat BaseFormat = Base->GetFormat();
+
+			// First resize X
+			ImagePtr Temp;
+			if (DestSize[0] > BaseSize[0])
+			{
+				Temp = CreateImage(DestSize[0], BaseSize[1], 1, BaseFormat, EInitializationType::NotInitialized);
+				ImageMagnifyX(Temp.get(), Base.get());
+			}
+			else if (DestSize[0] < BaseSize[0])
+			{
+				Temp = CreateImage(DestSize[0], BaseSize[1], 1, BaseFormat, EInitializationType::NotInitialized);
+				ImageMinifyX(Temp.get(), Base.get());
+			}
+			else
+			{
+				Temp = CloneImage(Base.get());
+			}
+
+			// No lonegr needed. Should be only set if a reformat has been done. 
+			check(!(SourceFormat == UncompressedFormat) || !BaseReformat);
+			if (BaseReformat)
+			{
+				check(Base == BaseReformat);
+				ReleaseImage(BaseReformat);
+				BaseReformat = nullptr;
+				Base = nullptr;
+			}
+
+			// Now resize Y
+			ImagePtr Temp2;
+			if (DestSize[1] > BaseSize[1])
+			{
+				Temp2 = CreateImage(DestSize[0], DestSize[1], 1, BaseFormat, EInitializationType::NotInitialized);
+				ImageMagnifyY(Temp2.get(), Temp.get());
+				ReleaseImage(Temp);
+			}
+			else if (DestSize[1] < BaseSize[1])
+			{
+				Temp2 = CreateImage(DestSize[0], DestSize[1], 1, BaseFormat, EInitializationType::NotInitialized);
+				ImageMinifyY(Temp2.get(), Temp.get());
+				ReleaseImage(Temp);
+			}
+			else
+			{
+				Temp2 = Temp;
+			}
+			Temp = nullptr;
 
 
-		// Reset format if it was changed to scale
-		if (SourceFormat != UncompressedFormat)
-		{
-			Ptr<Image> OldTemp = Temp2;
-			Temp2 = ImagePixelFormat(ImageCompressionQuality, Temp2.get(), SourceFormat);
-			ReleaseImage(OldTemp);
+			// Reset format if it was changed to scale
+			if (SourceFormat != UncompressedFormat)
+			{
+				Ptr<Image> OldTemp = Temp2;
+				Temp2 = ImagePixelFormat(ImageCompressionQuality, Temp2.get(), SourceFormat);
+				ReleaseImage(OldTemp);
+			}
+
+			Dest->CopyMove(Temp2.get());
+			ReleaseImage(Temp2);
+			Temp2 = nullptr;
 		}
-
-		Dest->CopyMove(Temp2.get());
-		ReleaseImage(Temp2);
-		Temp2 = nullptr;
-
+		
 		// Update the relevancy data of the image.
-		if (Base->m_flags & Image::EImageFlags::IF_HAS_RELEVANCY_MAP)
+		if (InBase->m_flags & Image::EImageFlags::IF_HAS_RELEVANCY_MAP)
 		{
 			Dest->m_flags |= Image::EImageFlags::IF_HAS_RELEVANCY_MAP;
 
 			float FactorY = float(DestSize[1]) / float(BaseSize[1]);
 
-			Dest->RelevancyMinY = uint16(FMath::FloorToFloat(Base->RelevancyMinY * FactorY));
-			Dest->RelevancyMaxY = uint16(FMath::Min((int32)FMath::CeilToFloat(Base->RelevancyMinY * FactorY), Dest->GetSizeY() - 1));
+			Dest->RelevancyMinY = uint16(FMath::FloorToFloat(InBase->RelevancyMinY * FactorY));
+			Dest->RelevancyMaxY = uint16(FMath::Min((int32)FMath::CeilToFloat(InBase->RelevancyMaxY * FactorY), Dest->GetSizeY() - 1));
 		}
-
-		ReleaseImage(BaseReformat);
 	}
 
 }
