@@ -118,7 +118,7 @@ private:
 
 					if (bIncludeCollection)
 					{
-						DataSource.Add(CollectionName);
+						DataSource.AddUnique(CollectionName);
 					}
 				}
 			}
