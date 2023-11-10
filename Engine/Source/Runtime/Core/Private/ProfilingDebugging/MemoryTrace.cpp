@@ -327,7 +327,7 @@ static bool MemoryTrace_ShouldEnable(int32 ArgC, const ArgCharType* const* ArgV)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-static FMalloc* MemoryTrace_CreateInternal(FMalloc* InMalloc)
+FMalloc* MemoryTrace_CreateInternal(FMalloc* InMalloc)
 {
 	// Some OSes (i.e. Windows) will terminate all threads except the main
 	// one as part of static deinit. However we may receive more memory

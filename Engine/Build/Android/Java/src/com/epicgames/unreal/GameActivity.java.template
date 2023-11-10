@@ -80,6 +80,8 @@ import android.app.ProgressDialog;
 import android.os.Bundle;
 import android.os.PersistableBundle;
 import android.util.Log;
+import android.system.Os;
+import android.system.ErrnoException;
 
 import android.hardware.input.InputManager;
 import android.os.Vibrator;
@@ -7063,6 +7065,27 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 
 	static
 	{
+		// We need to decide on enabling memory tracing before loading native code.
+		// It's not trivial to get a full command line before GameActivity is constructed, so fallback to a sentinel file.
+		try
+		{
+			Context context = GameApplication.getAppContext();
+			Bundle bundle = context.getPackageManager().getApplicationInfo(context.getPackageName(), PackageManager.GET_META_DATA).metaData;
+			boolean bShipping =
+				bundle.containsKey("com.epicgames.unreal.GameActivity.BuildConfiguration") &&
+				bundle.getString("com.epicgames.unreal.GameActivity.BuildConfiguration").equals("Shipping");
+			if (!bShipping)
+			{ 
+				boolean bEnableMemoryTracing = new File(GameApplication.getAppContext().getFilesDir() + "/UEEnableMemoryTracing.txt").exists();
+				Os.setenv("UEEnableMemoryTracing", bEnableMemoryTracing ? "1" : "0", true);
+			}
+		}
+		catch (ErrnoException | NameNotFoundException e)
+		{
+			Log.debug(e.toString());
+			Log.debug("Cannot set \"UEEnableMemoryTracing\" environment variable");
+		}
+
 //$${soLoadUnreal}$$
 //$${soLoadLibrary}$$
 	}
