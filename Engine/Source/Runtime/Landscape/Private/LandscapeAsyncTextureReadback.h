@@ -23,15 +23,22 @@ private:
 	void FinishReadback_RenderThread();
 
 public:
+	// construct on the game thread
 	FLandscapeAsyncTextureReadback() {}
+
+	// destruct on the render thread.  From game thread, call QueueDeletion() instead
+	~FLandscapeAsyncTextureReadback()
+	{
+		check(IsInRenderingThread());
+	}
 
 	// use this to start an async readback operation from the render thread (on a render graph texture)
 	void StartReadback_RenderThread(FRDGBuilder& GraphBuilder, FRDGTextureRef RDGTexture);
 
-	// TODO: add other StartReadback functions as needed
+	// TODO [chris.tchou] : add other StartReadback functions as needed
 
 	// Check readback status and update the process if needed. Return true when the AsyncReadbackResults are available.
-	// You must call this occasionally or the readback may never complete.
+	// You must call this occasionally (from the game thread) or the readback may never complete.
 	bool CheckAndUpdate();
 
 	// Returns true when async readback results are available.  Call GetResults() to retrieve them.
@@ -51,5 +58,9 @@ public:
 		}
 		return MoveTemp(ReadbackResults);
 	}
+
+	// once complete, call this to queue deletion of the readback object on the render thread
+	// (this must be deleted on the render thread to avoid other render-thread queued commands from accessing a deallocated pointer)
+	void QueueDeletionFromGameThread();
 };
 

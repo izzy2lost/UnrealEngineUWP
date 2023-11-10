@@ -16,15 +16,24 @@ class FLandscapeGrassWeightExporter_RenderThread
 {
 	FLandscapeGrassWeightExporter_RenderThread(const TArray<int32>& InHeightMips, bool bInUseAsyncReadback)
 		: HeightMips(InHeightMips)
-		, bUseAsyncReadback(bInUseAsyncReadback)
 	{
+		if (bInUseAsyncReadback)
+		{
+			AsyncReadbackPtr = new FLandscapeAsyncTextureReadback();
+		}
 	}
 
 	friend class FLandscapeGrassWeightExporter;
 
 public:
 	virtual ~FLandscapeGrassWeightExporter_RenderThread()
-	{}
+	{
+		if (AsyncReadbackPtr != nullptr)
+		{
+			AsyncReadbackPtr->QueueDeletionFromGameThread();
+			AsyncReadbackPtr = nullptr;
+		}
+	}
 
 	struct FComponentInfo
 	{
@@ -67,8 +76,7 @@ public:
 	FMatrix ViewRotationMatrix;
 	FMatrix ProjectionMatrix;
 
-	bool bUseAsyncReadback;
-	FLandscapeAsyncTextureReadback AsyncReadback;
+	FLandscapeAsyncTextureReadback* AsyncReadbackPtr = nullptr;
 
 	void RenderLandscapeComponentToTexture_RenderThread(FRHICommandListImmediate& RHICmdList);
 };
@@ -89,13 +97,15 @@ public:
 	// You must call this periodically, or the async readback may not complete.
 	bool CheckAndUpdateAsyncReadback()
 	{
-		return AsyncReadback.CheckAndUpdate();
+		check(AsyncReadbackPtr != nullptr);
+		return AsyncReadbackPtr->CheckAndUpdate();
 	}
 
 	// return true if the async readback is complete.  (Does not update the readback state)
 	bool IsAsyncReadbackComplete()
 	{
-		return AsyncReadback.IsComplete();
+		check(AsyncReadbackPtr != nullptr);
+		return AsyncReadbackPtr->IsComplete();
 	}
 
 	// Fetches the results from the GPU texture and translates them into FLandscapeComponentGrassDatas.

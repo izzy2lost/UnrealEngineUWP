@@ -366,9 +366,9 @@ void FLandscapeGrassWeightExporter_RenderThread::RenderLandscapeComponentToTextu
 			}
 		});
 
-	if (bUseAsyncReadback)
+	if (AsyncReadbackPtr != nullptr)
 	{
-		AsyncReadback.StartReadback_RenderThread(GraphBuilder, OutputTexture);
+		AsyncReadbackPtr->StartReadback_RenderThread(GraphBuilder, OutputTexture);
 	}
 
 	GraphBuilder.Execute();
@@ -555,10 +555,12 @@ TMap<ULandscapeComponent*, TUniquePtr<FLandscapeComponentGrassData>, TInlineSetA
 	TMap<ULandscapeComponent*, TUniquePtr<FLandscapeComponentGrassData>, TInlineSetAllocator<1>> Results;
 	TArray<FColor> Samples;
 
-	if (bUseAsyncReadback)
+	if (AsyncReadbackPtr != nullptr)
 	{
 		FIntPoint Size;
-		Samples = AsyncReadback.TakeResults(&Size);
+		Samples = AsyncReadbackPtr->TakeResults(&Size);
+		AsyncReadbackPtr->QueueDeletionFromGameThread();
+		AsyncReadbackPtr = nullptr;
 		check(Size == TargetSize);
 	}
 	else

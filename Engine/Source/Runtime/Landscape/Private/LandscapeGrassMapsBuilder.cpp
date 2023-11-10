@@ -853,7 +853,7 @@ bool FLandscapeGrassMapsBuilder::StartGrassMapGeneration(FComponentState& State,
 			return false;
 		}
 	}
-	else if (World->IsEditorWorld())
+	else
 	{
 #if WITH_EDITOR
 		// recalculate hashes

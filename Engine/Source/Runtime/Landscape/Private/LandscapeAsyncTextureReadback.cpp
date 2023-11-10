@@ -116,3 +116,15 @@ bool FLandscapeAsyncTextureReadback::CheckAndUpdate()
 	return false;
 }
 
+void FLandscapeAsyncTextureReadback::QueueDeletionFromGameThread()
+{
+	check(IsInGameThread());
+	check(bAsyncReadbackCompleteOnRenderThread);
+
+	FLandscapeAsyncTextureReadback* Readback = this;
+	ENQUEUE_RENDER_COMMAND(FLandscapeAsyncTextureReadback_CheckAndUpdate)(
+		[Readback](FRHICommandListImmediate& RHICmdList)
+		{
+			delete Readback;
+		});
+}

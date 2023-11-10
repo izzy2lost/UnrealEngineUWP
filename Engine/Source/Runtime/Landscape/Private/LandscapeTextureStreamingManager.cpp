@@ -2,6 +2,7 @@
 
 #include "LandscapeTextureStreamingManager.h"
 #include "Engine/Texture.h"
+#include "TextureCompiler.h"
 
 namespace UE::Landscape
 {
@@ -108,14 +109,15 @@ bool FLandscapeTextureStreamingManager::WaitForTextureStreaming()
 		if (Texture)
 		{
 			UE::Landscape::EnsureTextureForcedResident(Texture);
-			if (!Texture->IsFullyStreamedIn())
+			if (!IsTextureFullyStreamedIn(Texture))
 			{
+#if WITH_EDITOR
+				// in editor, textures can be not compiled yet
+				FTextureCompilingManager::Get().FinishCompilation({ Texture });
+#endif // WITH_EDITOR
 				Texture->WaitForStreaming();
 			}
-#if WITH_EDITOR
-			bFullyStreamed = bFullyStreamed && !Texture->IsDefaultTexture();
-#endif // WITH_EDITOR		
-			bFullyStreamed = bFullyStreamed && Texture->IsFullyStreamedIn();
+			bFullyStreamed = bFullyStreamed && IsTextureFullyStreamedIn(Texture);
 		}
 		else
 		{
