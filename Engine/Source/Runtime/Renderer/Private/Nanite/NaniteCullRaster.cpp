@@ -1451,7 +1451,6 @@ public:
 	class FVirtualTextureTargetDim : SHADER_PERMUTATION_BOOL("VIRTUAL_TEXTURE_TARGET");
 	class FVertexProgrammableDim : SHADER_PERMUTATION_BOOL("NANITE_VERTEX_PROGRAMMABLE");
 	class FPixelProgrammableDim : SHADER_PERMUTATION_BOOL("NANITE_PIXEL_PROGRAMMABLE");
-	class FSplineDeformDim : SHADER_PERMUTATION_BOOL("USE_SPLINEDEFORM");
 
 	using FPermutationDomain = TShaderPermutationDomain
 	<
@@ -1461,8 +1460,7 @@ public:
 		FVisualizeDim,
 		FVirtualTextureTargetDim,
 		FVertexProgrammableDim,
-		FPixelProgrammableDim,
-		FSplineDeformDim
+		FPixelProgrammableDim
 	>;
 
 	using FParameters = FRasterizePassParameters;
@@ -1522,14 +1520,6 @@ public:
 		if (PermutationVector.Get<FVirtualTextureTargetDim>() && !PermutationVector.Get<FDepthOnlyDim>())
 		{
 			return false;
-		}
-
-		if (PermutationVector.Get<FSplineDeformDim>())
-		{
-			if (!NaniteSplineMeshesSupported() || (!Parameters.MaterialParameters.bIsDefaultMaterial && !Parameters.MaterialParameters.bIsUsedWithSplineMeshes))
-			{
-				return false;
-			}
 		}
 
 		if (!ShouldCompileProgrammablePermutation(Parameters.MaterialParameters, PermutationVector.Get<FVertexProgrammableDim>(), PermutationVector.Get<FPixelProgrammableDim>()))
@@ -1652,7 +1642,6 @@ static void GetMaterialShaderTypes(
 	}
 
 	// Pixel Shader
-	PermutationVectorPS.Set<FHWRasterizePS::FSplineDeformDim>(bSplineMesh);
 	PermutationVectorPS.Set<FHWRasterizePS::FVertexProgrammableDim>(bVertexProgrammable);
 	PermutationVectorPS.Set<FHWRasterizePS::FPixelProgrammableDim>(bPixelProgrammable);
 	if (bPixelProgrammable)
@@ -3159,7 +3148,6 @@ FBinningData FRenderer::AddPass_Rasterize(
 
 			PermutationVectorPS.Set<FHWRasterizePS::FVertexProgrammableDim>(RasterizerPass.bVertexProgrammable);
 			PermutationVectorPS.Set<FHWRasterizePS::FPixelProgrammableDim>(RasterizerPass.bPixelProgrammable);
-			PermutationVectorPS.Set<FHWRasterizePS::FSplineDeformDim>(RasterizerPass.bSplineMesh);
 			RasterizerPass.RasterPixelShader = FixedMaterialShaderMap->GetShader<FHWRasterizePS>(PermutationVectorPS);
 			check(!RasterizerPass.RasterPixelShader.IsNull());
 
@@ -3401,6 +3389,7 @@ FBinningData FRenderer::AddPass_Rasterize(
 
 					PermutationVectorMS.Set<FHWRasterizeMS::FVertexProgrammableDim>(RasterizerPass.bVertexProgrammable);
 					PermutationVectorMS.Set<FHWRasterizeMS::FPixelProgrammableDim>(RasterizerPass.bPixelProgrammable);
+					PermutationVectorMS.Set<FHWRasterizeMS::FSplineDeformDim>(RasterizerPass.bSplineMesh);
 					RasterizerPass.RasterMeshShader = VertexShaderMap->GetShader<FHWRasterizeMS>(PermutationVectorMS);
 					check(!RasterizerPass.RasterMeshShader.IsNull());
 				}
@@ -3414,6 +3403,7 @@ FBinningData FRenderer::AddPass_Rasterize(
 
 					PermutationVectorVS.Set<FHWRasterizeVS::FVertexProgrammableDim>(RasterizerPass.bVertexProgrammable);
 					PermutationVectorVS.Set<FHWRasterizeVS::FPixelProgrammableDim>(RasterizerPass.bPixelProgrammable);
+					PermutationVectorVS.Set<FHWRasterizeVS::FSplineDeformDim>(RasterizerPass.bSplineMesh);
 					RasterizerPass.RasterVertexShader = VertexShaderMap->GetShader<FHWRasterizeVS>(PermutationVectorVS);
 					check(!RasterizerPass.RasterVertexShader.IsNull());
 				}
@@ -3438,6 +3428,7 @@ FBinningData FRenderer::AddPass_Rasterize(
 				PermutationVectorCS.Set<FMicropolyRasterizeCS::FTwoSidedDim>(RasterizerPass.RasterPipeline.bIsTwoSided);
 				PermutationVectorCS.Set<FMicropolyRasterizeCS::FVertexProgrammableDim>(RasterizerPass.bVertexProgrammable);
 				PermutationVectorCS.Set<FMicropolyRasterizeCS::FPixelProgrammableDim>(RasterizerPass.bPixelProgrammable);
+				PermutationVectorCS.Set<FMicropolyRasterizeCS::FSplineDeformDim>(RasterizerPass.bSplineMesh);
 				RasterizerPass.RasterComputeShader = ComputeShaderMap->GetShader<FMicropolyRasterizeCS>(PermutationVectorCS);
 				check(!RasterizerPass.RasterComputeShader.IsNull());
 			}
