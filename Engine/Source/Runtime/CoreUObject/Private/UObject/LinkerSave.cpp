@@ -795,7 +795,7 @@ void FLinkerSave::OnPostSaveBulkData()
 		{
 			FBulkData& BulkData = *Kv.Key;
 			const FObjectDataResource& DataResource = DataResourceMap[Kv.Value];
-			BulkData.SetFlagsFromDiskWrittenValues(static_cast<EBulkDataFlags>(DataResource.Flags), DataResource.SerialOffset, DataResource.SerialSize, Summary.BulkDataStartOffset);
+			BulkData.SetFlagsFromDiskWrittenValues(static_cast<EBulkDataFlags>(DataResource.LegacyBulkDataFlags), DataResource.SerialOffset, DataResource.SerialSize, Summary.BulkDataStartOffset);
 		}
 	}
 #endif
