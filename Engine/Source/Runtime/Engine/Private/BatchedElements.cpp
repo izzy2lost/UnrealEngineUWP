@@ -1031,7 +1031,7 @@ bool FBatchedElements::Draw(FRHICommandList& RHICmdList, const FMeshPassProcesso
 					{
 						const FBatchedThickLines& Line = ThickLines[FirstLineThisBatch + i];
 						const double Thickness = FMath::Abs( Line.Thickness );
-
+						
 						FVector4 StartClip	= WorldToClip.TransformFVector4(Line.Start);
 						FVector4 EndClip	= WorldToClip.TransformFVector4(Line.End);
 
@@ -1039,21 +1039,24 @@ bool FBatchedElements::Draw(FRHICommandList& RHICmdList, const FMeshPassProcesso
 						FVector LineStart = Line.Start;
 						FVector LineEnd = Line.End;
 						const double ClipAt = View.NearClippingDistance + UE_DOUBLE_KINDA_SMALL_NUMBER;
-						if (StartClip.W < ClipAt && EndClip.W < ClipAt)
+						if (bIsPerspective)
 						{
-							continue;
-						}
-						else if (StartClip.W < ClipAt)
-						{
-							double Along = (ClipAt - StartClip.W) / (EndClip.W - StartClip.W);
-							LineStart = FMath::Lerp(LineStart, LineEnd, Along);
-							StartClip = FMath::Lerp(StartClip, EndClip, Along);
-						}
-						else if (EndClip.W < ClipAt)
-						{
-							double Along = (ClipAt - EndClip.W) / (StartClip.W - EndClip.W);
-							LineEnd = FMath::Lerp(LineEnd, LineStart, Along);
-							EndClip = FMath::Lerp(EndClip, StartClip, Along);
+							if (StartClip.W < ClipAt && EndClip.W < ClipAt)
+							{
+								continue;
+							}
+							else if (StartClip.W < ClipAt)
+							{
+								double Along = (ClipAt - StartClip.W) / (EndClip.W - StartClip.W);
+								LineStart = FMath::Lerp(LineStart, LineEnd, Along);
+								StartClip = FMath::Lerp(StartClip, EndClip, Along);
+							}
+							else if (EndClip.W < ClipAt)
+							{
+								double Along = (ClipAt - EndClip.W) / (StartClip.W - EndClip.W);
+								LineEnd = FMath::Lerp(LineEnd, LineStart, Along);
+								EndClip = FMath::Lerp(EndClip, StartClip, Along);
+							}
 						}
 
 						const double StartW = StartClip.W;
