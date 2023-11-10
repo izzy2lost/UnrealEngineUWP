@@ -92,9 +92,9 @@ void FNiagaraSystemRenderData::Destroy_RenderThread()
 FPrimitiveViewRelevance FNiagaraSystemRenderData::GetViewRelevance(const FSceneView& View, const FNiagaraSceneProxy& SceneProxy) const
 {
 	FPrimitiveViewRelevance Relevance;
-	if (IsRenderingEnabled())
+	if (IsRenderingEnabled_RT())
 	{
-		for (const auto Renderer : EmitterRenderers_RT)
+		for (const FNiagaraRenderer* Renderer : EmitterRenderers_RT)
 		{
 			if (Renderer)
 			{
@@ -347,6 +347,24 @@ void FNiagaraSystemRenderData::PostTickRenderers(const FNiagaraSystemInstance& S
 				}
 			}
 		}
+	}
+}
+
+void FNiagaraSystemRenderData::SetRenderingEnabled_GT(bool bInEnabled)
+{
+	check(IsInGameThread());
+
+	if (bRenderingEnabled_GT != bInEnabled)
+	{
+		bRenderingEnabled_GT = bInEnabled;
+		
+		// Note we send immediately because there is no guarantee we would push new data this frame
+		ENQUEUE_RENDER_COMMAND(FNiagaraSystemRenderData_SetRenderingEnabled)(UE::RenderCommandPipe::NiagaraDynamicData,
+			[this]()
+			{
+				bRenderingEnabled_RT = bRenderingEnabled_GT;
+			}
+		);
 	}
 }
 

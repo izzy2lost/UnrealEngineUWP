@@ -76,8 +76,10 @@ public:
 	void OnSystemComplete(const FNiagaraSystemInstance& SystemInstance);
 	void RecacheRenderers(const FNiagaraSystemInstance& SystemInstance, const FNiagaraSystemInstanceController& Controller);
 
-	FORCEINLINE bool IsRenderingEnabled() const { return bRenderingEnabled && (IsInRenderingThread() ? EmitterRenderers_RT.Num() > 0 : EmitterRenderers_GT.Num() > 0); }
-	FORCEINLINE void SetRenderingEnabled(bool bInEnabled) { bRenderingEnabled = bInEnabled; }
+	void SetRenderingEnabled_GT(bool bInEnabled);
+	FORCEINLINE bool IsRenderingEnabled_GT() const { return bRenderingEnabled_GT && EmitterRenderers_GT.Num() > 0; }
+	FORCEINLINE bool IsRenderingEnabled_RT() const { return bRenderingEnabled_RT && EmitterRenderers_RT.Num() > 0; }
+
 	FORCEINLINE bool HasAnyMotionBlurEnabled() const { return bAnyMotionBlurEnabled; }
 	FORCEINLINE bool HasAnyHeterogeneousVolumesEnabled() const { return bAnyHeterogeneousVolumesEnabled; }
 
@@ -93,7 +95,8 @@ private:
 	/** Indices of renderers in the order they should be rendered. */
 	TArray<int32> RendererDrawOrder;
 
-	bool bRenderingEnabled = true;
+	bool bRenderingEnabled_GT = true;
+	bool bRenderingEnabled_RT = true;
 	bool bAnyMotionBlurEnabled = false;
 	bool bAnyHeterogeneousVolumesEnabled = false;
 

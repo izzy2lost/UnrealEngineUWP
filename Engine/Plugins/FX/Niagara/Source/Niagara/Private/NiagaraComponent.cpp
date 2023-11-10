@@ -271,7 +271,8 @@ void FNiagaraSceneProxy::OnTransformChanged(FRHICommandListBase& RHICmdList)
 FPrimitiveViewRelevance FNiagaraSceneProxy::GetViewRelevance(const FSceneView* View) const
 {
 	FPrimitiveViewRelevance Relevance;
-	if (!GetRenderingEnabled() || !FNiagaraUtilities::SupportsNiagaraRendering(View->GetFeatureLevel()))
+
+	if (!RenderData || !RenderData->IsRenderingEnabled_RT() || !FNiagaraUtilities::SupportsNiagaraRendering(View->GetFeatureLevel()))
 	{
 		return Relevance;
 	}
@@ -426,16 +427,11 @@ uint32 FNiagaraSceneProxy::GetAllocatedSize() const
 	return Size;
 }
 
-bool FNiagaraSceneProxy::GetRenderingEnabled() const
-{
-	return RenderData ? RenderData->IsRenderingEnabled() : false;
-}
-
-void FNiagaraSceneProxy::SetRenderingEnabled(bool bInRenderingEnabled)
+void FNiagaraSceneProxy::SetRenderingEnabled_GT(bool bInRenderingEnabled)
 {
 	if (RenderData)
 	{
-		RenderData->SetRenderingEnabled(bInRenderingEnabled);
+		RenderData->SetRenderingEnabled_GT(bInRenderingEnabled);
 	}
 }
 
@@ -980,7 +976,7 @@ void UNiagaraComponent::TickComponent(float DeltaSeconds, enum ELevelTick TickTy
 		if (SceneProxy != nullptr)
 		{
 			FNiagaraSceneProxy* NiagaraProxy = static_cast<FNiagaraSceneProxy*>(SceneProxy);
-			NiagaraProxy->SetRenderingEnabled(bRenderingEnabled && (bCanRenderWhileSeeking || bIsSeeking == false));
+			NiagaraProxy->SetRenderingEnabled_GT(bRenderingEnabled && (bCanRenderWhileSeeking || bIsSeeking == false));
 		}
 	}
 }

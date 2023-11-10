@@ -30,11 +30,8 @@ public:
 	/** Called to allow renderers to free render state */
 	NIAGARA_API void DestroyRenderState_Concurrent();
 
-	/** Gets whether or not this scene proxy should be rendered. */
-	NIAGARA_API bool GetRenderingEnabled() const;
-
 	/** Sets whether or not this scene proxy should be rendered. */
-	NIAGARA_API void SetRenderingEnabled(bool bInRenderingEnabled);
+	NIAGARA_API void SetRenderingEnabled_GT(bool bInRenderingEnabled);
 
 	FNiagaraGpuComputeDispatchInterface* GetComputeDispatchInterface() const { return ComputeDispatchInterface; }
 
