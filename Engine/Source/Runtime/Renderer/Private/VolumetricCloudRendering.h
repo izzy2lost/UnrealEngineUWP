@@ -138,6 +138,7 @@ struct FCloudRenderContext
 
 	bool bShouldViewRenderVolumetricRenderTarget;
 	bool bSkipAerialPerspective;
+	bool bSkipHeightFog;
 	bool bIsReflectionRendering;				// Reflection capture and real time sky capture
 	bool bIsSkyRealTimeReflectionRendering;		// Real time sky capture only
 	bool bSkipAtmosphericLightShadowmap;

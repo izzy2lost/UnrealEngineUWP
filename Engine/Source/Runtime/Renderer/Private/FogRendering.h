@@ -10,6 +10,7 @@
 #include "RenderGraphFwd.h"
 
 class FSceneViewFamily;
+class FScene;
 class FViewInfo;
 
 BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FFogUniformParameters,)
@@ -38,3 +39,13 @@ extern bool ShouldRenderFog(const FSceneViewFamily& Family);
 
 extern float GetViewFogCommonStartDistance(const FViewInfo& View, bool bShouldRenderVolumetricFog, bool bShouldRenderLocalFogVolumes);
 extern float GetFogDefaultStartDistance();
+
+extern void RenderFogOnClouds(
+	FRDGBuilder& GraphBuilder,
+	const FScene* Scene,
+	const FViewInfo& View,
+	FRDGTextureRef SrcCloudDepth,
+	FRDGTextureRef SrcCloudView,
+	FRDGTextureRef DstCloudView,
+	const bool bShouldRenderVolumetricFog,
+	const bool bUseVolumetricRenderTarget);

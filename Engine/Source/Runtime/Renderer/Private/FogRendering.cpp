@@ -122,7 +122,8 @@ class FExponentialHeightFogPS : public FGlobalShader
 	class FSupportFogDirectionalLightInScattering : SHADER_PERMUTATION_BOOL("PERMUTATION_SUPPORT_FOG_DIRECTIONAL_LIGHT_INSCATTERING");
 	class FSupportVolumetricFog : SHADER_PERMUTATION_BOOL("PERMUTATION_SUPPORT_VOLUMETRIC_FOG");
 	class FSupportLocalFogVolume : SHADER_PERMUTATION_BOOL("PERMUTATION_SUPPORT_LOCAL_FOG_VOLUME");
-	using FPermutationDomain = TShaderPermutationDomain<FSupportFogInScatteringTexture, FSupportFogDirectionalLightInScattering, FSupportVolumetricFog, FSupportLocalFogVolume>;
+	class FSampleFogOnClouds : SHADER_PERMUTATION_BOOL("PERMUTATION_SAMPLE_FOG_ON_CLOUDS");
+	using FPermutationDomain = TShaderPermutationDomain<FSupportFogInScatteringTexture, FSupportFogDirectionalLightInScattering, FSupportVolumetricFog, FSupportLocalFogVolume, FSampleFogOnClouds>;
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, ViewUniformBuffer)
@@ -137,6 +138,10 @@ class FExponentialHeightFogPS : public FGlobalShader
 		SHADER_PARAMETER(float, UpsampleJitterMultiplier)
 		SHADER_PARAMETER(FVector4f, WaterDepthTextureMinMaxUV)
 		SHADER_PARAMETER(FVector4f, OcclusionTextureMinMaxUV)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, SrcCloudDepthTexture)
+		SHADER_PARAMETER_SAMPLER(SamplerState, SrcCloudDepthSampler)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, SrcCloudViewTexture)
+		SHADER_PARAMETER_SAMPLER(SamplerState, SrcCloudViewSampler)
 	END_SHADER_PARAMETER_STRUCT()
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
@@ -279,6 +284,12 @@ static FFogPassParameters* CreateDefaultFogPassParameters(
 	PassParameters->PS.UpsampleJitterMultiplier = CVarUpsampleJitterMultiplier.GetValueOnRenderThread() * GVolumetricFogGridPixelSize;
 	PassParameters->PS.bOnlyOnRenderedOpaque = View.bFogOnlyOnRenderedOpaque;
 	PassParameters->PS.bUseWaterDepthTexture = false;
+
+	PassParameters->PS.SrcCloudDepthTexture = GSystemTextures.GetWhiteDummy(GraphBuilder);
+	PassParameters->PS.SrcCloudDepthSampler = TStaticSamplerState<SF_Point, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
+	PassParameters->PS.SrcCloudViewTexture = GSystemTextures.GetWhiteDummy(GraphBuilder);
+	PassParameters->PS.SrcCloudViewSampler = TStaticSamplerState<SF_Point, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
+
 	return PassParameters;
 }
 
@@ -288,7 +299,9 @@ static void RenderViewFog(
 	FIntRect ViewRect, 
 	FFogPassParameters* PassParameters, 
 	bool bShouldRenderVolumetricFog,
-	bool bFogComposeLocalFogVolumes)
+	bool bFogComposeLocalFogVolumes,
+	bool bSampleFogOnClouds = false,
+	bool bEnableBlending = true)
 {
 	FGraphicsPipelineStateInitializer GraphicsPSOInit;
 	RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);
@@ -298,8 +311,15 @@ static void RenderViewFog(
 	GraphicsPSOInit.DepthStencilState = TStaticDepthStencilState<false, CF_Always>::GetRHI();
 	GraphicsPSOInit.PrimitiveType = PT_TriangleList;
 
-	// disable alpha writes in order to preserve scene depth values on PC
-	GraphicsPSOInit.BlendState = TStaticBlendState<CW_RGB, BO_Add, BF_One, BF_SourceAlpha>::GetRHI();
+	if (bEnableBlending)
+	{
+		// disable alpha writes in order to preserve scene depth values on PC
+		GraphicsPSOInit.BlendState = TStaticBlendState<CW_RGB, BO_Add, BF_One, BF_SourceAlpha>::GetRHI();
+	}
+	else
+	{
+		GraphicsPSOInit.BlendState = TStaticBlendState<>::GetRHI();
+	}
 
 	TShaderMapRef<FHeightFogVS> VertexShader(View.ShaderMap);
 	GraphicsPSOInit.BoundShaderState.VertexDeclarationRHI = GFogVertexDeclaration.VertexDeclarationRHI;
@@ -311,11 +331,12 @@ static void RenderViewFog(
 	PsPermutationVector.Set<FExponentialHeightFogPS::FSupportFogDirectionalLightInScattering>(!bUseFogInscatteringColorCubemap && View.bUseDirectionalInscattering);
 	PsPermutationVector.Set<FExponentialHeightFogPS::FSupportVolumetricFog>(bShouldRenderVolumetricFog);
 	PsPermutationVector.Set<FExponentialHeightFogPS::FSupportLocalFogVolume>(bFogComposeLocalFogVolumes);
+	PsPermutationVector.Set<FExponentialHeightFogPS::FSampleFogOnClouds>(bSampleFogOnClouds);
 	TShaderMapRef<FExponentialHeightFogPS> PixelShader(View.ShaderMap, PsPermutationVector);
 	GraphicsPSOInit.BoundShaderState.PixelShaderRHI = PixelShader.GetPixelShader();
 
 	// Setup the depth bound optimization if possible on that platform.
-	GraphicsPSOInit.bDepthBounds = GSupportsDepthBoundsTest && CVarFogUseDepthBounds.GetValueOnAnyThread();
+	GraphicsPSOInit.bDepthBounds = GSupportsDepthBoundsTest && CVarFogUseDepthBounds.GetValueOnAnyThread() && !bSampleFogOnClouds;
 	if (GraphicsPSOInit.bDepthBounds)
 	{
 		float FogStartDistance = GetViewFogCommonStartDistance(View, bShouldRenderVolumetricFog, bFogComposeLocalFogVolumes);
@@ -358,6 +379,62 @@ static void RenderViewFog(
 	// Draw a quad covering the view.
 	RHICmdList.SetStreamSource(0, GScreenSpaceVertexBuffer.VertexBufferRHI, 0);
 	RHICmdList.DrawIndexedPrimitive(GTwoTrianglesIndexBuffer.IndexBufferRHI, 0, 0, 4, 0, 2, 1);
+}
+
+void RenderFogOnClouds(
+	FRDGBuilder& GraphBuilder,
+	const FScene* Scene,
+	const FViewInfo& View,
+	FRDGTextureRef SrcCloudDepth,
+	FRDGTextureRef SrcCloudView,
+	FRDGTextureRef DstCloudView,
+	const bool bShouldRenderVolumetricFog,
+	const bool bUseVolumetricRenderTarget)
+{
+	if (Scene->ExponentialFogs.Num() > 0)
+	{
+		RDG_EVENT_SCOPE(GraphBuilder, "ExponentialHeightFog on Clouds");
+		RDG_GPU_STAT_SCOPE(GraphBuilder, Fog);
+
+		if (View.IsPerspectiveProjection())
+		{
+			RDG_GPU_MASK_SCOPE(GraphBuilder, View.GPUMask);
+
+			TRDGUniformBufferRef<FFogUniformParameters> FogUniformBuffer = CreateFogUniformBuffer(GraphBuilder, View);
+
+			// Light shaft is not accounted for in this case
+			const FScreenPassTextureViewportParameters LightShaftParameters;
+			// Local fog volume are not accounted for in this case
+			const bool bFogComposeLocalFogVolumes = false;
+
+			FFogPassParameters* PassParameters = CreateDefaultFogPassParameters(
+				GraphBuilder, View, 
+				CreateSceneTextureUniformBuffer(GraphBuilder,View, ESceneTextureSetupMode::None),
+				FogUniformBuffer, nullptr /*LightShaftOcclusionTexture*/, LightShaftParameters);
+
+			// Patch the pass parameter for it to work on clouds
+			PassParameters->VS.ViewUniformBuffer = GetShaderBinding(bUseVolumetricRenderTarget ? View.VolumetricRenderTargetViewUniformBuffer : View.ViewUniformBuffer);
+			PassParameters->PS.ViewUniformBuffer = GetShaderBinding(bUseVolumetricRenderTarget ? View.VolumetricRenderTargetViewUniformBuffer : View.ViewUniformBuffer);
+			PassParameters->PS.bOnlyOnRenderedOpaque = false;
+
+			PassParameters->PS.SrcCloudDepthTexture = SrcCloudDepth;
+			PassParameters->PS.SrcCloudViewTexture = SrcCloudView;
+
+			PassParameters->RenderTargets[0] = FRenderTargetBinding(DstCloudView, ERenderTargetLoadAction::ENoAction);
+			// No depth target
+
+			// We enable the blending when volumetric render target is not enabled. Because in this case, the fog pass is compositing directly over the scene.
+			const bool bEnableBlending = !bUseVolumetricRenderTarget;
+
+			FIntRect ViewRect(0, 0, SrcCloudView->Desc.Extent.X, SrcCloudView->Desc.Extent.Y);
+			GraphBuilder.AddPass(RDG_EVENT_NAME("Fog"), PassParameters, ERDGPassFlags::Raster,
+				[&View, ViewRect, PassParameters, bShouldRenderVolumetricFog, bFogComposeLocalFogVolumes, bEnableBlending](FRHICommandList& RHICmdList)
+				{
+					const bool bSampleFogOnClouds = true;
+					RenderViewFog(RHICmdList, View, ViewRect, PassParameters, bShouldRenderVolumetricFog, bFogComposeLocalFogVolumes, bSampleFogOnClouds, bEnableBlending);
+				});
+		}
+	}
 }
 
 void FDeferredShadingSceneRenderer::RenderFog(

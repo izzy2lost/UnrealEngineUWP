@@ -2058,6 +2058,7 @@ FCloudRenderContext::FCloudRenderContext()
 	bSkipAtmosphericLightShadowmap = false;
 
 	bSkipAerialPerspective = false;
+	bSkipHeightFog = false;
 
 	bAsyncCompute = false;
 	bCloudDebugViewModeEnabled = false;
@@ -2162,6 +2163,7 @@ static TRDGUniformBufferRef<FRenderVolumetricCloudGlobalParameters> CreateCloudP
 	}
 
 	VolumetricCloudParams.EnableAerialPerspectiveSampling = CloudRC.bSkipAerialPerspective ? 0 : 1;
+	VolumetricCloudParams.EnableHeightFog = VolumetricCloudParams.EnableHeightFog && !CloudRC.bSkipHeightFog ? 1 : 0;
 	VolumetricCloudParams.EnableDistantSkyLightSampling = CVarVolumetricCloudEnableDistantSkyLightSampling.GetValueOnAnyThread() > 0 ? 1 : 0;
 	VolumetricCloudParams.EnableAtmosphericLightsSampling = CVarVolumetricCloudEnableAtmosphericLightsSampling.GetValueOnAnyThread() > 0 ? 1 : 0;
 
@@ -2595,6 +2597,7 @@ bool FSceneRenderer::RenderVolumetricCloud(
 				ViewToProcess.bCloudDebugViewModeEnabled = bCloudDebugViewModeEnabled;
 			}
 
+			const bool bHeightFogInScene = Scene->ExponentialFogs.Num() > 0;
 			for (int32 ViewIndex = 0; ViewIndex < ViewsToProcess.Num(); ViewIndex++)
 			{
 				RDG_EVENT_SCOPE_CONDITIONAL(GraphBuilder, ViewsToProcess.Num() > 1, "View%d", ViewIndex);
@@ -2614,10 +2617,13 @@ bool FSceneRenderer::RenderVolumetricCloud(
 				CloudRC.ViewUniformBuffer = bShouldViewRenderVolumetricCloudRenderTarget ? ViewInfo.VolumetricRenderTargetViewUniformBuffer : ViewInfo.ViewUniformBuffer;
 
 				CloudRC.bSkipAerialPerspective = !bEnableAerialPerspectiveSampling || bShouldUseHighQualityAerialPerspective; // Skip AP on clouds if we are going to trace it separately in a second pass
+				CloudRC.bSkipHeightFog = bShouldUseHighQualityAerialPerspective;
 				CloudRC.bIsReflectionRendering = ViewInfo.bIsReflectionCapture;
 
 				FRDGTextureRef IntermediateRT = nullptr;
 				FRDGTextureRef IntermediateSecondaryRT = nullptr;
+				FRDGTextureRef IntermediateRT2 = nullptr;
+				FRDGTextureRef IntermediateSecondaryRT2 = nullptr;
 				FRDGTextureRef DestinationRT = nullptr;
 				FRDGTextureRef DestinationSecondaryRT = nullptr;
 				FRDGTextureRef DestinationRTDepth = nullptr;
@@ -2640,6 +2646,16 @@ bool FSceneRenderer::RenderVolumetricCloud(
 						IntermediateSecondaryRT = GraphBuilder.CreateTexture(
 							FRDGTextureDesc::Create2D(IntermadiateTargetResolution, PF_FloatRGBA, FClearValueBinding(FLinearColor(63000.0f, 63000.0f, 63000.0f, 63000.0f)),
 								TexCreate_ShaderResource | TexCreate_RenderTargetable | TexCreate_UAV), TEXT("Cloud.HighQualityAPIntermediateSecondary"));
+
+						if (bHeightFogInScene)
+						{
+							IntermediateRT2 = GraphBuilder.CreateTexture(
+								FRDGTextureDesc::Create2D(IntermadiateTargetResolution, PF_FloatRGBA, FClearValueBinding(FLinearColor(63000.0f, 63000.0f, 63000.0f, 63000.0f)),
+									TexCreate_ShaderResource | TexCreate_RenderTargetable | TexCreate_UAV), TEXT("Cloud.HighQualityAPIntermediate2"));
+							IntermediateSecondaryRT2 = GraphBuilder.CreateTexture(
+								FRDGTextureDesc::Create2D(IntermadiateTargetResolution, PF_FloatRGBA, FClearValueBinding(FLinearColor(63000.0f, 63000.0f, 63000.0f, 63000.0f)),
+									TexCreate_ShaderResource | TexCreate_RenderTargetable | TexCreate_UAV), TEXT("Cloud.HighQualityAPIntermediateSecondary2"));
+						}
 					}
 
 					// No action because we only need to render volumetric clouds so we do not blend in that render target.
@@ -2676,6 +2692,13 @@ bool FSceneRenderer::RenderVolumetricCloud(
 						IntermediateRT = GraphBuilder.CreateTexture(
 							FRDGTextureDesc::Create2D(IntermadiateTargetResolution, PF_FloatRGBA, FClearValueBinding(FLinearColor(0.0f, 0.0f, 0.0f, 1.0f)),
 								TexCreate_ShaderResource | TexCreate_RenderTargetable | TexCreate_UAV), TEXT("Cloud.HighQualityAPIntermediate"));
+
+						if (bHeightFogInScene)
+						{
+							IntermediateRT2 = GraphBuilder.CreateTexture(
+								FRDGTextureDesc::Create2D(IntermadiateTargetResolution, PF_FloatRGBA, FClearValueBinding(FLinearColor(63000.0f, 63000.0f, 63000.0f, 63000.0f)),
+									TexCreate_ShaderResource | TexCreate_RenderTargetable | TexCreate_UAV), TEXT("Cloud.HighQualityAPIntermediate2"));
+						}
 					}
 
 					// Create a texture for cloud depth data that will be dropped out just after.
@@ -2759,7 +2782,9 @@ bool FSceneRenderer::RenderVolumetricCloud(
 					SkyRC.bUseDepthBoundTestIfPossible = false;
 					SkyRC.bForceRayMarching = true;				// We do not have any valid view LUT
 					SkyRC.bDepthReadDisabled = true;
-					SkyRC.bDisableBlending = bShouldViewRenderVolumetricCloudRenderTarget ? true : false;
+
+					// Disable blending if volumetric render target is used, or if height fog is present (meaning we are going to render in a separate render target before blending over the scene)
+					SkyRC.bDisableBlending = (bShouldViewRenderVolumetricCloudRenderTarget || bHeightFogInScene) ? true : false;
 
 					SkyRC.TransmittanceLut = GraphBuilder.RegisterExternalTexture(SkyInfo.GetTransmittanceLutTexture());
 					SkyRC.MultiScatteredLuminanceLut = GraphBuilder.RegisterExternalTexture(SkyInfo.GetMultiScatteredLuminanceLutTexture());
@@ -2768,7 +2793,7 @@ bool FSceneRenderer::RenderVolumetricCloud(
 					SkyRC.bAPOnCloudMode = true;
 					SkyRC.VolumetricCloudDepthTexture = DestinationRTDepth;
 					SkyRC.InputCloudLuminanceTransmittanceTexture = IntermediateRT;
-					SkyRC.RenderTargets[0] = FRenderTargetBinding(DestinationRT, ERenderTargetLoadAction::ENoAction);
+					SkyRC.RenderTargets[0] = FRenderTargetBinding(bHeightFogInScene ? IntermediateRT2 : DestinationRT, ERenderTargetLoadAction::ENoAction);
 
 					SkyRC.ViewMatrices = &ViewInfo.ViewMatrices;
 					SkyRC.ViewUniformBuffer = bShouldViewRenderVolumetricCloudRenderTarget ? ViewInfo.VolumetricRenderTargetViewUniformBuffer : ViewInfo.ViewUniformBuffer;
@@ -2816,8 +2841,44 @@ bool FSceneRenderer::RenderVolumetricCloud(
 						// We need to execute a second tracing for the far depth cloud result in order to correctly fix up edges.
 						SkyRC.VolumetricCloudDepthTexture = DestinationRTDepth;
 						SkyRC.InputCloudLuminanceTransmittanceTexture = IntermediateSecondaryRT;
-						SkyRC.RenderTargets[0] = FRenderTargetBinding(DestinationSecondaryRT, ERenderTargetLoadAction::ENoAction);
+						SkyRC.RenderTargets[0] = FRenderTargetBinding(bHeightFogInScene ? IntermediateSecondaryRT2 : DestinationSecondaryRT, ERenderTargetLoadAction::ENoAction);
 						RenderSkyAtmosphereInternal(GraphBuilder, GetSceneTextureShaderParameters(SceneTextures.UniformBuffer), SkyRC);
+					}
+
+					// Also render fog on top of AP
+					if (bHeightFogInScene)
+					{
+						const bool bShouldRenderVolumetricFog = ShouldRenderVolumetricFog();
+
+						FRDGTextureRef SrcCloudDepth = DestinationRTDepth;
+						FRDGTextureRef SrcCloudView  = IntermediateRT2;
+						FRDGTextureRef DstCloudView  = DestinationRT;
+						RenderFogOnClouds(
+							GraphBuilder,
+							Scene,
+							ViewInfo, 
+							SrcCloudDepth,
+							SrcCloudView,
+							DstCloudView,
+							bShouldRenderVolumetricFog,
+							bShouldViewRenderVolumetricCloudRenderTarget);
+
+						if (DestinationSecondaryRT)
+						{
+							// We need to execute a second tracing for the far depth cloud result in order to correctly fix up edges.
+							SrcCloudDepth = DestinationRTDepth;
+							SrcCloudView = IntermediateSecondaryRT2;
+							DstCloudView = DestinationSecondaryRT;
+							RenderFogOnClouds(
+								GraphBuilder,
+								Scene,
+								ViewInfo,
+								SrcCloudDepth,
+								SrcCloudView,
+								DstCloudView,
+								bShouldRenderVolumetricFog,
+								bShouldViewRenderVolumetricCloudRenderTarget);
+						}
 					}
 				}
 
