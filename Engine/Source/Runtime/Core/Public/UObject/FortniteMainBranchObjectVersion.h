@@ -390,6 +390,9 @@ struct FFortniteMainBranchObjectVersion
 		// Enabled ObjectPtr property serialization for Dataflow nodes
 		AddDataflowObjectSerialization,
 
+		// Add anim notify rate scaling, defaults to on for new content, off for old content
+		AnimNotifyAddRateScale,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1
