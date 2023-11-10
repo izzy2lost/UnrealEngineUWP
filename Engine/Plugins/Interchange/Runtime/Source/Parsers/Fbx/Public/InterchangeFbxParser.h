@@ -23,13 +23,23 @@ namespace UE
 		public:
 			FInterchangeFbxParser();
 			~FInterchangeFbxParser();
+			
+			void ReleaseResources();
 
+			void SetResultContainer(UInterchangeResultsContainer* Result);
 			/**
 			 * Parse a file support by the fbx sdk. It just extract all the fbx node and create a FBaseNodeContainer and dump it in a json file inside the ResultFolder
 			 * @param - Filename is the file that the fbx sdk will read (.fbx or .obj)
 			 * @param - ResultFolder is the folder where we must put any result file
 			 */
 			void LoadFbxFile(const FString& Filename, const FString& ResultFolder);
+
+			/**
+			 * Parse a file support by the fbx sdk. It just extract all the fbx node and create a FBaseNodeContainer and dump it in a json file inside the ResultFolder
+			 * @param - Filename is the file that the fbx sdk will read (.fbx or .obj)
+			 * @param - BaseNodecontainer is the container of the scene graph
+			 */
+			void LoadFbxFile(const FString& Filename, UInterchangeBaseNodeContainer& BaseNodecontainer);
 
 			/**
 			 * Extract payload data from the fbx, the key tell the translator what payload the client ask
@@ -77,11 +87,17 @@ namespace UE
 			template <typename T>
 			T* AddMessage()
 			{
-				return ResultsContainer->Add<T>();
+				if (UInterchangeResultsContainer* ResultContainer = GetResultContainer())
+				{
+					return ResultContainer->Add<T>();
+				}
+				return nullptr;
 			}
 
-
 		private:
+			UInterchangeResultsContainer* GetResultContainer() const;
+
+			TObjectPtr<UInterchangeResultsContainer> InternalResultsContainer = nullptr;
 			TStrongObjectPtr<UInterchangeResultsContainer> ResultsContainer = nullptr;
 			FString SourceFilename;
 			FString ResultFilepath;

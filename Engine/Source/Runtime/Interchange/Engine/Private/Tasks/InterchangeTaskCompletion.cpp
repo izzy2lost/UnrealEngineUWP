@@ -20,21 +20,6 @@
 #include "UObject/ObjectMacros.h"
 #include "UObject/WeakObjectPtrTemplates.h"
 
-void UE::Interchange::FTaskPreAsyncCompletion::DoTask(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent)
-{
-	TRACE_CPUPROFILER_EVENT_SCOPE(UE::Interchange::FTaskPreAsyncCompletion::DoTask)
-#if INTERCHANGE_TRACE_ASYNCHRONOUS_TASK_ENABLED
-	INTERCHANGE_TRACE_ASYNCHRONOUS_TASK(PreAsyncCompletion)
-#endif
-	FGCScopeGuard GCScopeGuard;
-
-	TSharedPtr<FImportAsyncHelper, ESPMode::ThreadSafe> AsyncHelper = WeakAsyncHelper.Pin();
-	check(AsyncHelper.IsValid());
-
-	//No need anymore of the translators sources
-	AsyncHelper->ReleaseTranslatorsSource();
-}
-
 void UE::Interchange::FTaskPreCompletion::DoTask(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UE::Interchange::FTaskPreCompletion::DoTask)

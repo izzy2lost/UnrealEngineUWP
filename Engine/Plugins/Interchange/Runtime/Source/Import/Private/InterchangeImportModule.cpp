@@ -77,7 +77,9 @@ void FInterchangeImportModule::StartupModule()
 
 		//Register the translators
 		//Scenes
+#if WITH_EDITOR
 		InterchangeManager.RegisterTranslator(UInterchangeFbxTranslator::StaticClass());
+#endif
 		InterchangeManager.RegisterTranslator(UInterchangeGLTFTranslator::StaticClass());
 		InterchangeManager.RegisterTranslator(UInterchangeOBJTranslator::StaticClass());
 

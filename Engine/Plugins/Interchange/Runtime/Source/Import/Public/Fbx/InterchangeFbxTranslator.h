@@ -12,6 +12,10 @@
 #include "UObject/Object.h"
 #include "UObject/ObjectMacros.h"
 
+#if WITH_EDITOR
+#include "InterchangeFbxParser.h"
+#endif //WITH_EDITOR
+
 #include "InterchangeFbxTranslator.generated.h"
 
 /* Fbx translator class support import of texture, material, static mesh, skeletal mesh, */
@@ -27,6 +31,7 @@ public:
 	UInterchangeFbxTranslator();
 
 	/** Begin UInterchangeTranslatorBase API*/
+	virtual bool IsThreadSafe() const override;
 	virtual EInterchangeTranslatorType GetTranslatorType() const override;
 	virtual EInterchangeTranslatorAssetType GetSupportedAssetTypes() const override;
 	virtual TArray<FString> GetSupportedFormats() const override;
@@ -85,6 +90,14 @@ private:
 	//in the constructor because Archetype, CDO and registered translators will
 	//never translate a source.
 	mutable TUniquePtr<UE::Interchange::FInterchangeDispatcher> Dispatcher;
+
+	//If true this translator will use the dispatcher (InterchangeWorker program) to translate and return payloads.
+	//If false, this translator will not use the dispatcher
+	bool bUseWorkerImport = false;
+#if WITH_EDITOR
+	mutable UE::Interchange::FInterchangeFbxParser FbxParser;
+#endif //WITH_EDITOR
+	FString ResultFolder;
 };
 
 

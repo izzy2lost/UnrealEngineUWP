@@ -225,7 +225,6 @@ namespace UE
 			TArray<FGraphEventRef> FinalizeImportObjectTasks;
 			TArray<FGraphEventRef> SceneTasks;
 
-			FGraphEventRef PreAsyncCompletionTask;
 			FGraphEventRef PreCompletionTask;
 			FGraphEventRef CompletionTask;
 
@@ -676,7 +675,11 @@ private:
 	{
 		FString PackageBasePath;
 		TSharedPtr<UE::Interchange::FImportAsyncHelper, ESPMode::ThreadSafe> AsyncHelper;
+		UClass* TranslatorClass = nullptr;
 	};
+
+	TMap<UClass*, bool> NonParallelTranslatorLocks;
+	TMap<UClass*, TArray<FQueuedTaskData>> NonParallelTranslatorQueueTasks;
 	
 	//Queue all incomming tasks if there is more started task then we have cores
 	TQueue<FQueuedTaskData> QueuedTasks;

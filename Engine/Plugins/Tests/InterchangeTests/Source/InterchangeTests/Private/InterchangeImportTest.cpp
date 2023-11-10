@@ -7,7 +7,6 @@
 #include "Editor/Transactor.h"
 #include "HAL/FileManager.h"
 #include "Misc/AutomationTest.h"
-#include "InterchangeDispatcher.h"
 #include "InterchangeHelper.h"
 #include "InterchangeImportTestData.h"
 #include "InterchangeImportTestPlan.h"
@@ -15,39 +14,7 @@
 #include "Modules/ModuleManager.h"
 #include "ObjectTools.h"
 
-
-class FInterchangeImportTestBase : public FAutomationTestBase
-{
-public:
-	FInterchangeImportTestBase(const FString& InName, const bool bInComplexTask)
-		: FAutomationTestBase(InName, bInComplexTask)
-	{
-	}
-
-	virtual bool CanRunInEnvironment(const FString& TestParams, FString* OutReason, bool* OutWarn) const override;
-};
-
-bool FInterchangeImportTestBase::CanRunInEnvironment(const FString& TestParams, FString* OutReason, bool* OutWarn) const
-{
-	//Make sure interchange worker is available, skip the test execution if unavailable
-	if (!UE::Interchange::FInterchangeDispatcher::IsInterchangeWorkerAvailable())
-	{
-		if (nullptr != OutWarn)
-		{
-			*OutWarn = false;
-		}
-
-		if (nullptr != OutReason)
-		{
-			*OutReason = "Interchange worker is not available";
-		}
-
-		return false;
-	}
-	return true;
-}
-
-IMPLEMENT_CUSTOM_COMPLEX_AUTOMATION_TEST(FInterchangeImportTest, FInterchangeImportTestBase, "Editor.Interchange", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_CUSTOM_COMPLEX_AUTOMATION_TEST(FInterchangeImportTest, FAutomationTestBase, "Editor.Interchange", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 const FString InterchangeTestsRootGameFolder = TEXT("/Game/Tests/Interchange/");
 

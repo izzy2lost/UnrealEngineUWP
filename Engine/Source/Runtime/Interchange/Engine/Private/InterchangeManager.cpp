@@ -521,10 +521,6 @@ FGraphEventArray UE::Interchange::FImportAsyncHelper::GetCompletionTaskGraphEven
 	}
 	TasksToComplete.Append(PipelinePostImportTasks);
 
-	if (PreAsyncCompletionTask.GetReference())
-	{
-		TasksToComplete.Add(PreAsyncCompletionTask);
-	}
 	if (PreCompletionTask.GetReference())
 	{
 		TasksToComplete.Add(PreCompletionTask);
@@ -1259,6 +1255,26 @@ void UInterchangeManager::StartQueuedTasks(bool bCancelAllTasks /*= false*/)
 	//Each import can use 2 tasks in same time if the build of the asset ddc use the same task pool (i.e. staticmesh, skeletalmesh, texture...)
 	const int32 PoolWorkerThreadCount = FTaskGraphInterface::Get().GetNumWorkerThreads() / 2;
 	const int32 MaxNumWorker = FMath::Max(PoolWorkerThreadCount, 1);
+
+	for (TPair<UClass*, TArray<FQueuedTaskData>>& ClassAndTasks : NonParallelTranslatorQueueTasks)
+	{
+		if(ClassAndTasks.Value.IsEmpty())
+		{
+			continue;
+		}
+		bool& TranslatorLock = NonParallelTranslatorLocks.FindChecked(ClassAndTasks.Key);
+		if (!TranslatorLock)
+		{
+			FQueuedTaskData QueuedTaskData = ClassAndTasks.Value[0];
+			QueuedTasks.Enqueue(QueuedTaskData);
+			TranslatorLock = true;
+			constexpr bool bAllowShrinking = false;
+			ClassAndTasks.Value.RemoveAt(0, 1, bAllowShrinking);
+			//No need to process an another the lock is set
+			continue;
+		}
+	}
+
 	while (!QueuedTasks.IsEmpty() && (ImportTasks.Num() < MaxNumWorker || bCancelAllTasks))
 	{
 		FQueuedTaskData QueuedTaskData;
@@ -1821,7 +1837,28 @@ UInterchangeManager::ImportInternal(const FString& ContentPath, const UInterchan
 	FQueuedTaskData QueuedTaskData;
 	QueuedTaskData.AsyncHelper = AsyncHelper;
 	QueuedTaskData.PackageBasePath = PackageBasePath;
-	QueuedTasks.Enqueue(QueuedTaskData);
+	QueuedTaskData.TranslatorClass = AsyncTranslator->GetClass();
+
+	//If we cancel or abort the task we want to avoid putting it in the NonParallelTranslatorQueueTasks (the locks will not be release if the task doesn't start)
+	bool bTranslatorIsThreadSafe = AsyncTranslator->IsThreadSafe() || (bImportCanceled || bImportAborted);
+	if (bTranslatorIsThreadSafe)
+	{
+		QueuedTasks.Enqueue(QueuedTaskData);
+	}
+	else
+	{
+		//Add a NonParallelTranslatorLocks for this translator class
+		if (!NonParallelTranslatorLocks.Contains(AsyncTranslator->GetClass()))
+		{
+			//Create a boolean lock and initialize it to false
+			bool& TranslatorLock = NonParallelTranslatorLocks.FindOrAdd(AsyncTranslator->GetClass());
+			TranslatorLock = false;
+		}
+		//Add an entry in NonParallelTranslatorQueueTasks
+		TArray<FQueuedTaskData>& NonParallelQueuedTasks = NonParallelTranslatorQueueTasks.FindOrAdd(AsyncTranslator->GetClass());
+		NonParallelQueuedTasks.Add(QueuedTaskData);
+	}
+
 	QueueTaskCount = FMath::Clamp(QueueTaskCount + 1, 0, MAX_int32);
 
 	StartQueuedTasks();
@@ -1930,6 +1967,15 @@ void UInterchangeManager::ReleaseAsyncHelper(TWeakPtr<UE::Interchange::FImportAs
 	bool bSucceeded = false;
 	{
 		TSharedPtr<FImportAsyncHelper> AsyncHelperPtr = AsyncHelper.Pin();
+
+		//Free the lock to allow the next import to happen
+		if (AsyncHelperPtr->Translators.IsValidIndex(0))
+		{
+			if (bool* bTranslatorLock = NonParallelTranslatorLocks.Find(AsyncHelperPtr->Translators[0]->GetClass()))
+			{
+				*bTranslatorLock = false;
+			}
+		}
 		
 		auto ForEachResult = [&bSucceeded, bLogWarningsAndErrors](TArray<UInterchangeResult*>&& Results)
 		{

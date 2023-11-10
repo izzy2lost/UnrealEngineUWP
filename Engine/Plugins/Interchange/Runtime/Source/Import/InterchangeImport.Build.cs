@@ -50,6 +50,7 @@ namespace UnrealBuildTool.Rules
 					new string[]
 					{
 						"BSPUtils",
+						"InterchangeFbxParser",
 						"MaterialEditor",
 						"SkeletalMeshUtilitiesCommon",
 						"UnrealEd",

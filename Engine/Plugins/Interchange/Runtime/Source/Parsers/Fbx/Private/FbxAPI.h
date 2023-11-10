@@ -39,6 +39,11 @@ namespace UE
 
 				~FFbxParser();
 
+				void SetResultContainer(UInterchangeResultsContainer* Result)
+				{
+					ResultsContainer = Result;
+				}
+
 				//return the fbx helper for this parser
 				const TSharedPtr<FFbxHelper> GetFbxHelper();
 
@@ -95,6 +100,7 @@ namespace UE
 				FbxScene* SDKScene = nullptr;
 				FbxImporter* SDKImporter = nullptr;
 				FbxGeometryConverter* SDKGeometryConverter = nullptr;
+				FbxIOSettings* SDKIoSettings = nullptr;
 				FString SourceFilename;
 				TMap<FString, TSharedPtr<FPayloadContextBase>> PayloadContexts;
 				TSharedPtr<FFbxHelper> FbxHelper;

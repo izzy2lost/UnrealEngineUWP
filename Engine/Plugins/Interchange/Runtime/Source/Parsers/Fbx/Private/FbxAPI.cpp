@@ -17,6 +17,13 @@
 
 #define LOCTEXT_NAMESPACE "InterchangeFbxParser"
 
+#define DESTROY_FBX_OBJECT(Object) \
+if(Object) \
+{ \
+	Object->Destroy(); \
+	Object = nullptr; \
+}
+
 namespace UE
 {
 	namespace Interchange
@@ -27,6 +34,16 @@ namespace UE
 			{
 				PayloadContexts.Empty();
 				FbxHelper = nullptr;
+
+				DESTROY_FBX_OBJECT(SDKImporter);
+				DESTROY_FBX_OBJECT(SDKScene);
+				if (SDKGeometryConverter)
+				{
+					delete SDKGeometryConverter;
+					SDKGeometryConverter = nullptr;
+				}
+				DESTROY_FBX_OBJECT(SDKIoSettings);
+				DESTROY_FBX_OBJECT(SDKManager);
 			}
 			
 			const TSharedPtr<FFbxHelper> FFbxParser::GetFbxHelper()
@@ -54,18 +71,18 @@ namespace UE
 				}
 
 				//Create an IOSettings object. This object holds all import/export settings.
-				FbxIOSettings* ios = FbxIOSettings::Create(SDKManager, IOSROOT);
-				ios->SetBoolProp(IMP_FBX_MATERIAL, true);
-				ios->SetBoolProp(IMP_FBX_TEXTURE, true);
-				ios->SetBoolProp(IMP_FBX_LINK, true);
-				ios->SetBoolProp(IMP_FBX_SHAPE, true);
-				ios->SetBoolProp(IMP_FBX_GOBO, true);
-				ios->SetBoolProp(IMP_FBX_ANIMATION, true);
-				ios->SetBoolProp(IMP_SKINS, true);
-				ios->SetBoolProp(IMP_DEFORMATION, true);
-				ios->SetBoolProp(IMP_FBX_GLOBAL_SETTINGS, true);
-				ios->SetBoolProp(IMP_TAKE, true);
-				SDKManager->SetIOSettings(ios);
+				SDKIoSettings = FbxIOSettings::Create(SDKManager, IOSROOT);
+				SDKIoSettings->SetBoolProp(IMP_FBX_MATERIAL, true);
+				SDKIoSettings->SetBoolProp(IMP_FBX_TEXTURE, true);
+				SDKIoSettings->SetBoolProp(IMP_FBX_LINK, true);
+				SDKIoSettings->SetBoolProp(IMP_FBX_SHAPE, true);
+				SDKIoSettings->SetBoolProp(IMP_FBX_GOBO, true);
+				SDKIoSettings->SetBoolProp(IMP_FBX_ANIMATION, true);
+				SDKIoSettings->SetBoolProp(IMP_SKINS, true);
+				SDKIoSettings->SetBoolProp(IMP_DEFORMATION, true);
+				SDKIoSettings->SetBoolProp(IMP_FBX_GLOBAL_SETTINGS, true);
+				SDKIoSettings->SetBoolProp(IMP_TAKE, true);
+				SDKManager->SetIOSettings(SDKIoSettings);
 
 				SDKGeometryConverter = new FbxGeometryConverter(SDKManager);
 

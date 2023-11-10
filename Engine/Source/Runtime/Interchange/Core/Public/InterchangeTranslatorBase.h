@@ -49,6 +49,13 @@ public:
 	/** return true if the translator can translate the given source data. */
 	INTERCHANGECORE_API virtual bool CanImportSourceData(const UInterchangeSourceData* InSourceData) const;
 
+	/**
+	 * Return true if the translator can be instantiate more then one time.
+	 * Some translator are not thread safe and cannot translate two files in same time.
+	 * A non thread safe translator could use the InterchangeWorker program to run in a separate process and return true.
+	 */
+	INTERCHANGECORE_API virtual bool IsThreadSafe() const { return true; }
+
 	/** Specifies the capabilities of a translator. */
 	virtual EInterchangeTranslatorType GetTranslatorType() const { return EInterchangeTranslatorType::Assets; }
 
