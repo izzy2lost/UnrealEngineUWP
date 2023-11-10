@@ -1372,6 +1372,46 @@ bool UKismetMathLibrary::IsPointInBox_Box(FVector Point, FBox Box)
 	return Box.IsInsideOrOn(Point);
 }
 
+FBox UKismetMathLibrary::MakeBoxWithOrigin(const FVector& Origin, const FVector& Extent)
+{
+	return FBox::BuildAABB(Origin, Extent);
+}
+
+bool UKismetMathLibrary::Box_IsInside(const FBox& InnerTest, const FBox& OuterTest)
+{
+	return InnerTest.IsInside(OuterTest);
+}
+
+bool UKismetMathLibrary::Box_IsInsideOrOn(const FBox& InnerTest, const FBox& OuterTest)
+{
+	return InnerTest.IsInsideOrOn(OuterTest);
+}
+
+bool UKismetMathLibrary::Box_IsPointInside(const FBox& Box, const FVector& Point)
+{
+	return Box.IsInside(Point);
+}
+
+bool UKismetMathLibrary::Box_Intersects(const FBox& A, const FBox& B)
+{
+	return A.Intersect(B);
+}
+
+FBox UKismetMathLibrary::Box_ExpandBy(const FBox& Box, const FVector& Negative, const FVector& Positive)
+{
+	return Box.ExpandBy(Negative, Positive);
+}
+
+FBox UKismetMathLibrary::Box_Overlap(const FBox& A, const FBox& B)
+{
+	return A.Overlap(B);
+}
+
+FVector UKismetMathLibrary::Box_GetClosestPointTo(const FBox& Box, const FVector& Point)
+{
+	return Box.GetClosestPointTo(Point);
+}
+
 double UKismetMathLibrary::GetBoxVolume(const FBox& InBox)
 {
 	return InBox.GetVolume();
