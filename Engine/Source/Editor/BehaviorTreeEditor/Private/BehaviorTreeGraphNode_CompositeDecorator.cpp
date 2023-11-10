@@ -64,6 +64,16 @@ FText UBehaviorTreeGraphNode_CompositeDecorator::GetDescription() const
 	return FText::FromString(CachedDescription);
 }
 
+FText UBehaviorTreeGraphNode_CompositeDecorator::GetTooltipText() const
+{
+	if (ErrorMessage.IsEmpty() == false)
+	{
+		return FText::FromString(ErrorMessage);
+	}
+
+	return LOCTEXT("CompositeTooltip", "This node enables you to set up more advanced conditions using logic gates.");
+}
+
 void UBehaviorTreeGraphNode_CompositeDecorator::PostPlacedNewNode()
 {
 	if (BoundGraph == nullptr)
