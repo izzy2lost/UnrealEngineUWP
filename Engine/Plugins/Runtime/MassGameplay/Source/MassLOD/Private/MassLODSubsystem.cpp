@@ -117,8 +117,6 @@ void UMassLODSubsystem::Deinitialize()
 			SimSystem->GetOnProcessingPhaseStarted(EMassProcessingPhase::PrePhysics).RemoveAll(this);
 		}
 	}
-
-	Super::Deinitialize();
 }
 
 int32 UMassLODSubsystem::GetValidViewerIdx(const FMassViewerHandle& ViewerHandle) const

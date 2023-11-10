@@ -15,6 +15,4 @@ void UMassActorEditorSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	check(MassEditorEditorSubsystem);
 	TSharedRef<FMassEntityManager> MassEntityManager = MassEditorEditorSubsystem->GetMutableEntityManager();
 	ActorManager = MakeShareable(new FMassActorManager(MassEntityManager));
-
-	Super::Initialize(Collection);
 }

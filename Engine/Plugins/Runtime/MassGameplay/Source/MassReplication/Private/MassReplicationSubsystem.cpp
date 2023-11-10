@@ -49,8 +49,6 @@ void UMassReplicationSubsystem::Deinitialize()
 	World = nullptr;
 	MassLODSubsystem = nullptr;
 	EntityManager.Reset();
-
-	Super::Deinitialize();
 }
 
 UMassReplicationSubsystem::UMassReplicationSubsystem()

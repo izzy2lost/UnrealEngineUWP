@@ -82,8 +82,6 @@ void UMassCrowdSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 		RebuildLaneData();
 	});
 #endif
-
-	HandleLateCreation();
 }
 
 void UMassCrowdSubsystem::Deinitialize()

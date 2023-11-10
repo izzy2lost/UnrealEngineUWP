@@ -69,7 +69,6 @@ void UMassAgentSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 void UMassAgentSubsystem::Deinitialize()
 {
 	EntityManager.Reset();
-	Super::Deinitialize();
 }
 
 FMassEntityTemplateID UMassAgentSubsystem::RegisterAgentComponent(UMassAgentComponent& AgentComp)
