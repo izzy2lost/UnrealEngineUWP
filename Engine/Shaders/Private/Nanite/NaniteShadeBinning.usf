@@ -688,13 +688,7 @@ void ShadingBinBuildCS(uint ThreadIndex : SV_GroupIndex, uint2 GroupId : SV_Grou
 void ShadingBinBuildCS(uint ThreadIndex : SV_GroupIndex, uint2 GroupId : SV_GroupID)
 {
 	uint2 Coord = GroupId.xy * 8u;
-
-#if 1
-	Coord += LinearToSwizzled(ThreadIndex);
-#else
-	Coord += Unflatten2D(ThreadIndex, uint2(8u, 8u));
-#endif
-
+	Coord += MortonDecode(ThreadIndex);
 	BinShadingQuad(Coord, ThreadIndex);
 }
 
