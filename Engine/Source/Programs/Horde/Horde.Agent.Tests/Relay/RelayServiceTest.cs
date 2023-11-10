@@ -33,7 +33,7 @@ public class RelayServiceTest
 
 	public RelayServiceTest()
 	{
-		_relayService = new RelayService(new List<string> { "192.168.1.99" }, Nftables.CreateNull(), _grpcClient, NullLogger<RelayService>.Instance);
+		_relayService = new RelayService("myCluster", "myAgent", new List<string> { "192.168.1.99" }, Nftables.CreateNull(), _grpcClient, NullLogger<RelayService>.Instance);
 		_relayService.CooldownOnException = TimeSpan.Zero;
 	}
 	
@@ -44,12 +44,12 @@ public class RelayServiceTest
 		_grpcClient.GetPortMappingsResponses.AddMessage(new GetPortMappingsResponse { PortMappings = { NftablesTests.LeaseMap1 }});
 		_grpcClient.GetPortMappingsResponses.AddMessage(new GetPortMappingsResponse { PortMappings = { NftablesTests.LeaseMap2, NftablesTests.LeaseMap1 }});
 
-		List<PortMapping> pm1 = await _relayService.GetPortMappingsLongPollAsync(TimeSpan.FromSeconds(10), cts.Token);
-		Assert.AreEqual(1, pm1.Count);
+		List<PortMapping>? pm1 = await _relayService.GetPortMappingsLongPollAsync(cts.Token);
+		Assert.AreEqual(1, pm1!.Count);
 		Assert.AreEqual("lease1", pm1[0].LeaseId);
 		
-		List<PortMapping> pm2 = await _relayService.GetPortMappingsLongPollAsync(TimeSpan.FromSeconds(10), cts.Token);
-		Assert.AreEqual(2, pm2.Count);
+		List<PortMapping>? pm2 = await _relayService.GetPortMappingsLongPollAsync(cts.Token);
+		Assert.AreEqual(2, pm2!.Count);
 		Assert.AreEqual("lease2", pm2[0].LeaseId);
 		Assert.AreEqual("lease1", pm2[1].LeaseId);
 	}
@@ -58,7 +58,7 @@ public class RelayServiceTest
 	public async Task GetPortMappingsLongPoll_TimesOut_Async()
 	{
 		using CancellationTokenSource cts = new (3000);
-		await Assert.ThrowsExceptionAsync<OperationCanceledException>(() => _relayService.GetPortMappingsLongPollAsync(TimeSpan.FromMilliseconds(500), cts.Token));
+		await Assert.ThrowsExceptionAsync<OperationCanceledException>(() => _relayService.GetPortMappingsLongPollAsync(cts.Token));
 	}
 	
 	[TestMethod]

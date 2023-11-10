@@ -409,9 +409,9 @@ namespace Horde.Server.Server
 			string bogusLeaseId = ObjectId.GenerateNewId().ToString();
 			List<Port> ports = new()
 			{
-				new Port { ListenPort = -1, AgentPort = agentPort.Value, Protocol = PortProtocol.Tcp }
+				new Port { RelayPort = -1, AgentPort = agentPort.Value, Protocol = PortProtocol.Tcp }
 			};
-			PortMapping portMapping = await _agentRelayService.AddPortMappingAsync(bogusLeaseId, agentIp, ports);
+			PortMapping portMapping = await _agentRelayService.AddPortMappingAsync("default", bogusLeaseId, agentIp, ports);
 			return JsonFormatter.Default.Format(portMapping);
 		}
 

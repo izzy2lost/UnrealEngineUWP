@@ -18,20 +18,26 @@ public class RelayService
 	/// </summary>
 	public TimeSpan CooldownOnException { get; set; } = TimeSpan.FromSeconds(5);
 
+	private readonly string _clusterId;
+	private readonly string _agentId;
 	private readonly List<string> _ipAddresses;
 	private readonly Nftables _nftables;
 	private readonly RelayRpc.RelayRpcClient _relayRpcClient;
-	private readonly ILogger<RelayService> _logger;
+	private readonly ILogger _logger;
 
 	/// <summary>
 	/// Constructor
 	/// </summary>
+	/// <param name="clusterId">Cluster ID this relay agent belongs to</param>
+	/// <param name="agentId">Unique ID of this relay agent</param>
 	/// <param name="ipAddresses">IP addresses this relay agent is listening on</param>
 	/// <param name="nftables"></param>
 	/// <param name="relayRpcClient"></param>
 	/// <param name="logger"></param>
-	public RelayService(List<string> ipAddresses, Nftables nftables, RelayRpc.RelayRpcClient relayRpcClient, ILogger<RelayService> logger)
+	public RelayService(string clusterId, string agentId, List<string> ipAddresses, Nftables nftables, RelayRpc.RelayRpcClient relayRpcClient, ILogger logger)
 	{
+		_clusterId = clusterId;
+		_agentId = agentId;
 		_ipAddresses = ipAddresses;
 		_nftables = nftables;
 		_relayRpcClient = relayRpcClient;
@@ -43,25 +49,22 @@ public class RelayService
 	/// Using streaming, the relay service can act immediately once new mappings are sent.
 	/// This avoids excessive and repetitive polling, and in turn load on the server.
 	/// </summary>
-	/// <param name="timeout">Max timeout before aborting the long poll</param>
 	/// <param name="cancellationToken"></param>
 	/// <returns>List of new port mappings</returns>
-	public async Task<List<PortMapping>> GetPortMappingsLongPollAsync(TimeSpan timeout, CancellationToken cancellationToken)
+	public async Task<List<PortMapping>?> GetPortMappingsLongPollAsync(CancellationToken cancellationToken)
 	{
 		_logger.LogDebug("Long polling for port mappings...");
-		using CancellationTokenSource cts = new (timeout);
-		using CancellationTokenSource linkedCt = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, cts.Token);
 
-		GetPortMappingsRequest request = new();
+		GetPortMappingsRequest request = new() { AgentId = _agentId, ClusterId = _clusterId };
 		request.IpAddresses.AddRange(_ipAddresses);
-		using AsyncServerStreamingCall<GetPortMappingsResponse> cursor = _relayRpcClient.GetPortMappings(request, null, null, linkedCt.Token);
-		await foreach (GetPortMappingsResponse response in cursor.ResponseStream.ReadAllAsync(linkedCt.Token))
+		using AsyncServerStreamingCall<GetPortMappingsResponse> cursor = _relayRpcClient.GetPortMappings(request, null, null, cancellationToken);
+		await foreach (GetPortMappingsResponse response in cursor.ResponseStream.ReadAllAsync(cancellationToken))
 		{
 			return response.PortMappings.ToList();
 		}
 
 		// Should never make it here. It will be either get a return value back or get cancelled
-		return new List<PortMapping>();
+		return null;
 	}
 	
 	/// <summary>
@@ -70,21 +73,25 @@ public class RelayService
 	/// <param name="cancellationToken"></param>
 	public async Task ListenForPortMappingsAsync(CancellationToken cancellationToken)
 	{
-		// Avoid setting a too large value as load balancers can interfere.
-		// 55 sec is below a typical 60 second timeout. 
-		TimeSpan timeout = TimeSpan.FromSeconds(55);
-		
+		// Server cancels the long poll at its discretion
 		while (!cancellationToken.IsCancellationRequested)
 		{
 			try
 			{
-				List<PortMapping> portMappings = await GetPortMappingsLongPollAsync(timeout, cancellationToken);
-				_logger.LogDebug("Received {NumMappings} port mappings...", portMappings.Count);
-				await _nftables.ApplyPortForwardingAsync(portMappings);
+				List<PortMapping>? portMappings = await GetPortMappingsLongPollAsync(cancellationToken);
+				if (portMappings != null)
+				{
+					_logger.LogDebug("Received {NumMappings} port mappings...", portMappings.Count);
+					await _nftables.ApplyPortForwardingAsync(portMappings);
+				}
 			}
 			catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 			{
 				break;
+			}
+			catch (RpcException re) when (re.StatusCode == StatusCode.Cancelled)
+			{
+				// Re-connect as normal
 			}
 			catch (Exception e)
 			{

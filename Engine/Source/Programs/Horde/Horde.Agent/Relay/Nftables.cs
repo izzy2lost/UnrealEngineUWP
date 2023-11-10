@@ -121,8 +121,8 @@ public class Nftables
 			{
 				foreach (Port rlmPort in rlm.Ports)
 				{
-					_logger.LogDebug("Applying {LeaseId} {Protocol} {ListenPort} -> {AgentIp}:{AgentPort}",
-						rlm.LeaseId, rlmPort.Protocol, rlmPort.ListenPort, rlm.AgentIp, rlmPort.AgentPort);	
+					_logger.LogDebug("Applying {LeaseId} {Protocol} {RelayPort} -> {AgentIp}:{AgentPort}",
+						rlm.LeaseId, rlmPort.Protocol, rlmPort.RelayPort, rlm.AgentIp, rlmPort.AgentPort);	
 				}
 			}
 		}
@@ -153,7 +153,7 @@ public class Nftables
 				PortProtocol.Udp => "udp",
 				_ => "tcp"
 			};
-			return $"{protocol} dport {port.ListenPort} dnat to {mapping.AgentIp.ToString()}:{port.AgentPort} comment \"leaseId={mapping.LeaseId}\"";
+			return $"{protocol} dport {port.RelayPort} dnat to {mapping.AgentIp.ToString()}:{port.AgentPort} comment \"leaseId={mapping.LeaseId}\"";
 		}).ToList();
 	}
 

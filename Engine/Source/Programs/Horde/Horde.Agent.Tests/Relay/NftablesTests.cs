@@ -16,7 +16,7 @@ public class NftablesTests
 		AgentIp = "192.168.1.1",
 		Ports =
 		{
-			new Port { ListenPort = 1000, AgentPort = 2000, Protocol = PortProtocol.Tcp },
+			new Port { RelayPort = 1000, AgentPort = 2000, Protocol = PortProtocol.Tcp },
 		}
 	};
 	
@@ -26,8 +26,8 @@ public class NftablesTests
 		AgentIp = "192.168.1.2",
 		Ports =
 		{
-			new Port { ListenPort = 1002, AgentPort = 2002, Protocol = PortProtocol.Tcp },
-			new Port { ListenPort = 2222, AgentPort = 5555, Protocol = PortProtocol.Udp }
+			new Port { RelayPort = 1002, AgentPort = 2002, Protocol = PortProtocol.Tcp },
+			new Port { RelayPort = 2222, AgentPort = 5555, Protocol = PortProtocol.Udp }
 		}
 	};
 	
