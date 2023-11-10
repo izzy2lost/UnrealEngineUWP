@@ -49,7 +49,7 @@ public:                                                             \
 #define DECLARE_DERIVED_VCPPCLASSINFO(API, SuperClass)                                  \
 private:                                                                                \
 	template <typename TVisitor>                                                        \
-	API void VisitReferencesImpl(TVisitor&); /* to be implemented by the user. */       \
+	void VisitReferencesImpl(TVisitor&); /* to be implemented by the user. */           \
                                                                                         \
 protected:                                                                              \
 	auto CheckSuperClass()                                                              \
