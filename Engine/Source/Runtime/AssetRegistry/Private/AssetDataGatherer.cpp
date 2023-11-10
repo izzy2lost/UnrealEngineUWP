@@ -102,20 +102,22 @@ void FPreloadSettings::Initialize()
 	bool bPlatformSupportsDiscoveryCache = FPlatformFileManager::Get().GetPlatformFile().FileJournalIsAvailable();
 
 	bool bSkipInvalidate = FParse::Param(FCommandLine::Get(), TEXT("AssetRegistryCacheSkipInvalidate"));
-	FString AssetRegistryDiscoveryWriteCacheStr;
-	GConfig->GetString(TEXT("AssetRegistry"), TEXT("AssetRegistryDiscoveryWriteCache"),
-		AssetRegistryDiscoveryWriteCacheStr, GEngineIni);
-	FParse::Value(FCommandLine::Get(), TEXT("AssetRegistryDiscoveryWriteCache="), AssetRegistryDiscoveryWriteCacheStr);
+	FString AssetRegistryDiscoveryCacheStr;
+	GConfig->GetString(TEXT("AssetRegistry"), TEXT("AssetRegistryDiscoveryCache"),
+		AssetRegistryDiscoveryCacheStr, GEngineIni);
+	FParse::Value(FCommandLine::Get(), TEXT("AssetRegistryDiscoveryCache="), AssetRegistryDiscoveryCacheStr);
+
+	bNoAssetRegistryDiscoveryCache |= AssetRegistryDiscoveryCacheStr == TEXT("Never") || AssetRegistryDiscoveryCacheStr == TEXT("false")
+		|| AssetRegistryDiscoveryCacheStr == TEXT("0");
 
 	bDiscoveryCacheReadEnabled = (bPlatformSupportsDiscoveryCache || bSkipInvalidate) && !bNoAssetRegistryDiscoveryCache
 		&& !bNoAssetRegistryCacheRead;
-	if (bNoAssetRegistryDiscoveryCache || bNoAssetRegistryCacheWrite || bMultiprocess ||
-		AssetRegistryDiscoveryWriteCacheStr == TEXT("Never") || AssetRegistryDiscoveryWriteCacheStr == TEXT("false")
-		|| AssetRegistryDiscoveryWriteCacheStr == TEXT("0"))
+
+	if (bNoAssetRegistryDiscoveryCache || bNoAssetRegistryCacheWrite || bMultiprocess)
 	{
 		DiscoveryCacheWriteEnabled = EFeatureEnabled::Never;
 	}
-	else if ((AssetRegistryDiscoveryWriteCacheStr.IsEmpty() || AssetRegistryDiscoveryWriteCacheStr == TEXT("Default"))
+	else if ((AssetRegistryDiscoveryCacheStr.IsEmpty() || AssetRegistryDiscoveryCacheStr == TEXT("Default"))
 		&& !bSkipInvalidate)
 	{
 		// Precalculate IfPlatformSupported -> Never if we already know the platform doesn't support it
