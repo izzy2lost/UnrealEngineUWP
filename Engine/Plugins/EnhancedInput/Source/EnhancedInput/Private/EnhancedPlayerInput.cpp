@@ -582,7 +582,10 @@ void UEnhancedPlayerInput::EvaluateInputDelegates(const TArray<UInputComponent*>
 						// Consume all keys that are mapped to this input action with the proper trigger values
 						for (const FKey& KeyToConsume : ConsumptionData->KeysToConsume)
 						{
-							ConsumeKey(KeyToConsume);
+							if (FKeyState* KeyState = KeyStateMap.Find(KeyToConsume))
+							{
+								KeyState->bConsumed = true;
+							}
 						}
 					}
 				}
