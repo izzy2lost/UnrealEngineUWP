@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Logging/LogMacros.h"
 #include "Chaos/ParticleHandleFwd.h"
+#include "Chaos/GeometryParticlesfwd.h"
 
 
 DECLARE_LOG_CATEGORY_EXTERN(LogSimulationModule, Warning, All);
@@ -14,7 +15,7 @@ struct CHAOSVEHICLESCORE_API FCoreModularVehicleDebugParams
 	bool ShowMass = false;
 	bool ShowForces = false;
 	float DrawForceScaling = 0.0004f;
-	float LevelSlopeThreshold = 0.96f; // ~16 degrees
+	float LevelSlopeThreshold = 0.86f;
 	bool DisableForces = false;
 };
 
@@ -30,6 +31,7 @@ namespace Chaos
 
 		FControlInputs()
 			: IsValid(false)
+			, IsReversing(false)
 			, Throttle(0)
 			, Brake(0)
 			, Steering(0)
@@ -39,6 +41,7 @@ namespace Chaos
 			, Pitch(0)
 			, Yaw(0)
 			, Boost(0)
+			, Drift(0)
 			, ChangeUp(false)
 			, ChangeDown(false)
 			, GearNumber(0)
@@ -54,10 +57,12 @@ namespace Chaos
 				|| FMath::Abs(Roll) > SMALL_NUMBER
 				|| FMath::Abs(Pitch) > SMALL_NUMBER
 				|| FMath::Abs(Yaw) > SMALL_NUMBER
-				|| FMath::Abs(Boost) > SMALL_NUMBER;
+				|| FMath::Abs(Boost) > SMALL_NUMBER
+				|| FMath::Abs(Drift) > SMALL_NUMBER;
 		}
 
 		bool IsValid;
+		bool IsReversing;
 		float Throttle;
 		float Brake;
 		float Steering;
@@ -67,6 +72,7 @@ namespace Chaos
 		float Pitch;
 		float Yaw;
 		float Boost;
+		float Drift;
 		bool ChangeUp;
 		bool ChangeDown;
 		int GearNumber;
@@ -86,6 +92,7 @@ namespace Chaos
 		FTransform VehicleWorldTransform;
 		TMap<int32, FModuleHitResults> HitResults;
 		FControlInputs ControlInputs;
+		bool bKeepVehicleAwake;
 	};
 
 	/**
@@ -163,6 +170,7 @@ namespace Chaos
 			, SimTreeIndex(INVALID_IDX)
 			, StateFlags(Enabled)
 			, TransformIndex(INVALID_IDX)
+			, ParticleIdx(INVALID_IDX)
 			, LocalLinearVelocity(FVector::ZeroVector)
 			, LocalAngularVelocity(FVector::ZeroVector)
 			, bClustered(true)
@@ -228,6 +236,12 @@ namespace Chaos
 		 */
 		void SetTransformIndex(int TransformIndexIn) { TransformIndex = TransformIndexIn; }
 		const int GetTransformIndex() const { return TransformIndex; }
+
+		/**
+		 * The Particle unique index, should be valid on game and physics threads
+		 */
+		void SetParticleIndex(FUniqueIdx ParticleIndexIn) { ParticleIdx = ParticleIndexIn; }
+		const FUniqueIdx GetParticleIndex() const { return ParticleIdx; }
 
 		/**
 		 * The modules own index in the simulation tree array
@@ -312,12 +326,16 @@ namespace Chaos
 		//void SetClusterParticle(FPBDRigidClusteredParticleHandle* ParticleIn) { ClusterParticle = ParticleIn; }
 		Chaos::FPBDRigidClusteredParticleHandle* GetClusterParticle(Chaos::FClusterUnionPhysicsProxy* Proxy);
 
+		Chaos::FPBDRigidParticleHandle* GetParticleFromUniqueIndex(int32 ParticleUniqueIdx, TArray<Chaos::FPBDRigidParticleHandle*>& Particles);
+
+
 	protected:
 
 		FSimModuleTree* SimModuleTree;	// A pointer back to the simulation tree where we are stored
 		int SimTreeIndex;	// Index of this SimModule in the FSimModuleTree
 		eSimModuleState StateFlags;	// TODO: make this more like flags
 		int TransformIndex; // Index of this Sim Module's node in Geometry Collection Transform array
+		FUniqueIdx ParticleIdx; // Physics particle unique index
 
 		FTransform InitialParticleTransform;
 		FTransform RelativeOffsetTransform;
@@ -372,6 +390,7 @@ namespace Chaos
 		FSimOutputData() = default;
 		virtual ~FSimOutputData() {}
 
+		virtual eSimType GetType() = 0;
 		virtual FSimOutputData* MakeNewData() = 0;
 		virtual void FillOutputState(const ISimulationModuleBase* SimModule) = 0;
 		virtual void Lerp(const FSimOutputData& InCurrent, const FSimOutputData& InNext, float Alpha) = 0;

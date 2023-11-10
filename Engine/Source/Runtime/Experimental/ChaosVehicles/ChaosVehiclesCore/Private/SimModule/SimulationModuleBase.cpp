@@ -15,7 +15,7 @@ void ISimulationModuleBase::AddLocalForceAtPosition(const FVector& Force, const 
 	AppliedForce = Force;
 	if (SimModuleTree)
 	{
-		SimModuleTree->AccessDeferredForces().Add(FDeferredForcesModular::FApplyForceAtPositionData(ComponentTransform, TransformIndex, Force, Position, bAllowSubstepping, bIsLocalForce, bLevelSlope, DebugColorIn));
+		SimModuleTree->AccessDeferredForces().Add(FDeferredForcesModular::FApplyForceAtPositionData(ComponentTransform, TransformIndex, ParticleIdx.Idx, Force, Position, bAllowSubstepping, bIsLocalForce, bLevelSlope, DebugColorIn));
 	}
 }
 
@@ -24,7 +24,7 @@ void ISimulationModuleBase::AddLocalForce(const FVector& Force, bool bAllowSubst
 	AppliedForce = Force;
 	if (SimModuleTree)
 	{
-		SimModuleTree->AccessDeferredForces().Add(FDeferredForcesModular::FApplyForceData(ComponentTransform, TransformIndex, Force, bAllowSubstepping, bIsLocalForce, bLevelSlope, DebugColorIn));
+		SimModuleTree->AccessDeferredForces().Add(FDeferredForcesModular::FApplyForceData(ComponentTransform, TransformIndex, ParticleIdx.Idx, Force, bAllowSubstepping, bIsLocalForce, bLevelSlope, DebugColorIn));
 	}
 }
 
@@ -32,7 +32,7 @@ void ISimulationModuleBase::AddLocalTorque(const FVector& Torque, bool bAllowSub
 {
 	if (SimModuleTree)
 	{
-		SimModuleTree->AccessDeferredForces().Add(FDeferredForcesModular::FAddTorqueInRadiansData(ComponentTransform, TransformIndex, Torque, bAllowSubstepping, bAccelChangeIn, DebugColorIn));
+		SimModuleTree->AccessDeferredForces().Add(FDeferredForcesModular::FAddTorqueInRadiansData(ComponentTransform, TransformIndex, ParticleIdx.Idx, Torque, bAllowSubstepping, bAccelChangeIn, DebugColorIn));
 	}
 }
 
@@ -68,13 +68,29 @@ FPBDRigidClusteredParticleHandle* ISimulationModuleBase::GetClusterParticle(Chao
 		FPBDRigidClusteredParticleHandle* ClusterHandle = ClusterUnion->InternalCluster;
 		TArray<FPBDRigidParticleHandle*> Particles = ClusterUnion->ChildParticles;
 
-		if (TransformIndex < Particles.Num())
+		if (FPBDRigidParticleHandle* Particle = GetParticleFromUniqueIndex(ParticleIdx.Idx, Particles))
 		{
-			ClusterChild = Particles[TransformIndex]->CastToClustered();
+			ClusterChild = Particle->CastToClustered();
 		}
 	}
 
 	return ClusterChild;
+}
+
+FPBDRigidParticleHandle* ISimulationModuleBase::GetParticleFromUniqueIndex(int32 ParticleUniqueIdx, TArray<FPBDRigidParticleHandle*>& Particles)
+{
+	for (FPBDRigidParticleHandle* Particle : Particles)
+	{
+		if (Particle && Particle->UniqueIdx().IsValid())
+		{
+			if (ParticleUniqueIdx == Particle->UniqueIdx().Idx)
+			{
+				return Particle;
+			}
+		}
+	}
+
+	return nullptr;
 }
 
 bool ISimulationModuleBase::GetDebugString(FString& StringOut) const 

@@ -18,7 +18,7 @@ namespace Chaos
 		, SurfaceFriction(1.0f)
 		, SuspensionSimTreeIndex(INVALID_IDX)
 		, ForceFromFriction(FVector::ZeroVector)
-		, MassPerWheel(500.0f * 0.25f)
+		, MassPerWheel(500.0f)
 		, SteerAngleDegrees(0.0f)
 	{
 

@@ -26,9 +26,10 @@ public:
 
 	struct FApplyForceData
 	{
-		FApplyForceData(const FTransform& OffsetTransformIn, int TransformIndexIn, const FVector& ForceIn, bool bAllowSubsteppingIn, bool bAccelChangeIn, bool bLevelSlope, const FColor& ColorIn)
+		FApplyForceData(const FTransform& OffsetTransformIn, int TransformIndexIn, int ParticleIndexIn, const FVector& ForceIn, bool bAllowSubsteppingIn, bool bAccelChangeIn, bool bLevelSlope, const FColor& ColorIn)
 			: OffsetTransform(OffsetTransformIn)
 			, TransformIndex(TransformIndexIn)
+			, ParticleIdx(ParticleIndexIn)
 			, Force(ForceIn)
 			, Flags(EForceFlags::None)
 			, DebugColor(ColorIn)
@@ -40,6 +41,7 @@ public:
 
 		FTransform OffsetTransform;
 		int TransformIndex;
+		int32 ParticleIdx;
 		FVector Force;
 		EForceFlags Flags;
 		FColor DebugColor;
@@ -47,9 +49,10 @@ public:
 
 	struct FApplyForceAtPositionData
 	{
-		FApplyForceAtPositionData(const FTransform& OffsetTransformIn, int TransformIndexIn, const FVector& ForceIn, const FVector& PositionIn, bool bAllowSubsteppingIn, bool bIsLocalForceIn, bool bLevelSlope, const FColor& ColorIn)
+		FApplyForceAtPositionData(const FTransform& OffsetTransformIn, int TransformIndexIn, int ParticleIndexIn, const FVector& ForceIn, const FVector& PositionIn, bool bAllowSubsteppingIn, bool bIsLocalForceIn, bool bLevelSlope, const FColor& ColorIn)
 			: OffsetTransform(OffsetTransformIn)
 			, TransformIndex(TransformIndexIn)
+			, ParticleIdx(ParticleIndexIn)
 			, Force(ForceIn)
 			, Position(PositionIn)
 			, Flags(EForceFlags::None)
@@ -62,6 +65,7 @@ public:
 
 		FTransform OffsetTransform;
 		int TransformIndex;
+		int32 ParticleIdx;
 		FVector Force;
 		FVector Position;
 		EForceFlags Flags;
@@ -70,9 +74,10 @@ public:
 
 	struct FAddTorqueInRadiansData
 	{
-		FAddTorqueInRadiansData(const FTransform& OffsetTransformIn, int TransformIndexIn, const FVector& TorqueIn, bool bAllowSubsteppingIn, bool bAccelChangeIn, const FColor& ColorIn)
+		FAddTorqueInRadiansData(const FTransform& OffsetTransformIn, int TransformIndexIn, int ParticleIndexIn, const FVector& TorqueIn, bool bAllowSubsteppingIn, bool bAccelChangeIn, const FColor& ColorIn)
 			: OffsetTransform(OffsetTransformIn)
 			, TransformIndex(TransformIndexIn)
+			, ParticleIdx(ParticleIndexIn)
 			, Torque(TorqueIn)
 			, Flags(EForceFlags::None)
 			, DebugColor(ColorIn)
@@ -83,6 +88,7 @@ public:
 
 		FTransform OffsetTransform;
 		int TransformIndex;
+		int32 ParticleIdx;
 		FVector Torque;
 		EForceFlags Flags;
 		FColor DebugColor;
@@ -90,9 +96,10 @@ public:
 
 	struct FAddImpulseData
 	{
-		FAddImpulseData(const FTransform& OffsetTransformIn, int TransformIndexIn, const FVector& ImpulseIn, const bool bVelChangeIn)
+		FAddImpulseData(const FTransform& OffsetTransformIn, int TransformIndexIn, int ParticleIndexIn, const FVector& ImpulseIn, const bool bVelChangeIn)
 			: OffsetTransform(OffsetTransformIn)
 			, TransformIndex(TransformIndexIn)
+			, ParticleIdx(ParticleIndexIn)
 			, Impulse(ImpulseIn)
 			, Flags(EForceFlags::None)
 		{
@@ -101,15 +108,17 @@ public:
 
 		FTransform OffsetTransform;
 		int TransformIndex;
+		int32 ParticleIdx;
 		FVector Impulse;
 		EForceFlags Flags;
 	};
 
 	struct FAddImpulseAtPositionData
 	{
-		FAddImpulseAtPositionData(const FTransform& OffsetTransformIn, int TransformIndexIn, const FVector& ImpulseIn, const FVector& PositionIn)
+		FAddImpulseAtPositionData(const FTransform& OffsetTransformIn, int TransformIndexIn, int ParticleIndexIn, const FVector& ImpulseIn, const FVector& PositionIn)
 			: OffsetTransform(OffsetTransformIn)
 			, TransformIndex(TransformIndexIn)
+			, ParticleIdx(ParticleIndexIn)
 			, Impulse(ImpulseIn)
 			, Position(PositionIn)
 		{
@@ -118,6 +127,7 @@ public:
 
 		FTransform OffsetTransform;
 		int TransformIndex;
+		int32 ParticleIdx;
 		FVector Impulse;
 		FVector Position;
 	};
@@ -147,9 +157,12 @@ public:
 		ApplyImpulseAtPositionDatas.Add(ApplyImpulseAtPositionDataIn);
 	}	
 
+	Chaos::FPBDRigidParticleHandle* GetParticleFromUniqueIndex(int32 ParticleUniqueIdx, const TArray<Chaos::FPBDRigidParticleHandle*>& Particles) const;
+
 	Chaos::FPBDRigidParticleHandle* GetParticle(TArray<Chaos::FPBDRigidClusteredParticleHandle*>& Particles
 			, TArray<Chaos::FPBDRigidClusteredParticleHandle*>& ClusterParticles
 			, int TransformIndex
+			, int32 ParticleIdx
 			, const FVector& PositionalOffset
 			, const TManagedArray<FTransform>& Transforms
 			, const TManagedArray<FTransform>& CollectionMassToLocal
@@ -159,6 +172,7 @@ public:
 	Chaos::FPBDRigidParticleHandle* GetParticle(TArray<Chaos::FPBDRigidClusteredParticleHandle*>& Particles
 		, TArray<Chaos::FPBDRigidClusteredParticleHandle*>& ClusterParticles
 		, int TransformIndex
+		, int32 ParticleIdx
 		, const FVector& PositionalOffset
 		, const FTransform& Transform
 		, const TManagedArray<FTransform>& CollectionMassToLocal
@@ -168,7 +182,7 @@ public:
 	Chaos::FPBDRigidParticleHandle* GetParticle(const FTransform& OffsetTransform
 		, TArray<Chaos::FPBDRigidParticleHandle*>& Particles
 		, TArray<Chaos::FPBDRigidClusteredParticleHandle*>& ClusterParticles
-		, int TransformIndex
+		, int32 ParticleIdx
 		, const FVector& PositionalOffset
 		, FTransform& TransformOut);
 

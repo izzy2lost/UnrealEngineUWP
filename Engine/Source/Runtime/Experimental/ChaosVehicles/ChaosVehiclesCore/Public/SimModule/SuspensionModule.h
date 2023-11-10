@@ -46,6 +46,7 @@ namespace Chaos
 		virtual FSimOutputData* MakeNewData() override { return FSuspensionOutputData::MakeNew(); }
 		static FSimOutputData* MakeNew() { return new FSuspensionOutputData(); }
 
+		virtual eSimType GetType() override { return eSimType::Suspension; }
 		virtual void FillOutputState(const ISimulationModuleBase* SimModule) override;
 		virtual void Lerp(const FSimOutputData& InCurrent, const FSimOutputData& InNext, float Alpha) override;
 
@@ -65,10 +66,9 @@ namespace Chaos
 			, MaxLength(0.f)
 			, SpringRate(1.f)
 			, SpringPreload(0.5f)
-			, CompressionDamping(0.9f)
-			, ReboundDamping(0.9f)
+			, SpringDamping(0.9f)
+			, SuspensionForceEffect(100.0f)
 			//	, SwaybarEffect(0.5f)
-			//	, DampingRatio(0.3f)
 		{
 
 		}
@@ -81,12 +81,11 @@ namespace Chaos
 
 		float SpringRate;			// spring constant
 		float SpringPreload;		// Amount of Spring force (independent spring movement)
-		float CompressionDamping;	// limit compression speed
-		float ReboundDamping;		// limit rebound speed
+		float SpringDamping;		// limit compression/rebound speed
+
+		float SuspensionForceEffect; // force that presses the wheels into the ground - producing grip
 
 		//	float Swaybar;				// Anti-roll bar
-
-		//	float DampingRatio;			// value between (0-no damping) and (1-critical damping)
 	};
 
 	/** Suspension world ray/shape trace start and end positions */
@@ -153,6 +152,8 @@ namespace Chaos
 		void UpdateConstraint();
 
 		void SetSuspensionConstraint(FSuspensionConstraint* InConstraint);
+		void SetConstraintIndex(int32 InConstraintIndex) { ConstraintIndex = InConstraintIndex; }
+		int32 GetConstraintIndex() const { return ConstraintIndex; }
 		void SetTargetPoint(const FVector& InTargetPoint, const FVector& InImpactNormal, bool InWheelInContact)
 		{
 			TargetPos = InTargetPoint;
@@ -167,6 +168,7 @@ namespace Chaos
 		int WheelSimTreeIndex;
 
 		FSuspensionConstraint* Constraint;
+		int32 ConstraintIndex;
 		FVector TargetPos;
 		FVector ImpactNormal;
 		bool WheelInContact;

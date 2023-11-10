@@ -22,6 +22,8 @@ namespace Chaos
 			, ForceOffset(FVector::ZeroVector)
 			, MaxSteeringAngle(0)
 			, SteeringForceEffect(1.0f)
+			, BoostMultiplier(2.0f)
+			, MaxSpeed(125.0f)
 			, SteeringEnabled(false)
 		{
 
@@ -33,6 +35,8 @@ namespace Chaos
 		FVector ForceOffset;
 		float MaxSteeringAngle;
 		float SteeringForceEffect;
+		float BoostMultiplier;
+		float MaxSpeed;
 		bool SteeringEnabled;
 	};
 

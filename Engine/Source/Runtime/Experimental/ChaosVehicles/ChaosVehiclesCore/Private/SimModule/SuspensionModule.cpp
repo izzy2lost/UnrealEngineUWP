@@ -22,6 +22,7 @@ namespace Chaos
 		, SpringSpeed(0.f)
 		, WheelSimTreeIndex(INVALID_IDX)
 		, Constraint(nullptr)
+		, ConstraintIndex(INVALID_IDX)
 		, TargetPos(FVector::ZeroVector)
 		, ImpactNormal(FVector::ZeroVector)
 		, WheelInContact(false)
@@ -59,7 +60,7 @@ namespace Chaos
 			float ForceIntoSurface = 0.0f;
 			if (SpringDisplacement > 0)
 			{
-				float Damping = (SpringDisplacement < LastDisplacement) ? Setup().CompressionDamping : Setup().ReboundDamping;
+				float Damping = Setup().SpringDamping;
 				SpringSpeed = (LastDisplacement - SpringDisplacement) / DeltaTime;
 
 				float StiffnessForce = SpringDisplacement * Setup().SpringRate;
@@ -69,7 +70,7 @@ namespace Chaos
 
 				if (SuspensionForce > 0)
 				{
-					ForceIntoSurface = SuspensionForce;
+					ForceIntoSurface = SuspensionForce * Setup().SuspensionForceEffect;
 
 					if (Constraint == nullptr)
 					{
@@ -126,7 +127,6 @@ namespace Chaos
 			if (FSuspensionConstraintPhysicsProxy* Proxy = Constraint->GetProxy<FSuspensionConstraintPhysicsProxy>())
 			{
 				Chaos::FPhysicsSolver* Solver = Proxy->GetSolver<Chaos::FPhysicsSolver>();
-				UE_LOG(LogTemp, Warning, TEXT("TargetPos %s, WheelInContact %d"), *TargetPos.ToString(), WheelInContact);
 				Solver->SetSuspensionTarget(Constraint, TargetPos, ImpactNormal, WheelInContact);
 			}
 		}

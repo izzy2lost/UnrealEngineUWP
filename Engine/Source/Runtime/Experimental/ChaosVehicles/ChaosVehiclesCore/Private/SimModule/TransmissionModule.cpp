@@ -2,6 +2,7 @@
 
 #include "SimModule/TransmissionModule.h"
 #include "SimModule/SimModuleTree.h"
+#include "SimModule/SimulationModuleBase.h"
 #include "VehicleUtility.h"
 
 #if VEHICLE_DEBUGGING_ENABLED
@@ -13,6 +14,27 @@ namespace Chaos
 
 	void FTransmissionSimModule::Simulate(float DeltaTime, const FAllInputs& Inputs, FSimModuleTree& VehicleModuleSystem)
 	{
+
+		if (Setup().AutoReverse)
+		{
+			if (Inputs.ControlInputs.IsReversing)
+			{
+				// if reversing change to reverse gear if currently in a forwards gear
+				if (TargetGear > 0)
+				{
+					TargetGear = -1;
+				}
+			}
+			else
+			{
+				// if not revering change to forwards gear if currently in a reverse gear
+				if (TargetGear < 0)
+				{
+					TargetGear = 1;
+				}
+			}
+		}
+
 		if (Setup().TransmissionType == FTransmissionSettings::ETransType::AutomaticType)
 		{
 			// not currently changing gear, also don't want to change up because the wheels are spinning up due to having no load

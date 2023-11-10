@@ -67,6 +67,14 @@ namespace Chaos
 		TArray<FPendingModuleDeletions> DeletedModules;
 	};
 
+	struct CHAOSVEHICLESCORE_API FVehicleState
+	{
+		float ForwardSpeedKmh;
+		FVector ForwardDir;
+		FVector RightDir;
+		FVector UpDir;
+		FVector AngularVelocityRad;
+	};
 
 	class CHAOSVEHICLESCORE_API FSimModuleTree
 	{
@@ -93,7 +101,8 @@ namespace Chaos
 
 		FSimModuleTree()
 		{
-			bAnimationEnabled = false;
+			bAnimationEnabled = true;
+			bSimulationEnabled = true;
 		}
 
 		~FSimModuleTree()
@@ -138,10 +147,17 @@ namespace Chaos
 
 		void SetAnimationEnabled(bool bInEnabled) { bAnimationEnabled = bInEnabled; }
 		bool IsAnimationEnabled() { return bAnimationEnabled; }
+		void SetSimulationEnabled(bool bInEnabled) { bSimulationEnabled = bInEnabled; }
+		bool IsSimulationEnabled() { return bSimulationEnabled; }
 
 		FControlInputs& GetControlInputs()
 		{
 			return AllInputs.ControlInputs;
+		}
+
+		const FVehicleState& GetVehicleState() const
+		{
+			return VehicleState;
 		}
 
 		FSimModuleNode* LocateNodeByType(Chaos::eSimType InType)
@@ -187,6 +203,7 @@ namespace Chaos
 
 		void UpdateModuleVelocites(FGeometryCollectionPhysicsProxy* PhysicsProxy);
 		void UpdateModuleVelocites(FClusterUnionPhysicsProxy* PhysicsProxy, bool bWake);
+		void UpdateVehicleState(FClusterUnionPhysicsProxy* PhysicsProxy);
 
 		TArray<FSimModuleNode> SimulationModuleTree;
 		TArray<int> FreeList;
@@ -196,6 +213,9 @@ namespace Chaos
 		Chaos::FAllInputs AllInputs;
 
 		bool bAnimationEnabled;
+		bool bSimulationEnabled;
+
+		FVehicleState VehicleState;
 	};
 
 

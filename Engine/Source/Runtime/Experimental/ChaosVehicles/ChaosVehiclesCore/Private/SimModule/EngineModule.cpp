@@ -86,12 +86,13 @@ namespace Chaos
 		const FEngineOutputData& Next = static_cast<const FEngineOutputData&>(InNext);
 
 		RPM = FMath::Lerp(Current.RPM, Next.RPM, Alpha);
+		Torque = FMath::Lerp(Current.Torque, Next.Torque, Alpha);
 	}
 
 	FString FEngineOutputData::ToString()
 	{
-		return  FString::Printf(TEXT("RPM=%3.3f")
-			, RPM);
+		return  FString::Printf(TEXT("RPM=%3.3f, Torque=%3.3f")
+			, RPM, Torque);
 	}
 
 } // namespace Chaos

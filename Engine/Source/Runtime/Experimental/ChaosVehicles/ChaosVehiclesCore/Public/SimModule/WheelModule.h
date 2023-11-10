@@ -45,6 +45,7 @@ namespace Chaos
 		virtual FSimOutputData* MakeNewData() override { return FWheelOutputData::MakeNew(); }
 		static FSimOutputData* MakeNew() { return new FWheelOutputData(); }
 
+		virtual eSimType GetType() override { return eSimType::Wheel; }
 		virtual void FillOutputState(const ISimulationModuleBase* SimModule) override;
 		virtual void Lerp(const FSimOutputData& InCurrent, const FSimOutputData& InNext, float Alpha) override;
 		virtual FString ToString() override;
@@ -149,6 +150,7 @@ namespace Chaos
 		float GetSteerAngleDegrees() const { return SteerAngleDegrees; }
 
 		void SetForceIntoSurface(float ForceIntoSurfaceIn) { ForceIntoSurface = ForceIntoSurfaceIn; }
+		float GetForceIntoSurface() const { return ForceIntoSurface; }
 
 		void SetSurfaceFriction(float FrictionIn) { SurfaceFriction = FrictionIn; }
 

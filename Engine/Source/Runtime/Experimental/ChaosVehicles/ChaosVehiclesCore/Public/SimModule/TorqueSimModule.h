@@ -72,7 +72,7 @@ namespace Chaos
 		void SetLoadTorque(float TorqueIn) { LoadTorque = TorqueIn; }
 		float GetLoadTorque() const { return LoadTorque; }
 
-		void SetBrakingTorque(float TorqueIn) { BrakingTorque = TorqueIn; }
+		void SetBrakingTorque(float TorqueIn) { ensure(TorqueIn >= 0.0f); BrakingTorque = TorqueIn; }
 		float GetBrakingTorque() const { return BrakingTorque; }
 
 		void SetAngularVelocity(float AngularVelocityIn) { AngularVelocity = AngularVelocityIn; }

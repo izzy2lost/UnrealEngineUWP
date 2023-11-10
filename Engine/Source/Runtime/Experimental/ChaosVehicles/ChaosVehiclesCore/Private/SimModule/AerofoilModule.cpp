@@ -142,7 +142,7 @@ namespace Chaos
 	{
 		if (FPBDRigidClusteredParticleHandle* ClusterChild = GetClusterParticle(Proxy))
 		{
-			FQuat ControlRotation = FQuat(Setup().ControlRotationAxis, FMath::DegreesToRadians(ControlSurfaceAngle));
+			FQuat ControlRotation = FQuat(Setup().ControlRotationAxis, FMath::DegreesToRadians(ControlSurfaceAngle * Setup().AnimationMagnitudeMultiplier));
 
 			FTransform InitialTransform = GetInitialParticleTransform();
 			ClusterChild->ChildToParent().SetRotation(InitialTransform.GetRotation() * ControlRotation);

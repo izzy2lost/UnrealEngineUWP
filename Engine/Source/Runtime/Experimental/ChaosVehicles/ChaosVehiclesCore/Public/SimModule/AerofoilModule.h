@@ -31,9 +31,10 @@ namespace Chaos
 			, Type(EAerofoil::Fixed)
 			, LiftMultiplier(1.0f)
 			, DragMultiplier(1.0f)
+			, AnimationMagnitudeMultiplier(1.0f)
 		{
 		}
-
+		
 		FVector Offset;
 		FVector ForceAxis;
 		FVector ControlRotationAxis;
@@ -45,6 +46,7 @@ namespace Chaos
 		EAerofoil Type;
 		float LiftMultiplier;
 		float DragMultiplier;
+		float AnimationMagnitudeMultiplier;
 
 	};
 

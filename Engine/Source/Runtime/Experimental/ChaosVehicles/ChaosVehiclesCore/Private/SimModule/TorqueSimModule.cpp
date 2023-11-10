@@ -46,7 +46,8 @@ void FTorqueSimModule::TransmitTorque(const FSimModuleTree& ModuleTree, float Pu
 			}
 		}
 
-		BrakingTorque /= GearingRatio;
+		BrakingTorque /= FMath::Abs(GearingRatio);
+
 	}
 }
 

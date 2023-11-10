@@ -39,11 +39,13 @@ namespace Chaos
 		virtual FSimOutputData* MakeNewData() override { return FEngineOutputData::MakeNew(); }
 		static FSimOutputData* MakeNew() { return new FEngineOutputData(); }
 
+		virtual eSimType GetType() override { return eSimType::Engine; }
 		virtual void FillOutputState(const ISimulationModuleBase* SimModule) override;
 		virtual void Lerp(const FSimOutputData& InCurrent, const FSimOutputData& InNext, float Alpha) override;
 		virtual FString ToString() override;
 
 		float RPM;
+		float Torque;
 	};
 
 	struct CHAOSVEHICLESCORE_API FEngineSettings

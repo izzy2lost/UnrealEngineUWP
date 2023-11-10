@@ -2,6 +2,7 @@
 
 #include "SimModule/SimModuleTree.h"
 #include "Chaos/ParticleHandleFwd.h"
+#include "Chaos/GeometryParticlesfwd.h"
 #include "PhysicsProxy/GeometryCollectionPhysicsProxy.h"
 #include "PhysicsProxy/ClusterUnionPhysicsProxy.h"
 #include "Chaos/PhysicsObjectInternalInterface.h"
@@ -18,9 +19,11 @@ DECLARE_CYCLE_STAT(TEXT("ModularVehicle_SetNetState"), STAT_ModularVehicle_SetNe
 DECLARE_CYCLE_STAT(TEXT("ModularVehicle_SetSimState"), STAT_ModularVehicle_SetSimState, STATGROUP_ModularVehicleSimTree);
 DECLARE_CYCLE_STAT(TEXT("ModularVehicle_AppendTreeUpdates"), STAT_ModularVehicle_AppendTreeUpdates, STATGROUP_ModularVehicleSimTree);
 
-bool bModularVehicle_NetworkData_Enable = false;
+bool bModularVehicle_NetworkData_Enable = true;
 FAutoConsoleVariableRef CVarModularVehicleNetworkDataEnable(TEXT("p.ModularVehicle.NetworkData.Enable"), bModularVehicle_NetworkData_Enable, TEXT("Enable/Disable additional module network data."));
 
+bool bModularVehicle_DisableAllSimulationAfterDestruction_Enable = false;
+FAutoConsoleVariableRef CVarModularVehicleDisableAllSimulationAfterDestruction(TEXT("p.ModularVehicle.DisableAllSimulationAfterDestruction.Enable"), bModularVehicle_DisableAllSimulationAfterDestruction_Enable, TEXT("Enable/Disable whole vehicle simulation after destruction has occured."));
 
 namespace Chaos
 {
@@ -123,52 +126,6 @@ void FSimModuleTree::AppendTreeUpdates(const FSimTreeUpdates& TreeUpdates)
 		}				
 	}
 
-	//// when the particle is removed the references will be out by one unless we fix them up
-	//// this may only apply to ClusterUnion and not GeometryCollection
-	//for (int ComponentIndex : ComponentIndices)
-	//{
-	//	for (int I = 0; I < GetNumNodes(); I++)
-	//	{
-	//		if (Chaos::ISimulationModuleBase* SimModule = GetNode(I).SimModule)
-	//		{
-	//			if (SimModule->GetTransformIndex() > ComponentIndex)
-	//			{
-	//				SimModule->SetTransformIndex(SimModule->GetTransformIndex() - 1);
-	//			}
-
-	//		}
-	//	}
-	//}
-
-	for (int ComponentIndex : ComponentIndices)
-	{
-		// find the largest transform index
-		int LargestIndex = -1;
-		for (int I = 0; I < GetNumNodes(); I++)
-		{
-			if (Chaos::ISimulationModuleBase* SimModule = GetNode(I).SimModule)
-			{
-				if (SimModule->GetTransformIndex() > LargestIndex)
-				{
-					LargestIndex = SimModule->GetTransformIndex();
-				}
-			}
-		}
-
-		// swap with the one that has just been deleted 
-		// - there can be more than one SimModule referencing the same component index
-		for (int I = 0; I < GetNumNodes(); I++)
-		{
-			if (Chaos::ISimulationModuleBase* SimModule = GetNode(I).SimModule)
-			{
-				if (SimModule->GetTransformIndex() == LargestIndex)
-				{
-					SimModule->SetTransformIndex(ComponentIndex);
-				}
-			}
-		}
-	}
-
 }
 
 
@@ -218,6 +175,12 @@ int FSimModuleTree::InsertNodeAbove(int AtIndex, ISimulationModuleBase* SimModul
 
 void FSimModuleTree::DeleteNode(int AtIndex)
 {
+	// if is there is ever an issue then we have the option of disabling ALL module simulation after first destruction occurs
+	if (bModularVehicle_DisableAllSimulationAfterDestruction_Enable)
+	{
+		SetSimulationEnabled(false);
+	}
+
 	// multiple children might become equal parents?
 	
 	int ParentIndex = SimulationModuleTree[AtIndex].Parent;
@@ -252,18 +215,24 @@ void FSimModuleTree::Simulate(float DeltaTime, FAllInputs& Inputs, FClusterUnion
 {
 	SCOPE_CYCLE_COUNTER(STAT_ModularVehicle_SimulateTree);
 
-	if (PhysicsProxy)
+	if (IsSimulationEnabled())
 	{
-		UpdateModuleVelocites(PhysicsProxy, Inputs.ControlInputs.InputNonZero());
+		if (PhysicsProxy)
+		{
+			UpdateVehicleState(PhysicsProxy);
+
+			UpdateModuleVelocites(PhysicsProxy, Inputs.ControlInputs.InputNonZero() || Inputs.bKeepVehicleAwake);
+		}
+
+		TArray<int> RootNodes;
+		GetRootNodes(RootNodes);
+
+		for (int RootIndex : RootNodes)
+		{
+			SimulateNode(DeltaTime, Inputs, RootIndex, PhysicsProxy);
+		}
 	}
 
-	TArray<int> RootNodes;
-	GetRootNodes(RootNodes);
-
-	for (int RootIndex : RootNodes)
-	{
-		SimulateNode(DeltaTime, Inputs, RootIndex, PhysicsProxy);
-	}
 }
 
 
@@ -453,6 +422,24 @@ void FSimModuleTree::UpdateModuleVelocites(FClusterUnionPhysicsProxy* PhysicsPro
 			}
 		}
 	}
+}
+
+void FSimModuleTree::UpdateVehicleState(FClusterUnionPhysicsProxy* PhysicsProxy)
+{
+	check(PhysicsProxy);
+	Chaos::EnsureIsInPhysicsThreadContext();
+
+	if (Chaos::FClusterUnionPhysicsProxy::FInternalParticle* ParentParticle = PhysicsProxy->GetParticle_Internal())
+	{
+		const FTransform BodyTransform(ParentParticle->R(), ParentParticle->X());
+
+		VehicleState.ForwardDir = BodyTransform.GetUnitAxis(EAxis::X);
+		VehicleState.UpDir = BodyTransform.GetUnitAxis(EAxis::Z);
+		VehicleState.RightDir = BodyTransform.GetUnitAxis(EAxis::Y);
+		VehicleState.ForwardSpeedKmh = Chaos::CmSToKmH(FVector::DotProduct(ParentParticle->V(), VehicleState.ForwardDir));
+		VehicleState.AngularVelocityRad = ParentParticle->W();
+	}
+
 }
 
 void FSimModuleTree::GenerateReplicationStructure(Chaos::FModuleNetDataArray& NetData)
