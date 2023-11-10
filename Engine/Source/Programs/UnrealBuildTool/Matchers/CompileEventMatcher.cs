@@ -349,7 +349,7 @@ namespace UnrealBuildTool.Matchers
 		static LogLevel GetLogLevelFromSeverity(Match match)
 		{
 			string severity = match.Groups["severity"].Value;
-			if (severity.Equals("warning", StringComparison.Ordinal))
+			if (severity.Equals("warning", StringComparison.OrdinalIgnoreCase))
 			{
 				return LogLevel.Warning;
 			}
