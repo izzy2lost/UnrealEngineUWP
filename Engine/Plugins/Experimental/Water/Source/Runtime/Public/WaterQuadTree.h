@@ -150,6 +150,9 @@ struct FWaterQuadTree
 
 	/** Get bounds of the root node if there is one, otherwise some default box */
 	FBox GetBounds() const { return NodeData.Nodes.Num() > 0 ? NodeData.Nodes[0].Bounds : FBox(-FVector::OneVector, FVector::OneVector); }
+
+	/** Get bounds of the root node if there is one (including far mesh), otherwise some default box */
+	FBox GetBoundsIncludingFarMesh() const { return GetBounds() + FarMeshData.FarMeshBounds; }
 	
 	/** Return the 2D region containing water tiles. Tiles can not be generated outside of this region */
 	FBox2D GetTileRegion() const { return TileRegion; }
@@ -191,7 +194,7 @@ struct FWaterQuadTree
 	void GatherHitProxies(TArray<TRefCountPtr<HHitProxy> >& OutHitProxies) const;
 #endif // WITH_WATER_SELECTION_SUPPORT
 
-	TArray<FBoxSphereBounds> ComputeNodeBounds(int32 MaxNumBounds, bool bIncludeFarMeshTiles, int32* OutFarMeshOffset) const;
+	TArray<FBoxSphereBounds> ComputeNodeBounds(int32 MaxNumBounds, float OcclusionCullExpandBoundsAmountXY, bool bIncludeFarMeshTiles, int32* OutFarMeshOffset) const;
 
 private:
 	struct FNodeData;
@@ -312,6 +315,7 @@ private:
 			InstanceData.Empty();
 			Material = nullptr;
 			MaterialIndex = INDEX_NONE;
+			FarMeshBounds.Init();
 		}
 
 		/** Total memory dynamically allocated by this object */
@@ -319,6 +323,9 @@ private:
 
 		/** Cached material index */
 		int16 MaterialIndex = INDEX_NONE;
+
+		/** FarMesh bounds */
+		FBox FarMeshBounds;
 
 	} FarMeshData;
 

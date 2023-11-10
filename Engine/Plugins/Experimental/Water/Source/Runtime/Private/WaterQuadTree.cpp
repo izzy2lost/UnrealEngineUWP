@@ -671,6 +671,14 @@ void FWaterQuadTree::AddFarMesh(const UMaterialInterface* InFarMeshMaterial, con
 	// |_|_|_|
 	FarMeshData.InstanceData.SetNum(8);
 	FarMeshData.Material = InFarMeshMaterial;
+	
+	{
+		// Center position of the total far mesh bounds
+		const FVector FarMeshWorldCenter = FVector(InInnerRegion.GetCenter(), InFarDistanceMeshHeight);
+		// 3D Extents from the center of the far mesh bounds to the edge. Bounds are 2cm tall (1cm above, 1cm below plane)
+		const FVector FarMeshTotalExtent = FVector(InInnerRegion.GetExtent() + InFarDistanceMeshExtent, 1.0);
+		FarMeshData.FarMeshBounds = FBox(FarMeshWorldCenter - FarMeshTotalExtent, FarMeshWorldCenter + FarMeshTotalExtent);
+	}
 
 	const FVector2D WaterCenter = InInnerRegion.GetCenter();
 	const FVector2D WaterExtents = InInnerRegion.GetExtent();
@@ -862,7 +870,7 @@ void FWaterQuadTree::GatherHitProxies(TArray<TRefCountPtr<HHitProxy> >& OutHitPr
 }
 #endif //WITH_WATER_SELECTION_SUPPORT
 
-TArray<FBoxSphereBounds> FWaterQuadTree::ComputeNodeBounds(int32 MaxNumBounds, bool bIncludeFarMeshTiles, int32* OutFarMeshOffset) const
+TArray<FBoxSphereBounds> FWaterQuadTree::ComputeNodeBounds(int32 MaxNumBounds, float OcclusionCullExpandBoundsAmountXY, bool bIncludeFarMeshTiles, int32* OutFarMeshOffset) const
 {
 	const int32 NumNodes = NodeData.Nodes.Num();
 	const int32 ClampedNumNodes = (MaxNumBounds > 0) ? FMath::Min(MaxNumBounds, NumNodes) : NumNodes;
@@ -875,7 +883,9 @@ TArray<FBoxSphereBounds> FWaterQuadTree::ComputeNodeBounds(int32 MaxNumBounds, b
 	// Quadtree tiles
 	for (int32 i = 0; i < ClampedNumNodes; ++i)
 	{
-		Result.Add(NodeData.Nodes[BreadthFirstOrder[i]].Bounds);
+		// Expand bounds by given amount, only in XY to reduce occlusion 
+		const FBox Bounds = NodeData.Nodes[BreadthFirstOrder[i]].Bounds;
+		Result.Add(Bounds.ExpandBy(FVector(OcclusionCullExpandBoundsAmountXY, OcclusionCullExpandBoundsAmountXY, 0.0)));
 	}
 
 	*OutFarMeshOffset = Result.Num();
@@ -887,7 +897,7 @@ TArray<FBoxSphereBounds> FWaterQuadTree::ComputeNodeBounds(int32 MaxNumBounds, b
 		{
 			const FFarMeshData::FFarMeshInstanceData& InstanceData = FarMeshData.InstanceData[i];
 			const FVector Extent = FVector(InstanceData.Scale.X * 0.5, InstanceData.Scale.Y * 0.5, 1.0);
-			const FBox Bounds = FBox(InstanceData.WorldPosition - Extent, InstanceData.WorldPosition + Extent);
+			const FBox Bounds = FBox(InstanceData.WorldPosition - Extent, InstanceData.WorldPosition + Extent).ExpandBy(FVector(OcclusionCullExpandBoundsAmountXY, OcclusionCullExpandBoundsAmountXY, 0.0));
 			Result.Add(Bounds);
 		}
 	}

@@ -98,10 +98,15 @@ static TAutoConsoleVariable<int32> CVarRayTracingGeometryWater(
 
 static TAutoConsoleVariable<int32> CVarWaterMeshOcclusionCulling(
 	TEXT("r.Water.WaterMesh.OcclusionCulling"),
-	1,
+	0,
 	TEXT("Enables occlusion culling for the CPU water quadtree."),
-	ECVF_RenderThreadSafe
+	ECVF_Scalability | ECVF_RenderThreadSafe
 );
+
+static TAutoConsoleVariable<float> CVarWaterMeshOcclusionCullExpandBoundsAmountXY(
+	TEXT("r.Water.WaterMesh.OcclusionCullExpandBoundsAmountXY"), 4800.0f,
+	TEXT("Expand the water tile bounds in XY for the purpose of occlusion culling"),
+	ECVF_Scalability);
 
 // ----------------------------------------------------------------------------------
 
@@ -159,11 +164,8 @@ FWaterMeshSceneProxy::FWaterMeshSceneProxy(UWaterMeshComponent* Component)
 
 	const int32 MaxQueries = CVarWaterMeshOcclusionCullingMaxQueries.GetValueOnGameThread();
 	const bool bIncludeFarMeshOcclusionQueries = CVarWaterMeshOcclusionCullingIncludeFarMesh.GetValueOnGameThread() != 0;
-	OcclusionCullingBounds = WaterQuadTree.ComputeNodeBounds(MaxQueries, bIncludeFarMeshOcclusionQueries, &OcclusionResultsFarMeshOffset);
-	if (!OcclusionCullingBounds.IsEmpty())
-	{
-		EmptyOcclusionCullingBounds.Add(OcclusionCullingBounds[0]);
-	}
+	OcclusionCullingBounds = WaterQuadTree.ComputeNodeBounds(MaxQueries, CVarWaterMeshOcclusionCullExpandBoundsAmountXY.GetValueOnGameThread(), bIncludeFarMeshOcclusionQueries, &OcclusionResultsFarMeshOffset);
+	EmptyOcclusionCullingBounds.Add(WaterQuadTree.GetBoundsIncludingFarMesh());
 }
 
 FWaterMeshSceneProxy::~FWaterMeshSceneProxy()
