@@ -113,16 +113,6 @@ void USkeletonEditingTool::Setup()
 	Modifier = NewObject<USkeletonModifier>(this);
 	Modifier->SetSkeletalMesh(SkeletalMesh);
 
-	// setup current bone
-	const FReferenceSkeleton& RefSkeleton = Modifier->GetReferenceSkeleton();
-	const int32 NumBones = RefSkeleton.GetNum();
-	const FName& RootBoneName = NumBones ? RefSkeleton.GetBoneName(0) : NAME_None;
-
-	if (NumBones)
-	{
-		Selection = {RootBoneName};
-	}
-
 	// setup preview
 	{
 		PreviewMesh = NewObject<UPreviewMesh>(this);
@@ -209,6 +199,7 @@ void USkeletonEditingTool::Setup()
 		if (GizmoWrapper)
 		{
 			GizmoWrapper->Component = Component;
+			GizmoWrapper->Initialize();
 		}
 	}
 

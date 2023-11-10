@@ -845,8 +845,17 @@ void SReferenceSkeletonTree::HandleGetChildrenForTree(
 
 void SReferenceSkeletonTree::OnSelectionChanged(TSharedPtr<FBoneElement> InItem, ESelectInfo::Type InSelectInfo)
 {
-	if (!InItem || InSelectInfo == ESelectInfo::Direct)
+	if (InSelectInfo == ESelectInfo::Direct)
 	{
+		return;
+	}
+	
+	if (!InItem)
+	{
+		if (Notifier.IsValid())
+		{
+			Notifier->Notify({}, ESkeletalMeshNotifyType::BonesSelected);
+		}
 		return;
 	}
 	
