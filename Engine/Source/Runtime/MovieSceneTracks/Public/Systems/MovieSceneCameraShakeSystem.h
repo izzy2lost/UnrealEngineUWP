@@ -79,6 +79,10 @@ public:
 private:
 	void TriggerOneShotShakes();
 
+#if WITH_EDITOR
+	void OnObjectsReplaced(const TMap<UObject*, UObject*>& ReplacementMap);
+#endif
+
 private:
 	struct FTimedTrigger
 	{
