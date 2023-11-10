@@ -1315,7 +1315,7 @@ public:
 	template <
 		typename OtherKeyFuncs,
 		typename AliasElementType = ElementType
-		UE_REQUIRES(TIsContainerElementTypeCopyable<AliasElementType>::Value)
+		UE_REQUIRES(TIsContainerElementTypeCopyable_V<AliasElementType>)
 	>
 	TSet& operator=(TSet<typename TContainerElementTypeCompatibility<ElementType>::CopyFromOtherType, OtherKeyFuncs, Allocator>&& Other)
 	{
@@ -1336,7 +1336,7 @@ public:
 		typename OtherKeyFuncs,
 		typename OtherAllocator,
 		typename AliasElementType = ElementType
-		UE_REQUIRES(TIsContainerElementTypeCopyable<AliasElementType>::Value)
+		UE_REQUIRES(TIsContainerElementTypeCopyable_V<AliasElementType>)
 	>
 	TSet& operator=(const TSet<typename TContainerElementTypeCompatibility<ElementType>::CopyFromOtherType, OtherKeyFuncs, OtherAllocator>& Other)
 	{
@@ -1355,7 +1355,7 @@ public:
 		typename OtherKeyFuncs,
 		typename OtherAllocator,
 		typename AliasElementType = ElementType
-		UE_REQUIRES(TIsContainerElementTypeCopyable<AliasElementType>::Value)
+		UE_REQUIRES(TIsContainerElementTypeCopyable_V<AliasElementType>)
 	>
 	void Append(const TSet<typename TContainerElementTypeCompatibility<ElementType>::CopyFromOtherType, OtherKeyFuncs, OtherAllocator>& OtherSet)
 	{
@@ -1375,7 +1375,7 @@ public:
 	template <
 		typename OtherKeyFuncs,
 		typename AliasElementType = ElementType
-		UE_REQUIRES(TIsContainerElementTypeCopyable<AliasElementType>::Value)
+		UE_REQUIRES(TIsContainerElementTypeCopyable_V<AliasElementType>)
 	>
 	void Append(TSet<typename TContainerElementTypeCompatibility<ElementType>::CopyFromOtherType, OtherKeyFuncs, Allocator>&& OtherSet)
 	{

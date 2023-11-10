@@ -5,16 +5,13 @@
 #include "CoreTypes.h"
 #include "Misc/AssertionMacros.h"
 #include "Misc/OptionalFwd.h"
-#include "Templates/EnableIf.h"
-#include "Templates/PointerIsConvertibleFromTo.h"
+
+#include <type_traits>
 
 class FArchive;
 enum class EDefaultConstructNonNullPtr { UnsafeDoNotUse }; // So we can construct TNonNullPtrs
 
 namespace UE::Core::Private::NonNullPtr {
-template <typename...>
-using TVoid = void;
-
 /**
  * Version of `::TPointerIsConvertibleFromTo` that produces an incomplete type
  * when either `From` or `To` are incomplete types
@@ -28,9 +25,9 @@ struct TPointerIsConvertibleFromTo;
  * non-function types
  */
 template <typename From, typename To>
-struct TPointerIsConvertibleFromTo<From, To, TVoid<decltype(sizeof(From)), decltype(sizeof(To))>>
-	: ::TPointerIsConvertibleFromTo<From, To>
+struct TPointerIsConvertibleFromTo<From, To, std::void_t<decltype(sizeof(From)), decltype(sizeof(To))>>
 {
+	static constexpr bool Value = std::is_convertible_v<From*, To*>;
 };
 
 /**
@@ -40,8 +37,8 @@ struct TPointerIsConvertibleFromTo<From, To, TVoid<decltype(sizeof(From)), declt
  */
 template <typename Result1, typename... Args1, typename Result2, typename... Args2>
 struct TPointerIsConvertibleFromTo<Result1(Args1...), Result2(Args2...)>
-	: ::TPointerIsConvertibleFromTo<Result1(Args1...), Result2(Args2...)>
 {
+	static constexpr bool Value = std::is_convertible_v<Result1(*)(Args1...), Result2(*)(Args2...)>;
 };
 }
 
@@ -83,8 +80,8 @@ public:
 	 * Constructs a non-null pointer from another non-null pointer
 	 */
 	template <
-		typename OtherObjectType,
-		typename = typename TEnableIf<UE::Core::Private::NonNullPtr::TPointerIsConvertibleFromTo<OtherObjectType, ObjectType>::Value>::Type
+		typename OtherObjectType
+		UE_REQUIRES(UE::Core::Private::NonNullPtr::TPointerIsConvertibleFromTo<OtherObjectType, ObjectType>::Value)
 	>
 	FORCEINLINE TNonNullPtr(const TNonNullPtr<OtherObjectType>& Other)
 		: Object(Other.Object)
@@ -114,8 +111,11 @@ public:
 	/**
 	 * Assignment operator taking another TNonNullPtr
 	 */
-	template <typename OtherObjectType>
-	FORCEINLINE typename TEnableIf<UE::Core::Private::NonNullPtr::TPointerIsConvertibleFromTo<OtherObjectType, ObjectType>::Value, TNonNullPtr&>::Type operator=(const TNonNullPtr<OtherObjectType>& Other)
+	template <
+		typename OtherObjectType
+		UE_REQUIRES(UE::Core::Private::NonNullPtr::TPointerIsConvertibleFromTo<OtherObjectType, ObjectType>::Value)
+	>
+	FORCEINLINE TNonNullPtr& operator=(const TNonNullPtr<OtherObjectType>& Other)
 	{
 		Object = Other.Object;
 		return *this;
@@ -240,3 +240,8 @@ public:
 private:
 	OptionalType* Pointer;
 };
+
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
+#include "Templates/EnableIf.h"
+#include "Templates/PointerIsConvertibleFromTo.h"
+#endif

@@ -2272,7 +2272,7 @@ public:
 	/** Mutable implicit conversion operator to container of compatible element type. */
 	template <
 		typename AliasElementType = ElementType
-		UE_REQUIRES(TIsContainerElementTypeReinterpretable<AliasElementType>::Value)
+		UE_REQUIRES(TIsContainerElementTypeReinterpretable_V<AliasElementType>)
 	>
 	operator TArray<typename TContainerElementTypeCompatibility<AliasElementType>::ReinterpretType, AllocatorType>& ()
 	{
@@ -2285,7 +2285,7 @@ public:
 	/** Immutable implicit conversion operator to constant container of compatible element type. */
 	template <
 		typename AliasElementType = ElementType
-		UE_REQUIRES(TIsContainerElementTypeReinterpretable<AliasElementType>::Value)
+		UE_REQUIRES(TIsContainerElementTypeReinterpretable_V<AliasElementType>)
 	>
 	operator const TArray<typename TContainerElementTypeCompatibility<AliasElementType>::ReinterpretType, AllocatorType>& () const
 	{
@@ -2302,7 +2302,7 @@ public:
 	 */
 	template <
 		typename AliasElementType = ElementType
-		UE_REQUIRES(TIsContainerElementTypeCopyable<AliasElementType>::Value)
+		UE_REQUIRES(TIsContainerElementTypeCopyable_V<AliasElementType>)
 	>
 	TArray& operator=(TArray<typename TContainerElementTypeCompatibility<ElementType>::CopyFromOtherType, AllocatorType>&& Other)
 	{
@@ -2322,7 +2322,7 @@ public:
 	template <
 		typename OtherAllocator,
 		typename AliasElementType = ElementType
-		UE_REQUIRES(TIsContainerElementTypeCopyable<AliasElementType>::Value)
+		UE_REQUIRES(TIsContainerElementTypeCopyable_V<AliasElementType>)
 	>
 	TArray& operator=(const TArray<typename TContainerElementTypeCompatibility<ElementType>::CopyFromOtherType, OtherAllocator>& Other)
 	{
@@ -2343,7 +2343,7 @@ public:
 	template <
 		typename OtherAllocator,
 		typename AliasElementType = ElementType
-		UE_REQUIRES(TIsContainerElementTypeCopyable<AliasElementType>::Value)
+		UE_REQUIRES(TIsContainerElementTypeCopyable_V<AliasElementType>)
 	>
 	SizeType Insert(const TArray<typename TContainerElementTypeCompatibility<ElementType>::CopyFromOtherType, OtherAllocator>& Items, const SizeType InIndex)
 	{
@@ -2368,7 +2368,7 @@ public:
 	template <
 		typename OtherAllocator,
 		typename AliasElementType = ElementType
-		UE_REQUIRES(TIsContainerElementTypeCopyable<AliasElementType>::Value)
+		UE_REQUIRES(TIsContainerElementTypeCopyable_V<AliasElementType>)
 	>
 	SizeType Insert(TArray<typename TContainerElementTypeCompatibility<ElementType>::CopyFromOtherType, OtherAllocator>&& Items, const SizeType InIndex)
 	{
@@ -2394,7 +2394,7 @@ public:
 	 */
 	template <
 		typename AliasElementType = ElementType
-		UE_REQUIRES(TIsContainerElementTypeCopyable<AliasElementType>::Value)
+		UE_REQUIRES(TIsContainerElementTypeCopyable_V<AliasElementType>)
 	>
 	void Append(const typename TContainerElementTypeCompatibility<ElementType>::CopyFromOtherType* Ptr, SizeType Count)
 	{
