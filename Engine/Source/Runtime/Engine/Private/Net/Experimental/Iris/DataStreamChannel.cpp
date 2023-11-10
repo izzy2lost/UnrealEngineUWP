@@ -390,11 +390,11 @@ void UDataStreamChannel::ReceivedAck(int32 PacketId)
 	}
 
 	const FDataStreamChannelRecord& ChannelRecord = WriteRecords.Peek();
-	ensureMsgf((uint32)PacketId == ChannelRecord.PacketId, TEXT("PacketId %d != ChannelRecord.PacketId %d, WriteRecords.Num %d"), PacketId, ChannelRecord.PacketId, (int32)WriteRecords.Count());
-
-	DataStreamManager->ProcessPacketDeliveryStatus(UE::Net::EPacketDeliveryStatus::Delivered, static_cast<const FDataStreamRecord*>(ChannelRecord.Record));
-
-	WriteRecords.Pop();
+	if (ensureMsgf((uint32)PacketId == ChannelRecord.PacketId, TEXT("PacketId %d != ChannelRecord.PacketId %d, WriteRecords.Num %d"), PacketId, ChannelRecord.PacketId, (int32)WriteRecords.Count()))
+	{
+		DataStreamManager->ProcessPacketDeliveryStatus(UE::Net::EPacketDeliveryStatus::Delivered, static_cast<const FDataStreamRecord*>(ChannelRecord.Record));
+		WriteRecords.Pop();
+	}
 
 #endif // UE_WITH_IRIS
 }
@@ -412,10 +412,11 @@ void UDataStreamChannel::ReceivedNak(int32 PacketId)
 
 	const FDataStreamChannelRecord& ChannelRecord = WriteRecords.Peek();
 
-	check((uint32)PacketId == ChannelRecord.PacketId);
-
-	DataStreamManager->ProcessPacketDeliveryStatus(UE::Net::EPacketDeliveryStatus::Lost, static_cast<const FDataStreamRecord*>(ChannelRecord.Record));
-	WriteRecords.Pop();
+	if (ensureMsgf((uint32)PacketId == ChannelRecord.PacketId, TEXT("PacketId %d != ChannelRecord.PacketId %d, WriteRecords.Num %d"), PacketId, ChannelRecord.PacketId, (int32)WriteRecords.Count()))
+	{
+		DataStreamManager->ProcessPacketDeliveryStatus(UE::Net::EPacketDeliveryStatus::Lost, static_cast<const FDataStreamRecord*>(ChannelRecord.Record));
+		WriteRecords.Pop();
+	}
 
 #endif // UE_WITH_IRIS
 }
@@ -439,4 +440,12 @@ void UDataStreamChannel::AddReferencedObjects(UObject* Object, FReferenceCollect
 	}
 
 	Super::AddReferencedObjects(Channel, Collector);
+}
+
+void UDataStreamChannel::AppendExportBunches(TArray<FOutBunch *>& OutExportBunches)
+{
+}
+
+void UDataStreamChannel::AppendMustBeMappedGuids(FOutBunch* Bunch)
+{
 }

@@ -49,6 +49,11 @@ private:
 	/** Human readable information about the channel */
 	ENGINE_API virtual FString Describe() override;
 
+	/** We do not want to append orphaned exportbunches from other channels */
+	ENGINE_API virtual void AppendExportBunches(TArray<FOutBunch *>& OutExportBunches) override;
+	ENGINE_API virtual void AppendMustBeMappedGuids(FOutBunch* Bunch) override;
+
+
 	/** Packet delivery status handling */
 	ENGINE_API virtual void ReceivedAck(int32 PacketId) override;
 	ENGINE_API virtual void ReceivedNak(int32 PacketId) override;
