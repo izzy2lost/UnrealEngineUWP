@@ -294,6 +294,17 @@ void SetupMobileBasePassUniformParameters(
 
 	SetupMobileSceneTextureUniformParameters(GraphBuilder, View.GetSceneTexturesChecked(), SetupMode, BasePassParameters.SceneTextures);
 
+	// These textures are valid only if we use prepass local light and don't have a depth prepass
+	if ((View.PrevViewInfo.MobileLocalLightTextureA.IsValid()))
+	{
+		BasePassParameters.SceneTextures.LocalLightTextureA = GraphBuilder.RegisterExternalTexture(CreateRenderTarget(View.PrevViewInfo.MobileLocalLightTextureA->GetRHI(), TEXT("MobileLocalLightTextureA")));;
+	}
+
+	if ((View.PrevViewInfo.MobileLocalLightTextureB.IsValid()))
+	{
+		BasePassParameters.SceneTextures.LocalLightTextureB = GraphBuilder.RegisterExternalTexture(CreateRenderTarget(View.PrevViewInfo.MobileLocalLightTextureB->GetRHI(), TEXT("MobileLocalLightTextureB")));;
+	}
+
 	BasePassParameters.PreIntegratedGFTexture = GSystemTextures.PreintegratedGF->GetRHI();
 	BasePassParameters.PreIntegratedGFSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
 	BasePassParameters.EyeAdaptationBuffer = GraphBuilder.CreateSRV(GetEyeAdaptationBuffer(GraphBuilder, View));

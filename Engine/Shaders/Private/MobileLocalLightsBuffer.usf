@@ -90,11 +90,7 @@ void MainVS(
 
 void Main(float4 SvPosition : SV_POSITION
 	, out float3 OutColorA : SV_Target0
-#if POST_PROCESS_LOCAL_LIGHTS == 0
 	, out float4 OutColorB : SV_Target1
-#elif GENERATE_LIGHT_FUNCTION_DEPTH_STENCIL && USE_SCENE_DEPTH_AUX
-	, out float OutDepth : SV_Depth
-#endif
 )
 {
 	const uint2 PixelPos = SvPosition.xy;
@@ -168,7 +164,6 @@ void Main(float4 SvPosition : SV_POSITION
 		}
 	}
 
-#if POST_PROCESS_LOCAL_LIGHTS == 0
 	if (TotalWeight > 0)
 	{
 		SavedL = (SavedL / TotalWeight);
@@ -185,29 +180,6 @@ void Main(float4 SvPosition : SV_POSITION
 			clip(-1);
 		#endif
 	}
-#else
-	if (TotalWeight > 0)
-	{
-		SavedL = (SavedL / TotalWeight);
-		float3 N = normalize(cross(ddx(TranslatedWorldPosition.xyz), ddy(TranslatedWorldPosition.xyz)));
-		float3 L = SavedL;	// Already normalized
-		float NoL = max(0, dot(N, L));
-		float3 Diffuse =  (1 / PI) * NoL * Color;
-		OutColorA = 1 + Diffuse;
-		#if GENERATE_LIGHT_FUNCTION_DEPTH_STENCIL && USE_SCENE_DEPTH_AUX
-			// Copy depth value from scene depth aux to the real depth buffer
-			OutDepth = DeviceZ;
-		#endif
-	}
-	else
-	{
-		OutColorA = float3(1, 1, 1);
-		#if GENERATE_LIGHT_FUNCTION_DEPTH_STENCIL
-			// Clip to avoid writing to stencil
-			clip(-1);
-		#endif
-	}
-#endif
 }
 
 #else // !LIGHT_FUNCTION
@@ -258,14 +230,7 @@ void MainLightFunction(
 
 	float3 Color = LightData.Color * LightMask * EncodedLightAttenuation;
 
-#if POST_PROCESS_LOCAL_LIGHTS == 0
 	OutColorA = Color;
-#else
-	float3 N = normalize(cross(ddx(TranslatedWorldPosition.xyz), ddy(TranslatedWorldPosition.xyz)));
-	float NoL = max(0, dot(N, L));
-	float3 Diffuse =  (1 / PI) * NoL * Color;
-	OutColorA = Diffuse;
-#endif
 }
 #endif // !LIGHT_FUNCTION
 

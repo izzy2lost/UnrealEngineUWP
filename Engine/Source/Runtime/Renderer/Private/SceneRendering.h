@@ -1143,8 +1143,12 @@ struct FPreviousViewInfo
 	// Mobile bloom setup eye adaptation surface.
 	TRefCountPtr<IPooledRenderTarget> MobileBloomSetup_EyeAdaptation;
 
-	// Mobile pixel projected reflection textureused for next frame.
+	// Mobile pixel projected reflection texture used for next frame.
 	TRefCountPtr<IPooledRenderTarget> MobilePixelProjectedReflection = nullptr;
+
+	// Mobile Local Light Textures used for next frame
+	TRefCountPtr<IPooledRenderTarget> MobileLocalLightTextureA = nullptr;
+	TRefCountPtr<IPooledRenderTarget> MobileLocalLightTextureB = nullptr;
 
 	// Mobile ambient occlusion texture used for next frame.
 	TRefCountPtr<IPooledRenderTarget> MobileAmbientOcclusion = nullptr;
@@ -2651,7 +2655,7 @@ protected:
 	void RenderMaskedPrePass(FRHICommandList& RHICmdList, const FViewInfo& View);
 	void RenderFullDepthPrepass(FRDGBuilder& GraphBuilder, TArrayView<FViewInfo> InViews, FSceneTextures& SceneTextures, bool bIsSceneCaptureRenderPass=false);
 
-	void RenderMobileLocalLightsBuffer(FRDGBuilder& GraphBuilder, FSceneTextures& SceneTextures, bool bIsPrepass, const FSortedLightSetSceneInfo& SortedLights);
+	void RenderMobileLocalLightsBuffer(FRDGBuilder& GraphBuilder, FSceneTextures& SceneTextures, const FSortedLightSetSceneInfo& SortedLights);
 
 	/** Renders the opaque base pass for mobile. */
 	void RenderMobileBasePass(FRHICommandList& RHICmdList, const FViewInfo& View, const FInstanceCullingDrawParams* InstanceCullingDrawParams);

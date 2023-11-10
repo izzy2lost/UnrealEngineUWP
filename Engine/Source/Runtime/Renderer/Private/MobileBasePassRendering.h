@@ -30,8 +30,6 @@
 #include "CompositionLighting/PostProcessDeferredDecals.h"
 
 bool MobileLocalLightsBufferEnabled(const FStaticShaderPlatform Platform);
-bool MobileLocalLightsBufferPrepassEnabled(const FStaticShaderPlatform Platform);
-bool MobileLocalLightsBufferPostprocessEnabled(const FStaticShaderPlatform Platform);
 
 struct FMobileBasePassTextures
 {

@@ -15,20 +15,11 @@
 #include "Engine/TextureCube.h"
 #include "ShaderPlatformCachedIniValue.h"
 
+
 bool MobileLocalLightsBufferEnabled(const FStaticShaderPlatform Platform)
 {
 	static FShaderPlatformCachedIniValue<int32> MobileForwardEnablePrepassLocalLightsIniValue(TEXT("r.Mobile.Forward.EnableLocalLights"));
 	return MobileForwardEnablePrepassLocalLightsIniValue.Get(Platform) == 2;
-}
-
-bool MobileLocalLightsBufferPrepassEnabled(const FStaticShaderPlatform Platform)
-{
-	return MobileLocalLightsBufferEnabled(Platform) && MobileUsesFullDepthPrepass(Platform);
-}
-
-bool MobileLocalLightsBufferPostprocessEnabled(const FStaticShaderPlatform Platform)
-{
-	return MobileLocalLightsBufferEnabled(Platform) && !MobileUsesFullDepthPrepass(Platform);
 }
 
 int32 GMobileForwardLocalLightsSinglePermutation = 0;
@@ -57,10 +48,7 @@ EMobileLocalLightSetting GetMobileForwardLocalLightSetting(EShaderPlatform Shade
 		}
 		else if (MobileForwardLocalLightsIniValue == 2)
 		{
-			if (MobileUsesFullDepthPrepass(ShaderPlatform))
-			{
-				return EMobileLocalLightSetting::LOCAL_LIGHTS_BUFFER;
-			}
+			return EMobileLocalLightSetting::LOCAL_LIGHTS_BUFFER;
 		}
 	}
 
