@@ -269,6 +269,36 @@ uint32 FISMComponentDescriptorBase::ComputeHash() const
 	return Hash;
 }
 
+uint32 FISMComponentDescriptor::ComputeHash() const
+{
+	Super::ComputeHash();
+
+	FISMComponentDescriptor& MutableSelf = *const_cast<FISMComponentDescriptor*>(this);
+	FArchiveCrc32 CrcArchive(Hash);
+	CrcArchive << MutableSelf.StaticMesh;
+	CrcArchive << MutableSelf.OverrideMaterials;
+	CrcArchive << MutableSelf.OverlayMaterial;
+	CrcArchive << MutableSelf.RuntimeVirtualTextures;
+	Hash = CrcArchive.GetCrc();
+
+	return Hash;
+}
+
+uint32 FSoftISMComponentDescriptor::ComputeHash() const
+{
+	Super::ComputeHash();
+
+	FSoftISMComponentDescriptor& MutableSelf = *const_cast<FSoftISMComponentDescriptor*>(this);
+	FArchiveCrc32 CrcArchive(Hash);
+	CrcArchive << MutableSelf.StaticMesh;
+	CrcArchive << MutableSelf.OverrideMaterials;
+	CrcArchive << MutableSelf.OverlayMaterial;
+	CrcArchive << MutableSelf.RuntimeVirtualTextures;
+	Hash = CrcArchive.GetCrc();
+
+	return Hash;
+}
+
 UInstancedStaticMeshComponent* FISMComponentDescriptorBase::CreateComponent(UObject* Outer, FName Name, EObjectFlags ObjectFlags) const
 {
 	UInstancedStaticMeshComponent* ISMComponent = NewObject<UInstancedStaticMeshComponent>(Outer, ComponentClass, Name, ObjectFlags);

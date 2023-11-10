@@ -218,6 +218,7 @@ struct FISMComponentDescriptor : public FISMComponentDescriptorBase
 	static ENGINE_API FISMComponentDescriptor CreateFrom(const TSubclassOf<UStaticMeshComponent>& ComponentClass);
 
 	ENGINE_API virtual void InitFrom(const UStaticMeshComponent* Component, bool bInitBodyInstance = true) override;
+	ENGINE_API virtual uint32 ComputeHash() const;
 	ENGINE_API virtual void InitComponent(UInstancedStaticMeshComponent* ISMComponent) const override;
 		
 	ENGINE_API bool operator!=(const FISMComponentDescriptor& Other) const;
@@ -252,6 +253,7 @@ struct FSoftISMComponentDescriptor : public FISMComponentDescriptorBase
 	static ENGINE_API FSoftISMComponentDescriptor CreateFrom(const TSubclassOf<UStaticMeshComponent>& ComponentClass);
 
 	ENGINE_API virtual void InitFrom(const UStaticMeshComponent* Component, bool bInitBodyInstance = true) override;
+	ENGINE_API virtual uint32 ComputeHash() const;
 	ENGINE_API virtual void InitComponent(UInstancedStaticMeshComponent* ISMComponent) const override;
 
 	ENGINE_API bool operator!=(const FSoftISMComponentDescriptor& Other) const;
