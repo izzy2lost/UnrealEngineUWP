@@ -761,7 +761,7 @@ void FReplicationPrioritization::SetHighPriorityOnViewTargets(const TArrayView<f
 		}
 	}
 
-	for (const FNetHandle NetHandle : ViewTargets)
+	for (FNetHandle NetHandle : ViewTargets)
 	{
 		const FInternalNetRefIndex ViewTargetInternalIndex = NetRefHandleManager->GetInternalIndexFromNetHandle(NetHandle);
 		if (ViewTargetInternalIndex != FNetRefHandleManager::InvalidInternalIndex)
