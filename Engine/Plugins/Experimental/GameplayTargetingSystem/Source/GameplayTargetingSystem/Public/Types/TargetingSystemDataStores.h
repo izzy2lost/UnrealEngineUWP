@@ -28,14 +28,14 @@ namespace UE
 		{
 			TTargetingDataStore()
 			{
-				ReleaseDelegateHandle = UTargetingSubsystem::ReleaseHandleDelegate.AddStatic(&TTargetingDataStore::OnTargetingRequestHandleReleased);
+				ReleaseDelegateHandle = UTargetingSubsystem::ReleaseHandleDelegate().AddStatic(&TTargetingDataStore::OnTargetingRequestHandleReleased);
 			}
 
 			~TTargetingDataStore()
 			{
 				if (ReleaseDelegateHandle.IsValid())
 				{
-					UTargetingSubsystem::ReleaseHandleDelegate.Remove(ReleaseDelegateHandle);
+					UTargetingSubsystem::ReleaseHandleDelegate().Remove(ReleaseDelegateHandle);
 				}
 			}
 

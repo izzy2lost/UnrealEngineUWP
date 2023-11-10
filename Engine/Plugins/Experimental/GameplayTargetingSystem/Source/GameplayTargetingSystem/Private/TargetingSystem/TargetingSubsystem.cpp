@@ -75,7 +75,11 @@ namespace TargetingSystemCVars
 #endif // ENABLE_DRAW_DEBUG
 }
 
-UTargetingSubsystem::FOnTargetingRequestHandleReleased UTargetingSubsystem::ReleaseHandleDelegate;
+UTargetingSubsystem::FOnTargetingRequestHandleReleased& UTargetingSubsystem::ReleaseHandleDelegate()
+{
+	static UTargetingSubsystem::FOnTargetingRequestHandleReleased Delegate;
+	return Delegate;
+}
 
 
 UTargetingSubsystem::UTargetingSubsystem()
@@ -345,7 +349,7 @@ void UTargetingSubsystem::ReleaseTargetRequestHandle(FTargetingRequestHandle& Ha
 	}
 #endif // ENABLE_DRAW_DEBUG
 
-	ReleaseHandleDelegate.Broadcast(CachedHandle);
+	ReleaseHandleDelegate().Broadcast(CachedHandle);
 	TARGETING_LOG(Verbose, TEXT("%s: - Releasigng Handle [%d]"), ANSI_TO_TCHAR(__FUNCTION__), CachedHandle.Handle);
 }
 
