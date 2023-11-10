@@ -130,6 +130,29 @@ void FPreAnimatedEntityCaptureSource::GatherAndRemoveMetaDataForGroup(FPreAnimat
 	}
 }
 
+void FPreAnimatedEntityCaptureSource::GatherAndRemoveMetaDataForStorage(FPreAnimatedStorageID StorageID, FPreAnimatedStorageIndex StorageIndex, TArray<FPreAnimatedStateMetaData>& OutExpiredMetaData)
+{
+	for (auto It = KeyToMetaData.CreateIterator(); It; ++It)
+	{
+		FPreAnimatedStateMetaDataArray& Array = It.Value();
+		for (int32 Index = Array.Num()-1; Index >= 0; --Index)
+		{
+			const FPreAnimatedStateMetaData& MetaData = Array[Index];
+			if (MetaData.Entry.ValueHandle.TypeID == StorageID &&
+					(!StorageIndex.IsValid() || MetaData.Entry.ValueHandle.StorageIndex == StorageIndex))
+			{
+				OutExpiredMetaData.Add(MetaData);
+				Array.RemoveAt(Index, 1, false);
+			}
+		}
+
+		if (Array.Num() == 0)
+		{
+			It.RemoveCurrent();
+		}
+	}
+}
+
 bool FPreAnimatedEntityCaptureSource::ContainsInstanceHandle(FRootInstanceHandle RootInstanceHandle) const
 {
 	for (const TPair<FMovieSceneEntityID, FPreAnimatedStateMetaDataArray>& Pair : KeyToMetaData)

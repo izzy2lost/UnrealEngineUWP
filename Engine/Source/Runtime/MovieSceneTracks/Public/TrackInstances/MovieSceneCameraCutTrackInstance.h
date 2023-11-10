@@ -28,7 +28,7 @@ namespace UE::MovieScene
 		bool ShouldUpdateCameraCut();
 		void OnCameraCutUpdated(const FOnCameraCutUpdatedParams& Params);
 #if WITH_EDITOR
-		bool ShouldCacheEditorPreAnimatedState();
+		bool ShouldRestoreEditorViewports();
 #endif
 
 		FCameraCutPlaybackCapability* CameraCutCapability;

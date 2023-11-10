@@ -58,11 +58,11 @@ bool FCameraCutPlaybackCapabilityCompatibilityWrapper::ShouldUpdateCameraCut()
 }
 
 #if WITH_EDITOR
-bool FCameraCutPlaybackCapabilityCompatibilityWrapper::ShouldCacheEditorPreAnimatedState()
+bool FCameraCutPlaybackCapabilityCompatibilityWrapper::ShouldRestoreEditorViewports()
 {
 	if (CameraCutCapability)
 	{
-		return CameraCutCapability->ShouldCacheEditorPreAnimatedState();
+		return CameraCutCapability->ShouldRestoreEditorViewports();
 	}
 	return true;
 }

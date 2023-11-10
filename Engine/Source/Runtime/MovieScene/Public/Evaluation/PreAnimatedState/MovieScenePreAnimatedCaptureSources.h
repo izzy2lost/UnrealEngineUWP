@@ -47,7 +47,7 @@ struct FPreAnimatedEvalHookKeyType
 };
 
 /**
- * Structure responsible for tracking contributions to pre-eanimated state entries that originate from track templates (ie, from an IMovieSceneExecutionToken::Execute)
+ * Structure responsible for tracking contributions to pre-animated state entries that originate from track templates (ie, from an IMovieSceneExecutionToken::Execute)
  */
 template<typename KeyType>
 struct TPreAnimatedCaptureSources : IPreAnimatedCaptureSource
@@ -69,6 +69,7 @@ struct TPreAnimatedCaptureSources : IPreAnimatedCaptureSource
 	bool ContainsInstanceHandle(FRootInstanceHandle RootInstanceHandle) const override;
 	void GatherAndRemoveExpiredMetaData(const FRestoreStateParams& Params, TArray<FPreAnimatedStateMetaData>& OutExpiredMetaData) override;
 	void GatherAndRemoveMetaDataForGroup(FPreAnimatedStorageGroupHandle Group, TArray<FPreAnimatedStateMetaData>& OutExpiredMetaData) override;
+	void GatherAndRemoveMetaDataForStorage(FPreAnimatedStorageID StorageID, FPreAnimatedStorageIndex StorageIndex, TArray<FPreAnimatedStateMetaData>& OutExpiredMetaData) override;
 
 private:
 

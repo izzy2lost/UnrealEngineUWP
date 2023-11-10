@@ -42,7 +42,7 @@ namespace UE::MovieScene
 
 #if WITH_EDITOR
 		/** Whether the editor should cache the pre-animated viewport position */
-		virtual bool ShouldCacheEditorPreAnimatedState() { return true; }
+		virtual bool ShouldRestoreEditorViewports() { return true; }
 #endif
 	};
 

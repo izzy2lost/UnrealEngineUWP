@@ -62,9 +62,16 @@ void FPreAnimatedCameraCutEditorTraits::RestorePreAnimatedValue(
 		return;
 	}
 	
-	InKey->SetViewLocation(CachedValue.ViewportLocation);
-	InKey->SetViewRotation(CachedValue.ViewportRotation);
-	InKey->ViewFOV = CachedValue.ViewportFOV;
+	// Restore pre-animated viewport position if needed. Then disable cinematic lock either way.
+	FInstanceRegistry* InstanceRegistry = Params.Linker->GetInstanceRegistry();
+	const FSequenceInstance& TerminalInstance = InstanceRegistry->GetInstance(Params.TerminalInstanceHandle);
+	FCameraCutPlaybackCapabilityCompatibilityWrapper Wrapper(TerminalInstance);
+	if (Wrapper.ShouldRestoreEditorViewports())
+	{
+		InKey->SetViewLocation(CachedValue.ViewportLocation);
+		InKey->SetViewRotation(CachedValue.ViewportRotation);
+		InKey->ViewFOV = CachedValue.ViewportFOV;
+	}
 
 	InKey->SetCinematicActorLock(nullptr);
 	InKey->bLockedCameraView = false;
@@ -79,12 +86,6 @@ void FCameraCutEditorHandler::CachePreAnimatedValue(
 		const FSequenceInstance& SequenceInstance)
 {
 	if (!GEditor)
-	{
-		return;
-	}
-
-	FCameraCutPlaybackCapabilityCompatibilityWrapper Wrapper(SequenceInstance);
-	if (!Wrapper.ShouldCacheEditorPreAnimatedState())
 	{
 		return;
 	}
@@ -126,6 +127,8 @@ void FCameraCutEditorHandler::ForcePreAnimatedValueOperation(
 		return;
 	}
 
+	TGuardValue<FEntityManager*> EntityManagerForDebugging(GEntityManagerForDebuggingVisualizers, &Linker->EntityManager);
+
 	IMovieScenePlayer* Player = SequenceInstance.GetPlayer();
 	UObject* PlaybackContext = Player->GetPlaybackContext();
 	UWorld* ContextWorld = PlaybackContext ? PlaybackContext->GetWorld() : nullptr;
@@ -164,13 +167,13 @@ void FCameraCutEditorHandler::ForcePreAnimatedValueOperation(
 					{
 						FRestoreStateParams Params;
 						Params.Linker = Linker;
-						// No need to set the terminal instance handle, we don't use it (see above).
+						Params.TerminalInstanceHandle = SequenceInstance.GetRootInstanceHandle();
 						PreAnimatedStorage->RestorePreAnimatedStateStorage(StorageIndex, EPreAnimatedStorageRequirement::Transient, EPreAnimatedStorageRequirement::Persistent, Params);
 					}
 					break;
 				case EForcedCameraCutPreAnimatedStorageOperation::Discard:
 					{
-						PreAnimatedStorage->DiscardPreAnimatedStateStorage(StorageIndex, EPreAnimatedStorageRequirement::Transient);
+						Linker->PreAnimatedState.DiscardStateForStorage(FPreAnimatedCameraCutEditorStorage::StorageID, StorageIndex);
 					}
 					break;
 			}

@@ -269,6 +269,11 @@ public:
 	MOVIESCENE_API void DiscardStateForGroup(FPreAnimatedStorageGroupHandle GroupHandle);
 
 	/**
+	 * Discard the specified cached value and any and all capture source tracking related to it.
+	 */
+	MOVIESCENE_API void DiscardStateForStorage(FPreAnimatedStorageID StorageID, FPreAnimatedStorageIndex StorageIndex);
+
+	/**
 	 * Search for any captured state that originated from the specified root instance handle
 	 * WARNING: This is a linear search across all state, and so is potentially very slow
 	 */

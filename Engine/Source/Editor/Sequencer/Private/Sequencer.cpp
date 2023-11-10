@@ -11556,7 +11556,7 @@ UE::Sequencer::FSequencerSelection& FSequencer::GetSelection()
 	return *ViewModel->GetSelection();
 }
 
-bool FSequencer::ShouldCacheEditorPreAnimatedState()
+bool FSequencer::ShouldRestoreEditorViewports()
 {
 	return Settings->GetRestoreOriginalViewportOnCameraCutUnlock();
 }

@@ -116,6 +116,30 @@ void TPreAnimatedCaptureSources<KeyType>::GatherAndRemoveMetaDataForGroup(FPreAn
 }
 
 template<typename KeyType>
+void TPreAnimatedCaptureSources<KeyType>::GatherAndRemoveMetaDataForStorage(FPreAnimatedStorageID StorageID, FPreAnimatedStorageIndex StorageIndex, TArray<FPreAnimatedStateMetaData>& OutExpiredMetaData)
+{
+	for (auto It = KeyToMetaData.CreateIterator(); It; ++It)
+	{
+		FPreAnimatedStateMetaDataArray& Array = It.Value();
+		for (int32 Index = Array.Num()-1; Index >= 0; --Index)
+		{
+			const FPreAnimatedStateMetaData& MetaData = Array[Index];
+			if (MetaData.Entry.ValueHandle.TypeID == StorageID &&
+					(!StorageIndex.IsValid() || MetaData.Entry.ValueHandle.StorageIndex == StorageIndex))
+			{
+				OutExpiredMetaData.Add(MetaData);
+				Array.RemoveAt(Index, 1, false);
+			}
+		}
+
+		if (Array.Num() == 0)
+		{
+			It.RemoveCurrent();
+		}
+	}
+}
+
+template<typename KeyType>
 bool TPreAnimatedCaptureSources<KeyType>::ContainsInstanceHandle(FRootInstanceHandle RootInstanceHandle) const
 {
 	for (const TPair<KeyType, FPreAnimatedStateMetaDataArray>& Pair : KeyToMetaData)

@@ -309,6 +309,16 @@ void FPreAnimatedStateExtension::RestoreGlobalState(const FRestoreStateParams& P
 		EntityMetaData->GatherAndRemoveExpiredMetaData(Params, ExpiredMetaData);
 	}
 
+	if (FPreAnimatedTrackInstanceCaptureSources* TrackInstanceMetaData = GetTrackInstanceMetaData())
+	{
+		TrackInstanceMetaData->GatherAndRemoveExpiredMetaData(Params, ExpiredMetaData);
+	}
+
+	if (FPreAnimatedTrackInstanceInputCaptureSources* TrackInstanceInputMetaData = GetTrackInstanceInputMetaData())
+	{
+		TrackInstanceInputMetaData->GatherAndRemoveExpiredMetaData(Params, ExpiredMetaData);
+	}
+
 	for (int32 Index = WeakExternalCaptureSources.Num()-1; Index >= 0; --Index)
 	{
 		TSharedPtr<IPreAnimatedCaptureSource> MetaData = WeakExternalCaptureSources[Index].Pin();
@@ -429,6 +439,16 @@ void FPreAnimatedStateExtension::DiscardGlobalState(const FRestoreStateParams& P
 		EntityMetaData->GatherAndRemoveExpiredMetaData(Params, ExpiredMetaData);
 	}
 
+	if (FPreAnimatedTrackInstanceCaptureSources* TrackInstanceMetaData = GetTrackInstanceMetaData())
+	{
+		TrackInstanceMetaData->GatherAndRemoveExpiredMetaData(Params, ExpiredMetaData);
+	}
+
+	if (FPreAnimatedTrackInstanceInputCaptureSources* TrackInstanceInputMetaData = GetTrackInstanceInputMetaData())
+	{
+		TrackInstanceInputMetaData->GatherAndRemoveExpiredMetaData(Params, ExpiredMetaData);
+	}
+
 	for (int32 Index = WeakExternalCaptureSources.Num() - 1; Index >= 0; --Index)
 	{
 		TSharedPtr<IPreAnimatedCaptureSource> MetaData = WeakExternalCaptureSources[Index].Pin();
@@ -523,6 +543,16 @@ void FPreAnimatedStateExtension::DiscardTransientState()
 		EntityMetaData->Reset();
 	}
 
+	if (FPreAnimatedTrackInstanceCaptureSources* TrackInstanceMetaData = GetTrackInstanceMetaData())
+	{
+		TrackInstanceMetaData->Reset();
+	}
+
+	if (FPreAnimatedTrackInstanceInputCaptureSources* TrackInstanceInputMetaData = GetTrackInstanceInputMetaData())
+	{
+		TrackInstanceInputMetaData->Reset();
+	}
+
 	for (int32 Index = WeakExternalCaptureSources.Num()-1; Index >= 0; --Index)
 	{
 		if (TSharedPtr<IPreAnimatedCaptureSource> MetaData = WeakExternalCaptureSources[Index].Pin())
@@ -563,6 +593,16 @@ void FPreAnimatedStateExtension::DiscardStateForGroup(FPreAnimatedStorageGroupHa
 		EntityMetaData->GatherAndRemoveMetaDataForGroup(GroupHandle, MetaDataToRemove);
 	}
 
+	if (FPreAnimatedTrackInstanceCaptureSources* TrackInstanceMetaData = GetTrackInstanceMetaData())
+	{
+		TrackInstanceMetaData->GatherAndRemoveMetaDataForGroup(GroupHandle, MetaDataToRemove);
+	}
+
+	if (FPreAnimatedTrackInstanceInputCaptureSources* TrackInstanceInputMetaData = GetTrackInstanceInputMetaData())
+	{
+		TrackInstanceInputMetaData->GatherAndRemoveMetaDataForGroup(GroupHandle, MetaDataToRemove);
+	}
+
 	for (int32 Index = WeakExternalCaptureSources.Num()-1; Index >= 0; --Index)
 	{
 		if (TSharedPtr<IPreAnimatedCaptureSource> MetaData = WeakExternalCaptureSources[Index].Pin())
@@ -582,6 +622,105 @@ void FPreAnimatedStateExtension::DiscardStateForGroup(FPreAnimatedStorageGroupHa
 
 	Group.GroupManagerPtr->OnGroupDestroyed(GroupHandle.Value);
 	GroupMetaData.RemoveAt(GroupHandle.Value, 1);
+
+	bEntriesInvalidated = true;
+}
+
+void FPreAnimatedStateExtension::DiscardStateForStorage(FPreAnimatedStorageID StorageID, FPreAnimatedStorageIndex StorageIndex)
+{
+	TArray<FPreAnimatedStateMetaData> MetaDataToRemove;
+
+	if (FPreAnimatedEntityCaptureSource* EntityMetaData = GetEntityMetaData())
+	{
+		EntityMetaData->GatherAndRemoveMetaDataForStorage(StorageID, StorageIndex, MetaDataToRemove);
+	}
+
+	if (FPreAnimatedTrackInstanceCaptureSources* TrackInstanceMetaData = GetTrackInstanceMetaData())
+	{
+		TrackInstanceMetaData->GatherAndRemoveMetaDataForStorage(StorageID, StorageIndex, MetaDataToRemove);
+	}
+
+	if (FPreAnimatedTrackInstanceInputCaptureSources* TrackInstanceInputMetaData = GetTrackInstanceInputMetaData())
+	{
+		TrackInstanceInputMetaData->GatherAndRemoveMetaDataForStorage(StorageID, StorageIndex, MetaDataToRemove);
+	}
+
+	for (int32 Index = WeakExternalCaptureSources.Num()-1; Index >= 0; --Index)
+	{
+		if (TSharedPtr<IPreAnimatedCaptureSource> MetaData = WeakExternalCaptureSources[Index].Pin())
+		{
+			MetaData->GatherAndRemoveMetaDataForStorage(StorageID, StorageIndex, MetaDataToRemove);
+		}
+	}
+
+	// Remove all contributions
+	for (const FPreAnimatedStateMetaData& MetaData : MetaDataToRemove)
+	{
+		FAggregatePreAnimatedStateMetaData* Aggregate = FindMetaData(MetaData.Entry);
+		if (ensure(Aggregate))
+		{
+			const int32 TotalNum = --Aggregate->NumContributors;
+			if (MetaData.bWantsRestoreState)
+			{
+				--Aggregate->NumRestoreContributors;
+			}
+
+			if (TotalNum == 0)
+			{
+				Aggregate->bWantedRestore = false;
+				Aggregate->TerminalInstanceHandle = MetaData.RootInstanceHandle;
+			}
+		}
+	}
+
+	TSharedPtr<IPreAnimatedStorage> Storage = GetStorageChecked(StorageID);
+
+	// Discard grouped entries
+	for (int32 Index = 0; Index < GroupMetaData.GetMaxIndex(); ++Index)
+	{
+		if (!GroupMetaData.IsAllocated(Index))
+		{
+			continue;
+		}
+
+		FPreAnimatedGroupMetaData& Group = GroupMetaData[Index];
+
+		for (int32 AggregateIndex = Group.AggregateMetaData.Num() - 1; AggregateIndex >= 0; --AggregateIndex)
+		{
+			FAggregatePreAnimatedStateMetaData& Aggregate = Group.AggregateMetaData[AggregateIndex];
+			if (Aggregate.ValueHandle.TypeID == StorageID && 
+					Aggregate.NumContributors == 0 &&
+					(!StorageIndex.IsValid() || Aggregate.ValueHandle.StorageIndex == StorageIndex))
+			{
+				Storage->DiscardPreAnimatedStateStorage(Aggregate.ValueHandle.StorageIndex, EPreAnimatedStorageRequirement::Persistent);
+
+				Group.AggregateMetaData.RemoveAt(AggregateIndex, 1, false);
+			}
+
+			if (Group.AggregateMetaData.Num() == 0)
+			{
+				// Remove at will not re-allocate the array or shuffle items within the sparse array, so this is safe
+				Group.GroupManagerPtr->OnGroupDestroyed(Index);
+				GroupMetaData.RemoveAt(Index);
+			}
+		}
+	}
+
+	// Discard ungrouped entries
+	for (auto UngroupedIt = UngroupedMetaData.CreateIterator(); UngroupedIt; ++UngroupedIt)
+	{
+		FAggregatePreAnimatedStateMetaData& Aggregate = UngroupedIt.Value();
+		if (Aggregate.ValueHandle.TypeID == StorageID && 
+				Aggregate.NumContributors == 0 &&
+				(!StorageIndex.IsValid() || Aggregate.ValueHandle.StorageIndex == StorageIndex))
+		{
+			Storage->DiscardPreAnimatedStateStorage(Aggregate.ValueHandle.StorageIndex, EPreAnimatedStorageRequirement::Persistent);
+
+			UngroupedIt.RemoveCurrent();
+		}
+	}
+
+	GroupMetaData.Shrink();
 
 	bEntriesInvalidated = true;
 }
