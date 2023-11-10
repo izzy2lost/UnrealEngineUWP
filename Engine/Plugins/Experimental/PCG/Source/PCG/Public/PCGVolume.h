@@ -8,7 +8,7 @@
 
 class UPCGComponent;
 
-UCLASS(BlueprintType)
+UCLASS(BlueprintType, DisplayName = "PCG Volume")
 class PCG_API APCGVolume : public AVolume
 {
 	GENERATED_BODY()
