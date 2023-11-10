@@ -158,6 +158,10 @@ struct FMovieSceneCameraShakeInstanceData
 	/** The signature of the source section at the time the shake instance was created */
 	UPROPERTY()
 	FGuid SectionSignature;
+
+	/** Whether this instance is managed by a shake previewer */
+	UPROPERTY()
+	bool bManagedByPreviewer = false;
 };
 
 /**

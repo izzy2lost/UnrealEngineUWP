@@ -5,7 +5,6 @@
 #if WITH_EDITOR
 
 #include "Camera/CameraModifier_CameraShake.h"
-#include "Camera/CameraShakeBase.h"
 #include "Camera/CameraShakeSourceComponent.h"
 #include "LevelEditorViewport.h"
 #include "MovieSceneFwd.h"
@@ -33,17 +32,18 @@ FCameraShakePreviewer::~FCameraShakePreviewer()
 
 UCameraShakeBase* FCameraShakePreviewer::AddCameraShake(const FCameraShakePreviewerAddParams& Params)
 {
-	UCameraShakeBase* NewShake = NewObject<UCameraShakeBase>(World, Params.ShakeClass);
-	ActiveShakes.Add({ NewShake, Params.SourceComponent, Params.GlobalStartTime });
-
-	UE_LOG(LogMovieScene, Verbose, TEXT("CameraShakePreviewer::AddCameraShake '%s'"), *GetNameSafe(NewShake));
-
 	FCameraShakeBaseStartParams StartParams;
 	StartParams.Scale = Params.Scale;
 	StartParams.PlaySpace = Params.PlaySpace;
 	StartParams.UserPlaySpaceRot = Params.UserPlaySpaceRot;
 	StartParams.DurationOverride = Params.DurationOverride;
+
+	UCameraShakeBase* NewShake = NewObject<UCameraShakeBase>(World, Params.ShakeClass);
 	NewShake->StartShake(StartParams);
+
+	ActiveShakes.Add({ StartParams, NewShake, Params.SourceComponent, Params.GlobalStartTime });
+
+	UE_LOG(LogMovieScene, Verbose, TEXT("CameraShakePreviewer::AddCameraShake '%s'"), *GetNameSafe(NewShake));
 
 	return NewShake;
 }
@@ -354,12 +354,18 @@ void FCameraShakePreviewer::OnObjectsReplaced(const TMap<UObject*, UObject*>& Re
 	for (int32 i = ActiveShakes.Num() - 1; i >= 0; i--)
 	{
 		FPreviewCameraShakeInfo& ActiveShake = ActiveShakes[i];
-		if (ReplacementMap.Find(ActiveShake.ShakeInstance))
+		if (UObject* const * NewShakeInstance = ReplacementMap.Find(ActiveShake.ShakeInstance))
 		{
-			// If a camera shake gets recompiled, we just stop and discard it.
+			// If a camera shake gets recompiled, stop the old version, and start the
+			// new version with the same parameters.
 			ActiveShake.ShakeInstance->StopShake(bImmediately);
 			ActiveShake.ShakeInstance->TeardownShake();
-			ActiveShakes.RemoveAt(i);
+			
+			ActiveShake.ShakeInstance = Cast<UCameraShakeBase>(*NewShakeInstance);
+			if (ensure(ActiveShake.ShakeInstance))
+			{
+				ActiveShake.ShakeInstance->StartShake(ActiveShake.StartParams);
+			}
 		}
 	}
 }

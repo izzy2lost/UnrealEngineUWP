@@ -4,12 +4,12 @@
 
 #if WITH_EDITOR
 
+#include "Camera/CameraShakeBase.h"
 #include "Camera/CameraTypes.h"
 #include "CoreMinimal.h"
 #include "UObject/GCObject.h"
 
 class FLevelEditorViewportClient;
-class UCameraShakeBase;
 class UCameraShakeSourceComponent;
 struct FActiveCameraShakeInfo;
 struct FEditorViewportViewModifierParams;
@@ -85,6 +85,7 @@ private:
 
 	struct FPreviewCameraShakeInfo
 	{
+		FCameraShakeBaseStartParams StartParams;
 		TObjectPtr<UCameraShakeBase> ShakeInstance;
 		TWeakObjectPtr<const UCameraShakeSourceComponent> SourceComponent;
 		float StartTime;

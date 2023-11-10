@@ -25,7 +25,7 @@
 #endif  // WITH_EDITOR
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MovieSceneCameraShakeSystem)
-PRAGMA_DISABLE_OPTIMIZATION
+
 namespace UE::MovieScene
 {
 
@@ -863,4 +863,4 @@ void UMovieSceneCameraShakeEvaluatorSystem::OnRun(FSystemTaskPrerequisites& InPr
 	}
 #endif  // WITH_EDITOR
 }
-PRAGMA_ENABLE_OPTIMIZATION
+
