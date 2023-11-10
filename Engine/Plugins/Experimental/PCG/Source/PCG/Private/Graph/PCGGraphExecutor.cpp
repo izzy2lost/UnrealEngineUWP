@@ -449,11 +449,6 @@ void FPCGGraphExecutor::Execute()
 	for (int32 ScheduledTaskIndex = ScheduledTasks.Num() - 1; ScheduledTaskIndex >= 0; --ScheduledTaskIndex)
 	{
 		FPCGGraphScheduleTask& ScheduledTask = ScheduledTasks[ScheduledTaskIndex];
-		if (!ScheduledTask.SourceComponent.IsValid())
-		{
-			// If the source component has gone invalid, don't schedule any tasks.
-			continue;
-		}
 
 		check(ScheduledTask.Tasks.Num() > 0);
 		// Push tasks to the primary task list & build successors map
