@@ -171,6 +171,9 @@ struct FPluginDescriptor
 	PROJECTS_API FPluginDescriptor();
 
 	/** Loads the descriptor from the given file. */
+	PROJECTS_API bool Load(const TCHAR* FileName, FText* OutFailReason = nullptr);
+
+	/** Loads the descriptor from the given file. */
 	PROJECTS_API bool Load(const FString& FileName, FText* OutFailReason = nullptr);
 
 	/** Loads the descriptor from the given file. */
@@ -188,10 +191,13 @@ struct FPluginDescriptor
 	/** Reads the descriptor from the given JSON object */
 	PROJECTS_API bool Read(const FJsonObject& Object, FText& OutFailReason);
 
-	/** Saves the descriptor from the given file. */
+	/** Saves the descriptor to the given file. */
+	PROJECTS_API bool Save(const TCHAR* FileName, FText* OutFailReason = nullptr) const;
+
+	/** Saves the descriptor to the given file. */
 	PROJECTS_API bool Save(const FString& FileName, FText* OutFailReason = nullptr) const;
 
-	/** Saves the descriptor from the given file. */
+	/** Saves the descriptor to the given file. */
 	PROJECTS_API bool Save(const FString& FileName, FText& OutFailReason) const;
 
 	/** Writes a descriptor to JSON */
