@@ -440,7 +440,7 @@ void UTransformableControlHandle::OnControlModified(
 					Control->Pose.IsDirty(ERigTransformType::CurrentGlobal);
 				if (bIsTransformDirty)
 				{
-					OnHandleModified.Broadcast(this, Event);
+					OnHandleModified.Broadcast(this, EHandleEvent::UpperDependencyUpdated);
 				}
 			}
 		}

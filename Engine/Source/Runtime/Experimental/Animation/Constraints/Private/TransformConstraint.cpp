@@ -581,17 +581,27 @@ void UTickableTransformConstraint::OnHandleModified(UTransformableHandle* InHand
 		return;
 	}
 
+	const UObject* Target = InHandle->GetTarget().Get();
+	UWorld* World = Target != nullptr ? Target->GetWorld() : nullptr;
+	if (!World)
+	{
+		return;
+	}
+	
 	if(InHandle == ChildTRSHandle || InHandle == ParentTRSHandle)
 	{
 		if (InNotification == EHandleEvent::ComponentUpdated)
 		{
-			UWorld* World = nullptr;
-			if (InHandle->GetTarget().Get())
+			SetupDependencies(World);
+			return;
+		}
+		
+		if (InNotification == EHandleEvent::UpperDependencyUpdated)
+		{
+			const FConstraintTickFunction* ConstraintTick = ConstraintTicks.Find(World->GetCurrentLevel());
+			if (IsFullyActive() && ConstraintTick->IsTickFunctionRegistered() && ConstraintTick->IsTickFunctionEnabled())
 			{
-				if (InHandle->GetTarget().Get()->GetWorld())
-				{
-					SetupDependencies(InHandle->GetTarget().Get()->GetWorld());
-				}
+				Evaluate();
 			}
 			return;
 		}
@@ -600,17 +610,10 @@ void UTickableTransformConstraint::OnHandleModified(UTransformableHandle* InHand
 	// update the constraint if the parent's transform has been modified 
 	if (InHandle == ParentTRSHandle && InNotification == EHandleEvent::GlobalTransformUpdated)
 	{
-		if (InHandle->GetTarget().Get())
+		const FConstraintTickFunction* ConstraintTick = ConstraintTicks.Find(World->GetCurrentLevel());
+		if (IsFullyActive() && ConstraintTick->IsTickFunctionRegistered() && ConstraintTick->IsTickFunctionEnabled())
 		{
-			if (UWorld* World = InHandle->GetTarget().Get()->GetWorld())
-			{
-				FConstraintTickFunction* ConstraintTick = ConstraintTicks.Find(World->GetCurrentLevel());
-				if (IsFullyActive() && ConstraintTick->IsTickFunctionRegistered() && ConstraintTick->IsTickFunctionEnabled())
-				{
-					Evaluate();
-				}
-
-			}
+			Evaluate();
 		}
 		return;
 	}

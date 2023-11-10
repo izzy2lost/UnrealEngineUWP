@@ -26,6 +26,7 @@ enum class EHandleEvent : uint8
 	LocalTransformUpdated,
 	GlobalTransformUpdated,
 	ComponentUpdated,
+	UpperDependencyUpdated,
 
 	/** MAX - invalid */
 	Max UMETA(Hidden),
