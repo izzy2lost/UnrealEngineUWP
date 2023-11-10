@@ -491,9 +491,15 @@ FHttpConnection::FHttpConnection(const std::string_view InHostAddress, uint16 In
 {
 	if (InTlsSettings)
 	{
-		UNSYNC_ASSERT(!InTlsSettings->Subject.empty());
+		if (InTlsSettings->Subject.empty())
+		{
+			TlsSubject = std::string(InHostAddress);
+		}
+		else
+		{
+			TlsSubject = std::string(InTlsSettings->Subject);
+		}
 
-		TlsSubject			  = std::string(InTlsSettings->Subject);
 		bTlsVerifyCertificate = InTlsSettings->bVerifyCertificate;
 		bTlsVerifySubject	  = InTlsSettings->bVerifySubject;
 		if (InTlsSettings->CACert.Data)
