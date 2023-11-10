@@ -56,4 +56,7 @@ protected:
 	virtual void OnReceiveImageDataImpl(UMovieGraphPipeline* InPipeline, UE::MovieGraph::FMovieGraphOutputMergerFrame* InRawFrameData, const TSet<FMovieGraphRenderDataIdentifier>& InMask) {}
 	virtual void OnAllFramesSubmittedImpl() {}
 	virtual bool IsFinishedWritingToDiskImpl() const { return true; }
+	
+	/** Returns the number of evaluated (active) file nodes on the specified branch. */
+	static int32 GetNumFileOutputNodes(const UMovieGraphEvaluatedConfig& InEvaluatedConfig, const FName& InBranchName);
 };

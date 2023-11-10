@@ -149,7 +149,7 @@ protected:
 	void UpdateTaskPerLayer(
 		FEXRImageWriteTask& InOutImageTask,
 		const UMovieGraphImageSequenceOutputNode* InParentNode,
-		FImagePixelData* InImageData,
+		TUniquePtr<FImagePixelData> InImageData,
 		int32 InLayerIndex,
 		const FString& InLayerName = {}
 	) const;
