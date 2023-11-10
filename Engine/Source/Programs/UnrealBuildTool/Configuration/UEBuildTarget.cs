@@ -566,6 +566,11 @@ namespace UnrealBuildTool
 		/// </summary>
 		public static UnrealPlatformGroup ThirtyHz = FindOrAddByName("30Hz");
 
+		/// <summary>
+		/// POSIX-compliant platforms
+		/// </summary>
+		public static UnrealPlatformGroup Posix = FindOrAddByName("Posix");
+
 	}
 
 	/// <summary>
