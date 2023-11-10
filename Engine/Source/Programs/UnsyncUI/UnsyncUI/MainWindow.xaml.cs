@@ -85,6 +85,8 @@ namespace UnsyncUI
 			}
 		}
 
+		public bool DryRun { get; set; }
+
 		private string dstPath = App.Current.UserConfig.CustomDstPath;
 		public string DstPath
 		{
@@ -120,6 +122,7 @@ namespace UnsyncUI
 			OnSyncClicked = new Command(() =>
 			{
 				var config = new SyncStartConfig();
+				config.DryRun = DryRun;
 				config.DstPath = DstPath;
 				config.Exclusions = default(string[]);
 				onBuildsSelected(new[]
@@ -134,6 +137,7 @@ namespace UnsyncUI
 
 	public class SyncStartConfig
 	{
+		public bool DryRun;
 		public string DstPath;
 		public string ScavengePath;
 		public string[] Exclusions;
@@ -152,24 +156,6 @@ namespace UnsyncUI
 			{
 				SetProperty(ref selectedProxy, value);
 				App.Current.UserConfig.Proxy = value.Name;
-			}
-		}
-
-		private bool dryRun = false;
-		public bool DryRun
-		{
-			get => dryRun;
-			set => SetProperty(ref dryRun, value);
-		}
-
-		private string dfs = App.Current.UserConfig.DFS ?? App.Current.Config?.DFS;
-		public string DFS
-		{
-			get => dfs;
-			set
-			{
-				SetProperty(ref dfs, value);
-				App.Current.UserConfig.DFS = value;
 			}
 		}
 
@@ -273,9 +259,8 @@ namespace UnsyncUI
 					build.Model, 
 					build.Config.DstPath,
 					build.Config.ScavengePath,
-					DryRun, 
+					build.Config.DryRun, 
 					SelectedProxy?.Path,
-					DFS, 
 					AdditionalArgs, 
 					build.Config.Exclusions, 
 					OnJobCompleted, 

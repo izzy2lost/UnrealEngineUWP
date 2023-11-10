@@ -221,7 +221,6 @@ namespace UnsyncUI
 		public List<Project> Projects { get; set; }
 
 		public string UnsyncPath { get; set; }
-		public string DFS { get; set; }
 
 		public bool EnableExperimentalFeatures { get; set; } = false;
 
@@ -235,8 +234,6 @@ namespace UnsyncUI
 			{
 				throw new Exception("Unable to find unsync.exe binary specified in config file.");
 			}
-
-			DFS = rootNode.Attribute("dfs")?.Value;
 
 			Proxies.Add(new Proxy()
 			{

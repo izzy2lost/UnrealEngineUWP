@@ -94,10 +94,6 @@ namespace UnsyncUI
 			}
 
 			UserConfig = UserPreferences.Load();
-			if (UserConfig.DFS == "")
-			{
-				UserConfig.DFS = null;
-			}
 
 			if (Config != null)
 			{
@@ -123,7 +119,6 @@ namespace UnsyncUI
 		private static readonly string userFile = Path.Combine(userDir, $"user_{version}.json");
 
 		public string Proxy { get; set; }
-		public string DFS { get; set; }
 		public Dictionary<string, string> ProjectDestinationMap { get; set; } = new Dictionary<string, string>();
 		public string CustomSrcPath { get; set; }
 		public string CustomDstPath { get; set; }

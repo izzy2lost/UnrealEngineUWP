@@ -119,7 +119,8 @@ namespace UnsyncUI
 
 				var proc = new AsyncProcess(Config.unsyncPath, argsStr);
 				var responseJson = "";
-				await foreach (var str in proc.RunAsync(cancellationToken))
+				// TODO: read stderr stream and somehow report status/errors
+				await foreach (var str in proc.RunAsync(cancellationToken, false /*ReadStdErr*/))
 				{
 					responseJson += str;
 				}

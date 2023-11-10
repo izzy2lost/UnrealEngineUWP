@@ -337,6 +337,8 @@ namespace UnsyncUI
 			}
 		}
 
+		public bool DryRun { get; set; }
+
 		private bool appendBuildName = true;
 		public bool AppendBuildName
 		{
@@ -481,6 +483,7 @@ namespace UnsyncUI
 				var Config = new SyncStartConfig();
 				Config.DstPath = Path.Combine(finalDstPath, s.DestPathRelative);
 				Config.Exclusions = Definition.Exclusions?.ToArray();
+				Config.DryRun = DryRun;
 				if (App.Current.UserConfig.AppendBuildName)
 				{
 					Config.ScavengePath = DstPath;

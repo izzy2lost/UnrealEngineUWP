@@ -68,7 +68,6 @@ namespace UnsyncUI
 		public string DstPathBase => Path.GetDirectoryName(DstPath);
         public bool DryRun { get; }
         public string Proxy { get; }
-		public string DFS { get; }
 		public string AdditionalArgs { get; }
 		public string[] IncludeFilter { get; }
 		public string[] Exclusions { get; }
@@ -173,7 +172,6 @@ namespace UnsyncUI
 			string scavengePath,
 			bool dryRun,
 			string proxy,
-			string dfs,
 			string additionalArgs,
 			string[] exclusions,
 			Action<JobModel> onCompletion,
@@ -185,7 +183,6 @@ namespace UnsyncUI
 			ScavengePath = scavengePath?.TrimEnd('\\');
             DryRun = dryRun;
             Proxy = proxy?.TrimEnd('\\');
-			DFS = dfs?.TrimEnd('\\');
 			AdditionalArgs = additionalArgs;
 			IncludeFilter = build.Include?.Split(',', StringSplitOptions.RemoveEmptyEntries)
 				.Select(Entry => Entry.Trim())
@@ -376,11 +373,6 @@ namespace UnsyncUI
 					{
 						args.Add("--login");
 					}
-				}
-
-				if (!string.IsNullOrWhiteSpace(DFS))
-				{
-					args.Add($"--dfs {DFS}");
 				}
 
 				if (IncludeFilter?.Length > 0)

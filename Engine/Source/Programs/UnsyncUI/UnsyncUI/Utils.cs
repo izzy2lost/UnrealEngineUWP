@@ -286,7 +286,7 @@ namespace UnsyncUI
 			};
 		}
 
-		public async IAsyncEnumerable<string> RunAsync([EnumeratorCancellation] CancellationToken cancelToken)
+		public async IAsyncEnumerable<string> RunAsync([EnumeratorCancellation] CancellationToken cancelToken, bool ReadStdErr = true)
 		{
 			try
 			{
@@ -303,7 +303,7 @@ namespace UnsyncUI
 
 					var pipe = new BufferBlock<string>();
 
-					async Task ReadStream(Stream stream)
+					async Task ReadStream(Stream stream, bool ShouldPost)
 					{
 						var block = new byte[4096];
 						var mem = new Memory<byte>(block);
@@ -314,15 +314,19 @@ namespace UnsyncUI
 							if (bytesRead == 0)
 								break;
 
-							// @todo: this won't handle UTF-8 encoding if a char is split across the read boundary.
-							pipe.Post(Encoding.UTF8.GetString(mem.Span.Slice(0, bytesRead)));
+							if (ShouldPost)
+							{
+								// @todo: this won't handle UTF-8 encoding if a char is split across the read boundary.
+								pipe.Post(Encoding.UTF8.GetString(mem.Span.Slice(0, bytesRead)));
+							}
+							
 						}
 
 						pipe.Complete();
 					}
 
-					var stdoutTask = ReadStream(proc.StandardOutput.BaseStream);
-					var stderrTask = ReadStream(proc.StandardError.BaseStream);
+					var stdoutTask = ReadStream(proc.StandardOutput.BaseStream, true);
+					var stderrTask = ReadStream(proc.StandardError.BaseStream, ReadStdErr);
 
 					var completionTask = Task.Run(async () =>
 					{

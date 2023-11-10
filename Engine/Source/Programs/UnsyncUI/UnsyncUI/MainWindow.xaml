@@ -57,9 +57,12 @@
 							<TextBox Text="{Binding Include}" ToolTip="Comma-separated list parts of filenames to filter the download"/>
 						</GroupBox>
 
-						<TextBlock Grid.Row="3" Margin="4" HorizontalAlignment="Center">
-							<Hyperlink Command="{Binding OnSyncClicked}">Start Custom Sync</Hyperlink>
-						</TextBlock>
+						<Grid Grid.Row="3" >
+							<CheckBox Content="Dry Run" IsChecked="{Binding DryRun}" ToolTip="Download and verify the data, but don't write outputs to disk" Margin="10,4,4,4" HorizontalAlignment="Left"/>
+							<TextBlock Margin="4" HorizontalAlignment="Center">
+								<Hyperlink Command="{Binding OnSyncClicked}">Start Custom Sync</Hyperlink>
+							</TextBlock>
+						</Grid>
 
 					</Grid>
 				</DataTemplate>
@@ -97,25 +100,9 @@
 			</ComboBox>
 		</GroupBox>
 
-		<GroupBox Grid.Row="1" Header="Advanced">
+		<GroupBox Grid.Row="1" Header="Additional arguments">
 			<Grid>
-				<Grid.ColumnDefinitions>
-					<ColumnDefinition Width="auto"/>
-					<ColumnDefinition Width="*"/>
-					<ColumnDefinition Width="auto"/>
-				</Grid.ColumnDefinitions>
-
-				<Grid.RowDefinitions>
-					<RowDefinition/>
-					<RowDefinition/>
-				</Grid.RowDefinitions>
-
-				<CheckBox Grid.Column="0" VerticalAlignment="Center" IsChecked="{Binding DryRun}" Content="Dry Run" HorizontalAlignment="Center" Margin="32,4,32,4"/>
-				<TextBox Grid.Column="1" Text="{Binding DFS}"/>
-				<TextBlock Grid.Column="2" VerticalAlignment="Center" Text="DFS Filter" Margin="16,4,16,4"/>
-
-				<TextBox   Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Text="{Binding AdditionalArgs}" />
-				<TextBlock Grid.Row="1" Grid.Column="2" VerticalAlignment="Center" Text="Additional Args" Margin="16,4,16,4"/>
+				<TextBox Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Text="{Binding AdditionalArgs}" />
 			</Grid>
 		</GroupBox>
 
