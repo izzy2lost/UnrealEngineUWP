@@ -30,13 +30,13 @@ public:
 	TObjectPtr<USkeletalMesh> SourceMesh;
 
 	UPROPERTY(EditAnywhere, Category = "Transform", meta = (DisplayName = "Location", EditCondition = "SourceMesh != nullptr"))
-	FVector3d SourceMeshTranslation;
+	FVector3d SourceMeshTranslation = FVector3d::ZeroVector;
 
 	UPROPERTY(EditAnywhere, Category = "Transform", meta = (DisplayName = "Rotation", EditCondition = "SourceMesh != nullptr"))
-	FVector3d SourceMeshRotation;
+	FVector3d SourceMeshRotation = FVector3d::ZeroVector;
 
 	UPROPERTY(EditAnywhere, Category = "Transform", meta = (DisplayName = "Scale", AllowPreserveRatio, EditCondition = "SourceMesh != nullptr"))
-	FVector3d SourceMeshScale;
+	FVector3d SourceMeshScale = FVector3d::OneVector;
 
 	UPROPERTY(EditAnywhere, Category = Source)
 	bool bHideSourceMesh = false;
