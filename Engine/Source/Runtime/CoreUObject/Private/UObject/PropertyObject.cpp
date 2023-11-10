@@ -92,6 +92,11 @@ EConvertFromTypeResult FObjectProperty::ConvertFromType(const FPropertyTag& Tag,
 	return EConvertFromTypeResult::UseSerializeItem;
 }
 
+bool FObjectProperty::AllowCrossLevel() const
+{
+	return HasAnyPropertyFlags(CPF_InstancedReference);
+}
+
 void FObjectProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, void const* Defaults) const
 {
 	FArchive& UnderlyingArchive = Slot.GetUnderlyingArchive();
