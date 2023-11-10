@@ -571,7 +571,7 @@ static FAutoConsoleVariableRef CVarAsyncLoadingThreadEnabled(
 	ECVF_Default
 	);
 
-static int32 GAsyncLoadingAlwaysProcessPackages = 1;
+static int32 GAsyncLoadingAlwaysProcessPackages = 0;
 static FAutoConsoleVariableRef CVarAsyncLoadingAlwaysProcessPackages(
 	TEXT("s.AsyncLoadingAlwaysProcessPackages"),
 	GAsyncLoadingAlwaysProcessPackages,
