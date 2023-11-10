@@ -3273,7 +3273,10 @@ void FGeometryCollectionPhysicsProxy::SetWorldTransform_Internal(const FTransfor
 			}
 		}
 
-		if (ClusterUnionIndex != INDEX_NONE && !DeferredClusterUnionParticleUpdates.IsEmpty() && !DeferredClusterUnionChildToParentUpdates.IsEmpty())
+		// Should be safe enough to access on the PT.
+		const bool bIsAuthority = GetReplicationMode() == EReplicationMode::Server;
+		// This should only happen on the server otherwise the client may override the replicated child to parent before it's even set.
+		if (bIsAuthority && ClusterUnionIndex != INDEX_NONE && !DeferredClusterUnionParticleUpdates.IsEmpty() && !DeferredClusterUnionChildToParentUpdates.IsEmpty())
 		{
 			ClusterUnionManager.UpdateClusterUnionParticlesChildToParent(ClusterUnionIndex, DeferredClusterUnionParticleUpdates, DeferredClusterUnionChildToParentUpdates, false);
 		}

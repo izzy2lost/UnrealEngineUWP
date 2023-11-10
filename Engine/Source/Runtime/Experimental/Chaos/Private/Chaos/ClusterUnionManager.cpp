@@ -514,7 +514,7 @@ namespace Chaos
 	}
 
 	DECLARE_CYCLE_STAT(TEXT("FClusterUnionManager::HandleAddOperation"), STAT_HandleAddOperation, STATGROUP_Chaos);
-	void FClusterUnionManager::HandleAddOperation(FClusterUnionIndex ClusterIndex, const TArray<FPBDRigidParticleHandle*>& Particles, bool bReleaseClustersFirst)
+	void FClusterUnionManager::HandleAddOperation(FClusterUnionIndex ClusterIndex, const TArray<FPBDRigidParticleHandle*>& InParticles, bool bReleaseClustersFirst)
 	{
 		SCOPE_CYCLE_COUNTER(STAT_HandleAddOperation);
 		FClusterUnion* Cluster = ClusterUnions.Find(ClusterIndex);
@@ -522,6 +522,16 @@ namespace Chaos
 		{
 			return;
 		}
+
+		// This ensures us that we only try to add particles that aren't already in the cluster already.
+		// TODO: There's probably a better way to do this without having to reallocate another array - but these arrays should be small.
+		TArray<FPBDRigidParticleHandle*> Particles = InParticles.FilterByPredicate(
+			[this, ClusterIndex](FPBDRigidParticleHandle* P)
+			{
+				const int32 CompareIndex = FindClusterUnionIndexFromParticle(P);
+				return CompareIndex != ClusterIndex;
+			}
+		);
 
 		// If we're adding particles to a cluster we need to first make sure they're not part of any other cluster.
 		// Book-keeping might get a bit odd if we try to add a particle to a new cluster and then only later remove the particle from its old cluster.
