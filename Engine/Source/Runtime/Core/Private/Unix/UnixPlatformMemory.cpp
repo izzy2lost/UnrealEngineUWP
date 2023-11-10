@@ -491,6 +491,8 @@ void* FUnixPlatformMemory::BinnedAllocFromOS(SIZE_T Size)
 		Pointer = AlignedPointer;
 	}
 
+	MarkMappedMemoryMergable(Pointer, ActualSizeMapped);
+
 	// at this point, Pointer is aligned at the expected alignment - either we lucked out on the initial allocation
 	// or we already got rid of the extra memory that was allocated in the front.
 	checkf((reinterpret_cast<SIZE_T>(Pointer) % ExpectedAlignment) == 0, TEXT("BinnedAllocFromOS(): Internal error: did not align the pointer as expected."));
