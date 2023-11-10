@@ -659,7 +659,7 @@ public:
 			if (ValueArray.Num() > 0)
 			{
 				// don't do anything if we already are set
-				if (ValueArray[0].Key == Tag && ValueArray[0].Value.GetValueOnGameThread() == LocalCopy)
+				if (ValueArray[0].Key == Tag && ValueArray[0].Value.GetValueOnAnyThread() == LocalCopy)
 				{
 					return;
 				}
