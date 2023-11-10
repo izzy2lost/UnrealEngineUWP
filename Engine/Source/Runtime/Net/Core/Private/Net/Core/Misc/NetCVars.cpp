@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Net/Core/Misc/NetCvars.h"
+#include "Net/Core/Misc/NetCVars.h"
 #include "HAL/IConsoleManager.h"
 
 namespace UE::Net
