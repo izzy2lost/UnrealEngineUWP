@@ -507,7 +507,6 @@ UE::NearestNeighborModel::EOpFlag UNearestNeighborModelSection::UpdateForTrainin
 	}
 
 	EOpFlag Result = UpdateVertexWeights();
-	Result |= NormalizeVertexWeights();
 	using namespace UE::NearestNeighborModel;
 	if (!OpFlag::HasError(Result))
 	{
@@ -1481,7 +1480,7 @@ const TArray<float>& UNearestNeighborModel::GetVertexWeightSum() const
 	return VertexWeightSum;
 }
 
-void UNearestNeighborModel::ComputeVertexWeightSum()
+void UNearestNeighborModel::NormalizeVertexWeights()
 {
 	VertexWeightSum.Init(0.f, GetNumBaseMeshVerts());
 	for (const FSection* Section : Sections)
@@ -1494,6 +1493,12 @@ void UNearestNeighborModel::ComputeVertexWeightSum()
 			VertexWeightSum[SectionVertexMap[Index]] += SectionVertexWeights[Index];
 		}
 	}
+	for (FSection* Section : Sections)
+	{
+		check(Section);
+		Section->NormalizeVertexWeights();
+	}
+	VertexWeightSum.Reset();
 }
 
 UE::NearestNeighborModel::EOpFlag UNearestNeighborModel::UpdateForTraining()
@@ -1528,12 +1533,12 @@ UE::NearestNeighborModel::EOpFlag UNearestNeighborModel::UpdateForTraining()
 		UE_LOG(LogNearestNeighborModel, Error, TEXT("At least one section is required. Please create a section using the '+' button."));
 		return EOpFlag::Error;
 	}
-	ComputeVertexWeightSum();
 	for (FSection* Section : Sections)
 	{
 		Section->SetModel(this);
 		Result |= Section->UpdateForTraining();
 	}
+	NormalizeVertexWeights();
 	VertexWeightSum.Reset();
 
 	if (!OpFlag::HasError(Result))

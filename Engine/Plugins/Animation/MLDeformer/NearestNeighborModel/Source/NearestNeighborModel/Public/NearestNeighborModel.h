@@ -163,6 +163,9 @@ public:
 	const TArray<FName>& GetBoneNames() const;
 	void SetBoneNames(const TArray<FName>& InBoneNames);
 
+	// Do not call this function directly. Call UNearestNeighborModel::NormalizeVertexWeights() instead.
+	EOpFlag NormalizeVertexWeights();
+
 	static FName GetNumPCACoeffsPropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModelSection, NumPCACoeffs); }
 	static FName GetVertexMapStringPropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModelSection, VertexMapString); }
 	static FName GetNeighborPosesPropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModelSection, NeighborPoses); }
@@ -288,7 +291,6 @@ private:
 	EOpFlag UpdateVertexWeightsFromText();
 	EOpFlag UpdateVertexWeightsSelectedBones();
 	EOpFlag UpdateVertexWeightsVertexAttributes();
-	EOpFlag NormalizeVertexWeights();
 
 	UFUNCTION()
 	TArray<FName> GetVertexAttributeNames() const;
@@ -568,7 +570,7 @@ private:
 	void UpdateCachedPCATimestamp();
 	void UpdateCachedNetworkTimestamp();
 
-	void ComputeVertexWeightSum();
+	void NormalizeVertexWeights();
 	// FNearestNeighborModelDetails needs to call private function GetSection(int32).
 	friend class UE::NearestNeighborModel::FNearestNeighborModelDetails;
 #endif
