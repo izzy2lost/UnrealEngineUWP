@@ -18,6 +18,7 @@ class UScriptStruct;
 namespace Dataflow {
 	struct FNodeParameters {
 		FName Name;
+		UObject* OwningObject = nullptr;
 	};
 	class FGraph;
 }
@@ -316,7 +317,8 @@ namespace Dataflow
 		{A::StaticType(),A::StaticDisplay(),A::StaticCategory(),					\
 			A::StaticTags(),A::StaticToolTip()},									\
 		[](const ::Dataflow::FNewNodeParameters& InParam){							\
-				TUniquePtr<A> Val = MakeUnique<A>(::Dataflow::FNodeParameters{InParam.Name}, InParam.Guid);    \
+				TUniquePtr<A> Val = MakeUnique<A>(::Dataflow::FNodeParameters{		\
+					InParam.Name, InParam.OwningObject}, InParam.Guid);				\
 				Val->ValidateConnections(); return Val;});
 
 #define DATAFLOW_NODE_RENDER_TYPE(A, B)												\

@@ -153,7 +153,9 @@ namespace Dataflow
 		DATAFLOWCORE_API void Connect(FDataflowOutput* OutputConnection, FDataflowInput* InputConnection);
 		DATAFLOWCORE_API void Disconnect(FDataflowOutput* OutputConnection, FDataflowInput* InputConnection);
 
-		DATAFLOWCORE_API virtual void Serialize(FArchive& Ar);
+		DATAFLOWCORE_API void AddReferencedObjects(FReferenceCollector& Collector);
+
+		DATAFLOWCORE_API virtual void Serialize(FArchive& Ar, UObject* OwningObject);
 		const TSet<FName>& GetDisabledNodes() const { return DisabledNodes; }
 
 	};
@@ -171,17 +173,6 @@ FORCEINLINE FArchive& operator<<(Chaos::FChaosArchive& Ar, Dataflow::FLink& Valu
 	return Ar;
 }
 
-FORCEINLINE FArchive& operator<<(FArchive& Ar, Dataflow::FGraph& Value)
-{
-	Value.Serialize(Ar);
-	return Ar;
-}
-
-FORCEINLINE FArchive& operator<<(Chaos::FChaosArchive& Ar, Dataflow::FGraph& Value)
-{
-	Value.Serialize(Ar);
-	return Ar;
-}
 
 
 

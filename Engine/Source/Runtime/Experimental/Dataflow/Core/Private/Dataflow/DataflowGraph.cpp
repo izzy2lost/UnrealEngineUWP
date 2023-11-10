@@ -119,7 +119,15 @@ namespace Dataflow
 
 	}
 
-	void FGraph::Serialize(FArchive& Ar)
+	void FGraph::AddReferencedObjects(FReferenceCollector& Collector)
+	{
+		for (TSharedPtr<FDataflowNode>& Node : Nodes)
+		{
+			Collector.AddPropertyReferencesWithStructARO(Node->TypedScriptStruct(), Node.Get());
+		}
+	}
+
+	void FGraph::Serialize(FArchive& Ar, UObject* OwningObject)
 	{
 		Ar.UsingCustomVersion(FUE5MainStreamObjectVersion::GUID);
 
@@ -186,7 +194,7 @@ namespace Dataflow
 				FName ArNodeName;
 				Ar << ArGuid << ArType << ArNodeName;
 
-				TSharedPtr<FDataflowNode> Node = FNodeFactory::GetInstance()->NewNodeFromRegisteredType(*this, { ArGuid,ArType, ArNodeName });
+				TSharedPtr<FDataflowNode> Node = FNodeFactory::GetInstance()->NewNodeFromRegisteredType(*this, { ArGuid, ArType, ArNodeName, OwningObject });
 				DATAFLOW_OPTIONAL_BLOCK_READ_BEGIN(Node != nullptr)
 				{
 					ensure(!NodeGuidMap.Contains(ArGuid));

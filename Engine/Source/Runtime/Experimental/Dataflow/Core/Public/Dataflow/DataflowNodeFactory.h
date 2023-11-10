@@ -17,6 +17,7 @@ namespace Dataflow
 		FGuid Guid;
 		FName Type;
 		FName Name;
+		UObject* OwningObject = nullptr;
 	};
 
 	struct FFactoryParameters {

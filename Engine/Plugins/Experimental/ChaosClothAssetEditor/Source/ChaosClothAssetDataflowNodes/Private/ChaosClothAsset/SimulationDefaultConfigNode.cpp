@@ -9,6 +9,7 @@
 #include "Chaos/CollectionPropertyFacade.h"
 #include "Chaos/PBDLongRangeConstraints.h"  // For Tether modes
 #include "Dataflow/DataflowInputOutput.h"
+#include "UObject/FortniteMainBranchObjectVersion.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(SimulationDefaultConfigNode)
 
@@ -16,8 +17,8 @@
 
 FChaosClothAssetSimulationDefaultConfigNode::FChaosClothAssetSimulationDefaultConfigNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowNode(InParam, InGuid)
-	, SimulationConfig(NewObject<UChaosClothConfig>())
-	, SharedSimulationConfig(NewObject<UChaosClothSharedSimConfig>())
+	, SimulationConfig(NewObject<UChaosClothConfig>(InParam.OwningObject))
+	, SharedSimulationConfig(NewObject<UChaosClothSharedSimConfig>(InParam.OwningObject))
 {
 	RegisterInputConnection(&Collection);
 	RegisterOutputConnection(&Collection, &Collection);
@@ -25,17 +26,21 @@ FChaosClothAssetSimulationDefaultConfigNode::FChaosClothAssetSimulationDefaultCo
 
 void FChaosClothAssetSimulationDefaultConfigNode::Serialize(FArchive& Ar)
 {
-	if (!SimulationConfig)
+	Ar.UsingCustomVersion(FFortniteMainBranchObjectVersion::GUID);
+	if (Ar.CustomVer(FFortniteMainBranchObjectVersion::GUID) < FFortniteMainBranchObjectVersion::AddDataflowObjectSerialization)
 	{
-		SimulationConfig = NewObject<UChaosClothConfig>();
-	}
-	SimulationConfig->Serialize(Ar);
+		if (!SimulationConfig)
+		{
+			SimulationConfig = NewObject<UChaosClothConfig>();
+		}
+		SimulationConfig->Serialize(Ar);
 
-	if (!SharedSimulationConfig)
-	{
-		SharedSimulationConfig = NewObject<UChaosClothSharedSimConfig>();
+		if (!SharedSimulationConfig)
+		{
+			SharedSimulationConfig = NewObject<UChaosClothSharedSimConfig>();
+		}
+		SharedSimulationConfig->Serialize(Ar);
 	}
-	SharedSimulationConfig->Serialize(Ar);
 }
 
 void FChaosClothAssetSimulationDefaultConfigNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const

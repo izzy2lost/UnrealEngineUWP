@@ -387,6 +387,9 @@ struct FFortniteMainBranchObjectVersion
 		// Update paths to keep a flag if they are the widget BP
 		MVVMPropertyPathSelf,
 
+		// Enabled ObjectPtr property serialization for Dataflow nodes
+		AddDataflowObjectSerialization,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

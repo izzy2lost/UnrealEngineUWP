@@ -202,7 +202,10 @@ static UDataflowEdNode* CreateNode(UDataflow* Dataflow, UEdGraphPin* FromPin, co
 {
 	if (Dataflow::FNodeFactory* Factory = Dataflow::FNodeFactory::GetInstance())
 	{
-		if (TSharedPtr<FDataflowNode> DataflowNode = Factory->NewNodeFromRegisteredType(*Dataflow->GetDataflow(), { FGuid::NewGuid(), NodeTypeName, NodeUniqueName }))
+		if (TSharedPtr<FDataflowNode> DataflowNode =
+			Factory->NewNodeFromRegisteredType(
+				*Dataflow->GetDataflow(),
+				{ FGuid::NewGuid(), NodeTypeName, NodeUniqueName, Dataflow }))
 		{
 			if (UDataflowEdNode* EdNode = NewObject<UDataflowEdNode>(Dataflow, UDataflowEdNode::StaticClass(), NodeUniqueName))
 			{
