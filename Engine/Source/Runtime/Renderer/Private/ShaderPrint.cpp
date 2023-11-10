@@ -289,9 +289,22 @@ namespace ShaderPrint
 
 	bool IsSupported(EShaderPlatform InShaderPlatform)
 	{
-		// Should be supported everywhere?
-		// If we want to restrict platforms then we can use existing logic here or add a DataDrivenPlatformInfo.
+		// Avoid FXC since it struggles pretty hard with the shaders
+		if (IsD3DPlatform(InShaderPlatform) && !FDataDrivenShaderPlatformInfo::GetSupportsDxc(InShaderPlatform))
+		{
+			return false;
+		}
+
 		return true;
+	}
+
+	void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+	{
+		// Work around issues with HLSLcc by switching to DXC
+		if (IsHlslccShaderPlatform(Parameters.Platform))
+		{
+			OutEnvironment.CompilerFlags.Add(CFLAG_ForceDXC);
+		}
 	}
 
 	bool IsEnabled()
@@ -895,18 +908,15 @@ namespace ShaderPrint
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(ShaderPrint::BeginView);
 
-		if (!IsSupported(View.GetShaderPlatform()))
-		{
-			View.ShaderPrintData = FShaderPrintData();
-			return;
-		}
-
 		// Create the render data and store on the view.
 		FShaderPrintSetup ShaderPrintSetup(View);
 		View.ShaderPrintData = CreateShaderPrintData(GraphBuilder, ShaderPrintSetup, View.ViewState);
 
-		// Upload/Copy ShaderPrint parameters into UEDiagnostic buffer
-		InternalUploadParameters(GraphBuilder, View.ShaderPrintData);
+		if (IsSupported(View.GetShaderPlatform()))
+		{
+			// Upload/Copy ShaderPrint parameters into UEDiagnostic buffer
+			InternalUploadParameters(GraphBuilder, View.ShaderPrintData);
+		}
 	}
 
 	void BeginViews(FRDGBuilder& GraphBuilder, TArrayView<FViewInfo> Views)

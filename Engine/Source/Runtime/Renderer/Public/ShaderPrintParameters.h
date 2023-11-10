@@ -15,11 +15,13 @@
 #include "ShaderParameterMacros.h"
 #include "ShaderParameters.h"
 
-struct FFrozenShaderPrintData;
-class FSceneView;
-struct FShaderPrintData;
 class FRDGBuilder;
+class FSceneView;
 class FViewInfo;
+struct FFrozenShaderPrintData;
+struct FGlobalShaderPermutationParameters;
+struct FShaderCompilerEnvironment;
+struct FShaderPrintData;
 
 namespace ShaderPrint
 {
@@ -48,6 +50,9 @@ namespace ShaderPrint
 	// Does the platform support the ShaderPrint system?
 	// Use this to create debug shader permutations only for supported platforms.
 	RENDERER_API bool IsSupported(EShaderPlatform Platform);
+
+	// Set any flags or defines needed when using ShaderPrint
+	RENDERER_API void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment);
 
 	// Have we enabled the ShaderPrint system?
 	// Note that even when the ShaderPrint system is enabled, it may be disabled on any view due to platform support or view flags.
