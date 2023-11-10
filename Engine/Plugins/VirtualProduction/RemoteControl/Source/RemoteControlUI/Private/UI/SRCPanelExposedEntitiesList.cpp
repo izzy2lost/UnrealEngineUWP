@@ -164,7 +164,86 @@ private:
 	{
 		if (Entity.IsValid())
 		{
-			Entity->EnterRenameMode();
+			if (const TSharedPtr<SRCPanelExposedEntity> ExposedEntityWidget = StaticCastSharedPtr<SRCPanelExposedEntity>(Entity))
+			{
+				if (const TSharedPtr<FRemoteControlEntity> ExposedEntity = ExposedEntityWidget->GetEntity())
+				{
+					if (const TSharedPtr<FRemoteControlField> RCField = StaticCastSharedPtr<FRemoteControlField>(ExposedEntity))
+					{
+						TArray<UObject*> BoundObjects = RCField->GetBoundObjects();
+						TSet<UObject*> Objects = TSet<UObject*>{ BoundObjects };
+
+						TArray<UObject*> OwnerActors;
+						for (UObject* Object : Objects)
+						{
+							if (Object->IsA<AActor>())
+							{
+								OwnerActors.Add(Object);
+							}
+							else
+							{
+								OwnerActors.Add(Object->GetTypedOuter<AActor>());
+							}
+						}
+
+						if (RCField->GetStruct() == FRemoteControlProperty::StaticStruct())
+						{
+							const TSharedPtr<FRemoteControlProperty> RCProp = StaticCastSharedPtr<FRemoteControlProperty>(RCField);
+
+							// Resolve it to get the property path.
+							RCProp->FieldPathInfo.Resolve(RCProp->GetBoundObject());
+							if (RCProp->FieldPathInfo.IsResolved())
+							{
+								TSharedRef<FPropertyPath> PropertyPath = RCProp->FieldPathInfo.ToPropertyPath();
+
+								for (auto It = BoundObjects.CreateIterator(); It; ++It)
+								{
+									if (AActor* OwnerActor = (*It)->GetTypedOuter<AActor>())
+									{
+										const UObject* BindingObject = *It;
+
+										// When we encounter a non-component object, 
+										if (!BindingObject->IsA<UActorComponent>())
+										{
+											BoundObjects.Add(OwnerActor);
+											It.RemoveCurrent();
+										}
+
+										// --- Special NDisplay handling because of their customization ---
+										// Since display cluster config data is not created as a default subobject, therefore we have no way of retrieving the CurrentConfigData property from the config object itself.
+										static FName DisplayClusterConfigDataClassName = "DisplayClusterConfigurationData";
+										if (BindingObject->GetClass()->GetFName() == DisplayClusterConfigDataClassName)
+										{
+											if (FProperty* Property = OwnerActor->GetClass()->FindPropertyByName("CurrentConfigData"))
+											{
+												// Append "CurrentConfigData" to the beginning of the path.
+												TSharedRef<FPropertyPath> NewPropertyPath = FPropertyPath::Create(Property);
+												for (int32 Index = 0; Index < PropertyPath->GetNumProperties(); Index++)
+												{
+													NewPropertyPath->AddProperty(PropertyPath->GetPropertyInfo(Index));
+												}
+
+												PropertyPath = NewPropertyPath;
+											}
+										}
+									}
+								}
+
+								FRemoteControlUIModule::Get().SelectObjects(BoundObjects);
+								
+								FTimerHandle Handle;
+								const FTimerDelegate Delegate = FTimerDelegate::CreateLambda(([PropertyPath]()
+									{
+										FRemoteControlUIModule::Get().HighlightPropertyInDetailsPanel(*PropertyPath);
+									}));
+								
+								// Needed because modifying the selection set is asynchronous.
+								GEditor->GetTimerManager()->SetTimer(Handle, Delegate, 0.1, false, -1);
+							}
+						}
+					}
+				}
+			}
 		}
 
 		return FSuperRowType::OnMouseButtonDoubleClick(InMyGeometry, InMouseEvent);
@@ -268,7 +347,7 @@ void SRCPanelExposedEntitiesList::Construct(const FArguments& InArgs, URemoteCon
 		.ItemHeight(24.f)
 		.OnGenerateRow(this, &SRCPanelExposedEntitiesList::OnGenerateRow)
 		.OnSelectionChanged(this, &SRCPanelExposedEntitiesList::OnSelectionChanged)
-		.SelectionMode(ESelectionMode::Single)
+		.SelectionMode(ESelectionMode::Multi)
 		.TreeItemsSource(&FieldEntities)
 		.OnContextMenuOpening(this, &SRCPanelExposedEntitiesList::OnContextMenuOpening, SRCPanelTreeNode::Field)
 		.ClearSelectionOnClick(true)
@@ -499,6 +578,34 @@ TSharedPtr<SRCPanelTreeNode> SRCPanelExposedEntitiesList::GetSelectedEntity() co
 	return nullptr;
 }
 
+TArray<TSharedPtr<SRCPanelTreeNode>> SRCPanelExposedEntitiesList::GetSelectedEntities() const
+{
+	TArray<TSharedPtr<SRCPanelTreeNode>> SelectedNodes;
+	if (FieldsListView.IsValid())
+	{
+		FieldsListView->GetSelectedItems(SelectedNodes);
+	}
+	return SelectedNodes;
+}
+
+int32 SRCPanelExposedEntitiesList::GetSelectedEntitiesNum() const
+{
+	if (FieldsListView.IsValid())
+	{
+		return FieldsListView->GetNumItemsSelected();
+	}
+	return -1;
+}
+
+bool SRCPanelExposedEntitiesList::IsEntitySelected(const TSharedPtr<SRCPanelTreeNode>& InNode) const
+{
+	if (FieldsListView.IsValid())
+	{
+		return FieldsListView->IsItemSelected(InNode);
+	}
+	return false;
+}
+
 void SRCPanelExposedEntitiesList::SetSelection(const TSharedPtr<SRCPanelTreeNode>& Node, const bool bForceMouseClick)
 {
 	if (Node)
@@ -507,7 +614,7 @@ void SRCPanelExposedEntitiesList::SetSelection(const TSharedPtr<SRCPanelTreeNode
 
 		if (TSharedPtr<SRCPanelTreeNode>* FoundTreeNode = FieldWidgetMap.Find(Node->GetRCId()))
 		{
-			FieldsListView->SetSelection(*FoundTreeNode, SelectInfo);
+			FieldsListView->SetItemSelection(*FoundTreeNode, true, SelectInfo);
 			return;
 		}
 
@@ -630,6 +737,54 @@ void SRCPanelExposedEntitiesList::ExposedEntitiesNodesRefresh()
 
 		bNodesRefreshRequested = false;
 	}
+}
+
+void SRCPanelExposedEntitiesList::OnPropertyIdRenamed(const FName InNewId, TSharedPtr<SRCPanelTreeNode> InNode)
+{
+	if (IsEntitySelected(InNode))
+	{
+		TArray<TSharedPtr<SRCPanelTreeNode>> SelectedEntities = GetSelectedEntities();
+		for (const TSharedPtr<SRCPanelTreeNode>& Entity : SelectedEntities)
+		{
+			TWeakPtr<FRemoteControlField> ExposedField = Preset->GetExposedEntity<FRemoteControlField>(Entity->GetRCId());
+			if (ExposedField.IsValid())
+			{
+				ExposedField.Pin()->PropertyId = InNewId;
+				Entity->SetPropertyId(InNewId);
+				Preset->UpdateIdentifiedField(ExposedField.Pin().ToSharedRef());
+			}
+		}
+	}
+}
+
+void SRCPanelExposedEntitiesList::OnNameRenamed(const FName InNewName)
+{
+	TArray<TSharedPtr<SRCPanelTreeNode>> SelectedEntities = GetSelectedEntities();
+	for (const TSharedPtr<SRCPanelTreeNode>& Entity : SelectedEntities)
+	{
+		TWeakPtr<FRemoteControlField> ExposedField = Preset->GetExposedEntity<FRemoteControlField>(Entity->GetRCId());
+		if (ExposedField.IsValid())
+		{
+			ExposedField.Pin()->Rename(InNewName);
+			Entity->SetName(ExposedField.Pin()->GetLabel());
+		}
+	}
+}
+
+FReply SRCPanelExposedEntitiesList::OnNodeDragDetected(const FGeometry& InGeometry, const FPointerEvent& InPointerEvent, TSharedPtr<SRCPanelTreeNode> InNode)
+{
+	if (InNode && InNode->GetRCType() == SRCPanelTreeNode::Field)
+	{
+		TArray<FGuid> SelectedIds;
+		Algo::TransformIf(GetSelectedEntities(), SelectedIds
+			, [] (const TSharedPtr<SRCPanelTreeNode>& TreeNode) { return TreeNode->GetRCType() == SRCPanelTreeNode::Field; }
+			, [] (const TSharedPtr<SRCPanelTreeNode>& TreeNode){ return TreeNode->GetRCId(); });
+
+		const TSharedRef<FExposedEntityDragDrop> DragDropOp = MakeShared<FExposedEntityDragDrop>(InNode->GetDragAndDropWidget(SelectedIds.Num()), InNode->GetRCId(), SelectedIds);
+		DragDropOp->Construct();
+		return FReply::Handled().BeginDragDrop(DragDropOp);
+	}
+	return FReply::Unhandled();
 }
 
 void SRCPanelExposedEntitiesList::OnObjectPropertyChange(UObject* InObject, FPropertyChangedEvent& InChangeEvent)
@@ -775,7 +930,7 @@ void SRCPanelExposedEntitiesList::GenerateListWidgets()
 	}
 
 	// We order the ALL group here otherwise the order would be the same order of the ExposedEntities
-	if (OrderMap.Num() && FieldEntities.Num())
+	if (OrderMap.Num() && FieldWidgetMap.Num())
 	{
 		FieldWidgetMap.KeySort(
 			[&OrderMap]
@@ -886,17 +1041,11 @@ TSharedRef<ITableRow> SRCPanelExposedEntitiesList::OnGenerateRow(TSharedPtr<SRCP
 	{
 		constexpr float LeftPadding = 3.f;
 		const FMargin Margin = Node->GetRCType() == SRCPanelTreeNode::FieldChild ? FMargin(LeftPadding + 10.f, 1.f, 1.f, 1.f) : FMargin(LeftPadding, 1.f, 1.f, 1.f);
+		Node->OnPropertyIdRenamed().BindSP(this, &SRCPanelExposedEntitiesList::OnPropertyIdRenamed, Node);
+		Node->OnNameRenamed().BindSP(this, &SRCPanelExposedEntitiesList::OnNameRenamed);
+
 		return SNew(SEntityRow, OwnerTable)
-			.OnDragDetected_Lambda([this, Node] (const FGeometry&, const FPointerEvent&)
-			{
-				if (Node && Node->GetRCType() == SRCPanelTreeNode::Field)
-				{
-					const TSharedRef<FExposedEntityDragDrop> DragDropOp = MakeShared<FExposedEntityDragDrop>(Node->GetDragAndDropWidget(), Node->GetRCId());
-					DragDropOp->Construct();
-					return FReply::Handled().BeginDragDrop(DragDropOp);
-				}
-				return FReply::Unhandled();
-			})
+			.OnDragDetected(FOnDragDetected::CreateSP(this, &SRCPanelExposedEntitiesList::OnNodeDragDetected, Node))
 			.OnDragEnter_Lambda([Node](const FDragDropEvent& Event) { if (Node && Node->GetRCType() == SRCPanelTreeNode::Field) StaticCastSharedPtr<SRCPanelExposedField>(Node)->SetIsHovered(true); })
 			.OnDragLeave_Lambda([Node](const FDragDropEvent& Event) { if (Node && Node->GetRCType() == SRCPanelTreeNode::Field) StaticCastSharedPtr<SRCPanelExposedField>(Node)->SetIsHovered(false); })
 			.OnAcceptDrop_Lambda(OnAcceptDropLambda)
@@ -942,84 +1091,6 @@ void SRCPanelExposedEntitiesList::OnSelectionChanged(TSharedPtr<SRCPanelTreeNode
 
 		FieldsListView->ClearSelection();
 	}
-	else
-	{
-		// todo call handler on node itself
-		if (TSharedPtr<FRemoteControlField> RCField = Preset->GetExposedEntity<FRemoteControlField>(Node->GetRCId()).Pin())
-		{
-			TArray<UObject*> BoundObjects = RCField->GetBoundObjects();
-			TSet<UObject*> Objects = TSet<UObject*>{ BoundObjects };
-
-			TArray<UObject*> OwnerActors;
-			for (UObject* Object : Objects)
-			{
-				if (Object->IsA<AActor>())
-				{
-					OwnerActors.Add(Object);
-				}
-				else
-				{
-					OwnerActors.Add(Object->GetTypedOuter<AActor>());
-				}
-			}
-
-			if (RCField->GetStruct() == FRemoteControlProperty::StaticStruct())
-			{
-				TSharedPtr<FRemoteControlProperty> RCProp = StaticCastSharedPtr<FRemoteControlProperty>(RCField);
-
-				// Resolve it to get the property path.
-				RCProp->FieldPathInfo.Resolve(RCProp->GetBoundObject());
-				if (RCProp->FieldPathInfo.IsResolved())
-				{
-					TSharedRef<FPropertyPath> PropertyPath = RCProp->FieldPathInfo.ToPropertyPath();
-
-					for (auto It = BoundObjects.CreateIterator(); It; ++It)
-					{
-						if (AActor* OwnerActor = (*It)->GetTypedOuter<AActor>())
-						{
-							UObject* BindingObject = *It;
-
-							// When we encounter a non-component object, 
-							if (!BindingObject->IsA<UActorComponent>())
-							{
-								BoundObjects.Add(OwnerActor);
-								It.RemoveCurrent();
-							}
-
-							// --- Special NDisplay handling because of their customization ---
-							// Since display cluster config data is not created as a defaeult subobject, therefore we have no way of retrieving the CurrentConfigData property from the config object itself.
-							static FName DisplayClusterConfigDataClassName = "DisplayClusterConfigurationData";
-							if (BindingObject->GetClass()->GetFName() == DisplayClusterConfigDataClassName)
-							{
-								if (FProperty* Property = OwnerActor->GetClass()->FindPropertyByName("CurrentConfigData"))
-								{
-									// Append "CurrentConfigData" to the beginning of the path.
-									TSharedRef<FPropertyPath> NewPropertyPath = FPropertyPath::Create(Property);
-									for (int32 Index = 0; Index < PropertyPath->GetNumProperties(); Index++)
-									{
-										NewPropertyPath->AddProperty(PropertyPath->GetPropertyInfo(Index));
-									}
-
-									PropertyPath = NewPropertyPath;
-								}
-							}
-						}
-					}
-
-					FRemoteControlUIModule::Get().SelectObjects(BoundObjects);
-				
-					FTimerHandle Handle;
-					FTimerDelegate Delegate = FTimerDelegate::CreateLambda(([PropertyPath]()
-						{
-							FRemoteControlUIModule::Get().HighlightPropertyInDetailsPanel(*PropertyPath);
-						}));
-
-					// Needed because modifying the selection set is asynchronous.
-					GEditor->GetTimerManager()->SetTimer(Handle, Delegate, 0.1, 0, -1);
-				}
-			}
-		}
-	}
 
 	OnSelectionChangeDelegate.Broadcast(Node);
 }
@@ -1037,7 +1108,7 @@ FReply SRCPanelExposedEntitiesList::OnDropOnGroup(const TSharedPtr<FDragDropOper
 				FRemoteControlPresetLayout::FFieldSwapArgs Args;
 				Args.OriginGroupId = GetSelectedGroup()->GetRCId();
 				Args.TargetGroupId = DragTargetGroup->GetRCId();
-				Args.DraggedFieldId = DragDropOp->GetId();
+				Args.DraggedFieldsIds = DragDropOp->GetSelectedIds();
 
 				if (TargetEntity)
 				{
@@ -1053,13 +1124,13 @@ FReply SRCPanelExposedEntitiesList::OnDropOnGroup(const TSharedPtr<FDragDropOper
 					OrderEntities.Add(Entity->GetRCId());
 				}
 
-				Preset->Layout.SwapFieldsDefaultGroup(Args, GetGroupId(DragDropOp->GetId()), OrderEntities);
+				Preset->Layout.SwapFieldsDefaultGroup(Args, GetGroupId(DragDropOp->GetNodeId()), OrderEntities);
 				constexpr bool bForceMouseClick = true;
 				SetSelection(FindGroupById(Args.OriginGroupId), bForceMouseClick);
 				return FReply::Handled();
 			}
 
-			FGuid DragOriginGroupId = GetGroupId(DragDropOp->GetId());
+			FGuid DragOriginGroupId = GetGroupId(DragDropOp->GetNodeId());
 			if (!DragOriginGroupId.IsValid())
 			{
 				return FReply::Unhandled();
@@ -1068,7 +1139,7 @@ FReply SRCPanelExposedEntitiesList::OnDropOnGroup(const TSharedPtr<FDragDropOper
 			FRemoteControlPresetLayout::FFieldSwapArgs Args;
 			Args.OriginGroupId = DragOriginGroupId;
 			Args.TargetGroupId = DragTargetGroup->GetRCId();
-			Args.DraggedFieldId = DragDropOp->GetId();
+			Args.DraggedFieldsIds = DragDropOp->GetSelectedIds();
 
 			if (TargetEntity)
 			{
@@ -1472,15 +1543,6 @@ void SRCPanelExposedEntitiesList::OnFieldOrderChanged(const FGuid& GroupId, cons
 
 void SRCPanelExposedEntitiesList::OnEntitiesUpdated(URemoteControlPreset*, const TSet<FGuid>& UpdatedEntities)
 {
-	for (const FGuid& EntityId : UpdatedEntities)
-	{
-		TSharedPtr<SRCPanelTreeNode>* Node = FieldWidgetMap.Find(EntityId);
-		if (Node && *Node)
-		{
-			(*Node)->Refresh();
-		}
-	}
-	
 	GEditor->GetTimerManager()->SetTimerForNextTick(FTimerDelegate::CreateLambda([WeakListPtr = TWeakPtr<SRCPanelExposedEntitiesList>(StaticCastSharedRef<SRCPanelExposedEntitiesList>(AsShared()))]()
 	{
 		if (TSharedPtr<SRCPanelExposedEntitiesList> ListPtr = WeakListPtr.Pin())
@@ -1808,16 +1870,14 @@ void SRCPanelExposedEntitiesList::ProcessRefresh()
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(SRCPanelExposedEntitiesList::Refresh);
 
+	TArray<TSharedPtr<SRCPanelTreeNode>> SelectedItems;
+	FieldsListView->GetSelectedItems(SelectedItems);
 	GenerateListWidgets();
 
 	RefreshGroups();
 
 	if (Preset.IsValid())
 	{
-		//Refresh during PostUndo/Redo to keep the action updated.
-		Preset->GetPropertyIdRegistry()->Initialize();
-		Preset->GetPropertyIdRegistry()->OnPropertyIdUpdated().Broadcast();
-
 		constexpr bool bForceMouseClick = true;
 
 		if (const FRemoteControlPresetGroup* SelectedGroup = Preset->Layout.GetGroup(CurrentlySelectedGroup))
@@ -1830,6 +1890,11 @@ void SRCPanelExposedEntitiesList::ProcessRefresh()
 			const FRemoteControlPresetGroup& DefaultGroup = Preset->Layout.GetDefaultGroup();
 			GenerateListWidgets(DefaultGroup);
 			SetSelection(FindGroupById(DefaultGroup.Id), bForceMouseClick);
+		}
+
+		for (TSharedPtr<SRCPanelTreeNode> SelectedItem : SelectedItems)
+		{
+			SetSelection(SelectedItem, bForceMouseClick);
 		}
 	}
 }

@@ -207,7 +207,8 @@ void URCPropertyIdAction::OnEntityUnexposed(URemoteControlPreset* InPreset, cons
 			//If the propertyId of the property unexposed is the same of this PropertyIdAction refresh, otherwise don't update it
 			if (UnexposedEntity.Pin()->PropertyId == PropertyId)
 			{
-				UpdatePropertyId();
+				InPreset->GetPropertyIdRegistry()->RemoveIdentifiedField(UnexposedEntity.Pin()->GetId());
+				InPreset->GetPropertyIdRegistry()->OnPropertyIdUpdated().Broadcast();
 			}
 			return;
 		}

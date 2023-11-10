@@ -78,7 +78,7 @@ TSharedRef<SWidget> SRCPanelTreeNode::GetWidget(const FName ForColumnName, const
 	return SNullWidget::NullWidget;
 }
 
-TSharedRef<SWidget> SRCPanelTreeNode::GetDragAndDropWidget()
+TSharedRef<SWidget> SRCPanelTreeNode::GetDragAndDropWidget(int32 InSelectedEntitiesNum)
 {
 	if (NodeNameWidget && NodeValueWidget)
 	{
@@ -92,11 +92,12 @@ TSharedRef<SWidget> SRCPanelTreeNode::GetDragAndDropWidget()
 				NodeNameWidget.ToSharedRef()
 			];
 
-		const TSharedRef<SWidget> RightColumn = SNew(SHorizontalBox)
+		const TSharedRef<SHorizontalBox> RightColumn = SNew(SHorizontalBox)
 			.Clipping(EWidgetClipping::OnDemand)
 			// Node Value
 			+ SHorizontalBox::Slot()
 			.HAlign(HAlign_Fill)
+			.AutoWidth()
 			[
 				SNew(SBox)
 				.HAlign(HAlign_Left)
@@ -106,7 +107,35 @@ TSharedRef<SWidget> SRCPanelTreeNode::GetDragAndDropWidget()
 				]
 			];
 
-		return MakeSplitRow(LeftColumn, RightColumn);
+		if (InSelectedEntitiesNum > 1)
+		{
+			RightColumn->AddSlot()
+				.HAlign(HAlign_Fill)
+				.AutoWidth()
+				.Padding(2, 2)
+				[
+					SNew(SBox)
+					.HAlign(HAlign_Center)
+					.VAlign(VAlign_Center)
+					[
+						SNew(STextBlock)
+						.Text(FText::Format(FText::FromString("and {0} other item(s)"), InSelectedEntitiesNum - 1))
+					]
+				];
+		}
+		return SNew(SSplitter)
+			.Style(FAppStyle::Get(), "DetailsView.Splitter")
+			.PhysicalSplitterHandleSize(1.0f)
+			.HitDetectionSplitterHandleSize(5.0f)
+			+ SSplitter::Slot()
+			[
+				LeftColumn
+			]
+			+ SSplitter::Slot()
+			.SizeRule(SSplitter::SizeToContent)
+			[
+				RightColumn
+			];
 	}
 
 	return SNullWidget::NullWidget;

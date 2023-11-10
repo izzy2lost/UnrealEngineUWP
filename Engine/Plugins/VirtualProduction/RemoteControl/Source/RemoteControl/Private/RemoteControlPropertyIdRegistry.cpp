@@ -529,11 +529,7 @@ void URemoteControlPropertyIdRegistry::UpdateIdentifiedField(const TSharedRef<FR
 		if (FRCPropertyIdWrapper* Wrapper = IdentifiedFields.FindByHash(Hash, InFieldToIdentify->GetId()))
 		{
 			Wrapper->SetPropertyId(InFieldToIdentify->PropertyId);
-
-			if (URemoteControlPreset* SourcePreset = GetSourcePreset())
-			{
-				SourcePreset->GetPropertyIdRegistry()->OnPropertyIdUpdated().Broadcast();
-			}
+			OnPropertyIdUpdated().Broadcast();
 		}
 	}
 }

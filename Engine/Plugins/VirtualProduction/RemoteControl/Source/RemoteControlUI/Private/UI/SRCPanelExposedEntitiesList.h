@@ -83,7 +83,16 @@ public:
 	
 	/** Get the currently selected exposed entity. */
 	TSharedPtr<SRCPanelTreeNode> GetSelectedEntity() const;
-	
+
+	/** Get the currently selected exposed entities. */
+	TArray<TSharedPtr<SRCPanelTreeNode>> GetSelectedEntities() const;
+
+	/** Get the currently selected exposed entities. */
+	int32 GetSelectedEntitiesNum() const;
+
+	/** Return true if the given node is currently selected. */
+	bool IsEntitySelected(const TSharedPtr<SRCPanelTreeNode>& InNode) const;
+
 	/** Set the currently selected group or exposed entity. */
 	void SetSelection(const TSharedPtr<SRCPanelTreeNode>& Node, const bool bForceMouseClick = false);
 
@@ -207,7 +216,16 @@ private:
 	 * If necessary, will perform a refresh of the exposed entities nodes widgets.
 	 */
 	void ExposedEntitiesNodesRefresh();
-	
+
+	/** Executed when a property Id is changed, will set all selected node(s) property id to the new one */
+	void OnPropertyIdRenamed(const FName InNewId, TSharedPtr<SRCPanelTreeNode> InNode);
+
+	/** Executed when a property Name is changed, will set all selected node(s) property Name to the new one */
+	void OnNameRenamed(const FName InNewName);
+
+	/** Executed when a drag is detected, will create the Drag and Drop widget of the node(s) */
+	FReply OnNodeDragDetected(const FGeometry& InGeometry, const FPointerEvent& InPointerEvent, TSharedPtr<SRCPanelTreeNode> InNode);
+
 private:
 	/** Holds the Groups list view. */
 	TSharedPtr<SListView<TSharedPtr<SRCPanelTreeNode>>> GroupsListView;

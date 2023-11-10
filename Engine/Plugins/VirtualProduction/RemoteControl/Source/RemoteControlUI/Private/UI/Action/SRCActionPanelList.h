@@ -336,12 +336,17 @@ private:
 				if (TSharedPtr<FExposedEntityDragDrop> DragDropOp = StaticCastSharedPtr<FExposedEntityDragDrop>(DragDropOperation))
 				{
 					// Fetch the Exposed Entity
-					const FGuid ExposedEntityId = DragDropOp->GetId();
-
-					if (TSharedPtr<SRCActionPanel> ActionPanel = GetActionPanel())
-
-					// Add Action
-					AddAction(ExposedEntityId);
+					for (const FGuid& ExposedEntityId : DragDropOp->GetSelectedIds())
+					{
+						if (TSharedPtr<SRCActionPanel> ActionPanel = GetActionPanel())
+						{
+							// Add Action
+							if (ActionPanel->CanHaveActionForField(ExposedEntityId))
+							{
+								AddAction(ExposedEntityId);
+							}
+						}
+					}
 				}
 			}
 			else if (DragDropOperation->IsOfType<FFieldGroupDragDropOp>())
@@ -382,11 +387,16 @@ private:
 				if (TSharedPtr<FExposedEntityDragDrop> DragDropOp = StaticCastSharedPtr<FExposedEntityDragDrop>(DragDropOperation))
 				{
 					// Fetch the Exposed Entity
-					const FGuid ExposedEntityId = DragDropOp->GetId();
-
-					if (TSharedPtr<SRCActionPanel> ActionPanel = GetActionPanel())
+					for (const FGuid& ExposedEntityId : DragDropOp->GetSelectedIds())
 					{
-						return ActionPanel->CanHaveActionForField(ExposedEntityId);
+						if (TSharedPtr<SRCActionPanel> ActionPanel = GetActionPanel())
+						{
+							// Add Action
+							if (ActionPanel->CanHaveActionForField(ExposedEntityId))
+							{
+								return true;
+							}
+						}
 					}
 				}
 			}

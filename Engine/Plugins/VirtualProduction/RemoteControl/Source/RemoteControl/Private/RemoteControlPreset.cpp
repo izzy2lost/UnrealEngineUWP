@@ -250,22 +250,6 @@ FRemoteControlPresetGroup* FRemoteControlPresetLayout::FindGroupFromField(FGuid 
 	return nullptr;
 }
 
-bool FRemoteControlPresetLayout::MoveField(FGuid FieldId, FGuid TargetGroupId)
-{
-	FFieldSwapArgs FieldSwapArgs;
-	FieldSwapArgs.DraggedFieldId = FieldId;
-	FGuid OriginGroupId = FindGroupFromField(FieldId)->Id;
-
-	if (OriginGroupId.IsValid() && TargetGroupId.IsValid())
-	{
-		FieldSwapArgs.OriginGroupId = MoveTemp(OriginGroupId);
-		FieldSwapArgs.TargetGroupId = MoveTemp(TargetGroupId);
-		SwapFields(FieldSwapArgs);
-		return true;
-	}
-	return false;
-}
-
 void FRemoteControlPresetLayout::SwapGroups(FGuid OriginGroupId, FGuid TargetGroupId)
 {
 	FRemoteControlPresetGroup* OriginGroup = GetGroup(OriginGroupId);
@@ -308,73 +292,93 @@ void FRemoteControlPresetLayout::SwapGroups(FGuid OriginGroupId, FGuid TargetGro
 	}
 }
 
-void FRemoteControlPresetLayout::SwapFields(const FFieldSwapArgs& FieldSwapArgs)
+void FRemoteControlPresetLayout::SwapFields(const FFieldSwapArgs& InFieldSwapArgs)
 {
-	FRemoteControlPresetGroup* DragOriginGroup = GetGroup(FieldSwapArgs.OriginGroupId);
-	FRemoteControlPresetGroup* DragTargetGroup = GetGroup(FieldSwapArgs.TargetGroupId);
+	FRemoteControlPresetGroup* DragOriginGroup = GetGroup(InFieldSwapArgs.OriginGroupId);
+	FRemoteControlPresetGroup* DragTargetGroup = GetGroup(InFieldSwapArgs.TargetGroupId);
 
-	if (!DragOriginGroup || !DragTargetGroup)
+	if (!DragOriginGroup || !DragTargetGroup || InFieldSwapArgs.DraggedFieldsIds.Num() < 1)
 	{
 		return;
 	}
 
-	int32 DragOriginFieldIndex = DragOriginGroup->AccessFields().IndexOfByKey(FieldSwapArgs.DraggedFieldId);
-	int32 DragTargetFieldIndex = DragTargetGroup->AccessFields().IndexOfByKey(FieldSwapArgs.TargetFieldId);
+	int32 DragOriginFieldIndex = DragOriginGroup->AccessFields().IndexOfByKey(InFieldSwapArgs.DraggedFieldsIds[0]);
+	int32 DragTargetInitialFieldIndex = DragTargetGroup->AccessFields().IndexOfByKey(InFieldSwapArgs.TargetFieldId);
 
 	if (DragOriginFieldIndex == INDEX_NONE)
 	{
 		return;
 	}
 
-	if (FieldSwapArgs.OriginGroupId == FieldSwapArgs.TargetGroupId && DragTargetFieldIndex != INDEX_NONE)
+	if (InFieldSwapArgs.OriginGroupId == InFieldSwapArgs.TargetGroupId && DragTargetInitialFieldIndex != INDEX_NONE)
 	{
-		if (DragTargetFieldIndex > DragOriginFieldIndex)
-		{
-			DragTargetFieldIndex += 1;
-		}
-		else
-		{
-			DragOriginFieldIndex += 1;
-		}
-
 		// Here we don't want to trigger add/delete delegates since the fields just get moved around.
 		TArray<FGuid>& Fields = DragTargetGroup->AccessFields();
 
-		FRCTransactionListenerHelper<const FGuid&, const TArray<FGuid>&>(ERCTransaction::Undo, Owner->GetPresetId(), OnFieldOrderChanged(), FieldSwapArgs.TargetGroupId, Fields);
+		FRCTransactionListenerHelper<const FGuid&, const TArray<FGuid>&>(ERCTransaction::Undo, Owner->GetPresetId(), OnFieldOrderChanged(), InFieldSwapArgs.TargetGroupId, Fields);
 
-		Fields.Insert(FieldSwapArgs.DraggedFieldId, DragTargetFieldIndex);
-		Fields.Swap(DragTargetFieldIndex, DragOriginFieldIndex);
-		Fields.RemoveAt(DragOriginFieldIndex);
+		int32 TargetFieldOffset = 0;
+		int32 DragOriginSelectedFieldIndex = Fields.IndexOfByKey(InFieldSwapArgs.DraggedFieldsIds[0]);
+		int32 DragTargetFieldIndex = Fields.IndexOfByKey(InFieldSwapArgs.TargetFieldId);
+		const bool bInitialTargetIsGreaterThanOrigin = DragTargetFieldIndex >= DragOriginSelectedFieldIndex;
+		for (FGuid SelectedField : InFieldSwapArgs.DraggedFieldsIds)
+		{
+			DragOriginSelectedFieldIndex = Fields.IndexOfByKey(SelectedField);
+			DragTargetFieldIndex = Fields.IndexOfByKey(InFieldSwapArgs.TargetFieldId);
+			if (DragTargetFieldIndex == DragOriginSelectedFieldIndex)
+			{
+				continue;
+			}
+			if (bInitialTargetIsGreaterThanOrigin)
+			{
+				TargetFieldOffset++;
+				DragTargetFieldIndex += TargetFieldOffset;
+			}
+			if (DragTargetFieldIndex < DragOriginSelectedFieldIndex)
+			{
+				DragOriginSelectedFieldIndex += 1;
+			}
+			Fields.Insert(SelectedField, DragTargetFieldIndex);
+			Fields.Swap(DragTargetFieldIndex, DragOriginSelectedFieldIndex);
+			Fields.RemoveAt(DragOriginSelectedFieldIndex);
+		}
 	
 		Owner->CacheLayoutData();
-		OnFieldOrderChangedDelegate.Broadcast(FieldSwapArgs.TargetGroupId, Fields);
+		OnFieldOrderChangedDelegate.Broadcast(InFieldSwapArgs.TargetGroupId, Fields);
 		Owner->OnPresetLayoutModified().Broadcast(Owner.Get());
 
-		FRCTransactionListenerHelper<const FGuid&, const TArray<FGuid>&>(ERCTransaction::Redo, Owner->GetPresetId(), OnFieldOrderChanged(), FieldSwapArgs.TargetGroupId, Fields);
+		FRCTransactionListenerHelper<const FGuid&, const TArray<FGuid>&>(ERCTransaction::Redo, Owner->GetPresetId(), OnFieldOrderChanged(), InFieldSwapArgs.TargetGroupId, Fields);
 
 		FRCTransactionListenerHelper<URemoteControlPreset*>(ERCTransaction::Undo, Owner->GetPresetId(), Owner->OnPresetLayoutModified(), Owner.Get());
 		FRCTransactionListenerHelper<URemoteControlPreset*>(ERCTransaction::Redo, Owner->GetPresetId(), Owner->OnPresetLayoutModified(), Owner.Get());
 	}
 	else
 	{
-		DragOriginGroup->AccessFields().RemoveAt(DragOriginFieldIndex);
+		// We do it reverse so that the order is maintained
+		for (int32 Index = InFieldSwapArgs.DraggedFieldsIds.Num() - 1; Index >= 0; --Index)
+		{
+			TArray<FGuid>& Fields = DragOriginGroup->AccessFields();
+			DragOriginFieldIndex = Fields.IndexOfByKey(InFieldSwapArgs.DraggedFieldsIds[Index]);
 
-		DragTargetFieldIndex = DragTargetFieldIndex == INDEX_NONE ? 0 : DragTargetFieldIndex;
-		DragTargetGroup->AccessFields().Insert(FieldSwapArgs.DraggedFieldId, DragTargetFieldIndex);
+			DragOriginGroup->AccessFields().RemoveAt(DragOriginFieldIndex);
 
-		FRCTransactionListenerHelper<const FGuid&, const FGuid&, int32>(ERCTransaction::Undo, Owner->GetPresetId(), OnFieldDeleted(), FieldSwapArgs.TargetGroupId, FieldSwapArgs.DraggedFieldId, DragTargetFieldIndex);
-		FRCTransactionListenerHelper<const FGuid&, const FGuid&, int32>(ERCTransaction::Undo, Owner->GetPresetId(), OnFieldAdded(), FieldSwapArgs.OriginGroupId, FieldSwapArgs.DraggedFieldId, DragOriginFieldIndex);
+			DragTargetInitialFieldIndex = DragTargetInitialFieldIndex == INDEX_NONE ? 0 : DragTargetInitialFieldIndex;
+			DragTargetGroup->AccessFields().Insert(InFieldSwapArgs.DraggedFieldsIds[Index], DragTargetInitialFieldIndex);
 
-		FRCTransactionListenerHelper<const FGuid&, const FGuid&, int32>(ERCTransaction::Redo, Owner->GetPresetId(), OnFieldDeleted(), FieldSwapArgs.OriginGroupId, FieldSwapArgs.DraggedFieldId, DragOriginFieldIndex);
-		FRCTransactionListenerHelper<const FGuid&, const FGuid&, int32>(ERCTransaction::Redo, Owner->GetPresetId(), OnFieldAdded(), FieldSwapArgs.TargetGroupId, FieldSwapArgs.DraggedFieldId, DragTargetFieldIndex);
+			FRCTransactionListenerHelper<const FGuid&, const FGuid&, int32>(ERCTransaction::Undo, Owner->GetPresetId(), OnFieldDeleted(), InFieldSwapArgs.TargetGroupId, InFieldSwapArgs.DraggedFieldsIds[Index], DragTargetInitialFieldIndex);
+			FRCTransactionListenerHelper<const FGuid&, const FGuid&, int32>(ERCTransaction::Undo, Owner->GetPresetId(), OnFieldAdded(), InFieldSwapArgs.OriginGroupId, InFieldSwapArgs.DraggedFieldsIds[Index], DragOriginFieldIndex);
 
-		Owner->CacheLayoutData();
-		OnFieldDeletedDelegate.Broadcast(FieldSwapArgs.OriginGroupId, FieldSwapArgs.DraggedFieldId, DragOriginFieldIndex);
-		OnFieldAddedDelegate.Broadcast(FieldSwapArgs.TargetGroupId, FieldSwapArgs.DraggedFieldId, DragTargetFieldIndex);
-		Owner->OnPresetLayoutModified().Broadcast(Owner.Get());
+			FRCTransactionListenerHelper<const FGuid&, const FGuid&, int32>(ERCTransaction::Redo, Owner->GetPresetId(), OnFieldDeleted(), InFieldSwapArgs.OriginGroupId, InFieldSwapArgs.DraggedFieldsIds[Index], DragOriginFieldIndex);
+			FRCTransactionListenerHelper<const FGuid&, const FGuid&, int32>(ERCTransaction::Redo, Owner->GetPresetId(), OnFieldAdded(), InFieldSwapArgs.TargetGroupId, InFieldSwapArgs.DraggedFieldsIds[Index], DragTargetInitialFieldIndex);
 
-		FRCTransactionListenerHelper<URemoteControlPreset*>(ERCTransaction::Undo, Owner->GetPresetId(), Owner->OnPresetLayoutModified(), Owner.Get());
-		FRCTransactionListenerHelper<URemoteControlPreset*>(ERCTransaction::Redo, Owner->GetPresetId(), Owner->OnPresetLayoutModified(), Owner.Get());
+			Owner->CacheLayoutData();
+			OnFieldDeletedDelegate.Broadcast(InFieldSwapArgs.OriginGroupId, InFieldSwapArgs.DraggedFieldsIds[Index], DragOriginFieldIndex);
+			OnFieldAddedDelegate.Broadcast(InFieldSwapArgs.TargetGroupId, InFieldSwapArgs.DraggedFieldsIds[Index], DragTargetInitialFieldIndex);
+			Owner->OnPresetLayoutModified().Broadcast(Owner.Get());
+
+			FRCTransactionListenerHelper<URemoteControlPreset*>(ERCTransaction::Undo, Owner->GetPresetId(), Owner->OnPresetLayoutModified(), Owner.Get());
+			FRCTransactionListenerHelper<URemoteControlPreset*>(ERCTransaction::Redo, Owner->GetPresetId(), Owner->OnPresetLayoutModified(), Owner.Get());
+		}
 	}
 }
 
@@ -383,38 +387,51 @@ void FRemoteControlPresetLayout::SwapFieldsDefaultGroup(const FFieldSwapArgs& In
 	FRemoteControlPresetGroup* DragOriginGroup = GetGroup(InFieldRealGroup);
 	FRemoteControlPresetGroup* DragTargetGroup = GetGroup(InFieldSwapArgs.TargetGroupId);
 
-	if (!DragOriginGroup || !DragTargetGroup)
+	if (!DragOriginGroup || !DragTargetGroup || InFieldSwapArgs.DraggedFieldsIds.Num() < 1)
 	{
 		return;
 	}
 
-	int32 DragOriginFieldIndex = InEntities.IndexOfByKey(InFieldSwapArgs.DraggedFieldId);
-	int32 DragTargetFieldIndex = InEntities.IndexOfByKey(InFieldSwapArgs.TargetFieldId);
+	int32 DragOriginFieldIndex = InEntities.IndexOfByKey(InFieldSwapArgs.DraggedFieldsIds[0]);
+	int32 DragTargetInitialFieldIndex = InEntities.IndexOfByKey(InFieldSwapArgs.TargetFieldId);
 
 	if (DragOriginFieldIndex == INDEX_NONE)
 	{
 		return;
 	}
 
-	if (DragTargetFieldIndex != INDEX_NONE)
+	if (DragTargetInitialFieldIndex != INDEX_NONE)
 	{
-		if (DragTargetFieldIndex > DragOriginFieldIndex)
-		{
-			DragTargetFieldIndex += 1;
-		}
-		else
-		{
-			DragOriginFieldIndex += 1;
-		}
-
 		// Here we don't want to trigger add/delete delegates since the fields just get moved around.
 		TArray<FGuid>& Fields = InEntities;
 
 		FRCTransactionListenerHelper<const FGuid&, const TArray<FGuid>&>(ERCTransaction::Undo, Owner->GetPresetId(), OnFieldOrderChanged(), InFieldSwapArgs.TargetGroupId, Fields);
 
-		Fields.Insert(InFieldSwapArgs.DraggedFieldId, DragTargetFieldIndex);
-		Fields.Swap(DragTargetFieldIndex, DragOriginFieldIndex);
-		Fields.RemoveAt(DragOriginFieldIndex);
+		int32 TargetFieldOffset = 0;
+		int32 DragOriginSelectedFieldIndex = InEntities.IndexOfByKey(InFieldSwapArgs.DraggedFieldsIds[0]);
+		int32 DragTargetFieldIndex = InEntities.IndexOfByKey(InFieldSwapArgs.TargetFieldId);
+		const bool bInitialTargetIsGreaterThanOrigin = DragTargetFieldIndex >= DragOriginSelectedFieldIndex;
+		for (FGuid SelectedField : InFieldSwapArgs.DraggedFieldsIds)
+		{
+			DragOriginSelectedFieldIndex = InEntities.IndexOfByKey(SelectedField);
+			DragTargetFieldIndex = InEntities.IndexOfByKey(InFieldSwapArgs.TargetFieldId);
+			if (DragTargetFieldIndex == DragOriginSelectedFieldIndex)
+			{
+				continue;
+			}
+			if (bInitialTargetIsGreaterThanOrigin)
+			{
+				TargetFieldOffset++;
+				DragTargetFieldIndex += TargetFieldOffset;
+			}
+			if (DragTargetFieldIndex < DragOriginSelectedFieldIndex)
+			{
+				DragOriginSelectedFieldIndex += 1;
+			}
+			Fields.Insert(SelectedField, DragTargetFieldIndex);
+			Fields.Swap(DragTargetFieldIndex, DragOriginSelectedFieldIndex);
+			Fields.RemoveAt(DragOriginSelectedFieldIndex);
+		}
 	
 		Owner->CacheLayoutData();
 		OnFieldOrderChangedDelegate.Broadcast(GetDefaultGroup().Id, Fields);
@@ -427,24 +444,35 @@ void FRemoteControlPresetLayout::SwapFieldsDefaultGroup(const FFieldSwapArgs& In
 	}
 	else if (!IsDefaultGroup(DragTargetGroup->Id))
 	{
-		DragOriginGroup->AccessFields().RemoveSwap(InFieldSwapArgs.DraggedFieldId, true);
+		// We do it reverse so that the order is maintained
+		for (int32 Index = InFieldSwapArgs.DraggedFieldsIds.Num() - 1; Index >= 0; --Index)
+		{
+			if (DragTargetGroup->AccessFields().Contains(InFieldSwapArgs.DraggedFieldsIds[Index]))
+			{
+				// Skip if the Target group already contains the Field.
+				continue;
+			}
+			DragOriginFieldIndex = InEntities.IndexOfByKey(InFieldSwapArgs.DraggedFieldsIds[Index]);
 
-		DragTargetFieldIndex = DragTargetFieldIndex == INDEX_NONE ? 0 : DragTargetFieldIndex;
-		DragTargetGroup->AccessFields().Insert(InFieldSwapArgs.DraggedFieldId, DragTargetFieldIndex);
+			DragOriginGroup->AccessFields().RemoveSwap(InFieldSwapArgs.DraggedFieldsIds[Index], true);
 
-		FRCTransactionListenerHelper<const FGuid&, const FGuid&, int32>(ERCTransaction::Undo, Owner->GetPresetId(), OnFieldDeleted(), InFieldSwapArgs.TargetGroupId, InFieldSwapArgs.DraggedFieldId, DragTargetFieldIndex);
-		FRCTransactionListenerHelper<const FGuid&, const FGuid&, int32>(ERCTransaction::Undo, Owner->GetPresetId(), OnFieldAdded(), InFieldSwapArgs.OriginGroupId, InFieldSwapArgs.DraggedFieldId, DragOriginFieldIndex);
+			DragTargetInitialFieldIndex = DragTargetInitialFieldIndex == INDEX_NONE ? 0 : DragTargetInitialFieldIndex;
+			DragTargetGroup->AccessFields().Insert(InFieldSwapArgs.DraggedFieldsIds[Index], DragTargetInitialFieldIndex);
 
-		FRCTransactionListenerHelper<const FGuid&, const FGuid&, int32>(ERCTransaction::Redo, Owner->GetPresetId(), OnFieldDeleted(), InFieldSwapArgs.OriginGroupId, InFieldSwapArgs.DraggedFieldId, DragOriginFieldIndex);
-		FRCTransactionListenerHelper<const FGuid&, const FGuid&, int32>(ERCTransaction::Redo, Owner->GetPresetId(), OnFieldAdded(), InFieldSwapArgs.TargetGroupId, InFieldSwapArgs.DraggedFieldId, DragTargetFieldIndex);
+			FRCTransactionListenerHelper<const FGuid&, const FGuid&, int32>(ERCTransaction::Undo, Owner->GetPresetId(), OnFieldDeleted(), InFieldSwapArgs.TargetGroupId, InFieldSwapArgs.DraggedFieldsIds[Index], DragTargetInitialFieldIndex);
+			FRCTransactionListenerHelper<const FGuid&, const FGuid&, int32>(ERCTransaction::Undo, Owner->GetPresetId(), OnFieldAdded(), InFieldSwapArgs.OriginGroupId, InFieldSwapArgs.DraggedFieldsIds[Index], DragOriginFieldIndex);
 
-		Owner->CacheLayoutData();
-		OnFieldDeletedDelegate.Broadcast(InFieldSwapArgs.OriginGroupId, InFieldSwapArgs.DraggedFieldId, DragOriginFieldIndex);
-		OnFieldAddedDelegate.Broadcast(InFieldSwapArgs.TargetGroupId, InFieldSwapArgs.DraggedFieldId, DragTargetFieldIndex);
-		Owner->OnPresetLayoutModified().Broadcast(Owner.Get());
+			FRCTransactionListenerHelper<const FGuid&, const FGuid&, int32>(ERCTransaction::Redo, Owner->GetPresetId(), OnFieldDeleted(), InFieldSwapArgs.OriginGroupId, InFieldSwapArgs.DraggedFieldsIds[Index], DragOriginFieldIndex);
+			FRCTransactionListenerHelper<const FGuid&, const FGuid&, int32>(ERCTransaction::Redo, Owner->GetPresetId(), OnFieldAdded(), InFieldSwapArgs.TargetGroupId, InFieldSwapArgs.DraggedFieldsIds[Index], DragTargetInitialFieldIndex);
 
-		FRCTransactionListenerHelper<URemoteControlPreset*>(ERCTransaction::Undo, Owner->GetPresetId(), Owner->OnPresetLayoutModified(), Owner.Get());
-		FRCTransactionListenerHelper<URemoteControlPreset*>(ERCTransaction::Redo, Owner->GetPresetId(), Owner->OnPresetLayoutModified(), Owner.Get());
+			Owner->CacheLayoutData();
+			OnFieldDeletedDelegate.Broadcast(InFieldSwapArgs.OriginGroupId, InFieldSwapArgs.DraggedFieldsIds[Index], DragOriginFieldIndex);
+			OnFieldAddedDelegate.Broadcast(InFieldSwapArgs.TargetGroupId, InFieldSwapArgs.DraggedFieldsIds[Index], DragTargetInitialFieldIndex);
+			Owner->OnPresetLayoutModified().Broadcast(Owner.Get());
+
+			FRCTransactionListenerHelper<URemoteControlPreset*>(ERCTransaction::Undo, Owner->GetPresetId(), Owner->OnPresetLayoutModified(), Owner.Get());
+			FRCTransactionListenerHelper<URemoteControlPreset*>(ERCTransaction::Redo, Owner->GetPresetId(), Owner->OnPresetLayoutModified(), Owner.Get());
+		}
 	}
 }
 
@@ -1765,7 +1793,6 @@ const bool URemoteControlPreset::HasEntities() const
 FName URemoteControlPreset::RenameExposedEntity(const FGuid& ExposedEntityId, FName NewLabel)
 {
 	FName AssignedLabel = Registry->RenameExposedEntity(ExposedEntityId, NewLabel);
-	PerFrameUpdatedEntities.Add(ExposedEntityId);
 	return AssignedLabel;
 }
 

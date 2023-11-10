@@ -198,7 +198,7 @@ struct REMOTECONTROL_API FRemoteControlPresetLayout
 	{
 		FGuid OriginGroupId;
 		FGuid TargetGroupId;
-		FGuid DraggedFieldId;
+		TArray<FGuid> DraggedFieldsIds;
 		FGuid TargetFieldId;
 	};
 
@@ -247,19 +247,11 @@ struct REMOTECONTROL_API FRemoteControlPresetLayout
 	 */
 	FRemoteControlPresetGroup* FindGroupFromField(FGuid FieldId);
 
-	/**
-	 * Move field to a group.
-	 * @param FieldId the field to move.
-	 * @param TargetGroupId the group to move the field in.
-	 * @return whether the operation was successful.
-	 */
-	bool MoveField(FGuid FieldId, FGuid TargetGroupId);
-
 	/** Swap two groups. */
 	void SwapGroups(FGuid OriginGroupId, FGuid TargetGroupId);
 
 	/** Swap fields across groups or in the same one. */
-	void SwapFields(const FFieldSwapArgs& FieldSwapArgs);
+	void SwapFields(const FFieldSwapArgs& InFieldSwapArgs);
 
 	/** Swap fields across groups or in the same one for the default group. */
 	void SwapFieldsDefaultGroup(const FFieldSwapArgs& FieldSwapArgs, const FGuid InFieldRealGroup, TArray<FGuid> InEntities);

@@ -142,6 +142,11 @@ void SRCPanelExposedEntity::EnterRenameMode()
 	}
 }
 
+FName SRCPanelExposedEntity::GetPropertyId()
+{
+	return PropertyIdLabel;
+}
+
 void SRCPanelExposedEntity::Refresh()
 {
 	if (EntityId.IsValid() && Preset.IsValid())
@@ -168,7 +173,9 @@ void SRCPanelExposedEntity::Initialize(const FGuid& InEntityId, URemoteControlPr
 
 			if (RCEntity->GetStruct() == FRemoteControlProperty::StaticStruct())
 			{
-				CachedFieldPath = StaticCastSharedPtr<FRemoteControlProperty>(RCEntity)->FieldPathInfo.ToString();
+				const TSharedPtr<FRemoteControlProperty> RCProperty = StaticCastSharedPtr<FRemoteControlProperty>(RCEntity);
+				CachedFieldPath = RCProperty->FieldPathInfo.ToString();
+				PropertyIdLabel = RCProperty->PropertyId;
 			}
 
 			FName OwnerFName;
@@ -415,23 +422,11 @@ void SRCPanelExposedEntity::OnLabelCommitted(const FText& InLabel, ETextCommit::
 		FScopedTransaction Transaction(LOCTEXT("ModifyEntityLabel", "Modify exposed entity's label."));
 		RCPreset->Modify();
 		CachedLabel = RCPreset->RenameExposedEntity(EntityId, *InLabel.ToString());
-		NameTextBox->SetText(FText::FromName(CachedLabel));
+		OnNameRenamed().ExecuteIfBound(CachedLabel);
 	}
 }
 
-FText SRCPanelExposedEntity::OnPropertyIdText() const
-{
-	if (const TSharedPtr<FRemoteControlEntity> RCEntity = GetEntity())
-	{
-		if (const TSharedPtr<FRemoteControlField> RCField = StaticCastSharedPtr<FRemoteControlField>(RCEntity))
-		{
-			return FText::FromName(RCField->PropertyId);
-		}
-	}
-	return FText::FromName(NAME_None);
-}
-
-void SRCPanelExposedEntity::OnPropertyIdTextCommitted(const FText& InText, ETextCommit::Type InCommitInfo) const
+void SRCPanelExposedEntity::OnPropertyIdTextCommitted(const FText& InText, ETextCommit::Type InCommitInfo)
 {
 	if (URemoteControlPreset* RCPreset = Preset.Get())
 	{
@@ -440,7 +435,9 @@ void SRCPanelExposedEntity::OnPropertyIdTextCommitted(const FText& InText, EText
 			if (const TSharedPtr<FRemoteControlField> RCField = StaticCastSharedPtr<FRemoteControlField>(RCEntity))
 			{
 				RCField->PropertyId = FName(InText.ToString());
+				PropertyIdLabel = RCField->PropertyId;
 				RCPreset->UpdateIdentifiedField(RCField.ToSharedRef());
+				OnPropertyIdRenamed().ExecuteIfBound(PropertyIdLabel);
 			}
 		}
 	}
@@ -509,7 +506,7 @@ TSharedRef<SWidget> SRCPanelExposedEntity::CreateEntityWidget(TSharedPtr<SWidget
 			.SelectAllTextWhenFocused(true)
 			.RevertTextOnEscape(true)
 			.ClearKeyboardFocusOnCommit(true)
-			.Text(this, &SRCPanelExposedEntity::OnPropertyIdText)
+			.Text_Lambda([this] () { return FText::FromName(PropertyIdLabel); })
 			.OnTextCommitted(this, &SRCPanelExposedEntity::OnPropertyIdTextCommitted)
 		];
 
@@ -571,7 +568,7 @@ TSharedRef<SWidget> SRCPanelExposedEntity::CreateEntityWidget(TSharedPtr<SWidget
 		.AutoWidth()
 		[
 			SAssignNew(NameTextBox, SInlineEditableTextBlock)
-			.Text(FText::FromName(CachedLabel))
+			.Text_Lambda([this] () { return FText::FromName(CachedLabel); })
 			.ToolTipText(FText::FromString(CachedFieldPath))
 			.OnTextCommitted(this, &SRCPanelExposedEntity::OnLabelCommitted)
 			.OnVerifyTextChanged(this, &SRCPanelExposedEntity::OnVerifyItemLabelChanged)

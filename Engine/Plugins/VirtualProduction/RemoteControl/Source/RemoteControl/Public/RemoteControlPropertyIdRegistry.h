@@ -83,18 +83,23 @@ private:
 
 private:
 	/** Entity identifier of the remote control property. */
+	UPROPERTY()
 	FGuid EntityId;
 
 	/** Holds the field identifier of the remote control property. */
+	UPROPERTY()
 	FName PropertyId;
 
 	/** Holds the type of the wrapped property. */
+	UPROPERTY()
 	FName SuperType;
 
 	/** Holds the type of the wrapped object. */
+	UPROPERTY()
 	FName SubType;
 
 	/** Holds the type to be created. */
+	UPROPERTY()
 	UClass* ClassToCreate;
 };
 
@@ -203,7 +208,7 @@ private:
 
 private:
 	/** Holds the identified fields. */
-	UPROPERTY()
+	UPROPERTY(Transient)
 	TSet<FRCPropertyIdWrapper> IdentifiedFields;
 
 	/** Delegate triggered when a property has its field Id changed. */

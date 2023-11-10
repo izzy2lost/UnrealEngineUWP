@@ -235,15 +235,18 @@ namespace UE::RCControllerPanelList
 				if (TSharedPtr<FExposedEntityDragDrop> DragDropOp = StaticCastSharedPtr<FExposedEntityDragDrop>(DragDropOperation))
 				{
 					// Fetch the Exposed Entity
-					const FGuid ExposedEntityId = DragDropOp->GetId();
+					const TArray<FGuid>& ExposedEntitiesIds = DragDropOp->GetSelectedIds();
 
-					if (URemoteControlPreset* Preset = ControllerPanelList->GetPreset())
+					if (ExposedEntitiesIds.Num() == 1)
 					{
-						if (TSharedPtr<const FRemoteControlProperty> RemoteControlProperty = Preset->GetExposedEntity<FRemoteControlProperty>(ExposedEntityId).Pin())
+						if (URemoteControlPreset* Preset = ControllerPanelList->GetPreset())
 						{
-							if (URCController* Controller = Cast<URCController>(ControllerItem->GetVirtualProperty()))
+							if (TSharedPtr<const FRemoteControlProperty> RemoteControlProperty = Preset->GetExposedEntity<FRemoteControlProperty>(ExposedEntitiesIds[0]).Pin())
 							{
-								ControllerPanelList->CreateBindBehaviourAndAssignTo(Controller, RemoteControlProperty.ToSharedRef(), true);
+								if (URCController* Controller = Cast<URCController>(ControllerItem->GetVirtualProperty()))
+								{
+									ControllerPanelList->CreateBindBehaviourAndAssignTo(Controller, RemoteControlProperty.ToSharedRef(), true);
+								}
 							}
 						}
 					}
@@ -284,21 +287,24 @@ namespace UE::RCControllerPanelList
 						if (TSharedPtr<FExposedEntityDragDrop> DragDropOp = StaticCastSharedPtr<FExposedEntityDragDrop>(DragDropOperation))
 						{
 							// Fetch the Exposed Entity
-							const FGuid ExposedEntityId = DragDropOp->GetId();
+							const TArray<FGuid>& ExposedEntitiesIds = DragDropOp->GetSelectedIds();
 
-							if (URemoteControlPreset* Preset = ControllerPanelList->GetPreset())
+							if (ExposedEntitiesIds.Num() == 1)
 							{
-								if (TSharedPtr<const FRemoteControlField> RemoteControlField = Preset->GetExposedEntity<FRemoteControlField>(ExposedEntityId).Pin())
+								if (URemoteControlPreset* Preset = ControllerPanelList->GetPreset())
 								{
-									if (URCController* Controller = Cast<URCController>(ControllerItem->GetVirtualProperty()))
+									if (TSharedPtr<const FRemoteControlField> RemoteControlField = Preset->GetExposedEntity<FRemoteControlField>(ExposedEntitiesIds[0]).Pin())
 									{
-										const bool bAllowNumericInputAsStrings = true;
+										if (URCController* Controller = Cast<URCController>(ControllerItem->GetVirtualProperty()))
+										{
+											const bool bAllowNumericInputAsStrings = true;
 
-										const bool bAllowDrop = URCBehaviourBind::CanHaveActionForField(Controller, RemoteControlField.ToSharedRef(), bAllowNumericInputAsStrings);
+											const bool bAllowDrop = URCBehaviourBind::CanHaveActionForField(Controller, RemoteControlField.ToSharedRef(), bAllowNumericInputAsStrings);
 
-										ControllerPanelList->bIsAnyControllerItemEligibleForDragDrop |= (bAllowDrop && bIsDragActive);
+											ControllerPanelList->bIsAnyControllerItemEligibleForDragDrop |= (bAllowDrop && bIsDragActive);
 
-										return bAllowDrop;
+											return bAllowDrop;
+										}
 									}
 								}
 							}
@@ -854,10 +860,10 @@ bool SRCControllerPanelList::OnAllowDrop(TSharedPtr<FDragDropOperation> DragDrop
 	if (TSharedPtr<FExposedEntityDragDrop> DragDropOp = GetExposedEntityDragDrop(DragDropOperation))
 	{
 		// Fetch the Exposed Entity
-		const FGuid ExposedEntityId = DragDropOp->GetId();
+		const TArray<FGuid>& ExposedEntitiesIds = DragDropOp->GetSelectedIds();
 
-		// Check if Entity is supported by controllers
-		return IsEntitySupported(ExposedEntityId);
+		// Check if Entity is supported by controllers and currently only 1 dragged entity dragged is supported
+		return ExposedEntitiesIds.Num() == 1 && IsEntitySupported(ExposedEntitiesIds[0]);
 	}
 
 	return false;
@@ -868,7 +874,7 @@ FReply SRCControllerPanelList::OnControllerListViewDragDrop(TSharedPtr<FDragDrop
 	if (TSharedPtr<FExposedEntityDragDrop> DragDropOp = GetExposedEntityDragDrop(DragDropOperation))
 	{
 		// Fetch the Exposed Entity
-		const FGuid ExposedEntityId = DragDropOp->GetId();
+		const FGuid ExposedEntityId = DragDropOp->GetNodeId();
 
 		if (URemoteControlPreset* Preset = GetPreset())
 		{

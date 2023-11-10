@@ -27,6 +27,12 @@ struct SRCPanelExposedEntity : public SRCPanelTreeNode
 	virtual FGuid GetRCId() const override final { return EntityId; }
 	/** Make the group name's text box editable. */
 	virtual void EnterRenameMode() override;
+	/** Get the PropertyId of this Node. */
+	virtual FName GetPropertyId() override;
+	/** Set the PropertyId of this Node. */
+	virtual void SetPropertyId(FName InNewPropertyId) override { PropertyIdLabel = InNewPropertyId; };
+	/** Set the Name of this Node. */
+	virtual void SetName(FName InNewName) override { CachedLabel = InNewName; }
 	/** Updates the highlight text to active search term. */
 	virtual void SetHighlightText(const FText& InHightlightText = FText::GetEmpty()) override { HighlightText = InHightlightText; }
 
@@ -95,10 +101,8 @@ private:
 	bool OnVerifyItemLabelChanged(const FText& InLabel, FText& OutErrorMessage);
 	/** Handles committing a entity label. */
 	void OnLabelCommitted(const FText& InLabel, ETextCommit::Type InCommitInfo);
-	/** Handles text change of a property id label. */
-	FText OnPropertyIdText() const;
 	/** Handles committing a property id label. */
-	void OnPropertyIdTextCommitted(const FText& InText, ETextCommit::Type InCommitInfo) const;
+	void OnPropertyIdTextCommitted(const FText& InText, ETextCommit::Type InCommitInfo);
 	/** Returns whether or not the actor is selectable for a binding replacement. */
 	bool IsActorSelectable(const AActor* Parent) const;
 	/** Handle clicking on the unexpose button. */
@@ -123,8 +127,9 @@ public:
 
 	using WidgetType = SWidget;
 
-	FExposedEntityDragDrop(TSharedPtr<SWidget> InWidget, const FGuid& InId)
-		: Id(InId)
+	FExposedEntityDragDrop(const TSharedPtr<SWidget>& InWidget, const FGuid& InNodeId, const TArray<FGuid>& InSelectedIds)
+		: NodeId(InNodeId)
+		, SelectedIds(InSelectedIds)
 	{
 		DecoratorWidget = SNew(SBorder)
 			.Padding(1.0f)
@@ -136,9 +141,15 @@ public:
 	}
 
 	/** Get the ID of the represented entity or group. */
-	FGuid GetId() const
+	FGuid GetNodeId() const
 	{
-		return Id;
+		return NodeId;
+	}
+
+	/** Get the IDs that were selected at the time the drag started. */
+	const TArray<FGuid>& GetSelectedIds() const
+	{
+		return SelectedIds;
 	}
 
 	virtual void OnDrop(bool bDropWasHandled, const FPointerEvent& MouseEvent) override
@@ -152,6 +163,10 @@ public:
 	}
 
 private:
-	FGuid Id;
+	/** ID of the represented entity or group. */
+	FGuid NodeId;
+	/** IDs that were selected at the time the drag started. */
+	TArray<FGuid> SelectedIds;
+	/** Decorator Drag and Drop widget. */
 	TSharedPtr<SWidget> DecoratorWidget;
 };

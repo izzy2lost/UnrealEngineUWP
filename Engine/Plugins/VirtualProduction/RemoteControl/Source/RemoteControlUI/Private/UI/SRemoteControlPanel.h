@@ -398,8 +398,8 @@ private:
 	TSharedPtr<SBorder> AuxiliaryToolbarWidgetContent;
 	/** Additional widgets to be added to the toolbar */
 	TArray<TSharedRef<SWidget>> ToolbarWidgets;
-	/** Holds a shared pointer reference to the active entity that is selected. */
-	TSharedPtr<SRCPanelTreeNode> SelectedEntity;
+	/** Holds a shared pointer reference to the last entity that was selected. */
+	TSharedPtr<SRCPanelTreeNode> LastSelectedEntity;
 	/** Panel Drawer widget holds all docked panels. */
 	TSharedPtr<SRCPanelDrawer> PanelDrawer;
 	/** Map of Opened Drawers. */

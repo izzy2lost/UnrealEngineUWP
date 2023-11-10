@@ -1220,6 +1220,11 @@ void FRemoteControlUIModule::RefreshPanels()
 	if (TSharedPtr<SRemoteControlPanel> Panel = GetPanelForObject(nullptr))
 	{
 		Panel->Refresh();
+		// Propagate that the PropertyId updated during the Undo/Redo to update the action as well.
+		if (Panel->GetPreset() && Panel->GetPreset()->GetPropertyIdRegistry())
+		{
+			Panel->GetPreset()->GetPropertyIdRegistry()->OnPropertyIdUpdated().Broadcast();
+		}
 	}
 }
 

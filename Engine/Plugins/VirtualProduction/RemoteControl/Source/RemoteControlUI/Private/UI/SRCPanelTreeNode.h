@@ -40,6 +40,9 @@ namespace ERCColumn
 	};
 }
 
+DECLARE_DELEGATE_OneParam(FOnLabelModified, FName /* InNewName */)
+DECLARE_DELEGATE_OneParam(FOnPropertyIdRenamed, FName /* InNewPropertyId */)
+
 /** A node in the panel tree view. */
 struct SRCPanelTreeNode : public SCompoundWidget, public IHasProtocolExtensibility
 {
@@ -68,7 +71,7 @@ struct SRCPanelTreeNode : public SCompoundWidget, public IHasProtocolExtensibili
 	/** Get this node's ID if any. */
 	virtual FGuid GetRCId() const { return FGuid(); }
 	/** Get get this node's type. */
-	virtual ENodeType GetRCType() const { return ENodeType::Invalid; };
+	virtual ENodeType GetRCType() const { return ENodeType::Invalid; }
 	/** Returns true if this tree node has childen. */
 	virtual bool HasChildren() const { return false; }
 	/** Refresh the node. */
@@ -79,12 +82,22 @@ struct SRCPanelTreeNode : public SCompoundWidget, public IHasProtocolExtensibili
 	virtual void SetIsHovered(bool bIsBeingHovered) {}
 	/** Make the node name's text box editable. */
 	virtual void EnterRenameMode() {};
+	/** Get the PropertyId of this Node. */
+	virtual FName GetPropertyId() { return FName(TEXT("")); }
+	/** Set the PropertyId of this Node. */
+	virtual void SetPropertyId(FName InNewPropertyId) {};
+	/** Set the Name of this Node. */
+	virtual void SetName(FName InNewName) {};
 	/** Updates the highlight text to active search term. */
 	virtual void SetHighlightText(const FText& InHightlightText = FText::GetEmpty()) {};
 	/** Retrieves the referenced widget corresponding to the given column name. */
 	virtual TSharedRef<SWidget> GetWidget(const FName ForColumnName, const FName InActiveProtocol);
 	/** Retrieves the DragAndDropWidget if possible otherwise returns a NullWidget */
-	TSharedRef<SWidget> GetDragAndDropWidget();
+	TSharedRef<SWidget> GetDragAndDropWidget(int32 InSelectedEntitiesNum = 1);
+	/** Executed when the Name of the node is changed */
+	FOnLabelModified& OnNameRenamed() { return OnNameRenamedDelegate; };
+	/** Executed when the PropertyId of the node is changed */
+	FOnPropertyIdRenamed& OnPropertyIdRenamed() { return OnPropertyIdRenamedDelegate; };
 
 protected:
 	struct FMakeNodeWidgetArgs
@@ -145,4 +158,10 @@ private:
 private:
 	/** The splitter offset to align the group splitter with the other row's splitters. */
 	static constexpr float SplitterOffset = 0.008f;
+
+	/** Delegate called when the Node Name is renamed. */
+	FOnLabelModified OnNameRenamedDelegate;
+
+	/** Delegate called when the Node Property Id change. */
+	FOnPropertyIdRenamed OnPropertyIdRenamedDelegate;
 };

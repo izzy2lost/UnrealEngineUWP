@@ -1741,7 +1741,7 @@ TSharedRef<SWidget> SRemoteControlPanel::CreateEntityDetailsView()
 
 	UpdateEntityDetailsView(EntityList->GetSelectedEntity());
 
-	const bool bCanShowDetailsView = SelectedEntity.IsValid() && (SelectedEntity->GetRCType() != SRCPanelTreeNode::Group) && (SelectedEntity->GetRCType() != SRCPanelTreeNode::FieldChild);
+	const bool bCanShowDetailsView = LastSelectedEntity.IsValid() && (LastSelectedEntity->GetRCType() != SRCPanelTreeNode::Group) && (LastSelectedEntity->GetRCType() != SRCPanelTreeNode::FieldChild);
 
 	if (bCanShowDetailsView)
 	{
@@ -1762,19 +1762,19 @@ void SRemoteControlPanel::UpdateEntityDetailsView(const TSharedPtr<SRCPanelTreeN
 {
 	TSharedPtr<FStructOnScope> SelectedEntityPtr;
 
-	SelectedEntity = SelectedNode;
+	LastSelectedEntity = SelectedNode;
 
-	if (SelectedEntity)
+	if (LastSelectedEntity)
 	{
-		if (SelectedEntity->GetRCType() != SRCPanelTreeNode::Group &&
-			SelectedEntity->GetRCType() != SRCPanelTreeNode::FieldChild) // Field Child does not contain entity ID, that is why it should not be processed
+		if (LastSelectedEntity->GetRCType() != SRCPanelTreeNode::Group &&
+			LastSelectedEntity->GetRCType() != SRCPanelTreeNode::FieldChild) // Field Child does not contain entity ID, that is why it should not be processed
 		{
-			const TSharedPtr<FRemoteControlEntity> Entity = Preset->GetExposedEntity<FRemoteControlEntity>(SelectedEntity->GetRCId()).Pin();
-			SelectedEntityPtr = RemoteControlPanelUtils::GetEntityOnScope(Entity, Preset->GetExposedEntityType(SelectedEntity->GetRCId()));
+			const TSharedPtr<FRemoteControlEntity> Entity = Preset->GetExposedEntity<FRemoteControlEntity>(LastSelectedEntity->GetRCId()).Pin();
+			SelectedEntityPtr = RemoteControlPanelUtils::GetEntityOnScope(Entity, Preset->GetExposedEntityType(LastSelectedEntity->GetRCId()));
 		}
 	}
 
-	const bool bCanShowDetailsView = SelectedEntity.IsValid() && (SelectedEntity->GetRCType() != SRCPanelTreeNode::Group) && (SelectedEntity->GetRCType() != SRCPanelTreeNode::FieldChild);
+	const bool bCanShowDetailsView = LastSelectedEntity.IsValid() && (LastSelectedEntity->GetRCType() != SRCPanelTreeNode::Group) && (LastSelectedEntity->GetRCType() != SRCPanelTreeNode::FieldChild);
 
 	if (bCanShowDetailsView)
 	{
@@ -1791,9 +1791,9 @@ void SRemoteControlPanel::UpdateEntityDetailsView(const TSharedPtr<SRCPanelTreeN
 	}
 
 	static const FName ProtocolWidgetsModuleName = "RemoteControlProtocolWidgets";
-	if(SelectedEntity.IsValid() && FModuleManager::Get().IsModuleLoaded(ProtocolWidgetsModuleName) && ensure(Preset.IsValid()))
+	if(LastSelectedEntity.IsValid() && FModuleManager::Get().IsModuleLoaded(ProtocolWidgetsModuleName) && ensure(Preset.IsValid()))
 	{
-		if (const TSharedPtr<FRemoteControlEntity> RCEntity = Preset->GetExposedEntity(SelectedEntity->GetRCId()).Pin())
+		if (const TSharedPtr<FRemoteControlEntity> RCEntity = Preset->GetExposedEntity(LastSelectedEntity->GetRCId()).Pin())
 		{
 			if(RCEntity->IsBound())
 			{
@@ -2426,22 +2426,29 @@ void SRemoteControlPanel::DeleteEntity_Execute()
 
 	// ~ Delete Entity ~
 
-	if (SelectedEntity->GetRCType() == SRCPanelTreeNode::FieldChild) // Field Child does not contain entity ID, that is why it should not be processed
+	if (LastSelectedEntity->GetRCType() == SRCPanelTreeNode::FieldChild) // Field Child does not contain entity ID, that is why it should not be processed
 	{
 		return;
 	}
 
-	if (SelectedEntity->GetRCType() == SRCPanelTreeNode::Group)
+	if (LastSelectedEntity->GetRCType() == SRCPanelTreeNode::Group)
 	{
 		FScopedTransaction Transaction(LOCTEXT("DeleteGroup", "Delete Group"));
 		Preset->Modify();
-		Preset->Layout.DeleteGroup(SelectedEntity->GetRCId());
+		Preset->Layout.DeleteGroup(LastSelectedEntity->GetRCId());
 	}
 	else
 	{
 		FScopedTransaction Transaction(LOCTEXT("UnexposeFunction", "Unexpose remote control entity"));
 		Preset->Modify();
-		Preset->Unexpose(SelectedEntity->GetRCId());
+		TArray<TSharedPtr<SRCPanelTreeNode>> SelectedEntities = EntityList->GetSelectedEntities();
+		for (int32 Index = 0; Index < SelectedEntities.Num(); ++Index)
+		{
+			if (SelectedEntities[Index]->GetRCType() != SRCPanelTreeNode::FieldChild)
+			{
+				Preset->Unexpose(SelectedEntities[Index]->GetRCId());
+			}
+		}
 	}
 
 	EntityList->Refresh();
@@ -2459,10 +2466,10 @@ bool SRemoteControlPanel::CanDeleteEntity() const
 		return ActiveLogicPanel->GetSelectedLogicItem() != nullptr; // User has focus on a logic panel
 	}
 
-	if (SelectedEntity.IsValid() && Preset.IsValid())
+	if (LastSelectedEntity.IsValid() && Preset.IsValid())
 	{
 		// Do not allow default group to be deleted.
-		return !Preset->Layout.IsDefaultGroup(SelectedEntity->GetRCId());
+		return !Preset->Layout.IsDefaultGroup(LastSelectedEntity->GetRCId());
 	}
 
 	return false;
@@ -2476,12 +2483,12 @@ void SRemoteControlPanel::RenameEntity_Execute() const
 		return;
 	}
 
-	if (SelectedEntity->GetRCType() == SRCPanelTreeNode::FieldChild) // Field Child does not contain entity ID, that is why it should not be processed
+	if (LastSelectedEntity->GetRCType() == SRCPanelTreeNode::FieldChild) // Field Child does not contain entity ID, that is why it should not be processed
 	{
 		return;
 	}
 
-	SelectedEntity->EnterRenameMode();
+	LastSelectedEntity->EnterRenameMode();
 }
 
 bool SRemoteControlPanel::CanRenameEntity() const
@@ -2496,10 +2503,10 @@ bool SRemoteControlPanel::CanRenameEntity() const
 		return true;
 	}
 
-	if (SelectedEntity.IsValid() && Preset.IsValid())
+	if (LastSelectedEntity.IsValid() && Preset.IsValid())
 	{
 		// Do not allow default group to be renamed.
-		return !Preset->Layout.IsDefaultGroup(SelectedEntity->GetRCId());
+		return !Preset->Layout.IsDefaultGroup(LastSelectedEntity->GetRCId());
 	}
 
 	return false;
