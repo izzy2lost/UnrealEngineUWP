@@ -117,19 +117,55 @@ MODELINGCOMPONENTS_API UBodySetup* GetBodySetup(UPrimitiveComponent* SourceCompo
 
 /**
  * Extract the simple collision geometry from AggGeom as meshes (ie spheres and capsules are tessellated) and
- * accumulate into MeshOut. TransformSequence is applied to the meshes as they are accumulated.
+ * accumulate into MeshOut. TransformSequence is applied to the meshes as they are accumulated, and not to the meshes passed to the PerElementMeshCallback.
  * @param bSetToPerTriangleNormals if true and the mesh has a normals attribute overlay,  the mesh is set to face normals, otherwise averaged vertex normals
  * @param bInitializeConvexUVs if true convex hulls have their UVs initialized to per-face planar projections, otherwise no UVs are set
- * @param PerElementMeshCallback if provided, called with each element mesh before transforming/appending to MeshOut. The int parameter is the shape type, 0=Sphere, 1=Box, 2=Capsule, 3=Convex
+ * @param PerElementMeshCallback if provided, called with each element mesh before transforming/appending to MeshOut. The int parameter is the shape type (EAggCollisionShape::Type), 0=Sphere, 1=Box, 2=Capsule, 3=Convex
  */
 MODELINGCOMPONENTS_API void ConvertSimpleCollisionToMeshes(
 	const FKAggregateGeom& AggGeom,
 	UE::Geometry::FDynamicMesh3& MeshOut,
-	const FTransformSequence3d& TransformSeqeuence,
+	const FTransformSequence3d& TransformSequence,
 	int32 SphereResolution = 16,
 	bool bSetToPerTriangleNormals = false,
 	bool bInitializeConvexUVs = false,
 	TFunction<void(int, const FDynamicMesh3&)> PerElementMeshCallback = nullptr );
+
+// Settings to define how simple collision shapes are triangulated
+struct FSimpleCollisionTriangulationSettings
+{
+	// Steps to use per side if bUseBoxSphere is true
+	int32 BoxSphereStepsPerSide = 5;
+	// Steps to use along circumference if bUseBoxSphere is false
+	int32 LatLongSphereSteps = 16;
+	// Steps to use along the capsule hemisphere arc
+	int32 CapsuleHemisphereSteps = 5;
+	// Steps to use radially on the capsule
+	int32 CapsuleCircleSteps = 16;
+
+	// Whether to use a box-sphere triangulation for spheres (otherwise, uses a lat/long sphere triangulation)
+	bool bUseBoxSphere = false;
+
+	// TODO: Add options for controlling level set triangulation as well
+
+	// Init sphere-related settings from a single resolution parameter
+	void InitFromSphereResolution(int32 SphereResolution)
+	{
+		bUseBoxSphere = false;
+		LatLongSphereSteps = SphereResolution;
+		CapsuleHemisphereSteps = SphereResolution / 4 + 1;
+		CapsuleCircleSteps = SphereResolution;
+	}
+};
+
+// Similar to ConvertSimpleCollisionToMeshes but without aggregating to an output mesh.
+// @param PerElementMeshCallback	Called with each shape element and the corresponding mesh
+MODELINGCOMPONENTS_API void ConvertSimpleCollisionToDynamicMeshes(
+	const FKAggregateGeom& AggGeom,
+	TFunctionRef<void(int32 Index, const FKShapeElem&, const FDynamicMesh3& Mesh)> PerElementMeshCallback,
+	FSimpleCollisionTriangulationSettings TriangulationSettings,
+	bool bSetToPerTriangleNormals = false,
+	bool bInitializeConvexAndLevelSetUVs = false);
 
 /**
  * Extract the complex collision geometry from CollisionDataProvider as a dynamic mesh.

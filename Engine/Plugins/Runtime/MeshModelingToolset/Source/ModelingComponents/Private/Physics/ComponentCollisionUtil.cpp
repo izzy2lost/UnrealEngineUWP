@@ -3,15 +3,18 @@
 #include "Physics/ComponentCollisionUtil.h"
 
 #include "DynamicMesh/DynamicMesh3.h"
-#include "ShapeApproximation/SimpleShapeSet3.h"
 #include "DynamicMeshEditor.h"
 #include "DynamicMesh/MeshNormals.h"
+#include "DynamicMesh/MeshTransforms.h"
+#include "DynamicMesh/Operations/MergeCoincidentMeshEdges.h"
 #include "Generators/SphereGenerator.h"
+#include "Generators/BoxSphereGenerator.h"
+#include "Generators/MarchingCubes.h"
 #include "Generators/MinimalBoxMeshGenerator.h"
 #include "Generators/CapsuleGenerator.h"
-#include "DynamicMesh/MeshTransforms.h"
 #include "Parameterization/DynamicMeshUVEditor.h"
-#include "DynamicMesh/Operations/MergeCoincidentMeshEdges.h"
+#include "ShapeApproximation/SimpleShapeSet3.h"
+#include "VectorUtil.h"
 
 #include "Physics/PhysicsDataCollection.h"
 #include "Physics/CollisionGeometryConversion.h"
@@ -22,6 +25,7 @@
 #include "Engine/StaticMesh.h"
 #include "PhysicsEngine/AggregateGeom.h"
 #include "PhysicsEngine/BodySetup.h"
+#include "PhysicsEngine/ShapeElem.h"
 #include "UObject/UObjectIterator.h"
 
 using namespace UE::Geometry;
@@ -320,11 +324,218 @@ bool UE::Geometry::AppendSimpleCollision(
 	return true;
 }
 
+namespace UE::Private::ConvertCollisionInternal
+{
+	static void ConvertSimpleCollisionToMeshesHelper(
+		const FKAggregateGeom& AggGeom,
+		FSimpleCollisionTriangulationSettings TriangulationSettings,
+		bool bSetToPerTriangleNormals,
+		bool bInitializeLevelSetAndConvexUVs,
+		TFunctionRef<void(int32 Index, const FKShapeElem& ShapeElem, const FDynamicMesh3&)> DynamicMeshCallback)
+	{
+		// Helpers to transform vertex and normal arrays / invert triangle buffers
+		auto TransformVerts = [](FTransform Transform, TArrayView<FVector3d> Vertices, TArrayView<FVector3f> Normals = TArrayView<FVector3f>())
+		{
+			for (FVector3d& V : Vertices)
+			{
+				V = Transform.TransformPosition(V);
+			}
+			for (FVector3f& N : Normals)
+			{
+				N = (FVector3f)VectorUtil::TransformNormal<double>(Transform, (FVector3d)N);
+			}
+		};
+		auto TranslateVerts = [](FVector3d Offset, TArrayView<FVector3d> Vertices)
+		{
+			for (FVector3d& V : Vertices)
+			{
+				V += Offset;
+			}
+		};
+		auto InvertTris = [](TArrayView<FIndex3i> Tris)
+		{
+			for (FIndex3i& Tri : Tris)
+			{
+				Swap(Tri.B, Tri.C);
+			}
+		};
+
+		auto RunCallbacks = 
+			[&DynamicMeshCallback, bSetToPerTriangleNormals]
+			(int32 Index, const FKShapeElem& ShapeElem, FMeshShapeGenerator& Gen)
+		{
+			FDynamicMesh3 ShapeMesh(&Gen);
+			if (bSetToPerTriangleNormals)
+			{
+				FMeshNormals::InitializeMeshToPerTriangleNormals(&ShapeMesh);
+			} // otherwise allow the generator's normals to pass through
+			DynamicMeshCallback(Index, ShapeElem, ShapeMesh);
+		};
+			
+		int32 ShapeIndex = 0;
+		for (const FKSphereElem& Sphere : AggGeom.SphereElems)
+		{
+			if (TriangulationSettings.bUseBoxSphere)
+			{
+				FBoxSphereGenerator BoxSphereGen;
+				BoxSphereGen.Box.Frame.Origin = Sphere.Center;
+				BoxSphereGen.Radius = FMath::Max(FMathf::ZeroTolerance, Sphere.Radius);
+				int32 StepsPerSide = FMath::Max(1, TriangulationSettings.BoxSphereStepsPerSide);
+				BoxSphereGen.EdgeVertices = FIndex3i(StepsPerSide, StepsPerSide, StepsPerSide);
+				BoxSphereGen.Generate();
+				RunCallbacks(ShapeIndex++, Sphere, BoxSphereGen);
+			}
+			else
+			{
+				FSphereGenerator LatLongSphereGen;
+				LatLongSphereGen.Radius = FMath::Max(FMathf::ZeroTolerance, Sphere.Radius);
+				LatLongSphereGen.NumPhi = LatLongSphereGen.NumTheta = FMath::Max(1, TriangulationSettings.LatLongSphereSteps);
+				LatLongSphereGen.bPolygroupPerQuad = false;
+				LatLongSphereGen.Generate();
+				TranslateVerts(FVector3d(Sphere.Center), LatLongSphereGen.Vertices);
+				RunCallbacks(ShapeIndex++, Sphere, LatLongSphereGen);
+			}
+		}
+
+		for (const FKBoxElem& Box : AggGeom.BoxElems)
+		{
+			FMinimalBoxMeshGenerator BoxGen;
+			BoxGen.Box = UE::Geometry::FOrientedBox3d(
+				FFrame3d(FVector3d(Box.Center), FQuaterniond(Box.Rotation.Quaternion())),
+				0.5 * FVector3d(Box.X, Box.Y, Box.Z));
+			BoxGen.Generate();
+			RunCallbacks(ShapeIndex++, Box, BoxGen);
+		}
+
+		for (const FKSphylElem& Capsule : AggGeom.SphylElems)
+		{
+			FCapsuleGenerator CapsuleGen;
+			CapsuleGen.Radius = Capsule.Radius;
+			CapsuleGen.SegmentLength = Capsule.Length;
+			CapsuleGen.NumHemisphereArcSteps = TriangulationSettings.CapsuleHemisphereSteps;
+			CapsuleGen.NumCircleSteps = TriangulationSettings.CapsuleCircleSteps;
+			CapsuleGen.bPolygroupPerQuad = false;
+			CapsuleGen.Generate();
+			TranslateVerts(FVector3d(0, 0, -0.5 * Capsule.Length), CapsuleGen.Vertices);
+			FTransform Transform = Capsule.GetTransform();
+			// Note: Capsule transform cannot invert; it is generated from a rotation and translation
+			TransformVerts(Transform, CapsuleGen.Vertices, CapsuleGen.Normals);
+			RunCallbacks(ShapeIndex++, Capsule, CapsuleGen);
+		}
+
+		for (const FKConvexElem& Convex : AggGeom.ConvexElems)
+		{
+			FTransform ElemTransform = Convex.GetTransform();
+			const int32 NumVertices = Convex.VertexData.Num();
+			const int32 NumTris = Convex.IndexData.Num() / 3;
+			bool bInvert = ElemTransform.GetDeterminant() < 0;
+
+			// Create the convex hull mesh from the FKConvexElem vertex/index buffer data
+
+			FDynamicMesh3 ConvexMesh(EMeshComponents::None);
+			for (int32 k = 0; k < NumVertices; ++k)
+			{
+				ConvexMesh.AppendVertex(ElemTransform.TransformPosition(FVector3d(Convex.VertexData[k])));
+			}
+			int32 NumTriangles = Convex.IndexData.Num() / 3;
+			for (int32 k = 0; k < NumTriangles; ++k)
+			{
+				// Note: Invert tri indices because chaos stores them inverted
+				ConvexMesh.AppendTriangle(Convex.IndexData[3 * k], Convex.IndexData[3 * k + 2], Convex.IndexData[3 * k + 1]);
+			}
+			if (bInvert)
+			{
+				ConvexMesh.ReverseOrientation(false /*bFlipNormals*/);
+			}
+
+			ConvexMesh.EnableTriangleGroups(0);
+			ConvexMesh.EnableAttributes();
+			if (bSetToPerTriangleNormals)
+			{
+				FMeshNormals::InitializeMeshToPerTriangleNormals(&ConvexMesh);
+			}
+			else
+			{
+				FMeshNormals::InitializeOverlayToPerVertexNormals(ConvexMesh.Attributes()->PrimaryNormals(), false);
+			}
+			if (bInitializeLevelSetAndConvexUVs)
+			{
+				FDynamicMeshUVEditor UVEditor(&ConvexMesh, 0, true);
+				UVEditor.SetPerTriangleUVs();
+			}
+			DynamicMeshCallback(ShapeIndex, Convex, ConvexMesh);
+
+			ShapeIndex++;
+		}
+
+		TArray<FVector3f> LevelSetVerts;
+		TArray<FIntVector> LevelSetTris;
+		for (const FKLevelSetElem& LevelSet : AggGeom.LevelSetElems)
+		{
+			FTransform ElemTransform = LevelSet.GetTransform();
+			bool bInvert = ElemTransform.GetDeterminant() < 0;
+
+			LevelSetVerts.Reset();
+			LevelSetTris.Reset();
+			LevelSet.GetZeroIsosurfaceGridCellFaces(LevelSetVerts, LevelSetTris);
+
+			FDynamicMesh3 LevelSetMesh(EMeshComponents::None);
+			for (int32 Idx = 0; Idx < LevelSetVerts.Num(); ++Idx)
+			{
+				LevelSetMesh.AppendVertex(ElemTransform.TransformPosition(FVector3d(LevelSetVerts[Idx])));
+			}
+			for (int32 Idx = 0; Idx < LevelSetTris.Num(); ++Idx)
+			{
+				FIntVector Tri = LevelSetTris[Idx];
+				LevelSetMesh.AppendTriangle(Tri.X, Tri.Y, Tri.Z);
+			}
+			if (bInvert)
+			{
+				LevelSetMesh.ReverseOrientation(false /*bFlipNormals*/);
+			}
+
+			LevelSetMesh.EnableTriangleGroups(0);
+			LevelSetMesh.EnableAttributes();
+			if (bSetToPerTriangleNormals)
+			{
+				FMeshNormals::InitializeMeshToPerTriangleNormals(&LevelSetMesh);
+			}
+			else
+			{
+				FMeshNormals::InitializeOverlayToPerVertexNormals(LevelSetMesh.Attributes()->PrimaryNormals(), false);
+			}
+			if (bInitializeLevelSetAndConvexUVs)
+			{
+				FDynamicMeshUVEditor UVEditor(&LevelSetMesh, 0, true);
+				UVEditor.SetPerTriangleUVs();
+			}
+			DynamicMeshCallback(ShapeIndex, LevelSet, LevelSetMesh);
+
+			ShapeIndex++;
+		}
+	}
+}
+
+void UE::Geometry::ConvertSimpleCollisionToDynamicMeshes(
+	const FKAggregateGeom& AggGeom,
+	TFunctionRef<void(int32, const FKShapeElem&, const FDynamicMesh3&)> PerElementMeshCallback,
+	FSimpleCollisionTriangulationSettings TriangulationSettings,
+	bool bSetToPerTriangleNormals,
+	bool bInitializeConvexAndLevelSetUVs)
+{
+	UE::Private::ConvertCollisionInternal::ConvertSimpleCollisionToMeshesHelper(
+		AggGeom,
+		TriangulationSettings,
+		bSetToPerTriangleNormals,
+		bInitializeConvexAndLevelSetUVs,
+		PerElementMeshCallback);
+}
+
 
 void UE::Geometry::ConvertSimpleCollisionToMeshes(
 	const FKAggregateGeom& AggGeom,
 	FDynamicMesh3& MeshOut,
-	const FTransformSequence3d& TransformSeqeuence,
+	const FTransformSequence3d& TransformSequence,
 	int32 SphereResolution,
 	bool bSetToPerTriangleNormals,
 	bool bInitializeConvexUVs,
@@ -332,145 +543,29 @@ void UE::Geometry::ConvertSimpleCollisionToMeshes(
 {
 	FDynamicMeshEditor Editor(&MeshOut);
 
-	bool bTransformInverts = TransformSeqeuence.WillInvert();
+	bool bTransformInverts = TransformSequence.WillInvert();
 
-	for (const FKSphereElem& Sphere : AggGeom.SphereElems)
+	FSimpleCollisionTriangulationSettings TriangulationSettings;
+	TriangulationSettings.InitFromSphereResolution(SphereResolution);
+
+	FMeshIndexMappings Mappings;
+	UE::Private::ConvertCollisionInternal::ConvertSimpleCollisionToMeshesHelper(
+		AggGeom,
+		TriangulationSettings,
+		bSetToPerTriangleNormals,
+		bInitializeConvexUVs,
+		[&](int32 Index, const FKShapeElem& Elem, const UE::Geometry::FDynamicMesh3& Mesh)
+		{
+			PerElementMeshCallback((int)Elem.GetShapeType(), Mesh);
+			Mappings.Reset();
+			Editor.AppendMesh(&Mesh, Mappings,
+				[&TransformSequence](int32 vid, const FVector3d& P) { return TransformSequence.TransformPosition(P); },
+				[&TransformSequence](int32 vid, const FVector3d& N) { return TransformSequence.TransformNormal(N); });
+		}
+	);
+	if (bTransformInverts)
 	{
-		FSphereGenerator SphereGen;
-		SphereGen.Radius = Sphere.Radius;
-		SphereGen.NumPhi = SphereGen.NumTheta = SphereResolution;
-		SphereGen.bPolygroupPerQuad = false;
-		SphereGen.Generate();
-		FDynamicMesh3 SphereMesh(&SphereGen);
-
-		MeshTransforms::Translate(SphereMesh, FVector3d(Sphere.Center));
-
-		if (bTransformInverts)
-		{
-			SphereMesh.ReverseOrientation(false);
-		}
-
-		FMeshIndexMappings Mappings;
-		Editor.AppendMesh(&SphereMesh, Mappings,
-			[&](int32 vid, const FVector3d& P) { return TransformSeqeuence.TransformPosition(P); },
-			[&](int32 vid, const FVector3d& N) { return TransformSeqeuence.TransformNormal(N); });
-
-		if (PerElementMeshCallback)
-		{
-			PerElementMeshCallback(0, SphereMesh);
-		}
-	}
-
-	for (const FKBoxElem& Box : AggGeom.BoxElems)
-	{
-		FMinimalBoxMeshGenerator BoxGen;
-		BoxGen.Box = UE::Geometry::FOrientedBox3d(
-			FFrame3d(FVector3d(Box.Center), FQuaterniond(Box.Rotation.Quaternion())),
-			0.5*FVector3d(Box.X, Box.Y, Box.Z));
-		BoxGen.Generate();
-		FDynamicMesh3 BoxMesh(&BoxGen);
-
-		// transform not applied because it is just the Center/Rotation
-
-		if (bTransformInverts)
-		{
-			BoxMesh.ReverseOrientation(false);
-		}
-
-		FMeshIndexMappings Mappings;
-		Editor.AppendMesh(&BoxMesh, Mappings,
-			[&](int32 vid, const FVector3d& P) { return TransformSeqeuence.TransformPosition(P); },
-			[&](int32 vid, const FVector3d& N) { return TransformSeqeuence.TransformNormal(N); });	
-
-		if (PerElementMeshCallback)
-		{
-			PerElementMeshCallback(1, BoxMesh);
-		}
-	}
-
-
-	for (const FKSphylElem& Capsule: AggGeom.SphylElems)
-	{
-		FCapsuleGenerator CapsuleGen;
-		CapsuleGen.Radius = Capsule.Radius;
-		CapsuleGen.SegmentLength = Capsule.Length;
-		CapsuleGen.NumHemisphereArcSteps = SphereResolution/4+1;
-		CapsuleGen.NumCircleSteps = SphereResolution;
-		CapsuleGen.bPolygroupPerQuad = false;
-		CapsuleGen.Generate();
-		FDynamicMesh3 CapsuleMesh(&CapsuleGen);
-
-		MeshTransforms::Translate(CapsuleMesh, FVector3d(0,0,-0.5*Capsule.Length) );
-
-		FTransformSRT3d Transform(Capsule.GetTransform());
-		MeshTransforms::ApplyTransform(CapsuleMesh, Transform, false);
-		if (Transform.GetDeterminant() < 0 != bTransformInverts)
-		{
-			CapsuleMesh.ReverseOrientation(false);
-		}
-
-		FMeshIndexMappings Mappings;
-		Editor.AppendMesh(&CapsuleMesh, Mappings,
-			[&](int32 vid, const FVector3d& P) { return TransformSeqeuence.TransformPosition(P); },
-			[&](int32 vid, const FVector3d& N) { return TransformSeqeuence.TransformNormal(N); });	
-
-		if (PerElementMeshCallback)
-		{
-			PerElementMeshCallback(2, CapsuleMesh);
-		}
-	}
-
-
-	for (const FKConvexElem& Convex : AggGeom.ConvexElems)
-	{
-		FTransformSRT3d ElemTransform(Convex.GetTransform());
-		FDynamicMesh3 ConvexMesh(EMeshComponents::None);
-		int32 NumVertices = Convex.VertexData.Num();
-		for (int32 k = 0; k < NumVertices; ++k)
-		{
-			ConvexMesh.AppendVertex(ElemTransform.TransformPosition(FVector3d(Convex.VertexData[k])) );
-		}
-		int32 NumTriangles = Convex.IndexData.Num() / 3;
-		for (int32 k = 0; k < NumTriangles; ++k)
-		{
-			ConvexMesh.AppendTriangle(Convex.IndexData[3*k], Convex.IndexData[3*k+1], Convex.IndexData[3*k+2]);
-		}
-		
-		// Note we need to reverse the orientation if no transform inverts, or if both invert,
-		// because ConvexMesh has reversed-orientation triangles normally
-		if (ElemTransform.GetDeterminant() < 0 == bTransformInverts)
-		{
-			ConvexMesh.ReverseOrientation();
-		}
-		ConvexMesh.EnableTriangleGroups(0);
-		ConvexMesh.EnableAttributes();
-		if (bInitializeConvexUVs)
-		{
-			FDynamicMeshUVEditor UVEditor(&ConvexMesh, 0, true);
-			UVEditor.SetPerTriangleUVs();
-		}
-
-		FMeshIndexMappings Mappings;
-		Editor.AppendMesh(&ConvexMesh, Mappings,
-			[&](int32 vid, const FVector3d& P) { return TransformSeqeuence.TransformPosition(P); },
-			[&](int32 vid, const FVector3d& N) { return TransformSeqeuence.TransformNormal(N); });	
-
-		if (PerElementMeshCallback)
-		{
-			PerElementMeshCallback(3, ConvexMesh);
-		}
-	}
-
-	if (MeshOut.HasAttributes() && MeshOut.Attributes()->PrimaryNormals() != nullptr)
-	{
-		if (bSetToPerTriangleNormals)
-		{
-			FMeshNormals::InitializeMeshToPerTriangleNormals(&MeshOut);
-		}
-		else
-		{
-			FMeshNormals::InitializeOverlayToPerVertexNormals(MeshOut.Attributes()->PrimaryNormals(), false);
-		}
+		MeshOut.ReverseOrientation(false);
 	}
 }
 

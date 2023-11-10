@@ -598,8 +598,6 @@ void USetCollisionGeometryTool::OnTick(float DeltaTime)
 				VizSettings->bVisualizationDirty = true;
 
 				// update visualization
-				PreviewGeom->RemoveAllLineSets();
-
 				UE::PhysicsTools::InitializeCollisionGeometryVisualization(PreviewGeom, VizSettings, *GeneratedCollision);
 
 				// update property set
