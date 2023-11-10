@@ -592,6 +592,10 @@ static void OnDiffRevisionPicked(FRevisionInfo const& RevisionInfo, TWeakObjectP
 									break;
 								}
 							}
+							if (!PreviousAsset)
+							{
+								UE_LOG(LogSourceControl, Warning, TEXT("Revision %s of %s doesn't have a LevelScriptBlueprint"), *Revision->GetRevision(), *Revision->GetFilename());
+							}
 						}
 						// otherwise its a normal Blueprint
 						else
