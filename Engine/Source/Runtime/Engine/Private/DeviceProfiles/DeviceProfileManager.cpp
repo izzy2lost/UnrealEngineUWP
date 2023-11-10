@@ -1038,52 +1038,35 @@ void UDeviceProfileManager::SaveProfiles(bool bSaveToDefaults)
 }
 
 #if ALLOW_OTHER_PLATFORM_CONFIG
-void UDeviceProfileManager::SetPreviewDeviceProfile(UDeviceProfile* DeviceProfile)
+void UDeviceProfileManager::SetPreviewDeviceProfile(UDeviceProfile* DeviceProfile, FName PreviewModeTag)
 {
-	// we're applying a preview mode on top of an overridden DP?
-	check(BaseDeviceProfile == nullptr);
-
-	RestorePreviewDeviceProfile();
+	if (PreviewModeTag == NAME_None)
+	{
+		PreviewModeTag = "UnknownPreviewMode";
+	}
+	
+	RestorePreviewDeviceProfile(PreviewModeTag);
 
 	PreviewDeviceProfile = DeviceProfile;
-
-	UE_LOG(LogDeviceProfileManager, Log, TEXT("SetPreviewDeviceProfile preview to %s"), *DeviceProfile->GetName());
-	// apply the preview DP cvars.
-	for (const auto& Pair : DeviceProfile->GetAllPreviewCVars())
-	{
-		IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(*Pair.Key);
-		// skip over scalability group cvars (maybe they shouldn't be left in the AllExpandedCVars?)
-		if (CVar != nullptr && !CVar->TestFlags(EConsoleVariableFlags::ECVF_ScalabilityGroup))
-		{
-			// remember the previous value and priority so we can restore
-			FPushedCVarSetting OldSetting = FPushedCVarSetting(CVar->GetString(), CVar->GetFlags());
-			PreviewPushedSettings.Add(Pair.Key, OldSetting);
-			//UE_LOG(LogDeviceProfileManager, Log, TEXT("Pushing Device Profile CVar: [[%s:%s]]"), *Pair.Key, *Pair.Value);
-			// cheat CVar can only be set in ConsoleVariables.ini
-			if (!CVar->TestFlags(EConsoleVariableFlags::ECVF_Cheat))
-			{
-				// set the cvar to the new value, with same priority that it was before (SetByMask means current priority)
-				CVar->SetWithCurrentPriority(UE::ConfigUtilities::ConvertValueFromHumanFriendlyValue(*Pair.Value));
-			}
-		}
-	}
+	
+	// walk over all cvars and apply them
+	IConsoleManager::Get().PreviewPlatformCVars(*DeviceProfile->DeviceType, DeviceProfile->GetName(), PreviewModeTag);
 
 	// broadcast cvar sinks now that we are done
 	IConsoleManager::Get().CallAllConsoleVariableSinks();
 }
 
 
-void UDeviceProfileManager::RestorePreviewDeviceProfile()
+void UDeviceProfileManager::RestorePreviewDeviceProfile(FName PreviewModeTag)
 {
-	PreviewDeviceProfile = nullptr;
-	if (PreviewPushedSettings.Num())
+	if (PreviewModeTag == NAME_None)
 	{
-		checkf(BaseDeviceProfile == nullptr, TEXT("call to RestorePreviewDeviceProfile while both preview and BaseDeviceProfile has been set?"));
-
-		UE_LOG(LogDeviceProfileManager, Log, TEXT("Restoring Preview DP "));
-		// this sets us back to non-preview state.
-		RestorePushedState(PreviewPushedSettings);
+		PreviewModeTag = "UnknownPreviewMode";
 	}
+
+	PreviewDeviceProfile = nullptr;
+
+	IConsoleManager::Get().UnsetAllConsoleVariablesWithTag(PreviewModeTag, ECVF_SetByPreview);
 }
 #endif
 
@@ -1092,11 +1075,6 @@ void UDeviceProfileManager::RestorePreviewDeviceProfile()
 */
 void UDeviceProfileManager::SetOverrideDeviceProfile(UDeviceProfile* DeviceProfile)
 {
-#if ALLOW_OTHER_PLATFORM_CONFIG
-	// we have an active preview running but we're changing the actual device's DP too?
-	check(PreviewPushedSettings.Num() == 0);
-#endif
-
 	// If we're not already overriding record the BaseDeviceProfile
 	if(!BaseDeviceProfile)
 	{
@@ -1122,11 +1100,6 @@ void UDeviceProfileManager::SetOverrideDeviceProfile(UDeviceProfile* DeviceProfi
 */
 void UDeviceProfileManager::RestoreDefaultDeviceProfile()
 {
-#if ALLOW_OTHER_PLATFORM_CONFIG
-	// We're restoring overridden DP while a preview is active?
-	check(PreviewPushedSettings.Num() == 0);
-#endif
-
 	// have we been overridden?
 	if (BaseDeviceProfile)
 	{
@@ -1446,7 +1419,7 @@ static bool GetCVarForDeviceProfile( FOutputDevice& Ar, FString DPName, FString 
 			return false;
 		}
 
-		Value = CVar->GetDefaultValueVariable()->GetString();
+		Value = CVar->GetDefaultValue();
 	}
 
 	Ar.Logf(TEXT("%s@%s = \"%s\""), *DPName, *CVarName, *Value);

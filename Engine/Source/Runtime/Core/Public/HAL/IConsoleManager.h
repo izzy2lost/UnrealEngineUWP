@@ -154,12 +154,14 @@ enum EConsoleVariableFlags
 	ECVF_SetByConsoleVariablesIni = 0x09000000,
 	// Set by hotfix. THIS IS AN ARRAY TYPE meaning multiple vales with this SetBy are stored in the history
 	ECVF_SetByHotfix =				0x0A000000,
+	// Set for previewing in editor. THIS IS AN ARRAY TYPE meaning multiple vales with this SetBy are stored in the history
+	ECVF_SetByPreview =				0x0B000000,
 	// Used by some command line parameters, others use the Console priority instead
-	ECVF_SetByCommandline =			0x0B000000,
+	ECVF_SetByCommandline =			0x0C000000,
 	// Used for high priority temporary debugging or operation modes
-	ECVF_SetByCode =				0x0C000000,
+	ECVF_SetByCode =				0x0D000000,
 	// Highest priority used via editor UI or or game/editor interactive console
-	ECVF_SetByConsole =				0x0D000000,
+	ECVF_SetByConsole =				0x0E000000,
 
 
 	// ------------------------------------------------
@@ -177,6 +179,7 @@ enum EConsoleVariableFlags
 	op(PluginHighPriority) \
 	op(ConsoleVariablesIni) \
 	op(Hotfix) \
+	op(Preview) \
 	op(Commandline) \
 	op(Code) \
 	op(Console)
@@ -535,22 +538,29 @@ public:
 	/**
 	 * Get the saved off default value, in a cvar variable, if one was created
 	 */
+	UE_DEPRECATED(5.4, "Use GetDefaultValue() instead")
 	virtual IConsoleVariable* GetDefaultValueVariable()
 	{
 		return nullptr;
 	}
 
+	/**
+	 * Get the value this CVar was constructed with
+	 */
+	virtual FString GetDefaultValue() = 0;
+
 #if ALLOW_OTHER_PLATFORM_CONFIG
 
 	/**
-	 * Get a CVar opject that matches this cvar, but contains the value of the platform given.
+	 * Get a CVar opject that matches this cvar, but contains the value of the platform given. This will trigger a lof of all cvars for this platform/DP if it doesn't exist
+	 * Note: If this causes a compile error due to pure virtual, make sure your IConsoleVariable subclass inherits from FConsoleVariableExtendedData
 	 */
-	virtual TSharedPtr<IConsoleVariable> GetPlatformValueVariable(FName PlatformName)
-	{
-		// this could be called for some special subclass like FConsoleVariableBitRef that don't implement this (yet)
-		unimplemented();
-		return TSharedPtr<IConsoleVariable>();
-	}
+	virtual TSharedPtr<IConsoleVariable> GetPlatformValueVariable(FName PlatformName, const FString& DeviceProfileName=FString()) = 0;
+
+	/**
+	 * Checks if the CVar has a cached value for the given platform
+	 */
+	virtual bool HasPlatformValueVariable(FName PlatformName, const FString& DeviceProfileName=FString()) = 0;
 
 	/**
 	 * Used only for debugging/iterating, this will clear all of the other platform's cvar objects, which will 
@@ -559,6 +569,7 @@ public:
 	virtual void ClearPlatformVariables(FName PlatformName=NAME_None)
 	{
 	}
+	
 #endif
 
 	// convenience methods
@@ -1072,22 +1083,41 @@ struct IConsoleManager
 #if ALLOW_OTHER_PLATFORM_CONFIG
 	/**
 	 * Walks over the best set of ini sections for another platform that can be used to emulate cvars as the platform
-	 * will have set - WITH THE NOTABLE EXCEPTION OF specific DeviceProfiles. Use the DeviceProfileManager code to get a DP
-	 * for a platform, as this code cannot easily access DeviceProfile logic.
-	 * It also won't include any UserSettings or ConsoleVariables.ini settings.
-	 * 
+	 * will have set
+	 * It also won't include any UserSettings
+	 *
 	 * @param PlatformName The platform name (the ini name, so Windows, not Win64)
 	 * @param DeviceProfileName If this is non-empty, the given deviceprofile will be loaded from the platform's inis and inserted into the CVars
 	 * @param Visit the callback to run for each CVar found
 	 */
 	static CORE_API bool VisitPlatformCVarsForEmulation(FName PlatformName, const FString& DeviceProfileName, TFunctionRef<void(const FString& CVarName, const FString& CVarValue, EConsoleVariableFlags SetBy)> Visit);
+	
+	/**
+	 * Loads all platform cvars, which can be retrieved with IConsoleVariable::GetPlatformValueVariable. If DeviceProfileName is empty, it will use the
+	 *  DevicePlatform named the same as the Platform
+	 */
+	virtual void LoadAllPlatformCVars(FName PlatformName, const FString& DeviceProfileName=FString()) = 0;
+	
+	/**
+	 * Applies the cvars from the platform/DeviceProfile pair (can be blank to use the platform's named DP) and sets into the SetByPreview  priority, with the PreviewModeTag
+	 * to be unset later
+	 */
+	virtual void PreviewPlatformCVars(FName PlatformName, const FString& DeviceProfileName, FName PreviewModeTag) = 0;
+
+	/**
+	 * Empties the cache for the given Platform/DP for all CVars. If using NAME_None for Platofrm, this will wipe every cached platform/DP value. If DeviceProfileName
+	 * is empty, it will use the PlatfomName as the DeviceProfile name
+	 */
+	virtual void ClearAllPlatformCVars(FName PlatformName=NAME_None, const FString& DeviceProfileName=FString()) = 0;
+
 #endif
 
 	/**
 	  * When a plugin is unmounted, it needs to unset cvars that it had set when it was mounted. This will unset and fixup all
 	  * variables with the given Tag
+	  * @param Priority If set, then the internal search for CVars is restricted to this SetBy. This is an optimization, only to be used if you _know_ that all CVars set with this tag were set at this priority. Any other priorites cannot be unset
 	 */
-	virtual void UnsetAllConsoleVariablesWithTag(FName Tag) = 0;
+	virtual void UnsetAllConsoleVariablesWithTag(FName Tag, EConsoleVariableFlags Priority=ECVF_SetByMask) = 0;
 	
 	virtual FConsoleVariableMulticastDelegate& OnCVarUnregistered() = 0;
 	virtual FConsoleObjectWithNameMulticastDelegate& OnConsoleObjectUnregistered() = 0;
