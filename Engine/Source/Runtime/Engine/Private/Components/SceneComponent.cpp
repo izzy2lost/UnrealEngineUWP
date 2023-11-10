@@ -72,11 +72,10 @@ USceneComponent::USceneComponent(const FObjectInitializer& ObjectInitializer /*=
 	SetShouldBeAttached(AttachParent != nullptr);
 }
 
-#if (WITH_EDITORONLY_DATA || !UE_SERVER)
+#if WITH_EDITORONLY_DATA
 void USceneComponent::AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector)
 {
 	USceneComponent* This = CastChecked<USceneComponent>(InThis);
-#if WITH_EDITORONLY_DATA
 	Collector.AddReferencedObject(This->SpriteComponent);
 
 	if (GComponentsWithLegacyLightmaps.GetAnnotationMap().Num() > 0)
@@ -88,20 +87,10 @@ void USceneComponent::AddReferencedObjects(UObject* InThis, FReferenceCollector&
 			LegacyMeshData.Data[EntryIndex].Value->AddReferencedObjects(Collector);
 		}
 	}
-#endif // WITH_EDITORONLY_DATA
-
-#if !UE_SERVER
-	for (TObjectPtr<USceneComponent> AttachedChild : This->ClientAttachedChildren)
-	{
-		Collector.AddReferencedObject(AttachedChild);
-	}
-#endif // !UE_SERVER
 
 	Super::AddReferencedObjects(InThis, Collector);
 }
-#endif // (WITH_EDITORONLY_DATA || !UE_SERVER)
 
-#if WITH_EDITORONLY_DATA
 void USceneComponent::PostLoad()
 {
 	Super::PostLoad();
@@ -2238,10 +2227,7 @@ bool USceneComponent::AttachToComponent(USceneComponent* Parent, const FAttachme
 
 		if (Parent->IsNetSimulating() && !IsNetSimulating())
 		{
-			checkf(UE_SERVER == 0, TEXT("Usage of ClientAttachedChildren detected on a server"));
-#if !UE_SERVER
 			Parent->ClientAttachedChildren.AddUnique(this);
-#endif
 		}
 
 		// Now apply attachment rules
@@ -2407,9 +2393,7 @@ void USceneComponent::DetachFromComponent(const FDetachmentTransformRules& Detac
 		PrimaryComponentTick.RemovePrerequisite(GetAttachParent(), GetAttachParent()->PrimaryComponentTick); // no longer required to tick after the attachment
 
 		GetAttachParent()->AttachChildren.Remove(this);
-#if !UE_SERVER
 		GetAttachParent()->ClientAttachedChildren.Remove(this);
-#endif
 		GetAttachParent()->OnChildDetached(this);
 		GetAttachParent()->ModifiedAttachChildren();
 
@@ -3460,7 +3444,6 @@ void USceneComponent::OnRep_AttachChildren()
 		}
 	}
 
-#if !UE_SERVER
 	if (ClientAttachedChildren.Num())
 	{
 		for (USceneComponent* AttachChild : AttachChildren)
@@ -3482,9 +3465,6 @@ void USceneComponent::OnRep_AttachChildren()
 			}
 		}
 	}
-#else
-	checkNoEntry();
-#endif
 
 	// It's possible AttachChildren are spawned before the AttachParent. This results in the AttachParent never being set.
 	for (USceneComponent* ChildComponent : AttachChildren)
@@ -3513,12 +3493,8 @@ void USceneComponent::PreNetReceive()
 
 	bNetUpdateTransform = false;
 	bNetUpdateAttachment = false;
-#if !UE_SERVER
 	NetOldAttachSocketName = GetAttachSocketName();
 	NetOldAttachParent = GetAttachParent();
-#else
-	checkNoEntry();
-#endif
 }
 
 void USceneComponent::PostNetReceive()
@@ -3539,7 +3515,6 @@ void USceneComponent::PostNetReceive()
 	
 void USceneComponent::PostRepNotifies()
 {
-#if !UE_SERVER
 	if (bNetUpdateAttachment)
 	{
 		Exchange(NetOldAttachParent, AttachParent);
@@ -3589,9 +3564,6 @@ void USceneComponent::PostRepNotifies()
 		UpdateComponentToWorld();
 		bNetUpdateTransform = false;
 	}
-#else
-	checkNoEntry();
-#endif
 }
 
 void USceneComponent::Serialize(FArchive& Ar)

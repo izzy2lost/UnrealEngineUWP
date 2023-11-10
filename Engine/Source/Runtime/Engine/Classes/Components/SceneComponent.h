@@ -112,21 +112,17 @@ private:
 	UPROPERTY(ReplicatedUsing = OnRep_AttachSocketName)
 	FName AttachSocketName;
 
-#if !UE_SERVER
-	/** Transient data used by clients when the attach parent changes during replication. */
 	FName NetOldAttachSocketName;
-#endif
 
 	/** List of child SceneComponents that are attached to us. */
 	UPROPERTY(ReplicatedUsing = OnRep_AttachChildren, Transient)
 	TArray<TObjectPtr<USceneComponent>> AttachChildren;
 
-#if !UE_SERVER
 	/** Set of attached SceneComponents that were attached by the client so we can fix up AttachChildren when it is replicated to us. */
+	UPROPERTY(Transient)
 	TArray<TObjectPtr<USceneComponent>> ClientAttachedChildren;
 
 	USceneComponent* NetOldAttachParent;
-#endif
 
 public:
 	/** Current bounds of the component */
@@ -937,11 +933,9 @@ public:
 	ENGINE_API virtual void PostNetReceive() override;
 	ENGINE_API virtual void PostRepNotifies() override;
 	ENGINE_API virtual void Serialize(FArchive& Ar) override;
-#if (WITH_EDITORONLY_DATA || !UE_SERVER)
-	static ENGINE_API void AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector);
-#endif
-
 #if WITH_EDITORONLY_DATA
+	static ENGINE_API void AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector);
+
 	ENGINE_API virtual void PostLoad() override;
 #endif
 
