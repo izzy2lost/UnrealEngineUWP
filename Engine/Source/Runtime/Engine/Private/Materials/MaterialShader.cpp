@@ -1719,7 +1719,7 @@ void FMaterialShaderMap::LoadForRemoteRecompile(FArchive& Ar, EShaderPlatform Sh
 				ShaderMap->Serialize(Ar, false);
 
 				// Register in the global map
-				ShaderMap->Register(ShaderPlatform);
+				ShaderMap->RegisterForODSC(ShaderPlatform);
 
 				LoadedShaderMaps.Add(ShaderMap);
 			}
@@ -2958,6 +2958,36 @@ void FMaterialShaderMap::Register(EShaderPlatform InShaderPlatform)
 		{
 			// Sanity check - We did not register so either bRegistered is false or this item is already in the map
 			check((bRegistered == false && CachedMap != this) || (bRegistered == true && CachedMap == this));
+		}
+	}
+}
+
+void FMaterialShaderMap::RegisterForODSC(EShaderPlatform InShaderPlatform)
+{
+	Register(InShaderPlatform);
+
+	{
+		FScopeLock ScopeLock(&GIdToMaterialShaderMapCS);
+
+		FMaterialShaderMap* CachedMap = GIdToMaterialShaderMap[GetShaderPlatform()].FindRef(ShaderMapId);
+		if (CachedMap == nullptr)
+		{
+			GIdToMaterialShaderMap[GetShaderPlatform()].Add(ShaderMapId, this);
+			bRegistered = true;
+		}
+		else
+		{	
+			if (CachedMap != this)
+			{
+				// deregister the existing map.
+				int RemoveIndex = GIdToMaterialShaderMap[GetShaderPlatform()].Remove(ShaderMapId);
+				check(RemoveIndex != INDEX_NONE);
+				CachedMap->bRegistered = false;
+
+				// register ourselves.
+				GIdToMaterialShaderMap[GetShaderPlatform()].Add(ShaderMapId, this);
+				bRegistered = true;
+			}
 		}
 	}
 }

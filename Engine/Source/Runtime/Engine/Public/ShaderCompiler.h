@@ -709,6 +709,9 @@ private:
 	/** Opt out of material shader compilation and instead place an empty shader map. */
 	bool bNoShaderCompilation;
 
+	/** If we are using ODSC (On Demand Shader Compilation) we should allow for incomplete maps to still be processed. */
+	bool bAllowForIncompleteShaderMaps;
+
 	/** Used to show a notification accompanying progress. */
 	FAsyncCompilationNotification Notification;
 
@@ -883,6 +886,11 @@ public:
 		{
 			bNoShaderCompilation = toggle;
 		}
+	}
+
+	void SetAllowForIncompleteShaderMaps(bool toggle)
+	{
+		bAllowForIncompleteShaderMaps = toggle;
 	}
 
 	ENGINE_API bool IsCompilingShaderMap(uint32 Id);

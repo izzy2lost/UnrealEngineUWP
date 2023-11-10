@@ -5372,6 +5372,7 @@ FShaderCompilingManager::FShaderCompilingManager() :
 	SuppressedShaderPlatforms(0),
 	BuildDistributionController(nullptr),
 	bNoShaderCompilation(false),
+	bAllowForIncompleteShaderMaps(false),
 	Notification(GetAssetNameFormat())
 {
 	// don't perform any initialization if compiling is not allowed
@@ -6463,7 +6464,7 @@ void FShaderCompilingManager::ProcessCompiledShaderMaps(
 					bool bIsComplete = CompilingShaderMap->IsComplete(Material, true);
 
 					// If running a cook, only process complete shader maps, as there's no rendering of partially complete shader maps to worry about.
-					if (bIsComplete || IsRunningCookCommandlet() == false)
+					if (bIsComplete || IsRunningCookCommandlet() == false || bAllowForIncompleteShaderMaps)
 					{
 						if (ShaderMapToUseForRendering == nullptr)
 						{

@@ -571,6 +571,7 @@ bool UCookOnTheFlyServer::StartCookOnTheFly(FCookOnTheFlyStartupOptions InCookOn
 	if (!IsCookingInEditor())
 	{
 		GShaderCompilingManager->SkipShaderCompilation(true);
+		GShaderCompilingManager->SetAllowForIncompleteShaderMaps(true);
 	}
 
 	LLM_SCOPE_BYTAG(Cooker);
@@ -5706,6 +5707,7 @@ void UCookOnTheFlyServer::ShutdownCookOnTheFly()
 		if (!IsCookingInEditor())
 		{
 			GShaderCompilingManager->SkipShaderCompilation(false);
+			GShaderCompilingManager->SetAllowForIncompleteShaderMaps(false);
 		}
 	}
 
@@ -11251,6 +11253,7 @@ void UCookOnTheFlyServer::StartCookAsCookWorker()
 	if (IsDirectorCookOnTheFly())
 	{
 		GShaderCompilingManager->SkipShaderCompilation(true);
+		GShaderCompilingManager->SetAllowForIncompleteShaderMaps(true);
 	}
 	CookWorkerClient->DoneWithInitialSettings();
 
@@ -11316,6 +11319,7 @@ void UCookOnTheFlyServer::CookAsCookWorkerFinished()
 	if (IsDirectorCookOnTheFly())
 	{
 		GShaderCompilingManager->SkipShaderCompilation(false);
+		GShaderCompilingManager->SetAllowForIncompleteShaderMaps(false);
 	}
 	LogCookWorkerStats();
 	if (IsDirectorCookByTheBook())

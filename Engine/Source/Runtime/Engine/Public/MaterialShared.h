@@ -1333,6 +1333,11 @@ public:
 	/** Registers a material shader map in the global map so it can be used by materials. */
 	void Register(EShaderPlatform InShaderPlatform);
 
+	/** Registers a material shader map in the global map so it can be used by materials.
+		Since the shader maps content can change this will overwrite entries in the global map.
+	*/
+	void RegisterForODSC(EShaderPlatform InShaderPlatform);
+
 	// Reference counting.
 	ENGINE_API void AddRef();
 	ENGINE_API void Release();

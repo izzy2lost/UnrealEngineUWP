@@ -3269,20 +3269,33 @@ void FMaterial::CacheGivenTypes(EShaderPlatform Platform, const TArray<const FVe
 			}
 			else if (ShaderType->GetTypeForDynamicCast() == FShaderType::EShaderTypeForDynamicCast::MeshMaterial)
 			{
-				ShaderType->AsMeshMaterialShaderType()->BeginCompileShader(
-					EShaderCompileJobPriority::ForceLocal,
-					GetGameThreadCompilingShaderMapId(),
-					0,
-					Platform,
-					GameThreadShaderMap->GetPermutationFlags(),
-					this,
-					GameThreadShaderMap->GetShaderMapId(),
-					GameThreadPendingCompilerEnvironment,
-					VFType,
-					CompileJobs,
-					DebugGroupName,
-					nullptr,
-					nullptr);
+				const EShaderPermutationFlags ShaderPermutation = GameThreadShaderMap->GetPermutationFlags();
+
+				const FMeshMaterialShaderType* MeshMaterialShaderType = ShaderType->GetMeshMaterialShaderType();
+
+				for (int32 PermutationId = 0; PermutationId < ShaderType->GetPermutationCount(); ++PermutationId)
+				{
+					const bool bShaderShouldCompile = MeshMaterialShaderType->ShouldCompilePermutation(Platform, this, VFType, PermutationId, ShaderPermutation);
+					if (!bShaderShouldCompile)
+					{
+						continue;
+					}
+
+					ShaderType->AsMeshMaterialShaderType()->BeginCompileShader(
+						EShaderCompileJobPriority::ForceLocal,
+						GetGameThreadCompilingShaderMapId(),
+						PermutationId,
+						Platform,
+						ShaderPermutation,
+						this,
+						GameThreadShaderMap->GetShaderMapId(),
+						GameThreadPendingCompilerEnvironment,
+						VFType,
+						CompileJobs,
+						DebugGroupName,
+						nullptr,
+						nullptr);
+				}
 			}
 		}
 
