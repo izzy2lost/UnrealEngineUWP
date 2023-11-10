@@ -470,7 +470,7 @@ class TelemetryService : BackgroundService
 
 	private async Task<bool> ExecuteInternalAsync(CancellationToken stoppingToken)
 	{
-		if (_systemMetrics == null)
+		if (_systemMetrics == null || !_agentSettings.EnableTelemetry)
 		{
 			return false;
 		}

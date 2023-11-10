@@ -260,6 +260,11 @@ namespace Horde.Agent
 		public int ComputePort { get; set; } = 7000;
 		
 		/// <summary>
+		/// Whether to send telemetry back to Horde server
+		/// </summary>
+		public bool EnableTelemetry { get; set; } = false;
+		
+		/// <summary>
 		/// How often to report telemetry events to server in milliseconds
 		/// </summary>
 		public int TelemetryReportInterval { get; set; } = 30 * 1000;
