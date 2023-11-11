@@ -89,6 +89,7 @@ void ULODManagerTool::Setup()
 	LODPreviewProperties = NewObject<ULODManagerPreviewLODProperties>(this);
 	AddToolPropertySource(LODPreviewProperties);
 	LODPreviewProperties->VisibleLOD = this->DefaultLODName;
+	LODPreviewProperties->bShowingDefaultLOD = true;
 	LODPreviewProperties->WatchProperty(LODPreviewProperties->VisibleLOD, [this](FString NewLOD) { bPreviewLODValid = false; });
 	LODPreviewProperties->WatchProperty(LODPreviewProperties->bShowSeams, [this](bool bNewValue) { bPreviewLODValid = false; });
 
@@ -386,6 +387,15 @@ void ULODManagerTool::UpdatePreviewLOD()
 	}
 	bPreviewLODValid = true;
 
+	auto SetShowingDefaultLOD = [this](bool bNewValue)
+	{
+		if (bNewValue != LODPreviewProperties->bShowingDefaultLOD)
+		{
+			LODPreviewProperties->bShowingDefaultLOD = bNewValue;
+			NotifyOfPropertyChangeByTool(LODPreviewProperties);
+		}
+	};
+
 	FString SelectedLOD = LODPreviewProperties->VisibleLOD;
 	const FLODName* FoundName = ActiveLODNames.Find(SelectedLOD);
 	if (SelectedLOD.IsEmpty() || FoundName == nullptr || FoundName->IsDefault() )
@@ -395,6 +405,7 @@ void ULODManagerTool::UpdatePreviewLOD()
 		ClearPreviewLines();
 		LODPreviewLines->SetAllVisible(false);
 		UE::ToolTarget::ShowSourceObject(Targets[0]);
+		SetShowingDefaultLOD(true);
 		return;
 	}
 
@@ -404,6 +415,8 @@ void ULODManagerTool::UpdatePreviewLOD()
 		CacheLODMesh(SelectedLOD, *FoundName);
 		Found = LODMeshCache.Find(SelectedLOD);
 	}
+
+	SetShowingDefaultLOD(Found == nullptr);
 	
 	if (Found)
 	{
