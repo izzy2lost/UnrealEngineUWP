@@ -42,7 +42,6 @@
 #include "MuT/NodeImageMipmap.h"
 #include "MuT/NodeImageNormalComposite.h"
 #include "MuT/NodeImageResize.h"
-#include "MuT/NodeImageSwizzle.h"
 #include "MuT/NodeMeshConstant.h"
 #include "MuT/NodeMeshFormat.h"
 #include "MuT/NodeMeshFragment.h"
@@ -669,7 +668,6 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 								LastImage = CompositedImage;
 							}
 
-							mu::Ptr<mu::NodeImage> FormatSource = LastImage;
 							mu::NodeImageFormatPtr FormatImage = new mu::NodeImageFormat();
 							FormatImage->SetSource(LastImage.get());
 							FormatImage->SetFormat(mu::EImageFormat::IF_RGBA_UBYTE);
@@ -719,35 +717,6 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 									// \TODO: The QualityFix filter is used while the internal mutable runtime compression doesn't provide enough quality for some large block formats.
 									mu::EImageFormat MutableFormat = QualityAndPerformanceFix(UnrealToMutablePixelFormat(UnrealTargetPlatformFormat,false));
 									mu::EImageFormat MutableFormatIfAlpha = QualityAndPerformanceFix(UnrealToMutablePixelFormat(UnrealTargetPlatformFormatAlpha,true));
-
-									// Temp hack to enable RG->LA 
-									if (GenerationContext.Options.TargetPlatform)
-									{
-										bool bUseLA = GenerationContext.Options.TargetPlatform->SupportsFeature(ETargetPlatformFeatures::NormalmapLAEncodingMode);
-										if (bUseLA)
-										{
-											// See GetQualityFormat in TextureFormatASTC.cpp to understand why
-											if (UnrealTargetPlatformFormat == PF_ASTC_6x6 || UnrealTargetPlatformFormat == PF_ASTC_6x6_NORM_RG)
-											{
-												MutableFormat = mu::EImageFormat::IF_ASTC_4x4_RGBA_LDR;
-												MutableFormatIfAlpha = mu::EImageFormat::IF_ASTC_4x4_RGBA_LDR;
-
-												// Insert a channel swizzle
-												mu::Ptr<mu::NodeImageSwizzle> Swizzle = new mu::NodeImageSwizzle;
-												Swizzle->SetFormat( mu::EImageFormat::IF_RGBA_UBYTE );
-												Swizzle->SetSource(0, FormatSource);
-												Swizzle->SetSource(1, FormatSource);
-												Swizzle->SetSource(2, FormatSource);
-												Swizzle->SetSource(3, FormatSource);
-												Swizzle->SetSourceChannel(0, 0);
-												Swizzle->SetSourceChannel(1, 0);
-												Swizzle->SetSourceChannel(2, 0);
-												Swizzle->SetSourceChannel(3, 1);
-
-												FormatImage->SetSource( Swizzle.get() );
-											}
-										}
-									}
 
 									// Unsupported format: look for something generic
 									if (MutableFormat == mu::EImageFormat::IF_NONE)

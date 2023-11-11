@@ -21,7 +21,6 @@
 #include "MuT/ASTOpImageCompose.h"
 #include "MuT/ASTOpImageMipmap.h"
 #include "MuT/ASTOpImagePixelFormat.h"
-#include "MuT/ASTOpImageSwizzle.h"
 #include "MuT/ASTOpImageLayer.h"
 #include "MuT/ASTOpImageLayerColor.h"
 #include "MuT/ASTOpImagePatch.h"
@@ -54,7 +53,6 @@
 #include "MuT/NodeImageFormatPrivate.h"
 #include "MuT/NodeImageMipmap.h"
 #include "MuT/NodeImageMipmapPrivate.h"
-#include "MuT/NodeImageSwizzlePrivate.h"
 #include "MuT/NodeImageReference.h"
 #include "MuT/NodeLODPrivate.h"
 #include "MuT/NodeMesh.h"
@@ -1215,7 +1213,6 @@ namespace mu
 					// Any image-specific format or mipmapping needs to be applied at the end
 					NodeImageMipmapPtr mipmapNode;
 					NodeImageFormatPtr formatNode;
-					NodeImageSwizzlePtr swizzleNode;
 					bool found = false;
 					while (!found)
 					{
@@ -1228,15 +1225,6 @@ namespace mu
 						{
 							if (!formatNode) formatNode = tf;
 							pImageNode = tf->GetSource();
-						}
-						else if (NodeImageSwizzle* ts = dynamic_cast<NodeImageSwizzle*>(pImageNode.get()))
-						{
-							NodeImage* Source = ts->GetSource(0).get();
-							if (!swizzleNode && Source ==ts->GetSource(1) && Source==ts->GetSource(2) && Source==ts->GetSource(3))
-							{
-								swizzleNode = ts;
-								pImageNode = Source;
-							}
 						}
 						else
 						{
@@ -1315,22 +1303,6 @@ namespace mu
 						}
 
 						check(imageAd);
-
-						if (swizzleNode)
-						{
-							Ptr<ASTOpImageSwizzle> fop = new ASTOpImageSwizzle();
-							fop->Format = swizzleNode->GetPrivate()->m_format;
-							fop->Sources[0] = imageAd;
-							fop->Sources[1] = imageAd;
-							fop->Sources[2] = imageAd;
-							fop->Sources[3] = imageAd;
-							fop->SourceChannels[0] = swizzleNode->GetPrivate()->m_sourceChannels[0];
-							fop->SourceChannels[1] = swizzleNode->GetPrivate()->m_sourceChannels[1];
-							fop->SourceChannels[2] = swizzleNode->GetPrivate()->m_sourceChannels[2];
-							fop->SourceChannels[3] = swizzleNode->GetPrivate()->m_sourceChannels[3];
-							check(fop->Format != EImageFormat::IF_NONE);
-							imageAd = fop;
-						}
 
 						if (mipmapNode)
 						{
@@ -1612,21 +1584,6 @@ namespace mu
 								}
 							}
 
-							if (swizzleNode)
-							{
-								Ptr<ASTOpImageSwizzle> fop = new ASTOpImageSwizzle();
-								fop->Format = swizzleNode->GetPrivate()->m_format;
-								fop->Sources[0] = imageAd;
-								fop->Sources[1] = imageAd;
-								fop->Sources[2] = imageAd;
-								fop->Sources[3] = imageAd;
-								fop->SourceChannels[0] = swizzleNode->GetPrivate()->m_sourceChannels[0];
-								fop->SourceChannels[1] = swizzleNode->GetPrivate()->m_sourceChannels[1];
-								fop->SourceChannels[2] = swizzleNode->GetPrivate()->m_sourceChannels[2];
-								fop->SourceChannels[3] = swizzleNode->GetPrivate()->m_sourceChannels[3];
-								check(fop->Format != EImageFormat::IF_NONE);
-								imageAd = fop;
-							}
 
 							// Apply mipmap and format if necessary
 							if (mipmapNode)
