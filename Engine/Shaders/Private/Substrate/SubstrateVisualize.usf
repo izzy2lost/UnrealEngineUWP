@@ -503,7 +503,7 @@ void PrintPixel(uint2 InCoord, float3 InWorldPosition, float3 V)
 	// Header
 	if (ClosureIndex < Header.ClosureCount && ClosureIndex == 0)
 	{
-		const FSubstrateTopLayerData TopLayerData = SubstrateUnpackTopLayerData((SUBSTRATE_TOP_LAYER_TYPE)Substrate.TopLayerTexture.Load(uint3(InCoord, 0)));
+		const FSubstrateTopLayerData TopLayerData = SubstrateUnpackTopLayerData(Substrate.TopLayerTexture.Load(uint3(InCoord, 0)));
 
 		const bool bSubstrateMaterial = Header.ClosureCount > 0;
 		const bool bIsSimpleMaterial = Header.IsSimpleMaterial() || Header.ClosureCount == 0;

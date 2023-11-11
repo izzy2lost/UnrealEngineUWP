@@ -17,7 +17,7 @@ int bRectPrimitive;
 int2 ViewResolution;
 uint MaxBytesPerPixel;
 int FirstSliceStoringSubstrateSSSData;
-Texture2D<uint2> TopLayerTexture;
+Texture2D<SUBSTRATE_TOP_LAYER_TYPE> TopLayerTexture;
 #if PERMUTATION_CMASK
 Texture2D<uint> TopLayerCmaskTexture;
 #endif
@@ -411,7 +411,7 @@ uint TileSizeLog2;
 
 int2 TileCount_Primary;
 
-Texture2D<uint2> TopLayerTexture;
+Texture2D<SUBSTRATE_TOP_LAYER_TYPE> TopLayerTexture;
 Texture2DArray<uint> MaterialTextureArray;
 
 Buffer<uint> TileListBuffer;

@@ -762,19 +762,13 @@ bool SubstrateIsTopLayerMaterial(SUBSTRATE_TOP_LAYER_TYPE In)
 #endif
 }
 
-FSubstrateTopLayerData SubstrateUnpackTopLayerData(uint In)
-{
-	FSubstrateTopLayerData Out = (FSubstrateTopLayerData)0;
-	Out.Material = (In & 0x3);
-	Out.WorldNormal = SubstrateUnpackNormal22(In >> 10);
-	Out.Roughness = UnpackR8(In >> 2);
-	return Out;
-}
-FSubstrateTopLayerData SubstrateUnpackTopLayerData(uint2 In)
+FSubstrateTopLayerData SubstrateUnpackTopLayerData(SUBSTRATE_TOP_LAYER_TYPE In)
 {
 	FSubstrateTopLayerData Out = (FSubstrateTopLayerData)0;
 #if SUBSTRATE_NORMAL_QUALITY==0
-	Out = SubstrateUnpackTopLayerData(In.x);
+	Out.Material = (In & 0x3);
+	Out.WorldNormal = SubstrateUnpackNormal22(In >> 10);
+	Out.Roughness = UnpackR8(In >> 2);
 #elif SUBSTRATE_NORMAL_QUALITY==1
 	Out.Material = (In.y & 0x3);
 	Out.WorldNormal = SubstrateUnpackNormal(In.x);
@@ -1894,22 +1888,20 @@ uint SubstrateLoadUint1AtIndexOffset(in FSubstrateMaterialContainer SubstrateBuf
 }
 
 // FSubstrateTopLayerDataContainer can be a uint or a uint2 resource, following SUBSTRATE_TOP_LAYER_TYPE according to r.GBufferFormat.
-// However, we do not change the type of the resource:
-//    - Leverage the hardware fetch unit filtering what can be loaded/stored according to the actual resource format.
-//    - We also filter the read data from SubstrateLoadTopLayerData 
+// The type of the texture is set dynamically to avoid compiler warnings and maximize type safety. Note that the SUBSTRATE_TOP_LAYER_TYPE
+// define is set at the C++ level so that it is always available, even inside global uniform buffer declarations.
 #if SUBSTRATE_MATERIALCONTAINER_IS_WRITABLE
-#define FSubstrateTopLayerDataContainer RWTexture2D<uint2>
+#define FSubstrateTopLayerDataContainer RWTexture2D<SUBSTRATE_TOP_LAYER_TYPE>
 #else
-#define FSubstrateTopLayerDataContainer Texture2D<uint2>
+#define FSubstrateTopLayerDataContainer Texture2D<SUBSTRATE_TOP_LAYER_TYPE>
 #endif
 
 SUBSTRATE_TOP_LAYER_TYPE SubstrateLoadTopLayerData(FSubstrateTopLayerDataContainer InTopLayerContainer, inout FSubstrateAddressing SubstrateAddressing)
 {
-	// Top layer container is always uint2 so we cast to XXX to avoid warnings.
 	#if SUBSTRATE_MATERIALCONTAINER_IS_WRITABLE
-	return (SUBSTRATE_TOP_LAYER_TYPE)InTopLayerContainer[SubstrateAddressing.PixelCoords];
+	return InTopLayerContainer[SubstrateAddressing.PixelCoords];
 	#else
-	return (SUBSTRATE_TOP_LAYER_TYPE)InTopLayerContainer.Load(uint3(SubstrateAddressing.PixelCoords, 0));
+	return InTopLayerContainer.Load(uint3(SubstrateAddressing.PixelCoords, 0));
 	#endif
 }
 

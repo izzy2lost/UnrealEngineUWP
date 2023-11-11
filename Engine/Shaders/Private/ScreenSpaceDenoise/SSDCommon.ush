@@ -256,7 +256,7 @@ FSSDCompressedSceneInfos SampleCompressedSceneMetadata(
 	}
 
 	// SUBSTRATE_TODO: Manage bPrevFrame
-	const FSubstrateTopLayerData TopLayerData = SubstrateUnpackTopLayerData((SUBSTRATE_TOP_LAYER_TYPE)Substrate.TopLayerTexture.Load(uint3(PixelCoord, 0)));
+	const FSubstrateTopLayerData TopLayerData = SubstrateUnpackTopLayerData(Substrate.TopLayerTexture.Load(uint3(PixelCoord, 0)));
 	return MaterialToCompressedSceneMetadata(SceneDepth, TopLayerData.WorldNormal, TopLayerData.Roughness, IsSubstrateMaterial(TopLayerData) ? SHADINGMODELID_SUBSTRATE : SHADINGMODELID_UNLIT);
   #else // SUBSTRATE_ENABLED
 	FGBufferData GBufferData;
