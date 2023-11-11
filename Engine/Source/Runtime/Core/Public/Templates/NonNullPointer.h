@@ -5,6 +5,7 @@
 #include "CoreTypes.h"
 #include "Misc/AssertionMacros.h"
 #include "Misc/OptionalFwd.h"
+#include "Templates/UnrealTypeTraits.h"
 
 #include <type_traits>
 
