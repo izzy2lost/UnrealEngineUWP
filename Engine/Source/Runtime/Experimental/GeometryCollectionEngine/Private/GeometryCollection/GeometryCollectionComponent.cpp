@@ -7043,6 +7043,16 @@ bool UGeometryCollectionComponent::CanBeUsedInPhysicsReplication(const FName Bon
 	return false;
 }
 
+const FTransform& UGeometryCollectionComponent::GetPreviousComponentToWorld() const
+{
+	if (!PhysicsProxy)
+	{
+		return FTransform::Identity;
+	}
+
+	return PhysicsProxy->GetPreviousWorldTransform_External();
+}
+
 #if WITH_EDITOR
 
 bool UGeometryCollectionComponent::IsHLODRelevant() const

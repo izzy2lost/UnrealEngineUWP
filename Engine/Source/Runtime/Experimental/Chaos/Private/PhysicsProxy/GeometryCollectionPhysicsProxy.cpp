@@ -584,6 +584,7 @@ void FGeometryCollectionPhysicsProxy::Initialize(Chaos::FPBDRigidsEvolutionBase 
 
 	// we need to make sure the world transform is kept up to date on the game thread 
 	WorldTransform_External = Parameters.WorldTransform;
+	PreviousWorldTransform_External = WorldTransform_External;
 
 	//
 	// Collision vertices down sampling validation.  
@@ -3187,6 +3188,7 @@ void FGeometryCollectionPhysicsProxy::SetWorldTransform_External(const FTransfor
 	if (bHasTransformChanged)
 	{
 		bIsGameThreadWorldTransformDirty = bHasTransformChanged;
+		PreviousWorldTransform_External = WorldTransform_External;
 		WorldTransform_External = WorldTransform;
 
 		ExecuteOnPhysicsThread(*this,

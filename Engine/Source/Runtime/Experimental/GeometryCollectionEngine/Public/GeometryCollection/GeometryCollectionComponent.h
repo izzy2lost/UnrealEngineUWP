@@ -1348,7 +1348,7 @@ public:
 	GEOMETRYCOLLECTIONENGINE_API void SetReplicationAbandonAfterLevel(int32 InReplicationAbandonAfterLevel) { ReplicationAbandonAfterLevel = InReplicationAbandonAfterLevel; }
 	GEOMETRYCOLLECTIONENGINE_API void SetReplicationMaxPositionAndVelocityCorrectionLevel(int32 InReplicationMaxPositionAndVelocityCorrectionLevel) { ReplicationMaxPositionAndVelocityCorrectionLevel = InReplicationMaxPositionAndVelocityCorrectionLevel; }
 	
-
+	GEOMETRYCOLLECTIONENGINE_API const FTransform& GetPreviousComponentToWorld() const;
 public:
 	UPROPERTY(BlueprintAssignable, Category = "Collision")
 	FOnChaosPhysicsCollision OnChaosPhysicsCollision;
