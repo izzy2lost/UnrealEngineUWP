@@ -5,6 +5,7 @@
 #if UE_MEMORY_TRACE_ENABLED
 
 #include <android/log.h>
+#include <string.h>
 
 ////////////////////////////////////////////////////////////////////////////////
 FMalloc* MemoryTrace_CreateInternal(FMalloc*);
