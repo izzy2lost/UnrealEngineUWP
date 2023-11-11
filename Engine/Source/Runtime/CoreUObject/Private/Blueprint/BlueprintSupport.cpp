@@ -729,14 +729,20 @@ bool FLinkerLoad::RegenerateBlueprintClass(UClass* LoadClass, UObject* ClassDefa
 		ForcePreloadObject(*ClassSourceObject);
 
 #if WITH_EDITORONLY_DATA
+		// We likely don't need to load meta data here at all! but we have been doing so 
+		// since 2080292 - subtly the code from 2080292 wouldn't assert about missing metadata
+		// but only because UPackage::GetMetaData creates a dummy UMetaData object that is
+		// tagged as RF_LoadCompleted. Consider removing the forced metadata creation.
 		int32 MetadataIndex = LoadMetaDataFromExportMap(true);
 
 		// Older content may not have a metadata object in its package.
 		if (MetadataIndex != INDEX_NONE)
 		{
 			const FObjectExport& MetadataExport = Exp(FPackageIndex::FromExport(MetadataIndex));
-			check(MetadataExport.Object);
-			ForcePreloadObject(*MetadataExport.Object);
+			if(MetadataExport.Object) // metadata not loaded in -game, has not been at least since UE4
+			{
+				ForcePreloadObject(*MetadataExport.Object);
+			}
 		}
 #endif
 
