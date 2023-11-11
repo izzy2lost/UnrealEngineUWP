@@ -630,8 +630,9 @@ struct FNDISkeletalMesh_InstanceData
 	uint32 bUnlimitedBoneInfluences : 1;
 	const FSkinWeightDataVertexBuffer* MeshSkinWeightBuffer;
 	const FSkinWeightLookupVertexBuffer* MeshSkinWeightLookupBuffer;
-	uint32 MeshWeightStrideByte;
-	uint32 MeshSkinWeightIndexSizeByte;
+	uint32 MeshBoneWeightStrideBytes;
+	uint32 MeshBoneIndexSizeBytes;
+	uint32 MeshBoneWeightSizeBytes;
 
 	/** Extra mesh data upload to GPU.*/
 	FSkeletalMeshGpuSpawnStaticBuffers* MeshGpuSpawnStaticBuffers;
@@ -1074,8 +1075,9 @@ struct FNiagaraDISkeletalMeshPassedDataToRT
 	bool bIsGpuUniformlyDistributedSampling = false;
 
 	bool bUnlimitedBoneInfluences = false;
-	uint32 MeshWeightStrideByte = 0;
-	uint32 MeshSkinWeightIndexSizeByte = 0;
+	uint32 MeshBoneWeightStrideBytes = 0;
+	uint32 MeshBoneIndexSizeBytes = 0;
+	uint32 MeshBoneWeightSizeBytes = 0;
 	FMatrix44f Transform = FMatrix44f::Identity;
 	FMatrix44f PrevTransform = FMatrix44f::Identity;
 	float DeltaSeconds = 0.0f;

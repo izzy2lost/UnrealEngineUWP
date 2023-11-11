@@ -23,10 +23,11 @@ Buffer<uint>	{ParameterName}_MeshSampleRegionsVertices;
 Buffer<uint>	{ParameterName}_MeshTriangleMatricesOffsetBuffer;
 uint			{ParameterName}_MeshTriangleCount;
 uint			{ParameterName}_MeshVertexCount;
-uint			{ParameterName}_MeshWeightStride;
-uint			{ParameterName}_MeshSkinWeightIndexSize;
 uint			{ParameterName}_MeshNumTexCoord;
 uint			{ParameterName}_MeshNumWeights;
+uint			{ParameterName}_MeshBoneWeightStride;
+uint			{ParameterName}_MeshBoneIndexSizeBytes;
+uint			{ParameterName}_MeshBoneWeightSizeBytes;
 int				{ParameterName}_NumBones;
 int				{ParameterName}_NumFilteredBones;
 int				{ParameterName}_NumUnfilteredBones;
@@ -56,6 +57,22 @@ bool UniformTriangleSamplingEnable_{ParameterName}() { return ({ParameterName}_E
 bool UniformSamplingRegionEnabled_{ParameterName}() { return ({ParameterName}_EnabledFeatures & 0x2) == 2; }
 bool UnlimitedBoneInfluences_{ParameterName}() { return ({ParameterName}_EnabledFeatures & 0x4) == 4; }
 bool HasMeshColors_{ParameterName}() { return ({ParameterName}_EnabledFeatures & 0x8) == 8; }
+
+void GetIndexWeight_{ParameterName}(int BoneIndexOffset, int BoneWeightOffset, int Layer, out int4 BlendIndices, out float4 BlendWeights)
+{
+#if DISKELMESH_ALLOW_16BIT
+	BlendIndices = {ParameterName}_MeshBoneIndexSizeBytes == 1 ?
+		DISkelMesh_UnpackIndices4x8({ParameterName}_MeshSkinWeightBuffer[BoneIndexOffset + Layer]) :
+		DISkelMesh_UnpackIndices4x16({ParameterName}_MeshSkinWeightBuffer[BoneIndexOffset + (Layer << 1)], {ParameterName}_MeshSkinWeightBuffer[BoneIndexOffset + (Layer << 1) + 1]);
+
+	BlendWeights = {ParameterName}_MeshBoneWeightSizeBytes == 1 ?
+		DISkelMesh_UnpackWeights4x8({ParameterName}_MeshSkinWeightBuffer[BoneWeightOffset + Layer]) :
+		DISkelMesh_UnpackWeights4x16({ParameterName}_MeshSkinWeightBuffer[BoneWeightOffset + (Layer << 1)], {ParameterName}_MeshSkinWeightBuffer[BoneWeightOffset + (Layer << 1) + 1]);
+#else
+	BlendIndices = DISkelMesh_UnpackIndices4x8({ParameterName}_MeshSkinWeightBuffer[BoneIndexOffset + Layer]);
+	BlendWeights = DISkelMesh_UnpackWeights4x8({ParameterName}_MeshSkinWeightBuffer[BoneWeightOffset + Layer]);
+#endif
+}
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Misc functions
@@ -200,56 +217,57 @@ FDISkelMeshSkinnedVertex GetSkinnedVertex_{ParameterName}(uint VertexIndex)
 		BRANCH
 		if (UnlimitedBoneInfluences_{ParameterName}())
 		{
-			uint BlendOffsetCount = {ParameterName}_MeshSkinWeightLookupBuffer[VertexIndex];
-			int NumBoneInfluences = BlendOffsetCount & 0xff;
-			int StreamOffset = BlendOffsetCount >> 8;
-			int WeightsOffset = StreamOffset + ({ParameterName}_MeshSkinWeightIndexSize * NumBoneInfluences);
+			const uint BlendOffsetCount = {ParameterName}_MeshSkinWeightLookupBuffer[VertexIndex];
+			const int NumBoneInfluences = BlendOffsetCount & 0xff;
+			const int StreamOffset = BlendOffsetCount >> 8;
+			const int WeightsOffset = StreamOffset + ({ParameterName}_MeshBoneIndexSizeBytes * NumBoneInfluences);
+			const float WeightNorm = {ParameterName}_MeshBoneWeightSizeBytes == 1 ? 1.0f / 255.0f : 1.0f / 65535.0f;
 
 			PrevBoneMatrix = float3x4(float4(0,0,0,0), float4(0,0,0,0), float4(0,0,0,0));
 			CurrBoneMatrix = float3x4(float4(0,0,0,0), float4(0,0,0,0), float4(0,0,0,0));
 			for (int InfluenceIdx = 0; InfluenceIdx < NumBoneInfluences; InfluenceIdx++)
 			{
-				int BoneIndexOffset = StreamOffset + ({ParameterName}_MeshSkinWeightIndexSize * InfluenceIdx);
+				const int BoneIndexOffset = StreamOffset + ({ParameterName}_MeshBoneIndexSizeBytes * InfluenceIdx);
 				int BoneIndex = {ParameterName}_MeshSkinWeightBuffer[BoneIndexOffset];
-				if ({ParameterName}_MeshSkinWeightIndexSize > 1)
+				if ( {ParameterName}_MeshBoneIndexSizeBytes > 1 )
 				{
-					BoneIndex = {ParameterName}_MeshSkinWeightBuffer[BoneIndexOffset + 1] << 8 | BoneIndex;
-					//@todo-lh: Workaround to fix issue in SPIRVEmitter of DXC; this block must be inside the if branch
-					float BoneWeight = float({ParameterName}_MeshSkinWeightBuffer[WeightsOffset + InfluenceIdx]) / 255.0f;
-
-					PrevBoneMatrix += GetPrevBoneSkinningMatrix_{ParameterName}(SectionBoneOffset + BoneIndex) * BoneWeight;
-					CurrBoneMatrix += GetCurrBoneSkinningMatrix_{ParameterName}(SectionBoneOffset + BoneIndex) * BoneWeight;
+					BoneIndex |= {ParameterName}_MeshSkinWeightBuffer[BoneIndexOffset + 1] << 8;
 				}
-				else
+
+				const int BoneWeightOffset = WeightsOffset + ({ParameterName}_MeshBoneWeightSizeBytes * InfluenceIdx);
+				int iBoneWeight = {ParameterName}_MeshSkinWeightBuffer[BoneWeightOffset];
+				if ( {ParameterName}_MeshBoneWeightSizeBytes > 1 )
 				{
-					//@todo-lh: Workaround to fix issue in SPIRVEmitter of DXC; this block must be inside the if branch
-					float BoneWeight = float({ParameterName}_MeshSkinWeightBuffer[WeightsOffset + InfluenceIdx]) / 255.0f;
-
-					PrevBoneMatrix += GetPrevBoneSkinningMatrix_{ParameterName}(SectionBoneOffset + BoneIndex) * BoneWeight;
-					CurrBoneMatrix += GetCurrBoneSkinningMatrix_{ParameterName}(SectionBoneOffset + BoneIndex) * BoneWeight;
+					iBoneWeight |= {ParameterName}_MeshSkinWeightBuffer[BoneWeightOffset + 1] << 8;
 				}
+				float BoneWeight = float(iBoneWeight) * WeightNorm;
+				PrevBoneMatrix += GetPrevBoneSkinningMatrix_{ParameterName}(SectionBoneOffset + BoneIndex) * BoneWeight;
+				CurrBoneMatrix += GetCurrBoneSkinningMatrix_{ParameterName}(SectionBoneOffset + BoneIndex) * BoneWeight;
 			}	
 		}
 		else
 #endif
 		{
-			uint WeightOffset = {ParameterName}_MeshNumWeights == 8 ? 2 : 1;
-			int4 BlendIndices = DISkelMesh_UnpackIndices4({ParameterName}_MeshSkinWeightBuffer[VertexIndex * {ParameterName}_MeshWeightStride]);
-	        float4 BlendWeights = DISkelMesh_UnpackWeights4({ParameterName}_MeshSkinWeightBuffer[VertexIndex * {ParameterName}_MeshWeightStride + WeightOffset]);
-			CurrBoneMatrix = GetCurrSkinningMatrix_{ParameterName}(SectionBoneOffset, BlendIndices, BlendWeights);
-			PrevBoneMatrix = GetPrevSkinningMatrix_{ParameterName}(SectionBoneOffset, BlendIndices, BlendWeights);
+			const uint BoneIndexOffset = VertexIndex * {ParameterName}_MeshBoneWeightStride;
+			const uint BoneWeightOffset = BoneIndexOffset + (({ParameterName}_MeshNumWeights * {ParameterName}_MeshBoneIndexSizeBytes) >> 2);
+			int4 BlendIndices;
+			float4 BlendWeights;
+			{
+				GetIndexWeight_{ParameterName}(BoneIndexOffset, BoneWeightOffset, 0, BlendIndices, BlendWeights);
+				CurrBoneMatrix = GetCurrSkinningMatrix_{ParameterName}(SectionBoneOffset, BlendIndices, BlendWeights);
+				PrevBoneMatrix = GetPrevSkinningMatrix_{ParameterName}(SectionBoneOffset, BlendIndices, BlendWeights);
+			}
+
 #if DISKELMESH_BONE_INFLUENCES != DISKELMESH_BONE_INFLUENCES_MAX4
 			// We are in 8 or unlimited mode so need to check for the extended weights
 			if ({ParameterName}_MeshNumWeights == 8)
 			{
-			    BlendIndices = DISkelMesh_UnpackIndices4({ParameterName}_MeshSkinWeightBuffer[VertexIndex * {ParameterName}_MeshWeightStride + 1]);
-			    BlendWeights = DISkelMesh_UnpackWeights4({ParameterName}_MeshSkinWeightBuffer[VertexIndex * {ParameterName}_MeshWeightStride + WeightOffset + 1]);
+				GetIndexWeight_{ParameterName}(BoneIndexOffset, BoneWeightOffset, 1, BlendIndices, BlendWeights);
 				CurrBoneMatrix += GetCurrSkinningMatrix_{ParameterName}(SectionBoneOffset, BlendIndices, BlendWeights);
 				PrevBoneMatrix += GetPrevSkinningMatrix_{ParameterName}(SectionBoneOffset, BlendIndices, BlendWeights);
 			}
 #endif
 		}
-
 		CurrPosition = mul(CurrBoneMatrix, float4(CurrPosition, 1.0f)).xyz;
 		PrevPosition = mul(PrevBoneMatrix, float4(PrevPosition, 1.0f)).xyz;
 
