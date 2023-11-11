@@ -350,5 +350,16 @@ namespace UnsyncUI
 				cancelToken.ThrowIfCancellationRequested();
 			}
 		}
+
+		public async Task<string> RunAndGetOutput(bool ReadStdErr = true)
+		{
+			var result = "";
+			var cancellationToken = new CancellationToken();
+			await foreach (var str in RunAsync(cancellationToken, false /*ReadStdErr*/))
+			{
+				result += str;
+			}
+			return result;
+		}
 	}
 }

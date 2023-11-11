@@ -177,6 +177,50 @@ namespace UnsyncUI
 			}
 		}
 
+		public bool ShouldShowLoginInfo { get => App.Current.EnableExperimentalFeatures; }
+
+		public string LoggedInUser
+		{
+			get => Config.loggedInUser;
+			set 
+			{
+				App.Current.UserConfig.LogInOnStartup = (value != null);
+				SetProperty(ref Config.loggedInUser, value);
+			}
+		}
+
+		public Command OnLogInClicked { get; }
+		public Command OnLogOutClicked { get; }
+
+		private void LogIn()
+		{
+			if (Config.RootProxy.Path == null
+				|| Config.UnsyncPath == null)
+			{
+				LoggedInUser = null;
+				return;
+			}
+
+			UnsyncQueryUtil queryUtil = new UnsyncQueryUtil(Config.UnsyncPath, Config.RootProxy.Path);
+
+			try
+			{
+				LoginQueryResult LoginInfo = queryUtil.Login();
+				LoggedInUser = LoginInfo.sub;
+			}
+			catch (Exception ex)
+			{
+				// TODO: add global status/log window
+				Debug.WriteLine($"Login failed with exception: {ex}");
+			}
+		}
+
+		private void LogOut()
+		{
+			LoggedInUser = null;
+		}
+
+
 		private TaskbarItemProgressState progressState = TaskbarItemProgressState.None;
 		public TaskbarItemProgressState ProgressState
 		{
@@ -226,12 +270,21 @@ namespace UnsyncUI
 			OnClearQueueClicked = new Command(ClearQueue) { Enabled = true };
 			OnClearCompletedClicked = new Command(ClearCompleted) { Enabled = true };
 
+			OnLogInClicked = new Command(LogIn) { Enabled = true };
+			OnLogOutClicked = new Command(LogOut) { Enabled = true };
+
 			if (Config != null)
 			{
 				foreach (var p in Config.Projects)
 				{
 					Tabs.Add(new ProjectModel(p, OnBuildsSelected));
 				}
+			}
+
+			if (Config.EnableExperimentalFeatures
+				&& App.Current.UserConfig.LogInOnStartup)
+			{
+				LogIn();
 			}
 
 			Tabs.Add(new CustomModel(OnBuildsSelected));

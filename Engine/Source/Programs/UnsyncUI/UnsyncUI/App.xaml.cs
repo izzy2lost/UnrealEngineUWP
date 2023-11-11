@@ -125,6 +125,7 @@ namespace UnsyncUI
 		public string CustomInclude { get; set; }
 		public string AdditionalArgs { get; set; }
 		public bool AppendBuildName { get; set; } = false;
+		public bool LogInOnStartup { get; set; } = false;
 
 		public static UserPreferences Load()
 		{

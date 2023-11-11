@@ -224,6 +224,8 @@ namespace UnsyncUI
 
 		public bool EnableExperimentalFeatures { get; set; } = false;
 
+		internal string loggedInUser;
+
 		public Config(string filename)
 		{
 			var rootNode = XDocument.Load(filename).Root;
@@ -365,7 +367,8 @@ namespace UnsyncUI
 		{
 			return EnableExperimentalFeatures
 				&& RootProxy != null
-				&& UnsyncPath != null;
+				&& UnsyncPath != null
+				&& loggedInUser != null;
 		}
 
 		public IDirectoryEnumerator CreateDirectoryEnumerator(Config.Project ProjectSchema)

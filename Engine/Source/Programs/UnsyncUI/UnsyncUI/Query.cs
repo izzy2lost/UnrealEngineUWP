@@ -8,6 +8,7 @@ using System.IO;
 using System.Diagnostics;
 using System.Text.Json;
 using System.Linq;
+using System.Collections;
 
 namespace UnsyncUI
 {
@@ -31,6 +32,58 @@ namespace UnsyncUI
 		public String root { get; set; }
 		public List<SearchQueryResultEntry> entries { get; set; }
 	}
+
+	// Subset of decoded JWT claims
+	public class LoginQueryResult
+	{
+		public String aud { get; set; }
+		public String sub { get; set; }
+		public String iss { get; set; }
+		public List<String> scp { get; set; }
+		public UInt64 iat { get; set; }
+		public UInt64 exp { get; set; }
+		public List<String> groups { get; set; }
+	}
+
+	public class UnsyncQueryUtil
+	{
+		UnsyncQueryConfig Config;
+		public UnsyncQueryUtil(UnsyncQueryConfig InConfig)
+		{
+			Config = InConfig;
+		}
+
+		public UnsyncQueryUtil(string unsyncPath, string proxyAddress)
+		{
+			Config = new UnsyncQueryConfig();
+			Config.unsyncPath = unsyncPath;
+			Config.proxyAddress = proxyAddress;
+		}
+
+		public LoginQueryResult Login()
+		{
+			String argsStr = $"login --decode --proxy {Config.proxyAddress}";
+			AsyncProcess proc = new AsyncProcess(Config.unsyncPath, argsStr);
+			CancellationToken cancellationToken = new CancellationToken();
+
+			var responseJson = "";
+
+			var LoginTask = Task.Run(async () => {
+				// TODO: read stderr stream and somehow report status/errors
+				await foreach (var str in proc.RunAsync(cancellationToken, false /*ReadStdErr*/))
+				{
+					responseJson += str;
+				}
+			});
+			LoginTask.Wait();
+
+			LoginQueryResult queryResult = JsonSerializer.Deserialize<LoginQueryResult>(responseJson);
+
+			return queryResult;
+		}
+	}
+
+	
 
 	public class UnsyncDirectoryEnumerator : IDirectoryEnumerator
 	{

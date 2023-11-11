@@ -84,20 +84,39 @@
 		</Grid.ColumnDefinitions>
 
 		<GroupBox Grid.Row="0" Header="Proxy">
-			<ComboBox  ItemsSource="{Binding Config.Proxies}" SelectedItem="{Binding SelectedProxy}">
-				<ComboBox.ItemTemplate>
-					<DataTemplate>
-						<TextBlock>
-								<Run Text="{Binding Name}" />
-								<TextBlock Visibility="{Binding Path, Converter={StaticResource VisConv_Collapsed}}">
-									<Run Text=" ("/>
-									<Run Text="{Binding Path}"/>
-									<Run Text=")"/>
-								</TextBlock>
-						</TextBlock>
-					</DataTemplate>
-				</ComboBox.ItemTemplate>
-			</ComboBox>
+			<Grid>
+				<Grid.RowDefinitions>
+					<RowDefinition Height="auto" />
+					<RowDefinition Height="auto" />
+				</Grid.RowDefinitions>
+				<ComboBox Grid.Row="0" ItemsSource="{Binding Config.Proxies}" SelectedItem="{Binding SelectedProxy}">
+					<ComboBox.ItemTemplate>
+						<DataTemplate>
+							<TextBlock>
+									<Run Text="{Binding Name}" />
+									<TextBlock Visibility="{Binding Path, Converter={StaticResource VisConv_Collapsed}}">
+										<Run Text=" ("/>
+										<Run Text="{Binding Path}"/>
+										<Run Text=")"/>
+									</TextBlock>
+							</TextBlock>
+						</DataTemplate>
+					</ComboBox.ItemTemplate>
+				</ComboBox>
+				<TextBlock Grid.Row="1" Visibility="{Binding Path=ShouldShowLoginInfo, Converter={StaticResource VisConv_Collapsed}}">
+					<Run Text="User:"/>
+					<!--Logged in-->
+					<TextBlock Visibility="{Binding Path=LoggedInUser, Converter={StaticResource VisConv_Collapsed}}">
+						<Run FontWeight="Bold" Text="{Binding Path=LoggedInUser, Mode=OneWay}"/>
+						<Run Text=" - "/>
+						<Hyperlink Command="{Binding OnLogOutClicked}">Log out</Hyperlink>
+					</TextBlock>
+					<!--Not logged in-->
+					<TextBlock Visibility="{Binding Path=LoggedInUser, Converter={StaticResource VisConv_Collapsed_Inv}}">
+						<Hyperlink FontWeight="Bold" Command="{Binding OnLogInClicked}">Log in</Hyperlink>
+					</TextBlock>
+				</TextBlock>
+			</Grid>
 		</GroupBox>
 
 		<GroupBox Grid.Row="1" Header="Additional arguments">
