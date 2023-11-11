@@ -7,12 +7,14 @@
 #include "Math/MathFwd.h"
 #include "RenderGraphFwd.h"
 
+#include "HairStrandsInterface.h"
+#include "GroomResources.h"
+
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_3
 #include "CoreMinimal.h"
 #include "UObject/ObjectMacros.h"
 #include "Engine/EngineTypes.h"
 #include "RenderGraphResources.h"
-#include "HairStrandsInterface.h"
 #include "Shader.h"
 #include "GroomDesc.h"
 #endif
@@ -86,3 +88,128 @@ void AddGroomCacheUpdatePass(
 	FRDGBufferUAVRef OutBuffer);
 
 HAIRSTRANDSCORE_API void ComputeInterpolationWeights(UGroomBindingAsset* BindingAsset, FSkeletalMeshRenderData* TargetRenderData, TArray<FRWBuffer>& TransferedPositions);
+
+struct FRDGHairStrandsCullingData
+{
+	bool bCullingResultAvailable = false;
+	FRDGImportedBuffer HairStrandsVF_CullingIndirectBuffer;
+	FRDGImportedBuffer HairStrandsVF_CullingIndexBuffer;
+	FRDGImportedBuffer HairStrandsVF_CullingRadiusScaleBuffer;
+
+	uint32 ClusterCount = 0;
+	FRDGImportedBuffer ClusterAABBBuffer;
+	FRDGImportedBuffer GroupAABBBuffer;
+};
+
+FRDGHairStrandsCullingData ImportCullingData(FRDGBuilder& GraphBuilder, FHairGroupPublicData* In);
+
+enum class EHairAABBUpdateType
+{
+	UpdateClusterAABB,
+	UpdateGroupAABB
+};
+
+void AddClearClusterAABBPass(
+	FRDGBuilder& GraphBuilder,
+	FGlobalShaderMap* ShaderMap,
+	const EHairAABBUpdateType UpdateType,
+	uint32 ClusterCount,
+	FRDGImportedBuffer& OutClusterAABBBuffer,
+	FRDGImportedBuffer& OutGroupAABBBuffer);
+
+void AddHairStrandsInterpolationPass(
+	FRDGBuilder& GraphBuilder,
+	FGlobalShaderMap* ShaderMap,
+	const FShaderPrintData* ShaderPrintData,
+	const FHairGroupInstance* Instance,
+	const uint32 VertexCount,
+	const int32 MeshLODIndex,
+	const float HairLengthScale,
+	const EHairInterpolationType HairInterpolationType,
+	const EHairGeometryType InstanceGeometryType,
+	const FRDGHairStrandsCullingData& CullingData,
+	const FVector& InRenHairWorldOffset,
+	const FVector& InSimHairWorldOffset,
+	const FRDGBufferSRVRef& OutRenHairPositionOffsetBuffer,
+	const FRDGBufferSRVRef& OutSimHairPositionOffsetBuffer,
+	const FHairStrandsRestRootResource* RenRestRootResources,
+	const FHairStrandsRestRootResource* SimRestRootResources,
+	const FHairStrandsDeformedRootResource* RenDeformedRootResources,
+	const FHairStrandsDeformedRootResource* SimDeformedRootResources,
+	const FRDGBufferSRVRef& RenRestPosePositionBuffer,
+	const FRDGBufferSRVRef& RenPointToCurveBuffer,
+	const bool bUseSingleGuide,
+	const FRDGBufferSRVRef& InterpolationBuffer,
+	const FRDGBufferSRVRef& SimRestPosePositionBuffer,
+	const FRDGBufferSRVRef& SimDeformedPositionBuffer,
+	const FRDGBufferSRVRef& SimRootPointIndexBuffer,
+	const FRDGBufferSRVRef& SimPointToCurveBuffer,
+	const FRDGBufferSRVRef& RenDeformerPositionBuffer,
+	FRDGBufferUAVRef& OutRenPositionBuffer,
+	const FHairStrandsDeformedRootResource::FLOD::EFrameType DeformedFrame);
+
+
+void AddHairTangentPass(
+	FRDGBuilder& GraphBuilder,
+	FGlobalShaderMap* ShaderMap,
+	uint32 PointCount,
+	FHairGroupPublicData* HairGroupPublicData,
+	FRDGBufferSRVRef PositionBuffer,
+	FRDGBufferUAVRef OutTangentBuffer);
+
+
+enum class EHairPatchAttribute : uint8
+{
+	None,
+	GuideInflucence,
+	ClusterInfluence
+};
+
+void AddPatchAttributePass(
+	FRDGBuilder& GraphBuilder,
+	FGlobalShaderMap* ShaderMap,
+	const uint32 CurveCount,
+	const EHairPatchAttribute Mode,
+	const bool bSimulation,
+	const bool bUseSingleGuide,
+	const FHairStrandsBulkData& RenBulkData,
+	const FRDGBufferRef& RenAttributeBuffer,
+	const FRDGBufferSRVRef& RenCurveBuffer,
+	const FRDGBufferSRVRef& RenCurveToClusterIdBuffer,
+	const FRDGBufferSRVRef& InterpolationBuffer,
+	FRDGImportedBuffer& OutRenAttributeBuffer);
+
+void AddTransferPositionPass(
+	FRDGBuilder& GraphBuilder,
+	FGlobalShaderMap* ShaderMap,
+	const uint32 ElementCount,
+	FRDGBufferSRVRef InBuffer,
+	FRDGBufferUAVRef OutBuffer);
+
+#if RHI_RAYTRACING
+void AddGenerateRaytracingGeometryPass(
+	FRDGBuilder& GraphBuilder,
+	FGlobalShaderMap* ShaderMap,
+	const FShaderPrintData* ShaderPrintData,
+	uint32 InstanceRegisteredIndex,
+	uint32 PointCount,
+	bool bProceduralPrimitive,
+	int ProceduralSplits,
+	float HairRadius,
+	float RootScale,
+	float TipScale,
+	const FRDGBufferSRVRef& HairWorldOffsetBuffer,
+	FRDGHairStrandsCullingData& CullingData,
+	const FRDGBufferSRVRef& PositionBuffer,
+	const FRDGBufferSRVRef& TangentBuffer,
+	const FRDGBufferUAVRef& OutPositionBuffer,
+	const FRDGBufferUAVRef& OutIndexBuffer);
+
+void AddBuildStrandsAccelerationStructurePass(
+	FRDGBuilder& GraphBuilder,
+	FHairGroupInstance* Instance,
+	uint32 ProceduralSplits,
+	bool bNeedUpdate,
+	FRDGBufferRef Raytracing_PositionBuffer,
+	FRDGBufferRef Raytracing_IndexBuffer);
+#endif

@@ -1069,7 +1069,7 @@ void AddHairTangentPass(
 	uint32 PointCount,
 	FHairGroupPublicData* HairGroupPublicData,
 	FRDGBufferSRVRef PositionBuffer,
-	FRDGImportedBuffer OutTangentBuffer);
+	FRDGBufferUAVRef OutTangentBuffer);
 
 FRDGExternalBuffer FHairStrandsRestResource::GetTangentBuffer(FRDGBuilder& GraphBuilder, FGlobalShaderMap* ShaderMap, uint32 ActivePointCount, uint32 ActiveCurveCount)
 {
@@ -1093,7 +1093,7 @@ FRDGExternalBuffer FHairStrandsRestResource::GetTangentBuffer(FRDGBuilder& Graph
 			ActivePointCount,
 			nullptr,
 			RegisterAsSRV(GraphBuilder, PositionBuffer),
-			Register(GraphBuilder, TangentBuffer, ERDGImportedBufferFlags::CreateUAV));
+			RegisterAsUAV(GraphBuilder, TangentBuffer));
 
 		CachedTangentPointCount = ActivePointCount;
 	}

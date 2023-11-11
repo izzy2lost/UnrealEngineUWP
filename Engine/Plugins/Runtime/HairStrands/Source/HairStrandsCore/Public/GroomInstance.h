@@ -138,7 +138,7 @@ struct HAIRSTRANDSCORE_API FHairGroupInstance : public FHairStrandsInstance
 		float CachedHairScaledRadius = 0;
 		float CachedHairRootScale = 0;
 		float CachedHairTipScale = 0;
-		int   CachedProceduralSplits = 0;
+		uint32 CachedProceduralSplits = 0;
 		#endif
 
 		FRDGExternalBuffer DebugCurveAttributeBuffer;

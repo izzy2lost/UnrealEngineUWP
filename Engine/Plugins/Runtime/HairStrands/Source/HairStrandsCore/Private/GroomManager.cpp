@@ -29,6 +29,7 @@
 #include "HairStrandsClusterCulling.h"
 #include "GroomVisualizationData.h"
 #include "SkeletalMeshDeformerHelpers.h"
+#include "HairStrandsInterface.h"
 
 static int32 GHairStrandsMinLOD = 0;
 static FAutoConsoleVariableRef CVarGHairStrandsMinLOD(TEXT("r.HairStrands.MinLOD"), GHairStrandsMinLOD, TEXT("Clamp the min hair LOD to this value, preventing to reach lower/high-quality LOD."), ECVF_Scalability);
@@ -58,6 +59,33 @@ static float GHairStrands_AutoLOD_Bias = 0.f;
 static FAutoConsoleVariableRef CVarHairStrands_AutoLOD_Force(TEXT("r.HairStrands.AutoLOD.Force"), GHairStrands_AutoLOD_Force, TEXT("Force all groom to use Auto LOD (experimental)."), ECVF_RenderThreadSafe);
 static FAutoConsoleVariableRef CVarHairStrands_AutoLOD_Scale(TEXT("r.HairStrands.AutoLOD.Scale"), GHairStrands_AutoLOD_Scale, TEXT("Hair strands Auto LOD rate at which curves get decimated based on screen coverage."), ECVF_RenderThreadSafe);
 static FAutoConsoleVariableRef CVarHairStrands_AutoLOD_Bias(TEXT("r.HairStrands.AutoLOD.Bias"), GHairStrands_AutoLOD_Bias, TEXT("Hair strands Auto LOD screen size bias at which curves get decimated."), ECVF_RenderThreadSafe);
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+// Foward declaration
+
+bool IsHairStrandsForceRebuildBVH();
+bool IsHairStrandsTransferPositionOnLODChange();
+uint32 GetHairRaytracingProceduralSplits();
+void CreateHairStrandsDebugAttributeBuffer(FRDGBuilder& GraphBuilder, FRDGExternalBuffer* DebugAttributeBuffer, uint32 VertexCount, const FName& OwnerName);
+FHairGroupPublicData::FVertexFactoryInput InternalComputeHairStrandsVertexInputData(FRDGBuilder* GraphBuilder, const FHairGroupInstance* Instance, EGroomViewMode ViewMode);
+EGroomCacheType GetHairInstanceCacheType(const FHairGroupInstance* Instance);
+
+void AddHairClusterAABBPass(
+	FRDGBuilder& GraphBuilder,
+	FGlobalShaderMap* ShaderMap,
+	const uint32 ActiveCurveCount,
+	const FVector& TranslatedWorldOffset,
+	const FShaderPrintData* ShaderPrintData,
+	const EHairAABBUpdateType UpdateType,
+	FHairGroupInstance* Instance,
+	FRDGBufferSRVRef RenderDeformedOffsetBuffer,
+	FHairStrandClusterData::FHairGroup* ClusterData,
+	FRDGHairStrandsCullingData& ClusterAABBData,
+	FRDGBufferSRVRef RenderPositionBufferSRV,
+	FRDGBufferSRVRef& DrawIndirectRasterComputeBuffer);
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+// Utils
 
 EHairBufferSwapType GetHairSwapBufferType()
 {
@@ -280,50 +308,7 @@ static void RunInternalHairInterpolation(
 			const bool bGlobalDeformationEnable = Instance->HairGroupPublicData->IsGlobalInterpolationEnable(HairLODIndex);
 			check(InstanceBindingType == BindingType);
 
-			if (EHairInterpolationPassType::Strands == PassType)
-			{
-				if (InstanceGeometryType == EHairGeometryType::Strands)
-				{
-					if (BindingType == EHairBindingType::Skinning || bGlobalDeformationEnable)
-					{
-						check(Instance->Strands.HasValidRootData());
-						check(Instance->Strands.DeformedRootResource->IsValid(MeshLODIndex));
-
-						AddHairStrandUpdateMeshTrianglesPass(
-							GraphBuilder,
-							ShaderMap,
-							MeshLODIndex,
-							MeshDataLOD,
-							Instance->Strands.RestRootResource,
-							Instance->Strands.DeformedRootResource);
-
-						AddHairStrandUpdatePositionOffsetPass(
-							GraphBuilder,
-							ShaderMap,
-							EHairPositionUpdateType::Strands,
-							Instance->RegisteredIndex,
-							HairLODIndex,
-							MeshLODIndex,
-							Instance->Strands.DeformedRootResource,
-							Instance->Strands.DeformedResource);
-					}
-					else if (bSimulationEnable || bDeformationEnable)
-					{
-						check(Instance->Strands.HasValidData());
-
-						AddHairStrandUpdatePositionOffsetPass(
-							GraphBuilder,
-							ShaderMap,
-							EHairPositionUpdateType::Strands,
-							Instance->RegisteredIndex,
-							HairLODIndex,
-							MeshLODIndex,
-							nullptr,
-							Instance->Strands.DeformedResource);
-					}
-				}
-			}
-			else if (EHairInterpolationPassType::CardsAndMeshes == PassType)
+			if (EHairInterpolationPassType::CardsAndMeshes == PassType)
 			{
 				if (InstanceGeometryType == EHairGeometryType::Cards)
 				{
@@ -378,7 +363,7 @@ static void RunInternalHairInterpolation(
 	}
 
 	// Hair interpolation
-	if (EHairInterpolationPassType::Strands == PassType || EHairInterpolationPassType::CardsAndMeshes == PassType)
+	if (EHairInterpolationPassType::CardsAndMeshes == PassType)
 	{
 		check(View);
 		const FVector& TranslatedWorldOffset = View->ViewMatrices.GetPreViewTranslation();
@@ -386,8 +371,7 @@ static void RunInternalHairInterpolation(
 		{
 			FHairGroupInstance* Instance = static_cast<FHairGroupInstance*>(AbstractInstance);
 
-			const bool bGeometryCompatibleWithPassType = 
-				(EHairInterpolationPassType::Strands == PassType && Instance->GeometryType == EHairGeometryType::Strands) ||
+			const bool bGeometryCompatibleWithPassType =
 				(EHairInterpolationPassType::CardsAndMeshes == PassType && (Instance->GeometryType == EHairGeometryType::Cards || Instance->GeometryType == EHairGeometryType::Meshes));
 			if (bGeometryCompatibleWithPassType)
 			{
@@ -406,8 +390,6 @@ static void RunInternalHairInterpolation(
 		}
 	}
 }
-
-EGroomCacheType GetHairInstanceCacheType(const FHairGroupInstance* Instance);
 
 static void RunHairStrandsInterpolation_Guide(
 	FRDGBuilder& GraphBuilder,
@@ -700,51 +682,602 @@ static void RunHairStrandsInterpolation_Strands(
 	FGlobalShaderMap* ShaderMap)
 {
 	if (Instances.IsEmpty()) { return; }
-
+	if (!IsHairStrandsEnabled(EHairStrandsShaderType::Strands, Scene->GetShaderPlatform())) { return;  }
 	check(IsInRenderingThread());
+	check(View);
 
 	DECLARE_GPU_STAT(HairStrandsInterpolation);
-	RDG_EVENT_SCOPE(GraphBuilder, "HairStrandsInterpolation");
+	RDG_EVENT_SCOPE(GraphBuilder, "HairInterpolation(Strands)");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, HairStrandsInterpolation);
 
-	FHairStrandClusterData ClusterData;
-	if (IsHairStrandsEnabled(EHairStrandsShaderType::Strands, Scene->GetShaderPlatform()))
+	struct FInstanceRDGResources
 	{
-		for (FHairStrandsInstance* AbstractInstance : Instances)
+		FRDGBufferSRVRef PositionSRV = nullptr;
+		FRDGBufferSRVRef PositionOffsetSRV = nullptr;
+		FRDGBufferSRVRef TangentSRV = nullptr;
+
+		FRDGBufferSRVRef DeformerPositionSRV = nullptr;
+		FRDGBufferUAVRef PositionUAV = nullptr;
+		FRDGBufferUAVRef TangentUAV = nullptr;
+
+		FRDGImportedBuffer DeformedPosition;
+		FRDGImportedBuffer DeformedPrevPosition;
+
+		FRDGImportedBuffer Raytracing_PositionBuffer;
+		FRDGImportedBuffer Raytracing_IndexBuffer;
+	};
+
+	struct FInstanceData
+	{
+		int32 HairLODIndex = -1;
+		int32 MeshLODIndex = -1;
+		uint32 ActivePointCount = 0;
+		uint32 ActiveCurveCount = 0;
+		EGroomCacheType ActiveGroomCacheType = EGroomCacheType::None;
+		EHairBindingType BindingType = EHairBindingType::NoneBinding;
+		bool bSimulationEnable = false;
+		bool bDeformationEnable = false;
+		bool bGlobalDeformationEnable = false;
+		bool bNeedDeformation = false;
+		bool bNeedRaytracing = false;
+		bool bNeedRaytracingUpdate = false;
+		bool bNeedRaytracingBuild = false;
+
+
+		FInstanceRDGResources RDGResources;
+
+		FHairStrandsProjectionMeshData::LOD MeshDataLOD;
+		FHairGroupInstance* Instance = nullptr;
+		FRDGHairStrandsCullingData CullingData;
+
+		bool NeedsMeshUpdate() const
 		{
-			FHairGroupInstance* Instance = static_cast<FHairGroupInstance*>(AbstractInstance);
-			if (Instance->GeometryType == EHairGeometryType::Strands && Instance->Strands.IsValid())
+			return 
+				MeshLODIndex >= 0 && 
+				(BindingType == EHairBindingType::Skinning) && 
+				(bGlobalDeformationEnable || bSimulationEnable || bDeformationEnable);
+		}
+	};
+
+
+	// Gather all strands instances
+	const uint32 ViewRayTracingMask = RHI_RAYTRACING ? (View->Family->EngineShowFlags.PathTracing ? EHairViewRayTracingMask::PathTracing : EHairViewRayTracingMask::RayTracing) : 0u;
+	bool bHasAnySimCacheInstances = false;
+	bool bHasAnyRenCacheInstances = false;
+	bool bHasAnyRaytracingInstances = false;
+	TArray<FInstanceData> InstanceDatas;
+	InstanceDatas.Reserve(Instances.Num());
+	for (FHairStrandsInstance* AbstractInstance : Instances)
+	{
+		FHairGroupInstance* Instance = static_cast<FHairGroupInstance*>(AbstractInstance);
+		if (Instance->GeometryType != EHairGeometryType::Strands)
+		{
+			continue;
+		}	
+		check(Instance->HairGroupPublicData);
+
+		FInstanceData& InstanceData = InstanceDatas.AddDefaulted_GetRef();
+		InstanceData.Instance 					= Instance;
+		InstanceData.ActivePointCount 			= Instance->HairGroupPublicData->GetActiveStrandsPointCount();
+		InstanceData.ActiveCurveCount 			= Instance->HairGroupPublicData->GetActiveStrandsCurveCount();
+		InstanceData.ActiveGroomCacheType 		= GetHairInstanceCacheType(Instance);
+		InstanceData.BindingType 				= Instance->BindingType;
+		InstanceData.HairLODIndex 				= Instance->HairGroupPublicData->LODIndex;
+		InstanceData.bSimulationEnable 			= Instance->HairGroupPublicData->IsSimulationEnable(InstanceData.HairLODIndex);
+		InstanceData.bDeformationEnable 		= Instance->HairGroupPublicData->bIsDeformationEnable;
+		InstanceData.bGlobalDeformationEnable 	= Instance->HairGroupPublicData->IsGlobalInterpolationEnable(InstanceData.HairLODIndex);
+		InstanceData.MeshLODIndex				= -1;
+		InstanceData.bNeedDeformation 			= Instance->Strands.DeformedResource != nullptr;
+		InstanceData.bNeedRaytracing			= false;
+		InstanceData.bNeedRaytracingUpdate		= false;
+		InstanceData.bNeedRaytracingBuild		= false;
+
+		// Register resources
+		FInstanceRDGResources RDGResources;
+		if (InstanceData.bNeedDeformation)
+		{		
+			// Trach on which view the position has been update, so that we can ensure motion vector are coherent
+			Instance->Strands.DeformedResource->GetUniqueViewID(FHairStrandsDeformedResource::Current) = ViewUniqueID;
+			
+			InstanceData.RDGResources.DeformedPosition		= Register(GraphBuilder, Instance->Strands.DeformedResource->GetBuffer(FHairStrandsDeformedResource::Current), ERDGImportedBufferFlags::CreateViews);
+			InstanceData.RDGResources.DeformedPrevPosition	= Register(GraphBuilder, Instance->Strands.DeformedResource->GetBuffer(FHairStrandsDeformedResource::Previous), ERDGImportedBufferFlags::CreateViews);
+
+			InstanceData.RDGResources.PositionSRV 			= InstanceData.RDGResources.DeformedPosition.SRV;
+			InstanceData.RDGResources.PositionUAV			= InstanceData.RDGResources.DeformedPosition.UAV;
+			InstanceData.RDGResources.PositionOffsetSRV 	= RegisterAsSRV(GraphBuilder, Instance->Strands.DeformedResource->GetPositionOffsetBuffer(FHairStrandsDeformedResource::EFrameType::Current));		
+			InstanceData.RDGResources.TangentSRV 			= RegisterAsSRV(GraphBuilder, Instance->Strands.DeformedResource->TangentBuffer);
+			InstanceData.RDGResources.TangentUAV 			= RegisterAsUAV(GraphBuilder, Instance->Strands.DeformedResource->TangentBuffer);
+			InstanceData.RDGResources.DeformerPositionSRV 	= RegisterAsSRV(GraphBuilder, Instance->Strands.DeformedResource->DeformerBuffer);
+		}
+		else
+		{
+			InstanceData.RDGResources.PositionSRV 			= RegisterAsSRV(GraphBuilder, Instance->Strands.RestResource->PositionBuffer);
+			InstanceData.RDGResources.PositionUAV			= nullptr;
+			InstanceData.RDGResources.PositionOffsetSRV 	= RegisterAsSRV(GraphBuilder, Instance->Strands.RestResource->PositionOffsetBuffer);
+			InstanceData.RDGResources.TangentSRV 			= nullptr;  
+			InstanceData.RDGResources.DeformerPositionSRV 	= nullptr;
+		}
+
+		#if RHI_RAYTRACING
+		InstanceData.bNeedRaytracing = InstanceData.Instance->Strands.RenRaytracingResource && (InstanceData.Instance->Strands.ViewRayTracingMask & ViewRayTracingMask) != 0;
+		if (InstanceData.bNeedRaytracing)
+		{
+			InstanceData.RDGResources.Raytracing_PositionBuffer = Register(GraphBuilder, InstanceData.Instance->Strands.RenRaytracingResource->PositionBuffer, ERDGImportedBufferFlags::CreateViews);
+			InstanceData.RDGResources.Raytracing_IndexBuffer 	= Register(GraphBuilder, InstanceData.Instance->Strands.RenRaytracingResource->IndexBuffer, ERDGImportedBufferFlags::CreateViews);
+			bHasAnyRaytracingInstances = true;
+		}
+		#endif
+
+		if (InstanceData.ActiveGroomCacheType == EGroomCacheType::Guides)  { bHasAnySimCacheInstances = true; }
+		if (InstanceData.ActiveGroomCacheType == EGroomCacheType::Strands) { bHasAnyRenCacheInstances = true; }
+
+		// Extract MeshDataLOD and compute MeshLODIndex
+		const FCachedGeometry CachedGeometry = GetCacheGeometryForHair(GraphBuilder, Scene, Instance, ShaderMap, true);
+		for (int32 SectionIndex = 0; SectionIndex < CachedGeometry.Sections.Num(); ++SectionIndex)
+		{
+			// Ensure all mesh's sections have the same LOD index
+			const int32 SectionLodIndex = CachedGeometry.Sections[SectionIndex].LODIndex;
+			if (InstanceData.MeshLODIndex < 0) InstanceData.MeshLODIndex = SectionLodIndex;
+			check(InstanceData.MeshLODIndex == SectionLodIndex);
+
+			InstanceData.MeshDataLOD.Sections.Add(ConvertMeshSection(CachedGeometry, SectionIndex));
+		}
+		Instance->Debug.MeshLODIndex = InstanceData.MeshLODIndex;
+		Instance->HairGroupPublicData->VFInput.Strands	= FHairGroupPublicData::FVertexFactoryInput::FStrands();
+
+		if (InstanceData.MeshLODIndex >= 0 && (InstanceData.BindingType == EHairBindingType::Skinning || InstanceData.bGlobalDeformationEnable))
+		{
+			check(Instance->Strands.HasValidRootData());
+			check(Instance->Strands.DeformedRootResource->IsValid(InstanceData.MeshLODIndex));
+		}
+
+		if (InstanceData.MeshLODIndex >= 0 && (InstanceData.bSimulationEnable || InstanceData.bDeformationEnable))
+		{
+			check(Instance->Strands.HasValidData());
+		}
+	}	
+
+	FRDGExternalAccessQueue ExternalAccessQueue;
+	const EGroomViewMode ViewMode = GetGroomViewMode(*View);
+
+	// Early culling
+	FHairStrandClusterData ClusterData;
+	{
+		// Gather culling jobs
+		for (FInstanceData& InstanceData : InstanceDatas)
+		{
+			if (InstanceData.Instance->Strands.bCullingEnable)
 			{
-				if (Instance->Strands.bCullingEnable)
-				{
-					AddInstanceToClusterData(Instance, ClusterData);
-				}
-				else
-				{
-					Instance->HairGroupPublicData->SetCullingResultAvailable(false);
-				}
+				AddInstanceToClusterData(InstanceData.Instance, ClusterData);
+			}
+			else
+			{
+				InstanceData.Instance->HairGroupPublicData->SetCullingResultAvailable(false);
 			}
 		}
+
+		// Culling pass
 		ComputeHairStrandsClustersCulling(GraphBuilder, *ShaderMap, Views, ShaderPrintData, ClusterData);
 
 		// Run cluster debug view here (instead of GroomDebug.h/.cpp, as we need to have the (transient) cluster data 
-		const EGroomViewMode ViewMode = GetGroomViewMode(*View);
 		if (ViewMode == EGroomViewMode::Cluster || ViewMode == EGroomViewMode::ClusterAABB)
 		{
 			AddDrawDebugClusterPass(GraphBuilder, *View, ShaderMap, ShaderPrintData, ViewMode, ClusterData);
 		}
 	}
 
-	RunInternalHairInterpolation(
-		GraphBuilder,
-		Scene,
-		View,
-		ViewUniqueID,
-		Instances,
-		ShaderPrintData,
-		ShaderMap,
-		EHairInterpolationPassType::Strands,
-		&ClusterData);
+	// Update dynamic mesh triangles
+	for (FInstanceData& InstanceData : InstanceDatas)
+	{
+		if (InstanceData.MeshLODIndex >= 0 && (InstanceData.BindingType == EHairBindingType::Skinning || InstanceData.bGlobalDeformationEnable))
+		{
+			AddHairStrandUpdateMeshTrianglesPass(
+				GraphBuilder,
+				ShaderMap,
+				InstanceData.MeshLODIndex,
+				InstanceData.MeshDataLOD,
+				InstanceData.Instance->Strands.RestRootResource,
+				InstanceData.Instance->Strands.DeformedRootResource);
+		}
+	}
+
+	// Update position offset (GPU)
+	for (FInstanceData& InstanceData : InstanceDatas)
+	{
+		if (InstanceData.MeshLODIndex >= 0 && (InstanceData.BindingType == EHairBindingType::Skinning || InstanceData.bGlobalDeformationEnable))
+		{
+			AddHairStrandUpdatePositionOffsetPass(
+				GraphBuilder,
+				ShaderMap,
+				EHairPositionUpdateType::Strands,
+				InstanceData.Instance->RegisteredIndex,
+				InstanceData.HairLODIndex,
+				InstanceData.MeshLODIndex,
+				InstanceData.Instance->Strands.DeformedRootResource,
+				InstanceData.Instance->Strands.DeformedResource);
+		}
+	}
+
+	// Update position offset (CPU)
+	for (FInstanceData& InstanceData : InstanceDatas)
+	{
+		if (InstanceData.MeshLODIndex >= 0 && (InstanceData.bSimulationEnable || InstanceData.bDeformationEnable))
+		{
+			AddHairStrandUpdatePositionOffsetPass(
+				GraphBuilder,
+				ShaderMap,
+				EHairPositionUpdateType::Strands,
+				InstanceData.Instance->RegisteredIndex,
+				InstanceData.HairLODIndex,
+				InstanceData.MeshLODIndex,
+				nullptr,
+				InstanceData.Instance->Strands.DeformedResource);
+		}
+	}
+
+	// Update position offset (CPU) - With Sim Cache
+	if (bHasAnySimCacheInstances)
+	{
+		for (FInstanceData& InstanceData : InstanceDatas)
+		{
+			if (InstanceData.ActiveGroomCacheType == EGroomCacheType::Guides && InstanceData.bNeedDeformation)
+			{
+				// Apply the same offset to the render strands for proper rendering
+				const FVector OffsetPosition = InstanceData.Instance->Guides.DeformedResource->GetPositionOffset(FHairStrandsDeformedResource::EFrameType::Current);
+				InstanceData.Instance->Strands.DeformedResource->SetPositionOffset(FHairStrandsDeformedResource::EFrameType::Current, OffsetPosition);
+		
+				AddHairStrandUpdatePositionOffsetPass(
+					GraphBuilder,
+					ShaderMap,
+					EHairPositionUpdateType::Strands,
+					InstanceData.Instance->RegisteredIndex,
+					0,
+					InstanceData.MeshLODIndex,
+					InstanceData.Instance->Strands.DeformedRootResource,
+					InstanceData.Instance->Strands.DeformedResource);
+			}
+		}
+	}
+
+	// Clear cluster AABBs (used optionally  for voxel allocation & for culling)
+	for (FInstanceData& InstanceData : InstanceDatas)
+	{
+		//if (InstanceData.bNeedDeformation)
+		{
+			InstanceData.CullingData = ImportCullingData(GraphBuilder, InstanceData.Instance->HairGroupPublicData);
+			AddClearClusterAABBPass(
+				GraphBuilder,
+				ShaderMap,
+				InstanceData.bNeedDeformation ? EHairAABBUpdateType::UpdateClusterAABB : EHairAABBUpdateType::UpdateGroupAABB,
+				InstanceData.CullingData.ClusterCount,
+				InstanceData.CullingData.ClusterAABBBuffer,
+				InstanceData.CullingData.GroupAABBBuffer);
+		}
+	}
+
+	for (FInstanceData& InstanceData : InstanceDatas)
+	{
+		if (InstanceData.ActiveGroomCacheType != EGroomCacheType::Strands && InstanceData.bNeedDeformation)
+		{
+			const bool bValidGuide		= InstanceData.bNeedDeformation && (InstanceData.bSimulationEnable || InstanceData.bGlobalDeformationEnable || InstanceData.bDeformationEnable || InstanceData.Instance->Guides.bIsSimulationCacheEnable);// || (WITH_EDITOR && PatchMode == EHairPatchAttribute::GuideInflucence);
+			const bool bUseSingleGuide	= InstanceData.bNeedDeformation && bValidGuide && InstanceData.Instance->Strands.InterpolationResource->UseSingleGuide();
+			const bool bHasSkinning		= InstanceData.bNeedDeformation && InstanceData.BindingType == EHairBindingType::Skinning;
+
+			AddHairStrandsInterpolationPass(
+				GraphBuilder,
+				ShaderMap,
+				ShaderPrintData,
+				InstanceData.Instance,
+				InstanceData.ActivePointCount,
+				InstanceData.MeshLODIndex,
+				InstanceData.Instance->Strands.Modifier.HairLengthScale,
+				InstanceData.Instance->Strands.HairInterpolationType,
+				EHairGeometryType::Strands,
+				InstanceData.CullingData,
+				InstanceData.Instance->Strands.RestResource->GetPositionOffset(),
+				bValidGuide ? InstanceData.Instance->Guides.RestResource->GetPositionOffset() : FVector::ZeroVector,
+				InstanceData.RDGResources.PositionOffsetSRV,
+				bValidGuide ? RegisterAsSRV(GraphBuilder, InstanceData.Instance->Guides.DeformedResource->GetPositionOffsetBuffer(FHairStrandsDeformedResource::Current)) : nullptr,
+				bHasSkinning ? InstanceData.Instance->Strands.RestRootResource : nullptr,
+				bHasSkinning && bValidGuide ? InstanceData.Instance->Guides.RestRootResource : nullptr,
+				bHasSkinning ? InstanceData.Instance->Strands.DeformedRootResource : nullptr,
+				bHasSkinning && bValidGuide ? InstanceData.Instance->Guides.DeformedRootResource : nullptr,
+				RegisterAsSRV(GraphBuilder, InstanceData.Instance->Strands.RestResource->PositionBuffer),
+				RegisterAsSRV(GraphBuilder, InstanceData.Instance->Strands.RestResource->PointToCurveBuffer),
+				bUseSingleGuide,
+				bValidGuide ? RegisterAsSRV(GraphBuilder, InstanceData.Instance->Strands.InterpolationResource->InterpolationBuffer) : nullptr,
+				bValidGuide ? RegisterAsSRV(GraphBuilder, InstanceData.Instance->Guides.RestResource->PositionBuffer) : nullptr,
+				bValidGuide ? RegisterAsSRV(GraphBuilder, InstanceData.Instance->Guides.DeformedResource->GetBuffer(FHairStrandsDeformedResource::Current)) : nullptr,
+				bValidGuide ? RegisterAsSRV(GraphBuilder, InstanceData.Instance->Strands.InterpolationResource->SimRootPointIndexBuffer) : nullptr,
+				bValidGuide ? RegisterAsSRV(GraphBuilder, InstanceData.Instance->Guides.RestResource->PointToCurveBuffer) : nullptr,
+				InstanceData.RDGResources.DeformerPositionSRV,
+				InstanceData.RDGResources.PositionUAV,
+				FHairStrandsDeformedRootResource::FLOD::Current);
+
+			GraphBuilder.SetBufferAccessFinal(InstanceData.RDGResources.DeformedPosition.Buffer, ERHIAccess::SRVMask);
+		}
+	}
+
+	// Previous Position
+	// * Transfer prev. position
+	// * Or recompute interpolation pass for previous positions if needed
+	for (FInstanceData& InstanceData : InstanceDatas)
+	{
+		if (InstanceData.ActiveGroomCacheType != EGroomCacheType::Strands && InstanceData.bNeedDeformation)
+		{
+			const bool bTransferPrevPosition =
+				InstanceData.Instance->HairGroupPublicData->VFInput.bHasLODSwitch &&
+				IsHairStrandsTransferPositionOnLODChange();
+			if (bTransferPrevPosition)
+			{
+				AddTransferPositionPass(GraphBuilder, ShaderMap, InstanceData.ActivePointCount, InstanceData.RDGResources.DeformedPosition.SRV, InstanceData.RDGResources.DeformedPrevPosition.UAV);
+				GraphBuilder.SetBufferAccessFinal(InstanceData.RDGResources.DeformedPrevPosition.Buffer, ERHIAccess::SRVMask);
+			}
+		}
+	}
+
+	// Render Strands cache update
+	if (bHasAnyRenCacheInstances)
+	{
+		for (FInstanceData& InstanceData : InstanceDatas)
+		{
+			if (InstanceData.ActiveGroomCacheType == EGroomCacheType::Strands)
+			{
+				FScopeLock Lock(InstanceData.Instance->Debug.GroomCacheBuffers->GetCriticalSection());
+				
+				FGroomCacheGroupData* GroomCacheData0 = const_cast<FGroomCacheGroupData*>(&InstanceData.Instance->Debug.GroomCacheBuffers->GetCurrentFrameBuffer().GroupsData[InstanceData.Instance->Debug.GroupIndex]);
+				FGroomCacheGroupData* GroomCacheData1 = const_cast<FGroomCacheGroupData*>(&InstanceData.Instance->Debug.GroomCacheBuffers->GetNextFrameBuffer().GroupsData[InstanceData.Instance->Debug.GroupIndex]);
+				const float InterpolationFactor = InstanceData.Instance->Debug.GroomCacheBuffers->GetInterpolationFactor();
+				
+				FGroomCacheResources CacheResources0 = CreateGroomCacheBuffer(GraphBuilder, GroomCacheData0->VertexData);
+				FGroomCacheResources CacheResources1 = CreateGroomCacheBuffer(GraphBuilder, GroomCacheData1->VertexData);
+				
+				// Update position offset
+				{
+					const FVector OffsetPosition = FMath::Lerp(GroomCacheData0->BoundingBox.GetCenter(), GroomCacheData1->BoundingBox.GetCenter(), InterpolationFactor);
+					InstanceData.Instance->Strands.DeformedResource->SetPositionOffset(FHairStrandsDeformedResource::EFrameType::Current, OffsetPosition);
+				}
+				
+				// Update max radius
+				if (GroomCacheData0->VertexData.PointsRadius.Num() > 0)
+				{
+					InstanceData.Instance->Strands.Modifier.HairWidth = FMath::Lerp(GroomCacheData0->StrandData.MaxRadius, GroomCacheData1->StrandData.MaxRadius, InterpolationFactor) * 2.0f;
+				}
+				
+				AddHairStrandUpdatePositionOffsetPass(
+					GraphBuilder,
+					ShaderMap,
+					EHairPositionUpdateType::Strands,
+					InstanceData.Instance->RegisteredIndex,
+					0,
+					InstanceData.MeshLODIndex,
+					InstanceData.Instance->Strands.DeformedRootResource,
+					InstanceData.Instance->Strands.DeformedResource);
+				
+				// Pass to upload GroomCache strands positions
+				AddGroomCacheUpdatePass(
+					GraphBuilder,
+					ShaderMap,
+					InstanceData.ActivePointCount,
+					InterpolationFactor,
+					CacheResources0,
+					CacheResources1,
+					RegisterAsSRV(GraphBuilder, InstanceData.Instance->Strands.RestResource->PositionBuffer),
+					RegisterAsSRV(GraphBuilder, InstanceData.Instance->Strands.DeformedResource->GetPositionOffsetBuffer(FHairStrandsDeformedResource::EFrameType::Current)),
+					InstanceData.RDGResources.PositionUAV);
+			}
+		}
+	}
+
+	// Update tangent data based on the deformed positions
+	for (FInstanceData& InstanceData : InstanceDatas)
+	{
+		if (InstanceData.bNeedDeformation)
+		{
+			AddHairTangentPass(
+				GraphBuilder,
+				ShaderMap,
+				InstanceData.ActivePointCount,
+				InstanceData.Instance->HairGroupPublicData,
+				InstanceData.RDGResources.PositionSRV,
+				InstanceData.RDGResources.TangentUAV);
+		}
+		else
+		{
+			InstanceData.Instance->Strands.RestResource->GetTangentBuffer(GraphBuilder, ShaderMap, InstanceData.ActivePointCount, InstanceData.ActiveCurveCount);
+		}
+	}
+
+	// Patch attribute for debug visualization (guide influence or clusters visualization)
+	const bool bNeedPatchPass = ViewMode == EGroomViewMode::RenderHairStrands || ViewMode == EGroomViewMode::Cluster || ViewMode == EGroomViewMode::ClusterAABB;
+	if (bNeedPatchPass)
+	{
+		for (FInstanceData& InstanceData : InstanceDatas)
+		{
+			EHairPatchAttribute PatchMode = EHairPatchAttribute::None;
+			if (ViewMode == EGroomViewMode::RenderHairStrands && InstanceData.bNeedDeformation)	{ PatchMode = EHairPatchAttribute::GuideInflucence; }
+			if (ViewMode == EGroomViewMode::Cluster || ViewMode == EGroomViewMode::ClusterAABB)	{ PatchMode = EHairPatchAttribute::ClusterInfluence; }
+
+			if (PatchMode != EHairPatchAttribute::None)
+			{
+				// Create an debug buffer for storing cluster visualization data. This is only used for debug purpose, hence only enable in editor build.
+				// Special case for debug mode were the attribute buffer is patch with some custom data to show hair properties (strands belonging to the same cluster, ...)
+				if (InstanceData.Instance->Strands.DebugCurveAttributeBuffer.Buffer == nullptr)
+				{
+					CreateHairStrandsDebugAttributeBuffer(GraphBuilder, &InstanceData.Instance->Strands.DebugCurveAttributeBuffer, InstanceData.Instance->Strands.Data->GetCurveAttributeSizeInBytes(), FName(InstanceData.Instance->Debug.MeshComponentName));
+				}
+				FRDGImportedBuffer OutRenCurveAttributeBuffer = Register(GraphBuilder, InstanceData.Instance->Strands.DebugCurveAttributeBuffer, ERDGImportedBufferFlags::CreateUAV);
+			
+				const bool bValidGuide = InstanceData.bNeedDeformation && (InstanceData.bSimulationEnable || InstanceData.bGlobalDeformationEnable || InstanceData.bDeformationEnable || InstanceData.Instance->Guides.bIsSimulationCacheEnable);// || (WITH_EDITOR && PatchMode == EHairPatchAttribute::GuideInflucence);
+				const bool bUseSingleGuide	= InstanceData.bNeedDeformation && bValidGuide && InstanceData.Instance->Strands.InterpolationResource->UseSingleGuide();
+
+				check(InstanceData.Instance->Strands.Data);
+				AddPatchAttributePass(
+					GraphBuilder,
+					ShaderMap,
+					InstanceData.ActiveCurveCount,
+					PatchMode,
+					bValidGuide,
+					bUseSingleGuide,
+					*InstanceData.Instance->Strands.Data,
+					Register(GraphBuilder, InstanceData.Instance->Strands.RestResource->CurveAttributeBuffer, ERDGImportedBufferFlags::CreateSRV).Buffer,
+					RegisterAsSRV(GraphBuilder, InstanceData.Instance->Strands.RestResource->CurveBuffer),
+					RegisterAsSRV(GraphBuilder, InstanceData.Instance->Strands.ClusterResource->CurveToClusterIdBuffer),
+					bValidGuide ? RegisterAsSRV(GraphBuilder, InstanceData.Instance->Strands.InterpolationResource->InterpolationBuffer) : nullptr,
+					OutRenCurveAttributeBuffer);
+			}
+		}
+	}
+
+	// Update the VF input with the update resources
+	for (FInstanceData& InstanceData : InstanceDatas)
+	{
+		InstanceData.Instance->HairGroupPublicData->VFInput = InternalComputeHairStrandsVertexInputData(&GraphBuilder, InstanceData.Instance, ViewMode);
+	}
+
+	// 3. Compute cluster AABBs (used for LODing and voxelization)
+	const FVector& TranslatedWorldOffset = View->ViewMatrices.GetPreViewTranslation();
+	for (FInstanceData& InstanceData : InstanceDatas)
+	{
+		// Optim: If an instance does not voxelize it's data, then there is no need for having valid AABB
+		bool bNeedGPUAABB = InstanceData.Instance->Strands.Modifier.bSupportVoxelization && InstanceData.Instance->bCastShadow;
+		const EHairAABBUpdateType UpdateType = InstanceData.bNeedDeformation ? EHairAABBUpdateType::UpdateClusterAABB : EHairAABBUpdateType::UpdateGroupAABB;
+			
+		FHairStrandClusterData::FHairGroup* HairGroupCluster = nullptr;
+		if (InstanceData.CullingData.bCullingResultAvailable)
+		{
+			// Sanity check
+			check(InstanceData.Instance->Strands.bCullingEnable);
+			HairGroupCluster = &ClusterData.HairGroups[InstanceData.Instance->HairGroupPublicData->ClusterDataIndex];
+			if (!HairGroupCluster->bVisible)
+			{
+				bNeedGPUAABB = false;
+			}
+		}
+			
+		InstanceData.Instance->HairGroupPublicData->SetClusterAABBValid(false);
+		InstanceData.Instance->HairGroupPublicData->SetGroupAABBValid(false);
+			
+		if (bNeedGPUAABB)
+		{
+			FRDGImportedBuffer Strands_CulledVertexCount = Register(GraphBuilder, InstanceData.Instance->HairGroupPublicData->GetDrawIndirectRasterComputeBuffer(), ERDGImportedBufferFlags::CreateSRV);
+			AddHairClusterAABBPass(
+				GraphBuilder,
+				ShaderMap,
+				InstanceData.ActiveCurveCount,
+				TranslatedWorldOffset,
+				ShaderPrintData,
+				UpdateType,
+				InstanceData.Instance,
+				InstanceData.RDGResources.PositionOffsetSRV,
+				HairGroupCluster,
+				InstanceData.CullingData,
+				InstanceData.RDGResources.PositionSRV,
+				Strands_CulledVertexCount.SRV);
+			
+			InstanceData.Instance->HairGroupPublicData->SetClusterAABBValid(UpdateType == EHairAABBUpdateType::UpdateClusterAABB);
+			InstanceData.Instance->HairGroupPublicData->SetGroupAABBValid(true);
+		}
+	}
+
+	#if RHI_RAYTRACING
+	if (bHasAnyRaytracingInstances)
+	{
+		const uint32 ProceduralSplits = GetHairRaytracingProceduralSplits();
+
+		// 1. Update raytracing geometry (update only if the view mask and the RT geometry mask match)
+		for (FInstanceData& InstanceData : InstanceDatas)
+		{
+			if (InstanceData.bNeedRaytracing)
+			{
+				const float CLODScale = InstanceData.Instance->HairGroupPublicData->ContinuousLODCoverageScale;
+				const float HairRadiusRT = InstanceData.Instance->HairGroupPublicData->VFInput.Strands.Common.RaytracingRadiusScale * InstanceData.Instance->HairGroupPublicData->VFInput.Strands.Common.Radius * CLODScale;
+				const float HairRootScaleRT = InstanceData.Instance->HairGroupPublicData->VFInput.Strands.Common.RootScale;
+				const float HairTipScaleRT = InstanceData.Instance->HairGroupPublicData->VFInput.Strands.Common.TipScale;
+
+				InstanceData.bNeedRaytracingUpdate = InstanceData.Instance->Strands.DeformedResource != nullptr ||
+					InstanceData.Instance->Strands.CachedHairScaledRadius != HairRadiusRT ||
+					InstanceData.Instance->Strands.CachedHairRootScale != HairRootScaleRT ||
+					InstanceData.Instance->Strands.CachedHairTipScale != HairTipScaleRT ||
+					InstanceData.Instance->Strands.CachedProceduralSplits != ProceduralSplits;
+				InstanceData.bNeedRaytracingBuild = !InstanceData.Instance->Strands.RenRaytracingResource->bIsRTGeometryInitialized;
+				if (InstanceData.bNeedRaytracingBuild || InstanceData.bNeedRaytracingUpdate)
+				{
+					const bool bProceduralPrimitive = InstanceData.Instance->Strands.RenRaytracingResource->bProceduralPrimitive;
+					AddGenerateRaytracingGeometryPass(
+						GraphBuilder,
+						ShaderMap,
+						ShaderPrintData,
+						InstanceData.Instance->RegisteredIndex,
+						InstanceData.ActivePointCount,
+						bProceduralPrimitive,
+						ProceduralSplits,
+						HairRadiusRT,
+						HairRootScaleRT,
+						HairTipScaleRT,
+						InstanceData.RDGResources.PositionOffsetSRV,
+						InstanceData.CullingData,
+						InstanceData.RDGResources.PositionSRV,
+						InstanceData.RDGResources.TangentSRV,
+						InstanceData.RDGResources.Raytracing_PositionBuffer.UAV,
+						InstanceData.RDGResources.Raytracing_IndexBuffer.UAV);
+			
+					InstanceData.Instance->Strands.CachedHairScaledRadius = HairRadiusRT;
+					InstanceData.Instance->Strands.CachedHairRootScale = HairRootScaleRT;
+					InstanceData.Instance->Strands.CachedHairTipScale = HairTipScaleRT;
+				}
+			}
+		}
+
+		// 2. Build/update acceleration structure
+		for (FInstanceData& InstanceData : InstanceDatas)
+		{
+			if (InstanceData.bNeedRaytracing && (InstanceData.bNeedRaytracingBuild || InstanceData.bNeedRaytracingUpdate))
+			{
+				AddBuildStrandsAccelerationStructurePass(
+					GraphBuilder,
+					InstanceData.Instance,
+					ProceduralSplits,
+					InstanceData.bNeedRaytracingUpdate,
+					InstanceData.RDGResources.Raytracing_PositionBuffer.Buffer,
+					InstanceData.RDGResources.Raytracing_IndexBuffer.Buffer);
+			}
+		}
+	}
+	#endif
+
+	if (ViewMode == EGroomViewMode::SimHairStrands)
+	{
+		for (FInstanceData& InstanceData : InstanceDatas)
+		{
+			if (InstanceData.Instance->Guides.DeformedResource)
+			{
+				// Disable culling when drawing only guides, as the culling output has been computed for the strands, not for the guides.
+				InstanceData.Instance->HairGroupPublicData->SetCullingResultAvailable(false);
+					
+				AddHairTangentPass(
+					GraphBuilder,
+					ShaderMap,
+					InstanceData.Instance->Guides.RestResource->GetPointCount(),
+					InstanceData.Instance->HairGroupPublicData,
+					RegisterAsSRV(GraphBuilder, InstanceData.Instance->Guides.DeformedResource->GetBuffer(FHairStrandsDeformedResource::Current)),
+					RegisterAsUAV(GraphBuilder, InstanceData.Instance->Guides.DeformedResource->TangentBuffer));					
+			}
+			InstanceData.Instance->HairGroupPublicData->VFInput = InternalComputeHairStrandsVertexInputData(&GraphBuilder, InstanceData.Instance, ViewMode);
+		}
+	}
+
+	// Sanity check
+	for (FInstanceData& InstanceData : InstanceDatas)
+	{
+		check(InstanceData.Instance->HairGroupPublicData->VFInput.Strands.PositionBuffer.Buffer);
+		InstanceData.Instance->Strands.UniformBuffer.UpdateUniformBufferImmediate(GraphBuilder.RHICmdList, InstanceData.Instance->GetHairStandsUniformShaderParameters(ViewMode));
+		InstanceData.Instance->HairGroupPublicData->VFInput.GeometryType = EHairGeometryType::Strands;
+		InstanceData.Instance->HairGroupPublicData->VFInput.LocalToWorldTransform = InstanceData.Instance->GetCurrentLocalToWorld();
+		InstanceData.Instance->HairGroupPublicData->bSupportVoxelization = InstanceData.Instance->Strands.Modifier.bSupportVoxelization && InstanceData.Instance->bCastShadow;
+	}
+
+	ExternalAccessQueue.Submit(GraphBuilder);
 }
 
 static void RunHairStrandsInterpolation_Cards(
