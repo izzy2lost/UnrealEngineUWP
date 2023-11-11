@@ -841,14 +841,14 @@ static void RunHairStrandsInterpolation_Strands(
 	const EGroomViewMode ViewMode = GetGroomViewMode(*View);
 
 	// Early culling
-	FHairStrandClusterData ClusterData;
+	FHairStrandClusterData ClusterDatas;
 	{
 		// Gather culling jobs
 		for (FInstanceData& InstanceData : InstanceDatas)
 		{
 			if (InstanceData.Instance->Strands.bCullingEnable)
 			{
-				AddInstanceToClusterData(InstanceData.Instance, ClusterData);
+				AddInstanceToClusterData(InstanceData.Instance, ClusterDatas);
 			}
 			else
 			{
@@ -857,12 +857,25 @@ static void RunHairStrandsInterpolation_Strands(
 		}
 
 		// Culling pass
-		ComputeHairStrandsClustersCulling(GraphBuilder, *ShaderMap, Views, ShaderPrintData, ClusterData);
+		if (Views.Num() > 0 && ClusterDatas.HairGroups.Num() > 0)
+		{
+			DECLARE_GPU_STAT(HairStrandsClusterCulling);
+			RDG_EVENT_SCOPE(GraphBuilder, "HairStrandsClusterCulling");
+			TRACE_CPUPROFILER_EVENT_SCOPE(ComputeHairStrandsClustersCulling);
+			RDG_GPU_STAT_SCOPE(GraphBuilder, HairStrandsClusterCulling);
+
+			AddClusterCullingPass(
+				GraphBuilder,
+				ShaderMap,
+				Views[0],
+				ShaderPrintData,
+				ClusterDatas);
+		}
 
 		// Run cluster debug view here (instead of GroomDebug.h/.cpp, as we need to have the (transient) cluster data 
 		if (ViewMode == EGroomViewMode::Cluster || ViewMode == EGroomViewMode::ClusterAABB)
 		{
-			AddDrawDebugClusterPass(GraphBuilder, *View, ShaderMap, ShaderPrintData, ViewMode, ClusterData);
+			AddDrawDebugClusterPass(GraphBuilder, *View, ShaderMap, ShaderPrintData, ViewMode, ClusterDatas);
 		}
 	}
 
@@ -1148,7 +1161,7 @@ static void RunHairStrandsInterpolation_Strands(
 		{
 			// Sanity check
 			check(InstanceData.Instance->Strands.bCullingEnable);
-			HairGroupCluster = &ClusterData.HairGroups[InstanceData.Instance->HairGroupPublicData->ClusterDataIndex];
+			HairGroupCluster = &ClusterDatas.HairGroups[InstanceData.Instance->HairGroupPublicData->ClusterDataIndex];
 			if (!HairGroupCluster->bVisible)
 			{
 				bNeedGPUAABB = false;

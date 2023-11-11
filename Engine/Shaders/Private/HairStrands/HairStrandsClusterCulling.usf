@@ -71,37 +71,6 @@ void MainClearClusterAABBCS(uint2 DispatchThreadId : SV_DispatchThreadID)
 #endif
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// Reset indirect buffer args
-#ifdef SHADER_CLUSTERCULLINGINDCLEAR  
-
-RWBuffer<uint> DispatchIndirectParametersClusterCount;
-RWBuffer<uint> DrawIndirectParameters; 
-uint VertexCountPerInstance;
-
-[numthreads(1, 1, 1)]
-void MainClusterCullingIndClearCS(uint3 DispatchThreadId : SV_DispatchThreadID)
-{
-#if PERMUTATION_SETINDIRECTDRAW
-	DrawIndirectParameters[0] = VertexCountPerInstance;
-	DrawIndirectParameters[1] = 1;	// 1 instance
-	DrawIndirectParameters[2] = 0;
-	DrawIndirectParameters[3] = 0;
-#else
-	if (DispatchThreadId.x==0)
-	{
-		WriteDispatchIndirectArgs(DispatchIndirectParametersClusterCount, 0, 0, 1, 1);
-
-		DrawIndirectParameters[0] = 0;	// 0 vertex (to be accumulated)
-		DrawIndirectParameters[1] = 1;	// 1 instance
-		DrawIndirectParameters[2] = 0;
-		DrawIndirectParameters[3] = 0;
-	}
-#endif
-}
-
-#endif
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Write out culled index buffex & radius scale buffer
 
 #if SHADER_CLUSTER_CULL
@@ -112,6 +81,7 @@ void MainClusterCullingIndClearCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 #include "../ThreadGroupPrefixSum.ush"
 
 //uint ForceLOD;
+uint ClusterGroupIndex;
 float LODIndex;
 float LODBias;
 uint CurveCount;
@@ -124,7 +94,7 @@ Buffer<uint> CurveToClusterIdBuffer;
 Buffer<uint> PointLODBuffer;
 StructuredBuffer<FPackedHairClusterInfo> ClusterInfoBuffer;
 
-RWBuffer<uint>  OutPointCounter;
+RWStructuredBuffer<uint>  OutPointCounter;
 RWBuffer<uint>  OutIndexBuffer;
 RWBuffer<float> OutRadiusScaleBuffer;
 RWBuffer<uint>  OutCulledCurveBuffer;
@@ -266,7 +236,7 @@ void Main(uint3 DispatchThreadId : SV_DispatchThreadID, uint ThreadIndex : SV_Gr
 	// 4. Global allocate
 	if (ThreadIndex == 0)
 	{
-		InterlockedAdd(OutPointCounter[0], AllocationCount, AllocationOffset);
+		InterlockedAdd(OutPointCounter[ClusterGroupIndex], AllocationCount, AllocationOffset);
 	}
 	GroupMemoryBarrierWithGroupSync();
 
@@ -406,7 +376,7 @@ void Main(uint3 DispatchThreadId : SV_DispatchThreadID, uint ThreadIndex : SV_Gr
 	// 4. Global allocate
 	if (ThreadIndex == 0)
 	{
-		InterlockedAdd(OutPointCounter[0], AllocationCount, AllocationOffset);
+		InterlockedAdd(OutPointCounter[ClusterGroupIndex], AllocationCount, AllocationOffset);
 	}
 	GroupMemoryBarrierWithGroupSync();
 
@@ -447,14 +417,15 @@ void Main(uint3 DispatchThreadId : SV_DispatchThreadID, uint ThreadIndex : SV_Gr
 
 #if SHADER_CLUSTER_CULL_ARGS
 
-Buffer<uint> PointCounterBuffer;
+uint ClusterGroupIndex;
+StructuredBuffer<uint> PointCounterBuffer;
 RWBuffer<uint> RWIndirectDrawArgsBuffer;
 RWBuffer<uint> RWIndirectDispatchArgsBuffer;
 
 [numthreads(1, 1, 1)]
 void Main(uint DispatchThreadId : SV_DispatchThreadID, uint ThreadIndex : SV_GroupIndex)
 {
-	const uint PointCount = PointCounterBuffer[0];
+	const uint PointCount = PointCounterBuffer[ClusterGroupIndex];
 	const uint DispatchCount = DivideAndRoundUp(PointCount, HAIR_VERTEXCOUNT_GROUP_SIZE);
 
 	RWIndirectDrawArgsBuffer[0] = PointCount * HAIR_POINT_TO_VERTEX;

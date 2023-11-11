@@ -53,9 +53,9 @@ void AddInstanceToClusterData(
 	FHairGroupInstance* In,
 	FHairStrandClusterData& Out);
 
-void ComputeHairStrandsClustersCulling(
+void AddClusterCullingPass(
 	FRDGBuilder& GraphBuilder,
-	FGlobalShaderMap& ShaderMap,
-	const TArray<const FSceneView*>& Views,
+	FGlobalShaderMap* ShaderMap,
+	const FSceneView* View,
 	const FShaderPrintData* ShaderPrintData,
 	FHairStrandClusterData& ClusterDatas);
