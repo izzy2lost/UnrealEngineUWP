@@ -656,7 +656,9 @@ FPrimitiveSceneProxy::FPrimitiveSceneProxy(const FPrimitiveSceneProxyDesc& InPro
 			}
 		}
 
-		if (VelocityEncodeHasPixelAnimation(GetScene().GetShaderPlatform()))
+		if (VelocityEncodeHasPixelAnimation(GetScene().GetShaderPlatform())
+			// Currently, only TSR checks the HasPixelAnimation flag but setting it will force velocity writes even if TSR is not used
+			&& SupportsTSR(GetScene().GetShaderPlatform()))
 		{
 			for (const UMaterialInterface* MaterialInterface : UsedMaterials)
 			{
