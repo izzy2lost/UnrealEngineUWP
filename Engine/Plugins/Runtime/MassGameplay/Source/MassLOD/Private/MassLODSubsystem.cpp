@@ -25,6 +25,18 @@ namespace UE::MassLOD
 		FColor::White,
 	};
 	
+	namespace Tweakables
+	{
+
+		bool bLODSubsystemIncludeAllPlayerControllers = true;
+		namespace
+		{
+			static FAutoConsoleVariableRef AnonymousCVars[] = {
+				{ TEXT("mass.LODSubsystem.IncludeAllPlayerControllers"), bLODSubsystemIncludeAllPlayerControllers, TEXT("Include all player controllers, even those without a camera or pawn."), ECVF_Default }
+			};
+		}
+	}  // UE::Mass::Tweakables
+
 #if WITH_MASSGAMEPLAY_DEBUG
 	namespace Debug
 	{
@@ -393,8 +405,10 @@ void UMassLODSubsystem::AddPlayerViewer(APlayerController& PlayerController)
 		return;
 	}
 #endif // WITH_EDITOR
+
 	// ignore players that don't have a pawn nor a camera
-	if (PlayerController.GetPawn() == nullptr
+	if (UE::MassLOD::Tweakables::bLODSubsystemIncludeAllPlayerControllers == false &&
+		PlayerController.GetPawn() == nullptr
 		&& (bool(PlayerController.PlayerCameraManager) == false
 			|| PlayerController.PlayerCameraManager->GetLastFrameCameraCacheTime() == 0.f)
 		)	
