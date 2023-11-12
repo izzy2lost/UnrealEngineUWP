@@ -221,8 +221,6 @@ public:
 	const FRDGExternalBuffer& GetDrawIndirectRasterComputeBuffer() const { return Culling->DrawIndirectRasterComputeBuffer; }
 	FRDGExternalBuffer& GetDrawIndirectBuffer() { return Culling->DrawIndirectBuffer; }
 	FRDGExternalBuffer& GetClusterAABBBuffer() { return Culling->ClusterAABBBuffer; }
-	FRDGExternalBuffer& GetGroupAABBBuffer() { return Culling->GroupAABBBuffer; }
-	const FRDGExternalBuffer& GetGroupAABBBuffer() const { return Culling->GroupAABBBuffer; }
 
 	const FRDGExternalBuffer& GetCulledCurveBuffer() const { return Culling->CulledCurveBuffer; }
 	const FRDGExternalBuffer& GetCulledVertexIdBuffer() const { return Culling->CulledVertexIdBuffer; }
@@ -237,8 +235,6 @@ public:
 	
 	void SetClusterAABBValid(bool In) { Culling->bClusterAABBValid = In;  }
 	bool GetClusterAABBValid() const  { return Culling->bClusterAABBValid;  }
-
-	void SetGroupAABBValid(bool In) { Culling->bGroupAABBValid = In;  }
 
 	void SupportVoxelization(bool InVoxelize) { bSupportVoxelization = InVoxelize; }
 	bool DoesSupportVoxelization() const { return bSupportVoxelization; }
@@ -365,8 +361,6 @@ public:
 
 		/* Hair Cluster & Hair Group bounding box buffer */
 		FRDGExternalBuffer ClusterAABBBuffer;
-		FRDGExternalBuffer GroupAABBBuffer;
-		bool bGroupAABBValid = false;
 		bool bClusterAABBValid = false;
 
 		/* Culling & LODing results for a hair group */ // Better to be transient?
@@ -427,7 +421,22 @@ public:
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+// Transient resources 
+// Resources are indexed by hair instance's registered index
+struct FHairTransientResources
+{
+	FRDGBufferRef    GroupAABBBuffer = nullptr;
+	FRDGBufferUAVRef GroupAABBUAV = nullptr;
+	FRDGBufferSRVRef GroupAABBSRV = nullptr;
 
+	FRDGBufferRef    IndirectDispatchArgsBuffer = nullptr;
+	FRDGBufferUAVRef IndirectDispatchArgsUAV = nullptr;
+	FRDGBufferSRVRef IndirectDispatchArgsSRV = nullptr;
+
+	TBitArray<> bIsGroupAABBValid;
+};
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
 // API for enabling/disabling the various geometry representation
 enum class EHairStrandsShaderType
 {
@@ -502,6 +511,7 @@ struct FHairStrandsBookmarkParameters
 	FHairStrandsInstances VisibleStrands; // Primary & Shadow
 	FHairStrandsInstances VisibleCardsOrMeshes_Primary;
 	FHairStrandsInstances VisibleCardsOrMeshes_Shadow;
+	FHairTransientResources* TransientResources = nullptr;
 
 	FHairStrandsInstances* Instances = nullptr;
 	TArray<EHairInstanceVisibilityType> InstancesVisibilityType;

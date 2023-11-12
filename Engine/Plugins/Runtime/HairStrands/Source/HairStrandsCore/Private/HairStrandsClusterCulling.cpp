@@ -64,10 +64,12 @@ class FHairClusterCullArgsCS: public FGlobalShader
 	SHADER_USE_PARAMETER_STRUCT(FHairClusterCullArgsCS, FGlobalShader);
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters,)
+		SHADER_PARAMETER(uint32, InstanceRegisteredIndex)
 		SHADER_PARAMETER(uint32, ClusterGroupIndex)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, PointCounterBuffer)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, RWIndirectDrawArgsBuffer)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, RWIndirectDispatchArgsBuffer)
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, RWIndirectDispatchArgsGlobalBuffer)
 		END_SHADER_PARAMETER_STRUCT()
 
 public:
@@ -87,7 +89,8 @@ void AddClusterCullingPass(
 	FGlobalShaderMap* ShaderMap,
 	const FSceneView* View,
 	const FShaderPrintData* ShaderPrintData,
-	FHairStrandClusterData& ClusterDatas)
+	FHairStrandClusterData& ClusterDatas,
+	FRDGBufferUAVRef IndirectDispatchArgsGlobalUAV)
 {
 	check(View);
 
@@ -165,10 +168,12 @@ void AddClusterCullingPass(
 		FRDGImportedBuffer DrawIndirectParametersRasterComputeBuffer = Register(GraphBuilder, ClusterData.HairGroupPublicPtr->GetDrawIndirectRasterComputeBuffer(), ERDGImportedBufferFlags::CreateViews);
 
 		FHairClusterCullArgsCS::FParameters* Parameters = GraphBuilder.AllocParameters<FHairClusterCullArgsCS::FParameters>();
+		Parameters->InstanceRegisteredIndex = ClusterData.InstanceRegisteredIndex;
 		Parameters->ClusterGroupIndex = ClusterGroupIt++;
 		Parameters->PointCounterBuffer = PointCounterSRV;
 		Parameters->RWIndirectDrawArgsBuffer = DrawIndirectParametersBuffer.UAV;
 		Parameters->RWIndirectDispatchArgsBuffer = DrawIndirectParametersRasterComputeBuffer.UAV;
+		Parameters->RWIndirectDispatchArgsGlobalBuffer = IndirectDispatchArgsGlobalUAV;
 
 		TShaderMapRef<FHairClusterCullArgsCS> ComputeShader(ShaderMap);
 		FComputeShaderUtils::AddPass(
@@ -182,7 +187,6 @@ void AddClusterCullingPass(
 		GraphBuilder.SetBufferAccessFinal(DrawIndirectParametersRasterComputeBuffer.Buffer, ERHIAccess::IndirectArgs | ERHIAccess::SRVMask);
 		ClusterData.SetCullingResultAvailable(true);
 	}
-
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -195,7 +199,6 @@ void AddInstanceToClusterData(FHairGroupInstance* In, FHairStrandClusterData& Ou
 	HairGroupCluster.MaxPointPerCurve = In->Strands.Data ? In->Strands.Data->Header.MaxPointPerCurve : 0;
 	HairGroupCluster.ClusterScale = In->HairGroupPublicData->GetClusterScale();
 	HairGroupCluster.ClusterCount = In->HairGroupPublicData->GetClusterCount();
-	HairGroupCluster.GroupAABBBuffer = &In->HairGroupPublicData->GetGroupAABBBuffer();
 	HairGroupCluster.ClusterAABBBuffer = &In->HairGroupPublicData->GetClusterAABBBuffer();
 
 	HairGroupCluster.CurveBuffer = &In->Strands.RestResource->CurveBuffer;
@@ -205,6 +208,7 @@ void AddInstanceToClusterData(FHairGroupInstance* In, FHairStrandClusterData& Ou
 	HairGroupCluster.ClusterInfoBuffer = &In->Strands.ClusterResource->ClusterInfoBuffer;
 	HairGroupCluster.CurveToClusterIdBuffer = &In->Strands.ClusterResource->CurveToClusterIdBuffer;
 
+	HairGroupCluster.InstanceRegisteredIndex = In->RegisteredIndex;
 	HairGroupCluster.HairGroupPublicPtr = In->HairGroupPublicData;
 	HairGroupCluster.LODBias  = In->HairGroupPublicData->GetLODBias();
 	HairGroupCluster.LODIndex = In->HairGroupPublicData->GetLODIndex();

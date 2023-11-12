@@ -487,7 +487,7 @@ namespace HairStrands
 	bool HasViewHairStrandsData(const TArray<FViewInfo>& Views);
 	bool HasViewHairStrandsVoxelData(const FViewInfo& View);
 
-	bool HasPositionsChanged(FRDGBuilder& GraphBuilder, const FViewInfo& View);
+	bool HasPositionsChanged(FRDGBuilder& GraphBuilder, const FScene& Scene, const FViewInfo& View);
 	void DrawHitProxies(FRDGBuilder& GraphBuilder, const FScene& Scene, const FViewInfo& View, FInstanceCullingManager& InstanceCullingManager, FRDGTextureRef HitProxyTexture, FRDGTextureRef HitProxyDepthTexture);
 	void DrawEditorSelection(FRDGBuilder& GraphBuilder, const FViewInfo& View, const FIntRect& ViewportRect, FRDGTextureRef SelectionDepthTexture);
 
@@ -504,4 +504,6 @@ namespace HairStrands
 	bool HasHairStrandsVisible(const TArray<FViewInfo>& Views);
 
 	void AddVisibleShadowCastingLight(const FScene& Scene, TArray<FViewInfo>& Views, const FLightSceneInfo* LightSceneInfo);
+
+	void PostRender(FScene& Scene);
 }

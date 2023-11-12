@@ -2648,7 +2648,7 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 	if (FirstTime ||
 		Config.IsDifferent(PathTracingState->LastConfig) ||
 		(!View.bIsOfflineRender && Config.IsDOFDifferent(PathTracingState->LastConfig)) ||
-		(!View.bIsOfflineRender && HairStrands::HasPositionsChanged(GraphBuilder, View)))
+		(!View.bIsOfflineRender && HairStrands::HasPositionsChanged(GraphBuilder, *Scene, View)))
 	{
 		// remember the options we used for next time
 		PathTracingState->LastConfig = Config;

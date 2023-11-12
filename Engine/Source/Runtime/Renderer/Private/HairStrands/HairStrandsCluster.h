@@ -16,4 +16,5 @@ void CreateHairStrandsMacroGroups(
 	FRDGBuilder& GraphBuilder,
 	const FScene* Scene,
 	const FViewInfo& View, 
-	FHairStrandsViewData& OutHairStrandsViewData);
+	FHairStrandsViewData& OutHairStrandsViewData,
+	bool bBuildGPUAABB=true);

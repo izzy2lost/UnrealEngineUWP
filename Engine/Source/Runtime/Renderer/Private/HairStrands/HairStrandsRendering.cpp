@@ -85,6 +85,32 @@ void AddMeshDrawTransitionPass(
 	const FViewInfo& ViewInfo,
 	const FHairStrandsMacroGroupDatas& MacroGroupDatas);
 
+FHairTransientResources* AllocateHairTransientResourcse(FRDGBuilder& GraphBuilder, FScene* Scene)
+{
+	if (Scene->HairStrandsSceneData.TransientResources == nullptr)
+	{
+		Scene->HairStrandsSceneData.TransientResources = new FHairTransientResources();
+	}
+
+	const uint32 InstanceCount = Scene->HairStrandsSceneData.RegisteredProxies.Num();
+	FHairTransientResources* Out = Scene->HairStrandsSceneData.TransientResources;
+	*Out = FHairTransientResources();
+	if (InstanceCount > 0)
+	{
+		Out->bIsGroupAABBValid.Init(false, InstanceCount);
+
+		// Change this into a structure buffer
+		Out->GroupAABBBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateBufferDesc(4, 6 * InstanceCount), TEXT("Hair.TransientResources.GroupAABB"));
+		Out->GroupAABBUAV = GraphBuilder.CreateUAV(Out->GroupAABBBuffer, PF_R32_SINT);
+		Out->GroupAABBSRV = GraphBuilder.CreateSRV(Out->GroupAABBBuffer, PF_R32_SINT);
+
+		Out->IndirectDispatchArgsBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateIndirectDesc<FRHIDispatchIndirectParameters>(InstanceCount), TEXT("Hair.TransientResources.IndirectDispatchArgs"));
+		Out->IndirectDispatchArgsUAV = GraphBuilder.CreateUAV(Out->IndirectDispatchArgsBuffer);
+		Out->IndirectDispatchArgsSRV = GraphBuilder.CreateSRV(Out->IndirectDispatchArgsBuffer);
+	}
+	return Out;
+}
+
 void RenderHairPrePass(
 	FRDGBuilder& GraphBuilder,
 	FScene* Scene,
@@ -311,6 +337,15 @@ bool HasHairCardsVisible(const TArray<FViewInfo>& Views)
 bool HasHairInstanceInScene(const FScene& Scene)
 {	
 	return Scene.HairStrandsSceneData.RegisteredProxies.Num() > 0;
+}
+
+void PostRender(FScene& Scene)
+{
+	// Dellocate transient resourcse
+	if (Scene.HairStrandsSceneData.TransientResources)
+	{
+		*Scene.HairStrandsSceneData.TransientResources = FHairTransientResources();
+	}
 }
 
 } // HairStrands

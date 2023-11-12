@@ -37,6 +37,7 @@ uint3 ComputeDispatchGroupCount2D(uint GroupCount)
 /// Clear clusters AABB
 #ifdef SHADER_CLEARCLUSTERAABB
 
+uint InstanceRegisteredIndex;
 uint ClusterCount;
 uint bClearClusterAABBs;
 
@@ -59,12 +60,12 @@ void MainClearClusterAABBCS(uint2 DispatchThreadId : SV_DispatchThreadID)
 	// Clear 'group' AABB
 	if (DispatchThreadId.x == 0)
 	{
-		OutGroupAABBBuffer[0] =  2147483647;
-		OutGroupAABBBuffer[1] =  2147483647;
-		OutGroupAABBBuffer[2] =  2147483647;
-		OutGroupAABBBuffer[3] = -2147483647;
-		OutGroupAABBBuffer[4] = -2147483647;
-		OutGroupAABBBuffer[5] = -2147483647;
+		OutGroupAABBBuffer[InstanceRegisteredIndex*6 + 0] =  2147483647;
+		OutGroupAABBBuffer[InstanceRegisteredIndex*6 + 1] =  2147483647;
+		OutGroupAABBBuffer[InstanceRegisteredIndex*6 + 2] =  2147483647;
+		OutGroupAABBBuffer[InstanceRegisteredIndex*6 + 3] = -2147483647;
+		OutGroupAABBBuffer[InstanceRegisteredIndex*6 + 4] = -2147483647;
+		OutGroupAABBBuffer[InstanceRegisteredIndex*6 + 5] = -2147483647;
 	}
 }
 
@@ -417,10 +418,12 @@ void Main(uint3 DispatchThreadId : SV_DispatchThreadID, uint ThreadIndex : SV_Gr
 
 #if SHADER_CLUSTER_CULL_ARGS
 
+uint InstanceRegisteredIndex;
 uint ClusterGroupIndex;
 StructuredBuffer<uint> PointCounterBuffer;
 RWBuffer<uint> RWIndirectDrawArgsBuffer;
 RWBuffer<uint> RWIndirectDispatchArgsBuffer;
+RWBuffer<uint> RWIndirectDispatchArgsGlobalBuffer;
 
 [numthreads(1, 1, 1)]
 void Main(uint DispatchThreadId : SV_DispatchThreadID, uint ThreadIndex : SV_GroupIndex)
@@ -437,6 +440,11 @@ void Main(uint DispatchThreadId : SV_DispatchThreadID, uint ThreadIndex : SV_Gro
 	RWIndirectDispatchArgsBuffer[1] = 1;
 	RWIndirectDispatchArgsBuffer[2] = 1;
 	RWIndirectDispatchArgsBuffer[3] = PointCount;	
+
+	RWIndirectDispatchArgsGlobalBuffer[InstanceRegisteredIndex * 4 + 0] = DispatchCount;
+	RWIndirectDispatchArgsGlobalBuffer[InstanceRegisteredIndex * 4 + 1] = 1;
+	RWIndirectDispatchArgsGlobalBuffer[InstanceRegisteredIndex * 4 + 2] = 1;
+	RWIndirectDispatchArgsGlobalBuffer[InstanceRegisteredIndex * 4 + 3] = PointCount;
 }
 
 #endif // SHADER_CLUSTER_CULL_ARGS
@@ -446,6 +454,7 @@ void Main(uint DispatchThreadId : SV_DispatchThreadID, uint ThreadIndex : SV_Gro
 
 #if SHADER_CLUSTERAABB
 
+uint InstanceRegisteredIndex;
 uint CurveCount;
 uint ClusterCount;
 float ClusterScale;
@@ -478,7 +487,7 @@ groupshared float3 OutHairPositionOffset;
 		FHairAABB Bound;
 		Bound.Min = CPUBoundMin;
 		Bound.Max = CPUBoundMax;
-		WriteHairAABB(0, Bound, OutGroupAABBBuffer);
+		WriteHairAABB(InstanceRegisteredIndex, Bound, OutGroupAABBBuffer);
 	}
 #else // PERMUTATION_USE_CPU_AABB
 
@@ -592,7 +601,7 @@ groupshared float3 OutHairPositionOffset;
 		Bound.Max.x = SharedClusterAABBMax[0].x;
 		Bound.Max.y = SharedClusterAABBMax[0].y;
 		Bound.Max.z = SharedClusterAABBMax[0].z;
-		InterlockHairAABB(0, Bound, OutGroupAABBBuffer);
+		InterlockHairAABB(InstanceRegisteredIndex, Bound, OutGroupAABBBuffer);
 	}
 
 #if DEBUG_ENABLE

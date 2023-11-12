@@ -91,7 +91,6 @@ uint HairStrandsVFTODO_bCullingEnable;
 Buffer<uint>	HairStrandsVFTODO_CullingIndirectBuffer; 
 Buffer<uint>	HairStrandsVFTODO_CullingIndexBuffer;
 Buffer<float>	HairStrandsVFTODO_CullingRadiusScaleBuffer;
-Buffer<uint>	HairStrandsVFTODO_CullingIndirectBufferArgs;
 #endif
 
 #if PERMUTATION_DYNAMIC_GEOMETRY >= 1 || PERMUTATION_DEBUG == 1 

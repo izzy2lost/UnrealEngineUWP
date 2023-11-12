@@ -1830,6 +1830,7 @@ class FHairStrandsSceneData
 {
 public:
 	TArray<FHairStrandsInstance*> RegisteredProxies;
+	FHairTransientResources* TransientResources = nullptr;
 };
 
 class FVolumetricLightmapInterpolation

@@ -4011,6 +4011,7 @@ class FHairStrandsPositionChangedCS : public FGlobalShader
 	SHADER_USE_PARAMETER_STRUCT(FHairStrandsPositionChangedCS, FGlobalShader);
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER(uint32, InstanceResgisteredIndex)
 		SHADER_PARAMETER(uint32, PointCount)
 		SHADER_PARAMETER(float, PositionThreshold2)
 		SHADER_PARAMETER(uint32, HairStrandsVF_bCullingEnable)
@@ -4040,8 +4041,11 @@ static void AddHairStrandsHasPositionChangedPass(
 	FRDGBuilder& GraphBuilder,
 	const FViewInfo* View,
 	const FHairGroupPublicData* HairGroupPublicData,
+	FHairTransientResources* TransientResources,
 	FRDGBufferUAVRef InvalidationBuffer)
 {
+	check(TransientResources);
+
 	const uint32 PointCount = HairGroupPublicData->GetActiveStrandsPointCount();
 
 	FRDGBufferRef InvalidationPrintCounter = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateBufferDesc(sizeof(uint32), 1), TEXT("Hair.InvalidationPrintCounter"));
@@ -4049,6 +4053,7 @@ static void AddHairStrandsHasPositionChangedPass(
 	AddClearUAVPass(GraphBuilder, InvalidationPrintCounterUAV, 0u);
 
 	FHairStrandsPositionChangedCS::FParameters* Parameters = GraphBuilder.AllocParameters<FHairStrandsPositionChangedCS::FParameters>();
+	Parameters->InstanceResgisteredIndex = HairGroupPublicData->Instance->RegisteredIndex;
 	Parameters->PointCount = PointCount;
 	Parameters->PositionThreshold2 = FMath::Square(GHairStrands_InvalidationPosition_Threshold);
 	Parameters->bDrawInvalidElement = GHairStrands_InvalidationPosition_Debug > 0 ? 1u : 0u;
@@ -4057,7 +4062,7 @@ static void AddHairStrandsHasPositionChangedPass(
 	Parameters->HairStrandsVF_CullingIndirectBuffer = Parameters->HairStrandsVF_CullingIndexBuffer;
 	Parameters->CurrPositionBuffer = HairGroupPublicData->VFInput.Strands.PositionBuffer.SRV;
 	Parameters->PrevPositionBuffer = HairGroupPublicData->VFInput.Strands.PrevPositionBuffer.SRV;
-	Parameters->GroupAABBBuffer = Register(GraphBuilder, HairGroupPublicData->GetGroupAABBBuffer(), ERDGImportedBufferFlags::CreateSRV).SRV;
+	Parameters->GroupAABBBuffer = TransientResources->GroupAABBSRV;
 	Parameters->InvalidationBuffer = InvalidationBuffer;
 	Parameters->InvalidationPrintCounter = InvalidationPrintCounterUAV;
 	ShaderPrint::SetParameters(GraphBuilder, View->ShaderPrintData, Parameters->ShaderPrintParameters);
@@ -4118,7 +4123,7 @@ void DrawHitProxies(
 	// Geometry won't be updated for proxy view
 	const FIntPoint Resolution = HitProxyTexture->Desc.Extent;
 	FHairStrandsViewData HairStrandsViewData;
-	CreateHairStrandsMacroGroups(GraphBuilder, &Scene, View, HairStrandsViewData);
+	CreateHairStrandsMacroGroups(GraphBuilder, &Scene, View, HairStrandsViewData, false /*bBuildGPUAABB*/);
 
 	// We don't compute the transmittance texture as there is no need for picking.
 	FRDGTextureRef DummyTransmittanceTexture = GraphBuilder.CreateTexture(FRDGTextureDesc::Create2D(Resolution, PF_R32_FLOAT, FClearValueBinding::White, ETextureCreateFlags::ShaderResource | ETextureCreateFlags::UAV), TEXT("Hair.DummyTransmittanceTextureForHitProxyId"));
@@ -4233,7 +4238,7 @@ void DrawHitProxies(
 }
 
 // Check if any simulated/skinned-bound groom has its positions updated (e.g. for invalidating the path-tracer accumulation)
-bool HasPositionsChanged(FRDGBuilder& GraphBuilder, const FViewInfo& View)
+bool HasPositionsChanged(FRDGBuilder& GraphBuilder, const FScene& Scene, const FViewInfo& View)
 {
 	if (View.HairStrandsMeshElements.IsEmpty())
 	{
@@ -4281,7 +4286,7 @@ bool HasPositionsChanged(FRDGBuilder& GraphBuilder, const FViewInfo& View)
 	// Compare current/previous and enqueue aggregated comparison
 	for (const FHairGroupPublicData* GroupData : GroupDatas)
 	{
-		AddHairStrandsHasPositionChangedPass(GraphBuilder, &View, GroupData, InvalidationUAV);
+		AddHairStrandsHasPositionChangedPass(GraphBuilder, &View, GroupData, Scene.HairStrandsSceneData.TransientResources, InvalidationUAV);
 	}
 
 	// Pull a 'ready' previous frame value

@@ -431,6 +431,7 @@ void CreateHairStrandsBookmarkParameters(FScene* Scene, FViewInfo& View, FHairSt
 	Out.SceneColorTexture		= nullptr;
 	Out.SceneDepthTexture		= nullptr;
 	Out.Scene					= Scene;
+	Out.TransientResources		= Scene->HairStrandsSceneData.TransientResources;
 }
 
 void UpdateHairStrandsBookmarkParameters(FScene* Scene, TArray<FViewInfo>& Views, FHairStrandsBookmarkParameters& Out)

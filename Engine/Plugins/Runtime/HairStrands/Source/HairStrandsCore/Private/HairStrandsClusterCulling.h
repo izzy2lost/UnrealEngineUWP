@@ -15,6 +15,7 @@ struct FHairStrandClusterData
 {
 	struct FHairGroup
 	{
+		uint32 InstanceRegisteredIndex = ~0;
 		uint32 ClusterCount = 0;
 		float ClusterScale = 0;
 		uint32 MaxPointPerCurve = 0;
@@ -27,7 +28,6 @@ struct FHairStrandClusterData
 		FRDGExternalBuffer* PointLODBuffer = nullptr;
 
 		// See FHairStrandsClusterResource fro details about those buffers.
-		FRDGExternalBuffer* GroupAABBBuffer = nullptr;
 		FRDGExternalBuffer* ClusterAABBBuffer = nullptr;
 		FRDGExternalBuffer* ClusterInfoBuffer = nullptr; // SRV
 		FRDGExternalBuffer* CurveToClusterIdBuffer = nullptr; // SRV
@@ -47,6 +47,7 @@ struct FHairStrandClusterData
 	};
 
 	TArray<FHairGroup> HairGroups;
+	FRDGBufferRef SharedIndirectDispatchArgsBuffer = nullptr;
 };
 
 void AddInstanceToClusterData(
@@ -58,4 +59,5 @@ void AddClusterCullingPass(
 	FGlobalShaderMap* ShaderMap,
 	const FSceneView* View,
 	const FShaderPrintData* ShaderPrintData,
-	FHairStrandClusterData& ClusterDatas);
+	FHairStrandClusterData& ClusterDatas,
+	FRDGBufferUAVRef IndirectDispatchArgsGlobalUAV);

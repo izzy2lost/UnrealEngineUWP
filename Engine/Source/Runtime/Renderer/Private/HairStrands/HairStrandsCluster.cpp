@@ -23,32 +23,27 @@ class FHairMacroGroupAABBCS : public FGlobalShader
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER(uint32, MacroGroupId)
-		SHADER_PARAMETER(uint32, MacroGroupValid)
-		SHADER_PARAMETER(uint32, bClearBuffer)
+		SHADER_PARAMETER(uint32, MacroGroupCount)
 
 		SHADER_PARAMETER(float, PixelSizeAtDepth1)
 		SHADER_PARAMETER(float, NumPixelPerVoxel)
 		SHADER_PARAMETER(uint32, VoxelPageResolution)
 
-		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, InGroupAABBBuffer0)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, InGroupAABBBuffer1)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, InGroupAABBBuffer2)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, InGroupAABBBuffer3)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, InGroupAABBBuffer4)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, InGroupAABBBuffer5)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, InGroupAABBBuffer6)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, InGroupAABBBuffer7)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, RegisteredIndexBuffer)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<int>, InGroupAABBBuffer)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer, OutMacroGroupAABBBuffer)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer, OutMacroGroupVoxelSizeBuffer)
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
 	END_SHADER_PARAMETER_STRUCT()
 
 public:
+	static uint32 GetGroupSize() { return 32; }
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters) { return IsHairStrandsSupported(EHairStrandsShaderType::Strands, Parameters.Platform); }
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
 		OutEnvironment.SetDefine(TEXT("SHADER_AABBUPDATE"), 1);
+		OutEnvironment.SetDefine(TEXT("GROUP_SIZE"), GetGroupSize());
 	}
 };
 
@@ -59,6 +54,7 @@ void GetVoxelPageResolution(uint32& OutPageResolution, uint32& OutPageResolution
 static void AddHairMacroGroupAABBPass(
 	FRDGBuilder& GraphBuilder,
 	const FViewInfo& View, 
+	FHairTransientResources& TransientResources,
 	FHairStrandsMacroGroupData& MacroGroup,
 	FRDGBufferUAVRef& OutHairMacroGroupAABBBufferUAV,
 	FRDGBufferUAVRef& OutMacroGroupVoxelSizeBufferUAV)
@@ -71,77 +67,44 @@ static void AddHairMacroGroupAABBPass(
 	const FIntPoint Resolution(View.ViewRect.Width(), View.ViewRect.Height());
 	const float vFOV = FMath::DegreesToRadians(View.FOV);
 	const float PixelSizeAtDepth1 = FMath::Tan(vFOV * 0.5f) / (0.5f * Resolution.Y);
+	const uint32 MacroGroupCount = MacroGroup.PrimitivesInfos.Num();
 	
 	uint32 VoxelPageResolution = 0;
 	uint32 VoxelPageResolutionLog2 = 1;
 	GetVoxelPageResolution(VoxelPageResolution, VoxelPageResolutionLog2);
 
+	TArray<uint32> RegisteredIndices;
+	RegisteredIndices.Reserve(MacroGroupCount);
+	for (const FHairStrandsMacroGroupData::PrimitiveInfo& PrimitiveInfo : MacroGroup.PrimitivesInfos)
+	{
+		RegisteredIndices.Add(PrimitiveInfo.PublicDataPtr->Instance->RegisteredIndex);
+	}
+	FRDGBufferRef RegisteredIndexBuffer = CreateVertexBuffer(GraphBuilder, TEXT("Hair.RegisteredIndexBuffer"), FRDGBufferDesc::CreateBufferDesc(4, RegisteredIndices.Num()), RegisteredIndices.GetData(), 4u * RegisteredIndices.Num());
+
 	const float NumPixelPerVoxel = FMath::Clamp(GHairVirtualVoxel_NumPixelPerVoxel, 1.f, 50.f);
 
-	const uint32 GroupPerPass = 8;
-	bool bNeedClear = true;
-	const uint32 MacroGroupId = MacroGroup.MacroGroupId;
-	const uint32 IterationCount = FMath::CeilToInt(PrimitiveCount / float(GroupPerPass));
-	for (uint32 PassIt = 0; PassIt < IterationCount; ++PassIt)
-	{
-		FHairMacroGroupAABBCS::FParameters* Parameters = GraphBuilder.AllocParameters<FHairMacroGroupAABBCS::FParameters>();
-		Parameters->MacroGroupId = MacroGroupId;
-		Parameters->OutMacroGroupAABBBuffer = OutHairMacroGroupAABBBufferUAV;
-		Parameters->OutMacroGroupVoxelSizeBuffer = OutMacroGroupVoxelSizeBufferUAV;
-		Parameters->PixelSizeAtDepth1   = PixelSizeAtDepth1;
-		Parameters->NumPixelPerVoxel    = NumPixelPerVoxel;
-		Parameters->VoxelPageResolution = VoxelPageResolution;
-		Parameters->View			    = View.ViewUniformBuffer;
+	// Can only aggregate 32 GroupAABBs 
+	check(uint32(RegisteredIndices.Num()) < FHairMacroGroupAABBCS::GetGroupSize());
 
-		uint32 MacroGroupValid = 1;
-		uint32 CurrentGroupIt = 1;
-		for (uint32 PassPrimitiveIt = 0, PassPrimitiveCount = FMath::Min(GroupPerPass, PrimitiveCount - PassIt * GroupPerPass); PassPrimitiveIt < PassPrimitiveCount; ++PassPrimitiveIt)
-		{
-			const uint32 PrimitiveIndex = PassIt * GroupPerPass + PassPrimitiveIt;
-			const FHairStrandsMacroGroupData::PrimitiveInfo& PrimitiveInfo = MacroGroup.PrimitivesInfos[PrimitiveIndex];
-			FRDGBufferSRVRef GroupAABBBufferSRV = RegisterAsSRV(GraphBuilder, PrimitiveInfo.PublicDataPtr->GetGroupAABBBuffer());
-
-			// Default value
-			if (PassPrimitiveIt == 0 && PassPrimitiveCount != GroupPerPass)
-			{
-				Parameters->InGroupAABBBuffer0 = GroupAABBBufferSRV;
-				Parameters->InGroupAABBBuffer1 = GroupAABBBufferSRV;
-				Parameters->InGroupAABBBuffer2 = GroupAABBBufferSRV;
-				Parameters->InGroupAABBBuffer3 = GroupAABBBufferSRV;
-				Parameters->InGroupAABBBuffer4 = GroupAABBBufferSRV;
-				Parameters->InGroupAABBBuffer5 = GroupAABBBufferSRV;
-				Parameters->InGroupAABBBuffer6 = GroupAABBBufferSRV;
-				Parameters->InGroupAABBBuffer7 = GroupAABBBufferSRV;
-			}
-
-			switch (PassPrimitiveIt)
-			{
-				case 0 : Parameters->InGroupAABBBuffer0 = GroupAABBBufferSRV; break;
-				case 1 : Parameters->InGroupAABBBuffer1 = GroupAABBBufferSRV; break;
-				case 2 : Parameters->InGroupAABBBuffer2 = GroupAABBBufferSRV; break;
-				case 3 : Parameters->InGroupAABBBuffer3 = GroupAABBBufferSRV; break;
-				case 4 : Parameters->InGroupAABBBuffer4 = GroupAABBBufferSRV; break;
-				case 5 : Parameters->InGroupAABBBuffer5 = GroupAABBBufferSRV; break;
-				case 6 : Parameters->InGroupAABBBuffer6 = GroupAABBBufferSRV; break;
-				case 7 : Parameters->InGroupAABBBuffer7 = GroupAABBBufferSRV; break;
-			}
-			MacroGroupValid |= 1 << PassPrimitiveIt;
-
-		}
-
-		Parameters->MacroGroupValid = MacroGroupValid;
-		Parameters->bClearBuffer = bNeedClear ? 1 : 0;
-
-		TShaderMapRef<FHairMacroGroupAABBCS> ComputeShader(View.ShaderMap);
-		FComputeShaderUtils::AddPass(
-			GraphBuilder,
-			RDG_EVENT_NAME("HairStrands::MacroGroupAABBUpdate"),
-			ComputeShader,
-			Parameters,
-			FIntVector(1,1,1));
-
-		bNeedClear = false;
-	}
+	FHairMacroGroupAABBCS::FParameters* Parameters = GraphBuilder.AllocParameters<FHairMacroGroupAABBCS::FParameters>();
+	Parameters->MacroGroupId 					= MacroGroup.MacroGroupId;
+	Parameters->RegisteredIndexBuffer			= GraphBuilder.CreateSRV(RegisteredIndexBuffer, PF_R32_UINT);
+	Parameters->InGroupAABBBuffer				= TransientResources.GroupAABBSRV;
+	Parameters->OutMacroGroupAABBBuffer 		= OutHairMacroGroupAABBBufferUAV;
+	Parameters->OutMacroGroupVoxelSizeBuffer 	= OutMacroGroupVoxelSizeBufferUAV;
+	Parameters->PixelSizeAtDepth1   			= PixelSizeAtDepth1;
+	Parameters->NumPixelPerVoxel    			= NumPixelPerVoxel;
+	Parameters->VoxelPageResolution 			= VoxelPageResolution;
+	Parameters->View			    			= View.ViewUniformBuffer;
+	Parameters->MacroGroupCount					= MacroGroupCount;
+	
+	TShaderMapRef<FHairMacroGroupAABBCS> ComputeShader(View.ShaderMap);
+	FComputeShaderUtils::AddPass(
+		GraphBuilder,
+		RDG_EVENT_NAME("HairStrands::MacroGroupAABBUpdate"),
+		ComputeShader,
+		Parameters,
+		FIntVector(1, 1, 1));
 }
 
 static bool DoesGroupExists(uint32 ResourceId, uint32 GroupIndex, const FHairStrandsMacroGroupData::TPrimitiveInfos& PrimitivesGroups)
@@ -187,7 +150,8 @@ void CreateHairStrandsMacroGroups(
 	FRDGBuilder& GraphBuilder,
 	const FScene* Scene,
 	const FViewInfo& View, 
-	FHairStrandsViewData& OutHairStrandsViewData)
+	FHairStrandsViewData& OutHairStrandsViewData,
+	bool bBuildGPUAABB)
 {
 	const bool bHasHairStrandsElements = View.HairStrandsMeshElements.Num() != 0 || Scene->HairStrandsSceneData.RegisteredProxies.Num() != 0;
 	if (!View.Family || !bHasHairStrandsElements || View.bIsReflectionCapture)
@@ -316,11 +280,12 @@ void CreateHairStrandsMacroGroups(
 	}
 	// Sanity check
 	check(MacroGroups.Num() <= FHairStrandsMacroGroupData::MaxMacroGroupCount);
+	check(Scene->HairStrandsSceneData.TransientResources);
 
 	// Build hair macro group AABBB
 	FHairStrandsMacroGroupResources& MacroGroupResources = OutHairStrandsViewData.MacroGroupResources;
 	const uint32 MacroGroupCount = MacroGroups.Num();
-	if (MacroGroupCount > 0)
+	if (MacroGroupCount > 0 && bBuildGPUAABB)
 	{
 		DECLARE_GPU_STAT(HairStrandsAABB);
 		RDG_EVENT_SCOPE(GraphBuilder, "HairStrandsAABB");
@@ -333,7 +298,7 @@ void CreateHairStrandsMacroGroups(
 		FRDGBufferUAVRef MacroGroupVoxelSizeBufferUAV = GraphBuilder.CreateUAV(MacroGroupResources.MacroGroupVoxelSizeBuffer, PF_R16F);
 		for (FHairStrandsMacroGroupData& MacroGroup : MacroGroups)
 		{				
-			AddHairMacroGroupAABBPass(GraphBuilder, View, MacroGroup, MacroGroupAABBBufferUAV, MacroGroupVoxelSizeBufferUAV);
+			AddHairMacroGroupAABBPass(GraphBuilder, View, *Scene->HairStrandsSceneData.TransientResources, MacroGroup, MacroGroupAABBBufferUAV, MacroGroupVoxelSizeBufferUAV);
 		}
 		MacroGroupResources.MacroGroupCount = MacroGroups.Num();
 	}

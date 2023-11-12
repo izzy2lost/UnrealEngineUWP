@@ -451,7 +451,6 @@ FRDGHairStrandsCullingData ImportCullingData(FRDGBuilder& GraphBuilder, FHairGro
 
 	Out.ClusterCount		= In->GetClusterCount();
 	Out.ClusterAABBBuffer	= Register(GraphBuilder, In->GetClusterAABBBuffer(), ERDGImportedBufferFlags::CreateViews);
-	Out.GroupAABBBuffer		= Register(GraphBuilder, In->GetGroupAABBBuffer(), ERDGImportedBufferFlags::CreateViews);
 
 	return Out;
 }
@@ -790,6 +789,7 @@ class FHairClusterAABBCS : public FGlobalShader
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT_INCLUDE(ShaderPrint::FShaderParameters, ShaderDrawParameters)
+		SHADER_PARAMETER(uint32, InstanceRegisteredIndex)
 		SHADER_PARAMETER(float, LODIndex)
 		SHADER_PARAMETER(float, ClusterScale)
 		SHADER_PARAMETER(uint32, ClusterCount)
@@ -830,7 +830,8 @@ void AddHairClusterAABBPass(
 	FHairStrandClusterData::FHairGroup* ClusterData,
 	FRDGHairStrandsCullingData& ClusterAABBData,
 	FRDGBufferSRVRef RenderPositionBufferSRV,
-	FRDGBufferSRVRef& DrawIndirectRasterComputeBuffer)
+	FRDGBufferSRVRef& DrawIndirectRasterComputeBuffer,
+	FRDGBufferUAVRef GroupAABBBUAV)
 {
 	// Clusters AABB are only update if the groom is deformed.
 	const FBoxSphereBounds& Bounds = Instance->Strands.Data->Header.BoundingBox;
@@ -840,6 +841,7 @@ void AddHairClusterAABBPass(
 	Instance->HairGroupPublicData->SetClusterAABBValid(UpdateType == EHairAABBUpdateType::UpdateClusterAABB);
 
 	FHairClusterAABBCS::FParameters* Parameters = GraphBuilder.AllocParameters<FHairClusterAABBCS::FParameters>();
+	Parameters->InstanceRegisteredIndex = Instance->RegisteredIndex;
 	Parameters->LODIndex = ClusterData ? ClusterData->LODIndex : 1;;
 	Parameters->CPUBoundMin = (FVector3f)TransformedBounds.GetBox().Min;
 	Parameters->CPUBoundMax = (FVector3f)TransformedBounds.GetBox().Max;
@@ -852,7 +854,7 @@ void AddHairClusterAABBPass(
 	Parameters->RenCurveBuffer = RegisterAsSRV(GraphBuilder, Instance->Strands.RestResource->CurveBuffer);
 	Parameters->RenPointLODBuffer = ClusterData ? RegisterAsSRV(GraphBuilder, *ClusterData->PointLODBuffer) : nullptr;
 	Parameters->OutClusterAABBBuffer = ClusterAABBData.ClusterAABBBuffer.UAV;
-	Parameters->OutGroupAABBBuffer = ClusterAABBData.GroupAABBBuffer.UAV;
+	Parameters->OutGroupAABBBuffer = GroupAABBBUAV;
 
 	if (ShaderPrintData)
 	{
@@ -884,7 +886,6 @@ void AddHairClusterAABBPass(
 	}
 
 	GraphBuilder.SetBufferAccessFinal(ClusterAABBData.ClusterAABBBuffer.Buffer, ERHIAccess::SRVMask);
-	GraphBuilder.SetBufferAccessFinal(ClusterAABBData.GroupAABBBuffer.Buffer, ERHIAccess::SRVMask);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1243,6 +1244,7 @@ class FClearClusterAABBCS : public FGlobalShader
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer, OutClusterAABBBuffer)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer, OutGroupAABBBuffer)
+		SHADER_PARAMETER(uint32, InstanceRegisteredIndex)
 		SHADER_PARAMETER(uint32, ClusterCount)
 		SHADER_PARAMETER(uint32, bClearClusterAABBs)
 	END_SHADER_PARAMETER_STRUCT()
@@ -1262,17 +1264,19 @@ void AddClearClusterAABBPass(
 	FRDGBuilder& GraphBuilder,
 	FGlobalShaderMap* ShaderMap,
 	const EHairAABBUpdateType UpdateType,
+	uint32 InstanceRegisteredIndex,
 	uint32 ClusterCount,
 	FRDGImportedBuffer& OutClusterAABBBuffer,
-	FRDGImportedBuffer& OutGroupAABBBuffer)
+	FRDGBufferUAVRef& OutGroupAABBUAV)
 {
 	check(OutClusterAABBBuffer.Buffer);
 
 	FClearClusterAABBCS::FParameters* Parameters = GraphBuilder.AllocParameters<FClearClusterAABBCS::FParameters>();
+	Parameters->InstanceRegisteredIndex = InstanceRegisteredIndex;
 	Parameters->ClusterCount = ClusterCount;
 	Parameters->bClearClusterAABBs = UpdateType == EHairAABBUpdateType::UpdateClusterAABB ? 1 : 0;
 	Parameters->OutClusterAABBBuffer = OutClusterAABBBuffer.UAV;
-	Parameters->OutGroupAABBBuffer = OutGroupAABBBuffer.UAV;
+	Parameters->OutGroupAABBBuffer = OutGroupAABBUAV;
 
 	TShaderMapRef<FClearClusterAABBCS> ComputeShader(ShaderMap);
 
@@ -1288,8 +1292,7 @@ void AddClearClusterAABBPass(
 		Parameters,
 		DispatchCount);
 
-	GraphBuilder.SetBufferAccessFinal(OutClusterAABBBuffer.Buffer, ERHIAccess::SRVMask),
-	GraphBuilder.SetBufferAccessFinal(OutGroupAABBBuffer.Buffer, ERHIAccess::SRVMask);
+	GraphBuilder.SetBufferAccessFinal(OutClusterAABBBuffer.Buffer, ERHIAccess::SRVMask);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////

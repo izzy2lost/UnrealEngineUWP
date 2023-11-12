@@ -1152,6 +1152,7 @@ void MainCS(uint InGroupIndex : SV_GroupIndex, uint3 DispatchThreadId : SV_Dispa
 
 #include "HairStrandsAABBCommon.ush"
 
+uint					InstanceRegisteredIndex;
 int2					MaxResolution;
 uint					InstanceCount;
 uint					InstanceCount_StrandsPrimaryView;
@@ -1555,7 +1556,7 @@ void MainCS(uint GroupIndex : SV_GroupIndex, uint3 DispatchThreadId : SV_Dispatc
 	if (all(DispatchThreadId == 0))
 	{
 		// Bound
-		const FHairAABB AABB = ReadHairAABB(0, InstanceAABB);
+		const FHairAABB AABB = ReadHairAABB(InstanceRegisteredIndex, InstanceAABB);
 		AddAABBTWS(AABB.Min, AABB.Max, GetGPUAABBInstanceGroupBoundColor());
 
 		// Screen size
@@ -2872,6 +2873,7 @@ void MainCS(uint GroupIndex : SV_GroupIndex, uint3 DispatchThreadId : SV_Dispatc
 
 #include "HairStrandsAABBCommon.ush"
 
+uint InstanceRegisteredIndex;
 uint ClusterCount;
 uint HairGroupId;
 uint PointCount;
@@ -2914,7 +2916,7 @@ void MainDrawDebugAABBCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 		// Group
 		if (DispatchThreadId.x == 0)
 		{
-			const FHairAABB GroupBound = ReadHairAABB(0, GroupAABBBuffer);
+			const FHairAABB GroupBound = ReadHairAABB(InstanceRegisteredIndex, GroupAABBBuffer);
 			AddAABBTWS(GroupBound.Min, GroupBound.Max, float4(1.0f, 0.5f, 0.0f, 1.0f));
 		}
 	

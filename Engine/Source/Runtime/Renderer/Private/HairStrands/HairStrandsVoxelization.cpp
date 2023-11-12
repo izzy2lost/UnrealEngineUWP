@@ -486,6 +486,7 @@ inline FIntVector CeilToInt(const FVector& V)
 static void AddAllocateVoxelPagesPass(
 	FRDGBuilder& GraphBuilder,
 	const FViewInfo& View,
+	FHairTransientResources& TransientResources,
 	FHairStrandsMacroGroupDatas& MacroGroupDatas,
 	FHairStrandsMacroGroupResources& MacroGroupResources,
 	const FIntVector PageCountResolution,
@@ -674,7 +675,7 @@ static void AddAllocateVoxelPagesPass(
 				FVoxelMarkValidPageIndex_PrepareCS::FParameters* Parameters = GraphBuilder.AllocParameters<FVoxelMarkValidPageIndex_PrepareCS::FParameters>();
 				Parameters->MaxClusterCount								= HairGroupData->GetClusterCount();
 				Parameters->MacroGroupId								= MacroGroup.MacroGroupId;
-				Parameters->GroupAABBsBuffer							= RegisterAsSRV(GraphBuilder, HairGroupData->GetGroupAABBBuffer());
+				Parameters->GroupAABBsBuffer							= TransientResources.GroupAABBSRV;
 				Parameters->ClusterAABBsBuffer							= RegisterAsSRV(GraphBuilder, HairGroupData->GetClusterAABBBuffer());
 				Parameters->MacroGroupVoxelAlignedAABBBuffer			= GraphBuilder.CreateSRV(MacroGroupResources.MacroGroupVoxelAlignedAABBsBuffer, PF_R32_SINT);
 				Parameters->PageIndexResolutionAndOffsetBuffer			= PageIndexResolutionAndOffsetBufferSRV;
@@ -834,6 +835,7 @@ static FHairStrandsVoxelResources AllocateVirtualVoxelResources(
 	FRDGBuilder& GraphBuilder,
 	const FViewInfo& View,
 	const FVector& PreViewStereoCorrection,
+	FHairTransientResources& TransientResources,
 	FHairStrandsMacroGroupDatas& MacroGroupDatas,
 	FHairStrandsMacroGroupResources& MacroGroupResources,
 	FRDGBufferRef& PageToPageIndexBuffer,
@@ -899,6 +901,7 @@ static FHairStrandsVoxelResources AllocateVirtualVoxelResources(
 	AddAllocateVoxelPagesPass(
 		GraphBuilder, 
 		View, 
+		TransientResources,
 		MacroGroupDatas,
 		MacroGroupResources,
 		Out.Parameters.Common.PageCountResolution,
@@ -1401,6 +1404,7 @@ void VoxelizeHairStrands(
 	FHairStrandsMacroGroupDatas& MacroGroupDatas = View.HairStrandsViewData.MacroGroupDatas;
 	FHairStrandsVoxelResources& VirtualVoxelResources = View.HairStrandsViewData.VirtualVoxelResources;
 	FHairStrandsMacroGroupResources& MacroGroupResources = View.HairStrandsViewData.MacroGroupResources;
+	FHairTransientResources* TransientResources = Scene->HairStrandsSceneData.TransientResources;
 
 	// Simple early out to check if voxelization is needed
 	if (!IsHairStrandsVoxelizationEnable() || MacroGroupDatas.Num() == 0)
@@ -1430,10 +1434,11 @@ void VoxelizeHairStrands(
 	RDG_EVENT_SCOPE(GraphBuilder, "HairStrandsVoxelization");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, HairStrandsVoxelization);
 
+	check(TransientResources);
 	{
 		FRDGBufferRef PageToPageIndexBuffer = nullptr;
 		FHairStrandsViewStateData* HairStrandsViewStateData = View.ViewState ? &View.ViewState->HairStrandsViewStateData : nullptr;
-		VirtualVoxelResources = AllocateVirtualVoxelResources(GraphBuilder, View, PreViewStereoCorrection, MacroGroupDatas, MacroGroupResources, PageToPageIndexBuffer, HairStrandsViewStateData);
+		VirtualVoxelResources = AllocateVirtualVoxelResources(GraphBuilder, View, PreViewStereoCorrection, *TransientResources, MacroGroupDatas, MacroGroupResources, PageToPageIndexBuffer, HairStrandsViewStateData);
 
 		FRDGBufferRef ClearIndArgsBuffer = IndirectVoxelPageClear(GraphBuilder, View, VirtualVoxelResources);
 

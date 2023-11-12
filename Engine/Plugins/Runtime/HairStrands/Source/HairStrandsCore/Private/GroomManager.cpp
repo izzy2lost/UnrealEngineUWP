@@ -82,7 +82,8 @@ void AddHairClusterAABBPass(
 	FHairStrandClusterData::FHairGroup* ClusterData,
 	FRDGHairStrandsCullingData& ClusterAABBData,
 	FRDGBufferSRVRef RenderPositionBufferSRV,
-	FRDGBufferSRVRef& DrawIndirectRasterComputeBuffer);
+	FRDGBufferSRVRef& DrawIndirectRasterComputeBuffer,
+	FRDGBufferUAVRef GroupAABBUAV);
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 // Utils
@@ -667,6 +668,7 @@ void AddDrawDebugClusterPass(
 	FRDGBuilder& GraphBuilder,
 	const FSceneView& View,
 	FGlobalShaderMap* ShaderMap,
+	FHairTransientResources& TransientResources,
 	const FShaderPrintData* ShaderPrintData,
 	EGroomViewMode ViewMode,
 	FHairStrandClusterData& HairClusterData);
@@ -679,6 +681,7 @@ static void RunHairStrandsInterpolation_Strands(
 	const uint32 ViewUniqueID,
 	const FHairStrandsInstances& Instances,
 	const FShaderPrintData* ShaderPrintData,
+	FHairTransientResources& TransientResources,
 	FGlobalShaderMap* ShaderMap)
 {
 	if (Instances.IsEmpty()) { return; }
@@ -709,6 +712,7 @@ static void RunHairStrandsInterpolation_Strands(
 
 	struct FInstanceData
 	{
+		uint32 RegisteredIndex = ~0;
 		int32 HairLODIndex = -1;
 		int32 MeshLODIndex = -1;
 		uint32 ActivePointCount = 0;
@@ -739,7 +743,6 @@ static void RunHairStrandsInterpolation_Strands(
 		}
 	};
 
-
 	// Gather all strands instances
 	const uint32 ViewRayTracingMask = RHI_RAYTRACING ? (View->Family->EngineShowFlags.PathTracing ? EHairViewRayTracingMask::PathTracing : EHairViewRayTracingMask::RayTracing) : 0u;
 	bool bHasAnySimCacheInstances = false;
@@ -757,6 +760,7 @@ static void RunHairStrandsInterpolation_Strands(
 		check(Instance->HairGroupPublicData);
 
 		FInstanceData& InstanceData = InstanceDatas.AddDefaulted_GetRef();
+		InstanceData.RegisteredIndex			= Instance->RegisteredIndex;
 		InstanceData.Instance 					= Instance;
 		InstanceData.ActivePointCount 			= Instance->HairGroupPublicData->GetActiveStrandsPointCount();
 		InstanceData.ActiveCurveCount 			= Instance->HairGroupPublicData->GetActiveStrandsCurveCount();
@@ -869,13 +873,14 @@ static void RunHairStrandsInterpolation_Strands(
 				ShaderMap,
 				Views[0],
 				ShaderPrintData,
-				ClusterDatas);
+				ClusterDatas,
+				TransientResources.IndirectDispatchArgsUAV);
 		}
 
 		// Run cluster debug view here (instead of GroomDebug.h/.cpp, as we need to have the (transient) cluster data 
 		if (ViewMode == EGroomViewMode::Cluster || ViewMode == EGroomViewMode::ClusterAABB)
 		{
-			AddDrawDebugClusterPass(GraphBuilder, *View, ShaderMap, ShaderPrintData, ViewMode, ClusterDatas);
+			AddDrawDebugClusterPass(GraphBuilder, *View, ShaderMap, TransientResources, ShaderPrintData, ViewMode, ClusterDatas);
 		}
 	}
 
@@ -955,17 +960,15 @@ static void RunHairStrandsInterpolation_Strands(
 	// Clear cluster AABBs (used optionally  for voxel allocation & for culling)
 	for (FInstanceData& InstanceData : InstanceDatas)
 	{
-		//if (InstanceData.bNeedDeformation)
-		{
-			InstanceData.CullingData = ImportCullingData(GraphBuilder, InstanceData.Instance->HairGroupPublicData);
-			AddClearClusterAABBPass(
-				GraphBuilder,
-				ShaderMap,
-				InstanceData.bNeedDeformation ? EHairAABBUpdateType::UpdateClusterAABB : EHairAABBUpdateType::UpdateGroupAABB,
-				InstanceData.CullingData.ClusterCount,
-				InstanceData.CullingData.ClusterAABBBuffer,
-				InstanceData.CullingData.GroupAABBBuffer);
-		}
+		InstanceData.CullingData = ImportCullingData(GraphBuilder, InstanceData.Instance->HairGroupPublicData);
+		AddClearClusterAABBPass(
+			GraphBuilder,
+			ShaderMap,
+			InstanceData.bNeedDeformation ? EHairAABBUpdateType::UpdateClusterAABB : EHairAABBUpdateType::UpdateGroupAABB,
+			InstanceData.RegisteredIndex,
+			InstanceData.CullingData.ClusterCount,
+			InstanceData.CullingData.ClusterAABBBuffer,
+			TransientResources.GroupAABBUAV);
 	}
 
 	for (FInstanceData& InstanceData : InstanceDatas)
@@ -1169,7 +1172,6 @@ static void RunHairStrandsInterpolation_Strands(
 		}
 			
 		InstanceData.Instance->HairGroupPublicData->SetClusterAABBValid(false);
-		InstanceData.Instance->HairGroupPublicData->SetGroupAABBValid(false);
 			
 		if (bNeedGPUAABB)
 		{
@@ -1186,10 +1188,12 @@ static void RunHairStrandsInterpolation_Strands(
 				HairGroupCluster,
 				InstanceData.CullingData,
 				InstanceData.RDGResources.PositionSRV,
-				Strands_CulledVertexCount.SRV);
+				Strands_CulledVertexCount.SRV,
+				TransientResources.GroupAABBUAV);
 			
 			InstanceData.Instance->HairGroupPublicData->SetClusterAABBValid(UpdateType == EHairAABBUpdateType::UpdateClusterAABB);
-			InstanceData.Instance->HairGroupPublicData->SetGroupAABBValid(true);
+
+			TransientResources.bIsGroupAABBValid[InstanceData.RegisteredIndex] = true;
 		}
 	}
 
@@ -1988,6 +1992,7 @@ void RunHairStrandsDebug(
 	const FSceneView& View,
 	const FHairStrandsInstances& Instances,
 	const TArray<EHairInstanceVisibilityType>& InstancesVisibilityType,
+	FHairTransientResources& TransientResources,
 	const FShaderPrintData* ShaderPrintData,
 	FRDGTextureRef SceneColor,
 	FRDGTextureRef SceneDepth,
@@ -2101,6 +2106,7 @@ void ProcessHairStrandsBookmark(
 	else if (Bookmark == EHairStrandsBookmark::ProcessStrandsInterpolation)
 	{
 		check(GraphBuilder);
+		check(Parameters.TransientResources);
 		RunHairStrandsInterpolation_Strands(
 			*GraphBuilder,
 			Parameters.Scene,
@@ -2109,6 +2115,7 @@ void ProcessHairStrandsBookmark(
 			Parameters.ViewUniqueID,
 			*Instances,
 			Parameters.ShaderPrintData,
+			*Parameters.TransientResources,
 			Parameters.ShaderMap);
 	}
 	else if (Bookmark == EHairStrandsBookmark::ProcessDebug)
@@ -2128,6 +2135,7 @@ void ProcessHairStrandsBookmark(
 		}
 
 		check(GraphBuilder);
+		check(Parameters.TransientResources);
 		RunHairStrandsDebug(
 			*GraphBuilder,
 			Parameters.ShaderMap,
@@ -2135,6 +2143,7 @@ void ProcessHairStrandsBookmark(
 			*Parameters.View,
 			*Instances,
 			Parameters.InstancesVisibilityType,
+			*Parameters.TransientResources,
 			Parameters.ShaderPrintData,
 			Parameters.SceneColorTexture,
 			Parameters.SceneDepthTexture,

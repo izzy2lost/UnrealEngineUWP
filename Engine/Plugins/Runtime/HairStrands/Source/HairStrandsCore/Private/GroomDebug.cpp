@@ -409,7 +409,8 @@ class FDrawDebugClusterAABBCS : public FGlobalShader
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters,)
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, ViewUniformBuffer)
 		SHADER_PARAMETER_SRV(Buffer, ClusterAABBBuffer)
-		SHADER_PARAMETER_SRV(Buffer, GroupAABBBuffer)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, GroupAABBBuffer)
+		SHADER_PARAMETER(uint32, InstanceRegisteredIndex)
 		SHADER_PARAMETER(uint32, ClusterCount)
 		SHADER_PARAMETER(uint32, PointCount)
 		SHADER_PARAMETER(uint32, CurveCount)
@@ -437,6 +438,7 @@ void AddDrawDebugClusterPass(
 	FRDGBuilder& GraphBuilder,
 	const FSceneView& View,
 	FGlobalShaderMap* ShaderMap,
+	FHairTransientResources& TransientResources,
 	const FShaderPrintData* ShaderPrintData,
 	EGroomViewMode ViewMode,
 	FHairStrandClusterData& HairClusterData)
@@ -459,6 +461,7 @@ void AddDrawDebugClusterPass(
 		TShaderMapRef<FDrawDebugClusterAABBCS> ComputeShader(ShaderMap);
 
 		FDrawDebugClusterAABBCS::FParameters* Parameters = GraphBuilder.AllocParameters<FDrawDebugClusterAABBCS::FParameters>();
+		Parameters->InstanceRegisteredIndex = HairGroupClusters.InstanceRegisteredIndex;
 		Parameters->ViewUniformBuffer = View.ViewUniformBuffer;
 		Parameters->ClusterCount = HairGroupClusters.ClusterCount;
 		Parameters->PointCount = HairGroupClusters.HairGroupPublicPtr->GetActiveStrandsPointCount();
@@ -466,7 +469,7 @@ void AddDrawDebugClusterPass(
 		Parameters->HairGroupId = DataIndex++;
 		Parameters->bDrawAABB = ViewMode == EGroomViewMode::ClusterAABB ? 1 : 0;
 		Parameters->ClusterAABBBuffer = HairGroupClusters.ClusterAABBBuffer->SRV;
-		Parameters->GroupAABBBuffer = HairGroupClusters.GroupAABBBuffer->SRV;
+		Parameters->GroupAABBBuffer = TransientResources.GroupAABBSRV;
 		ShaderPrint::SetParameters(GraphBuilder, *ShaderPrintData, Parameters->ShaderPrintParameters);
 
 		const FIntVector DispatchCount = DispatchCount.DivideAndRoundUp(FIntVector(Parameters->ClusterCount, 1, 1), FIntVector(FDrawDebugClusterAABBCS::GetGroupSize(), 1, 1));
@@ -840,7 +843,7 @@ class FHairDebugPrintInstanceCS : public FGlobalShader
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER(uint32, InstanceCount)
-
+		SHADER_PARAMETER(uint32, InstanceRegisteredIndex)
 		SHADER_PARAMETER(uint32, InstanceCount_StrandsPrimaryView)
 		SHADER_PARAMETER(uint32, InstanceCount_StrandsShadowView)
 		SHADER_PARAMETER(uint32, InstanceCount_CardsOrMeshesPrimaryView)
@@ -877,6 +880,7 @@ static void AddHairDebugPrintInstancePass(
 	FRDGBuilder& GraphBuilder, 
 	FGlobalShaderMap* ShaderMap,
 	const FSceneView& View,
+	FHairTransientResources& TransientResources,
 	const FShaderPrintData* ShaderPrintData,
 	const FHairStrandsInstances& Instances,
 	const TArray<EHairInstanceVisibilityType>& InstancesVisibilityType)
@@ -1093,7 +1097,8 @@ static void AddHairDebugPrintInstancePass(
 			const float ContinousLODRadius = Instance->HairGroupPublicData->ContinuousLODScreenSize * MaxRectSizeInPixels * 0.5f; // Diameter->Radius
 
 			FHairDebugPrintInstanceCS::FParameters* Parameters = GraphBuilder.AllocParameters<FHairDebugPrintInstanceCS::FParameters>();
-			Parameters->InstanceAABB = Register(GraphBuilder, Instance->HairGroupPublicData->GetGroupAABBBuffer(), ERDGImportedBufferFlags::CreateSRV).SRV;
+			Parameters->InstanceRegisteredIndex = Instance->RegisteredIndex;
+			Parameters->InstanceAABB = TransientResources.GroupAABBSRV;
 			Parameters->InstanceScreenSphereBound = FVector4f(Instance->HairGroupPublicData->ContinuousLODScreenPos.X, Instance->HairGroupPublicData->ContinuousLODScreenPos.Y, 0.f, ContinousLODRadius);
 			ShaderPrint::SetParameters(GraphBuilder, *ShaderPrintData, Parameters->ShaderPrintUniformBuffer);
 			ClearUnusedGraphResources(ComputeShader, Parameters);
@@ -1369,6 +1374,7 @@ void RunHairStrandsDebug(
 	const FSceneView& View,
 	const FHairStrandsInstances& Instances,
 	const TArray<EHairInstanceVisibilityType>& InstancesVisibilityType,
+	FHairTransientResources& TransientResources,
 	const FShaderPrintData* ShaderPrintData,
 	FRDGTextureRef SceneColorTexture,
 	FRDGTextureRef SceneDepthTexture,
@@ -1379,7 +1385,7 @@ void RunHairStrandsDebug(
 
 	if (ViewMode == EGroomViewMode::MacroGroups)
 	{
-		AddHairDebugPrintInstancePass(GraphBuilder, ShaderMap, View, ShaderPrintData, Instances, InstancesVisibilityType);
+		AddHairDebugPrintInstancePass(GraphBuilder, ShaderMap, View, TransientResources, ShaderPrintData, Instances, InstancesVisibilityType);
 	}
 
 	if (ViewMode == EGroomViewMode::MeshProjection)
