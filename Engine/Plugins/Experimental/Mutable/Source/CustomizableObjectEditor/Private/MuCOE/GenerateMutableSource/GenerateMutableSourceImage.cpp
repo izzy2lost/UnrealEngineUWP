@@ -1042,7 +1042,10 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 					bSuccess = false;
 				}
 
-				if (bSuccess && Pin->PinType.PinCategory != Schema->PC_MaterialAsset && !TypedNodeTable->GetColumnDefaultAssetByType<UTexture2D>(Pin) && !TypedNodeTable->GetColumnDefaultAssetByType<UTexture2DArray>(Pin))
+				UTexture2D* DefaultTexture2D = TypedNodeTable->GetColumnDefaultAssetByType<UTexture2D>(Pin);
+				UTexture2DArray* DefaultTextureArray = TypedNodeTable->GetColumnDefaultAssetByType<UTexture2DArray>(Pin);
+
+				if (bSuccess && Pin->PinType.PinCategory != Schema->PC_MaterialAsset && !DefaultTexture2D && !DefaultTextureArray)
 				{
 					FString Msg = FString::Printf(TEXT("Couldn't find a default value in the data table's struct for the column [%s]. The default value is null or not a supported Texture"), *ColumnName);
 					GenerationContext.Compiler->CompilerLog(FText::FromString(Msg), Node);
@@ -1115,8 +1118,14 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 							ImageTableNode->SetTable(Table);
 							ImageTableNode->SetColumn(ColumnName);
 							ImageTableNode->SetParameterName(TypedNodeTable->ParameterName);
-							ImageTableNode->SetMaxTextureSize(MaxTextureSize);
 
+							// TextureArrays are passthrough textures and do not need this step
+							if (DefaultTexture2D)
+							{
+								int32 DefaultMaxTextureSize = GetMaxTextureSize(DefaultTexture2D, GenerationContext);
+								ImageTableNode->SetMaxTextureSize(FMath::Max(DefaultTexture2D->Source.GetSizeX(), DefaultTexture2D->Source.GetSizeY()));
+							}
+							
 							GenerationContext.AddParameterNameUnique(Node, TypedNodeTable->ParameterName);
 						}
 					}
