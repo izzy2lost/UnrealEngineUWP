@@ -1172,7 +1172,6 @@ void UGeometryCollectionComponent::SetNotifyGlobalBreaks(bool bNewNotifyGlobalBr
 			PhysicsProxy->SetNotifyGlobalBreakings_External(bNewNotifyGlobalBreaks);
 		}
 		bNotifyGlobalBreaks = bNewNotifyGlobalBreaks;
-		RegisterForEvents();
 	}
 }
 
@@ -1182,7 +1181,6 @@ void UGeometryCollectionComponent::SetNotifyGlobalCollision(bool bNewNotifyGloba
 	{
 		bNotifyGlobalCollisions = bNewNotifyGlobalCollisions;
 		UpdateGlobalCollisionEventRegistration();
-		RegisterForEvents();
 	}
 }
 
@@ -1196,7 +1194,6 @@ void UGeometryCollectionComponent::SetNotifyGlobalRemovals(bool bNewNotifyGlobal
 		}
 		bNotifyGlobalRemovals = bNewNotifyGlobalRemovals;
 		UpdateGlobalRemovalEventRegistration();
-		RegisterForEvents();
 	}
 }
 

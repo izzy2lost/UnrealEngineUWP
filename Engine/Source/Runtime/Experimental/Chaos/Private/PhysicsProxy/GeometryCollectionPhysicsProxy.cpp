@@ -2846,6 +2846,11 @@ void FGeometryCollectionPhysicsProxy::SetNotifyGlobalBreakings_External(bool bNo
 		[this, bNotify]()
 		{
 			Parameters.bGenerateGlobalBreakingData = bNotify;
+
+			if (Chaos::FPBDRigidsSolver* Solver = GetSolver<Chaos::FPBDRigidsSolver>())
+			{
+				Solver->SetGenerateBreakingData(true);
+			}
 		});
 }
 
