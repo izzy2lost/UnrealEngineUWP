@@ -417,6 +417,12 @@ FArchive& operator<<(FArchive& Ar, TOptional<OptionalType>& Optional)
 	return Ar;
 }
 
+template<typename OptionalType>
+inline auto GetTypeHash(const TOptional<OptionalType>& Optional) -> decltype(GetTypeHash(*Optional))
+{
+	return Optional.IsSet() ? GetTypeHash(*Optional) : 0;
+}
+
 /**
  * Trait which determines whether or not a type is a TOptional.
  */
