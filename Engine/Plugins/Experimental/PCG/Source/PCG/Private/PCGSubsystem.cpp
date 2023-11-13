@@ -861,10 +861,10 @@ namespace PCGSubsystem
 		APCGWorldActor* PCGWorldActor = PCGHelpers::GetPCGWorldActor(World);
 		check(PCGWorldActor);
 
-		PCGWorldActor->CreateGridGuidsIfNecessary(GridSizes);
+		PCGWorldActor->CreateGridGuidsIfNecessary(GridSizes, /*bAreGridsSerialized=*/true);
 
 		PCGHiGenGrid::FSizeToGuidMap GridSizeToGuid;
-		PCGWorldActor->GetGridGuids(GridSizeToGuid);
+		PCGWorldActor->GetSerializedGridGuids(GridSizeToGuid);
 		
 		TArray<FPCGTaskId> CellTasks;
 		for (uint32 GridSize : GridSizes)

@@ -25,9 +25,14 @@ public:
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
-	/** Returns the grid GUIDs used for the partitioned actors, one per grid size. */
-	void CreateGridGuidsIfNecessary(const PCGHiGenGrid::FSizeArray& InGridSizes);
-	void GetGridGuids(PCGHiGenGrid::FSizeToGuidMap& OutSizeToGuidMap) const;
+	/** Creates guids for unused grid sizes. */
+	void CreateGridGuidsIfNecessary(const PCGHiGenGrid::FSizeArray& InGridSizes, bool bAreGridsSerialized);
+
+	/** Returns the serialized grid GUIDs used for the partitioned actors, one per grid size. */
+	void GetSerializedGridGuids(PCGHiGenGrid::FSizeToGuidMap& OutSizeToGuidMap) const;
+
+	/** Returns the transient grid GUIDs used for the partitioned actors, one per grid size. */
+	void GetTransientGridGuids(PCGHiGenGrid::FSizeToGuidMap& OutSizeToGuidMap) const;
 
 	void MergeFrom(APCGWorldActor* OtherWorldActor);
 
@@ -78,10 +83,15 @@ private:
 	void OnPartitionGridSizeChanged();
 #endif
 
-	/** GUIDs of the partitioned actor grids, one per grid size. */
+	/** GUIDs of the serialized partitioned actor grids, one per grid size. */
 	UPROPERTY()
 	TMap<uint32, FGuid> GridGuids;
 	mutable FRWLock GridGuidsLock;
+
+	/** GUIDs of the transient partitioned actor grids, one per grid size. */
+	UPROPERTY(Transient)
+	TMap<uint32, FGuid> TransientGridGuids;
+	mutable FRWLock TransientGridGuidsLock;
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2

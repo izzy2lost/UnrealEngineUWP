@@ -608,12 +608,18 @@ void FPCGActorAndComponentMapping::ForAllIntersectingPartitionActors(const FBox&
 	};
 
 	PCGHiGenGrid::FSizeToGuidMap GridSizeToGuid;
-	PCGWorldActor->GetGridGuids(GridSizeToGuid);
+	PCGWorldActor->GetSerializedGridGuids(GridSizeToGuid);
 	for (const TPair<uint32, FGuid>& SizeAndGuid : GridSizeToGuid)
 	{
 		const uint32 GridSize = SizeAndGuid.Key;
-
 		ForAllIntersectingPartitionActorsOfGridSize(PartitionActorsMap, PartitionActorsMapLock, GridSize);
+	}
+
+	GridSizeToGuid.Empty();
+	PCGWorldActor->GetTransientGridGuids(GridSizeToGuid);
+	for (const TPair<uint32, FGuid>& SizeAndGuid : GridSizeToGuid)
+	{
+		const uint32 GridSize = SizeAndGuid.Key;
 		ForAllIntersectingPartitionActorsOfGridSize(RuntimeGenPartitionActorsMap, RuntimeGenPartitionActorsMapLock, GridSize);
 	}
 }

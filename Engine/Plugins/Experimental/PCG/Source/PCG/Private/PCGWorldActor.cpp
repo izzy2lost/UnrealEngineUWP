@@ -130,16 +130,19 @@ void APCGWorldActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	Super::EndPlay(EndPlayReason);
 }
 
-void APCGWorldActor::CreateGridGuidsIfNecessary(const PCGHiGenGrid::FSizeArray& InGridSizes)
+void APCGWorldActor::CreateGridGuidsIfNecessary(const PCGHiGenGrid::FSizeArray& InGridSizes, bool bAreGridsSerialized)
 {
+	TMap<uint32, FGuid>& GuidsMap = bAreGridsSerialized ? GridGuids : TransientGridGuids;
+	FRWLock& GuidsLock = bAreGridsSerialized ? GridGuidsLock : TransientGridGuidsLock;
+
 	// Check if any need adding
 	ensure(!InGridSizes.IsEmpty());
 	PCGHiGenGrid::FSizeArray GridSizesToAdd;
 	{
-		FReadScopeLock ReadLock(GridGuidsLock);
+		FReadScopeLock ReadLock(GuidsLock);
 		for (uint32 GridSize : InGridSizes)
 		{
-			if (!GridGuids.Contains(GridSize))
+			if (!GuidsMap.Contains(GridSize))
 			{
 				GridSizesToAdd.Push(GridSize);
 			}
@@ -148,19 +151,19 @@ void APCGWorldActor::CreateGridGuidsIfNecessary(const PCGHiGenGrid::FSizeArray& 
 
 	if (GridSizesToAdd.Num() > 0)
 	{
-		FWriteScopeLock WriteLock(GridGuidsLock);
+		FWriteScopeLock WriteLock(GuidsLock);
 
 		bool bModified = false;
 		for (uint32 GridSize : GridSizesToAdd)
 		{
-			if (!GridGuids.Contains(GridSize))
+			if (!GuidsMap.Contains(GridSize))
 			{
-				GridGuids.Add(GridSize, FGuid::NewGuid());
+				GuidsMap.Add(GridSize, FGuid::NewGuid());
 				bModified = true;
 			}
 		}
 
-		if (bModified)
+		if (bModified && bAreGridsSerialized)
 		{
 			// Set dirty flag if we added guids. Unfortunately if the guids are not up to date, this will produce save prompts
 			// to users. However, this was needed to ensure the guids are saved - without this guids were lost and PAs were leaked.
@@ -173,17 +176,26 @@ void APCGWorldActor::CreateGridGuidsIfNecessary(const PCGHiGenGrid::FSizeArray& 
 				PCGSubsystem->ScheduleGeneric([this]()
 				{
 					this->MarkPackageDirty();
-				return true;
+					return true;
 				}, nullptr, {});
 			}
 		}
 	}
 }
 
-void APCGWorldActor::GetGridGuids(PCGHiGenGrid::FSizeToGuidMap& OutSizeToGuidMap) const
+void APCGWorldActor::GetSerializedGridGuids(PCGHiGenGrid::FSizeToGuidMap& OutSizeToGuidMap) const
 {
 	FReadScopeLock ReadLock(GridGuidsLock);
 	for (const TPair<uint32, FGuid>& SizeGuid : GridGuids)
+	{
+		OutSizeToGuidMap.Add(SizeGuid.Key, SizeGuid.Value);
+	}
+}
+
+void APCGWorldActor::GetTransientGridGuids(PCGHiGenGrid::FSizeToGuidMap& OutSizeToGuidMap) const
+{
+	FReadScopeLock ReadLock(TransientGridGuidsLock);
+	for (const TPair<uint32, FGuid>& SizeGuid : TransientGridGuids)
 	{
 		OutSizeToGuidMap.Add(SizeGuid.Key, SizeGuid.Value);
 	}
