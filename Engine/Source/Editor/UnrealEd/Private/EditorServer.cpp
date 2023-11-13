@@ -4931,7 +4931,11 @@ void UEditorEngine::MoveViewportCamerasToBox(const FBox& BoundingBox, bool bActi
 			// Update all viewports.
 			for (FLevelEditorViewportClient* LinkedViewportClient : GetLevelViewportClients())
 			{
-				LinkedViewportClient->FocusViewportOnBox(BoundingBox);
+				// Skip viewports that are locked on an actor, like actor previews, except the current viewport as we want to allow focusing while piloting
+				if (!LinkedViewportClient->IsAnyActorLocked() || LinkedViewportClient == GCurrentLevelEditingViewportClient)
+				{
+					LinkedViewportClient->FocusViewportOnBox(BoundingBox);
+				}
 			}
 		}
 
