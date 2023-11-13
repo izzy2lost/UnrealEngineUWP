@@ -129,13 +129,61 @@ namespace UE::MovieGraph::DefaultRenderer
 			FThreadSafeBool bIsActive;
 			UE::Tasks::FTask TaskPrereq;
 		};
+
 		typedef TSharedPtr<FInstance, ESPMode::ThreadSafe> FInstancePtr;
 
 		TArray<TSharedPtr<FInstance, ESPMode::ThreadSafe>> Accumulators;
 		FCriticalSection CriticalSection;
 
+		template <typename AccumulatorType>
+		FSurfaceAccumulatorPool::FInstancePtr GetAccumulatorInstance_GameThread(int32 InFrameNumber, const FMovieGraphRenderDataIdentifier& InPassIdentifier)
+		{
+			FScopeLock ScopeLock(&CriticalSection);
 
-		FInstancePtr BlockAndGetAccumulator_GameThread(int32 InFrameNumber, const FMovieGraphRenderDataIdentifier& InPassIdentifier);
+			// Search for an existing accumulator for the given frame number and render data
+			int32 AvailableIndex = INDEX_NONE;
+			for (int32 Index = 0; Index < Accumulators.Num(); Index++)
+			{
+				if (InFrameNumber == Accumulators[Index]->ActiveFrameNumber && InPassIdentifier == Accumulators[Index]->ActivePassIdentifier)
+				{
+					AvailableIndex = Index;
+					break;
+				}
+			}
+
+			// If we didn't find one already in use for this frame, look to see if there's a previously
+			// allocated one which is no longer being used.
+			if (AvailableIndex == INDEX_NONE)
+			{
+				for (int32 Index = 0; Index < Accumulators.Num(); Index++)
+				{
+					if (!Accumulators[Index]->IsActive())
+					{
+						// Found a free one, tie it to this output frame.
+						Accumulators[Index]->ActiveFrameNumber = InFrameNumber;
+						Accumulators[Index]->ActivePassIdentifier = InPassIdentifier;
+						Accumulators[Index]->bIsActive = true;
+						Accumulators[Index]->TaskPrereq = UE::Tasks::FTask();
+						AvailableIndex = Index;
+						break;
+					}
+				}
+			}
+
+			// If we still don't have one, just allocate a new entry. The allocations are reasonably light-weight
+			// we don't actually allocate storage memory until they're used.
+			if (AvailableIndex == INDEX_NONE)
+			{
+				AvailableIndex = Accumulators.Num();
+
+				TSharedPtr<AccumulatorType> NewAccumulatorInstance = MakeShared<AccumulatorType>();
+				Accumulators.Add(MakeShared<UE::MovieGraph::DefaultRenderer::FSurfaceAccumulatorPool::FInstance>(NewAccumulatorInstance));
+
+				UE_LOG(LogMovieRenderPipeline, Log, TEXT("Allocated a Accumulator for Pool %s, New Pool Count: %d"), *AccumulatorType::GetName().ToString(), Accumulators.Num());
+			}
+
+			return Accumulators[AvailableIndex];
+		}
 	};
 
 	class FMovieGraphAccumulationTask
@@ -213,13 +261,7 @@ public:
 			return *ExistingAccumulatorPool;
 		}
 
-		// ToDo: This will need to be dynamically sized based on the number of concurrently produced render datas.
 		FMoviePipelineAccumulatorPoolPtr NewAccumulatorPool = MakeShared<UE::MovieGraph::DefaultRenderer::FSurfaceAccumulatorPool, ESPMode::ThreadSafe>();
-		for (int32 Index = 0; Index < 3; Index++)
-		{
-			TSharedPtr<AccumulatorType> NewAccumulatorInstance = MakeShared<AccumulatorType>();
-			NewAccumulatorPool->Accumulators.Add(MakeShared<UE::MovieGraph::DefaultRenderer::FSurfaceAccumulatorPool::FInstance>(NewAccumulatorInstance));
-		}
 		UE_LOG(LogMovieRenderPipeline, Log, TEXT("Allocated a Accumulator Pool for AccumulatorType: %s"), *AccumulatorType::GetName().ToString());
 		
 		PooledAccumulators.Emplace(AccumulatorType::GetName(), NewAccumulatorPool);
