@@ -93,7 +93,6 @@ void ShadeLightSamplesCS(
 					const uint PackedShadingTile = ShadingTileGrid[GetShadingTileGridOffset(ShadingTileCoord, IndexInCell)];
 					const FShadingTile ShadingTile = UnpackShadingTile(PackedShadingTile);
 					FDeferredLightData LightData = ConvertToDeferredLight(GetLightSceneData(ShadingTile.LightSceneId));
-					LightData.bRectLight = false;
 
 					uint2 ShadingTileAtlasCoord = GetShadingTileAtlasCoord(ShadingTile.ShadingTileIndex, CoordInShadingTile);
 
@@ -143,7 +142,7 @@ void ShadeLightSamplesCS(
 							ScreenCoord, 
 							SurfaceShadow);
 
-						#if DEBUG_MODE
+						#if DEBUG_MODE 
 						if (bDebug)
 						{
 							Print(Context, LightRadiance);

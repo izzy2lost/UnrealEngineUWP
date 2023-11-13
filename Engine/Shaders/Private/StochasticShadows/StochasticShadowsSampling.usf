@@ -84,7 +84,7 @@ Texture2D<uint2> ShadowMaskHistoryScreenCoord00;
 Texture2D<float4> ShadowMaskHistoryWeights;
 uint2 DownsampledViewSize;
 uint MaxShadowMaskTiles;
-float MinLightSampleWeight;
+float SamplingMinWeight;
 int DebugMode;
 
 RWTexture2D<uint2> RWShadowMaskHistoryScreenCoord00;
@@ -315,9 +315,6 @@ void GenerateSamplesCS(
 
 			if (SceneDepth > 0)
 			{
-				// Add a bit of stochastic noise to hide transitions
-				const float StochasticMinLightSampleWeight = MinLightSampleWeight * (1.0f + InterleavedGradientNoise(DownsampledScreenCoord, StochasticShadowsStateFrameIndex));
-
 				// Prepare weights for history reprojection
 				#if SHADOW_MASK_REPROJECTION_WEIGHTS
 				{
@@ -416,9 +413,8 @@ void GenerateSamplesCS(
 
 						uint LightSceneId = MaskIndex * 32 + NextBitIndex;
 						FLightSceneData LightSceneData = GetLightSceneData(LightSceneId);
-						FDeferredLightData LightData = ConvertToDeferredLight(LightSceneData);\
-						LightData.bRectLight = false;
-					
+						FDeferredLightData LightData = ConvertToDeferredLight(LightSceneData);
+
 						float SampleWeight = GetLocalLightTargetPDF(LightData, TranslatedWorldPosition, GBuffer, ScreenCoord);
 
 						// Simulate tonemapping
@@ -465,7 +461,7 @@ void GenerateSamplesCS(
 						}
 						#endif
 
-						if (SampleWeight > StochasticMinLightSampleWeight)
+						if (SampleWeight > SamplingMinWeight)
 						{
 							// Allocate required shadow mask tiles for this frame
 							MarkLightSceneId(LightSceneId);
@@ -476,7 +472,7 @@ void GenerateSamplesCS(
 								SampleWeight *= ShadowFactorEstimate;
 							}
 
-							if (SampleWeight > StochasticMinLightSampleWeight)
+							if (SampleWeight > SamplingMinWeight)
 							{
 								float Tau = WeightSum / (WeightSum + SampleWeight);
 								WeightSum += SampleWeight;
@@ -554,7 +550,7 @@ void GenerateSamplesCS(
 						}
 						#endif
 
-						if (SampleWeight > StochasticMinLightSampleWeight)
+						if (SampleWeight > SamplingMinWeight)
 						{
 							// Allocate required shadow mask tiles for this frame
 							MarkLightSceneId(LocalLightData.LightSceneId);
@@ -565,7 +561,7 @@ void GenerateSamplesCS(
 								SampleWeight *= ShadowFactorEstimate;
 							}
 
-							if (SampleWeight > StochasticMinLightSampleWeight)
+							if (SampleWeight > SamplingMinWeight)
 							{
 								float Tau = WeightSum / (WeightSum + SampleWeight);
 								WeightSum += SampleWeight;

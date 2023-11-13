@@ -25,13 +25,6 @@ static TAutoConsoleVariable<int32> CVarStochasticShadowsNumSamplesPerPixel(
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
-static TAutoConsoleVariable<float> CVarStochasticShadowsMinSampleWeight(
-	TEXT("r.StochasticShadows.MinSampleWeight"),
-	0.002f,
-	TEXT("Determines minimal sample influence on final pixels. Used to skip samples which would have minimal impact to the final image even if light is fully visible."),
-	ECVF_Scalability | ECVF_RenderThreadSafe
-);
-
 static TAutoConsoleVariable<int32> CVarStochasticShadowsTemporal(
 	TEXT("r.StochasticShadows.Temporal"),
 	1,
@@ -50,6 +43,13 @@ static TAutoConsoleVariable<float> CVarStochasticShadowsTemporalStdDevOffset(
 	TEXT("r.StochasticShadows.Temporal.StdDevOffset"),
 	0.1f,
 	TEXT("Increases standard deviation in neighborhood clamp. Higher values cause more ghosting, but allow smoother temporal accumulation."),
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
+static TAutoConsoleVariable<float> CVarStochasticShadowsSamplingMinWeight(
+	TEXT("r.StochasticShadows.Sampling.MinWeight"),
+	0.002f,
+	TEXT("Determines minimal sample influence on final pixels. Used to skip samples which would have minimal impact to the final image even if light is fully visible."),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
@@ -117,7 +117,7 @@ static TAutoConsoleVariable<int> CVarStochasticShadowsHashTable(
 static TAutoConsoleVariable<int> CVarStochasticShadowsCandidateLightMask(
 	TEXT("r.StochasticShadows.CandidateLightMask"),
 	1,
-	TEXT("#kris_todo: finish and pick one shader path."),
+	TEXT("#sdl_todo: finish and pick one shader path."),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
@@ -670,9 +670,8 @@ void FDeferredShadingSceneRenderer::RenderStochasticShadows(FRDGBuilder& GraphBu
 				ShadowMaskPageTableHistory = GraphBuilder.RegisterExternalTexture(LightingViewState.ShadowMaskPageTableHistory);
 			}
 
-			// #kris_todo: fix it
 			if (LightingViewState.ShadowMaskHashTableHistory 
-				/* && LightingViewState.ShadowMaskHashTableHistory->GetAlignedDesc().NumElements == ShadowMaskHashTableSize*/)
+				&& LightingViewState.ShadowMaskHashTableHistory->GetSize() == sizeof(uint32) * ShadowMaskHashTableSize)
 			{
 				ShadowMaskHashTableHistory = GraphBuilder.RegisterExternalBuffer(LightingViewState.ShadowMaskHashTableHistory);
 			}
@@ -728,7 +727,7 @@ void FDeferredShadingSceneRenderer::RenderStochasticShadows(FRDGBuilder& GraphBu
 		StochasticShadowsParameters.ShadowMaskHashTableIndexWrapMask = ShadowMaskHashTableSize - 1;
 		StochasticShadowsParameters.ShadowMaskPageTablePerLightSize = ShadowMaskPageTablePerLightSize;
 		StochasticShadowsParameters.DownsampledBufferInvSize = FVector2f(1.0f) / DownsampledBufferSize;
-		StochasticShadowsParameters.MinLightSampleWeight = CVarStochasticShadowsMinSampleWeight.GetValueOnRenderThread();
+		StochasticShadowsParameters.SamplingMinWeight = FMath::Max(CVarStochasticShadowsSamplingMinWeight.GetValueOnRenderThread(), 0.0f);
 		StochasticShadowsParameters.TileDataStride = TileDataStride;
 		StochasticShadowsParameters.DownsampledTileDataStride = DownsampledTileDataStride;
 		StochasticShadowsParameters.TemporalMaxFramesAccumulated = CVarStochasticShadowsTemporalMaxFramesAccumulated.GetValueOnRenderThread();
