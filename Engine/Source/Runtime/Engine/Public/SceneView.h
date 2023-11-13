@@ -1645,8 +1645,9 @@ public:
 	 * @param ViewRect - view rectangle
 	 * @param ViewProjectionMatrix - combined view projection matrix
 	 * @param out_ScreenPos (out) - screen coordinates in pixels
+	 * @param bShouldCalcOutsideViewPosition - if enabled, calculates the out_ScreenPos if the WorldPosition is outside of ViewProjectionMatrix
 	 */
-	static ENGINE_API bool ProjectWorldToScreen(const FVector& WorldPosition, const FIntRect& ViewRect, const FMatrix& ViewProjectionMatrix, FVector2D& out_ScreenPos);
+	static ENGINE_API bool ProjectWorldToScreen(const FVector& WorldPosition, const FIntRect& ViewRect, const FMatrix& ViewProjectionMatrix, FVector2D& out_ScreenPos, bool bShouldCalcOutsideViewPosition = false);
 
 	inline FVector GetViewRight() const { return ViewMatrices.GetViewMatrix().GetColumn(0); }
 	inline FVector GetViewUp() const { return ViewMatrices.GetViewMatrix().GetColumn(1); }
