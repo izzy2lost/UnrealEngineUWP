@@ -63,6 +63,7 @@ FName UPCGIndirectionSettings::AdditionalTaskName() const
 TArray<FPCGPinProperties> UPCGIndirectionSettings::InputPinProperties() const
 {
 	TArray<FPCGPinProperties> InputProperties;
+	bool bSetProperties = false;
 
 	switch (ProxyInterfaceMode)
 	{
@@ -71,6 +72,7 @@ TArray<FPCGPinProperties> UPCGIndirectionSettings::InputPinProperties() const
 			{
 				const UPCGSettings* SettingsDefaultObject = CastChecked<UPCGSettings>(SettingsClass->GetDefaultObject());
 				InputProperties = SettingsDefaultObject->DefaultInputPinProperties();
+				bSetProperties = true;
 			}
 			break;
 		case EPCGProxyInterfaceMode::ByBlueprintElement:
@@ -78,12 +80,14 @@ TArray<FPCGPinProperties> UPCGIndirectionSettings::InputPinProperties() const
 			{
 				const UPCGBlueprintElement* BlueprintSettingsDefaultObject = CastChecked<UPCGBlueprintElement>(BlueprintElementClass->GetDefaultObject());
 				InputProperties = BlueprintSettingsDefaultObject->GetInputPins();
+				bSetProperties = true;
 			}
 			break;
 		case EPCGProxyInterfaceMode::BySettings:
 			if (const UPCGSettings* SettingsPtr = Settings.LoadSynchronous())
 			{
 				InputProperties = SettingsPtr->DefaultInputPinProperties();
+				bSetProperties = true;
 			}
 			break;
 
@@ -91,7 +95,7 @@ TArray<FPCGPinProperties> UPCGIndirectionSettings::InputPinProperties() const
 			checkNoEntry();
 	}
 
-	if (InputProperties.IsEmpty())
+	if (!bSetProperties)
 	{
 		return Super::InputPinProperties();
 	}

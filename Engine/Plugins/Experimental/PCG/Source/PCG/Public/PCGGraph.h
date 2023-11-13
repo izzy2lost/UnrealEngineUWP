@@ -320,14 +320,14 @@ protected:
 	/** Calculates node grid size. Not thread safe, called within write lock. */
 	uint32 CalculateNodeGridSizeRecursive_Unsafe(const UPCGNode* InNode, uint32 InDefaultGridSize) const;
 
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = Graph)
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = Graph, meta = (NoResetToDefault))
 	TArray<TObjectPtr<UPCGNode>> Nodes;
 
 	// Add input/output nodes
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = Graph)
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = Graph, meta = (NoResetToDefault))
 	TObjectPtr<UPCGNode> InputNode;
 
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = Graph)
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = Graph, meta = (NoResetToDefault))
 	TObjectPtr<UPCGNode> OutputNode;
 
 #if WITH_EDITORONLY_DATA

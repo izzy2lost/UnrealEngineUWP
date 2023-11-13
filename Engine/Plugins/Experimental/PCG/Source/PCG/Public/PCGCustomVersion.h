@@ -56,6 +56,9 @@ struct PCG_API FPCGCustomVersion
 		// Update TransferAttribute with selectors
 		UpdateTransferAttributeWithSelectors = 15,
 
+		// Removed by-default pins on input node. Note, this breaks cooked binary compatibility
+		UpdateInputOutputNodesDefaults = 16,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

@@ -29,8 +29,6 @@ class PCG_API UPCGGraphInputOutputSettings : public UPCGSettings
 	GENERATED_BODY()
 
 public:
-	UPCGGraphInputOutputSettings(const FObjectInitializer& ObjectInitializer);
-
 	// ~Begin UObject interface
 	virtual void PostLoad() override;
 	// ~End UObject interface
@@ -40,57 +38,41 @@ public:
 	virtual FName GetDefaultNodeName() const override { return bIsInput ? FName(TEXT("InputNode")) : FName(TEXT("OutputNode")); }
 	virtual FText GetDefaultNodeTitle() const override { return bIsInput ? NSLOCTEXT("PCGGraphInputOutputSettings", "InputNodeTitle", "Input Node") : NSLOCTEXT("PCGGraphInputOutputSettings", "OutputNodeTitle", "Output Node"); }
 	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::InputOutput; }
-	virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent);
+	virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent) override;
+	virtual void ApplyDeprecationBeforeUpdatePins(UPCGNode* InOutNode, TArray<TObjectPtr<UPCGPin>>& InputPins, TArray<TObjectPtr<UPCGPin>>& OutputPins) override;
 #endif
 
-	TArray<FPCGPinProperties> InputPinProperties() const override;
-	TArray<FPCGPinProperties> OutputPinProperties() const override;
+	TArray<FPCGPinProperties> InputPinProperties() const override { return Pins; }
+	TArray<FPCGPinProperties> OutputPinProperties() const override { return Pins; }
 
 	virtual TArray<FPCGPinProperties> DefaultInputPinProperties() const override;
 	virtual TArray<FPCGPinProperties> DefaultOutputPinProperties() const override;
 
-	void SetInput(bool bInIsInput) { bIsInput = bInIsInput; }
-
-	bool IsCustomPin(const UPCGPin* InPin) const;
+	void SetInput(bool bInIsInput);
 
 	// Add a new custom pin
 	// Note that you should use the return value of this function, since it can be different from
 	// the one passed as argument. It will change if its label collides with existing pins.
-	UE_NODISCARD const FPCGPinProperties& AddCustomPin(const FPCGPinProperties& NewCustomPinProperties);
+	UE_NODISCARD const FPCGPinProperties& AddPin(const FPCGPinProperties& NewCustomPinProperties);
 
 protected:
 	virtual FPCGElementPtr CreateElement() const override { return MakeShared<FPCGInputOutputElement>(); }
 	// ~End UPCGSettings interface
 
-	struct FLabelAndTooltip
-	{
-		explicit FLabelAndTooltip(FName InLabel, FText InTooltip = FText::GetEmpty())
-			: Label(InLabel), Tooltip(InTooltip)
-		{
-		}
-
-		FName Label;
-		FText Tooltip;
-	};
-
-	const TArray<FLabelAndTooltip>& StaticLabels() const { return bIsInput ? StaticInLabels : StaticOutLabels; }
-	const TArray<FLabelAndTooltip>& StaticAdvancedLabels() const { return bIsInput ? StaticAdvancedInLabels : StaticAdvancedOutLabels; }
-
-	TArray<FPCGPinProperties> GetPinProperties() const;
-
-	void FixCustomPinProperties();
+	void FixPinProperties();
 
 protected:
 	UPROPERTY()
 	TSet<FName> PinLabels_DEPRECATED;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings|Input")
-	TArray<FPCGPinProperties> CustomPins;
+	UPROPERTY()
+	TArray<FPCGPinProperties> CustomPins_DEPRECATED;
 
-	TArray<FLabelAndTooltip> StaticInLabels;
-	TArray<FLabelAndTooltip> StaticAdvancedInLabels;
-	TArray<FLabelAndTooltip> StaticOutLabels;
-	TArray<FLabelAndTooltip> StaticAdvancedOutLabels;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings)
+	TArray<FPCGPinProperties> Pins;
+
+	UPROPERTY()
+	bool bHasAddedDefaultPin = false;
 
 	bool bIsInput = false;
 };

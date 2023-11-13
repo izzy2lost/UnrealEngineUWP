@@ -55,7 +55,7 @@ namespace PCGSubgraphHelpersExtra
 		}
 
 		NewProperties.Label = FName(NewName);
-		NewProperties = NewInputOutputSettings->AddCustomPin(NewProperties);
+		NewProperties = NewInputOutputSettings->AddPin(NewProperties);
 		NewInputOutputNode->UpdateAfterSettingsChangeDuringCreation();
 		return NewProperties.Label;
 	}
@@ -329,18 +329,7 @@ UPCGGraph* FPCGSubgraphHelpers::CollapseIntoSubgraph(UPCGGraph* InOriginalGraph,
 			OutsideSubgraphEdge.InputPin = Edge->InputPin;
 			InsideSubgraphEdge.OutputPin = *OutPin;
 
-			if (Edge->InputPin->Node == InOriginalGraph->GetInputNode())
-			{
-				const UPCGGraphInputOutputSettings* Settings = Cast<const UPCGGraphInputOutputSettings>(Edge->InputPin->Node->GetSettings());
-
-				if (Settings && !Settings->IsCustomPin(Edge->InputPin))
-				{
-					OutsideSubgraphEdge.OutputPinLabel = Edge->InputPin->Properties.Label;
-					InsideSubgraphEdge.InputPin = NewPCGGraph->GetInputNode()->GetOutputPin(Edge->InputPin->Properties.Label);
-					bProcessed = true;
-				}
-			}
-			else if (Edge->InputPin->Node && Edge->InputPin->Node->GetSettings() && Edge->InputPin->Node->GetSettings()->IsA<UPCGUserParameterGetSettings>())
+			if (Edge->InputPin->Node && Edge->InputPin->Node->GetSettings() && Edge->InputPin->Node->GetSettings()->IsA<UPCGUserParameterGetSettings>())
 			{
 				const UPCGUserParameterGetSettings* OldSettings = CastChecked<const UPCGUserParameterGetSettings>(Edge->InputPin->Node->GetSettings());
 				if (CollapseInfo.GetUserParametersOutputPins.Contains(OldSettings->PropertyGuid))
@@ -407,18 +396,6 @@ UPCGGraph* FPCGSubgraphHelpers::CollapseIntoSubgraph(UPCGGraph* InOriginalGraph,
 
 			OutsideSubgraphEdge.OutputPin = Edge->OutputPin;
 			InsideSubgraphEdge.InputPin = *InPin;
-
-			if (Edge->OutputPin->Node == InOriginalGraph->GetOutputNode())
-			{
-				const UPCGGraphInputOutputSettings* Settings = Cast<const UPCGGraphInputOutputSettings>(Edge->OutputPin->Node->GetSettings());
-
-				if (Settings && !Settings->IsCustomPin(Edge->OutputPin))
-				{
-					OutsideSubgraphEdge.InputPinLabel = Edge->OutputPin->Properties.Label;
-					InsideSubgraphEdge.OutputPin = NewPCGGraph->GetOutputNode()->GetInputPin(Edge->OutputPin->Properties.Label);
-					bProcessed = true;
-				}
-			}
 
 			if (!bProcessed)
 			{
