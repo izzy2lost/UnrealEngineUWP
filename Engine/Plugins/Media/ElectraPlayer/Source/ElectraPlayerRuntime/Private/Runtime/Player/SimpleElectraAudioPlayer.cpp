@@ -415,6 +415,8 @@ public:
 	{ }
 	void ReportVideoQualityChange(int32 InNewBitrate, int32 InPreviousBitrate, bool bInIsDrasticDownswitch) override
 	{ }
+	void ReportAudioQualityChange(int32 InNewBitrate, int32 InPreviousBitrate, bool bInIsDrasticDownswitch) override
+	{ }
 	void ReportDataAvailabilityChange(const Metrics::FDataAvailabilityChange& InDataAvailability) override
 	{ }
 	void ReportDecodingFormatChange(const FStreamCodecInformation& InNewDecodingFormat) override

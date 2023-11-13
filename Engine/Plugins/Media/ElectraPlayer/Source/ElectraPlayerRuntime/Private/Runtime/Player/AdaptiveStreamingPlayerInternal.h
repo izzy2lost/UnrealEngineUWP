@@ -617,6 +617,7 @@ struct FMetricEvent
 		SegmentDownload,
 		DataAvailabilityChange,
 		VideoQualityChange,
+		AudioQualityChange,
 		CodecFormatChange,
 		PrerollStart,
 		PrerollEnd,
@@ -784,6 +785,15 @@ struct FMetricEvent
 	{
 		TSharedPtrTS<FMetricEvent> Evt = MakeSharedTS<FMetricEvent>();
 		Evt->Type = EType::VideoQualityChange;
+		Evt->Param.QualityChange.NewBitrate = NewBitrate;
+		Evt->Param.QualityChange.PrevBitrate = PreviousBitrate;
+		Evt->Param.QualityChange.bIsDrastic = bIsDrasticDownswitch;
+		return Evt;
+	}
+	static TSharedPtrTS<FMetricEvent> ReportAudioQualityChange(int32 NewBitrate, int32 PreviousBitrate, bool bIsDrasticDownswitch)
+	{
+		TSharedPtrTS<FMetricEvent> Evt = MakeSharedTS<FMetricEvent>();
+		Evt->Type = EType::AudioQualityChange;
 		Evt->Param.QualityChange.NewBitrate = NewBitrate;
 		Evt->Param.QualityChange.PrevBitrate = PreviousBitrate;
 		Evt->Param.QualityChange.bIsDrastic = bIsDrasticDownswitch;
@@ -2235,6 +2245,7 @@ private:
 	int32																VideoResolutionLimitHeight;
 
 	FStreamBitrateInfo													CurrentVideoStreamBitrate;
+	FStreamBitrateInfo													CurrentAudioStreamBitrate;
 
 	bool																bShouldBePaused;
 	bool																bShouldBePlaying;

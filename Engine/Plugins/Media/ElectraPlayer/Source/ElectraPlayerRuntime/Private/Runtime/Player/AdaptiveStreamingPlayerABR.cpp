@@ -60,6 +60,7 @@ namespace Electra
 		void ReportLicenseKey(const Metrics::FLicenseKeyStats& LicenseKeyStats) override {}
 		void ReportDataAvailabilityChange(const Metrics::FDataAvailabilityChange& DataAvailability) override {}
 		void ReportVideoQualityChange(int32 NewBitrate, int32 PreviousBitrate, bool bIsDrasticDownswitch) override {}
+		void ReportAudioQualityChange(int32 NewBitrate, int32 PreviousBitrate, bool bIsDrasticDownswitch) override {}
 		void ReportDecodingFormatChange(const FStreamCodecInformation& NewDecodingFormat) override {}
 		void ReportPrerollStart() override {}
 		void ReportPrerollEnd() override {}

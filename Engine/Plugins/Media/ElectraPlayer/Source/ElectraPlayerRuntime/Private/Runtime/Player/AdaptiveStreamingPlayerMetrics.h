@@ -274,6 +274,12 @@ public:
 	virtual void ReportVideoQualityChange(int32 NewBitrate, int32 PreviousBitrate, bool bIsDrasticDownswitch) = 0;
 
 	/**
+	 * Called when a new audio stream segment is fetched at a different bitrate than before.
+	 * A drastic change is one where quality _drops_ more than _one_ level.
+	 */
+	virtual void ReportAudioQualityChange(int32 NewBitrate, int32 PreviousBitrate, bool bIsDrasticDownswitch) = 0;
+
+	/**
 	 * Called when stream data availability changes when feeding the decoder.
 	 */
 	virtual void ReportDataAvailabilityChange(const Metrics::FDataAvailabilityChange& DataAvailability) = 0;

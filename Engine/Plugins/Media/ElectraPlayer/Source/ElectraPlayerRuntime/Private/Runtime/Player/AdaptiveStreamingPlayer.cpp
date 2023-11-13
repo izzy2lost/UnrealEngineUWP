@@ -448,6 +448,9 @@ void FAdaptiveStreamingPlayer::FireSyncEvent(TSharedPtrTS<FMetricEvent> Event)
 			case FMetricEvent::EType::VideoQualityChange:
 				Listeners[i]->ReportVideoQualityChange(Event->Param.QualityChange.NewBitrate, Event->Param.QualityChange.PrevBitrate, Event->Param.QualityChange.bIsDrastic);
 				break;
+			case FMetricEvent::EType::AudioQualityChange:
+				Listeners[i]->ReportAudioQualityChange(Event->Param.QualityChange.NewBitrate, Event->Param.QualityChange.PrevBitrate, Event->Param.QualityChange.bIsDrastic);
+				break;
 			case FMetricEvent::EType::CodecFormatChange:
 				Listeners[i]->ReportDecodingFormatChange(Event->Param.CodecFormatChange);
 				break;
@@ -1567,6 +1570,19 @@ bool FAdaptiveStreamingPlayer::InternalHandleThreadMessages()
 							DispatchEvent(FMetricEvent::ReportVideoQualityChange(SegmentBitrate, CurrentVideoStreamBitrate.Bitrate, bDrastic));
 							CurrentVideoStreamBitrate.Bitrate      = SegmentBitrate;
 							CurrentVideoStreamBitrate.QualityLevel = SegmentQualityLevel;
+						}
+					}
+					// Audio bitrate change?
+					else if (ev.Request->GetType() == EStreamType::Audio)
+					{
+						int32 SegmentBitrate = pRequest->GetBitrate();
+						int32 SegmentQualityLevel = pRequest->GetQualityIndex();
+						if (SegmentBitrate != CurrentAudioStreamBitrate.Bitrate)
+						{
+							bool bDrastic = CurrentAudioStreamBitrate.Bitrate && SegmentQualityLevel < CurrentAudioStreamBitrate.QualityLevel-1;
+							DispatchEvent(FMetricEvent::ReportAudioQualityChange(SegmentBitrate, CurrentAudioStreamBitrate.Bitrate, bDrastic));
+							CurrentAudioStreamBitrate.Bitrate      = SegmentBitrate;
+							CurrentAudioStreamBitrate.QualityLevel = SegmentQualityLevel;
 						}
 					}
 				}
