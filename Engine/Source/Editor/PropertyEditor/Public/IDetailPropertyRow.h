@@ -208,6 +208,13 @@ public:
 	virtual IDetailPropertyRow& EditCondition( TAttribute<bool> EditConditionValue, FOnBooleanValueChanged OnEditConditionValueChanged ) = 0;
 
 	/**
+	 * Sets whether or not the edit condition for this property should affect its visibility.  If the edit condition fails, the property will be hidden outright.
+	 * 
+	 * @param bEditConditionHidesValue		if true the property be shown/hidden based on the edit condition
+	 */
+	virtual IDetailPropertyRow& EditConditionHides( bool bEditConditionHidesValue ) = 0;
+
+	/**
 	 * Sets whether or not this property is enabled
 	 *
 	 * @param InIsEnabled	Attribute for the enabled state of the property (true to enable the property)

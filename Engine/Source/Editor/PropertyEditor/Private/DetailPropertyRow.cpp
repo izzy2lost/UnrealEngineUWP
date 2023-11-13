@@ -106,6 +106,12 @@ IDetailPropertyRow& FDetailPropertyRow::EditCondition( TAttribute<bool> EditCond
 	return *this;
 }
 
+IDetailPropertyRow& FDetailPropertyRow::EditConditionHides(bool bEditConditionHidesValue)
+{
+	bCustomEditConditionHides = bEditConditionHidesValue;
+	return *this;
+}
+
 IDetailPropertyRow& FDetailPropertyRow::IsEnabled( TAttribute<bool> InIsEnabled )
 {
 	CustomIsEnabledAttrib = InIsEnabled;
@@ -175,8 +181,7 @@ bool FDetailPropertyRow::ShowOnlyChildren() const
 
 bool FDetailPropertyRow::RequiresTick() const
 {
-	return PropertyVisibility.IsBound() || 
-		(PropertyEditor.IsValid() && PropertyEditor->IsOnlyVisibleWhenEditConditionMet());
+	return PropertyVisibility.IsBound() || IsOnlyVisibleWhenEditConditionMet();
 }
 
 FDetailWidgetRow& FDetailPropertyRow::CustomWidget( bool bShowChildren )
@@ -636,7 +641,7 @@ void FDetailPropertyRow::MakeExternalPropertyRowCustomization(const TArray<UObje
 
 EVisibility FDetailPropertyRow::GetPropertyVisibility() const
 {
-	if (PropertyEditor.IsValid() && PropertyEditor->IsOnlyVisibleWhenEditConditionMet() && !PropertyEditor->IsEditConditionMet())
+	if (IsOnlyVisibleWhenEditConditionMet() && !IsEditConditionMet())
 	{
 		return EVisibility::Collapsed;
 	}
@@ -658,20 +663,32 @@ bool FDetailPropertyRow::GetEnabledState() const
 	bool Result = IsParentEnabled.Get(true);
 
 	Result = Result && CustomIsEnabledAttrib.Get(true);
+	Result = Result && IsEditConditionMet();
 
+	return Result;
+}
+
+bool FDetailPropertyRow::IsEditConditionMet() const
+{
 	if (HasEditCondition())
 	{
 		if (CustomEditConditionValue.IsSet())
 		{
-			Result = Result && CustomEditConditionValue.Get();
+			return CustomEditConditionValue.Get();
 		}
 		else if (PropertyEditor.IsValid())
 		{
-			Result = Result && PropertyEditor->IsEditConditionMet();
+			return PropertyEditor->IsEditConditionMet();
 		}
 	}
 
-	return Result;
+	// Default to True, matching the default output of FPropertyNode::IsEditConditionMet().
+	return true;
+}
+
+bool FDetailPropertyRow::IsOnlyVisibleWhenEditConditionMet() const
+{
+	return (PropertyEditor.IsValid() && PropertyEditor->IsOnlyVisibleWhenEditConditionMet()) || (bCustomEditConditionHides && HasEditCondition());
 }
 
 TSharedPtr<IPropertyTypeCustomization>& FDetailPropertyRow::GetTypeInterface()

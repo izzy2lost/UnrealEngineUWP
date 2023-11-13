@@ -31,6 +31,7 @@ public:
 	virtual IDetailPropertyRow& ToolTip( const FText& InToolTip ) override;
 	virtual IDetailPropertyRow& ShowPropertyButtons( bool bInShowPropertyButtons ) override;
 	virtual IDetailPropertyRow& EditCondition( TAttribute<bool> EditConditionValue, FOnBooleanValueChanged OnEditConditionValueChanged ) override;
+	virtual IDetailPropertyRow& EditConditionHides(bool bEditConditionHideValue) override;
 	virtual IDetailPropertyRow& IsEnabled(TAttribute<bool> InIsEnabled) override;
 	virtual IDetailPropertyRow& ShouldAutoExpand(bool bForceExpansion) override;
 	virtual IDetailPropertyRow& Visibility( TAttribute<EVisibility> Visibility ) override;
@@ -150,6 +151,16 @@ private:
 	 */
 	bool GetEnabledState() const;
 
+	/**
+	 * @return true if this row's edit condition has been met
+	 */
+	bool IsEditConditionMet() const;
+
+	/**
+	 * @return true if this row should be shown/hidden based on the edit condition state
+	 */
+	bool IsOnlyVisibleWhenEditConditionMet() const;
+
 	/** 
 	 * Looks up and caches (if not already) the associated type interface, and then returns it.
 	 * Could be null/invalid if no customization was specified for this row.
@@ -216,6 +227,8 @@ private:
 	TAttribute<bool> CustomEditConditionValue;
 	/** User customized edit condition change handler. */
 	FOnBooleanValueChanged CustomEditConditionValueChanged;
+	/** User customized edit condition hides specifier */
+	bool bCustomEditConditionHides = false;
 	/** User customized reset to default */
 	TOptional<FResetToDefaultOverride> CustomResetToDefault;
 	/** User customized drag/drop handler */
