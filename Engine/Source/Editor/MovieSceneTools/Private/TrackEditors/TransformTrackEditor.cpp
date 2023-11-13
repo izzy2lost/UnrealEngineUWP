@@ -1895,17 +1895,25 @@ void F3DTransformTrackEditor::HandleConstraintRemoved(IMovieSceneConstrainedSect
 									return;
 								}
 
+
+								TSharedPtr<ISequencer> Sequencer = GetSequencer();
+								
 								const bool bCompensate = (InNotifyType == EConstraintsManagerNotifyType::ConstraintRemovedWithCompensation);
 								if (bCompensate && ConstraintChannel->GetConstraint().Get())
 								{
 									FMovieSceneConstraintChannelHelper::HandleConstraintRemoved(
 										ConstraintChannel->GetConstraint().Get(),
 										&ConstraintChannel->ActiveChannel,
-										GetSequencer(),
+										Sequencer,
 										Section);
 								}
 
 								InSection->RemoveConstraintChannel(Constraint);
+
+								if (Sequencer)
+								{
+									Sequencer->RecreateCurveEditor();
+								}
 							}
 							break;
 						case EConstraintsManagerNotifyType::ManagerUpdated:
