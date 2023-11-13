@@ -227,8 +227,10 @@ public:
 	 * corresponding graph variable will be removed, and overrides will be created for graph variables which do not have
 	 * existing overrides.
 	 */
+#if WITH_EDITOR
 	UFUNCTION(BlueprintCallable, Category = "Experimental")
 	void UpdateGraphVariableOverrides();
+#endif
 
 protected:
 	/**
