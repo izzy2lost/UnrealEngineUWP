@@ -160,40 +160,57 @@ namespace UE::Core::Private
 	}
 
 	template <typename SrcCharType>
-	FORCEINLINE void ConstructFromCString(/* Out */ TArray<UE_STRING_CHARTYPE>& Data, const SrcCharType* Src)
+	FORCEINLINE void ConstructFromCString(/* Out */ TArray<UE_STRING_CHARTYPE>& Data, const SrcCharType* Src, int32 ExtraSlack)
 	{
-		if (Src && *Src)
+		checkf(Src,             TEXT("Unable to construct string from a null pointer"));
+		checkf(ExtraSlack >= 0, TEXT("Unable to construct string with negative slack"));
+
+		if (*Src)
 		{
 			int32 SrcLen  = TCString<SrcCharType>::Strlen(Src) + 1;
 			int32 DestLen = FPlatformString::ConvertedLength<UE_STRING_CHARTYPE>(Src, SrcLen);
-			Data.Reserve(DestLen);
+			Data.Reserve(DestLen + ExtraSlack);
 			Data.AddUninitialized(DestLen);
 
 			FPlatformString::Convert(Data.GetData(), DestLen, Src, SrcLen);
 		}
+		else if (ExtraSlack > 0)
+		{
+			Data.Reserve(ExtraSlack + 1);
+		}
 	}
 
 	template <typename SrcCharType>
-	FORCEINLINE void ConstructWithLength(/* Out */ TArray<UE_STRING_CHARTYPE>& Data, int32 InCount, const SrcCharType* InSrc)
+	FORCEINLINE void ConstructWithLength(/* Out */ TArray<UE_STRING_CHARTYPE>& Data, const SrcCharType* InSrc, int32 InCount, int32 ExtraSlack)
 	{
-		if (InSrc)
-		{
-			int32 DestLen = FPlatformString::ConvertedLength<UE_STRING_CHARTYPE>(InSrc, InCount);
-			if (DestLen > 0 && *InSrc)
-			{
-				Data.Reserve(DestLen + 1);
-				Data.AddUninitialized(DestLen + 1);
+		checkf(InSrc || InCount == 0, TEXT("Unable to construct string from a null pointer"));
+		checkf(InCount >= 0,          TEXT("Unable to construct string with a negative size"));
+		checkf(ExtraSlack >= 0,       TEXT("Unable to construct string with negative slack"));
 
-				FPlatformString::Convert(Data.GetData(), DestLen, InSrc, InCount);
-				*(Data.GetData() + Data.Num() - 1) = CHARTEXT(UE_STRING_CHARTYPE, '\0');
-			}
+		int32 DestLen = FPlatformString::ConvertedLength<UE_STRING_CHARTYPE>(InSrc, InCount);
+		if (DestLen > 0)
+		{
+			Data.Reserve(DestLen + ExtraSlack + 1);
+			Data.AddUninitialized(DestLen + 1);
+
+			UE_STRING_CHARTYPE* DataPtr = Data.GetData();
+
+			FPlatformString::Convert(DataPtr, DestLen, InSrc, InCount);
+			DataPtr[DestLen] = CHARTEXT(UE_STRING_CHARTYPE, '\0');
+		}
+		else if (ExtraSlack > 0)
+		{
+			Data.Reserve(ExtraSlack + 1);
 		}
 	}
 
 	template <typename SrcCharType>
 	FORCEINLINE void ConstructWithSlack(/* Out */ TArray<UE_STRING_CHARTYPE>& Data, const SrcCharType* Src, int32 ExtraSlack)
 	{
-		if (Src && *Src)
+		checkf(Src,             TEXT("Unable to construct string from a null pointer"));
+		checkf(ExtraSlack >= 0, TEXT("Unable to construct string with negative slack"));
+
+		if (*Src)
 		{
 			int32 SrcLen = TCString<SrcCharType>::Strlen(Src) + 1;
 			int32 DestLen = FPlatformString::ConvertedLength<UE_STRING_CHARTYPE>(Src, SrcLen);
@@ -209,18 +226,34 @@ namespace UE::Core::Private
 	}
 } // namespace UE::Core::Private
 
-UE_STRING_CLASS::UE_STRING_CLASS(const ANSICHAR* Str)								{ UE::Core::Private::ConstructFromCString(Data, Str); }
-UE_STRING_CLASS::UE_STRING_CLASS(const WIDECHAR* Str)								{ UE::Core::Private::ConstructFromCString(Data, Str); }
-UE_STRING_CLASS::UE_STRING_CLASS(const UTF8CHAR* Str)								{ UE::Core::Private::ConstructFromCString(Data, Str); }
-UE_STRING_CLASS::UE_STRING_CLASS(const UCS2CHAR* Str)								{ UE::Core::Private::ConstructFromCString(Data, Str); }
-UE_STRING_CLASS::UE_STRING_CLASS(int32 Len, const ANSICHAR* Str)					{ UE::Core::Private::ConstructWithLength(Data, Len, Str); }
-UE_STRING_CLASS::UE_STRING_CLASS(int32 Len, const WIDECHAR* Str)					{ UE::Core::Private::ConstructWithLength(Data, Len, Str); }
-UE_STRING_CLASS::UE_STRING_CLASS(int32 Len, const UTF8CHAR* Str)					{ UE::Core::Private::ConstructWithLength(Data, Len, Str); }
-UE_STRING_CLASS::UE_STRING_CLASS(int32 Len, const UCS2CHAR* Str)					{ UE::Core::Private::ConstructWithLength(Data, Len, Str); }
-UE_STRING_CLASS::UE_STRING_CLASS(const ANSICHAR* Str, int32 ExtraSlack)				{ UE::Core::Private::ConstructWithSlack(Data, Str, ExtraSlack); }
-UE_STRING_CLASS::UE_STRING_CLASS(const WIDECHAR* Str, int32 ExtraSlack)				{ UE::Core::Private::ConstructWithSlack(Data, Str, ExtraSlack); }
-UE_STRING_CLASS::UE_STRING_CLASS(const UTF8CHAR* Str, int32 ExtraSlack)				{ UE::Core::Private::ConstructWithSlack(Data, Str, ExtraSlack); }
-UE_STRING_CLASS::UE_STRING_CLASS(const UCS2CHAR* Str, int32 ExtraSlack)				{ UE::Core::Private::ConstructWithSlack(Data, Str, ExtraSlack); }
+UE_STRING_CLASS::UE_STRING_CLASS(const ANSICHAR* Str)								{ if (Str) { UE::Core::Private::ConstructFromCString(Data, Str, 0); } }
+UE_STRING_CLASS::UE_STRING_CLASS(const WIDECHAR* Str)								{ if (Str) { UE::Core::Private::ConstructFromCString(Data, Str, 0); } }
+UE_STRING_CLASS::UE_STRING_CLASS(const UTF8CHAR* Str)								{ if (Str) { UE::Core::Private::ConstructFromCString(Data, Str, 0); } }
+UE_STRING_CLASS::UE_STRING_CLASS(const UCS2CHAR* Str)								{ if (Str) { UE::Core::Private::ConstructFromCString(Data, Str, 0); } }
+
+// Deprecated
+UE_STRING_CLASS::UE_STRING_CLASS(int32 Len, const ANSICHAR* Str)					{ if (Str && *Str) { UE::Core::Private::ConstructWithLength(Data, Str, Len, 0); } }
+UE_STRING_CLASS::UE_STRING_CLASS(int32 Len, const WIDECHAR* Str)					{ if (Str && *Str) { UE::Core::Private::ConstructWithLength(Data, Str, Len, 0); } }
+UE_STRING_CLASS::UE_STRING_CLASS(int32 Len, const UTF8CHAR* Str)					{ if (Str && *Str) { UE::Core::Private::ConstructWithLength(Data, Str, Len, 0); } }
+UE_STRING_CLASS::UE_STRING_CLASS(int32 Len, const UCS2CHAR* Str)					{ if (Str && *Str) { UE::Core::Private::ConstructWithLength(Data, Str, Len, 0); } }
+UE_STRING_CLASS::UE_STRING_CLASS(const ANSICHAR* Str, int32 ExtraSlack)				{ if (Str) { UE::Core::Private::ConstructFromCString(Data, Str, ExtraSlack); } else if (ExtraSlack > 0) { Data.Reserve(ExtraSlack + 1); } }
+UE_STRING_CLASS::UE_STRING_CLASS(const WIDECHAR* Str, int32 ExtraSlack)				{ if (Str) { UE::Core::Private::ConstructFromCString(Data, Str, ExtraSlack); } else if (ExtraSlack > 0) { Data.Reserve(ExtraSlack + 1); } }
+UE_STRING_CLASS::UE_STRING_CLASS(const UTF8CHAR* Str, int32 ExtraSlack)				{ if (Str) { UE::Core::Private::ConstructFromCString(Data, Str, ExtraSlack); } else if (ExtraSlack > 0) { Data.Reserve(ExtraSlack + 1); } }
+UE_STRING_CLASS::UE_STRING_CLASS(const UCS2CHAR* Str, int32 ExtraSlack)				{ if (Str) { UE::Core::Private::ConstructFromCString(Data, Str, ExtraSlack); } else if (ExtraSlack > 0) { Data.Reserve(ExtraSlack + 1); } }
+// Deprecated
+
+UE_STRING_CLASS UE_STRING_CLASS::ConstructFromPtrSize(const ANSICHAR* Str, int32 Len)								{ UE_STRING_CLASS Result; UE::Core::Private::ConstructWithLength(Result.Data, Str, Len, 0); return Result; }
+UE_STRING_CLASS UE_STRING_CLASS::ConstructFromPtrSize(const WIDECHAR* Str, int32 Len)								{ UE_STRING_CLASS Result; UE::Core::Private::ConstructWithLength(Result.Data, Str, Len, 0); return Result; }
+UE_STRING_CLASS UE_STRING_CLASS::ConstructFromPtrSize(const UTF8CHAR* Str, int32 Len)								{ UE_STRING_CLASS Result; UE::Core::Private::ConstructWithLength(Result.Data, Str, Len, 0); return Result; }
+UE_STRING_CLASS UE_STRING_CLASS::ConstructFromPtrSize(const UCS2CHAR* Str, int32 Len)								{ UE_STRING_CLASS Result; UE::Core::Private::ConstructWithLength(Result.Data, Str, Len, 0); return Result; }
+UE_STRING_CLASS UE_STRING_CLASS::ConstructWithSlack(const ANSICHAR* Str, int32 ExtraSlack)							{ UE_STRING_CLASS Result; UE::Core::Private::ConstructFromCString(Result.Data, Str, ExtraSlack); return Result; }
+UE_STRING_CLASS UE_STRING_CLASS::ConstructWithSlack(const WIDECHAR* Str, int32 ExtraSlack)							{ UE_STRING_CLASS Result; UE::Core::Private::ConstructFromCString(Result.Data, Str, ExtraSlack); return Result; }
+UE_STRING_CLASS UE_STRING_CLASS::ConstructWithSlack(const UTF8CHAR* Str, int32 ExtraSlack)							{ UE_STRING_CLASS Result; UE::Core::Private::ConstructFromCString(Result.Data, Str, ExtraSlack); return Result; }
+UE_STRING_CLASS UE_STRING_CLASS::ConstructWithSlack(const UCS2CHAR* Str, int32 ExtraSlack)							{ UE_STRING_CLASS Result; UE::Core::Private::ConstructFromCString(Result.Data, Str, ExtraSlack); return Result; }
+UE_STRING_CLASS UE_STRING_CLASS::ConstructFromPtrSizeWithSlack(const ANSICHAR* Str, int32 Len, int32 ExtraSlack)	{ UE_STRING_CLASS Result; UE::Core::Private::ConstructWithLength(Result.Data, Str, Len, ExtraSlack); return Result; }
+UE_STRING_CLASS UE_STRING_CLASS::ConstructFromPtrSizeWithSlack(const WIDECHAR* Str, int32 Len, int32 ExtraSlack)	{ UE_STRING_CLASS Result; UE::Core::Private::ConstructWithLength(Result.Data, Str, Len, ExtraSlack); return Result; }
+UE_STRING_CLASS UE_STRING_CLASS::ConstructFromPtrSizeWithSlack(const UTF8CHAR* Str, int32 Len, int32 ExtraSlack)	{ UE_STRING_CLASS Result; UE::Core::Private::ConstructWithLength(Result.Data, Str, Len, ExtraSlack); return Result; }
+UE_STRING_CLASS UE_STRING_CLASS::ConstructFromPtrSizeWithSlack(const UCS2CHAR* Str, int32 Len, int32 ExtraSlack)	{ UE_STRING_CLASS Result; UE::Core::Private::ConstructWithLength(Result.Data, Str, Len, ExtraSlack); return Result; }
 
 UE_STRING_CLASS& UE_STRING_CLASS::operator=( const ElementType* Other )
 {
@@ -398,7 +431,7 @@ int32 UE_STRING_CLASS::Find(const ElementType* SubStr, int32 SubStrLen, ESearchC
 		// times in the loop below
 		if ( SearchCase == ESearchCase::IgnoreCase)
 		{
-			return ToUpper().Find(UE_STRING_CLASS(SubStrLen, SubStr).ToUpper(), ESearchCase::CaseSensitive, SearchDir, StartPosition);
+			return ToUpper().Find(UE_STRING_CLASS::ConstructFromPtrSize(SubStr, SubStrLen).ToUpper(), ESearchCase::CaseSensitive, SearchDir, StartPosition);
 		}
 		else
 		{
@@ -781,7 +814,7 @@ UE_STRING_CLASS UE_STRING_CLASS::RightChop(int32 Count) const &
 {
 	const int32 Length = Len();
 	const int32 Skip = FMath::Clamp(Count, 0, Length);
-	return UE_STRING_CLASS(Length - Skip, **this + Skip);
+	return UE_STRING_CLASS::ConstructFromPtrSize(**this + Skip, Length - Skip);
 }
 
 UE_STRING_CLASS UE_STRING_CLASS::Mid(int32 Start, int32 Count) const &
@@ -792,7 +825,7 @@ UE_STRING_CLASS UE_STRING_CLASS::Mid(int32 Start, int32 Count) const &
 		const int32 RequestedStart = Start;
 		Start = FMath::Clamp(Start, 0, Length);
 		const int32 End = (int32)FMath::Clamp((int64)Count + RequestedStart, (int64)Start, (int64)Length);
-		return UE_STRING_CLASS(End-Start, **this + Start);
+		return UE_STRING_CLASS::ConstructFromPtrSize(**this + Start, End-Start);
 	}
 
 	return UE_STRING_CLASS();
@@ -1374,7 +1407,7 @@ int32 UE_STRING_CLASS::ParseIntoArray(TArray<UE_STRING_CLASS>& OutArray, const E
 				if(!InCullEmpty || SubstringLength != 0)
 				{
 					// ... add new string from substring beginning up to the beginning of this delimiter.
-					OutArray.Emplace(SubstringEndIndex - SubstringBeginIndex, Start + SubstringBeginIndex);
+					OutArray.Add(UE_STRING_CLASS::ConstructFromPtrSize(Start + SubstringBeginIndex, SubstringEndIndex - SubstringBeginIndex));
 				}
 				// Next substring begins at the end of the discovered delimiter.
 				SubstringBeginIndex = SubstringEndIndex + DelimiterLength;

@@ -20,6 +20,9 @@
 #ifndef UE_STRING_CHARTYPE_IS_TCHAR
 	#error "UnrealString.h.inl should only be included after defining UE_STRING_CHARTYPE_IS_TCHAR"
 #endif
+#ifndef UE_STRING_DEPRECATED
+	#error "UnrealString.h.inl should only be included after defining UE_STRING_DEPRECATED"
+#endif
 
 struct PREPROCESSOR_JOIN(UE_STRING_CLASS, FormatArg);
 template<typename InKeyType,typename InValueType,typename SetAllocator ,typename KeyFuncs > class TMap;
@@ -92,16 +95,34 @@ public:
 	CORE_API UE_STRING_CLASS(const UCS2CHAR* Str);
 
 	/** Construct from null-terminated C substring or nullptr */
-	CORE_API UE_STRING_CLASS(int32 Len, const ANSICHAR* Str);
-	CORE_API UE_STRING_CLASS(int32 Len, const WIDECHAR* Str);
-	CORE_API UE_STRING_CLASS(int32 Len, const UTF8CHAR* Str);
-	CORE_API UE_STRING_CLASS(int32 Len, const UCS2CHAR* Str);
+	UE_STRING_DEPRECATED(5.4, "This constructor has been deprecated - please use " PREPROCESSOR_TO_STRING(UE_STRING_CLASS) "::ConstructFromPtrSize(Ptr, Size) instead.") CORE_API UE_STRING_CLASS(int32 Len, const ANSICHAR* Str);
+	UE_STRING_DEPRECATED(5.4, "This constructor has been deprecated - please use " PREPROCESSOR_TO_STRING(UE_STRING_CLASS) "::ConstructFromPtrSize(Ptr, Size) instead.") CORE_API UE_STRING_CLASS(int32 Len, const WIDECHAR* Str);
+	UE_STRING_DEPRECATED(5.4, "This constructor has been deprecated - please use " PREPROCESSOR_TO_STRING(UE_STRING_CLASS) "::ConstructFromPtrSize(Ptr, Size) instead.") CORE_API UE_STRING_CLASS(int32 Len, const UTF8CHAR* Str);
+	UE_STRING_DEPRECATED(5.4, "This constructor has been deprecated - please use " PREPROCESSOR_TO_STRING(UE_STRING_CLASS) "::ConstructFromPtrSize(Ptr, Size) instead.") CORE_API UE_STRING_CLASS(int32 Len, const UCS2CHAR* Str);
 
 	/** Construct from null-terminated C string or nullptr with extra slack on top of original string length */
-	CORE_API UE_STRING_CLASS(const ANSICHAR* Str, int32 ExtraSlack);
-	CORE_API UE_STRING_CLASS(const WIDECHAR* Str, int32 ExtraSlack);
-	CORE_API UE_STRING_CLASS(const UTF8CHAR* Str, int32 ExtraSlack);
-	CORE_API UE_STRING_CLASS(const UCS2CHAR* Str, int32 ExtraSlack);
+	UE_STRING_DEPRECATED(5.4, "This constructor has been deprecated - please use " PREPROCESSOR_TO_STRING(UE_STRING_CLASS) "::ConstructWithSlack(Ptr, Size) instead.") CORE_API UE_STRING_CLASS(const ANSICHAR* Str, int32 ExtraSlack);
+	UE_STRING_DEPRECATED(5.4, "This constructor has been deprecated - please use " PREPROCESSOR_TO_STRING(UE_STRING_CLASS) "::ConstructWithSlack(Ptr, Size) instead.") CORE_API UE_STRING_CLASS(const WIDECHAR* Str, int32 ExtraSlack);
+	UE_STRING_DEPRECATED(5.4, "This constructor has been deprecated - please use " PREPROCESSOR_TO_STRING(UE_STRING_CLASS) "::ConstructWithSlack(Ptr, Size) instead.") CORE_API UE_STRING_CLASS(const UTF8CHAR* Str, int32 ExtraSlack);
+	UE_STRING_DEPRECATED(5.4, "This constructor has been deprecated - please use " PREPROCESSOR_TO_STRING(UE_STRING_CLASS) "::ConstructWithSlack(Ptr, Size) instead.") CORE_API UE_STRING_CLASS(const UCS2CHAR* Str, int32 ExtraSlack);
+
+	/** Construct from null-terminated C string with extra slack on top of original string length. */
+	static CORE_API UE_STRING_CLASS ConstructWithSlack(const ANSICHAR* Str, int32 ExtraSlack);
+	static CORE_API UE_STRING_CLASS ConstructWithSlack(const WIDECHAR* Str, int32 ExtraSlack);
+	static CORE_API UE_STRING_CLASS ConstructWithSlack(const UTF8CHAR* Str, int32 ExtraSlack);
+	static CORE_API UE_STRING_CLASS ConstructWithSlack(const UCS2CHAR* Str, int32 ExtraSlack);
+
+	/** Construct from a buffer.  If the buffer contains zeros, these will be present in the constructed string. */
+	static CORE_API UE_STRING_CLASS ConstructFromPtrSize(const ANSICHAR* Str, int32 Size);
+	static CORE_API UE_STRING_CLASS ConstructFromPtrSize(const WIDECHAR* Str, int32 Size);
+	static CORE_API UE_STRING_CLASS ConstructFromPtrSize(const UTF8CHAR* Str, int32 Size);
+	static CORE_API UE_STRING_CLASS ConstructFromPtrSize(const UCS2CHAR* Str, int32 Size);
+
+	/** Construct from a buffer with extra slack on top of original string length.  If the buffer contains zeros, these will be present in the constructed string. */
+	static CORE_API UE_STRING_CLASS ConstructFromPtrSizeWithSlack(const ANSICHAR* Str, int32 Size, int32 ExtraSlack);
+	static CORE_API UE_STRING_CLASS ConstructFromPtrSizeWithSlack(const WIDECHAR* Str, int32 Size, int32 ExtraSlack);
+	static CORE_API UE_STRING_CLASS ConstructFromPtrSizeWithSlack(const UTF8CHAR* Str, int32 Size, int32 ExtraSlack);
+	static CORE_API UE_STRING_CLASS ConstructFromPtrSizeWithSlack(const UCS2CHAR* Str, int32 Size, int32 ExtraSlack);
 
 	/** Construct from contiguous range of characters such as a string view or string builder */
 	template <
@@ -114,8 +135,9 @@ public:
 			!std::is_base_of_v<UE_STRING_CLASS, std::decay_t<CharRangeType>>
 		)
 	>
-	FORCEINLINE explicit UE_STRING_CLASS(CharRangeType&& Str) : UE_STRING_CLASS(GetNum(Str), GetData(Forward<CharRangeType>(Str)))
+	FORCEINLINE explicit UE_STRING_CLASS(CharRangeType&& Str)
 	{
+		*this = UE_STRING_CLASS::ConstructFromPtrSize(GetData(Forward<CharRangeType>(Str)), GetNum(Str));
 	}
 
 	/** Construct from contiguous range of characters with extra slack on top of original string length */
@@ -1046,7 +1068,7 @@ public:
 	/** Returns the left most given number of characters */
 	UE_NODISCARD FORCEINLINE UE_STRING_CLASS Left( int32 Count ) const &
 	{
-		return UE_STRING_CLASS( FMath::Clamp(Count,0,Len()), **this );
+		return UE_STRING_CLASS::ConstructFromPtrSize(**this, FMath::Clamp(Count,0,Len()) );
 	}
 
 	UE_NODISCARD FORCEINLINE UE_STRING_CLASS Left(int32 Count) &&
@@ -1067,7 +1089,7 @@ public:
 	UE_NODISCARD FORCEINLINE UE_STRING_CLASS LeftChop( int32 Count ) const &
 	{
 		const int32 Length = Len();
-		return UE_STRING_CLASS( FMath::Clamp(Length-Count,0, Length), **this );
+		return UE_STRING_CLASS::ConstructFromPtrSize( **this, FMath::Clamp(Length-Count,0, Length) );
 	}
 
 	UE_NODISCARD FORCEINLINE UE_STRING_CLASS LeftChop(int32 Count)&&
