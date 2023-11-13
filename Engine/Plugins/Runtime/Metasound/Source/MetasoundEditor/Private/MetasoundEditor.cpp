@@ -1114,6 +1114,7 @@ namespace Metasound
 
 			SAssignNew(GraphMembersMenu, SGraphActionMenu, false)
 				.AlphaSortItems(true)
+				.AutoExpandActionMenu(true)
 				.OnActionDoubleClicked(this, &FEditor::OnMemberActionDoubleClicked)
 				.OnActionDragged(this, &FEditor::OnActionDragged)
 				.OnActionMatchesName(this, &FEditor::HandleActionMatchesName)
@@ -1135,6 +1136,8 @@ namespace Metasound
 
 			FPropertyEditorModule& PropertyModule = FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
 			MetasoundDetails = PropertyModule.CreateDetailView(Args);
+			// Set details selection to the MetaSound's source settings 
+			SetSelection({ Metasound });
 			InterfacesDetails = PropertyModule.CreateDetailView(Args);
 			if (InterfacesDetails.IsValid())
 			{

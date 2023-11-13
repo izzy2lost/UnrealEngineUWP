@@ -160,5 +160,5 @@ public:
 
 	/** Determines which details view to show in Metasounds Editor */
 	UPROPERTY(Transient)
-	EMetasoundActiveDetailView DetailView = EMetasoundActiveDetailView::Metasound;
+	EMetasoundActiveDetailView DetailView = EMetasoundActiveDetailView::General;
 };
