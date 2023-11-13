@@ -104,7 +104,7 @@ const TArray<TRigVMTypeIndex>& FRigVMFunction::GetArgumentTypeIndices() const
 			{
 				const FRigVMTemplateArgument* TemplateArgument = Template->FindArgument(FunctionArgument.Name);
 				check(TemplateArgument);
-				ArgumentTypeIndices.Add(TemplateArgument->GetTypeIndices()[PermutationIndex]);
+				ArgumentTypeIndices.Add(TemplateArgument->GetTypeIndex(PermutationIndex));
 			}
 		}
 		else

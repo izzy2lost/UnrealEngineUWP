@@ -826,16 +826,16 @@ bool URigVMCompiler::Compile(const FRigVMCompileSettings& InSettings, TArray<URi
 							const TRigVMTypeIndex ExpectedTypeIndex = ExpectedArgument.GetSupportedTypeIndices()[0];
 							if (URigVMPin* Pin = UnitNode->FindPin(ExpectedArgument.Name.ToString()))
 							{
-								if (Pin->GetTypeIndex() != ExpectedArgument.GetTypeIndices()[0])
+								if (Pin->GetTypeIndex() != ExpectedArgument.GetTypeIndex(0))
 								{
-									FString MissingPinMessage = FString::Printf(TEXT("Could not find pin %s of type %s in Node @@."), *ExpectedArgument.Name.ToString(), *FRigVMRegistry::Get().GetType(ExpectedArgument.TypeIndices[0]).CPPType.ToString());
+									FString MissingPinMessage = FString::Printf(TEXT("Could not find pin %s of type %s in Node @@."), *ExpectedArgument.Name.ToString(), *Registry.GetType(ExpectedArgument.GetTypeIndex(0)).CPPType.ToString());
 									Settings.ASTSettings.Report(EMessageSeverity::Error, ModelNode, MissingPinMessage);
 									bEncounteredGraphError = true;
 								}
 							}
 							else
 							{
-								FString MissingPinMessage = FString::Printf(TEXT("Could not find pin %s of type %s in Node @@."), *ExpectedArgument.Name.ToString(), *FRigVMRegistry::Get().GetType(ExpectedArgument.TypeIndices[0]).CPPType.ToString());
+								FString MissingPinMessage = FString::Printf(TEXT("Could not find pin %s of type %s in Node @@."), *ExpectedArgument.Name.ToString(), *Registry.GetType(ExpectedArgument.GetTypeIndex(0)).CPPType.ToString());
 								Settings.ASTSettings.Report(EMessageSeverity::Error, ModelNode, MissingPinMessage);
 								bEncounteredGraphError = true;
 							}

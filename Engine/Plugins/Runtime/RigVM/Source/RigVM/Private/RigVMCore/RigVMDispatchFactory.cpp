@@ -299,22 +299,37 @@ TArray<FRigVMTemplateArgumentInfo> FRigVMDispatchFactory::BuildArgumentListFromP
 	TypeIndicesArray.SetNum(NumInfos);
 
 	const FRigVMTemplateArgument PrimaryArgument = PrimaryInfo->GetArgument();
-	for (const TRigVMTypeIndex& Type : PrimaryArgument.TypeIndices)
+	bool bFoundArg = true;
+	PrimaryArgument.ForEachType([&](const TRigVMTypeIndex Type)
 	{
-		const TArray<FRigVMTemplateTypeMap> Permutations = GetPermutationsFromArgumentType(InPrimaryArgumentName, Type);
-		for (const FRigVMTemplateTypeMap& Permutation : Permutations)
+		if (bFoundArg)
 		{
-			for (int32 Index=0; Index < InInfos.Num(); ++Index)
+			const TArray<FRigVMTemplateTypeMap> Permutations = GetPermutationsFromArgumentType(InPrimaryArgumentName, Type);
+			for (const FRigVMTemplateTypeMap& Permutation : Permutations)
 			{
-				const TRigVMTypeIndex* PermutationArg = Permutation.Find(InInfos[Index].Name);
-				if (!PermutationArg)
+				for (int32 Index=0; Index < InInfos.Num(); ++Index)
 				{
-					NewInfos.Reset();
-					return NewInfos;
+					if (const TRigVMTypeIndex* PermutationArg = Permutation.Find(InInfos[Index].Name))
+					{
+						TypeIndicesArray[Index].Add(*PermutationArg);
+					}
+					else
+					{
+						bFoundArg = false;
+						break;
+					}
 				}
-				TypeIndicesArray[Index].Add(*PermutationArg);
+				if (!bFoundArg)
+				{
+					break;
+				}
 			}
 		}
+	});
+
+	if (!bFoundArg)
+	{
+		return NewInfos;	
 	}
 
 	NewInfos.Reserve(NumInfos);
@@ -322,23 +337,14 @@ TArray<FRigVMTemplateArgumentInfo> FRigVMDispatchFactory::BuildArgumentListFromP
 	{
 		const FRigVMTemplateArgument Argument = InInfos[Index].GetArgument();
 		const TArray<TRigVMTypeIndex>& TypeIndices = TypeIndicesArray[Index];
-
-		const FName Name = InInfos[Index].Name;
-		const ERigVMPinDirection Direction = Argument.Direction;
-		const TArray<FRigVMTemplateArgument::ETypeCategory> TypeCategories = Argument.TypeCategories;
-		
-		NewInfos.Emplace(Name, Direction, [TypeIndices, TypeCategories](const FName InName, ERigVMPinDirection InDirection)
+		if (TypeIndices.IsEmpty())
 		{
-			FRigVMTemplateArgument Argument;
-			Argument.Name = InName;
-			Argument.Direction = InDirection;
-			Argument.TypeCategories = TypeCategories;
-			Argument.TypeIndices = TypeIndices;
-			
-			Argument.EnsureValidExecuteType();
-			Argument.UpdateTypeToPermutations();
-			return Argument;
-		} );
+			NewInfos.Emplace(InInfos[Index].Name, Argument.Direction, Argument.TypeCategories);
+		}
+		else
+		{
+			NewInfos.Emplace(InInfos[Index].Name, Argument.Direction, TypeIndices);
+		}
 	}
 	
 	return NewInfos;
@@ -375,21 +381,22 @@ const FRigVMTemplate* FRigVMDispatchFactory::GetTemplate() const
 		return CachedTemplate;
 	}
 
-	const TArray<FRigVMTemplateArgumentInfo>& Arguments = GetArgumentInfos();
-
-	// we don't allow execute types on arguments
-	for(const FRigVMTemplateArgumentInfo& Info : Arguments)
+	
+	// we don't allow execute types on arguments	
+	const TArray<FRigVMTemplateArgumentInfo>& Infos = GetArgumentInfos();
+	for (const FRigVMTemplateArgumentInfo& Info : Infos)
 	{
 		const FRigVMTemplateArgument Argument = Info.GetArgument();
-		for(const TRigVMTypeIndex& TypeIndex : Argument.GetTypeIndices())
+		const int32 Index = Argument.IndexOfByPredicate([&](const TRigVMTypeIndex TypeIndex)
 		{
-			if(Registry.IsExecuteType(TypeIndex))
-			{
-				UE_LOG(LogRigVM, Error, TEXT("Failed to add template for dispatch '%s'. Argument '%s' is an execute type."),
-					*GetFactoryName().ToString(),
-					*Argument.GetName().ToString());
-				return nullptr;
-			}
+			return Registry.IsExecuteType(TypeIndex);
+		});
+		
+		if (Index != INDEX_NONE)
+		{
+			UE_LOG(LogRigVM, Error, TEXT("Failed to add template for dispatch '%s'. Argument '%s' is an execute type."),
+				*FactoryName.ToString(), *Info.Name.ToString());
+			return nullptr;			
 		}
 	}
 
@@ -400,7 +407,7 @@ const FRigVMTemplate* FRigVMDispatchFactory::GetTemplate() const
 		return FRigVMRegistry::Get().FindDispatchFactory(FactoryName);
 	});
 
-	CachedTemplate = Registry.AddTemplateFromArguments(GetFactoryName(), Arguments, Delegates); 
+	CachedTemplate = Registry.AddTemplateFromArguments(GetFactoryName(), Infos, Delegates); 
 	return CachedTemplate;
 }
 

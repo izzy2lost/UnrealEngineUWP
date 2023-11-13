@@ -1938,7 +1938,7 @@ bool URigVMPin::CanLink(const URigVMPin* InSourcePin, const URigVMPin* InTargetP
 					FRigVMRegistry& Registry = FRigVMRegistry::Get();
 					for (int32 Permutation : SourcePermutations)
 					{
-						TRigVMTypeIndex Type = SourceRootArgument->GetTypeIndices()[Permutation];
+						TRigVMTypeIndex Type = SourceRootArgument->GetTypeIndex(Permutation);
 						for (int32 i=0; i<SourceLevels; ++i)
 						{
 							check(Registry.IsArrayType(Type));
@@ -1948,7 +1948,7 @@ bool URigVMPin::CanLink(const URigVMPin* InSourcePin, const URigVMPin* InTargetP
 					}
 					for (int32 Permutation : TargetPermutations)
 					{
-						TRigVMTypeIndex Type = TargetRootArgument->GetTypeIndices()[Permutation];
+						TRigVMTypeIndex Type = TargetRootArgument->GetTypeIndex(Permutation);
 						for (int32 i=0; i<TargetLevels; ++i)
 						{
 							check(Registry.IsArrayType(Type));

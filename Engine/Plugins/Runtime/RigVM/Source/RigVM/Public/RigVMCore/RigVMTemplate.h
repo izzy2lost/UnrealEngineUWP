@@ -198,10 +198,7 @@ struct RIGVM_API FRigVMTemplateArgument
 	FRigVMTemplateArgument(const FName& InName, ERigVMPinDirection InDirection);
 	FRigVMTemplateArgument(const FName& InName, ERigVMPinDirection InDirection, TRigVMTypeIndex InType);
 	FRigVMTemplateArgument(const FName& InName, ERigVMPinDirection InDirection, const TArray<TRigVMTypeIndex>& InTypeIndices);
-	FRigVMTemplateArgument(const FName& InName, ERigVMPinDirection InDirection, const TArray<ETypeCategory>& InTypeCategories, const FTypeFilter& InTypeFilter = {});
-
-	// Serialize
-	void Serialize(FArchive& Ar);
+	FRigVMTemplateArgument(const FName& InName, ERigVMPinDirection InDirection, const TArray<ETypeCategory>& InTypeCategories);
 
 	// returns the name of the argument
 	const FName& GetName() const { return Name; }
@@ -213,7 +210,24 @@ struct RIGVM_API FRigVMTemplateArgument
 	bool SupportsTypeIndex(TRigVMTypeIndex InTypeIndex, TRigVMTypeIndex* OutTypeIndex = nullptr) const;
 
 	// returns the flat list of types (including duplicates) of this argument
-	const TArray<TRigVMTypeIndex>& GetTypeIndices() const;
+	void GetAllTypes(TArray<TRigVMTypeIndex>& OutTypes) const;
+	
+	TRigVMTypeIndex GetTypeIndex(const int32 InIndex) const;
+	int32 GetNumTypes() const;
+	void AddTypeIndex(const TRigVMTypeIndex InTypeIndex);
+	void RemoveType(const int32 InIndex);
+	void ForEachType(TFunction<void(const TRigVMTypeIndex InType)>&& InCallback) const;
+	int32 FindTypeIndex(const TRigVMTypeIndex InTypeIndex) const;
+
+	template <typename Predicate>
+	int32 IndexOfByPredicate(Predicate Pred) const
+	{
+		if (!bUseCategories)
+		{
+			return TypeIndices.IndexOfByPredicate(Pred);
+		}
+		return CategoryViews(TypeCategories).IndexOfByPredicate(Pred);
+	}
 
 	// returns an array of all of the supported types
 	TArray<TRigVMTypeIndex> GetSupportedTypeIndices(const TArray<int32>& InPermutationIndices = TArray<int32>()) const;
@@ -235,16 +249,19 @@ struct RIGVM_API FRigVMTemplateArgument
 	RIGVM_API friend uint32 GetTypeHash(const FRigVMTemplateArgument& InArgument);
 
 	// Get the map of types to permutation indices
-	const TMap<TRigVMTypeIndex, TArray<int32>>& GetTypeToPermutations() const { return TypeToPermutations; }
+	const TArray<int32>& GetPermutations(const TRigVMTypeIndex InType) const;
+	void InvalidatePermutations(const TRigVMTypeIndex InType);
 
 protected:
 
-	int32 Index;
-	FName Name;
-	ERigVMPinDirection Direction;
-	TArray<TRigVMTypeIndex> TypeIndices;
+	int32 Index = INDEX_NONE;
+	FName Name = NAME_None;
+	ERigVMPinDirection Direction = ERigVMPinDirection::IO;
 
-	TMap<TRigVMTypeIndex, TArray<int32>> TypeToPermutations;
+	TArray<TRigVMTypeIndex> TypeIndices;
+	mutable TMap<TRigVMTypeIndex, TArray<int32>> TypeToPermutations;
+
+	bool bUseCategories = false;
 	TArray<ETypeCategory> TypeCategories;
 
 	// constructor from a property. this forces the type to be created
@@ -258,8 +275,39 @@ protected:
 	friend class URigVMController;
 	friend struct FRigVMRegistry;
 	friend struct FRigVMStructUpgradeInfo;
-	friend struct FRigVMSetLibraryTemplateAction;
 	friend class URigVMCompiler;
+
+private:
+	struct CategoryViews
+	{
+		CategoryViews() = delete;
+		CategoryViews(const TArray<ETypeCategory>& InCategories);
+		
+		void ForEachType(TFunction<void(const TRigVMTypeIndex InType)>&& InCallback) const;
+
+		TRigVMTypeIndex GetTypeIndex(int32 InIndex) const;
+		
+		int32 FindIndex(const TRigVMTypeIndex InTypeIndex) const;
+
+		template <typename Predicate>
+		int32 IndexOfByPredicate(Predicate Pred) const
+		{
+			int32 Offset = 0;
+			for (const TArrayView<const TRigVMTypeIndex>& TypeView: Types)
+			{
+				const int32 Found = TypeView.IndexOfByPredicate(Pred);
+				if (Found != INDEX_NONE)
+				{
+					return Found + Offset;
+				}
+				Offset += TypeView.Num();
+			}
+			return INDEX_NONE;
+		}
+		
+	private:
+		TArray<TArrayView<const TRigVMTypeIndex>> Types;
+	};
 };
 
 /**
@@ -306,9 +354,6 @@ public:
 
 	// Default constructor
 	FRigVMTemplate();
-
-	// Serialize
-	void Serialize(FArchive& Ar);
 
 	// returns true if this is a valid template
 	bool IsValid() const;
@@ -454,7 +499,7 @@ public:
 
 	void RecomputeTypesHashToPermutations();
 
-	void UpdateTypesHashToPermutation(const int32& InPermutation);
+	void UpdateTypesHashToPermutation(const int32 InPermutation);
 
 	RIGVM_API friend uint32 GetTypeHash(const FRigVMTemplate& InTemplate);
 
@@ -486,6 +531,5 @@ private:
 	friend struct FRigVMRegistry;
 	friend class URigVMController;
 	friend class URigVMLibraryNode;
-	friend struct FRigVMSetLibraryTemplateAction;
 	friend struct FRigVMDispatchFactory;
 };

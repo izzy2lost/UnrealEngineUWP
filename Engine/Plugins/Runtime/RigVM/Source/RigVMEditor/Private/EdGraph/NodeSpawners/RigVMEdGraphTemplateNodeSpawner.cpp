@@ -188,7 +188,7 @@ UEdGraphNode* URigVMEdGraphTemplateNodeSpawner::Invoke(UEdGraph* ParentGraph, FB
 
 				if(Argument->IsSingleton())
 				{
-					const TRigVMTypeIndex TypeIndex = Argument->GetTypeIndices()[0];
+					const TRigVMTypeIndex TypeIndex = Argument->GetTypeIndex(0);
 					const FRigVMTemplateArgumentType& Type = Registry.GetType(TypeIndex);
 					CPPType = Type.CPPType;
 					CPPTypeObject = Type.CPPTypeObject;

@@ -608,14 +608,15 @@ const TArray<TRigVMTypeIndex>& RigVMTypeUtils::GetAvailableCasts(const TRigVMTyp
 		{
 			TArray<TRigVMTypeIndex>& AvailableCasts = AvailableCastMap.Add(InTypeIndex);
 			
-			for(int32 Index = 0; Index < ArgumentA->GetTypeIndices().Num(); Index++)
+			int32 Index = 0;
+			ArgumentA->ForEachType([&](const TRigVMTypeIndex TypeIndexA)
 			{
-				const TRigVMTypeIndex& TypeIndexA = ArgumentA->GetTypeIndices()[Index];
 				if(TypeIndexA == InTypeIndex)
 				{
-					AvailableCasts.Add(ArgumentB->GetTypeIndices()[Index]);
+					AvailableCasts.Add(ArgumentB->GetTypeIndex(Index));
 				}
-			}
+				Index++;
+			});
 
 			return AvailableCasts;
 		}
@@ -649,17 +650,17 @@ const FRigVMFunction* RigVMTypeUtils::GetCastForTypeIndices(const TRigVMTypeInde
 
 			if(SourceArgument && TargetArgument)
 			{
-				const TArray<int32>* SourcePermutations = SourceArgument->GetTypeToPermutations().Find(InSourceTypeIndex);
-				const TArray<int32>* TargetPermutations = TargetArgument->GetTypeToPermutations().Find(InTargetTypeIndex);
-				if(SourcePermutations && TargetPermutations)
+				const TArray<int32>& SourcePermutations = SourceArgument->GetPermutations(InSourceTypeIndex);
+				const TArray<int32>& TargetPermutations = TargetArgument->GetPermutations(InTargetTypeIndex);
+				if(!SourcePermutations.IsEmpty() && !TargetPermutations.IsEmpty())
 				{
-					for(int32 SourceIndex = 0, SourceCount = SourcePermutations->Num(); SourceIndex < SourceCount; ++SourceIndex)
+					for(int32 SourceIndex = 0, SourceCount = SourcePermutations.Num(); SourceIndex < SourceCount; ++SourceIndex)
 					{
-						for(int32 TargetIndex = 0, TargetCount = TargetPermutations->Num(); TargetIndex < TargetCount; ++TargetIndex)
+						for(int32 TargetIndex = 0, TargetCount = TargetPermutations.Num(); TargetIndex < TargetCount; ++TargetIndex)
 						{
-							if((*SourcePermutations)[SourceIndex] == (*TargetPermutations)[TargetIndex])
+							if(SourcePermutations[SourceIndex] == TargetPermutations[TargetIndex])
 							{
-								return const_cast<FRigVMTemplate*>(CastTemplate)->GetOrCreatePermutation((*SourcePermutations)[SourceIndex]);
+								return const_cast<FRigVMTemplate*>(CastTemplate)->GetOrCreatePermutation(SourcePermutations[SourceIndex]);
 							}
 						}
 					}

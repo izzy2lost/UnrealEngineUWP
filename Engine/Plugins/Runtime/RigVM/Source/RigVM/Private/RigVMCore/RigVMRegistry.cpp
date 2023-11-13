@@ -502,6 +502,14 @@ TRigVMTypeIndex FRigVMRegistry::FindOrAddType_Internal(const FRigVMTemplateArgum
 			Types[Indices[1]].ArrayTypeIndex = Indices[2];
 		}
 
+		// update the categories first then propagate to ArgumentsPerCategory once all categories up to date
+		TArray<TPair<FRigVMTemplateArgument::ETypeCategory, int32>> ToPropagate;
+		auto RegisterNewType = [&](FRigVMTemplateArgument::ETypeCategory InCategory, int32 NewIndex)
+		{
+			RegisterTypeInCategory(InCategory, NewIndex);
+			ToPropagate.Emplace(InCategory, NewIndex);
+		}; 
+
 		for (int32 ArrayDimension=0; ArrayDimension<3; ++ArrayDimension)
 		{
 			if(bIsExecute && ArrayDimension > 1)
@@ -519,20 +527,20 @@ TRigVMTypeIndex FRigVMRegistry::FindOrAddType_Internal(const FRigVMTemplateArgum
 					default:
 					case 0:
 					{
-						RegisterTypeInCategory(FRigVMTemplateArgument::ETypeCategory_SingleSimpleValue, Index);
-						RegisterTypeInCategory(FRigVMTemplateArgument::ETypeCategory_SingleAnyValue, Index);
+						RegisterNewType(FRigVMTemplateArgument::ETypeCategory_SingleSimpleValue, Index);
+						RegisterNewType(FRigVMTemplateArgument::ETypeCategory_SingleAnyValue, Index);
 						break;
 					}
 					case 1:
 					{
-						RegisterTypeInCategory(FRigVMTemplateArgument::ETypeCategory_ArraySimpleValue, Index);
-						RegisterTypeInCategory(FRigVMTemplateArgument::ETypeCategory_ArrayAnyValue, Index);
+						RegisterNewType(FRigVMTemplateArgument::ETypeCategory_ArraySimpleValue, Index);
+						RegisterNewType(FRigVMTemplateArgument::ETypeCategory_ArrayAnyValue, Index);
 						break;
 					}
 					case 2:
 					{
-						RegisterTypeInCategory(FRigVMTemplateArgument::ETypeCategory_ArrayArraySimpleValue, Index);
-						RegisterTypeInCategory(FRigVMTemplateArgument::ETypeCategory_ArrayArrayAnyValue, Index);
+						RegisterNewType(FRigVMTemplateArgument::ETypeCategory_ArrayArraySimpleValue, Index);
+						RegisterNewType(FRigVMTemplateArgument::ETypeCategory_ArrayArrayAnyValue, Index);
 						break;
 					}
 				}
@@ -544,20 +552,20 @@ TRigVMTypeIndex FRigVMRegistry::FindOrAddType_Internal(const FRigVMTemplateArgum
 					default:
 					case 0:
 					{
-						RegisterTypeInCategory(FRigVMTemplateArgument::ETypeCategory_SingleObjectValue, Index);
-						RegisterTypeInCategory(FRigVMTemplateArgument::ETypeCategory_SingleAnyValue, Index);
+						RegisterNewType(FRigVMTemplateArgument::ETypeCategory_SingleObjectValue, Index);
+						RegisterNewType(FRigVMTemplateArgument::ETypeCategory_SingleAnyValue, Index);
 						break;
 					}
 					case 1:
 					{
-						RegisterTypeInCategory(FRigVMTemplateArgument::ETypeCategory_ArrayObjectValue, Index);
-						RegisterTypeInCategory(FRigVMTemplateArgument::ETypeCategory_ArrayAnyValue, Index);
+						RegisterNewType(FRigVMTemplateArgument::ETypeCategory_ArrayObjectValue, Index);
+						RegisterNewType(FRigVMTemplateArgument::ETypeCategory_ArrayAnyValue, Index);
 						break;
 					}
 					case 2:
 					{
-						RegisterTypeInCategory(FRigVMTemplateArgument::ETypeCategory_ArrayArrayObjectValue, Index);
-						RegisterTypeInCategory(FRigVMTemplateArgument::ETypeCategory_ArrayArrayAnyValue, Index);
+						RegisterNewType(FRigVMTemplateArgument::ETypeCategory_ArrayArrayObjectValue, Index);
+						RegisterNewType(FRigVMTemplateArgument::ETypeCategory_ArrayArrayAnyValue, Index);
 						break;
 					}
 				}
@@ -569,20 +577,20 @@ TRigVMTypeIndex FRigVMRegistry::FindOrAddType_Internal(const FRigVMTemplateArgum
 					default:
 					case 0:
 					{
-						RegisterTypeInCategory(FRigVMTemplateArgument::ETypeCategory_SingleEnumValue, Index);
-						RegisterTypeInCategory(FRigVMTemplateArgument::ETypeCategory_SingleAnyValue, Index);
+						RegisterNewType(FRigVMTemplateArgument::ETypeCategory_SingleEnumValue, Index);
+						RegisterNewType(FRigVMTemplateArgument::ETypeCategory_SingleAnyValue, Index);
 						break;
 					}
 					case 1:
 					{
-						RegisterTypeInCategory(FRigVMTemplateArgument::ETypeCategory_ArrayEnumValue, Index);
-						RegisterTypeInCategory(FRigVMTemplateArgument::ETypeCategory_ArrayAnyValue, Index);
+						RegisterNewType(FRigVMTemplateArgument::ETypeCategory_ArrayEnumValue, Index);
+						RegisterNewType(FRigVMTemplateArgument::ETypeCategory_ArrayAnyValue, Index);
 						break;
 					}
 					case 2:
 					{
-						RegisterTypeInCategory(FRigVMTemplateArgument::ETypeCategory_ArrayArrayEnumValue, Index);
-						RegisterTypeInCategory(FRigVMTemplateArgument::ETypeCategory_ArrayArrayAnyValue, Index);
+						RegisterNewType(FRigVMTemplateArgument::ETypeCategory_ArrayArrayEnumValue, Index);
+						RegisterNewType(FRigVMTemplateArgument::ETypeCategory_ArrayArrayAnyValue, Index);
 						break;
 					}
 				}
@@ -593,7 +601,7 @@ TRigVMTypeIndex FRigVMRegistry::FindOrAddType_Internal(const FRigVMTemplateArgum
 				{
 					if(ArrayDimension == 0)
 					{
-						RegisterTypeInCategory(FRigVMTemplateArgument::ETypeCategory_Execute, Index);
+						RegisterNewType(FRigVMTemplateArgument::ETypeCategory_Execute, Index);
 					}
 				}
 				else
@@ -605,17 +613,17 @@ TRigVMTypeIndex FRigVMRegistry::FindOrAddType_Internal(const FRigVMTemplateArgum
 							default:
 							case 0:
 							{
-								RegisterTypeInCategory(FRigVMTemplateArgument::ETypeCategory_SingleMathStructValue, Index);
+								RegisterNewType(FRigVMTemplateArgument::ETypeCategory_SingleMathStructValue, Index);
 								break;
 							}
 							case 1:
 							{
-								RegisterTypeInCategory(FRigVMTemplateArgument::ETypeCategory_ArrayMathStructValue, Index);
+								RegisterNewType(FRigVMTemplateArgument::ETypeCategory_ArrayMathStructValue, Index);
 								break;
 							}
 							case 2:
 							{
-								RegisterTypeInCategory(FRigVMTemplateArgument::ETypeCategory_ArrayArrayMathStructValue, Index);
+								RegisterNewType(FRigVMTemplateArgument::ETypeCategory_ArrayArrayMathStructValue, Index);
 								break;
 							}
 						}
@@ -626,25 +634,31 @@ TRigVMTypeIndex FRigVMRegistry::FindOrAddType_Internal(const FRigVMTemplateArgum
 						default:
 						case 0:
 						{
-							RegisterTypeInCategory(FRigVMTemplateArgument::ETypeCategory_SingleScriptStructValue, Index);
-							RegisterTypeInCategory(FRigVMTemplateArgument::ETypeCategory_SingleAnyValue, Index);
+							RegisterNewType(FRigVMTemplateArgument::ETypeCategory_SingleScriptStructValue, Index);
+							RegisterNewType(FRigVMTemplateArgument::ETypeCategory_SingleAnyValue, Index);
 							break;
 						}
 						case 1:
 						{
-							RegisterTypeInCategory(FRigVMTemplateArgument::ETypeCategory_ArrayScriptStructValue, Index);
-							RegisterTypeInCategory(FRigVMTemplateArgument::ETypeCategory_ArrayAnyValue, Index);
+							RegisterNewType(FRigVMTemplateArgument::ETypeCategory_ArrayScriptStructValue, Index);
+							RegisterNewType(FRigVMTemplateArgument::ETypeCategory_ArrayAnyValue, Index);
 							break;
 						}
 						case 2:
 						{
-							RegisterTypeInCategory(FRigVMTemplateArgument::ETypeCategory_ArrayArrayScriptStructValue, Index);
-							RegisterTypeInCategory(FRigVMTemplateArgument::ETypeCategory_ArrayArrayAnyValue, Index);
+							RegisterNewType(FRigVMTemplateArgument::ETypeCategory_ArrayArrayScriptStructValue, Index);
+							RegisterNewType(FRigVMTemplateArgument::ETypeCategory_ArrayArrayAnyValue, Index);
 							break;
 						}
 					}
 				}
 			}
+		}
+
+		// propagate new type to templates once they have all been added to the categories
+		for (const auto& [Category, NewIndex]: ToPropagate)
+		{
+			PropagateTypeAddedToCategory(Category, NewIndex);	
 		}
 
 		// if the type is a structure
@@ -693,14 +707,21 @@ void FRigVMRegistry::RegisterTypeInCategory(FRigVMTemplateArgument::ETypeCategor
 	check(InCategory != FRigVMTemplateArgument::ETypeCategory_Invalid);
 
 	TypesPerCategory.FindChecked(InCategory).Add(InTypeIndex);
+}
 
-	// when adding a new type - we need to update template arguments which expect to have access to that type 
-	const TArray<TPair<int32,int32>>& ArgumentsToUseType = ArgumentsPerCategory.FindChecked(InCategory);
-	for(const TPair<int32,int32>& Pair : ArgumentsToUseType)
+void FRigVMRegistry::PropagateTypeAddedToCategory(const FRigVMTemplateArgument::ETypeCategory InCategory, const TRigVMTypeIndex InTypeIndex)
+{
+	check(InCategory != FRigVMTemplateArgument::ETypeCategory_Invalid);
+	if ( ensure(TypesPerCategory.FindChecked(InCategory).Contains(InTypeIndex)) )
 	{
-		FRigVMTemplate& Template = Templates[Pair.Key];
-		const FRigVMTemplateArgument* Argument = Template.GetArgument(Pair.Value);
-		Template.AddTypeForArgument(Argument->GetName(), InTypeIndex);
+		// when adding a new type - we need to update template arguments which expect to have access to that type 
+		const TArray<TPair<int32,int32>>& ArgumentsToUseType = ArgumentsPerCategory.FindChecked(InCategory);
+		for(const TPair<int32,int32>& Pair : ArgumentsToUseType)
+		{
+			FRigVMTemplate& Template = Templates[Pair.Key];
+			const FRigVMTemplateArgument* Argument = Template.GetArgument(Pair.Value);
+			Template.AddTypeForArgument(Argument->GetName(), InTypeIndex);
+		}
 	}
 }
 
@@ -1587,51 +1608,36 @@ const FRigVMTemplate* FRigVMRegistry::AddTemplateFromArguments_NoLock(const FNam
 	FRigVMTemplate Template(InName, InInfos);
 	for(const FRigVMTemplateArgument& Argument : Template.Arguments)
 	{
+		const int32 NumIndices = Argument.GetNumTypes();
 		if(!Argument.IsSingleton() && NumPermutations > 1)
 		{
-			if(Argument.TypeIndices.Num() != NumPermutations)
+			if(NumIndices != NumPermutations)
 			{
 				UE_LOG(LogRigVM, Error, TEXT("Failed to add template '%s' since the arguments' types counts don't match."), *InName.ToString());
 				return nullptr;
 			}
 		}
-		NumPermutations = FMath::Max(NumPermutations, Argument.TypeIndices.Num()); 
+		NumPermutations = FMath::Max(NumPermutations, NumIndices); 
 	}
 
 	// if any of the arguments are wildcards we'll need to update the types
 	for(FRigVMTemplateArgument& Argument : Template.Arguments)
 	{
-		if(Argument.TypeIndices.Num() == 1 && IsWildCardType(Argument.TypeIndices[0]))
+		if(Argument.GetNumTypes() == 1 && IsWildCardType(Argument.GetTypeIndex(0)))
 		{
-			if(IsArrayType(Argument.TypeIndices[0]))
+			Argument.InvalidatePermutations(Argument.GetTypeIndex(0));
+			if(IsArrayType(Argument.GetTypeIndex(0)))
 			{
-				Argument.TypeIndices = GetTypesForCategory(FRigVMTemplateArgument::ETypeCategory_ArrayAnyValue);
 				Argument.TypeCategories.Add(FRigVMTemplateArgument::ETypeCategory_ArrayAnyValue);
 			}
 			else
 			{
-				Argument.TypeIndices = GetTypesForCategory(FRigVMTemplateArgument::ETypeCategory_SingleAnyValue);
 				Argument.TypeCategories.Add(FRigVMTemplateArgument::ETypeCategory_SingleAnyValue);
 			}
-
-			NumPermutations = FMath::Max(NumPermutations, Argument.TypeIndices.Num()); 
-		}
-	}
-
-	// if we have more than one permutation we may need to upgrade the types for singleton args
-	if(NumPermutations > 1)
-	{
-		for(FRigVMTemplateArgument& Argument : Template.Arguments)
-		{
-			if(Argument.TypeIndices.Num() == 1)
-			{
-				const int32 TypeIndex = Argument.TypeIndices[0];
-				Argument.TypeIndices.SetNum(NumPermutations);
-				for(int32 Index=0;Index<NumPermutations;Index++)
-				{
-					Argument.TypeIndices[Index] = TypeIndex;
-				}
-			}
+			Argument.bUseCategories = true;
+			Argument.TypeIndices.Reset();
+	
+			NumPermutations = FMath::Max(NumPermutations, Argument.GetNumTypes()); 
 		}
 	}
 
@@ -1644,9 +1650,8 @@ const FRigVMTemplate* FRigVMRegistry::AddTemplateFromArguments_NoLock(const FNam
 		{
 			TSet< TRigVMTypeIndex > PermutationTypes; PermutationTypes.Reserve(NumPermutations);
 			for(int32 Index = 0; Index < NumPermutations; Index++)
- 
 			{
-				const TRigVMTypeIndex ArgType = Template.Arguments[0].TypeIndices[Index];
+				const TRigVMTypeIndex ArgType = Template.Arguments[0].GetTypeIndex(Index);
 				if (PermutationTypes.Contains(ArgType))
 				{
 					ToRemove.Add(Index);
@@ -1666,7 +1671,7 @@ const FRigVMTemplate* FRigVMRegistry::AddTemplateFromArguments_NoLock(const FNam
 			{
 				for(int32 ArgIndex = 0; ArgIndex < NumArguments; ArgIndex++)
 				{
-					ArgTypes[ArgIndex] = Template.Arguments[ArgIndex].TypeIndices[Index];
+					ArgTypes[ArgIndex] = Template.Arguments[ArgIndex].GetTypeIndex(Index);
 				}
 				
 				if (PermutationTypes.Contains(ArgTypes))
@@ -1684,7 +1689,10 @@ const FRigVMTemplate* FRigVMRegistry::AddTemplateFromArguments_NoLock(const FNam
 		{
 			for(FRigVMTemplateArgument& Argument : Template.Arguments)
 			{
-				Argument.TypeIndices.RemoveAt(ToRemove[i]);
+				if (Argument.TypeIndices.IsValidIndex(ToRemove[i]))
+				{
+					Argument.TypeIndices.RemoveAt(ToRemove[i]);
+				}
 			}
 		}
 		NumPermutations -= ToRemove.Num();
@@ -1695,11 +1703,7 @@ const FRigVMTemplate* FRigVMRegistry::AddTemplateFromArguments_NoLock(const FNam
 		Argument.UpdateTypeToPermutations();
 	}
 
-	Template.Permutations.SetNum(NumPermutations);
-	for(int32 Index=0;Index<NumPermutations;Index++)
-	{
-		Template.Permutations[Index] = INDEX_NONE;
-	}
+	Template.Permutations.Init(INDEX_NONE, NumPermutations);
 	Template.RecomputeTypesHashToPermutations();
 
 	const int32 Index = Templates.AddElement(Template);

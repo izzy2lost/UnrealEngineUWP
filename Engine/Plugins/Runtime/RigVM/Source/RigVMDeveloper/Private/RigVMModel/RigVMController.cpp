@@ -8320,7 +8320,7 @@ FString URigVMController::AddAggregatePin(URigVMNode* InNode, const FString& InP
 					{
 						if (const FRigVMTemplateArgument* Argument = Template->FindArgument(Arg1->GetFName()))
 						{
-							const TArray<TRigVMTypeIndex>& Types = Argument->GetTypeIndices();
+							TArray<TRigVMTypeIndex> Types; Argument->GetAllTypes(Types);
 							AnswerType = RequestPinTypeSelectionDelegate.Execute(Types);
 						}
 					}
@@ -15107,8 +15107,9 @@ bool URigVMController::GenerateNewPinInfos(const FRigVMRegistry& Registry, URigV
 			{
 				if (Arg->IsSingleton())
 				{
-					DefaultValue = Factory->GetArgumentDefaultValue(Arg->Name, Arg->GetTypeIndices()[0]);
-					const FRigVMTemplateArgumentType& Type = Registry.GetType(Arg->GetTypeIndices()[0]);
+					const TRigVMTypeIndex Type0 = Arg->GetTypeIndex(0);
+					DefaultValue = Factory->GetArgumentDefaultValue(Arg->Name, Type0);
+					const FRigVMTemplateArgumentType& Type = Registry.GetType(Type0);
 					ArgumentScriptStruct = Cast<UScriptStruct>(Type.CPPTypeObject);
 				}
 			}
@@ -16568,7 +16569,7 @@ bool URigVMController::FullyResolveTemplateNode(URigVMTemplateNode* InNode, int3
 			const TArray<FRigVMTemplateArgument>& Arguments = Template->Arguments;
 			for(const FRigVMTemplateArgument& Argument : Arguments)
 			{
-				const TRigVMTypeIndex ExpectedTypeIndex = Argument.TypeIndices[InNode->ResolvedPermutation];
+				const TRigVMTypeIndex ExpectedTypeIndex = Argument.GetTypeIndex(InNode->ResolvedPermutation);
 				if(URigVMPin* Pin = InNode->FindPin(Argument.GetName().ToString()))
 				{
 					if(Pin->GetTypeIndex() != ExpectedTypeIndex && ExpectedTypeIndex != RigVMTypeUtils::TypeIndex::Execute)
@@ -16717,7 +16718,7 @@ bool URigVMController::FullyResolveTemplateNode(URigVMTemplateNode* InNode, int3
 				
 				URigVMPin* Pin = NewObject<URigVMPin>(Cast<UObject>(InNode), MissingPin.GetName());
 
-				const TRigVMTypeIndex TypeIndex = MissingPin.TypeIndices[InNode->ResolvedPermutation];
+				const TRigVMTypeIndex TypeIndex = MissingPin.GetTypeIndex(InNode->ResolvedPermutation);
 				const FRigVMTemplateArgumentType& Type = FRigVMRegistry::Get().GetType(TypeIndex); 
 				
 				Pin->Direction = MissingPin.GetDirection();
@@ -16986,7 +16987,7 @@ bool URigVMController::UpdateTemplateNodePinTypes(URigVMTemplateNode* InNode, bo
 	{
 		for (const FRigVMTemplateArgument* Argument : Arguments)
 		{
-			if (Argument && Argument->TypeIndices[Permutation] == INDEX_NONE)
+			if (Argument && Argument->GetTypeIndex(Permutation) == INDEX_NONE)
 			{
 				return true;
 			}
@@ -17017,7 +17018,7 @@ bool URigVMController::UpdateTemplateNodePinTypes(URigVMTemplateNode* InNode, bo
 			TArray<TRigVMTypeIndex>& Types = PinTypes.FindOrAdd(ResolvedPermutation);
 			if (const FRigVMTemplateArgument* Argument = Arguments[PinIndex])
 			{
-				Types.Add(Argument->TypeIndices[ResolvedPermutation]);
+				Types.Add(Argument->GetTypeIndex(ResolvedPermutation));
 				bAddedType = true;
 			}
 			else if (const FRigVMExecuteArgument* ExecuteArgument = Template->FindExecuteArgument(Pin->GetFName(), DispatchContext))
