@@ -843,8 +843,11 @@ void UControlRigBlueprint::SetPreviewMesh(USkeletalMesh* PreviewMesh, bool bMark
 
 void UControlRigBlueprint::Serialize(FArchive& Ar)
 {
-	RigVMClient.SetOuterClientHost(this, GET_MEMBER_NAME_CHECKED(UControlRigBlueprint, RigVMClient));
-	ModularRigModel.SetOuterClientHost(this);
+	if(IsValid(this))
+	{
+		RigVMClient.SetOuterClientHost(this, GET_MEMBER_NAME_CHECKED(UControlRigBlueprint, RigVMClient));
+		ModularRigModel.SetOuterClientHost(this);
+	}
 	
 	Super::Serialize(Ar);
 
