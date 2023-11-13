@@ -396,6 +396,14 @@ namespace Horde.Server.Devices
 		/// </summary>
 		public async Task UpdateDeviceAsync(DeviceId deviceId, DevicePoolId? newPoolId = null, string? newName = null, string? newAddress = null, string? newModelId = null, string? newNotes = null, bool? newEnabled = null, bool? newProblem = null, bool? newMaintenance = null, UserId? modifiedByUserId = null)
 		{
+			if (newProblem == true)
+			{
+				IDeviceReservation? reservation = await TryGetDeviceReservationAsync(deviceId);
+				if (reservation != null)
+				{
+					await TryUpdateReservationAsync(reservation.Id, problemDevice: deviceId);
+				}
+			}
 			await _devices.UpdateDeviceAsync(deviceId, newPoolId, newName, newAddress, newModelId, newNotes, newEnabled, newProblem, newMaintenance, modifiedByUserId);
 		}
 
@@ -410,7 +418,7 @@ namespace Horde.Server.Devices
 		/// <summary>
 		/// Try to create a reservation satisfying the specified device platforms and models
 		/// </summary>
-		public async Task<(IDeviceReservation?, string? errorMessage)> TryCreateReservationAsync(DevicePoolId poolId, List<DeviceRequestData> request, string? hostname = null, string? reservationDetails = null, JobId? jobId = null, JobStepId? stepId = null)
+		public async Task<(IDeviceReservation?, string? errorMessage, bool installRequired)> TryCreateReservationAsync(DevicePoolId poolId, List<DeviceRequestData> request, string? hostname = null, string? reservationDetails = null, JobId? jobId = null, JobStepId? stepId = null)
 		{
 			IJob? job = null;
 			IGraph? graph = null;
@@ -502,7 +510,7 @@ namespace Horde.Server.Devices
 				}
 				else
 				{
-					return (null, $"Unable to find job for reservation, {jobId}");
+					return (null, $"Unable to find job for reservation, {jobId}", false);
 				}
 			}
 
@@ -520,10 +528,10 @@ namespace Horde.Server.Devices
 					errorMessage = $"Attempted to reserve a device from a non-automation pool, {poolId}";
 				}
 				
-				return (null, errorMessage);
+				return (null, errorMessage, false);
 			}
 
-			IDeviceReservation? reservation =  await _devices.TryAddReservationAsync(poolId, request, _settings.CurrentValue.DeviceProblemCooldownMinutes, hostname, reservationDetails, job, stepId, stepName, reserveStepIds);
+			(IDeviceReservation? reservation, bool installRequired) =  await _devices.TryAddReservationAsync(poolId, request, _settings.CurrentValue.DeviceProblemCooldownMinutes, hostname, reservationDetails, job, stepId, stepName, reserveStepIds);
 
 			// check that only one step is running
 			if (job != null && reservation != null && reservation.ReservedStepIds != null)
@@ -559,24 +567,24 @@ namespace Horde.Server.Devices
 						}
 					}
 
-					return (null, $"Reserved nodes must not run in parallel: {String.Join(',', errorSteps)}");
+					return (null, $"Reserved nodes must not run in parallel: {String.Join(',', errorSteps)}", false);
 				}				
 			}
 
 			if (reservation == null) 
 			{
-				return (null, $"Unable to add reservation for {jobId}:{stepId}");
+				return (null, $"Unable to add reservation for {jobId}:{stepId}", false);
 			}
 
-			return (reservation, null);
+			return (reservation, null, installRequired);
 		}
 
 		/// <summary>
 		/// Update/renew an existing reservation
 		/// </summary>
-		public Task<bool> TryUpdateReservationAsync(ObjectId id)
+		public Task<IDeviceReservation?> TryUpdateReservationAsync(ObjectId id, DeviceId? problemDevice = null)
 		{
-			return _devices.TryUpdateReservationAsync(id);
+			return _devices.TryUpdateReservationAsync(id, problemDevice: problemDevice);
 		}
 
 		/// <summary>

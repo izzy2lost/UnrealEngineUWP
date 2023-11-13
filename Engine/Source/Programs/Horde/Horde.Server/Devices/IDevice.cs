@@ -88,6 +88,11 @@ namespace Horde.Server.Devices
 		public List<JobStepId>? ReservedStepIds { get; }
 
 		/// <summary>
+		/// Whether a device problem was reported for the reservation
+		/// </summary>
+		public DeviceId? ProblemDevice { get; }
+
+		/// <summary>
 		/// The requested device platforms for reservation, which may differ from IDevice platform due to devices that support more than one platform, or legacy platforms
 		/// </summary>
 		public List<string> RequestedDevicePlatforms { get; }

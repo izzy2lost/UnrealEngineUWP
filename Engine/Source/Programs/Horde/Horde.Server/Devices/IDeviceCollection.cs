@@ -117,6 +117,14 @@ namespace Horde.Server.Devices
 		// RESERVATIONS
 
 		/// <summary>
+		/// Tries to find an existing reservation block
+		/// </summary>
+		/// <param name="jobId"></param>
+		/// <param name="stepId"></param>
+		/// <returns></returns>
+		Task<IDeviceReservation?> TryFindReserveBlockAsync(JobId? jobId, JobStepId? stepId);
+
+		/// <summary>
 		/// Create a new reseveration in the pool with the specified devices
 		/// </summary>
 		/// <param name="poolId">The pool of devices to use for the new reservation</param>
@@ -128,7 +136,7 @@ namespace Horde.Server.Devices
 		/// <param name="stepId">The Step Id associated with the job</param>
 		/// <param name="stepName">The Step name associated with the job</param>
 		/// <param name="stepIds">The step ids of the job to hold sequential reservation</param>		
-		Task<IDeviceReservation?> TryAddReservationAsync(DevicePoolId poolId, List<DeviceRequestData> request, int problemCooldown, string? hostname, string? reservationDetails, IJob? job, JobStepId? stepId, string? stepName, List<JobStepId>? stepIds);
+		Task<(IDeviceReservation?, bool)> TryAddReservationAsync(DevicePoolId poolId, List<DeviceRequestData> request, int problemCooldown, string? hostname, string? reservationDetails, IJob? job, JobStepId? stepId, string? stepName, List<JobStepId>? stepIds);
 
 		/// <summary>
 		/// Gets a reservation by guid for legacy clients
@@ -157,7 +165,10 @@ namespace Horde.Server.Devices
 		/// Updates a reservation to the current time, for expiration
 		/// </summary>
 		/// <param name="id">The id of the reservation to update</param>
-		public Task<bool> TryUpdateReservationAsync(ObjectId id);
+		/// <param name="problemDevice">Whether the current device has a problem</param>
+		/// <param name="deviceIds">New devices assigned to reservation</param>
+		/// <param name="clearProblemDevice">Whether to clear problem device</param>
+		public Task<IDeviceReservation?> TryUpdateReservationAsync(ObjectId id, DeviceId? problemDevice = null, List<DeviceId>? deviceIds = null, bool? clearProblemDevice = null);
 
 		/// <summary>
 		/// Deletes a reservation and releases reserved devices

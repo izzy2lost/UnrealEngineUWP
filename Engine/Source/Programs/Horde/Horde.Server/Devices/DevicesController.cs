@@ -497,7 +497,7 @@ namespace Horde.Server.Devices
 				requestedDevices.Add(new DeviceRequestData(platformIdValue, platformIdValue.ToString(), deviceRequest.IncludeModels, deviceRequest.ExcludeModels));
 			}
 
-			(IDeviceReservation? reservation, string? errorMessage) = await _deviceService.TryCreateReservationAsync(poolIdValue, requestedDevices);
+			(IDeviceReservation? reservation, string? errorMessage, bool installRequired) = await _deviceService.TryCreateReservationAsync(poolIdValue, requestedDevices);
 
 			if (reservation == null)
 			{
@@ -576,9 +576,9 @@ namespace Horde.Server.Devices
 
 			ObjectId reservationIdValue = new ObjectId(reservationId);
 
-			bool updated = await _deviceService.TryUpdateReservationAsync(reservationIdValue);
+			IDeviceReservation? reservation = await _deviceService.TryUpdateReservationAsync(reservationIdValue);
 
-			if (!updated)
+			if (reservation == null)
 			{
 				return BadRequest("Failed to update reservation");
 			}
@@ -813,7 +813,7 @@ namespace Horde.Server.Devices
 				requestedDevices.Add(new DeviceRequestData(platform.Id, platformName, includeModels, excludeModels));
 			}
 
-			(IDeviceReservation? reservation, string? errorMessage) = await _deviceService.TryCreateReservationAsync(poolIdValue, requestedDevices, request.Hostname, request.ReservationDetails, request.JobId == null ? null : JobId.Parse(request.JobId), request.StepId == null ? null : JobStepId.Parse(request.StepId));
+			(IDeviceReservation? reservation, string? errorMessage, bool installRequired) = await _deviceService.TryCreateReservationAsync(poolIdValue, requestedDevices, request.Hostname, request.ReservationDetails, request.JobId == null ? null : JobId.Parse(request.JobId), request.StepId == null ? null : JobStepId.Parse(request.StepId));
 
 			if (reservation == null)
 			{
@@ -835,6 +835,7 @@ namespace Horde.Server.Devices
 			response.StepId = reservation.StepId;
 			response.JobName = reservation.JobName;
 			response.StepName = reservation.StepName;
+			response.InstallRequired = installRequired;
 
 			return new JsonResult(response, new JsonSerializerOptions() { PropertyNamingPolicy = null });
 
@@ -856,9 +857,9 @@ namespace Horde.Server.Devices
 				return BadRequest();
 			}
 
-			bool updated = await _deviceService.TryUpdateReservationAsync(reservation.Id);
+			IDeviceReservation? updated = await _deviceService.TryUpdateReservationAsync(reservation.Id);
 
-			if (!updated)
+			if (updated == null)
 			{
 				_logger.LogError("Unable to find reservation for reservation {ReservationId}", reservation.Id);
 				return BadRequest();
@@ -981,32 +982,6 @@ namespace Horde.Server.Devices
 			}
 
 			await _deviceService.UpdateDeviceAsync(device.Id, newProblem: true);
-
-			/*
-			string message = $"Device problem, {device.Name} : {device.PoolId.ToString().ToUpperInvariant()}";
-
-			IDeviceReservation? reservation = await _deviceService.TryGetDeviceReservation(device.Id);
-
-			string? jobId = null;
-			string? stepId = null;
-			if (reservation != null)
-			{
-				jobId = !String.IsNullOrEmpty(reservation.JobId) ? reservation.JobId : null;
-				stepId = !String.IsNullOrEmpty(reservation.StepId) ? reservation.StepId : null;
-
-				if ((jobId == null || stepId == null))
-				{
-					if (!String.IsNullOrEmpty(reservation.ReservationDetails))
-					{
-						message += $" - {reservation.ReservationDetails}";
-					}
-					else
-					{
-						message += $" - Host {reservation.Hostname}";
-					}
-				}
-			}			
-			*/
 
 			return Ok();
 		}

@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Threading.Tasks;
 using EpicGames.Horde.Devices;
 using EpicGames.Horde.Streams;
@@ -90,6 +91,9 @@ namespace Horde.Server.Devices
 
 			[BsonIgnoreIfNull]
 			public List<JobStepId>? ReservedStepIds { get; set; } = null;
+
+			[BsonIgnoreIfNull]
+			public DeviceId? ProblemDevice { get; set; } = null;
 
 			[BsonConstructor]
 			private DeviceReservationDocument()
@@ -625,27 +629,38 @@ namespace Horde.Server.Devices
 		}
 
 		/// <inheritdoc/>
-		public async Task<IDeviceReservation?> TryAddReservationAsync(DevicePoolId poolId, List<DeviceRequestData> request, int problemCooldown, string? hostname, string? reservationDetails, IJob? job, JobStepId? stepId, string? stepName, List<JobStepId>? stepIds)
-		{
-
-			if (request.Count == 0)
-			{
-				return null;
-			}
-
-			if (job != null && stepId != null) 
+		public async Task<IDeviceReservation?> TryFindReserveBlockAsync(JobId? jobId, JobStepId? stepId)
+		{			
+			if (jobId != null && stepId != null)
 			{
 				FilterDefinitionBuilder<DeviceReservationDocument> filterBuilder = Builders<DeviceReservationDocument>.Filter;
 				FilterDefinition<DeviceReservationDocument> filter = filterBuilder.Empty;
 
-				filter &= filterBuilder.Eq(x => x.JobId, job.Id.ToString());
-				filter &= filterBuilder.AnyEq(x => x.ReservedStepIds, stepId.Value);				
+				filter &= filterBuilder.Eq(x => x.JobId, jobId.ToString());
+				filter &= filterBuilder.AnyEq(x => x.ReservedStepIds, stepId.Value);
 
 				List<DeviceReservationDocument> results = await _reservations.Find(filter).ToListAsync();
 				if (results.Count > 0)
 				{
-					return results[0];					
+					return results[0];
 				}
+			}
+
+			return null;
+		}
+
+		/// <inheritdoc/>
+		public async Task<(IDeviceReservation?, bool)> TryAddReservationAsync(DevicePoolId poolId, List<DeviceRequestData> request, int problemCooldown, string? hostname, string? reservationDetails, IJob? job, JobStepId? stepId, string? stepName, List<JobStepId>? stepIds)
+		{		
+			if (request.Count == 0)
+			{
+				return (null, false);
+			}
+
+			IDeviceReservation? existing = await TryFindReserveBlockAsync(job?.Id, stepId);
+			if (existing != null && existing.ProblemDevice == null) 
+			{
+				return (existing, false);
 			}
 
 			HashSet<DeviceId> allocated = new HashSet<DeviceId>();
@@ -693,6 +708,11 @@ namespace Horde.Server.Devices
 
 			});
 
+			if (existing?.ProblemDevice != null)
+			{
+				poolDevices = poolDevices.Where(x => x.Id != existing.ProblemDevice).ToList();
+			}
+
 			foreach (DeviceRequestData data in request)
 			{
 				DeviceDocument? device = poolDevices.FirstOrDefault(a =>
@@ -719,7 +739,7 @@ namespace Horde.Server.Devices
 				if (device == null)
 				{
 					// can't fulfill request
-					return null;
+					return (null, false);
 				}
 
 				allocated.Add(device.Id);
@@ -755,15 +775,28 @@ namespace Horde.Server.Devices
 			List<DeviceId> deviceIds = allocated.ToList();
 			List<string> requestedPlatforms = deviceIds.Select(x => platformRequestMap[x]).ToList();
 
+			IDeviceReservation? returnValue = null;
+
 			// Create new reservation
-			DeviceReservationDocument newReservation = new DeviceReservationDocument(ObjectId.GenerateNewId(), poolId, deviceIds, requestedPlatforms, reservationTimeUtc, hostname, reservationDetails, job?.StreamId.ToString(), job?.Id.ToString(), stepId?.ToString(), job?.Name, stepName, stepIds);
-			await _reservations.InsertOneAsync(newReservation);
+			if (existing == null)
+			{
+				DeviceReservationDocument newReservation = new DeviceReservationDocument(ObjectId.GenerateNewId(), poolId, deviceIds, requestedPlatforms, reservationTimeUtc, hostname, reservationDetails, job?.StreamId.ToString(), job?.Id.ToString(), stepId?.ToString(), job?.Name, stepName, stepIds);
+				await _reservations.InsertOneAsync(newReservation);
+				returnValue = newReservation;
+			}
+			else
+			{
+				// update current telemetry telemetry
+				await _deviceTelemetry.UpdateManyAsync(x => x.ReservationId == existing.Id, Builders<DeviceTelemetryDocument>.Update.Set(x => x.ReservationFinishUtc, DateTime.UtcNow));
+
+				returnValue = await TryUpdateReservationAsync(existing.Id, deviceIds: deviceIds, clearProblemDevice: true);
+			}
 
 			// Create device telemetry data for reservation
 			List<DeviceTelemetryDocument> telemetry = new List<DeviceTelemetryDocument>();
 			foreach (DeviceId deviceId in deviceIds)
 			{
-				telemetry.Add(new DeviceTelemetryDocument(deviceId, newReservation.Id, newReservation.CreateTimeUtc, job?.StreamId.ToString(), job?.Id.ToString(), stepId?.ToString(), job?.Name, stepName));
+				telemetry.Add(new DeviceTelemetryDocument(deviceId, returnValue!.Id, returnValue!.CreateTimeUtc, job?.StreamId.ToString(), job?.Id.ToString(), stepId?.ToString(), job?.Name, stepName));
 			}
 
 			if (telemetry.Count > 0)
@@ -771,15 +804,34 @@ namespace Horde.Server.Devices
 				await _deviceTelemetry.InsertManyAsync(telemetry);
 			}
 
-			return newReservation;
-
+			// only return needs install for reserve blocks 
+			return (returnValue, existing != null || (stepIds != null && stepIds.Count > 0));
 		}
 
 		/// <inheritdoc/>
-		public async Task<bool> TryUpdateReservationAsync(ObjectId id)
+		public async Task<IDeviceReservation?> TryUpdateReservationAsync(ObjectId id, DeviceId? problemDevice = null, List<DeviceId>? deviceIds = null, bool? clearProblemDevice = null)
 		{
-			UpdateResult result = await _reservations.UpdateOneAsync(x => x.Id == id, Builders<DeviceReservationDocument>.Update.Set(x => x.UpdateTimeUtc, DateTime.UtcNow));
-			return result.ModifiedCount == 1;
+			UpdateDefinitionBuilder<DeviceReservationDocument> updateBuilder = Builders<DeviceReservationDocument>.Update;
+			List<UpdateDefinition<DeviceReservationDocument>> updates = new List<UpdateDefinition<DeviceReservationDocument>>();
+
+			updates.Add(updateBuilder.Set(x => x.UpdateTimeUtc, DateTime.UtcNow));
+			if (problemDevice.HasValue)
+			{
+				updates.Add(updateBuilder.Set(x => x.ProblemDevice, problemDevice.Value));
+			}
+
+			if (deviceIds != null)
+			{
+				updates.Add(updateBuilder.Set(x => x.Devices, deviceIds));
+			}
+
+			if (clearProblemDevice == true)
+			{
+				updates.Add(updateBuilder.Set(x => x.ProblemDevice, null));
+			}
+
+			Expression<Func<DeviceReservationDocument, bool>> filter = x => x.Id == id;
+			return await _reservations.FindOneAndUpdateAsync(filter, updateBuilder.Combine(updates), options: new FindOneAndUpdateOptions<DeviceReservationDocument, DeviceReservationDocument> { ReturnDocument = ReturnDocument.After });	
 		}
 
 		/// <inheritdoc/>

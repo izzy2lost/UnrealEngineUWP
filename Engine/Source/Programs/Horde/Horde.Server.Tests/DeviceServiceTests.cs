@@ -161,7 +161,7 @@ namespace Horde.Server.Tests
 
 			UpdateConfig(x => x.Devices = devices);
 
-			// add 4 devices to each platform, split between 2 pools
+			// add 16 devices to each platform, split between 2 pools
 			for (int i = 1; i < 4; i++)
 			{
 				for (int j = 1; j < 5; j++)
@@ -408,6 +408,15 @@ namespace Horde.Server.Tests
 			job = await StartStepAsync(job, graph, 4, 0); // Install Build														  
 			LegacyCreateReservationRequest request = SetupReservationTestAsync(job, stepId: stepId);
 			GetLegacyReservationResponse installReservation = ResultToValue(await DeviceController!.CreateDeviceReservationV1Async(request));
+			Assert.IsTrue(installReservation.InstallRequired);
+
+			string installProblemDeviceName = installReservation!.DeviceNames[0];
+			
+			await DeviceController!.PutDeviceErrorAsync(installProblemDeviceName);
+			installReservation = ResultToValue(await DeviceController!.CreateDeviceReservationV1Async(request));
+			Assert.IsTrue(installReservation.InstallRequired);
+			Assert.AreNotEqual(installProblemDeviceName, installReservation.DeviceNames[0]);
+						
 			job = await FinishStepAsync(job, graph, 4, 0, JobStepOutcome.Success); // Install Build
 
 			for (int i = 1; i < 5; i++)
@@ -424,12 +433,40 @@ namespace Horde.Server.Tests
 
 				Assert.IsNotNull(reservation);
 
+				if (i == 2)
+				{
+					Assert.AreEqual(reservation.DeviceNames[0], installReservation.DeviceNames[0]);
+				}
+
+				if (i == 3)
+				{
+					string problemDeviceName = reservation.DeviceNames[0];
+					await DeviceController!.PutDeviceErrorAsync(problemDeviceName);
+					result = await DeviceController!.CreateDeviceReservationV1Async(request);
+					Assert.AreEqual((result.Result as ConflictObjectResult)!.StatusCode, 409);
+
+					// clear install device
+					IDevice? device = await DeviceService.GetDeviceByNameAsync(installProblemDeviceName);
+					Assert.IsNotNull(device);
+					await DeviceService.UpdateDeviceAsync(device.Id, newProblem: false);
+
+					result = await DeviceController!.CreateDeviceReservationV1Async(request);
+
+					reservation = ResultToValue(result);
+					Assert.IsNotNull(reservation);
+					Assert.IsTrue(reservation.InstallRequired);
+					//. round robin shoukd reuse initial problem device
+					Assert.AreNotEqual(problemDeviceName, reservation.DeviceNames[0]);
+					Assert.AreEqual(installProblemDeviceName, reservation.DeviceNames[0]);
+				}
+
 				if (i != 4)
 				{
 					Assert.AreEqual(installReservation.Guid, reservation.Guid);
 				}
 				else
 				{
+					Assert.IsFalse(reservation.InstallRequired);
 					Assert.AreNotEqual(installReservation.Guid, reservation.Guid);
 				}
 				
@@ -445,8 +482,8 @@ namespace Horde.Server.Tests
 
 			// check that telemetry was created
 			List<GetDeviceTelemetryResponse> telemetry = (await DeviceController!.GetDeviceTelemetryAsync()).Value!;
-			Assert.AreEqual(telemetry.Count, 2);
-			Assert.AreEqual(telemetry[0].Telemetry.Count, 1);
+			Assert.AreEqual(2, telemetry.Count, 2);
+			Assert.AreEqual(telemetry[0].Telemetry.Count, 3);
 			Assert.AreEqual(telemetry[0].Telemetry[0].StreamId, "ue5-main");
 			Assert.AreEqual(telemetry[0].Telemetry[0].StepId, GetStepId(job, "Install Build").ToString());
 			Assert.AreEqual(telemetry[0].Telemetry[0].StepName, "Install Build");
