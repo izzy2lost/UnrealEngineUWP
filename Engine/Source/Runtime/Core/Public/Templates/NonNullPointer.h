@@ -12,37 +12,6 @@
 class FArchive;
 enum class EDefaultConstructNonNullPtr { UnsafeDoNotUse }; // So we can construct TNonNullPtrs
 
-namespace UE::Core::Private::NonNullPtr {
-/**
- * Version of `::TPointerIsConvertibleFromTo` that produces an incomplete type
- * when either `From` or `To` are incomplete types
- */
-template <typename, typename, typename = void>
-struct TPointerIsConvertibleFromTo;
-
-/**
- * Specialization of
- * `UE::Core::Private::NonNullPtr::TPointerIsConvertibleFromTo` for complete
- * non-function types
- */
-template <typename From, typename To>
-struct TPointerIsConvertibleFromTo<From, To, std::void_t<decltype(sizeof(From)), decltype(sizeof(To))>>
-{
-	static constexpr bool Value = std::is_convertible_v<From*, To*>;
-};
-
-/**
- * Specialization of
- * `UE::Core::Private::NonNullPtr::TPointerIsConvertibleFromTo` for function
- * types, which are always complete types
- */
-template <typename Result1, typename... Args1, typename Result2, typename... Args2>
-struct TPointerIsConvertibleFromTo<Result1(Args1...), Result2(Args2...)>
-{
-	static constexpr bool Value = std::is_convertible_v<Result1(*)(Args1...), Result2(*)(Args2...)>;
-};
-}
-
 /**
  * TNonNullPtr is a non-nullable, non-owning, raw/naked/unsafe pointer.
  */
@@ -81,8 +50,8 @@ public:
 	 * Constructs a non-null pointer from another non-null pointer
 	 */
 	template <
-		typename OtherObjectType
-		UE_REQUIRES(UE::Core::Private::NonNullPtr::TPointerIsConvertibleFromTo<OtherObjectType, ObjectType>::Value)
+		typename OtherObjectType,
+		decltype(ImplicitConv<ObjectType*>((OtherObjectType*)nullptr))* = nullptr
 	>
 	FORCEINLINE TNonNullPtr(const TNonNullPtr<OtherObjectType>& Other)
 		: Object(Other.Object)
@@ -113,8 +82,8 @@ public:
 	 * Assignment operator taking another TNonNullPtr
 	 */
 	template <
-		typename OtherObjectType
-		UE_REQUIRES(UE::Core::Private::NonNullPtr::TPointerIsConvertibleFromTo<OtherObjectType, ObjectType>::Value)
+		typename OtherObjectType,
+		decltype(ImplicitConv<ObjectType*>((OtherObjectType*)nullptr))* = nullptr
 	>
 	FORCEINLINE TNonNullPtr& operator=(const TNonNullPtr<OtherObjectType>& Other)
 	{
