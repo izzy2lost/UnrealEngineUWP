@@ -4,6 +4,7 @@
 #include "../SHCommon.ush"
 #include "../ParticipatingMediaCommon.ush"
 #include "../ReflectionEnvironmentShared.ush"
+#include "../FastMath.ush"
 
 
 
@@ -14,19 +15,17 @@ struct FLocalFogVolumeGPUInstanceData
 {
 	float4x3 InvTransform;
 
-	// float4
-	float RadialFogExtinction;		// half1
-	float HeightFogExtinction;		// half1
-	float HeightFogFalloff;			// half1
-	float HeightFogOffset;			// half1
-	float3 Emissive;				// half3
-	//FREE							// half1
+	float RadialFogExtinction;
+	float HeightFogExtinction;
+	float HeightFogFalloff;
+	float HeightFogOffset;
+	float3 Emissive;
 
-	// float4 (note: albedo could be using half representation or even 3x8bits if needed later to gain space)
-	float  UniformScale;			// float
-	float3 Albedo;					// half3
-	float  PhaseG;					// half1
-	// FREE							// float2
+	float  UniformScale;
+	float  UniformScaleInv;		// Derived from UniformScale
+
+	float3 Albedo;
+	float  PhaseG;
 };
 
 
@@ -85,31 +84,51 @@ Texture2DArray<uint>					LFV_LocalFogVolumeTileDataTexture;
 FLocalFogVolumeGPUInstanceData GetLocalFogVolumeGPUInstanceData(uint Index)
 {
 	FLocalFogVolumeGPUInstanceData Data;
-	uint Offset = Index * 5;
+	uint Offset = Index * 3;
 
-	Data.InvTransform		= float4x3(LFVInsts[Offset + 0 ], LFVInsts[Offset + 1 ], LFVInsts[Offset + 2 ]); // reads 4x3 row major pack as 3 float4
+	float4 Data0 = LFVInsts[Offset + 0];
+	float4 Data1 = LFVInsts[Offset + 1];
+	float4 Data2 = LFVInsts[Offset + 2];
+	// See GetLocalFogVolumeSortingData for the packing mathod.
 
-	float4 Data0			= LFVInsts[Offset + 3];
+	// Data0
+	float3 Trans		= Data0.xyz;
+	Data.UniformScale	= Data0.w;
+	Data.UniformScaleInv= 1.0f / Data.UniformScale;
 
-	float2 Data0X			= UnpackFloat2FromUInt(asuint(Data0.x));
-	float2 Data0Y			= UnpackFloat2FromUInt(asuint(Data0.y));
-	float2 Data0Z			= UnpackFloat2FromUInt(asuint(Data0.z));
-	float2 Data0W			= UnpackFloat2FromUInt(asuint(Data0.w));
+	// Data1
+	float3 XVec;
+	float3 YVec;
+	XVec.xy		= UnpackFloat2FromUInt(asuint(Data1.x));
+	float2 Temp	= UnpackFloat2FromUInt(asuint(Data1.y));
+	XVec.z		= Temp.x;
+	YVec.x		= Temp.y;
+	YVec.yz		= UnpackFloat2FromUInt(asuint(Data1.z));
 
-	Data.RadialFogExtinction= Data0X.x;
-	Data.HeightFogExtinction= Data0X.y;
-	Data.HeightFogFalloff	= Data0Y.x;
-	Data.HeightFogOffset	= Data0Y.y;
-	Data.Emissive			= float3(Data0Z.x, Data0Z.y, Data0W.x);
+	float3 ZVec = cross(XVec, YVec);
 
-	float4 Data1			= LFVInsts[Offset + 4];
+	Data.InvTransform = float4x3(float3(XVec * Data.UniformScaleInv), float3(YVec * Data.UniformScaleInv), float3(ZVec * Data.UniformScaleInv), Trans);
 
-	float2 Data1X			= UnpackFloat2FromUInt(asuint(Data1.y));
-	float2 Data1Y			= UnpackFloat2FromUInt(asuint(Data1.z));
+	// Data2
+	float3 Data2X			= UnpackR11G11B10F(asuint(Data2.x));
+	Data.RadialFogExtinction= Data2X.x;
+	Data.HeightFogExtinction= Data2X.y;
+	Data.HeightFogFalloff	= Data2X.z;
 
-	Data.UniformScale		= Data1.x;
-	Data.Albedo				= float3(Data1X.x, Data1X.y, Data1Y.x);
-	Data.PhaseG				= Data1Y.y;
+	uint PackEmissiveData   = asuint(Data2.y);
+	if (PackEmissiveData > 0)
+	{
+		Data.Emissive = UnpackR11G11B10F(PackEmissiveData);
+	}
+	else
+	{
+		Data.Emissive = 0.0f.xxx;
+	}
+
+	float4 Data2Z			= UnpackRGBA8(asuint(Data2.z));
+	Data.Albedo				= Data2Z.rgb;
+	Data.PhaseG				= Data2Z.a;
+	Data.HeightFogOffset	= Data2.w;
 
 	return Data;
 }
@@ -238,15 +257,24 @@ FFogData LocalFogVolumeEvaluateAnalyticalIntegral(FLocalFogVolumeGPUInstanceData
 		*/
 	}
 
+#if 1 
+	// => Reference path
 	// We now combine the two optical depth for the "opacity"=1-transmittance to be combined together.
 	// This helps to have soft edges when using height fog. We also account for that when voxelising in the volumetric fog.
 	float TR = exp(-RadialOpticalDepth);
 	float TH = exp(-HeightOpticalDepth);
-	float T = 1 - (1-TR) * (1-TH);
+	float T = 1 - (1 - TR) * (1 - TH);
 	float OpticalDepth = -log(T);
 
 	// Evaluate transmittance, accounting for the volume scale converted to local unit space meter.
 	float Transmittance = exp(-OpticalDepth * FogInstance.UniformScale * CENTIMETER_TO_METER);
+#else 
+	// => Optimised path, but does not match due to CommonFactor not being applied at the same place
+	const float CommonFactor = FogInstance.UniformScale * CENTIMETER_TO_METER;
+	float TR = exp(-RadialOpticalDepth);
+	float TH = exp(-HeightOpticalDepth);
+	float Transmittance = 1 - (1 - TR) * (1 - TH);
+#endif
 
 	// Assuming extinction is grey scale, we can compute a single coverage value from transmittance
 	FogData.Coverage = (1.0 - Transmittance);
@@ -318,10 +346,12 @@ float4 GetLFVInstanceContribution(
 	float2 TsU = RayIntersectSphere(RayPosU, RayDirU, float4(0.0, 0.0, 0.0, 1.0));
 
 	//Clamp to make sure we only consider intersection in front of the camera
-	TsU = max(LFVGlobalStartDistance.xx / FogInstance.UniformScale, TsU);
+	TsU = max(LFVGlobalStartDistance.xx * FogInstance.UniformScaleInv, TsU);
 
 	// Clamp the traced distance to the depth buffer and compute world length.
-	float LengthDepthBufferU = length(DepthBufferPosU - RayPosU);
+	float3 ViewToDepthVector = DepthBufferPosU - RayPosU;
+	float ViewToDepthVectorSqrLength = dot(ViewToDepthVector, ViewToDepthVector);
+	float LengthDepthBufferU = sqrt(ViewToDepthVectorSqrLength);
 	TsU = min(TsU, LengthDepthBufferU);
 
 	if (any(TsU > 0.0))
@@ -332,7 +362,7 @@ float4 GetLFVInstanceContribution(
 			// Volumetric fog covers up to MaxDistance along ViewZ, exclude analytical fog from this range
 			float CosAngle = dot(CamRayWorldDir, View.ViewForward);
 			float InvCosAngle = (CosAngle > 0.0001) ? rcp(CosAngle) : 0;
-			float ExcludeDistance = View.VolumetricFogMaxDistance * InvCosAngle / FogInstance.UniformScale;
+			float ExcludeDistance = View.VolumetricFogMaxDistance * InvCosAngle * FogInstance.UniformScaleInv;
 			TsU = max(TsU, ExcludeDistance);
 		}
 

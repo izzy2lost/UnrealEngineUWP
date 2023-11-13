@@ -381,49 +381,66 @@ void GetLocalFogVolumeSortingData(const FScene* Scene, FRDGBuilder& GraphBuilder
 
 		FLocalFogVolumeGPUInstanceData* LocalFogVolumeGPUInstanceDataIt = &Out.LocalFogVolumeGPUInstanceData[Out.LocalFogVolumeInstanceCountFinal];
 
-		auto ConvertFromMatrix44fTo4x3Array = [](FMatrix44f& InMat, float* OutArr)
-			{
-				// Row major order
-				OutArr[0 ] = InMat.M[0][0];
-				OutArr[1 ] = InMat.M[0][1];
-				OutArr[2 ] = InMat.M[0][2];
-				OutArr[3 ] = InMat.M[1][0];
-				OutArr[4 ] = InMat.M[1][1];
-				OutArr[5 ] = InMat.M[1][2];
-				OutArr[6 ] = InMat.M[2][0];
-				OutArr[7 ] = InMat.M[2][1];
-				OutArr[8 ] = InMat.M[2][2];
-				OutArr[9 ] = InMat.M[3][0];
-				OutArr[10] = InMat.M[3][1];
-				OutArr[11] = InMat.M[3][2];
-			};
-
-		FMatrix44f Transform    = FMatrix44f(LHF->FogTransform.ToMatrixWithScale());
-		FMatrix44f InvTransform = Transform.Inverse();
-		ConvertFromMatrix44fTo4x3Array(InvTransform, LocalFogVolumeGPUInstanceDataIt->InvTransform);
-
 		// Falloff needs to be made safe in order to avoid artifact when the camera is looking toward the horizon at the level of the offset.
 		const float SafeFalloffThreshold = 1.0f;
 		const float FalloffScaleUI = 0.01f;
 		const float SafeFallOff = FMath::Max(LHF->HeightFogFalloff, SafeFalloffThreshold) * FalloffScaleUI;
 
-		FVector2DHalf Data0X = FVector2DHalf(LHF->RadialFogExtinction,			LHF->HeightFogExtinction);
-		FVector2DHalf Data0Y = FVector2DHalf(SafeFallOff,						LHF->HeightFogOffset);
-		FVector2DHalf Data0Z = FVector2DHalf(LHF->FogEmissive.R,				LHF->FogEmissive.G);
-		FVector2DHalf Data0W = FVector2DHalf(LHF->FogEmissive.B,				0.0f);
+		FMatrix44f Transform = FMatrix44f(LHF->FogTransform.ToMatrixWithScale());
+		FMatrix44f InvTransform = Transform.Inverse();
 
-		LocalFogVolumeGPUInstanceDataIt->Data0[0] = Data0X.AsUInt32();
-		LocalFogVolumeGPUInstanceDataIt->Data0[1] = Data0Y.AsUInt32();
-		LocalFogVolumeGPUInstanceDataIt->Data0[2] = Data0Z.AsUInt32();
-		LocalFogVolumeGPUInstanceDataIt->Data0[3] = Data0W.AsUInt32();
+		FVector3f XVec(InvTransform.M[0][0], InvTransform.M[0][1], InvTransform.M[0][2]);
+		FVector3f YVec(InvTransform.M[1][0], InvTransform.M[1][1], InvTransform.M[1][2]);
+		FVector3f ZVec(InvTransform.M[2][0], InvTransform.M[2][1], InvTransform.M[2][2]);
+		FVector3f Tran(InvTransform.M[3][0], InvTransform.M[3][1], InvTransform.M[3][2]);
 
-		FVector2DHalf Data1X = FVector2DHalf(LHF->FogAlbedo.R, LHF->FogAlbedo.G);
-		FVector2DHalf Data1Y = FVector2DHalf(LHF->FogAlbedo.B, LHF->FogPhaseG);
+		XVec.Normalize();
+		YVec.Normalize();
+		ZVec.Normalize();
 
-		LocalFogVolumeGPUInstanceDataIt->UniformScale = LHF->FogUniformScale;
-		LocalFogVolumeGPUInstanceDataIt->Data1[0] = Data1X.AsUInt32();
-		LocalFogVolumeGPUInstanceDataIt->Data1[1] = Data1Y.AsUInt32();
-		LocalFogVolumeGPUInstanceDataIt->Data1[2] = 0;
+		auto AsUint32 = [](float X)
+		{
+			union { float F; uint32 U; } FU = { X };
+			return FU.U;
+		};
+
+		auto AsFloat111110 = [](float x, float y, float z)
+		{
+			FVector2DHalf HalfXY(x, y);
+			FVector2DHalf HalfZ0(z, 0.0f);
+
+			uint32 r = (uint32(HalfXY.X.Encoded) << 17) & 0xFFE00000;
+			uint32 g = (uint32(HalfXY.Y.Encoded) <<  6) & 0x001FFC00;
+			uint32 b = (uint32(HalfZ0.X.Encoded) >>  5) & 0x000003FF;
+			return r | g | b;
+		};
+
+		auto AsUNorm8888 = [](float x, float y, float z, float w)
+		{
+			uint32 r = (uint32(FMath::Clamp(x * 255.0f, 0.0f, 255.0f)) & 0xFFu);
+			uint32 g = (uint32(FMath::Clamp(y * 255.0f, 0.0f, 255.0f)) & 0xFFu) << 8u;
+			uint32 b = (uint32(FMath::Clamp(z * 255.0f, 0.0f, 255.0f)) & 0xFFu) << 16u;
+			uint32 a = (uint32(FMath::Clamp(w * 255.0f, 0.0f, 255.0f)) & 0xFFu) << 24u;
+			return r | g | b | a;
+		};
+
+		// Translation and scale at fp32 for stability. Further optimization: we could use fp16 if translated/view space position would be sent.
+		LocalFogVolumeGPUInstanceDataIt->Data0[0] = AsUint32(Tran.X);
+		LocalFogVolumeGPUInstanceDataIt->Data0[1] = AsUint32(Tran.Y);
+		LocalFogVolumeGPUInstanceDataIt->Data0[2] = AsUint32(Tran.Z);
+		LocalFogVolumeGPUInstanceDataIt->Data0[3] = AsUint32(LHF->FogUniformScale);
+
+		// Store X and Y from the rotation matrix and recover Z in the shader. Further optimization: could be fp16.
+		LocalFogVolumeGPUInstanceDataIt->Data1[0] = FVector2DHalf(XVec.X, XVec.Y).AsUInt32();
+		LocalFogVolumeGPUInstanceDataIt->Data1[1] = FVector2DHalf(XVec.Z, YVec.X).AsUInt32();
+		LocalFogVolumeGPUInstanceDataIt->Data1[2] = FVector2DHalf(YVec.Y, YVec.Z).AsUInt32();
+		LocalFogVolumeGPUInstanceDataIt->Data1[3] = 0; // FREE
+
+		// All the remaining data are packed as small as possible w.r.t. their range of value.
+		LocalFogVolumeGPUInstanceDataIt->Data2[0] = AsFloat111110(	LHF->RadialFogExtinction,	LHF->HeightFogExtinction,	SafeFallOff);
+		LocalFogVolumeGPUInstanceDataIt->Data2[1] = AsFloat111110(	LHF->FogEmissive.R,			LHF->FogEmissive.G,			LHF->FogEmissive.B);
+		LocalFogVolumeGPUInstanceDataIt->Data2[2] = AsUNorm8888(	LHF->FogAlbedo.R,			LHF->FogAlbedo.G,			LHF->FogAlbedo.B,		LHF->FogPhaseG);
+		LocalFogVolumeGPUInstanceDataIt->Data2[3] = AsUint32(		LHF->HeightFogOffset);
 
 		// Register the sorting data
 		Out.LocalFogVolumeCenterPos[Out.LocalFogVolumeInstanceCountFinal] = LHF->FogTransform.GetTranslation();
@@ -473,7 +490,7 @@ void CreateViewLocalFogVolumeBufferSRV(const FScene* Scene, FViewInfo& View, FRD
 		LocalFogVolumeGPUSortedInstanceData[i] = SortingData.LocalFogVolumeGPUInstanceData[LFVKey.FogVolume.Index];
 
 		FVector& LFVPosition = SortingData.LocalFogVolumeCenterPos[LFVKey.FogVolume.Index];
-		LocalFogVolumeGPUSortedInstanceCullingData[i] = FVector4f(LFVPosition.X, LFVPosition.Y, LFVPosition.Z, LocalFogVolumeGPUSortedInstanceData[i].UniformScale);
+		LocalFogVolumeGPUSortedInstanceCullingData[i] = FVector4f(LFVPosition.X, LFVPosition.Y, LFVPosition.Z, LocalFogVolumeGPUSortedInstanceData[i].GetUniformScale());
 	}
 
 	// 3. Allocate buffer and initialize with sorted data to upload to GPU

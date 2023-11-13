@@ -45,12 +45,15 @@ class FLocalFogVolumeGPUInstanceData
 {
 public:
 
-	float InvTransform[4 * 3];
-
-	// See LocalFogVolumeCommon for the encoded representation
 	uint32 Data0[4];
-	float  UniformScale;
-	uint32 Data1[3];
+	uint32 Data1[4];
+	uint32 Data2[4];
+
+	float GetUniformScale() 
+	{
+		union { float F; uint32 U; } FU = { Data0[3] };
+		return FU.F;
+	}
 };
 
 class RENDERER_API FLocalFogVolumeSortKey
