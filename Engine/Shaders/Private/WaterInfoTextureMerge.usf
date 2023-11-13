@@ -2,13 +2,13 @@
 
 #include "Common.ush"
 
-Texture2D<float4> GroundDepthTexture;
+Texture2D<float> GroundDepthTexture;
 SamplerState GroundDepthTextureSampler;
 Texture2D<float4> WaterBodyTexture;
 SamplerState WaterBodyTextureSampler;
-Texture2D<float4> WaterBodyDepthTexture;
+Texture2D<float> WaterBodyDepthTexture;
 SamplerState WaterBodyDepthTextureSampler;
-Texture2D<float4> DilatedWaterBodyDepthTexture;
+Texture2D<float> DilatedWaterBodyDepthTexture;
 SamplerState DilatedWaterBodyDepthTextureSampler;
 
 float2 WaterHeightExtents;
@@ -38,7 +38,7 @@ void Main(
 	float2 ScreenUV = ScreenPosition * View.ScreenPositionScaleBias.xy + View.ScreenPositionScaleBias.wz;
 
 	// All input textures MUST be sampled with a point sampler to avoid a driver issue on older Android devices which occurs when using Load instead.
-	const float2 WaterBodyVelocity = WaterBodyTexture.SampleLevel(WaterBodyTextureSampler, ScreenUV, 0);
+	const float2 WaterBodyVelocity = WaterBodyTexture.SampleLevel(WaterBodyTextureSampler, ScreenUV, 0).xy;
 	const float WaterBodyDeviceDepth =  WaterBodyDepthTexture.SampleLevel(WaterBodyDepthTextureSampler, ScreenUV, 0);
 	const float DilationDeviceDepth = DilatedWaterBodyDepthTexture.SampleLevel(DilatedWaterBodyDepthTextureSampler, ScreenUV, 0);
 	const float GroundDeviceDepth =  GroundDepthTexture.SampleLevel(GroundDepthTextureSampler, ScreenUV, 0);
