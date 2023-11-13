@@ -33,6 +33,7 @@ struct FLocalFogVolumeVertexOutput
 #if LFV_TILED_VS
 
 Buffer<uint> TileDataBuffer;
+float StartDepthZ;
 
 void LocalFogVolumeTiledVS(
 	in uint VertexIndex : SV_VertexID,
@@ -50,7 +51,7 @@ void LocalFogVolumeTiledVS(
 	TileVertex.x += VertexIndex == 1 || VertexIndex == 2 || VertexIndex == 4 ? LFVTilePixelSize : 0;
 	TileVertex.y += VertexIndex == 2 || VertexIndex == 4 || VertexIndex == 5 ? LFVTilePixelSize : 0;
 
-	OutPosition = float4(float2(TileVertex) * ResolvedView.ViewSizeAndInvSize.zw * float2(2.0f, -2.0f) + float2(-1.0, 1.0f), 0.5f, 1.0f);
+	OutPosition = float4(float2(TileVertex) * ResolvedView.ViewSizeAndInvSize.zw * float2(2.0f, -2.0f) + float2(-1.0, 1.0f), StartDepthZ, 1.0f);
 
 	OtherVertexOutput.TileData = PackedTileCoord;
 }
