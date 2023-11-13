@@ -957,7 +957,7 @@ void FTextFormatData::GetFormatArgumentNames_NoLock(TArray<FString>& OutArgument
 
 			if (!bIsInArray)
 			{
-				OutArgumentNames.Add(FString(ArgumentToken->ArgumentNameLen, ArgumentToken->ArgumentNameStartPos));
+				OutArgumentNames.Add(FString::ConstructFromPtrSize(ArgumentToken->ArgumentNameStartPos, ArgumentToken->ArgumentNameLen));
 			}
 		}
 		else if (const auto* ArgumentModifierToken = Token.Node.Cast<TextFormatTokens::FArgumentModifierTokenSpecifier>())
@@ -1115,7 +1115,7 @@ FString FTextFormatter::FormatStr(const FTextFormat& InFmt, const FFormatOrdered
 			// We have existing code that is incorrectly using names in the format string when providing ordered arguments
 			// ICU used to fallback to treating the index of the argument within the string as if it were the index specified 
 			// by the argument name, so we need to emulate that behavior to avoid breaking some format operations
-			UE_LOG(LogTextFormatter, Warning, TEXT("Failed to parse argument \"%s\" as a number (using \"%d\" as a fallback). Please check your format string for errors: \"%s\"."), *FString(ArgumentToken.ArgumentNameLen, ArgumentToken.ArgumentNameStartPos), ArgumentNumber, *FmtPattern);
+			UE_LOG(LogTextFormatter, Warning, TEXT("Failed to parse argument \"%s\" as a number (using \"%d\" as a fallback). Please check your format string for errors: \"%s\"."), *FString::ConstructFromPtrSize(ArgumentToken.ArgumentNameStartPos, ArgumentToken.ArgumentNameLen), ArgumentNumber, *FmtPattern);
 			ArgumentIndex = ArgumentNumber;
 		}
 		return InArguments.IsValidIndex(ArgumentIndex) ? &(InArguments[ArgumentIndex]) : nullptr;

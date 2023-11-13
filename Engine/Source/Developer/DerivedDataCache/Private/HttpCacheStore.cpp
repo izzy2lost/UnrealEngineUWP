@@ -753,7 +753,7 @@ FString FHttpCacheStore::FHttpOperation::GetBodyAsString() const
 			return JsonStringBuilder.ToString();
 		}
 	}
-	return FString(Len, (const UTF8CHAR*)ResponseBody.GetData());
+	return FString::ConstructFromPtrSize((const UTF8CHAR*)ResponseBody.GetData(), Len);
 }
 
 TSharedPtr<FJsonObject> FHttpCacheStore::FHttpOperation::GetBodyAsJson() const

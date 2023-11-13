@@ -168,7 +168,7 @@ bool FFeedbackContextMarkup::ReadString(const TCHAR*& Text, FString& OutString)
 		{
 			if(*End == *Text)
 			{
-				OutString = FString(UE_PTRDIFF_TO_INT32(End - (Text + 1)), Text + 1);
+				OutString = FString::ConstructFromPtrSize(Text + 1, UE_PTRDIFF_TO_INT32(End - (Text + 1)));
 				do { End++; } while(FChar::IsWhitespace(*End));
 				Text = End;
 				return true;

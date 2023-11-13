@@ -286,7 +286,7 @@ bool FFileHelper::LoadFileToStringArrayWithPredicate(TArray<FString>& Result, co
 				Pos++;
 			}
 
-			FString Line(UE_PTRDIFF_TO_INT32(Pos - LineStart), LineStart);
+			FString Line = FString::ConstructFromPtrSize(LineStart, UE_PTRDIFF_TO_INT32(Pos - LineStart));
 			if (Invoke(Predicate, Line))
 			{
 				Result.Add(MoveTemp(Line));

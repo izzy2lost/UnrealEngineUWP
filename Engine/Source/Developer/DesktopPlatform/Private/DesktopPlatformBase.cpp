@@ -281,14 +281,14 @@ bool FDesktopPlatformBase::TryGetEngineVersion(const FString& RootDir, FEngineVe
 					// Parse an identifier. Exact C rules for an identifier don't really matter; we just need alphanumeric sequences.
 					const TCHAR* TokenStart = TextPos++;
 					while(FChar::IsIdentifier(*TextPos)) TextPos++;
-					Tokens.Add(FString(UE_PTRDIFF_TO_INT32(TextPos - TokenStart), TokenStart));
+					Tokens.Add(FString::ConstructFromPtrSize(TokenStart, UE_PTRDIFF_TO_INT32(TextPos - TokenStart)));
 				}
 				else if(*TextPos == '\"')
 				{
 					// Parse a string
 					const TCHAR* TokenStart = TextPos++;
 					while(*TextPos != 0 && (TextPos == TokenStart + 1 || *(TextPos - 1) != '\"')) TextPos++;
-					Tokens.Add(FString(UE_PTRDIFF_TO_INT32(TextPos - TokenStart), TokenStart));
+					Tokens.Add(FString::ConstructFromPtrSize(TokenStart, UE_PTRDIFF_TO_INT32(TextPos - TokenStart)));
 				}
 				else if(*TextPos == '/' && *(TextPos + 1) == '/')
 				{
@@ -305,7 +305,7 @@ bool FDesktopPlatformBase::TryGetEngineVersion(const FString& RootDir, FEngineVe
 				else
 				{
 					// Take a single symbol character
-					Tokens.Add(FString(1, TextPos));
+					Tokens.Add(FString::ConstructFromPtrSize(TextPos, 1));
 					TextPos++;
 				}
 			}

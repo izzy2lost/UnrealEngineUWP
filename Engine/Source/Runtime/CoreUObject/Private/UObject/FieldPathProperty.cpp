@@ -138,7 +138,7 @@ const TCHAR* FFieldPathProperty::ImportText_Internal( const TCHAR* Buffer, void*
 			++SeparatorIndex;
 		}
 		// Copy the value string
-		PathName = FString(SeparatorIndex, Buffer);
+		PathName = FString::ConstructFromPtrSize(Buffer, SeparatorIndex);
 		// Advance the buffer to let the calling function know we succeeded
 		Buffer += SeparatorIndex;
 	}

@@ -772,7 +772,10 @@ public:
 		}
 	}
 
-	FORCEINLINE operator FString() const { return FString(Len(), Data.GetData()); }
+	FORCEINLINE operator FString() const
+	{
+		return FString::ConstructFromPtrSize(Data.GetData(), Len());
+	}
 
 	FORCEINLINE const TCHAR* operator*() const
 	{

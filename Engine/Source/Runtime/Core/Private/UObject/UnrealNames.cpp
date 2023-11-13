@@ -2260,11 +2260,11 @@ FString FNameEntry::GetPlainNameString() const
 	FNameBuffer Temp;
 	if (Header.bIsWide)
 	{
-		return FString(Header.Len, GetUnterminatedName(Temp.WideName));
+		return FString::ConstructFromPtrSize(GetUnterminatedName(Temp.WideName), Header.Len);
 	}
 	else
 	{
-		return FString(Header.Len, GetUnterminatedName(Temp.AnsiName));
+		return FString::ConstructFromPtrSize(GetUnterminatedName(Temp.AnsiName), Header.Len);
 	}
 }
 

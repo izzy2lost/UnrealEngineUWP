@@ -2672,7 +2672,7 @@ void FAssetRegistryState::Dump(const TArray<FString>& Arguments, TArray<FString>
 			}
 		}
 
-		OutPages.Emplace(PageEndIndex, PageBuffer.GetData());
+		OutPages.Add(FString::ConstructFromPtrSize(PageBuffer.GetData(), PageEndIndex));
 		if (PageEndIndex != PageBuffer.Len())
 		{
 			PageEndIndex += LineTerminatorLen; // Skip the newline
@@ -2693,7 +2693,7 @@ void FAssetRegistryState::Dump(const TArray<FString>& Arguments, TArray<FString>
 	{
 		if (LinesPerPage == 1)
 		{
-			OutPages.Emplace(PageBuffer.Len(), PageBuffer.GetData());
+			OutPages.Add(FString::ConstructFromPtrSize(PageBuffer.GetData(), PageBuffer.Len()));
 			PageBuffer.Reset();
 		}
 		else

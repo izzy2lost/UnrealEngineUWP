@@ -382,7 +382,7 @@ namespace UE::Zen {
 			const ANSICHAR* ValueStart = Found + HeaderLen + 2; //colon and space
 			const size_t ValueSize = Linebreak - ValueStart;
 			FUTF8ToTCHAR TCHARData(ValueStart, ValueSize);
-			OutValue = FString(TCHARData.Length(), TCHARData.Get());
+			OutValue = FString::ConstructFromPtrSize(TCHARData.Get(), TCHARData.Length());
 			return true;
 		}
 		return false;
@@ -472,7 +472,7 @@ namespace UE::Zen {
 	{
 		// Content is NOT null-terminated; we need to specify lengths here
 		FUTF8ToTCHAR TCHARData(reinterpret_cast<const ANSICHAR*>(Buffer.GetData()), IntCastChecked<int32>(Buffer.Num()));
-		return FString(TCHARData.Length(), TCHARData.Get());
+		return FString::ConstructFromPtrSize(TCHARData.Get(), TCHARData.Length());
 	}
 
 	FCbObjectView FZenHttpRequest::GetResponseAsObject() const
@@ -497,7 +497,7 @@ namespace UE::Zen {
 					int CalculatedSize = FoundNulPtr != nullptr ? FoundNulPtr - DebugInfo : DebugInfoSize;
 
 					auto ConvertedString = StringCast<TCHAR>(static_cast<const ANSICHAR*>(DebugInfo), CalculatedSize);
-					FString DebugText(ConvertedString.Length(), ConvertedString.Get());
+					FString DebugText = FString::ConstructFromPtrSize(ConvertedString.Get(), ConvertedString.Length());
 					DebugText.ReplaceInline(TEXT("\n"), TEXT(""), ESearchCase::CaseSensitive);
 					DebugText.ReplaceInline(TEXT("\r"), TEXT(""), ESearchCase::CaseSensitive);
 					UE_LOG(LogZenHttp, VeryVerbose, TEXT("CURL %p: '%s'"), Request, *DebugText);

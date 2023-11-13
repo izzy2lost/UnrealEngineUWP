@@ -3656,7 +3656,7 @@ bool FWindowsPlatformMisc::QueryRegKey( const Windows::HKEY InKey, const TCHAR* 
 						if (RegQueryValueEx(Key, InValueName, NULL, NULL, (LPBYTE)Buffer, &Size) == ERROR_SUCCESS)
 						{
 							const uint32 Length = (Size / sizeof(TCHAR)) - 1;
-							OutData = FString(Length, (TCHAR*)Buffer);
+							OutData = FString::ConstructFromPtrSize((TCHAR*)Buffer, Length);
 							bSuccess = true;
 						}
 						delete[] Buffer;

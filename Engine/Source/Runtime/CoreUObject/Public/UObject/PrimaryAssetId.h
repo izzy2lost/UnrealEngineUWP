@@ -148,7 +148,7 @@ struct FPrimaryAssetId
 	{
 		TStringBuilder<256> Builder;
 		AppendString(Builder);
-		return FString(Builder.Len(), Builder.GetData());
+		return FString::ConstructFromPtrSize(Builder.GetData(), Builder.Len());
 	}
 
 	/** Appends to the given builder the string version of this identifier in Type:Name format */

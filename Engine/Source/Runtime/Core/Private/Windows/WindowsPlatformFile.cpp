@@ -1192,7 +1192,7 @@ bool FWindowsPlatformFile::HasMarkOfTheWeb(FStringView Filename, FString* OutSou
 		const int32 HostUrlLen = static_cast<int32>(GetPrivateProfileStringW(TEXT("ZoneTransfer"), TEXT("HostUrl"), nullptr, HostUrl, static_cast<DWORD>(GetNum(HostUrl)), *StreamPath));
 		if (0 < HostUrlLen && HostUrlLen <= GetNum(HostUrl))
 		{
-			*OutSourceURL = FString(HostUrlLen, HostUrl);
+			*OutSourceURL = FString::ConstructFromPtrSize(HostUrl, HostUrlLen);
 		}
 	}
 

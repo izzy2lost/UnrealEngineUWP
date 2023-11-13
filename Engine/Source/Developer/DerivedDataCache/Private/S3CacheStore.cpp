@@ -558,7 +558,7 @@ private:
 	static FString GetResponseAsString(const TArray<uint8>& Buffer)
 	{
 		FUTF8ToTCHAR TCHARData(reinterpret_cast<const ANSICHAR*>(Buffer.GetData()), Buffer.Num());
-		return FString(TCHARData.Length(), TCHARData.Get());
+		return FString::ConstructFromPtrSize(TCHARData.Get(), TCHARData.Length());
 	}
 
 	static int StaticStatusFn(void* Ptr, curl_off_t TotalDownloadSize, curl_off_t CurrentDownloadSize, curl_off_t TotalUploadSize, curl_off_t CurrentUploadSize)

@@ -1711,7 +1711,7 @@ public:
 					int32 Len = UE_PTRDIFF_TO_INT32(LineBreak - SearchStr);
 					if (LineBreak > SearchStr && *(LineBreak - 1) == '\r')
 						--Len;
-					Log.Add({ FString(Len, SearchStr), E.Verbosity, E.Category, E.Time, E.TextAttribute, 1 });
+					Log.Add({ FString::ConstructFromPtrSize(SearchStr, Len), E.Verbosity, E.Category, E.Time, E.TextAttribute, 1 });
 					SearchStr = LineBreak + 1;
 				}
 				else
