@@ -29,9 +29,10 @@ namespace
 		TEXT(" 1: enabled (default)"),
 		ECVF_RenderThreadSafe | ECVF_Scalability);
 
-	TAutoConsoleVariable<int32> CVarNeuralPostProcessTileOverlap(
+	int32 GNeuralPostProcessTileOverlap = -1;
+	FAutoConsoleVariableRef CVarNeuralPostProcessTileOverlap(
 		TEXT("r.Neuralpostprocess.TileOverlap"),
-		-1,
+		GNeuralPostProcessTileOverlap,
 		TEXT(" <0: Use the overlap from the profile\n"),
 		ECVF_RenderThreadSafe | ECVF_Scalability);
 
@@ -61,7 +62,7 @@ namespace
 static FIntPoint ClampOverlap(FIntPoint TileOverlap,FIntPoint BufferSizeXY)
 {
 	// Use TileOverlap from CVar if larger or equal than zero.
-	int32 OverlapFromCVar = CVarNeuralPostProcessTileOverlap.GetValueOnRenderThread();
+	int32 OverlapFromCVar = GNeuralPostProcessTileOverlap;
 	bool ShouldOverrideOverlapWithCVar = OverlapFromCVar >= 0;
 	if (ShouldOverrideOverlapWithCVar)
 	{

@@ -52,6 +52,10 @@ UENUM(BlueprintType)
 enum class ENeuralProfileRuntimeType : uint8
 {
 	NNERuntimeRDGDml UMETA(DisplayName = "NNERuntimeRDGDml"),
+
+	/** Does not have full operator support*/
+	NNERuntimeRDGHlsl UMETA(DisplayName = "NNERuntimeRDGHlsl"),
+
 	MAX				 UMETA(Hidden)
 };
 

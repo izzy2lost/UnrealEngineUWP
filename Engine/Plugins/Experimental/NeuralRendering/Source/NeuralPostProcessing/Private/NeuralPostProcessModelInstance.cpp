@@ -31,7 +31,7 @@ TSharedPtr<UE::NNE::IModelInstanceRDG> CreateNNEModelInstance(UNNEModelData* NNE
 	if (!ModelRDG.IsValid())
 	{
 #if WITH_EDITOR
-		UE_LOG(LogNeuralPostProcessing, Error, TEXT("CreateModelRDG failed for Runtime = %s"), *RuntimeName);
+		UE_LOG(LogNeuralPostProcessing, Error, TEXT("CreateModelRDG failed for Model = %s, Runtime = %s"), *NNEModelData->GetName(), *RuntimeName);
 #endif
 		return nullptr;
 	}
@@ -65,7 +65,7 @@ TSharedPtr<UE::NNE::IModelInstanceCPU> CreateNNECpuModelInstance(UNNEModelData* 
 	if (!ModelCPU.IsValid())
 	{
 #if WITH_EDITOR
-		UE_LOG(LogNeuralPostProcessing, Error, TEXT("CreateModelCPU failed for Runtime = %s"), *RuntimeName);
+		UE_LOG(LogNeuralPostProcessing, Error, TEXT("CreateModelCPU failed for Model = %s, Runtime = %s"), *NNEModelData->GetName(), *RuntimeName);
 #endif
 		return nullptr;
 	}
@@ -295,7 +295,14 @@ void UNeuralPostProcessModelInstance::CreateDefaultNNEModel(UNNEModelData* NNEMo
 		// All dynamic dimensions are set to 1 by default.
 		ResolvedInputTensorShape = UE::NNE::FTensorShape::MakeFromSymbolic(InputShape);
 
-		ModelInstanceRDG->SetInputTensorShapes({ ResolvedInputTensorShape });
+		if (ModelInstanceRDG->SetInputTensorShapes({ ResolvedInputTensorShape }) != 0)
+		{
+			ModelInstanceRDG.Reset();
+#if WITH_EDITOR
+			UE_LOG(LogNeuralPostProcessing, Warning, TEXT("SetInputTensorShapes Failed for NNE RDG Model = %s, Runtime = %s"), *NNEModelData->GetName(), *RuntimeName);
+#endif
+		}
+		
 	}
 	else
 	{

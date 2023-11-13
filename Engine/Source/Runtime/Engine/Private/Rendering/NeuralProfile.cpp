@@ -24,6 +24,7 @@ static const TCHAR* GetNeuralProfileRuntimeName(ENeuralProfileRuntimeType Neural
 {
 	static const TCHAR* const kRuntimeNames[] = {
 		TEXT("NNERuntimeRDGDml"),
+		TEXT("NNERuntimeRDGHlsl")
 	};
 
 	static_assert(UE_ARRAY_COUNT(kRuntimeNames) == int32(ENeuralProfileRuntimeType::MAX), "Fix me");
