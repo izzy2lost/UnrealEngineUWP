@@ -180,6 +180,7 @@ namespace Private
 		static_assert(CheckExactlyOneProjectionFlag(Features));
 
 		static constexpr int32 PIXEL_SIZE = GetFormatNumChannels(Features);
+		static_assert(PIXEL_SIZE != 0);
 
 	public:
 		static FProjectedPixelProcessorContext MakeContext(
