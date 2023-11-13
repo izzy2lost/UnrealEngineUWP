@@ -337,7 +337,6 @@ protected:
 	void UpdateResult();
 	void UpdateVisualization();
 	void InvalidateResults(UE::Geometry::FRenderCaptureTypeFlags ToInvalidate);
-	void InvalidateCompute();
 	void OnMapsUpdated(const TUniquePtr<UE::Geometry::FMeshMapBaker>& NewResult);
 
 	/**
@@ -356,9 +355,8 @@ protected:
 	 */
 	void CreateAssets(UWorld* SourceWorld);
 
-	// The baking background compute operation
-	TUniquePtr<TGenericDataBackgroundCompute<UE::Geometry::FMeshMapBaker>> Compute = nullptr;
-	EBakeOpState OpState = EBakeOpState::Evaluate;
+	TUniquePtr<TGenericDataBackgroundCompute<UE::Geometry::FMeshMapBaker>> BakeOp = nullptr;
+	EBakeOpState BakeOpState = EBakeOpState::Evaluate;
 
 	TSharedPtr<UE::Geometry::FDynamicMesh3, ESPMode::ThreadSafe> TargetMesh;
 	TSharedPtr<UE::Geometry::FDynamicMeshAABBTree3, ESPMode::ThreadSafe> TargetMeshSpatial;

@@ -390,58 +390,41 @@ void UBakeMeshAttributeVertexTool::OnShutdown(EToolShutdownType ShutdownType)
 	UE::ToolTarget::ShowSourceObject(Targets[0]);
 	SetSourceObjectVisible(true);
 
-	if (Compute)
+	Compute->Shutdown();
+
+	if (ShutdownType == EToolShutdownType::Accept)
 	{
-		Compute->Shutdown();
+		GetToolManager()->BeginUndoTransaction(LOCTEXT("BakeMeshAttributeVertexToolTransactionName",
+													   "Bake Mesh Attribute Vertex"));
+		FConversionToMeshDescriptionOptions ConvertOptions;
+		ConvertOptions.SetToVertexColorsOnly();
+		ConvertOptions.bTransformVtxColorsSRGBToLinear = true;
+		UE::ToolTarget::CommitDynamicMeshUpdate(
+			Targets[0],
+			*PreviewMesh->GetMesh(),
+			false, // bHaveModifiedTopology
+			ConvertOptions);
+		GetToolManager()->EndUndoTransaction();
 	}
 
-	if (PreviewMesh)
-	{
-		if (ShutdownType == EToolShutdownType::Accept)
-		{
-			GetToolManager()->BeginUndoTransaction(LOCTEXT("BakeMeshAttributeVertexToolTransactionName",
-			                                               "Bake Mesh Attribute Vertex"));
-			FConversionToMeshDescriptionOptions ConvertOptions;
-			ConvertOptions.SetToVertexColorsOnly();
-			ConvertOptions.bTransformVtxColorsSRGBToLinear = true;
-			UE::ToolTarget::CommitDynamicMeshUpdate(
-				Targets[0],
-				*PreviewMesh->GetMesh(),
-				false, // bHaveModifiedTopology
-				ConvertOptions);
-			GetToolManager()->EndUndoTransaction();
-		}
-
-		PreviewMesh->SetVisible(false);
-		PreviewMesh->Disconnect();
-		PreviewMesh = nullptr;
-	}
+	PreviewMesh->SetVisible(false);
+	PreviewMesh->Disconnect();
+	PreviewMesh = nullptr;
 
 	RecordAnalytics(BakeAnalytics, TEXT("BakeVertex"));
 }
 
 void UBakeMeshAttributeVertexTool::OnTick(float DeltaTime)
 {
-	if (Compute)
-	{
-		Compute->Tick(DeltaTime);
+	Compute->Tick(DeltaTime);
 
-		if (static_cast<bool>(OpState & EBakeOpState::Invalid))
-		{
-			PreviewMesh->SetOverrideRenderMaterial(ErrorPreviewMaterial);
-		}
-		else
-		{
-			const float ElapsedComputeTime = Compute->GetElapsedComputeTime();
-			if (!CanAccept() && ElapsedComputeTime > SecondsBeforeWorkingMaterial)
-			{
-				PreviewMesh->SetOverrideRenderMaterial(WorkingPreviewMaterial);
-			}
-		}
-	}
-	else if (static_cast<bool>(OpState & EBakeOpState::Invalid))
+	if (static_cast<bool>(OpState & EBakeOpState::Invalid))
 	{
 		PreviewMesh->SetOverrideRenderMaterial(ErrorPreviewMaterial);
+	}
+	else if (!CanAccept() && Compute->GetElapsedComputeTime() > SecondsBeforeWorkingMaterial)
+	{
+		PreviewMesh->SetOverrideRenderMaterial(WorkingPreviewMaterial);
 	}
 }
 
@@ -453,7 +436,7 @@ void UBakeMeshAttributeVertexTool::Render(IToolsContextRenderAPI* RenderAPI)
 bool UBakeMeshAttributeVertexTool::CanAccept() const
 {
 	const bool bValidOp = (OpState & EBakeOpState::Invalid) != EBakeOpState::Invalid;
-	return Compute ? bValidOp && Compute->HaveValidResult() : false;
+	return bValidOp && Compute->HaveValidResult();
 }
 
 TUniquePtr<UE::Geometry::TGenericDataOperator<FMeshVertexBaker>> UBakeMeshAttributeVertexTool::MakeNewOperator()
