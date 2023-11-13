@@ -603,14 +603,9 @@ void UMovieSceneAudioSection::ImportEntityImpl(UMovieSceneEntitySystemLinker* En
 
 void UMovieSceneAudioSection::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
-	const FName PropertyName = PropertyChangedEvent.GetPropertyName();
-	if (PropertyName == GET_MEMBER_NAME_CHECKED(UMovieSceneAudioSection, Sound))
-	{
-		// Invalidate channel proxy
-		ChannelProxy = nullptr;
-	}
-
 	Super::PostEditChangeProperty(PropertyChangedEvent);
+
+	CacheChannelProxy();
 }
 
 #endif
