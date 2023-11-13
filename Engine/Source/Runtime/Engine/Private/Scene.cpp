@@ -3,7 +3,7 @@
 #include "Engine/Scene.h"
 #include "Engine/EngineTypes.h"
 #include "HAL/IConsoleManager.h"
-#include "SceneUtils.h"
+#include "RenderUtils.h"
 #include "UObject/RenderingObjectVersion.h"
 #include "UObject/ReleaseObjectVersion.h"
 #include "UObject/UE5ReleaseStreamObjectVersion.h"

@@ -1541,7 +1541,7 @@ void FPrimitiveSceneInfo::AddToScene(FScene* Scene, TArrayView<FPrimitiveSceneIn
 		SCOPED_NAMED_EVENT(FPrimitiveSceneInfo_AddToScene_LightmapDataOffset, FColor::Green);
 		for (FPrimitiveSceneInfo* SceneInfo : SceneInfos)
 		{
-			const bool bAllowStaticLighting = FReadOnlyCVARCache::Get().bAllowStaticLighting;
+			const bool bAllowStaticLighting = IsStaticLightingAllowed();
 			if (bAllowStaticLighting)
 			{
 				SceneInfo->NumLightmapDataEntries = SceneInfo->UpdateStaticLightingBuffer();

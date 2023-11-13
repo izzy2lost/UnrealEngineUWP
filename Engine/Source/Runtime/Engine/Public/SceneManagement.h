@@ -2996,30 +2996,3 @@ extern ENGINE_API FSharedSamplerState* Clamp_WorldGroupSettings;
 
 /** Initializes the shared sampler states. */
 extern ENGINE_API void InitializeSharedSamplerStates();
-
-/** Initialized the cache of read-only CVars */
-extern ENGINE_API void InitializeReadonlyCVarCache();
-
-/**
-* Cache of read-only console variables used by the scene renderer
-*/
-struct FReadOnlyCVARCache
-{
-	static ENGINE_API const FReadOnlyCVARCache& Get();
-
-	bool bEnablePointLightShadows;
-	bool bEnableStationarySkylight;
-	bool bEnableLowQualityLightmaps;
-	bool bAllowStaticLighting;
-	bool bSupportSkyAtmosphere;
-
-	// Mobile specific
-	bool bMobileAllowMovableDirectionalLights;
-	bool bMobileAllowDistanceFieldShadows;
-	bool bMobileEnableStaticAndCSMShadowReceivers;
-	int32 MobileSkyLightPermutation;
-	bool bMobileEnableNoPrecomputedLightingCSMShader;
-	
-	bool bInitialized;
-	void Init();
-};

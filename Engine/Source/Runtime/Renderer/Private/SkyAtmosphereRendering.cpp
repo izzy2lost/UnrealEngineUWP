@@ -19,6 +19,7 @@
 #include "RendererUtils.h"
 #include "ScreenPass.h"
 #include "UnrealEngine.h"
+#include "ReadOnlyCVARCache.h"
 
 
 //PRAGMA_DISABLE_OPTIMIZATION
@@ -377,7 +378,7 @@ bool ShouldRenderSkyAtmosphere(const FScene* Scene, const FEngineShowFlags& Engi
 		const FSkyAtmosphereRenderSceneInfo* SkyAtmosphere = Scene->GetSkyAtmosphereSceneInfo();
 		check(SkyAtmosphere);
 
-		return FReadOnlyCVARCache::Get().bSupportSkyAtmosphere && CVarSkyAtmosphere.GetValueOnRenderThread() > 0;
+		return FReadOnlyCVARCache::SupportSkyAtmosphere() && CVarSkyAtmosphere.GetValueOnRenderThread() > 0;
 	}
 	return false;
 }

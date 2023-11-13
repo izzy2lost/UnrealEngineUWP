@@ -317,10 +317,7 @@ bool CanCookForPlatformInThisProcess( const FString& PlatformName )
 	}
 	ConfigSetting = IniValueString.ToBool();
 
-	// this was stolen from void IsMobileHDR()
-	static TConsoleVariableData<int32>* MobileHDRCvar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.MobileHDR"));
-	const bool CurrentRSetting = MobileHDRCvar->GetValueOnAnyThread() == 1;
-
+	const bool CurrentRSetting = IsMobileHDR();
 	if ( CurrentRSetting != ConfigSetting )
 	{
 		UE_LOG(LogUnrealEdEngine, Warning, TEXT("Unable to use cook in editor because r.MobileHDR from Engine ini doesn't match console value r.MobileHDR"));

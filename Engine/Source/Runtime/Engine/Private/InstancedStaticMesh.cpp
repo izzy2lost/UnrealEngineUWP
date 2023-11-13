@@ -4750,9 +4750,7 @@ FInstanceDataFlags UInstancedStaticMeshComponent::MakeInstanceDataFlags(bool bAn
 	Flags.bHasPerInstanceEditorData = GIsEditor != 0 && bHasPerInstanceHitProxies;
 #endif
 	
-	static const auto AllowStaticLightingVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.AllowStaticLighting"));
-	const bool bAllowStaticLighting = (!AllowStaticLightingVar || AllowStaticLightingVar->GetValueOnAnyThread() != 0);
-	Flags.bHasPerInstanceLMSMUVBias = bAllowStaticLighting;
+	Flags.bHasPerInstanceLMSMUVBias = IsStaticLightingAllowed();
 
 	Flags.bHasPerInstanceDynamicData = PerInstancePrevTransform.Num() > 0 && PerInstancePrevTransform.Num() == GetInstanceCount();
 	check(!Flags.bHasPerInstanceDynamicData || Mobility != EComponentMobility::Static);

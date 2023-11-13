@@ -57,9 +57,6 @@ inline bool IsTemporalAccumulationBasedMethod(EAntiAliasingMethod AntiAliasingMe
 	return AntiAliasingMethod == AAM_TemporalAA || AntiAliasingMethod == AAM_TSR;
 }
 
-/** True if HDR is enabled for the mobile renderer. */
-ENGINE_API bool IsMobileHDR();
-
 /** True if Alpha Propagate is enabled for the mobile renderer. */
 ENGINE_API bool IsMobilePropagateAlphaEnabled(EShaderPlatform Platform);
 

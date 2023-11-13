@@ -14,11 +14,11 @@
 #include "MeshPassProcessor.inl"
 #include "Engine/TextureCube.h"
 #include "ShaderPlatformCachedIniValue.h"
+#include "ReadOnlyCVARCache.h"
 
 bool MobileLocalLightsBufferEnabled(const FStaticShaderPlatform Platform)
 {
-	static FShaderPlatformCachedIniValue<int32> MobileForwardEnablePrepassLocalLightsIniValue(TEXT("r.Mobile.Forward.EnableLocalLights"));
-	return MobileForwardEnablePrepassLocalLightsIniValue.Get(Platform) == 2;
+	return FReadOnlyCVARCache::MobileForwardLocalLights(Platform) == 2;
 }
 
 bool MobileMergeLocalLightsInPrepassEnabled(const FStaticShaderPlatform Platform)
@@ -46,8 +46,7 @@ bool MobileLocalLightsUseSinglePermutation()
 
 EMobileLocalLightSetting GetMobileForwardLocalLightSetting(EShaderPlatform ShaderPlatform, bool bIsTranslucent)
 {
-	static FShaderPlatformCachedIniValue<int32> MobileForwardLocalLightsIniValueCvar(TEXT("r.Mobile.Forward.EnableLocalLights"));
-	int MobileForwardLocalLightsIniValue = MobileForwardLocalLightsIniValueCvar.Get(ShaderPlatform);
+	const int32 MobileForwardLocalLightsIniValue = FReadOnlyCVARCache::MobileForwardLocalLights(ShaderPlatform);
 
 	if (MobileForwardLocalLightsIniValue > 0)
 	{
@@ -216,7 +215,7 @@ bool MobileBasePass::GetShaders(
 	TShaderRef<TMobileBasePassPSPolicyParamType<FUniformLightMapPolicy>>& PixelShader)
 {
 	bool bIsLit = (MaterialResource.GetShadingModels().IsLit());
-	if (bIsLit && !UseSkylightPermutation(bEnableSkyLight, FReadOnlyCVARCache::Get().MobileSkyLightPermutation))	
+	if (bIsLit && !UseSkylightPermutation(bEnableSkyLight, FReadOnlyCVARCache::MobileSkyLightPermutation()))	
 	{
 		bEnableSkyLight = !bEnableSkyLight;
 	}
@@ -298,8 +297,7 @@ const FLightSceneInfo* MobileBasePass::GetDirectionalLightInfo(const FScene* Sce
 bool MobileBasePass::StaticCanReceiveCSM(const FLightSceneInfo* LightSceneInfo, const FPrimitiveSceneProxy* PrimitiveSceneProxy)
 {
 	// For movable directional lights, when CSM culling is disabled the default behavior is to receive CSM.
-	static auto* CVarMobileEnableMovableLightCSMShaderCulling = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Mobile.EnableMovableLightCSMShaderCulling"));
-	if (LightSceneInfo && LightSceneInfo->Proxy->IsMovable() && CVarMobileEnableMovableLightCSMShaderCulling->GetValueOnRenderThread() == 0)
+	if (LightSceneInfo && LightSceneInfo->Proxy->IsMovable() && !FReadOnlyCVARCache::MobileEnableMovableLightCSMShaderCulling())
 	{		
 		return true;
 	}
@@ -311,8 +309,7 @@ bool MobileBasePass::StaticCanReceiveCSM(const FLightSceneInfo* LightSceneInfo, 
 
 bool MobileBasePass::IsUsingDirectionalLightForLighmapPolicySelection(const FScene* Scene)
 {
-	const FReadOnlyCVARCache& ReadOnlyCVARCache = FReadOnlyCVARCache::Get();
-	return !(!ReadOnlyCVARCache.bAllowStaticLighting || (ReadOnlyCVARCache.bMobileEnableNoPrecomputedLightingCSMShader && Scene && Scene->GetForceNoPrecomputedLighting()));
+	return !(!IsStaticLightingAllowed() || (FReadOnlyCVARCache::MobileEnableNoPrecomputedLightingCSMShader() && Scene && Scene->GetForceNoPrecomputedLighting()));
 }
 
 ELightMapPolicyType MobileBasePass::SelectMeshLightmapPolicy(
@@ -330,8 +327,7 @@ ELightMapPolicyType MobileBasePass::SelectMeshLightmapPolicy(
 	if (bIsLitMaterial)
 	{
 		constexpr ERHIFeatureLevel::Type FeatureLevel = ERHIFeatureLevel::ES3_1;
-		const FReadOnlyCVARCache& ReadOnlyCVARCache = FReadOnlyCVARCache::Get();
-
+		
 		if (!IsUsingDirectionalLightForLighmapPolicySelection(Scene))
 		{
  			if (!bIsTranslucent)
@@ -359,10 +355,10 @@ ELightMapPolicyType MobileBasePass::SelectMeshLightmapPolicy(
 
 			const FLightSceneInfo* MobileDirectionalLight = MobileBasePass::GetDirectionalLightInfo(Scene, PrimitiveSceneProxy);
 		
-			const bool bUseMovableLight = MobileDirectionalLight && !MobileDirectionalLight->Proxy->HasStaticShadowing() && ReadOnlyCVARCache.bMobileAllowMovableDirectionalLights;
+			const bool bUseMovableLight = MobileDirectionalLight && !MobileDirectionalLight->Proxy->HasStaticShadowing() && FReadOnlyCVARCache::MobileAllowMovableDirectionalLights();
 			const bool bUseStaticAndCSM = MobileDirectionalLight && MobileDirectionalLight->Proxy->UseCSMForDynamicObjects()
 											&& bPrimReceivesCSM
-											&& ReadOnlyCVARCache.bMobileEnableStaticAndCSMShadowReceivers;
+											&& FReadOnlyCVARCache::MobileEnableStaticAndCSMShadowReceivers();
 
 			const bool bMovableWithCSM = bUseMovableLight && MobileDirectionalLight->ShouldRenderViewIndependentWholeSceneShadows() && bPrimReceivesCSM;
 
@@ -376,7 +372,7 @@ ELightMapPolicyType MobileBasePass::SelectMeshLightmapPolicy(
 			const bool bHasValidILC = Scene && Scene->PrecomputedLightVolumes.Num() > 0
 									&& IsIndirectLightingCacheAllowed(FeatureLevel);
 
-			if (LightMapInteraction.GetType() == LMIT_Texture && ReadOnlyCVARCache.bEnableLowQualityLightmaps)
+			if (LightMapInteraction.GetType() == LMIT_Texture && FReadOnlyCVARCache::EnableLowQualityLightmaps())
 			{
 				const FShadowMapInteraction ShadowMapInteraction = (Mesh.LCI != nullptr)
 					? Mesh.LCI->GetShadowMapInteraction(FeatureLevel)
@@ -386,7 +382,7 @@ ELightMapPolicyType MobileBasePass::SelectMeshLightmapPolicy(
 				{
 					if (ShadowMapInteraction.GetType() == SMIT_Texture &&
 						MobileDirectionalLight->ShouldRenderViewIndependentWholeSceneShadows() &&
-						ReadOnlyCVARCache.bMobileAllowDistanceFieldShadows)
+						FReadOnlyCVARCache::MobileAllowDistanceFieldShadows())
 					{
 						SelectedLightmapPolicy = LMP_MOBILE_DISTANCE_FIELD_SHADOWS_LIGHTMAP_AND_CSM;
 					}
@@ -406,7 +402,7 @@ ELightMapPolicyType MobileBasePass::SelectMeshLightmapPolicy(
 				else
 				{
 					if (ShadowMapInteraction.GetType() == SMIT_Texture &&
-						ReadOnlyCVARCache.bMobileAllowDistanceFieldShadows)
+						FReadOnlyCVARCache::MobileAllowDistanceFieldShadows())
 					{
 						SelectedLightmapPolicy = LMP_MOBILE_DISTANCE_FIELD_SHADOWS_AND_LQ_LIGHTMAP;
 					}
@@ -433,7 +429,7 @@ ELightMapPolicyType MobileBasePass::SelectMeshLightmapPolicy(
 			}
 			else if ((bHasValidVLM || bHasValidILC) && bPrimitiveUsesILC)
 			{
-				if ((bUseStaticAndCSM || bMovableWithCSM) && !bUsesDeferredShading && ReadOnlyCVARCache.bMobileEnableStaticAndCSMShadowReceivers)
+				if ((bUseStaticAndCSM || bMovableWithCSM) && !bUsesDeferredShading && FReadOnlyCVARCache::MobileEnableStaticAndCSMShadowReceivers())
 				{
 					SelectedLightmapPolicy = LMP_MOBILE_DIRECTIONAL_LIGHT_CSM_AND_SH_INDIRECT;
 				}
@@ -456,9 +452,7 @@ static FMobileLightMapPolicyTypeList GetUniformLightMapPolicyTypeForPSOCollectio
 	
 	if (bLitMaterial)
 	{
-		const FReadOnlyCVARCache& ReadOnlyCVARCache = FReadOnlyCVARCache::Get();
-		
-		if (!ReadOnlyCVARCache.bAllowStaticLighting)
+		if (!IsStaticLightingAllowed())
 		{
 			if (bUsesDeferredShading || bTranslucent || !MobileUseCSMShaderBranch())
 			{
@@ -473,16 +467,16 @@ static FMobileLightMapPolicyTypeList GetUniformLightMapPolicyTypeForPSOCollectio
 		}
 		else
 		{
-			if (ReadOnlyCVARCache.bEnableLowQualityLightmaps)
+			if (FReadOnlyCVARCache::EnableLowQualityLightmaps())
 			{
-				if (ReadOnlyCVARCache.bMobileEnableStaticAndCSMShadowReceivers && !bUsesDeferredShading)
+				if (FReadOnlyCVARCache::MobileEnableStaticAndCSMShadowReceivers() && !bUsesDeferredShading)
 				{
-					if (ReadOnlyCVARCache.bMobileAllowDistanceFieldShadows)
+					if (FReadOnlyCVARCache::MobileAllowDistanceFieldShadows())
 					{
 						Result.Add(LMP_MOBILE_DISTANCE_FIELD_SHADOWS_LIGHTMAP_AND_CSM);
 					}
 
-					if (ReadOnlyCVARCache.bMobileAllowMovableDirectionalLights)
+					if (FReadOnlyCVARCache::MobileAllowMovableDirectionalLights())
 					{
 						Result.Add(LMP_MOBILE_MOVABLE_DIRECTIONAL_LIGHT_CSM_WITH_LIGHTMAP);
 					}
@@ -490,12 +484,12 @@ static FMobileLightMapPolicyTypeList GetUniformLightMapPolicyTypeForPSOCollectio
 					Result.Add(LMP_MOBILE_DIRECTIONAL_LIGHT_CSM_AND_LIGHTMAP);
 				}
 
-				if (ReadOnlyCVARCache.bMobileAllowDistanceFieldShadows)
+				if (FReadOnlyCVARCache::MobileAllowDistanceFieldShadows())
 				{
 					Result.Add(LMP_MOBILE_DISTANCE_FIELD_SHADOWS_AND_LQ_LIGHTMAP);
 				}
 
-				if (ReadOnlyCVARCache.bMobileAllowMovableDirectionalLights)
+				if (FReadOnlyCVARCache::MobileAllowMovableDirectionalLights())
 				{
 					if (bUsesDeferredShading)
 					{
@@ -515,7 +509,7 @@ static FMobileLightMapPolicyTypeList GetUniformLightMapPolicyTypeForPSOCollectio
 			// ILC/LVM
 			if (bMovable)
 			{
-				if (!bUsesDeferredShading && ReadOnlyCVARCache.bMobileEnableStaticAndCSMShadowReceivers)
+				if (!bUsesDeferredShading && FReadOnlyCVARCache::MobileEnableStaticAndCSMShadowReceivers())
 				{
 					Result.Add(LMP_MOBILE_DIRECTIONAL_LIGHT_CSM_AND_SH_INDIRECT);
 				}
@@ -621,9 +615,11 @@ static FRHIBlendState* GetBlendStateForColorTransmittanceBlending(const EShaderP
 
 void MobileBasePass::SetTranslucentRenderState(FMeshPassProcessorRenderState& DrawRenderState, const FMaterial& Material, FMaterialShadingModelField ShadingModels)
 {
-	const EShaderPlatform ShaderPlatform = GetFeatureLevelShaderPlatform(Material.GetFeatureLevel());
-	const bool bIsUsingMobilePixelProjectedReflection = Material.IsUsingPlanarForwardReflections() && IsUsingMobilePixelProjectedReflection(ShaderPlatform);
+	constexpr ERHIFeatureLevel::Type FeatureLevel = ERHIFeatureLevel::ES3_1;
+	EShaderPlatform ShaderPlatform = GetFeatureLevelShaderPlatform(FeatureLevel);
 
+	const bool bIsUsingMobilePixelProjectedReflection = Material.IsUsingPlanarForwardReflections() && IsUsingMobilePixelProjectedReflection(ShaderPlatform);
+	
 	if (Substrate::IsSubstrateEnabled())
 	{
 		if (Material.IsDualBlendingEnabled(ShaderPlatform) || Material.GetBlendMode() == BLEND_TranslucentColoredTransmittance)
@@ -761,7 +757,7 @@ static FMeshDrawCommandSortKey GetBasePassStaticSortKey(const bool bIsMasked, bo
 template<>
 void TMobileBasePassPSPolicyParamType<FUniformLightMapPolicy>::GetShaderBindings(
 	const FScene* Scene,
-	ERHIFeatureLevel::Type FeatureLevel,
+	const FStaticFeatureLevel FeatureLevel,
 	const FPrimitiveSceneProxy* PrimitiveSceneProxy,
 	const FMaterialRenderProxy& MaterialRenderProxy,
 	const FMaterial& Material,
@@ -816,18 +812,17 @@ void TMobileBasePassPSPolicyParamType<FUniformLightMapPolicy>::GetShaderBindings
 FMobileBasePassMeshProcessor::FMobileBasePassMeshProcessor(
 	EMeshPass::Type InMeshPassType,
 	const FScene* Scene,
-	ERHIFeatureLevel::Type InFeatureLevel,
 	const FSceneView* InViewIfDynamicMeshCommand,
 	const FMeshPassProcessorRenderState& InDrawRenderState,
 	FMeshPassDrawListContext* InDrawListContext,
 	EFlags InFlags,
 	ETranslucencyPass::Type InTranslucencyPassType)
-	: FMeshPassProcessor(InMeshPassType, Scene, InFeatureLevel, InViewIfDynamicMeshCommand, InDrawListContext)
+	: FMeshPassProcessor(InMeshPassType, Scene, ERHIFeatureLevel::ES3_1, InViewIfDynamicMeshCommand, InDrawListContext)
 	, PassDrawRenderState(InDrawRenderState)
 	, TranslucencyPassType(InTranslucencyPassType)
 	, Flags(InFlags)
 	, bTranslucentBasePass(InTranslucencyPassType != ETranslucencyPass::TPT_MAX)
-	, bDeferredShading(IsMobileDeferredShadingEnabled(GetFeatureLevelShaderPlatform(InFeatureLevel)))
+	, bDeferredShading(IsMobileDeferredShadingEnabled(GetFeatureLevelShaderPlatform(ERHIFeatureLevel::ES3_1)))
 	, bPassUsesDeferredShading(bDeferredShading && !bTranslucentBasePass)
 {
 }
@@ -972,7 +967,7 @@ bool FMobileBasePassMeshProcessor::Process(
 	if (bTranslucentBasePass)
 	{
 		const bool bIsUsingMobilePixelProjectedReflection = MaterialResource.IsUsingPlanarForwardReflections() 
-															&& IsUsingMobilePixelProjectedReflection(GetFeatureLevelShaderPlatform(MaterialResource.GetFeatureLevel()));
+															&& IsUsingMobilePixelProjectedReflection(GetFeatureLevelShaderPlatform(FeatureLevel));
 
 		SortKey = CalculateTranslucentMeshStaticSortKey(PrimitiveSceneProxy, MeshBatch.MeshIdInPrimitive);
 		// We always want water to be rendered first on mobile in order to mimic other renderers where it is opaque. We shift the other priorities by 1.
@@ -1076,7 +1071,7 @@ void FMobileBasePassMeshProcessor::CollectPSOInitializers(const FSceneTexturesCo
 	}
 
 	// Determine the mesh's material and blend mode.
-	EShaderPlatform ShaderPlatform = GetFeatureLevelShaderPlatform(Material.GetFeatureLevel());
+	EShaderPlatform ShaderPlatform = GetFeatureLevelShaderPlatform(FeatureLevel);
 	const FMeshDrawingPolicyOverrideSettings OverrideSettings = ComputeMeshOverrideSettings(PreCacheParams);
 	const ERasterizerFillMode MeshFillMode = ComputeMeshFillMode(Material, OverrideSettings);
 	ERasterizerCullMode MeshCullMode = ComputeMeshCullMode(Material, OverrideSettings);
@@ -1133,7 +1128,7 @@ void FMobileBasePassMeshProcessor::CollectPSOInitializers(const FSceneTexturesCo
 	{
 		// SkyLight OFF
 		bool bEnableSkyLight = false;
-		if (MobileBasePass::UseSkylightPermutation(bEnableSkyLight, FReadOnlyCVARCache::Get().MobileSkyLightPermutation) || !bLitMaterial)
+		if (MobileBasePass::UseSkylightPermutation(bEnableSkyLight, FReadOnlyCVARCache::MobileSkyLightPermutation()) || !bLitMaterial)
 		{
 			CollectPSOInitializersForLMPolicy(VertexFactoryData, DrawRenderState, RenderTargetsInfo, Material, bEnableSkyLight, EMobileLocalLightSetting::LOCAL_LIGHTS_DISABLED, LightMapPolicyType, MeshFillMode, MeshCullMode, (EPrimitiveType)PreCacheParams.PrimitiveType, PSOInitializers);
 			if (bUseLocalLightPermutation)
@@ -1144,7 +1139,7 @@ void FMobileBasePassMeshProcessor::CollectPSOInitializers(const FSceneTexturesCo
 
 		// SkyLight ON
 		bEnableSkyLight = true;
-		if (MobileBasePass::UseSkylightPermutation(bEnableSkyLight, FReadOnlyCVARCache::Get().MobileSkyLightPermutation) && bLitMaterial)
+		if (MobileBasePass::UseSkylightPermutation(bEnableSkyLight, FReadOnlyCVARCache::MobileSkyLightPermutation()) && bLitMaterial)
 		{
 			CollectPSOInitializersForLMPolicy(VertexFactoryData, DrawRenderState, RenderTargetsInfo, Material, bEnableSkyLight, EMobileLocalLightSetting::LOCAL_LIGHTS_DISABLED, LightMapPolicyType, MeshFillMode, MeshCullMode, (EPrimitiveType)PreCacheParams.PrimitiveType, PSOInitializers);
 			if (bUseLocalLightPermutation)
@@ -1166,7 +1161,7 @@ FMeshPassProcessor* CreateMobileBasePassProcessor(ERHIFeatureLevel::Type Feature
 	const FMobileBasePassMeshProcessor::EFlags Flags = FMobileBasePassMeshProcessor::EFlags::CanUseDepthStencil
 		| (MobileBasePassAlwaysUsesCSM(GShaderPlatformForFeatureLevel[FeatureLevel]) ? FMobileBasePassMeshProcessor::EFlags::CanReceiveCSM : FMobileBasePassMeshProcessor::EFlags::None);
 
-	return new FMobileBasePassMeshProcessor(EMeshPass::BasePass, Scene, FeatureLevel, InViewIfDynamicMeshCommand, PassDrawRenderState, InDrawListContext, Flags);
+	return new FMobileBasePassMeshProcessor(EMeshPass::BasePass, Scene, InViewIfDynamicMeshCommand, PassDrawRenderState, InDrawListContext, Flags);
 }
 
 FMeshPassProcessor* CreateMobileBasePassCSMProcessor(ERHIFeatureLevel::Type FeatureLevel, const FScene* Scene, const FSceneView* InViewIfDynamicMeshCommand, FMeshPassDrawListContext* InDrawListContext)
@@ -1185,7 +1180,7 @@ FMeshPassProcessor* CreateMobileBasePassCSMProcessor(ERHIFeatureLevel::Type Feat
 		Flags = FMobileBasePassMeshProcessor::EFlags::CanReceiveCSM | FMobileBasePassMeshProcessor::EFlags::CanUseDepthStencil;
 	}
 	
-	return new FMobileBasePassMeshProcessor(EMeshPass::MobileBasePassCSM, Scene, FeatureLevel, InViewIfDynamicMeshCommand, PassDrawRenderState, InDrawListContext, Flags);
+	return new FMobileBasePassMeshProcessor(EMeshPass::MobileBasePassCSM, Scene, InViewIfDynamicMeshCommand, PassDrawRenderState, InDrawListContext, Flags);
 }
 
 FMeshPassProcessor* CreateMobileTranslucencyStandardPassProcessor(ERHIFeatureLevel::Type FeatureLevel, const FScene* Scene, const FSceneView* InViewIfDynamicMeshCommand, FMeshPassDrawListContext* InDrawListContext)
@@ -1197,7 +1192,7 @@ FMeshPassProcessor* CreateMobileTranslucencyStandardPassProcessor(ERHIFeatureLev
 
 	const FMobileBasePassMeshProcessor::EFlags Flags = FMobileBasePassMeshProcessor::EFlags::CanUseDepthStencil;
 
-	return new FMobileBasePassMeshProcessor(EMeshPass::TranslucencyStandard, Scene, FeatureLevel, InViewIfDynamicMeshCommand, PassDrawRenderState, InDrawListContext, Flags, ETranslucencyPass::TPT_TranslucencyStandard);
+	return new FMobileBasePassMeshProcessor(EMeshPass::TranslucencyStandard, Scene, InViewIfDynamicMeshCommand, PassDrawRenderState, InDrawListContext, Flags, ETranslucencyPass::TPT_TranslucencyStandard);
 }
 
 FMeshPassProcessor* CreateMobileTranslucencyAfterDOFProcessor(ERHIFeatureLevel::Type FeatureLevel, const FScene* Scene, const FSceneView* InViewIfDynamicMeshCommand, FMeshPassDrawListContext* InDrawListContext)
@@ -1208,7 +1203,7 @@ FMeshPassProcessor* CreateMobileTranslucencyAfterDOFProcessor(ERHIFeatureLevel::
 
 	const FMobileBasePassMeshProcessor::EFlags Flags = FMobileBasePassMeshProcessor::EFlags::CanUseDepthStencil;
 
-	return new FMobileBasePassMeshProcessor(EMeshPass::TranslucencyAfterDOF, Scene, FeatureLevel, InViewIfDynamicMeshCommand, PassDrawRenderState, InDrawListContext, Flags, ETranslucencyPass::TPT_TranslucencyAfterDOF);
+	return new FMobileBasePassMeshProcessor(EMeshPass::TranslucencyAfterDOF, Scene, InViewIfDynamicMeshCommand, PassDrawRenderState, InDrawListContext, Flags, ETranslucencyPass::TPT_TranslucencyAfterDOF);
 }
 
 FMeshPassProcessor* CreateMobileTranslucencyAllPassProcessor(ERHIFeatureLevel::Type FeatureLevel, const FScene* Scene, const FSceneView* InViewIfDynamicMeshCommand, FMeshPassDrawListContext* InDrawListContext)
@@ -1219,7 +1214,7 @@ FMeshPassProcessor* CreateMobileTranslucencyAllPassProcessor(ERHIFeatureLevel::T
 
 	const FMobileBasePassMeshProcessor::EFlags Flags = FMobileBasePassMeshProcessor::EFlags::CanUseDepthStencil;
 
-	return new FMobileBasePassMeshProcessor(EMeshPass::TranslucencyAll, Scene, FeatureLevel, InViewIfDynamicMeshCommand, PassDrawRenderState, InDrawListContext, Flags, ETranslucencyPass::TPT_AllTranslucency);
+	return new FMobileBasePassMeshProcessor(EMeshPass::TranslucencyAll, Scene, InViewIfDynamicMeshCommand, PassDrawRenderState, InDrawListContext, Flags, ETranslucencyPass::TPT_AllTranslucency);
 }
 
 REGISTER_MESHPASSPROCESSOR_AND_PSOCOLLECTOR(MobileBasePass, 			CreateMobileBasePassProcessor, 			EShadingPath::Mobile, EMeshPass::BasePass, 		EMeshPassFlags::CachedMeshCommands | EMeshPassFlags::MainView);

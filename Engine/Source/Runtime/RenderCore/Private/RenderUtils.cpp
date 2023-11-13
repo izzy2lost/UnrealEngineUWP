@@ -18,6 +18,7 @@
 #include "SubstrateDefinitions.h"
 #include "Animation/MeshDeformerProvider.h"
 #include "Interfaces/ITargetPlatform.h"
+#include "ReadOnlyCVARCache.h"
 
 #if WITH_EDITOR
 #include "Interfaces/ITargetPlatformManagerModule.h"
@@ -473,11 +474,14 @@ RENDERCORE_API FVertexDeclarationRHIRef& GetVertexDeclarationFVector2()
 	return GVector2VertexDeclaration.VertexDeclarationRHI;
 }
 
+RENDERCORE_API bool IsMobileHDR()
+{
+	return FReadOnlyCVARCache::MobileHDR();
+}
+
 RENDERCORE_API bool MobileSupportsGPUScene()
 {
-	// make it shader platform setting?
-	static TConsoleVariableData<int32>* CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Mobile.SupportGPUScene"));
-	return (CVar && CVar->GetValueOnAnyThread() != 0) ? true : false;
+	return FReadOnlyCVARCache::MobileSupportsGPUScene();
 }
 
 RENDERCORE_API bool PlatformGPUSceneUsesUniformBufferView(const FStaticShaderPlatform Platform)
@@ -487,21 +491,12 @@ RENDERCORE_API bool PlatformGPUSceneUsesUniformBufferView(const FStaticShaderPla
 
 RENDERCORE_API bool IsMobileDeferredShadingEnabled(const FStaticShaderPlatform Platform)
 {
-	static FShaderPlatformCachedIniValue<bool> MobileShadingPathIniValue(TEXT("r.Mobile.ShadingPath"));
-	static TConsoleVariableData<int32>* MobileAllowDeferredShadingOpenGL = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Mobile.AllowDeferredShadingOpenGL"));
-	static TConsoleVariableData<int32>* MobileHDR = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.MobileHDR"));
-
-	// OpenGL requires DXC for deferred shading
-	bool bSupportedPlatform = !IsOpenGLPlatform(Platform) ||
-		(MobileAllowDeferredShadingOpenGL && MobileAllowDeferredShadingOpenGL->GetValueOnAnyThread() != 0 && IsDxcEnabledForPlatform(Platform));
-
-	return MobileShadingPathIniValue.Get(Platform) == 1 && bSupportedPlatform && MobileHDR->GetValueOnAnyThread() == 1;
+	return FReadOnlyCVARCache::MobileDeferredShading(Platform) && IsMobileHDR();
 }
 
 RENDERCORE_API bool MobileRequiresSceneDepthAux(const FStaticShaderPlatform Platform)
 {
-	static const auto CVarMobileHDR = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.MobileHDR"));
-	const bool bMobileHDR = (CVarMobileHDR && CVarMobileHDR->GetValueOnAnyThread() != 0);
+	const bool bMobileHDR = IsMobileHDR();
 
 	if (!MobileUsesFullDepthPrepass(Platform))
 	{
@@ -529,11 +524,10 @@ RENDERCORE_API bool SupportsTextureCubeArray(ERHIFeatureLevel::Type FeatureLevel
 
 RENDERCORE_API bool MaskedInEarlyPass(const FStaticShaderPlatform Platform)
 {
-	static FShaderPlatformCachedIniValue<int32> CVarMobileEarlyZPass(TEXT("r.Mobile.EarlyZPass"));
 	static IConsoleVariable* CVarEarlyZPassOnlyMaterialMasking = IConsoleManager::Get().FindConsoleVariable(TEXT("r.EarlyZPassOnlyMaterialMasking"));
 	if (IsMobilePlatform(Platform))
 	{
-		return CVarMobileEarlyZPass.Get(Platform) == 2 || MobileUsesFullDepthPrepass(Platform);
+		return FReadOnlyCVARCache::MobileEarlyZPass(Platform) == 2 || MobileUsesFullDepthPrepass(Platform);
 	}
 	else
 	{
@@ -587,14 +581,12 @@ RENDERCORE_API bool IsMobileDistanceFieldEnabled(const FStaticShaderPlatform Pla
 
 RENDERCORE_API bool IsMobileMovableSpotlightShadowsEnabled(const FStaticShaderPlatform Platform)
 {
-	static FShaderPlatformCachedIniValue<bool> MobileMovableSpotlightShadowsEnabledIniValue(TEXT("r.Mobile.EnableMovableSpotlightsShadow"));
-	return MobileMovableSpotlightShadowsEnabledIniValue.Get(Platform);
+	return FReadOnlyCVARCache::MobileEnableMovableSpotlightsShadow(Platform);
 }
 
 RENDERCORE_API bool MobileForwardEnableLocalLights(const FStaticShaderPlatform Platform)
 {
-	static FShaderPlatformCachedIniValue<int32> MobileForwardEnableLocalLightsIniValue(TEXT("r.Mobile.Forward.EnableLocalLights"));
-	return MobileForwardEnableLocalLightsIniValue.Get(Platform) > 0;
+	return FReadOnlyCVARCache::MobileForwardLocalLights(Platform) > 0;
 }
 
 RENDERCORE_API bool MobileForwardEnableClusteredReflections(const FStaticShaderPlatform Platform)
@@ -644,8 +636,7 @@ RENDERCORE_API bool MobileBasePassAlwaysUsesCSM(const FStaticShaderPlatform Plat
 
 RENDERCORE_API bool MobileUsesFullDepthPrepass(const FStaticShaderPlatform Platform)
 {
-	static FShaderPlatformCachedIniValue<int32> CVarMobileEarlyZPass(TEXT("r.Mobile.EarlyZPass"));
-	return MobileUsesShadowMaskTexture(Platform) || IsMobileAmbientOcclusionEnabled(Platform) || IsUsingDBuffers(Platform) || (CVarMobileEarlyZPass.Get(Platform) == 1);
+	return MobileUsesShadowMaskTexture(Platform) || IsMobileAmbientOcclusionEnabled(Platform) || IsUsingDBuffers(Platform) || FReadOnlyCVARCache::MobileEarlyZPass(Platform) == 1;
 }
 
 RENDERCORE_API bool ShouldForceFullDepthPass(const FStaticShaderPlatform Platform)
@@ -771,6 +762,8 @@ void GetAllPossiblePreviewPlatformsForMainShaderPlatform(TArray<EShaderPlatform>
 RENDERCORE_API void RenderUtilsInit()
 {
 	checkf(GIsRHIInitialized, TEXT("RenderUtilsInit() may only be called once RHI is initialized."));
+
+	FReadOnlyCVARCache::Initialize();
 
 	GForwardShadingPlatformMask.Init(GUseForwardShading == 1, EShaderPlatform::SP_NumPlatforms);
 
@@ -1651,8 +1644,7 @@ ERayTracingMode GetRayTracingMode()
 
 bool IsStaticLightingAllowed()
 {
-	static const auto AllowStaticLightingVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.AllowStaticLighting"));
-	return (!AllowStaticLightingVar || AllowStaticLightingVar->GetValueOnAnyThread() != 0);
+	return FReadOnlyCVARCache::AllowStaticLighting();
 }
 
 bool UseSplineMeshSceneResources(const FStaticShaderPlatform Platform)

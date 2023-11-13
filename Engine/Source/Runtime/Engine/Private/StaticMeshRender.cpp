@@ -2075,7 +2075,7 @@ FPrimitiveViewRelevance FStaticMeshSceneProxy::GetViewRelevance(const FSceneView
 #else
 	bool bInCollisionView = false;
 #endif
-	const bool bAllowStaticLighting = FReadOnlyCVARCache::Get().bAllowStaticLighting;
+	const bool bAllowStaticLighting = IsStaticLightingAllowed();
 
 	if(
 #if !(UE_BUILD_SHIPPING) || WITH_EDITOR

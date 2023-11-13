@@ -408,7 +408,6 @@ void FRendererModule::DrawTileMesh(FCanvasRenderContext& RenderContext, FMeshPas
 						FMobileBasePassMeshProcessor PassMeshProcessor(
 							EMeshPass::TranslucencyAll,
 							Scene,
-							View.GetFeatureLevel(),
 							&View,
 							DrawRenderState,
 							DynamicMeshPassContext,
@@ -489,7 +488,6 @@ void FRendererModule::DrawTileMesh(FCanvasRenderContext& RenderContext, FMeshPas
 							FMobileBasePassMeshProcessor PassMeshProcessor(
 								EMeshPass::BasePass,
 								Scene,
-								View.GetFeatureLevel(),
 								&View,
 								DrawRenderState,
 								DynamicMeshPassContext,

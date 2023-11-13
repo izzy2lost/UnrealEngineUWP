@@ -44,12 +44,6 @@ ECustomDepthMode GetCustomDepthMode()
 	return ECustomDepthMode::Disabled;
 }
 
-bool IsMobileHDR()
-{
-	static auto* MobileHDRCvar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.MobileHDR"));
-	return MobileHDRCvar->GetValueOnAnyThread() == 1;
-}
-
 bool IsMobilePropagateAlphaEnabled(EShaderPlatform Platform)
 {
 	return IsMobilePlatform(Platform) && (FPlatformMisc::GetMobilePropagateAlphaSetting() > 0);
@@ -84,9 +78,8 @@ ENGINE_API EAntiAliasingMethod GetDefaultAntiAliasingMethod(const FStaticFeature
 		static auto* MobileAntiAliasingCvar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Mobile.AntiAliasing"));
 		AntiAliasingMethod = EAntiAliasingMethod(FMath::Clamp<int32>(MobileAntiAliasingCvar->GetValueOnAnyThread(), 0, AAM_MAX));
 
-		static auto* MobileHDRCvar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.MobileHDR"));
 		// Disable antialiasing in GammaLDR mode to avoid jittering.
-		if (MobileHDRCvar->GetValueOnAnyThread() == 0 && AntiAliasingMethod != EAntiAliasingMethod::AAM_MSAA)
+		if (!IsMobileHDR() && AntiAliasingMethod != EAntiAliasingMethod::AAM_MSAA)
 		{
 			AntiAliasingMethod = EAntiAliasingMethod::AAM_None;
 		}

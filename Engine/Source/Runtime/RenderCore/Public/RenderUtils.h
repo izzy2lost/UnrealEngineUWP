@@ -269,6 +269,9 @@ RENDERCORE_API FVertexDeclarationRHIRef& GetVertexDeclarationFVector3();
 
 RENDERCORE_API FVertexDeclarationRHIRef& GetVertexDeclarationFVector2();
 
+/** True if HDR is enabled for the mobile renderer. */
+RENDERCORE_API bool IsMobileHDR();
+
 RENDERCORE_API bool MobileSupportsGPUScene();
 
 RENDERCORE_API bool PlatformGPUSceneUsesUniformBufferView(const FStaticShaderPlatform Platform);

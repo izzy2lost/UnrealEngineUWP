@@ -286,8 +286,7 @@ static void MobileBasePassShaderName(bool bVertexShader, const TCHAR* PolicyName
 
 void FMaterialStatsUtils::GetRepresentativeShaderTypesAndDescriptions(TMap<FName, TArray<FRepresentativeShaderInfo>>& ShaderTypeNamesAndDescriptions, const FMaterial* TargetMaterial)
 {
-	static auto* MobileHDR = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.MobileHDR"));
-	bool bMobileHDR = MobileHDR && MobileHDR->GetValueOnAnyThread() == 1;
+	bool bMobileHDR = IsMobileHDR();
 
 	static const FName FLocalVertexFactoryName = FLocalVertexFactory::StaticType.GetFName();
 	static const FName FGPUFactoryName = TEXT("TGPUSkinVertexFactoryDefault");

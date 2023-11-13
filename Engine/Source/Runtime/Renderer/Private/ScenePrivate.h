@@ -3161,8 +3161,6 @@ public:
 
 	float DynamicIndirectShadowsSelfShadowingIntensity;
 
-	const FReadOnlyCVARCache& ReadOnlyCVARCache;
-
 	FSpanAllocator PersistentPrimitiveIdAllocator;
 
 #if WITH_EDITOR

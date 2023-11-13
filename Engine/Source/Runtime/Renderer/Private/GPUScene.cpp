@@ -2257,7 +2257,7 @@ void FBatchedPrimitiveShaderData::Setup(const FPrimitiveUniformShaderParameters&
 	// Note: layout must match LoadPrimitiveDataUBO in SceneDataMobileLoader.ush
 	int32 i = 0;
 
-	const bool bAllowStaticLighting = FReadOnlyCVARCache::Get().bAllowStaticLighting;
+	const bool bAllowStaticLighting = IsStaticLightingAllowed();
 	if (bAllowStaticLighting)
 	{
 		FVector4f LightMapUVScaleBias = FVector4f(1, 1, 0, 0);

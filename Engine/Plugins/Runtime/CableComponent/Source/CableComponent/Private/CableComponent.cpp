@@ -416,7 +416,7 @@ public:
 		Result.bRenderInMainPass = ShouldRenderInMainPass();
 		Result.bUsesLightingChannels = GetLightingChannelMask() != GetDefaultLightingChannelMask();
 		Result.bTranslucentSelfShadow = bCastVolumetricTranslucentShadow;
-		const bool bAllowStaticLighting = FReadOnlyCVARCache::Get().bAllowStaticLighting;
+		const bool bAllowStaticLighting = IsStaticLightingAllowed();
 		if (
 #if !(UE_BUILD_SHIPPING) || WITH_EDITOR
 			IsRichView(*View->Family) ||

@@ -526,7 +526,7 @@ bool LoadBasePassPipeline(
 	FNaniteShadingPipeline& ShadingPipeline
 )
 {
-	static const bool bAllowStaticLighting = FReadOnlyCVARCache::Get().bAllowStaticLighting;
+	static const bool bAllowStaticLighting = IsStaticLightingAllowed();
 
 	const ERHIFeatureLevel::Type FeatureLevel = Scene.GetFeatureLevel();
 

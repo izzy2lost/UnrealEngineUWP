@@ -10,6 +10,7 @@ LightMapRendering.cpp: Light map rendering implementations.
 #include "PrecomputedVolumetricLightmap.h"
 #include "RenderCore.h"
 #include "DataDrivenShaderPlatformInfo.h"
+#include "ReadOnlyCVARCache.h"
 
 IMPLEMENT_TYPE_LAYOUT(FUniformLightMapPolicyShaderParametersType);
 
@@ -192,9 +193,7 @@ bool FMobileDistanceFieldShadowsLightMapAndCSMLightingPolicy::ShouldCompilePermu
 		return false;
 	}
 
-	static auto* CVarMobileEnableStaticAndCSMShadowReceivers = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Mobile.EnableStaticAndCSMShadowReceivers"));
-	const bool bMobileEnableStaticAndCSMShadowReceivers = CVarMobileEnableStaticAndCSMShadowReceivers->GetValueOnAnyThread() == 1;
-	return bMobileEnableStaticAndCSMShadowReceivers &&
+	return FReadOnlyCVARCache::MobileEnableStaticAndCSMShadowReceivers() &&
 		Parameters.MaterialParameters.ShadingModels.IsLit() &&
 		!IsTranslucentBlendMode(Parameters.MaterialParameters) &&
 		Super::ShouldCompilePermutation(Parameters);
@@ -241,9 +240,7 @@ bool FMobileDirectionalLightCSMAndSHIndirectPolicy::ShouldCompilePermutation(con
 		return false;
 	}
 
-	static auto* CVarMobileEnableStaticAndCSMShadowReceivers = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Mobile.EnableStaticAndCSMShadowReceivers"));
-	const bool bMobileEnableStaticAndCSMShadowReceivers = CVarMobileEnableStaticAndCSMShadowReceivers->GetValueOnAnyThread() == 1;
-	return bMobileEnableStaticAndCSMShadowReceivers &&
+	return FReadOnlyCVARCache::MobileEnableStaticAndCSMShadowReceivers() &&
 		!IsTranslucentBlendMode(Parameters.MaterialParameters) &&
 		Super::ShouldCompilePermutation(Parameters);
 }

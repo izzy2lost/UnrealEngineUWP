@@ -79,6 +79,7 @@
 #include "SceneCulling/SceneCulling.h"
 #include "InstanceCulling/InstanceCullingOcclusionQuery.h"
 #include "ComputeWorkerInterface.h"
+#include "ReadOnlyCVARCache.h"
 
 #if RHI_RAYTRACING
 #include "Nanite/NaniteRayTracing.h"
@@ -1350,13 +1351,13 @@ static void UpdateEarlyZPassModeCVarSinkFunction()
 	static int32 CachedMSAACount = CVarMSAACount->GetValueOnGameThread();
 	static int32 CachedEarlyZPass = CVarEarlyZPass.GetValueOnGameThread();
 	static int32 CachedBasePassWriteDepthEvenWithFullPrepass = CVarBasePassWriteDepthEvenWithFullPrepass.GetValueOnGameThread();
-	static int32 CachedMobileEarlyZPass = CVarMobileEarlyZPass.GetValueOnGameThread();
+	static int32 CachedMobileEarlyZPass = FReadOnlyCVARCache::MobileEarlyZPass(GMaxRHIShaderPlatform);
 
 	const int32 AntiAliasingMethod = CVarAntiAliasingMethod->GetValueOnGameThread();
 	const int32 MSAACount = CVarMSAACount->GetValueOnGameThread();
 	const int32 EarlyZPass = CVarEarlyZPass.GetValueOnGameThread();
 	const int32 BasePassWriteDepthEvenWithFullPrepass = CVarBasePassWriteDepthEvenWithFullPrepass.GetValueOnGameThread();
-	const int32 MobileEarlyZPass = CVarMobileEarlyZPass.GetValueOnGameThread();
+	const int32 MobileEarlyZPass = FReadOnlyCVARCache::MobileEarlyZPass(GMaxRHIShaderPlatform);
 
 	// Switching between MSAA and another AA in forward shading mode requires EarlyZPassMode to update.
 	if (AntiAliasingMethod != CachedAntiAliasingMethod
@@ -1632,7 +1633,6 @@ FScene::FScene(UWorld* InWorld, bool bInRequiresHitProxies, bool bInIsEditorScen
 ,	DefaultMaxDistanceFieldOcclusionDistance(InWorld->GetWorldSettings()->DefaultMaxDistanceFieldOcclusionDistance)
 ,	GlobalDistanceFieldViewDistance(InWorld->GetWorldSettings()->GlobalDistanceFieldViewDistance)
 ,	DynamicIndirectShadowsSelfShadowingIntensity(FMath::Clamp(InWorld->GetWorldSettings()->DynamicIndirectShadowsSelfShadowingIntensity, 0.0f, 1.0f))
-,	ReadOnlyCVARCache(FReadOnlyCVARCache::Get())
 #if RHI_RAYTRACING
 ,	RayTracingDynamicGeometryCollection(nullptr)
 ,	RayTracingSkinnedGeometryUpdateQueue(nullptr)
@@ -4632,7 +4632,7 @@ void FScene::GetEarlyZPassMode(ERHIFeatureLevel::Type InFeatureLevel, EDepthDraw
 	{
 		OutZPassMode = DDM_None;
 				 
-		const bool bMaskedOnlyPrePass = CVarMobileEarlyZPass.GetValueOnAnyThread() == 2;
+		const bool bMaskedOnlyPrePass = FReadOnlyCVARCache::MobileEarlyZPass(ShaderPlatform) == 2;
 		if (bMaskedOnlyPrePass)
 		{
 			OutZPassMode = DDM_MaskedOnly;
@@ -6626,12 +6626,12 @@ bool FScene::ShouldRenderSkylightInBasePass(bool bIsTranslucent) const
 		if (bIsForwardShading)
 		{
 			// Both stationary and movable skylights are applied in base pass for forward shading
-			bRenderSkyLight = bRenderSkyLight && (ReadOnlyCVARCache.bEnableStationarySkylight || !SkyLight->bWantsStaticShadowing);
+			bRenderSkyLight = bRenderSkyLight && (FReadOnlyCVARCache::EnableStationarySkylight() || !SkyLight->bWantsStaticShadowing);
 		}
 		else
 		{
 			// Only stationary skylights are applied in base pass for deferred
-			bRenderSkyLight = bRenderSkyLight && (ReadOnlyCVARCache.bEnableStationarySkylight && SkyLight->bWantsStaticShadowing);
+			bRenderSkyLight = bRenderSkyLight && (FReadOnlyCVARCache::EnableStationarySkylight() && SkyLight->bWantsStaticShadowing);
 		}
 
 		return bRenderSkyLight;
@@ -6644,14 +6644,14 @@ bool FScene::ShouldRenderSkylightInBasePass(bool bIsTranslucent) const
 		{
 			// Both stationary and movable skylights are applied in base pass for translucent materials
 			bRenderSkyLight = bRenderSkyLight
-				&& (ReadOnlyCVARCache.bEnableStationarySkylight || !SkyLight->bWantsStaticShadowing);
+				&& (FReadOnlyCVARCache::EnableStationarySkylight() || !SkyLight->bWantsStaticShadowing);
 		}
 		else
 		{
 			// For opaque materials, stationary skylight is applied in base pass but movable skylight
 			// is applied in a separate render pass (bWantssStaticShadowing means stationary skylight)
 			bRenderSkyLight = bRenderSkyLight
-				&& ((ReadOnlyCVARCache.bEnableStationarySkylight && SkyLight->bWantsStaticShadowing)
+				&& ((FReadOnlyCVARCache::EnableStationarySkylight() && SkyLight->bWantsStaticShadowing)
 					|| (!SkyLight->bWantsStaticShadowing
 						&& IsForwardShadingEnabled(GetShaderPlatform())));
 		}

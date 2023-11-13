@@ -140,7 +140,7 @@ public:
 	virtual bool IsRayTracingRelevant() const override { return true; }
 	virtual bool IsRayTracingStaticRelevant() const override 
 	{ 
-		const bool bAllowStaticLighting = FReadOnlyCVARCache::Get().bAllowStaticLighting;
+		const bool bAllowStaticLighting = IsStaticLightingAllowed();
 		const bool bIsStaticInstance = !bDynamicRayTracingGeometry;
 		return bIsStaticInstance && !HasViewDependentDPG() && !(bAllowStaticLighting && HasStaticLighting() && !HasValidSettingsForStaticLighting());
 	}

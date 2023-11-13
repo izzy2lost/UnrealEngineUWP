@@ -167,7 +167,7 @@ public:
 
 	void GetShaderBindings(
 		const FScene* Scene,
-		ERHIFeatureLevel::Type FeatureLevel,
+		const FStaticFeatureLevel FeatureLevel,
 		const FPrimitiveSceneProxy* PrimitiveSceneProxy,
 		const FMaterialRenderProxy& MaterialRenderProxy,
 		const FMaterial& Material,
@@ -280,7 +280,7 @@ private:
 public:
 	void GetShaderBindings(
 		const FScene* Scene,
-		ERHIFeatureLevel::Type FeatureLevel,
+		const FStaticFeatureLevel FeatureLevel,
 		const FPrimitiveSceneProxy* PrimitiveSceneProxy,
 		const FMaterialRenderProxy& MaterialRenderProxy,
 		const FMaterial& Material,
@@ -478,7 +478,6 @@ public:
 	FMobileBasePassMeshProcessor(
 		EMeshPass::Type InMeshPassType,
 		const FScene* InScene,
-		ERHIFeatureLevel::Type InFeatureLevel,
 		const FSceneView* InViewIfDynamicMeshCommand,
 		const FMeshPassProcessorRenderState& InDrawRenderState,
 		FMeshPassDrawListContext* InDrawListContext,
