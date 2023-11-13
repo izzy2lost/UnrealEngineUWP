@@ -70,7 +70,7 @@ namespace FHttpRetrySystem
 }
 
 FHttpRetrySystem::FRequest::FRequest(
-	FManager& InManager,
+	TSharedRef<FManager> InManager,
 	const TSharedRef<IHttpRequest, ESPMode::ThreadSafe>& HttpRequest, 
 	const FHttpRetrySystem::FRetryLimitCountSetting& InRetryLimitCountOverride,
 	const FHttpRetrySystem::FRetryTimeoutRelativeSecondsSetting& InRetryTimeoutRelativeSecondsOverride,
@@ -107,8 +107,8 @@ FHttpRetrySystem::FRequest::FRequest(
 }
 
 bool FHttpRetrySystem::FRequest::ProcessRequest()
-{ 
-	TSharedRef<FRequest, ESPMode::ThreadSafe> RetryRequest = StaticCastSharedRef<FRequest>(AsShared());
+{
+	TSharedRef<FRequest> RetryRequest = StaticCastSharedRef<FRequest>(AsShared());
 
 	OriginalUrl = HttpRequest->GetURL();
 	if (RetryDomains.IsValid())
@@ -120,7 +120,16 @@ bool FHttpRetrySystem::FRequest::ProcessRequest()
 	HttpRequest->OnProcessRequestComplete().BindThreadSafeSP(RetryRequest, &FHttpRetrySystem::FRequest::HttpOnProcessRequestComplete);
 	HttpRequest->OnHeaderReceived().BindThreadSafeSP(RetryRequest, &FHttpRetrySystem::FRequest::HttpOnHeaderReceived);
 
-	return RetryManager.ProcessRequest(RetryRequest);
+	TSharedPtr<FManager> RetryManagerPtr = RetryManager.Pin();
+
+	if (ensure(RetryManagerPtr))
+	{
+		return RetryManagerPtr->ProcessRequest(RetryRequest);
+	}
+	else
+	{
+		return false;
+	}
 }
 
 void FHttpRetrySystem::FRequest::SetUrlFromRetryDomains()
@@ -149,7 +158,14 @@ void FHttpRetrySystem::FRequest::CancelRequest()
 { 
 	TSharedRef<FRequest, ESPMode::ThreadSafe> RetryRequest = StaticCastSharedRef<FRequest>(AsShared());
 
-	RetryManager.CancelRequest(RetryRequest);
+	if (TSharedPtr<FManager> RetryManagerPtr = RetryManager.Pin())
+	{
+		RetryManagerPtr->CancelRequest(RetryRequest);
+	}
+	else
+	{
+		HttpRequest->CancelRequest();
+	}
 }
 
 void FHttpRetrySystem::FRequest::HttpOnRequestProgress(FHttpRequestPtr InHttpRequest, uint64 BytesSent, uint64 BytesRcv)
@@ -167,54 +183,64 @@ void FHttpRetrySystem::FRequest::HttpOnProcessRequestComplete(FHttpRequestPtr In
 		return;
 	}
 
+	TSharedPtr<FManager> RetryManagerPtr = RetryManager.Pin();
+	if (!RetryManagerPtr)
+	{
+		return;
+	}
+
 	TSharedRef<FRequest> SelfPtr = StaticCastSharedRef<FRequest>(AsShared()); // In case no ref after removing from RetryManager
 
-	FScopeLock ScopeLock(&RetryManager.RequestListLock);
 
-	uint32 EntryIndex = RetryManager.RequestList.IndexOfByPredicate([this](const FManager::FHttpRetryRequestEntry& Entry) { return Entry.Request == AsShared(); });
-	check(EntryIndex != INDEX_NONE);
-	FManager::FHttpRetryRequestEntry* HttpRetryRequestEntry = &RetryManager.RequestList[EntryIndex];
+	{
+		FScopeLock ScopeLock(&RetryManagerPtr->RequestListLock);
 
-	if (RetryStatus == FHttpRetrySystem::FRequest::EStatus::Cancelled)
-	{
-		// Do nothing here
-	}
-	if (GetStatus() == EHttpRequestStatus::Failed_ConnectionError || GetStatus() == EHttpRequestStatus::Failed)
-	{
-		if (GetStatus() == EHttpRequestStatus::Failed_ConnectionError && RetryDomains.IsValid())
+		uint32 EntryIndex = RetryManagerPtr->RequestList.IndexOfByPredicate([this](const FManager::FHttpRetryRequestEntry& Entry) { return Entry.Request == AsShared(); });
+		check(EntryIndex != INDEX_NONE);
+		FManager::FHttpRetryRequestEntry* HttpRetryRequestEntry = &RetryManagerPtr->RequestList[EntryIndex];
+
+
+		if (RetryStatus == FHttpRetrySystem::FRequest::EStatus::Cancelled)
 		{
-			MoveToNextRetryDomain();
+			// Do nothing here
 		}
-
-		if (RetryManager.ShouldRetry(*HttpRetryRequestEntry) && RetryManager.CanRetry(*HttpRetryRequestEntry))
+		if (GetStatus() == EHttpRequestStatus::Failed_ConnectionError || GetStatus() == EHttpRequestStatus::Failed)
 		{
-			const double NowAbsoluteSeconds = FPlatformTime::Seconds();
-			float LockoutPeriod = RetryManager.GetLockoutPeriodSeconds(*HttpRetryRequestEntry);
-
-			RetryStatus = FHttpRetrySystem::FRequest::EStatus::ProcessingLockout;
-
+			if (GetStatus() == EHttpRequestStatus::Failed_ConnectionError && RetryDomains.IsValid())
 			{
-				QUICK_SCOPE_CYCLE_COUNTER(STAT_FHttpRetrySystem_FManager_Update_OnRequestWillRetry);
-				OnRequestWillRetry().ExecuteIfBound(HttpRetryRequestEntry->Request, GetResponse(), LockoutPeriod);
+				MoveToNextRetryDomain();
 			}
 
-			RetryManager.RetryHttpRequestWithDelay(HttpRetryRequestEntry->Request, LockoutPeriod);
-			return;
+			if (RetryManagerPtr->ShouldRetry(*HttpRetryRequestEntry) && RetryManagerPtr->CanRetry(*HttpRetryRequestEntry))
+			{
+				const double NowAbsoluteSeconds = FPlatformTime::Seconds();
+				float LockoutPeriod = RetryManagerPtr->GetLockoutPeriodSeconds(*HttpRetryRequestEntry);
+
+				RetryStatus = FHttpRetrySystem::FRequest::EStatus::ProcessingLockout;
+
+				{
+					QUICK_SCOPE_CYCLE_COUNTER(STAT_FHttpRetrySystem_FManager_Update_OnRequestWillRetry);
+					OnRequestWillRetry().ExecuteIfBound(HttpRetryRequestEntry->Request, GetResponse(), LockoutPeriod);
+				}
+
+				RetryManagerPtr->RetryHttpRequestWithDelay(HttpRetryRequestEntry->Request, LockoutPeriod);
+				return;
+			}
+
+			RetryStatus = FHttpRetrySystem::FRequest::EStatus::FailedRetry;
+		}
+		else
+		{
+			RetryStatus = FHttpRetrySystem::FRequest::EStatus::Succeeded;
 		}
 
-		RetryStatus = FHttpRetrySystem::FRequest::EStatus::FailedRetry;
-	}
-	else
-	{
-		RetryStatus = FHttpRetrySystem::FRequest::EStatus::Succeeded;
-	}
+		if (HttpRetryRequestEntry->CurrentRetryCount > 0)
+		{
+			FHttpRetrySystem::FManager::FHttpLogVerbosityTracker::Get().DecrementRetriedRequests();
+		}
 
-	if (HttpRetryRequestEntry->CurrentRetryCount > 0)
-	{
-		FHttpRetrySystem::FManager::FHttpLogVerbosityTracker::Get().DecrementRetriedRequests();
+		RetryManagerPtr->RequestList.RemoveAtSwap(EntryIndex);
 	}
-
-	RetryManager.RequestList.RemoveAtSwap(EntryIndex);
 
 	OnProcessRequestComplete().ExecuteIfBound(SelfPtr, HttpResponse, bSucceeded);
 }
@@ -234,7 +260,9 @@ FHttpRetrySystem::FManager::FManager(const FRetryLimitCountSetting& InRetryLimit
     : RandomFailureRate(FRandomFailureRateSetting())
     , RetryLimitCountDefault(InRetryLimitCountDefault)
 	, RetryTimeoutRelativeSecondsDefault(InRetryTimeoutRelativeSecondsDefault)
-{}
+{
+	check(FHttpModule::Get().GetHttpManager().GetThread());
+}
 
 FHttpRetrySystem::FManager::~FManager()
 {
@@ -258,7 +286,7 @@ TSharedRef<FHttpRetrySystem::FRequest, ESPMode::ThreadSafe> FHttpRetrySystem::FM
 	const FRetryDomainsPtr& InRetryDomains)
 {
 	return MakeShareable(new FRequest(
-		*this,
+		AsShared(),
 		FHttpModule::Get().CreateRequest(),
 		InRetryLimitCountOverride,
 		InRetryTimeoutRelativeSecondsOverride,
@@ -384,14 +412,21 @@ void FHttpRetrySystem::FManager::RetryHttpRequest(FHttpRetryRequestEntry& Reques
 
 void FHttpRetrySystem::FManager::RetryHttpRequestWithDelay(const TSharedRef<FRequest>& Request, float InDelay)
 {
-	FHttpModule::Get().GetHttpManager().AddHttpThreadTask([this, Request]() {
-		FScopeLock ScopeLock(&RequestListLock);
-		// Check if it's still there in case it has been cancelled during the delay period
-		uint32 EntryIndex = RequestList.IndexOfByPredicate([Request](const FManager::FHttpRetryRequestEntry& Entry) { return Entry.Request == Request; });
-		if (EntryIndex != INDEX_NONE)
+	TWeakPtr<FRequest> RequestWeakPtr(Request);
+	FHttpModule::Get().GetHttpManager().AddHttpThreadTask([RequestWeakPtr]() {
+		if (TSharedPtr<FRequest> RequestPtr = RequestWeakPtr.Pin())
 		{
-			FManager::FHttpRetryRequestEntry* HttpRetryRequestEntry = &RequestList[EntryIndex];
-			RetryHttpRequest(*HttpRetryRequestEntry);
+			if (TSharedPtr<FManager> RetryManagerPtr = RequestPtr->RetryManager.Pin())
+			{
+				FScopeLock ScopeLock(&RetryManagerPtr->RequestListLock);
+				// Check if it's still there in case it has been cancelled during the delay period
+				uint32 EntryIndex = RetryManagerPtr->RequestList.IndexOfByPredicate([RequestPtr](const FManager::FHttpRetryRequestEntry& Entry) { return Entry.Request == RequestPtr; });
+				if (EntryIndex != INDEX_NONE)
+				{
+					FManager::FHttpRetryRequestEntry* HttpRetryRequestEntry = &RetryManagerPtr->RequestList[EntryIndex];
+					RetryManagerPtr->RetryHttpRequest(*HttpRetryRequestEntry);
+				}
+			}
 		}
 	}, InDelay);
 }

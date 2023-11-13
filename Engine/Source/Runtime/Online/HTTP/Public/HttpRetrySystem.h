@@ -104,8 +104,8 @@ namespace FHttpRetrySystem
 		friend class FManager;
 
 		HTTP_API FRequest(
-			class FManager& InManager,
-			const TSharedRef<IHttpRequest, ESPMode::ThreadSafe>& HttpRequest,
+			TSharedRef<FManager> InManager,
+			const TSharedRef<IHttpRequest>& HttpRequest,
 			const FRetryLimitCountSetting& InRetryLimitCountOverride = FRetryLimitCountSetting(),
 			const FRetryTimeoutRelativeSecondsSetting& InRetryTimeoutRelativeSecondsOverride = FRetryTimeoutRelativeSecondsSetting(),
 			const FRetryResponseCodes& InRetryResponseCodes = FRetryResponseCodes(),
@@ -134,14 +134,14 @@ namespace FHttpRetrySystem
 		/** The original URL before replacing anything from RetryDomains */
 		FString								 OriginalUrl;
 
-		FManager& RetryManager;
+		TWeakPtr<FManager>					 RetryManager;
 	};
 }
 
 namespace FHttpRetrySystem
 {
 
-class FManager
+class FManager : public TSharedFromThis<FManager>
 {
 public:
 	// FManager

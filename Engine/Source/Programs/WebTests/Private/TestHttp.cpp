@@ -30,6 +30,7 @@
 #define HTTP_TIME_DIFF_TOLERANCE 0.5f
 
 extern TAutoConsoleVariable<bool> CVarHttpInsecureProtocolEnabled;
+extern TAutoConsoleVariable<bool> CVarHttpRetrySystemNonGameThreadSupportEnabled;
 
 class FHttpModuleTestFixture
 {
@@ -38,10 +39,12 @@ public:
 		: WebServerIp(TEXT("127.0.0.1"))
 		, WebServerHttpPort(8000)
 		, bRunHeavyTests(false)
-		, bRetryEnabled(false)
+		, bRetryEnabled(true)
 		, OldVerbosity(LogHttp.GetVerbosity())
 	{
 		ParseSettingsFromCommandLine();
+
+		bRetryEnabled &= CVarHttpRetrySystemNonGameThreadSupportEnabled.GetValueOnAnyThread();
 
 		HttpModule = new FHttpModule();
 		IModuleInterface* Module = HttpModule;
@@ -123,6 +126,12 @@ public:
 	using FHttpRetrySystem::FManager::RequestList;
 	using FHttpRetrySystem::FManager::FHttpRetryRequestEntry;
 	using FHttpRetrySystem::FManager::RetryTimeoutRelativeSecondsDefault;
+
+	bool IsEmpty()
+	{
+		FScopeLock ScopeLock(&RequestListLock);
+		return RequestList.IsEmpty();
+	}
 };
 
 class FWaitUntilCompleteHttpFixture : public FHttpModuleTestFixture
@@ -160,7 +169,7 @@ public:
 
 	void WaitUntilAllHttpRequestsComplete()
 	{
-		while (OngoingRequests != 0)
+		while (OngoingRequests != 0 || (bRetryEnabled && !HttpRetryManager->IsEmpty()) )
 		{
 			HttpModule->GetHttpManager().Tick(TickFrequency);
 			FPlatformProcess::Sleep(TickFrequency);
@@ -179,7 +188,7 @@ public:
 	std::atomic<int32> OngoingRequests = 0;
 	float TickFrequency = 1.0f / 60; /*60 FPS*/;
 
-	uint32 RetryLimitCount = 2;
+	uint32 RetryLimitCount = 0;
 	TSharedPtr<FMockRetryManager> HttpRetryManager;
 };
 
