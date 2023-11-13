@@ -322,6 +322,11 @@ static FAutoConsoleVariableRef CVarNaniteTestPrecacheDrawSkipping(
 
 static bool UseMeshShader(EShaderPlatform ShaderPlatform, Nanite::EPipeline Pipeline)
 {
+	if (!FDataDrivenShaderPlatformInfo::GetSupportsMeshShadersTier1(ShaderPlatform))
+	{
+		return false;
+	}
+
 	// Disable mesh shaders if global clip planes are enabled and the platform cannot support MS with clip distance output
 	static const auto AllowGlobalClipPlaneVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.AllowGlobalClipPlane"));
 	static const bool bAllowGlobalClipPlane = (AllowGlobalClipPlaneVar && AllowGlobalClipPlaneVar->GetValueOnAnyThread() != 0);
