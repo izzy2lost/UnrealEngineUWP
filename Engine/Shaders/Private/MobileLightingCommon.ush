@@ -602,3 +602,70 @@ void AccumulateLightGridLocalLighting(const FCulledLightsGridData InLightGridDat
 	}
 }
 #endif
+
+#if ENABLE_CLUSTERED_LIGHTS || MERGED_LOCAL_LIGHTS_MOBILE
+void MergeLocalLights(const FCulledLightsGridData InLightGridData
+	, float3 TranslatedWorldPosition
+	, uint EyeIndex
+	, float bSupportLightFunctions
+	, inout float3 MergedLightColor
+	, inout float3 MergedLightL
+	, inout float MergedSpecularScale
+	, inout float MergedTotalWeight)
+{
+	MergedLightColor = uint3(0.f, 0.f , 0.f);
+	MergedLightL = float3(0,0,0);
+	MergedTotalWeight = 0;
+	MergedSpecularScale = 0.f;
+	
+	uint NumLocalLights = min(InLightGridData.NumLocalLights, GetMaxLightsPerCell(EyeIndex));
+
+	LOOP
+	for (uint LocalLightListIndex = 0; LocalLightListIndex < NumLocalLights; LocalLightListIndex++)
+	{
+		const FLocalLightData LocalLight = GetLocalLightData(InLightGridData.DataStartIndex + LocalLightListIndex, EyeIndex);
+
+		// extra-early out since we know light grid is sloppy and all lights in list are radial (have a range)
+		// appears useless
+		float InvLightRadiusSq = LocalLight.LightPositionAndInvRadius.w * LocalLight.LightPositionAndInvRadius.w;
+		float DistLight = length2(TranslatedWorldPosition - LocalLight.LightPositionAndInvRadius.xyz) * InvLightRadiusSq;
+		
+		if (DistLight > 1.0f)
+		{
+			continue;
+		}
+
+		FDeferredLightData LightData = ConvertToDeferredLight_Mobile(LocalLight);
+		LightData.SpecularScale	= UnpackLightSpecularScale(LocalLight);
+
+		float3 L = LightData.Direction;	// Already normalized
+		float3 ToLight = L;
+		float3 MaskedLightColor = LightData.Color;
+		float LightMask = 1;
+		if (LightData.bRadialLight)
+		{
+			LightMask = GetLocalLightAttenuation( TranslatedWorldPosition, LightData, ToLight, L );
+			MaskedLightColor *= LightMask;
+		}
+
+		float WeightLight = 1 - DistLight;
+		if (LightData.bSpotLight)
+		{
+			WeightLight *= SpotAttenuation(L, -LightData.Direction, LightData.SpotAngles);
+		}
+		
+		if( LightMask > 0)
+		{
+			MergedSpecularScale += LightData.SpecularScale * WeightLight;
+			MergedTotalWeight += WeightLight;
+			// For lights with light functions we only only use the compute the direction (OutColorB)
+			// The Color is added in additional draws using MainLightFunction()
+			if (!bSupportLightFunctions || !UnpackHasLightFunction(LocalLight))
+			{
+				MergedLightColor += MaskedLightColor;
+			}
+			MergedLightL += L *  WeightLight;
+		}
+	}
+}
+#endif

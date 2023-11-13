@@ -864,7 +864,7 @@ void Main(
 #endif
 
 	// Local lights
-#if  PREPASS_LOCAL_LIGHTS_MOBILE
+#if  MERGED_LOCAL_LIGHTS_MOBILE == 1
 	{
 		FDeferredLightData MergedLightData = (FDeferredLightData)0;
 		half3 LocalLightA = MobileSceneTextures.LocalLightTextureA.Load(int3(SvPosition.xy, 0)).xyz; 
@@ -887,6 +887,47 @@ void Main(
 
 		FLightAccumulator NewLighting = AccumulateDynamicLighting(MaterialParameters.WorldPosition_CamRelative, CameraVector, GBuffer, 1, GBuffer.ShadingModelID, MergedLightData, LightAttenuation, 0, uint2(0, 0), SurfaceShadow);
 		DirectLighting = LightAccumulator_Add(DirectLighting, NewLighting);
+	}
+#elif  MERGED_LOCAL_LIGHTS_MOBILE == 2
+	{
+#if MOBILE_MULTI_VIEW
+		const uint EyeIndex = BasePassInterpolants.MultiViewId;
+#else
+		const uint EyeIndex = 0;
+#endif
+
+		const FCulledLightsGridData CulledLightGridData = GetCulledLightsGrid(GridIndex, EyeIndex);
+
+		float3 MergedLightColor = uint3(0.f, 0.f , 0.f);
+		float3 MergedLightL = float3(0,0,0);
+		float MergedSpecularScale = 0.f;
+		float MergedTotalWeight = 0;
+		MergeLocalLights(CulledLightGridData, MaterialParameters.WorldPosition_CamRelative, EyeIndex, false, MergedLightColor, MergedLightL, MergedSpecularScale, MergedTotalWeight);
+
+		if(MergedTotalWeight > 0.f)
+		{
+			MergedLightL = MergedLightL / MergedTotalWeight;
+			MergedSpecularScale = MergedSpecularScale / MergedTotalWeight;
+
+			FDeferredLightData MergedLightData = (FDeferredLightData)0;
+			MergedLightData.SourceRadius	= 0;
+			MergedLightData.SourceLength	= 0;
+			MergedLightData.Tangent			= 0;
+			MergedLightData.SoftSourceRadius= 0;
+			MergedLightData.SpecularScale	= MergedSpecularScale;
+			MergedLightData.bSpotLight		= false;
+			MergedLightData.bRectLight		= false;
+			MergedLightData.Color = MergedLightColor;
+			MergedLightData.bRadialLight = false;
+
+			half4 LightAttenuation = half4(1, 1, 1, 1); 
+			float SurfaceShadow = 0;
+
+			MergedLightData.Direction = MergedLightL;
+
+			FLightAccumulator NewLighting = AccumulateDynamicLighting(MaterialParameters.WorldPosition_CamRelative, CameraVector, GBuffer, 1, GBuffer.ShadingModelID, MergedLightData, LightAttenuation, 0, uint2(0, 0), SurfaceShadow);
+			DirectLighting = LightAccumulator_Add(DirectLighting, NewLighting);
+		}
 	}
 #elif  (!MATERIAL_SHADINGMODEL_SINGLELAYERWATER && ENABLE_CLUSTERED_LIGHTS)
 	{

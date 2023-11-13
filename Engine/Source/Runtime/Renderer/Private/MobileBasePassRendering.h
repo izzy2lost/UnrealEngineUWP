@@ -30,8 +30,8 @@
 #include "CompositionLighting/PostProcessDeferredDecals.h"
 
 bool MobileLocalLightsBufferEnabled(const FStaticShaderPlatform Platform);
-bool MobileLocalLightsBufferPrepassEnabled(const FStaticShaderPlatform Platform);
-bool MobileLocalLightsBufferPostprocessEnabled(const FStaticShaderPlatform Platform);
+bool MobileMergeLocalLightsInPrepassEnabled(const FStaticShaderPlatform Platform);
+bool MobileMergeLocalLightsInBasepassEnabled(const FStaticShaderPlatform Platform);
 
 struct FMobileBasePassTextures
 {
@@ -417,11 +417,25 @@ public:
 		OutEnvironment.SetDefine(TEXT("ENABLE_CLUSTERED_LIGHTS"), (LocalLightSetting == EMobileLocalLightSetting::LOCAL_LIGHTS_ENABLED) ? 1u : 0u);
 
 		// Translucent materials don't write to depth so cannot use prepass
-		OutEnvironment.SetDefine(TEXT("PREPASS_LOCAL_LIGHTS_MOBILE"), (LocalLightSetting == EMobileLocalLightSetting::LOCAL_LIGHTS_BUFFER) ? 1u: 0u);
+		uint32 MergedLocalLights = 0u;
+		if (LocalLightSetting == EMobileLocalLightSetting::LOCAL_LIGHTS_BUFFER)
+		{
+			if (MobileMergeLocalLightsInPrepassEnabled(Parameters.Platform))
+			{
+				MergedLocalLights = 1u;
+			}
+			else if (MobileMergeLocalLightsInBasepassEnabled(Parameters.Platform))
+			{
+				MergedLocalLights = 2u;
+			}
+		}
+		OutEnvironment.SetDefine(TEXT("MERGED_LOCAL_LIGHTS_MOBILE"), MergedLocalLights);
 		OutEnvironment.SetDefine(TEXT("ENABLE_CLUSTERED_REFLECTION"), bEnableClusteredReflections ? 1u : 0u);
 		OutEnvironment.SetDefine(TEXT("USE_SHADOWMASKTEXTURE"), bMobileUsesShadowMaskTexture && !bTranslucentMaterial ? 1u : 0u);
 		OutEnvironment.SetDefine(TEXT("ENABLE_DBUFFER_TEXTURES"), Parameters.MaterialParameters.MaterialDomain == MD_Surface ? 1u : 0u);
 
+		const bool bSupportsDepthPrepass = MobileUsesFullDepthPrepass(Parameters.Platform);
+		OutEnvironment.SetDefine(TEXT("SUPPORTS_DEPTH_PREPASS"), bSupportsDepthPrepass ? 1u : 0u);
 		EMobileTranslucentColorTransmittanceMode TranslucentColorTransmittanceMode = EMobileTranslucentColorTransmittanceMode::DEFAULT;
 		if (Parameters.MaterialParameters.ShadingModels.HasShadingModel(MSM_ThinTranslucent))
 		{

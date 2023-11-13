@@ -21,12 +21,12 @@ bool MobileLocalLightsBufferEnabled(const FStaticShaderPlatform Platform)
 	return MobileForwardEnablePrepassLocalLightsIniValue.Get(Platform) == 2;
 }
 
-bool MobileLocalLightsBufferPrepassEnabled(const FStaticShaderPlatform Platform)
+bool MobileMergeLocalLightsInPrepassEnabled(const FStaticShaderPlatform Platform)
 {
 	return MobileLocalLightsBufferEnabled(Platform) && MobileUsesFullDepthPrepass(Platform);
 }
 
-bool MobileLocalLightsBufferPostprocessEnabled(const FStaticShaderPlatform Platform)
+bool MobileMergeLocalLightsInBasepassEnabled(const FStaticShaderPlatform Platform)
 {
 	return MobileLocalLightsBufferEnabled(Platform) && !MobileUsesFullDepthPrepass(Platform);
 }
@@ -57,10 +57,7 @@ EMobileLocalLightSetting GetMobileForwardLocalLightSetting(EShaderPlatform Shade
 		}
 		else if (MobileForwardLocalLightsIniValue == 2)
 		{
-			if (MobileUsesFullDepthPrepass(ShaderPlatform))
-			{
-				return EMobileLocalLightSetting::LOCAL_LIGHTS_BUFFER;
-			}
+			return EMobileLocalLightSetting::LOCAL_LIGHTS_BUFFER;
 		}
 	}
 

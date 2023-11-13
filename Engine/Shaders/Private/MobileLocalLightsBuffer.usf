@@ -7,6 +7,8 @@
 #include "Common.ush"
 #include "SceneTextureParameters.ush"
 #include "DeferredLightingCommon.ush"
+#define MERGED_LOCAL_LIGHTS_MOBILE 1
+#include "MobileLightingCommon.ush"
 #endif
 
 #if LIGHT_FUNCTION
@@ -90,11 +92,7 @@ void MainVS(
 
 void Main(float4 SvPosition : SV_POSITION
 	, out float3 OutColorA : SV_Target0
-#if POST_PROCESS_LOCAL_LIGHTS == 0
 	, out float4 OutColorB : SV_Target1
-#elif GENERATE_LIGHT_FUNCTION_DEPTH_STENCIL && USE_SCENE_DEPTH_AUX
-	, out float OutDepth : SV_Depth
-#endif
 )
 {
 	const uint2 PixelPos = SvPosition.xy;
@@ -111,70 +109,18 @@ void Main(float4 SvPosition : SV_POSITION
 	uint GridIndex = ComputeLightGridCellIndex(uint2(PixelPos.x, PixelPos.y), SceneDepth);
 	const FCulledLightsGridData CulledLightGridData = GetCulledLightsGrid(GridIndex, EyeIndex);
 
-	uint NumLocalLights = min(CulledLightGridData.NumLocalLights, GetMaxLightsPerCell(EyeIndex));
+	float3 MergedLightColor = uint3(0.f, 0.f , 0.f);
+	float3 MergedLightL = float3(0,0,0);
+	float MergedSpecularScale = 0.f;
+	float MergedTotalWeight = 0;
+	MergeLocalLights(CulledLightGridData, TranslatedWorldPosition, EyeIndex, true, MergedLightColor, MergedLightL, MergedSpecularScale, MergedTotalWeight);
 
-	float3 Color = uint3(0.f, 0.f , 0.f);
-	float3 SavedL = float3(0,0,0);
-	float TotalWeight = 0;
-	float SpecularScale = 0.f;
-
-	LOOP
-	for (uint LocalLightListIndex = 0; LocalLightListIndex < NumLocalLights; LocalLightListIndex++)
+	if (MergedTotalWeight > 0)
 	{
-		const FLocalLightData LocalLight = GetLocalLightData(CulledLightGridData.DataStartIndex + LocalLightListIndex, EyeIndex);
-
-		// extra-early out since we know light grid is sloppy and all lights in list are radial (have a range)
-		// appears useless
-		float InvLightRadiusSq = LocalLight.LightPositionAndInvRadius.w * LocalLight.LightPositionAndInvRadius.w;
-		float DistLight = length2(TranslatedWorldPosition - LocalLight.LightPositionAndInvRadius.xyz) * InvLightRadiusSq;
-		
-		if (DistLight > 1.0f)
-		{
-			continue;
-		}
-
-		FDeferredLightData LightData = ConvertToDeferredLight_Mobile(LocalLight);
-		LightData.SpecularScale	= UnpackLightSpecularScale(LocalLight);
-
-		float3 L = LightData.Direction;	// Already normalized
-		float3 ToLight = L;
-		float3 MaskedLightColor = LightData.Color;
-		float LightMask = 1;
-		if (LightData.bRadialLight)
-		{
-			LightMask = GetLocalLightAttenuation( TranslatedWorldPosition, LightData, ToLight, L );
-			MaskedLightColor *= LightMask;
-		}
-
-		float WeightLight = 1 - DistLight;
-		if (LightData.bSpotLight)
-		{
-			WeightLight *= SpotAttenuation(L, -LightData.Direction, LightData.SpotAngles);
-		}
-		
-		if( LightMask > 0)
-		{
-			SpecularScale += LightData.SpecularScale * WeightLight;
-
-			TotalWeight += WeightLight;
-			// For lights with light functions we only only use the compute the direction (OutColorB)
-			// The Color is added in additional draws using MainLightFunction()
-			if (!UnpackHasLightFunction(LocalLight))
-			{
-				Color += MaskedLightColor;
-			}
-
-			SavedL += L *  WeightLight;
-		}
-	}
-
-#if POST_PROCESS_LOCAL_LIGHTS == 0
-	if (TotalWeight > 0)
-	{
-		SavedL = (SavedL / TotalWeight);
-		OutColorA = float3(Color.x, Color.y, Color.z);
-		OutColorB.rgb = Pack1212To888(UnitVectorToOctahedron(SavedL) * 0.5 + 0.5);
-		OutColorB.a = SpecularScale / TotalWeight;
+		MergedLightL = (MergedLightL / MergedTotalWeight);
+		OutColorA = float3(MergedLightColor.x, MergedLightColor.y, MergedLightColor.z);
+		OutColorB.rgb = Pack1212To888(UnitVectorToOctahedron(MergedLightL) * 0.5 + 0.5);
+		OutColorB.a = MergedSpecularScale / MergedTotalWeight;
 	}
 	else
 	{
@@ -185,29 +131,6 @@ void Main(float4 SvPosition : SV_POSITION
 			clip(-1);
 		#endif
 	}
-#else
-	if (TotalWeight > 0)
-	{
-		SavedL = (SavedL / TotalWeight);
-		float3 N = normalize(cross(ddx(TranslatedWorldPosition.xyz), ddy(TranslatedWorldPosition.xyz)));
-		float3 L = SavedL;	// Already normalized
-		float NoL = max(0, dot(N, L));
-		float3 Diffuse =  (1 / PI) * NoL * Color;
-		OutColorA = 1 + Diffuse;
-		#if GENERATE_LIGHT_FUNCTION_DEPTH_STENCIL && USE_SCENE_DEPTH_AUX
-			// Copy depth value from scene depth aux to the real depth buffer
-			OutDepth = DeviceZ;
-		#endif
-	}
-	else
-	{
-		OutColorA = float3(1, 1, 1);
-		#if GENERATE_LIGHT_FUNCTION_DEPTH_STENCIL
-			// Clip to avoid writing to stencil
-			clip(-1);
-		#endif
-	}
-#endif
 }
 
 #else // !LIGHT_FUNCTION
@@ -258,14 +181,7 @@ void MainLightFunction(
 
 	float3 Color = LightData.Color * LightMask * EncodedLightAttenuation;
 
-#if POST_PROCESS_LOCAL_LIGHTS == 0
 	OutColorA = Color;
-#else
-	float3 N = normalize(cross(ddx(TranslatedWorldPosition.xyz), ddy(TranslatedWorldPosition.xyz)));
-	float NoL = max(0, dot(N, L));
-	float3 Diffuse =  (1 / PI) * NoL * Color;
-	OutColorA = Diffuse;
-#endif
 }
 #endif // !LIGHT_FUNCTION
 
