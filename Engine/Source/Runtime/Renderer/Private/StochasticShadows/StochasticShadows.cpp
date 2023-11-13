@@ -555,6 +555,8 @@ void FDeferredShadingSceneRenderer::RenderStochasticShadows(FRDGBuilder& GraphBu
 		return;
 	}
 
+	check(AreLightsInLightGrid());
+
 	RDG_EVENT_SCOPE(GraphBuilder, "StochasticShadows");
 
 	const FViewInfo& View = Views[0];
