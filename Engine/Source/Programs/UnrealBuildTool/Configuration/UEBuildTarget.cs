@@ -4343,6 +4343,17 @@ namespace UnrealBuildTool
 				}
 			}
 
+			// Configure optional plugins configured via target settings
+			foreach (string PluginName in Rules.OptionalPlugins)
+			{
+				if (ReferencedNames.Add(PluginName))
+				{
+					PluginReferenceDescriptor PluginReference = new PluginReferenceDescriptor(PluginName, null, true);
+					PluginReference.bOptional = true;
+					AddPlugin(PluginReference, "target settings", ExcludeFolders, NameToInstance, NameToInfos, Logger);
+				}
+			}
+
 			bool bAllowEnginePluginsEnabledByDefault = true;
 
 			// Find a map of plugins which are explicitly referenced in the project file

@@ -778,6 +778,11 @@ namespace UnrealBuildTool
 		public List<string> DisablePlugins = new List<string>();
 
 		/// <summary>
+		/// Additional plugins that should be included for this target if they are found.
+		/// </summary>
+		public List<string> OptionalPlugins = new List<string>();
+
+		/// <summary>
 		/// How to treat conflicts when a disabled plugin is being enabled by another plugin referencing it
 		/// </summary>
 		public WarningLevel DisablePluginsConflictWarningLevel = WarningLevel.Default;
@@ -2890,6 +2895,7 @@ namespace UnrealBuildTool
 			{
 				DisablePlugins.Add(PluginName);
 				EnablePlugins.Remove(PluginName);
+				OptionalPlugins.Remove(PluginName);
 			}
 		}
 
@@ -3177,6 +3183,8 @@ namespace UnrealBuildTool
 		public IEnumerable<string> EnablePlugins => Inner.EnablePlugins;
 
 		public IEnumerable<string> DisablePlugins => Inner.DisablePlugins;
+
+		public IEnumerable<string> OptionalPlugins => Inner.OptionalPlugins;
 
 		public WarningLevel DisablePluginsConflictWarningLevel => Inner.DisablePluginsConflictWarningLevel;
 
