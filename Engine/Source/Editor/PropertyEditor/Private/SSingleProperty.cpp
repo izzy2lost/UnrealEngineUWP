@@ -149,6 +149,7 @@ void SSingleProperty::SetObject( UObject* InObject )
 	{
 		// invalid or missing property
 		RootObjectPropertyNode->RemoveAllObjects();
+		RootPropertyNode.Reset();
 	}
 }
 
@@ -174,6 +175,7 @@ void SSingleProperty::SetStruct(const TSharedPtr<IStructureDataProvider>& InStru
 	{
 		// invalid or missing property
 		RootStructPropertyNode->RemoveStructure();
+		RootPropertyNode.Reset();
 	}
 }
 
@@ -288,7 +290,6 @@ bool SSingleProperty::GeneratePropertyCustomization()
 		];
 
 		ValueNode.Reset();
-		RootPropertyNode.Reset();
 	}
 
 	return bIsAcceptableProperty;
