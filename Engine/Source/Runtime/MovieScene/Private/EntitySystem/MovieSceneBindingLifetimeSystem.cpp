@@ -20,6 +20,7 @@
 #include "MovieSceneExecutionToken.h"
 #include "IMovieScenePlaybackClient.h"
 #include "EntitySystem/MovieSceneSpawnablesSystem.h"
+#include "MovieSceneBindingEventReceiverInterface.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MovieSceneBindingLifetimeSystem)
 #define LOCTEXT_NAMESPACE "MovieSceneBindingLifetimeSystem"
@@ -74,9 +75,34 @@ void UMovieSceneBindingLifetimeSystem::OnRun(FSystemTaskPrerequisites& InPrerequ
 		if (Player)
 		{
 			// For now we use the linking/unlinking of the inactive ranges to set the binding activations
-			if (BindingLifetime.BindingLifetimeState == EMovieSceneBindingLifetimeState::InActive)
+			if (BindingLifetime.BindingLifetimeState == EMovieSceneBindingLifetimeState::Inactive)
 			{
 				Player->State.SetBindingActivation(BindingLifetime.BindingGuid, SequenceID, !bLink);
+			}
+			else
+			{
+				for (TWeakObjectPtr<> WeakBoundObject : Player->FindBoundObjects(BindingLifetime.BindingGuid, SequenceID))
+				{
+					if (UObject* BoundObject = WeakBoundObject.Get())
+					{
+						if (BoundObject->Implements<UMovieSceneBindingEventReceiverInterface>())
+						{
+							TScriptInterface<IMovieSceneBindingEventReceiverInterface> BindingEventReceiver = BoundObject;
+							if (BindingEventReceiver.GetObject())
+							{
+								FMovieSceneObjectBindingID BindingID = UE::MovieScene::FRelativeObjectBindingID(MovieSceneSequenceID::Root, SequenceID, BindingLifetime.BindingGuid, *Player);
+								if (bLink)
+								{
+									IMovieSceneBindingEventReceiverInterface::Execute_OnObjectBoundBySequencer(BindingEventReceiver.GetObject(), Cast<UMovieSceneSequencePlayer>(Player->AsUObject()), BindingID);
+								}
+								else
+								{
+									IMovieSceneBindingEventReceiverInterface::Execute_OnObjectUnboundBySequencer(BindingEventReceiver.GetObject(), Cast<UMovieSceneSequencePlayer>(Player->AsUObject()), BindingID);
+								}
+							}
+						}
+					}
+				}
 			}
 		}
 	};

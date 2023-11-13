@@ -332,7 +332,7 @@ enum class EMovieSceneBindingLifetimeState : uint8
 	/** Object Binding State is Active. Tracks on this binding will be active. */
 	Active,
 	/** Object Binding is Inactive. Tracks on this binding will be inactive and states will be restored/kept depending on settings. */
-	InActive
+	Inactive
 };
 
 struct FMovieSceneBindingLifetimeComponentData
