@@ -466,7 +466,7 @@ namespace Horde.Server.Tests
 				}
 				else
 				{
-					Assert.IsFalse(reservation.InstallRequired);
+					Assert.IsNull(reservation.InstallRequired);
 					Assert.AreNotEqual(installReservation.Guid, reservation.Guid);
 				}
 				

@@ -835,7 +835,7 @@ namespace Horde.Server.Devices
 			response.StepId = reservation.StepId;
 			response.JobName = reservation.JobName;
 			response.StepName = reservation.StepName;
-			response.InstallRequired = installRequired;
+			response.InstallRequired = reservation.ReservedStepIds != null && reservation.ReservedStepIds.Count > 0 ? installRequired : null;
 
 			return new JsonResult(response, new JsonSerializerOptions() { PropertyNamingPolicy = null });
 
