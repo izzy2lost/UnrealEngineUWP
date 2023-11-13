@@ -44,7 +44,6 @@ bool UModularRigController::AddModule(const FName& InModuleName, TSubclassOf<UCo
 		if(UControlRigBlueprint* Blueprint = Cast<UControlRigBlueprint>(GetOuter()))
 		{
 			Blueprint->Modify();
-			Blueprint->Hierarchy->Modify();
 		}
 	}
 #endif 
@@ -73,7 +72,7 @@ bool UModularRigController::AddModule(const FName& InModuleName, TSubclassOf<UCo
 			}
 		}
 
-		Model->Modules.Add(FRigModuleReference(InModuleName, InClass, ParentModule->GetNamespace()));
+		Model->Modules.Add(FRigModuleReference(InModuleName, InClass, ParentModule->GetPath()));
 		NewModule = &Model->Modules.Last();
 	}
 
@@ -96,8 +95,11 @@ bool UModularRigController::AddModule(const FName& InModuleName, TSubclassOf<UCo
 
 FRigModuleReference* UModularRigController::FindModule(const FString& InPath)
 {
+	FString Path = InPath;
+	Path.RemoveFromEnd(UModularRig::NamespaceSeparator);
+	
 	TArray<FRigModuleReference*>* Children = &Model->RootModules;
-	FString Left = InPath, Right;
+	FString Left = Path, Right;
 	while (Left.Split(UModularRig::NamespaceSeparator, &Left, &Right))
 	{
 		FRigModuleReference** Cur = Children->FindByPredicate([Left](FRigModuleReference* Module)
@@ -125,17 +127,17 @@ FRigModuleReference* UModularRigController::FindModule(const FString& InPath)
 
 bool UModularRigController::ConnectModuleToElement(const FRigElementKey& InConnectorKey, const FRigElementKey& InTargetKey, bool bSetupUndo)
 {
-	FString ConnectorNameSpace, ConnectorName;
-	if (!InConnectorKey.Name.ToString().Split(UModularRig::NamespaceSeparator, &ConnectorNameSpace, &ConnectorName, ESearchCase::CaseSensitive, ESearchDir::FromEnd))
+	FString ConnectorParentPath, ConnectorName;
+	if (!InConnectorKey.Name.ToString().Split(UModularRig::NamespaceSeparator, &ConnectorParentPath, &ConnectorName, ESearchCase::CaseSensitive, ESearchDir::FromEnd))
 	{
 		UE_LOG(LogControlRig, Error, TEXT("Connector %s does not contain a namespace"), *InConnectorKey.ToString());
 		return false;
 	}
 	
-	FRigModuleReference* Module = FindModule(ConnectorNameSpace);
+	FRigModuleReference* Module = FindModule(ConnectorParentPath);
 	if (!Module)
 	{
-		UE_LOG(LogControlRig, Error, TEXT("Could not find module %s"), *ConnectorNameSpace);
+		UE_LOG(LogControlRig, Error, TEXT("Could not find module %s"), *ConnectorParentPath);
 		return false;
 	}
 
@@ -159,7 +161,6 @@ bool UModularRigController::ConnectModuleToElement(const FRigElementKey& InConne
 	{
 		TransactionPtr = MakeShared<FScopedTransaction>(NSLOCTEXT("ModularRigController", "ConnectModuleToElementTransaction", "Connect to Element"));
 		Blueprint->Modify();
-		Blueprint->Hierarchy->Modify();
 	}
 #endif 
 
@@ -232,9 +233,44 @@ bool UModularRigController::SetConfigValueInModule(const FString& InModulePath, 
 	return true;
 }
 
-bool UModularRigController::RemoveModule(const FString& InModulePath, bool bSetupUndo)
+bool UModularRigController::DeleteModule(const FString& InModulePath, bool bSetupUndo)
 {
-	// todo: UE-199050
+	FRigModuleReference* Module = FindModule(InModulePath);
+	if (!Module)
+	{
+		UE_LOG(LogControlRig, Error, TEXT("Could not find module %s"), *InModulePath);
+		return false;
+	}
+
+#if WITH_EDITOR
+	TSharedPtr<FScopedTransaction> TransactionPtr;
+	if (bSetupUndo)
+	{
+		TransactionPtr = MakeShared<FScopedTransaction>(NSLOCTEXT("ModularRigController", "RenameModuleTransaction", "Rename Module"));
+		if(UControlRigBlueprint* Blueprint = Cast<UControlRigBlueprint>(GetOuter()))
+		{
+			Blueprint->Modify();
+		}
+	}
+#endif
+
+	// Unparent children (add them to root)
+	for (FRigModuleReference* Child : Module->CachedChildren)
+	{
+		ReparentModule(Child->GetPath(), FString(), bSetupUndo);
+	}
+
+	Model->DeletedModules.Add(*Module);
+	Model->Modules.RemoveSingle(*Module);
+	Model->UpdateCachedChildren();
+
+	Notify(EModularRigNotification::ModuleRemoved, &Model->DeletedModules.Last());
+
+	Model->DeletedModules.Reset();
+
+#if WITH_EDITOR
+	TransactionPtr.Reset();
+#endif
 	return false;
 }
 
@@ -253,6 +289,13 @@ bool UModularRigController::RenameModule(const FString& InModulePath, const FNam
 		UE_LOG(LogControlRig, Error, TEXT("Could not rename module %s: %s"), *InModulePath, *ErrorMessage.ToString());
 		return false;
 	}
+
+	const FString OldName = Module->Name.ToString();
+	const FString NewName = InNewName.ToString();
+	if (OldName.Equals(NewName))
+	{
+		return true;
+	}
 	
 #if WITH_EDITOR
 	TSharedPtr<FScopedTransaction> TransactionPtr;
@@ -266,8 +309,8 @@ bool UModularRigController::RenameModule(const FString& InModulePath, const FNam
 	}
 #endif
 	
-	const FString OldPath = FString::Printf(TEXT("%s%s"), *Module->ParentNamespace, *Module->Name.ToString());
-	const FString NewPath = FString::Printf(TEXT("%s%s"), *Module->ParentNamespace, *InNewName.ToString());
+	const FString OldPath = (Module->ParentPath.IsEmpty()) ? OldName : FString::Printf(TEXT("%s:%s"), *Module->ParentPath, *OldName);
+	const FString NewPath = (Module->ParentPath.IsEmpty()) ? *NewName :  FString::Printf(TEXT("%s:%s"), *Module->ParentPath, *NewName);
 	Module->PreviousName = Module->Name;
 	Module->Name = InNewName;
 	TArray<FRigModuleReference*> Children;
@@ -275,7 +318,7 @@ bool UModularRigController::RenameModule(const FString& InModulePath, const FNam
 	for (int32 i=0; i<Children.Num(); ++i)
 	{
 		FRigModuleReference* Child = Children[i];
-		Child->ParentNamespace.ReplaceInline(*OldPath, *NewPath);
+		Child->ParentPath.ReplaceInline(*OldPath, *NewPath);
 
 		Children.Append(Child->CachedChildren);
 	}
@@ -304,7 +347,8 @@ bool UModularRigController::CanRenameModule(const FString& InModulePath, const F
 		return false;
 	}
 
-	const FString NewPath = FString::Printf(TEXT("%s%s"), *Module->ParentNamespace, *InNewName.ToString());
+	const FString NewNameStr = InNewName.ToString();
+	const FString NewPath = (Module->ParentPath.IsEmpty()) ? NewNameStr : FString::Printf(TEXT("%s:%s"), *Module->ParentPath, *NewNameStr);
 	if (InModulePath == NewPath)
 	{
 		return true;
@@ -312,7 +356,7 @@ bool UModularRigController::CanRenameModule(const FString& InModulePath, const F
 
 	// Check there are no siblings with the same name
 	{
-		FRigModuleReference* Parent = FindModule(Module->ParentNamespace);
+		FRigModuleReference* Parent = FindModule(Module->ParentPath);
 		TArray<FRigModuleReference*>* Siblings = &Model->RootModules;
 		if (Parent)
 		{
@@ -320,9 +364,9 @@ bool UModularRigController::CanRenameModule(const FString& InModulePath, const F
 		}
 		for (FRigModuleReference* Sibling : *Siblings)
 		{
-			if (Sibling->Name == InNewName)
+			if (Sibling->Name.ToString() == NewNameStr)
 			{
-				OutErrorMessage = FText::FromString(FString::Printf(TEXT("Sibling with path %s already exists"), *Sibling->GetNamespace()));
+				OutErrorMessage = FText::FromString(FString::Printf(TEXT("Sibling with path %s already exists"), *Sibling->GetPath()));
 				return false;
 			}
 		}
@@ -332,14 +376,52 @@ bool UModularRigController::CanRenameModule(const FString& InModulePath, const F
 
 bool UModularRigController::ReparentModule(const FString& InModulePath, const FString& InNewParentModulePath, bool bSetupUndo)
 {
-	// todo: UE-199050
+	FRigModuleReference* Module = FindModule(InModulePath);
+	if (!Module)
+	{
+		UE_LOG(LogControlRig, Error, TEXT("Could not find module %s"), *InModulePath);
+		return false;
+	}
+
+#if WITH_EDITOR
+	TSharedPtr<FScopedTransaction> TransactionPtr;
+	if (bSetupUndo)
+	{
+		TransactionPtr = MakeShared<FScopedTransaction>(NSLOCTEXT("ModularRigController", "RenameModuleTransaction", "Rename Module"));
+		if(UControlRigBlueprint* Blueprint = Cast<UControlRigBlueprint>(GetOuter()))
+		{
+			Blueprint->Modify();
+		}
+	}
+#endif
+
+	// Reparent or unparent children
+	FRigModuleReference* NewParentModule = FindModule(InNewParentModulePath);
+	const FString OldPath = Module->GetPath();
+	Module->PreviousParentPath = Module->ParentPath;
+	Module->ParentPath = (NewParentModule) ? NewParentModule->GetPath() : FString();
+	Module->Name = GetSafeNewName(Module->GetPath());
+	const FString NewPath = Module->GetPath();
+
+	// Fix all the subtree namespaces
+	TArray<FRigModuleReference*> SubTree = Module->CachedChildren;
+	for (int32 Index=0; Index<SubTree.Num(); ++Index)
+	{
+		SubTree[Index]->ParentPath.ReplaceInline(*OldPath, *NewPath);
+		SubTree.Append(SubTree[Index]->CachedChildren);
+	}
+
+	Model->UpdateCachedChildren();
+
+	Notify(EModularRigNotification::ModuleReparented, Module);
+	
 	return false;
 }
 
 FName UModularRigController::GetSafeNewName(const FString& InModuleDesiredPath)
 {
 	FString ParentPath, DesiredName = InModuleDesiredPath;
-	InModuleDesiredPath.Split(UModularRig::NamespaceSeparator, &ParentPath, &DesiredName);
+	InModuleDesiredPath.Split(UModularRig::NamespaceSeparator, &ParentPath, &DesiredName, ESearchCase::CaseSensitive, ESearchDir::FromEnd);
 
 	TArray<FRigModuleReference*>* Children = &Model->RootModules;
 	if (!ParentPath.IsEmpty())

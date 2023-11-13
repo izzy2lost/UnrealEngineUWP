@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ControlRig.h"
+#include "ModularRig.h"
 #include "ModularRigController.h"
 #include "ModularRigModel.generated.h"
 
@@ -13,13 +14,13 @@ struct CONTROLRIGDEVELOPER_API FRigModuleReference
 
 	FRigModuleReference()
 		: Name(NAME_None)
-		, ParentNamespace(FString())
+		, ParentPath(FString())
 		, Class(nullptr)
 	{}
 	
 	FRigModuleReference(const FName& InName, TSubclassOf<UControlRig> InClass, const FString& InParentPath)
 		: Name(InName)
-		, ParentNamespace(InParentPath)
+		, ParentPath(InParentPath)
 		, Class(InClass)
 	{}
 
@@ -27,7 +28,7 @@ struct CONTROLRIGDEVELOPER_API FRigModuleReference
 	FName Name;
 
 	UPROPERTY()
-	FString ParentNamespace;
+	FString ParentPath;
 
 	UPROPERTY()
 	TSoftClassPtr<UControlRig> Class;
@@ -41,9 +42,20 @@ struct CONTROLRIGDEVELOPER_API FRigModuleReference
 	UPROPERTY(transient)
 	FName PreviousName;
 
+	UPROPERTY(transient)
+	FString PreviousParentPath;
+
 	TArray<FRigModuleReference*> CachedChildren;
 
+	FString GetPath() const;
+
 	FString GetNamespace() const;
+	
+	friend bool operator==(const FRigModuleReference& A, const FRigModuleReference& B)
+	{
+		return A.ParentPath == B.ParentPath &&
+			A.Name == B.Name;
+	}
 	
 	friend class UModularRigController;
 };
@@ -59,6 +71,7 @@ public:
 	UPROPERTY()
 	TArray<FRigModuleReference> Modules;
 	TArray<FRigModuleReference*> RootModules;
+	TArray<FRigModuleReference> DeletedModules;
 
 	UPROPERTY(transient)
 	TObjectPtr<UModularRigController> Controller;
@@ -71,10 +84,14 @@ public:
 
 	void UpdateCachedChildren();
 
-	FRigModuleReference* FindModule(const FString InNameSpace) const;
+	FRigModuleReference* FindModule(const FString InPath) const;
 
-	FString FindParentNamespace(const FString InNameSpace) const;
-	
+	FString FindParentPath(const FString InPath) const;
+
+	void ForEachModule(TFunction<bool(const FRigModuleReference*)> PerModule) const;
+
+	TArray<FString> SortPaths(const TArray<FString>& InPaths) const;
+
 private:
 	TWeakObjectPtr<UObject> OuterClientHost;
 

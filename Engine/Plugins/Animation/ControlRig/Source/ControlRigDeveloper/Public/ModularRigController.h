@@ -18,6 +18,10 @@ enum class EModularRigNotification : uint8
 
 	ModuleRenamed,
 
+	ModuleRemoved,
+
+	ModuleReparented,
+
 	ConnectionChanged,
 
 	ModuleConfigValueChanged,
@@ -54,7 +58,7 @@ class CONTROLRIGDEVELOPER_API UModularRigController : public UObject
 	bool SetConfigValueInModule(const FString& InModulePath, const FName& InVariableName, const FString& InValue, bool bSetupUndo = true);
 
 	UFUNCTION(BlueprintCallable, Category = "ControlRig | Modules")
-	bool RemoveModule(const FString& InModulePath, bool bSetupUndo = true);
+	bool DeleteModule(const FString& InModulePath, bool bSetupUndo = true);
 
 	UFUNCTION(BlueprintCallable, Category = "ControlRig | Modules")
 	bool RenameModule(const FString& InModulePath, const FName& InNewName, bool bSetupUndo = true);

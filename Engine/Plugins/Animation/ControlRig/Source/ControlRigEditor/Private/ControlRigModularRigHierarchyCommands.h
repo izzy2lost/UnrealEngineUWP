@@ -24,6 +24,9 @@ public:
 	/** Rename Module */
 	TSharedPtr< FUICommandInfo > RenameModuleItem;
 
+	/** Delete Module */
+	TSharedPtr< FUICommandInfo > DeleteModuleItem;
+
 	/**
 	 * Initialize commands
 	 */

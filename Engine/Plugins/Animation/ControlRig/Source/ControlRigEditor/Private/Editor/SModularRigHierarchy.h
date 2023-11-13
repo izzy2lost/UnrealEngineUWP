@@ -6,6 +6,7 @@
 #include "EditorUndoClient.h"
 #include "Editor/SModularRigHierarchyTreeView.h"
 #include "ControlRigBlueprint.h"
+#include "DragAndDrop/GraphNodeDragDropOp.h"
 #include "Editor/RigVMEditor.h"
 
 class SModularRigHierarchy;
@@ -19,6 +20,34 @@ class FMenuBuilder;
 class UToolMenu;
 struct FToolMenuContext;
 
+class FModuleRigHierarchyDragDropOp : public FDragDropOperation
+{
+public:
+	DRAG_DROP_OPERATOR_TYPE(FModuleRigHierarchyDragDropOp, FDragDropOperation)
+
+	static TSharedRef<FModuleRigHierarchyDragDropOp> New(const TArray<FString>& InElements);
+
+	virtual TSharedPtr<SWidget> GetDefaultDecorator() const override;
+
+	/** @return true if this drag operation contains property paths */
+	bool HasElements() const
+	{
+		return Elements.Num() > 0;
+	}
+
+	/** @return The property paths from this drag operation */
+	const TArray<FString>& GetElements() const
+	{
+		return Elements;
+	}
+
+	FString GetJoinedElementNames() const;
+
+private:
+
+	/** Data for the property paths this item represents */
+	TArray<FString> Elements;
+};
 
 /** Widget allowing editing of a control rig's structure */
 class SModularRigHierarchy : public SCompoundWidget, public FEditorUndoClient
@@ -47,6 +76,9 @@ private:
 	/** Bind commands that this widget handles */
 	void BindCommands();
 
+	/** SWidget interface */
+	virtual FReply OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent);
+
 	/** Rebuild the tree view */
 	void RefreshTreeView(bool bRebuildContent = true);
 
@@ -55,13 +87,20 @@ private:
 
 	/** Create a new item */
 	void HandleNewItem();
-
 	void HandleNewItem(UClass* InClass, const FString& InParentPath);
 
+	/** Rename item */
 	bool CanRenameModule() const;
 	void HandleRenameModule();
 	FName HandleRenameModule(const FString& InOldPath, const FName& InNewName);
 	bool HandleVerifyNameChanged(const FString& InOldPath, const FName& InNewName, FText& OutErrorMessage);
+
+	/** Delete items */
+	void HandleDeleteModules();
+	void HandleDeleteModules(const TArray<FString>& InPaths);
+
+	/** Reparent items */
+	void HandleReparentModules(const TArray<FString>& InPaths, const FString& InParentPath);
 
 	/** Set Selection Changed */
 	void OnSelectionChanged(TSharedPtr<FModularRigTreeElement> Selection, ESelectInfo::Type SelectInfo);
@@ -73,6 +112,9 @@ private:
 	// FEditorUndoClient
 	virtual void PostUndo(bool bSuccess) override;
 	virtual void PostRedo(bool bSuccess) override;
+
+	// reply to a drag operation
+	FReply OnDragDetected(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent);
 
 	// reply to a drop operation on item
 	TOptional<EItemDropZone> OnCanAcceptDrop(const FDragDropEvent& DragDropEvent, EItemDropZone DropZone, TSharedPtr<FModularRigTreeElement> TargetItem);

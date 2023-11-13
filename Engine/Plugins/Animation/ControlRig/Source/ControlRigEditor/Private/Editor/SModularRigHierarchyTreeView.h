@@ -28,6 +28,7 @@ struct CONTROLRIGEDITOR_API FModularRigTreeDelegates
 	FOnGetModularRigTreeHierarchy OnGetHierarchy;
 	FOnModularRigTreeMouseButtonClick OnMouseButtonClick;
 	FOnModularRigTreeMouseButtonDoubleClick OnMouseButtonDoubleClick;
+	FOnDragDetected OnDragDetected;
 	FOnModularRigTreeCanAcceptDrop OnCanAcceptDrop;
 	FOnModularRigTreeAcceptDrop OnAcceptDrop;
 	FOnContextMenuOpening OnContextMenuOpening;

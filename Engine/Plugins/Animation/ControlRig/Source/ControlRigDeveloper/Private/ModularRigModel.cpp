@@ -5,13 +5,18 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ModularRigModel)
 
+FString FRigModuleReference::GetPath() const
+{
+	if (ParentPath.IsEmpty())
+	{
+		return Name.ToString();
+	}
+	return ParentPath + UModularRig::NamespaceSeparator + Name.ToString();
+}
+
 FString FRigModuleReference::GetNamespace() const
 {
-	if (ParentNamespace.IsEmpty())
-	{
-		return Name.ToString() + UModularRig::NamespaceSeparator;
-	}
-	return ParentNamespace + Name.ToString() + UModularRig::NamespaceSeparator;
+	return GetPath() + UModularRig::NamespaceSeparator;
 }
 
 UModularRigController* FModularRigModel::GetController(bool bCreateIfNeeded)
@@ -41,19 +46,19 @@ void FModularRigModel::UpdateCachedChildren()
 	for (FRigModuleReference& Module : Modules)
 	{
 		Module.CachedChildren.Reset();
-		PathToModule.Add(Module.GetNamespace(), &Module);
+		PathToModule.Add(Module.GetPath(), &Module);
 	}
 	
 	RootModules.Reset();
 	for (FRigModuleReference& Module : Modules)
 	{
-		if (Module.ParentNamespace.IsEmpty())
+		if (Module.ParentPath.IsEmpty())
 		{
 			RootModules.Add(&Module);
 		}
 		else
 		{
-			if (FRigModuleReference** ParentModule = PathToModule.Find(Module.ParentNamespace))
+			if (FRigModuleReference** ParentModule = PathToModule.Find(Module.ParentPath))
 			{
 				(*ParentModule)->CachedChildren.Add(&Module);
 			}
@@ -61,11 +66,11 @@ void FModularRigModel::UpdateCachedChildren()
 	}
 }
 
-FRigModuleReference* FModularRigModel::FindModule(const FString InNameSpace) const
+FRigModuleReference* FModularRigModel::FindModule(const FString InPath) const
 {
 	const TArray<FRigModuleReference*>* Children = &RootModules;
 
-	FString Left = InNameSpace, Right;
+	FString Left = InPath, Right;
 	while (Left.Split(UModularRig::NamespaceSeparator, &Left, &Right))
 	{
 		FRigModuleReference* const * Child = Children->FindByPredicate([Left](FRigModuleReference* Module)
@@ -94,11 +99,39 @@ FRigModuleReference* FModularRigModel::FindModule(const FString InNameSpace) con
 	return *Child;
 }
 
-FString FModularRigModel::FindParentNamespace(const FString InNameSpace) const
+FString FModularRigModel::FindParentPath(const FString InPath) const
 {
-	if (FRigModuleReference* Element = FindModule(InNameSpace))
+	if (FRigModuleReference* Element = FindModule(InPath))
 	{
-		return Element->ParentNamespace;
+		return Element->ParentPath;
 	}
 	return FString();
+}
+
+void FModularRigModel::ForEachModule(TFunction<bool(const FRigModuleReference*)> PerModule) const
+{
+	TArray<FRigModuleReference*> ModuleInstances = RootModules;
+	for (int32 Index=0; Index < ModuleInstances.Num(); ++Index)
+	{
+		if (!PerModule(ModuleInstances[Index]))
+		{
+			break;
+		}
+		ModuleInstances.Append(ModuleInstances[Index]->CachedChildren);
+	}
+}
+
+TArray<FString> FModularRigModel::SortPaths(const TArray<FString>& InPaths) const
+{
+	TArray<FString> Result;
+	ForEachModule([InPaths, &Result](const FRigModuleReference* Element) -> bool
+	{
+		const FString& Path = Element->GetPath();
+		if(InPaths.Contains(Path))
+		{
+			Result.AddUnique(Path);
+		}
+		return true;
+	});
+	return Result;
 }

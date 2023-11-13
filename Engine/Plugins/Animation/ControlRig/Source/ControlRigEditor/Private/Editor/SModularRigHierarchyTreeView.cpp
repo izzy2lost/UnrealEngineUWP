@@ -98,6 +98,7 @@ void SModularRigHierarchyItem::Construct(const FArguments& InArgs, const TShared
 
 	STableRow<TSharedPtr<FModularRigTreeElement>>::Construct(
 		STableRow<TSharedPtr<FModularRigTreeElement>>::FArguments()
+		.OnDragDetected(Delegates.OnDragDetected)
 		.OnCanAcceptDrop(Delegates.OnCanAcceptDrop)
 		.OnAcceptDrop(Delegates.OnAcceptDrop)
 		.ShowWires(true)

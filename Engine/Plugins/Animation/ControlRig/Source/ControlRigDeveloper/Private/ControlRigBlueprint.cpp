@@ -2288,6 +2288,8 @@ void UControlRigBlueprint::HandleRigModulesModified(EModularRigNotification InNo
 				{
 					if (UControlRig* CDO = GetControlRigClass()->GetDefaultObject<UControlRig>())
 					{
+						Hierarchy->Modify();
+						
 						FRigVMExtendedExecuteContext& Context = CDO->GetRigVMExtendedExecuteContext();
 						FRigHierarchyExecuteContextBracket HierarchyContextGuard(Controller->GetHierarchy(), &Context);
 			
@@ -2316,6 +2318,7 @@ void UControlRigBlueprint::HandleRigModulesModified(EModularRigNotification InNo
 			break;
 		}
 		case EModularRigNotification::ModuleRenamed:
+		case EModularRigNotification::ModuleReparented:
 		{
 			if (InModule)
 			{
@@ -2323,14 +2326,24 @@ void UControlRigBlueprint::HandleRigModulesModified(EModularRigNotification InNo
 				{
 					if (UControlRig* CDO = GetControlRigClass()->GetDefaultObject<UControlRig>())
 					{
+						Hierarchy->Modify();
+						
 						struct ConnectionInfo
 						{
 							FString NewPath;
 							FRigElementKey TargetConnection;
 							FRigConnectorSettings Settings;
 						};
-						FString OldPath = FString::Printf(TEXT("%s%s:"), *InModule->ParentNamespace, *InModule->PreviousName.ToString());
-						FString NewPath = FString::Printf(TEXT("%s%s:"), *InModule->ParentNamespace, *InModule->Name.ToString());
+						FString OldPath;
+						if (InNotification == EModularRigNotification::ModuleRenamed)
+						{
+							OldPath = (InModule->ParentPath.IsEmpty()) ? *InModule->PreviousName.ToString() : FString::Printf(TEXT("%s:%s:"), *InModule->ParentPath, *InModule->PreviousName.ToString());
+						}
+						else if(InNotification == EModularRigNotification::ModuleReparented)
+						{
+							OldPath = (InModule->PreviousParentPath.IsEmpty()) ? *InModule->Name.ToString() : FString::Printf(TEXT("%s:%s:"), *InModule->PreviousParentPath, *InModule->Name.ToString());
+						}
+						FString NewPath = (InModule->ParentPath.IsEmpty()) ? *InModule->Name.ToString() : FString::Printf(TEXT("%s:%s:"), *InModule->ParentPath, *InModule->Name.ToString());
 						TArray<FRigElementKey> Connectors = Controller->GetHierarchy()->GetKeysOfType<FRigConnectorElement>();
 						TMap<FRigElementKey, ConnectionInfo> RenamedConnectors; // old key -> new key
 						for (const FRigElementKey& Connector : Connectors)
@@ -2381,8 +2394,33 @@ void UControlRigBlueprint::HandleRigModulesModified(EModularRigNotification InNo
 			}
 			break;
 		}
+		case EModularRigNotification::ModuleRemoved:
+		{
+			if (InModule)
+			{
+				// Remove all the connectors belonging this namespace
+				if (URigHierarchyController* Controller = GetHierarchyController())
+				{
+					Hierarchy->Modify();
+					
+					FString Namespace = InModule->GetNamespace();
+					TArray<FRigElementKey> Connectors = Controller->GetHierarchy()->GetKeysOfType<FRigConnectorElement>();
+					for (const FRigElementKey& Connector : Connectors)
+					{
+						FString ConnectorName = Connector.Name.ToString();
+						if (ConnectorName.StartsWith(Namespace))
+						{
+							Controller->RemoveElement(Connector);
+						}
+					}
+				}
+			}
+			break;
+		}
 		case EModularRigNotification::ConnectionChanged:
 		{
+			Hierarchy->Modify();
+			
 			const FString Namespace = InModule->GetNamespace();
 			for (TPair<FRigElementKey, FRigElementKey> Connection : InModule->Connections)
 			{
