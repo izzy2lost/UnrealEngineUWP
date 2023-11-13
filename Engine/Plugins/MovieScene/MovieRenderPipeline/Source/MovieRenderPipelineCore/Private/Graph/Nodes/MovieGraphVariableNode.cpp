@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Graph/Nodes/MovieGraphVariableNode.h"
 
@@ -36,7 +36,7 @@ FString UMovieGraphVariableNode::GetResolvedValueForOutputPin(const FName& InPin
 	{
 		if (ContextHasEnabledAssignmentForVariable(InContext))
 		{
-			return InContext->Job->VariableAssignments->GetValueSerializedString(FName(GraphVariable->GetMemberName()));
+			return InContext->Job->VariableAssignments->GetValueSerializedString(GraphVariable);
 		}
 
 		// No valid variable assignment: just get the value from the variable
@@ -52,7 +52,7 @@ bool UMovieGraphVariableNode::GetResolvedValueForOutputPin(const FName& InPinNam
 	{
 		if (ContextHasEnabledAssignmentForVariable(InContext))
 		{
-			return InContext->Job->VariableAssignments->GetValueContainer(InPinName, OutValueContainer);
+			return InContext->Job->VariableAssignments->GetValueContainer(GraphVariable, OutValueContainer);
 		}
 
 		// No valid variable assignment: just get the value from the variable
