@@ -147,7 +147,9 @@ void OnSetCVarFromIniEntry(const TCHAR *IniFile, const TCHAR *Key, const TCHAR* 
 
 	Value = ConvertValueFromHumanFriendlyValue(Value);
 
-	IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(Key); 
+	// we don't need to track cvar misses here (a lot will be not found early on in editor builds)
+	bool bTrackFrequentCalls = false;
+	IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(Key, bTrackFrequentCalls);
 
 	if(CVar)
 	{
