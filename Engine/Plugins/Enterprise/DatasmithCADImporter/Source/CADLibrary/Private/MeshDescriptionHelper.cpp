@@ -556,6 +556,10 @@ bool ConvertBodyMeshToMeshDescription(const FMeshConversionContext& MeshConversi
 	{
 		return false;
 	}
+	if (!Body.bIsFromCad)
+	{
+		MeshOperator::FixNonManifoldMesh(MeshDescription);
+	}
 
 	// Workaround SDHE-19725: Compute any null normals.
 	MeshOperator::RecomputeNullNormal(MeshDescription);
