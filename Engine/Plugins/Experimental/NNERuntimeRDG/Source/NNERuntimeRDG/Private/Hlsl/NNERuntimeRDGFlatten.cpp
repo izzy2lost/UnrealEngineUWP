@@ -124,7 +124,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 	bool RegisterFlattenOperator(FOperatorRegistryHlsl& Registry)
 	{
-		Registry.OpAdd({{TEXT("Flatten"), TEXT("Onnx")}}, CreateFlattenOperator, ValidateFlattenOperator);
+		Registry.OpAdd(TEXT("Flatten"), CreateFlattenOperator, ValidateFlattenOperator);
 		return true;
 	}
 } // UE::NNERuntimeRDG::Private::Hlsl

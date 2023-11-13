@@ -124,7 +124,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 	bool RegisterReshapeOperator(FOperatorRegistryHlsl& Registry)
 	{
-		Registry.OpAdd({{TEXT("Reshape"), TEXT("Onnx")}}, CreateReshapeOperator, ValidateReshapeOperator);
+		Registry.OpAdd(TEXT("Reshape"), CreateReshapeOperator, ValidateReshapeOperator);
 		return true;
 	}
 } // UE::NNERuntimeRDG::Private::Hlsl

@@ -133,7 +133,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 	bool RegisterSqueezeOperator(FOperatorRegistryHlsl& Registry)
 	{
-		Registry.OpAdd({{TEXT("Squeeze"), TEXT("Onnx")}}, CreateSqueezeOperator, ValidateSqueezeOperator);
+		Registry.OpAdd(TEXT("Squeeze"), CreateSqueezeOperator, ValidateSqueezeOperator);
 		return true;
 	}
 } // UE::NNERuntimeRDG::Private::Hlsl

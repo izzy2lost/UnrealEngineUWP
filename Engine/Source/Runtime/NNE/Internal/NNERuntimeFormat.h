@@ -59,12 +59,6 @@ struct FNNEFormatOperatorDesc
 	FString TypeName;			//!< For example "Relu"
 
 	UPROPERTY(VisibleAnywhere, Category = "Neural Network Inference")
-	FString DomainName;			//!< For example "onnx"
-
-	UPROPERTY(VisibleAnywhere, Category = "Neural Network Inference")
-	TOptional<uint32> Version;	//!< For example 7
-
-	UPROPERTY(VisibleAnywhere, Category = "Neural Network Inference")
 	TArray<uint32> InTensors;
 
 	UPROPERTY(VisibleAnywhere, Category = "Neural Network Inference")

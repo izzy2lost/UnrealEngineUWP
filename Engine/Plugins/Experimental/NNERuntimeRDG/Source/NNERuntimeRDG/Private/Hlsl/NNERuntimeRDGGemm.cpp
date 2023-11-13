@@ -187,7 +187,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 	bool RegisterGemmOperator(FOperatorRegistryHlsl& Registry)
 	{
-		Registry.OpAdd({{TEXT("Gemm"), TEXT("Onnx")}}, CreateGemmOperator, ValidateGemmOperator);
+		Registry.OpAdd(TEXT("Gemm"), CreateGemmOperator, ValidateGemmOperator);
 		return true;
 	}
 } // UE::NNERuntimeRDG::Private::Hlsl

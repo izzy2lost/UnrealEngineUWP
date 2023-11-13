@@ -181,7 +181,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 	bool RegisterConcatOperator(FOperatorRegistryHlsl& Registry)
 	{
-		Registry.OpAdd({{TEXT("Concat"), TEXT("Onnx")}}, CreateConcatOperator, ValidateConcatOperator);
+		Registry.OpAdd(TEXT("Concat"), CreateConcatOperator, ValidateConcatOperator);
 		return true;
 	}
 } // UE::NNERuntimeRDG::Private::Hlsl

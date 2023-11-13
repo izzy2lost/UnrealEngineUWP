@@ -413,7 +413,6 @@ public:
 		return 
 			GraphInfo {
 				model_->MainGraph().Name().c_str(),	
-				model_->MainGraph().DomainToVersionMap().at(model_->Domain()),
 				(int) graphView_->GetInputs().size(),
 				(int) graphView_->GetOutputs().size(),
 				(int) graphNodes_.size(),

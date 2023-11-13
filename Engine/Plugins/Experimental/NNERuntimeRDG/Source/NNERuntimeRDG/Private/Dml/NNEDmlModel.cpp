@@ -44,7 +44,7 @@ FModelInfo* FModelInfo::Get()
 
 FModelInfo::FModelInfo()
 	: Guid((int32)'R', (int32)'D', (int32)'G', (int32)'D')
-	, Version(0x3)
+	, Version(0x2)
 {
 }
 
@@ -948,7 +948,7 @@ bool FModelInstance::Init(TConstArrayView<uint8> ModelData, FDmlDeviceContext* I
 			AttributeMap.SetAttribute(Desc.Name, Desc.Value);
 		}
 
-		FOperatorDml* Op = OpCreate({{TypeName, Format.Operators[Idx].DomainName}, Format.Operators[Idx].Version}, OpInputTensors, OpOutputTensors, AttributeMap);
+		FOperatorDml* Op = OpCreate(TypeName, OpInputTensors, OpOutputTensors, AttributeMap);
 
 		if (!Op)
 		{
@@ -1335,13 +1335,13 @@ void FModelInstance::AddDispatchOps_RenderThread(FRDGBuilder& GraphBuilder)
 * Create an instance of FOperatorDml
 * Note: The IDMLOperator (member of FOperatorDml) is still not created
 */
-FOperatorDml* FModelInstance::OpCreate(const FOperatorDesc& OpDesc, TConstArrayView<NNE::FTensorDesc> Inputs, TConstArrayView<NNE::FTensorDesc> Outputs, const NNE::FAttributeMap& Attributes)
+FOperatorDml* FModelInstance::OpCreate(const FString& OpName, TConstArrayView<NNE::FTensorDesc> Inputs, TConstArrayView<NNE::FTensorDesc> Outputs, const NNE::FAttributeMap& Attributes)
 {
-	FOperatorRegistryDml::OperatorCreateFunc CreateFn = FOperatorRegistryDml::Get()->OpFind(OpDesc);
+	FOperatorRegistryDml::OperatorCreateFunc CreateFn = FOperatorRegistryDml::Get()->OpFind(OpName);
 
 	if (!CreateFn)
 	{
-		UE_LOG(LogNNE, Error, TEXT("Failed to find DML operator: %s"), *OpDesc.GetFullName());
+		UE_LOG(LogNNE, Error, TEXT("Failed to find DML operator:%s"), *OpName);
 		return nullptr;
 	}
 
@@ -1351,7 +1351,7 @@ FOperatorDml* FModelInstance::OpCreate(const FOperatorDesc& OpDesc, TConstArrayV
 	{
 		delete Op;
 
-		UE_LOG(LogNNE, Error, TEXT("Failed to initialize DML operator: %s"), *OpDesc.GetFullName());
+		UE_LOG(LogNNE, Error, TEXT("Failed to initialize DML operator:%s"), *OpName);
 		return nullptr;
 	}
 

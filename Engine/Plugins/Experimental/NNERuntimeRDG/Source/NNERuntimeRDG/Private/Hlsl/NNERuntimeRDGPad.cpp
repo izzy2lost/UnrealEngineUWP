@@ -161,7 +161,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 	bool RegisterPadOperator(FOperatorRegistryHlsl& Registry)
 	{
-		Registry.OpAdd({{TEXT("Pad"), TEXT("Onnx")}}, CreatePadOperator, ValidatePadOperator);
+		Registry.OpAdd(TEXT("Pad"), CreatePadOperator, ValidatePadOperator);
 		return true;
 	}
 } // UE::NNERuntimeRDG::Private::Hlsl

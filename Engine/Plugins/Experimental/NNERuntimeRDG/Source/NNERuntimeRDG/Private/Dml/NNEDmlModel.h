@@ -89,7 +89,7 @@ protected:
 
 private:
 
-	FOperatorDml* OpCreate(const FOperatorDesc& OpDesc, TConstArrayView<NNE::FTensorDesc> Inputs, TConstArrayView<NNE::FTensorDesc> Outputs, const NNE::FAttributeMap& Attributes);
+	FOperatorDml* OpCreate(const FString& Name, TConstArrayView<NNE::FTensorDesc> Inputs, TConstArrayView<NNE::FTensorDesc> Outputs, const NNE::FAttributeMap& Attributes);
 
 	bool InitCompiledOp();
 

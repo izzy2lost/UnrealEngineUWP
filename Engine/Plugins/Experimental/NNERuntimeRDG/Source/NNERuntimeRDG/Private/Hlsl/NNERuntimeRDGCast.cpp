@@ -106,7 +106,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 	bool RegisterCastOperator(FOperatorRegistryHlsl& Registry)
 	{
-		Registry.OpAdd({{TEXT("Cast"), TEXT("Onnx")}}, CreateCastOperator, ValidateCastOperator);
+		Registry.OpAdd(TEXT("Cast"), CreateCastOperator, ValidateCastOperator);
 		return true;
 	}
 } // UE::NNERuntimeRDG::Private::Hlsl

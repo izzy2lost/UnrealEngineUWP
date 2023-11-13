@@ -244,7 +244,7 @@ struct FDmlOperator##OpName##Registrator \
 { \
 	FDmlOperator##OpName##Registrator() \
 	{ \
-		FOperatorRegistryDml::Get()->OpAdd({{TEXT(#OpName), TEXT("Onnx")}}, FOperatorDmlReduce<ReduceFunc, Op##OpName##Name>::Create, FOperatorDmlReduce<ReduceFunc, Op##OpName##Name>::Validate); \
+		FOperatorRegistryDml::Get()->OpAdd(TEXT(#OpName), FOperatorDmlReduce<ReduceFunc, Op##OpName##Name>::Create, FOperatorDmlReduce<ReduceFunc, Op##OpName##Name>::Validate); \
 	} \
 }; \
 \

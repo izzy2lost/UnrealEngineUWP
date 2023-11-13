@@ -471,7 +471,7 @@ struct FDmlOperator##OpName##Registrator \
 { \
 	FDmlOperator##OpName##Registrator() \
 	{ \
-		FOperatorRegistryDml::Get()->OpAdd({{TEXT(#OpName), TEXT("Onnx")}}, FOperatorDmlResample<IsResize>::Create, FOperatorDmlResample<IsResize>::Validate); \
+		FOperatorRegistryDml::Get()->OpAdd(TEXT(#OpName), FOperatorDmlResample<IsResize>::Create, FOperatorDmlResample<IsResize>::Validate); \
 	} \
 }; \
 \

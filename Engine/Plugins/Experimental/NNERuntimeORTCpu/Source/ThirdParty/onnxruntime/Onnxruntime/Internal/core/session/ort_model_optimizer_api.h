@@ -45,7 +45,6 @@ struct ModelInfo {
 
 struct GraphInfo {
     const char* name;
-    int         opsetVersion;
     int         inputCount;
     int         outputCount;
     int         nodeCount;

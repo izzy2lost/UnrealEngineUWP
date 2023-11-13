@@ -167,15 +167,13 @@ public:
 	}
 
 	/** Add operator */
-	virtual HOperator AddOperator(const FString& TypeName, const FString& Domain, TOptional<uint32> Version, const FString& Name = TEXT("")) override
+	virtual HOperator AddOperator(const FString& TypeName, const FString& Name = TEXT("")) override
 	{
 		int Idx = Format.Operators.Num();
 
 		FNNEFormatOperatorDesc	Operator{};
 
 		Operator.TypeName = TypeName;
-		Operator.DomainName = Domain;
-		Operator.Version = Version;
 		Format.Operators.Emplace(Operator);
 
 		return MakeOperatorHandle(reinterpret_cast<void*>((int64) Idx));

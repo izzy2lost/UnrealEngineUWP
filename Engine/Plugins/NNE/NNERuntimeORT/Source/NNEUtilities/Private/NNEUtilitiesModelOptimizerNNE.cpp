@@ -14,7 +14,6 @@ NNE_THIRD_PARTY_INCLUDES_START
 
 #include <onnx/onnx_pb.h>
 #include <onnx/shape_inference/implementation.h>
-#include <onnx/defs/schema.h>
 NNE_THIRD_PARTY_INCLUDES_END
 
 
@@ -182,17 +181,6 @@ namespace ModelOptimizerNNEHelper
 		}
 	}
 
-	TOptional<uint32> GetOpVersion(const onnx::ModelProto& ModelProto, const FString& OpType)
-	{
-		const onnx::OpSchema* OpSchema = onnx::OpSchemaRegistry::Schema(TCHAR_TO_ANSI(*OpType), (int) ModelProto.opset_import(0).version());
-		if(OpSchema == nullptr)
-		{
-			UE_LOG(LogNNE, Warning, TEXT("No OpSchema found for operator %s and OpSet version %d."), *OpType, (int) ModelProto.opset_import(0).version());
-			return TOptional<uint32>();
-		}
-		return (uint32) OpSchema->SinceVersion();
-	}
-
 	bool BuildNNEFormatFromONNX(TArray<uint8>& ONNXData, TArray<uint8>& NNEData)
 	{
 		TUniquePtr<IModelBuilder> Builder = CreateNNEModelBuilder();
@@ -202,12 +190,6 @@ namespace ModelOptimizerNNEHelper
 		if (!result)
 		{
 			UE_LOG(LogNNE, Warning, TEXT("Could not parse the input model as a ModelProto."));
-			return false;
-		}
-
-		if (ModelProto.opset_import_size() < 1)
-		{
-			UE_LOG(LogNNE, Warning, TEXT("Could not read opset version from ONNX."));
 			return false;
 		}
 
@@ -269,13 +251,7 @@ namespace ModelOptimizerNNEHelper
 				IModelBuilder::FHTensor TensorInitializer =
 					Builder->AddTensor(FString(ANSI_TO_TCHAR(Output.name().c_str())) + TEXT("_NNEInitializer"), DataType, Shape, Data, DataSize);
 
-				const FString IdentityOpType = TEXT("Identity");
-				TOptional<uint32> OpVersion = GetOpVersion(ModelProto, IdentityOpType);
-				if(!OpVersion.IsSet())
-				{
-					return false;
-				}
-				IModelBuilder::FHOperator Op = Builder->AddOperator(IdentityOpType, OnnxDomainName, *OpVersion);
+				IModelBuilder::FHOperator Op = Builder->AddOperator(TEXT("Identity"));
 				Builder->AddOperatorInput(Op, TensorInitializer);
 				Builder->AddOperatorOutput(Op, Tensor);
 			}
@@ -289,12 +265,7 @@ namespace ModelOptimizerNNEHelper
 			FString NNEOpType(StringCast<TCHAR>(OnnxOpType.c_str()));
 			const std::string& OnnxOpName = Node.name();
 			FString NNEOpName(StringCast<TCHAR>(OnnxOpName.c_str()));
-			TOptional<uint32> OpVersion = GetOpVersion(ModelProto, NNEOpType);
-			if(!OpVersion.IsSet())
-			{
-				return false;
-			}
-			IModelBuilder::FHOperator Op = Builder->AddOperator(NNEOpType, OnnxDomainName, *OpVersion, NNEOpName);
+			IModelBuilder::FHOperator Op = Builder->AddOperator(NNEOpType, NNEOpName);
 
 			for (const onnx::AttributeProto& Attribute : Node.attribute())
 			{
