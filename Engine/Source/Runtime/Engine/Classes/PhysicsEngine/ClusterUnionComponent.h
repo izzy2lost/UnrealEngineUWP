@@ -228,7 +228,7 @@ public:
 	ENGINE_API TArray<AActor*> GetActors();
 
 	UFUNCTION(BlueprintCallable, Category = "Cluster Union")
-	ENGINE_API void SetIsAnchored(bool bIsAnchored);
+	ENGINE_API virtual void SetIsAnchored(bool bIsAnchored);
 
 	ENGINE_API bool IsAnchored() const;
 

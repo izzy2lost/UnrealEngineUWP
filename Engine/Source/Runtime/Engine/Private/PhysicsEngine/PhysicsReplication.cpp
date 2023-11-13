@@ -1411,14 +1411,24 @@ bool FPhysicsReplicationAsync::PredictiveInterpolation(Chaos::FPBDRigidParticleH
 
 	if (bHardSnap)
 	{
-		// Too much error so just snap state here and be done with it
 		Target.AccumulatedErrorSeconds = 0.0f;
-		Handle->SetX(Target.PrevPosTarget);
-		Handle->SetP(Target.PrevPosTarget);
-		Handle->SetR(Target.PrevRotTarget);
-		Handle->SetQ(Target.PrevRotTarget);
-		Handle->SetV(Target.TargetState.LinVel);
-		Handle->SetW(FMath::DegreesToRadians(Target.TargetState.AngVel));
+
+		if (Handle->IsKinematic())
+		{
+			// Set a FKinematicTarget to hard snap kinematic object
+			const Chaos::FKinematicTarget KinTarget = Chaos::FKinematicTarget::MakePositionTarget(Target.PrevPosTarget, Target.PrevRotTarget); // Uses EKinematicTargetMode::Position
+			RigidsSolver->GetEvolution()->SetParticleKinematicTarget(Handle, KinTarget);
+		}
+		else 
+		{
+			// Set XPRQVW to hard snap dynamic object
+			Handle->SetX(Target.PrevPosTarget);
+			Handle->SetP(Target.PrevPosTarget);
+			Handle->SetR(Target.PrevRotTarget);
+			Handle->SetQ(Target.PrevRotTarget);
+			Handle->SetV(Target.TargetState.LinVel);
+			Handle->SetW(FMath::DegreesToRadians(Target.TargetState.AngVel));
+		}
 
 		// Cache data for next replication
 		Target.PrevLinVel = FVector(Target.TargetState.LinVel);
