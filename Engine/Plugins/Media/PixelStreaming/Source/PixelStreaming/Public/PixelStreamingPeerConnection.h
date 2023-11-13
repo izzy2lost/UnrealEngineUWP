@@ -201,6 +201,8 @@ public:
 	 */
 	void SetWebRTCStatsCallback(rtc::scoped_refptr<webrtc::RTCStatsCollectorCallback> InCallback);
 
+	void RefreshStreamBitrate();
+
 	/**
 	 * @return The negotiated video codec as parsed from the SDP offer/answer.
 	 * Note: This changes as new offer/answers come in potentially.

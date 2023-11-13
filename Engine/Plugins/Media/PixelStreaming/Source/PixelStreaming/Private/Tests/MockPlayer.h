@@ -201,6 +201,7 @@ namespace UE::PixelStreaming
 		virtual void OnSignallingPlayerDisconnected(FPixelStreamingPlayerId PlayerId) override {}
 		virtual void OnSignallingSFUPeerDataChannels(FPixelStreamingPlayerId SFUId, FPixelStreamingPlayerId PlayerId, int32 SendStreamId, int32 RecvStreamId) override {}
 		virtual void OnSignallingStreamerList(const TArray<FString>& StreamerList) override {}
+		virtual void OnPlayerRequestsBitrate(FPixelStreamingPlayerId PlayerId, int MinBitrate, int MaxBitrate) override {}
 
 		DECLARE_MULTICAST_DELEGATE(FOnConnectionEstablished);
 		FOnConnectionEstablished OnConnectionEstablished;

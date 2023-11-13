@@ -481,6 +481,29 @@ namespace UE::PixelStreaming
 		}
 	}
 
+	void FStreamer::PlayerRequestsBitrate(FPixelStreamingPlayerId PlayerId, int MinBitrate, int MaxBitrate)
+	{
+		if (QualityControllingId == INVALID_PLAYER_ID || PlayerId == QualityControllingId)
+		{
+			Settings::CVarPixelStreamingWebRTCMinBitrate->Set(MinBitrate, ECVF_SetByCode);
+			Settings::CVarPixelStreamingWebRTCMaxBitrate->Set(MaxBitrate, ECVF_SetByCode);
+		}
+		else
+		{
+			UE_LOG(LogPixelStreaming, Warning, TEXT("Unable to set bitrates from player %s since they are not the Quality Controller."), *PlayerId);
+		}
+	}
+
+	void FStreamer::RefreshStreamBitrate()
+	{
+		Players.Apply([this](FPixelStreamingPlayerId PlayerId, FPlayerContext& PlayerContext) {
+			if (PlayerContext.PeerConnection)
+			{
+				PlayerContext.PeerConnection->RefreshStreamBitrate();
+			}
+		});
+	}
+
 	bool FStreamer::CreateSession(FPixelStreamingPlayerId PlayerId)
 	{
 		if (FPlayerContext* PlayerContext = Players.Find(PlayerId))

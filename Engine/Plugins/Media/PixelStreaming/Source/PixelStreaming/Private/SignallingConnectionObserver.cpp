@@ -86,6 +86,11 @@ namespace UE::PixelStreaming
 		Streamer.AddNewDataChannel(PlayerId, NewChannel);
 	}
 
+	void FPixelStreamingSignallingConnectionObserver::OnPlayerRequestsBitrate(FPixelStreamingPlayerId PlayerId, int MinBitrate, int MaxBitrate)
+	{
+		Streamer.PlayerRequestsBitrate(PlayerId, MinBitrate, MaxBitrate);
+	}
+
 	// These are player only and will only be relevant when on the receiving side of pixel streaming, such as the player plugin.
 	void FPixelStreamingSignallingConnectionObserver::OnSignallingStreamerList(const TArray<FString>& StreamerList)
 	{

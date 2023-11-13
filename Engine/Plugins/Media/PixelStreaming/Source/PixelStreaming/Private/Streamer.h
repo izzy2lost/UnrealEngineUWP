@@ -82,6 +82,10 @@ namespace UE::PixelStreaming
 		// TODO(Luke) hook this back up so that the Engine can change how the interface is working browser side
 		void AddPlayerConfig(TSharedRef<FJsonObject>& JsonObject);
 
+		virtual void PlayerRequestsBitrate(FPixelStreamingPlayerId PlayerId, int MinBitrate, int MaxBitrate) override;
+
+		virtual void RefreshStreamBitrate() override;
+
 	private:
 		FStreamer(const FString& StreamerId);
 

@@ -12,6 +12,7 @@
 #include "Utils.h"
 #include "ToStringExtensions.h"
 #include "GenericPlatform/GenericPlatformHttp.h"
+#include "PixelStreamingModule.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(LogPixelStreamingSS, Log, VeryVerbose);
 DEFINE_LOG_CATEGORY(LogPixelStreamingSS);
@@ -535,13 +536,26 @@ void FPixelStreamingSignallingConnection::OnSessionDescription(const FJsonObject
 
 	FPixelStreamingPlayerId PlayerId;
 	bool bGotPlayerId = GetPlayerIdJson(Json, PlayerId);
-	if (!bGotPlayerId)
+	if (bGotPlayerId)
 	{
-		Observer->OnSignallingSessionDescription(Type, Sdp);
+		int MinBitrate;
+		int MaxBitrate;
+		bool bGotMinBitrate;
+		bool bGotMaxBitrate;
+
+		bGotMinBitrate = Json->TryGetNumberField(TEXT("minBitrate"), MinBitrate);
+		bGotMaxBitrate = Json->TryGetNumberField(TEXT("maxBitrate"), MaxBitrate);
+
+		if (bGotMinBitrate && bGotMaxBitrate && MinBitrate > 0 && MaxBitrate > 0)
+		{
+			Observer->OnPlayerRequestsBitrate(PlayerId, MinBitrate, MaxBitrate);
+		}
+
+		Observer->OnSignallingSessionDescription(PlayerId, Type, Sdp);
 	}
 	else
 	{
-		Observer->OnSignallingSessionDescription(PlayerId, Type, Sdp);
+		Observer->OnSignallingSessionDescription(Type, Sdp);
 	}
 }
 

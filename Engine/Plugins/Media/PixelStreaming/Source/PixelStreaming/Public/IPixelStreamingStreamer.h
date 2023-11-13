@@ -304,4 +304,10 @@ public:
 	 */
 	virtual void SetConfigOption(const FName& OptionName, const FString& Value) = 0;
 	virtual bool GetConfigOption(const FName& OptionName, FString& OutValue) = 0;
+
+	/**
+	*/
+	virtual void PlayerRequestsBitrate(FPixelStreamingPlayerId PlayerId, int MinBitrate, int MaxBitrate) = 0;
+
+	virtual void RefreshStreamBitrate() = 0;
 };

@@ -348,6 +348,8 @@ void FPixelStreamingPeerConnection::CreateAnswer(EReceiveMediaOption ReceiveOpti
 
 void FPixelStreamingPeerConnection::ReceiveOffer(const FString& Sdp, const VoidCallback& SuccessCallback, const ErrorCallback& ErrorCallback)
 {
+	RefreshStreamBitrate();
+	
 	webrtc::SdpParseError Error;
 	std::unique_ptr<webrtc::SessionDescriptionInterface> SessionDesc = webrtc::CreateSessionDescription(webrtc::SdpType::kOffer, UE::PixelStreaming::ToString(Sdp), &Error);
 	if (SessionDesc)
@@ -366,6 +368,8 @@ void FPixelStreamingPeerConnection::ReceiveOffer(const FString& Sdp, const VoidC
 
 void FPixelStreamingPeerConnection::ReceiveAnswer(const FString& Sdp, const VoidCallback& SuccessCallback, const ErrorCallback& ErrorCallback)
 {
+	RefreshStreamBitrate();
+
 	webrtc::SdpParseError Error;
 	std::unique_ptr<webrtc::SessionDescriptionInterface> SessionDesc = webrtc::CreateSessionDescription(webrtc::SdpType::kAnswer, ToString(Sdp), &Error);
 	if (SessionDesc)
@@ -505,6 +509,14 @@ void FPixelStreamingPeerConnection::SetVideoSource(rtc::scoped_refptr<webrtc::Vi
 		webrtc::RtpParameters ExistingParams = Result.value()->sender()->GetParameters();
 		ExistingParams.degradation_preference = Settings::GetDegradationPreference();
 	}
+}
+
+void FPixelStreamingPeerConnection::RefreshStreamBitrate()
+{
+	webrtc::BitrateSettings bitrateSettings;
+	bitrateSettings.min_bitrate_bps = Settings::CVarPixelStreamingWebRTCMinBitrate.GetValueOnAnyThread();
+	bitrateSettings.max_bitrate_bps = Settings::CVarPixelStreamingWebRTCMaxBitrate.GetValueOnAnyThread();
+	PeerConnection->SetBitrate(bitrateSettings);
 }
 
 void FPixelStreamingPeerConnection::SetAudioSource(rtc::scoped_refptr<webrtc::AudioSourceInterface> InAudioSource)

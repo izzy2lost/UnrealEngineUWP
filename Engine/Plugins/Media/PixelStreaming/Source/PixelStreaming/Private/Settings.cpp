@@ -355,6 +355,14 @@ namespace UE::PixelStreaming::Settings
 			Streamer->SetStreamFPS(Var->GetInt());
 		});
 	}
+
+	void OnWebRTCBitrateRangeChanged(IConsoleVariable* Var)
+	{
+		IPixelStreamingModule::Get().ForEachStreamer([](TSharedPtr<IPixelStreamingStreamer> Streamer) {
+			Streamer->RefreshStreamBitrate();
+		});
+	}
+
 	// Ends Pixel Streaming Plugin CVars
 
 	// Begin utility functions etc.
@@ -661,6 +669,8 @@ namespace UE::PixelStreaming::Settings
 
 		CVarPixelStreamingOnScreenStats.AsVariable()->SetOnChangedCallback(FConsoleVariableDelegate::CreateStatic(&OnHudStatsToggled));
 		CVarPixelStreamingWebRTCFps.AsVariable()->SetOnChangedCallback(FConsoleVariableDelegate::CreateStatic(&OnWebRTCFpsChanged));
+		CVarPixelStreamingWebRTCMinBitrate.AsVariable()->SetOnChangedCallback(FConsoleVariableDelegate::CreateStatic(&OnWebRTCBitrateRangeChanged));
+		CVarPixelStreamingWebRTCMaxBitrate.AsVariable()->SetOnChangedCallback(FConsoleVariableDelegate::CreateStatic(&OnWebRTCBitrateRangeChanged));
 		CVarPixelStreamingEncoderKeyframeInterval.AsVariable()->SetOnChangedCallback(FConsoleVariableDelegate::CreateStatic(&OnKeyframeIntervalChanged));
 
 		// Values parse from commands line
