@@ -120,7 +120,6 @@ private:
 
 	FGPUFenceRHIRef						DispatchFence;
 	FBufferRHIRef						PersistBuff;
-	FBufferRHIRef						TempBuff;
 	uint64								MemSizeWeights;
 	uint64								MemSizeTemp;
 	uint64								MemSizePersist;
