@@ -133,5 +133,6 @@ public:
 	virtual bool StreamOut(int32 NewMipCount) final override;
 	virtual bool StreamIn(int32 NewMipCount, bool bHighPrio) final override;
 	//~ End UStreamableRenderAsset Interface
+	int32 GetNumResidentMips() const;
 
 };

@@ -6177,6 +6177,7 @@ bool UEngine::HandleListTexturesCommand( const TCHAR* Cmd, FOutputDevice& Ar )
 	{
 		UTexture*			Texture				= *It;
 		UTexture2D*			Texture2D			= Cast<UTexture2D>(Texture);
+		UTexture2DArray*	Texture2DArray		= Cast<UTexture2DArray>(Texture);
 		UTextureCube*		TextureCube			= Cast<UTextureCube>(Texture);
 		UVolumeTexture*		Texture3D			= Cast<UVolumeTexture>(Texture);
 		UTextureRenderTarget2D* RenderTexture	= Cast<UTextureRenderTarget2D>(Texture);
@@ -6228,6 +6229,15 @@ bool UEngine::HandleListTexturesCommand( const TCHAR* Cmd, FOutputDevice& Ar )
 			{
 				NumApplicableToMinSize++;
 			}
+		}
+		else if (Texture2DArray != nullptr)
+		{
+			NumMips				= Texture2DArray->GetNumMips();
+			Format				= Texture2DArray->GetPixelFormat();
+
+			DroppedMips			= Texture2DArray->GetNumMips() - Texture2DArray->GetNumResidentMips();
+			CurSizeX			= FMath::Max<int32>(Texture2DArray->GetSizeX() >> DroppedMips, 1);
+			CurSizeY			= FMath::Max<int32>(Texture2DArray->GetSizeY() >> DroppedMips, 1);
 		}
 		else if (TextureCube != nullptr)
 		{

@@ -688,4 +688,21 @@ bool UTexture2DArray::StreamIn(int32 NewMipCount, bool bHighPrio)
 	return false;
 }
 
+
+int32 UTexture2DArray::GetNumResidentMips() const
+{
+	if (GetResource())
+	{
+		if (CachedSRRState.IsValid())
+		{
+			return CachedSRRState.NumResidentLODs;
+		}
+		else
+		{
+			return GetResource()->GetCurrentMipCount();
+		}
+	}
+	return 0;
+}
+
 #undef LOCTEXT_NAMESPACE
