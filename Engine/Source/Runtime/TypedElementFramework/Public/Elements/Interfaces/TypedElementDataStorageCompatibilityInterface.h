@@ -13,7 +13,6 @@
 
 #include "TypedElementDataStorageCompatibilityInterface.generated.h"
 
-class AActor;
 struct FTypedElementDatabaseCompatibilityObjectTypeInfo;
 
 UINTERFACE(MinimalAPI)
@@ -48,9 +47,7 @@ public:
 	 */
 	template<typename ObjectType>
 	TypedElementRowHandle AddCompatibleObject(ObjectType&& Object);
-	template<typename ObjectType>
-	TypedElementRowHandle AddCompatibleObject(ObjectType&& Object, TypedElementTableHandle Table);
-
+	
 	/** Removes a previously registered object from the data storage. */
 	template<typename ObjectType>
 	void RemoveCompatibleObject(ObjectType&& Object);
@@ -76,6 +73,12 @@ public:
 	 * being aliased.
 	 */
 	virtual void RegisterDealiaserCallback(ObjectToRowDealiaser Dealiaser) = 0;
+	/**
+	 * Allows a specific type to be associated with a table. Whenever a compatible object is added, the type information of that object
+	 * will be used to find the closest match in the registered types and use the associated table. E.g. actors derive from uobjects so
+	 * if the type information of an actor is registered the actor table will be used instead of the uobject table.
+	 */
+	virtual void RegisterTypeTableAssociation(TObjectPtr<UStruct> TypeInfo, TypedElementDataStorage::TableHandle Table) = 0;
 
 	/**
 	 * @section Explicit functions
@@ -84,29 +87,16 @@ public:
 
 	/** Adds a UObject to the data storage. */
 	virtual TypedElementRowHandle AddCompatibleObjectExplicit(UObject* Object) = 0;
-	virtual TypedElementRowHandle AddCompatibleObjectExplicit(UObject* Object, TypedElementTableHandle Table) = 0;
-	/** Adds an actor to the data storage. */
-	virtual TypedElementRowHandle AddCompatibleObjectExplicit(AActor* Actor) = 0;
-	virtual TypedElementRowHandle AddCompatibleObjectExplicit(AActor* Actor, TypedElementTableHandle Table) = 0;
 	/** Adds an FStruct to the data storage. */
 	virtual TypedElementRowHandle AddCompatibleObjectExplicit(void* Object, TWeakObjectPtr<const UScriptStruct> TypeInfo) = 0;
-	virtual TypedElementRowHandle AddCompatibleObjectExplicit(void* Object, TWeakObjectPtr<const UScriptStruct> TypeInfo, TypedElementTableHandle Table) = 0;
-
+	
 	/** Removes a UObject from the data storage. */
 	virtual void RemoveCompatibleObjectExplicit(UObject* Object) = 0;
-	/** Removes an actor from the data storage. */
-	virtual void RemoveCompatibleObjectExplicit(AActor* Actor) = 0;
 	/** Removes an FStruct from the data storage. */
 	virtual void RemoveCompatibleObjectExplicit(void* Object) = 0;
 
 	/** Finds a previously stored UObject. If not found an invalid row handle will be returned. */
 	virtual TypedElementRowHandle FindRowWithCompatibleObjectExplicit(const UObject* Object) const = 0;
-	/** 
-	 * Finds a previously stored actor based on the object key. If not found an invalid row handle will be returned.
-	 * While FindRowWithCompatibleObject(const TObjectKey<const UObject> Object) can also be used, this call will be slightly
-	 * faster if it's already known that the target is an actor.
-	 */
-	virtual TypedElementRowHandle FindRowWithCompatibleObjectExplicit(const AActor* Actor) const = 0;
 	/** Finds a previously stored FStruct. If not found an invalid row handle will be returned. */
 	virtual TypedElementRowHandle FindRowWithCompatibleObjectExplicit(const void* Object) const = 0;
 };
@@ -133,29 +123,6 @@ TypedElementRowHandle ITypedElementDataStorageCompatibilityInterface::AddCompati
 	else
 	{
 		return AddCompatibleObjectExplicit(RawPointer, BaseType::StaticStruct());
-	}
-}
-
-template<typename ObjectType>
-TypedElementRowHandle ITypedElementDataStorageCompatibilityInterface::AddCompatibleObject(ObjectType&& Object, TypedElementTableHandle Table)
-{
-	if (Table != TypedElementInvalidTableHandle)
-	{
-		auto RawPointer = GetRawPointer(Forward<ObjectType>(Object));
-		using BaseType = std::remove_cv_t<std::remove_pointer_t<decltype(RawPointer)>>;
-
-		if constexpr (std::is_base_of_v<UObject, BaseType>)
-		{
-			return AddCompatibleObjectExplicit(RawPointer, Table);
-		}
-		else
-		{
-			return AddCompatibleObjectExplicit(RawPointer, BaseType::StaticStruct(), Table);
-		}
-	}
-	else
-	{
-		return AddCompatibleObject(Object);
 	}
 }
 

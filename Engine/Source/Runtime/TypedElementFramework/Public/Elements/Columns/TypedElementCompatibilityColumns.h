@@ -34,14 +34,3 @@ struct FTypedElementExternalObjectColumn final : public FTypedElementDataStorage
 
 	void* Object;
 };
-
-/**
- * Source table used to register the external object with.
- */
-USTRUCT(meta = (DisplayName = "Object source table"))
-struct FTypedElementObjectSourceTableColumn final : public FTypedElementDataStorageColumn
-{
-	GENERATED_BODY()
-
-	TypedElementDataStorage::TableHandle SourceTable;
-};

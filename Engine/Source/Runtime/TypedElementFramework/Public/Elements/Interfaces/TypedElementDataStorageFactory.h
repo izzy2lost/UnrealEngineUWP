@@ -27,6 +27,7 @@ public:
 	virtual uint8 GetOrder() const { return 127; }
 
 	virtual void RegisterTables(ITypedElementDataStorageInterface& DataStorage) const {}
+	virtual void RegisterTables(ITypedElementDataStorageInterface& DataStorage, ITypedElementDataStorageCompatibilityInterface& DataStorageCompatibility) const {}
 	virtual void RegisterTickGroups(ITypedElementDataStorageInterface& DataStorage) const {}
 	virtual void RegisterQueries(ITypedElementDataStorageInterface& DataStorage) const {}
 

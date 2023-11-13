@@ -14,11 +14,6 @@
 
 #include "TypedElementDatabaseCompatibility.generated.h"
 
-#if !defined(TEDS_SEPARATE_ACTOR_REGISTRATION)
-#	define TEDS_SEPARATE_ACTOR_REGISTRATION 0
-#endif
-
-class AActor;
 class ITypedElementDataStorageInterface;
 struct FMassActorManager;
 
@@ -42,25 +37,22 @@ public:
 
 	void RegisterRegistrationFilter(ObjectRegistrationFilter Filter) override;
 	void RegisterDealiaserCallback(ObjectToRowDealiaser Dealiaser) override;
+	void RegisterTypeTableAssociation(TObjectPtr<UStruct> TypeInfo, TypedElementDataStorage::TableHandle Table) override;
 	FDelegateHandle RegisterObjectAddedCallback(ObjectAddedCallback&& OnObjectAdded);
 	void UnregisterObjectAddedCallback(FDelegateHandle Handle);
 	FDelegateHandle RegisterObjectRemovedCallback(ObjectRemovedCallback&& OnObjectRemoved);
 	void UnregisterObjectRemovedCallback(FDelegateHandle Handle);
 	
 	TypedElementRowHandle AddCompatibleObjectExplicit(UObject* Object) override;
-	TypedElementRowHandle AddCompatibleObjectExplicit(UObject* Object, TypedElementTableHandle Table) override;
-	TypedElementRowHandle AddCompatibleObjectExplicit(AActor* Actor) override;
-	TypedElementRowHandle AddCompatibleObjectExplicit(AActor* Actor, TypedElementTableHandle Table) override;
 	TypedElementRowHandle AddCompatibleObjectExplicit(void* Object, TWeakObjectPtr<const UScriptStruct> TypeInfo);
-	TypedElementRowHandle AddCompatibleObjectExplicit(void* Object, TWeakObjectPtr<const UScriptStruct> TypeInfo, TypedElementTableHandle Table);
 	
 	void RemoveCompatibleObjectExplicit(UObject* Object) override;
-	void RemoveCompatibleObjectExplicit(AActor* Actor) override;
 	void RemoveCompatibleObjectExplicit(void* Object) override;
 
 	TypedElementRowHandle FindRowWithCompatibleObjectExplicit(const UObject* Object) const override;
-	TypedElementRowHandle FindRowWithCompatibleObjectExplicit(const AActor* Actor) const override;
 	TypedElementRowHandle FindRowWithCompatibleObjectExplicit(const void* Object) const override;
+
+	static void AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector);
 
 private:
 
@@ -70,29 +62,25 @@ private:
 	class FRegistrationCommandChange final : public FCommandChange
 	{
 	public:
-		FRegistrationCommandChange(TypedElementDataStorage::TableHandle InTable,
-			UObject* InTargetObject);
+		explicit FRegistrationCommandChange(UObject* InTargetObject);
 
 		void Apply(UObject* Object) override;
 		void Revert(UObject* Object) override;
 		FString ToString() const override;
 
 	private:
-		TypedElementDataStorage::TableHandle Table{ TypedElementDataStorage::InvalidTableHandle };
 		TWeakObjectPtr<UObject> TargetObject;
 	};
 	class FDeregistrationCommandChange final : public FCommandChange
 	{
 	public:
-		FDeregistrationCommandChange(TypedElementDataStorage::TableHandle InTable,
-			UObject* InTargetObject);
+		explicit FDeregistrationCommandChange(UObject* InTargetObject);
 
 		void Apply(UObject* Object) override;
 		void Revert(UObject* Object) override;
 		FString ToString() const override;
 
 	private:
-		TypedElementDataStorage::TableHandle Table{ TypedElementDataStorage::InvalidTableHandle };
 		TWeakObjectPtr<UObject> TargetObject;
 	};
 
@@ -101,16 +89,14 @@ private:
 	void CreateStandardArchetypes();
 	
 	bool ShouldAddObject(const UObject* Object) const;
+	TypedElementDataStorage::TableHandle FindBestMatchingTable(const UStruct* TypeInfo) const;
 	template<bool bEnableTransactions>
-	TypedElementRowHandle AddCompatibleObjectExplicitTransactionable(UObject* Object, TypedElementTableHandle Table);
+	TypedElementRowHandle AddCompatibleObjectExplicitTransactionable(UObject* Object);
 	template<bool bEnableTransactions>
 	void RemoveCompatibleObjectExplicitTransactionable(UObject* Object);
 	TypedElementRowHandle DealiasObject(const UObject* Object) const;
 
 	void Tick();
-#if TEDS_SEPARATE_ACTOR_REGISTRATION
-	void TickPendingActorRegistration(UWorld* EditorWorld);
-#endif
 	void TickPendingUObjectRegistration();
 	void TickPendingExternalObjectRegistration();
 	void TickObjectSync();
@@ -149,14 +135,12 @@ private:
 		void* Object;
 		TWeakObjectPtr<const UScriptStruct> TypeInfo;
 	};
-#if TEDS_SEPARATE_ACTOR_REGISTRATION
-	TMap<TypedElementTableHandle, PendingRegistration<TWeakObjectPtr<AActor>>> ActorsPendingRegistration;
-#endif
 	TMap<TypedElementTableHandle, PendingRegistration<TWeakObjectPtr<UObject>>> UObjectsPendingRegistration;
 	TMap<TypedElementTableHandle, PendingRegistration<ExternalObjectRegistration>> ExternalObjectsPendingRegistration;
 	
 	TArray<ObjectRegistrationFilter> ObjectRegistrationFilters;
 	TArray<ObjectToRowDealiaser> ObjectToRowDialiasers;
+	TMap<TObjectPtr<UStruct>, TypedElementDataStorage::TableHandle> TypeToTableMap;
 	TArray<TPair<ObjectAddedCallback, FDelegateHandle>> ObjectAddedCallbackList;
 	TArray<TPair<ObjectRemovedCallback, FDelegateHandle>> PreObjectRemovedCallbackList;
 
@@ -165,9 +149,6 @@ private:
 	TypedElementTableHandle StandardUObjectTable{ TypedElementInvalidTableHandle };
 	TypedElementTableHandle StandardExternalObjectTable{ TypedElementInvalidTableHandle };
 	ITypedElementDataStorageInterface* Storage{ nullptr };
-#if TEDS_SEPARATE_ACTOR_REGISTRATION
-	TSharedPtr<FMassActorManager> ActorSubsystem;
-#endif
 
 	/**
 	 * Reference of objects (UObject and AActor) that need to be fully synced from the world to the database.

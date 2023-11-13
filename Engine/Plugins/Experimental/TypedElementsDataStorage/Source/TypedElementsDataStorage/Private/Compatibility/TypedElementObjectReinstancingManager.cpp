@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "TypedElementObjectReinstancingManager.h"
 
@@ -92,21 +92,23 @@ void UTypedElementObjectReinstancingManager::HandleOnObjectsReinstanced(
 {
 	for (FCoreUObjectDelegates::FReplacementObjectMap::TConstIterator Iter = ObjectReplacementMap.CreateConstIterator(); Iter; ++Iter)
 	{
-		const UObject* NewInstanceObject = Iter->Value;
+		UObject* NewInstanceObject = Iter->Value;
 
 		TypedElementRowHandle NewObjectRow = DataStorageCompatibility->FindRowWithCompatibleObjectExplicit(NewInstanceObject);
-		if (NewObjectRow != TypedElementInvalidRowHandle)
+		if (!Database->IsRowAvailable(NewObjectRow))
 		{
-			const void* PreDeleteObject = Iter->Key;
-			const TypedElementRowHandle* MementoRowPtr = OldObjectToMementoMap.Find(PreDeleteObject);
-			if (MementoRowPtr != nullptr)
+			NewObjectRow = DataStorageCompatibility->AddCompatibleObjectExplicit(NewInstanceObject);
+		}
+		
+		const void* PreDeleteObject = Iter->Key;
+		const TypedElementRowHandle* MementoRowPtr = OldObjectToMementoMap.Find(PreDeleteObject);
+		if (MementoRowPtr != nullptr)
+		{
+			// Kick off re-instantiation of NewObjectRow from the Memento
+			TypedElementRowHandle Memento = *MementoRowPtr;
+			if (ensureMsgf(Database->HasColumns(Memento, TConstArrayView<const UScriptStruct*>({FTypedElementMementoTag::StaticStruct()})), TEXT("Cannot reinstantiate from a non memento row")))
 			{
-				// Kick off reinstantiation of NewObjectRow from the Memento
-				TypedElementRowHandle Memento = *MementoRowPtr;
-				if (ensureMsgf(Database->HasColumns(Memento, TConstArrayView<const UScriptStruct*>({FTypedElementMementoTag::StaticStruct()})), TEXT("Cannot reinstantiate from a non memento row")))
-				{
-					Database->AddOrGetColumn(Memento, FTypedElementMementoReinstanceTarget{ .Target = NewObjectRow });
-				}
+				Database->AddOrGetColumn(Memento, FTypedElementMementoReinstanceTarget{ .Target = NewObjectRow });
 			}
 		}
 	}

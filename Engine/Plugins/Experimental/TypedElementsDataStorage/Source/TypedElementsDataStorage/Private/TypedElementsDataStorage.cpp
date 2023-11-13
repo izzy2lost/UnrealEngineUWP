@@ -124,6 +124,7 @@ void FTypedElementsDataStorageModule::StartupModule()
 				for (UTypedElementDataStorageFactory* Factory : Factories)
 				{
 					Factory->RegisterTables(*Database);
+					Factory->RegisterTables(*Database, *DatabaseCompatibility);
 					Factory->RegisterTickGroups(*Database);
 					Factory->RegisterRegistrationFilters(*DatabaseCompatibility);
 					Factory->RegisterDealiaser(*DatabaseCompatibility);
