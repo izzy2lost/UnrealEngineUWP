@@ -139,7 +139,7 @@ bool UGizmoElementBase::GetViewAlignRot(const FVector& InViewLocation, const FVe
 	else if (ViewAlignType == EGizmoElementViewAlignType::Axial)
 	{
 		// if Axis and Dir are almost coincident, do not adjust the rotation
-		if ((FMath::Abs(FVector::DotProduct(ViewAlignAxis, -LocalViewDir))) >= DefaultViewAlignMaxCosAngleTol)
+		if ((FMath::Abs(FVector::DotProduct(ViewAlignAxis, -LocalViewDir))) >= ViewAlignAxialMaxCosAngleTol)
 		{
 			return false;
 		}

@@ -348,7 +348,7 @@ void UTransformGizmo::OnBeginHover(const FInputDeviceRay& DevicePos)
 
 bool UTransformGizmo::OnUpdateHover(const FInputDeviceRay& DevicePos)
 {
-	FInputRayHit RayHit = UpdateHoveredPart(DevicePos);
+	const FInputRayHit RayHit = UpdateHoveredPart(DevicePos);
 	return RayHit.bHit;
 }
 
@@ -715,13 +715,6 @@ void UTransformGizmo::EnableRotate(EAxisList::Type InAxisListToDraw)
 			GizmoElementRoot->Add(RotateScreenSpaceElement);
 		}
 
-		if (RotateOuterCircleElement == nullptr)
-		{
-			RotateOuterCircleElement = MakeRotateCircleHandle(ETransformGizmoPartIdentifier::Default, RotateOuterCircleRadius, RotateOuterCircleColor, false);
-			RotateOuterCircleElement->SetHittableState(false);
-			GizmoElementRoot->Add(RotateOuterCircleElement);
-		}
-
 		if (RotateArcballElement == nullptr)
 		{
 			RotateArcballElement = MakeRotateCircleHandle(ETransformGizmoPartIdentifier::RotateArcball, RotateArcballSphereRadius, RotateArcballCircleColor, true);
@@ -1068,6 +1061,8 @@ UGizmoElementTorus* UTransformGizmo::MakeRotateAxis(ETransformGizmoPartIdentifie
 	RotateAxisElement->SetPartialEndAngle(UE_PI);
 	RotateAxisElement->SetViewDependentAxis(TorusNormal);
 	RotateAxisElement->SetViewAlignType(EGizmoElementViewAlignType::Axial);
+	RotateAxisElement->SetViewAlignAxialAngleTol(UE_DOUBLE_SMALL_NUMBER);
+	RotateAxisElement->SetPartialViewDependentMaxCosTol(1.0-UE_DOUBLE_SMALL_NUMBER);	
 	RotateAxisElement->SetViewAlignAxis(TorusNormal);
 	RotateAxisElement->SetViewAlignNormal(TorusAxis1);
 	RotateAxisElement->SetMaterial(InMaterial);
