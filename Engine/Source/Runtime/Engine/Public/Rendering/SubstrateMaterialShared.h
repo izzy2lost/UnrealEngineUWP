@@ -142,7 +142,7 @@ public:
 	/** The byte per pixel count supported by the platform the material has been compiled against */
 	LAYOUT_FIELD_EDITORONLY(uint8, bMaterialOutOfBudgetHasBeenSimplified, 1);
 
-	LAYOUT_FIELD_EDITORONLY(uint8, RootOperatorIndex);
+	LAYOUT_FIELD_EDITORONLY(int8, RootOperatorIndex);
 	LAYOUT_ARRAY_EDITORONLY(FSubstrateOperator, Operators, SUBSTRATE_COMPILATION_OUTPUT_MAX_OPERATOR);
 };
 
