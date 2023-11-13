@@ -910,6 +910,8 @@ namespace Metasound::Frontend
 
 	FDocumentCache::FDocumentDependencyCache::FDocumentDependencyCache(const FMetasoundFrontendDocument& InDocument)
 	{
+		METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(Metasound::Frontend::FDocumentDependencyCache::FDocumentDependencyCache);
+
 		for (int32 Index = 0; Index < InDocument.Dependencies.Num(); ++Index)
 		{
 			const FMetasoundFrontendClass& Class = InDocument.Dependencies[Index];

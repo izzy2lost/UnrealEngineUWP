@@ -16,14 +16,6 @@ namespace Metasound::Frontend
 	// Forward Declarations
 	class FDocumentCache;
 
-	struct FDocumentCacheTransaction
-	{
-		int32 DocumentTransactionID = INDEX_NONE;
-		int32 InterfaceTransactionID = INDEX_NONE;
-		int32 NodeTransactionID = INDEX_NONE;
-		int32 EdgeTransactionID = INDEX_NONE;
-	};
-
 	class FDocumentGraphEdgeCache : public IDocumentGraphEdgeCache
 	{
 		template <typename ObjectType, ESPMode Mode>
