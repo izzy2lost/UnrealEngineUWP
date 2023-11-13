@@ -148,6 +148,10 @@ void UPixelStreamingSignallingComponent::FSignallingObserver::OnSignallingStream
 	Parent->OnStreamerListCallback(StreamerList);
 }
 
+void UPixelStreamingSignallingComponent::FSignallingObserver::OnPlayerRequestsBitrate(FPixelStreamingPlayerId PlayerId, int MinBitrate, int MaxBitrate)
+{
+}
+
 void UPixelStreamingSignallingComponent::AsyncRequestStreamerList(const TFunction<void(const TArray<FString>&)>& Callback)
 {
 	OnStreamerListCallback = Callback;
