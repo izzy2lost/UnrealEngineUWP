@@ -368,6 +368,8 @@ public:
 	 */
 	GEOMETRYCOLLECTIONENGINE_API void PreallocateMeshInstance(const FGeometryCollectionStaticMeshInstance& MeshInstance);
 
+	GEOMETRYCOLLECTIONENGINE_API void SetTickablePoolManagement(bool bEnablePoolManagement);
+
 	GEOMETRYCOLLECTIONENGINE_API void SetOverrideTransformUpdates(bool bOverrideUpdates);
 
 	GEOMETRYCOLLECTIONENGINE_API void UpdateAbsoluteTransforms(const FTransform& BaseTransform, EUpdateTransformFlags UpdateTransformFlags, ETeleportType Teleport);

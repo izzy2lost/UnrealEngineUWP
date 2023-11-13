@@ -640,6 +640,19 @@ void UGeometryCollectionISMPoolComponent::PreallocateMeshInstance(const FGeometr
 	Pool.RequestPreallocateMeshInstance(MeshInstance);
 }
 
+void UGeometryCollectionISMPoolComponent::SetTickablePoolManagement(bool bEnablePoolManagement)
+{
+	if (!bEnablePoolManagement)
+	{
+		// Disable the keep alive and recycle pool management systems.
+		// This also disables preallocation for this pool.
+		Pool.bCachedKeepAlive = false;
+		Pool.bCachedRecycle = false;
+	}
+	// Disable the Tick that is used to manage the pool.
+	PrimaryComponentTick.SetTickFunctionEnable(bEnablePoolManagement);
+}
+
 void UGeometryCollectionISMPoolComponent::SetOverrideTransformUpdates(bool bOverrideUpdates)
 {
 	Pool.bDisableBoundsAndTransformUpdate = bOverrideUpdates;
