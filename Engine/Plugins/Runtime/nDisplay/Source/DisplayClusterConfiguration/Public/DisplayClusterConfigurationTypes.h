@@ -583,6 +583,9 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = Configuration, meta = (DisplayName = "Override Viewports From .ndisplay", DisplayAfter = "bExitOnEsc"))
 	bool bOverrideViewportsFromExternalConfig = false;
 
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = Configuration, meta = (DisplayName = "Override Transforms From .ndisplay", DisplayAfter = "bOverrideViewportsFromExternalConfig"))
+	bool bOverrideTransformsFromExternalConfig = false;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Configuration, meta = (DisplayName = "Global Media Settings"))
 	FDisplayClusterConfigurationGlobalMediaSettings MediaSettings;
 

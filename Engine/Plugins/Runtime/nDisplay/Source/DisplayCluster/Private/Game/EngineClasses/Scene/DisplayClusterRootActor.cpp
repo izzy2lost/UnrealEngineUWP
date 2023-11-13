@@ -401,6 +401,7 @@ void ADisplayClusterRootActor::OverrideFromConfig(UDisplayClusterConfigurationDa
 	}
 
 	// Update component transforms if any of them have been changed in the file
+	if (ConfigData->bOverrideTransformsFromExternalConfig)
 	{
 		TUniquePtr<FDisplayClusterRootActorInitializer> Initializer = MakeUnique<FDisplayClusterRootActorInitializer>();
 		Initializer->UpdateComponentTransformsOnly(this, ConfigData);
