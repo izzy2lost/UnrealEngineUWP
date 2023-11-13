@@ -168,7 +168,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 		OP(Prelu);
 		OP(Pow);
 		OP(Sub);
-		//OP(Or);
+		//OP(Xor);
 #undef OP
 
 		return true;
