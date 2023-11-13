@@ -107,6 +107,8 @@ struct FMeshPartInstance
 
 	EMeshDetailLevel DetailLevel = EMeshDetailLevel::Standard;
 
+	int32 FilterLODLevel = -1;
+
 	bool bAllowApproximation = true;
 
 	// allow FMeshPartInstance to maintain link to external representation of instance
@@ -239,6 +241,7 @@ void InitializeMeshPartAssembly(
 		NewInstance.SourceComponent = SourceMeshInstance.SourceComponent;
 		NewInstance.SourceInstanceIndex = SourceMeshInstance.SourceInstanceIndex;
 		NewInstance.DetailLevel = static_cast<EMeshDetailLevel>( static_cast<int32>(SourceMeshInstance.DetailLevel) );
+		NewInstance.FilterLODLevel = SourceMeshInstance.FilterLODLevel;
 		NewInstance.bAllowApproximation = SourceMeshInstance.bAllowApproximation;
 		for ( FTransform3d Transform : SourceMeshInstance.TransformSequence )
 		{
@@ -297,6 +300,7 @@ void InitializeMeshPartAssembly(
 		NewInstance.SourceComponent = nullptr;
 		NewInstance.SourceInstanceIndex = 0;
 		NewInstance.DetailLevel = static_cast<EMeshDetailLevel>(static_cast<int32>(SourceMeshInstance.DetailLevel));
+		NewInstance.FilterLODLevel = SourceMeshInstance.FilterLODLevel;
 		NewInstance.bAllowApproximation = SourceMeshInstance.bAllowApproximation;
 		for (FTransform3d Transform : SourceMeshInstance.TransformSequence)
 		{
@@ -3497,6 +3501,11 @@ void BuildCombinedMesh(
 			for ( const FMeshPartInstance& Instance : Part->Instances )
 			{
 				const FDynamicMesh3* InstanceAppendMesh = UseAppendMesh;
+
+				if (Instance.FilterLODLevel >= 0 && LODLevel >= Instance.FilterLODLevel)
+				{
+					continue;
+				}
 
 				bool bIsDecorativePart = (Instance.DetailLevel == EMeshDetailLevel::Decorative);
 				if (bIsDecorativePart)

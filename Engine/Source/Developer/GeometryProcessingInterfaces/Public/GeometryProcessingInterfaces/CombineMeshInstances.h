@@ -79,6 +79,8 @@ public:
 
 		bool bAllowApproximation = true;			// if false, only Copied or Simplified LODs will be used for this part Instance. Will be combined w/ the GroupData flag.
 
+		int32 FilterLODLevel = -1;					// LOD level to filter out this mesh, value -1 disable this option. 
+
 		// in some cases it may be desirable to have "groups" of instances which should be output as separate meshes, but
 		// be jointly processed in terms of (eg) the part LODs. If any InstanceSubsetID is non-zero, then instance subsets
 		// are grouped/extracted by integer ID and will be returned as separate FOutputMesh's in the FResults. 
