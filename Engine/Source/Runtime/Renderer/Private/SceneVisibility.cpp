@@ -5437,9 +5437,10 @@ void FDeferredShadingSceneRenderer::EndInitViews(
 	SCOPED_NAMED_EVENT(FDeferredShadingSceneRenderer_InitViewsAfterPrepass, FColor::Emerald);
 	SCOPE_CYCLE_COUNTER(STAT_InitViewsPossiblyAfterPrepass);
 
-	BeginShadowGatherDynamicMeshElements(TaskDatas.DynamicShadows);
-
 	TaskDatas.VisibilityTaskData->Finish();
+
+	// Trigger shadow GDME tasks after the main visibility tasks are synced. Projection stencil shadows reference the main view dynamic elements.
+	BeginShadowGatherDynamicMeshElements(TaskDatas.DynamicShadows);
 
 	FRHICommandListImmediate& RHICmdList = GraphBuilder.RHICmdList;
 
