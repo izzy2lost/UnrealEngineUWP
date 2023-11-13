@@ -16,7 +16,12 @@
 
 #if WITH_PYTHON
 
+// In order to keep editor startup time fast, check directly for this utils version (make sure to match with wheel version in PythonScriptPlugin/Content/Python/Lib/wheels)
+// NOTE: This version must also be changed in PipInstallMode.cs in order to support UBT functionality
+const FString FPipInstall::PipInstallUtilsVer = TEXT("0.1.3");
+
 const FString FPipInstall::PluginsListingFilename = TEXT("pyreqs_plugins.list");
+const FString FPipInstall::PluginsSitePackageFilename = TEXT("plugin_site_package.pth");
 const FString FPipInstall::RequirementsInputFilename = TEXT("merged_requirements.in");
 const FString FPipInstall::ExtraUrlsFilename = TEXT("extra_urls.txt");
 const FString FPipInstall::ParsedRequirementsFilename = TEXT("merged_requirements.txt");
@@ -30,20 +35,43 @@ FString FPipInstall::WritePluginsListing(TArray<TSharedRef<IPlugin>>& OutPythonP
 
 	OutPythonPlugins.Empty();
 
-	TArray<FString> PythonPluginPaths;
+	// List of plugins with pip dependencies
+	TArray<FString> PipPluginPaths;
+	// List of enabled plugins' site-packages folders
+	TArray<FString> PluginSitePackagePaths;
 	for ( const TSharedRef<IPlugin>& Plugin : IPluginManager::Get().GetEnabledPlugins() )
 	{
+		const FString PythonContentPath = FPaths::ConvertRelativePathToFull(Plugin->GetContentDir() / TEXT("Python"));
+		const FString PluginPlatformSitePackagesPath = PythonContentPath / TEXT("Lib") / FPlatformMisc::GetUBTPlatform() / TEXT("site-packages");
+		const FString PluginGeneralSitePackagesPath = PythonContentPath / TEXT("Lib") / TEXT("site-packages");
+
+		// Write platform/general site-packages paths per-plugin to .pth file to account for packaged python dependencies during pip install
+		if (FPaths::DirectoryExists(PluginPlatformSitePackagesPath))
+		{
+			PluginSitePackagePaths.Add(PluginPlatformSitePackagesPath);
+		}
+
+		if (FPaths::DirectoryExists(PluginGeneralSitePackagesPath))
+		{
+			PluginSitePackagePaths.Add(PluginGeneralSitePackagesPath);
+		}
+
 		const FPluginDescriptor& PluginDesc = Plugin->GetDescriptor();
 		if (PluginDesc.CachedJson->HasTypedField(TEXT("PythonRequirements"), EJson::Array))
 		{
 			const FString PluginDescFile = FPaths::ConvertRelativePathToFull(Plugin->GetDescriptorFileName());
-			PythonPluginPaths.Add(PluginDescFile);
+			PipPluginPaths.Add(PluginDescFile);
 			OutPythonPlugins.Add(Plugin);
 		}
 	}
 
+	// Create list of plugins that may require pip install dependencies
 	const FString PyPluginsListingFile = PipInstallPath / PluginsListingFilename;
-	FFileHelper::SaveStringArrayToFile(PythonPluginPaths, *PyPluginsListingFile);
+	FFileHelper::SaveStringArrayToFile(PipPluginPaths, *PyPluginsListingFile);
+
+	// Create .pth file in PipInstall/Lib/site-packages to account for plugins with packaged dependencies
+	const FString PyPluginsSitePackageFile = PipInstallPath / TEXT("Lib") / TEXT("site-packages") / PluginsSitePackageFilename;
+	FFileHelper::SaveStringArrayToFile(PluginSitePackagePaths, *PyPluginsSitePackageFile);
 
     return PyPluginsListingFile;
 }
@@ -144,6 +172,24 @@ FString FPipInstall::ParsePluginDependencies(const FString& MergedInRequirements
 	return FPaths::ConvertRelativePathToFull(ParsedReqsFile);
 }
 
+bool FPipInstall::HasInstallLines(const TArray<FString>& RequirementLines)
+{
+	for (const FStringView Line : RequirementLines)
+	{
+		if (!Line.TrimStart().StartsWith(TCHAR('#')))
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
+FString FPipInstall::GetPipInstallPath()
+{
+	return FPaths::ProjectIntermediateDir() / TEXT("PipInstall");
+}
+
 
 void FPipInstall::SetupPipInstallUtils(const FString& VenvInterp, FFeedbackContext* Context)
 {
@@ -164,7 +210,8 @@ void FPipInstall::SetupPipInstallUtils(const FString& VenvInterp, FFeedbackConte
 	const FString PipWheelsDir = PythonScriptDir / TEXT("Content/Python/Lib/wheels");
 	const FString InstallRequirements = PythonScriptDir / TEXT("Content/Python/PipInstallUtils/requirements.txt");
 
-	const FString Cmd = FString::Printf(TEXT("-m pip install --upgrade --no-index --find-links \"%s\" -r \"%s\" ue-pipinstall-utils"), *PipWheelsDir, *InstallRequirements);
+	const FString PipInstallReq = TEXT("ue-pipinstall-utils==") + PipInstallUtilsVer;
+	const FString Cmd = FString::Printf(TEXT("-m pip install --upgrade --no-index --find-links \"%s\" -r \"%s\" %s"), *PipWheelsDir, *InstallRequirements, *PipInstallReq);
 
 	RunPythonCmd(LOCTEXT("PipInstall.SetupPipInstallUtils", "Setting up pip install utils"), VenvInterp, Cmd, Context);
 }
@@ -172,7 +219,8 @@ void FPipInstall::SetupPipInstallUtils(const FString& VenvInterp, FFeedbackConte
 
 bool FPipInstall::CheckPipInstallUtils(const FString& VenvInterp, FFeedbackContext* Context)
 {
-	const FString Cmd = TEXT("-c \"import pkg_resources; exit(0 if pkg_resources.working_set.find(pkg_resources.Requirement.parse('ue-pipinstall-utils')) is not None else 1)\"");
+	// Verify that correct version of pip install utils is already available
+	const FString Cmd = FString::Printf(TEXT("-c \"import pkg_resources;dist=pkg_resources.working_set.find(pkg_resources.Requirement.parse('ue-pipinstall-utils'));exit(dist.version!='%s' if dist is not None else 1)\""), *PipInstallUtilsVer);
 	return (RunPythonCmd(LOCTEXT("PipInstall.CheckPipInstallUtils", "Check pip install utils installed"), VenvInterp, Cmd, Context) == 0);
 }
 
@@ -234,11 +282,6 @@ bool FPipInstall::RunLoggedSubprocess(const FText& Description, const FString& U
 	}
 }
 
-
-FString FPipInstall::GetPipInstallPath()
-{
-	return FPaths::ProjectIntermediateDir() / TEXT("PipInstall");
-}
 
 FString FPipInstall::GetPythonScriptPluginPath()
 {

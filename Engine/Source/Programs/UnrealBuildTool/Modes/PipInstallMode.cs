@@ -112,25 +112,10 @@ namespace UnrealBuildTool.Modes
 			UnrealTargetPlatform Platform = TargetDescriptor.Platform;
 
 			PipEnv Pip = new(InstallDir, Platform, Logger, ProgressWriter.bWriteMarkup);
-
-			// Generated from enabled plugins list
-			FileReference PluginsListingFile = FileReference.Combine(InstallDir, "pyreqs_plugins.list");
-			// This is the unparsed merged requirements file
-			FileReference MergedReqsInFile = FileReference.Combine(InstallDir, "merged_requirements.in");
-			// These files are used as input for the pip installer
-			FileReference ExtraUrlsFile = FileReference.Combine(InstallDir, "extra_urls.txt");
-			FileReference MergedRequirementsFile = FileReference.Combine(InstallDir, "merged_requirements.txt");
-			//string[]? PluginsList = null;
-
 			if ((Action & (PipAction)ActionBits.GenReqs) != 0)
 			{
-				if (!DirectoryReference.Exists(InstallDir))
-				{
-					DirectoryReference.CreateDirectory(InstallDir);
-				}
-
-				WritePluginsList(Target, PluginsListingFile, Logger);
-				if (!Pip.WritePluginDependencies(PluginsListingFile, ExtraUrlsFile, MergedReqsInFile))
+				Pip.WritePluginsListing(Target, Logger);
+				if (!Pip.WritePluginDependencies())
 				{
 					return 1;
 				}
@@ -147,7 +132,7 @@ namespace UnrealBuildTool.Modes
 			if ((Action & (PipAction)ActionBits.ParseReqs) != 0)
 			{
 
-				if (!Pip.ParsePluginDependencies(MergedReqsInFile, MergedRequirementsFile))
+				if (!Pip.ParsePluginDependencies())
 				{
 					return 1;
 				}
@@ -155,7 +140,7 @@ namespace UnrealBuildTool.Modes
 
 			if ((Action & (PipAction)ActionBits.InstallReqs) != 0)
 			{
-				if (!Pip.InstallPluginDependencies(MergedRequirementsFile, ExtraUrlsFile))
+				if (!Pip.InstallPluginDependencies())
 				{
 					return 1;
 				}
@@ -163,40 +148,13 @@ namespace UnrealBuildTool.Modes
 
 			if ((Action & (PipAction)ActionBits.ViewLicenses) != 0)
 			{
-				if (!Pip.ViewInstalledLicenses(PluginsListingFile))
+				if (!Pip.ViewInstalledLicenses())
 				{
 					return 1;
 				}
 			}
 
 			return 0;
-		}
-
-		private void WritePluginsList(UEBuildTarget Target, FileReference PluginsListingFile, ILogger Logger)
-		{
-			FileReference.Delete(PluginsListingFile);
-			if (Target.EnabledPlugins == null)
-			{
-				return;
-			}
-
-			List<string> PluginsList = new List<string>();
-			foreach (UEBuildPlugin Plugin in Target.EnabledPlugins)
-			{
-				if (!JsonObject.TryRead(Plugin.File, out JsonObject? PluginJson))
-				{
-					Logger.LogWarning("Unable to parse {PluginFile}", Plugin.File.ToString());
-					continue;
-				}
-
-				foreach (JsonObject PlatformReqs in PipEnv.CompatibleRequirements(PluginJson, Target.Platform))
-				{
-					PluginsList.Add(Plugin.File.ToString());
-					break;
-				}
-			}
-
-			FileReference.WriteAllLines(PluginsListingFile, PluginsList);
 		}
 	}
 
@@ -206,6 +164,20 @@ namespace UnrealBuildTool.Modes
 	/// </summary>
 	class PipEnv
 	{
+		// Don't bother to re-install pip install tools if this version is already installed
+		// NOTE: This version must also be changed in PipInstall.cpp in order to support editor startup process
+		private const string PipInstallUtilsVer = "0.1.3";
+
+		// Generated from enabled plugins list
+		private const string PluginsListingFilename = "pyreqs_plugins.list";
+		// List full-paths to all enabled plugins site-package dirs (general/current platform)
+		private const string PluginsSitePackageFilename = "plugin_site_package.pth";
+		// This is the unparsed merged requirements file
+		private const string MergedReqsInFilename = "merged_requirements.in";
+		// These files are used as input for the pip installer
+		private const string ExtraUrlsFilename = "extra_urls.txt";
+		private const string MergedRequirementsFilename = "merged_requirements.txt";
+
 		private UnrealTargetPlatform TargetPlatform;
 		private DirectoryReference InstallDir;
 		private FileReference PythonVenv;
@@ -221,7 +193,84 @@ namespace UnrealBuildTool.Modes
 
 			LoggerFactory = (UseProgressWriter) ? new PipProgressLogCreator(Logger) : new SimpleCmdLogCreator(Logger);
 
+			if (!DirectoryReference.Exists(InstallDir))
+			{
+				DirectoryReference.CreateDirectory(InstallDir);
+			}
+
 			PythonVenv = GetVenvInterpreter(InstallDir, TargetPlatform);
+		}
+
+		public void WritePluginsListing(UEBuildTarget Target, ILogger Logger)
+		{
+			FileReference PluginsListingFile = FileReference.Combine(InstallDir, PluginsListingFilename);
+
+			DirectoryReference PipSitePackagesPath = DirectoryReference.Combine(InstallDir, "Lib", "site-packages");
+			FileReference PyPluginsSitePackageFile = FileReference.Combine(PipSitePackagesPath, PluginsSitePackageFilename);
+
+			FileReference.Delete(PluginsListingFile);
+			if (Target.EnabledPlugins == null)
+			{
+				return;
+			}
+
+			List<string> PluginsSitePackages = new List<string>();
+			List<string> PluginsList = new List<string>();
+			foreach (UEBuildPlugin Plugin in Target.EnabledPlugins)
+			{
+				DirectoryReference PythonContentPath = DirectoryReference.Combine(Plugin.Directory, "Content", "Python");
+				DirectoryReference PluginPlatformSitePackagesPath = DirectoryReference.Combine(PythonContentPath, "Lib", Target.Platform.ToString(), "site-packages");
+				DirectoryReference PluginGeneralSitePackagesPath = DirectoryReference.Combine(PythonContentPath, "Lib", "site-packages");
+
+				// Write platform/general site-packages paths per-plugin to .pth file to account for packaged python dependencies during pip install
+				if (DirectoryReference.Exists(PluginPlatformSitePackagesPath))
+				{
+					PluginsSitePackages.Add(PluginPlatformSitePackagesPath.ToString());
+				}
+
+				if (DirectoryReference.Exists(PluginGeneralSitePackagesPath))
+				{
+					PluginsSitePackages.Add(PluginPlatformSitePackagesPath.ToString());
+				}
+
+				if (!JsonObject.TryRead(Plugin.File, out JsonObject? PluginJson))
+				{
+					Logger.LogWarning("Unable to parse {PluginFile}", Plugin.File.ToString());
+					continue;
+				}
+
+				foreach (JsonObject PlatformReqs in PipEnv.CompatibleRequirements(PluginJson, Target.Platform))
+				{
+					PluginsList.Add(Plugin.File.ToString());
+					break;
+				}
+			}
+
+			if (!DirectoryReference.Exists(PipSitePackagesPath))
+			{
+				DirectoryReference.CreateDirectory(PipSitePackagesPath);
+			}
+
+			FileReference.WriteAllLines(PluginsListingFile, PluginsList);
+			FileReference.WriteAllLines(PyPluginsSitePackageFile, PluginsSitePackages);
+		}
+
+		public bool WritePluginDependencies()
+		{
+			FileReference PluginsListingFile = FileReference.Combine(InstallDir, PluginsListingFilename);
+			FileReference MergedReqsInFile = FileReference.Combine(InstallDir, MergedReqsInFilename);
+			FileReference ExtraUrlsFile = FileReference.Combine(InstallDir, ExtraUrlsFilename);
+
+			// Make merged requirements input file
+			if (!MergeRequirements(PluginsListingFile, out List<string>? MergedRequirements, out List<string>? ExtraIndexUrls))
+			{
+				return false;
+			}
+
+			FileReference.WriteAllLines(MergedReqsInFile, MergedRequirements!);
+			FileReference.WriteAllLines(ExtraUrlsFile, ExtraIndexUrls!);
+
+			return true;
 		}
 
 		public bool SetupPipEnv(FileReference? EnginePython, bool ForceRebuild = false)
@@ -255,32 +304,22 @@ namespace UnrealBuildTool.Modes
 			}
 		}
 
-		public bool WritePluginDependencies(FileReference PluginsListingFile, FileReference ExtraUrlsFile, FileReference MergedReqsInFile)
+		public bool ParsePluginDependencies()
 		{
-			DirectoryReference WorkDir = DirectoryReference.FromFile(PluginsListingFile);
+			FileReference MergedReqsInFile = FileReference.Combine(InstallDir, MergedReqsInFilename);
+			FileReference MergedRequirmentsFile = FileReference.Combine(InstallDir, MergedRequirementsFilename);
 
-			// Make merged requirements input file
-			if (!MergeRequirements(PluginsListingFile, out List<string>? MergedRequirements, out List<string>? ExtraIndexUrls))
-			{
-				return false;
-			}
-
-			FileReference.WriteAllLines(MergedReqsInFile, MergedRequirements!);
-			FileReference.WriteAllLines(ExtraUrlsFile, ExtraIndexUrls!);
-
-			return true;
-		}
-
-		public bool ParsePluginDependencies(FileReference MergedReqsInFile, FileReference MergedRequirmentsFile, bool NoCheckMerged = false)
-		{
 			using (IBaseCmdProgressLogger CmdLogger = new PythonCmdLogger(Logger))
 			{
 				return (RunPythonVenv($"-m ue_parse_plugin_reqs -vv \"{MergedReqsInFile}\" \"{MergedRequirmentsFile}\"", CmdLogger) == 0);
 			}
 		}
 
-		public bool InstallPluginDependencies(FileReference MergedRequirementsFile, FileReference ExtraUrlsFile, bool OfflineOnly = false, string? ForceIndexUrl = null)
+		public bool InstallPluginDependencies(bool OfflineOnly = false, string? ForceIndexUrl = null)
 		{
+			FileReference MergedRequirementsFile = FileReference.Combine(InstallDir, MergedRequirementsFilename);
+			FileReference ExtraUrlsFile = FileReference.Combine(InstallDir, ExtraUrlsFilename);
+
 			if (!FileReference.Exists(MergedRequirementsFile))
 			{
 				return true;
@@ -297,7 +336,7 @@ namespace UnrealBuildTool.Modes
 			return PipInstall(MergedRequirementsFile, ExtraUrls, OfflineOnly, ForceIndexUrl);
 		}
 
-		public bool ViewInstalledLicenses(FileReference PluginsListingFile)
+		public bool ViewInstalledLicenses()
 		{
 			// TODO: Check that install is up to date and reverse-map package to plugin requirements
 			//DirectoryReference WorkDir = DirectoryReference.FromFile(PluginsListingFile);
@@ -430,8 +469,21 @@ namespace UnrealBuildTool.Modes
 			return true;
 		}
 
+		public bool CheckPipInstallUtils()
+		{
+			// Verify that correct version of pip install utils is already available
+			string Args = $"-c \"import pkg_resources;dist=pkg_resources.working_set.find(pkg_resources.Requirement.parse('ue-pipinstall-utils'));exit(dist.version!='{PipInstallUtilsVer}' if dist is not None else 1)\"";
+			using IBaseCmdProgressLogger CmdLogger = new PythonCmdLogger(Logger);
+			return (RunPythonVenv(Args, CmdLogger) == 0);
+		}
+
 		private bool SetupPipInstallUtils(IBaseCmdProgressLogger StatusLogger)
 		{
+			if (CheckPipInstallUtils())
+			{
+				return true;
+			}
+
 			Logger.LogInformation("PipInstall: Updating UE PipInstall Utilities");
 			FileReference? PythonScriptPlugin = GetPythonScriptPlugin();
 			if (PythonScriptPlugin == null)
@@ -443,7 +495,7 @@ namespace UnrealBuildTool.Modes
 			DirectoryReference PipInstallUtilsDir = DirectoryReference.Combine(PythonScriptDir, "Content", "Python", "PipInstallUtils");
 			DirectoryReference PipWheelsDir = DirectoryReference.Combine(PythonScriptDir, "Content", "Python", "Lib", "wheels");
 			FileReference RequirementsFile = FileReference.Combine(PipInstallUtilsDir, "requirements.txt");
-			string Args = $"-m pip install --upgrade --no-index --find-links \"{PipWheelsDir}\" -r \"{RequirementsFile}\" ue-pipinstall-utils";
+			string Args = $"-m pip install --upgrade --no-index --find-links \"{PipWheelsDir}\" -r \"{RequirementsFile}\" ue-pipinstall-utils=={PipInstallUtilsVer}";
 			int Result = RunPythonVenv(Args, StatusLogger);
 			return (Result == 0);
 		}
@@ -750,7 +802,9 @@ namespace UnrealBuildTool.Modes
 		private int StepsDone;
 		private int TotalSteps;
 
+		// Start strings to use 
 		private static readonly string[] MatchStrs = { "Requirement", "Downloading", "Using", "Installing" };
+		private readonly Dictionary<string,string> LogReplaceStrs = new();
 
 		public PipProgressLogger(ILogger InLogger, string message, int GuessSteps)
 		{
@@ -759,19 +813,34 @@ namespace UnrealBuildTool.Modes
 			TotalSteps = Math.Max(GuessSteps, 1);
 
 			Writer = new ProgressWriter(message, true, Logger);
+
+			LogReplaceStrs["Installing collected packages:"] = "Installing collected python package dependencies:";
 		}
 
 		static bool CheckUpdateStr(string CheckStr)
 		{
 			foreach (string ProgressMatch in MatchStrs)
 			{
-				if (CheckStr.StartsWith(ProgressMatch, StringComparison.Ordinal))
+				if (CheckStr.StartsWith(ProgressMatch, StringComparison.InvariantCultureIgnoreCase))
 				{
 					return true;
 				}
 			}
 
 			return false;
+		}
+
+		string ReplaceMatchStr(string CheckStr)
+		{
+			foreach(KeyValuePair<string,string> ChkPair in LogReplaceStrs)
+			{
+				if (CheckStr.Contains(ChkPair.Key))
+				{
+					return CheckStr.Replace(ChkPair.Key, ChkPair.Value);
+				}
+			}
+
+			return CheckStr;
 		}
 
 		public void OutputData(DataReceivedEventArgs DataLine)
@@ -784,6 +853,8 @@ namespace UnrealBuildTool.Modes
 			bool ShouldUpdate = CheckUpdateStr(CheckStr);
 			if (ShouldUpdate)
 			{
+				CheckStr = ReplaceMatchStr(CheckStr);
+
 				Writer = new ProgressWriter(CheckStr, true, Logger);
 				Writer.Write(StepsDone, TotalSteps);
 
@@ -792,7 +863,7 @@ namespace UnrealBuildTool.Modes
 			}
 			else
 			{
-				Logger.LogInformation("{Data}", DataLine.Data);
+				Logger.LogInformation("{CheckStr}", CheckStr);
 			}
 		}
 

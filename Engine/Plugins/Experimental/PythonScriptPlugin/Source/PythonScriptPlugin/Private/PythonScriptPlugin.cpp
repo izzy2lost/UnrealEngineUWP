@@ -1187,7 +1187,7 @@ void FPythonScriptPlugin::RunPipInstaller()
 	const FString ParsedReqsFile = FPaths::ConvertRelativePathToFull(FPipInstall::GetPipInstallPath() / FPipInstall::ParsedRequirementsFilename);
 
 	TArray<FString> ParsedReqLines;
-	if (!FPaths::FileExists(ParsedReqsFile) || !FFileHelper::LoadFileToStringArray(ParsedReqLines, *ParsedReqsFile) || ParsedReqLines.IsEmpty())
+	if (!FPaths::FileExists(ParsedReqsFile) || !FFileHelper::LoadFileToStringArray(ParsedReqLines, *ParsedReqsFile) || !FPipInstall::HasInstallLines(ParsedReqLines))
 	{
 		return;
 	}

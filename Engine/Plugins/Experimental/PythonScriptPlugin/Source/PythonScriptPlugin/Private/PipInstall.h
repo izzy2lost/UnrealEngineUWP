@@ -14,7 +14,9 @@ class FFeedbackContext;
 class FPipInstall
 {
 public:
+	static const FString PipInstallUtilsVer;
 	static const FString PluginsListingFilename;
+	static const FString PluginsSitePackageFilename;
 	static const FString RequirementsInputFilename;
 	static const FString ExtraUrlsFilename;
 	static const FString ParsedRequirementsFilename;
@@ -24,6 +26,8 @@ public:
 
 	static void SetupPipEnv(FFeedbackContext* Context, bool bForceRebuild = false);
 	static FString ParsePluginDependencies(const FString& MergedInRequirementsFile, FFeedbackContext* Context);
+
+	static bool HasInstallLines(const TArray<FString>& RequirementLines);
 
 	static FString GetPipInstallPath();
 
