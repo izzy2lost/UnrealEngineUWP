@@ -1499,6 +1499,7 @@ void FReplicationReader::DispatchStateData(FNetSerializationContext& Context)
 			// If we have pending unresolved changes we include them as well 
 			FNetBitArrayView UnresolvedChangeMask = FChangeMaskUtil::MakeChangeMask(ReplicationInfo->UnresolvedChangeMaskOrPointer, ChangeMaskBitCount);
 
+			FChangeMaskStorageOrPointer ChangeMaskForResolveAllocation;
 			FNetBitArrayView ChangeMaskForResolve;
 			const bool bHadUnresolvedReferences = ReplicationInfo->bHasUnresolvedReferences;
 			if (bHadUnresolvedReferences)
@@ -1512,7 +1513,6 @@ void FReplicationReader::DispatchStateData(FNetSerializationContext& Context)
 				else
 				{
 					// Memory for the changemask allocation will be freed when the TempLinearAllocator is reset via FMemMark scope. TempChangeMaskAllocator uses TempLinearAllocator.
-					FChangeMaskStorageOrPointer ChangeMaskForResolveAllocation;
 					ChangeMaskForResolveAllocation.Alloc(ChangeMaskForResolveAllocation, ChangeMaskBitCount, TempChangeMaskAllocator);
 					ChangeMaskForResolve = MakeNetBitArrayView(ChangeMaskForResolveAllocation.GetPointer(ChangeMaskBitCount), ChangeMaskBitCount, FNetBitArrayView::NoResetNoValidate);
 					ChangeMaskForResolve.Set(ChangeMask, FNetBitArrayView::OrOp, UnresolvedChangeMask);
