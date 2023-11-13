@@ -241,7 +241,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 	
 	bool RegisterElementWiseUnaryOperators(FOperatorRegistryHlsl& Registry)
 	{
-#define OP(Name) Registry.OpAdd(TEXT(#Name), CreateElementWiseUnaryOperator<NNE::Internal::EElementWiseUnaryOperatorType::Name>, ValidateElementWiseUnaryOperator<NNE::Internal::EElementWiseUnaryOperatorType::Name>)
+#define OP(Name) Registry.OpAdd({{TEXT(#Name), TEXT("Onnx")}}, CreateElementWiseUnaryOperator<NNE::Internal::EElementWiseUnaryOperatorType::Name>, ValidateElementWiseUnaryOperator<NNE::Internal::EElementWiseUnaryOperatorType::Name>)
 		OP(Abs);
 		OP(Acos);
 		OP(Acosh);

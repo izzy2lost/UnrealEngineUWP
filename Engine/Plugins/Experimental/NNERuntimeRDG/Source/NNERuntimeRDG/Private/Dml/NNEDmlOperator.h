@@ -15,7 +15,7 @@ struct FDmlOperator##OpName##Registrator \
 { \
 	FDmlOperator##OpName##Registrator() \
 	{ \
-		FOperatorRegistryDml::Get()->OpAdd(TEXT(#OpName), FOperatorDml##OpName##::Create, FOperatorDml##OpName##::Validate); \
+		FOperatorRegistryDml::Get()->OpAdd({{TEXT(#OpName), TEXT("Onnx")}}, FOperatorDml##OpName##::Create, FOperatorDml##OpName##::Validate); \
 	} \
 }; \
 \

@@ -174,7 +174,7 @@ public:
 		return true;
 	}
 
-	virtual FHOperator AddOperator(const FString& TypeName, const FString& Name) override
+	virtual FHOperator AddOperator(const FString& TypeName, const FString& Domain, TOptional<uint32> Version, const FString& Name) override
 	{
 		FTCHARToUTF8 Convert(*TypeName);
 
@@ -406,7 +406,7 @@ bool CreateONNXModelForOperator(const FString& OperatorName, bool bUseVariadicSh
 		WeightTensors.Emplace(Tensor);
 	}
 
-	IModelBuilder::FHOperator Op = Builder->AddOperator(OperatorName);
+	IModelBuilder::FHOperator Op = Builder->AddOperator(OperatorName, OnnxDomainName, (uint32) OpsetVersion);
 
 	for (int32 Idx = 0; Idx < InputTensors.Num(); ++Idx)
 	{

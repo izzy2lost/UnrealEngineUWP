@@ -172,7 +172,7 @@ public:
 	}
 
 	/** Add operator */
-	virtual HOperator AddOperator(const FString& TypeName, const FString& Name) override
+	virtual HOperator AddOperator(const FString& TypeName, const FString& Domain, TOptional<uint32> Version, const FString& Name) override
 	{
 		FTCHARToUTF8 Convert(*TypeName);
 
@@ -426,7 +426,7 @@ NNEUTILS_API bool CreateONNXModelForOperator(bool UseVariadicShapeForModel, cons
 		WeightTensors.Emplace(Tensor);
 	}
 
-	auto Op = Builder->AddOperator(OperatorName);
+	auto Op = Builder->AddOperator(OperatorName, OnnxDomainName, (uint32) OpsetVersion);
 
 	for (int32 Idx = 0; Idx < InputTensors.Num(); ++Idx)
 	{
@@ -545,7 +545,7 @@ NNEUTILS_API bool CreateONNXModelForOperator(bool UseVariadicShapeForModel, cons
 		WeightTensors.Emplace(Tensor);
 	}
 
-	auto Op = Builder->AddOperator(OperatorName);
+	auto Op = Builder->AddOperator(OperatorName, OnnxDomainName, (uint32) OpsetVersion);
 
 	for (int32 Idx = 0; Idx < InputTensors.Num(); ++Idx)
 	{

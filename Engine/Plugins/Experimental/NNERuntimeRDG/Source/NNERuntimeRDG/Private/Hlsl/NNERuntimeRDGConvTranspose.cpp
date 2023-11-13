@@ -205,7 +205,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 	bool RegisterConvTransposeOperator(FOperatorRegistryHlsl& Registry)
 	{
-		Registry.OpAdd(TEXT("ConvTranspose"), FConvTranspose::Create, ValidateConvTransposeOperator);
+		Registry.OpAdd({{TEXT("ConvTranspose"), TEXT("Onnx")}}, FConvTranspose::Create, ValidateConvTransposeOperator);
 
 		return true;
 	}

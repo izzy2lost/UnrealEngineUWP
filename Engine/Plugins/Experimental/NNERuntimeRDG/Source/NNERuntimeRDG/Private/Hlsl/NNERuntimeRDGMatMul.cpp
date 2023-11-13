@@ -162,7 +162,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 	bool RegisterMatMulOperator(FOperatorRegistryHlsl& Registry)
 	{
-		Registry.OpAdd(TEXT("MatMul"), CreateMatMulOperator, ValidateMatMulOperator);
+		Registry.OpAdd({{TEXT("MatMul"), TEXT("Onnx")}}, CreateMatMulOperator, ValidateMatMulOperator);
 		return true;
 	}
 } // UE::NNERuntimeRDG::Private::Hlsl

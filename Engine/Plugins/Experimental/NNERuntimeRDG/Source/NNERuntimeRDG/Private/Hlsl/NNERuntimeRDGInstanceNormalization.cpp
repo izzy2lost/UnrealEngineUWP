@@ -172,7 +172,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 	bool RegisterInstanceNormalizationOperator(FOperatorRegistryHlsl& Registry)
 	{
-		Registry.OpAdd(TEXT("InstanceNormalization"), CreateInstanceNormalizationOperator, ValidateInstanceNormalizationOperator);
+		Registry.OpAdd({{TEXT("InstanceNormalization"), TEXT("Onnx")}}, CreateInstanceNormalizationOperator, ValidateInstanceNormalizationOperator);
 		return true;
 	}
 } // UE::NNERuntimeRDG::Private::Hlsl

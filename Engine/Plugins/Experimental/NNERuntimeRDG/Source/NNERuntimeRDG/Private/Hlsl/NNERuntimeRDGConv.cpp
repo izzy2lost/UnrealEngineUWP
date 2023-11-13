@@ -324,7 +324,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 	bool RegisterConvOperator(FOperatorRegistryHlsl& Registry)
 	{
-		Registry.OpAdd(TEXT("Conv"), FConv::Create, ValidateConvOperator);
+		Registry.OpAdd({{TEXT("Conv"), TEXT("Onnx")}}, FConv::Create, ValidateConvOperator);
 
 		return true;
 	}

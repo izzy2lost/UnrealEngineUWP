@@ -86,7 +86,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 	bool RegisterSizeOperator(FOperatorRegistryHlsl& Registry)
 	{
-		Registry.OpAdd(TEXT("Size"), CreateSizeOperator, ValidateSizeOperator);
+		Registry.OpAdd({{TEXT("Size"), TEXT("Onnx")}}, CreateSizeOperator, ValidateSizeOperator);
 		return true;
 	}
 } // UE::NNERuntimeRDG::Private::Hlsl
