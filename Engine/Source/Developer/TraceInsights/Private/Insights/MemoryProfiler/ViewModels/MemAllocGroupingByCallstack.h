@@ -81,6 +81,9 @@ public:
 	bool IsGroupingByFunction() const { return bIsGroupingByFunction; }
 	void SetGroupingByFunction(bool bOnOff) { bIsGroupingByFunction = bOnOff; }
 
+	bool ShouldSkipFilteredFrames() const { return bShouldSkipFilteredFrames; }
+	void SetSkipFilteredFrames(bool bOnOff) { bShouldSkipFilteredFrames = bOnOff; }
+
 private:
 	FName GetGroupName(const TraceServices::FStackFrame* Frame) const;
 
@@ -92,7 +95,8 @@ private:
 private:
 	bool bIsAllocCallstack;
 	bool bIsInverted;
-	bool bIsGroupingByFunction;
+	std::atomic<bool> bIsGroupingByFunction;
+	std::atomic<bool> bShouldSkipFilteredFrames;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

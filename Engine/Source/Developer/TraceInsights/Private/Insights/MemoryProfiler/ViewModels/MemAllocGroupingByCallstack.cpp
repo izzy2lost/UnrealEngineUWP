@@ -73,6 +73,7 @@ FMemAllocGroupingByCallstack::FMemAllocGroupingByCallstack(bool bInIsAllocCallst
 	, bIsAllocCallstack(bInIsAllocCallstack)
 	, bIsInverted(bInIsInverted)
 	, bIsGroupingByFunction(bInIsGroupingByFunction)
+	, bShouldSkipFilteredFrames(bIsInverted)
 {
 }
 
@@ -86,6 +87,9 @@ FMemAllocGroupingByCallstack::~FMemAllocGroupingByCallstack()
 
 void FMemAllocGroupingByCallstack::GroupNodes(const TArray<FTableTreeNodePtr>& Nodes, FTableTreeNode& ParentGroup, TWeakPtr<FTable> InParentTable, IAsyncOperationProgress& InAsyncOperationProgress) const
 {
+	const bool bLocalIsGroupingByFunction = bIsGroupingByFunction;
+	const bool bLocalShouldSkipFilteredFrames = bShouldSkipFilteredFrames;
+
 	ParentGroup.ClearChildren();
 
 	TArray<FCallstackGroup*> CallstackGroups;
@@ -135,14 +139,14 @@ void FMemAllocGroupingByCallstack::GroupNodes(const TArray<FTableTreeNodePtr>& N
 					const TraceServices::FStackFrame* Frame = Callstack->Frame(static_cast<uint8>(bIsInverted ? NumFrames - FrameDepth - 1 : FrameDepth));
 					check(Frame != nullptr);
 
-					if (bIsGroupingByFunction)
+					if (bLocalShouldSkipFilteredFrames &&
+						Frame->Symbol->FilterStatus.load() == TraceServices::EResolvedSymbolFilterStatus::Filtered)
 					{
-						// Skip noise for inverted callstack
-						if (bIsInverted && Frame->Symbol->FilterStatus.load() == TraceServices::EResolvedSymbolFilterStatus::Filtered)
-						{
-							continue;
-						}
+						continue;
+					}
 
+					if (bLocalIsGroupingByFunction)
+					{
 						const FName GroupName = GetGroupName(Frame);
 
 						// Merge with parent group, if it has the same name (i.e. same function).

@@ -3795,7 +3795,14 @@ void STableTreeView::UpdateBannerText()
 	}
 	else if (Root->GetFilteredChildrenCount() == 0)
 	{
-		TreeViewBannerText = LOCTEXT("HierarchyFilteringZeroResults", "No tree node is matching the current text search.");
+		if (TextFilter->GetRawFilterText().IsEmpty())
+		{
+			TreeViewBannerText = LOCTEXT("TreeViewIsUpdating", "Tree view is updating. Please wait.");
+		}
+		else
+		{
+			TreeViewBannerText = LOCTEXT("HierarchyFilteringZeroResults", "No tree node is matching the current text search.");
+		}
 	}
 }
 
