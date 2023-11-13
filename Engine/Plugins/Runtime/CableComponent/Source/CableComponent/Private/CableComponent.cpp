@@ -12,6 +12,7 @@
 #include "CableComponentStats.h"
 #include "DynamicMeshBuilder.h"
 #include "StaticMeshResources.h"
+#include "RayTracingInstance.h"
 #include "SceneInterface.h"
 
 DEFINE_RENDER_COMMAND_PIPE(Cable, ERenderCommandPipeFlags::None);

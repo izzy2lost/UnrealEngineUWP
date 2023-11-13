@@ -7,16 +7,16 @@
 #include "PrimitiveUniformShaderParameters.h"
 #include "PrimitiveViewRelevance.h"
 
-#if RHI_RAYTRACING
-#include "RayTracingInstance.h"
-#endif
-
 class FNiagaraSystemInstance;
 class FNiagaraSystemRenderData;
 class FMeshElementCollector;
 struct FNiagaraDynamicDataBase;
 class FNiagaraSceneProxy;
 class FSceneView;
+
+#if RHI_RAYTRACING
+struct FRayTracingInstance;
+#endif
 
 /**
  * This class wraps all data and functionality needed by a scene render proxy to render a single Niagara System Instance.
