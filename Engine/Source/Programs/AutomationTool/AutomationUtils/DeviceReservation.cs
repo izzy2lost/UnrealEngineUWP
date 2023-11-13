@@ -38,6 +38,9 @@ namespace AutomationTool.DeviceReservation
 		private Reservation ActiveReservation;
 		private List<Device> ReservedDevices;
 
+		// Whether the reservation requires an installation
+		public bool? InstallRequired => ActiveReservation?.InstallRequired;
+
 		public IReadOnlyList<Device> Devices
 		{
 			get
@@ -244,6 +247,7 @@ namespace AutomationTool.DeviceReservation
 		public TimeSpan Duration { get; set; }
 		public Guid Guid { get; set; }
 		public static string ReservationDetails = "";
+		public bool? InstallRequired { get; set; } = null;
 
 		private sealed class CreateReservationData
 		{

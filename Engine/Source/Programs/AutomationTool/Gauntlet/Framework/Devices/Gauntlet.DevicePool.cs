@@ -51,7 +51,7 @@ namespace Gauntlet
 
 		public string Available { get; set; }
 
-		public bool RemoveOnShutdown { get; set; }
+		public bool RemoveOnShutdown { get; set; }		
 
 		public override string ToString()
 		{
@@ -965,6 +965,22 @@ namespace Gauntlet
 					return false;
 				}
 
+				if (DeviceReservation.InstallRequired == true)
+				{
+					UnrealAppConfig.ForceSkipInstall = false;
+					UnrealAppConfig.ForceFullClean = true;
+				}
+				else if (DeviceReservation.InstallRequired == false)
+				{
+					UnrealAppConfig.ForceSkipInstall = true;
+					UnrealAppConfig.ForceFullClean = false;
+				}
+				else
+				{
+					UnrealAppConfig.ForceSkipInstall = null;
+					UnrealAppConfig.ForceFullClean = null;
+				}
+
 				// Add target devices from reservation
 				List<ITargetDevice> ReservedDevices = new List<ITargetDevice>();
 				foreach (var Device in DeviceReservation.Devices)
@@ -974,7 +990,7 @@ namespace Gauntlet
 					Def.Name = Device.Name;
 					Def.Platform = DeviceMap.FirstOrDefault(Entry => Entry.Value == Device.Type.Replace("-DevKit", "", StringComparison.OrdinalIgnoreCase)).Key;
 					Def.DeviceData = Device.DeviceData;
-					Def.Model = Device.Model;
+					Def.Model = Device.Model;					
 
 					EPerfSpec Out = EPerfSpec.Unspecified;
 					if (!String.IsNullOrEmpty(Device.PerfSpec) && !Enum.TryParse<EPerfSpec>(Device.PerfSpec, true, out Out))

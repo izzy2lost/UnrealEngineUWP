@@ -108,8 +108,22 @@ namespace Gauntlet
 		public IBuild Build { get; set; }
 
 		// Prevents installing a build on device
+		public bool SkipInstall => ForceSkipInstall.HasValue ? ForceSkipInstall.Value : _SkipInstall;
+
+		// Performs a full clean on the device before installing
+		public bool FullClean => ForceFullClean.HasValue ? ForceFullClean.Value : _FullClean;
+
+		// Force a full clean
+		public static bool? ForceFullClean = null;
+
+		// Force a skip install
+		public static bool? ForceSkipInstall = null;
+		
 		[AutoParamWithNames(false, "SkipInstall", "SkipDeploy", "SkipCopy")]
-		public bool SkipInstall { get; set; }
+		private bool _SkipInstall { get; set; }
+		
+		[AutoParamWithNames(false, "FullClean")]
+		private bool _FullClean { get; set; }
 
 		/// <summary>
 		/// Constructor that sets some required values to defaults
