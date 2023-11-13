@@ -266,7 +266,7 @@ public sealed class AgentRelayService : RelayRpc.RelayRpcBase, IHostedService
 		return entries.Select(x => RelayAgentInfo.Parser.ParseFrom(x.Value)).ToList();
 	}
 
-	private async Task OnAgentHeartbeatAsync(string clusterId, string agentRelayId, IEnumerable<string> ipAddresses)
+	internal async Task UpdateAgentHeartbeatAsync(string clusterId, string agentRelayId, IEnumerable<string> ipAddresses)
 	{
 		RelayAgentInfo info = new() { AgentId = agentRelayId, LastUpdate = Timestamp.FromDateTime(_clock.UtcNow) };
 		info.IpAddresses.AddRange(ipAddresses);
@@ -346,7 +346,7 @@ public sealed class AgentRelayService : RelayRpc.RelayRpcBase, IHostedService
 		
 		try
 		{
-			await OnAgentHeartbeatAsync(request.ClusterId, request.AgentId, request.IpAddresses);
+			await UpdateAgentHeartbeatAsync(request.ClusterId, request.AgentId, request.IpAddresses);
 			Task<List<PortMapping>> mappingUpdatedTask = _onPortMappingUpdated.Task;
 			Task result = await Task.WhenAny(mappingUpdatedTask, Task.Delay(_longPollTimeout, context.CancellationToken));
 			if (result == mappingUpdatedTask)

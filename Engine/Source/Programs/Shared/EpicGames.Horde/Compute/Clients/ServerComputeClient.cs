@@ -222,7 +222,7 @@ namespace EpicGames.Horde.Compute.Clients
 			AssignComputeRequest request = new AssignComputeRequest();
 			request.Requirements = requirements;
 			request.RequestId = requestId;
-			request.ConnectionPreference = connectionPreference;
+			request.Connection = new ConnectionMetadataRequest() { ModePreference = connectionPreference };
 
 			AssignComputeResponse? responseMessage;
 			using (HttpResponseMessage response = await HordeHttpClient.PostAsync(client, $"api/v2/compute/{clusterId}", request, _cancellationSource.Token))

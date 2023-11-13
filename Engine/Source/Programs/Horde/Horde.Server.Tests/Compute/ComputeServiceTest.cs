@@ -21,38 +21,7 @@ namespace Horde.Server.Tests.Compute
 	[TestClass]
 	public class ComputeServiceTest : TestSetup
 	{
-		private static void AssertContainsMeasurement(List<Measurement<int>> actualMeasurements, int expectedValue, string expectedResource, string expectedClusterId, string expectedPool)
-		{
-			Dictionary<string, string> expectedTags = new()
-			{
-				{ "resource", expectedResource },
-				{ "cluster", expectedClusterId },
-				{ "pool", expectedPool }
-			};
-			
-			foreach (Measurement<int> measurement in actualMeasurements)
-			{
-				Dictionary<string, string> actualTags = measurement.Tags.ToArray().ToDictionary(
-					kvp => kvp.Key,
-					kvp => (string)kvp.Value!);
-				
-				bool areTagsEqual = actualTags.Count == expectedTags.Count && 
-					actualTags.OrderBy(kvp => kvp.Key)
-					.SequenceEqual(expectedTags.OrderBy(kvp => kvp.Key));
-				
-				if (areTagsEqual && expectedValue == measurement.Value)
-				{
-					return;
-				}
-			}
-
-			Console.WriteLine("Actual:");
-			foreach (Measurement<int> m in actualMeasurements)
-			{
-				Console.WriteLine($"Measurement(value={m.Value} tags={String.Join(',', m.Tags.ToArray())}");
-			}
-			Assert.Fail("Unable to find measurement");
-		}
+		private readonly ClusterId _cluster1 = new ("cluster1");
 		
 		[TestMethod]
 		public async Task ResourceNeedsMetricAsync()
@@ -221,20 +190,21 @@ namespace Horde.Server.Tests.Compute
 			IAgent agent2 = await CreateAgentAsync(new PoolId("bar-default"), properties: props);
 			IAgent agent3 = await CreateAgentAsync(new PoolId("bar-myNetworkId"), properties: props);
 			IAgent agent4 = await CreateAgentAsync(new PoolId("qux-myComputeId"), properties: props);
+			ClusterId clusterId = new ("default");
 
-			AllocateResourceParams arp1 = new(new Requirements { Pool = "foo" }) { RequestId = "req1", RequesterIp = ip, ParentLeaseId = null };
+			AllocateResourceParams arp1 = new(clusterId, new Requirements { Pool = "foo" }) { RequestId = "req1", RequesterIp = ip, ParentLeaseId = null };
 			ComputeResource? resource1 = await ComputeService.TryAllocateResourceAsync(arp1, CancellationToken.None);
 			Assert.AreEqual(agent1.Id, resource1!.AgentId);
 			
-			AllocateResourceParams arp2 = new(new Requirements { Pool = "bar-%REQUESTER_NETWORK_ID%" }) { RequestId = "req2", RequesterIp = IPAddress.Parse("15.0.0.1"), ParentLeaseId = null };
+			AllocateResourceParams arp2 = new(clusterId, new Requirements { Pool = "bar-%REQUESTER_NETWORK_ID%" }) { RequestId = "req2", RequesterIp = IPAddress.Parse("15.0.0.1"), ParentLeaseId = null };
 			ComputeResource? resource2 = await ComputeService.TryAllocateResourceAsync(arp2, CancellationToken.None);
 			Assert.AreEqual(agent2.Id, resource2!.AgentId);
 			
-			AllocateResourceParams arp3 = new(new Requirements { Pool = "bar-%REQUESTER_NETWORK_ID%" }) { RequestId = "req3", RequesterIp = ip, ParentLeaseId = null };
+			AllocateResourceParams arp3 = new(clusterId, new Requirements { Pool = "bar-%REQUESTER_NETWORK_ID%" }) { RequestId = "req3", RequesterIp = ip, ParentLeaseId = null };
 			ComputeResource? resource3 = await ComputeService.TryAllocateResourceAsync(arp3, CancellationToken.None);
 			Assert.AreEqual(agent3.Id, resource3!.AgentId);
 			
-			AllocateResourceParams arp4 = new(new Requirements { Pool = "qux-%REQUESTER_COMPUTE_ID%" }) { RequestId = "req4", RequesterIp = ip, ParentLeaseId = null };
+			AllocateResourceParams arp4 = new(clusterId, new Requirements { Pool = "qux-%REQUESTER_COMPUTE_ID%" }) { RequestId = "req4", RequesterIp = ip, ParentLeaseId = null };
 			ComputeResource? resource4 = await ComputeService.TryAllocateResourceAsync(arp4, CancellationToken.None);
 			Assert.AreEqual(agent4.Id, resource4!.AgentId);
 		}
@@ -244,37 +214,113 @@ namespace Horde.Server.Tests.Compute
 		{
 			Requirements requirements = new () { Pool = "foo" };
 			ServerSettings ss = new();
-			await using ComputeService cs = new (AgentCollection, LogFileService, AgentService, GetRedisServiceSingleton(),
+			await using ComputeService cs = new (AgentCollection, LogFileService, AgentService, AgentRelayService, GetRedisServiceSingleton(),
 				new TestOptionsMonitor<ServerSettings>(ss), GlobalConfig, Clock, Tracer, Meter,
 				NullLogger<ComputeService>.Instance);
 			List<string> props = new() { "ComputeIp=11.0.0.1", "ComputePort=5000" };
 			await CreateAgentAsync(new PoolId("foo"), properties: props);
+			ClusterId clusterId = new ("default");
 
 			// Defaults to direct if nothing is set
-			ComputeResource? resource1 = await cs.TryAllocateResourceAsync(new AllocateResourceParams(requirements), CancellationToken.None);
+			ComputeResource? resource1 = await cs.TryAllocateResourceAsync(new AllocateResourceParams(clusterId, requirements), CancellationToken.None);
 			Assert.AreEqual(ConnectionMode.Direct, resource1!.ConnectionMode);
 			Assert.AreEqual(null, resource1!.ConnectionAddress);
 			
 			// Direct is set
-			ComputeResource? resource2 = await cs.TryAllocateResourceAsync(new AllocateResourceParams(requirements) { ConnectionPreference = ConnectionMode.Direct}, CancellationToken.None);
+			ComputeResource? resource2 = await cs.TryAllocateResourceAsync(new AllocateResourceParams(clusterId, requirements) { ConnectionMode = ConnectionMode.Direct}, CancellationToken.None);
 			Assert.AreEqual(ConnectionMode.Direct, resource2!.ConnectionMode);
 			Assert.AreEqual(null, resource2!.ConnectionAddress);
 
-			// Tunnel without compute tunnel address set results in direct
-			ComputeResource? resource3 = await cs.TryAllocateResourceAsync(new AllocateResourceParams(requirements) { ConnectionPreference = ConnectionMode.Tunnel}, CancellationToken.None);
-			Assert.AreEqual(ConnectionMode.Direct, resource3!.ConnectionMode);
-			Assert.AreEqual(null, resource3!.ConnectionAddress);
+			// Tunnel without compute tunnel address set results in exception
+			await Assert.ThrowsExceptionAsync<Exception>(() => cs.TryAllocateResourceAsync(new AllocateResourceParams(clusterId, requirements) { ConnectionMode = ConnectionMode.Tunnel }, CancellationToken.None));
 			
 			// Tunnel mode
 			ss.ComputeTunnelAddress = "localhost:1122";
-			ComputeResource? resource4 = await cs.TryAllocateResourceAsync(new AllocateResourceParams(requirements) { ConnectionPreference = ConnectionMode.Tunnel}, CancellationToken.None);
+			ComputeResource? resource4 = await cs.TryAllocateResourceAsync(new AllocateResourceParams(clusterId, requirements) { ConnectionMode = ConnectionMode.Tunnel}, CancellationToken.None);
 			Assert.AreEqual(ConnectionMode.Tunnel, resource4!.ConnectionMode);
 			Assert.AreEqual(ss.ComputeTunnelAddress, resource4!.ConnectionAddress);
+		}
+		
+		[TestMethod]
+		public async Task Connection_Relay_PortsAreMapped_Async()
+		{
+			ComputeResource? cr = await AllocateAsync(ConnectionMode.Relay, ports: new Dictionary<string, int> { {"myOtherPort", 13000}, {"myPort", 12000} });
+			Assert.AreEqual(ConnectionMode.Relay, cr!.ConnectionMode);
+			Assert.AreEqual(3, cr.Ports.Count);
+			Assert.AreEqual(new ComputeResourcePort(2000, 5000), cr.Ports[ConnectionMetadataPort.ComputeId]);
+			Assert.AreEqual(new ComputeResourcePort(2002, 12000), cr.Ports["myPort"]);
+			Assert.AreEqual(new ComputeResourcePort(2004, 13000), cr.Ports["myOtherPort"]);
+		}
+		
+		[TestMethod]
+		public async Task Connection_Relay_AgentIpWithConnectionAddress_Async()
+		{
+			ComputeResource? cr = await AllocateAsync(ConnectionMode.Relay);
+			Assert.AreEqual(ConnectionMode.Relay, cr!.ConnectionMode);
+			Assert.AreEqual("11.0.0.1", cr.Ip.ToString());
+			Assert.AreEqual("192.168.1.1", cr.ConnectionAddress);
+		}
+
+		private async Task<ComputeService> CreateComputeServiceAsync()
+		{
+			ServerSettings ss = new();
+			ComputeService cs = new (AgentCollection, LogFileService, AgentService, AgentRelayService, GetRedisServiceSingleton(),
+				new TestOptionsMonitor<ServerSettings>(ss), GlobalConfig, Clock, Tracer, Meter,
+				NullLogger<ComputeService>.Instance);
+			List<string> props = new() { "ComputeIp=11.0.0.1", "ComputePort=5000" };
+			await CreateAgentAsync(new PoolId("foo"), properties: props);
+			return cs;
+		}
+		
+		private async Task<ComputeResource?> AllocateAsync(
+			ConnectionMode connectionMode,
+			Dictionary<string, int>? ports = null,
+			bool usePublicIp = false,
+			string[]? relayIps = null)
+		{
+			await using ComputeService cs = await CreateComputeServiceAsync();
+			AllocateResourceParams arp = new (_cluster1, new Requirements())
+			{
+				ConnectionMode = connectionMode,
+				Ports = ports ?? new Dictionary<string, int>(),
+				UsePublicIp = usePublicIp
+			};
+			string[] defaultRelayIps = { "192.168.1.1" };
+			await AgentRelayService.UpdateAgentHeartbeatAsync(_cluster1.ToString(), "myrelay", relayIps ?? defaultRelayIps);
+			return await cs.TryAllocateResourceAsync(arp, CancellationToken.None);
+		}
+		
+		private static void AssertContainsMeasurement(List<Measurement<int>> actualMeasurements, int expectedValue, string expectedResource, string expectedClusterId, string expectedPool)
+		{
+			Dictionary<string, string> expectedTags = new()
+			{
+				{ "resource", expectedResource },
+				{ "cluster", expectedClusterId },
+				{ "pool", expectedPool }
+			};
 			
-			// Relay results in direct mode as it's not implemented yet
-			ComputeResource? resource5 = await cs.TryAllocateResourceAsync(new AllocateResourceParams(requirements) { ConnectionPreference = ConnectionMode.Relay}, CancellationToken.None);
-			Assert.AreEqual(ConnectionMode.Direct, resource5!.ConnectionMode);
-			Assert.AreEqual(null, resource5!.ConnectionAddress);
+			foreach (Measurement<int> measurement in actualMeasurements)
+			{
+				Dictionary<string, string> actualTags = measurement.Tags.ToArray().ToDictionary(
+					kvp => kvp.Key,
+					kvp => (string)kvp.Value!);
+				
+				bool areTagsEqual = actualTags.Count == expectedTags.Count && 
+				                    actualTags.OrderBy(kvp => kvp.Key)
+					                    .SequenceEqual(expectedTags.OrderBy(kvp => kvp.Key));
+				
+				if (areTagsEqual && expectedValue == measurement.Value)
+				{
+					return;
+				}
+			}
+
+			Console.WriteLine("Actual:");
+			foreach (Measurement<int> m in actualMeasurements)
+			{
+				Console.WriteLine($"Measurement(value={m.Value} tags={String.Join(',', m.Tags.ToArray())}");
+			}
+			Assert.Fail("Unable to find measurement");
 		}
 	}
 }

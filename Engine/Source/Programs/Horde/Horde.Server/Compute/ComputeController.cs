@@ -65,12 +65,11 @@ namespace Horde.Server.Compute
 
 			Requirements requirements = request.Requirements ?? new Requirements();
 
-			AllocateResourceParams arp = new(requirements)
+			AllocateResourceParams arp = new(clusterId, requirements)
 			{
 				RequestId = request.RequestId,
 				RequesterIp = HttpContext.Connection.RemoteIpAddress,
 				ParentLeaseId = parentLeaseId,
-				ConnectionPreference = request.ConnectionPreference
 			};
 			ComputeResource? computeResource = await _computeService.TryAllocateResourceAsync(arp, cancellationToken);
 			if (computeResource == null)
@@ -78,11 +77,12 @@ namespace Horde.Server.Compute
 				return StatusCode((int)HttpStatusCode.ServiceUnavailable);
 			}
 
+			int agentComputePort = computeResource.Ports[ConnectionMetadataPort.ComputeId].Port;
+
 			AssignComputeResponse response = new AssignComputeResponse();
 			response.Ip = computeResource.Ip.ToString();
-			response.Port = computeResource.Port;
+			response.Port = agentComputePort;
 			response.ConnectionMode = computeResource.ConnectionMode;
-			response.ConnectionAddress = computeResource.ConnectionAddress;
 			response.Nonce = StringUtils.FormatHexString(computeResource.Task.Nonce.Span);
 			response.Key = StringUtils.FormatHexString(computeResource.Task.Key.Span);
 			response.AgentId = computeResource.AgentId;

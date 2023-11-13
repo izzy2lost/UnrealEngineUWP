@@ -19,25 +19,85 @@ using Microsoft.Extensions.Options;
 namespace Horde.Server.Compute
 {
 	/// <summary>
+	/// A TCP/IP port used by a compute resource, and how it is mapped externally -> internally
+	/// </summary>
+	public class ComputeResourcePort
+	{
+		/// <summary>
+		/// Externally visible port that is mapped to agent port
+		/// In direct connection mode, these two are identical.
+		/// </summary>
+		public int Port { get; }
+		
+		/// <summary>
+		/// Port the local process on the agent is listening on
+		/// </summary>
+		public int AgentPort { get; }
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		/// <param name="port"></param>
+		/// <param name="agentPort"></param>
+		public ComputeResourcePort(int port, int agentPort)
+		{
+			Port = port;
+			AgentPort = agentPort;
+		}
+
+		/// <inheritdoc cref="Equals(Horde.Server.Compute.ComputeResourcePort)" />
+		protected bool Equals(ComputeResourcePort other)
+		{
+			return Port == other.Port && AgentPort == other.AgentPort;
+		}
+
+		/// <inheritdoc/>
+		public override bool Equals(object? obj)
+		{
+			if (ReferenceEquals(null, obj))
+			{
+				return false;
+			}
+
+			if (ReferenceEquals(this, obj))
+			{
+				return true;
+			}
+
+			return obj.GetType() == GetType() && Equals((ComputeResourcePort)obj);
+		}
+
+		/// <inheritdoc/>
+		public override int GetHashCode()
+		{
+			return HashCode.Combine(Port, AgentPort);
+		}
+
+		/// <inheritdoc/>
+		public override string ToString()
+		{
+			return $"Port={Port}, AgentPort={AgentPort}";
+		}
+	}
+	
+	/// <summary>
 	/// Information about a compute 
 	/// </summary>
 	public class ComputeResource
 	{
+		/// <inheritdoc cref="AssignComputeResponse.ConnectionMode" />
+		public ConnectionMode ConnectionMode { get; }
+		
 		/// <summary>
 		/// IP address of the agent
 		/// </summary>
 		public IPAddress Ip { get; }
-
-		/// <summary>
-		/// Port to connect on
-		/// </summary>
-		public int Port { get; }
 		
-		/// <inheritdoc cref="EpicGames.Horde.Compute.AssignComputeResponse.ConnectionMode" />
-		public ConnectionMode ConnectionMode { get; }
-		
-		/// <inheritdoc cref="EpicGames.Horde.Compute.AssignComputeResponse.ConnectionAddress" />
+		/// <inheritdoc cref="AssignComputeResponse.ConnectionAddress" />
 		public string? ConnectionAddress { get; }
+		
+		/// <inheritdoc cref="AssignComputeResponse.Ports" />
+		public IReadOnlyDictionary<string, ComputeResourcePort> Ports { get; }
 
 		/// <summary>
 		/// Information about the compute task
@@ -62,12 +122,12 @@ namespace Horde.Server.Compute
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public ComputeResource(IPAddress ip, int port, ConnectionMode connectionMode, string? connectionAddress, ComputeTask task, IReadOnlyList<string> properties, AgentId agentId, LeaseId leaseId)
+		public ComputeResource(ConnectionMode connectionMode, IPAddress ip, string? connectionAddress, IReadOnlyDictionary<string, ComputeResourcePort> ports, ComputeTask task, IReadOnlyList<string> properties, AgentId agentId, LeaseId leaseId)
 		{
-			Ip = ip;
-			Port = port;
 			ConnectionMode = connectionMode;
+			Ip = ip;
 			ConnectionAddress = connectionAddress;
+			Ports = ports;
 			Task = task;
 			Properties = properties;
 			AgentId = agentId;

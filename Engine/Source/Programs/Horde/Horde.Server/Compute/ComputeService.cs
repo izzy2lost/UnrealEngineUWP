@@ -16,6 +16,7 @@ using EpicGames.Horde.Compute.Clients;
 using EpicGames.Horde.Compute.Transports;
 using Google.Protobuf;
 using Google.Protobuf.WellKnownTypes;
+using Horde.Common.Rpc;
 using Horde.Server.Agents;
 using Horde.Server.Jobs;
 using Horde.Server.Logs;
@@ -53,6 +54,11 @@ namespace Horde.Server.Compute
 	public class AllocateResourceParams
 	{
 		/// <summary>
+		/// Cluster ID
+		/// </summary>
+		public ClusterId ClusterId { get; }
+		
+		/// <summary>
 		/// Criteria for selecting an agent
 		/// </summary>
 		public Requirements Requirements { get; }
@@ -63,24 +69,35 @@ namespace Horde.Server.Compute
 		public string? RequestId { get; init; }
 		
 		/// <summary>
+		/// Optional parent lease
+		/// </summary>
+		public LeaseId? ParentLeaseId { get; init; }
+
+		/// <summary>
 		/// IP address of the requester
 		/// </summary>
 		public IPAddress? RequesterIp { get; init; }
 		
-		/// <summary>
-		/// Optional parent lease
-		/// </summary>
-		public LeaseId? ParentLeaseId { get; init; }
+		/// <inheritdoc cref="ConnectionMetadataRequest.ClientPublicIp" />
+		public string? RequesterPublicIp { get; init; }
 		
-		/// <inheritdoc cref="EpicGames.Horde.Compute.AssignComputeRequest.ConnectionPreference" />
-		public ConnectionMode? ConnectionPreference { get; init; }
+		/// <inheritdoc cref="ConnectionMetadataRequest.Ports" />
+		public Dictionary<string, int> Ports { get; init; } = new ();
+		
+		/// <inheritdoc cref="ConnectionMetadataRequest.ModePreference" />
+		public ConnectionMode? ConnectionMode { get; init; }
+		
+		/// <inheritdoc cref="ConnectionMetadataRequest.PreferPublicIp" />
+		public bool? UsePublicIp { get; init; }
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
+		/// <param name="clusterId"></param>
 		/// <param name="requirements"></param>
-		public AllocateResourceParams(Requirements requirements)
+		public AllocateResourceParams(ClusterId clusterId, Requirements requirements)
 		{
+			ClusterId = clusterId;
 			Requirements = requirements;
 		}
 	}
@@ -118,6 +135,7 @@ namespace Horde.Server.Compute
 		readonly IAgentCollection _agentCollection;
 		readonly ILogFileService _logService;
 		readonly AgentService _agentService;
+		readonly AgentRelayService _agentRelayService;
 		readonly RedisService _redisService;
 		readonly IOptionsMonitor<ServerSettings> _settings;
 		readonly IOptionsMonitor<GlobalConfig> _globalConfig;
@@ -138,6 +156,7 @@ namespace Horde.Server.Compute
 			IAgentCollection agentCollection,
 			ILogFileService logService,
 			AgentService agentService,
+			AgentRelayService agentRelayService,
 			RedisService redisService,
 			IOptionsMonitor<ServerSettings> settings,
 			IOptionsMonitor<GlobalConfig> globalConfig,
@@ -149,6 +168,7 @@ namespace Horde.Server.Compute
 			_agentCollection = agentCollection;
 			_logService = logService;
 			_agentService = agentService;
+			_agentRelayService = agentRelayService;
 			_redisService = redisService;
 			_settings = settings;
 			_globalConfig = globalConfig;
@@ -252,23 +272,23 @@ namespace Horde.Server.Compute
 		/// <summary>
 		/// Allocates a compute resource
 		/// </summary>
-		/// <param name="p">Allocation parameters</param>
+		/// <param name="arp">Allocation parameters</param>
 		/// <param name="cancellationToken">Cancellation token</param>
 		/// <returns>A compute resource if successful</returns>
-		public async Task<ComputeResource?> TryAllocateResourceAsync(AllocateResourceParams p, CancellationToken cancellationToken)
+		public async Task<ComputeResource?> TryAllocateResourceAsync(AllocateResourceParams arp, CancellationToken cancellationToken)
 		{
 			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(ComputeService)}.{nameof(TryAllocateResourceAsync)}");
-			span.SetAttribute("requestId", p.RequestId);
-			span.SetAttribute("requestIp", p.RequesterIp?.ToString());
-			span.SetAttribute("parentLeaseId", p.ParentLeaseId?.ToString());
-			span.SetAttribute("req.pool", p.Requirements.Pool);
-			span.SetAttribute("req.condition", p.Requirements.Condition?.ToString());
-			span.SetAttribute("req.exclusive", p.Requirements.Exclusive);
+			span.SetAttribute("requestId", arp.RequestId);
+			span.SetAttribute("requestIp", arp.RequesterIp?.ToString());
+			span.SetAttribute("parentLeaseId", arp.ParentLeaseId?.ToString());
+			span.SetAttribute("req.pool", arp.Requirements.Pool);
+			span.SetAttribute("req.condition", arp.Requirements.Condition?.ToString());
+			span.SetAttribute("req.exclusive", arp.Requirements.Exclusive);
 
-			p.Requirements.Pool = ResolvePoolId(p.Requirements.Pool, p.RequesterIp);
-			span.SetAttribute("req.poolResolved", p.Requirements.Pool);
+			arp.Requirements.Pool = ResolvePoolId(arp.Requirements.Pool, arp.RequesterIp);
+			span.SetAttribute("req.poolResolved", arp.Requirements.Pool);
 
-			foreach ((string name, ResourceRequirements resReq) in p.Requirements.Resources)
+			foreach ((string name, ResourceRequirements resReq) in arp.Requirements.Resources)
 			{
 				span.SetAttribute($"req.res.{name}.min", resReq.Min);
 				span.SetAttribute($"req.res.{name}.max", resReq.Max);
@@ -278,17 +298,17 @@ namespace Horde.Server.Compute
 			foreach (IAgent agent in agents)
 			{
 				Dictionary<string, int> assignedResources = new Dictionary<string, int>();
-				if (agent.MeetsRequirements(p.Requirements, assignedResources))
+				if (agent.MeetsRequirements(arp.Requirements, assignedResources))
 				{
 					LeaseId leaseId = new LeaseId(BinaryIdUtils.CreateNew());
 					ILogFile? log = await _logService.CreateLogFileAsync(JobId.Empty, leaseId, agent.SessionId, LogType.Json, useNewStorageBackend: true, cancellationToken: cancellationToken);
 
-					ComputeTask computeTask = CreateComputeTask(assignedResources, log?.Id, p.ParentLeaseId);
+					ComputeTask computeTask = CreateComputeTask(assignedResources, log?.Id, arp.ParentLeaseId);
 
 					byte[] payload = Any.Pack(computeTask).ToByteArray();
-					AgentLease lease = new AgentLease(leaseId, p.ParentLeaseId, "Compute task", null, null, log?.Id, LeaseState.Pending, assignedResources, p.Requirements.Exclusive, payload);
+					AgentLease lease = new AgentLease(leaseId, arp.ParentLeaseId, "Compute task", null, null, log?.Id, LeaseState.Pending, assignedResources, arp.Requirements.Exclusive, payload);
 
-					ComputeResource? resource = TryAssign(agent, computeTask, leaseId, p.ConnectionPreference);
+					ComputeResource? resource = await TryAssignAsync(arp, agent, computeTask, leaseId);
 					if (resource != null)
 					{
 						IAgent? newAgent = await _agentCollection.TryAddLeaseAsync(agent, lease);
@@ -299,14 +319,14 @@ namespace Horde.Server.Compute
 							span.SetAttribute("allocatedLeaseId", leaseId.ToString());
 							span.SetAttribute("allocatedAgentId", newAgent.Id.ToString());
 
-							await LogRequestAsync(AllocationOutcome.Accepted, p.RequestId, p.Requirements, p.ParentLeaseId, span);
+							await LogRequestAsync(AllocationOutcome.Accepted, arp.RequestId, arp.Requirements, arp.ParentLeaseId, span);
 							return resource;
 						}
 					}
 				}
 			}
 
-			await LogRequestAsync(AllocationOutcome.Denied, p.RequestId, p.Requirements, p.ParentLeaseId, span);
+			await LogRequestAsync(AllocationOutcome.Denied, arp.RequestId, arp.Requirements, arp.ParentLeaseId, span);
 			return null;
 		}
 
@@ -539,33 +559,88 @@ namespace Horde.Server.Compute
 			return childLeaseIds.Count;
 		}
 
-		private (ConnectionMode mode, string? address) ResolveBestConnection(ConnectionMode? connectionPreference)
-		{
-			string? tunnelAddress = _settings.CurrentValue.ComputeTunnelAddress;
-			return connectionPreference switch
-			{
-				ConnectionMode.Direct => (ConnectionMode.Direct, null),
-				ConnectionMode.Tunnel when tunnelAddress != null => (ConnectionMode.Tunnel, tunnelAddress),
-				_ => (ConnectionMode.Direct, null)
-			};
-		}
-
-		private ComputeResource? TryAssign(IAgent agent, ComputeTask computeTask, LeaseId leaseId, ConnectionMode? connectionPreference)
+		private async Task<ComputeResource?> TryAssignAsync(AllocateResourceParams arp, IAgent agent, ComputeTask computeTask, LeaseId leaseId)
 		{
 			string? ipStr = agent.GetPropertyValues("ComputeIp").FirstOrDefault();
-			if (ipStr == null || !IPAddress.TryParse(ipStr, out IPAddress? ip))
+			if (ipStr == null || !IPAddress.TryParse(ipStr, out IPAddress? agentIp))
 			{
 				return null;
 			}
 
 			string? portStr = agent.GetPropertyValues("ComputePort").FirstOrDefault();
-			if (portStr == null || !Int32.TryParse(portStr, out int port))
+			if (portStr == null || !Int32.TryParse(portStr, out int computePort))
 			{
 				return null;
 			}
+			
+			string? tunnelAddress = _settings.CurrentValue.ComputeTunnelAddress;
 
-			(ConnectionMode connectionMode, string? connectionAddress) = ResolveBestConnection(connectionPreference);
-			return new ComputeResource(ip, port, connectionMode, connectionAddress, computeTask, agent.Properties, agent.Id, leaseId);
+			if (arp.ConnectionMode is null or ConnectionMode.Direct)
+			{
+				// A direct connection with 1-to-1 mapped ports
+				Dictionary<string, ComputeResourcePort> ports = new();
+				ports[ConnectionMetadataPort.ComputeId] = new ComputeResourcePort(computePort, computePort);
+				foreach ((string portId, int port) in arp.Ports)
+				{
+					ports[portId] = new ComputeResourcePort(port, port);
+				}
+				
+				return new ComputeResource(ConnectionMode.Direct, agentIp, null, ports, computeTask, agent.Properties, agent.Id, leaseId);
+			}
+			else if (arp.ConnectionMode == ConnectionMode.Tunnel && tunnelAddress != null)
+			{
+				// A tunneled connection. Ports are marked as -1 must be be tunneled via tunnel address
+				Dictionary<string, ComputeResourcePort> ports = new();
+				ports[ConnectionMetadataPort.ComputeId] = new ComputeResourcePort(-1, computePort);
+				foreach ((string portId, int port) in arp.Ports)
+				{
+					ports[portId] = new ComputeResourcePort(-1, port);
+				}
+				
+				return new ComputeResource(ConnectionMode.Tunnel, agentIp, tunnelAddress, ports, computeTask, agent.Properties, agent.Id, leaseId);
+			}
+			else if (arp.ConnectionMode == ConnectionMode.Relay)
+			{
+				Dictionary<string,int> portsWithComputePort = new (arp.Ports) { { ConnectionMetadataPort.ComputeId, computePort } };
+				List<Port> relayPorts = portsWithComputePort
+					.SelectMany(kvp => new List<Port>()
+					{
+						new () { RelayPort = -1, AgentPort = kvp.Value, Protocol = PortProtocol.Tcp },
+						new () { RelayPort = -1, AgentPort = kvp.Value, Protocol = PortProtocol.Udp }
+					})
+					.OrderBy(x => x.AgentPort)
+					.ToList();
+				PortMappingResult pmResult = await _agentRelayService.RequestPortMappingAsync(arp.ClusterId.ToString(), leaseId.ToString(), agentIp.ToString(), relayPorts);
+
+				IPAddress relayIp = FindBestRelayIp(arp.RequesterIp, null, pmResult.IpAddresses);
+				Dictionary<string, ComputeResourcePort> ports = new();
+				foreach (Port pmPort in pmResult.Ports.Where(x => x.Protocol == PortProtocol.Tcp))
+				{
+					foreach ((string portId, int agentPort) in portsWithComputePort)
+					{
+						if (agentPort == pmPort.AgentPort)
+						{
+							ports[portId] = new ComputeResourcePort(pmPort.RelayPort, pmPort.AgentPort);
+						}
+					}
+				}
+
+				return new ComputeResource(ConnectionMode.Relay, agentIp, relayIp.ToString(), ports, computeTask, agent.Properties, agent.Id, leaseId);
+			}
+
+			throw new Exception("Unable to resolve a suitable connection mode for compute task");
+		}
+		
+		private static IPAddress FindBestRelayIp(IPAddress? clientIp, IPAddress? publicClientIp, IEnumerable<string> relayIps)
+		{
+			return FindBestRelayIp(clientIp, publicClientIp, relayIps.Select(IPAddress.Parse).ToList());
+		}
+
+		[System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "IDE0060:Remove unused parameter", Justification = "To be implemented")]
+		private static IPAddress FindBestRelayIp(IPAddress? clientIp, IPAddress? publicClientIp, List<IPAddress> relayIps)
+		{
+			// TODO: Implement proper lookup of best relay IP to use
+			return relayIps[0];
 		}
 
 		static ComputeTask CreateComputeTask(Dictionary<string, int> assignedResources, LogId? logId, LeaseId? parentLeaseId)
