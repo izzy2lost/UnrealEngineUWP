@@ -1950,6 +1950,9 @@ void UBehaviorTreeComponent::ProcessExecutionRequest()
 	SearchData.RollbackDeactivatedBranchStart = SearchData.DeactivatedBranchStart;
 	SearchData.RollbackDeactivatedBranchEnd = SearchData.DeactivatedBranchEnd;
 
+	// Setting search root node here it can be refer to when calling 'DeactivateUpTo'
+	SearchData.SearchRootNode = FBTNodeIndex(ExecutionRequest.ExecuteInstanceIdx, ExecutionRequest.ExecuteNode->GetExecutionIndex());
+
 	EBTNodeResult::Type NodeResult = ExecutionRequest.ContinueWithResult;
 	UBTTaskNode* NextTask = NULL;
 
@@ -1974,7 +1977,7 @@ void UBehaviorTreeComponent::ProcessExecutionRequest()
 			if (!bDeactivated)
 			{
 				// error occurred and tree will restart, all pending deactivation notifies will be lost
-				// this is should happen
+				// this should never happen
 
 				BT_SEARCHLOG(SearchData, Error, TEXT("Unable to deactivate up to %s. Active node is %s. All pending updates will be lost!"), 
 					*UBehaviorTreeTypes::DescribeNodeHelper(ExecutionRequest.ExecuteNode), 
@@ -2001,7 +2004,6 @@ void UBehaviorTreeComponent::ProcessExecutionRequest()
 		SearchData.AssignSearchId();
 		SearchData.bPostponeSearch = false;
 		SearchData.bSearchInProgress = true;
-		SearchData.SearchRootNode = FBTNodeIndex(ExecutionRequest.ExecuteInstanceIdx, ExecutionRequest.ExecuteNode->GetExecutionIndex());
 
 		// activate root node if needed (can't be handled by parent composite...)
 		if (ActiveInstance.ActiveNode == NULL)

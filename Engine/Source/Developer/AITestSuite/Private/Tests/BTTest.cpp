@@ -139,6 +139,9 @@ struct FAITest_BTBasicSequence : public FAITest_SimpleBT
 			FBTBuilder::AddTask(CompNode, 1, EBTNodeResult::Failed);
 			{
 				FBTBuilder::WithDecorator<UTestBTDecorator_CantExecute>(CompNode);
+
+				// @todo BT: We should reconsider allowing decorator to change the activation result.
+				// This looks more like a debugger feature than a desired behavior. 
 				FBTBuilder::WithDecorator<UBTDecorator_ForceSuccess>(CompNode);
 			}
 
@@ -230,6 +233,146 @@ struct FAITest_BTDecoratorBlueprintNoConditionImpl : public FAITest_SimpleBT
 	}
 };
 IMPLEMENT_AI_LATENT_TEST(FAITest_BTDecoratorBlueprintNoConditionImpl, "System.AI.Behavior Trees.Decorator: blueprint no condition impl")
+
+struct FAITest_BTDecoratorForceSuccessTaskFailed : public FAITest_SimpleBT
+{
+	FAITest_BTDecoratorForceSuccessTaskFailed()
+	{
+		enum
+		{
+			Task1Execute,
+			Task2Execute,
+			Task3Execute,
+			Task4Execute,
+		};
+
+		UBTCompositeNode& MainSequence = FBTBuilder::AddSequence(*BTAsset);
+		{
+			FBTBuilder::AddTask(MainSequence, Task1Execute, EBTNodeResult::Succeeded);
+
+			UBTCompositeNode& InnerSequence = FBTBuilder::AddSequence(MainSequence);
+			{
+				FBTBuilder::AddTask(InnerSequence, Task2Execute, EBTNodeResult::Failed);
+				FBTBuilder::WithDecorator<UBTDecorator_ForceSuccess>(InnerSequence);
+
+				FBTBuilder::AddTask(InnerSequence, Task3Execute, EBTNodeResult::Succeeded);
+			}
+
+			FBTBuilder::AddTask(MainSequence, Task4Execute, EBTNodeResult::Succeeded);
+		}
+
+		ExpectedResult.Add(Task1Execute/*0*/);
+		ExpectedResult.Add(Task2Execute/*1*/);
+		ExpectedResult.Add(Task3Execute/*2*/);
+		ExpectedResult.Add(Task4Execute/*3*/);
+	}
+};
+IMPLEMENT_AI_LATENT_TEST(FAITest_BTDecoratorForceSuccessTaskFailed, "System.AI.Behavior Trees.Decorator: force success task failed self")
+
+struct FAITest_BTDecoratorForceSuccessTaskFailedParentComposite : public FAITest_SimpleBT
+{
+	FAITest_BTDecoratorForceSuccessTaskFailedParentComposite()
+	{
+		enum
+		{
+			Task1Execute,
+			Task2Execute,
+			Task3Execute,
+			Task4Execute,
+		};
+
+		UBTCompositeNode& MainSequence = FBTBuilder::AddSequence(*BTAsset);
+		{
+			FBTBuilder::AddTask(MainSequence, Task1Execute, EBTNodeResult::Succeeded);
+
+			UBTCompositeNode& InnerSequence = FBTBuilder::AddSequence(MainSequence);
+			{
+				FBTBuilder::WithDecoratorBlackboard(MainSequence, EArithmeticKeyOperation::NotEqual, /*IntValue*/1, EBTFlowAbortMode::Self, EBTBlackboardRestart::ResultChange);
+
+				FBTBuilder::AddTaskValuesChangedWithLogs(InnerSequence, Task2Execute, EBTNodeResult::Succeeded, /*IntValue1*/1, /*IntValue2*/INDEX_NONE);
+				FBTBuilder::WithDecorator<UBTDecorator_ForceSuccess>(InnerSequence);
+				
+				FBTBuilder::AddTask(InnerSequence, Task3Execute, EBTNodeResult::Succeeded);
+			}
+
+			FBTBuilder::AddTask(MainSequence, Task4Execute, EBTNodeResult::Succeeded);
+		}
+
+		ExpectedResult.Add(Task1Execute/*0*/);
+		ExpectedResult.Add(Task2Execute/*1*/);
+	}
+};
+IMPLEMENT_AI_LATENT_TEST(FAITest_BTDecoratorForceSuccessTaskFailedParentComposite, "System.AI.Behavior Trees.Decorator: force success task failed parent composite")
+
+struct FAITest_BTDecoratorForceSuccessCompositeFailed : public FAITest_SimpleBT
+{
+	FAITest_BTDecoratorForceSuccessCompositeFailed()
+	{
+		enum
+		{
+			Task1Execute,
+			Task2Execute,
+			Task3Execute,
+			Task4Execute,
+		};
+
+		UBTCompositeNode& MainSequence = FBTBuilder::AddSequence(*BTAsset);
+		{
+			FBTBuilder::AddTask(MainSequence, Task1Execute, EBTNodeResult::Succeeded);
+
+			UBTCompositeNode& InnerSequence = FBTBuilder::AddSequence(MainSequence);
+			{
+				FBTBuilder::WithDecorator<UBTDecorator_ForceSuccess>(MainSequence);
+				FBTBuilder::WithDecoratorBlackboard(MainSequence, EArithmeticKeyOperation::NotEqual, /*IntValue*/1, EBTFlowAbortMode::Self, EBTBlackboardRestart::ResultChange);
+
+				FBTBuilder::AddTaskValuesChangedWithLogs(InnerSequence, Task2Execute, EBTNodeResult::Succeeded, /*IntValue1*/1, /*IntValue2*/INDEX_NONE);
+
+				FBTBuilder::AddTask(InnerSequence, Task3Execute, EBTNodeResult::Succeeded);
+			}
+
+			FBTBuilder::AddTask(MainSequence, Task4Execute, EBTNodeResult::Succeeded);
+		}
+
+		ExpectedResult.Add(Task1Execute/*0*/);
+		ExpectedResult.Add(Task2Execute/*1*/);
+		ExpectedResult.Add(Task4Execute/*3*/);
+	}
+};
+IMPLEMENT_AI_LATENT_TEST(FAITest_BTDecoratorForceSuccessCompositeFailed, "System.AI.Behavior Trees.Decorator: force success composite failed self")
+
+struct FAITest_BTDecoratorForceSuccessTaskFailedSibling : public FAITest_SimpleBT
+{
+	FAITest_BTDecoratorForceSuccessTaskFailedSibling()
+	{
+		enum
+		{
+			Task1Execute,
+			Task2Execute,
+			Task3Execute,
+			Task4Execute,
+		};
+
+		UBTCompositeNode& MainSequence = FBTBuilder::AddSequence(*BTAsset);
+		{
+			FBTBuilder::AddTask(MainSequence, Task1Execute, EBTNodeResult::Succeeded);
+
+			UBTCompositeNode& InnerSequence = FBTBuilder::AddSequence(MainSequence);
+			{
+				FBTBuilder::AddTask(InnerSequence, Task2Execute, EBTNodeResult::Succeeded);
+				FBTBuilder::WithDecorator<UBTDecorator_ForceSuccess>(InnerSequence);
+
+				FBTBuilder::AddTask(InnerSequence, Task3Execute, EBTNodeResult::Failed);
+			}
+
+			FBTBuilder::AddTask(MainSequence, Task4Execute, EBTNodeResult::Succeeded);
+		}
+
+		ExpectedResult.Add(Task1Execute/*0*/);
+		ExpectedResult.Add(Task2Execute/*1*/);
+		ExpectedResult.Add(Task3Execute/*2*/);
+	}
+};
+IMPLEMENT_AI_LATENT_TEST(FAITest_BTDecoratorForceSuccessTaskFailedSibling, "System.AI.Behavior Trees.Decorator: force success task failed sibling task")
 
 struct FAITest_BTBasicParallelWait : public FAITest_SimpleBT
 {
