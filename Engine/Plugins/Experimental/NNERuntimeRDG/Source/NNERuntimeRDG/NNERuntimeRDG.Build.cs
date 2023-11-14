@@ -53,7 +53,7 @@ public class NNERuntimeRDG : ModuleRules
 		}
 
 		if ((Target.Type == TargetType.Editor || Target.Type == TargetType.Program) &&
-			(Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.Linux)
+			(Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.Linux || Target.Platform == UnrealTargetPlatform.Mac)
 			)
 		{
 			PrivateDefinitions.Add("NNE_UTILITIES_AVAILABLE");

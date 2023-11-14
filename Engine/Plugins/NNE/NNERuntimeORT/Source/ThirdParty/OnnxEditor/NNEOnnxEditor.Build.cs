@@ -20,9 +20,16 @@ public class NNEOnnxEditor : ModuleRules
 		string PlatformDir = Target.Platform.ToString();
 		string LibDirPath = Path.Combine(ModuleDirectory, "lib", PlatformDir);
 		
-		string[] LibFileNames = new string[] { "onnx.lib", "onnx_proto.lib" };//Win64
-		
-		if (Target.Platform == UnrealTargetPlatform.Linux)
+		string[] LibFileNames = new string[] {};
+		if (Target.Platform == UnrealTargetPlatform.Win64)
+		{
+			LibFileNames = new string[] { "onnx.lib", "onnx_proto.lib" };
+		}
+		else if (Target.Platform == UnrealTargetPlatform.Linux)
+		{
+			LibFileNames = new string[] { "libonnx.a", "libonnx_proto.a" };
+		}
+		else if (Target.Platform == UnrealTargetPlatform.Mac)
 		{
 			LibFileNames = new string[] { "libonnx.a", "libonnx_proto.a" };
 		}

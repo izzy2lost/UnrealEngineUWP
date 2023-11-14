@@ -17,9 +17,17 @@ public class NNEProtobufEditor : ModuleRules
 		string LibraryName = "libprotobuf-lite";
 		string PlatformDir = Target.Platform.ToString();
 		string LibraryPath = Path.Combine(ModuleDirectory, "lib", PlatformDir);
-		string LibPlatformExtension = ".lib";//Win64
-
-		if (Target.Platform == UnrealTargetPlatform.Linux)
+		
+		string LibPlatformExtension = "";
+		if (Target.Platform == UnrealTargetPlatform.Win64)
+		{
+			LibPlatformExtension = ".lib";
+		}
+		else if (Target.Platform == UnrealTargetPlatform.Linux)
+		{
+			LibPlatformExtension = ".a";
+		}
+		else if (Target.Platform == UnrealTargetPlatform.Mac)
 		{
 			LibPlatformExtension = ".a";
 		}

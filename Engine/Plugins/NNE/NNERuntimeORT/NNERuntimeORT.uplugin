@@ -23,13 +23,13 @@
 			"Name": "NNERuntimeORT",
 			"Type": "EditorAndProgram",
 			"LoadingPhase": "Default",
-			"PlatformAllowList": [ "Win64", "Linux" ]
+			"PlatformAllowList": [ "Win64", "Linux", "Mac" ]
 		},
 		{
 			"Name": "NNEUtilities",
 			"Type": "EditorAndProgram",
 			"LoadingPhase": "Default",
-			"PlatformAllowList": [ "Win64", "Linux" ]
+			"PlatformAllowList": [ "Win64", "Linux", "Mac" ]
 		}
 	]
 }

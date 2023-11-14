@@ -37,6 +37,15 @@ public class NNEOnnxruntimeEditor : ModuleRules
 			RuntimeDependencies.Add(Path.Combine(OrtPlatformPath, "libonnxruntime.so"));
 			RuntimeDependencies.Add(Path.Combine(OrtPlatformPath, "libonnxruntime.so.1.14.1"));
 		}
+		else if (Target.Platform == UnrealTargetPlatform.Mac)
+		{
+			SharedLibFileName = "libonnxruntime.1.14.1.dylib";
+			PublicAdditionalLibraries.Add(Path.Combine(OrtPlatformPath, "libonnxruntime.dylib"));
+			PublicDelayLoadDLLs.Add(Path.Combine(OrtPlatformPath, "libonnxruntime.dylib"));
+			PublicDelayLoadDLLs.Add(Path.Combine(OrtPlatformPath, "libonnxruntime.1.14.1.dylib"));
+			RuntimeDependencies.Add(Path.Combine(OrtPlatformPath, "libonnxruntime.dylib"));
+			RuntimeDependencies.Add(Path.Combine(OrtPlatformPath, "libonnxruntime.1.14.1.dylib"));
+		}
 
 		string SharedLibRelativePath = Path.Combine(OrtPlatformRelativePath, SharedLibFileName);
 
