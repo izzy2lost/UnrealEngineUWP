@@ -101,7 +101,20 @@ public:
 
 	static bool RequiresMobileRenderer()
 	{
+		#if USE_STATIC_FEATURE_LEVEL_ENUMS
+		return (UE_ANDROID_STATIC_FEATURE_LEVEL == ERHIFeatureLevel::ES3_1);
+		#else	
 		return !FAndroidMisc::ShouldUseDesktopVulkan();
+		#endif
+	}
+
+	static ERHIFeatureLevel::Type GetFeatureLevel(ERHIFeatureLevel::Type RequestedFeatureLevel)
+	{
+		#if USE_STATIC_FEATURE_LEVEL_ENUMS
+		return UE_ANDROID_STATIC_FEATURE_LEVEL;
+		#else
+		return FVulkanGenericPlatform::GetFeatureLevel(RequestedFeatureLevel);
+		#endif
 	}
 
 	static bool HasCustomFrameTiming();

@@ -61,6 +61,8 @@ public:
 
 	static bool RequiresMobileRenderer() { return false; }
 
+	static ERHIFeatureLevel::Type GetFeatureLevel(ERHIFeatureLevel::Type RequestedFeatureLevel);
+
 	// bInit=1 called at RHI init time, bInit=0 at RHI deinit time
 	static void OverridePlatformHandlers(bool bInit) {}
 

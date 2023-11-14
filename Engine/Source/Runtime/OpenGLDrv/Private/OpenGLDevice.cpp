@@ -879,7 +879,7 @@ static void InitRHICapabilitiesForGL()
 	GRHIAdapterInternalDriverVersion = ANSI_TO_TCHAR((const ANSICHAR*)glGetString(GL_VERSION));
 
 	// Shader platform & RHI feature level
-	GMaxRHIFeatureLevel = FOpenGL::GetFeatureLevel();
+	GMaxRHIFeatureLevel = ERHIFeatureLevel::ES3_1;
 	GMaxRHIShaderPlatform = FOpenGL::GetShaderPlatform();
 
 	// Log all supported extensions.

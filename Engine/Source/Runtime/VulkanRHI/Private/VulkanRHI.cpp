@@ -382,11 +382,7 @@ bool FVulkanDynamicRHIModule::IsSupported(ERHIFeatureLevel::Type FeatureLevel)
 
 FDynamicRHI* FVulkanDynamicRHIModule::CreateRHI(ERHIFeatureLevel::Type InRequestedFeatureLevel)
 {
-	const bool bForceES3_1 = (FVulkanPlatform::RequiresMobileRenderer() ||
-		(InRequestedFeatureLevel == ERHIFeatureLevel::ES3_1) ||
-		FParse::Param(FCommandLine::Get(), TEXT("FeatureLevelES31")) || FParse::Param(FCommandLine::Get(), TEXT("FeatureLevelES3_1")));
-
-	GMaxRHIFeatureLevel = (!GIsEditor && bForceES3_1) ? ERHIFeatureLevel::ES3_1 : InRequestedFeatureLevel;
+	GMaxRHIFeatureLevel = FVulkanPlatform::GetFeatureLevel(InRequestedFeatureLevel);
 	checkf(GMaxRHIFeatureLevel != ERHIFeatureLevel::Num, TEXT("Invalid feature level requested!"));
 
 	EShaderPlatform ShaderPlatformForFeatureLevel[ERHIFeatureLevel::Num];
