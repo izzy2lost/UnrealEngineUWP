@@ -32,9 +32,7 @@ FAutoConsoleCommandWithOutputDevice PrintActorLabelsConsoleCommand(
 				{
 					LabelQuery = DataStorage->RegisterQuery(
 						Select()
-							.ReadOnly<FTypedElementLabelColumn>()
-						.Where()
-							.All<FMassActorFragment>()
+							.ReadOnly<FMassActorFragment, FTypedElementLabelColumn>()
 						.Compile());
 				}
 				
@@ -43,7 +41,7 @@ FAutoConsoleCommandWithOutputDevice PrintActorLabelsConsoleCommand(
 					FString Message;
 					Output.Log(TEXT("The Typed Elements Data Storage has the following actors:"));
 					DataStorage->RunQuery(LabelQuery, CreateDirectQueryCallbackBinding(
-						[&Output, &Message](DSI::IDirectQueryContext& Context, const FTypedElementLabelColumn* Labels)
+						[&Output, &Message](DSI::IDirectQueryContext& Context, const FMassActorFragment* Actors, const FTypedElementLabelColumn* Labels)
 						{
 							const uint32 Count = Context.GetRowCount();
 
@@ -52,7 +50,12 @@ FAutoConsoleCommandWithOutputDevice PrintActorLabelsConsoleCommand(
 							// Reserve memory first to avoid repeated memory allocations.
 							for (uint32 Index = 0; Index < Count; ++Index)
 							{
-								CharacterCount += 12 /*Prefixed text size*/ + LabelsIt->Label.Len() + 1 /*Trailing new line*/;
+								CharacterCount 
+									+= 14 /* Prefixed text size */ 
+									+ 16 /* Hex address of actor */
+									+ 3 /* Closing brace, colon and space */
+									+ LabelsIt->Label.Len() 
+									+ 1 /* Trailing new line */;
 								++LabelsIt;
 							}
 							Message.Reset(CharacterCount);
@@ -60,10 +63,10 @@ FAutoConsoleCommandWithOutputDevice PrintActorLabelsConsoleCommand(
 							LabelsIt = Labels;
 							for (uint32 Index = 0; Index < Count; ++Index)
 							{
-								Message += TEXT("    Actor: ");
-								Message += LabelsIt->Label;
-								Message += TEXT('\n');
+								Message.Appendf(TEXT("    Actor (0x%p): %s\n"), Actors->Get(), *LabelsIt->Label);
+
 								++LabelsIt;
+								++Actors;
 							}
 
 							Output.Log(Message);

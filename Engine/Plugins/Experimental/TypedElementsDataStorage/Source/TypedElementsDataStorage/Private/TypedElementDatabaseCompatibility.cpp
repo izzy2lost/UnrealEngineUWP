@@ -107,14 +107,18 @@ TypedElementRowHandle UTypedElementDatabaseCompatibility::AddCompatibleObjectExp
 	
 	if (ensureMsgf(Storage, TEXT("Trying to add an object to Typed Element's Data Storage before the storage is available.")))
 	{
-		TableHandle Table = FindBestMatchingTable(TypeInfo.Get());
-		Table = (Table != InvalidTableHandle) ? Table : StandardExternalObjectTable;
+		TypedElementRowHandle Result = FindRowWithCompatibleObjectExplicit(Object);
+		if (!Storage->IsRowAvailable(Result))
+		{
+			TableHandle Table = FindBestMatchingTable(TypeInfo.Get());
+			Table = (Table != InvalidTableHandle) ? Table : StandardExternalObjectTable;
 
-		TypedElementRowHandle ReservedRow = Storage->ReserveRow();
-		Storage->IndexRow(GenerateIndexHash(Object), ReservedRow);
-		PendingRegistration<ExternalObjectRegistration>& Pending = ExternalObjectsPendingRegistration.FindOrAdd(Table);
-		Pending.Add(ReservedRow, ExternalObjectRegistration{ .Object = Object, .TypeInfo = TypeInfo });
-		return ReservedRow;
+			Result = Storage->ReserveRow();
+			Storage->IndexRow(GenerateIndexHash(Object), Result);
+			PendingRegistration<ExternalObjectRegistration>& Pending = ExternalObjectsPendingRegistration.FindOrAdd(Table);
+			Pending.Add(Result, ExternalObjectRegistration{ .Object = Object, .TypeInfo = TypeInfo });
+		}
+		return Result;
 	}
 	else
 	{
@@ -248,25 +252,29 @@ TypedElementRowHandle UTypedElementDatabaseCompatibility::AddCompatibleObjectExp
 {
 	using namespace TypedElementDataStorage;
 
-	TableHandle Table = FindBestMatchingTable(Object->GetClass());
-	checkf(Table != InvalidTableHandle, TEXT("The Typed Elements Data Storage could not find any matching tables for object of type '%s'. "
-		"This can mean that the object doesn't derive from UObject or that a table for UObject is no longer registered."), *Object->GetClass()->GetFName().ToString());
-
-	TypedElementRowHandle ReservedRow = Storage->ReserveRow();
-	Storage->IndexRow(GenerateIndexHash(Object), ReservedRow);
-
-	PendingRegistration<TWeakObjectPtr<UObject>>& Pending = UObjectsPendingRegistration.FindOrAdd(Table);
-	Pending.Add(ReservedRow, Object);
-
-	if constexpr (bEnableTransactions)
+	TypedElementRowHandle Result = FindRowWithCompatibleObjectExplicit(Object);
+	if (!Storage->IsRowAvailable(Result))
 	{
-		if (GUndo)
+		TableHandle Table = FindBestMatchingTable(Object->GetClass());
+		checkf(Table != InvalidTableHandle, TEXT("The Typed Elements Data Storage could not find any matching tables for object of type '%s'. "
+			"This can mean that the object doesn't derive from UObject or that a table for UObject is no longer registered."), *Object->GetClass()->GetFName().ToString());
+
+		Result = Storage->ReserveRow();
+		Storage->IndexRow(GenerateIndexHash(Object), Result);
+
+		PendingRegistration<TWeakObjectPtr<UObject>>& Pending = UObjectsPendingRegistration.FindOrAdd(Table);
+		Pending.Add(Result, Object);
+
+		if constexpr (bEnableTransactions)
 		{
-			GUndo->StoreUndo(this, MakeUnique<FRegistrationCommandChange>(Object));
+			if (GUndo)
+			{
+				GUndo->StoreUndo(this, MakeUnique<FRegistrationCommandChange>(Object));
+			}
 		}
 	}
 
-	return ReservedRow;
+	return Result;
 }
 
 template<bool bEnableTransactions>
