@@ -166,20 +166,21 @@ CmdSync(const FCmdSyncOptions& Options)
 				SyncOptions.SourceType = ESyncSourceType::Server;
 			}
 
-			SyncOptions.Source				   = ResolvedSource;
-			SyncOptions.Base				   = Options.Target;  // read base data from existing target
-			SyncOptions.Target				   = Options.Target;
-			SyncOptions.ScavengeRoot		   = Options.ScavengeRoot;
-			SyncOptions.ScavengeDepth		   = Options.ScavengeDepth;
-			SyncOptions.Overlays			   = ResolvedOverlays;
-			SyncOptions.SourceManifestOverride = Options.SourceManifestOverride;
-			SyncOptions.ProxyPool			   = &ProxyPool;
-			SyncOptions.SyncFilter			   = Options.Filter;
-			SyncOptions.bCleanup			   = Options.bCleanup;
-			SyncOptions.bValidateSourceFiles   = Options.bFullSourceScan;
-			SyncOptions.bFullDifference		   = Options.bFullDifference;
-			SyncOptions.bValidateTargetFiles   = Options.bValidateTargetFiles;
-			SyncOptions.bCheckAvailableSpace   = Options.bCheckAvailableSpace;
+			SyncOptions.Source					   = ResolvedSource;
+			SyncOptions.Base					   = Options.Target;  // read base data from existing target
+			SyncOptions.Target					   = Options.Target;
+			SyncOptions.ScavengeRoot			   = Options.ScavengeRoot;
+			SyncOptions.ScavengeDepth			   = Options.ScavengeDepth;
+			SyncOptions.Overlays				   = ResolvedOverlays;
+			SyncOptions.SourceManifestOverride	   = Options.SourceManifestOverride;
+			SyncOptions.ProxyPool				   = &ProxyPool;
+			SyncOptions.SyncFilter				   = Options.Filter;
+			SyncOptions.bCleanup				   = Options.bCleanup;
+			SyncOptions.bValidateSourceFiles	   = Options.bFullSourceScan;
+			SyncOptions.bFullDifference			   = Options.bFullDifference;
+			SyncOptions.bValidateTargetFiles	   = Options.bValidateTargetFiles;
+			SyncOptions.bCheckAvailableSpace	   = Options.bCheckAvailableSpace;
+			SyncOptions.BackgroundTaskMemoryBudget = Options.BackgroundTaskMemoryBudget;
 
 			return SyncDirectory(SyncOptions) ? 0 : 1;
 		}

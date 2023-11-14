@@ -27,7 +27,7 @@ UNSYNC_THIRD_PARTY_INCLUDES_START
 #include <md5-sse2.h>
 UNSYNC_THIRD_PARTY_INCLUDES_END
 
-#define UNSYNC_VERSION_STR "1.0.61"
+#define UNSYNC_VERSION_STR "1.0.62"
 
 namespace unsync {
 
@@ -2685,9 +2685,11 @@ SyncDirectory(const FSyncDirectoryOptions& SyncOptions)
 
 	{
 		// Throttle background tasks by trying to keep them to some sensible memory budget. Best effort only, not a hard limit.
-		static constexpr uint64 BackgroundTaskMemoryBudget	= 2_GB;
-		static constexpr uint64 TargetTotalSizePerTaskBatch = BackgroundTaskMemoryBudget;
-		static constexpr uint64 MaxFilesPerTaskBatch		= 1000;
+		const uint64 BackgroundTaskMemoryBudget	 = SyncOptions.BackgroundTaskMemoryBudget;
+		const uint64 TargetTotalSizePerTaskBatch = BackgroundTaskMemoryBudget;
+		const uint64 MaxFilesPerTaskBatch		 = 1000;
+
+		UNSYNC_VERBOSE2(L"Background task memory budget: %llu GB", BackgroundTaskMemoryBudget >> 30);
 
 		struct FBackgroundTaskResult
 		{

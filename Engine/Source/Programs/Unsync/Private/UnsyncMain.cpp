@@ -104,6 +104,7 @@ InnerMain(int Argc, char** Argv)
 	int32					 CompressionLevel	 = 3;
 	uint32					 DiffBlockSize		 = uint32(4_KB);
 	uint32					 HashOrSyncBlockSize = uint32(64_KB);
+	uint32					 BackgroundTaskMemoryBudgetGB = 2;
 
 	struct FDeprecatedOptions
 	{
@@ -302,6 +303,10 @@ InnerMain(int Argc, char** Argv)
 	SubSync->add_option("--scavenge", ScavengeRootUtf8, "Search for unsync manifests and reusable blocks in this directory (EXPERIMENTAL)");
 	SubSync->add_flag("--login", bShouldLogin, "Use user authentication when accessing unsync server");
 	SubSync->add_flag("--no-timeout", bNoSocketTimeout, "Disable the default 60 second timeout on network socket operations");
+
+	CLI::Option* BackgroundMemoryBudgetOption = SubSync->add_option("--background-task-memory",
+															BackgroundTaskMemoryBudgetGB,
+															"Set memory budget that background tasks in gigabytes (default: 2 GB)");
 
 	SubCommands.push_back(SubSync);
 
@@ -858,20 +863,41 @@ InnerMain(int Argc, char** Argv)
 			RemoteDesc.RecvTimeoutSeconds = 60;
 		}
 
+		// Try to derive default memory budget
+
+		if (BackgroundMemoryBudgetOption->empty())
+		{
+			FSystemMemoryInfo MemoryInfo;
+			if (QueryMemoryInfo(MemoryInfo))
+			{
+				uint32 InstalledMemoryGB = CheckedNarrow(MemoryInfo.InstalledPhysicalMemory >> 30);
+				UNSYNC_VERBOSE2(L"Detected memory: %llu GB", InstalledMemoryGB);
+				BackgroundTaskMemoryBudgetGB = std::max<uint32>(2, InstalledMemoryGB / 4);
+			}
+
+			UNSYNC_VERBOSE2(L"Using automatic background task memory budget: %llu GB", BackgroundTaskMemoryBudgetGB);
+		}
+		else
+		{
+			UNSYNC_VERBOSE2(L"Using explicit background task memory budget: %llu GB", BackgroundTaskMemoryBudgetGB);
+		}
+		//
+
 		FCmdSyncOptions SyncOptions;
 
-		SyncOptions.Algorithm			   = Algorithm;
-		SyncOptions.Source				   = SourceFilename;
-		SyncOptions.Target				   = TargetFilename;
-		SyncOptions.SourceManifestOverride = SourceManifestFilename;
-		SyncOptions.Remote				   = RemoteDesc;
-		SyncOptions.bFullDifference		   = bFullDifference;
-		SyncOptions.bFullSourceScan		   = bFullSourceScan;
-		SyncOptions.bCleanup			   = !bNoCleanupAfterSync;
-		SyncOptions.Filter				   = &SyncFilter;
-		SyncOptions.bValidateTargetFiles   = !bNoOutputValidation;
-		SyncOptions.bCheckAvailableSpace   = !bNoSpaceValidation;
-		SyncOptions.ScavengeRoot		   = ScavengeRoot;
+		SyncOptions.Algorithm				   = Algorithm;
+		SyncOptions.Source					   = SourceFilename;
+		SyncOptions.Target					   = TargetFilename;
+		SyncOptions.SourceManifestOverride	   = SourceManifestFilename;
+		SyncOptions.Remote					   = RemoteDesc;
+		SyncOptions.bFullDifference			   = bFullDifference;
+		SyncOptions.bFullSourceScan			   = bFullSourceScan;
+		SyncOptions.bCleanup				   = !bNoCleanupAfterSync;
+		SyncOptions.Filter					   = &SyncFilter;
+		SyncOptions.bValidateTargetFiles	   = !bNoOutputValidation;
+		SyncOptions.bCheckAvailableSpace	   = !bNoSpaceValidation;
+		SyncOptions.ScavengeRoot			   = ScavengeRoot;
+		SyncOptions.BackgroundTaskMemoryBudget = uint64(BackgroundTaskMemoryBudgetGB) << 30ull;
 
 		for (const std::string& Entry : OverlayArrayUtf8)
 		{

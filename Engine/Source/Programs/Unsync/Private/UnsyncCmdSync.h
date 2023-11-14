@@ -17,6 +17,7 @@ struct FCmdSyncOptions
 	FPath SourceManifestOverride;
 	FPath ScavengeRoot;
 	uint32 ScavengeDepth = 5;
+	uint64 BackgroundTaskMemoryBudget = 2_GB;
 
 	std::vector<FPath> Overlays;
 
