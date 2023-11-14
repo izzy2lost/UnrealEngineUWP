@@ -357,7 +357,7 @@ namespace Horde.Agent
 
 		internal string GetAgentName()
 		{
-			return Name ?? Unreal.MachineName;
+			return Name ?? Environment.MachineName;
 		}
 	}
 
