@@ -513,19 +513,28 @@ UWorldPartitionRuntimeHash* UWorldPartitionRuntimeHash::ConvertWorldPartitionHas
 	check(InDstClass->IsChildOf<UWorldPartitionRuntimeHash>());
 	check(!InDstClass->HasAnyClassFlags(CLASS_Abstract));
 
+	UWorldPartitionRuntimeHash* NewHash = nullptr;
+
 	const UClass* CurrentSrcClass = InSrcHash->GetClass();
 	while(CurrentSrcClass != UWorldPartitionRuntimeHash::StaticClass())
 	{
 		if (FRuntimeHashConvertFunc* Converter = WorldPartitionRuntimeHashConverters.Find({ CurrentSrcClass, InDstClass }))
 		{
-			return (*Converter)(InSrcHash);
+			NewHash = (*Converter)(InSrcHash);
+			break;
 		}
 		CurrentSrcClass = CurrentSrcClass->GetSuperClass();
 	}
 
-	UWorldPartitionRuntimeHash* RuntimeHash = NewObject<UWorldPartitionRuntimeHash>(InSrcHash->GetOuter(), InDstClass, NAME_None, RF_Transactional);
-	RuntimeHash->SetDefaultValues();
-	return RuntimeHash;
+	if (!NewHash)
+	{
+		NewHash = NewObject<UWorldPartitionRuntimeHash>(InSrcHash->GetOuter(), InDstClass, NAME_None, RF_Transactional);
+		NewHash->SetDefaultValues();
+	}
+
+	UE_LOG(LogWorldPartition, Log, TEXT("Converted '%s' runtime hash class from '%s' to '%s'"), *InSrcHash->GetPackage()->GetName(), *InSrcHash->GetClass()->GetName(), *InDstClass->GetName());
+
+	return NewHash;
 }
 #endif
 

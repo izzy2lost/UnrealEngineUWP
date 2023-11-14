@@ -47,6 +47,7 @@
 #include "WorldPartition/Cook/WorldPartitionCookPackageContextInterface.h"
 #include "WorldPartition/ContentBundle/ContentBundleEditorSubsystemInterface.h"
 #include "WorldPartition/ContentBundle/ContentBundleEditor.h"
+#include "WorldPartition/ErrorHandling/WorldPartitionStreamingGenerationMapCheckErrorHandler.h"
 #include "Modules/ModuleManager.h"
 #include "GameDelegates.h"
 #else
@@ -420,7 +421,10 @@ void UWorldPartition::OnBeginPlay()
 	check(!bIsPIE);
 	bIsPIE = true;
 
-	FGenerateStreamingParams Params;
+	// In PIE, we always want to populate the map check dialog
+	FStreamingGenerationMapCheckErrorHandler MapCheckErrorHandler;
+	FGenerateStreamingParams Params = FGenerateStreamingParams()
+		.SetErrorHandler(&MapCheckErrorHandler);
 
 	TArray<FString> OutGeneratedStreamingPackageNames;
 	FGenerateStreamingContext Context = FGenerateStreamingContext()

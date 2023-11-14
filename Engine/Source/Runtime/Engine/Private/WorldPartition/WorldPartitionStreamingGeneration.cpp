@@ -26,7 +26,6 @@
 #include "WorldPartition/DataLayer/DataLayerUtils.h"
 #include "WorldPartition/ErrorHandling/WorldPartitionStreamingGenerationNullErrorHandler.h"
 #include "WorldPartition/ErrorHandling/WorldPartitionStreamingGenerationLogErrorHandler.h"
-#include "WorldPartition/ErrorHandling/WorldPartitionStreamingGenerationMapCheckErrorHandler.h"
 #include "WorldPartition/HLOD/HLODActor.h"
 #include "WorldPartition/HLOD/HLODLayer.h"
 #include "WorldPartition/WorldPartitionSubsystem.h"
@@ -53,6 +52,29 @@ static FAutoConsoleCommand DumpStreamingGenerationLog(
 		}
 	})
 );
+
+template <class T>
+class TErrorHandlerSelector
+{
+public:
+	TErrorHandlerSelector(IStreamingGenerationErrorHandler* InErrorHandler = nullptr)
+	{
+		ErrorHandler = InErrorHandler ? InErrorHandler : &BaseErrorHandler;
+	}
+
+	IStreamingGenerationErrorHandler* Get()
+	{
+		if (UWorldPartition::StreamingGenerationErrorHandlerOverride)
+		{
+			return (*UWorldPartition::StreamingGenerationErrorHandlerOverride)(ErrorHandler);
+		}
+		return ErrorHandler;
+	}
+
+private:
+	T BaseErrorHandler;
+	IStreamingGenerationErrorHandler* ErrorHandler;
+};
 
 FActorDescViewMap::FActorDescViewMap()
 {}
@@ -1361,16 +1383,9 @@ bool UWorldPartition::GenerateContainerStreaming(const FGenerateStreamingParams&
 
 	FActorDescList* ModifiedActorsDescList = nullptr;
 
-	FStreamingGenerationLogErrorHandler LogErrorHandler;
-	FStreamingGenerationMapCheckErrorHandler MapCheckErrorHandler;	
-	IStreamingGenerationErrorHandler* ErrorHandler = &LogErrorHandler;	
-
 	if (bIsPIE)
 	{
 		ModifiedActorsDescList = &RuntimeHash->ModifiedActorDescListForPIE;
-		
-		// In PIE, we always want to populate the map check dialog
-		ErrorHandler = &MapCheckErrorHandler;
 	}
 
 	const FString ContainerPackageName = InParams.ActorDescCollection.GetMainContainerPackageName().ToString();
@@ -1409,12 +1424,14 @@ bool UWorldPartition::GenerateContainerStreaming(const FGenerateStreamingParams&
 		}
 	}
 
+	TErrorHandlerSelector<FStreamingGenerationLogErrorHandler> ErrorHandlerSelector(InParams.ErrorHandler);
+
 	FWorldPartitionStreamingGenerator::FWorldPartitionStreamingGeneratorParams StreamingGeneratorParams = FWorldPartitionStreamingGenerator::FWorldPartitionStreamingGeneratorParams()
 		.SetWorldPartitionContext(this)
 		.SetModifiedActorsDescList( ModifiedActorsDescList)
 		.SetIsValidGrid([this](FName GridName) { return RuntimeHash->IsValidGrid(GridName); })
 		.SetIsValidHLODLayer([this](FName GridName, const FSoftObjectPath& HLODLayerPath) { return RuntimeHash->IsValidHLODLayer(GridName, HLODLayerPath); })
-		.SetErrorHandler(StreamingGenerationErrorHandlerOverride ? (*StreamingGenerationErrorHandlerOverride)(ErrorHandler) : ErrorHandler)
+		.SetErrorHandler(ErrorHandlerSelector.Get())
 		.SetEnableStreaming(IsStreamingEnabled())
 		.SetCreateContainerResolver(FEditorPathHelper::IsEnabled());
 
@@ -1471,12 +1488,13 @@ TUniquePtr<IStreamingGenerationContext> UWorldPartition::GenerateStreamingGenera
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UWorldPartition::GenerateStreamingGenerationContext);
 
-	FStreamingGenerationLogErrorHandler LogErrorHandler;
+	TErrorHandlerSelector<FStreamingGenerationLogErrorHandler> ErrorHandlerSelector(InParams.ErrorHandler);
+
 	FWorldPartitionStreamingGenerator::FWorldPartitionStreamingGeneratorParams StreamingGeneratorParams = FWorldPartitionStreamingGenerator::FWorldPartitionStreamingGeneratorParams()
 		.SetWorldPartitionContext(this)
 		.SetIsValidGrid([this](FName GridName) { return RuntimeHash->IsValidGrid(GridName); })
 		.SetIsValidHLODLayer([this](FName GridName, const FSoftObjectPath& HLODLayerPath) { return RuntimeHash->IsValidHLODLayer(GridName, HLODLayerPath); })
-		.SetErrorHandler(&LogErrorHandler)
+		.SetErrorHandler(ErrorHandlerSelector.Get())
 		.SetEnableStreaming(IsStreamingEnabled())
 		.SetCreateContainerResolver(FEditorPathHelper::IsEnabled());
 
@@ -1514,10 +1532,11 @@ void UWorldPartition::SetupHLODActors(const FSetupHLODActorsParams& Params)
 {
 	ForEachActorDescContainer([this, &Params](UActorDescContainer* InActorDescContainer)
 	{
-		FStreamingGenerationLogErrorHandler LogErrorHandler;
+		TErrorHandlerSelector<FStreamingGenerationLogErrorHandler> ErrorHandlerSelector;
+
 		FWorldPartitionStreamingGenerator::FWorldPartitionStreamingGeneratorParams StreamingGeneratorParams = FWorldPartitionStreamingGenerator::FWorldPartitionStreamingGeneratorParams()
 			.SetWorldPartitionContext(this)
-			.SetErrorHandler(StreamingGenerationErrorHandlerOverride ? (*StreamingGenerationErrorHandlerOverride)(&LogErrorHandler) : &LogErrorHandler)
+			.SetErrorHandler(ErrorHandlerSelector.Get())
 			.SetEnableStreaming(IsStreamingEnabled())
 			.SetFilteredClasses({ AWorldPartitionHLOD::StaticClass() })
 			.SetIsValidGrid([this](FName GridName) { return RuntimeHash->IsValidGrid(GridName); })
@@ -1649,10 +1668,12 @@ void UWorldPartition::CheckForErrors(IStreamingGenerationErrorHandler* ErrorHand
 {
 	FActorDescList ModifiedActorDescList;
 
+	TErrorHandlerSelector<FStreamingGenerationLogErrorHandler> ErrorHandlerSelector(ErrorHandler);
+
 	FWorldPartitionStreamingGenerator::FWorldPartitionStreamingGeneratorParams StreamingGeneratorParams = FWorldPartitionStreamingGenerator::FWorldPartitionStreamingGeneratorParams()
 		.SetWorldPartitionContext(this)
 		.SetModifiedActorsDescList(&ModifiedActorDescList)
-		.SetErrorHandler(StreamingGenerationErrorHandlerOverride ? (*StreamingGenerationErrorHandlerOverride)(ErrorHandler) : ErrorHandler)
+		.SetErrorHandler(ErrorHandlerSelector.Get())
 		.SetIsValidGrid([this](FName GridName) { return RuntimeHash->IsValidGrid(GridName); })
 		.SetIsValidHLODLayer([this](FName GridName, const FSoftObjectPath& HLODLayerPath) { return RuntimeHash->IsValidHLODLayer(GridName, HLODLayerPath); })
 		.SetEnableStreaming(IsStreamingEnabled());
@@ -1703,10 +1724,12 @@ void UWorldPartition::CheckForErrors(const FCheckForErrorsParams& Params)
 	FStreamingGenerationActorDescCollection Collection { Containers };
 	const UActorDescContainer* MainActorDescContainer = Collection.GetMainActorDescContainer();
 
+	TErrorHandlerSelector<FStreamingGenerationLogErrorHandler> ErrorHandlerSelector(Params.ErrorHandler);
+
 	FWorldPartitionStreamingGenerator::FWorldPartitionStreamingGeneratorParams StreamingGeneratorParams = FWorldPartitionStreamingGenerator::FWorldPartitionStreamingGeneratorParams()
 		.SetWorldPartitionContext(MainActorDescContainer->GetWorldPartition())
 		.SetModifiedActorsDescList(!MainActorDescContainer->IsTemplateContainer() ? &ModifiedActorDescList : nullptr)
-		.SetErrorHandler(StreamingGenerationErrorHandlerOverride ? (*StreamingGenerationErrorHandlerOverride)(Params.ErrorHandler) : Params.ErrorHandler)
+		.SetErrorHandler(ErrorHandlerSelector.Get())
 		.SetIsValidGrid([](FName) { return true; })
 		.SetIsValidHLODLayer([](FName, const FSoftObjectPath&) { return true; })
 		.SetEnableStreaming(Params.bEnableStreaming)

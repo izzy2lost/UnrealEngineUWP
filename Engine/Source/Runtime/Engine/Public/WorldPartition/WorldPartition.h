@@ -238,17 +238,16 @@ public:
 	struct FGenerateStreamingParams
 	{
 		FGenerateStreamingParams()
+			: ErrorHandler(nullptr)
 		{}
 
 		FStreamingGenerationActorDescCollection ActorDescCollection;
 		TOptional<const FString> OutputLogPath;
+		IStreamingGenerationErrorHandler* ErrorHandler;
 
-		FGenerateStreamingParams& SetActorDescContainer(const UActorDescContainer* InActorDescContainer) 
-		{ 
-			ActorDescCollection.AddContainer(InActorDescContainer);
-			return *this;
-		}
+		FGenerateStreamingParams& SetActorDescContainer(const UActorDescContainer* InActorDescContainer) { ActorDescCollection.AddContainer(InActorDescContainer); return *this; }
 		FGenerateStreamingParams& SetOutputLogPath(const FString& InOutputLogPath) { OutputLogPath = InOutputLogPath; return *this; }
+		FGenerateStreamingParams& SetErrorHandler(IStreamingGenerationErrorHandler* InErrorHandler) { ErrorHandler = InErrorHandler; return *this; }
 	};
 
 	struct FGenerateStreamingContext
