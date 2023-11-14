@@ -36,7 +36,8 @@ static TAutoConsoleVariable<int32> CVarInstanceDataResetTrackingOnRegister(
 
 
 FPrimitiveInstanceDataManager::FPrimitiveInstanceDataManager(UPrimitiveComponent* InPrimitiveComponent) 
-	: PrimitiveComponent(InPrimitiveComponent) 
+#if !USE_NULL_RHI
+	: PrimitiveComponent(InPrimitiveComponent)
 {
 	// Don't do anything if this is not a "real" ISM being tracked (this logic shopuld move out).
 	if (PrimitiveComponent.IsValid() && PrimitiveComponent->HasAnyFlags(RF_ClassDefaultObject | RF_ArchetypeObject))
@@ -45,9 +46,14 @@ FPrimitiveInstanceDataManager::FPrimitiveInstanceDataManager(UPrimitiveComponent
 	}
 	LOG_INST_DATA(TEXT("FPrimitiveInstanceDataManager %s, TrackingState=%s"), *PrimitiveComponent->GetFullName(), TrackingState == ETrackingState::Disabled ? TEXT("Disabled") : TEXT("Initial"));
 }
+#else
+{
+}
+#endif
 
 void FPrimitiveInstanceDataManager::SetMode(EMode InMode)
 {
+#if !USE_NULL_RHI
 	if (InMode != Mode)
 	{
 		// This should never be called in mid-use
@@ -55,6 +61,7 @@ void FPrimitiveInstanceDataManager::SetMode(EMode InMode)
 		Invalidate(0);
 	}
 	Mode = InMode;
+#endif
 }
 
 void FPrimitiveInstanceDataManager::Add(int32 InInstanceAddAtIndex, bool bInsert)
@@ -64,6 +71,7 @@ void FPrimitiveInstanceDataManager::Add(int32 InInstanceAddAtIndex, bool bInsert
 		return;
 	}
 
+#if !USE_NULL_RHI
 	ValidateMapping();
 
 	// If the manager is marked for legacy-only mode, we should not see any tracking calls!
@@ -131,6 +139,7 @@ void FPrimitiveInstanceDataManager::Add(int32 InInstanceAddAtIndex, bool bInsert
 	LOG_INST_DATA(TEXT("Add(IDX: %d, bInsert: %d) -> Id: %d"), InInstanceAddAtIndex, bInsert, InstanceId.Id);
 
 	ValidateMapping();
+#endif
 }
 
 void FPrimitiveInstanceDataManager::RemoveAtSwap(int32 InstanceIndex)
@@ -140,6 +149,7 @@ void FPrimitiveInstanceDataManager::RemoveAtSwap(int32 InstanceIndex)
 		return;
 	}
 
+#if !USE_NULL_RHI
 	ValidateMapping();
 
 	check(Mode != EMode::ExternalLegacyData);
@@ -180,6 +190,7 @@ void FPrimitiveInstanceDataManager::RemoveAtSwap(int32 InstanceIndex)
 	}
 	ValidateMapping();
 	LOG_INST_DATA(TEXT("RemoveAtSwap(IDX: %d) -> Id: %d"), InstanceIndex, InstanceId.Id);
+#endif
 }
 	
 void FPrimitiveInstanceDataManager::RemoveAt(int32 InstanceIndex)
@@ -189,6 +200,7 @@ void FPrimitiveInstanceDataManager::RemoveAt(int32 InstanceIndex)
 		return;
 	}
 
+#if !USE_NULL_RHI
 	ValidateMapping();
 
 	check(Mode != EMode::ExternalLegacyData);
@@ -233,18 +245,23 @@ void FPrimitiveInstanceDataManager::RemoveAt(int32 InstanceIndex)
 	LOG_INST_DATA(TEXT("RemoveAt(IDX: %d) -> Id: %d"), InstanceIndex, InstanceId.Id);
 
 	ValidateMapping();
+#endif
 }
 
 void FPrimitiveInstanceDataManager::TransformChanged(int32 InstanceIndex)
 {
+#if !USE_NULL_RHI
 	LOG_INST_DATA(TEXT("TransformChanged(IDX: %d)"), InstanceIndex);
 	MarkChangeHelper<EChangeFlag::TransformChanged>( InstanceIndex);
+#endif
 }
 
 void FPrimitiveInstanceDataManager::TransformChanged(FPrimitiveInstanceId InstanceId)
 {
+#if !USE_NULL_RHI
 	LOG_INST_DATA(TEXT("TransformChanged(ID: %d)"), InstanceId.Id);
 	MarkChangeHelper<EChangeFlag::TransformChanged>(InstanceId);
+#endif
 }
 
 void FPrimitiveInstanceDataManager::TransformsChangedAll()
@@ -254,22 +271,28 @@ void FPrimitiveInstanceDataManager::TransformsChangedAll()
 		return;
 	}
 
+#if !USE_NULL_RHI
 	LOG_INST_DATA(TEXT("TransformsChangedAll(%s)"), TEXT(""));
 	bTransformChangedAllInstances = true;
 	MarkComponentRenderInstancesDirty();
+#endif
 }
 
 void FPrimitiveInstanceDataManager::CustomDataChanged(int32 InstanceIndex)
 {
+#if !USE_NULL_RHI
 	LOG_INST_DATA(TEXT("CustomDataChanged(IDX: %d)"), InstanceIndex);
 	MarkChangeHelper<EChangeFlag::CustomDataChanged>(InstanceIndex);
+#endif
 }
 
 void FPrimitiveInstanceDataManager::BakedLightingDataChanged(int32 InstanceIndex)
 {
+#if !USE_NULL_RHI
 	LOG_INST_DATA(TEXT("BakedLightingDataChanged(IDX: %d)"), InstanceIndex);
 	bBakedLightingDataChanged = true;
 	MarkComponentRenderInstancesDirty();
+#endif
 }
 
 void FPrimitiveInstanceDataManager::BakedLightingDataChangedAll()
@@ -279,9 +302,11 @@ void FPrimitiveInstanceDataManager::BakedLightingDataChangedAll()
 		return;
 	}
 
+#if !USE_NULL_RHI
 	LOG_INST_DATA(TEXT("BakedLightingDataChangedAll(%s)"), TEXT(""));
 	bBakedLightingDataChanged = true;
 	MarkComponentRenderInstancesDirty();
+#endif
 }
 
 void FPrimitiveInstanceDataManager::NumCustomDataChanged()
@@ -291,9 +316,11 @@ void FPrimitiveInstanceDataManager::NumCustomDataChanged()
 		return;
 	}
 
+#if !USE_NULL_RHI
 	LOG_INST_DATA(TEXT("NumCustomDataChanged(%s)"), TEXT(""));
 	bNumCustomDataChanged = true;
 	MarkComponentRenderInstancesDirty();
+#endif
 }
 
 #if WITH_EDITOR
@@ -319,18 +346,24 @@ void FPrimitiveInstanceDataManager::PrimitiveTransformChanged()
 		return;
 	}
 
+#if !USE_NULL_RHI
 	LOG_INST_DATA(TEXT("PrimitiveTransformChanged(%s)"), TEXT(""));
 	bPrimitiveTransformChanged = true;
 	MarkComponentRenderInstancesDirty();
+#endif
 }
 
 bool FPrimitiveInstanceDataManager::HasAnyInstanceChanges() const
 {
-	return InstanceUpdateTracker.HasAnyChanges() 
+#if !USE_NULL_RHI
+	return InstanceUpdateTracker.HasAnyChanges()
 #if WITH_EDITOR
 		|| bAnyEditorDataChanged 
 #endif
 		|| bNumCustomDataChanged || bBakedLightingDataChanged || bTransformChangedAllInstances;
+#else
+	return false;
+#endif // !USE_NULL_RHI
 }
 
 
@@ -353,6 +386,7 @@ void FPrimitiveInstanceDataManager::SerializeRenderData(FArchive& Ar, bool bCook
 	}
 }
 
+#if !USE_NULL_RHI
 /**
  * Describes what has changed, that can be derived from the primitive desc, or internal tracking state.
  */
@@ -485,9 +519,11 @@ struct FLegacyRebuildChangeSet
 #endif
 	int32 NumCustomDataFloats = 0; 
 };
+#endif // !USE_NULL_RHI
 
 void FPrimitiveInstanceDataManager::InitChangeSet(const FChangeDesc &ChangeDesc, const FInstanceUpdateComponentDesc &ComponentData, FISMInstanceUpdateChangeSet &ChangeSet)
 {
+#if !USE_NULL_RHI
 	// Collect the delta data to be able to update the index mapping.
 	ChangeSet.MaxInstanceId = GetMaxInstanceId();
 	ChangeSet.bIdentityIdMap = IsIdentity();
@@ -516,6 +552,7 @@ void FPrimitiveInstanceDataManager::InitChangeSet(const FChangeDesc &ChangeDesc,
 
 	// This is the odd one out
 	ChangeSet.SetInstanceLocalBounds(ComponentData.StaticMeshBounds);
+#endif // !USE_NULL_RHI
 }
 
 bool FPrimitiveInstanceDataManager::FlushChanges(FInstanceUpdateComponentDesc &&ComponentData, bool bNewPrimitiveProxy)
@@ -525,6 +562,7 @@ bool FPrimitiveInstanceDataManager::FlushChanges(FInstanceUpdateComponentDesc &&
 		return false;
 	}
 
+#if !USE_NULL_RHI
 	// Always clear the flag such that any subsequent change marks it as needing update again.
 	bComponentMarkedDirty = false;
 
@@ -771,7 +809,7 @@ bool FPrimitiveInstanceDataManager::FlushChanges(FInstanceUpdateComponentDesc &&
 
 	// After an update has been sent, we need to track all deltas.
 	TrackingState = ETrackingState::Tracked;
-
+#endif
 	return true;
 }
 
@@ -782,6 +820,7 @@ void FPrimitiveInstanceDataManager::PostLoad(int32 InNumInstances, TUniquePtr<FS
 		return;
 	}
 
+#if !USE_NULL_RHI
 	if (LegacyStaticMeshInstanceData.IsValid())
 	{
 		check(NumInstances == LegacyStaticMeshInstanceData->GetNumInstances());
@@ -808,6 +847,7 @@ void FPrimitiveInstanceDataManager::PostLoad(int32 InNumInstances, TUniquePtr<FS
 #endif
 	}
 	NumInstances = InNumInstances;
+#endif // !USE_NULL_RHI
 }
 
 void FPrimitiveInstanceDataManager::ClearIdTracking(int32 InNumInstances)
@@ -817,6 +857,7 @@ void FPrimitiveInstanceDataManager::ClearIdTracking(int32 InNumInstances)
 		return;
 	}
 
+#if !USE_NULL_RHI
 	// Reset the mapping to identity & clear allocator, this looses all association with ID:Index that existed before
 	IndexToIdMap.Empty();
 	IdToIndexMap.Empty();
@@ -826,6 +867,7 @@ void FPrimitiveInstanceDataManager::ClearIdTracking(int32 InNumInstances)
 
 	// Also clear the change tracking since it is not valid anymore
 	ClearChangeTracking();
+#endif
 }
 
 void FPrimitiveInstanceDataManager::ClearChangeTracking()
@@ -835,6 +877,7 @@ void FPrimitiveInstanceDataManager::ClearChangeTracking()
 		return;
 	}
 
+#if !USE_NULL_RHI
 	// When tracking data is cleared, we loose connection to previously tracked state until the next update is sent.
 	TrackingState = ETrackingState::Initial;
 
@@ -848,20 +891,30 @@ void FPrimitiveInstanceDataManager::ClearChangeTracking()
 	bAnyEditorDataChanged = false;
 #endif	
 	bPrimitiveTransformChanged = false;
+#endif
 }
 
 int32 FPrimitiveInstanceDataManager::GetMaxInstanceId() const
 {
+#if !USE_NULL_RHI
 	return HasIdentityMapping() ? NumInstances : ValidInstanceIdMask.Num();
+#else
+	return 0;
+#endif
 }
 
 int32 FPrimitiveInstanceDataManager::GetMaxInstanceIndex() const
 {
+#if !USE_NULL_RHI
 	return HasIdentityMapping() ? NumInstances : IndexToIdMap.Num();
+#else
+	return 0;
+#endif
 }
 
 void FPrimitiveInstanceDataManager::CreateExplicitIdentityMapping()
 {
+#if !USE_NULL_RHI
 	check(HasIdentityMapping());
 	IndexToIdMap.SetNumUninitialized(NumInstances);
 	IdToIndexMap.SetNumUninitialized(NumInstances);
@@ -873,11 +926,13 @@ void FPrimitiveInstanceDataManager::CreateExplicitIdentityMapping()
 	ValidInstanceIdMask.Reset();
 	ValidInstanceIdMask.SetNum(NumInstances, true);
 	IdSearchStartIndex = NumInstances;
+#endif
 }
 
 template<FPrimitiveInstanceDataManager::EChangeFlag Flag>
 void FPrimitiveInstanceDataManager::MarkChangeHelper(int32 InstanceIndex)
 {
+#if !USE_NULL_RHI
 	if (GetState() == ETrackingState::Disabled)
 	{
 		return;
@@ -892,11 +947,13 @@ void FPrimitiveInstanceDataManager::MarkChangeHelper(int32 InstanceIndex)
 	}
 	InstanceUpdateTracker.MarkIndex<Flag>(InstanceIndex, GetMaxInstanceIndex());
 	MarkComponentRenderInstancesDirty();
+#endif
 }
 
 template<FPrimitiveInstanceDataManager::EChangeFlag Flag>
 void FPrimitiveInstanceDataManager::MarkChangeHelper(FPrimitiveInstanceId InstanceId)
 {
+#if !USE_NULL_RHI
 	check(Mode != EMode::ExternalLegacyData);
 
 	if (GetState() != ETrackingState::Tracked)
@@ -905,10 +962,12 @@ void FPrimitiveInstanceDataManager::MarkChangeHelper(FPrimitiveInstanceId Instan
 		return;
 	}
 	MarkChangeHelper<Flag>(IdToIndex(InstanceId));
+#endif
 }
 
 void FPrimitiveInstanceDataManager::MarkComponentRenderInstancesDirty()
 {
+#if !USE_NULL_RHI
 	if (!bComponentMarkedDirty)
 	{
 		if (UPrimitiveComponent *PrimitiveComponentPtr = PrimitiveComponent.Get())
@@ -917,20 +976,30 @@ void FPrimitiveInstanceDataManager::MarkComponentRenderInstancesDirty()
 			bComponentMarkedDirty = true;
 		}
 	}
+#endif
 }
 
 bool FPrimitiveInstanceDataManager::HasIdentityMapping() const
 {
+#if !USE_NULL_RHI
 	return IndexToIdMap.IsEmpty();
+#else
+	return false;
+#endif
 }
 
 bool FPrimitiveInstanceDataManager::ShouldTrackIds() const
 {
+#if !USE_NULL_RHI
 	return Proxy != nullptr;
+#else
+	return false;
+#endif
 }
 
 void FPrimitiveInstanceDataManager::FreeInstanceId(FPrimitiveInstanceId InstanceId)
 {
+#if !USE_NULL_RHI
 	LOG_INST_DATA(TEXT("FreeInstanceId(Id: %d)"), InstanceId.Id);
 
 	if (!HasIdentityMapping())
@@ -942,10 +1011,12 @@ void FPrimitiveInstanceDataManager::FreeInstanceId(FPrimitiveInstanceId Instance
 	}
 
 	LOG_INST_DATA(TEXT("IdToIndexMap[%d] = %d"), InstanceId.Id, INDEX_NONE);
+#endif
 }
 
 TSharedPtr<FISMCInstanceDataSceneProxy, ESPMode::ThreadSafe> FPrimitiveInstanceDataManager::GetOrCreateProxy(FStaticShaderPlatform InShaderPlatform, ERHIFeatureLevel::Type InFeatureLevel)
 {
+#if !USE_NULL_RHI
 	LOG_INST_DATA(TEXT("GetOrCreateProxy"));
 	if (Proxy && !Proxy->CheckPlatformFeatureLevel(InShaderPlatform, InFeatureLevel))
 	{
@@ -972,10 +1043,15 @@ TSharedPtr<FISMCInstanceDataSceneProxy, ESPMode::ThreadSafe> FPrimitiveInstanceD
 	}
 
 	return Proxy;
+#else
+	checkNoEntry();
+	return nullptr;
+#endif
 }
 
 void FPrimitiveInstanceDataManager::Invalidate(int32 InNumInstances)
 {
+#if !USE_NULL_RHI
 	LOG_INST_DATA(TEXT("Invalidate"));
 	Proxy.Reset();
 	ClearIdTracking(InNumInstances);
@@ -985,9 +1061,10 @@ void FPrimitiveInstanceDataManager::Invalidate(int32 InNumInstances)
 		PrimitiveComponentPtr->MarkRenderStateDirty();
 		bComponentMarkedDirty = true;
 	}
+#endif 
 }
 
-#if DO_GUARD_SLOW
+#if DO_GUARD_SLOW && !USE_NULL_RHI
 void FPrimitiveInstanceDataManager::ValidateMapping() const
 {
 	check(HasIdentityMapping() || IndexToIdMap.Num() == NumInstances);
@@ -1017,6 +1094,7 @@ void FPrimitiveInstanceDataManager::ValidateMapping() const
 
 void FPrimitiveInstanceDataManager::MarkForRebuildFromLegacy(TUniquePtr<FStaticMeshInstanceData> &&InLegacyInstanceData, const TArray<int32> &InstanceReorderTable, const TArray<TRefCountPtr<HHitProxy>> &HitProxies)
 {
+#if !USE_NULL_RHI
 	if (GetState() == ETrackingState::Disabled)
 	{
 		return;
@@ -1052,16 +1130,22 @@ void FPrimitiveInstanceDataManager::MarkForRebuildFromLegacy(TUniquePtr<FStaticM
 		TrackingState = ETrackingState::Tracked;
 	}
 	MarkComponentRenderInstancesDirty();
+#endif
 }
 
 SIZE_T FPrimitiveInstanceDataManager::GetAllocatedSize() const
 {
+#if !USE_NULL_RHI
 	return ValidInstanceIdMask.GetAllocatedSize() +
 		InstanceUpdateTracker.GetAllocatedSize();
+#else
+	return 0;
+#endif
 }
 
 void FPrimitiveInstanceDataManager::OnRegister(int32 InNumInstances)
 {
+#if !USE_NULL_RHI
 	LOG_INST_DATA(TEXT("OnRegister(InNumInstances : %d) NumInstances: %d"), InNumInstances, NumInstances);
 
 	if (CVarInstanceDataResetTrackingOnRegister.GetValueOnGameThread())
@@ -1075,4 +1159,5 @@ void FPrimitiveInstanceDataManager::OnRegister(int32 InNumInstances)
 			ClearChangeTracking();
 		}
 	}
+#endif
 }

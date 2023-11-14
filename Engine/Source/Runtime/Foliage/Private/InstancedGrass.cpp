@@ -37,7 +37,11 @@ void UGrassInstancedStaticMeshComponent::BuildTreeAnyThread(
 	OutOcclusionLayerNum = Builder.Result->OutOcclusionLayerNum;
 
 	OutClusterTree = MoveTemp(Builder.Result->Nodes);
+#if !USE_NULL_RHI
 	OutInstanceReorderTable = MoveTemp(Builder.Result->InstanceReorderTable);
+#else
+	OutInstanceReorderTable.Empty();
+#endif
 	OutSortedInstances = MoveTemp(Builder.Result->SortedInstances);
 }
 

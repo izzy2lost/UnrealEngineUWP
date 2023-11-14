@@ -288,6 +288,7 @@ void UHierarchicalInstancedStaticMeshComponent::FClusterBuilder::Split(int32 Sta
 
 void UHierarchicalInstancedStaticMeshComponent::FClusterBuilder::BuildInstanceBuffer()
 {
+#if !USE_NULL_RHI
 	// build new instance buffer
 	FRandomStream RandomStream = FRandomStream(InstancingRandomSeed);
 	BuiltInstanceData = MakeUnique<FStaticMeshInstanceData>(/*bInUseHalfFloat = */true);
@@ -319,6 +320,7 @@ void UHierarchicalInstancedStaticMeshComponent::FClusterBuilder::BuildInstanceBu
 			// correct light/shadow map bias will be setup on game thread side if needed
 		}
 	}
+#endif
 }
 
 void UHierarchicalInstancedStaticMeshComponent::FClusterBuilder::Init()
@@ -393,7 +395,11 @@ void UHierarchicalInstancedStaticMeshComponent::FClusterBuilder::BuildTree()
 		// Can happen if all instances are excluded due to scalability
 		// It doesn't only happen with a scalability factor of 0 - 
 		// even with a scalability factor of 0.99, if there's only one instance of this type you can end up with Num == 0 if you're unlucky
+#if !USE_NULL_RHI
 		Result->InstanceReorderTable.Init(INDEX_NONE, OriginalNum);
+#else
+		Result->NumInstancesTotal = OriginalNum;
+#endif
 		return;
 	}
 
@@ -626,12 +632,16 @@ void UHierarchicalInstancedStaticMeshComponent::FClusterBuilder::BuildTree()
 		}
 	}
 
+#if !USE_NULL_RHI
 	// Save inverse map
 	Result->InstanceReorderTable.Init(INDEX_NONE, OriginalNum);
 	for (int32 Index = 0; Index < Num; Index++)
 	{
 		Result->InstanceReorderTable[Result->SortedInstances[Index]] = Index;
 	}
+#else
+	Result->NumInstancesTotal = OriginalNum;
+#endif
 
 	// Output a general scale of 1 if we dont want the scaling range
 	if (!GenerateInstanceScalingRange)
@@ -2657,7 +2667,7 @@ void UHierarchicalInstancedStaticMeshComponent::ApplyBuildTreeAsync(ENamedThread
 	{
 		bConcurrentChanges = false;
 
-		UE_LOG(LogStaticMesh, Verbose, TEXT("Discarded foliage hierarchy of %d elements build due to concurrent removal (%.1fs)"), Builder->Result->InstanceReorderTable.Num(), (float)(FPlatformTime::Seconds() - StartTime));
+		UE_LOG(LogStaticMesh, Verbose, TEXT("Discarded foliage hierarchy of %d elements build due to concurrent removal (%.1fs)"), Builder->Result->GetNumBuiltInstances(), (float)(FPlatformTime::Seconds() - StartTime));
 
 		// There were changes while we were building, it's too slow to fix up the result now, so build async again.
 		BuildTreeAsync();
@@ -2688,14 +2698,18 @@ void UHierarchicalInstancedStaticMeshComponent::ApplyBuildTree(FClusterBuilder& 
 {
 	bIsOutOfDate = false;
 
-	check(Builder.Result->InstanceReorderTable.Num() == PerInstanceSMData.Num());
+	check(Builder.Result->GetNumBuiltInstances() == PerInstanceSMData.Num());
 
-	NumBuiltInstances = Builder.Result->InstanceReorderTable.Num();
+	NumBuiltInstances = Builder.Result->GetNumBuiltInstances();
 	NumBuiltRenderInstances = Builder.Result->SortedInstances.Num();
 
 	ClusterTreePtr = MakeShareable(new TArray<FClusterNode>(MoveTemp(Builder.Result->Nodes)));
 
+#if !USE_NULL_RHI
 	InstanceReorderTable = MoveTemp(Builder.Result->InstanceReorderTable);
+#else
+	InstanceReorderTable.Reset();
+#endif
 	SortedInstances = MoveTemp(Builder.Result->SortedInstances);
 	CacheMeshExtendedBounds = GetStaticMesh()->GetBounds();
 	TUniquePtr<FStaticMeshInstanceData> BuiltInstanceData = MoveTemp(Builder.BuiltInstanceData);

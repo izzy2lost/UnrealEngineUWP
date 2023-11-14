@@ -2928,6 +2928,11 @@ struct FInstancedStaticMeshInstanceData_DEPRECATED
 static bool NeedRenderDataForTargetPlatform(const ITargetPlatform* TargetPlatform)
 {
 #if WITH_EDITOR
+	if (TargetPlatform->IsServerOnly())
+	{
+		return false;
+	}
+
 	const UDeviceProfile* DeviceProfile = UDeviceProfileManager::Get().FindProfile(TargetPlatform->IniPlatformName());
 	if (DeviceProfile)
 	{
@@ -3082,6 +3087,11 @@ void UInstancedStaticMeshComponent::Serialize(FArchive& Ar)
 		Ar << SelectedInstances;
 	}
 #endif
+
+	if (!FApp::CanEverRenderOrProduceRenderData() && InstanceReorderTable.GetAllocatedSize() > 0)
+	{
+		InstanceReorderTable.Empty();
+	}
 }
 
 void UInstancedStaticMeshComponent::PreAllocateInstancesMemory(int32 AddedInstanceCount)
