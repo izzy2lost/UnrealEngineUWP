@@ -8,6 +8,67 @@
 #include "Engine/Engine.h"
 #include "Misc/Paths.h"
 
+#if WITH_EDITOR
+#include "Editor.h"
+#include "HAL/FileManager.h"
+#include "LevelEditorSubsystem.h"
+#include "Tests/AutomationEditorCommon.h"
+#endif
+
+namespace {
+
+static const FString TempMapDirectory = FPaths::Combine(FPaths::ProjectContentDir(), TEXT("CQTestMapTemp"));
+
+/**
+ * Generates a unique random 8 character map name.
+ */
+FString GenerateUniqueMapName()
+{
+	FString UniqueMapName = FGuid::NewGuid().ToString();
+	UniqueMapName.LeftInline(8);
+
+	return UniqueMapName;
+}
+
+/**
+ * Cleans up all created resources.
+ */
+void CleanupTempResources()
+{
+#if WITH_EDITOR
+	bool bDirectoryMustExist = true;
+	bool bRemoveRecursively = true;
+	bool bWasDeleted = IFileManager::Get().DeleteDirectory(*TempMapDirectory, bDirectoryMustExist, bRemoveRecursively);
+	check(bWasDeleted);
+#endif
+}
+
+} //anonymous
+
+TUniquePtr<FMapTestSpawner> FMapTestSpawner::CreateFromTempLevel(FTestCommandBuilder& InCommandBuilder)
+{
+#if WITH_EDITOR
+	FString MapName = GenerateUniqueMapName();
+	FString MapPath = FPaths::Combine(TempMapDirectory, MapName);
+	FString NewLevelPackage = FPackageName::FilenameToLongPackageName(MapPath);
+
+	ULevelEditorSubsystem* LevelEditorSubsystem = GEditor->GetEditorSubsystem<ULevelEditorSubsystem>();
+	bool bWasTempLevelCreated = LevelEditorSubsystem->NewLevel(NewLevelPackage);
+	check(bWasTempLevelCreated);
+
+	TUniquePtr<FMapTestSpawner> Spawner = MakeUnique<FMapTestSpawner>(TempMapDirectory, MapName);
+	InCommandBuilder.OnTearDown([&]() {
+		// Create a new map to free up the reference to the map used during testing before cleaning up all temporary resources
+		FAutomationEditorCommonUtils::CreateNewMap();
+		CleanupTempResources();
+	});
+	return MoveTemp(Spawner);
+#else
+	checkf(false, TEXT("CreateFromTempLevel can't create a new level if WITH_EDITOR=false"));
+	return nullptr;
+#endif
+}
+
 void FMapTestSpawner::AddWaitUntilLoadedCommand(FAutomationTestBase* TestRunner)
 {
 #if WITH_AUTOMATION_TESTS

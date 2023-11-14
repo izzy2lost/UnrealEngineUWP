@@ -17,5 +17,15 @@ public class CQTestTests : ModuleRules
 					"CQTest"
 				 }
 			);
+
+		if (Target.bBuildEditor)
+		{
+			PrivateDependencyModuleNames.AddRange(
+				new string[] {
+					"EngineSettings",
+					"LevelEditor",
+					"UnrealEd"
+			});
+		}
 	}
 }
