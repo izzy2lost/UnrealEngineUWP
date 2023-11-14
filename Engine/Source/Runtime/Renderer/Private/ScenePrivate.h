@@ -1508,7 +1508,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			NewMID->CopyInterpParameters(InputAsMID);
 		}
 
-		check(NewMID->GetRenderProxy());
+		check(!FApp::CanEverRender() || NewMID->GetRenderProxy());
 		MIDUsedCount++;
 		return NewMID;
 	}
