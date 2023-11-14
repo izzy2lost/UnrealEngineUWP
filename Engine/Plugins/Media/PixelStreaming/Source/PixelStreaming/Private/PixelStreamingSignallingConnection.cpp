@@ -520,6 +520,42 @@ void FPixelStreamingSignallingConnection::OnConfig(const FJsonObjectPtr& Json)
 	// force `UnifiedPlan` as we control both ends of WebRTC streaming
 	RTCConfig.sdp_semantics = webrtc::SdpSemantics::kUnifiedPlan;
 
+#if WEBRTC_5414
+	int MinPort, MaxPort;
+	MinPort = UE::PixelStreaming::Settings::CVarPixelStreamingWebRTCMinPort.GetValueOnAnyThread();
+	MaxPort = UE::PixelStreaming::Settings::CVarPixelStreamingWebRTCMaxPort.GetValueOnAnyThread();
+
+	if(MinPort < 0 || MinPort > 65535)
+	{
+		UE_LOG(LogPixelStreamingSS, Warning, TEXT("Invalid PixelStreaming.WebRTC.MinPort specified. Value must be within 0 to 65535 inclusive"));
+		MinPort = 49152;
+		UE::PixelStreaming::Settings::CVarPixelStreamingWebRTCMinPort->Set(MinPort, ECVF_SetByCode);
+	}
+
+	if(MaxPort < 0 || MaxPort > 65535)
+	{
+		UE_LOG(LogPixelStreamingSS, Warning, TEXT("Invalid PixelStreaming.WebRTC.MaxPort specified. Value must be within 0 to 65535 inclusive"));
+		MaxPort = 65535;
+		UE::PixelStreaming::Settings::CVarPixelStreamingWebRTCMaxPort->Set(MaxPort, ECVF_SetByCode);
+	}
+
+	if (MinPort > MaxPort)
+	{
+		int OldMax = MaxPort;
+		MaxPort = MinPort;
+		MinPort = OldMax;
+
+		// To try to not be misleading with debug texts etc, we reset these sanitised settings here
+		UE::PixelStreaming::Settings::CVarPixelStreamingWebRTCMinPort->Set(MinPort, ECVF_SetByCode);
+		UE::PixelStreaming::Settings::CVarPixelStreamingWebRTCMaxPort->Set(MaxPort, ECVF_SetByCode);
+	}
+
+	RTCConfig.set_min_port(MinPort);
+	RTCConfig.set_max_port(MaxPort);
+
+	RTCConfig.set_port_allocator_flags(UE::PixelStreaming::Settings::PortAllocatorParameters);
+#endif
+
 	Observer->OnSignallingConfig(RTCConfig);
 }
 
