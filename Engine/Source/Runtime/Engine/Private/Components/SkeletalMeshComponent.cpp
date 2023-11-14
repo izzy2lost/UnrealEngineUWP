@@ -4683,31 +4683,35 @@ void USkeletalMeshComponent::GetPrimitiveStats(FPrimitiveStats& PrimitiveStats) 
 void USkeletalMeshComponent::UpdatePoseWatches()
 {
 	PoseWatches.Empty();
-	UAnimInstance* AnimInstance = GetAnimInstance();
-	if (AnimInstance)
+	
+	auto CopyPoseWatches = [this](const UAnimInstance* InAnimInstance)
 	{
-		if (AnimInstance->IsBeingDebugged())
+		if (InAnimInstance && InAnimInstance->IsBeingDebugged())
 		{
-			UAnimBlueprintGeneratedClass* AnimBPGenClass = CastChecked<UAnimBlueprintGeneratedClass>(AnimInstance->GetClass());
-			if (AnimBPGenClass)
+			if (const UAnimBlueprintGeneratedClass* AnimBPGenClass = Cast<UAnimBlueprintGeneratedClass>(InAnimInstance->GetClass()))
 			{
-				if (USkeletalMesh* TmpSkeletalMesh = GetSkeletalMeshAsset())
+				if (const UAnimBlueprint* AnimBlueprint = Cast<UAnimBlueprint>(AnimBPGenClass->ClassGeneratedBy))
 				{
-					FAnimBlueprintDebugData& DebugData = AnimBPGenClass->GetAnimBlueprintDebugData();
-					for (FAnimNodePoseWatch& PoseWatch : DebugData.AnimNodePoseWatch)
+					const UAnimBlueprint* RootAnimBlueprint = UAnimBlueprint::FindRootAnimBlueprint(AnimBlueprint);
+					AnimBlueprint = RootAnimBlueprint ? RootAnimBlueprint : AnimBlueprint;
+
+					const FAnimBlueprintDebugData& DebugData = AnimBlueprint->GetAnimBlueprintGeneratedClass()->GetAnimBlueprintDebugData();
+					for (const FAnimNodePoseWatch& PoseWatch : DebugData.AnimNodePoseWatch)
 					{
 						if (const UPoseWatchPoseElement* PoseWatchPoseElement = PoseWatch.PoseWatchPoseElement)
 						{
 							if (PoseWatchPoseElement->GetIsEnabled() && PoseWatchPoseElement->GetIsVisible())
 							{
-								PoseWatches.Add(PoseWatch); // Copy
+								PoseWatches.Add(PoseWatch);
 							}
 						}
-					}
+					}	
 				}
 			}
 		}
-	}
+	};
+	
+	ForEachAnimInstance(CopyPoseWatches);
 }
 #endif // #if WITH_EDITOR
 

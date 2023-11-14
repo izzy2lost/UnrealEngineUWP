@@ -880,6 +880,12 @@ bool FAnimationBlueprintEditor::CanTogglePoseWatch()
 	const FGraphPanelSelectionSet SelectedNodes = GetSelectedNodes();
 	UAnimBlueprint* AnimBP = GetAnimBlueprint();
 
+	// Can't add pose watch from a child anim bp
+	if (UAnimBlueprint::FindRootAnimBlueprint(AnimBP))
+	{
+		return false;
+	}
+
 	for (FGraphPanelSelectionSet::TConstIterator NodeIt(SelectedNodes); NodeIt; ++NodeIt)
 	{
 		if (UAnimGraphNode_Base* SelectedNode = Cast<UAnimGraphNode_Base>(*NodeIt))
@@ -919,6 +925,12 @@ void FAnimationBlueprintEditor::OnTogglePoseWatch()
 
 	const FGraphPanelSelectionSet SelectedNodes = GetSelectedNodes();
 	UAnimBlueprint* AnimBP = GetAnimBlueprint();
+
+	// Can't toggle pose watch from a child anim bp
+	if (UAnimBlueprint::FindRootAnimBlueprint(AnimBP))
+	{
+		return;
+	}
 
 	for (FGraphPanelSelectionSet::TConstIterator NodeIt(SelectedNodes); NodeIt; ++NodeIt)
 	{
