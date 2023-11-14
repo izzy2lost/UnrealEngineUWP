@@ -7,6 +7,7 @@
 #include "MassSimulationSettings.h"
 #include "VisualLogger/VisualLogger.h"
 #include "MassEntitySettings.h"
+#include "Engine/Engine.h"
 #if WITH_EDITOR
 #include "Editor.h"
 #endif // WITH_EDITOR
