@@ -27,6 +27,25 @@ public:
 	FGeometryScriptMeshReadLOD RequestedLOD = FGeometryScriptMeshReadLOD();
 };
 
+USTRUCT(BlueprintType)
+struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptDetermineMeshOcclusionOptions
+{
+	GENERATED_BODY()
+public:
+
+	// Approximate spacing between samples on triangle faces used for determining visibility
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	double SamplingDensity = 1.0;
+
+	// Whether to treat faces as double-sided when determining visibility
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	bool bDoubleSided = false;
+
+	// Number of directions to test for visibility
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	int32 NumSearchDirections = 128;
+};
+
 
 UCLASS(meta = (ScriptName = "GeometryScript_SceneUtils"))
 class GEOMETRYSCRIPTINGCORE_API UGeometryScriptLibrary_SceneUtilityFunctions : public UBlueprintFunctionLibrary
@@ -95,4 +114,24 @@ public:
 		int SphereResolution = 16,
 		UGeometryScriptDebug* Debug = nullptr);
 
+
+	/**
+	 * Determine which meshes are entirely hidden by other meshes in the set, when viewed from outside.
+	 * 
+	 * @param SourceMeshes			Meshes to test for occlusion. Note: The same mesh may appear multiple times in this array, if it is instanced with different transforms.
+	 * @param SourceMeshTransforms	A transform for each source mesh. Array must have the same length as SourceMeshes.
+	 * @param OutMeshIsHidden		Array will be filled with a bool per source mesh, indicating whether that mesh is hidden (true) or visible (false)
+	 * @param OccludeMeshes			Array of optional meshes which can occlude SourceMeshes, but for which we will not test occlusion.
+	 * @param OccludeMeshTransforms	Array of transforms for each occlude mesh. Array must have the same length as OccludeMeshes.
+	 * @param Options				Settings to control how occlusion is tested
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Scene", meta = (AutoCreateRefTerm = "OccludeMeshes, OccludeMeshTransforms, OcclusionOptions"))
+	static void DetermineMeshOcclusion(
+		const TArray<UDynamicMesh*>& SourceMeshes,
+		const TArray<FTransform>& SourceMeshTransforms,
+		TArray<bool>& OutMeshIsHidden,
+		const TArray<UDynamicMesh*>& OccludeMeshes,
+		const TArray<FTransform>& OccludeMeshTransforms,
+		const FGeometryScriptDetermineMeshOcclusionOptions& OcclusionOptions,
+		UGeometryScriptDebug* Debug = nullptr);
 };

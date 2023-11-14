@@ -8,6 +8,7 @@
 #include "DynamicMesh/MeshTransforms.h"
 #include "DynamicMesh/MeshNormals.h"
 #include "DynamicMeshEditor.h"
+#include "Operations/DetectExteriorVisibility.h"
 
 #include "Engine/StaticMesh.h"
 #include "Engine/SkeletalMesh.h"
@@ -361,7 +362,52 @@ UDynamicMesh* UGeometryScriptLibrary_SceneUtilityFunctions::CopyCollisionMeshesF
 	return ToDynamicMesh;
 }
 
+void UGeometryScriptLibrary_SceneUtilityFunctions::DetermineMeshOcclusion(
+	const TArray<UDynamicMesh*>& SourceMeshes,
+	const TArray<FTransform>& SourceMeshTransforms,
+	TArray<bool>& OutMeshIsHidden,
+	const TArray<UDynamicMesh*>& OccludeMeshes,
+	const TArray<FTransform>& OccludeMeshTransforms,
+	const FGeometryScriptDetermineMeshOcclusionOptions& OcclusionOptions,
+	UGeometryScriptDebug* Debug)
+{
+	if (SourceMeshes.Num() != SourceMeshTransforms.Num())
+	{
+		UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("DetermineMeshOcclusion_SourceArrayMismatch", "DetermineMeshOcclusion: SourceMeshes and SourceMeshTransforms arrays must have same length"));
+		return;
+	}
+	if (OccludeMeshes.Num() != OccludeMeshTransforms.Num())
+	{
+		UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("DetermineMeshOcclusion_OccludeArrayMismatch", "DetermineMeshOcclusion: OccludeMeshes and OccludeMeshTransforms arrays must have same length"));
+		return;
+	}
 
+	FDetectPerDynamicMeshExteriorVisibility Occlusion;
+	for (int32 SourceMeshIndex = 0; SourceMeshIndex < SourceMeshes.Num(); ++SourceMeshIndex)
+	{
+		UDynamicMesh* Mesh = SourceMeshes[SourceMeshIndex];
+		if (!Mesh)
+		{
+			UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("DetermineMeshOcclusion_InvalidSourceMesh", "DetermineMeshOcclusion: SourceMeshes array contained null mesh"));
+			return;
+		}
+		Occlusion.Instances.Emplace(Mesh->GetMeshPtr(), SourceMeshTransforms[SourceMeshIndex]);
+	}
+	for (int32 OccludeMeshIndex = 0; OccludeMeshIndex < OccludeMeshes.Num(); ++OccludeMeshIndex)
+	{
+		UDynamicMesh* Mesh = OccludeMeshes[OccludeMeshIndex];
+		if (!Mesh)
+		{
+			UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("DetermineMeshOcclusion_InvalidOccludeMesh", "DetermineMeshOcclusion: OccludeMeshes array contained null mesh"));
+			return;
+		}
+		Occlusion.OccludeInstances.Emplace(Mesh->GetMeshPtr(), OccludeMeshTransforms[OccludeMeshIndex]);
+	}
+	Occlusion.SamplingParameters.bDoubleSided = OcclusionOptions.bDoubleSided;
+	Occlusion.SamplingParameters.SamplingDensity = OcclusionOptions.SamplingDensity;
+	Occlusion.SamplingParameters.NumSearchDirections = OcclusionOptions.NumSearchDirections;
 
+	Occlusion.ComputeHidden(OutMeshIsHidden);
+}
 
 #undef LOCTEXT_NAMESPACE
