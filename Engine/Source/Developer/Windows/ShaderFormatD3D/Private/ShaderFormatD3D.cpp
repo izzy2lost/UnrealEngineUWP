@@ -3,6 +3,7 @@
 #include "ShaderFormatD3D.h"
 #include "ShaderCompilerCommon.h"
 #include "ShaderPreprocessTypes.h"
+#include "ShaderSymbolExport.h"
 #include "Modules/ModuleInterface.h"
 #include "Modules/ModuleManager.h"
 #include "Interfaces/IShaderFormat.h"
@@ -14,13 +15,18 @@ static FName NAME_PCD3D_SM5(TEXT("PCD3D_SM5"));
 static FName NAME_PCD3D_ES3_1(TEXT("PCD3D_ES31"));
 
 static const FGuid UE_SHADER_PCD3D_SHARED_VER = FGuid("dd4e6e76-4b48-4097-9ece-0f21118b7177");
-static const FGuid UE_SHADER_PCD3D_SM6_VER    = FGuid("96a53626-2b11-4663-8b85-01e30625b76e");
-static const FGuid UE_SHADER_PCD3D_SM5_VER    = FGuid("07cd0fa4-6d18-43e0-915d-e6c125effafd");
+static const FGuid UE_SHADER_PCD3D_SM6_VER    = FGuid("2283a0d0-1e70-4e59-af31-fd8c5260dba3");
+static const FGuid UE_SHADER_PCD3D_SM5_VER    = FGuid("3ca43c5c-c999-4508-8154-95de2c4be6e4");
 static const FGuid UE_SHADER_PCD3D_ES3_1_VER  = FGuid("75466d2b-e169-40d8-bac5-1e2f9d43e0bb");
 
 class FShaderFormatD3D : public UE::ShaderCompilerCommon::FBaseShaderFormat 
 {
 	uint32 DxcVersionHash = 0;
+
+#if WITH_ENGINE
+	// TODO: Support for D3D_SM5 and D3D_ES31
+	mutable FShaderSymbolExport ShaderSymbolExportSM6{ NAME_PCD3D_SM6 };
+#endif
 
 public:
 
@@ -146,10 +152,25 @@ public:
 		return ED3DShaderModel::SM5_0;
 	}
 
+#if WITH_ENGINE
+	virtual void NotifyShaderCompiled(const TConstArrayView<uint8>& PlatformDebugData, FName Format) const override
+	{
+		if (Format == NAME_PCD3D_SM6)
+		{
+			ShaderSymbolExportSM6.NotifyShaderCompiled<FD3DSM6ShaderDebugData>(PlatformDebugData);
+		}
+	}
+
+	virtual void NotifyShaderCompilersShutdown(FName Format) const override
 	static ED3DShaderModel DetermineShaderModel(const FShaderCompilerInput& Input)
 	{
+		if (Format == NAME_PCD3D_SM6)
+		{
+			ShaderSymbolExportSM6.NotifyShaderCompilersShutdown();
+		}
 		return DetermineShaderModel(Input, LanguageFromFormat(Input.ShaderFormat));
 	}
+#endif
 
 	virtual bool PreprocessShader(const FShaderCompilerInput& Input, const FShaderCompilerEnvironment& MergedEnvironment, FShaderPreprocessOutput& PreprocessOutput) const
 	{

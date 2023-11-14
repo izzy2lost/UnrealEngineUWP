@@ -273,6 +273,7 @@ void FShaderSymbolExport::NotifyShaderCompilersShutdown()
 			{
 				Writer->Serialize(Output.GetData(), Output.Num());
 				Writer->Close();
+				UE_LOG(LogShaderSymbolExport, Display, TEXT("Wrote %d records into shader symbols info output file \"%s\"."), ShaderInfos.Num(), *InfoFilePath);
 			}
 			else
 			{

@@ -45,6 +45,7 @@ THIRD_PARTY_INCLUDES_START
 	#include "ShaderConductor/ShaderConductor.hpp"
 THIRD_PARTY_INCLUDES_END
 
+#include "DXCUtils.inl"
 #include "D3DShaderCompiler.inl"
 
 FORCENOINLINE static void DXCFilterShaderCompileWarnings(const FString& CompileWarnings, TArray<FString>& FilteredWarnings)
@@ -669,7 +670,7 @@ static bool RemoveContainerParts(const TConstArrayView<uint32> PartCodes, dxc::D
 }
 
 static HRESULT D3DCompileToDxil(const char* SourceText, const FDxcArguments& Arguments,
-	TRefCountPtr<IDxcBlob>& OutDxilBlob, TRefCountPtr<IDxcBlob>& OutReflectionBlob, TRefCountPtr<IDxcBlobEncoding>& OutErrorBlob)
+	TRefCountPtr<IDxcBlob>& OutDxilBlob, TRefCountPtr<IDxcBlob>& OutReflectionBlob, TRefCountPtr<IDxcBlobEncoding>& OutErrorBlob, TRefCountPtr<IDxcBlob>& OutPdbBlob, FString& OutPdbName)
 {
 	dxc::DxcDllSupport& DxcDllHelper = GetDxcDllHelper();
 
@@ -729,7 +730,8 @@ static HRESULT D3DCompileToDxil(const char* SourceText, const FDxcArguments& Arg
 		checkf(CompileResult->HasOutput(DXC_OUT_REFLECTION), TEXT("No reflection found!"));
 		VERIFYHRESULT(CompileResult->GetOutput(DXC_OUT_REFLECTION, IID_PPV_ARGS(OutReflectionBlob.GetInitReference()), ReflectionNameBlob.GetInitReference()));
 
-		const bool bHasOutputPDB = CompileResult->HasOutput(DXC_OUT_PDB);
+		RetrieveDebugNameAndBlob(CompileResult, OutPdbName, OutPdbBlob.GetInitReference());
+		const bool bHasOutputPDB = OutPdbBlob.IsValid() && !OutPdbName.IsEmpty();
 		const bool bRemovePDB = bHasOutputPDB && !Arguments.ShouldKeepEmbeddedPDB();
 
 		TArray<uint32, TInlineAllocator<4>> PartsToRemove;
@@ -751,17 +753,11 @@ static HRESULT D3DCompileToDxil(const char* SourceText, const FDxcArguments& Arg
 			FString DxilFile = Arguments.GetDumpDisassemblyFilename().LeftChop(7) + TEXT("_refl.dxil");
 			SaveDxcBlobToFile(OutDxilBlob, DxilFile);
 
+			// Dump the PDB.
 			if (bHasOutputPDB)
 			{
-				TRefCountPtr<IDxcBlob> PdbBlob;
-				TRefCountPtr<IDxcBlobUtf16> PdbNameBlob;
-				VERIFYHRESULT(CompileResult->GetOutput(DXC_OUT_PDB, IID_PPV_ARGS(PdbBlob.GetInitReference()), PdbNameBlob.GetInitReference()));
-
-				const FString PdbName = PdbNameBlob->GetStringPointer();
-
-				// Dump pdb (.d3dasm -> .pdb)
-				const FString PdbFile = Arguments.GetDumpDebugInfoPath() / PdbName;
-				SaveDxcBlobToFile(PdbBlob, PdbFile);
+				const FString PdbFile = Arguments.GetDumpDebugInfoPath() / OutPdbName;
+				SaveDxcBlobToFile(OutPdbBlob, PdbFile);
 			}
 		}
 
@@ -906,8 +902,26 @@ bool CompileAndProcessD3DShaderDXC(
 	TRefCountPtr<IDxcBlob> ShaderBlob;
 	TRefCountPtr<IDxcBlob> ReflectionBlob;
 	TRefCountPtr<IDxcBlobEncoding> DxcErrorBlob;
+	TRefCountPtr<IDxcBlob> PdbBlob;
+	FString PdbName;
 
-	const HRESULT D3DCompileToDxilResult = D3DCompileToDxil(AnsiSourceFile.Get(), Args, ShaderBlob, ReflectionBlob, DxcErrorBlob);
+	const HRESULT D3DCompileToDxilResult = D3DCompileToDxil(AnsiSourceFile.Get(), Args, ShaderBlob, ReflectionBlob, DxcErrorBlob, PdbBlob, PdbName);
+
+	// Populate the platform-specific debug data with the PDB name, if available.
+	bool bWriteDebugData = Input.Environment.CompilerFlags.Contains(CFLAG_GenerateSymbolsInfo);
+	if (bWriteDebugData && !PdbName.IsEmpty())
+	{
+		FD3DSM6ShaderDebugData DebugData;
+		DebugData.Name = PdbName;
+		DebugData.DebugInfo = Input.GenerateDebugInfo();
+
+		// We don't export the PDB contents here because it would result in duplicate data,
+		// as we use embedded PDBs. Once we are able to use external PDBs, the PDB contents
+		// can be exported too.
+		
+		FMemoryWriter Ar(Output.PlatformDebugData);
+		Ar << DebugData;
+	}
 
 	TArray<FString> FilteredErrors;
 	if (DxcErrorBlob && DxcErrorBlob->GetBufferSize())

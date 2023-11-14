@@ -60,3 +60,38 @@ bool CompileAndProcessD3DShaderDXC(
 	FShaderCompilerOutput& Output);
 
 bool ValidateResourceCounts(uint32 NumSRVs, uint32 NumSamplers, uint32 NumUAVs, uint32 NumCBs, TArray<FString>& OutFilteredErrors);
+
+struct FD3DSM6ShaderDebugData
+{
+	FString Name;
+	FString DebugInfo;
+	TArray<uint8> Contents;
+
+	inline friend FArchive& operator<<(FArchive& Ar, FD3DSM6ShaderDebugData& DebugData)
+	{
+		Ar << DebugData.Name;
+		Ar << DebugData.DebugInfo;
+		Ar << DebugData.Contents;
+		return Ar;
+	}
+
+	inline TConstArrayView<uint8> GetContents() const
+	{
+		return TConstArrayView<uint8>(Contents);
+	}
+
+	inline FString GetFilename() const
+	{
+		return Name;
+	}
+
+	inline FString GetDebugInfo() const
+	{
+		return DebugInfo;
+	}
+
+	TConstArrayView<FD3DSM6ShaderDebugData> GetAllSymbolData() const
+	{
+		return TConstArrayView<FD3DSM6ShaderDebugData>(this, 1);
+	}
+};
