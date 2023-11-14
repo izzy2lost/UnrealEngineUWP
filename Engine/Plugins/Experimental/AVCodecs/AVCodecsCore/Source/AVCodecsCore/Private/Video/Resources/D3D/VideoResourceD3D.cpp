@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Video/Resources/Windows/VideoResourceD3D.h"
+#if AVCODECS_USE_D3D
+
+#include "Video/Resources/D3D/VideoResourceD3D.h"
 
 #include "AVResult.h"
 
@@ -178,3 +180,5 @@ FAVResult FVideoResourceD3D12::Validate() const
 
 	return EAVResult::Success;
 }
+
+#endif

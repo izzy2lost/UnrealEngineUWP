@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Video/Resources/VideoResourceVulkan.h"
+#if AVCODECS_USE_VULKAN
+
+#include "Video/Resources/Vulkan/VideoResourceVulkan.h"
 
 #include "vulkan/vulkan_core.h"
 
@@ -68,3 +70,4 @@ FAVResult FVideoResourceVulkan::Validate() const
 
 	return EAVResult::Success;
 }
+#endif

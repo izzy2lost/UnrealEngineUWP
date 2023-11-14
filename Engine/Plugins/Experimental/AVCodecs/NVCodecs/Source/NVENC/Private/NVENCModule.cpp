@@ -3,10 +3,10 @@
 #include "Video/Encoders/VideoEncoderNVENC.h"
 #include "Video/Encoders/Configs/VideoEncoderConfigH264.h"
 #include "Video/Encoders/Configs/VideoEncoderConfigH265.h"
-#include "Video/Resources/VideoResourceVulkan.h"
+#include "Video/Resources/Vulkan/VideoResourceVulkan.h"
 
 #if PLATFORM_WINDOWS
-#include "Video/Resources/Windows/VideoResourceD3D.h"
+#include "Video/Resources/D3D/VideoResourceD3D.h"
 #endif
 
 class FNVENCModule : public IModuleInterface

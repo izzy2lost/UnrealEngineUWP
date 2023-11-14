@@ -3,10 +3,10 @@
 #include "Video/Decoders/VideoDecoderNVDEC.h"
 #include "Video/Decoders/Configs/VideoDecoderConfigH264.h"
 #include "Video/Decoders/Configs/VideoDecoderConfigH265.h"
-#include "Video/Resources/VideoResourceVulkan.h"
+#include "Video/Resources/Vulkan/VideoResourceVulkan.h"
 
 #if PLATFORM_WINDOWS
-#include "Video/Resources/Windows/VideoResourceD3D.h"
+#include "Video/Resources/D3D/VideoResourceD3D.h"
 #endif
 
 class FNVDECModule : public IModuleInterface
@@ -14,6 +14,7 @@ class FNVDECModule : public IModuleInterface
 public:
 	virtual void StartupModule() override
 	{
+		// TODO (william.belcher): NVDEC decoding doesn't currently work
 		FVideoDecoder
 			::RegisterPermutationsOf<FVideoDecoderNVDEC>
 			::With<

@@ -2,23 +2,29 @@
 
 #include "Modules/ModuleManager.h"
 
-#include "IVulkanDynamicRHI.h"
 #include "Misc/App.h"
 
 #include "Video/Resources/VideoResourceRHI.h"
-#include "Video/Resources/VideoResourceVulkan.h"
 #include "Video/Decoders/VideoDecoderRHI.h"
+#include "Video/Decoders/Configs/VideoDecoderConfigVP9.h"
 #include "Video/Decoders/Configs/VideoDecoderConfigH264.h"
 #include "Video/Decoders/Configs/VideoDecoderConfigH265.h"
 #include "Video/Encoders/VideoEncoderRHI.h"
 #include "Video/Encoders/Configs/VideoEncoderConfigH264.h"
 #include "Video/Encoders/Configs/VideoEncoderConfigH265.h"
 
-#if PLATFORM_WINDOWS
-#include "ID3D11DynamicRHI.h"
-#include "ID3D12DynamicRHI.h"
-
-#include "Video/Resources/Windows/VideoResourceD3D.h"
+#if AVCODECS_USE_D3D
+	#include "ID3D11DynamicRHI.h"
+	#include "ID3D12DynamicRHI.h"
+	#include "Video/Resources/D3D/VideoResourceD3D.h"
+#endif 
+#if AVCODECS_USE_VULKAN
+	#include "IVulkanDynamicRHI.h"
+	#include "Video/Resources/Vulkan/VideoResourceVulkan.h"
+#endif
+#if AVCODECS_USE_METAL
+	#include "DynamicRHI.h"
+	#include "Video/Resources/Metal/VideoResourceMetal.h"
 #endif
 
 class FAVCodecsCoreRHI : public IModuleInterface
@@ -28,6 +34,8 @@ public:
 	{
 		if (FApp::CanEverRender())
 		{
+#if AVCODECS_USE_VULKAN
+            
 #if PLATFORM_WINDOWS
 			TCHAR const* DynamicRHIModuleName = GetSelectedDynamicRHIModuleName(false);
 #elif PLATFORM_LINUX
@@ -44,11 +52,12 @@ public:
 
 				IVulkanDynamicRHI::AddEnabledDeviceExtensionsAndLayers(ExtensionsToAdd, TArray<ANSICHAR const*>());
 			}
-
+#endif // AVCODECS_USE_VULKAN
 			FCoreDelegates::OnPostEngineInit.AddLambda([]()
 			{
 				switch (GDynamicRHI->GetInterfaceType())
 				{
+#if AVCODECS_USE_VULKAN
 				case ERHIInterfaceType::Vulkan:
 					FAVDevice::GetHardwareDevice()->SetContext<FVideoContextVulkan>(
 						MakeShared<FVideoContextVulkan>(
@@ -60,7 +69,8 @@ public:
 							}));
 				
 					break;
-#if PLATFORM_WINDOWS
+#endif
+#if AVCODECS_USE_D3D
 				case ERHIInterfaceType::D3D11:
 					FAVDevice::GetHardwareDevice()->SetContext<FVideoContextD3D11>(
 						MakeShared<FVideoContextD3D11>(
@@ -73,6 +83,13 @@ public:
 							GetID3D12DynamicRHI()->RHIGetDevice(0)));
 				
 					break;
+#endif
+#if AVCODECS_USE_METAL
+                case ERHIInterfaceType::Metal:
+                    FAVDevice::GetHardwareDevice()->SetContext<FVideoContextMetal>(
+                        MakeShared<FVideoContextMetal>(
+                            *static_cast<mtlpp::Device*>(GDynamicRHI->RHIGetNativeDevice())));
+                    break;
 #endif
 				default:
 					break;
@@ -87,6 +104,7 @@ public:
 
 		FVideoDecoder::Register<TVideoDecoderRHI<FVideoDecoderConfigH264>, FVideoResourceRHI, FVideoDecoderConfigH264>();
 		FVideoDecoder::Register<TVideoDecoderRHI<FVideoDecoderConfigH265>, FVideoResourceRHI, FVideoDecoderConfigH265>();
+        FVideoDecoder::Register<TVideoDecoderRHI<FVideoDecoderConfigVP9>, FVideoResourceRHI, FVideoDecoderConfigVP9>();
 	}
 };
 
