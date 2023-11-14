@@ -390,6 +390,8 @@ void UMassRepresentationSubsystem::Deinitialize()
 		}
 	}
 	EntityManager.Reset();
+
+	Super::Deinitialize();
 }
 
 void UMassRepresentationSubsystem::OnProcessingPhaseStarted(const float DeltaSeconds, const EMassProcessingPhase Phase) const

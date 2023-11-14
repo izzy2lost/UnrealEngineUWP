@@ -93,6 +93,7 @@ void UMassActorSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 void UMassActorSubsystem::Deinitialize()
 {
 	ActorManager.Reset();
+	Super::Deinitialize();
 }
 
 //----------------------------------------------------------------------//
