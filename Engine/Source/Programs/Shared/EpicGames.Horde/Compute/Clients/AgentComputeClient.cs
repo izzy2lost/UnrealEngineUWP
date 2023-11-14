@@ -66,7 +66,7 @@ namespace EpicGames.Horde.Compute.Clients
 		public ValueTask DisposeAsync() => new ValueTask();
 		
 		/// <inheritdoc/>
-		public async Task<IComputeLease?> TryAssignWorkerAsync(ClusterId clusterId, Requirements? requirements, string? requestId, ConnectionMode? connectionPreference, ILogger logger, CancellationToken cancellationToken)
+		public async Task<IComputeLease?> TryAssignWorkerAsync(ClusterId clusterId, Requirements? requirements, string? requestId, ConnectionMetadataRequest? connection, ILogger logger, CancellationToken cancellationToken)
 		{
 			logger.LogInformation("** CLIENT **");
 			logger.LogInformation("Launching {Path} to handle remote", _hordeAgentAssembly);

@@ -73,7 +73,7 @@ namespace RemoteClient
 				requirements = new Requirements(Condition.Parse(options.Condition));
 			}
 
-			await using IComputeLease? lease = await client.TryAssignWorkerAsync(new ClusterId("default"), requirements, null, new PrefixLogger("[CLIENT]", logger));
+			await using IComputeLease? lease = await client.TryAssignWorkerAsync(new ClusterId("default"), requirements, null, null, new PrefixLogger("[CLIENT]", logger));
 			if (lease == null)
 			{
 				logger.LogInformation("Unable to connect to remote");

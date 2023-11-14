@@ -192,9 +192,9 @@ namespace EpicGames.Horde.Compute.Clients
 		}
 
 		/// <inheritdoc/>
-		public async Task<IComputeLease?> TryAssignWorkerAsync(ClusterId clusterId, Requirements? requirements, string? requestId, ConnectionMode? connectionPreference, ILogger logger, CancellationToken cancellationToken)
+		public async Task<IComputeLease?> TryAssignWorkerAsync(ClusterId clusterId, Requirements? requirements, string? requestId, ConnectionMetadataRequest? connection, ILogger logger, CancellationToken cancellationToken)
 		{
-			IAsyncEnumerator<LeaseInfo> source = ConnectAsync(clusterId, requirements, requestId, connectionPreference, logger, cancellationToken).GetAsyncEnumerator(cancellationToken);
+			IAsyncEnumerator<LeaseInfo> source = ConnectAsync(clusterId, requirements, requestId, connection, logger, cancellationToken).GetAsyncEnumerator(cancellationToken);
 			if (!await source.MoveNextAsync())
 			{
 				await source.DisposeAsync();
@@ -212,7 +212,7 @@ namespace EpicGames.Horde.Compute.Clients
 			response.EnsureSuccessStatusCode();
 		}
 
-		async IAsyncEnumerable<LeaseInfo> ConnectAsync(ClusterId clusterId, Requirements? requirements, string? requestId, ConnectionMode? connectionPreference, ILogger workerLogger, [EnumeratorCancellation] CancellationToken cancellationToken)
+		async IAsyncEnumerable<LeaseInfo> ConnectAsync(ClusterId clusterId, Requirements? requirements, string? requestId, ConnectionMetadataRequest? connection, ILogger workerLogger, [EnumeratorCancellation] CancellationToken cancellationToken)
 		{
 			_logger.LogDebug("Requesting compute resource");
 
@@ -222,7 +222,7 @@ namespace EpicGames.Horde.Compute.Clients
 			AssignComputeRequest request = new AssignComputeRequest();
 			request.Requirements = requirements;
 			request.RequestId = requestId;
-			request.Connection = new ConnectionMetadataRequest() { ModePreference = connectionPreference };
+			request.Connection = connection;
 
 			AssignComputeResponse? responseMessage;
 			using (HttpResponseMessage response = await HordeHttpClient.PostAsync(client, $"api/v2/compute/{clusterId}", request, _cancellationSource.Token))
