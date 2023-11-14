@@ -624,6 +624,14 @@ void TransferPersistentDataFromOldPin(UEdGraphPin& DestPin, T& SourcePin, const 
 	{
 		check(OtherPin);
 
+		if (const UEdGraphSchema* Schema = DestPin.GetSchema())
+		{
+			if(Schema->CanCreateConnection(&DestPin, OtherPin).Response == CONNECT_RESPONSE_DISALLOW)
+			{
+				continue;
+			}
+		}
+
 		OtherPin->Modify();
 
 		DestPin.LinkedTo.Add(OtherPin);
