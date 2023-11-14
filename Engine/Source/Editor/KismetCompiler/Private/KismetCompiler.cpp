@@ -2530,7 +2530,7 @@ void FKismetCompilerContext::PrecompileFunction(FKismetFunctionContext& Context,
 
 		////////////////////////////////////////
 
-		if (Context.IsDelegateSignature())
+		if (Context.Function && Context.IsDelegateSignature())
 		{
 			Context.Function->FunctionFlags |= FUNC_Delegate;
 

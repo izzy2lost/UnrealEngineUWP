@@ -7396,7 +7396,7 @@ uint64 UMaterialExpressionSetMaterialAttributes::GetConnectedInputs() const
 				const uint32 CustomIndex = CustomAttributeList.IndexOfByPredicate([Attribute](const FMaterialCustomOutputAttributeDefintion& A) { return A.AttributeID == Attribute->AttributeID; });
 				if (CustomIndex != INDEX_NONE)
 				{
-					Out |= 1ull << uint64(MP_MAX + CustomIndex);
+					Out |= 1ull << (MP_MAX + CustomIndex);
 				}
 			}
 		}
@@ -26905,7 +26905,7 @@ static bool IsCustomMaterialAttributeInputConnected(uint64 InCache, FGuid InProp
 			const uint32 CustomIndex = CustomAttributeList.IndexOfByPredicate([Attribute](const FMaterialCustomOutputAttributeDefintion& A) { return A.AttributeID == Attribute->AttributeID; });
 			if (CustomIndex != INDEX_NONE)
 			{
-				return !!(InCache & (1ull << uint64(MP_MAX + CustomIndex)));
+				return !!(InCache & (1ull << (MP_MAX + CustomIndex)));
 			}
 		}
 	}

@@ -172,27 +172,26 @@ template<typename TFunctor> void CreateBodyModifiersFromLimbBones(
 //======================================================================================================================
 template<typename TControlFunctorType, typename TBodyModifierFunctorType> void ForEachPotentialOperator(const FAnimNode_RigidBodyWithControl* const Node, TMap<FName, FPhysicsControlLimbBones> AllLimbBones, const FReferenceSkeleton& RefSkeleton, UPhysicsAsset* const PhysicsAsset, FRigidBodyNameRecords& NameRecords, TControlFunctorType& ControlFunctor, TBodyModifierFunctorType& BodyModifierFunctor)
 {
-	for (const TMap<FName, FPhysicsControlLimbBones>::ElementType& LimbBoneEntry : AllLimbBones)
-	{
-		const FName LimbName = LimbBoneEntry.Key;
-		const FPhysicsControlLimbBones& LimbBones = LimbBoneEntry.Value;
-		if (LimbBones.bCreateWorldSpaceControls)
-		{
-			CreateControlsFromLimbBones(LimbName, LimbBones, EPhysicsControlType::WorldSpace, RefSkeleton, PhysicsAsset, Node->SetupData.DefaultWorldSpaceControlData, NameRecords, ControlFunctor);
-		}
-		if (LimbBones.bCreateParentSpaceControls)
-		{
-			CreateControlsFromLimbBones(LimbName, LimbBones, EPhysicsControlType::ParentSpace, RefSkeleton, PhysicsAsset, Node->SetupData.DefaultParentSpaceControlData, NameRecords, ControlFunctor);
-		}
-		if (LimbBones.bCreateBodyModifiers)
-		{
-			checkSlow(Node);
-			CreateBodyModifiersFromLimbBones(LimbName, LimbBones, Node->SetupData.DefaultBodyModifierData, NameRecords, BodyModifierFunctor);
-		}
-	}
-
 	if (Node != nullptr)
 	{
+		for (const TMap<FName, FPhysicsControlLimbBones>::ElementType& LimbBoneEntry : AllLimbBones)
+		{
+			const FName LimbName = LimbBoneEntry.Key;
+			const FPhysicsControlLimbBones& LimbBones = LimbBoneEntry.Value;
+			if (LimbBones.bCreateWorldSpaceControls)
+			{
+				CreateControlsFromLimbBones(LimbName, LimbBones, EPhysicsControlType::WorldSpace, RefSkeleton, PhysicsAsset, Node->SetupData.DefaultWorldSpaceControlData, NameRecords, ControlFunctor);
+			}
+			if (LimbBones.bCreateParentSpaceControls)
+			{
+				CreateControlsFromLimbBones(LimbName, LimbBones, EPhysicsControlType::ParentSpace, RefSkeleton, PhysicsAsset, Node->SetupData.DefaultParentSpaceControlData, NameRecords, ControlFunctor);
+			}
+			if (LimbBones.bCreateBodyModifiers)
+			{
+				CreateBodyModifiersFromLimbBones(LimbName, LimbBones, Node->SetupData.DefaultBodyModifierData, NameRecords, BodyModifierFunctor);
+			}
+		}
+
 		// Find names for any additional controls that have been requested	
 		CreateAdditionalBodyModifiers(Node->AdditionalControlsAndBodyModifiers.Modifiers, NameRecords, BodyModifierFunctor);
 		CreateAdditionalControls(Node->AdditionalControlsAndBodyModifiers.Controls, NameRecords, ControlFunctor);

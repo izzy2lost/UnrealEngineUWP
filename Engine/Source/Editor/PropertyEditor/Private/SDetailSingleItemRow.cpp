@@ -629,7 +629,7 @@ void SDetailSingleItemRow::Construct( const FArguments& InArgs, FDetailLayoutCus
 				ToolbarBuilder.AddToolBarButton(Extension.UIAction, NAME_None, Extension.Label, Extension.ToolTip, Extension.Icon);
 			}
 
-			FProperty* Property;
+			FProperty* Property = nullptr;
 			
 			if (GetPropertyNode().IsValid() &&
 				DetailsView &&

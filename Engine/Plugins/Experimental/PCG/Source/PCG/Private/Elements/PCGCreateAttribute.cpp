@@ -423,7 +423,7 @@ bool FPCGCreateAttributeElement::ExecuteInternal(FPCGContext* Context) const
 					{
 						int32 NumInKeys = InputKeys->GetNum();
 						int32 Padding = OutputKeys->GetNum() - NumInKeys;
-						for (int32 Key = 0; Key < Padding; ++Key)
+						for (int64 Key = 0; Key < Padding; ++Key)
 						{
 							Attribute->SetValueFromValueKey(PCGMetadataEntryKey(NumInKeys + Key), PCGDefaultValueKey);
 						}

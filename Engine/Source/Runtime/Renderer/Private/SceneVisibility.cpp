@@ -4456,7 +4456,7 @@ void FSceneRenderer::PreVisibilityFrameSetup(FRDGBuilder& GraphBuilder)
 
 #if WITH_EDITOR
 		// Draw lines to lights affecting this mesh if its selected.
-		if (ViewFamily.EngineShowFlags.LightInfluences)
+		if (ViewFamily.EngineShowFlags.LightInfluences && Scene)
 		{
 			Scene->WaitForCreateLightPrimitiveInteractionsTask();
 
@@ -5312,10 +5312,7 @@ void FDeferredShadingSceneRenderer::BeginInitViews(
 	}
 
 	// This must happen before we start initialising and using views.
-	if (Scene)
-	{
-		UpdateSkyIrradianceGpuBuffer(GraphBuilder, ViewFamily.EngineShowFlags, Scene->SkyLight, Scene->SkyIrradianceEnvironmentMap);
-	}
+	UpdateSkyIrradianceGpuBuffer(GraphBuilder, ViewFamily.EngineShowFlags, Scene->SkyLight, Scene->SkyIrradianceEnvironmentMap);
 
 	// Initialise Sky/View resources before the view global uniform buffer is built.
 	if (ShouldRenderSkyAtmosphere(Scene, ViewFamily.EngineShowFlags))

@@ -952,7 +952,7 @@ FNaniteShadingPassParameters CreateNaniteShadingPassParams(
 	const ERDGUnorderedAccessViewFlags OutTargetFlags = GNaniteBarrierTest != 0 ? ERDGUnorderedAccessViewFlags::SkipBarrier : ERDGUnorderedAccessViewFlags::None;
 
 	FRDGTextureUAVRef MaterialTextureArrayUAV = nullptr;
-	if (Substrate::IsSubstrateEnabled() && SceneRenderer.Scene)
+	if (Substrate::IsSubstrateEnabled())
 	{
 		MaterialTextureArrayUAV = GraphBuilder.CreateUAV(SceneRenderer.Scene->SubstrateSceneData.MaterialTextureArray, OutTargetFlags);
 	}

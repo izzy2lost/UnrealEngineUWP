@@ -1375,7 +1375,7 @@ void UGameViewportClient::Draw(FViewport* InViewport, FCanvas* SceneCanvas)
 
 	// create the view family for rendering the world scene to the viewport's render target
 	bool bRequireMultiView = false;
-	if (GEngine && GEngine->IsStereoscopic3D())
+	if (GEngine->IsStereoscopic3D())
 	{
 		static const auto MobileMultiViewCVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("vr.MobileMultiView"));
 		const bool bSkipPostprocessing = !IsMobileHDR();
