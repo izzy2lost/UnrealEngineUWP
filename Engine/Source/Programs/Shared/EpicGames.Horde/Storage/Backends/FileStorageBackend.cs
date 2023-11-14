@@ -45,7 +45,7 @@ namespace EpicGames.Horde.Storage.Backends
 
 				try
 				{
-					_memoryMappedFile = MemoryMappedFile.CreateFromFile(fileInfo.FullName, FileMode.Open, null, 0);
+					_memoryMappedFile = MemoryMappedFile.CreateFromFile(fileInfo.FullName, FileMode.Open, null, 0, MemoryMappedFileAccess.Read);
 					_memoryMappedViewAccessor = _memoryMappedFile.CreateViewAccessor(0, 0, MemoryMappedFileAccess.Read);
 					_memoryMappedView = new MemoryMappedView(_memoryMappedViewAccessor);
 
