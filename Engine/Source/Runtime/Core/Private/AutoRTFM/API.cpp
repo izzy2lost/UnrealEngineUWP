@@ -5,7 +5,7 @@
 #include "HAL/IConsoleManager.h"
 
 #if UE_AUTORTFM
-bool GAutoRTFMRuntimeEnabled = true;
+bool GAutoRTFMRuntimeEnabled = false;
 static FAutoConsoleVariableRef CVarAutoRTFMRuntimeEnabled(
 	TEXT("AutoRTFMRuntimeEnabled"),
 	GAutoRTFMRuntimeEnabled,
@@ -15,6 +15,17 @@ static FAutoConsoleVariableRef CVarAutoRTFMRuntimeEnabled(
 #else
 static constexpr bool GAutoRTFMRuntimeEnabled = false;
 #endif
+
+namespace AutoRTFM
+{
+	void SetAutoRTFMRuntime(bool bEnabled)
+	{
+		// #noop if AutoRTFM is not compiled in, as GAutoRTFMRuntimeEnabled is a static constexpr when no AutoRTFM compiled in
+#if UE_AUTORTFM
+		GAutoRTFMRuntimeEnabled = bEnabled;
+#endif
+	}
+}
 
 #if (defined(__AUTORTFM) && __AUTORTFM)
 #include "AutoRTFM/AutoRTFMConstants.h"
