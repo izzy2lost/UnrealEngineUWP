@@ -265,11 +265,11 @@ void GenerateSamplesCS(
 			const uint EyeIndex = 0;
 			const uint GridIndex = ComputeLightGridCellIndex(ScreenCoord, SceneDepth, EyeIndex);
 			const FCulledLightsGridData CulledLightGridData = GetCulledLightsGrid(GridIndex, EyeIndex);
-			const uint NumLocalLights = min(CulledLightGridData.NumLocalLights, GetNumLocalLights(EyeIndex));
+			const uint NumLightsInGridCell = min(CulledLightGridData.NumLights, GetMaxLightsPerCell(EyeIndex));
 
-			for (uint LocalLightIndex = 0; LocalLightIndex < NumLocalLights; ++LocalLightIndex)
+			for (uint GridLightIndex = 0; GridLightIndex < NumLightsInGridCell; ++GridLightIndex)
 			{
-				const FLocalLightData LocalLightData = GetLocalLightData(CulledLightGridData.DataStartIndex + LocalLightIndex, EyeIndex);
+				const FLocalLightData LocalLightData = GetLocalLightData(CulledLightGridData.DataStartIndex + GridLightIndex, EyeIndex);
 				if (LocalLightData.bStochasticShadowsSupported && LocalLightData.LightSceneId < MAX_LIGHT_SCENE_ID)
 				{
 					uint DWORDIndex = LocalLightData.LightSceneId / 32;
@@ -364,7 +364,7 @@ void GenerateSamplesCS(
 				const uint EyeIndex = 0;
 				const uint GridIndex = ComputeLightGridCellIndex(ScreenCoord, SceneDepth, EyeIndex);
 				const FCulledLightsGridData CulledLightGridData = GetCulledLightsGrid(GridIndex, EyeIndex);
-				const uint NumLocalLights = min(CulledLightGridData.NumLocalLights, GetNumLocalLights(EyeIndex));
+				const uint NumLightsInGridCell = min(CulledLightGridData.NumLights, GetMaxLightsPerCell(EyeIndex));
 
 				float LightIndexRandom[NUM_SAMPLES_PER_PIXEL];
 				for (uint LightSampleIndex = 0; LightSampleIndex < NUM_SAMPLES_PER_PIXEL; ++LightSampleIndex)
@@ -388,8 +388,8 @@ void GenerateSamplesCS(
 					Print(Context, TEXT("View.PreExposure: "));
 					Print(Context, View.PreExposure);
 					Newline(Context);
-					Print(Context, TEXT("NumLocalLights: "));
-					Print(Context, NumLocalLights);
+					Print(Context, TEXT("NumLightsInGridCell: "));
+					Print(Context, NumLightsInGridCell);
 					AddCrossTWS(Context, TranslatedWorldPosition, 5.0f, float4(1, 1, 0, 1));
 					Newline(Context);
 					Print(Context, TEXT("LightId  | SampleWeight | Weight   | Estimate | Shadow | ShadowValid | ShadowAge | HistoryLength"));
@@ -498,9 +498,9 @@ void GenerateSamplesCS(
 				}
 
 	#else
-				for (uint LocalLightIndex = 0; LocalLightIndex < NumLocalLights; ++LocalLightIndex)
+				for (uint GridLightIndex = 0; GridLightIndex < NumLightsInGridCell; ++GridLightIndex)
 				{
-					const FLocalLightData LocalLightData = GetLocalLightData(CulledLightGridData.DataStartIndex + LocalLightIndex, EyeIndex);
+					const FLocalLightData LocalLightData = GetLocalLightData(CulledLightGridData.DataStartIndex + GridLightIndex, EyeIndex);
 					if (LocalLightData.bStochasticShadowsSupported)
 					{
 						FDeferredLightData LightData = ConvertToDeferredLight(LocalLightData);

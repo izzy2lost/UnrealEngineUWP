@@ -1176,7 +1176,7 @@ void FSceneRenderer::GatherAndSortLights(FSortedLightSetSceneInfo& OutSortedLigh
 					const bool bHandledByStochasticShadows = StochasticShadows::IsLightSupported(LightSceneInfoCompact.LightType, LightSceneInfoCompact.CastRaytracedShadow);
 
 					// tiled and clustered deferred lighting only supported for certain lights that don't use any additional features
-					// And also that are not directional (mostly because it does'nt make so much sense to insert them into every grid cell in the universe)
+					// And also that are not directional (mostly because it doesn't make so much sense to insert them into every grid cell in the universe)
 					// In the forward case one directional light gets put into its own variables, and in the deferred case it gets a full-screen pass.
 					// Usually it'll have shadows and stuff anyway.
 					// Rect lights are not supported as the performance impact is significant even if not used, for now, left for trad. deferred.

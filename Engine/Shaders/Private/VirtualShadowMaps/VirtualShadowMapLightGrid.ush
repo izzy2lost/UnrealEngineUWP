@@ -17,7 +17,7 @@ FCulledLightsGridData VirtualShadowMapGetLightsGrid(uint2 PixelPos, float SceneD
 	FCulledLightsGridData CulledLightGridData = GetCulledLightsGrid(GridLinearIndex, EyeIndex);
 
 	// Replace light count with our pruned count
-	CulledLightGridData.NumLocalLights = VirtualShadowMap.NumCulledLightsGrid[GridLinearIndex];
+	CulledLightGridData.NumLights = VirtualShadowMap.NumCulledLightsGrid[GridLinearIndex];
 	return CulledLightGridData;
 }
 

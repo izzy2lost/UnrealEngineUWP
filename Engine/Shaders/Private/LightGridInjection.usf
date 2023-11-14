@@ -458,7 +458,7 @@ void DebugLightGridPS(
 	}
 
 	const FLightGridData GridData = GetLightGridData(EyeIndex);
-	uint DebugNumLocalLights = 0;
+	uint DebugNumLightsInGridCell = 0;
 
 	uint2 StartPos = uint2(50, 100);
 	FShaderPrintContext Context = InitShaderPrintContext(all(PixelPos == StartPos), StartPos);
@@ -476,7 +476,7 @@ void DebugLightGridPS(
 		const uint GridIndex = ComputeLightGridCellIndex(LocalPixelPosDynRes, SceneDepth, EyeIndex);
 		const FCulledLightsGridData CulledLightsGrid = GetCulledLightsGrid(GridIndex, EyeIndex);
 
-		DebugNumLocalLights = CulledLightsGrid.NumLocalLights;
+		DebugNumLightsInGridCell = CulledLightsGrid.NumLights;
 	}
 	else
 	{
@@ -490,7 +490,7 @@ void DebugLightGridPS(
 			const uint GridIndex = ComputeLightGridCellIndex(uint3(LocalPixelPosDynRes >> GridData.LightGridPixelSizeShift, SliceIt), EyeIndex);
 			const FCulledLightsGridData CulledLightsGrid = GetCulledLightsGrid(GridIndex, EyeIndex);
 		
-			DebugNumLocalLights = max(DebugNumLocalLights, CulledLightsGrid.NumLocalLights);
+			DebugNumLightsInGridCell = max(DebugNumLightsInGridCell, CulledLightsGrid.NumLights);
 		}
 	}
 
@@ -498,11 +498,11 @@ void DebugLightGridPS(
 	const uint2 TileTopLeftPixelCoord2= (LocalPixelPosDynRes2 >> GridData.LightGridPixelSizeShift) << GridData.LightGridPixelSizeShift;
 	const uint TileSize = (0x1u << GridData.LightGridPixelSizeShift) - 1;
 
-	if (DebugNumLocalLights > 0)
+	if (DebugNumLightsInGridCell > 0)
 	{
 		OutLuminanceTransmittance.a   = 0.0f;
-		OutLuminanceTransmittance.rgb = GetHSVDebugColor(float(DebugNumLocalLights) / 8.0f);
-		PrintSmallUint(PixelPos, OutLuminanceTransmittance.rgb, float3(0.1, 0.1, 0.1), (TileTopLeftPixelCoord + TileSize/2) / View.ViewResolutionFraction, float(DebugNumLocalLights));
+		OutLuminanceTransmittance.rgb = GetHSVDebugColor(float(DebugNumLightsInGridCell) / 8.0f);
+		PrintSmallUint(PixelPos, OutLuminanceTransmittance.rgb, float3(0.1, 0.1, 0.1), (TileTopLeftPixelCoord + TileSize/2) / View.ViewResolutionFraction, float(DebugNumLightsInGridCell));
 	}
 
 	if ((TileTopLeftPixelCoord.x <= LocalPixelPosDynRes.x && TileTopLeftPixelCoord2.x >= LocalPixelPosDynRes.x)

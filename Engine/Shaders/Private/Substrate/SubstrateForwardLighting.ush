@@ -469,10 +469,10 @@ float3 SubstrateForwardLighting(
 
 				// Limit max to ForwardLightData.NumLocalLights.
 				// This prevents GPU hangs when the PS tries to read from uninitialized NumCulledLightsGrid buffer
-				const uint NumLocalLights = min(CulledLightsGrid.NumLocalLights, GetMaxLightsPerCell(EyeIndex));
+				const uint NumLightsInGridCell = min(CulledLightsGrid.NumLights, GetMaxLightsPerCell(EyeIndex));
 
 				LOOP
-				for (uint LocalLightListIndex = 0; LocalLightListIndex < NumLocalLights; LocalLightListIndex++)
+				for (uint GridLightListIndex = 0; GridLightListIndex < NumLightsInGridCell; GridLightListIndex++)
 				{
 					const FLocalLightData LocalLight = GetLocalLightData(CulledLightsGrid.DataStartIndex + LocalLightListIndex, EyeIndex);
 

@@ -137,13 +137,13 @@ float4 GetSimpleLightLighting(
 
 	// Limit max to ForwardLightData.NumLocalLights.
 	// This prevents GPU hangs when the PS tries to read from uninitialized NumCulledLightsGrid buffer
-	const uint NumLocalLights = min(CulledLightGridData.NumLocalLights, GetMaxLightsPerCell(EyeIndex));
+	const uint NumLightsInGridCell = min(CulledLightGridData.NumLights, GetMaxLightsPerCell(EyeIndex));
 
-	uint LocalLightListIndex = 0;
+	uint GridLightListIndex = 0;
 	LOOP
-	for (; LocalLightListIndex < NumLocalLights; LocalLightListIndex++)
+	for (; GridLightListIndex < NumLightsInGridCell; GridLightListIndex++)
 	{
-		const FLocalLightData LocalLight = GetLocalLightData(CulledLightGridData.DataStartIndex + LocalLightListIndex, EyeIndex);
+		const FLocalLightData LocalLight = GetLocalLightData(CulledLightGridData.DataStartIndex + GridLightListIndex, EyeIndex);
 		if (!LocalLight.bIsSimpleLight)
 		{
 			break;
@@ -202,7 +202,7 @@ float4 GetSimpleLightLighting(
 
 	#endif
 	}
-	FirstNonSimpleLightIndex = LocalLightListIndex;
+	FirstNonSimpleLightIndex = GridLightListIndex;
 #endif // ENABLE_SEPARATE_SIMPLE_LIGHT_LOOP
 
 	return CompositedLighting;
@@ -237,15 +237,15 @@ float4 GetLightGridLocalLighting(
 
 	// Limit max to ForwardLightData.NumLocalLights.
 	// This prevents GPU hangs when the PS tries to read from uninitialized NumCulledLightsGrid buffer
-	const uint NumLocalLights = min(InLightGridData.NumLocalLights, GetMaxLightsPerCell(EyeIndex));
+	const uint NumLightsInGridCell = min(InLightGridData.NumLights, GetMaxLightsPerCell(EyeIndex));
 
 	int2 PixelPos = int2( ScreenUV.xy * View.BufferSizeAndInvSize.xy );
 	uint4 ShadowMask = ShadowMaskBits[ PixelPos ];
 	
 	LOOP
-	for (uint LocalLightListIndex = FirstNonSimpleLightIndex; LocalLightListIndex < NumLocalLights; LocalLightListIndex++)
+	for (uint GridLightListIndex = FirstNonSimpleLightIndex; GridLightListIndex < NumLightsInGridCell; GridLightListIndex++)
 	{
-		const FLocalLightData LocalLight = GetLocalLightData(InLightGridData.DataStartIndex + LocalLightListIndex, EyeIndex);
+		const FLocalLightData LocalLight = GetLocalLightData(InLightGridData.DataStartIndex + GridLightListIndex, EyeIndex);
 
 		// The lights are sorted such that all that support clustered deferred are at the beginning, there might be others
 		// (e.g., lights with dynamic shadows) so we break out when the condition fails.
@@ -286,9 +286,9 @@ float4 GetLightGridLocalLighting(
 
 			// Fetch precomputed transmittance
 			FHairTransmittanceMask TransmittanceMask = InitHairTransmittanceMask();
-			if (LocalLightListIndex < GetPackedShadowMaskMaxLightCount())
+			if (GridLightListIndex < GetPackedShadowMaskMaxLightCount())
 			{
-				const uint TransmittanceSampleIndex = SampleIndex + LocalLightListIndex * TotalSampleCount;
+				const uint TransmittanceSampleIndex = SampleIndex + GridLightListIndex * TotalSampleCount;
 				const uint TransmittanceSampleMaxCount = TotalSampleCount * GetPackedShadowMaskMaxLightCount();
 				if (TransmittanceSampleIndex < TransmittanceSampleMaxCount)
 				{
@@ -364,7 +364,7 @@ float4 GetLightGridLocalLighting(
 	}
 
 	// For debugging
-	//DirectLighting = InLightGridData.NumLocalLights / (float)ForwardLightData.MaxCulledLightsPerCell;
+	//DirectLighting = InLightGridData.NumLights / (float)ForwardLightData.MaxCulledLightsPerCell;
 	return DirectLighting;
 }
 
@@ -414,7 +414,7 @@ void ClusteredShadingPixelShader(
 
 	// Debug output
 	#if GRID_DEBUG_ENABLE
-	if (GetClusterDebugColor(LocalPosition, SceneDepth, CulledLightGridData, OutColor) return;
+	if (GetClusterDebugColor(LocalPosition, SceneDepth, CulledLightGridData, OutColor)) return;
 	#endif
 
 	FSubstrateAddressing SubstrateAddressing = GetSubstratePixelDataByteOffset(PixelPos, uint2(View.BufferSizeAndInvSize.xy), Substrate.MaxBytesPerPixel);
@@ -425,7 +425,7 @@ void ClusteredShadingPixelShader(
 	float3 SubSurfaceSceneColor = 0;
 
 	BRANCH
-	if (SubstratePixelHeader.ClosureCount > 0 || CulledLightGridData.NumLocalLights == 0)
+	if (SubstratePixelHeader.ClosureCount > 0 || CulledLightGridData.NumLights == 0)
 	{
 		const float2 ScreenPosition = ViewportUVToScreenPos(ScreenUV);
 		const float3 TranslatedWorldPosition = mul(float4(GetScreenPositionForProjectionType(ScreenPosition, SceneDepth), SceneDepth, 1), PrimaryView.ScreenToTranslatedWorld).xyz;
@@ -477,7 +477,7 @@ void ClusteredShadingPixelShader(
 	#endif
 
 	// NOTE: this early out helps with the case where there are no lights in the grid cell.
-	if (CulledLightGridData.NumLocalLights == 0 || PixelShadingModelID == SHADINGMODELID_UNLIT)
+	if (CulledLightGridData.NumLights == 0 || PixelShadingModelID == SHADINGMODELID_UNLIT)
 	{
 		OutColor = 0;
 		return;
@@ -553,7 +553,7 @@ void ClusteredShadingPixelShader(
 	const uint GridIndex = ComputeLightGridCellIndex(uint2(LocalPosition.x, LocalPosition.y), SceneDepth);
 	const FCulledLightsGridData CulledLightGridData = GetCulledLightsGrid(GridIndex, EyeIndex);
 	// NOTE: this early out helps with the case where there are no lights in the grid cell.
-	if (CulledLightGridData.NumLocalLights == 0)
+	if (CulledLightGridData.NumLights == 0)
 	{		
 		return;
 	}

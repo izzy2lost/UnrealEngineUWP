@@ -160,7 +160,7 @@ void PruneLightGridCS(uint GridLinearIndex : SV_DispatchThreadID)
 
 	// First pass add the non-distant lights with VSMs
 	LOOP
-	for (uint Index = 0; Index < CulledLightGridData.NumLocalLights; ++Index)
+	for (uint Index = 0; Index < CulledLightGridData.NumLights; ++Index)
 	{
 		int VirtualShadowMapId = GetLocalLightData(CulledLightGridData.DataStartIndex + Index, EyeIndex).VirtualShadowMapId;
 		if (VirtualShadowMapId != INDEX_NONE && !IsSinglePageVirtualShadowMap(VirtualShadowMapId))
@@ -175,7 +175,7 @@ void PruneLightGridCS(uint GridLinearIndex : SV_DispatchThreadID)
 	// NOTE: We could add these to the end in the first pass and then re-pack them instead, but this works
 	// well enough for moderate light counts.
 	LOOP
-	for (uint Index = 0; Index < CulledLightGridData.NumLocalLights; ++Index)
+	for (uint Index = 0; Index < CulledLightGridData.NumLights; ++Index)
 	{
 		int VirtualShadowMapId = GetLocalLightData(CulledLightGridData.DataStartIndex + Index, EyeIndex).VirtualShadowMapId;
 		// Discard any light without a VSM
@@ -448,7 +448,7 @@ void GeneratePageFlagsFromPixels(
 		const FCulledLightsGridData LightGridData = VirtualShadowMapGetLightsGrid(LocalPosition, Primary.SceneDepth);
 
 		LOOP
-		for (uint Index = 0; Index < LightGridData.NumLocalLights; ++Index)
+		for (uint Index = 0; Index < LightGridData.NumLights; ++Index)
 		{
 			const FLocalLightData LightData = VirtualShadowMapGetLocalLightData(LightGridData, Index);
 

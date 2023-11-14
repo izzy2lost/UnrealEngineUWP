@@ -892,9 +892,9 @@ void LightScatteringCS(
 
 		// Forward lighting of unshadowed point and spot lights
 		LOOP
-		for (uint LocalLightListIndex = 0; LocalLightListIndex < CulledLightsGrid.NumLocalLights; LocalLightListIndex++)
+		for (uint GridLightListIndex = 0; GridLightListIndex < CulledLightsGrid.NumLights; GridLightListIndex++)
 		{
-			const FLocalLightData LocalLight = GetLocalLightData(CulledLightsGrid.DataStartIndex + LocalLightListIndex, 0);
+			const FLocalLightData LocalLight = GetLocalLightData(CulledLightsGrid.DataStartIndex + GridLightListIndex, 0);
 
 			const float VolumetricScatteringIntensity = UnpackVolumetricScatteringIntensity(LocalLight);
 

@@ -267,14 +267,14 @@ FDeferredLightingSplit GetForwardDirectLightingSplit(
 	
 	// Limit max to ForwardLightData.NumLocalLights.
 	// This prevents GPU hangs when the PS tries to read from uninitialized NumCulledLightsGrid buffer
-	const uint NumLocalLights = min(CulledLightsGrid.NumLocalLights, GetMaxLightsPerCell(EyeIndex));
+	const uint NumLightsInGridCell = min(CulledLightsGrid.NumLights, GetMaxLightsPerCell(EyeIndex));
 
 	LOOP
-	for (uint LocalLightListIndex = 0; LocalLightListIndex < NumLocalLights; LocalLightListIndex++)
+	for (uint GridLightListIndex = 0; GridLightListIndex < NumLightsInGridCell; GridLightListIndex++)
 	{
 		half4 PreviewShadowMapChannelMask = 1;
 		uint  LocalLightingChannelMask = LIGHTING_CHANNEL_MASK;
-		const FLocalLightData LocalLight = GetLocalLightData(CulledLightsGrid.DataStartIndex + LocalLightListIndex, EyeIndex);
+		const FLocalLightData LocalLight = GetLocalLightData(CulledLightsGrid.DataStartIndex + GridLightListIndex, EyeIndex);
 		FDeferredLightData LightData = ConvertToDeferredLight(LocalLight, SpecularScale, PreviewShadowMapChannelMask, LocalLightingChannelMask);
 		// Rect light optionally supported in forward.
 		LightData.bRectLight = LightData.bRectLight && SUPPORT_RECTLIGHT_ON_FORWARD_LIT_TRANSLUCENT;
@@ -348,12 +348,12 @@ float3 GetForwardDirectLightingForVertexLighting(uint GridIndex, float3 Translat
 
 	// Limit max to ForwardLightData.NumLocalLights.
 	// This prevents GPU hangs when the PS tries to read from uninitialized NumCulledLightsGrid buffer
-	const uint NumLocalLights = min(CulledLightsGrid.NumLocalLights, GetMaxLightsPerCell(EyeIndex));
+	const uint NumLightsInGridCell = min(CulledLightsGrid.NumLights, GetMaxLightsPerCell(EyeIndex));
 
 	LOOP
-	for (uint LocalLightListIndex = 0; LocalLightListIndex < NumLocalLights; LocalLightListIndex++)
+	for (uint GridLightListIndex = 0; GridLightListIndex < NumLightsInGridCell; GridLightListIndex++)
 	{
-		const FLocalLightData LocalLight = GetLocalLightData(CulledLightsGrid.DataStartIndex + LocalLightListIndex, EyeIndex);
+		const FLocalLightData LocalLight = GetLocalLightData(CulledLightsGrid.DataStartIndex + GridLightListIndex, EyeIndex);
 		const FSimpleDeferredLightData LightData = ConvertToSimpleLight(LocalLight);
 
 		// No specular for vertex lighting

@@ -38,22 +38,22 @@ void MainCS(
 	const uint GridY = DispatchThreadId.x / GroupSize.x;
 	const uint EyeIndex = 0;
 	const FLightGridData GridData = GetLightGridData(EyeIndex);
-	uint LocalNumLights = 0;
+	uint NumLightsInGridCell = 0;
 	LOOP
 	for (int SliceIt = 0; SliceIt < GridData.CulledGridSize.z; SliceIt++)
 	{
 		const uint GridIndex = ComputeLightGridCellIndex(uint3(GridX, GridY, SliceIt), EyeIndex);
 		const FCulledLightsGridData CulledLightsGrid = GetCulledLightsGrid(GridIndex, EyeIndex);
 		
-		LocalNumLights = CulledLightsGrid.NumLocalLights;
+		NumLightsInGridCell = CulledLightsGrid.NumLights;
 
-		if(LocalNumLights > 0)
+		if(NumLightsInGridCell > 0)
 		{
 			break;
 		}
 	}
 
-	if(LocalNumLights > 0)
+	if(NumLightsInGridCell > 0)
 	{
 		RWTileInfo[2 * DispatchThreadId.x] = GridX;
 		RWTileInfo[2 * DispatchThreadId.x + 1] = GridY;

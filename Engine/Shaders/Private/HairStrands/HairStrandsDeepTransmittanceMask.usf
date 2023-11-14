@@ -384,7 +384,7 @@ void MainCS(uint2 DispatchThreadId : SV_DispatchThreadID)
 	const uint GridLinearIndex = ComputeLightGridCellIndex(LocalPixelPos, SceneDepth, EyeIndex);
 	const FCulledLightsGridData CulledLightGridData = GetCulledLightsGrid(GridLinearIndex, EyeIndex);
 
-	const uint LightCount = min(GetPackedShadowMaskMaxLightCount(), CulledLightGridData.NumLocalLights);
+	const uint LightCount = min(GetPackedShadowMaskMaxLightCount(), CulledLightGridData.NumLights);
 
 	LOOP
 	for (uint LightIndex = 0; LightIndex < LightCount; ++LightIndex)

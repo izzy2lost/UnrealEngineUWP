@@ -128,7 +128,7 @@ uint GetMaxLightsPerCell(uint EyeIndex)
 
 struct FCulledLightsGridData
 {
-	uint NumLocalLights;
+	uint NumLights;
 	uint DataStartIndex;
 };
 
@@ -142,14 +142,14 @@ FCulledLightsGridData GetCulledLightsGrid(uint GridIndex, uint EyeIndex)
 	{
 #endif
 
-		Result.NumLocalLights = min(ForwardLightData.NumCulledLightsGrid[GridIndex * NUM_CULLED_LIGHTS_GRID_STRIDE + 0], ForwardLightData.NumLocalLights);
+		Result.NumLights = min(ForwardLightData.NumCulledLightsGrid[GridIndex * NUM_CULLED_LIGHTS_GRID_STRIDE + 0], ForwardLightData.NumLocalLights);
 		Result.DataStartIndex = ForwardLightData.NumCulledLightsGrid[GridIndex * NUM_CULLED_LIGHTS_GRID_STRIDE + 1];
 
 #if (INSTANCED_STEREO || MOBILE_MULTI_VIEW)
 	}
 	else
 	{
-		Result.NumLocalLights = min(ForwardLightDataISR.NumCulledLightsGrid[GridIndex * NUM_CULLED_LIGHTS_GRID_STRIDE + 0], ForwardLightDataISR.NumLocalLights);
+		Result.NumLights = min(ForwardLightDataISR.NumCulledLightsGrid[GridIndex * NUM_CULLED_LIGHTS_GRID_STRIDE + 0], ForwardLightDataISR.NumLocalLights);
 		Result.DataStartIndex = ForwardLightDataISR.NumCulledLightsGrid[GridIndex * NUM_CULLED_LIGHTS_GRID_STRIDE + 1];
 	}
 #endif

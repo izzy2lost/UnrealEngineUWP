@@ -25,7 +25,7 @@ float GetVirtualShadowMapMaskForLight(
 	const FCulledLightsGridData LightGridData = VirtualShadowMapGetLightsGrid(LocalPixelPos, SceneDepth);	
 
 	// We can only handle so many lights in our output encoding right now, so no purpose in computing more
-	uint LightCount = min(GetPackedShadowMaskMaxLightCount(), LightGridData.NumLocalLights);
+	uint LightCount = min(GetPackedShadowMaskMaxLightCount(), LightGridData.NumLights);
 
 	uint Index = 0;
 	for (; Index < LightCount; ++Index)
