@@ -182,6 +182,26 @@ struct FBlockPacket
 	FBuffer	 CompressedData;
 };
 
+struct FPatchHeader
+{
+	static constexpr uint64 VALIDATION_BLOCK_SIZE = 16_MB;
+
+	static constexpr uint64 MAGIC	= 0x3E63942C4C9ECE16ull;
+	static constexpr uint64 VERSION = 2;
+
+	uint64				   Magic					 = MAGIC;
+	uint64				   Version					 = VERSION;
+	uint64				   SourceSize				 = 0;
+	uint64				   BaseSize					 = 0;
+	uint64				   NumSourceValidationBlocks = 0;
+	uint64				   NumBaseValidationBlocks	 = 0;
+	uint64				   NumSourceBlocks			 = 0;
+	uint64				   NumBaseBlocks			 = 0;
+	uint64				   BlockSize				 = 0;
+	EWeakHashAlgorithmID   WeakHashAlgorithmId		 = EWeakHashAlgorithmID::Naive;
+	EStrongHashAlgorithmID StrongHashAlgorithmId	 = EStrongHashAlgorithmID::Blake3_128;
+};
+
 // Protocol V2: support for up to 256bit hashes
 
 struct FBlockRequest256

@@ -9,16 +9,20 @@
 #include "UnsyncSocket.h"
 #include "UnsyncUtil.h"
 #include "UnsyncManifest.h"
+#include "UnsyncHashTable.h"
 
 #include <stdint.h>
+#include <deque>
+#include <functional>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
-#include <functional>
 
 namespace unsync {
 
 extern bool GDryRun;
+
+static constexpr uint32 MAX_ACTIVE_READERS = 64;
 
 class FProxy;
 class FProxyPool;
@@ -71,6 +75,21 @@ struct FCopyCommand
 struct FNeedBlock : FCopyCommand
 {
 	FGenericHash Hash = {};
+};
+
+struct FReadSchedule
+{
+	std::vector<FCopyCommand> Blocks;
+	std::deque<uint64>		  Requests;	 // unique block request indices sorted small to large
+};
+
+FReadSchedule BuildReadSchedule(const std::vector<FNeedBlock>& Blocks);
+
+class FBlockCache
+{
+public:
+	FBuffer							BlockData;
+	THashMap<FHash128, FBufferView> BlockMap;  // Decompressed block data by hash
 };
 
 inline uint64
@@ -184,44 +203,6 @@ FNeedList DiffManifestBlocks(const FGenericBlockArray& SourceBlocks, const FGene
 
 std::vector<FCopyCommand> OptimizeNeedList(const std::vector<FNeedBlock>& Input, uint64 MaxMergedBlockSize = 8_MB);
 
-struct FBuildTargetResult
-{
-	bool   bSuccess	   = false;
-	uint64 SourceBytes = 0;
-	uint64 BaseBytes   = 0;
-};
-
-struct FBuildTargetParams
-{
-	EStrongHashAlgorithmID StrongHasher;
-	FProxyPool*			   ProxyPool		= nullptr;
-	FBlockCache*		   BlockCache		= nullptr;
-	FScavengeDatabase*	   ScavengeDatabase = nullptr;
-
-	enum class ESourceType {
-		File,
-		Patch
-	};
-
-	ESourceType SourceType = ESourceType::File;
-};
-
-FBuildTargetResult BuildTarget(FIOWriter&				 Result,
-							   FIOReader&				 Source,
-							   FIOReader&				 Base,
-							   const FNeedList&			 NeedList,
-							   const FBuildTargetParams& Params);
-
-FBuffer BuildTargetBuffer(FIOReader& SourceProvider, FIOReader& BaseProvider, const FNeedList& NeedList, const FBuildTargetParams& Params);
-
-FBuffer BuildTargetBuffer(const uint8*				SourceData,
-						  uint64					SourceSize,
-						  const uint8*				BaseData,
-						  uint64					BaseSize,
-						  const FNeedList&			NeedList,
-						  const FBuildTargetParams& Params);
-
-FBuffer BuildTargetWithPatch(const uint8* PatchData, uint64 PatchSize, const uint8* BaseData, uint64 BaseSize);
 
 FBuffer GeneratePatch(const uint8*			 BaseData,
 					  uint64				 BaseDataSize,

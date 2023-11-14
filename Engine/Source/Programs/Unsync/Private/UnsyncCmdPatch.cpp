@@ -2,6 +2,7 @@
 
 #include "UnsyncCmdPatch.h"
 #include "UnsyncFile.h"
+#include "UnsyncTarget.h"
 
 namespace unsync {
 

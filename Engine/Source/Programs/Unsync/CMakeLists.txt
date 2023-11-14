@@ -94,6 +94,8 @@ set(src
 	Private/UnsyncSerialization.h
 	Private/UnsyncSocket.cpp
 	Private/UnsyncSocket.h
+	Private/UnsyncTarget.cpp
+	Private/UnsyncTarget.h
 	Private/UnsyncTest.cpp
 	Private/UnsyncTest.h
 	Private/UnsyncThread.cpp

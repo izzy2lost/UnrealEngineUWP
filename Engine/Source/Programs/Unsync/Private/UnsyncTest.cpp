@@ -8,6 +8,7 @@
 #include "UnsyncTest.h"
 #include "UnsyncThread.h"
 #include "UnsyncUtil.h"
+#include "UnsyncTarget.h"
 
 UNSYNC_THIRD_PARTY_INCLUDES_START
 #include <md5-sse2.h>

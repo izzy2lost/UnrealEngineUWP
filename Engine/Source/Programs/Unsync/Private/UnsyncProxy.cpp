@@ -568,6 +568,11 @@ ProxyQuery::ListDirectory(const FRemoteDesc& Remote, const std::string& Path)
 
 	FHttpResponse Response = HttpRequest(Connection, Request);
 
+	if (!Response.Success())
+	{
+		return HttpError(Response.Code);
+	}
+
 	Response.Buffer.PushBack(0);
 
 	return FDirectoryListing::FromJson((const char*)Response.Buffer.Data());
