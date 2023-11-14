@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 
-#include "AppleHTTPNSUrlSession.h"
+#include "AppleHttp.h"
 #include "HttpManager.h"
 #include "Misc/EngineVersion.h"
 #include "Misc/App.h"
@@ -25,13 +25,13 @@ enum class EAppleHttpRequestResponseState: uint8
  * Class to hold data from delegate implementation notifications.
  */
 
-@interface FAppleHttpNSUrlSessionResponseDelegate : NSObject<NSURLSessionDataDelegate>
+@interface FAppleHttpResponseDelegate : NSObject<NSURLSessionDataDelegate>
 {
 	/** Holds the payload as we receive it. */
 	@public TArray<uint8> Payload;
 	
 	/** This stream is shared between the request and the delegate. This field is accessed through a thread out of out control 
-	 * from the delegates methods and through mehthods in FAppleHttpNSUrlSessionRequest. Once we cancel or have an error this can 
+	 * from the delegates methods and through mehthods in FAppleHttpRequest. Once we cancel or have an error this can 
 	 * is nullified as soon as possible to avoid receiving more data after completion delegates were triggered */
 	TSharedPtr<FArchive> ResponseBodyReceiveStream;
 	
@@ -68,13 +68,13 @@ enum class EAppleHttpRequestResponseState: uint8
 - (void)URLSession:(NSURLSession *)session dataTask:(NSURLSessionDataTask *)dataTask willCacheResponse:(NSCachedURLResponse *)proposedResponse completionHandler:(void (^)(NSCachedURLResponse *cachedResponse))completionHandler;
 @end
 
-@implementation FAppleHttpNSUrlSessionResponseDelegate
+@implementation FAppleHttpResponseDelegate
 @synthesize Response;
 @synthesize ResponseState;
 @synthesize BytesWritten;
 @synthesize BytesReceived;
 
-- (FAppleHttpNSUrlSessionResponseDelegate*)initWithResponseStream:(TSharedPtr<FArchive>)ResponseStream
+- (FAppleHttpResponseDelegate*)initWithResponseStream:(TSharedPtr<FArchive>)ResponseStream
 {
 	self = [super init];
 	
@@ -218,7 +218,7 @@ enum class EAppleHttpRequestResponseState: uint8
 
 - (void)URLSession:(NSURLSession *)session dataTask:(NSURLSessionDataTask *)dataTask willCacheResponse:(NSCachedURLResponse *)proposedResponse completionHandler:(void (^)(NSCachedURLResponse *cachedResponse))completionHandler
 {
-	// All FAppleHttpNSUrlSessionRequest use NSURLRequestReloadIgnoringLocalCacheData
+	// All FAppleHttpRequest use NSURLRequestReloadIgnoringLocalCacheData
 	// NSURLRequestReloadIgnoringLocalCacheData disables loading of data from cache, but responses can still be stored in cache
 	// Passing nil to this handler disables caching the responses
 	completionHandler(nil);
@@ -365,10 +365,10 @@ enum class EAppleHttpRequestResponseState: uint8
 }
 @end
 /****************************************************************************
- * FAppleHttpNSUrlSessionRequest implementation
+ * FAppleHttpRequest implementation
  ***************************************************************************/
 
-FAppleHttpNSUrlSessionRequest::FAppleHttpNSUrlSessionRequest(NSURLSession* InSession)
+FAppleHttpRequest::FAppleHttpRequest(NSURLSession* InSession)
 :   Session([InSession retain])
 ,   Task(nil)
 ,	bIsPayloadFile(false)
@@ -377,7 +377,7 @@ FAppleHttpNSUrlSessionRequest::FAppleHttpNSUrlSessionRequest(NSURLSession* InSes
 ,	LastReportedBytesWritten(0)
 ,	LastReportedBytesRead(0)
 {
-	UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpNSUrlSessionRequest::FAppleHttpNSUrlSessionRequest()"));
+	UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpRequest::FAppleHttpRequest()"));
 	Request = [[NSMutableURLRequest alloc] init];
 	Request.timeoutInterval = FHttpModule::Get().GetHttpTimeout();
 
@@ -392,55 +392,55 @@ FAppleHttpNSUrlSessionRequest::FAppleHttpNSUrlSessionRequest(NSURLSession* InSes
 	}
 }
 
-FAppleHttpNSUrlSessionRequest::~FAppleHttpNSUrlSessionRequest()
+FAppleHttpRequest::~FAppleHttpRequest()
 {
-	UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpNSUrlSessionRequest::~FAppleHttpNSUrlSessionRequest()"));
+	UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpRequest::~FAppleHttpRequest()"));
 	CleanupRequest();
 	[Request release];
     [Session release];
 }
 
-FString FAppleHttpNSUrlSessionRequest::GetURL() const
+FString FAppleHttpRequest::GetURL() const
 {
 	SCOPED_AUTORELEASE_POOL;
 	NSURL* URL = Request.URL;
 	if (URL != nullptr)
 	{
 		FString ConvertedURL(URL.absoluteString);
-		UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpNSUrlSessionRequest::GetURL() - %s"), *ConvertedURL);
+		UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpRequest::GetURL() - %s"), *ConvertedURL);
 		return ConvertedURL;
 	}
 	else
 	{
-		UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpNSUrlSessionRequest::GetURL() - NULL"));
+		UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpRequest::GetURL() - NULL"));
 		return FString();
 	}
 }
 
-void FAppleHttpNSUrlSessionRequest::SetURL(const FString& URL)
+void FAppleHttpRequest::SetURL(const FString& URL)
 {
 	SCOPED_AUTORELEASE_POOL;
-	UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpNSUrlSessionRequest::SetURL() - %s"), *URL);
+	UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpRequest::SetURL() - %s"), *URL);
 	Request.URL = [NSURL URLWithString: URL.GetNSString()];
 }
 
-FString FAppleHttpNSUrlSessionRequest::GetHeader(const FString& HeaderName) const
+FString FAppleHttpRequest::GetHeader(const FString& HeaderName) const
 {
 	SCOPED_AUTORELEASE_POOL;
 	FString Header([Request valueForHTTPHeaderField:HeaderName.GetNSString()]);
-	UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpNSUrlSessionRequest::GetHeader() - %s"), *Header);
+	UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpRequest::GetHeader() - %s"), *Header);
 	return Header;
 }
 
 
-void FAppleHttpNSUrlSessionRequest::SetHeader(const FString& HeaderName, const FString& HeaderValue)
+void FAppleHttpRequest::SetHeader(const FString& HeaderName, const FString& HeaderValue)
 {
 	SCOPED_AUTORELEASE_POOL;
-	UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpNSUrlSessionRequest::SetHeader() - %s / %s"), *HeaderName, *HeaderValue );
+	UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpRequest::SetHeader() - %s / %s"), *HeaderName, *HeaderValue );
 	[Request setValue: HeaderValue.GetNSString() forHTTPHeaderField: HeaderName.GetNSString()];
 }
 
-void FAppleHttpNSUrlSessionRequest::AppendToHeader(const FString& HeaderName, const FString& AdditionalHeaderValue)
+void FAppleHttpRequest::AppendToHeader(const FString& HeaderName, const FString& AdditionalHeaderValue)
 {
     if (!HeaderName.IsEmpty() && !AdditionalHeaderValue.IsEmpty())
     {
@@ -458,10 +458,10 @@ void FAppleHttpNSUrlSessionRequest::AppendToHeader(const FString& HeaderName, co
 	}
 }
 
-TArray<FString> FAppleHttpNSUrlSessionRequest::GetAllHeaders() const
+TArray<FString> FAppleHttpRequest::GetAllHeaders() const
 {
 	SCOPED_AUTORELEASE_POOL;
-	UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpNSUrlSessionRequest::GetAllHeaders()"));
+	UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpRequest::GetAllHeaders()"));
 	NSDictionary* Headers = Request.allHTTPHeaderFields;
 	TArray<FString> Result;
 	Result.Reserve(Headers.count);
@@ -476,13 +476,13 @@ TArray<FString> FAppleHttpNSUrlSessionRequest::GetAllHeaders() const
 	return Result;
 }
 
-const TArray<uint8>& FAppleHttpNSUrlSessionRequest::GetContent() const
+const TArray<uint8>& FAppleHttpRequest::GetContent() const
 {
-	UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpNSUrlSessionRequest::GetContent()"));
+	UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpRequest::GetContent()"));
 	StorageForGetContent.Empty();
 	if (bIsPayloadFile)
 	{
-		UE_LOG(LogHttp, Warning, TEXT("FAppleHttpNSUrlSessionRequest::GetContent() called on a request that is set up for streaming a file. Return value is an empty buffer"));
+		UE_LOG(LogHttp, Warning, TEXT("FAppleHttpRequest::GetContent() called on a request that is set up for streaming a file. Return value is an empty buffer"));
 	}
 	else
 	{
@@ -493,30 +493,30 @@ const TArray<uint8>& FAppleHttpNSUrlSessionRequest::GetContent() const
 	return StorageForGetContent;
 }
 
-void FAppleHttpNSUrlSessionRequest::SetContent(const TArray<uint8>& ContentPayload)
+void FAppleHttpRequest::SetContent(const TArray<uint8>& ContentPayload)
 {
 	if (CompletionStatus == EHttpRequestStatus::Processing)
 	{
-		UE_LOG(LogHttp, Warning, TEXT("FAppleHttpNSUrlSessionRequest::SetContent() - attempted to set content on a request that is inflight"));
+		UE_LOG(LogHttp, Warning, TEXT("FAppleHttpRequest::SetContent() - attempted to set content on a request that is inflight"));
 		return;
 	}
 
-	UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpNSUrlSessionRequest::SetContent()"));
+	UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpRequest::SetContent()"));
 	Request.HTTPBodyStream = nil;
 	Request.HTTPBody = [NSData dataWithBytes:ContentPayload.GetData() length:ContentPayload.Num()];
 	ContentBytesLength = ContentPayload.Num();
 	bIsPayloadFile = false;
 }
 
-void FAppleHttpNSUrlSessionRequest::SetContent(TArray<uint8>&& ContentPayload)
+void FAppleHttpRequest::SetContent(TArray<uint8>&& ContentPayload)
 {
 	if (CompletionStatus == EHttpRequestStatus::Processing)
 	{
-		UE_LOG(LogHttp, Warning, TEXT("FAppleHttpNSUrlSessionRequest::SetContent() - attempted to set content on a request that is inflight"));
+		UE_LOG(LogHttp, Warning, TEXT("FAppleHttpRequest::SetContent() - attempted to set content on a request that is inflight"));
 		return;
 	}
 
-	UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpNSUrlSessionRequest::SetContent()"));
+	UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpRequest::SetContent()"));
 
 	Request.HTTPBodyStream = nil;
 	// We cannot use NSData dataWithBytesNoCopy:length:freeWhenDone: and keep the data in this instance because we don't have control
@@ -529,28 +529,28 @@ void FAppleHttpNSUrlSessionRequest::SetContent(TArray<uint8>&& ContentPayload)
 	ContentPayload.Empty();
 }
 
-FString FAppleHttpNSUrlSessionRequest::GetContentType() const
+FString FAppleHttpRequest::GetContentType() const
 {
 	FString ContentType = GetHeader(TEXT("Content-Type"));
-	UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpNSUrlSessionRequest::GetContentType() - %s"), *ContentType);
+	UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpRequest::GetContentType() - %s"), *ContentType);
 	return ContentType;
 }
 
-uint64 FAppleHttpNSUrlSessionRequest::GetContentLength() const
+uint64 FAppleHttpRequest::GetContentLength() const
 {
-	UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpNSUrlSessionRequest::GetContentLength() - %i"), ContentBytesLength);
+	UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpRequest::GetContentLength() - %i"), ContentBytesLength);
 	return ContentBytesLength;
 }
 
-void FAppleHttpNSUrlSessionRequest::SetContentAsString(const FString& ContentString)
+void FAppleHttpRequest::SetContentAsString(const FString& ContentString)
 {
 	if (CompletionStatus == EHttpRequestStatus::Processing)
 	{
-		UE_LOG(LogHttp, Warning, TEXT("FAppleHttpNSUrlSessionRequest::SetContentAsString() - attempted to set content on a request that is inflight"));
+		UE_LOG(LogHttp, Warning, TEXT("FAppleHttpRequest::SetContentAsString() - attempted to set content on a request that is inflight"));
 		return;
 	}
 
-	UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpNSUrlSessionRequest::SetContentAsString() - %s"), *ContentString);
+	UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpRequest::SetContentAsString() - %s"), *ContentString);
 	FTCHARToUTF8 Converter(*ContentString);
 
 	Request.HTTPBodyStream = nil;
@@ -560,14 +560,14 @@ void FAppleHttpNSUrlSessionRequest::SetContentAsString(const FString& ContentStr
 	bIsPayloadFile = false;
 }
 
-bool FAppleHttpNSUrlSessionRequest::SetContentAsStreamedFile(const FString& Filename)
+bool FAppleHttpRequest::SetContentAsStreamedFile(const FString& Filename)
 {
 	SCOPED_AUTORELEASE_POOL;
-    UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpNSUrlSessionRequest::SetContentAsStreamedFile() - %s"), *Filename);
+    UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpRequest::SetContentAsStreamedFile() - %s"), *Filename);
 
 	if (CompletionStatus == EHttpRequestStatus::Processing)
 	{
-		UE_LOG(LogHttp, Warning, TEXT("FAppleHttpNSUrlSessionRequest::SetContentAsStreamedFile() - attempted to set content on a request that is inflight"));
+		UE_LOG(LogHttp, Warning, TEXT("FAppleHttpRequest::SetContentAsStreamedFile() - attempted to set content on a request that is inflight"));
 		return false;
 	}
 
@@ -578,7 +578,7 @@ bool FAppleHttpNSUrlSessionRequest::SetContentAsStreamedFile(const FString& File
 	struct stat FileAttrs = { 0 };
 	if (stat(PlatformFilename.fileSystemRepresentation, &FileAttrs) == 0)
 	{
-		UE_LOG(LogHttp, VeryVerbose, TEXT("FAppleHttpNSUrlSessionRequest::SetContentAsStreamedFile succeeded in getting the file size - %lld"), FileAttrs.st_size);
+		UE_LOG(LogHttp, VeryVerbose, TEXT("FAppleHttpRequest::SetContentAsStreamedFile succeeded in getting the file size - %lld"), FileAttrs.st_size);
 		// Under the hood, the Foundation framework unsets HTTPBody, and takes over as the stream delegate.
 		// The stream itself should be unopened when passed to setHTTPBodyStream.
 		Request.HTTPBodyStream = [NSInputStream inputStreamWithFileAtPath: PlatformFilename];
@@ -587,7 +587,7 @@ bool FAppleHttpNSUrlSessionRequest::SetContentAsStreamedFile(const FString& File
 	}
 	else
 	{
-		UE_LOG(LogHttp, Warning, TEXT("FAppleHttpNSUrlSessionRequest::SetContentAsStreamedFile failed to get file size"));
+		UE_LOG(LogHttp, Warning, TEXT("FAppleHttpRequest::SetContentAsStreamedFile failed to get file size"));
 		Request.HTTPBodyStream = nil;
 		ContentBytesLength = 0;
 		bIsPayloadFile = false;
@@ -596,12 +596,12 @@ bool FAppleHttpNSUrlSessionRequest::SetContentAsStreamedFile(const FString& File
 	return bIsPayloadFile;
 }
 
-bool FAppleHttpNSUrlSessionRequest::SetContentFromStream(TSharedRef<FArchive, ESPMode::ThreadSafe> Stream)
+bool FAppleHttpRequest::SetContentFromStream(TSharedRef<FArchive, ESPMode::ThreadSafe> Stream)
 {
 	SCOPED_AUTORELEASE_POOL;
 	if (CompletionStatus == EHttpRequestStatus::Processing)
 	{
-		UE_LOG(LogHttp, Warning, TEXT("FAppleHttpNSUrlSessionRequest::SetContentFromStream() - attempted to set content on a request that is inflight"));
+		UE_LOG(LogHttp, Warning, TEXT("FAppleHttpRequest::SetContentFromStream() - attempted to set content on a request that is inflight"));
 		return false;
 	}
 
@@ -614,45 +614,45 @@ bool FAppleHttpNSUrlSessionRequest::SetContentFromStream(TSharedRef<FArchive, ES
 	return true;
 }
 
-bool FAppleHttpNSUrlSessionRequest::SetResponseBodyReceiveStream(TSharedRef<FArchive> Stream)
+bool FAppleHttpRequest::SetResponseBodyReceiveStream(TSharedRef<FArchive> Stream)
 {
 	ResponseBodyReceiveStream = Stream;
 	return true;
 }
 
-FString FAppleHttpNSUrlSessionRequest::GetVerb() const
+FString FAppleHttpRequest::GetVerb() const
 {
 	FString ConvertedVerb(Request.HTTPMethod);
-	UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpNSUrlSessionRequest::GetVerb() - %s"), *ConvertedVerb);
+	UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpRequest::GetVerb() - %s"), *ConvertedVerb);
 	return ConvertedVerb;
 }
 
-void FAppleHttpNSUrlSessionRequest::SetVerb(const FString& Verb)
+void FAppleHttpRequest::SetVerb(const FString& Verb)
 {
 	SCOPED_AUTORELEASE_POOL;
-	UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpNSUrlSessionRequest::SetVerb() - %s"), *Verb);
+	UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpRequest::SetVerb() - %s"), *Verb);
 	Request.HTTPMethod = Verb.GetNSString();
 }
 
-void FAppleHttpNSUrlSessionRequest::SetTimeout(float InTimeoutSecs)
+void FAppleHttpRequest::SetTimeout(float InTimeoutSecs)
 {
 	Request.timeoutInterval = InTimeoutSecs;
 }
 
-void FAppleHttpNSUrlSessionRequest::ClearTimeout()
+void FAppleHttpRequest::ClearTimeout()
 {
 	Request.timeoutInterval = FHttpModule::Get().GetHttpTimeout();
 }
 
-TOptional<float> FAppleHttpNSUrlSessionRequest::GetTimeout() const
+TOptional<float> FAppleHttpRequest::GetTimeout() const
 {
 	return TOptional<float>(Request.timeoutInterval);
 }
 
-bool FAppleHttpNSUrlSessionRequest::ProcessRequest()
+bool FAppleHttpRequest::ProcessRequest()
 {
 	SCOPED_AUTORELEASE_POOL;
-	UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpNSUrlSessionRequest::ProcessRequest()"));
+	UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpRequest::ProcessRequest()"));
 
 	if (!PreCheck() || !StartRequest())
 	{
@@ -663,10 +663,10 @@ bool FAppleHttpNSUrlSessionRequest::ProcessRequest()
 	return true;
 }
 
-bool FAppleHttpNSUrlSessionRequest::StartRequest()
+bool FAppleHttpRequest::StartRequest()
 {
 	SCOPED_AUTORELEASE_POOL;
-	UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpNSUrlSessionRequest::StartRequest()"));
+	UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpRequest::StartRequest()"));
 	bool bStarted = false;
 
 	// set the content-length and user-agent (it is possible that the OS ignores this value)
@@ -697,7 +697,7 @@ bool FAppleHttpNSUrlSessionRequest::StartRequest()
 
 		CompletionStatus = EHttpRequestStatus::Processing;
 
-		Response = MakeShared<FAppleHttpNSUrlSessionResponse>(*this);
+		Response = MakeShared<FAppleHttpResponse>(*this);
 
 		// Both Task and Response keep a strong reference to the delegate
 		Task.delegate = Response->ResponseDelegate;
@@ -717,9 +717,9 @@ bool FAppleHttpNSUrlSessionRequest::StartRequest()
 	return bStarted;
 }
 
-void FAppleHttpNSUrlSessionRequest::FinishRequest()
+void FAppleHttpRequest::FinishRequest()
 {
-	UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpNSUrlSessionRequest::FinishRequest()"));
+	UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpRequest::FinishRequest()"));
 
 	// Clean up session/request handles that may have been created
 	CleanupRequest();
@@ -749,9 +749,9 @@ void FAppleHttpNSUrlSessionRequest::FinishRequest()
 	OnProcessRequestComplete().ExecuteIfBound(SharedThis(this), Response, bSuccess);
 }
 
-void FAppleHttpNSUrlSessionRequest::CleanupRequest()
+void FAppleHttpRequest::CleanupRequest()
 {
-	UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpNSUrlSessionRequest::CleanupRequest()"));
+	UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpRequest::CleanupRequest()"));
 	
 	if (Response != nullptr)
 	{
@@ -769,9 +769,9 @@ void FAppleHttpNSUrlSessionRequest::CleanupRequest()
 	}
 }
 
-void FAppleHttpNSUrlSessionRequest::CancelRequest()
+void FAppleHttpRequest::CancelRequest()
 {
-	UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpNSUrlSessionRequest::CancelRequest()"));
+	UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpRequest::CancelRequest()"));
 
 	if (Task != nil)
 	{
@@ -779,12 +779,12 @@ void FAppleHttpNSUrlSessionRequest::CancelRequest()
 	}
 }
 
-const FHttpResponsePtr FAppleHttpNSUrlSessionRequest::GetResponse() const
+const FHttpResponsePtr FAppleHttpRequest::GetResponse() const
 {
 	return Response;
 }
 
-void FAppleHttpNSUrlSessionRequest::Tick(float DeltaSeconds)
+void FAppleHttpRequest::Tick(float DeltaSeconds)
 {
 	if (DelegateThreadPolicy == EHttpRequestDelegateThreadPolicy::CompleteOnGameThread)
 	{
@@ -792,7 +792,7 @@ void FAppleHttpNSUrlSessionRequest::Tick(float DeltaSeconds)
 	}
 }
 
-void FAppleHttpNSUrlSessionRequest::CheckProgressDelegate()
+void FAppleHttpRequest::CheckProgressDelegate()
 {
 	if (Response.IsValid() && (CompletionStatus == EHttpRequestStatus::Processing || Response->HadError()))
 	{
@@ -810,23 +810,23 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 }
 
-float FAppleHttpNSUrlSessionRequest::GetElapsedTime() const
+float FAppleHttpRequest::GetElapsedTime() const
 {
 	return ElapsedTime;
 }
 
-bool FAppleHttpNSUrlSessionRequest::StartThreadedRequest()
+bool FAppleHttpRequest::StartThreadedRequest()
 {
 	return true;
 }
 
-bool FAppleHttpNSUrlSessionRequest::IsThreadedRequestComplete()
+bool FAppleHttpRequest::IsThreadedRequestComplete()
 {
-	TSharedPtr<FAppleHttpNSUrlSessionResponse> AliveResponse = Response;
+	TSharedPtr<FAppleHttpResponse> AliveResponse = Response;
 	return (AliveResponse.IsValid() && AliveResponse->IsReady());
 }
 
-void FAppleHttpNSUrlSessionRequest::TickThreadedRequest(float DeltaSeconds)
+void FAppleHttpRequest::TickThreadedRequest(float DeltaSeconds)
 {
 	ElapsedTime += DeltaSeconds;
 
@@ -837,45 +837,45 @@ void FAppleHttpNSUrlSessionRequest::TickThreadedRequest(float DeltaSeconds)
 }
 
 /****************************************************************************
- * FAppleHttpNSUrlSessionResponse implementation
+ * FAppleHttpResponse implementation
  **************************************************************************/
 
-FAppleHttpNSUrlSessionResponse::FAppleHttpNSUrlSessionResponse(const FAppleHttpNSUrlSessionRequest& InRequest)
+FAppleHttpResponse::FAppleHttpResponse(const FAppleHttpRequest& InRequest)
 	: FHttpResponseCommon(InRequest.GetURL())
 {
-	UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpNSUrlSessionResponse::FAppleHttpNSUrlSessionResponse()"));
-	ResponseDelegate = [[FAppleHttpNSUrlSessionResponseDelegate alloc] initWithResponseStream: InRequest.ResponseBodyReceiveStream];
+	UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpResponse::FAppleHttpResponse()"));
+	ResponseDelegate = [[FAppleHttpResponseDelegate alloc] initWithResponseStream: InRequest.ResponseBodyReceiveStream];
 }
 
-FAppleHttpNSUrlSessionResponse::~FAppleHttpNSUrlSessionResponse()
+FAppleHttpResponse::~FAppleHttpResponse()
 {
-	UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpNSUrlSessionResponse::~FAppleHttpNSUrlSessionResponse()"));
+	UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpResponse::~FAppleHttpResponse()"));
 	
 	[ResponseDelegate release];
 	ResponseDelegate = nil;
 }
 
-void FAppleHttpNSUrlSessionResponse::SetNewAppleHttpEventDelegate(FNewAppleHttpEventDelegate&& Delegate)
+void FAppleHttpResponse::SetNewAppleHttpEventDelegate(FNewAppleHttpEventDelegate&& Delegate)
 {	
 	ResponseDelegate->NewAppleHttpEventDelegate = MoveTemp(Delegate);
 }
 
-void FAppleHttpNSUrlSessionResponse::CleanSharedObjects()
+void FAppleHttpResponse::CleanSharedObjects()
 {
 	[ResponseDelegate ClearResponseStream];
 }
 
-FString FAppleHttpNSUrlSessionResponse::GetHeader(const FString& HeaderName) const
+FString FAppleHttpResponse::GetHeader(const FString& HeaderName) const
 {
 	SCOPED_AUTORELEASE_POOL;
-	UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpNSUrlSessionResponse::GetHeader()"));
+	UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpResponse::GetHeader()"));
 	NSString* ConvertedHeaderName = HeaderName.GetNSString();
 	return FString([ResponseDelegate.Response.allHeaderFields objectForKey:ConvertedHeaderName]);
 }
 
-TArray<FString> FAppleHttpNSUrlSessionResponse::GetAllHeaders() const
+TArray<FString> FAppleHttpResponse::GetAllHeaders() const
 {
-	UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpNSUrlSessionResponse::GetAllHeaders()"));
+	UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpResponse::GetAllHeaders()"));
 
 	NSDictionary* Headers = ResponseDelegate.Response.allHeaderFields;
 	TArray<FString> Result;
@@ -889,21 +889,21 @@ TArray<FString> FAppleHttpNSUrlSessionResponse::GetAllHeaders() const
 	return Result;
 }
 
-FString FAppleHttpNSUrlSessionResponse::GetContentType() const
+FString FAppleHttpResponse::GetContentType() const
 {
-	UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpNSUrlSessionResponse::GetContentType()"));
+	UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpResponse::GetContentType()"));
 
 	return GetHeader( TEXT( "Content-Type" ) );
 }
 
-uint64 FAppleHttpNSUrlSessionResponse::GetContentLength() const
+uint64 FAppleHttpResponse::GetContentLength() const
 {
-	UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpNSUrlSessionResponse::GetContentLength()"));
+	UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpResponse::GetContentLength()"));
 	
 	return ResponseDelegate.Response.expectedContentLength;
 }
 
-const TArray<uint8>& FAppleHttpNSUrlSessionResponse::GetContent() const
+const TArray<uint8>& FAppleHttpResponse::GetContent() const
 {
 	if( !IsReady() )
 	{
@@ -911,14 +911,14 @@ const TArray<uint8>& FAppleHttpNSUrlSessionResponse::GetContent() const
 	}
 	else
 	{
-		UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpNSUrlSessionResponse::GetContent() - Num: %i"), ResponseDelegate->Payload.Num());
+		UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpResponse::GetContent() - Num: %i"), ResponseDelegate->Payload.Num());
 	}
 	return ResponseDelegate->Payload;
 }
 
-FString FAppleHttpNSUrlSessionResponse::GetContentAsString() const
+FString FAppleHttpResponse::GetContentAsString() const
 {
-	UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpNSUrlSessionResponse::GetContentAsString()"));
+	UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpResponse::GetContentAsString()"));
 
 	// Fill in our data.
 	const TArray<uint8>& Payload = GetContent();
@@ -930,19 +930,19 @@ FString FAppleHttpNSUrlSessionResponse::GetContentAsString() const
 	return UTF8_TO_TCHAR( ZeroTerminatedPayload.GetData() );
 }
 
-int32 FAppleHttpNSUrlSessionResponse::GetResponseCode() const
+int32 FAppleHttpResponse::GetResponseCode() const
 {
-	UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpNSUrlSessionResponse::GetResponseCode()"));
+	UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpResponse::GetResponseCode()"));
 
 	return ResponseDelegate.Response.statusCode;
 }
 
-bool FAppleHttpNSUrlSessionResponse::IsReady() const
+bool FAppleHttpResponse::IsReady() const
 {
 	return (ResponseDelegate.ResponseState != EAppleHttpRequestResponseState::NotReady);
 }
 
-bool FAppleHttpNSUrlSessionResponse::HadError() const
+bool FAppleHttpResponse::HadError() const
 {
 	switch(ResponseDelegate.ResponseState)
 	{
@@ -954,17 +954,17 @@ bool FAppleHttpNSUrlSessionResponse::HadError() const
 	}
 }
 
-bool FAppleHttpNSUrlSessionResponse::HadConnectionError() const
+bool FAppleHttpResponse::HadConnectionError() const
 {
 	return (ResponseDelegate.ResponseState == EAppleHttpRequestResponseState::ConnectionError);
 }
 
-const uint64 FAppleHttpNSUrlSessionResponse::GetNumBytesReceived() const
+const uint64 FAppleHttpResponse::GetNumBytesReceived() const
 {
 	return ResponseDelegate.BytesReceived;
 }
 
-const uint64 FAppleHttpNSUrlSessionResponse::GetNumBytesWritten() const
+const uint64 FAppleHttpResponse::GetNumBytesWritten() const
 {
 	return ResponseDelegate.BytesWritten;
 }

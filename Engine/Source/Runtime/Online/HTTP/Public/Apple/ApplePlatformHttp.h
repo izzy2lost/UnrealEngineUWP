@@ -42,9 +42,6 @@ public:
 	static bool UsesThreadedHttp();
 
 private:
-	/** Flag to allow fall back to use NSUrlConnection instead of NSUrlSession. Assigned from commandline */
-	static inline bool bUseNSUrlSession = false;
-
     /** Session used to create Apple based requests */
     static inline NSURLSession* Session = nil;
 

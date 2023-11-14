@@ -3,8 +3,7 @@
 #include "Apple/ApplePlatformHttp.h"
 #include "Http.h"
 #include "AppleHttpManager.h"
-#include "AppleHTTPNSUrlConnection.h"
-#include "AppleHTTPNSUrlSession.h"
+#include "AppleHttp.h"
 #include "Apple/CFRef.h"
 #include "Misc/Base64.h"
 #include "Misc/CommandLine.h"
@@ -223,25 +222,12 @@ void FApplePlatformHttp::Init()
 	FSslModule::Get();
 #endif
 
-	bool bUseNSUrlConnection = FParse::Param(FCommandLine::Get(), TEXT("UseNSUrlConnection"));
-	if (bUseNSUrlConnection)
-	{
-		UE_LOG(LogHttp, Warning, TEXT("UseNSUrlConnection command line argument is deprecated. It will be removed in UE 5.4"));
-	}
-	bUseNSUrlSession = !bUseNSUrlConnection;
-
-	if (bUseNSUrlSession)
-	{
-		InitWithNSUrlSession();
-	}
+	InitWithNSUrlSession();
 }
 
 void FApplePlatformHttp::Shutdown()
 {
-	if (bUseNSUrlSession)
-	{
-		ShutdownWithNSUrlSession();
-	}
+	ShutdownWithNSUrlSession();
 }
 
 void FApplePlatformHttp::InitWithNSUrlSession()
@@ -276,30 +262,15 @@ void FApplePlatformHttp::ShutdownWithNSUrlSession()
 
 FHttpManager* FApplePlatformHttp::CreatePlatformHttpManager()
 {
-	if(bUseNSUrlSession)
-	{
-		return new FAppleHttpManager();
-	}
-	else
-	{
-		// Event based http manager does not support FAppleHTTPNSURLConnection 
-		return nullptr;
-	}
+	return new FAppleHttpManager();
 }
 
 IHttpRequest* FApplePlatformHttp::ConstructRequest()
 {
-	if(bUseNSUrlSession)
-	{
-		return new FAppleHttpNSUrlSessionRequest(Session);
-	}
-	else
-	{
-		return new FAppleHttpNSUrlConnectionRequest();
-	}
+	return new FAppleHttpRequest(Session);
 }
 
 bool FApplePlatformHttp::UsesThreadedHttp()
 {
-	return bUseNSUrlSession;
+	return true;
 }
