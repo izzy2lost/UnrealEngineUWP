@@ -275,14 +275,20 @@ URuntimeVirtualTexture::URuntimeVirtualTexture(const FObjectInitializer& ObjectI
 	: Super(ObjectInitializer)
 {
 	// Initialize the RHI resources with a null producer
-	Resource = new FRuntimeVirtualTextureRenderResource;
-	InitNullResource();
+	if (!HasAnyFlags(RF_ClassDefaultObject) && FApp::CanEverRender())
+	{
+		Resource = new FRuntimeVirtualTextureRenderResource;
+		InitNullResource();
+	}
 }
 
 URuntimeVirtualTexture::~URuntimeVirtualTexture()
 {
-	Resource->Release();
-	delete Resource;
+	if (Resource)
+	{
+		Resource->Release();
+		delete Resource;
+	}
 }
 
 int32 URuntimeVirtualTexture::GetMaxTileCountLog2(bool InAdaptive) 
@@ -508,12 +514,12 @@ bool URuntimeVirtualTexture::IsLayerYCoCg(int32 LayerIndex) const
 
 FVirtualTextureProducerHandle URuntimeVirtualTexture::GetProducerHandle() const
 {
-	return Resource->GetProducerHandle();
+	return Resource ? Resource->GetProducerHandle() : FVirtualTextureProducerHandle();
 }
 
 IAllocatedVirtualTexture* URuntimeVirtualTexture::GetAllocatedVirtualTexture() const
 {
-	return Resource->GetAllocatedVirtualTexture();
+	return Resource ? Resource->GetAllocatedVirtualTexture() : nullptr;
 }
 
 FVector4 URuntimeVirtualTexture::GetUniformParameter(int32 Index) const

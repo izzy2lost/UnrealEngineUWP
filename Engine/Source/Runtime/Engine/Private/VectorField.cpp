@@ -1203,12 +1203,15 @@ UVectorFieldAnimated::UVectorFieldAnimated(const FObjectInitializer& ObjectIniti
 
 void UVectorFieldAnimated::InitInstance(FVectorFieldInstance* Instance, bool bPreviewInstance)
 {
-	FVectorFieldAnimatedResource* Resource = new FVectorFieldAnimatedResource(this);
-	if (!bPreviewInstance)
+	if (FApp::CanEverRender())
 	{
-		BeginInitResource(Resource);
+		FVectorFieldAnimatedResource* Resource = new FVectorFieldAnimatedResource(this);
+		if (!bPreviewInstance)
+		{
+			BeginInitResource(Resource);
+		}
+		Instance->Init(Resource, /*bInstanced=*/ true);
 	}
-	Instance->Init(Resource, /*bInstanced=*/ true);
 }
 
 static int32 ClampVolumeSize(int32 InVolumeSize)

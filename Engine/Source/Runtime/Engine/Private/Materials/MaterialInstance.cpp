@@ -711,7 +711,7 @@ void UMaterialInstance::PostInitProperties()
 	LLM_SCOPE(ELLMTag::MaterialInstance);
 	Super::PostInitProperties();
 
-	if(!HasAnyFlags(RF_ClassDefaultObject))
+	if(!HasAnyFlags(RF_ClassDefaultObject) && FApp::CanEverRenderOrProduceRenderData())
 	{
 		Resource = new FMaterialInstanceResource(this);
 		UsedByRT |= (uint32)EMaterialInstanceUsedByRTFlag::ResourceCreate;
@@ -723,7 +723,7 @@ void UMaterialInstance::PostInitProperties()
  */
 void GameThread_InitMIParameters(const UMaterialInstance& Instance)
 {
-	if (Instance.HasAnyFlags(RF_ClassDefaultObject))
+	if (Instance.HasAnyFlags(RF_ClassDefaultObject) || !FApp::CanEverRender())
 	{
 		return;
 	}
@@ -3333,8 +3333,11 @@ void UMaterialInstance::FinishDestroy()
 {
 	if(!HasAnyFlags(RF_ClassDefaultObject))
 	{
-		Resource->GameThread_Destroy();
-		Resource = nullptr;
+		if (Resource)
+		{
+			Resource->GameThread_Destroy();
+			Resource = nullptr;
+		}
 	}
 
 	for (FMaterialResource* CurrentResource : StaticPermutationMaterialResources)

@@ -628,7 +628,7 @@ void UMaterialParameterCollectionInstance::PostInitProperties()
 {
 	Super::PostInitProperties();
 
-	if (!HasAnyFlags(RF_ClassDefaultObject))
+	if (!HasAnyFlags(RF_ClassDefaultObject) && FApp::CanEverRender())
 	{
 		Resource = new FMaterialParameterCollectionInstanceResource();
 	}
