@@ -31,10 +31,11 @@ private:
 	 */
 	void*		InterfacePointer = nullptr;
 
+protected:
 	/**
 	 * Serialize ScriptInterface
 	 */
-	FArchive& Serialize(FArchive& Ar, class UClass* InterfaceType);
+	COREUOBJECT_API FArchive& Serialize(FArchive& Ar, class UClass* InterfaceType);
 
 public:
 	/**
