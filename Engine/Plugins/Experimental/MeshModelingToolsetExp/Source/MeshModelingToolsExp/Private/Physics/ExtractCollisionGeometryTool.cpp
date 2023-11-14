@@ -263,7 +263,7 @@ void UExtractCollisionGeometryTool::RecalculateMesh_Complex()
 	if (CollisionProvider)
 	{
 		FTransformSequence3d Transform;
-		UE::Geometry::ConvertComplexCollisionToMeshes(CollisionProvider, CurrentMesh, FTransformSequence3d(), bMeshErrors, true, true);
+		UE::Geometry::ConvertComplexCollisionToMeshes(CollisionProvider, CurrentMesh, FTransformSequence3d(), bMeshErrors, Settings->bWeldEdges, true);
 	}
 
 	PreviewMesh->UpdatePreview(&CurrentMesh);

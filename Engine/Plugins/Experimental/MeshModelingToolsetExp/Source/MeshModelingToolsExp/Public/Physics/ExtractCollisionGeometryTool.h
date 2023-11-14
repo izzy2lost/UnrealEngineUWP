@@ -44,10 +44,6 @@ public:
 	UPROPERTY(EditAnywhere, Category = Options)
 	EExtractCollisionOutputType CollisionType = EExtractCollisionOutputType::Simple;
 
-	/** Whether or not to weld coincident border edges of the Complex Collision Mesh (if possible) */
-	UPROPERTY(EditAnywhere, Category = Options, Meta = (EditCondition = "CollisionType == EExtractCollisionOutputType::Complex"))
-	bool bWeldEdges = true;
-
 	/** Whether or not to generate a seperate Mesh Object for each Simple Collision Shape  */
 	UPROPERTY(EditAnywhere, Category = Options, Meta = (EditCondition = "CollisionType == EExtractCollisionOutputType::Simple"))
 	bool bOutputSeparateMeshes = true;
@@ -59,6 +55,10 @@ public:
 	/** Show/Hide input mesh */
 	UPROPERTY(EditAnywhere, Category = Options)
 	bool bShowInputMesh = true;
+
+	/** Whether or not to weld coincident border edges of the Complex Collision Mesh (if possible) */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = Options, Meta = (EditCondition = "CollisionType == EExtractCollisionOutputType::Complex"))
+	bool bWeldEdges = true;
 };
 
 
