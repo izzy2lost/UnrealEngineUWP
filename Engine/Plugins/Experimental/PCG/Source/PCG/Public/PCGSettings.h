@@ -175,7 +175,7 @@ public:
 	FPCGDebugVisualizationSettings DebugSettings;
 
 	/** If a debugger is attached, triggers a breakpoint inside IPCGElement::Execute(). Editor only. Transient. */
-	UPROPERTY(Transient, DuplicateTransient, EditAnywhere, BlueprintReadWrite, Category = Debug, AdvancedDisplay, meta = (EditCondition = bDisplayDebuggingProperties, EditConditionHides))
+	UPROPERTY(Transient, DuplicateTransient, EditAnywhere, BlueprintReadWrite, Category = Debug, AdvancedDisplay, meta = (EditCondition = bDisplayDebuggingProperties, EditConditionHides, HideEditConditionToggle))
 	bool bBreakDebugger = false;
 
 	// This can be set false by inheriting nodes to hide the debugging properties.
