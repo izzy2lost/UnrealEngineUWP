@@ -1352,7 +1352,7 @@ void FParallelMeshDrawCommandPass::DispatchPassSetup(
 
 	TaskContext.View = &View;
 	TaskContext.Scene = Scene;
-	TaskContext.ShadingPath = Scene->GetShadingPath();
+	TaskContext.ShadingPath = GetFeatureLevelShadingPath(View.GetFeatureLevel());
 	TaskContext.ShaderPlatform = Scene->GetShaderPlatform();
 	TaskContext.PassType = PassType;
 	TaskContext.bUseGPUScene = UseGPUScene(GMaxRHIShaderPlatform, View.GetFeatureLevel());
@@ -1468,7 +1468,7 @@ bool FParallelMeshDrawCommandPass::IsOnDemandShaderCreationEnabled()
 {
 	// GL rhi does not support multithreaded shader creation, however the engine can be configured to not run mesh drawing tasks in threads other than the RT 
 	// (see FRHICommandListExecutor::UseParallelAlgorithms()): if this condition is true, on demand shader creation can be enabled.
-	const bool bIsMobileRenderer = FSceneInterface::GetShadingPath(GMaxRHIFeatureLevel) == EShadingPath::Mobile;
+	const bool bIsMobileRenderer = GetFeatureLevelShadingPath(GMaxRHIFeatureLevel) == EShadingPath::Mobile;
 	return GAllowOnDemandShaderCreation && 
 		(GRHISupportsMultithreadedShaderCreation || (bIsMobileRenderer && (!GSupportsParallelRenderingTasksWithSeparateRHIThread && IsRunningRHIInSeparateThread())));
 }

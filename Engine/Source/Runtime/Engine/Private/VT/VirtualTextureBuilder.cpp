@@ -67,7 +67,7 @@ void UVirtualTextureBuilder::PostLoad()
 	// Discard one of the VTs on a cooked platform that support both rendering modes
 	if (FPlatformProperties::RequiresCookedData())
 	{
-		if (FSceneInterface::GetShadingPath(GMaxRHIFeatureLevel) == EShadingPath::Mobile && bSeparateTextureForMobile)
+		if (GetFeatureLevelShadingPath(GMaxRHIFeatureLevel) == EShadingPath::Mobile && bSeparateTextureForMobile)
 		{
 			Texture = nullptr;
 		}

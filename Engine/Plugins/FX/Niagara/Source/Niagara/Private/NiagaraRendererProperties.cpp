@@ -1020,7 +1020,7 @@ bool UNiagaraRendererProperties::ShouldGpuTranslucentThisFrame(ENiagaraRendererG
 bool UNiagaraRendererProperties::IsGpuTranslucentThisFrame(ERHIFeatureLevel::Type FeatureLevel, ENiagaraRendererGpuTranslucentLatency Latency)
 {
 	// We can not support low latency on the mobile renderer path as it calls PostRenderOpaque after translucent in some paths
-	if (FSceneInterface::GetShadingPath(FeatureLevel) != EShadingPath::Deferred)
+	if (GetFeatureLevelShadingPath(FeatureLevel) != EShadingPath::Deferred)
 	{
 		return false;
 	}

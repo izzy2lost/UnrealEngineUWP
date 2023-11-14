@@ -66,7 +66,7 @@ bool FSkyPassMeshProcessor::Process(
 	FUniformLightMapPolicy NoLightmapPolicy(LMP_NO_LIGHTMAP);
 	const FVertexFactory* VertexFactory = MeshBatch.VertexFactory;
 
-	if (Scene->GetShadingPath()==EShadingPath::Deferred)
+	if (GetFeatureLevelShadingPath(FeatureLevel) == EShadingPath::Deferred)
 	{
 		TMeshProcessorShaders<
 			TBasePassVertexShaderPolicyParamType<LightMapPolicyType>,
@@ -167,7 +167,7 @@ void FSkyPassMeshProcessor::CollectPSOInitializers(const FSceneTexturesConfig& S
 	}
 
 	// Only do deferred path for now
-	if (FScene::GetShadingPath(FeatureLevel) != EShadingPath::Deferred)
+	if (GetFeatureLevelShadingPath(FeatureLevel) != EShadingPath::Deferred)
 	{
 		return;
 	}

@@ -2635,7 +2635,7 @@ void FScene::AddLightSceneInfo_RenderThread(FLightSceneInfo* LightSceneInfo)
 			SimpleDirectionalLight = LightSceneInfo;
 		}
 
-		if(GetShadingPath() == EShadingPath::Mobile)
+		if(GetFeatureLevelShadingPath(FeatureLevel) == EShadingPath::Mobile)
 		{
 			const bool bUseCSMForDynamicObjects = LightSceneInfo->Proxy->UseCSMForDynamicObjects();
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
@@ -3916,7 +3916,7 @@ void FScene::RemoveLightSceneInfo_RenderThread(FLightSceneInfo* LightSceneInfo)
 		SimpleDirectionalLight = nullptr;
 	}
 
-	if(GetShadingPath() == EShadingPath::Mobile)
+	if(GetFeatureLevelShadingPath(FeatureLevel) == EShadingPath::Mobile)
 	{
 		const bool bUseCSMForDynamicObjects = LightSceneInfo->Proxy->UseCSMForDynamicObjects();
 
@@ -4586,7 +4586,7 @@ FExclusiveDepthStencil::Type FScene::GetDefaultBasePassDepthStencilAccess(ERHIFe
 {
 	FExclusiveDepthStencil::Type BasePassDepthStencilAccess = FExclusiveDepthStencil::DepthWrite_StencilWrite;
 
-	if (GetShadingPath(InFeatureLevel) == EShadingPath::Deferred)
+	if (GetFeatureLevelShadingPath(InFeatureLevel) == EShadingPath::Deferred)
 	{
 		const EShaderPlatform ShaderPlatform = GetFeatureLevelShaderPlatform(InFeatureLevel);
 		if (ShouldForceFullDepthPass(ShaderPlatform)
@@ -4605,7 +4605,7 @@ void FScene::GetEarlyZPassMode(ERHIFeatureLevel::Type InFeatureLevel, EDepthDraw
 	bOutEarlyZPassMovable = false;
 
 	const EShaderPlatform ShaderPlatform = GetFeatureLevelShaderPlatform(InFeatureLevel);
-	if (GetShadingPath(InFeatureLevel) == EShadingPath::Deferred)
+	if (GetFeatureLevelShadingPath(InFeatureLevel) == EShadingPath::Deferred)
 	{
 		// developer override, good for profiling, can be useful as project setting
 		{
@@ -4628,7 +4628,7 @@ void FScene::GetEarlyZPassMode(ERHIFeatureLevel::Type InFeatureLevel, EDepthDraw
 			bOutEarlyZPassMovable = bDepthPassCanOutputVelocity ? false : true;
 		}
 	}
-	else if (GetShadingPath(InFeatureLevel) == EShadingPath::Mobile)
+	else if (GetFeatureLevelShadingPath(InFeatureLevel) == EShadingPath::Mobile)
 	{
 		OutZPassMode = DDM_None;
 				 
@@ -5185,7 +5185,7 @@ FLightSceneChangeSet FScene::UpdateAllLightSceneInfos(FRDGBuilder& GraphBuilder)
 			// Mobile renderer:
 			// a light with no color/intensity can cause the light to be ignored when rendering.
 			// thus, lights that change state in this way must update the draw lists.
-			if (GetShadingPath() == EShadingPath::Mobile 
+			if (GetFeatureLevelShadingPath(FeatureLevel) == EShadingPath::Mobile 
 				&& LightSceneInfo->Proxy->GetLightType() == LightType_Directional 
 				&& NewParameters.NewColor.IsAlmostBlack() != LightSceneInfo->Proxy->GetColor().IsAlmostBlack())
 			{
@@ -5324,7 +5324,7 @@ void UpdateReflectionSceneData(FScene* Scene)
 		if (Scene->ReflectionSceneData.bRegisteredReflectionCapturesHasChanged)
 		{
 			// Mobile needs to re-cache all mesh commands when scene capture data has changed
-			const bool bNeedsStaticMeshUpdate = Scene->GetShadingPath() == EShadingPath::Mobile;
+			const bool bNeedsStaticMeshUpdate = GetFeatureLevelShadingPath(Scene->GetFeatureLevel()) == EShadingPath::Mobile;
 
 			// Mark all primitives as needing an update
 			// Note: Only visible primitives will actually update their reflection proxy

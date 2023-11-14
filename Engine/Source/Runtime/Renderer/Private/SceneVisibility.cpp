@@ -1036,7 +1036,7 @@ void FDrawCommandRelevancePacket::AddCommandsForMesh(
 	bool bCanCache, 
 	EMeshPass::Type PassType)
 {
-	const EShadingPath ShadingPath = Scene.GetShadingPath();
+	const EShadingPath ShadingPath = GetFeatureLevelShadingPath(Scene.GetFeatureLevel());
 	const bool bUseCachedMeshCommand = bUseCachedMeshDrawCommands
 		&& !!(FPassProcessorManager::GetPassFlags(ShadingPath, PassType) & EMeshPassFlags::CachedMeshCommands)
 		&& StaticMeshRelevance.bSupportsCachingMeshDrawCommands
@@ -1146,7 +1146,7 @@ void FRelevancePacket::Finalize()
 {
 	FViewInfo& WriteView = const_cast<FViewInfo&>(View);
 	FViewCommands& WriteViewCommands = const_cast<FViewCommands&>(ViewCommands);
-	const EShadingPath ShadingPath = Scene.GetShadingPath();
+	const EShadingPath ShadingPath = GetFeatureLevelShadingPath(Scene.GetFeatureLevel());
 
 	for (int32 BitIndex : NotDrawRelevant.Prims)
 	{
@@ -1253,7 +1253,7 @@ void FRelevancePacket::ComputeRelevance(FDynamicPrimitiveIndexList& DynamicPrimi
 	bUsesSecondStageDepthPass = 0;
 	bUsesLightingChannels = false;
 	bTranslucentSurfaceLighting = false;
-	const EShadingPath ShadingPath = Scene.GetShadingPath();
+	const EShadingPath ShadingPath = GetFeatureLevelShadingPath(Scene.GetFeatureLevel());
 	const bool bHairStrandsEnabled = IsHairStrandsEnabled(EHairStrandsShaderType::All, Scene.GetShaderPlatform());
 
 	int32 NumVisibleStaticMeshElements = 0;
@@ -3879,7 +3879,7 @@ FVisibilityTaskData::FVisibilityTaskData(FRHICommandListImmediate& InRHICmdList,
 	, Scene(*SceneRenderer.Scene)
 	, Views(SceneRenderer.AllViews)
 	, ViewFamily(SceneRenderer.ViewFamily)
-	, ShadingPath(Scene.GetShadingPath())
+	, ShadingPath(GetFeatureLevelShadingPath(Scene.GetFeatureLevel()))
 	, TaskConfig(Scene, Views)
 	, bAddLightmapDensityCommands(ViewFamily.EngineShowFlags.LightMapDensity&& AllowDebugViewmodes())
 {

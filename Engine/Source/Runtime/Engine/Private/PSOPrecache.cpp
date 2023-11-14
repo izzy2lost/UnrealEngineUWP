@@ -620,7 +620,7 @@ void PSOCollectorStats::FPrecacheUsageData::UpdateStats(uint32 MeshPassType, con
 bool PSOCollectorStats::FPrecacheStatsCollector::IsStateTracked(uint32 MeshPassType, const FVertexFactoryType* VertexFactoryType) const {
 	bool bTracked = true;
 	if (MeshPassType < FPSOCollectorCreateManager::MaxPSOCollectorCount) {
-		const EShadingPath ShadingPath = FSceneInterface::GetShadingPath(GMaxRHIFeatureLevel);
+		const EShadingPath ShadingPath = GetFeatureLevelShadingPath(GMaxRHIFeatureLevel);
 		bool bCollectPSOs = FPSOCollectorCreateManager::GetCreateFunction(ShadingPath, MeshPassType) != nullptr;
 		bTracked = bCollectPSOs && (VertexFactoryType == nullptr || VertexFactoryType->SupportsPSOPrecaching());
 	}

@@ -1166,7 +1166,7 @@ void FProjectedShadowInfo::AddCachedMeshDrawCommandsForPass(
 	TArray<EMeshDrawCommandCullingPayloadFlags, SceneRenderingAllocator> MeshCommandBuildFlags,
 	int32& NumMeshCommandBuildRequestElements)
 {
-	const EShadingPath ShadingPath = Scene->GetShadingPath();
+	const EShadingPath ShadingPath = GetFeatureLevelShadingPath(Scene->GetFeatureLevel());
 	const bool bUseCachedMeshCommand = UseCachedMeshDrawCommands()
 		&& !!(FPassProcessorManager::GetPassFlags(ShadingPath, PassType) & EMeshPassFlags::CachedMeshCommands)
 		&& StaticMeshRelevance.bSupportsCachingMeshDrawCommands;
@@ -1653,7 +1653,7 @@ void FProjectedShadowInfo::AddCachedMeshDrawCommands_AnyThread(
 	FAddSubjectPrimitiveOverflowedIndices& OverflowBuffer) const
 {
 	const EMeshPass::Type PassType = MeshPassTargetType;
-	const EShadingPath ShadingPath = Scene->GetShadingPath();
+	const EShadingPath ShadingPath = GetFeatureLevelShadingPath(Scene->GetFeatureLevel());
 	const bool bUseCachedMeshCommand = UseCachedMeshDrawCommands_AnyThread()
 		&& !!(FPassProcessorManager::GetPassFlags(ShadingPath, PassType) & EMeshPassFlags::CachedMeshCommands)
 		&& StaticMeshRelevance.bSupportsCachingMeshDrawCommands;
@@ -2084,7 +2084,7 @@ uint64 FProjectedShadowInfo::AddSubjectPrimitive_AnyThread(
 	FAddSubjectPrimitiveResult Result;
 	Result.Qword = 0;
 
-	if (FSceneInterface::GetShadingPath(FeatureLevel) == EShadingPath::Mobile)
+	if (GetFeatureLevelShadingPath(FeatureLevel) == EShadingPath::Mobile)
 	{
 		const bool bShouldRecordShadowSubjectsForMobile = GetLightSceneInfo().ShouldRecordShadowSubjectsForMobile();
 
@@ -2501,7 +2501,7 @@ void FProjectedShadowInfo::SetupMeshDrawCommandsForProjectionStenciling(FSceneRe
 {
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_SetupMeshDrawCommandsForShadowDepth);
 
-	const EShadingPath ShadingPath = FSceneInterface::GetShadingPath(Renderer.FeatureLevel);
+	const EShadingPath ShadingPath = GetFeatureLevelShadingPath(Renderer.FeatureLevel);
 	static const auto EnableModulatedSelfShadowCVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Shadow.EnableModulatedSelfShadow"));
 	const bool bMobileModulatedShadowsAllowSelfShadow = !bSelfShadowOnly && (ShadingPath == EShadingPath::Mobile && !EnableModulatedSelfShadowCVar->GetValueOnRenderThread() && LightSceneInfo->Proxy && LightSceneInfo->Proxy->CastsModulatedShadows());
 	if (bPreShadow || bSelfShadowOnly || bMobileModulatedShadowsAllowSelfShadow)

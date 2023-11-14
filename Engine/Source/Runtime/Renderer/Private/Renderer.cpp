@@ -287,7 +287,7 @@ void FRendererModule::DrawTileMesh(FCanvasRenderContext& RenderContext, FMeshPas
 		ViewFamily->SceneTexturesConfig.Extent = View.ViewRect.Size();
 
 		const auto FeatureLevel = View.GetFeatureLevel();
-		const EShadingPath ShadingPath = FSceneInterface::GetShadingPath(FeatureLevel);
+		const EShadingPath ShadingPath = GetFeatureLevelShadingPath(FeatureLevel);
 
 		FScene* Scene = nullptr;
 		if (ViewFamily->Scene)

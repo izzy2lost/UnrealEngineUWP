@@ -415,12 +415,12 @@ public:
 	{
 		const ERHIFeatureLevel::Type FeatureLevel = GetMaxSupportedFeatureLevel((EShaderPlatform)Initializer.Target.Platform);
 
-		if (FSceneInterface::GetShadingPath(FeatureLevel) == EShadingPath::Deferred)
+		if (GetFeatureLevelShadingPath(FeatureLevel) == EShadingPath::Deferred)
 		{
 			PassUniformBuffer.Bind(Initializer.ParameterMap, FShadowDepthPassUniformParameters::FTypeInfo::GetStructMetadata()->GetShaderVariableName());
 		}
 
-		if (FSceneInterface::GetShadingPath(FeatureLevel) == EShadingPath::Mobile)
+		if (GetFeatureLevelShadingPath(FeatureLevel) == EShadingPath::Mobile)
 		{
 			PassUniformBuffer.Bind(Initializer.ParameterMap, FMobileShadowDepthPassUniformParameters::FTypeInfo::GetStructMetadata()->GetShaderVariableName());
 		}
@@ -1046,7 +1046,7 @@ void FProjectedShadowInfo::BeginRenderView(FRDGBuilder& GraphBuilder, FScene* Sc
 	if (DependentView)
 	{
 		const ERHIFeatureLevel::Type FeatureLevel = ShadowDepthView->FeatureLevel;
-		if (FSceneInterface::GetShadingPath(FeatureLevel) == EShadingPath::Deferred)
+		if (GetFeatureLevelShadingPath(FeatureLevel) == EShadingPath::Deferred)
 		{
 			extern TSet<IPersistentViewUniformBufferExtension*> PersistentViewUniformBufferExtensions;
 
@@ -1138,7 +1138,7 @@ void FProjectedShadowInfo::RenderDepth(
 
 	PassParameters->VirtualShadowMap = SceneRenderer->VirtualShadowMapArray.GetUniformBuffer();
 
-	switch (FSceneInterface::GetShadingPath(FeatureLevel))
+	switch (GetFeatureLevelShadingPath(FeatureLevel))
 	{
 	case EShadingPath::Deferred:
 	{

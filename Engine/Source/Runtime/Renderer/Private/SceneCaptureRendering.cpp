@@ -504,7 +504,7 @@ static void UpdateSceneCaptureContent_RenderThread(
 {
 	FUniformExpressionCacheAsyncUpdateScope AsyncUpdateScope;
 
-	switch (SceneRenderer->Scene->GetShadingPath())
+	switch (GetFeatureLevelShadingPath(SceneRenderer->Scene->GetFeatureLevel()))
 	{
 		case EShadingPath::Mobile:
 		{

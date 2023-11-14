@@ -4030,7 +4030,7 @@ void FSceneRenderer::SetupMeshPass(FViewInfo& View, FExclusiveDepthStencil::Type
 {
 	SCOPE_CYCLE_COUNTER(STAT_SetupMeshPass);
 
-	const EShadingPath ShadingPath = Scene->GetShadingPath();
+	const EShadingPath ShadingPath = GetFeatureLevelShadingPath(Scene->GetFeatureLevel());
 
 	for (int32 PassIndex = 0; PassIndex < EMeshPass::Num; PassIndex++)
 	{
@@ -4117,7 +4117,7 @@ void FSceneRenderer::CreateSceneRenderers(TArrayView<const FSceneViewFamily*> In
 	const FSceneInterface* Scene = InViewFamilies[0]->Scene;
 	check(Scene);
 
-	EShadingPath ShadingPath = Scene->GetShadingPath();
+	EShadingPath ShadingPath = GetFeatureLevelShadingPath(Scene->GetFeatureLevel());
 
 	for (int32 FamilyIndex = 0; FamilyIndex < InViewFamilies.Num(); FamilyIndex++)
 	{

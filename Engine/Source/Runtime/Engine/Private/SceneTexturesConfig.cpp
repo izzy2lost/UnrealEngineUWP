@@ -132,7 +132,7 @@ static EPixelFormat GetSceneColorFormat(bool bRequiresAlphaChannel)
 
 static void GetSceneColorFormatAndCreateFlags(ERHIFeatureLevel::Type FeatureLevel, bool bRequiresAlphaChannel, ETextureCreateFlags ExtraSceneColorCreateFlags, uint32 NumSamples, bool bMemorylessMSAA, EPixelFormat& SceneColorFormat, ETextureCreateFlags& SceneColorCreateFlags)
 {
-	EShadingPath ShadingPath = FSceneInterface::GetShadingPath(FeatureLevel);
+	EShadingPath ShadingPath = GetFeatureLevelShadingPath(FeatureLevel);
 	switch (ShadingPath)
 	{
 	case EShadingPath::Deferred:
@@ -255,7 +255,7 @@ static void SetupMobileGBufferFlags(FGBufferBindings GBufferBindings[GBL_Num], b
 void FSceneTexturesConfig::Init(const FSceneTexturesConfigInitSettings& InitSettings)
 {
 	FeatureLevel			= InitSettings.FeatureLevel;
-	ShadingPath				= FSceneInterface::GetShadingPath(FeatureLevel);
+	ShadingPath				= GetFeatureLevelShadingPath(FeatureLevel);
 	ShaderPlatform			= GetFeatureLevelShaderPlatform(FeatureLevel);
 	Extent					= InitSettings.Extent;
 	NumSamples				= GetDefaultMSAACount(FeatureLevel, GDynamicRHI->RHIGetPlatformTextureMaxSampleCount());

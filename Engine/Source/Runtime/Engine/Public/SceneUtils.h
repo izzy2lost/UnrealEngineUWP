@@ -31,6 +31,11 @@ enum class EShadingPath
 	Num,
 };
 
+inline EShadingPath GetFeatureLevelShadingPath(FStaticFeatureLevel InFeatureLevel)
+{
+	return (InFeatureLevel >= ERHIFeatureLevel::SM5) ? EShadingPath::Deferred : EShadingPath::Mobile;
+}
+
 enum class EMobileHDRMode
 {
 	Unset,

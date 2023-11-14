@@ -28,12 +28,5 @@ EShaderPlatform FSceneInterface::GetShaderPlatform() const
 
 EShadingPath FSceneInterface::GetShadingPath(ERHIFeatureLevel::Type InFeatureLevel)
 {
-	if (InFeatureLevel >= ERHIFeatureLevel::SM5)
-	{
-		return EShadingPath::Deferred;
-	}
-	else
-	{
-		return EShadingPath::Mobile;
-	}
+	return GetFeatureLevelShadingPath(InFeatureLevel);
 }
