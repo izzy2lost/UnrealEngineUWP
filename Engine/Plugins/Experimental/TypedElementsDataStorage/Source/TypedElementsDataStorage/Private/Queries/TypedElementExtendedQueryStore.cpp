@@ -690,7 +690,12 @@ void FTypedElementExtendedQueryStore::UnregisterQueryData(Handle Query, FTypedEl
 		}
 		else if (QueryData.Processor->IsA<UTypedElementQueryObserverCallbackAdapterProcessorBase>())
 		{
-			checkf(false, TEXT("Observer queries can not be unregistered."));
+			UTypedElementQueryObserverCallbackAdapterProcessorBase* Observer =
+				static_cast<UTypedElementQueryObserverCallbackAdapterProcessorBase*>(QueryData.Processor.Get());
+			if (ensure(Observer && PhaseManager.GetEntityManager().IsValid()))
+			{
+				PhaseManager.GetEntityManager()->GetObserverManager().RemoveObserverInstance(*Observer->GetObservedType(), Observer->GetObservedOperation(), *Observer);
+			}
 		}
 		else
 		{

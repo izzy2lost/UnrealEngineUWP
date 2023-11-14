@@ -279,3 +279,35 @@ void FMassObserverManager::AddObserverInstance(const UScriptStruct& FragmentOrTa
 	}
 }
 
+void FMassObserverManager::RemoveObserverInstance(const UScriptStruct& FragmentOrTagType, const EMassObservedOperation Operation, UMassProcessor& ObserverProcessor)
+{
+	if (!ensure(FragmentOrTagType.IsChildOf(FMassFragment::StaticStruct()) || FragmentOrTagType.IsChildOf(FMassTag::StaticStruct())))
+	{
+		return;
+	}
+
+	bool bIsFragmentObserver = FragmentOrTagType.IsChildOf(FMassFragment::StaticStruct());
+
+	TMap<TObjectPtr<const UScriptStruct>, FMassRuntimePipeline>& ObserversMap =
+		bIsFragmentObserver ? *FragmentObservers[(uint8)Operation] : *TagObservers[(uint8)Operation];
+
+	FMassRuntimePipeline* Pipeline = ObserversMap.Find(&FragmentOrTagType);
+	if (!ensureMsgf(Pipeline, TEXT("Trying to remove an observer for a fragment/tag that does not seem to be observed.")))
+	{
+		return;
+	}
+	Pipeline->RemoveProcessor(ObserverProcessor);
+
+	if (Pipeline->Num() == 0)
+	{
+		ObserversMap.Remove(&FragmentOrTagType);
+		if (bIsFragmentObserver)
+		{
+			ObservedFragments[(uint8)Operation].Remove(FragmentOrTagType);
+		}
+		else
+		{
+			ObservedTags[(uint8)Operation].Remove(FragmentOrTagType);
+		}
+	}
+}
