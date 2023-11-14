@@ -512,6 +512,7 @@ EVisibility SDetailsView::GetActorNameAreaVisibility() const
 
 void SDetailsView::ForceRefresh()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE_STR("SDetailsView::ForceRefresh");
 	TArray<UObject*> NewObjectList;
 	NewObjectList.Reserve(UnfilteredSelectedObjects.Num());
 	TArray<TWeakObjectPtr<UObject>> ValidSelectedObjects;
@@ -538,6 +539,7 @@ void SDetailsView::MoveScrollOffset(int32 DeltaOffset)
 
 void SDetailsView::SetObjects(const TArray<UObject*>& InObjects, bool bForceRefresh/* = false*/, bool bOverrideLock/* = false*/)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE_STR("SDetailsView::SetObjects");
 	if (!IsLocked() || bOverrideLock)
 	{
 		if( bForceRefresh || ShouldSetNewObjects(InObjects) )
