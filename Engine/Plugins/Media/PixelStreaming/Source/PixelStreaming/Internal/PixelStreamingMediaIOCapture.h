@@ -56,9 +56,6 @@ public:
 	FOnCaptureViewportInitialized OnCaptureViewportInitialized;
 
 private:
-	void ConfigureThreadCaptureMode(bool bForceRenderThread);
-
-private:
 	TWeakPtr<FSceneViewport> SceneViewport;
 	TWeakPtr<FPixelStreamingVideoInput> VideoInput;
 

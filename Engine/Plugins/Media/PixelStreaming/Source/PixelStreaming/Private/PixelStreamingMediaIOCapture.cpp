@@ -49,30 +49,9 @@ bool UPixelStreamingMediaIOCapture::InitializeCapture()
 	bViewportResized = false;
 	bDoGPUCopy = true;
 
-	ConfigureThreadCaptureMode(SupportsAnyThreadCapture());
-
 	SetState(EMediaCaptureState::Capturing);
 
 	return true;
-}
-
-void UPixelStreamingMediaIOCapture::ConfigureThreadCaptureMode(bool bForceRenderThread)
-{
-	char ForceRenderThreadBit = bForceRenderThread ? 0 : 1;
-
-	// Whether to wait for resource readback in a separate thread. (Experimental)
-	IConsoleVariable* CVarScheduleAnyThread = IConsoleManager::Get().FindConsoleVariable(TEXT("MediaIO.ScheduleOnAnyThread"));
-	if (CVarScheduleAnyThread)
-	{
-		CVarScheduleAnyThread->Set(ForceRenderThreadBit, EConsoleVariableFlags::ECVF_SetByCode);
-	}
-
-	// Whether to send out frame  in a separate thread. (Experimental)
-	IConsoleVariable* CVarExperimentalScheduling = IConsoleManager::Get().FindConsoleVariable(TEXT("MediaIO.EnableExperimentalScheduling"));
-	if (CVarExperimentalScheduling)
-	{
-		CVarExperimentalScheduling->Set(true, EConsoleVariableFlags::ECVF_SetByCode);
-	}
 }
 
 void UPixelStreamingMediaIOCapture::StopCaptureImpl(bool bAllowPendingFrameToBeProcess)
