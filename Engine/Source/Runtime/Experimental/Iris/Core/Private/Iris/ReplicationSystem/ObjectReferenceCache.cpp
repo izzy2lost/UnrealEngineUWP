@@ -360,6 +360,11 @@ bool FObjectReferenceCache::CreateObjectReferenceInternal(const UObject* Object,
 		constexpr bool bReading = false;
 		// The connection ID isn't used unless reading.
 		RenamePathForPie(UE::Net::InvalidConnectionId, ObjectPath, bReading);
+
+#if WITH_EDITOR
+		ensureMsgf(!ObjectPath.IsEmpty(), TEXT("NetworkRemapPath found %s to be an invalid name for %s. This object will not replicate!"), *Object->GetName(), *GetPathNameSafe(Object));
+#endif
+
 		PathToken = StringTokenStore->GetOrCreateToken(ObjectPath);
 	}
 
@@ -782,6 +787,10 @@ UObject* FObjectReferenceCache::ResolveObjectReferenceHandleInternal(FNetRefHand
 	FString ObjectPath(ResolvedToken);
 	constexpr bool bReading = true;
 	RenamePathForPie(ResolveContext.ConnectionId, ObjectPath, bReading);
+
+#if WITH_EDITOR
+	ensureMsgf(!ObjectPath.IsEmpty(), TEXT("NetworkRemapPath found %s to be an invalid name. This object will not be binded and replicated!"), ResolvedToken);
+#endif
 
 	const FName ObjectPathName(ObjectPath);
 
