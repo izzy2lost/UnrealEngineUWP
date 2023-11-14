@@ -20,21 +20,10 @@ struct CHOOSER_API FObjectContextProperty : public FChooserParameterObjectBase
 	FChooserObjectPropertyBinding Binding;
 
 	virtual bool GetValue(FChooserEvaluationContext& Context, FSoftObjectPath& OutResult) const override;
-	
-	virtual void Compile(IHasContextClass* Owner, bool bForce) override
-	{
-		Binding.Compile(Owner, bForce);
-	};
+
+	CHOOSER_PARAMETER_BOILERPLATE();
 
 #if WITH_EDITOR
-	virtual void GetDisplayName(FText& OutName) const override
-	{
-		if (!Binding.PropertyBindingChain.IsEmpty())
-		{
-			OutName = FText::FromName(Binding.PropertyBindingChain.Last());
-		}
-	}
-
 	virtual UClass* GetAllowedClass() const override { return Binding.AllowedClass; }
 #endif
 };

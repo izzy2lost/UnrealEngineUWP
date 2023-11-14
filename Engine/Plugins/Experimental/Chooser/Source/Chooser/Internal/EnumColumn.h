@@ -48,26 +48,10 @@ struct CHOOSER_API FEnumContextProperty : public FChooserParameterEnumBase
 		}
 	}
 
-	virtual void Compile(IHasContextClass* Owner, bool bForce) override
-    {
-    	Binding.Compile(Owner, bForce);
-    };
+	CHOOSER_PARAMETER_BOILERPLATE();
 
 #if WITH_EDITOR
-	virtual void GetDisplayName(FText& OutName) const override
-	{
-		if (!Binding.DisplayName.IsEmpty())
-		{
-			OutName = FText::FromString(Binding.DisplayName);
-		} 
-		else if (!Binding.PropertyBindingChain.IsEmpty())
-		{
-			OutName = FText::FromName(Binding.PropertyBindingChain.Last());
-		}
-	}
-
 	virtual const UEnum* GetEnum() const override { return Binding.Enum; }
-
 #endif
 	
 private:

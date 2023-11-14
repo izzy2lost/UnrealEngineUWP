@@ -456,7 +456,8 @@ void SAnimAssetFindReplace::RefreshSearchResults()
 {
 	bFoundAssets = false;
 	OldAssets.Empty();
-	SetARFilterDelegate.ExecuteIfBound(MakeARFilter());
+	AssetPickerConfig.Filter = MakeARFilter();
+	SetARFilterDelegate.ExecuteIfBound(AssetPickerConfig.Filter);
 	RefreshAssetViewDelegate.ExecuteIfBound(true);
 }
 

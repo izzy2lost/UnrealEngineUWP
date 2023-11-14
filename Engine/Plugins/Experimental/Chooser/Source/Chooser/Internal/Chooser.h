@@ -13,6 +13,7 @@
 
 #include "Chooser.generated.h"
 
+
 UCLASS(BlueprintType)
 class CHOOSER_API UChooserTable : public UObject, public IHasContextClass
 {
@@ -24,6 +25,8 @@ public:
 	virtual void PostLoad() override;
 	virtual void Compile(bool bForce = false) override;
 #if WITH_EDITOR
+	virtual void GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const override;
+	
 	void OnDependentStructChanged(UUserDefinedStruct* Blueprint) { Compile(true); }
 	void OnDependencyCompiled(UBlueprint* Blueprint) { Compile(true); }
 	virtual void AddCompileDependency(const UStruct* Struct) override;
@@ -56,6 +59,9 @@ public:
 	// enable display of which cells pass/fail based on current TestValue for each column
 	bool bEnableDebugTesting = false;
 	mutable bool bDebugTestValuesValid = false;
+
+	static const FName PropertyNamesTag;
+	static const FString PropertyTagDelimiter;
 
 private: 
 	// caching the OutputObjectType and ContextObjectType so that on Undo, we can tell if we should fire the changed delegate

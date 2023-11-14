@@ -353,6 +353,9 @@ public:
 	/** Create a tab factory for finding and replacing in anim data */
 	virtual TSharedRef<FWorkflowTabFactory> CreateAnimAssetFindReplaceTabFactory(const TSharedRef<FWorkflowCentricApplication>& InHostingApp, const FAnimAssetFindReplaceConfig& InConfig) const;
 	
+	/** Create a widget for finding and replacing in anim data */
+	virtual TSharedRef<SWidget> CreateFindReplaceWidget(const FAnimAssetFindReplaceConfig& InConfig) const;
+	
 	/** Create a widget that acts as a document for an animation asset */
 	virtual TSharedRef<SWidget> CreateEditorWidgetForAnimDocument(const TSharedRef<IAnimationEditor>& InHostingApp, UObject* InAnimAsset, const FAnimDocumentArgs& InArgs, FString& OutDocumentLink);
 

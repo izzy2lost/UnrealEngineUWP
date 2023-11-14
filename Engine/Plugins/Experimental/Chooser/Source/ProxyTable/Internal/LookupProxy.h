@@ -21,11 +21,8 @@ public:
 	FChooserPropertyBinding Binding;
 
 	virtual bool GetValue(FChooserEvaluationContext& Context, const UProxyTable*& OutResult) const override;
-	
-	virtual void Compile(IHasContextClass* Owner, bool bForce) override
-	{
-		Binding.Compile(Owner, bForce);
-	};
+
+	CHOOSER_PARAMETER_BOILERPLATE();
 };
 
 USTRUCT()

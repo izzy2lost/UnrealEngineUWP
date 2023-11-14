@@ -373,3 +373,63 @@ bool FChooserPropertyBinding::SetValue(FChooserEvaluationContext& Context, const
 	}
 	return false;
 }
+
+#if WITH_EDITOR
+#define CHOOSER_PARAMETER_BOILERPLATE() \
+	virtual void Compile(IHasContextClass* Owner, bool bForce) override\
+	{\
+		Binding.Compile(Owner, bForce);\
+	};\
+	\
+	virtual void AddSearchNames(FStringBuilderBase& Builder) const override\
+	{\
+		for (const FName& Entry : Binding.PropertyBindingChain)\
+		{\
+			Builder.Append(Entry.ToString());\
+			Builder.Append(";");\
+		}\
+	}\
+	\
+	virtual void GetDisplayName(FText& OutName) const override\
+	{\
+		if (!Binding.DisplayName.IsEmpty())\
+		{\
+			OutName = FText::FromString(Binding.DisplayName);\
+		} \
+		else if (!Binding.PropertyBindingChain.IsEmpty())\
+		{\
+			OutName = FText::FromName(Binding.PropertyBindingChain.Last());\
+		}\
+	}\
+	\
+	virtual void ReplaceString(FStringView FindString, ESearchCase::Type SearchCase, bool bFindWholeWord, FStringView ReplaceString) override\
+	{\
+		for (FName& Entry : Binding.PropertyBindingChain)\
+		{\
+			if(bFindWholeWord)\
+			{\
+				if(Entry.ToString().Compare(FString(FindString), SearchCase) == 0)\
+				{\
+					Entry = FName(ReplaceString);\
+					Binding.DisplayName = "";\
+				}\
+			}\
+			else\
+			{\
+				if(UE::String::FindFirst(Entry.ToString(), FindString, SearchCase) != INDEX_NONE)\
+				{\
+					FString NewString = Entry.ToString().Replace(FindString.begin(), ReplaceString.begin(), SearchCase);\
+					Entry = FName(NewString);\
+					Binding.DisplayName = "";\
+				}\
+			}\
+		}\
+	}
+#else
+#define CHOOSER_PARAMETER_BOILERPLATE() \
+	virtual void Compile(IHasContextClass* Owner, bool bForce) override\
+	{\
+		Binding.Compile(Owner, bForce);\
+	}
+#endif
+

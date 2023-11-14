@@ -7,6 +7,8 @@
 #include "IObjectChooser.h"
 #include "IChooserParameterBase.generated.h"
 
+struct FAssetRegistryTag;
+
 USTRUCT()
 struct FChooserParameterBase
 {
@@ -20,6 +22,8 @@ struct FChooserParameterBase
 	}
 	
 	virtual void GetDisplayName(FText& OutName) const { }
+	virtual void AddSearchNames(FStringBuilderBase& Builder) const { }
+	virtual void ReplaceString(FStringView FindString, ESearchCase::Type, bool MatchWholeWord, FStringView ReplaceString) { }
 
 	virtual void PostLoad() {};
 	virtual void Compile(IHasContextClass* Owner, bool bForce) {};

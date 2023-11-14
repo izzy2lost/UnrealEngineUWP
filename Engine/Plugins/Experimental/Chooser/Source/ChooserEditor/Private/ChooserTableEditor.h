@@ -117,6 +117,8 @@ namespace UE::ChooserEditor
 		TSharedRef<SDockTab> SpawnPropertiesTab( const FSpawnTabArgs& Args );
 		/** Create the table tab and its content */
 		TSharedRef<SDockTab> SpawnTableTab( const FSpawnTabArgs& Args );
+		/** Create the find/replace tab and its content */
+		TSharedRef<SDockTab> SpawnFindReplaceTab( const FSpawnTabArgs& Args );
 	
 		TSharedRef<ITableRow> GenerateTableRow(TSharedPtr<FChooserTableRow> InItem, const TSharedRef<STableViewBase>& OwnerTable);
 
@@ -131,6 +133,7 @@ namespace UE::ChooserEditor
 
 		/**	The tab ids for all the tabs used */
 		static const FName PropertiesTabId;
+		static const FName FindReplaceTabId;
 		static const FName TableTabId;
 
 		/** The objects open within this editor */

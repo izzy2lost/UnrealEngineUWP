@@ -18,6 +18,7 @@
 #include "StructViewerModule.h"
 #include "SourceCodeNavigation.h"
 #include "Chooser.h"
+#include "ChooserFindProperties.h"
 #include "DetailCategoryBuilder.h"
 #include "DetailLayoutBuilder.h"
 #include "ClassViewerFilter.h"
@@ -31,6 +32,7 @@
 #include "ObjectChooserWidgetFactories.h"
 #include "GraphEditorSettings.h"
 #include "IDetailCustomization.h"
+#include "PersonaModule.h"
 #include "PropertyCustomizationHelpers.h"
 #include "ScopedTransaction.h"
 #include "Widgets/Layout/SSeparator.h"
@@ -46,6 +48,7 @@ namespace UE::ChooserEditor
 
 const FName FChooserTableEditor::ToolkitFName( TEXT( "ChooserTableEditor" ) );
 const FName FChooserTableEditor::PropertiesTabId( TEXT( "ChooserEditor_Properties" ) );
+const FName FChooserTableEditor::FindReplaceTabId( TEXT( "ChooserEditor_FindReplace" ) );
 const FName FChooserTableEditor::TableTabId( TEXT( "ChooserEditor_Table" ) );
 	
 void FChooserTableEditor::RegisterTabSpawners(const TSharedRef<class FTabManager>& InTabManager)
@@ -63,6 +66,11 @@ void FChooserTableEditor::RegisterTabSpawners(const TSharedRef<class FTabManager
 		.SetDisplayName( LOCTEXT("TableTab", "Chooser Table") )
 		.SetGroup(WorkspaceMenuCategory.ToSharedRef())
 		.SetIcon(FSlateIcon("EditorStyle", "LevelEditor.Tabs.Details"));
+
+	InTabManager->RegisterTabSpawner( FindReplaceTabId, FOnSpawnTab::CreateSP(this, &FChooserTableEditor::SpawnFindReplaceTab) )
+		.SetDisplayName( LOCTEXT("FindReplaceTab", "Find/Replace") )
+		.SetGroup(WorkspaceMenuCategory.ToSharedRef())
+		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Find"));
 }
 	
 void FChooserTableEditor::UnregisterTabSpawners(const TSharedRef<class FTabManager>& InTabManager)
@@ -71,6 +79,7 @@ void FChooserTableEditor::UnregisterTabSpawners(const TSharedRef<class FTabManag
 
 	InTabManager->UnregisterTabSpawner( TableTabId );
 	InTabManager->UnregisterTabSpawner( PropertiesTabId );
+	InTabManager->UnregisterTabSpawner( FindReplaceTabId );
 }
 
 const FName FChooserTableEditor::ChooserEditorAppIdentifier( TEXT( "ChooserEditorApp" ) );
@@ -292,6 +301,12 @@ void FChooserTableEditor::InitEditor( const EToolkitMode::Type Mode, const TShar
 	RegisterToolbar();
 
 	SelectRootProperties();
+
+		
+	FAnimAssetFindReplaceConfig FindReplaceConfig;
+	FindReplaceConfig.InitialProcessorClass = UChooserFindProperties::StaticClass();
+
+	FPersonaModule& PersonaModule = FModuleManager::LoadModuleChecked<FPersonaModule>("Persona");
 }
 
 FName FChooserTableEditor::GetToolkitFName() const
@@ -465,7 +480,21 @@ TSharedRef<SDockTab> FChooserTableEditor::SpawnPropertiesTab( const FSpawnTabArg
 			DetailsView.ToSharedRef()
 		];
 }
+	
+TSharedRef<SDockTab> FChooserTableEditor::SpawnFindReplaceTab( const FSpawnTabArgs& Args )
+{
+	check( Args.GetTabId() == FindReplaceTabId );
 
+	FPersonaModule& PersonaModule = FModuleManager::LoadModuleChecked<FPersonaModule>("Persona");
+	FAnimAssetFindReplaceConfig Config;
+	Config.InitialProcessorClass = UChooserFindProperties::StaticClass();
+	return SNew(SDockTab)
+		.Label( LOCTEXT("FindReplaceTitle", "Find/Replace") )
+		.TabColorScale( GetTabColorScale() )
+	[
+		PersonaModule.CreateFindReplaceWidget(Config)
+	];
+}
 
 class FChooserRowDragDropOp : public FDecoratedDragDropOp
 {

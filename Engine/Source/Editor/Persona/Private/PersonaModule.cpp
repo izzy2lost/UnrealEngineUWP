@@ -386,6 +386,12 @@ TSharedRef<FWorkflowTabFactory> FPersonaModule::CreateAnimAssetFindReplaceTabFac
 	return MakeShared<FAnimAssetFindReplaceSummoner>(InHostingApp, InConfig);
 }
 
+TSharedRef<SWidget> FPersonaModule::CreateFindReplaceWidget(const FAnimAssetFindReplaceConfig& InConfig) const
+{
+	return SNew(SAnimAssetFindReplace)
+		.Config(InConfig);
+}
+
 TSharedRef<SWidget> FPersonaModule::CreateEditorWidgetForAnimDocument(const TSharedRef<IAnimationEditor>& InHostingApp, UObject* InAnimAsset, const FAnimDocumentArgs& InArgs, FString& OutDocumentLink)
 {
 	TSharedPtr<SWidget> Result = SNullWidget::NullWidget;

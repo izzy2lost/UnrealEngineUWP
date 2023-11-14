@@ -17,6 +17,7 @@ enum class EBoolColumnCellValue
 	MatchAny = 2,
 };
 
+
 USTRUCT(DisplayName = "Bool Property Binding")
 struct CHOOSER_API FBoolContextProperty :  public FChooserParameterBoolBase
 {
@@ -41,24 +42,8 @@ public:
 		}
 	}
 	
-	virtual void Compile(IHasContextClass* Owner, bool bForce) override
-	{
-		Binding.Compile(Owner, bForce);
-	};
-
-#if WITH_EDITOR
-	virtual void GetDisplayName(FText& OutName) const override
-	{
-		if (!Binding.DisplayName.IsEmpty())
-		{
-			OutName = FText::FromString(Binding.DisplayName);
-		} 
-		else if (!Binding.PropertyBindingChain.IsEmpty())
-		{
-			OutName = FText::FromName(Binding.PropertyBindingChain.Last());
-		}
-	}
-#endif
+	CHOOSER_PARAMETER_BOILERPLATE();
+	
 };
 
 USTRUCT()

@@ -12,6 +12,12 @@
 
 DEFINE_LOG_CATEGORY(LogChooser)
 
+
+#if WITH_EDITOR
+const FName UChooserTable::PropertyNamesTag = "ChooserPropertyNames";
+const FString UChooserTable::PropertyTagDelimiter = TEXT(";");
+#endif
+
 UChooserTable::UChooserTable(const FObjectInitializer& Initializer)
 	:Super(Initializer)
 {
@@ -82,6 +88,28 @@ void UChooserTable::BeginDestroy()
 }
 
 #if WITH_EDITOR
+
+void UChooserTable::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
+{
+	Super::GetAssetRegistryTags(OutTags);
+
+	// Output property names we use
+	TStringBuilder<256> PropertyNamesBuilder;
+	PropertyNamesBuilder.Append(PropertyTagDelimiter);
+
+	for(const FInstancedStruct& Column : ColumnsStructs)
+	{
+		if (const FChooserColumnBase* ColumnBase = Column.GetPtr<FChooserColumnBase>())
+		{
+			if (FChooserParameterBase* Parameter = const_cast<FChooserColumnBase*>(ColumnBase)->GetInputValue())
+			{
+				Parameter->AddSearchNames(PropertyNamesBuilder);
+			}
+		}
+	}
+
+	OutTags.Add(FAssetRegistryTag(PropertyNamesTag, PropertyNamesBuilder.ToString(), FAssetRegistryTag::TT_Hidden));
+}
 
 void UChooserTable::AddCompileDependency(const UStruct* InStructType)
 {

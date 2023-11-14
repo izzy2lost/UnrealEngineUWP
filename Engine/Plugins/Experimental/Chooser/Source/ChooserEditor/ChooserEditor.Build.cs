@@ -38,6 +38,7 @@ namespace UnrealBuildTool.Rules
 					"TraceInsights",
 					"RewindDebuggerInterface",
 					"GameplayInsights",
+					"Persona",
 					// ... add private dependencies that you statically link with here ...
 				}
 			);
