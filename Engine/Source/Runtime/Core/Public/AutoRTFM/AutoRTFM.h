@@ -403,8 +403,6 @@ enum class EContextStatus
 	AbortedByCascade = autortfm_status_aborted_by_cascade
 };
 
-UE_AUTORTFM_API void SetAutoRTFMRuntime(bool bEnabled);
-
 UE_AUTORTFM_FORCEINLINE bool IsTransactional() { return autortfm_is_transactional(); }
 UE_AUTORTFM_FORCEINLINE bool IsClosed() { return autortfm_is_closed(); }
 
