@@ -157,33 +157,33 @@ public:
 		{
 			const int32 CurrentFrame = static_cast<FPBDRigidsSolver*>(GetSolver())->GetCurrentFrame();
 
-			FPendingAsyncPhysicsCommand* PendingCommand = &PendingCommands[Idx];
-			bool bRemove = PendingCommand->OwningObject.IsStale();
+			const FPendingAsyncPhysicsCommand& PendingCommand = PendingCommands[Idx];
+			bool bRemove = PendingCommand.OwningObject.IsStale() || !PendingCommand.Command;
 
-			if (bAllowResim && PendingCommand->bEnableResim && PendingCommands[Idx].PhysicsStep > (CurrentFrame - NumFrames))
+			if (!bRemove && bAllowResim && PendingCommand.bEnableResim && PendingCommand.PhysicsStep > (CurrentFrame - NumFrames))
 			{
-				if (PendingCommands[Idx].PhysicsStep < CurrentFrame && PendingCommands[Idx].OwningObject.IsValid())
+				if (PendingCommand.PhysicsStep < CurrentFrame)
 				{
 					if (Chaos::FRewindData* RewindData = GetSolver()->GetRewindData())
 					{
 						int32 ResimFrame = RewindData->GetResimFrame();
-						ResimFrame = (ResimFrame == INDEX_NONE) ? PendingCommands[Idx].PhysicsStep :
-							FMath::Min(ResimFrame, PendingCommands[Idx].PhysicsStep);
+						ResimFrame = (ResimFrame == INDEX_NONE) ? PendingCommand.PhysicsStep :
+							FMath::Min(ResimFrame, PendingCommand.PhysicsStep);
 
 						RewindData->SetResimFrame(ResimFrame);
 					}
 				}
-				else if (!bRemove && PendingCommands[Idx].PhysicsStep == CurrentFrame)
+				else if (PendingCommand.PhysicsStep == CurrentFrame)
 				{
-					PendingCommands[Idx].Command();
+					PendingCommand.Command();
 					bRemove = true;
 				}
 			}
 			else
 			{
-				if (!bRemove && PendingCommands[Idx].PhysicsStep <= CurrentFrame)
+				if (!bRemove && PendingCommand.PhysicsStep <= CurrentFrame)
 				{
-					PendingCommands[Idx].Command();
+					PendingCommand.Command();
 					bRemove = true;
 				}
 			}
