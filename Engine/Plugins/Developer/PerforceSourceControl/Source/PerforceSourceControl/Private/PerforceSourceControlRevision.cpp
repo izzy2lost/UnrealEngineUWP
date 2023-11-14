@@ -6,6 +6,7 @@
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "PerforceConnection.h"
+#include "PerforceMessageLog.h"
 #include "PerforceSourceControlProvider.h"
 
 #define LOCTEXT_NAMESPACE "PerforceSourceControl"
@@ -92,7 +93,7 @@ bool FPerforceSourceControlRevision::Get(FString& InOutFilename, FPerforceConnec
 	{
 		for (auto Iter(ErrorMessages.CreateConstIterator()); Iter; Iter++)
 		{
-			FMessageLog("SourceControl").Error(FText::Format(LOCTEXT("PerforceSourceControlRevisionGetErrorFormat", "FPerforceSourceControlRevision::Get print Error: {0}"), *Iter));
+			FTSMessageLog("SourceControl").Error(FText::Format(LOCTEXT("PerforceSourceControlRevisionGetErrorFormat", "FPerforceSourceControlRevision::Get print Error: {0}"), *Iter));
 		}
 
 		return false;
