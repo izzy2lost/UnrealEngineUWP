@@ -242,7 +242,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 		/// <summary>
 		/// Aligns an offset to a power-of-2 boundary
 		/// </summary>
-		static int Align(int value, int alignment) => value + (alignment - 1) & ~(alignment - 1);
+		static int Align(int value, int alignment) => (value + (alignment - 1)) & ~(alignment - 1);
 
 		/// <summary>
 		/// Gets data to write new export
@@ -253,7 +253,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 			{
 				lock (_lockObject)
 				{
-					int newSize = _length + desiredSize + 4096 + 16384 & ~16384;
+					int newSize = (_length + desiredSize + 4096 + 16384) & ~16384;
 
 					IRefCountedHandle<Memory<byte>> newBufferHandle = RefCountedHandle.Create(_allocator.Alloc(newSize));
 					_buffer.Slice(0, _length + usedSize).CopyTo(newBufferHandle.Target);

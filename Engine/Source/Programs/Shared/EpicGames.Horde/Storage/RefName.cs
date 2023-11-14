@@ -12,7 +12,7 @@ using System.Text.Json.Serialization;
 namespace EpicGames.Horde.Storage
 {
 	/// <summary>
-	/// Identifier for a storage namespace
+	/// Identifier for a ref in the storage system. Refs serve as GC roots, and are persistent entry points to expanding data structures within the store.
 	/// </summary>
 	[JsonSchemaString]
 	[JsonConverter(typeof(RefNameJsonConverter))]
