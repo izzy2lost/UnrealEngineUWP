@@ -8,10 +8,26 @@
 
 namespace Chaos
 {
-	Chaos::FImplicitObjectPtr FConvex::CopyGeometryWithScale(const FVec3& Scale) const
+	FImplicitObjectPtr FConvex::CopyGeometry() const
 	{
-		FConvexPtr ConvexCopy( new FConvex(*this));
-		return  Chaos::FImplicitObjectPtr(new TImplicitObjectScaled<FConvex>(ConvexCopy, Scale));
+		// const_cast required as this object has an intrusive reference count that need to be mutable
+		return FImplicitObjectPtr(const_cast<FConvex*>(this));
+	}
+
+	FImplicitObjectPtr FConvex::CopyGeometryWithScale(const FVec3& Scale) const
+	{
+		// const_cast required as this object has an intrusive reference count that need to be mutable
+		return FImplicitObjectPtr(new TImplicitObjectScaled<FConvex>(const_cast<FConvex*>(this), Scale));
+	}
+
+	FImplicitObjectPtr FConvex::DeepCopyGeometry() const
+	{
+		return FImplicitObjectPtr(new FConvex(*this));
+	}
+
+	FImplicitObjectPtr FConvex::DeepCopyGeometryWithScale(const FVec3& Scale) const
+	{
+		return FImplicitObjectPtr(new TImplicitObjectScaled<FConvex>(new FConvex(*this), Scale));
 	}
 
 	bool FConvex::Raycast(const FVec3& StartPoint, const FVec3& Dir, const FReal Length, const FReal Thickness, FReal& OutTime, FVec3& OutPosition, FVec3& OutNormal, int32& OutFaceIndex) const

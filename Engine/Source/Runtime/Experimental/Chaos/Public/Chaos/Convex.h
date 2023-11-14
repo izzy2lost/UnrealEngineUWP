@@ -190,12 +190,10 @@ namespace Chaos
             return nullptr;
         }
 
-		virtual Chaos::FImplicitObjectPtr CopyGeometry() const
-		{
-			return Chaos::FImplicitObjectPtr(new FConvex(*this));
-		}
-
-		CHAOS_API virtual Chaos::FImplicitObjectPtr CopyGeometryWithScale(const FVec3& Scale) const override;
+		CHAOS_API Chaos::FImplicitObjectPtr CopyGeometry() const override;
+		CHAOS_API Chaos::FImplicitObjectPtr CopyGeometryWithScale(const FVec3& Scale) const override;
+		CHAOS_API Chaos::FImplicitObjectPtr DeepCopyGeometry() const override;
+		CHAOS_API Chaos::FImplicitObjectPtr DeepCopyGeometryWithScale(const FVec3& Scale) const override;
 
 		CHAOS_API void MovePlanesAndRebuild(FRealType InDelta);
 

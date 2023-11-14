@@ -76,7 +76,7 @@ FImplicitObjectUnion::FImplicitObjectUnion(TArray<Chaos::FImplicitObjectPtr>&& O
 	ensure(MObjects.Num());
 
 	MLocalBoundingBox = CalculateObjectsBounds(MakeArrayView(MObjects));
-	SetNumLeafObjects(Private::FImplicitBVH::CountLeafObjects(MakeArrayView(GetObjects())));
+	SetNumLeafObjects(CountObjectsInHierarchy());
 }
 
 FImplicitObjectUnion::FImplicitObjectUnion(FImplicitObjectUnion&& Other)

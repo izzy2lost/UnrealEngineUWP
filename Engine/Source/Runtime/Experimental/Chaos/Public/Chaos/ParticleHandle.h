@@ -32,6 +32,11 @@ namespace Chaos
 		class FConvexOptimizer;
 	}
 
+	namespace CVars
+	{
+		bool ForceDeepCopyOnModifyGeometry();
+	}
+
 struct FGeometryParticleParameters
 {
 	FGeometryParticleParameters()
@@ -2857,30 +2862,78 @@ protected:
 	// Right now it's exposed to lubricate the creation of the whole proxy system.
 	class IPhysicsProxyBase* Proxy;
 
+	/*
+	* Describes how a call to ModifyGeometry wishes to access the underlying particle geometry
+	*/
+	enum class EGeometryAccess
+	{
+		// Grant direct access to the geometry, use with care - if the geometry is in
+		// use inside a solver this will likely be unsafe. If the geometry is not
+		// in use, all calls to ModifyGeometry will use Direct
+		Direct,
+
+		// Create a new root union, but shallow copy all geometries within the union.
+		// This is fine if you are only removing shapes, or adding shapes. If you require
+		// the ability to modify the actual geometry you must take a deep copy.
+		ShallowCopy,
+
+		// Create a new root union and deep copy all geometries within it. This is required
+		// if you intend to actually modify the geometry itself and not just grow/shrink
+		// the number of shapes on the particle
+		DeepCopy
+	};
+
 	template <typename Lambda>
 	void ModifyGeometry(const Lambda& Func, const bool bDirectAccess = false)
 	{
 		ensure(IsInGameThread());
+
+		return ModifyGeometry(bDirectAccess ? EGeometryAccess::Direct : EGeometryAccess::DeepCopy, Func);
+	}
+
+	template <typename Lambda>
+	void ModifyGeometry(EGeometryAccess AccessType, const Lambda& Func)
+	{
+		ensure(IsInGameThread());
+
 		FPhysicsSolverBase* Solver = Proxy ? Proxy->GetSolverBase() : nullptr;
-		MNonFrequentData.Modify(true, MDirtyFlags, Proxy, [this, Solver, &Func, bDirectAccess](auto& Data)
+
+		if(Solver == nullptr)
+		{
+			//not registered yet so we can still modify geometry safely
+			AccessType = EGeometryAccess::Direct;
+		}
+		else if(AccessType == EGeometryAccess::ShallowCopy && CVars::ForceDeepCopyOnModifyGeometry())
+		{
+			AccessType = EGeometryAccess::DeepCopy;
+		}
+
+		MNonFrequentData.Modify(true, MDirtyFlags, Proxy, [this, Solver, &Func, AccessType](auto& Data)
 		{
 			FImplicitObjectPtr GeomToModify = nullptr;
 			bool bNewGeom = false;
 			if(Data.GetGeometry())
 			{
-				if ((Solver == nullptr) || bDirectAccess)
+				switch(AccessType)
 				{
-					//not registered yet so we can still modify geometry
+				case EGeometryAccess::Direct:
 					GeomToModify = Data.AccessGeometryDangerous();
-				}
-				else
-				{
-					//already registered and used by physics thread, so need to duplicate
+					break;
+				case EGeometryAccess::ShallowCopy:
+					GeomToModify = Data.GetGeometry()->CopyGeometry();
+					bNewGeom = true;
+					break;
+				case EGeometryAccess::DeepCopy:
 					GeomToModify = Data.GetGeometry()->DeepCopyGeometry();
 					bNewGeom = true;
+					break;
+				default:
+					check(false);
+					break;
 				}
+
 				Func(*GeomToModify);
-				
+
 				if(bNewGeom)
 				{
 					//must set geometry after because shapes are rebuilt and we want them to know about anything Func did

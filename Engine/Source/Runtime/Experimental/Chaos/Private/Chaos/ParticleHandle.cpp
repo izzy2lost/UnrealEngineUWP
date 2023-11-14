@@ -14,6 +14,18 @@
 
 namespace Chaos
 {
+	namespace CVars
+	{
+		static bool GForceDeepCopyOnModifyGeometry = false;
+
+		FAutoConsoleVariableRef CVarForceDeepCopyOnModifyGeometry(TEXT("p.Chaos.Geometry.ForceDeepCopyAccess"), GForceDeepCopyOnModifyGeometry, TEXT("Whether we always use a deep copy when modifying particle geometry"));
+
+		bool ForceDeepCopyOnModifyGeometry()
+		{
+			return GForceDeepCopyOnModifyGeometry;
+		}
+	}
+
 	extern void UpdateShapesArrayFromGeometry(FShapeInstanceProxyArray& ShapesArray, const FImplicitObjectPtr& Geometry, const FRigidTransform3& ActorTM, IPhysicsProxyBase* Proxy);
 
 	void SetObjectStateHelper(IPhysicsProxyBase& Proxy, FPBDRigidParticleHandle& Rigid, EObjectStateType InState, bool bAllowEvents, bool bInvalidate)
@@ -73,13 +85,15 @@ namespace Chaos
 
 		if (MNonFrequentData.Read().GetGeometry()->GetType() == FImplicitObjectUnion::StaticType())
 		{
-			ModifyGeometry([&Objects, this](FImplicitObject& GeomToModify)
-			{
-				if (FImplicitObjectUnion* Union = GeomToModify.template GetObject<FImplicitObjectUnion>())
+			// Only adding to the root union - shallow copy allowed here.
+			ModifyGeometry(EGeometryAccess::ShallowCopy,
+				[&Objects, this](FImplicitObject& GeomToModify)
 				{
-					Union->Combine(Objects);
-				}
-			});
+					if (FImplicitObjectUnion* Union = GeomToModify.template GetObject<FImplicitObjectUnion>())
+					{
+						Union->Combine(Objects);
+					}
+				});
 		}
 	}
 
@@ -127,7 +141,8 @@ namespace Chaos
 		// NOTE: only intended use is to remove objects from inside a FImplicitObjectUnion
 		CHAOS_ENSURE(MNonFrequentData.Read().GetGeometry()->GetType() == FImplicitObjectUnion::StaticType());
 
-		ModifyGeometry(
+		// Only removing shapes, shallow copy is allowed
+		ModifyGeometry(EGeometryAccess::ShallowCopy,
 			[this, &InIndices](FImplicitObject& GeomToModify)
 			{
 				if (FImplicitObjectUnion* Union = GeomToModify.template AsA<FImplicitObjectUnion>())
@@ -248,10 +263,12 @@ namespace Chaos
 	template <typename T, int d>
 	void TGeometryParticle<T,d>::SetIgnoreAnalyticCollisions(bool bIgnoreAnalyticCollisions)
 	{
-		ModifyGeometry([this, bIgnoreAnalyticCollisions](FImplicitObject& GeomToModify)
-		{
-			SetIgnoreAnalyticCollisionsImp(&GeomToModify, bIgnoreAnalyticCollisions);
-		});
+		// Deep copy required as we modify the actual geometries
+		ModifyGeometry(EGeometryAccess::DeepCopy,
+			[this, bIgnoreAnalyticCollisions](FImplicitObject& GeomToModify)
+			{
+				SetIgnoreAnalyticCollisionsImp(&GeomToModify, bIgnoreAnalyticCollisions);
+			});
 	}
 
 	template <typename T, int d, bool bPersistent>

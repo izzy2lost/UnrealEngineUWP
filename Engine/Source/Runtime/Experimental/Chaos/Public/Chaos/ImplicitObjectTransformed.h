@@ -93,20 +93,14 @@ public:
 	
 	virtual Chaos::FImplicitObjectPtr CopyGeometry() const
 	{
-		if (MObject)
-		{
-			Chaos::FImplicitObjectPtr ObjectCopy(MObject->CopyGeometry());
-			return MakeImplicitObjectPtr<TImplicitObjectTransformed<T,d>>(MoveTemp(ObjectCopy), MTransform);
-		}
-		else
-		{
-			check(false);
-			return nullptr;
-		}
+		// shallow copying this just requires a copy of the pointer, which is just "this" which will convert into TRefCountPtr<FImplicitObject>
+		// const_cast required here as the invasive ref count needs to be mutated
+		return const_cast<TImplicitObjectTransformed*>(this);
 	}
 	
 	virtual Chaos::FImplicitObjectPtr CopyGeometryWithScale(const FVec3& Scale) const override
 	{
+		// This is a deep copy - we can't take a shallow copy of this and apply the scale without modifying all other instances
 		if(MObject)
 		{
 			//return MakeCopyWithScaleTransformed(MObjectOwner, MTransform, Scale);
@@ -127,6 +121,7 @@ public:
 
 	virtual Chaos::FImplicitObjectPtr DeepCopyGeometry() const
 	{
+		// Deep copy both the transformed wrapper, and the inner object
 		if(MObject)
 		{
 			Chaos::FImplicitObjectPtr ObjectCopy(MObject->DeepCopyGeometry());
@@ -443,7 +438,10 @@ namespace Utilities
 
 		if(GetInnerType(OuterType) == ImplicitObjectType::Transformed)
 		{
-			Chaos::FImplicitObjectPtr NewTransformed = InObject->CopyGeometry();
+			// Take a deep copy here as we're modifying the transformed itself.
+			// #TODO - Deep copy the transformed wrapper but shallow copy the internal shape as that isn't modified.
+			// Likely need to expand the copy functions to handle deep copy wrappers but not concrete geoms
+			Chaos::FImplicitObjectPtr NewTransformed = InObject->DeepCopyGeometry();
 			TImplicitObjectTransformed<FReal, 3>* InnerTransformed = static_cast<TImplicitObjectTransformed<FReal, 3>*>(NewTransformed.GetReference());
 			InnerTransformed->SetTransform(NewTransform);
 
@@ -451,6 +449,7 @@ namespace Utilities
 		}
 		else
 		{
+			// Shallow copy the inner object and wrap it in a new transformed
 			Chaos::FImplicitObjectPtr NewInnerObject = InObject->CopyGeometry();
 			return MakeImplicitObjectPtr<TImplicitObjectTransformed<FReal, 3>>(MoveTemp(NewInnerObject), NewTransform);
 		}
