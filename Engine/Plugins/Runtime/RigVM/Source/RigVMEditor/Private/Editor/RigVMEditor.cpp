@@ -3406,6 +3406,8 @@ void FRigVMEditor::UpdateGraphCompilerErrors()
 				Blueprint->Status = BS_Error;
 				(void)Blueprint->MarkPackageDirty();
 			}
+
+			RigVMLog.RemoveRedundantEntries();
 		}
 	}
 

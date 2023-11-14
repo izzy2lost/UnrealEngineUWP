@@ -218,7 +218,7 @@ struct RIGVM_API FRigVMRuntimeSettings
 	/*
 	 * The function to use for logging anything from the VM to the host
 	 */
-	using LogFunctionType = TFunction<void(EMessageSeverity::Type,const FRigVMExecuteContext*,const FString&)>;
+	using LogFunctionType = TFunction<void(const FRigVMLogSettings&,const FRigVMExecuteContext*,const FString&)>;
 	TSharedPtr<LogFunctionType> LogFunction = nullptr;
 
 	void SetLogFunction(LogFunctionType InLogFunction)
@@ -268,19 +268,19 @@ struct FRigVMExecuteContext
 
 	virtual ~FRigVMExecuteContext() {}
 
-	void Log(EMessageSeverity::Type InSeverity, const FString& InMessage) const
+	void Log(const FRigVMLogSettings& InLogSettings, const FString& InMessage) const
 	{
 		if(RuntimeSettings.LogFunction.IsValid())
 		{
-			(*RuntimeSettings.LogFunction)(InSeverity, this, InMessage);
+			(*RuntimeSettings.LogFunction)(InLogSettings, this, InMessage);
 		}
 		else
 		{
-			if(InSeverity == EMessageSeverity::Error)
+			if(InLogSettings.Severity == EMessageSeverity::Error)
 			{
 				UE_LOG(LogRigVM, Error, TEXT("Instruction %d: %s"), InstructionIndex, *InMessage);
 			}
-			else if(InSeverity == EMessageSeverity::Warning)
+			else if(InLogSettings.Severity == EMessageSeverity::Warning)
 			{
 				UE_LOG(LogRigVM, Warning, TEXT("Instruction %d: %s"), InstructionIndex, *InMessage);
 			}
@@ -292,9 +292,9 @@ struct FRigVMExecuteContext
 	}
 
 	template <typename FmtType, typename... Types>
-	void Logf(EMessageSeverity::Type InSeverity, const FmtType& Fmt, Types... Args) const
+	void Logf(const FRigVMLogSettings& InLogSettings, const FmtType& Fmt, Types... Args) const
 	{
-		Log(InSeverity, FString::Printf(Fmt, Args...));
+		Log(InLogSettings, FString::Printf(Fmt, Args...));
 	}
 
 	uint16 GetInstructionIndex() const { return InstructionIndex; }

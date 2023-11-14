@@ -792,17 +792,17 @@ void URigVMHost::UpdateVMSettings()
 	{
 #if WITH_EDITOR
 		// setup array handling and error reporting on the VM
-		VMRuntimeSettings.SetLogFunction([this](EMessageSeverity::Type InSeverity, const FRigVMExecuteContext* InContext, const FString& Message)
+		VMRuntimeSettings.SetLogFunction([this](const FRigVMLogSettings& InLogSettings, const FRigVMExecuteContext* InContext, const FString& Message)
 			{
 				check(InContext);
 
 				if (RigVMLog)
 				{
-					RigVMLog->Report(InSeverity, InContext->GetFunctionName(), InContext->GetInstructionIndex(), Message);
+					RigVMLog->Report(InLogSettings, InContext->GetFunctionName(), InContext->GetInstructionIndex(), Message);
 				}
 				else
 				{
-					LogOnce(InSeverity, InContext->GetInstructionIndex(), Message);
+					LogOnce(InLogSettings.Severity, InContext->GetInstructionIndex(), Message);
 				}
 			});
 #endif

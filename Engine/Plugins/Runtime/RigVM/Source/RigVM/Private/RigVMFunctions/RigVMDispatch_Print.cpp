@@ -127,7 +127,7 @@ void FRigVMDispatch_Print::Execute(FRigVMExtendedExecuteContext& InContext, FRig
 	}
 
 	static constexpr TCHAR LogFormat[] = TEXT("%s[%04d] %s%s");
-	InContext.GetPublicData<>().Logf(EMessageSeverity::Info, LogFormat, *ObjectPath, InContext.GetPublicData<>().GetInstructionIndex(), *Prefix, *String);
+	InContext.GetPublicData<>().Logf({EMessageSeverity::Info, false}, LogFormat, *ObjectPath, InContext.GetPublicData<>().GetInstructionIndex(), *Prefix, *String);
 	const UObject* WorldObject = (const UObject*)InContext.VM;
 
 	if(ScreenDuration > SMALL_NUMBER && WorldObject)
