@@ -484,7 +484,7 @@ void FUniversalObjectLocatorFragment::Reset(const UObject* InObject, const UObje
 		FragmentType = MakeFragmentTypeHandle(BestFragmentType);
 		InitializePayload(BestFragmentType->PayloadType);
 
-		BestFragmentType->InitializePayload(GetPayload(), FInitializeParams(InObject, Context));
+		BestFragmentType->InitializePayload(GetPayload(), FInitializeParams{ InObject, Context });
 	}
 }
 
@@ -525,7 +525,7 @@ void FUniversalObjectLocatorFragment::Reset(const UObject* InObject, const UObje
 		FragmentType = MakeFragmentTypeHandle(BestFragmentType);
 		InitializePayload(BestFragmentType->PayloadType);
 
-		BestFragmentType->InitializePayload(GetPayload(), FInitializeParams(InObject, Context));
+		BestFragmentType->InitializePayload(GetPayload(), FInitializeParams{ InObject, Context });
 	}
 }
 

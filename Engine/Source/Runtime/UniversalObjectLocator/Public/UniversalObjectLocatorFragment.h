@@ -339,7 +339,7 @@ FUniversalObjectLocatorFragment::FUniversalObjectLocatorFragment(UE::UniversalOb
 	}
 
 	// Placement new the payload
-	new (GetPayload()) T(Forward<ArgTypes>(InArgs)...);
+	new (GetPayload()) T{ Forward<ArgTypes>(InArgs)... };
 }
 
 template<typename T>

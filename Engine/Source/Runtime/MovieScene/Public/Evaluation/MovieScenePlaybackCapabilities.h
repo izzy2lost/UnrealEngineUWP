@@ -236,7 +236,8 @@ protected:
 		if (HasCapability(CapabilityBit))
 		{
 			const int32 Index = GetCapabilityIndex(CapabilityBit);
-			return GetHeader(Index).Resolve(Memory);
+			check(Index >= 0 && Index < 255);
+			return GetHeader(static_cast<uint8>(Index)).Resolve(Memory);
 		}
 
 		return FPlaybackCapabilityPtr();
@@ -245,8 +246,8 @@ protected:
 	FPlaybackCapabilityPtr GetCapabilityChecked(uint32 CapabilityBit) const
 	{
 		const int32 Index = GetCapabilityIndex(CapabilityBit);
-		check(Index != INDEX_NONE);
-		return GetHeader(Index).Resolve(Memory);
+		check(Index >= 0 && Index < 255);
+		return GetHeader(static_cast<uint8>(Index)).Resolve(Memory);
 	}
 
 	/**
