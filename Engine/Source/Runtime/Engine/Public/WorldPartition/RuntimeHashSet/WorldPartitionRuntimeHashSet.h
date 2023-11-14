@@ -115,7 +115,7 @@ public:
 	TArray<FRuntimePartitionStreamingData> RuntimeStreamingData;
 };
 
-UCLASS(HideDropdown, MinimalAPI)
+UCLASS(MinimalAPI)
 class UWorldPartitionRuntimeHashSet : public UWorldPartitionRuntimeHash
 {
 	GENERATED_UCLASS_BODY()

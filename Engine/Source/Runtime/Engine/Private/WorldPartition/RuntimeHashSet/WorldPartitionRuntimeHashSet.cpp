@@ -8,15 +8,6 @@
 #include "WorldPartition/DataLayer/DataLayersID.h"
 #include "Misc/ArchiveMD5.h"
 
-FAutoConsoleCommand WorldPartitionRuntimeHashSetEnable(
-	TEXT("wp.Editor.WorldPartitionRuntimeHashSet.Enable"),
-	TEXT("Enable experimental runtime hash set class."),
-	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
-	{
-		UWorldPartitionRuntimeHashSet::StaticClass()->ClassFlags &= ~CLASS_HideDropDown;
-	})
-);
-
 void FRuntimePartitionStreamingData::CreatePartitionsSpatialIndex() const
 {
 	if (!SpatialIndex)
