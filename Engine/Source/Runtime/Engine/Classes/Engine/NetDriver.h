@@ -1104,6 +1104,10 @@ public:
 	uint32						InTotalBunches;
 	/** Total bunches sent since the net driver's creation  */
 	uint32						OutTotalBunches;
+	/** Total number of outgoing reliable bunches */
+	uint32						OutTotalReliableBunches;
+	/** Total number of incoming reliable bunches */
+	uint32						InTotalReliableBunches;
 	/** todo document */
 	uint32						InPacketsLost;
 	/** Total packets lost that have been sent by clients since the net driver's creation  */
@@ -1218,7 +1222,7 @@ public:
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	/** Used to invalidate properties marked "unchanged" in FRepChangedPropertyTracker's */
-	uint32																		ReplicationFrame;
+	uint32 ReplicationFrame;
 
 	/** Maps FRepLayout to the respective UClass */
 	TMap<TWeakObjectPtr<UObject>, TSharedPtr<FRepLayout>, FDefaultSetAllocator, TWeakObjectPtrMapKeyFuncs<TWeakObjectPtr<UObject>, TSharedPtr<FRepLayout> > >	RepLayoutMap;

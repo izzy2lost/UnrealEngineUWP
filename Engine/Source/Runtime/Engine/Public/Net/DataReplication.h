@@ -98,6 +98,9 @@ public:
 		/** Number of bits in buffer */
 		int64 NumBits;
 
+		/** The replication frame number when the RPC was queued. Used to track the latency caused by the delay. */
+		uint32 FrameQueuedAt;
+
 		/** Guids being waited on */
 		TSet<FNetworkGUID> UnmappedGuids;
 
@@ -105,11 +108,13 @@ public:
 			const FFieldNetCache* InRPCField,
 			const FReplicationFlags& InRepFlags,
 			FNetBitReader& InReader,
+			uint32 InReplicationFrame,
 			const TSet<FNetworkGUID>& InUnmappedGuids)
 			: RPCFieldIndex(InRPCField->FieldNetIndex)
 			, RepFlags(InRepFlags)
 			, Buffer(InReader.GetBuffer())
 			, NumBits(InReader.GetNumBits())
+			, FrameQueuedAt(InReplicationFrame)
 			, UnmappedGuids(InUnmappedGuids)
 		{}
 

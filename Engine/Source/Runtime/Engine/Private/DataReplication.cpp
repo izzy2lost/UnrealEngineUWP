@@ -967,6 +967,7 @@ bool FObjectReplicator::ReceivedBunch(FNetBitReader& Bunch, const FReplicationFl
 
 	const bool bIsServer = ConnectionNetDriver->IsServer();
 	const bool bCanDelayRPCs = (CVarDelayUnmappedRPCs.GetValueOnGameThread() > 0) && !bIsServer;
+    const uint32 DriverReplicationFrame = ConnectionNetDriver->ReplicationFrame;
 
 	const FClassNetCache* const ClassCache = ConnectionNetDriver->NetCache->GetClassNetCache(ObjectClass);
 
@@ -1163,7 +1164,7 @@ bool FObjectReplicator::ReceivedBunch(FNetBitReader& Bunch, const FReplicationFl
 			else if (bDelayFunction)
 			{
 				// This invalidates Reader's buffer
-				PendingLocalRPCs.Emplace(FieldCache, RepFlags, Reader, UnmappedGuids);
+				PendingLocalRPCs.Emplace(FieldCache, RepFlags, Reader, DriverReplicationFrame, UnmappedGuids);
 				bOutHasUnmapped = true;
 				bGuidsChanged = true;
 				bForceUpdateUnmapped = true;
@@ -2357,6 +2358,8 @@ void FObjectReplicator::UpdateUnmappedObjects(bool & bOutHasMoreUnmapped)
 
 	check(RepLayout);
 
+	const uint32 CurrentReplicationFrame = Connection->GetDriver()->ReplicationFrame;
+
 	const FRepLayout& LocalRepLayout = *RepLayout;
 
 	FNetSerializeCB NetSerializeCB(Connection->Driver);
@@ -2466,7 +2469,17 @@ void FObjectReplicator::UpdateUnmappedObjects(bool & bOutHasMoreUnmapped)
 			}
 			else
 			{
-				// We executed, remove this one and continue;
+				// Track RPCs delayed multiple frames
+				const uint32 DelayedFrames = (CurrentReplicationFrame >= Pending.FrameQueuedAt) ? (CurrentReplicationFrame - Pending.FrameQueuedAt) : 0u;
+				if (DelayedFrames > 0)
+				{
+					UE_LOG(LogNet, Verbose, TEXT("FObjectReplicator::UpdateUnmappedObjects: RPC %s on Object %s was finally executed after being delayed for %u frames (~%f ms)"),
+						*FunctionName, *Object->GetFullName(), DelayedFrames, 
+						DelayedFrames*(1000.f / ((GEngine->GetMaxTickRate(0.0f, true) > 0.0f) ? GEngine->GetMaxTickRate(0.0f, true) : 30.f)));
+					Connection->TotalDelayedRPCs++;
+					Connection->TotalDelayedRPCsFrameCount += DelayedFrames;
+				}
+				// We executed, remove this one and continue
 				PendingLocalRPCs.RemoveAt(RPCIndex);
 				RPCIndex--;
 			}

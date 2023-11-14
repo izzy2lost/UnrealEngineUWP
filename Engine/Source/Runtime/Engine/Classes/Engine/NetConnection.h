@@ -535,6 +535,9 @@ public:
 	int32 InTotalPacketsLost, OutTotalPacketsLost;
 	/** total acks sent on this connection */
 	int32 OutTotalAcks;
+	/** Delayed RPCs and the total average frame delay */
+	int32 TotalDelayedRPCs = 0;
+	int32 TotalDelayedRPCsFrameCount = 0;
 
 private:
 	/** total packets received on this connection, including PacketHandler */

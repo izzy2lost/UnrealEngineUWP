@@ -43,6 +43,7 @@
 #include "Engine/ReplicationDriver.h"
 #include "Engine/LevelScriptActor.h"
 #include "Engine/NetworkSettings.h"
+#include "Net/NetEmulationHelper.h"
 #include "Net/NetSubObjectRegistryGetter.h"
 #include "Net/NetworkGranularMemoryLogging.h"
 #include "UObject/Stack.h"
@@ -189,35 +190,6 @@ namespace UE::Net::Private
 	static const FString PerfCounter_MaxPing(TEXT("MaxPing"));
 	static const FString PerfCounter_MinPing(TEXT("MinPing"));
 	static const FString PerfCounter_NumConnections(TEXT("NumConnections"));
-}
-
-namespace UE::Net::EmulationHelper
-{
-#if DO_ENABLE_NET_TEST
-	/** Global that stores the network emulation values outside the NetDriver lifetime */
-	static TOptional<FPacketSimulationSettings> PersistentPacketSimulationSettings;
-
-	void CreatePersistentSimulationSettings()
-	{
-		if (!PersistentPacketSimulationSettings.IsSet())
-		{
-			PersistentPacketSimulationSettings.Emplace(FPacketSimulationSettings());
-		}
-	}
-
-	void ApplySimulationSettingsOnNetDrivers(UWorld* World, const FPacketSimulationSettings& Settings)
-	{
-		// Execute on all active NetDrivers
-		FWorldContext& Context = GEngine->GetWorldContextFromWorldChecked(World);
-		for (const FNamedNetDriver& ActiveNetDriver : Context.ActiveNetDrivers)
-		{
-			if (ActiveNetDriver.NetDriver)
-			{
-				ActiveNetDriver.NetDriver->SetPacketSimulationSettings(Settings);
-			}
-		}
-	}
-#endif //#if DO_ENABLE_NET_TEST
 }
 
 namespace UE::Net::Private
@@ -547,6 +519,8 @@ UNetDriver::UNetDriver(const FObjectInitializer& ObjectInitializer)
 ,	OutBunches(0)
 ,	InTotalBunches(0)
 ,	OutTotalBunches(0)
+,	OutTotalReliableBunches(0)
+,	InTotalReliableBunches(0)
 ,	InPacketsLost(0)
 ,	InTotalPacketsLost(0)
 ,	OutPacketsLost(0)
@@ -591,6 +565,8 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 void UNetDriver::InitPacketSimulationSettings()
 {
 #if DO_ENABLE_NET_TEST
+	using namespace UE::Net::Private::NetEmulationHelper;
+
 	if (bNeverApplyNetworkEmulationSettings)
 	{
 		return;
@@ -601,9 +577,9 @@ void UNetDriver::InitPacketSimulationSettings()
 		return;
 	}
 
-	if (UE::Net::EmulationHelper::PersistentPacketSimulationSettings.IsSet())
+	if (HasPersistentPacketEmulationSettings())
 	{
-		SetPacketSimulationSettings(UE::Net::EmulationHelper::PersistentPacketSimulationSettings.GetValue());
+		ApplyPersistentPacketEmulationSettings(this);
 		return;
 	}
 
@@ -2458,7 +2434,8 @@ void UNetDriver::ProcessRemoteFunctionForChannelPrivate(
 				}
 
 				NETWORK_PROFILER(GNetworkProfiler.TrackSendRPC(Ch->Actor, Function, HeaderBits, ParameterBits, 0, Connection));
-				FPacketIdRange PacketIdRange = Ch->SendBunch(&Bunch, true);
+				constexpr bool bDoMerge = true;
+				FPacketIdRange PacketIdRange = Ch->SendBunch(&Bunch, bDoMerge);
 
 				if (UNLIKELY(PacketIdRange.First == INDEX_NONE && PacketIdRange.Last == INDEX_NONE))
 				{
@@ -5089,7 +5066,8 @@ int64 UNetDriver::SendDestructionInfo(UNetConnection* Connection, FActorDestruct
 					UE_LOG(LogNetTraffic, Log, TEXT("SendDestructionInfo: Channel %d. NetGUID <%s> Path: %s. Bits: %d"), Channel->ChIndex, *DestructionInfo->NetGUID.ToString(), *DestructionInfo->PathName, CloseBunch.GetNumBits());
 					UE_LOG(LogNetDormancy, Verbose, TEXT("SendDestructionInfo: Channel %d. NetGUID <%s> Path: %s. Bits: %d"), Channel->ChIndex, *DestructionInfo->NetGUID.ToString(), *DestructionInfo->PathName, CloseBunch.GetNumBits());
 
-					Channel->SendBunch(&CloseBunch, false);
+					constexpr bool bDontMerge = false;
+					Channel->SendBunch(&CloseBunch, bDontMerge);
 
 					NumBits = CloseBunch.GetNumBits();
 				}
@@ -7859,76 +7837,7 @@ FAutoConsoleCommandWithWorld	DumpRelevantActorsCommand(
 
 #if DO_ENABLE_NET_TEST
 
-FAutoConsoleCommandWithWorldArgsAndOutputDevice NetEmulationPktEmulationProfile(TEXT("NetEmulation.PktEmulationProfile"), TEXT("Apply a preconfigured emulation profile."),
-	FConsoleCommandWithWorldArgsAndOutputDeviceDelegate::CreateStatic([](const TArray<FString>& Args, UWorld* World, FOutputDevice& Output)
-{
-	bool bProfileApplied(false);
-	if (Args.Num() > 0)
-	{
-		FString CmdParams = FString::Printf(TEXT("PktEmulationProfile=%s"), *(Args[0]));
 
-		UE::Net::EmulationHelper::CreatePersistentSimulationSettings();
-
-		bProfileApplied = UE::Net::EmulationHelper::PersistentPacketSimulationSettings.GetValue().ParseSettings(*CmdParams, nullptr);
-		
-		if (bProfileApplied)
-		{
-			UE::Net::EmulationHelper::ApplySimulationSettingsOnNetDrivers(World, UE::Net::EmulationHelper::PersistentPacketSimulationSettings.GetValue());
-		}
-		else
-		{
-			Output.Log(FString::Printf(TEXT("EmulationProfile: %s was not found in Engine.ini"), *(Args[0])));
-		}
-	}
-	else
-	{
-		Output.Log(FString::Printf(TEXT("Missing emulation profile name")));
-	}
-
-	if (!bProfileApplied)
-	{
-		if (const UNetworkSettings* NetworkSettings = GetDefault<UNetworkSettings>())
-		{
-			Output.Log(TEXT("List of some supported emulation profiles:"));
-			for (const FNetworkEmulationProfileDescription& ProfileDesc : NetworkSettings->NetworkEmulationProfiles)
-			{
-				Output.Log(FString::Printf(TEXT("%s"), *ProfileDesc.ProfileName));
-			}
-		}
-	}
-}));
-
-FAutoConsoleCommandWithWorld NetEmulationOff(TEXT("NetEmulation.Off"), TEXT("Turn off network emulation"),
-	FConsoleCommandWithWorldDelegate::CreateStatic([](UWorld* World)
-{
-	UE::Net::EmulationHelper::CreatePersistentSimulationSettings();
-	UE::Net::EmulationHelper::PersistentPacketSimulationSettings.GetValue().ResetSettings();
-	UE::Net::EmulationHelper::ApplySimulationSettingsOnNetDrivers(World, UE::Net::EmulationHelper::PersistentPacketSimulationSettings.GetValue());
-}));
-
-#define BUILD_NETEMULATION_CONSOLE_COMMAND(CommandName, CommandHelp) FAutoConsoleCommandWithWorldAndArgs NetEmulation##CommandName(TEXT("NetEmulation."#CommandName), TEXT(CommandHelp), \
-	FConsoleCommandWithWorldAndArgsDelegate::CreateStatic([](const TArray<FString>& Args, UWorld* World) \
-	{ \
-		if (Args.Num() > 0) \
-		{ \
-			UE::Net::EmulationHelper::CreatePersistentSimulationSettings(); \
-			FString CmdParams = FString::Printf(TEXT(#CommandName"=%s"), *(Args[0])); \
-			UE::Net::EmulationHelper::PersistentPacketSimulationSettings.GetValue().ParseSettings(*CmdParams, nullptr); \
-			UE::Net::EmulationHelper::ApplySimulationSettingsOnNetDrivers(World, UE::Net::EmulationHelper::PersistentPacketSimulationSettings.GetValue()); \
-		} \
-	}));
-
-BUILD_NETEMULATION_CONSOLE_COMMAND(PktLoss, "Simulates network packet loss");
-BUILD_NETEMULATION_CONSOLE_COMMAND(PktOrder, "Simulates network packets received out of order");
-BUILD_NETEMULATION_CONSOLE_COMMAND(PktDup, "Simulates sending/receiving duplicate network packets");
-BUILD_NETEMULATION_CONSOLE_COMMAND(PktLag, "Simulates network packet lag");
-BUILD_NETEMULATION_CONSOLE_COMMAND(PktLagVariance, "Simulates variable network packet lag");
-BUILD_NETEMULATION_CONSOLE_COMMAND(PktLagMin, "Sets minimum outgoing packet latency");
-BUILD_NETEMULATION_CONSOLE_COMMAND(PktLagMax, "Sets maximum outgoing packet latency)");
-BUILD_NETEMULATION_CONSOLE_COMMAND(PktIncomingLagMin, "Sets minimum incoming packet latency");
-BUILD_NETEMULATION_CONSOLE_COMMAND(PktIncomingLagMax, "Sets maximum incoming packet latency");
-BUILD_NETEMULATION_CONSOLE_COMMAND(PktIncomingLoss, "Simulates incoming packet loss");
-BUILD_NETEMULATION_CONSOLE_COMMAND(PktJitter, "Simulates outgoing packet jitter");
 
 #endif //#if DO_ENABLE_NET_TEST
 

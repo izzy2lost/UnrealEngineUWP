@@ -2383,7 +2383,7 @@ bool UReplicationGraph::ProcessRemoteFunction(class AActor* Actor, UFunction* Fu
 	{
 		const bool bIsReliable = EnumHasAnyFlags(Function->FunctionFlags, FUNC_NetReliable);
 
-		// If we're saturated and it's not a reliable multicast, drop it.
+		// If we're saturated and it's not a reliable, drop it.
 		if (!(bIsReliable || IsConnectionReady(Connection)))
 		{
 			return true;

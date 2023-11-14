@@ -3694,6 +3694,7 @@ void UNetConnection::DispatchPacket( FBitReader& Reader, int32 PacketId, bool& b
 			}
 			Driver->InBunches++;
 			Driver->InTotalBunches++;
+			Driver->InTotalReliableBunches += Bunch.bReliable ? 1 : 0;
 
 			if (Bunch.IsCriticalError() || Bunch.IsError())
 			{
@@ -4019,6 +4020,7 @@ int32 UNetConnection::SendRawBunch(FOutBunch& Bunch, bool InAllowMerge, const FN
 	check(!Bunch.IsError());
 	Driver->OutBunches++;
 	Driver->OutTotalBunches++;
+	Driver->OutTotalReliableBunches += Bunch.bReliable ? 1 : 0;
 
 	// Build header.
 	SendBunchHeader.Reset();
