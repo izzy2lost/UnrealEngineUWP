@@ -10,6 +10,7 @@
 
 
 struct FMassEntityManager;
+class IConsoleVariable;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogMassSim, Log, All);
 
@@ -35,6 +36,9 @@ public:
 
 	/** @return whether hosted EntityManager is currently, actively being used for processing purposes. Equivalent to calling FMassEntityManager.IsProcessing() */
 	bool IsDuringMassProcessing() const;
+
+	/** Starts/stops simulation ticking for all worlds, based on new `mass.SimulationTickingEnabled` cvar value */
+	static void HandleSimulationTickingEnabledCVarChange(IConsoleVariable*);
 
 protected:
 	// UWorldSubsystem BEGIN
