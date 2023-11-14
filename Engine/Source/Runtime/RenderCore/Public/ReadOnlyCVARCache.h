@@ -34,5 +34,25 @@ struct FReadOnlyCVARCache
 
 private:
 	static bool bInitialized;
+
+	static bool bEnablePointLightShadows;
+	static bool bEnableStationarySkylight;
+	static bool bEnableLowQualityLightmaps;
+	static bool bAllowStaticLighting;
+	static bool bSupportSkyAtmosphere;
+
+	// Mobile specific
+	static bool bMobileHDR;
+	static bool bMobileAllowMovableDirectionalLights;
+	static bool bMobileAllowDistanceFieldShadows;
+	static bool bMobileEnableStaticAndCSMShadowReceivers;
+	static bool bMobileEnableMovableLightCSMShaderCulling;
+	static bool bMobileSupportsGPUScene;
+	static int32 MobileSkyLightPermutationValue;
+	static int32 MobileEarlyZPassValue;
+	static int32 MobileForwardLocalLightsValue;
+	static bool bMobileEnableNoPrecomputedLightingCSMShader;
+	static bool bMobileDeferredShadingValue;
+	static bool bMobileEnableMovableSpotlightsShadowValue;
 };
 

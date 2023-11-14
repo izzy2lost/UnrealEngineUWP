@@ -9,27 +9,6 @@
 #include "Interfaces/ITargetPlatformManagerModule.h"
 #endif
 
-static bool bEnablePointLightShadows;
-static bool bEnableStationarySkylight;
-static bool bEnableLowQualityLightmaps;
-static bool bAllowStaticLighting;
-static bool bSupportSkyAtmosphere;
-
-// Mobile specific
-static bool bMobileHDR;
-static bool bMobileAllowMovableDirectionalLights;
-static bool bMobileAllowDistanceFieldShadows;
-static bool bMobileEnableStaticAndCSMShadowReceivers;
-static bool bMobileEnableMovableLightCSMShaderCulling;
-static bool bMobileSupportsGPUScene;
-static int32 MobileSkyLightPermutationValue;
-static int32 MobileEarlyZPassValue;
-static int32 MobileForwardLocalLightsValue;
-static bool bMobileEnableNoPrecomputedLightingCSMShader;
-static bool bMobileDeferredShadingValue;
-static bool bMobileEnableMovableSpotlightsShadowValue;
-
-
 static int32 MobileEarlyZPassIniValue(const FStaticShaderPlatform Platform)
 {
 	static FShaderPlatformCachedIniValue<int32> CVar(TEXT("r.Mobile.EarlyZPass"));
@@ -58,6 +37,26 @@ static bool MobileEnableMovableSpotlightsShadowIniValue(const FStaticShaderPlatf
 }
 
 bool FReadOnlyCVARCache::bInitialized = false;
+
+bool FReadOnlyCVARCache::bEnablePointLightShadows = true;
+bool FReadOnlyCVARCache::bEnableStationarySkylight = true;
+bool FReadOnlyCVARCache::bEnableLowQualityLightmaps = true;
+bool FReadOnlyCVARCache::bAllowStaticLighting = true;
+bool FReadOnlyCVARCache::bSupportSkyAtmosphere = true;
+
+// Mobile specific
+bool FReadOnlyCVARCache::bMobileHDR = true;
+bool FReadOnlyCVARCache::bMobileAllowMovableDirectionalLights = true;
+bool FReadOnlyCVARCache::bMobileAllowDistanceFieldShadows = true;
+bool FReadOnlyCVARCache::bMobileEnableStaticAndCSMShadowReceivers = true;
+bool FReadOnlyCVARCache::bMobileEnableMovableLightCSMShaderCulling = true;
+bool FReadOnlyCVARCache::bMobileSupportsGPUScene = false;
+int32 FReadOnlyCVARCache::MobileSkyLightPermutationValue = 0;
+int32 FReadOnlyCVARCache::MobileEarlyZPassValue = 0;
+int32 FReadOnlyCVARCache::MobileForwardLocalLightsValue = 1;
+bool FReadOnlyCVARCache::bMobileEnableNoPrecomputedLightingCSMShader = false;
+bool FReadOnlyCVARCache::bMobileDeferredShadingValue = false;
+bool FReadOnlyCVARCache::bMobileEnableMovableSpotlightsShadowValue = false;
 
 void FReadOnlyCVARCache::Initialize()
 {
