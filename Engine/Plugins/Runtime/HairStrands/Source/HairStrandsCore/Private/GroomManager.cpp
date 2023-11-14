@@ -572,6 +572,7 @@ static void RunHairStrandsInterpolation_Guide(
 		AddDeformSimHairStrandsPass(
 			GraphBuilder,
 			ShaderMap,
+			InstanceData.Instance->RegisteredIndex,
 			InstanceData.Instance->Debug.MeshLODIndex,
 			InstanceData.Instance->Guides.RestResource->GetPointCount(),
 			InstanceData.Instance->Guides.RestRootResource,
@@ -606,6 +607,7 @@ static void RunHairStrandsInterpolation_Guide(
 						AddDeformSimHairStrandsPass(
 							GraphBuilder,
 							ShaderMap,
+							InstanceData.Instance->RegisteredIndex,
 							InstanceData.MeshLODIndex,
 							InstanceData.Instance->Guides.RestResource->GetPointCount(),
 							InstanceData.Instance->Guides.RestRootResource,

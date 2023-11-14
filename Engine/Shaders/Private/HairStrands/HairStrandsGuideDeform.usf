@@ -3,16 +3,17 @@
 #include "../Common.ush"
 #include "HairStrandsClusterCommon.ush"
 #include "HairStrandsBindingCommon.ush"
+#include "HairStrandsVertexFactoryCommon.ush"
 
 #if SHADER_DEFORM_GUIDE
 
 float3 SimRestOffset;
 uint VertexCount;
+uint InstanceRegisteredIndex;
 
-Buffer<float4> SimDeformedOffsetBuffer;
+StructuredBuffer<float4> SimDeformedOffsetBuffer;
 Buffer<uint4> SimRestPosePositionBuffer;
 RWBuffer<uint4> OutSimDeformedPositionBuffer;
-
 
 #define DEFORMATION_BYPASS 0
 #define DEFORMATION_OFFSET_GUIDE 1
@@ -60,7 +61,7 @@ StructuredBuffer<float4>  MeshSampleWeightsBuffer;
 
 float3 DisplacePosition(uint VertexIndex, float3 Pos)
 {
-	const float3 OutSimHairPositionOffset = SimDeformedOffsetBuffer[0].xyz;
+	const float3 OutSimHairPositionOffset = ReadSimPositionOffset(SimDeformedOffsetBuffer, InstanceRegisteredIndex);
 
 // By pass
 #if PERMUTATION_DEFORMATION == DEFORMATION_BYPASS

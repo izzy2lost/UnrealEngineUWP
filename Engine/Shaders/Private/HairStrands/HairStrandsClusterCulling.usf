@@ -466,7 +466,7 @@ float4x4 LocalToTranslatedWorldMatrix;
 Buffer<uint> RenCurveBuffer;
 Buffer<uint> RenPointLODBuffer;
 Buffer<uint4> RenderDeformedPositionBuffer;
-Buffer<float4> RenderDeformedOffsetBuffer;
+StructuredBuffer<float4> RenderDeformedOffsetBuffer;
 
 RWBuffer<int> OutClusterAABBBuffer; 	// Cluster data packed as {uint3 AABBMin, uint3 AABBMax}
 RWBuffer<int> OutGroupAABBBuffer; 		// Group data packed as {uint3 AABBMin, uint3 AABBMax}
@@ -506,7 +506,7 @@ groupshared float3 OutHairPositionOffset;
 			CurvePointIndex = RenCurve.PointIndex;
 			CurvePointCount = RenCurve.PointCount;
 		}
-		OutHairPositionOffset = RenderDeformedOffsetBuffer[0].xyz;
+		OutHairPositionOffset = ReadRenPositionOffset(RenderDeformedOffsetBuffer, InstanceRegisteredIndex);
 	}
 	GroupMemoryBarrierWithGroupSync();
 

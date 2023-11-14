@@ -44,6 +44,7 @@ enum class EGroomViewMode : uint8;
 void AddDeformSimHairStrandsPass(
 	FRDGBuilder& GraphBuilder,
 	FGlobalShaderMap* ShaderMap,
+	const uint32 InstanceRegisteredIndex,
 	const uint32 MeshLODIndex,
 	const uint32 VertexCount,
 	FHairStrandsRestRootResource* SimRestRootResources,
