@@ -7,6 +7,7 @@
     <NeutralLanguage>en-US</NeutralLanguage>
     <Configurations>Debug;Release;Development;Analyze</Configurations>
     <NoWarn>1701;1702;1591</NoWarn>
+    <GenerateProgramFile>false</GenerateProgramFile>
   </PropertyGroup>
 
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Analyze|AnyCPU' ">
