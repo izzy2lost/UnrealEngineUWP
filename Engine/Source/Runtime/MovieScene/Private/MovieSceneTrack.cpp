@@ -440,6 +440,11 @@ const FMovieSceneTrackEvaluationField& UMovieSceneTrack::GetEvaluationField()
 	return EvaluationField;
 }
 
+void UMovieSceneTrack::ForceUpdateEvaluationTree()
+{
+	UpdateEvaluationTree();
+}
+
 void UMovieSceneTrack::UpdateEvaluationTree()
 {
 	TMovieSceneEvaluationTree<FMovieSceneTrackEvaluationData> EvaluationTree;

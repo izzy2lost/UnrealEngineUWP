@@ -20,6 +20,7 @@ void UMovieSceneVisibilityTrack::PostLoad()
 {
 	// Upgrade bool sections to visibility sections.
 	TArray<uint8> Bytes;
+	bool bUpgraded = false;
 
 	for (int32 Index = 0; Index < Sections.Num(); ++Index)
 	{
@@ -38,7 +39,13 @@ void UMovieSceneVisibilityTrack::PostLoad()
 			FObjectReader(NewSection, Bytes);
 
 			Sections[Index] = NewSection;
+			bUpgraded = true;
 		}
+	}
+
+	if (bUpgraded)
+	{
+		ForceUpdateEvaluationTree();
 	}
 
 	Super::PostLoad();

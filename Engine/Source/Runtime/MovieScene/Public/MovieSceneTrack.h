@@ -272,6 +272,11 @@ protected:
 
 	ETreePopulationMode BuiltInTreePopulationMode;
 
+protected:
+
+	/** Forcibly update this evaluation tree without updating the signature. Does not invalidated any compiled data! */
+	MOVIESCENE_API void ForceUpdateEvaluationTree();
+
 private:
 
 	/** Sub-classes can override this method to perforum custom evaluation tree population logic. */
