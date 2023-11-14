@@ -30,6 +30,14 @@ enum EMetalViewportAccessFlag
 
 class FMetalCommandQueue;
 
+#if PLATFORM_VISIONOS
+namespace MetalRHIVisionOS
+{
+    struct BeginRenderingImmersiveParams;
+    struct PresentImmersiveParams;
+}
+#endif
+
 typedef void (^FMetalViewportPresentHandler)(uint32 CGDirectDisplayID, double OutputSeconds, double OutputDuration);
 
 class FMetalViewport : public FRHIViewport
@@ -52,7 +60,9 @@ public:
 	
 #if PLATFORM_MAC
 	NSWindow* GetWindow() const;
-	
+#endif
+    
+#if PLATFORM_MAC || PLATFORM_VISIONOS
 	virtual void SetCustomPresent(FRHICustomPresent* InCustomPresent) override
 	{
 		CustomPresent = InCustomPresent;
@@ -64,11 +74,16 @@ public:
 	void Present(FMetalCommandQueue& CommandQueue, bool bLockToVsync);
 	void Swap();
 	
+#if PLATFORM_VISIONOS
+    void BeginRenderingImmersive(cp_frame_t SwiftFrame);
+    void PresentImmersive(TRefCountPtr<FMetalSurface> CompleteFrame, const MetalRHIVisionOS::PresentImmersiveParams* Params);
+private:
+	void EndFrameImmersive();
+#endif
+	
 private:
 	uint32 GetViewportIndex(EMetalViewportAccessFlag Accessor) const;
 
-	void NewFrame();
-	
 private:
 #if PLATFORM_VISIONOS
 	CP_OBJECT_cp_layer_renderer* SwiftLayer = nullptr;
@@ -89,7 +104,10 @@ private:
 
 #if PLATFORM_MAC
 	FMetalView* View;
-	FRHICustomPresent* CustomPresent;
+#endif
+    
+#if PLATFORM_MAC || PLATFORM_VISIONOS
+    FCustomPresentRHIRef CustomPresent;
 #endif
 };
 

@@ -132,6 +132,9 @@ uint32 FIOSPlatformRHIFramePacer::Pace = 0;
 
 bool FIOSPlatformRHIFramePacer::IsEnabled()
 {
+#if PLATFORM_VISIONOS
+	return false; // XR does its own frame pacing.
+#else
     static bool bIsRHIFramePacerEnabled = false;
 	static bool bInitialized = false;
 
@@ -170,6 +173,7 @@ bool FIOSPlatformRHIFramePacer::IsEnabled()
 	}
 	
 	return bIsRHIFramePacerEnabled;
+#endif
 }
 
 uint32 FIOSPlatformRHIFramePacer::GetMaxRefreshRate()

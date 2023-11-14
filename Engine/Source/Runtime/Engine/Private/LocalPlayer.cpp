@@ -772,7 +772,7 @@ bool ULocalPlayer::CalcSceneViewInitOptions(
 		ViewInitOptions.bInCameraCut = PlayerController->PlayerCameraManager->bGameCameraCutThisFrame;
 	}
 
-	if (GEngine->StereoRenderingDevice.IsValid())
+	if (GEngine->IsStereoscopic3D(Viewport))
 	{
 		ViewInitOptions.StereoPass = GEngine->StereoRenderingDevice->GetViewPassForIndex(StereoViewIndex != INDEX_NONE, StereoViewIndex);
 	}
@@ -909,7 +909,7 @@ FSceneView* ULocalPlayer::CalcSceneView( class FSceneViewFamily* ViewFamily,
 			PlayerController->PlayerCameraManager->UpdatePhotographyPostProcessing(View->FinalPostProcessSettings);
 		}
 
-		if (GEngine->StereoRenderingDevice.IsValid())
+		if (GEngine->IsStereoscopic3D(Viewport))
 		{
 			FPostProcessSettings StereoDeviceOverridePostProcessinSettings;
 			float BlendWeight = 1.0f;
@@ -1236,7 +1236,7 @@ bool ULocalPlayer::GetProjectionData(FViewport* Viewport, FSceneViewProjectionDa
 			XRCamera->UseImplicitHMDPosition(bHasActiveCamera);
 		}
 
-		if (GEngine->StereoRenderingDevice.IsValid())
+		if (GEngine->IsStereoscopic3D(Viewport))
 		{
 			GEngine->StereoRenderingDevice->CalculateStereoViewOffset(StereoViewIndex, ViewInfo.Rotation, GetWorld()->GetWorldSettings()->WorldToMeters, StereoViewLocation);
 		}

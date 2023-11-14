@@ -25,7 +25,7 @@ static TAutoConsoleVariable<int32> CVarPhysicalScreenDensity(
 
 EAppReturnType::Type MessageBoxExtImpl( EAppMsgType::Type MsgType, const TCHAR* Text, const TCHAR* Caption )
 {
-#if PLATFORM_TVOS
+#if PLATFORM_TVOS || PLATFORM_VISIONOS
 	return FGenericPlatformMisc::MessageBoxExt(MsgType, Text, Caption);
 #else
 	NSString* CocoaText = (NSString*)FPlatformString::TCHARToCFString(Text);

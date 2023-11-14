@@ -3,6 +3,7 @@
 #include "MetalRHIPrivate.h"
 #include "MetalRHIRenderQuery.h"
 #include "MetalCommandBufferFence.h"
+#include "MetalRHIVisionOSBridge.h"
 
 TGlobalResource<TBoundShaderStateHistory<10000>> FMetalRHICommandContext::BoundShaderStateHistory;
 
@@ -216,3 +217,11 @@ void FMetalRHICommandContext::RHIEndOcclusionQueryBatch()
 	Context->InsertCommandBufferFence(*CommandBufferFence);
 	CommandBufferFence.Reset();
 }
+
+#if PLATFORM_VISIONOS
+void FMetalRHICommandContext::BeginRenderingImmersive(const MetalRHIVisionOS::BeginRenderingImmersiveParams& Params)
+{
+    SwiftFrame = Params.SwiftFrame;
+    UE_LOG(LogMetalVisionOS, Verbose, TEXT("SwiftLayerFrame(0x%x) copying from Params in FMetalRHICommandContext::BeginRenderingImmersive"), SwiftFrame);
+}
+#endif

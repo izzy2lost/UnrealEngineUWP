@@ -598,6 +598,8 @@ int main(int argc, char *argv[])
 void FSwiftAppBootstrap::KickoffWithCompositingLayer(CP_OBJECT_cp_layer_renderer* Layer)
 {
 	IOSAppDelegate* AppDelegate = [IOSAppDelegate GetDelegate];
+    
+    // Might need to cp_layer_renderer_configuration_set_layout here,  or in UESwift... in the future.
 	
 	cp_layer_renderer_properties_t Props = cp_layer_renderer_get_properties(Layer);
 	int NumViews = cp_layer_renderer_properties_get_view_count(Props);
@@ -618,7 +620,7 @@ void FSwiftAppBootstrap::KickoffWithCompositingLayer(CP_OBJECT_cp_layer_renderer
 
 	{
 		cp_frame_t SwiftLayerFrame = cp_layer_renderer_query_next_frame(Layer);
-		cp_drawable_t SwiftDrawable = cp_frame_query_drawable(SwiftLayerFrame); 
+		cp_drawable_t SwiftDrawable = cp_frame_query_drawable(SwiftLayerFrame);
 		{
 			cp_view_t View = cp_drawable_get_view(SwiftDrawable, 0);
 			cp_view_texture_map_t TextureMap = cp_view_get_view_texture_map(View);

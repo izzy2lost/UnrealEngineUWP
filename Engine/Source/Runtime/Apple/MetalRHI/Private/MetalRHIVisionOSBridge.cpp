@@ -1,0 +1,29 @@
+#include "MetalRHIVisionOSBridge.h"
+
+#if PLATFORM_VISIONOS
+
+#include "MetalRHIPrivate.h"
+#include "MetalDynamicRHI.h"
+
+DEFINE_LOG_CATEGORY(LogMetalVisionOS);
+
+void MetalRHIVisionOS::BeginRenderingImmersive(const MetalRHIVisionOS::BeginRenderingImmersiveParams& Params)
+{
+    UE_LOG(LogMetalVisionOS, Verbose, TEXT("SwiftLayerFrame(0x%x) sending to RHICommandContext in MetalRHIVisionOS::BeginRendering"), Params.SwiftFrame);
+    FMetalRHICommandContext* RHICommandContext = static_cast<FMetalRHICommandContext*>(RHIGetDefaultContext());
+    check(RHICommandContext);
+    RHICommandContext->BeginRenderingImmersive(Params);
+}
+
+void MetalRHIVisionOS::PresentImmersive(const MetalRHIVisionOS::PresentImmersiveParams& Params)
+{
+    FMetalRHICommandContext* RHICommandContext = static_cast<FMetalRHICommandContext*>(RHIGetDefaultContext());
+    check(RHICommandContext);
+    check(RHICommandContext->CustomPresentViewport);
+    FMetalViewport* Viewport = ResourceCast(RHICommandContext->CustomPresentViewport);
+    check(Viewport);
+    FMetalSurface* Surface = GetMetalSurfaceFromRHITexture(Params.Texture);
+
+    Viewport->PresentImmersive(Surface, &Params);
+}
+#endif // PLATFORM_VISIONOS

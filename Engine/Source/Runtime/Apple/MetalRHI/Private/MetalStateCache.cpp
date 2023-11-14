@@ -406,7 +406,11 @@ void FMetalStateCache::SetRasterizerState(FMetalRasterizerState* InRasterizerSta
 	if(RasterizerState != InRasterizerState)
 	{
 		RasterizerState = InRasterizerState;
+#if PLATFORM_VISIONOS
+		RasterBits |= EMetalRenderFlagFrontFacingWinding|EMetalRenderFlagCullMode|EMetalRenderFlagDepthBias|EMetalRenderFlagTriangleFillMode;
+#else
 		RasterBits |= EMetalRenderFlagFrontFacingWinding|EMetalRenderFlagCullMode|EMetalRenderFlagDepthBias|EMetalRenderFlagTriangleFillMode|EMetalRenderFlagDepthClipMode;
+#endif
 	}
 }
 

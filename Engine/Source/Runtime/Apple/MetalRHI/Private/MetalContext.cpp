@@ -384,7 +384,8 @@ FMetalDeviceContext::FMetalDeviceContext(mtlpp::Device MetalDevice, uint32 InDev
 		}
 	}
 	
-	if (FParse::Param(FCommandLine::Get(), TEXT("MetalIntermediateBackBuffer")) || FParse::Param(FCommandLine::Get(), TEXT("MetalOffscreenOnly")))
+    const bool bIsVisionOS = PLATFORM_VISIONOS;
+	if (bIsVisionOS || FParse::Param(FCommandLine::Get(), TEXT("MetalIntermediateBackBuffer")) || FParse::Param(FCommandLine::Get(), TEXT("MetalOffscreenOnly")))
 	{
 		GMetalSupportsIntermediateBackBuffer = 1;
 	}
@@ -662,15 +663,19 @@ void FMetalDeviceContext::EndDrawingViewport(FMetalViewport* Viewport, bool bPre
 	if (bPresent && !bOffscreenOnly)
 	{
 		
-#if PLATFORM_MAC
+#if PLATFORM_MAC || PLATFORM_VISIONOS
 		// Handle custom present
+        bool bNeedNativePresent = true;
 		FRHICustomPresent* const CustomPresent = Viewport->GetCustomPresent();
 		if (CustomPresent != nullptr)
 		{
 			int32 SyncInterval = 0;
 			{
 				SCOPE_CYCLE_COUNTER(STAT_MetalCustomPresentTime);
-				CustomPresent->Present(SyncInterval);
+                FMetalRHICommandContext* RHICommandContext = static_cast<FMetalRHICommandContext*>(RHIGetDefaultContext());
+                RHICommandContext->SetCustomPresentViewport(Viewport);
+                bNeedNativePresent = CustomPresent->Present(SyncInterval);
+                RHICommandContext->SetCustomPresentViewport(nullptr);
 			}
 			
 			mtlpp::CommandBuffer CurrentCommandBuffer = GetCurrentCommandBuffer();
@@ -683,10 +688,12 @@ void FMetalDeviceContext::EndDrawingViewport(FMetalViewport* Viewport, bool bPre
 #endif
 		
 		RenderPass.End();
-		
-		SubmitCommandsHint(EMetalSubmitFlagsForce|EMetalSubmitFlagsCreateCommandBuffer);
-		
-		Viewport->Present(GetCommandQueue(), bLockToVsync);
+		if (bNeedNativePresent)
+        {
+            SubmitCommandsHint(EMetalSubmitFlagsForce|EMetalSubmitFlagsCreateCommandBuffer);
+            
+            Viewport->Present(GetCommandQueue(), bLockToVsync);
+        }
 	}
 	
 	bPresented = bPresent;

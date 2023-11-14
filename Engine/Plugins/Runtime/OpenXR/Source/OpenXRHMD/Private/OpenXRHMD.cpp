@@ -2833,6 +2833,7 @@ void FOpenXRHMD::OnBeginRendering_RenderThread(FRHICommandListImmediate& RHICmdL
 	{
 		// Locate the views we will actually be rendering for.
 		// This is required to support late-updating the field-of-view.
+        //Note: This LocateViews happens before xrBeginFrame.  Which I don't think is correct.
 		LocateViews(PipelinedFrameStateRendering, false);
 
 		SCOPED_NAMED_EVENT(EnqueueFrame, FColor::Red);
@@ -2941,6 +2942,14 @@ void FOpenXRHMD::OnBeginRendering_GameThread()
 	// can wait for the next frame in the next tick. Without this signal it's possible that two ticks
 	// happen before the next frame is actually rendered.
 	bShouldWait = true;
+    
+    if (bIsReady && bIsRunning)
+    {
+        for (IOpenXRExtensionPlugin* Module : ExtensionPlugins)
+        {
+            Module->OnBeginRendering_GameThread(Session);
+        }
+    }
 
 	ENQUEUE_RENDER_COMMAND(TransferFrameStateToRenderingThread)(
 		[this, GameFrameState = PipelinedFrameStateGame, bBackgroundLayerVisible = IsBackgroundLayerVisible()](FRHICommandListImmediate& RHICmdList) mutable

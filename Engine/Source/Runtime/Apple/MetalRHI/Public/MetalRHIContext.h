@@ -13,6 +13,14 @@
 class FMetalDeviceContext;
 struct FMetalCommandBufferFence;
 
+#if PLATFORM_VISIONOS
+namespace MetalRHIVisionOS
+{
+    struct BeginRenderingImmersiveParams;
+    struct PresentImmersiveParams;
+}
+#endif
+
 /** The interface RHI command context. */
 class FMetalRHICommandContext : public IRHICommandContext
 {
@@ -194,6 +202,13 @@ public:
 		uint32 NumBindings, const FRayTracingLocalShaderBindings* Bindings,
 		ERayTracingBindingType BindingType) final override;
 #endif // METAL_RHI_RAYTRACING
+
+#if PLATFORM_VISIONOS
+    void BeginRenderingImmersive(const MetalRHIVisionOS::BeginRenderingImmersiveParams& Params);
+    cp_frame_t SwiftFrame = nullptr;
+#endif // PLATFORM_VISIONOS
+    void SetCustomPresentViewport(FRHIViewport* Viewport) { CustomPresentViewport = Viewport; }
+    FRHIViewport* CustomPresentViewport = nullptr;
 
 	void BeginRecursiveCommand()
 	{

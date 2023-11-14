@@ -344,10 +344,15 @@ public:
 	{
 	}
 
-	// OpenXRHMD::OnBeginRendering_GameThread
+	// OpenXRHMD::OnBeginSimulation_GameThread
 	virtual void* OnWaitFrame(XrSession InSession, void* InNext)
 	{
 		return InNext;
+	}
+
+	// OpenXRHMD::OnBeginRendering_GameThread
+	virtual void OnBeginRendering_GameThread(XrSession InSession)
+	{
 	}
 
 	// OpenXRHMD::OnBeginRendering_RenderThread

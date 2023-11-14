@@ -15,6 +15,7 @@
 #include "Containers/Set.h"
 #include "MetalProfiler.h"
 #include "RenderUtils.h"
+#include "MetalRHIVisionOSBridge.h"
 
 extern int32 GMetalSupportsIntermediateBackBuffer;
 extern int32 GMetalSeparatePresentThread;
@@ -78,13 +79,18 @@ FMetalViewport::FMetalViewport(void* WindowHandle, uint32 InSizeX, uint32 InSize
 	, bIsFullScreen{bInIsFullscreen}
 #if PLATFORM_MAC
 	, View{nullptr}
+#endif
+#if PLATFORM_MAC || PLATFORM_VISIONOS
 	, CustomPresent{nullptr}
 #endif
 {
 #if PLATFORM_VISIONOS
 	// look to see if we need to hook up to a Swift compositor renderer
 	SwiftLayer = [IOSAppDelegate GetDelegate].SwiftLayer;
-	NewFrame();
+	
+	// Get an initial Frame
+	SwiftLayerFrame = cp_layer_renderer_query_next_frame(SwiftLayer);
+	UE_LOG(LogMetalVisionOS, Verbose, TEXT("SwiftLayerFrame(0x%x) from cp_layer_renderer_query_next_frame in MetalViewport constructor"), SwiftLayerFrame);
 #endif
 
 #if PLATFORM_MAC
@@ -377,29 +383,13 @@ id<CAMetalDrawable> FMetalViewport::GetDrawable(EMetalViewportAccessFlag Accesso
 	return Drawable;
 }
 
-void FMetalViewport::NewFrame()
-{
-#if PLATFORM_VISIONOS
-	if (SwiftLayer)
-	{
-		// end the last frame if there was one
-		if (SwiftLayerFrame != nullptr)
-		{
-			cp_frame_end_submission(SwiftLayerFrame);
-		}
-		
-		// get next frame
-		SwiftLayerFrame = cp_layer_renderer_query_next_frame(SwiftLayer);
-	}
-#endif
-}
-
 FMetalTexture FMetalViewport::GetDrawableTexture(EMetalViewportAccessFlag Accessor)
 {
 #if PLATFORM_VISIONOS
 	if (SwiftLayerFrame != nullptr)
 	{
 		// get the next drawable
+		UE_LOG(LogMetalVisionOS, Verbose, TEXT("SwiftLayerFrame(0x%x) cp_frame_query_drawable in FMetalViewport::GetDrawableTexture"), SwiftLayerFrame);
 		cp_drawable_t SwiftDrawable = cp_frame_query_drawable(SwiftLayerFrame);
 		if (SwiftDrawable == nullptr)
 		{
@@ -509,17 +499,7 @@ void FMetalViewport::Present(FMetalCommandQueue& CommandQueue, bool bLockToVsync
 				FPlatformAtomics::InterlockedDecrement(&FrameAvailable);
 				id<CAMetalDrawable> LocalDrawable = [GetDrawable(EMetalViewportAccessDisplayLink) retain];
 				FMetalTexture DrawableTexture;
-#if PLATFORM_VISIONOS
-				// it seems like this should be usable in all cases, instead of LocalDrawable.texture, but it's causing View to be overwritten with the drawable, somehow!
-				if (SwiftLayer != nullptr)
-				{
-					DrawableTexture = GetDrawableTexture(EMetalViewportAccessDisplayLink);
-				}
-				else
-#endif
-				{
-					DrawableTexture = LocalDrawable.texture;
-				}
+				DrawableTexture = GetDrawableTexture(EMetalViewportAccessDisplayLink);
 				
 				{
 					FScopeLock BlockLock(&Mutex);
@@ -566,7 +546,8 @@ void FMetalViewport::Present(FMetalCommandQueue& CommandQueue, bool bLockToVsync
 							Encoder.EndEncoding();
 							METAL_DEBUG_LAYER(EMetalDebugLevelFastValidation, Debugging.EndEncoder());
 
-							mtlpp::CommandBufferHandler H = [Src, Dst](const mtlpp::CommandBuffer &) {
+							mtlpp::CommandBufferHandler H = [Src, Dst](const mtlpp::CommandBuffer &) 
+							{
 								// void
 							};
 
@@ -585,10 +566,11 @@ void FMetalViewport::Present(FMetalCommandQueue& CommandQueue, bool bLockToVsync
       
 #if PLATFORM_MAC
 						FMetalView* theView = View;
-						mtlpp::CommandBufferHandler C = [LocalDrawable, theView](const mtlpp::CommandBuffer & cmd_buf) {
+						mtlpp::CommandBufferHandler C = [LocalDrawable, theView](const mtlpp::CommandBuffer & cmd_buf) 
 #else
-						mtlpp::CommandBufferHandler C = [LocalDrawable](const mtlpp::CommandBuffer & cmd_buf) {
+						mtlpp::CommandBufferHandler C = [LocalDrawable](const mtlpp::CommandBuffer & cmd_buf) 
 #endif
+						{
 							FMetalGPUProfiler::RecordPresent(cmd_buf);
 							[LocalDrawable release];
 #if PLATFORM_MAC
@@ -668,9 +650,148 @@ void FMetalViewport::Swap()
 		BackBuffer[1] = BB0;
 	}
 	
-	// move on to next frame (only used in SwiftUI/compositor mode)
-	NewFrame();
+#if PLATFORM_VISIONOS
+	if (SwiftLayer && SwiftLayerFrame)
+	{
+		EndFrameImmersive();
+	}
+#endif
 }
+
+#if PLATFORM_VISIONOS
+void FMetalViewport::BeginRenderingImmersive(cp_frame_t SwiftFrame)
+{
+	check(SwiftFrame);
+	SwiftLayerFrame = SwiftFrame;
+	UE_LOG(LogMetalVisionOS, Verbose, TEXT("SwiftLayerFrame(0x%x) set in FMetalViewport::BeginRenderingImmersive"), SwiftLayerFrame);
+}
+
+// This is the present for Immersive visionos, through the OXRVisionOS plugin.
+void FMetalViewport::PresentImmersive(TRefCountPtr<FMetalSurface> CompleteFrame, const MetalRHIVisionOS::PresentImmersiveParams* VisionOSParams)
+{
+	check(SwiftLayer);  // If no SwiftLayer we should not be trying to be immersive.
+	check(SwiftLayerFrame);  // BeginRenderingImmersive should have set this.
+
+	FMetalRHICommandContext* Context = static_cast<FMetalRHICommandContext*>(RHIGetDefaultContext());
+	FMetalDeviceContext& DeviceContext = GetMetalDeviceContext();
+	FMetalCommandQueue& CommandQueue = DeviceContext.GetCommandQueue();
+	
+	FScopeLock Lock(&Mutex);
+
+	LastCompleteFrame = CompleteFrame;
+
+	FPlatformAtomics::InterlockedExchange(&FrameAvailable, 1);
+	
+	{
+		if (FrameAvailable > 0 )
+		{
+			FPlatformAtomics::InterlockedDecrement(&FrameAvailable);
+			id<CAMetalDrawable> LocalDrawable = [GetDrawable(EMetalViewportAccessDisplayLink) retain];
+			FMetalTexture DrawableTexture = GetDrawableTexture(EMetalViewportAccessDisplayLink);
+
+			{
+				FScopeLock BlockLock(&Mutex);
+				
+				if (DrawableTexture)
+				{
+					mtlpp::CommandBuffer CurrentCommandBuffer = CommandQueue.CreateCommandBuffer();
+					check(CurrentCommandBuffer);
+					
+#if ENABLE_METAL_GPUPROFILE
+					FMetalProfiler* Profiler = FMetalProfiler::GetProfiler();
+					FMetalCommandBufferStats* Stats = Profiler->AllocateCommandBuffer(CurrentCommandBuffer, 0);
+#endif
+
+					// TODO Currently we are using intermediate back buffer to connect the OXRVisionOS Swapchain to the drawable.
+					// I think we could use the drawable directly and avoid this copy.
+					check(GMetalSupportsIntermediateBackBuffer);
+					if (GMetalSupportsIntermediateBackBuffer)
+					{
+						TRefCountPtr<FMetalSurface> Texture = LastCompleteFrame;
+						check(IsValidRef(Texture));
+						
+						FMetalTexture Src = Texture->Texture;
+						FMetalTexture Dst = DrawableTexture;
+						
+						NSUInteger Width = FMath::Min(Src.GetWidth(), Dst.GetWidth());
+						NSUInteger Height = FMath::Min(Src.GetHeight(), Dst.GetHeight());
+						
+						mtlpp::BlitCommandEncoder Encoder = CurrentCommandBuffer.BlitCommandEncoder();
+						check(Encoder.GetPtr());
+#if MTLPP_CONFIG_VALIDATE && METAL_DEBUG_OPTIONS
+						FMetalBlitCommandEncoderDebugging Debugging;
+						if (SafeGetRuntimeDebuggingLevel() >= EMetalDebugLevelFastValidation)
+						{
+							FMetalCommandBufferDebugging CmdDebug = FMetalCommandBufferDebugging::Get(CurrentCommandBuffer);
+							Debugging = FMetalBlitCommandEncoderDebugging(Encoder, CmdDebug);
+						}
+#endif
+						METAL_GPUPROFILE(Profiler->EncodeBlit(Stats, __FUNCTION__));
+
+						Encoder.Copy(Src, 0, 0, mtlpp::Origin(0, 0, 0), mtlpp::Size(Width, Height, 1), Dst, 0, 0, mtlpp::Origin(0, 0, 0));
+						METAL_DEBUG_LAYER(EMetalDebugLevelFastValidation, Debugging.Copy(Src, 0, 0, mtlpp::Origin(0, 0, 0), mtlpp::Size(Width, Height, 1), Dst, 0, 0, mtlpp::Origin(0, 0, 0)));
+
+						Encoder.EndEncoding();
+						METAL_DEBUG_LAYER(EMetalDebugLevelFastValidation, Debugging.EndEncoder());
+
+						mtlpp::CommandBufferHandler H = [Src, Dst](const mtlpp::CommandBuffer &) 
+						{
+							// void
+						};
+
+						CurrentCommandBuffer.AddCompletedHandler(H);
+
+						[Drawable release];
+						Drawable = nil;
+					}
+					
+					// This is a bit different than the usual pattern.
+					// This command buffer here is committed directly, instead of going through
+					// FMetalCommandList::Commit. So long as Present() is called within
+					// high level RHI BeginFrame/EndFrame this will not fine.
+					// Otherwise the recording of the Present time will be offset by one in the
+					// FMetalGPUProfiler frame indices.
+  
+					mtlpp::CommandBufferHandler C = [LocalDrawable](const mtlpp::CommandBuffer & cmd_buf) 
+					{
+						FMetalGPUProfiler::RecordPresent(cmd_buf);
+						[LocalDrawable release];
+					};
+					
+					CurrentCommandBuffer.AddCompletedHandler(C);
+
+					if (SwiftLayerFrame != nullptr)
+					{
+						if (VisionOSParams)
+						{
+							UE_LOG(LogMetalVisionOS, Verbose, TEXT("SwiftDrawable(0x%x) cp_drawable_encode_present in FMetalViewport::PresentImmersive"), VisionOSParams->SwiftDrawable);
+							cp_drawable_encode_present(VisionOSParams->SwiftDrawable, CurrentCommandBuffer.GetPtr());
+						}
+					}
+
+					METAL_GPUPROFILE(Stats->End(CurrentCommandBuffer));
+					CommandQueue.CommitCommandBuffer(CurrentCommandBuffer);
+				}
+			}
+		}
+	}
+	
+	EndFrameImmersive();
+}
+
+void FMetalViewport::EndFrameImmersive()
+{
+	check(SwiftLayer);
+	check(SwiftLayerFrame);
+	
+	// end the last frame
+	UE_LOG(LogMetalVisionOS, Verbose, TEXT("SwiftLayerFrame(0x%x) cp_frame_end_submission in FMetalViewport::EndFrameImmersive"), SwiftLayerFrame);
+	cp_frame_end_submission(SwiftLayerFrame);
+	UE_LOG(LogMetalVisionOS, Verbose, TEXT("SwiftLayerFrame nulled in FMetalViewport::EndFrame()"));
+	SwiftLayerFrame = nullptr;
+}
+#endif
+
 
 /*=============================================================================
  *	The following RHI functions must be called from the main thread.
@@ -717,7 +838,14 @@ void FMetalRHIImmediateCommandContext::RHIBeginDrawingViewport(FRHIViewport* Vie
 	@autoreleasepool {
 	FMetalViewport* Viewport = ResourceCast(ViewportRHI);
 	check(Viewport);
-
+	 
+#if PLATFORM_VISIONOS
+		if (SwiftFrame)
+		{
+			Viewport->BeginRenderingImmersive(SwiftFrame);
+		}
+#endif
+		
 	((FMetalDeviceContext*)Context)->BeginDrawingViewport(Viewport);
 
 	// Set the render target and viewport.
