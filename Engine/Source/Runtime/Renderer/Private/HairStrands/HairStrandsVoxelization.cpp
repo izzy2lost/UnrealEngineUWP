@@ -277,6 +277,7 @@ class FVoxelMarkValidPageIndex_PrepareCS : public FGlobalShader
 	using FPermutationDomain = TShaderPermutationDomain<FUseCluster>;
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER(uint32, InstanceRegisteredIndex)
 		SHADER_PARAMETER(uint32, MaxClusterCount)
 		SHADER_PARAMETER(uint32, MacroGroupId)
 		SHADER_PARAMETER(uint32, bUseMacroGroupBoundCPU)
@@ -674,6 +675,7 @@ static void AddAllocateVoxelPagesPass(
 				const bool bUseClusterAABB = HairGroupData->GetClusterAABBValid() && bIsGPUDriven;
 				
 				FVoxelMarkValidPageIndex_PrepareCS::FParameters* Parameters = GraphBuilder.AllocParameters<FVoxelMarkValidPageIndex_PrepareCS::FParameters>();
+				Parameters->InstanceRegisteredIndex						= HairGroupData->Instance->RegisteredIndex;
 				Parameters->MaxClusterCount								= HairGroupData->GetClusterCount();
 				Parameters->MacroGroupId								= MacroGroup.MacroGroupId;
 				Parameters->GroupAABBsBuffer							= TransientResources.GroupAABBSRV;

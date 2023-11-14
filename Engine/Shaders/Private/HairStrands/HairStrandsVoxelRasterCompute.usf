@@ -159,6 +159,7 @@ void AllocatePageIndex(uint2 DispatchThreadId : SV_DispatchThreadID)
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
 #if SHADER_MARKVALID_PREPARE
+uint 			InstanceRegisteredIndex;
 uint			MaxClusterCount;
 uint			MacroGroupId;
 uint			bUseMacroGroupBoundCPU;
@@ -273,7 +274,7 @@ void MarkValid_PrepareCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 	else
 	{
 		MacroGroupBound = ReadHairAABB(MacroGroupId, MacroGroupVoxelAlignedAABBBuffer);
-		GroupBound = ReadHairAABB(0, GroupAABBsBuffer);
+		GroupBound = ReadHairAABB(InstanceRegisteredIndex, GroupAABBsBuffer);
 	}
 
 	const uint3 MinCoord = PositionToCoord(GroupBound.Min, MacroGroupBound.Min, MacroGroupBound.Max, PageIndexResolution);
