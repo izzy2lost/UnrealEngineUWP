@@ -33,7 +33,7 @@ bool FWorldPartitionResolveData::ResolveObject(UWorld* InWorld, const FSoftObjec
 	OutObject = nullptr;
 	if (InWorld)
 	{
-		if (IsValid() && SourceWorldAssetPath == InObjectPath.GetAssetPath().ToString())
+		if (IsValid() && SourceWorldAssetPath == InObjectPath.GetAssetPath())
 		{
 			const FString SubPathString = FWorldPartitionLevelHelper::AddActorContainerIDToSubPathString(ContainerID, InObjectPath.GetSubPathString());
 			// We don't read the return value as we always want to return true when using the resolve data.
@@ -575,7 +575,7 @@ bool FWorldPartitionLevelHelper::LoadActors(const FLoadActorsParams& InParams)
 
 					if (IWorldPartitionObjectResolver* ObjectResolver = Cast<IWorldPartitionObjectResolver>(Actor))
 					{
-						ObjectResolver->SetWorldPartitionResolveData(FWorldPartitionResolveData(PackageObjectMapping->ContainerID, SourceWorldPath));
+						ObjectResolver->SetWorldPartitionResolveData(FWorldPartitionResolveData(PackageObjectMapping->ContainerID, FTopLevelAssetPath(SourceWorldPath)));
 					}
 				}
 

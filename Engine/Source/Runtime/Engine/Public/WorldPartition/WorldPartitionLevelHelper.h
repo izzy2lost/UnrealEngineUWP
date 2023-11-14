@@ -20,8 +20,9 @@ struct FActorContainerID;
 class FWorldPartitionLevelHelper
 {
 public:
-	static FString AddActorContainerIDToSubPathString(const FActorContainerID& InContainerID, const FString& InSubPathString);
-	static FString AddActorContainerID(const FActorContainerID& InContainerID, const FString& InActorName);
+	ENGINE_API static FString AddActorContainerIDToSubPathString(const FActorContainerID& InContainerID, const FString& InSubPathString);
+	ENGINE_API static FString AddActorContainerID(const FActorContainerID& InContainerID, const FString& InActorName);
+
 #if WITH_EDITOR
 public:
 	static FWorldPartitionLevelHelper& Get();
