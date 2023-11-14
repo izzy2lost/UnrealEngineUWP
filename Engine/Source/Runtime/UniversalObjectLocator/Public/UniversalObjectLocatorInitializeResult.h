@@ -41,7 +41,7 @@ struct FInitializeResult
 
 		FInitializeResult Result;
 		Result.RelativeToContext = InRelativeToContext;
-		Result.Type = ELocatorType::Absolute;
+		Result.Type = ELocatorType::Relative;
 		return Result;
 	}
 
