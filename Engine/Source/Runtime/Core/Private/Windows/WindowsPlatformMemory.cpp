@@ -26,6 +26,7 @@
 #include "Misc/OutputDeviceRedirector.h"
 #include "Stats/Stats.h"
 #include "Windows/AllowWindowsPlatformTypes.h"
+#include "ProfilingDebugging/CsvProfiler.h"
 
 #include <MemoryApi.h> // Include after AllowWindowsPlatformTypes.h
 
@@ -46,6 +47,7 @@
 
 DECLARE_MEMORY_STAT(TEXT("Windows Specific Memory Stat"),	STAT_WindowsSpecificMemoryStat, STATGROUP_MemoryPlatform);
 
+CSV_DECLARE_CATEGORY_EXTERN(FMemory);
 
 static int32 GWindowsPlatformMemoryGetStatsLimitTotalGB = 0;
 static FAutoConsoleVariableRef CVarLogPlatformMemoryStats(
@@ -440,6 +442,15 @@ bool FWindowsPlatformMemory::PageProtect(void* const Ptr, const SIZE_T Size, con
 }
 void* FWindowsPlatformMemory::BinnedAllocFromOS( SIZE_T Size )
 {
+#if UE_ENABLE_PLATFORM_MEMORY_CSV_STATS
+	const bool bIsInGameThread = IsInGameThread();
+	CSV_SCOPED_TIMING_STAT_RECURSIVE_CONDITIONAL(FMemory, BinnedAllocFromOSTime, bIsInGameThread);
+	if (bIsInGameThread)
+	{
+		CSV_CUSTOM_STAT(FMemory, BinnedAllocFromOSCount, 1, ECsvCustomStatOp::Accumulate);
+	}
+#endif // UE_ENABLE_PLATFORM_MEMORY_CSV_STATS
+
 #if UE_CHECK_LARGE_ALLOCATIONS
 	if (UE::Memory::Private::GEnableLargeAllocationChecks)
 	{
@@ -477,6 +488,15 @@ size_t FWindowsPlatformMemory::FPlatformVirtualMemoryBlock::GetCommitAlignment()
 
 FWindowsPlatformMemory::FPlatformVirtualMemoryBlock FWindowsPlatformMemory::FPlatformVirtualMemoryBlock::AllocateVirtual(size_t InSize, size_t InAlignment)
 {
+#if UE_ENABLE_PLATFORM_MEMORY_CSV_STATS
+	const bool bIsInGameThread = IsInGameThread();
+	CSV_SCOPED_TIMING_STAT_RECURSIVE_CONDITIONAL(FMemory, AllocateVirtualTime, bIsInGameThread);
+	if (bIsInGameThread)
+	{
+		CSV_CUSTOM_STAT(FMemory, AllocateVirtualCount, 1, ECsvCustomStatOp::Accumulate);
+	}
+#endif // UE_ENABLE_PLATFORM_MEMORY_CSV_STATS
+
 	FPlatformVirtualMemoryBlock Result;
 	InSize = Align(InSize, GetVirtualSizeAlignment());
 	Result.VMSizeDivVirtualSizeAlignment = InSize / GetVirtualSizeAlignment();

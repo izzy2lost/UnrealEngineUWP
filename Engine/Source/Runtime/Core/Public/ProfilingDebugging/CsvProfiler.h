@@ -65,6 +65,14 @@ struct FCsvDeclaredStat;
 #define CSV_SCOPED_TIMING_STAT_EXCLUSIVE_CONDITIONAL(StatName,Condition) \
 	TRACE_CSV_PROFILER_INLINE_STAT_EXCLUSIVE(#StatName); \
 	FScopedCsvStatExclusiveConditional _ScopedCsvStatExclusive_ ## StatName (#StatName,Condition, "CSV_"#StatName);
+#define CSV_SCOPED_TIMING_STAT_RECURSIVE(Category,StatName) \
+	TRACE_CSV_PROFILER_INLINE_STAT(#StatName, CSV_CATEGORY_INDEX(Category)); \
+	static int32 _ScopedCsvStatRecursive_EntryCount_ ## StatName = 0; \
+	FScopedCsvStatRecursive _ScopedCsvStatRecursive_ ## StatName (_ScopedCsvStatRecursive_EntryCount_ ## StatName, #StatName, CSV_CATEGORY_INDEX(Category), "CSV_"#StatName);
+#define CSV_SCOPED_TIMING_STAT_RECURSIVE_CONDITIONAL(Category,StatName,Condition) \
+	TRACE_CSV_PROFILER_INLINE_STAT(#StatName, CSV_CATEGORY_INDEX(Category)); \
+	static int32 _ScopedCsvStatRecursive_EntryCount_ ## StatName = 0; \
+	FScopedCsvStatRecursiveConditional _ScopedCsvStatRecursive_ ## StatName (_ScopedCsvStatRecursive_EntryCount_ ## StatName, #StatName, CSV_CATEGORY_INDEX(Category), Condition, "CSV_"#StatName);
 
 #define CSV_SCOPED_WAIT(WaitTime)							FScopedCsvWaitConditional _ScopedCsvWait(WaitTime>0 && FCsvProfiler::IsWaitTrackingEnabledOnCurrentThread());
 #define CSV_SCOPED_WAIT_CONDITIONAL(Condition)				FScopedCsvWaitConditional _ScopedCsvWait(Condition);
@@ -116,6 +124,8 @@ struct FCsvDeclaredStat;
   #define CSV_SCOPED_TIMING_STAT_GLOBAL(StatName)					
   #define CSV_SCOPED_TIMING_STAT_EXCLUSIVE(StatName)
   #define CSV_SCOPED_TIMING_STAT_EXCLUSIVE_CONDITIONAL(StatName,Condition)
+  #define CSV_SCOPED_TIMING_STAT_RECURSIVE(Category,StatName)
+  #define CSV_SCOPED_TIMING_STAT_RECURSIVE_CONDITIONAL(Category,StatName,Condition)
   #define CSV_SCOPED_WAIT(WaitTime)
   #define CSV_SCOPED_WAIT_CONDITIONAL(Condition)
   #define CSV_SCOPED_SET_WAIT_STAT(StatName)
@@ -575,6 +585,68 @@ public:
 	}
 	const char * StatName;
 	bool bCondition;
+};
+
+class FScopedCsvStatRecursive
+{
+	const char* StatName;
+	uint32 CategoryIndex;
+	int32& EntryCounter;
+public:
+	FScopedCsvStatRecursive(int32& InEntryCounter, const char* InStatName, uint32 InCategoryIndex, const char* InNamedEventName = nullptr)
+		: StatName(InStatName)
+		, CategoryIndex(InCategoryIndex)
+		, EntryCounter(InEntryCounter)
+	{
+		++EntryCounter; // this needs to happen before BeginStat in case BeginStat causes reentry
+		if (EntryCounter == 1)
+		{
+			FCsvProfiler::BeginStat(StatName, CategoryIndex, InNamedEventName);
+		}
+	}
+	~FScopedCsvStatRecursive()
+	{
+		if (EntryCounter == 1)
+		{
+			FCsvProfiler::EndStat(StatName, CategoryIndex);
+		}
+		--EntryCounter;
+	}
+};
+
+class FScopedCsvStatRecursiveConditional
+{
+	const char* StatName;
+	uint32 CategoryIndex;
+	int32& EntryCounter;
+	bool bCondition;
+public:
+	FScopedCsvStatRecursiveConditional(int32& InEntryCounter, const char* InStatName, uint32 InCategoryIndex, bool bInCondition, const char* InNamedEventName = nullptr)
+		: StatName(InStatName)
+		, CategoryIndex(InCategoryIndex)
+		, EntryCounter(InEntryCounter)
+		, bCondition(bInCondition)
+	{
+		if (bCondition)
+		{
+			++EntryCounter; // this needs to happen before BeginStat in case BeginStat causes reentry
+			if (EntryCounter == 1)
+			{
+				FCsvProfiler::BeginStat(StatName, CategoryIndex, InNamedEventName);
+			}
+		}
+	}
+	~FScopedCsvStatRecursiveConditional()
+	{
+		if (bCondition)
+		{
+			if (EntryCounter == 1)
+			{
+				FCsvProfiler::EndStat(StatName, CategoryIndex);
+			}
+			--EntryCounter;
+		}
+	}
 };
 
 class FScopedCsvWaitConditional

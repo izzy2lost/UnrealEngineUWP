@@ -22,6 +22,7 @@
 #include "HAL/MallocReplayProxy.h"
 #include "HAL/MallocStomp.h"
 #include "HAL/PlatformMallocCrash.h"
+#include "ProfilingDebugging/CsvProfiler.h"
 
 #include <sys/sysinfo.h>
 #include <sys/file.h>
@@ -93,6 +94,8 @@ namespace
 	const int32 MaximumAllowedMaxNumFileMappingCache = 1000000;
 	bool GEnableProtectForkedPages = false;
 }
+
+CSV_DECLARE_CATEGORY_EXTERN(FMemory);
 
 /** Controls growth of pools - see PooledVirtualMemoryAllocator.cpp */
 extern float GVMAPoolScale;
@@ -428,6 +431,15 @@ struct FOSAllocationDescriptor
 
 void* FUnixPlatformMemory::BinnedAllocFromOS(SIZE_T Size)
 {
+#if UE_ENABLE_PLATFORM_MEMORY_CSV_STATS
+	const bool bIsInGameThread = IsInGameThread();
+	CSV_SCOPED_TIMING_STAT_RECURSIVE_CONDITIONAL(FMemory, BinnedAllocFromOSTime, bIsInGameThread);
+	if (bIsInGameThread)
+	{
+		CSV_CUSTOM_STAT(FMemory, BinnedAllocFromOSCount, 1, ECsvCustomStatOp::Accumulate);
+	}
+#endif // UE_ENABLE_PLATFORM_MEMORY_CSV_STATS
+
 #if UE_CHECK_LARGE_ALLOCATIONS
 	if (UE::Memory::Private::GEnableLargeAllocationChecks)
 	{
@@ -618,6 +630,15 @@ size_t FUnixPlatformMemory::FPlatformVirtualMemoryBlock::GetCommitAlignment()
 
 FUnixPlatformMemory::FPlatformVirtualMemoryBlock FUnixPlatformMemory::FPlatformVirtualMemoryBlock::AllocateVirtual(size_t InSize, size_t InAlignment)
 {
+#if UE_ENABLE_PLATFORM_MEMORY_CSV_STATS
+	const bool bIsInGameThread = IsInGameThread();
+	CSV_SCOPED_TIMING_STAT_RECURSIVE_CONDITIONAL(FMemory, AllocateVirtualTime, bIsInGameThread);
+	if (bIsInGameThread)
+	{
+		CSV_CUSTOM_STAT(FMemory, AllocateVirtualCount, 1, ECsvCustomStatOp::Accumulate);
+	}
+#endif // UE_ENABLE_PLATFORM_MEMORY_CSV_STATS
+
 	FPlatformVirtualMemoryBlock Result;
 	InSize = Align(InSize, GetVirtualSizeAlignment());
 	Result.VMSizeDivVirtualSizeAlignment = InSize / GetVirtualSizeAlignment();
