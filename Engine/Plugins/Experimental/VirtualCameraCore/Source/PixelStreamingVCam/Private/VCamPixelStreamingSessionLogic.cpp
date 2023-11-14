@@ -378,7 +378,7 @@ namespace UE::PixelStreamingVCam::Private
 																							EType::Double });
 
 			const TWeakObjectPtr<UVCamPixelStreamingSession> WeakThisPtr = This;
-			const TFunction<void(FMemoryReader)> ARKitHandler = [WeakThisPtr](FMemoryReader Ar)
+			const IPixelStreamingInputHandler::MessageHandlerFn ARKitHandler = [WeakThisPtr](FString PlayerId, FMemoryReader Ar)
 			{
 				if (!WeakThisPtr.IsValid() || !WeakThisPtr->EnableARKitTracking)
 				{

@@ -53,39 +53,39 @@ namespace UE::PixelStreamingInput
 		// Register this input handler as an IMotionController. The module handles the registering as an IInputDevice
 		IModularFeatures::Get().RegisterModularFeature(GetModularFeatureName(), this);
 
-		RegisterMessageHandler("KeyPress", [this](FMemoryReader Ar) { HandleOnKeyChar(Ar); });
-		RegisterMessageHandler("KeyUp", [this](FMemoryReader Ar) { HandleOnKeyUp(Ar); });
-		RegisterMessageHandler("KeyDown", [this](FMemoryReader Ar) { HandleOnKeyDown(Ar); });
+		RegisterMessageHandler("KeyPress", [this](FString SourceId, FMemoryReader Ar) { HandleOnKeyChar(Ar); });
+		RegisterMessageHandler("KeyUp", [this](FString SourceId, FMemoryReader Ar) { HandleOnKeyUp(Ar); });
+		RegisterMessageHandler("KeyDown", [this](FString SourceId, FMemoryReader Ar) { HandleOnKeyDown(Ar); });
 
-		RegisterMessageHandler("TouchStart", [this](FMemoryReader Ar) { HandleOnTouchStarted(Ar); });
-		RegisterMessageHandler("TouchMove", [this](FMemoryReader Ar) { HandleOnTouchMoved(Ar); });
-		RegisterMessageHandler("TouchEnd", [this](FMemoryReader Ar) { HandleOnTouchEnded(Ar); });
+		RegisterMessageHandler("TouchStart", [this](FString SourceId, FMemoryReader Ar) { HandleOnTouchStarted(Ar); });
+		RegisterMessageHandler("TouchMove", [this](FString SourceId, FMemoryReader Ar) { HandleOnTouchMoved(Ar); });
+		RegisterMessageHandler("TouchEnd", [this](FString SourceId, FMemoryReader Ar) { HandleOnTouchEnded(Ar); });
 
-		RegisterMessageHandler("GamepadConnected", [this](FMemoryReader Ar) { HandleOnControllerConnected(Ar); });
-		RegisterMessageHandler("GamepadAnalog", [this](FMemoryReader Ar) { HandleOnControllerAnalog(Ar); });
-		RegisterMessageHandler("GamepadButtonPressed", [this](FMemoryReader Ar) { HandleOnControllerButtonPressed(Ar); });
-		RegisterMessageHandler("GamepadButtonReleased", [this](FMemoryReader Ar) { HandleOnControllerButtonReleased(Ar); });
-		RegisterMessageHandler("GamepadDisconnected", [this](FMemoryReader Ar) { HandleOnControllerDisconnected(Ar); });
+		RegisterMessageHandler("GamepadConnected", [this](FString SourceId, FMemoryReader Ar) { HandleOnControllerConnected(Ar); });
+		RegisterMessageHandler("GamepadAnalog", [this](FString SourceId, FMemoryReader Ar) { HandleOnControllerAnalog(Ar); });
+		RegisterMessageHandler("GamepadButtonPressed", [this](FString SourceId, FMemoryReader Ar) { HandleOnControllerButtonPressed(Ar); });
+		RegisterMessageHandler("GamepadButtonReleased", [this](FString SourceId, FMemoryReader Ar) { HandleOnControllerButtonReleased(Ar); });
+		RegisterMessageHandler("GamepadDisconnected", [this](FString SourceId, FMemoryReader Ar) { HandleOnControllerDisconnected(Ar); });
 
-		RegisterMessageHandler("MouseEnter", [this](FMemoryReader Ar) { HandleOnMouseEnter(Ar); });
-		RegisterMessageHandler("MouseLeave", [this](FMemoryReader Ar) { HandleOnMouseLeave(Ar); });
-		RegisterMessageHandler("MouseUp", [this](FMemoryReader Ar) { HandleOnMouseUp(Ar); });
-		RegisterMessageHandler("MouseDown", [this](FMemoryReader Ar) { HandleOnMouseDown(Ar); });
-		RegisterMessageHandler("MouseMove", [this](FMemoryReader Ar) { HandleOnMouseMove(Ar); });
-		RegisterMessageHandler("MouseWheel", [this](FMemoryReader Ar) { HandleOnMouseWheel(Ar); });
-		RegisterMessageHandler("MouseDouble", [this](FMemoryReader Ar) { HandleOnMouseDoubleClick(Ar); });
+		RegisterMessageHandler("MouseEnter", [this](FString SourceId, FMemoryReader Ar) { HandleOnMouseEnter(Ar); });
+		RegisterMessageHandler("MouseLeave", [this](FString SourceId, FMemoryReader Ar) { HandleOnMouseLeave(Ar); });
+		RegisterMessageHandler("MouseUp", [this](FString SourceId, FMemoryReader Ar) { HandleOnMouseUp(Ar); });
+		RegisterMessageHandler("MouseDown", [this](FString SourceId, FMemoryReader Ar) { HandleOnMouseDown(Ar); });
+		RegisterMessageHandler("MouseMove", [this](FString SourceId, FMemoryReader Ar) { HandleOnMouseMove(Ar); });
+		RegisterMessageHandler("MouseWheel", [this](FString SourceId, FMemoryReader Ar) { HandleOnMouseWheel(Ar); });
+		RegisterMessageHandler("MouseDouble", [this](FString SourceId, FMemoryReader Ar) { HandleOnMouseDoubleClick(Ar); });
 
-		RegisterMessageHandler("XRHMDTransform", [this](FMemoryReader Ar) { HandleOnXRHMDTransform(Ar); });
-		RegisterMessageHandler("XRControllerTransform", [this](FMemoryReader Ar) { HandleOnXRControllerTransform(Ar); });
-		RegisterMessageHandler("XRButtonPressed", [this](FMemoryReader Ar) { HandleOnXRButtonPressed(Ar); });
-		RegisterMessageHandler("XRButtonTouched", [this](FMemoryReader Ar) { HandleOnXRButtonTouched(Ar); });
-		RegisterMessageHandler("XRButtonReleased", [this](FMemoryReader Ar) { HandleOnXRButtonReleased(Ar); });
-		RegisterMessageHandler("XRAnalog", [this](FMemoryReader Ar) { HandleOnXRAnalog(Ar); });
-		RegisterMessageHandler("XRSystem", [this](FMemoryReader Ar) { HandleOnXRSystem(Ar); });
+		RegisterMessageHandler("XRHMDTransform", [this](FString SourceId, FMemoryReader Ar) { HandleOnXRHMDTransform(Ar); });
+		RegisterMessageHandler("XRControllerTransform", [this](FString SourceId, FMemoryReader Ar) { HandleOnXRControllerTransform(Ar); });
+		RegisterMessageHandler("XRButtonPressed", [this](FString SourceId, FMemoryReader Ar) { HandleOnXRButtonPressed(Ar); });
+		RegisterMessageHandler("XRButtonTouched", [this](FString SourceId, FMemoryReader Ar) { HandleOnXRButtonTouched(Ar); });
+		RegisterMessageHandler("XRButtonReleased", [this](FString SourceId, FMemoryReader Ar) { HandleOnXRButtonReleased(Ar); });
+		RegisterMessageHandler("XRAnalog", [this](FString SourceId, FMemoryReader Ar) { HandleOnXRAnalog(Ar); });
+		RegisterMessageHandler("XRSystem", [this](FString SourceId, FMemoryReader Ar) { HandleOnXRSystem(Ar); });
 
-		RegisterMessageHandler("Command", [this](FMemoryReader Ar) { HandleOnCommand(Ar); });
-		RegisterMessageHandler("UIInteraction", [this](FMemoryReader Ar) { HandleUIInteraction(Ar); });
-		RegisterMessageHandler("TextboxEntry", [this](FMemoryReader Ar) { HandleOnTextboxEntry(Ar); });
+		RegisterMessageHandler("Command", [this](FString SourceId, FMemoryReader Ar) { HandleOnCommand(SourceId, Ar); });
+		RegisterMessageHandler("UIInteraction", [this](FString SourceId, FMemoryReader Ar) { HandleUIInteraction(Ar); });
+		RegisterMessageHandler("TextboxEntry", [this](FString SourceId, FMemoryReader Ar) { HandleOnTextboxEntry(Ar); });
 
 		// Populate map
 		// Button indices found in: https://github.com/immersive-web/webxr-input-profiles/tree/master/packages/registry/profiles
@@ -186,12 +186,12 @@ namespace UE::PixelStreamingInput
 	{
 	}
 
-	void FPixelStreamingInputHandler::RegisterMessageHandler(const FString& MessageType, const TFunction<void(FMemoryReader)>& Handler)
+	void FPixelStreamingInputHandler::RegisterMessageHandler(const FString& MessageType, const MessageHandlerFn& Handler)
 	{
 		DispatchTable.Add(FPixelStreamingInputProtocol::ToStreamerProtocol.Find(MessageType)->GetID(), Handler);
 	}
 
-	TFunction<void(FMemoryReader)> FPixelStreamingInputHandler::FindMessageHandler(const FString& MessageType)
+	IPixelStreamingInputHandler::MessageHandlerFn FPixelStreamingInputHandler::FindMessageHandler(const FString& MessageType)
 	{
 		return DispatchTable.FindRef(FPixelStreamingInputProtocol::ToStreamerProtocol.Find(MessageType)->GetID());
 	}
@@ -272,24 +272,25 @@ namespace UE::PixelStreamingInput
 		while (Messages.Dequeue(Message))
 		{
 			FMemoryReader Ar(Message.Data);
-			(*Message.Handler)(Ar);
+			(*Message.Handler)(Message.SourceId, Ar);
 		}
 		
 		ProcessLatestAnalogInputFromThisTick();
 		BroadcastActiveTouchMoveEvents();
 	}
 
-	void FPixelStreamingInputHandler::OnMessage(TArray<uint8> Buffer)
+	void FPixelStreamingInputHandler::OnMessage(FString SourceId, TArray<uint8> Buffer)
 	{
 		uint8 MessageType = Buffer[0];
 		// Remove the message type. The remaining data in the buffer is now purely
 		// the message data
 		Buffer.RemoveAt(0);
 
-		TFunction<void(FMemoryReader)>* Handler = DispatchTable.Find(MessageType);
+		TFunction<void(FString, FMemoryReader)>* Handler = DispatchTable.Find(MessageType);
 		if (Handler != nullptr)
 		{
 			FMessage Message = {
+				SourceId, // Who sent this message
 				Handler, // The function to call
 				Buffer	 // The message data
 			};
@@ -1082,28 +1083,39 @@ namespace UE::PixelStreamingInput
 		IPixelStreamingHMDModule::Get().SetActiveXRSystem(static_cast<XRSystem>(ActiveSystem));
 	}
 
-	void FPixelStreamingInputHandler::SetCommandHandler(const FString& CommandName, const TFunction<void(FString, FString)>& Handler)
+	void FPixelStreamingInputHandler::SetCommandHandler(const FString& CommandName, const CommandHandlerFn& Handler)
 	{
 		CommandHandlers.Add(CommandName, Handler);
 	}
 
+	void FPixelStreamingInputHandler::SetElevatedCheck(const TFunction<bool(FString)>& CheckFn)
+	{
+		ElevatedCheck = CheckFn;
+	}
+
+	bool FPixelStreamingInputHandler::IsElevated(const FString& Id)
+	{
+		return !ElevatedCheck || ElevatedCheck(Id);
+	}
+
 	void FPixelStreamingInputHandler::PopulateDefaultCommandHandlers()
 	{
-
 		// Execute console commands if passed "ConsoleCommand" and -PixelStreamingAllowConsoleCommands is on.
-		CommandHandlers.Add(TEXT("ConsoleCommand"), [](FString Descriptor, FString ConsoleCommand) {
-			if (!UE::PixelStreamingInput::Settings::CVarPixelStreamingInputAllowConsoleCommands.GetValueOnAnyThread())
+		CommandHandlers.Add(TEXT("ConsoleCommand"), [this](FString SourceId, FString Descriptor, FString ConsoleCommand) {
+			if (!UE::PixelStreamingInput::Settings::CVarPixelStreamingInputAllowConsoleCommands.GetValueOnAnyThread()
+				|| !IsElevated(SourceId))
 			{
 				return;
 			}
-			GEngine->Exec(GEngine->GetWorld(), *ConsoleCommand); });
+			GEngine->Exec(GEngine->GetWorld(), *ConsoleCommand);
+		});
 
 		// Change width/height if sent { "Resolution.Width": 1920, "Resolution.Height": 1080 }
-		CommandHandlers.Add(TEXT("Resolution.Width"), [](FString Descriptor, FString WidthString) {
+		CommandHandlers.Add(TEXT("Resolution.Width"), [this](FString SourceId, FString Descriptor, FString WidthString) {
 			bool bSuccess = false;
 			FString HeightString;
 			UE::PixelStreamingInput::ExtractJsonFromDescriptor(Descriptor, TEXT("Resolution.Height"), HeightString, bSuccess);
-			if (bSuccess)
+			if (bSuccess && IsElevated(SourceId))
 			{
 				int Width = FCString::Atoi(*WidthString);
 				int Height = FCString::Atoi(*HeightString);
@@ -1114,18 +1126,20 @@ namespace UE::PixelStreamingInput
 
 				FString ChangeResCommand = FString::Printf(TEXT("r.SetRes %dx%d"), Width, Height);
 				GEngine->Exec(GEngine->GetWorld(), *ChangeResCommand);
-			} });
+			}
+		});
 
 		// Response to "Stat.FPS" by calling "stat fps"
-		CommandHandlers.Add(TEXT("Stat.FPS"), [](FString Descriptor, FString FPSCommand) {
+		CommandHandlers.Add(TEXT("Stat.FPS"), [](FString SourceId, FString Descriptor, FString FPSCommand) {
 			FString StatFPSCommand = FString::Printf(TEXT("stat fps"));
-			GEngine->Exec(GEngine->GetWorld(), *StatFPSCommand); });
+			GEngine->Exec(GEngine->GetWorld(), *StatFPSCommand);
+		});
 	}
 
 	/**
 	 * Command handling
 	 */
-	void FPixelStreamingInputHandler::HandleOnCommand(FMemoryReader Ar)
+	void FPixelStreamingInputHandler::HandleOnCommand(FString SourceId, FMemoryReader Ar)
 	{
 		FString Res;
 		Res.GetCharArray().SetNumUninitialized(Ar.TotalSize() / 2 + 1);
@@ -1143,7 +1157,7 @@ namespace UE::PixelStreamingInput
 			if (bSuccess)
 			{
 				// Execute bound command handler with descriptor and parsed command value
-				CommandHandlersPair.Value(Descriptor, CommandValue);
+				CommandHandlersPair.Value(SourceId, Descriptor, CommandValue);
 				return;
 			}
 		}

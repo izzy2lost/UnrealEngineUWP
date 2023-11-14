@@ -36,6 +36,7 @@
 #include "PixelCaptureInputFrameRHI.h"
 #include "SignallingConnectionObserver.h"
 #include "ToStringExtensions.h"
+#include "Settings.h"
 
 namespace UE::PixelStreaming
 {
@@ -57,6 +58,10 @@ namespace UE::PixelStreaming
 
 		SignallingServerConnection = MakeShared<FPixelStreamingSignallingConnection>(Observer, InStreamerId);
 		SignallingServerConnection->SetAutoReconnect(true);
+
+		InputHandler->SetElevatedCheck([this](FString PlayerId) {
+			return QualityControllingId == INVALID_PLAYER_ID || PlayerId == QualityControllingId;
+		});
 	}
 
 	FStreamer::~FStreamer()
@@ -880,13 +885,11 @@ namespace UE::PixelStreaming
 		}
 		else if (!IsEngineExitRequested())
 		{
-			if (Settings::GetInputControllerMode() == Settings::EInputControllerMode::Host)
+			// If we are in "Host" mode and the current peer is not the host, then discard this input.
+			if (Settings::GetInputControllerMode() == Settings::EInputControllerMode::Host
+				&& InputControllingId != PlayerId)
 			{
-				// If we are in "Host" mode and the current peer is not the host, then discard this input.
-				if (InputControllingId != PlayerId)
-				{
-					return;
-				}
+				return;
 			}
 
 			TArray<uint8> MessageData(RawBuffer.data.data(), RawBuffer.data.size());
@@ -894,7 +897,7 @@ namespace UE::PixelStreaming
 
 			if (InputHandler)
 			{
-				InputHandler->OnMessage(MessageData);
+				InputHandler->OnMessage(PlayerId, MessageData);
 			}
 		}
 	}
@@ -1143,7 +1146,7 @@ namespace UE::PixelStreaming
 			// Force a MouseLeave event. This prevents the PixelStreamingApplicationWrapper from
 			// still wrapping the base FSlateApplication after we stop streaming
 			TArray<uint8> EmptyArray;
-			TFunction<void(FMemoryReader)> MouseLeaveHandler = InputHandler->FindMessageHandler("MouseLeave");
+			TFunction<void(FString, FMemoryReader)> MouseLeaveHandler = InputHandler->FindMessageHandler("MouseLeave");
 			// MouseLeaveHandler(FMemoryReader(EmptyArray));
 		}
 	}

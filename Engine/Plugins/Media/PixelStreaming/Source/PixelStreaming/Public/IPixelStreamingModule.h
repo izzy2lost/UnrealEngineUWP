@@ -136,7 +136,7 @@ public:
 	 * @param Handler The handler for this message. This function will be executed whenever the corresponding message is received
 	 */
 	UE_DEPRECATED(5.2, "RegisterMessage(...) is no longer needed. Just add your message to the protocol using FPixelStreamingInputProtocol::Direction.Add(XXX);, and then add the handler to the Streamer's input handler")
-	virtual void RegisterMessage(EPixelStreamingMessageDirection MessageDirection, const FString& MessageType, FPixelStreamingInputMessage Message, const TFunction<void(FMemoryReader)>& Handler) = 0;
+	virtual void RegisterMessage(EPixelStreamingMessageDirection MessageDirection, const FString& MessageType, FPixelStreamingInputMessage Message, const TFunction<void(FString, FMemoryReader)>& Handler) = 0;
 
 	/**
 	 * @brief Find the function to be called whenever the specified message is received.
@@ -145,7 +145,7 @@ public:
 	 * @return TFunction<void(FMemoryReader)> The function called when this message is received.
 	 */
 	UE_DEPRECATED(5.2, "FindMessageHandler(...) has been moved from the PixelStreaming module to IPixelStreamingInputHandler. This object can be obtained from an (IPixelStreamingStreamer)->GetInputHandler()")
-	virtual TFunction<void(FMemoryReader)> FindMessageHandler(const FString& MessageType) = 0;
+	virtual TFunction<void(FString, FMemoryReader)> FindMessageHandler(const FString& MessageType) = 0;
 
 	/**
 	 * Sets the target FPS for Externally Consumed video Tracks

@@ -49,7 +49,7 @@ void UPixelStreamingMediaOutput::RegisterRemoteResolutionCommandHandler()
 		TSharedPtr<IPixelStreamingInputHandler> InputHandler = Streamer->GetInputHandler().Pin();
 		if (InputHandler)
 		{
-			InputHandler->SetCommandHandler(TEXT("Resolution.Width"), [this](FString Descriptor, FString WidthString) {
+			InputHandler->SetCommandHandler(TEXT("Resolution.Width"), [this](FString PlayerId, FString Descriptor, FString WidthString) {
 				bool bSuccess = false;
 				FString HeightString;
 				UE::PixelStreaming::ExtractJsonFromDescriptor(Descriptor, TEXT("Resolution.Height"), HeightString, bSuccess);

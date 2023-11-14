@@ -62,8 +62,8 @@ namespace UE::PixelStreaming
 
 		/** Deprected methods from the IPixelStreamingModule. We're only keeping these here until we can fully remove them */
 		const FPixelStreamingInputProtocol GetProtocol() override;
-		void RegisterMessage(EPixelStreamingMessageDirection MessageDirection, const FString& MessageType, FPixelStreamingInputMessage Message, const TFunction<void(FMemoryReader)>& Handler) override;
-		TFunction<void(FMemoryReader)> FindMessageHandler(const FString& MessageType) override;
+		void RegisterMessage(EPixelStreamingMessageDirection MessageDirection, const FString& MessageType, FPixelStreamingInputMessage Message, const TFunction<void(FString, FMemoryReader)>& Handler) override;
+		TFunction<void(FString, FMemoryReader)> FindMessageHandler(const FString& MessageType) override;
 		/** End deprecated methods */
 
 		// Own methods

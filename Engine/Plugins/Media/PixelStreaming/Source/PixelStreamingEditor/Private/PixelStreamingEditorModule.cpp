@@ -166,7 +166,7 @@ void FPixelStreamingEditorModule::StartStreaming(UE::EditorPixelStreaming::EStre
 	if (TSharedPtr<IPixelStreamingInputHandler> InputHandler = EditorStreamer->GetInputHandler().Pin())
 	{
 		InputHandler->SetCommandHandler("Resolution.Width",
-			[](FString Descriptor, FString WidthString) {
+			[](FString, FString Descriptor, FString WidthString) {
 				bool bSuccess;
 				FString HeightString;
 				UE::PixelStreaming::ExtractJsonFromDescriptor(Descriptor, TEXT("Resolution.Height"), HeightString, bSuccess);

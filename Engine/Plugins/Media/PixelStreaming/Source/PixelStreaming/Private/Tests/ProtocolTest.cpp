@@ -31,7 +31,7 @@ namespace UE::PixelStreaming
 
 		FPixelStreamingInputMessage Message = FPixelStreamingInputMessage({ EPixelStreamingMessageTypes::Uint16 } /* Structure */);
 
-		const TFunction<void(FMemoryReader)> Handler = [this](FMemoryReader Ar) { /* Do nothing */ };
+		const TFunction<void(FString, FMemoryReader)> Handler = [this](FString, FMemoryReader Ar) { /* Do nothing */ };
 
 		TSharedPtr<IPixelStreamingInputHandler> InputHandler = Streamer->GetInputHandler().Pin();
 		FPixelStreamingInputProtocol::ToStreamerProtocol.Add("CustomMessage", Message);
@@ -100,7 +100,7 @@ namespace UE::PixelStreaming
 
 		TFunction<void(uint8, const webrtc::DataBuffer&)> Callback = [](uint8 Type, const webrtc::DataBuffer& RawBuffer) { /* Do nothing */ };
 		TSharedPtr<bool> bComplete = MakeShared<bool>(false);
-		const TFunction<void(FMemoryReader)> Handler = [this, bComplete](FMemoryReader Ar) {
+		const TFunction<void(FString, FMemoryReader)> Handler = [this, bComplete](FString, FMemoryReader Ar) {
 			*bComplete.Get() = true;
 			uint16 Out;
 			Ar << Out;
