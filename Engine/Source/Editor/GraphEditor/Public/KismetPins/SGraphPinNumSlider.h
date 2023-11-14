@@ -81,6 +81,7 @@ protected:
 	void OnValueChanged( NumericType NewValue )
 	{
 		SliderValue = NewValue;
+		GraphPinObj->GetSchema()->TrySetDefaultValue(*GraphPinObj, *LexToSanitizedString(NewValue), false);
 	}
 
 	void OnValueCommitted( NumericType NewValue, ETextCommit::Type CommitInfo )
