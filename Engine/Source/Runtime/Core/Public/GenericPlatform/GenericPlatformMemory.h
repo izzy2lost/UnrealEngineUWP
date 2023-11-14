@@ -178,6 +178,24 @@ struct FGenericPlatformMemoryStats : public FPlatformMemoryConstants
 	void SetEndFrameCsvStats() const {}
 };
 
+// Contains shared/private information for a single page allocation from the kernel. A page
+// allocation may contain many pages.
+struct FForkedPageAllocation
+{
+	// Start/End virtual address for the allocation.
+	uint64 PageStart;
+	uint64 PageEnd;
+
+	// The amount of memory in this allocation range that is shared across the forked
+	// child processes.
+	uint64 SharedCleanKiB;
+	uint64 SharedDirtyKiB;
+
+	// The amount of memory in this allocation range that has been written to by the child
+	// process, and as a result has been made unique to the process.
+	uint64 PrivateCleanKiB;
+	uint64 PrivateDirtyKiB;
+};
 
 
 
@@ -767,6 +785,16 @@ public:
 	* Only supported on platforms that support forking
 	*/
 	static bool HasForkPageProtectorEnabled() { return false; }
+
+	/**
+	* Return the page allocations from the operating system (/proc/self/smaps). This only means something on
+	* platforms that can fork and have Copy On Write behavior. 
+	*/
+	static CORE_API bool GetForkedPageAllocationInfo(TArray<FForkedPageAllocation>& OutPageAllocationInfos)
+	{
+		return false; // Most platform do not implement this.
+	}
+
 
 protected:
 	friend struct FGenericStatsUpdater;

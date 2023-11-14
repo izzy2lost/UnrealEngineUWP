@@ -83,6 +83,8 @@ struct FUnixPlatformMemory : public FGenericPlatformMemory
 	static CORE_API void* BinnedAllocFromOS(SIZE_T Size);
 	static CORE_API void BinnedFreeToOS(void* Ptr, SIZE_T Size);
 
+	static CORE_API bool GetForkedPageAllocationInfo(TArray<FForkedPageAllocation>& OutPageAllocationInfos);
+
 	class FPlatformVirtualMemoryBlock : public FBasicVirtualMemoryBlock
 	{
 	public:

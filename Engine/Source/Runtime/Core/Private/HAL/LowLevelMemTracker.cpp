@@ -7,9 +7,12 @@
 #include "HAL/LowLevelMemStats.h"
 #include "HAL/FileManager.h"
 #include "HAL/IConsoleManager.h"
+#include "HAL/PlatformMemory.h" // for page allocation association.
 #include "LowLevelMemTrackerPrivate.h"
 #include "MemPro/MemProProfiler.h"
 #include "Misc/CString.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Fork.h"
 #include "Misc/OutputDeviceRedirector.h"
 #include "Misc/Paths.h"
 #include "Misc/ScopeLock.h"
@@ -460,6 +463,12 @@ public:
 	bool IsPaused(ELLMAllocType AllocType);
 
 	void Clear();
+
+	// Dump the allocation count and size for each tag, along with the porportion that is private/shared/unreferenced
+	// on linux machines. This will dump to a CSV in the project Saved/LLM directory with a separate file for each
+	// tracker and forked child. Integers will be appended to the filename to prevent overwrites. Returns false
+	// if the memory inforation can't be retrieved (likely because it's not on a supported platform)
+	bool DumpForkedAllocationInfo();
 
 	void PublishStats(UE::LLM::ESizeParams SizeParam);
 	void PublishCsv(UE::LLM::ESizeParams SizeParam);
@@ -1452,6 +1461,17 @@ bool FLowLevelMemTracker::Exec(const TCHAR* Cmd, FOutputDevice& Ar)
 			}
 
 			UpdateStatsPerFrame(TEXT("After cleanup"));
+		}
+		else if (FParse::Command(&Cmd, TEXT("DUMPPRIVATESHARED")))
+		{
+			for (int32 TrackerIndex = 0; TrackerIndex < static_cast<int32>(ELLMTracker::Max); TrackerIndex++)
+			{
+				if (GetTracker((ELLMTracker)TrackerIndex)->DumpForkedAllocationInfo() == false)
+				{
+					FPlatformMisc::LowLevelOutputDebugString(TEXT("Failed to dumping forked allocation info (check platform supports it?)\n"));
+					return true;
+				}
+			}
 		}
 		else if (FParse::Command(&Cmd, TEXT("REMEMBER")))
 		{
@@ -4067,6 +4087,228 @@ void FLLMTracker::PublishStats(UE::LLM::ESizeParams SizeParams)
 		SetMemoryStatByFName(TagData->GetStatName(), Amount);
 		SetMemoryStatByFName(TagData->GetSummaryStatName(), Amount);
 	}
+}
+
+static bool PageLessThan(const FForkedPageAllocation& LHS, const FForkedPageAllocation& RHS)
+{
+	return LHS.PageStart < RHS.PageStart;
+}
+static bool PageFinder(const FForkedPageAllocation& LHS, const uint64 AddressRHS)
+{
+	return LHS.PageStart < AddressRHS;
+}
+
+bool FLLMTracker::DumpForkedAllocationInfo()
+{
+	// Try to associate the allocations with a page range so we can determine whether it's
+	// in unique or shared memory. Then print out the set for each tag.
+	TArray<FForkedPageAllocation> Pages;
+	if (FGenericPlatformMemory::GetForkedPageAllocationInfo(Pages) == false)
+	{
+		return false;
+	}
+
+	Algo::Sort(Pages, PageLessThan);
+
+	enum EClassification
+	{
+		Class_Split,
+		Class_Unreferenced,
+		Class_Private,
+		Class_Shared,
+		Class_COUNT
+	};
+
+	struct FCounts
+	{
+		uint64 TotalAllocations = 0;
+		uint64 CrossPageAllocationCount = 0;
+
+		uint64 AllocCount[Class_COUNT] = {};
+
+		uint64 TotalBytes = 0;
+		uint64 ByteCount[Class_COUNT] = {};
+	};
+
+	
+	TMap< const FTagData*, FCounts> CountsPerTag;
+	AllocationMap.LockAll();
+	for (const FLLMAllocMap::FTuple& Tuple : AllocationMap)
+	{
+		void* Ptr = Tuple.Key.GetPointer();
+
+		int ContainingAllocationIndex = Algo::LowerBound(Pages, (uint64)Ptr, PageFinder);
+		if (ContainingAllocationIndex == Pages.Num())
+		{
+			UE_LOG(LogHAL, Error, TEXT("Can't find allocation 0x%llx in the pages list!"), (uint64)Ptr);
+			continue;
+		}
+
+		// We unfortunately don't know exactly which of the details apply because we don't know which pages
+		// in the allocation section are shared/unique etc, so we just keep some generalities.
+		uint64 SizeHigh = Tuple.Key.GetExtraData() << 32;
+		uint64 SizeLow = Tuple.Value1;
+		uint64 Size = SizeHigh | SizeLow;
+
+		// Number of page allocations for the ue allocation
+		uint32 PageAllocationCount = 0;
+
+		// Track the classification for each page allocation so we can try to classify the ue allocation
+		uint32 SplitCount = 0;
+		uint32 SharedCount = 0;
+		uint32 PrivateCount = 0;
+		uint32 UnreferencedCount = 0;
+		
+		// Walk the page allocations until we get them all if we aren't all in the same one.
+		uint64 Remaining = Size;
+		while (Remaining)
+		{
+			PageAllocationCount++;
+			FForkedPageAllocation& Page = Pages[ContainingAllocationIndex];
+
+			uint64 PageKiB = (Page.PageEnd - Page.PageStart) / 1024;
+
+			uint64 OffsetInPage = (uint64)Ptr - Page.PageStart;
+			uint64 RemainingInPage = Page.PageEnd - (uint64)Ptr;
+
+			uint64 AmountInThisPage = Remaining;
+			if (AmountInThisPage > RemainingInPage)
+			{
+				AmountInThisPage = RemainingInPage;
+			}
+
+			uint64 SharedKiB = Page.SharedCleanKiB + Page.SharedDirtyKiB;
+			uint64 PrivateKiB = Page.PrivateCleanKiB + Page.PrivateDirtyKiB;
+			uint64 UnreferencedKiB = PageKiB - SharedKiB - PrivateKiB;
+
+			// We can't classify the page if we have more than one of any.
+			uint64 TypeCount = !!SharedKiB + !!PrivateKiB + !!UnreferencedKiB;
+			bool bIsSplit = TypeCount > 1;
+
+			if (bIsSplit)
+			{
+				// The page is split and we have no way to know which is ours.
+				SplitCount++;
+			}
+			else if (SharedKiB)
+			{
+				SharedCount++;
+			}
+			else if (PrivateKiB)
+			{
+				PrivateCount++;
+			}
+			else
+			{
+				UnreferencedCount++;
+			}
+
+			Remaining -= AmountInThisPage;
+			ContainingAllocationIndex++;
+			if (ContainingAllocationIndex >= Pages.Num())
+			{
+				UE_LOG(LogHAL, Error, TEXT("Allocation 0x%llu extended beyond the pages!"), (uint64)Ptr);
+				break;
+			}
+		}
+
+		if (Remaining)
+		{
+			// We error'd out, ignore this allocation.
+			continue;
+		}
+
+		const FTagData* Tag = Tuple.Value2.GetTag(LLMRef);
+
+		// Classify the allocation - is it entirely private, entirely shared, or what.
+		uint64 ClassCount = !!SharedCount + !!PrivateCount + !!UnreferencedCount;
+		EClassification AllocClass = Class_Split;
+		if (ClassCount > 1)
+		{
+			AllocClass = Class_Split;
+		}
+		else if (SharedCount)
+		{
+			AllocClass = Class_Shared;
+		}
+		else if (PrivateCount)
+		{
+			AllocClass = Class_Private;
+		}
+		else
+		{
+			AllocClass = Class_Unreferenced;
+		}
+
+		// Associate the tag and the page stats.
+		FCounts& Counts = CountsPerTag.FindOrAdd(Tag);
+		Counts.AllocCount[AllocClass]++;
+		Counts.ByteCount[AllocClass] += Size;
+		Counts.TotalAllocations++;
+		Counts.TotalBytes += Size;
+		if (PageAllocationCount > 1)
+		{
+			Counts.CrossPageAllocationCount++;
+		}
+	}
+	AllocationMap.UnlockAll();
+
+	CountsPerTag.ValueSort([](const FCounts& A, const FCounts& B)
+	{
+		return A.TotalBytes > B.TotalBytes;
+	});
+
+	TArray<FString> Lines;
+	Lines.Reserve(CountsPerTag.Num() * 2 + 1);
+
+	Lines.Add(TEXT("Tag,SharedKib,PrivateKib,SplitKib,UnrefKib,TotalKib,SharedCount,PrivateCount,SplitCount,UnrefCount,TotalCount,CrossCount"));
+
+
+	for (TPair<const FTagData*, FCounts>& P : CountsPerTag)
+	{
+		Lines.Add(
+			FString::Printf(TEXT("%s,%llu,%llu,%llu,%llu,%llu,%llu,%llu,%llu,%llu,%llu,%llu"),
+				*P.Key->GetDisplayName().ToString(),
+				P.Value.ByteCount[Class_Shared] / (1024),
+				P.Value.ByteCount[Class_Private] / (1024),
+				P.Value.ByteCount[Class_Split] / (1024),
+				P.Value.ByteCount[Class_Unreferenced] / (1024),
+				P.Value.TotalBytes / (1024),
+				P.Value.AllocCount[Class_Shared],
+				P.Value.AllocCount[Class_Private],
+				P.Value.AllocCount[Class_Split],
+				P.Value.AllocCount[Class_Unreferenced],
+				P.Value.TotalAllocations,
+				P.Value.CrossPageAllocationCount)
+			);
+	}
+
+	FString SavedDir = FPaths::ProjectSavedDir() / TEXT("LLM");
+
+	uint16 ForkId = FForkProcessHelper::GetForkedChildProcessIndex();
+
+	FString ForkString = ForkId == 0 ? FString(TEXT("Parent")) : FString::Printf(TEXT("Child%d"), ForkId);
+	const TCHAR* TrackerString = TEXT("Default");
+	if (Tracker == ELLMTracker::Platform)
+	{
+		TrackerString = TEXT("Platform");
+	}
+	static_assert((int)ELLMTracker::Max == 2, "Add other tracker type strings here");
+
+	FString UniqueFilename = SavedDir / FString::Printf(TEXT("LLM_PrivateShared_Tracker%s_%s.csv"), TrackerString, *ForkString);
+
+	uint32 Counter = 1;
+	while (IFileManager::Get().FileSize(*UniqueFilename) >= 0)
+	{
+		UniqueFilename = SavedDir / *FString::Printf(TEXT("LLM_PrivateShared_Tracker%s_%s_%d.csv"), TrackerString, *ForkString, Counter);
+		Counter++;
+	}
+	
+	if (FFileHelper::SaveStringArrayToFile(Lines, *UniqueFilename) == false)
+	{
+		FPlatformMisc::LowLevelOutputDebugStringf(TEXT("Failed to write llm private/shared csv file: %s\n"), *UniqueFilename);
+	}
+	return true;
 }
 
 void FLLMTracker::PublishCsv(UE::LLM::ESizeParams SizeParams)
