@@ -21,11 +21,13 @@
 #include "DynamicMeshBuilder.h"
 #include "PhysicsEngine/BoxElem.h"
 #include "PhysicsEngine/BodySetup.h"
+#include "Rendering/SlateDrawBuffer.h"
 #include "Slate/SGameLayerManager.h"
 #include "Slate/WidgetRenderer.h"
 #include "Slate/SWorldWidgetScreenLayer.h"
 #include "UObject/EditorObjectVersion.h"
 #include "Widgets/SViewport.h"
+#include "Widgets/SVirtualWindow.h"
 #include "SceneInterface.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(WidgetComponent)
@@ -609,9 +611,10 @@ UWidgetComponent::UWidgetComponent( const FObjectInitializer& PCIP )
 	, DrawSize( FIntPoint( 500, 500 ) )
 	, bManuallyRedraw(false)
 	, bRedrawRequested(true)
-	, RedrawTime(0)
-	, LastWidgetRenderTime(0)
+	, RedrawTime(0.0f)
+	, LastWidgetRenderTime(0.0)
 	, CurrentDrawSize(FIntPoint(0, 0))
+	, bUseInvalidationInWorldSpace(false)
 	, bReceiveHardwareInput(false)
 	, bWindowFocusable(true)
 	, WindowVisibility(EWindowVisibility::SelfHitTestInvisible)
@@ -974,10 +977,14 @@ void UWidgetComponent::SetWindowVisibility(EWindowVisibility InVisibility)
 	ensure(Widget);
 
 	WindowVisibility = InVisibility;
- 	if (SlateWindow.IsValid())
- 	{		
- 		SlateWindow->SetVisibility(ConvertWindowVisibilityToVisibility(WindowVisibility));
- 	}
+	if (SlateWindow.IsValid())
+	{
+		SlateWindow->SetVisibility(ConvertWindowVisibilityToVisibility(WindowVisibility));
+		if (bUseInvalidationInWorldSpace)
+		{
+			SlateWindow->InvalidateRootLayout();
+		}
+	}
 
 	if (IsWidgetVisible())
 	{
@@ -1344,26 +1351,34 @@ void UWidgetComponent::DrawWidgetToRenderTarget(float DeltaTime)
 
 	const float DrawScale = 1.0f;
 
+	if (bUseInvalidationInWorldSpace)
+	{
+		SlateWindow->ProcessWindowInvalidation();
+		SlateWindow->SlatePrepass(DrawScale);
+		WidgetRenderer->SetIsPrepassNeeded(false);
+	}
+	else if (bDrawAtDesiredSize)
+	{
+		SlateWindow->SlatePrepass(DrawScale);
+		WidgetRenderer->SetIsPrepassNeeded(false);
+	}
+	else
+	{
+		WidgetRenderer->SetIsPrepassNeeded(true);
+	}
+
 	bool bHasValidSize = true;
 	if ( bDrawAtDesiredSize )
 	{
-		SlateWindow->SlatePrepass(DrawScale);
-
 		FVector2D DesiredSize = SlateWindow->GetDesiredSize();
 		DesiredSize.X = FMath::RoundToInt(DesiredSize.X);
 		DesiredSize.Y = FMath::RoundToInt(DesiredSize.Y);
 		CurrentDrawSize = DesiredSize.IntPoint();
 
-		WidgetRenderer->SetIsPrepassNeeded(false);
-
 		if (DesiredSize.X <= 0 || DesiredSize.Y <= 0)
 		{
 			bHasValidSize = false;
 		}
-	}
-	else
-	{
-		WidgetRenderer->SetIsPrepassNeeded(true);
 	}
 
 	if ( CurrentDrawSize != PreviousDrawSize )
@@ -1386,13 +1401,27 @@ void UWidgetComponent::DrawWidgetToRenderTarget(float DeltaTime)
 	{
 		bRedrawRequested = false;
 
-		WidgetRenderer->DrawWindow(
-			RenderTarget,
-			SlateWindow->GetHittestGrid(),
-			SlateWindow.ToSharedRef(),
-			DrawScale,
-			CurrentDrawSize,
-			DeltaTime);
+		if (bUseInvalidationInWorldSpace)
+		{
+			static IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("Slate.DeferRetainedRenderingRenderThread"));
+			ensure(CVar);
+			bool bDeferRetainedRenderingRenderThread = CVar ? CVar->GetInt() != 0 : false;
+
+			FPaintArgs PaintArgs(nullptr, SlateWindow->GetHittestGrid(), FVector2D::ZeroVector, FApp::GetCurrentTime(), DeltaTime);
+			TSharedRef<SVirtualWindow> WindowToDraw = SlateWindow.ToSharedRef();
+
+			WidgetRenderer->DrawInvalidationRoot(WindowToDraw, RenderTarget, PaintArgs, DrawScale, CurrentDrawSize, bDeferRetainedRenderingRenderThread);
+		}
+		else
+		{
+			WidgetRenderer->DrawWindow(
+				RenderTarget,
+				SlateWindow->GetHittestGrid(),
+				SlateWindow.ToSharedRef(),
+				DrawScale,
+				CurrentDrawSize,
+				DeltaTime);
+		}
 
 		LastWidgetRenderTime = GetCurrentTime();
 
@@ -1534,20 +1563,19 @@ void UWidgetComponent::PostEditChangeProperty(FPropertyChangedEvent& PropertyCha
 
 	if( Property && PropertyChangedEvent.ChangeType != EPropertyChangeType::Interactive )
 	{
-		static FName DrawSizeName("DrawSize");
-		static FName PivotName("Pivot");
-		static FName WidgetClassName("WidgetClass");
-		static FName IsOpaqueName("bIsOpaque");
-		static FName IsTwoSidedName("bIsTwoSided");
-		static FName BackgroundColorName("BackgroundColor");
-		static FName TintColorAndOpacityName("TintColorAndOpacity");
-		static FName OpacityFromTextureName("OpacityFromTexture");
-		static FName ParabolaDistortionName(TEXT("ParabolaDistortion"));
-		static FName BlendModeName( TEXT( "BlendMode" ) );
-		static FName GeometryModeName( TEXT("GeometryMode") );
-		static FName CylinderArcAngleName( TEXT("CylinderArcAngle") );
-		static FName bWindowFocusableName(TEXT("bWindowFocusable"));
-		static FName WindowVisibilityName(TEXT("WindowVisibility"));
+		static FName DrawSizeName = GET_MEMBER_NAME_CHECKED(UWidgetComponent, DrawSize);
+		static FName PivotName = GET_MEMBER_NAME_CHECKED(UWidgetComponent, Pivot);
+		static FName WidgetClassName = GET_MEMBER_NAME_CHECKED(UWidgetComponent, WidgetClass);
+		static FName IsTwoSidedName = GET_MEMBER_NAME_CHECKED(UWidgetComponent, bIsTwoSided);
+		static FName BackgroundColorName = GET_MEMBER_NAME_CHECKED(UWidgetComponent, BackgroundColor);
+		static FName TintColorAndOpacityName = GET_MEMBER_NAME_CHECKED(UWidgetComponent, TintColorAndOpacity);
+		static FName OpacityFromTextureName = GET_MEMBER_NAME_CHECKED(UWidgetComponent, OpacityFromTexture);
+		static FName BlendModeName = GET_MEMBER_NAME_CHECKED(UWidgetComponent, BlendMode);
+		static FName GeometryModeName = GET_MEMBER_NAME_CHECKED(UWidgetComponent, GeometryMode);
+		static FName CylinderArcAngleName = GET_MEMBER_NAME_CHECKED(UWidgetComponent, CylinderArcAngle);
+		static FName bWindowFocusableName = GET_MEMBER_NAME_CHECKED(UWidgetComponent, bWindowFocusable);
+		static FName WindowVisibilityName = GET_MEMBER_NAME_CHECKED(UWidgetComponent, WindowVisibility);
+		static FName UseInvalidationName = GET_MEMBER_NAME_CHECKED(UWidgetComponent, bUseInvalidationInWorldSpace);
 
 		auto PropertyName = Property->GetFName();
 
@@ -1563,28 +1591,36 @@ void UWidgetComponent::PostEditChangeProperty(FPropertyChangedEvent& PropertyCha
 			}
 		}
 
-		if( PropertyName == WidgetClassName )
+		if (PropertyName == WidgetClassName)
 		{
 			Widget = nullptr;
 
 			UpdateWidget();
 			MarkRenderStateDirty();
 		}
-		else if ( PropertyName == DrawSizeName || PropertyName == PivotName || PropertyName == GeometryModeName || PropertyName == CylinderArcAngleName )
+		else if (PropertyName == UseInvalidationName)
+		{
+			if (SlateWindow)
+			{
+				SlateWindow->SetAllowFastUpdate(bUseInvalidationInWorldSpace);
+				SlateWindow->InvalidateRootLayout();
+			}
+		}
+		else if (PropertyName == DrawSizeName
+			|| PropertyName == PivotName
+			|| PropertyName == GeometryModeName
+			|| PropertyName == CylinderArcAngleName)
 		{
 			MarkRenderStateDirty();
 			UpdateBodySetup(true);
 			RecreatePhysicsState();
 		}
-		else if ( PropertyName == IsOpaqueName || PropertyName == IsTwoSidedName || PropertyName == BlendModeName )
-		{
-			MarkRenderStateDirty();
-		}
-		else if( PropertyName == BackgroundColorName || PropertyName == ParabolaDistortionName )
-		{
-			MarkRenderStateDirty();
-		}
-		else if( PropertyName == TintColorAndOpacityName || PropertyName == OpacityFromTextureName )
+		else if (PropertyName == BlendModeName
+			|| PropertyName == IsTwoSidedName
+			|| PropertyName == BlendModeName
+			|| PropertyName == BackgroundColorName
+			|| PropertyName == TintColorAndOpacityName
+			|| PropertyName == OpacityFromTextureName)
 		{
 			MarkRenderStateDirty();
 		}
@@ -1731,6 +1767,7 @@ void UWidgetComponent::UpdateWidget()
 
 				SlateWindow = SNew(SVirtualWindow).Size(CurrentDrawSize);
 				SlateWindow->SetIsFocusable(bWindowFocusable);
+				SlateWindow->SetAllowFastUpdate(bUseInvalidationInWorldSpace);
 				SlateWindow->SetVisibility(ConvertWindowVisibilityToVisibility(WindowVisibility));
 				RegisterWindow();
 

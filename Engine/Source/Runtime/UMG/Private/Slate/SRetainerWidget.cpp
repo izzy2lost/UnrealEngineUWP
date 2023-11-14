@@ -564,6 +564,7 @@ SRetainerWidget::EPaintRetainedContentResult SRetainerWidget::PaintRetainedConte
 				SurfaceBrush.ImageSize = DrawSize;
 
 				WidgetRenderer->ViewOffset = -ViewOffset;
+				WidgetRenderer->SetIsPrepassNeeded(false);
 
 				bool bRepaintedWidgets = WidgetRenderer->DrawInvalidationRoot(VirtualWindow, RenderTarget, *this, Context, GDeferRetainedRenderingRenderThread != 0);
 				bRenderRequested = false;

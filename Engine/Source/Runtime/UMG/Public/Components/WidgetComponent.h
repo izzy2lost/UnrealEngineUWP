@@ -479,9 +479,16 @@ protected:
 	FIntPoint CurrentDrawSize;
 
 	/**
+	 * Use the invalidation system to update this widget.
+	 * Only valid in World space. In Screen space, the widget is updated by the viewport owners.
+	 */
+	UPROPERTY(EditAnywhere, Category = UserInterface, meta=(EditCondition="Space==EWidgetSpace::World", DisplayName="Use Invalidation"))
+	bool bUseInvalidationInWorldSpace;
+
+	/**
 	 * Causes the render target to automatically match the desired size.
 	 * 
-	 * WARNING: If you change this every frame, it will be very expensive.  If you need 
+	 * WARNING: If you change this every frame, it will be very expensive. If you need 
 	 *    that effect, you should keep the outer widget's sized locked and dynamically
 	 *    scale or resize some inner widget.
 	 */
