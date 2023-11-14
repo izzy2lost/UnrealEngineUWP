@@ -94,10 +94,10 @@ public:
 
 private:
 	UPROPERTY()
-	uint8 bOverride_Collections : 1 = 1;
+	uint8 bOverride_Collections : 1 = 1; //-V570
 
 	UPROPERTY()
-	uint8 bOverride_ModifiersContainer : 1 = 1;
+	uint8 bOverride_ModifiersContainer : 1 = 1; //-V570
 	
 	/** The names of collections being modified. */
 	UPROPERTY()

@@ -1369,8 +1369,8 @@ namespace mu
 						lastSurfOp = op;
 					}
 
-					else if (ImageLayoutStrategy == CompilerOptions::TextureLayoutStrategy::Pack)
-					{
+					else if (ImageLayoutStrategy == CompilerOptions::TextureLayoutStrategy::Pack) //-V547
+					{						
 						if (LayoutIndex >= meshResults.GeneratedLayouts.Num() ||
 							LayoutIndex >= meshResults.layoutOps.Num())
 						{

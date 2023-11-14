@@ -3782,7 +3782,7 @@ class FRealtimeGC : public FGarbageCollectionTracer
 
 #if !UE_BUILD_SHIPPING
 		TDebugReachabilityProcessor<Options> DebugProcessor;
-		if (DebugProcessor.IsForceEnabled() |
+		if (DebugProcessor.IsForceEnabled() | //-V792
 			DebugProcessor.TracksHistory() | 
 			DebugProcessor.TracksGarbage() & Stats.bFoundGarbageRef)
 		{

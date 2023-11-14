@@ -151,7 +151,7 @@ bool UE::Geometry::IsBoxMesh(const FDynamicMesh3& Mesh, FOrientedBox3d& BoxOut, 
 			if (Normals[Idx].Dot(Normal) > ParallelDotTolerance)
 			{
 				double Distance = Pos.Dot(Normal);
-				if (FMath::IsNearlyEqual(Distance, Distances[Idx], PlaneDistanceTolerance))
+				if (FMath::IsNearlyEqual(Distance, Distances[Idx], PlaneDistanceTolerance)) //-V614
 				{
 					return Idx;
 				}

@@ -365,7 +365,7 @@ public:
 	The component controls if shadows are enabled, this flag allows you to disable the renderer casting shadows.
 	*/
 	UPROPERTY(EditAnywhere, Category = "Rendering")
-	uint8 bCastShadows : 1 = 1;
+	uint8 bCastShadows : 1 = 1; //-V570
 
 	/** The materials to be used instead of the StaticMesh's materials. Note that each material must have the Niagara Mesh Particles flag checked. If the ParticleMesh
 	requires more materials than exist in this array or any entry in this array is set to None, we will use the ParticleMesh's existing Material instead.*/

@@ -190,7 +190,7 @@ struct TEntityGroupingHandlerImpl<GroupingPolicy, TIntegerSequence<int, Componen
 			VisitUnlinkedEntities(Item, EntityIDs, GroupIDs, Builder);
 		}
 
-		PostAllocationCallbackImpl(&Policy, Item);
+		PostAllocationCallbackImpl(&Policy, Item); //-V510
 	}
 	
 	void VisitLinkedEntities(FEntityAllocationIteratorItem Item, FReadEntityIDs EntityIDs, TWrite<FEntityGroupID> GroupIDs, FEntityGroupBuilder* Builder)

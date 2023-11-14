@@ -56,7 +56,7 @@ protected:
 	// Note: Since *individual* show flags are overridden instead of the entire ShowFlags property, manually set to
 	// overridden so the traversal picks the changes up (otherwise they will be ignored).
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
-	uint8 bOverride_ShowFlags : 1 = 1;
+	uint8 bOverride_ShowFlags : 1 = 1; //-V570
 
 	/** The show flags that should be active during a render for this node. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Show Flags")

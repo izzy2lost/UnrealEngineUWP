@@ -219,7 +219,7 @@ public:
 	The component controls if shadows are enabled, this flag allows you to disable the renderer casting shadows.
 	*/
 	UPROPERTY(EditAnywhere, Category = "Rendering")
-	uint8 bCastShadows : 1 = 1;
+	uint8 bCastShadows : 1 = 1; //-V570
 
 	/** Sort precision to use when sorting is active. */
 	UPROPERTY(EditAnywhere, Category = "Sorting", meta = (EditCondition = "SortMode != ENiagaraSortMode::None", EditConditionHides))

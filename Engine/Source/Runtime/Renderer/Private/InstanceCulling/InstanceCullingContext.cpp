@@ -832,9 +832,8 @@ void FInstanceCullingContext::BuildRenderingCommandsInternal(
 
 	PassParametersTmp.ViewIds = GraphBuilder.CreateSRV(ViewIdsBuffer);
 	PassParametersTmp.NumCullingViews = 0;
-	if (bCullInstances || bAllowWPODisable)
+	if (bCullInstances || bAllowWPODisable) //-V595
 	{
-		checkSlow(InstanceCullingManager);
 #if DO_CHECK
 		for (int32 ViewId : ViewIds)
 		{

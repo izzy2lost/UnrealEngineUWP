@@ -531,11 +531,11 @@ const UE::HLSLTree::FExpression* FMaterialHLSLGenerator::AcquireExpression(UE::H
 				const FConnectedInput& ConnectedInput = FunctionCall->ConnectedInputs[FunctionInputIndex];
 				if (ConnectedInput.Input)
 				{
-					Hasher.AppendData(&ConnectedInput.Input, sizeof(ConnectedInput.Input));
+					Hasher.AppendData(&ConnectedInput.Input, sizeof(ConnectedInput.Input)); //-V568
 				}
 				else
 				{
-					Hasher.AppendData(&ConnectedInput.Expression, sizeof(ConnectedInput.Expression));
+					Hasher.AppendData(&ConnectedInput.Expression, sizeof(ConnectedInput.Expression)); //-V568
 				}
 			}
 		}
@@ -777,11 +777,11 @@ const UE::HLSLTree::FExpression* FMaterialHLSLGenerator::GenerateFunctionCall(UE
 			const FConnectedInput& ConnectedInput = ConnectedInputs[InputIndex];
 			if (ConnectedInput.Input)
 			{
-				Hasher.Update(&ConnectedInput.Input, sizeof(ConnectedInput.Input));
+				Hasher.Update(&ConnectedInput.Input, sizeof(ConnectedInput.Input)); //-V568
 			}
 			else
 			{
-				Hasher.Update(&ConnectedInput.Expression, sizeof(ConnectedInput.Expression));
+				Hasher.Update(&ConnectedInput.Expression, sizeof(ConnectedInput.Expression)); //-V568
 			}
 		}
 

@@ -103,7 +103,7 @@
 	#pragma warning(disable : 6240) // warning C6240 : (<expression> && <non-zero constant>) always evaluates to the result of <expression>. Did you intend to use the bitwise-and operator?
 
 	//PVS-Studio settings:
-	//-V::505,542,581,601,623,668,677,690,704,719,720,730,735,751,1002,1008,1062
+	//-V::505,542,581,601,623,668,677,690,704,719,720,730,735,751,758,1002,1008,1062
 	//-V:TRYCOMPRESSION:519,547
 	//-V:check(:501,547,560,605
 	//-V:checkf(:510
@@ -229,6 +229,8 @@
 	//-V:Linker:678
 	//-V:self:678
 	//-V:AccumulateParentID:678
+	//-V:BasicLog:510
+	//-V:BasicFatalLog:510
 
 	// The following classes retain a reference to data supplied in the constructor by the derived class which can not yet be initialized.
 	//-V:FMemoryWriter(:1050

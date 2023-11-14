@@ -1270,7 +1270,7 @@ void FRenderCommandFence::BeginFence(bool bSyncToRHIAndGPU)
 
 		CompletionTask = MoveTemp(CompletionTaskEvent);
 	}
-}
+} //-V773
 
 bool FRenderCommandFence::IsFenceComplete() const
 {

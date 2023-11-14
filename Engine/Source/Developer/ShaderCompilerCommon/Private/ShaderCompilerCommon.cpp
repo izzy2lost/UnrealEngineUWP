@@ -1446,7 +1446,7 @@ static bool SearchText(const TCHAR*& InOut, FAssertParsingStack& OutAssertStack)
 		// Check if the current assert is valid, i.e., containt a TEXT() argument
 		const TCHAR* EndPtr = nullptr;
 		const FString Tmp = ParseText(AssertPtr, EndPtr);
-		const bool bIsValid = FCString::Strstr(&Tmp[0], TextIdentifier) != nullptr;
+		const bool bIsValid = FCString::Strstr(&Tmp[0], TextIdentifier) != nullptr; //-V547
 		if (bIsValid)
 		{
 			OutAssertStack.BeginPtr = AssertPtr;

@@ -45,6 +45,9 @@
 // not obvious how to get it to sort itself out, so just disabling the warning for expediency
 #pragma warning(disable:6011) 
 
+// Silence completely incorrect misparsing of the arrsetlen macros
+//-V::521
+
 //////////////////////////////////////////////////////////////////////////////
 //
 //  Limits to prevent infinite recursion

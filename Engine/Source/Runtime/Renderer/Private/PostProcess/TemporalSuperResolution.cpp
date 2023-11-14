@@ -2514,7 +2514,7 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 		TShaderMapRef<FTSRResolveHistoryCS> ComputeShader(View.ShaderMap, PermutationVector);
 		FComputeShaderUtils::AddPass(
 			GraphBuilder,
-			RDG_EVENT_NAME("TSR ResolveHistory(#%d WaveSize=%d%s%s) %dx%d",
+			RDG_EVENT_NAME("TSR ResolveHistory(#%d WaveSize=%d%s%s) %dx%d", //-V510
 				PermutationVector.ToDimensionValueId(),
 				PermutationVector.Get<FTSRResolveHistoryCS::FNyquistDim>(),
 				PermutationVector.Get<FTSRShader::F16BitVALUDim>() ? TEXT(" 16bit") : TEXT(""),
