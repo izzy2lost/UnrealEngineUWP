@@ -2604,7 +2604,7 @@ namespace AutomationTool
 						try
 						{
 							// Write the machine name to the file.
-							Stream.Write(Encoding.UTF8.GetBytes(Environment.MachineName));
+							Stream.Write(Encoding.UTF8.GetBytes(Unreal.MachineName));
 							Stream.Flush();
 							break;
 						}

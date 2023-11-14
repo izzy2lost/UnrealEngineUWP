@@ -1233,7 +1233,7 @@ namespace Horde.Server
 			if (feature != null && feature.Addresses.Count > 0)
 			{
 				// with a development cert, host will be set by default to localhost, otherwise there will be no host in address
-				string address = feature.Addresses.First().Replace("[::]", System.Net.Dns.GetHostName(), StringComparison.OrdinalIgnoreCase);
+				string address = feature.Addresses.First().Replace("[::]", Unreal.MachineName, StringComparison.OrdinalIgnoreCase);
 				Process.Start(new ProcessStartInfo { FileName = address, UseShellExecute = true });
 			}
 		}

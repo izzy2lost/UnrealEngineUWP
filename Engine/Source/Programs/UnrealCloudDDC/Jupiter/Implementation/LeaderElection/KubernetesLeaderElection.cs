@@ -52,7 +52,7 @@ namespace Jupiter.Implementation.LeaderElection
 			KubernetesClientConfiguration config = KubernetesClientConfiguration.InClusterConfig();
 			_client = new Kubernetes(config);
 			
-			_identity = System.Net.Dns.GetHostName();
+			_identity = Unreal.MachineName;
 			_logger.LogInformation("Participating in kubernetes leadership election as {Identity} using {Resource} under {Namespace}", _identity, settings.ConfigMapName, settings.Namespace);
 			_configMapLock = new ConfigMapLock(_client, settings.Namespace, settings.ConfigMapName, _identity);
 

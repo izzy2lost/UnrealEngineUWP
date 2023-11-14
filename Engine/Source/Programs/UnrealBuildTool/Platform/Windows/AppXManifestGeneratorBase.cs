@@ -377,7 +377,7 @@ namespace UnrealBuildTool
 			bool bPackageNameUseMachineName;
 			if (EngineIni!.GetBool(IniSection_PlatformTargetSettings, "bPackageNameUseMachineName", out bPackageNameUseMachineName) && bPackageNameUseMachineName)
 			{
-				string MachineName = Regex.Replace(Environment.MachineName.ToString(), "[^-.A-Za-z0-9]", "");
+				string MachineName = Regex.Replace(Unreal.MachineName, "[^-.A-Za-z0-9]", "");
 				PackageName = PackageName + ".NOT.SHIPPABLE." + MachineName;
 			}
 

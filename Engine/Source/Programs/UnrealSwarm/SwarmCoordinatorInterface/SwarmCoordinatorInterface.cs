@@ -32,7 +32,7 @@ namespace SwarmCoordinatorInterface
     public class AgentInfo
     {
 		// Constant agent attributes
-		public string Name = Environment.MachineName;
+		public string Name = Unreal.MachineName;
 		public AgentState State = AgentState.Unknown;
 		public Version Version = new Version( 0, 0, 0, 0 );
 		public Hashtable Configuration = new Hashtable();

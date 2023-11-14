@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using Microsoft.Extensions.Logging;
 using System.Linq;
 using UnrealBuildTool;
+using UnrealBuildBase;
 
 namespace AutomationTool
 {
@@ -404,7 +405,7 @@ namespace AutomationTool
 		{
 			ParseCommandLineArgs();
 
-			string PerforceClientName = String.Format("{0}_{1}_Automation_Bisect_Temp", P4Env.User, Environment.MachineName);
+			string PerforceClientName = String.Format("{0}_{1}_Automation_Bisect_Temp", P4Env.User, Unreal.MachineName);
 			bool bPerforceClientCreatedOutside = P4.DoesClientExist(PerforceClientName);
 
 			if (!bPerforceClientCreatedOutside)
@@ -417,7 +418,7 @@ namespace AutomationTool
 
 				P4ClientInfo PerforceClientInfo = new P4ClientInfo();
 				PerforceClientInfo.Owner = P4Env.User;
-				PerforceClientInfo.Host = Environment.MachineName;
+				PerforceClientInfo.Host = Unreal.MachineName;
 				PerforceClientInfo.RootPath = RootPath;
 				PerforceClientInfo.Name = PerforceClientName;
 				PerforceClientInfo.View = RequiredView;

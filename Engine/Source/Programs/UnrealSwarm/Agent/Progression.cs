@@ -596,9 +596,9 @@ namespace Agent
 				}
 				
 				// Always move the local machine name to the top of the list
-				if( MachineNames.Remove( Environment.MachineName ) )
+				if( MachineNames.Remove(Unreal.MachineName) )
 				{
-					MachineNames.Insert( 0, Environment.MachineName );
+					MachineNames.Insert( 0, Unreal.MachineName);
 				}
 
 				// Find ideal row height dependent on number of agents

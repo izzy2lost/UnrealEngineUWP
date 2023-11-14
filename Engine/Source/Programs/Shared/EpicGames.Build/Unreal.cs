@@ -413,5 +413,31 @@ namespace UnrealBuildBase
 			}
 			return null;
 		}
+
+		private static string? _MachineName;
+		public static string MachineName
+		{
+			get
+			{
+				if (_MachineName == null)
+				{
+					try
+					{
+						// this likely can't fail, but just in case, fallback to preview implementation
+						_MachineName = System.Net.Dns.GetHostName();
+
+						if (RuntimePlatform.IsMac && _MachineName.EndsWith(".local")) 
+						{
+							_MachineName = _MachineName.Replace(".local", "");
+						}
+					}
+					catch (Exception)
+					{
+						_MachineName = System.Environment.MachineName;
+					}
+				}
+				return _MachineName!;
+			}
+		}
 	}
 }

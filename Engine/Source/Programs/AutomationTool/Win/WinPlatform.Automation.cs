@@ -36,7 +36,7 @@ public class Win64Platform : Platform
 
 		if (HostPlatform.Current.HostEditorPlatform == UnrealTargetPlatform.Win64)
 		{
-			DeviceInfo LocalMachine = new DeviceInfo(UnrealTargetPlatform.Win64, Environment.MachineName, Environment.MachineName,
+			DeviceInfo LocalMachine = new DeviceInfo(UnrealTargetPlatform.Win64, Unreal.MachineName, Unreal.MachineName,
 				Environment.OSVersion.Version.ToString(), "Computer", true, true);
 
 			Devices.Add(LocalMachine);

@@ -112,9 +112,9 @@ namespace UnrealControls
 			}
 
 			// Add in the machine name
-			if( Environment.MachineName.Length > 0 )
+			if(Unreal.MachineName.Length > 0 )
 			{
-				DefaultTargetDirectory += "-" + Environment.MachineName;
+				DefaultTargetDirectory += "-" + Unreal.MachineName;
 			}
 
 			return ( DefaultTargetDirectory );

@@ -219,7 +219,7 @@ namespace UnrealGameSync
 						{
 							Telemetry.ActiveSink = telemetrySink;
 
-							Telemetry.SendEvent("Startup", new { User = Environment.UserName, Machine = Environment.MachineName });
+							Telemetry.SendEvent("Startup", new { User = Environment.UserName, Machine = Unreal.MachineName });
 
 							AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;
 

@@ -56,7 +56,7 @@ public class MacPlatform : ApplePlatform
 
 		if (HostPlatform.Current.HostEditorPlatform == TargetPlatformType)
 		{
-			DeviceInfo LocalMachine = new DeviceInfo(TargetPlatformType, Environment.MachineName, Environment.MachineName,
+			DeviceInfo LocalMachine = new DeviceInfo(TargetPlatformType, Unreal.MachineName, Unreal.MachineName,
 				Environment.OSVersion.Version.ToString(), "Computer", true, true);
 
 			Devices.Add(LocalMachine);

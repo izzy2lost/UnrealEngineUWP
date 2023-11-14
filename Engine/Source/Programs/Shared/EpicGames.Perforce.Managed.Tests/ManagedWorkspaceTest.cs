@@ -295,7 +295,7 @@ public class ManagedWorkspaceTest : BasePerforceFixtureTest
 	private async Task<ManagedWorkspace> CreateManagedWorkspaceAsync(bool useHaveTable)
 	{
 		ManagedWorkspaceOptions options = new() { UseHaveTable = useHaveTable };
-		ManagedWorkspace ws = await ManagedWorkspace.CreateAsync(Environment.MachineName, TempDir, options, _mwLogger, CancellationToken.None);
+		ManagedWorkspace ws = await ManagedWorkspace.CreateAsync(Unreal.MachineName, TempDir, options, _mwLogger, CancellationToken.None);
 		await ws.SetupAsync(PerforceConnection, StreamName, CancellationToken.None);
 		return ws;
 	}
