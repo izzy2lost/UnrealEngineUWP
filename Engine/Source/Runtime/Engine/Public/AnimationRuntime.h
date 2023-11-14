@@ -545,7 +545,7 @@ public:
 	 *
 	 * return ETypeAdvanceAnim type
 	 */
-	static ENGINE_API ETypeAdvanceAnim AdvanceTime(const bool& bAllowLooping, const float& MoveDelta, float& InOutTime, const float& EndTime);
+	static ENGINE_API ETypeAdvanceAnim AdvanceTime(const bool bAllowLooping, const float MoveDelta, float& InOutTime, const float EndTime);
 
 	static ENGINE_API void TickBlendWeight(float DeltaTime, float DesiredWeight, float& Weight, float& BlendTime);
 	/** 

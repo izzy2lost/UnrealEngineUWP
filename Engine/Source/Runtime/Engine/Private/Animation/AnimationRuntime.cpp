@@ -1438,40 +1438,42 @@ void FAnimationRuntime::MirrorPose(FCompactPose& Pose, const UMirrorDataTable& M
 /** 
  * return ETypeAdvanceAnim type
  */
-ETypeAdvanceAnim FAnimationRuntime::AdvanceTime(const bool& bAllowLooping, const float& MoveDelta, float& InOutTime, const float& EndTime)
+ETypeAdvanceAnim FAnimationRuntime::AdvanceTime(const bool bAllowLooping, const float MoveDelta, float& InOutTime, const float EndTime)
 {
-	InOutTime += MoveDelta;
+	float NewTime = InOutTime + MoveDelta;
 
-	if( InOutTime < 0.f || InOutTime > EndTime )
+	if (NewTime < 0.f || NewTime > EndTime)
 	{
-		if( bAllowLooping )
+		if (bAllowLooping)
 		{
-			if( EndTime != 0.f )
+			if (EndTime != 0.f)
 			{
-				InOutTime	= FMath::Fmod(InOutTime, EndTime);
+				NewTime = FMath::Fmod(NewTime, EndTime);
 				// Fmod doesn't give result that falls into (0, EndTime), but one that falls into (-EndTime, EndTime). Negative values need to be handled in custom way
-				if( InOutTime < 0.f )
+				if (NewTime < 0.f)
 				{
-					InOutTime += EndTime;
+					NewTime += EndTime;
 				}
 			}
 			else
 			{
 				// end time is 0.f
-				InOutTime = 0.f;
+				NewTime = 0.f;
 			}
 
 			// it has been looped
+			InOutTime = NewTime;
 			return ETAA_Looped;
 		}
 		else 
 		{
 			// If not, snap time to end of sequence and stop playing.
-			InOutTime = FMath::Clamp(InOutTime, 0.f, EndTime);
+			InOutTime = FMath::Clamp(NewTime, 0.f, EndTime);
 			return ETAA_Finished;
 		}
 	}
 
+	InOutTime = NewTime;
 	return ETAA_Default;
 }
 

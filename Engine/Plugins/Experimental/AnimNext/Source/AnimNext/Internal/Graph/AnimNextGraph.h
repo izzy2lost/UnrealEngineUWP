@@ -7,6 +7,7 @@
 #include "DecoratorBase/DecoratorPtr.h"
 #include "DecoratorBase/DecoratorHandle.h"
 #include "DecoratorBase/EntryPointHandle.h"
+#include "Graph/GraphInstanceComponent.h"
 #include "Graph/RigUnit_AnimNextGraphEvaluator.h"
 #include "Param/ParamId.h"
 #include "Scheduler/IAnimNextScheduleTermInterface.h"
@@ -18,11 +19,14 @@ class UEdGraph;
 class UAnimNextGraph;
 class UAnimGraphNode_AnimNextGraph;
 struct FAnimNode_AnimNextGraph;
+struct FRigUnit_AnimNextGraphEvaluator;
 enum class EAnimNextGraphSimulationSteps;
 
 namespace UE::AnimNext
 {
 	struct FContext;
+	struct FExecutionContext;
+	struct FTestUtils;
 }
 
 namespace UE::AnimNext::UncookedOnly
@@ -40,6 +44,8 @@ namespace UE::AnimNext::Graph
 	extern ANIMNEXT_API const FName EntryPointName;
 	extern ANIMNEXT_API const FName ResultName;
 }
+
+using GraphInstanceComponentMapType = TMap<FName, TSharedPtr<UE::AnimNext::FGraphInstanceComponent>>;
 
 // Represents an instance of an AnimNext graph
 // This struct uses UE reflection because we wish for the GC to keep the graph
@@ -74,10 +80,34 @@ struct ANIMNEXT_API FAnimNextGraphInstance
 	// Returns true if we have a live graph instance, false otherwise
 	bool IsValid() const;
 
+	// Returns the graph used by this instance or nullptr if the instance is invalid
+	const UAnimNextGraph* GetGraph() const;
+
 	// Check to see if this instance data matches the provided graph
 	bool UsesGraph(const UAnimNextGraph* InGraph) const;
 
+	// Returns a typed graph instance component, creating it lazily the first time it is queried
+	template<class ComponentType>
+	ComponentType& GetComponent();
+
+	// Returns a typed graph instance component pointer if found or nullptr otherwise
+	template<class ComponentType>
+	ComponentType* TryGetComponent();
+
+	// Returns a typed graph instance component pointer if found or nullptr otherwise
+	template<class ComponentType>
+	const ComponentType* TryGetComponent() const;
+
+	// Returns const iterators to the graph instance component container
+	GraphInstanceComponentMapType::TConstIterator GetComponentIterator() const;
+
 private:
+	// Returns a pointer to the specified component, or nullptr if not found
+	UE::AnimNext::FGraphInstanceComponent* TryGetComponent(int32 ComponentNameHash, FName ComponentName) const;
+
+	// Adds the specified component and returns a reference to it
+	UE::AnimNext::FGraphInstanceComponent& AddComponent(int32 ComponentNameHash, FName ComponentName, TSharedPtr<UE::AnimNext::FGraphInstanceComponent>&& Component);
+
 	// Hard reference to the graph used to create this instance to ensure we can release it safely
 	UPROPERTY()
 	TObjectPtr<const UAnimNextGraph> Graph;
@@ -89,8 +119,11 @@ private:
 	UPROPERTY()
 	FRigVMExtendedExecuteContext ExtendedExecuteContext;
 
-	// The graph is the one that allocates instances
-	friend UAnimNextGraph;
+	// Graph instance components that persist from update to update
+	GraphInstanceComponentMapType Components;
+
+	friend UAnimNextGraph;					// The graph is the one that allocates instances
+	friend FRigUnit_AnimNextGraphEvaluator;	// We evaluate the instance
 };
 
 // A user-created graph of logic used to supply data
@@ -137,8 +170,10 @@ protected:
 	friend class UAnimNextGraph_EditorData;
 	friend struct UE::AnimNext::UncookedOnly::FUtils;
 	friend class UE::AnimNext::Editor::FGraphEditor;
+	friend struct UE::AnimNext::FTestUtils;
 	friend struct FAnimNextGraphInstance;
 	friend class UAnimGraphNode_AnimNextGraph;
+	friend UE::AnimNext::FExecutionContext;
 
 #if WITH_EDITORONLY_DATA
 	mutable FRWLock GraphInstancesLock;
@@ -200,3 +235,37 @@ protected:
 	TArray<uint8> SharedDataArchiveBuffer;
 #endif
 };
+
+//////////////////////////////////////////////////////////////////////////
+
+template<class ComponentType>
+ComponentType& FAnimNextGraphInstance::GetComponent()
+{
+	const FName ComponentName = ComponentType::StaticComponentName();
+	const int32 ComponentNameHash = GetTypeHash(ComponentName);
+
+	if (UE::AnimNext::FGraphInstanceComponent* Component = TryGetComponent(ComponentNameHash, ComponentName))
+	{
+		return *static_cast<ComponentType*>(Component);
+	}
+
+	return static_cast<ComponentType&>(AddComponent(ComponentNameHash, ComponentName, MakeShared<ComponentType>()));
+}
+
+template<class ComponentType>
+ComponentType* FAnimNextGraphInstance::TryGetComponent()
+{
+	const FName ComponentName = ComponentType::StaticComponentName();
+	const int32 ComponentNameHash = GetTypeHash(ComponentName);
+
+	return *static_cast<ComponentType*>(TryGetComponent(ComponentNameHash, ComponentName));
+}
+
+template<class ComponentType>
+const ComponentType* FAnimNextGraphInstance::TryGetComponent() const
+{
+	const FName ComponentName = ComponentType::StaticComponentName();
+	const int32 ComponentNameHash = GetTypeHash(ComponentName);
+
+	return *static_cast<ComponentType*>(TryGetComponent(ComponentNameHash, ComponentName));
+}

@@ -80,6 +80,32 @@ namespace UE::AnimNext
 			return ExecutionContext.EvaluateLatentPin<LatentPinType>(LatentPropertyHandle);
 		}
 
+		// Returns a typed graph instance component, creating it lazily the first time it is queried
+		template<class ComponentType>
+		ComponentType& GetComponent() const
+		{
+			return ExecutionContext.GetComponent<ComponentType>();
+		}
+
+		// Returns a typed graph instance component pointer if found or nullptr otherwise
+		template<class ComponentType>
+		ComponentType* TryGetComponent() const
+		{
+			return ExecutionContext.TryGetComponent<ComponentType>();
+		}
+
+		// Returns const iterators to the graph instance component container
+		GraphInstanceComponentMapType::TConstIterator GetComponentIterator() const
+		{
+			return ExecutionContext.GetComponentIterator();
+		}
+
+		// Returns the bound graph instance
+		const FAnimNextGraphInstance& GetGraphInstance() const
+		{
+			return ExecutionContext.GetGraphInstance();
+		}
+
 	private:
 		// The execution context that we wrap
 		const FExecutionContext& ExecutionContext;

@@ -225,6 +225,12 @@ namespace UE::AnimNext
 		FUpdateTraversalContext TraversalContext(Context, MemStack);
 		FUpdateTraversalQueue TraversalQueue(TraversalContext);
 
+		// Before we start the traversal, we give the graph instance components the chance to do some work
+		for (auto It = Context.GetComponentIterator(); It; ++It)
+		{
+			It.Value()->PreUpdate(TraversalContext);
+		}
+
 		// Add the graph root to start the update process
 		FUpdateEntry RootEntry(GraphRootPtr, FDecoratorUpdateState(DeltaTime));
 		TraversalContext.PushUpdateEntry(&RootEntry);
@@ -289,6 +295,12 @@ namespace UE::AnimNext
 				// We don't need this entry anymore
 				TraversalContext.PushFreeEntry(Entry);
 			}
+		}
+
+		// After we finish the traversal, we give the graph instance components the chance to do some work
+		for (auto It = Context.GetComponentIterator(); It; ++It)
+		{
+			It.Value()->PostUpdate(TraversalContext);
 		}
 	}
 }

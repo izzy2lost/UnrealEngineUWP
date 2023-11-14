@@ -58,7 +58,6 @@ namespace UE::AnimNext
 		struct FInstanceData : FDecorator::FInstanceData
 		{
 			float InternalTimeAccumulator = 0.0f;
-			float PrevInternalTimeAccumulator = 0.0f;
 
 			void Construct(const FExecutionContext& Context, const FDecoratorBinding& Binding);
 		};
@@ -67,7 +66,9 @@ namespace UE::AnimNext
 		virtual void PreEvaluate(const FExecutionContext& Context, const TDecoratorBinding<IEvaluate>& Binding) const override;
 
 		// ITimeline impl
-		virtual double GetPlayRate(const FExecutionContext& Context, const TDecoratorBinding<ITimeline>& Binding) const override;
+		virtual float GetPlayRate(const FExecutionContext& Context, const TDecoratorBinding<ITimeline>& Binding) const override;
+		virtual float AdvanceBy(const FExecutionContext& Context, const TDecoratorBinding<ITimeline>& Binding, float DeltaTime) const override;
+		virtual void AdvanceToRatio(const FExecutionContext& Context, const TDecoratorBinding<ITimeline>& Binding, float ProgressRatio) const override;
 
 		// IUpdate impl
 		virtual void PreUpdate(FUpdateTraversalContext& Context, const TDecoratorBinding<IUpdate>& Binding, const FDecoratorUpdateState& DecoratorState) const override;

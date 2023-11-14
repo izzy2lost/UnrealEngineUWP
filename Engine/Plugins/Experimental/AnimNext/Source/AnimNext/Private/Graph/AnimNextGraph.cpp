@@ -134,11 +134,14 @@ void FAnimNextGraphInstance::Release()
 		return;
 	}
 
-	// We need an execution context for this graph to be active when we delete the graph instance
-	UE::AnimNext::FExecutionContext Context(Graph->SharedDataBuffer);
+	{
+		// We need an execution context for this graph to be active when we delete the graph instance
+		UE::AnimNext::FExecutionContext Context(*this);
+		GraphInstancePtr.Reset();
+	}
 
-	GraphInstancePtr.Reset();
 	ExtendedExecuteContext.Reset();
+	Components.Empty();
 
 #if WITH_EDITORONLY_DATA
 	FRWScopeLock Lock(Graph->GraphInstancesLock, SLT_Write);
@@ -154,9 +157,34 @@ bool FAnimNextGraphInstance::IsValid() const
 	return GraphInstancePtr.IsValid();
 }
 
+const UAnimNextGraph* FAnimNextGraphInstance::GetGraph() const
+{
+	return Graph;
+}
+
 bool FAnimNextGraphInstance::UsesGraph(const UAnimNextGraph* InGraph) const
 {
 	return Graph == InGraph;
+}
+
+UE::AnimNext::FGraphInstanceComponent* FAnimNextGraphInstance::TryGetComponent(int32 ComponentNameHash, FName ComponentName) const
+{
+	if (const TSharedPtr<UE::AnimNext::FGraphInstanceComponent>* Component = Components.FindByHash(ComponentNameHash, ComponentName))
+	{
+		return Component->Get();
+	}
+
+	return nullptr;
+}
+
+UE::AnimNext::FGraphInstanceComponent& FAnimNextGraphInstance::AddComponent(int32 ComponentNameHash, FName ComponentName, TSharedPtr<UE::AnimNext::FGraphInstanceComponent>&& Component)
+{
+	return *Components.AddByHash(ComponentNameHash, ComponentName, MoveTemp(Component)).Get();
+}
+
+GraphInstanceComponentMapType::TConstIterator FAnimNextGraphInstance::GetComponentIterator() const
+{
+	return Components.CreateConstIterator();
 }
 
 UAnimNextGraph::UAnimNextGraph(const FObjectInitializer& ObjectInitializer)
@@ -178,12 +206,13 @@ void UAnimNextGraph::AllocateInstance(FAnimNextGraphInstance& Instance) const
 
 	Instance.Graph = this;
 
-	UE::AnimNext::FExecutionContext Context(SharedDataBuffer);
-	Instance.GraphInstancePtr = Context.AllocateNodeInstance(UE::AnimNext::FWeakDecoratorPtr(), ResolvedRootDecoratorHandle);
-
 	Instance.ExtendedExecuteContext.CopyMemoryStorage(ExtendedExecuteContext);
-
 	VM->InitializeInstance(Instance.ExtendedExecuteContext);
+
+	{
+		UE::AnimNext::FExecutionContext Context(Instance);
+		Instance.GraphInstancePtr = Context.AllocateNodeInstance(UE::AnimNext::FWeakDecoratorPtr(), ResolvedRootDecoratorHandle);
+	}
 
 #if WITH_EDITORONLY_DATA
 	FRWScopeLock Lock(GraphInstancesLock, SLT_Write);
@@ -200,7 +229,7 @@ void UAnimNextGraph::Run(const UE::AnimNext::FContext& Context, FAnimNextGraphIn
 	{
 		FAnimNextExecuteContext& AnimNextContext = GraphInstance.ExtendedExecuteContext.GetPublicDataSafe<FAnimNextExecuteContext>();
 		AnimNextContext.SetContextData(Context);
-		AnimNextContext.InitializeWithGraph(this, SharedDataBuffer, GraphInstance.GraphInstancePtr);
+		AnimNextContext.SetGraphInstance(GraphInstance);
 		AnimNextContext.SetSimulationSteps(SimulationSteps);
 
 		VM->ExecuteVM(GraphInstance.ExtendedExecuteContext, FRigUnit_AnimNextShimRoot::EventName);

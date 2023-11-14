@@ -2,6 +2,7 @@
 
 #include "Decorators/SequencePlayer.h"
 
+#include "AnimationRuntime.h"
 #include "DecoratorBase/ExecutionContext.h"
 #include "EvaluationVM/Tasks/PushAnimSequenceKeyframe.h"
 
@@ -22,7 +23,6 @@ namespace UE::AnimNext
 		{
 			const float SequenceLength = SharedData->AnimSequence->GetPlayLength();
 			InternalTimeAccumulator = FMath::Clamp(SharedData->GetStartPosition(Context, Binding), 0.0f, SequenceLength);
-			PrevInternalTimeAccumulator = InternalTimeAccumulator;
 		}
 	}
 
@@ -40,41 +40,53 @@ namespace UE::AnimNext
 		TraversalContext.AppendTask(Task);
 	}
 
-	double FSequencePlayerDecorator::GetPlayRate(const FExecutionContext& Context, const TDecoratorBinding<ITimeline>& Binding) const
+	float FSequencePlayerDecorator::GetPlayRate(const FExecutionContext& Context, const TDecoratorBinding<ITimeline>& Binding) const
 	{
 		const FSharedData* SharedData = Binding.GetSharedData<FSharedData>();
 		return SharedData->GetPlayRate(Context, Binding);
 	}
 
-	void FSequencePlayerDecorator::PreUpdate(FUpdateTraversalContext& Context, const TDecoratorBinding<IUpdate>& Binding, const FDecoratorUpdateState& DecoratorState) const
+	float FSequencePlayerDecorator::AdvanceBy(const FExecutionContext& Context, const TDecoratorBinding<ITimeline>& Binding, float DeltaTime) const
 	{
 		const FSharedData* SharedData = Binding.GetSharedData<FSharedData>();
-		if (SharedData->AnimSequence != nullptr)
+		if (UAnimSequence* AnimSeq = SharedData->AnimSequence.Get())
 		{
 			FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
 
 			TDecoratorBinding<ITimeline> TimelineDecorator;
 			Context.GetInterface(Binding, TimelineDecorator);
 
-			const float DeltaTime = DecoratorState.GetDeltaTime();
-			const float PlayRate = (float)TimelineDecorator.GetPlayRate(Context);
-
-			const float EffectiveDelta = FMath::IsNearlyZero(DeltaTime) || FMath::IsNearlyZero(PlayRate) ? 0.f : DeltaTime * PlayRate;
-
+			const float PlayRate = TimelineDecorator.GetPlayRate(Context);
 			const bool bIsLooping = SharedData->GetbLoop(Context, Binding);
+			const float SequenceLength = AnimSeq->GetPlayLength();
 
-			const float SequenceLength = SharedData->AnimSequence->GetPlayLength();
-			float CurrentTime = bIsLooping
-				? FMath::Fmod(InstanceData->InternalTimeAccumulator + EffectiveDelta, SequenceLength)
-				: FMath::Clamp(InstanceData->InternalTimeAccumulator + EffectiveDelta, 0.f, SequenceLength);
+			FAnimationRuntime::AdvanceTime(bIsLooping, DeltaTime * PlayRate, InstanceData->InternalTimeAccumulator, SequenceLength);
 
-			if (bIsLooping && CurrentTime < 0.f)
-			{
-				CurrentTime += SequenceLength;
-			}
-
-			InstanceData->PrevInternalTimeAccumulator = InstanceData->InternalTimeAccumulator;
-			InstanceData->InternalTimeAccumulator = CurrentTime;
+			return FMath::Clamp(InstanceData->InternalTimeAccumulator / SequenceLength, 0.0f, 1.0f);
 		}
+
+		return 0.0f;
+	}
+
+	void FSequencePlayerDecorator::AdvanceToRatio(const FExecutionContext& Context, const TDecoratorBinding<ITimeline>& Binding, float ProgressRatio) const
+	{
+		const FSharedData* SharedData = Binding.GetSharedData<FSharedData>();
+		if (UAnimSequence* AnimSeq = SharedData->AnimSequence.Get())
+		{
+			FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
+
+			const float SequenceLength = AnimSeq->GetPlayLength();
+
+			InstanceData->InternalTimeAccumulator = FMath::Clamp(ProgressRatio, 0.0f, 1.0f) * SequenceLength;
+		}
+	}
+
+	void FSequencePlayerDecorator::PreUpdate(FUpdateTraversalContext& Context, const TDecoratorBinding<IUpdate>& Binding, const FDecoratorUpdateState& DecoratorState) const
+	{
+		// We just advance the timeline
+		TDecoratorBinding<ITimeline> TimelineDecorator;
+		Context.GetInterface(Binding, TimelineDecorator);
+
+		TimelineDecorator.AdvanceBy(Context, DecoratorState.GetDeltaTime());
 	}
 }

@@ -18,6 +18,7 @@
 #include "DecoratorBase/NodeInstance.h"
 #include "DecoratorBase/NodeTemplateBuilder.h"
 #include "DecoratorBase/NodeTemplateRegistry.h"
+#include "Graph/GraphFactory.h"
 
 //****************************************************************************
 // AnimNext Runtime DecoratorBase Tests
@@ -500,6 +501,10 @@ bool FAnimationAnimNextRuntimeTest_NodeLifetime::RunTest(const FString& InParame
 	AUTO_REGISTER_ANIM_DECORATOR(FDecoratorAB_Add)
 	AUTO_REGISTER_ANIM_DECORATOR(FDecoratorAC_Add)
 
+	UFactory* GraphFactory = NewObject<UAnimNextGraphFactory>();
+	UAnimNextGraph* AnimNextGraph = CastChecked<UAnimNextGraph>(GraphFactory->FactoryCreateNew(UAnimNextGraph::StaticClass(), GetTransientPackage(), TEXT("TestAnimNextGraph"), RF_Transient, nullptr, nullptr, NAME_None));
+	UE_RETURN_ON_ERROR(AnimNextGraph != nullptr, "FAnimationAnimNextRuntimeTest_NodeLifetime -> Failed to create animation graph");
+
 	FScopedClearNodeTemplateRegistry ScopedClearNodeTemplateRegistry;
 	FNodeTemplateRegistry& Registry = FNodeTemplateRegistry::Get();
 
@@ -517,8 +522,7 @@ bool FAnimationAnimNextRuntimeTest_NodeLifetime::RunTest(const FString& InParame
 	FNodeTemplateRegistryHandle TemplateHandle0 = Registry.FindOrAdd(NodeTemplate0);
 	AddErrorIfFalse(TemplateHandle0.IsValid(), "FAnimationAnimNextRuntimeTest_NodeLifetime -> Registry should contain our template");
 
-	FNodeHandle Node0;
-	FNodeHandle Node1;
+	TArray<FNodeHandle> NodeHandles;
 
 	// Write our graph
 	TArray<uint8> GraphSharedDataArchiveBuffer;
@@ -526,13 +530,13 @@ bool FAnimationAnimNextRuntimeTest_NodeLifetime::RunTest(const FString& InParame
 	{
 		FDecoratorWriter DecoratorWriter;
 
-		Node0 = DecoratorWriter.RegisterNode(*NodeTemplate0);
-		Node1 = DecoratorWriter.RegisterNode(*NodeTemplate0);
+		NodeHandles.Add(DecoratorWriter.RegisterNode(*NodeTemplate0));
+		NodeHandles.Add(DecoratorWriter.RegisterNode(*NodeTemplate0));
 
 		// We don't have decorator properties
 
 		DecoratorWriter.BeginNodeWriting();
-		DecoratorWriter.WriteNode(Node0,
+		DecoratorWriter.WriteNode(NodeHandles[0],
 			[](uint32 DecoratorIndex, const FString& PropertyName)
 			{
 				return FString();
@@ -541,7 +545,7 @@ bool FAnimationAnimNextRuntimeTest_NodeLifetime::RunTest(const FString& InParame
 			{
 				return false;
 			});
-		DecoratorWriter.WriteNode(Node1,
+		DecoratorWriter.WriteNode(NodeHandles[1],
 			[](uint32 DecoratorIndex, const FString& PropertyName)
 			{
 				return FString();
@@ -558,31 +562,24 @@ bool FAnimationAnimNextRuntimeTest_NodeLifetime::RunTest(const FString& InParame
 	}
 
 	// Read our graph
-	TArray<uint8> GraphSharedDataBuffer;
-	{
-		FMemoryReader GraphSharedDataArchive(GraphSharedDataArchiveBuffer);
-		FDecoratorReader DecoratorReader(GraphReferencedObjects, GraphSharedDataArchive);
+	FTestUtils::LoadFromArchiveBuffer(*AnimNextGraph, NodeHandles, GraphSharedDataArchiveBuffer);
 
-		FDecoratorReader::EErrorState ErrorState = DecoratorReader.ReadGraph(GraphSharedDataBuffer);
-		AddErrorIfFalse(ErrorState == FDecoratorReader::EErrorState::None, "FAnimationAnimNextRuntimeTest_NodeLifetime -> Failed to read graph shared data");
+	FAnimNextGraphInstance GraphInstance;
+	AnimNextGraph->AllocateInstance(GraphInstance);
 
-		Node0 = DecoratorReader.ResolveNodeHandle(Node0);
-		Node1 = DecoratorReader.ResolveNodeHandle(Node1);
-	}
-
-	FExecutionContext Context(GraphSharedDataBuffer);
+	FExecutionContext Context(GraphInstance);
 
 	// Validate handle bookkeeping
 	{
-		FDecoratorBinding RootBinding;					// Empty, no parent
-		FAnimNextDecoratorHandle DecoratorHandle00(Node0, 0);	// Point to first node, first base decorator
+		FDecoratorBinding RootBinding;									// Empty, no parent
+		FAnimNextDecoratorHandle DecoratorHandle00(NodeHandles[0], 0);	// Point to first node, first base decorator
 
 		// Allocate a node
 		FDecoratorPtr DecoratorPtr00 = Context.AllocateNodeInstance(RootBinding, DecoratorHandle00);
 		AddErrorIfFalse(DecoratorPtr00.IsValid(), "FAnimationAnimNextRuntimeTest_NodeLifetime -> Failed to allocate a node instance");
 		AddErrorIfFalse(DecoratorPtr00.GetDecoratorIndex() == 0, "FAnimationAnimNextRuntimeTest_NodeLifetime -> Allocated decorator pointer should point to root decorator");
 		AddErrorIfFalse(!DecoratorPtr00.IsWeak(), "FAnimationAnimNextRuntimeTest_NodeLifetime -> Allocated decorator pointer should not be weak, we have no parent");
-		AddErrorIfFalse(DecoratorPtr00.GetNodeInstance()->GetNodeHandle() == Node0, "FAnimationAnimNextRuntimeTest_NodeLifetime -> Allocated node should point to the provided node handle");
+		AddErrorIfFalse(DecoratorPtr00.GetNodeInstance()->GetNodeHandle() == NodeHandles[0], "FAnimationAnimNextRuntimeTest_NodeLifetime -> Allocated node should point to the provided node handle");
 		AddErrorIfFalse(DecoratorPtr00.GetNodeInstance()->GetReferenceCount() == 1, "FAnimationAnimNextRuntimeTest_NodeLifetime -> Allocated node should have a single reference");
 
 		{
@@ -624,10 +621,10 @@ bool FAnimationAnimNextRuntimeTest_NodeLifetime::RunTest(const FString& InParame
 
 	// Validate parent support
 	{
-		FDecoratorBinding RootBinding;					// Empty, no parent
-		FAnimNextDecoratorHandle DecoratorHandle00(Node0, 0);	// Point to first node, first base decorator
-		FAnimNextDecoratorHandle DecoratorHandle03(Node0, 3);	// Point to first node, second base decorator
-		FAnimNextDecoratorHandle DecoratorHandle10(Node1, 0);	// Point to second node, first base decorator
+		FDecoratorBinding RootBinding;									// Empty, no parent
+		FAnimNextDecoratorHandle DecoratorHandle00(NodeHandles[0], 0);	// Point to first node, first base decorator
+		FAnimNextDecoratorHandle DecoratorHandle03(NodeHandles[0], 3);	// Point to first node, second base decorator
+		FAnimNextDecoratorHandle DecoratorHandle10(NodeHandles[1], 0);	// Point to second node, first base decorator
 
 		// Allocate our first node
 		FDecoratorPtr DecoratorPtr00 = Context.AllocateNodeInstance(RootBinding, DecoratorHandle00);
@@ -639,7 +636,7 @@ bool FAnimationAnimNextRuntimeTest_NodeLifetime::RunTest(const FString& InParame
 		AddErrorIfFalse(DecoratorPtr03.IsValid(), "FAnimationAnimNextRuntimeTest_NodeLifetime -> Failed to allocate a node instance");
 		AddErrorIfFalse(DecoratorPtr03.GetDecoratorIndex() == 3, "FAnimationAnimNextRuntimeTest_NodeLifetime -> Allocated decorator pointer should point to fourth decorator");
 		AddErrorIfFalse(DecoratorPtr03.IsWeak(), "FAnimationAnimNextRuntimeTest_NodeLifetime -> Allocated decorator pointer should be weak, we have the same parent");
-		AddErrorIfFalse(DecoratorPtr03.GetNodeInstance()->GetNodeHandle() == Node0, "FAnimationAnimNextRuntimeTest_NodeLifetime -> Allocated node should point to the provided node handle");
+		AddErrorIfFalse(DecoratorPtr03.GetNodeInstance()->GetNodeHandle() == NodeHandles[0], "FAnimationAnimNextRuntimeTest_NodeLifetime -> Allocated node should point to the provided node handle");
 		AddErrorIfFalse(DecoratorPtr03.GetNodeInstance() == DecoratorPtr00.GetNodeInstance(), "FAnimationAnimNextRuntimeTest_NodeLifetime -> Handles should point to the same node instance");
 		AddErrorIfFalse(DecoratorPtr03.GetNodeInstance()->GetReferenceCount() == 1, "FAnimationAnimNextRuntimeTest_NodeLifetime -> Allocated node should have one reference");
 
@@ -649,7 +646,7 @@ bool FAnimationAnimNextRuntimeTest_NodeLifetime::RunTest(const FString& InParame
 		AddErrorIfFalse(DecoratorPtr10.IsValid(), "FAnimationAnimNextRuntimeTest_NodeLifetime -> Failed to allocate a node instance");
 		AddErrorIfFalse(DecoratorPtr10.GetDecoratorIndex() == 0, "FAnimationAnimNextRuntimeTest_NodeLifetime -> Allocated decorator pointer should point to first decorator");
 		AddErrorIfFalse(!DecoratorPtr10.IsWeak(), "FAnimationAnimNextRuntimeTest_NodeLifetime -> Allocated decorator pointer should not be weak, we have the same parent but a different node handle");
-		AddErrorIfFalse(DecoratorPtr10.GetNodeInstance()->GetNodeHandle() == Node1, "FAnimationAnimNextRuntimeTest_NodeLifetime -> Allocated node should point to the provided node handle");
+		AddErrorIfFalse(DecoratorPtr10.GetNodeInstance()->GetNodeHandle() == NodeHandles[1], "FAnimationAnimNextRuntimeTest_NodeLifetime -> Allocated node should point to the provided node handle");
 		AddErrorIfFalse(DecoratorPtr10.GetNodeInstance() != DecoratorPtr00.GetNodeInstance(), "FAnimationAnimNextRuntimeTest_NodeLifetime -> Handles should not point to the same node instance");
 		AddErrorIfFalse(DecoratorPtr10.GetNodeInstance()->GetReferenceCount() == 1, "FAnimationAnimNextRuntimeTest_NodeLifetime -> Allocated node should have one reference");
 	}
@@ -663,8 +660,8 @@ bool FAnimationAnimNextRuntimeTest_NodeLifetime::RunTest(const FString& InParame
 		Private::DestructedDecorators = &DestructedDecorators;
 
 		{
-			FDecoratorBinding RootBinding;					// Empty, no parent
-			FAnimNextDecoratorHandle DecoratorHandle00(Node0, 0);	// Point to first node, first base decorator
+			FDecoratorBinding RootBinding;									// Empty, no parent
+			FAnimNextDecoratorHandle DecoratorHandle00(NodeHandles[0], 0);	// Point to first node, first base decorator
 
 			// Allocate our node instance
 			FDecoratorPtr DecoratorPtr00 = Context.AllocateNodeInstance(RootBinding, DecoratorHandle00);
@@ -713,6 +710,10 @@ bool FAnimationAnimNextRuntimeTest_GetDecoratorInterface::RunTest(const FString&
 	AUTO_REGISTER_ANIM_DECORATOR(FDecoratorAB_Add)
 	AUTO_REGISTER_ANIM_DECORATOR(FDecoratorAC_Add)
 
+	UFactory* GraphFactory = NewObject<UAnimNextGraphFactory>();
+	UAnimNextGraph* AnimNextGraph = CastChecked<UAnimNextGraph>(GraphFactory->FactoryCreateNew(UAnimNextGraph::StaticClass(), GetTransientPackage(), TEXT("TestAnimNextGraph"), RF_Transient, nullptr, nullptr, NAME_None));
+	UE_RETURN_ON_ERROR(AnimNextGraph != nullptr, "FAnimationAnimNextRuntimeTest_GetDecoratorInterface -> Failed to create animation graph");
+
 	FScopedClearNodeTemplateRegistry ScopedClearNodeTemplateRegistry;
 	FNodeTemplateRegistry& Registry = FNodeTemplateRegistry::Get();
 
@@ -730,7 +731,7 @@ bool FAnimationAnimNextRuntimeTest_GetDecoratorInterface::RunTest(const FString&
 	FNodeTemplateRegistryHandle TemplateHandle0 = Registry.FindOrAdd(NodeTemplate0);
 	AddErrorIfFalse(TemplateHandle0.IsValid(), "FAnimationAnimNextRuntimeTest_GetDecoratorInterface -> Registry should contain our template");
 
-	FNodeHandle Node0;
+	TArray<FNodeHandle> NodeHandles;
 
 	// Write our graph
 	TArray<uint8> GraphSharedDataArchiveBuffer;
@@ -738,12 +739,12 @@ bool FAnimationAnimNextRuntimeTest_GetDecoratorInterface::RunTest(const FString&
 	{
 		FDecoratorWriter DecoratorWriter;
 
-		Node0 = DecoratorWriter.RegisterNode(*NodeTemplate0);
+		NodeHandles.Add(DecoratorWriter.RegisterNode(*NodeTemplate0));
 
 		// We don't have decorator properties
 
 		DecoratorWriter.BeginNodeWriting();
-		DecoratorWriter.WriteNode(Node0,
+		DecoratorWriter.WriteNode(NodeHandles[0],
 			[](uint32 DecoratorIndex, const FString& PropertyName)
 			{
 				return FString();
@@ -760,23 +761,17 @@ bool FAnimationAnimNextRuntimeTest_GetDecoratorInterface::RunTest(const FString&
 	}
 
 	// Read our graph
-	TArray<uint8> GraphSharedDataBuffer;
-	{
-		FMemoryReader GraphSharedDataArchive(GraphSharedDataArchiveBuffer);
-		FDecoratorReader DecoratorReader(GraphReferencedObjects, GraphSharedDataArchive);
+	FTestUtils::LoadFromArchiveBuffer(*AnimNextGraph, NodeHandles, GraphSharedDataArchiveBuffer);
 
-		FDecoratorReader::EErrorState ErrorState = DecoratorReader.ReadGraph(GraphSharedDataBuffer);
-		AddErrorIfFalse(ErrorState == FDecoratorReader::EErrorState::None, "FAnimationAnimNextRuntimeTest_GetDecoratorInterface -> Failed to read graph shared data");
+	FAnimNextGraphInstance GraphInstance;
+	AnimNextGraph->AllocateInstance(GraphInstance);
 
-		Node0 = DecoratorReader.ResolveNodeHandle(Node0);
-	}
-
-	FExecutionContext Context(GraphSharedDataBuffer);
+	FExecutionContext Context(GraphInstance);
 
 	// Validate from the first base decorator
 	{
-		FDecoratorBinding ParentBinding;				// Empty, no parent
-		FAnimNextDecoratorHandle DecoratorHandle00(Node0, 0);	// Point to first node, first base decorator
+		FDecoratorBinding ParentBinding;								// Empty, no parent
+		FAnimNextDecoratorHandle DecoratorHandle00(NodeHandles[0], 0);	// Point to first node, first base decorator
 
 		FDecoratorPtr DecoratorPtr00 = Context.AllocateNodeInstance(ParentBinding, DecoratorHandle00);
 		AddErrorIfFalse(DecoratorPtr00.IsValid(), "FAnimationAnimNextRuntimeTest_GetDecoratorInterface -> Failed to allocate a node instance");
@@ -787,7 +782,7 @@ bool FAnimationAnimNextRuntimeTest_GetDecoratorInterface::RunTest(const FString&
 		AddErrorIfFalse(Binding00C.IsValid(), "FAnimationAnimNextRuntimeTest_GetDecoratorInterface -> InterfaceC binding not valid");
 		AddErrorIfFalse(Binding00C.GetInterfaceUID() == IInterfaceC::InterfaceUID, "FAnimationAnimNextRuntimeTest_GetDecoratorInterface -> Unexpected interface UID found in decorator binding");
 		AddErrorIfFalse(Binding00C.GetDecoratorPtr().GetDecoratorIndex() == 2, "FAnimationAnimNextRuntimeTest_GetDecoratorInterface -> InterfaceC not found on expected decorator");
-		AddErrorIfFalse(Binding00C.GetDecoratorPtr().GetNodeInstance()->GetNodeHandle() == Node0, "FAnimationAnimNextRuntimeTest_GetDecoratorInterface -> InterfaceC not found on expected node");
+		AddErrorIfFalse(Binding00C.GetDecoratorPtr().GetNodeInstance()->GetNodeHandle() == NodeHandles[0], "FAnimationAnimNextRuntimeTest_GetDecoratorInterface -> InterfaceC not found on expected node");
 		AddErrorIfFalse(Binding00C.GetSharedData<FDecoratorAC_Add::FSharedData>()->DecoratorUID == FDecoratorAC_Add::DecoratorUID, "FAnimationAnimNextRuntimeTest_GetDecoratorInterface -> Unexpected shared data in decorator binding");
 		AddErrorIfFalse(Binding00C.GetInstanceData<FDecoratorAC_Add::FInstanceData>()->DecoratorUID == FDecoratorAC_Add::DecoratorUID, "FAnimationAnimNextRuntimeTest_GetDecoratorInterface -> Unexpected instance data in decorator binding");
 
@@ -796,7 +791,7 @@ bool FAnimationAnimNextRuntimeTest_GetDecoratorInterface::RunTest(const FString&
 		AddErrorIfFalse(Binding00B.IsValid(), "FAnimationAnimNextRuntimeTest_GetDecoratorInterface -> InterfaceB binding not valid");
 		AddErrorIfFalse(Binding00B.GetInterfaceUID() == IInterfaceB::InterfaceUID, "FAnimationAnimNextRuntimeTest_GetDecoratorInterface -> Unexpected interface UID found in decorator binding");
 		AddErrorIfFalse(Binding00B.GetDecoratorPtr().GetDecoratorIndex() == 1, "FAnimationAnimNextRuntimeTest_GetDecoratorInterface -> InterfaceB not found on expected decorator");
-		AddErrorIfFalse(Binding00B.GetDecoratorPtr().GetNodeInstance()->GetNodeHandle() == Node0, "FAnimationAnimNextRuntimeTest_GetDecoratorInterface -> InterfaceB not found on expected node");
+		AddErrorIfFalse(Binding00B.GetDecoratorPtr().GetNodeInstance()->GetNodeHandle() == NodeHandles[0], "FAnimationAnimNextRuntimeTest_GetDecoratorInterface -> InterfaceB not found on expected node");
 		AddErrorIfFalse(Binding00B.GetSharedData<FDecoratorAB_Add::FSharedData>()->DecoratorUID == FDecoratorAB_Add::DecoratorUID, "FAnimationAnimNextRuntimeTest_GetDecoratorInterface -> Unexpected shared data in decorator binding");
 		AddErrorIfFalse(Binding00B.GetInstanceData<FDecoratorAB_Add::FInstanceData>()->DecoratorUID == FDecoratorAB_Add::DecoratorUID, "FAnimationAnimNextRuntimeTest_GetDecoratorInterface -> Unexpected instance data in decorator binding");
 
@@ -805,7 +800,7 @@ bool FAnimationAnimNextRuntimeTest_GetDecoratorInterface::RunTest(const FString&
 		AddErrorIfFalse(Binding00A.IsValid(), "FAnimationAnimNextRuntimeTest_GetDecoratorInterface -> InterfaceA binding not valid");
 		AddErrorIfFalse(Binding00A.GetInterfaceUID() == IInterfaceA::InterfaceUID, "FAnimationAnimNextRuntimeTest_GetDecoratorInterface -> Unexpected interface UID found in decorator binding");
 		AddErrorIfFalse(Binding00A.GetDecoratorPtr().GetDecoratorIndex() == 2, "FAnimationAnimNextRuntimeTest_GetDecoratorInterface -> InterfaceA not found on expected decorator");
-		AddErrorIfFalse(Binding00A.GetDecoratorPtr().GetNodeInstance()->GetNodeHandle() == Node0, "FAnimationAnimNextRuntimeTest_GetDecoratorInterface -> InterfaceA not found on expected node");
+		AddErrorIfFalse(Binding00A.GetDecoratorPtr().GetNodeInstance()->GetNodeHandle() == NodeHandles[0], "FAnimationAnimNextRuntimeTest_GetDecoratorInterface -> InterfaceA not found on expected node");
 		AddErrorIfFalse(Binding00A.GetSharedData<FDecoratorAC_Add::FSharedData>()->DecoratorUID == FDecoratorAC_Add::DecoratorUID, "FAnimationAnimNextRuntimeTest_GetDecoratorInterface -> Unexpected shared data in decorator binding");
 		AddErrorIfFalse(Binding00A.GetInstanceData<FDecoratorAC_Add::FInstanceData>()->DecoratorUID == FDecoratorAC_Add::DecoratorUID, "FAnimationAnimNextRuntimeTest_GetDecoratorInterface -> Unexpected instance data in decorator binding");
 
@@ -875,8 +870,8 @@ bool FAnimationAnimNextRuntimeTest_GetDecoratorInterface::RunTest(const FString&
 
 	// Validate from the second base decorator
 	{
-		FDecoratorBinding ParentBinding;				// Empty, no parent
-		FAnimNextDecoratorHandle DecoratorHandle03(Node0, 3);	// Point to first node, second base decorator
+		FDecoratorBinding ParentBinding;								// Empty, no parent
+		FAnimNextDecoratorHandle DecoratorHandle03(NodeHandles[0], 3);	// Point to first node, second base decorator
 
 		FDecoratorPtr DecoratorPtr03 = Context.AllocateNodeInstance(ParentBinding, DecoratorHandle03);
 		AddErrorIfFalse(DecoratorPtr03.IsValid(), "FAnimationAnimNextRuntimeTest_GetDecoratorInterface -> Failed to allocate a node instance");
@@ -887,7 +882,7 @@ bool FAnimationAnimNextRuntimeTest_GetDecoratorInterface::RunTest(const FString&
 		AddErrorIfFalse(Binding03C.IsValid(), "FAnimationAnimNextRuntimeTest_GetDecoratorInterface -> InterfaceC binding not valid");
 		AddErrorIfFalse(Binding03C.GetInterfaceUID() == IInterfaceC::InterfaceUID, "FAnimationAnimNextRuntimeTest_GetDecoratorInterface -> Unexpected interface UID found in decorator binding");
 		AddErrorIfFalse(Binding03C.GetDecoratorPtr().GetDecoratorIndex() == 4, "FAnimationAnimNextRuntimeTest_GetDecoratorInterface -> InterfaceC not found on expected decorator");
-		AddErrorIfFalse(Binding03C.GetDecoratorPtr().GetNodeInstance()->GetNodeHandle() == Node0, "FAnimationAnimNextRuntimeTest_GetDecoratorInterface -> InterfaceC not found on expected node");
+		AddErrorIfFalse(Binding03C.GetDecoratorPtr().GetNodeInstance()->GetNodeHandle() == NodeHandles[0], "FAnimationAnimNextRuntimeTest_GetDecoratorInterface -> InterfaceC not found on expected node");
 		AddErrorIfFalse(Binding03C.GetSharedData<FDecoratorAC_Add::FSharedData>()->DecoratorUID == FDecoratorAC_Add::DecoratorUID, "FAnimationAnimNextRuntimeTest_GetDecoratorInterface -> Unexpected shared data in decorator binding");
 		AddErrorIfFalse(Binding03C.GetInstanceData<FDecoratorAC_Add::FInstanceData>()->DecoratorUID == FDecoratorAC_Add::DecoratorUID, "FAnimationAnimNextRuntimeTest_GetDecoratorInterface -> Unexpected instance data in decorator binding");
 
@@ -900,7 +895,7 @@ bool FAnimationAnimNextRuntimeTest_GetDecoratorInterface::RunTest(const FString&
 		AddErrorIfFalse(Binding03A.IsValid(), "FAnimationAnimNextRuntimeTest_GetDecoratorInterface -> InterfaceA binding not valid");
 		AddErrorIfFalse(Binding03A.GetInterfaceUID() == IInterfaceA::InterfaceUID, "FAnimationAnimNextRuntimeTest_GetDecoratorInterface -> Unexpected interface UID found in decorator binding");
 		AddErrorIfFalse(Binding03A.GetDecoratorPtr().GetDecoratorIndex() == 4, "FAnimationAnimNextRuntimeTest_GetDecoratorInterface -> InterfaceA not found on expected decorator");
-		AddErrorIfFalse(Binding03A.GetDecoratorPtr().GetNodeInstance()->GetNodeHandle() == Node0, "FAnimationAnimNextRuntimeTest_GetDecoratorInterface -> InterfaceA not found on expected node");
+		AddErrorIfFalse(Binding03A.GetDecoratorPtr().GetNodeInstance()->GetNodeHandle() == NodeHandles[0], "FAnimationAnimNextRuntimeTest_GetDecoratorInterface -> InterfaceA not found on expected node");
 		AddErrorIfFalse(Binding03A.GetSharedData<FDecoratorAC_Add::FSharedData>()->DecoratorUID == FDecoratorAC_Add::DecoratorUID, "FAnimationAnimNextRuntimeTest_GetDecoratorInterface -> Unexpected shared data in decorator binding");
 		AddErrorIfFalse(Binding03A.GetInstanceData<FDecoratorAC_Add::FInstanceData>()->DecoratorUID == FDecoratorAC_Add::DecoratorUID, "FAnimationAnimNextRuntimeTest_GetDecoratorInterface -> Unexpected instance data in decorator binding");
 
@@ -983,6 +978,10 @@ bool FAnimationAnimNextRuntimeTest_GetDecoratorInterfaceSuper::RunTest(const FSt
 	AUTO_REGISTER_ANIM_DECORATOR(FDecoratorAB_Add)
 	AUTO_REGISTER_ANIM_DECORATOR(FDecoratorAC_Add)
 
+	UFactory* GraphFactory = NewObject<UAnimNextGraphFactory>();
+	UAnimNextGraph* AnimNextGraph = CastChecked<UAnimNextGraph>(GraphFactory->FactoryCreateNew(UAnimNextGraph::StaticClass(), GetTransientPackage(), TEXT("TestAnimNextGraph"), RF_Transient, nullptr, nullptr, NAME_None));
+	UE_RETURN_ON_ERROR(AnimNextGraph != nullptr, "FAnimationAnimNextRuntimeTest_GetDecoratorInterfaceSuper -> Failed to create animation graph");
+
 	FScopedClearNodeTemplateRegistry ScopedClearNodeTemplateRegistry;
 	FNodeTemplateRegistry& Registry = FNodeTemplateRegistry::Get();
 
@@ -1001,7 +1000,7 @@ bool FAnimationAnimNextRuntimeTest_GetDecoratorInterfaceSuper::RunTest(const FSt
 	AddErrorIfFalse(Registry.GetNum() == 1, "FAnimationAnimNextRuntimeTest_GetDecoratorInterfaceSuper -> Registry should contain 1 template");
 	AddErrorIfFalse(TemplateHandle0.IsValid(), "FAnimationAnimNextRuntimeTest_GetDecoratorInterfaceSuper -> Registry should contain our template");
 
-	FNodeHandle Node0;
+	TArray<FNodeHandle> NodeHandles;
 
 	// Write our graph
 	TArray<uint8> GraphSharedDataArchiveBuffer;
@@ -1009,12 +1008,12 @@ bool FAnimationAnimNextRuntimeTest_GetDecoratorInterfaceSuper::RunTest(const FSt
 	{
 		FDecoratorWriter DecoratorWriter;
 
-		Node0 = DecoratorWriter.RegisterNode(*NodeTemplate0);
+		NodeHandles.Add(DecoratorWriter.RegisterNode(*NodeTemplate0));
 
 		// We don't have decorator properties
 
 		DecoratorWriter.BeginNodeWriting();
-		DecoratorWriter.WriteNode(Node0,
+		DecoratorWriter.WriteNode(NodeHandles[0],
 			[](uint32 DecoratorIndex, const FString& PropertyName)
 			{
 				return FString();
@@ -1031,23 +1030,17 @@ bool FAnimationAnimNextRuntimeTest_GetDecoratorInterfaceSuper::RunTest(const FSt
 	}
 
 	// Read our graph
-	TArray<uint8> GraphSharedDataBuffer;
-	{
-		FMemoryReader GraphSharedDataArchive(GraphSharedDataArchiveBuffer);
-		FDecoratorReader DecoratorReader(GraphReferencedObjects, GraphSharedDataArchive);
+	FTestUtils::LoadFromArchiveBuffer(*AnimNextGraph, NodeHandles, GraphSharedDataArchiveBuffer);
 
-		FDecoratorReader::EErrorState ErrorState = DecoratorReader.ReadGraph(GraphSharedDataBuffer);
-		AddErrorIfFalse(ErrorState == FDecoratorReader::EErrorState::None, "FAnimationAnimNextRuntimeTest_GetDecoratorInterfaceSuper -> Failed to read graph shared data");
+	FAnimNextGraphInstance GraphInstance;
+	AnimNextGraph->AllocateInstance(GraphInstance);
 
-		Node0 = DecoratorReader.ResolveNodeHandle(Node0);
-	}
-
-	FExecutionContext Context(GraphSharedDataBuffer);
+	FExecutionContext Context(GraphInstance);
 
 	// Validate from the first base decorator
 	{
-		FDecoratorBinding ParentBinding;				// Empty, no parent
-		FAnimNextDecoratorHandle DecoratorHandle00(Node0, 0);	// Point to first node, first base decorator
+		FDecoratorBinding ParentBinding;								// Empty, no parent
+		FAnimNextDecoratorHandle DecoratorHandle00(NodeHandles[0], 0);	// Point to first node, first base decorator
 
 		FDecoratorPtr DecoratorPtr00 = Context.AllocateNodeInstance(ParentBinding, DecoratorHandle00);
 		AddErrorIfFalse(DecoratorPtr00.IsValid(), "FAnimationAnimNextRuntimeTest_GetDecoratorInterfaceSuper -> Failed to allocate a node instance");
@@ -1078,7 +1071,7 @@ bool FAnimationAnimNextRuntimeTest_GetDecoratorInterfaceSuper::RunTest(const FSt
 			AddErrorIfFalse(SuperBinding02A.IsValid(), "FAnimationAnimNextRuntimeTest_GetDecoratorInterfaceSuper -> InterfaceA binding not valid");
 			AddErrorIfFalse(SuperBinding02A.GetInterfaceUID() == IInterfaceA::InterfaceUID, "FAnimationAnimNextRuntimeTest_GetDecoratorInterfaceSuper -> Unexpected interface UID found in decorator binding");
 			AddErrorIfFalse(SuperBinding02A.GetDecoratorPtr().GetDecoratorIndex() == 1, "FAnimationAnimNextRuntimeTest_GetDecoratorInterfaceSuper -> InterfaceA not found on expected decorator");
-			AddErrorIfFalse(SuperBinding02A.GetDecoratorPtr().GetNodeInstance()->GetNodeHandle() == Node0, "FAnimationAnimNextRuntimeTest_GetDecoratorInterfaceSuper -> InterfaceA not found on expected node");
+			AddErrorIfFalse(SuperBinding02A.GetDecoratorPtr().GetNodeInstance()->GetNodeHandle() == NodeHandles[0], "FAnimationAnimNextRuntimeTest_GetDecoratorInterfaceSuper -> InterfaceA not found on expected node");
 			AddErrorIfFalse(SuperBinding02A.GetSharedData<FDecoratorAB_Add::FSharedData>()->DecoratorUID == FDecoratorAB_Add::DecoratorUID, "FAnimationAnimNextRuntimeTest_GetDecoratorInterfaceSuper -> Unexpected shared data in decorator binding");
 			AddErrorIfFalse(SuperBinding02A.GetInstanceData<FDecoratorAB_Add::FInstanceData>()->DecoratorUID == FDecoratorAB_Add::DecoratorUID, "FAnimationAnimNextRuntimeTest_GetDecoratorInterfaceSuper -> Unexpected instance data in decorator binding");
 
@@ -1093,7 +1086,7 @@ bool FAnimationAnimNextRuntimeTest_GetDecoratorInterfaceSuper::RunTest(const FSt
 			AddErrorIfFalse(SuperBinding01A.IsValid(), "FAnimationAnimNextRuntimeTest_GetDecoratorInterfaceSuper -> InterfaceA binding not valid");
 			AddErrorIfFalse(SuperBinding01A.GetInterfaceUID() == IInterfaceA::InterfaceUID, "FAnimationAnimNextRuntimeTest_GetDecoratorInterfaceSuper -> Unexpected interface UID found in decorator binding");
 			AddErrorIfFalse(SuperBinding01A.GetDecoratorPtr().GetDecoratorIndex() == 0, "FAnimationAnimNextRuntimeTest_GetDecoratorInterfaceSuper -> InterfaceA not found on expected decorator");
-			AddErrorIfFalse(SuperBinding01A.GetDecoratorPtr().GetNodeInstance()->GetNodeHandle() == Node0, "FAnimationAnimNextRuntimeTest_GetDecoratorInterfaceSuper -> InterfaceA not found on expected node");
+			AddErrorIfFalse(SuperBinding01A.GetDecoratorPtr().GetNodeInstance()->GetNodeHandle() == NodeHandles[0], "FAnimationAnimNextRuntimeTest_GetDecoratorInterfaceSuper -> InterfaceA not found on expected node");
 			AddErrorIfFalse(SuperBinding01A.GetSharedData<FDecoratorA_Base::FSharedData>()->DecoratorUID == FDecoratorA_Base::DecoratorUID, "FAnimationAnimNextRuntimeTest_GetDecoratorInterfaceSuper -> Unexpected shared data in decorator binding");
 			AddErrorIfFalse(SuperBinding01A.GetInstanceData<FDecoratorA_Base::FInstanceData>()->DecoratorUID == FDecoratorA_Base::DecoratorUID, "FAnimationAnimNextRuntimeTest_GetDecoratorInterfaceSuper -> Unexpected instance data in decorator binding");
 
@@ -1115,8 +1108,8 @@ bool FAnimationAnimNextRuntimeTest_GetDecoratorInterfaceSuper::RunTest(const FSt
 
 	// Validate from the second base decorator
 	{
-		FDecoratorBinding ParentBinding;				// Empty, no parent
-		FAnimNextDecoratorHandle DecoratorHandle03(Node0, 3);	// Point to first node, second base decorator
+		FDecoratorBinding ParentBinding;								// Empty, no parent
+		FAnimNextDecoratorHandle DecoratorHandle03(NodeHandles[0], 3);	// Point to first node, second base decorator
 
 		FDecoratorPtr DecoratorPtr03 = Context.AllocateNodeInstance(ParentBinding, DecoratorHandle03);
 		AddErrorIfFalse(DecoratorPtr03.IsValid(), "FAnimationAnimNextRuntimeTest_GetDecoratorInterfaceSuper -> Failed to allocate a node instance");
@@ -1147,7 +1140,7 @@ bool FAnimationAnimNextRuntimeTest_GetDecoratorInterfaceSuper::RunTest(const FSt
 			AddErrorIfFalse(SuperBinding04A.IsValid(), "FAnimationAnimNextRuntimeTest_GetDecoratorInterfaceSuper -> InterfaceA binding not valid");
 			AddErrorIfFalse(SuperBinding04A.GetInterfaceUID() == IInterfaceA::InterfaceUID, "FAnimationAnimNextRuntimeTest_GetDecoratorInterfaceSuper -> Unexpected interface UID found in decorator binding");
 			AddErrorIfFalse(SuperBinding04A.GetDecoratorPtr().GetDecoratorIndex() == 3, "FAnimationAnimNextRuntimeTest_GetDecoratorInterfaceSuper -> InterfaceA not found on expected decorator");
-			AddErrorIfFalse(SuperBinding04A.GetDecoratorPtr().GetNodeInstance()->GetNodeHandle() == Node0, "FAnimationAnimNextRuntimeTest_GetDecoratorInterfaceSuper -> InterfaceA not found on expected node");
+			AddErrorIfFalse(SuperBinding04A.GetDecoratorPtr().GetNodeInstance()->GetNodeHandle() == NodeHandles[0], "FAnimationAnimNextRuntimeTest_GetDecoratorInterfaceSuper -> InterfaceA not found on expected node");
 			AddErrorIfFalse(SuperBinding04A.GetSharedData<FDecoratorA_Base::FSharedData>()->DecoratorUID == FDecoratorA_Base::DecoratorUID, "FAnimationAnimNextRuntimeTest_GetDecoratorInterfaceSuper -> Unexpected shared data in decorator binding");
 			AddErrorIfFalse(SuperBinding04A.GetInstanceData<FDecoratorA_Base::FInstanceData>()->DecoratorUID == FDecoratorA_Base::DecoratorUID, "FAnimationAnimNextRuntimeTest_GetDecoratorInterfaceSuper -> Unexpected instance data in decorator binding");
 
@@ -1183,6 +1176,10 @@ bool FAnimationAnimNextRuntimeTest_DecoratorSerialization::RunTest(const FString
 	AUTO_REGISTER_ANIM_DECORATOR(FDecoratorSerialization_Base)
 	AUTO_REGISTER_ANIM_DECORATOR(FDecoratorSerialization_Add)
 	AUTO_REGISTER_ANIM_DECORATOR(FDecoratorNativeSerialization_Add)
+
+	UFactory* GraphFactory = NewObject<UAnimNextGraphFactory>();
+	UAnimNextGraph* AnimNextGraph = CastChecked<UAnimNextGraph>(GraphFactory->FactoryCreateNew(UAnimNextGraph::StaticClass(), GetTransientPackage(), TEXT("TestAnimNextGraph"), RF_Transient, nullptr, nullptr, NAME_None));
+	UE_RETURN_ON_ERROR(AnimNextGraph != nullptr, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Failed to create animation graph");
 
 	FScopedClearNodeTemplateRegistry ScopedClearNodeTemplateRegistry;
 	FNodeTemplateRegistry& Registry = FNodeTemplateRegistry::Get();
@@ -1283,8 +1280,7 @@ bool FAnimationAnimNextRuntimeTest_DecoratorSerialization::RunTest(const FString
 	DecoratorNativeRef1.String = TEXT("sample string 1235");
 	DecoratorNativeRef1.Name = FName(TEXT("sample name 9991785"));
 
-	FNodeHandle Node0;
-	FNodeHandle Node1;
+	TArray<FNodeHandle> NodeHandles;
 
 	// Write our graph
 	TArray<uint8> GraphSharedDataArchiveBuffer;
@@ -1292,8 +1288,8 @@ bool FAnimationAnimNextRuntimeTest_DecoratorSerialization::RunTest(const FString
 	{
 		FDecoratorWriter DecoratorWriter;
 
-		Node0 = DecoratorWriter.RegisterNode(*NodeTemplate0);
-		Node1 = DecoratorWriter.RegisterNode(*NodeTemplate0);
+		NodeHandles.Add(DecoratorWriter.RegisterNode(*NodeTemplate0));
+		NodeHandles.Add(DecoratorWriter.RegisterNode(*NodeTemplate0));
 
 		// We don't have decorator properties
 		TArray<TMap<FString, FString>> DecoratorProperties0;
@@ -1357,7 +1353,7 @@ bool FAnimationAnimNextRuntimeTest_DecoratorSerialization::RunTest(const FString
 		DecoratorProperties1[2].Add(TEXT("Name"), ToString<FDecoratorNativeSerialization_Add::FSharedData>(TEXT("Name"), DecoratorNativeRef1.Name));
 
 		DecoratorWriter.BeginNodeWriting();
-		DecoratorWriter.WriteNode(Node0,
+		DecoratorWriter.WriteNode(NodeHandles[0],
 			[&DecoratorProperties0](uint32 DecoratorIndex, const FString& PropertyName)
 			{
 				return DecoratorProperties0[DecoratorIndex][PropertyName];
@@ -1366,7 +1362,7 @@ bool FAnimationAnimNextRuntimeTest_DecoratorSerialization::RunTest(const FString
 			{
 				return false;
 			});
-		DecoratorWriter.WriteNode(Node1,
+		DecoratorWriter.WriteNode(NodeHandles[1],
 			[&DecoratorProperties1](uint32 DecoratorIndex, const FString& PropertyName)
 			{
 				return DecoratorProperties1[DecoratorIndex][PropertyName];
@@ -1389,27 +1385,18 @@ bool FAnimationAnimNextRuntimeTest_DecoratorSerialization::RunTest(const FString
 		AddErrorIfFalse(Registry.GetNum() == 0, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Registry should contain 0 templates");
 
 		// Read our graph
-		TArray<uint8> GraphSharedDataBuffer;
-		{
-			FMemoryReader GraphSharedDataArchive(GraphSharedDataArchiveBuffer);
-			FDecoratorReader DecoratorReader(GraphReferencedObjects, GraphSharedDataArchive);
+		FTestUtils::LoadFromArchiveBuffer(*AnimNextGraph, NodeHandles, GraphSharedDataArchiveBuffer);
 
-			FDecoratorReader::EErrorState ErrorState = DecoratorReader.ReadGraph(GraphSharedDataBuffer);
-			AddErrorIfFalse(ErrorState == FDecoratorReader::EErrorState::None, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Failed to read graph shared data");
+		FAnimNextGraphInstance GraphInstance;
+		AnimNextGraph->AllocateInstance(GraphInstance);
 
-			Node0 = DecoratorReader.ResolveNodeHandle(Node0);
-			Node1 = DecoratorReader.ResolveNodeHandle(Node1);
-
-			AddErrorIfFalse(Registry.GetNum() == 1, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Registry should contain 1 template");
-		}
-
-		FExecutionContext Context(GraphSharedDataBuffer);
+		FExecutionContext Context(GraphInstance);
 
 		// Validate decorator serialization
 		{
-			FDecoratorBinding ParentBinding;				// Empty, no parent
-			FAnimNextDecoratorHandle DecoratorHandle0(Node0, 0);	// Point to first node, first base decorator
-			FAnimNextDecoratorHandle DecoratorHandle1(Node1, 0);	// Point to second node, first base decorator
+			FDecoratorBinding ParentBinding;								// Empty, no parent
+			FAnimNextDecoratorHandle DecoratorHandle0(NodeHandles[0], 0);	// Point to first node, first base decorator
+			FAnimNextDecoratorHandle DecoratorHandle1(NodeHandles[1], 0);	// Point to second node, first base decorator
 
 			FDecoratorPtr DecoratorPtr0 = Context.AllocateNodeInstance(ParentBinding, DecoratorHandle0);
 			AddErrorIfFalse(DecoratorPtr0.IsValid(), "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Failed to allocate a node instance");

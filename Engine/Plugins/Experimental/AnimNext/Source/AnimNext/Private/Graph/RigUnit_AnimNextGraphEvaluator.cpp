@@ -36,10 +36,12 @@ void FRigUnit_AnimNextGraphEvaluator::StaticExecute(FRigVMExtendedExecuteContext
 	using namespace UE::AnimNext;
 
 	const FAnimNextExecuteContext& VMExecuteContext = RigVMExecuteContext.GetPublicData<FAnimNextExecuteContext>();
+	FAnimNextGraphInstance& GraphInstance = VMExecuteContext.GetGraphInstance();
 
 	// Setup what we need to execute
-	FExecutionContext Context(VMExecuteContext.GetSharedDataBuffer(), RigVMExecuteContext, RigVMMemoryHandles);
-	FWeakDecoratorPtr GraphInstancePtr = VMExecuteContext.GetGraphInstancePtr();
+	FExecutionContext Context(GraphInstance, RigVMExecuteContext, RigVMMemoryHandles);
+
+	const FWeakDecoratorPtr& GraphInstancePtr = GraphInstance.GraphInstancePtr;
 	const EAnimNextGraphSimulationSteps SimulationSteps = VMExecuteContext.GetSimulationSteps();
 
 	if (EnumHasAnyFlags(SimulationSteps, EAnimNextGraphSimulationSteps::Update))
@@ -60,7 +62,7 @@ void FRigUnit_AnimNextGraphEvaluator::StaticExecute(FRigVMExtendedExecuteContext
 		{
 			FParamStack& ParamStack = FParamStack::Get();
 
-			const UAnimNextGraph* Graph = VMExecuteContext.GetGraph();
+			const UAnimNextGraph* Graph = GraphInstance.GetGraph();
 			const FAnimNextGraphReferencePose* GraphReferencePosePtr = ParamStack.GetParamPtr<FAnimNextGraphReferencePose>(Graph->GetReferencePoseParam());
 			const int32* GraphLODLevelPtr = ParamStack.GetParamPtr<int32>(Graph->GetCurrentLODParam());
 			static FParamId ResultId("UE_Internal_ResultPose");

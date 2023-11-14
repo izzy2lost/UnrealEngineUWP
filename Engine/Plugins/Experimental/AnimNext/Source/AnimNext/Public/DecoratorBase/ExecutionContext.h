@@ -9,6 +9,7 @@
 #include "DecoratorBase/DecoratorInterfaceUID.h"
 #include "DecoratorBase/LatentPropertyHandle.h"
 #include "DecoratorBase/NodeHandle.h"
+#include "Graph/AnimNextGraph.h"
 
 struct FRigVMExtendedExecuteContext;
 struct FRigVMMemoryHandle;
@@ -33,11 +34,11 @@ namespace UE::AnimNext
 	 */
 	struct ANIMNEXT_API FExecutionContext
 	{
-		// Creates an execution context for the specified graph
-		explicit FExecutionContext(TArrayView<const uint8> InGraphSharedData);
+		// Creates an execution context for the specified graph instance
+		explicit FExecutionContext(FAnimNextGraphInstance& InGraphInstance);
 
 		// Creates an execution context for the specified graph with RigVM latent pin support
-		FExecutionContext(TArrayView<const uint8> InGraphSharedData, FRigVMExtendedExecuteContext& InRigVMExecuteContext, FRigVMMemoryHandleArray InRigVMLatentMemoryHandles);
+		FExecutionContext(FAnimNextGraphInstance& InGraphInstance, FRigVMExtendedExecuteContext& InRigVMExecuteContext, FRigVMMemoryHandleArray InRigVMLatentMemoryHandles);
 
 		// Destroys the execution context
 		~FExecutionContext();
@@ -81,9 +82,24 @@ namespace UE::AnimNext
 		template<typename LatentPinType>
 		LatentPinType EvaluateLatentPin(FLatentPropertyHandle LatentPropertyHandle) const;
 
+		// Returns a typed graph instance component, creating it lazily the first time it is queried
+		template<class ComponentType>
+		ComponentType& GetComponent() const;
+
+		// Returns a typed graph instance component pointer if found or nullptr otherwise
+		template<class ComponentType>
+		ComponentType* TryGetComponent() const;
+
+		// Returns const iterators to the graph instance component container
+		GraphInstanceComponentMapType::TConstIterator GetComponentIterator() const { return GraphInstance->GetComponentIterator(); }
+
+		// Returns the bound graph instance
+		const FAnimNextGraphInstance& GetGraphInstance() const { return *GraphInstance; }
+
 	private:
+		// No copy or move
 		FExecutionContext(const FExecutionContext&) = delete;
-		FExecutionContext(FExecutionContext&&) = delete;
+		FExecutionContext& operator=(const FExecutionContext&) = delete;
 
 		bool GetInterfaceImpl(FDecoratorInterfaceUID InterfaceUID, const FWeakDecoratorPtr& DecoratorPtr, FDecoratorBinding& InterfaceBinding) const;
 		bool GetInterfaceSuperImpl(FDecoratorInterfaceUID InterfaceUID, const FWeakDecoratorPtr& DecoratorPtr, FDecoratorBinding& SuperBinding) const;
@@ -100,9 +116,11 @@ namespace UE::AnimNext
 		ITraversalContext* TraversalContext = nullptr;
 
 		// Cached properties for the currently executing graph
+		const UAnimNextGraph* Graph = nullptr;
+		FAnimNextGraphInstance* GraphInstance = nullptr;
 		TArrayView<const uint8> GraphSharedData;
 		FRigVMMemoryHandleArray RigVMLatentMemoryHandles;
-		FRigVMExtendedExecuteContext* RigVMExecuteContext;
+		FRigVMExtendedExecuteContext* RigVMExecuteContext = nullptr;
 
 		friend struct FScopedTraversalContext;
 	};
@@ -161,5 +179,17 @@ namespace UE::AnimNext
 		}
 
 		return *reinterpret_cast<const LatentPinType*>(EvaluateLatentPinImpl(LatentPropertyHandle));
+	}
+
+	template<class ComponentType>
+	ComponentType& FExecutionContext::GetComponent() const
+	{
+		return GraphInstance->GetComponent<ComponentType>();
+	}
+
+	template<class ComponentType>
+	ComponentType* FExecutionContext::TryGetComponent() const
+	{
+		return GraphInstance->TryGetComponent<ComponentType>();
 	}
 }

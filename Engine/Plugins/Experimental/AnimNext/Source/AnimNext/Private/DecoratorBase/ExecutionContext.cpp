@@ -18,22 +18,24 @@ namespace UE::AnimNext
 		static thread_local UE::AnimNext::FExecutionContext* GThreadLocalExecutionContext = nullptr;
 	}
 
-	FExecutionContext::FExecutionContext(TArrayView<const uint8> InGraphSharedData)
+	FExecutionContext::FExecutionContext(FAnimNextGraphInstance& InGraphInstance)
 		: NodeTemplateRegistry(FNodeTemplateRegistry::Get())
 		, DecoratorRegistry(FDecoratorRegistry::Get())
-		, GraphSharedData(InGraphSharedData)
-		, RigVMLatentMemoryHandles()
-		, RigVMExecuteContext(nullptr)
+		, Graph(InGraphInstance.GetGraph())
+		, GraphInstance(&InGraphInstance)
+		, GraphSharedData(Graph->SharedDataBuffer)
 	{
 		// There can be only one execution context alive per thread
 		ensure(Private::GThreadLocalExecutionContext == nullptr);
 		Private::GThreadLocalExecutionContext = this;
 	}
 
-	FExecutionContext::FExecutionContext(TArrayView<const uint8> InGraphSharedData, FRigVMExtendedExecuteContext& InRigVMExecuteContext, FRigVMMemoryHandleArray InRigVMLatentMemoryHandles)
+	FExecutionContext::FExecutionContext(FAnimNextGraphInstance& InGraphInstance, FRigVMExtendedExecuteContext& InRigVMExecuteContext, FRigVMMemoryHandleArray InRigVMLatentMemoryHandles)
 		: NodeTemplateRegistry(FNodeTemplateRegistry::Get())
 		, DecoratorRegistry(FDecoratorRegistry::Get())
-		, GraphSharedData(InGraphSharedData)
+		, Graph(InGraphInstance.GetGraph())
+		, GraphInstance(&InGraphInstance)
+		, GraphSharedData(Graph->SharedDataBuffer)
 		, RigVMLatentMemoryHandles(InRigVMLatentMemoryHandles)
 		, RigVMExecuteContext(&InRigVMExecuteContext)
 	{

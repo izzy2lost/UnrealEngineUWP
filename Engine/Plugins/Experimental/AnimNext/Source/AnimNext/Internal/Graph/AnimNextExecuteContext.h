@@ -8,6 +8,7 @@
 #include "DecoratorBase/DecoratorPtr.h"
 #include "AnimNextExecuteContext.generated.h"
 
+struct FAnimNextGraphInstance;
 class UAnimNextGraph;
 
 namespace UE::AnimNext
@@ -44,15 +45,15 @@ struct FAnimNextExecuteContext : public FRigVMExecuteContext
 
 	const UE::AnimNext::FContext& GetContext() const
 	{
-		check(Context);
+		check(Context != nullptr);
 		return *Context;
 	}
 
-	const UAnimNextGraph* GetGraph() const { return Graph; }
-
-	const TArrayView<const uint8>& GetSharedDataBuffer() const { return SharedDataBuffer; }
-
-	UE::AnimNext::FWeakDecoratorPtr GetGraphInstancePtr() const { return GraphInstancePtr; }
+	FAnimNextGraphInstance& GetGraphInstance() const
+	{
+		check(GraphInstance != nullptr);
+		return *GraphInstance;
+	}
 
 	EAnimNextGraphSimulationSteps GetSimulationSteps() const { return SimulationSteps; }
 
@@ -62,9 +63,7 @@ struct FAnimNextExecuteContext : public FRigVMExecuteContext
 
 		const FAnimNextExecuteContext* OtherContext = (const FAnimNextExecuteContext*)InOtherContext;
 		Context = OtherContext->Context;
-		Graph = OtherContext->Graph; 
-		SharedDataBuffer = OtherContext->SharedDataBuffer;
-		GraphInstancePtr = OtherContext->GraphInstancePtr;
+		GraphInstance = OtherContext->GraphInstance;
 		SimulationSteps = OtherContext->SimulationSteps;
 	}
 
@@ -74,11 +73,9 @@ private:
 		Context = &InContext;
 	}
 
-	void InitializeWithGraph(const UAnimNextGraph* InGraph, TArrayView<const uint8> InSharedDataBuffer, UE::AnimNext::FWeakDecoratorPtr InGraphInstancePtr)
+	void SetGraphInstance(FAnimNextGraphInstance& InGraphInstance)
 	{
-		Graph = InGraph;
-		SharedDataBuffer = InSharedDataBuffer;
-		GraphInstancePtr = InGraphInstancePtr;
+		GraphInstance = &InGraphInstance;
 	}
 
 	void SetSimulationSteps(EAnimNextGraphSimulationSteps InSimulationSteps)
@@ -90,16 +87,12 @@ private:
 	void DebugReset()
 	{
 		Context = nullptr;
-		Graph = nullptr;
-		SharedDataBuffer = TArrayView<const uint8>();
-		GraphInstancePtr.Reset();
+		GraphInstance = nullptr;
 		SimulationSteps = EAnimNextGraphSimulationSteps::None;
 	}
 
 	const UE::AnimNext::FContext* Context = nullptr;
-	const UAnimNextGraph* Graph = nullptr;
-	TArrayView<const uint8> SharedDataBuffer;
-	UE::AnimNext::FWeakDecoratorPtr GraphInstancePtr;
+	FAnimNextGraphInstance* GraphInstance = nullptr;
 	EAnimNextGraphSimulationSteps SimulationSteps = EAnimNextGraphSimulationSteps::None;
 
 	friend class UAnimNextGraph;

@@ -13,8 +13,12 @@
 #include "DecoratorBase/NodeTemplate.h"
 #include "DecoratorBase/NodeTemplateRegistry.h"
 
+class UAnimNextGraph;
+
 namespace UE::AnimNext
 {
+	struct FNodeHandle;
+
 	// Converts a property value into its string representation using UE reflection
 	template<class DecoratorSharedDataType, typename PropertyType>
 	static FString ToString(const FString& PropertyName, PropertyType PropertyValue)
@@ -74,6 +78,13 @@ namespace UE::AnimNext
 		~FScopedClearNodeTemplateRegistry();
 
 		FNodeTemplateRegistry TmpRegistry;
+	};
+
+	struct FTestUtils final
+	{
+		// Loads the graph data from the provided archive buffer and returns true on success, false otherwise
+		// On success, we resolve every node handle provided as argument
+		static bool LoadFromArchiveBuffer(UAnimNextGraph& Graph, TArray<FNodeHandle>& NodeHandles, const TArray<uint8>& SharedDataArchiveBuffer);
 	};
 }
 
