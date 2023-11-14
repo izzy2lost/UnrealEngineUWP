@@ -514,6 +514,8 @@ static void RunHairStrandsInterpolation_Guide(
 	{
 		if (InstanceData.NeedsMeshUpdate())
 		{
+			check(InstanceData.MeshLODIndex >= 0);
+
 			AddHairStrandUpdatePositionOffsetPass(
 				GraphBuilder,
 				ShaderMap,
