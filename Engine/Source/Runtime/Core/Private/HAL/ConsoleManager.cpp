@@ -650,7 +650,7 @@ public:
 	void Track(const TCHAR* InValue, EConsoleVariableFlags SetBy, FName Tag)
 	{
 		T LocalCopy;
-		TTypeFromString<T>::FromString(LocalCopy, InValue);
+		TTypeFromString<T>::FromString(LocalCopy, UE::ConfigUtilities::ConvertValueFromHumanFriendlyValue(InValue));
 		
 		int Priority = (int)SetBy;
 		TArray<FTaggedHistoryData>& ValueArray = History.FindOrAdd(Priority);
@@ -837,7 +837,7 @@ protected:
 		{
 			// update value
 			T ConvertedValue;
-			TTypeFromString<T>::FromString(ConvertedValue, InValue);
+			TTypeFromString<T>::FromString(ConvertedValue, UE::ConfigUtilities::ConvertValueFromHumanFriendlyValue(InValue));
 			SetInternal(ConvertedValue, SetBy);
 			
 			// update the setby
