@@ -1,3 +1,5 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
 #include "MetalRHIVisionOSBridge.h"
 
 #if PLATFORM_VISIONOS
