@@ -1088,7 +1088,7 @@ void FAudioChunkCache::AddMemoryCountedFeature(const FAudioStreamingMemoryCounte
 void FAudioChunkCache::RemoveMemoryCountedFeature(const FAudioStreamingMemoryCountedFeature& Feature)
 {
 	UE_LOG(LogAudioStreamCaching, Log, TEXT("Removing Memory Counted Feature (%s) Memory Usage: %d"), *Feature.GetFeatureName().ToString(), (int32)Feature.GetMemoryUseInBytes());
-	check(FeatureMemoryCounterBytes.Load() <= Feature.GetMemoryUseInBytes());
+	checkf(FeatureMemoryCounterBytes.Load() >= Feature.GetMemoryUseInBytes(), TEXT("Count (%lu) < Remove (%lu)"), FeatureMemoryCounterBytes.Load(), Feature.GetMemoryUseInBytes());
 	const uint32 OldMemoryCount = FeatureMemoryCounterBytes.SubExchange(Feature.GetMemoryUseInBytes());
 	UE_LOG(LogAudioStreamCaching, Log, TEXT("Total Memory Usage for all features: %d -> %d"), (int32)OldMemoryCount, (int32)FeatureMemoryCounterBytes.Load());
 }
