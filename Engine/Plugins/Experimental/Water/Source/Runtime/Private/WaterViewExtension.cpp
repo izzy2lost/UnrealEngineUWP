@@ -33,6 +33,8 @@ static TAutoConsoleVariable<int32> CVarWaterInfoRenderMethod(
 
 // ----------------------------------------------------------------------------------
 
+FWaterMeshGPUWork GWaterMeshGPUWork;
+
 FWaterViewExtension::FWaterViewExtension(const FAutoRegister& AutoReg, UWorld* InWorld)
 	: FWorldSceneViewExtension(AutoReg, InWorld)
 	, WaterGPUData(MakeShared<FWaterGPUResources, ESPMode::ThreadSafe>())
@@ -407,6 +409,14 @@ void FWaterViewExtension::PreRenderView_RenderThread(FRDGBuilder& GraphBuilder, 
 	{
 		InView.WaterDataBuffer = WaterGPUData->DataSRV;
 		InView.WaterIndirectionBuffer = WaterGPUData->IndirectionSRV;
+	}
+}
+
+void FWaterViewExtension::PreRenderBasePass_RenderThread(FRDGBuilder& GraphBuilder)
+{
+	for (FWaterMeshGPUWork::FCallback& Callback : GWaterMeshGPUWork.Callbacks)
+	{
+		Callback.Function(GraphBuilder);
 	}
 }
 

@@ -8,6 +8,7 @@
 #include "WaterQuadTree.h"
 #include "WaterVertexFactory.h"
 #include "RayTracingGeometry.h"
+#include "WaterQuadTreeGPU.h"
 
 class FMeshElementCollector;
 struct FRayTracingMaterialGatheringContext;
@@ -31,6 +32,8 @@ public:
 
 	virtual void CreateRenderThreadResources(FRHICommandListBase& RHICmdList) override;
 
+	virtual void DestroyRenderThreadResources() override;
+
 	virtual void GetDynamicMeshElements(const TArray<const FSceneView*>& Views, const FSceneViewFamily& ViewFamily, uint32 VisibilityMap, FMeshElementCollector& Collector) const override;
 
 	virtual const TArray<FBoxSphereBounds>* GetOcclusionQueries(const FSceneView* View) const override;
@@ -53,7 +56,7 @@ public:
 
 	uint32 GetAllocatedSize() const
 	{
-		return(FPrimitiveSceneProxy::GetAllocatedSize() + (WaterVertexFactories.GetAllocatedSize() + WaterVertexFactories.Num() * sizeof(WaterVertexFactoryType)) + WaterQuadTree.GetAllocatedSize());
+		return(FPrimitiveSceneProxy::GetAllocatedSize() + (WaterVertexFactories.GetAllocatedSize() + WaterVertexFactories.Num() * sizeof(FWaterVertexFactoryType)) + WaterQuadTree.GetAllocatedSize());
 	}
 
 #if WITH_WATER_SELECTION_SUPPORT
@@ -61,9 +64,10 @@ public:
 #endif // WITH_WATER_SELECTION_SUPPORT
 
 	// At runtime, we only ever need one version of the vertex factory : with selection support (editor) or without : 
-	using WaterVertexFactoryType = TWaterVertexFactory<WITH_WATER_SELECTION_SUPPORT>;
-	using WaterInstanceDataBuffersType = TWaterInstanceDataBuffers<WITH_WATER_SELECTION_SUPPORT>;
-	using WaterMeshUserDataBuffersType = TWaterMeshUserDataBuffers<WITH_WATER_SELECTION_SUPPORT>;
+	using FWaterVertexFactoryType = TWaterVertexFactory<WITH_WATER_SELECTION_SUPPORT, /*bIndirectDraws = */ false>;
+	using FWaterVertexFactoryIndirectDrawType = TWaterVertexFactory<WITH_WATER_SELECTION_SUPPORT, /*bIndirectDraws = */ true>;
+	using FWaterInstanceDataBuffersType = TWaterInstanceDataBuffers<WITH_WATER_SELECTION_SUPPORT>;
+	using FWaterMeshUserDataBuffersType = TWaterMeshUserDataBuffers<WITH_WATER_SELECTION_SUPPORT>;
 
 #if RHI_RAYTRACING
 	virtual void GetDynamicRayTracingInstances(FRayTracingMaterialGatheringContext& Context, TArray<FRayTracingInstance>& OutRayTracingInstances) override final;
@@ -101,22 +105,32 @@ private:
 	FMaterialRelevance MaterialRelevance;
 
 	// One vertex factory per LOD
-	TArray<WaterVertexFactoryType*> WaterVertexFactories;
+	TArray<FWaterVertexFactoryType*> WaterVertexFactories;
+	TArray<FWaterVertexFactoryIndirectDrawType*> WaterVertexFactoriesIndirectDraw;
 
 	/** Tiles containing water, stored in a quad tree */
 	FWaterQuadTree WaterQuadTree;
 
+	/** GPU quad tree instance. Only initialized and used if WaterQuadTree.IsGPUQuadTree() is true. */
+	FWaterQuadTreeGPU QuadTreeGPU;
+
 	/** Unique Instance data buffer shared accross water batch draw calls */	
-	WaterInstanceDataBuffersType* WaterInstanceDataBuffers;
+	FWaterInstanceDataBuffersType* WaterInstanceDataBuffers;
 
 	/** Per-"water render group" user data (the number of groups might vary depending on whether we're in the editor or not) */
-	WaterMeshUserDataBuffersType* WaterMeshUserDataBuffers;
+	FWaterMeshUserDataBuffersType* WaterMeshUserDataBuffers;
+
+	double WaterQuadTreeMinHeight = DBL_MAX;
+	double WaterQuadTreeMaxHeight = -DBL_MAX;
 
 	/** The world-space bounds of the current water info texture coverage. The Water mesh should only render tiles within this bounding box. */
 	FBox2D WaterInfoBounds = FBox2D(ForceInit);
 
 	/** Scale of the concentric LOD squares  */
 	float LODScale = -1.0f;
+
+	/** Number of quads per side of a water quad tree tile at LOD0 */
+	int32 NumQuadsLOD0 = 0;
 
 	/** Number of densities (same as number of grid index/vertex buffers) */
 	int32 DensityCount = 0;
@@ -142,6 +156,12 @@ private:
 	UE::FMutex OcclusionResultsMutex;
 	int32 OcclusionResultsFarMeshOffset = INT32_MAX;
 	uint32 SceneProxyCreatedFrameNumberRenderThread = INDEX_NONE;
+
+	mutable FWaterQuadTreeGPU::FTraverseParams WaterQuadTreeGPUTraverseParams;
+	mutable bool bNeedToTraverseGPUQuadTree = false;
+
+	/** Initializes the GPU quad tree */
+	void BuildGPUQuadTree(FRDGBuilder& GraphBuilder);
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2

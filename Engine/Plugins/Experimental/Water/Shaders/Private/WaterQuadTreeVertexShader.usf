@@ -1,0 +1,13 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#include "/Engine/Private/Common.ush"
+
+float4x4 Transform;
+
+void Main(
+	in float3 InPosition : ATTRIBUTE0,
+	out float4 OutPosition : SV_Position
+)
+{
+	OutPosition = mul(float4(InPosition, 1.0f), Transform);
+}
