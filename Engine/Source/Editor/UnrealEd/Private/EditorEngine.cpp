@@ -1312,6 +1312,7 @@ void UEditorEngine::LoadDefaultEditorModules()
 			TEXT("AnimationSettings"),
 			TEXT("GameplayDebuggerEditor"),
 			TEXT("RenderResourceViewer"),
+			TEXT("UniversalObjectLocatorEditor"),
 		};
 
 	FScopedSlowTask ModuleSlowTask((float)UE_ARRAY_COUNT(ModuleNames));

@@ -183,6 +183,7 @@ public class UnrealEd : ModuleRules
 				"FieldNotification",
 				"VirtualizationEditor",
 				"GeometryCore",
+				"UniversalObjectLocatorEditor",
 			}
 		);
 

@@ -157,6 +157,7 @@ public class Engine : ModuleRules
 				"TraceLog",
 				"ColorManagement",
 				"Icmp",
+				"UniversalObjectLocator",
 				"XmlParser",
 			}
 		);

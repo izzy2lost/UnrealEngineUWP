@@ -128,6 +128,8 @@ UnrealEngine.cpp: Implements the UEngine class and helpers.
 #include "Iris/IrisConfig.h"
 #endif
 
+#include "IUniversalObjectLocatorModule.h"
+
 #include "Particles/Spawn/ParticleModuleSpawn.h"
 #include "Particles/TypeData/ParticleModuleTypeDataMesh.h"
 #include "Particles/ParticleLODLevel.h"
@@ -136,6 +138,10 @@ UnrealEngine.cpp: Implements the UEngine class and helpers.
 #include "Components/TextRenderComponent.h"
 #include "Rendering/SkeletalMeshRenderData.h"
 #include "IO/IoDispatcher.h"
+
+#include "UniversalObjectLocators/ActorLocatorFragment.h"
+#include "UniversalObjectLocators/AssetLocatorFragment.h"
+#include "UniversalObjectLocators/AnimInstanceLocatorFragment.h"
 
 #if WITH_EDITOR
 #include "Settings/LevelEditorPlaySettings.h"
@@ -2028,6 +2034,29 @@ void UEngine::Init(IEngineLoop* InEngineLoop)
 #endif
 
 	InitializeObjectReferences();
+
+	// Initialize built-in UOL fragment types
+	{
+		using namespace UE::UniversalObjectLocator;
+
+		IUniversalObjectLocatorModule& UolModule = FModuleManager::Get().LoadModuleChecked<IUniversalObjectLocatorModule>("UniversalObjectLocator");
+
+		{
+			FFragmentTypeParameters FragmentTypeParams("actor", NSLOCTEXT("Engine", "ActorLocatorFragment", "Actor"));
+			FragmentTypeParams.PrimaryEditorType = "Actor";
+			FActorLocatorFragment::FragmentType = UolModule.RegisterFragmentType<FActorLocatorFragment>(FragmentTypeParams);
+		}
+		{
+			FFragmentTypeParameters FragmentTypeParams("asset", NSLOCTEXT("Engine", "AssetLocatorFragment", "Asset"));
+			FragmentTypeParams.PrimaryEditorType = "Asset";
+			FAssetLocatorFragment::FragmentType = UolModule.RegisterFragmentType<FAssetLocatorFragment>(FragmentTypeParams);
+		}
+		{
+			FFragmentTypeParameters FragmentTypeParams("animinst", NSLOCTEXT("Engine", "AnimInstanceLocatorFragment", "AnimInstance"));
+			FragmentTypeParams.PrimaryEditorType = "Component";
+			FAnimInstanceLocatorFragment::FragmentType = UolModule.RegisterFragmentType<FAnimInstanceLocatorFragment>(FragmentTypeParams);
+		}
+	}
 
 	if (GConfig)
 	{
