@@ -421,8 +421,9 @@ void SRCPanelExposedEntity::OnLabelCommitted(const FText& InLabel, ETextCommit::
 	{
 		FScopedTransaction Transaction(LOCTEXT("ModifyEntityLabel", "Modify exposed entity's label."));
 		RCPreset->Modify();
+		FName OldName = CachedLabel;
 		CachedLabel = RCPreset->RenameExposedEntity(EntityId, *InLabel.ToString());
-		OnNameRenamed().ExecuteIfBound(CachedLabel);
+		OnLabelModified().ExecuteIfBound(OldName, CachedLabel);
 	}
 }
 

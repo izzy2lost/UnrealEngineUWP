@@ -384,6 +384,9 @@ private:
 	/** Properties that were exposed for a frame, per preset */
 	TMap<FGuid, TArray<FGuid>> PerFrameAddedProperties;
 
+	/** Cache used during Undo/Redo for the Remove to get correctly the Label */
+	TMap<FGuid, TTuple<TArray<FGuid>, TArray<FName>>> CacheUndoRedoAddedRemovedProperties;
+
 	/** Properties that were unexposed for a frame, per preset */
 	TMap<FGuid, TTuple<TArray<FGuid>, TArray<FName>>> PerFrameRemovedProperties;
 

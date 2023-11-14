@@ -1094,6 +1094,20 @@ void FWebSocketMessageHandler::OnPropertyExposed(URemoteControlPreset* Owner, co
 		return;
 	}
 
+	// Cache used during the Unexposed as the last resort to get the property Label correctly (main use case is Undo/Redo)
+	TTuple<TArray<FGuid>, TArray<FName>>& Entries = CacheUndoRedoAddedRemovedProperties.FindOrAdd(Owner->GetPresetId());
+	Entries.Key.AddUnique(EntityId);
+
+	if (const TSharedPtr<FRemoteControlEntity> Entity = Owner->GetExposedEntity(EntityId).Pin())
+	{
+		Entries.Value.AddUnique(Entity->GetLabel());
+	}
+	else
+	{
+		// If the label couldn't be set from the Entity then we use the EntityId as the Label since it is unique
+		Entries.Value.AddUnique(FName(EntityId.ToString()));
+	}
+
 	//Cache the property field that was removed for end of frame notification
 	PerFrameAddedProperties.FindOrAdd(Owner->GetPresetId()).AddUnique(EntityId);
 }
@@ -1152,13 +1166,38 @@ void FWebSocketMessageHandler::OnPropertyUnexposed(URemoteControlPreset* Owner, 
 		return;
 	}
 
-	TSharedPtr<FRemoteControlEntity> Entity = Owner->GetExposedEntity(EntityId).Pin();
-	check(Entity);
+	const TSharedPtr<FRemoteControlEntity> Entity = Owner->GetExposedEntity(EntityId).Pin();
+	TPair<TArray<FGuid>, TArray<FName>>& Entries = PerFrameRemovedProperties.FindOrAdd(Owner->GetPresetId());
 
 	// Cache the property field that was removed for end of frame notification
-	TTuple<TArray<FGuid>, TArray<FName>>& Entries = PerFrameRemovedProperties.FindOrAdd(Owner->GetPresetId());
 	Entries.Key.AddUnique(EntityId);
-	Entries.Value.AddUnique(Entity->GetLabel());
+	bool bLabelSet = false;
+
+	if (Entity.IsValid())
+	{
+		Entries.Value.AddUnique(Entity->GetLabel());
+		bLabelSet = true;
+	}
+	else
+	{
+		// If the Entity is not valid try using the cached properties saved during the Expose
+		// This is done because during the Undo/Redo the entity is already removed from the preset and we can't get the Label correctly
+		if (TPair<TArray<FGuid>, TArray<FName>>* CachedProperties = CacheUndoRedoAddedRemovedProperties.Find(Owner->GetPresetId()))
+		{
+			const int32 Index = CachedProperties->Key.IndexOfByKey(EntityId);
+			if (Index != INDEX_NONE && CachedProperties->Value.IsValidIndex(Index))
+			{
+				Entries.Value.AddUnique(CachedProperties->Value[Index]);
+				bLabelSet = true;
+			}
+		}
+	}
+
+	// If the label couldn't be set from the Entity or the Cache then we use the EntityId as the Label since it is unique
+	if (!bLabelSet)
+	{
+		Entries.Value.AddUnique(FName(EntityId.ToString()));
+	}
 }
 
 void FWebSocketMessageHandler::OnFieldRenamed(URemoteControlPreset* Owner, FName OldFieldLabel, FName NewFieldLabel)
@@ -1171,6 +1210,16 @@ void FWebSocketMessageHandler::OnFieldRenamed(URemoteControlPreset* Owner, FName
 	if (PresetNotificationMap.Num() <= 0)
 	{
 		return;
+	}
+
+	// Update the cached Name with the new name
+	if (TPair<TArray<FGuid>, TArray<FName>>* CachedProperties = CacheUndoRedoAddedRemovedProperties.Find(Owner->GetPresetId()))
+	{
+		const int32 Index = CachedProperties->Value.IndexOfByKey(OldFieldLabel);
+		if (Index != INDEX_NONE)
+		{
+			CachedProperties->Value[Index] = NewFieldLabel;
+		}
 	}
 
 	//Cache the field that was renamed for end of frame notification

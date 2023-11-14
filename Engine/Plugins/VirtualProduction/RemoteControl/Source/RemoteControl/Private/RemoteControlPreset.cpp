@@ -1792,7 +1792,19 @@ const bool URemoteControlPreset::HasEntities() const
 
 FName URemoteControlPreset::RenameExposedEntity(const FGuid& ExposedEntityId, FName NewLabel)
 {
-	FName AssignedLabel = Registry->RenameExposedEntity(ExposedEntityId, NewLabel);
+	Registry->Modify();
+
+	FName OldLabel = FName(TEXT("Invalid Label"));
+	if (const TSharedPtr<FRemoteControlEntity>& Entity = Registry->GetExposedEntity(ExposedEntityId))
+	{
+		OldLabel = Entity->GetLabel();
+	}
+
+	const FName AssignedLabel = Registry->RenameExposedEntity(ExposedEntityId, NewLabel);
+
+	FRCTransactionListenerHelper<URemoteControlPreset*, FName, FName>(ERCTransaction::Undo, GetPresetId(), OnFieldRenamed(), this, AssignedLabel, OldLabel);
+	FRCTransactionListenerHelper<URemoteControlPreset*, FName, FName>(ERCTransaction::Redo, GetPresetId(), OnFieldRenamed(), this, OldLabel, AssignedLabel);
+
 	return AssignedLabel;
 }
 

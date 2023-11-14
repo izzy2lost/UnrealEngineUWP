@@ -221,7 +221,7 @@ private:
 	void OnPropertyIdRenamed(const FName InNewId, TSharedPtr<SRCPanelTreeNode> InNode);
 
 	/** Executed when a property Name is changed, will set all selected node(s) property Name to the new one */
-	void OnNameRenamed(const FName InNewName);
+	void OnLabelModified(const FName InOldName, const FName InNewName);
 
 	/** Executed when a drag is detected, will create the Drag and Drop widget of the node(s) */
 	FReply OnNodeDragDetected(const FGeometry& InGeometry, const FPointerEvent& InPointerEvent, TSharedPtr<SRCPanelTreeNode> InNode);

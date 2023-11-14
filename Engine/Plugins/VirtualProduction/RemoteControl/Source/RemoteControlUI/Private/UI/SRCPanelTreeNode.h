@@ -40,7 +40,7 @@ namespace ERCColumn
 	};
 }
 
-DECLARE_DELEGATE_OneParam(FOnLabelModified, FName /* InNewName */)
+DECLARE_DELEGATE_TwoParams(FOnLabelModified, FName /* InOldName */, FName /* InNewName */)
 DECLARE_DELEGATE_OneParam(FOnPropertyIdRenamed, FName /* InNewPropertyId */)
 
 /** A node in the panel tree view. */
@@ -95,7 +95,7 @@ struct SRCPanelTreeNode : public SCompoundWidget, public IHasProtocolExtensibili
 	/** Retrieves the DragAndDropWidget if possible otherwise returns a NullWidget */
 	TSharedRef<SWidget> GetDragAndDropWidget(int32 InSelectedEntitiesNum = 1);
 	/** Executed when the Name of the node is changed */
-	FOnLabelModified& OnNameRenamed() { return OnNameRenamedDelegate; };
+	FOnLabelModified& OnLabelModified() { return OnLabelModifiedDelegate; };
 	/** Executed when the PropertyId of the node is changed */
 	FOnPropertyIdRenamed& OnPropertyIdRenamed() { return OnPropertyIdRenamedDelegate; };
 
@@ -160,7 +160,7 @@ private:
 	static constexpr float SplitterOffset = 0.008f;
 
 	/** Delegate called when the Node Name is renamed. */
-	FOnLabelModified OnNameRenamedDelegate;
+	FOnLabelModified OnLabelModifiedDelegate;
 
 	/** Delegate called when the Node Property Id change. */
 	FOnPropertyIdRenamed OnPropertyIdRenamedDelegate;

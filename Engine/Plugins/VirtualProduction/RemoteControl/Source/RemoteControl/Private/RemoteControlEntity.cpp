@@ -137,7 +137,6 @@ FName FRemoteControlEntity::Rename(FName NewLabel)
 	{
 		Preset->Modify();
 		FName NewName = Preset->RenameExposedEntity(Id, NewLabel);
-		OnEntityModifiedDelegate.ExecuteIfBound(Id);
 		return NewName;
 	}
 

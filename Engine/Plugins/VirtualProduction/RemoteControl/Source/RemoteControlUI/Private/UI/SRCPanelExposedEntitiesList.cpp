@@ -757,16 +757,25 @@ void SRCPanelExposedEntitiesList::OnPropertyIdRenamed(const FName InNewId, TShar
 	}
 }
 
-void SRCPanelExposedEntitiesList::OnNameRenamed(const FName InNewName)
+void SRCPanelExposedEntitiesList::OnLabelModified(const FName InOldName, const FName InNewName)
 {
 	TArray<TSharedPtr<SRCPanelTreeNode>> SelectedEntities = GetSelectedEntities();
-	for (const TSharedPtr<SRCPanelTreeNode>& Entity : SelectedEntities)
+	for (const TSharedPtr<SRCPanelTreeNode>& EntityNode : SelectedEntities)
 	{
-		TWeakPtr<FRemoteControlField> ExposedField = Preset->GetExposedEntity<FRemoteControlField>(Entity->GetRCId());
+		TWeakPtr<FRemoteControlField> ExposedField = Preset->GetExposedEntity<FRemoteControlField>(EntityNode->GetRCId());
 		if (ExposedField.IsValid())
 		{
+			const bool bIsLabelAlreadyNew = ExposedField.Pin()->GetLabel() == InNewName;
+			FName OldLabel = InOldName;
+			if (!bIsLabelAlreadyNew)
+			{
+				OldLabel = ExposedField.Pin()->GetLabel();
+			}
+
 			ExposedField.Pin()->Rename(InNewName);
-			Entity->SetName(ExposedField.Pin()->GetLabel());
+			const FName NewName = ExposedField.Pin()->GetLabel();
+			EntityNode->SetName(NewName);
+			Preset->OnFieldRenamed().Broadcast(Preset.Get(), OldLabel, NewName);
 		}
 	}
 }
@@ -1042,7 +1051,7 @@ TSharedRef<ITableRow> SRCPanelExposedEntitiesList::OnGenerateRow(TSharedPtr<SRCP
 		constexpr float LeftPadding = 3.f;
 		const FMargin Margin = Node->GetRCType() == SRCPanelTreeNode::FieldChild ? FMargin(LeftPadding + 10.f, 1.f, 1.f, 1.f) : FMargin(LeftPadding, 1.f, 1.f, 1.f);
 		Node->OnPropertyIdRenamed().BindSP(this, &SRCPanelExposedEntitiesList::OnPropertyIdRenamed, Node);
-		Node->OnNameRenamed().BindSP(this, &SRCPanelExposedEntitiesList::OnNameRenamed);
+		Node->OnLabelModified().BindSP(this, &SRCPanelExposedEntitiesList::OnLabelModified);
 
 		return SNew(SEntityRow, OwnerTable)
 			.OnDragDetected(FOnDragDetected::CreateSP(this, &SRCPanelExposedEntitiesList::OnNodeDragDetected, Node))
