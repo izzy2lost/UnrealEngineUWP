@@ -2486,6 +2486,7 @@ public:
 	virtual bool ShouldImport(FStringView ActorPropString, bool IsMovingLevel) { return true; }
 
 	/** Called by InputKey when an unhandled key is pressed with a selected actor */
+	UE_DEPRECATED(5.4, "Please use UI Commands and process your custom actors as necessary by extending the level editor modules' global command list.")
 	virtual void EditorKeyPressed(FKey Key, EInputEvent Event) {}
 
 	/** Called by ReplaceSelectedActors to allow a new actor to copy properties from an old actor when it is replaced */

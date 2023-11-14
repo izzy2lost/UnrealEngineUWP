@@ -410,6 +410,13 @@ public:
 	void OnSetBookmark( int32 BookmarkIndex );
 
 	/**
+	 * Called to check if a bookmark is set
+	 *
+	 * @param BookmarkIndex	The index of the bookmark to check
+	 */
+	bool OnHasBookmarkSet(int32 BookmarkIndex);
+
+	/**
 	 * Called to jump to a bookmark
 	 *
 	 * @param BookmarkIndex	The index of the bookmark to jump to

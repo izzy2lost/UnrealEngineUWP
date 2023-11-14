@@ -1382,17 +1382,19 @@ bool FEditorModeTools::InputKey(FEditorViewportClient* InViewportClient, FViewpo
 		}
 
 		return true;
-	});
+		});
 
-	// Finally, pass input to selected actors if nothing else handled the input
+PRAGMA_DISABLE_DEPRECATION_WARNINGS // Begin AActor::EditorKeyPressed
+	// Finally, pass input to selected actors if nothing else handled the input (Deprecated in 5.4)
 	if (!bHandled)
 	{
 		GetEditorSelectionSet()->ForEachSelectedObject<AActor>([Key, Event](AActor* ActorPtr)
-		{
-			ActorPtr->EditorKeyPressed(Key, Event);
-			return true;
-		});
+			{
+				ActorPtr->EditorKeyPressed(Key, Event);
+				return true;
+			});
 	}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS // End AActor::EditorKeyPressed
 	return bHandled;
 }
 

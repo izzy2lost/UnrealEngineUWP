@@ -1523,7 +1523,8 @@ void SLevelViewport::BindOptionCommands( FUICommandList& OutCommandList )
 	{
 		OutCommandList.MapAction( 
 			ViewportActions.JumpToBookmarkCommands[BookmarkIndex],
-			FExecuteAction::CreateSP( this, &SLevelViewport::OnJumpToBookmark, BookmarkIndex )
+			FExecuteAction::CreateSP( this, &SLevelViewport::OnJumpToBookmark, BookmarkIndex ),
+			FCanExecuteAction::CreateSP(this, &SLevelViewport::OnHasBookmarkSet, BookmarkIndex)
 			);
 
 		OutCommandList.MapAction( 
@@ -2428,6 +2429,11 @@ void SLevelViewport::OnSetBookmark( int32 BookmarkIndex )
 void SLevelViewport::OnJumpToBookmark( int32 BookmarkIndex )
 {
 	IBookmarkTypeTools::Get().JumpToBookmark( BookmarkIndex, TSharedPtr<struct FBookmarkBaseJumpToSettings>(), LevelViewportClient.Get() );
+}
+
+bool SLevelViewport::OnHasBookmarkSet(int32 BookmarkIndex)
+{
+	return IBookmarkTypeTools::Get().CheckBookmark(BookmarkIndex, LevelViewportClient.Get());
 }
 
 void SLevelViewport::OnClearBookmark(int32 BookmarkIndex)
