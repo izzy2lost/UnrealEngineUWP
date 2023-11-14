@@ -238,11 +238,6 @@ namespace UnrealBuildTool
 			{
 				string? SanitizerSuffix = null;
 
-				if (Target.bUseAutoRTFMCompiler)
-				{
-					SanitizerSuffix = "AutoRTFM";
-				}
-
 				if (Target.LinuxPlatform.bEnableAddressSanitizer)
 				{
 					SanitizerSuffix = "ASan";
