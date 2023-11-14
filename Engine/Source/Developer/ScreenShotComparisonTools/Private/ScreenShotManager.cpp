@@ -391,6 +391,14 @@ FImageComparisonResult FScreenShotManager::CompareScreenshot(const FString& InUn
 	// We use the subfolder path to the screenshot as name (before any environment specialization - platform, RHI - are appended).
 	ComparisonResult.ScreenshotName = ResultsSubFolder;
 
+	// Do not save passing variant test screenshots
+	const bool bIsVariant = !IncomingMetaData.VariantName.IsEmpty();
+	if (bIsVariant && FAutomationTestFramework::Get().NeedUseLightweightStereoTestVariants() && ComparisonResult.AreSimilar())
+	{
+		ComparisonResult.bSkipAttachingImages = true;
+		return ComparisonResult;
+	}
+
 	// Result paths should be relative to the project. Note this may be empty, and if it is MakePathRelative returns
 	// a non empty relative path... but we want it to stay empty as that's how we signal that no approved file exists
 	if (!ComparisonResult.ApprovedFilePath.IsEmpty())

@@ -1160,9 +1160,14 @@ public:
 	static CORE_API bool NeedLogBPTestMetadata();
 
 	/**
-	 * Whether to also run stereo test variants for screenshot functional testts
+	 * Whether to also run stereo test variants for screenshot functional tests
 	 */
 	static CORE_API bool NeedPerformStereoTestVariants();
+
+	/**
+	 * Whether to skip variants when the baseline test fails, and skip saving screenshots for successful variants
+	 */
+	static CORE_API bool NeedUseLightweightStereoTestVariants();
 
 	/**
 	 * Notify that the screenshot comparison has completed

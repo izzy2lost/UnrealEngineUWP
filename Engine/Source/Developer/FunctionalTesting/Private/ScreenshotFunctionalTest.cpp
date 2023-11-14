@@ -154,7 +154,10 @@ void AScreenshotFunctionalTest::OnScreenShotCaptured(int32 InSizeX, int32 InSize
 
 void AScreenshotFunctionalTest::OnScreenshotTakenAndCompared()
 {
-	if (bShouldDoViewRectOffsetVariant)
+	FAutomationTestBase* CurrentTest = FAutomationTestFramework::Get().GetCurrentTest();
+	bool bSkipDueToError = FAutomationTestFramework::Get().NeedUseLightweightStereoTestVariants() && (!CurrentTest || CurrentTest->HasAnyErrors());
+
+	if (bShouldDoViewRectOffsetVariant && !bSkipDueToError)
 	{
 		bShouldDoViewRectOffsetVariant = false;
 

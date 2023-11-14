@@ -29,7 +29,7 @@ public:
 	bool bCameraCutOnScreenshotPrep;
 
 	// If r.EnableStereoScreenshotTestVariants is enabled, also take and compare screenshots in stereo rendering emulation modes when running this test
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Functional Testing", SimpleDisplay)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Screenshot", SimpleDisplay)
 	bool bSupportStereoTestVariants = true;
 
 protected:

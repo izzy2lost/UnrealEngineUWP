@@ -57,6 +57,12 @@ namespace AutomationTest
 		bEnableStereoTestVariants,
 		TEXT("Whether to enable stereo test variants for screenshot functional tests"));
 
+	static bool bLightweightStereoTestVariants = true;
+	static FAutoConsoleVariableRef CVarAutomationLightweightStereoTestVariants(
+		TEXT("Automation.LightweightStereoTestVariants"),
+		bLightweightStereoTestVariants,
+		TEXT("Whether to skip variants when the baseline test fails, and skip saving screenshots for successful variants"));
+
 	// The method prepares the filename and LineNumber to be placed in the form that could be extracted by SAutomationWindow widget if it is additionally eclosed into []
 	// The result format is filename(line)
 	static FString CreateFileLineDescription(const FString& Filename, const int32 LineNumber)
@@ -310,6 +316,11 @@ bool FAutomationTestFramework::NeedLogBPTestMetadata()
 bool FAutomationTestFramework::NeedPerformStereoTestVariants()
 {
 	return AutomationTest::bEnableStereoTestVariants;
+}
+
+bool FAutomationTestFramework::NeedUseLightweightStereoTestVariants()
+{
+	return AutomationTest::bLightweightStereoTestVariants;
 }
 
 bool FAutomationTestFramework::RegisterAutomationTest( const FString& InTestNameToRegister, FAutomationTestBase* InTestToRegister )

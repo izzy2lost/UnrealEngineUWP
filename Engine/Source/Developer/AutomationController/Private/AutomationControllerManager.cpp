@@ -501,7 +501,7 @@ void FAutomationControllerManager::ProcessComparisonQueue()
 
 			FImageComparisonResult Result = Entry->PendingComparison.Get();
 			FAutomationWorkerImageComparisonResults ResultMessage(
-				FGuid::NewGuid(),
+				Result.bSkipAttachingImages ? FGuid() : FGuid::NewGuid(),
 				Result.ScreenshotName,
 				Result.IsNew(),
 				Result.AreSimilar(),
@@ -526,7 +526,10 @@ void FAutomationControllerManager::ProcessComparisonQueue()
 				MessageEndpoint->Send(Message, Entry->Sender);
 			}
 
-			ReportImageComparisonResult(Entry->Sender, ResultMessage);
+			if (!Result.bSkipAttachingImages)
+			{
+				ReportImageComparisonResult(Entry->Sender, ResultMessage);
+			}
 		}
 	}
 }
