@@ -577,7 +577,9 @@ private:
 		// If the skeletal component has already ticked this frame because tick prerequisites weren't set up yet or a new binding was created, forcibly tick this component to update.
 		// This resolves first frame issues where the skeletal component ticks first, then the sequencer binding is resolved which sets up tick prerequisites
 		// for the next frame.
-		if (SkeletalMeshComponent->PoseTickedThisFrame() || (SequencerInstance && SequencerInstance->GetSourceAnimInstance() != ExistingAnimInstance))
+		if (!SkeletalMeshComponent->IsPostEvaluatingAnimation() &&
+			(SkeletalMeshComponent->PoseTickedThisFrame() || (SequencerInstance && SequencerInstance->GetSourceAnimInstance() != ExistingAnimInstance))
+			)
 		{
 			SkeletalMeshComponent->TickAnimation(0.f, false);
 
