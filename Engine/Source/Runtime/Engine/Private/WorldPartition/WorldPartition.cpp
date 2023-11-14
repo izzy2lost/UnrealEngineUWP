@@ -385,9 +385,17 @@ void UWorldPartition::OnPackageDirtyStateChanged(UPackage* Package)
 				DirtyActors.Add(Actor->GetActorGuid(), FDirtyActor(ActorHandle.ToReference(), Actor));
 			}
 		}
+		else if (DirtyActors.Contains(Actor->GetActorGuid()))
+		{
+			if (!Package->IsDirty())
+			{
+				// Remove newly created, unsaved actor that dissapeared after an undo
+				DirtyActors.Remove(Actor->GetActorGuid());
+			}
+		}
 		else
 		{
-			// This is handling a new actor (unsaved).
+			// Add newly created, unsaved actor after editor placement or a redo
 			DirtyActors.Add(Actor->GetActorGuid(), FDirtyActor(Actor));
 		}
 	}
