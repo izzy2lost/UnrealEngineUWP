@@ -1060,7 +1060,7 @@ void CompileMetalShader(const FShaderCompilerInput& Input, const FString& InPrep
 
 	TCHAR const* StandardPlatform = bIsMobile ? TEXT("ios") : TEXT("macos");
 	FString Standard;
-	if (VersionEnum >= 8)
+	if (VersionEnum >= 8) //-V547
 	{
 		Standard = FString::Printf(TEXT("-std=metal%s"), *StandardVersion);
 	}

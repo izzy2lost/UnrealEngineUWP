@@ -288,7 +288,7 @@ namespace Private
 				if (Factor > UE_SMALL_NUMBER)
 				{
 					MaskFactor = ((MaskFactor > 0.0f) && Context.MaskData)
-							? static_cast<float>(Context.MaskData[(BufferPos - Context.TargetData) / PIXEL_SIZE])
+							? static_cast<float>(Context.MaskData[(BufferPos - Context.TargetData) / PIXEL_SIZE]) //-V609
 							: MaskFactor;
 					Factor = (Factor * MaskFactor) * (1.0f/255.0f);
 				}
@@ -481,7 +481,7 @@ namespace Private
 				if (Factor > 0)
 				{
 					MaskFactor = ((MaskFactor > 0) && Context.MaskData) 
-							? Context.MaskData[(BufferPos - Context.TargetData) / PIXEL_SIZE] 
+							? Context.MaskData[(BufferPos - Context.TargetData) / PIXEL_SIZE]  //-V609
 							: MaskFactor;
 					Factor = (Factor * MaskFactor) / 255;
 				}

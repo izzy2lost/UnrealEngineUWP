@@ -189,7 +189,7 @@
 	//-V:DataStripped:581
 	//-V:FromInt:601
 	//-V:UE_CLOG(:501,560
-	//-V:UE_LOG(:501, 560
+	//-V:UE_LOG(:501,510,560
 	//-V:UGL_REQUIRED_VOID:501
 	//-V:AnimScriptInstance:595
 	//-V:Driver:595
@@ -229,8 +229,6 @@
 	//-V:Linker:678
 	//-V:self:678
 	//-V:AccumulateParentID:678
-	//-V:BasicLog:510
-	//-V:BasicFatalLog:510
 
 	// The following classes retain a reference to data supplied in the constructor by the derived class which can not yet be initialized.
 	//-V:FMemoryWriter(:1050

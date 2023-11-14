@@ -2530,7 +2530,7 @@ void FKismetCompilerContext::PrecompileFunction(FKismetFunctionContext& Context,
 
 		////////////////////////////////////////
 
-		if (Context.Function && Context.IsDelegateSignature())
+		if (Context.IsDelegateSignature())
 		{
 			Context.Function->FunctionFlags |= FUNC_Delegate;
 
@@ -2547,7 +2547,7 @@ void FKismetCompilerContext::PrecompileFunction(FKismetFunctionContext& Context,
 			}
 		}
 
-		if (Context.EntryPoint && Context.Function)
+		if (Context.EntryPoint)
 		{
 			if (Context.EntryPoint->MetaData.HasMetaData(FBlueprintMetadata::MD_FieldNotify) && NewClass->ImplementsInterface(UNotifyFieldValueChanged::StaticClass()))
 			{

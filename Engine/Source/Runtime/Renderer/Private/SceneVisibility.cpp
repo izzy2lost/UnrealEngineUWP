@@ -4438,7 +4438,7 @@ void FSceneRenderer::PreVisibilityFrameSetup(FRDGBuilder& GraphBuilder)
 			{
 				// Prepare (skel.) data for guide/simulation update
 				// If we are rendering from scene capture we don't need to run another time the hair bookmarks.
-				if (IsHairStrandsEnabled(EHairStrandsShaderType::All, Scene->GetShaderPlatform()) && Views[0].AllowGPUParticleUpdate())
+				if (Scene && IsHairStrandsEnabled(EHairStrandsShaderType::All, Scene->GetShaderPlatform()) && Views[0].AllowGPUParticleUpdate())
 				{
 					Scene->WaitForGPUSkinCacheTask();
 
