@@ -12,7 +12,6 @@ public class UniversalObjectLocator : ModuleRules
 			new string[] {
 				"Core",
 				"CoreUObject",
-				"Engine",
 			}
 		);
 	}
