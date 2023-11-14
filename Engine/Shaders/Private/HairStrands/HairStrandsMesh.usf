@@ -354,3 +354,57 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 }
 
 #endif // SHADER_OFFSET_UPDATE
+
+
+////////////////////////////////////////////////////////////////////////
+// Update hair strands offset position
+
+#if SHADER_RESOURCE_TRANSITION
+
+Buffer<uint> Buffers_0;
+Buffer<uint> Buffers_1;
+Buffer<uint> Buffers_2;
+Buffer<uint> Buffers_3;
+Buffer<uint> Buffers_4;
+Buffer<uint> Buffers_5;
+Buffer<uint> Buffers_6;
+Buffer<uint> Buffers_7;
+Buffer<uint> Buffers_8;
+Buffer<uint> Buffers_9;
+Buffer<uint> Buffers_10;
+Buffer<uint> Buffers_11;
+Buffer<uint> Buffers_12;
+Buffer<uint> Buffers_13;
+Buffer<uint> Buffers_14;
+Buffer<uint> Buffers_15;
+
+RWBuffer<uint> DummyOutput;
+uint DummyValue;
+
+[numthreads(1, 1, 1)]
+void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
+{
+	if (DummyValue > 0)
+	{
+		uint Acc = 0;
+		Acc += Buffers_0[0];
+		Acc += Buffers_1[0];
+		Acc += Buffers_2[0];
+		Acc += Buffers_3[0];
+		Acc += Buffers_4[0];
+		Acc += Buffers_5[0];
+		Acc += Buffers_6[0];
+		Acc += Buffers_7[0];
+		Acc += Buffers_8[0];
+		Acc += Buffers_9[0];
+		Acc += Buffers_10[0];
+		Acc += Buffers_11[0];
+		Acc += Buffers_12[0];
+		Acc += Buffers_13[0];
+		Acc += Buffers_14[0];
+		Acc += Buffers_15[0];
+		DummyOutput[0] = Acc;
+	}
+}
+
+#endif // SHADER_RESOURCE_TRANSITION

@@ -153,4 +153,9 @@ void AddHairStrandUpdatePositionOffsetPass(
 	FHairStrandsDeformedRootResource* DeformedRootResources,
 	FHairStrandsDeformedResource* DeformedResources);
 
+void AddTransitionPass(
+	FRDGBuilder& GraphBuilder,
+	FGlobalShaderMap* ShaderMap,
+	const TArray<FRDGBufferSRVRef>& Transitions);
+
 FHairStrandsProjectionMeshData ExtractMeshData(FSkeletalMeshRenderData* RenderData);

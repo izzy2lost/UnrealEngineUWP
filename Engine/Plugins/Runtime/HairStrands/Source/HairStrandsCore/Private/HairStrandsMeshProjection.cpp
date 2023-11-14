@@ -10,6 +10,7 @@
 #include "RayTracingDynamicGeometryCollection.h"
 #include "RenderGraphUtils.h"
 #include "GroomResources.h"
+#include "SystemTextures.h"
 
 static int32 GHairProjectionMaxTrianglePerProjectionIteration = 8;
 static FAutoConsoleVariableRef CVarHairProjectionMaxTrianglePerProjectionIteration(TEXT("r.HairStrands.Projection.MaxTrianglePerIteration"), GHairProjectionMaxTrianglePerProjectionIteration, TEXT("Change the number of triangles which are iterated over during one projection iteration step. In kilo triangle (e.g., 8 == 8000 triangles). Default is 8."));
@@ -1205,4 +1206,79 @@ void AddHairStrandUpdatePositionOffsetPass(
 
 	GraphBuilder.SetBufferAccessFinal(OutCurrPositionOffsetBuffer.Buffer, ERHIAccess::SRVMask);
 	GraphBuilder.SetBufferAccessFinal(OutPrevPositionOffsetBuffer.Buffer, ERHIAccess::SRVMask);
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
+class FHairResourceTransitionPass : public FGlobalShader
+{
+public:
+private:
+	DECLARE_GLOBAL_SHADER(FHairResourceTransitionPass);
+	SHADER_USE_PARAMETER_STRUCT(FHairResourceTransitionPass, FGlobalShader);
+
+	using FPermutationDomain = TShaderPermutationDomain<>;
+
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER(uint32, DummyValue)
+		SHADER_PARAMETER_RDG_BUFFER_SRV_ARRAY(Buffer, Buffers, [16])
+		SHADER_PARAMETER_RDG_BUFFER_UAV(Buffer, DummyOutput)
+	END_SHADER_PARAMETER_STRUCT()
+
+public:
+	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		return IsHairStrandsSupported(EHairStrandsShaderType::All, Parameters.Platform);
+	}
+	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+	{
+		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+		OutEnvironment.SetDefine(TEXT("SHADER_RESOURCE_TRANSITION"), 1);
+	}
+};
+
+IMPLEMENT_GLOBAL_SHADER(FHairResourceTransitionPass, "/Engine/Private/HairStrands/HairStrandsMesh.usf", "MainCS", SF_Compute);
+
+void AddTransitionPass(
+	FRDGBuilder& GraphBuilder,
+	FGlobalShaderMap* ShaderMap,
+	const TArray<FRDGBufferSRVRef>& Transitions)
+{
+	const uint32 ResourceCount = Transitions.Num();
+	if (ResourceCount == 0)
+	{
+		return;
+	}
+
+	FRDGBufferSRVRef DummyInput = GraphBuilder.CreateSRV(GSystemTextures.GetDefaultBuffer(GraphBuilder, 4u, 1u), PF_R32_UINT);
+	FRDGBufferRef DummyOutput = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(4,1),TEXT("DummyOutput"));
+	FRDGBufferUAVRef DummyOutputUAV = GraphBuilder.CreateUAV(DummyOutput, PF_R32_UINT, ERDGUnorderedAccessViewFlags::SkipBarrier);
+
+	const uint32 MaxBufferCount = 16;
+	const uint32 PassCount = FMath::DivideAndRoundUp(ResourceCount, MaxBufferCount);
+	for (uint32 PassIt=0; PassIt< PassCount; ++PassIt)
+	{
+		FHairResourceTransitionPass::FParameters* PassParameters = GraphBuilder.AllocParameters<FHairResourceTransitionPass::FParameters>();
+		PassParameters->DummyValue = 0;
+		PassParameters->DummyOutput = DummyOutputUAV;
+
+		const uint32 PassResourceOffset = PassIt * MaxBufferCount;
+		const uint32 PassResourceCount = FMath::Min(int32(MaxBufferCount), int32(ResourceCount) - int32(PassResourceOffset));
+		for (uint32 ResourceIt = 0; ResourceIt < PassResourceCount; ++ResourceIt)
+		{
+			PassParameters->Buffers[ResourceIt] = Transitions[PassResourceOffset + ResourceIt];
+		}
+		for (uint32 ResourceIt = PassResourceCount; ResourceIt < MaxBufferCount; ++ResourceIt)
+		{
+			PassParameters->Buffers[ResourceIt] = DummyInput;
+		}
+		TShaderMapRef<FHairResourceTransitionPass> ComputeShader(ShaderMap);
+		FComputeShaderUtils::AddPass(
+			GraphBuilder,
+			RDG_EVENT_NAME("HairStrands::ResourceTransitions"),
+			ERDGPassFlags::Compute | ERDGPassFlags::NeverCull,
+			ComputeShader,
+			PassParameters,
+			FIntVector(1, 1, 1));
+	}
 }
