@@ -2046,7 +2046,7 @@ IRHITransientResourceAllocator* FVulkanDynamicRHI::RHICreateTransientResourceAll
 
 uint32 FVulkanDynamicRHI::GetPrecachePSOHashVersion()
 {
-	static const uint32 PrecacheHashVersion = 1;
+	static const uint32 PrecacheHashVersion = 2;
 	return PrecacheHashVersion;
 }
 
@@ -2141,8 +2141,9 @@ uint64 FVulkanDynamicRHI::RHIComputePrecachePSOHash(const FGraphicsPipelineState
 		uint32							RenderTargetsEnabled;
 		FGraphicsPipelineStateInitializer::TRenderTargetFormats	RenderTargetFormats;
 		FGraphicsPipelineStateInitializer::TRenderTargetFlags RenderTargetFlags;
-		EPixelFormat					DepthStencilTargetFormat;
-		ETextureCreateFlags				DepthStencilTargetFlag;
+// AJB: temporarily disabling depth stencil properties as they do not appear to be required and it causes us to miss some permutations.
+//		EPixelFormat					DepthStencilTargetFormat;
+//		ETextureCreateFlags				DepthStencilTargetFlag;
 		uint16							NumSamples;
 		ESubpassHint					SubpassHint;
 		uint8							SubpassIndex;
@@ -2161,8 +2162,8 @@ uint64 FVulkanDynamicRHI::RHIComputePrecachePSOHash(const FGraphicsPipelineState
 	HashKey.RenderTargetsEnabled = Initializer.RenderTargetsEnabled;
 	HashKey.RenderTargetFormats = Initializer.RenderTargetFormats;
 	HashKey.RenderTargetFlags = Initializer.RenderTargetFlags;
-	HashKey.DepthStencilTargetFormat = Initializer.DepthStencilTargetFormat;
-	HashKey.DepthStencilTargetFlag = Initializer.DepthStencilTargetFlag;
+//	HashKey.DepthStencilTargetFormat = Initializer.DepthStencilTargetFormat;
+//	HashKey.DepthStencilTargetFlag = Initializer.DepthStencilTargetFlag;
 	HashKey.NumSamples = Initializer.NumSamples;
 	HashKey.SubpassHint = Initializer.SubpassHint;
 	HashKey.SubpassIndex = Initializer.SubpassIndex;
@@ -2177,7 +2178,7 @@ uint64 FVulkanDynamicRHI::RHIComputePrecachePSOHash(const FGraphicsPipelineState
 	{
 		Flags = Flags & FGraphicsPipelineStateInitializer::RelevantRenderTargetFlagMask;
 	}
-	HashKey.DepthStencilTargetFlag = (HashKey.DepthStencilTargetFlag & FGraphicsPipelineStateInitializer::RelevantDepthStencilFlagMask);
+// 	HashKey.DepthStencilTargetFlag = (HashKey.DepthStencilTargetFlag & FGraphicsPipelineStateInitializer::RelevantDepthStencilFlagMask);
 
 	return CityHash64((const char*)&HashKey, sizeof(FNonStateHashKey));
 }

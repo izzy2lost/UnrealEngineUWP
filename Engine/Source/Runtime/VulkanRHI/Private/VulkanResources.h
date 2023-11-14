@@ -67,8 +67,9 @@ class FVulkanVertexDeclaration : public FRHIVertexDeclaration
 public:
 	FVertexDeclarationElementList Elements;
 	uint32 Hash;
+	uint32 HashNoStrides;
 
-	FVulkanVertexDeclaration(const FVertexDeclarationElementList& InElements, uint32 InHash);
+	FVulkanVertexDeclaration(const FVertexDeclarationElementList& InElements, uint32 InHash, uint32 InHashNoStrides);
 
 	virtual bool GetInitializer(FVertexDeclarationElementList& Out) final override
 	{
@@ -78,7 +79,7 @@ public:
 
 	static void EmptyCache();
 
-	virtual uint32 GetPrecachePSOHash() const final override { return Hash; }
+	virtual uint32 GetPrecachePSOHash() const final override { return HashNoStrides; }
 };
 
 struct FGfxPipelineDesc;
