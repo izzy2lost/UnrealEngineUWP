@@ -581,7 +581,7 @@ void UsdUtils::AddTimeCodeRangeToLayer( const pxr::SdfLayerRefPtr& Layer, double
 
 	if ( EndTimeCode > Layer->GetEndTimeCode() || !Layer->HasEndTimeCode() )
 	{
-		Layer->SetEndTimeCode( StartTimeCode );
+		Layer->SetEndTimeCode( EndTimeCode );
 	}
 }
 
