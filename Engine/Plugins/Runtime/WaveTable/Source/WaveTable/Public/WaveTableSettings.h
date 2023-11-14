@@ -164,7 +164,7 @@ enum class EWaveTableCurve : uint8
 	SCurve		UMETA(DisplayName = "Sin (+/- 90 deg)"),
 
 	// Reference a shared curve asset
-	Shared		UMETA(DisplayName = "Shared"),
+	Shared		UMETA(DisplayName = "Curve Asset"),
 
 	// Design a custom curve unique to the owning transform
 	Custom		UMETA(DisplayName = "Custom"),
