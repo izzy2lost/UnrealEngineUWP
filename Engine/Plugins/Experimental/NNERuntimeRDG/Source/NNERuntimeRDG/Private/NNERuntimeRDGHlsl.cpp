@@ -34,6 +34,7 @@
 #include "Hlsl/NNERuntimeRDGSize.h"
 #include "Hlsl/NNERuntimeRDGSlice.h"
 #include "Hlsl/NNERuntimeRDGSqueeze.h"
+#include "Hlsl/NNERuntimeRDGTranspose.h"
 #include "Hlsl/NNERuntimeRDGUnsqueeze.h"
 #include "Hlsl/NNERuntimeRDGUpsample.h"
 #include "Hlsl/NNERuntimeRDGMatMul.h"
@@ -68,6 +69,7 @@ bool UNNERuntimeRDGHlslImpl::Init()
 	RegisterSizeOperator(*registry);
 	RegisterSliceOperator(*registry);
 	RegisterSqueezeOperator(*registry);
+	RegisterTransposeOperator(*registry);
 	RegisterUnsqueezeOperator(*registry);
 	RegisterUpsampleOperator(*registry);
 	RegisterMatMulOperator(*registry);
