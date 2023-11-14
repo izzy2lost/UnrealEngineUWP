@@ -80,6 +80,10 @@ public:
 		BoundsMax += Delta;
 	}
 
+	void ApplyScaleToBounds();
+
+	void ResetPointCenter(const FVector& BoundsRatio);
+
 	using PointCustomPropertyGetter = TFunction<bool(const FPCGPoint&, void*)>;
 	using PointCustomPropertySetter = TFunction<bool(FPCGPoint&, const void*)>;
 

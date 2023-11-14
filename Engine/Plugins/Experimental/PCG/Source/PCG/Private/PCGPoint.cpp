@@ -45,6 +45,24 @@ FBoxSphereBounds FPCGPoint::GetDensityBounds() const
 	return FBoxSphereBounds(GetLocalDensityBounds().TransformBy(Transform));
 }
 
+void FPCGPoint::ApplyScaleToBounds()
+{
+	const FVector PointScale = Transform.GetScale3D();
+	Transform.SetScale3D(PointScale.GetSignVector());
+	BoundsMin *= PointScale.GetAbs();
+	BoundsMax *= PointScale.GetAbs();
+}
+
+void FPCGPoint::ResetPointCenter(const FVector& BoundsRatio)
+{
+	const FVector NewCenterLocal = FMath::Lerp(BoundsMin, BoundsMax, BoundsRatio);
+
+	BoundsMin -= NewCenterLocal;
+	BoundsMax -= NewCenterLocal;
+
+	Transform.SetLocation(Transform.GetLocation() + Transform.TransformVector(NewCenterLocal));
+}
+
 bool FPCGPoint::HasCustomPropertyGetterSetter(FName Name)
 {
 	return Name == PCGPointCustomPropertyNames::ExtentsName ||
