@@ -948,8 +948,8 @@ public:
 
 		for (int32 y = 0; y < SubresourceDumpDesc.SubResourceExtent.Y; y++)
 		{
-			// Flip the data to be bottom left corner for the WebGL viewer.
-			const uint8* SrcPos = SrcData + SIZE_T(SubresourceDumpDesc.SubResourceExtent.Y - 1 - y) * SIZE_T(RowPitchInPixels) * BytePerPixel;
+			// Keep the data to be top left corner.
+			const uint8* SrcPos = SrcData + SIZE_T(y) * SIZE_T(RowPitchInPixels) * BytePerPixel;
 			uint8* DstPos = (&Array[0]) + SIZE_T(y) * SIZE_T(SubresourceDumpDesc.SubResourceExtent.X) * BytePerPixel;
 
 			FPlatformMemory::Memmove(DstPos, SrcPos, SIZE_T(SubresourceDumpDesc.SubResourceExtent.X) * BytePerPixel);
