@@ -99,6 +99,12 @@ private:
 	UPROPERTY(EditAnywhere, Category = Settings, meta = (PinHiddenByDefault))
 	bool bShouldSearch = true;
 
+	// If set to true, the search of multiple databases with different schemas will try to share pose features data calculated during query build
+	// the idea is to be able to share as much as possible the continuing pose features vector across different schemas (and potentially improve performances)
+	// defaulted to false to preserve behavior backward compatibility
+	UPROPERTY(EditAnywhere, Category = Settings, meta = (PinHiddenByDefault))
+	bool bShouldUseCachedChannelData = false;
+	
 	// blend time over which the yaw from the animation is distributed across the trajectory samples (negative values implies yaw from the animation is constant over the entire trajectory, so the trajectory will not try to recover towards the capsule orientation)
 	UPROPERTY(EditAnywhere, Category = RootMotion, meta = (PinHiddenByDefault))
 	float YawFromAnimationTrajectoryBlendTime = 0.1f;

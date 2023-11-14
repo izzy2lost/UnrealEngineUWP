@@ -2,6 +2,7 @@
 
 #include "PoseSearch/PoseSearchSchema.h"
 #include "AnimationRuntime.h"
+#include "PoseSearch/PoseSearchContext.h"
 #include "PoseSearch/PoseSearchDefines.h"
 #include "PoseSearch/PoseSearchResult.h"
 #include "PoseSearchFeatureChannel_Padding.h"
@@ -26,17 +27,18 @@ void UPoseSearchSchema::AddTemporaryChannel(UPoseSearchFeatureChannel* Temporary
 	FinalizedChannels.Add(TemporaryChannel);
 }
 
-void UPoseSearchSchema::BuildQuery(UE::PoseSearch::FSearchContext& SearchContext, UE::PoseSearch::FFeatureVectorBuilder& InOutQuery) const
+TConstArrayView<float> UPoseSearchSchema::BuildQuery(UE::PoseSearch::FSearchContext& SearchContext) const
 {
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_PoseSearch_BuildQuery);
 
-	check(InOutQuery.GetSchema() == this);
-	check(InOutQuery.GetValues().Num() == SchemaCardinality);
+	SearchContext.AddNewFeatureVectorBuilder(this);
 
 	for (const TObjectPtr<UPoseSearchFeatureChannel>& ChannelPtr : GetChannels())
 	{
-		ChannelPtr->BuildQuery(SearchContext, InOutQuery);
+		ChannelPtr->BuildQuery(SearchContext);
 	}
+
+	return SearchContext.EditFeatureVector();
 }
 
 FBoneIndexType UPoseSearchSchema::GetBoneIndexType(int8 SchemaBoneIdx) const

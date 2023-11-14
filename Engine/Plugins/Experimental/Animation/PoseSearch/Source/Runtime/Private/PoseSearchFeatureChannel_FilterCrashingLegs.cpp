@@ -49,36 +49,70 @@ void UPoseSearchFeatureChannel_FilterCrashingLegs::AddDependentChannels(UPoseSea
 		UPoseSearchFeatureChannel_Position::FindOrAddToSchema(Schema, 0.f, RightFoot.BoneName);
 	}
 }
-void UPoseSearchFeatureChannel_FilterCrashingLegs::BuildQuery(UE::PoseSearch::FSearchContext& SearchContext, UE::PoseSearch::FFeatureVectorBuilder& InOutQuery) const
+
+void UPoseSearchFeatureChannel_FilterCrashingLegs::BuildQuery(UE::PoseSearch::FSearchContext& SearchContext) const
 {
 	using namespace UE::PoseSearch;
 
-	const bool bIsCurrentResultValid = SearchContext.GetCurrentResult().IsValid() && SearchContext.GetCurrentResult().Database->Schema == InOutQuery.GetSchema();
-	const bool bSkip = InputQueryPose != EInputQueryPose::UseCharacterPose && bIsCurrentResultValid;
-	
+	// trying to get the BuildQuery data from another schema UPoseSearchFeatureChannel_FilterCrashingLegs already cached in the SearchContext
+	if (SearchContext.IsUseCachedChannelData())
+	{
+		// composing a unique identifier to specify this channel with all the required properties to be able to share the query data with other channels of the same type
+		uint32 UniqueIdentifier = GetClass()->GetUniqueID();
+		UniqueIdentifier = HashCombineFast(UniqueIdentifier, ::GetTypeHash(LeftThighIdx));
+		UniqueIdentifier = HashCombineFast(UniqueIdentifier, ::GetTypeHash(RightThighIdx));
+		UniqueIdentifier = HashCombineFast(UniqueIdentifier, ::GetTypeHash(LeftFootIdx));
+		UniqueIdentifier = HashCombineFast(UniqueIdentifier, ::GetTypeHash(RightFootIdx));
+		UniqueIdentifier = HashCombineFast(UniqueIdentifier, ::GetTypeHash(InputQueryPose));
+
+		TConstArrayView<float> CachedChannelData;
+		if (const UPoseSearchFeatureChannel* CachedChannel = SearchContext.GetCachedChannelData(UniqueIdentifier, this, CachedChannelData))
+		{
+#if DO_CHECK
+			const UPoseSearchFeatureChannel_FilterCrashingLegs* CachedFilterCrashingLegs = Cast<UPoseSearchFeatureChannel_FilterCrashingLegs>(CachedChannel);
+			check(CachedFilterCrashingLegs);
+			check(CachedFilterCrashingLegs->GetChannelCardinality() == ChannelCardinality);
+			check(CachedChannelData.Num() == ChannelCardinality);
+
+			// making sure there were no hash collisions
+			check(CachedFilterCrashingLegs->LeftThighIdx == LeftThighIdx);
+			check(CachedFilterCrashingLegs->RightThighIdx == RightThighIdx);
+			check(CachedFilterCrashingLegs->LeftFootIdx == LeftFootIdx);
+			check(CachedFilterCrashingLegs->RightFootIdx == RightFootIdx);
+			check(CachedFilterCrashingLegs->InputQueryPose == InputQueryPose);
+#endif //DO_CHECK
+
+			// copying the CachedChannelData into this channel portion of the FeatureVectorBuilder
+			FFeatureVectorHelper::Copy(SearchContext.EditFeatureVector().Slice(ChannelDataOffset, ChannelCardinality), 0, ChannelCardinality, CachedChannelData);
+			return;
+		}
+	}
+
+	// trying to get the BuildQuery data from the continuing pose
+	const bool bCanUseCurrentResult = SearchContext.CanUseCurrentResult();
+	const bool bSkip = InputQueryPose != EInputQueryPose::UseCharacterPose && bCanUseCurrentResult;
 	if (bSkip || !SearchContext.IsHistoryValid())
 	{
-		if (bIsCurrentResultValid)
+		if (bCanUseCurrentResult)
 		{
-			FFeatureVectorHelper::Copy(InOutQuery.EditValues(), ChannelDataOffset, ChannelCardinality, SearchContext.GetCurrentResultPoseVector());
+			FFeatureVectorHelper::Copy(SearchContext.EditFeatureVector(), ChannelDataOffset, ChannelCardinality, SearchContext.GetCurrentResultPoseVector());
+			return;
 		}
-		else
-		{
-			// we leave the InOutQuery set to zero since the SearchContext.History is invalid and it'll fail if we continue
-			UE_LOG(LogPoseSearch, Error, TEXT("UPoseSearchFeatureChannel_FilterCrashingLegs::BuildQuery - Failed because Pose History Node is missing."));
-		}
-	}
-	else
-	{
-		const FVector RightThighPosition = SearchContext.GetSamplePosition(0.f, 0.f, InOutQuery.GetSchema(), RightThighIdx);
-		const FVector LeftThighPosition = SearchContext.GetSamplePosition(0.f, 0.f, InOutQuery.GetSchema(), LeftThighIdx);
-		const FVector RightFootPosition = SearchContext.GetSamplePosition(0.f, 0.f, InOutQuery.GetSchema(), RightFootIdx);
-		const FVector LeftFootPosition = SearchContext.GetSamplePosition(0.f, 0.f, InOutQuery.GetSchema(), LeftFootIdx);
 
-		const float CrashingLegsValue = ComputeCrashingLegsValue(RightThighPosition, LeftThighPosition, RightFootPosition, LeftFootPosition);
-
-		FFeatureVectorHelper::EncodeFloat(InOutQuery.EditValues(), ChannelDataOffset, CrashingLegsValue);
+		// we leave the SearchContext.EditFeatureVector() set to zero since the SearchContext.History is invalid and it'll fail if we continue
+		UE_LOG(LogPoseSearch, Error, TEXT("UPoseSearchFeatureChannel_FilterCrashingLegs::BuildQuery - Failed because Pose History Node is missing."));
+		return;
 	}
+
+	// composing the BuildQuery data from the bones
+	const FVector RightThighPosition = SearchContext.GetSamplePosition(0.f, 0.f, RightThighIdx);
+	const FVector LeftThighPosition = SearchContext.GetSamplePosition(0.f, 0.f, LeftThighIdx);
+	const FVector RightFootPosition = SearchContext.GetSamplePosition(0.f, 0.f, RightFootIdx);
+	const FVector LeftFootPosition = SearchContext.GetSamplePosition(0.f, 0.f, LeftFootIdx);
+
+	const float CrashingLegsValue = ComputeCrashingLegsValue(RightThighPosition, LeftThighPosition, RightFootPosition, LeftFootPosition);
+
+	FFeatureVectorHelper::EncodeFloat(SearchContext.EditFeatureVector(), ChannelDataOffset, CrashingLegsValue);
 }
 
 #if ENABLE_DRAW_DEBUG

@@ -75,6 +75,36 @@ namespace UE::PoseSearch
 			return false;
 		}
 	}
+
+	static bool ShouldUseCachedChannelData(const UPoseSearchDatabase* CurrentResultDatabase, const TArray<TObjectPtr<const UPoseSearchDatabase>>& Databases)
+	{
+		const UPoseSearchSchema* OneOfTheSchemas = nullptr;
+		if (CurrentResultDatabase)
+		{
+			OneOfTheSchemas = CurrentResultDatabase->Schema;
+		}
+
+		for (const TObjectPtr<const UPoseSearchDatabase>& Database : Databases)
+		{
+			if (ensure(Database))
+			{
+				if (OneOfTheSchemas != Database->Schema)
+				{
+					if (OneOfTheSchemas == nullptr)
+					{
+						OneOfTheSchemas = Database->Schema;
+					}
+					else
+					{
+						// we found we need to search multiple schemas
+						return true;
+					}
+				}
+			}
+		}
+
+		return false;
+	}
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -137,11 +167,11 @@ void FMotionMatchingState::UpdateWantedPlayRate(const UE::PoseSearch::FSearchCon
 		}
 		else if (!FMath::IsNearlyEqual(PlayRate.Min, PlayRate.Max, UE_KINDA_SMALL_NUMBER))
 		{
-			if (const UE::PoseSearch::FFeatureVectorBuilder* PoseSearchFeatureVectorBuilder = SearchContext.GetCachedQuery(CurrentSearchResult.Database->Schema))
+			TConstArrayView<float> QueryData = SearchContext.GetCachedQuery(CurrentSearchResult.Database->Schema);
+			if (!QueryData.IsEmpty())
 			{
 				if (const UPoseSearchFeatureChannel_Trajectory* TrajectoryChannel = CurrentSearchResult.Database->Schema->FindFirstChannelOfType<UPoseSearchFeatureChannel_Trajectory>())
 				{
-					TConstArrayView<float> QueryData = PoseSearchFeatureVectorBuilder->GetValues();
 					TConstArrayView<float> ResultData = CurrentSearchResult.Database->GetSearchIndex().GetPoseValues(CurrentSearchResult.PoseIdx);
 					const float EstimatedSpeedRatio = TrajectoryChannel->GetEstimatedSpeedRatio(QueryData, ResultData);
 
@@ -223,7 +253,7 @@ void UPoseSearchLibrary::TraceMotionMatchingState(
 		FTraceMotionMatchingStateDatabaseEntry& DbEntry = TraceState.DatabaseEntries[DbEntryIdx];
 
 		// if throttling is on, the continuing pose can be valid, but no actual search occurred, so the query will not be cached, and we need to build it
-		DbEntry.QueryVector = SearchContext.GetOrBuildQuery(Database->Schema).GetValues();
+		DbEntry.QueryVector = SearchContext.GetOrBuildQuery(Database->Schema);
 		DbEntry.DatabaseId = FTraceMotionMatchingState::GetIdFromObject(Database);
 
 		for (int32 CandidateIdx = 0; CandidateIdx < DatabaseBestPoseCandidates.Value.Num(); ++CandidateIdx)
@@ -301,6 +331,7 @@ void UPoseSearchLibrary::UpdateMotionMatchingState(
 	float YawFromAnimationTrajectoryBlendTime,
 	EPoseSearchInterruptMode InterruptMode,
 	bool bShouldSearch,
+	bool bShouldUseCachedChannelData,
 	bool bDebugDrawQuery,
 	bool bDebugDrawCurResult,
 	bool bDebugDrawPoseHistory)
@@ -363,10 +394,14 @@ void UPoseSearchLibrary::UpdateMotionMatchingState(
 	{
 		InOutMotionMatchingState.ElapsedPoseSearchTime = 0.f;
 		const bool bForceInterrupt = IsForceInterrupt(InterruptMode, CurrentResultDatabase, Databases);
+		const bool bSearchContinuingPose = !bForceInterrupt && bCanAdvance;
 
-		// Evaluate continuing pose
+		// calculating if it's worth bUseCachedChannelData (if we potentially have to build query with multiple schemas)
+		SearchContext.SetUseCachedChannelData(bShouldUseCachedChannelData && ShouldUseCachedChannelData(bSearchContinuingPose ? CurrentResultDatabase : nullptr, Databases));
+
 		FSearchResult SearchResult;
-		if (!bForceInterrupt && bCanAdvance)
+		// Evaluate continuing pose
+		if (bSearchContinuingPose)
 		{
 			SearchResult = CurrentResultDatabase->SearchContinuingPose(SearchContext);
 			SearchContext.UpdateCurrentBestCost(SearchResult.PoseCost);
@@ -455,6 +490,7 @@ void UPoseSearchLibrary::UpdateMotionMatchingState(
 		InOutMotionMatchingState.ElapsedPoseSearchTime += DeltaTime;
 	}
 
+	// @todo: consider moving this into if (bSearch) to avoid calling SearchContext.GetCachedQuery if no search is required
 	InOutMotionMatchingState.UpdateWantedPlayRate(SearchContext, PlayRate, TrajectorySpeedMultiplier);
 
 	InOutMotionMatchingState.PoseIndicesHistory.Update(InOutMotionMatchingState.CurrentSearchResult, DeltaTime, PoseReselectHistory);
@@ -489,7 +525,7 @@ void UPoseSearchLibrary::UpdateMotionMatchingState(
 			{
 				// @todo: use pose history to get the root bone!
 				UE::PoseSearch::FDebugDrawParams DrawParams(Context.AnimInstanceProxy, SearchContext.GetWorldBoneTransformAtTime(0.f), CurResultDatabase, EDebugDrawFlags::DrawQuery);
-				DrawParams.DrawFeatureVector(SearchContext.GetOrBuildQuery(CurResultDatabase->Schema).GetValues());
+				DrawParams.DrawFeatureVector(SearchContext.GetOrBuildQuery(CurResultDatabase->Schema));
 			}
 		}
 	}
@@ -692,7 +728,7 @@ void UPoseSearchLibrary::MotionMatch(
 			if (CVarAnimMotionMatchDrawQueryEnable.GetValueOnAnyThread())
 			{
 				FDebugDrawParams DrawParams(AnimInstanceProxy, SearchContext.GetWorldBoneTransformAtTime(0.f), SearchResult.Database.Get(), EDebugDrawFlags::DrawQuery);
-				DrawParams.DrawFeatureVector(SearchContext.GetOrBuildQuery(SearchResult.Database->Schema).GetValues());
+				DrawParams.DrawFeatureVector(SearchContext.GetOrBuildQuery(SearchResult.Database->Schema));
 			}
 		}
 #endif // ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
@@ -782,7 +818,7 @@ UE::PoseSearch::FSearchResult UPoseSearchLibrary::MotionMatch(const FAnimationBa
 			if (CVarAnimMotionMatchDrawQueryEnable.GetValueOnAnyThread())
 			{
 				FDebugDrawParams DrawParams(Context.AnimInstanceProxy, SearchContext.GetWorldBoneTransformAtTime(0.f), SearchResult.Database.Get(), EDebugDrawFlags::DrawQuery);
-				DrawParams.DrawFeatureVector(SearchContext.GetOrBuildQuery(SearchResult.Database->Schema).GetValues());
+				DrawParams.DrawFeatureVector(SearchContext.GetOrBuildQuery(SearchResult.Database->Schema));
 			}
 		}
 #endif // ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG

@@ -300,29 +300,55 @@ void UPoseSearchFeatureChannel_Phase::AddDependentChannels(UPoseSearchSchema* Sc
 	}
 }
 
-void UPoseSearchFeatureChannel_Phase::BuildQuery(UE::PoseSearch::FSearchContext& SearchContext, UE::PoseSearch::FFeatureVectorBuilder& InOutQuery) const
+void UPoseSearchFeatureChannel_Phase::BuildQuery(UE::PoseSearch::FSearchContext& SearchContext) const
 {
 	using namespace UE::PoseSearch;
 
-	const bool bIsCurrentResultValid = SearchContext.GetCurrentResult().IsValid() && SearchContext.GetCurrentResult().Database->Schema == InOutQuery.GetSchema();
-	const bool bSkip = InputQueryPose != EInputQueryPose::UseCharacterPose && bIsCurrentResultValid;
+	// trying to get the BuildQuery data from another schema UPoseSearchFeatureChannel_Phase already cached in the SearchContext
+	if (SearchContext.IsUseCachedChannelData())
+	{
+		// composing a unique identifier to specify this channel with all the required properties to be able to share the query data with other channels of the same type
+		uint32 UniqueIdentifier = GetClass()->GetUniqueID();
+		UniqueIdentifier = HashCombineFast(UniqueIdentifier, ::GetTypeHash(SchemaBoneIdx));
+		UniqueIdentifier = HashCombineFast(UniqueIdentifier, ::GetTypeHash(InputQueryPose));
+
+		TConstArrayView<float> CachedChannelData;
+		if (const UPoseSearchFeatureChannel* CachedChannel = SearchContext.GetCachedChannelData(UniqueIdentifier, this, CachedChannelData))
+		{
+#if DO_CHECK
+			const UPoseSearchFeatureChannel_Phase* CachedPhaseChannel = Cast<UPoseSearchFeatureChannel_Phase>(CachedChannel);
+			check(CachedPhaseChannel);
+			check(CachedPhaseChannel->GetChannelCardinality() == ChannelCardinality);
+			check(CachedChannelData.Num() == ChannelCardinality);
+
+			// making sure there were no hash collisions
+			check(CachedPhaseChannel->SchemaBoneIdx == SchemaBoneIdx);
+			check(CachedPhaseChannel->InputQueryPose == InputQueryPose);
+#endif //DO_CHECK
+
+			// copying the CachedChannelData into this channel portion of the FeatureVectorBuilder
+			FFeatureVectorHelper::Copy(SearchContext.EditFeatureVector().Slice(ChannelDataOffset, ChannelCardinality), 0, ChannelCardinality, CachedChannelData);
+			return;
+		}
+	}
+
+	const bool bCanUseCurrentResult = SearchContext.CanUseCurrentResult();
+	const bool bSkip = InputQueryPose != EInputQueryPose::UseCharacterPose && bCanUseCurrentResult;
 	if (bSkip || !SearchContext.IsHistoryValid())
 	{
-		if (bIsCurrentResultValid)
+		if (bCanUseCurrentResult)
 		{
-			FFeatureVectorHelper::Copy(InOutQuery.EditValues(), ChannelDataOffset, ChannelCardinality, SearchContext.GetCurrentResultPoseVector());
+			FFeatureVectorHelper::Copy(SearchContext.EditFeatureVector(), ChannelDataOffset, ChannelCardinality, SearchContext.GetCurrentResultPoseVector());
+			return;
 		}
-		else
-		{
-			// we leave the InOutQuery set to zero since the SearchContext.History is invalid and it'll fail if we continue
-			UE_LOG(LogPoseSearch, Error, TEXT("UPoseSearchFeatureChannel_Phase::BuildQuery - Failed because Pose History Node is missing."));
-		}
+		
+		// we leave the SearchContext.EditFeatureVector() set to zero since the SearchContext.History is invalid and it'll fail if we continue
+		UE_LOG(LogPoseSearch, Error, TEXT("UPoseSearchFeatureChannel_Phase::BuildQuery - Failed because Pose History Node is missing."));
+		return;
 	}
-	else
-	{
-		// @todo: Support phase in BuildQuery
-		// FFeatureVectorHelper::EncodeVector2D(InOutQuery.EditValues(), DataOffset, ???);
-	}
+	
+	// @todo: Support phase in BuildQuery
+	// FFeatureVectorHelper::EncodeVector2D(SearchContext.EditFeatureVector(), DataOffset, ???);
 }
 
 #if ENABLE_DRAW_DEBUG

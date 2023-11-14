@@ -147,10 +147,11 @@ public:
 		float SearchThrottleTime,
 		const FFloatInterval& PlayRate,
 		FMotionMatchingState& InOutMotionMatchingState,
-		float YawFromAnimationBlendRate,
-		float YawFromAnimationTrajectoryBlendTime,
+		float YawFromAnimationBlendRate = -1.f,
+		float YawFromAnimationTrajectoryBlendTime = 0.1f,
 		EPoseSearchInterruptMode InterruptMode = EPoseSearchInterruptMode::DoNotInterrupt,
 		bool bShouldSearch = true,
+		bool bShouldUseCachedChannelData = true,
 		bool bDebugDrawQuery = false,
 		bool bDebugDrawCurResult = false,
 		bool bDebugDrawPoseHistory = false);

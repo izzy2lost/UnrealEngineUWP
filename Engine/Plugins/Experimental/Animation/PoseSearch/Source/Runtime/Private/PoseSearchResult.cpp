@@ -9,17 +9,6 @@
 namespace UE::PoseSearch
 {
 
-//////////////////////////////////////////////////////////////////////////
-// FFeatureVectorBuilder
-FFeatureVectorBuilder::FFeatureVectorBuilder(const UPoseSearchSchema* InSchema)
-{
-	check(InSchema && InSchema->IsValid());
-	SchemaPtr = InSchema;
-	Values.SetNumZeroed(SchemaPtr->SchemaCardinality);
-}
-
-//////////////////////////////////////////////////////////////////////////
-// FSearchResult
 void FSearchResult::Update(float NewAssetTime)
 {
 	if (!IsValid())

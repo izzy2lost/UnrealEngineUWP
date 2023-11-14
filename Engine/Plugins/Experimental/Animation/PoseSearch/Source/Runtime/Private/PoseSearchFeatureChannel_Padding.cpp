@@ -19,7 +19,7 @@ void UPoseSearchFeatureChannel_Padding::Finalize(UPoseSearchSchema* Schema)
 	Schema->SchemaCardinality += ChannelCardinality;
 }
 
-void UPoseSearchFeatureChannel_Padding::BuildQuery(UE::PoseSearch::FSearchContext& SearchContext, UE::PoseSearch::FFeatureVectorBuilder& InOutQuery) const
+void UPoseSearchFeatureChannel_Padding::BuildQuery(UE::PoseSearch::FSearchContext& SearchContext) const
 {
 	// nothing to do here
 }

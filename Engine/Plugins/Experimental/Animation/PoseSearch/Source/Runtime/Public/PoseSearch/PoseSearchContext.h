@@ -101,7 +101,7 @@ struct FCachedTransforms
 	}
 
 private:
-	TArray<FCachedTransform<FTransformType>, TInlineAllocator<64>> CachedTransforms;
+	TArray<FCachedTransform<FTransformType>, TInlineAllocator<64, TMemStackAllocator<>>> CachedTransforms;
 };
 
 #if ENABLE_DRAW_DEBUG
@@ -141,38 +141,63 @@ private:
 
 #endif // ENABLE_DRAW_DEBUG
 
+// float buffer of features according to a UPoseSearchSchema layout. Used to build search queries at runtime
+struct FCachedQuery
+{
+public:
+	explicit FCachedQuery(const UPoseSearchSchema* InSchema);
+	const UPoseSearchSchema* GetSchema() const { return Schema; }
+	TArrayView<float> EditValues() { return Values; }
+	TConstArrayView<float> GetValues() const { return Values; }
+
+private:
+	TStackAlignedArray<float> Values;
+	
+	// no need for a TWeakObjectPtr since it doesn't persist across multiple frames (same lifespan as FSearchContext)
+	const UPoseSearchSchema* Schema;
+};
+
+// CachedChannels uses hashed unique identifiers to determine channels that can share feature vector data during the building of the query
+struct FCachedChannel
+{
+	// no need for a TWeakObjectPtr since it doesn't persist across multiple frames (same lifespan as FSearchContext)
+	const UPoseSearchFeatureChannel* Channel = nullptr;
+
+	// index of the associated query in FSearchContext::CachedQueries
+	int32 CachedQueryIndex = INDEX_NONE;
+};
+
 struct POSESEARCH_API FSearchContext
 {
 	FSearchContext(const UAnimInstance* InAnimInstance, const IPoseHistory* InHistory, TConstArrayView<const UAnimationAsset*> InAnimationsToConsider = TConstArrayView<const UAnimationAsset*>(),
 		const FPoseSearchQueryTrajectory* InTrajectory = nullptr, float InDesiredPermutationTimeOffset = 0.f, const FPoseIndicesHistory* InPoseIndicesHistory = nullptr,
-		const FSearchResult& InCurrentResult = FSearchResult(), const FFloatInterval& InPoseJumpThresholdTime = FFloatInterval(0.f, 0.f));
+		const FSearchResult& InCurrentResult = FSearchResult(), const FFloatInterval& InPoseJumpThresholdTime = FFloatInterval(0.f, 0.f), bool bInUseCachedChannelData = false);
 
 	// Returns the rotation of the bone Schema.BoneReferences[SchemaSampleBoneIdx] at an offset time of SampleTimeOffset relative to the
 	// transform of the bone Schema.BoneReferences[SchemaOriginBoneIdx] at an offset time of time OriginTimeOffset 
 	// Times will be processed by GetPermutationTimeOffsets(PermutationTimeType, ...)
-	FQuat GetSampleRotation(float SampleTimeOffset, float OriginTimeOffset, const UPoseSearchSchema* Schema, int8 SchemaSampleBoneIdx = RootSchemaBoneIdx, int8 SchemaOriginBoneIdx = RootSchemaBoneIdx, EPermutationTimeType PermutationTimeType = EPermutationTimeType::UseSampleTime, const FQuat* SampleBoneRotationWorldOverride = nullptr);
+	FQuat GetSampleRotation(float SampleTimeOffset, float OriginTimeOffset, int8 SchemaSampleBoneIdx = RootSchemaBoneIdx, int8 SchemaOriginBoneIdx = RootSchemaBoneIdx, EPermutationTimeType PermutationTimeType = EPermutationTimeType::UseSampleTime, const FQuat* SampleBoneRotationWorldOverride = nullptr);
 	
 	// Returns the position of the bone Schema.BoneReferences[SchemaSampleBoneIdx] at an offset time of SampleTimeOffset relative to the
 	// transform of the bone Schema.BoneReferences[SchemaOriginBoneIdx] at an offset time of time OriginTimeOffset 
 	// Times will be processed by GetPermutationTimeOffsets(PermutationTimeType, ...)
-	FVector GetSamplePosition(float SampleTimeOffset, float OriginTimeOffset, const UPoseSearchSchema* Schema, int8 SchemaSampleBoneIdx = RootSchemaBoneIdx, int8 SchemaOriginBoneIdx = RootSchemaBoneIdx, EPermutationTimeType PermutationTimeType = EPermutationTimeType::UseSampleTime, const FVector* SampleBonePositionWorldOverride = nullptr);
+	FVector GetSamplePosition(float SampleTimeOffset, float OriginTimeOffset, int8 SchemaSampleBoneIdx = RootSchemaBoneIdx, int8 SchemaOriginBoneIdx = RootSchemaBoneIdx, EPermutationTimeType PermutationTimeType = EPermutationTimeType::UseSampleTime, const FVector* SampleBonePositionWorldOverride = nullptr);
 	
 	// Returns the delta velocity of the velocity of the bone Schema.BoneReferences[SchemaSampleBoneIdx] at an offset time of SampleTimeOffset minus
 	// the velocity of the bone Schema.BoneReferences[SchemaOriginBoneIdx] at an offset time of time OriginTimeOffset 
 	// Times will be processed by GetPermutationTimeOffsets(PermutationTimeType, ...)
 	// if bUseCharacterSpaceVelocities is true, velocities will be computed in root bone space, rather than world space
-	FVector GetSampleVelocity(float SampleTimeOffset, float OriginTimeOffset, const UPoseSearchSchema* Schema, int8 SchemaSampleBoneIdx = RootSchemaBoneIdx, int8 SchemaOriginBoneIdx = RootSchemaBoneIdx, bool bUseCharacterSpaceVelocities = true, EPermutationTimeType PermutationTimeType = EPermutationTimeType::UseSampleTime, const FVector* SampleBoneVelocityWorldOverride = nullptr);
-
-	void ClearCachedEntries();
+	FVector GetSampleVelocity(float SampleTimeOffset, float OriginTimeOffset, int8 SchemaSampleBoneIdx = RootSchemaBoneIdx, int8 SchemaOriginBoneIdx = RootSchemaBoneIdx, bool bUseCharacterSpaceVelocities = true, EPermutationTimeType PermutationTimeType = EPermutationTimeType::UseSampleTime, const FVector* SampleBoneVelocityWorldOverride = nullptr);
 
 	void ResetCurrentBestCost();
 	void UpdateCurrentBestCost(const FPoseSearchCost& PoseSearchCost);
 	float GetCurrentBestTotalCost() const { return CurrentBestTotalCost; }
 
-	const FFeatureVectorBuilder& GetOrBuildQuery(const UPoseSearchSchema* Schema);
-	const FFeatureVectorBuilder* GetCachedQuery(const UPoseSearchSchema* Schema) const;
+	TConstArrayView<float> GetOrBuildQuery(const UPoseSearchSchema* Schema);
+	TConstArrayView<float> GetCachedQuery(const UPoseSearchSchema* Schema) const;
 
 	bool IsCurrentResultFromDatabase(const UPoseSearchDatabase* Database) const;
+	bool CanUseCurrentResult() const;
 
 	TConstArrayView<float> GetCurrentResultPoseVector() const { return CurrentResultPoseVector; }
 
@@ -188,7 +213,7 @@ struct POSESEARCH_API FSearchContext
 	TConstArrayView<const UAnimationAsset*> GetAnimationsToConsider() const { return AnimationsToConsider; }
 	
 	// returns the world space transform of the bone SchemaBoneIdx at time SampleTime
-	FTransform GetWorldBoneTransformAtTime(float SampleTime, const UPoseSearchSchema* Schema = nullptr, int8 SchemaBoneIdx = RootSchemaBoneIdx);
+	FTransform GetWorldBoneTransformAtTime(float SampleTime, int8 SchemaBoneIdx = RootSchemaBoneIdx);
 	
 #if WITH_EDITOR
 	void SetAsyncBuildIndexInProgress() { bAsyncBuildIndexInProgress = true; }
@@ -196,11 +221,18 @@ struct POSESEARCH_API FSearchContext
 	bool IsAsyncBuildIndexInProgress() const { return bAsyncBuildIndexInProgress; }
 #endif // WITH_EDITOR
 
-private:
-	FVector GetSamplePositionInternal(float SampleTime, float OriginTime, const UPoseSearchSchema* Schema, int8 SchemaSampleBoneIdx = RootSchemaBoneIdx, int8 SchemaOriginBoneIdx = RootSchemaBoneIdx, const FVector* SampleBonePositionWorldOverride = nullptr);
-	FQuat GetSampleRotationInternal(float SampleTime, float OriginTime, const UPoseSearchSchema* Schema, int8 SchemaSampleBoneIdx = RootSchemaBoneIdx, int8 SchemaOriginBoneIdx = RootSchemaBoneIdx, const FQuat* SampleBoneRotationWorldOverride = nullptr);
-	FTransform GetWorldRootBoneTransformAtTime(float SampleTime) const;
+	void AddNewFeatureVectorBuilder(const UPoseSearchSchema* Schema) { CachedQueries.Emplace(Schema); }
+	TArrayView<float> EditFeatureVector();
+	
+	const UPoseSearchFeatureChannel* GetCachedChannelData(uint32 ChannelUniqueIdentifier, const UPoseSearchFeatureChannel* Channel, TConstArrayView<float>& CachedChannelData);
+	bool IsUseCachedChannelData() const { return bUseCachedChannelData; }
+	void SetUseCachedChannelData(bool bInUseCachedChannelData) { bUseCachedChannelData = bInUseCachedChannelData; }
 
+private:
+	FVector GetSamplePositionInternal(float SampleTime, float OriginTime, int8 SchemaSampleBoneIdx = RootSchemaBoneIdx, int8 SchemaOriginBoneIdx = RootSchemaBoneIdx, const FVector* SampleBonePositionWorldOverride = nullptr);
+	FQuat GetSampleRotationInternal(float SampleTime, float OriginTime, int8 SchemaSampleBoneIdx = RootSchemaBoneIdx, int8 SchemaOriginBoneIdx = RootSchemaBoneIdx, const FQuat* SampleBoneRotationWorldOverride = nullptr);
+	FTransform GetWorldRootBoneTransformAtTime(float SampleTime) const;
+	
 	const UAnimInstance* AnimInstance = nullptr;
 	const IPoseHistory* History = nullptr;
 
@@ -213,13 +245,21 @@ private:
 	const FPoseIndicesHistory* PoseIndicesHistory = nullptr;
 	const FSearchResult& CurrentResult;
 	const FFloatInterval& PoseJumpThresholdTime;
+	bool bUseCachedChannelData = false;
 
 	TConstArrayView<float> CurrentResultPoseVector;
+
+	// @todo: use a 16 bytes aligned TInlineAllocator with overflow TMemStackAllocator
 	TStackAlignedArray<float> CurrentResultPoseVectorData;
 
 	// transforms cached in world space
 	FCachedTransforms<FTransform> CachedTransforms;
-	TArray<FFeatureVectorBuilder, TInlineAllocator<PreallocatedCachedQueriesNum>> CachedQueries;
+
+	TArray<FCachedQuery, TInlineAllocator<PreallocatedCachedQueriesNum, TMemStackAllocator<>>> CachedQueries;
+
+	// @todo add an overflow TMemStackAllocator
+	// mapping channel unique identifier (hash) to FCachedChannel
+	TMap<uint32, FCachedChannel, TInlineSetAllocator<PreallocatedCachedChannelDataNum>> CachedChannels;
 
 	float CurrentBestTotalCost = MAX_flt;
 	

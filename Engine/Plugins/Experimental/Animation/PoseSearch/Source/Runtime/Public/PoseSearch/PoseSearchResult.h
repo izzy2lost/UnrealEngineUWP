@@ -13,24 +13,6 @@ namespace UE::PoseSearch
 {
 struct FSearchIndexAsset;
 
-/**
-* float buffer of features according to a UPoseSearchSchema layout.
-* FFeatureVectorBuilder is used to build search queries at runtime and for adding samples during search index construction.
-*/
-struct FFeatureVectorBuilder
-{
-public:
-	explicit FFeatureVectorBuilder(const UPoseSearchSchema* Schema);
-	const UPoseSearchSchema* GetSchema() const { return SchemaPtr.Get(); }
-
-	TArrayView<float> EditValues() { return Values; }
-	TConstArrayView<float> GetValues() const { return Values; }
-
-private:
-	TStackAlignedArray<float> Values;
-	TWeakObjectPtr<const UPoseSearchSchema> SchemaPtr;
-};
-	
 struct FSearchResult
 {
 	// best cost of the currently selected PoseIdx (it could be equal to ContinuingPoseCost)

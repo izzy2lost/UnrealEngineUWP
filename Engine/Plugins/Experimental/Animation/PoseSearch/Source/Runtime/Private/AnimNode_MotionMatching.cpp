@@ -181,7 +181,8 @@ void FAnimNode_MotionMatching::UpdateAssetPlayer(const FAnimationUpdateContext& 
 		YawFromAnimationBlendRate,
 		YawFromAnimationTrajectoryBlendTime,
 		NextUpdateInterruptMode,
-		bShouldSearch
+		bShouldSearch,
+		bShouldUseCachedChannelData
 		#if ENABLE_ANIM_DEBUG
 		, CVarAnimNodeMotionMatchingDrawQuery.GetValueOnAnyThread()
 		, CVarAnimNodeMotionMatchingDrawCurResult.GetValueOnAnyThread()

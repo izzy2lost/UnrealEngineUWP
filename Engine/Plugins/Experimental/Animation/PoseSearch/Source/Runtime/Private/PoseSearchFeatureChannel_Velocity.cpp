@@ -33,7 +33,7 @@ void UPoseSearchFeatureChannel_Velocity::AddDependentChannels(UPoseSearchSchema*
 	}
 }
 
-void UPoseSearchFeatureChannel_Velocity::BuildQuery(UE::PoseSearch::FSearchContext& SearchContext, UE::PoseSearch::FFeatureVectorBuilder& InOutQuery) const
+void UPoseSearchFeatureChannel_Velocity::BuildQuery(UE::PoseSearch::FSearchContext& SearchContext) const
 {
 	using namespace UE::PoseSearch;
 
@@ -42,41 +42,82 @@ void UPoseSearchFeatureChannel_Velocity::BuildQuery(UE::PoseSearch::FSearchConte
 	{
 		const FVector LinearVelocityWorld = BP_GetWorldVelocity(SearchContext.GetAnimInstance());
 
-		FVector LinearVelocity = SearchContext.GetSampleVelocity(SampleTimeOffset, OriginTimeOffset, InOutQuery.GetSchema(), SchemaBoneIdx, SchemaOriginBoneIdx, bUseCharacterSpaceVelocities, EPermutationTimeType::UseSampleTime, &LinearVelocityWorld);
+		FVector LinearVelocity = SearchContext.GetSampleVelocity(SampleTimeOffset, OriginTimeOffset, SchemaBoneIdx, SchemaOriginBoneIdx, bUseCharacterSpaceVelocities, EPermutationTimeType::UseSampleTime, &LinearVelocityWorld);
 		if (bNormalize)
 		{
 			LinearVelocity = LinearVelocity.GetClampedToMaxSize(1.f);
 		}
-		FFeatureVectorHelper::EncodeVector(InOutQuery.EditValues(), ChannelDataOffset, LinearVelocity, ComponentStripping);
+		FFeatureVectorHelper::EncodeVector(SearchContext.EditFeatureVector(), ChannelDataOffset, LinearVelocity, ComponentStripping);
+		return;
 	}
-	else
+	
+	// trying to get the BuildQuery data from another schema UPoseSearchFeatureChannel_Velocity already cached in the SearchContext
+	if (SearchContext.IsUseCachedChannelData())
 	{
-		const bool bIsCurrentResultValid = SearchContext.GetCurrentResult().IsValid() && SearchContext.GetCurrentResult().Database->Schema == InOutQuery.GetSchema();
-		const bool bSkip = InputQueryPose != EInputQueryPose::UseCharacterPose && bIsCurrentResultValid;
-		if (bSkip || (!SearchContext.IsHistoryValid() && !bIsRootBone))
-		{
-			if (bIsCurrentResultValid)
-			{
-				FFeatureVectorHelper::Copy(InOutQuery.EditValues(), ChannelDataOffset, ChannelCardinality, SearchContext.GetCurrentResultPoseVector());
-			}
-			else
-			{
-				// we leave the InOutQuery set to zero since the SearchContext.History is invalid and it'll fail if we continue
-				UE_LOG(LogPoseSearch, Error, TEXT("UPoseSearchFeatureChannel_Velocity::BuildQuery - Failed because Pose History Node is missing."));
-			}
-		}
-		else
-		{
-			// calculating the LinearVelocity for the bone indexed by SchemaBoneIdx
-			FVector LinearVelocity = SearchContext.GetSampleVelocity(SampleTimeOffset, OriginTimeOffset, InOutQuery.GetSchema(), SchemaBoneIdx, SchemaOriginBoneIdx, bUseCharacterSpaceVelocities, PermutationTimeType);
-			if (bNormalize)
-			{
-				LinearVelocity = LinearVelocity.GetClampedToMaxSize(1.f);
-			}
+		// composing a unique identifier to specify this channel with all the required properties to be able to share the query data with other channels of the same type
+		uint32 UniqueIdentifier = GetClass()->GetUniqueID();
+		UniqueIdentifier = HashCombineFast(UniqueIdentifier, ::GetTypeHash(SamplingAttributeId));
+		UniqueIdentifier = HashCombineFast(UniqueIdentifier, ::GetTypeHash(SampleTimeOffset));
+		UniqueIdentifier = HashCombineFast(UniqueIdentifier, ::GetTypeHash(OriginTimeOffset));
+		UniqueIdentifier = HashCombineFast(UniqueIdentifier, ::GetTypeHash(SchemaBoneIdx));
+		UniqueIdentifier = HashCombineFast(UniqueIdentifier, ::GetTypeHash(SchemaOriginBoneIdx));
+		UniqueIdentifier = HashCombineFast(UniqueIdentifier, ::GetTypeHash(InputQueryPose));
+		UniqueIdentifier = HashCombineFast(UniqueIdentifier, ::GetTypeHash(bUseCharacterSpaceVelocities));
+		UniqueIdentifier = HashCombineFast(UniqueIdentifier, ::GetTypeHash(bNormalize));
+		UniqueIdentifier = HashCombineFast(UniqueIdentifier, ::GetTypeHash(ComponentStripping));
+		UniqueIdentifier = HashCombineFast(UniqueIdentifier, ::GetTypeHash(PermutationTimeType));
 
-			FFeatureVectorHelper::EncodeVector(InOutQuery.EditValues(), ChannelDataOffset, LinearVelocity, ComponentStripping);
+		TConstArrayView<float> CachedChannelData;
+		if (const UPoseSearchFeatureChannel* CachedChannel = SearchContext.GetCachedChannelData(UniqueIdentifier, this, CachedChannelData))
+		{
+#if DO_CHECK
+			const UPoseSearchFeatureChannel_Velocity* CachedVelocityChannel = Cast<UPoseSearchFeatureChannel_Velocity>(CachedChannel);
+			check(CachedVelocityChannel);
+			check(CachedVelocityChannel->GetChannelCardinality() == ChannelCardinality);
+			check(CachedChannelData.Num() == ChannelCardinality);
+
+			// making sure there were no hash collisions
+			check(CachedVelocityChannel->SamplingAttributeId == SamplingAttributeId);
+			check(CachedVelocityChannel->SampleTimeOffset == SampleTimeOffset);
+			check(CachedVelocityChannel->OriginTimeOffset == OriginTimeOffset);
+			check(CachedVelocityChannel->SchemaBoneIdx == SchemaBoneIdx);
+			check(CachedVelocityChannel->SchemaOriginBoneIdx == SchemaOriginBoneIdx);
+			check(CachedVelocityChannel->InputQueryPose == InputQueryPose);
+			check(CachedVelocityChannel->bUseCharacterSpaceVelocities == bUseCharacterSpaceVelocities);
+			check(CachedVelocityChannel->bNormalize == bNormalize);
+			check(CachedVelocityChannel->ComponentStripping == ComponentStripping);
+			check(CachedVelocityChannel->PermutationTimeType == PermutationTimeType);
+#endif //DO_CHECK
+
+			// copying the CachedChannelData into this channel portion of the FeatureVectorBuilder
+			FFeatureVectorHelper::Copy(SearchContext.EditFeatureVector().Slice(ChannelDataOffset, ChannelCardinality), 0, ChannelCardinality, CachedChannelData);
+			return;
 		}
 	}
+
+	const bool bCanUseCurrentResult = SearchContext.CanUseCurrentResult();
+	const bool bSkip = InputQueryPose != EInputQueryPose::UseCharacterPose && bCanUseCurrentResult;
+	if (bSkip || (!SearchContext.IsHistoryValid() && !bIsRootBone))
+	{
+		if (bCanUseCurrentResult)
+		{
+			FFeatureVectorHelper::Copy(SearchContext.EditFeatureVector(), ChannelDataOffset, ChannelCardinality, SearchContext.GetCurrentResultPoseVector());
+			return;
+		}
+
+		// we leave the SearchContext.EditFeatureVector() set to zero since the SearchContext.History is invalid and it'll fail if we continue
+		UE_LOG(LogPoseSearch, Error, TEXT("UPoseSearchFeatureChannel_Velocity::BuildQuery - Failed because Pose History Node is missing."));
+		return;
+	}
+	
+	// calculating the LinearVelocity for the bone indexed by SchemaBoneIdx
+	FVector LinearVelocity = SearchContext.GetSampleVelocity(SampleTimeOffset, OriginTimeOffset, SchemaBoneIdx, SchemaOriginBoneIdx, bUseCharacterSpaceVelocities, PermutationTimeType);
+	if (bNormalize)
+	{
+		LinearVelocity = LinearVelocity.GetClampedToMaxSize(1.f);
+	}
+
+	FFeatureVectorHelper::EncodeVector(SearchContext.EditFeatureVector(), ChannelDataOffset, LinearVelocity, ComponentStripping);
 }
 
 #if ENABLE_DRAW_DEBUG

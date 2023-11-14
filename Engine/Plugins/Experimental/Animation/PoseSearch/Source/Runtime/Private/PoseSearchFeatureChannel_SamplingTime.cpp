@@ -12,10 +12,10 @@ void UPoseSearchFeatureChannel_SamplingTime::Finalize(UPoseSearchSchema* Schema)
 	Schema->SchemaCardinality += ChannelCardinality;
 }
 
-void UPoseSearchFeatureChannel_SamplingTime::BuildQuery(UE::PoseSearch::FSearchContext& SearchContext, UE::PoseSearch::FFeatureVectorBuilder& InOutQuery) const
+void UPoseSearchFeatureChannel_SamplingTime::BuildQuery(UE::PoseSearch::FSearchContext& SearchContext) const
 {
 	using namespace UE::PoseSearch;
-	FFeatureVectorHelper::EncodeFloat(InOutQuery.EditValues(), ChannelDataOffset, TimeToMatch);
+	FFeatureVectorHelper::EncodeFloat(SearchContext.EditFeatureVector(), ChannelDataOffset, TimeToMatch);
 }
 
 #if WITH_EDITOR
