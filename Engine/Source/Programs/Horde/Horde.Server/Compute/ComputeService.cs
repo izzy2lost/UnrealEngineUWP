@@ -95,10 +95,10 @@ namespace Horde.Server.Compute
 		/// </summary>
 		/// <param name="clusterId"></param>
 		/// <param name="requirements"></param>
-		public AllocateResourceParams(ClusterId clusterId, Requirements requirements)
+		public AllocateResourceParams(ClusterId clusterId, Requirements? requirements = null)
 		{
 			ClusterId = clusterId;
-			Requirements = requirements;
+			Requirements = requirements ?? new Requirements();
 		}
 	}
 	
@@ -589,7 +589,7 @@ namespace Horde.Server.Compute
 			}
 			else if (arp.ConnectionMode == ConnectionMode.Tunnel && tunnelAddress != null)
 			{
-				// A tunneled connection. Ports are marked as -1 must be be tunneled via tunnel address
+				// A tunneled connection. Ports marked as -1 must be be tunneled via tunnel address
 				Dictionary<string, ComputeResourcePort> ports = new();
 				ports[ConnectionMetadataPort.ComputeId] = new ComputeResourcePort(-1, computePort);
 				foreach ((string portId, int port) in arp.Ports)
