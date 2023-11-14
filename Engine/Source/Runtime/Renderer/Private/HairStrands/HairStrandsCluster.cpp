@@ -22,6 +22,7 @@ class FHairMacroGroupAABBCS : public FGlobalShader
 	SHADER_USE_PARAMETER_STRUCT(FHairMacroGroupAABBCS, FGlobalShader);
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER(uint32, PassCount)
 		SHADER_PARAMETER(uint32, MacroGroupId)
 		SHADER_PARAMETER(uint32, MacroGroupCount)
 
@@ -83,9 +84,6 @@ static void AddHairMacroGroupAABBPass(
 
 	const float NumPixelPerVoxel = FMath::Clamp(GHairVirtualVoxel_NumPixelPerVoxel, 1.f, 50.f);
 
-	// Can only aggregate 32 GroupAABBs 
-	check(uint32(RegisteredIndices.Num()) < FHairMacroGroupAABBCS::GetGroupSize());
-
 	FHairMacroGroupAABBCS::FParameters* Parameters = GraphBuilder.AllocParameters<FHairMacroGroupAABBCS::FParameters>();
 	Parameters->MacroGroupId 					= MacroGroup.MacroGroupId;
 	Parameters->RegisteredIndexBuffer			= GraphBuilder.CreateSRV(RegisteredIndexBuffer, PF_R32_UINT);
@@ -97,6 +95,7 @@ static void AddHairMacroGroupAABBPass(
 	Parameters->VoxelPageResolution 			= VoxelPageResolution;
 	Parameters->View			    			= View.ViewUniformBuffer;
 	Parameters->MacroGroupCount					= MacroGroupCount;
+	Parameters->PassCount						= FMath::DivideAndRoundUp(MacroGroupCount, FHairMacroGroupAABBCS::GetGroupSize());
 	
 	TShaderMapRef<FHairMacroGroupAABBCS> ComputeShader(View.ShaderMap);
 	FComputeShaderUtils::AddPass(

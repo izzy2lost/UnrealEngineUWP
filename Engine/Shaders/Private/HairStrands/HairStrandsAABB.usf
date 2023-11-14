@@ -11,6 +11,7 @@ uint MacroGroupCount;
 float PixelSizeAtDepth1;
 float NumPixelPerVoxel;
 uint  VoxelPageResolution;
+uint  PassCount;
 
 // Group data packed as {uint3 AABBMin, uint3 AABBMax}
 Buffer<uint> RegisteredIndexBuffer;
@@ -26,15 +27,33 @@ void UpdateValue(inout FHairAABB B, in uint Index, in Buffer<int> InBuffer)
 groupshared float3 g_MinBounds[GROUP_SIZE];
 groupshared float3 g_MaxBounds[GROUP_SIZE];
 [numthreads(GROUP_SIZE, 1, 1)]
-void Main(uint2 DispatchThreadId : SV_DispatchThreadID)
+void Main(uint2 DispatchThreadId : SV_DispatchThreadID, uint LinearIndex : SV_GroupIndex)
 {
-	const uint ThreadId = DispatchThreadId.x;
-	if (ThreadId < MacroGroupCount)
+	const uint ThreadId = LinearIndex;
+	for (uint PassIt = 0; PassIt < PassCount; ++PassIt)
 	{
-		const uint RegisteredIndex = RegisteredIndexBuffer[ThreadId];
-		FHairAABB Bound = ReadHairAABB(RegisteredIndex, InGroupAABBBuffer);
-		g_MinBounds[ThreadId] = Bound.Min;
-		g_MaxBounds[ThreadId] = Bound.Max;
+		const uint PassOffset = PassIt * GROUP_SIZE;
+		const uint BoundIndex = PassOffset + ThreadId;
+		if (BoundIndex < MacroGroupCount)
+		{
+			const uint RegisteredIndex = RegisteredIndexBuffer[BoundIndex];
+			const FHairAABB Bound = ReadHairAABB(RegisteredIndex, InGroupAABBBuffer);
+			if (PassIt == 0)
+			{
+				g_MinBounds[LinearIndex] = Bound.Min;
+				g_MaxBounds[LinearIndex] = Bound.Max;
+			}
+			else
+			{
+				g_MinBounds[LinearIndex].x = min(g_MinBounds[LinearIndex].x, Bound.Min.x);
+				g_MinBounds[LinearIndex].y = min(g_MinBounds[LinearIndex].y, Bound.Min.y);
+				g_MinBounds[LinearIndex].z = min(g_MinBounds[LinearIndex].z, Bound.Min.z);
+
+				g_MaxBounds[LinearIndex].x = max(g_MaxBounds[LinearIndex].x, Bound.Max.x);
+				g_MaxBounds[LinearIndex].y = max(g_MaxBounds[LinearIndex].y, Bound.Max.y);
+				g_MaxBounds[LinearIndex].z = max(g_MaxBounds[LinearIndex].z, Bound.Max.z);
+			}
+		}
 	}
 	GroupMemoryBarrierWithGroupSync();
 	
