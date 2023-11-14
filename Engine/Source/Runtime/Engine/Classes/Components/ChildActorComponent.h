@@ -197,6 +197,7 @@ public:
 
 	AActor* GetChildActor() const { return ChildActor; }
 	AActor* GetChildActorTemplate() const { return ChildActorTemplate; }
+	ENGINE_API AActor* GetSpawnableChildActorTemplate() const;
 
 	FName GetChildActorName() const { return ChildActorName; }
 	ENGINE_API void SetChildActorName(const FName InName);

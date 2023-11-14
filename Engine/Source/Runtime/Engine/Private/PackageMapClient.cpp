@@ -548,7 +548,7 @@ bool UPackageMapClient::SerializeNewActor(FArchive& Ar, class UActorChannel *Cha
 			// customized properties will be incorrect on the Client.
 			if (UChildActorComponent* CAC = Actor->GetParentComponent())
 			{
-				Archetype = CAC->GetChildActorTemplate();
+				Archetype = CAC->GetSpawnableChildActorTemplate();
 			}
 			if (Archetype == nullptr)
 			{
@@ -941,7 +941,15 @@ void UPackageMapClient::InternalWriteObject(FArchive & Ar, FNetworkGUID NetGUID,
 			}
 		}
 
+#if WITH_EDITOR
+		FString TempObjectName = ObjectPathName;
+#endif
+
 		GEngine->NetworkRemapPath(Connection, ObjectPathName, false);
+
+#if WITH_EDITOR
+		ensureMsgf(!ObjectPathName.IsEmpty(), TEXT("NetworkRemapPath found PathName: %s to be an invalid name for %s. This object will not replicate!"), *TempObjectName, *GetPathNameSafe(Object));
+#endif
 
 		// Serialize Name of object
 		Ar << ObjectPathName;
@@ -1122,8 +1130,16 @@ FNetworkGUID UPackageMapClient::InternalLoadObject( FArchive & Ar, UObject *& Ob
 			return NetGUID;
 		}
 
+#if WITH_EDITOR
+		FString TempObjectName = ObjectName;
+#endif
+
 		// Remap name for PIE
 		GEngine->NetworkRemapPath( Connection, ObjectName, true );
+
+#if WITH_EDITOR
+		ensureMsgf(!ObjectName.IsEmpty(), TEXT("NetworkRemapPath found %s to be an invalid name. This object will not be binded and replicated!"), *TempObjectName);
+#endif
 
 		if (NetGUID.IsDefault())
 		{

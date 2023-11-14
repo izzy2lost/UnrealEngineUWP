@@ -655,7 +655,7 @@ FObjectReplicationBridgeInstantiateResult UActorReplicationBridge::BeginInstanti
 
 				if (!SubObj)
 				{
-					UE_LOG_ACTORREPLICATIONBRIDGE(Error, TEXT("BeginInstantiateFromRemote Failed to find subobjectReference for dynamic SubObject %s, Owner %s, RootObject %s"), *DescribeObjectReference(Header->ObjectReference, ResolveContext), *RootObjectOfSubObject.ToString(), *GetPathNameSafe(RootActor));
+					UE_LOG_ACTORREPLICATIONBRIDGE(Error, TEXT("BeginInstantiateFromRemote Failed to find stable name reference of dynamic SubObject %s, Owner %s, RootObject %s"), *DescribeObjectReference(Header->ObjectReference, ResolveContext), *RootObjectOfSubObject.ToString(), *GetPathNameSafe(RootActor));
 				}
 			}
 			else
@@ -852,7 +852,7 @@ void UActorReplicationBridge::GetInitialDependencies(FNetRefHandle Handle, FNetD
 			// customized properties will be incorrect on the Client.
 			if (UChildActorComponent* CAC = Actor->GetParentComponent())
 			{
-				Archetype = CAC->GetChildActorTemplate();
+				Archetype = CAC->GetSpawnableChildActorTemplate();
 			}
 			if (Archetype == nullptr)
 			{
@@ -951,7 +951,7 @@ void UActorReplicationBridge::GetActorCreationHeader(const AActor* Actor, UE::Ne
 		// customized properties will be incorrect on the Client.
 		if (UChildActorComponent* CAC = Actor->GetParentComponent())
 		{
-			Archetype = CAC->GetChildActorTemplate();
+			Archetype = CAC->GetSpawnableChildActorTemplate();
 		}
 		if (Archetype == nullptr)
 		{

@@ -292,6 +292,20 @@ void UChildActorComponent::PostEditUndo()
 }
 #endif
 
+AActor* UChildActorComponent::GetSpawnableChildActorTemplate() const
+{
+	// Only use the instance if it's the same type as the class it was supposedly built from
+	if (ChildActorTemplate && ChildActorTemplate->GetClass() == ChildActorClass)
+	{
+		return ChildActorTemplate;
+	}
+	// Use the CDO of the class as the template if the instance is wrong.
+	else
+	{
+		return ChildActorClass ? ChildActorClass->GetDefaultObject<AActor>() : nullptr;
+	}
+}
+
 void UChildActorComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
