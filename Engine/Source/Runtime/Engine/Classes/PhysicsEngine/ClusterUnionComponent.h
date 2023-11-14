@@ -128,6 +128,10 @@ struct FClusterUnionReplicatedData
 
 	UPROPERTY()
 	bool bIsAnchored = false;
+
+	FClusterUnionReplicatedData& operator=(const FClusterUnionReplicatedData&) = default;
+	bool operator==(const FClusterUnionReplicatedData&) const = default;
+	bool operator!=(const FClusterUnionReplicatedData&) const = default;
 };
 
 USTRUCT()
