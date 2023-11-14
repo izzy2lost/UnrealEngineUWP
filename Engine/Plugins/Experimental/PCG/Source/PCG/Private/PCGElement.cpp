@@ -411,7 +411,10 @@ void IPCGElement::CleanupAndValidateOutput(FPCGContext* Context) const
 		{
 			for (FPCGTaggedData& TaggedData : Context->OutputData.TaggedData)
 			{
-				TaggedData.Pin = OutputPinProperties[0].Label;
+				if (!TaggedData.bPinlessData)
+				{
+					TaggedData.Pin = OutputPinProperties[0].Label;
+				}				
 			}
 		}
 
