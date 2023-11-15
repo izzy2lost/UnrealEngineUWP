@@ -1,5 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#define STOCHASTIC_SHADOWS 1
+
 #include "../Common.ush"
 #include "../LightGridCommon.ush"
 #include "../ShaderPrint.ush"
@@ -52,9 +54,10 @@ void CompositeShadowMaskTracesCS(
 {
 	uint ShadowMaskTileIndex = GroupId.x;
 
-	uint LightSceneId = 0;
-	uint2 BaseShadowMaskScreenCoord = 0;	
-	UnpackShadowMaskTile(ShadowMaskTileData[ShadowMaskTileIndex], LightSceneId, BaseShadowMaskScreenCoord);
+	uint LightSceneId;
+	uint LocalLightIndex;
+	uint2 BaseShadowMaskScreenCoord;	
+	UnpackShadowMaskTile(ShadowMaskTileData[ShadowMaskTileIndex], LightSceneId, LocalLightIndex, BaseShadowMaskScreenCoord);
 
 	GroupMemoryBarrierWithGroupSync();
 	
@@ -186,10 +189,13 @@ void CompositeShadowMaskTracesCS(
 			{
 				FShadowMaskAccumulator Accumulator = InitShadowMaskAccumulator();
 
-				AccumulateHistoryShadowMask(LightSceneId, ScreenCoord00 + uint2(0, 0), Weights.x, Accumulator);
-				AccumulateHistoryShadowMask(LightSceneId, ScreenCoord00 + uint2(1, 0), Weights.y, Accumulator);
-				AccumulateHistoryShadowMask(LightSceneId, ScreenCoord00 + uint2(0, 1), Weights.z, Accumulator);
-				AccumulateHistoryShadowMask(LightSceneId, ScreenCoord00 + uint2(1, 1), Weights.w, Accumulator);
+				const FLocalLightData LocalLightData = GetLocalLightDataNonStereo(LocalLightIndex);
+				const uint PrevLocalLightIndex = LocalLightData.PrevLocalLightIndex;
+
+				AccumulateHistoryShadowMask(LightSceneId, PrevLocalLightIndex, ScreenCoord00 + uint2(0, 0), Weights.x, Accumulator);
+				AccumulateHistoryShadowMask(LightSceneId, PrevLocalLightIndex, ScreenCoord00 + uint2(1, 0), Weights.y, Accumulator);
+				AccumulateHistoryShadowMask(LightSceneId, PrevLocalLightIndex, ScreenCoord00 + uint2(0, 1), Weights.z, Accumulator);
+				AccumulateHistoryShadowMask(LightSceneId, PrevLocalLightIndex, ScreenCoord00 + uint2(1, 1), Weights.w, Accumulator);
 
 				if (Accumulator.WeightSum > 0.0f)
 				{

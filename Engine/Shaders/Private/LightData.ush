@@ -74,7 +74,7 @@ struct FLocalLightData
 	float4 SpotAnglesAndSourceRadiusPacked;
 	float4 LightDirectionAndShadowMask;
 	float4 LightTangentAndIESDataAndSpecularScale;
-	float4 RectDataAndVirtualShadowMapId;
+	float3 RectData;
 
 	// Derived terms after unpacking
 	/** Flag is true if clustered deferred is supported for this light. They are always first / together.*/
@@ -83,8 +83,10 @@ struct FLocalLightData
 	bool bStochasticShadowsSupported;
 	/** Flag is true if it is a simple light. They are always first / together.*/
 	bool bIsSimpleLight;
-	/** Virtual shadow map ID or INDEX_NONE if not present. */
+	/** Virtual shadow map ID or INDEX_NONE if not present. Only valid if STOCHASTIC_SHADOWS is NOT defined. */
 	int  VirtualShadowMapId;
+	/** Previous frame LocalLightIndex or INDEX_NONE if not present. Only valid if STOCHASTIC_SHADOWS is defined. */
+	int  PrevLocalLightIndex;
 	/** Index into GPUScene lights */
 	int LightSceneId;
 };
@@ -306,9 +308,9 @@ FDeferredLightData ConvertToDeferredLight(
 	Out.bRectLight				= LightType == LIGHT_TYPE_RECT;
 	Out.HairTransmittance		= InitHairTransmittanceData();
 	Out.RectLightData			= UnpackRectLightData(
-									asuint(In.RectDataAndVirtualShadowMapId.x),
-									asuint(In.RectDataAndVirtualShadowMapId.y),
-									asuint(In.RectDataAndVirtualShadowMapId.w));
+									asuint(In.RectData.x),
+									asuint(In.RectData.y),
+									asuint(In.RectData.z));
 	Out.IESAtlasIndex			= UnpackLigthIESAtlasIndex(In);
 
 	// Shadow
@@ -390,9 +392,9 @@ FLightShaderParameters ConvertFromLocal(const FLocalLightData In)
 	Out.SourceLength			= UnpackLightSourceLength(In);
 
 	const FRectLightData RectLightData = UnpackRectLightData(
-									asuint(In.RectDataAndVirtualShadowMapId.x),
-									asuint(In.RectDataAndVirtualShadowMapId.y),
-									asuint(In.RectDataAndVirtualShadowMapId.w));
+									asuint(In.RectData.x),
+									asuint(In.RectData.y),
+									asuint(In.RectData.z));
 	Out.RectLightBarnCosAngle	= RectLightData.BarnCosAngle;
 	Out.RectLightBarnLength		= RectLightData.BarnLength;
 	Out.RectLightAtlasUVOffset	= RectLightData.AtlasData.AtlasUVOffset;

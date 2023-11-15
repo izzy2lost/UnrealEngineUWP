@@ -47,6 +47,8 @@
 #define TILE_MODE_COMPLEX_SHADING	1
 #define TILE_MODE_MAX				2
 
+#define SHADOW_MASK_USING_LOCAL_LIGHT_INDEX 1
+
 uint PackTile(uint2 TileCoord)
 {
 	return TileCoord.x | (TileCoord.y << 16);
@@ -258,19 +260,23 @@ float2 DownsampledScreenCoordToScreenUV(uint2 DownsampledScreenCoord)
 	return ScreenUV;
 }
 
-uint2 PackShadowMaskTile(uint LightIndex, uint2 ShadowMaskScreenCoord)
+uint2 PackShadowMaskTile(uint LightSceneId, uint LocalLightIndex, uint2 ShadowMaskScreenCoord)
 {
 	ShadowMaskScreenCoord /= SHADOW_MASK_TILE_SIZE;
 
+	checkSlow(LightSceneId <= LIGHT_SCENE_ID_MASK);
+	checkSlow(LocalLightIndex <= (0xFFFFFFFF >> MAX_LIGHT_SCENE_ID));
+
 	uint2 PackedTile;
-	PackedTile.x = LightIndex;
+	PackedTile.x = (LightSceneId & LIGHT_SCENE_ID_MASK) | (LocalLightIndex << LIGHT_SCENE_ID_BITS);
 	PackedTile.y = (ShadowMaskScreenCoord.x & 0xFFFF) | ((ShadowMaskScreenCoord.y & 0xFFFF) << 16);
 	return PackedTile;
 }
 
-void UnpackShadowMaskTile(uint2 PackedTile, inout uint LightIndex, inout uint2 ShadowMaskScreenCoord)
+void UnpackShadowMaskTile(uint2 PackedTile, out uint LightSceneId, out uint LocalLightIndex, out uint2 ShadowMaskScreenCoord)
 {
-	LightIndex = PackedTile.x;
+	LightSceneId = PackedTile.x & LIGHT_SCENE_ID_MASK;
+	LocalLightIndex = PackedTile.x >> LIGHT_SCENE_ID_BITS;
 	ShadowMaskScreenCoord.x = PackedTile.y & 0xFFFF;
 	ShadowMaskScreenCoord.y = PackedTile.y >> 16;
 
@@ -320,11 +326,15 @@ Texture2D<uint> ShadowMaskAtlasHistory;
 int2 ShadowMaskViewSize;
 uint ShadowMaskHashTableIndexWrapMask;
 
-void AccumulateHistoryShadowMask(uint LightSceneId, uint2 ShadowMaskScreenCoord, float Weight, inout FShadowMaskAccumulator Accumulator)
+void AccumulateHistoryShadowMask(uint LightSceneId, uint PrevLocalLightIndex, uint2 ShadowMaskScreenCoord, float Weight, inout FShadowMaskAccumulator Accumulator)
 {
 	if (all(ShadowMaskScreenCoord < ShadowMaskViewSize) && Weight > 0.01f)
 	{
+#if SHADOW_MASK_USING_LOCAL_LIGHT_INDEX
+		uint2 HistoryShadowMaskPageTableCoord = GetShadowMaskPageTableCoord(PrevLocalLightIndex, ShadowMaskScreenCoord);
+#else
 		uint2 HistoryShadowMaskPageTableCoord = GetShadowMaskPageTableCoord(LightSceneId, ShadowMaskScreenCoord);
+#endif
 
 #if HASH_TABLE
 		uint HistoryShadowMaskTileIndex = INVALID_SHADOW_MASK_TILE_INDEX;

@@ -123,6 +123,7 @@ static TAutoConsoleVariable<int> CVarStochasticShadowsCandidateLightMask(
 
 namespace StochasticShadows
 {
+	// must match values in StochasticShadows.ush
 	constexpr int32 TileSize = 8;
 	constexpr int32 ShadowMaskTileSize = 8;	// Stored downsampled
 	constexpr int32 MaxLightSceneIdXY = 16; // 16 * 16 = 256
@@ -426,6 +427,7 @@ class FCompositeShadowMaskTracesCS : public FGlobalShader
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, ShadowMaskHashTableHistory)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<uint>, ShadowMaskAtlasHistory)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<uint>, LightSamples)
+		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FForwardLightData, ForwardLightData)
 	END_SHADER_PARAMETER_STRUCT()
 
 	static int32 GetGroupSize()
@@ -972,6 +974,7 @@ void FDeferredShadingSceneRenderer::RenderStochasticShadows(FRDGBuilder& GraphBu
 		PassParameters->ShadowMaskHashTableHistory = ShadowMaskHashTableHistory ? GraphBuilder.CreateSRV(ShadowMaskHashTableHistory) : nullptr;
 		PassParameters->ShadowMaskAtlasHistory = ShadowMaskAtlasHistory;
 		PassParameters->LightSamples = LightSamples;
+		PassParameters->ForwardLightData = View.ForwardLightingResources.ForwardLightUniformBuffer;
 
 		FCompositeShadowMaskTracesCS::FPermutationDomain PermutationVector;
 		PermutationVector.Set<FCompositeShadowMaskTracesCS::FNumSamplesPerPixel>(NumSamplesPerPixel1d);

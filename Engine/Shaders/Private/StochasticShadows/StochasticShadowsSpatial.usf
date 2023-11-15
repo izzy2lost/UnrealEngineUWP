@@ -1,5 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#define STOCHASTIC_SHADOWS 1
+
 #include "../Common.ush"
 #include "../LightGridCommon.ush"
 #include "../ShaderPrint.ush"
@@ -57,9 +59,10 @@ void ShadowMaskSpatialPassCS(
 	uint ShadowMaskTileIndex = GroupId.x;
 	uint2 LocalShadowMaskTileCoord = GroupThreadId.xy;
 
-	uint LightSceneId = 0;
-	uint2 BaseShadowMaskScreenCoord = 0;	
-	UnpackShadowMaskTile(ShadowMaskTileData[ShadowMaskTileIndex], LightSceneId, BaseShadowMaskScreenCoord);
+	uint LightSceneId;
+	uint LocalLightIndex;
+	uint2 BaseShadowMaskScreenCoord;	
+	UnpackShadowMaskTile(ShadowMaskTileData[ShadowMaskTileIndex], LightSceneId, LocalLightIndex, BaseShadowMaskScreenCoord);
 
 	if (all(GroupThreadId == 0))
 	{
@@ -79,8 +82,12 @@ void ShadowMaskSpatialPassCS(
 		for (uint SharedShadowMaskX = GroupThreadId.x; SharedShadowMaskX < SHARED_TILE_SIZE; SharedShadowMaskX += THREADGROUP_SIZE)
 		{
 			uint2 SampleShadowMaskScreenCoord = clamp(int2(BaseShadowMaskScreenCoord) + int2(SharedShadowMaskX - SHARED_TILE_BORDER, SharedShadowMaskY - SHARED_TILE_BORDER), 0, ShadowMaskViewSize - 1);
-			uint2 SampleShadowMaskPageTableCoord = GetShadowMaskPageTableCoord(LightSceneId, SampleShadowMaskScreenCoord);
 
+#if SHADOW_MASK_USING_LOCAL_LIGHT_INDEX
+			uint2 SampleShadowMaskPageTableCoord = GetShadowMaskPageTableCoord(LocalLightIndex, SampleShadowMaskScreenCoord);
+#else
+			uint2 SampleShadowMaskPageTableCoord = GetShadowMaskPageTableCoord(LightSceneId, SampleShadowMaskScreenCoord);
+#endif
 			uint SampleShadowMaskTileIndex = INVALID_SHADOW_MASK_TILE_INDEX;
 			#if HASH_TABLE
 			{

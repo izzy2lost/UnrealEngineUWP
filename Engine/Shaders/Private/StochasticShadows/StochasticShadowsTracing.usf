@@ -1,5 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#define STOCHASTIC_SHADOWS 1
+
 #include "../Common.ush"
 #define DISTANCE_FIELD_IN_VIEW_UB 1
 #include "../BlueNoise.ush"

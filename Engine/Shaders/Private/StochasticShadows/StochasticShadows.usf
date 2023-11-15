@@ -1,5 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#define STOCHASTIC_SHADOWS 1
+
 #include "../Common.ush"
 #include "../LightGridCommon.ush"
 #include "../ShaderPrint.ush"

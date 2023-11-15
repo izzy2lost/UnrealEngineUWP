@@ -354,7 +354,7 @@ static void PackLocalLightData(
 	// Pack both rect light data (barn door length is initialized to -2 
 	const uint32 RectPackedX = 0;
 	const uint32 RectPackedY = 0;
-	const uint32 RectPackedW = FFloat16(-2.f).Encoded;
+	const uint32 RectPackedZ = FFloat16(-2.f).Encoded;
 
 	// Pack specular scale and IES profile index
 	const float SpecularScale = 1.f;
@@ -364,12 +364,12 @@ static void PackLocalLightData(
 	const FVector3f LightColor = (FVector3f)SimpleLight.Color * FLightRenderParameters::GetLightExposureScale(View.GetLastEyeAdaptationExposure(), SimpleLight.InverseExposureBlend);
 	const FVector2f LightColorPacked = PackLightColor(LightColor);
 
-	Out.LightPositionAndInvRadius				= FVector4f(LightTranslatedWorldPosition, 1.0f / FMath::Max(SimpleLight.Radius, KINDA_SMALL_NUMBER));
-	Out.LightColorAndIdAndFalloffExponent		= FVector4f(LightColorPacked.X, LightColorPacked.Y, INDEX_NONE, SimpleLight.Exponent);
-	Out.LightDirectionAndShadowMapChannelMask	= FVector4f(FVector3f(1, 0, 0), FMath::AsFloat(ShadowMapChannelMask));
-	Out.SpotAnglesAndSourceRadiusPacked			= FVector4f(-2, 1, FMath::AsFloat(PackedZ), FMath::AsFloat(PackedW));
-	Out.LightTangentAndIESDataAndSpecularScale	= FVector4f(1.0f, 0.0f, 0.0f, FMath::AsFloat(SpecularScaleAndIESData));
-	Out.RectDataAndVirtualShadowMapId			= FVector4f(FMath::AsFloat(RectPackedX), FMath::AsFloat(RectPackedY), -1, FMath::AsFloat(RectPackedW));
+	Out.LightPositionAndInvRadius							= FVector4f(LightTranslatedWorldPosition, 1.0f / FMath::Max(SimpleLight.Radius, KINDA_SMALL_NUMBER));
+	Out.LightColorAndIdAndFalloffExponent					= FVector4f(LightColorPacked.X, LightColorPacked.Y, INDEX_NONE, SimpleLight.Exponent);
+	Out.LightDirectionAndShadowMapChannelMask				= FVector4f(FVector3f(1, 0, 0), FMath::AsFloat(ShadowMapChannelMask));
+	Out.SpotAnglesAndSourceRadiusPacked						= FVector4f(-2, 1, FMath::AsFloat(PackedZ), FMath::AsFloat(PackedW));
+	Out.LightTangentAndIESDataAndSpecularScale				= FVector4f(1.0f, 0.0f, 0.0f, FMath::AsFloat(SpecularScaleAndIESData));
+	Out.RectDataAndVirtualShadowMapIdOrPrevLocalLightIndex	= FVector4f(FMath::AsFloat(RectPackedX), FMath::AsFloat(RectPackedY), FMath::AsFloat(RectPackedZ), -1);
 }
 
 static void PackLocalLightData(
@@ -379,6 +379,8 @@ static void PackLocalLightData(
 	const uint32 LightTypeAndShadowMapChannelMaskPacked,
 	const int32 LightSceneId,
 	const int32 VirtualShadowMapId,
+	const int32 PrevLocalLightIndex,
+	const bool bHandledByStochasticShadows,
 	const float VolumetricScatteringIntensity)
 {
 	const FVector3f LightTranslatedWorldPosition(View.ViewMatrices.GetPreViewTranslation() + LightParameters.WorldPosition);
@@ -392,27 +394,33 @@ static void PackLocalLightData(
 	// Pack rect light data
 	uint32 RectPackedX = PackRG16(LightParameters.RectLightAtlasUVOffset.X, LightParameters.RectLightAtlasUVOffset.Y);
 	uint32 RectPackedY = PackRG16(LightParameters.RectLightAtlasUVScale.X, LightParameters.RectLightAtlasUVScale.Y);
-	uint32 RectPackedW = 0;
-	RectPackedW |= FFloat16(LightParameters.RectLightBarnLength).Encoded;									// 16 bits
-	RectPackedW |= uint32(FMath::Clamp(LightParameters.RectLightBarnCosAngle,  0.f, 1.0f) * 0x3FF) << 16;	// 10 bits
-	RectPackedW |= uint32(FMath::Clamp(LightParameters.RectLightAtlasMaxLevel, 0.f, 63.f)) << 26;			//  6 bits
+	uint32 RectPackedZ = 0;
+	RectPackedZ |= FFloat16(LightParameters.RectLightBarnLength).Encoded;									// 16 bits
+	RectPackedZ |= uint32(FMath::Clamp(LightParameters.RectLightBarnCosAngle,  0.f, 1.0f) * 0x3FF) << 16;	// 10 bits
+	RectPackedZ |= uint32(FMath::Clamp(LightParameters.RectLightAtlasMaxLevel, 0.f, 63.f)) << 26;			//  6 bits
 
 	// Pack specular scale and IES profile index
 	const uint32 SpecularScaleAndIESData = PackRG16(LightParameters.SpecularScale, LightParameters.IESAtlasIndex);
 
 	const FVector2f LightColorPacked = PackLightColor(FVector3f(LightParameters.Color));
 
-	// NOTE: This cast of VirtualShadowMapId to float is not ideal, but bitcast has issues here with INDEX_NONE -> NaN
+	// Since lights don't use VSM and Stochastic Shadows simultaneously and
+	// currently PrevLocalLightIndex is only accessed by Stochastic Shadows shaders
+	// we can store only one of the values to avoid increasing the size of the struct
+	// TODO: Improve packing to avoid this so that PrevLocalLightIndex can be accessed in other shaders as well
+	const int32 VirtualShadowMapIdOrPrevLocalLightIndex = bHandledByStochasticShadows ? PrevLocalLightIndex : VirtualShadowMapId;
+
+	// NOTE: This cast of VirtualShadowMapIdOrPrevLocalLightIndex to float is not ideal, but bitcast has issues here with INDEX_NONE -> NaN
 	// and 32-bit floats have enough mantissa to cover all reasonable numbers here for now.
 	// NOTE: SpotAngles needs full-precision for VSM one pass projection
-	Out.LightPositionAndInvRadius				= FVector4f(LightTranslatedWorldPosition, LightParameters.InvRadius);
-	Out.LightColorAndIdAndFalloffExponent		= FVector4f(LightColorPacked.X, LightColorPacked.Y, LightSceneId, LightParameters.FalloffExponent);
-	Out.LightDirectionAndShadowMapChannelMask	= FVector4f(LightParameters.Direction, FMath::AsFloat(LightTypeAndShadowMapChannelMaskPacked));
-	Out.SpotAnglesAndSourceRadiusPacked			= FVector4f(LightParameters.SpotAngles.X, LightParameters.SpotAngles.Y, FMath::AsFloat(PackedZ), FMath::AsFloat(PackedW));
-	Out.LightTangentAndIESDataAndSpecularScale	= FVector4f(LightParameters.Tangent, FMath::AsFloat(SpecularScaleAndIESData));
-	Out.RectDataAndVirtualShadowMapId			= FVector4f(FMath::AsFloat(RectPackedX), FMath::AsFloat(RectPackedY), float(VirtualShadowMapId), FMath::AsFloat(RectPackedW));
+	Out.LightPositionAndInvRadius							= FVector4f(LightTranslatedWorldPosition, LightParameters.InvRadius);
+	Out.LightColorAndIdAndFalloffExponent					= FVector4f(LightColorPacked.X, LightColorPacked.Y, LightSceneId, LightParameters.FalloffExponent);
+	Out.LightDirectionAndShadowMapChannelMask				= FVector4f(LightParameters.Direction, FMath::AsFloat(LightTypeAndShadowMapChannelMaskPacked));
+	Out.SpotAnglesAndSourceRadiusPacked						= FVector4f(LightParameters.SpotAngles.X, LightParameters.SpotAngles.Y, FMath::AsFloat(PackedZ), FMath::AsFloat(PackedW));
+	Out.LightTangentAndIESDataAndSpecularScale				= FVector4f(LightParameters.Tangent, FMath::AsFloat(SpecularScaleAndIESData));
+	Out.RectDataAndVirtualShadowMapIdOrPrevLocalLightIndex	= FVector4f(FMath::AsFloat(RectPackedX), FMath::AsFloat(RectPackedY), FMath::AsFloat(RectPackedZ), float(VirtualShadowMapIdOrPrevLocalLightIndex));
 
-	checkSlow(int32(Out.RectDataAndVirtualShadowMapId.Z) == VirtualShadowMapId);
+	checkSlow(int32(Out.RectDataAndVirtualShadowMapIdOrPrevLocalLightIndex.W) == VirtualShadowMapIdOrPrevLocalLightIndex);
 }
 
 FComputeLightGridOutput FSceneRenderer::ComputeLightGrid(FRDGBuilder& GraphBuilder, bool bCullLightsToGrid, FSortedLightSetSceneInfo& SortedLightSet)
@@ -549,6 +557,13 @@ FComputeLightGridOutput FSceneRenderer::ComputeLightGrid(FRDGBuilder& GraphBuild
 						(SortedLightInfo.SortKey.Fields.LightType == LightType_Spot && ViewFamily.EngineShowFlags.SpotLights) ||
 						(SortedLightInfo.SortKey.Fields.LightType == LightType_Rect && ViewFamily.EngineShowFlags.RectLights))
 					{
+						int32 PrevLocalLightIndex = INDEX_NONE;
+						if (View.ViewState)
+						{
+							PrevLocalLightIndex = View.ViewState->LightSceneIdToLocalLightIndex.FindOrAdd(LightSceneInfo->Id, INDEX_NONE);
+							View.ViewState->LightSceneIdToLocalLightIndex[LightSceneInfo->Id] = ForwardLocalLightData.Num();
+						}
+
 						ForwardLocalLightData.AddUninitialized(1);
 						FForwardLocalLightData& LightData = ForwardLocalLightData.Last();
 						LocalLightVisibleLightInfosIndex.Add(LightSceneInfo->Id);
@@ -575,7 +590,16 @@ FComputeLightGridOutput FSceneRenderer::ComputeLightGrid(FRDGBuilder& GraphBuild
 							VolumetricScatteringIntensity = 0;
 						}
 
-						PackLocalLightData(LightData, View, LightParameters, LightTypeAndShadowMapChannelMaskPacked, LightSceneInfo->Id, VirtualShadowMapId, VolumetricScatteringIntensity);
+						PackLocalLightData(
+							LightData,
+							View,
+							LightParameters,
+							LightTypeAndShadowMapChannelMaskPacked,
+							LightSceneInfo->Id,
+							VirtualShadowMapId,
+							PrevLocalLightIndex,
+							SortedLightInfo.SortKey.Fields.bHandledByStochasticShadows,
+							VolumetricScatteringIntensity);
 
 						const FSphere BoundingSphere = LightProxy->GetBoundingSphere();
 						const float Distance = View.ViewMatrices.GetViewMatrix().TransformPosition(BoundingSphere.Center).Z + BoundingSphere.W;

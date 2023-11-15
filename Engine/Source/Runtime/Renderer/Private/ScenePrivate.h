@@ -1019,6 +1019,10 @@ public:
 	FLumenViewState Lumen;
 	FStochasticShadowsViewState StochasticShadows;
 
+	// Map from Light ID in GPU Scene to index in the View's ForwardLightData array
+	// This is stored in ViewState so we can access previous frame mapping
+	TMap<int32, int32> LightSceneIdToLocalLightIndex;
+
 	// Pre-computed filter in spectral (i.e. FFT) domain along with data to determine if we need to up date it
 	struct {
 		/// @cond DOXYGEN_WARNINGS

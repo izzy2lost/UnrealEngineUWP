@@ -239,8 +239,14 @@ FLocalLightData GetLocalLightData_Internal(
 	Out.LightDirectionAndShadowMask				= InData2;
 	Out.SpotAnglesAndSourceRadiusPacked			= InData3;
 	Out.LightTangentAndIESDataAndSpecularScale	= InData4;
-	Out.RectDataAndVirtualShadowMapId			= InData5;
-	Out.VirtualShadowMapId						= int(Out.RectDataAndVirtualShadowMapId.z);
+	Out.RectData								= InData5.xyz;
+#if STOCHASTIC_SHADOWS
+	Out.VirtualShadowMapId						= -1;
+	Out.PrevLocalLightIndex						= int(InData5.w);
+#else
+	Out.VirtualShadowMapId						= int(InData5.w);
+	Out.PrevLocalLightIndex						= -1;
+#endif
 	Out.LightSceneId							= int(Out.LightColorAndIdAndFalloffExponent.z);
 
 	return Out;
