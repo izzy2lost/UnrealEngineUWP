@@ -529,7 +529,6 @@ void UInterchangeGenericMaterialPipeline::FilterPropertiesFromTranslatedData(UIn
 	MaterialCount += TmpMaterialNodes.Num();
 	if(MaterialCount == 0)
 	{
-		bImportMaterials = false;
 		TArray<FString> HideCategories;
 		//Filter out all material properties
 		HideCategories.Add(TEXT("Materials"));

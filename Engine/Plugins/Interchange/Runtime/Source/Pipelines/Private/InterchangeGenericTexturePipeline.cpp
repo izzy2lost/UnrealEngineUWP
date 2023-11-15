@@ -146,7 +146,6 @@ void UInterchangeGenericTexturePipeline::FilterPropertiesFromTranslatedData(UInt
 	InBaseNodeContainer->GetNodes(UInterchangeTextureNode::StaticClass(), TmpTextureNodes);
 	if (TmpTextureNodes.Num() == 0)
 	{
-		bImportTextures = false;
 		//Filter out all Textures properties
 		if (UInterchangePipelineBase* OuterMostPipeline = GetMostPipelineOuter())
 		{
