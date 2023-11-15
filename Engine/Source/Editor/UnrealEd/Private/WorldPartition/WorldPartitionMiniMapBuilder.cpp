@@ -139,6 +139,7 @@ bool UWorldPartitionMiniMapBuilder::RunInternal(UWorld* World, const FCellInfo& 
 		const uint8* SrcDataPtr = TileTexture->Source.LockMipReadOnly(0);
 		check(SrcDataPtr);
 
+		// PreEditChange was called before in PreRun
 		uint8* const MiniMapDstPtr = WorldMiniMap->MiniMapTexture->Source.LockMip(0);
 		check(MiniMapDstPtr);
 
@@ -202,7 +203,7 @@ bool UWorldPartitionMiniMapBuilder::PostRun(UWorld* World, FPackageSourceControl
 		WorldMiniMap->MiniMapTexture->AdjustMinAlpha = 1.f;
 		WorldMiniMap->MiniMapTexture->LODGroup = TEXTUREGROUP_UI;
 		WorldMiniMap->MiniMapTexture->VirtualTextureStreaming = true;
-		WorldMiniMap->MiniMapTexture->UpdateResource();
+		//WorldMiniMap->MiniMapTexture->UpdateResource(); // @@?? <- UpdateResource before PostEditChange looks wrong
 		WorldMiniMap->MiniMapTexture->PostEditChange();
 	}
 

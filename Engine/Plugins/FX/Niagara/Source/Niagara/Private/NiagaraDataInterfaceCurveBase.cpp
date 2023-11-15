@@ -386,7 +386,8 @@ void UNiagaraDataInterfaceCurveBase::UpdateExposedTexture()
 		ExposedTexture->AddressY = TA_Clamp;
 		ExposedTexture->LODGroup = TEXTUREGROUP_EffectsNotFiltered;
 	}
-
+	
+	ExposedTexture->PreEditChange(nullptr);
 	FFloat16Color* TexData = reinterpret_cast<FFloat16Color*>(ExposedTexture->Source.LockMip(0));
 
 	const int32 NumElements = GetCurveNumElems();
@@ -402,7 +403,8 @@ void UNiagaraDataInterfaceCurveBase::UpdateExposedTexture()
 	}
 
 	ExposedTexture->Source.UnlockMip(0);
-	ExposedTexture->Source.UseHashAsGuid();
+	// UseHashAsGuid is done by UnlockMip
+	//ExposedTexture->Source.UseHashAsGuid();
 	ExposedTexture->PostEditChange();
 
 	// PostEditChange() will assign a random GUID to the texture, which leads to non-deterministic builds.

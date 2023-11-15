@@ -640,8 +640,9 @@ UTexture2D* FImageUtils::CreateTexture2D(int32 SrcWidth, int32 SrcHeight, const 
 	uint8* MipData = Tex2D->Source.LockMip(0);
 	for( int32 y=0; y<SrcHeight; y++ )
 	{
-		uint8* DestPtr = &MipData[(SrcHeight - 1 - y) * SrcWidth * sizeof(FColor)];
-		const FColor* SrcPtr = &SrcData[(SrcHeight - 1 - y) * SrcWidth];
+		// when UseAlpha is true, this could/should just be a memcpy of the whole array
+		uint8* DestPtr = &MipData[(int64) y * SrcWidth * sizeof(FColor)];
+		const FColor* SrcPtr = &SrcData[(int64) y * SrcWidth];
 		for( int32 x=0; x<SrcWidth; x++ )
 		{
 			*DestPtr++ = SrcPtr->B;
