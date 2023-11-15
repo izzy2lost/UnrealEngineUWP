@@ -214,7 +214,6 @@ protected:
 
 	/** To be called if we have no data to perform any operation, it will passthrough the input. */
 	void PassthroughInput(FPCGContext* Context, TArray<FPCGTaggedData>& Outputs, const int32 Index) const;
-	void PassthroughAllInputs(FPCGContext* Context, TArray<FPCGTaggedData>& Outputs) const;
 };
 
 /**
