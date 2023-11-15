@@ -440,10 +440,10 @@ namespace UE::MovieGraph
 		virtual ~IMovieGraphOutputMerger() {};
 
 		/** Call once per output frame to generate a struct to hold data. */
-		virtual FMovieGraphOutputMergerFrame& AllocateNewOutputFrame_GameThread(int32 InFrameNumber) = 0;
+		virtual FMovieGraphOutputMergerFrame& AllocateNewOutputFrame_GameThread(const int32 InRenderedFrameNumber) = 0;
 
 		/** Getter for the Output Frame. Make sure you call AllocateNewOutputFrame_GameThread first, otherwise this trips a check. */
-		virtual FMovieGraphOutputMergerFrame& GetOutputFrame_GameThread(int32 InFrameNumber) = 0;
+		virtual FMovieGraphOutputMergerFrame& GetOutputFrame_GameThread(const int32 InRenderedFrameNumber) = 0;
 
 		/** When a final accumulated render pass is available, call this function with the pixel data. */
 		virtual void OnCompleteRenderPassDataAvailable_AnyThread(TUniquePtr<FImagePixelData>&& InData) = 0;
