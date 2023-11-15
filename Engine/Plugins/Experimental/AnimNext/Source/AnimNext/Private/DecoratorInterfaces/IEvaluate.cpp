@@ -10,38 +10,13 @@ DEFINE_STAT(STAT_AnimNext_EvaluateGraph);
 
 namespace UE::AnimNext
 {
-	/**
-	 * FScopedEvaluationProgram
-	 *
-	 * Pushes and pops a evaluation program onto the evaluation traversal context.
-	 * During the lifetime of an instance of this object, the traversal context will
-	 * return the provided evaluation program as the current evaluation program.
-	 *
-	 * @see FEvaluateTraversalContext
-	 */
-	struct ANIMNEXT_API FScopedEvaluationProgram final
+	FEvaluateTraversalContext::FEvaluateTraversalContext(const FExecutionContext& InExecutionContext, FEvaluationProgram& InEvaluationProgram)
+		: FExecutionContextProxy(InExecutionContext)
+		, EvaluationProgram(InEvaluationProgram)
 	{
-		FScopedEvaluationProgram(FEvaluateTraversalContext& InTraversalContext, FEvaluationProgram& InEvaluationProgram)
-			: TraversalContext(InTraversalContext)
-			, OldEvaluationProgram(InTraversalContext.EvaluationProgram)
-		{
-			InTraversalContext.EvaluationProgram = &InEvaluationProgram;
-		}
+	}
 
-		~FScopedEvaluationProgram()
-		{
-			TraversalContext.EvaluationProgram = OldEvaluationProgram;
-		}
-
-		FScopedEvaluationProgram(const FScopedEvaluationProgram&) = delete;
-		FScopedEvaluationProgram& operator=(const FScopedEvaluationProgram&) = delete;
-
-	private:
-		FEvaluateTraversalContext& TraversalContext;
-		FEvaluationProgram* OldEvaluationProgram;
-	};
-
-	void IEvaluate::PreEvaluate(const FExecutionContext& Context, const TDecoratorBinding<IEvaluate>& Binding) const
+	void IEvaluate::PreEvaluate(FEvaluateTraversalContext& Context, const TDecoratorBinding<IEvaluate>& Binding) const
 	{
 		TDecoratorBinding<IEvaluate> SuperBinding;
 		if (Context.GetInterfaceSuper(Binding, SuperBinding))
@@ -50,7 +25,7 @@ namespace UE::AnimNext
 		}
 	}
 
-	void IEvaluate::PostEvaluate(const FExecutionContext& Context, const TDecoratorBinding<IEvaluate>& Binding) const
+	void IEvaluate::PostEvaluate(FEvaluateTraversalContext& Context, const TDecoratorBinding<IEvaluate>& Binding) const
 	{
 		TDecoratorBinding<IEvaluate> SuperBinding;
 		if (Context.GetInterfaceSuper(Binding, SuperBinding))
@@ -96,7 +71,7 @@ namespace UE::AnimNext
 		}
 	};
 
-	FEvaluationProgram EvaluateGraph(FExecutionContext& Context, FEvaluateTraversalContext& TraversalContext, FWeakDecoratorPtr GraphRootPtr)
+	FEvaluationProgram EvaluateGraph(FExecutionContext& Context, FWeakDecoratorPtr GraphRootPtr)
 	{
 		SCOPE_CYCLE_COUNTER(STAT_AnimNext_EvaluateGraph);
 		
@@ -113,8 +88,7 @@ namespace UE::AnimNext
 		FChildrenArray Children;
 		Children.Reserve(16);
 
-		FScopedEvaluationProgram ScopedEvaluationProgram(TraversalContext, EvaluationProgram);
-		FScopedTraversalContext ScopedTraversalContext(Context, TraversalContext);
+		FEvaluateTraversalContext TraversalContext(Context, EvaluationProgram);
 
 		// Add the graph root to kick start the evaluation process
 		FEvaluateEntry GraphRootEntry(GraphRootPtr, EEvaluateStep::PreEvaluate);
@@ -137,7 +111,7 @@ namespace UE::AnimNext
 				if (Context.GetInterface(Entry->DecoratorPtr, Entry->EvaluateDecorator))
 				{
 					// This is the first time we visit this node, time to pre-evaluate
-					Entry->EvaluateDecorator.PreEvaluate(Context);
+					Entry->EvaluateDecorator.PreEvaluate(TraversalContext);
 
 					// Leave our entry on top of the stack, we'll need to call PostEvaluate once the children
 					// we'll push on top finish
@@ -190,7 +164,7 @@ namespace UE::AnimNext
 			{
 				// We've already visited this node once, time to post-update
 				check(Entry->EvaluateDecorator.IsValid());
-				Entry->EvaluateDecorator.PostEvaluate(Context);
+				Entry->EvaluateDecorator.PostEvaluate(TraversalContext);
 
 				// Now that we are done processing this entry, we can pop it
 				NodesPendingUpdateStackTop = Entry->PrevStackEntry;

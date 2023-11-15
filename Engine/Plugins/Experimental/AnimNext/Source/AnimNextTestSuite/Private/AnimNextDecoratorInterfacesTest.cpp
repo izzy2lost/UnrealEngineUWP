@@ -61,7 +61,7 @@ namespace UE::AnimNext
 		}
 
 		// IEvaluate impl
-		virtual void PreEvaluate(const FExecutionContext& Context, const TDecoratorBinding<IEvaluate>& Binding) const override
+		virtual void PreEvaluate(FEvaluateTraversalContext& Context, const TDecoratorBinding<IEvaluate>& Binding) const override
 		{
 			if (Private::EvaluatedDecorators != nullptr)
 			{
@@ -71,7 +71,7 @@ namespace UE::AnimNext
 			IEvaluate::PreEvaluate(Context, Binding);
 		}
 
-		virtual void PostEvaluate(const FExecutionContext& Context, const TDecoratorBinding<IEvaluate>& Binding) const override
+		virtual void PostEvaluate(FEvaluateTraversalContext& Context, const TDecoratorBinding<IEvaluate>& Binding) const override
 		{
 			if (Private::EvaluatedDecorators != nullptr)
 			{
@@ -187,7 +187,7 @@ namespace UE::AnimNext
 		}
 
 		// IEvaluate impl
-		virtual void PreEvaluate(const FExecutionContext& Context, const TDecoratorBinding<IEvaluate>& Binding) const override
+		virtual void PreEvaluate(FEvaluateTraversalContext& Context, const TDecoratorBinding<IEvaluate>& Binding) const override
 		{
 			if (Private::EvaluatedDecorators != nullptr)
 			{
@@ -197,7 +197,7 @@ namespace UE::AnimNext
 			IEvaluate::PreEvaluate(Context, Binding);
 		}
 
-		virtual void PostEvaluate(const FExecutionContext& Context, const TDecoratorBinding<IEvaluate>& Binding) const override
+		virtual void PostEvaluate(FEvaluateTraversalContext& Context, const TDecoratorBinding<IEvaluate>& Binding) const override
 		{
 			if (Private::EvaluatedDecorators != nullptr)
 			{
@@ -663,8 +663,7 @@ bool FAnimationAnimNextRuntimeTest_IEvaluate::RunTest(const FString& InParameter
 		AddErrorIfFalse(NodeCPtr.IsValid(), "FAnimationAnimNextRuntimeTest_IEvaluate -> Failed to allocate root node instance");
 
 		// Call pre/post evaluate on our graph
-		FEvaluateTraversalContext TraversalContext;
-		(void)EvaluateGraph(Context, TraversalContext, NodeCPtr);
+		(void)EvaluateGraph(Context, NodeCPtr);
 
 		AddErrorIfFalse(EvaluatedDecorators.Num() == 6, "FAnimationAnimNextRuntimeTest_IEvaluate -> Expected 6 nodes to have been visited during the evaluate traversal");
 		AddErrorIfFalse(EvaluatedDecorators[0] == FDecoratorWithChildren::DecoratorUID, "FAnimationAnimNextRuntimeTest_IEvaluate -> Unexpected evaluate order");		// NodeC

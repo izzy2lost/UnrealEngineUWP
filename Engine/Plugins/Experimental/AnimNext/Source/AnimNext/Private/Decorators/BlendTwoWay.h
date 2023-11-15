@@ -57,7 +57,7 @@ namespace UE::AnimNext
 		};
 
 		// IEvaluate impl
-		virtual void PostEvaluate(const FExecutionContext& Context, const TDecoratorBinding<IEvaluate>& Binding) const override;
+		virtual void PostEvaluate(FEvaluateTraversalContext& Context, const TDecoratorBinding<IEvaluate>& Binding) const override;
 
 		// IUpdate impl
 		virtual void PreUpdate(FUpdateTraversalContext& Context, const TDecoratorBinding<IUpdate>& Binding, const FDecoratorUpdateState& DecoratorState) const override;

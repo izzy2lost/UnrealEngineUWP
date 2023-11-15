@@ -13,14 +13,13 @@ namespace UE::AnimNext
 		DEFINE_ANIM_DECORATOR_IMPLEMENTS_INTERFACE(IEvaluate)
 	DEFINE_ANIM_DECORATOR_END(FReferencePoseDecorator)
 
-	void FReferencePoseDecorator::PreEvaluate(const FExecutionContext& Context, const TDecoratorBinding<IEvaluate>& Binding) const
+	void FReferencePoseDecorator::PreEvaluate(FEvaluateTraversalContext& Context, const TDecoratorBinding<IEvaluate>& Binding) const
 	{
 		const FSharedData* SharedData = Binding.GetSharedData<FSharedData>();
 
 		FAnimNextPushReferenceKeyframeTask Task;
 		Task.bIsAdditive = SharedData->ReferencePoseType == EAnimNextReferencePoseType::AdditiveIdentity;
 
-		FEvaluateTraversalContext& TraversalContext = Context.GetTraversalContext<FEvaluateTraversalContext>();
-		TraversalContext.AppendTask(Task);
+		Context.AppendTask(Task);
 	}
 }

@@ -17,7 +17,7 @@ namespace UE::AnimNext
 		DEFINE_ANIM_DECORATOR_IMPLEMENTS_INTERFACE(IUpdate)
 	DEFINE_ANIM_DECORATOR_END(FBlendTwoWayDecorator)
 
-	void FBlendTwoWayDecorator::PostEvaluate(const FExecutionContext& Context, const TDecoratorBinding<IEvaluate>& Binding) const
+	void FBlendTwoWayDecorator::PostEvaluate(FEvaluateTraversalContext& Context, const TDecoratorBinding<IEvaluate>& Binding) const
 	{
 		const FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
 
@@ -29,9 +29,7 @@ namespace UE::AnimNext
 			Context.GetInterface(Binding, ContinuousBlendDecorator);
 
 			const float BlendWeight = ContinuousBlendDecorator.GetBlendWeight(Context, 1);
-
-			FEvaluateTraversalContext& TraversalContext = Context.GetTraversalContext<FEvaluateTraversalContext>();
-			TraversalContext.AppendTask(FAnimNextBlendTwoKeyframesTask::Make(BlendWeight));
+			Context.AppendTask(FAnimNextBlendTwoKeyframesTask::Make(BlendWeight));
 		}
 		else
 		{

@@ -3,8 +3,8 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "DecoratorBase/ExecutionContextProxy.h"
 #include "DecoratorBase/IDecoratorInterface.h"
-#include "DecoratorBase/ITraversalContext.h"
 #include "EvaluationVM/EvaluationProgram.h"
 #include "EvaluationVM/KeyframeState.h"
 
@@ -13,23 +13,23 @@ namespace UE::AnimNext
 	/**
 	 * FEvaluateTraversalContext
 	 *
-	 * Contains all relevant transient data for an evaluate traversal.
+	 * Contains all relevant transient data for an evaluate traversal and wraps the execution context.
 	 */
-	struct ANIMNEXT_API FEvaluateTraversalContext : ITraversalContext
+	struct FEvaluateTraversalContext final : FExecutionContextProxy
 	{
-		FEvaluateTraversalContext() = default;
-
 		// Appends a new task into the evaluation program, tasks mutate state in the order they have been appended in
 		// This means that child nodes need to evaluate first, tasks will usually be appended in IEvaluate::PostEvaluate
 		// Tasks are moved into their final memory location, caller can allocate the task anywhere, it is no longer needed after this operation
 		// @see FEvaluationProgram, FEvaluationTask, FEvaluationVM
 		template<class TaskType>
-		void AppendTask(TaskType&& Task) { EvaluationProgram->AppendTask(MoveTemp(Task)); }
+		void AppendTask(TaskType&& Task) { EvaluationProgram.AppendTask(MoveTemp(Task)); }
 
 	private:
-		FEvaluationProgram* EvaluationProgram = nullptr;
+		FEvaluateTraversalContext(const FExecutionContext& InExecutionContext, FEvaluationProgram& InEvaluationProgram);
 
-		friend struct FScopedEvaluationProgram;
+		FEvaluationProgram& EvaluationProgram;
+
+		friend ANIMNEXT_API FEvaluationProgram EvaluateGraph(FExecutionContext& Context, FWeakDecoratorPtr GraphRootPtr);
 	};
 
 	/**
@@ -51,10 +51,10 @@ namespace UE::AnimNext
 		DECLARE_ANIM_DECORATOR_INTERFACE(IEvaluate, 0xa303e9e7)
 
 		// Called before a decorator's children are evaluated
-		virtual void PreEvaluate(const FExecutionContext& Context, const TDecoratorBinding<IEvaluate>& Binding) const;
+		virtual void PreEvaluate(FEvaluateTraversalContext& Context, const TDecoratorBinding<IEvaluate>& Binding) const;
 
 		// Called after a decorator's children have been evaluated
-		virtual void PostEvaluate(const FExecutionContext& Context, const TDecoratorBinding<IEvaluate>& Binding) const;
+		virtual void PostEvaluate(FEvaluateTraversalContext& Context, const TDecoratorBinding<IEvaluate>& Binding) const;
 	};
 
 	/**
@@ -64,13 +64,13 @@ namespace UE::AnimNext
 	struct TDecoratorBinding<IEvaluate> : FDecoratorBinding
 	{
 		// @see IEvaluate::PreEvaluate
-		void PreEvaluate(const FExecutionContext& Context) const
+		void PreEvaluate(FEvaluateTraversalContext& Context) const
 		{
 			GetInterface()->PreEvaluate(Context, *this);
 		}
 
 		// @see IEvaluate::PostEvaluate
-		void PostEvaluate(const FExecutionContext& Context) const
+		void PostEvaluate(FEvaluateTraversalContext& Context) const
 		{
 			GetInterface()->PostEvaluate(Context, *this);
 		}
@@ -91,5 +91,5 @@ namespace UE::AnimNext
 	 *
 	 * @see IEvaluate::PreEvaluate, IEvaluate::PostEvaluate, IHierarchy::GetChildren
 	 */
-	[[nodiscard]] ANIMNEXT_API FEvaluationProgram EvaluateGraph(FExecutionContext& Context, FEvaluateTraversalContext& TraversalContext, FWeakDecoratorPtr GraphRootPtr);
+	[[nodiscard]] ANIMNEXT_API FEvaluationProgram EvaluateGraph(FExecutionContext& Context, FWeakDecoratorPtr GraphRootPtr);
 }

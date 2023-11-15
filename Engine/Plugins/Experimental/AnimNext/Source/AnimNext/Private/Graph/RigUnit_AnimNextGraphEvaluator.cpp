@@ -55,8 +55,7 @@ void FRigUnit_AnimNextGraphEvaluator::StaticExecute(FRigVMExtendedExecuteContext
 	if (EnumHasAnyFlags(SimulationSteps, EAnimNextGraphSimulationSteps::Evaluate))
 	{
 		// Call pre/post evaluate on our graph
-		FEvaluateTraversalContext TraversalContext;
-		FEvaluationProgram EvaluationProgram = EvaluateGraph(Context, TraversalContext, GraphInstancePtr);
+		FEvaluationProgram EvaluationProgram = EvaluateGraph(Context, GraphInstancePtr);
 
 		if (!EvaluationProgram.IsEmpty())
 		{

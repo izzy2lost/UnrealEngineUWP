@@ -25,7 +25,6 @@ namespace UE::AnimNext
 	struct FDecorator;
 	struct FDecoratorRegistry;
 	struct FDecoratorTemplate;
-	struct ITraversalContext;
 
 	/**
 	 * Execution Context
@@ -74,10 +73,6 @@ namespace UE::AnimNext
 		// Releases a node instance that is no longer referenced
 		void ReleaseNodeInstance(FNodeInstance* Node) const;
 
-		// Returns the current strongly typed traversal context or nullptr if not in a traversal
-		template<class TraversalContextType>
-		TraversalContextType& GetTraversalContext() const { return *static_cast<TraversalContextType*>(TraversalContext); }	// TODO: Add a casting check for safety
-
 		// Evaluates the latent pin with the specified handle
 		template<typename LatentPinType>
 		LatentPinType EvaluateLatentPin(FLatentPropertyHandle LatentPropertyHandle) const;
@@ -113,22 +108,19 @@ namespace UE::AnimNext
 		const FNodeTemplateRegistry& NodeTemplateRegistry;
 		const FDecoratorRegistry& DecoratorRegistry;
 
-		ITraversalContext* TraversalContext = nullptr;
-
 		// Cached properties for the currently executing graph
 		const UAnimNextGraph* Graph = nullptr;
 		FAnimNextGraphInstance* GraphInstance = nullptr;
 		TArrayView<const uint8> GraphSharedData;
 		FRigVMMemoryHandleArray RigVMLatentMemoryHandles;
 		FRigVMExtendedExecuteContext* RigVMExecuteContext = nullptr;
-
-		friend struct FScopedTraversalContext;
 	};
 
 	// Returns a pointer to the current execution context if present, nullptr otherwise.
 	FExecutionContext* GetThreadExecutionContext();
 
 	//////////////////////////////////////////////////////////////////////////
+	// Inline implementations
 
 	template<class DecoratorInterface>
 	inline bool FExecutionContext::GetInterface(const FWeakDecoratorPtr& DecoratorPtr, TDecoratorBinding<DecoratorInterface>& InterfaceBinding) const

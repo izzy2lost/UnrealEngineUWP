@@ -19,7 +19,7 @@ namespace UE::AnimNext
 		DEFINE_ANIM_DECORATOR_IMPLEMENTS_INTERFACE(IDiscreteBlend)
 	DEFINE_ANIM_DECORATOR_END(FBlendSmootherPerBoneDecorator)
 
-	void FBlendSmootherPerBoneDecorator::PostEvaluate(const FExecutionContext& Context, const TDecoratorBinding<IEvaluate>& Binding) const
+	void FBlendSmootherPerBoneDecorator::PostEvaluate(FEvaluateTraversalContext& Context, const TDecoratorBinding<IEvaluate>& Binding) const
 	{
 		const FSharedData* SharedData = Binding.GetSharedData<FSharedData>();
 		const FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
@@ -39,8 +39,6 @@ namespace UE::AnimNext
 			return;	// If we don't have at least 2 children, there is nothing to do
 		}
 
-		FEvaluateTraversalContext& TraversalContext = Context.GetTraversalContext<FEvaluateTraversalContext>();
-
 		// Children are visited depth first, in the order returned
 		// As such, when we evaluate the task program, the keyframe of the last child will be
 		// on top of the keyframe stack
@@ -51,7 +49,7 @@ namespace UE::AnimNext
 			const int32 ChildIndex = NumChildren - 1;
 			const FBlendSampleData& PoseSampleData = InstanceData->PerBoneSampleData[ChildIndex];
 
-			TraversalContext.AppendTask(FAnimNextBlendOverwriteKeyframePerBoneWithScaleTask::Make(SharedData->BlendProfile, PoseSampleData, PoseSampleData.TotalWeight));
+			Context.AppendTask(FAnimNextBlendOverwriteKeyframePerBoneWithScaleTask::Make(SharedData->BlendProfile, PoseSampleData, PoseSampleData.TotalWeight));
 		}
 
 		// Other children accumulate with scale
@@ -60,11 +58,11 @@ namespace UE::AnimNext
 			const FBlendSampleData& PoseSampleDataA = InstanceData->PerBoneSampleData[ChildIndex];
 			const FBlendSampleData& PoseSampleDataB = InstanceData->PerBoneSampleData[ChildIndex + 1];	// Above on the keyframe stack
 
-			TraversalContext.AppendTask(FAnimNextBlendAddKeyframePerBoneWithScaleTask::Make(SharedData->BlendProfile, PoseSampleDataA, PoseSampleDataB, PoseSampleDataA.TotalWeight));
+			Context.AppendTask(FAnimNextBlendAddKeyframePerBoneWithScaleTask::Make(SharedData->BlendProfile, PoseSampleDataA, PoseSampleDataB, PoseSampleDataA.TotalWeight));
 		}
 
 		// Once we are done, we normalize rotations
-		TraversalContext.AppendTask(FAnimNextNormalizeKeyframeRotationsTask());
+		Context.AppendTask(FAnimNextNormalizeKeyframeRotationsTask());
 	}
 
 	void FBlendSmootherPerBoneDecorator::PreUpdate(FUpdateTraversalContext& Context, const TDecoratorBinding<IUpdate>& Binding, const FDecoratorUpdateState& DecoratorState) const

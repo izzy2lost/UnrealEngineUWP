@@ -45,6 +45,6 @@ namespace UE::AnimNext
 		using FSharedData = FAnimNextReferencePoseDecoratorSharedData;
 
 		// IEvaluate impl
-		virtual void PreEvaluate(const FExecutionContext& Context, const TDecoratorBinding<IEvaluate>& Binding) const override;
+		virtual void PreEvaluate(FEvaluateTraversalContext& Context, const TDecoratorBinding<IEvaluate>& Binding) const override;
 	};
 }

@@ -19,7 +19,7 @@ namespace UE::AnimNext
 	static constexpr int32 TRUE_CHILD_INDEX = 0;
 	static constexpr int32 FALSE_CHILD_INDEX = 1;
 
-	void FBlendByBoolDecorator::PostEvaluate(const FExecutionContext& Context, const TDecoratorBinding<IEvaluate>& Binding) const
+	void FBlendByBoolDecorator::PostEvaluate(FEvaluateTraversalContext& Context, const TDecoratorBinding<IEvaluate>& Binding) const
 	{
 		const FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
 
@@ -31,9 +31,7 @@ namespace UE::AnimNext
 			Context.GetInterface(Binding, DiscreteBlendDecorator);
 
 			const float BlendWeight = DiscreteBlendDecorator.GetBlendWeight(Context, FALSE_CHILD_INDEX);
-
-			FEvaluateTraversalContext& TraversalContext = Context.GetTraversalContext<FEvaluateTraversalContext>();
-			TraversalContext.AppendTask(FAnimNextBlendTwoKeyframesTask::Make(BlendWeight));
+			Context.AppendTask(FAnimNextBlendTwoKeyframesTask::Make(BlendWeight));
 		}
 		else
 		{
