@@ -1932,16 +1932,6 @@ UObject* UActorFactoryNiagara::GetAssetFromActorInstance(AActor* Instance)
 	}
 }
 
-void UActorFactoryNiagara::PostCreateBlueprint(UObject* Asset, AActor* CDO)
-{
-	if (Asset != NULL && CDO != NULL)
-	{
-		UNiagaraSystem* System = CastChecked<UNiagaraSystem>(Asset);
-		ANiagaraActor* Actor = CastChecked<ANiagaraActor>(CDO);
-		Actor->GetNiagaraComponent()->SetAsset(System);
-	}
-}
-
 
 ///////////////////////////////////////////////////////////////////////////////
 /// INiagaraScriptGraphFocusInfo											///
