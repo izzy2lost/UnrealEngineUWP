@@ -893,14 +893,7 @@ void SMultiBoxWidget::CreateSearchTextWidget()
 			.SelectAllTextWhenFocused(false)
 			.OnTextChanged(this, &SMultiBoxWidget::OnFilterTextChanged);
 
-	TSharedRef<SBox> SearchBox =
-		SNew(SBox)
-			.Padding(FMargin(8, 0, 8, 0))
-			[
-				SearchTextWidget.ToSharedRef()
-			];
-
-	TSharedRef<FWidgetBlock> NewWidgetBlock(new FWidgetBlock(SearchBox, FText::GetEmpty(), false));
+	TSharedRef<FWidgetBlock> NewWidgetBlock(new FWidgetBlock(SearchTextWidget.ToSharedRef(), FText::GetEmpty(), false));
 	NewWidgetBlock->SetSearchable(false);
 
 	MultiBox->AddMultiBlockToFront(NewWidgetBlock);
