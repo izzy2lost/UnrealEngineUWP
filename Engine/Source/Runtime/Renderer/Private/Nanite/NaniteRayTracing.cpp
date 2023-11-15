@@ -363,7 +363,7 @@ namespace Nanite
 		check(Id != INDEX_NONE);
 
 		FInternalData* Data = Geometries[Id];
-		Data->PrimitiveId = SceneInfo->GetIndex(); // TODO: Update this when index changes?
+		Data->PrimitiveId = SceneInfo->GetPersistentIndex().Index;
 
 		VisibleGeometries.Add(Id);
 	}
@@ -664,7 +664,7 @@ namespace Nanite
 					auto NaniteProxy = static_cast<Nanite::FSceneProxyBase*>(Primitive->Proxy);
 					NaniteProxy->SetRayTracingDataOffset(Data.AuxiliaryDataOffset);
 
-					Primitive->Scene->GPUScene.AddPrimitiveToUpdate(Primitive->GetIndex(), EPrimitiveDirtyState::ChangedOther);
+					Primitive->Scene->GPUScene.AddPrimitiveToUpdate(Primitive->GetPersistentIndex(), EPrimitiveDirtyState::ChangedOther);
 				}
 
 				ScheduledBuilds.Add(PendingBuild.GeometryId);
@@ -772,7 +772,7 @@ namespace Nanite
 							auto NaniteProxy = static_cast<Nanite::FSceneProxyBase*>(Primitive->Proxy);
 							NaniteProxy->SetRayTracingDataOffset(Data.AuxiliaryDataOffset);
 
-							Primitive->Scene->GPUScene.AddPrimitiveToUpdate(Primitive->GetIndex(), EPrimitiveDirtyState::ChangedOther);
+							Primitive->Scene->GPUScene.AddPrimitiveToUpdate(Primitive->GetPersistentIndex(), EPrimitiveDirtyState::ChangedOther);
 						}
 
 						ScheduledBuilds.Add(GeometryId);

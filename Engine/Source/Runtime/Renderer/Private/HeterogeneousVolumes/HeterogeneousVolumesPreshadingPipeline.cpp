@@ -1492,7 +1492,7 @@ void RenderWithPreshading(
 	// Object data
 	const IHeterogeneousVolumeInterface* HeterogeneousVolumeInterface,
 	const FMaterialRenderProxy* MaterialRenderProxy,
-	const int32 PrimitiveId,
+	const FPersistentPrimitiveIndex &PersistentPrimitiveIndex,
 	const FBoxSphereBounds LocalBoxSphereBounds,
 	// Transmittance acceleration
 	FRDGTextureRef LightingCacheTexture,
@@ -1532,7 +1532,7 @@ void RenderWithPreshading(
 				// Object data
 				HeterogeneousVolumeInterface,
 				MaterialRenderProxy,
-				PrimitiveId,
+				PersistentPrimitiveIndex,
 				LocalBoxSphereBounds,
 				// Volume data
 				VolumeResolution,

@@ -1182,8 +1182,8 @@ void FPrimitiveSceneInfo::UpdateCachedRayTracingInstance(FPrimitiveSceneInfo* Sc
 		}
 
 		// At this point (in AddToScene()) PrimitiveIndex has been set
-		check(SceneInfo->GetIndex() != INDEX_NONE);
-		SceneInfo->CachedRayTracingInstance.DefaultUserData = (uint32)SceneInfo->GetIndex();
+		check(SceneInfo->GetPersistentIndex().IsValid());
+		SceneInfo->CachedRayTracingInstance.DefaultUserData = (uint32)SceneInfo->GetPersistentIndex().Index;
 		SceneInfo->CachedRayTracingInstance.Mask = CachedRayTracingInstance.MaskAndFlags.Mask; // When no cached command is found, InstanceMask == 0 and the instance is effectively filtered out
 
 		SceneInfo->CachedRayTracingInstance.bApplyLocalBoundsTransform = CachedRayTracingInstance.bApplyLocalBoundsTransform;
@@ -1325,7 +1325,7 @@ static void OnVirtualTextureDestroyed(const FVirtualTextureProducerHandle& InHan
 	PrimitiveSceneInfo->UpdateStaticLightingBuffer();
 
 	// Also need to update lightmap data inside GPUScene, if that's enabled
-	PrimitiveSceneInfo->Scene->GPUScene.AddPrimitiveToUpdate(PrimitiveSceneInfo->GetIndex(), EPrimitiveDirtyState::ChangedStaticLighting);
+	PrimitiveSceneInfo->Scene->GPUScene.AddPrimitiveToUpdate(PrimitiveSceneInfo->GetPersistentIndex(), EPrimitiveDirtyState::ChangedStaticLighting);
 }
 
 static void GetRuntimeVirtualTextureLODRange(TArray<class FStaticMeshBatchRelevance> const& MeshRelevances, int8& OutMinLOD, int8& OutMaxLOD)
@@ -1412,7 +1412,7 @@ void FPrimitiveSceneInfo::AllocateGPUSceneInstances(FScene* Scene, const TArrayV
 				
 			// Force a primitive update in the GPU scene, 
 			// NOTE: does not set Added as this is handled elsewhere.
-			Scene->GPUScene.AddPrimitiveToUpdate(SceneInfo->PackedIndex, EPrimitiveDirtyState::ChangedAll);
+			Scene->GPUScene.AddPrimitiveToUpdate(SceneInfo->GetPersistentIndex(), EPrimitiveDirtyState::ChangedAll);
 
 			// Force a primitive update in the Lumen scene(s)
 			for (FLumenSceneDataIterator LumenSceneData = Scene->GetLumenSceneDataIterator(); LumenSceneData; ++LumenSceneData)
@@ -2050,7 +2050,7 @@ bool FPrimitiveSceneInfo::RequestGPUSceneUpdate(EPrimitiveDirtyState PrimitiveDi
 {
 	if (Scene && IsIndexValid())
 	{
-		Scene->GPUScene.AddPrimitiveToUpdate(GetIndex(), PrimitiveDirtyState);
+		Scene->GPUScene.AddPrimitiveToUpdate(GetPersistentIndex(), PrimitiveDirtyState);
 		return true;
 	}
 

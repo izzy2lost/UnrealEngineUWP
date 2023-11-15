@@ -657,7 +657,6 @@ struct FWaterInfoTextureDraws
 	const TSet<FPrimitiveComponentId>* ComponentIDsToDraw = nullptr;
 	uint32 PrimitiveInstanceIndex = 0;
 	FMeshCommandOneFrameArray VisibleMeshCommands;
-	TArray<int32, SceneRenderingAllocator> PrimitiveIds;
 	TArray<uint32, SceneRenderingAllocator> InstanceRuns;
 	FInstanceCullingContext* InstanceCullingContext = nullptr;
 	FInstanceCullingResult InstanceCullingResult;
@@ -705,7 +704,7 @@ static void AddWaterInfoTextureDraws(const FScene* Scene, const TArrayView<FWate
 				FWaterInfoTextureDraws& Draws = PassDrawLists[DrawListIdx];
 				if (Draws.ComponentIDsToDraw->Contains(PrimitiveSceneInfo->PrimitiveComponentId))
 				{
-					FMeshDrawCommandPrimitiveIdInfo IdInfo(PrimitiveSceneInfo->GetIndex(), PrimitiveSceneInfo->GetInstanceSceneDataOffset());
+					FMeshDrawCommandPrimitiveIdInfo IdInfo(PrimitiveSceneInfo->GetMDCIdInfo());
 
 					for (int32 MeshIndex = 0; MeshIndex < PrimitiveSceneInfo->StaticMeshRelevances.Num(); MeshIndex++)
 					{
@@ -764,7 +763,6 @@ static void AddWaterInfoTextureDraws(const FScene* Scene, const TArrayView<FWate
 									NumInstanceRuns);
 
 								Draws.VisibleMeshCommands.Add(NewVisibleMeshDrawCommand);
-								Draws.PrimitiveIds.Add(PrimitiveSceneInfo->GetIndex());
 							}
 						}
 					}

@@ -1169,7 +1169,7 @@ void FNiagaraRendererMeshes::SetupElementForGPUScene(
 				GPUSceneRes.GPUWriteParams.GPUSceneWriterParameters	= Params.GPUWriteParams;
 				GPUSceneRes.GPUWriteParams.View						= Params.View->ViewUniformBuffer; // NOTE: Set here, not outside lambda
 				GPUSceneRes.GPUWriteParams.Scene					= GetSceneUniformBufferRef(GraphBuilder, *Params.View);
-				GPUSceneRes.GPUWriteParams.PrimitiveId 				= Params.PrimitiveId;
+				GPUSceneRes.GPUWriteParams.PrimitiveId 				= Params.PersistentPrimitiveId;
 		
 				FNiagaraGPUSceneUtils::AddUpdateMeshParticleInstancesPass(
 					GraphBuilder,

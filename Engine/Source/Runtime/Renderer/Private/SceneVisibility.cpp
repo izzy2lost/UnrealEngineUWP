@@ -1060,7 +1060,7 @@ void FDrawCommandRelevancePacket::AddCommandsForMesh(
 
 			NewVisibleMeshDrawCommand.Setup(
 				MeshDrawCommand,
-				FMeshDrawCommandPrimitiveIdInfo(PrimitiveIndex, InPrimitiveSceneInfo->GetInstanceSceneDataOffset()),
+				InPrimitiveSceneInfo->GetMDCIdInfo(),
 				CachedMeshDrawCommand.StateBucketId,
 				CachedMeshDrawCommand.MeshFillMode,
 				CachedMeshDrawCommand.MeshCullMode,

@@ -378,7 +378,7 @@ void AddComputePass(
 	);
 }
 
-void RenderLightingCacheWithLiveShading(
+static void RenderLightingCacheWithLiveShading(
 	FRDGBuilder& GraphBuilder,
 	// Scene data
 	const FScene* Scene,
@@ -396,7 +396,7 @@ void RenderLightingCacheWithLiveShading(
 	// Object data
 	const IHeterogeneousVolumeInterface* HeterogeneousVolumeInterface,
 	const FMaterialRenderProxy* DefaultMaterialRenderProxy,
-	const int32 PrimitiveId,
+	FPersistentPrimitiveIndex PersistentPrimitiveIndex,
 	const FBoxSphereBounds LocalBoxSphereBounds,
 	// Output
 	FRDGTextureRef LightingCacheTexture
@@ -434,7 +434,7 @@ void RenderLightingCacheWithLiveShading(
 		PassParameters->WorldToLocal = LocalToWorld.Inverse();
 		PassParameters->LocalBoundsOrigin = FVector3f(LocalBoxSphereBounds.Origin);
 		PassParameters->LocalBoundsExtent = FVector3f(LocalBoxSphereBounds.BoxExtent);
-		PassParameters->PrimitiveId = PrimitiveId;
+		PassParameters->PrimitiveId = PersistentPrimitiveIndex.Index;
 
 		// Transmittance volume
 		PassParameters->VoxelResolution = HeterogeneousVolumeInterface->GetVoxelResolution();
@@ -508,7 +508,7 @@ void RenderLightingCacheWithLiveShading(
 	}
 }
 
-void RenderSingleScatteringWithLiveShading(
+static void RenderSingleScatteringWithLiveShading(
 	FRDGBuilder& GraphBuilder,
 	// Scene data
 	const FScene* Scene,
@@ -526,7 +526,7 @@ void RenderSingleScatteringWithLiveShading(
 	// Object data
 	const IHeterogeneousVolumeInterface* HeterogeneousVolumeInterface,
 	const FMaterialRenderProxy* DefaultMaterialRenderProxy,
-	const int32 PrimitiveId,
+	FPersistentPrimitiveIndex PersistentPrimitiveIndex,
 	const FBoxSphereBounds LocalBoxSphereBounds,
 	// Transmittance acceleration
 	FRDGTextureRef LightingCacheTexture,
@@ -584,7 +584,7 @@ void RenderSingleScatteringWithLiveShading(
 		PassParameters->WorldToLocal = LocalToWorld.Inverse();
 		PassParameters->LocalBoundsOrigin = FVector3f(LocalBoxSphereBounds.Origin);
 		PassParameters->LocalBoundsExtent = FVector3f(LocalBoxSphereBounds.BoxExtent);
-		PassParameters->PrimitiveId = PrimitiveId;
+		PassParameters->PrimitiveId = PersistentPrimitiveIndex.Index;
 
 		// Volume data
 		PassParameters->VoxelResolution = HeterogeneousVolumeInterface->GetVoxelResolution();
@@ -669,7 +669,7 @@ void RenderSingleScatteringWithLiveShading(
 	}
 }
 
-void RenderWithTransmittanceVolumePipeline(
+static void RenderWithTransmittanceVolumePipeline(
 	FRDGBuilder& GraphBuilder,
 	const FSceneTextures& SceneTextures,
 	const FScene* Scene,
@@ -680,7 +680,7 @@ void RenderWithTransmittanceVolumePipeline(
 	// Object data
 	const IHeterogeneousVolumeInterface* HeterogeneousVolumeInterface,
 	const FMaterialRenderProxy* MaterialRenderProxy,
-	const int32 PrimitiveId,
+	FPersistentPrimitiveIndex PersistentPrimitiveIndex,
 	const FBoxSphereBounds LocalBoxSphereBounds,
 	// Transmittance acceleration
 	FRDGTextureRef LightingCacheTexture,
@@ -743,7 +743,7 @@ void RenderWithTransmittanceVolumePipeline(
 				// Object data
 				HeterogeneousVolumeInterface,
 				MaterialRenderProxy,
-				PrimitiveId,
+				PersistentPrimitiveIndex,
 				LocalBoxSphereBounds,
 				// Output
 				LightingCacheTexture
@@ -768,7 +768,7 @@ void RenderWithTransmittanceVolumePipeline(
 			// Object data
 			HeterogeneousVolumeInterface,
 			MaterialRenderProxy,
-			PrimitiveId,
+			PersistentPrimitiveIndex,
 			LocalBoxSphereBounds,
 			// Transmittance acceleration
 			LightingCacheTexture,
@@ -778,7 +778,7 @@ void RenderWithTransmittanceVolumePipeline(
 	}
 }
 
-void RenderWithInscatteringVolumePipeline(
+static void RenderWithInscatteringVolumePipeline(
 	FRDGBuilder& GraphBuilder,
 	const FSceneTextures& SceneTextures,
 	const FScene* Scene,
@@ -789,7 +789,7 @@ void RenderWithInscatteringVolumePipeline(
 	// Object data
 	const IHeterogeneousVolumeInterface* HeterogeneousVolumeInterface,
 	const FMaterialRenderProxy* MaterialRenderProxy,
-	const int32 PrimitiveId,
+	FPersistentPrimitiveIndex PersistentPrimitiveIndex,
 	const FBoxSphereBounds LocalBoxSphereBounds,
 	// Transmittance acceleration
 	FRDGTextureRef LightingCacheTexture,
@@ -850,7 +850,7 @@ void RenderWithInscatteringVolumePipeline(
 			// Object data
 			HeterogeneousVolumeInterface,
 			MaterialRenderProxy,
-			PrimitiveId,
+			PersistentPrimitiveIndex,
 			LocalBoxSphereBounds,
 			// Output
 			LightingCacheTexture
@@ -885,7 +885,7 @@ void RenderWithInscatteringVolumePipeline(
 			// Object data
 			HeterogeneousVolumeInterface,
 			MaterialRenderProxy,
-			PrimitiveId,
+			PersistentPrimitiveIndex,
 			LocalBoxSphereBounds,
 			// Transmittance acceleration
 			LightingCacheTexture,
@@ -906,7 +906,7 @@ void RenderWithLiveShading(
 	// Object data
 	const IHeterogeneousVolumeInterface* HeterogeneousVolumeInterface,
 	const FMaterialRenderProxy* MaterialRenderProxy,
-	const int32 PrimitiveId,
+	const FPersistentPrimitiveIndex &PersistentPrimitiveIndex,
 	const FBoxSphereBounds LocalBoxSphereBounds,
 	// Transmittance acceleration
 	FRDGTextureRef LightingCacheTexture,
@@ -927,7 +927,7 @@ void RenderWithLiveShading(
 			// Object data
 			HeterogeneousVolumeInterface,
 			MaterialRenderProxy,
-			PrimitiveId,
+			PersistentPrimitiveIndex,
 			LocalBoxSphereBounds,
 			// Transmittance acceleration
 			LightingCacheTexture,
@@ -948,7 +948,7 @@ void RenderWithLiveShading(
 			// Object data
 			HeterogeneousVolumeInterface,
 			MaterialRenderProxy,
-			PrimitiveId,
+			PersistentPrimitiveIndex,
 			LocalBoxSphereBounds,
 			// Transmittance acceleration
 			LightingCacheTexture,

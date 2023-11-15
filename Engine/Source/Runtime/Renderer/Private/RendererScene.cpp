@@ -1498,7 +1498,7 @@ void FScene::DumpMeshDrawCommandMemoryStats()
 	UE_LOG(LogRenderer, Log, TEXT("sizeof(FMeshDrawCommand) %u"), sizeof(FMeshDrawCommand));
 	UE_LOG(LogRenderer, Log, TEXT("Total cached MeshDrawCommands %.3fMb"), TotalCachedMeshDrawCommands / 1024.0f / 1024.0f);
 	UE_LOG(LogRenderer, Log, TEXT("Primitive StaticMeshCommandInfos %.1fKb"), TotalStaticMeshCommandInfos / 1024.0f);
-	UE_LOG(LogRenderer, Log, TEXT("GPUScene CPU structures %.1fKb"), GPUScene.PrimitivesToUpdate.GetAllocatedSize() / 1024.0f);
+	UE_LOG(LogRenderer, Log, TEXT("GPUScene CPU structures %.1fKb"), GPUScene.GetAllocatedSize() / 1024.0f);
 	UE_LOG(LogRenderer, Log, TEXT("PSO persistent Id table %.1fKb %d elements"), FGraphicsMinimalPipelineStateId::GetPersistentIdTableSize() / 1024.0f, FGraphicsMinimalPipelineStateId::GetPersistentIdNum());
 	UE_LOG(LogRenderer, Log, TEXT("PSO one frame Id %.1fKb"), FGraphicsMinimalPipelineStateId::GetLocalPipelineIdTableSize() / 1024.0f);
 }
@@ -3738,7 +3738,7 @@ void FSceneVelocityData::StartFrame(FScene* Scene)
 		{
 			if (VelocityData.PrimitiveSceneInfo)
 			{
-				Scene->GPUScene.AddPrimitiveToUpdate(VelocityData.PrimitiveSceneInfo->GetIndex(), EPrimitiveDirtyState::ChangedOther);
+				Scene->GPUScene.AddPrimitiveToUpdate(VelocityData.PrimitiveSceneInfo->GetPersistentIndex(), EPrimitiveDirtyState::ChangedOther);
 			}
 
 			It.RemoveCurrent();
@@ -5498,6 +5498,7 @@ void FScene::UpdateAllPrimitiveSceneInfos(FRDGBuilder& GraphBuilder, EUpdateAllP
 	{
 		SplineMeshSceneResources->PreSceneUpdate(GraphBuilder, SceneUpdateChangeSetStorage.GetPreUpdateSet());
 	}
+	GPUScene.OnPreSceneUpdate(GraphBuilder, SceneUpdateChangeSetStorage.GetPreUpdateSet());
 
 	// Create a SceneUB that permits access to the scene for invalidation processing.
 	FSceneUniformBuffer SceneUB;
@@ -5545,8 +5546,6 @@ void FScene::UpdateAllPrimitiveSceneInfos(FRDGBuilder& GraphBuilder, EUpdateAllP
 	RemovedPrimitiveIndices.SetNumUninitialized(RemovedLocalPrimitiveSceneInfos.Num());
 
 	bool bNeedPathTracedInvalidation = false;
-
-	GPUScene.ResizeDirtyState(Primitives.Num());
 	{
 		CSV_SCOPED_TIMING_STAT_EXCLUSIVE(RemovePrimitiveSceneInfos);
 		SCOPED_NAMED_EVENT(FScene_RemovePrimitiveSceneInfos, FColor::Red);
@@ -5642,14 +5641,6 @@ void FScene::UpdateAllPrimitiveSceneInfos(FRDGBuilder& GraphBuilder, EUpdateAllP
 							TBitArraySwapElements(PrimitivesNeedingStaticMeshUpdate, DestIndex, SourceIndex);
 							TBitArraySwapElements(PrimitivesNeedingUniformBufferUpdate, DestIndex, SourceIndex);
 
-							GPUScene.RecordPrimitiveIdSwap(DestIndex, SourceIndex);
-
-						#if RHI_RAYTRACING
-							// Update cached PrimitiveIndex after an index swap
-							Primitives[SourceIndex]->CachedRayTracingInstance.DefaultUserData = SourceIndex;
-							Primitives[DestIndex]->CachedRayTracingInstance.DefaultUserData = DestIndex;
-						#endif
-
 							SourceIndex = DestIndex;
 						}
 					}
@@ -5741,9 +5732,6 @@ void FScene::UpdateAllPrimitiveSceneInfos(FRDGBuilder& GraphBuilder, EUpdateAllP
 				PrimitiveSceneInfo->RemoveFromScene(true);
 
 				PrimitiveSceneInfo->FreeGPUSceneInstances();
-
-				// Update the primitive that was swapped to this index
-				GPUScene.AddPrimitiveToUpdate(PrimitiveIndex, EPrimitiveDirtyState::Removed);
 
 				DistanceFieldSceneData.RemovePrimitive(PrimitiveSceneInfo);
 				LumenRemovePrimitive(PrimitiveSceneInfo, PrimitiveIndex);
@@ -5932,8 +5920,6 @@ void FScene::UpdateAllPrimitiveSceneInfos(FRDGBuilder& GraphBuilder, EUpdateAllP
 						PersistentPrimitiveIdToIndexMap.SetNumUninitialized(PersistentPrimitiveIndex.Index + 1);
 					}
 					PersistentPrimitiveIdToIndexMap[PersistentPrimitiveIndex.Index] = SourceIndex;
-
-					GPUScene.AddPrimitiveToUpdate(SourceIndex, EPrimitiveDirtyState::AddedMask);
 				}
 			}
 
@@ -6026,14 +6012,6 @@ void FScene::UpdateAllPrimitiveSceneInfos(FRDGBuilder& GraphBuilder, EUpdateAllP
 						#endif
 							TBitArraySwapElements(PrimitivesNeedingStaticMeshUpdate, DestIndex, SourceIndex);
 							TBitArraySwapElements(PrimitivesNeedingUniformBufferUpdate, DestIndex, SourceIndex);
-
-							GPUScene.RecordPrimitiveIdSwap(DestIndex, SourceIndex);
-
-						#if RHI_RAYTRACING
-							// Update cached PrimitiveIndex after an index swap
-							Primitives[SourceIndex]->CachedRayTracingInstance.DefaultUserData = SourceIndex;
-							Primitives[DestIndex]->CachedRayTracingInstance.DefaultUserData = DestIndex;
-						#endif
 						}
 					}
 				}
@@ -6142,8 +6120,6 @@ void FScene::UpdateAllPrimitiveSceneInfos(FRDGBuilder& GraphBuilder, EUpdateAllP
 				PrimitiveSceneInfo->MarkIndirectLightingCacheBufferDirty();
 			}
 
-			GPUScene.AddPrimitiveToUpdate(PrimitiveSceneInfo->PackedIndex, EPrimitiveDirtyState::ChangedTransform);
-
 			DistanceFieldSceneData.UpdatePrimitive(PrimitiveSceneInfo);
 			LumenUpdatePrimitive(PrimitiveSceneInfo);
 		#if RHI_RAYTRACING
@@ -6246,7 +6222,8 @@ void FScene::UpdateAllPrimitiveSceneInfos(FRDGBuilder& GraphBuilder, EUpdateAllP
 			}
 			else
 			{
-				GPUScene.AddPrimitiveToUpdate(PrimitiveSceneInfo->PackedIndex, EPrimitiveDirtyState::ChangedAll);
+				// TODO: should modify the batched data to make this possible to discern
+				GPUScene.AddPrimitiveToUpdate(PrimitiveSceneInfo->GetPersistentIndex(), EPrimitiveDirtyState::ChangedAll);
 
 				DistanceFieldSceneData.UpdatePrimitive(PrimitiveSceneInfo);
 				LumenUpdatePrimitive(PrimitiveSceneInfo);
@@ -6334,6 +6311,7 @@ void FScene::UpdateAllPrimitiveSceneInfos(FRDGBuilder& GraphBuilder, EUpdateAllP
 	{
 		SplineMeshSceneResources->PostSceneUpdate(GraphBuilder, SceneUpdateChangeSetStorage.GetPostUpdateSet());
 	}
+	GPUScene.OnPostSceneUpdate(GraphBuilder, SceneUpdateChangeSetStorage.GetPostUpdateSet());
 
 	UpdateCachedShadowState(SceneUpdateChangeSetStorage.GetPreUpdateSet(), SceneUpdateChangeSetStorage.GetPostUpdateSet());
 	ShadowScene->PostSceneUpdate(SceneUpdateChangeSetStorage.GetPreUpdateSet(), SceneUpdateChangeSetStorage.GetPostUpdateSet());
@@ -6366,7 +6344,7 @@ void FScene::UpdateAllPrimitiveSceneInfos(FRDGBuilder& GraphBuilder, EUpdateAllP
 				PrimitiveSceneInfo->Proxy &&
 				PrimitiveSceneInfo->Proxy->IsNaniteMesh())
 			{
-				GPUScene.AddPrimitiveToUpdate(PrimitiveSceneInfo->GetIndex(), EPrimitiveDirtyState::ChangedOther);
+				GPUScene.AddPrimitiveToUpdate(PrimitiveSceneInfo->GetPersistentIndex(), EPrimitiveDirtyState::ChangedOther);
 			}
 		}
 
@@ -6422,7 +6400,7 @@ void FScene::UpdateAllPrimitiveSceneInfos(FRDGBuilder& GraphBuilder, EUpdateAllP
 			FPrimitiveSceneInfo* Primitive = Primitives[Index];
 			PrimitivesNeedingUniformBufferUpdate[Index] = false;
 			ProxiesToUpdate.Emplace(Primitive->Proxy);
-			GPUScene.AddPrimitiveToUpdate(Index, EPrimitiveDirtyState::ChangedAll);
+			GPUScene.AddPrimitiveToUpdate(Primitive->GetPersistentIndex(), EPrimitiveDirtyState::ChangedAll);
 		}
 
 		GraphBuilder.AddCommandListSetupTask([this, ProxiesToUpdate = MoveTemp(ProxiesToUpdate)](FRHICommandList& RHICmdList)

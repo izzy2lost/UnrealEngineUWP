@@ -730,6 +730,7 @@ struct FRayTracingRelevantPrimitive
 	FRHIRayTracingGeometry* RayTracingGeometryRHI = nullptr;
 	uint64 StateHash = 0;
 	int32 PrimitiveIndex = -1;
+	FPersistentPrimitiveIndex PersistentPrimitiveIndex;
 	int8 LODIndex = -1;
 	uint8 InstanceMask = 0;
 	bool bStatic = false;
@@ -886,6 +887,7 @@ static void GatherRayTracingRelevantPrimitives(FScene& Scene, const FViewInfo& V
 
 			FRayTracingRelevantPrimitive Item;
 			Item.PrimitiveIndex = PrimitiveIndex;
+			Item.PersistentPrimitiveIndex = SceneInfo->GetPersistentIndex();
 
 			if (EnumHasAnyFlags(Flags, ERayTracingPrimitiveFlags::StaticMesh))
 			{
@@ -1216,10 +1218,10 @@ bool FDeferredShadingSceneRenderer::GatherRayTracingWorldInstancesForView(FRDGBu
 
 		for (const FRayTracingRelevantPrimitive& RelevantPrimitive : RelevantPrimitiveList.DynamicPrimitives)
 		{
+			const FPersistentPrimitiveIndex PersistentPrimitiveIndex = RelevantPrimitive.PersistentPrimitiveIndex;
 			const int32 PrimitiveIndex = RelevantPrimitive.PrimitiveIndex;
-			FPrimitiveSceneInfo* SceneInfo = Scene->Primitives[PrimitiveIndex];
-
 			FPrimitiveSceneProxy* SceneProxy = Scene->PrimitiveSceneProxies[PrimitiveIndex];
+
 			TempRayTracingInstances.Reset();
 			MaterialGatheringContext.DynamicRayTracingGeometriesToUpdate.Reset();
 
@@ -1233,7 +1235,7 @@ bool FDeferredShadingSceneRenderer::GatherRayTracingWorldInstancesForView(FRDGBu
 					&View,
 					SceneProxy,
 					DynamicRayTracingGeometryUpdate,
-					PrimitiveIndex
+					PersistentPrimitiveIndex.Index
 				);
 			}
 
@@ -1288,7 +1290,7 @@ bool FDeferredShadingSceneRenderer::GatherRayTracingWorldInstancesForView(FRDGBu
 					FRayTracingGeometryInstance RayTracingInstance;
 					RayTracingInstance.GeometryRHI = Geometry->RayTracingGeometryRHI;
 					checkf(RayTracingInstance.GeometryRHI, TEXT("Ray tracing instance must have a valid geometry."));
-					RayTracingInstance.DefaultUserData = PrimitiveIndex;
+					RayTracingInstance.DefaultUserData = PersistentPrimitiveIndex.Index;
 					RayTracingInstance.bApplyLocalBoundsTransform = Instance.bApplyLocalBoundsTransform;
 					RayTracingInstance.LayerIndex = (uint8)(Instance.MaskAndFlags.bAnySegmentsDecal && !bNeedSeparateDecalInstance ? ERayTracingSceneLayer::Decals : ERayTracingSceneLayer::Base);
 					RayTracingInstance.Mask = Instance.MaskAndFlags.Mask;
@@ -1398,6 +1400,7 @@ bool FDeferredShadingSceneRenderer::GatherRayTracingWorldInstancesForView(FRDGBu
 				{
 					if (FVector::Distance(SceneProxy->GetActorPosition(), View.ViewMatrices.GetViewOrigin()) < CVarRayTracingDynamicGeometryLastRenderTimeUpdateDistance.GetValueOnRenderThread())
 					{
+						FPrimitiveSceneInfo* SceneInfo = Scene->Primitives[PrimitiveIndex];
 						// Update LastRenderTime for components so that visibility based ticking (like skeletal meshes) can get updated
 						// We are only doing this for dynamic geometries now
 						SceneInfo->LastRenderTime = CurrentWorldTime;
@@ -1530,6 +1533,7 @@ bool FDeferredShadingSceneRenderer::GatherRayTracingWorldInstancesForView(FRDGBu
 				FPrimitiveSceneInfo* SceneInfo = Scene.Primitives[PrimitiveIndex];
 				FPrimitiveSceneProxy* SceneProxy = Scene.PrimitiveSceneProxies[PrimitiveIndex];
 				ERayTracingPrimitiveFlags Flags = Scene.PrimitiveRayTracingFlags[PrimitiveIndex];
+				const FPersistentPrimitiveIndex PersistentPrimitiveIndex = RelevantPrimitive.PersistentPrimitiveIndex;
 
 				if (EnumHasAnyFlags(Flags, ERayTracingPrimitiveFlags::CacheInstances))
 				{
@@ -1678,7 +1682,7 @@ bool FDeferredShadingSceneRenderer::GatherRayTracingWorldInstancesForView(FRDGBu
 					{
 						// Reusing a previous entry, just append to the instance list.
 
-						bool bReallocated = InstanceBatch.Add(RayTracingScene, SceneInfo->GetInstanceSceneDataOffset(), (uint32)PrimitiveIndex);
+						bool bReallocated = InstanceBatch.Add(RayTracingScene, SceneInfo->GetInstanceSceneDataOffset(), uint32(PersistentPrimitiveIndex.Index));
 
 						check(InstanceBatch.Index != INDEX_NONE);
 						{
@@ -1710,7 +1714,7 @@ bool FDeferredShadingSceneRenderer::GatherRayTracingWorldInstancesForView(FRDGBu
 					{
 						// Starting new instance batch
 
-						InstanceBatch.Add(RayTracingScene, SceneInfo->GetInstanceSceneDataOffset(), (uint32)PrimitiveIndex);
+						InstanceBatch.Add(RayTracingScene, SceneInfo->GetInstanceSceneDataOffset(), uint32(PersistentPrimitiveIndex.Index));
 
 						FRayTracingGeometryInstance RayTracingInstance;
 						RayTracingInstance.GeometryRHI = RelevantPrimitive.RayTracingGeometryRHI;

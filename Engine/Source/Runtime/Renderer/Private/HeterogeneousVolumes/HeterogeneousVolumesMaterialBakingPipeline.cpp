@@ -107,7 +107,7 @@ void ComputeHeterogeneousVolumeBakeMaterial(
 	// Object data
 	const IHeterogeneousVolumeInterface* HeterogeneousVolumeInterface,
 	const FMaterialRenderProxy* MaterialRenderProxy,
-	const int32 PrimitiveId,
+	const FPersistentPrimitiveIndex &PersistentPrimitiveIndex,
 	const FBoxSphereBounds LocalBoxSphereBounds,
 	// Volume data
 	FIntVector VolumeResolution,
@@ -143,7 +143,7 @@ void ComputeHeterogeneousVolumeBakeMaterial(
 		PassParameters->WorldToLocal = LocalToWorld.Inverse();
 		PassParameters->LocalBoundsOrigin = FVector3f(LocalBoxSphereBounds.Origin);
 		PassParameters->LocalBoundsExtent = FVector3f(LocalBoxSphereBounds.BoxExtent);
-		PassParameters->PrimitiveId = PrimitiveId;
+		PassParameters->PrimitiveId = PersistentPrimitiveIndex.Index;
 
 		// Volume data
 		PassParameters->VolumeResolution = VolumeResolution;

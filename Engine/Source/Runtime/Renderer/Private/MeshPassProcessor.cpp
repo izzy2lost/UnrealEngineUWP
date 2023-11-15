@@ -1913,7 +1913,7 @@ FMeshDrawCommandPrimitiveIdInfo FMeshPassProcessor::GetDrawCommandPrimitiveId(
 	const FPrimitiveSceneInfo* RESTRICT PrimitiveSceneInfo,
 	const FMeshBatchElement& BatchElement) const
 {
-	FMeshDrawCommandPrimitiveIdInfo PrimitiveIdInfo = FMeshDrawCommandPrimitiveIdInfo(0, -1);
+	FMeshDrawCommandPrimitiveIdInfo PrimitiveIdInfo = FMeshDrawCommandPrimitiveIdInfo(0, FPersistentPrimitiveIndex { 0 }, -1);
 
 	if (UseGPUScene(GMaxRHIShaderPlatform, FeatureLevel))
 	{
@@ -1921,7 +1921,7 @@ FMeshDrawCommandPrimitiveIdInfo FMeshPassProcessor::GetDrawCommandPrimitiveId(
 		{
 			ensureMsgf(BatchElement.PrimitiveUniformBufferResource == nullptr, TEXT("PrimitiveUniformBufferResource should not be setup when PrimitiveIdMode == PrimID_FromPrimitiveSceneInfo"));
 			check(PrimitiveSceneInfo);
-			PrimitiveIdInfo.DrawPrimitiveId = PrimitiveSceneInfo->GetIndex();
+			PrimitiveIdInfo.DrawPrimitiveId = PrimitiveSceneInfo->GetPersistentIndex().Index;
 			PrimitiveIdInfo.InstanceSceneDataOffset = PrimitiveSceneInfo->GetInstanceSceneDataOffset();
 			PrimitiveIdInfo.bIsDynamicPrimitive = 0U;
 		}

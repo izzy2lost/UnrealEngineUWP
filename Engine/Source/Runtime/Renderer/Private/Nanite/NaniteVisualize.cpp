@@ -451,8 +451,8 @@ void DisplayPicking(const FScene* Scene, const FNanitePickingFeedback& PickingFe
 		return;
 	}
 
-	const int32 PickedPrimitiveIndex = int32(PickingFeedback.PrimitiveId);
-	if (PickedPrimitiveIndex >= Scene->PrimitiveSceneProxies.Num())
+	const int32 PickedPrimitiveIndex = Scene->GetPrimitiveIndex(FPersistentPrimitiveIndex{int32(PickingFeedback.PrimitiveId)});
+	if (!Scene->PrimitiveSceneProxies.IsValidIndex(PickedPrimitiveIndex))
 	{
 		return;
 	}
@@ -469,7 +469,7 @@ void DisplayPicking(const FScene* Scene, const FNanitePickingFeedback& PickingFe
 	Writer.EmptyLine();
 
 	Writer.DrawLine(FText::FromString(FString::Printf(TEXT("Persistent Index: %d"), PickingFeedback.PersistentIndex)), 10, FColor::Yellow);
-	Writer.DrawLine(FText::FromString(FString::Printf(TEXT("Primitive Id: %d"),     PickingFeedback.PrimitiveId)),     10, FColor::Yellow);
+	Writer.DrawLine(FText::FromString(FString::Printf(TEXT("Primitive Id: %d"),     PickedPrimitiveIndex)),     10, FColor::Yellow);
 	Writer.DrawLine(FText::FromString(FString::Printf(TEXT("Instance Id: %d"),      PickingFeedback.InstanceId)),      10, FColor::Yellow);
 	const FInstanceSceneDataBuffers *InstanceSceneDataBuffers = PickedNaniteProxy->GetInstanceSceneDataBuffers();
 	int32 NumInstances = InstanceSceneDataBuffers ? InstanceSceneDataBuffers->GetNumInstances() : 0;

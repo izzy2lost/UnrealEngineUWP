@@ -15,6 +15,7 @@
 #include "PrimitiveDirtyState.h"
 #include "RendererInterface.h"
 #include "ShaderParameterMacros.h"
+#include "MeshPassProcessor.h"
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
 #include "Engine/Scene.h"
@@ -267,20 +268,6 @@ enum class EUpdateStaticMeshFlags : uint8
 	AllCommands			= RasterCommands | RayTracingCommands,
 };
 ENUM_CLASS_FLAGS(EUpdateStaticMeshFlags);
-
-/**
- * Wrapper to make it harder to confuse the packed and persistent index when used as arguments etc.
- */
-struct FPersistentPrimitiveIndex
-{
-	bool IsValid() const { return Index != INDEX_NONE; }
-	int32 Index = INDEX_NONE;
-};
-
-inline bool operator == (FPersistentPrimitiveIndex A, FPersistentPrimitiveIndex B)
-{
-	return A.Index == B.Index;
-}
 
 /**
  * The renderer's internal state for a single UPrimitiveComponent.  This has a one to one mapping with FPrimitiveSceneProxy, which is in the engine module.
@@ -578,6 +565,8 @@ public:
 	{
 		return bCacheShadowAsStatic;
 	}
+
+	inline FMeshDrawCommandPrimitiveIdInfo GetMDCIdInfo() const { return FMeshDrawCommandPrimitiveIdInfo(PackedIndex, PersistentIndex, InstanceSceneDataOffset);}
 
 	void SetCacheShadowAsStatic(bool bStatic);
 

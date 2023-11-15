@@ -260,7 +260,7 @@ struct FBVHNode
  */
 struct FPrimitiveUploadInfoHeader
 {
-	int32 PrimitiveID = INDEX_NONE;
+	uint32 PrimitiveID = INVALID_PRIMITIVE_ID;
 
 	/** Optional */
 	int32 NumInstanceUploads = 0;
@@ -417,7 +417,7 @@ struct FUploadDataSourceAdapterScenePrimitives
 {
 	static constexpr bool bUpdateNaniteMaterialTables = true;
 
-	FUploadDataSourceAdapterScenePrimitives(FScene& InScene, uint32 InSceneFrameNumber, TArray<int32> InPrimitivesToUpdate, TArray<EPrimitiveDirtyState> InPrimitiveDirtyState)
+	FUploadDataSourceAdapterScenePrimitives(FScene& InScene, uint32 InSceneFrameNumber, TArray<FPersistentPrimitiveIndex> InPrimitivesToUpdate, TArray<EPrimitiveDirtyState> InPrimitiveDirtyState)
 		: Scene(InScene)
 		, SceneFrameNumber(InSceneFrameNumber)
 		, PrimitivesToUpdate(MoveTemp(InPrimitivesToUpdate))
@@ -443,28 +443,20 @@ struct FUploadDataSourceAdapterScenePrimitives
 	 */
 	FORCEINLINE void GetPrimitiveInfoHeader(int32 ItemIndex, FPrimitiveUploadInfoHeader& PrimitiveUploadInfo) const
 	{
-		int32 PrimitiveID = PrimitivesToUpdate[ItemIndex];
-		check(PrimitiveID < Scene.PrimitiveSceneProxies.Num());
+		const FPersistentPrimitiveIndex PersistentPrimitiveIndex = PrimitivesToUpdate[ItemIndex];
+		const int32 PrimitiveID = Scene.GetPrimitiveIndex(PersistentPrimitiveIndex);
+		check(Scene.PrimitiveSceneProxies.IsValidIndex(PrimitiveID));
 
 		const FPrimitiveSceneProxy* RESTRICT PrimitiveSceneProxy = Scene.PrimitiveSceneProxies[PrimitiveID];
 		const FPrimitiveSceneInfo* RESTRICT PrimitiveSceneInfo = PrimitiveSceneProxy->GetPrimitiveSceneInfo();
 
-		PrimitiveUploadInfo.PrimitiveID = PrimitiveID;;
+		PrimitiveUploadInfo.PrimitiveID = uint32(PersistentPrimitiveIndex.Index);
 		PrimitiveUploadInfo.LightmapUploadCount = PrimitiveSceneInfo->GetNumLightmapDataEntries();
 		PrimitiveUploadInfo.NaniteSceneProxy = PrimitiveSceneProxy->IsNaniteMesh() ? static_cast<const Nanite::FSceneProxyBase*>(PrimitiveSceneProxy) : nullptr;
 		PrimitiveUploadInfo.PrimitiveSceneInfo = PrimitiveSceneInfo;
 
-		// Prevent these from allocating instance update work
-		if (PrimitiveDirtyState[PrimitiveID] == EPrimitiveDirtyState::ChangedId)
-		{
-			PrimitiveUploadInfo.NumInstanceUploads = 0;
-			PrimitiveUploadInfo.NumInstancePayloadDataUploads = 0;
-		}
-		else 
-		{
-			PrimitiveUploadInfo.NumInstanceUploads = PrimitiveSceneInfo->GetNumInstanceSceneDataEntries();
-			PrimitiveUploadInfo.NumInstancePayloadDataUploads = PrimitiveSceneInfo->GetInstancePayloadDataStride() * PrimitiveUploadInfo.NumInstanceUploads;
-		}
+		PrimitiveUploadInfo.NumInstanceUploads = PrimitiveSceneInfo->GetNumInstanceSceneDataEntries();
+		PrimitiveUploadInfo.NumInstancePayloadDataUploads = PrimitiveSceneInfo->GetInstancePayloadDataStride() * PrimitiveUploadInfo.NumInstanceUploads;
 	}
 
 	FORCEINLINE uint32 PackFlags(FInstanceDataFlags Flags) const
@@ -492,8 +484,9 @@ struct FUploadDataSourceAdapterScenePrimitives
 	 */
 	FORCEINLINE void GetPrimitiveInfo(int32 ItemIndex, FPrimitiveUploadInfo& PrimitiveUploadInfo) const
 	{
-		int32 PrimitiveID = PrimitivesToUpdate[ItemIndex];
-		check(PrimitiveID < Scene.PrimitiveSceneProxies.Num());
+		const FPersistentPrimitiveIndex PersistentPrimitiveIndex = PrimitivesToUpdate[ItemIndex];
+		const int32 PrimitiveID = Scene.GetPrimitiveIndex(PersistentPrimitiveIndex);
+		check(Scene.PrimitiveSceneProxies.IsValidIndex(PrimitiveID));
 
 		GetPrimitiveInfoHeader(ItemIndex, PrimitiveUploadInfo);
 
@@ -505,10 +498,11 @@ struct FUploadDataSourceAdapterScenePrimitives
 
 	FORCEINLINE void GetInstanceInfo(int32 ItemIndex, FInstanceUploadInfo& InstanceUploadInfo) const
 	{
-		const int32 PrimitiveID = PrimitivesToUpdate[ItemIndex];
+		const FPersistentPrimitiveIndex PersistentPrimitiveIndex = PrimitivesToUpdate[ItemIndex];
+		const int32 PrimitiveID = Scene.GetPrimitiveIndex(PersistentPrimitiveIndex);
 
-		check(PrimitiveID < Scene.PrimitiveSceneProxies.Num());
-		check(PrimitiveDirtyState[PrimitiveID] != EPrimitiveDirtyState::ChangedId);
+		check(Scene.PrimitiveSceneProxies.IsValidIndex(PrimitiveID));
+		check(PrimitiveDirtyState[PersistentPrimitiveIndex.Index] != EPrimitiveDirtyState::Removed);
 
 		FPrimitiveSceneProxy* PrimitiveSceneProxy = Scene.PrimitiveSceneProxies[PrimitiveID];
 		const FPrimitiveSceneInfo* PrimitiveSceneInfo = PrimitiveSceneProxy->GetPrimitiveSceneInfo();
@@ -526,7 +520,7 @@ struct FUploadDataSourceAdapterScenePrimitives
 		InstanceUploadInfo.InstancePayloadDataStride = PrimitiveSceneInfo->GetInstancePayloadDataStride();
 
 		InstanceUploadInfo.LastUpdateSceneFrameNumber = SceneFrameNumber;
-		InstanceUploadInfo.PrimitiveID = PrimitiveID;
+		InstanceUploadInfo.PrimitiveID = PersistentPrimitiveIndex.Index;
 		InstanceUploadInfo.PrimitiveToWorld = FLargeWorldRenderScalar::MakeToRelativeWorldMatrix(AbsoluteOrigin.GetTileOffset(), LocalToWorld);
 		
 		// HACK: ignoring IsForceHidden for non-Nanite due to issues that cropped up with water rendering.
@@ -608,8 +602,9 @@ struct FUploadDataSourceAdapterScenePrimitives
 
 	FORCEINLINE bool GetLightMapInfo(int32 ItemIndex, FLightMapUploadInfo &UploadInfo) const
 	{
-		const int32 PrimitiveID = PrimitivesToUpdate[ItemIndex];
-		if (PrimitiveID < Scene.PrimitiveSceneProxies.Num())
+		const FPersistentPrimitiveIndex PersistentPrimitiveIndex = PrimitivesToUpdate[ItemIndex];
+		const int32 PrimitiveID = Scene.GetPrimitiveIndex(PersistentPrimitiveIndex);
+		if (Scene.PrimitiveSceneProxies.IsValidIndex(PrimitiveID))
 		{
 			FPrimitiveSceneProxy* PrimitiveSceneProxy = Scene.PrimitiveSceneProxies[PrimitiveID];
 
@@ -624,7 +619,7 @@ struct FUploadDataSourceAdapterScenePrimitives
 
 	FScene& Scene;
 	const uint32 SceneFrameNumber;
-	TArray<int32> PrimitivesToUpdate;
+	TArray<FPersistentPrimitiveIndex> PrimitivesToUpdate;
 	TArray<EPrimitiveDirtyState> PrimitiveDirtyState;
 };
 
@@ -688,7 +683,7 @@ void FGPUScene::BeginRender(const FScene* InScene, FGPUSceneDynamicContext &GPUS
 		NumScenePrimitives = 0;
 	}
 	CurrentDynamicContext = &GPUSceneDynamicContext;
-	DynamicPrimitivesOffset = NumScenePrimitives;
+	DynamicPrimitivesOffset = Scene.GetMaxPersistentPrimitiveIndex();
 	bInBeginEndBlock = true;
 }
 
@@ -802,11 +797,11 @@ void FGPUScene::UpdateInternal(FRDGBuilder& GraphBuilder, FSceneUniformBuffer& S
 	if ((CVarGPUSceneUploadEveryFrame.GetValueOnRenderThread() != 0) || bUpdateAllPrimitives)
 	{
 		PrimitivesToUpdate.Reset();
-
-		for (int32 Index = 0; Index < Scene.Primitives.Num(); ++Index)
+		ResizeDirtyState(Scene.GetMaxPersistentPrimitiveIndex());
+		for (FPrimitiveSceneInfo *PrimitiveSceneInfo : Scene.Primitives)
 		{
-			PrimitiveDirtyState[Index] |= EPrimitiveDirtyState::ChangedAll;
-			PrimitivesToUpdate.Add(Index);
+			PrimitiveDirtyState[PrimitiveSceneInfo->GetPersistentIndex().Index] |= EPrimitiveDirtyState::ChangedAll;
+			PrimitivesToUpdate.Add(PrimitiveSceneInfo->GetPersistentIndex());
 		}
 
 		// Clear the full instance data range
@@ -822,13 +817,25 @@ void FGPUScene::UpdateInternal(FRDGBuilder& GraphBuilder, FSceneUniformBuffer& S
 	// Strip all out-of-range ID's (left over because of deletes) so we don't need to check later
 	for (int32 Index = 0; Index < PrimitivesToUpdate.Num();)
 	{
-		if (PrimitivesToUpdate[Index] >= Scene.PrimitiveSceneProxies.Num())
+		const FPersistentPrimitiveIndex PersistentPrimitiveIndex = PrimitivesToUpdate[Index];
+		if (!PrimitiveDirtyState.IsValidIndex(PersistentPrimitiveIndex.Index))
 		{
 			PrimitivesToUpdate.RemoveAtSwap(Index, 1, false);
 		}
 		else
 		{
-			++Index;
+			// If it was removed (and not readded)
+			if (EnumHasAnyFlags(PrimitiveDirtyState[PersistentPrimitiveIndex.Index], EPrimitiveDirtyState::Removed) 
+				&& !EnumHasAnyFlags(PrimitiveDirtyState[PersistentPrimitiveIndex.Index], EPrimitiveDirtyState::Added))
+			{
+				PrimitivesToUpdate.RemoveAtSwap(Index, 1, false);
+			}
+			else
+			{
+				// Should only have valid, current, primitives left
+				check(Scene.GetPrimitiveIndex(PersistentPrimitiveIndex) != INDEX_NONE);
+				++Index;
+			}
 		}
 	}
 
@@ -839,24 +846,6 @@ void FGPUScene::UpdateInternal(FRDGBuilder& GraphBuilder, FSceneUniformBuffer& S
 
 	// Run a pass that clears (Sets ID to invalid) any instances that need it
 	AddClearInstancesPass(GraphBuilder, Scene.InstanceCullingOcclusionQueryRenderer);
-
-	// Pull out instances needing only primitive ID update, they still have to go to the general update such that the primitive gets updated (as it moved)
-	{
-		FInstanceGPULoadBalancer IdOnlyUpdateData;
-		for (int32 Index = 0; Index < Adapter.PrimitivesToUpdate.Num(); ++Index)
-		{
-			int32 PrimitiveId = Adapter.PrimitivesToUpdate[Index];
-
-			check(PrimitiveId < Scene.PrimitiveSceneProxies.Num());
-			if (Adapter.PrimitiveDirtyState[PrimitiveId] == EPrimitiveDirtyState::ChangedId)
-			{
-				const FPrimitiveSceneInfo* PrimitiveSceneInfo = Scene.Primitives[PrimitiveId];
-				check(PrimitiveSceneInfo->GetInstanceSceneDataOffset() >= 0 || PrimitiveSceneInfo->GetNumInstanceSceneDataEntries() == 0);
-				IdOnlyUpdateData.Add(PrimitiveSceneInfo->GetInstanceSceneDataOffset(), PrimitiveSceneInfo->GetNumInstanceSceneDataEntries(), PrimitiveId);
-			}
-		}
-		AddUpdatePrimitiveIdsPass(GraphBuilder, IdOnlyUpdateData);
-	}
 
 	// The adapter copies the IDs of primitives to update such that any that are (incorrectly) marked for update after are not lost.
 	PrimitivesToUpdate.Reset();
@@ -922,7 +911,7 @@ void FGPUScene::UpdateBufferState(FRDGBuilder& GraphBuilder, FSceneUniformBuffer
 
 		for (int32 NaniteMeshPassIndex = 0; NaniteMeshPassIndex < ENaniteMeshPass::Num; ++NaniteMeshPassIndex)
 		{
-			Scene.NaniteMaterials[NaniteMeshPassIndex].UpdateBufferState(GraphBuilder, Scene.Primitives.Num());
+			Scene.NaniteMaterials[NaniteMeshPassIndex].UpdateBufferState(GraphBuilder, Scene.GetMaxPersistentPrimitiveIndex());
 		}
 	}
 	
@@ -1108,7 +1097,7 @@ void FGPUScene::UploadGeneral(FRDGBuilder& GraphBuilder, FScene& InScene, FRDGEx
 	{
 		for (int32 NaniteMeshPassIndex = 0; NaniteMeshPassIndex < ENaniteMeshPass::Num; ++NaniteMeshPassIndex)
 		{
-			TaskContext.NaniteMaterialUploaders[NaniteMeshPassIndex] = Scene.NaniteMaterials[NaniteMeshPassIndex].Begin(GraphBuilder, Scene.Primitives.Num(), NumPrimitiveDataUploads);
+			TaskContext.NaniteMaterialUploaders[NaniteMeshPassIndex] = Scene.NaniteMaterials[NaniteMeshPassIndex].Begin(GraphBuilder, Scene.GetMaxPersistentPrimitiveIndex(), NumPrimitiveDataUploads);
 		}
 
 		TaskContext.bUseNaniteMaterialUploaders = true;
@@ -1600,7 +1589,7 @@ void FGPUScene::UploadDynamicPrimitiveShaderDataForViewInternal(FRDGBuilder& Gra
 	SCOPED_NAMED_EVENT(FGPUScene_UploadDynamicPrimitiveShaderDataForView, FColor::Green);
 
 	ensure(bInBeginEndBlock);
-	ensure(DynamicPrimitivesOffset >= Scene.Primitives.Num());
+	ensure(DynamicPrimitivesOffset >= Scene.GetMaxPersistentPrimitiveIndex());
 
 	FGPUScenePrimitiveCollector& Collector = View.DynamicPrimitiveCollector;
 
@@ -1714,7 +1703,7 @@ void FGPUScene::UploadDynamicPrimitiveShaderDataForViewInternal(FRDGBuilder& Gra
 			for (uint32 PrimitiveIndex : ImmediateWrites)
 			{
 				const FGPUScenePrimitiveCollector::FPrimitiveData& PrimData = Collector.UploadData->PrimitiveData[PrimitiveIndex];
-				Params.PrimitiveId = PrimitiveIdStart + PrimitiveIndex;
+				Params.PersistentPrimitiveId = PrimitiveIdStart + PrimitiveIndex;
 				Params.InstanceSceneDataOffset = InstanceIdStart + PrimData.LocalInstanceSceneDataOffset;
 
 				PrimData.SourceData.DataWriterGPU.Execute(GraphBuilder, Params);
@@ -1756,21 +1745,29 @@ bool FGPUScene::FillSceneUniformBuffer(FRDGBuilder& GraphBuilder, FSceneUniformB
 	}
 }
 
-void FGPUScene::AddPrimitiveToUpdate(int32 PrimitiveId, EPrimitiveDirtyState DirtyState)
+void FGPUScene::AddPrimitiveToUpdate(FPersistentPrimitiveIndex PersistentPrimitiveIndex, EPrimitiveDirtyState DirtyState)
 {
 	LLM_SCOPE_BYTAG(GPUScene);
 
-	if (bIsEnabled)
+	if (bIsEnabled && PersistentPrimitiveIndex.IsValid())
 	{
-		ResizeDirtyState(PrimitiveId + 1);
+		ResizeDirtyState(PersistentPrimitiveIndex.Index + 1);
 
 		// Make sure we aren't updating same primitive multiple times.
-		if (PrimitiveDirtyState[PrimitiveId] == EPrimitiveDirtyState::None)
+		if (PrimitiveDirtyState[PersistentPrimitiveIndex.Index] == EPrimitiveDirtyState::None)
 		{
-			PrimitivesToUpdate.Add(PrimitiveId);
+			PrimitivesToUpdate.Add(PersistentPrimitiveIndex);
 		}
-		
-		PrimitiveDirtyState[PrimitiveId] |= DirtyState;
+
+		EPrimitiveDirtyState NewState = PrimitiveDirtyState[PersistentPrimitiveIndex.Index] | DirtyState;
+
+		// When a primitive is removed, we clear pending "added" state since it is no longer being added
+		// Thus if the state is both added & removed, we know this is a current primitive, where the slot has been reused.
+		if (EnumHasAnyFlags(DirtyState, EPrimitiveDirtyState::Removed))
+		{
+			EnumRemoveFlags(NewState, EPrimitiveDirtyState::Added);
+		}
+		PrimitiveDirtyState[PersistentPrimitiveIndex.Index] = NewState;
 	}
 }
 
@@ -2108,7 +2105,7 @@ bool FGPUScene::ExecuteDeferredGPUWritePass(FRDGBuilder& GraphBuilder, TArray<FV
 		checkf(View != nullptr, TEXT("Deferred GPU Write found with no matching view in the view family"));
 		
 		Params.View = View;
-		Params.PrimitiveId = DeferredWrite.PrimitiveId;
+		Params.PersistentPrimitiveId = DeferredWrite.PrimitiveId;
 		Params.InstanceSceneDataOffset = DeferredWrite.InstanceSceneDataOffset;
 
 		DeferredWrite.DataWriterGPU.Execute(GraphBuilder, Params);
@@ -2136,6 +2133,34 @@ bool FGPUScene::HasPendingGPUWrite(uint32 PrimitiveId) const
 	return false;
 }
 
+void FGPUScene::OnPreSceneUpdate(FRDGBuilder& GraphBuilder, const FScenePreUpdateChangeSet& ScenePreUpdateData)
+{
+	for (FPersistentPrimitiveIndex PersistentPrimitiveIndex  : ScenePreUpdateData.RemovedPrimitiveIds)
+	{
+		AddPrimitiveToUpdate(PersistentPrimitiveIndex, EPrimitiveDirtyState::Removed);
+	}
+	for (FPersistentPrimitiveIndex PersistentPrimitiveIndex  : ScenePreUpdateData.UpdatedPrimitiveIds)
+	{
+		AddPrimitiveToUpdate(PersistentPrimitiveIndex, EPrimitiveDirtyState::ChangedTransform);
+	}
+}
+
+void FGPUScene::OnPostSceneUpdate(FRDGBuilder& GraphBuilder, const FScenePostUpdateChangeSet& ScenePostUpdateData)
+{
+	for (FPersistentPrimitiveIndex PersistentPrimitiveIndex  : ScenePostUpdateData.AddedPrimitiveIds)
+	{
+		AddPrimitiveToUpdate(PersistentPrimitiveIndex, EPrimitiveDirtyState::AddedMask);
+	}
+}
+
+SIZE_T FGPUScene::GetAllocatedSize() const
+{
+	return PrimitivesToUpdate.GetAllocatedSize()
+		+ InstanceRangesToClear.GetAllocatedSize()
+		+ PrimitiveDirtyState.GetAllocatedSize()
+		+ DynamicPrimitiveInstancesToInvalidate.GetAllocatedSize()
+		+ DeferredGPUWritePassDelegates[uint32(EGPUSceneGPUWritePass::PostOpaqueRendering)].GetAllocatedSize();
+}
 
 FGPUSceneDynamicContext::~FGPUSceneDynamicContext()
 {

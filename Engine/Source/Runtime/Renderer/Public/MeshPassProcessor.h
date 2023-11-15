@@ -1405,22 +1405,37 @@ ENUM_CLASS_FLAGS(EFVisibleMeshDrawCommandFlags);
 static_assert(uint32(EFVisibleMeshDrawCommandFlags::All) < (1U << uint32(EFVisibleMeshDrawCommandFlags::NumBits)), "EFVisibleMeshDrawCommandFlags::NumBits too small to represent all flags in EFVisibleMeshDrawCommandFlags.");
 
 /**
+ * Wrapper to make it harder to confuse the packed and persistent index when used as arguments etc.
+ */
+struct FPersistentPrimitiveIndex
+{
+	bool IsValid() const { return Index != INDEX_NONE; }
+	int32 Index = INDEX_NONE;
+
+	FORCEINLINE bool operator == (FPersistentPrimitiveIndex B) const
+	{
+		return Index == B.Index;
+	}
+};
+
+/**
  * Container for primtive ID info that needs to be passed around, in the future will likely be condensed to just the instance ID.
  */
 struct FMeshDrawCommandPrimitiveIdInfo
 {
 	FORCEINLINE FMeshDrawCommandPrimitiveIdInfo() {};
 
-	// Use this ctor when DrawPrimitiveId == ScenePrimitiveId (i.e., for scene primitives)
-	FORCEINLINE FMeshDrawCommandPrimitiveIdInfo(int32 InScenePrimitiveId, int32 InInstanceSceneDataOffset) :
-		DrawPrimitiveId(InScenePrimitiveId),
+	// Use this ctor for scene primitves
+	FORCEINLINE FMeshDrawCommandPrimitiveIdInfo(int32 InScenePrimitiveId, FPersistentPrimitiveIndex InDrawPrimitiveId, int32 InInstanceSceneDataOffset) :
+		DrawPrimitiveId(InDrawPrimitiveId.Index),
 		ScenePrimitiveId(InScenePrimitiveId),
 		InstanceSceneDataOffset(InInstanceSceneDataOffset),
 		bIsDynamicPrimitive(0)
 	{
 	}
 
-	// Use this ctor when DrawPrimitiveId may be != ScenePrimitiveId (i.e., for dynamic primitives like editor widgets)
+	UE_DEPRECATED(5.4, "Use the above Ctor instead.")
+	// Use this ctor when for dynamic primitives like editor widgets
 	FORCEINLINE FMeshDrawCommandPrimitiveIdInfo(int32 InDrawPrimitiveId, int32 InScenePrimitiveId, int32 InInstanceSceneDataOffset) :
 		DrawPrimitiveId(InDrawPrimitiveId),
 		ScenePrimitiveId(InScenePrimitiveId),

@@ -950,7 +950,7 @@ void LumenScene::AddCardCaptureDraws(
 					LODToRender = FMath::Max(LODToRender, CurFirstLODIdx);
 				}
 
-				FMeshDrawCommandPrimitiveIdInfo IdInfo(PrimitiveSceneInfo->GetIndex(), PrimitiveSceneInfo->GetInstanceSceneDataOffset());
+				const FMeshDrawCommandPrimitiveIdInfo IdInfo = PrimitiveSceneInfo->GetMDCIdInfo();
 
 				for (int32 MeshIndex = 0; MeshIndex < PrimitiveSceneInfo->StaticMeshRelevances.Num(); MeshIndex++)
 				{

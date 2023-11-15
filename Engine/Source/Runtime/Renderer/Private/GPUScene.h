@@ -23,6 +23,8 @@ class FGPUScene;
 class FGPUSceneDynamicContext;
 class FViewUniformShaderParameters;
 class FInstanceCullingOcclusionQueryRenderer;
+class FScenePreUpdateChangeSet;
+class FScenePostUpdateChangeSet;
 class FPrimitiveSceneProxy;
 class IVisibilityTaskData;
 
@@ -248,52 +250,15 @@ public:
 	 * Queue the given primitive for upload to GPU at next call to Update.
 	 * May be called multiple times, dirty-flags are cumulative.
 	 */
-	void RENDERER_API AddPrimitiveToUpdate(int32 PrimitiveId, EPrimitiveDirtyState DirtyState = EPrimitiveDirtyState::ChangedAll);
+	void RENDERER_API AddPrimitiveToUpdate(FPersistentPrimitiveIndex PersistentPrimitiveIndex, EPrimitiveDirtyState DirtyState = EPrimitiveDirtyState::ChangedAll);
 
-	/**
-	 * Let GPU-Scene know that two primitive IDs swapped location, such that dirty-state can be tracked.
-	 * Marks both as having changed ID. 
-	 */
-	FORCEINLINE void RecordPrimitiveIdSwap(int32 PrimitiveIdA, int32 PrimitiveIdB)
-	{
-		if (IsEnabled())
-		{
-			// We should never call this on a non-existent primitive, so no need to resize
-			checkSlow(PrimitiveIdA < PrimitiveDirtyState.Num());
-			checkSlow(PrimitiveIdB < PrimitiveDirtyState.Num());
-
-			if (PrimitiveDirtyState[PrimitiveIdA] == EPrimitiveDirtyState::None)
-			{
-				PrimitivesToUpdate.Add(PrimitiveIdA);
-			}
-			PrimitiveDirtyState[PrimitiveIdA] |= EPrimitiveDirtyState::ChangedId;
-			if (PrimitiveDirtyState[PrimitiveIdB] == EPrimitiveDirtyState::None)
-			{
-				PrimitivesToUpdate.Add(PrimitiveIdB);
-			}
-			PrimitiveDirtyState[PrimitiveIdB] |= EPrimitiveDirtyState::ChangedId;
-
-			Swap(PrimitiveDirtyState[PrimitiveIdA], PrimitiveDirtyState[PrimitiveIdB]);
-		}
-	}
-
-	FORCEINLINE EPrimitiveDirtyState GetPrimitiveDirtyState(int32 PrimitiveId) const 
+	FORCEINLINE EPrimitiveDirtyState GetPrimitiveDirtyState(FPersistentPrimitiveIndex PersistentPrimitiveIndex) const 
 	{ 
-		if (PrimitiveId >= PrimitiveDirtyState.Num())
+		if (!PrimitiveDirtyState.IsValidIndex(PersistentPrimitiveIndex.Index))
 		{
 			return EPrimitiveDirtyState::None;
 		}
-		return PrimitiveDirtyState[PrimitiveId]; 
-	}
-
-	FORCEINLINE void ResizeDirtyState(int32 NewSizeIn)
-	{
-		if (IsEnabled() && NewSizeIn > PrimitiveDirtyState.Num())
-		{
-			const int32 NewSize = Align(NewSizeIn, 64);
-			static_assert(static_cast<uint32>(EPrimitiveDirtyState::None) == 0U, "Using AddZeroed to ensure efficent add, requires None == 0");
-			PrimitiveDirtyState.AddZeroed(NewSize - PrimitiveDirtyState.Num());
-		}
+		return PrimitiveDirtyState[PersistentPrimitiveIndex.Index]; 
 	}
 
 	/**
@@ -338,10 +303,17 @@ public:
 	/** Returns whether or not a GPU Write is pending for the specified primitive */
 	bool HasPendingGPUWrite(uint32 PrimitiveId) const;
 
-	bool bUpdateAllPrimitives;
+	/**
+	 * Called by FScene::UpdateAllPrimimitiveSceneInfos before the scene is udated.
+	 */
+	void OnPreSceneUpdate(FRDGBuilder& GraphBuilder, const FScenePreUpdateChangeSet& ScenePreUpdateData);
 
-	/** Indices of primitives that need to be updated in GPU Scene */
-	TArray<int32>                  PrimitivesToUpdate;
+	/**
+	 * Called by FScene::UpdateAllPrimimitiveSceneInfos after the scene is udated.
+	 */
+	void OnPostSceneUpdate(FRDGBuilder& GraphBuilder, const FScenePostUpdateChangeSet& ScenePostUpdateData);
+
+	bool bUpdateAllPrimitives;
 
 	/** GPU mirror of Primitives */
 	TRefCountPtr<FRDGPooledBuffer> PrimitiveBuffer;
@@ -369,9 +341,25 @@ public:
 
 	inline const FScene &GetScene() const { return Scene; }
 
+	SIZE_T GetAllocatedSize() const;
+
 private:
 	FScene &Scene;
 	FSpanAllocator		           InstanceSceneDataAllocator;
+
+	FORCEINLINE void ResizeDirtyState(int32 NewSizeIn)
+	{
+		if (IsEnabled() && NewSizeIn > PrimitiveDirtyState.Num())
+		{
+			const int32 NewSize = Align(NewSizeIn, 64);
+			static_assert(static_cast<uint32>(EPrimitiveDirtyState::None) == 0U, "Using AddZeroed to ensure efficent add, requires None == 0");
+			PrimitiveDirtyState.AddZeroed(NewSize - PrimitiveDirtyState.Num());
+		}
+	}
+
+	/** Indices of primitives that need to be updated in GPU Scene */
+	TArray<FPersistentPrimitiveIndex> PrimitivesToUpdate;
+
 	FGPUSceneBufferState BufferState;
 	FGPUSceneResourceParameters ShaderParameters;
 
