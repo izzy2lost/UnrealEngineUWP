@@ -155,6 +155,7 @@ bool UWorldPartitionRuntimeHashSet::GenerateStreaming(UWorldPartitionStreamingPo
 	PersistentPartitionDesc.Name = NAME_PersistentLevel;
 	PersistentPartitionDesc.MainLayer = NewObject<URuntimePartition>(this, URuntimePartitionPersistent::StaticClass(), NAME_None);
 	PersistentPartitionDesc.MainLayer->Name = NAME_PersistentLevel;
+	PersistentPartitionDesc.MainLayer->LoadingRange = 0;
 
 	ON_SCOPE_EXIT
 	{
