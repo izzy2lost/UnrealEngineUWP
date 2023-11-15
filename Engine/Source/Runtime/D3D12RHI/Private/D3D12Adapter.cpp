@@ -999,83 +999,32 @@ void FD3D12Adapter::InitializeDevices()
 			}
 #endif
 
-			const bool bRenderDocPresent = D3D12RHI_IsRenderDocPresent(RootDevice);
-
+#if D3D12_MAX_FEATURE_OPTIONS >= 19
+			D3D12_FEATURE_DATA_D3D12_OPTIONS19 Features19{};
+			if (SUCCEEDED(RootDevice->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS19, &Features19, sizeof(Features19))))
+			{
+				MaxNonSamplerDescriptors = Features19.MaxViewDescriptorHeapSize;
+				MaxSamplerDescriptors = Features19.MaxSamplerDescriptorHeapSizeWithStaticSamplers;
+			}
+			else
+#endif
 			if (GetResourceBindingTier() == D3D12_RESOURCE_BINDING_TIER_1)
 			{
 				MaxNonSamplerDescriptors = D3D12_MAX_SHADER_VISIBLE_DESCRIPTOR_HEAP_SIZE_TIER_1;
+				MaxSamplerDescriptors = D3D12_MAX_SHADER_VISIBLE_SAMPLER_HEAP_SIZE;
 			}
 			else if (GetResourceBindingTier() == D3D12_RESOURCE_BINDING_TIER_2)
 			{
 				MaxNonSamplerDescriptors = D3D12_MAX_SHADER_VISIBLE_DESCRIPTOR_HEAP_SIZE_TIER_2;
-			}
-			else if (GetResourceBindingTier() == D3D12_RESOURCE_BINDING_TIER_3)
-			{
-				// From: https://microsoft.github.io/DirectX-Specs/d3d/ResourceBinding.html#levels-of-hardware-support
-				//   For Tier 3, the max # descriptors is listed as 1000000+. The + indicates that the runtime allows applications
-				//   to try creating descriptor heaps with more than 1000000 descriptors, leaving the driver to decide whether 
-				//   it can support the request or fail the call. There is no cap exposed indicating how large of a descriptor 
-				//   heap the hardware could support – applications can just try what they want and fall back to 1000000 if 
-				//   larger doesn’t work.
-				// RenderDoc seems to give up on subsequent API calls if one of them return E_OUTOFMEMORY, so we don't use this
-				// detection method if the RD plug-in is loaded.
-				if (!bRenderDocPresent)
-				{
-#if D3D12_SUPPORTS_INFO_QUEUE
-					// Temporarily silence CREATE_DESCRIPTOR_HEAP_LARGE_NUM_DESCRIPTORS since we know we might break on it
-					TRefCountPtr<ID3D12InfoQueue> InfoQueue;
-					RootDevice->QueryInterface(IID_PPV_ARGS(InfoQueue.GetInitReference()));
-					if (InfoQueue)
-					{
-						D3D12_MESSAGE_ID MessageId = D3D12_MESSAGE_ID_CREATE_DESCRIPTOR_HEAP_LARGE_NUM_DESCRIPTORS;
-
-						D3D12_INFO_QUEUE_FILTER NewFilter{};
-						NewFilter.DenyList.NumIDs = 1;
-						NewFilter.DenyList.pIDList = &MessageId;
-
-						InfoQueue->PushStorageFilter(&NewFilter);
-					}
-#endif
-
-					// create an overly large heap and test for failure
-					D3D12_DESCRIPTOR_HEAP_DESC TempHeapDesc{};
-					TempHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-					TempHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-					TempHeapDesc.NodeMask = FRHIGPUMask::All().GetNative();
-					TempHeapDesc.NumDescriptors = 2 * D3D12_MAX_SHADER_VISIBLE_DESCRIPTOR_HEAP_SIZE_TIER_2;
-
-					TRefCountPtr<ID3D12DescriptorHeap> TempHeap;
-					HRESULT hr = RootDevice->CreateDescriptorHeap(&TempHeapDesc, IID_PPV_ARGS(TempHeap.GetInitReference()));
-					if (SUCCEEDED(hr))
-					{
-						MaxNonSamplerDescriptors = -1;
-					}
-					else
-					{
-						MaxNonSamplerDescriptors = D3D12_MAX_SHADER_VISIBLE_DESCRIPTOR_HEAP_SIZE_TIER_2;
-					}
-
-#if D3D12_SUPPORTS_INFO_QUEUE
-					// Restore the info queue to its old state to ensure we get CREATE_DESCRIPTOR_HEAP_LARGE_NUM_DESCRIPTORS.
-					if (InfoQueue)
-					{
-						InfoQueue->PopStorageFilter();
-					}
-#endif
-				}
-				else
-				{
-					MaxNonSamplerDescriptors = D3D12_MAX_SHADER_VISIBLE_DESCRIPTOR_HEAP_SIZE_TIER_2;
-				}
+				MaxSamplerDescriptors = D3D12_MAX_SHADER_VISIBLE_SAMPLER_HEAP_SIZE;
 			}
 			else
 			{
-				checkNoEntry();
-
 				MaxNonSamplerDescriptors = D3D12_MAX_SHADER_VISIBLE_DESCRIPTOR_HEAP_SIZE_TIER_2;
+				MaxSamplerDescriptors = D3D12_MAX_SHADER_VISIBLE_SAMPLER_HEAP_SIZE;
 			}
 
-			MaxSamplerDescriptors = D3D12_MAX_SHADER_VISIBLE_SAMPLER_HEAP_SIZE;
+			const bool bRenderDocPresent = D3D12RHI_IsRenderDocPresent(RootDevice);
 
 			// From: https://microsoft.github.io/DirectX-Specs/d3d/HLSL_SM_6_6_DynamicResources.html
 			//     ResourceDescriptorHeap/SamplerDescriptorHeap must be supported on devices that support both D3D12_RESOURCE_BINDING_TIER_3 and D3D_SHADER_MODEL_6_6
