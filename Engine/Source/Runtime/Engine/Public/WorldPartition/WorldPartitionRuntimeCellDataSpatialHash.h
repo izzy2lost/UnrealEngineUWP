@@ -53,4 +53,10 @@ private:
 
 	// Intersecting streaming source shapes
 	mutable TArray<FSphericalSector> CachedInstersectingShapes;
+
+	// 2D version of CachedMinBlockOnSlowStreamingRatio
+	mutable double CachedMinBlockOnSlowStreamingRatio2D;
+
+	// 2D version of CachedMinSquareDistanceToBlockingSource
+	mutable double CachedMinSquareDistanceToBlockingSource2D;
 };
