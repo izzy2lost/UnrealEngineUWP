@@ -77,13 +77,14 @@ void ShadeLightSamplesCS(
 					Print(Context, NumShadingTilesInCell);
 					Newline(Context);
 					Print(Context, TEXT("ShadowMaskTiles: "));
-					Print(Context, MaxShadowMaskTiles);
 					Print(Context, ShadowMaskTileAllocator[0]);
+					Print(Context, MaxShadowMaskTiles);
+					Print(Context, ShadowMaskTileAllocator[0] / float(MaxShadowMaskTiles));
 					Print(Context, float(ShadowMaskTileAllocator[0] * 8 * 8) / (View.ViewSizeAndInvSize.x * View.ViewSizeAndInvSize.y));
 					Newline(Context);
-					Print(Context, TEXT("ShadingTiles: "));
-					Print(Context, MaxShadingTiles);
+					Print(Context, TEXT("ShadingTiles:    "));
 					Print(Context, ShadingTileAllocator[0]);
+					Print(Context, MaxShadingTiles);
 					Print(Context, ShadingTileAllocator[0] / float(MaxShadingTiles));
 					Newline(Context);
 					Print(Context, TEXT("LightId   | Shadow    | Irradiance"));

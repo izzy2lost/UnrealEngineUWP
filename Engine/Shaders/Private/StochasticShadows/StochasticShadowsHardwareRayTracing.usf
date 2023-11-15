@@ -43,7 +43,7 @@ RAY_TRACING_ENTRY_RAYGEN_OR_INLINE(HardwareRayTraceLightSamples)
 	uint TraceTexelIndex = GroupIndex * 64 + ThreadIndex;
 
 #if DEBUG_MODE
-	FShaderPrintContext Context = InitShaderPrintContext(true, TraceTexelIndex == 0 ? float2(0.55, 0.3) : float2(0.55, 0.35));
+	FShaderPrintContext Context = InitShaderPrintContext(true, TraceTexelIndex == 0 ? float2(0.55, 0.4) : float2(0.55, 0.45));
 	if (TraceTexelIndex == 0)
 	{
 		Print(Context, TEXT("HardwareRayTraceLightSamples"));
