@@ -43,13 +43,15 @@ public:
 			const FName& InName, const
 			FString& InLocalizedName,
 			const TArray<XrPath>& InSubactionPaths,
-			const TObjectPtr<const UInputAction>& InObject);
+			const TObjectPtr<const UInputAction>& InObject,
+			FOpenXRHMD* OpenXRHMD = nullptr);
 
 		FOpenXRAction(XrActionSet InActionSet,
 			XrActionType InActionType,
 			const FName& InName,
 			const FString& InLocalizedName,
-			const TArray<XrPath>& InSubactionPaths);
+			const TArray<XrPath>& InSubactionPaths,
+			FOpenXRHMD* OpenXRHMD = nullptr);
 	};
 
 	struct FOpenXRActionSet
@@ -64,12 +66,14 @@ public:
 			const FName& InName,
 			const FString& InLocalizedName,
 			uint32 InPriority,
-			const TObjectPtr<const UInputMappingContext>& InObject);
+			const TObjectPtr<const UInputMappingContext>& InObject,
+			FOpenXRHMD* OpenXRHMD = nullptr);
 
 		FOpenXRActionSet(XrInstance InInstance,
 			const FName& InName,
 			const FString& InLocalizedName,
-			uint32 InPriority);
+			uint32 InPriority,
+			FOpenXRHMD* OpenXRHMD = nullptr);
 	};
 
 	struct FOpenXRController

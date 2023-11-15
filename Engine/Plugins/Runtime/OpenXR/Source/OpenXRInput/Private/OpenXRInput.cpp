@@ -96,15 +96,15 @@ void FOpenXRInputPlugin::StartupModule()
 
 FOpenXRInputPlugin::FOpenXRAction::FOpenXRAction(XrActionSet InActionSet,
 	XrActionType InActionType, const FName& InName, const FString& InLocalizedName,
-	const TArray<XrPath>& InSubactionPaths, const TObjectPtr<const UInputAction>& InObject)
-	: FOpenXRAction(InActionSet, InActionType, InName, InLocalizedName, InSubactionPaths)
+	const TArray<XrPath>& InSubactionPaths, const TObjectPtr<const UInputAction>& InObject, FOpenXRHMD* OpenXRHMD)
+	: FOpenXRAction(InActionSet, InActionType, InName, InLocalizedName, InSubactionPaths, OpenXRHMD)
 {
 	Object = InObject;
 }
 
 FOpenXRInputPlugin::FOpenXRAction::FOpenXRAction(XrActionSet InActionSet,
 	XrActionType InActionType, const FName& InName, const FString& InLocalizedName,
-	const TArray<XrPath>& InSubactionPaths)
+	const TArray<XrPath>& InSubactionPaths, FOpenXRHMD* OpenXRHMD)
 	: Set(InActionSet)
 	, Type(InActionType)
 	, Name(InName)
@@ -130,19 +130,35 @@ FOpenXRInputPlugin::FOpenXRAction::FOpenXRAction(XrActionSet InActionSet,
 		FCStringAnsi::Strcpy(Info.localizedActionName, XR_MAX_LOCALIZED_ACTION_NAME_SIZE, ActionName);
 	}
 
+	if (OpenXRHMD)
+	{
+		for (IOpenXRExtensionPlugin* Plugin : OpenXRHMD->GetExtensionPlugins())
+		{
+			Info.next = Plugin->OnCreateAction(Info, Info.next);
+		}
+	}
+
 	XR_ENSURE(xrCreateAction(Set, &Info, &Handle));
+
+	if (OpenXRHMD)
+	{
+		for (IOpenXRExtensionPlugin* Plugin : OpenXRHMD->GetExtensionPlugins())
+		{
+			Plugin->PostCreateAction(Handle);
+		}
+	}
 }
 
 FOpenXRInputPlugin::FOpenXRActionSet::FOpenXRActionSet(XrInstance InInstance,
 	const FName& InName, const FString& InLocalizedName, uint32 InPriority,
-	const TObjectPtr<const UInputMappingContext>& InObject)
-	: FOpenXRActionSet(InInstance, InName, InLocalizedName, InPriority)
+	const TObjectPtr<const UInputMappingContext>& InObject, FOpenXRHMD* OpenXRHMD)
+	: FOpenXRActionSet(InInstance, InName, InLocalizedName, InPriority, OpenXRHMD)
 {
 	Object = InObject;
 }
 
 FOpenXRInputPlugin::FOpenXRActionSet::FOpenXRActionSet(XrInstance InInstance,
-	const FName& InName, const FString& InLocalizedName, uint32 InPriority)
+	const FName& InName, const FString& InLocalizedName, uint32 InPriority, FOpenXRHMD* OpenXRHMD)
 	: Handle(XR_NULL_HANDLE)
 	, Name(InName)
 	, LocalizedName(InLocalizedName)
@@ -165,7 +181,25 @@ FOpenXRInputPlugin::FOpenXRActionSet::FOpenXRActionSet(XrInstance InInstance,
 		FCStringAnsi::Strcpy(Info.localizedActionSetName, XR_MAX_LOCALIZED_ACTION_SET_NAME_SIZE, ActionName);
 	}
 	Info.priority = InPriority;
+
+	if (OpenXRHMD)
+	{
+		for (IOpenXRExtensionPlugin* Plugin : OpenXRHMD->GetExtensionPlugins())
+		{
+			Info.next = Plugin->OnCreateActionSet(Info, Info.next);
+		}
+	}
+
 	XR_ENSURE(xrCreateActionSet(InInstance, &Info, &Handle));
+
+	if (OpenXRHMD)
+	{
+		for (IOpenXRExtensionPlugin* Plugin : OpenXRHMD->GetExtensionPlugins())
+		{
+			Plugin->PostCreateActionSet(Handle);
+		}
+	}
+
 }
 
 FOpenXRInputPlugin::FOpenXRController::FOpenXRController(XrActionSet InActionSet, XrPath InUserPath, const char* InName)
@@ -466,6 +500,11 @@ bool FOpenXRInputPlugin::FOpenXRInput::BuildActions(XrSession Session)
 			InteractionProfile.countSuggestedBindings = Profile.Bindings.Num();
 			InteractionProfile.suggestedBindings = Profile.Bindings.GetData();
 
+			for (IOpenXRExtensionPlugin* Plugin : OpenXRHMD->GetExtensionPlugins())
+			{
+				InteractionProfile.next = Plugin->OnSuggestBindings(Profile.Path, InteractionProfile.next);
+			}
+
 			XR_ENSURE(xrSuggestInteractionProfileBindings(Instance, &InteractionProfile));
 		}
 	}
@@ -505,6 +544,12 @@ bool FOpenXRInputPlugin::FOpenXRInput::BuildActions(XrSession Session)
 	SessionActionSetsAttachInfo.next = nullptr;
 	SessionActionSetsAttachInfo.countActionSets = AttachArray.Num();
 	SessionActionSetsAttachInfo.actionSets = AttachArray.GetData();
+
+	for (IOpenXRExtensionPlugin* Plugin : OpenXRHMD->GetExtensionPlugins())
+	{
+		SessionActionSetsAttachInfo.next = Plugin->OnActionSetAttach(SessionActionSetsAttachInfo, SessionActionSetsAttachInfo.next);
+	}
+
 	bActionsAttached = XR_ENSURE(xrAttachSessionActionSets(Session, &SessionActionSetsAttachInfo));
 
 	return bActionsAttached;

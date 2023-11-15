@@ -391,8 +391,42 @@ public:
 		return InNext;
 	}
 
+	// FOpenXRInputPlugin::FOpenXRInput::BuildActions
+	virtual const void* OnSuggestBindings(XrPath InteractionProfile, const void* InNext)
+	{
+		return InNext;
+	}
+
 	// FOpenXRRenderBridge::Present, RHI thread
 	virtual const void* OnEndFrame(XrSession InSession, XrTime DisplayTime, const void* InNext)
+	{
+		return InNext;
+	}
+
+	// FOpenXRInputPlugin::FOpenXRActionSet::FOpenXRActionSet
+	virtual const void* OnCreateActionSet(XrActionSetCreateInfo InCreateInfo, const void* InNext)
+	{
+		return InNext;
+	}
+
+	// FOpenXRInputPlugin::FOpenXRActionSet::FOpenXRActionSet
+	void PostCreateActionSet(XrActionSet InActionSet)
+	{
+	}
+
+	// FOpenXRInputPlugin::FOpenXRAction::FOpenXRAction
+	virtual const void* OnCreateAction(XrActionCreateInfo InCreateInfo, const void* InNext)
+	{
+		return InNext;
+	}
+
+	// FOpenXRInputPlugin::FOpenXRAction::FOpenXRAction
+	void PostCreateAction(XrAction InAction)
+	{
+	}
+
+	// FOpenXRInputPlugin::FOpenXRInput::BuildActions
+	virtual const void* OnActionSetAttach(XrSessionActionSetsAttachInfo InAttachInfo, const void* InNext)
 	{
 		return InNext;
 	}
