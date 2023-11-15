@@ -1615,8 +1615,7 @@ void UWidgetComponent::PostEditChangeProperty(FPropertyChangedEvent& PropertyCha
 			UpdateBodySetup(true);
 			RecreatePhysicsState();
 		}
-		else if (PropertyName == BlendModeName
-			|| PropertyName == IsTwoSidedName
+		else if (PropertyName == IsTwoSidedName
 			|| PropertyName == BlendModeName
 			|| PropertyName == BackgroundColorName
 			|| PropertyName == TintColorAndOpacityName
