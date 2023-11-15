@@ -237,6 +237,25 @@ namespace GLTF
 		return GetAttributeAccessor(EMeshAttributeType::COLOR_0).Count;
 	}
 
+
+	const TArray<FPrimitive::EMode> FPrimitive::SupportedModes = { FPrimitive::EMode::Triangles, FPrimitive::EMode::TriangleStrip, FPrimitive::EMode::TriangleFan };
+	FString FPrimitive::ToString(const FPrimitive::EMode& Mode)
+	{
+		switch (Mode)
+		{
+			case EMode::Points:         return TEXT("POINTS");
+			case EMode::Lines:          return TEXT("LINES");
+			case EMode::LineLoop:       return TEXT("LINE_LOOP");
+			case EMode::LineStrip:      return TEXT("LINE_STRIP");
+			case EMode::Triangles:      return TEXT("TRIANGLES");
+			case EMode::TriangleStrip:  return TEXT("TRIANGLE_STRIP");
+			case EMode::TriangleFan:    return TEXT("TRIANGLE_FAN");
+
+			case EMode::Unknown:
+			default:                    return TEXT("UNKNOWN");
+		}
+	}
+
 	FPrimitive::FPrimitive(EMode InMode, int32 InMaterial, const FAccessor& InIndices, const FAccessor& InPosition, const FAccessor& InNormal,
 	                       const FAccessor& InTangent, const FAccessor& InTexCoord0, const FAccessor& InTexCoord1, const FAccessor& InColor0,
 	                       const FAccessor& InJoints0, const FAccessor& InWeights0)

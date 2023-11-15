@@ -575,7 +575,7 @@ namespace GLTF
 				// Unreal StaticMesh must have UV channel 0.
 				// glTF doesn't require this since not all materials need texture coordinates.
 				// We also fill UV channel > 1 for this primitive if other primitives have it, to avoid gaps.
-				(*UVs[UVIndex]).AddZeroed(Primitive.VertexCount());
+				(*UVs[UVIndex]).AddZeroed(TriCount * 3);
 			}
 		}
 

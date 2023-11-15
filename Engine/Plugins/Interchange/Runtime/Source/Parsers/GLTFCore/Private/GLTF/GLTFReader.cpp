@@ -363,12 +363,17 @@ namespace GLTF
 		Primitive.MorphTargets.Emplace(Position, Normal, Tangent, TexCoord0, TexCoord1, Color0);
 	}
 
-	void FFileReader::SetupPrimitive(const FJsonObject& Object, FMesh& Mesh, const bool bMeshQuantized) const
+	void FFileReader::SetupPrimitive(const FJsonObject& Object, FMesh& Mesh, const bool bMeshQuantized, const uint32& PrimitiveIndex) const
 	{
 		const FPrimitive::EMode       Mode = PrimitiveModeFromNumber(GetUnsignedInt(Object, TEXT("mode"), (uint32)FPrimitive::EMode::Triangles));
 		if (Mode == FPrimitive::EMode::Unknown)
 		{
 			return;
+		}
+
+		if (!FPrimitive::SupportedModes.Contains(Mode))
+		{
+			Messages.Emplace(EMessageSeverity::Warning, FString::Printf(TEXT("Primitive Mode[%s] in Primitive[%i] (in Mesh[%s]) is currently not supported. Geometry won't be imported."), *FPrimitive::ToString(Mode), PrimitiveIndex, *Mesh.Name));
 		}
 
 		const int32                   MaterialIndex = GetIndex(Object, TEXT("material"));
@@ -420,10 +425,11 @@ namespace GLTF
 		Mesh.Primitives.Reserve(PrimArray.Num());
 
 		int32 NumberOfMorphTargets = -1;
+		uint32 PrimitiveIndex = 0;
 		for (TSharedPtr<FJsonValue> Value : PrimArray)
 		{
 			const FJsonObject& PrimObject = *Value->AsObject();
-			SetupPrimitive(PrimObject, Mesh, bMeshQuantized);
+			SetupPrimitive(PrimObject, Mesh, bMeshQuantized, PrimitiveIndex);
 
 			if (NumberOfMorphTargets == -1)
 			{
@@ -437,6 +443,8 @@ namespace GLTF
 					Messages.Emplace(EMessageSeverity::Error, TEXT("Number of Primitive.Targets is not consistent across the Mesh."));
 				}
 			}
+
+			PrimitiveIndex++;
 		}
 
 		// Morph Target Weights:

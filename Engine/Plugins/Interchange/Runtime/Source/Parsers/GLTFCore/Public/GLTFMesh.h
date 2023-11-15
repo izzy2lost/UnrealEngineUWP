@@ -107,13 +107,15 @@ namespace GLTF
 			LineStrip = 3,
 			// initially supported
 			Triangles = 4,
-			// will be supported prior to release
 			TriangleStrip = 5,
 			TriangleFan   = 6,
 
 			//
 			Unknown = 7
 		};
+
+		static const TArray<EMode> SupportedModes;
+		static FString ToString(const EMode& Mode);
 
 		const EMode Mode;
 		const int32 MaterialIndex;
