@@ -1195,7 +1195,7 @@ void FMovieSceneConstraintChannelHelper::CreateBindingIDForHandle(const TSharedP
 			}
 			else
 			{
-				const FGuid Guid = InSequencer->GetHandleToObject(Actor, false); //don't create it???
+				const FGuid Guid = InSequencer->GetHandleToObject(Actor, true); //make sure object is in sequencer or binding id will be empty we won't resolve the binding
 				InHandle->ConstraintBindingID = UE::MovieScene::FRelativeObjectBindingID(Guid);
 			}
 		}
