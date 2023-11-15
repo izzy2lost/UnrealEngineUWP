@@ -1,12 +1,17 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "NNERuntimeRDGSlice.h"
+#include "NNEHlslShadersSliceCS.h"
 #include "NNERuntimeRDGHelperSlice.h"
+#include "NNERuntimeRDGHlslHelper.h"
 #include "NNETensor.h"
 #include "NNETypes.h"
+#include "RenderGraphUtils.h"
 
 namespace UE::NNERuntimeRDG::Private::Hlsl
 {
+	DECLARE_GPU_STAT_NAMED(FNNEOperatorSlice, TEXT("NNE.Operator.Hlsl.Slice"));
+
 	/**
 	 * Slice operator implementation
 	 */
@@ -17,25 +22,20 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 		FSlice() {}
 		virtual ~FSlice() = default;
 
+	private:
+
 		TArray<int32> AxesAttr;
 		TArray<int32> EndsAttr;
 		TArray<int32> StartsAttr;
 
-	public:
-
-		virtual int PrepareOutputs(TConstArrayView<NNE::Internal::FTensorRef> InputTensors, TArrayView<NNE::Internal::FTensorRef> OutputTensors) const override
+		inline void GetStartAndEndFromInputShape(TConstArrayView<uint32> InputShapeData, 
+			TArray<int32, TInlineAllocator<NNE::FTensorShape::MaxRank>>& Start,
+			TArray<int32, TInlineAllocator<NNE::FTensorShape::MaxRank>>& End) const
 		{
-			check(InputTensors.Num() == 1);
-			check(OutputTensors.Num() == 1);
-			
-			TConstArrayView<uint32> Dims(InputTensors[0]->GetShape().GetData());
-			int32 InputRank = Dims.Num();
-
-			TArray<int32> Axes = AxesAttr;
-			TArray<int32> Ends = EndsAttr;
-			TArray<int32> Starts = StartsAttr;
-			TArray<int32> Start;
-			TArray<int32> End;
+			const int32 InputRank = InputShapeData.Num();
+			TArray<int32, TInlineAllocator<NNE::FTensorShape::MaxRank>> Axes(AxesAttr);
+			TArray<int32, TInlineAllocator<NNE::FTensorShape::MaxRank>> Ends(EndsAttr);
+			TArray<int32, TInlineAllocator<NNE::FTensorShape::MaxRank>> Starts(StartsAttr);
 
 			//see https://github.com/onnx/onnx/blob/main/docs/Operators.md#slice for algorithm
 			Start.SetNum(InputRank);
@@ -43,7 +43,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			for (int32 i = 0; i < InputRank; ++i)
 			{
 				Start[i] = 0;
-				End[i] = Dims[i];
+				End[i] = InputShapeData[i];
 			}
 			for (int32 i = 0; i < Axes.Num(); ++i)
 			{
@@ -56,24 +56,39 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			{
 				if (Starts[i] < 0)
 				{
-					Starts[i] += Dims[Axes[i]];
+					Starts[i] += InputShapeData[Axes[i]];
 				}
 			}
 			for (int32 i = 0; i < Ends.Num(); ++i)
 			{
 				if (Ends[i] < 0)
 				{
-					Ends[i] += Dims[Axes[i]];
+					Ends[i] += InputShapeData[Axes[i]];
 				}
 			}
 			for (int32 i = 0; i < Axes.Num(); ++i)
 			{
-				Start[Axes[i]] = FMath::Clamp(Starts[i], 0, Dims[Axes[i]]);
-				End[Axes[i]] = FMath::Clamp(Ends[i], 0, Dims[Axes[i]]);
+				Start[Axes[i]] = FMath::Clamp(Starts[i], 0, InputShapeData[Axes[i]]);
+				End[Axes[i]] = FMath::Clamp(Ends[i], 0, InputShapeData[Axes[i]]);
 			}
+		}
+
+	public:
+
+		virtual int PrepareOutputs(TConstArrayView<NNE::Internal::FTensorRef> InputTensors, TArrayView<NNE::Internal::FTensorRef> OutputTensors) const override
+		{
+			check(InputTensors.Num() == 1);
+			check(OutputTensors.Num() == 1);
+
+			TConstArrayView<uint32> InputShapeData(InputTensors[0]->GetShape().GetData());
+			const int32 InputRank = InputShapeData.Num();
+			TArray<int32, TInlineAllocator<NNE::FTensorShape::MaxRank>> Start(AxesAttr);
+			TArray<int32, TInlineAllocator<NNE::FTensorShape::MaxRank>> End(EndsAttr);
+
+			GetStartAndEndFromInputShape(InputShapeData, Start, End);
 
 			TArray<uint32> OutputShapeData;
-			
+
 			OutputShapeData.Reserve(InputRank);
 			for (int32 i = 0; i < InputRank; ++i)
 			{
@@ -85,12 +100,6 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			OutputTensors[0]->SetShape(OutputShape);
 			
 			Internal::CPUHelper::Slice::Apply(*InputTensors[0], *OutputTensors[0], Start);
-
-			if (!OutputTensors[0]->HasPreparedData())
-			{
-				UE_LOG(LogNNE, Warning, TEXT("Slice: Output could not be computed as a constant tensor, however Slice is not implemented on GPU at the moment."));
-				return -1;
-			}
 
 			return 0;
 		};
@@ -123,7 +132,62 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 		virtual void Dispatch(FRDGBuilder& GraphBuilder, TConstArrayView<FTensorRDGRef> InputTensors, TConstArrayView<FTensorRDGRef> OutputTensors) override
 		{
-			UE_LOG(LogNNE, Warning, TEXT("Slice: Output should be constant and already uploaded to GPU memory. Dispatch should not need to be called."));
+			using namespace UE::NNEHlslShaders::Internal;
+
+			check(InputTensors.Num() == 1);
+			check(OutputTensors.Num() == 1);
+			check(InputTensors[0] != nullptr);
+			check(OutputTensors[0] != nullptr);
+
+			const FTensorRDG& Input = *InputTensors[0];
+			const FTensorRDG& Output = *OutputTensors[0];
+			const FRDGBufferSRVRef InputSRV = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(Input.GetBuffer(), PF_R32_FLOAT));
+			const FRDGBufferUAVRef OutputUAV = GraphBuilder.CreateUAV(FRDGBufferUAVDesc(Output.GetBuffer(), PF_R32_FLOAT));
+			const FIntVector ThreadGroupCount = ComputeElementWiseThreadGroups(Output.GetVolume(), FSliceConstants::NUM_GROUP_THREADS);
+
+			TConstArrayView<uint32> InputShapeData(Input.GetShape().GetData());
+			TArray<int32, TInlineAllocator<NNE::FTensorShape::MaxRank>> Start(AxesAttr);
+			TArray<int32, TInlineAllocator<NNE::FTensorShape::MaxRank>> End(EndsAttr);
+
+			GetStartAndEndFromInputShape(InputShapeData, Start, End);
+
+			// Set parameters
+			FSliceCS::FParameters* Params = GraphBuilder.AllocParameters<FSliceCS::FParameters>();
+			Params->Input = InputSRV;
+			Params->Output = OutputUAV;
+			Params->Num = Output.GetVolume();
+			Params->ThreadCountX = ThreadGroupCount.X * FSliceConstants::NUM_GROUP_THREADS;
+			FillTensorStrideShaderParameters(Input, Params->TensorInfo, 0);
+			FillTensorStrideShaderParameters(Output, Params->TensorInfo, 1);
+			static_assert(NNE::FTensorShape::MaxRank <= NXRT_TENSORSTRIDEINFO_MAX_NUM_DIMENSIONS);
+			check(Start.Num() == Input.GetShape().Rank());
+			for (int32 i = 0; i < NXRT_TENSORSTRIDEINFO_MAX_NUM_DIMENSIONS; ++i)
+			{
+				if (i < Start.Num())
+				{
+					Params->TensorInfo[i][2] = static_cast<uint32>(Start[i]);
+				}
+				else
+				{
+					Params->TensorInfo[i][2] = 0;
+				}
+			}
+
+			FSliceCS::FPermutationDomain PermutationVector;
+			PermutationVector.Set<FSliceCS::FSliceNumDimensions>(Output.GetShape().Rank());
+
+			TShaderMapRef<FSliceCS> ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel), PermutationVector);
+
+			RDG_EVENT_SCOPE(GraphBuilder, "NNE.Operator.Hlsl.Slice");
+			RDG_GPU_STAT_SCOPE(GraphBuilder, FNNEOperatorSlice);
+
+			FComputeShaderUtils::AddPass(
+				GraphBuilder,
+				RDG_EVENT_NAME("NNE.Operator.Hlsl.Slice.Dispatch"),
+				ERDGPassFlags::Compute | ERDGPassFlags::NeverCull,
+				ComputeShader,
+				Params,
+				ThreadGroupCount);
 		}
 	};
 
