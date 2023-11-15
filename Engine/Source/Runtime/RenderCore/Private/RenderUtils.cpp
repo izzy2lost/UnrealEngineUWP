@@ -70,11 +70,11 @@ static FAutoConsoleVariableRef CVarRayTracingEnableOnDemand(
 	TEXT(" 1: on"),
 	ECVF_RenderThreadSafe | ECVF_ReadOnly);
 
-static int32 GRayTracingRequireSM6 = 0;
+static int32 GRayTracingRequireSM6 = 1;
 static FAutoConsoleVariableRef CVarRayTracingRequireSM6(
 	TEXT("r.RayTracing.RequireSM6"),
 	GRayTracingRequireSM6,
-	TEXT("Whether ray tracing shaders and features should only be available when targetting and running SM6. If disabled, ray tracing shaders will also be available when running in SM5 mode. (default = 0, allow SM5 and SM6)"),
+	TEXT("Whether ray tracing shaders and features should only be available when targetting and running SM6. If disabled, ray tracing shaders will also be available when running in SM5 mode. (default = 1, allow only SM6)"),
 	ECVF_RenderThreadSafe | ECVF_ReadOnly
 );
 
