@@ -28,18 +28,11 @@ namespace Horde.Server.Server
 		const int RedisPort = 6379;
 
 		/// <summary>
-		/// The database interface.
-		/// If possible, use ConnectionPool instead. 
-		/// </summary>
-		public IDatabase DatabaseSingleton { get; }
-
-		/// <summary>
 		/// Connection pool
 		/// </summary>
 		public RedisConnectionPool ConnectionPool { get; }
 
 		RedisProcess? _redisProcess;
-		readonly ConnectionMultiplexer _multiplexer;
 		readonly ILogger<RedisService> _logger;
 
 		/// <summary>
@@ -76,8 +69,6 @@ namespace Horde.Server.Server
 				}
 			}
 
-			_multiplexer = ConnectionMultiplexer.Connect(connectionString);
-			DatabaseSingleton = _multiplexer.GetDatabase(dbNum);
 			ConnectionPool = new RedisConnectionPool(20, connectionString, dbNum);
 		}
 
@@ -96,6 +87,16 @@ namespace Horde.Server.Server
 		}
 
 		/// <summary>
+		/// Get the least-loaded Redis connection from the pool
+		/// Don't store the returned object and try to resolve this as late as possible to ensure load is balanced.
+		/// </summary>
+		/// <returns>A Redis connection multiplexer</returns>
+		public IConnectionMultiplexer GetConnection()
+		{
+			return ConnectionPool.GetConnection();
+		}
+
+		/// <summary>
 		/// Get the least-loaded Redis database from the connection pool
 		/// Don't store the returned object and try to resolve this as late as possible to ensure load is balanced.
 		/// </summary>
@@ -108,7 +109,7 @@ namespace Horde.Server.Server
 		/// <inheritdoc/>
 		public async ValueTask DisposeAsync()
 		{
-			_multiplexer.Dispose();
+			ConnectionPool.Dispose();
 
 			if (_redisProcess != null)
 			{
@@ -163,7 +164,7 @@ namespace Horde.Server.Server
 		/// <param name="flags">Flags for the request</param>
 		public Task PublishAsync(RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None)
 		{
-			return ConnectionPool.GetDatabase().PublishAsync(channel, message, flags);
+			return GetDatabase().PublishAsync(channel, message, flags);
 		}
 
 		/// <summary>
@@ -175,7 +176,7 @@ namespace Horde.Server.Server
 		/// <param name="flags">Flags for the request</param>
 		public Task PublishAsync<T>(RedisChannel<T> channel, T message, CommandFlags flags = CommandFlags.None)
 		{
-			return ConnectionPool.GetDatabase().PublishAsync(channel, message, flags);
+			return GetDatabase().PublishAsync(channel, message, flags);
 		}
 
 		/// <inheritdoc cref="SubscribeAsync{T}(RedisChannel{T}, Action{RedisChannel{T}, T})"/>
@@ -192,7 +193,7 @@ namespace Horde.Server.Server
 		/// <returns>Subscription object</returns>
 		public async Task<RedisSubscription> SubscribeAsync(RedisChannel channel, Action<RedisChannel, RedisValue> callback)
 		{
-			IConnectionMultiplexer connection = ConnectionPool.GetConnection();
+			IConnectionMultiplexer connection = GetConnection();
 			return await connection.SubscribeAsync(channel, callback);
 		}
 
@@ -205,7 +206,7 @@ namespace Horde.Server.Server
 		/// <returns>Subscription object</returns>
 		public async Task<RedisSubscription> SubscribeAsync<T>(RedisChannel<T> channel, Action<RedisChannel<T>, T> callback)
 		{
-			IConnectionMultiplexer connection = ConnectionPool.GetConnection();
+			IConnectionMultiplexer connection = GetConnection();
 			return await connection.SubscribeAsync(channel, callback);
 		}
 	}
