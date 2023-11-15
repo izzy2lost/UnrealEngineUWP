@@ -50,13 +50,4 @@ void UActorFactoryModularVehicle::PostSpawnActor(UObject* Asset, AActor* NewActo
 	NewModularVehicleActor->GetModularVehicleComponent()->RegisterComponent();
 }
 
-void UActorFactoryModularVehicle::PostCreateBlueprint(UObject* Asset, AActor* CDO)
-{
-	if (Asset != NULL && CDO != NULL)
-	{
-		UModularVehicleAsset* ModularVehicle = CastChecked<UModularVehicleAsset>(Asset);
-		AModularVehiclePawn* ModularVehicleActor = CastChecked<AModularVehiclePawn>(CDO);
-	}
-}
-
 #undef LOCTEXT_NAMESPACE
