@@ -2,6 +2,7 @@
 
 #include "PCGPin.h"
 
+#include "PCGCommon.h"
 #include "PCGEdge.h"
 #include "PCGNode.h"
 #include "PCGSettings.h"
@@ -32,6 +33,32 @@ namespace PCGPin
 	}
 }
 
+#if WITH_EDITOR
+namespace PCGPinPropertiesHelpers
+{
+	bool GetDefaultPinExtraIcon(const UPCGPin* InPin, FName& OutExtraIcon, FText& OutTooltip)
+	{
+		return InPin && PCGPinPropertiesHelpers::GetDefaultPinExtraIcon(InPin->Properties, OutExtraIcon, OutTooltip);
+	}
+
+	bool GetDefaultPinExtraIcon(const FPCGPinProperties& InPinProperties, FName& OutExtraIcon, FText& OutTooltip)
+	{
+		if (InPinProperties.Usage == EPCGPinUsage::Loop)
+		{
+			OutExtraIcon = PCGPinConstants::Icons::LoopPinIcon;
+			return true;
+		}
+		else if (InPinProperties.Usage == EPCGPinUsage::Feedback)
+		{
+			OutExtraIcon = PCGPinConstants::Icons::FeedbackPinIcon;
+			return true;
+		}
+
+		return false;
+	}
+}
+#endif // WITH_EDITOR
+
 FPCGPinProperties::FPCGPinProperties(const FName& InLabel, EPCGDataType InAllowedTypes, bool bInAllowMultipleConnections, bool bInAllowMultipleData, const FText& InTooltip)
 	: Label(InLabel), AllowedTypes(InAllowedTypes), bAllowMultipleData(bInAllowMultipleData)
 #if WITH_EDITORONLY_DATA
@@ -60,6 +87,7 @@ bool FPCGPinProperties::operator==(const FPCGPinProperties& Other) const
 		AllowedTypes == Other.AllowedTypes &&
 		bAllowMultipleConnections == Other.bAllowMultipleConnections &&
 		bAllowMultipleData == Other.bAllowMultipleData &&
+		Usage == Other.Usage &&
 		bAdvancedPin == Other.bAdvancedPin;
 }
 

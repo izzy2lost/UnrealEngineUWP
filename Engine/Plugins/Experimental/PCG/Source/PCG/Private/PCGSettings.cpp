@@ -222,6 +222,11 @@ void UPCGSettings::ApplyDeprecation(UPCGNode* InOutNode)
 	DataVersion = FPCGCustomVersion::LatestVersion;
 }
 
+bool UPCGSettings::GetPinExtraIcon(const UPCGPin* InPin, FName& OutExtraIcon, FText& OutTooltip) const
+{
+	return PCGPinPropertiesHelpers::GetDefaultPinExtraIcon(InPin, OutExtraIcon, OutTooltip);
+}
+
 void UPCGSettings::PostEditUndo()
 {
 	// CachedOverridableParams was reset to previous value

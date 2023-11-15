@@ -11,6 +11,15 @@
 class UPCGNode;
 class UPCGEdge;
 
+UENUM(BlueprintType)
+enum class EPCGPinUsage : uint8
+{
+	Normal = 0, // Normal usage pin, will pass all data as is.
+	Loop, // When used in a loop subgraph node, will separate each data from that pin into separate subgraph executions.
+	Feedback, // When used in a loop subgraph node, will pass data on the feedback pins to the next iteration only if the data is passed from a previous iteration (or the original subgraph call).
+	DependencyOnly UMETA(Hidden)
+};
+
 USTRUCT(BlueprintType, meta=(HasNativeBreak="/Script/PCG.PCGBlueprintPinHelpers.BreakPinProperty", HasNativeMake="/Script/PCG.PCGBlueprintPinHelpers.MakePinProperty"))
 struct PCG_API FPCGPinProperties
 {
@@ -23,6 +32,9 @@ struct PCG_API FPCGPinProperties
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
 	FName Label = NAME_None;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
+	EPCGPinUsage Usage = EPCGPinUsage::Normal;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
 	EPCGDataType AllowedTypes = EPCGDataType::Any;
@@ -179,6 +191,14 @@ public:
 
 	EPCGTypeConversion GetRequiredTypeConversion(const UPCGPin* InOtherPin) const;
 };
+
+#if WITH_EDITOR
+namespace PCGPinPropertiesHelpers
+{
+	bool GetDefaultPinExtraIcon(const UPCGPin* InPin, FName& OutExtraIcon, FText& OutTooltip);
+	bool GetDefaultPinExtraIcon(const FPCGPinProperties& InPinProperties, FName& OutExtraIcon, FText& OutTooltip);
+}
+#endif // WITH_EDITOR
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
 #include "CoreMinimal.h"

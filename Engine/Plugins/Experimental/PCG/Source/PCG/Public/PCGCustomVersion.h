@@ -59,6 +59,9 @@ struct PCG_API FPCGCustomVersion
 		// Removed by-default pins on input node. Note, this breaks cooked binary compatibility
 		UpdateInputOutputNodesDefaults = 16,
 
+		// Introduced the concept of pin usage and graph defaults around loops, which changed the default behavior otherwise
+		UpdateGraphSettingsLoopPins = 17,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

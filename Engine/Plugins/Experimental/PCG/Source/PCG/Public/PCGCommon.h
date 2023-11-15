@@ -97,6 +97,12 @@ namespace Private
 {
 	const FName OldDefaultParamsLabel = TEXT("Params");
 }
+
+namespace Icons
+{
+	const FName LoopPinIcon = TEXT("GraphEditor.Macro.Loop_16x");
+	const FName FeedbackPinIcon = TEXT("GraphEditor.GetSequenceBinding");
+}
 }
 
 // Metadata used by PCG

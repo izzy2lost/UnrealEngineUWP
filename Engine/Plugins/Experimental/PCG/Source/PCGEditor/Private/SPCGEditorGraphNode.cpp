@@ -116,7 +116,8 @@ void SPCGEditorGraphNodePin::Construct(const FArguments& InArgs, UEdGraphPin* In
 	if (GetExtraIcon(ExtraPinIcon, ExtraPinIconTooltip))
 	{
 		ExtraPinIconWidget = SNew(SImage)
-			.Image(FAppStyle::GetBrush(ExtraPinIcon));
+			.Image(FAppStyle::GetBrush(ExtraPinIcon))
+			.ColorAndOpacity(this, &SPCGEditorGraphNodePin::GetPinTextColor);
 
 		if (!ExtraPinIconTooltip.IsEmpty())
 		{
@@ -132,23 +133,34 @@ void SPCGEditorGraphNodePin::Construct(const FArguments& InArgs, UEdGraphPin* In
 				PinStatusIndicator
 			];
 
+		LabelAndValue->AddSlot()
+			.VAlign(VAlign_Center)
+			[
+				LabelWidget
+			];
+
 		if (ExtraPinIconWidget.IsValid())
 		{
 			LabelAndValue->AddSlot()
+				.Padding(5, 0, 0, 0)
+				.VAlign(VAlign_Center)
+				[
+					ExtraPinIconWidget.ToSharedRef()
+				];
+		}
+	}
+	else
+	{
+		if (ExtraPinIconWidget.IsValid())
+		{
+			LabelAndValue->AddSlot()
+				.Padding(0, 0, 5, 0)
 				.VAlign(VAlign_Center)
 				[
 					ExtraPinIconWidget.ToSharedRef()
 				];
 		}
 
-		LabelAndValue->AddSlot()
-			.VAlign(VAlign_Center)
-			[
-				LabelWidget
-			];
-	}
-	else
-	{
 		LabelAndValue->AddSlot()
 			.VAlign(VAlign_Center)
 			[
@@ -175,15 +187,6 @@ void SPCGEditorGraphNodePin::Construct(const FArguments& InArgs, UEdGraphPin* In
 			{
 				ValueBox->SetEnabled(TAttribute<bool>(this, &SPCGEditorGraphNodePin::IsEditingEnabled));
 			}
-		}
-
-		if (ExtraPinIconWidget.IsValid())
-		{
-			LabelAndValue->AddSlot()
-				.VAlign(VAlign_Center)
-				[
-					ExtraPinIconWidget.ToSharedRef()
-				];
 		}
 
 		LabelAndValue->AddSlot()
