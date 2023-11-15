@@ -60,6 +60,7 @@ namespace UE
 		{
 		public:
 			INTERCHANGEENGINE_API explicit FScopedSourceData(const FString& Filename);
+			INTERCHANGEENGINE_API ~FScopedSourceData();
 			INTERCHANGEENGINE_API UInterchangeSourceData* GetSourceData() const;
 		private:
 			TStrongObjectPtr<UInterchangeSourceData> SourceDataPtr = nullptr;
@@ -69,6 +70,7 @@ namespace UE
 		{
 		public:
 			INTERCHANGEENGINE_API explicit FScopedTranslator(const UInterchangeSourceData* SourceData);
+			INTERCHANGEENGINE_API ~FScopedTranslator();
 			INTERCHANGEENGINE_API UInterchangeTranslatorBase* GetTranslator();
 
 		private:

@@ -174,10 +174,15 @@ UE::Interchange::FScopedInterchangeImportEnableState::~FScopedInterchangeImportE
 
 UE::Interchange::FScopedSourceData::FScopedSourceData(const FString& Filename)
 {
-	//Found the translator
 	SourceDataPtr = TStrongObjectPtr<UInterchangeSourceData>(UInterchangeManager::GetInterchangeManager().CreateSourceData(Filename));
-	check(SourceDataPtr.IsValid());
+	ensure(SourceDataPtr.IsValid());
 }
+
+UE::Interchange::FScopedSourceData::~FScopedSourceData()
+{
+	SourceDataPtr.Reset();
+}
+
 
 UInterchangeSourceData* UE::Interchange::FScopedSourceData::GetSourceData() const
 {
@@ -188,6 +193,16 @@ UE::Interchange::FScopedTranslator::FScopedTranslator(const UInterchangeSourceDa
 {
 	//Found the translator
 	ScopedTranslatorPtr = TStrongObjectPtr<UInterchangeTranslatorBase>(UInterchangeManager::GetInterchangeManager().GetTranslatorForSourceData(SourceData));
+}
+
+UE::Interchange::FScopedTranslator::~FScopedTranslator()
+{
+	//Found the translator
+	if (ScopedTranslatorPtr.IsValid())
+	{
+		ScopedTranslatorPtr->ReleaseSource();
+	}
+	ScopedTranslatorPtr.Reset();
 }
 
 UInterchangeTranslatorBase* UE::Interchange::FScopedTranslator::GetTranslator()
@@ -1139,7 +1154,13 @@ bool UInterchangeManager::CanTranslateSourceData(const UInterchangeSourceData* S
 	}
 #endif
 
-	return GetTranslatorForSourceData(SourceData) != nullptr;
+	if (UInterchangeTranslatorBase* Translator = GetTranslatorForSourceData(SourceData))
+	{
+		Translator->ReleaseSource();
+		return true;
+	}
+
+	return false;
 }
 
 bool UInterchangeManager::CanReimport(const UObject* Object, TArray<FString>& OutFilenames) const
@@ -1445,12 +1466,13 @@ UInterchangeManager::ImportInternal(const FString& ContentPath, const UInterchan
 	}
 	
 	{
-		const UInterchangeTranslatorBase* Translator = GetTranslatorForSourceData(SourceData);
+		UInterchangeTranslatorBase* Translator = GetTranslatorForSourceData(SourceData);
 		if(!Translator)
 		{
 			UE_LOG(LogInterchangeEngine, Error, TEXT("Cannot import file, the source data is not supported. See if you can enable for interchange the extension [%s]"), *FPaths::GetExtension(SourceData->GetFilename()));
 			return EarlyExit();
 		}
+		Translator->ReleaseSource();
 	}
 
 	if (FEngineAnalytics::IsAvailable())
