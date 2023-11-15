@@ -125,6 +125,10 @@ export class Dashboard {
 
     get email(): string {
 
+        if (this.data?.email) {
+            return this.data?.email;
+        }
+
         const email = this.claims.find(c => c.type.endsWith("/emailaddress"));
 
         return email ? email.value : "???";
