@@ -47,8 +47,6 @@
 #define TILE_MODE_COMPLEX_SHADING	1
 #define TILE_MODE_MAX				2
 
-#define SHADOW_MASK_USING_LOCAL_LIGHT_INDEX 1
-
 uint PackTile(uint2 TileCoord)
 {
 	return TileCoord.x | (TileCoord.y << 16);
@@ -330,11 +328,7 @@ void AccumulateHistoryShadowMask(uint LightSceneId, uint PrevLocalLightIndex, ui
 {
 	if (all(ShadowMaskScreenCoord < ShadowMaskViewSize) && Weight > 0.01f)
 	{
-#if SHADOW_MASK_USING_LOCAL_LIGHT_INDEX
 		uint2 HistoryShadowMaskPageTableCoord = GetShadowMaskPageTableCoord(PrevLocalLightIndex, ShadowMaskScreenCoord);
-#else
-		uint2 HistoryShadowMaskPageTableCoord = GetShadowMaskPageTableCoord(LightSceneId, ShadowMaskScreenCoord);
-#endif
 
 #if HASH_TABLE
 		uint HistoryShadowMaskTileIndex = INVALID_SHADOW_MASK_TILE_INDEX;
