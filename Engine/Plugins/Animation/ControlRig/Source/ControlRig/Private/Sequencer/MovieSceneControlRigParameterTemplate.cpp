@@ -1287,7 +1287,11 @@ struct FControlRigParameterExecutionToken : IMovieSceneExecutionToken
 							FControlRigIOSettings InputSettings;
 							InputSettings.bUpdateCurves = true;
 							InputSettings.bUpdatePose = true;
-							AnimInstance->UpdateControlRigTrack(ControlRig->GetUniqueID(), Weight, InputSettings, true);
+							//this is not great but assumes we have 1 absolute track that will be used for weighting
+							if (Section->GetBlendType() == EMovieSceneBlendType::Absolute)
+							{
+								AnimInstance->UpdateControlRigTrack(ControlRig->GetUniqueID(), Weight, InputSettings, true);
+							}
 						}
 					}
 					else
