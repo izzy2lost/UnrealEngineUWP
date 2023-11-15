@@ -2,6 +2,9 @@
 
 #pragma once
 
+#include "CoreMinimal.h"
+#include "Containers/UnrealString.h"
+
 THIRD_PARTY_INCLUDES_START
 #include <VideoToolbox/VideoToolbox.h>
 THIRD_PARTY_INCLUDES_END

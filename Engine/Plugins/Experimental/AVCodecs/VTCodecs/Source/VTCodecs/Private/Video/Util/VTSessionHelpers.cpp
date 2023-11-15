@@ -3,8 +3,6 @@
 #include "Video/Util/VTSessionHelpers.h"
 #include "AVResult.h"
 
-#include <string>
-
 FString VTSessionHelpers::CFStringToString(const CFStringRef CfString) 
 {    
     // Get the size needed for UTF8 plus terminating character.
