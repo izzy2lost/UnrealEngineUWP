@@ -361,24 +361,28 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 
 #if SHADER_RESOURCE_TRANSITION
 
-Buffer<uint> Buffers_0;
-Buffer<uint> Buffers_1;
-Buffer<uint> Buffers_2;
-Buffer<uint> Buffers_3;
-Buffer<uint> Buffers_4;
-Buffer<uint> Buffers_5;
-Buffer<uint> Buffers_6;
-Buffer<uint> Buffers_7;
-Buffer<uint> Buffers_8;
-Buffer<uint> Buffers_9;
-Buffer<uint> Buffers_10;
-Buffer<uint> Buffers_11;
-Buffer<uint> Buffers_12;
-Buffer<uint> Buffers_13;
-Buffer<uint> Buffers_14;
-Buffer<uint> Buffers_15;
+#define TEMPLATE_BUFFERS(TPrefix, TSuffix) \
+	TPrefix##Buffers_0##TSuffix;\
+	TPrefix##Buffers_1##TSuffix;\
+	TPrefix##Buffers_2##TSuffix;\
+	TPrefix##Buffers_3##TSuffix;\
+	TPrefix##Buffers_4##TSuffix;\
+	TPrefix##Buffers_5##TSuffix;\
+	TPrefix##Buffers_6##TSuffix;\
+	TPrefix##Buffers_7##TSuffix;\
+	TPrefix##Buffers_8##TSuffix;\
+	TPrefix##Buffers_9##TSuffix;\
+	TPrefix##Buffers_10##TSuffix;\
+	TPrefix##Buffers_11##TSuffix;\
+	TPrefix##Buffers_12##TSuffix;\
+	TPrefix##Buffers_13##TSuffix;\
+	TPrefix##Buffers_14##TSuffix;\
+	TPrefix##Buffers_15##TSuffix;
 
-RWBuffer<uint> DummyOutput;
+TEMPLATE_BUFFERS(StructuredBuffer<float4> Structured, )
+TEMPLATE_BUFFERS(Buffer<uint> Vertex, )
+
+RWStructuredBuffer<uint> DummyOutput;
 uint DummyValue;
 
 [numthreads(1, 1, 1)]
@@ -387,22 +391,11 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 	if (DummyValue > 0)
 	{
 		uint Acc = 0;
-		Acc += Buffers_0[0];
-		Acc += Buffers_1[0];
-		Acc += Buffers_2[0];
-		Acc += Buffers_3[0];
-		Acc += Buffers_4[0];
-		Acc += Buffers_5[0];
-		Acc += Buffers_6[0];
-		Acc += Buffers_7[0];
-		Acc += Buffers_8[0];
-		Acc += Buffers_9[0];
-		Acc += Buffers_10[0];
-		Acc += Buffers_11[0];
-		Acc += Buffers_12[0];
-		Acc += Buffers_13[0];
-		Acc += Buffers_14[0];
-		Acc += Buffers_15[0];
+	#if PERMUTATION_STRUCTURED_BUFFER
+		TEMPLATE_BUFFERS(Acc += Structured, [0].x)
+	#else
+		TEMPLATE_BUFFERS(Acc += Vertex, [0])
+	#endif
 		DummyOutput[0] = Acc;
 	}
 }

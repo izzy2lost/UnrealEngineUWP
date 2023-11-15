@@ -1217,12 +1217,14 @@ private:
 	DECLARE_GLOBAL_SHADER(FHairResourceTransitionPass);
 	SHADER_USE_PARAMETER_STRUCT(FHairResourceTransitionPass, FGlobalShader);
 
-	using FPermutationDomain = TShaderPermutationDomain<>;
+	class FStructuredBuffer : SHADER_PERMUTATION_BOOL("PERMUTATION_STRUCTURED_BUFFER");
+	using FPermutationDomain = TShaderPermutationDomain<FStructuredBuffer>;
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER(uint32, DummyValue)
-		SHADER_PARAMETER_RDG_BUFFER_SRV_ARRAY(Buffer, Buffers, [16])
-		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer, DummyOutput)
+		SHADER_PARAMETER_RDG_BUFFER_SRV_ARRAY(Buffer, VertexBuffers, [16])
+		SHADER_PARAMETER_RDG_BUFFER_SRV_ARRAY(StructuredBuffer, StructuredBuffers, [16])
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer, DummyOutput)
 	END_SHADER_PARAMETER_STRUCT()
 
 public:
@@ -1250,9 +1252,15 @@ void AddTransitionPass(
 		return;
 	}
 
-	FRDGBufferSRVRef DummyInput = GraphBuilder.CreateSRV(GSystemTextures.GetDefaultBuffer(GraphBuilder, 4u, 1u), PF_R32_UINT);
+	FRDGBufferSRVRef DummyVertexInput = GraphBuilder.CreateSRV(GSystemTextures.GetDefaultBuffer(GraphBuilder, 4u, 1u), PF_R32_UINT);
+	FRDGBufferSRVRef DummyStructuredInput= GraphBuilder.CreateSRV(GSystemTextures.GetDefaultStructuredBuffer(GraphBuilder, 16u));
+
 	FRDGBufferRef DummyOutput = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(4,1),TEXT("DummyOutput"));
 	FRDGBufferUAVRef DummyOutputUAV = GraphBuilder.CreateUAV(DummyOutput, PF_R32_UINT, ERDGUnorderedAccessViewFlags::SkipBarrier);
+
+	check(Transitions[0]);
+	check(Transitions[0]->Desc.Buffer);
+	const bool bStructuredBuffer = EnumHasAnyFlags(Transitions[0]->Desc.Buffer->Desc.Usage, EBufferUsageFlags::StructuredBuffer);
 
 	const uint32 MaxBufferCount = 16;
 	const uint32 PassCount = FMath::DivideAndRoundUp(ResourceCount, MaxBufferCount);
@@ -1264,15 +1272,31 @@ void AddTransitionPass(
 
 		const uint32 PassResourceOffset = PassIt * MaxBufferCount;
 		const uint32 PassResourceCount = FMath::Min(int32(MaxBufferCount), int32(ResourceCount) - int32(PassResourceOffset));
-		for (uint32 ResourceIt = 0; ResourceIt < PassResourceCount; ++ResourceIt)
+		if (bStructuredBuffer)
 		{
-			PassParameters->Buffers[ResourceIt] = Transitions[PassResourceOffset + ResourceIt];
+			for (uint32 ResourceIt = 0; ResourceIt < PassResourceCount; ++ResourceIt)
+			{
+				PassParameters->StructuredBuffers[ResourceIt] = Transitions[PassResourceOffset + ResourceIt];
+			}
+			for (uint32 ResourceIt = PassResourceCount; ResourceIt < MaxBufferCount; ++ResourceIt)
+			{
+				PassParameters->StructuredBuffers[ResourceIt] = DummyStructuredInput;
+			}
 		}
-		for (uint32 ResourceIt = PassResourceCount; ResourceIt < MaxBufferCount; ++ResourceIt)
+		else
 		{
-			PassParameters->Buffers[ResourceIt] = DummyInput;
+			for (uint32 ResourceIt = 0; ResourceIt < PassResourceCount; ++ResourceIt)
+			{
+				PassParameters->VertexBuffers[ResourceIt] = Transitions[PassResourceOffset + ResourceIt];
+			}
+			for (uint32 ResourceIt = PassResourceCount; ResourceIt < MaxBufferCount; ++ResourceIt)
+			{
+				PassParameters->VertexBuffers[ResourceIt] = DummyVertexInput;
+			}
 		}
-		TShaderMapRef<FHairResourceTransitionPass> ComputeShader(ShaderMap);
+		FHairResourceTransitionPass::FPermutationDomain PermutationVector;
+		PermutationVector.Set<FHairResourceTransitionPass::FStructuredBuffer>(bStructuredBuffer);
+		TShaderMapRef<FHairResourceTransitionPass> ComputeShader(ShaderMap, PermutationVector);
 		FComputeShaderUtils::AddPass(
 			GraphBuilder,
 			RDG_EVENT_NAME("HairStrands::ResourceTransitions"),

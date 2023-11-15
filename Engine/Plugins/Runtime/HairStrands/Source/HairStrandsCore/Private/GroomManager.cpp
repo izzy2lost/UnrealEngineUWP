@@ -656,6 +656,7 @@ static void RunHairStrandsInterpolation_Guide(
 			AddGroomCacheUpdatePass(
 				GraphBuilder,
 				ShaderMap,
+				InstanceData.Instance->RegisteredIndex,
 				InstanceData.Instance->Guides.RestResource->GetPointCount(),
 				InterpolationFactor,
 				CacheResources0,
@@ -1113,6 +1114,7 @@ static void RunHairStrandsInterpolation_Strands(
 				AddGroomCacheUpdatePass(
 					GraphBuilder,
 					ShaderMap,
+					InstanceData.Instance->RegisteredIndex,
 					InstanceData.ActivePointCount,
 					InterpolationFactor,
 					CacheResources0,

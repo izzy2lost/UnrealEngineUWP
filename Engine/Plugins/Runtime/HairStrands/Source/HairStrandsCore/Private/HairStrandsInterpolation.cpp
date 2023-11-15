@@ -229,6 +229,7 @@ class FGroomCacheUpdatePassCS : public FGlobalShader
 	SHADER_USE_PARAMETER_STRUCT(FGroomCacheUpdatePassCS, FGlobalShader);
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER(uint32, InstanceRegisteredIndex)
 		SHADER_PARAMETER(uint32, ElementCount)
 		SHADER_PARAMETER(uint32, bHasRadiusData)
 		SHADER_PARAMETER(float, InterpolationFactor)
@@ -237,7 +238,7 @@ class FGroomCacheUpdatePassCS : public FGlobalShader
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, InRadius0Buffer)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, InRadius1Buffer)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, InRestPoseBuffer)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, InDeformedOffsetBuffer)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer, InDeformedOffsetBuffer)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer, OutDeformedBuffer)
 	END_SHADER_PARAMETER_STRUCT()
 
@@ -257,6 +258,7 @@ IMPLEMENT_GLOBAL_SHADER(FGroomCacheUpdatePassCS, "/Engine/Private/HairStrands/Ha
 void AddGroomCacheUpdatePass(
 	FRDGBuilder& GraphBuilder,
 	FGlobalShaderMap* ShaderMap,
+	uint32 InstanceRegisteredIndex,
 	uint32 PointCount,
 	float InterpolationFactor,
 	FGroomCacheResources CacheResources0,
@@ -270,6 +272,7 @@ void AddGroomCacheUpdatePass(
 	if (PointCount == 0 || !CacheResources0.PositionBuffer || !CacheResources1.PositionBuffer) return;
 
 	FGroomCacheUpdatePassCS::FParameters* Parameters = GraphBuilder.AllocParameters<FGroomCacheUpdatePassCS::FParameters>();
+	Parameters->InstanceRegisteredIndex = InstanceRegisteredIndex;
 	Parameters->ElementCount = PointCount;
 	Parameters->InPosition0Buffer = CacheResources0.PositionBuffer;
 	Parameters->InPosition1Buffer = CacheResources1.PositionBuffer;

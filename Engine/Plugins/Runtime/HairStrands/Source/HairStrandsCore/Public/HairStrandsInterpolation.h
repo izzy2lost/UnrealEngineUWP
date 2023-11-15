@@ -80,6 +80,7 @@ FGroomCacheResources CreateGroomCacheBuffer(FRDGBuilder& GraphBuilder, FGroomCac
 void AddGroomCacheUpdatePass(
 	FRDGBuilder& GraphBuilder,
 	FGlobalShaderMap* ShaderMap,
+	uint32 InstanceRegisteredIndex,
 	uint32 PointCount,
 	float InterpolationFactor,
 	FGroomCacheResources CacheResources0,

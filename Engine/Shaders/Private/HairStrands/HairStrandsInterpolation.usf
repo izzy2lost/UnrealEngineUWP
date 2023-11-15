@@ -614,6 +614,7 @@ void MainCS(uint DispatchThreadId : SV_DispatchThreadID)
 
 #if SHADER_GROOMCACHE_UPDATE
 
+uint InstanceRegisteredIndex;
 uint ElementCount;
 uint bHasRadiusData;
 float InterpolationFactor;
@@ -624,7 +625,7 @@ Buffer<float> InRadius0Buffer;
 Buffer<float> InRadius1Buffer;
 
 Buffer<uint4>  InRestPoseBuffer;
-Buffer<float4> InDeformedOffsetBuffer;
+StructuredBuffer<float4> InDeformedOffsetBuffer;
 RWBuffer<uint4> OutDeformedBuffer;
 
 [numthreads(GROUP_SIZE, 1, 1)]
@@ -648,7 +649,6 @@ void MainCS(uint DispatchThreadId : SV_DispatchThreadID)
 		InPosition1Buffer[Index3+2]);
 	
 	const float3 WorldVertexPosition = lerp(InPosition0, InPosition1, InterpolationFactor);
-
 	FHairControlPoint CP = UnpackHairControlPoint(InRestPoseBuffer[Index], float3(0, 0, 0), 1, 1, 1);
 	CP.Position = WorldVertexPosition;
 
@@ -657,7 +657,8 @@ void MainCS(uint DispatchThreadId : SV_DispatchThreadID)
 		CP.WorldRadius = lerp(InRadius0Buffer[Index], InRadius1Buffer[Index], InterpolationFactor);
 	}
 
-	OutDeformedBuffer[Index] = PackHairControlPoint(CP, InDeformedOffsetBuffer[0].xyz, 1);
+	const float3 DeformedPositionOffset = ReadRenPositionOffset(InDeformedOffsetBuffer, InstanceRegisteredIndex);
+	OutDeformedBuffer[Index] = PackHairControlPoint(CP, DeformedPositionOffset, 1);
 }
 
 #endif // SHADER_GROOMCACHE_UPDATE
