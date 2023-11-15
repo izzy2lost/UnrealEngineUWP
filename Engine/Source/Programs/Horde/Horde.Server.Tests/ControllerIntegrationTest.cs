@@ -35,11 +35,13 @@ static class SerilogExtensions
 
 public class TestWebApplicationFactory<TStartup> : WebApplicationFactory<TStartup> where TStartup : class
 {
-	private readonly MongoDbInstance _mongoDbInstance;
+	private readonly MongoInstance _mongoInstance;
+	private readonly RedisInstance _redisInstance;
 
-	public TestWebApplicationFactory(MongoDbInstance mongoDbInstance)
+	public TestWebApplicationFactory(MongoInstance mongoInstance, RedisInstance redisInstance)
 	{
-		_mongoDbInstance = mongoDbInstance;
+		_mongoInstance = mongoInstance;
+		_redisInstance = redisInstance;
 
 		Serilog.Log.Logger = new LoggerConfiguration()
 			.Enrich.FromLogContext()
@@ -54,12 +56,14 @@ public class TestWebApplicationFactory<TStartup> : WebApplicationFactory<TStartu
 	{
 		Dictionary<string, string?> dict = new()
 		{
-			{ "Horde:DatabaseConnectionString", _mongoDbInstance.ConnectionString },
-			{ "Horde:DatabaseName", _mongoDbInstance.DatabaseName },
+			{ "Horde:DatabaseConnectionString", _mongoInstance.ConnectionString },
+			{ "Horde:DatabaseName", _mongoInstance.DatabaseName },
 			{ "Horde:LogServiceWriteCacheType", "inmemory" },
 			{ "Horde:DisableAuth", "true" },
 			{ "Horde:OidcAuthority", null },
-			{ "Horde:OidcClientId", null }
+			{ "Horde:OidcClientId", null },
+
+			{ "Horde:RedisConnectionConfig", _redisInstance.ConnectionString },
 		};
 
 		Mock<IAmazonCloudWatch> cloudWatchMock = new (MockBehavior.Strict);
@@ -78,14 +82,16 @@ public class ControllerIntegrationTest : IAsyncDisposable
 
 	public ControllerIntegrationTest()
 	{
-		MongoDbInstance = new MongoDbInstance();
-		Factory = new TestWebApplicationFactory<Startup>(MongoDbInstance);
+		MongoInstance = new MongoInstance();
+		RedisInstance = new RedisInstance();
+		Factory = new TestWebApplicationFactory<Startup>(MongoInstance, RedisInstance);
 		Client = Factory.CreateClient();
 
 		_fixture = new Lazy<Task<Fixture>>(CreateFixtureTaskAsync);
 	}
 
-	protected MongoDbInstance MongoDbInstance { get; }
+	protected MongoInstance MongoInstance { get; }
+	protected RedisInstance RedisInstance { get; }
 	private TestWebApplicationFactory<Startup> Factory { get; }
 	protected HttpClient Client { get; }
 
@@ -96,7 +102,8 @@ public class ControllerIntegrationTest : IAsyncDisposable
 		try
 		{
 			await Factory.DisposeAsync();
-			MongoDbInstance.Dispose();
+			MongoInstance.Dispose();
+			RedisInstance.Dispose();
 		}
 		catch (Exception ex)
 		{

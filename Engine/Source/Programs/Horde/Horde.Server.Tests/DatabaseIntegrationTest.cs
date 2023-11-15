@@ -11,6 +11,7 @@ using Horde.Server.Utilities;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using MongoDB.Driver;
@@ -52,7 +53,7 @@ namespace Horde.Server.Tests
         public T CurrentValue { get; }
     }
 
-	public sealed class MongoDbInstance : IDisposable
+	public sealed class MongoInstance : IDisposable
 	{
 		public string DatabaseName { get; }
 		public string ConnectionString { get; }
@@ -63,7 +64,7 @@ namespace Horde.Server.Tests
 		private static int s_nextDatabaseIndex = 1;
 		public const string MongoDbDatabaseNamePrefix = "HordeServerTest_";
 
-		public MongoDbInstance()
+		public MongoInstance()
 		{
 			int databaseIndex;
 			lock (s_lockObject)
@@ -114,6 +115,60 @@ namespace Horde.Server.Tests
 		}
 	}
 
+	public sealed class RedisInstance : IDisposable
+	{
+		static readonly object s_lockObject = new object();
+
+		const bool UseExistingRedisInstance = true;
+		const int RedisPort = 6379;
+		const int RedisDbNum = 15;
+
+		private static string? s_redisConnectionString;
+		private static int s_redisDbNum;
+		private static RedisProcess? s_redisProcess;
+
+		public string ConnectionString { get; }
+		public int DatabaseNumber { get; }
+
+		public RedisInstance()
+		{
+			lock (s_lockObject)
+			{
+				if (s_redisConnectionString == null)
+				{
+					int port = GetRedisPortInternal();
+					s_redisConnectionString = $"localhost:{port},allowAdmin=true";
+					s_redisDbNum = RedisDbNum;
+				}
+
+				ConnectionString = s_redisConnectionString;
+				DatabaseNumber = s_redisDbNum;
+			}
+		}
+
+		public void Dispose()
+		{
+		}
+
+		static int GetRedisPortInternal()
+		{
+			if (UseExistingRedisInstance && !DatabaseRunner.IsPortAvailable(RedisPort))
+			{
+				return RedisPort;
+			}
+
+			if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+			{
+				s_redisProcess = new RedisProcess(NullLogger.Instance);
+				s_redisProcess.Start("--save \"\" --appendonly no");
+
+				return s_redisProcess.Port;
+			}
+
+			throw new Exception("Unable to connect to Redis");
+		}
+	}
+
 	public class ServiceTest : IAsyncDisposable
 	{
 		private ServiceProvider? _serviceProvider = null;
@@ -157,16 +212,11 @@ namespace Horde.Server.Tests
     {
 		private static readonly object s_lockObject = new object();
 
-		private MongoDbInstance? _mongoDbInstance;
+		private MongoInstance? _mongoInstance;
 		private MongoService? _mongoService;
 		private readonly LoggerFactory _loggerFactory = new LoggerFactory();
 
-		const bool UseExistingRedisInstance = true;
-		const int RedisPort = 6379;
-		const int RedisDbNum = 15;
-
-		private static int? s_redisPort;
-		private static RedisProcess? s_redisProcess;
+		private RedisInstance? _redisInstance;
 		private RedisService? _redisService;
 
 		public DatabaseIntegrationTest()
@@ -184,13 +234,14 @@ namespace Horde.Server.Tests
 			await base.DisposeAsync();
 
 			GC.SuppressFinalize(this);
-			_mongoDbInstance?.Dispose();
 			_mongoService?.Dispose();
+			_mongoInstance?.Dispose();
 
 			if (_redisService != null)
 			{
 				await _redisService.DisposeAsync();
 			}
+			_redisInstance?.Dispose();
 
 			_loggerFactory.Dispose();
 		}
@@ -203,11 +254,11 @@ namespace Horde.Server.Tests
 				{
 					RedisService redisService = GetRedisServiceSingleton();
 
-					_mongoDbInstance = new MongoDbInstance();
+					_mongoInstance = new MongoInstance();
 
 					ServerSettings ss = new ServerSettings();
-					ss.DatabaseName = _mongoDbInstance.DatabaseName;
-					ss.DatabaseConnectionString = _mongoDbInstance.ConnectionString;
+					ss.DatabaseName = _mongoInstance.DatabaseName;
+					ss.DatabaseConnectionString = _mongoInstance.ConnectionString;
 
 					_mongoService = new MongoService(Options.Create(ss), redisService, OpenTelemetryTracers.Horde, _loggerFactory.CreateLogger<MongoService>(), _loggerFactory);
 				}
@@ -215,44 +266,17 @@ namespace Horde.Server.Tests
 			return _mongoService;
         }
 
-		int GetRedisPort()
-		{
-			lock (s_lockObject)
-			{
-				s_redisPort ??= GetRedisPortInternal();
-				return s_redisPort.Value;
-			}
-		}
-
-		int GetRedisPortInternal()
-		{
-			if (UseExistingRedisInstance && !DatabaseRunner.IsPortAvailable(RedisPort))
-			{
-				return RedisPort;
-			}
-
-			if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-			{
-				s_redisProcess = new RedisProcess(_loggerFactory.CreateLogger("redis"));
-				s_redisProcess.Start("--save \"\" --appendonly no");
-
-				return s_redisProcess.Port;
-			}
-
-			throw new Exception("Unable to connect to Redis");
-		}
-
 		public RedisService GetRedisServiceSingleton()
         {
 			if (_redisService == null)
 			{
-				int port = GetRedisPort();
-				_redisService = new RedisService($"localhost:{port},allowAdmin=true", RedisDbNum, _loggerFactory.CreateLogger<RedisService>());
+				_redisInstance = new RedisInstance();
+				_redisService = new RedisService(_redisInstance.ConnectionString, _redisInstance.DatabaseNumber, _loggerFactory.CreateLogger<RedisService>());
 
 				IConnectionMultiplexer cm = _redisService.ConnectionPool.GetConnection();
 				foreach (EndPoint endpoint in cm.GetEndPoints())
 				{
-					cm.GetServer(endpoint).FlushDatabase(RedisDbNum);
+					cm.GetServer(endpoint).FlushDatabase(_redisInstance.DatabaseNumber);
 				}
 			}
 			return _redisService;
