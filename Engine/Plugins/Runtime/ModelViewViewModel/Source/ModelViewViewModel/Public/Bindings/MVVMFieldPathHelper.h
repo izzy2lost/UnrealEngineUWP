@@ -58,8 +58,16 @@ namespace UE::MVVM::FieldPathHelper
 	UE_NODISCARD MODELVIEWVIEWMODEL_API FText ToText(TArrayView<const FMVVMFieldVariant> Fields);
 	UE_NODISCARD MODELVIEWVIEWMODEL_API FText ToText(TArrayView<const FMVVMConstFieldVariant> Fields);
 
-	/** */
+	/** Returns the object value from the FieldContext. */
 	UE_NODISCARD MODELVIEWVIEWMODEL_API TValueOrError<UObject*, void> EvaluateObjectProperty(const FFieldContext& InSource);
+
+	/**
+	 * Returns the container that the field represents.
+	 * If the field is a Object property, then returns the PropertyClass.
+	 * If the field is a Struct property, then returns the Struct.
+	 * If the field is a Function, then returns the return value property's container.
+	 */
+	UE_NODISCARD MODELVIEWVIEWMODEL_API TValueOrError<const UStruct*, void> GetFieldAsContainer(const UE::MVVM::FMVVMConstFieldVariant Field);
 
 } // namespace
 

@@ -37,20 +37,13 @@ FText UMVVMDeveloperProjectSettings::GetSectionText() const
 	return LOCTEXT("MVVMProjectSettings", "UMG Model View Viewmodel");
 }
 
-bool UMVVMDeveloperProjectSettings::PropertyHasFiltering(const FProperty* Property) const
+bool UMVVMDeveloperProjectSettings::PropertyHasFiltering(const UStruct* ObjectStruct, const FProperty* Property) const
 {
+	check(ObjectStruct);
 	check(Property);
-	const UStruct* ObjectStruct = nullptr;
 
-	if (const FObjectProperty* ObjectProperty = CastField<FObjectProperty>(Property))
-	{
-		ObjectStruct = ObjectProperty->PropertyClass;
-	}
-	else
-	{
-		ObjectStruct = Property->GetOwnerStruct();
-	}
-
+	const UClass* AuthoritativeClass = Cast<const UClass>(ObjectStruct);
+	ObjectStruct = AuthoritativeClass ? AuthoritativeClass->GetAuthoritativeClass() : ObjectStruct;
 	if (!FPropertyEditorPermissionList::Get().HasFiltering(ObjectStruct))
 	{
 		return false;
@@ -80,55 +73,49 @@ bool ShouldDoPropertyEditorPermission(const UBlueprint* GeneratingFor, const UCl
 }
 }//namespace
 
-bool UMVVMDeveloperProjectSettings::IsPropertyAllowed(const UBlueprint* GeneratingFor, const FProperty* Property) const
+bool UMVVMDeveloperProjectSettings::IsPropertyAllowed(const UBlueprint* GeneratingFor, const UStruct* ObjectStruct, const FProperty* Property) const
 {
-	check(Property);
 	check(GeneratingFor);
+	check(ObjectStruct);
+	check(Property);
 
-	const UStruct* OwnerStruct = Property->GetOwnerStruct();
-	check(OwnerStruct);
+	const UClass* AuthoritativeClass = Cast<const UClass>(ObjectStruct);
+	AuthoritativeClass = AuthoritativeClass ? AuthoritativeClass->GetAuthoritativeClass() : nullptr;
 
-	// The editor permission doesn't work with skeletal class
-	const UClass* OwnerClass = Cast<UClass>(OwnerStruct);
-	if (OwnerClass)
-	{
-		OwnerClass = OwnerClass->GetAuthoritativeClass();
-		OwnerStruct = OwnerClass;
-	}
-
-	const bool bDoPropertyEditorPermission = UE::MVVM::Private::ShouldDoPropertyEditorPermission(GeneratingFor, OwnerClass);
+	const bool bDoPropertyEditorPermission = UE::MVVM::Private::ShouldDoPropertyEditorPermission(GeneratingFor, AuthoritativeClass);
 	if (bDoPropertyEditorPermission)
 	{
-		if (!FPropertyEditorPermissionList::Get().DoesPropertyPassFilter(OwnerStruct, Property->GetFName()))
+		if (!FPropertyEditorPermissionList::Get().DoesPropertyPassFilter(AuthoritativeClass, Property->GetFName()))
 		{
 			return false;
 		}
 	}
 
-	if (OwnerClass)
+	if (AuthoritativeClass)
 	{
 		TStringBuilder<512> StringBuilder;
-		OwnerClass->GetPathName(nullptr, StringBuilder);
+		AuthoritativeClass->GetPathName(nullptr, StringBuilder);
 		FSoftClassPath StructPath;
 		StructPath.SetPath(StringBuilder);
 		if (const FMVVMDeveloperProjectWidgetSettings* Settings = FieldSelectorPermissions.Find(StructPath))
 		{
-			return !Settings->DisallowedFieldNames.Find(Property->GetFName());
+			if (Settings->DisallowedFieldNames.Find(Property->GetFName()))
+			{
+				return false;
+			}
 		}
 	}
 	return true;
 }
 
-bool UMVVMDeveloperProjectSettings::IsFunctionAllowed(const UBlueprint* GeneratingFor, const UFunction* Function) const
+bool UMVVMDeveloperProjectSettings::IsFunctionAllowed(const UBlueprint* GeneratingFor, const UClass* ObjectClass, const UFunction* Function) const
 {
-	if (Function == nullptr)
-	{
-		return false;
-	}
+	check(GeneratingFor);
+	check(ObjectClass);
+	check(Function);
 
-	const UClass* OriginalOwnerClass = Function->GetOwnerClass();
-	const UClass* OwnerClass = OriginalOwnerClass ? OriginalOwnerClass->GetAuthoritativeClass() : nullptr;
-	if (OwnerClass == nullptr)
+	const UClass* AuthoritativeClass = ObjectClass->GetAuthoritativeClass();
+	if (AuthoritativeClass == nullptr)
 	{
 		return false;
 	}
@@ -137,11 +124,7 @@ bool UMVVMDeveloperProjectSettings::IsFunctionAllowed(const UBlueprint* Generati
 	const FPathPermissionList& FunctionPermissions = GetMutableDefault<UBlueprintEditorSettings>()->GetFunctionPermissions();
 	if (FunctionPermissions.HasFiltering())
 	{
-		const UFunction* FunctionToTest = Function;
-		if (OriginalOwnerClass != OwnerClass)
-		{
-			FunctionToTest = OwnerClass->FindFunctionByName(Function->GetFName());
-		}
+		const UFunction* FunctionToTest = AuthoritativeClass->FindFunctionByName(Function->GetFName());
 		if (FunctionToTest == nullptr)
 		{
 			return false;
@@ -157,12 +140,15 @@ bool UMVVMDeveloperProjectSettings::IsFunctionAllowed(const UBlueprint* Generati
 
 	{
 		StringBuilder.Reset();
-		OwnerClass->GetPathName(nullptr, StringBuilder);
+		AuthoritativeClass->GetPathName(nullptr, StringBuilder);
 		FSoftClassPath StructPath;
 		StructPath.SetPath(StringBuilder);
 		if (const FMVVMDeveloperProjectWidgetSettings* Settings = FieldSelectorPermissions.Find(StructPath))
 		{
-			return !Settings->DisallowedFieldNames.Find(Function->GetFName());
+			if (Settings->DisallowedFieldNames.Find(Function->GetFName()))
+			{
+				return false;
+			}
 		}
 	}
 
@@ -179,7 +165,7 @@ bool UMVVMDeveloperProjectSettings::IsConversionFunctionAllowed(const UBlueprint
 
 	if (ConversionFunctionFilter == EMVVMDeveloperConversionFunctionFilterType::BlueprintActionRegistry)
 	{
-		return IsFunctionAllowed(GeneratingFor, Function);
+		return IsFunctionAllowed(GeneratingFor, Function->GetOwnerClass(), Function);
 	}
 	else
 	{
@@ -205,7 +191,7 @@ bool UMVVMDeveloperProjectSettings::IsConversionFunctionAllowed(const UBlueprint
 		else
 		{
 			// The function is on self and may have been filtered.
-			return IsFunctionAllowed(GeneratingFor, Function);
+			return IsFunctionAllowed(GeneratingFor, Function->GetOwnerClass(), Function);
 		}
 	}
 }

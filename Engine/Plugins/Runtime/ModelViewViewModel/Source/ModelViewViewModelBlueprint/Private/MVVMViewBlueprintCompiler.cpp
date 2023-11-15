@@ -2643,11 +2643,16 @@ TArray<FMVVMConstFieldVariant> FMVVMViewBlueprintCompiler::CreatePropertyPath(co
 
 bool FMVVMViewBlueprintCompiler::IsPropertyPathValid(const UBlueprint* Context, TArrayView<const FMVVMConstFieldVariant> PropertyPath)
 {
+	const UStruct* CurrentContainer = Context->GeneratedClass ? Context->GeneratedClass : Context->SkeletonGeneratedClass;
 	int32 PathLength = PropertyPath.Num();
 	for (int32 Index = 0; Index < PathLength; Index++)
 	{
 		const FMVVMConstFieldVariant& Field = PropertyPath[Index];
 
+		if (CurrentContainer == nullptr)
+		{
+			return false;
+		}
 		if (Field.IsEmpty())
 		{
 			return false;
@@ -2659,7 +2664,7 @@ bool FMVVMViewBlueprintCompiler::IsPropertyPathValid(const UBlueprint* Context, 
 				return false;
 			}
 
-			if (!GetDefault<UMVVMDeveloperProjectSettings>()->IsPropertyAllowed(Context, Field.GetProperty()))
+			if (!GetDefault<UMVVMDeveloperProjectSettings>()->IsPropertyAllowed(Context, CurrentContainer, Field.GetProperty()))
 			{
 				return false;
 			}
@@ -2670,11 +2675,19 @@ bool FMVVMViewBlueprintCompiler::IsPropertyPathValid(const UBlueprint* Context, 
 			{
 				return false;
 			}
-			if (!GetDefault<UMVVMDeveloperProjectSettings>()->IsFunctionAllowed(Context, Field.GetFunction()))
+			const UClass* CurrentContainerAsClass = Cast<const UClass>(CurrentContainer);
+			if (CurrentContainerAsClass == nullptr)
+			{
+				return false;
+			}
+			if (!GetDefault<UMVVMDeveloperProjectSettings>()->IsFunctionAllowed(Context, CurrentContainerAsClass, Field.GetFunction()))
 			{
 				return false;
 			}
 		}
+
+		TValueOrError<const UStruct*, void> FieldAsContainerResult = UE::MVVM::FieldPathHelper::GetFieldAsContainer(Field);
+		CurrentContainer = FieldAsContainerResult.HasValue() ? FieldAsContainerResult.GetValue() : nullptr;
 	}
 	return true;
 }

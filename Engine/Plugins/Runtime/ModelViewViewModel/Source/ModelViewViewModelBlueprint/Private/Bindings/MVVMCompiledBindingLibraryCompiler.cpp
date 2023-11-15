@@ -3,6 +3,7 @@
 #include "Bindings/MVVMCompiledBindingLibraryCompiler.h"
 
 #include "Bindings/MVVMBindingHelper.h"
+#include "Bindings/MVVMFieldPathHelper.h"
 #include "Engine/Blueprint.h"
 #include "Engine/Engine.h"
 #include "Kismet2/BlueprintEditorUtils.h"
@@ -315,8 +316,21 @@ TValueOrError<FCompiledBindingLibraryCompiler::FFieldPathHandle, FText> FCompile
 	TArray<int32> RawFieldIndexes;
 	RawFieldIndexes.Reserve(InFieldPath.Num());
 
+	const UBlueprint* BlueprintContext = Impl->BlueprintContext.Get();
+	if (BlueprintContext == nullptr)
+	{
+		return MakeError(LOCTEXT("InvalidBlueprint", "The Blueprint is invalid."));
+	}
+
+	const UStruct* CurrentContainer = BlueprintContext->GeneratedClass ? BlueprintContext->GeneratedClass : BlueprintContext->SkeletonGeneratedClass;
+
 	for (int32 Index = 0; Index < InFieldPath.Num(); ++Index)
 	{
+		if (CurrentContainer == nullptr)
+		{
+			return MakeError(LOCTEXT("InvalidContainer", "The path has an invalid container."));
+		}
+
 		// Make sure the FieldVariant is not from a skeletalclass
 		FMVVMConstFieldVariant FieldVariant = InFieldPath[Index];
 		if (!FieldVariant.IsValid())
@@ -346,7 +360,7 @@ TValueOrError<FCompiledBindingLibraryCompiler::FFieldPathHandle, FText> FCompile
 				return MakeError(ValidatedStr);
 			}
 
-			if (!GetDefault<UMVVMDeveloperProjectSettings>()->IsPropertyAllowed(Impl->BlueprintContext.Get(), FieldVariant.GetProperty()))
+			if (!GetDefault<UMVVMDeveloperProjectSettings>()->IsPropertyAllowed(Impl->BlueprintContext.Get(), CurrentContainer, FieldVariant.GetProperty()))
 			{
 				return MakeError(LOCTEXT("PropertyNotAllow", "A property is not allowed."));
 			}
@@ -367,7 +381,13 @@ TValueOrError<FCompiledBindingLibraryCompiler::FFieldPathHandle, FText> FCompile
 				return MakeError(FText::Format(LOCTEXT("FunctionNotReadableAtRuntime", "Function '{0}' is not readable at runtime."), FieldVariant.GetFunction()->GetDisplayNameText()));
 			}
 
-			if (!GetDefault<UMVVMDeveloperProjectSettings>()->IsFunctionAllowed(Impl->BlueprintContext.Get(), FieldVariant.GetFunction()))
+			const UClass* CurrentContainerAsClass = Cast<const UClass>(CurrentContainer);
+			if (CurrentContainerAsClass == nullptr)
+			{
+				return MakeError(LOCTEXT("InvalidContainer", "The path has an invalid container."));
+			}
+
+			if (!GetDefault<UMVVMDeveloperProjectSettings>()->IsFunctionAllowed(Impl->BlueprintContext.Get(), CurrentContainerAsClass, FieldVariant.GetFunction()))
 			{
 				return MakeError(LOCTEXT("FunctionNotAllow", "A function is not allowed."));
 			}
@@ -389,6 +409,9 @@ TValueOrError<FCompiledBindingLibraryCompiler::FFieldPathHandle, FText> FCompile
 		{
 			return MakeError(LOCTEXT("InvalidFieldInPath", "There is an invalid field in the field path."));
 		}
+
+		TValueOrError<const UStruct*, void> FieldAsContainerResult = UE::MVVM::FieldPathHelper::GetFieldAsContainer(FieldVariant);
+		CurrentContainer = FieldAsContainerResult.HasValue() ? FieldAsContainerResult.GetValue() : nullptr;
 	}
 
 	int32 FoundFieldPath = Impl->FieldPaths.IndexOfByPredicate([&RawFieldIndexes](const Private::FRawFieldPath& Other)

@@ -70,9 +70,9 @@ public:
 	virtual FText GetSectionText() const override;
 
 
-	bool PropertyHasFiltering(const FProperty* Property) const;
-	bool IsPropertyAllowed(const UBlueprint* Context, const FProperty* Property) const;
-	bool IsFunctionAllowed(const UBlueprint* Context, const UFunction* Function) const;
+	bool PropertyHasFiltering(const UStruct* ObjectStruct, const FProperty* Property) const;
+	bool IsPropertyAllowed(const UBlueprint* Context, const UStruct* ObjectStruct, const FProperty* Property) const;
+	bool IsFunctionAllowed(const UBlueprint* Context, const UClass* ObjectClass, const UFunction* Function) const;
 	bool IsConversionFunctionAllowed(const UBlueprint* Context, const UFunction* Function) const;
 
 	bool IsExecutionModeAllowed(EMVVMExecutionMode ExecutionMode) const
