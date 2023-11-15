@@ -221,7 +221,7 @@ namespace Audio
 		{		
 			for (const TObjectPtr<USoundEffectSubmixPreset>& i: Submix->SubmixEffectChain)
 			{
-				FxChain += FString::Printf(TEXT("[%s]"), *i->GetName());
+				FxChain += FString::Printf(TEXT("[%s]"), *GetNameSafe(i));
 			}
 		}
 
@@ -1264,7 +1264,7 @@ namespace Audio
 			{
 				ParentSubmixInstance = GetSubmixInstance(Parent).Pin();
 			}
-			else
+			else if (SubmixWithParent->bAutoRouteToMasterSubmixWhenOrphaned)
 			{
 				// If this submix is itself the broadcast submix, set its parent to the master submix
 				if (SubmixInstance == RequiredSubmixInstances[static_cast<int32>(ERequiredSubmixes::BaseDefault)])
