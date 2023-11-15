@@ -65,4 +65,4 @@ public:
 	}
 };
 
-IMPLEMENT_MODULE(FVTModule, VT);
+IMPLEMENT_MODULE(FVTModule, VTCodecs);
