@@ -117,7 +117,11 @@ void FDataValidationModule::RegisterMenus()
 				IAssetRegistry& AssetRegistry = AssetRegistryModule.Get();
 				for (FAssetData& AssetData : SelectedActorAssets)
 				{
-					AssetData = AssetRegistry.GetAssetByObjectPath(AssetData.GetSoftObjectPath(), true);
+					FAssetData DiskAssetData = AssetRegistry.GetAssetByObjectPath(AssetData.GetSoftObjectPath(), true);
+					if (DiskAssetData.IsValid())
+					{
+						AssetData = MoveTemp(DiskAssetData);
+					}
 				}
 				ValidateAssets(SelectedActorAssets, false, EDataValidationUsecase::Manual);
 			}
