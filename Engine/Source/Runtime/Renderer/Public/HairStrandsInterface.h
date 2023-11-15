@@ -20,6 +20,7 @@
 
 class UTexture2D;
 class FSceneInterface;
+class FGlobalShaderMap;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // Shader parameters
@@ -161,6 +162,12 @@ struct FRDGImportedBuffer
 RENDERER_API FRDGImportedBuffer Register(FRDGBuilder& GraphBuilder, const FRDGExternalBuffer& In, ERDGImportedBufferFlags Flags, ERDGUnorderedAccessViewFlags UAVFlags = ERDGUnorderedAccessViewFlags::None);
 RENDERER_API FRDGBufferSRVRef   RegisterAsSRV(FRDGBuilder& GraphBuilder, const FRDGExternalBuffer& In);
 RENDERER_API FRDGBufferUAVRef   RegisterAsUAV(FRDGBuilder& GraphBuilder, const FRDGExternalBuffer& In, ERDGUnorderedAccessViewFlags Flags = ERDGUnorderedAccessViewFlags::None);
+
+RENDERER_API void AddTransitionPass(
+	FRDGBuilder& GraphBuilder,
+	FGlobalShaderMap* ShaderMap,
+	const TArray<FRDGBufferSRVRef>& Transitions);
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // Misc/Helpers
 

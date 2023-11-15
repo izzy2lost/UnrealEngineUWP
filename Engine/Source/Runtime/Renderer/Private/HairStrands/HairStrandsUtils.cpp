@@ -6,6 +6,7 @@
 #include "HairStrandsCluster.h"
 #include "Rendering/SkeletalMeshRenderData.h"
 #include "HairStrandsData.h"
+#include "SystemTextures.h"
 
 static float GHairR = 1;
 static float GHairTT = 1;
@@ -345,4 +346,102 @@ uint32 PackHairRenderInfoBits(
 	BitField |= bIsOrtho ? 0x1 : 0;
 	BitField |= bIsGPUDriven ? 0x2 : 0;
 	return BitField;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
+class FHairResourceTransitionPass : public FGlobalShader
+{
+private:
+	DECLARE_GLOBAL_SHADER(FHairResourceTransitionPass);
+	SHADER_USE_PARAMETER_STRUCT(FHairResourceTransitionPass, FGlobalShader);
+
+	class FStructuredBuffer : SHADER_PERMUTATION_BOOL("PERMUTATION_STRUCTURED_BUFFER");
+	using FPermutationDomain = TShaderPermutationDomain<FStructuredBuffer>;
+
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER(uint32, DummyValue)
+		SHADER_PARAMETER_RDG_BUFFER_SRV_ARRAY(Buffer, VertexBuffers, [16])
+		SHADER_PARAMETER_RDG_BUFFER_SRV_ARRAY(StructuredBuffer, StructuredBuffers, [16])
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer, DummyOutput)
+		END_SHADER_PARAMETER_STRUCT()
+
+public:
+		static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		return IsHairStrandsSupported(EHairStrandsShaderType::All, Parameters.Platform);
+	}
+	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+	{
+		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+		OutEnvironment.SetDefine(TEXT("SHADER_RESOURCE_TRANSITION"), 1);
+	}
+};
+
+IMPLEMENT_GLOBAL_SHADER(FHairResourceTransitionPass, "/Engine/Private/HairStrands/HairStrandsMesh.usf", "MainCS", SF_Compute);
+
+void AddTransitionPass(
+	FRDGBuilder& GraphBuilder,
+	FGlobalShaderMap* ShaderMap,
+	const TArray<FRDGBufferSRVRef>& Transitions)
+{
+	const uint32 ResourceCount = Transitions.Num();
+	if (ResourceCount == 0)
+	{
+		return;
+	}
+
+	FRDGBufferSRVRef DummyVertexInput = GraphBuilder.CreateSRV(GSystemTextures.GetDefaultBuffer(GraphBuilder, 4u, 1u), PF_R32_UINT);
+	FRDGBufferSRVRef DummyStructuredInput= GraphBuilder.CreateSRV(GSystemTextures.GetDefaultStructuredBuffer(GraphBuilder, 16u));
+
+	FRDGBufferRef DummyOutput = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(4,1),TEXT("DummyOutput"));
+	FRDGBufferUAVRef DummyOutputUAV = GraphBuilder.CreateUAV(DummyOutput, PF_R32_UINT, ERDGUnorderedAccessViewFlags::SkipBarrier);
+
+	check(Transitions[0]);
+	check(Transitions[0]->Desc.Buffer);
+	const bool bStructuredBuffer = EnumHasAnyFlags(Transitions[0]->Desc.Buffer->Desc.Usage, EBufferUsageFlags::StructuredBuffer);
+
+	const uint32 MaxBufferCount = 16;
+	const uint32 PassCount = FMath::DivideAndRoundUp(ResourceCount, MaxBufferCount);
+	for (uint32 PassIt=0; PassIt< PassCount; ++PassIt)
+	{
+		FHairResourceTransitionPass::FParameters* PassParameters = GraphBuilder.AllocParameters<FHairResourceTransitionPass::FParameters>();
+		PassParameters->DummyValue = 0;
+		PassParameters->DummyOutput = DummyOutputUAV;
+
+		const uint32 PassResourceOffset = PassIt * MaxBufferCount;
+		const uint32 PassResourceCount = FMath::Min(int32(MaxBufferCount), int32(ResourceCount) - int32(PassResourceOffset));
+		if (bStructuredBuffer)
+		{
+			for (uint32 ResourceIt = 0; ResourceIt < PassResourceCount; ++ResourceIt)
+			{
+				PassParameters->StructuredBuffers[ResourceIt] = Transitions[PassResourceOffset + ResourceIt];
+			}
+			for (uint32 ResourceIt = PassResourceCount; ResourceIt < MaxBufferCount; ++ResourceIt)
+			{
+				PassParameters->StructuredBuffers[ResourceIt] = DummyStructuredInput;
+			}
+		}
+		else
+		{
+			for (uint32 ResourceIt = 0; ResourceIt < PassResourceCount; ++ResourceIt)
+			{
+				PassParameters->VertexBuffers[ResourceIt] = Transitions[PassResourceOffset + ResourceIt];
+			}
+			for (uint32 ResourceIt = PassResourceCount; ResourceIt < MaxBufferCount; ++ResourceIt)
+			{
+				PassParameters->VertexBuffers[ResourceIt] = DummyVertexInput;
+			}
+		}
+		FHairResourceTransitionPass::FPermutationDomain PermutationVector;
+		PermutationVector.Set<FHairResourceTransitionPass::FStructuredBuffer>(bStructuredBuffer);
+		TShaderMapRef<FHairResourceTransitionPass> ComputeShader(ShaderMap, PermutationVector);
+		FComputeShaderUtils::AddPass(
+			GraphBuilder,
+			RDG_EVENT_NAME("HairStrands::ResourceTransitions"),
+			ERDGPassFlags::Compute | ERDGPassFlags::NeverCull,
+			ComputeShader,
+			PassParameters,
+			FIntVector(1, 1, 1));
+	}
 }
