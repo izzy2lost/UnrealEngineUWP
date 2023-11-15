@@ -85,7 +85,7 @@ void DebugDrawChaos(AActor* DebugDrawActor, const TArray<Chaos::FLatentDrawComma
 		return;
 	}
 
-	if (!World->IsGameWorld())
+	if (World->IsPreviewWorld())
 	{
 		return;
 	}
@@ -205,6 +205,8 @@ UChaosDebugDrawComponent::UChaosDebugDrawComponent()
 	PrimaryComponentTick.bCanEverTick = true;
 	PrimaryComponentTick.SetTickFunctionEnable(true);
 	PrimaryComponentTick.TickGroup = TG_PostUpdateWork;
+
+	bTickInEditor = true;
 }
 
 void UChaosDebugDrawComponent::BeginDestroy()
@@ -244,6 +246,36 @@ void UChaosDebugDrawComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	Chaos::FDebugDrawQueue::GetInstance().SetConsumerActive(this, bInPlay);
 #endif
 }
+
+#if WITH_EDITOR && CHAOS_DEBUG_DRAW
+void UChaosDebugDrawComponent::OnRegister()
+{
+	Super::OnRegister();
+
+	const UWorld* World = GetWorld();
+	check(World);
+
+	// GameWorld is handled by BeginPlay/EndPlay
+	if (!World->IsGameWorld() && !World->IsPreviewWorld())
+	{
+		Chaos::FDebugDrawQueue::GetInstance().SetConsumerActive(this, /*bConsumerActive*/true);
+	}
+}
+
+void UChaosDebugDrawComponent::OnUnregister()
+{
+	const UWorld* World = GetWorld();
+	check(World);
+
+	// GameWorld is handled by BeginPlay/EndPlay
+	if (!World->IsGameWorld() && !World->IsPreviewWorld())
+	{
+		Chaos::FDebugDrawQueue::GetInstance().SetConsumerActive(this, /*bConsumerActive*/false);
+	}
+
+	Super::OnUnregister();
+}
+#endif // WITH_EDITOR && CHAOS_DEBUG_DRAW
 
 void UChaosDebugDrawComponent::TickComponent(float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction *ThisTickFunction)
 {
@@ -317,7 +349,7 @@ void UChaosDebugDrawComponent::BindWorldDelegates()
 void UChaosDebugDrawComponent::HandlePostWorldInitialization(UWorld* World, const UWorld::InitializationValues IVS)
 {
 #if CHAOS_DEBUG_DRAW
-	if ((World != nullptr) && World->IsGameWorld())
+	if ((World != nullptr) && !World->IsPreviewWorld())
 	{
 		CreateDebugDrawActor(World);
 	}
