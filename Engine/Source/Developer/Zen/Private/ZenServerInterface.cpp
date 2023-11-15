@@ -1816,7 +1816,14 @@ FZenServiceInstance::IsServiceReady()
 		}
 		else
 		{
-			UE_LOG(LogZenServiceInstance, Warning, TEXT("Unable to reach ZenServer HTTP service at %s. Status: %d . Response: %s"), ZenDomain.ToString(), Request.GetResponseCode(), *Request.GetResponseAsString());
+			if (IsServiceRunningLocally())
+			{
+				UE_LOG(LogZenServiceInstance, Warning, TEXT("Unable to reach ZenServer HTTP service at %s. Status: %d . Response: %s"), ZenDomain.ToString(), Request.GetResponseCode(), *Request.GetResponseAsString());
+			}
+			else
+			{
+				UE_LOG(LogZenServiceInstance, Display, TEXT("Unable to reach ZenServer HTTP service at %s. Status: %d . Response: %s"), ZenDomain.ToString(), Request.GetResponseCode(), *Request.GetResponseAsString());
+			}
 		}
 	}
 	return false;

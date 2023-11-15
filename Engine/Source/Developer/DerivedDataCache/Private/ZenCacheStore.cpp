@@ -103,6 +103,12 @@ public:
 	 */
 	inline bool IsUsable() const { return bIsUsable; }
 
+	/**
+	 * Checks if cache service is on the local machine.
+	 * @return true if it is local
+	 */
+	inline bool IsLocalConnection() const { return bIsLocalConnection; }
+
 	// ICacheStore
 
 	void Put(
@@ -1973,7 +1979,14 @@ ILegacyCacheStore* CreateZenCacheStore(const TCHAR* NodeName, const TCHAR* Confi
 
 	if (!Backend->IsUsable())
 	{
-		UE_LOG(LogDerivedDataCache, Warning, TEXT("%s: Failed to contact the service (%s), will not use it."), NodeName, *Backend->GetName());
+		if (Backend->IsLocalConnection())
+		{
+			UE_LOG(LogDerivedDataCache, Warning, TEXT("%s: Failed to contact the service (%s), will not use it."), NodeName, *Backend->GetName());
+		}
+		else
+		{
+			UE_LOG(LogDerivedDataCache, Display, TEXT("%s: Failed to contact the service (%s), will not use it."), NodeName, *Backend->GetName());
+		}
 		Backend.Reset();
 		return nullptr;
 	}
