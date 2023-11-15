@@ -46,6 +46,15 @@ dir /s ^
  Programs\UnrealBuildTool\*.csproj ^
  | %FIND% ".cs" > ..\Intermediate\Build\AutomationToolFiles.txt
 
+if exist Binaries\Win64\UnrealBuildAccelerator (
+	dir /s ^
+	 Binaries\Win64\UnrealBuildAccelerator\*.dll ^
+	 | %FIND% ".dll" >> ..\Intermediate\Build\AutomationToolFiles.txt
+	dir /s ^
+	 Binaries\Win64\UnrealBuildAccelerator\*.exe ^
+	 | %FIND% ".exe" >> ..\Intermediate\Build\AutomationToolFiles.txt
+) 2>nul
+
 if not exist ..\Platforms goto NoPlatforms
 for /d %%D in (..\Platforms\*) do (
 	if exist %%D\Source\Programs\UnrealBuildTool (
@@ -72,6 +81,14 @@ for /d %%D in (..\Restricted\*) do (
 		 %%D\Source\Programs\UnrealBuildTool\*.cs ^
 		 %%D\Source\Programs\UnrealBuildTool\*.csproj ^
 		 | %FIND% ".cs" >> ..\Intermediate\Build\AutomationToolFiles.txt
+	) 2>nul
+	if exist %%D\Binaries\Win64\UnrealBuildAccelerator (
+		dir /s ^
+		 %%D\Binaries\Win64\UnrealBuildAccelerator\*.dll ^
+		 | %FIND% ".dll" >> ..\Intermediate\Build\AutomationToolFiles.txt
+		dir /s ^
+		 %%D\Binaries\Win64\UnrealBuildAccelerator\*.exe ^
+		 | %FIND% ".exe" >> ..\Intermediate\Build\AutomationToolFiles.txt
 	) 2>nul
 )
 :NoRestricted
