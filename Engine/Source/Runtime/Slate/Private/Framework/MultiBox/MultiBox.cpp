@@ -1577,6 +1577,26 @@ FReply SMultiBoxWidget::OnFocusReceived( const FGeometry& MyGeometry, const FFoc
 	return FReply::Unhandled();
 }
 
+void SMultiBoxWidget::OnFocusChanging(const FWeakWidgetPath& PreviousFocusPath, const FWidgetPath& NewWidgetPath, const FFocusEvent& InFocusEvent)
+{
+	if (!AlwaysShowMenuSearchField.GetValueOnAnyThread())
+	{
+		return;
+	}
+
+	if (SearchTextWidget)
+	{
+		// We need to figure out if we're on the current focus path but after the last window, and thus
+		// live in the most-expanded-to submenu. If that's the case, we should enable our search field to
+		// signify to the user that any keyboard input will go there. If not, we disable our search field
+		// (and another menu will enable its search field instead).
+		const TSharedRef<SWindow> DeepestWindow = NewWidgetPath.GetDeepestWindow();
+		const FWidgetPath WidgetPathToThis = NewWidgetPath.GetPathDownTo(AsShared());
+		const bool bIsChildOfDeepestWindow = WidgetPathToThis.IsValid() && WidgetPathToThis.ContainsWidget(&DeepestWindow.Get());
+		SearchTextWidget->SetEnabled(bIsChildOfDeepestWindow);
+	}
+}
+
 FReply SMultiBoxWidget::OnKeyDown( const FGeometry& MyGeometry, const FKeyEvent& KeyEvent )
 {
 	SCompoundWidget::OnKeyDown( MyGeometry, KeyEvent );
