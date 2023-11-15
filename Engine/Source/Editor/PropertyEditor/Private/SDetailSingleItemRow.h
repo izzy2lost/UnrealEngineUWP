@@ -69,9 +69,9 @@ public:
 	virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime);
 
 protected:
-	virtual bool OnContextMenuOpening( FMenuBuilder& MenuBuilder ) override;
+	virtual void PopulateContextMenu(UToolMenu* ToolMenu) override;
 	virtual TArray<TSharedPtr<IPropertyHandle>> GetPropertyHandles(const bool& bRecursive = false) const override;
-	
+
 private:
 	void OnCopyProperty();
 	void OnCopyPropertyDisplayName();

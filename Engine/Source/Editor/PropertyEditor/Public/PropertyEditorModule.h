@@ -22,6 +22,12 @@ class ISinglePropertyView;
 class SDetailsView;
 class SPropertyTreeViewImpl;
 class SSingleProperty;
+class UToolMenu;
+
+namespace UE::PropertyEditor
+{
+	static FName RowContextMenuName = TEXT("PropertyEditor.RowContextMenu");
+}
 
 /**
  * The location of a property name relative to its editor widget                   
@@ -222,7 +228,6 @@ struct FRegisterCustomClassLayoutParams
 class FPropertyEditorModule : public IModuleInterface
 {
 public:
-	
 	/**
 	 * Called right after the module has been loaded                   
 	 */
@@ -453,6 +458,11 @@ private:
 
 	TSharedPtr<class ISinglePropertyView> CreateSinglePropertyImpl(UObject* InObject, const TSharedPtr<IStructureDataProvider>& InStruct, FName InPropertyName, const struct FSinglePropertyParams& InitParams);
 	void CompactSinglePropertyViewArray();
+
+	/** Register Menu extension points */
+	void RegisterMenus();
+
+	static void PopulateRowContextMenu(UToolMenu* InToolMenu);
 
 private:
 	/** All created detail views */

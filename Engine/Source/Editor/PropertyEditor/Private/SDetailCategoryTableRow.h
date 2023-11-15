@@ -44,8 +44,8 @@ public:
 	// ~Begin End Interface
 
 protected:
-	virtual bool OnContextMenuOpening( FMenuBuilder& MenuBuilder ) override;
-	
+	virtual void PopulateContextMenu(UToolMenu* ToolMenu) override;
+
 private:
 	EVisibility IsSeparatorVisible() const;
 

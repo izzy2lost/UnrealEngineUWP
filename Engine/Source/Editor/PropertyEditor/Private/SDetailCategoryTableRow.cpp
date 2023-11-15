@@ -14,12 +14,12 @@
 #include "DetailsViewStyle.h"
 #include "SDetailsView.h"
 #include "Serialization/JsonSerializer.h"
-#include "Styling/StyleColors.h"
 #include "UserInterface/Categories/CategoryMenuComboButtonBuilder.h"
 #include "UserInterface/PropertyEditor/PropertyEditorConstants.h"
 #include "Widgets/Input/SComboButton.h"
 #include "Widgets/Layout/SSeparator.h"
 #include "Brushes/SlateColorBrush.h"
+#include "ToolMenus.h"
 
 void SDetailCategoryTableRow::Construct(const FArguments& InArgs, TSharedRef<FDetailTreeNode> InOwnerTreeNode, const TSharedRef<STableViewBase>& InOwnerTableView)
 {
@@ -114,7 +114,7 @@ void SDetailCategoryTableRow::Construct(const FArguments& InArgs, TSharedRef<FDe
 		TAttribute<bool> IsHovered = TAttribute<bool>::CreateSP( this, &SDetailCategoryTableRow::IsHovered);
 		PropertyUpdatedWidgetBuilder->Bind_IsRowHovered(IsHovered);
 	}
-	
+
 	this->ChildSlot
 	[
 		SNew(SBorder)
@@ -226,50 +226,55 @@ FReply SDetailCategoryTableRow::OnMouseButtonUp(const FGeometry& MyGeometry, con
 	return SDetailTableRowBase::OnMouseButtonUp(MyGeometry, MouseEvent);
 }
 
-bool SDetailCategoryTableRow::OnContextMenuOpening(FMenuBuilder& MenuBuilder)
+void SDetailCategoryTableRow::PopulateContextMenu(UToolMenu* ToolMenu)
 {
-	// Don't add anything if neither actions are bound
-	if (!CopyAction.IsBound() || !PasteAction.IsBound())
-	{
-		return true;
-	}
-	
-	MenuBuilder.BeginSection(NAME_None, NSLOCTEXT("PropertyView", "EditHeading", "Edit"));
-	{
-		bool bLongDisplayName = false;
+	SDetailTableRowBase::PopulateContextMenu(ToolMenu);
 
-		FMenuEntryParams CopyContentParams;
-		CopyContentParams.LabelOverride = NSLOCTEXT("PropertyView", "CopyCategoryProperties", "Copy All Properties in Category");
-		CopyContentParams.ToolTipOverride = TAttribute<FText>::CreateLambda([this]()
+	FToolMenuSection& EditSection = ToolMenu->FindOrAddSection(TEXT("Edit"));
+	{
+		// Don't add anything if neither actions are bound
+		if (CopyAction.IsBound() && PasteAction.IsBound())
 		{
-			return CanCopyCategory()
-				? NSLOCTEXT("PropertyView", "CopyCategoryProperties_ToolTip", "Copy all properties in this category")
-				: NSLOCTEXT("PropertyView", "CantCopyCategoryProperties_ToolTip", "None of the properties in this category can be copied");
-		});
-		CopyContentParams.InputBindingOverride = FInputChord(EModifierKey::Shift, EKeys::RightMouseButton).GetInputText(bLongDisplayName);
-		CopyContentParams.IconOverride = FSlateIcon(FCoreStyle::Get().GetStyleSetName(), "GenericCommands.Copy");
-		CopyContentParams.DirectActions = CopyAction;
-		
-		
-		MenuBuilder.AddMenuEntry(CopyContentParams);
+			bool bLongDisplayName = false;
 
-		FMenuEntryParams PasteContentParams;
-		PasteContentParams.LabelOverride = NSLOCTEXT("PropertyView", "PasteCategoryProperties", "Paste All Properties in Category");
-		PasteContentParams.ToolTipOverride = TAttribute<FText>::CreateLambda([this]()
-		{
-			return CanPasteCategory()
-				? NSLOCTEXT("PropertyView", "PasteCategoryProperties_ToolTip", "Paste the copied property values here")
-				// @note: this is specific to the constraint that the destination category has to match the source category (copied from) exactly 
-				: NSLOCTEXT("PropertyView", "CantPasteCategoryProperties_ToolTip", "The properties in this category don't match the contents of the clipboard");
-		});
-		PasteContentParams.InputBindingOverride = FInputChord(EModifierKey::Shift, EKeys::LeftMouseButton).GetInputText(bLongDisplayName);
-		PasteContentParams.IconOverride = FSlateIcon(FCoreStyle::Get().GetStyleSetName(), "GenericCommands.Paste");
-		PasteContentParams.DirectActions = PasteAction;
-		MenuBuilder.AddMenuEntry(PasteContentParams);
+			{
+				// Copy
+				{
+					FToolMenuEntry& CopyMenuEntry = EditSection.AddMenuEntry(
+						TEXT("Copy"),
+						NSLOCTEXT("PropertyView", "CopyCategoryProperties", "Copy All Properties in Category"),
+						TAttribute<FText>::CreateLambda([this]()
+						{
+							return CanCopyCategory()
+								? NSLOCTEXT("PropertyView", "CopyCategoryProperties_ToolTip", "Copy all properties in this category")
+								: NSLOCTEXT("PropertyView", "CantCopyCategoryProperties_ToolTip", "None of the properties in this category can be copied");
+						}),
+						FSlateIcon(FCoreStyle::Get().GetStyleSetName(), "GenericCommands.Copy"),
+						CopyAction);
+
+					CopyMenuEntry.InputBindingLabel = FInputChord(EModifierKey::Shift, EKeys::RightMouseButton).GetInputText(bLongDisplayName);
+				}
+
+				// Paste
+				{
+					FToolMenuEntry& PasteMenuEntry = EditSection.AddMenuEntry(
+						TEXT("Paste"),
+						NSLOCTEXT("PropertyView", "PasteCategoryProperties", "Paste All Properties in Category"),
+						TAttribute<FText>::CreateLambda([this]()
+						{
+							return CanPasteCategory()
+								? NSLOCTEXT("PropertyView", "PasteCategoryProperties_ToolTip", "Paste the copied property values here")
+								// @note: this is specific to the constraint that the destination category has to match the source category (copied from) exactly 
+								: NSLOCTEXT("PropertyView", "CantPasteCategoryProperties_ToolTip", "The properties in this category don't match the contents of the clipboard");
+						}),
+						FSlateIcon(FCoreStyle::Get().GetStyleSetName(), "GenericCommands.Paste"),
+						PasteAction);
+
+					PasteMenuEntry.InputBindingLabel = FInputChord(EModifierKey::Shift, EKeys::LeftMouseButton).GetInputText(bLongDisplayName);
+				}
+			}
+		}
 	}
-	MenuBuilder.EndSection();
-	
-	return true;
 }
 
 EVisibility SDetailCategoryTableRow::IsSeparatorVisible() const

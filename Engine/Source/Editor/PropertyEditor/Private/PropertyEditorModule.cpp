@@ -1,8 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-
 #include "PropertyEditorModule.h"
 #include "AssetToolsModule.h"
+#include "DetailRowMenuContextPrivate.h"
 #include "IAssetTools.h"
 #include "IDetailsView.h"
 #include "IPropertyChangeListener.h"
@@ -32,7 +32,7 @@
 #include "Widgets/Colors/SColorPicker.h"
 #include "Widgets/Layout/SBorder.h"
 #include "DetailsViewStyle.h"
-
+#include "ToolMenus.h"
 
 IMPLEMENT_MODULE( FPropertyEditorModule, PropertyEditor );
 
@@ -94,10 +94,15 @@ void FPropertyEditorModule::StartupModule()
 	FCoreUObjectDelegates::OnObjectsReplaced.AddRaw(this, &FPropertyEditorModule::ReplaceViewedObjects);
 
 	FDetailsViewStyle::InitializeDetailsViewStyles();
+
+	UToolMenus::RegisterStartupCallback(FSimpleMulticastDelegate::FDelegate::CreateRaw(this, &FPropertyEditorModule::RegisterMenus));
 }
 
 void FPropertyEditorModule::ShutdownModule()
 {
+	UToolMenus::UnRegisterStartupCallback(this);
+	UToolMenus::UnregisterOwner(this);
+	
 	// No need to remove this object from root since the final GC pass doesn't care about root flags
 	StructOnScopePropertyOwner = nullptr;
 
@@ -701,6 +706,57 @@ void FPropertyEditorModule::FindSectionsForCategoryHelper(const UStruct* Struct,
 	{
 		(*SectionMapping)->GetSectionsForCategory(CategoryName, OutSections);
 	}
+}
+
+void FPropertyEditorModule::RegisterMenus()
+{
+	// Owner will be used for cleanup in call to UToolMenus::UnregisterOwner
+	FToolMenuOwnerScoped OwnerScoped(this);
+
+	UToolMenus* ToolMenus = UToolMenus::Get();
+	if (!ToolMenus)
+	{
+		return;		
+	}
+
+	// Property row context menu
+	{
+		static FName MenuName = UE::PropertyEditor::RowContextMenuName;
+		if (!ToolMenus->IsMenuRegistered(MenuName))
+		{
+			UToolMenu* Menu = ToolMenus->RegisterMenu(MenuName, NAME_None, EMultiBoxType::Menu, false);
+			Menu->AddSection(
+				TEXT("Expansion"),
+				NSLOCTEXT("PropertyView", "ExpansionHeading", "Expansion"),
+				FToolMenuInsert(TEXT("Edit"), EToolMenuInsertType::Before));
+		
+			Menu->AddSection(TEXT("Edit"), NSLOCTEXT("PropertyView", "EditHeading", "Edit"));
+
+			Menu->AddDynamicSection(NAME_None, FNewToolMenuDelegate::CreateStatic(&FPropertyEditorModule::PopulateRowContextMenu));
+		}
+	}
+}
+
+void FPropertyEditorModule::PopulateRowContextMenu(UToolMenu* InToolMenu)
+{
+	if (!InToolMenu)
+	{
+		return;
+	}
+				
+	const UDetailRowMenuContextPrivate* MenuContext = InToolMenu->FindContext<UDetailRowMenuContextPrivate>();
+	if (!MenuContext)
+	{
+		return;
+	}
+
+	const TSharedPtr<SDetailTableRowBase> RowContext = MenuContext->GetRowWidget<SDetailTableRowBase>();
+	if (!RowContext.IsValid())
+	{
+		return;
+	}
+
+	RowContext->PopulateContextMenu(InToolMenu);
 }
 
 void FPropertyEditorModule::GetAllSections(const UStruct* Struct, TArray<TSharedPtr<FPropertySection>>& OutSections) const
