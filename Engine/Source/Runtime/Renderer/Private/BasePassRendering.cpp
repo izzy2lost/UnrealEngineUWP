@@ -1644,17 +1644,10 @@ void FBasePassMeshProcessor::CollectPSOInitializersForLMPolicy(
 		const bool bDepthTest = TranslucencyPassType != ETranslucencyPass::TPT_TranslucencyAfterMotionBlur;
 		const bool bRenderInSeparateTranslucency = IsSeparateTranslucencyEnabled(TranslucencyPassType, SeparateTranslucencyDimensions.Scale);
 
-		if (bRenderInSeparateTranslucency)
-		{
-			const FRDGTextureDesc TextureDesc = GetPostDOFTranslucentTextureDesc(TranslucencyPassType, SeparateTranslucencyDimensions, bIsModulate, ShaderPlatform);
-			AddRenderTargetInfo(TextureDesc.Format, TextureDesc.Flags, RenderTargetsInfo);
-		}
-		else
-		{
-			EPixelFormat SceneColorFormat = SceneTexturesConfig.ColorFormat;
-			ETextureCreateFlags SceneColorCreateFlags = SceneTexturesConfig.ColorCreateFlags;
-			AddRenderTargetInfo(SceneColorFormat, SceneColorCreateFlags, RenderTargetsInfo);
-		}
+		// Always create PSO without separate translucency (could be used when under water for all translucent passes)
+		EPixelFormat SceneColorFormat = SceneTexturesConfig.ColorFormat;
+		ETextureCreateFlags SceneColorCreateFlags = SceneTexturesConfig.ColorCreateFlags;
+		AddRenderTargetInfo(SceneColorFormat, SceneColorCreateFlags, RenderTargetsInfo);
 
 		if (bDepthTest)
 		{
@@ -1662,25 +1655,59 @@ void FBasePassMeshProcessor::CollectPSOInitializersForLMPolicy(
 			SetupDepthStencilInfo(PF_DepthStencil, DepthStencilCreateFlags, ERenderTargetLoadAction::ELoad,
 				ERenderTargetLoadAction::ELoad, FExclusiveDepthStencil::DepthRead_StencilWrite, RenderTargetsInfo);
 		}
+
+		AddGraphicsPipelineStateInitializer(
+			VertexFactoryData,
+			MaterialResource,
+			DrawRenderState,
+			RenderTargetsInfo,
+			BasePassShaders,
+			MeshFillMode,
+			MeshCullMode,
+			PrimitiveType,
+			EMeshPassFeatures::Default,
+			true /*bRequired*/,
+			PSOInitializers);
+
+		// Add another PSO when render in separate translucency because render target format could have changed
+		if (bRenderInSeparateTranslucency)
+		{
+			const FRDGTextureDesc TextureDesc = GetPostDOFTranslucentTextureDesc(TranslucencyPassType, SeparateTranslucencyDimensions, bIsModulate, ShaderPlatform);
+			RenderTargetsInfo.RenderTargetFormats[0] = TextureDesc.Format;
+			RenderTargetsInfo.RenderTargetFlags[0] = TextureDesc.Flags;
+
+			AddGraphicsPipelineStateInitializer(
+				VertexFactoryData,
+				MaterialResource,
+				DrawRenderState,
+				RenderTargetsInfo,
+				BasePassShaders,
+				MeshFillMode,
+				MeshCullMode,
+				PrimitiveType,
+				EMeshPassFeatures::Default,
+				true /*bRequired*/,
+				PSOInitializers);
+		}
 	}
 	else
 	{
 		// Regular base pass with gbuffer bindings
 		SetupGBufferRenderTargetInfo(SceneTexturesConfig, RenderTargetsInfo, true /*bSetupDepthStencil*/);
-	}
-		
-	AddGraphicsPipelineStateInitializer(
-		VertexFactoryData,
-		MaterialResource,
-		DrawRenderState,
-		RenderTargetsInfo,
-		BasePassShaders,
-		MeshFillMode,
-		MeshCullMode,
-		PrimitiveType,
-		EMeshPassFeatures::Default,
-		true /*bRequired*/,
-		PSOInitializers);
+
+		AddGraphicsPipelineStateInitializer(
+			VertexFactoryData,
+			MaterialResource,
+			DrawRenderState,
+			RenderTargetsInfo,
+			BasePassShaders,
+			MeshFillMode,
+			MeshCullMode,
+			PrimitiveType,
+			EMeshPassFeatures::Default,
+			true /*bRequired*/,
+			PSOInitializers);
+	}	
 }
 
 template<typename LightMapPolicyType>

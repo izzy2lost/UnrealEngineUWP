@@ -191,7 +191,7 @@ void FSkyPassMeshProcessor::CollectPSOInitializers(const FSceneTexturesConfig& S
 		FeatureLevel,
 		bRenderSkylight,
 		false,
-		GBL_Default,
+		GBL_Default, 
 		&SkyPassShaders.VertexShader,
 		&SkyPassShaders.PixelShader
 		))
@@ -201,7 +201,7 @@ void FSkyPassMeshProcessor::CollectPSOInitializers(const FSceneTexturesConfig& S
 	
 	FGraphicsPipelineRenderTargetsInfo RenderTargetsInfo;
 	SetupGBufferRenderTargetInfo(SceneTexturesConfig, RenderTargetsInfo, true /*bSetupDepthStencil*/);
-
+	
 	AddGraphicsPipelineStateInitializer(
 		VertexFactoryData,
 		Material,
@@ -214,6 +214,41 @@ void FSkyPassMeshProcessor::CollectPSOInitializers(const FSceneTexturesConfig& S
 		EMeshPassFeatures::Default,
 		true /*bRequired*/,
 		PSOInitializers);
+
+	// Also generate with depth write which is used during CaptureSkyMeshReflection
+	const FExclusiveDepthStencil::Type SceneBasePassDepthStencilAccess = FScene::GetDefaultBasePassDepthStencilAccess(FeatureLevel);
+	FMeshPassProcessorRenderState SkyCaptureDrawRenderState;
+	FExclusiveDepthStencil::Type BasePassDepthStencilAccess_Sky = FExclusiveDepthStencil::Type(SceneBasePassDepthStencilAccess | FExclusiveDepthStencil::DepthWrite);
+	SetupBasePassState(BasePassDepthStencilAccess_Sky, false, SkyCaptureDrawRenderState);
+	
+	// Also change render target format
+	FRDGTextureDesc SkyCaptureRenderTargetDesc = FSkyPassMeshProcessor::GetCaptureFrameSkyEnvMapTextureDesc(1, 1);
+
+	FGraphicsPipelineRenderTargetsInfo SkyCaptureRenderTargetsInfo;
+	SkyCaptureRenderTargetsInfo.NumSamples = 1;
+	AddRenderTargetInfo(SkyCaptureRenderTargetDesc.Format, SkyCaptureRenderTargetDesc.Flags, SkyCaptureRenderTargetsInfo);
+	SetupDepthStencilInfo(PF_DepthStencil, SceneTexturesConfig.DepthCreateFlags, ERenderTargetLoadAction::ELoad,
+		ERenderTargetLoadAction::ELoad, FExclusiveDepthStencil::DepthWrite_StencilWrite, SkyCaptureRenderTargetsInfo);
+
+	AddGraphicsPipelineStateInitializer(
+		VertexFactoryData,
+		Material,
+		SkyCaptureDrawRenderState,
+		SkyCaptureRenderTargetsInfo,
+		SkyPassShaders,
+		MeshFillMode,
+		MeshCullMode,
+		(EPrimitiveType)PreCacheParams.PrimitiveType,
+		EMeshPassFeatures::Default,
+		true /*bRequired*/,
+		PSOInitializers);
+}
+
+FRDGTextureDesc FSkyPassMeshProcessor::GetCaptureFrameSkyEnvMapTextureDesc(uint32 CubeWidth, uint32 CubeMipCount)
+{
+	return FRDGTextureDesc::CreateCube(CubeWidth,
+		PF_FloatR11G11B10, FClearValueBinding::Black, TexCreate_TargetArraySlicesIndependently |
+		TexCreate_ShaderResource | TexCreate_UAV | TexCreate_RenderTargetable, CubeMipCount);
 }
 
 FMeshPassProcessor* CreateSkyPassProcessor(ERHIFeatureLevel::Type FeatureLevel, const FScene* Scene, const FSceneView* InViewIfDynamicMeshCommand, FMeshPassDrawListContext* InDrawListContext)
