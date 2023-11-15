@@ -71,6 +71,7 @@ namespace Horde.Agent.Tests
 			_serviceCollection.AddSingleton<BundleCache>();
 			_serviceCollection.AddSingleton<StorageBackendCache>();
 			_serviceCollection.AddSingleton<HttpStorageClientFactory>();
+			_serviceCollection.AddSingleton<LeaseLoggerFactory>();
 
 			_serviceCollection.Configure<AgentSettings>(settings =>
 			{

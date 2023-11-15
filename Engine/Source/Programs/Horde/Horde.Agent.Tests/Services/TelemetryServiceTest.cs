@@ -26,7 +26,7 @@ public sealed class TelemetryServiceTest : IDisposable
 		OptionsWrapper<AgentSettings> settingsOpt = new (settings);
 		
 		using WorkerService workerService = new (null!, null!, null!, new List<LeaseHandler>(), null!, null!);
-		JobHandler jobHandler = new (new List<IJobExecutorFactory>(), settingsOpt, null!, null!, NullLogger<JobHandler>.Instance);
+		JobHandler jobHandler = new (new List<IJobExecutorFactory>(), settingsOpt, null!, null!, null!, NullLogger<JobHandler>.Instance);
 		GrpcService grpcService = new (settingsOpt, NullLogger<GrpcService>.Instance, _loggerFactory);
 		
 		_telemetryService = new TelemetryService(workerService, jobHandler, grpcService, settingsOpt, NullLogger<TelemetryService>.Instance);

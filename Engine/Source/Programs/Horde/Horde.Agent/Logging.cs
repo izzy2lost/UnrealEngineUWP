@@ -72,5 +72,18 @@ namespace Horde.Agent
 				.Enrich.With<DatadogLogEnricher>()
 				.CreateLogger();
 		}
+
+		public static ILoggerFactory CreateFileLoggerFactory(DirectoryReference baseDir, string name)
+		{
+			DirectoryReference.CreateDirectory(baseDir);
+
+			Serilog.Core.Logger logger = new LoggerConfiguration()
+				.WriteTo.File(FileReference.Combine(baseDir, $"{name}.txt").FullName)
+				.WriteTo.File(new JsonFormatter(renderMessage: true), FileReference.Combine(baseDir, $"{name}.json").FullName)
+				.Enrich.FromLogContext()
+				.CreateLogger();
+
+			return new SerilogLoggerFactory(logger, true);
+		}
 	}
 }
