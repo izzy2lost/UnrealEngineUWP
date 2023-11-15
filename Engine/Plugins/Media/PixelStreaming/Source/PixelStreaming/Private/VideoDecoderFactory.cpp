@@ -32,7 +32,7 @@ namespace UE::PixelStreaming
 		Codecs[EPixelStreamingCodec::VP9].push_back(webrtc::SdpVideoFormat(cricket::kVp9CodecName));
 		// Codecs[EPixelStreamingCodec::H264].push_back(CreateH264Format(webrtc::H264Profile::kProfileConstrainedBaseline, webrtc::H264Level::kLevel3_1));
 		// Codecs[EPixelStreamingCodec::H264].push_back(CreateH264Format(webrtc::H264Profile::kProfileBaseline, webrtc::H264Level::kLevel3_1));
-		Codecs[EPixelStreamingCodec::H265].push_back(webrtc::SdpVideoFormat(cricket::kH265CodecName));
+		// Codecs[EPixelStreamingCodec::H265].push_back(webrtc::SdpVideoFormat(cricket::kH265CodecName));
 
 		return Codecs;
 	}
@@ -41,8 +41,8 @@ namespace UE::PixelStreaming
 	 * Adds all the formats of a given codec to a destination list according to a list of supported formats
 	 */
 	void AddSupportedCodecFormats(EPixelStreamingCodec Codec,
-							 	  const TMap<EPixelStreamingCodec, std::vector<webrtc::SdpVideoFormat>>& SupportedFormatsForCodecs,
-							      std::vector<webrtc::SdpVideoFormat>& OutFormats)
+		const TMap<EPixelStreamingCodec, std::vector<webrtc::SdpVideoFormat>>& SupportedFormatsForCodecs,
+		std::vector<webrtc::SdpVideoFormat>& OutFormats)
 	{
 		if (SupportedFormatsForCodecs.Contains(Codec))
 		{
@@ -75,7 +75,7 @@ namespace UE::PixelStreaming
 		{
 			std::vector<webrtc::SdpVideoFormat> TempSupportedFormats;
 			AddSupportedCodecFormats(SelectedCodec, CodecMap, TempSupportedFormats);
-			
+
 			if (TempSupportedFormats.empty())
 			{
 				UE_LOG(LogPixelStreaming, Error, TEXT("Selected codec was not a supported codec, falling back to negotiating codecs..."));
@@ -127,10 +127,12 @@ namespace UE::PixelStreaming
 		{
 			return std::make_unique<VideoDecoderVPX>(9);
 		}
+		/*
 		else if (absl::EqualsIgnoreCase(format.name, cricket::kH265CodecName))
 		{
 			return std::make_unique<VideoDecoderH265>();
 		}
+		*/
 		return std::make_unique<FVideoDecoderStub>();
 	}
 } // namespace UE::PixelStreaming

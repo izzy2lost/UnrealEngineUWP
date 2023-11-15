@@ -38,7 +38,7 @@ namespace UE::PixelStreaming
 		Codecs[EPixelStreamingCodec::VP9].push_back(webrtc::SdpVideoFormat(cricket::kVp9CodecName));
 		Codecs[EPixelStreamingCodec::H264].push_back(UE::PixelStreaming::CreateH264Format(webrtc::H264Profile::kProfileConstrainedBaseline, webrtc::H264Level::kLevel3_1));
 		Codecs[EPixelStreamingCodec::H264].push_back(UE::PixelStreaming::CreateH264Format(webrtc::H264Profile::kProfileBaseline, webrtc::H264Level::kLevel3_1));
-		Codecs[EPixelStreamingCodec::H265].push_back(webrtc::SdpVideoFormat(cricket::kH265CodecName));
+		// Codecs[EPixelStreamingCodec::H265].push_back(webrtc::SdpVideoFormat(cricket::kH265CodecName));
 
 		return Codecs;
 	}
@@ -67,11 +67,12 @@ namespace UE::PixelStreaming
 			int32 MaxCVarAllowedSessions = Settings::CVarPixelStreamingEncoderMaxSessions.GetValueOnAnyThread();
 			bool bCanCreateHardwareEncoder = true;
 
-			if(MaxCVarAllowedSessions != -1 && NumEncoderSessions != -1) {
+			if (MaxCVarAllowedSessions != -1 && NumEncoderSessions != -1)
+			{
 				// If our CVar is set and we receive a valid session count
 				bCanCreateHardwareEncoder &= NumEncoderSessions < MaxCVarAllowedSessions;
-			} 
-			else if(MaxCVarAllowedSessions == -1)
+			}
+			else if (MaxCVarAllowedSessions == -1)
 			{
 				// If we receive a valid session count and our cvar isn't set
 				bCanCreateHardwareEncoder &= NvmlEncoder::IsEncoderSessionAvailable(0); // TODO we should probably actually figure out the GPU index rather than assume 0
@@ -177,6 +178,7 @@ namespace UE::PixelStreaming
 			FStats::Get()->StoreApplicationStat(FStatData(FName(TEXT("Video Codec - VP9")), 1, 0));
 			return std::make_unique<FVideoEncoderSingleLayerVPX>(9);
 		}
+		/*
 		else if (absl::EqualsIgnoreCase(format.name, cricket::kH265CodecName))
 		{
 			FStats::Get()->StoreApplicationStat(FStatData(FName(TEXT("Video Codec - H265")), 1, 0));
@@ -185,6 +187,7 @@ namespace UE::PixelStreaming
 			ActiveEncoders.Add(VideoEncoder.get());
 			return VideoEncoder;
 		}
+		*/
 		else
 		{
 			// Lock during encoder creation

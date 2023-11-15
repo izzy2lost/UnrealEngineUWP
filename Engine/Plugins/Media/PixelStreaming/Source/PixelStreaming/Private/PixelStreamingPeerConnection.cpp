@@ -123,10 +123,12 @@ namespace
 					{
 						return EPixelStreamingCodec::VP9;
 					}
+					/*
 					else if (absl::EqualsIgnoreCase(Codec.name, cricket::kH265CodecName))
 					{
 						return EPixelStreamingCodec::H265;
 					}
+					*/
 					else if (absl::EqualsIgnoreCase(Codec.name, cricket::kH264CodecName))
 					{
 						return EPixelStreamingCodec::H264;
@@ -878,13 +880,12 @@ void FPixelStreamingPeerConnection::RemoveAudioInput(TSharedPtr<IPixelStreamingA
 	AudioMixer->DisconnectInput(StaticCastSharedPtr<FAudioInput>(AudioInput));
 }
 
-
 void InitializeFieldTrials()
 {
 	FString FieldTrials = Settings::CVarPixelStreamingWebRTCFieldTrials.GetValueOnAnyThread();
 
 	// Set the WebRTC-FrameDropper/Disabled/ if the CVar is set
-	if(Settings::CVarPixelStreamingWebRTCDisableFrameDropper.GetValueOnAnyThread())
+	if (Settings::CVarPixelStreamingWebRTCDisableFrameDropper.GetValueOnAnyThread())
 	{
 		FieldTrials += TEXT("WebRTC-FrameDropper/Disabled/");
 	}
@@ -894,16 +895,16 @@ void InitializeFieldTrials()
 		float OutPacingFactor = -1.0f;
 		float OutPacingMaxDelayMs = -1.0f;
 		bool bVideoPacingFieldTrial = Settings::GetVideoPacing(OutPacingFactor, OutPacingMaxDelayMs);
-		if(bVideoPacingFieldTrial)
+		if (bVideoPacingFieldTrial)
 		{
 			FString VideoPacingFieldTrialStr = TEXT("WebRTC-Video-Pacing/");
 			bool bHasPacingFactor = OutPacingFactor >= 0.0f;
-			if(bHasPacingFactor)
+			if (bHasPacingFactor)
 			{
 				VideoPacingFieldTrialStr += FString::Printf(TEXT("factor:%.1f"), OutPacingFactor);
 			}
 			bool bHasMaxDelay = OutPacingMaxDelayMs >= 0.0f;
-			if(bHasMaxDelay)
+			if (bHasMaxDelay)
 			{
 				VideoPacingFieldTrialStr += bHasPacingFactor ? TEXT(",") : TEXT("");
 				VideoPacingFieldTrialStr += FString::Printf(TEXT("max_delay:%.0f"), OutPacingMaxDelayMs);
@@ -913,8 +914,9 @@ void InitializeFieldTrials()
 		}
 	}
 
-	if (!FieldTrials.IsEmpty()) {
-		//Pass the field trials string to WebRTC. String must never be destroyed.
+	if (!FieldTrials.IsEmpty())
+	{
+		// Pass the field trials string to WebRTC. String must never be destroyed.
 		TStringConversion<TStringConvert<TCHAR, ANSICHAR>> Str = StringCast<ANSICHAR>(*FieldTrials);
 		int length = Str.Length() + 1;
 		char* WRTCFieldTrials = (char*)FMemory::SystemMalloc(length);
