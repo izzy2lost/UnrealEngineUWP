@@ -4069,6 +4069,16 @@ void UMaterialExpressionTextureObject::GetCaption(TArray<FString>& OutCaptions) 
 	OutCaptions.Add(TEXT("Texture Object")); 
 }
 
+bool UMaterialExpressionTextureObject::MatchesSearchQuery(const TCHAR* SearchQuery)
+{
+	if (Texture != nullptr && Texture->GetName().Contains(SearchQuery))
+	{
+		return true;
+	}
+
+	return Super::MatchesSearchQuery(SearchQuery);
+}
+
 
 int32 UMaterialExpressionTextureObject::Compile(class FMaterialCompiler* Compiler, int32 OutputIndex)
 {
