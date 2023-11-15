@@ -854,7 +854,8 @@ void UpdateLumenScenePrimitives(FRHIGPUMask GPUMask, FScene* Scene)
 				extern int32 GLumenMeshCardsMergeComponents;
 				if (GLumenMeshCardsMergeComponents != 0 
 					&& SceneProxy->GetRayTracingGroupId() != FPrimitiveSceneProxy::InvalidRayTracingGroupId
-					&& !SceneProxy->IsEmissiveLightSource())
+					&& !SceneProxy->IsEmissiveLightSource()
+					&& SceneProxy->IsOpaqueOrMasked())
 				{
 					const Experimental::FHashElementId RayTracingGroupMapElementId = LumenSceneData->RayTracingGroups.FindOrAddId(SceneProxy->GetRayTracingGroupId(), -1);
 					int32& PrimitiveGroupIndex = LumenSceneData->RayTracingGroups.GetByElementId(RayTracingGroupMapElementId).Value;
@@ -893,6 +894,7 @@ void UpdateLumenScenePrimitives(FRHIGPUMask GPUMask, FScene* Scene)
 						PrimitiveGroup.bValidMeshCards = true;
 						PrimitiveGroup.bFarField = SceneProxy->IsRayTracingFarField();
 						PrimitiveGroup.bHeightfield = false;
+						PrimitiveGroup.bOpaqueOrMasked = true;
 						PrimitiveGroup.LightingChannelMask = SceneProxy->GetLightingChannelMask();
 						PrimitiveGroup.Primitives.Reset();
 						PrimitiveGroup.Primitives.Add(ScenePrimitiveInfo);

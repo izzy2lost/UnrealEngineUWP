@@ -206,7 +206,7 @@ public:
 	bool bFarField = false;
 	bool bHeightfield = false;
 	bool bEmissiveLightSource = false;
-	bool bOpaqueOrMasked = false;
+	bool bOpaqueOrMasked = true;
 	uint32 LightingChannelMask = UINT32_MAX;
 
 	bool HasMergedInstances() const;
