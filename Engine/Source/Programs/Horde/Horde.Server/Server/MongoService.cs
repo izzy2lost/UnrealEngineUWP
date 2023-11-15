@@ -191,7 +191,7 @@ namespace Horde.Server.Server
 	/// <summary>
 	/// Singleton for accessing the database
 	/// </summary>
-	public sealed class MongoService : IHealthCheck, IDisposable
+	public sealed class MongoService : IHealthCheck, IAsyncDisposable
 	{
 		/// <summary>
 		/// The database instance
@@ -359,8 +359,10 @@ namespace Horde.Server.Server
 		internal static extern bool GenerateConsoleCtrlEvent(int eventId, int processGroupId);
 
 		/// <inheritdoc/>
-		public void Dispose()
+		public async ValueTask DisposeAsync()
 		{
+			await Task.WhenAll(_collectionUpgradeTasks.Values);
+
 			if (_mongoProcess != null)
 			{
 				GenerateConsoleCtrlEvent(CtrlCEvent, _mongoProcess.Id);

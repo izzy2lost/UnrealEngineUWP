@@ -235,7 +235,11 @@ namespace Horde.Server.Tests
 			await base.DisposeAsync();
 
 			GC.SuppressFinalize(this);
-			_mongoService?.Dispose();
+
+			if (_mongoService != null)
+			{
+				await _mongoService.DisposeAsync();
+			}
 			_mongoInstance?.Dispose();
 
 			if (_redisService != null)
