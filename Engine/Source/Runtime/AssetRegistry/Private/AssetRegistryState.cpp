@@ -2281,22 +2281,46 @@ bool FAssetRegistryState::UpdateAssetDataPackageFlags(FName PackageName, uint32 
 	return false;
 }
 
-void FAssetRegistryState::RemoveAssetData(FAssetData* AssetData, bool bRemoveDependencyData, bool& bOutRemovedAssetData, bool& bOutRemovedPackageData)
+void FAssetRegistryState::RemoveAssetData(FAssetData* AssetData, bool bRemoveDependencyData,
+	bool& bOutRemovedAssetData, bool& bOutRemovedPackageData)
 {
-	bOutRemovedAssetData = false;
-	bOutRemovedPackageData = false;
-
 	if (!ensure(AssetData))
 	{
+		bOutRemovedAssetData = false;
+		bOutRemovedPackageData = false;
 		return;
 	}
-
-	int32 NumRemoved = CachedAssets.Remove(FCachedAssetKey(AssetData));
-	check(NumRemoved <= 1);
-	if (NumRemoved == 0)
+	RemoveAssetData(AssetData, FCachedAssetKey(AssetData), bRemoveDependencyData, bOutRemovedAssetData, bOutRemovedPackageData);
+	if (!bOutRemovedAssetData)
 	{
 		UE_LOG(LogAssetRegistry, Error, TEXT("RemoveAssetData called on AssetData %s that is not present in the AssetRegistry."),
 			*FCachedAssetKey(*AssetData).ToString());
+	}
+}
+
+void FAssetRegistryState::RemoveAssetData(const FSoftObjectPath& AssetPath, bool bRemoveDependencyData,
+	bool& bOutRemovedAssetData, bool& bOutRemovedPackageData)
+{
+	FCachedAssetKey Key(AssetPath);
+	FAssetData** AssetDataPtrPtr = CachedAssets.Find(Key);
+	if (!AssetDataPtrPtr)
+	{
+		bOutRemovedAssetData = false;
+		bOutRemovedPackageData = false;
+		return;
+	}
+	RemoveAssetData(*AssetDataPtrPtr, Key, bRemoveDependencyData, bOutRemovedAssetData, bOutRemovedPackageData);
+}
+
+void FAssetRegistryState::RemoveAssetData(FAssetData* AssetData, const FCachedAssetKey& Key,
+	bool bRemoveDependencyData, bool& bOutRemovedAssetData, bool& bOutRemovedPackageData)
+{
+	bOutRemovedAssetData = false;
+	bOutRemovedPackageData = false;
+	int32 NumRemoved = CachedAssets.Remove(Key);
+	check(NumRemoved <= 1);
+	if (NumRemoved == 0)
+	{
 		return;
 	}
 

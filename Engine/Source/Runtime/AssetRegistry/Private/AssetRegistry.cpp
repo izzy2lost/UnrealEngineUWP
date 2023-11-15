@@ -5062,17 +5062,54 @@ void FAssetRegistryImpl::ScanPathsSynchronous(Impl::FScanPathContext& Context)
 		Gatherer.LoadCacheFiles({CacheFilename});
 	}
 
+	// If we are forcing a rescan, then delete any old assets that no longer exist. If we are not forcing a rescan,
+	// then there should not be any old assets that no longer exist, so we skip the cost of searching for them.
+	TSet<FSoftObjectPath> OldAssetsToRemove;
+	if (Context.bForceRescan)
+	{
+		// Initialize OldAssetsToRemove to the list of all assets in the given paths.
+		if (!Context.PackageDirs.IsEmpty())
+		{
+			FARFilter Filter;
+			Filter.bIncludeOnlyOnDiskAssets = true;
+			Filter.bRecursivePaths = true;
+			for (const FString& PackageDir : Context.PackageDirs)
+			{
+				Filter.PackagePaths.Add(FName(*PackageDir));
+			}
+			FARCompiledFilter CompiledFilter;
+			CompileFilter(Context.InheritanceContext, Filter, CompiledFilter);
+			TArray<FAssetData> AssetsInPaths;
+			State.EnumerateAssets(CompiledFilter, TSet<FName>() /* PackageNamesToSkip */,
+				[&OldAssetsToRemove](const FAssetData& AssetData)
+				{
+					OldAssetsToRemove.Add(AssetData.ToSoftObjectPath());
+					return true;
+				});
+		}
+		for (const FString& PackageName : Context.PackageFiles)
+		{
+			for (const FAssetData* AssetData : State.GetAssetsByPackageName(FName(*PackageName)))
+			{
+				OldAssetsToRemove.Add(AssetData->ToSoftObjectPath());
+			}
+		}
+	}
+
 	Gatherer.ScanPathsSynchronous(Context.LocalPaths, Context.bForceRescan, Context.bIgnoreDenyListScanFilters, CacheFilename, Context.PackageDirs);
 	TArray<FName> FoundAssetPackageNames;
 
-	auto AssetsFoundCallback = [&Context, &FoundAssetPackageNames, this](const TMultiMap<FName, FAssetData*>& InFoundAssets)
+	auto AssetsFoundCallback =
+		[&Context, &FoundAssetPackageNames, &OldAssetsToRemove, this]
+		(const TMultiMap<FName, FAssetData*>& InFoundAssets)
 	{
 		Context.NumFoundAssets = InFoundAssets.Num();
 
 		FoundAssetPackageNames.Reset();
 		FoundAssetPackageNames.Reserve(Context.NumFoundAssets);
 
-		// The gatherer may have added other assets that were scanned as part of the ongoing background scan; remove any assets that were not in the requested paths
+		// The gatherer may have added other assets that were scanned as part of the ongoing background scan,
+		// so remove any assets that were not in the requested paths
 		for (const TPair<FName,FAssetData*>& Pair : InFoundAssets)
 		{
 			FAssetData* AssetData = Pair.Value;
@@ -5113,6 +5150,11 @@ void FAssetRegistryImpl::ScanPathsSynchronous(Impl::FScanPathContext& Context)
 				}
 				FoundAssetPackageNames.Add(AssetData->PackageName);
 			}
+
+			if (!OldAssetsToRemove.IsEmpty())
+			{
+				OldAssetsToRemove.Remove(AssetData->ToSoftObjectPath());
+			}
 		}
 	};
 
@@ -5122,6 +5164,13 @@ void FAssetRegistryImpl::ScanPathsSynchronous(Impl::FScanPathContext& Context)
 #if WITH_EDITOR
 	LoadCalculatedDependencies(&FoundAssetPackageNames, -1., Context.InheritanceContext, bUnusedInterrupted);
 #endif
+	for (FSoftObjectPath& OldAssetToRemove : OldAssetsToRemove)
+	{
+		bool bOutRemovedAssetData;
+		bool bOutRemovedPackageData;
+		State.RemoveAssetData(OldAssetToRemove, true /* bRemoveDependencyData */,
+			bOutRemovedAssetData, bOutRemovedPackageData);
+	}
 }
 
 namespace Utils

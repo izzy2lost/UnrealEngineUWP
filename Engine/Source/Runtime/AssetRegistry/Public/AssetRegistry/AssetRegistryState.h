@@ -469,7 +469,10 @@ public:
 	ASSETREGISTRY_API bool UpdateAssetDataPackageFlags(FName PackageName, uint32 PackageFlags);
 
 	/** Removes the asset data from the lookup maps */
-	ASSETREGISTRY_API void RemoveAssetData(FAssetData* AssetData, bool bRemoveDependencyData, bool& bOutRemovedAssetData, bool& bOutRemovedPackageData);
+	ASSETREGISTRY_API void RemoveAssetData(FAssetData* AssetData, bool bRemoveDependencyData,
+		bool& bOutRemovedAssetData, bool& bOutRemovedPackageData);
+	ASSETREGISTRY_API void RemoveAssetData(const FSoftObjectPath& SoftObjectPath, bool bRemoveDependencyData,
+		bool& bOutRemovedAssetData, bool& bOutRemovedPackageData);
 
 	/**
 	 * Clear all dependencies of the given category from the given AssetIdentifier (e.g. package).
@@ -605,6 +608,9 @@ private:
 	void SetTagsOnExistingAsset(FAssetData* AssetData, FAssetDataTagMap&& NewTags);
 
 	void SetDependencyNodeSorting(bool bSortDependencies, bool bSortReferencers);
+
+	void RemoveAssetData(FAssetData* AssetData, const FCachedAssetKey& Key, bool bRemoveDependencyData,
+		bool& bOutRemovedAssetData, bool& bOutRemovedPackageData);
 
 	/** Set of asset data for assets saved to disk. Searched via path name types, implicitly converted to FCachedAssetKey. */
 	FAssetDataMap CachedAssets;
