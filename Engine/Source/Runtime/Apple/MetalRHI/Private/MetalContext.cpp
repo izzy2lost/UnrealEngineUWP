@@ -663,9 +663,9 @@ void FMetalDeviceContext::EndDrawingViewport(FMetalViewport* Viewport, bool bPre
 	if (bPresent && !bOffscreenOnly)
 	{
 		
+        bool bNeedNativePresent = true;
 #if PLATFORM_MAC || PLATFORM_VISIONOS
 		// Handle custom present
-        bool bNeedNativePresent = true;
 		FRHICustomPresent* const CustomPresent = Viewport->GetCustomPresent();
 		if (CustomPresent != nullptr)
 		{
