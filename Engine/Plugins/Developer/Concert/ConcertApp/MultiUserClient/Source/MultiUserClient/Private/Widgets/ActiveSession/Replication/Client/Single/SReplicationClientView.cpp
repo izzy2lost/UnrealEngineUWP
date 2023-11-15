@@ -11,7 +11,7 @@
 #include "Replication/ReplicationWidgetFactories.h"
 #include "Replication/Client/ReplicationClientManager.h"
 #include "Replication/Submission/ISubmissionWorkflow.h"
-#include "Widgets/ActiveSession/Replication/Client/Columns/SingleClientColumns.h"
+#include "Widgets/ActiveSession/Replication/Client/Single/Columns/SingleClientColumns.h"
 #include "Widgets/ActiveSession/Replication/Client/SClientToolbar.h"
 
 #include "HAL/IConsoleManager.h"

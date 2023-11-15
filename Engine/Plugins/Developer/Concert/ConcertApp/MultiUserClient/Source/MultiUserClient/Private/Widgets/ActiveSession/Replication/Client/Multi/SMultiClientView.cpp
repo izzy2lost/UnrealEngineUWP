@@ -10,13 +10,10 @@
 #include "Replication/Editor/Model/Property/SelectPropertyFromUClassModel.h"
 #include "Replication/Editor/View/IMultiReplicationStreamEditor.h"
 #include "Replication/ReplicationWidgetFactories.h"
-#include "Widgets/ActiveSession/Replication/Client/Columns/MultiStreamColumns.h"
+#include "Widgets/ActiveSession/Replication/Client/Multi/Columns/MultiStreamColumns.h"
 #include "Widgets/ActiveSession/Replication/Client/SClientToolbar.h"
 
-#include "Algo/Transform.h"
-#include "UObject/Package.h"
 #include "Widgets/SBoxPanel.h"
-#include "Widgets/Text/STextBlock.h"
 
 #define LOCTEXT_NAMESPACE "SMultiClientView"
 

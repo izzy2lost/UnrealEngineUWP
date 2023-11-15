@@ -6,11 +6,10 @@
 #include "Replication/Editor/Model/ReplicatedObjectData.h"
 #include "Replication/Editor/View/IReplicationStreamViewer.h"
 #include "Replication/Util/GlobalAuthorityCache.h"
-#include "SWarningIcon.h"
+#include "Widgets/ActiveSession/Replication/Client/ClientUtils.h"
+#include "Widgets/ActiveSession/Replication/Client/SWarningIcon.h"
 
 #include "Algo/AllOf.h"
-#include "Widgets/ActiveSession/Replication/Client/ClientUtils.h"
-#include "Widgets/ClientName/SClientName.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Views/SHeaderRow.h"
 
