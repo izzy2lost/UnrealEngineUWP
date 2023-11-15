@@ -584,6 +584,9 @@ struct FPathTracingState {
 	// Buffer containing the starting medium extinction
 	TRefCountPtr<FRDGPooledBuffer>    StartingExtinctionCoefficient;
 
+	// Custom path tracing spacial temporal denoiser result, used by plugins
+	TRefCountPtr<UE::Renderer::Private::IPathTracingSpatialTemporalDenoiser::IHistory> SpatialTemporalDenoiserHistory;
+
 	// Current sample index to be rendered by the path tracer - this gets incremented each time the path tracer accumulates a frame of samples
 	uint32 SampleIndex = 0;
 
@@ -2382,6 +2385,8 @@ void FSceneViewState::PathTracingInvalidate(bool InvalidateAnimationStates)
 			State->LastNormalRT.SafeRelease();
 			State->LastAlbedoRT.SafeRelease();
 			State->LastVarianceBuffer.SafeRelease();
+
+			State->SpatialTemporalDenoiserHistory.SafeRelease();
 		}
 
 		State->RadianceRT.SafeRelease();
@@ -3220,7 +3225,8 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 		}
 	}
 
-	FPathTracingSpatialTemporalDenoisingContext DenoisingContext;
+	FPathTracingSpatialTemporalDenoisingContext DenoisingContext = {};
+	DenoisingContext.SpatialTemporalDenoiserHistory = PathTracingState->SpatialTemporalDenoiserHistory;
 	const bool EnablePathTracingDenoiserRealtimeDebug = ShouldEnablePathTracingDenoiserRealtimeDebug();
 
 	if (IsDenoiserEnabled)
@@ -3280,6 +3286,8 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 			GraphBuilder.QueueTextureExtraction(NormalTexture, &PathTracingState->LastNormalRT);
 			GraphBuilder.QueueTextureExtraction(AlbedoTexture, &PathTracingState->LastAlbedoRT);
 			GraphBuilder.QueueTextureExtraction(RadianceTexture, &PathTracingState->LastRadianceRT);
+
+			PathTracingState->SpatialTemporalDenoiserHistory = DenoisingContext.SpatialTemporalDenoiserHistory;
 		}
 
 		// 3. Update pixel variance
