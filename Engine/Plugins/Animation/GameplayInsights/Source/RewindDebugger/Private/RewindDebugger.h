@@ -70,6 +70,9 @@ public:
 
 	bool ShouldAutoRecordOnPIE() const;
 	void SetShouldAutoRecordOnPIE(bool value);
+	
+	bool ShouldAutoDetach() const;
+	void SetShouldAutoDetach(bool value);
 
 	// Stop recording: Stop tracing Object + Animation Data.
 	void StopRecording();

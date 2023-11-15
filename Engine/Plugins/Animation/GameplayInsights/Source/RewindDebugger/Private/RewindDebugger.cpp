@@ -34,6 +34,9 @@
 #include "Widgets/Layout/SSpacer.h"
 #include "RewindDebuggerCommands.h"
 #include "RewindDebuggerTrackCreators.h"
+#include "UnrealEdGlobals.h"
+#include "Editor/UnrealEdEngine.h"
+#include "Kismet2/DebuggerCommands.h"
 
 #define LOCTEXT_NAMESPACE "RewindDebugger"
 
@@ -177,6 +180,20 @@ void FRewindDebugger::OnPIEPaused(bool bSimulating)
 #endif // OBJECT_TRACE_ENABLED
 		SetCurrentScrubTime(RecordingDuration.Get());
 	}
+	
+	if (ShouldAutoDetach() && FPlayWorldCommandCallbacks::IsInPIE())
+	{
+		bool CanEject= false;
+		for (auto It = GUnrealEd->SlatePlayInEditorMap.CreateIterator(); It; ++It)
+		{
+			CanEject = CanEject || It.Value().DestinationSlateViewport.IsValid();
+		}
+
+		if (CanEject)
+		{
+			GEditor->RequestToggleBetweenPIEandSIE();
+		}
+	}
 }
 
 void FRewindDebugger::OnPIEResumed(bool bSimulating)
@@ -193,6 +210,11 @@ void FRewindDebugger::OnPIEResumed(bool bSimulating)
 	}
 
 	MeshComponentsToReset.Empty();
+
+	if (ShouldAutoDetach() && FPlayWorldCommandCallbacks::IsInSIE())
+	{
+		GEditor->RequestToggleBetweenPIEandSIE();
+	}
 }
 
 void FRewindDebugger::OnPIESingleStepped(bool bSimulating)
@@ -453,6 +475,16 @@ bool FRewindDebugger::ShouldAutoRecordOnPIE() const
 void FRewindDebugger::SetShouldAutoRecordOnPIE(bool value)
 {
 	URewindDebuggerSettings::Get().bShouldAutoRecordOnPIE = value;
+}
+
+bool FRewindDebugger::ShouldAutoDetach() const
+{
+	return URewindDebuggerSettings::Get().bShouldAutoDetach;
+}
+
+void FRewindDebugger::SetShouldAutoDetach(bool value)
+{
+	URewindDebuggerSettings::Get().bShouldAutoDetach = value;
 }
 
 void FRewindDebugger::StopRecording()

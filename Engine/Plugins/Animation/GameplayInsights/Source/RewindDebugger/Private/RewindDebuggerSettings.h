@@ -38,9 +38,9 @@ public:
 	UPROPERTY(EditAnywhere, Config, Category = Camera)
 	ERewindDebuggerCameraMode CameraMode;
 	
-	// /** If enabled, automatically detach player controller at the start of PIE */
-	// UPROPERTY(EditAnywhere, Config, Category = Other, meta = (DisplayName = "Auto Detach Player Controller on PIE"))
-	// bool bShouldAutoDetach;
+	/** If enabled, automatically detach player controller at the start of PIE */
+	UPROPERTY(EditAnywhere, Config, Category = Other, meta = (DisplayName = "Auto Detach Player Controller on PIE"))
+	bool bShouldAutoDetach;
 	
 	/** If enabled, start recording information at the start of PIE */
 	UPROPERTY(EditAnywhere, Config, Category = Other)
