@@ -154,6 +154,7 @@ namespace Horde.Server.Tests
 		{
 			if (UseExistingRedisInstance && !DatabaseRunner.IsPortAvailable(RedisPort))
 			{
+				Console.WriteLine("Using existing Redis instance on port {0}", RedisPort);
 				return RedisPort;
 			}
 
