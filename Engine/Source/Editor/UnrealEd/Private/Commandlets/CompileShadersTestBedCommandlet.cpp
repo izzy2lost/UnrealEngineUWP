@@ -118,6 +118,8 @@ int32 UCompileShadersTestBedCommandlet::Main(const FString& Params)
 	ITargetPlatformManagerModule* TPM = GetTargetPlatformManager();
 	const TArray<ITargetPlatform*>& Platforms = TPM->GetActiveTargetPlatforms();
 
+	UE_LOG(LogCompileShadersTestBedCommandlet, Display, TEXT("Begin Compiling Shaders"));
+
 	for (ITargetPlatform* Platform : Platforms)
 	{
 		UE_LOG(LogCompileShadersTestBedCommandlet, Display, TEXT("Compiling shaders for %s..."), *Platform->PlatformName());
@@ -265,6 +267,8 @@ int32 UCompileShadersTestBedCommandlet::Main(const FString& Params)
 			}
 		}
 	}
+
+	UE_LOG(LogCompileShadersTestBedCommandlet, Display, TEXT("End compiling shaders"));
 
 	GShaderCompilingManager->PrintStats();
 
