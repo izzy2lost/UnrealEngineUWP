@@ -28,15 +28,14 @@ const TArray<FRigVMTemplateArgumentInfo>& FRigVMDispatch_CastObject::GetArgument
 	return OutInfos;
 }
 
-TArray<FRigVMTemplateTypeMap> FRigVMDispatch_CastObject::GetPermutationsFromArgumentType(const FName& InArgumentName, const TRigVMTypeIndex& InTypeIndex) const
+bool FRigVMDispatch_CastObject::GetPermutationsFromArgumentType(const FName& InArgumentName, const TRigVMTypeIndex& InTypeIndex, TArray<FRigVMTemplateTypeMap, TInlineAllocator<1>>& OutPermutations) const
 {
-	TArray<FRigVMTemplateTypeMap> Permutations;
 	if (InArgumentName == ValueName)
 	{
 		const TArray<TRigVMTypeIndex>& ObjectTypes = FRigVMRegistry::Get().GetTypesForCategory(FRigVMTemplateArgument::ETypeCategory_SingleObjectValue);
 		for (const TRigVMTypeIndex& Type : ObjectTypes)
 		{
-			Permutations.Add(
+			OutPermutations.Add(
 	{
 				{ ValueName, InTypeIndex },
 				{ ResultName, Type }
@@ -48,14 +47,14 @@ TArray<FRigVMTemplateTypeMap> FRigVMDispatch_CastObject::GetPermutationsFromArgu
 		const TArray<TRigVMTypeIndex>& ObjectTypes = FRigVMRegistry::Get().GetTypesForCategory(FRigVMTemplateArgument::ETypeCategory_SingleObjectValue);
 		for (const TRigVMTypeIndex& Type : ObjectTypes)
 		{
-			Permutations.Add(
+			OutPermutations.Add(
 	{
 				{ ValueName, Type },
 				{ ResultName, InTypeIndex }
 			});
 		}
 	}
-	return Permutations;
+	return !OutPermutations.IsEmpty();
 }
 
 #if WITH_EDITOR

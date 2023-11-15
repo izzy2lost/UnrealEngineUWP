@@ -474,9 +474,9 @@ public:
 
 #endif
 
-	// Adds a new argument to the template. The template needs to rely on the delegate to ask the
-	// template factory how to deal with the new type.
-	bool AddTypeForArgument(const FName& InArgumentName, TRigVMTypeIndex InTypeIndex);
+	// Updates the template's argument types. This only affects templates which have category based
+	// arguments and will resolve the other arguments to the expected types.
+	bool UpdateArgumentTypes();
 
 	// Invalidates template permutations whenever a type such as a user defined struct is removed
 	void HandleTypeRemoval(TRigVMTypeIndex InTypeIndex);

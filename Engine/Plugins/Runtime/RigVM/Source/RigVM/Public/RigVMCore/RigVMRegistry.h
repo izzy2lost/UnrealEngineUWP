@@ -296,7 +296,11 @@ private:
 	static const FName TemplateNameMetaName;
 
 	// disable default constructor
-	FRigVMRegistry() {}
+	FRigVMRegistry()
+		: bIsRefreshingEngineTypes(false)
+	{
+	}
+	
 	// disable copy constructor
 	FRigVMRegistry(const FRigVMRegistry&) = delete;
 	// disable assignment operator
@@ -384,8 +388,8 @@ private:
 	// Maps storing the default types per type category
 	TMap<FRigVMTemplateArgument::ETypeCategory, TArray<TRigVMTypeIndex>> TypesPerCategory;
 
-	// Lookup per type category to know which argument to keep in sync
-	TMap<FRigVMTemplateArgument::ETypeCategory, TArray<TPair<int32,int32>>> ArgumentsPerCategory;
+	// Lookup per type category to know which template to keep in sync
+	TMap<FRigVMTemplateArgument::ETypeCategory, TArray<int32>> TemplatesPerCategory;
 
 	// Name loop up for user defined types since they can be deleted.
 	// When that happens, it won't be safe to reload deleted assets so only type names are reliable
@@ -396,6 +400,9 @@ private:
 
 	// Notifies other system that types have been added/removed, and template permutations have been updated
 	FOnRigVMRegistryChanged OnRigVMRegistryChangedDelegate;
+
+	// If this is true the registry is currently refreshing all types
+	bool bIsRefreshingEngineTypes;
 
 	static FCriticalSection RefreshTypesMutex;
 	static FCriticalSection RegisterFunctionMutex;

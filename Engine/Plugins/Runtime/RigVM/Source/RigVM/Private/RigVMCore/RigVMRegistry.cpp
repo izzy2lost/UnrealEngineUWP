@@ -224,7 +224,7 @@ void FRigVMRegistry::InitializeIfNeeded()
 	Types.Reserve(512);
 	TypeToIndex.Reserve(512);
 	TypesPerCategory.Reserve(19);
-	ArgumentsPerCategory.Reserve(19);
+	TemplatesPerCategory.Reserve(19);
 	
 	TypesPerCategory.Add(FRigVMTemplateArgument::ETypeCategory_Execute, TArray<TRigVMTypeIndex>()).Reserve(8);
 	TypesPerCategory.Add(FRigVMTemplateArgument::ETypeCategory_SingleAnyValue, TArray<TRigVMTypeIndex>()).Reserve(256);
@@ -246,25 +246,25 @@ void FRigVMRegistry::InitializeIfNeeded()
 	TypesPerCategory.Add(FRigVMTemplateArgument::ETypeCategory_ArrayObjectValue, TArray<TRigVMTypeIndex>()).Reserve(128);
 	TypesPerCategory.Add(FRigVMTemplateArgument::ETypeCategory_ArrayArrayObjectValue, TArray<TRigVMTypeIndex>()).Reserve(128);
 
-	ArgumentsPerCategory.Add(FRigVMTemplateArgument::ETypeCategory_Execute, TArray<TPair<int32,int32>>()).Reserve(8);
-	ArgumentsPerCategory.Add(FRigVMTemplateArgument::ETypeCategory_SingleAnyValue, TArray<TPair<int32,int32>>()).Reserve(64);
-	ArgumentsPerCategory.Add(FRigVMTemplateArgument::ETypeCategory_ArrayAnyValue, TArray<TPair<int32,int32>>()).Reserve(64);
-	ArgumentsPerCategory.Add(FRigVMTemplateArgument::ETypeCategory_ArrayArrayAnyValue, TArray<TPair<int32,int32>>()).Reserve(64);
-	ArgumentsPerCategory.Add(FRigVMTemplateArgument::ETypeCategory_SingleSimpleValue, TArray<TPair<int32,int32>>()).Reserve(64);
-	ArgumentsPerCategory.Add(FRigVMTemplateArgument::ETypeCategory_ArraySimpleValue, TArray<TPair<int32,int32>>()).Reserve(64);
-	ArgumentsPerCategory.Add(FRigVMTemplateArgument::ETypeCategory_ArrayArraySimpleValue, TArray<TPair<int32,int32>>()).Reserve(64);
-	ArgumentsPerCategory.Add(FRigVMTemplateArgument::ETypeCategory_SingleMathStructValue, TArray<TPair<int32,int32>>()).Reserve(64);
-	ArgumentsPerCategory.Add(FRigVMTemplateArgument::ETypeCategory_ArrayMathStructValue, TArray<TPair<int32,int32>>()).Reserve(64);
-	ArgumentsPerCategory.Add(FRigVMTemplateArgument::ETypeCategory_ArrayArrayMathStructValue, TArray<TPair<int32,int32>>()).Reserve(64);
-	ArgumentsPerCategory.Add(FRigVMTemplateArgument::ETypeCategory_SingleScriptStructValue, TArray<TPair<int32,int32>>()).Reserve(64);
-	ArgumentsPerCategory.Add(FRigVMTemplateArgument::ETypeCategory_ArrayScriptStructValue, TArray<TPair<int32,int32>>()).Reserve(64);
-	ArgumentsPerCategory.Add(FRigVMTemplateArgument::ETypeCategory_ArrayArrayScriptStructValue, TArray<TPair<int32,int32>>()).Reserve(64);
-	ArgumentsPerCategory.Add(FRigVMTemplateArgument::ETypeCategory_SingleEnumValue, TArray<TPair<int32,int32>>()).Reserve(64);
-	ArgumentsPerCategory.Add(FRigVMTemplateArgument::ETypeCategory_ArrayEnumValue, TArray<TPair<int32,int32>>()).Reserve(64);
-	ArgumentsPerCategory.Add(FRigVMTemplateArgument::ETypeCategory_ArrayArrayEnumValue, TArray<TPair<int32,int32>>()).Reserve(64);
-	ArgumentsPerCategory.Add(FRigVMTemplateArgument::ETypeCategory_SingleObjectValue, TArray<TPair<int32,int32>>()).Reserve(64);
-	ArgumentsPerCategory.Add(FRigVMTemplateArgument::ETypeCategory_ArrayObjectValue, TArray<TPair<int32,int32>>()).Reserve(64);
-	ArgumentsPerCategory.Add(FRigVMTemplateArgument::ETypeCategory_ArrayArrayObjectValue, TArray<TPair<int32,int32>>()).Reserve(64);
+	TemplatesPerCategory.Add(FRigVMTemplateArgument::ETypeCategory_Execute, TArray<int32>()).Reserve(8);
+	TemplatesPerCategory.Add(FRigVMTemplateArgument::ETypeCategory_SingleAnyValue, TArray<int32>()).Reserve(64);
+	TemplatesPerCategory.Add(FRigVMTemplateArgument::ETypeCategory_ArrayAnyValue, TArray<int32>()).Reserve(64);
+	TemplatesPerCategory.Add(FRigVMTemplateArgument::ETypeCategory_ArrayArrayAnyValue, TArray<int32>()).Reserve(64);
+	TemplatesPerCategory.Add(FRigVMTemplateArgument::ETypeCategory_SingleSimpleValue, TArray<int32>()).Reserve(64);
+	TemplatesPerCategory.Add(FRigVMTemplateArgument::ETypeCategory_ArraySimpleValue, TArray<int32>()).Reserve(64);
+	TemplatesPerCategory.Add(FRigVMTemplateArgument::ETypeCategory_ArrayArraySimpleValue, TArray<int32>()).Reserve(64);
+	TemplatesPerCategory.Add(FRigVMTemplateArgument::ETypeCategory_SingleMathStructValue, TArray<int32>()).Reserve(64);
+	TemplatesPerCategory.Add(FRigVMTemplateArgument::ETypeCategory_ArrayMathStructValue, TArray<int32>()).Reserve(64);
+	TemplatesPerCategory.Add(FRigVMTemplateArgument::ETypeCategory_ArrayArrayMathStructValue, TArray<int32>()).Reserve(64);
+	TemplatesPerCategory.Add(FRigVMTemplateArgument::ETypeCategory_SingleScriptStructValue, TArray<int32>()).Reserve(64);
+	TemplatesPerCategory.Add(FRigVMTemplateArgument::ETypeCategory_ArrayScriptStructValue, TArray<int32>()).Reserve(64);
+	TemplatesPerCategory.Add(FRigVMTemplateArgument::ETypeCategory_ArrayArrayScriptStructValue, TArray<int32>()).Reserve(64);
+	TemplatesPerCategory.Add(FRigVMTemplateArgument::ETypeCategory_SingleEnumValue, TArray<int32>()).Reserve(64);
+	TemplatesPerCategory.Add(FRigVMTemplateArgument::ETypeCategory_ArrayEnumValue, TArray<int32>()).Reserve(64);
+	TemplatesPerCategory.Add(FRigVMTemplateArgument::ETypeCategory_ArrayArrayEnumValue, TArray<int32>()).Reserve(64);
+	TemplatesPerCategory.Add(FRigVMTemplateArgument::ETypeCategory_SingleObjectValue, TArray<int32>()).Reserve(64);
+	TemplatesPerCategory.Add(FRigVMTemplateArgument::ETypeCategory_ArrayObjectValue, TArray<int32>()).Reserve(64);
+	TemplatesPerCategory.Add(FRigVMTemplateArgument::ETypeCategory_ArrayArrayObjectValue, TArray<int32>()).Reserve(64);
 
 	RigVMTypeUtils::TypeIndex::Execute = FindOrAddType(FRigVMTemplateArgumentType(FRigVMExecuteContext::StaticStruct()));
 	RigVMTypeUtils::TypeIndex::ExecuteArray = FindOrAddType(FRigVMTemplateArgumentType(FRigVMExecuteContext::StaticStruct()).ConvertToArray());
@@ -320,6 +320,9 @@ void FRigVMRegistry::InitializeIfNeeded()
 void FRigVMRegistry::RefreshEngineTypes()
 {
 	FScopeLock RefreshTypesScopeLock(&RefreshTypesMutex);
+	TGuardValue<bool> EnableGuardRefresh(bIsRefreshingEngineTypes, true);
+
+	const int32 NumTypesBefore = Types.Num(); 
 	
 	// Register all user-defined types that the engine knows about. Enumerating over the entire object hierarchy is
 	// slow, so we do it for structs, enums and dispatch factories in one shot.
@@ -367,6 +370,26 @@ void FRigVMRegistry::RefreshEngineTypes()
 	for (UScriptStruct* DispatchFactoryStruct: DispatchFactoriesToRegister)
 	{
 		RegisterFactory(DispatchFactoryStruct);
+	}
+
+	const int32 NumTypesNow = Types.Num();
+	if(NumTypesBefore != NumTypesNow)
+	{
+		// update all of the templates once
+		TArray<bool> TemplateProcessed;
+		TemplateProcessed.AddZeroed(Templates.Num());
+		for(const TPair<FRigVMTemplateArgument::ETypeCategory, TArray<int32>>& Pair : TemplatesPerCategory)
+		{
+			for(const int32 TemplateIndex : Pair.Value)
+			{
+				if(!TemplateProcessed[TemplateIndex])
+				{
+					FRigVMTemplate& Template = Templates[TemplateIndex];
+					(void)Template.UpdateArgumentTypes();
+					TemplateProcessed[TemplateIndex] = true;
+				}
+			}
+		}
 	}
 }
 
@@ -502,7 +525,7 @@ TRigVMTypeIndex FRigVMRegistry::FindOrAddType_Internal(const FRigVMTemplateArgum
 			Types[Indices[1]].ArrayTypeIndex = Indices[2];
 		}
 
-		// update the categories first then propagate to ArgumentsPerCategory once all categories up to date
+		// update the categories first then propagate to TemplatesPerCategory once all categories up to date
 		TArray<TPair<FRigVMTemplateArgument::ETypeCategory, int32>> ToPropagate;
 		auto RegisterNewType = [&](FRigVMTemplateArgument::ETypeCategory InCategory, int32 NewIndex)
 		{
@@ -711,16 +734,20 @@ void FRigVMRegistry::RegisterTypeInCategory(FRigVMTemplateArgument::ETypeCategor
 
 void FRigVMRegistry::PropagateTypeAddedToCategory(const FRigVMTemplateArgument::ETypeCategory InCategory, const TRigVMTypeIndex InTypeIndex)
 {
+	if(bIsRefreshingEngineTypes)
+	{
+		return;
+	}
+	
 	check(InCategory != FRigVMTemplateArgument::ETypeCategory_Invalid);
 	if ( ensure(TypesPerCategory.FindChecked(InCategory).Contains(InTypeIndex)) )
 	{
 		// when adding a new type - we need to update template arguments which expect to have access to that type 
-		const TArray<TPair<int32,int32>>& ArgumentsToUseType = ArgumentsPerCategory.FindChecked(InCategory);
-		for(const TPair<int32,int32>& Pair : ArgumentsToUseType)
+		const TArray<int32>& TemplatesToUseType = TemplatesPerCategory.FindChecked(InCategory);
+		for(const int32 TemplateIndex : TemplatesToUseType)
 		{
-			FRigVMTemplate& Template = Templates[Pair.Key];
-			const FRigVMTemplateArgument* Argument = Template.GetArgument(Pair.Value);
-			Template.AddTypeForArgument(Argument->GetName(), InTypeIndex);
+			FRigVMTemplate& Template = Templates[TemplateIndex];
+			(void)Template.UpdateArgumentTypes();
 		}
 	}
 }
@@ -831,15 +858,7 @@ void FRigVMRegistry::RemoveTypeInCategory(FRigVMTemplateArgument::ETypeCategory 
 
 	TypesPerCategory.FindChecked(InCategory).Remove(InTypeIndex);
 
-	const TArray<TPair<int32,int32>>& ArgumentsToUseType = ArgumentsPerCategory.FindChecked(InCategory);
-
-	TSet<int32> TemplatesToUseType;
-	
-	for(const TPair<int32,int32>& Pair : ArgumentsToUseType)
-	{
-		TemplatesToUseType.Add(Pair.Key);
-	}
-	
+	const TArray<int32>& TemplatesToUseType = TemplatesPerCategory.FindChecked(InCategory);
 	for (const int32 TemplateIndex : TemplatesToUseType)
 	{
 		FRigVMTemplate& Template = Templates[TemplateIndex];
@@ -1715,7 +1734,7 @@ const FRigVMTemplate* FRigVMRegistry::AddTemplateFromArguments_NoLock(const FNam
 	{
 		for(const FRigVMTemplateArgument::ETypeCategory& ArgumentTypeCategory : Templates[Index].Arguments[ArgumentIndex].TypeCategories)
 		{
-			ArgumentsPerCategory.FindChecked(ArgumentTypeCategory).AddUnique(TPair<int32, int32>(Index, ArgumentIndex));
+			TemplatesPerCategory.FindChecked(ArgumentTypeCategory).AddUnique(Index);
 		}
 	}
 	

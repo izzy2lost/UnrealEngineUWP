@@ -152,14 +152,15 @@ public:
 	virtual FRigVMTemplateTypeMap OnNewArgumentType(const FName& InArgumentName, TRigVMTypeIndex InTypeIndex) const { return FRigVMTemplateTypeMap(); }
 
 	// returns the new permutations argument types after a new type is defined for one argument
-	virtual TArray<FRigVMTemplateTypeMap> GetPermutationsFromArgumentType(const FName& InArgumentName, const TRigVMTypeIndex& InTypeIndex) const
+	virtual bool GetPermutationsFromArgumentType(const FName& InArgumentName, const TRigVMTypeIndex& InTypeIndex, TArray<FRigVMTemplateTypeMap, TInlineAllocator<1>>& OutPermutations) const
 	{
 		FRigVMTemplateTypeMap Permutation = OnNewArgumentType(InArgumentName, InTypeIndex);
 		if (!Permutation.IsEmpty())
 		{
-			return {Permutation};
+			OutPermutations.Add(Permutation);
+			return true;
 		}
-		return {};
+		return false;
 	}
 
 	// returns the upgrade info to use for this factory

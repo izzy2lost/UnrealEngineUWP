@@ -304,7 +304,8 @@ TArray<FRigVMTemplateArgumentInfo> FRigVMDispatchFactory::BuildArgumentListFromP
 	{
 		if (bFoundArg)
 		{
-			const TArray<FRigVMTemplateTypeMap> Permutations = GetPermutationsFromArgumentType(InPrimaryArgumentName, Type);
+			TArray<FRigVMTemplateTypeMap, TInlineAllocator<1>> Permutations;
+			GetPermutationsFromArgumentType(InPrimaryArgumentName, Type, Permutations);
 			for (const FRigVMTemplateTypeMap& Permutation : Permutations)
 			{
 				for (int32 Index=0; Index < InInfos.Num(); ++Index)

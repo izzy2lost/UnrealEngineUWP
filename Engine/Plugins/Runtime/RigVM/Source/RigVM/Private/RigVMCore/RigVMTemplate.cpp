@@ -162,17 +162,13 @@ void FRigVMTemplateArgument::EnsureValidExecuteType()
 void FRigVMTemplateArgument::UpdateTypeToPermutations()
 {
 	TypeToPermutations.Reset();
-	for(int32 TypeIndex=0;TypeIndex<GetNumTypes();TypeIndex++)
+	TypeToPermutations.Reserve(GetNumTypes());
+
+	int32 TypeIndex = 0;
+	ForEachType([&](const TRigVMTypeIndex Type)
 	{
-		if (TArray<int32>* Permutations = TypeToPermutations.Find(GetTypeIndex(TypeIndex)))
-		{
-			Permutations->Add(TypeIndex);
-		}
-		else
-		{
-			TypeToPermutations.Add(GetTypeIndex(TypeIndex), {TypeIndex});
-		}
-	}
+	   TypeToPermutations.FindOrAdd(Type).Add(TypeIndex++);
+	});
 }
 
 bool FRigVMTemplateArgument::SupportsTypeIndex(TRigVMTypeIndex InTypeIndex, TRigVMTypeIndex* OutTypeIndex) const
@@ -1812,86 +1808,127 @@ FString FRigVMTemplate::GetKeywords() const
 
 #endif
 
-bool FRigVMTemplate::AddTypeForArgument(const FName& InArgumentName, TRigVMTypeIndex InTypeIndex)
+bool FRigVMTemplate::UpdateArgumentTypes()
 {
+	const int32 PrimaryArgumentIndex = Arguments.IndexOfByPredicate([](const FRigVMTemplateArgument& Argument)
+	{
+		return Argument.bUseCategories;
+	});
+
+	// this template may not be affected at all by this
+	if(PrimaryArgumentIndex == INDEX_NONE)
+	{
+		return true;
+	}
+
 	InvalidateHash();
 
-	TArray<FRigVMTemplateTypeMap> TypesArray;
+	for(int32 ArgumentIndex = 0; ArgumentIndex < Arguments.Num(); ArgumentIndex++)
+	{
+		FRigVMTemplateArgument& Argument = Arguments[ArgumentIndex];
+		if(Argument.bUseCategories || Argument.IsSingleton())
+		{
+			continue;
+		}
 
+		Argument.TypeIndices.Reset();
+		Argument.TypeToPermutations.Reset();
+	}
+
+	const FRigVMRegistry& Registry = FRigVMRegistry::Get();
+	const FRigVMTemplateArgument& PrimaryArgument = Arguments[PrimaryArgumentIndex];
+	TArray<FRigVMTemplateTypeMap, TInlineAllocator<1>> TypesArray;
+	bool bResult = true;
+
+	const FRigVMDispatchFactory* Factory = nullptr;
 	if(Delegates.GetDispatchFactoryDelegate.IsBound())
 	{
-		const FRigVMDispatchFactory* Factory = Delegates.GetDispatchFactoryDelegate.Execute();
-		if(ensure(Factory))
+		Factory = Delegates.GetDispatchFactoryDelegate.Execute();
+		ensure(Factory);
+	}
+
+	PrimaryArgument.ForEachType([&](const TRigVMTypeIndex PrimaryTypeIndex)
+	{
+		TypesArray.Reset();
+		if(Factory)
 		{
-			TypesArray = Factory->GetPermutationsFromArgumentType(InArgumentName, InTypeIndex);
+			Factory->GetPermutationsFromArgumentType(PrimaryArgument.Name, PrimaryTypeIndex, TypesArray);
 		}
-	}
-	else if(OnNewArgumentType().IsBound())
-	{
-		FRigVMTemplateTypeMap Types = OnNewArgumentType().Execute(InArgumentName, InTypeIndex);
-		TypesArray = {Types};
-	}
-
-	if (!TypesArray.IsEmpty())
-	{
-		for (FRigVMTemplateTypeMap& Types : TypesArray)
+		else if(OnNewArgumentType().IsBound())
 		{
-			if(Types.Num() == Arguments.Num())
+			FRigVMTemplateTypeMap Types = OnNewArgumentType().Execute(PrimaryArgument.Name, PrimaryTypeIndex);
+			TypesArray.Add(Types);
+		}
+
+		if (!TypesArray.IsEmpty())
+		{
+			for (FRigVMTemplateTypeMap& Types : TypesArray)
 			{
-				const FRigVMRegistry& Registry = FRigVMRegistry::Get();
-				for (TPair<FName, TRigVMTypeIndex>& ArgumentAndType : Types)
+				if(Types.Num() == Arguments.Num())
 				{
-					// similar to FRigVMTemplateArgument::EnsureValidExecuteType
-					Registry.ConvertExecuteContextToBaseType(ArgumentAndType.Value);
-				}
-			
-				for(FRigVMTemplateArgument& Argument : Arguments)
-				{
-					const TRigVMTypeIndex* TypeIndex = Types.Find(Argument.Name);
-					if(TypeIndex == nullptr)
+					for (TPair<FName, TRigVMTypeIndex>& ArgumentAndType : Types)
 					{
-						return false;
+						// similar to FRigVMTemplateArgument::EnsureValidExecuteType
+						Registry.ConvertExecuteContextToBaseType(ArgumentAndType.Value);
 					}
-					if(*TypeIndex == INDEX_NONE)
+
+					// Find if these types were already registered
+					if (ContainsPermutation(Types))
 					{
-						return false;
+						return;
 					}
-				}
 
-				// Find if these types were already registered
-				FRigVMTemplateTypeMap TestTypes = Types;
-				if (ContainsPermutation(TestTypes))
-				{
-					return false;
-				}
-
-				uint32 TypeHash=0;
-				for(FRigVMTemplateArgument& Argument : Arguments)
-				{
-					const TRigVMTypeIndex TypeIndex = Types.FindChecked(Argument.Name);
-					if (!Argument.bUseCategories)
+					uint32 TypeHash=0;
+					for(int32 ArgumentIndex = 0; ArgumentIndex < Arguments.Num(); ArgumentIndex++)
 					{
+						FRigVMTemplateArgument& Argument = Arguments[ArgumentIndex];
+
+						const TRigVMTypeIndex* TypeIndexPtr = Types.Find(Argument.Name);
+						if(TypeIndexPtr == nullptr)
+						{
+							bResult = false;
+							return;
+						}
+						if(*TypeIndexPtr == INDEX_NONE)
+						{
+							bResult = false;
+							return;
+						}
+
+						const TRigVMTypeIndex& TypeIndex = *TypeIndexPtr;
+						TypeHash = HashCombine(TypeHash, GetTypeHash(TypeIndex));
+
+						if(Argument.bUseCategories || Argument.IsSingleton())
+						{
+							continue;
+						}
+					
 						Argument.TypeIndices.Add(TypeIndex);
 						Argument.TypeToPermutations.FindOrAdd(TypeIndex).Add(Permutations.Num());
 					}
-					else
-					{
-						Argument.UpdateTypeToPermutations();
-					}
-					TypeHash = HashCombine(TypeHash, GetTypeHash(TypeIndex));
+
+					Permutations.Add(INDEX_NONE);
+					TypesHashToPermutation.Add(TypeHash, Permutations.Num()-1);
 				}
-				
-				Permutations.Add(INDEX_NONE);
-				TypesHashToPermutation.Add(TypeHash, Permutations.Num()-1);
-			}
-			else
-			{
-				return false;
+				else
+				{
+					bResult = false;
+				}
 			}
 		}
-		return true;
+		else
+		{
+			bResult = false;
+		}
+	});
+
+	for(int32 ArgumentIndex = 0; ArgumentIndex < Arguments.Num(); ArgumentIndex++)
+	{
+		FRigVMTemplateArgument& Argument = Arguments[ArgumentIndex];
+		Argument.UpdateTypeToPermutations();
 	}
-	return false;
+
+	return bResult;
 }
 
 void FRigVMTemplate::HandleTypeRemoval(TRigVMTypeIndex InTypeIndex)
