@@ -58,7 +58,9 @@ struct FConstantIndex
 
 struct FValueOperand
 {
-	int32 Index;
+	int32 Index = INT32_MIN;
+
+	FValueOperand() = default;
 
 	FValueOperand(FConstantIndex Constant)
 		: Index(-1 - Constant.Index)
