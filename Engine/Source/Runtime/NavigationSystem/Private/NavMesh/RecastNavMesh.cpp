@@ -979,16 +979,16 @@ void ARecastNavMesh::SortAreasForGenerator(TArray<FRecastAreaNavModifierElement>
 
 	struct FNavAreaSortPredicate
 	{
-		FORCEINLINE bool operator()(const FRecastAreaNavModifierElement& ElA, const FRecastAreaNavModifierElement& ElB) const
+		FORCEINLINE bool operator()(const FRecastAreaNavModifierElement& ElementA, const FRecastAreaNavModifierElement& ElementB) const
 		{
-			if (ElA.Areas.Num() == 0 || ElB.Areas.Num() == 0)
+			if (ElementA.Areas.Num() == 0 || ElementB.Areas.Num() == 0)
 			{
-				return ElA.Areas.Num() <= ElB.Areas.Num();
+				return ElementA.Areas.Num() <= ElementB.Areas.Num();
 			}
 
 			// assuming composite modifiers has same area type
-			const FAreaNavModifier& A = ElA.Areas[0];
-			const FAreaNavModifier& B = ElB.Areas[0];
+			const FAreaNavModifier& A = ElementA.Areas[0];
+			const FAreaNavModifier& B = ElementB.Areas[0];
 			
 			const bool bIsAReplacing = (A.GetAreaClassToReplace() != NULL);
 			const bool bIsBReplacing = (B.GetAreaClassToReplace() != NULL);
@@ -997,7 +997,17 @@ void ARecastNavMesh::SortAreasForGenerator(TArray<FRecastAreaNavModifierElement>
 				return bIsAReplacing;
 			}
 
-			return A.Cost != B.Cost ? A.Cost < B.Cost : A.FixedCost < B.FixedCost;
+			if (A.Cost != B.Cost)
+			{
+				return A.Cost < B.Cost;
+			}
+
+			if (A.FixedCost != B.FixedCost)
+			{
+				return A.FixedCost < B.FixedCost;
+			}
+
+			return ElementA.NavMeshResolution < ElementB.NavMeshResolution;
 		}
 	};
 

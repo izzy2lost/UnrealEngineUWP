@@ -83,7 +83,9 @@ struct FRecastBuildConfig : public rcConfig
 	ENavigationDataResolution TileResolution;
 	/** Ledge filtering mode */
 	ENavigationLedgeSlopeFilterMode LedgeSlopeFilterMode;
-
+	/** Is the config completely setup */
+	bool bIsTileSetupConfigCompleted = false;
+	
 	FRecastBuildConfig()
 	{
 		Reset();
@@ -104,6 +106,7 @@ struct FRecastBuildConfig : public rcConfig
 		AgentIndex = 0;
 		TileResolution = ENavigationDataResolution::Default;
 		LedgeSlopeFilterMode = ENavigationLedgeSlopeFilterMode::Recast;
+		bIsTileSetupConfigCompleted = false;
 	}
 
 	rcReal GetTileSizeUU() const { return tileSize * cs; }
@@ -182,6 +185,8 @@ struct FRecastAreaNavModifierElement
 	// When empty, areas are in world space
 	TArray<FTransform>	PerInstanceTransform;
 
+	ENavigationDataResolution NavMeshResolution = ENavigationDataResolution::Invalid;
+	
 	bool bMaskFillCollisionUnderneathForNavmesh = false;
 };
 
@@ -385,6 +390,9 @@ protected:
 	NAVIGATIONSYSTEM_API bool GenerateTile();
 
 	NAVIGATIONSYSTEM_API void Setup(const FRecastNavMeshGenerator& ParentGenerator, const TArray<FBox>& DirtyAreas);
+
+	/** Find highest navmesh resolution from Modifiers and use it to update the tile configuration. */
+	void SetupTileConfigFromHighestResolution(const FRecastNavMeshGenerator& ParentGenerator);
 	
 	/** Gather geometry */
 	NAVIGATIONSYSTEM_API virtual void GatherGeometry(const FRecastNavMeshGenerator& ParentGenerator, bool bGeometryChanged);

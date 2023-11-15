@@ -1823,6 +1823,10 @@ ETimeSliceWorkResult FRecastTileGenerator::DoWorkTimeSliced()
 			{
 				WorkResult = GatherGeometryFromSourcesTimeSliced();
 
+				// Needs to occur after DemandLazyDataGathering
+				TSharedPtr<FRecastNavMeshGenerator> RecastParentGenerator = StaticCastSharedPtr<FRecastNavMeshGenerator>(ParentGenerator);
+				SetupTileConfigFromHighestResolution(*RecastParentGenerator);	
+
 				if (WorkResult == ETimeSliceWorkResult::CallAgainNextTimeSlice)
 				{
 					break;
@@ -1867,6 +1871,10 @@ bool FRecastTileGenerator::DoWork()
 		if (InclusionBounds.Num())
 		{
 			GatherGeometryFromSources();
+			
+			// Needs to occur after DemandLazyDataGathering
+			TSharedPtr<FRecastNavMeshGenerator> RecastParentGenerator = StaticCastSharedPtr<FRecastNavMeshGenerator>(ParentGenerator);
+			SetupTileConfigFromHighestResolution(*RecastParentGenerator);	
 		}
 
 		bSuccess = GenerateTile();
@@ -1890,6 +1898,28 @@ void FRecastTileGenerator::DumpSyncData()
 {
 	ensure(IsInGameThread());
 	NavigationRelevantData.Empty();
+}
+
+void FRecastTileGenerator::SetupTileConfigFromHighestResolution(const FRecastNavMeshGenerator& ParentGenerator)
+{
+	ENavigationDataResolution HighestResolution = ENavigationDataResolution::Low;
+	bool bNewResolutionFound = false;
+
+	for (const FRecastAreaNavModifierElement& Element : Modifiers)
+	{
+		if (Element.NavMeshResolution != ENavigationDataResolution::Invalid)
+		{
+			HighestResolution = FMath::Max(HighestResolution, Element.NavMeshResolution);
+			bNewResolutionFound = true;
+		}	
+	}
+	
+	check(HighestResolution != ENavigationDataResolution::Invalid);
+	if (bNewResolutionFound && ParentGenerator.GetOwner()->NavMeshResolutionParams[(uint8)HighestResolution].IsValid())
+	{
+		// Update the TileConfig
+		ParentGenerator.SetupTileConfig(HighestResolution, TileConfig);
+	}
 }
 	
 void FRecastTileGenerator::GatherGeometryFromSources()
@@ -1959,12 +1989,9 @@ void FRecastTileGenerator::PrepareGeometrySources(const FRecastNavMeshGenerator&
 	
 	const ARecastNavMesh* const OwnerNav = ParentGenerator.GetOwner();
 	const bool bUseVirtualGeometryFilteringAndDirtying = OwnerNav->bUseVirtualGeometryFilteringAndDirtying;
-
-	ENavigationDataResolution HighestResolution = ENavigationDataResolution::Low;
-	bool bNewResolutionFound = false;
 	
 	NavOctreeInstance->FindElementsWithBoundsTest(ParentGenerator.GrowBoundingBox(TileBB, /*bIncludeAgentHeight*/ false),
-		[&HighestResolution, &bNewResolutionFound, &ParentGenerator, OwnerNav, this, bGeometryChanged, bUseVirtualGeometryFilteringAndDirtying](const FNavigationOctreeElement& Element)
+		[&ParentGenerator, this, bGeometryChanged, bUseVirtualGeometryFilteringAndDirtying](const FNavigationOctreeElement& Element)
 	{
 		const bool bShouldUse = bUseVirtualGeometryFilteringAndDirtying ?
 			ParentGenerator.ShouldGenerateGeometryForOctreeElement(Element, NavDataConfig) :
@@ -1977,27 +2004,10 @@ void FRecastTileGenerator::PrepareGeometrySources(const FRecastNavMeshGenerator&
 				Element.Data->Modifiers.HasMetaAreas() == true || 
 				Element.Data->Modifiers.IsEmpty() == false)
 			{
-				UE_SUPPRESS(LogNavigation, VeryVerbose, UE_VLOG_UELOG(OwnerNav, LogNavigation, VeryVerbose, TEXT("PrepareGeometrySources, adding: %s"), *GetNameSafe(Element.GetOwner())));
-				
-				// Keep highest resolution that is not the default.
-				const ENavigationDataResolution Resolution = Element.Data->Modifiers.GetNavMeshResolution();
-				if (Resolution != ENavigationDataResolution::Invalid)
-				{
-					HighestResolution = FMath::Max(HighestResolution, Resolution);
-					bNewResolutionFound = true;
-				}
-				
 				NavigationRelevantData.Add(Element.Data);
 			}
 		}
 	});
-	
-	check(HighestResolution != ENavigationDataResolution::Invalid);
-	if (bNewResolutionFound && ParentGenerator.GetOwner()->NavMeshResolutionParams[(uint8)HighestResolution].IsValid())
-	{
-		// Update the TileConfig
-		ParentGenerator.SetupTileConfig(HighestResolution, TileConfig);
-	}
 }
 
 void FRecastTileGenerator::GatherGeometry(const FRecastNavMeshGenerator& ParentGenerator, bool bGeometryChanged)
@@ -2029,7 +2039,6 @@ void FRecastTileGenerator::GatherGeometry(const FRecastNavMeshGenerator& ParentG
 		if (bShouldUse)
 		{
 			RelevantDataArray.Add(Element.Data);
-
 		}
 	});
 
@@ -2401,6 +2410,7 @@ void FRecastTileGenerator::AppendModifier(const FCompositeNavModifier& Modifier,
 		
 	ModifierElement.Areas = Modifier.GetAreas();
 	ModifierElement.bMaskFillCollisionUnderneathForNavmesh = Modifier.GetMaskFillCollisionUnderneathForNavmesh();
+	ModifierElement.NavMeshResolution = Modifier.GetNavMeshResolution();
 
 	Modifiers.Add(MoveTemp(ModifierElement));
 }
@@ -2458,6 +2468,8 @@ void FRecastTileGenerator::AppendGeometry(const FNavigationRelevantData& DataRef
 
 ETimeSliceWorkResult FRecastTileGenerator::GenerateTileTimeSliced()
 {
+	ensureMsgf(TileConfig.bIsTileSetupConfigCompleted, TEXT("SetupTileConfig must have been called before generating a tile."));
+	
 	FNavMeshBuildContext BuildContext(*this);
 	ETimeSliceWorkResult WorkResult = ETimeSliceWorkResult::Succeeded;
 
@@ -2527,6 +2539,8 @@ bool FRecastTileGenerator::GenerateTile()
 	const double StartStamp = FPlatformTime::Seconds();
 	double PostCompressLayerStamp = StartStamp;
 #endif // RECAST_INTERNAL_DEBUG_DATA
+
+	ensureMsgf(TileConfig.bIsTileSetupConfigCompleted, TEXT("SetupTileConfig must have been called before generating a tile."));
 	
 	FNavMeshBuildContext BuildContext(*this);
 	bool bSuccess = true;
@@ -4647,6 +4661,8 @@ void FRecastNavMeshGenerator::SetupTileConfig(const ENavigationDataResolution Ti
 
 	// Update all settings that depends directly or indirectly of AgentMaxStepHeight
 	OutConfig.AgentMaxClimb = AgentMaxStepHeight;
+
+	OutConfig.bIsTileSetupConfigCompleted = true;
 }
 
 void FRecastNavMeshGenerator::ConfigureBuildProperties(FRecastBuildConfig& OutConfig)
