@@ -144,7 +144,7 @@ FName UPCGMetadataRotatorSettings::GetInputPinLabel(uint32 Index) const
 	}
 }
 
-uint32 UPCGMetadataRotatorSettings::GetInputPinNum() const
+uint32 UPCGMetadataRotatorSettings::GetOperandNum() const
 {
 	if (PCGMetadataRotatorSettings::IsUnaryOp(Operation))
 	{
@@ -239,7 +239,7 @@ FPCGElementPtr UPCGMetadataRotatorSettings::CreateElement() const
 	return MakeShared<FPCGMetadataRotatorElement>();
 }
 
-bool FPCGMetadataRotatorElement::DoOperation(FOperationData& OperationData) const
+bool FPCGMetadataRotatorElement::DoOperation(PCGMetadataOps::FOperationData& OperationData) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGMetadataRotatorElement::Execute);
 

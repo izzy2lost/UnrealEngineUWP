@@ -62,7 +62,7 @@ FName UPCGMetadataBooleanSettings::GetInputPinLabel(uint32 Index) const
 	}
 }
 
-uint32 UPCGMetadataBooleanSettings::GetInputPinNum() const
+uint32 UPCGMetadataBooleanSettings::GetOperandNum() const
 {
 	return (Operation == EPCGMedadataBooleanOperation::Not) ? 1 : 2;
 }
@@ -136,7 +136,7 @@ FPCGElementPtr UPCGMetadataBooleanSettings::CreateElement() const
 	return MakeShared<FPCGMetadataBooleanElement>();
 }
 
-bool FPCGMetadataBooleanElement::DoOperation(FOperationData& OperationData) const
+bool FPCGMetadataBooleanElement::DoOperation(PCGMetadataOps::FOperationData& OperationData) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGMetadataBooleanElement::Execute);
 

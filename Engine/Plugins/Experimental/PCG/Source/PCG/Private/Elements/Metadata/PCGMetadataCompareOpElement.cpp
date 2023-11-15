@@ -76,7 +76,7 @@ FName UPCGMetadataCompareSettings::GetInputPinLabel(uint32 Index) const
 	}
 }
 
-uint32 UPCGMetadataCompareSettings::GetInputPinNum() const
+uint32 UPCGMetadataCompareSettings::GetOperandNum() const
 {
 	return 2;
 }
@@ -162,7 +162,7 @@ FPCGElementPtr UPCGMetadataCompareSettings::CreateElement() const
 	return MakeShared<FPCGMetadataCompareElement>();
 }
 
-bool FPCGMetadataCompareElement::DoOperation(FOperationData& OperationData) const
+bool FPCGMetadataCompareElement::DoOperation(PCGMetadataOps::FOperationData& OperationData) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGMetadataTrigElement::Execute);
 

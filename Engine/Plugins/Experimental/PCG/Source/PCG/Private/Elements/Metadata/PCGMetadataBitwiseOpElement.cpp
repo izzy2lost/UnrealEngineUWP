@@ -62,7 +62,7 @@ FName UPCGMetadataBitwiseSettings::GetInputPinLabel(uint32 Index) const
 	}
 }
 
-uint32 UPCGMetadataBitwiseSettings::GetInputPinNum() const
+uint32 UPCGMetadataBitwiseSettings::GetOperandNum() const
 {
 	return (Operation == EPCGMedadataBitwiseOperation::Not) ? 1 : 2;
 }
@@ -136,7 +136,7 @@ uint16 UPCGMetadataBitwiseSettings::GetOutputType(uint16 InputTypeId) const
 	return (uint16)EPCGMetadataTypes::Integer64;
 }
 
-bool FPCGMetadataBitwiseElement::DoOperation(FOperationData& OperationData) const
+bool FPCGMetadataBitwiseElement::DoOperation(PCGMetadataOps::FOperationData& OperationData) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGMetadataBitwiseElement::Execute);
 

@@ -31,10 +31,10 @@ public:
 	virtual FText GetDefaultNodeTitle() const override;
 #endif
 
-	FPCGAttributePropertyInputSelector GetInputSource(uint32 Index) const override;
+	virtual FPCGAttributePropertyInputSelector GetInputSource(uint32 Index) const override;
 
 	virtual FName GetOutputPinLabel(uint32 Index) const override;
-	virtual uint32 GetOutputPinNum() const override;
+	virtual uint32 GetResultNum() const override;
 
 	virtual bool IsSupportedInputType(uint16 TypeId, uint32 InputIndex, bool& bHasSpecialRequirement) const override;
 	virtual uint16 GetOutputType(uint16 InputTypeId) const override;
@@ -57,5 +57,5 @@ public:
 class FPCGMetadataBreakVectorElement : public FPCGMetadataElementBase
 {
 protected:
-	virtual bool DoOperation(FOperationData& OperationData) const override;
+	virtual bool DoOperation(PCGMetadataOps::FOperationData& OperationData) const override;
 };

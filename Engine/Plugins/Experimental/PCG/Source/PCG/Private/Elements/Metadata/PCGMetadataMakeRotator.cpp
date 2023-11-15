@@ -39,7 +39,7 @@ FName UPCGMetadataMakeRotatorSettings::GetInputPinLabel(uint32 Index) const
 	}
 }
 
-uint32 UPCGMetadataMakeRotatorSettings::GetInputPinNum() const
+uint32 UPCGMetadataMakeRotatorSettings::GetOperandNum() const
 {
 	switch (Operation)
 	{
@@ -151,7 +151,7 @@ FString UPCGMetadataMakeRotatorSettings::GetDefaultValueString(uint32 Index) con
 }
 #endif // WITH_EDITOR
 
-bool FPCGMetadataMakeRotatorElement::DoOperation(FOperationData& OperationData) const
+bool FPCGMetadataMakeRotatorElement::DoOperation(PCGMetadataOps::FOperationData& OperationData) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGMetadataMakeRotatorElement::Execute);
 

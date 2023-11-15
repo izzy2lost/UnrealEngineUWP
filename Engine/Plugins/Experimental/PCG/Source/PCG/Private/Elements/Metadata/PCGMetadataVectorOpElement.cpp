@@ -268,7 +268,7 @@ FName UPCGMetadataVectorSettings::GetInputPinLabel(uint32 Index) const
 	}
 }
 
-uint32 UPCGMetadataVectorSettings::GetInputPinNum() const
+uint32 UPCGMetadataVectorSettings::GetOperandNum() const
 {
 	if (PCGMetadataVectorSettings::IsUnaryOp(Operation))
 	{
@@ -381,7 +381,7 @@ uint16 UPCGMetadataVectorSettings::GetOutputType(uint16 InputTypeId) const
 	}
 }
 
-bool FPCGMetadataVectorElement::DoOperation(FOperationData& OperationData) const
+bool FPCGMetadataVectorElement::DoOperation(PCGMetadataOps::FOperationData& OperationData) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGMetadataVectorElement::Execute);
 

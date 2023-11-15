@@ -7,7 +7,6 @@
 #include "PCGParamData.h"
 #include "PCGPin.h"
 #include "Data/PCGPointData.h"
-#include "Data/PCGSpatialData.h"
 #include "Elements/Metadata/PCGMetadataElementCommon.h"
 #include "Metadata/Accessors/PCGAttributeAccessorHelpers.h"
 
@@ -43,13 +42,13 @@ EPCGDataType UPCGMetadataSettingsBase::GetInputPinType(uint32 Index) const
 
 TArray<FName> UPCGMetadataSettingsBase::GetOutputDataFromPinOptions() const
 {
-	const uint32 NumInputs = GetInputPinNum();
+	const uint32 OperandNum = GetOperandNum();
 
 	TArray<FName> AllOptions;
-	AllOptions.SetNum(NumInputs + 1);
+	AllOptions.SetNum(OperandNum + 1);
 	AllOptions[0] = PCGMetadataSettingsBaseConstants::DefaultOutputDataFromPinName;
 
-	for (uint32 Index = 0; Index < NumInputs; ++Index)
+	for (uint32 Index = 0; Index < OperandNum; ++Index)
 	{
 		AllOptions[Index + 1] = GetInputPinLabel(Index);
 	}
@@ -61,7 +60,7 @@ uint32 UPCGMetadataSettingsBase::GetInputPinIndex(FName InPinLabel) const
 {
 	if (InPinLabel != PCGMetadataSettingsBaseConstants::DefaultOutputDataFromPinName)
 	{
-		for (uint32 Index = 0; Index < GetInputPinNum(); ++Index)
+		for (uint32 Index = 0; Index < GetOperandNum(); ++Index)
 		{
 			if (InPinLabel == GetInputPinLabel(Index))
 			{
@@ -70,29 +69,29 @@ uint32 UPCGMetadataSettingsBase::GetInputPinIndex(FName InPinLabel) const
 		}
 	}
 
-	return (uint32)INDEX_NONE;
+	return static_cast<uint32>(INDEX_NONE);
 }
 
 uint32 UPCGMetadataSettingsBase::GetInputPinToForward() const
 {
-	const uint32 NumberOfInputs = GetInputPinNum();
+	const uint32 OperandNum = GetOperandNum();
 	uint32 InputPinToForward = 0;
 
 	// If there is only one input, it is trivial
-	if (NumberOfInputs != 1)
+	if (OperandNum != 1)
 	{
 		// Heuristic:
 		//	* If OutputDataFromPin is set, use this value
 		//	* If there are connected pins, use the first spatial input (not Any)
 		//	* Otherwise, take the first pin
 		const uint32 OutputDataFromPinIndex = GetInputPinIndex(OutputDataFromPin);
-		if (OutputDataFromPinIndex != (uint32)INDEX_NONE)
+		if (OutputDataFromPinIndex != static_cast<uint32>(INDEX_NONE))
 		{
 			InputPinToForward = OutputDataFromPinIndex;
 		}
 		else
 		{
-			for (uint32 InputPinIndex = 0; InputPinIndex < NumberOfInputs; ++InputPinIndex)
+			for (uint32 InputPinIndex = 0; InputPinIndex < OperandNum; ++InputPinIndex)
 			{
 				const EPCGDataType PinType = GetInputPinType(InputPinIndex);
 
@@ -111,8 +110,8 @@ uint32 UPCGMetadataSettingsBase::GetInputPinToForward() const
 EPCGDataType UPCGMetadataSettingsBase::GetCurrentPinTypes(const UPCGPin* InPin) const
 {
 	check(InPin);
-	const uint32 NumberOfInputs = GetInputPinNum();
-	if (!InPin->IsOutputPin() || NumberOfInputs == 0)
+	const uint32 OperandNum = GetOperandNum();
+	if (!InPin->IsOutputPin() || OperandNum == 0)
 	{
 		// Fall back to default for input pins, or if no input pins present from which to obtain type
 		return Super::GetCurrentPinTypes(InPin);
@@ -128,7 +127,7 @@ void UPCGMetadataSettingsBase::PostEditChangeProperty(FPropertyChangedEvent& Pro
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 
 	// Make sure the output data from pin value is always valid. Reset it otherwise.
-	if (GetInputPinIndex(OutputDataFromPin) == (uint32)INDEX_NONE)
+	if (GetInputPinIndex(OutputDataFromPin) == static_cast<uint32>(INDEX_NONE))
 	{
 		OutputDataFromPin = PCGMetadataSettingsBaseConstants::DefaultOutputDataFromPinName;
 	}
@@ -141,13 +140,13 @@ bool UPCGMetadataSettingsBase::CanEditChange(const FProperty* InProperty) const
 		return false;
 	}
 
-	return InProperty && ((InProperty->GetFName() != GET_MEMBER_NAME_CHECKED(UPCGMetadataSettingsBase, OutputDataFromPin)) || (GetInputPinNum() != 1));
+	return InProperty && ((InProperty->GetFName() != GET_MEMBER_NAME_CHECKED(UPCGMetadataSettingsBase, OutputDataFromPin)) || (GetOperandNum() != 1));
 }
 
 bool UPCGMetadataSettingsBase::GetPinExtraIcon(const UPCGPin* InPin, FName& OutExtraIcon, FText& OutTooltip) const
 {
 	// Only set the arrow if the output data from pin is forced.
-	if (GetInputPinNum() > 1 && InPin && OutputDataFromPin == InPin->Properties.Label)
+	if (GetOperandNum() > 1 && InPin && OutputDataFromPin == InPin->Properties.Label)
 	{
 		OutExtraIcon = TEXT("Icons.ArrowRight");
 		return true;
@@ -193,18 +192,18 @@ TArray<FPCGPinProperties> UPCGMetadataSettingsBase::InputPinProperties() const
 {
 	TArray<FPCGPinProperties> PinProperties;
 
-	for (uint32 InputPinIndex = 0; InputPinIndex < GetInputPinNum(); ++InputPinIndex)
+	for (uint32 InputPinIndex = 0; InputPinIndex < GetOperandNum(); ++InputPinIndex)
 	{
 		const FName PinLabel = GetInputPinLabel(InputPinIndex);
 		if (PinLabel != NAME_None)
 		{
-			PinProperties.Emplace(PinLabel, EPCGDataType::Any, /*bAllowMultipleConnections=*/false);
+			PinProperties.Emplace(PinLabel, EPCGDataType::Any);
 
 #if WITH_EDITOR
 			TArray<FText> AllTooltips;
 			TArray<FString> SupportedTypes;
 
-			for (uint8 TypeId = 0; TypeId < (uint8)EPCGMetadataTypes::Count; ++TypeId)
+			for (uint8 TypeId = 0; TypeId < static_cast<uint8>(EPCGMetadataTypes::Count); ++TypeId)
 			{
 				bool DummyBool;
 				if (IsSupportedInputType(TypeId, InputPinIndex, DummyBool))
@@ -212,13 +211,13 @@ TArray<FPCGPinProperties> UPCGMetadataSettingsBase::InputPinProperties() const
 					SupportedTypes.Add(PCG::Private::GetTypeName(TypeId));
 				}
 			}
-			
+
 			if (!SupportedTypes.IsEmpty())
 			{
 				AllTooltips.Add(FText::Format(LOCTEXT("PinTooltipSupportedTypes", "Supported types: {0}"), FText::FromString(FString::Join(SupportedTypes, TEXT(", ")))));
 			}
 
-			if (GetInputPinNum() > 1 && OutputDataFromPin == PinLabel)
+			if (GetOperandNum() > 1 && OutputDataFromPin == PinLabel)
 			{
 				AllTooltips.Add(LOCTEXT("PinTooltipForwardInput", "This input will be forwarded to the output."));
 			}
@@ -242,8 +241,8 @@ TArray<FPCGPinProperties> UPCGMetadataSettingsBase::InputPinProperties() const
 TArray<FPCGPinProperties> UPCGMetadataSettingsBase::OutputPinProperties() const
 {
 	TArray<FPCGPinProperties> PinProperties;
-	
-	for (uint32 OutputPinIndex = 0; OutputPinIndex < GetOutputPinNum(); ++OutputPinIndex)
+
+	for (uint32 OutputPinIndex = 0; OutputPinIndex < GetResultNum(); ++OutputPinIndex)
 	{
 		const FName PinLabel = GetOutputPinLabel(OutputPinIndex);
 		if (PinLabel != NAME_None)
@@ -255,22 +254,41 @@ TArray<FPCGPinProperties> UPCGMetadataSettingsBase::OutputPinProperties() const
 	return PinProperties;
 }
 
-void FPCGMetadataElementBase::PassthroughInputs(FPCGContext* InContext, const UPCGMetadataSettingsBase* InSettings) const
+void FPCGMetadataElementBase::PassthroughInput(FPCGContext* Context, TArray<FPCGTaggedData>& Outputs, const int32 Index) const
 {
-	check(InContext && InSettings);
+	check(Context);
 
-	const uint32 NumberOfOutputs = InSettings->GetOutputPinNum();
-	uint32 InputPinToForward = InSettings->GetInputPinToForward();
+	const UPCGMetadataSettingsBase* Settings = Context->GetInputSettings<UPCGMetadataSettingsBase>();
+	check(Settings);
 
-	TArray<FPCGTaggedData> InputsToForward = InContext->InputData.GetInputsByPin(InSettings->GetInputPinLabel(InputPinToForward));
-	TArray<FPCGTaggedData>& Outputs = InContext->OutputData.TaggedData;
+	const uint32 NumberOfOutputs = Settings->GetResultNum();
+	const uint32 PrimaryPinIndex = Settings->GetInputPinToForward();
+	TArray<FPCGTaggedData> InputsToForward = Context->InputData.GetSpatialInputsByPin(Settings->GetInputPinLabel(PrimaryPinIndex));
 
-	// Empty and reserve memory at the same time.
+	// Passthrough this single input to all of the outputs
+	for (uint32 I = 0; I < NumberOfOutputs; ++I)
+	{
+		Outputs.Emplace_GetRef(InputsToForward[Index]).Pin = Settings->GetOutputPinLabel(I);
+	}
+}
+
+void FPCGMetadataElementBase::PassthroughAllInputs(FPCGContext* Context, TArray<FPCGTaggedData>& Outputs) const
+{
+	check(Context);
+
+	const UPCGMetadataSettingsBase* Settings = Context->GetInputSettings<UPCGMetadataSettingsBase>();
+	check(Settings);
+
+	const uint32 NumberOfOutputs = Settings->GetResultNum();
+	const uint32 PrimaryPinIndex = Settings->GetInputPinToForward();
+	TArray<FPCGTaggedData> InputsToForward = Context->InputData.GetSpatialInputsByPin(Settings->GetInputPinLabel(PrimaryPinIndex));
+
 	Outputs.Empty(InputsToForward.Num() * NumberOfOutputs);
 
-	for (uint32 i = 0; i < NumberOfOutputs; ++i)
+	// Passthrough all inputs to all of the outputs
+	for (uint32 I = 0; I < NumberOfOutputs; ++I)
 	{
-		const FName OutputPin = InSettings->GetOutputPinLabel(i);
+		const FName OutputPin = Settings->GetOutputPinLabel(I);
 		for (const FPCGTaggedData& Input : InputsToForward)
 		{
 			Outputs.Emplace_GetRef(Input).Pin = OutputPin;
@@ -278,153 +296,49 @@ void FPCGMetadataElementBase::PassthroughInputs(FPCGContext* InContext, const UP
 	}
 }
 
-bool FPCGMetadataElementBase::ExecuteInternal(FPCGContext* Context) const
+namespace PCGMetadataOpPrivate
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGMetadataElementBase::Execute);
+	using ContextType = FPCGMetadataElementBase::ContextType;
+	using ExecStateType = FPCGMetadataElementBase::ExecStateType;
 
-	const UPCGMetadataSettingsBase* Settings = Context->GetInputSettings<UPCGMetadataSettingsBase>();
-	check(Settings);
-
-	const uint32 NumberOfInputs = Settings->GetInputPinNum();
-	const uint32 NumberOfOutputs = Settings->GetOutputPinNum();
-
-	check(NumberOfInputs > 0);
-	check(NumberOfOutputs <= UPCGMetadataSettingsBase::MaxNumberOfOutputs);
-
-	const TArray<FPCGTaggedData>& Inputs = Context->InputData.TaggedData;
-	TArray<FPCGTaggedData>& Outputs = Context->OutputData.TaggedData;
-
-	// Gathering all the inputs metadata
-	TArray<const UPCGMetadata*> SourceMetadata;
-	TArray<const FPCGMetadataAttributeBase*> SourceAttribute;
-	TArray<FPCGTaggedData> InputTaggedData;
-	SourceMetadata.SetNum(NumberOfInputs);
-	SourceAttribute.SetNum(NumberOfInputs);
-	InputTaggedData.SetNum(NumberOfInputs);
-
-	uint32 InputPinToForward = Settings->GetInputPinToForward();
-
-	for (uint32 InputPinIndex = 0; InputPinIndex < NumberOfInputs; ++InputPinIndex)
+	void CreateAccessor(const UPCGMetadataSettingsBase* Settings, const FPCGTaggedData& InputData, PCGMetadataOps::FOperationData& OperationData, const int32 Index)
 	{
-		FName PinLabel = Settings->GetInputPinLabel(InputPinIndex);
-		const bool bIsInputConnected = Context->Node ? Context->Node->IsInputPinConnected(PinLabel) : false;
-		TArray<FPCGTaggedData> InputData = Context->InputData.GetInputsByPin(PinLabel);
+		OperationData.InputSources[Index] = Settings->GetInputSource(Index).CopyAndFixLast(InputData.Data);
+		const FPCGAttributePropertyInputSelector& InputSource = OperationData.InputSources[Index];
 
-		// If input data is empty and not connected but we can have default values, add a "fake" param data input.
-		if (InputData.IsEmpty() && !bIsInputConnected && Settings->DoesInputSupportDefaultValue(InputPinIndex))
-		{
-			FPCGTaggedData& DummyData = InputData.Emplace_GetRef();
-			DummyData.Pin = PinLabel;
-			DummyData.Data = Settings->CreateDefaultValueParam(InputPinIndex);
-			if (!DummyData.Data)
-			{
-				PCGE_LOG(Error, GraphAndLog, FText::Format(LOCTEXT("CantCreateDefaultValue", "Pin {0} supports default value but we could not create it."), FText::FromName(PinLabel)));
-				return true;
-			}
-		}
-
-		if (InputData.IsEmpty())
-		{
-			// If we have no data, just passthrough the input and return
-			PCGE_LOG(Verbose, LogOnly, FText::Format(LOCTEXT("MissingInputDataForPin", "No data provided on pin {0}"), FText::FromName(PinLabel)));
-			PassthroughInputs(Context, Settings);
-			return true;
-		}
-		else if (InputData.Num() > 1)
-		{
-			PCGE_LOG(Error, GraphAndLog, FText::Format(LOCTEXT("TooMuchDataForPin", "Too many data items ({0}) provided on pin {1}"), InputData.Num(), FText::FromName(PinLabel)));
-			return true;
-		}
-
-		// By construction, there can only be one of then(hence the 0 index)
-		InputTaggedData[InputPinIndex] = MoveTemp(InputData[0]);
-
-		// Check if we have any points
-		if (const UPCGPointData* PointInput = Cast<const UPCGPointData>(InputTaggedData[InputPinIndex].Data))
-		{
-			if (PointInput->GetPoints().IsEmpty())
-			{
-				// If we have no points, just passthrough the input and return
-				PCGE_LOG(Verbose, LogOnly, FText::Format(LOCTEXT("NoPointsForPin", "No points in point data provided on pin {0}"), FText::FromName(PinLabel)));
-				PassthroughInputs(Context, Settings);
-				return true;
-			}
-		}
-
-		// Only gather Spacial and Params input. 
-		if (const UPCGSpatialData* SpatialInput = Cast<const UPCGSpatialData>(InputTaggedData[InputPinIndex].Data))
-		{
-			SourceMetadata[InputPinIndex] = SpatialInput->Metadata;
-		}
-		else if (const UPCGParamData* ParamsInput = Cast<const UPCGParamData>(InputTaggedData[InputPinIndex].Data))
-		{
-			SourceMetadata[InputPinIndex] = ParamsInput->Metadata;
-		}
-		else
-		{
-			// Since this aborts execution, and the user can fix it, it should be a node error
-			PCGE_LOG(Error, GraphAndLog, FText::Format(LOCTEXT("InvalidInputDataTypeForPin", "Invalid data provided on pin {0}, must be of type Spatial or Attribute Set"), FText::FromName(PinLabel)));
-			return true;
-		}
+		OperationData.InputAccessors[Index] = PCGAttributeAccessorHelpers::CreateConstAccessor(InputData.Data, InputSource);
+		OperationData.InputKeys[Index] = PCGAttributeAccessorHelpers::CreateConstKeys(InputData.Data, InputSource);
 	}
 
-	FOperationData OperationData;
-	OperationData.InputAccessors.SetNum(NumberOfInputs);
-	OperationData.InputKeys.SetNum(NumberOfInputs);
-	OperationData.InputSources.SetNum(NumberOfInputs);
-	TArray<int32> NumberOfElements;
-	NumberOfElements.SetNum(NumberOfInputs);
-
-	OperationData.MostComplexInputType = (uint16)EPCGMetadataTypes::Unknown;
-	OperationData.NumberOfElementsToProcess = -1;
-
-	bool bNoOperationNeeded = false;
-
-	auto CreateInputAccessorAndValidate = [this, Settings, InputPinToForward, &InputTaggedData, Context, &SourceMetadata, &OperationData, &NumberOfElements, &bNoOperationNeeded, &SourceAttribute](uint32 Index) -> bool
+	bool ValidateAccessor(const FPCGContext* Context, const UPCGMetadataSettingsBase* Settings, const FPCGTaggedData& InputData, PCGMetadataOps::FOperationData& OperationData, int32 Index)
 	{
-		// First we verify if the input data match the first one. If the pin to forward is not connected, behave like a param data
-		const UClass* InputPinToForwardClass = (InputTaggedData[InputPinToForward].Data ? InputTaggedData[InputPinToForward].Data->GetClass() : UPCGParamData::StaticClass());
-
-		if (Index != InputPinToForward && 
-			InputPinToForwardClass != InputTaggedData[Index].Data->GetClass() &&
-			!InputTaggedData[Index].Data->IsA<UPCGParamData>())
-		{
-			PCGE_LOG(Error, GraphAndLog, FText::Format(LOCTEXT("InputTypeMismatch", "Data on pin {0} is not of the same type than on pin {1} and is not an Attribute Set. This is not supported."), FText::FromName(InputTaggedData[Index].Pin), FText::FromName(InputTaggedData[InputPinToForward].Pin)));
-			return false;
-		}
-
-		OperationData.InputSources[Index] = Settings->GetInputSource(Index).CopyAndFixLast(InputTaggedData[Index].Data);
 		const FPCGAttributePropertyInputSelector& InputSource = OperationData.InputSources[Index];
 		const FText InputSourceText = InputSource.GetDisplayText();
 
-		OperationData.InputAccessors[Index] = PCGAttributeAccessorHelpers::CreateConstAccessor(InputTaggedData[Index].Data, InputSource);
-		OperationData.InputKeys[Index] = PCGAttributeAccessorHelpers::CreateConstKeys(InputTaggedData[Index].Data, InputSource);
-
 		if (!OperationData.InputAccessors[Index].IsValid() || !OperationData.InputKeys[Index].IsValid())
 		{
-			PCGE_LOG(Error, GraphAndLog, FText::Format(LOCTEXT("AttributeDoesNotExist", "Attribute/Property '{0}' from pin {1} does not exist"), InputSourceText, FText::FromName(InputTaggedData[Index].Pin)));
+			PCGE_LOG_C(Error, GraphAndLog, Context, FText::Format(LOCTEXT("AttributeDoesNotExist", "Attribute/Property '{0}' from pin {1} does not exist"), InputSourceText, FText::FromName(InputData.Pin)));
 			return false;
 		}
 
-		uint16 AttributeTypeId = OperationData.InputAccessors[Index]->GetUnderlyingType();
+		const uint16 AttributeTypeId = OperationData.InputAccessors[Index]->GetUnderlyingType();
 
 		// Then verify that the type is OK
 		bool bHasSpecialRequirement = false;
 		if (!Settings->IsSupportedInputType(AttributeTypeId, Index, bHasSpecialRequirement))
 		{
 			const FText AttributeTypeName = PCG::Private::GetTypeNameText(AttributeTypeId);
-			PCGE_LOG(Error, GraphAndLog, FText::Format(LOCTEXT("UnsupportedAttributeType", "Attribute/Property '{0}' from pin {1} is not a supported type ('{2}')"), 
+			PCGE_LOG_C(Error, GraphAndLog, Context, FText::Format(LOCTEXT("UnsupportedAttributeType", "Attribute/Property '{0}' from pin {1} is not a supported type ('{2}')"),
 				InputSourceText,
-				FText::FromName(InputTaggedData[Index].Pin),
-				AttributeTypeName
-			));
+				FText::FromName(InputData.Pin),
+				AttributeTypeName));
 			return false;
 		}
 
 		if (!bHasSpecialRequirement)
 		{
 			// In this case, check if we have a more complex type, or if we can broadcast to the most complex type.
-			if (OperationData.MostComplexInputType == (uint16)EPCGMetadataTypes::Unknown || PCG::Private::IsMoreComplexType(AttributeTypeId, OperationData.MostComplexInputType))
+			if (OperationData.MostComplexInputType == static_cast<uint16>(EPCGMetadataTypes::Unknown) || PCG::Private::IsMoreComplexType(AttributeTypeId, OperationData.MostComplexInputType))
 			{
 				OperationData.MostComplexInputType = AttributeTypeId;
 			}
@@ -432,206 +346,373 @@ bool FPCGMetadataElementBase::ExecuteInternal(FPCGContext* Context) const
 			{
 				const FText AttributeTypeName = PCG::Private::GetTypeNameText(AttributeTypeId);
 				const FText MostComplexTypeName = PCG::Private::GetTypeNameText(OperationData.MostComplexInputType);
-				PCGE_LOG(Error, GraphAndLog, FText::Format(LOCTEXT("AttributeCannotBeBroadcasted", "Attribute '{0}' (from pin {1}) of type '{2}' cannot be used for operation with type '{3}'"), 
+				PCGE_LOG_C(Error, GraphAndLog, Context, FText::Format(LOCTEXT("AttributeCannotBeBroadcasted", "Attribute '{0}' (from pin {1}) of type '{2}' cannot be used for operation with type '{3}'"),
 					InputSourceText,
-					FText::FromName(InputTaggedData[Index].Pin),
+					FText::FromName(InputData.Pin),
 					AttributeTypeName,
 					MostComplexTypeName));
 				return false;
 			}
 		}
 
-		NumberOfElements[Index] = OperationData.InputKeys[Index]->GetNum();
+		return true;
+	}
 
-		if (Index == InputPinToForward)
-		{
-			OperationData.NumberOfElementsToProcess = NumberOfElements[Index];
-		}
+	bool ValidateSecondaryInputClassMatches(const FPCGTaggedData& PrimaryInputData, const FPCGTaggedData& SecondaryInputData)
+	{
+		// First, verify the input data matches the primary. If the pin to forward is not connected, behave like a param data
+		const UClass* InputPinToForwardClass = (PrimaryInputData.Data ? PrimaryInputData.Data->GetClass() : UPCGParamData::StaticClass());
 
-		// There is nothing to do if one input doesn't have any element to process.
-		// Therefore mark that we have nothing to do and early out.
-		if (NumberOfElements[Index] == 0)
+		// TODO: Consider updating this to check if its a child class instead to be more future proof. For now this is good.
+		// Check for data mismatch between primary pin and current pin
+		if (InputPinToForwardClass != SecondaryInputData.Data->GetClass() && !SecondaryInputData.Data->IsA<UPCGParamData>())
 		{
-			PCGE_LOG(Verbose, LogOnly, FText::Format(LOCTEXT("NoElementsInInput", "No elements in data from pin {0}"), FText::FromName(InputTaggedData[Index].Pin)));
-			bNoOperationNeeded = true;
-			return true;
-		}
-
-		// Verify that the number of elements makes sense
-		if (OperationData.NumberOfElementsToProcess % NumberOfElements[Index] != 0)
-		{
-			PCGE_LOG(Error, GraphAndLog, FText::Format(LOCTEXT("MismatchInNumberOfElements", "Mismatch between the number of elements from pin {0} ({1}) and from pin {2} ({3})"), FText::FromName(InputTaggedData[InputPinToForward].Pin), OperationData.NumberOfElementsToProcess, FText::FromName(InputTaggedData[Index].Pin), NumberOfElements[Index]));
 			return false;
 		}
 
-		if (InputSource.GetSelection() == EPCGAttributePropertySelection::Attribute)
-		{
-			SourceAttribute[Index] = SourceMetadata[Index]->GetConstAttribute(InputSource.GetName());
-		}
-		else
-		{
-			SourceAttribute[Index] = nullptr;
-		}
-
-		return true;
-	};
-
-	// First do it for the input to forward (it's our control data)
-	if (!CreateInputAccessorAndValidate(InputPinToForward))
-	{
 		return true;
 	}
+}
 
-	for (uint32 i = 0; i < NumberOfInputs && !bNoOperationNeeded; ++i)
-	{
-		if (i != InputPinToForward && !CreateInputAccessorAndValidate(i))
-		{
-			return true;
-		}
-	}
+bool FPCGMetadataElementBase::PrepareDataInternal(FPCGContext* Context) const
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGMetadataElementBase::PrepareDataInternal);
 
-	// If no operation is needed, just forward input 
-	if (bNoOperationNeeded)
+	FPCGMetadataElementBase::ContextType* TimeSlicedContext = static_cast<FPCGMetadataElementBase::ContextType*>(Context);
+	check(TimeSlicedContext);
+
+	const UPCGMetadataSettingsBase* Settings = Context->GetInputSettings<UPCGMetadataSettingsBase>();
+	check(Settings);
+
+	const uint32 OperandNum = Settings->GetOperandNum();
+	const uint32 ResultNum = Settings->GetResultNum();
+
+	check(OperandNum > 0);
+	check(ResultNum <= UPCGMetadataSettingsBase::MaxNumberOfOutputs);
+
+	const FName PrimaryPinLabel = Settings->GetInputPinLabel(Settings->GetInputPinToForward());
+	const TArray<FPCGTaggedData> PrimaryInputs = Context->InputData.GetInputsByPin(PrimaryPinLabel);
+
+	// There are no inputs on the primary pin, so passthrough inputs
+	if (PrimaryInputs.IsEmpty())
 	{
-		PassthroughInputs(Context, Settings);
 		return true;
 	}
 
-	// At this point, we verified everything, so we can go forward with the computation, depending on the most complex type
-	// So first forward outputs and create the attribute
-	OperationData.OutputAccessors.SetNum(Settings->GetOutputPinNum());
-	OperationData.OutputKeys.SetNum(Settings->GetOutputPinNum());
+	// There's no execution state, so just flag that it is ready to continue
+	TimeSlicedContext->InitializePerExecutionState();
 
-	FPCGAttributePropertyOutputSelector OutputTarget = Settings->OutputTarget.CopyAndFixSource(&OperationData.InputSources[InputPinToForward]);
-
-	// Use implicit capture, since we capture a lot
-	auto CreateAttribute = [&](uint32 OutputIndex, auto DummyOutValue) -> bool
+	// Set up the iterations on the multiple inputs of the primary pin
+	TimeSlicedContext->InitializePerIterationStates(PrimaryInputs.Num(), [this, Context, Settings, OperandNum, &PrimaryInputs, &PrimaryPinLabel](IterStateType& OutState, const ExecStateType& ExecState, const uint32 IterationIndex)
 	{
-		using AttributeType = decltype(DummyOutValue);
+		TArray<FPCGTaggedData>& Outputs = Context->OutputData.TaggedData;
+		const uint32 NumberOfResults = Settings->GetResultNum();
 
-		FPCGTaggedData& OutputData = Outputs.Add_GetRef(InputTaggedData[InputPinToForward]);
-		OutputData.Pin = Settings->GetOutputPinLabel(OutputIndex);
+		// Gathering all the inputs metadata
+		TArray<const UPCGMetadata*> SourceMetadata;
+		TArray<const FPCGMetadataAttributeBase*> SourceAttribute;
+		TArray<FPCGTaggedData> InputTaggedData;
+		SourceMetadata.SetNum(OperandNum);
+		SourceAttribute.SetNum(OperandNum);
+		InputTaggedData.SetNum(OperandNum);
 
-		UPCGMetadata* OutMetadata = nullptr;
+		const uint32 PrimaryPinIndex = Settings->GetInputPinToForward();
 
-		const FName OutputName = OutputTarget.GetName();
-		const FText OutputTargetText = OutputTarget.GetDisplayText();
-
-		if (OutputTarget.GetSelection() == EPCGAttributePropertySelection::Attribute && OutputTarget.GetExtraNames().IsEmpty())
+		// Iterate over the inputs and validate
+		for (uint32 OperandPinIndex = 0; OperandPinIndex < OperandNum; ++OperandPinIndex)
 		{
-			// In case of an attribute, we check if we have extra selectors. If not, we can just delete the attribute
-			// and create a new one of the right type.
-			// But if we have extra selectors, we need to handle it the same way as properties.
-			// There is no point of failure before duplicating. So duplicate, create the attribute and then the accessor.
-			PCGMetadataElementCommon::DuplicateTaggedData(InputTaggedData[InputPinToForward], OutputData, OutMetadata);
-			FPCGMetadataAttributeBase* OutputAttribute = PCGMetadataElementCommon::ClearOrCreateAttribute<AttributeType>(OutMetadata, OutputName);
-			if (!OutputAttribute)
-			{
-				return false;
-			}
+			const FName CurrentPinLabel = Settings->GetInputPinLabel(OperandPinIndex);
+			const bool bIsInputConnected = Context->Node ? Context->Node->IsInputPinConnected(CurrentPinLabel) : false;
+			TArray<FPCGTaggedData> CurrentPinInputData = Context->InputData.GetInputsByPin(CurrentPinLabel);
 
-			// And copy the mapping from the original attribute, if it is not points
-			if (!InputTaggedData[InputPinToForward].Data->IsA<UPCGPointData>() && SourceMetadata[InputPinToForward] && SourceAttribute[InputPinToForward])
+			// This only needs to be checked once
+			if (!bIsInputConnected && CurrentPinInputData.IsEmpty())
 			{
-				PCGMetadataElementCommon::CopyEntryToValueKeyMap(SourceMetadata[InputPinToForward], SourceAttribute[InputPinToForward], OutputAttribute);
-			}
+				FPCGTaggedData& DefaultData = CurrentPinInputData.Emplace_GetRef();
+				DefaultData.Pin = CurrentPinLabel;
+				DefaultData.Data = Settings->CreateDefaultValueParam(OperandPinIndex);
 
-			OperationData.OutputAccessors[OutputIndex] = PCGAttributeAccessorHelpers::CreateAccessor(const_cast<UPCGData*>(OutputData.Data.Get()), OutputTarget);
-		}
-		else
-		{
-			// In case of property or attribute with extra accessor, we need to validate that the property/attribute can accept the output type.
-			// Verify this before duplicating, because an extra allocation is certainly less costly than duplicating the data.
-			// Do it with a const accessor, since OutputData.Data is still pointing on the const input data.
-			TUniquePtr<const IPCGAttributeAccessor> TempConstAccessor = PCGAttributeAccessorHelpers::CreateConstAccessor(OutputData.Data.Get(), OutputTarget);
-
-			if (TempConstAccessor.IsValid())
-			{
-				// We matched an attribute/property, check if the output type is valid.
-				if (!PCG::Private::IsBroadcastable(PCG::Private::MetadataTypes<AttributeType>::Id, TempConstAccessor->GetUnderlyingType()))
+				if (!DefaultData.Data)
 				{
-					PCGE_LOG(Error, GraphAndLog, FText::Format(LOCTEXT("AttributeTypeBroadcastFailed_Updated", "Attribute/Property '{0}' ({1}) is not compatible with operation output type ({2})."), 
-						OutputTargetText,
-						PCG::Private::GetTypeNameText(TempConstAccessor->GetUnderlyingType()),
-						PCG::Private::GetTypeNameText<AttributeType>()));
+					PCGE_LOG(Error, GraphAndLog, FText::Format(LOCTEXT("CantCreateDefaultValue", "Pin '{0}' supports default value but we could not create it."), FText::FromName(CurrentPinLabel)));
+					return EPCGTimeSliceInitResult::AbortExecution;
+				}
+			}
+
+			if (CurrentPinInputData.IsEmpty())
+			{
+				// If we have no data, there is no operation
+				PCGE_LOG(Verbose, LogOnly, FText::Format(LOCTEXT("MissingInputDataForPin", "No data provided on pin '{0}'."), FText::FromName(CurrentPinLabel)));
+				return EPCGTimeSliceInitResult::NoOperation;
+			}
+			else if (CurrentPinInputData.Num() != 1 && CurrentPinInputData.Num() != PrimaryInputs.Num())
+			{
+				PCGE_LOG(Error, GraphAndLog,
+					FText::Format(LOCTEXT("MismatchedDataCountForPin", "Number of data elements ({0}) provided on pin '{1}' doesn't match number of elements ({2}) on primary pin ({3}). Only 1 input or {2} are supported."),
+						CurrentPinInputData.Num(),
+						FText::FromName(CurrentPinLabel),
+						PrimaryInputs.Num(),
+						FText::FromName(PrimaryPinLabel)));
+				return EPCGTimeSliceInitResult::AbortExecution;
+			}
+
+			// The operand inputs must either be N:1 or N:N
+			InputTaggedData[OperandPinIndex] = CurrentPinInputData.Num() == 1 ? CurrentPinInputData[0] : MoveTemp(CurrentPinInputData[IterationIndex]);
+
+			// Check if we have any points
+			if (const UPCGPointData* PointInput = Cast<const UPCGPointData>(InputTaggedData[OperandPinIndex].Data))
+			{
+				if (PointInput->GetPoints().IsEmpty())
+				{
+					// If we have no points, there is no operation
+					PCGE_LOG(Verbose, LogOnly, FText::Format(LOCTEXT("NoPointsForPin", "No points in point data provided on pin {0}"), FText::FromName(CurrentPinLabel)));
+					return EPCGTimeSliceInitResult::NoOperation;
+				}
+			}
+
+			SourceMetadata[OperandPinIndex] = InputTaggedData[OperandPinIndex].Data->ConstMetadata();
+			if (!SourceMetadata[OperandPinIndex])
+			{
+				// Since this aborts execution, and the user can fix it, it should be a node error
+				PCGE_LOG(Error, GraphAndLog, FText::Format(LOCTEXT("InvalidInputDataTypeForPin", "Invalid data provided on pin '{0}', must be of type Spatial or Attribute Set."), FText::FromName(CurrentPinLabel)));
+				return EPCGTimeSliceInitResult::AbortExecution;
+			}
+		}
+
+		PCGMetadataOps::FOperationData& OperationData = OutState;
+		OperationData.Settings = Settings;
+		OperationData.InputAccessors.SetNum(OperandNum);
+		OperationData.InputKeys.SetNum(OperandNum);
+		OperationData.InputSources.SetNum(OperandNum);
+		OperationData.MostComplexInputType = static_cast<uint16>(EPCGMetadataTypes::Unknown);
+
+		const FPCGTaggedData& PrimaryPinData = InputTaggedData[PrimaryPinIndex];
+
+		// First create an accessor for the input to forward (it's our control data)
+		PCGMetadataOpPrivate::CreateAccessor(Settings, PrimaryPinData, OperationData, PrimaryPinIndex);
+		if (!PCGMetadataOpPrivate::ValidateAccessor(Context, Settings, PrimaryPinData, OperationData, PrimaryPinIndex))
+		{
+			return EPCGTimeSliceInitResult::AbortExecution;
+		}
+
+		// Update the number of elements to process
+		OperationData.NumberOfElementsToProcess = OperationData.InputKeys[PrimaryPinIndex]->GetNum();
+		if (OperationData.NumberOfElementsToProcess == 0)
+		{
+			PCGE_LOG(Verbose, LogOnly, FText::Format(LOCTEXT("NoElementsInForwardedInput", "No elements in data from forwarded pin '{0}'."), FText::FromName(PrimaryPinData.Pin)));
+			return EPCGTimeSliceInitResult::NoOperation;
+		}
+
+		// Create the accessors and validate them for each of the other operands
+		for (uint32 Index = 0; Index < OperandNum; ++Index)
+		{
+			if (Index != PrimaryPinIndex)
+			{
+				// Secondary input class should match the forwarded one
+				if (!PCGMetadataOpPrivate::ValidateSecondaryInputClassMatches(PrimaryPinData, InputTaggedData[Index]))
+				{
+					PCGE_LOG(Error, GraphAndLog, FText::Format(LOCTEXT("InputTypeMismatch", "Data on pin '{0}' is not of the same type than on pin '{1}' and is not an Attribute Set. This is not supported."), FText::FromName(InputTaggedData[Index].Pin), FText::FromName(PrimaryPinData.Pin)));
+					return EPCGTimeSliceInitResult::AbortExecution;
+				}
+
+				PCGMetadataOpPrivate::CreateAccessor(Settings, InputTaggedData[Index], OperationData, Index);
+
+				if (!PCGMetadataOpPrivate::ValidateAccessor(Context, Settings, InputTaggedData[Index], OperationData, Index))
+				{
+					return EPCGTimeSliceInitResult::AbortExecution;
+				}
+
+				const int32 ElementNum = OperationData.InputKeys[Index]->GetNum();
+
+				// No elements on secondary pin, early out for no operation
+				if (ElementNum == 0)
+				{
+					PCGE_LOG(Verbose, LogOnly, FText::Format(LOCTEXT("NoElementsInInput", "No elements in data from secondary pin '{0}'."), FText::FromName(PrimaryPinData.Pin)));
+					return EPCGTimeSliceInitResult::NoOperation;
+				}
+
+				// Verify that the number of elements makes sense
+				if (OperationData.NumberOfElementsToProcess % ElementNum != 0)
+				{
+					PCGE_LOG(Error, GraphAndLog, FText::Format(LOCTEXT("MismatchInNumberOfElements", "Mismatch between the number of elements from pin '{0}' ({1}) and from pin '{2}' ({3})."), FText::FromName(PrimaryPinData.Pin), OperationData.NumberOfElementsToProcess, FText::FromName(InputTaggedData[Index].Pin), ElementNum));
+					return EPCGTimeSliceInitResult::AbortExecution;
+				}
+
+				// If selection is an attribute, get it from the metadata
+				FPCGAttributePropertyInputSelector& InputSource = OperationData.InputSources[Index];
+				if (InputSource.GetSelection() == EPCGAttributePropertySelection::Attribute)
+				{
+					SourceAttribute[Index] = SourceMetadata[Index]->GetConstAttribute(InputSource.GetName());
+				}
+				else
+				{
+					SourceAttribute[Index] = nullptr;
+				}
+			}
+		}
+
+		// At this point, we verified everything, so we can go forward with the computation, depending on the most complex type
+		// So first forward outputs and create the attribute
+		OperationData.OutputAccessors.SetNum(Settings->GetResultNum());
+		OperationData.OutputKeys.SetNum(Settings->GetResultNum());
+
+		const FPCGAttributePropertyOutputSelector OutputTarget = Settings->OutputTarget.CopyAndFixSource(&OperationData.InputSources[PrimaryPinIndex]);
+
+		// Use implicit capture, since we capture a lot
+		auto CreateAttribute = [&]<typename AttributeType>(uint32 OutputIndex, AttributeType DummyOutValue) -> bool
+		{
+			FPCGTaggedData& OutputData = Outputs.Add_GetRef(InputTaggedData[PrimaryPinIndex]);
+			OutputData.Pin = Settings->GetOutputPinLabel(OutputIndex);
+
+			UPCGMetadata* OutMetadata = nullptr;
+
+			const FName OutputName = OutputTarget.GetName();
+			const FText OutputTargetText = OutputTarget.GetDisplayText();
+
+			if (OutputTarget.GetSelection() == EPCGAttributePropertySelection::Attribute && OutputTarget.GetExtraNames().IsEmpty())
+			{
+				// In case of an attribute, we check if we have extra selectors. If not, we can just delete the attribute
+				// and create a new one of the right type.
+				// But if we have extra selectors, we need to handle it the same way as properties.
+				// There is no point of failure before duplicating. So duplicate, create the attribute and then the accessor.
+				PCGMetadataElementCommon::DuplicateTaggedData(InputTaggedData[PrimaryPinIndex], OutputData, OutMetadata);
+				FPCGMetadataAttributeBase* OutputAttribute = PCGMetadataElementCommon::ClearOrCreateAttribute<AttributeType>(OutMetadata, OutputName);
+				if (!OutputAttribute)
+				{
 					return false;
 				}
 
-				PCGMetadataElementCommon::DuplicateTaggedData(InputTaggedData[InputPinToForward], OutputData, OutMetadata);
+				// And copy the mapping from the original attribute, if it is not points
+				if (!InputTaggedData[PrimaryPinIndex].Data->IsA<UPCGPointData>() && SourceMetadata[PrimaryPinIndex] && SourceAttribute[PrimaryPinIndex])
+				{
+					PCGMetadataElementCommon::CopyEntryToValueKeyMap(SourceMetadata[PrimaryPinIndex], SourceAttribute[PrimaryPinIndex], OutputAttribute);
+				}
 
-				// Re-create the accessor to point to the right data (since we just duplicated the data)
 				OperationData.OutputAccessors[OutputIndex] = PCGAttributeAccessorHelpers::CreateAccessor(const_cast<UPCGData*>(OutputData.Data.Get()), OutputTarget);
 			}
-		}
+			else
+			{
+				// In case of property or attribute with extra accessor, we need to validate that the property/attribute can accept the output type.
+				// Verify this before duplicating, because an extra allocation is certainly less costly than duplicating the data.
+				// Do it with a const accessor, since OutputData.Data is still pointing on the const input data.
+				const TUniquePtr<const IPCGAttributeAccessor> TempConstAccessor = PCGAttributeAccessorHelpers::CreateConstAccessor(OutputData.Data.Get(), OutputTarget);
 
-		if (!OperationData.OutputAccessors[OutputIndex].IsValid())
-		{
-			return false;
-		}
+				if (TempConstAccessor.IsValid())
+				{
+					// We matched an attribute/property, check if the output type is valid.
+					if (!PCG::Private::IsBroadcastable(PCG::Private::MetadataTypes<AttributeType>::Id, TempConstAccessor->GetUnderlyingType()))
+					{
+						PCGE_LOG(Error, GraphAndLog, FText::Format(LOCTEXT("AttributeTypeBroadcastFailed_Updated", "Attribute/Property '{0}' ({1}) is not compatible with operation output type ({2})."),
+							OutputTargetText,
+							PCG::Private::GetTypeNameText(TempConstAccessor->GetUnderlyingType()),
+							PCG::Private::GetTypeNameText<AttributeType>()));
+						return false;
+					}
 
-		if (OperationData.OutputAccessors[OutputIndex]->IsReadOnly())
-		{
-			PCGE_LOG(Error, GraphAndLog, FText::Format(LOCTEXT("OutputAccessorIsReadOnly", "Attribute/Property '{0}' is read only."), OutputTargetText));
-			return false;
-		}
+					PCGMetadataElementCommon::DuplicateTaggedData(InputTaggedData[PrimaryPinIndex], OutputData, OutMetadata);
 
-		OperationData.OutputKeys[OutputIndex] = PCGAttributeAccessorHelpers::CreateKeys(const_cast<UPCGData*>(OutputData.Data.Get()), OutputTarget);
+					// Re-create the accessor to point to the right data (since we just duplicated the data)
+					OperationData.OutputAccessors[OutputIndex] = PCGAttributeAccessorHelpers::CreateAccessor(const_cast<UPCGData*>(OutputData.Data.Get()), OutputTarget);
+				}
+			}
 
-		return OperationData.OutputKeys[OutputIndex].IsValid();
-	};
-
-	auto CreateAllSameAttributes = [NumberOfOutputs, &CreateAttribute](auto DummyOutValue) -> bool
-	{
-		for (uint32 i = 0; i < NumberOfOutputs; ++i)
-		{
-			if (!CreateAttribute(i, DummyOutValue))
+			if (!OperationData.OutputAccessors[OutputIndex].IsValid())
 			{
 				return false;
 			}
-		}
 
-		return true;
-	};
+			if (OperationData.OutputAccessors[OutputIndex]->IsReadOnly())
+			{
+				PCGE_LOG(Error, GraphAndLog, FText::Format(LOCTEXT("OutputAccessorIsReadOnly", "Attribute/Property '{0}' is read only."), OutputTargetText));
+				return false;
+			}
 
-	OperationData.OutputType = Settings->GetOutputType(OperationData.MostComplexInputType);
+			OperationData.OutputKeys[OutputIndex] = PCGAttributeAccessorHelpers::CreateKeys(const_cast<UPCGData*>(OutputData.Data.Get()), OutputTarget);
 
-	bool bCreateAttributeSucceeded = true;
+			return OperationData.OutputKeys[OutputIndex].IsValid();
+		};
 
-	if (!Settings->HasDifferentOutputTypes())
-	{
-		bCreateAttributeSucceeded = PCGMetadataAttribute::CallbackWithRightType(OperationData.OutputType, CreateAllSameAttributes);
-	}
-	else
-	{
-		TArray<uint16> OutputTypes = Settings->GetAllOutputTypes();
-		check(OutputTypes.Num() == NumberOfOutputs);
-
-		for (uint32 i = 0; i < NumberOfOutputs && bCreateAttributeSucceeded; ++i)
+		auto CreateAllSameAttributes = [NumberOfResults, &CreateAttribute](auto DummyOutValue) -> bool
 		{
-			bCreateAttributeSucceeded &= PCGMetadataAttribute::CallbackWithRightType(OutputTypes[i],
-				[&CreateAttribute, i](auto DummyOutValue) -> bool 
+			for (uint32 i = 0; i < NumberOfResults; ++i)
+			{
+				if (!CreateAttribute(i, DummyOutValue))
+				{
+					return false;
+				}
+			}
+
+			return true;
+		};
+
+		OperationData.OutputType = Settings->GetOutputType(OperationData.MostComplexInputType);
+
+		bool bCreateAttributeSucceeded = true;
+
+		if (!Settings->HasDifferentOutputTypes())
+		{
+			bCreateAttributeSucceeded = PCGMetadataAttribute::CallbackWithRightType(OperationData.OutputType, CreateAllSameAttributes);
+		}
+		else
+		{
+			TArray<uint16> OutputTypes = Settings->GetAllOutputTypes();
+			check(OutputTypes.Num() == NumberOfResults);
+
+			for (uint32 i = 0; i < NumberOfResults && bCreateAttributeSucceeded; ++i)
+			{
+				bCreateAttributeSucceeded &= PCGMetadataAttribute::CallbackWithRightType(OutputTypes[i], [&CreateAttribute, i](auto DummyOutValue) -> bool
 				{
 					return CreateAttribute(i, DummyOutValue);
 				});
+			}
 		}
-	}
 
-	if (!bCreateAttributeSucceeded)
+		if (!bCreateAttributeSucceeded)
+		{
+			PCGE_LOG(Error, GraphAndLog, LOCTEXT("ErrorCreatingOutputAttributes", "Error while creating output attributes"));
+			return EPCGTimeSliceInitResult::AbortExecution;
+		}
+
+		OperationData.Settings = Settings;
+
+		return EPCGTimeSliceInitResult::Success;
+	});
+
+	return true;
+}
+
+bool FPCGMetadataElementBase::ExecuteInternal(FPCGContext* Context) const
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGMetadataElementBase::Execute);
+	ContextType* TimeSlicedContext = static_cast<ContextType*>(Context);
+	check(TimeSlicedContext);
+
+	TArray<FPCGTaggedData>& Outputs = Context->OutputData.TaggedData;
+
+	// Prepare data failed, no need to execute. Return an empty output
+	if (!TimeSlicedContext->DataIsPreparedForExecution())
 	{
-		PCGE_LOG(Error, GraphAndLog, LOCTEXT("ErrorCreatingOutputAttributes", "Error while creating output attributes"));
-		Outputs.Empty();
 		return true;
 	}
 
-	OperationData.Settings = Settings;
-
-	if (!DoOperation(OperationData))
+	return ExecuteSlice(TimeSlicedContext, [this, &Outputs](ContextType* Context, const ExecStateType& ExecState, IterStateType& IterState, const uint32 IterationIndex) -> bool
 	{
-		PCGE_LOG(Error, GraphAndLog, LOCTEXT("ErrorOccurred", "Error while performing the metadata operation, check logs for more information"));
-		Outputs.Empty();
-	}
+		// No operation, so skip the iteration.
+		if (Context->GetIterationStateResult(IterationIndex) == EPCGTimeSliceInitResult::NoOperation)
+		{
+			PassthroughAllInputs(Context, Outputs);
+			return true;
+		}
 
-	return true;
+		// TODO: Add range-based async evaluation to the DoOperation function in the future
+		if (!DoOperation(IterState))
+		{
+			PCGE_LOG(Error, GraphAndLog, LOCTEXT("ErrorOccurred", "Error while performing the metadata operation, check logs for more information"));
+			PassthroughInput(Context, Outputs, IterationIndex);
+		}
+
+		return true;
+	});
 }
 
 #undef LOCTEXT_NAMESPACE

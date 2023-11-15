@@ -9,6 +9,7 @@
 #include "Metadata/Accessors/PCGAttributeAccessorKeys.h"
 
 #include "Containers/StaticArray.h"
+#include "Elements/PCGTimeSlicedElementBase.h"
 
 #include "PCGMetadataOpElementBase.generated.h"
 
@@ -99,20 +100,20 @@ protected:
 	//~End UPCGSettings interface
 
 public:
-	virtual FPCGAttributePropertyInputSelector GetInputSource(uint32 Index) const { return FPCGAttributePropertyInputSelector(); };
+	virtual FPCGAttributePropertyInputSelector GetInputSource(uint32 Index) const { return FPCGAttributePropertyInputSelector(); }
 
 	virtual FName GetInputPinLabel(uint32 Index) const { return PCGPinConstants::DefaultInputLabel; }
-	virtual uint32 GetInputPinNum() const { return 1; };
+	virtual uint32 GetOperandNum() const { return 1; }
 
 	virtual FName GetOutputPinLabel(uint32 Index) const { return PCGPinConstants::DefaultOutputLabel; }
-	virtual uint32 GetOutputPinNum() const { return 1; }
+	virtual uint32 GetResultNum() const { return 1; }
 
-	virtual bool IsSupportedInputType(uint16 TypeId, uint32 InputIndex, bool& bHasSpecialRequirement) const { return false; };
-	virtual uint16 GetOutputType(uint16 InputTypeId) const { return InputTypeId; };
+	virtual bool IsSupportedInputType(uint16 TypeId, uint32 InputIndex, bool& bHasSpecialRequirement) const { return false; }
+	virtual uint16 GetOutputType(uint16 InputTypeId) const { return InputTypeId; }
 	virtual FName GetOutputAttributeName(FName BaseName, uint32 Index) const { return BaseName; }
 
 	virtual bool HasDifferentOutputTypes() const { return false; }
-	virtual TArray<uint16> GetAllOutputTypes() const { return TArray<uint16>(); };
+	virtual TArray<uint16> GetAllOutputTypes() const { return TArray<uint16>(); }
 
 	/* Can be overriden by child class to support default values on unplugged pins. */
 	virtual bool DoesInputSupportDefaultValue(uint32 Index) const { return false; }
@@ -159,14 +160,12 @@ protected:
 	TArray<FName> GetOutputDataFromPinOptions() const;
 };
 
-
-class FPCGMetadataElementBase : public IPCGElement
+namespace PCGMetadataOps
 {
-public:
 	struct FOperationData
 	{
 		int32 NumberOfElementsToProcess = -1;
-		uint16 MostComplexInputType;
+		uint16 MostComplexInputType = static_cast<uint16>(EPCGMetadataTypes::Unknown);
 		uint16 OutputType;
 		const UPCGMetadataSettingsBase* Settings = nullptr;
 
@@ -181,54 +180,42 @@ public:
 		template <int32 NbInputs, int32 NbOutputs>
 		void Validate();
 	};
+}
 
+class FPCGMetadataElementBase : public TPCGTimeSlicedElementBase<PCGTimeSlice::FEmptyStruct, PCGMetadataOps::FOperationData>
+{
 protected:
+	virtual bool PrepareDataInternal(FPCGContext* Context) const override;
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;
-	virtual bool DoOperation(FOperationData& InOperationData) const = 0;
+
+	virtual bool DoOperation(PCGMetadataOps::FOperationData& InOperationData) const = 0;
 
 	/**
 	* Generic method to factorise all the boilerplate code for a variable number of inputs/outputs
 	*/
 	template <typename... InputTypes, typename... Callbacks>
-	inline bool DoNAryOp(FOperationData& InOperationData, TTuple<Callbacks...>&& InCallbacks) const;
+	inline bool DoNAryOp(PCGMetadataOps::FOperationData& InOperationData, TTuple<Callbacks...>&& InCallbacks) const;
 
 	/* All operations can have a fixed number of inputs and a variable number of outputs.
 	* Each output need to have its own callback, all taking the exact number of "const InType&" as input
 	* and each can return a different output type.
 	*/
 	template <typename InType, typename... Callbacks>
-	bool DoUnaryOp(FOperationData& InOperationData, Callbacks&& ...InCallbacks) const;
+	bool DoUnaryOp(PCGMetadataOps::FOperationData& InOperationData, Callbacks&& ...InCallbacks) const;
 
 	template <typename InType1, typename InType2, typename... Callbacks>
-	bool DoBinaryOp(FOperationData& InOperationData, Callbacks&& ...InCallbacks) const;
+	bool DoBinaryOp(PCGMetadataOps::FOperationData& InOperationData, Callbacks&& ...InCallbacks) const;
 
 	template <typename InType1, typename InType2, typename InType3, typename... Callbacks>
-	bool DoTernaryOp(FOperationData& InOperationData, Callbacks&& ...InCallbacks) const;
+	bool DoTernaryOp(PCGMetadataOps::FOperationData& InOperationData, Callbacks&& ...InCallbacks) const;
 
 	template <typename InType1, typename InType2, typename InType3, typename InType4, typename... Callbacks>
-	bool DoQuaternaryOp(FOperationData& InOperationData, Callbacks&& ...InCallbacks) const;
+	bool DoQuaternaryOp(PCGMetadataOps::FOperationData& InOperationData, Callbacks&& ...InCallbacks) const;
 
 	/** To be called if we have no data to perform any operation, it will passthrough the input. */
-	void PassthroughInputs(FPCGContext* InContext, const UPCGMetadataSettingsBase* InSettings) const;
+	void PassthroughInput(FPCGContext* Context, TArray<FPCGTaggedData>& Outputs, const int32 Index) const;
+	void PassthroughAllInputs(FPCGContext* Context, TArray<FPCGTaggedData>& Outputs) const;
 };
-
-template <int32 NbInputs, int32 NbOutputs>
-inline void FPCGMetadataElementBase::FOperationData::Validate()
-{
-	check(OutputKeys.Num() == NbOutputs);
-
-	for (int32 i = 0; i < NbInputs; ++i)
-	{
-		check(InputAccessors[i].IsValid());
-		check(InputKeys[i].IsValid());
-	}
-
-	for (int32 j = 0; j < NbOutputs; ++j)
-	{
-		check(OutputAccessors[j].IsValid());
-		check(OutputKeys[j].IsValid());
-	}
-}
 
 /**
 * Heavy templated code to factorize the gathering of inputs, the application of callbacks and the set of outputs.
@@ -265,7 +252,7 @@ namespace NAryOperation
 	* Note that we go in reverse order, and stop when OutputIndex is negative.
 	*/
 	template<int OutputIndex, typename ...Callbacks, typename ...Args>
-	bool Apply(FPCGMetadataElementBase::FOperationData& InOperationData, int32 StartIndex, int32 Range, const Options& InOptions, const TTuple<Callbacks...>& InCallbacks, Args&& ...InArgs)
+	bool Apply(PCGMetadataOps::FOperationData& InOperationData, int32 StartIndex, int32 Range, const Options& InOptions, const TTuple<Callbacks...>& InCallbacks, Args&& ...InArgs)
 	{
 		if constexpr (OutputIndex < 0)
 		{
@@ -321,7 +308,7 @@ namespace NAryOperation
 	* To do so, we use Apply templated with the LastOutputIndex, and go backwards (last output to first output).
 	*/
 	template <typename... Callbacks, typename... Args>
-	bool Gather(FPCGMetadataElementBase::FOperationData& InOperationData, int32 StartIndex, int32 Range, const Options& InOptions, const TTuple<Callbacks...>& InCallbacks, int InputIndex, Signature<> S, Args&& ...InArgs)
+	bool Gather(PCGMetadataOps::FOperationData& InOperationData, int32 StartIndex, int32 Range, const Options& InOptions, const TTuple<Callbacks...>& InCallbacks, int InputIndex, Signature<> S, Args&& ...InArgs)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(PCG::Private::NAryOperation::Apply);
 
@@ -341,7 +328,7 @@ namespace NAryOperation
 	* Gather(InOperationData, StartIndex, Range, InOptions, InCallbacks, 2, Signature<>, IntValues, FloatValues);
 	*/
 	template <typename... Callbacks, typename InputType, typename... InputTypes, typename... Args>
-	bool Gather(FPCGMetadataElementBase::FOperationData& InOperationData, int32 StartIndex, int32 Range, const Options& InOptions, const TTuple<Callbacks...>& InCallbacks, int InputIndex, Signature<InputType, InputTypes...> S, Args&& ...InArgs)
+	bool Gather(PCGMetadataOps::FOperationData& InOperationData, int32 StartIndex, int32 Range, const Options& InOptions, const TTuple<Callbacks...>& InCallbacks, int InputIndex, Signature<InputType, InputTypes...> S, Args&& ...InArgs)
 	{
 		bool bSuccess = true;
 
@@ -370,7 +357,7 @@ namespace NAryOperation
 	* We use an index, starting at 0, and also use our empty struct to pack all our input types.
 	*/
 	template <typename... InputTypes, typename... Callbacks>
-	bool Operation(FPCGMetadataElementBase::FOperationData& InOperationData, int32 StartIndex, int32 Range, const Options& InOptions, const TTuple<Callbacks...>& InCallbacks)
+	bool Operation(PCGMetadataOps::FOperationData& InOperationData, int32 StartIndex, int32 Range, const Options& InOptions, const TTuple<Callbacks...>& InCallbacks)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(PCG::Private::NAryOperation::Operation);
 		return Gather(InOperationData, StartIndex, Range, InOptions, InCallbacks, 0, Signature<InputTypes...>());
@@ -379,10 +366,28 @@ namespace NAryOperation
 }
 }
 
-template <typename... InputTypes, typename... Callbacks>
-inline bool FPCGMetadataElementBase::DoNAryOp(FOperationData& InOperationData, TTuple<Callbacks...>&& InCallbacks) const
+template <int32 NbInputs, int32 NbOutputs>
+void PCGMetadataOps::FOperationData::Validate()
 {
-	// If nothing to do, exit immediatly
+	check(OutputKeys.Num() == NbOutputs);
+
+	for (int32 i = 0; i < NbInputs; ++i)
+	{
+		check(InputAccessors[i].IsValid());
+		check(InputKeys[i].IsValid());
+	}
+
+	for (int32 j = 0; j < NbOutputs; ++j)
+	{
+		check(OutputAccessors[j].IsValid());
+		check(OutputKeys[j].IsValid());
+	}
+}
+
+template <typename... InputTypes, typename... Callbacks>
+inline bool FPCGMetadataElementBase::DoNAryOp(PCGMetadataOps::FOperationData& InOperationData, TTuple<Callbacks...>&& InCallbacks) const
+{
+	// If nothing to do, exit immediately
 	if (InOperationData.NumberOfElementsToProcess == 0)
 	{
 		return true;
@@ -420,25 +425,25 @@ inline bool FPCGMetadataElementBase::DoNAryOp(FOperationData& InOperationData, T
 }
 
 template <typename InType, typename... Callbacks>
-inline bool FPCGMetadataElementBase::DoUnaryOp(FOperationData& InOperationData, Callbacks&& ...InCallbacks) const
+inline bool FPCGMetadataElementBase::DoUnaryOp(PCGMetadataOps::FOperationData& InOperationData, Callbacks&& ...InCallbacks) const
 {
 	return DoNAryOp<InType>(InOperationData, ForwardAsTuple(std::forward<Callbacks>(InCallbacks)...));
 }
 
 template <typename InType1, typename InType2, typename... Callbacks>
-inline bool FPCGMetadataElementBase::DoBinaryOp(FOperationData& InOperationData, Callbacks&& ...InCallbacks) const
+inline bool FPCGMetadataElementBase::DoBinaryOp(PCGMetadataOps::FOperationData& InOperationData, Callbacks&& ...InCallbacks) const
 {
 	return DoNAryOp<InType1, InType2>(InOperationData, ForwardAsTuple(std::forward<Callbacks>(InCallbacks)...));
 }
 
 template <typename InType1, typename InType2, typename InType3, typename... Callbacks>
-inline bool FPCGMetadataElementBase::DoTernaryOp(FOperationData& InOperationData, Callbacks&& ...InCallbacks) const
+inline bool FPCGMetadataElementBase::DoTernaryOp(PCGMetadataOps::FOperationData& InOperationData, Callbacks&& ...InCallbacks) const
 {
 	return DoNAryOp<InType1, InType2, InType3>(InOperationData, ForwardAsTuple(std::forward<Callbacks>(InCallbacks)...));
 }
 
 template <typename InType1, typename InType2, typename InType3, typename InType4, typename... Callbacks>
-inline bool FPCGMetadataElementBase::DoQuaternaryOp(FOperationData& InOperationData, Callbacks&& ...InCallbacks) const
+inline bool FPCGMetadataElementBase::DoQuaternaryOp(PCGMetadataOps::FOperationData& InOperationData, Callbacks&& ...InCallbacks) const
 {
 	return DoNAryOp<InType1, InType2, InType3, InType4>(InOperationData, ForwardAsTuple(std::forward<Callbacks>(InCallbacks)...));
 }

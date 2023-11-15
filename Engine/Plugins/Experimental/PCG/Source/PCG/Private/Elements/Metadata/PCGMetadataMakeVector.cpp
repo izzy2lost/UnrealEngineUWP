@@ -122,7 +122,7 @@ FName UPCGMetadataMakeVectorSettings::GetInputPinLabel(uint32 Index) const
 	}
 }
 
-uint32 UPCGMetadataMakeVectorSettings::GetInputPinNum() const
+uint32 UPCGMetadataMakeVectorSettings::GetOperandNum() const
 {
 	if (OutputType == EPCGMetadataTypes::Vector2 ||
 		(OutputType == EPCGMetadataTypes::Vector && MakeVector3Op == EPCGMetadataMakeVector3::Vector2AndValue) ||
@@ -249,7 +249,7 @@ FPCGElementPtr UPCGMetadataMakeVectorSettings::CreateElement() const
 	return MakeShared<FPCGMetadataMakeVectorElement>();
 }
 
-bool FPCGMetadataMakeVectorElement::DoOperation(FOperationData& OperationData) const
+bool FPCGMetadataMakeVectorElement::DoOperation(PCGMetadataOps::FOperationData& OperationData) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGMetadataMakeVectorElement::Execute);
 

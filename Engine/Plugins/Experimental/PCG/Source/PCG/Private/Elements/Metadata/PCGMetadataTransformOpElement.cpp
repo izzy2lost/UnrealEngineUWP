@@ -112,7 +112,7 @@ FName UPCGMetadataTransformSettings::GetInputPinLabel(uint32 Index) const
 	}
 }
 
-uint32 UPCGMetadataTransformSettings::GetInputPinNum() const
+uint32 UPCGMetadataTransformSettings::GetOperandNum() const
 {
 	if (Operation == EPCGMedadataTransformOperation::Invert)
 	{
@@ -202,7 +202,7 @@ FPCGElementPtr UPCGMetadataTransformSettings::CreateElement() const
 	return MakeShared<FPCGMetadataTransformElement>();
 }
 
-bool FPCGMetadataTransformElement::DoOperation(FOperationData& OperationData) const
+bool FPCGMetadataTransformElement::DoOperation(PCGMetadataOps::FOperationData& OperationData) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGMetadataTransformElement::Execute);
 

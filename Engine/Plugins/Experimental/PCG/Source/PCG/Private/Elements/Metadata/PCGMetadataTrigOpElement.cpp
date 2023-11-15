@@ -74,7 +74,7 @@ FName UPCGMetadataTrigSettings::GetInputPinLabel(uint32 Index) const
 	}
 }
 
-uint32 UPCGMetadataTrigSettings::GetInputPinNum() const
+uint32 UPCGMetadataTrigSettings::GetOperandNum() const
 {
 	return (Operation != EPCGMedadataTrigOperation::Atan2) ? 1 : 2;
 }
@@ -148,7 +148,7 @@ FPCGElementPtr UPCGMetadataTrigSettings::CreateElement() const
 	return MakeShared<FPCGMetadataTrigElement>();
 }
 
-bool FPCGMetadataTrigElement::DoOperation(FOperationData& OperationData) const
+bool FPCGMetadataTrigElement::DoOperation(PCGMetadataOps::FOperationData& OperationData) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGMetadataTrigElement::Execute);
 

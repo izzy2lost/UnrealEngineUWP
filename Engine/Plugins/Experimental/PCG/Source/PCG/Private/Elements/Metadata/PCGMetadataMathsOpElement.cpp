@@ -120,7 +120,7 @@ namespace PCGMetadataMathsSettings
 		case EPCGMedadataMathsOperation::Multiply:
 			return Value1 * Value2;
 		case EPCGMedadataMathsOperation::Divide:
-			return Value1 / Value2;
+			return (Value2 != T{0}) ? (Value1 / Value2) : T{0}; // To mirror FMath
 		case EPCGMedadataMathsOperation::Max:
 			return PCGMetadataMaths::Max(Value1, Value2);
 		case EPCGMedadataMathsOperation::Min:
@@ -195,7 +195,7 @@ FName UPCGMetadataMathsSettings::GetInputPinLabel(uint32 Index) const
 	}
 }
 
-uint32 UPCGMetadataMathsSettings::GetInputPinNum() const
+uint32 UPCGMetadataMathsSettings::GetOperandNum() const
 {
 	if (PCGMetadataMathsSettings::IsUnaryOp(Operation))
 	{
@@ -318,7 +318,7 @@ FPCGElementPtr UPCGMetadataMathsSettings::CreateElement() const
 	return MakeShared<FPCGMetadataMathsElement>();
 }
 
-bool FPCGMetadataMathsElement::DoOperation(FOperationData& OperationData) const
+bool FPCGMetadataMathsElement::DoOperation(PCGMetadataOps::FOperationData& OperationData) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGMetadataMathsElement::Execute);
 

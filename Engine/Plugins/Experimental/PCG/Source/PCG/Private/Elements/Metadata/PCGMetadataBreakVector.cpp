@@ -107,7 +107,7 @@ FName UPCGMetadataBreakVectorSettings::GetOutputPinLabel(uint32 Index) const
 	}
 }
 
-uint32 UPCGMetadataBreakVectorSettings::GetOutputPinNum() const
+uint32 UPCGMetadataBreakVectorSettings::GetResultNum() const
 {
 	return 4;
 }
@@ -160,7 +160,7 @@ FPCGElementPtr UPCGMetadataBreakVectorSettings::CreateElement() const
 	return MakeShared<FPCGMetadataBreakVectorElement>();
 }
 
-bool FPCGMetadataBreakVectorElement::DoOperation(FOperationData& OperationData) const
+bool FPCGMetadataBreakVectorElement::DoOperation(PCGMetadataOps::FOperationData& OperationData) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGMetadataBreakVectorElement::Execute);
 

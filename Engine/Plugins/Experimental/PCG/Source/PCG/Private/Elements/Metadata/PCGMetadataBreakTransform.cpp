@@ -57,7 +57,7 @@ FName UPCGMetadataBreakTransformSettings::GetOutputPinLabel(uint32 Index) const
 	}
 }
 
-uint32 UPCGMetadataBreakTransformSettings::GetOutputPinNum() const
+uint32 UPCGMetadataBreakTransformSettings::GetResultNum() const
 {
 	return 3;
 }
@@ -107,7 +107,7 @@ FPCGElementPtr UPCGMetadataBreakTransformSettings::CreateElement() const
 	return MakeShared<FPCGMetadataBreakTransformElement>();
 }
 
-bool FPCGMetadataBreakTransformElement::DoOperation(FOperationData& OperationData) const
+bool FPCGMetadataBreakTransformElement::DoOperation(PCGMetadataOps::FOperationData& OperationData) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGMetadataBreakVectorElement::Execute);
 

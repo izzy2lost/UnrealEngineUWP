@@ -16,7 +16,7 @@ FName UPCGMetadataStringOpSettings::GetInputPinLabel(uint32 Index) const
 	}
 }
 
-uint32 UPCGMetadataStringOpSettings::GetInputPinNum() const
+uint32 UPCGMetadataStringOpSettings::GetOperandNum() const
 {
 	return 2;
 }
@@ -71,7 +71,7 @@ uint16 UPCGMetadataStringOpSettings::GetOutputType(uint16 InputTypeId) const
 	return (uint16)EPCGMetadataTypes::String;
 }
 
-bool FPCGMetadataStringOpElement::DoOperation(FOperationData& OperationData) const
+bool FPCGMetadataStringOpElement::DoOperation(PCGMetadataOps::FOperationData& OperationData) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGMetadataStringOpElement::Execute);
 

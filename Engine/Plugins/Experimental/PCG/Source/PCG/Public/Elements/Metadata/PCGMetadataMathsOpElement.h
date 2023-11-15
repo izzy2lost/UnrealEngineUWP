@@ -64,11 +64,11 @@ public:
 	//~End UPCGSettings interface
 
 	//~Begin UPCGMetadataSettingsBase interface
-	FPCGAttributePropertyInputSelector GetInputSource(uint32 Index) const override;
+	virtual FPCGAttributePropertyInputSelector GetInputSource(uint32 Index) const override;
 
 	virtual FName GetInputPinLabel(uint32 Index) const override;
-	virtual uint32 GetInputPinNum() const override;
-	virtual uint16 GetOutputType(uint16 InputTypeId) const;
+	virtual uint32 GetOperandNum() const override;
+	virtual uint16 GetOutputType(uint16 InputTypeId) const override;
 
 	virtual bool IsSupportedInputType(uint16 TypeId, uint32 InputIndex, bool& bHasSpecialRequirement) const override;
 	//~End UPCGMetadataSettingsBase interface
@@ -118,5 +118,5 @@ private:
 class FPCGMetadataMathsElement : public FPCGMetadataElementBase
 {
 protected:
-	virtual bool DoOperation(FOperationData& OperationData) const override;
+	virtual bool DoOperation(PCGMetadataOps::FOperationData& OperationData) const override;
 };
