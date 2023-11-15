@@ -290,39 +290,9 @@ uint GetShadowMaskPageTableKey(uint LightSceneId, uint2 PageTableCoord)
 	return HashedKey;
 }
 
-struct FShadowMaskHashTableValue
-{
-	uint ShadowMaskTileIndex;
-	uint Checksum;
-};
-
-uint GetShadowMaskHashTableValueChecksum(uint HashTableKey)
-{
-	// Use top 12 bits of a key to detect collisions
-	return (HashTableKey >> 20) & 0xFFF;
-}
-
-uint PackShadowMaskHashTableValue(uint ShadowMaskTileIndex, uint HashTableKey)
-{
-	uint PackedValue = 0;
-	PackedValue = (ShadowMaskTileIndex & 0xFFFFF) << 12;
-	PackedValue |= GetShadowMaskHashTableValueChecksum(HashTableKey);
-	return PackedValue;
-}
-
-FShadowMaskHashTableValue UnpackShadowMaskHashTableValue(uint PackedValue)
-{
-	FShadowMaskHashTableValue TableValue;
-	TableValue.ShadowMaskTileIndex = PackedValue >> 12;
-	TableValue.Checksum = PackedValue & 0xFFF;
-	return TableValue;
-}
-
 Texture2D<uint> ShadowMaskPageTableHistory;
-StructuredBuffer<uint> ShadowMaskHashTableHistory;
 Texture2D<uint> ShadowMaskAtlasHistory;
 int2 ShadowMaskViewSize;
-uint ShadowMaskHashTableIndexWrapMask;
 
 void AccumulateHistoryShadowMask(uint LightSceneId, uint PrevLocalLightIndex, uint2 ShadowMaskScreenCoord, float Weight, inout FShadowMaskAccumulator Accumulator)
 {
@@ -330,31 +300,7 @@ void AccumulateHistoryShadowMask(uint LightSceneId, uint PrevLocalLightIndex, ui
 	{
 		uint2 HistoryShadowMaskPageTableCoord = GetShadowMaskPageTableCoord(PrevLocalLightIndex, ShadowMaskScreenCoord);
 
-#if HASH_TABLE
-		uint HistoryShadowMaskTileIndex = INVALID_SHADOW_MASK_TILE_INDEX;
-		const uint PageTableKey = GetShadowMaskPageTableKey(LightSceneId, HistoryShadowMaskPageTableCoord);
-		const uint MaxLinearProbingSteps = 4;
-
-		LOOP
-		for (uint LinearProbingStep = 0; LinearProbingStep < MaxLinearProbingSteps; ++LinearProbingStep)
-		{
-			uint Index = (PageTableKey + LinearProbingStep) & ShadowMaskHashTableIndexWrapMask;
-			uint PackedValue = ShadowMaskHashTableHistory[Index];
-
-			if (PackedValue != INVALID_SHADOW_MASK_TILE_INDEX)
-			{
-				FShadowMaskHashTableValue TableValue = UnpackShadowMaskHashTableValue(PackedValue);
-				if (TableValue.Checksum == GetShadowMaskHashTableValueChecksum(PageTableKey))
-				{
-					HistoryShadowMaskTileIndex = TableValue.ShadowMaskTileIndex;
-					break;
-				}
-			}
-		}
-
-#else
 		uint HistoryShadowMaskTileIndex = ShadowMaskPageTableHistory[HistoryShadowMaskPageTableCoord];
-#endif
 
 		if (HistoryShadowMaskTileIndex != INVALID_SHADOW_MASK_TILE_INDEX)
 		{

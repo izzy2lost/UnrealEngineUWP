@@ -94,7 +94,6 @@ RWTexture2D<float4> RWShadowMaskHistoryWeights;
 RWTexture2D<float> RWDownsampledSceneDepth;
 RWTexture2D<UNORM float3> RWDownsampledSceneWorldNormal;
 RWTexture2D<uint> RWShadowMaskPageTable;
-RWStructuredBuffer<uint> RWShadowMaskHashTable;
 RWStructuredBuffer<uint> RWShadowMaskTileAllocator;
 RWStructuredBuffer<uint2> RWShadowMaskTileData;
 RWTexture2D<uint> RWLightSamples;
@@ -103,12 +102,7 @@ float4 HistoryScreenPositionScaleBias;
 float4 HistoryUVMinMax;
 Texture2D<float> ShadowMaskSceneDepthHistory;
 
-#if HASH_TABLE
-	#define HASH_TABLE_SIZE 32
-	groupshared uint SharedHashTable[HASH_TABLE_SIZE];
-#else
-	groupshared uint SharedLightMask[LIGHT_SCENE_ID_MASK_SIZE];
-#endif
+groupshared uint SharedLightMask[LIGHT_SCENE_ID_MASK_SIZE];
 
 #if CANDIDATE_LIGHT_MASK
 	groupshared uint SharedCandidateLightMask[LIGHT_SCENE_ID_MASK_SIZE];
@@ -119,47 +113,10 @@ Texture2D<float> ShadowMaskSceneDepthHistory;
  */
 void MarkLightSceneId(uint LightSceneId)
 {
-#if HASH_TABLE
-	// Just skip add if search gets too long
-	const uint MaxLinearProbingSteps = 4;
-
-	LOOP
-	for (uint LinearProbingStep = 0; LinearProbingStep < MaxLinearProbingSteps; ++LinearProbingStep)
-	{
-		uint Index = (LightSceneId + LinearProbingStep) % HASH_TABLE_SIZE;
-
-		uint StoredKey = SharedHashTable[Index];
-		if (StoredKey != LightSceneId)
-		{
-			if (StoredKey != INVALID_LIGHT_SCENE_ID)
-			{
-				continue;
-			}
-
-			uint PrevKey;
-			InterlockedCompareExchange(SharedHashTable[Index], INVALID_LIGHT_SCENE_ID, LightSceneId, PrevKey);
-
-			if (PrevKey == INVALID_LIGHT_SCENE_ID)
-			{
-				SharedHashTable[Index] = LightSceneId;
-				return;
-			}
-			else if (PrevKey != LightSceneId)
-			{
-				continue;
-			}
-		}
-
-		break;
-	}
-
-#else
-
 	// Re-distribute nearby ids to different bytes in order to balance gather workload
 	uint DWORDIndex = LightSceneId % LIGHT_SCENE_ID_MASK_SIZE;
 	uint BitMask = 1u << (LightSceneId / LIGHT_SCENE_ID_MASK_SIZE);
 	InterlockedOr(SharedLightMask[DWORDIndex], BitMask);
-#endif
 }
 
 void WriteShadowMaskTileToPageTable(uint LightSceneId, uint LocalLightIndex, uint2 ShadowMaskScreenCoord, uint ShadowMaskTileIndex)
@@ -168,47 +125,7 @@ void WriteShadowMaskTileToPageTable(uint LightSceneId, uint LocalLightIndex, uin
 
 	RWShadowMaskTileData[ShadowMaskTileIndex] = PackShadowMaskTile(LightSceneId, LocalLightIndex, ShadowMaskScreenCoord);
 
-	#if HASH_TABLE
-	{
-		const uint PageTableKey = GetShadowMaskPageTableKey(LightSceneId, ShadowMaskPageTableCoord);
-		const uint PageTableValue = PackShadowMaskHashTableValue(ShadowMaskTileIndex, PageTableKey);
-		const uint MaxLinearProbingSteps = 4;
-
-		LOOP
-		for (uint LinearProbingStep = 0; LinearProbingStep < MaxLinearProbingSteps; ++LinearProbingStep)
-		{
-			uint Index = (PageTableKey + LinearProbingStep) & ShadowMaskHashTableIndexWrapMask;
-
-			uint StoredValue = RWShadowMaskHashTable[Index];
-			if (StoredValue != PageTableValue)
-			{
-				if (StoredValue != INVALID_SHADOW_MASK_TILE_INDEX)
-				{
-					continue;
-				}
-
-				uint PrevValue;
-				InterlockedCompareExchange(RWShadowMaskHashTable[Index], INVALID_SHADOW_MASK_TILE_INDEX, PageTableValue, PrevValue);
-
-				if (PrevValue == INVALID_SHADOW_MASK_TILE_INDEX)
-				{
-					RWShadowMaskHashTable[Index] = PageTableValue;
-					return;
-				}
-				else if (PrevValue != PageTableValue)
-				{
-					continue;
-				}
-			}
-
-			break;
-		}
-	}
-	#else
-	{
-		RWShadowMaskPageTable[ShadowMaskPageTableCoord] = ShadowMaskTileIndex;
-	}
-	#endif
+	RWShadowMaskPageTable[ShadowMaskPageTableCoord] = ShadowMaskTileIndex;
 }
 
 StructuredBuffer<uint> DownsampledTileAllocator;
@@ -227,17 +144,10 @@ void GenerateSamplesCS(
 {
 	uint LinearThreadIndex = GroupThreadId.y * THREADGROUP_SIZE + GroupThreadId.x;
 
-#if HASH_TABLE
-	if (LinearThreadIndex < HASH_TABLE_SIZE)
-	{
-		SharedHashTable[LinearThreadIndex] = INVALID_LIGHT_SCENE_ID;
-	}
-#else
 	if (LinearThreadIndex < LIGHT_SCENE_ID_MASK_SIZE)
 	{
 		SharedLightMask[LinearThreadIndex] = 0;
 	}
-#endif
 
 #if CANDIDATE_LIGHT_MASK
 	if (LinearThreadIndex < LIGHT_SCENE_ID_MASK_SIZE)
@@ -654,30 +564,6 @@ void GenerateSamplesCS(
 		GroupMemoryBarrierWithGroupSync();
 
 		// Write out allocated shadow mask tiles
-	#if HASH_TABLE
-		if (LinearThreadIndex < HASH_TABLE_SIZE)
-		{
-			uint2 ShadowMaskScreenCoord = DownsampledTileCoord * SHADOW_MASK_TILE_SIZE;
-
-			const uint StoredValue = SharedHashTable[LinearThreadIndex];
-
-			if (StoredValue != INVALID_LIGHT_SCENE_ID)
-			{
-				const uint LocalLightIndex = StoredValue;
-				const FLocalLightData LocalLightData = GetLocalLightDataNonStereo(LocalLightIndex);
-				const uint LightIndex = LocalLightData.LightSceneId;
-
-				// #sdl_todo: merge allocations through groupshared and do only one atomic per group
-				uint ShadowMaskTileIndex = 0;
-				InterlockedAdd(RWShadowMaskTileAllocator[0], 1, ShadowMaskTileIndex);
-
-				if (ShadowMaskTileIndex < MaxShadowMaskTiles)
-				{
-					WriteShadowMaskTileToPageTable(LightIndex, LocalLightIndex, ShadowMaskScreenCoord, ShadowMaskTileIndex);
-				}
-			}
-		}
-	#else
 		// #sdl_todo: process part of the list per tread
 		if (LinearThreadIndex < LIGHT_SCENE_ID_MASK_SIZE)
 		{
@@ -707,6 +593,5 @@ void GenerateSamplesCS(
 				}
 			}
 		}
-	#endif
 	}
 }

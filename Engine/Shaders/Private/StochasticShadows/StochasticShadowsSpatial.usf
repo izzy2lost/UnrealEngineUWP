@@ -9,7 +9,6 @@
 
 Texture2D<uint> ShadowMaskTileAtlas;
 Texture2D<uint> ShadowMaskPageTable;
-StructuredBuffer<uint> ShadowMaskHashTable;
 StructuredBuffer<uint2> ShadowMaskTileData;
 Texture2D<float> DownsampledSceneDepth;
 Texture2D<UNORM float3> DownsampledSceneWorldNormal;
@@ -84,35 +83,8 @@ void ShadowMaskSpatialPassCS(
 			uint2 SampleShadowMaskScreenCoord = clamp(int2(BaseShadowMaskScreenCoord) + int2(SharedShadowMaskX - SHARED_TILE_BORDER, SharedShadowMaskY - SHARED_TILE_BORDER), 0, ShadowMaskViewSize - 1);
 
 			uint2 SampleShadowMaskPageTableCoord = GetShadowMaskPageTableCoord(LocalLightIndex, SampleShadowMaskScreenCoord);
-
-			uint SampleShadowMaskTileIndex = INVALID_SHADOW_MASK_TILE_INDEX;
-			#if HASH_TABLE
-			{
-				const uint PageTableKey = GetShadowMaskPageTableKey(LightSceneId, SampleShadowMaskPageTableCoord);
-				const uint MaxLinearProbingSteps = 4;
-
-				LOOP
-				for (uint LinearProbingStep = 0; LinearProbingStep < MaxLinearProbingSteps; ++LinearProbingStep)
-				{
-					uint Index = (PageTableKey + LinearProbingStep) & ShadowMaskHashTableIndexWrapMask;
-					uint PackedValue = ShadowMaskHashTable[Index];
-
-					if (PackedValue != INVALID_SHADOW_MASK_TILE_INDEX)
-					{
-						FShadowMaskHashTableValue TableValue = UnpackShadowMaskHashTableValue(PackedValue);
-						if (TableValue.Checksum == GetShadowMaskHashTableValueChecksum(PageTableKey))
-						{
-							SampleShadowMaskTileIndex = TableValue.ShadowMaskTileIndex;
-							break;
-						}
-					}
-				}
-			}
-			#else
-			{
-				SampleShadowMaskTileIndex = ShadowMaskPageTable[SampleShadowMaskPageTableCoord];
-			}
-			#endif			
+			
+			uint SampleShadowMaskTileIndex = ShadowMaskPageTable[SampleShadowMaskPageTableCoord];
 
 			FShadowMask ShadowMask = InitShadowMask();
 

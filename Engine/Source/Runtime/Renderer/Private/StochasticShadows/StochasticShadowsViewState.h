@@ -6,7 +6,6 @@ class FStochasticShadowsViewState
 {
 public:
 	TRefCountPtr<IPooledRenderTarget> ShadowMaskPageTableHistory;
-	TRefCountPtr<FRDGPooledBuffer> ShadowMaskHashTableHistory;
 	TRefCountPtr<IPooledRenderTarget> ShadowMaskAtlasHistory;
 	TRefCountPtr<IPooledRenderTarget> ShadowMaskSceneDepthHistory;
 
@@ -16,7 +15,6 @@ public:
 	void SafeRelease()
 	{
 		ShadowMaskPageTableHistory.SafeRelease();
-		ShadowMaskHashTableHistory.SafeRelease();
 		ShadowMaskAtlasHistory.SafeRelease();
 		ShadowMaskSceneDepthHistory.SafeRelease();
 	}
