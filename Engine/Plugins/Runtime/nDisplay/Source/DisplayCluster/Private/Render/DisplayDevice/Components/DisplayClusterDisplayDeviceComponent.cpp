@@ -23,19 +23,8 @@ void UDisplayClusterDisplayDeviceComponent::OnUpdateDisplayDeviceMeshAndMaterial
 	// Customizes and overrides material parameters after the base class
 	if (InMeshMaterialInstance && ShouldUseDisplayDevice(InViewportPreview.GetConfiguration()))
 	{
-		switch (InMaterialType)
-		{
-		case EDisplayClusterDisplayDeviceMaterialType::PreviewMeshMaterial:
-			InMeshMaterialInstance->SetScalarParameterValue(UE::DisplayClusterDisplayDeviceStrings::material::attr::Exposure, 0.f);
-			break;
-
-		case EDisplayClusterDisplayDeviceMaterialType::PreviewMeshTechvisMaterial:
-			InMeshMaterialInstance->SetScalarParameterValue(UE::DisplayClusterDisplayDeviceStrings::material::attr::Exposure, Exposure);
-			break;
-
-		default:
-			break;
-		}
+		InMeshMaterialInstance->SetScalarParameterValue(UE::DisplayClusterDisplayDeviceStrings::material::attr::Exposure, Exposure);
+		InMeshMaterialInstance->SetScalarParameterValue(UE::DisplayClusterDisplayDeviceStrings::material::attr::Gamma, Gamma);
 	}
 }
 

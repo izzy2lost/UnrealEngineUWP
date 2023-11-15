@@ -21,6 +21,7 @@ namespace UE::DisplayClusterDisplayDeviceStrings
 			static constexpr const TCHAR* Preview = TEXT("Preview");
 			static constexpr const TCHAR* Opacity = TEXT("Opacity");
 			static constexpr const TCHAR* Exposure = TEXT("Exposure");
+			static constexpr const TCHAR* Gamma = TEXT("Gamma");
 		}
 	}
 };

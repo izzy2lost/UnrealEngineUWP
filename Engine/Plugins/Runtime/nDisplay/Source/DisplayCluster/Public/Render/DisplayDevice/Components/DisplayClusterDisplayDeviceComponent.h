@@ -33,7 +33,11 @@ protected:
 	/** Adjust the exposure for the emissive input. */
 	UPROPERTY(EditAnywhere, Category=Material)
 	float Exposure = 0.f;
-	
+
+	/** Adjust the gamma for the emissive input. */
+	UPROPERTY(EditAnywhere, Category = Material)
+	float Gamma = 1.f;
+
 	/** Color grading settings. */
 	UPROPERTY(EditAnywhere, Category = RenderPass, meta = (DisplayAfter="bEnableRenderPass"))
 	FOpenColorIOColorConversionSettings ColorConversionSettings;
