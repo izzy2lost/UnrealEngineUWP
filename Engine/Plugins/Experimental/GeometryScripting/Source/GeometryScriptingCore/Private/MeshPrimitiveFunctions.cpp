@@ -23,6 +23,8 @@
 #include "CompGeom/Delaunay2.h"
 #include "CompGeom/ConvexDecomposition3.h"
 
+#include "Physics/ComponentCollisionUtil.h"
+
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MeshPrimitiveFunctions)
 
 using namespace UE::Geometry;
@@ -1515,61 +1517,29 @@ UDynamicMesh* UGeometryScriptLibrary_MeshPrimitiveFunctions::AppendSimpleCollisi
 		return TargetMesh;
 	}
 
-	for (const FKBoxElem& Box : SimpleCollision.AggGeom.BoxElems)
-	{
-		FGridBoxMeshGenerator GridBoxGenerator;
-		GridBoxGenerator.Box.Extents = FVector(Box.X * .5, Box.Y * .5, Box.Z * .5);
-		GridBoxGenerator.Box.Frame.Origin = Box.Center;
-		GridBoxGenerator.Box.Frame.Rotation = (FQuaterniond)Box.Rotation;
-		GridBoxGenerator.EdgeVertices = FIndex3i(2, 2, 2);
-		GridBoxGenerator.bPolygroupPerQuad = (PrimitiveOptions.PolygroupMode == EGeometryScriptPrimitivePolygroupMode::PerQuad);
-		GridBoxGenerator.Generate();
-		AppendPrimitive(TargetMesh, &GridBoxGenerator, Transform, PrimitiveOptions);
-	}
-	for (const FKSphereElem& Sphere : SimpleCollision.AggGeom.SphereElems)
-	{
-		FBoxSphereGenerator SphereGenerator;
-		SphereGenerator.Box.Frame.Origin = Sphere.Center;
-		SphereGenerator.Radius = FMath::Max(FMathf::ZeroTolerance, Sphere.Radius);
-		int32 StepsPerSide = FMath::Max(1, TriangulationOptions.SphereStepsPerSide);
-		SphereGenerator.EdgeVertices = FIndex3i(StepsPerSide, StepsPerSide, StepsPerSide);
-		SphereGenerator.bPolygroupPerQuad = (PrimitiveOptions.PolygroupMode == EGeometryScriptPrimitivePolygroupMode::PerQuad);
-		SphereGenerator.Generate();
-		AppendPrimitive(TargetMesh, &SphereGenerator, Transform, PrimitiveOptions);
-	}
-	for (const FKSphylElem& Capsule : SimpleCollision.AggGeom.SphylElems)
-	{
-		FCapsuleGenerator CapsuleGenerator;
-		CapsuleGenerator.Radius = Capsule.Radius;
-		CapsuleGenerator.SegmentLength = Capsule.Length;
-		CapsuleGenerator.NumHemisphereArcSteps = FMath::Max(2, TriangulationOptions.CapsuleHemisphereSteps);
-		CapsuleGenerator.NumCircleSteps = FMath::Max(3, TriangulationOptions.CapsuleCircleSteps);
-		CapsuleGenerator.bPolygroupPerQuad = (PrimitiveOptions.PolygroupMode == EGeometryScriptPrimitivePolygroupMode::PerQuad);
-		CapsuleGenerator.Generate();
-		
-		FQuaterniond Rotation(Capsule.Rotation);
-		AppendPrimitive(TargetMesh, &CapsuleGenerator, Transform, PrimitiveOptions, Capsule.Center + Rotation * FVector(0, 0, -Capsule.Length*.5), Rotation);
-	}
-	for (const FKConvexElem& Convex : SimpleCollision.AggGeom.ConvexElems)
-	{
-		FDynamicMesh3 ConvexMesh;
-		FTransform ConvexTransform = Convex.GetTransform();
-		for (FVector V : Convex.VertexData)
+	FSimpleCollisionTriangulationSettings UseTriOptions;
+	UseTriOptions.bUseBoxSphere = true;
+	UseTriOptions.BoxSphereStepsPerSide = TriangulationOptions.SphereStepsPerSide;
+	UseTriOptions.CapsuleCircleSteps = TriangulationOptions.CapsuleCircleSteps;
+	UseTriOptions.CapsuleHemisphereSteps = TriangulationOptions.CapsuleHemisphereSteps;
+	UseTriOptions.bApproximateLevelSetWithCubes = TriangulationOptions.bApproximateLevelSetsWithCubes;
+
+	FSimpleCollisionToMeshAttributeSettings UseAttributeOptions(true /*enable attributes*/, false /*per-triangle normals*/, true /*initialize UVs*/);
+
+	ConvertSimpleCollisionToDynamicMeshes(
+		SimpleCollision.AggGeom,
+		[&](int32 Index, const FKShapeElem& ShapeElem, FDynamicMesh3& Mesh)
 		{
-			ConvexMesh.AppendVertex(ConvexTransform.TransformPosition(V));
-		}
-		for (int32 TriStart = 0; TriStart + 2 < Convex.IndexData.Num(); TriStart += 3)
-		{
-			ConvexMesh.AppendTriangle(Convex.IndexData[TriStart], Convex.IndexData[TriStart + 2], Convex.IndexData[TriStart + 1]);
-		}
-		ConvexMesh.EnableAttributes();
-		FMeshNormals::InitializeOverlayToPerTriangleNormals(ConvexMesh.Attributes()->PrimaryNormals());
-		AppendPrimitiveMesh(TargetMesh, ConvexMesh, Transform, PrimitiveOptions);
-	}
-	if (!SimpleCollision.AggGeom.TaperedCapsuleElems.IsEmpty() || !SimpleCollision.AggGeom.SkinnedLevelSetElems.IsEmpty() || !SimpleCollision.AggGeom.LevelSetElems.IsEmpty())
+			AppendPrimitiveMesh(TargetMesh, Mesh, Transform, PrimitiveOptions);
+		},
+		UseTriOptions,
+		UseAttributeOptions
+	);
+
+	if (!SimpleCollision.AggGeom.TaperedCapsuleElems.IsEmpty() || !SimpleCollision.AggGeom.SkinnedLevelSetElems.IsEmpty())
 	{
 		// Tapered capsules and level sets are not supported yet
-		UE::Geometry::AppendWarning(Debug, EGeometryScriptErrorType::OperationFailed, LOCTEXT("PrimitiveFunctions_AppendSimpleCollisionShapes Tapered Capsules and Level Sets Unsupported", "AppendSimpleCollisionShapes: Tapered Capsules and Level Sets are not supported and will be skipped"));
+		UE::Geometry::AppendWarning(Debug, EGeometryScriptErrorType::OperationFailed, LOCTEXT("PrimitiveFunctions_AppendSimpleCollisionShapes Tapered Capsules Unsupported", "AppendSimpleCollisionShapes: Tapered Capsules are not supported and will be skipped"));
 	}
 
 	return TargetMesh;

@@ -328,11 +328,15 @@ namespace UE::Private::ConvertCollisionInternal
 {
 	static void ConvertSimpleCollisionToMeshesHelper(
 		const FKAggregateGeom& AggGeom,
-		FSimpleCollisionTriangulationSettings TriangulationSettings,
-		bool bSetToPerTriangleNormals,
-		bool bInitializeLevelSetAndConvexUVs,
-		TFunctionRef<void(int32 Index, const FKShapeElem& ShapeElem, const FDynamicMesh3&)> DynamicMeshCallback)
+		const FSimpleCollisionTriangulationSettings& TriangulationSettings,
+		const FSimpleCollisionToMeshAttributeSettings& MeshAttributeSettings,
+		TFunctionRef<void(int32 Index, const FKShapeElem& ShapeElem, FDynamicMesh3&)> DynamicMeshCallback,
+		TFunctionRef<bool(const FKShapeElem&)> IncludeElement)
 	{
+		// Clear other attribute related settings if we're not enabling attributes
+		bool bInitializeConvexAndLevelSetUVs = MeshAttributeSettings.bEnableAttributes && MeshAttributeSettings.bInitializeConvexAndLevelSetUVs;
+		bool bSetToPerTriangleNormals = MeshAttributeSettings.bEnableAttributes && MeshAttributeSettings.bSetToPerTriangleNormals;
+
 		// Helpers to transform vertex and normal arrays / invert triangle buffers
 		auto TransformVerts = [](FTransform Transform, TArrayView<FVector3d> Vertices, TArrayView<FVector3f> Normals = TArrayView<FVector3f>())
 		{
@@ -361,9 +365,13 @@ namespace UE::Private::ConvertCollisionInternal
 		};
 
 		auto RunCallbacks = 
-			[&DynamicMeshCallback, bSetToPerTriangleNormals]
+			[&MeshAttributeSettings, &DynamicMeshCallback, bSetToPerTriangleNormals]
 			(int32 Index, const FKShapeElem& ShapeElem, FMeshShapeGenerator& Gen)
 		{
+			if (!MeshAttributeSettings.bEnableAttributes)
+			{
+				Gen.ResetAttributes(true);
+			}
 			FDynamicMesh3 ShapeMesh(&Gen);
 			if (bSetToPerTriangleNormals)
 			{
@@ -375,6 +383,10 @@ namespace UE::Private::ConvertCollisionInternal
 		int32 ShapeIndex = 0;
 		for (const FKSphereElem& Sphere : AggGeom.SphereElems)
 		{
+			if (!IncludeElement(Sphere))
+			{
+				continue;
+			}
 			if (TriangulationSettings.bUseBoxSphere)
 			{
 				FBoxSphereGenerator BoxSphereGen;
@@ -399,6 +411,10 @@ namespace UE::Private::ConvertCollisionInternal
 
 		for (const FKBoxElem& Box : AggGeom.BoxElems)
 		{
+			if (!IncludeElement(Box))
+			{
+				continue;
+			}
 			FMinimalBoxMeshGenerator BoxGen;
 			BoxGen.Box = UE::Geometry::FOrientedBox3d(
 				FFrame3d(FVector3d(Box.Center), FQuaterniond(Box.Rotation.Quaternion())),
@@ -409,6 +425,10 @@ namespace UE::Private::ConvertCollisionInternal
 
 		for (const FKSphylElem& Capsule : AggGeom.SphylElems)
 		{
+			if (!IncludeElement(Capsule))
+			{
+				continue;
+			}
 			FCapsuleGenerator CapsuleGen;
 			CapsuleGen.Radius = Capsule.Radius;
 			CapsuleGen.SegmentLength = Capsule.Length;
@@ -425,6 +445,10 @@ namespace UE::Private::ConvertCollisionInternal
 
 		for (const FKConvexElem& Convex : AggGeom.ConvexElems)
 		{
+			if (!IncludeElement(Convex))
+			{
+				continue;
+			}
 			FTransform ElemTransform = Convex.GetTransform();
 			const int32 NumVertices = Convex.VertexData.Num();
 			const int32 NumTris = Convex.IndexData.Num() / 3;
@@ -448,20 +472,24 @@ namespace UE::Private::ConvertCollisionInternal
 				ConvexMesh.ReverseOrientation(false /*bFlipNormals*/);
 			}
 
-			ConvexMesh.EnableTriangleGroups(0);
-			ConvexMesh.EnableAttributes();
-			if (bSetToPerTriangleNormals)
+			if (MeshAttributeSettings.bEnableAttributes)
 			{
-				FMeshNormals::InitializeMeshToPerTriangleNormals(&ConvexMesh);
-			}
-			else
-			{
-				FMeshNormals::InitializeOverlayToPerVertexNormals(ConvexMesh.Attributes()->PrimaryNormals(), false);
-			}
-			if (bInitializeLevelSetAndConvexUVs)
-			{
-				FDynamicMeshUVEditor UVEditor(&ConvexMesh, 0, true);
-				UVEditor.SetPerTriangleUVs();
+				ConvexMesh.EnableTriangleGroups(0);
+				ConvexMesh.EnableAttributes();
+				if (bSetToPerTriangleNormals)
+				{
+					FMeshNormals::InitializeMeshToPerTriangleNormals(&ConvexMesh);
+				}
+				else
+				{
+					FMeshNormals::InitializeOverlayToPerVertexNormals(ConvexMesh.Attributes()->PrimaryNormals(), false);
+				}
+				if (bInitializeConvexAndLevelSetUVs)
+				{
+					FDynamicMeshUVEditor UVEditor(&ConvexMesh, 0, true);
+					// TODO: Consider adding more options to control the generated UVs (e.g., scaling, box projection?) here and for level sets below
+					UVEditor.SetPerTriangleUVs();
+				}
 			}
 			DynamicMeshCallback(ShapeIndex, Convex, ConvexMesh);
 
@@ -472,42 +500,75 @@ namespace UE::Private::ConvertCollisionInternal
 		TArray<FIntVector> LevelSetTris;
 		for (const FKLevelSetElem& LevelSet : AggGeom.LevelSetElems)
 		{
+			if (!IncludeElement(LevelSet))
+			{
+				continue;
+			}
 			FTransform ElemTransform = LevelSet.GetTransform();
 			bool bInvert = ElemTransform.GetDeterminant() < 0;
 
-			LevelSetVerts.Reset();
-			LevelSetTris.Reset();
-			LevelSet.GetZeroIsosurfaceGridCellFaces(LevelSetVerts, LevelSetTris);
-
 			FDynamicMesh3 LevelSetMesh(EMeshComponents::None);
-			for (int32 Idx = 0; Idx < LevelSetVerts.Num(); ++Idx)
+
+			if (!TriangulationSettings.bApproximateLevelSetWithCubes)
 			{
-				LevelSetMesh.AppendVertex(ElemTransform.TransformPosition(FVector3d(LevelSetVerts[Idx])));
+				FMarchingCubes MarchingCubes;
+				MarchingCubes.CubeSize = LevelSet.GetLevelSet()->GetGrid().Dx().GetMin() * .5;
+				MarchingCubes.IsoValue = 0.0f;
+				Chaos::FAABB3 Box = LevelSet.GetLevelSet()->BoundingBox();
+				MarchingCubes.Bounds = FAxisAlignedBox3d(Box.Min(), Box.Max());
+				MarchingCubes.Bounds.Expand(UE_DOUBLE_KINDA_SMALL_NUMBER);
+				MarchingCubes.RootMode = ERootfindingModes::SingleLerp;
+
+				MarchingCubes.Implicit = [&LevelSet](const FVector3d& Pt) { return -LevelSet.GetLevelSet()->SignedDistance(Pt); };
+				MarchingCubes.Generate();
+
+				if (!MeshAttributeSettings.bEnableAttributes)
+				{
+					MarchingCubes.ResetAttributes(true);
+				}
+				TransformVerts(ElemTransform, MarchingCubes.Vertices, MarchingCubes.Normals);
+
+				LevelSetMesh.Copy(&MarchingCubes);
 			}
-			for (int32 Idx = 0; Idx < LevelSetTris.Num(); ++Idx)
+			else // bApproximateLevelSetWithCubes
 			{
-				FIntVector Tri = LevelSetTris[Idx];
-				LevelSetMesh.AppendTriangle(Tri.X, Tri.Y, Tri.Z);
+				LevelSetVerts.Reset();
+				LevelSetTris.Reset();
+				LevelSet.GetZeroIsosurfaceGridCellFaces(LevelSetVerts, LevelSetTris);
+
+				for (int32 Idx = 0; Idx < LevelSetVerts.Num(); ++Idx)
+				{
+					LevelSetMesh.AppendVertex(ElemTransform.TransformPosition(FVector3d(LevelSetVerts[Idx])));
+				}
+				for (int32 Idx = 0; Idx < LevelSetTris.Num(); ++Idx)
+				{
+					FIntVector Tri = LevelSetTris[Idx];
+					LevelSetMesh.AppendTriangle(Tri.X, Tri.Y, Tri.Z);
+				}
 			}
+
 			if (bInvert)
 			{
 				LevelSetMesh.ReverseOrientation(false /*bFlipNormals*/);
 			}
 
-			LevelSetMesh.EnableTriangleGroups(0);
-			LevelSetMesh.EnableAttributes();
-			if (bSetToPerTriangleNormals)
+			if (MeshAttributeSettings.bEnableAttributes)
 			{
-				FMeshNormals::InitializeMeshToPerTriangleNormals(&LevelSetMesh);
-			}
-			else
-			{
-				FMeshNormals::InitializeOverlayToPerVertexNormals(LevelSetMesh.Attributes()->PrimaryNormals(), false);
-			}
-			if (bInitializeLevelSetAndConvexUVs)
-			{
-				FDynamicMeshUVEditor UVEditor(&LevelSetMesh, 0, true);
-				UVEditor.SetPerTriangleUVs();
+				LevelSetMesh.EnableTriangleGroups(0);
+				LevelSetMesh.EnableAttributes();
+				if (bSetToPerTriangleNormals)
+				{
+					FMeshNormals::InitializeMeshToPerTriangleNormals(&LevelSetMesh);
+				}
+				else
+				{
+					FMeshNormals::InitializeOverlayToPerVertexNormals(LevelSetMesh.Attributes()->PrimaryNormals(), false);
+				}
+				if (bInitializeConvexAndLevelSetUVs)
+				{
+					FDynamicMeshUVEditor UVEditor(&LevelSetMesh, 0, true);
+					UVEditor.SetPerTriangleUVs();
+				}
 			}
 			DynamicMeshCallback(ShapeIndex, LevelSet, LevelSetMesh);
 
@@ -518,17 +579,31 @@ namespace UE::Private::ConvertCollisionInternal
 
 void UE::Geometry::ConvertSimpleCollisionToDynamicMeshes(
 	const FKAggregateGeom& AggGeom,
-	TFunctionRef<void(int32, const FKShapeElem&, const FDynamicMesh3&)> PerElementMeshCallback,
-	FSimpleCollisionTriangulationSettings TriangulationSettings,
-	bool bSetToPerTriangleNormals,
-	bool bInitializeConvexAndLevelSetUVs)
+	TFunctionRef<void(int32, const FKShapeElem&, FDynamicMesh3&)> PerElementMeshCallback,
+	const FSimpleCollisionTriangulationSettings& TriangulationSettings,
+	const FSimpleCollisionToMeshAttributeSettings& MeshAttributeSettings)
 {
 	UE::Private::ConvertCollisionInternal::ConvertSimpleCollisionToMeshesHelper(
 		AggGeom,
 		TriangulationSettings,
-		bSetToPerTriangleNormals,
-		bInitializeConvexAndLevelSetUVs,
-		PerElementMeshCallback);
+		MeshAttributeSettings,
+		PerElementMeshCallback,
+		[](const FKShapeElem&)->bool { return true; });
+}
+
+void UE::Geometry::ConvertSimpleCollisionToDynamicMeshes(
+	const FKAggregateGeom& AggGeom,
+	TFunctionRef<void(int32, const FKShapeElem&, FDynamicMesh3&)> PerElementMeshCallback,
+	TFunctionRef<bool(const FKShapeElem&)> IncludeElement,
+	const FSimpleCollisionTriangulationSettings& TriangulationSettings,
+	const FSimpleCollisionToMeshAttributeSettings& MeshAttributeSettings)
+{
+	UE::Private::ConvertCollisionInternal::ConvertSimpleCollisionToMeshesHelper(
+		AggGeom,
+		TriangulationSettings,
+		MeshAttributeSettings,
+		PerElementMeshCallback,
+		IncludeElement);
 }
 
 
@@ -538,8 +613,9 @@ void UE::Geometry::ConvertSimpleCollisionToMeshes(
 	const FTransformSequence3d& TransformSequence,
 	int32 SphereResolution,
 	bool bSetToPerTriangleNormals,
-	bool bInitializeConvexUVs,
-	TFunction<void(int, const FDynamicMesh3&)> PerElementMeshCallback )
+	bool bInitializeConvexAndLevelSetUVs,
+	TFunction<void(int, const FDynamicMesh3&)> PerElementMeshCallback,
+	bool bApproximateLevelSetWithCubes)
 {
 	FDynamicMeshEditor Editor(&MeshOut);
 
@@ -547,13 +623,18 @@ void UE::Geometry::ConvertSimpleCollisionToMeshes(
 
 	FSimpleCollisionTriangulationSettings TriangulationSettings;
 	TriangulationSettings.InitFromSphereResolution(SphereResolution);
+	TriangulationSettings.bApproximateLevelSetWithCubes = bApproximateLevelSetWithCubes;
+
+	FSimpleCollisionToMeshAttributeSettings MeshAttributeSettings;
+	MeshAttributeSettings.bEnableAttributes = true;
+	MeshAttributeSettings.bSetToPerTriangleNormals = bSetToPerTriangleNormals;
+	MeshAttributeSettings.bInitializeConvexAndLevelSetUVs = bInitializeConvexAndLevelSetUVs;
 
 	FMeshIndexMappings Mappings;
 	UE::Private::ConvertCollisionInternal::ConvertSimpleCollisionToMeshesHelper(
 		AggGeom,
 		TriangulationSettings,
-		bSetToPerTriangleNormals,
-		bInitializeConvexUVs,
+		MeshAttributeSettings,
 		[&](int32 Index, const FKShapeElem& Elem, const UE::Geometry::FDynamicMesh3& Mesh)
 		{
 			PerElementMeshCallback((int)Elem.GetShapeType(), Mesh);
@@ -561,7 +642,8 @@ void UE::Geometry::ConvertSimpleCollisionToMeshes(
 			Editor.AppendMesh(&Mesh, Mappings,
 				[&TransformSequence](int32 vid, const FVector3d& P) { return TransformSequence.TransformPosition(P); },
 				[&TransformSequence](int32 vid, const FVector3d& N) { return TransformSequence.TransformNormal(N); });
-		}
+		},
+		[](const FKShapeElem& Elem) { return true; }
 	);
 	if (bTransformInverts)
 	{

@@ -29,6 +29,7 @@ public class ModelingComponents : ModuleRules
 			new string[]
 			{
 				"CoreUObject",
+				"Chaos",
 				"Engine",
 				"RenderCore",
 				"RHI",

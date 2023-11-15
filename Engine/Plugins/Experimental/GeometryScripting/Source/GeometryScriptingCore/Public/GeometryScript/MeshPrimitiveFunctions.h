@@ -591,7 +591,7 @@ public:
 	/**
 	 * Appends Simple Collision shapes to the Target Mesh, triangulated as specified by Triangulation Options
 	 */
-	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Primitives")
+	UFUNCTION(BlueprintCallable, DisplayName = "Append Simple Collision Shapes to Mesh", Category = "GeometryScript|Primitives")
 	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh*
 	AppendSimpleCollisionShapes(
 		UDynamicMesh* TargetMesh,

@@ -32,10 +32,11 @@ void InitializePreviewGeometrySolid(
 	const FKAggregateGeom& AggGeom = PhysicsData.AggGeom;
 	FSimpleCollisionTriangulationSettings TriangulationSettings;
 	TriangulationSettings.InitFromSphereResolution(CircleSteps);
+	TriangulationSettings.bApproximateLevelSetWithCubes = false;
 
 	UE::Geometry::ConvertSimpleCollisionToDynamicMeshes(
 		AggGeom,
-		[&](int32 ShapeIndex, const FKShapeElem& ShapeElem, const FDynamicMesh3& Mesh)
+		[&](int32 ShapeIndex, const FKShapeElem& ShapeElem, FDynamicMesh3& Mesh)
 		{
 			FColor Color = GeoSetIndexToColorFunc(ShapeIndex);
 			if (UTriangleSetComponent* TriangleSetComponent = PreviewGeom->CreateOrUpdateTriangleSet(FString::Printf(TEXT("Shape %d"), ShapeIndex), 1, [&](int32 Index, TArray<FRenderableTriangle>& TrisOut)
@@ -74,8 +75,7 @@ void InitializePreviewGeometrySolid(
 				TriangleSetComponent->SetVisibility(bVisible);
 			}
 		},
-		TriangulationSettings,
-		false /*bSetToPerTriangleNormals*/, false /*bInitializeConvexAndLevelSetUVs*/
+		TriangulationSettings
 	);
 }
 

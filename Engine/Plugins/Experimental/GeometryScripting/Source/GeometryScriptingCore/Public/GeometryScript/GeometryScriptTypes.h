@@ -162,14 +162,22 @@ struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptSimpleCollisionTriangulationOpti
 	GENERATED_BODY()
 public:
 
+	// When triangulating a sphere by deforming a cube to the sphere, number of vertices to use along each edge of the cube
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
 	int32 SphereStepsPerSide = 4;
 
+	// When triangulating a capsule's spherical endcaps, number of vertices to use on the arcs across the endcaps.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
 	int32 CapsuleHemisphereSteps = 5;
 
+	// When triangulating a capsule, number of vertices to use for the circular cross-sections
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
 	int32 CapsuleCircleSteps = 8;
+
+	// Whether to cheaply approximate level sets with cubes. Otherwise, will use marching cubes.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	bool bApproximateLevelSetsWithCubes = false;
+
 };
 
 

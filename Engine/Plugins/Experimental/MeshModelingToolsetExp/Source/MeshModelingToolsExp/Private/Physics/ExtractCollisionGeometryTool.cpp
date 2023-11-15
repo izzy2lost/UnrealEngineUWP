@@ -245,7 +245,8 @@ void UExtractCollisionGeometryTool::RecalculateMesh_Simple()
 		FTransformSequence3d(), SphereResolution, true, true,
 		[&](int32 ElemType, const FDynamicMesh3& ElemMesh) {
 			CurrentMeshParts.Add(MakeShared<FDynamicMesh3>(ElemMesh));
-		});
+		},
+		false /*bApproximateLevelSetWithCubes*/);
 
 	for ( int32 k = 0; k < CurrentMeshParts.Num(); ++k)
 	{
