@@ -122,4 +122,10 @@ extension FlutterRtcPeerConnectionApi: RtcPeerConnectionHostApi {
       .getChecked(id: connectionId)
       .createAnswer(completion: completion)
   }
+  
+  func getStats(connectionId: Int64, typeFilter: [String]?, completion: @escaping (Result<RtcStatsReport, Error>) -> Void) {
+    peerConnectionManager
+      .getChecked(id: connectionId)
+      .getStats(typeFilter: typeFilter, completion: completion)
+  }
 }

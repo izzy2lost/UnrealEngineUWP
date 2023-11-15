@@ -111,6 +111,34 @@ class FlutterRtcPeerConnection : IdObject {
     }
   }
   
+  /**
+   * Gather a WebRTC stats report for this connection.
+   */
+  func getStats(typeFilter: [String]?, completion: @escaping (Result<RtcStatsReport, Error>) -> Void) {
+    assert(connection != nil)
+    
+    connection!.statistics(completionHandler: { nativeReport in
+      var statsMap = Dictionary<String?, RtcStats?>()
+      
+      for (statsKey, stats) in nativeReport.statistics {
+        // Skip types that don't pass the filter
+        if (typeFilter != nil && !typeFilter!.contains(stats.type)) {
+          continue
+        }
+        
+        statsMap[statsKey] = RtcStats(
+          timestampUs: stats.timestamp_us,
+          type: stats.type,
+          id: stats.id,
+          values: stats.values
+        )
+      }
+      
+      let report = RtcStatsReport(timestampUs: nativeReport.timestamp_us, stats: statsMap)
+      completion(Result.success(report))
+    })
+  }
+  
   // MARK: IdObject
   override func onIdReady() -> Bool {
     let constraints = RTCMediaConstraints(mandatoryConstraints: nil, optionalConstraints: nil)
